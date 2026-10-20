@@ -202,3 +202,40 @@ Changelog:
 - DE: Strahlen von Laserfallen (und Schüsse von fx_target_beam) enden jetzt an anderen Laserfallen und an festen zerbrechlichen Modellen, und auch die Waffe in der Hand einer Figur löst eine Falle aus - wie im Spiel.
 - ZH: 激光绊雷的光束(以及 fx_target_beam 的射击)现在会停在其他绊雷和实体可破坏模型处,角色手中的武器也会触发绊雷——与游戏中一样。
 - JA: レーザートリップマインのビーム(と fx_target_beam の射撃)が、ほかのトリップマインや固体の壊せるモデルで止まるようになり、キャラクターが手に持つ武器でもマインが作動します(ゲームと同じ)。
+
+## 7. Effekte ohne Shaderskript, AT-ST-Lukendeckel
+
+### 7a. Effektbilder ohne Skript (umgesetzt)
+
+- Spiel: das FX-System registriert mit RE_RegisterShader (SFxHelper::RegisterShader -> cgi_R_RegisterShader,
+  code/cgame/FxUtil.cpp:136-140 MD) -> R_FindShader(name, lightmaps2d) (tr_shader.cpp:3535-3536 MD). Ohne
+  Skript der implizite Shader fuer LIGHTMAP_2D (:3482-3491): rgbGen vertex, alphaGen vertex,
+  GLS_DEPTHTEST_DISABLE | SRC_ALPHA ONE_MINUS_SRC_ALPHA, Bild ohne Mip mit GL_CLAMP (:3450). Mit Skript gilt
+  das Skript - ohne blendFunc deckend (GLS_DEFAULT).
+- behaved (gui/app_view3d.cpp): die "Faustregel" (Alpha nach dem kleinsten Bildalpha, sonst additiv) ist
+  weg; ohne Skript der implizite 2D-Shader, mit Skript ohne blendFunc deckend wie die Engine. In den
+  Movie-Duels-Daten betrifft es gfx/misc/steamer (duel_kamino, effects/kamino/babyboom.efx), in den
+  JK2-Daten 18 Effektbilder.
+- identityLighting = tr.identityLight = 1 / (1 << overbrightBits); r_overBrightBits Vorgabe 0 (tr_init.cpp:
+  1659 MD) -> 1 - die bisherige Annahme stimmt (geprueft, keine Aenderung).
+
+| Test | Rot (vorher) | Grün (nachher) |
+|---|---|---|
+| Selbsttest rest605/effektohne (duel_kamino, gfx/misc/steamer) | Mischart One/One (additiv), Tiefentest an, clamp 0 | SrcAlpha/OneMinusSrcAlpha, Tiefentest aus, clamp 1, alphaGen vertex |
+| Selbsttest effektgrund (gezielt) | – | 1 OK / 0 FEHLER |
+| ctest | – | 67 / 67 |
+
+### 7b. AT-ST-Lukendeckel (geprueft, keine Aenderung)
+
+G2_SetSurfaceOnOff (code/rd-vanilla/G2_surfaces.cpp:210-252 OpenJK) uebernimmt aus dem Argument nur die Bits
+G2SURFACEFLAG_OFF und G2SURFACEFLAG_NODESCENDANTS; SP_misc_atst_drivable und misc_atst_use rufen es mit 0
+(g_misc.cpp:3168/3204 MD, 3070/3104 OpenJK) - das loescht OFF, die Flaeche head_hatchcover ist AN. Die
+woertliche Portierung (Deckel sichtbar) stimmt; der Kommentar "open the hatch" im Spielcode meint die
+Animation BOTH_STAND2.
+
+Changelog:
+
+- EN: Effect images without a shader script are drawn like the game's built-in shader for them: blended by their alpha with the particle's colour and fading, and visible through walls (before: a guessed blend mode).
+- DE: Effektbilder ohne Shaderskript zeichnet die Vorschau wie den eingebauten Shader des Spiels: nach ihrem Alpha gemischt, mit Farbe und Ausblenden des Teilchens und durch Wände sichtbar (vorher: eine geschätzte Mischart).
+- ZH: 没有着色器脚本的特效图像现在按游戏为其内置的着色器绘制:按其 alpha 混合,带有粒子的颜色和淡出,并且可以透过墙壁看到(之前:猜测的混合方式)。
+- JA: シェーダースクリプトのないエフェクト画像を、ゲームの組み込みシェーダーと同じく描画するようになりました。アルファで合成され、パーティクルの色とフェードを使い、壁越しにも見えます(以前は推測した合成方法)。

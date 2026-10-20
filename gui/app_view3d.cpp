@@ -6039,25 +6039,27 @@ void ladeEffektShader(const efx::Effect& ef) {
         //                                der Helligkeit, Schwarz
         //                                ist unsichtbar.
         //
-        // Das ist eine Faustregel, keine Ableitung aus dem
-        // Quelltext - die Engine liest die Mischart aus dem
-        // Shaderskript, und wo eines da ist, gilt weiterhin dieses.
-        // Nur wenn KEINES da ist, greift die Regel.
-        if (t.blend == BlendMode::Opaque && !t.empty()) {
-            std::uint8_t kleinstesAlpha = 255;
-            for (std::size_t k = 3; k < t.rgba.size(); k += 4U) {
-                kleinstesAlpha = std::min(kleinstesAlpha, t.rgba[k]);
-            }
-            // setBlend, nicht `t.blend = ...`: die Faktoren muessen
-            // mit. Siehe TextureSet::Tex::setBlend.
-            t.setBlend((kleinstesAlpha < 250U) ? BlendMode::Alpha
-                                               : BlendMode::Add);
-            diag::detail("  Effektshader " + pr.shaders[0] +
-                         " ohne blendFunc -> " +
-                         (t.blend == BlendMode::Alpha ? "durchscheinend"
-                                                      : "additiv") +
-                         " (kleinstes Alpha " +
-                         std::to_string(kleinstesAlpha) + ")");
+        // rc605 (Rest): die Faustregel ist ersetzt durch das, was die Engine
+        // tut. Das FX-System registriert seine Shader mit RE_RegisterShader
+        // (SFxHelper::RegisterShader -> cgi_R_RegisterShader, code/cgame/
+        // FxUtil.cpp:136-140 MD), also R_FindShader mit lightmaps2d
+        // (tr_shader.cpp:3535-3536 MD):
+        //  - MIT Shaderskript gilt das Skript - auch ohne blendFunc: dann
+        //    zeichnet die Stufe deckend (GLS_DEFAULT), wie jede Flaeche;
+        //  - OHNE Skript der implizite Shader fuer LIGHTMAP_2D (:3482-3491):
+        //    rgbGen vertex, alphaGen vertex, GLS_DEPTHTEST_DISABLE |
+        //    GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA, das
+        //    Bild ohne Mip mit GL_CLAMP (R_FindImageFile, :3450).
+        if (g_app->shaderMap.count(low) == 0U && !t.empty()) {
+            t.srcFactor = BlendFactor::SrcAlpha;
+            t.dstFactor = BlendFactor::OneMinusSrcAlpha;
+            t.blend = BlendMode::Alpha;
+            t.rgbVertex = true;
+            for (float& c : t.rgbConst) { c = -1.0F; }
+            t.depthFunc = DepthFunc::Disable;
+            t.depthWrite = false;
+            t.clamp = true;
+            diag::detail("  Effektshader " + shName + " ohne Skript -> impliziter 2D-Shader (Alpha, ohne Tiefentest)");
         }
         // --- Der Alphawert der ECKE gilt hier ausdruecklich ----
         //

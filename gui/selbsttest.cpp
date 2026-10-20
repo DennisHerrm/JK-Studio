@@ -18430,6 +18430,45 @@ std::vector<Schritt> fallenWaffeSchritte() {
     return s;
 }
 
+// --- rc605 (Rest): Effektbild ohne Shaderskript ----------------------------------
+//
+// duel_kamino: effects/kamino/babyboom.efx nennt gfx/misc/steamer - ein .jpg
+// ohne Shaderskript. Das FX-System registriert mit RE_RegisterShader
+// (lightmaps2d): der implizite Shader von R_FindShader fuer LIGHTMAP_2D
+// (tr_shader.cpp:3482-3491 MD) - rgbGen vertex, alphaGen vertex, blendFunc
+// GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA, ohne Tiefentest; das Bild ohne Mip mit
+// GL_CLAMP (:3450).
+std::vector<Schritt> effektOhneSkriptSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("Effekt ohne Skript: duel_kamino laden", [] {
+        g_app->leftMode = 1;
+        (void)loadMapFromArchive("maps/duel_kamino.bsp");
+        g_app->mapDirty = true;
+    }));
+    add(warteBis("Karte bereit", [] { return g_app->mapBereit; }, 900));
+    add(warteBis("Szene aufgebaut", [] { return g_app->camTrackValid; }, 900));
+    add(pruefe("Effekt ohne Skript: gfx/misc/steamer wie der implizite 2D-Shader der Engine", [] {
+        const auto it = g_app->effectShaders.find("gfx/misc/steamer");
+        const TextureSet::Tex* t = (it != g_app->effectShaders.end() && it->second > 0 &&
+                                    static_cast<std::size_t>(it->second) < g_app->textures.byShader.size())
+                                       ? &g_app->textures.byShader[static_cast<std::size_t>(it->second)]
+                                       : nullptr;
+        const bool ok = t != nullptr && t->srcFactor == BlendFactor::SrcAlpha && t->dstFactor == BlendFactor::OneMinusSrcAlpha &&
+                        t->depthFunc == DepthFunc::Disable && t->clamp && t->alphaGen == AlphaGen::Vertex;
+        char z[260];
+        std::snprintf(z, sizeof(z),
+                      "Knopftest: Effekt ohne Skript - gfx/misc/steamer %s: Mischart %d/%d, Tiefentest %s, clamp %d, alphaGen %d",
+                      t != nullptr ? "da" : "fehlt", t != nullptr ? static_cast<int>(t->srcFactor) : -1,
+                      t != nullptr ? static_cast<int>(t->dstFactor) : -1,
+                      t != nullptr && t->depthFunc == DepthFunc::Disable ? "aus" : "an", t != nullptr ? static_cast<int>(t->clamp) : -1,
+                      t != nullptr ? static_cast<int>(t->alphaGen) : -1);
+        diag::detail(z);
+        return ok;
+    }));
+    return s;
+}
+
 // rc605 (Rest): alle Proben dieses Auftrags; BHED_REST=<teil> waehlt eine.
 std::vector<Schritt> rest605Schritte() {
     const char* t = std::getenv("BHED_REST");
@@ -18444,6 +18483,7 @@ std::vector<Schritt> rest605Schritte() {
     dazu("moversprite", moverSpriteSchritte());
     dazu("fallen", fallenHindernisSchritte());
     dazu("fallenwaffe", fallenWaffeSchritte());
+    dazu("effektohne", effektOhneSkriptSchritte());
     return s;
 }
 
