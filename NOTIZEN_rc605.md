@@ -169,3 +169,29 @@ Prüfung der Laufzeiten (Lauf mrg1, `tuerlauf` md_am_sith, taspir2, md_acc_sith,
   Zweig in PM_WalkMove/NPC_MoveToGoal wartet auf legsAnimTimer); nur NPC_BSJump wartet in JS_LANDING auf
   legsAnimTimer (NPC_behavior.cpp:934-940 MD). Die Verschiebungen sind also Folge der Geschwindigkeitshalbierung, wie
   im Spiel.
+
+## 6. trigger_hurt tötet Figuren (Punkt 1)
+
+`hurtTodeBerechnen` (gui/app_view3d.cpp) läuft nach Wegen, Schwerkraft und Mover-Simulation über die fertige Szene im
+50-ms-Takt: SP_trigger_hurt (dmg 0 -> 5, MD dmg < 0 -> 9999999 + Sturz, delay/wait * 1000, START_OFF, INACTIVE),
+hurt_use (use schaltet ein/aus), target_(de)activate, G_TouchTriggersLerped (Weg vom letzten Ort in Schritten
+maxs[1]/2, Kasten gegen das Brush-Modell = EntityContact/startsolid, nicht im noclip, nicht tot), hurt_touch (wait/
+painDebounceTime, MULTIPLE, PLAYERONLY, NPC_targetname, delay-Rampe mit trigger_hurt_reset, Sturz: OpenJK Boba/
+Raketentruppler fliegen los, MD vergleicht mit 59|66|67|81|60 = 127 - keine Klasse, JK2 keine Ausnahme) und G_Damage
+soweit es zählt (FL_GODMODE, FL_UNDYING -> deathscript + health 1, health -= take). Lebenspunkte wie NPC_Begin je
+Regelwerk (Karte `health`, sonst .npc `health` nach g_spskill, sonst 100), SET_HEALTH/SET_INVINCIBLE/SET_UNDYING aus
+der Szene. Ein Tod geht als AblaufWelt::hurtTode in einen zweiten Nachbau (wie die Fallen-Uses): Leiche,
+deathscript, ein `kill` im flachen Ablauf - die Szene zeigt den Tod wie bei kill (BOTH_DEATH1, Weg abgeschnitten).
+Nicht nachgebildet: der Spieler, Rüstung (CheckArmor), PM_InForceFall (MD), Reihenfolge der Entities im Bild,
+wiederholtes deathscript bei FL_UNDYING.
+
+| Test | Rot (vorher) | Grün (nachher) |
+|---|---|---|
+| tuerlauf md_gd_jedi (ue605end / hurt1) | start_cin1/cin1_jedi ani1: 1 Wegstück 6500-126500 abgeschnitten, Umkehren 21, NPC-Absprünge 24, kein Tod | ani1 stirbt bei 7650 (cin1_jedi) bzw. 7700 (start_cin1) im trigger_hurt (Entity 2, dmg 10000), Szene zeigt den Tod zur selben Zeit, Nachbau 2 Skripte (md_gd/ani_death läuft), Weg 6500-7650, NPC-Absprünge 1; Summe pendelnd 2 -> 0 |
+| ctest | – | 67/67 |
+
+Changelog:
+- EN: Figures that walk or fall into a `trigger_hurt` take its damage like in the game and die when their health runs out - they play their death and their `deathscript` runs (md_gd: Anakin falling into the pit).
+- DE: Figuren, die in einen `trigger_hurt` laufen oder fallen, nehmen dessen Schaden wie im Spiel und sterben, wenn ihre Lebenspunkte aufgebraucht sind - sie spielen ihren Tod, und ihr `deathscript` läuft (md_gd: Anakin stürzt in die Grube).
+- ZH: 走进或掉进 `trigger_hurt` 的角色会像游戏中一样受到伤害,生命值耗尽时死亡——播放死亡动画并运行其 `deathscript`(md_gd:Anakin 掉进深坑)。
+- JA: `trigger_hurt` に歩いて入ったり落ちたりしたキャラクターはゲームと同じくダメージを受け、体力がなくなると死にます。死亡アニメーションを再生し、`deathscript` が実行されます(md_gd: 穴に落ちるアナキン)。

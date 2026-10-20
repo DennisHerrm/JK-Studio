@@ -732,6 +732,19 @@ struct Actor {    std::string name;        // der Name aus dem affect
     bool keineAkrobatik = false;   // rc605: SET_NO_ACROBATICS (zur Zeit des Plans)
     std::string sprungAnim;
     int levitation = 0;   // rc605 (Rest): FP_LEVITATION der .npc (PM_CrashLand)
+    // rc605 (Ende, trigger_hurt): Lebenspunkte beim Spawnen wie NPC_Begin
+    // (NPC_spawn.cpp:1768-1808 MD; health der Karte, sonst stats.health der
+    // .npc nach g_spskill, sonst 100) und was Skripte daran aendern:
+    // SET_HEALTH (Q3_SetHealth, Q3_Interface.cpp:2506-2535 MD: < 0 wird 0),
+    // SET_INVINCIBLE (FL_GODMODE, ebenda:5833-5862) und SET_UNDYING
+    // (FL_UNDYING, ebenda:5806-5824) - je Zeit und Wert.
+    int gesundheitStart = 100;
+    std::vector<std::pair<double, int>> gesundheitGesetzt;
+    std::vector<std::pair<double, bool>> gottmodus;
+    std::vector<std::pair<double, bool>> unsterblich;
+    // rc605 (Ende): wann die Figur stirbt (kill im Skript oder ein trigger_hurt
+    // ueber AblaufWelt::hurtTode); < 0: nie.
+    double getoetetMs = -1.0;
     bool startHatSaber = false;
     bool startDual = false;
     std::array<SaberZustand, 2> startSaber{};
@@ -1044,6 +1057,9 @@ struct NpcDef {
     // rc605: FP_LEVITATION der .npc (NPC_ParseParms: Kraefte als Schluessel,
     // COM_ParseInt, ueber FORCE_LEVEL_5 gekappt) - 0: nicht genannt.
     int levitation = 0;
+    // rc605 (Ende): "health" der .npc (NPC_ParseParms: stats.health =
+    // COM_ParseInt) - 0: nicht genannt.
+    int gesundheit = 0;
     // `scale` / `scaleX` / `scaleY` / `scaleZ` in Prozent, als Faktor
     // (NPC_ParseParms, NPC_stats.cpp: s.modelScale = n / 100, nur wenn
     // n != 100 und nicht negativ). Die Juenglinge der Mod haben 50.

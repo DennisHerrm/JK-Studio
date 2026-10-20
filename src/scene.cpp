@@ -1794,6 +1794,11 @@ void parseNpcFile(const std::string& text, NpcMap& out, bool jk2) {
         if (key == "fp_levitation") {
             cur.levitation = std::clamp(std::atoi(wert.c_str()), 0, 5);
         }
+        // rc605 (Ende, trigger_hurt): "health" n (NPC_ParseParms: COM_ParseInt,
+        // stats->health = n).
+        if (key == "health") {
+            cur.gesundheit = std::atoi(wert.c_str());
+        }
         // kotorWeapons und dualPistols: JEDE Zahl schaltet an - auch 0
         // (NPC_stats.cpp:4059 ff. setzt 1, sobald eine Zahl dasteht).
         if (key == "kotorweapons") {
@@ -2350,6 +2355,47 @@ Scene buildOnce(const Script& s, const MapData& map,
                 fresh.kannSpringen = npcKannSpringen(npcDef->klasse, npcDef->levitation);
                 fresh.levitation = npcDef->levitation;   // rc605 (Rest)
                 fresh.sprungAnim = npcSprungAnim(navMovieDuelsRegeln(), npcDef->klasse, npcDef->weapon, npcDef->rang);
+            }
+            // rc605 (Ende, trigger_hurt): Lebenspunkte wie NPC_Begin. Das
+            // "health" des Spawners geht an den NPC (NPC_Spawn_Do: newent->health
+            // = ent->health, NPC_spawn.cpp:2699 MD); steht es, gilt es (ebenda
+            // :1768-1771, danach health = max_health :2019-2026). Sonst
+            // stats.health der .npc nach g_spskill: Movie Duels fuer alle
+            // ceil(h * 0.75 + h / 4 * skill) (:1772-1800); OpenJK ausser
+            // CLASS_REBORN/SHADOWTROOPER/JEDI - die Bosse tavion_sith_sword,
+            // tavion_scepter, kyle_boss, alora_dual, alora_boss mit derselben
+            // Formel, die anderen h += h / 4 * skill (code/game/NPC_spawn.cpp:
+            // 1038-1066 OpenJK); Jedi Outcast ausser denselben Klassen h += h / 4
+            // * skill (codeJK2/game/NPC_spawn.cpp:820-837). Sonst 100.
+            if (npcDef != nullptr || (sp != nullptr && isNpcSpawner(*sp))) {
+                const std::string* kh = sp != nullptr ? sp->find("health") : nullptr;
+                const int karte = kh != nullptr ? std::atoi(kh->c_str()) : 0;
+                const int skill = hilfe != nullptr ? hilfe->schwierigkeit : kSchwierigkeitVorgabe;
+                if (karte != 0) {
+                    fresh.gesundheitStart = karte;
+                } else if (npcDef != nullptr && npcDef->gesundheit != 0) {
+                    int h = npcDef->gesundheit;
+                    const auto bossFormel = [&h, skill] {
+                        h = static_cast<int>(std::ceil(static_cast<float>(h) * 0.75F +
+                                                       static_cast<float>(h) / 4.0F * static_cast<float>(skill)));
+                    };
+                    const bool jedi = sameName(npcDef->klasse, "CLASS_REBORN") || sameName(npcDef->klasse, "CLASS_SHADOWTROOPER") ||
+                                      sameName(npcDef->klasse, "CLASS_JEDI");
+                    if (navMovieDuelsRegeln()) {
+                        bossFormel();
+                    } else if (!jedi) {
+                        const bool boss = !regelwerkJediOutcast() &&
+                                          (sameName(fresh.npcType, "tavion_sith_sword") || sameName(fresh.npcType, "tavion_scepter") ||
+                                           sameName(fresh.npcType, "kyle_boss") || sameName(fresh.npcType, "alora_dual") ||
+                                           sameName(fresh.npcType, "alora_boss"));
+                        if (boss) {
+                            bossFormel();
+                        } else {
+                            h += h / 4 * skill;
+                        }
+                    }
+                    fresh.gesundheitStart = h;
+                }
             }
             // rc601 (bewegung, gemeinsam mit saber): ein NPC_spawner mit
             // spawnflags 32 (SFB_CINEMATIC) beginnt in BS_CINEMATIC
@@ -3741,6 +3787,19 @@ Scene buildOnce(const Script& s, const MapData& map,
             // Q3_SetGravity (Q3_Interface.cpp:3788-3807, 9105-9107 MD): nur ein
             // client (NPC oder Spieler), float_data = atof( data ), ab dann
             // SVF_CUSTOM_GRAVITY. Gerechnet wird in schwerkraft.cpp.
+            // rc605 (Ende, trigger_hurt): SET_HEALTH (atoi, Q3_SetHealth: < 0 wird
+            // 0), SET_INVINCIBLE und SET_UNDYING ("true" -> FL_GODMODE /
+            // FL_UNDYING, sonst aus; Q3_Interface.cpp:8989-8992, 5806-5862 MD).
+            // Nur gemerkt - der Befehl geht weiter seinen Weg.
+            if (const std::string* v = setValue(child, "SET_HEALTH")) {
+                if (child.args[1].kind != Arg::Kind::Expr) {
+                    actor->gesundheitGesetzt.emplace_back(t, std::max(0, std::atoi(v->c_str())));
+                }
+            } else if (const std::string* gv = setValue(child, "SET_INVINCIBLE")) {
+                actor->gottmodus.emplace_back(t, sameName(*gv, "true"));
+            } else if (const std::string* uv = setValue(child, "SET_UNDYING")) {
+                actor->unsterblich.emplace_back(t, sameName(*uv, "true"));
+            }
             if (const std::string* v = setValue(child, "SET_GRAVITY")) {
                 if ((npc || actor->echterSpieler) && child.args[1].kind != Arg::Kind::Expr) {
                     actor->eigeneSchwerkraft.emplace_back(t, static_cast<float>(std::atof(v->c_str())));
@@ -4254,6 +4313,7 @@ Scene buildOnce(const Script& s, const MapData& map,
             if (a.name != ziel) {
                 continue;
             }
+            a.getoetetMs = a.getoetetMs < 0.0 ? wann : std::min(a.getoetetMs, wann);   // rc605 (Ende)
             if (a.brushModel > 0) {
                 ActorStep weg;
                 weg.kind = ActorStep::Kind::Gone;

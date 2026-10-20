@@ -20072,6 +20072,21 @@ std::vector<Schritt> tuerLaufAlleSchritte(const std::shared_ptr<int>& ab, const 
                              g_app->tabs[static_cast<std::size_t>(r)].shownName + "): " + std::to_string(g_app->scene.actors.size()) +
                              " gebaut, " + std::to_string(vorSpawn) + " vor ihrem Spawn zu sehen:" + liste);
             }
+            if (!g_app->hurtTode.empty()) {
+                // rc605 (Ende): wen ein trigger_hurt toetet (hurtTodeBerechnen)
+                // und ob die Szene den Tod zeigt (Actor::getoetetMs).
+                std::string tode;
+                for (const AblaufWelt::HurtTod& h : g_app->hurtTode) {
+                    double gezeigt = -1.0;
+                    for (const Actor& a : g_app->scene.actors) {
+                        if (a.name == h.figur) { gezeigt = a.getoetetMs; }
+                    }
+                    tode += " " + h.figur + "@" + std::to_string(static_cast<long>(h.ms)) + (h.unsterblich ? "[undying]" : "") +
+                            "/Szene " + std::to_string(static_cast<long>(gezeigt));
+                }
+                diag::detail("Knopftest: Tuer-Lauf trigger_hurt Reiter " + std::to_string(i) + " (" +
+                             g_app->tabs[static_cast<std::size_t>(r)].shownName + "):" + tode);
+            }
             const auto& tab = g_app->tabs[static_cast<std::size_t>(r)];
             // rc605 (fix605): wann die Szene fuer eine Figur im Spiel endet oder
             // ihr Weg nicht mehr der des Skripts ist (nur fuer den Befund):

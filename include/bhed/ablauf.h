@@ -120,6 +120,21 @@ struct AblaufWelt {
         bool operator==(const FallenUse&) const = default;
     };
     std::vector<FallenUse> fallenUses;
+    // rc605 (Ende): Figuren, die ein trigger_hurt toetet (hurt_touch ->
+    // G_Damage, health <= 0 -> die; g_trigger.cpp:1243-1345 MD), aus der Spur
+    // der Szene des letzten Durchgangs (hurtTodeBerechnen). Der Nachbau toetet
+    // sie zur Zeit `ms` wie kill (Leiche, deathscript) und schreibt ein kill
+    // in den flachen Ablauf; `unsterblich`: FL_UNDYING - nur das deathscript
+    // (G_ActivateBehavior BSET_DEATH, health bleibt 1; g_combat.cpp:9276-9292
+    // MD). entity: Index des trigger_hurt in karte->entities.
+    struct HurtTod {
+        double ms = 0.0;
+        std::string figur;
+        int entity = -1;
+        bool unsterblich = false;
+        bool operator==(const HurtTod&) const = default;
+    };
+    std::vector<HurtTod> hurtTode;
     // rc601 (bewegung, Durchsicht 2): die Drehrate je Denkbild nach der Waffe
     // in der Hand (SET_WEAPON, NPC_utils.cpp:274-290 MD) - ablaufDrehrate und
     // ablaufDrehrateYaw aus bhed/scene.h. Gesetzt, ersetzen sie drehrate/

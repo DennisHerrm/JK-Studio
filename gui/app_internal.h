@@ -937,6 +937,11 @@ struct App {
     std::vector<AblaufWelt::FallenUse> fallenUses;
     std::string fallenUsesKarte;
     std::vector<AblaufWelt::FallenUse> fallenUsesNeu;
+    // rc605 (Ende): die Tode durch trigger_hurt (hurtTodeBerechnen) zu Karte und
+    // Skript hurtTodeSchluessel - der naechste Nachbau desselben Skripts toetet
+    // sie (AblaufWelt::hurtTode).
+    std::vector<AblaufWelt::HurtTod> hurtTode;
+    std::string hurtTodeSchluessel;
     // ... und wie oft eine Figur getroffen war: am Netz (G2_RadiusTracePolys)
     // bzw. nur am Kasten, weil ihr Modell noch nicht geladen war.
     int fallenNetzTreffer = 0;

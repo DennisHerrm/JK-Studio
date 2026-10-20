@@ -5056,6 +5056,294 @@ std::shared_ptr<const Roff> roffFuer(const std::string& name) {
     return r;
 }
 
+// rc605 (Ende): trigger_hurt toetet Figuren - aus der fertigen Szene (Wege,
+// Schwerkraft), im Takt der Spiellogik (50 ms). Nachgebildet:
+//  - SP_trigger_hurt (g_trigger.cpp:1422-1475 MD; code/game/g_trigger.cpp
+//    OpenJK, codeJK2/game/g_trigger.cpp gleich): dmg 0 -> 5; Movie Duels dmg < 0
+//    -> 9999999 mit spawnflags 32|16; delay und wait * 1000; START_OFF (1)
+//    nicht gelinkt; InitTrigger: spawnflags 128 -> SVF_INACTIVE.
+//  - hurt_use (ebenda:1215-1228 MD, nur mit targetname): jeder use schaltet
+//    gelinkt/ungelinkt um; target_activate / target_deactivate setzen
+//    SVF_INACTIVE (wie Nachbau::benutze).
+//  - G_TouchTriggersLerped (g_active.cpp:1689-1810 MD, nach Pmove, nicht im
+//    noclip, nicht tot): vom letzten zum jetzigen Ort in Schritten von
+//    maxs[1] / 2 (ueber 1024 nur der jetzige Ort), je Ort der Kasten der Figur
+//    gegen das Brush-Modell (gi.EntityContact = CM_TransformedBoxTrace,
+//    startsolid), je Bewegung ein Treffer je Feld.
+//  - hurt_touch (g_trigger.cpp:1243-1345 MD): SVF_INACTIVE; wait gegen
+//    painDebounceTime (MULTIPLE 2048); PLAYERONLY 2; NPC_targetname; NO_PROTECTION
+//    8; delay: dmg * attackDebounceTime / delay, attackDebounceTime += FRAMETIME
+//    (100), zurueck auf 0 zwei FRAMETIME nach der letzten Beruehrung
+//    (trigger_hurt_reset); FALLING 32: OpenJK CLASS_BOBAFETT und
+//    CLASS_ROCKETTROOPER fliegen los statt Schaden (JET_FlyStart), Movie Duels
+//    vergleicht NPC_class mit dem ODER der fuenf Klassen (59|66|67|81|60 = 127,
+//    keine Klasse - also nimmt jeder Schaden), Jedi Outcast hat keine Ausnahme.
+//  - G_Damage, soweit es hier zaehlt (g_combat.cpp:8203-8210, 8636-8650,
+//    9276-9292 MD; code/game/g_combat.cpp:5661, 6065, 6507-6523 OpenJK;
+//    codeJK2/game/g_combat.cpp:4889, 5002, 5143-5157): ein NPC mit FL_GODMODE
+//    oder FL_UNDYING verliert NO_PROTECTION; FL_GODMODE nimmt keinen Schaden;
+//    health -= take, nicht unter 0; FL_UNDYING unter 1: BSET_DEATH, health 1;
+//    health <= 0: die.
+// Nicht nachgebildet (vermerkt): der Spieler (dessen Tod beendet die Mission),
+// Ruestung (CheckArmor, nur nach SET_ARMOR auf einem NPC), PM_InForceFall
+// (Movie Duels), die Reihenfolge der Entities innerhalb eines Bilds (die
+// Figuren in der Reihenfolge der Szene, das Feld denkt am Anfang des Bilds) und
+// ein deathscript, das FL_UNDYING bei jeder weiteren Beruehrung neu startet
+// (hier einmal).
+std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
+    std::vector<AblaufWelt::HurtTod> aus;
+    const MapData& karte = g_app->map;
+    if (karte.empty() || g_app->scene.actors.empty()) { return aus; }
+    struct Feld {
+        int entity = -1;
+        int modell = -1;
+        int sf = 0;
+        int dmg = 0;
+        double delay = 0.0;
+        double wait = 0.0;
+        bool gelinkt = true;
+        bool inaktiv = false;
+        std::string name;
+        std::string npcName;
+        float ursprung[3]{};
+        float lo[3]{};
+        float hi[3]{};
+        double pain = 0.0;      // painDebounceTime
+        double angriff = 0.0;   // attackDebounceTime
+        double zurueck = -1.0;  // nextthink trigger_hurt_reset
+    };
+    const bool md = regelwerkMovieDuels();
+    const bool jk2 = regelwerkJediOutcast();
+    const int stufe = regelwerkSpielstufe();
+    std::vector<Feld> felder;
+    std::shared_ptr<const KollisionsKarte> k;
+    for (std::size_t i = 0; i < karte.entities.size(); ++i) {
+        const MapEntity& e = karte.entities[i];
+        if (e.classname != "trigger_hurt") { continue; }
+        if (stufe >= 0 && !spawntBeiSchwierigkeit(e, stufe)) { continue; }
+        const std::string* mdl = e.find("model");
+        if (mdl == nullptr || mdl->size() < 2 || (*mdl)[0] != '*') { continue; }
+        if (!k) {
+            k = geladeneKollision(karte.path);
+            if (!k || k->leer()) { return aus; }
+        }
+        Feld f;
+        f.entity = static_cast<int>(i);
+        f.modell = std::atoi(mdl->c_str() + 1);
+        if (f.modell <= 0 || f.modell >= static_cast<int>(k->modelle.size())) { continue; }
+        const auto zahlVon = [&e](const char* key) {
+            const std::string* v = e.find(key);
+            return v != nullptr ? std::atof(v->c_str()) : 0.0;
+        };
+        f.sf = static_cast<int>(zahlVon("spawnflags"));
+        f.dmg = static_cast<int>(zahlVon("dmg"));   // F_INT
+        if (f.dmg == 0) {
+            f.dmg = 5;
+        } else if (f.dmg < 0 && md) {
+            f.dmg = 9999999;
+            f.sf |= 32 | 16;
+        }
+        f.delay = static_cast<double>(static_cast<float>(zahlVon("delay"))) * 1000.0;
+        f.wait = static_cast<double>(static_cast<float>(zahlVon("wait"))) * 1000.0;
+        f.gelinkt = (f.sf & 1) == 0;
+        f.inaktiv = (f.sf & 128) != 0;
+        f.name = e.targetname;
+        if (const std::string* n = e.find("NPC_targetname")) { f.npcName = *n; }
+        if (const std::string* o = e.find("origin")) {
+            std::istringstream is(*o);
+            is >> f.ursprung[0] >> f.ursprung[1] >> f.ursprung[2];
+        }
+        const KollisionsKarte::Modell& m = k->modelle[static_cast<std::size_t>(f.modell)];
+        for (int a = 0; a < 3; ++a) {
+            f.lo[a] = m.mins[a] + f.ursprung[a];
+            f.hi[a] = m.maxs[a] + f.ursprung[a];
+        }
+        felder.push_back(std::move(f));
+    }
+    if (felder.empty()) { return aus; }
+    // Wer schaltet: hurt_use und target_(de)activate aus den Benutzungen.
+    std::vector<const Ablauf::Benutzung*> uses;
+    for (const Ablauf::Benutzung& b : g_app->ablauf.benutzt) { uses.push_back(&b); }
+    std::stable_sort(uses.begin(), uses.end(), [](const auto* a, const auto* b) { return a->ms < b->ms; });
+    const auto gleichName = [](const std::string& a, const std::string& b) {
+        if (a.size() != b.size()) { return false; }
+        for (std::size_t i = 0; i < a.size(); ++i) {
+            if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) { return false; }
+        }
+        return true;
+    };
+    struct Figur {
+        const Actor* a = nullptr;
+        int gesundheit = 100;
+        std::size_t gesetzt = 0;
+        bool tot = false;
+        bool unsterblichGemeldet = false;
+        bool hatLetzten = false;
+        float letzt[3]{};
+        std::vector<std::pair<double, bool>> noclip;
+    };
+    std::vector<Figur> figuren;
+    for (const Actor& a : g_app->scene.actors) {
+        if (a.brushModel > 0 || !a.haveStart || a.echterSpieler) { continue; }
+        Figur f;
+        f.a = &a;
+        f.gesundheit = a.gesundheitStart;
+        // Q3_SetBState: BS_NOCLIP setzt client->noclip, jeder andere Zustand
+        // loescht es (Q3_Interface.cpp:2667-2674); JSF_AMBUSH haengt im noclip.
+        if (a.haengtAnfangs) { f.noclip.emplace_back(-1.0, true); }
+        if (a.haengtBisMs >= 0.0) { f.noclip.emplace_back(a.haengtBisMs, false); }
+        for (const ActorStep& st : a.steps) {
+            if (st.kind == ActorStep::Kind::Verhalten) { f.noclip.emplace_back(st.startMs, st.text == "BS_NOCLIP"); }
+        }
+        std::stable_sort(f.noclip.begin(), f.noclip.end(), [](const auto& x, const auto& y) { return x.first < y.first; });
+        figuren.push_back(std::move(f));
+    }
+    const auto zurZeit = [](const std::vector<std::pair<double, bool>>& v, double t) {
+        bool an = false;
+        for (const auto& [ms, w] : v) {
+            if (ms > t) { break; }
+            an = w;
+        }
+        return an;
+    };
+    const double ende = std::max(g_app->camTrack.durationMs, g_app->timeline.practicalEndMs) + 5000.0;
+    constexpr double kBild = 50.0;
+    constexpr double kFrametime = 100.0;   // FRAMETIME (g_local.h:48)
+    std::size_t ui = 0;
+    const float alle[3] = {0.0F, 0.0F, 0.0F};
+    for (double t = 0.0; t <= ende; t += kBild) {
+        while (ui < uses.size() && uses[ui]->ms <= t + 1e-6) {
+            const std::string& n = uses[ui]->name;
+            for (Feld& f : felder) {
+                if (!f.name.empty() && gleichName(f.name, n)) { f.gelinkt = !f.gelinkt; }
+            }
+            for (const MapEntity& e : karte.entities) {
+                if ((e.classname == "target_activate" || e.classname == "target_deactivate") && gleichName(e.targetname, n)) {
+                    const std::string* ziel = e.find("target");
+                    for (Feld& f : felder) {
+                        if (ziel != nullptr && !f.name.empty() && gleichName(f.name, *ziel)) {
+                            f.inaktiv = e.classname == "target_deactivate";
+                        }
+                    }
+                }
+            }
+            ++ui;
+        }
+        for (Feld& f : felder) {
+            if (f.zurueck >= 0.0 && t >= f.zurueck - 1e-6) {
+                f.angriff = 0.0;
+                f.zurueck = -1.0;
+            }
+        }
+        for (Figur& fi : figuren) {
+            const Actor& a = *fi.a;
+            if (fi.tot) { continue; }
+            if (a.getoetetMs >= 0.0 && t > a.getoetetMs + 1e-6) {
+                fi.tot = true;   // im Skript getoetet: tote Clients beruehren nichts
+                continue;
+            }
+            const ActorState st = a.at(t);
+            if (!st.visible || st.removed) {
+                fi.hatLetzten = false;
+                continue;
+            }
+            while (fi.gesetzt < a.gesundheitGesetzt.size() && a.gesundheitGesetzt[fi.gesetzt].first <= t + 1e-6) {
+                fi.gesundheit = a.gesundheitGesetzt[fi.gesetzt].second;
+                ++fi.gesetzt;
+            }
+            const float jetzt[3] = {st.pos[0], st.pos[1], st.pos[2]};
+            float letzt[3] = {jetzt[0], jetzt[1], jetzt[2]};
+            if (fi.hatLetzten) {
+                for (int i = 0; i < 3; ++i) { letzt[i] = fi.letzt[i]; }
+            }
+            for (int i = 0; i < 3; ++i) { fi.letzt[i] = jetzt[i]; }
+            fi.hatLetzten = true;
+            if (zurZeit(fi.noclip, t) || fi.gesundheit <= 0) { continue; }
+            const float hb = a.halbBreite;
+            const float mins[3] = {-hb, -hb, -24.0F};
+            const float maxs[3] = {hb, hb, a.hoeheOben};
+            float diff[3] = {jetzt[0] - letzt[0], jetzt[1] - letzt[1], jetzt[2] - letzt[2]};
+            float dist = std::sqrt(diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]);
+            if (dist > 0.0F) {
+                for (float& d : diff) { d /= dist; }
+            }
+            if (dist > 1024.0F) { dist = 0.0F; }
+            // grob: der ganze Weg gegen die Kaesten der Felder
+            float wlo[3];
+            float whi[3];
+            for (int i = 0; i < 3; ++i) {
+                wlo[i] = std::min(jetzt[i], letzt[i]) + mins[i];
+                whi[i] = std::max(jetzt[i], letzt[i]) + maxs[i];
+            }
+            for (Feld& f : felder) {
+                if (fi.tot || fi.gesundheit <= 0) { break; }
+                if (!f.gelinkt) { continue; }
+                bool nah = true;
+                for (int i = 0; i < 3; ++i) {
+                    if (whi[i] < f.lo[i] - 1.0F || wlo[i] > f.hi[i] + 1.0F) { nah = false; }
+                }
+                if (!nah) { continue; }
+                bool trifft = false;
+                bool fertig = false;
+                for (float cur = 0.0F; !fertig && !trifft && maxs[1] > 0.0F; cur += maxs[1] / 2.0F) {
+                    float p[3];
+                    if (cur >= dist) {
+                        for (int i = 0; i < 3; ++i) { p[i] = jetzt[i]; }
+                        fertig = true;
+                    } else {
+                        for (int i = 0; i < 3; ++i) { p[i] = letzt[i] + diff[i] * cur; }
+                    }
+                    const KollisionsSpur sp = kollisionsSpur(*k, p, mins, maxs, p, 0xFFFFFFFFU, f.modell, f.ursprung, alle);
+                    trifft = sp.startsolid;
+                }
+                if (!trifft) { continue; }
+                // hurt_touch
+                if (f.inaktiv) { continue; }
+                if (t < f.pain + f.wait - 1e-6) {
+                    if ((f.sf & 2048) != 0) {
+                        if (f.pain != 0.0 && t > f.pain + 1e-6) { continue; }
+                    } else {
+                        continue;
+                    }
+                }
+                if ((f.sf & 2) != 0) { continue; }   // nur der Spieler
+                if (!f.npcName.empty() && !gleichName(f.npcName, a.name)) { continue; }
+                int dmg = f.dmg;
+                if (f.delay != 0.0) {
+                    if (f.angriff < f.delay) {
+                        dmg = static_cast<int>(std::floor(static_cast<double>(static_cast<float>(f.dmg) * static_cast<float>(f.angriff) /
+                                                                               static_cast<float>(f.delay))));
+                    }
+                    f.angriff += kFrametime;
+                    f.zurueck = t + kFrametime * 2.0;
+                }
+                if (dmg == 0) { continue; }
+                bool schaden = true;
+                if ((f.sf & 32) != 0 && !md && !jk2 &&
+                    (gleichName(a.klasse, "CLASS_BOBAFETT") || gleichName(a.klasse, "CLASS_ROCKETTROOPER"))) {
+                    schaden = false;   // JET_FlyStart (code/game/g_trigger.cpp OpenJK)
+                }
+                if (schaden && !zurZeit(a.gottmodus, t)) {
+                    fi.gesundheit = std::max(0, fi.gesundheit - dmg);
+                    if (zurZeit(a.unsterblich, t) && fi.gesundheit < 1) {
+                        if (!fi.unsterblichGemeldet) {
+                            aus.push_back(AblaufWelt::HurtTod{t, a.name, f.entity, true});
+                            fi.unsterblichGemeldet = true;
+                        }
+                        fi.gesundheit = 1;
+                    }
+                    if (fi.gesundheit <= 0) {
+                        aus.push_back(AblaufWelt::HurtTod{t, a.name, f.entity, false});
+                        fi.tot = true;
+                    }
+                }
+                f.pain = t;
+            }
+        }
+    }
+    return aus;
+}
+
 AblaufWelt ablaufWelt() {
     AblaufWelt w;
     w.karte = g_app->map.empty() ? nullptr : &g_app->map;
@@ -5293,6 +5581,10 @@ void prepareScene() {
     // Kamerabahn, Zeitleiste und Szene entstehen - wie vorher, nur dass die
     // Zeiten jetzt die des Spiels sind.
     AblaufWelt welt = ablaufWelt();
+    // rc605 (Ende): die Tode durch trigger_hurt aus dem letzten Durchgang
+    // dieses Skripts (hurtTodeBerechnen weiter unten).
+    const std::string hurtSchluessel = g_app->map.path + "|" + aktiverSkriptPfad();
+    if (g_app->hurtTodeSchluessel == hurtSchluessel) { welt.hurtTode = g_app->hurtTode; }
     bool moverStandNeu = false;   // rc601 (bewegung, teil 3)
     g_app->ablauf = simuliereAblauf(g_app->doc.script(), aktiverSkriptPfad(), welt);
     {
@@ -5766,6 +6058,29 @@ void prepareScene() {
                 return;
             }
             diag::info("Wege: der Stand der Mover kommt nach 9 Durchgaengen nicht zur Ruhe");
+        }
+    }
+    // rc605 (Ende): trigger_hurt - toetet ein Feld eine Figur, laeuft der
+    // Nachbau noch einmal mit diesem Tod (deathscript, Leiche, die Szene zeigt
+    // den Tod), bis die Liste gleich bleibt.
+    {
+        static int hurtDurchgang = 0;
+        std::vector<AblaufWelt::HurtTod> neu = hurtTodeBerechnen();
+        for (const AblaufWelt::HurtTod& h : neu) {
+            diag::detail("trigger_hurt: " + h.figur + (h.unsterblich ? " (SET_UNDYING) faellt auf 1 bei " : " stirbt bei ") +
+                         std::to_string(static_cast<long>(h.ms)) + " ms (Entity " + std::to_string(h.entity) + ")");
+        }
+        if (g_app->hurtTodeSchluessel != hurtSchluessel || neu != g_app->hurtTode) {
+            const bool vorher = g_app->hurtTodeSchluessel == hurtSchluessel && !g_app->hurtTode.empty();
+            g_app->hurtTode = std::move(neu);
+            g_app->hurtTodeSchluessel = hurtSchluessel;
+            if ((vorher || !g_app->hurtTode.empty()) && hurtDurchgang < 3) {
+                ++hurtDurchgang;
+                diag::detail("trigger_hurt: " + std::to_string(g_app->hurtTode.size()) + " Tode - Durchgang mit ihnen im Nachbau");
+                prepareScene();
+                --hurtDurchgang;
+                return;
+            }
         }
     }
     // Die LAENGE der Klaenge nachtragen.

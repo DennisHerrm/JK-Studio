@@ -367,7 +367,7 @@ double leicheAb(double tod) {
 struct Geplant {
     double ms = 0.0;
     int folge = 0;
-    enum class Art : std::uint8_t { Benutzen, Skript, Spawn } art = Art::Benutzen;
+    enum class Art : std::uint8_t { Benutzen, Skript, Spawn, Toeten } art = Art::Benutzen;   // rc605 (Ende): Toeten
     std::string name;         // Benutzen: targetname; Skript: Pfad
     int wesen = -1;           // Skript/Spawn: auf wem
     int ausloeser = -1;
@@ -390,6 +390,7 @@ public:
 
 private:
     void fallenPlanen();   // rc605: Ziele explodierter misc_trip_mine
+    void hurtPlanen();     // rc605 (Ende): Tode durch trigger_hurt
     void takte();
     void spielerBeginnt();
     bool kartenstartGeplant() const;
@@ -2898,7 +2899,21 @@ void Nachbau::lauf(const Script& start, const std::string& startPfad) {
     schiebeEin(traeger_, start.nodes, s0, Path{}, true);
     notiereStart(s0);   // rc603: das Startskript laeuft bei 0 los
     fallenPlanen();     // rc605
+    hurtPlanen();       // rc605 (Ende)
     takte();
+}
+
+// rc605 (Ende): ein trigger_hurt toetet eine Figur zur Zeit eines Bilds
+// (AblaufWelt::hurtTode). Geplant mit dem Index in hurtTode als Name.
+void Nachbau::hurtPlanen() {
+    for (std::size_t i = 0; i < welt_.hurtTode.size(); ++i) {
+        const AblaufWelt::HurtTod& h = welt_.hurtTode[i];
+        int wer = -1;
+        if (welt_.karte != nullptr && h.entity >= 0 && h.entity < static_cast<int>(welt_.karte->entities.size())) {
+            wer = wesenFuer(welt_.karte->entities[static_cast<std::size_t>(h.entity)]);
+        }
+        plane(Geplant{h.ms, 0, Geplant::Art::Toeten, std::to_string(i), -1, wer});
+    }
 }
 
 // rc605: WP_Explode -> G_UseTargets( self, attacker ) (g_weapon.cpp:221-224
@@ -2957,6 +2972,33 @@ void Nachbau::takte() {
                     }
                 } else {
                     benutze(g.name, g.ausloeser, 1);
+                }
+            } else if (g.art == Geplant::Art::Toeten) {
+                // rc605 (Ende): hurt_touch -> G_Damage. health <= 0: player_die
+                // wie kill (Leiche nach CorpsePhysics, BSET_DEATH); FL_UNDYING:
+                // nur BSET_DEATH, die Figur lebt mit health 1 weiter
+                // (g_combat.cpp:9276-9292 MD). Das kill steht im flachen Ablauf
+                // beim Traeger, damit die Szene den Tod zeigt (getoetet).
+                const AblaufWelt::HurtTod& h = welt_.hurtTode[static_cast<std::size_t>(std::stoul(g.name))];
+                const int zi = wesen(h.figur, false);
+                if (zi >= 0) {
+                    Wesen& z = *wesen_[static_cast<std::size_t>(zi)];
+                    if (!h.unsterblich) {
+                        z.totMs = std::min(z.totMs, leicheVon(z, t));
+                        auto knoten = std::make_shared<Node>();
+                        knoten->kind = Node::Kind::Command;
+                        knoten->name = "kill";
+                        Arg a;
+                        a.kind = Arg::Kind::String;
+                        a.text = z.name;
+                        knoten->args.push_back(std::move(a));
+                        const int id = zeichne(traeger_, knoten.get(), AblaufHerkunft{}, false);
+                        eintraege_[static_cast<std::size_t>(id)].eigen = knoten;
+                    }
+                    const auto it = z.verhalten.find("deathscript");
+                    if (it != z.verhalten.end()) {
+                        starteSkript(zi, it->second, g.ausloeser);
+                    }
                 }
             } else if (g.art == Geplant::Art::Skript) {
                 starteSkript(g.wesen, g.name, g.ausloeser);
