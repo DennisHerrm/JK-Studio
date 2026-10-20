@@ -5785,6 +5785,25 @@ void prepareScene() {
         }
         letzterWechsel = wechsel;
     }
+    // rc605 (Ende): SET_MISSIONFAILED - der Bildschirm "Mission gescheitert",
+    // stop_icarus haelt alle Skripte an (der Nachbau hoerte dort auf); Wege und
+    // Mover laufen weiter wie im Spiel (G_RunFrame laeuft weiter).
+    {
+        static std::string letzteMission;
+        std::string mission;
+        if (g_app->ablauf.missionFailedMs >= 0.0 && g_app->ablauf.skripteStoppMs >= 0.0) {
+            mission = std::to_string(static_cast<long>(g_app->ablauf.missionFailedMs)) + "|" + g_app->ablauf.missionFailedText +
+                      "|" + std::to_string(static_cast<long>(g_app->ablauf.skripteStoppMs));
+            if (mission != letzteMission) {
+                char zeile[400];
+                std::snprintf(zeile, sizeof(zeile), tr(Str::BewMissionGescheitert), g_app->ablauf.missionFailedMs / 1000.0,
+                              g_app->ablauf.missionFailedText.c_str(),
+                              g_app->ablauf.skripteStoppMs / 1000.0);
+                addStatus(zeile);
+            }
+        }
+        letzteMission = mission;
+    }
     // Figuren, die erst waehrend der Szene gespawnt werden (NPC_spawner per
     // use), gibt es vorher nicht: unsichtbar bis NPC_Begin.
     for (Actor& ac : g_app->scene.actors) {

@@ -353,3 +353,30 @@ Changelog:
 
 Commits dieses Durchgangs: 57a48c2 Merge fix605r · 70b72e1 trigger_hurt · 3f5953a Mover-Mitfahren · f201aa9
 Kartenwechsel · f1d03f3 Laserfallen-Kette · db23273 Bildzeit duel_exegol · 2bda191 Waffenhaltung · c7431c6 JK2-Laufzeitstand.
+
+## 13. SET_MISSIONFAILED (Punkt 5 der letzten Liste)
+
+Engine: Q3_SetMissionFailed (Q3_Interface.cpp:811-832 OpenJK, 1029-1053 MD, codeJK2 776-797): G_PlayerGuiltDeath
+(STAT_HEALTH 0, Schwert aus, BOTH_FORCEHEAL_START OVERRIDE|HOLD, Timer -1; codeJK2 g_main.cpp:1172-1189), health 0,
+statusTextIndex aus der missionFailedTable, cg.missionStatusShow (der Bildschirm), respawnTime + 2000. Die Skripte
+hält ClientThink_real an: `pm_type == PM_DEAD && cg.missionStatusDeadTime < level.time` außerhalb einer Kamerafahrt
+-> stop_icarus (g_active.cpp:4855-4865 OpenJK, 9706-9715 MD, codeJK2 2097-2107); pm_type wird im selben
+ClientThink_real erst danach PM_DEAD (5205-5208), also beim zweiten usercmd - bei mehr als 40 Bildern/s des Clients
+vor dem nächsten G_RunFrame. Danach ruft G_RunFrame keinen taskManager->Update mehr; Wege, Mover, NPC-Denken laufen
+weiter. missionStatusDeadTime: 0 nach dem Kartenstart, SET_MISSIONSTATUSTIME = level.time + n.
+Vorschau (src/ablauf.cpp): Nachbau merkt in_camera (camera ENABLE/DISABLE) und SET_MISSIONSTATUSTIME; nach dem Bild,
+in dem die Bedingung gilt, hört takte auf (Ablauf::missionFailedMs/-Text/skripteStoppMs). Begonnene Wege werden
+nicht abgeschnitten (die Welt läuft weiter). Der Spieler bekommt, wenn es ihn in der Vorschau gibt,
+SET_ANIM_BOTH BOTH_FORCEHEAL_START + HOLDTIME -1. Statusliste: Str::BewMissionGescheitert.
+
+| Test | Rot (vorher) | Grün (nachher) |
+|---|---|---|
+| ablauftest missionGescheitert (ohne Kamera / in der Kamerafahrt / Spieler) | 5 FEHLER: kein Stopp, camera ENABLE bei 1600 und der affect bei 2050 liefen | Stopp nach 550, nichts danach; in der Kamerafahrt bis zum DISABLE bei 1100; Spieler BOTH_FORCEHEAL_START gehalten |
+| tuerlauf md_gd_jedi (hurt1 / mf2) | ani_death ohne Wirkung, Nachbau lief weiter | cin1_jedi: gescheitert 7650 (ani1 im trigger_hurt, deathscript ani_death), Skripte bis 8500 (camera DISABLE); start_cin1 7700 / 8550; Übersichtszeilen und Summe gleich; 4 OK |
+| ctest | – | 67/67 |
+
+Changelog:
+- EN: `SET_MISSIONFAILED` works like the game: the player plays his guilt animation, and every script stops as soon as no camera is running (after a cutscene's `camera ( DISABLE )`); figures already walking finish their walk, and the status list names both times.
+- DE: `SET_MISSIONFAILED` wirkt wie im Spiel: der Spieler spielt seine Schuld-Animation, und alle Skripte halten an, sobald keine Kamera läuft (nach dem `camera ( DISABLE )` einer Zwischensequenz); Figuren, die schon gehen, gehen ihren Weg zu Ende, und die Statusliste nennt beide Zeiten.
+- ZH: `SET_MISSIONFAILED` 与游戏中一样生效:玩家播放愧疚动画,只要没有摄像机在运行(过场的 `camera ( DISABLE )` 之后),所有脚本就会停止;已在行走的角色会走完路程,状态列表会显示这两个时间。
+- JA: `SET_MISSIONFAILED` はゲームと同じく働きます。プレイヤーは後悔のアニメーションを再生し、カメラが動いていなくなると(カットシーンの `camera ( DISABLE )` のあと)すべてのスクリプトが止まります。すでに歩いているキャラクターは道のりを歩き終え、ステータス一覧に両方の時刻が表示されます。

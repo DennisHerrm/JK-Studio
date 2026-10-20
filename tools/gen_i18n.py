@@ -2031,6 +2031,12 @@ S = [
      "Kartenwechsel bei %.2f s (target_level_change nach %s) - die Vorschau endet hier wie das Spiel.",
      "%.2f 秒时切换关卡 (target_level_change 到 %s) - 预览与游戏一样在此结束。",
      "%.2f 秒でマップを切り替え (target_level_change で %s へ) - ゲームと同じくプレビューはここで終わります。"),
+    # rc605 (Ende): SET_MISSIONFAILED haelt die Skripte an (stop_icarus)
+    ("BewMissionGescheitert",
+     "Mission failed at %.2f s (SET_MISSIONFAILED %s) - the game shows its mission-failed screen; all scripts stop at %.2f s, the world goes on, like the game.",
+     "Mission gescheitert bei %.2f s (SET_MISSIONFAILED %s) - das Spiel zeigt seinen Bildschirm 'Mission gescheitert'; alle Skripte halten bei %.2f s an, die Welt läuft weiter, wie im Spiel.",
+     "%.2f 秒时任务失败 (SET_MISSIONFAILED %s) - 游戏显示任务失败画面;所有脚本在 %.2f 秒停止,世界继续运行,与游戏一致。",
+     "%.2f 秒でミッション失敗 (SET_MISSIONFAILED %s) - ゲームはミッション失敗の画面を表示します。すべてのスクリプトは %.2f 秒で止まり、世界はそのまま動き続けます(ゲームと同じ)。"),
     ("BewNavOhneWeg",
      "NPC %s finds no path to %s (%d units away, at %.2f s) - stands still like in the game; a dowait on this walk never ends.",
      "NPC %s findet keinen Weg zu %s (%d Einheiten entfernt, bei %.2f s) - bleibt stehen wie im Spiel; ein dowait auf diesen Lauf endet nie.",

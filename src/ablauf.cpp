@@ -423,6 +423,12 @@ private:
     // rc603: Kartenstart (simuliereKartenstart) statt eines Startskripts.
     bool kartenstart_ = false;
     bool spielerDa_ = false;   // ClientSpawn ist gelaufen
+    // rc605 (Ende, SET_MISSIONFAILED): in_camera (CGCam_Enable/CGCam_Disable,
+    // cg_camera.cpp) und cg.missionStatusDeadTime (SET_MISSIONSTATUSTIME:
+    // level.time + int_data, Q3_Interface.cpp:9374-9377 OpenJK; cg beim
+    // Kartenstart 0).
+    bool kameraAn_ = false;
+    double statusTotMs_ = -1.0;   // 0 im Spiel, level.time dort immer > 0
     int startFolge_ = 0;
 
     void hinweis(const std::string& h) {
@@ -1814,6 +1820,11 @@ private:
         const std::string& c = n.name;
         const double t = jetzt_;
 
+        // rc605 (Ende, SET_MISSIONFAILED): in_camera fuer stop_icarus.
+        if (c == "camera" && !n.args.empty()) {
+            if (gleich(n.args[0].text, "ENABLE")) { kameraAn_ = true; }
+            if (gleich(n.args[0].text, "DISABLE")) { kameraAn_ = false; }
+        }
         if (c == "wait" || c == "waitsignal") {
             const int e = zeichne(wi, &n, h, true);
             w.warteEintrag = e;
@@ -1968,6 +1979,48 @@ private:
         }
         if (k.rfind("set_parm", 0) == 0) {
             w.parm[k] = wert;
+            return true;
+        }
+        // rc605 (Ende): Q3_SetMissionFailed (Q3_Interface.cpp:811-832 OpenJK,
+        // 1029-1053 MD, codeJK2 776-797). Der Spieler stirbt "schuldig"
+        // (G_PlayerGuiltDeath, g_main.cpp codeJK2 1172-1189: Schwert aus,
+        // BOTH_FORCEHEAL_START mit SETANIM_FLAG_HOLD, Timer -1), der Bildschirm
+        // zeigt den Text (statusTextIndex). Die Skripte stoppen in takte.
+        if (k == "set_missionfailed") {
+            if (aus_.missionFailedMs < 0.0) {
+                aus_.missionFailedMs = t;
+                aus_.missionFailedText = wert;
+                hinweis("Mission gescheitert bei " + std::to_string(static_cast<long>(t)) + " ms (SET_MISSIONFAILED " + wert +
+                        ") - die Skripte halten an, sobald keine Kamera laeuft (stop_icarus)");
+                // G_PlayerGuiltDeath: NPC_SetAnim( player, SETANIM_BOTH,
+                // BOTH_FORCEHEAL_START, OVERRIDE|HOLD ), legsAnimTimer =
+                // torsoAnimTimer = -1 (gehalten). Nur wenn es den Spieler in der
+                // Vorschau schon gibt (ein Skript oder der Kartenstart kennt ihn).
+                const int sp = wesen("player", false);
+                if (sp >= 0) {
+                    const auto setze = [&](const char* feld, const char* v) {
+                        auto knoten = std::make_shared<Node>();
+                        knoten->kind = Node::Kind::Command;
+                        knoten->name = "set";
+                        Arg a;
+                        a.kind = Arg::Kind::String;
+                        a.text = feld;
+                        knoten->args.push_back(a);
+                        a.text = v;
+                        knoten->args.push_back(a);
+                        const int eid = zeichne(sp, knoten.get(), AblaufHerkunft{}, false);
+                        eintraege_[static_cast<std::size_t>(eid)].eigen = knoten;
+                    };
+                    setze("SET_ANIM_BOTH", "BOTH_FORCEHEAL_START");
+                    setze("SET_ANIM_HOLDTIME_BOTH", "-1");
+                }
+            }
+            return true;
+        }
+        if (k == "set_missionstatustime") {
+            // Q3_Set SET_MISSIONSTATUSTIME: cg.missionStatusDeadTime = level.time + int_data
+            // (Q3_Interface.cpp:9374-9377 OpenJK, 9978-9981 MD, codeJK2 7578-7581).
+            statusTotMs_ = t + static_cast<double>(std::atoi(wert.c_str()));
             return true;
         }
         if (k == "set_navgoal") {
@@ -3056,6 +3109,18 @@ void Nachbau::takte() {
         const Wesen& tr = *wesen_[static_cast<std::size_t>(traeger_)];
         if (ende < 0.0 && tr.stapel.empty() && tr.warte == Wesen::kNichts) {
             ende = t;
+        }
+        // rc605 (Ende): Mission gescheitert - nach diesem Bild denkt der Spieler
+        // (ClientThink zwischen den Bildern, je usercmd): das erste ClientThink_real
+        // setzt pm_type = PM_DEAD (STAT_HEALTH 0, g_active.cpp:5205-5208 OpenJK),
+        // das naechste setzt stop_icarus, wenn keine Kamera laeuft und
+        // missionStatusDeadTime < level.time (g_active.cpp:4855-4865 OpenJK, 9706-9715
+        // MD, codeJK2 2097-2107). Mit mehr als 40 Bildern/s des Clients liegen
+        // beide vor dem naechsten G_RunFrame - ab dort kein taskManager->Update.
+        if (aus_.missionFailedMs >= 0.0 && !kameraAn_ && statusTotMs_ < t) {
+            aus_.skripteStoppMs = t;
+            if (ende < 0.0) { ende = t; }
+            break;
         }
         // Schluss, wenn nur noch Endloses laeuft - nach dem Nachlauf.
         // rc603: im Kartenstart erst, wenn der Spieler da ist und nichts mehr

@@ -782,6 +782,46 @@ void ausloeserParms() {
     pruefe(t2 > 0.0 && std::fabs(t - t2) < 0.5, "der move kommt zur selben Zeit wie mit festen Namen");
 }
 
+// rc605 (Ende): SET_MISSIONFAILED - stop_icarus nach dem Bild, wenn keine Kamera
+// laeuft (g_active.cpp:4855-4865 OpenJK); in einer Kamerafahrt erst nach DISABLE.
+void missionGescheitert() {
+    AblaufWelt w;
+    {
+        const Script s = lies(
+            "affect ( \"a\", FLUSH )\n{\n\twait ( 2000.000 );\n\tset ( \"SET_ANIM_BOTH\", \"BOTH_STAND1\" );\n}\n"
+            "wait ( 500.000 );\nset ( \"SET_MISSIONFAILED\", \"MISSIONFAILED_JAN\" );\nwait ( 1000.000 );\ncamera ( ENABLE );\n");
+        const Ablauf a = simuliereAblauf(s, "", w);
+        std::printf("  Mission gescheitert: bei %.0f (%s), Skripte bis %.0f, ENABLE %.0f, a %.0f\n", a.missionFailedMs,
+                    a.missionFailedText.c_str(), a.skripteStoppMs, zeitVon(a, "", "camera", "ENABLE"),
+                    zeitVon(a, "a", "set", "BOTH_STAND1"));
+        pruefe(std::fabs(a.missionFailedMs - 550.0) < 0.5 && a.missionFailedText == "MISSIONFAILED_JAN",
+               "SET_MISSIONFAILED bei 550 gemerkt");
+        pruefe(std::fabs(a.skripteStoppMs - 550.0) < 0.5, "ohne Kamera halten die Skripte nach diesem Bild an (stop_icarus)");
+        pruefe(zeitVon(a, "", "camera", "ENABLE") < 0.0, "der Befehl nach dem wait laeuft nicht mehr");
+        pruefe(zeitVon(a, "a", "set", "BOTH_STAND1") < 0.0, "auch andere Skripte (affect) laufen nicht weiter");
+    }
+    {
+        // G_PlayerGuiltDeath: der Spieler (hier per affect bekannt) haelt BOTH_FORCEHEAL_START.
+        const Script s = lies(
+            "affect ( \"player\", FLUSH )\n{\n\twait ( 100.000 );\n}\n"
+            "wait ( 500.000 );\nset ( \"SET_MISSIONFAILED\", \"MISSIONFAILED_JAN\" );\n");
+        const Ablauf a = simuliereAblauf(s, "", w);
+        pruefe(std::fabs(zeitVon(a, "player", "set", "BOTH_FORCEHEAL_START") - 550.0) < 0.5 &&
+                   std::fabs(zeitVon(a, "player", "set", "-1") - 550.0) < 0.5,
+               "der Spieler spielt BOTH_FORCEHEAL_START gehalten (G_PlayerGuiltDeath)");
+    }
+    {
+        const Script s = lies(
+            "camera ( ENABLE );\nwait ( 500.000 );\nset ( \"SET_MISSIONFAILED\", \"MISSIONFAILED_JAN\" );\n"
+            "wait ( 500.000 );\ncamera ( DISABLE );\nwait ( 500.000 );\ncamera ( ENABLE );\n");
+        const Ablauf a = simuliereAblauf(s, "", w);
+        std::printf("  Mission gescheitert in der Kamerafahrt: Skripte bis %.0f, DISABLE %.0f\n", a.skripteStoppMs,
+                    zeitVon(a, "", "camera", "DISABLE"));
+        pruefe(std::fabs(zeitVon(a, "", "camera", "DISABLE") - 1100.0) < 0.5, "in der Kamerafahrt laufen die Skripte weiter");
+        pruefe(std::fabs(a.skripteStoppMs - 1100.0) < 0.5, "nach DISABLE halten sie an");
+    }
+}
+
 int main(int argc, char** argv) {
     if (argc >= 3) {
         return werkzeug(argc, argv);
@@ -793,6 +833,7 @@ int main(int argc, char** argv) {
     entfernterSpawner();   // rc604
     fallenZiele();         // rc605
     ausloeserParms();      // rc605 (fix605)
+    missionGescheitert();  // rc605 (Ende)
     std::printf("%s\n", fehler == 0 ? "alle Proben bestanden" : "FEHLGESCHLAGEN");
     return fehler == 0 ? 0 : 1;
 }

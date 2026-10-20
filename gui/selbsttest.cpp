@@ -20129,6 +20129,16 @@ std::vector<Schritt> tuerLaufAlleSchritte(const std::shared_ptr<int>& ab, const 
                               g_app->timeline.durationMs, g_app->camTrack.durationMs);
                 diag::detail(z);
             }
+            if (g_app->ablauf.missionFailedMs >= 0.0) {
+                // rc605 (Ende): SET_MISSIONFAILED - stop_icarus haelt die Skripte an.
+                char z[300];
+                std::snprintf(z, sizeof(z),
+                              "Knopftest: Tuer-Lauf Mission gescheitert Reiter %d (%s): bei %.0f ms (%s), Skripte bis %.0f, Nachbau bis %.0f, Zeitleiste bis %.0f",
+                              i, g_app->tabs[static_cast<std::size_t>(r)].shownName.c_str(), g_app->ablauf.missionFailedMs,
+                              g_app->ablauf.missionFailedText.c_str(), g_app->ablauf.skripteStoppMs, g_app->ablauf.laufMs,
+                              g_app->timeline.practicalEndMs);
+                diag::detail(z);
+            }
             if (!g_app->hurtTode.empty()) {
                 // rc605 (Ende): wen ein trigger_hurt toetet (hurtTodeBerechnen)
                 // und ob die Szene den Tod zeigt (Actor::getoetetMs).

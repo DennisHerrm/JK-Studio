@@ -224,6 +224,16 @@ struct Ablauf {
     // Der Nachbau rechnet dieses Bild zu Ende und hoert dann auf (-1: nie).
     double kartenwechselMs = -1.0;
     std::string kartenwechselKarte;   // "mapname" des target_level_change
+    // rc605 (Ende): SET_MISSIONFAILED - Q3_SetMissionFailed (Q3_Interface.cpp:
+    // 811-832 OpenJK, 1029-1053 MD, codeJK2 776-797): G_PlayerGuiltDeath, health 0,
+    // missionStatusShow (der Bildschirm "Mission gescheitert"). Die Skripte haelt
+    // erst ClientThink_real an: pm_type == PM_DEAD, nicht in_camera und
+    // cg.missionStatusDeadTime < level.time -> stop_icarus (g_active.cpp:4855-4865
+    // OpenJK, 9706-9715 MD, codeJK2 2097-2107); danach ruft G_RunFrame keinen
+    // taskManager->Update mehr. Die Welt laeuft weiter (Wege, Mover).
+    double missionFailedMs = -1.0;    // erstes SET_MISSIONFAILED (-1: nie)
+    std::string missionFailedText;    // Eintrag der missionFailedTable
+    double skripteStoppMs = -1.0;     // nach diesem Bild laufen keine Skripte mehr
 
     std::vector<std::string> hinweise;
     double endeMs = 0.0;    // wann das Startskript fertig war
