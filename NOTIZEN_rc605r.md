@@ -169,3 +169,36 @@ Changelog:
 - DE: Jedi Outcast: ein Kyle-NPC übernimmt die Waffe des Spielers, wenn ein Skript sie außerhalb der Kamera wechselt, bis ein Skript Kyle eine eigene Waffe gibt - wie im Spiel.
 - ZH: Jedi Outcast:脚本在镜头之外更换玩家武器时,Kyle NPC 会随之换上同样的武器,直到脚本给 Kyle 指定自己的武器为止——与游戏中一样。
 - JA: Jedi Outcast:スクリプトがカメラの外でプレイヤーの武器を変えると、Kyle の NPC も同じ武器に持ち替えます。スクリプトが Kyle に自分の武器を与えるまで続きます(ゲームと同じ)。
+
+## 6. Fallenstrahlen: andere Fallen, misc_model_breakable, Waffe in der Hand
+
+- Spiel: laserTrapThink spurt MASK_SHOT mit Kasten -4..4 und G2_RETURNONHIT (wp_trip_mine.cpp:150-153
+  OpenJK). Eine andere Falle ist eine Punkt-Entity mit Kasten -4..4 und CONTENTS_SHOTCLIP (touchLaserTrap,
+  :46-50) bis G_FreeEntity nach WP_Explode; misc_model_breakable hat den Kasten aus mins/maxs (Vorgabe
+  +-16, tie_bomber +-80, modelscale samt Ursprungsausgleich, SP_misc_model_breakable g_breakable.cpp:
+  1215-1300 MD) und contents nur mit spawnflags 1 (CONTENTS_SOLID|...) oder health (CONTENTS_SHOTCLIP),
+  nach dem Bruch 0 ausser spawnflags 4 (590-600). G2_TraceModels geht ueber das ganze ghoul2-Feld der
+  Figur - auch die Waffe/den Griff am Handbolzen. func_breakable ist ein Brush-Modell (war schon drin).
+- behaved (gui/app_view3d.cpp): FallenWelt::minen/modelle, Kastenspuren in laserfalleSpurBei (gilt auch
+  fuer fx_target_beam), die Lebenszeiten der Fallen werden wiederholt gerechnet, bis sie stehen (eine
+  Falle haelt die anderen auf, bis sie fort ist); figurNetzTreffer prueft die Modelle am Bolzen
+  (baueGriffWelt wie die Zeichnung).
+- fx_target_beam-Schaden: keine fx_target_beam in den 278 Karten hat "damage" > 0 (SP_fx_target_beam liest
+  nur "damage"; vjun2 schreibt "dmg") - nichts zu brechen, nicht portiert.
+- Nicht portiert: Kettenexplosionen ueber G_RadiusDamage (eine Falle hat health 15 und takedamage); in den
+  Daten liegt laut Suchskript keine Falle oder kein misc_model_breakable nahe an einem Strahl (die
+  Hindernisse aendern auf den Karten also nichts sichtbar).
+
+| Test | Rot (vorher) | Grün (nachher) |
+|---|---|---|
+| Selbsttest rest605/fallen (t3_byss #168, 148 lang; Falle B an der Wand am Ende, misc_model_breakable +-8 in der Mitte, dasselbe ohne contents) | B 0,0 vor dem Ende, Modell 73,9 von seiner Mitte (geht durch) | B 4,1 davor, Modell 12,1 (Kasten 8 + 4), ohne contents 0,0 |
+| Selbsttest rest605/fallenwaffe (gonk_wander_1 als stormtrooper mit WP_BLASTER, Raster aus 868 Spuren) | nur Koerper (alter Weg): 161 Treffer | mit Waffe 163, 2 nur an der Waffe |
+| Selbsttest laserfalle (t3_byss, gezielt) | – | 5 OK / 0 FEHLER, Explosion #168 bei 600 ms unveraendert |
+| ctest | – | 67 / 67 |
+
+Changelog:
+
+- EN: Laser trip mine beams (and fx_target_beam shots) now stop at other trip mines and at solid breakable models, and the weapon in a figure's hand sets a mine off too - like the game.
+- DE: Strahlen von Laserfallen (und Schüsse von fx_target_beam) enden jetzt an anderen Laserfallen und an festen zerbrechlichen Modellen, und auch die Waffe in der Hand einer Figur löst eine Falle aus - wie im Spiel.
+- ZH: 激光绊雷的光束(以及 fx_target_beam 的射击)现在会停在其他绊雷和实体可破坏模型处,角色手中的武器也会触发绊雷——与游戏中一样。
+- JA: レーザートリップマインのビーム(と fx_target_beam の射撃)が、ほかのトリップマインや固体の壊せるモデルで止まるようになり、キャラクターが手に持つ武器でもマインが作動します(ゲームと同じ)。

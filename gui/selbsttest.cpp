@@ -18256,6 +18256,180 @@ std::vector<Schritt> moverSpriteSchritte() {
     return s;
 }
 
+// --- rc605 (Rest): Hindernisse im Strahl der misc_trip_mine -------------------
+//
+// t3_byss: die erste Falle mit Strahl. Eine zweite Falle (an die Wand am Ende
+// des Strahls gesetzt: Kasten -4..4, CONTENTS_SHOTCLIP) haelt ihn kurz davor
+// auf; ein misc_model_breakable (spawnflags 1, Kasten +-8) in der Mitte des
+// Strahls ebenso; ohne spawnflags und health (contents 0) nicht.
+std::vector<Schritt> fallenHindernisSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    struct Mess {
+        long long falle = -1;
+        float p0[3]{};
+        float n0[3]{};
+        float pMine[3]{};
+        float pModell[3]{};
+        float pLeer[3]{};
+        float mitte[3]{};
+    };
+    auto m = std::make_shared<Mess>();
+    add(tu("Fallen-Hindernisse: t3_byss laden", [] {
+        g_app->leftMode = 1;
+        (void)loadMapFromArchive("maps/t3_byss.bsp");
+        g_app->mapDirty = true;
+    }));
+    add(warteBis("Karte bereit", [] { return g_app->mapBereit; }, 900));
+    add(pruefe("Fallen-Hindernisse: eine zweite Falle und ein misc_model_breakable halten den Strahl auf", [=] {
+        auto& ents = g_app->map.entities;
+        for (std::size_t i = 0; i < ents.size() && m->falle < 0; ++i) {
+            if (ents[i].classname != "misc_trip_mine") { continue; }
+            if (ents[i].find("targetname") != nullptr) { continue; }   // an ab dem Spawn
+            float p[3];
+            float n[3];
+            if (fallenStrahlProbe(i, 1000.0, p, n, true)) {
+                m->falle = static_cast<long long>(i);
+                for (int q = 0; q < 3; ++q) {
+                    m->p0[q] = p[q];
+                    m->n0[q] = n[q];
+                }
+            }
+        }
+        if (m->falle < 0) { return false; }
+        const std::size_t a = static_cast<std::size_t>(m->falle);
+        float start[3] = {0.0F, 0.0F, 0.0F};
+        (void)std::sscanf(ents[a].origin.c_str(), "%f %f %f", &start[0], &start[1], &start[2]);
+        // Falle B: 20 vor der Wand am Strahlende, Blick in die Wand.
+        MapEntity b;
+        b.classname = "misc_trip_mine";
+        char o[96];
+        std::snprintf(o, sizeof(o), "%f %f %f", m->p0[0] + 20.0F * m->n0[0], m->p0[1] + 20.0F * m->n0[1], m->p0[2] + 20.0F * m->n0[2]);
+        b.origin = o;
+        const float yaw = std::atan2(-m->n0[1], -m->n0[0]) * 57.2957795F;
+        const float pitch = -std::asin(std::clamp(-m->n0[2], -1.0F, 1.0F)) * 57.2957795F;
+        char w[96];
+        std::snprintf(w, sizeof(w), "%f %f 0", pitch, yaw);
+        b.keys = {{"classname", "misc_trip_mine"}, {"origin", o}, {"angles", w}, {"targetname", "probe_b"}, {"spawnflags", "0"}};
+        ents.push_back(b);
+        float n[3];
+        (void)fallenStrahlProbe(a, 1000.0, m->pMine, n, true);
+        ents.pop_back();
+        // misc_model_breakable in der Mitte des Strahls.
+        for (int q = 0; q < 3; ++q) { m->mitte[q] = 0.5F * (m->p0[q] + start[q]); }
+        MapEntity c;
+        c.classname = "misc_model_breakable";
+        std::snprintf(o, sizeof(o), "%f %f %f", m->mitte[0], m->mitte[1], m->mitte[2]);
+        c.origin = o;
+        c.keys = {{"classname", "misc_model_breakable"}, {"origin", o}, {"model", "models/map_objects/imperial/crate_banded.md3"},
+                  {"mins", "-8 -8 -8"}, {"maxs", "8 8 8"}, {"spawnflags", "1"}};
+        ents.push_back(c);
+        (void)fallenStrahlProbe(a, 1000.0, m->pModell, n, true);
+        // ohne spawnflags 1 und ohne health: contents 0, der Strahl geht durch
+        for (auto& [k, v] : ents.back().keys) {
+            if (k == "spawnflags") { v = "0"; }
+        }
+        (void)fallenStrahlProbe(a, 1000.0, m->pLeer, n, true);
+        ents.pop_back();
+        (void)fallenStrahlProbe(a, 1000.0, n, n, true);
+        const auto ab = [](const float* x, const float* y) {
+            return std::sqrt((x[0] - y[0]) * (x[0] - y[0]) + (x[1] - y[1]) * (x[1] - y[1]) + (x[2] - y[2]) * (x[2] - y[2]));
+        };
+        const float dMine = ab(m->pMine, m->p0);
+        const float dModell = ab(m->pModell, m->mitte);
+        const float dLeer = ab(m->pLeer, m->p0);
+        char z[300];
+        std::snprintf(z, sizeof(z),
+                      "Knopftest: Fallen-Hindernisse - Falle #%lld, Strahl %.0f lang; mit Falle B endet er %.1f vor dem alten Ende, "
+                      "mit misc_model_breakable %.1f von dessen Mitte, ohne contents %.1f vom alten Ende",
+                      m->falle, static_cast<double>(ab(start, m->p0)), static_cast<double>(dMine), static_cast<double>(dModell),
+                      static_cast<double>(dLeer));
+        diag::detail(z);
+        return dMine > 2.0F && dMine < 16.0F && dModell < 16.0F && dLeer < 0.01F;
+    }));
+    return s;
+}
+
+// --- rc605 (Rest): die Waffe in der Hand im Strahl -----------------------------
+//
+// G2_TraceModels prueft alle Modelle des ghoul2-Felds - auch die Waffe am
+// Handbolzen. t3_byss: gonk_wander_1 wird ein stormtrooper (WP_BLASTER); ein
+// Raster waagrechter Spuren (Radius 4) vor und neben ihm: einige treffen nur
+// die Waffe.
+std::vector<Schritt> fallenWaffeSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("Fallen-Waffe: t3_byss laden", [] {
+        g_app->leftMode = 1;
+        (void)loadMapFromArchive("maps/t3_byss.bsp");
+        g_app->mapDirty = true;
+    }));
+    add(warteBis("Karte bereit", [] { return g_app->mapBereit; }, 900));
+    add(tu("Fallen-Waffe: gonk_wander_1 wird stormtrooper", [] {
+        for (MapEntity& e : g_app->map.entities) {
+            const std::string* n = e.find("npc_targetname");
+            if (n == nullptr || *n != "gonk_wander_1") { continue; }
+            e.classname = "NPC_spawner";
+            for (auto& [k, v] : e.keys) {
+                if (k == "classname") { v = "NPC_spawner"; }
+                if (k == "spawnscript") { v.clear(); }
+            }
+            e.keys.emplace_back("NPC_type", "stormtrooper");
+        }
+        openScriptFromMemory("//Generated by BehavEd\n"
+                             "affect ( \"gonk_wander_1\", /*@AFFECT_TYPE*/ FLUSH )\n"
+                             "{\n"
+                             "\twait ( 5000.000 );\n"
+                             "}\n",
+                             "fallen_waffe.txt");
+        prepareScene();
+        g_app->playing = false;
+        g_app->playMs = 1000.0;
+        g_app->mapDirty = true;
+    }));
+    add(warteBis("Szene aufgebaut", [] { return g_app->camTrackValid; }, 900));
+    add(warteBis("Figurenmodelle geladen", [] {
+        g_app->mapDirty = true;
+        return !g_app->scene.actors.empty() && g_app->actorAssets.size() == g_app->scene.actors.size();
+    }, 600));
+    add(pruefe("Fallen-Waffe: Spuren treffen die Waffe in der Hand, nicht nur den Koerper", [] {
+        std::size_t ai = g_app->scene.actors.size();
+        for (std::size_t i = 0; i < g_app->scene.actors.size(); ++i) {
+            if (g_app->scene.actors[i].name == "gonk_wander_1") { ai = i; }
+        }
+        if (ai >= g_app->scene.actors.size()) { return false; }
+        const ActorState st = g_app->scene.actors[ai].at(1000.0);
+        const float g = st.angles[1] * 3.14159265F / 180.0F;
+        const float vorn[3] = {std::cos(g), std::sin(g), 0.0F};
+        const float rechts[3] = {std::sin(g), -std::cos(g), 0.0F};
+        int mit = 0;
+        int ohne = 0;
+        int nurWaffe = 0;
+        for (int k = -30; k <= 50; k += 3) {
+            for (int h = -24; h <= 64; h += 3) {
+                float a[3];
+                float b[3];
+                for (int q = 0; q < 3; ++q) {
+                    const float mitte = st.pos[q] + vorn[q] * static_cast<float>(k) + (q == 2 ? static_cast<float>(h) : 0.0F);
+                    a[q] = mitte - rechts[q] * 80.0F;
+                    b[q] = mitte + rechts[q] * 80.0F;
+                }
+                const int m1 = fallenFigurProbe(ai, 1000.0, a, b, true);
+                const int m0 = fallenFigurProbe(ai, 1000.0, a, b, false);
+                if (m1 > 0) { ++mit; }
+                if (m0 > 0) { ++ohne; }
+                if (m1 > 0 && m0 <= 0) { ++nurWaffe; }
+            }
+        }
+        char z[220];
+        std::snprintf(z, sizeof(z), "Knopftest: Fallen-Waffe - Waffe %s, Spuren mit Treffer: mit Waffe %d, nur Koerper %d, nur die Waffe %d",
+                      st.waffe.c_str(), mit, ohne, nurWaffe);
+        diag::detail(z);
+        return nurWaffe > 0 && mit > ohne;
+    }));
+    return s;
+}
+
 // rc605 (Rest): alle Proben dieses Auftrags; BHED_REST=<teil> waehlt eine.
 std::vector<Schritt> rest605Schritte() {
     const char* t = std::getenv("BHED_REST");
@@ -18268,6 +18442,8 @@ std::vector<Schritt> rest605Schritte() {
     dazu("tcgen", tcGenVektorSchritte());
     dazu("brushgras", brushGrasSchritte());
     dazu("moversprite", moverSpriteSchritte());
+    dazu("fallen", fallenHindernisSchritte());
+    dazu("fallenwaffe", fallenWaffeSchritte());
     return s;
 }
 
