@@ -18211,6 +18211,50 @@ std::vector<Schritt> moverSpriteSchritte() {
     add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
     add(pause(0.5));
     add(foto("nebel_sprites_mit"));
+    // rc605 (Ende): Bildzeit mit den Nebelmodellen (12 s) gegen dieselbe Stelle
+    // ohne sie (0 s) - je 120 gezeichnete Bilder; BHED_D3D_DEBUG=0 fuer echte Zahlen.
+    for (const double zeitpunkt : {12000.0, 0.0, 12000.0}) {
+        struct Mess {
+            std::chrono::steady_clock::time_point seit;
+            double summe = 0.0;
+            double max = 0.0;
+            int bilder = 0;
+        };
+        auto me = std::make_shared<Mess>();
+        s.push_back({"Effektmodell-Leistung bei " + std::to_string(static_cast<int>(zeitpunkt)) + " ms", [=](int b) {
+                         if (b == 0) {
+                             g_app->playMs = zeitpunkt;
+                             g_app->mapDirty = true;
+                             return false;
+                         }
+                         if (b == 5) { me->seit = std::chrono::steady_clock::now(); }
+                         if (b > 5) {
+                             const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - me->seit).count();
+                             me->summe += ms;
+                             me->max = std::max(me->max, ms);
+                             ++me->bilder;
+                             me->seit = std::chrono::steady_clock::now();
+                         }
+                         g_app->mapDirty = true;
+                         if (b > 125) {
+                             int flug = 0;
+                             for (const EmitterModelDraw& em : g_app->emitterFlug) {
+                                 if (em.modelPath.find("fogsprite") != std::string::npos) { ++flug; }
+                             }
+                             char z[240];
+                             std::snprintf(z, sizeof(z), "Knopftest: Effektmodell-Leistung bei %.0f ms: Nebelmodelle %d, Bild Mittel %.2f ms, max %.1f ms (%d Bilder)",
+                                           zeitpunkt, flug, me->bilder > 0 ? me->summe / me->bilder : 0.0, me->max, me->bilder);
+                             diag::detail(z);
+                             return true;
+                         }
+                         return false;
+                     }});
+    }
+    add(tu("Effektmodell-Autosprite: zurueck auf 12 s", [] {
+        g_app->playMs = 12000.0;
+        g_app->mapDirty = true;
+    }));
+    add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
     add(tu("Effektmodell-Autosprite: messen, dann mit Weltachsen", [=] {
         (void)gpu::leseFarbe(*mit, *bw, *bh);
         *aufrufe = gpu::moverSpriteAufrufe();

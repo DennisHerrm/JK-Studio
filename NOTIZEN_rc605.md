@@ -264,3 +264,12 @@ Changelog:
 - DE: Eine explodierende Laserfalle sprengt die Fallen in ihrer Nähe mit wie der Explosionsschaden des Spiels - dicht beieinander hängende Fallen gehen zusammen hoch (t3_byss).
 - ZH: 爆炸的激光绊雷会像游戏的爆炸伤害一样引爆附近的绊雷——挂得很近的绊雷会一起爆炸(t3_byss)。
 - JA: 爆発したレーザートラップは、ゲームの爆発ダメージと同じく近くのマインを誘爆させます。近くに並べたマインは一緒に爆発します(t3_byss)。
+
+## 10. Bildzeit duel_exegol mit 377 Nebelmodellen (Punkt 7)
+
+Gemessen mit BHED_D3D_DEBUG=0 (Lauf perf2, rest605 BHED_REST=moversprite, neue Messschritte "Effektmodell-Leistung":
+je 120 gezeichnete Bilder an derselben Stelle beim ersten Nebel-Runner): bei 12 s mit 377 Nebelmodellen im Flug
+4,28 / 4,30 ms je Bild (max 7,5 / 8,8), bei 0 s ohne Nebelmodelle 4,20 ms (max 7,9). Flug über ganze Karten
+(perf1, szenen -flug, Szenenzeit 0): md_am_sith 5,1 / 5,8 ms, duel_tower 4,6 ms, duel_exegol 4,2 ms. Die
+Nebelmodelle kosten rund 0,1 ms je Bild - nicht langsamer als andere Karten, keine Optimierung nötig (das Ergebnis
+bleibt damit ohnehin gleich).
