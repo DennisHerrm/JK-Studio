@@ -3051,8 +3051,17 @@ Scene buildOnce(const Script& s, const MapData& map,
             // 85 Verwendungen in den 64 Skripten aus MD_Maps_Ep1/2/4/6 -
             // haeufiger als jeder einzelne set-Befehl. Genau damit fliegen
             // die Schiffe und fahren die Plattformen.
+            // rc605 (fix605): das Ziel darf $tag( "name", ORIGIN )$ sein
+            // (CTaskManager::Move -> GetVector -> GetTag, TaskManager.cpp:637-652
+            // OpenJK) - vjun3 elevator_up faehrt den Aufzug zu
+            // $tag( get( STRING, "SET_PARM1" ), ORIGIN )$, den der Ablauf schon
+            // zu $tag( "first_tag", ORIGIN )$ aufgeloest hat. Ohne TAG scheitert
+            // Get, der move geschieht nicht (tagVektor).
+            float tagZiel[3] = {0.0F, 0.0F, 0.0F};
+            const bool tagMove = child.name == "move" && child.args.size() >= 2 &&
+                                 child.args[0].kind == Arg::Kind::Expr && tagVektor(map, child.args[0].text, tagZiel);
             if (child.name == "move" && child.args.size() >= 2 &&
-                child.args[0].kind == Arg::Kind::Vector) {
+                (child.args[0].kind == Arg::Kind::Vector || tagMove)) {
                 // rc601 (bewegung): Lerp2Pos lehnt jeden client ab ("NOT a
                 // mover", Q3_Interface.cpp:8571-8575) - eine Figur bewegt
                 // move nicht, und die Aufgabe wird nie fertig.
@@ -3063,7 +3072,11 @@ Scene buildOnce(const Script& s, const MapData& map,
                 step.kind = ActorStep::Kind::Glide;
                 step.startMs = t;
                 step.linear = actor->linearBewegung;
-                readVec(child.args[0].text, step.to);
+                if (tagMove) {
+                    for (int k = 0; k < 3; ++k) { step.to[k] = tagZiel[k]; }
+                } else {
+                    readVec(child.args[0].text, step.to);
+                }
                 // Von der AKTUELLEN Stelle, auch mitten in einer Bewegung
                 // (Q3_Lerp2Pos: VectorCopy( ent->currentOrigin, ent->pos1 )).
                 // Vorher begann ein zweiter move am Ziel des ersten - ein

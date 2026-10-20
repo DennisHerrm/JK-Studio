@@ -254,8 +254,11 @@ void ablaufKoerperAbkuerzungAn(bool an);
 // NPC_targetname). Leer, wenn keine es nennt.
 // rc604 fix604: `schluessel` bekommt den Schluessel, unter dem sie es traegt
 // ("usescript", "spawnscript", "deathscript" ...).
+// rc605 (fix605): `ent` bekommt die Entity selbst (dieselbe targetname tragen
+// manchmal mehrere - vjun3 t133).
 [[nodiscard]] std::string ablaufTraeger(const MapData& karte, const std::string& startPfad,
-                                        bool* istFigur = nullptr, std::string* schluessel = nullptr);
+                                        bool* istFigur = nullptr, std::string* schluessel = nullptr,
+                                        const MapEntity** ent = nullptr);
 
 }  // namespace bhed
 

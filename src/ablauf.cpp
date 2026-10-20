@@ -222,6 +222,10 @@ struct Eintrag {
     double ende = -1.0;       // bei Wartebefehlen: wann fertig (-1 = nie)
     int wesen = 0;
     const Node* knoten = nullptr;
+    // rc605 (fix605): Kopie des Knotens, in dem get( ... ) innerhalb eines
+    // Ausdrucks schon mit den Parametern des Ausfuehrenden aufgeloest ist
+    // (knoten zeigt dann hierher).
+    std::shared_ptr<const Node> eigen;
     AblaufHerkunft herkunft;
     bool warten = false;
     std::string text;         // bei eingefuegten Befehlen: der Zielname
@@ -635,6 +639,23 @@ private:
     }
 
     // Schluessel der Karte in die Buchfuehrung uebernehmen.
+    // rc605 (fix605): parm1..parm16 aus der Karte. G_ParseField ruft fuer die
+    // Felder "parm1".."parm16" (F_PARM1..F_PARM16, g_spawn.cpp:382-406 MD)
+    // Q3_SetParm( ent->s.number, f->type - F_PARM1, value ) (g_spawn.cpp:1187
+    // MD; Q3_Interface.cpp:4331); NPC_Spawn_Do kopiert die nicht leeren parms
+    // des Spawners auf den NPC (NPC_spawn.cpp:2761-2767 MD). $get( STRING,
+    // "SET_PARM1" )$ liest sie (CQuake3GameInterface::GetString,
+    // Q3_Interface.cpp:11598-11625 MD) - vjun3 elevator_up: der Scriptrunner
+    // t133 traegt parm1 "first_elevator", der Aufzug parm1 "first_tag".
+    static void ladeParms(Wesen& w, const MapEntity& e) {
+        for (const auto& [k, v] : e.keys) {
+            const std::string kk = klein(k);
+            if (kk.size() < 5 || kk.rfind("parm", 0) != 0 || v.empty()) { continue; }
+            const int nr = std::atoi(kk.c_str() + 4);
+            if (nr >= 1 && nr <= 16 && kk == "parm" + std::to_string(nr)) { w.parm["set_parm" + std::to_string(nr)] = v; }
+        }
+    }
+
     static void bereite(Wesen& w, const MapEntity& e) {
         if (!e.origin.empty()) {
             w.ortBekannt = leseVek(e.origin, w.ort);
@@ -670,6 +691,7 @@ private:
                 w.verhalten[key] = v;
             }
         }
+        ladeParms(w, e);
         if (e.classname == "target_scriptrunner" || e.classname == "target_relay" ||
             e.classname == "trigger_once" || e.classname == "trigger_multiple" ||
             e.classname == "target_counter" || e.classname == "target_delay") {
@@ -1598,12 +1620,73 @@ private:
         e.ms = jetzt_;
         e.wesen = wi;
         e.knoten = n;
+        // rc605 (fix605): get( TYP, "name" ) INNERHALB eines Ausdrucks
+        // ($tag( get( STRING, "SET_PARM1" ), ORIGIN )$) liest CTaskManager
+        // beim Ausfuehren mit dem Besitzer des Task-Managers - der Entity, die
+        // den Befehl ausfuehrt (CTaskManager::Get, TaskManager.cpp:637-652
+        // OpenJK -> GetString( m_ownerID, ... )). Die Auswerter dahinter
+        // (Szene, Mover) kennen den Ausfuehrenden nicht: hier eingesetzt.
+        if (n != nullptr && wi >= 0 && static_cast<std::size_t>(wi) < wesen_.size()) {
+            std::shared_ptr<Node> kopie;
+            for (std::size_t ai = 0; ai < n->args.size(); ++ai) {
+                const Arg& a = n->args[ai];
+                if (a.kind != Arg::Kind::Expr || a.text.rfind("get", 0) == 0) { continue; }
+                const std::string neu = innereGets(*wesen_[static_cast<std::size_t>(wi)], a.text);
+                if (neu == a.text) { continue; }
+                if (!kopie) {
+                    kopie = std::make_shared<Node>(*n);
+                    kopie->children.clear();
+                }
+                kopie->args[ai].text = neu;
+            }
+            if (kopie) {
+                e.eigen = kopie;
+                e.knoten = kopie.get();
+            }
+        }
         e.herkunft = h;
         e.warten = warten;
         e.folge = folge_++;
         eintraege_.push_back(std::move(e));
         ++aus_.befehle;
         return static_cast<int>(eintraege_.size()) - 1;
+    }
+
+    // rc605 (fix605): jedes get( TYP, "name" ) in einem Ausdruck durch den Wert
+    // in Anfuehrungszeichen ersetzen (Variable oder parm des Ausfuehrenden);
+    // was unbekannt ist, bleibt stehen.
+    std::string innereGets(const Wesen& w, const std::string& t) const {
+        std::string aus;
+        std::size_t i = 0;
+        while (i < t.size()) {
+            const std::size_t g = t.find("get", i);
+            if (g == std::string::npos) { break; }
+            std::size_t k = g + 3;
+            while (k < t.size() && (t[k] == ' ' || t[k] == '\t')) { ++k; }
+            const bool wort = g == 0 || !(std::isalnum(static_cast<unsigned char>(t[g - 1])) || t[g - 1] == '_');
+            const std::size_t zu = (k < t.size() && t[k] == '(') ? t.find(')', k) : std::string::npos;
+            if (!wort || zu == std::string::npos) {
+                aus += t.substr(i, g + 3 - i);
+                i = g + 3;
+                continue;
+            }
+            Arg a;
+            a.kind = Arg::Kind::Expr;
+            a.text = t.substr(g, zu + 1 - g);
+            const std::string q = a.text;
+            const auto q1 = q.find('"');
+            const auto q2 = (q1 == std::string::npos) ? q1 : q.find('"', q1 + 1);
+            bool bekannt = false;
+            if (q2 != std::string::npos) {
+                const std::string name = klein(q.substr(q1 + 1, q2 - q1 - 1));
+                bekannt = variablen_.count(name) != 0 || w.parm.count(name) != 0;
+            }
+            aus += t.substr(i, g - i);
+            aus += bekannt ? "\"" + wertArg(w, a) + "\"" : a.text;
+            i = zu + 1;
+        }
+        aus += t.substr(std::min(i, t.size()));
+        return aus;
     }
 
     std::string wertArg(const Wesen& w, const Arg& a) const {
@@ -2498,7 +2581,13 @@ private:
                 if (n.args.empty()) {
                     continue;
                 }
-                const std::string ziel = gleich(n.args[0].text, "self") ? w.name : n.args[0].text;
+                // rc605 (fix605): affect ( $get( STRING, "SET_PARM1" )$ ) - der
+                // Sequencer wertet den Ausdruck mit seinem Besitzer aus
+                // (CSequencer::ParseAffect, Sequencer.cpp:693: TK_GET ->
+                // I_GetString( m_ownerID, ... )), dem Ausfuehrenden.
+                const std::string ziel = gleich(n.args[0].text, "self") ? w.name
+                                         : n.args[0].kind == Arg::Kind::Expr ? wertArg(w, n.args[0])
+                                                                             : n.args[0].text;
                 const bool flush = n.args.size() < 2 || !gleich(n.args[1].text, "INSERT");
                 const int zi = wesen(ziel);
                 if (zi < 0 || !wesen_[static_cast<std::size_t>(zi)]->gibt) {
@@ -2767,8 +2856,9 @@ void Nachbau::lauf(const Script& start, const std::string& startPfad) {
     // Der Traeger: wer das Skript in der Karte ausfuehrt.
     bool figur = false;
     std::string traegerSchluessel;
+    const MapEntity* traegerEnt = nullptr;
     std::string traeger = (welt_.karte != nullptr && !startPfad.empty())
-                              ? ablaufTraeger(*welt_.karte, startPfad, &figur, &traegerSchluessel)
+                              ? ablaufTraeger(*welt_.karte, startPfad, &figur, &traegerSchluessel, &traegerEnt)
                               : std::string{};
     aus_.traeger = traeger;
     aus_.traegerIstFigur = figur;
@@ -2776,7 +2866,10 @@ void Nachbau::lauf(const Script& start, const std::string& startPfad) {
         auto w = std::make_unique<Wesen>();
         w->name = traeger.empty() ? std::string{"(Skript)"} : traeger;
         bool sp = false;
-        w->ent = traeger.empty() ? nullptr : findeKarte(traeger, &sp);
+        // rc605 (fix605): genau die Entity, die das Skript traegt - in vjun3
+        // heissen auch NPCs "t133" wie der Scriptrunner von elevator_up.
+        w->ent = traeger.empty() ? nullptr : (traegerEnt != nullptr ? traegerEnt : findeKarte(traeger, &sp));
+        if (w->ent != nullptr) { ladeParms(*w, *w->ent); }
         w->reihe = reiheVon(w->ent);
         w->figur = figur;
         w->istClient = figur;   // rc601 (bewegung): ein NPC_spawner als Traeger
@@ -3285,9 +3378,13 @@ const AblaufHerkunft* Ablauf::woher(const Path& p) const {
     return (it == herkunft.end()) ? nullptr : &it->second;
 }
 
-std::string ablaufTraeger(const MapData& karte, const std::string& startPfad, bool* istFigur, std::string* schluesselAus) {
+std::string ablaufTraeger(const MapData& karte, const std::string& startPfad, bool* istFigur, std::string* schluesselAus,
+                          const MapEntity** entAus) {
     if (istFigur != nullptr) {
         *istFigur = false;
+    }
+    if (entAus != nullptr) {
+        *entAus = nullptr;
     }
     if (schluesselAus != nullptr) {
         schluesselAus->clear();
@@ -3316,6 +3413,9 @@ std::string ablaufTraeger(const MapData& karte, const std::string& startPfad, bo
     }
     if (bester == nullptr) {
         return {};
+    }
+    if (entAus != nullptr) {
+        *entAus = bester;
     }
     if (istNpcSpawner(*bester)) {
         const std::string* n = schluessel(*bester, "NPC_targetname");

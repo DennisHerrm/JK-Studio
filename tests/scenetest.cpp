@@ -1512,6 +1512,28 @@ int main(int argc, char** argv) {
                bhed::frameForAnimationIn(sek, "BOTH_RUN1", 34.0, false, 1.0F, nullptr, nullptr) == 201);
     }
 
+    // rc605 (fix605): move zu $tag( "name", ORIGIN )$ - eine Brush-Entity
+    // faehrt zum TAG (CTaskManager::Move -> GetTag); vjun3 elevator_up (vom
+    // Ablauf aus $tag( get( STRING, "SET_PARM1" ), ORIGIN )$ aufgeloest).
+    {
+        const bhed::MapData aufzug = mapWith(
+            "{\n\"classname\" \"func_static\"\n\"script_targetname\" \"lift\"\n\"model\" \"*1\"\n"
+            "\"origin\" \"0 0 100\"\n}\n"
+            "{\n\"classname\" \"ref_tag\"\n\"targetname\" \"oben\"\n\"origin\" \"0 0 228\"\n}\n");
+        const bhed::Scene sc = sceneOf(
+            "affect ( \"lift\", FLUSH )\r\n{\r\n\twait ( 300.000 );\r\n"
+            "\tmove ( $tag( \"oben\", ORIGIN )$, < 0.000 0.000 0.000 >, 1000.000 );\r\n}\r\n",
+            aufzug);
+        const bhed::Actor* lift = nullptr;
+        for (const bhed::Actor& a : sc.actors) {
+            if (a.name == "lift") { lift = &a; }
+        }
+        const float z0 = lift != nullptr ? lift->at(200.0).pos[2] : -1.0F;
+        const float z1 = lift != nullptr ? lift->at(1400.0).pos[2] : -1.0F;
+        std::printf("  move zum TAG: z %.1f -> %.1f\n", static_cast<double>(z0), static_cast<double>(z1));
+        expect("move ( $tag( \"oben\", ORIGIN )$ ): die Brush-Entity faehrt zum TAG", lift != nullptr && near(z0, 100.0F) && near(z1, 228.0F));
+    }
+
     std::printf("\n%s (%d Fehlschlaege)\n",
                 fails != 0 ? "FEHLGESCHLAGEN" : "alle Szenenproben bestanden", fails);
     return fails != 0 ? 1 : 0;

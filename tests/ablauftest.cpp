@@ -721,6 +721,67 @@ void fallenZiele() {
     pruefe(wand == 1 && std::fabs(wandMs - 1200.0) < 0.5, "zweite Explosion: target des Zaehlers einmal benutzt, bei 1200 ms");
 }
 
+// rc605 (fix605): Parameter eines Ausloesers. vjun3 elevator_up laeuft auf dem
+// target_scriptrunner t133 (parm1 "first_elevator"); affect ( $get( STRING,
+// "SET_PARM1" )$ ) liest dessen parm1, und im Block liest der move
+// $tag( get( STRING, "SET_PARM1" ), ORIGIN )$ den parm1 des Aufzugs
+// ("first_tag"). Dieselbe targetname haben dort auch NPCs - der Traeger ist
+// der Scriptrunner mit dem usescript.
+void ausloeserParms() {
+    MapData m;
+    const auto ent = [](const std::string& k, std::vector<std::pair<std::string, std::string>> keys) {
+        MapEntity e;
+        e.classname = k;
+        for (const auto& [a, b] : keys) {
+            if (a == "targetname") { e.targetname = b; }
+            if (a == "origin") { e.origin = b; }
+        }
+        keys.emplace_back("classname", k);
+        e.keys = std::move(keys);
+        return e;
+    };
+    m.entities = {
+        ent("worldspawn", {}),
+        ent("NPC_Imperial", {{"targetname", "t133"}, {"origin", "0 0 0"}}),
+        ent("target_scriptrunner", {{"targetname", "t133"}, {"parm1", "first_elevator"}, {"usescript", "v/up"}, {"origin", "8 0 0"}}),
+        ent("func_static", {{"script_targetname", "first_elevator"}, {"parm1", "first_tag"}, {"origin", "0 0 100"}, {"model", "*1"}}),
+        ent("ref_tag", {{"targetname", "first_tag"}, {"origin", "0 0 500"}}),
+    };
+    const Script s = lies(
+        "affect ( $get( STRING, \"SET_PARM1\" )$, FLUSH )\n{\n"
+        "\ttask ( \"lift_move_up\" )\n\t{\n\t\twait ( 300.000 );\n"
+        "\t\tmove ( $tag( get( STRING, \"SET_PARM1\" ), ORIGIN )$, < 0.000 0.000 0.000 >, 10000.000 );\n\t}\n"
+        "\tdo ( \"lift_move_up\" );\n\twait ( \"lift_move_up\" );\n}\n"
+        "wait ( 500.000 );\n");
+    AblaufWelt w;
+    w.karte = &m;
+    const Ablauf a = simuliereAblauf(s, "v/up", w);
+    const Node* mv = nullptr;
+    for (const Node& n : a.flach.nodes) {
+        if (n.name != "affect" || n.args.empty() || n.args[0].text != "first_elevator") { continue; }
+        for (const Node& c : n.children) {
+            if (c.name == "move") { mv = &c; }
+        }
+    }
+    const double t = zeitVon(a, "first_elevator", "move", "");
+    std::printf("  Ausloeser-Parameter: Traeger %s, move %s bei %.0f\n", a.traeger.c_str(),
+                mv != nullptr && !mv->args.empty() ? mv->args[0].text.c_str() : "-", t);
+    pruefe(mv != nullptr, "affect ( $get( STRING, SET_PARM1 )$ ) trifft den Aufzug aus parm1 des Scriptrunners");
+    pruefe(mv != nullptr && !mv->args.empty() && mv->args[0].text.find("\"first_tag\"") != std::string::npos &&
+               mv->args[0].text.find("get") == std::string::npos,
+           "im Block liest get( STRING, SET_PARM1 ) den parm1 des Aufzugs (first_tag)");
+    // Dieselbe Zeit wie mit festen Namen (die Parameter aendern den Takt nicht).
+    const Script s2 = lies(
+        "affect ( \"first_elevator\", FLUSH )\n{\n"
+        "\ttask ( \"lift_move_up\" )\n\t{\n\t\twait ( 300.000 );\n"
+        "\t\tmove ( < 0.000 0.000 500.000 >, < 0.000 0.000 0.000 >, 10000.000 );\n\t}\n"
+        "\tdo ( \"lift_move_up\" );\n\twait ( \"lift_move_up\" );\n}\n"
+        "wait ( 500.000 );\n");
+    const double t2 = zeitVon(simuliereAblauf(s2, "v/up", w), "first_elevator", "move", "");
+    std::printf("  mit festen Namen: move bei %.0f\n", t2);
+    pruefe(t2 > 0.0 && std::fabs(t - t2) < 0.5, "der move kommt zur selben Zeit wie mit festen Namen");
+}
+
 int main(int argc, char** argv) {
     if (argc >= 3) {
         return werkzeug(argc, argv);
@@ -731,6 +792,7 @@ int main(int argc, char** argv) {
     kartenstartFreigegeben();   // rc603 (Durchsicht)
     entfernterSpawner();   // rc604
     fallenZiele();         // rc605
+    ausloeserParms();      // rc605 (fix605)
     std::printf("%s\n", fehler == 0 ? "alle Proben bestanden" : "FEHLGESCHLAGEN");
     return fehler == 0 ? 0 : 1;
 }
