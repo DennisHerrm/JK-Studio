@@ -274,3 +274,31 @@ Changelog:
 - DE: Effektbilder ohne Shaderskript zeichnet die Vorschau wie den eingebauten Shader des Spiels: nach ihrem Alpha gemischt, mit Farbe und Ausblenden des Teilchens und durch Wände sichtbar (vorher: eine geschätzte Mischart).
 - ZH: 没有着色器脚本的特效图像现在按游戏为其内置的着色器绘制:按其 alpha 混合,带有粒子的颜色和淡出,并且可以透过墙壁看到(之前:猜测的混合方式)。
 - JA: シェーダースクリプトのないエフェクト画像を、ゲームの組み込みシェーダーと同じく描画するようになりました。アルファで合成され、パーティクルの色とフェードを使い、壁越しにも見えます(以前は推測した合成方法)。
+
+## Kartenprüfung
+
+Nicht neu gelaufen (die große Runde folgt). Erwartet nach der Regel (src/kartenpruefung.cpp, Probe
+kartenpruefung grün): „Karten mit Weltshader-Lücken" 5 → 0 (tcGen vector auf duel_jedi_battleground und
+duel_tower, tcMod entityTranslate auf t1_rail, t3_stamp, taspir2 sind keine Lücken mehr); die übrigen
+Summen ändern sich durch diese Punkte nicht.
+
+## Noch offen nach rc605r
+
+- JK2-Navigator zur Laufzeit: AddFailedEdge durch NPCs (verschlossene Tür, Zerbrechliches, Körper) mit
+  SetEdgeCost/NF_RECALC, global für alle NPCs; NAVNEW_PushBlocker und CheckDoubleBlock (beides nur im
+  gemeinsamen Takt navKoerperLauf machbar, siehe 5a).
+- PM_TorsoAnimation mit den Waffenzweigen (Gewehrträger halten TORSO_WEAPONREADY* - auch beim Stehen und
+  Gehen, nicht nur im Sprung); PM_FallToDeath.
+- Kettenexplosionen von Laserfallen über G_RadiusDamage.
+- deformVertexes normal an Figuren (kein Fall in den Daten); das Glühen der Mover nimmt für autosprite die
+  Weltachsen (kein Fall in den Daten).
+- Leistung mit vielen Emittermodellen (duel_exegol: 377 Mover-Aufrufe je Durchgang) im Leistungslauf
+  ansehen.
+- Unverändert aus rc604: zufällige Windböen der surfaceSprites (Q_flrand), die übrigen Punkte der rc604-Liste.
+
+## Commits (Zweig fix605r)
+
+1b5eac1 Weltshader tcGen vector / entityTranslate · c4ee614 surfaceSprites auf Brush-Modellen · b47648b
+Effektmodelle, autosprite an Modellen · ee3428d Sprungkette · ab4f1ec + 2ecb50a Kyles Waffe (JK2) · ed30760
+Fallenstrahlen · 1a672dd Effekte ohne Skript, AT-ST geprüft · 72293d6 + 15cf59d JK2-Prüfpause
+gescheiterter Kanten.
