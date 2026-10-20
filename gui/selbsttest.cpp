@@ -19427,7 +19427,10 @@ std::vector<Schritt> tuerLaufAlleSchritte(const std::shared_ptr<int>& ab, const 
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     auto nr = std::make_shared<int>(0);
-    auto summe = std::make_shared<std::array<int, 6>>();   // rc605: [4] NPC-Abspruenge, [5] Navgoal ueber dem Kopf
+    // rc605: [4] NPC-Abspruenge, [5] Navgoal ueber dem Kopf; rc605 (fix605): von den
+    // nie angekommenen oder pendelnden [6] vorher entfernt, [7] nach einem
+    // Kartenwechsel, [8] mit Feind (SET_ENEMY - ab da Kampf-KI).
+    auto summe = std::make_shared<std::array<int, 9>>();
     // rc604 fix604: Reiter, deren zweites prepareScene Bilder anlegte; privater
     // Speicher nach dem ersten und nach dem letzten Reiter.
     auto speicher = std::make_shared<std::array<long long, 3>>(std::array<long long, 3>{0, -1, -1});
@@ -19513,6 +19516,45 @@ std::vector<Schritt> tuerLaufAlleSchritte(const std::shared_ptr<int>& ab, const 
                              " gebaut, " + std::to_string(vorSpawn) + " vor ihrem Spawn zu sehen:" + liste);
             }
             const auto& tab = g_app->tabs[static_cast<std::size_t>(r)];
+            // rc605 (fix605): wann die Szene fuer eine Figur im Spiel endet oder
+            // ihr Weg nicht mehr der des Skripts ist (nur fuer den Befund):
+            // - use auf einen target_level_change: G_ChangeMap schickt
+            //   "maptransition" (g_utils.cpp / g_target.cpp target_level_change_use
+            //   OpenJK), die Karte endet - md_fh1_jedi transition: levelchange bei
+            //   11500 ms, starkiller ist dann noch unterwegs zu nav3;
+            // - remove: die Figur ist fort (md_gd_jedi cin1_jedi: ani1 2 s nach dem
+            //   Sprung);
+            // - SET_ENEMY: danach waehlt die Kampf-KI den Weg (Jedi_Attack ->
+            //   Jedi_Advance setzt goalEntity = enemy, AI_Jedi.cpp), abhaengig vom
+            //   Spieler und Q_irand - nicht nachgebildet (t3_stamp, taspir2, kor2,
+            //   t3_rift: BS_JUMP, wait 777, BS_DEFAULT, SET_ENEMY).
+            double kartenwechselMs = -1.0;
+            for (const Ablauf::Benutzung& b : g_app->ablauf.benutzt) {
+                for (const MapEntity& e : g_app->map.entities) {
+                    if (e.classname == "target_level_change" && !e.targetname.empty() && klein(e.targetname) == klein(b.name) &&
+                        (kartenwechselMs < 0.0 || b.ms < kartenwechselMs)) {
+                        kartenwechselMs = b.ms;
+                    }
+                }
+            }
+            const auto feindAb = [](const std::string& wer) {
+                double ab = -1.0;
+                for (const Node& n : g_app->ablauf.flach.nodes) {
+                    if (n.name != "affect" || n.args.empty() || klein(n.args[0].text) != klein(wer)) { continue; }
+                    double t = 0.0;
+                    for (const Node& c : n.children) {
+                        if (c.name == "wait" && !c.args.empty()) {
+                            t += std::atof(c.args[0].text.c_str());
+                            continue;
+                        }
+                        if (c.name == "set" && c.args.size() >= 2 && klein(c.args[0].text) == "set_enemy" &&
+                            !c.args[1].text.empty() && klein(c.args[1].text) != "null" && (ab < 0.0 || t < ab)) {
+                            ab = t;
+                        }
+                    }
+                }
+                return ab;
+            };
             for (const Actor& a : g_app->scene.actors) {
                 double von = -1.0;
                 double bis = -1.0;
@@ -19593,6 +19635,26 @@ std::vector<Schritt> tuerLaufAlleSchritte(const std::shared_ptr<int>& ab, const 
                 // still (nie, ruheMs)? Kommt der Plan aus dem gemeinsamen Takt
                 // (andere Figuren im Weg)? Kehrt sie innerhalb EINES Plans um
                 // (sonst wechselt das Skript die Ziele)?
+                // rc605 (fix605): Szenenende / Feind vor dem Ende der Auswertung.
+                std::string grund;
+                if (an == 0 || kehren > 2) {
+                    double entferntMs = -1.0;
+                    for (const ActorStep& st : a.steps) {
+                        if (st.kind == ActorStep::Kind::Gone && (entferntMs < 0.0 || st.startMs < entferntMs)) { entferntMs = st.startMs; }
+                    }
+                    const double feindMs = feindAb(a.name);
+                    double schnitt = 1.0e18;
+                    int art = -1;
+                    if (entferntMs >= 0.0 && entferntMs < schnitt) { schnitt = entferntMs; art = 6; }
+                    if (kartenwechselMs >= 0.0 && kartenwechselMs < schnitt) { schnitt = kartenwechselMs; art = 7; }
+                    if (feindMs >= 0.0 && feindMs < schnitt) { schnitt = feindMs; art = 8; }
+                    if (art >= 0 && schnitt < ende) {
+                        (*summe)[static_cast<std::size_t>(art)] += 1;
+                        char z[120];
+                        std::snprintf(z, sizeof(z), "; %s bei %.0f", art == 6 ? "entfernt" : art == 7 ? "Kartenwechsel" : "Feind (Kampf-KI)", schnitt);
+                        grund = z;
+                    }
+                }
                 if (letzter != nullptr && letzter->lauf && (an == 0 || kehren > 2)) {
                     const LaufPlan& p = *letzter->lauf;
                     const float d0 = std::hypot(letzter->laufZiel[0] - p.anfang.ort[0], letzter->laufZiel[1] - p.anfang.ort[1]);
@@ -19656,7 +19718,7 @@ std::vector<Schritt> tuerLaufAlleSchritte(const std::shared_ptr<int>& ab, const 
                                   karte.c_str(), tab.shownName.c_str(), a.name.c_str(), klasse, p.abMs, letzter->endMs, tVerf,
                                   static_cast<double>(d0), static_cast<double>(vmax), tNoetig, p.nie ? 1 : 0, p.ruheMs, koerper ? 1 : 0,
                                   kehrenImPlan);
-                    diag::detail(z);
+                    diag::detail(z + grund);
                 }
                 std::string zuletzt;
                 if (letzter != nullptr) {
@@ -19726,7 +19788,8 @@ std::vector<Schritt> tuerLaufAlleSchritte(const std::shared_ptr<int>& ab, const 
                      " Figuren mit Weg, nie angekommen " + std::to_string((*summe)[1]) + ", pendelnd " +
                      std::to_string((*summe)[2]) + ", Spruenge " + std::to_string((*summe)[3]) + ", NPC-Abspruenge " +
                      std::to_string((*summe)[4]) + ", davon nie angekommen mit Navgoal ueber dem Kopf nach einem Sprung " +
-                     std::to_string((*summe)[5]));
+                     std::to_string((*summe)[5]) + ", nie angekommen oder pendelnd: vorher entfernt " + std::to_string((*summe)[6]) +
+                     ", nach Kartenwechsel " + std::to_string((*summe)[7]) + ", mit Feind " + std::to_string((*summe)[8]));
     }));
     add(pruefe("Tuer-Lauf: " + karte + " - kein Denkbild geht weiter, als Pmove die Figur tragen kann", [=] {
         return (*summe)[3] == 0;
