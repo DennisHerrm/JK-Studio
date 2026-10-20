@@ -17314,7 +17314,10 @@ std::vector<Schritt> tripMineSchritte() {
     }, 600));
     add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
     add(pause(0.5));
-    add(pruefe("Laserfalle: zweite Explosion zaehlt t420 auf 0 - Nachbau und Mover schalten t419 einmal", [=] {
+    // rc605 (Ende): #168 und #747 haengen 44 Einheiten auseinander - WP_Explode
+    // von #168 sprengt #747 im selben Bild (G_RadiusDamage 90 / 256, health 15):
+    // t420 zweimal zur selben Zeit, t419 einmal, die Wand ist danach fort.
+    add(pruefe("Laserfalle: #168 sprengt #747 mit (G_RadiusDamage) - t420 zweimal, t419 einmal, zur selben Zeit", [=] {
         double knall[2] = {-1.0, -1.0};
         for (const AblaufWelt::FallenUse& f : g_app->fallenUses) {
             if (f.entity == 168) { knall[0] = f.ms; }
@@ -17340,8 +17343,8 @@ std::vector<Schritt> tripMineSchritte() {
                       (*zweiFallen)[0], g_app->fallenExplosionen, knall[0], knall[1], zaehler, wand, wandMs, erst ? 1 : 0,
                       vorher ? 1 : 0, nachher ? 1 : 0);
         diag::detail(z);
-        return (*zweiFallen)[0] == 2 && knall[0] > 0.0 && knall[1] > knall[0] && zaehler == 2 && wand == 1 &&
-               std::fabs(wandMs - knall[1]) < 0.5 && erst && vorher && !nachher;
+        return (*zweiFallen)[0] == 2 && knall[0] > 0.0 && std::fabs(knall[1] - knall[0]) < 0.5 && g_app->fallenKettenExplosionen == 1U &&
+               zaehler == 2 && wand == 1 && std::fabs(wandMs - knall[1]) < 0.5 && !erst && vorher && !nachher;
     }));
     // rc604: misc_trip_mine_activate - t2_rancor hat 6 Fallen mit targetname
     // und START_OFF ("bartables2_new"): unsichtbar bis zum use, dann ein

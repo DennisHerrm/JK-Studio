@@ -245,6 +245,9 @@ struct LaserfalleEingabe {
     double spawnMs = 0.0;
     std::vector<double> uses;      // nach Zeit
     double endeMs = 0.0;
+    // rc605 (Ende): G_RadiusDamage einer anderen Falle bringt health unter 1 ->
+    // WP_ExplosiveDie -> WP_Explode zu dieser Zeit (1e300: nie).
+    double zwangMs = 1.0e300;
 };
 struct LaserfalleStrahl {
     double abMs = 0.0;
@@ -258,6 +261,7 @@ struct LaserfalleErgebnis {
     std::vector<double> explosionen;                       // WP_Explode
     double sichtbarAbMs = 1.0e300;                         // 1e300: nie gezeichnet (EF_NODRAW)
     double wegMs = -1.0;                                   // G_FreeEntity (< 0: bleibt)
+    bool gezwungen = false;                                // rc605 (Ende): die Explosion kam von zwangMs
 };
 [[nodiscard]] LaserfalleErgebnis laserfalleLauf(const LaserfalleEingabe& e, const LaserfalleSpurFn& spur);
 

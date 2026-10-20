@@ -6655,6 +6655,8 @@ struct FallenMine {
     std::size_t entity = 0;
     float ort[3]{};
     double wegMs = 1.0e300;   // G_FreeEntity (aus laserfalleLauf, siehe fallenEffekteSetzen)
+    double zwangMs = 1.0e300; // rc605 (Ende): von einer anderen Falle gesprengt (fallenKette)
+    double schadenAb = 1.0e300;   // rc605 (Ende): takedamage ab (touchLaserTrap / misc_trip_mine_activate)
 };
 struct FallenModell {
     std::size_t entity = 0;
@@ -6734,6 +6736,17 @@ void fallenWeltBauen() {
             FallenMine m;
             m.entity = ei;
             for (int q = 0; q < 3; ++q) { m.ort[q] = tl.ort[q]; }
+            // rc605 (Ende): touchLaserTrap setzt takedamage (wp_trip_mine.cpp:51
+            // OpenJK); SP_misc_trip_mine nimmt es bei targetname + START_OFF
+            // wieder weg, bis misc_trip_mine_activate es setzt (g_misc.cpp
+            // :1808-1816, 1870-1875).
+            if (tl.sichtbarAbSpawn) {
+                m.schadenAb = kNavKartenSpawnMs;
+            } else {
+                for (const auto& [ent, ms] : g_app->moverSim.entityUses()) {
+                    if (ent == ei) { m.schadenAb = std::min(m.schadenAb, ms); }
+                }
+            }
             w.minen.push_back(m);
         } else if (kl == "misc_model_breakable") {
             // SP_misc_model_breakable (g_breakable.cpp:1215-1300 MD)
@@ -7369,6 +7382,7 @@ void fallenEffekteSetzen() {
         g_app->fallenKlaenge.clear();   // rc604
         g_app->fallenSicht.clear();
         g_app->fallenExplosionen = 0;
+        g_app->fallenKettenExplosionen = 0;   // rc605 (Ende)
         g_app->fallenUsesNeu.clear();   // rc605 (fix605)
         fallenWeltBauen();
         const auto fallenBeginn = std::chrono::steady_clock::now();
@@ -7393,11 +7407,116 @@ void fallenEffekteSetzen() {
                 if (ent == i) { ein.uses.push_back(ms); }
             }
             std::stable_sort(ein.uses.begin(), ein.uses.end());
+            for (const FallenMine& fm : g_fallenWelt.minen) {
+                if (fm.entity == i) { ein.zwangMs = fm.zwangMs; }
+            }
             return ein;
+        };
+        // rc605 (Ende): Kettenexplosionen. WP_Explode (g_weapon.cpp:185-230
+        // OpenJK) nimmt sich takedamage und ruft G_RadiusDamage(currentOrigin,
+        // attacker, splashDamage 90, splashRadius 256) - LT_SPLASH_DAM /
+        // LT_SPLASH_RAD (weapons.h OpenJK, Movie Duels und codeJK2 gleich; die
+        // weapons.dat von base und MD setzen sie nicht). G_RadiusDamage
+        // (code/game/g_combat.cpp:6850-6955 OpenJK; g_combat.cpp:9704 ff. MD):
+        // je Entity mit takedamage und contents der Abstand zum absmin/absmax
+        // (Falle: +-4, SV_LinkEntity +1), unter dem Radius points = damage *
+        // (1 - dist / radius), CanDamage (Punktspuren MASK_SOLID zur Mitte und
+        // +-15 in x/y), G_Damage mit (int)points: health 15 (touchLaserTrap)
+        // abwaerts, bei <= 0 WP_ExplosiveDie -> WP_Explode sofort (noch im
+        // G_RadiusDamage der ersten, in der Reihenfolge der Entities).
+        const auto kannTreffen = [](double ms, const float von[3], const float mitte[3]) {
+            const FallenWelt& fw = g_fallenWelt;
+            if (!fw.k) { return true; }
+            const float null3[3] = {0.0F, 0.0F, 0.0F};
+            const std::uint32_t maske = kNavSolid | kNavTerrain;   // MASK_SOLID
+            const auto frei = [&](const float ziel[3]) {
+                if (kollisionsSpur(*fw.k, von, null3, null3, ziel, maske).fraction < 1.0F) { return false; }
+                for (const FallenBrush& b : fw.brushes) {
+                    float ort[3] = {b.ort0[0], b.ort0[1], b.ort0[2]};
+                    float winkel[3] = {0.0F, 0.0F, 0.0F};
+                    if (b.skript != nullptr) {
+                        const ActorState st = b.skript->at(ms);
+                        if (!st.visible) { continue; }
+                        for (int q = 0; q < 3; ++q) {
+                            ort[q] = st.pos[q];
+                            winkel[q] = st.angles[q];
+                        }
+                    } else {
+                        const MoverSim::Stand m = g_app->moverSim.at(b.modell, ms);
+                        if (m.bekannt) {
+                            if (!m.sichtbar) { continue; }
+                            for (int q = 0; q < 3; ++q) {
+                                ort[q] = m.origin[q];
+                                winkel[q] = m.angles[q];
+                            }
+                        }
+                    }
+                    if (kollisionsSpur(*fw.k, von, null3, null3, ziel, maske, b.modell, ort, winkel).fraction < 1.0F) { return false; }
+                }
+                return true;
+            };
+            if (frei(mitte)) { return true; }
+            for (const float dx : {15.0F, -15.0F}) {
+                for (const float dy : {15.0F, -15.0F}) {
+                    const float z[3] = {mitte[0] + dx, mitte[1] + dy, mitte[2]};
+                    if (frei(z)) { return true; }
+                }
+            }
+            return false;
+        };
+        // natuerlich: je Falle die Zeit, zu der eine Figur sie ausloest (1e300:
+        // nie). Ergebnis: zwangMs je Falle; true, wenn sich etwas aenderte.
+        const auto fallenKette = [&](const std::map<std::size_t, double>& natuerlich) {
+            std::vector<FallenMine>& mi = g_fallenWelt.minen;
+            std::vector<double> knall(mi.size(), 1.0e300);
+            std::vector<int> leben(mi.size(), 15);
+            std::vector<double> zwang(mi.size(), 1.0e300);
+            std::function<void(std::size_t, double)> sprengt = [&](std::size_t a, double t) {
+                for (std::size_t b = 0; b < mi.size(); ++b) {
+                    if (b == a || knall[b] <= t || t < mi[b].schadenAb) { continue; }
+                    float v[3];
+                    for (int q = 0; q < 3; ++q) {
+                        const float lo = mi[b].ort[q] - 5.0F;
+                        const float hi = mi[b].ort[q] + 5.0F;
+                        const float o = mi[a].ort[q];
+                        v[q] = o < lo ? lo - o : (o > hi ? o - hi : 0.0F);
+                    }
+                    const float dist = std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+                    if (dist >= 256.0F) { continue; }
+                    const float points = 90.0F * (1.0F - dist / 256.0F);
+                    if (!kannTreffen(t, mi[a].ort, mi[b].ort)) { continue; }
+                    leben[b] -= static_cast<int>(points);
+                    if (leben[b] <= 0) {
+                        knall[b] = t;
+                        zwang[b] = t;
+                        sprengt(b, t);
+                    }
+                }
+            };
+            std::vector<std::pair<double, std::size_t>> reihe;
+            for (std::size_t i = 0; i < mi.size(); ++i) {
+                const auto it = natuerlich.find(mi[i].entity);
+                if (it != natuerlich.end() && it->second < 1.0e299) { reihe.emplace_back(it->second, i); }
+            }
+            std::stable_sort(reihe.begin(), reihe.end(), [](const auto& x, const auto& y) { return x.first < y.first; });
+            for (const auto& [t, a] : reihe) {
+                if (knall[a] <= t) { continue; }
+                knall[a] = t;
+                sprengt(a, t);
+            }
+            bool anders = false;
+            for (std::size_t i = 0; i < mi.size(); ++i) {
+                if (mi[i].zwangMs != zwang[i]) {
+                    mi[i].zwangMs = zwang[i];
+                    anders = true;
+                }
+            }
+            return anders;
         };
         if (g_fallenWelt.minen.size() > 1U) {
             for (int runde = 0; runde < 4; ++runde) {
                 std::map<std::size_t, double> weg;
+                std::map<std::size_t, double> natuerlich;   // rc605 (Ende)
                 for (const FallenMine& fm : g_fallenWelt.minen) {
                     TripMineLage tl;
                     if (!tripMineLage(g_app->map.entities[fm.entity], tl)) { continue; }
@@ -7408,8 +7527,9 @@ void fallenEffekteSetzen() {
                             return laserfalleSpurBei(ms, s, mn, mx, en, i);
                         });
                     weg[i] = lr.wegMs >= 0.0 ? lr.wegMs : 1.0e300;
+                    natuerlich[i] = (lr.explosionen.empty() || lr.gezwungen) ? 1.0e300 : lr.explosionen.front();
                 }
-                bool gleich = true;
+                bool gleich = !fallenKette(natuerlich);   // rc605 (Ende)
                 for (FallenMine& fm : g_fallenWelt.minen) {
                     const auto it = weg.find(fm.entity);
                     const double neu = it == weg.end() ? 1.0e300 : it->second;
@@ -7447,6 +7567,9 @@ void fallenEffekteSetzen() {
                 if (ent == i) { ein.uses.push_back(ms); }
             }
             std::stable_sort(ein.uses.begin(), ein.uses.end());
+            for (const FallenMine& fm : g_fallenWelt.minen) {
+                if (fm.entity == i) { ein.zwangMs = fm.zwangMs; }   // rc605 (Ende)
+            }
             const LaserfalleErgebnis lr = laserfalleLauf(
                 ein, [i, &fallenSpuren](double ms, const float s[3], const float mn[3], const float mx[3], const float en[3]) {
                     ++fallenSpuren;
@@ -7501,7 +7624,11 @@ void fallenEffekteSetzen() {
                     g_app->fallenUsesNeu.push_back(AblaufWelt::FallenUse{ms, *ziel, static_cast<int>(i)});
                 }
             }
-            if (!lr.explosionen.empty()) {
+            if (!lr.explosionen.empty() && lr.gezwungen) {
+                diag::detail("misc_trip_mine #" + std::to_string(i) + ": von einer anderen Falle gesprengt (G_RadiusDamage) - WP_Explode bei " +
+                             std::to_string(static_cast<int>(lr.explosionen.front())) + " ms");
+                ++g_app->fallenKettenExplosionen;
+            } else if (!lr.explosionen.empty()) {
                 diag::detail("misc_trip_mine #" + std::to_string(i) + ": eine Figur im Strahl - WP_Explode bei " +
                              std::to_string(static_cast<int>(lr.explosionen.front())) + " ms (Treffer am Netz " +
                              std::to_string(g_app->fallenNetzTreffer) + ", nur Kasten " + std::to_string(g_app->fallenKastenTreffer) +

@@ -2176,11 +2176,26 @@ LaserfalleErgebnis laserfalleLauf(const LaserfalleEingabe& e, const LaserfalleSp
     std::size_t ui = 0;
     const float mn[3] = {-4.0F, -4.0F, -4.0F};
     const float mx[3] = {4.0F, 4.0F, 4.0F};
+    bool zwangDa = false;
     for (int grenze = 0; grenze < 1000000; ++grenze) {
         while (ui < e.uses.size() && (!e.hatUse || e.uses[ui] < e.spawnMs)) { ++ui; }
         const double tUse = ui < e.uses.size() ? e.uses[ui] : kUnendlich;
         const double tDenk = denken == Denken::Nichts ? kUnendlich : naechstes;
-        if (std::min(tUse, tDenk) > e.endeMs) { break; }
+        // rc605 (Ende): WP_ExplosiveDie (g_weapon.cpp:234-249 OpenJK) - eine
+        // andere Falle sprengt diese in ihrem G_RadiusDamage; auch eine
+        // ausgeschaltete (misc_trip_mine_activate laesst takedamage stehen).
+        const double tZwang = (zwangDa || denken == Denken::Frei) ? kUnendlich : e.zwangMs;
+        if (std::min({tUse, tDenk, tZwang}) > e.endeMs) { break; }
+        if (tZwang <= tUse && tZwang <= tDenk) {
+            zwangDa = true;
+            r.explosionen.push_back(tZwang);
+            r.gezwungen = true;
+            schliesse(tZwang);
+            feuert = false;
+            denken = Denken::Frei;
+            naechstes = tZwang + 50.0;
+            continue;
+        }
         if (tUse < tDenk) {
             ++ui;
             if (denken == Denken::Falle) {

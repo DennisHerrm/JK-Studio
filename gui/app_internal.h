@@ -937,6 +937,7 @@ struct App {
     std::vector<AblaufWelt::FallenUse> fallenUses;
     std::string fallenUsesKarte;
     std::vector<AblaufWelt::FallenUse> fallenUsesNeu;
+    std::size_t fallenKettenExplosionen = 0;   // rc605 (Ende): von anderen Fallen gesprengt
     // rc605 (Ende): die Tode durch trigger_hurt (hurtTodeBerechnen) zu Karte und
     // Skript hurtTodeSchluessel - der naechste Nachbau desselben Skripts toetet
     // sie (AblaufWelt::hurtTode).

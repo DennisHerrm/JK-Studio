@@ -240,3 +240,27 @@ Changelog:
 - DE: Benutzt ein Skript einen `target_level_change`, endet die Vorschau dort wie im Spiel: Zeitleiste, Kamera und Figuren hören in diesem Moment auf, und die Statusliste nennt die nächste Karte.
 - ZH: 当脚本使用 `target_level_change` 时,预览会像游戏一样在此结束:时间轴、摄像机和角色在那一刻停止,状态列表会显示下一张地图。
 - JA: スクリプトが `target_level_change` を使うと、プレビューはゲームと同じくそこで終わります。タイムライン、カメラ、キャラクターはその瞬間に止まり、ステータス一覧に次のマップが表示されます。
+
+## 9. Laserfallen sprengen einander (Punkt 5)
+
+fallenEffekteSetzen rechnet nach den natürlichen Explosionen (Figur im Strahl, laserfalleLauf) die Kette:
+WP_Explode nimmt takedamage weg und ruft G_RadiusDamage(currentOrigin, 90, 256) (LT_SPLASH_DAM/LT_SPLASH_RAD,
+weapons.h OpenJK/MD/codeJK2; weapons.dat von base und MD setzen nichts). Je andere Falle mit takedamage (ab dem
+Spawn bzw. bei targetname + START_OFF ab dem ersten use, misc_trip_mine_activate) der Abstand zu absmin/absmax
+(+-4 +1), points = 90 * (1 - dist/256), CanDamage (Punktspuren MASK_SOLID gegen Welt und Mover zur Zeit, Mitte und
++-15 in x/y), health 15 - (int)points; <= 0 -> WP_ExplosiveDie -> WP_Explode sofort (rekursiv, Reihenfolge der
+Entities). laserfalleLauf nimmt die Zwangszeit (LaserfalleEingabe::zwangMs): Explosion, Strahl/Summen aus, frei
+50 ms später; die Runden (bis 4) rechnen Strahlen, Freigaben und Kette, bis sie stehen. Figuren nehmen den
+Explosionsschaden in der Vorschau weiterhin nicht (offen).
+
+| Test | Rot (vorher) | Grün (nachher) |
+|---|---|---|
+| Selbsttest laserfalle (kette1 mit alter Erwartung / kette2) t3_byss #168 + #747 (44 auseinander) | #168 bei 600, #747 erst bei 1600 durch die Figur; t419 bei 1600 | #747 von #168 gesprengt bei 600 (G_RadiusDamage), t420 2x, t419 1x bei 600, *36 nach der ersten fort; 5 OK |
+| rest605 BHED_REST=fallen | – | 1 OK (Strahl-Hindernisse unverändert) |
+| ctest | – | 67/67 |
+
+Changelog:
+- EN: An exploding laser trip mine sets off the mines near it like the game's blast damage - mines hung close together go off together (t3_byss).
+- DE: Eine explodierende Laserfalle sprengt die Fallen in ihrer Nähe mit wie der Explosionsschaden des Spiels - dicht beieinander hängende Fallen gehen zusammen hoch (t3_byss).
+- ZH: 爆炸的激光绊雷会像游戏的爆炸伤害一样引爆附近的绊雷——挂得很近的绊雷会一起爆炸(t3_byss)。
+- JA: 爆発したレーザートラップは、ゲームの爆発ダメージと同じく近くのマインを誘爆させます。近くに並べたマインは一緒に爆発します(t3_byss)。
