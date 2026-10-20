@@ -356,6 +356,8 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
     // tcGen dieser Stufe und der Bildstufe - siehe TexGen.
     TexGen stageTexGen = TexGen::Base;
     TexGen texGen = TexGen::Base;
+    float stageTcGenVec[6]{0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F};   // rc605: tcGen vector
+    float tcGenVec[6]{0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F};
     AlphaGen stageAlphaGen = AlphaGen::FromImage;
     bool stageAlphaEntity = false;   // rc604: alphaGen entity
     float stageRgbConst[3]{-1.0F, -1.0F, -1.0F};
@@ -439,6 +441,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     alphaConst = stageAlphaConst;
                     glow = stageGlow;
                     texGen = stageTexGen;
+                    std::copy(stageTcGenVec, stageTcGenVec + 6, tcGenVec);
                     srcFactor = stageSrc;
                     dstFactor = stageDst;
                     for (int k = 0; k < 3; ++k) {
@@ -482,6 +485,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     st.portalWeite = stagePortalWeite;
                     st.glow = stageGlow;
                     st.texGen = stageTexGen;
+                    std::copy(stageTcGenVec, stageTcGenVec + 6, st.tcGenVec);
                     st.alphaGen = stageAlphaGen;
                     st.alphaEntity = stageAlphaEntity;
                     st.srcFactor = stageSrc;
@@ -517,6 +521,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 stageAlphaConst = -1.0F;
                 stageGlow = false;
                 stageTexGen = TexGen::Base;
+                std::fill(stageTcGenVec, stageTcGenVec + 6, 0.0F);
                 stageAlphaGen = AlphaGen::FromImage;
                 stageAlphaEntity = false;
                 stageRgbVertex = false;
@@ -587,6 +592,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     info.glow = glow;
                     info.hasGlow = hasGlow;
                     info.texGen = texGen;
+                    std::copy(tcGenVec, tcGenVec + 6, info.tcGenVec);
                     info.srcFactor = srcFactor;
                     info.dstFactor = dstFactor;
                     for (int k = 0; k < 3; ++k) {
@@ -630,6 +636,8 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 hasGlow = false;
                 stageTexGen = TexGen::Base;
                 texGen = TexGen::Base;
+                std::fill(stageTcGenVec, stageTcGenVec + 6, 0.0F);
+                std::fill(tcGenVec, tcGenVec + 6, 0.0F);
                 stageAlphaGen = AlphaGen::FromImage;
                 stageAlphaEntity = false;
                 stageSrc = BlendFactor::One;
@@ -913,8 +921,26 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
             // entweder genau das, was ohnehin in der .bsp steht, oder sind
             // so selten, dass ein Raten schlechter waere als das Bekannte.
             if ((key == "tcgen" || key == "texgen") && depth >= 2) {
-                if (lower(firstWord(secondWord(line))) == "environment") {
+                const std::string art = lower(firstWord(secondWord(line)));
+                if (art == "environment") {
                     stageTexGen = TexGen::Environment;
+                } else if (art == "vector") {
+                    // rc605: `tcGen vector ( sx sy sz ) ( tx ty tz )` - ParseStage
+                    // (code/rd-vanilla/tr_shader.cpp:1611-1617 MD) liest zwei
+                    // Vektoren mit ParseVector (Klammern als eigene Token) und
+                    // setzt TCGEN_VECTOR. Die Klammern hier einfach als Trenner.
+                    std::string rest = trim(secondWord(trim(secondWord(line))));
+                    for (char& c : rest) {
+                        if (c == '(' || c == ')') { c = ' '; }
+                    }
+                    float v[6]{0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F};
+                    for (float& x : v) {
+                        rest = trim(rest);
+                        if (rest.empty() || !parseFloat(rest, x)) { break; }
+                        rest = secondWord(rest);
+                    }
+                    std::copy(v, v + 6, stageTcGenVec);
+                    stageTexGen = TexGen::Vector;
                 }
                 continue;
             }

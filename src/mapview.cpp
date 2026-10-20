@@ -478,6 +478,7 @@ const std::uint8_t* TextureSet::Tex::levelData(int level, int& w,
 }
 
 namespace {
+bool g_tcGenVektorAus = false;   // rc605 Selbsttest, siehe tcGenVektorAus
 // Der gemeinsame Rumpf: aus einem `TextureSet::Tex` wird ein `BatchState`.
 //
 // Er stand nur in `batchStateFor(textures, texId, ...)`, war also fuer
@@ -516,6 +517,12 @@ void batchStateAus(const TextureSet::Tex& t, float zeitSekunden,
     bs.alphaGen = t.alphaGen;
     bs.depthFunc = t.depthFunc;
     bs.texGen = t.texGen;
+    if (g_tcGenVektorAus && bs.texGen == TexGen::Vector) {
+        bs.texGen = TexGen::Base;
+    }
+    for (int k = 0; k < 6; ++k) {
+        bs.tcGenVec[k] = t.tcGenVec[k];
+    }
     bs.alphaConst = t.alphaConst;
     // alphaGen wave (rc592): RB_CalcWaveAlpha - EvalWaveFormClamped.
     if (t.alphaWave.active()) {
@@ -562,6 +569,8 @@ int animBildFuer(const TextureSet* textures, int texId, float zeitSekunden) {
     }
     return t0.animFrames[static_cast<std::size_t>(idx)];
 }
+
+void tcGenVektorAus(bool aus) { g_tcGenVektorAus = aus; }
 
 BatchState batchStateFor(const TextureSet::Tex& t, float zeitSekunden) {
     // --- EINE Fassung fuer Karte und Figuren -----------------------------

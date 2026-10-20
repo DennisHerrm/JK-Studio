@@ -196,8 +196,10 @@ PipelineState pipelineFor(const BatchState& bs, bool hatLightmap,
     if (bs.haveSpecular) {
         f |= kSpecular;
     }
-    if (bs.texGen != TexGen::Base) {
+    if (bs.texGen == TexGen::Environment) {
         f |= kTexGenEnv;
+    } else if (bs.texGen == TexGen::Vector) {
+        f |= kTexGenVec;   // rc605
     }
     if (bs.alphaTest != AlphaTest::None) {
         f |= kAlphaTest;

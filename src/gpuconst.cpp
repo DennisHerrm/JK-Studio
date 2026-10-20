@@ -212,6 +212,13 @@ void packeKonstanten(const BatchState& bs, float* ziel,
         ziel[kDeformNormalAt + 0] = bs.deform2.normal[0];
         ziel[kDeformNormalAt + 1] = bs.deform2.normal[1];
     }
+    // rc605: tcGen vector (ComputeTexCoords TCGEN_VECTOR, tr_shade.cpp:1675-1680 MD).
+    if (bs.texGen == TexGen::Vector) {
+        for (int k = 0; k < 3; ++k) {
+            ziel[kTcGenSAt + static_cast<std::size_t>(k)] = bs.tcGenVec[k];
+            ziel[kTcGenTAt + static_cast<std::size_t>(k)] = bs.tcGenVec[3 + k];
+        }
+    }
 }
 
 }  // namespace bhed::gpu

@@ -12855,6 +12855,7 @@ void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const
     // die beiden darunter nicht.
     zusatz.glow = st.glow;
     zusatz.texGen = st.texGen;
+    for (int k = 0; k < 6; ++k) { zusatz.tcGenVec[k] = st.tcGenVec[k]; }   // rc605
     zusatz.clamp = st.clamp;
     zusatz.depthWrite = st.depthWrite;
     zusatz.depthFunc = st.depthFunc;
@@ -12941,6 +12942,7 @@ void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const
             bild.portalWeite = erst.portalWeite;
             bild.glow = erst.glow;
             bild.texGen = erst.texGen;
+            for (int k = 0; k < 6; ++k) { bild.tcGenVec[k] = erst.tcGenVec[k]; }   // rc605
             bild.clamp = erst.clamp;
             bild.alphaGen = erst.alphaGen;
             for (int k = 0; k < 3; ++k) {

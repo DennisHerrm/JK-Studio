@@ -87,6 +87,8 @@ cbuffer JeStapel : register(b1) {
     float4 gDeformMove;    // xyz Versatz
     float4 gBulge;         // breite, hoehe, tempo
     float4 gDeformNormal;  // amplitude, frequenz
+    float4 gTcGenS;        // rc605: tcGen vector, s-Vektor (gpuconst.h 36)
+    float4 gTcGenT;        // rc605: tcGen vector, t-Vektor (40)
 };
 )";
 
@@ -1203,6 +1205,12 @@ float rausch4(float4 q) {
         aus.uv = sp.yz * 0.5 + 0.5;
     }
 )";
+    } else if ((features & kTexGenVec) != 0U) {
+        // rc605: tcGen vector - ComputeTexCoords TCGEN_VECTOR
+        // (code/rd-vanilla/tr_shade.cpp:1675-1680 MD): st = (xyz . v0, xyz . v1)
+        // mit tess.xyz nach den deformVertexes; an einem Brush-Modell im Raum
+        // des Modells - wie `welt` hier (die Stellung steckt in gViewProj).
+        s += "    aus.uv = float2(dot(welt, gTcGenS.xyz), dot(welt, gTcGenT.xyz));\n";
     } else {
         s += "    aus.uv = ein.uv;\n";
     }
@@ -1532,6 +1540,7 @@ std::string shaderName(std::uint32_t features, int numTexMods) {
         {kDeformMove, "_mv"},    {kDeformNormal, "_dn"},
         {kWolke, "_wk"},         {kSkyPortal, "_sp2"},
         {kAlphaPortal, "_ap"},      {kSpiegelBild, "_spb"},
+        {kTexGenVec, "_tcv"},   // rc605
         // kRohEcke MUSS ein Kuerzel bekommen: es aendert den erzeugten
         // Quelltext (kein Helligkeitsfaktor auf der Eckenfarbe). Ohne
         // Kuerzel bekaemen zwei verschiedene Shader denselben Namen und

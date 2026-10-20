@@ -17931,6 +17931,101 @@ std::vector<Schritt> figurDeformSchritte() {
     return s;
 }
 
+// --- rc605 (Rest): Weltshader tcGen vector ----------------------------------
+//
+// ComputeTexCoords TCGEN_VECTOR (code/rd-vanilla/tr_shade.cpp:1675-1680 MD):
+// st = (xyz . v0, xyz . v1). duel_jedi_battleground: textures/terrain/ter_ruusan
+// (MD_Maps_Legends.pk3, ruusan_dlm.shader) - drei Stufen mit tcGen vector auf
+// dem ganzen Gelaende. Der Test sieht das Gelaende vom Spielerstart mit und ohne
+// (tcGenVektorAus) an.
+std::vector<Schritt> tcGenVektorSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto mit = std::make_shared<std::vector<std::uint8_t>>();
+    auto bw = std::make_shared<int>(0);
+    auto bh = std::make_shared<int>(0);
+    auto stufen = std::make_shared<int>(0);
+    const auto kamera = [] {
+        g_app->throughCamera = false;
+        g_app->cameraSelected = false;
+        g_app->draufsicht = false;
+        g_app->playing = false;
+        for (const MapEntity& e : g_app->map.entities) {
+            if (e.classname != "info_player_start" && e.classname != "info_player_deathmatch") { continue; }
+            float o[3] = {0.0F, 0.0F, 0.0F};
+            if (std::sscanf(e.origin.c_str(), "%f %f %f", &o[0], &o[1], &o[2]) != 3) { continue; }
+            g_app->cam.pos[0] = o[0];
+            g_app->cam.pos[1] = o[1];
+            g_app->cam.pos[2] = o[2] + 64.0F;
+            break;
+        }
+        g_app->cam.angles[0] = 35.0F;
+        g_app->cam.angles[1] = 0.0F;
+        g_app->cam.angles[2] = 0.0F;
+        g_app->mapDirty = true;
+    };
+    add(tu("tcGen vector: duel_jedi_battleground laden", [=] {
+        tcGenVektorAus(false);
+        g_app->leftMode = 1;
+        (void)loadMapFromArchive("maps/duel_jedi_battleground.bsp");
+        g_app->mapDirty = true;
+    }));
+    add(warteBis("Karte bereit", [] { return g_app->mapBereit; }, 900));
+    add(tu("tcGen vector: Kamera auf das Gelaende", kamera));
+    add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
+    add(pause(0.5));
+    add(foto("tcgen_vektor_mit"));
+    add(tu("tcGen vector: messen, dann ohne", [=] {
+        (void)gpu::leseFarbe(*mit, *bw, *bh);
+        *stufen = 0;
+        for (const TextureSet::Tex& t : g_app->textures.byShader) {
+            if (t.texGen == TexGen::Vector) { ++*stufen; }
+        }
+        tcGenVektorAus(true);
+        kartenNetzNeu();
+        kamera();
+    }));
+    add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
+    add(pause(0.5));
+    add(foto("tcgen_vektor_ohne"));
+    add(pruefe("tcGen vector: das Gelaende von duel_jedi_battleground nimmt st aus dem Ort", [=] {
+        std::vector<std::uint8_t> ohne;
+        int w = 0;
+        int h = 0;
+        const bool gelesen = gpu::leseFarbe(ohne, w, h);
+        tcGenVektorAus(false);
+        kartenNetzNeu();
+        g_app->mapDirty = true;
+        long long anders = 0;
+        if (gelesen && w == *bw && h == *bh && mit->size() == ohne.size()) {
+            for (std::size_t i = 0; i + 3 < ohne.size(); i += 4) {
+                int d = 0;
+                for (int c = 0; c < 3; ++c) { d += std::abs(static_cast<int>((*mit)[i + c]) - static_cast<int>(ohne[i + c])); }
+                if (d > 6) { ++anders; }
+            }
+        }
+        char z[200];
+        std::snprintf(z, sizeof(z), "Knopftest: tcGen vector - Bildstufen mit tcGen vector %d, Bildpunkte mit/ohne anders %lld",
+                      *stufen, anders);
+        diag::detail(z);
+        return *stufen > 0 && anders > 1000;
+    }));
+    return s;
+}
+
+// rc605 (Rest): alle Proben dieses Auftrags; BHED_REST=<teil> waehlt eine.
+std::vector<Schritt> rest605Schritte() {
+    const char* t = std::getenv("BHED_REST");
+    const std::string teil = t != nullptr ? t : "";
+    std::vector<Schritt> s;
+    auto dazu = [&](const char* name, std::vector<Schritt> v) {
+        if (!teil.empty() && teil != name) { return; }
+        for (Schritt& x : v) { s.push_back(std::move(x)); }
+    };
+    dazu("tcgen", tcGenVektorSchritte());
+    return s;
+}
+
 std::vector<Schritt> fix604bSchritte() {
     std::vector<Schritt> s = effektStufenSchritte();
     for (Schritt& x : geschuetzeSchritte()) { s.push_back(std::move(x)); }
@@ -28413,6 +28508,7 @@ void selbsttest() {
     static const bool nurZielstrahl = std::strcmp(modus, "zielstrahl") == 0;   // rc604: fx_target_beam
     static const bool nurEffektGrund = std::strcmp(modus, "effektgrund") == 0;   // rc604: Grundstufe der Effektshader
     static const bool nurFigurDeform = std::strcmp(modus, "figurdeform") == 0;   // rc604: deformVertexes an Figuren
+    static const bool nurRest605 = std::strcmp(modus, "rest605") == 0;   // rc605: die Restpunkte (BHED_REST)
     static const bool nurAblauf = std::strcmp(modus, "ablauf") == 0;
     static const bool nurZeitleiste = std::strcmp(modus, "zeitleiste") == 0;
     static const bool nurFenster = std::strcmp(modus, "fenster") == 0;
@@ -28578,6 +28674,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurFix604b) {
                 a.schritte = fix604bSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurRest605) {
+                a.schritte = rest605Schritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurFigurDeform) {

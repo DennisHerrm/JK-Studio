@@ -633,7 +633,8 @@ void pruefeStapelLagen(ID3DBlob* vsBlob) {
                              {"gDeform", kDeformAt}, {"gDeformSpread", kDeformSpreadAt},
                              {"gWolkenHoehe", kWolkenAt}, {"gPortalWeite", kPortalWeiteAt},
                              {"gDeformMove", kDeformMoveAt}, {"gBulge", kBulgeAt},
-                             {"gDeformNormal", kDeformNormalAt}};
+                             {"gDeformNormal", kDeformNormalAt},
+                             {"gTcGenS", kTcGenSAt}, {"gTcGenT", kTcGenTAt}};
         std::string z = "GPU-Stapelpuffer (aus dem Shader gelesen):";
         bool gut = true;
         for (const Soll& s : soll) {

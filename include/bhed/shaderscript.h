@@ -214,7 +214,10 @@ enum class CullMode : std::uint8_t { Front, Two, Back };
 //
 // Das Ergebnis liegt etwa in -1.5 bis 1.5 und wird NICHT auf 0..1 gebracht.
 // Die Engine verlaesst sich auf GL_REPEAT, behaved wiederholt ohnehin.
-enum class TexGen : std::uint8_t { Base, Environment };
+// rc605: Vector - `tcGen vector ( s ) ( t )`: st = (xyz . s, xyz . t) je Ecke
+// (ComputeTexCoords TCGEN_VECTOR, code/rd-vanilla/tr_shade.cpp:1675-1680 MD;
+// ParseStage liest die zwei Vektoren mit ParseVector, tr_shader.cpp:1611-1617 MD).
+enum class TexGen : std::uint8_t { Base, Environment, Vector };
 
 // rc602 kartenpruefung: WELCHES rgbGen eine Stufe hat (ParseStage,
 // tr_shader.cpp). Die Welt fasst vertex/exactVertex/lightingDiffuse zu
@@ -615,6 +618,8 @@ struct ShaderInfo {
         Wave rgbWave;
         // tcGen dieser Stufe. Siehe TexGen.
         TexGen texGen = TexGen::Base;
+        // rc605: tcGen vector - s-Vektor [0..2], t-Vektor [3..5] (tcGenVectors).
+        float tcGenVec[6]{0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F};
         // --- glow: diese Stufe geht in den Gluehdurchgang ----------------
         //
         // JKA-eigen, in keinem Q3-Handbuch. Die Engine zeichnet die Szene
@@ -638,6 +643,7 @@ struct ShaderInfo {
 
     // tcGen der Stufe, aus der auch das Bild kommt.
     TexGen texGen = TexGen::Base;
+    float tcGenVec[6]{0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F};   // rc605: tcGen vector
     // `glow` der Stufe, aus der auch das Bild kommt - dieselbe Stufe, aus
     // der `blend`, `alphaTest` und `rgbWave` stammen.
     bool glow = false;

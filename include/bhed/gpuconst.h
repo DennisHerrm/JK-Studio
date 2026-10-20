@@ -89,7 +89,10 @@ inline constexpr std::size_t kPortalWeiteAt = kWolkenAt + 1U;  // 22
 inline constexpr std::size_t kDeformMoveAt = kDeformSpreadAt + 4U;    // 24
 inline constexpr std::size_t kBulgeAt = kDeformMoveAt + 4U;           // 28
 inline constexpr std::size_t kDeformNormalAt = kBulgeAt + 4U;         // 32
-inline constexpr std::size_t kKonstFloats = kDeformNormalAt + 4U;     // 36
+// rc605: tcGen vector - die zwei Vektoren (tcGenVectors[0], [1]) je ein float4.
+inline constexpr std::size_t kTcGenSAt = kDeformNormalAt + 4U;        // 36
+inline constexpr std::size_t kTcGenTAt = kTcGenSAt + 4U;              // 40
+inline constexpr std::size_t kKonstFloats = kTcGenTAt + 4U;           // 44
 
 // Die Art eines tcMod-Schritts stand hier als Aufzaehlung, weil der Shader
 // sie in .w des jeweiligen Viererblocks las. Seit rc443 wird die Kette auf

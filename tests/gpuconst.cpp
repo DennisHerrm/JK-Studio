@@ -55,7 +55,21 @@ int main() {
     // bei 29 (D3DReflect), gerechnet war 32 - der Lavafall pulsierte nur.
     erwarte("gDeformSpread steht bei 20", kDeformSpreadAt == 20U);
     erwarte("gWolkenHoehe gleich dahinter bei 21", kWolkenAt == 21U);
-    erwarte("der Block ist 36 float gross", kKonstFloats == 36U);
+    erwarte("der Block ist 44 float gross", kKonstFloats == 44U);   // rc605: gTcGenS/gTcGenT
+    {
+        // rc605: tcGen vector - die zwei Vektoren landen bei 36 und 40, der
+        // Vertexshader rechnet st aus dem Ort.
+        BatchState bs{};
+        bs.texGen = TexGen::Vector;
+        const float v[6] = {0.0F, 0.0009765625F, 0.0F, 0.0F, 0.0F, -0.0009765625F};
+        for (int k = 0; k < 6; ++k) { bs.tcGenVec[k] = v[k]; }
+        std::vector<float> f(kKonstFloats, -1.0F);
+        packeKonstanten(bs, f.data(), 0.0F);
+        erwarte("tcGen vector: s-Vektor bei 36", f[kTcGenSAt + 1] == v[1] && f[kTcGenSAt + 0] == 0.0F && f[kTcGenSAt + 2] == 0.0F);
+        erwarte("tcGen vector: t-Vektor bei 40", f[kTcGenTAt + 2] == v[5] && f[kTcGenTAt + 1] == 0.0F);
+        erwarte("tcGen vector: der Shader rechnet dot(welt, ...)",
+                vertexShaderHlsl(kTexGenVec, 0).find("dot(welt, gTcGenS.xyz)") != std::string::npos);
+    }
     erwarte("der Shader hat gDeform als float4",
             vertexShaderHlsl(kDeform, 0).find("float4 gDeform;") != std::string::npos);
     erwarte("und der Shader kennt keine eigene Modellmatrix",
