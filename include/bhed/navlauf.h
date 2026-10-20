@@ -421,6 +421,11 @@ struct LaufZustand {
     // rc601 (bewegung, teil 3): PmoveSingle mit Boden und Luft.
     bool amBoden = false;         // ps.groundEntityNum != ENTITYNUM_NONE
     int pmZeit = 0;               // ps.pm_time (PMF_TIME_LAND nach hartem Aufsetzen)
+    // rc605 (Ende): ps.groundEntityNum als Index in MapData::entities (sonst
+    // kNavWeltEntity / kNavKeineEntity) und bis wann ein Mover darunter die
+    // Figur schon mitgenommen hat (G_MoverPush, navMoverTraegt).
+    int bodenEnt = kNavKeineEntity;
+    double bodenAbMs = -1.0e300;
     // Wann der Ort zuletzt ohne Plan gesetzt wurde (Spawn, SET_ORIGIN): der
     // naechste Plan beginnt DORT - die Figur faellt im Spiel sofort, nicht
     // erst mit dem naechsten Laufziel (LaufWerte::zielAbMs). kNavKeinOrt:
@@ -734,6 +739,12 @@ struct LaufPlan {
 [[nodiscard]] LaufZustand zustandBei(const LaufPlan& p, double t);
 // Der Ort zur Zeit t: zwischen zwei Denkbildern linear (wie cgame mittelt).
 [[nodiscard]] NavVec ortBei(const LaufPlan& p, double t);
+// rc605 (Ende): G_MoverPush -> G_TryPushingEntity (g_mover.cpp:159-262 MD) fuer
+// eine Figur, die auf dem Mover `entity` steht (groundEntityNum == pusher): je
+// 50-ms-Takt des Mover-Plans zwischen vonMs und bisMs die Verschiebung move
+// und die Drehung amove um den neuen Ursprung, delta_angles[YAW] += amove[YAW].
+// Was sie dabei blockiert (G_TestEntityPosition), prueft das hier nicht.
+void navMoverTraegt(const NavMoverPlan& mp, int entity, double vonMs, double bisMs, NavVec& ort, float& gier);
 
 // --- rc601 (bewegung, Durchsicht 2): Befehle wirken im Denkbild ---------------
 // ICARUS laeuft am Ende von NPC_Think (NPC.cpp:2412-2415 MD), alle 50 ms. Ein

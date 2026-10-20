@@ -3619,6 +3619,7 @@ bool gleicherZustand(const LaufZustand& a, const LaufZustand& b) {
            a.pfadDa == b.pfadDa && a.pfadEnde == b.pfadEnde && a.pfadErfolg == b.pfadErfolg &&
            a.pfadAStarBis == b.pfadAStarBis && gleicherPfad(a.pfad, b.pfad) && a.pfadGroesse == b.pfadGroesse &&
            a.amBoden == b.amBoden && a.pmZeit == b.pmZeit && gleichBits(a.gesetztMs, b.gesetztMs) &&
+           a.bodenEnt == b.bodenEnt && gleichBits(a.bodenAbMs, b.bodenAbMs) &&   // rc605 (Ende)
            a.gesetztSpawn == b.gesetztSpawn && a.gesetztImFesten == b.gesetztImFesten &&
            gleichBits(a.denkNullMs, b.denkNullMs) && gleichBits(a.letzteBewegung, b.letzteBewegung) &&   // rc601 integ
            a.letzterVor == b.letzterVor && a.letzterSeit == b.letzterSeit && a.letzteGehTaste == b.letzteGehTaste &&
@@ -3646,9 +3647,9 @@ bool gleicheWerte(const LaufWerte& a, const LaufWerte& b) {
 #if defined(_MSC_VER) && defined(_M_X64)
 // Waechst eine dieser Strukturen, fehlt das neue Feld oben im Vergleich.
 static_assert(sizeof(NavPfadPunkt) == 9U * 4U, "NavPfadPunkt mit Luecken oder neuem Feld: gleicherPfad pruefen");
-static_assert(sizeof(LaufZustand) == 328U, "neues Feld in LaufZustand: gleicherZustand ergaenzen");
+static_assert(sizeof(LaufZustand) == 336U, "neues Feld in LaufZustand: gleicherZustand ergaenzen");
 static_assert(sizeof(LaufWerte) == 288U, "neues Feld in LaufWerte: gleicheWerte ergaenzen");
-static_assert(sizeof(NavAbschnitt) == 672U, "neues Feld in NavAbschnitt: gleicheEingaben ergaenzen");
+static_assert(sizeof(NavAbschnitt) == 680U, "neues Feld in NavAbschnitt: gleicheEingaben ergaenzen");
 static_assert(sizeof(NavFigurKoerper) == 88U, "neues Feld in NavFigurKoerper: gleicheEingaben ergaenzen");
 #endif
 bool gleicheEingaben(const Ablauf& a, const std::vector<NavAbschnitt>& abschnitte, const std::vector<NavFigurKoerper>& figuren,

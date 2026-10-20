@@ -5,6 +5,7 @@
 #include "bhed/navlauf.h"
 
 #include <algorithm>
+#include <bit>
 #include <atomic>
 #include <cctype>
 #include <chrono>
@@ -3253,6 +3254,10 @@ struct Lauf {
         }
         bodenFlaeche = true;
         gehend = true;
+        // rc605 (Ende): groundEntityNum = trace.entityNum - ein neuer Boden
+        // traegt erst ab diesem Bild (navMoverTraegt).
+        if (!z.amBoden || tr.entity != z.bodenEnt) { z.bodenAbMs = akt.t; }
+        z.bodenEnt = tr.entity;
         if (!z.amBoden) {
             // "just hit the ground": PM_CrashLand; "don't do landing time if
             // we were just going down a slope"; ohne Vorwaerts/Seitwaerts im
@@ -4490,9 +4495,10 @@ std::uint64_t planSchluessel(const NavWelt& welt, const LaufZustand& z, const La
     }
     // rc601 (bewegung, teil 3): Boden, Fallen, Vorlauf.
     for (const int i : {static_cast<int>(z.amBoden), z.pmZeit, static_cast<int>(w.fallen), static_cast<int>(w.spawnVorlauf),
-                        static_cast<int>(w.spawnImFesten)}) {
+                        static_cast<int>(w.spawnImFesten), z.bodenEnt}) {   // rc605 (Ende): bodenEnt
         h = mische(h, static_cast<std::uint64_t>(static_cast<std::uint32_t>(i)));
     }
+    h = mische(h, static_cast<std::uint64_t>(std::bit_cast<std::uint64_t>(z.bodenAbMs)));   // rc605 (Ende)
     h = mische(h, bits(w.schwerkraft));
     h = mische(h, static_cast<std::uint64_t>(std::llround(std::max(-1.0e12, w.zielAbMs) * 16.0)));
     // rc605: BS_JUMP
@@ -4755,6 +4761,13 @@ struct LaufRechner {
             z.sprung.bsZustand = 0;
             z.sprung.bsAnim = 0;
         }
+        // rc605 (Ende): stand sie seit dem letzten Plan auf einem Mover, der sich
+        // bewegt, hat G_MoverPush sie bis hierher mitgenommen.
+        if (welt.mover && z.amBoden && z.bodenEnt >= 0 && !werte.ohneKoerper &&
+            welt.mover->standVon(z.bodenEnt, abMs) != nullptr && z.bodenAbMs > -1.0e299) {
+            navMoverTraegt(*welt.mover, z.bodenEnt, z.bodenAbMs, abMs, z.ort, z.gier);
+            z.bodenAbMs = abMs;
+        }
         // Das erste Denkbild nach abMs auf dem 50-ms-Raster.
         t = kNavDenkMs * (std::floor((abMs + 0.5) / kNavDenkMs) + 1.0);
         // rc601 (bewegung, teil 3): Vorlauf ab dem Spawn - G_CheckInSolid
@@ -4766,6 +4779,22 @@ struct LaufRechner {
             l0.jk2Pm = gJk2Nav.load(std::memory_order_relaxed);   // rc604 fix604
             l0.jetzt = static_cast<int>(std::lround(abMs));
             l0.akt.t = abMs;
+            // rc605 (Ende): gespawnt auf einem Mover, der sich bewegt (vjun3: die
+            // Soldaten auf dem Aufzug) - G_MoverPush nimmt sie vom Spawn (NPC_Begin
+            // laesst sie auf ihn fallen) bis zu diesem Plan mit. Der Boden: die
+            // Spur 64 unter dem Spawnort zur Zeit des Spawns.
+            if (welt.mover && z.gesetztSpawn && welt.spurZeit) {
+                const double t0 = std::max(z.gesetztMs, 0.0);
+                l0.akt.t = t0;
+                NavVec unten = z.ort;
+                unten[2] -= 64.0F;
+                const NavSpur s = spurDurch(l0.spurF, z.ort, l0.mins, l0.maxs, unten, kNavKeineEntity, l0.pmMaske());
+                if (!s.startsolid && !s.allsolid && s.fraction < 1.0F && s.entity >= 0 &&
+                    welt.mover->standVon(s.entity, t0) != nullptr && t0 < abMs) {
+                    navMoverTraegt(*welt.mover, s.entity, t0, abMs, z.ort, z.gier);
+                }
+                l0.akt.t = abMs;
+            }
             if (w.spawnImFesten && (welt.spur || welt.spurZeit)) {
                 NavVec m0 = l0.mins;
                 m0[2] = 0.0F;
@@ -4800,6 +4829,14 @@ struct LaufRechner {
     }
     void schritt() {
         if (fertig) { return; }
+        // rc605 (Ende): G_RunMover laeuft im Bild vor dem NPC (die Mover der Karte
+        // haben kleinere Nummern als die spaeter gespawnten NPCs): steht sie auf
+        // einem Mover, nimmt G_MoverPush sie mit.
+        if (welt.mover && z.amBoden && z.bodenEnt >= 0 && !w.ohneKoerper && z.bodenAbMs < t &&
+            welt.mover->standVon(z.bodenEnt, t) != nullptr) {
+            navMoverTraegt(*welt.mover, z.bodenEnt, z.bodenAbMs, t, z.ort, z.gier);
+            z.bodenAbMs = t;
+        }
         Lauf l(welt, w, z);
         l.jetzt = static_cast<int>(std::lround(t));
         l.akt.t = t;   // rc601 (bewegung, teil 3): die Mover in diesem Denkbild
@@ -5090,6 +5127,46 @@ LaufZustand zustandBei(const LaufPlan& p, double t) {
         z = p.zustaende[i];
     }
     return z;
+}
+
+void navMoverTraegt(const NavMoverPlan& mp, int entity, double vonMs, double bisMs, NavVec& ort, float& gier) {
+    if (!(bisMs > vonMs)) { return; }
+    const double raster = kNavDenkMs;
+    for (double k = std::floor(vonMs / raster + 1e-9) + 1.0; k * raster <= bisMs + 1e-6; k += 1.0) {
+        const NavMoverPlan::Stand* s0 = mp.standVon(entity, (k - 1.0) * raster);
+        const NavMoverPlan::Stand* s1 = mp.standVon(entity, k * raster);
+        if (s0 == nullptr || s1 == nullptr) { return; }
+        NavVec move{};
+        NavVec amove{};
+        for (std::size_t i = 0; i < 3; ++i) {
+            move[i] = s1->ort[i] - s0->ort[i];
+            amove[i] = s1->winkel[i] - s0->winkel[i];
+        }
+        if (move == NavVec{} && amove == NavVec{}) { continue; }
+        // "we need this for pushing things later": AngleVectors(-amove)
+        const auto rad = [](float g) { return static_cast<double>(g) * 3.14159265358979323846 / 180.0; };
+        const double sp = std::sin(rad(-amove[0]));
+        const double cp = std::cos(rad(-amove[0]));
+        const double sy = std::sin(rad(-amove[1]));
+        const double cy = std::cos(rad(-amove[1]));
+        const double sr = std::sin(rad(-amove[2]));
+        const double cr = std::cos(rad(-amove[2]));
+        const NavVec vorn{static_cast<float>(cp * cy), static_cast<float>(cp * sy), static_cast<float>(-sp)};
+        const NavVec rechts{static_cast<float>(-1.0 * sr * sp * cy + -1.0 * cr * -sy),
+                            static_cast<float>(-1.0 * sr * sp * sy + -1.0 * cr * cy), static_cast<float>(-1.0 * sr * cp)};
+        const NavVec oben{static_cast<float>(cr * sp * cy + -sr * -sy), static_cast<float>(cr * sp * sy + -sr * cy),
+                          static_cast<float>(cr * cp)};
+        // trBase += move; org = trBase - pusher->currentOrigin (schon verschoben)
+        NavVec p = ort;
+        for (std::size_t i = 0; i < 3; ++i) { p[i] += move[i]; }
+        NavVec org{};
+        for (std::size_t i = 0; i < 3; ++i) { org[i] = p[i] - s1->ort[i]; }
+        const NavVec org2{org[0] * vorn[0] + org[1] * vorn[1] + org[2] * vorn[2],
+                          -(org[0] * rechts[0] + org[1] * rechts[1] + org[2] * rechts[2]),
+                          org[0] * oben[0] + org[1] * oben[1] + org[2] * oben[2]};
+        for (std::size_t i = 0; i < 3; ++i) { ort[i] = p[i] + (org2[i] - org[i]); }
+        gier += amove[1];   // ps.delta_angles[YAW] += ANGLE2SHORT(amove[YAW])
+    }
 }
 
 NavVec ortBei(const LaufPlan& p, double t) {

@@ -195,3 +195,26 @@ Changelog:
 - DE: Figuren, die in einen `trigger_hurt` laufen oder fallen, nehmen dessen Schaden wie im Spiel und sterben, wenn ihre Lebenspunkte aufgebraucht sind - sie spielen ihren Tod, und ihr `deathscript` läuft (md_gd: Anakin stürzt in die Grube).
 - ZH: 走进或掉进 `trigger_hurt` 的角色会像游戏中一样受到伤害,生命值耗尽时死亡——播放死亡动画并运行其 `deathscript`(md_gd:Anakin 掉进深坑)。
 - JA: `trigger_hurt` に歩いて入ったり落ちたりしたキャラクターはゲームと同じくダメージを受け、体力がなくなると死にます。死亡アニメーションを再生し、`deathscript` が実行されます(md_gd: 穴に落ちるアナキン)。
+
+## 7. Figuren fahren auf bewegten Brushes mit (Punkt 2)
+
+Der Wegplan merkt sich ps.groundEntityNum (LaufZustand::bodenEnt, aus der Bodenspur von PM_GroundTrace) und
+nimmt die Figur in jedem Bild VOR ihrem Denkbild mit, wenn dieser Boden im Mover-Plan steht (navMoverTraegt =
+G_MoverPush -> G_TryPushingEntity, g_mover.cpp:159-262 MD: trBase += move, Drehung um den neuen Ursprung mit
+AngleVectors(-amove), delta_angles[YAW] += amove[YAW]); die Mover der Karte denken vor den später gespawnten NPCs.
+Da der Plan ab dem Spawn (Vorlauf) rechnet, gilt das auch fürs Stehen bis zum Laufbefehl; nach einem Plan (Stand
+auf einem Mover) holt der nächste Plan das Mitfahren bis zu seinem Anfang nach. bodenEnt/bodenAbMs stehen im
+Planschlüssel und in gleicherZustand. Nicht nachgebildet: G_TestEntityPosition (ein blockierter Mitfahrer bleibt
+im Spiel stehen bzw. hält den Mover an - der Mover-Plan steht fest).
+
+| Test | Rot (vorher) | Grün (nachher) |
+|---|---|---|
+| tuerlauf vjun3 (pvj1 / mov1) elevator_up intro_troopera/f/c | bleiben unten (z 1240), Ziel +162/+154 höher, "ohne Weg (nie)", Umkehren 29/36/28 | fahren mit dem Aufzug (*59, +128) auf z 1367,7; Ziel +18/+10 höher; danach stecken sie in `lift_waypoint_hack` (func_usable *46 bei z 1340-1348), das im Spiel intro.ibi beim Kartenstart entfernt - der Reiter allein spielt intro nicht; Summe pendelnd 3 -> 0 |
+| tuerlauf md_am_sith, taspir2, md_acc_sith (mrg1 / mov4) | – | alle Übersichtszeilen gleich |
+| ctest | – | 67/67 |
+
+Changelog:
+- EN: Figures standing on a moving lift or platform ride along with it, also while they walk (vjun3: the troopers on the first lift).
+- DE: Figuren auf einem fahrenden Aufzug oder einer Plattform fahren mit, auch während sie gehen (vjun3: die Soldaten auf dem ersten Aufzug).
+- ZH: 站在移动的电梯或平台上的角色会随之移动,行走时也是如此(vjun3:第一部电梯上的士兵)。
+- JA: 動くエレベーターや足場の上に立つキャラクターは、歩いている間も一緒に動きます(vjun3: 最初のエレベーターの兵士)。
