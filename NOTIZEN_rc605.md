@@ -338,3 +338,18 @@ Changelog:
 - DE: Jedi Outcast: ein NPC, der an einem anderen gehenden NPC nicht vorbeikommt, schiebt ihn beiseite, und zwei NPCs, die sich gegenseitig blockieren, gehen weiter - wie im Spiel.
 - ZH: Jedi Outcast:绕不过另一个正在行走的 NPC 时,NPC 会让对方让开;两个互相阻挡的 NPC 会继续前进——与游戏中一样。
 - JA: Jedi Outcast:歩いているほかの NPC をよけられない NPC は相手を脇へ押しやり、互いにふさぎ合う 2 体はそのまま進みます(ゲームと同じ)。
+
+## Noch offen nach diesem Durchgang
+
+- trigger_hurt: Spieler, Rüstung (CheckArmor), PM_InForceFall (MD), Entity-Reihenfolge im Bild, wiederholtes
+  deathscript bei FL_UNDYING; Explosionsschaden der Laserfallen an Figuren (G_RadiusDamage trifft auch NPCs).
+- Mover-Mitfahren: G_TestEntityPosition (blockierter Mitfahrer, angehaltener Mover); vjun3 elevator_up allein steckt
+  die Soldaten in lift_waypoint_hack (im Spiel entfernt intro.ibi es beim Kartenstart - der Reiter spielt intro nicht).
+- Waffenhaltung: WEAPON_READY (Kampf), weaponBusy, MD-Waffen-Beinanimationen in PM_Footsteps (BOTH_WALK_BLASTER ...)
+  und g_torsoMap, Blende beim Wechsel.
+- JK2-Navigator: AddFailedEdge zur Laufzeit global für alle NPCs (NF_RECALC); stehende Figuren ohne Plan schieben;
+  Spieler als Blocker kennzeichnen.
+- Kampf-KI nach SET_ENEMY, SET_MISSIONFAILED, rebel5_intro-Bodenspur (unverändert aus der Liste oben).
+
+Commits dieses Durchgangs: 57a48c2 Merge fix605r · 70b72e1 trigger_hurt · 3f5953a Mover-Mitfahren · f201aa9
+Kartenwechsel · f1d03f3 Laserfallen-Kette · db23273 Bildzeit duel_exegol · 2bda191 Waffenhaltung · c7431c6 JK2-Laufzeitstand.
