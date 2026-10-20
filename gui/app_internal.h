@@ -1147,6 +1147,9 @@ struct App {
     // surfaceSprites-Stufen, die beim Laden als flache Schicht auf die
     // Flaeche kamen - die Engine zeichnet sie nie so (tr_shade.cpp:1888 MD).
     int grasFlachSchichten = 0;
+    int grasPlatzNull = 0;   // rc605: Shader mit surfaceSprites an Platz 0 (unsichtbar)
+    int grasBrushVierecke = 0;     // rc605: davon auf Brush-Modellen (letztes Hauptbild)
+    double grasBrushMitteZ = 0.0;  // rc605: ihre mittlere Hoehe (Selbsttest)
 
     // --- .md3-Modelle der Karte ------------------------------------------
     //
@@ -2640,7 +2643,9 @@ bool wetterFuerGras(float wind[3]);
 // --- surfaceSprites (gui/app_gras.cpp, rc604) ----------------------------------
 void grasStufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, std::size_t stufenNr, const std::string& name,
                     std::size_t shaderNr);
-void baueGrasNetz(const Camera& cam, float reichweite);
+// rc605: movers - die Stellungen dieses Bildes (Brush-Modelle tragen auch Halme).
+// rc605: movers - die Stellungen dieses Bildes (Brush-Modelle tragen auch Halme).
+void baueGrasNetz(const Camera& cam, float reichweite, const std::vector<MoverDraw>* movers = nullptr);
 void baueGrasNetzNeben(const Camera& cam, float reichweite);
 // Selbsttest: Mitte der groessten Grasflaeche (vertical/flattened, mit alleArten auch effect).
 bool grasTestZiel(float mitte[3], bool alleArten = false, bool nurPatch = false);

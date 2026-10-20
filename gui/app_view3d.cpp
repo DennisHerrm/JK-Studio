@@ -14157,23 +14157,6 @@ void drawMapView() {
         } else {
             g_app->effectMesh = BspMesh{};
         }
-        // --- rc604: surfaceSprites - die Halme dieses Bildes ----------------
-        //
-        // Wie die Engine je Bild auf der CPU (RB_DrawSurfaceSprites), fuer
-        // die Kamera, durch die das Bild entsteht. rangescalefactor
-        // (tr_surfacesprites.cpp:129-161): ein engerer Bildwinkel als der
-        // erste (der Spieler, cg_fov 80) zeigt die Halme entsprechend weiter.
-        {
-            const auto tG0 = std::chrono::steady_clock::now();
-            float grasReichweite = 1.0F;
-            if (playingNow || amZeiger || through) {
-                grasReichweite = gras::reichweiteFaktor(spielSicht(g_app->camViewFov, spiel).fovX,
-                                                        spielSicht(80.0F, spiel).fovX);
-            }
-            baueGrasNetz(useCam, grasReichweite);
-            kosten.effects += std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - tG0).count();
-        }
-
         std::vector<MoverDraw> movers;
         // Die Stellung je Brush-Modell in diesem Bild - fuer ihr "model2" (rc592).
         std::unordered_map<int, MoverDraw> brushStand;
@@ -14557,6 +14540,24 @@ void drawMapView() {
                     }
                 }
             }
+        }
+        // --- rc604: surfaceSprites - die Halme dieses Bildes ----------------
+        //
+        // Wie die Engine je Bild auf der CPU (RB_DrawSurfaceSprites), fuer
+        // die Kamera, durch die das Bild entsteht. rangescalefactor
+        // (tr_surfacesprites.cpp:129-161): ein engerer Bildwinkel als der
+        // erste (der Spieler, cg_fov 80) zeigt die Halme entsprechend weiter.
+        // rc605: erst nach den Movern - auch die Flaechen der Brush-Modelle
+        // tragen Halme, mit der Stellung dieses Bildes.
+        {
+            const auto tG0 = std::chrono::steady_clock::now();
+            float grasReichweite = 1.0F;
+            if (playingNow || amZeiger || through) {
+                grasReichweite = gras::reichweiteFaktor(spielSicht(g_app->camViewFov, spiel).fovX,
+                                                        spielSicht(80.0F, spiel).fovX);
+            }
+            baueGrasNetz(useCam, grasReichweite, &movers);
+            kosten.effects += std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - tG0).count();
         }
         g_app->entVersatz.clear();
         g_app->entGierVersatz.clear();
