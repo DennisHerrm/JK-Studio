@@ -467,6 +467,37 @@ void teil3(const std::string& base, bool alt) {
 
 }  // namespace
 
+// rc605 (Rest): CheckFailedEdge mit Pause. Eine gescheiterte Kante (Netz ohne
+// .nav, CheckBlockedEdges), die Spur trifft bis 2000 ms eine Entity: Pruefung im
+// ersten Bild nach 750 (800, gesperrt), dann nach 800 + 1500 (2350, frei) - nicht
+// schon bei 2000.
+void teil4() {
+    auto netz = std::make_shared<NavNetz>();
+    auto j2 = std::make_shared<NavNetzJk2>();
+    j2->knoten.resize(2);
+    j2->knoten[0].punkt = {0.0F, 0.0F, 0.0F};
+    j2->knoten[1].punkt = {200.0F, 0.0F, 0.0F};
+    j2->fehl.push_back(NavNetzJk2::Fehl{0, 1, 1023});
+    netz->jk2 = j2;
+    NavWelt w;
+    w.netz = netz;
+    w.spurZeit = [](const NavVec& a, const NavVec&, const NavVec&, const NavVec& b, int, std::uint32_t, double t) {
+        NavSpur s;
+        s.endpos = b;
+        if (t < 2000.0) {
+            s.fraction = 0.5F;
+            s.entity = 5;
+            for (int k = 0; k < 3; ++k) { s.endpos[static_cast<std::size_t>(k)] = 0.5F * (a[static_cast<std::size_t>(k)] + b[static_cast<std::size_t>(k)]); }
+        }
+        return s;
+    };
+    const double frei = navJk2FehlFreiAb(w, 0, 10000.0);
+    const double vorher = navJk2FehlFreiAb(w, 0, 2300.0);
+    pruefe(frei == 2350.0 && vorher < 0.0,
+           "4a CheckFailedEdge: gesperrt bei 800, frei erst bei 2350 (nicht 2000): " + std::to_string(frei) + " / bis 2300 " +
+               std::to_string(vorher));
+}
+
 int main(int argc, char** argv) {
     bool alt = false;
     std::string base = "C:/Program Files (x86)/Steam/steamapps/common/Jedi Outcast/GameData/base";
@@ -482,6 +513,7 @@ int main(int argc, char** argv) {
     teil1();
     teil2(base);
     teil3(base, alt);
+    teil4();   // rc605 (Rest)
     std::printf("%d ok, %d FEHL\n", gOk, gFehler);
     return gFehler == 0 ? 0 : 1;
 }

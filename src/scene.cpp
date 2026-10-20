@@ -30,16 +30,9 @@ namespace {
 // rc605 FU4: ein Code der Sprungkette (LaufTakt::beinAnim/torsoAnim) als Name;
 // kSaSprung ist die Animation aus NPC_JumpAnimation (npcSprungAnim).
 std::string ketteAnimName(int code, const std::string& sprungAnim) {
-    switch (code) {
-        case kSaSprung: return sprungAnim.empty() ? std::string("BOTH_FLIP_F") : sprungAnim;
-        case kSaJump1: return "BOTH_JUMP1";
-        case kSaLand1: return "BOTH_LAND1";
-        case kSaCrouch1: return "BOTH_CROUCH1";
-        case kSaInAir1: return "BOTH_INAIR1";
-        case kSaForceLand1: return "BOTH_FORCELAND1";
-        case kSaStand1: return "BOTH_STAND1";
-        default: return {};
-    }
+    if (code == kSaSprung) { return sprungAnim.empty() ? std::string("BOTH_FLIP_F") : sprungAnim; }
+    const char* n = sprungAnimName(code);   // rc605 (Rest): alle Codes
+    return n != nullptr ? std::string(n) : std::string();
 }
 // Der kuerzere Weg zwischen zwei Winkeln, in Grad.
 //
@@ -1354,6 +1347,31 @@ ActorState Actor::at(double ms) const {
         st.animStartMs = beineBis;
         st.animSpeed = 1.0F;
     }
+    // --- rc605 (Rest): Fall und Landung ausserhalb eines Wegs --------------
+    //
+    // schwerkraft.cpp (Actor::fallAnims): PM_GroundTraceMissed setzt BOTH_INAIR1
+    // auf die Beine (OVERRIDE, ohne HOLD), PM_CrashLand BOTH_LAND1 (OVERRIDE |
+    // HOLD) - beides ersetzt eine fruehere Skriptanimation; eine spaetere gilt.
+    // Nur ohne Weg dazwischen (im Weg rechnet planeLauf selbst).
+    if (!st.moving && !fallAnims.empty()) {
+        const FallAnim* f = nullptr;
+        for (const FallAnim& e : fallAnims) {
+            if (e.t > ms) { break; }
+            f = &e;
+        }
+        const bool wegDanach = wegNr >= 0 && steps[static_cast<std::size_t>(wegNr)].startMs > (f != nullptr ? f->t : 0.0);
+        if (f != nullptr && !wegDanach && (beineNr < 0 || beineAbMs < f->t)) {
+            const char* name = sprungAnimName(f->code);
+            const double halten = f->code == kSaInAir1 ? kNie : dauer(name != nullptr ? name : "");
+            if (name != nullptr && ms < f->t + halten) {
+                st.animation = name;
+                st.animStartMs = f->t;
+                st.animSpeed = 1.0F;
+                st.prevAnimation.clear();
+                if (f->beide && !st.torsoAnimation.empty() && st.torsoStartMs < f->t) { st.torsoAnimation.clear(); }
+            }
+        }
+    }
     // --- rc601 (bewegung, Durchsicht 2): BS_NOCLIP behaelt die Beine -------
     //
     // PmoveSingle nimmt in BS_NOCLIP (client->noclip) PM_NoclipMove und kehrt
@@ -1376,6 +1394,33 @@ ActorState Actor::at(double ms) const {
             st.animStartMs = vor.animStartMs;
             st.prevAnimation.clear();
             beineBis = -1.0;
+        }
+    }
+    // --- rc605 (Rest): die Sprungkette ersetzt eine Skriptanimation oben ---
+    //
+    // NPC_JumpAnimation (SETANIM_BOTH, OVERRIDE | HOLD, NPC_move.cpp:506-511 MD),
+    // BOTH_INAIR1/BOTH_LAND1 aus NPC_BSJump und PM_CrashLand mit SETANIM_BOTH
+    // setzen den Oberkoerper neu; eine Skriptanimation darauf, die vorher
+    // begann, kommt danach nicht wieder - laeuft der Timer der Kette ab, waehlt
+    // PM_TorsoAnimation (die Vorschau: der Oberkoerper folgt den Beinen).
+    if (!st.torsoAnimation.empty()) {
+        const ActorStep* ks = (weg != nullptr && weg->lauf) ? weg : nullptr;
+        if (ks == nullptr && wegNr >= 0 && steps[static_cast<std::size_t>(wegNr)].lauf) {
+            ks = &steps[static_cast<std::size_t>(wegNr)];
+        }
+        if (ks != nullptr) {
+            double ersetzt = -1.0;
+            for (const LaufTakt& k : ks->lauf->takte) {
+                if (k.t > ms + 0.5) { break; }
+                ersetzt = std::max(ersetzt, k.torsoGesetztAb);
+            }
+            if (ersetzt >= 0.0 && ersetzt <= ms && st.torsoStartMs < ersetzt - 0.5) {
+                st.torsoPrevAnimation = st.torsoAnimation;
+                st.torsoPrevSinceMs = ersetzt - st.torsoStartMs;
+                st.torsoBlendStartMs = ersetzt;
+                st.torsoBlendMs = kSetAnimBlendDefault;
+                st.torsoAnimation.clear();
+            }
         }
     }
     if (torsoBis >= 0.0 && torsoBis < kNie && ms > torsoBis && !st.torsoAnimation.empty()) {
@@ -2303,6 +2348,7 @@ Scene buildOnce(const Script& s, const MapData& map,
             // rc605: NPC-Spruenge (NPC_spawn.cpp:588-602 MD; NPC_JumpAnimation).
             if (npcDef != nullptr && !regelwerkJediOutcast()) {
                 fresh.kannSpringen = npcKannSpringen(npcDef->klasse, npcDef->levitation);
+                fresh.levitation = npcDef->levitation;   // rc605 (Rest)
                 fresh.sprungAnim = npcSprungAnim(navMovieDuelsRegeln(), npcDef->klasse, npcDef->weapon, npcDef->rang);
             }
             // rc601 (bewegung, gemeinsam mit saber): ein NPC_spawner mit
@@ -2698,6 +2744,8 @@ Scene buildOnce(const Script& s, const MapData& map,
             werte.stufe = actor->stufe;
             werte.gangSchalter = actor->laufSchalter ? 2 : (actor->gehSchalter ? 1 : 0);
             werte.kannSpringen = actor->kannSpringen;   // rc605
+            werte.levitation = actor->levitation;   // rc605 (Rest): PM_CrashLand
+            werte.landKlasse = npcLandKlasse(navMovieDuelsRegeln(), navJk2Regeln(), actor->klasse, actor->rang);
             werte.keineAkrobatik = actor->keineAkrobatik;   // rc605: SET_NO_ACROBATICS
             werte.fremdGier = watchGierFn(tt);
             // rc601 integ: Takt des Verhaltens (OpenJK 100 ms, Movie Duels jedes
@@ -2724,6 +2772,11 @@ Scene buildOnce(const Script& s, const MapData& map,
                 if (werte.bsJump) { werte.hockeMs = static_cast<int>(std::max(0.0, hilfe->animDauer(actor->name, "BOTH_CROUCH1"))); }
                 werte.landMs = static_cast<int>(std::max(0.0, hilfe->animDauer(actor->name, "BOTH_LAND1")));
                 werte.forceLandMs = static_cast<int>(std::max(0.0, hilfe->animDauer(actor->name, "BOTH_FORCELAND1")));
+                // rc605 (Rest): die uebrigen Landeanimationen (PM_GetLandingAnim)
+                for (int c = kSaLandBack1; c <= kSaForceLandRight1; ++c) {
+                    werte.landeMs[static_cast<std::size_t>(c)] =
+                        static_cast<int>(std::max(0.0, hilfe->animDauer(actor->name, sprungAnimName(c))));
+                }
                 if (werte.kannSpringen) {
                     const std::string sa = actor->sprungAnim.empty() ? std::string("BOTH_FLIP_F") : actor->sprungAnim;
                     werte.sprungAnimArt = npcSprungAnimArt(sa);
@@ -4319,6 +4372,10 @@ Scene buildScene(const Script& s, const MapData& map, const SzenenHilfe* hilfe) 
             std::vector<std::string> namen = {"BOTH_STAND1", "BOTH_WALK1", "BOTH_RUN1",
                                               "BOTH_CROUCH1IDLE", "BOTH_WALKBACK1", "BOTH_WALKBACK2",
                                               "BOTH_RUNBACK1", "BOTH_RUNBACK2"};
+            // rc605 (Rest): die Sprungkette (Fall, Landung - auch ausserhalb eines Wegs).
+            for (int c = kSaJump1; c < kSaAnzahl; ++c) {
+                if (const char* n = sprungAnimName(c)) { namen.emplace_back(n); }
+            }
             for (int stil = 1; stil <= 7; ++stil) {
                 namen.emplace_back(saberHaltungFuerStil(stil));
             }

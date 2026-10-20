@@ -321,6 +321,8 @@ struct TextureSet {
         // Environment werden sie je Ecke aus Normale und Blickrichtung
         // gerechnet statt aus der .bsp genommen.
         TexGen texGen = TexGen::Base;
+        // rc605: tcGen vector - s [0..2], t [3..5] (ComputeTexCoords TCGEN_VECTOR).
+        float tcGenVec[6]{0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F};
         // Die beiden Faktoren aus glBlendFunc - siehe BlendFactor. `blend`
         // daneben ist nur noch fuer die SORTIERUNG da; gerechnet wird mit
         // diesen beiden.
@@ -806,6 +808,8 @@ struct BatchState {
     // Die tcMod-Kette dieser Stufe, in ihrer Reihenfolge.
     TexMod texMods[kMaxTexMods];
     int numTexMods = 0;
+    // rc605: tcGen vector (texGen == Vector) - s [0..2], t [3..5].
+    float tcGenVec[6]{0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F};
 
     // deformVertexes gilt fuer den GANZEN Shader, nicht je Stufe - siehe
     // rc383. Steht deshalb hier und nicht bei den Stufen.
@@ -824,6 +828,9 @@ struct BatchState {
 // `ModelTextures::bySurface` und nicht in `TextureSet::byShader`, ist aber
 // derselbe Typ. Bis rc451 gab es nur die Fassung fuer die Karte, und der
 // GPU-Weg zeichnete Figuren deshalb durchweg deckend.
+// rc605 Selbsttest: true zeichnet tcGen vector wie die Datei-Texturkoordinate
+// (der alte Stand) - fuer den Vergleich mit/ohne.
+void tcGenVektorAus(bool aus);
 [[nodiscard]] BatchState batchStateFor(const TextureSet::Tex& t,
                                        float zeitSekunden);
 

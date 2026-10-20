@@ -148,3 +148,24 @@ steht 1.
 - rebel5_intro: Ebene der Bodenspur in der Kehle Wand/Rampe nicht gegen das Spiel geprüft.
 - Unverändert aus rc604: Sprung-Animationsreste, JK2-Laufzeitzustand des Navigators, 15-s-Teleport, Geschütze,
   Laserfallen-Strahlen, Effekt-/Gras-Reste (siehe NOTIZEN_rc604.md).
+
+## 5. Zusammenführung mit fix605r (t_rest, 50f0237)
+
+`git merge` von Y:/t_rest fix605r in fix605 (a82a52b). Konflikte: `gui/selbsttest.cpp` (Summenzeile des Tür-Laufs:
+beide Seiten hängten Zähler an [6]..; jetzt [6] vorher entfernt, [7] nach Kartenwechsel, [8] mit Feind, [9]
+Landeanimationen ohne Sprung, [10] Luftanimationen ohne Sprung), `tools/handbuch/inhalt_szene.py` (Absatz "Kanten,
+Kurven und andere NPCs": Landesatz von t_rest + parm-Sätze von fix605, alle 4 Sprachen), erzeugte Handbuchseiten
+neu erzeugt (`gen_handbuch.py`, `--pruefen` ok), `gen_i18n.py` neu ausgeführt (1021 Texte). Bau ok, ctest 67/67.
+
+Prüfung der Laufzeiten (Lauf mrg1, `tuerlauf` md_am_sith, taspir2, md_acc_sith, gegen ue605end):
+- md_am_sith: alle Übersichtszeilen gleich (nur die Summenzeile hat die zwei neuen Zähler, beide 0).
+- taspir2: alle Übersichtszeilen gleich (Landeanimationen ohne Sprung 21).
+- md_acc_sith: 10 Zeilen um 50-300 ms / 1-2 Einheiten anders (rey_run1/2, kylo3, kylo4_walk, rey4_walk; rey4 in
+  rey3defeated/cliff 3 -> 2 Wegstücke, letztes Stück 57500-57800 statt 57800-57850, beide abgeschnitten, nie
+  angekommen wie vorher). Ursache: die Landung nach dem Spawn in der Luft (NPC_Begin setzt groundEntityNum =
+  ENTITYNUM_NONE, NPC_spawn.cpp:2053 MD) läuft jetzt durch PM_CrashLand; delta = |vz| / 10 > 10 wählt eine
+  Landeanimation, und PM_GetLandingAnim halbiert dabei velocity x/y ("stick landings some", bg_pmove.cpp:5398-5403
+  MD, ohne g_allowBunnyhopping). Eine Landeanimation hält das Gehen NICHT an (sie steht nicht in PM_LockedAnim, kein
+  Zweig in PM_WalkMove/NPC_MoveToGoal wartet auf legsAnimTimer); nur NPC_BSJump wartet in JS_LANDING auf
+  legsAnimTimer (NPC_behavior.cpp:934-940 MD). Die Verschiebungen sind also Folge der Geschwindigkeitshalbierung, wie
+  im Spiel.

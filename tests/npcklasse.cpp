@@ -317,6 +317,43 @@ int main() {
                "JK2 SET_ANGLES ohne client: OpenJK dreht (90), Jedi Outcast nicht (" + std::to_string(jkaGier) + " / " +
                    std::to_string(jk2Gier) + ")");
     }
+    // --- rc605 (Rest): G_NPCMunroMatchPlayerWeapon (Jedi Outcast) -----------
+    //
+    // Spieler "kyle": WP_BLASTER bei 1000 (ausserhalb der Kamera), Kamera an
+    // 2000-4000, WP_REPEATER bei 3000 (in der Kamera: kein Abgleich), nach der
+    // Kamera (4000) gleicht Kyle ab; WP_STUN_BATON bei 5000 -> WP_BRYAR_PISTOL;
+    // SET_WEAPON WP_SABER auf Kyle bei 6000 beendet es (WP_DEMP2 bei 7000 nicht).
+    {
+        Scene sc;
+        Actor spieler;
+        spieler.name = "kyle";
+        spieler.npcType = "kyle";
+        spieler.kameraVerborgen = {{2000.0, 4000.0}};
+        const auto waffe = [](double t, const std::string& w) {
+            ActorStep st;
+            st.kind = ActorStep::Kind::Waffe;
+            st.startMs = t;
+            st.endMs = t;
+            st.text = w;
+            return st;
+        };
+        spieler.steps = {waffe(1000.0, "WP_BLASTER"), waffe(3000.0, "WP_REPEATER"), waffe(5000.0, "WP_STUN_BATON"),
+                         waffe(7000.0, "WP_DEMP2")};
+        Actor munro;
+        munro.name = "kyle_cin";
+        munro.npcType = "kyle";
+        munro.kartenFigur = true;
+        munro.startWaffe = "WP_SABER";
+        munro.steps = {waffe(6000.0, "WP_SABER")};
+        sc.actors = {spieler, munro};
+        munroWaffenAbgleich(sc, nullptr);
+        std::string folge;
+        for (const ActorStep& st : sc.actors[1].steps) {
+            if (st.kind == ActorStep::Kind::Waffe) { folge += " " + std::to_string(static_cast<int>(st.startMs)) + ":" + st.text; }
+        }
+        pruefe(folge == " 1000:WP_BLASTER 4000:WP_REPEATER 5000:WP_BRYAR_PISTOL 6000:WP_SABER",
+               "JK2 Kyle gleicht die Waffe des Spielers ausserhalb der Kamera ab, bis zum eigenen SET_WEAPON (" + folge + ")");
+    }
     std::printf("%s (%d Fehler)\n", g_fehler == 0 ? "npcklasse: alles gut" : "npcklasse: FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

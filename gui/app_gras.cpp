@@ -24,6 +24,7 @@
 //     Dreieck an "a1 <= 0 && a2 <= 0 && a3 <= 0" fallen, :705 - dasselbe Bild).
 #include "app_internal.h"
 #include "bhed/grasflaechen.h"
+#include "bhed/gpuskin.h"
 #include "bhed/messpunkt.h"
 
 #include <algorithm>
@@ -80,15 +81,9 @@ gras::Ecke ecke(const BspVertex& v) {
     return e;
 }
 
-void flaechenBauen() {
-    const BspMesh& m = g_app->mesh;
-    if (g_gras.idx == m.indexes.data() && g_gras.nIdx == m.indexes.size() && g_gras.stand == g_app->grasStand) {
-        return;
-    }
-    g_gras = GrasStand{};
-    g_gras.idx = m.indexes.data();
-    g_gras.nIdx = m.indexes.size();
-    g_gras.stand = g_app->grasStand;
+// Die Flaechen eines Netzes mit surfaceSprites-Stufen - die Welt (g_app->mesh)
+// oder ein Brush-Modell (rc605, brushMeshes: Ecken im Raum des Modells).
+void flaechenAus(const BspMesh& m, std::vector<GrasFlaeche>& aus) {
     for (const BspMesh::Batch& b : m.batches) {
         if (b.shader < 0 || static_cast<std::size_t>(b.shader) >= g_app->grasStufen.size() ||
             g_app->grasStufen[static_cast<std::size_t>(b.shader)].empty()) {
@@ -157,9 +152,57 @@ void flaechenBauen() {
                     }
                 }
             }
-            g_gras.flaechen.push_back(std::move(f));
+            aus.push_back(std::move(f));
         }
     }
+}
+
+void flaechenBauen() {
+    const BspMesh& m = g_app->mesh;
+    if (g_gras.idx == m.indexes.data() && g_gras.nIdx == m.indexes.size() && g_gras.stand == g_app->grasStand) {
+        return;
+    }
+    g_gras = GrasStand{};
+    g_gras.idx = m.indexes.data();
+    g_gras.nIdx = m.indexes.size();
+    g_gras.stand = g_app->grasStand;
+    flaechenAus(m, g_gras.flaechen);
+}
+
+// --- rc605: surfaceSprites auf Brush-Modellen -------------------------------
+//
+// RB_DrawSurfaceSprites laeuft fuer JEDE Flaeche, die tess fuellt - auch fuer
+// die eines Brush-Modells (func_wall, func_door ...), dort mit tess.xyz im Raum
+// des Modells. Fuer eine Entity rechnet es Auge und Blickachsen in diesen Raum
+// um (tr_surfacesprites.cpp:1471-1489 OpenJK: ssViewOrigin =
+// backEnd.ori.viewOrigin, ssViewRight/ssViewUp = R_WorldNormalToEntity der
+// viewParms-Achsen); ssfwdvector/ssrightvectors (R_SurfaceSpriteFrameUpdate,
+// :163-183) und der Wind bleiben die der Welt. Gezeichnet wird mit der Stellung
+// der Entity - hier die Ecken der Vierecke mit der Mover-Matrix in die Welt.
+// Sichtbar nur, solange das Modell gezeichnet wird (EF_NODRAW/START_OFF:
+// gar nicht im Bild, also auch keine Halme).
+struct BrushGras {
+    const std::uint32_t* idx = nullptr;
+    std::size_t nIdx = 0;
+    int stand = -1;
+    std::vector<GrasFlaeche> flaechen;
+};
+std::unordered_map<int, BrushGras> g_brushGras;
+std::vector<MoverDraw> g_grasBrushStand;   // die Brush-Modelle dieses Bildes (baueGrasNetz)
+
+BrushGras* brushFlaechen(int nr) {
+    const auto netz = g_app->brushMeshes.find(nr);
+    if (netz == g_app->brushMeshes.end()) { return nullptr; }
+    const BspMesh& m = netz->second;
+    BrushGras& bg = g_brushGras[nr];
+    if (bg.idx != m.indexes.data() || bg.nIdx != m.indexes.size() || bg.stand != g_app->grasStand) {
+        bg = BrushGras{};
+        bg.idx = m.indexes.data();
+        bg.nIdx = m.indexes.size();
+        bg.stand = g_app->grasStand;
+        flaechenAus(m, bg.flaechen);
+    }
+    return &bg;
 }
 
 // Abstand vom Auge zum naechsten Punkt des Kastens.
@@ -283,24 +326,28 @@ void baueGras(const Camera& cam, float reichweite, BspMesh& netz, int& vierecke,
     std::vector<gras::Quad> quads;
     std::vector<int> lodSp;
     std::vector<int> lodZe;
-    const BspMesh& m = g_app->mesh;
-    for (GrasFlaeche& f : g_gras.flaechen) {
+    int brushQuads = 0;
+    double brushZ = 0.0;
+    // Eine Flaeche: m ihr Netz, rr/vornL Auge und Achsen in ihrem Raum, welt
+    // die Matrix Modell -> Welt (nullptr: die Welt selbst).
+    const auto flaeche = [&](GrasFlaeche& f, const BspMesh& m, const gras::Rahmen& rr, const float* vornL,
+                             const float* welt) {
         const std::vector<App::GrasStufe>& stufen = g_app->grasStufen[static_cast<std::size_t>(f.shader)];
         bool etwas = false;
         for (std::size_t si = 0; si < stufen.size() && si < f.kandidaten.size(); ++si) {
             const App::GrasStufe& gs = stufen[si];
-            if (!gras::stufeZeichnet(gs.ss, gs.stufenNr, r.wetter)) { continue; }
+            if (!gras::stufeZeichnet(gs.ss, gs.stufenNr, rr.wetter)) { continue; }
             // Ausser Reichweite: jede Ecke hat alpha <= 0 (:705, :1316).
-            if (kastenAbstand(r.auge, f.mins, f.maxs) >= gras::reichweite(gs.ss, r)) { continue; }
+            if (kastenAbstand(rr.auge, f.mins, f.maxs) >= gras::reichweite(gs.ss, rr)) { continue; }
             // Ganz hinter der Kamera (Halme eingerechnet): unsichtbar.
             {
                 const float rand = halmUeberstand(gs.ss);
                 float naechst = -1.0e30F;
                 for (int c = 0; c < 8; ++c) {
-                    const float p[3] = {((c & 1) != 0 ? f.maxs[0] : f.mins[0]) - r.auge[0],
-                                        ((c & 2) != 0 ? f.maxs[1] : f.mins[1]) - r.auge[1],
-                                        ((c & 4) != 0 ? f.maxs[2] : f.mins[2]) - r.auge[2]};
-                    naechst = std::max(naechst, p[0] * vorn[0] + p[1] * vorn[1] + p[2] * vorn[2]);
+                    const float p[3] = {((c & 1) != 0 ? f.maxs[0] : f.mins[0]) - rr.auge[0],
+                                        ((c & 2) != 0 ? f.maxs[1] : f.mins[1]) - rr.auge[1],
+                                        ((c & 4) != 0 ? f.maxs[2] : f.mins[2]) - rr.auge[2]};
+                    naechst = std::max(naechst, p[0] * vornL[0] + p[1] * vornL[1] + p[2] * vornL[2]);
                 }
                 if (naechst < -rand) { continue; }
             }
@@ -308,7 +355,7 @@ void baueGras(const Camera& cam, float reichweite, BspMesh& netz, int& vierecke,
             if (f.patch) {
                 // RB_SurfaceGrid: welche Zeilen und Spalten bei dieser Sicht.
                 // Aendert sich das, liegen die Halme anders - wie im Spiel.
-                gras::gitterLod(f.gitter, r.auge, vorn, lodSp, lodZe);
+                gras::gitterLod(f.gitter, rr.auge, vornL, lodSp, lodZe);
                 if (lodSp != f.lodSpalten || lodZe != f.lodZeilen || f.dreiecke.empty()) {
                     f.lodSpalten = lodSp;
                     f.lodZeilen = lodZe;
@@ -342,16 +389,32 @@ void baueGras(const Camera& cam, float reichweite, BspMesh& netz, int& vierecke,
                 for (std::size_t n = 0; n < dreieckZahl; ++n) {
                     gras::Ecke e[3];
                     dreieckAt(n, e);
-                    gras::effektDreieck(gs.ss, e, r, gs.additiv, quads);
+                    gras::effektDreieck(gs.ss, e, rr, gs.additiv, quads);
                 }
             } else {
-                gras::zeichneKandidaten(gs.ss, f.kandidaten[si].data(), f.kandidaten[si].size(), r, gs.additiv, quads);
+                gras::zeichneKandidaten(gs.ss, f.kandidaten[si].data(), f.kandidaten[si].size(), rr, gs.additiv, quads);
             }
             if (!quads.empty()) {
                 if (gs.additiv) { additivPlatz.insert(gs.platz); }
                 const long long schluessel = (static_cast<long long>(gs.platz) << 20) + (f.nebel + 1);
                 Gruppe& ziel = jePlatz[schluessel];
                 ziel.flaeche = f.surface;
+                if (welt != nullptr) {
+                    // rc605: Brush-Modell - die Ecken aus dem Raum des Modells
+                    // in die Welt (die Stellung, mit der die Engine zeichnet).
+                    brushQuads += static_cast<int>(quads.size());
+                    for (gras::Quad& q : quads) {
+                        for (auto& p : q.ecke) {
+                            const float x = p[0];
+                            const float y = p[1];
+                            const float z = p[2];
+                            for (int k = 0; k < 3; ++k) {
+                                p[k] = welt[k * 4] * x + welt[k * 4 + 1] * y + welt[k * 4 + 2] * z + welt[k * 4 + 3];
+                            }
+                            brushZ += p[2] * 0.25;
+                        }
+                    }
+                }
                 ziel.quads.insert(ziel.quads.end(), quads.begin(), quads.end());
                 etwas = true;
             }
@@ -360,6 +423,36 @@ void baueGras(const Camera& cam, float reichweite, BspMesh& netz, int& vierecke,
             ++flaechenZahl;
             if (f.patch) { ++g_grasPatchZahl; }
         }
+    };
+    for (GrasFlaeche& f : g_gras.flaechen) {
+        flaeche(f, g_app->mesh, r, vorn, nullptr);
+    }
+    // rc605: die Brush-Modelle dieses Bildes (siehe BrushGras).
+    for (const MoverDraw& mv : g_grasBrushStand) {
+        BrushGras* bg = brushFlaechen(mv.brush);
+        if (bg == nullptr || bg->flaechen.empty()) { continue; }
+        float welt[16];
+        gpu::baueMoverWelt(mv.pivot, mv.offset, mv.yaw, mv.pitch, mv.roll, mv.pitch != 0.0F || mv.roll != 0.0F,
+                           welt, mv.scale);
+        // backEnd.ori.viewOrigin / R_WorldNormalToEntity: Auge und Achsen
+        // mit der Umkehrung der Drehung (Spalten der Matrix) in den Raum des Modells.
+        gras::Rahmen rb = r;
+        float vornB[3];
+        const float d[3] = {r.auge[0] - welt[3], r.auge[1] - welt[7], r.auge[2] - welt[11]};
+        for (int c = 0; c < 3; ++c) {
+            rb.auge[c] = welt[c] * d[0] + welt[4 + c] * d[1] + welt[8 + c] * d[2];
+            rb.links[c] = welt[c] * r.links[0] + welt[4 + c] * r.links[1] + welt[8 + c] * r.links[2];
+            rb.oben[c] = welt[c] * r.oben[0] + welt[4 + c] * r.oben[1] + welt[8 + c] * r.oben[2];
+            vornB[c] = welt[c] * vorn[0] + welt[4 + c] * vorn[1] + welt[8 + c] * vorn[2];
+        }
+        const BspMesh& bm = g_app->brushMeshes[mv.brush];
+        for (GrasFlaeche& f : bg->flaechen) {
+            flaeche(f, bm, rb, vornB, welt);
+        }
+    }
+    if (&netz == &g_app->grasNetz) {
+        g_app->grasBrushVierecke = brushQuads;
+        g_app->grasBrushMitteZ = brushQuads > 0 ? brushZ / brushQuads : 0.0;
     }
     // tr_quicksprite.cpp:38 - (1,1) (1,0) (0,0) (0,1); GL_QUADS als zwei Dreiecke
     static const float kSt[4][2] = {{1.0F, 1.0F}, {1.0F, 0.0F}, {0.0F, 0.0F}, {0.0F, 1.0F}};
@@ -410,8 +503,16 @@ void baueGras(const Camera& cam, float reichweite, BspMesh& netz, int& vierecke,
 
 }  // namespace
 
-void baueGrasNetz(const Camera& cam, float reichweite) {
+void baueGrasNetz(const Camera& cam, float reichweite, const std::vector<MoverDraw>* movers) {
     g_app->grasReichweite = reichweite;
+    // rc605: die Brush-Modelle, die dieses Bild zeichnet (nicht die Zweitmodelle
+    // "model2", die entity tragen) - auch fuer baueGrasNetzNeben im selben Bild.
+    g_grasBrushStand.clear();
+    if (movers != nullptr) {
+        for (const MoverDraw& mv : *movers) {
+            if (mv.brush > 0 && mv.entity < 0) { g_grasBrushStand.push_back(mv); }
+        }
+    }
     baueGras(cam, reichweite, g_app->grasNetz, g_app->grasVierecke, g_app->grasFlaechen);
     g_app->grasPatches = g_grasPatchZahl;
 }

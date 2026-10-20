@@ -137,6 +137,8 @@ enum Feature : std::uint32_t {
     // (Pixel fuer Pixel), danach der Lichtweg wie sonst - die Lightmap
     // liegt im Spiel auch ueber der Spiegelung. Gesetzt beim Zeichnen.
     kSpiegelBild   = 1U << 24,
+    // rc605: tcGen vector - st = (welt . gTcGenS, welt . gTcGenT).
+    kTexGenVec     = 1U << 25,
 
     // Alles, was Ecken woanders hinlegt als die Datei - Licht- und
     // Nebeldurchgang zeichnen die Flaeche ohne diese Rechnung und lassen

@@ -488,6 +488,13 @@ struct LaufZustand {
         int torsoAnimAb = 0;
         int torsoTimer = 0;
         bool abgehoben = false;
+        // rc605 (Rest): ps.jumpZStart (PM_GroundTraceMissed beim Uebergang,
+        // bg_pmove.cpp:7395-7397 MD; am Boden 0, 34146), PMF_BACKWARDS_JUMP und
+        // wann die Kette zuletzt den Oberkoerper setzte (SETANIM_BOTH: eine
+        // Skriptanimation darauf kommt danach nicht wieder).
+        float jumpZStart = 0.0F;
+        bool rueckwaerts = false;
+        int torsoGesetztAb = -1;
         bool operator==(const Sprung&) const = default;
     };
     Sprung sprung;
@@ -586,6 +593,13 @@ struct LaufWerte {
     int sprungAnimArt = 0;
     int sprungAnimMs = 0;
     int forceLandMs = 0;
+    // rc605 (Rest): PM_CrashLand fuer jede Landung - FP_LEVITATION der Figur
+    // (forcePowerLevel, .npc), die Klasse fuer die Sonderfaelle (npcLandKlasse)
+    // und die Laengen der uebrigen Landeanimationen je SprungAnim-Code
+    // (BOTH_LANDBACK1 ... BOTH_FORCELANDRIGHT1; LAND1/FORCELAND1 stehen oben).
+    int levitation = 0;
+    int landKlasse = 0;
+    std::array<int, 24> landeMs{};
 };
 
 // rc601 integ: der Takt des Verhaltens eines NPC in ms (LaufWerte::
@@ -619,7 +633,32 @@ enum SprungAnim : int {
     kSaInAir1 = 5,      // BOTH_INAIR1 (NPC_BSJump)
     kSaForceLand1 = 6,  // BOTH_FORCELAND1
     kSaStand1 = 7,      // BOTH_STAND1 (PM_Footsteps im Stand waehrend BS_JUMP)
+    // rc605 (Rest): der Uebergang in den freien Fall (PM_GroundTraceMissed,
+    // bg_pmove.cpp:7149-7392 MD) und PM_GetLandingAnim (5039-5420 MD).
+    kSaInAirBack1 = 8,
+    kSaInAirLeft1 = 9,
+    kSaInAirRight1 = 10,
+    kSaForceInAir1 = 11,
+    kSaForceInAirBack1 = 12,
+    kSaForceInAirLeft1 = 13,
+    kSaForceInAirRight1 = 14,
+    kSaJumpBack1 = 15,
+    kSaLandBack1 = 16,
+    kSaLandLeft1 = 17,
+    kSaLandRight1 = 18,
+    kSaForceLandBack1 = 19,
+    kSaForceLandLeft1 = 20,
+    kSaForceLandRight1 = 21,
+    kSaAnzahl = 22,
 };
+static_assert(kSaAnzahl <= 24, "LaufWerte::landeMs");
+// rc605 (Rest): der Animationsname eines Codes (nullptr: kSaKeine/kSaSprung).
+[[nodiscard]] const char* sprungAnimName(int code);
+// rc605 (Rest): PM_CrashLand-Sonderfaelle nach Klasse und Rang (bg_pmove.cpp:
+// 5895-5918, 6042-6059 MD / 4009-4030, 4115-4130 OpenJK; Jedi Outcast keine):
+// 0 normal, 1 "JET"-Klasse (delta = 1), 2 CLASS_ROCKETTROOPER unter RANK_LT
+// (Landung immer, ganzer Koerper), 3 CLASS_ROCKETTROOPER ab RANK_LT (Beine).
+[[nodiscard]] int npcLandKlasse(bool movieDuels, bool jk2, const std::string& klasse, const std::string& rang);
 
 struct LaufTakt {
     double t = 0.0;               // das Denkbild
@@ -664,6 +703,8 @@ struct LaufTakt {
     double beinAnimAb = 0.0;
     int torsoAnim = 0;
     double torsoAnimAb = 0.0;
+    // rc605 (Rest): zuletzt SETANIM_BOTH der Kette (-1: nie) - siehe Sprung.
+    double torsoGesetztAb = -1.0;
     // rc605 (Probe): 1 STEER::GoTo, 2 NAV::GoTo, 3 STEER::Stop; +10 STEER::Blocked
     // in diesem Denkbild (0: kein NPC_MoveToGoal).
     int weg = 0;
@@ -751,6 +792,20 @@ void navJk2Regeln(bool an);
 // CNavigator::Load (g_navigator.cpp:567-628) ohne Pruefsummenvergleich; leer,
 // wenn die Datei nicht taugt. `summe` bekommt die gespeicherte Pruefsumme.
 [[nodiscard]] std::shared_ptr<NavNetzJk2> navJk2Laden(const std::string& bytes, int& summe);
+// rc605 (Rest): CNavigator::CheckAllFailedEdges / CheckFailedEdge (codeJK2/game/
+// g_navigator.cpp:2018-2128, aus G_RunFrame am Anfang jedes Bilds, g_main.cpp:
+// 1274-1277) fuer die gescheiterte Kante `slot` des JK2-Netzes der Welt (ein Netz
+// ohne passende .nav: CheckBlockedEdges beim Laden, AddFailedEdge mit checkTime =
+// level.time + 1000 + Q_irand(0, 1000) - hier die Mitte, 1500 nach dem Spawn der
+// Karte, also 750 ms nach dem Skriptanfang). Geprueft wird im ersten Bild nach
+// checkTime: ausserhalb des PVS oder startsolid im naechsten Bild wieder; trifft
+// die Spur (Kasten mit STEPSIZE, MASK_NPCSOLID|MONSTERCLIP|BOTCLIP) nichts oder
+// eine unverschlossene Tuer, ist die Kante ab da frei (ClearFailedEdge), sonst
+// neue checkTime = level.time + 1500. Gibt das Bild zurueck, ab dem sie frei
+// ist (-1: bis bisMs nicht). Ohne die Pause pruefte behaved bis rc605 jedes Bild.
+[[nodiscard]] double navJk2FehlFreiAb(const NavWelt& welt, int slot, double bisMs);
+inline constexpr double kNavJk2FehlErstePruefung = 750.0;
+inline constexpr double kNavJk2FehlPause = 1500.0;
 
 // rc601 (bewegung, Durchsicht 2): Abkuerzungen, die am Ergebnis nichts
 // aendern (Zwischenspeicher fuer has_valid_edge je Regionspaar). Fuer die

@@ -5425,6 +5425,19 @@ void prepareScene() {
                 if (a.kannSpringen) { springer->insert(a.name); }
             }
             welt.kannSpringen = [springer](const std::string& f) { return springer->count(f) != 0; };
+            // rc605 (Rest): PM_CrashLand je Figur (FP_LEVITATION, npcLandKlasse).
+            auto landWerte = std::make_shared<std::map<std::string, std::pair<int, int>>>();
+            for (const Actor& a : ersteSzene.actors) {
+                (*landWerte)[a.name] = {a.levitation, npcLandKlasse(navMovieDuelsRegeln(), navJk2Regeln(), a.klasse, a.rang)};
+            }
+            welt.levitation = [landWerte](const std::string& f) {
+                const auto it = landWerte->find(f);
+                return it == landWerte->end() ? 0 : it->second.first;
+            };
+            welt.landKlasse = [landWerte](const std::string& f) {
+                const auto it = landWerte->find(f);
+                return it == landWerte->end() ? 0 : it->second.second;
+            };
             welt.halbBreite = [kaesten](const std::string& f) {
                 const auto it = kaesten->find(f);
                 return it == kaesten->end() ? 16.0F : it->second.first;
@@ -5507,6 +5520,15 @@ void prepareScene() {
         if (an >= 0.0) {
             ac.kameraVerborgen.emplace_back(an, -1.0);
         }
+    }
+    // rc605 (Rest): Jedi Outcast - der Kyle-NPC gleicht ausserhalb der Kamera
+    // die Waffe des Spielers ab (munroWaffenAbgleich, src/ausruestung.cpp).
+    if (regelwerkJediOutcast()) {
+        SzenenHilfe wh;
+        wh.npcs = &g_app->npcMap;
+        wh.sabers = &g_app->saberMap;
+        wh.waffen = &g_app->weaponMap;
+        munroWaffenAbgleich(g_app->scene, &wh);
     }
     // Ein NPC_type, der in keiner .npc steht, wird im Spiel NIE gespawnt:
     // NPC_ParseParms schlaegt fehl, NPC_Spawn_Do meldet "Couldn't spawn
@@ -6017,25 +6039,27 @@ void ladeEffektShader(const efx::Effect& ef) {
         //                                der Helligkeit, Schwarz
         //                                ist unsichtbar.
         //
-        // Das ist eine Faustregel, keine Ableitung aus dem
-        // Quelltext - die Engine liest die Mischart aus dem
-        // Shaderskript, und wo eines da ist, gilt weiterhin dieses.
-        // Nur wenn KEINES da ist, greift die Regel.
-        if (t.blend == BlendMode::Opaque && !t.empty()) {
-            std::uint8_t kleinstesAlpha = 255;
-            for (std::size_t k = 3; k < t.rgba.size(); k += 4U) {
-                kleinstesAlpha = std::min(kleinstesAlpha, t.rgba[k]);
-            }
-            // setBlend, nicht `t.blend = ...`: die Faktoren muessen
-            // mit. Siehe TextureSet::Tex::setBlend.
-            t.setBlend((kleinstesAlpha < 250U) ? BlendMode::Alpha
-                                               : BlendMode::Add);
-            diag::detail("  Effektshader " + pr.shaders[0] +
-                         " ohne blendFunc -> " +
-                         (t.blend == BlendMode::Alpha ? "durchscheinend"
-                                                      : "additiv") +
-                         " (kleinstes Alpha " +
-                         std::to_string(kleinstesAlpha) + ")");
+        // rc605 (Rest): die Faustregel ist ersetzt durch das, was die Engine
+        // tut. Das FX-System registriert seine Shader mit RE_RegisterShader
+        // (SFxHelper::RegisterShader -> cgi_R_RegisterShader, code/cgame/
+        // FxUtil.cpp:136-140 MD), also R_FindShader mit lightmaps2d
+        // (tr_shader.cpp:3535-3536 MD):
+        //  - MIT Shaderskript gilt das Skript - auch ohne blendFunc: dann
+        //    zeichnet die Stufe deckend (GLS_DEFAULT), wie jede Flaeche;
+        //  - OHNE Skript der implizite Shader fuer LIGHTMAP_2D (:3482-3491):
+        //    rgbGen vertex, alphaGen vertex, GLS_DEPTHTEST_DISABLE |
+        //    GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA, das
+        //    Bild ohne Mip mit GL_CLAMP (R_FindImageFile, :3450).
+        if (g_app->shaderMap.count(low) == 0U && !t.empty()) {
+            t.srcFactor = BlendFactor::SrcAlpha;
+            t.dstFactor = BlendFactor::OneMinusSrcAlpha;
+            t.blend = BlendMode::Alpha;
+            t.rgbVertex = true;
+            for (float& c : t.rgbConst) { c = -1.0F; }
+            t.depthFunc = DepthFunc::Disable;
+            t.depthWrite = false;
+            t.clamp = true;
+            diag::detail("  Effektshader " + shName + " ohne Skript -> impliziter 2D-Shader (Alpha, ohne Tiefentest)");
         }
         // --- Der Alphawert der ECKE gilt hier ausdruecklich ----
         //
@@ -6269,10 +6293,32 @@ const App::ActorAssets* gegenstandGlmFuer(const std::string& pfad);
 // G2API_CollisionDetect das Netz (G2_TraceModels -> G2_TraceSurfaces ->
 // G2_RadiusTracePolys mit radius = (maxs[0] - mins[0]) / 2); ohne Treffer
 // gilt wieder die Spur von vorher (clip->trace = oldTrace).
-// Nicht nachgebildet: andere Fallen als Punkt-Entities mit CONTENTS_SHOTCLIP,
-// func_breakable/misc_model_breakable-Kaesten, Waffenmodelle in der Hand
-// (weitere Ghoul2-Modelle der Figur).
+// rc605 (Rest): dazu andere Fallen (touchLaserTrap: Kasten -4..4, contents
+// CONTENTS_SHOTCLIP, wp_trip_mine.cpp:46-50 OpenJK, bis G_FreeEntity nach
+// WP_Explode), misc_model_breakable (Kasten aus mins/maxs, misc_model_breakable_init
+// g_breakable.cpp:808-831 MD: spawnflags 1 -> CONTENTS_SOLID|..., sonst mit health
+// CONTENTS_SHOTCLIP; nach dem Bruch contents 0 ausser spawnflags 4, 590-600) und
+// die weiteren Ghoul2-Modelle der Figur am Bolzen (Waffe, Schwertgriff -
+// G2_TraceModels geht ueber das ganze ghoul2-Feld). func_breakable ist ein
+// Brush-Modell und steht schon in den Brushes.
 namespace {
+std::string kleinFalle(std::string s) {   // rc605 (Rest)
+    for (char& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    return s;
+}
+bool g_fallenOhneAnbau = false;   // rc605 (Rest) Selbsttest: nur der Koerper
+struct FallenMine {
+    std::size_t entity = 0;
+    float ort[3]{};
+    double wegMs = 1.0e300;   // G_FreeEntity (aus laserfalleLauf, siehe fallenEffekteSetzen)
+};
+struct FallenModell {
+    std::size_t entity = 0;
+    std::string pfad;          // model (klein), fuer MoverSim::modellAt
+    float mins[3]{};           // Weltkasten
+    float maxs[3]{};
+    bool festNachBruch = false;   // spawnflags 4
+};
 struct FallenBrush {
     std::size_t entity = 0;
     int modell = 0;
@@ -6284,6 +6330,8 @@ struct FallenWelt {
     std::shared_ptr<const KollisionsKarte> k;
     std::vector<FallenBrush> brushes;
     std::vector<std::size_t> figuren;   // Index in scene.actors
+    std::vector<FallenMine> minen;      // rc605 (Rest)
+    std::vector<FallenModell> modelle;  // rc605 (Rest)
 };
 FallenWelt g_fallenWelt;
 
@@ -6292,6 +6340,9 @@ void fallenWeltBauen() {
     w = FallenWelt{};
     g_app->fallenNetzTreffer = 0;
     g_app->fallenKastenTreffer = 0;
+    g_app->fallenFallenTreffer = 0;   // rc605 (Rest)
+    g_app->fallenModellTreffer = 0;
+    g_app->fallenAnbauTreffer = 0;
     w.k = geladeneKollision(g_app->map.path);
     std::map<int, const Actor*> skript;
     for (std::size_t ai = 0; ai < g_app->scene.actors.size(); ++ai) {
@@ -6327,6 +6378,70 @@ void fallenWeltBauen() {
         }
         b.radius = std::sqrt(r2) + 1.0F;
         w.brushes.push_back(b);
+    }
+    // rc605 (Rest): andere Fallen und misc_model_breakable.
+    for (std::size_t ei = 0; ei < g_app->map.entities.size(); ++ei) {
+        const MapEntity& e = g_app->map.entities[ei];
+        if (!gespawntImSpiel(e)) { continue; }
+        const std::string kl = kleinFalle(e.classname);
+        if (kl == "misc_trip_mine") {
+            TripMineLage tl;
+            if (!kartenpruefung::imSpiel(e.classname, regelwerkMovieDuels()) || !tripMineLage(e, tl)) { continue; }
+            FallenMine m;
+            m.entity = ei;
+            for (int q = 0; q < 3; ++q) { m.ort[q] = tl.ort[q]; }
+            w.minen.push_back(m);
+        } else if (kl == "misc_model_breakable") {
+            // SP_misc_model_breakable (g_breakable.cpp:1215-1300 MD)
+            const std::string* mdl = e.find("model");
+            if (mdl == nullptr || mdl->empty()) { continue; }
+            int sf = 0;
+            int health = 0;
+            if (const std::string* v = e.find("spawnflags")) { sf = std::atoi(v->c_str()); }
+            if (const std::string* v = e.find("health")) { health = std::atoi(v->c_str()); }
+            if ((sf & 1) == 0 && health == 0) { continue; }   // contents 0
+            float o[3] = {0.0F, 0.0F, 0.0F};
+            if (!e.origin.empty()) { (void)std::sscanf(e.origin.c_str(), "%f %f %f", &o[0], &o[1], &o[2]); }
+            float mi[3] = {0.0F, 0.0F, 0.0F};
+            float ma[3] = {0.0F, 0.0F, 0.0F};
+            if (const std::string* v = e.find("mins")) { (void)std::sscanf(v->c_str(), "%f %f %f", &mi[0], &mi[1], &mi[2]); }
+            if (const std::string* v = e.find("maxs")) { (void)std::sscanf(v->c_str(), "%f %f %f", &ma[0], &ma[1], &ma[2]); }
+            if (mi[0] == 0.0F && mi[1] == 0.0F && mi[2] == 0.0F) { mi[0] = mi[1] = mi[2] = -16.0F; }
+            if (ma[0] == 0.0F && ma[1] == 0.0F && ma[2] == 0.0F) { ma[0] = ma[1] = ma[2] = 16.0F; }
+            if (kleinFalle(*mdl) == "models/map_objects/ships/tie_bomber.md3") {
+                mi[0] = mi[1] = mi[2] = -80.0F;
+                ma[0] = ma[1] = ma[2] = 80.0F;
+            }
+            float skala[3] = {0.0F, 0.0F, 0.0F};
+            bool mitSkala = false;
+            if (const std::string* v = e.find("modelscale_vec"); v != nullptr &&
+                std::sscanf(v->c_str(), "%f %f %f", &skala[0], &skala[1], &skala[2]) == 3 &&
+                (skala[0] != 0.0F || skala[1] != 0.0F || skala[2] != 0.0F)) {
+                mitSkala = true;
+            } else if (const std::string* s1 = e.find("modelscale"); s1 != nullptr && std::atof(s1->c_str()) != 0.0) {
+                skala[0] = skala[1] = skala[2] = static_cast<float>(std::atof(s1->c_str()));
+                mitSkala = true;
+            }
+            if (mitSkala) {
+                for (int q = 0; q < 2; ++q) {
+                    mi[q] *= skala[q];
+                    ma[q] *= skala[q];
+                }
+                ma[2] *= skala[2];
+                const float alt = mi[2];
+                mi[2] *= skala[2];
+                o[2] += alt - mi[2];   // "adjust origin accordingly"
+            }
+            FallenModell m;
+            m.entity = ei;
+            m.pfad = kleinFalle(*mdl);
+            for (int q = 0; q < 3; ++q) {
+                m.mins[q] = o[q] + mi[q];
+                m.maxs[q] = o[q] + ma[q];
+            }
+            m.festNachBruch = (sf & 4) != 0;
+            w.modelle.push_back(m);
+        }
     }
 }
 
@@ -6398,6 +6513,32 @@ int figurNetzTreffer(std::size_t ai, const ActorState& st, double ms, const floa
         idx.assign(sf.indexes.begin(), sf.indexes.end());
         if (g2RadiusTreffer(ecken, idx, start, ende, radius)) { return 1; }
     }
+    // rc605 (Rest): die weiteren Modelle des ghoul2-Felds (Waffe, Schwertgriff,
+    // Kinomodell) an ihrem Bolzen - wie die Zeichnung (Griff am Handbolzen,
+    // baueGriffWelt), Ecken starr im Raum des Modells.
+    for (int ai2 = 0; ai2 < d.anbauten && !g_fallenOhneAnbau; ++ai2) {
+        const AnbauDraw& an = d.anbau[static_cast<std::size_t>(ai2)];
+        if (an.model == nullptr) { continue; }
+        BoneMatrix hand{};
+        const int hs = surfaceIndex(m, an.bolzen);
+        if (hs < 0 || !boltMatrix(m, hs, welt, *d.anim, hand)) { continue; }
+        float gw[16];
+        gpu::baueGriffWelt(fw, hand, gw);
+        for (const GlmSurface& sf : an.model->surfaces) {
+            if (sf.flags != 0U || sf.skinnedOff || sf.verts.empty()) { continue; }
+            ecken.clear();
+            for (const GlmVertex& v : sf.verts) {
+                for (int r = 0; r < 3; ++r) {
+                    ecken.push_back(gw[r * 4] * v.xyz[0] + gw[r * 4 + 1] * v.xyz[1] + gw[r * 4 + 2] * v.xyz[2] + gw[r * 4 + 3]);
+                }
+            }
+            idx.assign(sf.indexes.begin(), sf.indexes.end());
+            if (g2RadiusTreffer(ecken, idx, start, ende, radius)) {
+                ++g_app->fallenAnbauTreffer;
+                return 1;
+            }
+        }
+    }
     return 0;
 }
 
@@ -6467,6 +6608,52 @@ LaserfalleSpur laserfalleSpurBei(double ms, const float start[3], const float mi
                 figur = false;
                 if (t.allsolid) { allsolid = true; }
             }
+        }
+        // rc605 (Rest): andere Fallen (CONTENTS_SHOTCLIP, -4..4) und
+        // misc_model_breakable (CM_TempBoxModel, Winkel 0) - Punkt-Entities ohne
+        // Ghoul2: der Kasten gilt.
+        const auto kastenNehmen = [&](const float kmin[3], const float kmax[3]) {
+            bool weit = false;
+            for (int q = 0; q < 3; ++q) {
+                if (kmax[q] + 1.0F < lo[q] || kmin[q] - 1.0F > hi[q]) { weit = true; }
+            }
+            if (weit) { return; }
+            const KastenSpur ks = figurKastenSpur(start, ende, mins, maxs, kmin, kmax);
+            if (ks.allsolid) {
+                allsolid = true;
+                figur = false;
+            } else if (ks.startsolid) {
+                if (!startsolid) { figur = false; }
+                startsolid = true;
+            }
+            if (ks.fraction < frac) {
+                frac = ks.fraction;
+                for (int q = 0; q < 3; ++q) {
+                    endpos[q] = start[q] + ks.fraction * (ende[q] - start[q]);
+                    normale[q] = ks.normale[q];
+                }
+                figur = false;
+                if (ks.allsolid) { allsolid = true; }
+            }
+        };
+        for (const FallenMine& fm : w.minen) {
+            if (allsolid) { break; }
+            if (fm.entity == selbst || ms >= fm.wegMs) { continue; }
+            const float kmin[3] = {fm.ort[0] - 4.0F, fm.ort[1] - 4.0F, fm.ort[2] - 4.0F};
+            const float kmax[3] = {fm.ort[0] + 4.0F, fm.ort[1] + 4.0F, fm.ort[2] + 4.0F};
+            const float altFrac = frac;
+            kastenNehmen(kmin, kmax);
+            if (frac < altFrac) { ++g_app->fallenFallenTreffer; }
+        }
+        for (const FallenModell& fm : w.modelle) {
+            if (allsolid) { break; }
+            if (fm.entity == selbst) { continue; }
+            const MoverSim::ModellStand bs = g_app->moverSim.modellAt(fm.entity, ms);
+            const bool gebrochen = bs.bekannt && (!bs.sichtbar || bs.modell != fm.pfad);
+            if (gebrochen && !fm.festNachBruch) { continue; }
+            const float altFrac = frac;
+            kastenNehmen(fm.mins, fm.maxs);
+            if (frac < altFrac) { ++g_app->fallenModellTreffer; }
         }
         for (const std::size_t ai : w.figuren) {
             if (allsolid) { break; }
@@ -6788,6 +6975,35 @@ void geschuetzeTakten() {
     }
 }
 
+// rc605 (Rest) Selbsttest: G2_TraceModels einer Figur (Netz der Figur, mit oder
+// ohne die Modelle am Bolzen) fuer eine Spur mit Radius 4 (Kasten -4..4).
+int fallenFigurProbe(std::size_t ai, double ms, const float start[3], const float ende[3], bool mitAnbau) {
+    if (ai >= g_app->scene.actors.size()) { return -1; }
+    const ActorState st = g_app->scene.actors[ai].at(ms);
+    g_fallenOhneAnbau = !mitAnbau;
+    const int r = figurNetzTreffer(ai, st, ms, start, ende, 4.0F);
+    g_fallenOhneAnbau = false;
+    return r;
+}
+
+// rc605 (Rest) Selbsttest: die Spur von laserTrapThink der Falle `entity` zur
+// Zeit ms (neuBauen: die Hindernisse vorher aus den Entities neu lesen).
+bool fallenStrahlProbe(std::size_t entity, double ms, float ende[3], float normale[3], bool neuBauen) {
+    if (neuBauen) { fallenWeltBauen(); }
+    TripMineLage tl;
+    if (entity >= g_app->map.entities.size() || !tripMineLage(g_app->map.entities[entity], tl)) { return false; }
+    float en[3];
+    for (int q = 0; q < 3; ++q) { en[q] = tl.ort[q] + 2048.0F * tl.normale[q]; }
+    const float mn[3] = {-4.0F, -4.0F, -4.0F};
+    const float mx[3] = {4.0F, 4.0F, 4.0F};
+    const LaserfalleSpur s = laserfalleSpurBei(ms, tl.origin2, mn, mx, en, entity);
+    for (int q = 0; q < 3; ++q) {
+        ende[q] = s.endpos[q];
+        normale[q] = s.normale[q];
+    }
+    return true;
+}
+
 void fallenEffekteSetzen() {
     {
         // rc604: ein zweiter Aufruf (prepareScene, nach loadActorModels - dann
@@ -6814,6 +7030,58 @@ void fallenEffekteSetzen() {
         const auto fallenBeginn = std::chrono::steady_clock::now();
         std::size_t fallenSpuren = 0;
         const double endeMs = std::max(g_app->camTrack.durationMs, g_app->timeline.practicalEndMs) + 5000.0;
+        // rc605 (Rest): eine Falle haelt die Strahlen der anderen auf, bis
+        // G_FreeEntity sie nach WP_Explode entfernt - die Lebenszeiten haengen
+        // voneinander ab: rechnen, bis sie stehen (hoechstens 4 Runden).
+        const auto eingabeFuer = [&](std::size_t i, const TripMineLage& tl) {
+            LaserfalleEingabe ein;
+            for (int q = 0; q < 3; ++q) {
+                ein.ort[q] = tl.ort[q];
+                ein.richtung[q] = tl.normale[q];
+                ein.origin2[q] = tl.origin2[q];
+            }
+            ein.anAbSpawn = tl.strahl;
+            ein.sichtbarAbSpawn = tl.sichtbarAbSpawn;
+            ein.hatUse = tl.hatName;
+            ein.spawnMs = kNavKartenSpawnMs;
+            ein.endeMs = endeMs;
+            for (const auto& [ent, ms] : g_app->moverSim.entityUses()) {
+                if (ent == i) { ein.uses.push_back(ms); }
+            }
+            std::stable_sort(ein.uses.begin(), ein.uses.end());
+            return ein;
+        };
+        if (g_fallenWelt.minen.size() > 1U) {
+            for (int runde = 0; runde < 4; ++runde) {
+                std::map<std::size_t, double> weg;
+                for (const FallenMine& fm : g_fallenWelt.minen) {
+                    TripMineLage tl;
+                    if (!tripMineLage(g_app->map.entities[fm.entity], tl)) { continue; }
+                    const std::size_t i = fm.entity;
+                    const LaserfalleErgebnis lr = laserfalleLauf(
+                        eingabeFuer(i, tl), [i, &fallenSpuren](double ms, const float s[3], const float mn[3], const float mx[3], const float en[3]) {
+                            ++fallenSpuren;
+                            return laserfalleSpurBei(ms, s, mn, mx, en, i);
+                        });
+                    weg[i] = lr.wegMs >= 0.0 ? lr.wegMs : 1.0e300;
+                }
+                bool gleich = true;
+                for (FallenMine& fm : g_fallenWelt.minen) {
+                    const auto it = weg.find(fm.entity);
+                    const double neu = it == weg.end() ? 1.0e300 : it->second;
+                    if (neu != fm.wegMs) {
+                        gleich = false;
+                        fm.wegMs = neu;
+                    }
+                }
+                if (gleich) { break; }
+            }
+            g_app->fallenFallenTreffer = 0;
+            g_app->fallenModellTreffer = 0;
+            g_app->fallenAnbauTreffer = 0;
+            g_app->fallenNetzTreffer = 0;
+            g_app->fallenKastenTreffer = 0;
+        }
         for (std::size_t i = 0; i < g_app->map.entities.size(); ++i) {
             const MapEntity& e = g_app->map.entities[i];
             TripMineLage tl;
@@ -6892,7 +7160,8 @@ void fallenEffekteSetzen() {
             if (!lr.explosionen.empty()) {
                 diag::detail("misc_trip_mine #" + std::to_string(i) + ": eine Figur im Strahl - WP_Explode bei " +
                              std::to_string(static_cast<int>(lr.explosionen.front())) + " ms (Treffer am Netz " +
-                             std::to_string(g_app->fallenNetzTreffer) + ", nur Kasten " + std::to_string(g_app->fallenKastenTreffer) + ")");
+                             std::to_string(g_app->fallenNetzTreffer) + ", nur Kasten " + std::to_string(g_app->fallenKastenTreffer) +
+                             ", davon an einem Modell am Bolzen " + std::to_string(g_app->fallenAnbauTreffer) + ")");
             }
             for (std::size_t si = 0; si < lr.strahlen.size(); ++si) {
                 const LaserfalleStrahl& ls = lr.strahlen[si];
@@ -8293,7 +8562,16 @@ void loadMapModels() {
     diag::Step step("Modelle der Karte suchen");
     g_app->mapModels.clear();
     g_app->fehlendeModelle.clear();
-    g_app->md3Files.clear();
+    // rc605: die Modelle der Emitter (useModel) laedt loadMapEffects DAVOR in
+    // dieselbe Liste - sie bleiben. Vorher fiel hier jedes Effektmodell weg
+    // (emitterModels kannte es noch, md3Files nicht mehr), und kein Emitter-
+    // modell wurde gezeichnet (etwa die Nebelvierecke von duel_exegol).
+    std::map<std::string, Md3Model> emitterDateien;
+    for (const auto& [pfad, em] : g_app->emitterModels) {
+        const auto it = g_app->md3Files.find(pfad);
+        if (it != g_app->md3Files.end()) { emitterDateien.emplace(pfad, std::move(it->second)); }
+    }
+    g_app->md3Files = std::move(emitterDateien);
     // Die Grafikpuffer hingen an diesen Netzen (Schluessel: Adresse).
     for (const auto& [name, netz] : g_app->md3Meshes) {
         gpu::vergissNetz(&netz);
@@ -14157,23 +14435,6 @@ void drawMapView() {
         } else {
             g_app->effectMesh = BspMesh{};
         }
-        // --- rc604: surfaceSprites - die Halme dieses Bildes ----------------
-        //
-        // Wie die Engine je Bild auf der CPU (RB_DrawSurfaceSprites), fuer
-        // die Kamera, durch die das Bild entsteht. rangescalefactor
-        // (tr_surfacesprites.cpp:129-161): ein engerer Bildwinkel als der
-        // erste (der Spieler, cg_fov 80) zeigt die Halme entsprechend weiter.
-        {
-            const auto tG0 = std::chrono::steady_clock::now();
-            float grasReichweite = 1.0F;
-            if (playingNow || amZeiger || through) {
-                grasReichweite = gras::reichweiteFaktor(spielSicht(g_app->camViewFov, spiel).fovX,
-                                                        spielSicht(80.0F, spiel).fovX);
-            }
-            baueGrasNetz(useCam, grasReichweite);
-            kosten.effects += std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - tG0).count();
-        }
-
         std::vector<MoverDraw> movers;
         // Die Stellung je Brush-Modell in diesem Bild - fuer ihr "model2" (rc592).
         std::unordered_map<int, MoverDraw> brushStand;
@@ -14557,6 +14818,24 @@ void drawMapView() {
                     }
                 }
             }
+        }
+        // --- rc604: surfaceSprites - die Halme dieses Bildes ----------------
+        //
+        // Wie die Engine je Bild auf der CPU (RB_DrawSurfaceSprites), fuer
+        // die Kamera, durch die das Bild entsteht. rangescalefactor
+        // (tr_surfacesprites.cpp:129-161): ein engerer Bildwinkel als der
+        // erste (der Spieler, cg_fov 80) zeigt die Halme entsprechend weiter.
+        // rc605: erst nach den Movern - auch die Flaechen der Brush-Modelle
+        // tragen Halme, mit der Stellung dieses Bildes.
+        {
+            const auto tG0 = std::chrono::steady_clock::now();
+            float grasReichweite = 1.0F;
+            if (playingNow || amZeiger || through) {
+                grasReichweite = gras::reichweiteFaktor(spielSicht(g_app->camViewFov, spiel).fovX,
+                                                        spielSicht(80.0F, spiel).fovX);
+            }
+            baueGrasNetz(useCam, grasReichweite, &movers);
+            kosten.effects += std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - tG0).count();
         }
         g_app->entVersatz.clear();
         g_app->entGierVersatz.clear();

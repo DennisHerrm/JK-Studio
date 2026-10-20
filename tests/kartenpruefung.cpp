@@ -115,10 +115,11 @@ int main() {
            "Figur: deformVertexes wave keine Luecke, normal schon " + liste(fd) + liste(fdn));
 
     const auto fn = fehlendeMerkmale(m["textures/test/neu"], Zusammenhang::Welt);
-    pruefe(hat(fn, "deformvertexes text") && hat(fn, "videomap") && hat(fn, "tcgen vector") &&
+    // rc605: tcGen vector zeichnet die Welt jetzt (gpushader.cpp kTexGenVec).
+    pruefe(hat(fn, "deformvertexes text") && hat(fn, "videomap") && !hat(fn, "tcgen vector") &&
                hat(fn, "rgbgen oneminusentity"),
-           "Welt: text0, videoMap, tcGen vector, rgbGen oneMinusEntity fehlen " + liste(fn));
-    pruefe(!hat(fn, "unbekanntesworts") && !hat(fn, "unbekanntesWort") && fn.size() == 4U,
+           "Welt: text0, videoMap, rgbGen oneMinusEntity fehlen, tcGen vector nicht " + liste(fn));
+    pruefe(!hat(fn, "unbekanntesworts") && !hat(fn, "unbekanntesWort") && fn.size() == 3U,
            "was das Spiel nicht kennt, ist keine Luecke");
 
     // Spawntabellen

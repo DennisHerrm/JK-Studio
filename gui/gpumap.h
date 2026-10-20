@@ -244,6 +244,10 @@ void figurTexModAus(bool aus);
 // zeichnet sie ohne (nur Selbsttest).
 int figurDeformAufrufe();
 void figurDeformAus(bool aus);
+// rc605: Mover-Aufrufe mit autosprite/autosprite2-Stapeln im letzten Bild;
+// moverSpriteAchsenAus(true) zeichnet sie mit den Weltachsen (Selbsttest).
+int moverSpriteAufrufe();
+void moverSpriteAchsenAus(bool aus);
 // rc603: der schnelle Stufenweg - dieselben Aufrufe wie rc602, die Werte
 // einer Flaeche mit einem Map im Ring, die Zustaende gemerkt.
 // figurStufenSchnellAufrufe: seine Stufenaufrufe im letzten Hauptbild;

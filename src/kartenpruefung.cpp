@@ -156,7 +156,16 @@ bool weltKennt(const std::string& k) {
         "alphagen wave", "alphagen const", "alphagen identity", "alphagen entity", "alphagen vertex",
         "alphagen lightingspecular", "alphagen oneminusvertex", "alphagen portal",
         "tcgen environment", "tcgen texture", "tcgen base", "tcgen lightmap",
+        // rc605: tcGen vector (ComputeTexCoords TCGEN_VECTOR, gpushader.cpp kTexGenVec).
+        "tcgen vector",
         "tcmod turb", "tcmod scale", "tcmod scroll", "tcmod stretch", "tcmod transform", "tcmod rotate",
+        // rc605: tcMod entityTranslate scrollt um backEnd.currentEntity->e.shaderTexCoord
+        // (RB_CalcScrollTexCoords, tr_shade.cpp:1709-1712 MD). Die Welt zeichnet mit
+        // tr.worldEntity (R_Init leert tr), Brush-Modelle und Figuren mit dem
+        // refEntity aus cg_ents.cpp (memset, shaderTexCoord nie gesetzt - nur
+        // CG_TestLine setzt es, cg_effects.cpp:634): Verschiebung 0 * Zeit, die
+        // Anweisung aendert nichts. behaved laesst sie aus (shaderscript.cpp).
+        "tcmod entitytranslate",
         "deformvertexes autosprite", "deformvertexes autosprite2", "deformvertexes bulge",
         "deformvertexes wave", "deformvertexes normal", "deformvertexes move",
         // rc604: surfaceSprites als Halme wie RB_DrawSurfaceSprites

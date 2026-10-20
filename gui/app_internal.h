@@ -941,6 +941,11 @@ struct App {
     // bzw. nur am Kasten, weil ihr Modell noch nicht geladen war.
     int fallenNetzTreffer = 0;
     int fallenKastenTreffer = 0;
+    // rc605 (Rest): Spuren, die an einer anderen Falle, einem misc_model_breakable
+    // oder einem Modell am Bolzen einer Figur endeten (laserfalleSpurBei).
+    int fallenFallenTreffer = 0;
+    int fallenModellTreffer = 0;
+    int fallenAnbauTreffer = 0;
     // rc604: Knochenanimationen der Geschuetze (misc_sentry_turret klappt auf,
     // misc_ion_cannon je Schuss) - Entity -> Animationen nach Zeit.
     std::map<std::size_t, std::vector<KnochenAnim>> geschuetzAnims;
@@ -1147,6 +1152,9 @@ struct App {
     // surfaceSprites-Stufen, die beim Laden als flache Schicht auf die
     // Flaeche kamen - die Engine zeichnet sie nie so (tr_shade.cpp:1888 MD).
     int grasFlachSchichten = 0;
+    int grasPlatzNull = 0;   // rc605: Shader mit surfaceSprites an Platz 0 (unsichtbar)
+    int grasBrushVierecke = 0;     // rc605: davon auf Brush-Modellen (letztes Hauptbild)
+    double grasBrushMitteZ = 0.0;  // rc605: ihre mittlere Hoehe (Selbsttest)
 
     // --- .md3-Modelle der Karte ------------------------------------------
     //
@@ -2640,8 +2648,14 @@ bool wetterFuerGras(float wind[3]);
 // --- surfaceSprites (gui/app_gras.cpp, rc604) ----------------------------------
 void grasStufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, std::size_t stufenNr, const std::string& name,
                     std::size_t shaderNr);
-void baueGrasNetz(const Camera& cam, float reichweite);
+// rc605: movers - die Stellungen dieses Bildes (Brush-Modelle tragen auch Halme).
+// rc605: movers - die Stellungen dieses Bildes (Brush-Modelle tragen auch Halme).
+void baueGrasNetz(const Camera& cam, float reichweite, const std::vector<MoverDraw>* movers = nullptr);
 void baueGrasNetzNeben(const Camera& cam, float reichweite);
+// rc605 (Rest) Selbsttest: die Spur von laserTrapThink einer misc_trip_mine zur
+// Zeit ms (gui/app_view3d.cpp); neuBauen liest die Hindernisse neu.
+bool fallenStrahlProbe(std::size_t entity, double ms, float ende[3], float normale[3], bool neuBauen);
+int fallenFigurProbe(std::size_t ai, double ms, const float start[3], const float ende[3], bool mitAnbau);
 // Selbsttest: Mitte der groessten Grasflaeche (vertical/flattened, mit alleArten auch effect).
 bool grasTestZiel(float mitte[3], bool alleArten = false, bool nurPatch = false);
 // je(i) fuer i in [0, n), auf die Kerne verteilt, sobald es sich lohnt (rc594).

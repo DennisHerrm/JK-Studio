@@ -1090,6 +1090,8 @@ private:
         werte.stufe = welt_.stufe ? welt_.stufe(w.name) : 18.0F;
         werte.gangSchalter = w.rennend ? 2 : (w.gehend ? 1 : 0);
         werte.kannSpringen = welt_.kannSpringen && welt_.kannSpringen(w.name);   // rc605
+        werte.levitation = welt_.levitation ? welt_.levitation(w.name) : 0;   // rc605 (Rest)
+        werte.landKlasse = welt_.landKlasse ? welt_.landKlasse(w.name) : 0;
         werte.keineAkrobatik = w.keineAkrobatik;   // rc605: SET_NO_ACROBATICS
         werte.ohneKoerper = w.verhaltenZustand == "BS_NOCLIP";   // NPC_BSNoClip + PM_NoclipMove
         // rc605: BS_JUMP - NPC_BSJump mit den Laengen von BOTH_CROUCH1/BOTH_LAND1.
@@ -1098,6 +1100,9 @@ private:
             if (werte.bsJump) { werte.hockeMs = static_cast<int>(std::max(0.0, welt_.animDauer(w.name, "BOTH_CROUCH1"))); }
             werte.landMs = static_cast<int>(std::max(0.0, welt_.animDauer(w.name, "BOTH_LAND1")));
             werte.forceLandMs = static_cast<int>(std::max(0.0, welt_.animDauer(w.name, "BOTH_FORCELAND1")));
+            for (int c = kSaLandBack1; c <= kSaForceLandRight1; ++c) {   // rc605 (Rest)
+                werte.landeMs[static_cast<std::size_t>(c)] = static_cast<int>(std::max(0.0, welt_.animDauer(w.name, sprungAnimName(c))));
+            }
         }
         if (kino(w) && w.watchAn) {
             const bool selbst = w.watchSelbst;
@@ -3558,7 +3563,8 @@ bool gleicherSprung(const LaufZustand::Sprung& a, const LaufZustand::Sprung& b) 
            a.bsAktiv == b.bsAktiv && a.bsZustand == b.bsZustand && a.beinTimer == b.beinTimer && a.bsAnim == b.bsAnim &&
            a.bsAnimAb == b.bsAnimAb && a.beinAnim == b.beinAnim && a.beinAnimAb == b.beinAnimAb &&   // rc605 FU4
            a.torsoAnim == b.torsoAnim && a.torsoAnimAb == b.torsoAnimAb && a.torsoTimer == b.torsoTimer &&
-           a.abgehoben == b.abgehoben;
+           a.abgehoben == b.abgehoben && gleichBits(a.jumpZStart, b.jumpZStart) && a.rueckwaerts == b.rueckwaerts &&   // rc605 (Rest)
+           a.torsoGesetztAb == b.torsoGesetztAb;
 }
 bool gleicherZustand(const LaufZustand& a, const LaufZustand& b) {
     // Neue Felder in LaufZustand gehoeren hier hinein (static_assert unten).
@@ -3592,14 +3598,15 @@ bool gleicheWerte(const LaufWerte& a, const LaufWerte& b) {
            a.zielMitRadius == b.zielMitRadius && a.zielNavgoal == b.zielNavgoal && a.schwert == b.schwert &&   // rc604 fix604
            a.kannSpringen == b.kannSpringen && gleichBits(a.weltSchwerkraft, b.weltSchwerkraft) &&   // rc605
            a.bsJump == b.bsJump && a.hockeMs == b.hockeMs && a.landMs == b.landMs && a.keineAkrobatik == b.keineAkrobatik &&
-           a.sprungAnimArt == b.sprungAnimArt && a.sprungAnimMs == b.sprungAnimMs && a.forceLandMs == b.forceLandMs;   // rc605 FU4
+           a.sprungAnimArt == b.sprungAnimArt && a.sprungAnimMs == b.sprungAnimMs && a.forceLandMs == b.forceLandMs &&   // rc605 FU4
+           a.levitation == b.levitation && a.landKlasse == b.landKlasse && a.landeMs == b.landeMs;   // rc605 (Rest)
 }
 #if defined(_MSC_VER) && defined(_M_X64)
 // Waechst eine dieser Strukturen, fehlt das neue Feld oben im Vergleich.
 static_assert(sizeof(NavPfadPunkt) == 9U * 4U, "NavPfadPunkt mit Luecken oder neuem Feld: gleicherPfad pruefen");
-static_assert(sizeof(LaufZustand) == 320U, "neues Feld in LaufZustand: gleicherZustand ergaenzen");
-static_assert(sizeof(LaufWerte) == 184U, "neues Feld in LaufWerte: gleicheWerte ergaenzen");
-static_assert(sizeof(NavAbschnitt) == 560U, "neues Feld in NavAbschnitt: gleicheEingaben ergaenzen");
+static_assert(sizeof(LaufZustand) == 328U, "neues Feld in LaufZustand: gleicherZustand ergaenzen");
+static_assert(sizeof(LaufWerte) == 288U, "neues Feld in LaufWerte: gleicheWerte ergaenzen");
+static_assert(sizeof(NavAbschnitt) == 672U, "neues Feld in NavAbschnitt: gleicheEingaben ergaenzen");
 static_assert(sizeof(NavFigurKoerper) == 88U, "neues Feld in NavFigurKoerper: gleicheEingaben ergaenzen");
 #endif
 bool gleicheEingaben(const Ablauf& a, const std::vector<NavAbschnitt>& abschnitte, const std::vector<NavFigurKoerper>& figuren,

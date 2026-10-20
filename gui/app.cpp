@@ -12855,6 +12855,7 @@ void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const
     // die beiden darunter nicht.
     zusatz.glow = st.glow;
     zusatz.texGen = st.texGen;
+    for (int k = 0; k < 6; ++k) { zusatz.tcGenVec[k] = st.tcGenVec[k]; }   // rc605
     zusatz.clamp = st.clamp;
     zusatz.depthWrite = st.depthWrite;
     zusatz.depthFunc = st.depthFunc;
@@ -12941,6 +12942,7 @@ void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const
             bild.portalWeite = erst.portalWeite;
             bild.glow = erst.glow;
             bild.texGen = erst.texGen;
+            for (int k = 0; k < 6; ++k) { bild.tcGenVec[k] = erst.tcGenVec[k]; }   // rc605
             bild.clamp = erst.clamp;
             bild.alphaGen = erst.alphaGen;
             for (int k = 0; k < 3; ++k) {
@@ -13032,6 +13034,7 @@ void loadMapTextures() {
     g_app->grasStufen.clear();
     g_app->grasNetz = BspMesh{};
     g_app->grasFlachSchichten = 0;
+    g_app->grasPlatzNull = 0;
     ++g_app->grasStand;
     // Die hochgeladenen Bilder hingen an den alten Nummern.
     gpu::vergissKarte();
@@ -13281,10 +13284,24 @@ void loadMapTextures() {
                     if (ersteEchte) {
                         ersteEchte = false;
                         if (st.ss.aktiv()) {
-                            // Die Grundstufe selbst traegt surfaceSprites
-                            // (Platz 0 zeichnet die Engine gar nicht,
-                            // tr_shade.cpp:2149) - bleibt wie bisher.
-                            ++g_app->grasFlachSchichten;
+                            // Die Grundstufe selbst traegt surfaceSprites:
+                            // RB_StageIteratorGeneric ueberspringt sie
+                            // (tr_shade.cpp:1888-1892 MD), und die Bilder
+                            // zeichnet es erst ab Stufe 1 (:2148-2156) - an
+                            // Platz 0 also gar nichts. rc605: unsichtbar
+                            // statt als Schicht (additiv mit Farbe 0 aendert
+                            // keinen Bildpunkt und schreibt keine Tiefe) -
+                            // etwa textures/system/customrainsurf auf
+                            // duel_tower *13.
+                            t.blend = BlendMode::Add;
+                            t.srcFactor = BlendFactor::One;
+                            t.dstFactor = BlendFactor::One;
+                            t.rgbVertex = false;
+                            t.rgbWave = Wave{};
+                            for (float& c : t.rgbConst) { c = 0.0F; }
+                            t.depthWrite = false;
+                            t.glow = false;
+                            ++g_app->grasPlatzNull;
                         }
                         continue;   // die steckt schon in `t`
                     }

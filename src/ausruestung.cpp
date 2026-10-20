@@ -595,6 +595,86 @@ int saberArtJk2(Actor& a, const NpcDef* def) {
     return static_cast<int>(a.saberArten.size() - 1);
 }
 
+void munroWaffenAbgleich(Scene& s, const SzenenHilfe* hilfe) {
+    const Actor* spieler = nullptr;
+    for (const Actor& a : s.actors) {
+        const std::string n = klein(a.name);
+        if (n == "player" || (n == "kyle" && !a.kartenFigur)) { spieler = &a; }
+    }
+    if (spieler == nullptr) { return; }
+    // Die Waffe des Spielers ueber die Zeit (die Vorschau gibt ihm das Schwert).
+    std::vector<std::pair<double, std::string>> spielerWaffe;
+    for (const ActorStep& st : spieler->steps) {
+        if (st.kind == ActorStep::Kind::Waffe) { spielerWaffe.emplace_back(st.startMs, st.text); }
+    }
+    const auto waffeBei = [&](double t) {
+        std::string w = spieler->startWaffe.empty() ? std::string("WP_SABER") : gross(spieler->startWaffe);
+        for (const auto& [ab, name] : spielerWaffe) {
+            if (ab > t + 1e-6) { break; }
+            w = name == "drop" ? std::string("WP_NONE") : name;
+        }
+        return w;
+    };
+    const auto inKamera = [&](double t) {
+        for (const auto& [von, bis] : spieler->kameraVerborgen) {
+            if (t >= von - 1e-6 && (bis < 0.0 || t < bis - 1e-6)) { return true; }
+        }
+        return false;
+    };
+    // G_MatchPlayerWeapon: "> WP_DET_PACK" - die Folge in codeJK2/game/weapons.h.
+    static const char* const kBisDetPack[] = {"WP_NONE",    "WP_SABER",  "WP_BRYAR_PISTOL", "WP_BLASTER",       "WP_DISRUPTOR",
+                                              "WP_BOWCASTER", "WP_REPEATER", "WP_DEMP2",      "WP_FLECHETTE",     "WP_ROCKET_LAUNCHER",
+                                              "WP_THERMAL", "WP_TRIP_MINE", "WP_DET_PACK"};
+    for (Actor& k : s.actors) {
+        if (&k == spieler || klein(k.npcType) != "kyle" || k.echterSpieler) { continue; }
+        double eigene = 1.0e300;   // Q3_SetWeapon loescht NPCAI_MATCHPLAYERWEAPON
+        for (const ActorStep& st : k.steps) {
+            if (st.kind == ActorStep::Kind::Waffe) {
+                eigene = std::min(eigene, st.startMs);
+            }
+        }
+        // Wann sich etwas aendern kann: jede Waffe des Spielers, jedes Ende der Kamera.
+        std::vector<double> zeiten;
+        for (const auto& [ab, name] : spielerWaffe) { zeiten.push_back(ab); }
+        for (const auto& [von, bis] : spieler->kameraVerborgen) {
+            if (bis >= 0.0) { zeiten.push_back(bis); }
+        }
+        std::sort(zeiten.begin(), zeiten.end());
+        std::string jetzt = k.startWaffe.empty() ? std::string("WP_NONE") : gross(k.startWaffe);
+        std::vector<ActorStep> neu;
+        for (const double t : zeiten) {
+            if (t >= eigene - 1e-6 || inKamera(t)) { continue; }
+            std::string w = waffeBei(t);
+            bool bekannt = false;
+            for (const char* b : kBisDetPack) { bekannt = bekannt || w == b; }
+            if (!bekannt) { w = "WP_BRYAR_PISTOL"; }
+            if (w == "WP_NONE" || w == jetzt) { continue; }
+            ActorStep st;
+            st.kind = ActorStep::Kind::Waffe;
+            st.startMs = t;
+            st.endMs = t;
+            st.text = w;
+            if (w != "WP_SABER") {
+                bool kotor = false;
+                if (hilfe != nullptr && hilfe->npcs != nullptr) {
+                    const auto it = hilfe->npcs->find(klein(k.npcType));
+                    kotor = it != hilfe->npcs->end() && it->second.kotorWeapons;
+                }
+                st.index = waffenModellIndex(k, w, kotor, hilfe);
+            }
+            neu.push_back(std::move(st));
+            jetzt = w;
+        }
+        for (ActorStep& st : neu) {
+            // vor den Schritten derselben Zeit: G_NPCMunroMatchPlayerWeapon laeuft in
+            // ClientThink, das Skript der Figur am Ende ihres NPC_Think.
+            const auto pos = std::lower_bound(k.steps.begin(), k.steps.end(), st.startMs,
+                                              [](const ActorStep& x, double t) { return x.startMs < t; });
+            k.steps.insert(pos, std::move(st));
+        }
+    }
+}
+
 int waffenModellIndex(Actor& a, const std::string& waffe, bool kotor,
                       const SzenenHilfe* hilfe) {
     if (hilfe == nullptr || hilfe->waffen == nullptr) {
