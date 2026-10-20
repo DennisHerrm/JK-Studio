@@ -5521,6 +5521,15 @@ void prepareScene() {
             ac.kameraVerborgen.emplace_back(an, -1.0);
         }
     }
+    // rc605 (Rest): Jedi Outcast - der Kyle-NPC gleicht ausserhalb der Kamera
+    // die Waffe des Spielers ab (munroWaffenAbgleich, src/ausruestung.cpp).
+    if (regelwerkJediOutcast()) {
+        SzenenHilfe wh;
+        wh.npcs = &g_app->npcMap;
+        wh.sabers = &g_app->saberMap;
+        wh.waffen = &g_app->weaponMap;
+        munroWaffenAbgleich(g_app->scene, &wh);
+    }
     // Ein NPC_type, der in keiner .npc steht, wird im Spiel NIE gespawnt:
     // NPC_ParseParms schlaegt fehl, NPC_Spawn_Do meldet "Couldn't spawn
     // NPC" und gibt die Entity frei (NPC_spawn.cpp:2577). So Tavion am Ende

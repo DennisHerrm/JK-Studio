@@ -1268,6 +1268,15 @@ int saberArtJk2(Actor& a, const NpcDef* def);
 // fehlt oder die Waffe dort nicht steht.
 int waffenModellIndex(Actor& a, const std::string& waffe, bool kotor,
                       const SzenenHilfe* hilfe);
+// rc605 (Rest): Jedi Outcast - G_NPCMunroMatchPlayerWeapon (codeJK2/game/
+// g_active.cpp:1119-1129, aus ClientThink 2170): ein NPC "kyle" mit
+// NPCAI_MATCHPLAYERWEAPON (NPC_spawn.cpp:1274-1279) uebernimmt ausserhalb der
+// Skriptkamera in jedem Bild die Waffe des Spielers (G_MatchPlayerWeapon,
+// 1078-1117: ueber WP_DET_PACK -> WP_BRYAR_PISTOL, WP_NONE aendert nichts),
+// bis ein eigenes SET_WEAPON das Merkmal loescht (Q3_SetWeapon, Q3_Interface.cpp:
+// 3311-3398). Fuegt die Waffenschritte ein; der Spieler ist "kyle" ohne
+// kartenFigur (bzw. "player"), seine Kamerazeiten stehen in kameraVerborgen.
+void munroWaffenAbgleich(Scene& s, const SzenenHilfe* hilfe);
 // Die Ausstattung beim Spawnen. def ist die .npc der Figur oder nullptr.
 void ausstattungBeimSpawnen(Actor& a, const NpcDef* def, const SzenenHilfe* hilfe,
                             int spawnflags);

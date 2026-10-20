@@ -143,3 +143,29 @@ Changelog:
 - DE: NPCs, die von einer Kante fallen, mit einem zu flachen Sprung über die Kante gehen oder in der Luft gespawnt werden, spielen jetzt die Luft- und Landeanimationen des Spiels (eine harte Landung bremst sie wie im Spiel); eine Skriptanimation auf dem Oberkörper, die vor einem Sprung begann, kommt danach nicht mehr wieder.
 - ZH: 从边缘掉落、以过低的跳跃越过边缘或在空中生成的 NPC,现在会播放游戏的空中和落地动画(与游戏中一样,重落地会让它们减速);跳跃前开始的上半身脚本动画在跳跃后不再恢复。
 - JA: 段差から落ちる NPC、低すぎるジャンプで段差を越える NPC、空中にスポーンした NPC が、ゲームの空中アニメーションと着地アニメーションを再生するようになりました(ゲームと同じく激しい着地では減速します)。ジャンプ前に始まった上半身のスクリプトアニメーションは、ジャンプ後に戻らなくなりました。
+
+## 5. Jedi Outcast: Laufzeitzustand des Navigators, PushBlocker, Kyles Waffe
+
+### 5c. Kyle uebernimmt die Waffe des Spielers (umgesetzt)
+
+- Spiel: G_NPCMunroMatchPlayerWeapon (codeJK2/game/g_active.cpp:1119-1129, aus ClientThink 2170) ruft fuer
+  NPCs mit NPCAI_MATCHPLAYERWEAPON (NPC_type "kyle", NPC_spawn.cpp:1274-1279) ausserhalb der Skriptkamera
+  (`!in_camera`) in jedem Bild G_MatchPlayerWeapon (1078-1117): Waffe des Spielers, ueber WP_DET_PACK ->
+  WP_BRYAR_PISTOL, WP_NONE aendert nichts. Q3_SetWeapon auf Kyle loescht das Merkmal (Q3_Interface.cpp:
+  3311-3398).
+- behaved: munroWaffenAbgleich (src/ausruestung.cpp) fuegt dem Kyle-NPC Waffenschritte ein - zu jeder
+  Waffe des Spielers ausserhalb der Kamera und zu jedem Kamera-Ende (kameraVerborgen des Spielers), bis zu
+  Kyles erstem eigenen SET_WEAPON; aufgerufen in prepareScene (gui/app_view3d.cpp), nur unter Jedi Outcast.
+
+| Test | Rot (vorher) | Grün (nachher) |
+|---|---|---|
+| npcklasse-Probe (Spieler WP_BLASTER 1000, Kamera 2000-4000 mit WP_REPEATER 3000, WP_STUN_BATON 5000, Kyle SET_WEAPON 6000) | " 6000:WP_SABER" | " 1000:WP_BLASTER 4000:WP_REPEATER 5000:WP_BRYAR_PISTOL 6000:WP_SABER" |
+| Selbsttest jk2 (gezielt) | – | 15 OK / 0 FEHLER |
+| ctest | – | 67 / 67 |
+
+Changelog:
+
+- EN: Jedi Outcast: a Kyle NPC takes over the player's weapon whenever a script changes it outside the camera, until a script gives Kyle a weapon of his own - like the game.
+- DE: Jedi Outcast: ein Kyle-NPC übernimmt die Waffe des Spielers, wenn ein Skript sie außerhalb der Kamera wechselt, bis ein Skript Kyle eine eigene Waffe gibt - wie im Spiel.
+- ZH: Jedi Outcast:脚本在镜头之外更换玩家武器时,Kyle NPC 会随之换上同样的武器,直到脚本给 Kyle 指定自己的武器为止——与游戏中一样。
+- JA: Jedi Outcast:スクリプトがカメラの外でプレイヤーの武器を変えると、Kyle の NPC も同じ武器に持ち替えます。スクリプトが Kyle に自分の武器を与えるまで続きます(ゲームと同じ)。
