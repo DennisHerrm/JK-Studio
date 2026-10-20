@@ -592,6 +592,10 @@ void wegOrtBei(const ActorStep& st, double t, float out[3]);
 // rc605 (Ende): die Szene endet bei `ms` (Kartenwechsel): Schritte danach fallen
 // weg, ein laufender Weg endet am Ort zu dieser Zeit, durationMs hoechstens ms.
 void szeneEndetBei(struct Scene& s, double ms);
+// rc605 (Ende): der Oberkoerper eines NPC mit Waffe in WEAPON_IDLE (PM_TorsoAnimation)
+// - leer: er folgt den Beinen. Siehe scene.cpp.
+[[nodiscard]] std::string npcWaffenTorso(const std::string& waffe, const std::string& beine, const std::string& klasse,
+                                         bool zweiPistolen, bool gehTaste, bool geduckt);
 // ... und bewegt sie sich dann (ucmd.forwardmove/rightmove, also die
 // Laufanimation)? Ohne Bahn: zwischen startMs und endMs.
 [[nodiscard]] bool wegBewegtBei(const ActorStep& st, double t);
@@ -710,6 +714,9 @@ struct Actor {    std::string name;        // der Name aus dem affect
     // SET_RUNNING "false" liess die Figur gehen.
     bool gehSchalter = false;
     bool laufSchalter = false;
+    // rc605 (Ende): BUTTON_WALKING aus NPC_ApplyScriptFlags je Zeit - SCF_WALKING
+    // ohne SCF_RUNNING (NPC.cpp:800-813 MD), fuer PM_TorsoAnimation (npcWaffenTorso).
+    std::vector<std::pair<double, bool>> gehTasteZeit;
     float gehTempo = 90.0F;
     float laufTempo = 300.0F;
 

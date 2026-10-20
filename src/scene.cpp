@@ -420,6 +420,148 @@ const Actor* Scene::find(const std::string& name) const {
 }
 
 // --- rc601 (bewegung, Wege): Ort auf einem WalkTo-Stueck --------------------
+// --- rc605 (Ende): PM_TorsoAnimation fuer NPCs mit Waffe -------------------
+//
+// Ein NPC ohne Feind steht in WEAPON_IDLE: NPC_Think setzt READY -> IDLE, solange
+// er keinen Feind hat (NPC.cpp:2239-2249 OpenJK, NPC.cpp:2101-2111 MD,
+// codeJK2/game/NPC.cpp:1860-1870); Q3_SetWeapon setzt READY, das naechste
+// Denkbild wieder IDLE. Den Oberkoerper waehlt dann der Zweig WEAPON_IDLE von
+// PM_TorsoAnimation (code/game/bg_panimate.cpp:6116-6416 OpenJK; bg_panimate.cpp:
+// 11340-13205 MD mit g_ActivateAnimationStyle 0 und cg.renderingThirdPerson -
+// cg_thirdPerson ist "1", cg_view.cpp:3080-3175 MD; codeJK2/game/bg_panimate.cpp:
+// 3430-3694), ohne weaponBusy (kein Schuss, kein weaponTime, nicht geduckt) und
+// ohne BUTTON_BLOCK. Rueckgabe: der Name der Oberkoerperanimation, leer = der
+// Oberkoerper folgt den Beinen (auch, wo die Engine ihn unveraendert laesst:
+// PM_InSpecialJump, CLASS_RANCOR mit WP_MELEE). Steht der Name nicht in der .cfg
+// der Figur, tut PM_SetAnim nichts - die Ansicht folgt dann ebenfalls den Beinen.
+namespace {
+bool torsoIn(const std::string& a, std::initializer_list<const char*> namen) {
+    for (const char* n : namen) {
+        if (sameName(a, n)) { return true; }
+    }
+    return false;
+}
+// PM_WalkingAnim / PM_RunningAnim / PM_JumpingAnim (code/game/bg_pmove.cpp:6927-6965,
+// 6828-6850 OpenJK; bg_pmove.cpp:10330-10530, 10189-10230 MD). PM_SwimmingAnim:
+// Schwimmen gibt es in der Vorschau nicht.
+bool torsoGehAnim(const std::string& a, bool md) {
+    if (torsoIn(a, {"BOTH_WALK1", "BOTH_WALK2", "BOTH_WALK_STAFF", "BOTH_WALK_DUAL", "BOTH_WALK5", "BOTH_WALK6", "BOTH_WALK7",
+                    "BOTH_WALKBACK1", "BOTH_WALKBACK2", "BOTH_WALKBACK_STAFF", "BOTH_WALKBACK_DUAL"})) {
+        return true;
+    }
+    if (!md) { return false; }
+    // Movie Duels: dieselben mit Figuren-Endungen und die Waffen-Gehanimationen.
+    return a.size() > 9 && (a.rfind("BOTH_WALK", 0) == 0 || a == "BOTH_MENUIDLE1");
+}
+bool torsoLaufAnim(const std::string& a, bool md) {
+    if (torsoIn(a, {"BOTH_RUN1", "BOTH_RUN2", "BOTH_RUN4", "BOTH_RUN_STAFF", "BOTH_RUN_DUAL", "BOTH_RUNBACK1", "BOTH_RUNBACK2",
+                    "BOTH_RUNBACK_STAFF", "BOTH_RUN1START", "BOTH_RUN1STOP", "BOTH_RUNSTRAFE_LEFT1", "BOTH_RUNSTRAFE_RIGHT1"})) {
+        return true;
+    }
+    if (!md) { return false; }
+    return a.rfind("BOTH_RUN", 0) == 0 || a.rfind("BOTH_SPRINT", 0) == 0 || a.rfind("BOTH_JOG_", 0) == 0;
+}
+bool torsoSprungAnim(const std::string& a, bool md) {
+    if (torsoIn(a, {"BOTH_JUMP1", "BOTH_INAIR1", "BOTH_LAND1", "BOTH_LAND2", "BOTH_JUMPBACK1", "BOTH_INAIRBACK1", "BOTH_LANDBACK1",
+                    "BOTH_JUMPLEFT1", "BOTH_INAIRLEFT1", "BOTH_LANDLEFT1", "BOTH_JUMPRIGHT1", "BOTH_INAIRRIGHT1", "BOTH_LANDRIGHT1"})) {
+        return true;
+    }
+    if (!md) { return false; }
+    return a.rfind("BOTH_JUMP1_", 0) == 0 || a.rfind("BOTH_INAIR1_", 0) == 0 || a.rfind("BOTH_LAND1_", 0) == 0 ||
+           a == "BOTH_INAIRLEFT1_GALEN" || a == "BOTH_INAIRRIGHT1_GALEN";
+}
+}  // namespace
+
+std::string npcWaffenTorso(const std::string& waffe, const std::string& beine, const std::string& klasse, bool zweiPistolen,
+                           bool gehTaste, bool geduckt) {
+    const bool md = navMovieDuelsRegeln();
+    const bool jk2 = regelwerkJediOutcast();
+    std::string w = waffe;
+    for (char& c : w) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+    if (w.empty() || w == "WP_NONE" || w == "WP_SABER") { return {}; }
+    const auto ist = [&w](std::initializer_list<const char*> namen) { return torsoIn(w, namen); };
+    const bool bewegt = torsoGehAnim(beine, md) || torsoLaufAnim(beine, md) || torsoSprungAnim(beine, md);
+    // Die Beinanimationen, denen der Oberkoerper in WEAPON_IDLE immer folgt.
+    if (torsoIn(beine, {"BOTH_GUARD_LOOKAROUND1", "BOTH_GUARD_IDLE1", "BOTH_STAND1IDLE1", "BOTH_STAND2IDLE1", "BOTH_STAND2IDLE2",
+                        "BOTH_STAND3IDLE1", "BOTH_STAND5IDLE1", "BOTH_STAND2TO4", "BOTH_STAND4TO2", "BOTH_STAND4"}) ||
+        (jk2 && sameName(beine, "BOTH_STAND4IDLE1"))) {
+        return {};
+    }
+    if (md && (torsoIn(beine, {"BOTH_GUARD_IDLE1_BDROID", "BOTH_GUARD_IDLE1_JANGO"}))) { return "BOTH_GUARD_IDLE1"; }
+    if (md && torsoIn(beine, {"BOTH_STAND1IDLE1_YODA", "BOTH_STAND1IDLE1_VADER", "BOTH_STAND1IDLE1_GALEN", "BOTH_STAND1IDLE1_JANGO",
+                              "BOTH_STAND1IDLE1_BDROID", "BOTH_STAND1IDLE1_CAL", "BOTH_STAND1IDLE1_GRIEV", "BOTH_STAND1IDLE1_PAL",
+                              "BOTH_STAND1IDLE1_MAUL", "BOTH_STAND9IDLE1", "BOTH_STAND9IDLE1_ANI", "BOTH_STAND9IDLE1_MD",
+                              "BOTH_STAND_SABER_ON_IDLE", "BOTH_STAND_SABER_ON_IDLE_GRIEV", "BOTH_STAND_SABER_ON_IDLE_MD",
+                              "BOTH_STAND_SABER_ON_IDLE_DUELS", "BOTH_STAND_SABER_ON_IDLE_STAFF", "BOTH_STAND2IDLE1_ANI",
+                              "BOTH_STAND2IDLE1_VADER", "BOTH_STAND2IDLE1_GALEN", "BOTH_STAND2IDLE1_MD", "BOTH_STAND2IDLE1_LUKE",
+                              "BOTH_STAND2IDLE1_GON", "BOTH_STAND2IDLE1_MACE", "BOTH_STAND2IDLE1_OBI", "BOTH_STAND2IDLE1_KOTOR",
+                              "BOTH_STAND2IDLE1_DF2", "BOTH_STAND2IDLE1_OBI3", "BOTH_STAND2IDLE1_REN", "BOTH_STAND2IDLE1_REY",
+                              "BOTH_STAND2IDLE1_CAL", "BOTH_STAND2IDLE1_PAL", "BOTH_STAND2IDLE1_BEN", "BOTH_STAND3IDLE1_BDROID",
+                              "BOTH_STAND3IDLE1_JANGO", "BOTH_MENUIDLE1", "BOTH_STANDYODAIDLE_STICK", "BOTH_STANDYODAIDLE_STICK_YODA",
+                              "TORSO_WEAPONIDLE2", "TORSO_WEAPONIDLE2_JANGO", "TORSO_WEAPONIDLE2_REB", "TORSO_WEAPONIDLE2_CLO",
+                              "TORSO_WEAPONIDLE2P", "TORSO_WEAPONIDLE2P_JANGO", "TORSO_WEAPONIDLE3", "TORSO_WEAPONIDLE3_BDROID",
+                              "TORSO_WEAPONIDLE4", "TORSO_WEAPONIDLE4_BDROID", "BOTH_STANCE_MINIGUN", "BOTH_STANCE_READY_MINIGUN_IDLE"})) {
+        return {};
+    }
+    if (md) {
+        // !weaponBusy && (PM_RunningAnim && Spieler) || PM_JumpingAnim || PM_SwimmingAnim
+        if (torsoSprungAnim(beine, true)) { return {}; }
+        if (ist({"WP_BRYAR_PISTOL", "WP_SBD_BLASTER", "WP_JAWA", "WP_BLASTER_PISTOL", "WP_REY", "WP_JANGO", "WP_CLONEPISTOL",
+                 "WP_DUAL_PISTOL", "WP_DUAL_CLONEPISTOL", "WP_REBELBLASTER"})) {
+            if (zweiPistolen) { return gehTaste ? "TORSO_WEAPONIDLE2P" : "TORSO_WEAPONIDLE2"; }
+            return "TORSO_WEAPONREST2";
+        }
+        if (ist({"WP_DROIDEKA"})) {
+            if (bewegt) { return {}; }
+            return zweiPistolen ? "BOTH_READY_DUAL" : "TORSO_WEAPONIDLE2";
+        }
+        if (ist({"WP_MELEE"})) {
+            if (bewegt) { return {}; }
+            if (sameName(klasse, "CLASS_RANCOR")) { return {}; }
+            const bool droide = torsoIn(klasse, {"CLASS_PROBE", "CLASS_SEEKER", "CLASS_INTERROGATOR", "CLASS_SENTRY", "CLASS_REMOTE"});
+            if (sameName(klasse, "CLASS_YODA")) { return "BOTH_STANDYODA_STICK"; }
+            if (droide) { return "BOTH_STAND1"; }
+            return geduckt ? "BOTH_STAND6" : "BOTH_MD_CIN_1";
+        }
+        if (ist({"WP_TUSKEN_STAFF"})) { return bewegt ? std::string{} : std::string("BOTH_STAND3"); }
+        if (ist({"WP_BLASTER", "WP_THEFIRSTORDER", "WP_BOBA", "WP_REBELRIFLE", "WP_CLONECARBINE", "WP_BATTLEDROID", "WP_CLONECOMMANDO"})) {
+            return gehTaste ? "TORSO_WEAPONIDLE3" : "TORSO_WEAPONREST3";
+        }
+        if (ist({"WP_REPEATER"}) && sameName(klasse, "CLASS_GALAKMECH")) { return "TORSO_WEAPONIDLE1"; }   // ohne alt_fire
+        if (ist({"WP_TUSKEN_RIFLE"})) { return "TORSO_WEAPONREADY4"; }
+        if (ist({"WP_BOT_LASER"})) { return "TORSO_WEAPONIDLE2"; }
+        if (ist({"WP_THERMAL", "WP_TRIP_MINE", "WP_DET_PACK"})) { return bewegt ? std::string{} : std::string("BOTH_STAND9"); }
+        // WP_NOGHRI_STICK, WP_STUN_BATON, WP_BOWCASTER, WP_CLONERIFLE, WP_ROCKET_LAUNCHER,
+        // WP_CONCUSSION, WP_DEMP2, WP_Z6_ROTARY_CANNON, WP_FLECHETTE, WP_REPEATER,
+        // WP_DISRUPTOR und default (ein NPC geht nie in die Beine-Regel des Spielers).
+        return "TORSO_WEAPONIDLE3";
+    }
+    // OpenJK und Jedi Outcast: "running w/1-handed or light 2-handed weapon uses
+    // full-body anim" - fuer einen NPC Laufen, Springen, Schwimmen (Gehen nur
+    // der Spieler), ausser mit den schweren Waffen.
+    const bool schwer = jk2 ? ist({"WP_BOWCASTER", "WP_REPEATER", "WP_FLECHETTE", "WP_ROCKET_LAUNCHER"})
+                            : ist({"WP_BOWCASTER", "WP_REPEATER", "WP_FLECHETTE", "WP_ROCKET_LAUNCHER", "WP_CONCUSSION"});
+    if (!schwer && (torsoLaufAnim(beine, false) || torsoSprungAnim(beine, false))) { return {}; }
+    if (ist({"WP_BRYAR_PISTOL"})) { return bewegt ? std::string{} : std::string("TORSO_WEAPONIDLE2"); }
+    if (ist({"WP_BLASTER_PISTOL"})) {
+        if (bewegt) { return {}; }
+        return (!jk2 && zweiPistolen) ? "BOTH_STAND1" : "TORSO_WEAPONIDLE2";
+    }
+    if (ist({"WP_MELEE"})) {
+        if (bewegt) { return {}; }
+        if (!jk2 && sameName(klasse, "CLASS_RANCOR")) { return {}; }
+        const bool droide = torsoIn(klasse, {"CLASS_PROBE", "CLASS_SEEKER", "CLASS_INTERROGATOR", "CLASS_SENTRY", "CLASS_REMOTE"});
+        return droide ? "BOTH_STAND1" : "BOTH_STAND6";
+    }
+    if (!jk2 && ist({"WP_TUSKEN_STAFF"})) { return bewegt ? std::string{} : std::string("BOTH_STAND3"); }
+    if (ist({"WP_DISRUPTOR"}) || (!jk2 && ist({"WP_TUSKEN_RIFLE"}))) { return "TORSO_WEAPONREADY3"; }
+    if (ist({"WP_BOT_LASER"})) { return "TORSO_WEAPONIDLE2"; }
+    if (ist({"WP_THERMAL", "WP_TRIP_MINE", "WP_DET_PACK"})) { return bewegt ? std::string{} : std::string("BOTH_STAND1"); }
+    if (ist({"WP_REPEATER"}) && sameName(klasse, "CLASS_GALAKMECH")) { return "TORSO_WEAPONIDLE1"; }   // ohne alt_fire
+    // WP_BLASTER, WP_NOGHRI_STICK, WP_REPEATER und default.
+    return "TORSO_WEAPONIDLE3";
+}
+
 void szeneEndetBei(Scene& s, double ms) {
     for (Actor& a : s.actors) {
         a.steps.erase(std::remove_if(a.steps.begin(), a.steps.end(), [ms](const ActorStep& st) { return st.startMs > ms + 1e-6; }),
@@ -495,6 +637,7 @@ ActorState Actor::at(double ms) const {
     // Verhalten: ein Weg loest eine vorher gesetzte Animation ab.
     bool beineFest = false;
     double beineAbMs = -1.0;             // Start der letzten Beinanimation
+    double waffeSeit = 0.0;              // rc605 (Ende): die letzte Waffe kam hier (npcWaffenTorso)
     // rc601 (bewegung, Durchsicht 2): seit wann BS_NOCLIP gilt (-1: nicht).
     double noclipAb = -1.0;
     const ActorStep* weg = nullptr;      // der Weg, auf dem die Figur gerade ist
@@ -864,6 +1007,7 @@ ActorState Actor::at(double ms) const {
                 // einer AENDERUNG, damit zweimal "an" die Klinge nicht
                 // wieder einfahren laesst.
                 ausruestungSchritt(*this, st, step);
+                if (step.kind == ActorStep::Kind::Waffe) { waffeSeit = step.startMs; }   // rc605 (Ende)
                 // rc601 (bewegung, Durchsicht 2): die Waffe aendert die
                 // Drehrate (npcDrehrate) - ab dem naechsten Denkbild.
                 if (npcFigur && step.kind == ActorStep::Kind::Waffe) {
@@ -1472,6 +1616,31 @@ ActorState Actor::at(double ms) const {
         saberGrundhaltung(*this, st, ms);
     }
     ausruestungAbschluss(*this, st);
+    // rc605 (Ende): PM_TorsoAnimation in WEAPON_IDLE - ein NPC mit Waffe (nicht
+    // Schwert) haelt sie mit dem Oberkoerper, wo die Engine es tut; nur ohne
+    // Skriptanimation (ein HOLD-Timer laesst SETANIM_FLAG_NORMAL nicht durch),
+    // nicht beim Schiessen (WEAPON_FIRING: weaponBusy). BUTTON_WALKING: beim
+    // Gehen aus dem Weg (STEER setzt es unter walkSpeed + 5), sonst aus
+    // SET_WALKING/SET_RUNNING. Der Takt der Schleife beginnt mit der Waffe.
+    if (npcFigur && !echterSpieler && brushModel <= 0 && st.torsoAnimation.empty() && !st.firing &&
+        (beineBis < 0.0 || (beineBis < kNie && ms > beineBis))) {
+        bool gehTaste = false;
+        if (st.moving) {
+            gehTaste = torsoGehAnim(st.animation, navMovieDuelsRegeln());
+        } else {
+            for (const auto& [ab, an] : gehTasteZeit) {
+                if (ab > ms) { break; }
+                gehTaste = an;
+            }
+        }
+        const bool zwei = st.hand[1].modell >= 0 && !st.hand[1].istSaber;
+        const std::string torso = npcWaffenTorso(st.waffe, st.animation, klasse, zwei, gehTaste, st.crouched);
+        if (!torso.empty()) {
+            st.torsoAnimation = torso;
+            st.torsoStartMs = waffeSeit;
+            st.torsoHold = false;
+        }
+    }
     for (const auto& [von, bis] : kameraVerborgen) {
         if (ms >= von && (bis < 0.0 || ms < bis)) {
             st.visible = false;
@@ -3452,6 +3621,7 @@ Scene buildOnce(const Script& s, const MapData& map,
             // Schalter in jedem Denkbild).
             if (const std::string* v = setValue(child, "SET_WALKING")) {
                 actor->gehSchalter = sameName(*v, "true");
+                actor->gehTasteZeit.emplace_back(t, actor->gehSchalter && !actor->laufSchalter);   // rc605 (Ende)
                 neuPlanen(t);
                 continue;
             }
@@ -3461,6 +3631,7 @@ Scene buildOnce(const Script& s, const MapData& map,
             // Laufen gestellt wird, weiter im Gehtempo.
             if (const std::string* v = setValue(child, "SET_RUNNING")) {
                 actor->laufSchalter = sameName(*v, "true");
+                actor->gehTasteZeit.emplace_back(t, actor->gehSchalter && !actor->laufSchalter);   // rc605 (Ende)
                 neuPlanen(t);
                 continue;
             }

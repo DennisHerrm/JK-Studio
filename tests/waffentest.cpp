@@ -12,6 +12,7 @@
 #include "bhed/glm.h"
 #include "bhed/ibi.h"
 #include "bhed/mapview.h"
+#include "bhed/regelwerk.h"
 #include "bhed/scene.h"
 
 #include <cctype>
@@ -812,8 +813,48 @@ int durchsicht(const char* bhc, const char* inc, const char* ordner) {
 }
 }  // namespace
 
+// rc605 (Ende): PM_TorsoAnimation in WEAPON_IDLE - der Oberkoerper eines NPC mit
+// Waffe (code/game/bg_panimate.cpp:6116-6416 OpenJK, bg_panimate.cpp:11340-13205 MD).
+void torsoProben() {
+    Daten d;
+    fuelle(d);
+    const bhed::MapData m = karte();
+    const auto torso = [&](const std::string& rumpf, const char* wer, double ms) {
+        const bhed::Scene s = szene(d, m, rumpf);
+        for (const bhed::Actor& a : s.actors) {
+            if (a.name == wer) { return a.at(ms).torsoAnimation; }
+        }
+        return std::string("(fehlt)");
+    };
+    const std::string stehen = affect("soldat", warte(100));
+    const std::string gehTaste = affect("soldat", setze("SET_WALKING", "\"true\"") + warte(100));
+    const std::string skript = affect("soldat", setze("SET_ANIM_UPPER", "\"BOTH_TALK1\"") +
+                                                    setze("SET_ANIM_HOLDTIME_UPPER", "-1") + warte(100));
+    bhed::regelwerkAnwenden(true, -1);
+    expect("Torso MD: Gewehr im Stand ohne BUTTON_WALKING -> TORSO_WEAPONREST3", torso(stehen, "soldat", 1000.0) == "TORSO_WEAPONREST3");
+    expect("Torso MD: Gewehr mit SET_WALKING -> TORSO_WEAPONIDLE3", torso(gehTaste, "soldat", 1000.0) == "TORSO_WEAPONIDLE3");
+    expect("Torso MD: eine Skriptanimation oben bleibt", torso(skript, "soldat", 1000.0) == "BOTH_TALK1");
+    expect("Torso MD: Schwert - keine Waffenhaltung", torso(affect("jedi", warte(100)), "jedi", 1000.0).empty());
+    expect("Torso MD: npcWaffenTorso Doppelpistolen mit BUTTON_WALKING",
+           bhed::npcWaffenTorso("WP_DUAL_PISTOL", "BOTH_STAND1", "", true, true, false) == "TORSO_WEAPONIDLE2P");
+    expect("Torso MD: Thermaldetonator im Stand -> BOTH_STAND9",
+           bhed::npcWaffenTorso("WP_THERMAL", "BOTH_STAND1", "", false, false, false) == "BOTH_STAND9");
+    bhed::regelwerkAnwenden(false, -1);
+    expect("Torso OpenJK: Gewehr im Stand -> TORSO_WEAPONIDLE3", torso(stehen, "soldat", 1000.0) == "TORSO_WEAPONIDLE3");
+    expect("Torso OpenJK: Pistole beim Gehen folgt den Beinen",
+           bhed::npcWaffenTorso("WP_BRYAR_PISTOL", "BOTH_WALK1", "", false, true, false).empty());
+    expect("Torso OpenJK: Gewehr beim Gehen -> TORSO_WEAPONIDLE3 (Gehen zaehlt nur fuer den Spieler)",
+           bhed::npcWaffenTorso("WP_BLASTER", "BOTH_WALK1", "", false, true, false) == "TORSO_WEAPONIDLE3");
+    expect("Torso OpenJK: Gewehr beim Laufen folgt den Beinen",
+           bhed::npcWaffenTorso("WP_BLASTER", "BOTH_RUN1", "", false, false, false).empty());
+    expect("Torso OpenJK: Repetierer beim Laufen -> TORSO_WEAPONIDLE3",
+           bhed::npcWaffenTorso("WP_REPEATER", "BOTH_RUN1", "", false, false, false) == "TORSO_WEAPONIDLE3");
+    bhed::regelwerkAnwenden(true, -1);
+}
+
 int main(int argc, char** argv) {
     proben();
+    torsoProben();
     int r = 0;
     if (argc >= 4) {
         r = durchsicht(argv[1], argv[2], argv[3]);

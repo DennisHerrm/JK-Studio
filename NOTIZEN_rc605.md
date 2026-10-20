@@ -273,3 +273,34 @@ je 120 gezeichnete Bilder an derselben Stelle beim ersten Nebel-Runner): bei 12 
 (perf1, szenen -flug, Szenenzeit 0): md_am_sith 5,1 / 5,8 ms, duel_tower 4,6 ms, duel_exegol 4,2 ms. Die
 Nebelmodelle kosten rund 0,1 ms je Bild - nicht langsamer als andere Karten, keine Optimierung nötig (das Ergebnis
 bleibt damit ohnehin gleich).
+
+## 11. Waffenhaltung des Oberkörpers (Punkt 6)
+
+Ein NPC ohne Feind steht in WEAPON_IDLE (NPC_Think: READY -> IDLE ohne Feind, NPC.cpp:2239-2249 OpenJK /
+2101-2111 MD / codeJK2 1860-1870). npcWaffenTorso (src/scene.cpp) portiert den Zweig WEAPON_IDLE von
+PM_TorsoAnimation für NPCs ohne weaponBusy: OpenJK code/game/bg_panimate.cpp:6116-6416, Jedi Outcast
+codeJK2/game/bg_panimate.cpp:3430-3694, Movie Duels bg_panimate.cpp:11340-13205 mit g_ActivateAnimationStyle 0 und
+cg.renderingThirdPerson (cg_thirdPerson "1", cg_view.cpp:3080-3175 MD). Beine, denen der Oberkörper folgt
+(GUARD/STAND*IDLE*, MD die lange Liste), PM_InSpecialJump, "full-body" beim Laufen/Springen (OpenJK/JK2 ohne die
+schweren Waffen; Gehen nur der Spieler), dann je Waffe (z. B. OpenJK WP_BLASTER TORSO_WEAPONIDLE3, WP_BRYAR_PISTOL
+TORSO_WEAPONIDLE2 im Stand; MD Gewehre TORSO_WEAPONREST3 bzw. mit BUTTON_WALKING TORSO_WEAPONIDLE3, Pistolen
+TORSO_WEAPONREST2, Doppelpistolen IDLE2/IDLE2P, Thermal/Minen BOTH_STAND9, WP_MELEE BOTH_MD_CIN_1).
+Actor::at setzt sie nur ohne Skriptanimation (Beine-Timer abgelaufen, kein SET_ANIM_UPPER), nicht beim Schießen;
+BUTTON_WALKING aus SET_WALKING/SET_RUNNING (NPC_ApplyScriptFlags, NPC.cpp:800-813 MD), beim Gehen aus der Gehanimation.
+Fehlt die Animation in der .cfg, folgt der Oberkörper wie im Spiel den Beinen.
+Nicht portiert (vermerkt): der Zweig WEAPON_READY (nach SET_ENEMY, Kampf), weaponBusy (Schusszeiten, weaponTime nach
+dem Waffenwechsel ~250 ms, Ducken), die Waffen-Beinanimationen von PM_Footsteps in Movie Duels (BOTH_WALK_BLASTER ...)
+und dessen Torso-Tabelle (g_torsoMap, nur im READY-Zweig), die Blende beim Wechsel; der Takt der Schleife beginnt
+beim letzten Waffenwechsel.
+
+| Test | Rot (vorher) | Grün (nachher) |
+|---|---|---|
+| waffentest torsoProben (Szene: md_trooper WP_BLASTER steht) | MD ohne BUTTON_WALKING, MD mit SET_WALKING, OpenJK im Stand: FEHL (Oberkörper leer) | TORSO_WEAPONREST3 / TORSO_WEAPONIDLE3 / TORSO_WEAPONIDLE3; Skriptanimation oben bleibt, Schwert ohne Haltung, Funktionsproben je Waffe ok |
+| tuerlauf vjun3 (tor1) | – | 4 OK, keine Meldung "Oberkoerperanimation steht nicht in der .cfg" |
+| ctest | – | 67/67 |
+
+Changelog:
+- EN: NPCs with a gun hold it with their upper body like the game when no script animation plays there (rifle at the ready, pistol in front; under Movie Duels a lowered rifle, carried after SET_WALKING).
+- DE: NPCs mit einer Schusswaffe halten sie wie im Spiel mit dem Oberkörper, solange dort keine Skriptanimation läuft (Gewehr im Anschlag, Pistole vor sich; unter Movie Duels ein gesenktes Gewehr, nach SET_WALKING getragen).
+- ZH: 手持枪械的 NPC 在上半身没有脚本动画时,会像游戏中一样用上半身持枪(步枪戒备、手枪在身前;在 Movie Duels 下步枪放低,SET_WALKING 后端着)。
+- JA: 銃を持つ NPC は、上半身でスクリプトのアニメーションが再生されていない間、ゲームと同じく上半身で銃を構えます(ライフルは構え、ピストルは前に。Movie Duels ではライフルを下げ、SET_WALKING のあとは抱えて持ちます)。
