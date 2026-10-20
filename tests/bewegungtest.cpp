@@ -4139,6 +4139,127 @@ void netzRasterProben() {
     }
 }
 
+// --- rc605 (Rest): von einer Kante fallen ----------------------------------------
+//
+// KF1: oben (z 32 + 24.125) nach unten gehen, Kante 32 hoch: der Uebergang in
+// PM_GroundTraceMissed findet den Boden in 64 Einheiten (keine Luftanimation),
+// jumpZStart = Hoehe der Kante; PM_CrashLand ohne FP_LEVITATION: delta =
+// |vz| / 10 > 10 -> PM_GetLandingAnim "default" BOTH_LAND1 (Beine, HOLD 300),
+// velocity x/y halb. KF2: Kante 100 hoch - die Spur trifft nichts: BOTH_INAIR1
+// (Bewegung in Blickrichtung), Landung BOTH_LAND1. KF3: FP_LEVITATION 2 - die
+// 32er Kante: delta (32 - 192) / 2 -> 1, kein force_landing (32 <= 96): keine
+// Landeanimation, nicht halb; die 100er: force_landing (100 > 96) -> BOTH_LAND1.
+// KF4: CLASS_ROCKETTROOPER unter RANK_LT (npcLandKlasse 2): delta 1, Landung
+// immer, ganzer Koerper (torsoGesetztAb).
+void kanteFallen605() {
+    std::printf("\n== rc605 (Rest): von einer Kante fallen (KF1-KF4) ==\n");
+    const auto baueWelt = [](float hoch) {
+        const std::vector<ProbeKlotz> kl = {
+            {{-2000, -2000, -16}, {100, 2000, 0}, kNavSolid},
+            {{100, -2000, -16}, {2000, 2000, hoch}, kNavSolid},
+        };
+        auto welt = std::make_shared<NavWelt>();
+        welt->spur = [kl](const NavVec& a, const NavVec& mi, const NavVec& ma, const NavVec& b, int, std::uint32_t maske) {
+            return probeSpur(kl, a, mi, ma, b, maske);
+        };
+        welt->boden = [hoch](float x, float, float zOben, float zUnten, float& z) {
+            const float oben = x < 100.0F ? 0.0F : hoch;
+            if (oben > zOben || oben < zUnten) { return false; }
+            z = oben;
+            return true;
+        };
+        return welt;
+    };
+    const auto plan = [&](float hoch, int levitation, int landKlasse) {
+        LaufWerte w;
+        w.zielGesetzt = true;
+        w.ziel = {-300.0F, 0.0F, 24.0F};
+        w.maxTempo = 300.0F;
+        w.gehTempo = 90.0F;
+        w.landMs = 300;
+        w.forceLandMs = 350;
+        w.levitation = levitation;
+        w.landKlasse = landKlasse;
+        LaufZustand s;
+        // Gerade ueber die Kante getreten (STEER::SafeToGoTo laesst einen NPC
+        // ohne Netz nicht von einer hohen Kante herunter gehen): der Kasten
+        // (16 breit) ganz jenseits, noch "am Boden", 200 nach -x.
+        s.ort = {83.0F, 0.0F, hoch + 24.125F};
+        s.tempoVek = {-200.0F, 0.0F, 0.0F};
+        s.gier = 180.0F;
+        s.amBoden = true;
+        return planeLauf(*baueWelt(hoch), s, w, 0.0, 8000.0);
+    };
+    struct Fall {
+        std::size_t ab = 0;     // erstes Denkbild in der Luft
+        std::size_t land = 0;   // erstes Denkbild wieder am Boden
+        bool da = false;
+    };
+    const auto fall = [](const LaufPlan& p) {
+        Fall f;
+        for (std::size_t i = 0; i < p.zustaende.size(); ++i) {
+            const bool vorher = i == 0 ? p.anfang.amBoden : p.zustaende[i - 1].amBoden;
+            if (!f.da && vorher && !p.zustaende[i].amBoden) {
+                f.ab = i;
+                f.da = true;
+            }
+            if (f.da && f.land == 0 && i > f.ab && p.zustaende[i].amBoden) { f.land = i; }
+        }
+        return f;
+    };
+    const auto text = [](const LaufPlan& p, const Fall& f) {
+        std::string t;
+        if (!f.da || f.land == 0) {
+            const NavVec e = p.takte.empty() ? NavVec{} : p.takte.back().ort;
+            return std::string("kein Fall: Ankunft ") + std::to_string(p.ankunftMs) + " nie " + std::to_string(p.nie) + " Ende " +
+                   std::to_string(e[0]) + " " + std::to_string(e[2]) + " Takte " + std::to_string(p.takte.size());
+        }
+        for (std::size_t i = f.ab > 0 ? f.ab - 1 : 0; i < p.takte.size() && i <= f.land + 1; ++i) {
+            t += " " + std::to_string(static_cast<int>(p.takte[i].t)) + ":" + std::to_string(p.takte[i].beinAnim) + "/" +
+                 std::to_string(static_cast<int>(p.takte[i].torsoGesetztAb)) + " vx " +
+                 std::to_string(static_cast<int>(p.zustaende[i].tempoVek[0]));
+        }
+        return t;
+    };
+    {
+        const LaufPlan p = plan(32.0F, 0, 0);
+        const Fall f = fall(p);
+        bool ok = f.da && f.land > 0;
+        for (std::size_t i = f.ab; ok && i < f.land; ++i) { ok = p.takte[i].beinAnim == kSaKeine; }
+        ok = ok && p.takte[f.land].beinAnim == kSaLand1 && p.takte[f.land].torsoGesetztAb < 0.0 &&
+             p.zustaende[f.land].tempoVek[0] > p.zustaende[f.land - 1].tempoVek[0] * 0.5F - 30.0F &&
+             p.zustaende[f.land].tempoVek[0] >= p.zustaende[f.land - 1].tempoVek[0] * 0.5F - 0.5F &&
+             p.zustaende[f.land - 1].tempoVek[0] < -150.0F;
+        pruefe(ok, "KF1 Kante 32: keine Luftanimation, Landung BOTH_LAND1 auf den Beinen, vx halb (" + text(p, f) + ")");
+    }
+    {
+        const LaufPlan p = plan(100.0F, 0, 0);
+        const Fall f = fall(p);
+        bool ok = f.da && f.land > 0;
+        for (std::size_t i = f.ab; ok && i < f.land; ++i) { ok = p.takte[i].beinAnim == kSaInAir1; }
+        ok = ok && p.takte[f.land].beinAnim == kSaLand1;
+        pruefe(ok, "KF2 Kante 100: BOTH_INAIR1 im Fall, Landung BOTH_LAND1 (" + text(p, f) + ")");
+    }
+    {
+        const LaufPlan p = plan(32.0F, 2, 0);
+        const Fall f = fall(p);
+        bool ok = f.da && f.land > 0 && p.takte[f.land].beinAnim == kSaKeine &&
+                  std::fabs(p.zustaende[f.land].tempoVek[0] - p.zustaende[f.land - 1].tempoVek[0]) < 60.0F;
+        const LaufPlan p2 = plan(100.0F, 2, 0);
+        const Fall f2 = fall(p2);
+        ok = ok && f2.da && f2.land > 0 && p2.takte[f2.land].beinAnim == kSaLand1;
+        pruefe(ok, "KF3 FP_LEVITATION 2: Kante 32 ohne Landeanimation, Kante 100 force_landing BOTH_LAND1 (" + text(p, f) + " |" +
+                       text(p2, f2) + ")");
+    }
+    {
+        const LaufPlan p = plan(32.0F, 0, 2);
+        const Fall f = fall(p);
+        const bool ok = f.da && f.land > 0 && p.takte[f.land].beinAnim == kSaLand1 &&
+                        p.takte[f.land].torsoGesetztAb >= p.takte[f.land].t - 50.5;
+        pruefe(ok, "KF4 CLASS_ROCKETTROOPER unter RANK_LT: Landung immer, ganzer Koerper (" + text(p, f) + ")");
+    }
+}
+
 // --- rc605: NPC-Spruenge (NPC_TryJump / NPC_Jump, NPC_move.cpp MD) -----------
 // SP1: blockiert vor einem Absatz 32 hoeher (wie kylo3 in md_acc_sith): kein
 // Netz, STEER::SafeToGoTo scheitert an der Kante, NAV::GoTo findet keinen
@@ -4254,8 +4375,10 @@ void spruenge605() {
             bool ok = ab < kp.takte.size() && land < kp.takte.size() && land > 0;
             if (ok) {
                 const LaufTakt& k0 = kp.takte[ab];
+                // rc605 (Rest): NPC_JumpAnimation (SETANIM_BOTH) setzt den Oberkoerper -
+                // eine Skriptanimation darauf kommt danach nicht wieder (torsoGesetztAb).
                 ok = k0.beinAnim == kSaJump1 && nah(k0.beinAnimAb, 2100.0, 0.1) && k0.torsoAnim == kSaSprung &&
-                     nah(k0.torsoAnimAb, 2100.0, 0.1);
+                     nah(k0.torsoAnimAb, 2100.0, 0.1) && nah(k0.torsoGesetztAb, 2100.0, 0.1);
                 for (std::size_t i = ab; ok && i < land; ++i) {
                     const LaufTakt& k = kp.takte[i];
                     const bool torsoFrei = k.t >= 2450.0 - 0.1;
@@ -4523,6 +4646,7 @@ int main(int argc, char** argv) {
     festWarten();    // rc605 fix605 (TID_RESIZE)
     netzRasterProben();   // rc604 fix604 (md_roc_jedi)
     spruenge605();        // rc605: NPC-Spruenge
+    kanteFallen605();     // rc605 (Rest): Fall von einer Kante, PM_CrashLand
     bsSprung605();        // rc605: BS_JUMP
     std::printf("\n%s (%d Fehlschlaege)\n", fehler != 0 ? "FEHLGESCHLAGEN" : "alle Bewegungsproben bestanden", fehler);
     return fehler != 0 ? 1 : 0;

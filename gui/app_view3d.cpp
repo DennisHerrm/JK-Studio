@@ -5425,6 +5425,19 @@ void prepareScene() {
                 if (a.kannSpringen) { springer->insert(a.name); }
             }
             welt.kannSpringen = [springer](const std::string& f) { return springer->count(f) != 0; };
+            // rc605 (Rest): PM_CrashLand je Figur (FP_LEVITATION, npcLandKlasse).
+            auto landWerte = std::make_shared<std::map<std::string, std::pair<int, int>>>();
+            for (const Actor& a : ersteSzene.actors) {
+                (*landWerte)[a.name] = {a.levitation, npcLandKlasse(navMovieDuelsRegeln(), navJk2Regeln(), a.klasse, a.rang)};
+            }
+            welt.levitation = [landWerte](const std::string& f) {
+                const auto it = landWerte->find(f);
+                return it == landWerte->end() ? 0 : it->second.first;
+            };
+            welt.landKlasse = [landWerte](const std::string& f) {
+                const auto it = landWerte->find(f);
+                return it == landWerte->end() ? 0 : it->second.second;
+            };
             welt.halbBreite = [kaesten](const std::string& f) {
                 const auto it = kaesten->find(f);
                 return it == kaesten->end() ? 16.0F : it->second.first;

@@ -19767,7 +19767,9 @@ std::vector<Schritt> tuerLaufAlleSchritte(const std::shared_ptr<int>& ab, const 
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     auto nr = std::make_shared<int>(0);
-    auto summe = std::make_shared<std::array<int, 6>>();   // rc605: [4] NPC-Abspruenge, [5] Navgoal ueber dem Kopf
+    // rc605: [4] NPC-Abspruenge, [5] Navgoal ueber dem Kopf; rc605 (Rest): [6] Landeanimationen
+    // ohne Sprung im Plan (Fall von einer Kante, PM_CrashLand), [7] Luftanimationen ohne Sprung.
+    auto summe = std::make_shared<std::array<int, 8>>();
     // rc604 fix604: Reiter, deren zweites prepareScene Bilder anlegte; privater
     // Speicher nach dem ersten und nach dem letzten Reiter.
     auto speicher = std::make_shared<std::array<long long, 3>>(std::array<long long, 3>{0, -1, -1});
@@ -19854,6 +19856,24 @@ std::vector<Schritt> tuerLaufAlleSchritte(const std::shared_ptr<int>& ab, const 
             }
             const auto& tab = g_app->tabs[static_cast<std::size_t>(r)];
             for (const Actor& a : g_app->scene.actors) {
+                // rc605 (Rest): Fall und Landung ausserhalb eines Wegs (schwerkraft.cpp).
+                if (!a.fallAnims.empty()) {
+                    int ln = 0;
+                    int lu = 0;
+                    int gezeigt = 0;
+                    for (const Actor::FallAnim& f : a.fallAnims) {
+                        (f.code == kSaInAir1 ? lu : ln) += 1;
+                        const char* n = sprungAnimName(f.code);
+                        if (n != nullptr && a.at(std::max(0.0, f.t + 1.0)).animation == n) { ++gezeigt; }
+                    }
+                    (*summe)[6] += ln;
+                    (*summe)[7] += lu;
+                    char z[240];
+                    std::snprintf(z, sizeof(z),
+                                  "Knopftest: Tuer-Lauf Fall ausserhalb eines Wegs %s %s %s: Landungen %d (erste %.0f ms), Luft %d, in der Szene gezeigt %d",
+                                  karte.c_str(), tab.shownName.c_str(), a.name.c_str(), ln, a.fallAnims.front().t, lu, gezeigt);
+                    diag::detail(z);
+                }
                 double von = -1.0;
                 double bis = -1.0;
                 int wege = 0;
@@ -19917,6 +19937,33 @@ std::vector<Schritt> tuerLaufAlleSchritte(const std::shared_ptr<int>& ab, const 
                     }
                 }
                 (*summe)[4] += abspruenge;
+                // rc605 (Rest): Landungen / Luftanimationen der Sprungkette ohne Sprung
+                // (kein LaufTakt::sprung, kein BS_JUMP) - Fall von einer Kante.
+                int landungen = 0;
+                int luft = 0;
+                for (const auto& [plan, planBis] : plaene) {
+                    // Ein Plan, der in der Luft beginnt, setzt einen Sprung eines
+                    // frueheren Plans fort (BS_JUMP -> BS_DEFAULT).
+                    const LaufZustand::Sprung& sa = plan->anfang.sprung;
+                    bool gesprungen = sa.springt || sa.laeuft || sa.abgehoben || sa.bsAktiv || sa.beinAnim != 0;
+                    int vorher = plan->anfang.sprung.beinAnim;
+                    for (const LaufTakt& k : plan->takte) {
+                        if (k.t > planBis + 0.5) { break; }
+                        gesprungen = gesprungen || k.sprung || k.bsAnim != 0;
+                        if (!gesprungen && k.beinAnim != vorher && std::fabs(k.beinAnimAb - k.t) < 0.5) {
+                            const int c = k.beinAnim;
+                            if (c == 3 || c == 6 || (c >= 16 && c <= 21)) { ++landungen; }
+                            if (c == 2 || c == 5 || (c >= 8 && c <= 15)) { ++luft; }
+                        }
+                        vorher = k.beinAnim;
+                    }
+                }
+                (*summe)[6] += landungen;
+                (*summe)[7] += luft;
+                if (landungen > 0 || luft > 0) {
+                    diag::detail("Knopftest: Tuer-Lauf Fall ohne Sprung " + karte + " " + tab.shownName + " " + a.name + ": Landungen " +
+                                 std::to_string(landungen) + ", Luftanimationen " + std::to_string(luft));
+                }
                 // rc605 (BS_JUMP-Nachpruefung): nie angekommen nach einem Sprung,
                 // und das Ziel haengt hoeher als der Kasten (maxs[2] 40 + 1 aus
                 // SV_LinkEntity) - STEER::Reached (g_navigator.cpp:5415 MD)
@@ -20066,7 +20113,8 @@ std::vector<Schritt> tuerLaufAlleSchritte(const std::shared_ptr<int>& ab, const 
                      " Figuren mit Weg, nie angekommen " + std::to_string((*summe)[1]) + ", pendelnd " +
                      std::to_string((*summe)[2]) + ", Spruenge " + std::to_string((*summe)[3]) + ", NPC-Abspruenge " +
                      std::to_string((*summe)[4]) + ", davon nie angekommen mit Navgoal ueber dem Kopf nach einem Sprung " +
-                     std::to_string((*summe)[5]));
+                     std::to_string((*summe)[5]) + ", Landeanimationen ohne Sprung " + std::to_string((*summe)[6]) +
+                     ", Luftanimationen ohne Sprung " + std::to_string((*summe)[7]));
     }));
     add(pruefe("Tuer-Lauf: " + karte + " - kein Denkbild geht weiter, als Pmove die Figur tragen kann", [=] {
         return (*summe)[3] == 0;

@@ -81,7 +81,59 @@ struct Pmove {
     // step_size je Klasse) und maxs[2] (fuer die Decke, R8).
     float stufe = kStufe;
     float oben = 40.0F;
+    // rc605 (Rest): PM_GroundTraceMissed / PM_CrashLand (bg_pmove.cpp:7149-7397,
+    // 5835-6125 MD) - jumpZStart, FP_LEVITATION, npcLandKlasse, Jedi Outcast,
+    // und wohin die Animationen gehen (nullptr: nicht gefragt).
+    float jumpZStart = 0.0F;
+    int levitation = 0;
+    int landKlasse = 0;
+    bool jk2 = false;
+    bool luftAnim = false;   // der Uebergang setzte BOTH_INAIR1 (Beine)
+    std::vector<Actor::FallAnim>* anims = nullptr;
 };
+
+// rc605 (Rest): der Uebergang in den freien Fall fuer eine Figur, die stand
+// (PM_GroundTraceMissed, groundEntityNum != ENTITYNUM_NONE): die Spur 64 nach
+// unten (der Kasten ab mins[2], hier die Fuesse) - trifft sie nichts und ist
+// vz <= 0, BOTH_INAIR1 auf den Beinen (ohne waagrechte Bewegung ist der dot
+// gegen Blick und rechts 0: der letzte Zweig, BOTH_INAIR1); immer jumpZStart.
+void inDenFall(Pmove& p, double t, float fuss, float boden, bool bodenDa) {
+    p.jumpZStart = p.z;
+    p.luftAnim = false;
+    if ((!bodenDa || fuss - boden > 64.0F) && p.vz <= 0.0F) {
+        p.luftAnim = true;
+        if (p.anims != nullptr) { p.anims->push_back({t, kSaInAir1, false}); }
+    }
+}
+
+// rc605 (Rest): PM_CrashLand fuer eine Figur ausserhalb eines Wegs (siehe
+// landeAnim in navlauf.cpp): delta aus jumpZStart (FP_LEVITATION >= 1) oder
+// |vz| / 10, CLASS_ROCKETTROOPER immer; Beine BOTH_INAIR1 oder ein Stand ->
+// BOTH_LAND1 (PMF_BACKWARDS_JUMP und FP_LEVITATION aktiv kommen hier nicht vor).
+void landung(Pmove& p, double t, float vorherVz) {
+    static constexpr float kForceJumpHeight[4] = {32.0F, 96.0F, 192.0F, 384.0F};   // wp_saber.cpp:442 MD
+    float delta = 0.0F;
+    bool forceLanding = false;
+    if (!p.jk2 && p.landKlasse != 0) {
+        delta = 1.0F;   // forceJumpZStart ist ohne Sprung 0
+    } else if (p.jumpZStart != 0.0F && p.levitation >= 1) {
+        if (p.z < p.jumpZStart) {
+            delta = p.jumpZStart - p.z;
+            float erlaubt = kForceJumpHeight[std::clamp(p.levitation, 0, 3)];
+            if (erlaubt < 128.0F) { erlaubt = 128.0F; }
+            if (delta > kForceJumpHeight[1]) { forceLanding = true; }
+            delta = (delta - erlaubt) / 2.0F;
+        }
+        if (delta < 1.0F) { delta = 1.0F; }
+    }
+    if (delta == 0.0F) { delta = std::fabs(vorherVz) / 10.0F; }
+    p.jumpZStart = 0.0F;
+    p.luftAnim = false;
+    if (delta < 1.0F || p.anims == nullptr) { return; }
+    const bool rakete = !p.jk2 && (p.landKlasse == 2 || p.landKlasse == 3);
+    if (!rakete && !(delta > 10.0F || forceLanding)) { return; }
+    p.anims->push_back({t, kSaLand1, rakete && p.landKlasse == 2});
+}
 
 bool bodenFragen(const SchwerkraftHilfe& h, Pmove& p, float x, float y, float hb, double t, float& boden,
                  bool& beweglich) {
@@ -139,6 +191,8 @@ void pmoveSchritt(const SchwerkraftHilfe& h, Pmove& p, float x, float y, float w
         p.vz = 0.0F;
         return;
     }
+    const bool warBoden = p.amBoden;   // rc605 (Rest)
+    const float vorherVz = p.vz;
     const float fuss = p.z - kFussTiefe;
     // Steckt der Kasten im Boden und bewegt sich nicht, bleibt er stecken:
     // PM_GroundTrace meldet allsolid, PM_CorrectAllSolid rueckt hoechstens
@@ -166,8 +220,10 @@ void pmoveSchritt(const SchwerkraftHilfe& h, Pmove& p, float x, float y, float w
         p.z = boden + kFussTiefe;
         p.vz = 0.0F;
         p.amBoden = true;
+        if (!warBoden) { landung(p, t, vorherVz); }   // rc605 (Rest): PM_CrashLand
         return;
     }
+    if (warBoden) { inDenFall(p, t, fuss, boden, true); }   // rc605 (Rest): PM_GroundTraceMissed
     // PM_SlideMove (bg_slidemove.cpp:97-99): end_velocity[2] -= gravity *
     // frametime; bewegt wird mit dem Mittel aus alter und neuer.
     //
@@ -183,6 +239,7 @@ void pmoveSchritt(const SchwerkraftHilfe& h, Pmove& p, float x, float y, float w
         p.z = boden + kFussTiefe;
         p.vz = 0.0F;
         p.amBoden = true;
+        landung(p, t, vorherVz);   // rc605 (Rest)
         return;
     }
     p.z = zNeu;
@@ -282,7 +339,7 @@ private:
 };
 
 std::vector<float> backen(const Actor& a, const SchwerkraftHilfe& h, float kartenSchwerkraft,
-                          const std::vector<std::pair<double, float>>& kartenAb) {
+                          const std::vector<std::pair<double, float>>& kartenAb, std::vector<Actor::FallAnim>* anims) {
     const std::size_t n = static_cast<std::size_t>(std::max(0.0, h.endeMs) / kPmoveTaktMs) + 2U;
     std::vector<float> hz(n, a.start[2]);
     const float hb = a.halbBreite >= 0.0F ? a.halbBreite : kNpcHalbBreite;
@@ -386,6 +443,13 @@ std::vector<float> backen(const Actor& a, const SchwerkraftHilfe& h, float karte
             p = Pmove{};
             p.stufe = a.stufe;       // rc601 (bewegung, R6)
             p.oben = a.hoeheOben;    // rc601 (bewegung, R8)
+            // rc605 (Rest): PM_CrashLand. NPC_Begin setzt groundEntityNum =
+            // ENTITYNUM_NONE (NPC_spawn.cpp:2053 MD): ein Spawn in der Luft hat
+            // keinen Uebergang, also jumpZStart 0.
+            p.levitation = a.levitation;
+            p.landKlasse = npcLandKlasse(navMovieDuelsRegeln(), navJk2Regeln(), a.klasse, a.rang);
+            p.jk2 = navJk2Regeln();
+            p.anims = anims;
             if (!imAblauf) {
                 // rc601 (bewegung, Kartenstart): beim Laden der Karte gespawnt
                 // (NPC_Spawn_Go) - und NICHT laengst gelandet. Bis rc601 stand
@@ -534,6 +598,11 @@ std::vector<float> backen(const Actor& a, const SchwerkraftHilfe& h, float karte
         // rc601 (bewegung, teil 3): im Plan die Hoehe des Plans.
         if (bahn == nullptr && !noclipVorher) {
             if (const LaufPlan* lp = planBei(t)) {
+                // rc605 (Rest): im Plan rechnet planeLauf Fall und Landung selbst.
+                if (anims != nullptr) {
+                    while (!anims->empty() && anims->back().t >= t - kPmoveTaktMs - 0.5) { anims->pop_back(); }
+                }
+                p.jumpZStart = 0.0F;
                 const NavVec o = ortBei(*lp, t);
                 const LaufZustand zs = zustandBei(*lp, t);
                 p.z = o[2];
@@ -615,6 +684,7 @@ bool bodenUnter(const BodenStrahl& strahl, float x, float y, float zOben, float 
 void schwerkraftEinrechnen(Scene& s, const SchwerkraftHilfe& h) {
     for (Actor& a : s.actors) {
         a.hoehe.clear();
+        a.fallAnims.clear();   // rc605 (Rest)
     }
     if (!h.strahl || !(h.endeMs > 0.0)) {
         return;
@@ -625,7 +695,7 @@ void schwerkraftEinrechnen(Scene& s, const SchwerkraftHilfe& h) {
         if (a.brushModel > 0 || a.npcType.empty() || !a.haveStart || a.ohneSchwerkraft) {
             continue;
         }
-        a.hoehe = backen(a, h, s.schwerkraft, s.schwerkraftAb);
+        a.hoehe = backen(a, h, s.schwerkraft, s.schwerkraftAb, &a.fallAnims);
     }
 }
 

@@ -731,6 +731,7 @@ struct Actor {    std::string name;        // der Name aus dem affect
     bool kannSpringen = false;
     bool keineAkrobatik = false;   // rc605: SET_NO_ACROBATICS (zur Zeit des Plans)
     std::string sprungAnim;
+    int levitation = 0;   // rc605 (Rest): FP_LEVITATION der .npc (PM_CrashLand)
     bool startHatSaber = false;
     bool startDual = false;
     std::array<SaberZustand, 2> startSaber{};
@@ -784,6 +785,16 @@ struct Actor {    std::string name;        // der Name aus dem affect
     // Der Ursprung in Z je 50-ms-Takt ab 0, wie Pmove ihn fuehrt (siehe
     // schwerkraftEinrechnen). Leer: Z kommt aus den Schritten wie bisher.
     std::vector<float> hoehe;
+    // rc605 (Rest): Fall und Landung ausserhalb eines Wegs (schwerkraft.cpp):
+    // PM_GroundTraceMissed (BOTH_INAIR1, wenn in 64 kein Boden ist) und
+    // PM_CrashLand (BOTH_LAND1, HOLD; beide: CLASS_ROCKETTROOPER unter RANK_LT)
+    // - etwa nach einem Spawn in der Luft. Nach der Zeit geordnet.
+    struct FallAnim {
+        double t = 0.0;
+        int code = 0;        // SprungAnim (kSaInAir1 / kSaLand1)
+        bool beide = false;  // SETANIM_BOTH
+    };
+    std::vector<FallAnim> fallAnims;
     int spawnflags = 0;
     float halbBreite = 16.0F;       // mins/maxs[0] (NPC_ParseParms "width", Vorgabe 16)
     bool ohneSchwerkraft = false;   // Flieger (MT_FLYSWIM), Fahrzeuge

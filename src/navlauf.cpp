@@ -2659,6 +2659,7 @@ struct Lauf {
         }
         if (holdMs >= 0) { s.beinTimer = holdMs; }
         if (beide) {
+            s.torsoGesetztAb = jetzt;   // rc605 (Rest)
             if (holdMs > 0 && code == kSaSprung) {
                 // Ein eigener Oberkoerper, solange PM_JumpForDir die Beine aendern kann.
                 if (s.torsoAnim != code) { s.torsoAnimAb = jetzt; }
@@ -2669,11 +2670,84 @@ struct Lauf {
             s.torsoTimer = std::max(0, holdMs);
         }
     }
-    // rc605 FU4: PM_ForceJumpingAnim (bg_pmove.cpp:10161-10200 MD) fuer die
-    // Animationen der Kette: BOTH_JUMP1, BOTH_INAIR1, BOTH_FORCEJUMP1 - nicht die
-    // Flips (BOTH_FLIP_F, BOTH_ALORA_FLIP_*).
+    // PM_ForceJumpingAnim (bg_pmove.cpp:10161-10186 MD): nur die FORCE-Sprungfolgen
+    // (BOTH_FORCEJUMP1, BOTH_FORCEINAIR1, BOTH_FORCELAND1 und ihre BACK/LEFT/RIGHT).
+    // rc605 (Rest): bis hier standen BOTH_JUMP1/BOTH_INAIR1 mit darin - die gehoeren
+    // zu PM_JumpingAnim (10188 ff.), nicht hierher.
     [[nodiscard]] bool kraftSprungAnim(int code) const {
-        return code == kSaJump1 || code == kSaInAir1 || (code == kSaSprung && w.sprungAnimArt != 1);
+        return (code == kSaSprung && w.sprungAnimArt == 0) || code == kSaForceLand1 || code == kSaForceInAir1 ||
+               code == kSaForceInAirBack1 || code == kSaForceInAirLeft1 || code == kSaForceInAirRight1 ||
+               code == kSaForceLandBack1 || code == kSaForceLandLeft1 || code == kSaForceLandRight1;
+    }
+    // rc605 (Rest): HOLD-Laenge einer Landeanimation (PM_SetAnimFinal).
+    [[nodiscard]] int landHalten(int code) const {
+        if (code == kSaLand1) { return w.landMs; }
+        if (code == kSaForceLand1) { return w.forceLandMs; }
+        return (code >= 0 && code < static_cast<int>(w.landeMs.size())) ? w.landeMs[static_cast<std::size_t>(code)] : 0;
+    }
+    // rc605 (Rest): der Uebergang in den freien Fall - PM_GroundTraceMissed
+    // (bg_pmove.cpp:7149-7397 MD; 2865-3135 codeJK2 gleich; OpenJK gleich ohne
+    // die Animationsstile) fuer eine Figur, die gerade noch stand
+    // (groundEntityNum != ENTITYNUM_NONE): ausser in Rolle, Drehung, Flip oder
+    // Spezialsprung (unter den Codes nur der Flip aus NPC_JumpAnimation) die
+    // Spur 64 nach unten; trifft sie nichts, bei vz <= 0 (PMF_JUMP_HELD setzen
+    // NPCs nie) BOTH_INAIR1 / INAIRBACK1 / INAIRRIGHT1 / INAIRLEFT1 nach der
+    // Bewegung gegen die Blickrichtung (Gier), unter FP_LEVITATION die
+    // FORCE-Folge (PM_ForceJumpAnimForJumpAnim, 6442 ff.), sonst ohne
+    // FP_LEVITATION BOTH_JUMP1 bzw. BOTH_JUMPBACK1 (forwardmove < 0, dann
+    // PMF_BACKWARDS_JUMP). SETANIM_LEGS mit OVERRIDE, ohne HOLD. Immer:
+    // jumpZStart = origin[2]. Der Sturz in den Tod (PM_FallToDeath, 6852-7006)
+    // ist nicht nachgebildet.
+    void inDenFall() {
+        LaufZustand::Sprung& s = z.sprung;
+        const bool flip = s.beinAnim == kSaSprung && w.sprungAnimArt == 1;
+        const bool schweben = s.laeuft;   // forcePowersActive & (1 << FP_LEVITATION)
+        if (!flip) {
+            NavVec tief = z.ort;
+            tief[2] -= 64.0F;
+            const NavSpur tr = kastenSpur(z.ort, tief, pmMaske());
+            if (tr.fraction == 1.0F) {
+                if (z.tempoVek[2] <= 0.0F) {
+                    NavVec dir{z.tempoVek[0], z.tempoVek[1], 0.0F};
+                    const float l = laenge(dir);
+                    if (l > 0.0F) { dir = mal(dir, 1.0F / l); }   // VectorNormalize
+                    const float g = z.gier * 3.14159265358979323846F / 180.0F;
+                    const NavVec blick{std::cos(g), std::sin(g), 0.0F};
+                    const NavVec rechts{std::sin(g), -std::cos(g), 0.0F};   // AngleVectors right
+                    int anim = kSaInAir1;
+                    float dot = punkt(dir, blick);
+                    if (dot > 0.5F) {
+                        anim = kSaInAir1;
+                    } else if (dot < -0.5F) {
+                        anim = kSaInAirBack1;
+                    } else {
+                        dot = punkt(dir, rechts);
+                        if (dot > 0.5F) {
+                            anim = kSaInAirRight1;
+                        } else if (dot < -0.5F) {
+                            anim = kSaInAirLeft1;
+                        }
+                    }
+                    if (schweben) {
+                        anim = anim == kSaInAirBack1    ? kSaForceInAirBack1
+                               : anim == kSaInAirLeft1  ? kSaForceInAirLeft1
+                               : anim == kSaInAirRight1 ? kSaForceInAirRight1
+                                                        : kSaForceInAir1;
+                    }
+                    animSetzen(anim, false, 0);
+                    s.rueckwaerts = false;
+                } else if (!schweben) {
+                    if (ucmdVor >= 0) {
+                        animSetzen(kSaJump1, false, 0);
+                        s.rueckwaerts = false;
+                    } else {
+                        animSetzen(kSaJumpBack1, false, 0);
+                        s.rueckwaerts = true;
+                    }
+                }
+            }
+        }
+        s.jumpZStart = z.ort[2];
     }
     // rc605 FU4: nach den Bewegungen des Pmove PM_Footsteps (bg_pmove.cpp:
     // 34374-34378 MD) und PM_TorsoAnimation (34391-34395). PM_Footsteps laesst
@@ -2698,35 +2772,87 @@ struct Lauf {
             s.torsoAnimAb = jetzt;
         }
     }
-    // rc605 FU4: der Landeteil von PM_CrashLand (bg_pmove.cpp:5835-6125 MD;
-    // OpenJK 3967 ff. gleich, ohne die Animationsstile) nach einem Absprung ueber
-    // den "kickoff"-Zweig: jumpZStart blieb 0 (nur der Uebergang in
-    // PM_GroundTraceMissed setzt es, 7395-7397), also delta =
-    // PM_CrashLandDelta(previous_velocity) = |vz| / 10 (5018-5037, waterlevel 0).
-    // Kein PMF_DUCKED (upmove 0), also keine Rolle; FP_LEVITATION ist aktiv,
-    // solange NPC_TryJump springt (forcePowersActive, NPC_move.cpp:707 MD).
+    // rc605 FU4 / rc605 (Rest): PM_CrashLand (bg_pmove.cpp:5835-6125 MD; OpenJK
+    // 3967 ff. gleich ohne die Animationsstile; codeJK2 2514-2640) bei JEDER
+    // Landung - nach dem "kickoff" (jumpZStart 0), nach einem Uebergang in den
+    // freien Fall (Kante, zu flacher Sprung: jumpZStart gesetzt) und nach einem
+    // Spawn in der Luft (groundEntityNum war ENTITYNUM_NONE: jumpZStart 0).
+    //  - delta: "JET"-Klassen 1 (forceJumpZStart -> force_landing); sonst mit
+    //    jumpZStart und FP_LEVITATION >= 1: hoeher gelandet 0, sonst (Fall -
+    //    max(128, forceJumpHeight[FP_TableLevel(lev)])) / 2 und force_landing
+    //    ab einem Fall ueber forceJumpHeight[1] (96), mindestens 1; ohne das
+    //    PM_CrashLandDelta(previous_velocity) = |vz| / 10 (waterlevel 0).
+    //  - kein PMF_DUCKED (upmove 0) - keine Rolle; "delta < 1": nichts.
+    //  - CLASS_ROCKETTROOPER (MD/OpenJK): immer die Landeanimation, unter
+    //    RANK_LT der ganze Koerper; sonst nur bei delta > 10, PMF_BACKWARDS_JUMP,
+    //    aktivem FP_LEVITATION (NPC_TryJump, NPC_move.cpp:707 MD) oder
+    //    force_landing.
+    //  - PM_GetLandingAnim (5039-5420 MD): JUMP/INAIR -> LAND, FORCEJUMP/FORCEINAIR
+    //    -> FORCELAND (je BACK/LEFT/RIGHT), sonst (Laufen, Stand, Flips) BOTH_LAND1
+    //    bzw. mit PMF_BACKWARDS_JUMP BOTH_LANDBACK1; jedes Mal "stick landings
+    //    some": velocity x/y halb (g_allowBunnyhopping 0, g_main.cpp:857 MD;
+    //    OpenJK ohne Cvar; Jedi Outcast nicht).
+    //  - SETANIM_BOTH, wenn PM_ForceJumpingAnim(Beine) und Oberkoerper == Beine
+    //    (Jedi Outcast: immer SETANIM_LEGS), sonst SETANIM_LEGS; OVERRIDE | HOLD.
     void landeAnim() {
         LaufZustand::Sprung& s = z.sprung;
-        if (!s.abgehoben) { return; }
         s.abgehoben = false;
-        const float delta = std::fabs(vorherTempo[2]) / 10.0F;
-        if (delta < 1.0F) { return; }   // "delta < 1": nur AddSoundEvent
+        static constexpr float kForceJumpHeight[4] = {32.0F, 96.0F, 192.0F, 384.0F};   // wp_saber.cpp:442 MD
         const bool schweben = s.laeuft;   // forcePowersActive & (1 << FP_LEVITATION)
-        if (!(delta > 10.0F || schweben)) { return; }   // PMF_BACKWARDS_JUMP kommt nicht vor
-        // PM_GetLandingAnim (5039-5420 MD / 3588 ff. OpenJK): BOTH_FORCEJUMP1 ->
-        // BOTH_FORCELAND1, BOTH_JUMP1/BOTH_INAIR1 -> BOTH_LAND1, alles andere
-        // (die Flips, BOTH_CROUCH1) ueber "default" -> BOTH_LAND1; jedes Mal
-        // "stick landings some": velocity x/y halb (g_allowBunnyhopping 0,
-        // g_main.cpp:857 MD; OpenJK ohne Cvar).
-        const bool kraft = s.beinAnim == kSaSprung && w.sprungAnimArt == 0;
-        const int anim = kraft ? kSaForceLand1 : kSaLand1;
-        const int halten = kraft ? w.forceLandMs : w.landMs;
-        z.tempoVek[0] *= 0.5F;
-        z.tempoVek[1] *= 0.5F;
+        float delta = 0.0F;
+        bool forceLanding = false;
+        if (!jk2Pm && w.landKlasse != 0) {
+            if (s.zStart != 0.0F) { forceLanding = true; }   // forceJumpZStart
+            delta = 1.0F;
+        } else if (s.jumpZStart != 0.0F && w.levitation >= 1) {
+            if (z.ort[2] >= s.jumpZStart) {
+                if (s.zStart != 0.0F) { forceLanding = true; }
+                delta = 0.0F;
+            } else {
+                delta = s.jumpZStart - z.ort[2];
+                // FP_TableLevel (wp_saber.h:269 MD); OpenJK/JK2 lesen ungeklemmt.
+                float erlaubt = kForceJumpHeight[std::clamp(w.levitation, 0, 3)];
+                if (erlaubt < 128.0F) { erlaubt = 128.0F; }
+                if (delta > kForceJumpHeight[1]) { forceLanding = true; }
+                delta = (delta - erlaubt) / 2.0F;
+            }
+            if (delta < 1.0F) { delta = 1.0F; }
+        }
+        if (delta == 0.0F) { delta = std::fabs(vorherTempo[2]) / 10.0F; }
+        if (delta < 1.0F) { return; }   // "delta < 1": nur AddSoundEvent
+        const bool rakete = !jk2Pm && (w.landKlasse == 2 || w.landKlasse == 3);
+        if (!rakete && !(delta > 10.0F || s.rueckwaerts || schweben || forceLanding)) { return; }
+        // PM_GetLandingAnim
+        int anim = kSaLand1;
+        switch (s.beinAnim) {
+            case kSaForceInAirLeft1: anim = kSaForceLandLeft1; break;
+            case kSaForceInAirRight1: anim = kSaForceLandRight1; break;
+            case kSaForceInAir1: anim = kSaForceLand1; break;
+            case kSaForceInAirBack1: anim = kSaForceLandBack1; break;
+            case kSaInAirLeft1: anim = kSaLandLeft1; break;
+            case kSaInAirRight1: anim = kSaLandRight1; break;
+            case kSaJump1: case kSaInAir1: anim = kSaLand1; break;
+            case kSaJumpBack1: case kSaInAirBack1: anim = kSaLandBack1; break;
+            case kSaSprung:
+                if (w.sprungAnimArt == 0) { anim = kSaForceLand1; break; }   // BOTH_FORCEJUMP1
+                if (w.sprungAnimArt == 2) { anim = kSaLand1; break; }        // BOTH_JUMP1
+                anim = s.rueckwaerts ? kSaLandBack1 : kSaLand1;               // Flips: default
+                break;
+            default: anim = s.rueckwaerts ? kSaLandBack1 : kSaLand1; break;
+        }
+        if (!jk2Pm) {
+            z.tempoVek[0] *= 0.5F;
+            z.tempoVek[1] *= 0.5F;
+        }
+        const int halten = landHalten(anim);
         const int torso = s.torsoAnim == kSaKeine ? s.beinAnim : s.torsoAnim;
+        if (rakete) {
+            animSetzen(anim, w.landKlasse == 2, halten);   // "rockettroopers are simpler"
+            return;
+        }
         // "PM_FlippingAnim(torsoAnim) ... interrupt these": torsoAnimTimer = 0
         if (torso == kSaSprung && w.sprungAnimArt == 1) { s.torsoTimer = 0; }
-        if (kraftSprungAnim(s.beinAnim) && torso == s.beinAnim) {
+        if (!jk2Pm && kraftSprungAnim(s.beinAnim) && torso == s.beinAnim) {
             animSetzen(anim, true, halten);   // SETANIM_BOTH, OVERRIDE | HOLD
         } else {
             animSetzen(anim, false, halten);  // SETANIM_LEGS, OVERRIDE | HOLD
@@ -3022,6 +3148,7 @@ struct Lauf {
         if (tr.fraction == 1.0F || schwer <= 0.0F) {
             // "if the trace didn't hit anything, we are in free fall" -
             // PM_GroundTraceMissed setzt groundEntityNum = ENTITYNUM_NONE.
+            if (z.amBoden) { inDenFall(); }   // rc605 (Rest): der Uebergang
             z.amBoden = false;
             bodenFlaeche = false;
             gehend = false;
@@ -3357,6 +3484,7 @@ struct Lauf {
             if (z.amBoden) {
                 z.sprung.springt = false;
                 z.sprung.zStart = 0.0F;
+                z.sprung.jumpZStart = 0.0F;   // rc605 (Rest): bg_pmove.cpp:34146 MD
             }
             return;
         }
@@ -4297,13 +4425,17 @@ std::uint64_t planSchluessel(const NavWelt& welt, const LaufZustand& z, const La
     // rc605 FU4: die Sprungkette (Animationen, Timer, Absprung).
     {
         const LaufZustand::Sprung& sk = z.sprung;
-        if (sk.beinAnim != 0 || sk.torsoAnim != 0 || sk.torsoTimer != 0 || sk.abgehoben || w.kannSpringen || w.bsJump) {
+        if (sk.beinAnim != 0 || sk.torsoAnim != 0 || sk.torsoTimer != 0 || sk.abgehoben || w.kannSpringen || w.bsJump ||
+            sk.jumpZStart != 0.0F || sk.rueckwaerts || sk.torsoGesetztAb >= 0) {
             for (const int i : {0x4b4554, sk.beinAnim, sk.beinAnimAb, sk.torsoAnim, sk.torsoAnimAb, sk.torsoTimer,
                                 static_cast<int>(sk.abgehoben), sk.beinTimer, w.sprungAnimArt, w.sprungAnimMs, w.landMs,
-                                w.forceLandMs}) {
+                                w.forceLandMs, static_cast<int>(sk.rueckwaerts), sk.torsoGesetztAb, static_cast<int>(bits(sk.jumpZStart))}) {
                 h = mische(h, static_cast<std::uint64_t>(static_cast<std::uint32_t>(i)));
             }
         }
+        // rc605 (Rest): was PM_CrashLand bei jeder Landung liest.
+        for (const int i : {0x4c4e44, w.levitation, w.landKlasse}) { h = mische(h, static_cast<std::uint64_t>(static_cast<std::uint32_t>(i))); }
+        for (const int i : w.landeMs) { h = mische(h, static_cast<std::uint64_t>(static_cast<std::uint32_t>(i))); }
     }
     // rc605: Spruenge und der Merker "blockiert" (nur mit SCF_NAV_CAN_JUMP).
     if (w.kannSpringen) {
@@ -4756,6 +4888,7 @@ struct LaufRechner {
         takt.beinAnimAb = z.sprung.beinAnimAb;
         takt.torsoAnim = z.sprung.torsoAnim;
         takt.torsoAnimAb = z.sprung.torsoAnimAb;
+        takt.torsoGesetztAb = z.sprung.torsoGesetztAb;   // rc605 (Rest)
         // Die Folge von NPC_BSJump zeigt die Szene als Bewegung (wegBewegtBei).
         if (bsJump && z.sprung.bsAnim != 0) { takt.bewegt = true; }
         // rc605 FU4: ebenso jede Animation der Sprungkette (die Szene zeigt sie im Weg).
@@ -4934,6 +5067,47 @@ std::string npcSprungAnim(bool movieDuels, const std::string& klasse, const std:
     if (k == "class_howler") { return "BOTH_JUMP1"; }
     if (k == "class_alora") { return "BOTH_ALORA_FLIP_2"; }
     return "BOTH_FLIP_F";
+}
+
+// rc605 (Rest): siehe navlauf.h.
+const char* sprungAnimName(int code) {
+    switch (code) {
+        case kSaJump1: return "BOTH_JUMP1";
+        case kSaLand1: return "BOTH_LAND1";
+        case kSaCrouch1: return "BOTH_CROUCH1";
+        case kSaInAir1: return "BOTH_INAIR1";
+        case kSaForceLand1: return "BOTH_FORCELAND1";
+        case kSaStand1: return "BOTH_STAND1";
+        case kSaInAirBack1: return "BOTH_INAIRBACK1";
+        case kSaInAirLeft1: return "BOTH_INAIRLEFT1";
+        case kSaInAirRight1: return "BOTH_INAIRRIGHT1";
+        case kSaForceInAir1: return "BOTH_FORCEINAIR1";
+        case kSaForceInAirBack1: return "BOTH_FORCEINAIRBACK1";
+        case kSaForceInAirLeft1: return "BOTH_FORCEINAIRLEFT1";
+        case kSaForceInAirRight1: return "BOTH_FORCEINAIRRIGHT1";
+        case kSaJumpBack1: return "BOTH_JUMPBACK1";
+        case kSaLandBack1: return "BOTH_LANDBACK1";
+        case kSaLandLeft1: return "BOTH_LANDLEFT1";
+        case kSaLandRight1: return "BOTH_LANDRIGHT1";
+        case kSaForceLandBack1: return "BOTH_FORCELANDBACK1";
+        case kSaForceLandLeft1: return "BOTH_FORCELANDLEFT1";
+        case kSaForceLandRight1: return "BOTH_FORCELANDRIGHT1";
+        default: return nullptr;
+    }
+}
+
+int npcLandKlasse(bool movieDuels, bool jk2, const std::string& klasse, const std::string& rang) {
+    if (jk2) { return 0; }   // codeJK2 PM_CrashLand kennt keine Klassen
+    const std::string k = klein(klasse);
+    if (k == "class_rockettrooper") {
+        // TranslateRankName: RANK_LT (4) und darueber
+        const std::string r = klein(rang);
+        const bool abLt = r == "lt" || r == "ltcomm" || r == "commander" || r == "captain";
+        return abLt ? 3 : 2;
+    }
+    if (k == "class_bobafett") { return 1; }
+    if (movieDuels && (k == "class_mandalorian" || k == "class_jango" || k == "class_jangodual")) { return 1; }
+    return 0;
 }
 
 // rc605: "anyone who has any force jump can jump" / "These jokers can jump"

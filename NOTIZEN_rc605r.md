@@ -99,3 +99,47 @@ Changelog:
 - DE: Modelle, die Effekte mitführen (`useModel`, etwa die Nebelschwaden in duel_exegol), werden wieder gezeichnet, und Flächen mit `deformVertexes autosprite`/`autosprite2` an Modellen drehen sich wie im Spiel zur Kamera.
 - ZH: 特效携带的模型(`useModel`,例如 duel_exegol 的雾气)重新被绘制;模型上带 `deformVertexes autosprite`/`autosprite2` 的表面会像游戏中一样朝向镜头。
 - JA: エフェクトが持つモデル(`useModel`、たとえば duel_exegol の霧)が再び描画されるようになり、モデル上の `deformVertexes autosprite`/`autosprite2` の面はゲームと同じくカメラの方を向きます。
+
+## 4. Reste der Sprungkette
+
+- **Uebergang in den freien Fall** (PM_GroundTraceMissed, bg_pmove.cpp:7149-7397 MD; codeJK2 2865-3135 und
+  OpenJK gleich): fuer eine Figur, die gerade noch stand - Kante, zu flacher Sprung (vz <= 100, kein
+  kickoff), Treppe - ausser im Flip die Spur 64 nach unten; trifft sie nichts: vz <= 0 -> BOTH_INAIR1 /
+  INAIRBACK1 / INAIRRIGHT1 / INAIRLEFT1 nach Bewegung gegen Gier, unter FP_LEVITATION die FORCE-Folge
+  (PM_ForceJumpAnimForJumpAnim 6442 ff.), sonst ohne FP_LEVITATION BOTH_JUMP1/JUMPBACK1 (PMF_BACKWARDS_JUMP).
+  Immer jumpZStart = origin[2]; am Boden 0 (34146). navlauf.cpp `inDenFall`.
+- **PM_CrashLand bei jeder Landung** (5835-6125 MD, OpenJK 3967 ff., codeJK2 2514-2640), nicht mehr nur
+  nach dem kickoff: delta aus jumpZStart fuer FP_LEVITATION >= 1 ((Fall - max(128, forceJumpHeight[
+  FP_TableLevel])) / 2, force_landing ab 96, mindestens 1), sonst |vz| / 10; "JET"-Klassen delta 1
+  (OpenJK: Boba, Raketentruppler; MD dazu Mandalorianer, Jango, JangoDual; JK2 keine); Raketentruppler
+  landen immer (unter RANK_LT ganzer Koerper); sonst bei delta > 10, PMF_BACKWARDS_JUMP, aktivem
+  FP_LEVITATION oder force_landing. PM_GetLandingAnim fuer alle Luft-/Sprungfolgen (LAND/LANDBACK/
+  LANDLEFT/LANDRIGHT und FORCE...), sonst BOTH_LAND1 bzw. LANDBACK1; velocity x/y halb (MD/OpenJK, nicht
+  JK2). SETANIM_BOTH nur bei PM_ForceJumpingAnim(Beine) und Oberkoerper == Beine (JK2: immer LEGS).
+  Korrektur: kraftSprungAnim fuehrte BOTH_JUMP1/BOTH_INAIR1 als PM_ForceJumpingAnim - die stehen in
+  PM_JumpingAnim (10188 ff. MD), nicht in PM_ForceJumpingAnim (10161-10186).
+- **Spawn in der Luft / Fall ausserhalb eines Wegs** (schwerkraft.cpp): NPC_Begin setzt groundEntityNum =
+  ENTITYNUM_NONE (NPC_spawn.cpp:2053 MD), also kein Uebergang, jumpZStart 0 -> delta |vz| / 10; die Szene
+  zeigt BOTH_LAND1 (HOLD) ab der Landung (Actor::fallAnims), eine spaetere Skriptanimation gilt.
+- **Skriptanimation oben vor dem Sprung**: NPC_JumpAnimation, BOTH_INAIR1/BOTH_LAND1 (NPC_BSJump) und
+  PM_CrashLand mit SETANIM_BOTH setzen den Oberkoerper; die Szene loescht eine vorher begonnene
+  Skriptanimation darauf ab diesem Zeitpunkt (LaufTakt::torsoGesetztAb), statt sie nach dem Sprung
+  wiederkehren zu lassen.
+- **Nicht portiert:** die Waffenzweige von PM_TorsoAnimation (bg_panimate.cpp:9905 ff. MD, ~1500 Zeilen:
+  Gewehrtraeger halten auch im Sprung TORSO_WEAPONREADY*) - die Vorschau hat PM_TorsoAnimation auch fuer
+  Stehen und Gehen nicht; das gehoert als eigenes Stueck dorthin. PM_FallToDeath (Sturz in den Tod) nicht.
+
+| Test | Rot (vorher) | Grün (nachher) |
+|---|---|---|
+| bewegungtest KF1-KF4 (Kante 32/100, FP_LEVITATION 2, Raketentruppler) | – (neu; der alte Code setzte ohne kickoff keine Landung) | ok: KF1 keine Luftanimation, BOTH_LAND1 Beine, vx -297 -> -148; KF2 BOTH_INAIR1 im Fall, BOTH_LAND1; KF3 32 ohne, 100 mit Landung; KF4 ganzer Koerper |
+| bewegungtest SP1e + torsoGesetztAb | – | ok (2100) |
+| Selbsttest tuerlauf md_acc_sith (Uebersicht: Landeanimationen ohne Sprung) | 0 | 68 (dazu kor1 9); 39 Figuren mit Landung nach dem Spawn, alle in der Szene als BOTH_LAND1 gezeigt |
+| tuerlauf kor2, taspir2, md_acc_sith, t3_byss, t2_rancor alt/neu | – | 5 Uebersichtszeilen anders: taspir2 jumper1 letztes Stueck +150 ms (BS_JUMP-Landung jetzt nur Beine, PM_ForceJumpingAnim), md_acc_sith rey_run1/rey_run2/kylo3 +-100 ms bzw. 1-3 Einheiten (Spawn-Landung halbiert die Geschwindigkeit) |
+| ctest | – | 67 / 67 |
+
+Changelog:
+
+- EN: NPCs falling from a ledge, stepping off with a jump too low to leave the ground, or spawned in the air now play the game's in-air and landing animations (a hard landing slows them down, like the game); an upper-body script animation that began before a jump no longer comes back after it.
+- DE: NPCs, die von einer Kante fallen, mit einem zu flachen Sprung über die Kante gehen oder in der Luft gespawnt werden, spielen jetzt die Luft- und Landeanimationen des Spiels (eine harte Landung bremst sie wie im Spiel); eine Skriptanimation auf dem Oberkörper, die vor einem Sprung begann, kommt danach nicht mehr wieder.
+- ZH: 从边缘掉落、以过低的跳跃越过边缘或在空中生成的 NPC,现在会播放游戏的空中和落地动画(与游戏中一样,重落地会让它们减速);跳跃前开始的上半身脚本动画在跳跃后不再恢复。
+- JA: 段差から落ちる NPC、低すぎるジャンプで段差を越える NPC、空中にスポーンした NPC が、ゲームの空中アニメーションと着地アニメーションを再生するようになりました(ゲームと同じく激しい着地では減速します)。ジャンプ前に始まった上半身のスクリプトアニメーションは、ジャンプ後に戻らなくなりました。
