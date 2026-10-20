@@ -792,6 +792,20 @@ void navJk2Regeln(bool an);
 // CNavigator::Load (g_navigator.cpp:567-628) ohne Pruefsummenvergleich; leer,
 // wenn die Datei nicht taugt. `summe` bekommt die gespeicherte Pruefsumme.
 [[nodiscard]] std::shared_ptr<NavNetzJk2> navJk2Laden(const std::string& bytes, int& summe);
+// rc605 (Rest): CNavigator::CheckAllFailedEdges / CheckFailedEdge (codeJK2/game/
+// g_navigator.cpp:2018-2128, aus G_RunFrame am Anfang jedes Bilds, g_main.cpp:
+// 1274-1277) fuer die gescheiterte Kante `slot` des JK2-Netzes der Welt (ein Netz
+// ohne passende .nav: CheckBlockedEdges beim Laden, AddFailedEdge mit checkTime =
+// level.time + 1000 + Q_irand(0, 1000) - hier die Mitte, 1500 nach dem Spawn der
+// Karte, also 750 ms nach dem Skriptanfang). Geprueft wird im ersten Bild nach
+// checkTime: ausserhalb des PVS oder startsolid im naechsten Bild wieder; trifft
+// die Spur (Kasten mit STEPSIZE, MASK_NPCSOLID|MONSTERCLIP|BOTCLIP) nichts oder
+// eine unverschlossene Tuer, ist die Kante ab da frei (ClearFailedEdge), sonst
+// neue checkTime = level.time + 1500. Gibt das Bild zurueck, ab dem sie frei
+// ist (-1: bis bisMs nicht). Ohne die Pause pruefte behaved bis rc605 jedes Bild.
+[[nodiscard]] double navJk2FehlFreiAb(const NavWelt& welt, int slot, double bisMs);
+inline constexpr double kNavJk2FehlErstePruefung = 750.0;
+inline constexpr double kNavJk2FehlPause = 1500.0;
 
 // rc601 (bewegung, Durchsicht 2): Abkuerzungen, die am Ergebnis nichts
 // aendern (Zwischenspeicher fuer has_valid_edge je Regionspaar). Fuer die

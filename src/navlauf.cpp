@@ -1569,6 +1569,76 @@ int NavNetzJk2::kanteFehl(int a, int b) const {
     return -1;
 }
 
+// rc605 (Rest): je gescheiterter Kante des JK2-Netzes (failedEdges[j]):
+// checkTime und seit wann sie frei ist (ClearFailedEdge), relativ zum Skriptanfang.
+struct Jk2FehlStand {
+    double pruefAb = kNavJk2FehlErstePruefung;
+    double freiAb = -1.0;
+};
+// rc605 (Rest): CNavigator::CheckFailedEdge (codeJK2/game/g_navigator.cpp:2018-2102)
+// fuer eine Kante mit entID ENTITYNUM_NONE (CheckBlockedEdges) zur Zeit t:
+// 0 gesperrt (neue checkTime), 1 frei (ClearFailedEdge), 2 im naechsten Bild
+// wieder (ausserhalb des PVS, startsolid/allsolid - checkTime bleibt).
+int jk2FehlPruefen(const NavWelt& welt, const NavNetzJk2& n, int slot, double t) {
+    const NavNetzJk2::Fehl& f = n.fehl[static_cast<std::size_t>(slot)];
+    if (f.a < 0 || f.b < 0 || f.a >= static_cast<int>(n.knoten.size()) || f.b >= static_cast<int>(n.knoten.size())) { return 0; }
+    const NavVec& p1 = n.knoten[static_cast<std::size_t>(f.a)].punkt;
+    const NavVec& p2 = n.knoten[static_cast<std::size_t>(f.b)].punkt;
+    if (welt.pvs && !welt.pvs(p1, p2)) { return 2; }   // gi.inPVSIgnorePortals
+    // "!ent": DEFAULT_MINS (+ STEPSIZE) / DEFAULT_MAXS, ignore ENTITYNUM_NONE,
+    // MASK_NPCSOLID | CONTENTS_MONSTERCLIP | CONTENTS_BOTCLIP
+    const NavVec mi{-kDefaultMaxs0, -kDefaultMaxs0, kDefaultMins2 + kStepSize};
+    const NavVec ma{kDefaultMaxs0, kDefaultMaxs0, kDefaultMaxs2};
+    const std::uint32_t maske = kJk2MaskNpcSolid | kNavMonsterClip | kNavBotClip;
+    NavSpur tr;
+    if (welt.spurZeit) {
+        tr = welt.spurZeit(p1, mi, ma, p2, kNavKeineEntity, maske, t);
+    } else if (welt.spur) {
+        tr = welt.spur(p1, mi, ma, p2, kNavKeineEntity, maske);
+    } else {
+        return 1;
+    }
+    if (tr.startsolid || tr.allsolid) { return 2; }
+    if (tr.entity == kNavKeineEntity) { return 1; }
+    // G_EntIsUnlockedDoor (mit dem Schloss zur Zeit, NavNetzJk2::tuerFrei)
+    if (tr.entity >= 0 && tr.entity < static_cast<int>(n.tuerFrei.size())) {
+        const signed char v = n.tuerFrei[static_cast<std::size_t>(tr.entity)];
+        if (v == 3) { return 1; }
+        if (v != 0) {
+            bool zu = v == 2;
+            if (welt.mover) {
+                if (const NavMoverPlan::Stand* s = welt.mover->standVon(tr.entity, t)) { zu = s->verriegelt; }
+            }
+            if (!zu) { return 1; }
+        }
+    }
+    return 0;
+}
+
+// CheckAllFailedEdges am Anfang jedes Bilds bis zum Bild `bis` nachholen.
+void jk2FehlNachholen(const NavWelt& welt, const NavNetzJk2& n, int slot, Jk2FehlStand& f, double bis) {
+    while (f.freiAb < 0.0) {
+        // das erste Bild mit level.time > checkTime
+        const double tf = kNavDenkMs * (std::floor(f.pruefAb / kNavDenkMs + 1.0e-9) + 1.0);
+        if (tf > bis + 0.5) { return; }
+        const int r = jk2FehlPruefen(welt, n, slot, tf);
+        if (r == 1) {
+            f.freiAb = tf;
+        } else if (r == 0) {
+            f.pruefAb = tf + kNavJk2FehlPause;
+        } else {
+            f.pruefAb = tf;
+        }
+    }
+}
+
+double navJk2FehlFreiAb(const NavWelt& welt, int slot, double bisMs) {
+    if (!welt.netz || !welt.netz->jk2 || slot < 0 || slot >= static_cast<int>(welt.netz->jk2->fehl.size())) { return -1.0; }
+    Jk2FehlStand f;
+    jk2FehlNachholen(welt, *welt.netz->jk2, slot, f, bisMs);
+    return f.freiAb;
+}
+
 int navBlockPruefsumme(const std::string& bytes) {
     // Com_BlockChecksum (md4.c): digest[0] ^ digest[1] ^ digest[2] ^ digest[3]
     const std::array<std::uint32_t, 4> d = md4(bytes);
@@ -3645,13 +3715,23 @@ struct Lauf {
         }
         return !tr.startsolid && !tr.allsolid && tr.fraction == 1.0F;
     }
-    // CNavigator::CheckFailedEdge (g_navigator.cpp:2018-2102) in diesem Bild:
-    // ist die Verbindung wieder frei? (Die Pruefzeit - alle 1 bis 2 s - laesst
-    // behaved weg, siehe NOTIZEN_jk2.md.)
+    // CNavigator::CheckFailedEdge (g_navigator.cpp:2018-2102): rc605 (Rest) mit
+    // der Pause von CheckAllFailedEdges (navJk2FehlFreiAb) - gesperrt, bis eine
+    // Pruefung im ersten Bild nach checkTime die Verbindung frei findet, dann
+    // frei (ClearFailedEdge). Ohne den Stand des Plans (jk2FehlStand) wie bis
+    // rc605: jedes Bild neu geprueft.
+    std::vector<Jk2FehlStand>* jk2FehlStand = nullptr;
     bool jk2KanteGesperrt(int a, int b) {
         const NavNetzJk2* n = jk2Netz();
         const int j = n->kanteFehl(a, b);
         if (j < 0) { return false; }
+        if (jk2FehlStand != nullptr) {
+            std::vector<Jk2FehlStand>& v = *jk2FehlStand;
+            if (v.size() != n->fehl.size()) { v.assign(n->fehl.size(), Jk2FehlStand{}); }
+            Jk2FehlStand& f = v[static_cast<std::size_t>(j)];
+            jk2FehlNachholen(welt, *n, j, f, static_cast<double>(jetzt));
+            return !(f.freiAb >= 0.0 && f.freiAb <= static_cast<double>(jetzt) + 0.5);
+        }
         if (jk2FehlJetzt.size() != n->fehl.size()) { jk2FehlJetzt.assign(n->fehl.size(), -1); }
         signed char& c = jk2FehlJetzt[static_cast<std::size_t>(j)];
         if (c >= 0) { return c != 0; }
@@ -4655,6 +4735,7 @@ struct LaufRechner {
     double ruheSeit = 0.0;
     bool fertig = false;
     bool ohneNie = false;   // kein Abbruch, wenn sie lange steht (andere Figuren koennen den Weg freigeben)
+    std::vector<Jk2FehlStand> jk2Fehl;   // rc605 (Rest): CheckAllFailedEdges (je Plan aus der Zeit nachgerechnet)
     LaufRechner(const NavWelt& wl, const LaufZustand& start, const LaufWerte& werte, double abMs, double grenze)
         : welt(wl), grenzeMs(grenze) {
         plan.abMs = abMs;
@@ -4722,6 +4803,7 @@ struct LaufRechner {
         Lauf l(welt, w, z);
         l.jetzt = static_cast<int>(std::lround(t));
         l.akt.t = t;   // rc601 (bewegung, teil 3): die Mover in diesem Denkbild
+        l.jk2FehlStand = &jk2Fehl;   // rc605 (Rest): CheckAllFailedEdges ueber die Bilder des Plans
         bool bewegt = false;
         bool gehTaste = false;
         l.zBewegung = {0, 0, 0};   // NPC_Think: VectorClear(ps.moveDir)

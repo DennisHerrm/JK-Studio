@@ -146,6 +146,41 @@ Changelog:
 
 ## 5. Jedi Outcast: Laufzeitzustand des Navigators, PushBlocker, Kyles Waffe
 
+### 5a. Gescheiterte Kanten: die Pruefpause (umgesetzt) - und was offen bleibt
+
+- Spiel: CheckAllFailedEdges am Anfang jedes G_RunFrame (codeJK2/game/g_main.cpp:1274-1277), CheckFailedEdge
+  (g_navigator.cpp:2018-2102): erst wenn checkTime < level.time; ausserhalb des PVS oder startsolid im
+  naechsten Bild wieder; trifft die Spur nichts oder eine unverschlossene Tuer -> ClearFailedEdge (fuer
+  immer frei), sonst checkTime = level.time + 1000 + Q_irand(0, 1000). CheckBlockedEdges legt die Kanten
+  beim Laden an (Netz ohne passende .nav), checkTime = level.time + 1000 + Q_irand(0, 1000).
+- behaved: navJk2FehlFreiAb / jk2FehlNachholen (src/navlauf.cpp), je Plan nachgerechnet (LaufRechner::
+  jk2Fehl); Q_irand(0, 1000) als Mitte 500: erste Pruefung 750 ms nach dem Skriptanfang (Spawn der Karte bei
+  sv.time 1000 = -750 ms, wie kNavKartenSpawnMs), danach 1500 ms Pause. Bis hier pruefte behaved in jedem
+  Bild und liess eine Kante wieder sperren.
+- Offen (zu gross fuer diesen Durchgang, der Eingriff gehoert in den gemeinsamen Takt navKoerperLauf):
+  AddFailedEdge zur Laufzeit (NAV_TestBestNode mit failEdge bei verschlossener Tuer/Zerbrechlichem/
+  entfernbarem func_usable, g_nav.cpp:1015-1047; NAVNEW_MoveToGoal bei einem Koerper zwischen zwei
+  Wegpunkten, g_navnew.cpp:779-786) mit SetEdgeCost(Q3_INFINITE) und FlagAllNodes(NF_RECALC) - die Raenge
+  waeren je Plan neu zu rechnen (CalculatePath bei NF_RECALC in GetBestPathBetweenEnts, g_navigator.cpp:
+  1374-1395) und der Zustand ist global fuer alle NPCs; der Spurkasten der Pruefung traefe auch Koerper
+  (MASK_NPCSOLID), die der Plan allein nicht kennt; die Eintraege von m_edgeLookupMap bleiben nach
+  ClearFailedEdge stehen (Fehltreffer in EdgeFailed bei wiederbelegtem Platz). NAVNEW_PushBlocker /
+  NAVNEW_CheckDoubleBlock (g_navnew.cpp:106-190) verschieben die ANDERE Figur - ebenfalls nur im
+  gemeinsamen Takt moeglich.
+
+| Test | Rot (vorher) | Grün (nachher) |
+|---|---|---|
+| jk2navtest 4a (Kante bis 2000 ms von Entity 5 gesperrt) | frei ab 2000 | gesperrt bei 800, frei ab 2350; bis 2300 gesperrt |
+| Selbsttest jk2 (gezielt) | – | 15 OK / 0 FEHLER |
+| ctest | – | 67 / 67 |
+
+Changelog:
+
+- EN: Jedi Outcast: on maps without a matching .nav file, blocked waypoint connections are re-checked every 1.5 s like the game (first check 0.75 s after the script starts) and stay open once a check finds them clear.
+- DE: Jedi Outcast: auf Karten ohne passende .nav-Datei werden gesperrte Wegpunktverbindungen wie im Spiel alle 1,5 s neu geprüft (zuerst 0,75 s nach dem Skriptanfang) und bleiben offen, sobald eine Prüfung sie frei findet.
+- ZH: Jedi Outcast:在没有匹配 .nav 文件的地图上,被封锁的路点连接会像游戏中一样每 1.5 秒重新检查一次(首次在脚本开始 0.75 秒后),一旦检查发现其畅通便保持开放。
+- JA: Jedi Outcast:対応する .nav ファイルのないマップでは、ふさがれたウェイポイント接続をゲームと同じく 1.5 秒ごとに再確認し(最初はスクリプト開始の 0.75 秒後)、確認で通れると分かれば以後は開いたままにします。
+
 ### 5c. Kyle uebernimmt die Waffe des Spielers (umgesetzt)
 
 - Spiel: G_NPCMunroMatchPlayerWeapon (codeJK2/game/g_active.cpp:1119-1129, aus ClientThink 2170) ruft fuer
