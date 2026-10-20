@@ -324,6 +324,19 @@ struct NavKoerperKasten {
     NavVec tempo{};
 };
 
+// rc605 (Ende): Jedi Outcast - was eine Figur im gemeinsamen Takt der anderen
+// sieht und aendert (codeJK2/game/g_navnew.cpp): NPC->blockingEntNum
+// (NPC_SetBlocked/NPC_ClearBlocked, 56-73; gelesen von NAVNEW_CheckDoubleBlock,
+// 405-412), client->pushVec/pushVecTime (gesetzt von NAVNEW_PushBlocker, 106-192;
+// angewandt von BG_AddPushVecToUcmd, codeJK2/game/g_active.cpp:1502-1535, 2653) und
+// NPC->shoveCount. Index: die Figur (NavKoerperKasten::id).
+struct NavJk2Laufzeit {
+    int blockiert = -1;      // blockingEntNum (Figur), -1: ENTITYNUM_NONE
+    NavVec schub{};          // pushVec
+    int schubBis = 0;        // pushVecTime
+    int schubZahl = 0;       // shoveCount
+};
+
 // Was NAV:: und STEER:: zur Laufzeit wissen.
 struct NavWelt {
     std::shared_ptr<const NavNetz> netz;   // leer: kein Wegnetz (size_edges() == 0)
@@ -362,6 +375,10 @@ struct NavWelt {
     // rc604 fix604 (JK2): gi.inPVS fuer NAV_ClearPathToPoint und
     // GetBestPathBetweenEnts (leer: alles sichtbar).
     NavPvsFn pvs;
+    // rc605 (Ende): Jedi Outcast im gemeinsamen Takt - der Laufzeitstand aller
+    // Figuren und welche gerade rechnet (navKoerperLauf); sonst leer.
+    std::vector<NavJk2Laufzeit>* jk2Laufzeit = nullptr;
+    int ich = -1;
 };
 
 // --- Laufen ------------------------------------------------------------------

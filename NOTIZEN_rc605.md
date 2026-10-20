@@ -304,3 +304,37 @@ Changelog:
 - DE: NPCs mit einer Schusswaffe halten sie wie im Spiel mit dem Oberkörper, solange dort keine Skriptanimation läuft (Gewehr im Anschlag, Pistole vor sich; unter Movie Duels ein gesenktes Gewehr, nach SET_WALKING getragen).
 - ZH: 手持枪械的 NPC 在上半身没有脚本动画时,会像游戏中一样用上半身持枪(步枪戒备、手枪在身前;在 Movie Duels 下步枪放低,SET_WALKING 后端着)。
 - JA: 銃を持つ NPC は、上半身でスクリプトのアニメーションが再生されていない間、ゲームと同じく上半身で銃を構えます(ライフルは構え、ピストルは前に。Movie Duels ではライフルを下げ、SET_WALKING のあとは抱えて持ちます)。
+
+## 12. Jedi Outcast: Laufzeitstand des Navigators im gemeinsamen Takt (Punkt 4)
+
+navKoerperLauf (der gemeinsame Takt, unter JK2 schon benutzt) führt jetzt für Jedi Outcast einen Laufzeitstand je
+Figur (NavJk2Laufzeit über NavWelt::jk2Laufzeit, die rechnende Figur in NavWelt::ich):
+- NPC_SetBlocked / NPC_ClearBlocked (codeJK2/game/g_navnew.cpp:56-73): blockingEntNum wird in NAVNEW_AvoidCollision
+  (consecutiveBlockedMoves über der Grenze, 487-497) und nach einer gescheiterten Auflösung gesetzt, beim freien Weg
+  in NAVNEW_MoveToGoal gelöscht (737).
+- NAVNEW_Bypass (380-396): nach DanceWithBlocker und SidestepBlocker NAVNEW_PushBlocker (106-192): shoveCount > 30
+  nicht mehr, nicht wenn ein anderer schon schiebt; Spur mit dem Kasten des Blockers (mins[2] + STEPSIZE), seiner
+  clipmask | CONTENTS_BOTCLIP, ohne ihn, erst -right, dann +right, moveamt = (maxs[1] + seine maxs[1]) * 1.2;
+  pushVec für 2000 ms, beide Seiten zu: pushVecTime = 0 (d_patched); shoveCount = 0 in NAVNEW_MoveToGoal (846).
+- NAVNEW_CheckDoubleBlock (405-412): blockiert der Blocker mich auch, gehe ich weiter (443-446).
+- BG_AddPushVecToUcmd (codeJK2/game/g_active.cpp:1502-1535, aus ClientThink 2653) im Bild der geschobenen Figur: der
+  ucmd plus pushVec ergibt Richtung und ps.speed; ist pushVecTime vorbei, wird pushVec gelöscht. Eine geschobene
+  Figur, die noch ihrem Plan ohne die anderen folgt, weicht davon ab (abweichen).
+Offen (genau): AddFailedEdge zur Laufzeit (NAV_TestBestNode bei verschlossener Tür/Zerbrechlichem/entfernbarem
+func_usable, g_nav.cpp:1015-1047; NAVNEW_MoveToGoal bei einem Körper zwischen zwei Wegpunkten, g_navnew.cpp:779-786)
+mit SetEdgeCost(Q3_INFINITE)/FlagAllNodes(NF_RECALC) für alle NPCs - dafür müssten die A*-Ränge im gemeinsamen Takt
+je Figur neu gerechnet und der Stand der gescheiterten Kanten (heute je Plan nachgerechnet, jk2Fehl) über die
+Figuren geteilt werden; eine stehende Figur ohne Plan (nur ihr Ort) kann nicht geschoben werden (im Spiel denkt auch
+sie in jedem Bild); der Spieler als Blocker (wird im Spiel nie geschoben) ist im gemeinsamen Takt nicht gekennzeichnet.
+
+| Test | Rot (vorher) | Grün (nachher) |
+|---|---|---|
+| bewegungtest KJ1 (Gang mit Nische, B steht ohne Weg vor der Nische, A geht vorbei) | A kommt nie an (bleibt bei x 91 stehen), B y 0 | B wird in die Nische geschoben (y 47,9), A kommt bei 3700 ms an |
+| Selbsttest jk2 (jk2a) | – | 15 OK / 0 FEHLER |
+| ctest | – | 67/67 |
+
+Changelog:
+- EN: Jedi Outcast: an NPC that cannot get around another walking NPC tells it to step aside, and two NPCs blocking each other keep going, like the game.
+- DE: Jedi Outcast: ein NPC, der an einem anderen gehenden NPC nicht vorbeikommt, schiebt ihn beiseite, und zwei NPCs, die sich gegenseitig blockieren, gehen weiter - wie im Spiel.
+- ZH: Jedi Outcast:绕不过另一个正在行走的 NPC 时,NPC 会让对方让开;两个互相阻挡的 NPC 会继续前进——与游戏中一样。
+- JA: Jedi Outcast:歩いているほかの NPC をよけられない NPC は相手を脇へ押しやり、互いにふさぎ合う 2 体はそのまま進みます(ゲームと同じ)。

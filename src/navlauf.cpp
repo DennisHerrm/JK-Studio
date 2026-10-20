@@ -4052,7 +4052,53 @@ struct Lauf {
     // NAVNEW_PushBlocker schiebt den anderen - das rechnet behaved nicht (der
     // andere hat seinen eigenen Plan); NAVNEW_CheckDoubleBlock fragt dessen
     // blockingEntNum, den behaved nicht kennt (beides NOTIZEN_jk2.md).
-    bool jk2Ausweichen(int blocker, NavVec& moveDir) {
+    // rc605 (Ende): der Laufzeitstand einer Figur im gemeinsamen Takt (oder nullptr).
+    [[nodiscard]] NavJk2Laufzeit* jk2Stand(int id) const {
+        if (welt.jk2Laufzeit == nullptr || id < 0 || static_cast<std::size_t>(id) >= welt.jk2Laufzeit->size()) { return nullptr; }
+        return &(*welt.jk2Laufzeit)[static_cast<std::size_t>(id)];
+    }
+    // NPC_SetBlocked / NPC_ClearBlocked (g_navnew.cpp:56-73)
+    void jk2Blockiert(int blockerId) const {
+        if (NavJk2Laufzeit* ich = jk2Stand(welt.ich)) { ich->blockiert = blockerId; }
+    }
+    // NAVNEW_PushBlocker (g_navnew.cpp:106-192): den Blocker zur Seite schieben -
+    // erst links (-right), dann rechts, Spur mit seinem Kasten (mins[2] +
+    // STEPSIZE), seiner clipmask | CONTENTS_BOTCLIP, ohne ihn selbst.
+    void jk2Schieben(const NavKoerperKasten& k, const NavVec& rechts, bool merken) {
+        NavJk2Laufzeit* ich = jk2Stand(welt.ich);
+        NavJk2Laufzeit* er = jk2Stand(k.id);
+        if (ich == nullptr || er == nullptr) { return; }
+        if (ich->schubZahl > 30) { return; }   // "don't push for more than 3 seconds"
+        if (!istNull(er->schub)) { return; }    // "someone else is pushing him"
+        NavVec mi = k.mins;
+        mi[2] += kStepSize;
+        const float weit = (maxs[1] + k.maxs[1]) * 1.2F;
+        const auto probe = [&](float seite) {
+            const NavVec ende = plus(k.ort, mal(rechts, seite * weit));
+            NavSpur tr = spurMitZeit(k.ort, mi, k.maxs, ende, kNavKoerperBasis + k.id, kNavMaskNpcSolid | kNavBotClip);
+            // Die rechnende Figur steht nicht in welt.koerper - ihr Kasten dazu.
+            const NavSpur t2 = kastenGegenKasten(k.ort, mi, k.maxs, ende, plus(z.ort, mins), plus(z.ort, maxs));
+            if (t2.startsolid) { tr.startsolid = true; }
+            if (t2.allsolid) { tr.allsolid = true; }
+            if (t2.fraction < tr.fraction) { tr.fraction = t2.fraction; }
+            return (!tr.startsolid && !tr.allsolid) ? tr.fraction : 0.0F;
+        };
+        const float links = probe(-1.0F);
+        if (links >= 1.0F) {
+            er->schub = mal(rechts, -weit);
+            er->schubBis = jetzt + 2000;
+        } else {
+            const float rechtsFrei = probe(1.0F);
+            if (links == 0.0F && rechtsFrei == 0.0F) {
+                er->schubBis = 0;   // d_patched: "use patch-style navigation"
+                return;
+            }
+            er->schub = (rechtsFrei >= 1.0F || links < rechtsFrei) ? mal(rechts, weit) : mal(rechts, -weit);
+            er->schubBis = jetzt + 2000;
+        }
+        if (merken) { ++ich->schubZahl; }
+    }
+    bool jk2Ausweichen(int blocker, NavVec& moveDir, bool merken) {
         // Die Spur mit CONTENTS_BODY trifft nur Figuren (die func_door-Ausnahme
         // von NAVNEW_ResolveEntityCollision greift hier nie).
         const NavKoerperKasten* k = jk2Koerper(blocker);
@@ -4079,7 +4125,14 @@ struct Lauf {
                 return true;
             }
         }
-        return jk2Seitwaerts(*k, blockRichtung, blockAbstand, moveDir);
+        if (jk2Seitwaerts(*k, blockRichtung, blockAbstand, moveDir)) { return true; }
+        // rc605 (Ende): "Neither side is clear, tell him to step aside"
+        // (NAVNEW_Bypass, g_navnew.cpp:395), dann NAVNEW_CheckDoubleBlock - blockiert
+        // er mich auch, gehe ich weiter (g_navnew.cpp:443-446) - sonst NPC_SetBlocked.
+        jk2Schieben(*k, rechts, merken);
+        if (const NavJk2Laufzeit* er = jk2Stand(k->id); er != nullptr && er->blockiert == welt.ich) { return true; }
+        if (merken) { jk2Blockiert(k->id); }
+        return false;
     }
     // NAVNEW_AvoidCollision (g_navnew.cpp:462-538)
     bool jk2Kollision(Jk2Info& info, bool blockiertMerken, int grenze) {
@@ -4091,6 +4144,7 @@ struct Lauf {
             if (blockiertMerken) {
                 if (z.jk2Blockiert > grenze) {
                     ++z.jk2Blockiert;   // d_patched 1
+                    if (blocker >= kNavKoerperBasis) { jk2Blockiert(blocker - kNavKoerperBasis); }   // rc605 (Ende): NPC_SetBlocked
                     return false;
                 }
                 ++z.jk2Blockiert;
@@ -4098,7 +4152,7 @@ struct Lauf {
             if (const NavKoerperKasten* k = jk2Koerper(blocker)) {
                 if (jk2BlockiertAmZiel(*k, info.abstand)) { return false; }
             }
-            if (!jk2Ausweichen(blocker, moveDir)) { return false; }
+            if (!jk2Ausweichen(blocker, moveDir, blockiertMerken)) { return false; }
             info.richtung = moveDir;
             return true;
         }
@@ -4147,6 +4201,7 @@ struct Lauf {
             (void)vektorNorm(probe.richtung);
             frei = jk2Kollision(probe, merken, 5);
             if (frei) {
+                jk2Blockiert(-1);   // rc605 (Ende): NPC_ClearBlocked (g_navnew.cpp:737)
                 info = probe;
                 if (w.schwert && info.richtung[2] * info.abstand > 64.0F) { return -1; }
             } else {
@@ -4162,6 +4217,7 @@ struct Lauf {
                 if (++versuche >= 10) { return -1; }
             }
         }
+        if (NavJk2Laufzeit* ich = jk2Stand(welt.ich)) { ich->schubZahl = 0; }   // rc605 (Ende): shoveCount = 0 (g_navnew.cpp:846)
         if (z.wegpunktBis < jetzt) { z.wegpunktBis = jetzt + kJk2WegpunktZeitMitte; }
         stueck = best + 1;
         return best;
@@ -4960,6 +5016,26 @@ struct LaufRechner {
         const signed char jk2Seit = l.ucmdSeit;
         const bool jk2Geh = gehTaste;
         if (jk2) { l.jk2Tempo(gierVorher, jk2Vor, jk2Seit, bewegt, gehTaste); }
+        // rc605 (Ende): BG_AddPushVecToUcmd (codeJK2/game/g_active.cpp:1502-1535,
+        // aus ClientThink 2653): ein anderer schiebt diese Figur (NAVNEW_PushBlocker).
+        if (jk2 && welt.jk2Laufzeit != nullptr && welt.ich >= 0 && static_cast<std::size_t>(welt.ich) < welt.jk2Laufzeit->size()) {
+            NavJk2Laufzeit& e = (*welt.jk2Laufzeit)[static_cast<std::size_t>(welt.ich)];
+            if (!istNull(e.schub)) {
+                NavVec vorn{};
+                NavVec rechts{};
+                qAchsen(z.gier, vorn, rechts);   // AngleVectors( ps.viewangles )
+                const float sp = static_cast<float>(z.tempo);
+                NavVec md = plus(mal(vorn, static_cast<float>(l.ucmdVor) / 127.0F * sp), mal(rechts, static_cast<float>(l.ucmdSeit) / 127.0F * sp));
+                md = plus(md, e.schub);
+                const float lmd = laenge(md);   // VectorNormalize
+                if (lmd != 0.0F) { md = {md[0] / lmd, md[1] / lmd, md[2] / lmd}; }
+                z.tempo = static_cast<int>(lmd);
+                l.ucmdVor = static_cast<signed char>(std::floor(127.0F * punkt(vorn, md)));
+                l.ucmdSeit = static_cast<signed char>(std::floor(127.0F * punkt(rechts, md)));
+                bewegt = l.ucmdVor != 0 || l.ucmdSeit != 0;
+                if (e.schubBis < l.jetzt) { e.schub = {0.0F, 0.0F, 0.0F}; }
+            }
+        }
         if (w.ohneKoerper) {
             // PmoveSingle: PM_NOCLIP -> PM_NoclipMove, PM_DropTimers, return -
             // kein PM_Footsteps, die Beine behalten ihre Animation (bewegt
@@ -5397,6 +5473,10 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
     kw.kennung = 0;
     std::vector<NavKoerperKasten> kaesten;
     kw.koerper = &kaesten;
+    // rc605 (Ende): Jedi Outcast - der gemeinsame Laufzeitstand (NavJk2Laufzeit).
+    const bool jk2Takt = gJk2Nav.load(std::memory_order_relaxed);
+    std::vector<NavJk2Laufzeit> jk2Stand(figuren.size());
+    if (jk2Takt) { kw.jk2Laufzeit = &jk2Stand; }
 
     enum class Art : std::uint8_t { Keiner, Folgt, Rechnet, Fertig };
     struct Stand {
@@ -5689,6 +5769,7 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
             const NavAbschnitt& a = abschnitte[static_cast<std::size_t>(s.aktuell)];
             if (t > a.schnittMs + 0.5) { continue; }   // der naechste Abschnitt uebernimmt
             andere(f, t);
+            kw.ich = static_cast<int>(f);   // rc605 (Ende)
             kw.pmOhneKoerper = !fz[f].clip;   // rc604 fix604: pm.tracemask = ent->clipmask
             if (s.art == Art::Folgt) {
                 const LaufPlan& al = *a.allein;
@@ -5704,7 +5785,10 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
                 }
                 if (s.k < al.takte.size()) {
                     if (std::fabs(al.takte[s.k].t - t) > 0.5) { tutWas = true; continue; }   // Luecke im Plan (Vorlauf)
-                    if (frei(al.takte[s.k])) {
+                    // rc605 (Ende): ein anderer schiebt sie (NAVNEW_PushBlocker) - dann
+                    // weicht sie vom Plan ohne die anderen ab.
+                    const bool geschoben = jk2Takt && !istNull(jk2Stand[f].schub);
+                    if (!geschoben && frei(al.takte[s.k])) {
                         s.z = al.zustaende[s.k];
                         s.zT = t;
                         s.hatZustand = true;

@@ -3104,6 +3104,63 @@ void teil3Fallen() {
     }
 }
 
+// --- rc605 (Ende): Jedi Outcast - NAVNEW_PushBlocker im gemeinsamen Takt (KJ1) ---
+// Ein Gang (y -24..24) mit einer Nische (x 202..238, y bis 120). A geht den Gang
+// entlang nach x 400; B steht im Gang vor der Nische und will durch die Suedwand
+// (kein Weg: er bleibt stehen). A kann nicht vorbei (die Nische ist nur so breit
+// wie eine Figur), weicht nicht seitlich aus und schiebt B: BG_AddPushVecToUcmd
+// bringt B 2 s lang mit pushVec (0, 38.4) in die Nische, A geht durch.
+void teilJk2Schieben() {
+    std::printf("\n== rc605: Jedi Outcast - NAVNEW_PushBlocker (KJ1) ==\n");
+    const std::vector<ProbeKlotz> welt0 = {
+        {{-3000, -3000, -16}, {3000, 3000, 0}, kNavSolid},     // Boden
+        {{-3000, -200, 0}, {3000, -24, 200}, kNavSolid},       // Suedwand
+        {{-3000, 24, 0}, {202, 300, 200}, kNavSolid},          // Nordwand links der Nische
+        {{238, 24, 0}, {3000, 300, 200}, kNavSolid},           // Nordwand rechts der Nische
+        {{202, 120, 0}, {238, 300, 200}, kNavSolid},           // Rueckwand der Nische
+        {{-200, -300, 0}, {-60, 300, 200}, kNavSolid}};        // Westende
+    auto welt = std::make_shared<NavWelt>();
+    welt->spur = [welt0](const NavVec& a, const NavVec& mi, const NavVec& ma, const NavVec& b, int, std::uint32_t maske) {
+        return probeSpur(welt0, a, mi, ma, b, maske);
+    };
+    welt->boden = [](float, float, float zOben, float zUnten, float& z) {
+        if (zOben < 0.0F || zUnten > 0.0F) { return false; }
+        z = 0.0F;
+        return true;
+    };
+    navJk2Regeln(true);
+    const auto abschnitt = [&](int figur, NavVec von, NavVec nach, float tempo) {
+        NavAbschnitt a;
+        a.figur = figur;
+        a.abMs = 0.0;
+        a.grenzeMs = 8000.0;
+        a.start.ort = von;
+        a.start.amBoden = true;
+        a.werte.zielGesetzt = true;
+        a.werte.ziel = nach;
+        a.werte.maxTempo = tempo;
+        a.werte.gehTempo = std::min(tempo, 90.0F);
+        a.sprung = true;
+        a.allein = std::make_shared<const LaufPlan>(planeLauf(*welt, a.start, a.werte, a.abMs, a.grenzeMs));
+        return a;
+    };
+    std::vector<NavFigurKoerper> figuren(2);
+    figuren[1].reihe = 1;
+    std::vector<NavAbschnitt> abs = {abschnitt(0, {0.0F, 0.0F, 24.125F}, {400.0F, 0.0F, 24.125F}, 150.0F),
+                                     abschnitt(1, {220.0F, 0.0F, 24.125F}, {220.0F, -1000.0F, 24.125F}, 150.0F)};
+    const NavKoerperErgebnis e = navKoerperLauf(*welt, figuren, abs);
+    navJk2Regeln(false);
+    const LaufPlan& pa = *e.plaene[0];
+    const LaufPlan& pb = *e.plaene[1];
+    float bMaxY = -1.0e9F;
+    for (const LaufTakt& k : pb.takte) { bMaxY = std::max(bMaxY, k.ort[1]); }
+    const NavVec aEnde = pa.takte.empty() ? NavVec{} : pa.takte.back().ort;
+    std::printf("  info  KJ1 A angekommen bei %.0f ms, A zuletzt bei x %.1f; B hoechstens bei y %.1f (%d Plaene geaendert)\n",
+                pa.ankunftMs, static_cast<double>(aEnde[0]), static_cast<double>(bMaxY), e.geaendert);
+    pruefe(pa.ankunftMs > 0.0 && bMaxY > 40.0F,
+           "KJ1 A schiebt B in die Nische (NAVNEW_PushBlocker, BG_AddPushVecToUcmd) und kommt an");
+}
+
 // --- rc601 (bewegung, teil 3): andere Figuren als Hindernisse (K1-K3) ----------
 void teil3Koerper() {
     std::printf("\n== teil 3: andere Figuren im selben Takt (K1-K3) ==\n");
@@ -4635,6 +4692,7 @@ int main(int argc, char** argv) {
     teil3Mover();   // rc601 (bewegung, teil 3)
     teil3Fallen();
     teil3Koerper();
+    teilJk2Schieben();   // rc605 (Ende)
     teil3Patches();
     teil3Winkel();
     regelwerkVerhaltenTakt();   // rc601 integ
