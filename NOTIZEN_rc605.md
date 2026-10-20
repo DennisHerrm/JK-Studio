@@ -218,3 +218,25 @@ Changelog:
 - DE: Figuren auf einem fahrenden Aufzug oder einer Plattform fahren mit, auch während sie gehen (vjun3: die Soldaten auf dem ersten Aufzug).
 - ZH: 站在移动的电梯或平台上的角色会随之移动,行走时也是如此(vjun3:第一部电梯上的士兵)。
 - JA: 動くエレベーターや足場の上に立つキャラクターは、歩いている間も一緒に動きます(vjun3: 最初のエレベーターの兵士)。
+
+## 8. Ein Kartenwechsel beendet die Vorschau (Punkt 3)
+
+Entscheidung (kleinste treue Form): target_level_change_use -> G_ActivateBehavior(BSET_USE), G_ChangeMap ->
+"maptransition" in den Befehlspuffer; der läuft nach dem Bild, die Karte ist fort. Der Nachbau (Nachbau::benutze)
+merkt die Zeit des ersten Wechsels (Ablauf::kartenwechselMs, -karte = mapname), rechnet dieses Bild zu Ende und
+hört dann auf (takte). Die Oberfläche kappt danach Zeitleiste (practicalEndMs, durationMs), Kamerafahrt und Szene
+(szeneEndetBei: Schritte danach fallen weg, ein laufender Weg endet am Ort zu dieser Zeit) und meldet den Wechsel
+in der Statusliste (Str::BewKartenwechsel). Ein ICARUS-Befehl "levelchange" gibt es nicht - Skripte wechseln die
+Karte über `use` auf einen target_level_change (md_fh1_jedi transition: `use ( "levelchange" )`). SET_MISSIONFAILED
+(Mission gescheitert) bleibt ohne Wirkung auf die Vorschau.
+
+| Test | Rot (vorher) | Grün (nachher) |
+|---|---|---|
+| tuerlauf md_fh1_jedi (ue605end / lvl2, lvl3) transition.ibi | starkiller: 4 Wegstücke bis 129750, Umkehren 27, NPC-Absprünge 64 nach dem Wechsel bei 11750 | Nachbau bis 11750, Zeitleiste 11750/11750, Kamera 11650; starkiller 3 Wegstücke, letztes 9750-11750 abgeschnitten, Umkehren 0, Absprünge 0; Statuszeile "Level change at 11.75 s (target_level_change to md_fh2_jedi)" |
+| ctest | – | 67/67 |
+
+Changelog:
+- EN: When a script uses a `target_level_change`, the preview ends there like the game: timeline, camera and figures stop at that moment, and the status list names the next map.
+- DE: Benutzt ein Skript einen `target_level_change`, endet die Vorschau dort wie im Spiel: Zeitleiste, Kamera und Figuren hören in diesem Moment auf, und die Statusliste nennt die nächste Karte.
+- ZH: 当脚本使用 `target_level_change` 时,预览会像游戏一样在此结束:时间轴、摄像机和角色在那一刻停止,状态列表会显示下一张地图。
+- JA: スクリプトが `target_level_change` を使うと、プレビューはゲームと同じくそこで終わります。タイムライン、カメラ、キャラクターはその瞬間に止まり、ステータス一覧に次のマップが表示されます。

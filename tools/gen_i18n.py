@@ -2025,6 +2025,12 @@ S = [
      "Blickrichtung %d Grad bei %.2f s (SET_DYAW) - dort ist aber ein SET_WATCHTARGET aktiv, im Spiel schaut die Figur weiter dorthin",
      "朝向 %d 度 (%.2f 秒, SET_DYAW) - 但此处有 SET_WATCHTARGET 生效,游戏中角色会继续朝向注视目标",
      "向き %d 度 (%.2f 秒, SET_DYAW) - ただしそこでは SET_WATCHTARGET が有効なため、ゲームではキャラクターは注視ターゲットの方を向き続けます"),
+    # rc605 (Ende): ein target_level_change beendet die Vorschau
+    ("BewKartenwechsel",
+     "Level change at %.2f s (target_level_change to %s) - the preview ends here, like the game.",
+     "Kartenwechsel bei %.2f s (target_level_change nach %s) - die Vorschau endet hier wie das Spiel.",
+     "%.2f 秒时切换关卡 (target_level_change 到 %s) - 预览与游戏一样在此结束。",
+     "%.2f 秒でマップを切り替え (target_level_change で %s へ) - ゲームと同じくプレビューはここで終わります。"),
     ("BewNavOhneWeg",
      "NPC %s finds no path to %s (%d units away, at %.2f s) - stands still like in the game; a dowait on this walk never ends.",
      "NPC %s findet keinen Weg zu %s (%d Einheiten entfernt, bei %.2f s) - bleibt stehen wie im Spiel; ein dowait auf diesen Lauf endet nie.",

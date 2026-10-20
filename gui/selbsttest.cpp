@@ -20072,6 +20072,16 @@ std::vector<Schritt> tuerLaufAlleSchritte(const std::shared_ptr<int>& ab, const 
                              g_app->tabs[static_cast<std::size_t>(r)].shownName + "): " + std::to_string(g_app->scene.actors.size()) +
                              " gebaut, " + std::to_string(vorSpawn) + " vor ihrem Spawn zu sehen:" + liste);
             }
+            if (g_app->ablauf.kartenwechselMs >= 0.0) {
+                // rc605 (Ende): der Kartenwechsel beendet die Vorschau.
+                char z[300];
+                std::snprintf(z, sizeof(z),
+                              "Knopftest: Tuer-Lauf Kartenwechsel Reiter %d (%s): bei %.0f ms nach %s, Nachbau bis %.0f, Zeitleiste bis %.0f/%.0f, Kamera bis %.0f",
+                              i, g_app->tabs[static_cast<std::size_t>(r)].shownName.c_str(), g_app->ablauf.kartenwechselMs,
+                              g_app->ablauf.kartenwechselKarte.c_str(), g_app->ablauf.laufMs, g_app->timeline.practicalEndMs,
+                              g_app->timeline.durationMs, g_app->camTrack.durationMs);
+                diag::detail(z);
+            }
             if (!g_app->hurtTode.empty()) {
                 // rc605 (Ende): wen ein trigger_hurt toetet (hurtTodeBerechnen)
                 // und ob die Szene den Tod zeigt (Actor::getoetetMs).

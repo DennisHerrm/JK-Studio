@@ -1015,6 +1015,7 @@ enum class Str {
     PrefsTonSpielwerte,
     PrefsTonHinweis,
     BewDrehUeberWatch,
+    BewKartenwechsel,
     BewNavOhneWeg,
     PrefsGroupPreview,
     PrefsDifficulty,

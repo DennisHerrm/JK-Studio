@@ -218,6 +218,12 @@ struct Ablauf {
         std::string ausloeser;
     };
     std::vector<Benutzung> benutzt;
+    // rc605 (Ende): ein target_level_change wurde benutzt - target_level_change_use
+    // -> G_ChangeMap schickt "maptransition" (code/game/g_target.cpp und
+    // g_utils.cpp OpenJK); der Befehl laeuft nach diesem Bild, die Karte endet.
+    // Der Nachbau rechnet dieses Bild zu Ende und hoert dann auf (-1: nie).
+    double kartenwechselMs = -1.0;
+    std::string kartenwechselKarte;   // "mapname" des target_level_change
 
     std::vector<std::string> hinweise;
     double endeMs = 0.0;    // wann das Startskript fertig war

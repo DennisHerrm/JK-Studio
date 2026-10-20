@@ -1526,6 +1526,20 @@ private:
             benutze(wertVon(e, "target"), ausloeser, tiefe + 1);
             return;
         }
+        // rc605 (Ende): target_level_change_use (code/game/g_target.cpp OpenJK,
+        // g_target.cpp MD; codeJK2 ebenso): G_ActivateBehavior( BSET_USE ), dann
+        // G_ChangeMap( message ) - "maptransition" geht in den Befehlspuffer und
+        // beendet die Karte nach diesem Bild (takte hoert dort auf).
+        if (cn == "target_level_change") {
+            usescript();
+            if (aus_.kartenwechselMs < 0.0) {
+                aus_.kartenwechselMs = jetzt_;
+                aus_.kartenwechselKarte = wertVon(e, "mapname");
+                hinweis("Kartenwechsel bei " + std::to_string(static_cast<long>(jetzt_)) + " ms (target_level_change \"" +
+                        e.targetname + "\" -> " + aus_.kartenwechselKarte + ") - die Vorschau endet hier wie das Spiel");
+            }
+            return;
+        }
         if (cn == "target_activate" || cn == "target_deactivate") {
             const std::string t = wertVon(e, "target");
             if (welt_.karte != nullptr && !t.empty()) {
@@ -3055,6 +3069,12 @@ void Nachbau::takte() {
             if (!endlosDa() || t >= ruhe + welt_.nachlaufMs) {
                 break;
             }
+        }
+        // rc605 (Ende): Kartenwechsel - dieses Bild lief zu Ende, danach ist die
+        // Karte fort.
+        if (aus_.kartenwechselMs >= 0.0) {
+            if (ende < 0.0) { ende = t; }
+            break;
         }
         if (t >= stopp) {
             std::string wer;

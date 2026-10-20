@@ -420,6 +420,21 @@ const Actor* Scene::find(const std::string& name) const {
 }
 
 // --- rc601 (bewegung, Wege): Ort auf einem WalkTo-Stueck --------------------
+void szeneEndetBei(Scene& s, double ms) {
+    for (Actor& a : s.actors) {
+        a.steps.erase(std::remove_if(a.steps.begin(), a.steps.end(), [ms](const ActorStep& st) { return st.startMs > ms + 1e-6; }),
+                      a.steps.end());
+        for (ActorStep& w : a.steps) {
+            if (w.kind != ActorStep::Kind::WalkTo || !(w.endMs > ms)) { continue; }
+            wegOrtBei(w, ms, w.to);
+            w.endMs = ms;
+            w.teilweg = true;
+            if (w.ankunftMs > ms) { w.ankunftMs = -1.0; }
+        }
+    }
+    s.durationMs = std::min(s.durationMs, ms);
+}
+
 void wegOrtBei(const ActorStep& st, double t, float out[3]) {
     if (st.lauf) {
         const double tt = std::clamp(t, st.startMs, std::max(st.startMs, st.endMs));

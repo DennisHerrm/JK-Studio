@@ -589,6 +589,9 @@ struct ActorStep {
 // rc601 (bewegung, Wege): wo ein WalkTo-Stueck zur Zeit t die Figur hat -
 // aus seiner Bahn, sonst linear. Vor startMs der Anfang, nach endMs das Ende.
 void wegOrtBei(const ActorStep& st, double t, float out[3]);
+// rc605 (Ende): die Szene endet bei `ms` (Kartenwechsel): Schritte danach fallen
+// weg, ein laufender Weg endet am Ort zu dieser Zeit, durationMs hoechstens ms.
+void szeneEndetBei(struct Scene& s, double ms);
 // ... und bewegt sie sich dann (ucmd.forwardmove/rightmove, also die
 // Laufanimation)? Ohne Bahn: zwischen startMs und endMs.
 [[nodiscard]] bool wegBewegtBei(const ActorStep& st, double t);

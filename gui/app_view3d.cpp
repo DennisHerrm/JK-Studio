@@ -5602,6 +5602,15 @@ void prepareScene() {
     const RoffLookup kameraRoffs = [](const std::string& n) { return roffFuer(n); };
     g_app->camTrack = buildCameraTrack(flach, kameraMarkeOrt, kameraRoffs);
     g_app->timeline = buildTimeline(flach, g_app->db);
+    // rc605 (Ende): nach einem Kartenwechsel gibt es diese Karte nicht mehr -
+    // Zeitleiste und Kamerafahrt enden dort (der Nachbau hoerte in diesem Bild
+    // auf; was vorher anfing - Klaenge, Wege, Fahrten - laeuft nicht weiter).
+    if (g_app->ablauf.kartenwechselMs >= 0.0) {
+        const double kw = g_app->ablauf.kartenwechselMs;
+        g_app->timeline.practicalEndMs = std::min(g_app->timeline.practicalEndMs, kw);
+        g_app->timeline.durationMs = std::min(g_app->timeline.durationMs, kw);
+        g_app->camTrack.durationMs = std::min(g_app->camTrack.durationMs, kw);
+    }
     // Die ROFF-Bahnen schon im ersten Aufbau: eine Entity, die nur per
     // PLAY_ROFF fliegt, soll auch ohne zweiten Durchgang fliegen.
     SzenenHilfe nurRoff;
@@ -5755,6 +5764,26 @@ void prepareScene() {
         g_app->timeline = buildTimeline(g_app->ablauf.flach, g_app->db);
         g_app->scene = buildScene(g_app->ablauf.flach, g_app->map, &hilfe);
         ++g_app->szeneBauten;
+    }
+    // rc605 (Ende): nach dem Kartenwechsel gibt es die Karte nicht mehr - auch
+    // nach dem zweiten Aufbau enden Zeitleiste, Kamerafahrt und Szene dort.
+    {
+        static std::string letzterWechsel;
+        std::string wechsel;
+        if (g_app->ablauf.kartenwechselMs >= 0.0) {
+            const double kw = g_app->ablauf.kartenwechselMs;
+            g_app->timeline.practicalEndMs = std::min(g_app->timeline.practicalEndMs, kw);
+            g_app->timeline.durationMs = std::min(g_app->timeline.durationMs, kw);
+            g_app->camTrack.durationMs = std::min(g_app->camTrack.durationMs, kw);
+            szeneEndetBei(g_app->scene, kw);
+            wechsel = std::to_string(static_cast<long>(kw)) + "|" + g_app->ablauf.kartenwechselKarte;
+            if (wechsel != letzterWechsel) {
+                char zeile[300];
+                std::snprintf(zeile, sizeof(zeile), tr(Str::BewKartenwechsel), kw / 1000.0, g_app->ablauf.kartenwechselKarte.c_str());
+                addStatus(zeile);
+            }
+        }
+        letzterWechsel = wechsel;
     }
     // Figuren, die erst waehrend der Szene gespawnt werden (NPC_spawner per
     // use), gibt es vorher nicht: unsichtbar bis NPC_Begin.
