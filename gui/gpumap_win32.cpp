@@ -2865,6 +2865,10 @@ bool leseFarbe(std::vector<std::uint8_t>& rgba, int& breite, int& hoehe) {
     return true;
 }
 
+int g_moverSpriteAufrufe = 0;   // rc605: autosprite an Movern/Modellen
+int moverSpriteAufrufe() { return g_moverSpriteAufrufe; }
+bool g_moverSpriteAchsenAus = false;
+void moverSpriteAchsenAus(bool aus) { g_moverSpriteAchsenAus = aus; }
 int zeichneMover(const BspMesh& mesh, const TextureSet* textures,
                  const BspGeometry* geo, const float* viewProj,
                  const float* welt, const float* kameraPos,
@@ -2893,6 +2897,41 @@ int zeichneMover(const BspMesh& mesh, const TextureSet* textures,
     // float - siehe die Notiz in gpucam.h.
     float mvp[16];
     multipliziere(viewProj, welt, mvp);
+    // --- rc605: autosprite/autosprite2 an einer Entity --------------------
+    //
+    // AutospriteDeform / Autosprite2Deform (code/rd-vanilla/tr_shade_calc.cpp:
+    // 358-405 / 427-447 MD) bauen die Vierecke in tess.xyz, also im Raum des
+    // Modells. Fuer jede Entity ausser der Welt nehmen sie die Blickachsen mit
+    // GlobalVectorToLocal (:343-347): out[k] = DotProduct(in, backEnd.ori.axis[k])
+    // - die Achsen der Entity, wie R_RotateForEntity sie kopiert, bei
+    // nonNormalizedAxes (Emittermodelle: mit radius skaliert, CEmitter::Draw
+    // FxPrimitives.cpp:1387-1395 MD; Kartenmodelle mit modelscale) OHNE
+    // Ausgleich. Die Spalten von `welt` sind genau diese Achsen. Der
+    // Vertexshader liest gVorn/gRechts/gHoch nur dafuer (gpushader.cpp) -
+    // also hier die Achsen im Raum des Modells.
+    if (vorn != nullptr && rechts != nullptr && hoch != nullptr && textures != nullptr) {
+        bool sprite = false;
+        for (const BspMesh::Batch& b : mesh.batches) {
+            if (b.shader < 0 || static_cast<std::size_t>(b.shader) >= textures->byShader.size()) { continue; }
+            const TextureSet::Tex& t = textures->byShader[static_cast<std::size_t>(b.shader)];
+            sprite = sprite || t.autosprite || t.deform2.autosprite2;
+        }
+        if (sprite) {
+            ++g_moverSpriteAufrufe;
+            if (!g_moverSpriteAchsenAus) {
+                float vL[3];
+                float rL[3];
+                float hL[3];
+                for (int k = 0; k < 3; ++k) {
+                    vL[k] = vorn[0] * welt[k] + vorn[1] * welt[4 + k] + vorn[2] * welt[8 + k];
+                    rL[k] = rechts[0] * welt[k] + rechts[1] * welt[4 + k] + rechts[2] * welt[8 + k];
+                    hL[k] = hoch[0] * welt[k] + hoch[1] * welt[4 + k] + hoch[2] * welt[8 + k];
+                }
+                return zeichneKarte(mesh, textures, geo, mvp, kameraPos, zeitSekunden, helligkeit, grundlicht, 2,
+                                    vL, rL, hL, fokus, fehler, uebersprungenAus, lage);
+            }
+        }
+    }
     return zeichneKarte(mesh, textures, geo, mvp, kameraPos,
                         zeitSekunden, helligkeit, grundlicht, 2,
                         vorn, rechts, hoch, fokus, fehler, uebersprungenAus,
@@ -5992,6 +6031,7 @@ float millisekundenBeide(Abschnitt a, Abschnitt b) {
 }
 
 void bildBeginnt() {
+    g_moverSpriteAufrufe = 0;   // rc605: je Hauptbild (vor den Movern)
     if (!messungBereit()) { return; }
     ID3D11DeviceContext* c = ctx();
     if (c == nullptr) { return; }

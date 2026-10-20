@@ -8293,7 +8293,16 @@ void loadMapModels() {
     diag::Step step("Modelle der Karte suchen");
     g_app->mapModels.clear();
     g_app->fehlendeModelle.clear();
-    g_app->md3Files.clear();
+    // rc605: die Modelle der Emitter (useModel) laedt loadMapEffects DAVOR in
+    // dieselbe Liste - sie bleiben. Vorher fiel hier jedes Effektmodell weg
+    // (emitterModels kannte es noch, md3Files nicht mehr), und kein Emitter-
+    // modell wurde gezeichnet (etwa die Nebelvierecke von duel_exegol).
+    std::map<std::string, Md3Model> emitterDateien;
+    for (const auto& [pfad, em] : g_app->emitterModels) {
+        const auto it = g_app->md3Files.find(pfad);
+        if (it != g_app->md3Files.end()) { emitterDateien.emplace(pfad, std::move(it->second)); }
+    }
+    g_app->md3Files = std::move(emitterDateien);
     // Die Grafikpuffer hingen an diesen Netzen (Schluessel: Adresse).
     for (const auto& [name, netz] : g_app->md3Meshes) {
         gpu::vergissNetz(&netz);
