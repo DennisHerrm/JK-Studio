@@ -635,9 +635,18 @@ endif()
 # NetRadiant-Custom (Entscheidung shank, 21.10.2026). Der Kern steht ohne
 # Oberflaeche in src/karte/ und include/bhed/karte/ (Namensraum bhed::karte),
 # 1:1 portiert aus NRC - damit ist das Programm GPL v2 (LICENSE).
+target_sources(bhed_core PRIVATE
+  src/karte/wicklung.cpp
+  src/karte/texdef.cpp
+  src/karte/rueckgaengig.cpp
+  src/karte/pinsel.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
   add_executable(kartelizenz tests/kartelizenz.cpp)
   add_test(NAME karte_lizenz COMMAND kartelizenz ${CMAKE_CURRENT_SOURCE_DIR})
+  # Punkt 2a: Ebenen, Wicklungen, Aufraeumen, Kanten/Ecken, Detail, Undo.
+  add_executable(kartegeometrie tests/kartegeometrie.cpp)
+  target_link_libraries(kartegeometrie PRIVATE bhed_core)
+  add_test(NAME karte_geometrie COMMAND kartegeometrie)
 endif()
