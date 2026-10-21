@@ -297,6 +297,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_xy.cpp
     gui/app_karte_cam.cpp
     gui/app_karte_auswahl.cpp
+    gui/app_karte_texturen.cpp
     gui/karte_gpu_win32.cpp
     gui/tastatur_win32.cpp
     gui/backend_win32.cpp
@@ -682,7 +683,9 @@ target_sources(bhed_core PRIVATE
   src/karte/manipulator.cpp
   src/karte/bearbeitung.cpp
   src/karte/auswahlbefehle.cpp
-  src/karte/quickhull.cpp)
+  src/karte/quickhull.cpp
+  # Stufe 1b: Texturbrowser (texwindow.cpp, aktive Shader)
+  src/karte/texturbrowser.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -772,6 +775,10 @@ if(BEHAVED_TESTS)
   add_executable(kartebearbeitung tests/kartebearbeitung.cpp)
   target_link_libraries(kartebearbeitung PRIVATE bhed_core)
   add_test(NAME karte_bearbeitung COMMAND kartebearbeitung)
+  # Punkt 8: Texturbrowser (Lagen, Schalter, Verzeichnisse, Fokus) und Shader-Befehle
+  add_executable(kartetexturbrowser tests/kartetexturbrowser.cpp)
+  target_link_libraries(kartetexturbrowser PRIVATE bhed_core)
+  add_test(NAME karte_texturbrowser COMMAND kartetexturbrowser)
   # Punkte 3 und 4: die Befehlstabelle gegen die Checkliste (jeder Befehl mit
   # NRCs Taste, jeder Menuepunkt und Knopf), Uebersetzungen = NRC-Englisch,
   # Tastenkuerzel wie Qt (Text, possibleKeys, deutsche Tastatur).

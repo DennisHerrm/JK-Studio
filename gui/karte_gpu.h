@@ -135,6 +135,10 @@ void linien(const std::vector<LinienPunkt>& p, const Zustand3& z);
 // Wuerfel (6 gleich grosse Seiten +X -X +Y -Y +Z -Z, GL_LINEAR, GL_CLAMP).
 // Das Ergebnis gilt, solange geraetStand() gleich bleibt.
 [[nodiscard]] void* bildAnlegen(const unsigned char* rgba, int breite, int hoehe);
+// Fuer Bilder, die ImGui zeichnet (Texturbrowser): ab hier ohne Mischen
+// (glDisable( GL_BLEND )), bis ImDrawCallback_ResetRenderState kommt.
+// dl ist eine ImDrawList*.
+void ohneMischen(void* dl);
 [[nodiscard]] void* wuerfelAnlegen(const unsigned char* const seiten[6], int groesse);
 void bildFreigeben(void* bild);
 [[nodiscard]] unsigned geraetStand();

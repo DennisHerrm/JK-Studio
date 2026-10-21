@@ -242,11 +242,18 @@ public:
         return m_offen == 0;
     }
 
+    // RefreshShaders: die Bilder neu laden (unrealise/realise der Texturen).
+    void neuLaden() {
+        m_neu = true;
+        pruefen();
+    }
+
 private:
     // Neues Spiel oder neues Grafikgeraet: alles vergessen.
     void pruefen() {
         Editor& ed = e();
-        if (ed.karteSpiel == m_spiel && kartegpu::geraetStand() == m_geraet) { return; }
+        if (!m_neu && ed.karteSpiel == m_spiel && kartegpu::geraetStand() == m_geraet) { return; }
+        m_neu = false;
         const bool gleichesGeraet = kartegpu::geraetStand() == m_geraet;
         for (auto& [n, b] : m_bilder) {
             (void)n;
@@ -359,6 +366,7 @@ private:
     unsigned m_generation = 0;
     std::vector<std::thread> m_faeden;
     bool m_ende = false;
+    bool m_neu = false;
 };
 
 Bildlager& lager() {
@@ -695,6 +703,15 @@ bool kameraBilderFertig() {
 }
 
 bool kameraPixel(int x, int y, unsigned char rgba[4]) { return kartegpu::pixel(200, x, y, rgba); }
+
+void* texturBild(const std::string& shader) {
+    const Bild* b = lager().holen(shader);
+    return b != nullptr && b->fertig ? b->srv : nullptr;
+}
+
+void texturBilderAbholen() { lager().abholen(); }
+
+void texturBilderNeuLaden() { lager().neuLaden(); }
 
 bool kameraTexturFarbe(const std::string& shader, float rgb[3]) {
     const Bild* b = lager().holen(shader);

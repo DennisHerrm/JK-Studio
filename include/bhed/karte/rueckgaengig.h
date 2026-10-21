@@ -96,6 +96,11 @@ public:
 
     // Aenderungszaehler (NRC: MapFile::changed). Steigt bei jeder Sicherung.
     [[nodiscard]] std::size_t aenderungen() const { return m_aenderungen; }
+    // Zaehlt jeden abgeschlossenen Befehl, Rueckgaengig, Wiederholen und
+    // clear() - fuer Stellen, die erst nach einem Befehl rechnen (die Shader
+    // in Gebrauch des Texturbrowsers), nicht bei jeder Sicherung mitten in
+    // einer Bewegung.
+    [[nodiscard]] std::size_t abschluesse() const { return m_abschluesse; }
 
     // UndoFileChangeTracker (libs/maplib.h:55-116), der Tracker, den NRC an
     // das Undo-System haengt (trackerAttach): zaehlt Befehle, Rueckgaengig und
@@ -158,6 +163,7 @@ private:
     std::map<Rueckgaengigbar*, Stapel*> m_objekte;
     std::size_t m_stufen = 512;
     std::size_t m_aenderungen = 0;
+    std::size_t m_abschluesse = 0;
 };
 
 // UndoableCommand: Befehlsklammer fuer einen Block.

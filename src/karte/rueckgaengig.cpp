@@ -157,6 +157,7 @@ void Rueckgaengig::start() {
 
 // finish (undo.cpp:292-301)
 void Rueckgaengig::finish(const std::string& name) {
+    ++m_abschluesse;
     if (finishUndo(name) && ausgabe) { ausgabe(name); }
 }
 
@@ -176,6 +177,7 @@ bool Rueckgaengig::undo() {
     }
     (void)finishRedo(befehl);
     m_undoStapel.hintenEntfernen();
+    ++m_abschluesse;
     return true;
 }
 
@@ -195,6 +197,7 @@ bool Rueckgaengig::redo() {
     }
     (void)finishUndo(befehl);
     m_redoStapel.hintenEntfernen();
+    ++m_abschluesse;
     return true;
 }
 
@@ -204,6 +207,7 @@ void Rueckgaengig::clear() {
     m_undoStapel.leeren();
     m_redoStapel.leeren();
     m_stand = 0;   // trackersClear -> UndoFileChangeTracker::clear
+    ++m_abschluesse;
 }
 
 std::string Rueckgaengig::undoName() const { return m_undoStapel.leer() ? std::string() : m_undoStapel.hinten().befehl; }

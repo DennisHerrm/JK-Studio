@@ -29,6 +29,7 @@
 #include "bhed/karte/kartenformat.h"
 #include "bhed/karte/raster.h"
 #include "bhed/karte/teiler.h"
+#include "bhed/karte/texturbrowser.h"
 #include "bhed/karte/xyansicht.h"
 #include "bhed/karte/texturen.h"
 #include "bhed/karte/zuletzt.h"
@@ -346,6 +347,37 @@ struct Editor {
     int letzterBeobachter = -1;            // RadiantWindowObserver::m_latestObserver
     float letzteX = 0;                     // m_latestPosition (Fensterpunkte)
     float letzteY = 0;
+
+    // --- Texturbrowser (Punkt 8, texwindow.cpp) ---
+    karte::AktiveShader aktiveShader;      // g_ActiveShaders (shaders.cpp)
+    karte::TexturBrowser texBro;           // g_TexBro
+    karte::Teiler texTeiler;               // QSplitter "TextureBrowser/splitter"
+    std::vector<int> texGroessen;          // gemerkte Groessen (sonst { 100, 800 })
+    std::string texFilterText;             // m_filter_entry
+    // Find / Replace Texture(s) (findtexturedialog.cpp)
+    bool findenOffen = false;
+    std::string findenText;                // m_strFind (ohne "textures/")
+    std::string ersetzenText;              // m_strReplace
+    bool findenNurAuswahl = false;         // m_bSelectedOnly
+    bool findenAktiv = true;               // g_bFindActive (welches Feld zuletzt den Fokus hatte)
+    // Shader Info (DoShaderInfoDlg) und der Shader-Text (DoShaderView, TextEditor)
+    bool shaderInfoOffen = false;
+    std::string shaderInfoName;
+    std::string shaderInfoDatei;
+    struct ShaderText {
+        bool offen = false;
+        std::string datei;                 // pathFull (Archiv "::" Datei oder Ordner + Datei)
+        std::string pfad;                  // zum Speichern (nur lose Dateien)
+        std::string text;
+        bool editierbar = false;           // pathIsDir
+        bool geaendert = false;            // document()->isModified()
+        std::string suchen;                // QLineEdit_search
+        std::size_t cursor = 0;            // Lage des Cursors / der Auswahl
+        std::size_t auswahlEnde = 0;
+        int springen = -1;                 // Zeile, zu der gerollt wird (-1: keine)
+        int springenBilder = 0;            // so viele Bilder lang (die Groesse des Inhalts kommt erst nach dem ersten)
+        bool frageSchliessen = false;      // ensure_saved
+    } shaderText;
 };
 
 Editor& editor();
@@ -426,7 +458,49 @@ void auswahlBefehl(const std::string& name);
 // ComponentMode_SelectionChanged).
 void auswahlGeaendert();
 
+// --- Texturbrowser (app_karte_texturen.cpp) ---
+// Der Texturbrowser im aktuellen Kindfenster (breite x hoehe logische Punkte).
+void texturBrowserZeichnen(int breite, int hoehe);
+// Je Bild vor dem Zeichnen: Spiel gewechselt, Shader der Karte anfordern,
+// welche in Gebrauch sind (FaceShader::instanceAttach -> SetInUse).
+void texturenAktualisieren();
+// Find / Replace, Shader Info und der Shader-Text.
+void texturDialogeZeichnen();
+// Die Befehle aus texwindow.cpp (ShowInUse, ShowAllTextures, Toggle...,
+// RefreshShaders) und findtexturedialog.cpp (FindReplaceTextures).
+void texturBefehl(const std::string& name);
+[[nodiscard]] bool texturBefehlAn(const std::string& name);
+// TextureBrowser_SetSelectedShader: Auswahl, Status, Fokus, Find-Dialog.
+void texturShaderWaehlen(const std::string& shader);
+// SelectTexture (Klick in den Browser): texturieren = false wie M1 (setzt
+// den Shader auf die Auswahl), true wie M3. mx/my in Geraetepunkten.
+void texturKlick(int mx, int my, bool nurWaehlen);
+// TextureBrowser_ShowDirectory mit Konsole ("Showing N shaders.").
+void texturVerzeichnisZeigen(const std::string& dir);
+// TextureBrowser_exportTitle: "Textures: <dir>" bzw. "Textures: all" (Programmsprache).
+[[nodiscard]] std::string texturTitel();
+// Fuer den Selbsttest: wo der Texturbrowser steht (Bildpunkte) und wo eine
+// Textur darin liegt (Mitte, Bildpunkte; false wenn nicht sichtbar).
+struct TexturBrowserLage {
+    float ansichtX = 0;   // linke obere Ecke der GL-Flaeche
+    float ansichtY = 0;
+    int breite = 0;       // m_width
+    int hoehe = 0;        // m_height
+    bool gezeichnet = false;
+};
+[[nodiscard]] const TexturBrowserLage& texturBrowserLage();
+// Fuer den Selbsttest: die GL-Flaeche gilt als neu (initializeGL beim
+// naechsten Zeichnen, TextureBrowser_ShowStartupShaders).
+void texturGlNeu();
+bool texturMitte(const std::string& shader, ImVec2& mitte);
+
 // --- 3D-Kamera (app_karte_cam.cpp) ---
+// Fuer den Texturbrowser: das Bild eines Shaders (ID3D11ShaderResourceView,
+// nullptr solange es laedt), fertige Bilder hochladen, alles neu laden
+// (RefreshShaders).
+[[nodiscard]] void* texturBild(const std::string& shader);
+void texturBilderAbholen();
+void texturBilderNeuLaden();
 // Die Kamera im aktuellen Kindfenster zeichnen und bedienen.
 void kameraZeichnen();
 // Die Befehle der Kamera (camwindow.cpp:2487-2570, 1332-1433).
@@ -449,6 +523,14 @@ void freelookBeenden();
 bool kameraPixel(int x, int y, unsigned char rgba[4]);
 bool kameraTexturFarbe(const std::string& shader, float rgb[3]);
 
+// Ein QSplitter im aktuellen Kindfenster (Lagen ab dessen Ecke): ordnet an,
+// zeichnet die Griffe und ruft je Kind kinder[i](x, y, b, h) in logischen Punkten.
+using TeilerInhalt = std::function<void(int x, int y, int b, int h)>;
+void teilerImFenster(const char* id, karte::Teiler& t, bool senkrecht, int b, int h, const std::vector<TeilerInhalt>& kinder);
+// Menueeintraege einer Liste ab erster (bis zum passenden Ende) zeichnen und
+// ausfuehren (QMenu); ein Symbol im Stil der Werkzeugleisten.
+void menueEintraege(const std::vector<befehle::MenueEintrag>& liste, std::size_t erster);
+void leistenSymbol(ImDrawList* dl, const char* name, ImVec2 a, float g, bool aktiv);
 // MaximizeView (Taste, Menue) und der Aufbau der Teiler fuer die Anordnung.
 void maximierenUmschalten();
 void teilerAufbauen();

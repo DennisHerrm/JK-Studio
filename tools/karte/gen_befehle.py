@@ -54,6 +54,8 @@ DeleteSelection DeleteSelection2 DeleteSelection3 UnSelectSelection UnSelectSele
 SelectAllOfType HideSelected ShowHidden SnapToGrid SelectNudgeLeft SelectNudgeRight SelectNudgeUp SelectNudgeDown
 MoveSelectionUP MoveSelectionDOWN MouseDrag MouseTranslate MouseRotate MouseScale MouseTransform
 MouseDragOrTransform MouseRotateOrScale
+ShowInUse ShowAllTextures ToggleShowShaders ToggleShowTextures ToggleShowShaderlistOnly FixedSize FilterNotex
+EnableAlpha SearchFromStart RefreshShaders FindReplaceTextures
 '''.split())
 
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem

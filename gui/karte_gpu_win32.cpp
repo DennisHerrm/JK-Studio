@@ -6,6 +6,8 @@
 
 #include "backend.h"
 
+#include "imgui.h"
+
 #include <d3d11.h>
 #include <d3dcompiler.h>
 
@@ -974,6 +976,32 @@ void linien(const std::vector<LinienPunkt>& p, const Zustand3& z) {
     if (p.empty() || g.aktiv < 0) { return; }
     if (!dynamischFuellen(g.einmalL, g.einmalLPlatz, p.data(), p.size() * sizeof(LinienPunkt))) { return; }
     ziehen3(g.einmalL, sizeof(LinienPunkt), 0, p.size(), z, true);
+}
+
+void ohneMischen(void* dl) {
+    // Der ImGui-Rueckruf setzt einen Mischzustand ohne Mischen; ImGui setzt
+    // ihn erst mit ImDrawCallback_ResetRenderState zurueck.
+    static_cast<ImDrawList*>(dl)->AddCallback(
+        [](const ImDrawList*, const ImDrawCmd*) {
+            static ID3D11BlendState* zustand = nullptr;
+            static unsigned stand = ~0U;
+            if (stand != render::texturStand()) {
+                if (zustand != nullptr) { zustand->Release(); }
+                zustand = nullptr;
+                stand = render::texturStand();
+            }
+            if (zustand == nullptr && geraet() != nullptr) {
+                D3D11_BLEND_DESC bd{};
+                bd.RenderTarget[0].BlendEnable = FALSE;
+                bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+                geraet()->CreateBlendState(&bd, &zustand);
+            }
+            if (zustand != nullptr && kontext() != nullptr) {
+                const float faktor[4] = {0, 0, 0, 0};
+                kontext()->OMSetBlendState(zustand, faktor, 0xFFFFFFFFU);
+            }
+        },
+        nullptr);
 }
 
 void* bildAnlegen(const unsigned char* rgba, int breite, int hoehe) {

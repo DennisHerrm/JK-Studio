@@ -26677,6 +26677,531 @@ std::vector<Schritt> karteneditorAuswahlSchritte() {
     return s;
 }
 
+// Punkt 8: der Texturbrowser (texwindow.cpp) - Lagen, Baum, Klick (M1 setzt
+// den Shader, M3 waehlt nur), Filter, View-Menue, U / Ctrl+A, Rad, M2-Ziehen,
+// Kontextmenue, Shader Info / Text, Doppelklick, Refresh, Find / Replace,
+// Einstellungsseite, Teiler.
+std::vector<Schritt> karteneditorTexturSchritte() {
+    namespace ke = karteneditor;
+    namespace kb = karte::befehle;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto feldVon = [](const std::string& name) -> const ke::Editor::Rechteck* {
+        for (const auto& r : ke::editor().felderImBild) {
+            if (r.name == name) { return &r; }
+        }
+        return nullptr;
+    };
+    auto knopfOrt = [](const std::string& id) {
+        return [id]() {
+            const Element* el = finde(id, "", 0, true);
+            return el != nullptr ? el->rect.GetCenter() : ImVec2{0, 0};
+        };
+    };
+    auto texturOrt = [](const std::string& shader) {
+        return [shader]() {
+            ImVec2 p{0, 0};
+            (void)ke::texturMitte(shader, p);
+            return p;
+        };
+    };
+    auto pinsel = [] {
+        const auto w = ke::editor().karte.welt();
+        return (w && !w->kinder().empty()) ? std::dynamic_pointer_cast<karte::Pinsel>(w->kinder().front()) : nullptr;
+    };
+    auto namen = [] {
+        std::vector<std::string> v;
+        ke::Editor& e = ke::editor();
+        for (const auto& l : e.texBro.anordnen(e.aktiveShader)) { v.push_back(l.shader->name); }
+        return v;
+    };
+    auto konsoleHat = [](const std::string& anfang) {
+        for (const auto& z : ke::editor().konsole) {
+            if (z.text.rfind(anfang, 0) == 0) { return true; }
+        }
+        return false;
+    };
+    add(tu("Texturen: Regular, Testkarte neu, nichts gewaehlt", [] {
+        ke::Editor& e = ke::editor();
+        e.anordnung = kb::Anordnung::Regular;
+        e.gruppenDialogEingebaut = false;
+        e.teilerFuer = -1;
+        (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map"));
+        e.karte.auswahl.leeren();
+        e.texGroessen.clear();
+        e.texTeiler = karte::Teiler{};
+        e.konsole.clear();
+    }));
+    add(pause(0.4));
+    add(pruefe("Lagen wie NRC: links 100 breit ({ 100, 800 }), Leiste 25, Knoepfe 21 bei 2 / 24 / 46, Filter 22, Rollbalken 7",
+               [feldVon] {
+                   const auto* l = feldVon("Texturen:Links");
+                   const auto* k0 = feldVon("Texturen:Knopf:texbro_view");
+                   const auto* k1 = feldVon("Texturen:Knopf:FindReplaceTextures");
+                   const auto* k2 = feldVon("Texturen:Knopf:RefreshShaders");
+                   const auto* f = feldVon("Texturen:Filter");
+                   const auto* r = feldVon("Texturen:Rollbalken");
+                   const auto* a = feldVon("Texturen:Ansicht");
+                   if (l == nullptr || k0 == nullptr || k1 == nullptr || k2 == nullptr || f == nullptr || r == nullptr || a == nullptr) {
+                       return false;
+                   }
+                   diag::detail("Knopftest: Texturen - links " + std::to_string(l->b) + ", Ansicht " + std::to_string(a->x) + " " +
+                                std::to_string(a->b) + "x" + std::to_string(a->h) + ", Rollbalken " + std::to_string(r->b));
+                   return l->b == 100 && k0->x == l->x + 2 && k1->x == l->x + 24 && k2->x == l->x + 46 && k0->b == 21 &&
+                          k0->y == l->y + 2 && f->y == l->y + 25 && f->h == 22 && r->b == 7 && a->x == l->x + 104;
+               }));
+    add(pruefe("Nach dem Laden: textures/ (gewaehlt) und der Shader der Karte, in Gebrauch", [namen] {
+        ke::Editor& e = ke::editor();
+        const auto n = namen();
+        const karte::AktiverShader* c = e.aktiveShader.finden("textures/common/caulk");
+        std::string t;
+        for (const auto& x : n) { t += " " + x; }
+        diag::detail("Knopftest: Texturen - gezeigt:" + t);
+        return n.size() == 2 && n[0] == "textures/" && n[1] == "textures/common/caulk" && c != nullptr && c->imGebrauch &&
+               e.texBro.shader == "textures/" && ke::texturTitel() == "Textures: all";
+    }));
+    add(warteBis("Texturen: Bilder geladen", [] { return ke::kameraBilderFertig(); }, 2000));
+    add(foto("karteneditor_texturen_start"));
+    // Verzeichnisbaum: Doppelklick auf den ersten Ordner (activated, Fusion)
+    add({"Baum: Doppelklick auf den ersten Ordner", [](int b) {
+             static Schritt k;
+             static std::string pfad;
+             if (b == 0) {
+                 pfad.clear();
+                 for (int i = 0; i < 40; ++i) {
+                     const Element* el = finde("##tb", "", i, true);
+                     if (el == nullptr) { break; }
+                     if (el->label.rfind("##tb#", 0) != 0) {
+                         pfad = el->label.substr(4);
+                         const ImVec2 m = el->rect.GetCenter();
+                         k = klickAn("Ordner " + pfad, [m] { return m; }, 0, true);
+                         break;
+                     }
+                 }
+                 diag::detail("Knopftest: Texturen - erster Ordner " + pfad);
+                 if (pfad.empty()) { return true; }
+             }
+             return k.tun(b);
+         }});
+    add(pause(0.2));
+    add(pruefe("Doppelklick: Verzeichnis gezeigt, Konsole \"Showing N shaders.\", Titel", [konsoleHat] {
+        ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Texturen - Verzeichnis " + e.texBro.verzeichnis + ", " + ke::texturTitel());
+        return !e.texBro.verzeichnis.empty() && e.texBro.verzeichnis.back() == '/' && konsoleHat("Showing ") &&
+               ke::texturTitel() == "Textures: " + e.texBro.verzeichnis;
+    }));
+    add(tu("system/ zeigen (TextureBrowser_ShowDirectory)", [] { ke::texturVerzeichnisZeigen("system/"); }));
+    add(pause(0.3));
+    add(pruefe("system/: Shader aus shaders/system.shader, caulk dabei", [namen] {
+        const auto n = namen();
+        diag::detail("Knopftest: Texturen - system/: " + std::to_string(n.size()) + " Texturen");
+        return std::find(n.begin(), n.end(), "textures/system/caulk") != n.end() &&
+               std::all_of(n.begin(), n.end(), [](const std::string& x) { return x.rfind("textures/system/", 0) == 0; });
+    }));
+    add(warteBis("Texturen: Bilder von system/ geladen", [] { return ke::kameraBilderFertig(); }, 2000));
+    add(foto("karteneditor_texturen"));
+    // M1 auf caulk mit gewaehltem Pinsel: Shader gesetzt, Rueckgaengig
+    add(tu("Pinsel waehlen", [pinsel] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), pinsel());
+    }));
+    add(klickAn("M1 auf system/caulk", texturOrt("textures/system/caulk")));
+    add(pruefe("M1: gewaehlt, auf den Pinsel gesetzt (textureNameSetSelected), Status \"system/caulk W: ...\"", [pinsel] {
+        ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Texturen - Status " + e.statusTextur + ", Rueckgaengig " + e.karte.undo.undoName());
+        return e.texBro.shader == "textures/system/caulk" && pinsel()->flaechen()[0]->shader() == "textures/system/caulk" &&
+               e.karte.undo.undoName() == "textureNameSetSelected" && e.statusTextur.rfind("system/caulk W: ", 0) == 0;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pruefe("Strg+Z: wieder common/caulk", [pinsel] { return pinsel()->flaechen()[0]->shader() == "textures/common/caulk"; }));
+    add({"M3 auf eine andere Textur (waehlt nur)", [namen](int b) {
+             static Schritt k;
+             if (b == 0) {
+                 std::string ziel;
+                 for (const auto& n : namen()) {
+                     if (n != "textures/system/caulk") {
+                         ziel = n;
+                         break;
+                     }
+                 }
+                 k = klickAn("M3 auf " + ziel, [ziel] {
+                     ImVec2 p{0, 0};
+                     (void)ke::texturMitte(ziel, p);
+                     return p;
+                 }, 2);
+             }
+             return k.tun(b);
+         }});
+    add(pruefe("M3: gewaehlt, der Pinsel behaelt seinen Shader", [pinsel] {
+        ke::Editor& e = ke::editor();
+        return e.texBro.shader != "textures/system/caulk" && e.texBro.shader.rfind("textures/system/", 0) == 0 &&
+               pinsel()->flaechen()[0]->shader() == "textures/common/caulk";
+    }));
+    // Filterfeld: Fokus unter der Maus, Tippen filtert, Esc leert
+    add({"Maus ueber das Filterfeld", [](int b) {
+             const Element* el = finde("##texfilter", "", 0, true);
+             if (b == 0 && el != nullptr) { setzeMaus(el->rect.GetCenter()); }
+             return b >= 4;
+         }});
+    add({"Tippe \"caulk\"", [](int b) {
+             if (b == 0) { ImGui::GetIO().AddInputCharactersUTF8("caulk"); }
+             return b >= 4;
+         }});
+    add(pruefe("Filter \"caulk\": nur Namen mit caulk", [namen] {
+        const auto n = namen();
+        return !n.empty() && ke::editor().texBro.filter == "caulk" &&
+               std::all_of(n.begin(), n.end(), [](const std::string& x) { return x.find("caulk") != std::string::npos; });
+    }));
+    add(taste(ImGuiKey_Escape, "Esc"));
+    add(pruefe("Esc im Filterfeld: leer (ShortcutOverride), keine Auswahl aufgehoben", [] {
+        ke::Editor& e = ke::editor();
+        return e.texBro.filter.empty() && e.texFilterText.empty() && e.karte.auswahl.anzahl() == 1;
+    }));
+    add(klickAn("Suchart umschalten (Lupe)", knopfOrt("##texfiltermodus")));
+    add(pruefe("SearchFromStart an", [] { return ke::angehakt("SearchFromStart"); }));
+    add(klickAn("Suchart umschalten (Lupe)", knopfOrt("##texfiltermodus")));
+    add(pruefe("SearchFromStart aus", [] { return !ke::angehakt("SearchFromStart"); }));
+    // View-Menue
+    add(klickAn("Knopf View", knopfOrt("##texknopftexbro_view")));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KeLHideUnused)));
+    add(pause(0.2));
+    add(pruefe("View > Hide Unused: in system/ ist nichts benutzt", [namen] { return ke::angehakt("ShowInUse") && namen().empty(); }));
+    add(tasteKombi(ImGuiKey_U, "U"));
+    add(pruefe("U: wieder alle", [namen] { return !ke::angehakt("ShowInUse") && !namen().empty(); }));
+    // Die uebrigen Schalter des View-Menues, je ueber das Menue an und wieder aus
+    struct Schalter {
+        Str text;
+        const char* befehl;
+    };
+    static int vorher = 0;
+    for (const Schalter& sw : {Schalter{Str::KeLShowShaders, "ToggleShowShaders"}, Schalter{Str::KeLShowTextures, "ToggleShowTextures"},
+                               Schalter{Str::KeLHideImageMissing, "FilterNotex"}, Schalter{Str::KeLFixedSize, "FixedSize"},
+                               Schalter{Str::KeLTransparency, "EnableAlpha"}, Schalter{Str::KeLShaderListOnly, "ToggleShowShaderlistOnly"}}) {
+        const std::string befehl = sw.befehl;
+        const bool an = befehl == "ToggleShowShaders" || befehl == "ToggleShowTextures" || befehl == "FixedSize";   // Vorgaben
+        add(tu("merken (" + befehl + ")", [befehl] {
+            ke::Editor& e = ke::editor();
+            if (befehl == "FixedSize") {
+                const karte::AktiverShader* v = e.aktiveShader.finden("textures/system/caulk");
+                vorher = v != nullptr ? e.texBro.texturMass(*v).first : -1;
+            } else {
+                vorher = static_cast<int>(e.texBro.anordnen(e.aktiveShader).size());
+            }
+        }));
+        add(klickAn("Knopf View", knopfOrt("##texknopftexbro_view")));
+        add(pause(0.2));
+        add(klick(ke::trK(sw.text)));
+        add(pause(0.2));
+        add(pruefe("View > " + std::string(ke::trK(sw.text)) + ": umgeschaltet, Wirkung", [befehl, an] {
+            ke::Editor& e = ke::editor();
+            const karte::TexturBrowserEinstellungen& t = e.texBro.e;
+            const int n = static_cast<int>(e.texBro.anordnen(e.aktiveShader).size());
+            diag::detail("Knopftest: Texturen - " + befehl + ": vorher " + std::to_string(vorher) + ", nachher " + std::to_string(n));
+            if (ke::angehakt(befehl) == an) { return false; }
+            const auto alle = [&e](auto bed) {
+                const auto l = e.texBro.anordnen(e.aktiveShader);
+                return std::all_of(l.begin(), l.end(), [&](const karte::TexturLage& x) { return bed(*x.shader); });
+            };
+            if (befehl == "ToggleShowShaders") {   // nur Bilder ohne Shader
+                return !t.shaderZeigen && n < vorher && alle([](const karte::AktiverShader& s) { return s.standard; });
+            }
+            if (befehl == "ToggleShowTextures") {
+                return !t.texturenZeigen && n <= vorher && alle([](const karte::AktiverShader& s) { return !s.standard; });
+            }
+            if (befehl == "FilterNotex") { return t.ohneNotex && n < vorher && alle([](const karte::AktiverShader& s) { return !s.bildFehlt; }); }
+            if (befehl == "FixedSize") {   // caulk 64 x 64: mit Fixed Size 48 breit, ohne 32 (50 %)
+                const karte::AktiverShader* v = e.aktiveShader.finden("textures/system/caulk");
+                return !t.festeGroesse && v != nullptr && vorher == 48 && e.texBro.texturMass(*v).first == 32;
+            }
+            if (befehl == "EnableAlpha") { return t.transparenz; }
+            return t.nurShaderliste;
+        }));
+        if (befehl == "EnableAlpha") { add(foto("karteneditor_texturen_transparenz")); }
+        add(tu("zurueck (" + befehl + ")", [befehl] { (void)ke::ausfuehren(befehl); }));
+    }
+    // T (ToggleTextures): in Regular ohne eingebauten Gruppendialog zeigt
+    // GroupDialog_showPage( nullptr ) nur das Fenster.
+    add(tasteKombi(ImGuiKey_T, "T"));
+    add(pruefe("T in Regular: der Gruppendialog ist offen", [] { return ke::editor().gruppenDialogOffen; }));
+    add(tu("Gruppendialog zu", [] { ke::editor().gruppenDialogOffen = false; }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_A, "Strg+A"));
+    add(pruefe("Strg+A (Show All) einmal: alle Verzeichnisse, nur benutzte", [namen] {
+        const auto n = namen();
+        return ke::editor().texBro.verzeichnis.empty() && n.size() == 1 && n[0] == "textures/common/caulk";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_A, "Strg+A"));
+    add(pruefe("Strg+A zweimal: alle aktiven Shader", [namen] { return namen().size() > 3; }));
+    // Rad und M2-Ziehen
+    add({"Rad nach unten ueber der Ansicht", [](int b) {
+             const ke::TexturBrowserLage& l = ke::texturBrowserLage();
+             if (b == 0) { setzeMaus(ImVec2{l.ansichtX + 20.0F, l.ansichtY + static_cast<float>(l.hoehe) * 0.5F}); }
+             if (b == 2) { ImGui::GetIO().AddMouseWheelEvent(0.0F, -1.0F); }
+             return b >= 5;
+         }});
+    add(pruefe("Rad: um 64 gerollt (geklemmt)", [] {
+        ke::Editor& e = ke::editor();
+        const int gesamt = e.texBro.gesamtHoehe(e.aktiveShader);
+        const int soll = std::clamp(-64, std::min(e.texBro.hoehe - gesamt, 0), 0);
+        diag::detail("Knopftest: Texturen - Ursprung " + std::to_string(e.texBro.ursprungY(e.aktiveShader)) + ", soll " +
+                     std::to_string(soll) + ", gesamt " + std::to_string(gesamt) + ", hoehe " + std::to_string(e.texBro.hoehe));
+        return e.texBro.ursprungY(e.aktiveShader) == soll;
+    }));
+    static int vorZiehen = 0;
+    add(tu("Ursprung merken", [] { vorZiehen = ke::editor().texBro.ursprungY(ke::editor().aktiveShader); }));
+    add(ziehenAn("M2 nach unten ziehen (40 Bildpunkte)", [] {
+        const ke::TexturBrowserLage& l = ke::texturBrowserLage();
+        return ImVec2{l.ansichtX + 20.0F, l.ansichtY + 10.0F};
+    }, 0.0F, 40.0F, 1));
+    add(pause(0.2));
+    add(pruefe("M2 gezogen: nach oben gerollt (originy + dy), kein Kontextmenue (Weg >= 16)", [] {
+        ke::Editor& e = ke::editor();
+        const int nach = e.texBro.ursprungY(e.aktiveShader);
+        diag::detail("Knopftest: Texturen - M2 gezogen " + std::to_string(vorZiehen) + " -> " + std::to_string(nach));
+        return (nach > vorZiehen || nach == 0) && !ImGui::IsPopupOpen("##texmenue", ImGuiPopupFlags_AnyPopupId);
+    }));
+    add(tu("common/caulk ins Bild (TextureBrowser_Focus)", [] { ke::editor().texBro.fokus("textures/common/caulk", ke::editor().aktiveShader); }));
+    add(pause(0.2));
+    // Kontextmenue
+    add(klickAn("M2 auf common/caulk", texturOrt("textures/common/caulk"), 1));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KeTexSelObjects)));
+    add(pause(0.2));
+    add(pruefe("Select Textured Objects: der Pinsel gewaehlt", [pinsel] {
+        ke::Editor& e = ke::editor();
+        return e.karte.auswahl.gewaehlt(e.karte.welt().get(), pinsel().get());
+    }));
+    add(tu("nichts gewaehlt", [] { ke::editor().karte.auswahl.leeren(); }));
+    add(klickAn("M2 auf common/caulk", texturOrt("textures/common/caulk"), 1));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KeTexSelSurfaces)));
+    add(pause(0.2));
+    add(pruefe("Select Textured Surfaces: sechs Flaechen", [] { return ke::editor().karte.auswahl.flaechen().size() == 6; }));
+    add(tu("keine Flaechen", [] { ke::editor().karte.auswahl.flaechenLeeren(); }));
+    add(klickAn("M2 auf common/caulk", texturOrt("textures/common/caulk"), 1));
+    add(pause(0.2));
+    add(pruefe("Kontextmenue: alle Eintraege da (Name, Open Shader, Shader Info, Select ..., Recent, Shader's Folder, system/)", [] {
+        for (const char* t : {ke::trK(Str::KeTexOpenShader), ke::trK(Str::KeTexOpenShaderExt), ke::trK(Str::KeTexShaderInfo),
+                              ke::trK(Str::KeTexSelObjects), ke::trK(Str::KeTexSelSurfaces), ke::trK(Str::KeTexRecent),
+                              ke::trK(Str::KeTexShaderFolder)}) {
+            if (finde(t, "", 0, false) == nullptr) {
+                diag::detail(std::string("Knopftest: Texturen - im Kontextmenue fehlt ") + t);
+                return false;
+            }
+        }
+        return finde("textures/common/caulk##texkopieren", "", 0, true) != nullptr ||
+               finde("     textures/common/caulk##texkopieren", "", 0, false) != nullptr;
+    }));
+    add(klick("-> system/##texcommon"));
+    add(pause(0.2));
+    add(pruefe("-> system/: das Verzeichnis", [] { return ke::editor().texBro.verzeichnis == "system/"; }));
+    add({"M2 auf einen Shader mit Datei (system/)", [](int b) {
+             static Schritt k;
+             if (b == 0) {
+                 ke::Editor& e = ke::editor();
+                 std::string ziel;
+                 for (const auto& l : e.texBro.anordnen(e.aktiveShader)) {
+                     if (!l.shader->standard) {
+                         ziel = l.shader->name;
+                         break;
+                     }
+                 }
+                 k = klickAn("M2 auf " + ziel, [ziel] {
+                     ImVec2 p{0, 0};
+                     (void)ke::texturMitte(ziel, p);
+                     return p;
+                 }, 1);
+             }
+             return k.tun(b);
+         }});
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KeTexShaderInfo)));
+    add(pause(0.2));
+    add(pruefe("Shader Info: Name und Datei shaders/system.shader", [] {
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Texturen - Shader Info " + e.shaderInfoName + " in " + e.shaderInfoDatei);
+        return e.shaderInfoName.rfind("textures/system/", 0) == 0 && e.shaderInfoDatei == "shaders/system.shader";
+    }));
+    add(foto("karteneditor_texturen_shaderinfo"));
+    add(klick(ke::trK(Str::KePrefOk)));
+    add(pause(0.2));
+    add({"Umschalt+M1 auf einen Shader (Text ansehen)", [](int b) {
+             static Schritt k;
+             ImGuiIO& io = ImGui::GetIO();
+             if (b == 0) {
+                 ke::Editor& e = ke::editor();
+                 std::string ziel;
+                 for (const auto& l : e.texBro.anordnen(e.aktiveShader)) {
+                     if (!l.shader->standard) {
+                         ziel = l.shader->name;
+                         break;
+                     }
+                 }
+                 io.AddKeyEvent(ImGuiMod_Shift, true);
+                 k = klickAn("Umschalt+M1 auf " + ziel, [ziel] {
+                     ImVec2 p{0, 0};
+                     (void)ke::texturMitte(ziel, p);
+                     return p;
+                 });
+             }
+             const bool fertig = k.tun(b);
+             if (fertig) { io.AddKeyEvent(ImGuiMod_Shift, false); }
+             return fertig;
+         }});
+    add(pause(0.3));
+    add(pruefe("Shader-Text: offen, Titel <Archiv>::shaders/system.shader (nur lesen) bzw. <Ordner>shaders/system.shader "
+               "(lose Datei: bearbeitbar), zur Definition gerollt",
+               [] {
+                   const ke::Editor::ShaderText& t = ke::editor().shaderText;
+                   diag::detail("Knopftest: Texturen - Shader-Text " + t.datei + ", Cursor " + std::to_string(t.cursor) +
+                                (t.editierbar ? ", bearbeitbar" : ", nur lesen"));
+                   const bool imArchiv = t.datei.find("::shaders/system.shader") != std::string::npos;
+                   const bool lose = t.datei.size() > 21 && t.datei.compare(t.datei.size() - 21, 21, "shaders/system.shader") == 0;
+                   return t.offen && t.cursor > 0 && ((imArchiv && !t.editierbar) || (!imArchiv && lose && t.editierbar));
+               }));
+    add(foto("karteneditor_texturen_shadertext"));
+    add(tu("Shader-Text schliessen", [] { ke::editor().shaderText.offen = false; }));
+    add(pause(0.2));
+    // Doppelklick: das Verzeichnis des gewaehlten Shaders
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_A, "Strg+A"));
+    add(tu("alle zeigen, textures/ gewaehlt", [] {
+        ke::Editor& e = ke::editor();
+        if (e.texBro.unbenutzteVerstecken) { e.texBro.unbenutzteSetzen(false); }
+        ke::texturShaderWaehlen("textures/common/caulk");
+    }));
+    add(pause(0.2));
+    add(klickAn("Doppelklick (M1) auf common/caulk", texturOrt("textures/common/caulk"), 0, true));
+    add(pause(0.2));
+    add(pruefe("Doppelklick: Verzeichnis des Shaders (common/)", [] { return ke::editor().texBro.verzeichnis == "common/"; }));
+    // Flush & Reload Shaders
+    add(klickAn("Knopf Flush & Reload Shaders", knopfOrt("##texknopfRefreshShaders")));
+    add(pause(0.3));
+    add(pruefe("RefreshShaders: Verzeichnis leer, Shader der Karte wieder aktiv", [] {
+        ke::Editor& e = ke::editor();
+        return e.texBro.verzeichnis.empty() && e.aktiveShader.finden("textures/common/caulk") != nullptr &&
+               e.aktiveShader.finden("textures/system/caulk") == nullptr;
+    }));
+    // Find / Replace
+    add(klickAn("Knopf Find / Replace", knopfOrt("##texknopfFindReplaceTextures")));
+    add(pause(0.2));
+    add(pruefe("Find / Replace offen", [] { return ke::editor().findenOffen; }));
+    add(tu("Find common/caulk, Replace system/nodraw", [] {
+        ke::Editor& e = ke::editor();
+        e.findenText = "common/caulk";
+        e.ersetzenText = "system/nodraw";
+        e.findenNurAuswahl = false;
+    }));
+    add(foto("karteneditor_texturen_finden"));
+    add(klick(ke::trK(Str::KeFrApply)));
+    add(pause(0.2));
+    add(pruefe("Apply: ersetzt, Rueckgaengig textureFindReplace", [pinsel] {
+        ke::Editor& e = ke::editor();
+        return pinsel()->flaechen()[0]->shader() == "textures/system/nodraw" &&
+               e.karte.undo.undoName() == "textureFindReplace -find textures/common/caulk -replace textures/system/nodraw";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tu("Find aktiv, system/ zeigen", [] {
+        ke::Editor& e = ke::editor();
+        e.findenAktiv = true;
+        ke::texturVerzeichnisZeigen("system/");
+    }));
+    add(pause(0.3));
+    add(klickAn("M1 auf system/caulk bei offenem Dialog", texturOrt("textures/system/caulk")));
+    add(pruefe("bei offenem Find-Dialog: Find-Feld = system/caulk, nichts gesetzt", [pinsel] {
+        ke::Editor& e = ke::editor();
+        return e.findenText == "system/caulk" && pinsel()->flaechen()[0]->shader() == "textures/common/caulk";
+    }));
+    add(klick(ke::trK(Str::KeFrClose)));
+    add(pause(0.2));
+    add(pruefe("Close: Dialog zu", [] { return !ke::editor().findenOffen; }));
+    // Einstellungsseite "Texture Browser" (Foto pref_Texture_Browser.png)
+    add(tu("Einstellungen oeffnen", [] { (void)ke::ausfuehren("Preferences"); }));
+    add(pause(0.3));
+    add(klick(ke::trK(Str::KePgTexBro), "###karteeinstellungen"));
+    add(pause(0.2));
+    add(pruefe("Seite Texture Browser: Felder, Vorgaben wie NRC (50 %, 160, 48, 64, None, an)", [] {
+        const ke::Editor& e = ke::editor();
+        const karte::TexturBrowserEinstellungen& t = e.texBro.e;
+        const bool felder = finde(ke::trK(Str::KePrTbScrollbar), "", 0, false) != nullptr && finde("##texmax", "", 0, true) != nullptr &&
+                            finde("##texmin", "", 0, true) != nullptr && finde("##texrad", "", 0, true) != nullptr;
+        return felder && t.rollbalken && t.skala == 50 && t.einheitsGroesse == 160 && t.einheitsMin == 48 && t.radSchritt == 64 &&
+               t.startShader == 0 && t.commonOhneTexturen;
+    }));
+    add(foto("karteneditor_einstellungen_texturen"));
+    // Die Klappfelder meldet ImGui nicht: Lage ueber die Zeilen darum.
+    add(klickAn("Klappfeld Texture Thumbnail Scale", [] {
+        const Element* a = finde(ke::trK(Str::KePrTbScrollbar), "", 0, false);
+        const Element* b = finde("##texmax", "", 0, true);
+        if (a == nullptr || b == nullptr) { return ImVec2{0, 0}; }
+        return ImVec2{b->rect.GetCenter().x, (a->rect.GetCenter().y + b->rect.GetCenter().y) * 0.5F};
+    }));
+    add(pause(0.2));
+    add(klick("100%"));
+    add(pause(0.2));
+    add(klickAn("Klappfeld Load Shaders at Startup", [] {
+        const Element* a = finde("##texmin", "", 0, true);
+        const Element* b = finde("##texrad", "", 0, true);
+        if (a == nullptr || b == nullptr) { return ImVec2{0, 0}; }
+        return ImVec2{b->rect.GetCenter().x, b->rect.GetCenter().y + (b->rect.GetCenter().y - a->rect.GetCenter().y)};
+    }));
+    add(pause(0.2));
+    add(klick("System"));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KePrefOk)));
+    add(pause(0.3));
+    add(pruefe("Skala 100 %: caulk (64 x 64) 64 breit; Load Shaders at Startup = System", [] {
+        ke::Editor& e = ke::editor();
+        const karte::AktiverShader* c = e.aktiveShader.finden("textures/common/caulk");
+        return e.texBro.e.skala == 100 && c != nullptr && e.texBro.texturMass(*c).first == 64 && e.texBro.e.startShader == 1;
+    }));
+    add(tu("GL-Flaeche neu (initializeGL), Verzeichnis leer", [] {
+        ke::editor().texBro.verzeichnis.clear();
+        ke::texturGlNeu();
+    }));
+    add(pause(0.3));
+    add(pruefe("initializeGL mit Load Shaders System: system/ gezeigt", [] { return ke::editor().texBro.verzeichnis == "system/"; }));
+    add(tu("Skala 50 %, Load Shaders None", [] {
+        ke::Editor& e = ke::editor();
+        e.texBro.e.skala = 50;
+        e.texBro.e.startShader = 0;
+        e.texBro.hoeheGeaendert();
+    }));
+    add(tu("Einstellungen oeffnen", [] { (void)ke::ausfuehren("Preferences"); }));
+    add(pause(0.3));
+    add(klick(ke::trK(Str::KePrTbScrollbar)));
+    add(klick(ke::trK(Str::KePrefOk)));
+    add(pause(0.3));
+    add(pruefe("Texture scrollbar aus: kein Rollbalken, die Ansicht reicht bis zum Rand", [feldVon] {
+        return !ke::editor().texBro.e.rollbalken && feldVon("Texturen:Rollbalken") == nullptr;
+    }));
+    add(tu("Rollbalken wieder an", [] { ke::editor().texBro.e.rollbalken = true; }));
+    // Teiler ziehen und merken
+    add({"Teiler des Texturbrowsers 20 logische Punkte nach rechts", [](int b) {
+             static Schritt k;
+             if (b == 0) {
+                 const Element* el = finde("##grifftex1", "", 0, true);
+                 const ImVec2 m = el != nullptr ? el->rect.GetCenter() : ImVec2{0, 0};
+                 k = ziehenAn("Griff", [m] { return m; }, 20.0F * ke::massstab(), 0.0F, 0);
+             }
+             return k.tun(b);
+         }});
+    add(pause(0.3));
+    add(pruefe("Teiler gezogen: links breiter, gemerkt (TextureBrowser/splitter)", [feldVon] {
+        const auto* l = feldVon("Texturen:Links");
+        const auto& g = ke::editor().texGroessen;
+        diag::detail("Knopftest: Texturen - links nach dem Ziehen " + std::to_string(l != nullptr ? l->b : -1));
+        return l != nullptr && l->b > 100 && !g.empty() && g[0] == l->b;
+    }));
+    add(tu("Texturen: zurueck", [] {
+        ke::Editor& e = ke::editor();
+        e.texGroessen.clear();
+        e.texTeiler = karte::Teiler{};
+        e.karte.auswahl.leeren();
+    }));
+    return s;
+}
+
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
     std::vector<Schritt> s;
@@ -26794,6 +27319,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : karteneditorXySchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorKameraSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorAuswahlSchritte()) { add(std::move(x)); }
+    for (Schritt& x : karteneditorTexturSchritte()) { add(std::move(x)); }
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
     return s;
 }

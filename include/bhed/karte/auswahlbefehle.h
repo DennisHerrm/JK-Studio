@@ -106,6 +106,23 @@ void einfuegen(Karte& k, const std::string& text, bool befehl = true);
 // Selection_SnapToGrid (Ctrl+G) mit Rueckgaengig "snapSelected -grid N"
 void amRasterAusrichten(Karte& k, const AuswahlEinstellung& e, float raster, bool eckenSperre = false);
 
+// --- Shader (select.cpp, brushmanip.cpp, patchmanip.cpp) -----------------------------
+
+// Select_SetShader_Undo: bei einer Auswahl (Objekte oder Flaechen) Rueckgaengig
+// "textureNameSetSelected" und Select_SetShader; true, wenn etwas gesetzt wurde.
+bool shaderSetzen(Karte& k, const AuswahlEinstellung& e, const std::string& shader);
+// Scene_BrushPatchSelectByShader: sichtbare Pinsel mit einer Flaeche dieses
+// Shaders und sichtbare Patches mit diesem Shader dazuwaehlen.
+void waehleNachShader(Karte& k, const std::string& shader);
+// Select_FacesAndPatchesByShader: Flaechen aller Pinsel (Scene_forEachBrush)
+// und sichtbare Patches mit diesem Shader dazuwaehlen.
+void waehleFlaechenNachShader(Karte& k, const std::string& shader);
+// FindReplaceTextures (select.cpp:679-707): Rueckgaengig "textureFindReplace
+// -find <f> -replace <r>"; ersetzen = "textures/" sucht nur (waehlt Flaechen).
+// false (mit Meldung), wenn ein Name ungueltig ist (texdef_name_valid).
+bool texturenErsetzen(Karte& k, const AuswahlEinstellung& e, const std::string& suchen, const std::string& ersetzen,
+                      bool nurAusgewaehlt, std::string* fehler = nullptr);
+
 }  // namespace bhed::karte
 
 #endif

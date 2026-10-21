@@ -427,8 +427,6 @@ namespace {
 
 enum class Feld { XY, XZ, YZ, Kamera, Konsole, Texturen, Gruppe };
 
-ImVec4 farbe(const Farben::F3& c) { return ImVec4{c[0], c[1], c[2], 1.0F}; }
-
 const char* feldName(Feld f) {
     switch (f) {
     case Feld::XY: return "##feldXY";
@@ -487,14 +485,9 @@ void konsoleZeichnen() {
     ImGui::PopStyleColor();
 }
 
-// Der Inhalt eines Feldes. Die Ansichten selbst kommen mit den Punkten 5
-// (XYWnd), 6 (CamWnd) und 8 (Texturbrowser); bis dahin der Hintergrund in der
-// Farbrolle und der Name.
+// Der Inhalt eines Feldes: die Ansichten (XYWnd, CamWnd), die Konsole und
+// der Texturbrowser.
 void feldInhalt(Feld f) {
-    Editor& ed = editor();
-    ImDrawList* dl = ImGui::GetWindowDrawList();
-    const ImVec2 a = ImGui::GetWindowPos();
-    const ImVec2 b{a.x + ImGui::GetWindowWidth(), a.y + ImGui::GetWindowHeight()};
     switch (f) {
     case Feld::XY:
         xyZeichnen(0);
@@ -511,8 +504,9 @@ void feldInhalt(Feld f) {
     case Feld::Konsole:
         konsoleZeichnen();
         break;
-    case Feld::Texturen:
-        dl->AddRectFilled(a, b, ImGui::GetColorU32(farbe(ed.farben.texBro)));
+    case Feld::Texturen:   // TextureBrowser_constructWindow
+        texturBrowserZeichnen(static_cast<int>(std::lround(ImGui::GetWindowWidth() / g_s)),
+                              static_cast<int>(std::lround(ImGui::GetWindowHeight() / g_s)));
         break;
     case Feld::Gruppe:
         break;
@@ -602,6 +596,18 @@ void teilerZeichnen(const char* id, karte::Teiler& t, bool senkrecht, int x, int
         }
     }
 }
+
+}  // namespace
+
+void teilerImFenster(const char* id, karte::Teiler& t, bool senkrecht, int b, int h, const std::vector<TeilerInhalt>& kinder) {
+    const ImVec2 alt = g_ursprung;
+    g_ursprung = ImGui::GetWindowPos();
+    std::vector<Inhalt> k(kinder.begin(), kinder.end());
+    teilerZeichnen(id, t, senkrecht, 0, 0, b, h, k);
+    g_ursprung = alt;
+}
+
+namespace {
 
 // Ein Kind eines QSplitter: GL-Fenster (QOpenGLWidget ohne gueltigen
 // sizeHint, ohne Eltern erzeugt = 640 x 480) oder ein innerer QSplitter
@@ -749,7 +755,9 @@ void gruppenDialog() {
     ImGui::SetNextWindowSize(groesse, ImGuiCond_FirstUseEver);
     const char* seitenTitel[5] = {trK(Str::KePageEntities), trK(Str::KePageConsole), trK(Str::KePageTextures),
                                   trK(Str::KePageModels), trK(Str::KePageLayers)};
-    const std::string titel = std::string(seitenTitel[ed.gruppenSeite]) + "###kartegruppe";
+    // GroupDialog_updatePageTitle: die Textur-Seite meldet ihren Titel
+    // (TextureBrowser_exportTitle, "Textures: <dir>").
+    const std::string titel = (ed.gruppenSeite == 2 ? texturTitel() : std::string(seitenTitel[ed.gruppenSeite])) + "###kartegruppe";
     if (ImGui::Begin(titel.c_str(), &ed.gruppenDialogOffen, ImGuiWindowFlags_NoCollapse)) {
         if (ImGui::BeginTabBar("##gruppenreiter")) {
             for (int s = 0; s < 5; ++s) {
@@ -761,7 +769,10 @@ void gruppenDialog() {
                     if (s == 1) {
                         konsoleZeichnen();
                     } else if (s == 2) {
-                        ImGui::BeginChild("##gruppeTexturen", ImVec2{-FLT_MIN, -FLT_MIN});
+                        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
+                        ImGui::BeginChild("##gruppeTexturen", ImVec2{-FLT_MIN, -FLT_MIN}, ImGuiChildFlags_None,
+                                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+                        ImGui::PopStyleVar();
                         feldInhalt(Feld::Texturen);
                         ImGui::EndChild();
                     }
@@ -809,6 +820,7 @@ void zeichne(float hoehe) {
     spielPruefen();
     if (!e.belegungGeladen) { einstellungenLaden(); }
     zusatztastenPruefen();   // g_modifiers (onModifierDown / onModifierUp)
+    texturenAktualisieren();   // g_ActiveShaders: Shader der Karte, in Gebrauch
     // GetGridSize / GetSnapGridSize und Select_getWorkZone fuer das Auswahlsystem
     if (e.karte.auswahl.anzahl() != 0) {   // Selection_UpdateWorkzone: getBoundsSelected
         const karte::Kasten b = karte::auswahlGrenzenPivot(e.karte);
@@ -873,6 +885,7 @@ void zeichne(float hoehe) {
         e.schwebendZuruecksetzen = false;
     }
     gruppenDialog();
+    texturDialogeZeichnen();
     zeichneEinstellungen();
     zeichneTastenDialog();
     zeichneRueckfrage();

@@ -120,6 +120,16 @@ std::map<std::string, Umsetzung>& umsetzungen() {
         const std::string name = n;
         m[name] = {[name] { auswahlBefehl(name); }, [name] { return auswahlBefehlAn(name); }};
     }
+    // --- Texturbrowser (texwindow.cpp:2092-2111, findtexturedialog.cpp:229) ---
+    for (const char* n : {"ShowAllTextures", "RefreshShaders", "FindReplaceTextures"}) {
+        const std::string name = n;
+        m[name] = {[name] { texturBefehl(name); }, nullptr};
+    }
+    for (const char* n : {"ShowInUse", "ToggleShowShaders", "ToggleShowTextures", "ToggleShowShaderlistOnly", "FixedSize",
+                          "FilterNotex", "EnableAlpha", "SearchFromStart"}) {
+        const std::string name = n;
+        m[name] = {[name] { texturBefehl(name); }, [name] { return texturBefehlAn(name); }};
+    }
     // --- 2D-Ansichten (xywindow.cpp:2266-2278) ---
     for (const char* n : {"NextView", "ViewTop", "ViewFront", "ViewSide", "ZoomIn", "ZoomOut", "Zoom100", "CenterXYView",
                           "XYFocusOnSelected"}) {

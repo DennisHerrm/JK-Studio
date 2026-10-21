@@ -53,6 +53,9 @@ public:
     void ordnerHinzufuegen(const std::string& ordner, const std::string& spielmodus);   // InitDirectory
     [[nodiscard]] bool dateiLesen(const std::string& pfad, std::string& inhalt) const;   // openFile (erstes Archiv)
     [[nodiscard]] bool textLesen(const std::string& pfad, std::string& inhalt) const;    // openTextFile
+    // findFile: die Wurzel des ersten Archivs mit der Datei (Ordner mit '/'
+    // am Ende oder Pfad der .pk3; "" = nirgends), istOrdner: ein Verzeichnis.
+    [[nodiscard]] std::string finden(const std::string& pfad, bool* istOrdner = nullptr) const;
     // GetDirList / GetFileList: Namen relativ zu basis (mit '/' am Ende),
     // eindeutig ohne Gross/klein, in Archivreihenfolge.
     [[nodiscard]] std::vector<std::string> verzeichnisse(const std::string& basis, std::size_t tiefe = 1) const;
@@ -131,6 +134,14 @@ public:
     // TexturGroessen: Groesse des Editorbilds (jpg, png, tga in dieser
     // Reihenfolge), sonst 64x64 (notex/shadernotex). Ergebnis zwischengespeichert.
     [[nodiscard]] std::pair<std::size_t, std::size_t> groesse(const std::string& shader) const override;
+    // Dasselbe mit der Angabe, ob das Bild gefunden wurde (sonst notex.png
+    // bzw. shadernotex.png: CShader::realise, m_notfound).
+    struct BildMass {
+        std::size_t breite = 64;
+        std::size_t hoehe = 64;
+        bool gefunden = false;
+    };
+    [[nodiscard]] BildMass bildMass(const std::string& shader) const;
 
 private:
     void shaderDateiParsen(const std::string& text, const std::string& datei);
@@ -144,11 +155,13 @@ private:
     };
     std::map<std::string, ShaderEintrag, OhneFall> m_shader;   // g_shaderDefinitions
     mutable std::mutex m_sperre;
-    mutable std::map<std::string, std::pair<std::size_t, std::size_t>, OhneFall> m_groessen;
+    mutable std::map<std::string, BildMass, OhneFall> m_groessen;
 };
 
 // texture_name_ignore (texwindow.cpp:589-607)
 bool texturNameIgnorieren(const std::string& name);
+// shader_valid (shaderlib.h:46-55): kein Leerraum, kein Rueckstrich, nur ASCII.
+bool shaderGueltig(const std::string& s);
 
 }  // namespace bhed::karte
 #endif

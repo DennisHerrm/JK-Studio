@@ -61,6 +61,7 @@ constexpr int kSeiteInterface = 4;
 constexpr int kSeiteLayout = 5;
 constexpr int kSeiteAuswahl = 12;
 constexpr int kSeiteKamera = 17;
+constexpr int kSeiteTexBro = 20;
 
 struct Entwurf {
     bool offen = false;
@@ -74,6 +75,7 @@ struct Entwurf {
     bool punktEntitaeten2d = true;  // m_bPreferPointEntsIn2D
     bool pinselIn3d = true;         // g_3DCreateBrushes
     int bewegStil3d = 0;            // TranslateFreeXY_Z::m_viewdependent
+    karte::TexturBrowserEinstellungen texBro;   // TextureBrowser_constructPreferences
 };
 Entwurf g_entwurf;
 
@@ -229,6 +231,39 @@ void auswahlSeite() {
     ImGui::EndTable();
 }
 
+// TextureBrowser_constructPreferences (texwindow.cpp:2044-2073): Checkbox
+// "Texture scrollbar", Klappfeld der Skala, drei Spinner, Klappfeld "Load
+// Shaders at Startup" (None / System), Checkbox "Hide nonShaders in system/
+// folder" (Foto pref_Texture_Browser.png).
+void texBroSeite() {
+    karte::TexturBrowserEinstellungen& t = g_entwurf.texBro;
+    if (!formBeginnen("##texbroseite")) { return; }
+    formSpalten();
+    formZeile(Str::Count);
+    ImGui::Checkbox(trK(Str::KePrTbScrollbar), &t.rollbalken);
+    formZeile(Str::KePrTbScale);
+    static const char* const skalen[5] = {"10%", "25%", "50%", "100%", "200%"};
+    int index = std::max(0, karte::texturSkalaIndex(t.skala));
+    if (ImGui::Combo("##texskala", &index, skalen, 5)) { t.skala = karte::texturSkalaAusIndex(index); }
+    formZeile(Str::KePrTbMax);
+    ImGui::InputInt("##texmax", &t.einheitsGroesse);
+    t.einheitsGroesse = std::clamp(t.einheitsGroesse, 16, 8192);
+    formZeile(Str::KePrTbMin);
+    ImGui::InputInt("##texmin", &t.einheitsMin);
+    t.einheitsMin = std::clamp(t.einheitsMin, 16, 8192);
+    formZeile(Str::KePrTbWheel);
+    ImGui::InputInt("##texrad", &t.radSchritt);
+    t.radSchritt = std::clamp(t.radSchritt, 0, 8192);
+    formZeile(Str::KePrTbStartup);
+    const char* start[2] = {trK(Str::KePrTbNone), "System"};   // TextureBrowser_getCommonShadersName
+    (void)ImGui::Combo("##texstart", &t.startShader, start, 2);
+    formZeile(Str::Count);
+    char text[160];
+    std::snprintf(text, sizeof(text), trK(Str::KePrTbHideCommon), editor().texBro.commonVerzeichnis.c_str());
+    ImGui::Checkbox(text, &t.commonOhneTexturen);
+    ImGui::EndTable();
+}
+
 void interfaceSeite() {
     // Interface Preferences: "Shader Editor Command" (preferences.cpp:64,
     // appendPathEntry: Feld mit "..."-Knopf; Foto pref_Interface.png), dazu
@@ -260,6 +295,7 @@ void zeichneEinstellungen() {
         g_entwurf.punktEntitaeten2d = ed.bearbeitung.einstellung.punktEntitaetenIn2d;
         g_entwurf.pinselIn3d = ed.bearbeitung.pinselIn3d;
         g_entwurf.bewegStil3d = ed.bearbeitung.bewegStil3d;
+        g_entwurf.texBro = ed.texBro.e;
     }
     if (!ed.einstellungenOffen) {
         g_entwurf.offen = false;
@@ -312,6 +348,8 @@ void zeichneEinstellungen() {
             kameraSeite();
         } else if (g_entwurf.seite == kSeiteAuswahl) {
             auswahlSeite();
+        } else if (g_entwurf.seite == kSeiteTexBro) {
+            texBroSeite();
         } else {
             char z[120];
             std::snprintf(z, sizeof(z), tr(Str::KeStufe), 2);
@@ -347,6 +385,22 @@ void zeichneEinstellungen() {
             ed.bearbeitung.einstellung.punktEntitaetenIn2d = g_entwurf.punktEntitaeten2d;
             ed.bearbeitung.pinselIn3d = g_entwurf.pinselIn3d;
             ed.bearbeitung.bewegStil3d = g_entwurf.bewegStil3d;
+            // TextureBrowserImportShowScrollbar, TextureScaleImport,
+            // UniformTextureSizeImport (heightChanged), die uebrigen direkt.
+            {
+                karte::TexturBrowserEinstellungen& t = ed.texBro.e;
+                const karte::TexturBrowserEinstellungen& n = g_entwurf.texBro;
+                const bool hoehe = t.rollbalken != n.rollbalken || t.skala != n.skala || t.einheitsGroesse != n.einheitsGroesse ||
+                                   t.einheitsMin != n.einheitsMin;
+                t.rollbalken = n.rollbalken;
+                t.skala = n.skala;
+                t.einheitsGroesse = n.einheitsGroesse;
+                t.einheitsMin = n.einheitsMin;
+                t.radSchritt = n.radSchritt;
+                t.startShader = n.startShader;
+                t.commonOhneTexturen = n.commonOhneTexturen;
+                if (hoehe) { ed.texBro.hoeheGeaendert(); }
+            }
             ed.maximiert = false;
             einstellungenSpeichern();
             offen = false;

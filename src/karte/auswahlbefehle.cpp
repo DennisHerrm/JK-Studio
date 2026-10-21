@@ -20,6 +20,7 @@
 #include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
 #include "bhed/karte/texdef.h"
+#include "bhed/karte/texturen.h"
 #include "bhed/karte/wicklung.h"
 #include "bhed/karte/xyansicht.h"
 
@@ -266,25 +267,7 @@ void alleVomTyp(Karte& k, const AuswahlEinstellung& e, const std::string& browse
         }
         return;
     }
-    // Scene_BrushPatchSelectByShader
-    for (const auto& ent : k.entitaeten()) {
-        if (!sichtbar(*ent)) { continue; }
-        for (const auto& p : ent->kinder()) {
-            if (!sichtbar(*p) || p->art() != Primitiv::Art::Pinsel) { continue; }
-            const auto& pinsel = static_cast<const Pinsel&>(*p);
-            if (std::any_of(pinsel.flaechen().begin(), pinsel.flaechen().end(), [&](const auto& f) { return shaderGleich(f->shader(), browserShader); })) {
-                k.auswahl.waehlen(ent, p);
-            }
-        }
-    }
-    for (const auto& ent : k.entitaeten()) {
-        if (!sichtbar(*ent)) { continue; }
-        for (const auto& p : ent->kinder()) {
-            if (sichtbar(*p) && p->art() == Primitiv::Art::Patch && shaderGleich(static_cast<const Patch&>(*p).shader(), browserShader)) {
-                k.auswahl.waehlen(ent, p);
-            }
-        }
-    }
+    waehleNachShader(k, browserShader);   // Scene_BrushPatchSelectByShader
 }
 
 bool versteckeGewaehlte(Karte& k, bool versteckt) {   // HideSelected
@@ -554,6 +537,171 @@ void amRasterAusrichten(Karte& k, const AuswahlEinstellung& e, float raster, boo
         }
     }
     k.undo.finish("snapSelected -grid " + zahlText(raster));
+}
+
+// --- Shader (select.cpp, brushmanip.cpp, patchmanip.cpp) -----------------------------
+
+namespace {
+
+// Alle Pinsel der Karte (Scene_forEachBrush, auch versteckte) bzw. nur die
+// gewaehlten (Scene_forEachSelectedBrush).
+template <typename F>
+void jederPinsel(Karte& k, const GewaehltMenge* nurGewaehlt, F f) {
+    for (const auto& ent : k.entitaeten()) {
+        for (const auto& p : ent->kinder()) {
+            if (p->art() != Primitiv::Art::Pinsel) { continue; }
+            if (nurGewaehlt != nullptr && nurGewaehlt->prim.count(p.get()) == 0) { continue; }
+            f(std::static_pointer_cast<Pinsel>(p));
+        }
+    }
+}
+
+// Scene_forEachVisiblePatch / Scene_forEachVisibleSelectedPatch
+template <typename F>
+void jederSichtbarePatch(Karte& k, const GewaehltMenge* nurGewaehlt, F f) {
+    for (const auto& ent : k.entitaeten()) {
+        if (!sichtbar(*ent)) { continue; }
+        for (const auto& p : ent->kinder()) {
+            if (p->art() != Primitiv::Art::Patch || !sichtbar(*p)) { continue; }
+            if (nurGewaehlt != nullptr && nurGewaehlt->prim.count(p.get()) == 0) { continue; }
+            f(ent, p);
+        }
+    }
+}
+
+// g_SelectedFaceInstances (Scene_ForEachSelectedBrushFace)
+template <typename F>
+void jedeGewaehlteFlaeche(Karte& k, F f) {
+    const auto liste = k.auswahl.flaechen();
+    for (const auto& fw : liste) {
+        const auto p = fw.pinsel.lock();
+        const auto fl = fw.flaeche.lock();
+        if (p && fl) { f(*fl); }
+    }
+}
+
+// texdef_name_valid (shaderlib.h:68-70): shader_valid && shader_is_texture
+bool texdefNameGueltig(const std::string& name) {
+    if (!shaderGueltig(name) || name.size() < std::strlen(kTexturPraefix)) { return false; }
+    return shaderGleich(name.substr(0, std::strlen(kTexturPraefix)), kTexturPraefix);
+}
+
+}  // namespace
+
+// Select_SetShader_Undo (select.cpp:497-502) mit Select_SetShader (:489-495)
+bool shaderSetzen(Karte& k, const AuswahlEinstellung& e, const std::string& shader) {
+    if (k.auswahl.flaechen().empty() && k.auswahl.anzahl() == 0) { return false; }
+    k.undo.start();
+    const GewaehltMenge g(k);
+    if (e.modus != AuswahlModus::Komponente) {
+        // Scene_BrushSetShader_Selected: FaceSetShader an jeder Flaeche
+        jederPinsel(k, &g, [&](const std::shared_ptr<Pinsel>& p) {
+            for (const auto& f : p->flaechen()) { f->setzeShader(shader, k.kontext); }
+        });
+        // Scene_PatchSetShader_Selected
+        jederSichtbarePatch(k, &g, [&](const std::shared_ptr<Entitaet>&, const std::shared_ptr<Primitiv>& p) {
+            static_cast<Patch&>(*p).setzeShader(shader);
+        });
+    }
+    // Scene_BrushSetShader_Component_Selected
+    jedeGewaehlteFlaeche(k, [&](Flaeche& f) { f.setzeShader(shader, k.kontext); });
+    k.undo.finish("textureNameSetSelected");
+    return true;
+}
+
+// Scene_BrushPatchSelectByShader (select.cpp:826-829): BrushSelectByShaderWalker
+// (nur sichtbare) und Scene_PatchSelectByShader
+void waehleNachShader(Karte& k, const std::string& shader) {
+    for (const auto& ent : k.entitaeten()) {
+        if (!sichtbar(*ent)) { continue; }
+        for (const auto& p : ent->kinder()) {
+            if (!sichtbar(*p) || p->art() != Primitiv::Art::Pinsel) { continue; }
+            const auto& pinsel = static_cast<const Pinsel&>(*p);
+            if (std::any_of(pinsel.flaechen().begin(), pinsel.flaechen().end(),
+                            [&](const auto& f) { return shaderGleich(f->shader(), shader); })) {   // Brush_hasShader
+                k.auswahl.waehlen(ent, p);
+            }
+        }
+    }
+    jederSichtbarePatch(k, nullptr, [&](const std::shared_ptr<Entitaet>& ent, const std::shared_ptr<Primitiv>& p) {
+        if (shaderGleich(static_cast<const Patch&>(*p).shader(), shader)) { k.auswahl.waehlen(ent, p); }
+    });
+}
+
+// Select_FacesAndPatchesByShader (select.cpp:889-892): Scene_BrushFacesSelectByShader
+// (alle Pinsel) und Scene_PatchSelectByShader
+void waehleFlaechenNachShader(Karte& k, const std::string& shader) {
+    jederPinsel(k, nullptr, [&](const std::shared_ptr<Pinsel>& p) {
+        for (const auto& f : p->flaechen()) {   // FaceSelectByShader
+            if (shaderGleich(f->shader(), shader)) { k.auswahl.flaecheWaehlen(p, f); }
+        }
+    });
+    jederSichtbarePatch(k, nullptr, [&](const std::shared_ptr<Entitaet>& ent, const std::shared_ptr<Primitiv>& p) {
+        if (shaderGleich(static_cast<const Patch&>(*p).shader(), shader)) { k.auswahl.waehlen(ent, p); }
+    });
+}
+
+// FindReplaceTextures (select.cpp:679-707)
+bool texturenErsetzen(Karte& k, const AuswahlEinstellung& e, const std::string& suchen, const std::string& ersetzen,
+                      bool nurAusgewaehlt, std::string* fehler) {
+    for (const std::string* n : {&suchen, &ersetzen}) {
+        if (!texdefNameGueltig(*n)) {
+            if (fehler != nullptr) { *fehler = "FindReplaceTextures: invalid texture name: '" + *n + "', aborted"; }
+            return false;
+        }
+    }
+    k.undo.start();
+    const bool nurSuchen = shaderGleich(ersetzen, kTexturPraefix);   // pReplace = 0: do search
+    const GewaehltMenge g(k);
+    // FaceSelectByShader / FaceFindReplaceShader (Face_FindReplaceShader)
+    const auto flaeche = [&](const std::shared_ptr<Pinsel>& p, const std::shared_ptr<Flaeche>& f) {
+        if (!shaderGleich(f->shader(), suchen)) { return; }
+        if (nurSuchen) {
+            k.auswahl.flaecheWaehlen(p, f);
+        } else {
+            f->setzeShader(ersetzen, k.kontext);
+        }
+    };
+    if (nurAusgewaehlt) {
+        if (e.modus != AuswahlModus::Komponente) {
+            // Scene_BrushFindReplaceShader_Selected
+            jederPinsel(k, &g, [&](const std::shared_ptr<Pinsel>& p) {
+                for (const auto& f : p->flaechen()) { flaeche(p, f); }
+            });
+            // Scene_PatchFindReplaceShader_Selected: suchen tut nichts
+            if (!nurSuchen) {
+                jederSichtbarePatch(k, &g, [&](const std::shared_ptr<Entitaet>&, const std::shared_ptr<Primitiv>& p) {
+                    if (shaderGleich(static_cast<const Patch&>(*p).shader(), suchen)) { static_cast<Patch&>(*p).setzeShader(ersetzen); }
+                });
+            }
+        }
+        // Scene_BrushFindReplaceShader_Component_Selected
+        if (nurSuchen) {
+            jederPinsel(k, &g, [&](const std::shared_ptr<Pinsel>& p) {
+                for (const auto& f : p->flaechen()) { flaeche(p, f); }
+            });
+        } else {
+            jedeGewaehlteFlaeche(k, [&](Flaeche& f) {
+                if (shaderGleich(f.shader(), suchen)) { f.setzeShader(ersetzen, k.kontext); }
+            });
+        }
+    } else {
+        // Scene_BrushFindReplaceShader, Scene_PatchFindReplaceShader
+        jederPinsel(k, nullptr, [&](const std::shared_ptr<Pinsel>& p) {
+            for (const auto& f : p->flaechen()) { flaeche(p, f); }
+        });
+        jederSichtbarePatch(k, nullptr, [&](const std::shared_ptr<Entitaet>& ent, const std::shared_ptr<Primitiv>& p) {
+            auto& patch = static_cast<Patch&>(*p);
+            if (!shaderGleich(patch.shader(), suchen)) { return; }
+            if (nurSuchen) {
+                k.auswahl.waehlen(ent, p);   // PatchSelectByShader
+            } else {
+                patch.setzeShader(ersetzen);
+            }
+        });
+    }
+    k.undo.finish("textureFindReplace -find " + suchen + " -replace " + ersetzen);
+    return true;
 }
 
 }  // namespace bhed::karte

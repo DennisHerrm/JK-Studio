@@ -871,6 +871,26 @@ void einstellungenLaden() {
     ed.hGroessen = groessen("hSplit");
     ed.vGroessen = groessen("vSplit");
     ed.v2Groessen = groessen("vSplit2");
+    ed.texGroessen = groessen("TextureBrowserSplitter");   // "TextureBrowser/splitter"
+    // Texturbrowser (TextureBrowser_Construct: registerPreference, texwindow.cpp:2113-2138)
+    karte::TexturBrowserEinstellungen& t = ed.texBro.e;
+    const int skala = static_cast<int>(zahl("TextureScale", 50));
+    t.skala = karte::texturSkalaIndex(skala) >= 0 ? skala : 50;
+    if (const int g = static_cast<int>(zahl("UniformTextureSize", 160)); g >= 16) { t.einheitsGroesse = g; }   // UniformTextureSizeImport
+    if (const int g = static_cast<int>(zahl("UniformTextureMinSize", 48)); g >= 16) { t.einheitsMin = g; }
+    t.rollbalken = zahl("TextureScrollbar", 1) != 0.0F;
+    t.shaderZeigen = zahl("ShowShaders", 1) != 0.0F;
+    t.texturenZeigen = zahl("ShowTextures", 1) != 0.0F;
+    t.nurShaderliste = zahl("ShowShaderlistOnly", 0) != 0.0F;
+    t.festeGroesse = zahl("FixedSize", 1) != 0.0F;
+    t.ohneNotex = zahl("FilterNotex", 0) != 0.0F;
+    t.transparenz = zahl("EnableAlpha", 0) != 0.0F;
+    t.tags = zahl("TagsShowGui", 0) != 0.0F;
+    t.vonAnfang = zahl("SearchFromStart", 0) != 0.0F;
+    t.startShader = std::clamp(static_cast<int>(zahl("LoadShaders", 0)), 0, 1);
+    t.radSchritt = std::clamp(static_cast<int>(zahl("WheelMouseInc", 64)), 0, 8192);
+    t.commonOhneTexturen = zahl("HideNonShadersInCommon", 1) != 0.0F;
+    ed.texBro.hoeheGeaendert();
     ed.teilerFuer = -1;
     ed.raster.standardSetzen(std::clamp(static_cast<int>(zahl("GridDefault", karte::Raster::kStandard)), 0, 13));
     ed.raster.setzeMaxKoordPotenz(static_cast<int>(zahl("GridMaxCoordPower", 4)));
@@ -932,6 +952,23 @@ void einstellungenSpeichern() {
     if (!ed.hGroessen.empty()) { k["hSplit"] = liste(ed.hGroessen); }
     if (!ed.vGroessen.empty()) { k["vSplit"] = liste(ed.vGroessen); }
     if (!ed.v2Groessen.empty()) { k["vSplit2"] = liste(ed.v2Groessen); }
+    if (!ed.texGroessen.empty()) { k["TextureBrowserSplitter"] = liste(ed.texGroessen); }
+    const karte::TexturBrowserEinstellungen& t = ed.texBro.e;
+    k["TextureScale"] = std::to_string(t.skala);
+    k["UniformTextureSize"] = std::to_string(t.einheitsGroesse);
+    k["UniformTextureMinSize"] = std::to_string(t.einheitsMin);
+    k["TextureScrollbar"] = t.rollbalken ? "1" : "0";
+    k["ShowShaders"] = t.shaderZeigen ? "1" : "0";
+    k["ShowTextures"] = t.texturenZeigen ? "1" : "0";
+    k["ShowShaderlistOnly"] = t.nurShaderliste ? "1" : "0";
+    k["FixedSize"] = t.festeGroesse ? "1" : "0";
+    k["FilterNotex"] = t.ohneNotex ? "1" : "0";
+    k["EnableAlpha"] = t.transparenz ? "1" : "0";
+    k["TagsShowGui"] = t.tags ? "1" : "0";
+    k["SearchFromStart"] = t.vonAnfang ? "1" : "0";
+    k["LoadShaders"] = std::to_string(t.startShader);
+    k["WheelMouseInc"] = std::to_string(t.radSchritt);
+    k["HideNonShadersInCommon"] = t.commonOhneTexturen ? "1" : "0";
     const karte::KameraEinstellungen& c = ed.kameraE;
     const auto zahlText = [](float f) {
         char z[32];
@@ -968,5 +1005,12 @@ void einstellungenSpeichern() {
     g_app->settings.karteTasten.clear();
     for (const auto& [name, taste] : ed.belegung.abweichende()) { g_app->settings.karteTasten[name] = taste; }
 }
+
+void menueEintraege(const std::vector<MenueEintrag>& liste, std::size_t erster) {
+    std::size_t i = erster;
+    eintraegeZeichnen(liste, i);
+}
+
+void leistenSymbol(ImDrawList* dl, const char* name, ImVec2 a, float g, bool aktiv) { symbolZeichnen(dl, name, a, g, aktiv); }
 
 }  // namespace bhed::gui::karteneditor

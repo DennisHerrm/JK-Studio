@@ -155,7 +155,8 @@ ImVec4 karteIconFarbe(const char* n) {
     } else if (std::strncmp(n, "bobtoolz_", 9) == 0) {
         setze(0.62F, 0.84F, 0.48F);
     } else if (ist(n, "view_change") || ist(n, "view_cubicclipping") || ist(n, "texture_browser") || ist(n, "console") ||
-               std::strncmp(n, "texbro_", 7) == 0 || std::strncmp(n, "window", 6) == 0) {
+               std::strncmp(n, "texbro_", 7) == 0 || std::strncmp(n, "window", 6) == 0 || ist(n, "search") ||
+               ist(n, "search_from_start") || ist(n, "copy")) {
         setze(0.55F, 0.78F, 1.00F);
     }
     const ImVec4 bg = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
@@ -387,6 +388,15 @@ bool karteIcon(ImDrawList* dl, const char* n, ImVec2 pos, float groesse, unsigne
         return true;
     }
     if (ist(n, "texbro_view")) { uiIcon(dl, UiIcon::Sichtbar, pos, groesse, farbe); return true; }
+    // Filterfeld des Texturbrowsers (TextureBrowser_filterSetModeIcon):
+    // search.png (irgendwo) / search_from_start.png (vom Anfang: Lupe mit Strich)
+    if (ist(n, "search")) { uiIcon(dl, UiIcon::Suche, pos, groesse, farbe); return true; }
+    if (ist(n, "search_from_start")) {
+        uiIcon(dl, UiIcon::Suche, ImVec2{pos.x + groesse * 0.12F, pos.y}, groesse * 0.88F, farbe);
+        z.linie(1.0F, 2.0F, 1.0F, 14.0F);
+        return true;
+    }
+    if (ist(n, "copy")) { uiIcon(dl, UiIcon::Duplizieren, pos, groesse, farbe); return true; }   // Kontextmenue: Name kopieren
     if (ist(n, "texbro_find-replace")) {   // Lupe mit Wechselpfeil
         z.kreis(6.5F, 6.5F, 4.5F);
         z.linie(9.8F, 9.8F, 14.5F, 14.5F);

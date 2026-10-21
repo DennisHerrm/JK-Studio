@@ -92,16 +92,6 @@ std::string bereinigt(std::string p) {   // PathCleaned
     return p;
 }
 
-// shader_valid (shaderlib.h:46-55)
-bool shaderGueltig(const std::string& s) {
-    for (const char c : s) {
-        if (static_cast<unsigned char>(c) >= 0x80 || c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\v' || c == '\\') {
-            return false;
-        }
-    }
-    return true;
-}
-
 // ShaderTemplate::parseQuake3 (shaders.cpp:1157-1311)
 bool quake3Parsen(Tokenizer& t, ShaderEintrag& s) {
     s.texturName = s.name;
@@ -193,6 +183,16 @@ bool quake3Parsen(Tokenizer& t, ShaderEintrag& s) {
 
 }  // namespace
 
+// shader_valid (shaderlib.h:46-55)
+bool shaderGueltig(const std::string& s) {
+    for (const char c : s) {
+        if (static_cast<unsigned char>(c) >= 0x80 || c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\v' || c == '\\') {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool texturNameIgnorieren(const std::string& name) {   // texture_name_ignore
     const std::string t = klein(name);
     static const char* const enden[] = {".specular", ".glow",  ".bump",  ".diffuse", ".blend", ".alpha",   "_norm",
@@ -269,6 +269,23 @@ bool Dateisystem::dateiLesen(const std::string& pfad, std::string& inhalt) const
         if (lesenAus(a, pfad, inhalt)) { return true; }
     }
     return false;
+}
+
+std::string Dateisystem::finden(const std::string& pfad, bool* istOrdner) const {   // findFile (vfs.cpp)
+    for (const auto& a : m_archive) {
+        bool da = false;
+        if (a.istPak) {
+            da = a.pak.find(pfad) != nullptr;
+        } else {
+            std::error_code ec;
+            da = std::filesystem::is_regular_file(pfadAus(a.name + pfad), ec);
+        }
+        if (da) {
+            if (istOrdner != nullptr) { *istOrdner = !a.istPak; }
+            return a.name;
+        }
+    }
+    return {};
 }
 
 bool Dateisystem::textLesen(const std::string& pfad, std::string& inhalt) const {   // OpenTextFile
@@ -596,6 +613,11 @@ bool Texturinventar::bildGroesse(const std::string& texturName, std::size_t& w, 
 }
 
 std::pair<std::size_t, std::size_t> Texturinventar::groesse(const std::string& shader) const {
+    const BildMass m = bildMass(shader);
+    return {m.breite, m.hoehe};
+}
+
+Texturinventar::BildMass Texturinventar::bildMass(const std::string& shader) const {
     {
         std::lock_guard<std::mutex> l(m_sperre);
         auto it = m_groessen.find(shader);
@@ -604,14 +626,17 @@ std::pair<std::size_t, std::size_t> Texturinventar::groesse(const std::string& s
     // Shader -> Editorbild; ohne Definition ist der Name selbst das Bild
     const ShaderEintrag* s = shaderFinden(shader);
     const std::string bild = s ? s->texturName : shader;
-    std::size_t w = 64, h = 64;   // notex.png / shadernotex.png
-    if (!bildGroesse(bild, w, h)) {
-        w = 64;
-        h = 64;
+    BildMass m;   // notex.png / shadernotex.png: 64 x 64
+    std::size_t w = 64;
+    std::size_t h = 64;
+    if (bildGroesse(bild, w, h)) {
+        m.breite = w;
+        m.hoehe = h;
+        m.gefunden = true;
     }
     std::lock_guard<std::mutex> l(m_sperre);
-    m_groessen[shader] = {w, h};
-    return {w, h};
+    m_groessen[shader] = m;
+    return m;
 }
 
 }  // namespace bhed::karte
