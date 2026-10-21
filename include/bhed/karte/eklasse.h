@@ -106,6 +106,11 @@ public:
     // beginnen, uebergangen, im Modus "mp" die mit "sp_" (eclass_filter_gamemode).
     std::size_t ordnerLaden(const std::string& ordner, const std::string& spielmodus);
 
+    // Movie Duels: die Klassen aus bhed/entdefs.h (QUAKED-Fakten des
+    // Movie-Duels-Quelltexts) als QUAKED-Text durch defLesen - nach den
+    // JA-Klassen geladen, also nur die, die JA nicht kennt.
+    std::size_t entdefsErgaenzen();
+
     // Alle Klassen in der Ordnung der Liste (Namen ohne Gross/klein sortiert).
     [[nodiscard]] std::vector<const EntitaetsKlasse*> alle() const;
     [[nodiscard]] std::size_t anzahl() const { return m_klassen.size(); }

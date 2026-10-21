@@ -642,6 +642,7 @@ target_sources(bhed_core PRIVATE
   src/karte/pinsel.cpp
   src/karte/patch.cpp
   src/karte/eklasse.cpp
+  src/karte/eklasse_lesen.cpp
   src/karte/karte.cpp
   src/karte/kartenformat.cpp)
 if(BEHAVED_TESTS)
@@ -676,4 +677,10 @@ if(BEHAVED_TESTS)
   target_link_libraries(karterundlauf PRIVATE bhed_core)
   add_test(NAME karte_rundlauf COMMAND karterundlauf ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte
            "${BEHAVED_KARTEN_NRC}" "${BEHAVED_KARTEN_FREMD}")
+  # Punkt 2f: Entitaetsklassen aus .def/.ent (data/karte, aus OpenJK erzeugt).
+  # Mit -DBEHAVED_NRC_GAMEPACKS=<NRC>/gamepacks zusaetzlich der Vergleich.
+  set(BEHAVED_NRC_GAMEPACKS "" CACHE PATH "gamepacks-Ordner von NetRadiant-Custom (nur Vergleich)")
+  add_executable(karteklassen tests/karteklassen.cpp)
+  target_link_libraries(karteklassen PRIVATE bhed_core)
+  add_test(NAME karte_klassen COMMAND karteklassen ${CMAKE_CURRENT_SOURCE_DIR}/data/karte "${BEHAVED_NRC_GAMEPACKS}")
 endif()
