@@ -380,3 +380,56 @@ Changelog:
 - DE: `SET_MISSIONFAILED` wirkt wie im Spiel: der Spieler spielt seine Schuld-Animation, und alle Skripte halten an, sobald keine Kamera läuft (nach dem `camera ( DISABLE )` einer Zwischensequenz); Figuren, die schon gehen, gehen ihren Weg zu Ende, und die Statusliste nennt beide Zeiten.
 - ZH: `SET_MISSIONFAILED` 与游戏中一样生效:玩家播放愧疚动画,只要没有摄像机在运行(过场的 `camera ( DISABLE )` 之后),所有脚本就会停止;已在行走的角色会走完路程,状态列表会显示这两个时间。
 - JA: `SET_MISSIONFAILED` はゲームと同じく働きます。プレイヤーは後悔のアニメーションを再生し、カメラが動いていなくなると(カットシーンの `camera ( DISABLE )` のあと)すべてのスクリプトが止まります。すでに歩いているキャラクターは道のりを歩き終え、ステータス一覧に両方の時刻が表示されます。
+
+## 14. Jedi Outcast: AddFailedEdge zur Laufzeit, stehende Figuren schieben, Spieler nie (Punkt 1 der letzten Liste)
+
+Schieben (src/navlauf.cpp, navKoerperLauf):
+- NAVNEW_PushBlocker "never push the player" (codeJK2/game/g_navnew.cpp:113-116): NavFigurKoerper::spieler /
+  NavKoerperKasten::spieler; der Ablauf setzt es fuer den echten Spieler.
+- Eine stehende Figur denkt im Spiel jedes Bild (NPC_Think, ucmd ohne Bewegung) und BG_AddPushVecToUcmd
+  (codeJK2/game/g_active.cpp:1502-1535, aus ClientThink 2653) bewegt sie mit pushVec. Im gemeinsamen Takt:
+  (a) Plan zu Ende (Art Fertig: angekommen, in Ruhe) -> abweichen, ohne Ziel weiterrechnen, der Plan des
+  Abschnitts geht weiter (Ablauf und Szene nehmen ihn ueber koerperPlaene); (b) ohne laufenden Abschnitt
+  (noch keiner, oder geschnitten) -> ein eigener LaufRechner mit NavFigurKoerper::stehWerte (Ablauf::grundWerte,
+  fuer Kartenfiguren ohne Wesen grundWerteName) ab ihrem Ort bis zum Stillstand -> NavKoerperErgebnis::schub
+  (NavSchub). Der Ablauf (AblaufWelt::schubWege, schubNehmen) und die Szene (SzenenHilfe::schubWege:
+  schubNehmen vor dem naechsten Plan, sonst ein WalkTo-Stueck am Ende) beginnen den naechsten Plan dort, wo
+  der Schub die Figur hat; (c) in einer Luecke des Plans (Vorlauf bis zum Befehl) reagiert sie ebenso, und die
+  Szene zeigt die Strecke im Vorlauf als WalkTo-Stueck (nur Jedi Outcast, nur Takte mit ucmd-Bewegung).
+  Nach einem Schub gilt der Start des naechsten Abschnitts (schubDazwischen).
+Gescheiterte Kanten (NavJk2FehlWelt, navlauf.h):
+- AddFailedEdge (g_navigator.cpp:1886-2016): EdgeFailed ueber m_edgeLookupMap in Einfuegefolge (Eintraege
+  bleiben nach ClearFailedEdge; Load traegt die 32 aus der .nav ein, NavNetzJk2::fehlLadeStart), freier Platz,
+  checkTime + 1500 (Q_irand-Mitte), SetEdgeCost(Q3_INFINITE) (CNode::AddEdge: vorhandene Kante neu, sonst eine
+  neue), FlagAllNodes(NF_RECALC); CalculatePath je Knoten erst in GetBestPathBetweenEnts (g_navigator.cpp:
+  1374-1395, jk2RangNeu) - der Zweig mit gemerkten Wegpunkten (GetBestNodeAltRoute) sieht alte Raenge.
+- Ausloeser: NAV_TestBestNode bei verschlossener Tuer, Zerbrechlichem, entfernbarem func_usable, Brush mit
+  targetname und Monster-/Botclip (g_nav.cpp:1015-1047; NavNetzJk2::kanteSperrt; beim Brush die contents der
+  getroffenen Flaeche statt blocker->contents) und NAVNEW_MoveToGoal (g_navnew.cpp:774-791: keine Nachbarn oder
+  NAVNEW_TestNodeConnectionBlocked mit CONTENTS_BODY).
+- CheckAllFailedEdges zu Beginn jedes Bilds (g_main.cpp:1274-1277; g_navigator.cpp:2018-2128): Kasten der Figur
+  (entID lebt) bzw. DEFAULT_MINS/MAXS + MASK_NPCSOLID, offene Tuer und der Markierende zaehlen nicht,
+  ClearFailedEdge = SetEdgeCost(-1) + NF_RECALC.
+- Allein rechnet jeder Plan seine Welt ab dem Kartenstart (ohne Figuren; LaufPlan::jk2Dazu). Im gemeinsamen Takt
+  gibt es EINE Welt (NavWelt::jk2FehlWelt) mit den Koerpern in den Spuren; folgt eine Figur ihrem Plan, traegt
+  der gemeinsame Takt dessen AddFailedEdge nach (fehlNachtragen). Sobald zur Laufzeit eine Kante dazukam oder
+  eine Kartenstart-Kante anders frei wird als ohne Figuren (ein Koerper in der Spur), rechnen alle Figuren
+  selbst (fehlAnders). Auch eine einzelne Figur geht durch den gemeinsamen Takt, wenn ein Plan eine Kante
+  markierte (sie gilt fuer ihre naechsten Plaene).
+
+| Test | Rot (vorher) | Grün (nachher) |
+|---|---|---|
+| bewegungtest KJ2 (B ohne Plan im Gang) | FEHL: B 0 Schub-Wege, A kommt nie an | B in die Nische (y 47,9, Ruhe ab 2700), A bei 3700 |
+| bewegungtest KJ3 (B ist der Spieler; rot = Schub ohne Spieler-Pruefung) | FEHL: der Spieler wird geschoben (y 47,9) | 0 Schub-Wege, A kommt nicht vorbei |
+| bewegungtest KJ4 (B angekommen, Art Fertig) | FEHL: B y 0, A kommt nie an | B y 43,9, A bei 3850 |
+| bewegungtest KJ5/KJ6/KJ7 (Ablauf + Szene: b im Skript, Kartenfigur, b geht nach dem Schub los) | – | geschoben in der Szene, dowait = Ankunft, kein Sprung zurueck (groesster Schritt 3,4) |
+| jk2navtest 5a (Kiste zwischen B und C) | FEHL: bleibt bei x 213,8, 0 AddFailedEdge, nie angekommen | AddFailedEdge(B,C) bei 100, (E,C) bei 1100, Umweg ueber E, an bei 5200 |
+| jk2navtest 6a/6b (Kante einer anderen Figur / aus dem eigenen ersten Plan) | (alter Navigator: keine Kante zur Laufzeit) | gemeinsam keine eigene (B,C), beide kommen an |
+| bewegungtest gesamt, jk2navtest, ctest | – | 0 Fehlschlaege, 21 ok, 67/67 |
+| Selbsttest jk2 (jk2d), tuerlauf md_am_sith (jkr1 / mrg1) | – | 15 OK; Uebersichtszeilen gleich |
+
+Changelog:
+- EN: Jedi Outcast: an NPC that is in another NPC's way is pushed aside even when it stands without a goal or has already arrived (never the player), and a connection blocked by a locked door, something breakable or another NPC counts as failed for all NPCs, who route around it until it is free again - like the game.
+- DE: Jedi Outcast: ein NPC, der einem anderen im Weg steht, wird beiseitegeschoben, auch wenn er ohne Ziel steht oder schon angekommen ist (nie der Spieler), und eine Verbindung, die eine verschlossene Tür, etwas Zerbrechliches oder ein anderer NPC sperrt, gilt für alle NPCs als gescheitert - sie gehen außen herum, bis sie wieder frei ist, wie im Spiel.
+- ZH: Jedi Outcast:挡住另一个 NPC 的 NPC 会被推到一旁,即使它没有目标站着不动或已经到达(绝不推开玩家);被上锁的门、可破坏物或其他 NPC 挡住的连接对所有 NPC 都算作失败,它们会绕行直到连接重新畅通——与游戏中一样。
+- JA: Jedi Outcast:ほかの NPC の道をふさぐ NPC は、目的地なしで立っていても、すでに到着していても脇へ押しやられます(プレイヤーは押されません)。鍵のかかった扉や壊せる物、ほかの NPC にふさがれた接続はすべての NPC にとって失敗扱いになり、空くまで迂回します(ゲームと同じ)。

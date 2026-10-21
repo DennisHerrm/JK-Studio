@@ -2298,6 +2298,36 @@ void parseSaberFile(const std::string& text, SaberMap& out) {
 // signals kommt fertig von aussen (clock.cpp, collectSignals) - frueher gab
 // es dafuer einen zweiten Durchgang durch DIESE Funktion, den aber nur die
 // Szene kannte. Jetzt teilen sich alle drei Auswerter dieselbe Sammlung.
+// rc605 (Ende, Jedi Outcast): der Weg eines Schubs ohne Plan (navKoerperLauf,
+// NavSchub; NAVNEW_PushBlocker + BG_AddPushVecToUcmd) als WalkTo-Stueck bis `bis`.
+// Einmal je Schub (dieselbe Bahn steht schon da: nichts).
+void schubSchrittDazu(Actor& a, const std::shared_ptr<const LaufPlan>& p, double bis) {
+    if (!p || p->takte.empty() || !(bis > p->abMs)) { return; }
+    for (const ActorStep& st : a.steps) {
+        if (st.kind == ActorStep::Kind::WalkTo && st.lauf == p) { return; }
+    }
+    const double ende = std::min(bis, p->takte.back().t);
+    int vmax = 0;
+    for (const LaufTakt& k : p->takte) {
+        if (k.t <= ende + 0.5) { vmax = std::max(vmax, k.tempo); }
+    }
+    ActorStep step;
+    step.kind = ActorStep::Kind::WalkTo;
+    step.startMs = p->abMs;
+    step.endMs = ende;
+    const NavVec bisOrt = ortBei(*p, ende);
+    for (int k = 0; k < 3; ++k) {
+        step.from[k] = p->anfang.ort[static_cast<std::size_t>(k)];
+        step.to[k] = bisOrt[static_cast<std::size_t>(k)];
+        step.laufZiel[k] = step.to[k];
+    }
+    step.lauf = p;
+    step.teilweg = true;
+    step.text = "BOTH_WALK1";
+    step.value = std::clamp(static_cast<float>(vmax) / kAnimSpeedWalk, kAnimSpeedMin, kAnimSpeedMax);
+    a.steps.push_back(std::move(step));
+}
+
 Scene buildOnce(const Script& s, const MapData& map,
                 const std::map<std::string, double>& signals,
                 const SzenenHilfe* hilfe) {
@@ -2930,10 +2960,32 @@ Scene buildOnce(const Script& s, const MapData& map,
         // Einen Plan ab `von` zur Zeit tt. `neu` und `fahrt` sind ohne
         // Bedeutung (der Zustand traegt alles). `merken`: er wird der
         // laufende Plan (sonst ein eigener Weg aus einem frueheren affect).
-        const auto wegPlanen = [&](double ttBefehl, const float von[3], bool fahrt, int neu, bool merken) {
+        // rc605 (Ende, Jedi Outcast): hat ein anderer die Figur ohne Plan geschoben
+        // (SzenenHilfe::schubWege), zeigt ein WalkTo-Stueck den Schub, und der
+        // naechste Plan beginnt dort, wo der Schub sie zur Zeit tt hat (wie der Ablauf).
+        const auto schubNehmen = [&](double tt, float o[3]) {
+            if (hilfe == nullptr || !hilfe->schubWege) { return; }
+            std::string kl = actor->name;
+            for (char& c : kl) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            const auto it = hilfe->schubWege->find(kl);
+            if (it == hilfe->schubWege->end()) { return; }
+            for (const std::shared_ptr<const LaufPlan>& p : it->second) {
+                if (!p || p->takte.empty() || !(p->abMs < tt - kGleichzeitig)) { continue; }
+                bool schon = false;
+                for (const ActorStep& st : actor->steps) { schon = schon || (st.kind == ActorStep::Kind::WalkTo && st.lauf == p); }
+                if (schon) { continue; }
+                schubSchrittDazu(*actor, p, tt);
+                const LaufZustand z = tt >= p->takte.back().t - kGleichzeitig ? p->zustaende.back() : zustandBei(*p, tt);
+                actor->laufZustand = z;
+                for (int k = 0; k < 3; ++k) { o[k] = z.ort[static_cast<std::size_t>(k)]; }
+            }
+        };
+        const auto wegPlanen = [&](double ttBefehl, const float vonArg[3], bool fahrt, int neu, bool merken) {
             // rc601 (bewegung, Durchsicht 2): der Plan beginnt im Denkbild des
             // Befehls (navDenkbildAb), bewegt wird ab dem naechsten.
             const double tt = navDenkbildAb(ttBefehl);
+            float von[3] = {vonArg[0], vonArg[1], vonArg[2]};
+            if (merken) { schubNehmen(tt, von); }   // rc605 (Ende, Jedi Outcast)
             (void)fahrt;
             (void)neu;
             for (int k = 0; k < 3; ++k) { here[k] = von[k]; }
@@ -3060,6 +3112,34 @@ Scene buildOnce(const Script& s, const MapData& map,
                 sicht.hoeheGilt = voll->hoeheGilt;
                 planGeteilt = std::make_shared<const LaufPlan>(std::move(sicht));
                 actor->vorlaeufe.emplace_back(voll, tt);
+                // rc605 (Ende, Jedi Outcast): im Vorlauf schob ein anderer die Figur
+                // (navKoerperLauf: NAVNEW_PushBlocker + BG_AddPushVecToUcmd, ein ucmd
+                // mit Bewegung vor dem Befehl) - diese Strecke als WalkTo-Stueck bis tt.
+                for (std::size_t i = 0; navJk2Regeln() && i < voll->takte.size() && voll->takte[i].t <= tt + kGleichzeitig; ++i) {
+                    if (!voll->takte[i].bewegt) { continue; }
+                    ActorStep step;
+                    step.kind = ActorStep::Kind::WalkTo;
+                    step.startMs = i == 0 ? voll->abMs : voll->takte[i - 1].t;
+                    step.endMs = tt;
+                    const NavVec a0 = ortBei(*voll, step.startMs);
+                    const NavVec a1 = ortBei(*voll, tt);
+                    int vmax = 0;
+                    for (std::size_t j = i; j < voll->takte.size() && voll->takte[j].t <= tt + kGleichzeitig; ++j) {
+                        vmax = std::max(vmax, voll->takte[j].tempo);
+                    }
+                    for (int k = 0; k < 3; ++k) {
+                        step.from[k] = a0[static_cast<std::size_t>(k)];
+                        step.to[k] = a1[static_cast<std::size_t>(k)];
+                        step.laufZiel[k] = actor->zielOrt[k];
+                    }
+                    step.lauf = voll;
+                    step.teilweg = true;
+                    step.text = "BOTH_WALK1";
+                    step.value = std::clamp(static_cast<float>(vmax) / kAnimSpeedWalk, kAnimSpeedMin, kAnimSpeedMax);
+                    step.path = actor->zielPfad;
+                    actor->steps.push_back(std::move(step));
+                    break;
+                }
                 for (int k = 0; k < 3; ++k) { here[k] = planGeteilt->anfang.ort[static_cast<std::size_t>(k)]; }
             }
             const std::shared_ptr<const LaufPlan> plan = planGeteilt;
@@ -4490,6 +4570,17 @@ Scene buildOnce(const Script& s, const MapData& map,
     //
     // Ein Brush-Modell (func_breakable) zerbricht statt zu sterben - das
     // Zerbrechen zeichnet MoverSim; hier verschwindet es nur.
+    // rc605 (Ende, Jedi Outcast): Schuebe ohne Plan, die kein spaeterer Plan
+    // genommen hat - die Figur steht danach dort.
+    if (hilfe != nullptr && hilfe->schubWege) {
+        for (Actor& a : out.actors) {
+            std::string kl = a.name;
+            for (char& c : kl) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            const auto it = hilfe->schubWege->find(kl);
+            if (it == hilfe->schubWege->end()) { continue; }
+            for (const std::shared_ptr<const LaufPlan>& p : it->second) { schubSchrittDazu(a, p, 1.0e300); }
+        }
+    }
     for (Actor& a : out.actors) {
         std::stable_sort(a.steps.begin(), a.steps.end(),
                          [](const ActorStep& x, const ActorStep& y) { return x.startMs < y.startMs; });

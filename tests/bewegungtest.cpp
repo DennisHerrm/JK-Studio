@@ -3161,6 +3161,205 @@ void teilJk2Schieben() {
            "KJ1 A schiebt B in die Nische (NAVNEW_PushBlocker, BG_AddPushVecToUcmd) und kommt an");
 }
 
+// --- rc605 (Ende): Jedi Outcast - eine stehende Figur ohne Plan wird geschoben (KJ2),
+// der Spieler nie (KJ3). Derselbe Gang wie KJ1; B hat keinen Abschnitt, nur ihren
+// Ort - im Spiel denkt sie trotzdem jedes Bild (NPC_Think, ucmd 0) und
+// BG_AddPushVecToUcmd bewegt sie (codeJK2/game/g_active.cpp:1502-1535, 2653).
+// NAVNEW_PushBlocker: "never push the player" (codeJK2/game/g_navnew.cpp:113-116).
+void teilJk2SchiebenOhnePlan() {
+    std::printf("\n== rc605: Jedi Outcast - stehende Figur ohne Plan / Spieler (KJ2, KJ3) ==\n");
+    const std::vector<ProbeKlotz> welt0 = {
+        {{-3000, -3000, -16}, {3000, 3000, 0}, kNavSolid},
+        {{-3000, -200, 0}, {3000, -24, 200}, kNavSolid},
+        {{-3000, 24, 0}, {202, 300, 200}, kNavSolid},
+        {{238, 24, 0}, {3000, 300, 200}, kNavSolid},
+        {{202, 120, 0}, {238, 300, 200}, kNavSolid},
+        {{-200, -300, 0}, {-60, 300, 200}, kNavSolid}};
+    auto welt = std::make_shared<NavWelt>();
+    welt->spur = [welt0](const NavVec& a, const NavVec& mi, const NavVec& ma, const NavVec& b, int, std::uint32_t maske) {
+        return probeSpur(welt0, a, mi, ma, b, maske);
+    };
+    welt->boden = [](float, float, float zOben, float zUnten, float& z) {
+        if (zOben < 0.0F || zUnten > 0.0F) { return false; }
+        z = 0.0F;
+        return true;
+    };
+    navJk2Regeln(true);
+    for (int fall = 0; fall < 2; ++fall) {
+        const bool spieler = fall == 1;
+        NavAbschnitt a;
+        a.figur = 0;
+        a.abMs = 0.0;
+        a.grenzeMs = 8000.0;
+        a.start.ort = {0.0F, 0.0F, 24.125F};
+        a.start.amBoden = true;
+        a.werte.zielGesetzt = true;
+        a.werte.ziel = {400.0F, 0.0F, 24.125F};
+        a.werte.maxTempo = 150.0F;
+        a.werte.gehTempo = 90.0F;
+        a.sprung = true;
+        a.allein = std::make_shared<const LaufPlan>(planeLauf(*welt, a.start, a.werte, a.abMs, a.grenzeMs));
+        std::vector<NavFigurKoerper> figuren(2);
+        figuren[1].reihe = 1;
+        figuren[1].orte.push_back({-1.0e299, NavVec{220.0F, 0.0F, 24.125F}});
+        figuren[1].spieler = spieler;
+        figuren[1].stehWerteDa = true;
+        figuren[1].stehWerte = a.werte;
+        figuren[1].stehWerte.zielGesetzt = false;
+        const std::vector<NavAbschnitt> abs = {a};
+        const NavKoerperErgebnis e = navKoerperLauf(*welt, figuren, abs);
+        const LaufPlan& pa = *e.plaene[0];
+        float bMaxY = 0.0F;
+        double bAb = -1.0;
+        double bRuhe = -1.0;
+        for (const NavSchub& sb : e.schub) {
+            if (sb.figur != 1 || !sb.plan) { continue; }
+            if (bAb < 0.0) { bAb = sb.plan->abMs; }
+            bRuhe = sb.plan->ruheMs;
+            for (const LaufTakt& k : sb.plan->takte) { bMaxY = std::max(bMaxY, k.ort[1]); }
+        }
+        std::printf("  info  KJ%d A angekommen bei %.0f ms; B %s: %zu Schub-Wege ab %.0f, hoechstens bei y %.1f, Ruhe ab %.0f\n",
+                    spieler ? 3 : 2, pa.ankunftMs, spieler ? "Spieler" : "NPC ohne Plan", e.schub.size(), bAb,
+                    static_cast<double>(bMaxY), bRuhe);
+        if (!spieler) {
+            pruefe(pa.ankunftMs > 0.0 && bMaxY > 40.0F && bRuhe > 0.0,
+                   "KJ2 B ohne Plan wird in die Nische geschoben (NPC_Think ohne Ziel + BG_AddPushVecToUcmd), A kommt an");
+        } else {
+            pruefe(e.schub.empty() && pa.ankunftMs < 0.0,
+                   "KJ3 der Spieler wird nie geschoben (NAVNEW_PushBlocker), A kommt nicht vorbei");
+        }
+    }
+    // KJ4: B kam mit ihrem Plan an und steht (Art Fertig) - auch sie wird
+    // geschoben; ihr Plan geht dann im gemeinsamen Takt weiter.
+    {
+        const auto abschnitt = [&](int figur, NavVec von, NavVec nach) {
+            NavAbschnitt a;
+            a.figur = figur;
+            a.abMs = 0.0;
+            a.grenzeMs = 8000.0;
+            a.start.ort = von;
+            a.start.amBoden = true;
+            a.werte.zielGesetzt = true;
+            a.werte.ziel = nach;
+            a.werte.maxTempo = 150.0F;
+            a.werte.gehTempo = 90.0F;
+            a.sprung = true;
+            a.allein = std::make_shared<const LaufPlan>(planeLauf(*welt, a.start, a.werte, a.abMs, a.grenzeMs));
+            return a;
+        };
+        std::vector<NavFigurKoerper> figuren(2);
+        figuren[1].reihe = 1;
+        const std::vector<NavAbschnitt> abs = {abschnitt(0, {0.0F, 0.0F, 24.125F}, {400.0F, 0.0F, 24.125F}),
+                                               abschnitt(1, {220.0F, -4.0F, 24.125F}, {220.0F, 0.0F, 24.125F})};
+        const NavKoerperErgebnis e = navKoerperLauf(*welt, figuren, abs);
+        const LaufPlan& pa = *e.plaene[0];
+        const LaufPlan& pb = *e.plaene[1];
+        float bMaxY = 0.0F;
+        for (const LaufTakt& k : pb.takte) { bMaxY = std::max(bMaxY, k.ort[1]); }
+        std::printf("  info  KJ4 B angekommen bei %.0f ms (allein %.0f), danach hoechstens bei y %.1f; A angekommen bei %.0f\n",
+                    pb.ankunftMs, abs[1].allein->ankunftMs, static_cast<double>(bMaxY), pa.ankunftMs);
+        pruefe(pb.ankunftMs > 0.0 && bMaxY > 40.0F && pa.ankunftMs > 0.0,
+               "KJ4 B ist angekommen und steht - A schiebt sie trotzdem in die Nische und kommt an");
+    }
+    navJk2Regeln(false);
+}
+
+// --- rc605 (Ende): Jedi Outcast - Ablauf und Szene mit einer geschobenen Figur
+// ohne Plan (KJ5: b nennt ein Skript, KJ6: b ist eine Kartenfigur ohne Skript).
+// a geht den Gang mit der Nische entlang (KJ1), b steht vor der Nische. Der Ablauf
+// nimmt den Schub (AblaufWelt::schubWege), die Szene zeigt ihn als WalkTo-Stueck.
+void teilJk2SchubAblauf() {
+    std::printf("\n== rc605: Jedi Outcast - Schub ohne Plan in Ablauf und Szene (KJ5, KJ6) ==\n");
+    const std::vector<ProbeKlotz> welt0 = {
+        {{-3000, -3000, -16}, {3000, 3000, 0}, kNavSolid},
+        {{-3000, -200, 0}, {3000, -24, 200}, kNavSolid},
+        {{-3000, 24, 0}, {202, 300, 200}, kNavSolid},
+        {{238, 24, 0}, {3000, 300, 200}, kNavSolid},
+        {{202, 120, 0}, {238, 300, 200}, kNavSolid},
+        {{-200, -300, 0}, {-60, 300, 200}, kNavSolid}};
+    auto welt = std::make_shared<NavWelt>();
+    welt->spur = [welt0](const NavVec& a, const NavVec& mi, const NavVec& ma, const NavVec& b, int, std::uint32_t maske) {
+        return probeSpur(welt0, a, mi, ma, b, maske);
+    };
+    welt->boden = [](float, float, float zOben, float zUnten, float& z) {
+        if (zOben < 0.0F || zUnten > 0.0F) { return false; }
+        z = 0.0F;
+        return true;
+    };
+    navJk2Regeln(true);
+    for (int fall = 0; fall < 3; ++fall) {
+        const bool karteFigur = fall == 1;
+        const bool spaeter = fall == 2;   // KJ7: b geht nach dem Schub selbst los
+        const MapData m = karte(
+            "{\n\"classname\" \"NPC_spawner\"\n\"npc_targetname\" \"a\"\n\"NPC_type\" \"jedi\"\n\"origin\" \"0 0 24.125\"\n}\n"
+            "{\n\"classname\" \"NPC_spawner\"\n\"npc_targetname\" \"b\"\n\"NPC_type\" \"jedi\"\n\"origin\" \"220 0 24.125\"\n}\n"
+            "{\n\"classname\" \"waypoint_navgoal\"\n\"targetname\" \"za\"\n\"origin\" \"400 0 24\"\n}\n"
+            "{\n\"classname\" \"waypoint_navgoal\"\n\"targetname\" \"zb\"\n\"origin\" \"220 90 24\"\n}\n");
+        AblaufWelt aw;
+        aw.karte = &m;
+        aw.nav = welt;
+        std::string text = "affect ( \"a\", FLUSH )\n{\n\ttask ( \"geh\" )\n\t{\n\t\tset ( \"SET_NAVGOAL\", \"za\" );\n\t}\n"
+                           "\tdowait ( \"geh\" );\n\tprint ( \"da\" );\n}\n";
+        if (spaeter) {
+            text += "affect ( \"b\", FLUSH )\n{\n\twait ( 7000 );\n\ttask ( \"gehb\" )\n\t{\n\t\tset ( \"SET_NAVGOAL\", \"zb\" );\n\t}\n"
+                    "\tdowait ( \"gehb\" );\n\tprint ( \"bda\" );\n}\n";
+        } else if (!karteFigur) {
+            text += "affect ( \"b\", FLUSH )\n{\n\twait ( 100 );\n}\n";
+        }
+        text += "wait ( 9000 );\n";
+        int durchgaenge = 0;
+        const Ablauf a = simuliereAblaufMitKoerpern(lies(text), "", aw, &durchgaenge);
+        SzenenHilfe h;
+        h.nav = welt;
+        h.koerperPlaene = aw.koerperPlaene;
+        h.schubWege = aw.schubWege;
+        h.kartenFiguren = karteFigur;
+        const Scene s = buildScene(a.flach, m, &h);
+        const Actor* fa = figur(s, "a");
+        const Actor* fb = figur(s, "b");
+        float tiefste = 99.0F;
+        float bY = -99.0F;
+        if (fa != nullptr && fb != nullptr) {
+            tiefste = 0.0F;
+            for (double t = 0.0; t < 9000.0; t += 50.0) {
+                const ActorState x = fa->at(t);
+                const ActorState y = fb->at(t);
+                const float ox = 32.0F - std::fabs(x.pos[0] - y.pos[0]);
+                const float oy = 32.0F - std::fabs(x.pos[1] - y.pos[1]);
+                if (ox > 0.0F && oy > 0.0F) { tiefste = std::max(tiefste, std::min(ox, oy)); }
+            }
+            bY = fb->at(8000.0).pos[1];
+        }
+        const double da = zeitVon(a, "a", "print", "da");
+        const double an = fa != nullptr ? ankunftVon(*fa) : -2.0;
+        std::printf("  info  KJ%d b %s: Schuebe %zu, b bei 8000 ms y %.1f, a angekommen %.0f, dowait %.0f, Ueberlappung %.2f (%d Rechnungen)\n",
+                    karteFigur ? 6 : 5, karteFigur ? "Kartenfigur" : "im Skript", aw.schubWege ? aw.schubWege->size() : 0U,
+                    static_cast<double>(bY), an, da, static_cast<double>(tiefste), durchgaenge);
+        if (spaeter) {
+            // Nach dem Schub (b steht bei y ~48) geht b zu zb - ohne Sprung zurueck.
+            float sprung = 0.0F;
+            if (fb != nullptr) {
+                for (double t = 6000.0; t < 9000.0; t += 50.0) {
+                    const ActorState x = fb->at(t);
+                    const ActorState y = fb->at(t + 50.0);
+                    sprung = std::max(sprung, std::hypot(y.pos[0] - x.pos[0], y.pos[1] - x.pos[1]));
+                }
+            }
+            const double bda = zeitVon(a, "b", "print", "bda");
+            const double ban = fb != nullptr ? ankunftVon(*fb) : -2.0;
+            std::printf("  info  KJ7 b geht nach dem Schub los: groesster Schritt %.1f, dowait %.0f, Ankunft in der Szene %.0f\n",
+                        static_cast<double>(sprung), bda, ban);
+            pruefe(sprung < 15.0F && bda > 7000.0 && nah(bda, ban, 0.5) && da > 0.0 && nah(da, an, 0.5),
+                   "KJ7 nach dem Schub beginnt bs Plan dort, wo der Schub sie liess (Ablauf und Szene gleich)");
+            continue;
+        }
+        pruefe(bY > 40.0F && tiefste < 0.2F && da > 0.0 && nah(da, an, 0.5),
+               std::string(karteFigur ? "KJ6 Kartenfigur" : "KJ5 Figur im Skript") +
+                   " ohne Plan: geschoben in die Nische (Szene), a kommt an, dowait = Ankunft in der Szene");
+    }
+    navJk2Regeln(false);
+}
+
 // --- rc601 (bewegung, teil 3): andere Figuren als Hindernisse (K1-K3) ----------
 void teil3Koerper() {
     std::printf("\n== teil 3: andere Figuren im selben Takt (K1-K3) ==\n");
@@ -4693,6 +4892,8 @@ int main(int argc, char** argv) {
     teil3Fallen();
     teil3Koerper();
     teilJk2Schieben();   // rc605 (Ende)
+    teilJk2SchiebenOhnePlan();   // rc605 (Ende)
+    teilJk2SchubAblauf();        // rc605 (Ende)
     teil3Patches();
     teil3Winkel();
     regelwerkVerhaltenTakt();   // rc601 integ

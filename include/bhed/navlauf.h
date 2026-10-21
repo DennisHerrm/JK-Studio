@@ -169,7 +169,47 @@ struct NavNetzJk2 {
     // MOVER_LOCKED zur Zeit steht im Mover-Plan (NavMoverPlan::Stand).
     std::vector<signed char> tuerFrei;
     [[nodiscard]] int kanteFehl(int a, int b) const;   // EdgeFailed: Platz oder -1
+    // rc605 (Ende): NAV_TestBestNode markiert eine Kante als gescheitert, wenn der
+    // Blocker eine verschlossene Tuer (G_EntIsDoor), zerbrechlich (G_EntIsBreakable),
+    // ein entfernbares func_usable (G_EntIsRemovableUsable) oder ein Brush mit
+    // targetname und CONTENTS_MONSTERCLIP/BOTCLIP ist (codeJK2/game/g_nav.cpp:
+    // 1015-1047) - je Entity; die offene Tuer zur Zeit prueft tuerFrei.
+    std::vector<unsigned char> kanteSperrt;
+    // rc605 (Ende): die startID der 32 failedEdges aus maps/<karte>.nav - Load
+    // traegt sie in m_edgeLookupMap ein (g_navigator.cpp:612-616), ClearAllFailedEdges
+    // nimmt sie dort nicht heraus (EdgeFailed sieht sie weiter). Leer: gebaut.
+    std::vector<int> fehlLadeStart;
 };
+
+// rc605 (Ende): Jedi Outcast - die gescheiterten Kanten zur Laufzeit, fuer alle
+// NPCs gemeinsam (CNavigator::failedEdges, m_edgeLookupMap, die Kosten der Kanten
+// und die Raenge mit NF_RECALC; codeJK2/game/g_navigator.cpp:1796-2128):
+// AddFailedEdge (SetEdgeCost Q3_INFINITE, FlagAllNodes NF_RECALC), CheckAllFailedEdges
+// zu Beginn jedes Bilds (g_main.cpp:1274-1277) mit ClearFailedEdge (SetEdgeCost -1),
+// CalculatePath je Knoten erst, wenn GetBestPathBetweenEnts ihn braucht (1377-1395).
+struct NavJk2FehlWelt {
+    struct Platz {                  // failedEdge_t
+        int a = -1;                 // startID (WAYPOINT_NONE: frei)
+        int b = -1;
+        int ent = 1023;             // entID: ENTITYNUM_NONE, sonst die Figur (kNavJk2Selbst: die rechnende)
+        double pruef = 0.0;         // checkTime
+    };
+    std::vector<Platz> plaetze;                      // MAX_FAILED_EDGES 32
+    std::vector<std::pair<int, int>> nachschlag;     // m_edgeLookupMap: (startID, Platz) in Einfuegefolge
+    std::vector<std::vector<NavNetzJk2::Kante>> kanten;   // leer: die des Netzes; sonst nach SetEdgeCost
+    std::vector<std::vector<int>> raenge;            // je Knoten nach CalculatePath (leer: die des Netzes)
+    std::vector<unsigned char> neuRechnen;           // NF_RECALC je Knoten
+    bool kostenGeaendert = false;                    // SetEdgeCost hat eine Kante geaendert
+    int laufzeitDazu = 0;                            // AddFailedEdge seit dem Kartenstart
+    struct Dazu {                                    // ein AddFailedEdge zur Laufzeit
+        double t = 0.0;
+        int a = -1;
+        int b = -1;
+    };
+    std::vector<Dazu> dazu;
+    double geprueftBis = -1.0e300;                   // CheckAllFailedEdges bis zu diesem Bild
+};
+inline constexpr int kNavJk2Selbst = -2;   // NavJk2FehlWelt::Platz::ent: die Figur, die den Plan rechnet
 
 struct NavNetz {
     std::vector<NavKnoten> knoten;   // [0] Platzhalter
@@ -322,6 +362,7 @@ struct NavKoerperKasten {
     NavVec mins{};
     NavVec maxs{};
     NavVec tempo{};
+    bool spieler = false;   // rc605 (Ende): s.number 0 - NAVNEW_PushBlocker schiebt ihn nie
 };
 
 // rc605 (Ende): Jedi Outcast - was eine Figur im gemeinsamen Takt der anderen
@@ -379,6 +420,9 @@ struct NavWelt {
     // Figuren und welche gerade rechnet (navKoerperLauf); sonst leer.
     std::vector<NavJk2Laufzeit>* jk2Laufzeit = nullptr;
     int ich = -1;
+    // rc605 (Ende): die gescheiterten Kanten aller Figuren im gemeinsamen Takt
+    // (CheckAllFailedEdges rechnet navKoerperLauf); leer: jeder Plan seine eigenen.
+    NavJk2FehlWelt* jk2FehlWelt = nullptr;
 };
 
 // --- Laufen ------------------------------------------------------------------
@@ -744,6 +788,9 @@ struct LaufPlan {
     // rc601 (bewegung, teil 3): mit Spuren, Boden und Schwerkraft gerechnet -
     // dann ist Z des Plans die Hoehe der Figur (schwerkraft.cpp nimmt sie).
     bool hoeheGilt = false;
+    // rc605 (Ende, Jedi Outcast): die Kanten, die diese Figur zur Laufzeit als
+    // gescheitert markierte (AddFailedEdge) - der gemeinsame Takt traegt sie nach.
+    std::vector<NavJk2FehlWelt::Dazu> jk2Dazu;
 };
 
 // Ein Plan ab abMs: das erste Denkbild ist das naechste 50-ms-Bild NACH abMs
@@ -888,6 +935,23 @@ struct NavFigurKoerper {
     // md_ga_sith intro_sith hielt dok1 sieben Sekunden auf).
     bool sfbNichtFest = false;     // NPC_spawner spawnflags 64 (SFB_NOTSOLID): contents 0 ab NPC_Begin
     std::vector<std::pair<double, signed char>> fest;   // Wechsel ab einer Zeit (kNavFest...), nach der Zeit
+    // rc605 (Ende, Jedi Outcast): der Spieler (s.number 0) - "never push the player"
+    // (NAVNEW_PushBlocker, codeJK2/game/g_navnew.cpp:113-116).
+    bool spieler = false;
+    // rc605 (Ende, Jedi Outcast): eine stehende Figur ohne Plan denkt im Spiel
+    // trotzdem jedes Bild (NPC_Think, ucmd ohne Bewegung) - schiebt ein anderer sie
+    // (pushVec), bewegt BG_AddPushVecToUcmd sie (codeJK2/game/g_active.cpp:1502-1535,
+    // 2653). Dafuer ihre Werte ohne Ziel und ihre Blickrichtung (ps.viewangles).
+    bool stehWerteDa = false;
+    LaufWerte stehWerte;
+    float stehGier = 0.0F;
+};
+// rc605 (Ende, Jedi Outcast): eine Figur ohne laufenden Plan, die ein anderer
+// geschoben hat (NAVNEW_PushBlocker) - ihr Weg im gemeinsamen Takt ab dem Schub
+// bis zum Stillstand (oder bis ihr naechster Plan beginnt).
+struct NavSchub {
+    int figur = 0;
+    std::shared_ptr<const LaufPlan> plan;
 };
 // NavFigurKoerper::fest - was ein Skriptbefehl an contents/clipmask aendert.
 // SET_INVISIBLE true: contents = 0 (Q3_SetInvisible, Q3_Interface.cpp:
@@ -906,6 +970,7 @@ inline constexpr signed char kNavFestNicht = 1;
 inline constexpr signed char kNavFestJa = 2;
 struct NavKoerperErgebnis {
     std::vector<std::shared_ptr<const LaufPlan>> plaene;   // je Abschnitt
+    std::vector<NavSchub> schub;   // rc605 (Ende): geschobene Figuren ohne laufenden Plan
     int geaendert = 0;             // so viele weichen vom Plan ohne die anderen ab
 };
 [[nodiscard]] NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigurKoerper>& figuren,

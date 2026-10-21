@@ -348,6 +348,9 @@ struct Wesen {
     // sieht (SpotWouldTelefrag2 der anderen), und wann der solidifier eines
     // SET_SOLID true wieder denkt (< 0: keiner).
     std::vector<std::pair<double, bool>> koerperAb;
+    // rc605 (Ende, Jedi Outcast): die Schuebe ohne Plan (AblaufWelt::schubWege),
+    // die ein spaeterer Plan schon als Anfang nahm.
+    std::set<const LaufPlan*> schubGenommen;
     double festVersuch = -1.0;
     double festSeit = 0.0;       // der SET_SOLID true dazu
 };
@@ -932,6 +935,16 @@ private:
         aus_.laufAbschnitte.push_back(std::move(a));
         aus_.laufSchluessel.push_back(schluessel);
     }
+    // rc605 (Ende, Jedi Outcast): der Spieler wird nie geschoben ("never push the
+    // player", codeJK2/game/g_navnew.cpp:113-116); ein NPC ohne laufenden Plan
+    // schon - dafuer seine Werte ohne Ziel und seine Blickrichtung.
+    void stehDaten(const Wesen& w, NavFigurKoerper& f) const {
+        f.spieler = w.echterSpieler;
+        if (!navJk2Regeln() || w.echterSpieler || !w.istClient) { return; }
+        f.stehWerteDa = true;
+        f.stehWerte = grundWerte(w);
+        f.stehGier = w.gier.bei(f.daAbMs > -1.0e299 ? f.daAbMs : 0.0);
+    }
     // Am Ende: die Kaesten, die Zeiten und Orte jeder Figur.
     void koerperAbschliessen() {
         for (const auto& wp : wesen_) {
@@ -951,6 +964,7 @@ private:
             f.orte = w.orteLog;
             f.sfbNichtFest = w.sfbNichtFest;   // rc604 fix604
             f.fest = w.festLog;
+            stehDaten(w, f);   // rc605 (Ende)
             // Vor dem ersten Plan steht sie, wo dieser beginnt.
             for (const NavAbschnitt& a : aus_.laufAbschnitte) {
                 if (a.figur == w.koerperNr) {
@@ -978,6 +992,7 @@ private:
             f.orte = w.orteLog;
             f.sfbNichtFest = w.sfbNichtFest;   // rc604 fix604
             f.fest = w.festLog;
+            stehDaten(w, f);   // rc605 (Ende)
             if (w.anfangBekannt) { f.orte.insert(f.orte.begin(), {-1.0e299, w.anfang}); }
             w.koerperNr = static_cast<int>(aus_.laufFiguren.size());
             aus_.laufFiguren.push_back(std::move(f));
@@ -1026,6 +1041,13 @@ private:
             f.orte.push_back({-1.0e299, NavVec{o[0], o[1], o[2]}});
             const std::string sf = wertVon(e, "spawnflags");
             f.sfbNichtFest = !sf.empty() && (std::atoi(sf.c_str()) & 64) != 0;
+            // rc605 (Ende, Jedi Outcast): auch sie denkt jedes Bild und laesst sich
+            // schieben (NAVNEW_PushBlocker) - Werte am Namen, Blick aus "angle".
+            if (navJk2Regeln()) {
+                f.stehWerteDa = true;
+                f.stehWerte = grundWerteName(name);
+                f.stehGier = static_cast<float>(std::atof(wertVon(e, "angle").c_str()));
+            }
             aus_.laufFiguren.push_back(std::move(f));
             aus_.laufFigurNamen.push_back(name);
         }
@@ -1048,46 +1070,10 @@ private:
         w.gier.denkNullMs = w.lauf.denkNullMs;           // rc604 fix604b (A1)
         w.lauf.gesetztImFesten = art == 1;
     }
-    void wegPlanen(Wesen& w, double tBefehl, bool fahrt) const {
-        // rc601 (bewegung, Durchsicht 2): der Plan beginnt im Denkbild des
-        // Befehls, wie scene.cpp.
-        const double t = navDenkbildAb(tBefehl);
-        (void)fahrt;
-        w.wegLaeuft = false;
-        if (!w.ortBekannt) {
-            // Ohne Ort laesst sich keine Strecke rechnen: wie bisher sofort da.
-            if (w.zielGesetzt) {
-                for (int a = 0; a < 3; ++a) { w.ort[a] = w.zielOrt[a]; }
-                w.ortBekannt = true;
-                w.zielGesetzt = false;
-                w.orteLog.push_back({t, NavVec{w.ort[0], w.ort[1], w.ort[2]}});   // rc603 fix603: erst ab hier dort
-            }
-            return;
-        }
-        laufBereiten(w);   // rc601 (bewegung, teil 3)
-        LaufZustand z = w.lauf;
-        const NavVec von{w.ort[0], w.ort[1], w.ort[2]};
-        // G_SetOrigin: Pfad weg, Tempo bleibt. rc601 (bewegung, teil 3): eine
-        // andere Hoehe allein ist kein Sprung - die kommt aus dem Fallen im
-        // Plan (ein SET_ORIGIN traegt gesetztMs).
-        if (z.ort[0] != von[0] || z.ort[1] != von[1] || (z.ort[2] != von[2] && z.hatVorlauf())) { z.springen(von); }
-        if (!w.gierAusPlan) {
-            planGierSync(w, t);   // rc601 (bewegung, Durchsicht 2)
-            z.gier = w.gier.bei(t);
-            z.wunschGier = z.gier;
-        }
-        w.gierAusPlan = false;
-        const bool bewegtSich = z.tempoVek[0] != 0.0F || z.tempoVek[1] != 0.0F || z.tempoVek[2] != 0.0F;
-        if (!w.zielGesetzt && !bewegtSich) {
-            w.lauf = z;
-            return;
-        }
+    // rc605 (Ende): die Werte eines Plans ohne Ziel und Blickziel - fuer wegPlanen
+    // und fuer den Schub ohne Plan (NavFigurKoerper::stehWerte, Jedi Outcast).
+    LaufWerte grundWerte(const Wesen& w) const {
         LaufWerte werte;
-        werte.zielGesetzt = w.zielGesetzt;
-        for (int a = 0; a < 3; ++a) { werte.ziel[static_cast<std::size_t>(a)] = w.zielOrt[a]; }
-        werte.zielRadius = static_cast<float>(w.zielRadius);
-        werte.zielMitRadius = w.zielMitRadius;   // rc604 fix604 (JK2)
-        werte.zielNavgoal = w.zielMarke;
         werte.schwert = w.waffe.size() == 8 && (w.waffe == "WP_SABER" || w.waffe == "wp_saber");
         werte.maxTempo = tempo(w, gehtLangsam(w));
         werte.gehTempo = tempo(w, true);
@@ -1111,6 +1097,108 @@ private:
                 werte.landeMs[static_cast<std::size_t>(c)] = static_cast<int>(std::max(0.0, welt_.animDauer(w.name, sprungAnimName(c))));
             }
         }
+        // rc601 (bewegung, teil 3): Schwerkraft und Vorlauf wie scene.cpp.
+        werte.fallen = vorlaufArt(w) != -2;
+        werte.schwerkraft = 800.0F;
+        if (welt_.karte != nullptr && !welt_.karte->entities.empty()) {
+            if (const std::string* g = welt_.karte->entities.front().find("gravity")) {
+                werte.schwerkraft = static_cast<float>(std::atof(g->c_str()));
+            }
+        }
+        werte.weltSchwerkraft = werte.schwerkraft;   // rc605: g_gravity (EvaluateTrajectory)
+        if (w.schwerkraft >= 0.0F) { werte.schwerkraft = w.schwerkraft; }
+        // rc601 integ: Takt des Verhaltens (OpenJK 100 ms, Movie Duels 50).
+        werte.verhaltenTaktMs = welt_.verhaltenTakt ? welt_.verhaltenTakt(w.name, w.waffe)
+                                                    : (navMovieDuelsRegeln() ? 50 : 100);
+        return werte;
+    }
+    // rc605 (Ende, Jedi Outcast): dieselben Werte fuer eine Kartenfigur ohne Wesen
+    // (kein Skript nennt sie) - alles, was nur am Namen haengt; Tempo und Drehrate
+    // braucht eine stehende Figur ohne Ziel nicht (BG_AddPushVecToUcmd setzt
+    // ps.speed aus pushVec, desiredYaw bleibt).
+    LaufWerte grundWerteName(const std::string& name) const {
+        LaufWerte werte;
+        werte.halbBreite = welt_.halbBreite ? welt_.halbBreite(name) : 16.0F;
+        werte.hoeheOben = welt_.hoeheOben ? welt_.hoeheOben(name) : 40.0F;
+        werte.stufe = welt_.stufe ? welt_.stufe(name) : 18.0F;
+        werte.kannSpringen = welt_.kannSpringen && welt_.kannSpringen(name);
+        werte.levitation = welt_.levitation ? welt_.levitation(name) : 0;
+        werte.landKlasse = welt_.landKlasse ? welt_.landKlasse(name) : 0;
+        if (welt_.animDauer) {
+            werte.landMs = static_cast<int>(std::max(0.0, welt_.animDauer(name, "BOTH_LAND1")));
+            werte.forceLandMs = static_cast<int>(std::max(0.0, welt_.animDauer(name, "BOTH_FORCELAND1")));
+            for (int c = kSaLandBack1; c <= kSaForceLandRight1; ++c) {
+                werte.landeMs[static_cast<std::size_t>(c)] = static_cast<int>(std::max(0.0, welt_.animDauer(name, sprungAnimName(c))));
+            }
+        }
+        werte.fallen = (welt_.vorlauf ? welt_.vorlauf(name) : 1) != -2;
+        werte.schwerkraft = 800.0F;
+        if (welt_.karte != nullptr && !welt_.karte->entities.empty()) {
+            if (const std::string* g = welt_.karte->entities.front().find("gravity")) {
+                werte.schwerkraft = static_cast<float>(std::atof(g->c_str()));
+            }
+        }
+        werte.weltSchwerkraft = werte.schwerkraft;
+        werte.verhaltenTaktMs = welt_.verhaltenTakt ? welt_.verhaltenTakt(name, std::string{}) : (navMovieDuelsRegeln() ? 50 : 100);
+        return werte;
+    }
+    // rc605 (Ende, Jedi Outcast): hat ein anderer die Figur ohne Plan geschoben
+    // (navKoerperLauf, AblaufWelt::schubWege), beginnt der naechste Plan dort, wo
+    // der Schub sie zur Zeit t hat - wie navKoerperLauf, das sie weiterrechnet.
+    void schubNehmen(Wesen& w, double t) const {
+        if (!welt_.schubWege) { return; }
+        const auto it = welt_.schubWege->find(klein(w.name));
+        if (it == welt_.schubWege->end()) { return; }
+        for (const std::shared_ptr<const LaufPlan>& p : it->second) {
+            if (!p || p->takte.empty() || !(p->abMs < t - kGleichzeitig) || w.schubGenommen.count(p.get()) != 0U) { continue; }
+            w.schubGenommen.insert(p.get());
+            const LaufZustand z = t >= p->takte.back().t - kGleichzeitig ? p->zustaende.back() : zustandBei(*p, t);
+            w.lauf = z;
+            for (int a = 0; a < 3; ++a) { w.ort[a] = z.ort[static_cast<std::size_t>(a)]; }
+            w.ortBekannt = true;
+        }
+    }
+    void wegPlanen(Wesen& w, double tBefehl, bool fahrt) const {
+        // rc601 (bewegung, Durchsicht 2): der Plan beginnt im Denkbild des
+        // Befehls, wie scene.cpp.
+        const double t = navDenkbildAb(tBefehl);
+        (void)fahrt;
+        w.wegLaeuft = false;
+        if (!w.ortBekannt) {
+            // Ohne Ort laesst sich keine Strecke rechnen: wie bisher sofort da.
+            if (w.zielGesetzt) {
+                for (int a = 0; a < 3; ++a) { w.ort[a] = w.zielOrt[a]; }
+                w.ortBekannt = true;
+                w.zielGesetzt = false;
+                w.orteLog.push_back({t, NavVec{w.ort[0], w.ort[1], w.ort[2]}});   // rc603 fix603: erst ab hier dort
+            }
+            return;
+        }
+        laufBereiten(w);   // rc601 (bewegung, teil 3)
+        schubNehmen(w, t);   // rc605 (Ende, Jedi Outcast)
+        LaufZustand z = w.lauf;
+        const NavVec von{w.ort[0], w.ort[1], w.ort[2]};
+        // G_SetOrigin: Pfad weg, Tempo bleibt. rc601 (bewegung, teil 3): eine
+        // andere Hoehe allein ist kein Sprung - die kommt aus dem Fallen im
+        // Plan (ein SET_ORIGIN traegt gesetztMs).
+        if (z.ort[0] != von[0] || z.ort[1] != von[1] || (z.ort[2] != von[2] && z.hatVorlauf())) { z.springen(von); }
+        if (!w.gierAusPlan) {
+            planGierSync(w, t);   // rc601 (bewegung, Durchsicht 2)
+            z.gier = w.gier.bei(t);
+            z.wunschGier = z.gier;
+        }
+        w.gierAusPlan = false;
+        const bool bewegtSich = z.tempoVek[0] != 0.0F || z.tempoVek[1] != 0.0F || z.tempoVek[2] != 0.0F;
+        if (!w.zielGesetzt && !bewegtSich) {
+            w.lauf = z;
+            return;
+        }
+        LaufWerte werte = grundWerte(w);   // rc605 (Ende): gemeinsam mit dem Schub ohne Plan
+        werte.zielGesetzt = w.zielGesetzt;
+        for (int a = 0; a < 3; ++a) { werte.ziel[static_cast<std::size_t>(a)] = w.zielOrt[a]; }
+        werte.zielRadius = static_cast<float>(w.zielRadius);
+        werte.zielMitRadius = w.zielMitRadius;   // rc604 fix604 (JK2)
+        werte.zielNavgoal = w.zielMarke;
         if (kino(w) && w.watchAn) {
             const bool selbst = w.watchSelbst;
             const NavVec ziel{w.watchOrt[0], w.watchOrt[1], w.watchOrt[2]};
@@ -1126,19 +1214,6 @@ private:
                              : navWeltAusEntities(welt_.karte != nullptr ? welt_.karte->entities : std::vector<MapEntity>{});
         }
         const double grenze = std::min(welt_.grenzeMs, t + 120000.0);
-        // rc601 (bewegung, teil 3): Schwerkraft und Vorlauf wie scene.cpp.
-        werte.fallen = vorlaufArt(w) != -2;
-        werte.schwerkraft = 800.0F;
-        if (welt_.karte != nullptr && !welt_.karte->entities.empty()) {
-            if (const std::string* g = welt_.karte->entities.front().find("gravity")) {
-                werte.schwerkraft = static_cast<float>(std::atof(g->c_str()));
-            }
-        }
-        werte.weltSchwerkraft = werte.schwerkraft;   // rc605: g_gravity (EvaluateTrajectory)
-        if (w.schwerkraft >= 0.0F) { werte.schwerkraft = w.schwerkraft; }
-        // rc601 integ: Takt des Verhaltens (OpenJK 100 ms, Movie Duels 50).
-        werte.verhaltenTaktMs = welt_.verhaltenTakt ? welt_.verhaltenTakt(w.name, w.waffe)
-                                                    : (navMovieDuelsRegeln() ? 50 : 100);
         double planAb = t;
         if (z.hatVorlauf() && z.gesetztMs < t - kGleichzeitig && !werte.ohneKoerper) {
             planAb = z.gesetztMs;
@@ -3735,8 +3810,26 @@ static_assert(sizeof(NavPfadPunkt) == 9U * 4U, "NavPfadPunkt mit Luecken oder ne
 static_assert(sizeof(LaufZustand) == 336U, "neues Feld in LaufZustand: gleicherZustand ergaenzen");
 static_assert(sizeof(LaufWerte) == 288U, "neues Feld in LaufWerte: gleicheWerte ergaenzen");
 static_assert(sizeof(NavAbschnitt) == 680U, "neues Feld in NavAbschnitt: gleicheEingaben ergaenzen");
-static_assert(sizeof(NavFigurKoerper) == 88U, "neues Feld in NavFigurKoerper: gleicheEingaben ergaenzen");
+static_assert(sizeof(NavFigurKoerper) == 392U, "neues Feld in NavFigurKoerper: gleicheEingaben ergaenzen");
 #endif
+// rc605 (Ende, Jedi Outcast): dieselben Schuebe ohne Plan (Takt fuer Takt dieselben Orte)?
+bool gleicheSchuebe(const std::shared_ptr<const std::map<std::string, std::vector<std::shared_ptr<const LaufPlan>>>>& x,
+                    const std::shared_ptr<const std::map<std::string, std::vector<std::shared_ptr<const LaufPlan>>>>& y) {
+    if (!x || !y) { return !x && !y; }
+    if (x->size() != y->size()) { return false; }
+    for (auto ix = x->begin(), iy = y->begin(); ix != x->end(); ++ix, ++iy) {
+        if (ix->first != iy->first || ix->second.size() != iy->second.size()) { return false; }
+        for (std::size_t i = 0; i < ix->second.size(); ++i) {
+            const LaufPlan& p = *ix->second[i];
+            const LaufPlan& q = *iy->second[i];
+            if (!gleichBits(p.abMs, q.abMs) || p.takte.size() != q.takte.size() || !gleichBits(p.ruheMs, q.ruheMs)) { return false; }
+            for (std::size_t k = 0; k < p.takte.size(); ++k) {
+                if (!gleichBits(p.takte[k].t, q.takte[k].t) || !gleichBits(p.takte[k].ort, q.takte[k].ort)) { return false; }
+            }
+        }
+    }
+    return true;
+}
 bool gleicheEingaben(const Ablauf& a, const std::vector<NavAbschnitt>& abschnitte, const std::vector<NavFigurKoerper>& figuren,
                      const std::vector<std::uint64_t>& schluessel) {
     if (a.laufAbschnitte.size() != abschnitte.size() || a.laufFiguren.size() != figuren.size() ||
@@ -3760,6 +3853,11 @@ bool gleicheEingaben(const Ablauf& a, const std::vector<NavAbschnitt>& abschnitt
             x.sfbNichtFest != y.sfbNichtFest || x.fest.size() != y.fest.size()) {   // rc604 fix604
             return false;
         }
+        // rc605 (Ende, Jedi Outcast): Spieler, Werte und Blickrichtung fuer einen Schub ohne Plan.
+        if (x.spieler != y.spieler || x.stehWerteDa != y.stehWerteDa || !gleichBits(x.stehGier, y.stehGier) ||
+            (x.stehWerteDa && !gleicheWerte(x.stehWerte, y.stehWerte))) {
+            return false;
+        }
         for (std::size_t j = 0; j < x.fest.size(); ++j) {
             if (!gleichBits(x.fest[j].first, y.fest[j].first) || x.fest[j].second != y.fest[j].second) { return false; }
         }
@@ -3779,6 +3877,7 @@ Ablauf simuliereAblaufMitKoerpern(const Script& start, const std::string& startP
     // Der gemeinsame Takt haengt an ALLEN Figuren - nichts aus einer frueheren
     // Rechnung uebernehmen.
     welt.koerperPlaene.reset();
+    welt.schubWege.reset();   // rc605 (Ende)
     Ablauf a = simuliereAblauf(start, startPfad, welt);
     int n = 1;
     std::shared_ptr<const NavWelt> eigene;
@@ -3789,7 +3888,12 @@ Ablauf simuliereAblaufMitKoerpern(const Script& start, const std::string& startP
     std::vector<NavFigurKoerper> vorFiguren;
     std::vector<std::uint64_t> vorSchluessel;
     for (int i = 0; i < 6; ++i) {
-        if (a.laufFiguren.size() < 2) { break; }
+        // rc605 (Ende, Jedi Outcast): auch eine einzelne Figur, wenn ein Plan zur
+        // Laufzeit eine Kante als gescheitert markierte - sie gilt fuer ihre
+        // naechsten Plaene (die gemeinsame NavJk2FehlWelt in navKoerperLauf).
+        bool jk2Dazu = false;
+        for (const NavAbschnitt& x : a.laufAbschnitte) { jk2Dazu = jk2Dazu || (x.allein && !x.allein->jk2Dazu.empty()); }
+        if (a.laufFiguren.empty() || (a.laufFiguren.size() < 2 && !(jk2Dazu && navJk2Regeln()))) { break; }
         if (abkuerzen && vorDa && gleicheEingaben(a, vorAbschnitte, vorFiguren, vorSchluessel)) { break; }
         if (!welt.nav && !eigene) {
             eigene = navWeltAusEntities(welt.karte != nullptr ? welt.karte->entities : std::vector<MapEntity>{});
@@ -3801,8 +3905,17 @@ Ablauf simuliereAblaufMitKoerpern(const Script& start, const std::string& startP
             if (e.plaene[j] != a.laufAbschnitte[j].allein) { (*karte)[a.laufSchluessel[j]] = e.plaene[j]; }
         }
         const std::shared_ptr<const std::map<std::uint64_t, std::shared_ptr<const LaufPlan>>> neu = karte;
-        if (gleichePlaene(neu, welt.koerperPlaene)) { break; }
+        // rc605 (Ende, Jedi Outcast): die Schuebe ohne Plan, nach Figur.
+        auto schub = std::make_shared<std::map<std::string, std::vector<std::shared_ptr<const LaufPlan>>>>();
+        for (const NavSchub& sb : e.schub) {
+            if (sb.figur < 0 || static_cast<std::size_t>(sb.figur) >= a.laufFigurNamen.size() || !sb.plan) { continue; }
+            (*schub)[klein(a.laufFigurNamen[static_cast<std::size_t>(sb.figur)])].push_back(sb.plan);
+        }
+        const std::shared_ptr<const std::map<std::string, std::vector<std::shared_ptr<const LaufPlan>>>> neuSchub =
+            schub->empty() ? nullptr : schub;
+        if (gleichePlaene(neu, welt.koerperPlaene) && gleicheSchuebe(neuSchub, welt.schubWege)) { break; }
         welt.koerperPlaene = neu;
+        welt.schubWege = neuSchub;
         if (abkuerzen) {
             vorAbschnitte = a.laufAbschnitte;
             vorFiguren = a.laufFiguren;

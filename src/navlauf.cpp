@@ -1258,6 +1258,41 @@ void jk2KanteDazu(NavNetzJk2::Knoten& k, int id, int kosten, unsigned char flags
 
 // CNavigator::CalculatePath (g_navigator.cpp:779-842) mit CPriorityQueue
 // (std::push_heap/pop_heap, NodeTotalGreater, :2640-2735).
+// rc605 (Ende): CalculatePath (g_navigator.cpp:777-841) mit den Kanten zur Zeit
+// (nach SetEdgeCost) - dieselbe Rechnung wie jk2Pfad.
+template <class KantenVon>
+void jk2RaengeMit(const KantenVon& kantenVon, std::size_t zahl, int start, std::vector<int>& raenge) {
+    struct CEdge {
+        int first;
+        int second;
+        int cost;
+    };
+    const auto groesser = [](const CEdge& a, const CEdge& b) { return a.cost > b.cost; };
+    raenge.assign(zahl, -1);
+    int rang = 0;
+    std::vector<CEdge> heap;
+    std::vector<unsigned char> geprueft(zahl, 0);
+    geprueft[static_cast<std::size_t>(start)] = 1;
+    raenge[static_cast<std::size_t>(start)] = rang++;
+    for (const NavNetzJk2::Kante& e : kantenVon(start)) {
+        geprueft[static_cast<std::size_t>(e.id)] = 1;
+        heap.push_back(CEdge{e.id, e.id, e.kosten});
+        std::push_heap(heap.begin(), heap.end(), groesser);
+    }
+    while (!heap.empty()) {
+        std::pop_heap(heap.begin(), heap.end(), groesser);
+        const CEdge t = heap.back();
+        heap.pop_back();
+        raenge[static_cast<std::size_t>(t.first)] = rang++;
+        for (const NavNetzJk2::Kante& e : kantenVon(t.first)) {
+            if (geprueft[static_cast<std::size_t>(e.id)] != 0) { continue; }
+            heap.push_back(CEdge{e.id, t.second, t.cost + e.kosten});
+            std::push_heap(heap.begin(), heap.end(), groesser);
+            geprueft[static_cast<std::size_t>(e.id)] = 1;
+        }
+    }
+}
+
 void jk2Pfad(NavNetzJk2& n, int start) {
     struct CEdge {
         int first;
@@ -1366,6 +1401,29 @@ std::array<std::uint32_t, 4> md4(const std::string& daten) {
 // alle Entities gespawnt, START_OPEN-Tueren auf pos1, func_wall/func_usable
 // mit START_OFF ohne contents. Mit einer passenden maps/<karte>.nav gilt
 // stattdessen die Datei (g_main.cpp:690, CNavigator::Load).
+// rc605 (Ende): NAV_TestBestNode (codeJK2/game/g_nav.cpp:1015-1047) - welche
+// Blocker eine Kante als gescheitert markieren: G_EntIsDoor (func_door, die nicht
+// offen ist), G_EntIsBreakable (g_breakable.cpp:1107-1133), G_EntIsRemovableUsable
+// (g_usable.cpp:83-94): 1. Ein Brush mit targetname, dessen contents CONTENTS_
+// MONSTERCLIP oder CONTENTS_BOTCLIP haben: 2 (die contents liefert die Spur).
+std::vector<unsigned char> jk2KanteSperrt(const std::vector<MapEntity>& ents) {
+    std::vector<unsigned char> v(ents.size(), 0);
+    for (std::size_t i = 0; i < ents.size(); ++i) {
+        const MapEntity& x = ents[i];
+        const std::string kl = klein(x.classname);
+        if (kl == "func_door" || kl == "func_breakable" || kl == "func_glass" || kl == "misc_model_breakable" ||
+            kl == "misc_maglock") {
+            v[i] = 1;
+        } else if (kl == "func_usable" && (ganz(x, "spawnflags") & 8) == 0 && !x.targetname.empty()) {
+            v[i] = 1;
+        } else {
+            const std::string mdl = text(x, "model");
+            if (!x.targetname.empty() && mdl.size() > 1 && mdl[0] == '*') { v[i] = 2; }
+        }
+    }
+    return v;
+}
+
 std::shared_ptr<NavNetzJk2> baueNavNetzJk2(const std::vector<MapEntity>& ents, const NavBauHilfe& h) {
     std::vector<signed char> tuerFrei = jk2TuerFrei(ents);
     if (!h.jk2Nav.empty() && h.jk2SummeDa) {
@@ -1373,6 +1431,7 @@ std::shared_ptr<NavNetzJk2> baueNavNetzJk2(const std::vector<MapEntity>& ents, c
         std::shared_ptr<NavNetzJk2> geladen = navJk2Laden(h.jk2Nav, summe);
         if (geladen && summe == h.jk2KartenSumme) {
             geladen->tuerFrei = std::move(tuerFrei);
+            geladen->kanteSperrt = jk2KanteSperrt(ents);   // rc605 (Ende)
             // rc605: G_InitGame loescht die gescheiterten Kanten, die Load aus der
             // Datei las (ClearAllFailedEdges, codeJK2/game/g_main.cpp:716-719, nur
             // ein geladener Spielstand behaelt sie) - CheckBlockedEdges laeuft mit
@@ -1384,6 +1443,7 @@ std::shared_ptr<NavNetzJk2> baueNavNetzJk2(const std::vector<MapEntity>& ents, c
     auto netz = std::make_shared<NavNetzJk2>();
     NavNetzJk2& n = *netz;
     n.tuerFrei = std::move(tuerFrei);
+    n.kanteSperrt = jk2KanteSperrt(ents);   // rc605 (Ende)
     const bool mitSpur = static_cast<bool>(h.spur);
     const bool zeitgenau = mitSpur && static_cast<bool>(h.spurVersetzt) && static_cast<bool>(h.tuerStellungen);
     std::vector<int> pinselEnts;
@@ -1633,6 +1693,181 @@ void jk2FehlNachholen(const NavWelt& welt, const NavNetzJk2& n, int slot, Jk2Feh
     }
 }
 
+// --- rc605 (Ende): gescheiterte Kanten zur Laufzeit (NavJk2FehlWelt) -----------
+// Der Stand beim Kartenstart: CheckBlockedEdges (gebaut: AddFailedEdge vor
+// CalculatePaths, keine Kosten) bzw. Load + ClearAllFailedEdges (aus der Datei:
+// alle Plaetze frei, m_edgeLookupMap behaelt die 32 Eintraege).
+void jk2FehlWeltAnfang(NavJk2FehlWelt& fw, const NavNetzJk2& n) {
+    fw.plaetze.assign(32, NavJk2FehlWelt::Platz{});
+    fw.nachschlag.clear();
+    for (std::size_t j = 0; j < n.fehlLadeStart.size() && j < 32U; ++j) { fw.nachschlag.emplace_back(n.fehlLadeStart[j], static_cast<int>(j)); }
+    for (std::size_t j = 0; j < n.fehl.size() && j < 32U; ++j) {
+        NavJk2FehlWelt::Platz& p = fw.plaetze[j];
+        p.a = n.fehl[j].a;
+        p.b = n.fehl[j].b;
+        p.ent = 1023;
+        p.pruef = kNavJk2FehlErstePruefung;
+        fw.nachschlag.emplace_back(p.a, static_cast<int>(j));
+    }
+    fw.kanten.clear();
+    fw.raenge.clear();
+    fw.neuRechnen.assign(n.knoten.size(), 0);
+    fw.kostenGeaendert = false;
+    fw.laufzeitDazu = 0;
+    fw.dazu.clear();
+    fw.geprueftBis = -1.0e300;
+}
+// CNavigator::EdgeFailed (g_navigator.cpp:1837-1859): erst die Eintraege von
+// m_edgeLookupMap mit dem Schluessel startID (endID des Platzes == endID), dann die
+// mit endID (endID des Platzes == startID). Ein Eintrag bleibt nach ClearFailedEdge.
+int jk2FehlKante(const NavJk2FehlWelt& fw, int a, int b) {
+    for (const auto& [k, j] : fw.nachschlag) {
+        if (k == a && fw.plaetze[static_cast<std::size_t>(j)].b == b) { return j; }
+    }
+    for (const auto& [k, j] : fw.nachschlag) {
+        if (k == b && fw.plaetze[static_cast<std::size_t>(j)].b == a) { return j; }
+    }
+    return -1;
+}
+// Die Kanten eines Knotens zur Zeit und der Rang von id zum Knoten ende.
+const std::vector<NavNetzJk2::Kante>& jk2KantenVon(const NavJk2FehlWelt* fw, const NavNetzJk2& n, int id) {
+    if (fw != nullptr && !fw->kanten.empty()) { return fw->kanten[static_cast<std::size_t>(id)]; }
+    return n.knoten[static_cast<std::size_t>(id)].kanten;
+}
+int jk2RangVon(const NavJk2FehlWelt* fw, const NavNetzJk2& n, int ende, int id) {
+    if (fw != nullptr && !fw->raenge.empty() && !fw->raenge[static_cast<std::size_t>(ende)].empty()) {
+        return fw->raenge[static_cast<std::size_t>(ende)][static_cast<std::size_t>(id)];
+    }
+    return n.knoten[static_cast<std::size_t>(ende)].raenge[static_cast<std::size_t>(id)];
+}
+// CNavigator::SetEdgeCost (g_navigator.cpp:722-746): cost -1 = Distance; dann
+// node1->AddEdge(ID2, cost) und node2->AddEdge(ID1, cost) - CNode::AddEdge
+// (g_navigator.cpp:128-156) setzt eine vorhandene Kante neu (flags 0) oder haengt
+// eine neue an.
+void jk2KantenKosten(NavJk2FehlWelt& fw, const NavNetzJk2& n, int a, int b, int kosten) {
+    if (a < 0 || b < 0) { return; }
+    if (kosten == -1) {
+        kosten = static_cast<int>(abstand(n.knoten[static_cast<std::size_t>(a)].punkt, n.knoten[static_cast<std::size_t>(b)].punkt));
+    }
+    const auto gleich = [&](int von, int nach) {
+        for (const NavNetzJk2::Kante& e : jk2KantenVon(&fw, n, von)) {
+            if (e.id == nach) { return e.kosten == kosten; }
+        }
+        return false;
+    };
+    if (gleich(a, b) && gleich(b, a)) { return; }
+    if (fw.kanten.empty()) {
+        fw.kanten.resize(n.knoten.size());
+        for (std::size_t i = 0; i < n.knoten.size(); ++i) { fw.kanten[i] = n.knoten[i].kanten; }
+    }
+    const auto setze = [&](int von, int nach) {
+        for (NavNetzJk2::Kante& e : fw.kanten[static_cast<std::size_t>(von)]) {
+            if (e.id == nach) {
+                e.kosten = kosten;
+                e.flags = 0;
+                return;
+            }
+        }
+        NavNetzJk2::Kante e;
+        e.id = nach;
+        e.kosten = kosten;
+        fw.kanten[static_cast<std::size_t>(von)].push_back(e);
+    };
+    setze(a, b);
+    setze(b, a);
+    fw.kostenGeaendert = true;
+}
+// FlagAllNodes( NF_RECALC ) (g_navigator.cpp:464-472)
+void jk2AlleNeu(NavJk2FehlWelt& fw) { std::fill(fw.neuRechnen.begin(), fw.neuRechnen.end(), static_cast<unsigned char>(1)); }
+// GetBestPathBetweenEnts: "calc the paths for this node if they're out of date"
+// (g_navigator.cpp:1374-1395) - CalculatePath, RemoveFlag( NF_RECALC ).
+void jk2RangNeu(NavJk2FehlWelt& fw, const NavNetzJk2& n, int id) {
+    if (id < 0 || static_cast<std::size_t>(id) >= fw.neuRechnen.size() || fw.neuRechnen[static_cast<std::size_t>(id)] == 0U) { return; }
+    fw.neuRechnen[static_cast<std::size_t>(id)] = 0;
+    if (fw.kanten.empty()) { return; }   // keine Kosten geaendert: die Raenge des Netzes
+    if (fw.raenge.empty()) { fw.raenge.resize(n.knoten.size()); }
+    jk2RaengeMit([&](int k) -> const std::vector<NavNetzJk2::Kante>& { return fw.kanten[static_cast<std::size_t>(k)]; },
+                 n.knoten.size(), id, fw.raenge[static_cast<std::size_t>(id)]);
+}
+// CNavigator::AddFailedEdge (g_navigator.cpp:1886-2016), d_patched 1, nach
+// CalculatePaths (pathsCalculated): SetEdgeCost( Q3_INFINITE ), FlagAllNodes.
+// checkTime = level.time + CHECK_FAILED_EDGE_INTERVAL + Q_irand( 0, 1000 ) - fest
+// die Mitte (kNavJk2FehlPause).
+void jk2FehlDazu(NavJk2FehlWelt& fw, const NavNetzJk2& n, int ent, int a, int b, double t) {
+    const int zahl = static_cast<int>(n.knoten.size());
+    if (zahl == 0 || a == b || a < 0 || a >= zahl || b < 0 || b >= zahl) { return; }
+    const int vorhanden = jk2FehlKante(fw, a, b);
+    if (vorhanden != -1) {
+        fw.plaetze[static_cast<std::size_t>(vorhanden)].ent = ent;   // "just remember this guy instead"
+        return;
+    }
+    for (std::size_t j = 0; j < fw.plaetze.size(); ++j) {
+        NavJk2FehlWelt::Platz& p = fw.plaetze[j];
+        if (p.a != -1) { continue; }
+        p.a = a;
+        p.b = b;
+        p.pruef = t + kNavJk2FehlPause;
+        p.ent = ent;
+        fw.nachschlag.emplace_back(a, static_cast<int>(j));
+        jk2KantenKosten(fw, n, a, b, kJk2Unendlich);
+        jk2AlleNeu(fw);
+        ++fw.laufzeitDazu;
+        fw.dazu.push_back(NavJk2FehlWelt::Dazu{t, a, b});
+        return;
+    }
+    // "NAV ERROR: too many blocked waypoint connections"
+}
+// G_EntIsUnlockedDoor zur Zeit t (NavNetzJk2::tuerFrei, das Schloss im Mover-Plan).
+bool jk2TuerOffenBei(const NavWelt& welt, const NavNetzJk2& n, int e, double t) {
+    if (e < 0 || e >= static_cast<int>(n.tuerFrei.size())) { return false; }
+    const signed char v = n.tuerFrei[static_cast<std::size_t>(e)];
+    if (v == 0) { return false; }
+    if (v == 3) { return true; }
+    bool zu = v == 2;
+    if (welt.mover) {
+        if (const NavMoverPlan::Stand* st = welt.mover->standVon(e, t)) { zu = st->verriegelt; }
+    }
+    return !zu;
+}
+// CNavigator::CheckAllFailedEdges / CheckFailedEdge (g_navigator.cpp:2018-2128)
+// im Bild t. `spur` spurt zur Zeit t (mit den Figuren, wenn es sie gibt);
+// `kasten(ent, mins, maxs, ignore, clipmask)`: der Kasten einer lebenden Figur
+// (sonst false: DEFAULT_MINS/MAXS, ENTITYNUM_NONE, MASK_NPCSOLID).
+template <class Spur, class Kasten>
+void jk2FehlAllePruefen(NavJk2FehlWelt& fw, const NavNetzJk2& n, const NavWelt& welt, double t, const Spur& spur, const Kasten& kasten) {
+    if (n.knoten.empty()) { return; }
+    bool frei = false;
+    for (NavJk2FehlWelt::Platz& p : fw.plaetze) {
+        if (!(p.pruef < t) || p.a == -1) { continue; }
+        NavVec mi{-kDefaultMaxs0, -kDefaultMaxs0, kDefaultMins2 + kStepSize};
+        NavVec ma{kDefaultMaxs0, kDefaultMaxs0, kDefaultMaxs2};
+        int ignore = kNavKeineEntity;
+        std::uint32_t maske = kJk2MaskNpcSolid;
+        if (p.ent != 1023 && kasten(p.ent, mi, ma, ignore, maske)) { mi[2] += kStepSize; }
+        if (ma[2] < mi[2]) { ma[2] = mi[2]; }
+        const NavVec& start = n.knoten[static_cast<std::size_t>(p.a)].punkt;
+        const NavVec& ende = n.knoten[static_cast<std::size_t>(p.b)].punkt;
+        if (welt.pvs && !welt.pvs(start, ende)) { continue; }   // gi.inPVSIgnorePortals
+        const NavSpur tr = spur(start, mi, ma, ende, ignore, maske | kNavMonsterClip | kNavBotClip);
+        if (tr.startsolid || tr.allsolid) { continue; }
+        int treffer = tr.entity;
+        if (treffer != kNavKeineEntity && treffer < kNavKoerperBasis && jk2TuerOffenBei(welt, n, treffer, t)) {
+            treffer = kNavKeineEntity;
+        } else if (treffer != kNavKeineEntity && treffer == p.ent) {
+            treffer = kNavKeineEntity;   // "don't hit the person who initially marked the edge failed"
+        }
+        if (treffer == kNavKeineEntity) {
+            // ClearFailedEdge (g_navigator.cpp:1796-1826)
+            jk2KantenKosten(fw, n, p.a, p.b, -1);
+            p = NavJk2FehlWelt::Platz{};
+            frei = true;
+        } else {
+            p.pruef = t + kNavJk2FehlPause;
+        }
+    }
+    if (frei) { jk2AlleNeu(fw); }
+}
+
 double navJk2FehlFreiAb(const NavWelt& welt, int slot, double bisMs) {
     if (!welt.netz || !welt.netz->jk2 || slot < 0 || slot >= static_cast<int>(welt.netz->jk2->fehl.size())) { return -1.0; }
     Jk2FehlStand f;
@@ -1699,6 +1934,7 @@ std::shared_ptr<NavNetzJk2> navJk2Laden(const std::string& bytes, int& summe) {
         NavNetzJk2::Fehl f;
         int pruefzeit = 0;
         if (!int4(f.a) || !int4(f.b) || !int4(pruefzeit) || !int4(f.entity)) { return nullptr; }
+        netz->fehlLadeStart.push_back(f.a);   // rc605 (Ende): m_edgeLookupMap (g_navigator.cpp:612-616)
         if (f.a < 0 || f.a >= zahl || f.b < 0 || f.b >= zahl) { continue; }   // WAYPOINT_NONE: frei
         netz->fehl.push_back(f);
     }
@@ -3726,8 +3962,45 @@ struct Lauf {
     // frei (ClearFailedEdge). Ohne den Stand des Plans (jk2FehlStand) wie bis
     // rc605: jedes Bild neu geprueft.
     std::vector<Jk2FehlStand>* jk2FehlStand = nullptr;
+    // rc605 (Ende): die gescheiterten Kanten zur Laufzeit (NavJk2FehlWelt) - im
+    // gemeinsamen Takt die aller Figuren, sonst die des Plans.
+    NavJk2FehlWelt* fehlWelt = nullptr;
+    std::vector<NavJk2FehlWelt::Dazu>* dazuLog = nullptr;   // LaufPlan::jk2Dazu
+    [[nodiscard]] const std::vector<NavNetzJk2::Kante>& jk2Kanten(int id) const { return jk2KantenVon(fehlWelt, *jk2Netz(), id); }
+    [[nodiscard]] int jk2Rang(int ende, int id) const { return jk2RangVon(fehlWelt, *jk2Netz(), ende, id); }
+    [[nodiscard]] int jk2KanteFehlt(int a, int b) const {
+        return fehlWelt != nullptr ? jk2FehlKante(*fehlWelt, a, b) : jk2Netz()->kanteFehl(a, b);
+    }
+    // Die rechnende Figur als entID (s.number): im gemeinsamen Takt ihr Koerper.
+    [[nodiscard]] int jk2IchEnt() const { return welt.ich >= 0 ? kNavKoerperBasis + welt.ich : kNavJk2Selbst; }
+    // CNavigator::AddFailedEdge( self->s.number, startID, endID )
+    void jk2KanteScheitern(int a, int b) {
+        if (fehlWelt == nullptr) { return; }
+        const std::size_t vor = fehlWelt->dazu.size();
+        jk2FehlDazu(*fehlWelt, *jk2Netz(), jk2IchEnt(), a, b, static_cast<double>(jetzt));
+        if (dazuLog != nullptr && fehlWelt->dazu.size() > vor) { dazuLog->push_back(fehlWelt->dazu.back()); }
+    }
+    // CNavigator::NodesAreNeighbors (g_navigator.cpp:1774-1794)
+    [[nodiscard]] bool jk2Nachbarn(int a, int b) const {
+        if (a == b) { return false; }
+        for (const NavNetzJk2::Kante& e : jk2Kanten(a)) {
+            if (e.id == b) { return true; }
+        }
+        return false;
+    }
+    // NAVNEW_TestNodeConnectionBlocked( wp1, wp2, self, goal, qfalse, qtrue )
+    // (codeJK2/game/g_navnew.cpp:540-588): nur CONTENTS_BODY, der eigene Kasten.
+    bool jk2VerbindungBlockiert(int wp1, int wp2) {
+        NavVec mi = mins;
+        mi[2] += kStepSize;
+        if (mi[2] > maxs[2]) { mi[2] = maxs[2]; }
+        const NavSpur tr = spurDurch(spurF, jk2Knoten(wp1).punkt, mi, maxs, jk2Knoten(wp2).punkt,
+                                     welt.ich >= 0 ? kNavKoerperBasis + welt.ich : kNavKeineEntity, kNavBody);
+        return !(tr.fraction >= 1.0F);   // goalEntNum: ein Navgoal ist kein Koerper
+    }
     bool jk2KanteGesperrt(int a, int b) {
         const NavNetzJk2* n = jk2Netz();
+        if (fehlWelt != nullptr) { return jk2FehlKante(*fehlWelt, a, b) != -1; }   // rc605 (Ende)
         const int j = n->kanteFehl(a, b);
         if (j < 0) { return false; }
         if (jk2FehlStand != nullptr) {
@@ -3785,8 +4058,7 @@ struct Lauf {
     [[nodiscard]] int jk2PfadKosten(int start, int ende) const {
         const int n = jk2Zahl();
         if (start < 0 || start >= n || ende < 0 || ende >= n) { return kJk2Unendlich; }
-        if (jk2Knoten(start).kanten.empty()) { return kJk2Unendlich; }
-        const NavNetzJk2::Knoten& endK = jk2Knoten(ende);
+        if (jk2Kanten(start).empty()) { return kJk2Unendlich; }
         int move = start;
         int kosten = 0;
         int schritte = 0;
@@ -3794,9 +4066,9 @@ struct Lauf {
             int bestRang = 131072;   // WORLD_SIZE
             int best = -1;
             int bestKosten = 0;
-            for (const NavNetzJk2::Kante& e : jk2Knoten(move).kanten) {
+            for (const NavNetzJk2::Kante& e : jk2Kanten(move)) {
                 if (e.id == ende) { return kosten + e.kosten; }
-                const int r = endK.raenge[static_cast<std::size_t>(e.id)];
+                const int r = jk2Rang(ende, e.id);
                 if (r == -1) { return kJk2Unendlich; }
                 if (r < bestRang) {
                     best = e.id;
@@ -3814,7 +4086,6 @@ struct Lauf {
     bool jk2WegGesperrt(int start, int test, int ende, int rejectRang) {
         if (jk2KanteGesperrt(start, test)) { return true; }
         if (test == ende) { return false; }
-        const NavNetzJk2::Knoten& endK = jk2Knoten(ende);
         int next = test;
         int last = start;
         int bestNext = -1;
@@ -3822,12 +4093,12 @@ struct Lauf {
         int schritte = 0;
         while (true) {
             bool alleGesperrt = true;
-            for (const NavNetzJk2::Kante& e : jk2Knoten(next).kanten) {
+            for (const NavNetzJk2::Kante& e : jk2Kanten(next)) {
                 const int id = e.id;
                 if (id == last || id == start) { continue; }
                 if (jk2KanteGesperrt(next, id)) { continue; }
                 if (id == ende) { return false; }
-                const int r = endK.raenge[static_cast<std::size_t>(id)];
+                const int r = jk2Rang(ende, id);
                 if (r < 0) { continue; }
                 if (r < bestRang) {
                     bestNext = id;
@@ -3845,22 +4116,22 @@ struct Lauf {
     int jk2BesterKnoten(int start, int ende, int& pfadKosten, int reject) {
         const int n = jk2Zahl();
         if (n == 0 || start < 0 || start >= n || ende < 0 || ende >= n) { return -1; }
-        if (start == ende) { return jk2Netz()->kanteFehl(start, ende) == -1 ? start : -1; }
-        const NavNetzJk2::Knoten& s = jk2Knoten(start);
+        if (start == ende) { return jk2KanteFehlt(start, ende) == -1 ? start : -1; }
+        const std::vector<NavNetzJk2::Kante>& sk = jk2Kanten(start);
         int best = -1;
         int bestRang = kJk2Unendlich;
         int rejectRang = kJk2Unendlich;
         int bestKosten = kJk2Unendlich;
         pfadKosten = 0;
         if (reject != -1) {
-            for (const NavNetzJk2::Kante& e : s.kanten) {
+            for (const NavNetzJk2::Kante& e : sk) {
                 if (e.id == reject) {
                     rejectRang = jk2PfadKosten(start, ende);
                     break;
                 }
             }
         }
-        for (const NavNetzJk2::Kante& e : s.kanten) {
+        for (const NavNetzJk2::Kante& e : sk) {
             const int id = e.id;
             const int r = jk2PfadKosten(id, ende);
             if (r >= rejectRang) { continue; }
@@ -3915,7 +4186,11 @@ struct Lauf {
                 }
                 jk2GeprueftIch[a.id] = 2;   // CHECKED_PASSED
             }
+            // rc605 (Ende): "calc the paths for this node if they're out of date"
+            // (g_navigator.cpp:1374-1381)
+            if (fehlWelt != nullptr) { jk2RangNeu(*fehlWelt, *jk2Netz(), a.id); }
             for (const Jk2Naechster& b : k2) {
+                if (fehlWelt != nullptr) { jk2RangNeu(*fehlWelt, *jk2Netz(), b.id); }   // ... node2 (1388-1395)
                 const NavNetzJk2::Knoten& nb = jk2Knoten(b.id);
                 int kosten = static_cast<int>(std::floor(abstand(z.ort, na.punkt) + abstand(w.ziel, nb.punkt)));
                 int pfad = 0;
@@ -3968,6 +4243,13 @@ struct Lauf {
         if (tr.entity >= 0 && tr.entity < kNavKoerperBasis && jk2TuerOffen(tr.entity)) {
             if (abstand2(z.ort, tr.endpos) < 16.0F * 16.0F) { return start; }
             if (!zuHoch) { return ende; }
+        } else if (tr.entity >= 0 && tr.entity < kNavKoerperBasis) {
+            // rc605 (Ende): eine verschlossene Tuer, Zerbrechliches, ein entfernbares
+            // func_usable oder ein Brush mit targetname aus Monster-/Botclip: die Kante
+            // ist gescheitert (failEdge qtrue, g_nav.cpp:1015-1047).
+            const NavNetzJk2& n = *jk2Netz();
+            const unsigned char art = static_cast<std::size_t>(tr.entity) < n.kanteSperrt.size() ? n.kanteSperrt[static_cast<std::size_t>(tr.entity)] : 0U;
+            if (art == 1U || (art == 2U && (tr.contents & (kNavMonsterClip | kNavBotClip)) != 0U)) { jk2KanteScheitern(start, ende); }
         }
         return start;
     }
@@ -4069,6 +4351,7 @@ struct Lauf {
         NavJk2Laufzeit* er = jk2Stand(k.id);
         if (ich == nullptr || er == nullptr) { return; }
         if (ich->schubZahl > 30) { return; }   // "don't push for more than 3 seconds"
+        if (k.spieler) { return; }              // rc605 (Ende): "never push the player" (g_navnew.cpp:113-116)
         if (!istNull(er->schub)) { return; }    // "someone else is pushing him"
         NavVec mi = k.mins;
         mi[2] += kStepSize;
@@ -4207,8 +4490,12 @@ struct Lauf {
             } else {
                 merken = false;
                 if (best != meiner) {
-                    // d_altRoutes: AddFailedEdge, wenn ein Koerper die Verbindung
-                    // sperrt (fuehrt behaved nicht, NOTIZEN) - weiter zum eigenen.
+                    // d_altRoutes, d_patched: AddFailedEdge, wenn die beiden keine
+                    // Nachbarn sind oder ein Koerper die Verbindung sperrt (g_navnew.cpp:
+                    // 774-791) - rc605 (Ende); weiter zum eigenen Wegpunkt.
+                    if (fehlWelt != nullptr && (!jk2Nachbarn(meiner, best) || jk2VerbindungBlockiert(meiner, best))) {
+                        jk2KanteScheitern(meiner, best);
+                    }
                     best = meiner;
                 } else {
                     jk2KnotenScheitern(meiner);   // AddFailedNode (g_navnew.cpp:836-840)
@@ -4798,6 +5085,53 @@ struct LaufRechner {
     bool fertig = false;
     bool ohneNie = false;   // kein Abbruch, wenn sie lange steht (andere Figuren koennen den Weg freigeben)
     std::vector<Jk2FehlStand> jk2Fehl;   // rc605 (Rest): CheckAllFailedEdges (je Plan aus der Zeit nachgerechnet)
+    // rc605 (Ende): allein (ohne NavWelt::jk2FehlWelt) die gescheiterten Kanten
+    // dieses Plans ab dem Kartenstart, CheckAllFailedEdges in jedem Bild.
+    std::unique_ptr<NavJk2FehlWelt> eigeneFehl;
+    NavJk2FehlWelt* fehlWeltBis(double bis) {
+        if (welt.jk2FehlWelt != nullptr) { return welt.jk2FehlWelt; }
+        if (!gJk2Nav.load(std::memory_order_relaxed) || !welt.netz || !welt.netz->jk2 || w.ohneKoerper) { return nullptr; }
+        const NavNetzJk2& n = *welt.netz->jk2;
+        if (!eigeneFehl) {
+            eigeneFehl = std::make_unique<NavJk2FehlWelt>();
+            jk2FehlWeltAnfang(*eigeneFehl, n);
+        }
+        NavJk2FehlWelt& fw = *eigeneFehl;
+        const NavVec selbstMi{-w.halbBreite, -w.halbBreite, kDefaultMins2};
+        const NavVec selbstMa{w.halbBreite, w.halbBreite, w.hoeheOben};
+        const auto kasten = [&](int ent, NavVec& mi, NavVec& ma, int& ign, std::uint32_t& m) {
+            if (ent != kNavJk2Selbst) { return false; }
+            mi = selbstMi;
+            ma = selbstMa;
+            ign = kNavKeineEntity;
+            m = kJk2MaskNpcSolid;
+            return true;
+        };
+        // Bilder, in denen kein Platz faellig ist, aendern nichts - zum naechsten
+        // faelligen (das erste Bild mit level.time > checkTime).
+        for (;;) {
+            double naechstes = 1.0e300;
+            for (const NavJk2FehlWelt::Platz& p : fw.plaetze) {
+                if (p.a == -1) { continue; }
+                double tf = kNavDenkMs * (std::floor(p.pruef / kNavDenkMs + 1.0e-9) + 1.0);
+                if (tf <= fw.geprueftBis + 0.5) { tf = fw.geprueftBis + kNavDenkMs; }
+                naechstes = std::min(naechstes, tf);
+            }
+            if (naechstes > bis + 0.5) { break; }
+            const double tf = naechstes;
+            const auto spur = [&](const NavVec& a, const NavVec& mi, const NavVec& ma, const NavVec& b, int ign, std::uint32_t m) {
+                if (welt.spurZeit) { return welt.spurZeit(a, mi, ma, b, ign, m, tf); }
+                if (welt.spur) { return welt.spur(a, mi, ma, b, ign, m); }
+                NavSpur r;
+                r.endpos = b;
+                return r;
+            };
+            jk2FehlAllePruefen(fw, n, welt, tf, spur, kasten);
+            fw.geprueftBis = tf;
+        }
+        fw.geprueftBis = std::max(fw.geprueftBis, bis);
+        return &fw;
+    }
     LaufRechner(const NavWelt& wl, const LaufZustand& start, const LaufWerte& werte, double abMs, double grenze)
         : welt(wl), grenzeMs(grenze) {
         plan.abMs = abMs;
@@ -4897,6 +5231,10 @@ struct LaufRechner {
         l.jetzt = static_cast<int>(std::lround(t));
         l.akt.t = t;   // rc601 (bewegung, teil 3): die Mover in diesem Denkbild
         l.jk2FehlStand = &jk2Fehl;   // rc605 (Rest): CheckAllFailedEdges ueber die Bilder des Plans
+        // rc605 (Ende): die gescheiterten Kanten zur Laufzeit (AddFailedEdge,
+        // CheckAllFailedEdges zu Beginn des Bilds, g_main.cpp:1274-1277).
+        l.fehlWelt = fehlWeltBis(t);
+        l.dazuLog = &plan.jk2Dazu;
         bool bewegt = false;
         bool gehTaste = false;
         l.zBewegung = {0, 0, 0};   // NPC_Think: VectorClear(ps.moveDir)
@@ -5468,7 +5806,13 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
     NavKoerperErgebnis aus;
     aus.plaene.resize(abschnitte.size());
     for (std::size_t i = 0; i < abschnitte.size(); ++i) { aus.plaene[i] = abschnitte[i].allein; }
-    if (figuren.size() < 2 || abschnitte.empty()) { return aus; }
+    // rc605 (Ende, Jedi Outcast): markiert ein Plan zur Laufzeit eine Kante als
+    // gescheitert, gilt das fuer alle - auch fuer die naechsten Plaene derselben Figur.
+    bool jk2Dazu = false;
+    for (const NavAbschnitt& a : abschnitte) { jk2Dazu = jk2Dazu || (a.allein && !a.allein->jk2Dazu.empty()); }
+    if (abschnitte.empty() || figuren.empty() || (figuren.size() < 2 && !(jk2Dazu && gJk2Nav.load(std::memory_order_relaxed)))) {
+        return aus;
+    }
     NavWelt kw = welt;
     kw.kennung = 0;
     std::vector<NavKoerperKasten> kaesten;
@@ -5477,6 +5821,18 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
     const bool jk2Takt = gJk2Nav.load(std::memory_order_relaxed);
     std::vector<NavJk2Laufzeit> jk2Stand(figuren.size());
     if (jk2Takt) { kw.jk2Laufzeit = &jk2Stand; }
+    // rc605 (Ende, Jedi Outcast): die gescheiterten Kanten aller Figuren (NavJk2FehlWelt).
+    // Ein Plan ohne die anderen sah nur seine eigenen und die Kartenstart-Kanten ohne
+    // Figuren (alleinFrei); weicht das Gemeinsame davon ab, rechnen alle selbst.
+    NavJk2FehlWelt geteilt;
+    std::vector<Jk2FehlStand> alleinFrei;
+    const NavNetzJk2* jk2n = (jk2Takt && welt.netz && welt.netz->jk2) ? welt.netz->jk2.get() : nullptr;
+    if (jk2n != nullptr) {
+        jk2FehlWeltAnfang(geteilt, *jk2n);
+        kw.jk2FehlWelt = &geteilt;
+        alleinFrei.assign(jk2n->fehl.size(), Jk2FehlStand{});
+    }
+    bool weltAnders = false;
 
     enum class Art : std::uint8_t { Keiner, Folgt, Rechnet, Fertig };
     struct Stand {
@@ -5491,6 +5847,12 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
         bool hatZustand = false;
         LaufZustand z;                  // Stand nach dem letzten Denkbild
         double zT = -1.0e300;
+        // rc605 (Ende, Jedi Outcast): geschoben ohne laufenden Plan (NavSchub) -
+        // NPC_Think ohne Ziel, BG_AddPushVecToUcmd, Pmove bis zum Stillstand.
+        std::unique_ptr<LaufRechner> schubRechner;
+        std::shared_ptr<LaufPlan> schubBau;
+        bool schubDazwischen = false;   // seit dem letzten Abschnitt geschoben
+        std::size_t rDazu = 0;          // rc605 (Ende): AddFailedEdge des Rechners, schon im Bau
     };
     std::vector<Stand> st(figuren.size());
     double tAb = 1.0e300;
@@ -5546,6 +5908,7 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
         }
         if (!da) { return false; }
         k.id = static_cast<int>(f);
+        k.spieler = fg.spieler;   // rc605 (Ende)
         k.mins = {-fg.halbBreite, -fg.halbBreite, kDefaultMins2};
         k.maxs = {fg.halbBreite, fg.halbBreite, fg.hoeheOben};
         return true;
@@ -5656,6 +6019,7 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
             s.bau->hoeheGilt = allein.hoeheGilt;
             s.abgewichen = true;
             s.rechner = std::make_unique<LaufRechner>(kw, allein.anfang, a.werte, a.abMs, a.grenzeMs);
+            s.rDazu = 0;
             s.rechner->ohneNie = true;
             for (std::size_t i = 0; i < s.rechner->plan.takte.size(); ++i) {
                 s.bau->takte.push_back(s.rechner->plan.takte[i]);
@@ -5679,6 +6043,9 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
                 s.bau->takte.push_back(al.takte[i]);
                 s.bau->zustaende.push_back(al.zustaende[i]);
             }
+            for (const NavJk2FehlWelt::Dazu& d : al.jk2Dazu) {   // rc605 (Ende): was davon schon galt
+                if (d.t < t - 0.5) { s.bau->jk2Dazu.push_back(d); }
+            }
             if (al.ankunftMs >= 0.0 && al.ankunftMs < t - 0.5) {
                 s.bau->ankunftMs = al.ankunftMs;
                 s.bau->zielAnfangsErreicht = al.zielAnfangsErreicht;
@@ -5691,6 +6058,7 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
         if (angekommen) { w.zielGesetzt = false; }
         const double vorher = s.hatZustand ? s.zT : a.abMs;
         s.rechner = std::make_unique<LaufRechner>(kw, s.hatZustand ? s.z : s.bau->anfang, w, vorher, a.grenzeMs);
+        s.rDazu = 0;
         s.rechner->ohneNie = true;
         s.rechner->t = t;
         s.rechner->ersteMs = bildMs;
@@ -5709,11 +6077,190 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
         s.abgewichen = false;
     };
 
+    // rc605 (Ende, Jedi Outcast): CheckAllFailedEdges im Bild t mit allen Figuren
+    // (CheckFailedEdge spurt mit MASK_NPCSOLID, also auch gegen Koerper).
+    const auto fehlPruefen = [&](double t) {
+        if (jk2n == nullptr) { return; }
+        kaesten.clear();
+        for (std::size_t f = 0; f < figuren.size(); ++f) {
+            NavKoerperKasten k;
+            if (kastenVon(f, t, k)) { kaesten.push_back(k); }
+        }
+        const auto spur = [&](const NavVec& a, const NavVec& mi, const NavVec& ma, const NavVec& b, int ign, std::uint32_t m) {
+            NavSpur r;
+            if (kw.spurZeit) {
+                r = kw.spurZeit(a, mi, ma, b, ign, m, t);
+            } else if (kw.spur) {
+                r = kw.spur(a, mi, ma, b, ign, m);
+            } else {
+                r.endpos = b;
+            }
+            if ((m & kNavBody) == 0U || r.allsolid || !(r.fraction > 0.0F)) { return r; }
+            for (const NavKoerperKasten& k : kaesten) {
+                if (kNavKoerperBasis + k.id == ign) { continue; }
+                NavVec lo{};
+                NavVec hi{};
+                for (std::size_t i = 0; i < 3; ++i) {
+                    lo[i] = k.ort[i] + k.mins[i];
+                    hi[i] = k.ort[i] + k.maxs[i];
+                }
+                const NavSpur q = Lauf::kastenGegenKasten(a, mi, ma, b, lo, hi);
+                if (q.allsolid) {
+                    if (!r.allsolid) { r.entity = kNavKoerperBasis + k.id; }
+                    r.allsolid = true;
+                } else if (q.startsolid) {
+                    if (!r.startsolid) { r.entity = kNavKoerperBasis + k.id; }
+                    r.startsolid = true;
+                }
+                if (q.fraction < r.fraction) {
+                    const bool alt = r.startsolid;
+                    r.fraction = q.fraction;
+                    r.endpos = q.endpos;
+                    r.normal = q.normal;
+                    r.contents = kNavBody;
+                    r.entity = kNavKoerperBasis + k.id;
+                    if (q.allsolid) { r.allsolid = true; }
+                    if (alt) { r.startsolid = true; }
+                }
+                if (r.allsolid) { break; }
+            }
+            return r;
+        };
+        const auto kasten = [&](int ent, NavVec& mi, NavVec& ma, int& ign, std::uint32_t& m) {
+            const int f = ent - kNavKoerperBasis;
+            if (f < 0 || static_cast<std::size_t>(f) >= figuren.size()) { return false; }
+            NavKoerperKasten k;
+            if (!kastenVon(static_cast<std::size_t>(f), t, k)) { return false; }
+            mi = k.mins;
+            ma = k.maxs;
+            ign = ent;
+            m = fz[static_cast<std::size_t>(f)].clip ? kJk2MaskNpcSolid : (kJk2MaskNpcSolid & ~kNavBody);
+            return true;
+        };
+        jk2FehlAllePruefen(geteilt, *jk2n, kw, t, spur, kasten);
+        geteilt.geprueftBis = t;
+        for (std::size_t j = 0; j < alleinFrei.size(); ++j) {
+            jk2FehlNachholen(kw, *jk2n, static_cast<int>(j), alleinFrei[j], t);
+            const NavJk2FehlWelt::Platz& p = geteilt.plaetze[j];
+            const bool nochGeteilt = p.a == jk2n->fehl[j].a && p.b == jk2n->fehl[j].b;
+            const bool nochAllein = !(alleinFrei[j].freiAb >= 0.0 && alleinFrei[j].freiAb <= t + 0.5);
+            if (nochGeteilt != nochAllein) { weltAnders = true; }
+        }
+    };
+    // Sieht eine Figur, die ihrem Plan ohne die anderen folgt, andere gescheiterte
+    // Kanten als dieser Plan? (Eine zur Laufzeit dazugekommene: immer.)
+    const auto fehlAnders = [&]() { return jk2n != nullptr && (weltAnders || geteilt.laufzeitDazu > 0); };
+    // Ein Plan, dem eine Figur folgt, markierte in diesem Bild eine Kante: nachtragen.
+    const auto fehlNachtragen = [&](std::size_t f, const LaufPlan& al, double t) {
+        if (jk2n == nullptr) { return; }
+        for (const NavJk2FehlWelt::Dazu& d : al.jk2Dazu) {
+            if (std::fabs(d.t - t) < 0.5) { jk2FehlDazu(geteilt, *jk2n, kNavKoerperBasis + static_cast<int>(f), d.a, d.b, t); }
+        }
+    };
+
+    // rc605 (Ende, Jedi Outcast): Schub ohne laufenden Plan.
+    // Hat Figur f keinen Abschnitt, der sie gerade fuehrt (noch keiner, oder der
+    // letzte ist geschnitten)?
+    const auto ohnePlan = [&](std::size_t f, double t) {
+        const Stand& s = st[f];
+        if (s.aktuell < 0 || s.art == Art::Keiner) { return true; }
+        const NavAbschnitt& a = abschnitte[static_cast<std::size_t>(s.aktuell)];
+        return t > a.schnittMs + 0.5 || (s.art == Art::Fertig && t > a.grenzeMs + 0.5);
+    };
+    // Kann sie hier geschoben werden? Ein Client (jede Figur hier), nicht der
+    // Spieler, da und ein Koerper; ohne Plan braucht es ihre Werte, mit Plan
+    // nur, dass er zu Ende ist (Fertig).
+    const auto schiebbar = [&](std::size_t f, double t) {
+        if (figuren[f].spieler) { return false; }
+        NavKoerperKasten k;
+        if (!kastenVon(f, t, k)) { return false; }
+        if (ohnePlan(f, t)) { return figuren[f].stehWerteDa; }
+        return st[f].art == Art::Fertig;
+    };
+    const auto schubFertig = [&](std::size_t f) {
+        Stand& s = st[f];
+        if (!s.schubRechner) { return; }
+        if (s.schubBau && !s.schubBau->takte.empty()) {
+            if (s.schubRechner->fertig) { s.schubBau->ruheMs = s.schubRechner->plan.ruheMs; }
+            aus.schub.push_back(NavSchub{static_cast<int>(f), s.schubBau});
+        }
+        s.schubRechner.reset();
+        s.schubBau.reset();
+    };
+    const auto schubSchritt = [&](std::size_t f, double t) {
+        Stand& s = st[f];
+        LaufRechner& r = *s.schubRechner;
+        NavKoerperKasten da;
+        if (!ortVon(f, t, da) || r.fertig) {
+            schubFertig(f);
+            return;
+        }
+        if (r.t > t + 0.5) { return; }
+        andere(f, t);
+        kw.ich = static_cast<int>(f);
+        kw.pmOhneKoerper = !fz[f].clip;
+        const std::size_t vor = r.plan.takte.size();
+        r.schritt();
+        for (std::size_t i = vor; i < r.plan.takte.size(); ++i) {
+            s.schubBau->takte.push_back(r.plan.takte[i]);
+            s.schubBau->zustaende.push_back(r.plan.zustaende[i]);
+        }
+        if (!r.plan.zustaende.empty()) {
+            s.z = r.plan.zustaende.back();
+            s.zT = r.plan.takte.back().t;
+            s.hatZustand = true;
+        }
+        if (r.fertig) { schubFertig(f); }
+    };
+    // Der Schub beginnt: ab ihrem Ort (bzw. dem Stand nach ihrem letzten Plan),
+    // ohne Ziel, in diesem Denkbild.
+    const auto schubBeginn = [&](std::size_t f, double t) {
+        Stand& s = st[f];
+        NavKoerperKasten k;
+        if (!ortVon(f, t, k)) { return false; }
+        LaufZustand z0;
+        if (s.hatZustand) { z0 = s.z; }
+        if (!s.hatZustand || z0.ort != k.ort) {
+            z0 = LaufZustand{};
+            z0.ort = k.ort;
+            z0.amBoden = true;
+            z0.gier = figuren[f].stehGier;
+            z0.wunschGier = z0.gier;
+        }
+        LaufWerte w = figuren[f].stehWerte;
+        w.zielGesetzt = false;
+        w.spawnVorlauf = false;
+        w.zielAbMs = -1.0e300;
+        w.fremdGier = nullptr;
+        s.schubRechner = std::make_unique<LaufRechner>(kw, z0, w, t - kNavDenkMs, t + 120000.0);
+        s.schubRechner->ohneNie = true;
+        s.schubRechner->t = t;
+        s.schubBau = std::make_shared<LaufPlan>();
+        s.schubBau->abMs = t - kNavDenkMs;
+        s.schubBau->anfang = z0;
+        s.schubBau->hoeheGilt = s.schubRechner->plan.hoeheGilt;
+        s.schubDazwischen = true;
+        schubSchritt(f, t);
+        return true;
+    };
+
     double t = kNavDenkMs * std::floor((tAb + 0.5) / kNavDenkMs);
+    // rc605 (Ende, Jedi Outcast): CheckAllFailedEdges der Bilder vor dem ersten Plan.
+    if (jk2n != nullptr) {
+        for (double tf = kNavDenkMs; tf < t - 0.5; tf += kNavDenkMs) {
+            bool faellig = false;
+            for (const NavJk2FehlWelt::Platz& p : geteilt.plaetze) { faellig = faellig || (p.a != -1 && p.pruef < tf); }
+            for (const Jk2FehlStand& a : alleinFrei) { faellig = faellig || (a.freiAb < 0.0 && a.pruefAb < tf); }
+            if (!faellig) { continue; }
+            for (const std::size_t f : reihe) { festBis(f, tf); }
+            fehlPruefen(tf);
+        }
+    }
     int ruhig = 0;
     for (int schritt = 0; schritt < 200000; ++schritt, t += kNavDenkMs) {
         bool tutWas = false;
         for (const std::size_t f : reihe) { festBis(f, t); }   // rc604 fix604
+        fehlPruefen(t);   // rc605 (Ende): CheckAllFailedEdges vor allen Figuren
         for (const std::size_t f : reihe) {
             Stand& s = st[f];
             // Ein neuer Abschnitt beginnt mit dem Denkbild nach seinem abMs.
@@ -5732,7 +6279,8 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
                 const NavAbschnitt& a = abschnitte[ai];
                 LaufZustand beginn = a.start;
                 bool folgt = true;
-                if (s.aktuell >= 0 && !a.sprung && s.hatZustand) {
+                schubFertig(f);   // rc605 (Ende): ein laufender Schub ohne Plan endet hier
+                if (s.aktuell >= 0 && !a.sprung && s.hatZustand && !s.schubDazwischen) {
                     const NavAbschnitt& vor = abschnitte[static_cast<std::size_t>(s.aktuell)];
                     const LaufZustand alleinBei = zustandBei(*vor.allein, a.abMs);
                     LaufZustand jetzt = s.z;
@@ -5741,6 +6289,7 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
                     folgt = !s.abgewichen;
                 }
                 abschliessen(s);
+                s.schubDazwischen = false;
                 s.aktuell = static_cast<int>(ai);
                 s.k = 0;
                 ++s.naechster;
@@ -5761,8 +6310,35 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
                     s.hatZustand = true;
                     LaufWerte w = a.werte;
                     s.rechner = std::make_unique<LaufRechner>(kw, beginn, w, a.abMs, a.grenzeMs);
+                    s.rDazu = 0;
                     s.rechner->ohneNie = true;
                     s.art = Art::Rechnet;
+                }
+            }
+            // rc605 (Ende, Jedi Outcast): eine stehende Figur, die ein anderer schiebt
+            // (NAVNEW_PushBlocker setzt pushVec), denkt im Spiel trotzdem jedes Bild:
+            // NPC_Think ohne Ziel (ucmd ohne Bewegung), dann BG_AddPushVecToUcmd
+            // (codeJK2/game/g_active.cpp:1502-1535, aus ClientThink 2653) und Pmove.
+            if (jk2Takt) {
+                if (s.schubRechner) {
+                    schubSchritt(f, t);
+                    tutWas = true;
+                    continue;
+                }
+                if (!istNull(jk2Stand[f].schub) && schiebbar(f, t)) {
+                    if (ohnePlan(f, t)) {
+                        if (schubBeginn(f, t)) {
+                            tutWas = true;
+                            continue;
+                        }
+                    } else {
+                        // Plan zu Ende (angekommen, in Ruhe): ab hier selbst rechnen, ohne Ziel.
+                        andere(f, t);
+                        kw.ich = static_cast<int>(f);
+                        kw.pmOhneKoerper = !fz[f].clip;
+                        abweichen(s, t);
+                        if (s.bau) { s.bau->ruheMs = -1.0; }
+                    }
                 }
             }
             if (s.aktuell < 0 || s.art == Art::Fertig || s.art == Art::Keiner) { continue; }
@@ -5784,15 +6360,18 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
                     ++s.k;
                 }
                 if (s.k < al.takte.size()) {
-                    if (std::fabs(al.takte[s.k].t - t) > 0.5) { tutWas = true; continue; }   // Luecke im Plan (Vorlauf)
                     // rc605 (Ende): ein anderer schiebt sie (NAVNEW_PushBlocker) - dann
-                    // weicht sie vom Plan ohne die anderen ab.
-                    const bool geschoben = jk2Takt && !istNull(jk2Stand[f].schub);
+                    // weicht sie vom Plan ohne die anderen ab, auch in einer Luecke des
+                    // Plans (Vorlauf: sie denkt im Spiel trotzdem jedes Bild).
+                    // rc605 (Ende): ebenso, wenn sie andere gescheiterte Kanten saehe.
+                    const bool geschoben = (jk2Takt && !istNull(jk2Stand[f].schub)) || fehlAnders();
+                    if (!geschoben && std::fabs(al.takte[s.k].t - t) > 0.5) { tutWas = true; continue; }   // Luecke im Plan (Vorlauf)
                     if (!geschoben && frei(al.takte[s.k])) {
                         s.z = al.zustaende[s.k];
                         s.zT = t;
                         s.hatZustand = true;
                         ++s.k;
+                        fehlNachtragen(f, al, t);   // rc605 (Ende): AddFailedEdge dieses Bilds
                         tutWas = true;
                         continue;
                     }
@@ -5805,7 +6384,7 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
                         s.art = Art::Fertig;
                         continue;
                     }
-                    if (frei(al.takte.back())) { continue; }
+                    if (frei(al.takte.back()) && !fehlAnders()) { continue; }
                     abweichen(s, t);
                 }
             }
@@ -5825,6 +6404,7 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
                     s.bau->takte.push_back(r.plan.takte[i]);
                     s.bau->zustaende.push_back(r.plan.zustaende[i]);
                 }
+                for (; s.rDazu < r.plan.jk2Dazu.size(); ++s.rDazu) { s.bau->jk2Dazu.push_back(r.plan.jk2Dazu[s.rDazu]); }
                 if (r.plan.ankunftMs >= 0.0 && s.bau->ankunftMs < 0.0) {
                     s.bau->ankunftMs = r.plan.ankunftMs;
                     if (r.plan.zielAnfangsErreicht) { s.bau->zielAnfangsErreicht = true; }
@@ -5845,6 +6425,12 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
         for (const Stand& s : st) {
             if (s.naechster < s.abs.size() || s.art == Art::Folgt || s.art == Art::Rechnet) { offen = true; }
         }
+        // rc605 (Ende, Jedi Outcast): ein Schub laeuft oder steht noch aus.
+        if (jk2Takt) {
+            for (std::size_t f = 0; f < st.size(); ++f) {
+                if (st[f].schubRechner || (!istNull(jk2Stand[f].schub) && schiebbar(f, t + kNavDenkMs))) { offen = true; }
+            }
+        }
         if (!offen) { break; }
         // Nur noch fest stehende Figuren mit Ziel (nie) und keiner bewegt sich:
         // dann aendert sich nichts mehr.
@@ -5853,6 +6439,7 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
         for (const Stand& s : st) { kommt = kommt || s.naechster < s.abs.size(); }
         if (!kommt && ruhig > 2) { break; }
     }
+    for (std::size_t f = 0; f < st.size(); ++f) { schubFertig(f); }   // rc605 (Ende)
     for (Stand& s : st) { abschliessen(s); }
     return aus;
 }

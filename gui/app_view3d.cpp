@@ -5754,6 +5754,7 @@ void prepareScene() {
             int durchgaenge = 1;
             g_app->ablauf = simuliereAblaufMitKoerpern(g_app->doc.script(), aktiverSkriptPfad(), welt, &durchgaenge);
             hilfe.koerperPlaene = welt.koerperPlaene;
+            hilfe.schubWege = welt.schubWege;   // rc605 (Ende, Jedi Outcast)
             g_app->koerperPlaene = welt.koerperPlaene;   // rc604 fix604
             if (durchgaenge > 1) {
                 diag::detail("Wege: andere Figuren im Weg - " + std::to_string(welt.koerperPlaene ? welt.koerperPlaene->size() : 0U) +

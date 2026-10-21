@@ -498,6 +498,182 @@ void teil4() {
                std::to_string(vorher));
 }
 
+// --- Teil 5: rc605 (Ende) - AddFailedEdge zur Laufzeit ----------------------
+// Wegpunkte A(0,0) - B(200,0) - C(400,0), Umweg A - D(100,300) - E(300,300) - C.
+// Ein func_breakable steht zwischen B und C (x 290..310). NAV_TestBestNode trifft
+// ihn von B aus: AddFailedEdge(B, C) (codeJK2/game/g_nav.cpp:1031-1038), SetEdgeCost
+// Q3_INFINITE und NF_RECALC (g_navigator.cpp:2004-2008) - nach den neuen Raengen
+// geht die Figur den Umweg. Vorher blieb sie bei B stehen.
+MapEntity entZiel(const std::string& klasse, const std::string& ort, const std::string& name,
+                  const std::vector<std::pair<std::string, std::string>>& ziele) {
+    MapEntity e = ent(klasse, ort, name);
+    for (const auto& [k, v] : ziele) { e.keys.push_back({k, v}); }
+    return e;
+}
+std::shared_ptr<NavWelt> weltKiste() {
+    std::vector<MapEntity> ents;
+    ents.push_back(ent("worldspawn", ""));
+    ents.push_back(entZiel("waypoint_small", "0 0 24", "a", {{"target", "b"}, {"target2", "d"}}));
+    ents.push_back(entZiel("waypoint_small", "200 0 24", "b", {{"target", "c"}}));
+    ents.push_back(entZiel("waypoint_small", "400 0 24", "c", {}));
+    ents.push_back(entZiel("waypoint_small", "100 300 24", "d", {{"target", "e"}}));
+    ents.push_back(entZiel("waypoint_small", "300 300 24", "e", {{"target", "c"}}));
+    ents.push_back(entZiel("func_breakable", "0 0 0", "kiste", {{"model", "*1"}}));
+    const int kiste = static_cast<int>(ents.size()) - 1;
+    const std::shared_ptr<const NavWelt> basis = navWeltAusEntities(ents);
+    auto welt = std::make_shared<NavWelt>(*basis);
+    welt->kennung = 0;
+    // Boden (Welt) und die Kiste (Entity kiste): Kaesten, um den Kasten der Spur erweitert.
+    struct Klotz {
+        float lo[3];
+        float hi[3];
+        int entity;
+    };
+    const std::vector<Klotz> kloetze = {{{-3000.0F, -3000.0F, -16.0F}, {3000.0F, 3000.0F, 0.0F}, kNavWeltEntity},
+                                        {{290.0F, -60.0F, 0.0F}, {310.0F, 60.0F, 500.0F}, kiste}};
+    welt->spur = [kloetze](const NavVec& a, const NavVec& mi, const NavVec& ma, const NavVec& b, int, std::uint32_t m) {
+        NavSpur sp;
+        sp.endpos = b;
+        if ((m & kNavSolid) == 0U) { return sp; }
+        for (const Klotz& kl : kloetze) {
+            float lo[3];
+            float hi[3];
+            for (int k = 0; k < 3; ++k) {
+                lo[k] = kl.lo[k] - ma[static_cast<std::size_t>(k)];
+                hi[k] = kl.hi[k] - mi[static_cast<std::size_t>(k)];
+            }
+            float ein = -1.0e9F;
+            float aus = 1.0e9F;
+            int achse = -1;
+            bool weg = false;
+            for (int k = 0; k < 3; ++k) {
+                const float da = a[static_cast<std::size_t>(k)];
+                const float d = b[static_cast<std::size_t>(k)] - da;
+                if (std::fabs(d) < 1.0e-6F) {
+                    if (da <= lo[k] || da >= hi[k]) { weg = true; }
+                    continue;
+                }
+                float t0 = (lo[k] - da) / d;
+                float t1 = (hi[k] - da) / d;
+                if (t0 > t1) { std::swap(t0, t1); }
+                if (t0 > ein) {
+                    ein = t0;
+                    achse = k;
+                }
+                aus = std::min(aus, t1);
+            }
+            if (weg || ein >= aus || aus <= 0.0F || ein >= 1.0F) { continue; }
+            if (ein < 0.0F) {
+                sp.startsolid = true;
+                sp.fraction = 0.0F;
+                sp.endpos = a;
+                sp.entity = kl.entity;
+                sp.contents = kNavSolid;
+                continue;
+            }
+            const float f = std::max(0.0F, ein - 0.001F);
+            if (f < sp.fraction) {
+                sp.fraction = f;
+                sp.entity = kl.entity;
+                sp.contents = kNavSolid;
+                sp.normal = {0.0F, 0.0F, 0.0F};
+                sp.normal[static_cast<std::size_t>(achse)] = (b[static_cast<std::size_t>(achse)] > a[static_cast<std::size_t>(achse)]) ? -1.0F : 1.0F;
+                for (int k = 0; k < 3; ++k) {
+                    sp.endpos[static_cast<std::size_t>(k)] = a[static_cast<std::size_t>(k)] + f * (b[static_cast<std::size_t>(k)] - a[static_cast<std::size_t>(k)]);
+                }
+            }
+        }
+        return sp;
+    };
+    welt->boden = [](float, float, float zOben, float zUnten, float& zb) {
+        if (zOben < 0.0F || zUnten > 0.0F) { return false; }
+        zb = 0.0F;
+        return true;
+    };
+    return welt;
+}
+
+void teil5(bool alt) {
+    const std::shared_ptr<NavWelt> welt = weltKiste();
+    LaufZustand z;
+    z.ort = {10.0F, 0.0F, 24.125F};
+    z.amBoden = true;
+    z.denkNullMs = 0.0;
+    LaufWerte w5 = werteFuer({400.0F, 0.0F, 24.125F}, 150.0F, 90.0F, 0);
+    w5.fallen = true;
+    w5.drehRate = 330.0F;
+    const LaufPlan p = planeLauf(*welt, z, w5, 0.0, 30000.0);
+    float yMax = 0.0F;
+    float xMax = 0.0F;
+    for (const LaufTakt& t : p.takte) {
+        yMax = std::max(yMax, t.ort[1]);
+        xMax = std::max(xMax, t.ort[0]);
+    }
+    std::printf("  5a angekommen %.0f, nie %d, hoechstens y %.1f, x %.1f, AddFailedEdge %zu\n", p.ankunftMs, p.nie ? 1 : 0,
+                static_cast<double>(yMax), static_cast<double>(xMax), p.jk2Dazu.size());
+    if (!alt) {
+        pruefe(p.ankunftMs > 0.0 && yMax > 150.0F && !p.jk2Dazu.empty() && p.jk2Dazu.front().a == 1 && p.jk2Dazu.front().b == 2,
+               "5a Kiste zwischen B und C: AddFailedEdge(B, C), neue Raenge, die Figur geht ueber E und kommt an");
+    }
+}
+
+// --- Teil 6: rc605 (Ende) - die gescheiterte Kante gilt fuer alle NPCs ------
+// Figur 1 geht von C nach A und markiert (C, B) gescheitert; Figur 2 geht ab
+// 3000 ms von A nach C. Ohne die anderen markiert Figur 2 zuerst selbst (B, C);
+// im gemeinsamen Takt kennt sie die Kante schon (EdgeFailed findet (C, B) ueber
+// den zweiten Schluessel, g_navigator.cpp:1851-1858) und markiert sie nicht neu.
+void teil6() {
+    const std::shared_ptr<NavWelt> welt = weltKiste();
+    const auto abschnitt = [&](int figur, NavVec von, NavVec nach, double ab) {
+        NavAbschnitt a;
+        a.figur = figur;
+        a.abMs = ab;
+        a.grenzeMs = ab + 30000.0;
+        a.start.ort = von;
+        a.start.amBoden = true;
+        a.werte = werteFuer(nach, 150.0F, 90.0F, 0);
+        a.werte.fallen = true;
+        a.werte.drehRate = 330.0F;
+        a.sprung = true;
+        a.allein = std::make_shared<const LaufPlan>(planeLauf(*welt, a.start, a.werte, a.abMs, a.grenzeMs));
+        return a;
+    };
+    std::vector<NavFigurKoerper> figuren(2);
+    figuren[1].reihe = 1;
+    const std::vector<NavAbschnitt> abs = {abschnitt(0, {390.0F, 0.0F, 24.125F}, {0.0F, 0.0F, 24.125F}, 0.0),
+                                           abschnitt(1, {10.0F, 0.0F, 24.125F}, {400.0F, 0.0F, 24.125F}, 3000.0)};
+    const NavKoerperErgebnis e = navKoerperLauf(*welt, figuren, abs);
+    const auto hat = [](const LaufPlan& p, int x, int y) {
+        for (const NavJk2FehlWelt::Dazu& d : p.jk2Dazu) {
+            if ((d.a == x && d.b == y) || (d.a == y && d.b == x)) { return true; }
+        }
+        return false;
+    };
+    const LaufPlan& allein2 = *abs[1].allein;
+    const LaufPlan& geteilt2 = *e.plaene[1];
+    std::printf("  6a Figur 1 allein: %zu AddFailedEdge (zuerst %d-%d); Figur 2 allein: %zu (zuerst %d-%d), gemeinsam: %zu, angekommen %.0f / %.0f\n",
+                abs[0].allein->jk2Dazu.size(), abs[0].allein->jk2Dazu.empty() ? -1 : abs[0].allein->jk2Dazu.front().a,
+                abs[0].allein->jk2Dazu.empty() ? -1 : abs[0].allein->jk2Dazu.front().b, allein2.jk2Dazu.size(),
+                allein2.jk2Dazu.empty() ? -1 : allein2.jk2Dazu.front().a, allein2.jk2Dazu.empty() ? -1 : allein2.jk2Dazu.front().b,
+                geteilt2.jk2Dazu.size(), allein2.ankunftMs, geteilt2.ankunftMs);
+    pruefe(hat(*abs[0].allein, 1, 2) && hat(allein2, 1, 2) && !hat(geteilt2, 1, 2) && geteilt2.ankunftMs > 0.0,
+           "6a die Kante, die Figur 1 markierte, gilt im gemeinsamen Takt auch fuer Figur 2 (keine eigene Markierung, sie kommt an)");
+    // 6b: eine einzige Figur mit zwei Plaenen - die Kante aus dem ersten gilt im
+    // zweiten weiter (navKoerperLauf rechnet auch mit einer Figur, wenn ein Plan
+    // zur Laufzeit eine Kante markierte).
+    {
+        std::vector<NavFigurKoerper> eine(1);
+        NavAbschnitt a1 = abschnitt(0, {390.0F, 0.0F, 24.125F}, {0.0F, 0.0F, 24.125F}, 0.0);
+        a1.schnittMs = 10000.0;
+        const NavAbschnitt a2 = abschnitt(0, {10.0F, 0.0F, 24.125F}, {400.0F, 0.0F, 24.125F}, 10000.0);
+        const NavKoerperErgebnis e1 = navKoerperLauf(*welt, eine, {a1, a2});
+        std::printf("  6b eine Figur: Plan 2 allein %zu AddFailedEdge, gemeinsam %zu, angekommen %.0f\n", a2.allein->jk2Dazu.size(),
+                    e1.plaene[1]->jk2Dazu.size(), e1.plaene[1]->ankunftMs);
+        pruefe(hat(*a2.allein, 1, 2) && !hat(*e1.plaene[1], 1, 2) && e1.plaene[1]->ankunftMs > 0.0,
+               "6b eine Figur: die Kante aus ihrem ersten Plan gilt in ihrem zweiten weiter");
+    }
+}
+
 int main(int argc, char** argv) {
     bool alt = false;
     std::string base = "C:/Program Files (x86)/Steam/steamapps/common/Jedi Outcast/GameData/base";
@@ -514,6 +690,8 @@ int main(int argc, char** argv) {
     teil2(base);
     teil3(base, alt);
     teil4();   // rc605 (Rest)
+    teil5(alt);   // rc605 (Ende)
+    if (!alt) { teil6(); }   // rc605 (Ende)
     std::printf("%d ok, %d FEHL\n", gOk, gFehler);
     return gFehler == 0 ? 0 : 1;
 }

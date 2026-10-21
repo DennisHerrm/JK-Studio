@@ -958,6 +958,8 @@ struct SzenenHilfe {
     // rc601 (bewegung, teil 3): Plaene aus dem gemeinsamen Takt aller Figuren
     // (AblaufWelt::koerperPlaene, navKoerperSchluessel).
     std::shared_ptr<const std::map<std::uint64_t, std::shared_ptr<const LaufPlan>>> koerperPlaene;
+    // rc605 (Ende, Jedi Outcast): geschobene Figuren ohne Plan (AblaufWelt::schubWege).
+    std::shared_ptr<const std::map<std::string, std::vector<std::shared_ptr<const LaufPlan>>>> schubWege;
     // rc602: die Figuren, die beim Laden der Karte spawnen (NPC_* ohne
     // targetname, npcSpawntBeimKartenstart), auch wenn kein affect sie nennt
     // - im Spiel stehen sie da (md_am_sith: NPC_Droid_R2D2 neben ani1).

@@ -158,6 +158,10 @@ struct AblaufWelt {
     // rc601 (bewegung, teil 3): Plaene aus dem gemeinsamen Takt aller Figuren
     // (navKoerperLauf), nach navKoerperSchluessel. Fehlt einer: planeLauf.
     std::shared_ptr<const std::map<std::uint64_t, std::shared_ptr<const LaufPlan>>> koerperPlaene;
+    // rc605 (Ende, Jedi Outcast): Figuren ohne laufenden Plan, die ein anderer
+    // geschoben hat (navKoerperLauf, NavSchub) - nach Figur (klein); der naechste
+    // Plan der Figur beginnt dort, wo der Schub sie hat.
+    std::shared_ptr<const std::map<std::string, std::vector<std::shared_ptr<const LaufPlan>>>> schubWege;
     // Spaetestens hier ist Schluss - loop ( -1 ) laeuft sonst ewig.
     double grenzeMs = 600000.0;
     // Nach dem Ende des Startskripts noch so lange weiterlaufen lassen
