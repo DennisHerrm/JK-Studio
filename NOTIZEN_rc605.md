@@ -433,3 +433,40 @@ Changelog:
 - DE: Jedi Outcast: ein NPC, der einem anderen im Weg steht, wird beiseitegeschoben, auch wenn er ohne Ziel steht oder schon angekommen ist (nie der Spieler), und eine Verbindung, die eine verschlossene Tür, etwas Zerbrechliches oder ein anderer NPC sperrt, gilt für alle NPCs als gescheitert - sie gehen außen herum, bis sie wieder frei ist, wie im Spiel.
 - ZH: Jedi Outcast:挡住另一个 NPC 的 NPC 会被推到一旁,即使它没有目标站着不动或已经到达(绝不推开玩家);被上锁的门、可破坏物或其他 NPC 挡住的连接对所有 NPC 都算作失败,它们会绕行直到连接重新畅通——与游戏中一样。
 - JA: Jedi Outcast:ほかの NPC の道をふさぐ NPC は、目的地なしで立っていても、すでに到着していても脇へ押しやられます(プレイヤーは押されません)。鍵のかかった扉や壊せる物、ほかの NPC にふさがれた接続はすべての NPC にとって失敗扱いになり、空くまで迂回します(ゲームと同じ)。
+
+## 15. Laserfallen verletzen Figuren (Punkt 2 der letzten Liste)
+
+WP_Explode (g_weapon.cpp:185-230 OpenJK) -> G_RadiusDamage(currentOrigin, attacker, 90, 256, NULL,
+MOD_EXPLOSIVE_SPLASH) (g_combat.cpp:6850-6980 OpenJK, 9704 ff. MD, codeJK2 5451-5530): je Figur mit contents
+(sichtbar, nicht entfernt) der Abstand zum absmin/absmax (SV_LinkEntity je 1 weiter), points = 90 * (1 - dist /
+256), CanDamage (fallenKannTreffenBei - jetzt eine Funktion fuer Fallen und Figuren: Punktspuren MASK_SOLID zur
+Mitte und +-15, Welt und Mover zur Zeit), dann G_Damage(..., (int)points, DAMAGE_RADIUS, MOD_EXPLOSIVE_SPLASH).
+fallenEffekteSetzen merkt jede Explosion (App::fallenKnalleNeu), der naechste Durchgang (wie bei den Zielen der
+Fallen) rechnet sie in hurtTodeBerechnen im Bild der Explosion vor den Beruehrungen der trigger_hurt.
+G_Damage ist jetzt fuer trigger_hurt und Explosion dieselbe Rechnung (gDamage): Rancor (von einem Nicht-Rancor
+unter 10 nichts, sonst 10; OpenJK :5560-5572, MD), Galak (Schild an: DAMAGE_NO_ARMOR gilt nicht; aus: Explosionen
+ein Viertel), FL_GODMODE, CheckArmor (g_combat.cpp:4832-4973 OpenJK, 6020-6185 MD, codeJK2 4298-4372: ueber der
+Haelfte von STAT_MAX_HEALTH faengt die Ruestung alles, sonst ceil(0,4 * Schaden), damage 1 gibt 0 zurueck;
+Attentaeterdroide/Droideka ohne Schild keine; Galak: der Schild nimmt alles), HL_NONE (Faktor 1), health und
+FL_UNDYING. Ruestung: NPC_SetMiscDefaultData (CLASS_ASSASSIN_DROID 250 OpenJK / 100 MD, CLASS_DROIDEKA 100 MD)
+und SET_ARMOR (Actor::ruestungStart/-Gesetzt). Nicht nachgebildet: Rueckstoss und Umwerfen (G_ApplyKnockback,
+G_CheckKnockdown), Schmerz-Reaktion, Machtschutz/Wut (forcePowersActive), der Zufallsschaden von FL_DINDJARIN
+(MD, Q_irand), Galaks Schild ab NPC_GalakMech_Init (500, ausser BS_CINEMATIC; codeJK2 AI_GalakMech.cpp) - Galak hat
+in der Vorschau Ruestung nur per SET_ARMOR.
+
+Echte Karten: alle 14 Karten mit misc_trip_mine (Jedi Outcast: artus_topside, bespin_platform, bespin_streets,
+cairn_assembly, doom_shields, kejim_base, kejim_post; JA/MD: md_afh_jedi/sith, t1_fatal, t1_sour, t2_dpred, t2_rancor,
+t3_byss). tuerlauf der sieben JA/MD-Missionen (tm1, tm2: 8 OK, 10 OK): in keinem Reiter laeuft eine Figur in einen
+Strahl, keine Falle explodiert (Strahlen 4-16 je Karte, 0 Explosionen) - keine Zwischensequenz ist betroffen.
+
+| Test | Rot (vorher) | Grün (nachher) |
+|---|---|---|
+| Selbsttest laserfalle (lfk1): gonk_wander_1 40 vor #168 | gonk bleibt heil (kein Schaden an Figuren) | #168: Abstand 27, Schaden 80 (100 -> 20), #747 (Kette): 37 / 76 -> tot bei 600, Szene zeigt den Tod bei 600; 6 OK |
+| tuerlauf Karten mit Laserfallen (tm1, tm2) | – | 8 OK / 10 OK, 0 Explosionen |
+| ctest | – | 67/67 |
+
+Changelog:
+- EN: An exploding laser trip mine hurts the figures near it like the game's blast damage (less with distance, not through walls); a figure whose health runs out dies and its deathscript runs. Armour (SET_ARMOR, assassin droids, droidekas) now takes its share of damage from trip mines and trigger_hurt, and a rancor takes at most 10 per hit, like the game.
+- DE: Eine explodierende Laserfalle verletzt die Figuren in ihrer Nähe wie der Explosionsschaden des Spiels (mit dem Abstand weniger, nicht durch Wände); eine Figur, deren Lebenspunkte aufgebraucht sind, stirbt, und ihr deathscript läuft. Rüstung (SET_ARMOR, Attentäterdroiden, Droidekas) fängt jetzt ihren Teil des Schadens von Laserfallen und trigger_hurt ab, und ein Rancor nimmt je Treffer höchstens 10, wie im Spiel.
+- ZH: 爆炸的激光绊雷会像游戏的爆炸伤害一样伤害附近的角色(距离越远伤害越小,不会穿墙);生命值耗尽的角色会死亡并运行其 deathscript。护甲(SET_ARMOR、刺客机器人、毁灭者机器人)现在会吸收来自激光绊雷和 trigger_hurt 的一部分伤害,兰科尔兽每次最多受 10 点伤害,与游戏中一样。
+- JA: 爆発したレーザートラップは、ゲームの爆発ダメージと同じく近くのキャラクターを傷つけます(距離が離れるほど弱く、壁越しには届きません)。体力がなくなったキャラクターは死に、deathscript が実行されます。鎧(SET_ARMOR、アサシンドロイド、ドロイデカ)はレーザートラップと trigger_hurt のダメージの一部を受け止め、ランコアは 1 回に最大 10 しか受けません(ゲームと同じ)。

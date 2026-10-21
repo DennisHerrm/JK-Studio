@@ -17346,6 +17346,32 @@ std::vector<Schritt> tripMineSchritte() {
         return (*zweiFallen)[0] == 2 && knall[0] > 0.0 && std::fabs(knall[1] - knall[0]) < 0.5 && g_app->fallenKettenExplosionen == 1U &&
                zaehler == 2 && wand == 1 && std::fabs(wandMs - knall[1]) < 0.5 && !erst && vorher && !nachher;
     }));
+    // rc605 (Ende): G_RadiusDamage trifft auch die Figur im Strahl (gonk_wander_1,
+    // 40 vor #168): 90 * (1 - dist / 256) mit dist vom Kasten - sie stirbt im Bild
+    // der Explosion, die Szene zeigt den Tod (wie bei trigger_hurt).
+    add(pruefe("Laserfalle: die Explosion trifft die Figur im Strahl (G_RadiusDamage) - Tod und Szene", [] {
+        double knall = -1.0;
+        for (const App::FallenKnall& k : g_app->fallenKnalle) {
+            if (k.entity == 168 && (knall < 0.0 || k.ms < knall)) { knall = k.ms; }
+        }
+        double tod = -1.0;
+        int falle = -1;
+        for (const AblaufWelt::HurtTod& h : g_app->hurtTode) {
+            if (h.figur == "gonk_wander_1" && !h.unsterblich) {
+                tod = h.ms;
+                falle = h.entity;
+            }
+        }
+        double szene = -1.0;
+        for (const Actor& a : g_app->scene.actors) {
+            if (a.name == "gonk_wander_1") { szene = a.getoetetMs; }
+        }
+        char z[300];
+        std::snprintf(z, sizeof(z), "Knopftest: Laserfalle Schaden an Figuren - #168 explodiert bei %.0f, gonk_wander_1 tot bei %.0f (Falle %d), Szene %.0f",
+                      knall, tod, falle, szene);
+        diag::detail(z);
+        return knall > 0.0 && std::fabs(tod - knall) < 0.5 && (falle == 168 || falle == 747) && std::fabs(szene - tod) < 0.5;
+    }));
     // rc604: misc_trip_mine_activate - t2_rancor hat 6 Fallen mit targetname
     // und START_OFF ("bartables2_new"): unsichtbar bis zum use, dann ein
     // FRAMETIME spaeter scharf (warning.wav, hum_loop.wav, Strahl).

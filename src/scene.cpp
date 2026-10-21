@@ -2610,6 +2610,16 @@ Scene buildOnce(const Script& s, const MapData& map,
                     }
                     fresh.gesundheitStart = h;
                 }
+                // rc605 (Ende): NPC_SetMiscDefaultData - ps.stats[STAT_ARMOR] fuer
+                // CLASS_ASSASSIN_DROID (250, code/game/NPC_spawn.cpp:311-319 OpenJK; 100,
+                // NPC_spawn.cpp:438-446 MD) und CLASS_DROIDEKA (100, MD :447-456).
+                if (npcDef != nullptr) {
+                    if (sameName(npcDef->klasse, "CLASS_ASSASSIN_DROID") && !regelwerkJediOutcast()) {
+                        fresh.ruestungStart = navMovieDuelsRegeln() ? 100 : 250;
+                    } else if (sameName(npcDef->klasse, "CLASS_DROIDEKA") && navMovieDuelsRegeln()) {
+                        fresh.ruestungStart = 100;
+                    }
+                }
             }
             // rc601 (bewegung, gemeinsam mit saber): ein NPC_spawner mit
             // spawnflags 32 (SFB_CINEMATIC) beginnt in BS_CINEMATIC
@@ -4065,6 +4075,12 @@ Scene buildOnce(const Script& s, const MapData& map,
                 actor->gottmodus.emplace_back(t, sameName(*gv, "true"));
             } else if (const std::string* uv = setValue(child, "SET_UNDYING")) {
                 actor->unsterblich.emplace_back(t, sameName(*uv, "true"));
+            } else if (const std::string* av = setValue(child, "SET_ARMOR")) {
+                // rc605 (Ende): Q3_SetArmor - ps.stats[STAT_ARMOR] = data (nur der
+                // Spieler wird auf STAT_MAX_HEALTH begrenzt; Q3_Interface.cpp:2335-2358 OpenJK).
+                if (child.args[1].kind != Arg::Kind::Expr) {
+                    actor->ruestungGesetzt.emplace_back(t, std::atoi(av->c_str()));
+                }
             }
             if (const std::string* v = setValue(child, "SET_GRAVITY")) {
                 if ((npc || actor->echterSpieler) && child.args[1].kind != Arg::Kind::Expr) {

@@ -750,6 +750,10 @@ struct Actor {    std::string name;        // der Name aus dem affect
     // (FL_UNDYING, ebenda:5806-5824) - je Zeit und Wert.
     int gesundheitStart = 100;
     std::vector<std::pair<double, int>> gesundheitGesetzt;
+    // rc605 (Ende): ps.stats[STAT_ARMOR] - NPC_SetMiscDefaultData (CLASS_ASSASSIN_DROID
+    // 250 OpenJK / 100 MD, CLASS_DROIDEKA 100 MD) und SET_ARMOR (Q3_SetArmor).
+    int ruestungStart = 0;
+    std::vector<std::pair<double, int>> ruestungGesetzt;
     std::vector<std::pair<double, bool>> gottmodus;
     std::vector<std::pair<double, bool>> unsterblich;
     // rc605 (Ende): wann die Figur stirbt (kill im Skript oder ein trigger_hurt

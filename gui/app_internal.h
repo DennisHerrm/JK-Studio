@@ -937,6 +937,18 @@ struct App {
     std::vector<AblaufWelt::FallenUse> fallenUses;
     std::string fallenUsesKarte;
     std::vector<AblaufWelt::FallenUse> fallenUsesNeu;
+    // rc605 (Ende): die Explosionen der Laserfallen (WP_Explode) - G_RadiusDamage
+    // trifft auch Figuren (hurtTodeBerechnen). fallenKnalle aus dem letzten
+    // fallenEffekteSetzen zur Karte fallenKnalleKarte, fallenKnalleNeu von jetzt.
+    struct FallenKnall {
+        double ms = 0.0;
+        float ort[3]{};
+        int entity = -1;
+        bool operator==(const FallenKnall&) const = default;
+    };
+    std::vector<FallenKnall> fallenKnalle;
+    std::string fallenKnalleKarte;
+    std::vector<FallenKnall> fallenKnalleNeu;
     std::size_t fallenKettenExplosionen = 0;   // rc605 (Ende): von anderen Fallen gesprengt
     // rc605 (Ende): die Tode durch trigger_hurt (hurtTodeBerechnen) zu Karte und
     // Skript hurtTodeSchluessel - der naechste Nachbau desselben Skripts toetet
