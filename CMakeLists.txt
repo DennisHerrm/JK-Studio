@@ -699,4 +699,14 @@ if(BEHAVED_TESTS)
   add_executable(kartevergleich tests/kartevergleich.cpp)
   target_link_libraries(kartevergleich PRIVATE bhed_core)
   add_test(NAME karte_vergleich COMMAND kartevergleich ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte)
+  # Punkt 3: Massenlast - alle mit q3map2 -convert dekompilierten Original-BSPs
+  # (<wurzel>/<spiel>/bp und /q3). Ohne -DBEHAVED_KARTE_DEKOMP=<wurzel>
+  # uebersprungen; die Karten gehoeren nicht ins Repo.
+  set(BEHAVED_KARTE_DEKOMP "" CACHE PATH "Ordner mit dekompilierten Karten (<spiel>/bp, <spiel>/q3)")
+  add_executable(kartemassenlast tests/kartemassenlast.cpp)
+  target_link_libraries(kartemassenlast PRIVATE bhed_core)
+  if(WIN32)
+    target_link_libraries(kartemassenlast PRIVATE psapi)
+  endif()
+  add_test(NAME karte_massenlast COMMAND kartemassenlast "${BEHAVED_KARTE_DEKOMP}")
 endif()
