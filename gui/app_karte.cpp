@@ -23,9 +23,12 @@
 #include "app_internal.h"
 #include "bhed/karte/texdef.h"
 
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <functional>
 #include <utility>
 
 namespace bhed::gui::karteneditor {
@@ -361,32 +364,233 @@ void zuletztOeffnen(std::size_t index) {
     });
 }
 
-// --- Rahmen ------------------------------------------------------------------
+// --- Rahmen (MainFrame::Create, mainframe.cpp:1667-1883) ------------------------
+//
+// Vier Fensteranordnungen wie NRC (g_Layout_viewStyle):
+//   Regular       links XY ueber der Konsole, rechts die Kamera ueber dem
+//                 Texturbrowser (QSplitter m_hSplit, m_vSplit, m_vSplit2)
+//   Regular Left  dasselbe mit getauschten Spalten
+//   Split         vier Felder: links Kamera ueber YZ, rechts XY ueber XZ;
+//                 Konsole und Texturen im Gruppendialog
+//   Floating      Camera, XY, XZ, YZ und der Gruppendialog als eigene Fenster
+// Floating: ImGui dieser Fassung (1.93 WIP, ohne Docking/Viewports) kann keine
+// eigenen Desktop-Fenster oeffnen - die Fenster schweben im Programmfenster.
 
 namespace {
 
-// Das File-Menue (create_file_menu, mainframe.cpp:866-890) - bis die
-// Befehlstabelle steht (Punkt 4) direkt verdrahtet.
-void zeichneDateiMenue() {
-    if (!ImGui::BeginMenu(trK(Str::KeMenuFile))) { return; }
-    if (ImGui::MenuItem(trK(Str::KeCmdNewMap))) { neueKarte(); }
-    ImGui::Separator();
-    if (ImGui::MenuItem(trK(Str::KeCmdOpenMap), "Ctrl+O")) { karteOeffnenDialog(); }
-    ImGui::Separator();
-    if (ImGui::MenuItem(trK(Str::KeCmdSaveMap), "Ctrl+S")) { (void)karteSpeichern(); }
-    if (ImGui::MenuItem(trK(Str::KeCmdSaveMapAs))) { (void)karteSpeichernUnterDialog(); }
-    ImGui::Separator();
-    // MRU_constructMenu (mru.cpp:186-236)
-    zuletztLaden();
-    const karte::ZuletztListe& z = g().zuletzt;
-    for (std::size_t i = 0; i < karte::ZuletztListe::kMax; ++i) {
-        if (i > 0 && i >= z.anzahl()) { break; }
-        const std::string roh = karte::ohneMnemonik(z.beschriftung(i));
-        const std::string text = (roh == "Recent Files" ? std::string(trK(Str::KeRecentFiles)) : roh) + "###karteMru" +
-                                 std::to_string(i);
-        if (ImGui::MenuItem(text.c_str(), nullptr, false, i < z.anzahl())) { zuletztOeffnen(i); }
+enum class Feld { XY, XZ, YZ, Kamera, Konsole, Texturen, Gruppe };
+
+// QSplitter-Griff (PM_SplitterWidth im Fusion-Stil).
+constexpr float kGriff = 5.0F;
+
+ImVec4 farbe(const Farben::F3& c) { return ImVec4{c[0], c[1], c[2], 1.0F}; }
+
+const char* feldName(Feld f) {
+    switch (f) {
+    case Feld::XY: return "##feldXY";
+    case Feld::XZ: return "##feldXZ";
+    case Feld::YZ: return "##feldYZ";
+    case Feld::Kamera: return "##feldKamera";
+    case Feld::Konsole: return "##feldKonsole";
+    case Feld::Texturen: return "##feldTexturen";
+    case Feld::Gruppe: return "##feldGruppe";
     }
-    ImGui::EndMenu();
+    return "##feld";
+}
+
+// radiant/console.cpp: Ausgabe in der Textfarbe, Warnungen (255,127,0),
+// Fehler (255,0,0) - in einem schreibgeschuetzten Textfeld.
+void konsoleZeichnen() {
+    Editor& ed = editor();
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
+    ImGui::BeginChild("##konsoleText", ImVec2{-FLT_MIN, -FLT_MIN}, ImGuiChildFlags_None,
+                      ImGuiWindowFlags_HorizontalScrollbar);
+    static std::size_t gesehen = 0;
+    ImGuiListClipper clip;
+    clip.Begin(static_cast<int>(ed.konsole.size()));
+    while (clip.Step()) {
+        for (int i = clip.DisplayStart; i < clip.DisplayEnd; ++i) {
+            const KonsolenZeile& z = ed.konsole[static_cast<std::size_t>(i)];
+            if (z.art == KonsolenZeile::Art::Ausgabe) {
+                ImGui::TextUnformatted(z.text.c_str());
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Text, z.art == KonsolenZeile::Art::Warnung ? ImVec4{1.0F, 0.498F, 0.0F, 1.0F}
+                                                                                         : ImVec4{1.0F, 0.0F, 0.0F, 1.0F});
+                ImGui::TextUnformatted(z.text.c_str());
+                ImGui::PopStyleColor();
+            }
+        }
+    }
+    // Neue Zeilen: ans Ende rollen (Sys_Print: moveCursor End).
+    if (gesehen != ed.konsole.size()) {
+        gesehen = ed.konsole.size();
+        ImGui::SetScrollHereY(1.0F);
+    }
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
+}
+
+// Der Inhalt eines Feldes. Die Ansichten selbst kommen mit den Punkten 5
+// (XYWnd), 6 (CamWnd) und 8 (Texturbrowser); bis dahin der Hintergrund in der
+// NRC-Farbe und der Name.
+void feldInhalt(Feld f) {
+    Editor& ed = editor();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 a = ImGui::GetWindowPos();
+    const ImVec2 b{a.x + ImGui::GetWindowWidth(), a.y + ImGui::GetWindowHeight()};
+    switch (f) {
+    case Feld::XY:
+    case Feld::XZ:
+    case Feld::YZ: {
+        dl->AddRectFilled(a, b, ImGui::GetColorU32(farbe(ed.farben.rasterHinten)));
+        const char* titel = f == Feld::XY ? trK(Str::KeViewXY) : f == Feld::XZ ? trK(Str::KeViewXZ) : trK(Str::KeViewYZ);
+        dl->AddText(ImVec2{a.x + 4.0F, a.y + 4.0F}, ImGui::GetColorU32(farbe(ed.farben.ansichtName)), titel);
+        break;
+    }
+    case Feld::Kamera:
+        dl->AddRectFilled(a, b, ImGui::GetColorU32(farbe(ed.farben.kameraHinten)));
+        break;
+    case Feld::Konsole:
+        konsoleZeichnen();
+        break;
+    case Feld::Texturen:
+        dl->AddRectFilled(a, b, ImGui::GetColorU32(farbe(ed.farben.texBro)));
+        break;
+    case Feld::Gruppe:
+        break;
+    }
+}
+
+void feld(Feld f, ImVec2 groesse) {
+    Editor& ed = editor();
+    ImGui::BeginChild(feldName(f), groesse, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    // MaximizeView merkt sich das Feld unter der Maus.
+    if (!ed.maximiert && ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows)) {
+        ed.maximiertFeld = static_cast<int>(f);
+    }
+    feldInhalt(f);
+    ImGui::EndChild();
+}
+
+// Ein QSplitter mit zwei Feldern; anteil ist die Groesse des ersten.
+void teiler(const char* id, ImVec2 groesse, bool senkrecht, float& anteil, const std::function<void(ImVec2)>& erstes,
+            const std::function<void(ImVec2)>& zweites) {
+    const float gesamt = senkrecht ? groesse.y : groesse.x;
+    const float eins = std::floor(std::clamp(anteil, 0.0F, 1.0F) * (gesamt - kGriff));
+    const ImVec2 start = ImGui::GetCursorScreenPos();
+    erstes(senkrecht ? ImVec2{groesse.x, eins} : ImVec2{eins, groesse.y});
+    const ImVec2 griffA = senkrecht ? ImVec2{start.x, start.y + eins} : ImVec2{start.x + eins, start.y};
+    ImGui::SetCursorScreenPos(griffA);
+    ImGui::InvisibleButton(id, senkrecht ? ImVec2{groesse.x, kGriff} : ImVec2{kGriff, groesse.y});
+    if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
+        ImGui::SetMouseCursor(senkrecht ? ImGuiMouseCursor_ResizeNS : ImGuiMouseCursor_ResizeEW);
+    }
+    if (ImGui::IsItemActive() && gesamt > kGriff) {
+        const float d = senkrecht ? ImGui::GetIO().MouseDelta.y : ImGui::GetIO().MouseDelta.x;
+        anteil = std::clamp((eins + d) / (gesamt - kGriff), 0.0F, 1.0F);
+    }
+    if (ImGui::IsItemDeactivated()) { einstellungenSpeichern(); }
+    ImGui::SetCursorScreenPos(senkrecht ? ImVec2{start.x, start.y + eins + kGriff} : ImVec2{start.x + eins + kGriff, start.y});
+    zweites(senkrecht ? ImVec2{groesse.x, gesamt - eins - kGriff} : ImVec2{gesamt - eins - kGriff, groesse.y});
+}
+
+void anordnungZeichnen(ImVec2 groesse) {
+    Editor& ed = editor();
+    using befehle::Anordnung;
+    if (ed.maximiert) {
+        feld(static_cast<Feld>(ed.maximiertFeld), groesse);
+        return;
+    }
+    if (ed.anordnung == Anordnung::Regular || ed.anordnung == Anordnung::RegularLeft) {
+        const auto links = [&](ImVec2 g) {   // m_vSplit: XY, Konsole
+            ImGui::BeginChild("##vSplit", g, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
+            teiler("##vgriff", g, true, ed.vSplit, [](ImVec2 g1) { feld(Feld::XY, g1); },
+                   [](ImVec2 g2) { feld(Feld::Konsole, g2); });
+            ImGui::EndChild();
+        };
+        const auto rechts = [&](ImVec2 g) {   // m_vSplit2: Kamera, Texturen
+            ImGui::BeginChild("##vSplit2", g, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
+            if (ed.gruppenDialogEingebaut) {
+                feld(Feld::Kamera, g);
+            } else {
+                teiler("##v2griff", g, true, ed.vSplit2, [](ImVec2 g1) { feld(Feld::Kamera, g1); },
+                       [](ImVec2 g2) { feld(Feld::Texturen, g2); });
+            }
+            ImGui::EndChild();
+        };
+        if (ed.anordnung == Anordnung::Regular) {
+            teiler("##hgriff", groesse, false, ed.hSplit, links, rechts);
+        } else {
+            teiler("##hgriff", groesse, false, ed.hSplit, rechts, links);
+        }
+    } else if (ed.anordnung == Anordnung::Split) {
+        // 4 way (mainframe.cpp:1838-1863): links Kamera ueber YZ, rechts XY ueber XZ
+        teiler("##hgriff", groesse, false, ed.hSplit,
+               [&](ImVec2 g) {
+                   ImGui::BeginChild("##vSplit", g, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
+                   teiler("##vgriff", g, true, ed.vSplit2, [](ImVec2 g1) { feld(Feld::Kamera, g1); },
+                          [](ImVec2 g2) { feld(Feld::YZ, g2); });
+                   ImGui::EndChild();
+               },
+               [&](ImVec2 g) {
+                   ImGui::BeginChild("##vSplit2", g, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
+                   teiler("##v2griff", g, true, ed.vSplit2, [](ImVec2 g1) { feld(Feld::XY, g1); },
+                          [](ImVec2 g2) { feld(Feld::XZ, g2); });
+                   ImGui::EndChild();
+               });
+    } else {
+        // Floating: der Hauptbereich bleibt leer, die Ansichten schweben.
+        ImGui::Dummy(groesse);
+    }
+}
+
+// Ein schwebendes Fenster (Floating: g_guiSettings.addWindow( ..., w, h, x, y )).
+void schwebend(Feld f, const char* titel, bool& sichtbar, ImVec2 groesse, ImVec2 lage, ImVec2 ursprung) {
+    if (!sichtbar) { return; }
+    ImGui::SetNextWindowPos(ImVec2{ursprung.x + lage.x, ursprung.y + lage.y}, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(groesse, ImGuiCond_FirstUseEver);
+    const std::string id = std::string(titel) + "###schwebend" + feldName(f);
+    if (ImGui::Begin(id.c_str(), &sichtbar, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse)) {
+        feldInhalt(f);
+    }
+    ImGui::End();
+}
+
+// Der Gruppendialog (groupdialog.cpp, Fenstertitel "Entities"): Reiter
+// Entities, (Console, Textures bei Floating/Split), Models, Layers.
+void gruppenDialog(ImVec2 ursprung, ImVec2 bereich) {
+    Editor& ed = editor();
+    using befehle::Anordnung;
+    const bool schwebendeSeiten = ed.anordnung == Anordnung::Floating || ed.anordnung == Anordnung::Split;
+    if (!ed.gruppenDialogOffen) { return; }
+    ImGui::SetNextWindowPos(ImVec2{ursprung.x + bereich.x * 0.55F, ursprung.y + bereich.y * 0.1F}, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2{bereich.x * 0.35F, bereich.y * 0.75F}, ImGuiCond_FirstUseEver);
+    const char* seitenTitel[5] = {trK(Str::KePageEntities), trK(Str::KePageConsole), trK(Str::KePageTextures),
+                                  trK(Str::KePageModels), trK(Str::KePageLayers)};
+    const std::string titel = std::string(seitenTitel[ed.gruppenSeite]) + "###kartegruppe";
+    if (ImGui::Begin(titel.c_str(), &ed.gruppenDialogOffen, ImGuiWindowFlags_NoCollapse)) {
+        if (ImGui::BeginTabBar("##gruppenreiter")) {
+            for (int s = 0; s < 5; ++s) {
+                if ((s == 1 || s == 2) && !schwebendeSeiten && !(s == 2 && ed.gruppenDialogEingebaut)) { continue; }
+                ImGuiTabItemFlags fl = ImGuiTabItemFlags_None;
+                if (ed.gruppenSeiteWechseln && ed.gruppenSeite == s) { fl |= ImGuiTabItemFlags_SetSelected; }
+                if (ImGui::BeginTabItem(seitenTitel[s], nullptr, fl)) {
+                    if (!ed.gruppenSeiteWechseln) { ed.gruppenSeite = s; }
+                    if (s == 1) {
+                        konsoleZeichnen();
+                    } else if (s == 2) {
+                        ImGui::BeginChild("##gruppeTexturen", ImVec2{-FLT_MIN, -FLT_MIN});
+                        feldInhalt(Feld::Texturen);
+                        ImGui::EndChild();
+                    }
+                    ImGui::EndTabItem();
+                }
+            }
+            ImGui::EndTabBar();
+        }
+        ed.gruppenSeiteWechseln = false;
+    }
+    ImGui::End();
 }
 
 }  // namespace
@@ -394,25 +598,41 @@ void zeichneDateiMenue() {
 void zeichne(float hoehe) {
     Editor& e = g();
     e.gezeichnet = true;
+    e.knoepfeImBild.clear();
     spielPruefen();
-    ImGui::BeginChild("##karteneditor", ImVec2{-FLT_MIN, hoehe}, ImGuiChildFlags_Borders,
+    if (!e.belegungGeladen) { einstellungenLaden(); }
+    themaAnfang();
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, 0.0F});
+    ImGui::BeginChild("##karteneditor", ImVec2{-FLT_MIN, hoehe}, ImGuiChildFlags_None,
                       ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    if (ImGui::BeginMenuBar()) {
-        zeichneDateiMenue();
-        ImGui::EndMenuBar();
-    }
-    // Sys_SetTitle: "<name> *" - der Titel des Arbeitsbereichs.
-    ImGui::TextUnformatted((e.name + (geaendert() ? " *" : "")).c_str());
-    if (!spielBereit()) {
-        char z[200];
-        std::snprintf(z, sizeof(z), tr(Str::KeGameLoading), spielName(regelwerkSpielErmitteln()).c_str());
-        ImGui::TextDisabled("%s", z);
-    }
-    for (std::size_t i = e.konsole.size() > 20 ? e.konsole.size() - 20 : 0; i < e.konsole.size(); ++i) {
-        ImGui::TextUnformatted(e.konsole[i].text.c_str());
-    }
+    ImGui::PopStyleVar(2);
+    zeichneMenueleiste();
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, 0.0F});
+    zeichneHauptleiste();
+    const ImVec2 rest = ImGui::GetContentRegionAvail();
+    const float statusH = statuszeilenHoehe();
+    const float flaecheH = std::max(10.0F, rest.y - statusH);
+    const ImVec2 start = ImGui::GetCursorScreenPos();
+    // Filterleiste rechts angedockt (RightToolBarArea), daneben die Felder.
+    const float filterB = e.filterleiste ? std::round(ImGui::GetFontSize() * 2.0F) + 10.0F : 0.0F;
+    anordnungZeichnen(ImVec2{std::max(10.0F, rest.x - filterB), flaecheH});
+    ImGui::SetCursorScreenPos(ImVec2{start.x + rest.x - filterB, start.y});
+    (void)zeichneFilterleiste(flaecheH);
+    ImGui::SetCursorScreenPos(ImVec2{start.x, start.y + flaecheH});
+    zeichneStatuszeile();
+    ImGui::PopStyleVar();
     ImGui::EndChild();
+    // Schwebende Fenster (Floating) und der Gruppendialog.
+    if (e.anordnung == befehle::Anordnung::Floating) {
+        schwebend(Feld::Kamera, trK(Str::KeViewCamera), e.schwebendSichtbar[3], ImVec2{400, 300}, ImVec2{50, 100}, start);
+        schwebend(Feld::XY, trK(Str::KeViewXY), e.schwebendSichtbar[2], ImVec2{400, 300}, ImVec2{500, 100}, start);
+        schwebend(Feld::XZ, trK(Str::KeViewXZ), e.schwebendSichtbar[1], ImVec2{400, 300}, ImVec2{500, 450}, start);
+        schwebend(Feld::YZ, trK(Str::KeViewYZ), e.schwebendSichtbar[0], ImVec2{400, 300}, ImVec2{50, 450}, start);
+    }
+    gruppenDialog(start, rest);
+    zeichneEinstellungen();
     zeichneRueckfrage();
+    themaEnde();
 }
-
 }  // namespace bhed::gui::karteneditor

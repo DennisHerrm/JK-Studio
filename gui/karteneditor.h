@@ -21,19 +21,26 @@
 #define BHED_GUI_KARTENEDITOR_H
 
 #include "bhed/i18n.h"
+#include "bhed/karte/befehle.h"
 #include "bhed/karte/eklasse.h"
 #include "bhed/karte/karte.h"
 #include "bhed/karte/kartenformat.h"
+#include "bhed/karte/raster.h"
 #include "bhed/karte/texturen.h"
 #include "bhed/karte/zuletzt.h"
 
+#include <array>
 #include <functional>
 #include <future>
+#include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
 namespace bhed::gui::karteneditor {
+
+namespace befehle = karte::befehle;
 
 // Das Spiel des Editors: Dateisystem, Textur-Inventar und Entitaetsklassen.
 // NRC laedt sie beim Start aus der .game-Datei (QE_InitVFS, Shaders_Load,
@@ -59,6 +66,48 @@ struct KonsolenZeile {
     std::string text;
 };
 
+// Die Farben der Ansichten (xywindow.h:249-260 g_xywindow_globals,
+// camwindow.h:67-68 g_camwindow_globals, render.h:291 g_colour_x/y/z,
+// Texturbrowser- und Modellbrowser-Hintergrund) mit NRCs Grundwerten.
+// Gespeichert unter den Preference-Namen von g_ColoursMenu (colors.cpp:153).
+struct Farben {
+    using F3 = std::array<float, 3>;
+    F3 texBro{0.25F, 0.25F, 0.25F};          // ColorTexBroBackground
+    F3 modBro{0.25F, 0.25F, 0.25F};          // ColorModBroBackground
+    F3 kameraHinten{0.25F, 0.25F, 0.25F};    // ColorCameraBackground
+    F3 rasterHinten{.225803F, .225803F, .225803F};   // ColorGridBackground
+    F3 rasterGross{.294118F, .294118F, .294118F};    // ColorGridMajor
+    F3 rasterKlein{.254902F, .254902F, .254902F};    // ColorGridMinor
+    F3 rasterText{.972549F, .972549F, .972549F};     // ColorGridText
+    F3 rasterBlock{1, 1, 1};                          // ColorGridBlocks
+    F3 pinsel{0, 0, 0};                               // ColorGridWorldspawn
+    F3 auswahl{1.0F, 0.627451F, 0.0F};                // ColorGridSelection
+    F3 auswahl3d{1.0F, 0.627451F, 0.0F};              // ColorCameraSelection
+    F3 clipper{0, 0, 1};                              // ColorClipperSplit
+    F3 ansichtName{0.516136F, 0.516136F, 0.516136F};  // ColorGridActive
+    F3 kamera{0, 0, 1};                               // ColorCameraIcon
+    F3 achseX{1, 0, 0};                               // ColorAxisX
+    F3 achseY{0, 1, 0};                               // ColorAxisY
+    F3 achseZ{0, 0, 1};                               // ColorAxisZ
+};
+// g_ColoursMenu (colors.cpp:153-171): Beschriftung, Preference-Name, Feld.
+struct FarbEintrag {
+    const char* text;
+    const char* name;
+    Farben::F3 Farben::*feld;
+};
+[[nodiscard]] const std::vector<FarbEintrag>& farbEintraege();
+// Die Viewports-Themen (themes/_colors/*.json, alphabetisch wie
+// Directory_forEach): Name und die 17 Farben in der Reihenfolge oben.
+struct FarbThema {
+    const char* name;
+    std::array<Farben::F3, 17> farben;
+};
+[[nodiscard]] const std::vector<FarbThema>& farbThemen();
+
+// Ein Fenster der Ansichten (XYWnd / CamWnd) - wo es gerade steht.
+enum class AnsichtTyp { YZ = 0, XZ = 1, XY = 2, Kamera = 3 };   // VIEWTYPE (xywindow.h)
+
 struct Editor {
     // --- die Karte (g_map) ---
     karte::Karte karte;
@@ -80,6 +129,46 @@ struct Editor {
     // --- Konsole ---
     std::vector<KonsolenZeile> konsole;
 
+    // --- Fenster (MainFrame) ---
+    befehle::Anordnung anordnung = befehle::Anordnung::Regular;   // g_Layout_viewStyle
+    bool gruppenDialogEingebaut = false;   // g_Layout_builtInGroupDialog
+    float hSplit = 384.0F / 960.0F;        // RestoreGuiState: m_hSplit {384, 576}
+    float vSplit = 377.0F / 397.0F;        // m_vSplit {377, 20}
+    float vSplit2 = 250.0F / 400.0F;       // m_vSplit2 {250, 150}
+    bool maximiert = false;                // MaximizeView (F12)
+    int maximiertFeld = 0;                 // welches Feld maximiert ist
+    // Floating: die Fenster Camera, XY, XZ, YZ (ToggleCamera, ToggleView ...).
+    std::array<bool, 4> schwebendSichtbar{true, true, true, true};
+    // Der Gruppendialog "Entities" (groupdialog.cpp) mit seinen Seiten.
+    bool gruppenDialogOffen = false;
+    int gruppenSeite = 0;   // 0 Entities, 1 Console, 2 Textures, 3 Models, 4 Layers
+    bool gruppenSeiteWechseln = false;
+    // Werkzeugleisten (toolbar_construct_control_menu)
+    bool hauptleiste = true;
+    bool filterleiste = true;
+    bool pluginleiste = true;
+    std::set<std::string> versteckteKnoepfe;   // g_toolbarHiddenButtons
+    int guiThema = 2;                          // s_theme (ETheme::Dark)
+    Farben farben;
+    // Statuszeile (create_main_statusbar): c_status_command, _position, _texture
+    std::string statusBefehl;
+    std::string statusPosition;
+    std::string statusTextur;
+
+    // --- Raster und Kamera-Werte, die die Statuszeile zeigt ---
+    karte::Raster raster;     // grid.cpp
+    int kubikSkala = 14;      // g_camwindow_globals.m_nCubicScale (camwindow.h)
+
+    // --- Befehle ---
+    befehle::Belegung belegung;
+    bool belegungGeladen = false;
+    // Dialoge
+    bool einstellungenOffen = false;
+    bool tastenDialogOffen = false;
+    bool ueberOffen = false;
+    std::string letzterBefehl;   // fuer den Selbsttest: zuletzt ausgeloest
+    std::vector<std::string> knoepfeImBild;   // fuer den Selbsttest: gezeichnete Knoepfe
+
     // Fuer den Selbsttest: die Kennung des Arbeitsbereichs im letzten Bild.
     bool gezeichnet = false;
 };
@@ -95,6 +184,34 @@ void setzeNrcBegriffe(bool an);
 
 // Den Arbeitsbereich zeichnen (aus app.cpp, rechts neben der Modusleiste).
 void zeichne(float hoehe);
+
+// --- Befehle (app_karte_befehle.cpp) ---
+// Einen NRC-Befehl ausfuehren (Menue, Knopf, Taste). false: unbekannt oder in
+// dieser Stufe noch nicht nachgebaut.
+bool ausfuehren(const std::string& name);
+// Ist der Befehl in dieser Stufe nachgebaut (sonst sichtbar, aber ausgegraut)?
+[[nodiscard]] bool nachgebaut(const std::string& name);
+// Zustand eines Umschalters (Toggle, Haken im Menue, gedrueckter Knopf).
+[[nodiscard]] bool angehakt(const std::string& name);
+// Alle nachgebauten Befehle (fuer den Selbsttest).
+[[nodiscard]] std::vector<std::string> nachgebauteBefehle();
+
+// --- Menues, Werkzeugleisten, Statuszeile (app_karte_menue.cpp) ---
+void zeichneMenueleiste();
+void zeichneHauptleiste();
+float zeichneFilterleiste(float hoehe);   // gibt die Breite zurueck
+void zeichneStatuszeile();
+float statuszeilenHoehe();
+// Das Symbol <name> (bitmaps/<name>.svg) als Bild; false, wenn es fehlt.
+bool symbol(const char* name, float groesse, bool hell = true);
+// Die NRC-Farben (Thema Dark, theme.cpp:93) fuer alles im Editor.
+void themaAnfang();
+void themaEnde();
+// --- Dialoge (app_karte_dialoge.cpp) ---
+void zeichneEinstellungen();   // "NetRadiant Preferences" (P)
+// Einstellungen des Editors lesen/schreiben (Settings::karte).
+void einstellungenLaden();
+void einstellungenSpeichern();
 // true, solange der Karten-Editor Tastatur und Maus fuer sich hat (der
 // Arbeitsbereich ist sichtbar). Dann gelten die BehavEd-Kuerzel nicht.
 [[nodiscard]] bool aktiv();

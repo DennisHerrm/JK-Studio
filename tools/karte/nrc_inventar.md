@@ -4,7 +4,7 @@ Erzeugt von `tools/karte/nrc_inventar.py` aus dem NRC-Quelltext (Stand master 20
 
 Stand: `[x]` nachgebaut und getestet, `[~]` sichtbar und ausgegraut (Notiz: Stufe), `[ ]` offen.
 
-Menuepunkte: 239, Werkzeugknoepfe: 54, registrierte Befehle: 288, Dialoge: 24, Einstellungsseiten: 17, Einstellungsfelder: 79, Plugin-Eintraege: 38
+Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 329, Dialoge: 24, Einstellungsseiten: 17, Einstellungsfelder: 79, Plugin-Eintraege: 38
 
 
 ## Menues
@@ -12,32 +12,32 @@ Menuepunkte: 239, Werkzeugknoepfe: 54, registrierte Befehle: 288, Dialoge: 24, E
 
 ### Brush_constructMenu (radiant/brushmanip.cpp)
 
-  - [ ] ITEM Prism... -> `BrushPrism`  (radiant/brushmanip.cpp:1498)
-  - [ ] ITEM Cone... -> `BrushCone`  (radiant/brushmanip.cpp:1499)
-  - [ ] ITEM Sphere... -> `BrushSphere`  (radiant/brushmanip.cpp:1500)
-  - [ ] ITEM Rock... -> `BrushRock`  (radiant/brushmanip.cpp:1501)
-  - [ ] ITEM Icosahedron... -> `BrushIcosahedron`  (radiant/brushmanip.cpp:1502)
+  - [~] ITEM Prism... -> `BrushPrism`  (radiant/brushmanip.cpp:1498) -- Stufe 2
+  - [~] ITEM Cone... -> `BrushCone`  (radiant/brushmanip.cpp:1499) -- Stufe 2
+  - [~] ITEM Sphere... -> `BrushSphere`  (radiant/brushmanip.cpp:1500) -- Stufe 2
+  - [~] ITEM Rock... -> `BrushRock`  (radiant/brushmanip.cpp:1501) -- Stufe 2
+  - [~] ITEM Icosahedron... -> `BrushIcosahedron`  (radiant/brushmanip.cpp:1502) -- Stufe 2
   * ---
   * SUB CSG  (radiant/brushmanip.cpp:1505)
-    - [ ] ITEM CSG &Subtract -> `CSGSubtract`  (radiant/brushmanip.cpp:1509)
-    - [ ] ITEM CSG &Merge -> `CSGMerge`  (radiant/brushmanip.cpp:1510)
-    - [ ] ITEM CSG &Wrap Merge -> `CSGWrapMerge`  (radiant/brushmanip.cpp:1511)
-    - [ ] ITEM CSG &Intersect -> `CSGIntersect`  (radiant/brushmanip.cpp:1512)
-    - [ ] ITEM Make &Room -> `CSGroom`  (radiant/brushmanip.cpp:1513)
-    - [ ] ITEM CSG &Tool -> `CSGTool`  (radiant/brushmanip.cpp:1514)
+    - [~] ITEM CSG &Subtract -> `CSGSubtract`  (radiant/brushmanip.cpp:1509) -- Stufe 2
+    - [~] ITEM CSG &Merge -> `CSGMerge`  (radiant/brushmanip.cpp:1510) -- Stufe 2
+    - [~] ITEM CSG &Wrap Merge -> `CSGWrapMerge`  (radiant/brushmanip.cpp:1511) -- Stufe 2
+    - [~] ITEM CSG &Intersect -> `CSGIntersect`  (radiant/brushmanip.cpp:1512) -- Stufe 2
+    - [~] ITEM Make &Room -> `CSGroom`  (radiant/brushmanip.cpp:1513) -- Stufe 2
+    - [~] ITEM CSG &Tool -> `CSGTool`  (radiant/brushmanip.cpp:1514) -- Stufe 2
   * ---
   * SUB Clipper  (radiant/brushmanip.cpp:1518)
-    - [ ] ITEM Clip selection -> `ClipperClip`  (radiant/brushmanip.cpp:1522)
-    - [ ] ITEM Split selection -> `ClipperSplit`  (radiant/brushmanip.cpp:1523)
-    - [ ] ITEM Flip Clip orientation -> `ClipperFlip`  (radiant/brushmanip.cpp:1524)
+    - [~] ITEM Clip selection -> `ClipperClip`  (radiant/brushmanip.cpp:1522) -- Stufe 2
+    - [~] ITEM Split selection -> `ClipperSplit`  (radiant/brushmanip.cpp:1523) -- Stufe 2
+    - [~] ITEM Flip Clip orientation -> `ClipperFlip`  (radiant/brushmanip.cpp:1524) -- Stufe 2
   * ---
-  - [ ] ITEM Make detail -> `MakeDetail`  (radiant/brushmanip.cpp:1527)
-  - [ ] ITEM Make structural -> `MakeStructural`  (radiant/brushmanip.cpp:1528)
+  - [~] ITEM Make detail -> `MakeDetail`  (radiant/brushmanip.cpp:1527) -- Stufe 2
+  - [~] ITEM Make structural -> `MakeStructural`  (radiant/brushmanip.cpp:1528) -- Stufe 2
   * ---
-  - [ ] CHECK Texture Lock -> `TogTexLock`  (radiant/brushmanip.cpp:1531)
-  - [ ] CHECK Texture Vertex Lock -> `TogTexVertexLock`  (radiant/brushmanip.cpp:1532)
-  - [ ] ITEM Reset Texture -> `TextureReset/Cap`  (radiant/brushmanip.cpp:1533)
-  - [ ] ITEM AutoCaulk Selected -> `AutoCaulkSelected`  (radiant/brushmanip.cpp:1534)
+  - [~] CHECK Texture Lock -> `TogTexLock`  (radiant/brushmanip.cpp:1531) -- Stufe 2
+  - [~] CHECK Texture Vertex Lock -> `TogTexVertexLock`  (radiant/brushmanip.cpp:1532) -- Stufe 2
+  - [~] ITEM Reset Texture -> `TextureReset/Cap`  (radiant/brushmanip.cpp:1533) -- Stufe 2
+  - [~] ITEM AutoCaulk Selected -> `AutoCaulkSelected`  (radiant/brushmanip.cpp:1534) -- Stufe 2
 
 ### Build_constructMenu (radiant/build.cpp)
 
@@ -47,64 +47,62 @@ Menuepunkte: 239, Werkzeugknoepfe: 54, registrierte Befehle: 288, Dialoge: 24, E
 
   * SUB Theming  (radiant/colors.cpp:211)
     * SUB Viewports Theme  (radiant/colors.cpp:216)
-    - [ ] ITEM OpenGL Font... -> `OpenGLFont`  (radiant/colors.cpp:231)
+    - [~] ITEM OpenGL Font... -> `OpenGLFont`  (radiant/colors.cpp:231) -- Stufe 2
     * ---
 
 ### Entity_constructMenu (radiant/entity.cpp)
 
-  - [ ] ITEM &Connect Entities -> `EntitiesConnect`  (radiant/entity.cpp:709)
-  - [ ] ITEM &KillConnect Entities -> `EntitiesKillConnect`  (radiant/entity.cpp:711)
-  - [ ] ITEM &Move Primitives to Entity -> `EntityMovePrimitivesToLast`  (radiant/entity.cpp:713)
-  - [ ] ITEM &Select Color... -> `EntityColorSet`  (radiant/entity.cpp:714)
-  - [ ] ITEM &Normalize Color -> `EntityColorNormalize`  (radiant/entity.cpp:715)
+  - [~] ITEM &Connect Entities -> `EntitiesConnect`  (radiant/entity.cpp:709) -- Stufe 2
+  - [~] ITEM &Move Primitives to Entity -> `EntityMovePrimitivesToLast`  (radiant/entity.cpp:713) -- Stufe 2
+  - [~] ITEM &Select Color... -> `EntityColorSet`  (radiant/entity.cpp:714) -- Stufe 2
+  - [~] ITEM &Normalize Color -> `EntityColorNormalize`  (radiant/entity.cpp:715) -- Stufe 2
   * ---
-  - [ ] ITEM Reload Entity Definitions -> `EntityReloadDefinitions`  (radiant/entity.cpp:717)
+  - [~] ITEM Reload Entity Definitions -> `EntityReloadDefinitions`  (radiant/entity.cpp:717) -- Stufe 2
 
 ### Filters_constructMenu (radiant/filters.cpp)
 
-  - [ ] CHECK World -> `FilterWorldBrushes`  (radiant/filters.cpp:161)
-  - [ ] CHECK Entities -> `FilterEntities`  (radiant/filters.cpp:162)
-  - [ ] CHECK Visportals -> `FilterVisportals`  (radiant/filters.cpp:164)
-  - [ ] CHECK Areaportals -> `FilterAreaportals`  (radiant/filters.cpp:168)
-  - [ ] CHECK Translucent -> `FilterTranslucent`  (radiant/filters.cpp:170)
-  - [ ] CHECK Liquids -> `FilterLiquids`  (radiant/filters.cpp:172)
-  - [ ] CHECK Caulk -> `FilterCaulk`  (radiant/filters.cpp:174)
-  - [ ] CHECK Clips -> `FilterClips`  (radiant/filters.cpp:175)
-  - [ ] CHECK Paths -> `FilterPaths`  (radiant/filters.cpp:176)
-  - [ ] CHECK Clusterportals -> `FilterClusterportals`  (radiant/filters.cpp:178)
-  - [ ] CHECK Lights -> `FilterLights`  (radiant/filters.cpp:180)
-  - [ ] CHECK Structural -> `FilterStructural`  (radiant/filters.cpp:181)
-  - [ ] CHECK Lightgrid -> `FilterLightgrid`  (radiant/filters.cpp:183)
-  - [ ] CHECK Patches -> `FilterPatches`  (radiant/filters.cpp:185)
-  - [ ] CHECK Details -> `FilterDetails`  (radiant/filters.cpp:186)
-  - [ ] CHECK Hints -> `FilterHintsSkips`  (radiant/filters.cpp:187)
-  - [ ] CHECK Models -> `FilterModels`  (radiant/filters.cpp:188)
-  - [ ] CHECK Triggers -> `FilterTriggers`  (radiant/filters.cpp:189)
-  - [ ] CHECK Botclips -> `FilterBotClips`  (radiant/filters.cpp:191)
-  - [ ] CHECK Decals -> `FilterDecals`  (radiant/filters.cpp:192)
-  - [ ] CHECK FuncGroups -> `FilterFuncGroups`  (radiant/filters.cpp:194)
-  - [ ] CHECK Point Entities -> `FilterPointEntities`  (radiant/filters.cpp:195)
-  - [ ] CHECK Sky -> `FilterSky`  (radiant/filters.cpp:196)
+  - [~] CHECK World -> `FilterWorldBrushes`  (radiant/filters.cpp:161) -- Stufe 2
+  - [~] CHECK Entities -> `FilterEntities`  (radiant/filters.cpp:162) -- Stufe 2
+  - [~] CHECK Areaportals -> `FilterAreaportals`  (radiant/filters.cpp:168) -- Stufe 2
+  - [~] CHECK Translucent -> `FilterTranslucent`  (radiant/filters.cpp:170) -- Stufe 2
+  - [~] CHECK Liquids -> `FilterLiquids`  (radiant/filters.cpp:172) -- Stufe 2
+  - [~] CHECK Caulk -> `FilterCaulk`  (radiant/filters.cpp:174) -- Stufe 2
+  - [~] CHECK Clips -> `FilterClips`  (radiant/filters.cpp:175) -- Stufe 2
+  - [~] CHECK Paths -> `FilterPaths`  (radiant/filters.cpp:176) -- Stufe 2
+  - [~] CHECK Clusterportals -> `FilterClusterportals`  (radiant/filters.cpp:178) -- Stufe 2
+  - [~] CHECK Lights -> `FilterLights`  (radiant/filters.cpp:180) -- Stufe 2
+  - [~] CHECK Structural -> `FilterStructural`  (radiant/filters.cpp:181) -- Stufe 2
+  - [~] CHECK Lightgrid -> `FilterLightgrid`  (radiant/filters.cpp:183) -- Stufe 2
+  - [~] CHECK Patches -> `FilterPatches`  (radiant/filters.cpp:185) -- Stufe 2
+  - [~] CHECK Details -> `FilterDetails`  (radiant/filters.cpp:186) -- Stufe 2
+  - [~] CHECK Hints -> `FilterHintsSkips`  (radiant/filters.cpp:187) -- Stufe 2
+  - [~] CHECK Models -> `FilterModels`  (radiant/filters.cpp:188) -- Stufe 2
+  - [~] CHECK Triggers -> `FilterTriggers`  (radiant/filters.cpp:189) -- Stufe 2
+  - [~] CHECK Botclips -> `FilterBotClips`  (radiant/filters.cpp:191) -- Stufe 2
+  - [~] CHECK Decals -> `FilterDecals`  (radiant/filters.cpp:192) -- Stufe 2
+  - [~] CHECK FuncGroups -> `FilterFuncGroups`  (radiant/filters.cpp:194) -- Stufe 2
+  - [~] CHECK Point Entities -> `FilterPointEntities`  (radiant/filters.cpp:195) -- Stufe 2
+  - [~] CHECK Sky -> `FilterSky`  (radiant/filters.cpp:196) -- Stufe 2
   * ---
-  - [ ] ITEM Invert filters -> `InvertFilters`  (radiant/filters.cpp:199)
-  - [ ] ITEM Reset filters -> `ResetFilters`  (radiant/filters.cpp:200)
+  - [~] ITEM Invert filters -> `InvertFilters`  (radiant/filters.cpp:199) -- Stufe 2
+  - [~] ITEM Reset filters -> `ResetFilters`  (radiant/filters.cpp:200) -- Stufe 2
 
 ### Grid_constructMenu (radiant/grid.cpp)
 
-  - [ ] ITEM Grid0.125 -> `SetGrid0.125`  (radiant/grid.cpp:208)
-  - [ ] ITEM Grid0.25 -> `SetGrid0.25`  (radiant/grid.cpp:209)
-  - [ ] ITEM Grid0.5 -> `SetGrid0.5`  (radiant/grid.cpp:210)
-  - [ ] ITEM Grid1 -> `SetGrid1`  (radiant/grid.cpp:211)
-  - [ ] ITEM Grid2 -> `SetGrid2`  (radiant/grid.cpp:212)
-  - [ ] ITEM Grid4 -> `SetGrid4`  (radiant/grid.cpp:213)
-  - [ ] ITEM Grid8 -> `SetGrid8`  (radiant/grid.cpp:214)
-  - [ ] ITEM Grid16 -> `SetGrid16`  (radiant/grid.cpp:215)
-  - [ ] ITEM Grid32 -> `SetGrid32`  (radiant/grid.cpp:216)
-  - [ ] ITEM Grid64 -> `SetGrid64`  (radiant/grid.cpp:217)
-  - [ ] ITEM Grid128 -> `SetGrid128`  (radiant/grid.cpp:218)
-  - [ ] ITEM Grid256 -> `SetGrid256`  (radiant/grid.cpp:219)
-  - [ ] ITEM Grid512 -> `SetGrid512`  (radiant/grid.cpp:220)
-  - [ ] ITEM Grid1024 -> `SetGrid1024`  (radiant/grid.cpp:221)
+  - [~] ITEM Grid0.125 -> `SetGrid0.125`  (radiant/grid.cpp:208) -- Stufe 2
+  - [~] ITEM Grid0.25 -> `SetGrid0.25`  (radiant/grid.cpp:209) -- Stufe 2
+  - [~] ITEM Grid0.5 -> `SetGrid0.5`  (radiant/grid.cpp:210) -- Stufe 2
+  - [~] ITEM Grid1 -> `SetGrid1`  (radiant/grid.cpp:211) -- Stufe 2
+  - [~] ITEM Grid2 -> `SetGrid2`  (radiant/grid.cpp:212) -- Stufe 2
+  - [~] ITEM Grid4 -> `SetGrid4`  (radiant/grid.cpp:213) -- Stufe 2
+  - [~] ITEM Grid8 -> `SetGrid8`  (radiant/grid.cpp:214) -- Stufe 2
+  - [~] ITEM Grid16 -> `SetGrid16`  (radiant/grid.cpp:215) -- Stufe 2
+  - [~] ITEM Grid32 -> `SetGrid32`  (radiant/grid.cpp:216) -- Stufe 2
+  - [~] ITEM Grid64 -> `SetGrid64`  (radiant/grid.cpp:217) -- Stufe 2
+  - [~] ITEM Grid128 -> `SetGrid128`  (radiant/grid.cpp:218) -- Stufe 2
+  - [~] ITEM Grid256 -> `SetGrid256`  (radiant/grid.cpp:219) -- Stufe 2
+  - [~] ITEM Grid512 -> `SetGrid512`  (radiant/grid.cpp:220) -- Stufe 2
+  - [~] ITEM Grid1024 -> `SetGrid1024`  (radiant/grid.cpp:221) -- Stufe 2
 
 ### toggle_remove_accelerator (radiant/gtkmisc.cpp)
 
@@ -116,14 +114,14 @@ Menuepunkte: 239, Werkzeugknoepfe: 54, registrierte Befehle: 288, Dialoge: 24, E
     - [x] ITEM &New Map -> `NewMap`  (radiant/mainframe.cpp:874)
     * ---
     - [x] ITEM &Open... -> `OpenMap`  (radiant/mainframe.cpp:877)
-    - [ ] ITEM &Import... -> `ImportMap`  (radiant/mainframe.cpp:878)
+    - [~] ITEM &Import... -> `ImportMap`  (radiant/mainframe.cpp:878) -- Stufe 2
     * ---
     - [x] ITEM &Save -> `SaveMap`  (radiant/mainframe.cpp:880)
     - [x] ITEM Save &as... -> `SaveMapAs`  (radiant/mainframe.cpp:881)
-    - [ ] ITEM Save s&elected... -> `SaveSelected`  (radiant/mainframe.cpp:882)
-    - [ ] ITEM Save re&gion... -> `SaveRegion`  (radiant/mainframe.cpp:883)
+    - [~] ITEM Save s&elected... -> `SaveSelected`  (radiant/mainframe.cpp:882) -- Stufe 2
+    - [~] ITEM Save re&gion... -> `SaveRegion`  (radiant/mainframe.cpp:883) -- Stufe 2
     * ---
-    - [ ] ITEM &Pointfile -> `TogglePointfile`  (radiant/mainframe.cpp:885)
+    - [~] ITEM &Pointfile -> `TogglePointfile`  (radiant/mainframe.cpp:885) -- Stufe 3
     * ---
     * ---
     - [ ] ITEM E&xit -> `Exit`  (radiant/mainframe.cpp:889)
@@ -131,149 +129,149 @@ Menuepunkte: 239, Werkzeugknoepfe: 54, registrierte Befehle: 288, Dialoge: 24, E
 ### create_edit_menu (radiant/mainframe.cpp)
 
   * SUB &Edit  (radiant/mainframe.cpp:894)
-    - [ ] ITEM &Undo -> `Undo`  (radiant/mainframe.cpp:898)
-    - [ ] ITEM &Redo -> `Redo`  (radiant/mainframe.cpp:899)
+    - [~] ITEM &Undo -> `Undo`  (radiant/mainframe.cpp:898) -- Stufe 2
+    - [~] ITEM &Redo -> `Redo`  (radiant/mainframe.cpp:899) -- Stufe 2
     * ---
-    - [ ] ITEM &Copy -> `Copy`  (radiant/mainframe.cpp:901)
-    - [ ] ITEM &Paste -> `Paste`  (radiant/mainframe.cpp:902)
-    - [ ] ITEM P&aste To Camera -> `PasteToCamera`  (radiant/mainframe.cpp:903)
-    - [ ] ITEM Move To Camera -> `MoveToCamera`  (radiant/mainframe.cpp:904)
+    - [~] ITEM &Copy -> `Copy`  (radiant/mainframe.cpp:901) -- Stufe 2
+    - [~] ITEM &Paste -> `Paste`  (radiant/mainframe.cpp:902) -- Stufe 2
+    - [~] ITEM P&aste To Camera -> `PasteToCamera`  (radiant/mainframe.cpp:903) -- Stufe 2
+    - [~] ITEM Move To Camera -> `MoveToCamera`  (radiant/mainframe.cpp:904) -- Stufe 2
     * ---
-    - [ ] ITEM &Duplicate -> `CloneSelection`  (radiant/mainframe.cpp:906)
-    - [ ] ITEM Duplicate, make uni&que -> `CloneSelectionAndMakeUnique`  (radiant/mainframe.cpp:907)
-    - [ ] ITEM D&elete -> `DeleteSelection`  (radiant/mainframe.cpp:908)
+    - [~] ITEM &Duplicate -> `CloneSelection`  (radiant/mainframe.cpp:906) -- Stufe 2
+    - [~] ITEM Duplicate, make uni&que -> `CloneSelectionAndMakeUnique`  (radiant/mainframe.cpp:907) -- Stufe 2
+    - [~] ITEM D&elete -> `DeleteSelection`  (radiant/mainframe.cpp:908) -- Stufe 2
     * ---
-    - [ ] ITEM C&lear Selection -> `UnSelectSelection`  (radiant/mainframe.cpp:911)
-    - [ ] ITEM &Invert Selection -> `InvertSelection`  (radiant/mainframe.cpp:912)
-    - [ ] ITEM Select i&nside -> `SelectInside`  (radiant/mainframe.cpp:913)
-    - [ ] ITEM Select &touching -> `SelectTouching`  (radiant/mainframe.cpp:914)
+    - [~] ITEM C&lear Selection -> `UnSelectSelection`  (radiant/mainframe.cpp:911) -- Stufe 2
+    - [~] ITEM &Invert Selection -> `InvertSelection`  (radiant/mainframe.cpp:912) -- Stufe 2
+    - [~] ITEM Select i&nside -> `SelectInside`  (radiant/mainframe.cpp:913) -- Stufe 2
+    - [~] ITEM Select &touching -> `SelectTouching`  (radiant/mainframe.cpp:914) -- Stufe 2
     * ---
-    - [ ] ITEM Select All Of Type -> `SelectAllOfType`  (radiant/mainframe.cpp:918)
-    - [ ] ITEM Select Textured -> `SelectTextured`  (radiant/mainframe.cpp:919)
-    - [ ] ITEM &Expand Selection To Primitives -> `ExpandSelectionToPrimitives`  (radiant/mainframe.cpp:920)
-    - [ ] ITEM &Expand Selection To Entities -> `ExpandSelectionToEntities`  (radiant/mainframe.cpp:921)
-    - [ ] ITEM &Expand Selection To Layers -> `ExpandSelectionToLayers`  (radiant/mainframe.cpp:922)
-    - [ ] ITEM Select Connected Entities -> `SelectConnectedEntities`  (radiant/mainframe.cpp:923)
+    - [~] ITEM Select All Of Type -> `SelectAllOfType`  (radiant/mainframe.cpp:918) -- Stufe 2
+    - [~] ITEM Select Textured -> `SelectTextured`  (radiant/mainframe.cpp:919) -- Stufe 2
+    - [~] ITEM &Expand Selection To Primitives -> `ExpandSelectionToPrimitives`  (radiant/mainframe.cpp:920) -- Stufe 2
+    - [~] ITEM &Expand Selection To Entities -> `ExpandSelectionToEntities`  (radiant/mainframe.cpp:921) -- Stufe 2
+    - [~] ITEM &Expand Selection To Layers -> `ExpandSelectionToLayers`  (radiant/mainframe.cpp:922) -- Stufe 2
+    - [~] ITEM Select Connected Entities -> `SelectConnectedEntities`  (radiant/mainframe.cpp:923) -- Stufe 2
     * ---
-    - [ ] ITEM &Shortcuts... -> `Shortcuts`  (radiant/mainframe.cpp:926)
+    - [~] ITEM &Shortcuts... -> `Shortcuts`  (radiant/mainframe.cpp:926) -- Stufe 2
     - [ ] ITEM Pre&ferences... -> `Preferences`  (radiant/mainframe.cpp:927)
 
 ### create_view_menu (radiant/mainframe.cpp)
 
   * SUB Vie&w  (radiant/mainframe.cpp:932)
-    - [ ] CHECK Camera View -> `ToggleCamera`  (radiant/mainframe.cpp:937)
-    - [ ] CHECK XY (Top) View -> `ToggleView`  (radiant/mainframe.cpp:938)
-    - [ ] CHECK XZ (Front) View -> `ToggleFrontView`  (radiant/mainframe.cpp:939)
-    - [ ] CHECK YZ (Side) View -> `ToggleSideView`  (radiant/mainframe.cpp:940)
-    - [ ] ITEM Console -> `ToggleConsole`  (radiant/mainframe.cpp:943)
-    - [ ] ITEM Texture Browser -> `ToggleTextures`  (radiant/mainframe.cpp:946)
+    - [x] CHECK Camera View [wenn: if ( style == MainFrame::eFloating )] -> `ToggleCamera`  (radiant/mainframe.cpp:937)
+    - [x] CHECK XY (Top) View [wenn: if ( style == MainFrame::eFloating )] -> `ToggleView`  (radiant/mainframe.cpp:938)
+    - [x] CHECK XZ (Front) View [wenn: if ( style == MainFrame::eFloating )] -> `ToggleFrontView`  (radiant/mainframe.cpp:939)
+    - [x] CHECK YZ (Side) View [wenn: if ( style == MainFrame::eFloating )] -> `ToggleSideView`  (radiant/mainframe.cpp:940)
+    - [ ] ITEM Console [wenn: if ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft )] -> `ToggleConsole`  (radiant/mainframe.cpp:943)
+    - [ ] ITEM Texture Browser [wenn: if ( ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft ) || g_Layout_builtInGroupDialog.m_value )] -> `ToggleTextures`  (radiant/mainframe.cpp:946)
     - [ ] ITEM Model Browser -> `ToggleModelBrowser`  (radiant/mainframe.cpp:948)
     - [ ] ITEM Entity Inspector -> `ToggleEntityInspector`  (radiant/mainframe.cpp:949)
     - [ ] ITEM Layers Browser -> `ToggleLayersBrowser`  (radiant/mainframe.cpp:950)
-    - [ ] ITEM &Surface Inspector -> `SurfaceInspector`  (radiant/mainframe.cpp:951)
-    - [ ] ITEM Entity List -> `ToggleEntityList`  (radiant/mainframe.cpp:952)
+    - [~] ITEM &Surface Inspector -> `SurfaceInspector`  (radiant/mainframe.cpp:951) -- Stufe 2
+    - [~] ITEM Entity List -> `ToggleEntityList`  (radiant/mainframe.cpp:952) -- Stufe 2
     * ---
     * SUB Camera  (radiant/mainframe.cpp:956)
-      - [ ] ITEM Focus on Selected -> `CameraFocusOnSelected`  (radiant/mainframe.cpp:960)
-      - [ ] ITEM &Center -> `CenterView`  (radiant/mainframe.cpp:961)
-      - [ ] ITEM &Up Floor -> `UpFloor`  (radiant/mainframe.cpp:962)
-      - [ ] ITEM &Down Floor -> `DownFloor`  (radiant/mainframe.cpp:963)
+      - [~] ITEM Focus on Selected -> `CameraFocusOnSelected`  (radiant/mainframe.cpp:960) -- Stufe 2
+      - [~] ITEM &Center -> `CenterView`  (radiant/mainframe.cpp:961) -- Stufe 2
+      - [~] ITEM &Up Floor -> `UpFloor`  (radiant/mainframe.cpp:962) -- Stufe 2
+      - [~] ITEM &Down Floor -> `DownFloor`  (radiant/mainframe.cpp:963) -- Stufe 2
       * ---
-      - [ ] ITEM Far Clip Plane In -> `CubicClipZoomIn`  (radiant/mainframe.cpp:965)
-      - [ ] ITEM Far Clip Plane Out -> `CubicClipZoomOut`  (radiant/mainframe.cpp:966)
+      - [~] ITEM Far Clip Plane In -> `CubicClipZoomIn`  (radiant/mainframe.cpp:965) -- Stufe 2
+      - [~] ITEM Far Clip Plane Out -> `CubicClipZoomOut`  (radiant/mainframe.cpp:966) -- Stufe 2
       * ---
-      - [ ] ITEM Next leak spot -> `NextLeakSpot`  (radiant/mainframe.cpp:968)
-      - [ ] ITEM Previous leak spot -> `PrevLeakSpot`  (radiant/mainframe.cpp:969)
+      - [~] ITEM Next leak spot -> `NextLeakSpot`  (radiant/mainframe.cpp:968) -- Stufe 3
+      - [~] ITEM Previous leak spot -> `PrevLeakSpot`  (radiant/mainframe.cpp:969) -- Stufe 3
     * ---
     * SUB Orthographic  (radiant/mainframe.cpp:977)
-      - [ ] ITEM &Next (XY, XZ, YZ) -> `NextView`  (radiant/mainframe.cpp:982)
-      - [ ] ITEM XY (Top) -> `ViewTop`  (radiant/mainframe.cpp:983)
-      - [ ] ITEM XZ (Front) -> `ViewFront`  (radiant/mainframe.cpp:984)
-      - [ ] ITEM YZ (Side) -> `ViewSide`  (radiant/mainframe.cpp:985)
+      - [~] ITEM &Next (XY, XZ, YZ) [wenn: if ( style == MainFrame::eRegular || style == MainFrame::eRegularLeft || style == MainFrame::eFloating )] -> `NextView`  (radiant/mainframe.cpp:982) -- Stufe 2
+      - [~] ITEM XY (Top) [wenn: if ( style == MainFrame::eRegular || style == MainFrame::eRegularLeft || style == MainFrame::eFloating )] -> `ViewTop`  (radiant/mainframe.cpp:983) -- Stufe 2
+      - [~] ITEM XZ (Front) [wenn: if ( style == MainFrame::eRegular || style == MainFrame::eRegularLeft || style == MainFrame::eFloating )] -> `ViewFront`  (radiant/mainframe.cpp:984) -- Stufe 2
+      - [~] ITEM YZ (Side) [wenn: if ( style == MainFrame::eRegular || style == MainFrame::eRegularLeft || style == MainFrame::eFloating )] -> `ViewSide`  (radiant/mainframe.cpp:985) -- Stufe 2
       * ---
-      - [ ] ITEM Center on Selected -> `NextView`  (radiant/mainframe.cpp:989)
-      - [ ] ITEM Focus on Selected -> `XYFocusOnSelected`  (radiant/mainframe.cpp:992)
-      - [ ] ITEM Center on Selected -> `CenterXYView`  (radiant/mainframe.cpp:993)
+      - [~] ITEM Center on Selected [wenn: nicht (if ( style == MainFrame::eRegular || style == MainFrame::eRegularLeft || style == MainFrame::eFloating ))] -> `NextView`  (radiant/mainframe.cpp:989) -- Stufe 2
+      - [~] ITEM Focus on Selected -> `XYFocusOnSelected`  (radiant/mainframe.cpp:992) -- Stufe 2
+      - [~] ITEM Center on Selected -> `CenterXYView`  (radiant/mainframe.cpp:993) -- Stufe 2
       * ---
-      - [ ] ITEM &XY 100% -> `Zoom100`  (radiant/mainframe.cpp:995)
-      - [ ] ITEM XY Zoom &In -> `ZoomIn`  (radiant/mainframe.cpp:996)
-      - [ ] ITEM XY Zoom &Out -> `ZoomOut`  (radiant/mainframe.cpp:997)
+      - [~] ITEM &XY 100% -> `Zoom100`  (radiant/mainframe.cpp:995) -- Stufe 2
+      - [~] ITEM XY Zoom &In -> `ZoomIn`  (radiant/mainframe.cpp:996) -- Stufe 2
+      - [~] ITEM XY Zoom &Out -> `ZoomOut`  (radiant/mainframe.cpp:997) -- Stufe 2
     * ---
     * SUB Show  (radiant/mainframe.cpp:1003)
-      - [ ] CHECK Show Entity &Angles -> `ShowAngles`  (radiant/mainframe.cpp:1007)
-      - [ ] CHECK Show Entity &Names -> `ShowNames`  (radiant/mainframe.cpp:1008)
-      - [ ] CHECK Show Light Radiuses -> `ShowLightRadiuses`  (radiant/mainframe.cpp:1009)
-      - [ ] CHECK Show Entity Boxes -> `ShowBboxes`  (radiant/mainframe.cpp:1010)
-      - [ ] CHECK Show Entity Connections -> `ShowConnections`  (radiant/mainframe.cpp:1011)
+      - [~] CHECK Show Entity &Angles -> `ShowAngles`  (radiant/mainframe.cpp:1007) -- Stufe 2
+      - [~] CHECK Show Entity &Names -> `ShowNames`  (radiant/mainframe.cpp:1008) -- Stufe 2
+      - [~] CHECK Show Light Radiuses -> `ShowLightRadiuses`  (radiant/mainframe.cpp:1009) -- Stufe 2
+      - [~] CHECK Show Entity Boxes -> `ShowBboxes`  (radiant/mainframe.cpp:1010) -- Stufe 2
+      - [~] CHECK Show Entity Connections -> `ShowConnections`  (radiant/mainframe.cpp:1011) -- Stufe 2
       * ---
-      - [ ] CHECK Show 2D Size Info -> `ShowSize2d`  (radiant/mainframe.cpp:1015)
-      - [ ] CHECK Show 3D Size Info -> `ShowSize3d`  (radiant/mainframe.cpp:1016)
-      - [ ] CHECK Show Crosshair -> `ToggleCrosshairs`  (radiant/mainframe.cpp:1017)
-      - [ ] CHECK Show Grid -> `ToggleGrid`  (radiant/mainframe.cpp:1018)
-      - [ ] CHECK Show Blocks -> `ShowBlocks`  (radiant/mainframe.cpp:1019)
-      - [ ] CHECK Show C&oordinates -> `ShowCoordinates`  (radiant/mainframe.cpp:1020)
-      - [ ] CHECK Show Window Outline -> `ShowWindowOutline`  (radiant/mainframe.cpp:1021)
-      - [ ] CHECK Show Axes -> `ShowAxes`  (radiant/mainframe.cpp:1022)
-      - [ ] CHECK Show 2D Workzone -> `ShowWorkzone2d`  (radiant/mainframe.cpp:1023)
-      - [ ] CHECK Show 3D Workzone -> `ShowWorkzone3d`  (radiant/mainframe.cpp:1024)
-      - [ ] CHECK Show Renderer Stats -> `ShowStats`  (radiant/mainframe.cpp:1025)
+      - [~] CHECK Show 2D Size Info -> `ShowSize2d`  (radiant/mainframe.cpp:1015) -- Stufe 2
+      - [~] CHECK Show 3D Size Info -> `ShowSize3d`  (radiant/mainframe.cpp:1016) -- Stufe 2
+      - [~] CHECK Show Crosshair -> `ToggleCrosshairs`  (radiant/mainframe.cpp:1017) -- Stufe 2
+      - [~] CHECK Show Grid -> `ToggleGrid`  (radiant/mainframe.cpp:1018) -- Stufe 2
+      - [~] CHECK Show Blocks -> `ShowBlocks`  (radiant/mainframe.cpp:1019) -- Stufe 2
+      - [~] CHECK Show C&oordinates -> `ShowCoordinates`  (radiant/mainframe.cpp:1020) -- Stufe 2
+      - [~] CHECK Show Window Outline -> `ShowWindowOutline`  (radiant/mainframe.cpp:1021) -- Stufe 2
+      - [~] CHECK Show Axes -> `ShowAxes`  (radiant/mainframe.cpp:1022) -- Stufe 2
+      - [~] CHECK Show 2D Workzone -> `ShowWorkzone2d`  (radiant/mainframe.cpp:1023) -- Stufe 2
+      - [~] CHECK Show 3D Workzone -> `ShowWorkzone3d`  (radiant/mainframe.cpp:1024) -- Stufe 2
+      - [~] CHECK Show Renderer Stats -> `ShowStats`  (radiant/mainframe.cpp:1025) -- Stufe 2
     * SUB Filter  (radiant/mainframe.cpp:1029)
     * ---
-    - [ ] CHECK Hide Selected -> `HideSelected`  (radiant/mainframe.cpp:1037)
-    - [ ] ITEM Show Hidden -> `ShowHidden`  (radiant/mainframe.cpp:1038)
+    - [~] CHECK Hide Selected -> `HideSelected`  (radiant/mainframe.cpp:1037) -- Stufe 2
+    - [~] ITEM Show Hidden -> `ShowHidden`  (radiant/mainframe.cpp:1038) -- Stufe 2
     * ---
     * SUB Region  (radiant/mainframe.cpp:1042)
-      - [ ] ITEM &Off -> `RegionOff`  (radiant/mainframe.cpp:1046)
-      - [ ] ITEM &Set XY -> `RegionSetXY`  (radiant/mainframe.cpp:1047)
-      - [ ] ITEM Set &Brush -> `RegionSetBrush`  (radiant/mainframe.cpp:1048)
-      - [ ] CHECK Set Se&lection -> `RegionSetSelection`  (radiant/mainframe.cpp:1049)
+      - [~] ITEM &Off -> `RegionOff`  (radiant/mainframe.cpp:1046) -- Stufe 2
+      - [~] ITEM &Set XY -> `RegionSetXY`  (radiant/mainframe.cpp:1047) -- Stufe 2
+      - [~] ITEM Set &Brush -> `RegionSetBrush`  (radiant/mainframe.cpp:1048) -- Stufe 2
+      - [~] CHECK Set Se&lection -> `RegionSetSelection`  (radiant/mainframe.cpp:1049) -- Stufe 2
 
 ### create_selection_menu (radiant/mainframe.cpp)
 
   * SUB M&odify  (radiant/mainframe.cpp:1057)
     * SUB Components  (radiant/mainframe.cpp:1061)
-      - [ ] CHECK &Edges -> `DragEdges`  (radiant/mainframe.cpp:1065)
-      - [ ] CHECK &Vertices -> `DragVertices`  (radiant/mainframe.cpp:1066)
-      - [ ] CHECK &Faces -> `DragFaces`  (radiant/mainframe.cpp:1067)
+      - [~] CHECK &Edges -> `DragEdges`  (radiant/mainframe.cpp:1065) -- Stufe 2
+      - [~] CHECK &Vertices -> `DragVertices`  (radiant/mainframe.cpp:1066) -- Stufe 2
+      - [~] CHECK &Faces -> `DragFaces`  (radiant/mainframe.cpp:1067) -- Stufe 2
     * ---
-    - [ ] ITEM Snap To Grid -> `SnapToGrid`  (radiant/mainframe.cpp:1071)
+    - [~] ITEM Snap To Grid -> `SnapToGrid`  (radiant/mainframe.cpp:1071) -- Stufe 2
     * ---
     * SUB Nudge  (radiant/mainframe.cpp:1076)
-      - [ ] ITEM Nudge Left -> `SelectNudgeLeft`  (radiant/mainframe.cpp:1080)
-      - [ ] ITEM Nudge Right -> `SelectNudgeRight`  (radiant/mainframe.cpp:1081)
-      - [ ] ITEM Nudge Up -> `SelectNudgeUp`  (radiant/mainframe.cpp:1082)
-      - [ ] ITEM Nudge Down -> `SelectNudgeDown`  (radiant/mainframe.cpp:1083)
+      - [~] ITEM Nudge Left -> `SelectNudgeLeft`  (radiant/mainframe.cpp:1080) -- Stufe 2
+      - [~] ITEM Nudge Right -> `SelectNudgeRight`  (radiant/mainframe.cpp:1081) -- Stufe 2
+      - [~] ITEM Nudge Up -> `SelectNudgeUp`  (radiant/mainframe.cpp:1082) -- Stufe 2
+      - [~] ITEM Nudge Down -> `SelectNudgeDown`  (radiant/mainframe.cpp:1083) -- Stufe 2
       * ---
-      - [ ] ITEM Nudge +Z -> `MoveSelectionUP`  (radiant/mainframe.cpp:1085)
-      - [ ] ITEM Nudge -Z -> `MoveSelectionDOWN`  (radiant/mainframe.cpp:1086)
+      - [~] ITEM Nudge +Z -> `MoveSelectionUP`  (radiant/mainframe.cpp:1085) -- Stufe 2
+      - [~] ITEM Nudge -Z -> `MoveSelectionDOWN`  (radiant/mainframe.cpp:1086) -- Stufe 2
     * SUB Rotate  (radiant/mainframe.cpp:1089)
-      - [ ] ITEM Rotate X -> `RotateSelectionX`  (radiant/mainframe.cpp:1093)
-      - [ ] ITEM Rotate Y -> `RotateSelectionY`  (radiant/mainframe.cpp:1094)
-      - [ ] ITEM Rotate Z -> `RotateSelectionZ`  (radiant/mainframe.cpp:1095)
+      - [~] ITEM Rotate X -> `RotateSelectionX`  (radiant/mainframe.cpp:1093) -- Stufe 2
+      - [~] ITEM Rotate Y -> `RotateSelectionY`  (radiant/mainframe.cpp:1094) -- Stufe 2
+      - [~] ITEM Rotate Z -> `RotateSelectionZ`  (radiant/mainframe.cpp:1095) -- Stufe 2
       * ---
-      - [ ] ITEM Rotate Clockwise -> `RotateSelectionClockwise`  (radiant/mainframe.cpp:1097)
-      - [ ] ITEM Rotate Anticlockwise -> `RotateSelectionAnticlockwise`  (radiant/mainframe.cpp:1098)
+      - [~] ITEM Rotate Clockwise -> `RotateSelectionClockwise`  (radiant/mainframe.cpp:1097) -- Stufe 2
+      - [~] ITEM Rotate Anticlockwise -> `RotateSelectionAnticlockwise`  (radiant/mainframe.cpp:1098) -- Stufe 2
     * SUB Flip  (radiant/mainframe.cpp:1101)
-      - [ ] ITEM Flip &X -> `MirrorSelectionX`  (radiant/mainframe.cpp:1105)
-      - [ ] ITEM Flip &Y -> `MirrorSelectionY`  (radiant/mainframe.cpp:1106)
-      - [ ] ITEM Flip &Z -> `MirrorSelectionZ`  (radiant/mainframe.cpp:1107)
+      - [~] ITEM Flip &X -> `MirrorSelectionX`  (radiant/mainframe.cpp:1105) -- Stufe 2
+      - [~] ITEM Flip &Y -> `MirrorSelectionY`  (radiant/mainframe.cpp:1106) -- Stufe 2
+      - [~] ITEM Flip &Z -> `MirrorSelectionZ`  (radiant/mainframe.cpp:1107) -- Stufe 2
       * ---
-      - [ ] ITEM Flip Horizontally -> `MirrorSelectionHorizontally`  (radiant/mainframe.cpp:1109)
-      - [ ] ITEM Flip Vertically -> `MirrorSelectionVertically`  (radiant/mainframe.cpp:1110)
+      - [~] ITEM Flip Horizontally -> `MirrorSelectionHorizontally`  (radiant/mainframe.cpp:1109) -- Stufe 2
+      - [~] ITEM Flip Vertically -> `MirrorSelectionVertically`  (radiant/mainframe.cpp:1110) -- Stufe 2
     * ---
-    - [ ] ITEM Arbitrary rotation... -> `ArbitraryRotation`  (radiant/mainframe.cpp:1113)
-    - [ ] ITEM Arbitrary scale... -> `ArbitraryScale`  (radiant/mainframe.cpp:1114)
+    - [~] ITEM Arbitrary rotation... -> `ArbitraryRotation`  (radiant/mainframe.cpp:1113) -- Stufe 2
+    - [~] ITEM Arbitrary scale... -> `ArbitraryScale`  (radiant/mainframe.cpp:1114) -- Stufe 2
     * ---
     * SUB Repeat  (radiant/mainframe.cpp:1117)
-      - [ ] ITEM Repeat Transforms -> `RepeatTransforms`  (radiant/mainframe.cpp:1121)
+      - [~] ITEM Repeat Transforms -> `RepeatTransforms`  (radiant/mainframe.cpp:1121) -- Stufe 2
       - [ ] ITEM (dynamisch)  (radiant/mainframe.cpp:1125)
-      - [ ] ITEM Reset Transforms -> `ResetTransforms`  (radiant/mainframe.cpp:1133)
+      - [~] ITEM Reset Transforms -> `ResetTransforms`  (radiant/mainframe.cpp:1133) -- Stufe 2
 
 ### create_bsp_menu (radiant/mainframe.cpp)
 
   * SUB &Build  (radiant/mainframe.cpp:1139)
-    - [ ] ITEM Customize... -> `BuildMenuCustomize`  (radiant/mainframe.cpp:1143)
-    - [ ] ITEM Run recent build -> `Build_runRecentExecutedBuild`  (radiant/mainframe.cpp:1144)
+    - [~] ITEM Customize... -> `BuildMenuCustomize`  (radiant/mainframe.cpp:1143) -- Stufe 3
+    - [~] ITEM Run recent build -> `Build_runRecentExecutedBuild`  (radiant/mainframe.cpp:1144) -- Stufe 3
     * ---
 
 ### create_grid_menu (radiant/mainframe.cpp)
@@ -283,12 +281,12 @@ Menuepunkte: 239, Werkzeugknoepfe: 54, registrierte Befehle: 288, Dialoge: 24, E
 ### create_misc_menu (radiant/mainframe.cpp)
 
   * SUB M&isc  (radiant/mainframe.cpp:1165)
-    - [ ] ITEM Find Entity/Brush... -> `FindBrush`  (radiant/mainframe.cpp:1173)
-    - [ ] ITEM Map Info... -> `MapInfo`  (radiant/mainframe.cpp:1174)
-    - [ ] ITEM &Refresh models -> `RefreshReferences`  (radiant/mainframe.cpp:1175)
+    - [~] ITEM Find Entity/Brush... -> `FindBrush`  (radiant/mainframe.cpp:1173) -- Stufe 2
+    - [~] ITEM Map Info... -> `MapInfo`  (radiant/mainframe.cpp:1174) -- Stufe 2
+    - [~] ITEM &Refresh models -> `RefreshReferences`  (radiant/mainframe.cpp:1175) -- Stufe 2
     - [ ] ITEM Set 2D &Background image...  (radiant/mainframe.cpp:1176)
-    - [ ] ITEM Fullscreen -> `Fullscreen`  (radiant/mainframe.cpp:1177)
-    - [ ] ITEM Maximize view -> `MaximizeView`  (radiant/mainframe.cpp:1178)
+    - [~] ITEM Fullscreen -> `Fullscreen`  (radiant/mainframe.cpp:1177) -- Stufe 2
+    - [x] ITEM Maximize view -> `MaximizeView`  (radiant/mainframe.cpp:1178)
 
 ### create_entity_menu (radiant/mainframe.cpp)
 
@@ -306,7 +304,7 @@ Menuepunkte: 239, Werkzeugknoepfe: 54, registrierte Befehle: 288, Dialoge: 24, E
 
   * SUB &Help  (radiant/mainframe.cpp:1210)
     - [ ] ITEM Bug report  (radiant/mainframe.cpp:1220)
-    - [ ] ITEM Check for NetRadiant update -> `CheckForUpdate`  (radiant/mainframe.cpp:1221)
+    - [~] ITEM Check for NetRadiant update -> `CheckForUpdate`  (radiant/mainframe.cpp:1221) -- Stufe 3
     - [ ] ITEM &About  (radiant/mainframe.cpp:1222)
 
 ### Maximize_View (radiant/mainframe.cpp)
@@ -327,50 +325,50 @@ Menuepunkte: 239, Werkzeugknoepfe: 54, registrierte Befehle: 288, Dialoge: 24, E
 
 ### Patch_constructMenu (radiant/patchmanip.cpp)
 
-  - [ ] ITEM Simple Patch Mesh... -> `SimplePatchMesh`  (radiant/patchmanip.cpp:739)
-  - [ ] ITEM Bevel -> `PatchBevel`  (radiant/patchmanip.cpp:740)
-  - [ ] ITEM End cap -> `PatchEndCap`  (radiant/patchmanip.cpp:741)
-  - [ ] ITEM Cylinder (9x3) -> `PatchCylinder`  (radiant/patchmanip.cpp:742)
-  - [ ] ITEM Square Cylinder (9x3) -> `PatchSquareCylinder`  (radiant/patchmanip.cpp:743)
-  - [ ] ITEM Exact Cylinder... -> `PatchXactCylinder`  (radiant/patchmanip.cpp:744)
-  - [ ] ITEM Cone (9x3) -> `PatchCone`  (radiant/patchmanip.cpp:745)
-  - [ ] ITEM Exact Cone... -> `PatchXactCone`  (radiant/patchmanip.cpp:746)
-  - [ ] ITEM Sphere (9x5) -> `PatchSphere`  (radiant/patchmanip.cpp:747)
-  - [ ] ITEM Exact Sphere... -> `PatchXactSphere`  (radiant/patchmanip.cpp:748)
+  - [~] ITEM Simple Patch Mesh... -> `SimplePatchMesh`  (radiant/patchmanip.cpp:739) -- Stufe 2
+  - [~] ITEM Bevel -> `PatchBevel`  (radiant/patchmanip.cpp:740) -- Stufe 2
+  - [~] ITEM End cap -> `PatchEndCap`  (radiant/patchmanip.cpp:741) -- Stufe 2
+  - [~] ITEM Cylinder (9x3) -> `PatchCylinder`  (radiant/patchmanip.cpp:742) -- Stufe 2
+  - [~] ITEM Square Cylinder (9x3) -> `PatchSquareCylinder`  (radiant/patchmanip.cpp:743) -- Stufe 2
+  - [~] ITEM Exact Cylinder... -> `PatchXactCylinder`  (radiant/patchmanip.cpp:744) -- Stufe 2
+  - [~] ITEM Cone (9x3) -> `PatchCone`  (radiant/patchmanip.cpp:745) -- Stufe 2
+  - [~] ITEM Exact Cone... -> `PatchXactCone`  (radiant/patchmanip.cpp:746) -- Stufe 2
+  - [~] ITEM Sphere (9x5) -> `PatchSphere`  (radiant/patchmanip.cpp:747) -- Stufe 2
+  - [~] ITEM Exact Sphere... -> `PatchXactSphere`  (radiant/patchmanip.cpp:748) -- Stufe 2
   * ---
-  - [ ] ITEM Cap Selection -> `CapCurrentCurve`  (radiant/patchmanip.cpp:764)
+  - [~] ITEM Cap Selection -> `CapCurrentCurve`  (radiant/patchmanip.cpp:764) -- Stufe 2
   * ---
   * SUB Insert/Delete  (radiant/patchmanip.cpp:767)
-    - [ ] ITEM Insert (2) First Columns -> `PatchInsertFirstColumn`  (radiant/patchmanip.cpp:771)
-    - [ ] ITEM Insert (2) Last Columns -> `PatchInsertLastColumn`  (radiant/patchmanip.cpp:772)
+    - [~] ITEM Insert (2) First Columns -> `PatchInsertFirstColumn`  (radiant/patchmanip.cpp:771) -- Stufe 2
+    - [~] ITEM Insert (2) Last Columns -> `PatchInsertLastColumn`  (radiant/patchmanip.cpp:772) -- Stufe 2
     * ---
-    - [ ] ITEM Insert (2) First Rows -> `PatchInsertFirstRow`  (radiant/patchmanip.cpp:774)
-    - [ ] ITEM Insert (2) Last Rows -> `PatchInsertLastRow`  (radiant/patchmanip.cpp:775)
+    - [~] ITEM Insert (2) First Rows -> `PatchInsertFirstRow`  (radiant/patchmanip.cpp:774) -- Stufe 2
+    - [~] ITEM Insert (2) Last Rows -> `PatchInsertLastRow`  (radiant/patchmanip.cpp:775) -- Stufe 2
     * ---
-    - [ ] ITEM Del First (2) Columns -> `PatchDeleteFirstColumn`  (radiant/patchmanip.cpp:777)
-    - [ ] ITEM Del Last (2) Columns -> `PatchDeleteLastColumn`  (radiant/patchmanip.cpp:778)
+    - [~] ITEM Del First (2) Columns -> `PatchDeleteFirstColumn`  (radiant/patchmanip.cpp:777) -- Stufe 2
+    - [~] ITEM Del Last (2) Columns -> `PatchDeleteLastColumn`  (radiant/patchmanip.cpp:778) -- Stufe 2
     * ---
-    - [ ] ITEM Del First (2) Rows -> `PatchDeleteFirstRow`  (radiant/patchmanip.cpp:780)
-    - [ ] ITEM Del Last (2) Rows -> `PatchDeleteLastRow`  (radiant/patchmanip.cpp:781)
+    - [~] ITEM Del First (2) Rows -> `PatchDeleteFirstRow`  (radiant/patchmanip.cpp:780) -- Stufe 2
+    - [~] ITEM Del Last (2) Rows -> `PatchDeleteLastRow`  (radiant/patchmanip.cpp:781) -- Stufe 2
   * ---
   * SUB Matrix  (radiant/patchmanip.cpp:785)
-    - [ ] ITEM Invert -> `InvertCurve`  (radiant/patchmanip.cpp:789)
-    - [ ] ITEM Transpose -> `MatrixTranspose`  (radiant/patchmanip.cpp:790)
+    - [~] ITEM Invert -> `InvertCurve`  (radiant/patchmanip.cpp:789) -- Stufe 2
+    - [~] ITEM Transpose -> `MatrixTranspose`  (radiant/patchmanip.cpp:790) -- Stufe 2
     * ---
-    - [ ] ITEM Re-disperse Rows -> `RedisperseRows`  (radiant/patchmanip.cpp:793)
-    - [ ] ITEM Re-disperse Columns -> `RedisperseCols`  (radiant/patchmanip.cpp:794)
+    - [~] ITEM Re-disperse Rows -> `RedisperseRows`  (radiant/patchmanip.cpp:793) -- Stufe 2
+    - [~] ITEM Re-disperse Columns -> `RedisperseCols`  (radiant/patchmanip.cpp:794) -- Stufe 2
     * ---
-    - [ ] ITEM Smooth Rows -> `SmoothRows`  (radiant/patchmanip.cpp:797)
-    - [ ] ITEM Smooth Columns -> `SmoothCols`  (radiant/patchmanip.cpp:798)
+    - [~] ITEM Smooth Rows -> `SmoothRows`  (radiant/patchmanip.cpp:797) -- Stufe 2
+    - [~] ITEM Smooth Columns -> `SmoothCols`  (radiant/patchmanip.cpp:798) -- Stufe 2
   * ---
   * SUB Texture  (radiant/patchmanip.cpp:802)
-    - [ ] ITEM Reset Texture -> `TextureReset/Cap`  (radiant/patchmanip.cpp:806)
-    - [ ] ITEM Naturalize -> `NaturalizePatch`  (radiant/patchmanip.cpp:807)
-    - [ ] ITEM Invert X -> `InvertCurveTextureX`  (radiant/patchmanip.cpp:808)
-    - [ ] ITEM Invert Y -> `InvertCurveTextureY`  (radiant/patchmanip.cpp:809)
+    - [~] ITEM Reset Texture -> `TextureReset/Cap`  (radiant/patchmanip.cpp:806) -- Stufe 2
+    - [~] ITEM Naturalize -> `NaturalizePatch`  (radiant/patchmanip.cpp:807) -- Stufe 2
+    - [~] ITEM Invert X -> `InvertCurveTextureX`  (radiant/patchmanip.cpp:808) -- Stufe 2
+    - [~] ITEM Invert Y -> `InvertCurveTextureY`  (radiant/patchmanip.cpp:809) -- Stufe 2
   * ---
-  - [ ] ITEM Deform... -> `PatchDeform`  (radiant/patchmanip.cpp:821)
-  - [ ] ITEM Thicken... -> `PatchThicken`  (radiant/patchmanip.cpp:822)
+  - [~] ITEM Deform... -> `PatchDeform`  (radiant/patchmanip.cpp:821) -- Stufe 2
+  - [~] ITEM Thicken... -> `PatchThicken`  (radiant/patchmanip.cpp:822) -- Stufe 2
 
 ### PlugInMenu_Add (radiant/pluginmenu.cpp)
 
@@ -382,28 +380,28 @@ Menuepunkte: 239, Werkzeugknoepfe: 54, registrierte Befehle: 288, Dialoge: 24, E
 
 ### TextureBrowser_createTreeViewTree (radiant/texwindow.cpp)
 
-  - [ ] CHECK Hide Unused -> `ShowInUse`  (radiant/texwindow.cpp:1243)
-  - [ ] ITEM Show All -> `ShowAllTextures`  (radiant/texwindow.cpp:1244)
+  - [~] CHECK Hide Unused -> `ShowInUse`  (radiant/texwindow.cpp:1243) -- Stufe 2
+  - [~] ITEM Show All -> `ShowAllTextures`  (radiant/texwindow.cpp:1244) -- Stufe 2
   * ---
-  - [ ] CHECK Show Shaders -> `ToggleShowShaders`  (radiant/texwindow.cpp:1254)
-  - [ ] CHECK Show Textures -> `ToggleShowTextures`  (radiant/texwindow.cpp:1255)
+  - [~] CHECK Show Shaders -> `ToggleShowShaders`  (radiant/texwindow.cpp:1254) -- Stufe 2
+  - [~] CHECK Show Textures -> `ToggleShowTextures`  (radiant/texwindow.cpp:1255) -- Stufe 2
   * ---
-  - [ ] CHECK ShaderList Only -> `ToggleShowShaderlistOnly`  (radiant/texwindow.cpp:1260)
-  - [ ] CHECK Hide Image Missing -> `FilterNotex`  (radiant/texwindow.cpp:1263)
+  - [~] CHECK ShaderList Only -> `ToggleShowShaderlistOnly`  (radiant/texwindow.cpp:1260) -- Stufe 2
+  - [~] CHECK Hide Image Missing -> `FilterNotex`  (radiant/texwindow.cpp:1263) -- Stufe 2
   * ---
-  - [ ] CHECK Fixed Size -> `FixedSize`  (radiant/texwindow.cpp:1267)
-  - [ ] CHECK Transparency -> `EnableAlpha`  (radiant/texwindow.cpp:1268)
+  - [~] CHECK Fixed Size -> `FixedSize`  (radiant/texwindow.cpp:1267) -- Stufe 2
+  - [~] CHECK Transparency -> `EnableAlpha`  (radiant/texwindow.cpp:1268) -- Stufe 2
   * ---
-  - [ ] CHECK Tags GUI -> `TagsToggleGui`  (radiant/texwindow.cpp:1271)
-  - [ ] ITEM Add tag -> `TagAdd`  (radiant/texwindow.cpp:1286)
-  - [ ] ITEM Rename tag -> `TagRename`  (radiant/texwindow.cpp:1287)
-  - [ ] ITEM Delete tag -> `TagDelete`  (radiant/texwindow.cpp:1288)
+  - [~] CHECK Tags GUI -> `TagsToggleGui`  (radiant/texwindow.cpp:1271) -- Stufe 2
+  - [~] ITEM Add tag -> `TagAdd`  (radiant/texwindow.cpp:1286) -- Stufe 2
+  - [~] ITEM Rename tag -> `TagRename`  (radiant/texwindow.cpp:1287) -- Stufe 2
+  - [~] ITEM Delete tag -> `TagDelete`  (radiant/texwindow.cpp:1288) -- Stufe 2
   * ---
-  - [ ] ITEM Copy tags from selected -> `TagCopy`  (radiant/texwindow.cpp:1290)
-  - [ ] ITEM Paste tags to selected -> `TagPaste`  (radiant/texwindow.cpp:1291)
+  - [~] ITEM Copy tags from selected -> `TagCopy`  (radiant/texwindow.cpp:1290) -- Stufe 2
+  - [~] ITEM Paste tags to selected -> `TagPaste`  (radiant/texwindow.cpp:1291) -- Stufe 2
   * ---
-  - [ ] ITEM Search tag -> `TagSearch`  (radiant/texwindow.cpp:1293)
-  - [ ] ITEM Search Untagged -> `TagSearchUntagged`  (radiant/texwindow.cpp:1294)
+  - [~] ITEM Search tag -> `TagSearch`  (radiant/texwindow.cpp:1293) -- Stufe 2
+  - [~] ITEM Search Untagged -> `TagSearchUntagged`  (radiant/texwindow.cpp:1294) -- Stufe 2
 
 ### TextureBrowser_ContextMenu (radiant/texwindow.cpp)
 
@@ -421,29 +419,29 @@ Menuepunkte: 239, Werkzeugknoepfe: 54, registrierte Befehle: 288, Dialoge: 24, E
 
 ### CamWnd_constructToolbar (radiant/camwindow.cpp)
 
-- [ ] toggle_button Cubic clip the camera view | view_cubicclipping.png -> `ToggleCubicClip`  (radiant/camwindow.cpp:2260)
+- [~] toggle_button Cubic clip the camera view | view_cubicclipping.png -> `ToggleCubicClip`  (radiant/camwindow.cpp:2260) -- Stufe 2
 
 ### create_filter_toolbar (radiant/filterbar.cpp)
 
-- [ ] toggle_button World | f-world.png -> `FilterWorldBrushes`  (radiant/filterbar.cpp:140)
-- [ ] toggle_button Structural / RightClick: MakeStructural | f-structural.png -> `FilterStructural`  (radiant/filterbar.cpp:142)
-- [ ] toggle_button Details / RightClick: MakeDetail | f-details.png -> `FilterDetails`  (radiant/filterbar.cpp:145)
-- [ ] toggle_button Func_Groups / RightClick: create func_group | f-funcgroups.png -> `FilterFuncGroups`  (radiant/filterbar.cpp:148)
-- [ ] toggle_button Patches | f-patches.png -> `FilterPatches`  (radiant/filterbar.cpp:151)
-- [ ] toggle_button Translucent / RightClick: toggle tex / noDraw / noDrawNonSolid | f-translucent.png -> `FilterTranslucent`  (radiant/filterbar.cpp:161)
-- [ ] toggle_button Liquids / RightClick: toggle tex / waterCaulk / lavaCaulk / slimeCaulk | f-liquids.png -> `FilterLiquids`  (radiant/filterbar.cpp:164)
-- [ ] toggle_button Caulk / RightClick: tex Caulk | f-caulk.png -> `FilterCaulk`  (radiant/filterbar.cpp:167)
-- [ ] toggle_button Clips / RightClick: toggle tex / playerClip / weapClip | f-clip.png -> `FilterClips`  (radiant/filterbar.cpp:170)
-- [ ] toggle_button HintsSkips / RightClick: toggle tex / hint / hintLocal / hintSkip | f-hint.png -> `FilterHintsSkips`  (radiant/filterbar.cpp:173)
-- [ ] toggle_button Sky | f-sky.png -> `FilterSky`  (radiant/filterbar.cpp:176)
-- [ ] toggle_button Entities | f-entities.png -> `FilterEntities`  (radiant/filterbar.cpp:180)
-- [ ] toggle_button Point Entities | f-pointentities.png -> `FilterPointEntities`  (radiant/filterbar.cpp:181)
-- [ ] toggle_button Lights | f-lights.png -> `FilterLights`  (radiant/filterbar.cpp:182)
-- [ ] toggle_button Models | f-models.png -> `FilterModels`  (radiant/filterbar.cpp:183)
-- [ ] toggle_button Triggers / RightClick: tex Trigger | f-triggers.png -> `FilterTriggers`  (radiant/filterbar.cpp:185)
-- [ ] button ResetFilters | f-reset.png -> `ResetFilters`  (radiant/filterbar.cpp:192)
-- [ ] toggle_button Region Set Selection / RightClick: Region Off | f-region.png -> `RegionSetSelection`  (radiant/filterbar.cpp:195)
-- [ ] toggle_button Hide Selected / RightClick: Show Hidden | f-hide.png -> `HideSelected`  (radiant/filterbar.cpp:198)
+- [~] toggle_button World | f-world.png -> `FilterWorldBrushes`  (radiant/filterbar.cpp:140) -- Stufe 2
+- [~] toggle_button Structural / RightClick: MakeStructural | f-structural.png -> `FilterStructural`  (radiant/filterbar.cpp:142) -- Stufe 2
+- [~] toggle_button Details / RightClick: MakeDetail | f-details.png -> `FilterDetails`  (radiant/filterbar.cpp:145) -- Stufe 2
+- [~] toggle_button Func_Groups / RightClick: create func_group | f-funcgroups.png -> `FilterFuncGroups`  (radiant/filterbar.cpp:148) -- Stufe 2
+- [~] toggle_button Patches | f-patches.png -> `FilterPatches`  (radiant/filterbar.cpp:151) -- Stufe 2
+- [~] toggle_button Translucent / RightClick: toggle tex / noDraw / noDrawNonSolid | f-translucent.png -> `FilterTranslucent`  (radiant/filterbar.cpp:161) -- Stufe 2
+- [~] toggle_button Liquids / RightClick: toggle tex / waterCaulk / lavaCaulk / slimeCaulk | f-liquids.png -> `FilterLiquids`  (radiant/filterbar.cpp:164) -- Stufe 2
+- [~] toggle_button Caulk / RightClick: tex Caulk | f-caulk.png -> `FilterCaulk`  (radiant/filterbar.cpp:167) -- Stufe 2
+- [~] toggle_button Clips / RightClick: toggle tex / playerClip / weapClip | f-clip.png -> `FilterClips`  (radiant/filterbar.cpp:170) -- Stufe 2
+- [~] toggle_button HintsSkips / RightClick: toggle tex / hint / hintLocal / hintSkip | f-hint.png -> `FilterHintsSkips`  (radiant/filterbar.cpp:173) -- Stufe 2
+- [~] toggle_button Sky | f-sky.png -> `FilterSky`  (radiant/filterbar.cpp:176) -- Stufe 2
+- [~] toggle_button Entities | f-entities.png -> `FilterEntities`  (radiant/filterbar.cpp:180) -- Stufe 2
+- [~] toggle_button Point Entities | f-pointentities.png -> `FilterPointEntities`  (radiant/filterbar.cpp:181) -- Stufe 2
+- [~] toggle_button Lights | f-lights.png -> `FilterLights`  (radiant/filterbar.cpp:182) -- Stufe 2
+- [~] toggle_button Models | f-models.png -> `FilterModels`  (radiant/filterbar.cpp:183) -- Stufe 2
+- [~] toggle_button Triggers / RightClick: tex Trigger | f-triggers.png -> `FilterTriggers`  (radiant/filterbar.cpp:185) -- Stufe 2
+- [~] button ResetFilters | f-reset.png -> `ResetFilters`  (radiant/filterbar.cpp:192) -- Stufe 2
+- [~] toggle_button Region Set Selection / RightClick: Region Off | f-region.png -> `RegionSetSelection`  (radiant/filterbar.cpp:195) -- Stufe 2
+- [~] toggle_button Hide Selected / RightClick: Show Hidden | f-hide.png -> `HideSelected`  (radiant/filterbar.cpp:198) -- Stufe 2
 
 ### File_constructToolbar (radiant/mainframe.cpp)
 
@@ -452,358 +450,399 @@ Menuepunkte: 239, Werkzeugknoepfe: 54, registrierte Befehle: 288, Dialoge: 24, E
 
 ### UndoRedo_constructToolbar (radiant/mainframe.cpp)
 
-- [ ] button Undo | undo.png -> `Undo`  (radiant/mainframe.cpp:1333)
-- [ ] button Redo | redo.png -> `Redo`  (radiant/mainframe.cpp:1334)
+- [~] button Undo | undo.png -> `Undo`  (radiant/mainframe.cpp:1333) -- Stufe 2
+- [~] button Redo | redo.png -> `Redo`  (radiant/mainframe.cpp:1334) -- Stufe 2
 
 ### RotateFlip_constructToolbar (radiant/mainframe.cpp)
 
-- [ ] button Flip Horizontally | brush_flip_hor.png -> `MirrorSelectionHorizontally`  (radiant/mainframe.cpp:1344)
-- [ ] button Flip Vertically | brush_flip_vert.png -> `MirrorSelectionVertically`  (radiant/mainframe.cpp:1345)
-- [ ] button Rotate Anticlockwise | brush_rotate_anti.png -> `RotateSelectionAnticlockwise`  (radiant/mainframe.cpp:1347)
-- [ ] button Rotate Clockwise | brush_rotate_clock.png -> `RotateSelectionClockwise`  (radiant/mainframe.cpp:1348)
+- [~] button Flip Horizontally | brush_flip_hor.png -> `MirrorSelectionHorizontally`  (radiant/mainframe.cpp:1344) -- Stufe 2
+- [~] button Flip Vertically | brush_flip_vert.png -> `MirrorSelectionVertically`  (radiant/mainframe.cpp:1345) -- Stufe 2
+- [~] button Rotate Anticlockwise | brush_rotate_anti.png -> `RotateSelectionAnticlockwise`  (radiant/mainframe.cpp:1347) -- Stufe 2
+- [~] button Rotate Clockwise | brush_rotate_clock.png -> `RotateSelectionClockwise`  (radiant/mainframe.cpp:1348) -- Stufe 2
 
 ### Select_constructToolbar (radiant/mainframe.cpp)
 
-- [ ] button Select touching | selection_selecttouching.png -> `SelectTouching`  (radiant/mainframe.cpp:1352)
-- [ ] button Select inside | selection_selectinside.png -> `SelectInside`  (radiant/mainframe.cpp:1353)
+- [~] button Select touching | selection_selecttouching.png -> `SelectTouching`  (radiant/mainframe.cpp:1352) -- Stufe 2
+- [~] button Select inside | selection_selectinside.png -> `SelectInside`  (radiant/mainframe.cpp:1353) -- Stufe 2
 
 ### CSG_constructToolbar (radiant/mainframe.cpp)
 
-- [ ] button CSG Subtract | selection_csgsubtract.png -> `CSGSubtract`  (radiant/mainframe.cpp:1357)
-- [ ] button CSG Wrap Merge | selection_csgmerge.png -> `CSGWrapMerge`  (radiant/mainframe.cpp:1358)
-- [ ] button Room | selection_makeroom.png -> `CSGroom`  (radiant/mainframe.cpp:1359)
-- [ ] button CSG Tool | ellipsis.png -> `CSGTool`  (radiant/mainframe.cpp:1360)
+- [~] button CSG Subtract | selection_csgsubtract.png -> `CSGSubtract`  (radiant/mainframe.cpp:1357) -- Stufe 2
+- [~] button CSG Wrap Merge | selection_csgmerge.png -> `CSGWrapMerge`  (radiant/mainframe.cpp:1358) -- Stufe 2
+- [~] button Room | selection_makeroom.png -> `CSGroom`  (radiant/mainframe.cpp:1359) -- Stufe 2
+- [~] button CSG Tool | ellipsis.png -> `CSGTool`  (radiant/mainframe.cpp:1360) -- Stufe 2
 
 ### ComponentModes_constructToolbar (radiant/mainframe.cpp)
 
-- [ ] toggle_button Select Vertices | modify_vertices.png -> `DragVertices`  (radiant/mainframe.cpp:1364)
-- [ ] toggle_button Select Edges | modify_edges.png -> `DragEdges`  (radiant/mainframe.cpp:1365)
-- [ ] toggle_button Select Faces | modify_faces.png -> `DragFaces`  (radiant/mainframe.cpp:1366)
+- [~] toggle_button Select Vertices | modify_vertices.png -> `DragVertices`  (radiant/mainframe.cpp:1364) -- Stufe 2
+- [~] toggle_button Select Edges | modify_edges.png -> `DragEdges`  (radiant/mainframe.cpp:1365) -- Stufe 2
+- [~] toggle_button Select Faces | modify_faces.png -> `DragFaces`  (radiant/mainframe.cpp:1366) -- Stufe 2
 
 ### XYWnd_constructToolbar (radiant/mainframe.cpp)
 
-- [ ] button Change views | view_change.png -> `NextView`  (radiant/mainframe.cpp:1370)
+- [~] button Change views | view_change.png -> `NextView`  (radiant/mainframe.cpp:1370) -- Stufe 2
 
 ### Manipulators_constructToolbar (radiant/mainframe.cpp)
 
-- [ ] toggle_button Resize (Q) | select_mouseresize.png -> `MouseDrag`  (radiant/mainframe.cpp:1374)
-- [ ] toggle_button Clipper | select_clipper.png -> `ToggleClipper`  (radiant/mainframe.cpp:1375)
-- [ ] toggle_button Translate | select_mousetranslate.png -> `MouseTranslate`  (radiant/mainframe.cpp:1376)
-- [ ] toggle_button Rotate | select_mouserotate.png -> `MouseRotate`  (radiant/mainframe.cpp:1377)
-- [ ] toggle_button Scale | select_mousescale.png -> `MouseScale`  (radiant/mainframe.cpp:1378)
-- [ ] toggle_button Transform (Q) | select_mousetransform.png -> `MouseTransform`  (radiant/mainframe.cpp:1379)
-- [ ] toggle_button UV Tool | select_mouseuv.png -> `MouseUV`  (radiant/mainframe.cpp:1381)
+- [~] toggle_button Resize (Q) | select_mouseresize.png -> `MouseDrag`  (radiant/mainframe.cpp:1374) -- Stufe 2
+- [~] toggle_button Clipper | select_clipper.png -> `ToggleClipper`  (radiant/mainframe.cpp:1375) -- Stufe 2
+- [~] toggle_button Translate | select_mousetranslate.png -> `MouseTranslate`  (radiant/mainframe.cpp:1376) -- Stufe 2
+- [~] toggle_button Rotate | select_mouserotate.png -> `MouseRotate`  (radiant/mainframe.cpp:1377) -- Stufe 2
+- [~] toggle_button Scale | select_mousescale.png -> `MouseScale`  (radiant/mainframe.cpp:1378) -- Stufe 2
+- [~] toggle_button Transform (Q) | select_mousetransform.png -> `MouseTransform`  (radiant/mainframe.cpp:1379) -- Stufe 2
+- [~] toggle_button UV Tool | select_mouseuv.png -> `MouseUV`  (radiant/mainframe.cpp:1381) -- Stufe 2
 
 ### create_main_toolbar (radiant/mainframe.cpp)
 
-- [ ] toggle_button Texture Lock | texture_lock.png -> `TogTexLock`  (radiant/mainframe.cpp:1424)
-- [ ] toggle_button Texture Vertex Lock | texture_vertexlock.png -> `TogTexVertexLock`  (radiant/mainframe.cpp:1425)
+- [~] toggle_button Texture Lock | texture_lock.png -> `TogTexLock`  (radiant/mainframe.cpp:1424) -- Stufe 2
+- [~] toggle_button Texture Vertex Lock | texture_vertexlock.png -> `TogTexVertexLock`  (radiant/mainframe.cpp:1425) -- Stufe 2
 - [ ] button Entities | entities.png -> `ToggleEntityInspector`  (radiant/mainframe.cpp:1428)
-- [ ] button Console | console.png -> `ToggleConsole`  (radiant/mainframe.cpp:1431)
-- [ ] button Texture Browser | texture_browser.png -> `ToggleTextures`  (radiant/mainframe.cpp:1434)
-- [ ] button Refresh Models | refresh_models.png -> `RefreshReferences`  (radiant/mainframe.cpp:1441)
+- [ ] button Console [wenn: if ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft )] | console.png -> `ToggleConsole`  (radiant/mainframe.cpp:1431)
+- [ ] button Texture Browser [wenn: if ( ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft ) || g_Layout_builtInGroupDialog.m_value )] | texture_browser.png -> `ToggleTextures`  (radiant/mainframe.cpp:1434)
+- [~] button Refresh Models | refresh_models.png -> `RefreshReferences`  (radiant/mainframe.cpp:1441) -- Stufe 2
 
 ### Patch_constructToolbar (radiant/patchmanip.cpp)
 
-- [ ] button Put caps on the current patch | curve_cap.png -> `CapCurrentCurve`  (radiant/patchmanip.cpp:735)
+- [~] button Put caps on the current patch | curve_cap.png -> `CapCurrentCurve`  (radiant/patchmanip.cpp:735) -- Stufe 2
 
 ### TextureBrowser_filterSetModeIcon (radiant/texwindow.cpp)
 
-- [ ] button Find / Replace... | texbro_find-replace.png -> `FindReplaceTextures`  (radiant/texwindow.cpp:1802)
-- [ ] button Flush & Reload Shaders | texbro_refresh.png -> `RefreshShaders`  (radiant/texwindow.cpp:1804)
+- [~] button Find / Replace... | texbro_find-replace.png -> `FindReplaceTextures`  (radiant/texwindow.cpp:1802) -- Stufe 2
+- [~] button Flush & Reload Shaders | texbro_refresh.png -> `RefreshShaders`  (radiant/texwindow.cpp:1804) -- Stufe 2
 
 ## Registrierte Befehle
 
 Name | Art | Standardtaste | Quelle
 
-- [ ] `ArbitraryRotation` | Commands | Shift+R | (radiant/select.cpp:1883)
-- [ ] `ArbitraryScale` | Commands | Ctrl+Shift+S | (radiant/select.cpp:1884)
-- [ ] `AutoCaulkSelected` | Commands | F4 | (radiant/map.cpp:2442)
-- [ ] `Brush3Sided` | Commands | Ctrl+3 | (radiant/brushmanip.cpp:1485)
-- [ ] `Brush4Sided` | Commands | Ctrl+4 | (radiant/brushmanip.cpp:1486)
-- [ ] `Brush5Sided` | Commands | Ctrl+5 | (radiant/brushmanip.cpp:1487)
-- [ ] `Brush6Sided` | Commands | Ctrl+6 | (radiant/brushmanip.cpp:1488)
-- [ ] `Brush7Sided` | Commands | Ctrl+7 | (radiant/brushmanip.cpp:1489)
-- [ ] `Brush8Sided` | Commands | Ctrl+8 | (radiant/brushmanip.cpp:1490)
-- [ ] `Brush9Sided` | Commands | Ctrl+9 | (radiant/brushmanip.cpp:1491)
-- [ ] `BrushCone` | Commands | - | (radiant/brushmanip.cpp:1480)
-- [ ] `BrushIcosahedron` | Commands | - | (radiant/brushmanip.cpp:1483)
-- [ ] `BrushPrism` | Commands | - | (radiant/brushmanip.cpp:1479)
-- [ ] `BrushRock` | Commands | - | (radiant/brushmanip.cpp:1482)
-- [ ] `BrushSphere` | Commands | - | (radiant/brushmanip.cpp:1481)
-- [ ] `Build_runRecentExecutedBuild` | Commands | F5 | (radiant/mainframe.cpp:2090)
-- [ ] `BuildMenuCustomize` | Commands | - | (radiant/mainframe.cpp:2089)
-- [ ] `CameraAngleDown` | Commands | - | (radiant/camwindow.cpp:1432)
-- [ ] `CameraAngleDown` | KeyEvents | - | (radiant/camwindow.cpp:1369)
-- [ ] `CameraAngleUp` | Commands | - | (radiant/camwindow.cpp:1431)
-- [ ] `CameraAngleUp` | KeyEvents | - | (radiant/camwindow.cpp:1365)
-- [ ] `CameraBack` | Commands | - | (radiant/camwindow.cpp:1423)
-- [ ] `CameraBack` | KeyEvents | - | (radiant/camwindow.cpp:1337)
-- [ ] `CameraDown` | Commands | - | (radiant/camwindow.cpp:1430)
-- [ ] `CameraDown` | KeyEvents | - | (radiant/camwindow.cpp:1361)
-- [ ] `CameraFocusOnSelected` | Commands | Tab | (radiant/camwindow.cpp:2489)
-- [ ] `CameraForward` | Commands | - | (radiant/camwindow.cpp:1422)
-- [ ] `CameraForward` | KeyEvents | - | (radiant/camwindow.cpp:1333)
-- [ ] `CameraFreeFocus` | KeyEvents | - | (radiant/camwindow.cpp:1417)
-- [ ] `CameraFreeMoveBack` | KeyEvents | - | (radiant/camwindow.cpp:1378)
-- [ ] `CameraFreeMoveBack2` | KeyEvents | - | (radiant/camwindow.cpp:1395)
-- [ ] `CameraFreeMoveDown` | KeyEvents | - | (radiant/camwindow.cpp:1412)
-- [ ] `CameraFreeMoveForward` | KeyEvents | - | (radiant/camwindow.cpp:1374)
-- [ ] `CameraFreeMoveForward2` | KeyEvents | - | (radiant/camwindow.cpp:1391)
-- [ ] `CameraFreeMoveLeft` | KeyEvents | - | (radiant/camwindow.cpp:1382)
-- [ ] `CameraFreeMoveLeft2` | KeyEvents | - | (radiant/camwindow.cpp:1399)
-- [ ] `CameraFreeMoveRight` | KeyEvents | - | (radiant/camwindow.cpp:1386)
-- [ ] `CameraFreeMoveRight2` | KeyEvents | - | (radiant/camwindow.cpp:1403)
-- [ ] `CameraFreeMoveUp` | KeyEvents | - | (radiant/camwindow.cpp:1408)
-- [ ] `CameraLeft` | Commands | - | (radiant/camwindow.cpp:1424)
-- [ ] `CameraLeft` | KeyEvents | - | (radiant/camwindow.cpp:1341)
-- [ ] `CameraModeNext` | Commands | Shift+] | (radiant/camwindow.cpp:2506)
-- [ ] `CameraModePrev` | Commands | Shift+[ | (radiant/camwindow.cpp:2507)
-- [ ] `CameraRight` | Commands | - | (radiant/camwindow.cpp:1425)
-- [ ] `CameraRight` | KeyEvents | - | (radiant/camwindow.cpp:1345)
-- [ ] `CameraSpeedDec` | Commands | +Qt::SHIFT + Qt::Key_Minus + Qt::KeypadModifier | (radiant/camwindow.cpp:2510)
-- [ ] `CameraSpeedInc` | Commands | +Qt::SHIFT + Qt::Key_Plus + Qt::KeypadModifier | (radiant/camwindow.cpp:2509)
-- [ ] `CameraStrafeLeft` | Commands | - | (radiant/camwindow.cpp:1427)
-- [ ] `CameraStrafeLeft` | KeyEvents | - | (radiant/camwindow.cpp:1353)
-- [ ] `CameraStrafeRight` | Commands | - | (radiant/camwindow.cpp:1426)
-- [ ] `CameraStrafeRight` | KeyEvents | - | (radiant/camwindow.cpp:1349)
-- [ ] `CameraUp` | Commands | - | (radiant/camwindow.cpp:1429)
-- [ ] `CameraUp` | KeyEvents | - | (radiant/camwindow.cpp:1357)
-- [ ] `CapCurrentCurve` | Commands | Shift+C | (radiant/patchmanip.cpp:727)
-- [ ] `CenterView` | Commands | End | (radiant/camwindow.cpp:2488)
-- [ ] `CenterXYView` | Commands | Ctrl+Shift+Tab | (radiant/xywindow.cpp:2277)
-- [ ] `CheckForUpdate` | Commands | - | (radiant/mainframe.cpp:2072)
-- [ ] `ClipperClip` | Commands | Return | (radiant/clippertool.cpp:194)
-- [ ] `ClipperFlip` | Commands | Ctrl+Return | (radiant/clippertool.cpp:196)
-- [ ] `ClipperSplit` | Commands | Shift+Return | (radiant/clippertool.cpp:195)
-- [ ] `CloneSelection` | Commands | Space | (radiant/select.cpp:1866)
-- [ ] `CloneSelectionAndMakeUnique` | Commands | Shift+Space | (radiant/select.cpp:1867)
-- [ ] `Copy` | Commands | Ctrl+C | (radiant/select.cpp:1862)
-- [ ] `CSGIntersect` | Commands | Ctrl+Shift+U | (radiant/csg.cpp:1595)
-- [ ] `CSGMerge` | Commands | - | (radiant/csg.cpp:1593)
-- [ ] `CSGroom` | Commands | - | (radiant/csg.cpp:1596)
-- [ ] `CSGSubtract` | Commands | Shift+U | (radiant/csg.cpp:1592)
-- [ ] `CSGTool` | Commands | - | (radiant/csg.cpp:1597)
-- [ ] `CSGWrapMerge` | Commands | Ctrl+U | (radiant/csg.cpp:1594)
-- [ ] `CubicClipZoomIn` | Commands | Ctrl+[ | (radiant/camwindow.cpp:2492)
-- [ ] `CubicClipZoomOut` | Commands | Ctrl+] | (radiant/camwindow.cpp:2493)
-- [ ] `DeleteSelection` | Commands | Z | (radiant/select.cpp:1870)
-- [ ] `DeleteSelection2` | Commands | Backspace | (radiant/select.cpp:1869)
-- [ ] `DeleteSelection3` | Commands | Delete | (radiant/select.cpp:1868)
-- [ ] `DownFloor` | Commands | PgDown | (radiant/camwindow.cpp:2496)
-- [ ] `DragEdges` | Toggles | E | (radiant/tools.cpp:423)
-- [ ] `DragFaces` | Toggles | F | (radiant/tools.cpp:424)
-- [ ] `DragVertices` | Toggles | V | (radiant/tools.cpp:422)
-- [ ] `EnableAlpha` | Toggles | - | (radiant/texwindow.cpp:2113)
-- [ ] `EntitiesConnect` | Commands | Ctrl+K | (radiant/entity.cpp:734)
-- [ ] `EntitiesKillConnect` | Commands | Shift+K | (radiant/entity.cpp:736)
-- [ ] `EntityColorNormalize` | Commands | - | (radiant/entity.cpp:733)
-- [ ] `EntityColorSet` | Commands | K | (radiant/entity.cpp:732)
-- [ ] `EntityMovePrimitivesToFirst` | Commands | - | (radiant/entity.cpp:738)
-- [ ] `EntityMovePrimitivesToLast` | Commands | Ctrl+M | (radiant/entity.cpp:737)
-- [ ] `EntityReloadDefinitions` | Commands | - | (radiant/entity.cpp:741)
-- [ ] `EntityUngroup` | Commands | - | (radiant/entity.cpp:739)
-- [ ] `EntityUngroupPrimitives` | Commands | - | (radiant/entity.cpp:740)
+- [~] `ArbitraryRotation` | Commands | Shift+R | (radiant/select.cpp:1883) -- Stufe 2
+- [~] `ArbitraryScale` | Commands | Ctrl+Shift+S | (radiant/select.cpp:1884) -- Stufe 2
+- [~] `AutoCaulkSelected` | Commands | F4 | (radiant/map.cpp:2442) -- Stufe 2
+- [~] `Brush3Sided` | Commands | Ctrl+3 | (radiant/brushmanip.cpp:1485) -- Stufe 2
+- [~] `Brush4Sided` | Commands | Ctrl+4 | (radiant/brushmanip.cpp:1486) -- Stufe 2
+- [~] `Brush5Sided` | Commands | Ctrl+5 | (radiant/brushmanip.cpp:1487) -- Stufe 2
+- [~] `Brush6Sided` | Commands | Ctrl+6 | (radiant/brushmanip.cpp:1488) -- Stufe 2
+- [~] `Brush7Sided` | Commands | Ctrl+7 | (radiant/brushmanip.cpp:1489) -- Stufe 2
+- [~] `Brush8Sided` | Commands | Ctrl+8 | (radiant/brushmanip.cpp:1490) -- Stufe 2
+- [~] `Brush9Sided` | Commands | Ctrl+9 | (radiant/brushmanip.cpp:1491) -- Stufe 2
+- [~] `BrushCone` | Commands | - | (radiant/brushmanip.cpp:1480) -- Stufe 2
+- [~] `BrushIcosahedron` | Commands | - | (radiant/brushmanip.cpp:1483) -- Stufe 2
+- [~] `BrushPrism` | Commands | - | (radiant/brushmanip.cpp:1479) -- Stufe 2
+- [~] `BrushRock` | Commands | - | (radiant/brushmanip.cpp:1482) -- Stufe 2
+- [~] `BrushSphere` | Commands | - | (radiant/brushmanip.cpp:1481) -- Stufe 2
+- [~] `Build_runRecentExecutedBuild` | Commands | F5 | (radiant/mainframe.cpp:2090) -- Stufe 3
+- [~] `BuildMenuCustomize` | Commands | - | (radiant/mainframe.cpp:2089) -- Stufe 3
+- [~] `CameraAngleDown` | Commands | - | (radiant/camwindow.cpp:1432) -- Stufe 2
+- [~] `CameraAngleDown` | KeyEvents | - | (radiant/camwindow.cpp:1369) -- Stufe 2
+- [~] `CameraAngleDown` | Shortcuts | - | (radiant/camwindow.cpp:2522) -- Stufe 2
+- [~] `CameraAngleUp` | Commands | - | (radiant/camwindow.cpp:1431) -- Stufe 2
+- [~] `CameraAngleUp` | KeyEvents | - | (radiant/camwindow.cpp:1365) -- Stufe 2
+- [~] `CameraAngleUp` | Shortcuts | - | (radiant/camwindow.cpp:2521) -- Stufe 2
+- [~] `CameraBack` | Commands | - | (radiant/camwindow.cpp:1423) -- Stufe 2
+- [~] `CameraBack` | KeyEvents | - | (radiant/camwindow.cpp:1337) -- Stufe 2
+- [~] `CameraBack` | Shortcuts | Down | (radiant/camwindow.cpp:2513) -- Stufe 2
+- [~] `CameraDown` | Commands | - | (radiant/camwindow.cpp:1430) -- Stufe 2
+- [~] `CameraDown` | KeyEvents | - | (radiant/camwindow.cpp:1361) -- Stufe 2
+- [~] `CameraDown` | Shortcuts | - | (radiant/camwindow.cpp:2520) -- Stufe 2
+- [~] `CameraFocusOnSelected` | Commands | Tab | (radiant/camwindow.cpp:2489) -- Stufe 2
+- [~] `CameraForward` | Commands | - | (radiant/camwindow.cpp:1422) -- Stufe 2
+- [~] `CameraForward` | KeyEvents | - | (radiant/camwindow.cpp:1333) -- Stufe 2
+- [~] `CameraForward` | Shortcuts | Up | (radiant/camwindow.cpp:2512) -- Stufe 2
+- [~] `CameraFreeFocus` | KeyEvents | - | (radiant/camwindow.cpp:1417) -- Stufe 2
+- [~] `CameraFreeFocus` | Shortcuts | Tab | (radiant/camwindow.cpp:2537) -- Stufe 2
+- [~] `CameraFreeMoveBack` | KeyEvents | - | (radiant/camwindow.cpp:1378) -- Stufe 2
+- [~] `CameraFreeMoveBack` | Shortcuts | S | (radiant/camwindow.cpp:2525) -- Stufe 2
+- [~] `CameraFreeMoveBack2` | KeyEvents | - | (radiant/camwindow.cpp:1395) -- Stufe 2
+- [~] `CameraFreeMoveBack2` | Shortcuts | Down | (radiant/camwindow.cpp:2530) -- Stufe 2
+- [~] `CameraFreeMoveDown` | KeyEvents | - | (radiant/camwindow.cpp:1412) -- Stufe 2
+- [~] `CameraFreeMoveDown` | Shortcuts | - | (radiant/camwindow.cpp:2535) -- Stufe 2
+- [~] `CameraFreeMoveForward` | KeyEvents | - | (radiant/camwindow.cpp:1374) -- Stufe 2
+- [~] `CameraFreeMoveForward` | Shortcuts | W | (radiant/camwindow.cpp:2524) -- Stufe 2
+- [~] `CameraFreeMoveForward2` | KeyEvents | - | (radiant/camwindow.cpp:1391) -- Stufe 2
+- [~] `CameraFreeMoveForward2` | Shortcuts | Up | (radiant/camwindow.cpp:2529) -- Stufe 2
+- [~] `CameraFreeMoveLeft` | KeyEvents | - | (radiant/camwindow.cpp:1382) -- Stufe 2
+- [~] `CameraFreeMoveLeft` | Shortcuts | A | (radiant/camwindow.cpp:2526) -- Stufe 2
+- [~] `CameraFreeMoveLeft2` | KeyEvents | - | (radiant/camwindow.cpp:1399) -- Stufe 2
+- [~] `CameraFreeMoveLeft2` | Shortcuts | Left | (radiant/camwindow.cpp:2531) -- Stufe 2
+- [~] `CameraFreeMoveRight` | KeyEvents | - | (radiant/camwindow.cpp:1386) -- Stufe 2
+- [~] `CameraFreeMoveRight` | Shortcuts | D | (radiant/camwindow.cpp:2527) -- Stufe 2
+- [~] `CameraFreeMoveRight2` | KeyEvents | - | (radiant/camwindow.cpp:1403) -- Stufe 2
+- [~] `CameraFreeMoveRight2` | Shortcuts | Right | (radiant/camwindow.cpp:2532) -- Stufe 2
+- [~] `CameraFreeMoveUp` | KeyEvents | - | (radiant/camwindow.cpp:1408) -- Stufe 2
+- [~] `CameraFreeMoveUp` | Shortcuts | - | (radiant/camwindow.cpp:2534) -- Stufe 2
+- [~] `CameraLeft` | Commands | - | (radiant/camwindow.cpp:1424) -- Stufe 2
+- [~] `CameraLeft` | KeyEvents | - | (radiant/camwindow.cpp:1341) -- Stufe 2
+- [~] `CameraLeft` | Shortcuts | Left | (radiant/camwindow.cpp:2514) -- Stufe 2
+- [~] `CameraModeNext` | Commands | Shift+] | (radiant/camwindow.cpp:2506) -- Stufe 2
+- [~] `CameraModePrev` | Commands | Shift+[ | (radiant/camwindow.cpp:2507) -- Stufe 2
+- [~] `CameraRight` | Commands | - | (radiant/camwindow.cpp:1425) -- Stufe 2
+- [~] `CameraRight` | KeyEvents | - | (radiant/camwindow.cpp:1345) -- Stufe 2
+- [~] `CameraRight` | Shortcuts | Right | (radiant/camwindow.cpp:2515) -- Stufe 2
+- [~] `CameraSpeedDec` | Commands | +Qt::SHIFT + Qt::Key_Minus + Qt::KeypadModifier | (radiant/camwindow.cpp:2510) -- Stufe 2
+- [~] `CameraSpeedInc` | Commands | +Qt::SHIFT + Qt::Key_Plus + Qt::KeypadModifier | (radiant/camwindow.cpp:2509) -- Stufe 2
+- [~] `CameraStrafeLeft` | Commands | - | (radiant/camwindow.cpp:1427) -- Stufe 2
+- [~] `CameraStrafeLeft` | KeyEvents | - | (radiant/camwindow.cpp:1353) -- Stufe 2
+- [~] `CameraStrafeLeft` | Shortcuts | A | (radiant/camwindow.cpp:2517) -- Stufe 2
+- [~] `CameraStrafeRight` | Commands | - | (radiant/camwindow.cpp:1426) -- Stufe 2
+- [~] `CameraStrafeRight` | KeyEvents | - | (radiant/camwindow.cpp:1349) -- Stufe 2
+- [~] `CameraStrafeRight` | Shortcuts | D | (radiant/camwindow.cpp:2516) -- Stufe 2
+- [~] `CameraUp` | Commands | - | (radiant/camwindow.cpp:1429) -- Stufe 2
+- [~] `CameraUp` | KeyEvents | - | (radiant/camwindow.cpp:1357) -- Stufe 2
+- [~] `CameraUp` | Shortcuts | - | (radiant/camwindow.cpp:2519) -- Stufe 2
+- [~] `CapCurrentCurve` | Commands | Shift+C | (radiant/patchmanip.cpp:727) -- Stufe 2
+- [~] `CenterView` | Commands | End | (radiant/camwindow.cpp:2488) -- Stufe 2
+- [~] `CenterXYView` | Commands | Ctrl+Shift+Tab | (radiant/xywindow.cpp:2277) -- Stufe 2
+- [~] `CheckForUpdate` | Commands | - | (radiant/mainframe.cpp:2072) -- Stufe 3
+- [~] `ClipperClip` | Commands | Return | (radiant/clippertool.cpp:194) -- Stufe 2
+- [~] `ClipperFlip` | Commands | Ctrl+Return | (radiant/clippertool.cpp:196) -- Stufe 2
+- [~] `ClipperSplit` | Commands | Shift+Return | (radiant/clippertool.cpp:195) -- Stufe 2
+- [~] `CloneSelection` | Commands | Space | (radiant/select.cpp:1866) -- Stufe 2
+- [~] `CloneSelectionAndMakeUnique` | Commands | Shift+Space | (radiant/select.cpp:1867) -- Stufe 2
+- [~] `Copy` | Commands | Ctrl+C | (radiant/select.cpp:1862) -- Stufe 2
+- [~] `CSGIntersect` | Commands | Ctrl+Shift+U | (radiant/csg.cpp:1595) -- Stufe 2
+- [~] `CSGMerge` | Commands | - | (radiant/csg.cpp:1593) -- Stufe 2
+- [~] `CSGroom` | Commands | - | (radiant/csg.cpp:1596) -- Stufe 2
+- [~] `CSGSubtract` | Commands | Shift+U | (radiant/csg.cpp:1592) -- Stufe 2
+- [~] `CSGTool` | Commands | - | (radiant/csg.cpp:1597) -- Stufe 2
+- [~] `CSGWrapMerge` | Commands | Ctrl+U | (radiant/csg.cpp:1594) -- Stufe 2
+- [~] `CubicClipZoomIn` | Commands | Ctrl+[ | (radiant/camwindow.cpp:2492) -- Stufe 2
+- [~] `CubicClipZoomOut` | Commands | Ctrl+] | (radiant/camwindow.cpp:2493) -- Stufe 2
+- [~] `DeleteSelection` | Commands | Z | (radiant/select.cpp:1870) -- Stufe 2
+- [~] `DeleteSelection2` | Commands | Backspace | (radiant/select.cpp:1869) -- Stufe 2
+- [~] `DeleteSelection3` | Commands | Delete | (radiant/select.cpp:1868) -- Stufe 2
+- [~] `DownFloor` | Commands | PgDown | (radiant/camwindow.cpp:2496) -- Stufe 2
+- [~] `DragEdges` | Toggles | E | (radiant/tools.cpp:423) -- Stufe 2
+- [~] `DragFaces` | Toggles | F | (radiant/tools.cpp:424) -- Stufe 2
+- [~] `DragVertices` | Toggles | V | (radiant/tools.cpp:422) -- Stufe 2
+- [~] `EnableAlpha` | Toggles | - | (radiant/texwindow.cpp:2113) -- Stufe 2
+- [~] `EntitiesConnect` | Commands | Ctrl+K | (radiant/entity.cpp:734) -- Stufe 2
+- [~] `EntityColorNormalize` | Commands | - | (radiant/entity.cpp:733) -- Stufe 2
+- [~] `EntityColorSet` | Commands | K | (radiant/entity.cpp:732) -- Stufe 2
+- [~] `EntityMovePrimitivesToFirst` | Commands | - | (radiant/entity.cpp:738) -- Stufe 2
+- [~] `EntityMovePrimitivesToLast` | Commands | Ctrl+M | (radiant/entity.cpp:737) -- Stufe 2
+- [~] `EntityReloadDefinitions` | Commands | - | (radiant/entity.cpp:741) -- Stufe 2
+- [~] `EntityUngroup` | Commands | - | (radiant/entity.cpp:739) -- Stufe 2
+- [~] `EntityUngroupPrimitives` | Commands | - | (radiant/entity.cpp:740) -- Stufe 2
 - [ ] `Exit` | Commands | - | (radiant/mainframe.cpp:2073)
-- [ ] `ExpandSelectionToEntities` | Commands | Shift+E | (radiant/select.cpp:1880)
-- [ ] `ExpandSelectionToLayers` | Commands | Ctrl+Q | (radiant/layerswindow.cpp:580)
-- [ ] `ExpandSelectionToPrimitives` | Commands | Ctrl+E | (radiant/select.cpp:1879)
-- [ ] `FilterNotex` | Toggles | - | (radiant/texwindow.cpp:2112)
-- [ ] `FindBrush` | Commands | - | (radiant/map.cpp:2444)
-- [ ] `FindReplaceTextures` | Commands | - | (radiant/findtexturedialog.cpp:229)
-- [ ] `FitTexture` | Commands | Ctrl+F | (radiant/surfacedialog.cpp:1747)
-- [ ] `FitTextureHeight` | Commands | - | (radiant/surfacedialog.cpp:1749)
-- [ ] `FitTextureHeightOnly` | Commands | - | (radiant/surfacedialog.cpp:1751)
-- [ ] `FitTextureWidth` | Commands | - | (radiant/surfacedialog.cpp:1748)
-- [ ] `FitTextureWidthOnly` | Commands | - | (radiant/surfacedialog.cpp:1750)
-- [ ] `FixedSize` | Toggles | - | (radiant/texwindow.cpp:2111)
-- [ ] `Fullscreen` | Commands | F11 | (radiant/mainframe.cpp:2096)
-- [ ] `GridDown` | Commands | [ | (radiant/grid.cpp:184)
-- [ ] `GridUp` | Commands | ] | (radiant/grid.cpp:185)
-- [ ] `HideSelected` | Toggles | H | (radiant/select.cpp:1842)
-- [ ] `ImportMap` | Commands | - | (radiant/map.cpp:2431)
-- [ ] `InvertCurve` | Commands | Ctrl+I | (radiant/patchmanip.cpp:719)
-- [ ] `InvertCurveTextureX` | Commands | Ctrl+Shift+I | (radiant/patchmanip.cpp:694)
-- [ ] `InvertCurveTextureY` | Commands | Shift+I | (radiant/patchmanip.cpp:695)
-- [ ] `InvertFilters` | Commands | - | (radiant/filters.cpp:210)
-- [ ] `InvertSelection` | Commands | I | (radiant/select.cpp:1876)
-- [ ] `LayersMenu` | Commands | Shift+Q | (radiant/layerswindow.cpp:581)
-- [ ] `MakeDetail` | Commands | Alt+D | (radiant/brushmanip.cpp:1493)
-- [ ] `MakeStructural` | Commands | Alt+S | (radiant/brushmanip.cpp:1494)
-- [ ] `MapInfo` | Commands | M | (radiant/map.cpp:2445)
-- [ ] `MatrixTranspose` | Commands | Ctrl+Shift+M | (radiant/patchmanip.cpp:726)
+- [~] `ExpandSelectionToEntities` | Commands | Shift+E | (radiant/select.cpp:1880) -- Stufe 2
+- [~] `ExpandSelectionToLayers` | Commands | Ctrl+Q | (radiant/layerswindow.cpp:580) -- Stufe 2
+- [~] `ExpandSelectionToPrimitives` | Commands | Ctrl+E | (radiant/select.cpp:1879) -- Stufe 2
+- [~] `FilterAreaportals` | Toggles | Alt+3 | (radiant/filters.cpp:220) -- Stufe 2
+- [~] `FilterBotClips` | Toggles | Alt+M | (radiant/filters.cpp:241) -- Stufe 2
+- [~] `FilterCaulk` | Toggles | Alt+6 | (radiant/filters.cpp:224) -- Stufe 2
+- [~] `FilterClips` | Toggles | Alt+7 | (radiant/filters.cpp:225) -- Stufe 2
+- [~] `FilterClusterportals` | Toggles | Alt+9 | (radiant/filters.cpp:228) -- Stufe 2
+- [~] `FilterDecals` | Toggles | Shift+D | (radiant/filters.cpp:242) -- Stufe 2
+- [~] `FilterDetails` | Toggles | Ctrl+D | (radiant/filters.cpp:236) -- Stufe 2
+- [~] `FilterEntities` | Toggles | Alt+2 | (radiant/filters.cpp:214) -- Stufe 2
+- [~] `FilterFuncGroups` | Toggles | - | (radiant/filters.cpp:244) -- Stufe 2
+- [~] `FilterHintsSkips` | Toggles | Ctrl+H | (radiant/filters.cpp:237) -- Stufe 2
+- [~] `FilterLightgrid` | Toggles | - | (radiant/filters.cpp:233) -- Stufe 2
+- [~] `FilterLights` | Toggles | Alt+0 | (radiant/filters.cpp:230) -- Stufe 2
+- [~] `FilterLiquids` | Toggles | Alt+5 | (radiant/filters.cpp:223) -- Stufe 2
+- [~] `FilterModels` | Toggles | Shift+M | (radiant/filters.cpp:238) -- Stufe 2
+- [~] `FilterNotex` | Toggles | - | (radiant/texwindow.cpp:2112) -- Stufe 2
+- [~] `FilterPatches` | Toggles | Ctrl+P | (radiant/filters.cpp:235) -- Stufe 2
+- [~] `FilterPaths` | Toggles | Alt+8 | (radiant/filters.cpp:226) -- Stufe 2
+- [~] `FilterPointEntities` | Toggles | - | (radiant/filters.cpp:245) -- Stufe 2
+- [~] `FilterSky` | Toggles | - | (radiant/filters.cpp:246) -- Stufe 2
+- [~] `FilterStructural` | Toggles | Ctrl+Shift+D | (radiant/filters.cpp:231) -- Stufe 2
+- [~] `FilterTranslucent` | Toggles | Alt+4 | (radiant/filters.cpp:222) -- Stufe 2
+- [~] `FilterTriggers` | Toggles | Ctrl+Shift+T | (radiant/filters.cpp:239) -- Stufe 2
+- [~] `FilterWorldBrushes` | Toggles | Alt+1 | (radiant/filters.cpp:213) -- Stufe 2
+- [~] `FindBrush` | Commands | - | (radiant/map.cpp:2444) -- Stufe 2
+- [~] `FindReplaceTextures` | Commands | - | (radiant/findtexturedialog.cpp:229) -- Stufe 2
+- [~] `FitTexture` | Commands | Ctrl+F | (radiant/surfacedialog.cpp:1747) -- Stufe 2
+- [~] `FitTextureHeight` | Commands | - | (radiant/surfacedialog.cpp:1749) -- Stufe 2
+- [~] `FitTextureHeightOnly` | Commands | - | (radiant/surfacedialog.cpp:1751) -- Stufe 2
+- [~] `FitTextureWidth` | Commands | - | (radiant/surfacedialog.cpp:1748) -- Stufe 2
+- [~] `FitTextureWidthOnly` | Commands | - | (radiant/surfacedialog.cpp:1750) -- Stufe 2
+- [~] `FixedSize` | Toggles | - | (radiant/texwindow.cpp:2111) -- Stufe 2
+- [~] `Fullscreen` | Commands | F11 | (radiant/mainframe.cpp:2096) -- Stufe 2
+- [~] `GridDown` | Commands | [ | (radiant/grid.cpp:184) -- Stufe 2
+- [~] `GridUp` | Commands | ] | (radiant/grid.cpp:185) -- Stufe 2
+- [~] `HideSelected` | Toggles | H | (radiant/select.cpp:1842) -- Stufe 2
+- [~] `ImportMap` | Commands | - | (radiant/map.cpp:2431) -- Stufe 2
+- [~] `InvertCurve` | Commands | Ctrl+I | (radiant/patchmanip.cpp:719) -- Stufe 2
+- [~] `InvertCurveTextureX` | Commands | Ctrl+Shift+I | (radiant/patchmanip.cpp:694) -- Stufe 2
+- [~] `InvertCurveTextureY` | Commands | Shift+I | (radiant/patchmanip.cpp:695) -- Stufe 2
+- [~] `InvertFilters` | Commands | - | (radiant/filters.cpp:210) -- Stufe 2
+- [~] `InvertSelection` | Commands | I | (radiant/select.cpp:1876) -- Stufe 2
+- [~] `LayersMenu` | Commands | Shift+Q | (radiant/layerswindow.cpp:581) -- Stufe 2
+- [~] `MakeDetail` | Commands | Alt+D | (radiant/brushmanip.cpp:1493) -- Stufe 2
+- [~] `MakeStructural` | Commands | Alt+S | (radiant/brushmanip.cpp:1494) -- Stufe 2
+- [~] `MapInfo` | Commands | M | (radiant/map.cpp:2445) -- Stufe 2
+- [~] `MatrixTranspose` | Commands | Ctrl+Shift+M | (radiant/patchmanip.cpp:726) -- Stufe 2
 - [ ] `MaximizeView` | Commands | F12 | (radiant/mainframe.cpp:2097)
-- [ ] `MirrorSelectionHorizontally` | Commands | - | (radiant/select.cpp:1851)
-- [ ] `MirrorSelectionVertically` | Commands | - | (radiant/select.cpp:1852)
-- [ ] `MirrorSelectionX` | Commands | - | (radiant/select.cpp:1844)
-- [ ] `MirrorSelectionY` | Commands | - | (radiant/select.cpp:1846)
-- [ ] `MirrorSelectionZ` | Commands | - | (radiant/select.cpp:1848)
-- [ ] `MouseBuild` | Toggles | B | (radiant/tools.cpp:433)
-- [ ] `MouseDrag` | Toggles | - | (radiant/tools.cpp:432)
-- [ ] `MouseDragOrTransform` | Commands | Q | (radiant/tools.cpp:436)
-- [ ] `MouseRotate` | Toggles | R | (radiant/tools.cpp:429)
-- [ ] `MouseRotateOrScale` | Commands | - | (radiant/tools.cpp:435)
-- [ ] `MouseScale` | Toggles | - | (radiant/tools.cpp:430)
-- [ ] `MouseTransform` | Toggles | - | (radiant/tools.cpp:431)
-- [ ] `MouseTranslate` | Toggles | W | (radiant/tools.cpp:428)
-- [ ] `MouseUV` | Toggles | G | (radiant/tools.cpp:434)
-- [ ] `MoveSelectionDOWN` | Commands | +Qt::Key_Minus + Qt::KeypadModifier | (radiant/select.cpp:1901)
-- [ ] `MoveSelectionUP` | Commands | +Qt::Key_Plus + Qt::KeypadModifier | (radiant/select.cpp:1902)
-- [ ] `MoveToCamera` | Commands | Ctrl+Shift+V | (radiant/select.cpp:1865)
-- [ ] `NaturalizePatch` | Commands | Ctrl+N | (radiant/patchmanip.cpp:696)
+- [~] `MirrorSelectionHorizontally` | Commands | - | (radiant/select.cpp:1851) -- Stufe 2
+- [~] `MirrorSelectionVertically` | Commands | - | (radiant/select.cpp:1852) -- Stufe 2
+- [~] `MirrorSelectionX` | Commands | - | (radiant/select.cpp:1844) -- Stufe 2
+- [~] `MirrorSelectionY` | Commands | - | (radiant/select.cpp:1846) -- Stufe 2
+- [~] `MirrorSelectionZ` | Commands | - | (radiant/select.cpp:1848) -- Stufe 2
+- [~] `MouseBuild` | Toggles | B | (radiant/tools.cpp:433) -- Stufe 2
+- [~] `MouseDrag` | Toggles | - | (radiant/tools.cpp:432) -- Stufe 2
+- [~] `MouseDragOrTransform` | Commands | Q | (radiant/tools.cpp:436) -- Stufe 2
+- [~] `MouseRotate` | Toggles | R | (radiant/tools.cpp:429) -- Stufe 2
+- [~] `MouseRotateOrScale` | Commands | - | (radiant/tools.cpp:435) -- Stufe 2
+- [~] `MouseScale` | Toggles | - | (radiant/tools.cpp:430) -- Stufe 2
+- [~] `MouseTransform` | Toggles | - | (radiant/tools.cpp:431) -- Stufe 2
+- [~] `MouseTranslate` | Toggles | W | (radiant/tools.cpp:428) -- Stufe 2
+- [~] `MouseUV` | Toggles | G | (radiant/tools.cpp:434) -- Stufe 2
+- [~] `MoveSelectionDOWN` | Commands | +Qt::Key_Minus + Qt::KeypadModifier | (radiant/select.cpp:1901) -- Stufe 2
+- [~] `MoveSelectionUP` | Commands | +Qt::Key_Plus + Qt::KeypadModifier | (radiant/select.cpp:1902) -- Stufe 2
+- [~] `MoveToCamera` | Commands | Ctrl+Shift+V | (radiant/select.cpp:1865) -- Stufe 2
+- [~] `NaturalizePatch` | Commands | Ctrl+N | (radiant/patchmanip.cpp:696) -- Stufe 2
 - [ ] `NewMap` | Commands | - | (radiant/map.cpp:2429)
-- [ ] `NextLeakSpot` | Commands | Ctrl+Shift+K | (radiant/points.cpp:321)
-- [ ] `NextView` | Commands | Ctrl+Tab | (radiant/xywindow.cpp:2270)
-- [ ] `OpenGLFont` | Commands | - | (radiant/mainframe.cpp:2092)
-- [ ] `OpenManual` | Commands | F1 | (radiant/mainframe.cpp:2069)
+- [~] `NextLeakSpot` | Commands | Ctrl+Shift+K | (radiant/points.cpp:321) -- Stufe 3
+- [~] `NextView` | Commands | Ctrl+Tab | (radiant/xywindow.cpp:2270) -- Stufe 2
+- [~] `OpenGLFont` | Commands | - | (radiant/mainframe.cpp:2092) -- Stufe 2
+- [~] `OpenManual` | Commands | F1 | (radiant/mainframe.cpp:2069) -- Stufe 3
 - [ ] `OpenMap` | Commands | Ctrl+O | (radiant/map.cpp:2430)
-- [ ] `Paste` | Commands | Ctrl+V | (radiant/select.cpp:1863)
-- [ ] `PasteToCamera` | Commands | Shift+V | (radiant/select.cpp:1864)
-- [ ] `PatchBevel` | Commands | - | (radiant/patchmanip.cpp:705)
-- [ ] `PatchCone` | Commands | - | (radiant/patchmanip.cpp:708)
-- [ ] `PatchCylinder` | Commands | - | (radiant/patchmanip.cpp:697)
-- [ ] `PatchDeform` | Commands | - | (radiant/patchmanip.cpp:730)
-- [ ] `PatchDeleteFirstColumn` | Commands | - | (radiant/patchmanip.cpp:715)
-- [ ] `PatchDeleteFirstRow` | Commands | - | (radiant/patchmanip.cpp:717)
-- [ ] `PatchDeleteLastColumn` | Commands | Qt::CTRL + Qt::SHIFT + Qt::Key_Minus + Qt::KeypadModifier | (radiant/patchmanip.cpp:716)
-- [ ] `PatchDeleteLastRow` | Commands | +Qt::CTRL + Qt::Key_Minus + Qt::KeypadModifier | (radiant/patchmanip.cpp:718)
-- [ ] `PatchEndCap` | Commands | - | (radiant/patchmanip.cpp:704)
-- [ ] `PatchInsertFirstColumn` | Commands | Qt::CTRL + Qt::SHIFT + Qt::Key_Plus + Qt::KeypadModifier | (radiant/patchmanip.cpp:711)
-- [ ] `PatchInsertFirstRow` | Commands | +Qt::CTRL + Qt::Key_Plus + Qt::KeypadModifier | (radiant/patchmanip.cpp:713)
-- [ ] `PatchInsertLastColumn` | Commands | - | (radiant/patchmanip.cpp:712)
-- [ ] `PatchInsertLastRow` | Commands | - | (radiant/patchmanip.cpp:714)
-- [ ] `PatchSphere` | Commands | - | (radiant/patchmanip.cpp:709)
-- [ ] `PatchSquareCylinder` | Commands | - | (radiant/patchmanip.cpp:700)
-- [ ] `PatchThicken` | Commands | Ctrl+T | (radiant/patchmanip.cpp:731)
-- [ ] `PatchXactCone` | Commands | - | (radiant/patchmanip.cpp:703)
-- [ ] `PatchXactCylinder` | Commands | - | (radiant/patchmanip.cpp:701)
-- [ ] `PatchXactSphere` | Commands | - | (radiant/patchmanip.cpp:702)
+- [~] `Paste` | Commands | Ctrl+V | (radiant/select.cpp:1863) -- Stufe 2
+- [~] `PasteToCamera` | Commands | Shift+V | (radiant/select.cpp:1864) -- Stufe 2
+- [~] `PatchBevel` | Commands | - | (radiant/patchmanip.cpp:705) -- Stufe 2
+- [~] `PatchCone` | Commands | - | (radiant/patchmanip.cpp:708) -- Stufe 2
+- [~] `PatchCylinder` | Commands | - | (radiant/patchmanip.cpp:697) -- Stufe 2
+- [~] `PatchDeform` | Commands | - | (radiant/patchmanip.cpp:730) -- Stufe 2
+- [~] `PatchDeleteFirstColumn` | Commands | - | (radiant/patchmanip.cpp:715) -- Stufe 2
+- [~] `PatchDeleteFirstRow` | Commands | - | (radiant/patchmanip.cpp:717) -- Stufe 2
+- [~] `PatchDeleteLastColumn` | Commands | Qt::CTRL + Qt::SHIFT + Qt::Key_Minus + Qt::KeypadModifier | (radiant/patchmanip.cpp:716) -- Stufe 2
+- [~] `PatchDeleteLastRow` | Commands | +Qt::CTRL + Qt::Key_Minus + Qt::KeypadModifier | (radiant/patchmanip.cpp:718) -- Stufe 2
+- [~] `PatchEndCap` | Commands | - | (radiant/patchmanip.cpp:704) -- Stufe 2
+- [~] `PatchInsertFirstColumn` | Commands | Qt::CTRL + Qt::SHIFT + Qt::Key_Plus + Qt::KeypadModifier | (radiant/patchmanip.cpp:711) -- Stufe 2
+- [~] `PatchInsertFirstRow` | Commands | +Qt::CTRL + Qt::Key_Plus + Qt::KeypadModifier | (radiant/patchmanip.cpp:713) -- Stufe 2
+- [~] `PatchInsertLastColumn` | Commands | - | (radiant/patchmanip.cpp:712) -- Stufe 2
+- [~] `PatchInsertLastRow` | Commands | - | (radiant/patchmanip.cpp:714) -- Stufe 2
+- [~] `PatchSphere` | Commands | - | (radiant/patchmanip.cpp:709) -- Stufe 2
+- [~] `PatchSquareCylinder` | Commands | - | (radiant/patchmanip.cpp:700) -- Stufe 2
+- [~] `PatchThicken` | Commands | Ctrl+T | (radiant/patchmanip.cpp:731) -- Stufe 2
+- [~] `PatchXactCone` | Commands | - | (radiant/patchmanip.cpp:703) -- Stufe 2
+- [~] `PatchXactCylinder` | Commands | - | (radiant/patchmanip.cpp:701) -- Stufe 2
+- [~] `PatchXactSphere` | Commands | - | (radiant/patchmanip.cpp:702) -- Stufe 2
 - [ ] `Preferences` | Commands | P | (radiant/mainframe.cpp:2076)
-- [ ] `PrevLeakSpot` | Commands | Ctrl+Shift+L | (radiant/points.cpp:322)
-- [ ] `RedisperseCols` | Commands | - | (radiant/patchmanip.cpp:723)
-- [ ] `RedisperseRows` | Commands | - | (radiant/patchmanip.cpp:721)
-- [ ] `Redo` | Commands | Ctrl+Shift+Z | (radiant/select.cpp:1860)
-- [ ] `Redo2` | Commands | Ctrl+Y | (radiant/select.cpp:1861)
-- [ ] `RefreshReferences` | Commands | - | (radiant/mainframe.cpp:2071)
-- [ ] `RefreshShaders` | Commands | - | (radiant/texwindow.cpp:2104)
-- [ ] `RegionOff` | Commands | - | (radiant/map.cpp:2437)
-- [ ] `RegionSetBrush` | Commands | - | (radiant/map.cpp:2439)
-- [ ] `RegionSetSelection` | Toggles | Ctrl+Shift+R | (radiant/map.cpp:2441)
-- [ ] `RegionSetXY` | Commands | - | (radiant/map.cpp:2438)
-- [ ] `RepeatTransforms` | Commands | - | (radiant/select.cpp:1871)
-- [ ] `ResetFilters` | Commands | - | (radiant/filters.cpp:211)
-- [ ] `ResetTransforms` | Commands | - | (radiant/select.cpp:1872)
-- [ ] `RotateSelectionAnticlockwise` | Commands | - | (radiant/select.cpp:1855)
-- [ ] `RotateSelectionClockwise` | Commands | - | (radiant/select.cpp:1854)
-- [ ] `RotateSelectionX` | Commands | - | (radiant/select.cpp:1845)
-- [ ] `RotateSelectionY` | Commands | - | (radiant/select.cpp:1847)
-- [ ] `RotateSelectionZ` | Commands | - | (radiant/select.cpp:1849)
+- [~] `PrevLeakSpot` | Commands | Ctrl+Shift+L | (radiant/points.cpp:322) -- Stufe 3
+- [~] `RedisperseCols` | Commands | - | (radiant/patchmanip.cpp:723) -- Stufe 2
+- [~] `RedisperseRows` | Commands | - | (radiant/patchmanip.cpp:721) -- Stufe 2
+- [~] `Redo` | Commands | Ctrl+Shift+Z | (radiant/select.cpp:1860) -- Stufe 2
+- [~] `Redo2` | Commands | Ctrl+Y | (radiant/select.cpp:1861) -- Stufe 2
+- [~] `RefreshReferences` | Commands | - | (radiant/mainframe.cpp:2071) -- Stufe 2
+- [~] `RefreshShaders` | Commands | - | (radiant/texwindow.cpp:2104) -- Stufe 2
+- [~] `RegionOff` | Commands | - | (radiant/map.cpp:2437) -- Stufe 2
+- [~] `RegionSetBrush` | Commands | - | (radiant/map.cpp:2439) -- Stufe 2
+- [~] `RegionSetSelection` | Toggles | Ctrl+Shift+R | (radiant/map.cpp:2441) -- Stufe 2
+- [~] `RegionSetXY` | Commands | - | (radiant/map.cpp:2438) -- Stufe 2
+- [~] `RepeatTransforms` | Commands | - | (radiant/select.cpp:1871) -- Stufe 2
+- [~] `ResetFilters` | Commands | - | (radiant/filters.cpp:211) -- Stufe 2
+- [~] `ResetTransforms` | Commands | - | (radiant/select.cpp:1872) -- Stufe 2
+- [~] `RotateSelectionAnticlockwise` | Commands | - | (radiant/select.cpp:1855) -- Stufe 2
+- [~] `RotateSelectionClockwise` | Commands | - | (radiant/select.cpp:1854) -- Stufe 2
+- [~] `RotateSelectionX` | Commands | - | (radiant/select.cpp:1845) -- Stufe 2
+- [~] `RotateSelectionY` | Commands | - | (radiant/select.cpp:1847) -- Stufe 2
+- [~] `RotateSelectionZ` | Commands | - | (radiant/select.cpp:1849) -- Stufe 2
 - [ ] `SaveMap` | Commands | Ctrl+S | (radiant/map.cpp:2432)
 - [ ] `SaveMapAs` | Commands | - | (radiant/map.cpp:2433)
-- [ ] `SaveRegion` | Commands | - | (radiant/map.cpp:2435)
-- [ ] `SaveSelected` | Commands | - | (radiant/map.cpp:2434)
-- [ ] `SearchFromStart` | Toggles | - | (radiant/texwindow.cpp:2115)
-- [ ] `SelectAllOfType` | Commands | Shift+A | (radiant/select.cpp:1888)
-- [ ] `SelectConnectedEntities` | Commands | Ctrl+Shift+E | (radiant/select.cpp:1881)
-- [ ] `SelectInside` | Commands | - | (radiant/select.cpp:1877)
-- [ ] `SelectNudgeDown` | Commands | Alt+Down | (radiant/select.cpp:1907)
-- [ ] `SelectNudgeLeft` | Commands | Alt+Left | (radiant/select.cpp:1904)
-- [ ] `SelectNudgeRight` | Commands | Alt+Right | (radiant/select.cpp:1905)
-- [ ] `SelectNudgeUp` | Commands | Alt+Up | (radiant/select.cpp:1906)
-- [ ] `SelectTextured` | Commands | Ctrl+Shift+A | (radiant/select.cpp:1857)
-- [ ] `SelectTouching` | Commands | - | (radiant/select.cpp:1878)
-- [ ] `SetGrid0.125` | Commands | - | (radiant/grid.cpp:189)
-- [ ] `SetGrid0.25` | Commands | - | (radiant/grid.cpp:190)
-- [ ] `SetGrid0.5` | Commands | - | (radiant/grid.cpp:191)
-- [ ] `SetGrid1` | Commands | 1 | (radiant/grid.cpp:192)
-- [ ] `SetGrid1024` | Commands | - | (radiant/grid.cpp:202)
-- [ ] `SetGrid128` | Commands | 8 | (radiant/grid.cpp:199)
-- [ ] `SetGrid16` | Commands | 5 | (radiant/grid.cpp:196)
-- [ ] `SetGrid2` | Commands | 2 | (radiant/grid.cpp:193)
-- [ ] `SetGrid256` | Commands | 9 | (radiant/grid.cpp:200)
-- [ ] `SetGrid32` | Commands | 6 | (radiant/grid.cpp:197)
-- [ ] `SetGrid4` | Commands | 3 | (radiant/grid.cpp:194)
-- [ ] `SetGrid512` | Commands | - | (radiant/grid.cpp:201)
-- [ ] `SetGrid64` | Commands | 7 | (radiant/grid.cpp:198)
-- [ ] `SetGrid8` | Commands | 4 | (radiant/grid.cpp:195)
-- [ ] `Shortcuts` | Commands | Ctrl+Shift+P | (radiant/mainframe.cpp:2075)
-- [ ] `ShowAllTextures` | Commands | Ctrl+A | (radiant/texwindow.cpp:2106)
-- [ ] `ShowAngles` | Toggles | - | (radiant/xywindow.cpp:2218)
-- [ ] `ShowAxes` | Toggles | - | (radiant/xywindow.cpp:2225)
-- [ ] `ShowBboxes` | Toggles | - | (radiant/xywindow.cpp:2220)
-- [ ] `ShowBlocks` | Toggles | - | (radiant/xywindow.cpp:2222)
-- [ ] `ShowConnections` | Toggles | - | (radiant/xywindow.cpp:2221)
-- [ ] `ShowCoordinates` | Toggles | - | (radiant/xywindow.cpp:2223)
-- [ ] `ShowHidden` | Commands | Shift+H | (radiant/select.cpp:1841)
-- [ ] `ShowInUse` | Toggles | U | (radiant/texwindow.cpp:2105)
-- [ ] `ShowLightRadiuses` | Toggles | - | (radiant/entity.cpp:743)
-- [ ] `ShowNames` | Toggles | - | (radiant/xywindow.cpp:2219)
-- [ ] `ShowSize2d` | Toggles | J | (radiant/xywindow.cpp:2214)
-- [ ] `ShowSize3d` | Toggles | - | (radiant/camwindow.cpp:2541)
-- [ ] `ShowStats` | Toggles | - | (radiant/camwindow.cpp:2539)
-- [ ] `ShowWindowOutline` | Toggles | - | (radiant/xywindow.cpp:2224)
-- [ ] `ShowWorkzone2d` | Toggles | - | (radiant/xywindow.cpp:2226)
-- [ ] `ShowWorkzone3d` | Toggles | - | (radiant/camwindow.cpp:2540)
-- [ ] `SimplePatchMesh` | Commands | Shift+P | (radiant/patchmanip.cpp:710)
-- [ ] `SmoothCols` | Commands | Ctrl+Shift+W | (radiant/patchmanip.cpp:725)
-- [ ] `SmoothRows` | Commands | Ctrl+W | (radiant/patchmanip.cpp:724)
-- [ ] `SnapToGrid` | Commands | Ctrl+G | (radiant/select.cpp:1886)
-- [ ] `SurfaceInspector` | Commands | S | (radiant/surfacedialog.cpp:1755)
-- [ ] `TagAdd` | Commands | - | (radiant/texwindow.cpp:2099)
-- [ ] `TagCopy` | Commands | - | (radiant/texwindow.cpp:2102)
-- [ ] `TagDelete` | Commands | - | (radiant/texwindow.cpp:2101)
-- [ ] `TagPaste` | Commands | - | (radiant/texwindow.cpp:2103)
-- [ ] `TagRename` | Commands | - | (radiant/texwindow.cpp:2100)
-- [ ] `TagSearch` | Commands | - | (radiant/texwindow.cpp:2098)
-- [ ] `TagSearchUntagged` | Commands | - | (radiant/texwindow.cpp:2097)
-- [ ] `TagsToggleGui` | Toggles | - | (radiant/texwindow.cpp:2114)
-- [ ] `TexRotateClock` | Commands | Shift+PgDown | (radiant/select.cpp:1890)
-- [ ] `TexRotateCounter` | Commands | Shift+PgUp | (radiant/select.cpp:1891)
-- [ ] `TexScaleDown` | Commands | Ctrl+Down | (radiant/select.cpp:1893)
-- [ ] `TexScaleLeft` | Commands | Ctrl+Left | (radiant/select.cpp:1894)
-- [ ] `TexScaleRight` | Commands | Ctrl+Right | (radiant/select.cpp:1895)
-- [ ] `TexScaleUp` | Commands | Ctrl+Up | (radiant/select.cpp:1892)
-- [ ] `TexShiftDown` | Commands | Shift+Down | (radiant/select.cpp:1897)
-- [ ] `TexShiftLeft` | Commands | Shift+Left | (radiant/select.cpp:1898)
-- [ ] `TexShiftRight` | Commands | Shift+Right | (radiant/select.cpp:1899)
-- [ ] `TexShiftUp` | Commands | Shift+Up | (radiant/select.cpp:1896)
-- [ ] `TextureProjectAxial` | Commands | - | (radiant/surfacedialog.cpp:1752)
-- [ ] `TextureProjectCam` | Commands | - | (radiant/surfacedialog.cpp:1754)
-- [ ] `TextureProjectOrtho` | Commands | - | (radiant/surfacedialog.cpp:1753)
-- [ ] `TextureReset/Cap` | Commands | Shift+N | (radiant/surfacedialog.cpp:1746)
+- [~] `SaveRegion` | Commands | - | (radiant/map.cpp:2435) -- Stufe 2
+- [~] `SaveSelected` | Commands | - | (radiant/map.cpp:2434) -- Stufe 2
+- [~] `SearchFromStart` | Toggles | - | (radiant/texwindow.cpp:2115) -- Stufe 2
+- [~] `SelectAllOfType` | Commands | Shift+A | (radiant/select.cpp:1888) -- Stufe 2
+- [~] `SelectConnectedEntities` | Commands | Ctrl+Shift+E | (radiant/select.cpp:1881) -- Stufe 2
+- [~] `SelectInside` | Commands | - | (radiant/select.cpp:1877) -- Stufe 2
+- [~] `SelectNudgeDown` | Commands | Alt+Down | (radiant/select.cpp:1907) -- Stufe 2
+- [~] `SelectNudgeLeft` | Commands | Alt+Left | (radiant/select.cpp:1904) -- Stufe 2
+- [~] `SelectNudgeRight` | Commands | Alt+Right | (radiant/select.cpp:1905) -- Stufe 2
+- [~] `SelectNudgeUp` | Commands | Alt+Up | (radiant/select.cpp:1906) -- Stufe 2
+- [~] `SelectTextured` | Commands | Ctrl+Shift+A | (radiant/select.cpp:1857) -- Stufe 2
+- [~] `SelectTouching` | Commands | - | (radiant/select.cpp:1878) -- Stufe 2
+- [~] `SetGrid0.125` | Commands | - | (radiant/grid.cpp:189) -- Stufe 2
+- [~] `SetGrid0.25` | Commands | - | (radiant/grid.cpp:190) -- Stufe 2
+- [~] `SetGrid0.5` | Commands | - | (radiant/grid.cpp:191) -- Stufe 2
+- [~] `SetGrid1` | Commands | 1 | (radiant/grid.cpp:192) -- Stufe 2
+- [~] `SetGrid1024` | Commands | - | (radiant/grid.cpp:202) -- Stufe 2
+- [~] `SetGrid128` | Commands | 8 | (radiant/grid.cpp:199) -- Stufe 2
+- [~] `SetGrid16` | Commands | 5 | (radiant/grid.cpp:196) -- Stufe 2
+- [~] `SetGrid2` | Commands | 2 | (radiant/grid.cpp:193) -- Stufe 2
+- [~] `SetGrid256` | Commands | 9 | (radiant/grid.cpp:200) -- Stufe 2
+- [~] `SetGrid32` | Commands | 6 | (radiant/grid.cpp:197) -- Stufe 2
+- [~] `SetGrid4` | Commands | 3 | (radiant/grid.cpp:194) -- Stufe 2
+- [~] `SetGrid512` | Commands | - | (radiant/grid.cpp:201) -- Stufe 2
+- [~] `SetGrid64` | Commands | 7 | (radiant/grid.cpp:198) -- Stufe 2
+- [~] `SetGrid8` | Commands | 4 | (radiant/grid.cpp:195) -- Stufe 2
+- [~] `Shortcuts` | Commands | Ctrl+Shift+P | (radiant/mainframe.cpp:2075) -- Stufe 2
+- [~] `ShowAllTextures` | Commands | Ctrl+A | (radiant/texwindow.cpp:2106) -- Stufe 2
+- [~] `ShowAngles` | Toggles | - | (radiant/xywindow.cpp:2218) -- Stufe 2
+- [~] `ShowAxes` | Toggles | - | (radiant/xywindow.cpp:2225) -- Stufe 2
+- [~] `ShowBboxes` | Toggles | - | (radiant/xywindow.cpp:2220) -- Stufe 2
+- [~] `ShowBlocks` | Toggles | - | (radiant/xywindow.cpp:2222) -- Stufe 2
+- [~] `ShowConnections` | Toggles | - | (radiant/xywindow.cpp:2221) -- Stufe 2
+- [~] `ShowCoordinates` | Toggles | - | (radiant/xywindow.cpp:2223) -- Stufe 2
+- [~] `ShowHidden` | Commands | Shift+H | (radiant/select.cpp:1841) -- Stufe 2
+- [~] `ShowInUse` | Toggles | U | (radiant/texwindow.cpp:2105) -- Stufe 2
+- [~] `ShowLightRadiuses` | Toggles | - | (radiant/entity.cpp:743) -- Stufe 2
+- [~] `ShowNames` | Toggles | - | (radiant/xywindow.cpp:2219) -- Stufe 2
+- [~] `ShowSize2d` | Toggles | J | (radiant/xywindow.cpp:2214) -- Stufe 2
+- [~] `ShowSize3d` | Toggles | - | (radiant/camwindow.cpp:2541) -- Stufe 2
+- [~] `ShowStats` | Toggles | - | (radiant/camwindow.cpp:2539) -- Stufe 2
+- [~] `ShowWindowOutline` | Toggles | - | (radiant/xywindow.cpp:2224) -- Stufe 2
+- [~] `ShowWorkzone2d` | Toggles | - | (radiant/xywindow.cpp:2226) -- Stufe 2
+- [~] `ShowWorkzone3d` | Toggles | - | (radiant/camwindow.cpp:2540) -- Stufe 2
+- [~] `SimplePatchMesh` | Commands | Shift+P | (radiant/patchmanip.cpp:710) -- Stufe 2
+- [~] `SmoothCols` | Commands | Ctrl+Shift+W | (radiant/patchmanip.cpp:725) -- Stufe 2
+- [~] `SmoothRows` | Commands | Ctrl+W | (radiant/patchmanip.cpp:724) -- Stufe 2
+- [~] `SnapToGrid` | Commands | Ctrl+G | (radiant/select.cpp:1886) -- Stufe 2
+- [~] `SurfaceInspector` | Commands | S | (radiant/surfacedialog.cpp:1755) -- Stufe 2
+- [~] `TagAdd` | Commands | - | (radiant/texwindow.cpp:2099) -- Stufe 2
+- [~] `TagCopy` | Commands | - | (radiant/texwindow.cpp:2102) -- Stufe 2
+- [~] `TagDelete` | Commands | - | (radiant/texwindow.cpp:2101) -- Stufe 2
+- [~] `TagPaste` | Commands | - | (radiant/texwindow.cpp:2103) -- Stufe 2
+- [~] `TagRename` | Commands | - | (radiant/texwindow.cpp:2100) -- Stufe 2
+- [~] `TagSearch` | Commands | - | (radiant/texwindow.cpp:2098) -- Stufe 2
+- [~] `TagSearchUntagged` | Commands | - | (radiant/texwindow.cpp:2097) -- Stufe 2
+- [~] `TagsToggleGui` | Toggles | - | (radiant/texwindow.cpp:2114) -- Stufe 2
+- [~] `TexRotateClock` | Commands | Shift+PgDown | (radiant/select.cpp:1890) -- Stufe 2
+- [~] `TexRotateCounter` | Commands | Shift+PgUp | (radiant/select.cpp:1891) -- Stufe 2
+- [~] `TexScaleDown` | Commands | Ctrl+Down | (radiant/select.cpp:1893) -- Stufe 2
+- [~] `TexScaleLeft` | Commands | Ctrl+Left | (radiant/select.cpp:1894) -- Stufe 2
+- [~] `TexScaleRight` | Commands | Ctrl+Right | (radiant/select.cpp:1895) -- Stufe 2
+- [~] `TexScaleUp` | Commands | Ctrl+Up | (radiant/select.cpp:1892) -- Stufe 2
+- [~] `TexShiftDown` | Commands | Shift+Down | (radiant/select.cpp:1897) -- Stufe 2
+- [~] `TexShiftLeft` | Commands | Shift+Left | (radiant/select.cpp:1898) -- Stufe 2
+- [~] `TexShiftRight` | Commands | Shift+Right | (radiant/select.cpp:1899) -- Stufe 2
+- [~] `TexShiftUp` | Commands | Shift+Up | (radiant/select.cpp:1896) -- Stufe 2
+- [~] `TextureProjectAxial` | Commands | - | (radiant/surfacedialog.cpp:1752) -- Stufe 2
+- [~] `TextureProjectCam` | Commands | - | (radiant/surfacedialog.cpp:1754) -- Stufe 2
+- [~] `TextureProjectOrtho` | Commands | - | (radiant/surfacedialog.cpp:1753) -- Stufe 2
+- [~] `TextureReset/Cap` | Commands | Shift+N | (radiant/surfacedialog.cpp:1746) -- Stufe 2
 - [ ] `ToggleCamera` | Toggles | Ctrl+Shift+C | (radiant/camwindow.cpp:2498)
-- [ ] `ToggleClipper` | Toggles | X | (radiant/tools.cpp:426)
+- [~] `ToggleClipper` | Toggles | X | (radiant/tools.cpp:426) -- Stufe 2
 - [ ] `ToggleConsole` | Commands | O | (radiant/mainframe.cpp:2078)
-- [ ] `ToggleCrosshairs` | Toggles | Shift+X | (radiant/xywindow.cpp:2215)
-- [ ] `ToggleCubicClip` | Toggles | Ctrl+\\ | (radiant/camwindow.cpp:2491)
+- [~] `ToggleCrosshairs` | Toggles | Shift+X | (radiant/xywindow.cpp:2215) -- Stufe 2
+- [~] `ToggleCubicClip` | Toggles | Ctrl+\\ | (radiant/camwindow.cpp:2491) -- Stufe 2
 - [ ] `ToggleEntityInspector` | Commands | N | (radiant/mainframe.cpp:2079)
-- [ ] `ToggleEntityList` | Commands | Shift+L | (radiant/mainframe.cpp:2082)
+- [~] `ToggleEntityList` | Commands | Shift+L | (radiant/mainframe.cpp:2082) -- Stufe 2
 - [ ] `ToggleFrontView` | Toggles | - | (radiant/xywindow.cpp:2269)
-- [ ] `ToggleGrid` | Toggles | 0 | (radiant/xywindow.cpp:2216)
-- [ ] `ToggleGridSnap` | Commands | - | (radiant/grid.cpp:187)
+- [~] `ToggleGrid` | Toggles | 0 | (radiant/xywindow.cpp:2216) -- Stufe 2
+- [~] `ToggleGridSnap` | Commands | - | (radiant/grid.cpp:187) -- Stufe 2
 - [ ] `ToggleLayersBrowser` | Commands | L | (radiant/mainframe.cpp:2081)
 - [ ] `ToggleModelBrowser` | Commands | / | (radiant/mainframe.cpp:2080)
-- [ ] `TogglePointfile` | Commands | - | (radiant/points.cpp:320)
-- [ ] `TogglePreview` | Commands | F3 | (radiant/camwindow.cpp:2503)
-- [ ] `ToggleShowShaderlistOnly` | Toggles | - | (radiant/texwindow.cpp:2110)
-- [ ] `ToggleShowShaders` | Toggles | - | (radiant/texwindow.cpp:2108)
-- [ ] `ToggleShowTextures` | Toggles | - | (radiant/texwindow.cpp:2109)
+- [~] `TogglePointfile` | Commands | - | (radiant/points.cpp:320) -- Stufe 3
+- [~] `ToggleShowShaderlistOnly` | Toggles | - | (radiant/texwindow.cpp:2110) -- Stufe 2
+- [~] `ToggleShowShaders` | Toggles | - | (radiant/texwindow.cpp:2108) -- Stufe 2
+- [~] `ToggleShowTextures` | Toggles | - | (radiant/texwindow.cpp:2109) -- Stufe 2
 - [ ] `ToggleSideView` | Toggles | - | (radiant/xywindow.cpp:2268)
 - [ ] `ToggleTextures` | Commands | T | (radiant/texwindow.cpp:2107)
 - [ ] `ToggleView` | Toggles | - | (radiant/xywindow.cpp:2267)
-- [ ] `TogTexLock` | Toggles | Shift+T | (radiant/brushmanip.cpp:1476)
-- [ ] `TogTexVertexLock` | Toggles | - | (radiant/brushmanip.cpp:1477)
-- [ ] `Undo` | Commands | Ctrl+Z | (radiant/select.cpp:1859)
-- [ ] `UnSelectSelection` | Commands | C | (radiant/select.cpp:1875)
-- [ ] `UnSelectSelection2` | Commands | Escape | (radiant/select.cpp:1874)
-- [ ] `UpFloor` | Commands | PgUp | (radiant/camwindow.cpp:2495)
-- [ ] `ViewFront` | Commands | +Qt::Key_1 + Qt::KeypadModifier | (radiant/xywindow.cpp:2274)
-- [ ] `ViewSide` | Commands | +Qt::Key_3 + Qt::KeypadModifier | (radiant/xywindow.cpp:2275)
-- [ ] `ViewTop` | Commands | +Qt::Key_7 + Qt::KeypadModifier | (radiant/xywindow.cpp:2273)
-- [ ] `XYFocusOnSelected` | Commands | ` | (radiant/xywindow.cpp:2278)
-- [ ] `Zoom100` | Commands | - | (radiant/xywindow.cpp:2276)
-- [ ] `ZoomIn` | Commands | - | (radiant/xywindow.cpp:2271)
-- [ ] `ZoomOut` | Commands | Insert | (radiant/xywindow.cpp:2272)
+- [~] `TogTexLock` | Toggles | Shift+T | (radiant/brushmanip.cpp:1476) -- Stufe 2
+- [~] `TogTexVertexLock` | Toggles | - | (radiant/brushmanip.cpp:1477) -- Stufe 2
+- [~] `Undo` | Commands | Ctrl+Z | (radiant/select.cpp:1859) -- Stufe 2
+- [~] `UnSelectSelection` | Commands | C | (radiant/select.cpp:1875) -- Stufe 2
+- [~] `UnSelectSelection2` | Commands | Escape | (radiant/select.cpp:1874) -- Stufe 2
+- [~] `UpFloor` | Commands | PgUp | (radiant/camwindow.cpp:2495) -- Stufe 2
+- [~] `ViewFront` | Commands | +Qt::Key_1 + Qt::KeypadModifier | (radiant/xywindow.cpp:2274) -- Stufe 2
+- [~] `ViewSide` | Commands | +Qt::Key_3 + Qt::KeypadModifier | (radiant/xywindow.cpp:2275) -- Stufe 2
+- [~] `ViewTop` | Commands | +Qt::Key_7 + Qt::KeypadModifier | (radiant/xywindow.cpp:2273) -- Stufe 2
+- [~] `XYFocusOnSelected` | Commands | ` | (radiant/xywindow.cpp:2278) -- Stufe 2
+- [~] `Zoom100` | Commands | - | (radiant/xywindow.cpp:2276) -- Stufe 2
+- [~] `ZoomIn` | Commands | - | (radiant/xywindow.cpp:2271) -- Stufe 2
+- [~] `ZoomOut` | Commands | Insert | (radiant/xywindow.cpp:2272) -- Stufe 2
 
 ## Dialoge und Fenster
 
@@ -841,7 +880,7 @@ Name | Art | Standardtaste | Quelle
 - [ ] Entities: "Entity Display Preferences"  (radiant/entity.cpp:682)
 - [ ] Grid: "Grid Settings"  (radiant/grid.cpp:258)
 - [ ] Paths: "Path Settings"  (radiant/mainframe.cpp:404)
-- [ ] Layout: "Layout Preferences"  (radiant/mainframe.cpp:2051)
+- [x] Layout: "Layout Preferences"  (radiant/mainframe.cpp:2051)
 - [ ] Model Browser: "Model Browser Preferences"  (radiant/modelwindow.cpp:1364)
 - [ ] Patches: "Patch Display Preferences"  (radiant/patchmanip.cpp:676)
 - [ ] Selection: "Selection System Settings"  (radiant/selection.cpp:2328)
@@ -891,9 +930,9 @@ Name | Art | Standardtaste | Quelle
 - [ ] Combo Mapping mode  (radiant/gtkdlgs.cpp:260)
 - [ ] PathEntry Engine Path  (radiant/mainframe.cpp:398)
 - [ ] PathEntry Extra Resource Path  (radiant/mainframe.cpp:407)
-- [ ] RadioIcons Window Layout  (radiant/mainframe.cpp:2031)
-- [ ] CheckBox Detachable Menus  (radiant/mainframe.cpp:2038)
-- [ ] CheckBox Built-In Group Dialog  (radiant/mainframe.cpp:2043)
+- [x] RadioIcons Window Layout  (radiant/mainframe.cpp:2031)
+- [~] CheckBox Detachable Menus  (radiant/mainframe.cpp:2038) -- Stufe 2 (ImGui-Menues lassen sich nicht abreissen)
+- [x] CheckBox Built-In Group Dialog  (radiant/mainframe.cpp:2043)
 - [ ] CheckBox Load last map at startup  (radiant/map.cpp:2370)
 - [ ] Spinner Model View Size  (radiant/modelwindow.cpp:1366)
 - [ ] Entry List of *folderToLoad/depth*  (radiant/modelwindow.cpp:1369)

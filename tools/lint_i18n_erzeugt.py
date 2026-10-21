@@ -77,8 +77,8 @@ def wegwerfbaum(gen_pfad=None):
                 os.path.join(ziel, "tools", "gen_i18n.py"))
     # Karten-Editor (Stufe 1b): die Texte stehen in einer eigenen Datei,
     # die gen_i18n.py einliest.
-    shutil.copy(os.path.join(WURZEL, "tools", "i18n_karte.py"),
-                os.path.join(ziel, "tools", "i18n_karte.py"))
+    for name in ("i18n_karte.py", "karte_menues.py"):
+        shutil.copy(os.path.join(WURZEL, "tools", name), os.path.join(ziel, "tools", name))
     return ziel
 
 

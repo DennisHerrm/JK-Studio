@@ -290,6 +290,10 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_regelwerk.cpp
     # Stufe 1b: der Arbeitsbereich Karten-Editor (NetRadiant-Custom)
     gui/app_karte.cpp
+    gui/app_karte_befehle.cpp
+    gui/app_karte_menue.cpp
+    gui/app_karte_dialoge.cpp
+    gui/karte_icons.cpp
     gui/backend_win32.cpp
     gui/gpumap_win32.cpp
     gui/main_win32.cpp
@@ -656,7 +660,10 @@ target_sources(bhed_core PRIVATE
   src/karte/kartenformat.cpp
   src/karte/texturen.cpp
   # Stufe 1b: Kernteile der Oberflaeche (zuletzt geoeffnete Karten, ...)
-  src/karte/zuletzt.cpp)
+  src/karte/zuletzt.cpp
+  # Stufe 1b: Befehlstabelle, Menues, Werkzeugleisten, Tastenkuerzel wie NRC/Qt
+  src/karte/befehle.cpp
+  src/karte/raster.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -725,6 +732,12 @@ if(BEHAVED_TESTS)
   add_executable(karteeditor tests/karteeditor.cpp)
   target_link_libraries(karteeditor PRIVATE bhed_core)
   add_test(NAME karte_editor COMMAND karteeditor)
+  # Punkte 3 und 4: die Befehlstabelle gegen die Checkliste (jeder Befehl mit
+  # NRCs Taste, jeder Menuepunkt und Knopf), Uebersetzungen = NRC-Englisch,
+  # Tastenkuerzel wie Qt (Text, possibleKeys, deutsche Tastatur).
+  add_executable(kartebefehle tests/kartebefehle.cpp)
+  target_link_libraries(kartebefehle PRIVATE bhed_core)
+  add_test(NAME karte_befehle COMMAND kartebefehle ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.md)
   # Stufe 1b, Punkt 1: die Checkliste aller NRC-Menues, Knoepfe, Befehle,
   # Dialoge, Einstellungen und Plugins (tools/karte/nrc_inventar.md) - jeder
   # Eintrag hat einen Stand, ausgegraute nennen ihre Stufe.

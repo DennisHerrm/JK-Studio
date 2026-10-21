@@ -106,16 +106,58 @@ def ohne_kommentare(t):
 
 TOK = re.compile(r'''
  (?P<fn>^(?:void|QMenu\s*\*|static\s+void)\s+(?P<fname>\w+)\s*\([^;{]*\)\s*\{) |
+ (?P<auf>\{) | (?P<zu>\}) |
  (?P<sub>(?P<subvar>\w+)\s*=\s*(?P<par>\w+)\s*->\s*addMenu\(\s*"(?P<sublabel>[^"]*)"\s*\)) |
  (?P<top>(?P<topvar>\w+)\s*=\s*menubar->addMenu\(\s*"(?P<toplabel>[^"]*)"\s*\)) |
  (?P<item>create_(?P<chk>check_)?menu_item_with_mnemonic\(\s*(?P<ivar>\w+)\s*,\s*"(?P<ilabel>[^"]*)"\s*,\s*(?:"(?P<icmd>[^"]*)"|(?P<icb>make\w*Call\w*|\w+Caller)))|
  (?P<sep>(?P<svar>\w+)\s*->\s*addSeparator\(\s*\)) |
  (?P<tb>toolbar_append_(?P<tbk>button|toggle_button)\(\s*\w+\s*,\s*"(?P<tbtip>[^"]*)"\s*,\s*"(?P<tbicon>[^"]*)"\s*,\s*"(?P<tbcmd>[^"]*)") |
- (?P<reg>Global(?P<regk>Commands|Toggles|KeyEvents)_insert\(\s*"(?P<regname>[^"]+)"(?P<regrest>[^;]*);) |
+ (?P<reg>Global(?P<regk>Commands|Toggles|KeyEvents|Shortcuts)_insert\(\s*"(?P<regname>[^"]+)"(?P<regrest>[^;]*);) |
+ (?P<filt>add_filter_command\(\s*\w+\s*,\s*"(?P<filtname>[^"]+)"(?P<filtrest>[^;]*);) |
  (?P<titel>setWindowTitle\(\s*"(?P<titeltext>[^"]+)"\s*\)) |
  (?P<seite>createPage\(\s*"(?P<seitebaum>[^"]+)"\s*,\s*"(?P<seitetitel>[^"]+)"\s*\)) |
  (?P<feld>page\.append(?P<feldart>CheckBox|Combo|Spinner|Entry|Slider|Radio|RadioIcons|PathEntry)\((?P<feldrest>[^;]*);)
 ''', re.X | re.M | re.S)
+
+
+def kopf_vor(t, pos):
+    # Text der Anweisung vor pos (seit dem letzten ; { oder }).
+    vor = t[:pos]
+    k = max(vor.rfind(';'), vor.rfind('{'), vor.rfind('}'))
+    return re.sub(r'\s+', ' ', vor[k + 1:]).strip()
+
+
+def bedingung_gilt(kopf):
+    # Gilt eine if-Bedingung fuer Jedi Academy / Jedi Outcast (.game:
+    # q3map2_type ja/jk2, gametype "ja"/"jk2", keine WADs)? None: haengt am
+    # Layout oder am Laufzeitzustand - beide Zweige bleiben, mit Vermerk.
+    if 'doom3' in kopf:
+        return '!=' in kopf
+    if 'game_has_killConnect' in kopf:
+        return False
+    if 'TextureBrowser::wads' in kopf:
+        return '!TextureBrowser::wads' in kopf
+    return None
+
+
+def gilt(stapel):
+    # stapel: Liste von (art, kopf); art 'if', 'else' (kopf = das if davor) oder ''.
+    for art, kopf in stapel:
+        b = bedingung_gilt(kopf) if art in ('if', 'else') else None
+        if art == 'if' and b is False:
+            return False
+        if art == 'else' and b is True:
+            return False
+    return True
+
+
+def vermerk(stapel):
+    teile = []
+    for a, k in stapel:
+        if a in ('if', 'else') and bedingung_gilt(k) is None and re.search(r'[Ss]tyle|builtInGroupDialog', k):
+            teile.append(k if a == 'if' else 'nicht (' + k + ')')
+    return (' [wenn: ' + ' und '.join(teile) + ']') if teile else ''
+
 
 # Plugins aus contrib/ (nur die fuer JA/JK2 im NRC-Paket mitgelieferten).
 # Quelle: contrib/bobtoolz/bobToolz-GTK.cpp:52, contrib/prtview/prtview.cpp:164,
@@ -145,12 +187,45 @@ def sammeln(root):
         rel = os.path.relpath(f, root).replace(os.sep, '/')
         fname = None
         depth = {}
+        stapel = []          # (art, kopf) je offener Klammer
+        letztes_if = {}      # Tiefe -> Kopf des zuletzt geschlossenen if
         for m in TOK.finditer(t):
             ln = t.count('\n', 0, m.start()) + 1
             if m.group('fn'):
                 fname = m.group('fname')
                 depth = {}
-            elif m.group('top'):
+                stapel = [('', fname)]
+                letztes_if = {}
+                continue
+            if m.group('auf'):
+                kopf = kopf_vor(t, m.start())
+                if re.match(r'if\b', kopf):
+                    stapel.append(('if', kopf))
+                elif re.match(r'else\s+if\b', kopf):
+                    # else if: das vorige if gilt nicht, dieses schon - als
+                    # ein Eintrag mit beiden Koepfen (der Vermerk nennt beide).
+                    vorher = letztes_if.get(len(stapel), '')
+                    stapel.append(('if', 'nicht (' + vorher + ') und ' + kopf[5:].strip()))
+                elif re.match(r'else\b', kopf):
+                    stapel.append(('else', letztes_if.get(len(stapel), '')))
+                else:
+                    stapel.append(('', kopf))
+                continue
+            if m.group('zu'):
+                if stapel:
+                    art, kopf = stapel.pop()
+                    if art == 'if':
+                        letztes_if[len(stapel)] = kopf
+                continue
+            # einzeilige Bedingung ohne Klammern (entity.cpp:735)
+            einzeln = kopf_vor(t, m.start())
+            eff = list(stapel)
+            if re.match(r'if\b', einzeln):
+                eff.append(('if', einzeln))
+            if not gilt(eff):
+                continue
+            vm = vermerk(eff)
+            if m.group('top'):
                 depth[m.group('topvar')] = 0
                 menus.append((rel, ln, fname, 0, 'MENU', m.group('toplabel'), ''))
             elif m.group('sub'):
@@ -159,20 +234,24 @@ def sammeln(root):
                 menus.append((rel, ln, fname, d, 'SUB', m.group('sublabel'), ''))
             elif m.group('item'):
                 d = depth.get(m.group('ivar'), 0) + 1
-                label = m.group('ilabel') or '(dynamisch)'
+                label = (m.group('ilabel') or '(dynamisch)') + vm
                 cmd = m.group('icmd') or ''
                 menus.append((rel, ln, fname, d, 'CHECK' if m.group('chk') else 'ITEM', label, cmd))
             elif m.group('sep'):
                 if m.group('svar') in depth or m.group('svar') in ('menu', 'submenu'):
                     menus.append((rel, ln, fname, depth.get(m.group('svar'), 0) + 1, 'SEP', '---', ''))
             elif m.group('tb'):
-                toolbars.append((rel, ln, fname, m.group('tbk'), m.group('tbtip'), m.group('tbicon'), m.group('tbcmd')))
-            elif m.group('reg'):
-                rest = m.group('regrest')
+                toolbars.append((rel, ln, fname, m.group('tbk'), m.group('tbtip') + vm, m.group('tbicon'),
+                                 m.group('tbcmd')))
+            elif m.group('reg') or m.group('filt'):
+                rest = m.group('regrest') if m.group('reg') else m.group('filtrest')
                 key = re.search(r'QKeySequence\(\s*"([^"]*)"\s*\)', rest)
                 key2 = re.search(r'QKeySequence\(\s*([+]?Qt::[^)]*)\)', rest)
                 taste = key.group(1) if key else (re.sub(r'\s+', ' ', key2.group(1)).strip() if key2 else '')
-                cmds.append((rel, ln, m.group('regk'), m.group('regname'), taste))
+                if m.group('reg'):
+                    cmds.append((rel, ln, m.group('regk'), m.group('regname'), taste))
+                else:
+                    cmds.append((rel, ln, 'Toggles', m.group('filtname'), taste))
             elif m.group('titel'):
                 dialoge.append((rel, ln, m.group('titeltext')))
             elif m.group('seite'):
