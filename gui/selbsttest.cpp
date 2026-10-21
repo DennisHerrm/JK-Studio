@@ -20325,15 +20325,9 @@ std::vector<Schritt> tuerLaufAlleSchritte(const std::shared_ptr<int>& ab, const 
             //   Jedi_Advance setzt goalEntity = enemy, AI_Jedi.cpp), abhaengig vom
             //   Spieler und Q_irand - nicht nachgebildet (t3_stamp, taspir2, kor2,
             //   t3_rift: BS_JUMP, wait 777, BS_DEFAULT, SET_ENEMY).
-            double kartenwechselMs = -1.0;
-            for (const Ablauf::Benutzung& b : g_app->ablauf.benutzt) {
-                for (const MapEntity& e : g_app->map.entities) {
-                    if (e.classname == "target_level_change" && !e.targetname.empty() && klein(e.targetname) == klein(b.name) &&
-                        (kartenwechselMs < 0.0 || b.ms < kartenwechselMs)) {
-                        kartenwechselMs = b.ms;
-                    }
-                }
-            }
+            // rc605 (Schlussrunde): der Kartenwechsel, wie ihn der Nachbau sieht -
+            // ein '+'-Menue (G_ChangeMap: uimenu) laedt keine Karte und zaehlt nicht.
+            const double kartenwechselMs = g_app->ablauf.kartenwechselMs;
             const auto feindAb = [](const std::string& wer) {
                 double ab = -1.0;
                 for (const Node& n : g_app->ablauf.flach.nodes) {
@@ -20490,7 +20484,9 @@ std::vector<Schritt> tuerLaufAlleSchritte(const std::shared_ptr<int>& ab, const 
                     if (entferntMs >= 0.0 && entferntMs < schnitt) { schnitt = entferntMs; art = 6; }
                     if (kartenwechselMs >= 0.0 && kartenwechselMs < schnitt) { schnitt = kartenwechselMs; art = 7; }
                     if (feindMs >= 0.0 && feindMs < schnitt) { schnitt = feindMs; art = 8; }
-                    if (art >= 0 && schnitt < ende) {
+                    // rc605 (Schlussrunde): seit der Kartenwechsel die Szene beendet,
+                    // endet ein abgeschnittener Weg genau dort - das zaehlt mit.
+                    if (art >= 0 && (schnitt < ende || (art == 7 && schnitt <= ende + 1e-6))) {
                         (*summe)[static_cast<std::size_t>(art)] += 1;
                         char z[120];
                         std::snprintf(z, sizeof(z), "; %s bei %.0f", art == 6 ? "entfernt" : art == 7 ? "Kartenwechsel" : "Feind (Kampf-KI)", schnitt);
