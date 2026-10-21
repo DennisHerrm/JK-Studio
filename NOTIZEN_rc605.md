@@ -553,3 +553,21 @@ Changelog:
 - DE: trigger_hurt: Rüstung fängt jetzt ihren Teil ab (nicht beim Sturz), Figuren berühren die Bereiche in der Reihenfolge des Spiels, und mit SET_UNDYING läuft das deathscript bei jedem tödlichen Treffer erneut, wie im Spiel; eine per SET_ORIGIN versetzte Figur berührt einen Bereich erst ab dem nächsten Bild. SET_HEALTH 0 auf den Spieler hält wie im Spiel sofort alle Skripte an.
 - ZH: trigger_hurt:护甲现在会吸收一部分伤害(坠落时除外),角色按游戏中的顺序接触区域,设置 SET_UNDYING 时每次致命伤害都会再次运行 deathscript,与游戏一致;通过 SET_ORIGIN 移动的角色从下一帧起才会接触区域。对玩家使用 SET_HEALTH 0 会像游戏中一样立即停止所有脚本。
 - JA: trigger_hurt:鎧がダメージの一部を受け止め(落下時を除く)、キャラクターはゲームと同じ順序で領域に触れ、SET_UNDYING では致命的な攻撃のたびに deathscript が再び実行されます(ゲームと同じ)。SET_ORIGIN で移動したキャラクターは次のフレームから領域に触れます。プレイヤーへの SET_HEALTH 0 はゲームと同じくすぐにすべてのスクリプトを止めます。
+
+## 18. md_ta_sith rebel5_intro: die Ebene in der Kehle (Punkt 6 der letzten Liste)
+
+Nachgerechnet mit der Spur der Vorschau selbst (einmalige Probe gegen md_ta_sith.bsp, kollisionsSpur mit dem
+Kasten -16 -16 -24 .. 16 16 40) und unabhaengig in Python (BSP-Lumps gelesen, CM_TraceThroughBrush und
+CM_NeedsSubdivision/CM_SubdivideGridColumns von Hand):
+- Die Welt-Brushes an der Stelle (Boden *5728/5730/5731 oben z -8, Saeulen 4751/6360 mit 45-Grad-Fasen, Gitter
+  4752) liefern fuer die Bodenspur 0,25 hinab bei (3122, -723, 17,9) NICHTS (fraction 1) - es ist keine
+  Abschraegungsseite eines Brushes.
+- Die Vorschau trifft die Ebene n = (-0,2722, 0,6804, 0,6804) - die Facette des Patches 4395 (tantivewhite, 3 x 3,
+  die Kehle zwischen Boden und der Wand y -767 an der Saeulenecke). cm_patch: beide Kurvenrichtungen weichen weniger
+  als SUBDIVIDE_DISTANCE 16 von der Geraden ab (Kehlenschnitt: Abstand Kurvenmitte - Geradenmitte 12,4; Ecke im
+  Grundriss 2,8) -> CM_SubdivideGridColumns entfernt die mittlere Spalte/Zeile, der Patch kollidiert als EINE
+  ebene Facette durch (3127, -742, -8), (3152, -732, -8), (3152, -767, 27): Normale exakt (-0,2722, 0,6804, 0,6804)
+  - dieselbe Zahl wie die Spur der Vorschau. n_z 0,6804 < MIN_WALK_NORMAL 0,7: PM_GroundTrace nimmt sie nicht als
+  Boden, die Figur gleitet in PM_AirMove/PM_SlideMove die 47-Grad-Ebene hinab (vy = -vz) - wie im Spiel. Die
+  gezeichnete Kehle (feiner tesselliert) sieht rund aus; die Kollision ist die eine schraege Ebene.
+Ergebnis: keine Abweichung, das Kollisionsmodell der Vorschau rechnet hier wie cm_patch. Nichts geaendert.
