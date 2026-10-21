@@ -22,6 +22,7 @@
 #include "app_internal.h"
 #include "tastatur.h"
 
+#include <algorithm>
 #include <map>
 #include <utility>
 
@@ -129,6 +130,18 @@ std::map<std::string, Umsetzung>& umsetzungen() {
     schalter("ShowWindowOutline", &Anzeige::umriss);
     schalter("ShowAxes", &Anzeige::achsen);
     schalter("ShowWorkzone2d", &Anzeige::workzone2d);
+    // --- Kamera (camwindow.cpp:2487-2570, 1422-1432) ---
+    for (const char* n : {"CenterView", "CameraFocusOnSelected", "CubicClipZoomIn", "CubicClipZoomOut", "UpFloor", "DownFloor",
+                          "CameraModeNext", "CameraModePrev", "CameraSpeedInc", "CameraSpeedDec", "CameraForward", "CameraBack",
+                          "CameraLeft", "CameraRight", "CameraStrafeRight", "CameraStrafeLeft", "CameraUp", "CameraDown",
+                          "CameraAngleUp", "CameraAngleDown"}) {
+        const std::string name = n;
+        m[name] = {[name] { kameraBefehl(name); }, nullptr};
+    }
+    m["ToggleCubicClip"] = {[] { kameraBefehl("ToggleCubicClip"); }, [] { return e().kameraE.kubisch; }};
+    m["ShowStats"] = {[] { kameraBefehl("ShowStats"); }, [] { return e().kameraE.zeigeStatistik; }};
+    m["ShowWorkzone3d"] = {[] { kameraBefehl("ShowWorkzone3d"); }, [] { return e().kameraE.zeigeWorkzone; }};
+    m["ShowSize3d"] = {[] { kameraBefehl("ShowSize3d"); }, [] { return e().kameraE.zeigeGroesse; }};
     // --- Grid (grid.cpp:183-203) ---
     m["GridDown"] = {[] { e().raster.kleiner(); }, nullptr};
     m["GridUp"] = {[] { e().raster.groesser(); }, nullptr};
@@ -162,14 +175,47 @@ std::uint32_t qtZusatztasten() {
 
 void tastenVerarbeiten() {
     Editor& ed = e();
-    if (!aktiv() || !ed.belegungGeladen) { return; }
-    const ImGuiIO& io = ImGui::GetIO();
-    // Tippen in ein Feld, ein offenes Menue/Klappfenster, das Aufnehmen einer
-    // neuen Taste und gedrueckte Maustasten haben Vorrang.
-    if (io.WantTextInput || !ed.tastenDialogBearbeitet.empty() || ed.tasteVerbrauchtBild == ImGui::GetFrameCount() ||
-        ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel)) {
+    ImGuiIO& io = ImGui::GetIO();
+    // QAction::autoRepeat wiederholt im Takt von Windows (SPI_GETKEYBOARDDELAY
+    // und -SPEED) - solange der Karten-Editor die Tastatur hat.
+    static bool wiederholungGemerkt = false;
+    static float altVerzoegerung = 0.0F;
+    static float altAbstand = 0.0F;
+    if (aktiv()) {
+        float v = 0.0F;
+        float a = 0.0F;
+        if (!wiederholungGemerkt && tastatur::wiederholung(v, a)) {
+            altVerzoegerung = io.KeyRepeatDelay;
+            altAbstand = io.KeyRepeatRate;
+            io.KeyRepeatDelay = v;
+            io.KeyRepeatRate = a;
+            wiederholungGemerkt = true;
+        }
+    } else if (wiederholungGemerkt) {
+        io.KeyRepeatDelay = altVerzoegerung;
+        io.KeyRepeatRate = altAbstand;
+        wiederholungGemerkt = false;
+    }
+    if (!aktiv() || !ed.belegungGeladen) {
+        kameraTastenLoslassen();   // GlobalPressedKeys_releaseAll (Fokuswechsel)
         return;
     }
+    // Tippen in ein Feld, ein offenes Menue/Klappfenster und das Aufnehmen
+    // einer neuen Taste haben Vorrang.
+    if (io.WantTextInput || !ed.tastenDialogBearbeitet.empty() || ed.tasteVerbrauchtBild == ImGui::GetFrameCount() ||
+        ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel)) {
+        kameraTastenLoslassen();
+        return;
+    }
+    // PressedKeys (accelerator.cpp:135-163): ein Ereignisfilter am Hauptfenster
+    // vor allen Kuerzeln - auch bei gedrueckter Maustaste (Freelook + WASD).
+    std::vector<bool> verbraucht(static_cast<std::size_t>(ImGuiKey_NamedKey_END), false);
+    for (int k = ImGuiKey_NamedKey_BEGIN; k < ImGuiKey_NamedKey_END; ++k) {
+        const auto key = static_cast<ImGuiKey>(k);
+        if ((key >= ImGuiKey_LeftCtrl && key <= ImGuiKey_RightSuper) || key >= ImGuiKey_ReservedForModCtrl) { continue; }
+        if (kameraTasteVerbraucht(k)) { verbraucht[static_cast<std::size_t>(k)] = true; }
+    }
+    // RadiantQMainWindow::event: "block shortcuts while mouse buttons are pressed"
     for (int m = 0; m < 5; ++m) {
         if (io.MouseDown[m]) { return; }
     }
@@ -177,6 +223,7 @@ void tastenVerarbeiten() {
         const auto key = static_cast<ImGuiKey>(k);
         if (key >= ImGuiKey_LeftCtrl && key <= ImGuiKey_RightSuper) { continue; }   // nur Zusatztasten
         if (key >= ImGuiKey_ReservedForModCtrl) { continue; }
+        if (verbraucht[static_cast<std::size_t>(k)]) { continue; }   // ShortcutOverride angenommen
         // QAction-Kuerzel loesen auch bei der Tastenwiederholung aus.
         if (!ImGui::IsKeyPressed(key, true)) { continue; }
         befehle::TastenBelegung kb;
@@ -185,7 +232,9 @@ void tastenVerarbeiten() {
         if (!tastenBelegung(k, kb, ziffernblock, erweitert)) { continue; }
         std::uint32_t mods = qtZusatztasten();
         if (ziffernblock) { mods |= befehle::kNum; }
-        const std::vector<std::string> t = ed.belegung.treffer(befehle::moeglicheTasten(kb, mods, erweitert));
+        // Nur Kuerzel, die gerade an ihrer Taste haengen (command_connect_accelerator).
+        std::vector<std::string> t = ed.belegung.treffer(befehle::moeglicheTasten(kb, mods, erweitert));
+        t.erase(std::remove_if(t.begin(), t.end(), [](const std::string& n) { return !befehlVerbunden(n); }), t.end());
         if (t.size() == 1) {
             ed.statusBefehl = t[0];
             (void)ausfuehren(t[0]);

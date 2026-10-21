@@ -780,7 +780,7 @@ void zeichneStatuszeile(int y, int breite) {
                          : ed.karte.kontext.format == karte::PinselFormat::Quake3Valve220 ? "220"
                                                                                           : "AP";
     std::snprintf(raster, sizeof(raster), "%s%g  F:%s  C:%d  L:%s", ed.raster.einrastGroesse() > 0 ? "G:" : "g:",
-                  static_cast<double>(ed.raster.groesse()), format, ed.kubikSkala,
+                  static_cast<double>(ed.raster.groesse()), format, ed.kameraE.kubikSkala,
                   ed.karte.kontext.texturLock ? "ON   " : "OFF  ");
     // QLabel::sizeHint: fm.boundingRect, auf ganze Punkte aufgerundet.
     const auto textB = [s](const std::string& t) {
@@ -870,7 +870,30 @@ void einstellungenLaden() {
     ed.teilerFuer = -1;
     ed.raster.standardSetzen(std::clamp(static_cast<int>(zahl("GridDefault", karte::Raster::kStandard)), 0, 13));
     ed.raster.setzeMaxKoordPotenz(static_cast<int>(zahl("GridMaxCoordPower", 4)));
-    ed.kubikSkala = std::clamp(static_cast<int>(zahl("CubicScale", 14)), 1, 23);
+    // Kamera (Camera_registerPreferencesPage, CamWnd_Construct: camwindow.cpp:2543-2563)
+    karte::KameraEinstellungen& c = ed.kameraE;
+    c.kubikSkala = std::clamp(static_cast<int>(zahl("CubicScale", 14)), 1, 23);
+    c.tempo = std::clamp(static_cast<int>(zahl("CamMoveSpeed", 500)), 1, karte::kTempoMax);
+    c.zeitBisMax = std::clamp(static_cast<int>(zahl("CamMoveTimeToMaxSpeed", 200)), 0, 5000);
+    c.radTempo = std::clamp(static_cast<int>(zahl("ScrollMoveSpeed", 100)), 0, 999);
+    c.strafeTempo = std::clamp(zahl("CamStrafeSpeed", 1.0F), 0.1F, 10.0F);
+    c.winkelTempo = std::clamp(zahl("Sensitivity", 3.0F), 0.1F, 30.0F);
+    c.mausUmkehren = zahl("CamInverseMouse", 0) != 0.0F;
+    c.zumZeiger = zahl("3DZoomInToPointer", 1) != 0.0F;
+    c.diskret = zahl("CamDiscrete", 1) != 0.0F;
+    c.kubisch = zahl("CubicClipping", 0) != 0.0F;
+    c.faerben = zahl("CameraFaceFill", 1) != 0.0F;
+    c.flaechenDraht = zahl("CameraFaceWire", 1) != 0.0F;
+    c.modus = karte::modusAusZahl(static_cast<int>(zahl("CameraRenderMode", 2)));
+    if (c.modus == karte::KameraModus::Licht) { c.modus = karte::KameraModus::Textur; }   // nur doom3
+    // CameraMSAA: die Zahl der Abtastungen (CamMSAAImport: 1 << Index)
+    const int msaa = static_cast<int>(zahl("CameraMSAA", 8));
+    c.msaa = (msaa == 0 || msaa == 2 || msaa == 4 || msaa == 8 || msaa == 16 || msaa == 32) ? msaa : 8;
+    c.strafeModus = std::clamp(static_cast<int>(zahl("StrafeMode", 3)), 0, 4);
+    c.sichtfeld = std::clamp(zahl("fieldOfView", 100.0F), 1.0F, 175.0F);
+    c.zeigeStatistik = zahl("ShowStats", 0) != 0.0F;
+    c.zeigeWorkzone = zahl("ShowWorkzone3d", 1) != 0.0F;
+    c.zeigeGroesse = zahl("ShowSize3d", 1) != 0.0F;
     // ToolbarHiddenButtons: "%Name%%Name%..." (gtkmisc.cpp:147)
     ed.versteckteKnoepfe.clear();
     const auto it = k.find("ToolbarHiddenButtons");
@@ -905,7 +928,31 @@ void einstellungenSpeichern() {
     if (!ed.hGroessen.empty()) { k["hSplit"] = liste(ed.hGroessen); }
     if (!ed.vGroessen.empty()) { k["vSplit"] = liste(ed.vGroessen); }
     if (!ed.v2Groessen.empty()) { k["vSplit2"] = liste(ed.v2Groessen); }
-    k["CubicScale"] = std::to_string(ed.kubikSkala);
+    const karte::KameraEinstellungen& c = ed.kameraE;
+    const auto zahlText = [](float f) {
+        char z[32];
+        std::snprintf(z, sizeof(z), "%g", static_cast<double>(f));
+        return std::string(z);
+    };
+    k["CubicScale"] = std::to_string(c.kubikSkala);
+    k["CamMoveSpeed"] = std::to_string(c.tempo);
+    k["CamMoveTimeToMaxSpeed"] = std::to_string(c.zeitBisMax);
+    k["ScrollMoveSpeed"] = std::to_string(c.radTempo);
+    k["CamStrafeSpeed"] = zahlText(c.strafeTempo);
+    k["Sensitivity"] = zahlText(c.winkelTempo);
+    k["CamInverseMouse"] = c.mausUmkehren ? "1" : "0";
+    k["3DZoomInToPointer"] = c.zumZeiger ? "1" : "0";
+    k["CamDiscrete"] = c.diskret ? "1" : "0";
+    k["CubicClipping"] = c.kubisch ? "1" : "0";
+    k["CameraFaceFill"] = c.faerben ? "1" : "0";
+    k["CameraFaceWire"] = c.flaechenDraht ? "1" : "0";
+    k["CameraRenderMode"] = std::to_string(static_cast<int>(c.modus));
+    k["CameraMSAA"] = std::to_string(c.msaa);
+    k["StrafeMode"] = std::to_string(c.strafeModus);
+    k["fieldOfView"] = zahlText(c.sichtfeld);
+    k["ShowStats"] = c.zeigeStatistik ? "1" : "0";
+    k["ShowWorkzone3d"] = c.zeigeWorkzone ? "1" : "0";
+    k["ShowSize3d"] = c.zeigeGroesse ? "1" : "0";
     std::string versteckt;
     for (const std::string& n : ed.versteckteKnoepfe) { versteckt += "%" + n + "%"; }
     k["ToolbarHiddenButtons"] = versteckt;

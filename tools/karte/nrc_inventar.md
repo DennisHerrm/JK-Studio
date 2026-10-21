@@ -172,13 +172,13 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     - [~] ITEM Entity List -> `ToggleEntityList`  (radiant/mainframe.cpp:952) -- Stufe 2
     * ---
     * SUB Camera  (radiant/mainframe.cpp:956)
-      - [~] ITEM Focus on Selected -> `CameraFocusOnSelected`  (radiant/mainframe.cpp:960) -- Stufe 2
-      - [~] ITEM &Center -> `CenterView`  (radiant/mainframe.cpp:961) -- Stufe 2
-      - [~] ITEM &Up Floor -> `UpFloor`  (radiant/mainframe.cpp:962) -- Stufe 2
-      - [~] ITEM &Down Floor -> `DownFloor`  (radiant/mainframe.cpp:963) -- Stufe 2
+      - [x] ITEM Focus on Selected -> `CameraFocusOnSelected`  (radiant/mainframe.cpp:960)
+      - [x] ITEM &Center -> `CenterView`  (radiant/mainframe.cpp:961)
+      - [x] ITEM &Up Floor -> `UpFloor`  (radiant/mainframe.cpp:962)
+      - [x] ITEM &Down Floor -> `DownFloor`  (radiant/mainframe.cpp:963)
       * ---
-      - [~] ITEM Far Clip Plane In -> `CubicClipZoomIn`  (radiant/mainframe.cpp:965) -- Stufe 2
-      - [~] ITEM Far Clip Plane Out -> `CubicClipZoomOut`  (radiant/mainframe.cpp:966) -- Stufe 2
+      - [x] ITEM Far Clip Plane In -> `CubicClipZoomIn`  (radiant/mainframe.cpp:965)
+      - [x] ITEM Far Clip Plane Out -> `CubicClipZoomOut`  (radiant/mainframe.cpp:966)
       * ---
       - [~] ITEM Next leak spot -> `NextLeakSpot`  (radiant/mainframe.cpp:968) -- Stufe 3
       - [~] ITEM Previous leak spot -> `PrevLeakSpot`  (radiant/mainframe.cpp:969) -- Stufe 3
@@ -200,12 +200,12 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     * SUB Show  (radiant/mainframe.cpp:1003)
       - [x] CHECK Show Entity &Angles -> `ShowAngles`  (radiant/mainframe.cpp:1007) -- Stufe 1b Punkt 5
       - [x] CHECK Show Entity &Names -> `ShowNames`  (radiant/mainframe.cpp:1008) -- Stufe 1b Punkt 5
-      - [ ] CHECK Show Light Radiuses -> `ShowLightRadiuses`  (radiant/mainframe.cpp:1009)
+      - [x] CHECK Show Light Radiuses -> `ShowLightRadiuses`  (radiant/mainframe.cpp:1009)
       - [ ] CHECK Show Entity Boxes -> `ShowBboxes`  (radiant/mainframe.cpp:1010)
       - [x] CHECK Show Entity Connections -> `ShowConnections`  (radiant/mainframe.cpp:1011) -- Stufe 1b Punkt 5
       * ---
       - [x] CHECK Show 2D Size Info -> `ShowSize2d`  (radiant/mainframe.cpp:1015) -- Stufe 1b Punkt 5
-      - [~] CHECK Show 3D Size Info -> `ShowSize3d`  (radiant/mainframe.cpp:1016) -- Stufe 2
+      - [x] CHECK Show 3D Size Info -> `ShowSize3d`  (radiant/mainframe.cpp:1016)
       - [x] CHECK Show Crosshair -> `ToggleCrosshairs`  (radiant/mainframe.cpp:1017) -- Stufe 1b Punkt 5
       - [x] CHECK Show Grid -> `ToggleGrid`  (radiant/mainframe.cpp:1018) -- Stufe 1b Punkt 5
       - [x] CHECK Show Blocks -> `ShowBlocks`  (radiant/mainframe.cpp:1019) -- Stufe 1b Punkt 5
@@ -213,8 +213,8 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
       - [x] CHECK Show Window Outline -> `ShowWindowOutline`  (radiant/mainframe.cpp:1021) -- Stufe 1b Punkt 5
       - [x] CHECK Show Axes -> `ShowAxes`  (radiant/mainframe.cpp:1022) -- Stufe 1b Punkt 5
       - [x] CHECK Show 2D Workzone -> `ShowWorkzone2d`  (radiant/mainframe.cpp:1023) -- Stufe 1b Punkt 5
-      - [~] CHECK Show 3D Workzone -> `ShowWorkzone3d`  (radiant/mainframe.cpp:1024) -- Stufe 2
-      - [~] CHECK Show Renderer Stats -> `ShowStats`  (radiant/mainframe.cpp:1025) -- Stufe 2
+      - [x] CHECK Show 3D Workzone -> `ShowWorkzone3d`  (radiant/mainframe.cpp:1024)
+      - [x] CHECK Show Renderer Stats -> `ShowStats`  (radiant/mainframe.cpp:1025)
     * SUB Filter  (radiant/mainframe.cpp:1029)
     * ---
     - [~] CHECK Hide Selected -> `HideSelected`  (radiant/mainframe.cpp:1037) -- Stufe 2
@@ -419,7 +419,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### CamWnd_constructToolbar (radiant/camwindow.cpp)
 
-- [~] toggle_button Cubic clip the camera view | view_cubicclipping.png -> `ToggleCubicClip`  (radiant/camwindow.cpp:2260) -- Stufe 2
+- [x] toggle_button Cubic clip the camera view | view_cubicclipping.png -> `ToggleCubicClip`  (radiant/camwindow.cpp:2260)
 
 ### create_filter_toolbar (radiant/filterbar.cpp)
 
@@ -556,65 +556,65 @@ Name | Art | Standardtaste | Quelle
 - [~] `BrushSphere` | Commands | - | (radiant/brushmanip.cpp:1481) -- Stufe 2
 - [~] `Build_runRecentExecutedBuild` | Commands | F5 | (radiant/mainframe.cpp:2090) -- Stufe 3
 - [~] `BuildMenuCustomize` | Commands | - | (radiant/mainframe.cpp:2089) -- Stufe 3
-- [~] `CameraAngleDown` | Commands | - | (radiant/camwindow.cpp:1432) -- Stufe 2
-- [~] `CameraAngleDown` | KeyEvents | - | (radiant/camwindow.cpp:1369) -- Stufe 2
-- [~] `CameraAngleDown` | Shortcuts | - | (radiant/camwindow.cpp:2522) -- Stufe 2
-- [~] `CameraAngleUp` | Commands | - | (radiant/camwindow.cpp:1431) -- Stufe 2
-- [~] `CameraAngleUp` | KeyEvents | - | (radiant/camwindow.cpp:1365) -- Stufe 2
-- [~] `CameraAngleUp` | Shortcuts | - | (radiant/camwindow.cpp:2521) -- Stufe 2
-- [~] `CameraBack` | Commands | - | (radiant/camwindow.cpp:1423) -- Stufe 2
-- [~] `CameraBack` | KeyEvents | - | (radiant/camwindow.cpp:1337) -- Stufe 2
-- [~] `CameraBack` | Shortcuts | Down | (radiant/camwindow.cpp:2513) -- Stufe 2
-- [~] `CameraDown` | Commands | - | (radiant/camwindow.cpp:1430) -- Stufe 2
-- [~] `CameraDown` | KeyEvents | - | (radiant/camwindow.cpp:1361) -- Stufe 2
-- [~] `CameraDown` | Shortcuts | - | (radiant/camwindow.cpp:2520) -- Stufe 2
-- [~] `CameraFocusOnSelected` | Commands | Tab | (radiant/camwindow.cpp:2489) -- Stufe 2
-- [~] `CameraForward` | Commands | - | (radiant/camwindow.cpp:1422) -- Stufe 2
-- [~] `CameraForward` | KeyEvents | - | (radiant/camwindow.cpp:1333) -- Stufe 2
-- [~] `CameraForward` | Shortcuts | Up | (radiant/camwindow.cpp:2512) -- Stufe 2
-- [~] `CameraFreeFocus` | KeyEvents | - | (radiant/camwindow.cpp:1417) -- Stufe 2
-- [~] `CameraFreeFocus` | Shortcuts | Tab | (radiant/camwindow.cpp:2537) -- Stufe 2
-- [~] `CameraFreeMoveBack` | KeyEvents | - | (radiant/camwindow.cpp:1378) -- Stufe 2
-- [~] `CameraFreeMoveBack` | Shortcuts | S | (radiant/camwindow.cpp:2525) -- Stufe 2
-- [~] `CameraFreeMoveBack2` | KeyEvents | - | (radiant/camwindow.cpp:1395) -- Stufe 2
-- [~] `CameraFreeMoveBack2` | Shortcuts | Down | (radiant/camwindow.cpp:2530) -- Stufe 2
-- [~] `CameraFreeMoveDown` | KeyEvents | - | (radiant/camwindow.cpp:1412) -- Stufe 2
-- [~] `CameraFreeMoveDown` | Shortcuts | - | (radiant/camwindow.cpp:2535) -- Stufe 2
-- [~] `CameraFreeMoveForward` | KeyEvents | - | (radiant/camwindow.cpp:1374) -- Stufe 2
-- [~] `CameraFreeMoveForward` | Shortcuts | W | (radiant/camwindow.cpp:2524) -- Stufe 2
-- [~] `CameraFreeMoveForward2` | KeyEvents | - | (radiant/camwindow.cpp:1391) -- Stufe 2
-- [~] `CameraFreeMoveForward2` | Shortcuts | Up | (radiant/camwindow.cpp:2529) -- Stufe 2
-- [~] `CameraFreeMoveLeft` | KeyEvents | - | (radiant/camwindow.cpp:1382) -- Stufe 2
-- [~] `CameraFreeMoveLeft` | Shortcuts | A | (radiant/camwindow.cpp:2526) -- Stufe 2
-- [~] `CameraFreeMoveLeft2` | KeyEvents | - | (radiant/camwindow.cpp:1399) -- Stufe 2
-- [~] `CameraFreeMoveLeft2` | Shortcuts | Left | (radiant/camwindow.cpp:2531) -- Stufe 2
-- [~] `CameraFreeMoveRight` | KeyEvents | - | (radiant/camwindow.cpp:1386) -- Stufe 2
-- [~] `CameraFreeMoveRight` | Shortcuts | D | (radiant/camwindow.cpp:2527) -- Stufe 2
-- [~] `CameraFreeMoveRight2` | KeyEvents | - | (radiant/camwindow.cpp:1403) -- Stufe 2
-- [~] `CameraFreeMoveRight2` | Shortcuts | Right | (radiant/camwindow.cpp:2532) -- Stufe 2
-- [~] `CameraFreeMoveUp` | KeyEvents | - | (radiant/camwindow.cpp:1408) -- Stufe 2
-- [~] `CameraFreeMoveUp` | Shortcuts | - | (radiant/camwindow.cpp:2534) -- Stufe 2
-- [~] `CameraLeft` | Commands | - | (radiant/camwindow.cpp:1424) -- Stufe 2
-- [~] `CameraLeft` | KeyEvents | - | (radiant/camwindow.cpp:1341) -- Stufe 2
-- [~] `CameraLeft` | Shortcuts | Left | (radiant/camwindow.cpp:2514) -- Stufe 2
-- [~] `CameraModeNext` | Commands | Shift+] | (radiant/camwindow.cpp:2506) -- Stufe 2
-- [~] `CameraModePrev` | Commands | Shift+[ | (radiant/camwindow.cpp:2507) -- Stufe 2
-- [~] `CameraRight` | Commands | - | (radiant/camwindow.cpp:1425) -- Stufe 2
-- [~] `CameraRight` | KeyEvents | - | (radiant/camwindow.cpp:1345) -- Stufe 2
-- [~] `CameraRight` | Shortcuts | Right | (radiant/camwindow.cpp:2515) -- Stufe 2
-- [~] `CameraSpeedDec` | Commands | +Qt::SHIFT + Qt::Key_Minus + Qt::KeypadModifier | (radiant/camwindow.cpp:2510) -- Stufe 2
-- [~] `CameraSpeedInc` | Commands | +Qt::SHIFT + Qt::Key_Plus + Qt::KeypadModifier | (radiant/camwindow.cpp:2509) -- Stufe 2
-- [~] `CameraStrafeLeft` | Commands | - | (radiant/camwindow.cpp:1427) -- Stufe 2
-- [~] `CameraStrafeLeft` | KeyEvents | - | (radiant/camwindow.cpp:1353) -- Stufe 2
-- [~] `CameraStrafeLeft` | Shortcuts | A | (radiant/camwindow.cpp:2517) -- Stufe 2
-- [~] `CameraStrafeRight` | Commands | - | (radiant/camwindow.cpp:1426) -- Stufe 2
-- [~] `CameraStrafeRight` | KeyEvents | - | (radiant/camwindow.cpp:1349) -- Stufe 2
-- [~] `CameraStrafeRight` | Shortcuts | D | (radiant/camwindow.cpp:2516) -- Stufe 2
-- [~] `CameraUp` | Commands | - | (radiant/camwindow.cpp:1429) -- Stufe 2
-- [~] `CameraUp` | KeyEvents | - | (radiant/camwindow.cpp:1357) -- Stufe 2
-- [~] `CameraUp` | Shortcuts | - | (radiant/camwindow.cpp:2519) -- Stufe 2
+- [x] `CameraAngleDown` | Commands | - | (radiant/camwindow.cpp:1432)
+- [x] `CameraAngleDown` | KeyEvents | - | (radiant/camwindow.cpp:1369)
+- [x] `CameraAngleDown` | Shortcuts | - | (radiant/camwindow.cpp:2522)
+- [x] `CameraAngleUp` | Commands | - | (radiant/camwindow.cpp:1431)
+- [x] `CameraAngleUp` | KeyEvents | - | (radiant/camwindow.cpp:1365)
+- [x] `CameraAngleUp` | Shortcuts | - | (radiant/camwindow.cpp:2521)
+- [x] `CameraBack` | Commands | - | (radiant/camwindow.cpp:1423)
+- [x] `CameraBack` | KeyEvents | - | (radiant/camwindow.cpp:1337)
+- [x] `CameraBack` | Shortcuts | Down | (radiant/camwindow.cpp:2513)
+- [x] `CameraDown` | Commands | - | (radiant/camwindow.cpp:1430)
+- [x] `CameraDown` | KeyEvents | - | (radiant/camwindow.cpp:1361)
+- [x] `CameraDown` | Shortcuts | - | (radiant/camwindow.cpp:2520)
+- [x] `CameraFocusOnSelected` | Commands | Tab | (radiant/camwindow.cpp:2489)
+- [x] `CameraForward` | Commands | - | (radiant/camwindow.cpp:1422)
+- [x] `CameraForward` | KeyEvents | - | (radiant/camwindow.cpp:1333)
+- [x] `CameraForward` | Shortcuts | Up | (radiant/camwindow.cpp:2512)
+- [x] `CameraFreeFocus` | KeyEvents | - | (radiant/camwindow.cpp:1417)
+- [x] `CameraFreeFocus` | Shortcuts | Tab | (radiant/camwindow.cpp:2537)
+- [x] `CameraFreeMoveBack` | KeyEvents | - | (radiant/camwindow.cpp:1378)
+- [x] `CameraFreeMoveBack` | Shortcuts | S | (radiant/camwindow.cpp:2525)
+- [x] `CameraFreeMoveBack2` | KeyEvents | - | (radiant/camwindow.cpp:1395)
+- [x] `CameraFreeMoveBack2` | Shortcuts | Down | (radiant/camwindow.cpp:2530)
+- [x] `CameraFreeMoveDown` | KeyEvents | - | (radiant/camwindow.cpp:1412)
+- [x] `CameraFreeMoveDown` | Shortcuts | - | (radiant/camwindow.cpp:2535)
+- [x] `CameraFreeMoveForward` | KeyEvents | - | (radiant/camwindow.cpp:1374)
+- [x] `CameraFreeMoveForward` | Shortcuts | W | (radiant/camwindow.cpp:2524)
+- [x] `CameraFreeMoveForward2` | KeyEvents | - | (radiant/camwindow.cpp:1391)
+- [x] `CameraFreeMoveForward2` | Shortcuts | Up | (radiant/camwindow.cpp:2529)
+- [x] `CameraFreeMoveLeft` | KeyEvents | - | (radiant/camwindow.cpp:1382)
+- [x] `CameraFreeMoveLeft` | Shortcuts | A | (radiant/camwindow.cpp:2526)
+- [x] `CameraFreeMoveLeft2` | KeyEvents | - | (radiant/camwindow.cpp:1399)
+- [x] `CameraFreeMoveLeft2` | Shortcuts | Left | (radiant/camwindow.cpp:2531)
+- [x] `CameraFreeMoveRight` | KeyEvents | - | (radiant/camwindow.cpp:1386)
+- [x] `CameraFreeMoveRight` | Shortcuts | D | (radiant/camwindow.cpp:2527)
+- [x] `CameraFreeMoveRight2` | KeyEvents | - | (radiant/camwindow.cpp:1403)
+- [x] `CameraFreeMoveRight2` | Shortcuts | Right | (radiant/camwindow.cpp:2532)
+- [x] `CameraFreeMoveUp` | KeyEvents | - | (radiant/camwindow.cpp:1408)
+- [x] `CameraFreeMoveUp` | Shortcuts | - | (radiant/camwindow.cpp:2534)
+- [x] `CameraLeft` | Commands | - | (radiant/camwindow.cpp:1424)
+- [x] `CameraLeft` | KeyEvents | - | (radiant/camwindow.cpp:1341)
+- [x] `CameraLeft` | Shortcuts | Left | (radiant/camwindow.cpp:2514)
+- [x] `CameraModeNext` | Commands | Shift+] | (radiant/camwindow.cpp:2506)
+- [x] `CameraModePrev` | Commands | Shift+[ | (radiant/camwindow.cpp:2507)
+- [x] `CameraRight` | Commands | - | (radiant/camwindow.cpp:1425)
+- [x] `CameraRight` | KeyEvents | - | (radiant/camwindow.cpp:1345)
+- [x] `CameraRight` | Shortcuts | Right | (radiant/camwindow.cpp:2515)
+- [x] `CameraSpeedDec` | Commands | +Qt::SHIFT + Qt::Key_Minus + Qt::KeypadModifier | (radiant/camwindow.cpp:2510)
+- [x] `CameraSpeedInc` | Commands | +Qt::SHIFT + Qt::Key_Plus + Qt::KeypadModifier | (radiant/camwindow.cpp:2509)
+- [x] `CameraStrafeLeft` | Commands | - | (radiant/camwindow.cpp:1427)
+- [x] `CameraStrafeLeft` | KeyEvents | - | (radiant/camwindow.cpp:1353)
+- [x] `CameraStrafeLeft` | Shortcuts | A | (radiant/camwindow.cpp:2517)
+- [x] `CameraStrafeRight` | Commands | - | (radiant/camwindow.cpp:1426)
+- [x] `CameraStrafeRight` | KeyEvents | - | (radiant/camwindow.cpp:1349)
+- [x] `CameraStrafeRight` | Shortcuts | D | (radiant/camwindow.cpp:2516)
+- [x] `CameraUp` | Commands | - | (radiant/camwindow.cpp:1429)
+- [x] `CameraUp` | KeyEvents | - | (radiant/camwindow.cpp:1357)
+- [x] `CameraUp` | Shortcuts | - | (radiant/camwindow.cpp:2519)
 - [~] `CapCurrentCurve` | Commands | Shift+C | (radiant/patchmanip.cpp:727) -- Stufe 2
-- [~] `CenterView` | Commands | End | (radiant/camwindow.cpp:2488) -- Stufe 2
+- [x] `CenterView` | Commands | End | (radiant/camwindow.cpp:2488)
 - [x] `CenterXYView` | Commands | Ctrl+Shift+Tab | (radiant/xywindow.cpp:2277) -- Stufe 1b Punkt 5
 - [~] `CheckForUpdate` | Commands | - | (radiant/mainframe.cpp:2072) -- Stufe 3
 - [~] `ClipperClip` | Commands | Return | (radiant/clippertool.cpp:194) -- Stufe 2
@@ -629,12 +629,12 @@ Name | Art | Standardtaste | Quelle
 - [~] `CSGSubtract` | Commands | Shift+U | (radiant/csg.cpp:1592) -- Stufe 2
 - [~] `CSGTool` | Commands | - | (radiant/csg.cpp:1597) -- Stufe 2
 - [~] `CSGWrapMerge` | Commands | Ctrl+U | (radiant/csg.cpp:1594) -- Stufe 2
-- [~] `CubicClipZoomIn` | Commands | Ctrl+[ | (radiant/camwindow.cpp:2492) -- Stufe 2
-- [~] `CubicClipZoomOut` | Commands | Ctrl+] | (radiant/camwindow.cpp:2493) -- Stufe 2
+- [x] `CubicClipZoomIn` | Commands | Ctrl+[ | (radiant/camwindow.cpp:2492)
+- [x] `CubicClipZoomOut` | Commands | Ctrl+] | (radiant/camwindow.cpp:2493)
 - [~] `DeleteSelection` | Commands | Z | (radiant/select.cpp:1870) -- Stufe 2
 - [~] `DeleteSelection2` | Commands | Backspace | (radiant/select.cpp:1869) -- Stufe 2
 - [~] `DeleteSelection3` | Commands | Delete | (radiant/select.cpp:1868) -- Stufe 2
-- [~] `DownFloor` | Commands | PgDown | (radiant/camwindow.cpp:2496) -- Stufe 2
+- [x] `DownFloor` | Commands | PgDown | (radiant/camwindow.cpp:2496)
 - [~] `DragEdges` | Toggles | E | (radiant/tools.cpp:423) -- Stufe 2
 - [~] `DragFaces` | Toggles | F | (radiant/tools.cpp:424) -- Stufe 2
 - [~] `DragVertices` | Toggles | V | (radiant/tools.cpp:422) -- Stufe 2
@@ -825,14 +825,14 @@ Name | Art | Standardtaste | Quelle
 - [x] `ShowCoordinates` | Toggles | - | (radiant/xywindow.cpp:2223) -- Stufe 1b Punkt 5
 - [~] `ShowHidden` | Commands | Shift+H | (radiant/select.cpp:1841) -- Stufe 2
 - [~] `ShowInUse` | Toggles | U | (radiant/texwindow.cpp:2101) -- Stufe 2
-- [ ] `ShowLightRadiuses` | Toggles | - | (radiant/entity.cpp:743)
+- [x] `ShowLightRadiuses` | Toggles | - | (radiant/entity.cpp:743)
 - [x] `ShowNames` | Toggles | - | (radiant/xywindow.cpp:2219) -- Stufe 1b Punkt 5
 - [x] `ShowSize2d` | Toggles | J | (radiant/xywindow.cpp:2214) -- Stufe 1b Punkt 5
-- [~] `ShowSize3d` | Toggles | - | (radiant/camwindow.cpp:2541) -- Stufe 2
-- [~] `ShowStats` | Toggles | - | (radiant/camwindow.cpp:2539) -- Stufe 2
+- [x] `ShowSize3d` | Toggles | - | (radiant/camwindow.cpp:2541)
+- [x] `ShowStats` | Toggles | - | (radiant/camwindow.cpp:2539)
 - [x] `ShowWindowOutline` | Toggles | - | (radiant/xywindow.cpp:2224) -- Stufe 1b Punkt 5
 - [x] `ShowWorkzone2d` | Toggles | - | (radiant/xywindow.cpp:2226) -- Stufe 1b Punkt 5
-- [~] `ShowWorkzone3d` | Toggles | - | (radiant/camwindow.cpp:2540) -- Stufe 2
+- [x] `ShowWorkzone3d` | Toggles | - | (radiant/camwindow.cpp:2540)
 - [~] `SimplePatchMesh` | Commands | Shift+P | (radiant/patchmanip.cpp:710) -- Stufe 2
 - [~] `SmoothCols` | Commands | Ctrl+Shift+W | (radiant/patchmanip.cpp:725) -- Stufe 2
 - [~] `SmoothRows` | Commands | Ctrl+W | (radiant/patchmanip.cpp:724) -- Stufe 2
@@ -866,7 +866,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `ToggleClipper` | Toggles | X | (radiant/tools.cpp:426) -- Stufe 2
 - [ ] `ToggleConsole` | Commands | O | (radiant/mainframe.cpp:2078)
 - [x] `ToggleCrosshairs` | Toggles | Shift+X | (radiant/xywindow.cpp:2215) -- Stufe 1b Punkt 5
-- [~] `ToggleCubicClip` | Toggles | Ctrl+\\ | (radiant/camwindow.cpp:2491) -- Stufe 2
+- [x] `ToggleCubicClip` | Toggles | Ctrl+\\ | (radiant/camwindow.cpp:2491)
 - [x] `ToggleEntityInspector` | Commands | N | (radiant/mainframe.cpp:2079)
 - [~] `ToggleEntityList` | Commands | Shift+L | (radiant/mainframe.cpp:2082) -- Stufe 2
 - [x] `ToggleFrontView` | Toggles | - | (radiant/xywindow.cpp:2269)
@@ -902,7 +902,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `Undo` | Commands | Ctrl+Z | (radiant/select.cpp:1859) -- Stufe 2
 - [~] `UnSelectSelection` | Commands | C | (radiant/select.cpp:1875) -- Stufe 2
 - [~] `UnSelectSelection2` | Commands | Escape | (radiant/select.cpp:1874) -- Stufe 2
-- [~] `UpFloor` | Commands | PgUp | (radiant/camwindow.cpp:2495) -- Stufe 2
+- [x] `UpFloor` | Commands | PgUp | (radiant/camwindow.cpp:2495)
 - [x] `ViewFront` | Commands | +Qt::Key_1 + Qt::KeypadModifier | (radiant/xywindow.cpp:2274) -- Stufe 1b Punkt 5
 - [x] `ViewSide` | Commands | +Qt::Key_3 + Qt::KeypadModifier | (radiant/xywindow.cpp:2275) -- Stufe 1b Punkt 5
 - [x] `ViewTop` | Commands | +Qt::Key_7 + Qt::KeypadModifier | (radiant/xywindow.cpp:2273) -- Stufe 1b Punkt 5
@@ -925,7 +925,7 @@ Name | Art | Standardtaste | Quelle
 - [ ] "Set Light intensity"  (radiant/gtkdlgs.cpp:415)
 - [ ] "Install Map Developer's Files"  (radiant/gtkdlgs.cpp:492)
 - [ ] "Engine Path Configuration"  (radiant/mainframe.cpp:421)
-- [ ] "Camera"  (radiant/mainframe.cpp:1755)
+- [x] "Camera"  (radiant/mainframe.cpp:1755)
 - [ ] "Map Info"  (radiant/map.cpp:908)
 - [ ] "Find Brush"  (radiant/map.cpp:2085)
 - [ ] "Patch density"  (radiant/patchmanip.cpp:839)
@@ -942,7 +942,7 @@ Name | Art | Standardtaste | Quelle
 
 - [ ] Autosave: "Autosave Preferences"  (radiant/autosave.cpp:173)
 - [ ] Brush: "Brush Settings"  (radiant/brushmodule.cpp:113)
-- [ ] Camera: "Camera View Preferences"  (radiant/camwindow.cpp:2461)
+- [x] Camera: "Camera View Preferences"  (radiant/camwindow.cpp:2461)
 - [ ] Clipper: "Clipper Tool Settings"  (radiant/clippertool.cpp:186)
 - [ ] Entities: "Entity Display Preferences"  (radiant/entity.cpp:682)
 - [ ] Grid: "Grid Settings"  (radiant/grid.cpp:258)
@@ -967,21 +967,21 @@ Name | Art | Standardtaste | Quelle
 - [ ] Combo New map Brush Type  (radiant/brushmodule.cpp:95)
 - [ ] CheckBox Always use caulk for new brushes  (radiant/brushmodule.cpp:102)
 - [ ] CheckBox Dangerous! / Snap plane points to integer grid (may break brushes)  (radiant/brushmodule.cpp:106)
-- [ ] Spinner Movement Speed  (radiant/camwindow.cpp:2399)
-- [ ] Spinner Time to Max Speed  (radiant/camwindow.cpp:2400)
-- [ ] Spinner Scroll Move Speed  (radiant/camwindow.cpp:2401)
-- [ ] Spinner Strafe Speed  (radiant/camwindow.cpp:2402)
-- [ ] Spinner Mouse Sensitivity  (radiant/camwindow.cpp:2403)
-- [ ] CheckBox Invert mouse vertical axis  (radiant/camwindow.cpp:2404)
-- [ ] CheckBox Zoom to Mouse pointer  (radiant/camwindow.cpp:2405)
-- [ ] CheckBox Discrete movement  (radiant/camwindow.cpp:2406)
-- [ ] CheckBox Enable far-clip plane  (radiant/camwindow.cpp:2411)
-- [ ] CheckBox Colorize selection  (radiant/camwindow.cpp:2416)
-- [ ] CheckBox Selected faces wire  (radiant/camwindow.cpp:2421)
-- [ ] Combo Render Mode / doom3  (radiant/camwindow.cpp:2428)
-- [ ] Combo MSAA  (radiant/camwindow.cpp:2438)
-- [ ] Combo Strafe Mode  (radiant/camwindow.cpp:2448)
-- [ ] Spinner Field Of View  (radiant/camwindow.cpp:2454)
+- [x] Spinner Movement Speed  (radiant/camwindow.cpp:2399)
+- [x] Spinner Time to Max Speed  (radiant/camwindow.cpp:2400)
+- [x] Spinner Scroll Move Speed  (radiant/camwindow.cpp:2401)
+- [x] Spinner Strafe Speed  (radiant/camwindow.cpp:2402)
+- [x] Spinner Mouse Sensitivity  (radiant/camwindow.cpp:2403)
+- [x] CheckBox Invert mouse vertical axis  (radiant/camwindow.cpp:2404)
+- [x] CheckBox Zoom to Mouse pointer  (radiant/camwindow.cpp:2405)
+- [x] CheckBox Discrete movement  (radiant/camwindow.cpp:2406)
+- [x] CheckBox Enable far-clip plane  (radiant/camwindow.cpp:2411)
+- [x] CheckBox Colorize selection  (radiant/camwindow.cpp:2416)
+- [ ] CheckBox Selected faces wire  (radiant/camwindow.cpp:2421) -- Wirkung mit der Flaechenauswahl (Punkt 7)
+- [x] Combo Render Mode / doom3  (radiant/camwindow.cpp:2428)
+- [x] Combo MSAA  (radiant/camwindow.cpp:2438)
+- [x] Combo Strafe Mode  (radiant/camwindow.cpp:2448)
+- [x] Spinner Field Of View  (radiant/camwindow.cpp:2454)
 - [ ] CheckBox Caulk Clipper Cuts  (radiant/clippertool.cpp:170)
 - [ ] CheckBox Reset Flipped State  (radiant/clippertool.cpp:171)
 - [ ] CheckBox Reset Points on Split  (radiant/clippertool.cpp:172)

@@ -504,7 +504,7 @@ void feldInhalt(Feld f) {
         xyZeichnen(2);
         break;
     case Feld::Kamera:
-        dl->AddRectFilled(a, b, ImGui::GetColorU32(farbe(ed.farben.kameraHinten)));
+        kameraZeichnen();
         break;
     case Feld::Konsole:
         konsoleZeichnen();

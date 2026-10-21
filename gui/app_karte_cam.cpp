@@ -1,0 +1,1201 @@
+// app_karte_cam.cpp - Karten-Editor: die 3D-Kamera (CamWnd).
+//
+// Portiert aus NetRadiant-Custom 20260114: radiant/camwindow.cpp (CamWnd:
+// Cam_Draw, die Darstellungsarten, Freelook mit FreezePointer, Rechtsklick-
+// Uhr und Kontextmenue-Versuch, Mausrad, Camera_keyMove, die KeyEvents und
+// diskreten Befehle, CameraFocusOnSelected, CenterView, Up/DownFloor, Cubic
+// Clip, CameraModeNext/Prev, CameraSpeedInc/Dec, ShowStats, ShowWorkzone3d,
+// ShowSize3d, das Fadenkreuz im Freelook, CamDrawSize), radiant/renderstate.cpp
+// (die Zustaende $CAM_HIGHLIGHT, $CAM_OVERLAY, $CAM_WIRE, $CAM_WORKZONE und
+// die aus Shadern: qer_trans, qer_alphafunc, cull, skyparms; die
+// Sortierung), radiant/textures.cpp (LoadTextureRGBA: Durchschnittsfarbe,
+// Mipmaps, anisotrop; die Skybox als Wuerfel), radiant/texmanip.cpp
+// (R_ResampleTexture), plugins/shaders/shaders.cpp (notex.png /
+// shadernotex.png), libs/gtkutil/cursor.h (FreezePointer),
+// libs/gtkutil/accelerator.cpp (PressedKeys) und
+// plugins/entity/namedentity.h (Namen in 3D bis 512 Einheiten).
+// Die Rechnung steht in bhed/karte/kamera.h und kameraszene.h.
+//
+//   Copyright (C) 1999-2006 Id Software, Inc. and contributors.
+//   For a list of contributors, see the accompanying CONTRIBUTORS file.
+//   This file is part of GtkRadiant.
+//
+//   GtkRadiant is free software; you can redistribute it and/or modify it under
+//   the terms of the GNU General Public License as published by the Free
+//   Software Foundation; either version 2 of the License, or (at your option)
+//   any later version. GtkRadiant is distributed in the hope that it will be
+//   useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+//   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+//   Public License for more details (LICENSE).
+#include "karteneditor.h"
+
+#include "app_internal.h"
+#include "bhed/image.h"
+#include "bhed/karte/kameraszene.h"
+#include "bhed/karte/patch.h"
+#include "bhed/karte/pinsel.h"
+#include "karte_gpu.h"
+#include "tastatur.h"
+
+#include <algorithm>
+#include <array>
+#include <chrono>
+#include <cmath>
+#include <condition_variable>
+#include <cstdio>
+#include <cstdlib>
+#include <deque>
+#include <map>
+#include <mutex>
+#include <thread>
+
+namespace bhed::gui::karteneditor {
+
+namespace {
+
+using karte::Farbe;
+using karte::Kasten;
+using karte::Vektor3f;
+
+Editor& e() { return editor(); }
+
+std::string klein(const std::string& s) {
+    std::string r = s;
+    for (char& c : r) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    return r;
+}
+
+// --- Bilder (qtexture_t) ---------------------------------------------------------
+
+struct Bild {
+    bool fertig = false;
+    void* srv = nullptr;        // texture_number
+    void* himmel = nullptr;     // m_textureSkyBox (0 = nicht geladen)
+    std::array<float, 3> farbe{1, 1, 1};   // qtexture_t::color
+};
+
+struct Auftrag {
+    std::string schluessel;
+    std::string bildName;   // m_textureName (qer_editorimage oder der Name)
+    std::string himmel;     // m_skyBox
+    bool standard = false;  // IsDefault: keine Shaderdefinition
+    unsigned generation = 0;
+};
+
+struct Ergebnis {
+    std::string schluessel;
+    unsigned generation = 0;
+    image::Image bild;
+    std::array<float, 3> farbe{1, 1, 1};
+    int himmelGroesse = 0;
+    std::array<std::vector<unsigned char>, 6> seiten;
+};
+
+// R_ResampleTexture (texmanip.cpp:39-214), 4 Bytes je Punkt.
+void lerpZeile(const unsigned char* in, unsigned char* out, int inB, int outB) {
+    int alt = 0;
+    const int schritt = static_cast<int>(static_cast<float>(inB) * 65536.0F / static_cast<float>(outB));
+    const int ende = inB - 1;
+    for (int j = 0, f = 0; j < outB; ++j, f += schritt) {
+        const int xi = f >> 16;
+        if (xi != alt) {
+            in += (xi - alt) * 4;
+            alt = xi;
+        }
+        if (xi < ende) {
+            const int lerp = f & 0xFFFF;
+            for (int k = 0; k < 4; ++k) { *out++ = static_cast<unsigned char>((((in[4 + k] - in[k]) * lerp) >> 16) + in[k]); }
+        } else {   // last pixel of the line has no pixel to lerp to
+            for (int k = 0; k < 4; ++k) { *out++ = in[k]; }
+        }
+    }
+}
+
+std::vector<unsigned char> neuAbtasten(const unsigned char* in, int inB, int inH, int outB, int outH) {
+    std::vector<unsigned char> out(static_cast<std::size_t>(outB) * static_cast<std::size_t>(outH) * 4U);
+    std::vector<unsigned char> z1(static_cast<std::size_t>(outB) * 4U);
+    std::vector<unsigned char> z2(static_cast<std::size_t>(outB) * 4U);
+    const int ende = inH - 1;
+    const int b4 = inB * 4;
+    const int schritt = static_cast<int>(static_cast<float>(inH) * 65536.0F / static_cast<float>(outH));
+    const unsigned char* zeile = in;
+    int alt = 0;
+    lerpZeile(zeile, z1.data(), inB, outB);
+    lerpZeile(zeile + (inH > 1 ? b4 : 0), z2.data(), inB, outB);
+    unsigned char* o = out.data();
+    for (int i = 0, f = 0; i < outH; ++i, f += schritt) {
+        const int yi = f >> 16;
+        if (yi < ende) {
+            const int lerp = f & 0xFFFF;
+            if (yi != alt) {
+                zeile = in + (static_cast<std::ptrdiff_t>(b4) * yi);
+                if (yi == alt + 1) {
+                    z1 = z2;
+                } else {
+                    lerpZeile(zeile, z1.data(), inB, outB);
+                }
+                lerpZeile(zeile + b4, z2.data(), inB, outB);
+                alt = yi;
+            }
+            for (int k = 0; k < outB * 4; ++k) {
+                *o++ = static_cast<unsigned char>((((z2[static_cast<std::size_t>(k)] - z1[static_cast<std::size_t>(k)]) * lerp) >> 16) +
+                                                  z1[static_cast<std::size_t>(k)]);
+            }
+        } else {
+            if (yi != alt) {
+                zeile = in + (static_cast<std::ptrdiff_t>(b4) * yi);
+                if (yi == alt + 1) {
+                    z1 = z2;
+                } else {
+                    lerpZeile(zeile, z1.data(), inB, outB);
+                }
+                alt = yi;
+            }
+            std::copy(z1.begin(), z1.end(), o);
+            o += outB * 4;
+        }
+    }
+    return out;
+}
+
+// QERApp_LoadImage: Bildmodule alphabetisch (jpg, png, tga), das erste
+// gefundene gilt.
+image::Image bildLaden(const karte::Dateisystem& fs, const std::string& name) {
+    for (const char* typ : {"jpg", "png", "tga"}) {
+        std::string daten;
+        if (fs.dateiLesen(name + '.' + typ, daten)) {
+            return image::decode(reinterpret_cast<const unsigned char*>(daten.data()), daten.size());
+        }
+    }
+    return {};
+}
+
+image::Image dateiLaden(const std::string& pfad) {
+    std::FILE* f = std::fopen(pfad.c_str(), "rb");
+    if (f == nullptr) { return {}; }
+    std::vector<unsigned char> d;
+    unsigned char puffer[65536];
+    std::size_t n = 0;
+    while ((n = std::fread(puffer, 1, sizeof(puffer), f)) > 0) { d.insert(d.end(), puffer, puffer + n); }
+    std::fclose(f);
+    return image::decode(d.data(), d.size());
+}
+
+class Bildlager {
+public:
+    ~Bildlager() { anhalten(); }
+
+    // Den Shader anfordern; nullptr, solange kein Spiel geladen ist.
+    const Bild* holen(const std::string& shader) {
+        Editor& ed = e();
+        if (!ed.karteSpiel) { return nullptr; }
+        pruefen();
+        const std::string schl = klein(shader);
+        const auto it = m_bilder.find(schl);
+        if (it != m_bilder.end()) { return &it->second; }
+        Bild& b = m_bilder[schl];
+        const karte::ShaderEintrag* s = ed.karteSpiel->inventar.shaderFinden(shader);
+        Auftrag a;
+        a.schluessel = schl;
+        a.bildName = s != nullptr ? s->texturName : shader;
+        a.himmel = s != nullptr ? s->himmel : std::string();
+        a.standard = s == nullptr;
+        {
+            std::lock_guard<std::mutex> l(m_sperre);
+            a.generation = m_generation;
+            m_auftraege.push_back(std::move(a));
+            ++m_offen;
+        }
+        starten();
+        m_cv.notify_one();
+        return &b;
+    }
+
+    // Fertige Bilder auf die Grafikkarte (nur im Hauptfaden).
+    void abholen() {
+        pruefen();
+        std::vector<Ergebnis> fertig;
+        {
+            std::lock_guard<std::mutex> l(m_sperre);
+            fertig.swap(m_ergebnisse);
+        }
+        for (Ergebnis& r : fertig) {
+            if (r.generation != m_generation) { continue; }
+            const auto it = m_bilder.find(r.schluessel);
+            if (it == m_bilder.end()) { continue; }
+            Bild& b = it->second;
+            b.farbe = r.farbe;
+            if (r.bild.ok) { b.srv = kartegpu::bildAnlegen(r.bild.rgba.data(), r.bild.width, r.bild.height); }
+            if (r.himmelGroesse > 0) {
+                const unsigned char* s[6];
+                for (int i = 0; i < 6; ++i) { s[i] = r.seiten[static_cast<std::size_t>(i)].data(); }
+                b.himmel = kartegpu::wuerfelAnlegen(s, r.himmelGroesse);
+            }
+            b.fertig = true;
+            std::lock_guard<std::mutex> l(m_sperre);
+            if (m_offen > 0) { --m_offen; }
+        }
+    }
+
+    [[nodiscard]] bool fertig() const {
+        std::lock_guard<std::mutex> l(m_sperre);
+        return m_offen == 0;
+    }
+
+private:
+    // Neues Spiel oder neues Grafikgeraet: alles vergessen.
+    void pruefen() {
+        Editor& ed = e();
+        if (ed.karteSpiel == m_spiel && kartegpu::geraetStand() == m_geraet) { return; }
+        const bool gleichesGeraet = kartegpu::geraetStand() == m_geraet;
+        for (auto& [n, b] : m_bilder) {
+            (void)n;
+            if (gleichesGeraet) {
+                kartegpu::bildFreigeben(b.srv);
+                kartegpu::bildFreigeben(b.himmel);
+            }
+        }
+        m_bilder.clear();
+        std::lock_guard<std::mutex> l(m_sperre);
+        ++m_generation;
+        m_auftraege.clear();
+        m_ergebnisse.clear();
+        m_offen = 0;
+        m_spiel = ed.karteSpiel;
+        m_geraet = kartegpu::geraetStand();
+        m_ersatzOrdner = directoryOf(g_app->dataDir) + "/karte/bitmaps/";
+    }
+
+    void starten() {
+        if (!m_faeden.empty()) { return; }
+        const unsigned n = std::clamp(std::thread::hardware_concurrency(), 2U, 4U) - 1U;
+        for (unsigned i = 0; i < n; ++i) {
+            m_faeden.emplace_back([this] { arbeiten(); });
+        }
+    }
+
+    void anhalten() {
+        {
+            std::lock_guard<std::mutex> l(m_sperre);
+            m_ende = true;
+        }
+        m_cv.notify_all();
+        for (std::thread& t : m_faeden) { t.join(); }
+        m_faeden.clear();
+    }
+
+    void arbeiten() {
+        for (;;) {
+            Auftrag a;
+            std::shared_ptr<Spielkontext> spiel;
+            std::string ersatz;
+            {
+                std::unique_lock<std::mutex> l(m_sperre);
+                m_cv.wait(l, [this] { return m_ende || !m_auftraege.empty(); });
+                if (m_ende) { return; }
+                a = std::move(m_auftraege.front());
+                m_auftraege.pop_front();
+                spiel = m_spiel;
+                ersatz = m_ersatzOrdner;
+            }
+            Ergebnis r;
+            r.schluessel = a.schluessel;
+            r.generation = a.generation;
+            if (spiel) {
+                r.bild = bildLaden(spiel->fs, a.bildName);
+                if (!r.bild.ok || r.bild.width <= 0 || r.bild.height <= 0) {
+                    // shaders.cpp:953-962: notex.png ohne Definition, sonst shadernotex.png
+                    r.bild = dateiLaden(ersatz + (a.standard ? "notex.png" : "shadernotex.png"));
+                }
+                if (r.bild.ok) {
+                    // LoadTextureRGBA: Durchschnitt vor der Gamma-Korrektur
+                    double summe[3] = {0, 0, 0};
+                    const std::size_t n = static_cast<std::size_t>(r.bild.width) * static_cast<std::size_t>(r.bild.height);
+                    for (std::size_t i = 0; i < n; ++i) {
+                        for (std::size_t j = 0; j < 3; ++j) { summe[j] += r.bild.rgba[(i * 4) + j]; }
+                    }
+                    for (std::size_t j = 0; j < 3; ++j) { r.farbe[j] = static_cast<float>(summe[j] / (static_cast<double>(n) * 255.0)); }
+                }
+                if (!a.himmel.empty()) {
+                    // qtexture_realise: _ft _bk _up _dn _rt _lf = +X -X +Y -Y +Z -Z,
+                    // alle sechs noetig, auf die groesste Seite gebracht.
+                    static const char* const endung[6] = {"_ft", "_bk", "_up", "_dn", "_rt", "_lf"};
+                    std::array<image::Image, 6> s;
+                    bool alle = true;
+                    int groesse = 0;
+                    for (std::size_t i = 0; i < 6; ++i) {
+                        s[i] = bildLaden(spiel->fs, a.himmel + endung[i]);
+                        alle = alle && s[i].ok && s[i].width > 0 && s[i].height > 0;
+                        if (s[i].ok) { groesse = std::max({groesse, s[i].width, s[i].height}); }
+                    }
+                    if (alle) {
+                        r.himmelGroesse = groesse;
+                        for (std::size_t i = 0; i < 6; ++i) {
+                            if (s[i].width != groesse || s[i].height != groesse) {
+                                r.seiten[i] = neuAbtasten(s[i].rgba.data(), s[i].width, s[i].height, groesse, groesse);
+                            } else {
+                                r.seiten[i] = std::move(s[i].rgba);
+                            }
+                        }
+                    }
+                }
+            }
+            std::lock_guard<std::mutex> l(m_sperre);
+            if (r.generation == m_generation) {
+                m_ergebnisse.push_back(std::move(r));
+            }
+        }
+    }
+
+    std::map<std::string, Bild> m_bilder;
+    std::shared_ptr<Spielkontext> m_spiel;
+    unsigned m_geraet = ~0U;
+    std::string m_ersatzOrdner;
+    mutable std::mutex m_sperre;
+    std::condition_variable m_cv;
+    std::deque<Auftrag> m_auftraege;
+    std::vector<Ergebnis> m_ergebnisse;
+    std::size_t m_offen = 0;
+    unsigned m_generation = 0;
+    std::vector<std::thread> m_faeden;
+    bool m_ende = false;
+};
+
+Bildlager& lager() {
+    static Bildlager l;
+    return l;
+}
+
+// --- Szene auf der Grafikkarte ----------------------------------------------------
+
+struct Bereich {
+    std::size_t erstes = 0;
+    std::size_t anzahl = 0;
+};
+
+struct Stapel3 {
+    karte::StapelArt art = karte::StapelArt::Shader;
+    std::string shader;
+    Farbe farbe = 0xFFFFFFFFU;
+    Bereich dreiecke;
+    Bereich kanten;
+    Bereich kantenGewaehlt;
+    Bereich linien;
+    std::size_t objekte = 0;      // ShowStats
+    std::size_t transforms = 0;
+};
+
+struct Szene3 {
+    std::size_t stand = static_cast<std::size_t>(-1);
+    bool mitKanten = false;
+    std::vector<Stapel3> stapel;
+    std::vector<kartegpu::Punkt3> dreieckDaten;
+    std::vector<kartegpu::LinienPunkt> linienDaten;
+    kartegpu::Puffer3 dreiecke;
+    kartegpu::Puffer3 linien;
+    bool gpuAktuell = false;
+    std::vector<kartegpu::Punkt3> tint;               // $CAM_HIGHLIGHT
+    std::vector<kartegpu::LinienPunkt> tintKanten;    // ... im Drahtmodus (Polygon als Linien)
+    std::vector<kartegpu::LinienPunkt> tintLinien;    // ... GL_LINES
+    std::vector<kartegpu::LinienPunkt> overlay;       // $CAM_OVERLAY
+    std::vector<karte::KameraName> namen;
+    std::size_t dreieckAnzahl = 0;
+    std::size_t tintObjekte = 0;      // ShowStats
+    std::size_t tintTransforms = 0;
+    std::size_t overlayObjekte = 0;
+    std::size_t overlayTransforms = 0;
+    std::size_t wahlPrimitive = 0;
+};
+Szene3 g_szene;
+
+kartegpu::Punkt3 punkt3(const karte::KameraPunkt& p, bool weiss) {
+    kartegpu::Punkt3 q{};
+    q.pos[0] = p.pos[0];
+    q.pos[1] = p.pos[1];
+    q.pos[2] = p.pos[2];
+    q.normale[0] = p.normale[0];
+    q.normale[1] = p.normale[1];
+    q.normale[2] = p.normale[2];
+    q.st[0] = p.st[0];
+    q.st[1] = p.st[1];
+    q.farbe = weiss ? 0xFFFFFFFFU : p.farbe;
+    return q;
+}
+
+void kanteDazu(const karte::KameraKante& k, bool weiss, std::vector<kartegpu::LinienPunkt>& aus) {
+    kartegpu::LinienPunkt a{};
+    a.pos[0] = k.a[0];
+    a.pos[1] = k.a[1];
+    a.pos[2] = k.a[2];
+    a.farbe = weiss ? 0xFFFFFFFFU : k.fa;
+    a.extra[0] = k.c[0];
+    a.extra[1] = k.c[1];
+    a.extra[2] = k.c[2];
+    a.extra[3] = k.polygon ? 1.0F : 0.0F;
+    kartegpu::LinienPunkt b = a;
+    b.pos[0] = k.b[0];
+    b.pos[1] = k.b[1];
+    b.pos[2] = k.b[2];
+    b.farbe = weiss ? 0xFFFFFFFFU : k.fb;
+    aus.push_back(a);
+    aus.push_back(b);
+}
+
+void szeneBauen(bool mitKanten) {
+    Editor& ed = e();
+    karte::KameraSzenenOptionen o;
+    o.kanten = mitKanten;
+    o.winkel = ed.anzeige.winkel;
+    o.namen = ed.anzeige.namen;
+    o.lichtRadien = ed.anzeige.lichtRadien;
+    karte::KameraSzene roh = karte::kameraSzeneBauen(ed.karte, o);
+    Szene3& s = g_szene;
+    s.stapel.clear();
+    s.dreieckDaten.clear();
+    s.linienDaten.clear();
+    s.mitKanten = mitKanten;
+    for (karte::KameraStapel& st : roh.stapel) {
+        Stapel3 z;
+        z.art = st.art;
+        z.shader = st.shader;
+        z.farbe = st.farbe;
+        z.objekte = st.objekte;
+        z.transforms = st.transforms;
+        z.dreiecke.erstes = s.dreieckDaten.size();
+        for (const karte::KameraPunkt& p : st.dreiecke) { s.dreieckDaten.push_back(punkt3(p, false)); }
+        z.dreiecke.anzahl = s.dreieckDaten.size() - z.dreiecke.erstes;
+        const auto bereich = [&](const std::vector<karte::KameraKante>& v, Bereich& b) {
+            b.erstes = s.linienDaten.size();
+            for (const karte::KameraKante& k : v) { kanteDazu(k, false, s.linienDaten); }
+            b.anzahl = s.linienDaten.size() - b.erstes;
+        };
+        bereich(st.kanten, z.kanten);
+        bereich(st.kantenGewaehlt, z.kantenGewaehlt);
+        bereich(st.linien, z.linien);
+        s.stapel.push_back(std::move(z));
+        st.dreiecke = {};
+        st.kanten = {};
+        st.kantenGewaehlt = {};
+    }
+    s.tint.clear();
+    for (const karte::KameraPunkt& p : roh.wahlDreiecke) { s.tint.push_back(punkt3(p, true)); }
+    s.tintKanten.clear();
+    s.overlay.clear();
+    for (const karte::KameraKante& k : roh.wahlKanten) {
+        kanteDazu(k, true, s.overlay);
+        if (k.polygon) { kanteDazu(k, true, s.tintKanten); }
+    }
+    s.tintLinien.clear();
+    for (const karte::KameraKante& k : roh.wahlTintLinien) { kanteDazu(k, true, s.tintLinien); }
+    s.namen = std::move(roh.namen);
+    s.dreieckAnzahl = roh.dreieckAnzahl;
+    s.tintObjekte = roh.tintObjekte;
+    s.tintTransforms = roh.tintTransforms;
+    s.overlayObjekte = roh.overlayObjekte;
+    s.overlayTransforms = roh.overlayTransforms;
+    s.wahlPrimitive = roh.wahlPrimitive;
+    s.gpuAktuell = false;
+}
+
+// FloorHeightWalker: alle sichtbaren Knoten ausser Wurzel und Gruppen.
+std::vector<karte::EtagenKandidat> etagenKandidaten() {
+    Editor& ed = e();
+    std::vector<karte::EtagenKandidat> v;
+    const karte::Kontext& k = ed.karte.kontext;
+    for (const auto& ent : ed.karte.entitaeten()) {
+        for (const auto& p : ent->kinder()) {
+            const bool gew = ed.karte.auswahl.gewaehlt(ent.get(), p.get());
+            if (p->art() == karte::Primitiv::Art::Pinsel) {
+                v.push_back({static_cast<const karte::Pinsel&>(*p).grenzen(k), gew});
+            } else {
+                v.push_back({static_cast<const karte::Patch&>(*p).grenzen(), gew});
+            }
+        }
+        if (!ent->istBehaelter()) {
+            const karte::EntitaetsKlasse* kl = ent->klasse();
+            Vektor3f o(0, 0, 0);
+            (void)std::sscanf(ent->wert("origin").c_str(), "%f %f %f", &o[0], &o[1], &o[2]);
+            const Vektor3f mn = kl != nullptr ? kl->mins : Vektor3f(-8, -8, -8);
+            const Vektor3f mx = kl != nullptr ? kl->maxs : Vektor3f(8, 8, 8);
+            v.push_back({karte::kastenAusMinMax(o + mn, o + mx), ed.karte.auswahl.gewaehlt(ent.get())});
+        }
+    }
+    return v;
+}
+
+// --- KeyEvents (camwindow.cpp:1332-1433) ------------------------------------------
+
+struct TastenEreignis {
+    const char* name;
+    unsigned flag;
+    bool frei;   // CamWnd_Add_Handlers_FreeMove, sonst CamWnd_Move_Enable (nicht diskret)
+};
+const TastenEreignis kTastenEreignisse[] = {
+    {"CameraForward", karte::kBewegVor, false},          {"CameraBack", karte::kBewegZurueck, false},
+    {"CameraLeft", karte::kBewegDrehLinks, false},       {"CameraRight", karte::kBewegDrehRechts, false},
+    {"CameraStrafeRight", karte::kBewegRechts, false},   {"CameraStrafeLeft", karte::kBewegLinks, false},
+    {"CameraUp", karte::kBewegHoch, false},              {"CameraDown", karte::kBewegRunter, false},
+    {"CameraAngleUp", karte::kBewegNeigHoch, false},     {"CameraAngleDown", karte::kBewegNeigRunter, false},
+    {"CameraFreeMoveForward", karte::kBewegVor, true},   {"CameraFreeMoveBack", karte::kBewegZurueck, true},
+    {"CameraFreeMoveLeft", karte::kBewegLinks, true},    {"CameraFreeMoveRight", karte::kBewegRechts, true},
+    {"CameraFreeMoveForward2", karte::kBewegVor, true},  {"CameraFreeMoveBack2", karte::kBewegZurueck, true},
+    {"CameraFreeMoveLeft2", karte::kBewegLinks, true},   {"CameraFreeMoveRight2", karte::kBewegRechts, true},
+    {"CameraFreeMoveUp", karte::kBewegHoch, true},       {"CameraFreeMoveDown", karte::kBewegRunter, true},
+    {"CameraFreeFocus", karte::kBewegFokus, true},
+};
+
+bool ereignisVerbunden(const TastenEreignis& t) {
+    const Editor& ed = e();
+    return t.frei ? ed.kamFenster.frei : (!ed.kamFenster.frei && !ed.kameraE.diskret);
+}
+
+// Das verbundene KeyEvent zur Taste key ohne Zusatztasten (nullptr: keins).
+const TastenEreignis* ereignisFuer(int key) {
+    Editor& ed = e();
+    befehle::TastenBelegung kb;
+    bool ziffernblock = false;
+    bool erweitert = false;
+    if (!tastenBelegung(key, kb, ziffernblock, erweitert) || ziffernblock) { return nullptr; }
+    const std::vector<befehle::Taste> moeglich = befehle::moeglicheTasten(kb, 0, erweitert);
+    for (const TastenEreignis& t : kTastenEreignisse) {
+        if (!ereignisVerbunden(t)) { continue; }
+        const befehle::Taste taste = ed.belegung.taste(t.name);
+        if (taste == 0) { continue; }
+        if (std::find(moeglich.begin(), moeglich.end(), taste) != moeglich.end()) { return &t; }
+    }
+    return nullptr;
+}
+
+void tasteRunter(const TastenEreignis& t) {
+    Editor& ed = e();
+    if (ed.kamera.flagsSetzen(t.flag)) { ed.kamFenster.tastenUhr = ImGui::GetTime(); }
+    if (t.flag == karte::kBewegFokus) { ed.kamera.fokusVersatz = 0; }   // Camera_Focus_KeyDown
+}
+
+void tasteHoch(const TastenEreignis& t) {
+    Editor& ed = e();
+    if (ed.kamera.flagsLoeschen(t.flag)) { ed.kamFenster.tastenUhr = -1.0; }
+    if (t.flag == karte::kBewegFokus) { ed.kamera.fokusVersatz = 0; }   // Camera_Focus_KeyUp
+}
+
+// --- Freelook (camwindow.cpp:1097-1177, 1768-1803) --------------------------------
+
+ImVec2 fensterMitte() {
+    // FreezePointer::getCenter: rect().center() in logischen Punkten
+    const KameraFenster& f = e().kamFenster;
+    const float qt = std::max(1.0F, std::round(g_app->dpiScale));
+    const int b = static_cast<int>(std::lround(static_cast<float>(f.breite) / qt));
+    const int h = static_cast<int>(std::lround(static_cast<float>(f.hoehe) / qt));
+    return ImVec2{f.bildX + (static_cast<float>((b - 1) / 2) * qt), f.bildY + (static_cast<float>((h - 1) / 2) * qt)};
+}
+
+void freelookBeginnen() {
+    Editor& ed = e();
+    KameraFenster& f = ed.kamFenster;
+    f.frei = true;
+    if (ed.kamera.flagsLoeschen(karte::kBewegAlle)) { f.tastenUhr = -1.0; }
+    static const bool imTest = std::getenv("BHED_EDITORTEST") != nullptr;
+    const ImVec2 m = fensterMitte();
+    if (!imTest) {
+        ImGui::TeleportMousePos(m);   // QCursor::setPos( getCenter() )
+        f.letzteX = m.x;
+        f.letzteY = m.y;
+    } else {
+        f.letzteX = ImGui::GetIO().MousePos.x;
+        f.letzteY = ImGui::GetIO().MousePos.y;
+    }
+}
+
+// context_menu_show: das Entitaetenmenue der aktiven 2D-Ansicht (Punkt 9).
+void kontextmenueZeigen() { e().kamFenster.kontextmenue = true; }
+
+// camera_orbit_init (camwindow.cpp:1112-1123): Drehpunkt unter dem Zeiger.
+// Scene_Intersect mit Treffer (BestPointSelector) kommt mit der Auswahl
+// (Punkt 7); ohne Treffer 256 vor der Nahebene.
+void orbitBeginnen(float x, float y) {
+    karte::Kamera& k = e().kamera;
+    const karte::Vektor2f p = k.geraetePunkt(x, y);
+    k.orbitBeginnen(k.strahlOhneTreffer(p[0], p[1]));
+}
+
+void zahlText(char* z, std::size_t n, float f) { std::snprintf(z, n, "%g", static_cast<double>(f)); }
+
+}  // namespace
+
+void freelookBeenden() {
+    Editor& ed = e();
+    KameraFenster& f = ed.kamFenster;
+    if (!f.frei) { return; }
+    f.frei = false;
+    if (ed.kamera.flagsLoeschen(karte::kBewegAlle)) { f.tastenUhr = -1.0; }
+    static const bool imTest = std::getenv("BHED_EDITORTEST") != nullptr;
+    if (!imTest) { ImGui::TeleportMousePos(fensterMitte()); }   // unfreeze_pointer( true )
+}
+
+bool befehlVerbunden(const std::string& name) {
+    const befehle::Befehl* b = befehle::finden(name);
+    if (b == nullptr || (b->art & befehle::kKeyEvent) == 0U) { return true; }
+    // CamWnd_Move_Discrete_Enable: die diskreten Befehle nur ausserhalb des
+    // Freelooks und bei "Discrete movement"; reine KeyEvents nie als Befehl.
+    if ((b->art & befehle::kCommand) != 0U) { return e().kameraE.diskret && !e().kamFenster.frei; }
+    return false;
+}
+
+bool kameraTasteVerbraucht(int key) {
+    Editor& ed = e();
+    KameraFenster& f = ed.kamFenster;
+    const auto k = static_cast<ImGuiKey>(key);
+    bool verbraucht = false;
+    if (ImGui::IsKeyPressed(k, true)) {
+        // PressedKeys_key_press: nur ohne Zusatztasten (auch ohne KeypadModifier)
+        if (qtZusatztasten() == 0) {
+            const TastenEreignis* t = ereignisFuer(key);
+            const bool neu = std::find(f.tasten.begin(), f.tasten.end(), key) == f.tasten.end();
+            if (neu && ImGui::IsKeyPressed(k, false)) {
+                f.tasten.push_back(key);
+                if (t != nullptr) { tasteRunter(*t); }
+            }
+            verbraucht = t != nullptr;   // auch bei der Wiederholung
+        }
+    }
+    if (ImGui::IsKeyReleased(k)) {
+        // PressedKeys_key_release: unabhaengig von Zusatztasten
+        const auto it = std::find(f.tasten.begin(), f.tasten.end(), key);
+        if (it != f.tasten.end()) {
+            f.tasten.erase(it);
+            if (const TastenEreignis* t = ereignisFuer(key)) {
+                tasteHoch(*t);
+                verbraucht = true;
+            }
+        }
+    }
+    return verbraucht;
+}
+
+void kameraTastenLoslassen() {
+    Editor& ed = e();
+    KameraFenster& f = ed.kamFenster;
+    // Keys_releaseAll
+    for (const int key : f.tasten) {
+        if (const TastenEreignis* t = ereignisFuer(key)) { tasteHoch(*t); }
+    }
+    f.tasten.clear();
+}
+
+bool kameraBrauchtBilder() {
+    const Editor& ed = e();
+    return ed.kamera.bewegung != 0U || ed.kamFenster.frei || !lager().fertig();
+}
+
+bool kameraBilderFertig() {
+    lager().abholen();
+    return lager().fertig();
+}
+
+bool kameraPixel(int x, int y, unsigned char rgba[4]) { return kartegpu::pixel(200, x, y, rgba); }
+
+bool kameraTexturFarbe(const std::string& shader, float rgb[3]) {
+    const Bild* b = lager().holen(shader);
+    if (b == nullptr || !b->fertig) { return false; }
+    rgb[0] = b->farbe[0];
+    rgb[1] = b->farbe[1];
+    rgb[2] = b->farbe[2];
+    return true;
+}
+
+// --- Befehle --------------------------------------------------------------------
+
+void kameraBefehl(const std::string& name) {
+    Editor& ed = e();
+    karte::Kamera& k = ed.kamera;
+    karte::KameraEinstellungen& c = ed.kameraE;
+    if (name == "CenterView") {
+        k.winkelZuruecksetzen();
+    } else if (name == "CameraFocusOnSelected") {
+        k.setzeUrsprung(k.fokusPosition(ed.workzone));
+    } else if (name == "ToggleCubicClip") {
+        c.kubisch = !c.kubisch;   // Camera_SetFarClip
+        k.projektionAktualisieren(c);
+        einstellungenSpeichern();
+    } else if (name == "CubicClipZoomIn") {
+        karte::kubikHinein(c);
+        k.projektionAktualisieren(c);
+        einstellungenSpeichern();
+    } else if (name == "CubicClipZoomOut") {
+        karte::kubikHinaus(c);
+        k.projektionAktualisieren(c);
+        einstellungenSpeichern();
+    } else if (name == "UpFloor" || name == "DownFloor") {
+        (void)k.etageWechseln(name == "UpFloor", etagenKandidaten());
+    } else if (name == "CameraModeNext") {
+        c.modus = karte::naechsterModus(c.modus);
+        einstellungenSpeichern();
+    } else if (name == "CameraModePrev") {
+        c.modus = karte::vorherigerModus(c.modus);
+        einstellungenSpeichern();
+    } else if (name == "CameraSpeedInc" || name == "CameraSpeedDec") {
+        if (name == "CameraSpeedInc") {
+            karte::tempoHoeher(c);
+            ausgabe(" ++Camera Move Speed: ");
+        } else {
+            karte::tempoNiedriger(c);
+            ausgabe(" --Camera Move Speed: ");
+        }
+        warnung(std::to_string(c.tempo));
+        einstellungenSpeichern();
+    } else if (name == "ShowStats") {
+        c.zeigeStatistik = !c.zeigeStatistik;
+        einstellungenSpeichern();
+    } else if (name == "ShowWorkzone3d") {
+        c.zeigeWorkzone = !c.zeigeWorkzone;
+        einstellungenSpeichern();
+    } else if (name == "ShowSize3d") {
+        c.zeigeGroesse = !c.zeigeGroesse;
+        einstellungenSpeichern();
+    } else if (name == "CameraForward") {
+        k.vorDiskret();
+    } else if (name == "CameraBack") {
+        k.zurueckDiskret();
+    } else if (name == "CameraLeft") {
+        k.drehLinksDiskret();
+    } else if (name == "CameraRight") {
+        k.drehRechtsDiskret();
+    } else if (name == "CameraStrafeRight") {
+        k.rechtsDiskret();
+    } else if (name == "CameraStrafeLeft") {
+        k.linksDiskret();
+    } else if (name == "CameraUp") {
+        k.hochDiskret();
+    } else if (name == "CameraDown") {
+        k.runterDiskret();
+    } else if (name == "CameraAngleUp") {
+        k.neigHochDiskret();
+    } else if (name == "CameraAngleDown") {
+        k.neigRunterDiskret();
+    }
+}
+
+// --- Zeichnen und Bedienen ----------------------------------------------------------
+
+void kameraZeichnen() {
+    Editor& ed = e();
+    karte::Kamera& k = ed.kamera;
+    const karte::KameraEinstellungen& c = ed.kameraE;
+    KameraFenster& f = ed.kamFenster;
+    static const bool imTest = std::getenv("BHED_EDITORTEST") != nullptr;
+    const auto beginn = std::chrono::steady_clock::now();
+    const ImVec2 o = ImGui::GetWindowPos();
+    const ImVec2 groesse = ImGui::GetWindowSize();
+    f.bildX = o.x;
+    f.bildY = o.y;
+    f.breite = std::max(1, static_cast<int>(groesse.x));
+    f.hoehe = std::max(1, static_cast<int>(groesse.y));
+    k.breite = f.breite;
+    k.hoehe = f.hoehe;
+    k.projektionAktualisieren(c);
+    k.modelviewAktualisieren();
+    const double jetzt = ImGui::GetTime();
+    // Selection_UpdateWorkzone
+    if (ed.karte.auswahl.anzahl() != 0) {
+        Kasten b;
+        if (auswahlGrenzen(b)) { ed.workzone = b; }
+    }
+    // Camera_keyMove: ein Schritt je Durchlauf mit gemessener Zeit
+    if (k.bewegung != 0U) {
+        float dt = f.tastenUhr >= 0.0 ? static_cast<float>(jetzt - f.tastenUhr) : 0.0F;
+        if (dt == 0.0F) { dt = 0.008F; }   // some reasonable move at the very start
+        f.tastenUhr = jetzt;
+        k.tastenSteuern(dt, c, ed.workzone);
+    }
+
+    // --- Szene
+    lager().abholen();
+    const bool mitKanten = c.modus == karte::KameraModus::Draht || c.modus == karte::KameraModus::TexturDraht;
+    const std::size_t stand = szeneStand();
+    if (g_szene.stand != stand || g_szene.mitKanten != mitKanten) {
+        szeneBauen(mitKanten);
+        g_szene.stand = stand;
+    }
+    Szene3& s = g_szene;
+
+    // --- Schrift wie die 2D-Ansichten (Myriad Pro 8 pt -> Segoe UI)
+    ImFont* ansichtSchrift = schrift();
+    const float schriftPx = 8.0F * 96.0F / 72.0F * 1.33F;
+    ImGui::PushFont(ansichtSchrift, schriftPx / std::max(0.01F, g_app->dpiScale * g_app->uiScale));
+    const float schriftHoehe = std::round(ImGui::GetFontSize());
+
+    const karte::Matrix4 vp = k.sicht();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const auto& hg = ed.farben.kameraHinten;
+    const float hinten[4] = {hg[0], hg[1], hg[2], 0.0F};
+    // Renderer_GetStats: Objekte, Zustaende, Matrix-Wechsel dieses Bilds
+    std::size_t prims = 0;
+    std::size_t zustaende = 0;
+    std::size_t transforms = 0;
+    const auto zaehlen = [&](std::size_t objekte, std::size_t wechsel) {
+        if (objekte == 0) { return; }
+        prims += objekte;
+        transforms += wechsel;
+        ++zustaende;
+    };
+    if (kartegpu::verfuegbar() && kartegpu::beginnen(200, f.breite, f.hoehe, c.msaa, hinten, true)) {
+        if (!s.gpuAktuell) {
+            s.dreiecke.setzen(s.dreieckDaten.data(), s.dreieckDaten.size() * sizeof(kartegpu::Punkt3));
+            s.linien.setzen(s.linienDaten.data(), s.linienDaten.size() * sizeof(kartegpu::LinienPunkt));
+            s.gpuAktuell = true;
+        }
+        const bool fuellen = c.modus != karte::KameraModus::Draht;
+        const bool texturen = c.modus == karte::KameraModus::Textur || c.modus == karte::KameraModus::TexturDraht;
+        kartegpu::Zustand3 basis;
+        basis.matrix = &vp[0];
+        basis.vpn[0] = k.vpn[0];
+        basis.vpn[1] = k.vpn[1];
+        basis.vpn[2] = k.vpn[2];
+        basis.auge[0] = k.ursprung[0];
+        basis.auge[1] = k.ursprung[1];
+        basis.auge[2] = k.ursprung[2];
+        const auto farbeSetzen = [](kartegpu::Zustand3& z, float r, float g, float b, float a) {
+            z.farbe[0] = r;
+            z.farbe[1] = g;
+            z.farbe[2] = b;
+            z.farbe[3] = a;
+        };
+        // Ein Shader-Stapel: der Zustand aus OpenGLShader::construct (Shader)
+        // UND der globale Zustand der Darstellungsart.
+        const auto shaderZiehen = [&](const Stapel3& st, bool durchsichtig) {
+            const Bild* b = lager().holen(st.shader);
+            if (b == nullptr || !b->fertig) { return; }
+            const karte::ShaderEintrag* se = ed.karteSpiel ? ed.karteSpiel->inventar.shaderFinden(st.shader) : nullptr;
+            const unsigned flags = se != nullptr ? se->flags : 0U;
+            const bool trans = (flags & karte::QER_TRANS) != 0U;
+            if (trans != durchsichtig) { return; }
+            kartegpu::Zustand3 z = basis;
+            const bool himmel = b->himmel != nullptr;   // m_shader->getSkyBox()->texture_number != 0
+            const float alpha = trans ? se->trans : 1.0F;
+            if (himmel) {
+                // RENDER_FILL | CULLFACE | TEXTURE | DEPTHTEST | DEPTHWRITE | COLOURWRITE | PROGRAM
+                z.wegschneiden = true;
+                z.tiefe = kartegpu::TiefenTest::Kleiner;
+                z.tiefeSchreiben = true;
+                farbeSetzen(z, b->farbe[0], b->farbe[1], b->farbe[2], 1.0F);
+                if (texturen) { z.himmel = b->himmel; }
+            } else {
+                z.licht = true;
+                z.wegschneiden = (flags & karte::QER_CULL) == 0U || se->cull == 1;   // eCullBack
+                if ((flags & karte::QER_ALPHATEST) != 0U) {
+                    z.alphaFunktion = se->alphaFunc;
+                    z.alphaRef = se->alphaRef;
+                }
+                if (trans) {
+                    z.mischen = kartegpu::Mischen::Alpha;
+                    z.tiefe = kartegpu::TiefenTest::KleinerGleich;
+                    z.tiefeSchreiben = false;
+                }
+                if (texturen) {
+                    z.bild = b->srv;
+                    farbeSetzen(z, 1, 1, 1, alpha);
+                } else {
+                    farbeSetzen(z, b->farbe[0], b->farbe[1], b->farbe[2], alpha);
+                }
+            }
+            zaehlen(st.objekte, st.transforms);
+            if (fuellen) {
+                kartegpu::dreiecke(s.dreiecke, st.dreiecke.erstes, st.dreiecke.anzahl, z);
+            } else {
+                // ohne RENDER_FILL: GL_LINE, ohne Licht und Textur
+                z.licht = false;
+                z.bild = nullptr;
+                z.himmel = nullptr;
+                farbeSetzen(z, b->farbe[0], b->farbe[1], b->farbe[2], alpha);
+                kartegpu::linien(s.linien, st.kanten.erstes, st.kanten.anzahl, z);
+                kartegpu::linien(s.linien, st.kantenGewaehlt.erstes, st.kantenGewaehlt.anzahl, z);
+            }
+        };
+        // "(r g b)" und "{r g b}"
+        const auto farbStapelZiehen = [&](const Stapel3& st) {
+            kartegpu::Zustand3 z = basis;
+            z.licht = fuellen;
+            z.wegschneiden = true;
+            if (st.art == karte::StapelArt::Additiv) {
+                z.mischen = kartegpu::Mischen::Additiv;
+                z.tiefeSchreiben = false;
+            }
+            if (fuellen) {
+                kartegpu::dreiecke(s.dreiecke, st.dreiecke.erstes, st.dreiecke.anzahl, z);
+            } else {
+                kartegpu::linien(s.linien, st.kanten.erstes, st.kanten.anzahl, z);
+                kartegpu::linien(s.linien, st.kantenGewaehlt.erstes, st.kantenGewaehlt.anzahl, z);
+            }
+            kartegpu::linien(s.linien, st.linien.erstes, st.linien.anzahl, z);   // GL_LINES (Pfeile)
+            zaehlen(st.objekte, st.transforms);
+        };
+        // eSortFullbright: deckende Shader, Himmel, Fuellungen
+        for (const Stapel3& st : s.stapel) {
+            if (st.art == karte::StapelArt::Shader) {
+                shaderZiehen(st, false);
+            } else if (st.art == karte::StapelArt::Fuellung) {
+                farbStapelZiehen(st);
+            }
+        }
+        // eSortTranslucent: zuerst ohne Textur (Additiv), dann qer_trans
+        for (const Stapel3& st : s.stapel) {
+            if (st.art == karte::StapelArt::Additiv) { farbStapelZiehen(st); }
+        }
+        for (const Stapel3& st : s.stapel) {
+            if (st.art == karte::StapelArt::Shader) { shaderZiehen(st, true); }
+        }
+        const auto& sel = ed.farben.auswahl3d;
+        // eSortHighlight: $CAM_HIGHLIGHT (color_selbrushes3d, 0.3)
+        if (c.faerben) {
+            kartegpu::Zustand3 z = basis;
+            farbeSetzen(z, sel[0], sel[1], sel[2], 0.3F);
+            z.mischen = kartegpu::Mischen::Alpha;
+            z.tiefe = kartegpu::TiefenTest::KleinerGleich;
+            z.tiefeSchreiben = false;
+            z.wegschneiden = true;
+            if (fuellen) {
+                kartegpu::dreiecke(s.tint, z);
+            } else {
+                kartegpu::linien(s.tintKanten, z);
+            }
+            kartegpu::linien(s.tintLinien, z);
+            zaehlen(s.tintObjekte, s.tintTransforms);
+        }
+        // eSortOverlayFirst: verdeckte Kanten gestrichelt grau
+        {
+            kartegpu::Zustand3 z = basis;
+            farbeSetzen(z, 0.75F, 0.75F, 0.75F, 1.0F);
+            z.tiefe = kartegpu::TiefenTest::Groesser;
+            z.tiefeSchreiben = false;
+            z.wegschneiden = true;
+            z.versatz = true;
+            z.muster = 0xAAAAU;
+            z.musterFaktor = 2;
+            kartegpu::linien(s.overlay, z);
+            zaehlen(s.overlayObjekte, s.overlayTransforms);
+        }
+        // eSortOverlayFirst + 1: $CAM_WIRE (Textured+Wire), dann $CAM_OVERLAY
+        if (c.modus == karte::KameraModus::TexturDraht) {
+            kartegpu::Zustand3 z = basis;
+            farbeSetzen(z, 0.75F, 0.75F, 0.75F, 1.0F);
+            z.tiefe = kartegpu::TiefenTest::KleinerGleich;
+            z.tiefeSchreiben = false;
+            z.wegschneiden = true;
+            std::size_t objekte = 0;
+            for (const Stapel3& st : s.stapel) {
+                if (st.art == karte::StapelArt::Shader) {
+                    // die weissen Eckenfarben der Pinselflaechen: grau aus dem Zustand
+                    kartegpu::linien(s.linien, st.kanten.erstes, st.kanten.anzahl, z);
+                    objekte += st.objekte;
+                }
+            }
+            zaehlen(objekte - std::min(objekte, s.wahlPrimitive), 1);
+        }
+        {
+            kartegpu::Zustand3 z = basis;
+            farbeSetzen(z, 1, 1, 1, 1);
+            z.tiefe = kartegpu::TiefenTest::KleinerGleich;
+            z.tiefeSchreiben = true;
+            z.wegschneiden = true;
+            z.versatz = true;
+            kartegpu::linien(s.overlay, z);
+            zaehlen(s.overlayObjekte, s.overlayTransforms);
+        }
+        // eSortOverlayFirst + 3: $CAM_WORKZONE
+        if (c.zeigeWorkzone && ed.karte.auswahl.anzahl() != 0) {
+            Kasten b;
+            if (auswahlGrenzen(b)) {
+                std::vector<karte::KameraKante> rot;
+                std::vector<karte::KameraKante> weiss;
+                karte::workzone3d(b, ed.raster.groesse(), rot, weiss);
+                std::vector<kartegpu::LinienPunkt> lr;
+                std::vector<kartegpu::LinienPunkt> lw;
+                for (const auto& x : rot) { kanteDazu(x, false, lr); }
+                for (const auto& x : weiss) { kanteDazu(x, false, lw); }
+                kartegpu::Zustand3 z = basis;
+                z.mischen = kartegpu::Mischen::Alpha;
+                z.tiefe = kartegpu::TiefenTest::KleinerGleich;
+                z.tiefeSchreiben = true;
+                z.wegschneiden = false;
+                z.versatz = true;
+                z.versatzFaktor = -2;   // glPolygonOffset( -2, 2 )
+                z.versatzEinheiten = 2;
+                kartegpu::linien(lr, z);
+                z.versatzFaktor = 1;    // glPolygonOffset( 1, -1 )
+                z.versatzEinheiten = -1;
+                kartegpu::linien(lw, z);
+                zaehlen(1, 1);
+            }
+        }
+        // Fadenkreuz im Freelook (camwindow.cpp:2080-2100): Ursprung links
+        // oben, y nach unten; schwarz, dann weiss um (-1,-1) versetzt.
+        if (f.frei) {
+            const float bw = static_cast<float>(f.breite);
+            const float bh = static_cast<float>(f.hoehe);
+            karte::Matrix4 ortho = karte::kEinheitsMatrix;
+            ortho[0] = 2.0F / bw;
+            ortho[5] = -2.0F / bh;
+            ortho[10] = -1.0F / 100.0F;
+            ortho[12] = -1.0F;
+            ortho[13] = 1.0F;
+            const float cx = static_cast<float>((f.breite + 1) / 2) + 0.5F;
+            const float cy = static_cast<float>((f.hoehe + 1) / 2) + 0.5F;
+            constexpr float a = 6.5F;
+            constexpr float bb = 2.5F;
+            for (const float g : {0.0F, 1.0F}) {
+                const Farbe col = karte::farbeAus(g, g, g);
+                const std::vector<karte::Linie> l = {
+                    {Vektor3f(cx - g, cy + a - g, 0), Vektor3f(cx - g, cy + bb - g, 0), col},
+                    {Vektor3f(cx - g, cy - a - g, 0), Vektor3f(cx - g, cy - bb - g, 0), col},
+                    {Vektor3f(cx + a - g, cy - g, 0), Vektor3f(cx + bb - g, cy - g, 0), col},
+                    {Vektor3f(cx - a - g, cy - g, 0), Vektor3f(cx - bb - g, cy - g, 0), col}};
+                kartegpu::zeichnen(l, &ortho[0], 1.0F);
+            }
+        }
+        kartegpu::beenden();
+        dl->AddImage(reinterpret_cast<ImTextureID>(kartegpu::textur(200)), o, ImVec2{o.x + groesse.x, o.y + groesse.y});
+    } else {
+        dl->AddRectFilled(o, ImVec2{o.x + groesse.x, o.y + groesse.y},
+                          IM_COL32(static_cast<int>(hg[0] * 255), static_cast<int>(hg[1] * 255), static_cast<int>(hg[2] * 255), 255));
+    }
+
+    // --- Texte ($TEXT: Ursprung in der Fenstermitte, y nach oben; die linke
+    // untere Ecke sitzt auf dem projizierten Punkt)
+    dl->PushClipRect(o, ImVec2{o.x + groesse.x, o.y + groesse.y}, true);
+    const karte::Matrix4 bf = k.bildfeld();
+    const auto aufBild = [&](const Vektor3f& p, float& x, float& y) {
+        const float w = (vp[3] * p[0]) + (vp[7] * p[1]) + (vp[11] * p[2]) + vp[15];
+        if (w < 0.005F) { return false; }   // w < 0: behind nearplane
+        const float nx = ((vp[0] * p[0]) + (vp[4] * p[1]) + (vp[8] * p[2]) + vp[12]) / w;
+        const float ny = ((vp[1] * p[0]) + (vp[5] * p[1]) + (vp[9] * p[2]) + vp[13]) / w;
+        x = o.x + (static_cast<float>(f.breite) / 2.0F) + (nx * bf[0]);
+        y = o.y + (static_cast<float>(f.hoehe) / 2.0F) - (ny * bf[5]);
+        return true;
+    };
+    const auto text = [&](float x, float y, ImU32 farbe, const std::string& t) {
+        const ImVec2 at{x, y - schriftHoehe};
+        dl->AddText(ImVec2{at.x + 1, at.y + 1}, IM_COL32(0, 0, 0, 255), t.c_str());
+        dl->AddText(at, farbe, t.c_str());
+    };
+    // Namen (namedentity.h:119-160): normal bis g_showNamesDist 512
+    for (const karte::KameraName& n : s.namen) {
+        if (n.art == 0 && karte::laengeQuadrat(n.pos - k.ursprung) > 512.0 * 512.0) { continue; }
+        float x = 0;
+        float y = 0;
+        if (!aufBild(n.pos, x, y)) { continue; }
+        const ImU32 farbe = n.art == 1 ? IM_COL32(255, 255, 0, 255) : n.art == 2 ? IM_COL32(255, 128, 0, 255) : n.farbe;
+        text(x, y, farbe, n.text);
+    }
+    // Groessenanzeige (CamDrawSize): Mitte der Kanten auf der Minimum-Seite
+    if (c.zeigeGroesse && ed.karte.auswahl.anzahl() != 0) {
+        Kasten b;
+        if (auswahlGrenzen(b) && (b.extents[0] != 0 || b.extents[1] != 0 || b.extents[2] != 0)) {
+            const Vektor3f p[3] = {b.origin - karte::kAchsen[1] * b.extents - karte::kAchsen[2] * b.extents,
+                                   b.origin - karte::kAchsen[0] * b.extents - karte::kAchsen[2] * b.extents,
+                                   b.origin - karte::kAchsen[0] * b.extents - karte::kAchsen[1] * b.extents};
+            const auto& ax = ed.farben.achseX;
+            const auto& ay = ed.farben.achseY;
+            const auto& az = ed.farben.achseZ;
+            const Farbe farben[3] = {karte::farbeAus(ax[0], ax[1], ax[2]), karte::farbeAus(ay[0], ay[1], ay[2]),
+                                     karte::farbeAus(az[0], 178.0F / 255.0F, az[2])};   // hack to make default blue visible better
+            for (std::size_t i = 0; i < 3; ++i) {
+                float x = 0;
+                float y = 0;
+                if (!aufBild(p[i], x, y)) { continue; }
+                char z[32];
+                zahlText(z, sizeof(z), b.extents[i] * 2);
+                text(x, y, farben[i], z);
+            }
+        }
+    }
+    // ShowStats: unten links
+    if (c.zeigeStatistik) {
+        const double f2f = f.letzteStatistik >= 0.0 ? (jetzt - f.letzteStatistik) * 1000.0 : 0.0;
+        f.letzteStatistik = jetzt;
+        char z[160];
+        std::snprintf(z, sizeof(z), "prims: %zu | states: %zu | transforms: %zu | msec: %d | f2f: %d", prims, zustaende, transforms,
+                      static_cast<int>(f.zeichenMs), static_cast<int>(f2f));
+        dl->AddText(ImVec2{o.x + 1, o.y + groesse.y - schriftHoehe}, IM_COL32(255, 255, 255, 255), z);
+    }
+    dl->PopClipRect();
+    ImGui::PopFont();
+    f.zeichenMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - beginn).count();
+
+    // --- Maus (CamGLWidget: mousePressEvent / mouseMoveEvent / mouseReleaseEvent / wheelEvent)
+    const ImGuiIO& io = ImGui::GetIO();
+    const bool ueber = ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) &&
+                       !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+    const bool keine = !io.KeyShift && !io.KeyCtrl && !io.KeyAlt;
+    const bool nurAlt = io.KeyAlt && !io.KeyShift && !io.KeyCtrl;
+    // Fokus verloren: der Freelook endet (FreezePointer: FocusOut)
+    if (f.frei && (io.AppFocusLost || !aktiv())) { freelookBeenden(); }
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Right) && (ueber || f.frei)) {
+        const bool m2 = keine;      // M2_EVENT
+        const bool m2alt = nurAlt;  // ORBIT_EVENT
+        const double vergangen = (jetzt - f.rechtsUhr) * 1000.0;
+        if (!f.frei) {
+            // enable_freelook_button_press
+            if (m2 || m2alt) {
+                f.freiBetreten = true;
+                if (m2 && karte::kontextmenueVersuch(vergangen)) {
+                    kontextmenueZeigen();
+                } else {
+                    if (m2alt) { orbitBeginnen(io.MousePos.x - o.x, io.MousePos.y - o.y); }
+                    freelookBeginnen();
+                    f.rechtsUhr = jetzt;
+                    f.rechtsWeg = 0;
+                }
+            }
+        } else {
+            // disable_freelook_button_press
+            if (m2 || m2alt) {
+                f.freiBetreten = false;
+                if (m2 && karte::kontextmenueVersuch(vergangen)) {
+                    freelookBeenden();
+                    kontextmenueZeigen();
+                } else {
+                    if (m2alt) { orbitBeginnen(io.MousePos.x - o.x, io.MousePos.y - o.y); }
+                    f.rechtsUhr = jetzt;
+                    f.rechtsWeg = 0;
+                }
+            }
+        }
+    }
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Right) && f.frei && (keine || nurAlt)) {
+        // disable_freelook_button_release
+        k.orbit = false;
+        if (karte::freelookEndetBeimLoslassen((jetzt - f.rechtsUhr) * 1000.0, f.rechtsWeg, f.freiBetreten)) { freelookBeenden(); }
+    }
+    if (f.frei) {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_None);   // BlankCursor
+        // FreezePointer: ganzzahlige Deltas in logischen Qt-Punkten,
+        // DeferredMotionDelta2 sammelt sie je Durchlauf.
+        const float qt = std::max(1.0F, std::round(g_app->dpiScale));
+        if (ImGui::IsMousePosValid()) {
+            const int dx = static_cast<int>(std::lround((io.MousePos.x - f.letzteX) / qt));
+            const int dy = static_cast<int>(std::lround((io.MousePos.y - f.letzteY) / qt));
+            if (dx != 0 || dy != 0) {
+                k.strafeAusMaus(io.KeyAlt, io.KeyCtrl, io.KeyShift, ImGui::IsMouseDown(ImGuiMouseButton_Left),
+                                ImGui::IsMouseDown(ImGuiMouseButton_Right), c.strafeModus);
+                k.mausBewegen(dx, dy, c);
+                f.rechtsWeg += std::sqrt(static_cast<double>((dx * dx) + (dy * dy)));   // selection_motion_freemove
+                f.letzteX += static_cast<float>(dx) * qt;
+                f.letzteY += static_cast<float>(dy) * qt;
+                if (!imTest) {
+                    const ImVec2 m = fensterMitte();
+                    ImGui::TeleportMousePos(m);
+                    f.letzteX = m.x;
+                    f.letzteY = m.y;
+                }
+            }
+        }
+    }
+    // Mausrad: ein Schritt je Ereignis
+    if (ueber || f.frei) {
+        for (const int r : radEreignisse()) {
+            k.rad(r, io.MousePos.x - o.x, io.MousePos.y - o.y, f.frei, c);
+        }
+    }
+}
+
+}  // namespace bhed::gui::karteneditor

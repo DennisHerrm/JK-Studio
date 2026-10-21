@@ -23,9 +23,12 @@
 #include "karteneditor.h"
 
 #include "app_internal.h"
+#include "bhed/karte/kameraszene.h"
 #include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
 #include "karte_gpu.h"
+
+#include <imgui_internal.h>
 
 #include <algorithm>
 #include <cmath>
@@ -77,6 +80,8 @@ std::array<Szene, 3> g_szene;
 
 Farbe farbe3(const Farben::F3& c, float a = 1.0F) { return karte::farbeAus(c[0], c[1], c[2], a); }
 
+}  // namespace
+
 // Ein Stand der Szene: aendert sich mit jedem Befehl, Rueckgaengig,
 // Wiederholen, neuer Karte und neuer Auswahl.
 std::size_t szeneStand() {
@@ -94,8 +99,11 @@ std::size_t szeneStand() {
     h ^= (a.winkel ? 1U : 0U) | (a.verbindungen ? 2U : 0U) | (a.namen ? 4U : 0U);
     h ^= static_cast<std::size_t>(farbe3(ed.farben.pinsel)) * 7U + static_cast<std::size_t>(farbe3(ed.farben.auswahl)) * 13U;
     h ^= static_cast<std::size_t>(farbe3(ed.farben.rasterHinten));
+    h ^= (a.lichtRadien ? 8U : 0U) + (h << 6) + (h >> 2);
     return h;
 }
+
+namespace {
 
 // Die Grenzen der Kinder einer Entitaet (Gruppen: Name in der Mitte).
 Kasten kinderGrenzen(const karte::Entitaet& ent, const karte::Kontext& k) {
@@ -181,6 +189,14 @@ void szeneBauen(Szene& s, Sicht sicht) {
                     lf = karte::farbeAus(c[0], c[1], c[2]);
                 }
                 karte::lichtOktaeder(box, entGewaehlt ? auswahl : lf, ziel);
+                // Light::renderSolid, ausgewaehlt und g_lightRadii ohne "target":
+                // zwei Radien als Drahtkugeln (renderWireframe, Highlight
+                // ePrimitive aus - in der Farbe des Lichts).
+                if (entGewaehlt && ed.anzeige.lichtRadien && !ent->hat("target")) {
+                    const karte::LichtRadien r = karte::lichtRadien(ent->wert("_light"), ent->wert("light"), ent->wert("scale"),
+                                                                    ent->wert("fade"), ent->wert("spawnflags"));
+                    for (const float radius : r.gezeichnet()) { karte::kugelDraht(box.origin, radius, lf, s.welt); }
+                }
             } else {
                 karte::kastenDraht(box, f, ziel);
                 if (ed.anzeige.winkel) {
@@ -195,7 +211,19 @@ void szeneBauen(Szene& s, Sicht sicht) {
         } else if (!welt) {
             box = kinderGrenzen(*ent, k);
             const std::string tn = ent->wert("targetname");
-            s.namen.push_back({box.origin, box, tn.empty() ? ent->klassenname() : tn, farbe, entGewaehlt});
+            // Name in der Mitte der Kinder, sonst am Ursprung (group.cpp:198-201)
+            const Vektor3f nameMitte = karte::kastenGueltig(box) ? box.origin : ursprungVon(*ent);
+            s.namen.push_back({nameMitte, box, tn.empty() ? ent->klassenname() : tn, farbe, entGewaehlt});
+            // Pfeil der Gruppe (group.cpp:204-214: m_anglesDraw), ausgewaehlt
+            // oder mit ausgewaehltem Kind hervorgehoben.
+            const bool winkelZeigen = (kl != nullptr && kl->hasAngles) || ent->hat("angle") || ent->hat("angles");
+            if (winkelZeigen && ed.anzeige.winkel) {
+                bool kindGewaehlt = false;
+                for (const auto& p : ent->kinder()) { kindGewaehlt = kindGewaehlt || ed.karte.auswahl.gewaehlt(ent.get(), p.get()); }
+                const Vektor3f w = karte::entitaetsWinkel(ent->wert("angle"), ent->wert("angles"), ent->hat("angles"), true);
+                const bool hell = entGewaehlt || kindGewaehlt;
+                karte::pfeil(nameMitte, w, hell ? auswahl : farbe, hell ? s.wahl : s.welt);
+            }
         }
         // Verbindungen (targetable.h): Linie zur Mitte jedes Ziels, in der
         // Klassenfarbe der Quelle.
@@ -225,6 +253,8 @@ karte::RasterEinstellungen rasterEinstellungen(int index, int schriftHoehe, int 
     r.zeigeWorkzone = ed.anzeige.workzone2d;
     r.zeigeBloecke = ed.anzeige.bloecke;
     r.aktiv = ed.aktivXy == index;
+    r.workMin = ed.workzone.origin - ed.workzone.extents;   // Select_getWorkZone
+    r.workMax = ed.workzone.origin + ed.workzone.extents;
     r.regionMin = Vektor3f(-ed.raster.maxKoord(), -ed.raster.maxKoord(), -ed.raster.maxKoord());
     r.regionMax = Vektor3f(ed.raster.maxKoord(), ed.raster.maxKoord(), ed.raster.maxKoord());
     const auto f3 = [](const Farben::F3& c) { return std::array<float, 3>{c[0], c[1], c[2]}; };
@@ -253,6 +283,8 @@ karte::RasterEinstellungen rasterEinstellungen(int index, int schriftHoehe, int 
     return r;
 }
 
+}  // namespace
+
 // Die Auswahlgrenzen (getBoundsSelected).
 bool auswahlGrenzen(Kasten& b) {
     Editor& ed = e();
@@ -276,6 +308,24 @@ bool auswahlGrenzen(Kasten& b) {
     }
     return karte::kastenGueltig(b);
 }
+
+std::vector<int> radEreignisse() {
+    // ImGui fasst das Rad je Bild zusammen; Qt liefert ein wheelEvent je
+    // Ereignis - die Ereignisse dieses Bilds stehen in InputEventsTrail.
+    std::vector<int> v;
+    for (const ImGuiInputEvent& ev : ImGui::GetCurrentContext()->InputEventsTrail) {
+        if (ev.Type != ImGuiInputEventType_MouseWheel) { continue; }
+        const float d = std::fabs(ev.MouseWheel.WheelY) > std::fabs(ev.MouseWheel.WheelX) ? ev.MouseWheel.WheelY : ev.MouseWheel.WheelX;
+        if (d > 0) {
+            v.push_back(1);
+        } else if (d < 0) {
+            v.push_back(-1);
+        }
+    }
+    return v;
+}
+
+namespace {
 
 // GetCenterBbox (xywindow.cpp:1938-1942): Auswahl, sonst die Kamera +-128.
 Kasten mittelKasten() {
@@ -324,9 +374,11 @@ void startPosition() {
         o = Vektor3f(0, 0, 0);
     }
     // FocusViews (map.cpp:456-467)
-    ed.kamera.ursprung = o;
-    ed.kamera.winkel[0] = 0;   // CAMERA_PITCH
-    ed.kamera.winkel[1] = winkel;   // CAMERA_YAW
+    ed.kamera.setzeUrsprung(o);
+    karte::Vektor3f w = ed.kamera.winkel;
+    w[0] = 0;        // CAMERA_PITCH
+    w[1] = winkel;   // CAMERA_YAW
+    ed.kamera.setzeWinkel(w);
     for (auto& x : ed.xy) { x.ansicht.setzeUrsprung(o); }
 }
 
@@ -445,12 +497,14 @@ void xyZeichnen(int index) {
     // Geraetepunkten.
     const float qt = std::max(1.0F, std::round(g_app->dpiScale));
     // Mausrad: ein Zoomschritt je Ereignis, macht die Ansicht aktiv.
-    if (ueber && io.MouseWheel != 0.0F) {
-        ed.aktivXy = index;
-        if (io.MouseWheel > 0) {
-            v.hineinMaus(mx, my);
-        } else {
-            v.hinausMaus(mx, my);
+    if (ueber) {
+        for (const int r : radEreignisse()) {
+            ed.aktivXy = index;
+            if (r > 0) {
+                v.hineinMaus(mx, my);
+            } else {
+                v.hinausMaus(mx, my);
+            }
         }
     }
     const int knopf[3] = {ImGuiMouseButton_Left, ImGuiMouseButton_Right, ImGuiMouseButton_Middle};
@@ -477,9 +531,9 @@ void xyZeichnen(int index) {
                 f.letzteX = io.MousePos.x;
                 f.letzteY = io.MousePos.y;
             } else if (t == (kControl | kMitte)) {   // XYWnd_PositionCamera
-                ed.kamera.ursprung = karte::kameraVersetzen(v, mx, my, ed.raster.einrastGroesse(), ed.kamera.ursprung);
+                ed.kamera.setzeUrsprung(karte::kameraVersetzen(v, mx, my, ed.raster.einrastGroesse(), ed.kamera.ursprung));
             } else if (t == kMitte) {   // XYWnd_OrientCamera
-                ed.kamera.winkel = karte::kameraDrehen(v, mx, my, ed.kamera.ursprung, ed.kamera.winkel);
+                ed.kamera.setzeWinkel(karte::kameraDrehen(v, mx, my, ed.kamera.ursprung, ed.kamera.winkel));
             }
         }
     }
@@ -522,9 +576,9 @@ void xyZeichnen(int index) {
                                       (ImGui::IsMouseDown(ImGuiMouseButton_Right) ? kRechts : 0U) |
                                       (ImGui::IsMouseDown(ImGuiMouseButton_Middle) ? kMitte : 0U) | mods;
             if (gehalten == (kControl | kMitte)) {
-                ed.kamera.ursprung = karte::kameraVersetzen(v, mx, my, ed.raster.einrastGroesse(), ed.kamera.ursprung);
+                ed.kamera.setzeUrsprung(karte::kameraVersetzen(v, mx, my, ed.raster.einrastGroesse(), ed.kamera.ursprung));
             } else if (gehalten == kMitte) {
-                ed.kamera.winkel = karte::kameraDrehen(v, mx, my, ed.kamera.ursprung, ed.kamera.winkel);
+                ed.kamera.setzeWinkel(karte::kameraDrehen(v, mx, my, ed.kamera.ursprung, ed.kamera.winkel));
             }
         }
         // Loslassen (jede Taste beendet: m_buttonstate = 0)

@@ -76,7 +76,10 @@ Details and known pitfalls are in [BAUEN.md](BAUEN.md), the tests in
   shortcut matching follows Qt 5 (QKeySequence, QWindowsKeyMapper::possibleKeys,
   LGPL), as NetRadiant-Custom uses it; the pane, toolbar and status bar sizes
   follow Qt 5.15's layout code (qGeomCalc, QSplitter, QToolBarLayout,
-  QStatusBar; GPL v2/v3 or LGPL v3) in `src/karte/teiler.cpp`.
+  QStatusBar; GPL v2/v3 or LGPL v3) in `src/karte/teiler.cpp`. The two
+  placeholder textures `data/karte/bitmaps/notex.png` and `shadernotex.png`
+  ("shader not found", "shader image missing") are NetRadiant-Custom's own
+  (`setup/data/tools/bitmaps`, GPL v2).
 - Code ported from [OpenJK](https://github.com/JACoders/OpenJK) (GPL v2): the
   engine behaviour reproduced in the preview (movement, collision, ICARUS,
   rendering rules) and the entity definitions generated from its QUAKED comments.

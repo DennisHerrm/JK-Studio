@@ -14559,6 +14559,10 @@ bool darfRuhen() {
     if (tourAnimiert()) {
         return false;
     }
+    // Karten-Editor: Kamerafahrt (IdleDraw2-Schleife), Freelook, Texturen laden.
+    if (karteneditor::aktiv() && karteneditor::kameraBrauchtBilder()) {
+        return false;
+    }
     const ImGuiIO& io = ImGui::GetIO();
     if (io.WantTextInput) {
         return false;

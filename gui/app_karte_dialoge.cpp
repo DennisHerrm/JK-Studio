@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 
@@ -57,6 +58,7 @@ const Seite kSeiten[] = {
 };
 constexpr int kSeiteInterface = 4;
 constexpr int kSeiteLayout = 5;
+constexpr int kSeiteKamera = 17;
 
 struct Entwurf {
     bool offen = false;
@@ -65,6 +67,7 @@ struct Entwurf {
     bool eingebaut = false;
     bool abtrennbar = true;
     bool nrc = false;
+    karte::KameraEinstellungen kamera;
 };
 Entwurf g_entwurf;
 
@@ -99,6 +102,74 @@ void layoutSeite() {
     ImGui::Checkbox(trK(Str::KePrBuiltInGroupDialog), &g_entwurf.eingebaut);
 }
 
+// Camera_constructPreferences (camwindow.cpp:2398-2460): appendSpinner,
+// appendCheckBox, appendCombo in dieser Reihenfolge - jede Zeile ein
+// QFormLayout-Eintrag (Dialog::addSpinner/addCheckBox/addCombo,
+// radiant/dialog.cpp): Beschriftung links, Feld rechts; die Checkboxen haben
+// links eine leere Beschriftung und den Text am Kaestchen.
+void kameraSeite() {
+    karte::KameraEinstellungen& c = g_entwurf.kamera;
+    const float feldB = std::round(120.0F * massstab());
+    if (!ImGui::BeginTable("##kameraseite", 2, ImGuiTableFlags_SizingFixedFit)) { return; }
+    const auto zeile = [](Str text) {
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        ImGui::AlignTextToFramePadding();
+        if (text != Str::Count) { ImGui::TextUnformatted(trK(text)); }
+        ImGui::TableSetColumnIndex(1);
+    };
+    const auto ganz = [&](Str text, int& wert, int von, int bis) {
+        zeile(text);
+        ImGui::SetNextItemWidth(feldB);
+        ImGui::InputInt((std::string("##") + trK(text)).c_str(), &wert);
+        wert = std::clamp(wert, von, bis);
+    };
+    const auto komma = [&](Str text, float& wert, float von, float bis, const char* format) {
+        zeile(text);
+        ImGui::SetNextItemWidth(feldB);
+        ImGui::InputFloat((std::string("##") + trK(text)).c_str(), &wert, 0.1F, 1.0F, format);
+        wert = std::clamp(wert, von, bis);
+    };
+    const auto haken = [&](Str text, bool& wert) {
+        zeile(Str::Count);
+        ImGui::Checkbox(trK(text), &wert);
+    };
+    const auto auswahl = [&](Str text, int& wert, const char* const* eintraege, int anzahl) {
+        zeile(text);
+        ImGui::SetNextItemWidth(feldB);
+        return ImGui::Combo((std::string("##") + trK(text)).c_str(), &wert, eintraege, anzahl);
+    };
+    ganz(Str::KePrCamMoveSpeed, c.tempo, 1, karte::kTempoMax);
+    ganz(Str::KePrCamTimeMax, c.zeitBisMax, 0, 5000);
+    ganz(Str::KePrCamScrollSpeed, c.radTempo, 0, 999);
+    komma(Str::KePrCamStrafeSpeed, c.strafeTempo, 0.1F, 10.0F, "%.2f");
+    komma(Str::KePrCamSensitivity, c.winkelTempo, 0.1F, 30.0F, "%.2f");
+    haken(Str::KePrCamInvert, c.mausUmkehren);
+    haken(Str::KePrCamZoomPointer, c.zumZeiger);
+    haken(Str::KePrCamDiscrete, c.diskret);
+    haken(Str::KePrCamFarClip, c.kubisch);
+    haken(Str::KePrCamColorize, c.faerben);
+    haken(Str::KePrCamFacesWire, c.flaechenDraht);
+    // Render Mode: ohne "Lighting" (nur doom3)
+    const char* modi[4] = {trK(Str::KePrCamWireframe), trK(Str::KePrCamFlatshade), trK(Str::KePrCamTextured),
+                           trK(Str::KePrCamTexturedWire)};
+    int modus = std::clamp(static_cast<int>(c.modus), 0, 3);
+    if (auswahl(Str::KePrCamRenderMode, modus, modi, 4)) { c.modus = static_cast<karte::KameraModus>(modus); }
+    // MSAA: Index 0..5 = 0, 2, 4, 8, 16, 32 (CamMSAAImport: 1 << Index)
+    static const char* const abtastungen[6] = {"0", "2", "4", "8", "16", "32"};
+    int index = 0;
+    for (int i = 0; i < 6; ++i) {
+        if (std::atoi(abtastungen[i]) == c.msaa) { index = i; }
+    }
+    if (auswahl(Str::KePrCamMsaa, index, abtastungen, 6)) { c.msaa = index != 0 ? 1 << index : 0; }
+    const char* strafe[5] = {trK(Str::KePrCamStrafeNone), trK(Str::KePrCamStrafeUp), trK(Str::KePrCamStrafeForward),
+                             trK(Str::KePrCamStrafeBoth), trK(Str::KePrCamStrafeBothInv)};
+    (void)auswahl(Str::KePrCamStrafeMode, c.strafeModus, strafe, 5);
+    // Field Of View: 1 .. 175, 0 Nachkommastellen
+    komma(Str::KePrCamFov, c.sichtfeld, 1.0F, 175.0F, "%.0f");
+    ImGui::EndTable();
+}
+
 void interfaceSeite() {
     // Interface Preferences: "Shader Editor Command" (preferences.cpp:64),
     // dazu die Einstellung dieses Programms "Begriffe wie NetRadiant".
@@ -121,6 +192,7 @@ void zeichneEinstellungen() {
         g_entwurf.anordnung = static_cast<int>(ed.anordnung);
         g_entwurf.eingebaut = ed.gruppenDialogEingebaut;
         g_entwurf.nrc = nrcBegriffe();
+        g_entwurf.kamera = ed.kameraE;
     }
     if (!ed.einstellungenOffen) {
         g_entwurf.offen = false;
@@ -168,6 +240,8 @@ void zeichneEinstellungen() {
             layoutSeite();
         } else if (g_entwurf.seite == kSeiteInterface) {
             interfaceSeite();
+        } else if (g_entwurf.seite == kSeiteKamera) {
+            kameraSeite();
         } else {
             char z[120];
             std::snprintf(z, sizeof(z), tr(Str::KeStufe), 2);
@@ -186,6 +260,18 @@ void zeichneEinstellungen() {
             ed.anordnung = static_cast<befehle::Anordnung>(g_entwurf.anordnung);
             ed.gruppenDialogEingebaut = g_entwurf.eingebaut;
             setzeNrcBegriffe(g_entwurf.nrc);
+            // CamWnd_Move_Discrete_Import / Camera_SetFarClip / fieldOfViewImport;
+            // Cubic-Skala, Show-Schalter und das Tempo-Kuerzel bleiben.
+            if (g_entwurf.kamera.diskret != ed.kameraE.diskret && ed.kamera.flagsLoeschen(karte::kBewegAlle)) {
+                ed.kamFenster.tastenUhr = -1.0;
+            }
+            karte::KameraEinstellungen neu = g_entwurf.kamera;
+            neu.kubikSkala = ed.kameraE.kubikSkala;
+            neu.zeigeStatistik = ed.kameraE.zeigeStatistik;
+            neu.zeigeWorkzone = ed.kameraE.zeigeWorkzone;
+            neu.zeigeGroesse = ed.kameraE.zeigeGroesse;
+            ed.kameraE = neu;
+            ed.kamera.projektionAktualisieren(ed.kameraE);
             ed.maximiert = false;
             einstellungenSpeichern();
             offen = false;

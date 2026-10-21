@@ -25731,6 +25731,446 @@ std::vector<Schritt> karteneditorXySchritte() {
     return s;
 }
 
+// Punkt 6: die 3D-Kamera wie NRC (camwindow.cpp) - Bild (Direct3D 11, Textur
+// aus qer_editorimage, Licht aus Blickrichtung), Freelook mit M2, diskrete
+// Tasten, Fokus (Tab), Center (End), Etagen (PgUp/PgDown), Cubic Clip,
+// Darstellungsarten (Shift+] / Shift+[), Mausrad, gehaltenes W im Freelook,
+// Tempo (Shift+Num+), Auswahl getoent.
+std::vector<Schritt> karteneditorKameraSchritte() {
+    namespace ke = karteneditor;
+    namespace kb = karte::befehle;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto kamPunkt = [](float fx, float fy) {
+        const ke::KameraFenster& f = ke::editor().kamFenster;
+        return ImVec2{f.bildX + static_cast<float>(f.breite) * fx, f.bildY + static_cast<float>(f.hoehe) * fy};
+    };
+    // Ein Bildpunkt der Kamera (Geraetepunkte im Fenster)
+    auto pixel = [](float fx, float fy, unsigned char* rgba) {
+        const ke::KameraFenster& f = ke::editor().kamFenster;
+        return ke::kameraPixel(static_cast<int>(static_cast<float>(f.breite) * fx), static_cast<int>(static_cast<float>(f.hoehe) * fy), rgba);
+    };
+    auto pixelText = [](const unsigned char* p) {
+        return std::to_string(p[0]) + "," + std::to_string(p[1]) + "," + std::to_string(p[2]);
+    };
+    // Kurzer Klick mit der rechten Maustaste in die Kamera (unter 300 ms)
+    auto rechtsKlick = [kamPunkt](const std::string& was) {
+        return Schritt{was, [kamPunkt](int b) {
+                           ImGuiIO& io = ImGui::GetIO();
+                           if (b == 0) { setzeMaus(kamPunkt(0.5F, 0.5F)); }
+                           if (b == 1) { io.AddMouseButtonEvent(ImGuiMouseButton_Right, true); }
+                           if (b == 2) { io.AddMouseButtonEvent(ImGuiMouseButton_Right, false); }
+                           return b >= 4;
+                       }};
+    };
+    auto merk = std::make_shared<karte::Kamera>();
+    auto farbe = std::make_shared<std::array<unsigned char, 4>>();
+    add(tu("Kamera: Regular, Testkarte, NRC-Standardwerte, Kamera vor dem Wuerfel (-256 0 32), Blick +x", [] {
+        ke::Editor& e = ke::editor();
+        e.anordnung = kb::Anordnung::Regular;
+        e.teilerFuer = -1;
+        e.anzeige = ke::Anzeige{};
+        e.kameraE = karte::KameraEinstellungen{};
+        (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map"));
+        e.karte.auswahl.leeren();
+        e.kamera.setzeUrsprung(karte::Vektor3f(-256, 0, 32));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
+        ke::tastaturErsatz = deutscheTastatur;
+    }));
+    add(pause(0.3));
+    add(warteBis("Kamera: Texturen geladen (qer_editorimage im Hintergrund)", [] { return ke::kameraBilderFertig(); }, 3000));
+    add(pause(0.3));
+    add(pruefe("Kamera gezeichnet: Mitte zeigt den Wuerfel, Ecke oben den Hintergrund (color_cameraback)", [pixel, pixelText, farbe] {
+        unsigned char m[4] = {};
+        unsigned char ecke[4] = {};
+        if (!pixel(0.5F, 0.5F, m) || !pixel(0.02F, 0.02F, ecke)) { return false; }
+        const auto& h = ke::editor().farben.kameraHinten;
+        const auto nahe = [](int a, float b) { return std::abs(a - static_cast<int>(std::lround(b * 255.0F))) <= 1; };
+        diag::detail("Knopftest: Karten-Editor Kamera - Mitte " + pixelText(m) + ", Ecke " + pixelText(ecke) + ", Hintergrund " +
+                     std::to_string(h[0]) + " Fenster " + std::to_string(ke::editor().kamFenster.breite) + "x" +
+                     std::to_string(ke::editor().kamFenster.hoehe));
+        (*farbe)[0] = m[0];
+        (*farbe)[1] = m[1];
+        (*farbe)[2] = m[2];
+        const bool eckeHinten = nahe(ecke[0], h[0]) && nahe(ecke[1], h[1]) && nahe(ecke[2], h[2]);
+        const bool mitteWuerfel = !(nahe(m[0], h[0]) && nahe(m[1], h[1]) && nahe(m[2], h[2]));
+        return eckeHinten && mitteWuerfel && ke::editor().kamFenster.breite > 100;
+    }));
+    add(foto("karteneditor_kamera"));
+    // Freelook: kurzer M2 schaltet ein, Maus 100 Bildpunkte nach rechts dreht
+    // um 0,1 Grad je logischem Punkt nach rechts, kurzer M2 schaltet aus.
+    add(tu("Kamera merken", [merk] { *merk = ke::editor().kamera; }));
+    add(rechtsKlick("M2 kurz in die Kamera"));
+    add(pruefe("Freelook an (kurzer M2 = Umschalter)", [] { return ke::editor().kamFenster.frei; }));
+    add({"Maus im Freelook 100 Bildpunkte nach rechts", [kamPunkt](int b) {
+             const ImVec2 a = kamPunkt(0.5F, 0.5F);
+             if (b >= 1 && b <= 10) { setzeMaus(ImVec2{a.x + 10.0F * static_cast<float>(b), a.y}); }
+             return b >= 13;
+         }});
+    add(pruefe("Freelook: Yaw um 0,1 Grad je logischem Punkt kleiner (100 / Qt-Massstab)", [merk] {
+        const float qt = std::max(1.0F, std::round(g_app->dpiScale));
+        float soll = merk->winkel[1] - (100.0F / qt) * 0.0333333F * 3.0F;
+        if (soll <= 0) { soll += 360; }
+        diag::detail("Knopftest: Karten-Editor Kamera - Yaw " + std::to_string(ke::editor().kamera.winkel[1]) + " soll " + std::to_string(soll));
+        return std::fabs(ke::editor().kamera.winkel[1] - soll) < 1e-3F && ke::editor().kamera.ursprung == merk->ursprung;
+    }));
+    add(foto("karteneditor_kamera_freelook"));
+    add(rechtsKlick("M2 kurz im Freelook"));
+    add(pruefe("Freelook aus (kurzer M2 im Freelook)", [] { return !ke::editor().kamFenster.frei; }));
+    // Diskrete Tasten (CamWnd_Move_Discrete_Enable): Up 32 vorwaerts in der
+    // Ebene, Left 22,5 Grad, D 32 nach rechts
+    add(tu("Blick +x", [] { ke::editor().kamera.setzeWinkel(karte::Vektor3f(0, 0, 0)); }));
+    add(tu("Kamera merken", [merk] { *merk = ke::editor().kamera; }));
+    add(tasteKombi(ImGuiKey_UpArrow, "Pfeil hoch"));
+    add(pruefe("Pfeil hoch = CameraForward diskret: +32 in x", [merk] {
+        const karte::Vektor3f d = ke::editor().kamera.ursprung - merk->ursprung;
+        return std::fabs(d[0] - 32.0F) < 1e-3F && std::fabs(d[1]) < 1e-3F && d[2] == 0;
+    }));
+    add(tasteKombi(ImGuiKey_D, "D"));
+    add(pruefe("D = CameraStrafeRight diskret: 32 nach rechts (-y bei Yaw 0)", [merk] {
+        const karte::Vektor3f d = ke::editor().kamera.ursprung - merk->ursprung;
+        return std::fabs(d[1] + 32.0F) < 1e-3F;
+    }));
+    add(tasteKombi(ImGuiKey_LeftArrow, "Pfeil links"));
+    add(pruefe("Pfeil links = CameraLeft diskret: Yaw +22,5", [] { return std::fabs(ke::editor().kamera.winkel[1] - 22.5F) < 1e-3F; }));
+    add(tu("Pitch 30, Yaw 100", [] { ke::editor().kamera.setzeWinkel(karte::Vektor3f(30, 100, 0)); }));
+    add(tasteKombi(ImGuiKey_End, "Ende"));
+    add(pruefe("Ende = CenterView: Pitch 0, Yaw 90", [] {
+        const karte::Vektor3f w = ke::editor().kamera.winkel;
+        return w[0] == 0 && w[1] == 90;
+    }));
+    // Fokus auf die Auswahl
+    add(tu("Wuerfel auswaehlen, Blick +x von weit weg", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        const auto w = e.karte.welt();
+        if (w && !w->kinder().empty()) { e.karte.auswahl.waehlen(w, w->kinder().front()); }
+        e.kamera.setzeUrsprung(karte::Vektor3f(-2000, 300, 500));
+        e.kamera.setzeWinkel(karte::Vektor3f(-10, 20, 0));
+    }));
+    add(pause(0.2));
+    add(tasteKombi(ImGuiKey_Tab, "Tab"));
+    add(pruefe("Tab = CameraFocusOnSelected: Wuerfel ganz im Bild, Winkel bleiben", [] {
+        const ke::Editor& e = ke::editor();
+        const karte::Kasten w(karte::Vektor3f(0, 0, 32), karte::Vektor3f(64, 64, 32));
+        const karte::Vektor3f soll = e.kamera.fokusPosition(w);
+        diag::detail("Knopftest: Karten-Editor Kamera - Fokus " + std::to_string(e.kamera.ursprung[0]) + "," +
+                     std::to_string(e.kamera.ursprung[1]) + "," + std::to_string(e.kamera.ursprung[2]));
+        return karte::laenge(e.kamera.ursprung - soll) < 0.01 && e.kamera.winkel == karte::Vektor3f(-10, 20, 0);
+    }));
+    add(pause(0.3));
+    add(tu("getoente Mitte merken", [pixel, farbe] {
+        unsigned char m[4] = {};
+        (void)pixel(0.5F, 0.5F, m);
+        (*farbe)[0] = m[0];
+        (*farbe)[1] = m[1];
+        (*farbe)[2] = m[2];
+    }));
+    add(foto("karteneditor_kamera_auswahl"));
+    add(tu("Auswahl leeren", [] { ke::editor().karte.auswahl.leeren(); }));
+    add(pause(0.3));
+    add(pruefe("Ausgewaehlt war die Mitte getoent: 0,7 x ohne + 0,3 x color_selbrushes3d ($CAM_HIGHLIGHT)", [pixel, pixelText, farbe] {
+        unsigned char m[4] = {};
+        if (!pixel(0.5F, 0.5F, m)) { return false; }
+        const auto& sel = ke::editor().farben.auswahl3d;
+        bool gut = true;
+        std::string soll;
+        for (int i = 0; i < 3; ++i) {
+            const float erwartet = (0.7F * static_cast<float>(m[i])) + (0.3F * sel[static_cast<std::size_t>(i)] * 255.0F);
+            soll += std::to_string(static_cast<int>(erwartet)) + " ";
+            gut = gut && std::fabs(static_cast<float>((*farbe)[static_cast<std::size_t>(i)]) - erwartet) <= 3.0F;
+        }
+        diag::detail("Knopftest: Karten-Editor Kamera - ohne Auswahl " + pixelText(m) + ", getoent " +
+                     pixelText(farbe->data()) + ", soll " + soll);
+        return gut;
+    }));
+    // Etagen: Kamera ueber dem Wuerfel (Oberkante 64) unter dem Licht (120..136)
+    add(tu("Auswahl leeren, Kamera auf 0 0 32", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.kamera.setzeUrsprung(karte::Vektor3f(0, 0, 32));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
+    }));
+    auto etage = [](float soll, const std::string& was) {
+        return pruefe(was, [soll] {
+            diag::detail("Knopftest: Karten-Editor Kamera - z " + std::to_string(ke::editor().kamera.ursprung[2]));
+            return ke::editor().kamera.ursprung[2] == soll;
+        });
+    };
+    add(tasteKombi(ImGuiKey_PageUp, "Bild hoch"));
+    add(etage(96, "PgUp = UpFloor: Oberkante Wuerfel 64 + 32"));
+    add(tasteKombi(ImGuiKey_PageUp, "Bild hoch"));
+    add(etage(168, "PgUp: Oberkante Licht 136 + 32"));
+    add(tasteKombi(ImGuiKey_PageDown, "Bild runter"));
+    add(etage(96, "PgDown = DownFloor: 96"));
+    add(tasteKombi(ImGuiKey_PageDown, "Bild runter"));
+    add(etage(-16, "PgDown: keine tiefere Etage - Unterkante 0 - 16"));
+    // Cubic Clip: Strg+\\, Strg+[ und Strg+] sind auf deutscher Tastatur
+    // nicht erreichbar (AltGr) - ueber die Befehle; die Statuszeile zeigt C:
+    add(tu("ToggleCubicClip, CubicClipZoomIn x2", [] {
+        (void)ke::ausfuehren("ToggleCubicClip");
+        (void)ke::ausfuehren("CubicClipZoomIn");
+        (void)ke::ausfuehren("CubicClipZoomIn");
+    }));
+    add(pause(0.2));
+    add(pruefe("Cubic Clip an, Skala 12, Fernebene 2^9.5, Statuszeile \"C:12\"", [] {
+        const ke::Editor& e = ke::editor();
+        const float fern = karte::fernEbene(e.kameraE);
+        const float p10 = e.kamera.projektion[10];
+        const float soll10 = -(fern + 1.0F) / (fern - 1.0F);
+        return e.kameraE.kubisch && e.kameraE.kubikSkala == 12 && ke::angehakt("ToggleCubicClip") &&
+               std::fabs(fern - 724.0773F) < 0.01F && std::fabs(p10 - soll10) < 1e-6F;
+    }));
+    add(tu("Cubic Clip zurueck", [] {
+        (void)ke::ausfuehren("CubicClipZoomOut");
+        (void)ke::ausfuehren("CubicClipZoomOut");
+        (void)ke::ausfuehren("ToggleCubicClip");
+    }));
+    // Darstellungsarten: Umschalt+AltGr+9 = "Shift+]" = CameraModeNext
+    add(tu("Kamera vor dem Wuerfel, Blick +x", [] {
+        ke::Editor& e = ke::editor();
+        e.kamera.setzeUrsprung(karte::Vektor3f(-256, 0, 32));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiMod_Shift | ImGuiKey_9, "Umschalt+AltGr+9"));
+    add(pruefe("Shift+] = CameraModeNext: Textured -> Textured+Wire",
+               [] { return ke::editor().kameraE.modus == karte::KameraModus::TexturDraht; }));
+    add(pause(0.2));
+    add(foto("karteneditor_kamera_texturdraht"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiMod_Shift | ImGuiKey_9, "Umschalt+AltGr+9"));
+    add(pruefe("Shift+]: Textured+Wire -> Wireframe (ohne Lighting wie Quake 3)",
+               [] { return ke::editor().kameraE.modus == karte::KameraModus::Draht; }));
+    add(pause(0.2));
+    add(pruefe("Wireframe: in der Flaeche nur Hintergrund (Polygone als Linien)", [pixel, pixelText] {
+        unsigned char m[4] = {};
+        if (!pixel(0.5F, 0.5F, m)) { return false; }
+        const auto& h = ke::editor().farben.kameraHinten;
+        diag::detail("Knopftest: Karten-Editor Kamera - Draht Mitte " + pixelText(m));
+        return std::abs(m[0] - static_cast<int>(std::lround(h[0] * 255.0F))) <= 1;
+    }));
+    add(foto("karteneditor_kamera_draht"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiMod_Shift | ImGuiKey_9, "Umschalt+AltGr+9"));
+    add(pruefe("Shift+]: Wireframe -> Flatshade", [] { return ke::editor().kameraE.modus == karte::KameraModus::Flach; }));
+    add(pause(0.2));
+    add(pruefe("Flatshade: Flaeche zur Kamera = Durchschnittsfarbe der Textur x 1,0 (Licht aus Blickrichtung)", [pixel, pixelText] {
+        unsigned char m[4] = {};
+        float c[3] = {};
+        if (!pixel(0.5F, 0.5F, m) || !ke::kameraTexturFarbe("textures/common/caulk", c)) { return false; }
+        diag::detail("Knopftest: Karten-Editor Kamera - flach " + pixelText(m) + " soll " + std::to_string(c[0] * 255.0F) + "," +
+                     std::to_string(c[1] * 255.0F) + "," + std::to_string(c[2] * 255.0F));
+        bool gut = true;
+        for (int i = 0; i < 3; ++i) { gut = gut && std::abs(m[i] - static_cast<int>(std::lround(c[i] * 255.0F))) <= 1; }
+        return gut;
+    }));
+    add(foto("karteneditor_kamera_flach"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiMod_Shift | ImGuiKey_9, "Umschalt+AltGr+9"));
+    add(pruefe("Shift+]: Flatshade -> Textured", [] { return ke::editor().kameraE.modus == karte::KameraModus::Textur; }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiMod_Shift | ImGuiKey_8, "Umschalt+AltGr+8"));
+    add(pruefe("Shift+[ = CameraModePrev: Textured -> Flatshade", [] { return ke::editor().kameraE.modus == karte::KameraModus::Flach; }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiMod_Shift | ImGuiKey_9, "Umschalt+AltGr+9"));
+    // Mausrad: ein Schritt (100) je Ereignis Richtung Zeiger (Bildmitte = vorwaerts)
+    add(tu("Kamera merken", [merk] { *merk = ke::editor().kamera; }));
+    add({"Mausrad hoch in der Bildmitte der Kamera", [kamPunkt](int b) {
+             if (b == 0) { setzeMaus(kamPunkt(0.5F, 0.5F)); }
+             if (b == 2) { ImGui::GetIO().AddMouseWheelEvent(0.0F, 1.0F); }
+             return b >= 5;
+         }});
+    add(pruefe("Mausrad: 100 vorwaerts (Zoom to Mouse pointer)", [merk] {
+        const karte::Vektor3f d = ke::editor().kamera.ursprung - merk->ursprung;
+        diag::detail("Knopftest: Karten-Editor Kamera - Rad " + std::to_string(d[0]) + "," + std::to_string(d[1]) + "," +
+                     std::to_string(d[2]));
+        return std::fabs(static_cast<float>(karte::laenge(d)) - 100.0F) < 0.01F && d[0] > 99.0F;
+    }));
+    // Freelook mit gehaltenem W: kontinuierlich, beschleunigt (500 u/s nach 200 ms)
+    add(rechtsKlick("M2 kurz: Freelook an"));
+    add(tu("Kamera merken", [merk] { *merk = ke::editor().kamera; }));
+    add({"W 0,4 s halten", [](int b) {
+             static double start = 0;
+             ImGuiIO& io = ImGui::GetIO();
+             if (b == 0) {
+                 io.AddKeyEvent(ImGuiKey_W, true);
+                 start = ImGui::GetTime();
+                 return false;
+             }
+             if (ImGui::GetTime() - start < 0.4) { return false; }
+             io.AddKeyEvent(ImGuiKey_W, false);
+             return true;
+         }});
+    add(pause(0.2));
+    add(pruefe("W im Freelook: kontinuierlich vorwaerts (mehr als 32), danach steht die Kamera", [merk] {
+        const ke::Editor& e = ke::editor();
+        const karte::Vektor3f d = e.kamera.ursprung - merk->ursprung;
+        diag::detail("Knopftest: Karten-Editor Kamera - W " + std::to_string(d[0]) + " Tempo " + std::to_string(e.kamera.tempo));
+        return d[0] > 40.0F && d[0] < 260.0F && e.kamera.bewegung == 0U && e.kamFenster.frei;
+    }));
+    add(rechtsKlick("M2 kurz: Freelook aus"));
+    add(pruefe("Freelook aus", [] { return !ke::editor().kamFenster.frei; }));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_KeypadAdd, "Umschalt+Num+"));
+    add(pruefe("Shift+Num+ = CameraSpeedInc: 750, Konsole \" ++Camera Move Speed: \"", [] {
+        const ke::Editor& e = ke::editor();
+        bool zeile = false;
+        for (const ke::KonsolenZeile& z : e.konsole) { zeile = zeile || z.text == " ++Camera Move Speed: "; }
+        return e.kameraE.tempo == 750 && zeile;
+    }));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_KeypadSubtract, "Umschalt+Num-"));
+    add(pruefe("Shift+Num- = CameraSpeedDec: 500", [] { return ke::editor().kameraE.tempo == 500; }));
+    // Die uebrigen diskreten Befehle: Down, Right, A; CameraUp/Down/AngleUp/
+    // AngleDown haben keine Taste (ueber den Befehl).
+    add(tu("Kamera auf 0 0 0, Blick +x, merken", [merk] {
+        ke::editor().kamera.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        ke::editor().kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
+        *merk = ke::editor().kamera;
+    }));
+    add(tasteKombi(ImGuiKey_DownArrow, "Pfeil runter"));
+    add(pruefe("Pfeil runter = CameraBack diskret: -32 in x", [] { return std::fabs(ke::editor().kamera.ursprung[0] + 32.0F) < 1e-3F; }));
+    add(tasteKombi(ImGuiKey_A, "A"));
+    add(pruefe("A = CameraStrafeLeft diskret: +32 in y", [] { return std::fabs(ke::editor().kamera.ursprung[1] - 32.0F) < 1e-3F; }));
+    add(tasteKombi(ImGuiKey_RightArrow, "Pfeil rechts"));
+    add(pruefe("Pfeil rechts = CameraRight diskret: Yaw -22,5", [] { return std::fabs(ke::editor().kamera.winkel[1] + 22.5F) < 1e-3F; }));
+    add(tu("CameraUp, CameraAngleUp", [] {
+        (void)ke::ausfuehren("CameraUp");
+        (void)ke::ausfuehren("CameraAngleUp");
+    }));
+    add(pruefe("CameraUp: z +32, CameraAngleUp: Pitch +22,5", [] {
+        return ke::editor().kamera.ursprung[2] == 32 && std::fabs(ke::editor().kamera.winkel[0] - 22.5F) < 1e-3F;
+    }));
+    add(tu("CameraDown, CameraAngleDown", [] {
+        (void)ke::ausfuehren("CameraDown");
+        (void)ke::ausfuehren("CameraAngleDown");
+    }));
+    add(pruefe("CameraDown: z 0, CameraAngleDown: Pitch 0", [] {
+        return ke::editor().kamera.ursprung[2] == 0 && std::fabs(ke::editor().kamera.winkel[0]) < 1e-3F;
+    }));
+    // Freelook: alle KeyEvents (CamWnd_Add_Handlers_FreeMove); FreeMoveUp/Down
+    // haben keine Taste - fuer den Test F9 / F10.
+    add(tu("Kamera auf 0 0 0, Blick +x; F9/F10 fuer CameraFreeMoveUp/Down", [] {
+        ke::Editor& e = ke::editor();
+        e.kamera.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
+        e.belegung.setzen("CameraFreeMoveUp", kb::tasteAusText("F9"));
+        e.belegung.setzen("CameraFreeMoveDown", kb::tasteAusText("F10"));
+    }));
+    add(rechtsKlick("M2 kurz: Freelook an"));
+    auto halten = [merk](ImGuiKey taste, const std::string& name) {
+        return Schritt{"Freelook: " + name + " 0,15 s halten", [merk, taste](int b) {
+                           static double start = 0;
+                           ImGuiIO& io = ImGui::GetIO();
+                           if (b == 0) {
+                               *merk = ke::editor().kamera;
+                               io.AddKeyEvent(taste, true);
+                               start = ImGui::GetTime();
+                               return false;
+                           }
+                           if (ImGui::GetTime() - start < 0.15) { return false; }
+                           io.AddKeyEvent(taste, false);
+                           return true;
+                       }};
+    };
+    auto richtung = [merk](int achse, float vz, const std::string& was) {
+        return pruefe(was, [merk, achse, vz] {
+            const ke::Editor& e = ke::editor();
+            const float d = e.kamera.ursprung[static_cast<std::size_t>(achse)] - merk->ursprung[static_cast<std::size_t>(achse)];
+            diag::detail("Knopftest: Karten-Editor Kamera - Achse " + std::to_string(achse) + " " + std::to_string(d));
+            return d * vz > 5.0F && e.kamera.bewegung == 0U;
+        });
+    };
+    struct Freitaste {
+        ImGuiKey taste;
+        const char* name;
+        int achse;
+        float vz;
+        const char* was;
+    };
+    static const Freitaste kFrei[] = {
+        {ImGuiKey_S, "S", 0, -1, "S = CameraFreeMoveBack: zurueck"},
+        {ImGuiKey_A, "A", 1, 1, "A = CameraFreeMoveLeft: nach links (+y)"},
+        {ImGuiKey_D, "D", 1, -1, "D = CameraFreeMoveRight: nach rechts (-y)"},
+        {ImGuiKey_UpArrow, "Pfeil hoch", 0, 1, "Pfeil hoch = CameraFreeMoveForward2: vor"},
+        {ImGuiKey_DownArrow, "Pfeil runter", 0, -1, "Pfeil runter = CameraFreeMoveBack2: zurueck"},
+        {ImGuiKey_LeftArrow, "Pfeil links", 1, 1, "Pfeil links = CameraFreeMoveLeft2: links"},
+        {ImGuiKey_RightArrow, "Pfeil rechts", 1, -1, "Pfeil rechts = CameraFreeMoveRight2: rechts"},
+        {ImGuiKey_F9, "F9", 2, 1, "F9 = CameraFreeMoveUp (Testbelegung): hoch in Welt-z"},
+        {ImGuiKey_F10, "F10", 2, -1, "F10 = CameraFreeMoveDown (Testbelegung): runter"},
+    };
+    for (const Freitaste& t : kFrei) {
+        add(halten(t.taste, t.name));
+        add(pause(0.1));
+        add(richtung(t.achse, t.vz, t.was));
+    }
+    add(tu("Wuerfel auswaehlen", [] {
+        ke::Editor& e = ke::editor();
+        const auto w = e.karte.welt();
+        if (w && !w->kinder().empty()) { e.karte.auswahl.waehlen(w, w->kinder().front()); }
+    }));
+    add(pause(0.2));
+    add(halten(ImGuiKey_Tab, "Tab"));
+    add(pause(0.1));
+    add(pruefe("Tab im Freelook = CameraFreeFocus: jeder Schritt setzt die Kamera auf den Fokus", [] {
+        const ke::Editor& e = ke::editor();
+        const karte::Vektor3f soll = e.kamera.fokusPosition(e.workzone);
+        return karte::laenge(e.kamera.ursprung - soll) < 0.01 && e.kamera.bewegung == 0U && e.kamera.fokusVersatz == 0;
+    }));
+    add(rechtsKlick("M2 kurz: Freelook aus"));
+    add(tu("Testbelegung zuruecksetzen, Auswahl leeren", [] {
+        ke::Editor& e = ke::editor();
+        e.belegung.zuruecksetzen("CameraFreeMoveUp");
+        e.belegung.zuruecksetzen("CameraFreeMoveDown");
+        e.karte.auswahl.leeren();
+    }));
+    // Einstellungsseite "Camera": "Discrete movement" aus -> die Pfeile sind
+    // KeyEvents (kontinuierlich, CamWnd_Move_Enable).
+    add(tu("Einstellungen oeffnen", [] { (void)ke::ausfuehren("Preferences"); }));
+    add(pause(0.3));
+    add(klick(ke::trK(Str::KePgCamera)));
+    add(pause(0.2));
+    add(foto("karteneditor_einstellungen_kamera"));
+    add(klick(ke::trK(Str::KePrCamDiscrete)));
+    add(klick(ke::trK(Str::KePrefOk)));
+    add(pause(0.2));
+    add(pruefe("Einstellungen: Discrete movement aus", [] { return !ke::editor().kameraE.diskret; }));
+    add(tu("Kamera auf 0 0 0, Blick +x", [] {
+        ke::editor().kamera.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        ke::editor().kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
+    }));
+    add(halten(ImGuiKey_UpArrow, "Pfeil hoch (nicht diskret)"));
+    add(pause(0.1));
+    add(richtung(0, 1, "Pfeil hoch ohne Discrete movement = CameraForward als KeyEvent: kontinuierlich vor"));
+    add(halten(ImGuiKey_LeftArrow, "Pfeil links (nicht diskret)"));
+    add(pause(0.1));
+    add(pruefe("Pfeil links = CameraLeft als KeyEvent: dreht (75 Grad/s)", [] {
+        const float y = ke::editor().kamera.winkel[1];
+        diag::detail("Knopftest: Karten-Editor Kamera - Yaw " + std::to_string(y));
+        return y > 5.0F && y < 40.0F;
+    }));
+    // View > Show: Renderer Stats, 3D Workzone, 3D Size Info
+    add(tu("ShowStats an, Wuerfel auswaehlen", [] {
+        (void)ke::ausfuehren("ShowStats");
+        ke::Editor& e = ke::editor();
+        e.kamera.setzeUrsprung(karte::Vektor3f(-256, -128, 128));
+        e.kamera.setzeWinkel(karte::Vektor3f(-20, 25, 0));
+        const auto w = e.karte.welt();
+        if (w && !w->kinder().empty()) { e.karte.auswahl.waehlen(w, w->kinder().front()); }
+    }));
+    add(pause(0.3));
+    add(pruefe("ShowStats, ShowWorkzone3d, ShowSize3d angehakt", [] {
+        return ke::angehakt("ShowStats") && ke::angehakt("ShowWorkzone3d") && ke::angehakt("ShowSize3d");
+    }));
+    add(foto("karteneditor_kamera_statistik"));
+    add(tu("ShowWorkzone3d und ShowSize3d aus", [] {
+        (void)ke::ausfuehren("ShowWorkzone3d");
+        (void)ke::ausfuehren("ShowSize3d");
+    }));
+    add(pause(0.2));
+    add(pruefe("ShowWorkzone3d / ShowSize3d aus", [] { return !ke::angehakt("ShowWorkzone3d") && !ke::angehakt("ShowSize3d"); }));
+    add(foto("karteneditor_kamera_ohne_workzone"));
+    add(tu("Kamera: Standardwerte, echte Tastatur", [] {
+        ke::editor().kameraE = karte::KameraEinstellungen{};
+        ke::editor().karte.auswahl.leeren();
+        ke::tastaturErsatz = nullptr;
+    }));
+    return s;
+}
+
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
     std::vector<Schritt> s;
@@ -25846,6 +26286,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : karteneditorTastenSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorMassSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorXySchritte()) { add(std::move(x)); }
+    for (Schritt& x : karteneditorKameraSchritte()) { add(std::move(x)); }
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
     return s;
 }

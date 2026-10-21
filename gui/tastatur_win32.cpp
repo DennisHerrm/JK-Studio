@@ -9,6 +9,7 @@
 
 #include <windows.h>
 
+#include <algorithm>
 #include <cwctype>
 
 namespace bhed::gui::tastatur {
@@ -161,6 +162,21 @@ bool belegung(int imguiKey, kb::TastenBelegung& out, bool& ziffernblock, bool& e
     out.qtKey[8] = rueckfall;
     out.vorhanden = true;
     ziffernblock = (vk >= VK_NUMPAD0 && vk <= VK_DIVIDE) || erweitertesReturn;
+    return true;
+}
+
+bool wiederholung(float& verzoegerung, float& abstand) {
+    // SPI_GETKEYBOARDDELAY: 0..3 = 250..1000 ms; SPI_GETKEYBOARDSPEED: 0..31 =
+    // etwa 2,5 bis 30 Wiederholungen je Sekunde (linear).
+    int stufe = 0;
+    DWORD tempo = 0;
+    if (SystemParametersInfoW(SPI_GETKEYBOARDDELAY, 0, &stufe, 0) == FALSE ||
+        SystemParametersInfoW(SPI_GETKEYBOARDSPEED, 0, &tempo, 0) == FALSE) {
+        return false;
+    }
+    verzoegerung = 0.25F * static_cast<float>(std::clamp(stufe, 0, 3) + 1);
+    const float jeSekunde = 2.5F + (static_cast<float>(std::min<DWORD>(tempo, 31)) * (27.5F / 31.0F));
+    abstand = 1.0F / jeSekunde;
     return true;
 }
 

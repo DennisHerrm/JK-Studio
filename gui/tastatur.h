@@ -17,5 +17,10 @@ namespace bhed::gui::tastatur {
 // false, wenn die Taste keine Belegung hat (Zusatztasten, Maus ...).
 bool belegung(int imguiKey, karte::befehle::TastenBelegung& out, bool& ziffernblock, bool& erweitertesReturn);
 
+// Die Tastenwiederholung von Windows (SPI_GETKEYBOARDDELAY / -SPEED), wie
+// Qt sie fuer QAction::autoRepeat erlebt: Verzoegerung und Abstand in
+// Sekunden. false, wenn das System sie nicht nennt.
+bool wiederholung(float& verzoegerung, float& abstand);
+
 }  // namespace bhed::gui::tastatur
 #endif

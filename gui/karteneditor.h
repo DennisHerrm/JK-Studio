@@ -23,6 +23,7 @@
 #include "bhed/i18n.h"
 #include "bhed/karte/befehle.h"
 #include "bhed/karte/eklasse.h"
+#include "bhed/karte/kamera.h"
 #include "bhed/karte/karte.h"
 #include "bhed/karte/kartenformat.h"
 #include "bhed/karte/raster.h"
@@ -163,11 +164,24 @@ struct XyFenster {
     float bildX = 0;             // linke obere Ecke im Programmfenster (Bildpunkte)
     float bildY = 0;
 };
-// Die 3D-Kamera, soweit die 2D-Ansichten sie brauchen (camera_t: origin,
-// angles = pitch, yaw, roll).
-struct KameraZustand {
-    karte::Vektor3f ursprung{0, 0, 0};
-    karte::Vektor3f winkel{0, 0, 0};
+// Das Kamerafenster (CamWnd, camwindow.cpp:1625-1803): Freelook, Rechtsklick-
+// Uhr, gehaltene Tasten (PressedKeys, accelerator.cpp:88-170).
+struct KameraFenster {
+    bool frei = false;              // m_bFreeMove
+    bool freiBetreten = false;      // m_bFreeMove_entering
+    double rechtsUhr = -1000.0;     // m_rightClickTimer: Start (Sekunden, ImGui-Zeit)
+    double rechtsWeg = 0.0;         // m_rightClickMove
+    double tastenUhr = -1.0;        // m_keycontrol_timer: Start, -1 = steht
+    float bildX = 0;                // linke obere Ecke im Programmfenster (Bildpunkte)
+    float bildY = 0;
+    int breite = 0;                 // Geraetepunkte
+    int hoehe = 0;
+    float letzteX = 0;              // Freelook: Lage des Zeigers nach dem Zuruecksetzen
+    float letzteY = 0;
+    std::vector<int> tasten;        // PressedKeys::keys (ImGuiKey)
+    bool kontextmenue = false;      // context_menu_show (Doppel-M2) - fuer den Selbsttest
+    double zeichenMs = 0.0;         // ShowStats: msec des letzten Bilds
+    double letzteStatistik = -1.0;  // m_render_time (f2f)
 };
 // View > Show und die Seite "Orthographic" (xywindow.cpp:77-98,
 // entity.cpp:114-122).
@@ -256,7 +270,6 @@ struct Editor {
 
     // --- Raster und Kamera-Werte, die die Statuszeile zeigt ---
     karte::Raster raster;     // grid.cpp
-    int kubikSkala = 14;      // g_camwindow_globals.m_nCubicScale (camwindow.h)
 
     // --- Befehle ---
     befehle::Belegung belegung;
@@ -287,7 +300,11 @@ struct Editor {
     // --- 2D-Ansichten und Kamera ---
     std::array<XyFenster, 3> xy;   // 0 m_pXYWnd (XY), 1 m_pXZWnd (XZ), 2 m_pYZWnd (YZ)
     int aktivXy = 0;               // ActiveXY
-    KameraZustand kamera;
+    karte::Kamera kamera;              // m_Camera
+    karte::KameraEinstellungen kameraE;   // camwindow_globals(_private), camera_t statics
+    KameraFenster kamFenster;
+    // Select_getWorkZone (select.cpp:461-476): Grenzen der letzten Auswahl.
+    karte::Kasten workzone{karte::Vektor3f(0, 0, 0), karte::Vektor3f(64, 64, 64)};
     Anzeige anzeige;
     std::size_t ladeZaehler = 0;   // jede neu geladene/neue Karte
 };
@@ -345,6 +362,36 @@ void xyBefehl(const std::string& name);
 void startPosition();
 // Die Ansichten, die es in der aktuellen Anordnung gibt (forEachXYWnd).
 [[nodiscard]] std::vector<int> xyFenster();
+// Ein Stand der Szene (aendert sich mit jedem Befehl, Undo, neuer Karte,
+// neuer Auswahl und den Show-Schaltern).
+[[nodiscard]] std::size_t szeneStand();
+// getBoundsSelected: false, wenn nichts ausgewaehlt ist.
+bool auswahlGrenzen(karte::Kasten& b);
+// Die Rad-Ereignisse dieses Bilds (Qt: ein wheelEvent je Ereignis): je
+// Ereignis das Vorzeichen (|y| > |x| ? y : x).
+[[nodiscard]] std::vector<int> radEreignisse();
+// --- 3D-Kamera (app_karte_cam.cpp) ---
+// Die Kamera im aktuellen Kindfenster zeichnen und bedienen.
+void kameraZeichnen();
+// Die Befehle der Kamera (camwindow.cpp:2487-2570, 1332-1433).
+void kameraBefehl(const std::string& name);
+// Gehaltene Tasten (KeyEvents) vor den Kuerzeln: true, wenn die Taste
+// key (ImGuiKey) in diesem Bild von einem KeyEvent verbraucht wird.
+bool kameraTasteVerbraucht(int key);
+// Haengt ein KeyEvent-Befehl gerade an seiner Taste (diskret/Freelook)?
+[[nodiscard]] bool befehlVerbunden(const std::string& name);
+// GlobalPressedKeys_releaseAll (Fokuswechsel)
+void kameraTastenLoslassen();
+// Braucht die Kamera Bilder (Bewegung, Freelook, Texturen laden)?
+[[nodiscard]] bool kameraBrauchtBilder();
+// Fuer den Selbsttest: sind alle angeforderten Bilder geladen?
+[[nodiscard]] bool kameraBilderFertig();
+// DisableFreeMove (auch bei Fokusverlust)
+void freelookBeenden();
+// Fuer den Selbsttest: ein Bildpunkt der Kamera (Geraetepunkte im Fenster)
+// und die Durchschnittsfarbe eines geladenen Shaders (qtexture_t::color).
+bool kameraPixel(int x, int y, unsigned char rgba[4]);
+bool kameraTexturFarbe(const std::string& shader, float rgb[3]);
 
 // MaximizeView (Taste, Menue) und der Aufbau der Teiler fuer die Anordnung.
 void maximierenUmschalten();

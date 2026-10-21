@@ -295,6 +295,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_dialoge.cpp
     gui/karte_vektoricons.cpp
     gui/app_karte_xy.cpp
+    gui/app_karte_cam.cpp
     gui/karte_gpu_win32.cpp
     gui/tastatur_win32.cpp
     gui/backend_win32.cpp
@@ -670,7 +671,10 @@ target_sources(bhed_core PRIVATE
   # Stufe 1b: Platzverteilung wie Qt 5.15 (QSplitter, QStatusBar)
   src/karte/teiler.cpp
   # Stufe 1b: 2D-Ansichten (XYWnd: Raster, Zoom, Kanten, Entities)
-  src/karte/xyansicht.cpp)
+  src/karte/xyansicht.cpp
+  # Stufe 1b: 3D-Kamera (CamWnd: Bewegung, Freelook, Fokus, Szene)
+  src/karte/kamera.cpp
+  src/karte/kameraszene.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -748,6 +752,10 @@ if(BEHAVED_TESTS)
   add_executable(kartexyansicht tests/kartexyansicht.cpp)
   target_link_libraries(kartexyansicht PRIVATE bhed_core)
   add_test(NAME karte_xyansicht COMMAND kartexyansicht)
+  # Punkt 6: die 3D-Kamera (Projektion, Freelook, Tasten, Fokus, Etagen, Szene)
+  add_executable(kartekamera tests/kartekamera.cpp)
+  target_link_libraries(kartekamera PRIVATE bhed_core)
+  add_test(NAME karte_kamera COMMAND kartekamera)
   # Punkte 3 und 4: die Befehlstabelle gegen die Checkliste (jeder Befehl mit
   # NRCs Taste, jeder Menuepunkt und Knopf), Uebersetzungen = NRC-Englisch,
   # Tastenkuerzel wie Qt (Text, possibleKeys, deutsche Tastatur).

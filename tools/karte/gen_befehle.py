@@ -43,6 +43,12 @@ SetGrid16 SetGrid32 SetGrid64 SetGrid128 SetGrid256 SetGrid512 SetGrid1024
 NextView ViewTop ViewFront ViewSide ZoomIn ZoomOut Zoom100 CenterXYView XYFocusOnSelected
 ShowSize2d ToggleCrosshairs ToggleGrid ShowAngles ShowNames ShowBboxes ShowConnections ShowLightRadiuses
 ShowBlocks ShowCoordinates ShowWindowOutline ShowAxes ShowWorkzone2d
+CenterView CameraFocusOnSelected ToggleCubicClip CubicClipZoomIn CubicClipZoomOut UpFloor DownFloor
+CameraModeNext CameraModePrev CameraSpeedInc CameraSpeedDec ShowStats ShowWorkzone3d ShowSize3d
+CameraForward CameraBack CameraLeft CameraRight CameraStrafeRight CameraStrafeLeft CameraUp CameraDown
+CameraAngleUp CameraAngleDown CameraFreeMoveForward CameraFreeMoveBack CameraFreeMoveLeft CameraFreeMoveRight
+CameraFreeMoveForward2 CameraFreeMoveBack2 CameraFreeMoveLeft2 CameraFreeMoveRight2 CameraFreeMoveUp
+CameraFreeMoveDown CameraFreeFocus
 '''.split())
 
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem

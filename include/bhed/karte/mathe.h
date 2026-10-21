@@ -597,6 +597,36 @@ inline Matrix4 affinInvers(const Matrix4& s) {
     return r;
 }
 inline void affinInvertieren(Matrix4& s) { s = affinInvers(s); }   // matrix4_affine_invert
+// Matrix4Cofactor<Row, Col>::apply: die 3x3-Unterdeterminante ohne Zeile
+// "zeile" und Spalte "spalte" (Index zeile * 4 + spalte), in float gerechnet.
+inline double kofaktor(const Matrix4& s, std::size_t zeile, std::size_t spalte) {
+    const std::size_t r[3] = {zeile <= 0 ? 1U : 0U, zeile <= 1 ? 2U : 1U, zeile <= 2 ? 3U : 2U};   // Cofactor4
+    const std::size_t c[3] = {spalte <= 0 ? 1U : 0U, spalte <= 1 ? 2U : 1U, spalte <= 2 ? 3U : 2U};
+    const auto m = [&](std::size_t i, std::size_t j) { return s[(r[i] * 4) + c[j]]; };
+    return m(0, 0) * (m(1, 1) * m(2, 2) - m(2, 1) * m(1, 2)) - m(0, 1) * (m(1, 0) * m(2, 2) - m(2, 0) * m(1, 2)) +
+           m(0, 2) * (m(1, 0) * m(2, 1) - m(2, 0) * m(1, 1));
+}
+// matrix4_determinant
+inline double determinante(const Matrix4& s) {
+    return s.xx() * kofaktor(s, 0, 0) - s.xy() * kofaktor(s, 0, 1) + s.xz() * kofaktor(s, 0, 2) - s[3] * kofaktor(s, 0, 3);
+}
+// matrix4_full_inverse (Adjunkte)
+inline Matrix4 vollInvers(const Matrix4& s) {
+    const double d = 1.0 / determinante(s);
+    const auto k = [&](std::size_t zeile, std::size_t spalte, double vz) { return static_cast<float>(vz * kofaktor(s, zeile, spalte) * d); };
+    return Matrix4(k(0, 0, 1), k(1, 0, -1), k(2, 0, 1), k(3, 0, -1), k(0, 1, -1), k(1, 1, 1), k(2, 1, -1), k(3, 1, 1),
+                   k(0, 2, 1), k(1, 2, -1), k(2, 2, 1), k(3, 2, -1), k(0, 3, -1), k(1, 3, 1), k(2, 3, -1), k(3, 3, 1));
+}
+// matrix4_transformed_vector4
+inline Vektor4f transformierterVektor4(const Matrix4& s, const Vektor4f& v) {
+    return Vektor4f(s[0] * v[0] + s[4] * v[1] + s[8] * v[2] + s[12] * v[3], s[1] * v[0] + s[5] * v[1] + s[9] * v[2] + s[13] * v[3],
+                    s[2] * v[0] + s[6] * v[1] + s[10] * v[2] + s[14] * v[3], s[3] * v[0] + s[7] * v[1] + s[11] * v[2] + s[15] * v[3]);
+}
+// vector4_projected
+inline Vektor3f projiziert(const Vektor4f& v) {
+    const double r = 1.0 / v[3];
+    return Vektor3f(static_cast<float>(v[0] * r), static_cast<float>(v[1] * r), static_cast<float>(v[2] * r));
+}
 // matrix4_for_normal_transform: M^-T
 inline Matrix4 normalenMatrix(const Matrix4& s) { return transponiert(affinInvers(s)); }
 // matrix4_transformed_normal
