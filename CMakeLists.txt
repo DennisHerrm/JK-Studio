@@ -709,4 +709,13 @@ if(BEHAVED_TESTS)
     target_link_libraries(kartemassenlast PRIVATE psapi)
   endif()
   add_test(NAME karte_massenlast COMMAND kartemassenlast "${BEHAVED_KARTE_DEKOMP}")
+  # Stufe 1b, Punkt 1: die Checkliste aller NRC-Menues, Knoepfe, Befehle,
+  # Dialoge, Einstellungen und Plugins (tools/karte/nrc_inventar.md) - jeder
+  # Eintrag hat einen Stand, ausgegraute nennen ihre Stufe.
+  find_package(Python3 COMPONENTS Interpreter)
+  if(Python3_Interpreter_FOUND)
+    add_test(NAME karte_inventar
+             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.py pruefen
+                     ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.md)
+  endif()
 endif()
