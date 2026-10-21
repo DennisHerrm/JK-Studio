@@ -24810,11 +24810,28 @@ std::string dateiInhalt(const std::string& pfad) {
 // Werkzeugleisten mit NRCs standardmaessig versteckten Knoepfen, das
 // Kontextmenue der Leisten, die vier Fensteranordnungen ueber die
 // Einstellungen, GUI- und Viewports-Thema, "Begriffe wie NetRadiant".
+// Das Kindfenster des Karten-Editors ("...###main/##karteneditor_XXXX").
+ImGuiWindow* karteFenster() {
+    for (ImGuiWindow* k : GImGui->Windows) {
+        if (std::strstr(k->Name, "/##karteneditor_") != nullptr) { return k; }
+    }
+    return nullptr;
+}
+
 std::vector<Schritt> karteneditorRahmenSchritte() {
     namespace ke = karteneditor;
     namespace kb = karte::befehle;
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    // Offene Menues schliessen: ein Klick in die Statuszeile des Editors
+    // (ImGui schliesst mit der Maus geoeffnete Menues nicht mit Escape).
+    auto menuesZu = [] {
+        return klickAn("in die Statuszeile (Menues zu)", [] {
+            ImGuiWindow* w = karteFenster();
+            if (w == nullptr) { return ImVec2{5, 5}; }
+            return ImVec2{w->Pos.x + w->Size.x * 0.25F, w->Pos.y + w->Size.y - ImGui::GetTextLineHeight() * 0.5F - 2.0F};
+        });
+    };
     // 1. Jedes Menue oeffnen; alle Eintraege der ersten Ebene muessen da sein,
     //    jedes Untermenue wird geoeffnet und seine Eintraege geprueft.
     const auto& liste = kb::menues();
@@ -24871,8 +24888,7 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
                 return fehlt.empty();
             }));
         }
-        add(taste(ImGuiKey_Escape, "Escape"));
-        add(taste(ImGuiKey_Escape, "Escape"));
+        add(menuesZu());
         add(pause(0.1));
     }
     // 2. Werkzeugleisten: genau die Knoepfe, die NRC zeigt (gtkmisc.cpp:147).
@@ -24960,12 +24976,14 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
     }
     // Misc > Maximize view: das Feld unter der Maus (XY) fuellt alles, nochmal zurueck.
     add(klickAn("Maus ueber das XY-Feld", [] {
-        const Element* el = finde("##feldXY", "", 0, true);
-        ImGuiWindow* w = ImGui::FindWindowByName("##karteneditor");
-        (void)el;
+        ImGuiWindow* w = karteFenster();
         if (w == nullptr) { return ImVec2{0, 0}; }
         return ImVec2{w->Pos.x + w->Size.x * 0.2F, w->Pos.y + w->Size.y * 0.4F};
     }));
+    add(tu("Feld unter der Maus vergessen, MaximizeView per Befehl", [] {
+        ke::editor().maximiertFeld = 3;   // die Maus steht ueber XY - das Feld muss sich aendern
+    }));
+    add(pause(0.2));
     add(tu("MaximizeView (F12) per Befehl", [] { (void)ke::ausfuehren("MaximizeView"); }));
     add(pause(0.2));
     add(pruefe("Maximize view: XY maximiert", [] { return ke::editor().maximiert && ke::editor().maximiertFeld == 0; }));
@@ -24978,43 +24996,42 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
         return kb::bedingungGilt(kb::kNichtRegular, kb::Anordnung::Split, false) &&
                !kb::bedingungGilt(kb::kNichtSplit, kb::Anordnung::Split, false);
     }));
-    // 5. GUI-Thema und Viewports-Thema ueber Misc > Theming.
+    // 5. Farben: aus dem Farbschema des Programms (Entscheidung shank). Die
+    //    NRC-Eintraege unter Misc > Theming stehen da, ausgegraut.
     add(klick(ke::trK(Str::KeLMisc), "##karteneditor"));
     add(klick(ke::trK(Str::KeLTheming)));
     add(pause(0.2));
     add(klick(ke::trK(Str::KeLGUITheme)));
     add(pause(0.2));
-    add(klick("Darker"));
-    add(pause(0.3));
-    add(pruefe("GUI Theme: Darker", [] { return ke::editor().guiThema == 3; }));
-    add(foto("karteneditor_darker"));
-    add(klick(ke::trK(Str::KeLMisc), "##karteneditor"));
-    add(klick(ke::trK(Str::KeLTheming)));
-    add(pause(0.2));
-    add(klick(ke::trK(Str::KeLGUITheme)));
-    add(pause(0.2));
-    add(klick("Dark"));
-    add(pause(0.3));
-    add(pruefe("GUI Theme: wieder Dark (NRCs Vorgabe)", [] { return ke::editor().guiThema == 2; }));
-    add(klick(ke::trK(Str::KeLMisc), "##karteneditor"));
-    add(klick(ke::trK(Str::KeLTheming)));
-    add(pause(0.2));
-    add(klick(ke::trK(Str::KeLViewportsTheme)));
-    add(pause(0.2));
-    add(klick("QE4 Original"));
-    add(pause(0.3));
-    add(pruefe("Viewports Theme QE4 Original: Raster-Hintergrund .96", [] {
-        return std::fabs(ke::editor().farben.rasterHinten[0] - 0.96F) < 1e-4F && ke::editor().farben.rasterText[0] == 0.0F;
+    add(pruefe("Misc > Theming > GUI Theme: NRCs Eintraege da (ausgegraut)", [] {
+        return finde("Darker", "", 0, false) != nullptr && finde("BlenderLight", "", 0, false) != nullptr;
     }));
-    add(klick(ke::trK(Str::KeLMisc), "##karteneditor"));
-    add(klick(ke::trK(Str::KeLTheming)));
-    add(pause(0.2));
-    add(klick(ke::trK(Str::KeLViewportsTheme)));
-    add(pause(0.2));
-    add(klick("Blender Dark"));
-    add(pause(0.3));
-    add(pruefe("Viewports Theme Blender Dark: NRCs Grundfarben", [] {
-        return std::fabs(ke::editor().farben.rasterHinten[0] - 0.225803F) < 1e-5F;
+    add(menuesZu());
+    auto themaVorher = std::make_shared<std::string>();
+    for (const char* id : {"dark", "light"}) {
+        const std::string tid = id;
+        add(tu(std::string("Farbschema des Programms: ") + id, [tid, themaVorher] {
+            if (themaVorher->empty() && g_app->activeTheme != nullptr) { *themaVorher = g_app->activeTheme->id; }
+            if (const theme::Theme* t = theme::findTheme(tid)) {   // wie setThemeById (app.cpp)
+                g_app->activeTheme = t;
+                g_app->themePending = true;
+            }
+        }));
+        add(pause(0.4));
+        add(pruefe(std::string("Farbrollen folgen dem Farbschema ") + id, [tid] {
+            const ke::Farben& f = ke::editor().farben;
+            const ImVec4 hinten = ImGui::GetStyleColorVec4(ImGuiCol_ChildBg).w > 0.5F ? ImGui::GetStyleColorVec4(ImGuiCol_ChildBg)
+                                                                                     : ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
+            const float hell = f.rasterHinten[0] + f.rasterHinten[1] + f.rasterHinten[2];
+            return std::fabs(f.rasterHinten[0] - hinten.x) < 1e-4F && (tid == "dark" ? hell < 1.5F : hell > 1.5F);
+        }));
+        add(foto(std::string("karteneditor_thema_") + id));
+    }
+    add(tu("Farbschema zurueck", [themaVorher] {
+        if (const theme::Theme* t = theme::findTheme(*themaVorher)) {
+            g_app->activeTheme = t;
+            g_app->themePending = true;
+        }
     }));
     // 6. "Begriffe wie NetRadiant": auf Deutsch heisst das Menue "Datei",
     //    eingeschaltet wieder "File".

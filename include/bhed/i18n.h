@@ -1062,6 +1062,7 @@ enum class Str {
     KeNrcTermsHint,
     KeRecentFiles,
     KeStufe,
+    KeFarbenProgramm,
     KeNichtDabei,
     KeMainToolbar,
     KeFilterToolbar,

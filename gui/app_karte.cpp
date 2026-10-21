@@ -601,7 +601,7 @@ void zeichne(float hoehe) {
     e.knoepfeImBild.clear();
     spielPruefen();
     if (!e.belegungGeladen) { einstellungenLaden(); }
-    themaAnfang();
+    farbenAusThema();
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, 0.0F});
     ImGui::BeginChild("##karteneditor", ImVec2{-FLT_MIN, hoehe}, ImGuiChildFlags_None,
@@ -633,6 +633,5 @@ void zeichne(float hoehe) {
     gruppenDialog(start, rest);
     zeichneEinstellungen();
     zeichneRueckfrage();
-    themaEnde();
 }
 }  // namespace bhed::gui::karteneditor

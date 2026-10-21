@@ -52,6 +52,10 @@ KARTE = [
     # --- Rahmen (Stufe 1b, Punkt 3) -------------------------------------------
     ("KeStufe", "Comes in stage %d of the map editor.", "Kommt in Stufe %d des Karten-Editors.",
      "将在地图编辑器第 %d 阶段提供。", "マップエディターの第 %d 段階で追加されます。"),
+    ("KeFarbenProgramm", "The map editor uses the colours of the program's colour scheme (View > Theme).",
+     "Der Karten-Editor nimmt die Farben des Farbschemas des Programms (Ansicht > Farbgebung).",
+     "地图编辑器使用程序配色方案中的颜色(视图 > 主题)。",
+     "マップエディターはプログラムの配色のカラーを使います(表示 > テーマ)。"),
     ("KeNichtDabei", "Not included in this program.", "Gehört nicht zu diesem Programm.", "本程序不包含此项。",
      "このプログラムには含まれていません。"),
     # QToolBar-Titel (mainframe.cpp:1683-1697), Kontextmenue der Leisten

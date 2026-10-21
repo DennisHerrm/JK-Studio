@@ -15,8 +15,10 @@ struct KarteIcon {
     int spalte;         // Position im Streifen
 };
 
-extern const unsigned char kKarteIconPng[];
+extern const unsigned char kKarteIconPng[];       // dunkle Farbgebungen (NRC bitmaps/)
 extern const std::size_t kKarteIconPngGroesse;
+extern const unsigned char kKarteIconPngHell[];   // helle Farbgebungen (NRC bitmaps_light/)
+extern const std::size_t kKarteIconPngHellGroesse;
 extern const int kKarteIconGroesse;
 extern const KarteIcon kKarteIcons[];
 extern const std::size_t kKarteIconAnzahl;

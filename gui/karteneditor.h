@@ -66,10 +66,11 @@ struct KonsolenZeile {
     std::string text;
 };
 
-// Die Farben der Ansichten (xywindow.h:249-260 g_xywindow_globals,
+// Die Farbrollen der Ansichten (xywindow.h:249-260 g_xywindow_globals,
 // camwindow.h:67-68 g_camwindow_globals, render.h:291 g_colour_x/y/z,
-// Texturbrowser- und Modellbrowser-Hintergrund) mit NRCs Grundwerten.
-// Gespeichert unter den Preference-Namen von g_ColoursMenu (colors.cpp:153).
+// Texturbrowser- und Modellbrowser-Hintergrund). Die Werte kommen aus dem
+// Farbschema des Programms (farbenAusThema) - Entscheidung shank: die Farben
+// muessen nicht wie NRC sein; NRCs Grundwerte stehen nur zur Erinnerung da.
 struct Farben {
     using F3 = std::array<float, 3>;
     F3 texBro{0.25F, 0.25F, 0.25F};          // ColorTexBroBackground
@@ -97,13 +98,8 @@ struct FarbEintrag {
     Farben::F3 Farben::*feld;
 };
 [[nodiscard]] const std::vector<FarbEintrag>& farbEintraege();
-// Die Viewports-Themen (themes/_colors/*.json, alphabetisch wie
-// Directory_forEach): Name und die 17 Farben in der Reihenfolge oben.
-struct FarbThema {
-    const char* name;
-    std::array<Farben::F3, 17> farben;
-};
-[[nodiscard]] const std::vector<FarbThema>& farbThemen();
+// Die Rollen bekommen ihre Werte aus dem Farbschema des Programms (jedes Bild).
+void farbenAusThema();
 
 // Ein Fenster der Ansichten (XYWnd / CamWnd) - wo es gerade steht.
 enum class AnsichtTyp { YZ = 0, XZ = 1, XY = 2, Kamera = 3 };   // VIEWTYPE (xywindow.h)
@@ -148,7 +144,6 @@ struct Editor {
     bool filterleiste = true;
     bool pluginleiste = true;
     std::set<std::string> versteckteKnoepfe;   // g_toolbarHiddenButtons
-    int guiThema = 2;                          // s_theme (ETheme::Dark)
     Farben farben;
     // Statuszeile (create_main_statusbar): c_status_command, _position, _texture
     std::string statusBefehl;
@@ -204,9 +199,6 @@ void zeichneStatuszeile();
 float statuszeilenHoehe();
 // Das Symbol <name> (bitmaps/<name>.svg) als Bild; false, wenn es fehlt.
 bool symbol(const char* name, float groesse, bool hell = true);
-// Die NRC-Farben (Thema Dark, theme.cpp:93) fuer alles im Editor.
-void themaAnfang();
-void themaEnde();
 // --- Dialoge (app_karte_dialoge.cpp) ---
 void zeichneEinstellungen();   // "NetRadiant Preferences" (P)
 // Einstellungen des Editors lesen/schreiben (Settings::karte).
