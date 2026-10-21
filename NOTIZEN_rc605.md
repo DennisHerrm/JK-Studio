@@ -571,3 +571,24 @@ CM_NeedsSubdivision/CM_SubdivideGridColumns von Hand):
   Boden, die Figur gleitet in PM_AirMove/PM_SlideMove die 47-Grad-Ebene hinab (vy = -vz) - wie im Spiel. Die
   gezeichnete Kehle (feiner tesselliert) sieht rund aus; die Kollision ist die eine schraege Ebene.
 Ergebnis: keine Abweichung, das Kollisionsmodell der Vorschau rechnet hier wie cm_patch. Nichts geaendert.
+
+## Noch offen nach den letzten Punkten (13-18)
+
+- Kampf-KI nach SET_ENEMY (Entscheidung des Maintainers: nicht anfangen); damit auch Waffenhaltung WEAPON_READY,
+  weaponBusy, Machtschutz/Wut in G_Damage, der Schild des Attentaeterdroiden (FL_SHIELDED aus der KI).
+- G_Damage-Reste: Rueckstoss und Umwerfen (G_ApplyKnockback, G_CheckKnockdown) bei Explosion und Quetschung,
+  Schmerz-Reaktion, Zufallsschaden von FL_DINDJARIN (MD), Galaks Schild ab NPC_GalakMech_Init (500); der Spieler
+  wird in der Vorschau weiter nicht verletzt.
+- Mover: Figuren, die ein Mover wegschiebt, ohne blockiert zu werden (G_TryPushingEntity gelingt); Skript-Mover
+  (move/ROFF) als Blockierte samt dem Warten des Skripts; func_rotating/bobbing/pendulum; Leichen (Blocked_Door
+  entfernt sie); vjun3 elevator_up: lift_waypoint_hack (intro.ibi entfernt es beim Kartenstart).
+- Jedi Outcast: NAV_TestBestNode Fall 4 nimmt die contents der getroffenen Flaeche statt blocker->contents;
+  NAVNEW_TestNodeConnectionBlocked mit einem Navgoal, das selbst ein Koerper ist; die Blickrichtung einer Figur
+  ohne Plan beim Schub ist die vom Spawn.
+- SET_MISSIONFAILED: der Bildschirm "Mission gescheitert" selbst (nur Statuszeile), Spieler-Tod durch
+  G_PlayerGuiltDeath nur, wenn es den Spieler in der Vorschau gibt; Annahme: mehr als 40 Bilder/s des Clients.
+- Unveraendert aus rc604: Sprung-Animationsreste, 15-s-Teleport, Geschuetze, Effekt-/Gras-Reste (NOTIZEN_rc604.md).
+
+Commits dieses Durchgangs (auf 394b98c): 4039b7b SET_MISSIONFAILED · a29ad3f JK2 AddFailedEdge/Schieben ·
+12bfb77 Laserfallen-Schaden + G_Damage · 743b335 blockierte Mover · dd2e3dd trigger_hurt-Reste · 4273948 rebel5-Kehle ·
+danach diese Notizen.
