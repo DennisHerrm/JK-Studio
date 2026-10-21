@@ -242,7 +242,7 @@ MENUES = [
             ('SEP',),
             ('LISTE', 'Farben'),                 # g_ColoursMenu (colors.cpp:153)
         ]),
-        ('ITEM', 'Find Entity/Brush...', 'FindBrush', ''),
+        ('ITEM', 'Find brush...', 'FindBrush', ''),   # NRC 20260114 (master: "Find Entity/Brush...")
         ('ITEM', 'Map Info...', 'MapInfo', ''),
         ('ITEM', '&Refresh models', 'RefreshReferences', ''),
         ('RUF', 'Set 2D &Background image...', 'WXY_SetBackgroundImage', ''),
@@ -653,7 +653,7 @@ UEBERSETZUNG = {
     'Viewports Theme': ('Farben der Ansichten', '视口主题', 'ビューポートのテーマ'),
     'GUI Theme': ('Oberflächen-Thema', '界面主题', 'GUI テーマ'),
     'OpenGL Font...': ('Schrift der Ansichten...', 'OpenGL 字体...', 'OpenGL フォント...'),
-    'Find Entity/Brush...': ('Entity/Brush suchen...', '查找实体/画刷...', 'エンティティ/ブラシを検索...'),
+    'Find brush...': ('Brush suchen...', '查找画刷...', 'ブラシを検索...'),
     'Map Info...': ('Karteninfo...', '地图信息...', 'マップ情報...'),
     'Refresh models': ('Modelle neu laden', '刷新模型', 'モデルを再読み込み'),
     'Set 2D Background image...': ('2D-Hintergrundbild...', '设置 2D 背景图...', '2D 背景画像を設定...'),

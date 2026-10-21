@@ -1327,7 +1327,7 @@ enum class Str {
     KeLViewportsTheme,
     KeLGUITheme,
     KeLOpenGLFont,
-    KeLFindEntityBrush,
+    KeLFindBrush,
     KeLMapInfo,
     KeLRefreshModels,
     KeLSet2DBackgroundImage,

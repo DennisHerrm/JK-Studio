@@ -7,8 +7,9 @@
 // Werkzeugleiste 39, Statuszeile 21, Filterleiste rechts 39 breit, Griff 4.
 //   Regular: XY 495 breit, 629 hoch; Konsole 33; Kamera 742 breit, 414 hoch;
 //            Texturbrowser 248 hoch.
-//   Statuszeile: Befehl ab 2, Position ab 329, Zaehler ab 655 (168 breit),
-//            Textur ab 829, Raster ab 1156 (124 breit).
+//   Statuszeile: Zaehler ab 655 (168 breit), Raster "G:16  F:BP  C:14
+//            L:OFF  " = 124,11 Punkte, aufgerundet 125 (QLabel::sizeHint)
+//            -> ab 1155; Befehl, Position, Textur teilen sich den Rest.
 // Dazu Ziehen eines Griffs wie QSplitter::moveSplitter (Mindestgroessen,
 // Einklappen unterhalb der halben Mindestgroesse) und Vergroessern danach
 // (verteilt im Verhaeltnis der gezogenen Groessen).
@@ -113,16 +114,16 @@ void ziehen() {
 
 void statuszeile() {
     // Befehl, Position, Zaehler (3 x Bild 16 + Zahl 30, Abstand 6 = 168),
-    // Textur, Raster ("G:16  F:BP  C:14  L:OFF  " = 124).
-    const std::vector<Spanne> s = statuszeileVerteilen({{0, 0, 1}, {0, 0, 1}, {168, 168, 0}, {0, 0, 1}, {124, 124, 0}}, 1280);
+    // Textur, Raster ("G:16  F:BP  C:14  L:OFF  " = 125).
+    const std::vector<Spanne> s = statuszeileVerteilen({{0, 0, 1}, {0, 0, 1}, {168, 168, 0}, {0, 0, 1}, {125, 125, 0}}, 1280);
     std::vector<int> lagen;
     std::vector<int> breiten;
     for (const Spanne& x : s) {
         lagen.push_back(x.pos);
         breiten.push_back(x.groesse);
     }
-    pruefe(lagen == std::vector<int>{2, 329, 655, 829, 1156}, "Statuszeile: Lagen 2, 329, 655, 829, 1156 (ist " + text(lagen) + ")");
-    pruefe(breiten == std::vector<int>{321, 320, 168, 321, 124}, "Statuszeile: Breiten 321, 320, 168, 321, 124 (ist " + text(breiten) + ")");
+    pruefe(lagen == std::vector<int>{2, 328, 655, 829, 1155}, "Statuszeile: Lagen 2, 328, 655, 829, 1155 (ist " + text(lagen) + ")");
+    pruefe(breiten == std::vector<int>{320, 321, 168, 320, 125}, "Statuszeile: Breiten 320, 321, 168, 320, 125 (ist " + text(breiten) + ")");
 }
 
 void leisten() {

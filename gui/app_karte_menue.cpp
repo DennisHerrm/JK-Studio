@@ -199,8 +199,9 @@ void listeZeichnen(const std::string& name) {
         // stehen da, ausgegraut.
         for (const char* t : kViewportThemen) { (void)menuePunkt(t, nullptr, false, false, tr(Str::KeFarbenProgramm)); }
     } else if (name == "GuiThemen") {
-        // theme_construct_menu (theme.cpp:182-200)
-        for (const char* t : {"Default", "Fusion", "Dark", "Darker", "GreyBlue2", "BlenderDark", "BlenderLight"}) {
+        // theme_construct_menu (theme.cpp, NRC 20260114: vier Themen; die
+        // drei weiteren gibt es erst in master)
+        for (const char* t : {"Default", "Fusion", "Dark", "Darker"}) {
             (void)menuePunkt(t, nullptr, false, false, tr(Str::KeFarbenProgramm));
         }
     } else if (name == "Farben") {
@@ -346,9 +347,10 @@ void zeichneMenueleiste() {
     for (std::size_t i = 0; i < liste.size(); ++i) {
         if (liste[i].art != MenueArt::Menue) { continue; }
         const char* text = trK(liste[i].str);
-        // fm.size(): ganze logische Punkte (ImGui::CalcTextSize rundet auf -
-        // hier die ungerundete Breite der Schrift).
-        const int w = static_cast<int>(std::lround(ImGui::GetFont()->CalcTextSizeA(ImGui::GetFontSize(), FLT_MAX, 0.0F, text).x / s));
+        // fm.size(): boundingRect(...).size() - das Rechteck auf ganze
+        // logische Punkte aufgerundet (QRectF::toAlignedRect). Am Foto
+        // nachgemessen: aufgerundet stehen alle zwoelf Titel auf dem Punkt.
+        const int w = static_cast<int>(std::ceil(ImGui::GetFont()->CalcTextSizeA(ImGui::GetFontSize(), FLT_MAX, 0.0F, text).x / s - 0.001F));
         merkeFeld(std::string("Menue:") + text, x, 0, w + mass::kMenuePolster, mass::kMenueH);
         ImGui::SetCursorScreenPos(ImVec2{bildpunkt(x, 0).x + static_cast<float>(mass::kMenuePolster) * 0.5F * s - halb, zeile});
         const std::string id = std::string(text) + "###menue" + std::to_string(i);
@@ -697,8 +699,9 @@ void zeichneStatuszeile(int y, int breite) {
     std::snprintf(raster, sizeof(raster), "%s%g  F:%s  C:%d  L:%s", ed.raster.einrastGroesse() > 0 ? "G:" : "g:",
                   static_cast<double>(ed.raster.groesse()), format, ed.kubikSkala,
                   ed.karte.kontext.texturLock ? "ON   " : "OFF  ");
+    // QLabel::sizeHint: fm.boundingRect, auf ganze Punkte aufgerundet.
     const auto textB = [s](const std::string& t) {
-        return static_cast<int>(std::lround(ImGui::GetFont()->CalcTextSizeA(ImGui::GetFontSize(), FLT_MAX, 0.0F, t.c_str()).x / s));
+        return static_cast<int>(std::ceil(ImGui::GetFont()->CalcTextSizeA(ImGui::GetFontSize(), FLT_MAX, 0.0F, t.c_str()).x / s - 0.001F));
     };
     // Zahlenfelder: setMinimumWidth( fontMetrics().horizontalAdvance( "99999" ) )
     // - gemessen, solange das QLabel noch die Grundschrift von Qt unter

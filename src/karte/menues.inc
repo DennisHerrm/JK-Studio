@@ -229,7 +229,7 @@ const MenueEintrag kMenues[] = {
     {MenueArt::Trenner, "", "", Str::Count, kImmer},
     {MenueArt::Liste, "", "Farben", Str::Count, kImmer},
     {MenueArt::Ende, "", "", Str::Count, kImmer},
-    {MenueArt::Punkt, "Find Entity/Brush...", "FindBrush", Str::KeLFindEntityBrush, kImmer},
+    {MenueArt::Punkt, "Find brush...", "FindBrush", Str::KeLFindBrush, kImmer},
     {MenueArt::Punkt, "Map Info...", "MapInfo", Str::KeLMapInfo, kImmer},
     {MenueArt::Punkt, "&Refresh models", "RefreshReferences", Str::KeLRefreshModels, kImmer},
     {MenueArt::Ruf, "Set 2D &Background image...", "WXY_SetBackgroundImage", Str::KeLSet2DBackgroundImage, kImmer},

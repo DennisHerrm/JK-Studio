@@ -25381,14 +25381,15 @@ std::vector<Schritt> karteneditorMassSchritte() {
     // Gemeinsam: Menue 21, Werkzeugleiste 39 (erster Knopf 13/25, 31 gross),
     // Filterleiste rechts 39, Statuszeile 21 mit Qts Verteilung.
     const std::vector<SollFeld> rahmen = {
-        {"Bereich", 0, 0, 1280, 747},       {"Menue:File", 6, 0, 26, 21},      {"Menue:Edit", 38, 0, 28, 21},
+        {"Bereich", 0, 0, 1280, 747},       {"Menue:File", 6, 0, 26, 21},      {"Menue:Edit", 38, 0, 29, 21},
+        {"Menue:View", 73, 0, 34, 21},       {"Menue:Help", 468, 0, 33, 21},
         {"Leiste:filter", 1241, 60, 39, 606}, {"Knopf:ResetFilters", 1245, 593, 31, 31},
         {"Erweiterung:filter", 1245, 651, 31, 12}, {"Leiste:plugin", 1241, 666, 39, 60},
         {"Knopf:bobToolz::PolygonBuilder", 1245, 679, 31, 31}, {"Erweiterung:plugin", 1245, 711, 31, 12},
         {"Werkzeugleiste", 0, 21, 1280, 39}, {"Knopf:MirrorSelectionHorizontally", 13, 25, 31, 31},   {"Knopf:CSGSubtract", 145, 25, 31, 31},
         {"Knopf:MouseDrag", 378, 25, 31, 31}, {"Filterleiste", 1241, 60, 39, 606}, {"Knopf:FilterWorldBrushes", 1245, 73, 31, 31},
-        {"Statuszeile", 0, 726, 1280, 21},  {"Status:Befehl", 2, 729, 321, 16}, {"Status:Position", 329, 729, 320, 16},
-        {"Status:Zaehler", 655, 729, 168, 16}, {"Status:Textur", 829, 729, 321, 16}, {"Status:Raster", 1156, 729, 124, 16},
+        {"Statuszeile", 0, 726, 1280, 21},  {"Status:Befehl", 2, 729, 320, 16}, {"Status:Position", 328, 729, 321, 16},
+        {"Status:Zaehler", 655, 729, 168, 16}, {"Status:Textur", 829, 729, 320, 16}, {"Status:Raster", 1155, 729, 125, 16},
     };
     add(pruefe("Masse Rahmen: Menue, Werkzeugleiste, Filterleiste, Statuszeile wie NRC", [rahmen] {
         return feldVergleich("Rahmen", rahmen);

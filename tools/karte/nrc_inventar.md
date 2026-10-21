@@ -281,7 +281,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 329, Dialoge: 24, E
 ### create_misc_menu (radiant/mainframe.cpp)
 
   * SUB M&isc  (radiant/mainframe.cpp:1165)
-    - [~] ITEM Find Entity/Brush... -> `FindBrush`  (radiant/mainframe.cpp:1173) -- Stufe 2
+    - [~] ITEM Find brush... -> `FindBrush`  (radiant/mainframe.cpp:1173) -- Stufe 2
     - [~] ITEM Map Info... -> `MapInfo`  (radiant/mainframe.cpp:1174) -- Stufe 2
     - [~] ITEM &Refresh models -> `RefreshReferences`  (radiant/mainframe.cpp:1175) -- Stufe 2
     - [ ] ITEM Set 2D &Background image...  (radiant/mainframe.cpp:1176)
@@ -380,39 +380,39 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 329, Dialoge: 24, E
 
 ### TextureBrowser_createTreeViewTree (radiant/texwindow.cpp)
 
-  - [~] CHECK Hide Unused -> `ShowInUse`  (radiant/texwindow.cpp:1243) -- Stufe 2
-  - [~] ITEM Show All -> `ShowAllTextures`  (radiant/texwindow.cpp:1244) -- Stufe 2
+  - [~] CHECK Hide Unused -> `ShowInUse`  (radiant/texwindow.cpp:1239) -- Stufe 2
+  - [~] ITEM Show All -> `ShowAllTextures`  (radiant/texwindow.cpp:1240) -- Stufe 2
   * ---
-  - [~] CHECK Show Shaders -> `ToggleShowShaders`  (radiant/texwindow.cpp:1254) -- Stufe 2
-  - [~] CHECK Show Textures -> `ToggleShowTextures`  (radiant/texwindow.cpp:1255) -- Stufe 2
+  - [~] CHECK Show Shaders -> `ToggleShowShaders`  (radiant/texwindow.cpp:1250) -- Stufe 2
+  - [~] CHECK Show Textures -> `ToggleShowTextures`  (radiant/texwindow.cpp:1251) -- Stufe 2
   * ---
-  - [~] CHECK ShaderList Only -> `ToggleShowShaderlistOnly`  (radiant/texwindow.cpp:1260) -- Stufe 2
-  - [~] CHECK Hide Image Missing -> `FilterNotex`  (radiant/texwindow.cpp:1263) -- Stufe 2
+  - [~] CHECK ShaderList Only -> `ToggleShowShaderlistOnly`  (radiant/texwindow.cpp:1256) -- Stufe 2
+  - [~] CHECK Hide Image Missing -> `FilterNotex`  (radiant/texwindow.cpp:1259) -- Stufe 2
   * ---
-  - [~] CHECK Fixed Size -> `FixedSize`  (radiant/texwindow.cpp:1267) -- Stufe 2
-  - [~] CHECK Transparency -> `EnableAlpha`  (radiant/texwindow.cpp:1268) -- Stufe 2
+  - [~] CHECK Fixed Size -> `FixedSize`  (radiant/texwindow.cpp:1263) -- Stufe 2
+  - [~] CHECK Transparency -> `EnableAlpha`  (radiant/texwindow.cpp:1264) -- Stufe 2
   * ---
-  - [~] CHECK Tags GUI -> `TagsToggleGui`  (radiant/texwindow.cpp:1271) -- Stufe 2
-  - [~] ITEM Add tag -> `TagAdd`  (radiant/texwindow.cpp:1286) -- Stufe 2
-  - [~] ITEM Rename tag -> `TagRename`  (radiant/texwindow.cpp:1287) -- Stufe 2
-  - [~] ITEM Delete tag -> `TagDelete`  (radiant/texwindow.cpp:1288) -- Stufe 2
+  - [~] CHECK Tags GUI -> `TagsToggleGui`  (radiant/texwindow.cpp:1267) -- Stufe 2
+  - [~] ITEM Add tag -> `TagAdd`  (radiant/texwindow.cpp:1282) -- Stufe 2
+  - [~] ITEM Rename tag -> `TagRename`  (radiant/texwindow.cpp:1283) -- Stufe 2
+  - [~] ITEM Delete tag -> `TagDelete`  (radiant/texwindow.cpp:1284) -- Stufe 2
   * ---
-  - [~] ITEM Copy tags from selected -> `TagCopy`  (radiant/texwindow.cpp:1290) -- Stufe 2
-  - [~] ITEM Paste tags to selected -> `TagPaste`  (radiant/texwindow.cpp:1291) -- Stufe 2
+  - [~] ITEM Copy tags from selected -> `TagCopy`  (radiant/texwindow.cpp:1286) -- Stufe 2
+  - [~] ITEM Paste tags to selected -> `TagPaste`  (radiant/texwindow.cpp:1287) -- Stufe 2
   * ---
-  - [~] ITEM Search tag -> `TagSearch`  (radiant/texwindow.cpp:1293) -- Stufe 2
-  - [~] ITEM Search Untagged -> `TagSearchUntagged`  (radiant/texwindow.cpp:1294) -- Stufe 2
+  - [~] ITEM Search tag -> `TagSearch`  (radiant/texwindow.cpp:1289) -- Stufe 2
+  - [~] ITEM Search Untagged -> `TagSearchUntagged`  (radiant/texwindow.cpp:1290) -- Stufe 2
 
 ### TextureBrowser_ContextMenu (radiant/texwindow.cpp)
 
   * ---
   * ---
   * ---
-  * SUB -> Recent  (radiant/texwindow.cpp:1624)
+  * SUB -> Recent  (radiant/texwindow.cpp:1620)
 
 ### theme_construct_menu (radiant/theme.cpp)
 
-  * SUB GUI Theme  (radiant/theme.cpp:183)
+  * SUB GUI Theme  (radiant/theme.cpp:158)
 
 ## Werkzeugleisten
 
@@ -507,8 +507,8 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 329, Dialoge: 24, E
 
 ### TextureBrowser_filterSetModeIcon (radiant/texwindow.cpp)
 
-- [~] button Find / Replace... | texbro_find-replace.png -> `FindReplaceTextures`  (radiant/texwindow.cpp:1802) -- Stufe 2
-- [~] button Flush & Reload Shaders | texbro_refresh.png -> `RefreshShaders`  (radiant/texwindow.cpp:1804) -- Stufe 2
+- [~] button Find / Replace... | texbro_find-replace.png -> `FindReplaceTextures`  (radiant/texwindow.cpp:1798) -- Stufe 2
+- [~] button Flush & Reload Shaders | texbro_refresh.png -> `RefreshShaders`  (radiant/texwindow.cpp:1800) -- Stufe 2
 
 ## Registrierte Befehle
 
@@ -613,7 +613,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `DragEdges` | Toggles | E | (radiant/tools.cpp:423) -- Stufe 2
 - [~] `DragFaces` | Toggles | F | (radiant/tools.cpp:424) -- Stufe 2
 - [~] `DragVertices` | Toggles | V | (radiant/tools.cpp:422) -- Stufe 2
-- [~] `EnableAlpha` | Toggles | - | (radiant/texwindow.cpp:2113) -- Stufe 2
+- [~] `EnableAlpha` | Toggles | - | (radiant/texwindow.cpp:2109) -- Stufe 2
 - [~] `EntitiesConnect` | Commands | Ctrl+K | (radiant/entity.cpp:734) -- Stufe 2
 - [~] `EntityColorNormalize` | Commands | - | (radiant/entity.cpp:733) -- Stufe 2
 - [~] `EntityColorSet` | Commands | K | (radiant/entity.cpp:732) -- Stufe 2
@@ -640,7 +640,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `FilterLights` | Toggles | Alt+0 | (radiant/filters.cpp:230) -- Stufe 2
 - [~] `FilterLiquids` | Toggles | Alt+5 | (radiant/filters.cpp:223) -- Stufe 2
 - [~] `FilterModels` | Toggles | Shift+M | (radiant/filters.cpp:238) -- Stufe 2
-- [~] `FilterNotex` | Toggles | - | (radiant/texwindow.cpp:2112) -- Stufe 2
+- [~] `FilterNotex` | Toggles | - | (radiant/texwindow.cpp:2108) -- Stufe 2
 - [~] `FilterPatches` | Toggles | Ctrl+P | (radiant/filters.cpp:235) -- Stufe 2
 - [~] `FilterPaths` | Toggles | Alt+8 | (radiant/filters.cpp:226) -- Stufe 2
 - [~] `FilterPointEntities` | Toggles | - | (radiant/filters.cpp:245) -- Stufe 2
@@ -656,7 +656,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `FitTextureHeightOnly` | Commands | - | (radiant/surfacedialog.cpp:1751) -- Stufe 2
 - [~] `FitTextureWidth` | Commands | - | (radiant/surfacedialog.cpp:1748) -- Stufe 2
 - [~] `FitTextureWidthOnly` | Commands | - | (radiant/surfacedialog.cpp:1750) -- Stufe 2
-- [~] `FixedSize` | Toggles | - | (radiant/texwindow.cpp:2111) -- Stufe 2
+- [~] `FixedSize` | Toggles | - | (radiant/texwindow.cpp:2107) -- Stufe 2
 - [~] `Fullscreen` | Commands | F11 | (radiant/mainframe.cpp:2096) -- Stufe 2
 - [x] `GridDown` | Commands | [ | (radiant/grid.cpp:184)
 - [x] `GridUp` | Commands | ] | (radiant/grid.cpp:185)
@@ -725,7 +725,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `Redo` | Commands | Ctrl+Shift+Z | (radiant/select.cpp:1860) -- Stufe 2
 - [~] `Redo2` | Commands | Ctrl+Y | (radiant/select.cpp:1861) -- Stufe 2
 - [~] `RefreshReferences` | Commands | - | (radiant/mainframe.cpp:2071) -- Stufe 2
-- [~] `RefreshShaders` | Commands | - | (radiant/texwindow.cpp:2104) -- Stufe 2
+- [~] `RefreshShaders` | Commands | - | (radiant/texwindow.cpp:2100) -- Stufe 2
 - [~] `RegionOff` | Commands | - | (radiant/map.cpp:2437) -- Stufe 2
 - [~] `RegionSetBrush` | Commands | - | (radiant/map.cpp:2439) -- Stufe 2
 - [~] `RegionSetSelection` | Toggles | Ctrl+Shift+R | (radiant/map.cpp:2441) -- Stufe 2
@@ -742,7 +742,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `SaveMapAs` | Commands | - | (radiant/map.cpp:2433)
 - [~] `SaveRegion` | Commands | - | (radiant/map.cpp:2435) -- Stufe 2
 - [~] `SaveSelected` | Commands | - | (radiant/map.cpp:2434) -- Stufe 2
-- [~] `SearchFromStart` | Toggles | - | (radiant/texwindow.cpp:2115) -- Stufe 2
+- [~] `SearchFromStart` | Toggles | - | (radiant/texwindow.cpp:2111) -- Stufe 2
 - [~] `SelectAllOfType` | Commands | Shift+A | (radiant/select.cpp:1888) -- Stufe 2
 - [~] `SelectConnectedEntities` | Commands | Ctrl+Shift+E | (radiant/select.cpp:1881) -- Stufe 2
 - [~] `SelectInside` | Commands | - | (radiant/select.cpp:1877) -- Stufe 2
@@ -767,7 +767,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `SetGrid64` | Commands | 7 | (radiant/grid.cpp:198)
 - [x] `SetGrid8` | Commands | 4 | (radiant/grid.cpp:195)
 - [x] `Shortcuts` | Commands | Ctrl+Shift+P | (radiant/mainframe.cpp:2075)
-- [~] `ShowAllTextures` | Commands | Ctrl+A | (radiant/texwindow.cpp:2106) -- Stufe 2
+- [~] `ShowAllTextures` | Commands | Ctrl+A | (radiant/texwindow.cpp:2102) -- Stufe 2
 - [~] `ShowAngles` | Toggles | - | (radiant/xywindow.cpp:2218) -- Stufe 2
 - [~] `ShowAxes` | Toggles | - | (radiant/xywindow.cpp:2225) -- Stufe 2
 - [~] `ShowBboxes` | Toggles | - | (radiant/xywindow.cpp:2220) -- Stufe 2
@@ -775,7 +775,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `ShowConnections` | Toggles | - | (radiant/xywindow.cpp:2221) -- Stufe 2
 - [~] `ShowCoordinates` | Toggles | - | (radiant/xywindow.cpp:2223) -- Stufe 2
 - [~] `ShowHidden` | Commands | Shift+H | (radiant/select.cpp:1841) -- Stufe 2
-- [~] `ShowInUse` | Toggles | U | (radiant/texwindow.cpp:2105) -- Stufe 2
+- [~] `ShowInUse` | Toggles | U | (radiant/texwindow.cpp:2101) -- Stufe 2
 - [~] `ShowLightRadiuses` | Toggles | - | (radiant/entity.cpp:743) -- Stufe 2
 - [~] `ShowNames` | Toggles | - | (radiant/xywindow.cpp:2219) -- Stufe 2
 - [~] `ShowSize2d` | Toggles | J | (radiant/xywindow.cpp:2214) -- Stufe 2
@@ -789,14 +789,14 @@ Name | Art | Standardtaste | Quelle
 - [~] `SmoothRows` | Commands | Ctrl+W | (radiant/patchmanip.cpp:724) -- Stufe 2
 - [~] `SnapToGrid` | Commands | Ctrl+G | (radiant/select.cpp:1886) -- Stufe 2
 - [~] `SurfaceInspector` | Commands | S | (radiant/surfacedialog.cpp:1755) -- Stufe 2
-- [~] `TagAdd` | Commands | - | (radiant/texwindow.cpp:2099) -- Stufe 2
-- [~] `TagCopy` | Commands | - | (radiant/texwindow.cpp:2102) -- Stufe 2
-- [~] `TagDelete` | Commands | - | (radiant/texwindow.cpp:2101) -- Stufe 2
-- [~] `TagPaste` | Commands | - | (radiant/texwindow.cpp:2103) -- Stufe 2
-- [~] `TagRename` | Commands | - | (radiant/texwindow.cpp:2100) -- Stufe 2
-- [~] `TagSearch` | Commands | - | (radiant/texwindow.cpp:2098) -- Stufe 2
-- [~] `TagSearchUntagged` | Commands | - | (radiant/texwindow.cpp:2097) -- Stufe 2
-- [~] `TagsToggleGui` | Toggles | - | (radiant/texwindow.cpp:2114) -- Stufe 2
+- [~] `TagAdd` | Commands | - | (radiant/texwindow.cpp:2095) -- Stufe 2
+- [~] `TagCopy` | Commands | - | (radiant/texwindow.cpp:2098) -- Stufe 2
+- [~] `TagDelete` | Commands | - | (radiant/texwindow.cpp:2097) -- Stufe 2
+- [~] `TagPaste` | Commands | - | (radiant/texwindow.cpp:2099) -- Stufe 2
+- [~] `TagRename` | Commands | - | (radiant/texwindow.cpp:2096) -- Stufe 2
+- [~] `TagSearch` | Commands | - | (radiant/texwindow.cpp:2094) -- Stufe 2
+- [~] `TagSearchUntagged` | Commands | - | (radiant/texwindow.cpp:2093) -- Stufe 2
+- [~] `TagsToggleGui` | Toggles | - | (radiant/texwindow.cpp:2110) -- Stufe 2
 - [~] `TexRotateClock` | Commands | Shift+PgDown | (radiant/select.cpp:1890) -- Stufe 2
 - [~] `TexRotateCounter` | Commands | Shift+PgUp | (radiant/select.cpp:1891) -- Stufe 2
 - [~] `TexScaleDown` | Commands | Ctrl+Down | (radiant/select.cpp:1893) -- Stufe 2
@@ -824,11 +824,11 @@ Name | Art | Standardtaste | Quelle
 - [ ] `ToggleLayersBrowser` | Commands | L | (radiant/mainframe.cpp:2081)
 - [ ] `ToggleModelBrowser` | Commands | / | (radiant/mainframe.cpp:2080)
 - [~] `TogglePointfile` | Commands | - | (radiant/points.cpp:320) -- Stufe 3
-- [~] `ToggleShowShaderlistOnly` | Toggles | - | (radiant/texwindow.cpp:2110) -- Stufe 2
-- [~] `ToggleShowShaders` | Toggles | - | (radiant/texwindow.cpp:2108) -- Stufe 2
-- [~] `ToggleShowTextures` | Toggles | - | (radiant/texwindow.cpp:2109) -- Stufe 2
+- [~] `ToggleShowShaderlistOnly` | Toggles | - | (radiant/texwindow.cpp:2106) -- Stufe 2
+- [~] `ToggleShowShaders` | Toggles | - | (radiant/texwindow.cpp:2104) -- Stufe 2
+- [~] `ToggleShowTextures` | Toggles | - | (radiant/texwindow.cpp:2105) -- Stufe 2
 - [x] `ToggleSideView` | Toggles | - | (radiant/xywindow.cpp:2268)
-- [ ] `ToggleTextures` | Commands | T | (radiant/texwindow.cpp:2107)
+- [ ] `ToggleTextures` | Commands | T | (radiant/texwindow.cpp:2103)
 - [x] `ToggleView` | Toggles | - | (radiant/xywindow.cpp:2267)
 - [~] `TogTexLock` | Toggles | Shift+T | (radiant/brushmanip.cpp:1476) -- Stufe 2
 - [~] `TogTexVertexLock` | Toggles | - | (radiant/brushmanip.cpp:1477) -- Stufe 2
@@ -847,7 +847,7 @@ Name | Art | Standardtaste | Quelle
 ## Dialoge und Fenster
 
 - [ ] "Build Menu"  (radiant/build.cpp:1027)
-- [x] "Mapped Commands"  (radiant/commands.cpp:334)
+- [x] "Mapped Commands"  (radiant/commands.cpp:333)
 - [ ] "CSG Tool"  (radiant/csg.cpp:1486)
 - [ ] "Entity List"  (radiant/entitylist.cpp:279)
 - [ ] "Q3Map debug window"  (radiant/feedback.cpp:281)
@@ -860,7 +860,7 @@ Name | Art | Standardtaste | Quelle
 - [ ] "Engine Path Configuration"  (radiant/mainframe.cpp:421)
 - [ ] "Camera"  (radiant/mainframe.cpp:1755)
 - [ ] "Map Info"  (radiant/map.cpp:908)
-- [ ] "Find Entity/Brush"  (radiant/map.cpp:2085)
+- [ ] "Find Brush"  (radiant/map.cpp:2085)
 - [ ] "Patch density"  (radiant/patchmanip.cpp:839)
 - [ ] "Patch deform"  (radiant/patchmanip.cpp:918)
 - [ ] "Cap"  (radiant/patchmanip.cpp:949)
@@ -886,7 +886,7 @@ Name | Art | Standardtaste | Quelle
 - [ ] Selection: "Selection System Settings"  (radiant/selection.cpp:2328)
 - [ ] Surface Inspector: "Surface Inspector Preferences"  (radiant/surfacedialog.cpp:1738)
 - [ ] Textures: "Texture Settings"  (radiant/textures.cpp:831)
-- [ ] Texture Browser: "Texture Browser Preferences"  (radiant/texwindow.cpp:2079)
+- [ ] Texture Browser: "Texture Browser Preferences"  (radiant/texwindow.cpp:2075)
 - [ ] Undo: "Undo Queue Settings"  (radiant/undo.cpp:403)
 - [ ] Build: "Build Preferences"  (radiant/watchbsp.cpp:243)
 - [ ] Orthographic: "Orthographic View Preferences"  (radiant/xywindow.cpp:2254)
@@ -951,13 +951,13 @@ Name | Art | Standardtaste | Quelle
 - [ ] Combo Texture Render Mode  (radiant/textures.cpp:780)
 - [ ] Combo Hardware Texture Compression  (radiant/textures.cpp:818)
 - [ ] CheckBox Anisotropy  (radiant/textures.cpp:826)
-- [ ] CheckBox Texture scrollbar  (radiant/texwindow.cpp:2049)
-- [ ] Combo Texture Thumbnail Scale  (radiant/texwindow.cpp:2056)
-- [ ] Spinner Thumbnails Max Size  (radiant/texwindow.cpp:2063)
-- [ ] Spinner Thumbnails Min Size  (radiant/texwindow.cpp:2064)
-- [ ] Spinner Mousewheel Increment  (radiant/texwindow.cpp:2065)
-- [ ] Combo Load Shaders at Startup  (radiant/texwindow.cpp:2068)
-- [ ] CheckBox "", str, g_TexBro.m_hideNonShadersInCommon )  (radiant/texwindow.cpp:2072)
+- [ ] CheckBox Texture scrollbar  (radiant/texwindow.cpp:2045)
+- [ ] Combo Texture Thumbnail Scale  (radiant/texwindow.cpp:2052)
+- [ ] Spinner Thumbnails Max Size  (radiant/texwindow.cpp:2059)
+- [ ] Spinner Thumbnails Min Size  (radiant/texwindow.cpp:2060)
+- [ ] Spinner Mousewheel Increment  (radiant/texwindow.cpp:2061)
+- [ ] Combo Load Shaders at Startup  (radiant/texwindow.cpp:2064)
+- [ ] CheckBox "", str, g_TexBro.m_hideNonShadersInCommon )  (radiant/texwindow.cpp:2068)
 - [ ] Spinner Undo Queue Size  (radiant/undo.cpp:400)
 - [ ] CheckBox Enable Build Process Monitoring  (radiant/watchbsp.cpp:221)
 - [ ] CheckBox Stop Compilation on Leak  (radiant/watchbsp.cpp:222)
