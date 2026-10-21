@@ -1612,11 +1612,32 @@ private:
         // g_target.cpp MD; codeJK2 ebenso): G_ActivateBehavior( BSET_USE ), dann
         // G_ChangeMap( message ) - "maptransition" geht in den Befehlspuffer und
         // beendet die Karte nach diesem Bild (takte hoert dort auf).
+        // rc605 (Schlussrunde): G_ChangeMap (g_utils.cpp:1847-1877 OpenJK,
+        // 2320-2352 MD, codeJK2 1339-1361) kehrt zurueck, wenn der Spieler tot ist
+        // (pm_type PM_DEAD - nach SET_MISSIONFAILED ab dem naechsten Bild), und
+        // ein mapname mit '+' oeffnet unter OpenJK/Movie Duels nur ein Menue
+        // ("uimenu saberMenu" in academy) - die Karte laeuft weiter. "disconnect"
+        // (target_level_change_use) beendet das Spiel wie ein Kartenwechsel.
         if (cn == "target_level_change") {
             usescript();
+            const std::string karte = wertVon(e, "mapname");
+            if (aus_.missionFailedMs >= 0.0 && jetzt_ > aus_.missionFailedMs) {
+                hinweis("target_level_change \"" + e.targetname + "\" bei " + std::to_string(static_cast<long>(jetzt_)) +
+                        " ms: der Spieler ist tot (SET_MISSIONFAILED) - G_ChangeMap wechselt nicht");
+                return;
+            }
+            if (!regelwerkJediOutcast() && !karte.empty() && karte[0] == '+' && !gleich(karte, "disconnect")) {
+                hinweis("Menue " + karte.substr(1) + " bei " + std::to_string(static_cast<long>(jetzt_)) +
+                        " ms (target_level_change \"" + e.targetname + "\": uimenu) - die Karte laeuft weiter wie im Spiel");
+                if (aus_.menueMs < 0.0) {
+                    aus_.menueMs = jetzt_;
+                    aus_.menueName = karte.substr(1);
+                }
+                return;
+            }
             if (aus_.kartenwechselMs < 0.0) {
                 aus_.kartenwechselMs = jetzt_;
-                aus_.kartenwechselKarte = wertVon(e, "mapname");
+                aus_.kartenwechselKarte = karte;
                 hinweis("Kartenwechsel bei " + std::to_string(static_cast<long>(jetzt_)) + " ms (target_level_change \"" +
                         e.targetname + "\" -> " + aus_.kartenwechselKarte + ") - die Vorschau endet hier wie das Spiel");
             }

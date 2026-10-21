@@ -228,6 +228,12 @@ struct Ablauf {
     // Der Nachbau rechnet dieses Bild zu Ende und hoert dann auf (-1: nie).
     double kartenwechselMs = -1.0;
     std::string kartenwechselKarte;   // "mapname" des target_level_change
+    // rc605 (Schlussrunde): ein mapname mit '+' (OpenJK/Movie Duels) wechselt die
+    // Karte nicht - G_ChangeMap schickt "uimenu <name>", das Menue haelt das Spiel
+    // an (UI_SetActiveMenu "ingame": cl_paused, SV_CheckPaused), bis der Spieler es
+    // schliesst; die Karte laeuft danach weiter. Das erste solche Menue (-1: keins).
+    double menueMs = -1.0;
+    std::string menueName;
     // rc605 (Ende): SET_MISSIONFAILED - Q3_SetMissionFailed (Q3_Interface.cpp:
     // 811-832 OpenJK, 1029-1053 MD, codeJK2 776-797): G_PlayerGuiltDeath, health 0,
     // missionStatusShow (der Bildschirm "Mission gescheitert"). Die Skripte haelt

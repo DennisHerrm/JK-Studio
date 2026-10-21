@@ -2031,6 +2031,12 @@ S = [
      "Kartenwechsel bei %.2f s (target_level_change nach %s) - die Vorschau endet hier wie das Spiel.",
      "%.2f 秒时切换关卡 (target_level_change 到 %s) - 预览与游戏一样在此结束。",
      "%.2f 秒でマップを切り替え (target_level_change で %s へ) - ゲームと同じくプレビューはここで終わります。"),
+    # rc605 (Schlussrunde): ein mapname mit '+' oeffnet nur ein Menue (G_ChangeMap: uimenu)
+    ("BewMenue",
+     "Menu %s opens at %.2f s (target_level_change) - like the game, this loads no map: the game pauses while the menu is open, and the preview goes on.",
+     "Menü %s öffnet sich bei %.2f s (target_level_change) - wie im Spiel wird keine Karte geladen: das Spiel hält an, solange das Menü offen ist, und die Vorschau läuft weiter.",
+     "菜单 %s 在 %.2f 秒打开 (target_level_change) - 与游戏一样不会加载地图:菜单打开期间游戏暂停,预览继续进行。",
+     "メニュー %s が %.2f 秒で開きます (target_level_change) - ゲームと同じくマップは読み込まれません。メニューが開いている間ゲームは一時停止し、プレビューは続きます。"),
     # rc605 (Ende): SET_MISSIONFAILED haelt die Skripte an (stop_icarus)
     ("BewMissionGescheitert",
      "Mission failed at %.2f s (SET_MISSIONFAILED %s) - the game shows its mission-failed screen; all scripts stop at %.2f s, the world goes on, like the game.",

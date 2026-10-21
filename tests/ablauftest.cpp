@@ -11,6 +11,7 @@
 #include "bhed/ablauf.h"
 #include "bhed/bsp.h"
 #include "bhed/pk3.h"
+#include "bhed/regelwerk.h"
 #include "bhed/script.h"
 
 #include <cctype>
@@ -835,6 +836,55 @@ void missionGescheitert() {
     }
 }
 
+// rc605 (Schlussrunde): G_ChangeMap (code/game/g_utils.cpp:1847-1877 OpenJK,
+// g_utils.cpp:2320-2352 MD; codeJK2/game/g_utils.cpp:1339-1361): ein mapname mit
+// '+' oeffnet unter OpenJK/Movie Duels nur ein Menue (uimenu, academy: +saberMenu) -
+// die Karte laeuft weiter; ist der Spieler tot (PM_DEAD nach SET_MISSIONFAILED),
+// wechselt nichts. Jedi Outcast kennt den '+'-Zweig nicht.
+void kartenwechsel() {
+    MapData m;
+    const auto ent = [](const std::string& k, const std::string& tn, const std::string& karte) {
+        MapEntity e;
+        e.classname = k;
+        e.targetname = tn;
+        e.keys = {{"classname", k}, {"targetname", tn}, {"mapname", karte}};
+        return e;
+    };
+    m.entities = {ent("worldspawn", "", ""), ent("target_level_change", "menu", "+saberMenu"),
+                  ent("target_level_change", "weiter", "md_naechste")};
+    AblaufWelt w;
+    w.karte = &m;
+    const Script menue = lies("wait ( 500.000 );\nuse ( \"menu\" );\nwait ( 500.000 );\ncamera ( ENABLE );\n");
+    const Script karte = lies("wait ( 500.000 );\nuse ( \"weiter\" );\nwait ( 500.000 );\ncamera ( ENABLE );\n");
+    const Script tot = lies(
+        "camera ( ENABLE );\nwait ( 500.000 );\nset ( \"SET_MISSIONFAILED\", \"MISSIONFAILED_JAN\" );\n"
+        "wait ( 500.000 );\nuse ( \"weiter\" );\nwait ( 100.000 );\ncamera ( DISABLE );\n");
+    regelwerkAnwendenSpiel(kRegelwerkMovieDuels, -1);
+    {
+        const Ablauf a = simuliereAblauf(menue, "", w);
+        std::printf("  Kartenwechsel +saberMenu (MD): bei %.0f, ENABLE %.0f\n", a.kartenwechselMs,
+                    zeitVon(a, "", "camera", "ENABLE"));
+        pruefe(a.kartenwechselMs < 0.0 && zeitVon(a, "", "camera", "ENABLE") > 1000.0 && std::fabs(a.menueMs - 550.0) < 0.5 &&
+                   a.menueName == "saberMenu",
+               "mapname mit '+' oeffnet nur ein Menue, die Karte laeuft weiter (Movie Duels)");
+        const Ablauf b = simuliereAblauf(karte, "", w);
+        pruefe(std::fabs(b.kartenwechselMs - 550.0) < 0.5 && b.kartenwechselKarte == "md_naechste" &&
+                   zeitVon(b, "", "camera", "ENABLE") < 0.0,
+               "eine echte Karte beendet die Vorschau nach dem Bild");
+        const Ablauf c = simuliereAblauf(tot, "", w);
+        std::printf("  Kartenwechsel nach SET_MISSIONFAILED: bei %.0f, DISABLE %.0f\n", c.kartenwechselMs,
+                    zeitVon(c, "", "camera", "DISABLE"));
+        pruefe(c.kartenwechselMs < 0.0 && zeitVon(c, "", "camera", "DISABLE") > 1000.0,
+               "der tote Spieler (PM_DEAD) wechselt die Karte nicht");
+    }
+    regelwerkAnwendenSpiel(kRegelwerkOpenJK, -1);
+    pruefe(simuliereAblauf(menue, "", w).kartenwechselMs < 0.0, "OpenJK: '+' oeffnet nur ein Menue");
+    regelwerkAnwendenSpiel(kRegelwerkJediOutcast, -1);
+    pruefe(std::fabs(simuliereAblauf(menue, "", w).kartenwechselMs - 550.0) < 0.5,
+           "Jedi Outcast: kein '+'-Zweig, die Karte endet");
+    regelwerkAnwendenSpiel(kRegelwerkMovieDuels, -1);
+}
+
 int main(int argc, char** argv) {
     if (argc >= 3) {
         return werkzeug(argc, argv);
@@ -847,6 +897,7 @@ int main(int argc, char** argv) {
     fallenZiele();         // rc605
     ausloeserParms();      // rc605 (fix605)
     missionGescheitert();  // rc605 (Ende)
+    kartenwechsel();       // rc605 (Schlussrunde)
     std::printf("%s\n", fehler == 0 ? "alle Proben bestanden" : "FEHLGESCHLAGEN");
     return fehler == 0 ? 0 : 1;
 }

@@ -1016,6 +1016,7 @@ enum class Str {
     PrefsTonHinweis,
     BewDrehUeberWatch,
     BewKartenwechsel,
+    BewMenue,
     BewMissionGescheitert,
     BewNavOhneWeg,
     PrefsGroupPreview,

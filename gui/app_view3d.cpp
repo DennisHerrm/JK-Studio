@@ -5948,6 +5948,21 @@ void prepareScene() {
         }
         letzterWechsel = wechsel;
     }
+    // rc605 (Schlussrunde): ein '+'-Menue (G_ChangeMap: uimenu) haelt das Spiel an,
+    // bis der Spieler es schliesst - die Karte endet nicht.
+    {
+        static std::string letztesMenue;
+        std::string menue;
+        if (g_app->ablauf.menueMs >= 0.0) {
+            menue = std::to_string(static_cast<long>(g_app->ablauf.menueMs)) + "|" + g_app->ablauf.menueName;
+            if (menue != letztesMenue) {
+                char zeile[300];
+                std::snprintf(zeile, sizeof(zeile), tr(Str::BewMenue), g_app->ablauf.menueName.c_str(), g_app->ablauf.menueMs / 1000.0);
+                addStatus(zeile);
+            }
+        }
+        letztesMenue = menue;
+    }
     // rc605 (Ende): SET_MISSIONFAILED - der Bildschirm "Mission gescheitert",
     // stop_icarus haelt alle Skripte an (der Nachbau hoerte dort auf); Wege und
     // Mover laufen weiter wie im Spiel (G_RunFrame laeuft weiter).
