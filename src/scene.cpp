@@ -16,6 +16,7 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <numbers>
 #include <cstddef>
 #include <cctype>
@@ -435,9 +436,22 @@ const Actor* Scene::find(const std::string& name) const {
 // PM_InSpecialJump, CLASS_RANCOR mit WP_MELEE). Steht der Name nicht in der .cfg
 // der Figur, tut PM_SetAnim nichts - die Ansicht folgt dann ebenfalls den Beinen.
 namespace {
+// Q_stricmp gegen ein Literal, ohne ein std::string anzulegen: Actor::at laeuft
+// je Figur viele Male im Bild, und sameName(a, "...") baute fuer jeden der rund
+// 80 Namen eine Zeichenkette (meist laenger als der SSO-Puffer, also je eine
+// Speicheranforderung) - das kostete im zweiten Durchgang von md_am/intro2_sith
+// rund 3 ms je Bild.
+bool torsoGleich(const std::string& a, const char* n) {
+    const std::size_t len = std::strlen(n);
+    if (a.size() != len) { return false; }
+    for (std::size_t i = 0; i < len; ++i) {
+        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(n[i]))) { return false; }
+    }
+    return true;
+}
 bool torsoIn(const std::string& a, std::initializer_list<const char*> namen) {
     for (const char* n : namen) {
-        if (sameName(a, n)) { return true; }
+        if (torsoGleich(a, n)) { return true; }
     }
     return false;
 }
@@ -476,15 +490,13 @@ std::string npcWaffenTorso(const std::string& waffe, const std::string& beine, c
                            bool gehTaste, bool geduckt) {
     const bool md = navMovieDuelsRegeln();
     const bool jk2 = regelwerkJediOutcast();
-    std::string w = waffe;
-    for (char& c : w) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
-    if (w.empty() || w == "WP_NONE" || w == "WP_SABER") { return {}; }
-    const auto ist = [&w](std::initializer_list<const char*> namen) { return torsoIn(w, namen); };
+    if (waffe.empty() || torsoIn(waffe, {"WP_NONE", "WP_SABER"})) { return {}; }
+    const auto ist = [&waffe](std::initializer_list<const char*> namen) { return torsoIn(waffe, namen); };
     const bool bewegt = torsoGehAnim(beine, md) || torsoLaufAnim(beine, md) || torsoSprungAnim(beine, md);
     // Die Beinanimationen, denen der Oberkoerper in WEAPON_IDLE immer folgt.
     if (torsoIn(beine, {"BOTH_GUARD_LOOKAROUND1", "BOTH_GUARD_IDLE1", "BOTH_STAND1IDLE1", "BOTH_STAND2IDLE1", "BOTH_STAND2IDLE2",
                         "BOTH_STAND3IDLE1", "BOTH_STAND5IDLE1", "BOTH_STAND2TO4", "BOTH_STAND4TO2", "BOTH_STAND4"}) ||
-        (jk2 && sameName(beine, "BOTH_STAND4IDLE1"))) {
+        (jk2 && torsoGleich(beine, "BOTH_STAND4IDLE1"))) {
         return {};
     }
     if (md && (torsoIn(beine, {"BOTH_GUARD_IDLE1_BDROID", "BOTH_GUARD_IDLE1_JANGO"}))) { return "BOTH_GUARD_IDLE1"; }
@@ -517,9 +529,9 @@ std::string npcWaffenTorso(const std::string& waffe, const std::string& beine, c
         }
         if (ist({"WP_MELEE"})) {
             if (bewegt) { return {}; }
-            if (sameName(klasse, "CLASS_RANCOR")) { return {}; }
+            if (torsoGleich(klasse, "CLASS_RANCOR")) { return {}; }
             const bool droide = torsoIn(klasse, {"CLASS_PROBE", "CLASS_SEEKER", "CLASS_INTERROGATOR", "CLASS_SENTRY", "CLASS_REMOTE"});
-            if (sameName(klasse, "CLASS_YODA")) { return "BOTH_STANDYODA_STICK"; }
+            if (torsoGleich(klasse, "CLASS_YODA")) { return "BOTH_STANDYODA_STICK"; }
             if (droide) { return "BOTH_STAND1"; }
             return geduckt ? "BOTH_STAND6" : "BOTH_MD_CIN_1";
         }
@@ -527,7 +539,7 @@ std::string npcWaffenTorso(const std::string& waffe, const std::string& beine, c
         if (ist({"WP_BLASTER", "WP_THEFIRSTORDER", "WP_BOBA", "WP_REBELRIFLE", "WP_CLONECARBINE", "WP_BATTLEDROID", "WP_CLONECOMMANDO"})) {
             return gehTaste ? "TORSO_WEAPONIDLE3" : "TORSO_WEAPONREST3";
         }
-        if (ist({"WP_REPEATER"}) && sameName(klasse, "CLASS_GALAKMECH")) { return "TORSO_WEAPONIDLE1"; }   // ohne alt_fire
+        if (ist({"WP_REPEATER"}) && torsoGleich(klasse, "CLASS_GALAKMECH")) { return "TORSO_WEAPONIDLE1"; }   // ohne alt_fire
         if (ist({"WP_TUSKEN_RIFLE"})) { return "TORSO_WEAPONREADY4"; }
         if (ist({"WP_BOT_LASER"})) { return "TORSO_WEAPONIDLE2"; }
         if (ist({"WP_THERMAL", "WP_TRIP_MINE", "WP_DET_PACK"})) { return bewegt ? std::string{} : std::string("BOTH_STAND9"); }
@@ -549,7 +561,7 @@ std::string npcWaffenTorso(const std::string& waffe, const std::string& beine, c
     }
     if (ist({"WP_MELEE"})) {
         if (bewegt) { return {}; }
-        if (!jk2 && sameName(klasse, "CLASS_RANCOR")) { return {}; }
+        if (!jk2 && torsoGleich(klasse, "CLASS_RANCOR")) { return {}; }
         const bool droide = torsoIn(klasse, {"CLASS_PROBE", "CLASS_SEEKER", "CLASS_INTERROGATOR", "CLASS_SENTRY", "CLASS_REMOTE"});
         return droide ? "BOTH_STAND1" : "BOTH_STAND6";
     }
@@ -557,7 +569,7 @@ std::string npcWaffenTorso(const std::string& waffe, const std::string& beine, c
     if (ist({"WP_DISRUPTOR"}) || (!jk2 && ist({"WP_TUSKEN_RIFLE"}))) { return "TORSO_WEAPONREADY3"; }
     if (ist({"WP_BOT_LASER"})) { return "TORSO_WEAPONIDLE2"; }
     if (ist({"WP_THERMAL", "WP_TRIP_MINE", "WP_DET_PACK"})) { return bewegt ? std::string{} : std::string("BOTH_STAND1"); }
-    if (ist({"WP_REPEATER"}) && sameName(klasse, "CLASS_GALAKMECH")) { return "TORSO_WEAPONIDLE1"; }   // ohne alt_fire
+    if (ist({"WP_REPEATER"}) && torsoGleich(klasse, "CLASS_GALAKMECH")) { return "TORSO_WEAPONIDLE1"; }   // ohne alt_fire
     // WP_BLASTER, WP_NOGHRI_STICK, WP_REPEATER und default.
     return "TORSO_WEAPONIDLE3";
 }
@@ -1634,9 +1646,9 @@ ActorState Actor::at(double ms) const {
             }
         }
         const bool zwei = st.hand[1].modell >= 0 && !st.hand[1].istSaber;
-        const std::string torso = npcWaffenTorso(st.waffe, st.animation, klasse, zwei, gehTaste, st.crouched);
+        std::string torso = npcWaffenTorso(st.waffe, st.animation, klasse, zwei, gehTaste, st.crouched);
         if (!torso.empty()) {
-            st.torsoAnimation = torso;
+            st.torsoAnimation = std::move(torso);
             st.torsoStartMs = waffeSeit;
             st.torsoHold = false;
         }
