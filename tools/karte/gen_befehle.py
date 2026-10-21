@@ -36,6 +36,8 @@ STUFE_1B = set('''
 NewMap OpenMap SaveMap SaveMapAs Exit Preferences
 ToggleCamera ToggleView ToggleFrontView ToggleSideView MaximizeView
 ToggleEntityInspector ToggleConsole ToggleTextures ToggleModelBrowser ToggleLayersBrowser
+Shortcuts GridUp GridDown ToggleGridSnap SetGrid0.125 SetGrid0.25 SetGrid0.5 SetGrid1 SetGrid2 SetGrid4 SetGrid8
+SetGrid16 SetGrid32 SetGrid64 SetGrid128 SetGrid256 SetGrid512 SetGrid1024
 '''.split())
 
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem

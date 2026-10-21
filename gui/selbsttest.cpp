@@ -25065,6 +25065,168 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
     return s;
 }
 
+// Punkt 4: Tastenkuerzel wie NRC/Qt mit einer deutschen Tastatur (feste
+// Belegung statt der von Windows): "[" ist AltGr+8, "]" AltGr+9, Strg+AltGr+8
+// bleibt "[" (wie in NRC), Umschalt+AltGr+8 ist "Shift+["; Kuerzel nur im
+// Karten-Editor und nicht bei gedrueckter Maustaste; der Dialog "Mapped
+// Commands" (Ctrl+Shift+P): suchen, Edit mit neuer Taste, Konflikt mit No
+// (doppelt = mehrdeutig, nichts geschieht), Reset, Reset All.
+bool deutscheTastatur(int k, karte::befehle::TastenBelegung& out, bool& ziffernblock, bool& erweitert) {
+    ziffernblock = false;
+    erweitert = false;
+    out = karte::befehle::TastenBelegung{};
+    // Zeichen ohne, mit Umschalt und mit AltGr (Strg+Alt) - deutsche Belegung.
+    static const char* const kZiffern[10][3] = {{"0", "=", "}"}, {"1", "!", ""}, {"2", "\"", "\xB2"}, {"3", "\xA7", "\xB3"},
+                                                {"4", "$", ""},  {"5", "%", ""}, {"6", "&", ""},     {"7", "/", "{"},
+                                                {"8", "(", "["}, {"9", ")", "]"}};
+    if (k >= ImGuiKey_0 && k <= ImGuiKey_9) {
+        const auto& z = kZiffern[k - ImGuiKey_0];
+        const auto c = [](const char* t) { return static_cast<std::uint32_t>(static_cast<unsigned char>(t[0])); };
+        const std::uint32_t d = c(z[0]);
+        const std::uint32_t sh = c(z[1]);
+        const std::uint32_t ag = z[2][0] != 0 ? c(z[2]) : sh;   // AltGr ohne Zeichen: wie Alt+Umschalt? - Qt nimmt dann den Rueckfall
+        out.qtKey = {d, sh, d, sh, d, sh, z[2][0] != 0 ? ag : d, sh, d};
+        out.vorhanden = true;
+        return true;
+    }
+    if (k >= ImGuiKey_A && k <= ImGuiKey_Z) {
+        const auto l = static_cast<std::uint32_t>('A' + (k - ImGuiKey_A));
+        out.qtKey = {l, l, l, l, l, l, (k == ImGuiKey_Q) ? std::uint32_t{'@'} : l, l, l};
+        out.vorhanden = true;
+        return true;
+    }
+    return false;
+}
+
+std::vector<Schritt> karteneditorTastenSchritte() {
+    namespace ke = karteneditor;
+    namespace kb = karte::befehle;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("Deutsche Tastatur einsetzen, Raster 16", [] {
+        ke::tastaturErsatz = deutscheTastatur;
+        ke::editor().raster.setzePotenz(4);
+        ke::editor().letzterBefehl.clear();
+    }));
+    auto raster = [](float soll, const std::string& was) {
+        return pruefe(was, [soll] {
+            diag::detail("Knopftest: Karten-Editor - Raster " + std::to_string(ke::editor().raster.groesse()) + ", zuletzt " +
+                         ke::editor().letzterBefehl);
+            return ke::editor().raster.groesse() == soll;
+        });
+    };
+    add(tasteKombi(ImGuiKey_3, "3"));
+    add(raster(4.0F, "Taste 3 = SetGrid4: Raster 4"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_9, "AltGr+9"));
+    add(raster(8.0F, "AltGr+9 = \"]\" = GridUp: Raster 8"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_8, "AltGr+8"));
+    add(raster(4.0F, "AltGr+8 = \"[\" = GridDown: Raster 4"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_8, "Strg+AltGr+8"));
+    add(raster(2.0F, "Strg+AltGr+8 bleibt \"[\" (Strg+[ ist auf deutscher Tastatur nicht erreichbar, wie NRC): Raster 2"));
+    add(tu("zuletzt vergessen", [] { ke::editor().letzterBefehl.clear(); }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiMod_Shift | ImGuiKey_8, "Umschalt+AltGr+8"));
+    add(pruefe("Umschalt+AltGr+8 = \"Shift+[\" = CameraModePrev (Stufe 1b, Punkt 6): Raster bleibt 2", [] {
+        return ke::editor().raster.groesse() == 2.0F && ke::editor().statusBefehl == "CameraModePrev";
+    }));
+    add(tasteKombi(ImGuiKey_5, "5"));
+    add(raster(16.0F, "Taste 5 = SetGrid16"));
+    add(tu("Modus Events", [] { g_app->leftMode = 0; }));
+    add(pause(0.2));
+    add(tasteKombi(ImGuiKey_3, "3 im Modus Events"));
+    add(raster(16.0F, "Kuerzel gelten nur im Karten-Editor: Raster bleibt 16"));
+    add(tu("zurueck in den Karten-Editor", [] { g_app->leftMode = 3; }));
+    add(pause(0.3));
+    // Gedrueckte Maustaste: keine Kuerzel (RadiantQMainWindow::event)
+    add({"Taste 3 bei gedrueckter rechter Maustaste", [](int b) {
+             ImGuiIO& io = ImGui::GetIO();
+             if (b == 0) {
+                 ImGuiWindow* w = karteFenster();
+                 if (w != nullptr) { setzeMaus(ImVec2{w->Pos.x + w->Size.x * 0.3F, w->Pos.y + w->Size.y * 0.5F}); }
+             }
+             if (b == 1) { io.AddMouseButtonEvent(2, true); }
+             if (b == 3) { io.AddKeyEvent(ImGuiKey_3, true); }
+             if (b == 4) { io.AddKeyEvent(ImGuiKey_3, false); }
+             if (b == 6) { io.AddMouseButtonEvent(2, false); }
+             return b >= 9;
+         }});
+    add(raster(16.0F, "bei gedrueckter Maustaste kein Kuerzel: Raster bleibt 16"));
+    add(tasteKombi(ImGuiKey_P, "P"));
+    add(pruefe("P = Preferences", [] { return ke::editor().einstellungenOffen; }));
+    add(tu("Einstellungen zu", [] { ke::editor().einstellungenOffen = false; }));
+    add(pause(0.2));
+    add(tasteKombi(ImGuiKey_N, "N"));
+    add(pruefe("N = ToggleEntityInspector: Gruppendialog auf Entities", [] {
+        return ke::editor().gruppenDialogOffen && ke::editor().gruppenSeite == 0;
+    }));
+    add(tasteKombi(ImGuiKey_N, "N"));
+    add(pruefe("N nochmal: Gruppendialog zu (GroupDialog_showPage)", [] { return !ke::editor().gruppenDialogOffen; }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P, "Strg+Umschalt+P"));
+    add(pause(0.3));
+    add(pruefe("Ctrl+Shift+P = Shortcuts: Mapped Commands offen", [] { return ke::editor().tastenDialogOffen; }));
+    add(foto("karteneditor_tasten"));
+    // Suchen und neue Taste
+    add(klick("##suchname", "###kartetasten"));
+    add(tippe("GridUp"));
+    add(pause(0.3));
+    add(klick("GridUp##tz", "###kartetasten", 0, false, "", 0, 0.15F));
+    add(klick(ke::trK(Str::KeEdit), "###kartetasten"));
+    add(pause(0.2));
+    add(pruefe("Edit: nimmt eine Taste auf", [] { return ke::editor().tastenDialogBearbeitet == "GridUp"; }));
+    add(tasteKombi(ImGuiKey_F7, "F7"));
+    add(pause(0.2));
+    add(pruefe("GridUp liegt auf F7, gespeichert", [] {
+        const auto it = g_app->settings.karteTasten.find("GridUp");
+        return ke::editor().belegung.taste("GridUp") == kb::kKeyF1 + 6 && it != g_app->settings.karteTasten.end() &&
+               it->second == "F7";
+    }));
+    add(tu("Dialog zu", [] { ke::editor().tastenDialogOffen = false; }));
+    add(pause(0.2));
+    add(tasteKombi(ImGuiKey_F7, "F7"));
+    add(raster(32.0F, "F7 = GridUp: Raster 32"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_9, "AltGr+9"));
+    add(raster(32.0F, "AltGr+9 (\"]\") tut nichts mehr: Raster bleibt 32"));
+    // Konflikt: GridUp auf "1" (SetGrid1) - No laesst beide, dann mehrdeutig.
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P, "Strg+Umschalt+P"));
+    add(pause(0.3));
+    add(klick("GridUp##tz", "###kartetasten", 0, false, "", 0, 0.15F));
+    add(klick(ke::trK(Str::KeEdit), "###kartetasten"));
+    add(tasteKombi(ImGuiKey_1, "1"));
+    add(pause(0.3));
+    add(pruefe("Konflikt mit SetGrid1: Rueckfrage \"Key already used\"", [] {
+        return finde(ke::trK(Str::KeNo), "", 0, false) != nullptr;
+    }));
+    add(klick(ke::trK(Str::KeNo)));
+    add(pause(0.2));
+    add(pruefe("No: beide auf \"1\"", [] {
+        return ke::editor().belegung.taste("GridUp") == '1' && ke::editor().belegung.taste("SetGrid1") == '1';
+    }));
+    add(tu("Dialog zu", [] { ke::editor().tastenDialogOffen = false; }));
+    add(pause(0.2));
+    add(tasteKombi(ImGuiKey_1, "1"));
+    add(raster(32.0F, "\"1\" ist mehrdeutig: nichts geschieht (QAction: Ambiguous shortcut overload)"));
+    add(pruefe("Konsole meldet die mehrdeutige Taste", [] {
+        for (const ke::KonsolenZeile& z : ke::editor().konsole) {
+            if (z.text.find("Ambiguous shortcut overload: 1") != std::string::npos) { return true; }
+        }
+        return false;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P, "Strg+Umschalt+P"));
+    add(pause(0.3));
+    add(klick(ke::trK(Str::KeResetAll), "###kartetasten"));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KeYes)));
+    add(pause(0.2));
+    add(pruefe("Reset All: alle Vorgaben wieder da, nichts mehr gespeichert", [] {
+        return ke::editor().belegung.taste("GridUp") == ']' && ke::editor().belegung.taste("SetGrid1") == '1' &&
+               ke::editor().belegung.abweichende().empty() && g_app->settings.karteTasten.empty();
+    }));
+    add(tu("Dialog zu, echte Tastatur", [] {
+        ke::editor().tastenDialogOffen = false;
+        ke::tastaturErsatz = nullptr;
+    }));
+    return s;
+}
+
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
     std::vector<Schritt> s;
@@ -25177,6 +25339,7 @@ std::vector<Schritt> karteneditorSchritte() {
     }));
     add(foto("karteneditor_start"));
     for (Schritt& x : karteneditorRahmenSchritte()) { add(std::move(x)); }
+    for (Schritt& x : karteneditorTastenSchritte()) { add(std::move(x)); }
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
     return s;
 }

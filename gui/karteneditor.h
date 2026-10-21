@@ -159,7 +159,9 @@ struct Editor {
     bool belegungGeladen = false;
     // Dialoge
     bool einstellungenOffen = false;
-    bool tastenDialogOffen = false;
+    bool tastenDialogOffen = false;   // "Mapped Commands" (DoCommandListDlg)
+    std::string tastenDialogBearbeitet;   // Befehl, dessen Taste gerade aufgenommen wird
+    int tasteVerbrauchtBild = -1;         // in diesem Bild hat die Aufnahme die Taste geschluckt
     bool ueberOffen = false;
     std::string letzterBefehl;   // fuer den Selbsttest: zuletzt ausgeloest
     std::vector<std::string> knoepfeImBild;   // fuer den Selbsttest: gezeichnete Knoepfe
@@ -190,6 +192,18 @@ bool ausfuehren(const std::string& name);
 [[nodiscard]] bool angehakt(const std::string& name);
 // Alle nachgebauten Befehle (fuer den Selbsttest).
 [[nodiscard]] std::vector<std::string> nachgebauteBefehle();
+// Die Tastenkuerzel dieses Bildes auswerten (QShortcutMap::find ueber
+// QWindowsKeyMapper::possibleKeys) - nur, solange der Karten-Editor den Fokus
+// hat, nichts getippt wird und keine Maustaste gedrueckt ist
+// (RadiantQMainWindow::event: "block shortcuts while mouse buttons are pressed").
+void tastenVerarbeiten();
+// Fuer den Selbsttest: eine feste Tastaturbelegung statt der von Windows
+// (ImGuiKey als int); false = die echte Belegung nehmen.
+extern std::function<bool(int, befehle::TastenBelegung&, bool&, bool&)> tastaturErsatz;
+// Die Belegung einer ImGui-Taste (Ersatz oder Windows).
+bool tastenBelegung(int imguiKey, befehle::TastenBelegung& out, bool& ziffernblock, bool& erweitertesReturn);
+// Die Qt-Zusatztasten des Augenblicks (kShift|kCtrl|kAlt|kMeta).
+[[nodiscard]] std::uint32_t qtZusatztasten();
 
 // --- Menues, Werkzeugleisten, Statuszeile (app_karte_menue.cpp) ---
 void zeichneMenueleiste();
@@ -201,6 +215,7 @@ float statuszeilenHoehe();
 bool symbol(const char* name, float groesse, bool hell = true);
 // --- Dialoge (app_karte_dialoge.cpp) ---
 void zeichneEinstellungen();   // "NetRadiant Preferences" (P)
+void zeichneTastenDialog();    // "Mapped Commands" (Ctrl+Shift+P)
 // Einstellungen des Editors lesen/schreiben (Settings::karte).
 void einstellungenLaden();
 void einstellungenSpeichern();

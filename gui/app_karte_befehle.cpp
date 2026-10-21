@@ -20,6 +20,7 @@
 #include "karteneditor.h"
 
 #include "app_internal.h"
+#include "tastatur.h"
 
 #include <map>
 #include <utility>
@@ -104,10 +105,74 @@ std::map<std::string, Umsetzung>& umsetzungen() {
     m["MaximizeView"] = {[] { e().maximiert = !e().maximiert; }, nullptr};
     // --- Edit ---
     m["Preferences"] = {[] { e().einstellungenOffen = true; }, nullptr};
+    m["Shortcuts"] = {[] { e().tastenDialogOffen = true; }, nullptr};   // DoCommandListDlg (commands.cpp:332)
+    // --- Grid (grid.cpp:183-203) ---
+    m["GridDown"] = {[] { e().raster.kleiner(); }, nullptr};
+    m["GridUp"] = {[] { e().raster.groesser(); }, nullptr};
+    m["ToggleGridSnap"] = {[] { e().raster.einrastenUmschalten(); }, nullptr};
+    for (int p = karte::Raster::kMinPotenz; p <= karte::Raster::kMaxPotenz; ++p) {
+        const std::string name = std::string("SetGrid") + karte::Raster::name(p + 3);
+        // Grid-Menue: Radio, der aktuelle Eintrag ist angehakt (gridActions_setChecked).
+        m[name] = {[p] { e().raster.setzePotenz(p); }, [p] { return e().raster.potenz() == p; }};
+    }
     return m;
 }
 
 }  // namespace
+
+std::function<bool(int, befehle::TastenBelegung&, bool&, bool&)> tastaturErsatz;
+
+bool tastenBelegung(int imguiKey, befehle::TastenBelegung& out, bool& ziffernblock, bool& erweitertesReturn) {
+    if (tastaturErsatz && tastaturErsatz(imguiKey, out, ziffernblock, erweitertesReturn)) { return true; }
+    return tastatur::belegung(imguiKey, out, ziffernblock, erweitertesReturn);
+}
+
+std::uint32_t qtZusatztasten() {
+    const ImGuiIO& io = ImGui::GetIO();
+    std::uint32_t m = 0;
+    if (io.KeyShift) { m |= befehle::kShift; }
+    if (io.KeyCtrl) { m |= befehle::kCtrl; }
+    if (io.KeyAlt) { m |= befehle::kAlt; }
+    if (io.KeySuper) { m |= befehle::kMeta; }
+    return m;
+}
+
+void tastenVerarbeiten() {
+    Editor& ed = e();
+    if (!aktiv() || !ed.belegungGeladen) { return; }
+    const ImGuiIO& io = ImGui::GetIO();
+    // Tippen in ein Feld, ein offenes Menue/Klappfenster, das Aufnehmen einer
+    // neuen Taste und gedrueckte Maustasten haben Vorrang.
+    if (io.WantTextInput || !ed.tastenDialogBearbeitet.empty() || ed.tasteVerbrauchtBild == ImGui::GetFrameCount() ||
+        ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel)) {
+        return;
+    }
+    for (int m = 0; m < 5; ++m) {
+        if (io.MouseDown[m]) { return; }
+    }
+    for (int k = ImGuiKey_NamedKey_BEGIN; k < ImGuiKey_NamedKey_END; ++k) {
+        const auto key = static_cast<ImGuiKey>(k);
+        if (key >= ImGuiKey_LeftCtrl && key <= ImGuiKey_RightSuper) { continue; }   // nur Zusatztasten
+        if (key >= ImGuiKey_ReservedForModCtrl) { continue; }
+        // QAction-Kuerzel loesen auch bei der Tastenwiederholung aus.
+        if (!ImGui::IsKeyPressed(key, true)) { continue; }
+        befehle::TastenBelegung kb;
+        bool ziffernblock = false;
+        bool erweitert = false;
+        if (!tastenBelegung(k, kb, ziffernblock, erweitert)) { continue; }
+        std::uint32_t mods = qtZusatztasten();
+        if (ziffernblock) { mods |= befehle::kNum; }
+        const std::vector<std::string> t = ed.belegung.treffer(befehle::moeglicheTasten(kb, mods, erweitert));
+        if (t.size() == 1) {
+            ed.statusBefehl = t[0];
+            (void)ausfuehren(t[0]);
+        } else if (t.size() > 1) {
+            // QAction::event: "Ambiguous shortcut overload" - nichts wird ausgeloest.
+            warnung("QAction::event: Ambiguous shortcut overload: " +
+                    befehle::tasteAlsText(befehle::moeglicheTasten(kb, mods, erweitert).front()));
+        }
+    }
+}
 
 bool ausfuehren(const std::string& name) {
     auto& m = umsetzungen();

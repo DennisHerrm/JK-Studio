@@ -632,6 +632,8 @@ void zeichne(float hoehe) {
     }
     gruppenDialog(start, rest);
     zeichneEinstellungen();
+    zeichneTastenDialog();
     zeichneRueckfrage();
+    tastenVerarbeiten();
 }
 }  // namespace bhed::gui::karteneditor
