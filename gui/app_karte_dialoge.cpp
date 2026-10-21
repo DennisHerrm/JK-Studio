@@ -24,6 +24,7 @@
 #include "tastatur.h"
 
 #include <algorithm>
+#include <cfloat>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -71,26 +72,71 @@ struct Entwurf {
 };
 Entwurf g_entwurf;
 
+// Eine Seite ist eine QGroupBox mit einem QFormLayout (PreferencesPage,
+// radiant/dialog.cpp: addSpinner/addCheckBox/addCombo/addRadioIcons/
+// addPathEntry): Beschriftung rechtsbuendig links, Feld ueber die ganze
+// rechte Spalte; Checkboxen haben links eine leere Beschriftung. Vorlage:
+// die Fotos SP\nrc_fotos\dialoge\pref_<Seite>.png.
+bool formBeginnen(const char* id) {
+    return ImGui::BeginTable(id, 2, ImGuiTableFlags_SizingFixedFit);
+}
+void formSpalten() {
+    ImGui::TableSetupColumn("##beschriftung", ImGuiTableColumnFlags_WidthFixed);
+    ImGui::TableSetupColumn("##feld", ImGuiTableColumnFlags_WidthStretch);
+}
+// Neue Zeile; die Beschriftung rechtsbuendig (Str::Count: keine).
+void formZeile(Str text) {
+    ImGui::TableNextRow();
+    ImGui::TableSetColumnIndex(0);
+    ImGui::AlignTextToFramePadding();
+    if (text != Str::Count) {
+        const char* t = trK(text);
+        const float b = ImGui::CalcTextSize(t).x;
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(0.0F, ImGui::GetColumnWidth() - b));
+        ImGui::TextUnformatted(t);
+    }
+    ImGui::TableSetColumnIndex(1);
+    ImGui::SetNextItemWidth(-FLT_MIN);
+}
+
 void layoutSeite() {
-    // Layout_constructPreferences: appendRadioIcons "Window Layout"
-    ImGui::TextUnformatted(trK(Str::KePrWindowLayout));
+    // Layout_constructPreferences (mainframe.cpp): appendRadioIcons "Window
+    // Layout" (vier Bilder, darunter Radioknoepfe ohne Text), appendCheckBox
+    // "Detachable Menus", "Built-In Group Dialog" (Foto pref_Layout.png).
+    if (!formBeginnen("##layoutseite")) { return; }
+    formSpalten();
     static const char* const kBilder[4] = {"window1", "window2", "window3", "window4"};
     static const Str kNamen[4] = {Str::KeLayoutRegular, Str::KeLayoutFloating, Str::KeLayoutSplit, Str::KeLayoutRegularLeft};
     const float s = std::round(48.0F * g_app->dpiScale * g_app->uiScale);
+    // QFormLayout: die Beschriftung mittig zur Zeile (Bilder und Knoepfe)
+    ImGui::TableNextRow();
+    ImGui::TableSetColumnIndex(0);
+    {
+        const char* t = trK(Str::KePrWindowLayout);
+        const float zeileH = s + ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y;
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + std::max(0.0F, (zeileH - ImGui::GetTextLineHeight()) * 0.5F));
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(0.0F, ImGui::GetColumnWidth() - ImGui::CalcTextSize(t).x));
+        ImGui::TextUnformatted(t);
+    }
+    ImGui::TableSetColumnIndex(1);
     for (int k = 0; k < 4; ++k) {
         ImGui::BeginGroup();
         (void)symbol(kBilder[k], s, true);
-        ImGui::RadioButton((std::string(trK(kNamen[k])) + "##layout").c_str(), &g_entwurf.anordnung, k);
+        const float r = ImGui::GetFrameHeight();
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (s - r) * 0.5F);
+        ImGui::RadioButton((std::string("##layout") + std::to_string(k)).c_str(), &g_entwurf.anordnung, k);
         ImGui::EndGroup();
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", trK(kNamen[k])); }
         if (k < 3) { ImGui::SameLine(); }
     }
     if (g_entwurf.anordnung == 1) {
+        formZeile(Str::Count);
         ImGui::PushTextWrapPos(0.0F);
         ImGui::TextDisabled("%s", tr(Str::KeFloatingHinweis));
         ImGui::PopTextWrapPos();
     }
-    ImGui::Spacing();
     // Detachable Menus: ImGui-Menues lassen sich nicht abreissen (Qt: tear-off).
+    formZeile(Str::Count);
     ImGui::BeginDisabled();
     ImGui::Checkbox(trK(Str::KePrDetachableMenus), &g_entwurf.abtrennbar);
     ImGui::EndDisabled();
@@ -99,44 +145,33 @@ void layoutSeite() {
         std::snprintf(z, sizeof(z), tr(Str::KeStufe), 2);
         ImGui::SetTooltip("%s", z);
     }
+    formZeile(Str::Count);
     ImGui::Checkbox(trK(Str::KePrBuiltInGroupDialog), &g_entwurf.eingebaut);
+    ImGui::EndTable();
 }
 
 // Camera_constructPreferences (camwindow.cpp:2398-2460): appendSpinner,
-// appendCheckBox, appendCombo in dieser Reihenfolge - jede Zeile ein
-// QFormLayout-Eintrag (Dialog::addSpinner/addCheckBox/addCombo,
-// radiant/dialog.cpp): Beschriftung links, Feld rechts; die Checkboxen haben
-// links eine leere Beschriftung und den Text am Kaestchen.
+// appendCheckBox, appendCombo in dieser Reihenfolge (Foto pref_Camera.png).
 void kameraSeite() {
     karte::KameraEinstellungen& c = g_entwurf.kamera;
-    const float feldB = std::round(120.0F * massstab());
-    if (!ImGui::BeginTable("##kameraseite", 2, ImGuiTableFlags_SizingFixedFit)) { return; }
-    const auto zeile = [](Str text) {
-        ImGui::TableNextRow();
-        ImGui::TableSetColumnIndex(0);
-        ImGui::AlignTextToFramePadding();
-        if (text != Str::Count) { ImGui::TextUnformatted(trK(text)); }
-        ImGui::TableSetColumnIndex(1);
-    };
+    if (!formBeginnen("##kameraseite")) { return; }
+    formSpalten();
     const auto ganz = [&](Str text, int& wert, int von, int bis) {
-        zeile(text);
-        ImGui::SetNextItemWidth(feldB);
+        formZeile(text);
         ImGui::InputInt((std::string("##") + trK(text)).c_str(), &wert);
         wert = std::clamp(wert, von, bis);
     };
     const auto komma = [&](Str text, float& wert, float von, float bis, const char* format) {
-        zeile(text);
-        ImGui::SetNextItemWidth(feldB);
+        formZeile(text);
         ImGui::InputFloat((std::string("##") + trK(text)).c_str(), &wert, 0.1F, 1.0F, format);
         wert = std::clamp(wert, von, bis);
     };
     const auto haken = [&](Str text, bool& wert) {
-        zeile(Str::Count);
+        formZeile(Str::Count);
         ImGui::Checkbox(trK(text), &wert);
     };
     const auto auswahl = [&](Str text, int& wert, const char* const* eintraege, int anzahl) {
-        zeile(text);
-        ImGui::SetNextItemWidth(feldB);
+        formZeile(text);
         return ImGui::Combo((std::string("##") + trK(text)).c_str(), &wert, eintraege, anzahl);
     };
     ganz(Str::KePrCamMoveSpeed, c.tempo, 1, karte::kTempoMax);
@@ -171,16 +206,20 @@ void kameraSeite() {
 }
 
 void interfaceSeite() {
-    // Interface Preferences: "Shader Editor Command" (preferences.cpp:64),
-    // dazu die Einstellung dieses Programms "Begriffe wie NetRadiant".
+    // Interface Preferences: "Shader Editor Command" (preferences.cpp:64,
+    // appendPathEntry: Feld mit "..."-Knopf; Foto pref_Interface.png), dazu
+    // die Einstellung dieses Programms "Begriffe wie NetRadiant".
     static char befehl[260] = "";
+    if (!formBeginnen("##interfaceseite")) { return; }
+    formSpalten();
+    formZeile(Str::KePrShaderEditor);
     ImGui::BeginDisabled();
-    ImGui::InputText(trK(Str::KePrShaderEditor), befehl, sizeof(befehl));
+    ImGui::InputText("##shadereditor", befehl, sizeof(befehl));
     ImGui::EndDisabled();
-    ImGui::Spacing();
-    ImGui::Separator();
+    formZeile(Str::Count);
     ImGui::Checkbox(trK(Str::KeNrcTerms), &g_entwurf.nrc);
     if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::KeNrcTermsHint)); }
+    ImGui::EndTable();
 }
 
 }  // namespace
@@ -233,9 +272,10 @@ void zeichneEinstellungen() {
         ImGui::EndChild();
         ImGui::SameLine();
         ImGui::BeginGroup();
-        ImGui::BeginChild("##seite", ImVec2{0.0F, -knopfH}, ImGuiChildFlags_Borders);
+        // QGroupBox: Titel ueber dem Rahmen, darin das Formular
+        ImGui::BeginChild("##seite", ImVec2{0.0F, -knopfH}, ImGuiChildFlags_None);
         ImGui::TextUnformatted(trK(kSeiten[g_entwurf.seite].titel));
-        ImGui::Separator();
+        ImGui::BeginChild("##seitenrahmen", ImVec2{0.0F, 0.0F}, ImGuiChildFlags_Borders);
         if (g_entwurf.seite == kSeiteLayout) {
             layoutSeite();
         } else if (g_entwurf.seite == kSeiteInterface) {
@@ -247,6 +287,7 @@ void zeichneEinstellungen() {
             std::snprintf(z, sizeof(z), tr(Str::KeStufe), 2);
             ImGui::TextDisabled("%s", z);
         }
+        ImGui::EndChild();
         ImGui::EndChild();
         // "Clean" links unter der Seite (ausgegraut, Stufe 2), "OK" und
         // "Cancel" rechts.

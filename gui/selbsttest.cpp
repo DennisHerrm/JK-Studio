@@ -25038,7 +25038,8 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
         add(pause(0.3));
         add(klick(ke::trK(Str::KePgLayout), "###karteeinstellungen"));
         add(pause(0.2));
-        add(klick(std::string(ke::trK(l.name)) + "##layout", "###karteeinstellungen", 0, false, "", 0, 0.1F));
+        // Radioknoepfe ohne Text unter den Bildern (appendRadioIcons, Foto pref_Layout.png)
+        add(klick("##layout" + std::to_string(static_cast<int>(l.a)), "###karteeinstellungen"));
         add(klick(ke::trK(Str::KePrefOk), "###karteeinstellungen"));
         add(pause(0.4));
         const kb::Anordnung soll = l.a;
@@ -26121,6 +26122,13 @@ std::vector<Schritt> karteneditorKameraSchritte() {
     // KeyEvents (kontinuierlich, CamWnd_Move_Enable).
     add(tu("Einstellungen oeffnen", [] { (void)ke::ausfuehren("Preferences"); }));
     add(pause(0.3));
+    // Vergleich mit den Fotos SP\nrc_fotos\dialoge\pref_Layout.png / pref_Interface.png
+    add(klick(ke::trK(Str::KePgLayout), "###karteeinstellungen"));
+    add(pause(0.2));
+    add(foto("karteneditor_einstellungen_layout"));
+    add(klick(ke::trK(Str::KePgInterface), "###karteeinstellungen"));
+    add(pause(0.2));
+    add(foto("karteneditor_einstellungen_interface"));
     add(klick(ke::trK(Str::KePgCamera)));
     add(pause(0.2));
     add(foto("karteneditor_einstellungen_kamera"));
