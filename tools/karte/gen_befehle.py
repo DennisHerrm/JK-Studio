@@ -40,6 +40,9 @@ ToggleCamera ToggleView ToggleFrontView ToggleSideView MaximizeView
 ToggleEntityInspector ToggleConsole ToggleTextures ToggleModelBrowser ToggleLayersBrowser
 Shortcuts GridUp GridDown ToggleGridSnap SetGrid0.125 SetGrid0.25 SetGrid0.5 SetGrid1 SetGrid2 SetGrid4 SetGrid8
 SetGrid16 SetGrid32 SetGrid64 SetGrid128 SetGrid256 SetGrid512 SetGrid1024
+NextView ViewTop ViewFront ViewSide ZoomIn ZoomOut Zoom100 CenterXYView XYFocusOnSelected
+ShowSize2d ToggleCrosshairs ToggleGrid ShowAngles ShowNames ShowBboxes ShowConnections ShowLightRadiuses
+ShowBlocks ShowCoordinates ShowWindowOutline ShowAxes ShowWorkzone2d
 '''.split())
 
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem

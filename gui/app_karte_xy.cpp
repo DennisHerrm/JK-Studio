@@ -1,0 +1,586 @@
+// app_karte_xy.cpp - Karten-Editor: die 2D-Ansichten XY / XZ / YZ.
+//
+// Portiert aus NetRadiant-Custom 20260114: radiant/xywindow.cpp (XYWnd:
+// XY_Draw, overlayDraw, XY_MouseDown/Moved/Up, Move_Begin/End, Zoom_Begin,
+// wheelEvent, XY_Focus, XY_Centralize, XY_SetViewType, XY_Zoom100, die
+// Show-Schalter), radiant/map.cpp (FocusViews, Map_StartPosition),
+// plugins/entity (Farben, Kaesten, Pfeile, Namen, Lichter, Verbindungen),
+// libs/gtkutil/cursor.h (FreezePointer). Die Rechnung steht in
+// bhed/karte/xyansicht.h; hier das Bild (Direct3D 11, karte_gpu.h), die
+// Texte (ImGui) und die Maus.
+//
+//   Copyright (C) 1999-2006 Id Software, Inc. and contributors.
+//   For a list of contributors, see the accompanying CONTRIBUTORS file.
+//   This file is part of GtkRadiant.
+//
+//   GtkRadiant is free software; you can redistribute it and/or modify it under
+//   the terms of the GNU General Public License as published by the Free
+//   Software Foundation; either version 2 of the License, or (at your option)
+//   any later version. GtkRadiant is distributed in the hope that it will be
+//   useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+//   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+//   Public License for more details (LICENSE).
+#include "karteneditor.h"
+
+#include "app_internal.h"
+#include "bhed/karte/patch.h"
+#include "bhed/karte/pinsel.h"
+#include "karte_gpu.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <functional>
+
+namespace bhed::gui::karteneditor {
+
+namespace {
+
+using karte::Farbe;
+using karte::Kasten;
+using karte::Linie;
+using karte::Sicht;
+using karte::Vektor3f;
+
+// RAD_* (xywindow.cpp:103-110)
+constexpr unsigned kShift = 0x01;
+constexpr unsigned kAlt = 0x02;
+constexpr unsigned kControl = 0x04;
+constexpr unsigned kLinks = 0x10;
+constexpr unsigned kMitte = 0x20;
+constexpr unsigned kRechts = 0x40;
+
+Editor& e() { return editor(); }
+
+// Was eine Ansicht vom Szenenbild behaelt: die Linien je Blickrichtung
+// (sichtbare Kanten haengen nur von der Richtung ab), auf der Grafikkarte und
+// fuer den ImGui-Weg.
+struct Name {
+    Vektor3f anker;
+    Kasten box;
+    std::string text;
+    Farbe farbe = 0;
+    bool gewaehlt = false;
+};
+struct Szene {
+    std::size_t stand = static_cast<std::size_t>(-1);
+    Sicht sicht = Sicht::XY;
+    std::vector<Linie> welt;    // Breite 1
+    std::vector<Linie> wahl;    // Auswahl: Breite 2 ($XY_OVERLAY)
+    std::vector<Name> namen;
+    kartegpu::Puffer gpuWelt;
+    kartegpu::Puffer gpuWahl;
+    bool gpuAktuell = false;
+};
+std::array<Szene, 3> g_szene;
+
+Farbe farbe3(const Farben::F3& c, float a = 1.0F) { return karte::farbeAus(c[0], c[1], c[2], a); }
+
+// Ein Stand der Szene: aendert sich mit jedem Befehl, Rueckgaengig,
+// Wiederholen, neuer Karte und neuer Auswahl.
+std::size_t szeneStand() {
+    const Editor& ed = e();
+    std::size_t h = ed.karte.undo.aenderungen() * 1315423911U;
+    h ^= ed.karte.undo.undoAnzahl() * 2654435761U + (h << 6) + (h >> 2);
+    h ^= ed.karte.undo.redoAnzahl() * 40503U + (h << 6) + (h >> 2);
+    h ^= ed.ladeZaehler * 97U + (h << 6) + (h >> 2);
+    h ^= ed.karte.auswahl.anzahl() * 31U + (h << 6) + (h >> 2);
+    for (const auto& w : ed.karte.auswahl.elemente()) {
+        h ^= reinterpret_cast<std::uintptr_t>(w.entitaet.lock().get()) + (h << 6) + (h >> 2);
+        h ^= reinterpret_cast<std::uintptr_t>(w.primitiv.lock().get()) + (h << 6) + (h >> 2);
+    }
+    const Anzeige& a = ed.anzeige;
+    h ^= (a.winkel ? 1U : 0U) | (a.verbindungen ? 2U : 0U) | (a.namen ? 4U : 0U);
+    h ^= static_cast<std::size_t>(farbe3(ed.farben.pinsel)) * 7U + static_cast<std::size_t>(farbe3(ed.farben.auswahl)) * 13U;
+    h ^= static_cast<std::size_t>(farbe3(ed.farben.rasterHinten));
+    return h;
+}
+
+// Die Grenzen der Kinder einer Entitaet (Gruppen: Name in der Mitte).
+Kasten kinderGrenzen(const karte::Entitaet& ent, const karte::Kontext& k) {
+    Kasten b;
+    for (const auto& p : ent.kinder()) {
+        if (p->art() == karte::Primitiv::Art::Pinsel) {
+            const auto& pinsel = static_cast<const karte::Pinsel&>(*p);
+            karte::kastenErweiternSicher(b, pinsel.grenzen(k));
+        } else {
+            karte::kastenErweiternSicher(b, static_cast<const karte::Patch&>(*p).grenzen());
+        }
+    }
+    return b;
+}
+
+Vektor3f ursprungVon(const karte::Entitaet& ent) {
+    Vektor3f o(0, 0, 0);
+    (void)std::sscanf(ent.wert("origin").c_str(), "%f %f %f", &o[0], &o[1], &o[2]);
+    return o;
+}
+
+// Scene_Render mit dem XYRenderer (xywindow.cpp:1647-1704): Drahtgitter in
+// der Klassenfarbe, Ausgewaehltes (auch Kinder ausgewaehlter Entities) in der
+// Auswahlfarbe und Breite 2.
+void szeneBauen(Szene& s, Sicht sicht) {
+    Editor& ed = e();
+    s.welt.clear();
+    s.wahl.clear();
+    s.namen.clear();
+    s.sicht = sicht;
+    const karte::Kontext& k = ed.karte.kontext;
+    const Farbe auswahl = farbe3(ed.farben.auswahl);
+    // XY_Draw: setLightColorize( vector3_min_component( color_gridback ) < .9f )
+    const auto& hg = ed.farben.rasterHinten;
+    const bool lichtFarbe = std::min({hg[0], hg[1], hg[2]}) < .9F;
+    // Ziele der Verbindungen: targetname -> Mitte
+    std::map<std::string, Vektor3f> ziele;
+    const auto mitte = [&](const karte::Entitaet& ent) {
+        const karte::EntitaetsKlasse* kl = ent.klasse();
+        if (kl != nullptr && kl->fixedsize) { return ursprungVon(ent) + (kl->mins + kl->maxs) * 0.5F; }
+        return kinderGrenzen(ent, k).origin;
+    };
+    for (const auto& ent : ed.karte.entitaeten()) {
+        const std::string tn = ent->wert("targetname");
+        if (!tn.empty()) { ziele.emplace(tn, mitte(*ent)); }
+    }
+    for (const auto& ent : ed.karte.entitaeten()) {
+        const karte::EntitaetsKlasse* kl = ent->klasse();
+        const bool welt = ent->klassenname() == "worldspawn";
+        // SetWorldspawnColour: worldspawn in color_brushes
+        Farbe farbe = welt ? farbe3(ed.farben.pinsel)
+                           : (kl != nullptr ? karte::farbeAus(kl->farbe[0], kl->farbe[1], kl->farbe[2]) : karte::farbeAus(0, 0.5F, 0));
+        const bool entGewaehlt = ed.karte.auswahl.gewaehlt(ent.get());
+        for (const auto& p : ent->kinder()) {
+            const bool gew = entGewaehlt || ed.karte.auswahl.gewaehlt(ent.get(), p.get());
+            std::vector<Linie>& ziel = gew ? s.wahl : s.welt;
+            const Farbe f = gew ? auswahl : farbe;
+            if (p->art() == karte::Primitiv::Art::Pinsel) {
+                karte::pinselKanten(static_cast<const karte::Pinsel&>(*p), k, sicht, f, ziel);
+            } else {
+                karte::patchGitter(static_cast<const karte::Patch&>(*p), f, ziel);
+            }
+        }
+        std::vector<Linie>& ziel = entGewaehlt ? s.wahl : s.welt;
+        const Farbe f = entGewaehlt ? auswahl : farbe;
+        const bool punkt = kl != nullptr && kl->fixedsize;
+        const bool licht = ent->klassenname() == "light" || ent->klassenname() == "lightJunior";
+        Kasten box;
+        if (punkt) {
+            const Vektor3f o = ursprungVon(*ent);
+            box = karte::kastenAusMinMax(o + kl->mins, o + kl->maxs);
+            if (licht) {
+                // renderSolid: g_lightColorize ? Lichtfarbe : Klassenfarbe
+                Farbe lf = farbe;
+                if (lichtFarbe) {
+                    karte::Vektor3f c(1, 1, 1);
+                    if (std::sscanf(ent->wert("_color").c_str(), "%f %f %f", &c[0], &c[1], &c[2]) == 3) {
+                        const float m = std::max({c[0], c[1], c[2]});
+                        c = m == 0 ? Vektor3f(1, 1, 1) : c * (1.0F / m);
+                    } else {
+                        c = Vektor3f(1, 1, 1);
+                    }
+                    lf = karte::farbeAus(c[0], c[1], c[2]);
+                }
+                karte::lichtOktaeder(box, entGewaehlt ? auswahl : lf, ziel);
+            } else {
+                karte::kastenDraht(box, f, ziel);
+                if (ed.anzeige.winkel) {
+                    const Vektor3f w = karte::entitaetsWinkel(ent->wert("angle"), ent->wert("angles"), ent->hat("angles"), false);
+                    karte::pfeil(box.origin, w, f, ziel);
+                }
+            }
+            if (!welt) {
+                const std::string tn = ent->wert("targetname");
+                s.namen.push_back({o, box, tn.empty() ? ent->klassenname() : tn, farbe, entGewaehlt});
+            }
+        } else if (!welt) {
+            box = kinderGrenzen(*ent, k);
+            const std::string tn = ent->wert("targetname");
+            s.namen.push_back({box.origin, box, tn.empty() ? ent->klassenname() : tn, farbe, entGewaehlt});
+        }
+        // Verbindungen (targetable.h): Linie zur Mitte jedes Ziels, in der
+        // Klassenfarbe der Quelle.
+        if (ed.anzeige.verbindungen) {
+            for (const auto& [schl, wert] : ent->schluessel()) {
+                if (schl.rfind("target", 0) != 0 || schl == "targetname") { continue; }
+                const std::string rest = schl.substr(6);
+                if (!rest.empty() && rest.find_first_not_of("0123456789") != std::string::npos) { continue; }
+                const auto it = ziele.find(wert);
+                if (it != ziele.end()) { karte::verbindung(mitte(*ent), it->second, farbe, s.welt); }
+            }
+        }
+    }
+    s.gpuAktuell = false;
+}
+
+// Die Einstellungen fuer XY_DrawGrid aus Editor und Farbschema.
+karte::RasterEinstellungen rasterEinstellungen(int index, int schriftHoehe, int unterlaenge) {
+    Editor& ed = e();
+    karte::RasterEinstellungen r;
+    r.raster = ed.raster.groesse();
+    r.fang = ed.raster.einrastGroesse();
+    r.potenz = ed.raster.potenz();
+    r.zeigeRaster = ed.anzeige.raster;
+    r.zeigeKoordinaten = ed.anzeige.koordinaten;
+    r.zeigeAchsen = ed.anzeige.achsen;
+    r.zeigeWorkzone = ed.anzeige.workzone2d;
+    r.zeigeBloecke = ed.anzeige.bloecke;
+    r.aktiv = ed.aktivXy == index;
+    r.regionMin = Vektor3f(-ed.raster.maxKoord(), -ed.raster.maxKoord(), -ed.raster.maxKoord());
+    r.regionMax = Vektor3f(ed.raster.maxKoord(), ed.raster.maxKoord(), ed.raster.maxKoord());
+    const auto f3 = [](const Farben::F3& c) { return std::array<float, 3>{c[0], c[1], c[2]}; };
+    r.hinten = f3(ed.farben.rasterHinten);
+    r.klein = f3(ed.farben.rasterKlein);
+    r.gross = f3(ed.farben.rasterGross);
+    r.block = f3(ed.farben.rasterBlock);
+    r.text = f3(ed.farben.rasterText);
+    r.name = f3(ed.farben.ansichtName);
+    r.achseX = farbe3(ed.farben.achseX);
+    r.achseY = farbe3(ed.farben.achseY);
+    r.achseZ = farbe3(ed.farben.achseZ);
+    r.schriftHoehe = schriftHoehe;
+    r.schriftUnterlaenge = unterlaenge;
+    if (const auto w = ed.karte.welt()) {
+        const std::string bs = w->wert("_blocksize");
+        if (!bs.empty()) {
+            int b[3] = {1024, 1024, 1024};
+            const int n = std::sscanf(bs.c_str(), "%i %i %i", b, b + 1, b + 2);
+            if (n == 1 || n == 2) { b[1] = b[2] = b[0]; }   // handle legacy case
+            r.blockGroesse = {b[0], b[1], b[2]};
+        }
+    } else {
+        r.weltDa = false;
+    }
+    return r;
+}
+
+// Die Auswahlgrenzen (getBoundsSelected).
+bool auswahlGrenzen(Kasten& b) {
+    Editor& ed = e();
+    b = Kasten();
+    for (const auto& w : ed.karte.auswahl.elemente()) {
+        if (const auto p = w.primitiv.lock()) {
+            if (p->art() == karte::Primitiv::Art::Pinsel) {
+                karte::kastenErweiternSicher(b, static_cast<const karte::Pinsel&>(*p).grenzen(ed.karte.kontext));
+            } else {
+                karte::kastenErweiternSicher(b, static_cast<const karte::Patch&>(*p).grenzen());
+            }
+        } else if (const auto ent = w.entitaet.lock()) {
+            const karte::EntitaetsKlasse* kl = ent->klasse();
+            if (kl != nullptr && kl->fixedsize) {
+                const Vektor3f o = ursprungVon(*ent);
+                karte::kastenErweiternSicher(b, karte::kastenAusMinMax(o + kl->mins, o + kl->maxs));
+            } else {
+                karte::kastenErweiternSicher(b, kinderGrenzen(*ent, ed.karte.kontext));
+            }
+        }
+    }
+    return karte::kastenGueltig(b);
+}
+
+// GetCenterBbox (xywindow.cpp:1938-1942): Auswahl, sonst die Kamera +-128.
+Kasten mittelKasten() {
+    Kasten b;
+    if (e().karte.auswahl.anzahl() != 0 && auswahlGrenzen(b)) { return b; }
+    return Kasten(e().kamera.ursprung, Vektor3f(128, 128, 128));
+}
+
+// Linien ohne Direct3D: mit ImGui (glLineWidth ueber die Dicke).
+void imguiLinien(ImDrawList* dl, const karte::XyAnsicht& v, ImVec2 o, const std::vector<Linie>& l, float breite) {
+    for (const Linie& x : l) {
+        const auto a = v.zuBild(x.a);
+        const auto b = v.zuBild(x.b);
+        dl->AddLine(ImVec2{o.x + a[0], o.y + a[1]}, ImVec2{o.x + b[0], o.y + b[1]}, x.farbe, breite);
+    }
+}
+
+}  // namespace
+
+std::vector<int> xyFenster() {
+    // forEachXYWnd: Regular/RegularLeft nur XY, sonst alle drei
+    if (e().anordnung == befehle::Anordnung::Regular || e().anordnung == befehle::Anordnung::RegularLeft) { return {0}; }
+    return {0, 1, 2};
+}
+
+void startPosition() {
+    Editor& ed = e();
+    // Scene_FindPlayerStart (map.cpp:430-454)
+    const char* const klassen[] = {"info_player_start",   "info_player_deathmatch", "team_CTF_redplayer",
+                                   "team_CTF_blueplayer", "team_CTF_redspawn",      "team_CTF_bluespawn"};
+    std::shared_ptr<karte::Entitaet> start;
+    for (const char* name : klassen) {
+        for (const auto& ent : ed.karte.entitaeten()) {
+            if (ent->klassenname() == name) {
+                start = ent;
+                break;
+            }
+        }
+        if (start) { break; }
+    }
+    Vektor3f o(0, 0, 0);
+    float winkel = 0;
+    if (start && std::sscanf(start->wert("origin").c_str(), "%f %f %f", &o[0], &o[1], &o[2]) == 3) {
+        winkel = static_cast<float>(std::atof(start->wert("angle").c_str()));   // string_read_float
+    } else {
+        o = Vektor3f(0, 0, 0);
+    }
+    // FocusViews (map.cpp:456-467)
+    ed.kamera.ursprung = o;
+    ed.kamera.winkel[0] = 0;   // CAMERA_PITCH
+    ed.kamera.winkel[1] = winkel;   // CAMERA_YAW
+    for (auto& x : ed.xy) { x.ansicht.setzeUrsprung(o); }
+}
+
+void xyZeichnen(int index) {
+    Editor& ed = e();
+    XyFenster& f = ed.xy[static_cast<std::size_t>(index)];
+    karte::XyAnsicht& v = f.ansicht;
+    static const bool imTest = std::getenv("BHED_EDITORTEST") != nullptr;
+    const ImVec2 o = ImGui::GetWindowPos();
+    const ImVec2 groesse = ImGui::GetWindowSize();
+    f.bildX = o.x;
+    f.bildY = o.y;
+    v.breite = std::max(1, static_cast<int>(groesse.x));
+    v.hoehe = std::max(1, static_cast<int>(groesse.y));
+    v.maxRaster = ed.raster.maxKoord();
+    v.zumZeiger = ed.anzeige.zumZeiger;
+    if (v.massstab < 1e-6F) { v.massstab = 1; }
+
+    // --- Schrift der Ansichten: NRC zeichnet Text mit "Myriad Pro" 8 pt in
+    // Geraetepunkten bei 96 dpi (glfont, ohne Hochskalierung) - hier Segoe UI
+    // in derselben Groesse (Myriad Pro darf nicht mitgeliefert werden).
+    ImFont* ansichtSchrift = schrift();
+    const float schriftPx = 8.0F * 96.0F / 72.0F * 1.33F;   // Geviert 10,67 -> ImGui-Hoehe
+    ImGui::PushFont(ansichtSchrift, schriftPx / std::max(0.01F, g_app->dpiScale * g_app->uiScale));
+    const int schriftHoehe = static_cast<int>(std::lround(ImGui::GetFontSize()));
+    const int unterlaenge = static_cast<int>(std::lround(ImGui::GetFontSize() * 514.0F / 2724.0F));
+
+    // --- Szene (nur neu bauen, wenn sich etwas geaendert hat)
+    Szene& s = g_szene[static_cast<std::size_t>(index)];
+    const std::size_t stand = szeneStand();
+    if (s.stand != stand || s.sicht != v.typ) {
+        szeneBauen(s, v.typ);
+        s.stand = stand;
+    }
+    const karte::RasterEinstellungen re = rasterEinstellungen(index, schriftHoehe, unterlaenge);
+    const karte::RasterZeichnung raster = karte::rasterZeichnen(v, re);
+    const karte::Matrix4 mvp = karte::multipliziert(v.projektion(), v.modelview());
+
+    // Overlay-Linien: Groessenanzeige, Kamera-Symbol, Fadenkreuz
+    std::vector<Linie> overlay;
+    std::vector<karte::Text> overlayTexte;
+    if (ed.anzeige.groesse2d && ed.karte.auswahl.anzahl() != 0) {
+        Kasten b;
+        if (auswahlGrenzen(b)) {
+            const auto& c = ed.farben.auswahl;
+            const auto g = karte::groessenAnzeige(v, b, karte::farbeAus(c[0] * .65F, c[1] * .65F, c[2] * .65F), schriftHoehe);
+            overlay.insert(overlay.end(), g.linien.begin(), g.linien.end());
+            overlayTexte = g.texte;
+        }
+    }
+    const std::vector<Linie> kam = karte::kameraSymbol(v, ed.kamera.ursprung, ed.kamera.winkel, farbe3(ed.farben.kamera));
+    std::vector<Linie> kreuz;
+    if (ed.anzeige.fadenkreuz) { kreuz = karte::fadenkreuz(v, f.maus); }
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const float hinten[4] = {ed.farben.rasterHinten[0], ed.farben.rasterHinten[1], ed.farben.rasterHinten[2], 1.0F};
+    if (kartegpu::verfuegbar() && kartegpu::beginnen(100 + index, v.breite, v.hoehe, ed.anzeige.msaa, hinten)) {
+        if (!s.gpuAktuell) {
+            s.gpuWelt.setzen(s.welt);
+            s.gpuWahl.setzen(s.wahl);
+            s.gpuAktuell = true;
+        }
+        kartegpu::zeichnen(raster.linien, &mvp[0], 1.0F);
+        kartegpu::zeichnen(raster.linien2, &mvp[0], 2.0F);
+        kartegpu::zeichnen(s.gpuWelt, &mvp[0], 1.0F);
+        kartegpu::zeichnen(s.gpuWahl, &mvp[0], 2.0F);
+        kartegpu::zeichnen(overlay, &mvp[0], 1.0F);
+        kartegpu::zeichnen(kam, &mvp[0], 1.0F);
+        kartegpu::zeichnen(kreuz, &mvp[0], 1.0F);
+        kartegpu::beenden();
+        dl->AddImage(reinterpret_cast<ImTextureID>(kartegpu::textur(100 + index)), o, ImVec2{o.x + groesse.x, o.y + groesse.y});
+    } else {
+        dl->AddRectFilled(o, ImVec2{o.x + groesse.x, o.y + groesse.y}, farbe3(ed.farben.rasterHinten));
+        imguiLinien(dl, v, o, raster.linien, 1.0F);
+        imguiLinien(dl, v, o, raster.linien2, 2.0F);
+        imguiLinien(dl, v, o, s.welt, 1.0F);
+        imguiLinien(dl, v, o, s.wahl, 2.0F);
+        imguiLinien(dl, v, o, overlay, 1.0F);
+        imguiLinien(dl, v, o, kam, 1.0F);
+        imguiLinien(dl, v, o, kreuz, 1.0F);
+    }
+    // --- Texte (glRasterPos: linke Unterkante)
+    dl->PushClipRect(o, ImVec2{o.x + groesse.x, o.y + groesse.y}, true);
+    const auto text = [&](const karte::Text& t) {
+        dl->AddText(ImVec2{o.x + t.x, o.y + t.y - static_cast<float>(schriftHoehe)}, t.farbe, t.text.c_str());
+    };
+    for (const karte::Text& t : raster.texte) { text(t); }
+    for (const karte::Text& t : overlayTexte) { text(t); }
+    // Namen (RenderableNamedEntity): ausgewaehlt immer, sonst wenn ShowNames
+    // und aabb_fits_view; normal in der Klassenfarbe, ausgewaehlt gelb, mit
+    // schwarzem Schatten.
+    for (const Name& n : s.namen) {
+        if (!(n.gewaehlt || (ed.anzeige.namen && karte::kastenPasst(n.box, v, ed.anzeige.namenVerhaeltnis)))) { continue; }
+        const auto p = v.zuBild(n.anker);
+        if (p[0] < -200 || p[1] < 0 || p[0] > groesse.x || p[1] > groesse.y + static_cast<float>(schriftHoehe)) { continue; }
+        const ImVec2 at{o.x + p[0], o.y + p[1] - static_cast<float>(schriftHoehe)};
+        dl->AddText(ImVec2{at.x + 1, at.y + 1}, IM_COL32(0, 0, 0, 255), n.text.c_str());
+        dl->AddText(at, n.gewaehlt ? IM_COL32(255, 255, 0, 255) : n.farbe, n.text.c_str());
+    }
+    dl->PopClipRect();
+    // Fensterumriss der aktiven Ansicht (overlayDraw, 1 Bildpunkt)
+    if (ed.anzeige.umriss && ed.aktivXy == index) {
+        dl->AddRect(ImVec2{o.x + 0.5F, o.y + 0.5F}, ImVec2{o.x + groesse.x - 0.5F, o.y + groesse.y - 0.5F},
+                    karte::umrissFarbe(v.typ, ed.anordnung == befehle::Anordnung::Split, re));
+    }
+    ImGui::PopFont();
+
+    // --- Maus (XYGLWidget -> XY_MouseDown / Moved / Up)
+    const ImGuiIO& io = ImGui::GetIO();
+    const bool ueber = ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) &&
+                       !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+    const int mx = static_cast<int>(std::lround(io.MousePos.x - o.x));
+    const int my = static_cast<int>(std::lround(io.MousePos.y - o.y));
+    const unsigned mods = (io.KeyShift ? kShift : 0U) | (io.KeyAlt ? kAlt : 0U) | (io.KeyCtrl ? kControl : 0U);
+    // Qt liefert die Pan-Deltas in logischen Punkten (cursor.h), Klicks in
+    // Geraetepunkten.
+    const float qt = std::max(1.0F, std::round(g_app->dpiScale));
+    // Mausrad: ein Zoomschritt je Ereignis, macht die Ansicht aktiv.
+    if (ueber && io.MouseWheel != 0.0F) {
+        ed.aktivXy = index;
+        if (io.MouseWheel > 0) {
+            v.hineinMaus(mx, my);
+        } else {
+            v.hinausMaus(mx, my);
+        }
+    }
+    const int knopf[3] = {ImGuiMouseButton_Left, ImGuiMouseButton_Right, ImGuiMouseButton_Middle};
+    const unsigned flag[3] = {kLinks, kRechts, kMitte};
+    for (int b = 0; b < 3; ++b) {
+        if (ueber && ImGui::IsMouseClicked(knopf[b]) && !f.gedrueckt) {
+            ed.aktivXy = index;
+            f.gedrueckt = true;
+            f.tasten = flag[b] | mods;   // buttons_for_event_button
+            const unsigned t = f.tasten;
+            if (t == kRechts) {   // Move_Begin: FreezePointer
+                f.verschieben = true;
+                f.ankerX = io.MousePos.x;
+                f.ankerY = io.MousePos.y;
+                f.letzteX = io.MousePos.x;
+                f.letzteY = io.MousePos.y;
+            } else if (t == (kRechts | kAlt)) {   // Zoom_Begin
+                f.zoomen = true;
+                f.dragZoom = 0;
+                f.zoomX = mx;
+                f.zoomY = my;
+                f.ankerX = io.MousePos.x;
+                f.ankerY = io.MousePos.y;
+                f.letzteX = io.MousePos.x;
+                f.letzteY = io.MousePos.y;
+            } else if (t == (kControl | kMitte)) {   // XYWnd_PositionCamera
+                ed.kamera.ursprung = karte::kameraVersetzen(v, mx, my, ed.raster.einrastGroesse(), ed.kamera.ursprung);
+            } else if (t == kMitte) {   // XYWnd_OrientCamera
+                ed.kamera.winkel = karte::kameraDrehen(v, mx, my, ed.kamera.ursprung, ed.kamera.winkel);
+            }
+        }
+    }
+    if (f.gedrueckt) {
+        // Bewegung waehrend des Drucks
+        if (f.verschieben || f.zoomen) {
+            const bool gueltig = ImGui::IsMousePosValid();
+            const float dx = gueltig ? (io.MousePos.x - f.letzteX) / qt : 0.0F;
+            const float dy = gueltig ? (io.MousePos.y - f.letzteY) / qt : 0.0F;
+            const int ix = static_cast<int>(std::lround(dx));
+            const int iy = static_cast<int>(std::lround(dy));
+            if (ix != 0 || iy != 0) {
+                if (f.verschieben) {
+                    v.rollen(-ix, iy);   // Scroll( -x, y )
+                } else if (iy != 0) {
+                    f.dragZoom += iy;
+                    const int schwelle = 16;
+                    while (std::abs(f.dragZoom) > schwelle) {
+                        if (f.dragZoom > 0) {
+                            v.hinausMaus(f.zoomX, f.zoomY);
+                            f.dragZoom -= schwelle;
+                        } else {
+                            v.hineinMaus(f.zoomX, f.zoomY);
+                            f.dragZoom += schwelle;
+                        }
+                    }
+                }
+                f.letzteX += static_cast<float>(ix) * qt;
+                f.letzteY += static_cast<float>(iy) * qt;
+                if (!imTest) {
+                    // Zeiger zurueck an die Ausgangslage (freeze_pointer)
+                    ImGui::TeleportMousePos(ImVec2{f.ankerX, f.ankerY});
+                    f.letzteX = f.ankerX;
+                    f.letzteY = f.ankerY;
+                }
+            }
+            ImGui::SetMouseCursor(ImGuiMouseCursor_None);   // BlankCursor
+        } else {
+            const unsigned gehalten = (ImGui::IsMouseDown(ImGuiMouseButton_Left) ? kLinks : 0U) |
+                                      (ImGui::IsMouseDown(ImGuiMouseButton_Right) ? kRechts : 0U) |
+                                      (ImGui::IsMouseDown(ImGuiMouseButton_Middle) ? kMitte : 0U) | mods;
+            if (gehalten == (kControl | kMitte)) {
+                ed.kamera.ursprung = karte::kameraVersetzen(v, mx, my, ed.raster.einrastGroesse(), ed.kamera.ursprung);
+            } else if (gehalten == kMitte) {
+                ed.kamera.winkel = karte::kameraDrehen(v, mx, my, ed.kamera.ursprung, ed.kamera.winkel);
+            }
+        }
+        // Loslassen (jede Taste beendet: m_buttonstate = 0)
+        bool los = false;
+        for (int b = 0; b < 3; ++b) { los = los || ImGui::IsMouseReleased(knopf[b]); }
+        if (los) {
+            if (f.verschieben) {
+                f.verschieben = false;
+                if (!imTest) { ImGui::TeleportMousePos(ImVec2{f.ankerX, f.ankerY}); }   // unfreeze_pointer( false )
+            }
+            f.zoomen = false;
+            f.gedrueckt = false;
+            f.tasten = 0;
+        }
+    }
+    // XY_MouseMoved ohne gefangene Bewegung: Position in der Statuszeile
+    if (ueber && !f.verschieben && !f.zoomen) {
+        f.maus = v.zuPunkt(mx, my, ed.raster.einrastGroesse());
+        char z[96];
+        std::snprintf(z, sizeof(z), "x: %6.1f  y: %6.1f  z: %6.1f", static_cast<double>(f.maus[0]),
+                      static_cast<double>(f.maus[1]), static_cast<double>(f.maus[2]));
+        ed.statusPosition = z;
+    }
+}
+
+// --- Befehle der 2D-Ansichten (xywindow.cpp:1938-2003, 2096-2177) ------------
+
+void xyBefehl(const std::string& name) {
+    Editor& ed = e();
+    XyFenster& aktiv = ed.xy[static_cast<std::size_t>(ed.aktivXy)];
+    if (name == "NextView" || name == "ViewTop" || name == "ViewFront" || name == "ViewSide") {
+        // XY_SetViewType: im 4er-Layout nur zentrieren
+        if (ed.anordnung != befehle::Anordnung::Split) {
+            const Sicht neu = name == "NextView"  ? karte::naechsteSicht(aktiv.ansicht.typ)
+                              : name == "ViewTop" ? Sicht::XY
+                              : name == "ViewFront" ? Sicht::XZ
+                                                    : Sicht::YZ;
+            aktiv.ansicht.typ = neu;
+            aktiv.ansicht.setzeUrsprung(mittelKasten().origin);   // XYWnd_Centralize
+        } else {
+            const Vektor3f p = mittelKasten().origin;
+            for (const int i : xyFenster()) { ed.xy[static_cast<std::size_t>(i)].ansicht.setzeUrsprung(p); }
+        }
+    } else if (name == "ZoomIn") {
+        aktiv.ansicht.hinein();
+    } else if (name == "ZoomOut") {
+        aktiv.ansicht.hinaus();
+    } else if (name == "Zoom100") {
+        for (const int i : xyFenster()) { ed.xy[static_cast<std::size_t>(i)].ansicht.setzeMassstab(1); }
+    } else if (name == "CenterXYView") {
+        const Vektor3f p = mittelKasten().origin;
+        for (const int i : xyFenster()) { ed.xy[static_cast<std::size_t>(i)].ansicht.setzeUrsprung(p); }
+    } else if (name == "XYFocusOnSelected") {
+        const Kasten b = mittelKasten();
+        for (const int i : xyFenster()) { ed.xy[static_cast<std::size_t>(i)].ansicht.aufGrenzen(b); }
+    }
+}
+
+}  // namespace bhed::gui::karteneditor

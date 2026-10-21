@@ -294,6 +294,8 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_menue.cpp
     gui/app_karte_dialoge.cpp
     gui/karte_vektoricons.cpp
+    gui/app_karte_xy.cpp
+    gui/karte_gpu_win32.cpp
     gui/tastatur_win32.cpp
     gui/backend_win32.cpp
     gui/gpumap_win32.cpp
@@ -666,7 +668,9 @@ target_sources(bhed_core PRIVATE
   src/karte/befehle.cpp
   src/karte/raster.cpp
   # Stufe 1b: Platzverteilung wie Qt 5.15 (QSplitter, QStatusBar)
-  src/karte/teiler.cpp)
+  src/karte/teiler.cpp
+  # Stufe 1b: 2D-Ansichten (XYWnd: Raster, Zoom, Kanten, Entities)
+  src/karte/xyansicht.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -740,6 +744,10 @@ if(BEHAVED_TESTS)
   add_executable(karteteiler tests/karteteiler.cpp)
   target_link_libraries(karteteiler PRIVATE bhed_core)
   add_test(NAME karte_teiler COMMAND karteteiler)
+  # Punkt 5: 2D-Ansichten rechnen wie NRC (Raster, Zoom, Kanten, Entities).
+  add_executable(kartexyansicht tests/kartexyansicht.cpp)
+  target_link_libraries(kartexyansicht PRIVATE bhed_core)
+  add_test(NAME karte_xyansicht COMMAND kartexyansicht)
   # Punkte 3 und 4: die Befehlstabelle gegen die Checkliste (jeder Befehl mit
   # NRCs Taste, jeder Menuepunkt und Knopf), Uebersetzungen = NRC-Englisch,
   # Tastenkuerzel wie Qt (Text, possibleKeys, deutsche Tastatur).

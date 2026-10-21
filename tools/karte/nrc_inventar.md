@@ -184,35 +184,35 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
       - [~] ITEM Previous leak spot -> `PrevLeakSpot`  (radiant/mainframe.cpp:969) -- Stufe 3
     * ---
     * SUB Orthographic  (radiant/mainframe.cpp:977)
-      - [~] ITEM &Next (XY, XZ, YZ) [wenn: if ( style == MainFrame::eRegular || style == MainFrame::eRegularLeft || style == MainFrame::eFloating )] -> `NextView`  (radiant/mainframe.cpp:982) -- Stufe 2
-      - [~] ITEM XY (Top) [wenn: if ( style == MainFrame::eRegular || style == MainFrame::eRegularLeft || style == MainFrame::eFloating )] -> `ViewTop`  (radiant/mainframe.cpp:983) -- Stufe 2
-      - [~] ITEM XZ (Front) [wenn: if ( style == MainFrame::eRegular || style == MainFrame::eRegularLeft || style == MainFrame::eFloating )] -> `ViewFront`  (radiant/mainframe.cpp:984) -- Stufe 2
-      - [~] ITEM YZ (Side) [wenn: if ( style == MainFrame::eRegular || style == MainFrame::eRegularLeft || style == MainFrame::eFloating )] -> `ViewSide`  (radiant/mainframe.cpp:985) -- Stufe 2
+      - [x] ITEM &Next (XY, XZ, YZ) [wenn: if ( style == MainFrame::eRegular || style == MainFrame::eRegularLeft || style == MainFrame::eFloating )] -> `NextView`  (radiant/mainframe.cpp:982) -- Stufe 1b Punkt 5
+      - [x] ITEM XY (Top) [wenn: if ( style == MainFrame::eRegular || style == MainFrame::eRegularLeft || style == MainFrame::eFloating )] -> `ViewTop`  (radiant/mainframe.cpp:983) -- Stufe 1b Punkt 5
+      - [x] ITEM XZ (Front) [wenn: if ( style == MainFrame::eRegular || style == MainFrame::eRegularLeft || style == MainFrame::eFloating )] -> `ViewFront`  (radiant/mainframe.cpp:984) -- Stufe 1b Punkt 5
+      - [x] ITEM YZ (Side) [wenn: if ( style == MainFrame::eRegular || style == MainFrame::eRegularLeft || style == MainFrame::eFloating )] -> `ViewSide`  (radiant/mainframe.cpp:985) -- Stufe 1b Punkt 5
       * ---
-      - [~] ITEM Center on Selected [wenn: nicht (if ( style == MainFrame::eRegular || style == MainFrame::eRegularLeft || style == MainFrame::eFloating ))] -> `NextView`  (radiant/mainframe.cpp:989) -- Stufe 2
-      - [~] ITEM Focus on Selected -> `XYFocusOnSelected`  (radiant/mainframe.cpp:992) -- Stufe 2
-      - [~] ITEM Center on Selected -> `CenterXYView`  (radiant/mainframe.cpp:993) -- Stufe 2
+      - [x] ITEM Center on Selected [wenn: nicht (if ( style == MainFrame::eRegular || style == MainFrame::eRegularLeft || style == MainFrame::eFloating ))] -> `NextView`  (radiant/mainframe.cpp:989) -- Stufe 1b Punkt 5
+      - [x] ITEM Focus on Selected -> `XYFocusOnSelected`  (radiant/mainframe.cpp:992) -- Stufe 1b Punkt 5
+      - [x] ITEM Center on Selected -> `CenterXYView`  (radiant/mainframe.cpp:993) -- Stufe 1b Punkt 5
       * ---
-      - [~] ITEM &XY 100% -> `Zoom100`  (radiant/mainframe.cpp:995) -- Stufe 2
-      - [~] ITEM XY Zoom &In -> `ZoomIn`  (radiant/mainframe.cpp:996) -- Stufe 2
-      - [~] ITEM XY Zoom &Out -> `ZoomOut`  (radiant/mainframe.cpp:997) -- Stufe 2
+      - [x] ITEM &XY 100% -> `Zoom100`  (radiant/mainframe.cpp:995) -- Stufe 1b Punkt 5
+      - [x] ITEM XY Zoom &In -> `ZoomIn`  (radiant/mainframe.cpp:996) -- Stufe 1b Punkt 5
+      - [x] ITEM XY Zoom &Out -> `ZoomOut`  (radiant/mainframe.cpp:997) -- Stufe 1b Punkt 5
     * ---
     * SUB Show  (radiant/mainframe.cpp:1003)
-      - [~] CHECK Show Entity &Angles -> `ShowAngles`  (radiant/mainframe.cpp:1007) -- Stufe 2
-      - [~] CHECK Show Entity &Names -> `ShowNames`  (radiant/mainframe.cpp:1008) -- Stufe 2
-      - [~] CHECK Show Light Radiuses -> `ShowLightRadiuses`  (radiant/mainframe.cpp:1009) -- Stufe 2
-      - [~] CHECK Show Entity Boxes -> `ShowBboxes`  (radiant/mainframe.cpp:1010) -- Stufe 2
-      - [~] CHECK Show Entity Connections -> `ShowConnections`  (radiant/mainframe.cpp:1011) -- Stufe 2
+      - [x] CHECK Show Entity &Angles -> `ShowAngles`  (radiant/mainframe.cpp:1007) -- Stufe 1b Punkt 5
+      - [x] CHECK Show Entity &Names -> `ShowNames`  (radiant/mainframe.cpp:1008) -- Stufe 1b Punkt 5
+      - [ ] CHECK Show Light Radiuses -> `ShowLightRadiuses`  (radiant/mainframe.cpp:1009)
+      - [ ] CHECK Show Entity Boxes -> `ShowBboxes`  (radiant/mainframe.cpp:1010)
+      - [x] CHECK Show Entity Connections -> `ShowConnections`  (radiant/mainframe.cpp:1011) -- Stufe 1b Punkt 5
       * ---
-      - [~] CHECK Show 2D Size Info -> `ShowSize2d`  (radiant/mainframe.cpp:1015) -- Stufe 2
+      - [x] CHECK Show 2D Size Info -> `ShowSize2d`  (radiant/mainframe.cpp:1015) -- Stufe 1b Punkt 5
       - [~] CHECK Show 3D Size Info -> `ShowSize3d`  (radiant/mainframe.cpp:1016) -- Stufe 2
-      - [~] CHECK Show Crosshair -> `ToggleCrosshairs`  (radiant/mainframe.cpp:1017) -- Stufe 2
-      - [~] CHECK Show Grid -> `ToggleGrid`  (radiant/mainframe.cpp:1018) -- Stufe 2
-      - [~] CHECK Show Blocks -> `ShowBlocks`  (radiant/mainframe.cpp:1019) -- Stufe 2
-      - [~] CHECK Show C&oordinates -> `ShowCoordinates`  (radiant/mainframe.cpp:1020) -- Stufe 2
-      - [~] CHECK Show Window Outline -> `ShowWindowOutline`  (radiant/mainframe.cpp:1021) -- Stufe 2
-      - [~] CHECK Show Axes -> `ShowAxes`  (radiant/mainframe.cpp:1022) -- Stufe 2
-      - [~] CHECK Show 2D Workzone -> `ShowWorkzone2d`  (radiant/mainframe.cpp:1023) -- Stufe 2
+      - [x] CHECK Show Crosshair -> `ToggleCrosshairs`  (radiant/mainframe.cpp:1017) -- Stufe 1b Punkt 5
+      - [x] CHECK Show Grid -> `ToggleGrid`  (radiant/mainframe.cpp:1018) -- Stufe 1b Punkt 5
+      - [x] CHECK Show Blocks -> `ShowBlocks`  (radiant/mainframe.cpp:1019) -- Stufe 1b Punkt 5
+      - [x] CHECK Show C&oordinates -> `ShowCoordinates`  (radiant/mainframe.cpp:1020) -- Stufe 1b Punkt 5
+      - [x] CHECK Show Window Outline -> `ShowWindowOutline`  (radiant/mainframe.cpp:1021) -- Stufe 1b Punkt 5
+      - [x] CHECK Show Axes -> `ShowAxes`  (radiant/mainframe.cpp:1022) -- Stufe 1b Punkt 5
+      - [x] CHECK Show 2D Workzone -> `ShowWorkzone2d`  (radiant/mainframe.cpp:1023) -- Stufe 1b Punkt 5
       - [~] CHECK Show 3D Workzone -> `ShowWorkzone3d`  (radiant/mainframe.cpp:1024) -- Stufe 2
       - [~] CHECK Show Renderer Stats -> `ShowStats`  (radiant/mainframe.cpp:1025) -- Stufe 2
     * SUB Filter  (radiant/mainframe.cpp:1029)
@@ -480,7 +480,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### XYWnd_constructToolbar (radiant/mainframe.cpp)
 
-- [~] button Change views | view_change.png -> `NextView`  (radiant/mainframe.cpp:1370) -- Stufe 2
+- [ ] button Change views | view_change.png -> `NextView`  (radiant/mainframe.cpp:1370)
 
 ### Manipulators_constructToolbar (radiant/mainframe.cpp)
 
@@ -615,7 +615,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `CameraUp` | Shortcuts | - | (radiant/camwindow.cpp:2519) -- Stufe 2
 - [~] `CapCurrentCurve` | Commands | Shift+C | (radiant/patchmanip.cpp:727) -- Stufe 2
 - [~] `CenterView` | Commands | End | (radiant/camwindow.cpp:2488) -- Stufe 2
-- [~] `CenterXYView` | Commands | Ctrl+Shift+Tab | (radiant/xywindow.cpp:2277) -- Stufe 2
+- [x] `CenterXYView` | Commands | Ctrl+Shift+Tab | (radiant/xywindow.cpp:2277) -- Stufe 1b Punkt 5
 - [~] `CheckForUpdate` | Commands | - | (radiant/mainframe.cpp:2072) -- Stufe 3
 - [~] `ClipperClip` | Commands | Return | (radiant/clippertool.cpp:194) -- Stufe 2
 - [~] `ClipperFlip` | Commands | Ctrl+Return | (radiant/clippertool.cpp:196) -- Stufe 2
@@ -734,7 +734,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `NaturalizePatch` | Commands | Ctrl+N | (radiant/patchmanip.cpp:696) -- Stufe 2
 - [x] `NewMap` | Commands | - | (radiant/map.cpp:2429)
 - [~] `NextLeakSpot` | Commands | Ctrl+Shift+K | (radiant/points.cpp:321) -- Stufe 3
-- [~] `NextView` | Commands | Ctrl+Tab | (radiant/xywindow.cpp:2270) -- Stufe 2
+- [x] `NextView` | Commands | Ctrl+Tab | (radiant/xywindow.cpp:2270) -- Stufe 1b Punkt 5
 - [~] `OpenGLFont` | Commands | - | (radiant/mainframe.cpp:2092) -- Stufe 2
 - [~] `OpenManual` | Commands | F1 | (radiant/mainframe.cpp:2069) -- Stufe 3
 - [x] `OpenMap` | Commands | Ctrl+O | (radiant/map.cpp:2430)
@@ -817,21 +817,21 @@ Name | Art | Standardtaste | Quelle
 - [~] `shaderPlug::CreateTagFile` | Commands | - | (contrib/shaderplug/shaderplug.cpp:71) -- Stufe 3
 - [x] `Shortcuts` | Commands | Ctrl+Shift+P | (radiant/mainframe.cpp:2075)
 - [~] `ShowAllTextures` | Commands | Ctrl+A | (radiant/texwindow.cpp:2102) -- Stufe 2
-- [~] `ShowAngles` | Toggles | - | (radiant/xywindow.cpp:2218) -- Stufe 2
-- [~] `ShowAxes` | Toggles | - | (radiant/xywindow.cpp:2225) -- Stufe 2
-- [~] `ShowBboxes` | Toggles | - | (radiant/xywindow.cpp:2220) -- Stufe 2
-- [~] `ShowBlocks` | Toggles | - | (radiant/xywindow.cpp:2222) -- Stufe 2
-- [~] `ShowConnections` | Toggles | - | (radiant/xywindow.cpp:2221) -- Stufe 2
-- [~] `ShowCoordinates` | Toggles | - | (radiant/xywindow.cpp:2223) -- Stufe 2
+- [x] `ShowAngles` | Toggles | - | (radiant/xywindow.cpp:2218) -- Stufe 1b Punkt 5
+- [x] `ShowAxes` | Toggles | - | (radiant/xywindow.cpp:2225) -- Stufe 1b Punkt 5
+- [ ] `ShowBboxes` | Toggles | - | (radiant/xywindow.cpp:2220)
+- [x] `ShowBlocks` | Toggles | - | (radiant/xywindow.cpp:2222) -- Stufe 1b Punkt 5
+- [x] `ShowConnections` | Toggles | - | (radiant/xywindow.cpp:2221) -- Stufe 1b Punkt 5
+- [x] `ShowCoordinates` | Toggles | - | (radiant/xywindow.cpp:2223) -- Stufe 1b Punkt 5
 - [~] `ShowHidden` | Commands | Shift+H | (radiant/select.cpp:1841) -- Stufe 2
 - [~] `ShowInUse` | Toggles | U | (radiant/texwindow.cpp:2101) -- Stufe 2
-- [~] `ShowLightRadiuses` | Toggles | - | (radiant/entity.cpp:743) -- Stufe 2
-- [~] `ShowNames` | Toggles | - | (radiant/xywindow.cpp:2219) -- Stufe 2
-- [~] `ShowSize2d` | Toggles | J | (radiant/xywindow.cpp:2214) -- Stufe 2
+- [ ] `ShowLightRadiuses` | Toggles | - | (radiant/entity.cpp:743)
+- [x] `ShowNames` | Toggles | - | (radiant/xywindow.cpp:2219) -- Stufe 1b Punkt 5
+- [x] `ShowSize2d` | Toggles | J | (radiant/xywindow.cpp:2214) -- Stufe 1b Punkt 5
 - [~] `ShowSize3d` | Toggles | - | (radiant/camwindow.cpp:2541) -- Stufe 2
 - [~] `ShowStats` | Toggles | - | (radiant/camwindow.cpp:2539) -- Stufe 2
-- [~] `ShowWindowOutline` | Toggles | - | (radiant/xywindow.cpp:2224) -- Stufe 2
-- [~] `ShowWorkzone2d` | Toggles | - | (radiant/xywindow.cpp:2226) -- Stufe 2
+- [x] `ShowWindowOutline` | Toggles | - | (radiant/xywindow.cpp:2224) -- Stufe 1b Punkt 5
+- [x] `ShowWorkzone2d` | Toggles | - | (radiant/xywindow.cpp:2226) -- Stufe 1b Punkt 5
 - [~] `ShowWorkzone3d` | Toggles | - | (radiant/camwindow.cpp:2540) -- Stufe 2
 - [~] `SimplePatchMesh` | Commands | Shift+P | (radiant/patchmanip.cpp:710) -- Stufe 2
 - [~] `SmoothCols` | Commands | Ctrl+Shift+W | (radiant/patchmanip.cpp:725) -- Stufe 2
@@ -865,12 +865,12 @@ Name | Art | Standardtaste | Quelle
 - [x] `ToggleCamera` | Toggles | Ctrl+Shift+C | (radiant/camwindow.cpp:2498)
 - [~] `ToggleClipper` | Toggles | X | (radiant/tools.cpp:426) -- Stufe 2
 - [ ] `ToggleConsole` | Commands | O | (radiant/mainframe.cpp:2078)
-- [~] `ToggleCrosshairs` | Toggles | Shift+X | (radiant/xywindow.cpp:2215) -- Stufe 2
+- [x] `ToggleCrosshairs` | Toggles | Shift+X | (radiant/xywindow.cpp:2215) -- Stufe 1b Punkt 5
 - [~] `ToggleCubicClip` | Toggles | Ctrl+\\ | (radiant/camwindow.cpp:2491) -- Stufe 2
 - [x] `ToggleEntityInspector` | Commands | N | (radiant/mainframe.cpp:2079)
 - [~] `ToggleEntityList` | Commands | Shift+L | (radiant/mainframe.cpp:2082) -- Stufe 2
 - [x] `ToggleFrontView` | Toggles | - | (radiant/xywindow.cpp:2269)
-- [~] `ToggleGrid` | Toggles | 0 | (radiant/xywindow.cpp:2216) -- Stufe 2
+- [x] `ToggleGrid` | Toggles | 0 | (radiant/xywindow.cpp:2216) -- Stufe 1b Punkt 5
 - [ ] `ToggleGridSnap` | Commands | - | (radiant/grid.cpp:187)
 - [ ] `ToggleLayersBrowser` | Commands | L | (radiant/mainframe.cpp:2081)
 - [ ] `ToggleModelBrowser` | Commands | / | (radiant/mainframe.cpp:2080)
@@ -903,13 +903,13 @@ Name | Art | Standardtaste | Quelle
 - [~] `UnSelectSelection` | Commands | C | (radiant/select.cpp:1875) -- Stufe 2
 - [~] `UnSelectSelection2` | Commands | Escape | (radiant/select.cpp:1874) -- Stufe 2
 - [~] `UpFloor` | Commands | PgUp | (radiant/camwindow.cpp:2495) -- Stufe 2
-- [~] `ViewFront` | Commands | +Qt::Key_1 + Qt::KeypadModifier | (radiant/xywindow.cpp:2274) -- Stufe 2
-- [~] `ViewSide` | Commands | +Qt::Key_3 + Qt::KeypadModifier | (radiant/xywindow.cpp:2275) -- Stufe 2
-- [~] `ViewTop` | Commands | +Qt::Key_7 + Qt::KeypadModifier | (radiant/xywindow.cpp:2273) -- Stufe 2
-- [~] `XYFocusOnSelected` | Commands | ` | (radiant/xywindow.cpp:2278) -- Stufe 2
-- [~] `Zoom100` | Commands | - | (radiant/xywindow.cpp:2276) -- Stufe 2
-- [~] `ZoomIn` | Commands | - | (radiant/xywindow.cpp:2271) -- Stufe 2
-- [~] `ZoomOut` | Commands | Insert | (radiant/xywindow.cpp:2272) -- Stufe 2
+- [x] `ViewFront` | Commands | +Qt::Key_1 + Qt::KeypadModifier | (radiant/xywindow.cpp:2274) -- Stufe 1b Punkt 5
+- [x] `ViewSide` | Commands | +Qt::Key_3 + Qt::KeypadModifier | (radiant/xywindow.cpp:2275) -- Stufe 1b Punkt 5
+- [x] `ViewTop` | Commands | +Qt::Key_7 + Qt::KeypadModifier | (radiant/xywindow.cpp:2273) -- Stufe 1b Punkt 5
+- [x] `XYFocusOnSelected` | Commands | ` | (radiant/xywindow.cpp:2278) -- Stufe 1b Punkt 5
+- [x] `Zoom100` | Commands | - | (radiant/xywindow.cpp:2276) -- Stufe 1b Punkt 5
+- [x] `ZoomIn` | Commands | - | (radiant/xywindow.cpp:2271) -- Stufe 1b Punkt 5
+- [x] `ZoomOut` | Commands | Insert | (radiant/xywindow.cpp:2272) -- Stufe 1b Punkt 5
 
 ## Dialoge und Fenster
 

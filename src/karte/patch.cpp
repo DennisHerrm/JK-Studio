@@ -817,6 +817,51 @@ void Patch::teilfeld(const Kurvenbaum* BX, const Kurvenbaum* BY, std::size_t off
 }
 
 // BuildVertexArray (:2578-2867)
+void Patch::drahtgitter(std::vector<Vektor3f>& paare) const {
+    const auto zug = [&paare](const NetzPunkt* p, std::size_t schritt, std::size_t anzahl) {
+        for (std::size_t i = 1; i < anzahl; ++i) {
+            paare.push_back(p[(i - 1) * schritt].vertex);
+            paare.push_back(p[i * schritt].vertex);
+        }
+    };
+    const auto& v = m_tess.vertices;
+    if (v.empty()) { return; }
+    if (patchDef3) {
+        // RenderablePatchFixedWireframe: GL_QUAD_STRIP je Streifen, im 2D als
+        // Umriss jedes Vierecks (2i, 2i+1, 2i+3, 2i+2).
+        for (std::size_t s = 0; s < m_tess.numStrips; ++s) {
+            const unsigned int* idx = m_tess.indices.data() + s * m_tess.lenStrips;
+            for (std::size_t q = 0; q + 3 < m_tess.lenStrips; q += 2) {
+                const unsigned int a = idx[q];
+                const unsigned int b = idx[q + 1];
+                const unsigned int c = idx[q + 3];
+                const unsigned int d = idx[q + 2];
+                for (const auto& [x, y] : {std::pair{a, b}, std::pair{b, c}, std::pair{c, d}, std::pair{d, a}}) {
+                    paare.push_back(v[x].vertex);
+                    paare.push_back(v[y].vertex);
+                }
+            }
+        }
+        return;
+    }
+    // RenderablePatchWireframe: Zeilen (Kurvenbaeume V) ...
+    std::size_t n = 0;
+    for (std::size_t i = 0; i <= m_kurvenV.size(); ++i) {
+        zug(&v[n], 1, m_tess.nArrayWidth);
+        if (i == m_kurvenV.size()) { break; }
+        if (!m_kurvenV[i]->blatt()) { zug(&v[m_kurvenV[i]->index], 1, m_tess.nArrayWidth); }
+        n += m_tess.arrayHeight[i] * m_tess.nArrayWidth;
+    }
+    // ... und Spalten (Kurvenbaeume U), Schritt eine Zeile.
+    std::size_t p = 0;
+    for (std::size_t i = 0; i <= m_kurvenU.size(); ++i) {
+        zug(&v[p], m_tess.nArrayWidth, m_tess.nArrayHeight);
+        if (i == m_kurvenU.size()) { break; }
+        if (!m_kurvenU[i]->blatt()) { zug(&v[m_kurvenU[i]->index], m_tess.nArrayWidth, m_tess.nArrayHeight); }
+        p += m_tess.arrayWidth[i];
+    }
+}
+
 void Patch::netzBauen() {
     const std::size_t strideU = 1;
     const std::size_t strideV = m_width;

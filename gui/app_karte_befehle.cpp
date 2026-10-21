@@ -106,6 +106,29 @@ std::map<std::string, Umsetzung>& umsetzungen() {
     // --- Edit ---
     m["Preferences"] = {[] { e().einstellungenOffen = true; }, nullptr};
     m["Shortcuts"] = {[] { e().tastenDialogOffen = true; }, nullptr};   // DoCommandListDlg (commands.cpp:332)
+    // --- 2D-Ansichten (xywindow.cpp:2266-2278) ---
+    for (const char* n : {"NextView", "ViewTop", "ViewFront", "ViewSide", "ZoomIn", "ZoomOut", "Zoom100", "CenterXYView",
+                          "XYFocusOnSelected"}) {
+        const std::string name = n;
+        m[name] = {[name] { xyBefehl(name); }, nullptr};
+    }
+    // View > Show (xywindow.cpp:2213-2232, 2096-2177; entity.cpp): Schalter
+    const auto schalter = [](const char* name, bool Anzeige::*feld) {
+        m[name] = {[feld] { e().anzeige.*feld = !(e().anzeige.*feld); }, [feld] { return e().anzeige.*feld; }};
+    };
+    schalter("ShowSize2d", &Anzeige::groesse2d);
+    schalter("ToggleCrosshairs", &Anzeige::fadenkreuz);
+    schalter("ToggleGrid", &Anzeige::raster);
+    schalter("ShowAngles", &Anzeige::winkel);
+    schalter("ShowNames", &Anzeige::namen);
+    schalter("ShowBboxes", &Anzeige::kaesten);
+    schalter("ShowConnections", &Anzeige::verbindungen);
+    schalter("ShowLightRadiuses", &Anzeige::lichtRadien);
+    schalter("ShowBlocks", &Anzeige::bloecke);
+    schalter("ShowCoordinates", &Anzeige::koordinaten);
+    schalter("ShowWindowOutline", &Anzeige::umriss);
+    schalter("ShowAxes", &Anzeige::achsen);
+    schalter("ShowWorkzone2d", &Anzeige::workzone2d);
     // --- Grid (grid.cpp:183-203) ---
     m["GridDown"] = {[] { e().raster.kleiner(); }, nullptr};
     m["GridUp"] = {[] { e().raster.groesser(); }, nullptr};

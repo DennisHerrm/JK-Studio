@@ -27,6 +27,7 @@
 #include "bhed/karte/kartenformat.h"
 #include "bhed/karte/raster.h"
 #include "bhed/karte/teiler.h"
+#include "bhed/karte/xyansicht.h"
 #include "bhed/karte/texturen.h"
 #include "bhed/karte/zuletzt.h"
 
@@ -144,6 +145,53 @@ void setzeSchrift(ImFont* schrift);
 // Ein Fenster der Ansichten (XYWnd / CamWnd) - wo es gerade steht.
 enum class AnsichtTyp { YZ = 0, XZ = 1, XY = 2, Kamera = 3 };   // VIEWTYPE (xywindow.h)
 
+// Eine 2D-Ansicht (XYWnd) mit Maus- und Tastenzustand.
+struct XyFenster {
+    karte::XyAnsicht ansicht;
+    bool verschieben = false;    // m_move_started (Pan mit M2)
+    bool zoomen = false;         // m_zoom_started (Alt+M2)
+    int zoomX = 0;               // g_zoom2x
+    int zoomY = 0;
+    int dragZoom = 0;            // g_dragZoom
+    float letzteX = 0;           // FreezePointer: letzte Mauslage (Bildpunkte)
+    float letzteY = 0;
+    float ankerX = 0;            // FreezePointer: Lage beim Festhalten
+    float ankerY = 0;
+    unsigned tasten = 0;         // m_buttonstate (RAD_*)
+    bool gedrueckt = false;      // diese Ansicht hat den Druck bekommen
+    karte::Vektor3f maus{0, 0, 0};   // m_mousePosition (eingerastet)
+    float bildX = 0;             // linke obere Ecke im Programmfenster (Bildpunkte)
+    float bildY = 0;
+};
+// Die 3D-Kamera, soweit die 2D-Ansichten sie brauchen (camera_t: origin,
+// angles = pitch, yaw, roll).
+struct KameraZustand {
+    karte::Vektor3f ursprung{0, 0, 0};
+    karte::Vektor3f winkel{0, 0, 0};
+};
+// View > Show und die Seite "Orthographic" (xywindow.cpp:77-98,
+// entity.cpp:114-122).
+struct Anzeige {
+    bool groesse2d = true;       // ShowSize2d (J)
+    bool fadenkreuz = false;     // ToggleCrosshairs (Shift+X)
+    bool raster = true;          // ToggleGrid (0)
+    bool winkel = true;          // ShowAngles
+    bool namen = true;           // ShowNames
+    bool kaesten = false;        // ShowBboxes
+    bool verbindungen = true;    // ShowConnections
+    bool lichtRadien = true;     // ShowLightRadiuses
+    bool bloecke = false;        // ShowBlocks
+    bool koordinaten = true;     // ShowCoordinates
+    bool umriss = true;          // ShowWindowOutline
+    bool achsen = true;          // ShowAxes
+    bool workzone2d = false;     // ShowWorkzone2d
+    int namenVerhaeltnis = 64;   // g_showNamesRatio
+    int msaa = 8;                // m_MSAA (XYMSAA)
+    bool zumZeiger = true;       // m_bZoomToPointer
+    bool jagen = true;           // m_bChaseMouse
+    bool keineStrichelung = true;   // m_bNoStipple
+};
+
 struct Editor {
     // --- die Karte (g_map) ---
     karte::Karte karte;
@@ -235,6 +283,13 @@ struct Editor {
 
     // Fuer den Selbsttest: die Kennung des Arbeitsbereichs im letzten Bild.
     bool gezeichnet = false;
+
+    // --- 2D-Ansichten und Kamera ---
+    std::array<XyFenster, 3> xy;   // 0 m_pXYWnd (XY), 1 m_pXZWnd (XZ), 2 m_pYZWnd (YZ)
+    int aktivXy = 0;               // ActiveXY
+    KameraZustand kamera;
+    Anzeige anzeige;
+    std::size_t ladeZaehler = 0;   // jede neu geladene/neue Karte
 };
 
 Editor& editor();
@@ -278,6 +333,19 @@ void zeichneMenueleiste();
 void zeichneHauptleiste(int y, int breite);
 void zeichneRechteLeisten(int x, int y, int hoehe);   // Filter- und Plugin-Leiste
 void zeichneStatuszeile(int y, int breite);
+// --- 2D-Ansichten (app_karte_xy.cpp) ---
+// Die 2D-Ansicht index (0 XY, 1 XZ, 2 YZ) im aktuellen Kindfenster zeichnen
+// und bedienen.
+void xyZeichnen(int index);
+// NextView, ViewTop/Front/Side, ZoomIn/Out, Zoom100, CenterXYView,
+// XYFocusOnSelected (xywindow.cpp:2266-2278).
+void xyBefehl(const std::string& name);
+// Map_StartPosition / FocusViews (map.cpp:456-485): Kamera auf den Start,
+// alle 2D-Ansichten dorthin.
+void startPosition();
+// Die Ansichten, die es in der aktuellen Anordnung gibt (forEachXYWnd).
+[[nodiscard]] std::vector<int> xyFenster();
+
 // MaximizeView (Taste, Menue) und der Aufbau der Teiler fuer die Anordnung.
 void maximierenUmschalten();
 void teilerAufbauen();

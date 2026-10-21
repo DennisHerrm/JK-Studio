@@ -201,6 +201,10 @@ Editor& editor() {
         // Die Konsole bekommt die Undo-Meldungen (undo.cpp:292-333).
         e.karte.undo.ausgabe = [](const std::string& s) { ausgabe(s); };
         e.karte.undo.alsGespeichertMarkieren();
+        // MainFrame::Create: m_pXYWnd XY, m_pXZWnd XZ, m_pYZWnd YZ
+        e.xy[0].ansicht.typ = karte::Sicht::XY;
+        e.xy[1].ansicht.typ = karte::Sicht::XZ;
+        e.xy[2].ansicht.typ = karte::Sicht::YZ;
     }
     return e;
 }
@@ -267,6 +271,8 @@ void neueKarte() {
         karteFreigeben();
         g().name = "unnamed.map";
         g().karte.undo.alsGespeichertMarkieren();
+        ++g().ladeZaehler;
+        startPosition();   // Map_New: FocusViews( g_vector3_identity, 0 ) ueber Map_StartPosition
     });
 }
 
@@ -299,6 +305,8 @@ bool karteOeffnen(const std::string& pfad) {
         std::snprintf(z, sizeof(z), tr(Str::KeMapLoadFailed), pfad.c_str());
         fehler(z);
     }
+    ++e.ladeZaehler;
+    startPosition();   // Map_LoadFile: Map_StartPosition
     return ok;
 }
 
@@ -487,13 +495,14 @@ void feldInhalt(Feld f) {
     const ImVec2 b{a.x + ImGui::GetWindowWidth(), a.y + ImGui::GetWindowHeight()};
     switch (f) {
     case Feld::XY:
-    case Feld::XZ:
-    case Feld::YZ: {
-        dl->AddRectFilled(a, b, ImGui::GetColorU32(farbe(ed.farben.rasterHinten)));
-        const char* titel = f == Feld::XY ? trK(Str::KeViewXY) : f == Feld::XZ ? trK(Str::KeViewXZ) : trK(Str::KeViewYZ);
-        dl->AddText(ImVec2{a.x + 4.0F, a.y + 4.0F}, ImGui::GetColorU32(farbe(ed.farben.ansichtName)), titel);
+        xyZeichnen(0);
         break;
-    }
+    case Feld::XZ:
+        xyZeichnen(1);
+        break;
+    case Feld::YZ:
+        xyZeichnen(2);
+        break;
     case Feld::Kamera:
         dl->AddRectFilled(a, b, ImGui::GetColorU32(farbe(ed.farben.kameraHinten)));
         break;

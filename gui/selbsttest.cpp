@@ -25541,6 +25541,196 @@ std::vector<Schritt> karteneditorMassSchritte() {
     return s;
 }
 
+// Punkt 5: die 2D-Ansicht mit echten Ereignissen (Maus, Rad, Tasten). Die
+// Testkarte: worldspawn mit einem Wuerfel -64..64 x -64..64 x 0..64, ein
+// Licht bei 0 0 128. Sollwerte aus xywindow.cpp (siehe bhed/karte/xyansicht.h).
+std::vector<Schritt> karteneditorXySchritte() {
+    namespace ke = karteneditor;
+    namespace kb = karte::befehle;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    // Bildpunkt in der XY-Ansicht (Ursprung links oben der Ansicht)
+    auto xyPunkt = [](float fx, float fy) {
+        const ke::XyFenster& f = ke::editor().xy[0];
+        return ImVec2{f.bildX + static_cast<float>(f.ansicht.breite) * fx, f.bildY + static_cast<float>(f.ansicht.hoehe) * fy};
+    };
+    // Maus ziehen: Taste druecken, in Schritten bewegen, loslassen.
+    // von: Anteil der Ansicht; weg: Bildpunkte (erst beim Ziehen ausgewertet).
+    auto ziehen = [xyPunkt](const std::string& was, int taste, ImGuiKeyChord mods, ImVec2 von, ImVec2 weg) {
+        return Schritt{was, [=](int b) {
+                           ImGuiIO& io = ImGui::GetIO();
+                           const ImVec2 a = xyPunkt(von.x, von.y);
+                           const ImVec2 z{a.x + weg.x, a.y + weg.y};
+                           if (b == 0) {
+                               setzeMaus(a);
+                               if ((mods & ImGuiMod_Ctrl) != 0) { io.AddKeyEvent(ImGuiMod_Ctrl, true); }
+                               if ((mods & ImGuiMod_Shift) != 0) { io.AddKeyEvent(ImGuiMod_Shift, true); }
+                               if ((mods & ImGuiMod_Alt) != 0) { io.AddKeyEvent(ImGuiMod_Alt, true); }
+                               return false;
+                           }
+                           if (b == 1) {
+                               io.AddMouseButtonEvent(taste, true);
+                               return false;
+                           }
+                           if (b >= 2 && b <= 11) {
+                               const float t = static_cast<float>(b - 1) / 10.0F;
+                               setzeMaus(ImVec2{a.x + (z.x - a.x) * t, a.y + (z.y - a.y) * t});
+                               return false;
+                           }
+                           if (b == 12) {
+                               io.AddMouseButtonEvent(taste, false);
+                               return false;
+                           }
+                           if (b == 13) {
+                               if ((mods & ImGuiMod_Ctrl) != 0) { io.AddKeyEvent(ImGuiMod_Ctrl, false); }
+                               if ((mods & ImGuiMod_Shift) != 0) { io.AddKeyEvent(ImGuiMod_Shift, false); }
+                               if ((mods & ImGuiMod_Alt) != 0) { io.AddKeyEvent(ImGuiMod_Alt, false); }
+                           }
+                           return b >= 15;
+                       }};
+    };
+    auto zustand = std::make_shared<karte::XyAnsicht>();
+    add(tu("Regular, Massstab wie gewohnt, Testkarte neu laden, Standardanzeige", [] {
+        ke::Editor& e = ke::editor();
+        e.anordnung = kb::Anordnung::Regular;
+        e.teilerFuer = -1;
+        e.anzeige = ke::Anzeige{};
+        e.aktivXy = 0;
+        e.xy[0].ansicht.typ = karte::Sicht::XY;
+        e.xy[0].ansicht.massstab = 1;
+        (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map"));
+    }));
+    add(pause(0.4));
+    add(pruefe("Startposition: kein info_player_start -> Kamera und XY auf 0 0 0, Massstab 1", [] {
+        const ke::Editor& e = ke::editor();
+        return e.kamera.ursprung == karte::Vektor3f(0, 0, 0) && e.xy[0].ansicht.ursprung == karte::Vektor3f(0, 0, 0) &&
+               e.xy[0].ansicht.massstab == 1 && e.xy[0].ansicht.breite > 100;
+    }));
+    add(foto("karteneditor_xy"));
+    // Mausrad ueber der Ansicht: ein Schritt 5/4, der Punkt unter dem Zeiger bleibt.
+    add({"Mausrad hoch ueber XY (rechts oben)", [xyPunkt, zustand](int b) {
+             if (b == 0) { setzeMaus(xyPunkt(0.75F, 0.25F)); }
+             if (b == 2) {
+                 *zustand = ke::editor().xy[0].ansicht;
+                 ImGui::GetIO().AddMouseWheelEvent(0.0F, 1.0F);
+             }
+             return b >= 5;
+         }});
+    add(pruefe("Mausrad: Massstab x 5/4, Weltpunkt unter dem Zeiger bleibt", [zustand, xyPunkt] {
+        const karte::XyAnsicht& v = ke::editor().xy[0].ansicht;
+        const ke::XyFenster& f = ke::editor().xy[0];
+        const ImVec2 p = xyPunkt(0.75F, 0.25F);
+        const int mx = static_cast<int>(std::lround(std::floor(p.x) - f.bildX));
+        const int my = static_cast<int>(std::lround(std::floor(p.y) - f.bildY));
+        const karte::Vektor3f a = zustand->zuPunkt(mx, my);
+        const karte::Vektor3f b = v.zuPunkt(mx, my);
+        diag::detail("Knopftest: Karten-Editor XY - Massstab " + std::to_string(v.massstab) + ", Punkt vorher " +
+                     std::to_string(a[0]) + " nachher " + std::to_string(b[0]));
+        return std::fabs(v.massstab - 1.25F) < 1e-4F && std::fabs(a[0] - b[0]) < 1.0F && std::fabs(a[1] - b[1]) < 1.0F;
+    }));
+    // M2 ziehen: Pan (Welt klebt am Zeiger, Deltas in logischen Qt-Punkten)
+    add(tu("Zustand merken", [zustand] { *zustand = ke::editor().xy[0].ansicht; }));
+    add(ziehen("M2 ziehen: 200 Bildpunkte nach rechts", ImGuiMouseButton_Right, 0, ImVec2{0.4F, 0.5F}, ImVec2{200.0F, 0.0F}));
+    add(pruefe("Pan: Ursprung x um 200 / Qt-Massstab / Massstab nach links", [zustand] {
+        const karte::XyAnsicht& v = ke::editor().xy[0].ansicht;
+        const float qt = std::max(1.0F, std::round(g_app->dpiScale));
+        const float soll = zustand->ursprung[0] - 200.0F / qt / v.massstab;
+        diag::detail("Knopftest: Karten-Editor XY - Pan x " + std::to_string(zustand->ursprung[0]) + " -> " +
+                     std::to_string(v.ursprung[0]) + " (soll " + std::to_string(soll) + ")");
+        return std::fabs(v.ursprung[0] - soll) < 1.5F / v.massstab && v.ursprung[1] == zustand->ursprung[1] &&
+               !ke::editor().xy[0].verschieben;
+    }));
+    // Alt+M2 ziehen: je 16 logische Punkte nach unten ein Schritt hinaus.
+    add(tu("Zustand merken", [zustand] { *zustand = ke::editor().xy[0].ansicht; }));
+    add(ziehen("Alt+M2 ziehen: 80 Bildpunkte nach unten", ImGuiMouseButton_Right, ImGuiMod_Alt, ImVec2{0.5F, 0.3F},
+               ImVec2{0.0F, 80.0F}));
+    add(pruefe("Alt+M2: 80 Bildpunkte = 40 logische nach unten: zwei Schritte hinaus (je ueber 16)", [zustand] {
+        const karte::XyAnsicht& v = ke::editor().xy[0].ansicht;
+        const float qt = std::max(1.0F, std::round(g_app->dpiScale));
+        const int schritte = static_cast<int>(80.0F / qt) / 17;   // je > 16
+        float soll = zustand->massstab;
+        for (int i = 0; i < schritte; ++i) { soll *= 0.8F; }
+        diag::detail("Knopftest: Karten-Editor XY - Drag-Zoom " + std::to_string(zustand->massstab) + " -> " +
+                     std::to_string(v.massstab) + " (soll " + std::to_string(soll) + ")");
+        return std::fabs(v.massstab - soll) < 1e-4F;
+    }));
+    // M3: Blickrichtung der Kamera auf den Zeiger; Ctrl+M3: Kamera dorthin.
+    add(ziehen("M3 rechts der Kamera", ImGuiMouseButton_Middle, 0, ImVec2{0.9F, 0.5F}, ImVec2{0.0F, 0.0F}));
+    add(pruefe("M3: yaw zeigt zum Zeiger (atan2)", [xyPunkt] {
+        const ke::Editor& e = ke::editor();
+        const ke::XyFenster& f = e.xy[0];
+        // ImGui rundet die Mauslage ab (AddMousePosEvent: ImFloorSigned)
+        const ImVec2 p = xyPunkt(0.9F, 0.5F);
+        const karte::Vektor3f w = f.ansicht.zuPunkt(static_cast<int>(std::lround(std::floor(p.x) - f.bildX)),
+                                                    static_cast<int>(std::lround(std::floor(p.y) - f.bildY)));
+        double soll = std::atan2(w[1] - e.kamera.ursprung[1], w[0] - e.kamera.ursprung[0]) * 180.0 / 3.14159265358979;
+        if (soll < 0) { soll += 360; }
+        diag::detail("Knopftest: Karten-Editor XY - yaw " + std::to_string(e.kamera.winkel[1]) + " soll " + std::to_string(soll) +
+                     " pitch " + std::to_string(e.kamera.winkel[0]));
+        return std::fabs(e.kamera.winkel[1] - soll) < 0.01;
+    }));
+    add(ziehen("Ctrl+M3 links oben", ImGuiMouseButton_Middle, ImGuiMod_Ctrl, ImVec2{0.2F, 0.2F}, ImVec2{0.0F, 0.0F}));
+    add(pruefe("Ctrl+M3: Kamera an den Zeiger (eingerastet), z bleibt", [xyPunkt] {
+        const ke::Editor& e = ke::editor();
+        const ke::XyFenster& f = e.xy[0];
+        const ImVec2 p = xyPunkt(0.2F, 0.2F);
+        const karte::Vektor3f w = f.ansicht.zuPunkt(static_cast<int>(std::lround(std::floor(p.x) - f.bildX)),
+                                                    static_cast<int>(std::lround(std::floor(p.y) - f.bildY)), e.raster.einrastGroesse());
+        return e.kamera.ursprung[0] == w[0] && e.kamera.ursprung[1] == w[1] && e.kamera.ursprung[2] == 0;
+    }));
+    add(pruefe("Statuszeile: Position \"x: %6.1f  y: %6.1f  z: %6.1f\"", [] {
+        const std::string& t = ke::editor().statusPosition;
+        return t.rfind("x: ", 0) == 0 && t.find("  y: ") != std::string::npos && t.find("  z:    0.0") != std::string::npos;
+    }));
+    // Tasten (NRC-Standard): Ctrl+Tab, Num7, Insert, `, Ctrl+Shift+Tab, J, Shift+X, 0
+    add(tu("deutsche Tastatur", [] { ke::tastaturErsatz = deutscheTastatur; }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Tab, "Strg+Tab"));
+    add(pruefe("Ctrl+Tab = NextView: XY -> XZ", [] { return ke::editor().xy[0].ansicht.typ == karte::Sicht::XZ; }));
+    add(foto("karteneditor_xz"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Tab, "Strg+Tab"));
+    add(pruefe("Ctrl+Tab: XZ -> YZ", [] { return ke::editor().xy[0].ansicht.typ == karte::Sicht::YZ; }));
+    add(tasteKombi(ImGuiKey_Keypad7, "Num 7"));
+    add(pruefe("Num 7 = ViewTop: XY", [] { return ke::editor().xy[0].ansicht.typ == karte::Sicht::XY; }));
+    add(tu("Zustand merken", [zustand] { *zustand = ke::editor().xy[0].ansicht; }));
+    add(tasteKombi(ImGuiKey_Insert, "Einfg"));
+    add(pruefe("Insert = ZoomOut: Massstab x 4/5", [zustand] {
+        return std::fabs(ke::editor().xy[0].ansicht.massstab - zustand->massstab * 0.8F) < 1e-4F;
+    }));
+    add(tu("Wuerfel auswaehlen", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        const auto w = e.karte.welt();
+        if (w && !w->kinder().empty()) { e.karte.auswahl.waehlen(w, w->kinder().front()); }
+    }));
+    // "`" liegt auf deutscher Tastatur als Tottaste auf Umschalt+´ (wie in
+    // NRC nicht als Kuerzel erreichbar) - hier ueber den Befehl.
+    add(tu("XYFocusOnSelected", [] { (void)ke::ausfuehren("XYFocusOnSelected"); }));
+    add(pause(0.2));
+    add(pruefe("XYFocusOnSelected: Mitte des Wuerfels, Massstab min(W/384, H/384)", [] {
+        const karte::XyAnsicht& v = ke::editor().xy[0].ansicht;
+        const float soll = std::min(static_cast<float>(v.breite) / 384.0F, static_cast<float>(v.hoehe) / 384.0F);
+        diag::detail("Knopftest: Karten-Editor XY - Fokus " + std::to_string(v.ursprung[0]) + "," + std::to_string(v.ursprung[1]) +
+                     "," + std::to_string(v.ursprung[2]) + " Massstab " + std::to_string(v.massstab));
+        return v.ursprung == karte::Vektor3f(0, 0, 32) && std::fabs(v.massstab - std::min(64.0F, soll)) < 1e-3F;
+    }));
+    add(foto("karteneditor_xy_auswahl"));
+    add(tasteKombi(ImGuiKey_J, "J"));
+    add(pruefe("J = ShowSize2d aus", [] { return !ke::editor().anzeige.groesse2d; }));
+    add(tasteKombi(ImGuiKey_J, "J"));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_X, "Umschalt+X"));
+    add(pruefe("Shift+X = ToggleCrosshairs an", [] { return ke::editor().anzeige.fadenkreuz; }));
+    add(tasteKombi(ImGuiKey_0, "0"));
+    add(pruefe("0 = ToggleGrid aus", [] { return !ke::editor().anzeige.raster; }));
+    add(foto("karteneditor_xy_ohne_raster"));
+    add(tasteKombi(ImGuiKey_0, "0"));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_X, "Umschalt+X"));
+    add(tu("Auswahl leeren, echte Tastatur", [] {
+        ke::editor().karte.auswahl.leeren();
+        ke::tastaturErsatz = nullptr;
+    }));
+    return s;
+}
+
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
     std::vector<Schritt> s;
@@ -25655,6 +25845,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : karteneditorRahmenSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorTastenSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorMassSchritte()) { add(std::move(x)); }
+    for (Schritt& x : karteneditorXySchritte()) { add(std::move(x)); }
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
     return s;
 }

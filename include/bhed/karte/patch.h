@@ -104,6 +104,10 @@ public:
     // controlPointsChanged: neu tesselieren und Grenzen bestimmen.
     void punkteGeaendert(int schwellwert = kPatchUnterteilungVorgabe);
     [[nodiscard]] const PatchTesselierung& tesselierung() const { return m_tess; }
+    // Das Drahtgitter als Linienpaare (RenderablePatchWireframe::render,
+    // patch.h:205-256; patchDef3: RenderablePatchFixedWireframe, Quad-Streifen
+    // als Umrisse).
+    void drahtgitter(std::vector<Vektor3f>& paare) const;
     [[nodiscard]] const Kasten& grenzen() const { return m_grenzen; }   // localAABB
 
     void transformieren(const Matrix4& m);   // transform + freezeTransform
