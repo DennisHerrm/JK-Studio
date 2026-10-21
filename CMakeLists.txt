@@ -694,4 +694,9 @@ if(BEHAVED_TESTS)
   add_executable(kartetexturen tests/kartetexturen.cpp)
   target_link_libraries(kartetexturen PRIVATE bhed_core)
   add_test(NAME karte_texturen COMMAND kartetexturen "${BEHAVED_KARTE_JA}" "${BEHAVED_KARTE_JK2}" ${BEHAVED_KARTE_MD})
+  # Punkt 3: Geometrie und st gegen das echte q3map2 (BSPs in tests/karte,
+  # erzeugt ohne -meta, siehe tools/gen_karte_vergleich.py).
+  add_executable(kartevergleich tests/kartevergleich.cpp)
+  target_link_libraries(kartevergleich PRIVATE bhed_core)
+  add_test(NAME karte_vergleich COMMAND kartevergleich ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte)
 endif()
