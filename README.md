@@ -65,5 +65,20 @@ Details and known pitfalls are in [BAUEN.md](BAUEN.md), the tests in
   `BehavEd.exe` (images, the command description `behaved.bhc`, headers such as
   `Q3_Interface.h` and `anims.h`). These are the property of Raven Software /
   Activision.
+- Code ported from [NetRadiant-Custom](https://github.com/Garux/netradiant-custom),
+  GtkRadiant and q3map2 (GPL v2): the map editor core in `src/karte/` and
+  `include/bhed/karte/`. Each ported file names its NetRadiant-Custom source
+  files and keeps their copyright lines (Id Software, Inc. and the GtkRadiant /
+  NetRadiant contributors).
+- Code ported from [OpenJK](https://github.com/JACoders/OpenJK) (GPL v2): the
+  engine behaviour reproduced in the preview (movement, collision, ICARUS,
+  rendering rules) and the entity definitions generated from its QUAKED comments.
 
-No license has been chosen yet.
+## License
+
+The code of BehavEd-Remake is licensed under the GNU General Public License,
+version 2 – see [LICENSE](LICENSE). It contains code ported from
+NetRadiant-Custom / GtkRadiant / q3map2 and from OpenJK, which are GPL v2 as well.
+
+The game data from Raven Software / Activision in `data/` (see above) remains
+their property and is not covered by this license.

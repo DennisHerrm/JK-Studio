@@ -628,3 +628,16 @@ if(BEHAVED_TESTS)
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/handbuch/gen_handbuch.py --pruefen)
   endif()
 endif()
+
+# --- Karten-Editor (Stufe 1a, ab karte1) -------------------------------------
+#
+# Der neue Tab baut eigene Karten fuer Jedi Academy und Jedi Outcast, Vorlage
+# NetRadiant-Custom (Entscheidung shank, 21.10.2026). Der Kern steht ohne
+# Oberflaeche in src/karte/ und include/bhed/karte/ (Namensraum bhed::karte),
+# 1:1 portiert aus NRC - damit ist das Programm GPL v2 (LICENSE).
+if(BEHAVED_TESTS)
+  # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
+  # portierte Datei traegt ihren Herkunftskopf.
+  add_executable(kartelizenz tests/kartelizenz.cpp)
+  add_test(NAME karte_lizenz COMMAND kartelizenz ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
