@@ -644,7 +644,8 @@ target_sources(bhed_core PRIVATE
   src/karte/eklasse.cpp
   src/karte/eklasse_lesen.cpp
   src/karte/karte.cpp
-  src/karte/kartenformat.cpp)
+  src/karte/kartenformat.cpp
+  src/karte/texturen.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -683,4 +684,14 @@ if(BEHAVED_TESTS)
   add_executable(karteklassen tests/karteklassen.cpp)
   target_link_libraries(karteklassen PRIVATE bhed_core)
   add_test(NAME karte_klassen COMMAND karteklassen ${CMAKE_CURRENT_SOURCE_DIR}/data/karte "${BEHAVED_NRC_GAMEPACKS}")
+  # Punkt 2g: Dateisystem und Textur-Inventar. Ohne Spielordner nur der
+  # selbst gebaute Spielordner; mit -DBEHAVED_KARTE_JA=<JA base>,
+  # -DBEHAVED_KARTE_JK2=<JK2 base> und -DBEHAVED_KARTE_MD="<base>;<MD>"
+  # zusaetzlich die Zahlen der echten Daten (nur lesen).
+  set(BEHAVED_KARTE_JA "" CACHE PATH "Jedi Academy base (nur lesen)")
+  set(BEHAVED_KARTE_JK2 "" CACHE PATH "Jedi Outcast base (nur lesen)")
+  set(BEHAVED_KARTE_MD "" CACHE STRING "Movie Duels base;MD (nur lesen)")
+  add_executable(kartetexturen tests/kartetexturen.cpp)
+  target_link_libraries(kartetexturen PRIVATE bhed_core)
+  add_test(NAME karte_texturen COMMAND kartetexturen "${BEHAVED_KARTE_JA}" "${BEHAVED_KARTE_JK2}" ${BEHAVED_KARTE_MD})
 endif()
