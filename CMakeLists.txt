@@ -639,7 +639,8 @@ target_sources(bhed_core PRIVATE
   src/karte/wicklung.cpp
   src/karte/texdef.cpp
   src/karte/rueckgaengig.cpp
-  src/karte/pinsel.cpp)
+  src/karte/pinsel.cpp
+  src/karte/patch.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -653,4 +654,8 @@ if(BEHAVED_TESTS)
   add_executable(kartetexdef tests/kartetexdef.cpp)
   target_link_libraries(kartetexdef PRIVATE bhed_core)
   add_test(NAME karte_texdef COMMAND kartetexdef)
+  # Punkt 2c: Patches - adaptive und feste Tesselierung, setDims, Undo.
+  add_executable(kartepatch tests/kartepatch.cpp)
+  target_link_libraries(kartepatch PRIVATE bhed_core)
+  add_test(NAME karte_patch COMMAND kartepatch)
 endif()
