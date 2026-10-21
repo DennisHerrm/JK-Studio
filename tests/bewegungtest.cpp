@@ -3360,6 +3360,44 @@ void teilJk2SchubAblauf() {
     navJk2Regeln(false);
 }
 
+// --- rc605 (Ende): ein Mitfahrer, den G_TestEntityPosition aufhaelt (MF1-MF3) --
+// Ein Aufzug (Entity 1) faehrt je Takt 10 hinauf. MF1 frei: die Figur faehrt mit.
+// MF2: eine Decke ueber dem neuen Ort, der alte Ort ist frei (der Aufzug unter ihr
+// ist schon weiter oben, sie steht daneben): sie bleibt ("ok to leave in the old
+// position", groundEntityNum NONE) - 1. MF3: neuer und alter Ort blockiert - sie
+// haelt den Aufzug auf (MoverSim::blockiert), hier bleibt sie - 2
+// (G_TryPushingEntity, g_mover.cpp:160-262 MD).
+void teilMitfahrerBlockiert() {
+    std::printf("\n== rc605: Mitfahrer und G_TestEntityPosition (MF1-MF3) ==\n");
+    NavMoverPlan mp;
+    NavMoverPlan::Mover m;
+    m.entity = 1;
+    for (int i = 0; i <= 40; ++i) {
+        NavMoverPlan::Stand st;
+        st.ort = {0.0F, 0.0F, 10.0F * static_cast<float>(i)};
+        m.takte.push_back(st);
+    }
+    mp.mover.push_back(m);
+    mp.fertig(2);
+    const auto lauf = [&](const std::function<bool(const NavVec&, double)>* frei, NavVec& ort) {
+        float gier = 0.0F;
+        return navMoverTraegt(mp, 1, 0.0, 200.0, ort, gier, frei);
+    };
+    NavVec o1{0.0F, 0.0F, 24.0F};
+    const int r1 = lauf(nullptr, o1);
+    const std::function<bool(const NavVec&, double)> decke = [](const NavVec& p, double) { return p[2] + 40.0F <= 100.0F; };
+    NavVec o2{0.0F, 0.0F, 24.0F};
+    const int r2 = lauf(&decke, o2);
+    const std::function<bool(const NavVec&, double)> zu = [](const NavVec& p, double ms) { return ms < 120.0 && p[2] + 40.0F <= 100.0F; };
+    NavVec o3{0.0F, 0.0F, 24.0F};
+    const int r3 = lauf(&zu, o3);
+    std::printf("  info  MF1 frei: %d z %.1f; MF2 Decke bei 100: %d z %.1f; MF3 auch alt blockiert: %d z %.1f\n", r1,
+                static_cast<double>(o1[2]), r2, static_cast<double>(o2[2]), r3, static_cast<double>(o3[2]));
+    pruefe(r1 == 0 && std::fabs(o1[2] - 64.0F) < 0.01F, "MF1 ohne Hindernis faehrt sie mit (vier Takte je 10)");
+    pruefe(r2 == 1 && std::fabs(o2[2] - 54.0F) < 0.01F, "MF2 Decke: sie bleibt am alten Ort, der Boden ist fort (1)");
+    pruefe(r3 == 2 && std::fabs(o3[2] - 44.0F) < 0.01F, "MF3 ab 150 beide Orte blockiert: sie haelt den Mover auf (2), bleibt bei 44");
+}
+
 // --- rc601 (bewegung, teil 3): andere Figuren als Hindernisse (K1-K3) ----------
 void teil3Koerper() {
     std::printf("\n== teil 3: andere Figuren im selben Takt (K1-K3) ==\n");
@@ -4894,6 +4932,7 @@ int main(int argc, char** argv) {
     teilJk2Schieben();   // rc605 (Ende)
     teilJk2SchiebenOhnePlan();   // rc605 (Ende)
     teilJk2SchubAblauf();        // rc605 (Ende)
+    teilMitfahrerBlockiert();    // rc605 (Ende)
     teil3Patches();
     teil3Winkel();
     regelwerkVerhaltenTakt();   // rc601 integ

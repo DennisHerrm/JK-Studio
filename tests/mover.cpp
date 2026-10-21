@@ -952,6 +952,71 @@ int main() {
                 f.size() == 1U && nah(static_cast<float>(f[0].ms), 1000.0F));
     }
 
+    // --- rc605 (Ende): G_MoverPush blockiert (G_MoverTeam, Blocked_Door) ----------
+    // Tuer angle -1 (hoch 120), targetname, wait 2 s: sie geht bei 1050 auf und ab
+    // 3190 wieder zu. Eine Figur steht ab 3000 darunter: faehrt die Tuer unter z 60,
+    // haelt die Figur sie auf. Blocked_Door: Schaden 2 + 2 (G_TryPushingEntity und
+    // Blocked_Door), die Tuer bleibt in diesem Bild stehen und kehrt um (Use_BinaryMover).
+    {
+        MapData map;
+        map.entities.push_back(ent("func_door", {{"model", "*1"}, {"angle", "-1"}, {"targetname", "t"}}));
+        const BspGeometry g = geometrie(1);
+        MoverSim s;
+        int fragen = 0;
+        s.blockiert = [&fragen](int modell, double ms, const float von[3], const float nach[3]) {
+            (void)von;
+            ++fragen;
+            return (modell == 1 && ms >= 3000.0 && nach[2] < 60.0F) ? 7 : -1;
+        };
+        s.baue(map, g, {{1000.0, "t"}}, nullptr, 9000.0);
+        float tiefste = 1000.0F;
+        for (double t = 3200.0; t < 9000.0; t += 10.0) { tiefste = std::min(tiefste, s.at(1, t).origin[2]); }
+        const auto& q = s.quetschungen();
+        std::printf("        Tuer: %zu Quetschungen, erste bei %.0f (Figur %d, Schaden %d, umgekehrt %d), tiefste z %.1f nach 3200, Fragen %d\n",
+                    q.size(), q.empty() ? -1.0 : q[0].ms, q.empty() ? -1 : q[0].figur, q.empty() ? -1 : q[0].schaden,
+                    q.size() > 1U ? (q[1].umgekehrt ? 1 : 0) : -1, static_cast<double>(tiefste), fragen);
+        erwarte("blockierte Tuer: Schaden 2 + 2 an Figur 7, Blocked_Door kehrt um, sie kommt nie unter 60",
+                q.size() >= 2U && q[0].figur == 7 && q[0].schaden == 2 && q[1].schaden == 2 && q[1].umgekehrt && tiefste >= 59.0F);
+    }
+    // CRUSHER (4): kein Umkehren - die Tuer steht, solange die Figur sie aufhaelt,
+    // und schadet ihr in jedem Bild.
+    {
+        MapData map;
+        map.entities.push_back(ent("func_door", {{"model", "*1"}, {"angle", "-1"}, {"targetname", "t"}, {"spawnflags", "4"}}));
+        const BspGeometry g = geometrie(1);
+        MoverSim s;
+        s.blockiert = [](int, double ms, const float*, const float nach[3]) { return (ms >= 3000.0 && ms < 4000.0 && nach[2] < 60.0F) ? 3 : -1; };
+        s.baue(map, g, {{1000.0, "t"}}, nullptr, 9000.0);
+        const auto& q = s.quetschungen();
+        bool umgekehrt = false;
+        for (const MoverSim::Quetschung& x : q) { umgekehrt = umgekehrt || x.umgekehrt; }
+        std::printf("        CRUSHER: %zu Quetschungen, z bei 3800 %.1f, bei 6000 %.1f\n", q.size(),
+                    static_cast<double>(s.at(1, 3800).origin[2]), static_cast<double>(s.at(1, 6000).origin[2]));
+        erwarte("CRUSHER: steht ab der Blockade (kein Umkehren), Schaden je Bild, faehrt danach zu Ende zu",
+                !q.empty() && !umgekehrt && s.at(1, 3800).origin[2] >= 59.0F && nah(s.at(1, 6000).origin[2], 0.0F, 0.5F));
+    }
+    // func_train: blockiert steht er (keine Blocked-Funktion), danach faehrt er weiter.
+    {
+        MapData map;
+        map.entities.push_back(ent("func_train", {{"model", "*1"}, {"target", "p1"}, {"speed", "100"}}));
+        map.entities.push_back(ent("path_corner", {{"targetname", "p1"}, {"target", "p2"}, {"origin", "0 0 0"}}));
+        map.entities.push_back(ent("path_corner", {{"targetname", "p2"}, {"target", "p1"}, {"origin", "400 0 0"}}));
+        const BspGeometry g = geometrie(1);
+        MoverSim frei;
+        frei.baue(map, g, {}, nullptr, 9000.0);
+        MoverSim s;
+        s.blockiert = [](int, double ms, const float*, const float*) { return (ms >= 1000.0 && ms < 2000.0) ? 1 : -1; };
+        s.baue(map, g, {}, nullptr, 9000.0);
+        const float a0 = s.at(1, 1000).origin[0];
+        const float a1 = s.at(1, 1950).origin[0];
+        std::printf("        Zug: frei bei 1500 x %.1f, blockiert 1000..2000 x %.1f -> %.1f, bei 3000 x %.1f (frei %.1f)\n",
+                    static_cast<double>(frei.at(1, 1500).origin[0]), static_cast<double>(a0), static_cast<double>(a1),
+                    static_cast<double>(s.at(1, 3000).origin[0]), static_cast<double>(frei.at(1, 3000).origin[0]));
+        erwarte("func_train blockiert: steht, faehrt danach um die Zeit spaeter weiter",
+                std::fabs(a1 - a0) < 6.0F && !s.quetschungen().empty() && s.quetschungen()[0].schaden == 2 &&
+                    nah(s.at(1, 3000).origin[0], frei.at(1, 2000).origin[0], 6.0F));
+    }
+
     if (fehler != 0) {
         std::printf("FEHLGESCHLAGEN (%d)\n", fehler);
         return 1;

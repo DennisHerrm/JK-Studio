@@ -110,6 +110,7 @@ struct Tuer {
     float pos2[3]{};
     double dauerMs = 1.0;
     bool linear = false;
+    int schaden = 2;                // rc605 (Ende): "dmg" (Vorgabe 2, negativ: 0; SP_func_door)
 };
 
 enum class Lage { Pos1, AufDemWeg, Pos2, ZurueckDemWeg };
@@ -388,6 +389,7 @@ struct Zug {
     float pos2[3]{};
     float drehDelta[3]{};         // s.apos.trDelta, Grad je Sekunde - bleibt stehen
     bool unsichtbar = false;      // EF_NODRAW
+    int schaden = 2;              // rc605 (Ende): SP_func_train - TRAIN_BLOCK_STOPS 0, sonst "dmg" oder 2
 };
 
 // Ein target_speaker (g_target.cpp:226).
@@ -503,6 +505,7 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
     bruchKlang_.clear();
     lautsprecher_.clear();
     texte_.clear();
+    quetsch_.clear();   // rc605 (Ende)
     licht_.clear();
     modellWechsel_.clear();
     nachModell_.assign(geo.models.size(), -1);
@@ -745,6 +748,9 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
             if (z.speed == 0.0F) { z.speed = 100.0F; }
             z.linear = zahl(e, "linear", 0.0F) != 0.0F;
             z.tie = (ganz(e, "spawnflags") & 2048) != 0;
+            // rc605 (Ende): SP_func_train (g_mover.cpp:2180-2193 MD): TRAIN_BLOCK_STOPS (4)
+            // ohne Schaden, sonst damage ("dmg") oder 2.
+            z.schaden = (ganz(e, "spawnflags") & 4) != 0 ? 0 : (ganz(e, "dmg") != 0 ? ganz(e, "dmg") : 2);
             zugVonEntity[ei] = static_cast<int>(zuege.size());
             zuege.push_back(z);
             continue;
@@ -780,6 +786,13 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
             t.dauerMs = std::max(1.0, std::sqrt(static_cast<double>(dx * dx + dy * dy + dz * dz)) *
                                           1000.0 / speed);   // InitMoverTrData
             t.linear = zahl(e, "linear", 0.0F) != 0.0F;      // alt_fire
+            // rc605 (Ende): G_SpawnInt( "dmg", "2", &ent->damage ), negativ -> 0
+            // (g_mover.cpp:1546-1550 MD).
+            {
+                bool gesetzt = false;
+                const float d = zahl(e, "dmg", 2.0F, &gesetzt);
+                t.schaden = std::max(0, gesetzt ? static_cast<int>(d) : 2);
+            }
             for (int k = 0; k < 3; ++k) { m.origin0[k] = t.pos1[k]; }
 
             // Team (G_FindTeams): der erste ist Meister, er uebernimmt den
@@ -1685,6 +1698,39 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
             zugErreicht(z, 0.0);
         }
     }
+    // rc605 (Ende): G_MoverTeam (g_mover.cpp:508-570 MD) - faehrt ein Brush in diesem
+    // Bild und haelt eine Figur ihn auf (G_MoverPush -> G_TryPushingEntity ->
+    // G_TestEntityPosition, :160-500), bleibt das ganze Team stehen ("Push up time so
+    // it doesn't wiggle when blocked": trTime += level.time - level.previousTime).
+    const auto blockiertVon = [&](std::size_t mi, double t) -> int {
+        if (!blockiert) { return -1; }
+        const Mover& m = mover_[mi];
+        const Stand a = at(m.modell, t - kTakt);
+        const Stand b = at(m.modell, t);
+        if (a.origin[0] == b.origin[0] && a.origin[1] == b.origin[1] && a.origin[2] == b.origin[2]) { return -1; }
+        return blockiert(m.modell, t, a.origin, b.origin);
+    };
+    const auto anhalten = [&](std::size_t mi, double t) {
+        Mover& m = mover_[mi];
+        if (m.bahn.empty()) { return; }
+        const Stueck alt = m.bahn.back();
+        if (alt.abMs > t) { return; }
+        // Zwischen dem letzten Bild und diesem steht er (der Client mittelt zwischen
+        // zwei gleichen Staenden): ruhend auf dem Ort des letzten Bilds ...
+        const Stand vorher = at(m.modell, t - kTakt);
+        Stueck ruh;
+        ruh.abMs = std::max(alt.abMs, t - kTakt);
+        ruh.dauerMs = 0.0;
+        for (int k = 0; k < 3; ++k) { ruh.von[k] = ruh.nach[k] = vorher.origin[k]; }
+        ruh.fortsetzung = true;
+        m.bahn.push_back(ruh);
+        // ... und ab diesem Bild dieselbe Fahrt, ein Bild spaeter.
+        Stueck neu = alt;
+        neu.versatzMs = alt.abMs + alt.versatzMs + kTakt - t;
+        neu.abMs = t;
+        neu.fortsetzung = true;
+        m.bahn.push_back(neu);
+    };
     for (double t = 0.0; t <= endeMs + kTakt; t += kTakt) {
         // Faellige use-Ereignisse (neue koennen dabei dazukommen).
         for (;;) {
@@ -1701,6 +1747,29 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
                 const double wann = team.losUm;
                 team.losUm = -1.0;
                 tuerGo(ti, wann, 0);
+            }
+            // rc605 (Ende): blockiert? Dann steht das Team, und Blocked_Door (g_mover.cpp:
+            // 1193-1239 MD) schadet der Figur und kehrt um - ein CRUSHER (4) nicht.
+            if (team.lage == Lage::AufDemWeg || team.lage == Lage::ZurueckDemWeg) {
+                int figur = -1;
+                std::size_t teil = 0;
+                for (std::size_t di = 0; di < team.tueren.size() && figur < 0; ++di) {
+                    figur = blockiertVon(team.tueren[di].mover, t);
+                    teil = di;
+                }
+                if (figur >= 0) {
+                    for (const Tuer& d : team.tueren) { anhalten(d.mover, t); }
+                    team.bahnAb += kTakt;
+                    const Mover& mt = mover_[team.tueren[teil].mover];
+                    // G_TryPushingEntity: pusher->damage
+                    quetsch_.push_back(Quetschung{t, mt.modell, mt.entity, figur, team.tueren[teil].schaden, false});
+                    // Blocked_Door: ent->damage (der Meister), dann Use_BinaryMover
+                    const Mover& mm = mover_[team.tueren.front().mover];
+                    const bool kehrt = (team.flags & 4) == 0;
+                    quetsch_.push_back(Quetschung{t, mm.modell, mm.entity, figur, team.tueren.front().schaden, kehrt});
+                    if (kehrt) { tuerUse(ti, t, 0); }
+                    continue;
+                }
             }
             // Angekommen? (Reached_BinaryMover, g_mover.cpp:725)
             if ((team.lage == Lage::AufDemWeg || team.lage == Lage::ZurueckDemWeg) &&
@@ -1747,6 +1816,18 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
         // Zuege: erst G_MoverTeam (angekommen?), dann G_RunThink
         // (Think_BeginMoving) - beide im Bild, nicht auf die Millisekunde.
         for (Zug& z : zuege) {
+            // rc605 (Ende): blockiert - der Zug steht (kein Blocked-Funktion fuer
+            // func_train), G_TryPushingEntity schadet der Figur mit damage.
+            if (z.faehrt) {
+                const int figur = blockiertVon(z.mover, t);
+                if (figur >= 0) {
+                    anhalten(z.mover, t);
+                    z.trTime += kTakt;
+                    const Mover& mz = mover_[z.mover];
+                    quetsch_.push_back(Quetschung{t, mz.modell, mz.entity, figur, z.schaden, false});
+                    continue;
+                }
+            }
             if (z.faehrt && t >= z.trTime + z.dauer) {
                 zugErreicht(z, t);
             }
@@ -1794,7 +1875,7 @@ MoverSim::Stand MoverSim::at(int modell, double ms) const {
         if (st.abMs > ms) {
             break;
         }
-        const float f = moverAnteil(ms - st.abMs, st.dauerMs, st.linear);
+        const float f = moverAnteil(ms - st.abMs - st.versatzMs, st.dauerMs, st.linear);   // rc605 (Ende): versatzMs
         for (int k = 0; k < 3; ++k) {
             s.origin[k] = st.von[k] + (st.nach[k] - st.von[k]) * f;
         }
@@ -1951,13 +2032,17 @@ std::vector<MoverKlang> MoverSim::klaenge(double endeMs) const {
         const bool zug = m.klasse == "func_train";
         for (std::size_t i = 0; i < m.bahn.size(); ++i) {
             const Stueck& st = m.bahn[i];
-            if (st.dauerMs <= 0.0 || st.abMs > endeMs) {
+            if (st.dauerMs <= 0.0 || st.abMs > endeMs || st.fortsetzung) {
                 continue;
             }
-            double ende = st.abMs + st.dauerMs;
+            // rc605 (Ende): blockiert (Fortsetzungen) - dieselbe Fahrt, sie endet spaeter.
+            std::size_t letzte = i;
+            while (letzte + 1 < m.bahn.size() && m.bahn[letzte + 1].fortsetzung) { ++letzte; }
+            const Stueck& sl = m.bahn[letzte];
+            double ende = sl.abMs + sl.versatzMs + sl.dauerMs;
             bool kommtAn = true;
-            if (i + 1 < m.bahn.size() && m.bahn[i + 1].abMs < ende) {
-                ende = m.bahn[i + 1].abMs;
+            if (letzte + 1 < m.bahn.size() && m.bahn[letzte + 1].abMs < ende) {
+                ende = m.bahn[letzte + 1].abMs;
                 kommtAn = false;
             }
             if (!zug) { neu(0, st.abMs, st.abMs); }

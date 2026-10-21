@@ -968,6 +968,7 @@ bool navMoverPlanAusSim(double endeMs) {
             NavMoverPlan::Mover m;
             m.entity = b.entity;
             m.radius = b.radius;
+            m.blockierbar = sb == nullptr;   // rc605 (Ende): nur die Mover der MoverSim
             if (sp.karte && b.modell > 0 && static_cast<std::size_t>(b.modell) < sp.karte->modelle.size()) {
                 const KollisionsKarte::Modell& km = sp.karte->modelle[static_cast<std::size_t>(b.modell)];
                 m.kastenDa = true;

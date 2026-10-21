@@ -5170,7 +5170,10 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
     std::vector<App::FallenKnall> knalle;
     if (g_app->fallenKnalleKarte == karte.path) { knalle = g_app->fallenKnalle; }
     std::stable_sort(knalle.begin(), knalle.end(), [](const auto& x, const auto& y) { return x.ms < y.ms; });
-    if (felder.empty() && knalle.empty()) { return aus; }
+    // rc605 (Ende): blockierte Mover schaden der Figur (MoverSim::quetschungen).
+    std::vector<MoverSim::Quetschung> quetsch = g_app->moverSim.quetschungen();
+    const std::vector<std::string> quetschNamen = g_app->quetschFiguren;
+    if (felder.empty() && knalle.empty() && quetsch.empty()) { return aus; }
     if (!knalle.empty()) { fallenWeltBauen(); }   // die Spuren von CanDamage mit dieser Szene
     // Wer schaltet: hurt_use und target_(de)activate aus den Benutzungen.
     std::vector<const Ablauf::Benutzung*> uses;
@@ -5225,7 +5228,7 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
     // Ohne Rueckstoss (G_ApplyKnockback/G_CheckKnockdown) und ohne Schmerz-Reaktion.
     constexpr int kDamageRadius = 0x00000001;      // DAMAGE_RADIUS
     constexpr int kDamageNoArmor = 0x00000002;     // DAMAGE_NO_ARMOR
-    enum class Art : std::uint8_t { TriggerHurt, Falling, ExplosiveSplash };
+    enum class Art : std::uint8_t { TriggerHurt, Falling, ExplosiveSplash, Crush };
     // CheckArmor (g_combat.cpp:4832-4973 OpenJK, 6020-6185 MD, codeJK2 4298-4372).
     const auto checkArmor = [&](Figur& fi, int damage, int dflags) -> int {
         const Actor& a = *fi.a;
@@ -5287,6 +5290,7 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
     constexpr double kFrametime = 100.0;   // FRAMETIME (g_local.h:48)
     std::size_t ui = 0;
     std::size_t ki = 0;   // rc605 (Ende): naechste Explosion
+    std::size_t qi = 0;   // rc605 (Ende): naechste Quetschung
     const float alle[3] = {0.0F, 0.0F, 0.0F};
     for (double t = 0.0; t <= ende; t += kBild) {
         while (ui < uses.size() && uses[ui]->ms <= t + 1e-6) {
@@ -5356,6 +5360,22 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
                 diag::detail("misc_trip_mine #" + std::to_string(kn.entity) + " explodiert bei " + std::to_string(static_cast<long>(kn.ms)) +
                              " ms: " + a.name + " Abstand " + std::to_string(static_cast<int>(dist)) + ", Schaden " +
                              std::to_string(static_cast<int>(points)) + ", Lebenspunkte " + std::to_string(vorher) + " -> " +
+                             std::to_string(fi.gesundheit) + (fi.tot ? " (tot)" : ""));
+            }
+        }
+        // rc605 (Ende): ein Mover haelt in diesem Bild an einer Figur (G_MoverTeam vor den
+        // NPCs): G_TryPushingEntity bzw. Blocked_Door -> G_Damage(..., damage, 0, MOD_CRUSH).
+        while (qi < quetsch.size() && quetsch[qi].ms <= t + 1e-6) {
+            const MoverSim::Quetschung& q = quetsch[qi++];
+            if (q.ms <= t - kBild + 1e-6 || q.schaden <= 0 || q.figur < 0 || static_cast<std::size_t>(q.figur) >= quetschNamen.size()) {
+                continue;
+            }
+            for (Figur& fi : figuren) {
+                if (fi.tot || fi.gesundheit <= 0 || fi.a->name != quetschNamen[static_cast<std::size_t>(q.figur)]) { continue; }
+                const int vorher = fi.gesundheit;
+                gDamage(fi, q.schaden, 0, Art::Crush, t, static_cast<int>(q.entity));
+                diag::detail("Mover #" + std::to_string(q.entity) + " quetscht " + fi.a->name + " bei " + std::to_string(static_cast<long>(t)) +
+                             " ms: Schaden " + std::to_string(q.schaden) + ", Lebenspunkte " + std::to_string(vorher) + " -> " +
                              std::to_string(fi.gesundheit) + (fi.tot ? " (tot)" : ""));
             }
         }
@@ -6154,7 +6174,97 @@ void prepareScene() {
         // rc604: was G_SpawnGEntityFromSpawnVars wegen notsingle/Schwierigkeit
         // entfernt, gibt es auch fuer Tueren, Plattformen und Lautsprecher nicht.
         g_app->moverSim.spielstufe = regelwerkSpielstufe();
+        // rc605 (Ende): G_MoverPush (g_mover.cpp:284-500 MD) - haelt eine Figur den
+        // Brush auf? Die Figuren im letzten Bild (die Mover denken vor den spaeter
+        // gespawnten NPCs): ein Mitfahrer (PM_GroundTrace: 0,25 hinab trifft den
+        // Brush, wo er stand) oder einer, der im Brush an dessen neuem Ort steckt
+        // (G_TestEntityPosition(check) == pusher), wird um move verschoben
+        // (G_TryPushingEntity); ist dort etwas (Welt, der Brush, ein anderer Koerper)
+        // und auch der alte Ort nicht frei, ist der Mover blockiert.
+        struct KoerperOrt {
+            float p[3];
+            float hb;
+            float hoch;
+            int nr;
+        };
+        std::vector<std::vector<KoerperOrt>> koerper(schritte);
+        g_app->quetschFiguren.clear();
+        for (const Actor& a : g_app->scene.actors) {
+            if (a.brushModel > 0 || !a.haveStart || a.echterSpieler) { continue; }
+            const int nr = static_cast<int>(g_app->quetschFiguren.size());
+            g_app->quetschFiguren.push_back(a.name);
+            for (std::size_t si = 0; si < schritte; ++si) {
+                const double ms = static_cast<double>(si) * kTakt;
+                if (a.getoetetMs >= 0.0 && ms > a.getoetetMs + 0.5) { break; }   // eine Leiche raeumt Blocked_Door weg
+                const ActorState st = a.at(ms);
+                if (!st.visible || st.removed) { continue; }
+                koerper[si].push_back(KoerperOrt{{st.pos[0], st.pos[1], st.pos[2]}, a.halbBreite, a.hoeheOben, nr});
+            }
+        }
+        const std::shared_ptr<const KollisionsKarte> kk = geladeneKollision(g_app->map.path);
+        // Die Welt mit den anderen Brush-Entities zur Zeit (der Stand der Mover aus dem
+        // letzten Durchgang, navWeltVorschau) - der schiebende Brush selbst steht an `nach`.
+        const std::shared_ptr<const NavWelt> nwelt = navWeltVorschau();
+        std::map<int, int> entityVonModell;
+        for (std::size_t ei = 0; ei < g_app->map.entities.size(); ++ei) {
+            const std::string* mdl = g_app->map.entities[ei].find("model");
+            if (mdl != nullptr && mdl->size() > 1 && (*mdl)[0] == '*') { entityVonModell[std::atoi(mdl->c_str() + 1)] = static_cast<int>(ei); }
+        }
+        g_app->moverSim.blockiert = [&koerper, kk, schritte, nwelt, entityVonModell](int modell, double ms, const float von[3],
+                                                                                     const float nach[3]) -> int {
+            if (!kk || kk->leer()) { return -1; }
+            const auto ie = entityVonModell.find(modell);
+            const int pusherEnt = ie == entityVonModell.end() ? kNavKeineEntity : ie->second;
+            const auto si = static_cast<std::size_t>(std::max(0.0, ms - kTakt) / kTakt);
+            if (si >= schritte) { return -1; }
+            const std::uint32_t maske = kNavSolid | kNavMonsterClip | kNavTerrain;   // MASK_NPCSOLID ohne CONTENTS_BODY
+            const float null3[3] = {0.0F, 0.0F, 0.0F};
+            const float move[3] = {nach[0] - von[0], nach[1] - von[1], nach[2] - von[2]};
+            for (const KoerperOrt& f : koerper[si]) {
+                const float mi[3] = {-f.hb, -f.hb, -24.0F};
+                const float ma[3] = {f.hb, f.hb, f.hoch};
+                const float unten[3] = {f.p[0], f.p[1], f.p[2] - 0.25F};
+                const KollisionsSpur g = kollisionsSpur(*kk, f.p, mi, ma, unten, maske, modell, von, null3);
+                const bool reiter = !g.startsolid && g.fraction < 1.0F;
+                if (!reiter && !kollisionsSpur(*kk, f.p, mi, ma, f.p, maske, modell, nach, null3).startsolid) { continue; }
+                const auto frei = [&](const float q[3]) {
+                    if (nwelt && (nwelt->spurZeit || nwelt->spur)) {
+                        const NavVec qv{q[0], q[1], q[2]};
+                        const NavVec miv{mi[0], mi[1], mi[2]};
+                        const NavVec mav{ma[0], ma[1], ma[2]};
+                        const NavSpur w = nwelt->spurZeit ? nwelt->spurZeit(qv, miv, mav, qv, pusherEnt, maske, ms)
+                                                          : nwelt->spur(qv, miv, mav, qv, pusherEnt, maske);
+                        if (w.startsolid || w.allsolid) { return false; }
+                    } else if (kollisionsSpur(*kk, q, mi, ma, q, maske).startsolid) {
+                        return false;
+                    }
+                    if (kollisionsSpur(*kk, q, mi, ma, q, maske, modell, nach, null3).startsolid) { return false; }
+                    for (const KoerperOrt& o : koerper[si]) {
+                        if (o.nr == f.nr) { continue; }
+                        bool drin = true;
+                        const float omi[3] = {-o.hb, -o.hb, -24.0F};
+                        const float oma[3] = {o.hb, o.hb, o.hoch};
+                        for (int q2 = 0; q2 < 3; ++q2) {
+                            if (q[q2] + ma[q2] <= o.p[q2] + omi[q2] || q[q2] + mi[q2] >= o.p[q2] + oma[q2]) { drin = false; }
+                        }
+                        if (drin) { return false; }   // CONTENTS_BODY
+                    }
+                    return true;
+                };
+                const float neu[3] = {f.p[0] + move[0], f.p[1] + move[1], f.p[2] + move[2]};
+                if (frei(neu)) { continue; }   // geschoben (bzw. mitgenommen)
+                if (frei(f.p)) { continue; }   // "ok to leave in the old position"
+                return f.nr;
+            }
+            return -1;
+        };
         g_app->moverSim.baue(g_app->map, g_app->geo, std::move(uses), figur, ende);
+        g_app->moverSim.blockiert = nullptr;
+        for (const MoverSim::Quetschung& q : g_app->moverSim.quetschungen()) {
+            diag::detail("Mover *" + std::to_string(q.modell) + " blockiert bei " + std::to_string(static_cast<long>(q.ms)) + " ms von " +
+                         (q.figur >= 0 && static_cast<std::size_t>(q.figur) < g_app->quetschFiguren.size() ? g_app->quetschFiguren[static_cast<std::size_t>(q.figur)] : std::string("?")) +
+                         " (Schaden " + std::to_string(q.schaden) + (q.umgekehrt ? ", kehrt um" : "") + ")");
+        }
         // rc601 (bewegung): faehrt ein Aufzug oder dreht sich eine Plattform,
         // traegt sie die Figuren jetzt mit - ein zweiter Durchgang mit der
         // Mover-Simulation als Boden.

@@ -5088,6 +5088,35 @@ struct LaufRechner {
     // rc605 (Ende): allein (ohne NavWelt::jk2FehlWelt) die gescheiterten Kanten
     // dieses Plans ab dem Kartenstart, CheckAllFailedEdges in jedem Bild.
     std::unique_ptr<NavJk2FehlWelt> eigeneFehl;
+    // rc605 (Ende): G_TestEntityPosition (g_mover.cpp:108-151 MD) fuer einen
+    // Mitfahrer - der Kasten an ort, clipmask, mit den Movern und Koerpern im Bild ms.
+    [[nodiscard]] std::function<bool(const NavVec&, double)> freiFn() const {
+        const NavVec mi{-w.halbBreite, -w.halbBreite, kDefaultMins2};
+        const NavVec ma{w.halbBreite, w.halbBreite, w.hoeheOben};
+        const NavWelt* wl = &welt;
+        const int ign = welt.ich >= 0 ? kNavKoerperBasis + welt.ich : kNavKeineEntity;
+        return [wl, mi, ma, ign](const NavVec& p, double ms) {
+            NavSpur r;
+            const std::uint32_t maske = kNavMaskNpcSolid;
+            if (wl->spurZeit) {
+                r = wl->spurZeit(p, mi, ma, p, ign, maske, ms);
+            } else if (wl->spur) {
+                r = wl->spur(p, mi, ma, p, ign, maske);
+            }
+            if (r.startsolid || r.allsolid) { return false; }
+            if (wl->koerper != nullptr) {
+                for (const NavKoerperKasten& k : *wl->koerper) {
+                    if (kNavKoerperBasis + k.id == ign) { continue; }
+                    bool drin = true;
+                    for (std::size_t i = 0; i < 3; ++i) {
+                        if (p[i] + ma[i] <= k.ort[i] + k.mins[i] || p[i] + mi[i] >= k.ort[i] + k.maxs[i]) { drin = false; }
+                    }
+                    if (drin) { return false; }
+                }
+            }
+            return true;
+        };
+    }
     NavJk2FehlWelt* fehlWeltBis(double bis) {
         if (welt.jk2FehlWelt != nullptr) { return welt.jk2FehlWelt; }
         if (!gJk2Nav.load(std::memory_order_relaxed) || !welt.netz || !welt.netz->jk2 || w.ohneKoerper) { return nullptr; }
@@ -5155,7 +5184,8 @@ struct LaufRechner {
         // bewegt, hat G_MoverPush sie bis hierher mitgenommen.
         if (welt.mover && z.amBoden && z.bodenEnt >= 0 && !werte.ohneKoerper &&
             welt.mover->standVon(z.bodenEnt, abMs) != nullptr && z.bodenAbMs > -1.0e299) {
-            navMoverTraegt(*welt.mover, z.bodenEnt, z.bodenAbMs, abMs, z.ort, z.gier);
+            const auto frei = freiFn();
+            if (navMoverTraegt(*welt.mover, z.bodenEnt, z.bodenAbMs, abMs, z.ort, z.gier, &frei) != 0) { z.bodenEnt = -1; }
             z.bodenAbMs = abMs;
         }
         // Das erste Denkbild nach abMs auf dem 50-ms-Raster.
@@ -5181,7 +5211,8 @@ struct LaufRechner {
                 const NavSpur s = spurDurch(l0.spurF, z.ort, l0.mins, l0.maxs, unten, kNavKeineEntity, l0.pmMaske());
                 if (!s.startsolid && !s.allsolid && s.fraction < 1.0F && s.entity >= 0 &&
                     welt.mover->standVon(s.entity, t0) != nullptr && t0 < abMs) {
-                    navMoverTraegt(*welt.mover, s.entity, t0, abMs, z.ort, z.gier);
+                    const auto frei = freiFn();
+                    (void)navMoverTraegt(*welt.mover, s.entity, t0, abMs, z.ort, z.gier, &frei);
                 }
                 l0.akt.t = abMs;
             }
@@ -5224,7 +5255,8 @@ struct LaufRechner {
         // einem Mover, nimmt G_MoverPush sie mit.
         if (welt.mover && z.amBoden && z.bodenEnt >= 0 && !w.ohneKoerper && z.bodenAbMs < t &&
             welt.mover->standVon(z.bodenEnt, t) != nullptr) {
-            navMoverTraegt(*welt.mover, z.bodenEnt, z.bodenAbMs, t, z.ort, z.gier);
+            const auto frei = freiFn();
+            if (navMoverTraegt(*welt.mover, z.bodenEnt, z.bodenAbMs, t, z.ort, z.gier, &frei) != 0) { z.bodenEnt = -1; }
             z.bodenAbMs = t;
         }
         Lauf l(welt, w, z);
@@ -5543,13 +5575,14 @@ LaufZustand zustandBei(const LaufPlan& p, double t) {
     return z;
 }
 
-void navMoverTraegt(const NavMoverPlan& mp, int entity, double vonMs, double bisMs, NavVec& ort, float& gier) {
-    if (!(bisMs > vonMs)) { return; }
+int navMoverTraegt(const NavMoverPlan& mp, int entity, double vonMs, double bisMs, NavVec& ort, float& gier,
+                   const std::function<bool(const NavVec& ort, double ms)>* frei) {
+    if (!(bisMs > vonMs)) { return 0; }
     const double raster = kNavDenkMs;
     for (double k = std::floor(vonMs / raster + 1e-9) + 1.0; k * raster <= bisMs + 1e-6; k += 1.0) {
         const NavMoverPlan::Stand* s0 = mp.standVon(entity, (k - 1.0) * raster);
         const NavMoverPlan::Stand* s1 = mp.standVon(entity, k * raster);
-        if (s0 == nullptr || s1 == nullptr) { return; }
+        if (s0 == nullptr || s1 == nullptr) { return 0; }
         NavVec move{};
         NavVec amove{};
         for (std::size_t i = 0; i < 3; ++i) {
@@ -5578,9 +5611,19 @@ void navMoverTraegt(const NavMoverPlan& mp, int entity, double vonMs, double bis
         const NavVec org2{org[0] * vorn[0] + org[1] * vorn[1] + org[2] * vorn[2],
                           -(org[0] * rechts[0] + org[1] * rechts[1] + org[2] * rechts[2]),
                           org[0] * oben[0] + org[1] * oben[1] + org[2] * oben[2]};
-        for (std::size_t i = 0; i < 3; ++i) { ort[i] = p[i] + (org2[i] - org[i]); }
+        NavVec neu{};
+        for (std::size_t i = 0; i < 3; ++i) { neu[i] = p[i] + (org2[i] - org[i]); }
+        // rc605 (Ende): G_TryPushingEntity (g_mover.cpp:217-262 MD) - G_TestEntityPosition
+        // am neuen Ort; sonst der alte ("only relevent for riding entities").
+        const int mi = entity >= 0 && static_cast<std::size_t>(entity) < mp.nachEntity.size() ? mp.nachEntity[static_cast<std::size_t>(entity)] : -1;
+        const bool blockierbar = mi < 0 || mp.mover[static_cast<std::size_t>(mi)].blockierbar;
+        if (frei != nullptr && blockierbar && !(*frei)(neu, k * raster)) {
+            return (*frei)(ort, k * raster) ? 1 : 2;
+        }
+        ort = neu;
         gier += amove[1];   // ps.delta_angles[YAW] += ANGLE2SHORT(amove[YAW])
     }
+    return 0;
 }
 
 NavVec ortBei(const LaufPlan& p, double t) {

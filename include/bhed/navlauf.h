@@ -334,6 +334,10 @@ struct NavMoverPlan {
         NavVec kastenMin{};
         NavVec kastenMax{};
         std::vector<Stand> takte;      // je 50 ms ab 0 ms; danach gilt der letzte
+        // rc605 (Ende): haelt ihn ein Mitfahrer auf, steht er (MoverSim::blockiert).
+        // Ein Brush, den ein Skript bewegt (move, ROFF - die Szene), nicht: dessen
+        // Blockade rechnet die Vorschau nicht, der Mitfahrer faehrt wie bisher mit.
+        bool blockierbar = true;
     };
     std::vector<Mover> mover;
     std::vector<int> nachEntity;       // Entity -> Index in mover, -1
@@ -807,8 +811,13 @@ struct LaufPlan {
 // eine Figur, die auf dem Mover `entity` steht (groundEntityNum == pusher): je
 // 50-ms-Takt des Mover-Plans zwischen vonMs und bisMs die Verschiebung move
 // und die Drehung amove um den neuen Ursprung, delta_angles[YAW] += amove[YAW].
-// Was sie dabei blockiert (G_TestEntityPosition), prueft das hier nicht.
-void navMoverTraegt(const NavMoverPlan& mp, int entity, double vonMs, double bisMs, NavVec& ort, float& gier);
+// rc605 (Ende): `frei(ort, ms)` = G_TestEntityPosition der Figur an ort im Bild ms
+// (der Mover schon am neuen Ort): ist der neue Ort nicht frei, bleibt sie, wenn
+// der alte frei ist ("ok to leave in the old position", groundEntityNum =
+// ENTITYNUM_NONE) - Rueckgabe 1; ist auch der nicht frei, haelt sie den Mover auf
+// (MoverSim::blockiert rechnet das; hier bleibt sie) - 2; sonst 0.
+int navMoverTraegt(const NavMoverPlan& mp, int entity, double vonMs, double bisMs, NavVec& ort, float& gier,
+                   const std::function<bool(const NavVec& ort, double ms)>* frei = nullptr);
 
 // --- rc601 (bewegung, Durchsicht 2): Befehle wirken im Denkbild ---------------
 // ICARUS laeuft am Ende von NPC_Think (NPC.cpp:2412-2415 MD), alle 50 ms. Ein

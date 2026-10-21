@@ -949,6 +949,9 @@ struct App {
     std::vector<FallenKnall> fallenKnalle;
     std::string fallenKnalleKarte;
     std::vector<FallenKnall> fallenKnalleNeu;
+    // rc605 (Ende): die Figuren, die MoverSim::blockiert meldet (Index ->
+    // Name), fuer MoverSim::quetschungen in hurtTodeBerechnen.
+    std::vector<std::string> quetschFiguren;
     std::size_t fallenKettenExplosionen = 0;   // rc605 (Ende): von anderen Fallen gesprengt
     // rc605 (Ende): die Tode durch trigger_hurt (hurtTodeBerechnen) zu Karte und
     // Skript hurtTodeSchluessel - der naechste Nachbau desselben Skripts toetet

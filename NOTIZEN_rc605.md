@@ -470,3 +470,45 @@ Changelog:
 - DE: Eine explodierende Laserfalle verletzt die Figuren in ihrer Nähe wie der Explosionsschaden des Spiels (mit dem Abstand weniger, nicht durch Wände); eine Figur, deren Lebenspunkte aufgebraucht sind, stirbt, und ihr deathscript läuft. Rüstung (SET_ARMOR, Attentäterdroiden, Droidekas) fängt jetzt ihren Teil des Schadens von Laserfallen und trigger_hurt ab, und ein Rancor nimmt je Treffer höchstens 10, wie im Spiel.
 - ZH: 爆炸的激光绊雷会像游戏的爆炸伤害一样伤害附近的角色(距离越远伤害越小,不会穿墙);生命值耗尽的角色会死亡并运行其 deathscript。护甲(SET_ARMOR、刺客机器人、毁灭者机器人)现在会吸收来自激光绊雷和 trigger_hurt 的一部分伤害,兰科尔兽每次最多受 10 点伤害,与游戏中一样。
 - JA: 爆発したレーザートラップは、ゲームの爆発ダメージと同じく近くのキャラクターを傷つけます(距離が離れるほど弱く、壁越しには届きません)。体力がなくなったキャラクターは死に、deathscript が実行されます。鎧(SET_ARMOR、アサシンドロイド、ドロイデカ)はレーザートラップと trigger_hurt のダメージの一部を受け止め、ランコアは 1 回に最大 10 しか受けません(ゲームと同じ)。
+
+## 16. Blockierte Mover und Mitfahrer (Punkt 3 der letzten Liste)
+
+Engine (g_mover.cpp MD): G_MoverTeam (508-570) - G_MoverPush (284-500) je Teil; ein Mitfahrer
+(groundEntityNum == pusher) oder einer, der im Brush an dessen neuem Ort steckt (G_TestEntityPosition(check) ==
+pusher), wird von G_TryPushingEntity (160-262) um move verschoben; ist der neue Ort nicht frei
+(G_TestEntityPosition), darf er am alten bleiben, wenn der frei ist ("only relevent for riding entities",
+groundEntityNum NONE), sonst ist der Mover blockiert: pusher->damage (MOD_CRUSH), alle Teile zurueck, trTime +=
+level.time - level.previousTime ("Push up time so it doesn't wiggle"), GEntity_BlockedFunc - Blocked_Door (func_door,
+func_plat; 1193-1239): nochmals damage, CRUSHER (4) bleibt, sonst Use_BinaryMover (umkehren); func_train hat keine
+Blocked-Funktion (steht nur; damage 2, TRAIN_BLOCK_STOPS 4: 0). dmg der Tuer: G_SpawnInt("dmg", "2"), negativ 0.
+- MoverSim (src/mover.cpp): MoverSim::blockiert (Rueckruf der Oberflaeche) je Bild fuer fahrende Tueren-Teams und
+  Zuege; blockiert -> Stueck::fortsetzung (ruhend zwischen den Bildern, dann dieselbe Bahn um ein Bild spaeter,
+  versatzMs), Team bahnAb / Zug trTime + 50, Quetschung (Schaden, umgekehrt), Tuer: tuerUse. Die Klaenge behandeln
+  eine Fortsetzung als dieselbe Fahrt.
+- Oberflaeche (app_view3d.cpp): die Figuren im letzten Bild (die Mover denken vor den NPCs), Mitfahrer per
+  PM_GroundTrace (0,25 hinab gegen den Brush, wo er stand), sonst G_TestEntityPosition gegen den Brush am neuen Ort;
+  frei = Welt und die anderen Brush-Entities zur Zeit (navWeltVorschau, ohne den schiebenden), der Brush an `nach`,
+  die anderen Koerper. Quetschungen gehen als G_Damage (MOD_CRUSH) in hurtTodeBerechnen (App::quetschFiguren).
+- Wegplan (navMoverTraegt): G_TestEntityPosition fuer den Mitfahrer je Takt (frei, mit Movern und Koerpern) -
+  der alte Ort frei: er bleibt, Boden fort (1); beide nicht: er bleibt, der Mover steht in MoverSim (2). Nur fuer
+  Mover der MoverSim (NavMoverPlan::Mover::blockierbar); ein Brush, den ein Skript bewegt (move/ROFF, Szene), wird
+  nicht blockiert (die Fahrt und das Warten des Skripts rechnet die Vorschau nicht) - der Mitfahrer faehrt dort
+  wie bisher mit (vjun3 elevator_up unveraendert).
+Nicht nachgebildet: Figuren, die ein Mover wegschiebt, ohne blockiert zu werden (G_TryPushingEntity gelingt - die
+Figur steht danach woanders; der Wegplan kennt nur Mitfahrer), Leichen (Blocked_Door entfernt sie, G_FreeEntity),
+der Spieler, func_rotating/func_bobbing/func_pendulum und Skript-Mover als Blockierte, die Reihenfolge mehrerer
+Figuren im selben Mover-Bild.
+
+| Test | Rot (vorher) | Grün (nachher) |
+|---|---|---|
+| mover_probe: Tuer angle -1 mit Figur darunter / CRUSHER / func_train | (alter MoverSim: keine Blockade, die Tuer faehrt bis z 0) | Schaden 2 + 2, kehrt um, nie unter 60; CRUSHER steht 3000-4000 ohne Umkehren; Zug steht 1000-2000 und faehrt 1 s spaeter weiter |
+| bewegungtest MF1-MF3 (Mitfahrer gegen eine Decke) | (alter navMoverTraegt: faehrt in die Decke, z 64) | frei 64; Decke, alter Ort frei: bleibt bei 54 (1); beide blockiert ab 150: bleibt bei 44 (2) |
+| Selbsttest laserfalle (mvb5): gonk_wander_1 in der sabre_door (t3_byss *32/*33), use bei 1000 | Tuer schliesst durch den Gonk | blockiert bei 1350, Schaden 2 + 2 (100 -> 96), kehrt um, bleibt offen; 7 OK |
+| tuerlauf vjun3 (mov1 / mvb3), md_ta_sith/md_am_sith/taspir2/md_acc_sith (mvb4) | – | Uebersicht vjun3 gleich; keine Blockade in den vier Missionen; 4 / 11 OK |
+| ctest | – | 67/67 |
+
+Changelog:
+- EN: Doors, lifts and trains stop when a figure is in their way, like the game: a door turns back (a crusher keeps pressing), a train waits, and the figure takes their damage; a figure riding a lift that would be pressed against something stays behind or holds the lift.
+- DE: Türen, Aufzüge und Züge halten an, wenn ihnen eine Figur im Weg ist, wie im Spiel: eine Tür kehrt um (ein Crusher drückt weiter), ein Zug wartet, und die Figur nimmt ihren Schaden; eine Figur auf einem Aufzug, die gegen etwas gedrückt würde, bleibt zurück oder hält den Aufzug auf.
+- ZH: 门、升降机和列车被角色挡住时会像游戏中一样停下:门会反向(碾压门会继续压),列车会等待,角色会受到它们的伤害;升降机上会被挤到什么东西上的角色会留在原地或挡住升降机。
+- JA: 扉、リフト、列車はキャラクターが邪魔になるとゲームと同じく止まります。扉は逆戻りし(クラッシャーは押し続けます)、列車は待ち、キャラクターはそのダメージを受けます。リフト上で何かに押し付けられそうなキャラクターはその場に残るか、リフトを止めます。

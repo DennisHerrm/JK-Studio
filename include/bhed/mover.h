@@ -398,6 +398,22 @@ public:
     // 1096-1101 OpenJK; :1260-1265 MD): fuer die Simulation gibt es sie dann
     // nicht. -1: nichts entfernen.
     int spielstufe = -1;
+    // rc605 (Ende): G_MoverPush - der Brush `modell` faehrt im Bild ms von `von`
+    // nach `nach`: haelt ihn eine Figur auf (ein Mitfahrer oder einer in seinem Weg,
+    // den G_TryPushingEntity nicht schieben kann - G_TestEntityPosition)? Die Nummer
+    // der Figur (die Oberflaeche zaehlt sie), sonst -1. Leer: nichts blockiert.
+    std::function<int(int modell, double ms, const float von[3], const float nach[3])> blockiert;
+    // rc605 (Ende): blockierte Fahrten - Schaden an der Figur (G_TryPushingEntity und
+    // Blocked_Door, MOD_CRUSH; schaden 0: TRAIN_BLOCK_STOPS / dmg < 0).
+    struct Quetschung {
+        double ms = 0.0;
+        int modell = 0;
+        std::size_t entity = 0;
+        int figur = -1;
+        int schaden = 0;
+        bool umgekehrt = false;   // Blocked_Door: Use_BinaryMover
+    };
+    [[nodiscard]] const std::vector<Quetschung>& quetschungen() const { return quetsch_; }
 
     [[nodiscard]] const std::vector<Bruch>& brueche() const { return bruch_; }
     [[nodiscard]] const std::vector<BruchEffekt>& bruchEffekte() const { return bruchFx_; }
@@ -439,6 +455,11 @@ public:
         float von[3]{};
         float nach[3]{};
         bool linear = false;      // TR_LINEAR_STOP statt TR_NONLINEAR_STOP
+        // rc605 (Ende): blockiert - G_MoverTeam schiebt trTime um ein Bild weiter
+        // ("Push up time so it doesn't wiggle when blocked"): dieselbe Fahrt, ab abMs
+        // um versatzMs spaeter auf der Bahn (fortsetzung: kein neuer Start).
+        double versatzMs = 0.0;
+        bool fortsetzung = false;
     };
     struct Mover {
         int modell = 0;
@@ -498,6 +519,7 @@ private:
     std::vector<KartenKlang> bruchKlang_;
     std::vector<KartenKlang> lautsprecher_;
     std::vector<Bildschirmtext> texte_;
+    std::vector<Quetschung> quetsch_;   // rc605 (Ende)
     std::vector<LichtSchaltung> licht_;
     // misc_model_breakable: Entity -> Anfangszustand und Wechsel (ms, Modell;
     // leer = unsichtbar). Das erste Element gilt ab -unendlich.
