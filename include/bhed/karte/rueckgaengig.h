@@ -31,6 +31,7 @@
 #define BHED_KARTE_RUECKGAENGIG_H
 
 #include <cstddef>
+#include <functional>
 #include <list>
 #include <map>
 #include <memory>
@@ -96,6 +97,16 @@ public:
     // Aenderungszaehler (NRC: MapFile::changed). Steigt bei jeder Sicherung.
     [[nodiscard]] std::size_t aenderungen() const { return m_aenderungen; }
 
+    // UndoFileChangeTracker (libs/maplib.h:55-116), der Tracker, den NRC an
+    // das Undo-System haengt (trackerAttach): zaehlt Befehle, Rueckgaengig und
+    // Wiederholen und weiss, ob die Karte dem gespeicherten Stand entspricht
+    // (Map_Modified). Stufe 1b.
+    [[nodiscard]] bool gespeichert() const { return m_gespeichertStand == m_stand; }   // saved
+    void alsGespeichertMarkieren() { m_gespeichertStand = m_stand; }                  // save
+    // globalOutputStream: "<befehl>" nach jedem Befehl, "Undo: ..." und
+    // "Redo: ..." (undo.cpp:292-333) - fuer die Konsole.
+    std::function<void(const std::string&)> ausgabe;
+
 private:
     friend class Rueckgaengigbar;
 
@@ -132,6 +143,14 @@ private:
     bool finishUndo(const std::string& befehl);
     void startRedo();
     bool finishRedo(const std::string& befehl);
+
+    // UndoFileChangeTracker: m_size, m_saved, m_pending (MAPFILE_MAX_CHANGES)
+    static constexpr std::size_t kMaxAenderungen = static_cast<std::size_t>(-1);
+    enum class Anstehend { Nichts, Befehl, Zurueck, Vor };   // pushOperation, pop, push
+    void verfolgerGeaendert();   // changed()
+    std::size_t m_stand = 0;
+    std::size_t m_gespeichertStand = kMaxAenderungen;
+    Anstehend m_anstehend = Anstehend::Nichts;
 
     Stapel m_undoStapel;
     Stapel m_redoStapel;

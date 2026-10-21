@@ -93,10 +93,21 @@ int main(int argc, char** argv) {
             namen.push_back("jk2/" + e.path().filename().string());
         }
     }
+    // Karten-Editor (Stufe 1b): data/karte/<spiel>/*.def als "karte/<spiel>/<name>".
+    for (const auto& spiel : fs::directory_iterator(quelle.parent_path() / "karte", ec)) {
+        if (!spiel.is_directory()) {
+            continue;
+        }
+        for (const auto& e : fs::directory_iterator(spiel.path(), ec)) {
+            if (e.is_regular_file()) {
+                namen.push_back("karte/" + spiel.path().filename().string() + "/" + e.path().filename().string());
+            }
+        }
+    }
     std::sort(namen.begin(), namen.end());
-    // Quelle bzw. ausgepackter Ort eines Namens.
+    // Quelle bzw. ausgepackter Ort eines Namens: mit Ordner relativ zu data/.
     const auto ort = [](const fs::path& basis, const std::string& n) {
-        return n.rfind("jk2/", 0) == 0 ? basis.parent_path() / "jk2" / n.substr(4) : basis / n;
+        return n.find('/') != std::string::npos ? basis.parent_path() / n : basis / n;
     };
 
     // --- Was im Programm steckt ------------------------------------------

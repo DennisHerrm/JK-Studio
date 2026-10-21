@@ -17,6 +17,10 @@ Aufruf:
   python tools/karte/nrc_inventar.py erzeugen <nrc-quelltext> tools/karte/nrc_inventar.md
   python tools/karte/nrc_inventar.py pruefen tools/karte/nrc_inventar.md
   python tools/karte/nrc_inventar.py befehle tools/karte/nrc_inventar.md   (Befehlsnamen, je Zeile einer)
+  python tools/karte/nrc_inventar.py setzen tools/karte/nrc_inventar.md <stand> <abschnitt> <muster> [notiz]
+      setzt den Stand ([x], [~] oder [ ]; Kurzform x, ~, -) aller Eintraege des
+      Abschnitts ("Menues", "Werkzeugleisten", "Registrierte Befehle", ...;
+      "*" = alle), deren Text auf den regulaeren Ausdruck <muster> passt.
 
 Gegenueber dem ersten Stand (Stufe 1a, Scratchpad) zaehlen auskommentierte
 Zeilen ("//"), Kommentarbloecke und "#if 0"-Bloecke nicht mehr mit (dort
@@ -332,6 +336,32 @@ def befehle(md):
     return 0
 
 
+def setzen(md, stand, abschnitt, muster, notiz):
+    stand = {'x': 'x', '~': '~', '-': ' ', ' ': ' '}[stand]
+    rx = re.compile(muster)
+    zeilen = open(md, encoding='utf-8').read().split('\n')
+    ab = ''
+    n = 0
+    for i, z in enumerate(zeilen):
+        if z.startswith('## '):
+            ab = z[3:].strip()
+            continue
+        m = KAESTCHEN.match(z)
+        if not m or (abschnitt != '*' and ab != abschnitt):
+            continue
+        text = m.group(3).split(' -- ')[0]
+        if not rx.search(text):
+            continue
+        neu = f'{m.group(1)}- [{stand}] {text}'
+        if notiz:
+            neu += f' -- {notiz}'
+        zeilen[i] = neu
+        n += 1
+    open(md, 'w', encoding='utf-8', newline='\n').write('\n'.join(zeilen))
+    print(f'{n} Eintraege gesetzt')
+    return 0 if n else 1
+
+
 if __name__ == '__main__':
     if len(sys.argv) == 4 and sys.argv[1] == 'erzeugen':
         erzeugen(sys.argv[2], sys.argv[3])
@@ -339,6 +369,8 @@ if __name__ == '__main__':
         sys.exit(pruefen(sys.argv[2]))
     elif len(sys.argv) == 3 and sys.argv[1] == 'befehle':
         sys.exit(befehle(sys.argv[2]))
+    elif len(sys.argv) in (6, 7) and sys.argv[1] == 'setzen':
+        sys.exit(setzen(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6] if len(sys.argv) == 7 else ''))
     else:
         print(__doc__)
         sys.exit(2)

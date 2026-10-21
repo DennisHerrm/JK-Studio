@@ -152,6 +152,18 @@ std::string writeSettings(const Settings& s) {
     for (const std::string& g : s.gamePathsJk2) {   // rc604
         put(o, "gamePathJk2", g);
     }
+    // Karten-Editor (Stufe 1b)
+    for (const std::string& k : s.karteZuletzt) {
+        put(o, "karteZuletzt", k);
+    }
+    for (const auto& [name, wert] : s.karte) {
+        if (name.empty() || name.find('=') != std::string::npos) { continue; }
+        put(o, "karte", name + "=" + wert);
+    }
+    for (const auto& [name, taste] : s.karteTasten) {
+        if (name.empty() || name.find('=') != std::string::npos) { continue; }
+        put(o, "karteTaste", name + "=" + taste);
+    }
     // "key=MoveUp 4194643" - Aktionsname und ImGuiKeyChord als Zahl.
     // Warum die Zahl und nicht der Name der Taste, steht bei
     // Settings::KeyBinding.
@@ -170,6 +182,9 @@ bool readSettings(const std::string& text, Settings& out) {
     out.gamePaths.clear();
     out.gamePathsJk2.clear();
     out.keyBindings.clear();
+    out.karteZuletzt.clear();
+    out.karte.clear();
+    out.karteTasten.clear();
     std::string line;
     std::istringstream in(text);
     while (std::getline(in, line)) {
@@ -397,6 +412,17 @@ bool readSettings(const std::string& text, Settings& out) {
         }
         else if (key == "recentMission") {
             if (out.recentMissions.size() < Settings::kMaxRecentMissions) { out.recentMissions.push_back(value); }
+        }
+        // Karten-Editor (Stufe 1b): zuletzt geoeffnete Karten (MRU_MAX 9),
+        // Einstellungen und Tastenbelegung als "<name>=<wert>".
+        else if (key == "karteZuletzt") {
+            if (out.karteZuletzt.size() < 9) { out.karteZuletzt.push_back(value); }
+        }
+        else if (key == "karte" || key == "karteTaste") {
+            const std::size_t gleich = value.find('=');
+            if (gleich != std::string::npos && gleich > 0) {
+                (key == "karte" ? out.karte : out.karteTasten)[value.substr(0, gleich)] = value.substr(gleich + 1);
+            }
         }
         // Unbekannte Schluessel bleiben unbeachtet.
     }

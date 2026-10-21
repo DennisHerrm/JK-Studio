@@ -240,6 +240,24 @@ struct Settings {
     float tonStimmen = 1.0F;
     float tonMusik = 0.25F;
 
+    // --- Karten-Editor (Stufe 1b) ------------------------------------------
+    //
+    // Zuletzt geoeffnete Karten wie NRC (radiant/mru.cpp: "Count", "File0" ..
+    // "File8"), neueste zuerst. Schluessel "karteZuletzt", je Zeile einer.
+    std::vector<std::string> karteZuletzt;
+    // Die Einstellungen des Karten-Editors (NRCs Preferences: Layout,
+    // Ansichtsschalter, Raster, Kamera ...) als Name -> Wert. Schluessel
+    // "karte" mit "<name>=<wert>" - so muss nicht jede der vielen NRC-
+    // Einstellungen ein eigenes Feld bekommen, und eine neue Fassung kann
+    // weitere ergaenzen, ohne dass aeltere die Datei abweisen.
+    std::map<std::string, std::string> karte;
+    // Eigene Tastenbelegung des Karten-Editors wie NRCs shortcuts.ini
+    // ("[Commands]" Name=Taste, commands.cpp SaveCommandMap): Schluessel
+    // "karteTaste" mit "<Befehl>=<Tastenfolge>" in Qt-Schreibweise
+    // ("Ctrl+Shift+P"); leer = ausdruecklich keine Taste. Fehlt ein Befehl,
+    // gilt NRCs Vorgabe.
+    std::map<std::string, std::string> karteTasten;
+
     // Wie das Original: MRU0 bis MRU19 in der Registry, also 20 Eintraege.
     static constexpr std::size_t kMaxRecent = 20;
 

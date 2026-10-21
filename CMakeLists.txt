@@ -212,6 +212,10 @@ file(GLOB BEHAVED_EINGEBAUT CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/data/
 # kommt mit - im Programm unter "jk2/<name>", ausgepackt neben data/base.
 file(GLOB BEHAVED_EINGEBAUT_JK2 CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/data/jk2/*")
 list(APPEND BEHAVED_EINGEBAUT ${BEHAVED_EINGEBAUT_JK2})
+# Karten-Editor (Stufe 1b): die Entitaetsklassen data/karte/<spiel>/*.def -
+# im Programm unter "karte/<spiel>/<name>", ausgepackt nach data/karte.
+file(GLOB BEHAVED_EINGEBAUT_KARTE CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/data/karte/*/*")
+list(APPEND BEHAVED_EINGEBAUT ${BEHAVED_EINGEBAUT_KARTE})
 behaved_eingebaute_daten(bhed_core ${CMAKE_BINARY_DIR}/eingebaut/eingebaute_daten.inc ${BEHAVED_EINGEBAUT})
 
 # Werkzeug
@@ -284,6 +288,8 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_bewegung.cpp
     # rc601 integ: der zentrale Schalter OpenJK / Movie Duels
     gui/app_regelwerk.cpp
+    # Stufe 1b: der Arbeitsbereich Karten-Editor (NetRadiant-Custom)
+    gui/app_karte.cpp
     gui/backend_win32.cpp
     gui/gpumap_win32.cpp
     gui/main_win32.cpp
@@ -359,7 +365,10 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
             $<TARGET_FILE_DIR:behaved>/data/base
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/data/jk2
-            $<TARGET_FILE_DIR:behaved>/data/jk2)
+            $<TARGET_FILE_DIR:behaved>/data/jk2
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/data/karte
+            $<TARGET_FILE_DIR:behaved>/data/karte)
 elseif(WIN32)
   message(STATUS "Oberflaeche wird nicht gebaut: -DIMGUI_DIR=<pfad> setzen")
 endif()
@@ -645,7 +654,9 @@ target_sources(bhed_core PRIVATE
   src/karte/eklasse_lesen.cpp
   src/karte/karte.cpp
   src/karte/kartenformat.cpp
-  src/karte/texturen.cpp)
+  src/karte/texturen.cpp
+  # Stufe 1b: Kernteile der Oberflaeche (zuletzt geoeffnete Karten, ...)
+  src/karte/zuletzt.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -709,6 +720,11 @@ if(BEHAVED_TESTS)
     target_link_libraries(kartemassenlast PRIVATE psapi)
   endif()
   add_test(NAME karte_massenlast COMMAND kartemassenlast "${BEHAVED_KARTE_DEKOMP}")
+  # Stufe 1b: was die Oberflaeche aus dem Kern braucht und ohne Fenster
+  # pruefbar ist (Punkt 2: zuletzt geoeffnete Karten, "Karte geaendert").
+  add_executable(karteeditor tests/karteeditor.cpp)
+  target_link_libraries(karteeditor PRIVATE bhed_core)
+  add_test(NAME karte_editor COMMAND karteeditor)
   # Stufe 1b, Punkt 1: die Checkliste aller NRC-Menues, Knoepfe, Befehle,
   # Dialoge, Einstellungen und Plugins (tools/karte/nrc_inventar.md) - jeder
   # Eintrag hat einen Stand, ausgegraute nennen ihre Stufe.

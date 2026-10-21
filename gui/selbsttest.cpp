@@ -45,6 +45,8 @@
 #include "bhed/saberkontakt.h"
 #include "bhed/roffanim.h"
 #include "bhed/kartenpruefung.h"   // rc602
+#include "karteneditor.h"           // Stufe 1b: der Karten-Editor
+#include "bhed/karte/kartenformat.h"
 
 #include <algorithm>
 #include <array>
@@ -24788,6 +24790,137 @@ std::vector<Schritt> lichtSchritte() {
     return s;
 }
 
+// --- Karten-Editor (Stufe 1b, BHED_EDITORTEST=karteneditor) ---------------------
+//
+// Der Arbeitsbereich nach NetRadiant-Custom mit echten Klicks: Modusleiste,
+// File-Menue (New Map, zuletzt geoeffnet), Rueckfrage bei geaenderter Karte
+// (ConfirmModified: Cancel, Discard), Oeffnen und Speichern unter mit
+// bytegleichem Ergebnis. Dateidialoge kommen im Test nicht vor: Oeffnen und
+// Speichern unter laufen ueber die Funktionen hinter dem Dialog.
+std::string karteTestPfad(const char* name) { return (std::filesystem::current_path() / name).string(); }
+
+std::string dateiInhalt(const std::string& pfad) {
+    std::ifstream f(std::filesystem::path(pfad), std::ios::binary);
+    std::ostringstream o;
+    o << f.rdbuf();
+    return o.str();
+}
+
+std::vector<Schritt> karteneditorSchritte() {
+    namespace ke = karteneditor;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("Karten-Editor: Spielordner, Modus Events", [] {
+        if (g_app->gamePaths.empty()) { rescanGamePaths(); }
+        g_app->leftMode = 0;
+    }));
+    add(pause(0.3));
+    add(klick(tr(Str::ViewMapEditor), "###main"));
+    add(pause(0.3));
+    add(pruefe("Modusleiste: Karten-Editor ist der Arbeitsbereich", [] { return g_app->leftMode == 3 && ke::aktiv(); }));
+    add(warteBis("Karten-Editor: Spieldaten geladen", [] {
+        ke::spielPruefen();
+        return ke::spielBereit();
+    }, 20000));
+    add(pruefe("Spiel: Entity-Klassen aus data/karte, worldspawn und info_player_start bekannt", [] {
+        const auto& sp = ke::editor().spiel;
+        if (!sp) { return false; }
+        diag::detail("Knopftest: Karten-Editor - " + sp->name + ", " + std::to_string(sp->klassen.anzahl()) +
+                     " Klassen, " + std::to_string(sp->inventar.shader().size()) + " Shader, " +
+                     std::to_string(sp->ordner.size()) + " Ordner");
+        return sp->klassen.anzahl() > 150 && sp->klassen.finden("worldspawn") != nullptr &&
+               sp->klassen.finden("info_player_start") != nullptr;
+    }));
+    add(pruefe("Standard-Texturskalierung 0.25 (default_scale aus ja.game/jk2.game)",
+               [] { return karte::standardTexturSkalierung() == 0.25F; }));
+    // Eine kleine Karte im NRC-Format: worldspawn mit einem Pinsel, ein Licht.
+    add(tu("Testkarte schreiben", [] {
+        karte::Karte k;
+        k.klassen = &ke::editor().spiel->klassen;
+        auto welt = k.weltHolenOderAnlegen();
+        welt->setzen("message", "karteneditor");
+        auto p = std::make_shared<karte::Pinsel>();
+        karte::TexturProjektion proj;
+        karte::texdefStandard(karte::TexdefArt::Quake, proj);
+        p->quaderBauen(karte::Kasten(karte::Vektor3f(0, 0, 32), karte::Vektor3f(64, 64, 32)), "textures/common/caulk", proj,
+                       k.kontext);
+        welt->kindEinfuegen(p);
+        auto licht = k.neueEntitaet("light", false);
+        licht->setzen("origin", "0 0 128");
+        licht->setzen("light", "300");
+        k.entitaetEinfuegen(licht);
+        (void)karte::karteSpeichern(karteTestPfad("karte_quelle.map"), k, false);
+    }));
+    add(tu("Karte oeffnen (wie nach dem Dateidialog)", [] { (void)ke::karteOeffnen(karteTestPfad("karte_quelle.map")); }));
+    add(pause(0.2));
+    add(pruefe("Geoeffnet: Name, 2 Entities, 1 Pinsel, nicht geaendert", [] {
+        const ke::Editor& e = ke::editor();
+        return e.name == karteTestPfad("karte_quelle.map") && e.karte.entitaeten().size() == 2 &&
+               e.karte.welt() != nullptr && e.karte.welt()->kinder().size() == 1 && !ke::geaendert();
+    }));
+    add(tu("Speichern unter (wie nach dem Dateidialog)", [] { (void)ke::karteSpeichernUnter(karteTestPfad("karte_kopie.map")); }));
+    add(pruefe("Gespeichert: Datei bytegleich zur Quelle (NRC-Format), oben in der zuletzt-Liste", [] {
+        const std::string a = dateiInhalt(karteTestPfad("karte_quelle.map"));
+        const std::string b = dateiInhalt(karteTestPfad("karte_kopie.map"));
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Karten-Editor - Quelle " + std::to_string(a.size()) + " Byte, Kopie " +
+                     std::to_string(b.size()) + " Byte");
+        return !a.empty() && a == b && e.zuletzt.anzahl() >= 1 && e.zuletzt.pfade()[0] == karteTestPfad("karte_kopie.map") &&
+               g_app->settings.karteZuletzt.front() == karteTestPfad("karte_kopie.map");
+    }));
+    // Aendern, dann New Map: die Rueckfrage kommt; Cancel laesst die Karte.
+    add(tu("Karte aendern (worldspawn message)", [] {
+        ke::Editor& e = ke::editor();
+        karte::Befehl b(e.karte.undo, "entitySetKeyValue -key \"message\" -value \"geaendert\"");
+        e.karte.welt()->setzen("message", "geaendert");
+    }));
+    add(pruefe("Geaendert (Map_Modified)", [] { return ke::geaendert(); }));
+    add(klick(ke::trK(Str::KeMenuFile), "##karteneditor"));
+    add(klick(ke::trK(Str::KeCmdNewMap)));
+    add(pause(0.3));
+    add(pruefe("New Map bei geaenderter Karte: Rueckfrage offen", [] { return ke::editor().frageOffen; }));
+    add(klick(tr(Str::KeCancel)));
+    add(pause(0.3));
+    add(pruefe("Cancel: Karte bleibt (Name, Aenderung)", [] {
+        const ke::Editor& e = ke::editor();
+        return !e.frageOffen && e.name == karteTestPfad("karte_kopie.map") && ke::geaendert() &&
+               e.karte.welt()->wert("message") == "geaendert";
+    }));
+    add(klick(ke::trK(Str::KeMenuFile), "##karteneditor"));
+    add(klick(ke::trK(Str::KeCmdNewMap)));
+    add(pause(0.3));
+    add(klick(tr(Str::KeDiscard)));
+    add(pause(0.3));
+    add(pruefe("Discard: neue, leere Karte \"unnamed.map\"", [] {
+        const ke::Editor& e = ke::editor();
+        return !e.frageOffen && e.name == "unnamed.map" && e.karte.entitaeten().empty() && !ke::geaendert();
+    }));
+    // Zuletzt geoeffnet: der erste Eintrag oeffnet die gespeicherte Kopie.
+    add(klick(ke::trK(Str::KeMenuFile), "##karteneditor"));
+    add({"Zuletzt geoeffnet: Eintrag 1 anklicken", [](int b) {
+             static Schritt k;
+             if (b == 0) { k = klick("1- " + karteTestPfad("karte_kopie.map")); }
+             return k.tun(b);
+         }});
+    add(pause(0.3));
+    add(pruefe("Zuletzt geoeffnet: die Kopie ist offen", [] {
+        const ke::Editor& e = ke::editor();
+        return e.name == karteTestPfad("karte_kopie.map") && e.karte.entitaeten().size() == 2 && !ke::geaendert();
+    }));
+    add(pruefe("Konsole: Ladezeilen wie NRC (Loading map from, primitives, entities)", [] {
+        bool laden = false;
+        bool prim = false;
+        for (const ke::KonsolenZeile& z : ke::editor().konsole) {
+            laden = laden || z.text.rfind("Loading map from ", 0) == 0;
+            prim = prim || z.text == "1 primitives";
+        }
+        return laden && prim;
+    }));
+    add(foto("karteneditor_start"));
+    add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+    return s;
+}
+
 // --- Bilder fuer das Handbuch (rc599, BHED_EDITORTEST=handbuch) ----------------
 //
 // shank: "Dokumentation mit Bildern und Tutorials ... fuer alle Sprachen".
@@ -29306,6 +29439,8 @@ void selbsttest() {
     static const bool nurUmriss = std::strcmp(modus, "umriss") == 0;
     static const bool nurWeg = std::strcmp(modus, "wegpunkte") == 0;
     static const bool nurModell = std::strcmp(modus, "modell") == 0;
+    // Stufe 1b: der Karten-Editor (NetRadiant-Custom).
+    static const bool nurKarteneditor = std::strcmp(modus, "karteneditor") == 0;
     static const bool nurAlleKarten = std::strcmp(modus, "allekarten") == 0;
     static const bool nurKartenpruefung = std::strcmp(modus, "kartenpruefung") == 0;   // rc602
     // rc602: die Funde der Kartenpruefung (Gegenstaende, Effektgluehen) - "kartenfunde".
@@ -29710,6 +29845,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurModell) {
                 a.schritte = modellSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurKarteneditor) {
+                a.schritte = karteneditorSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurAblage) {

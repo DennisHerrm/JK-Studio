@@ -2160,6 +2160,16 @@ S = [
 
 ]
 
+# --- Karten-Editor (Stufe 1b) ---------------------------------------------
+#
+# Eigene Datei: es sind Hunderte Beschriftungen aus NetRadiant-Custom, deren
+# englische Spalte wortgleich NRC ist ("Begriffe wie NetRadiant").
+import os as _os
+import sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from i18n_karte import KARTE  # noqa: E402
+S += KARTE
+
 # --- Formatplatzhalter pruefen -------------------------------------------
 #
 # Die Meldungen werden mit snprintf zusammengesetzt, und die Formatzeichen-

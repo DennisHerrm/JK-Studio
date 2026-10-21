@@ -1,6 +1,7 @@
 // rueckgaengig.cpp - Karten-Editor: Rueckgaengig/Wiederholen.
 //
-// Portiert aus NetRadiant-Custom (Stand master, 2026): radiant/undo.cpp.
+// Portiert aus NetRadiant-Custom (Stand master, 2026): radiant/undo.cpp,
+// libs/maplib.h (UndoFileChangeTracker), libs/undolib.h (save -> changed).
 //
 //   Copyright (C) 1999-2006 Id Software, Inc. and contributors.
 //   For a list of contributors, see the accompanying CONTRIBUTORS file.
@@ -78,11 +79,34 @@ Rueckgaengig::~Rueckgaengig() {
     m_objekte.clear();
 }
 
+// UndoFileChangeTracker::changed (maplib.h:102-107): die anstehende
+// Zaehlung genau einmal ausfuehren.
+void Rueckgaengig::verfolgerGeaendert() {
+    switch (m_anstehend) {
+    case Anstehend::Befehl:   // pushOperation (maplib.h:80-86)
+        if (m_stand < m_gespeichertStand) {
+            // redo queue has been flushed.. it is now impossible to get back
+            // to the saved state via undo/redo
+            m_gespeichertStand = kMaxAenderungen;
+        }
+        ++m_stand;
+        break;
+    case Anstehend::Zurueck: --m_stand; break;   // pop
+    case Anstehend::Vor: ++m_stand; break;       // push
+    case Anstehend::Nichts: return;
+    }
+    m_anstehend = Anstehend::Nichts;
+}
+
 // UndoStackFiller::save (undo.cpp:197-204): einmal je Befehl.
+// ObservedUndoableObject::save (undolib.h:77-84): erst m_map->changed() fuer
+// angemeldete Objekte, dann der Stapel.
 void Rueckgaengig::sichernVon(Rueckgaengigbar* o) {
     ++m_aenderungen;
     auto it = m_objekte.find(o);
-    if (it == m_objekte.end() || it->second == nullptr) { return; }
+    if (it == m_objekte.end()) { return; }
+    verfolgerGeaendert();
+    if (it->second == nullptr) { return; }
     Stapel* s = it->second;
     it->second = nullptr;
     s->sichern(o);
@@ -128,17 +152,25 @@ void Rueckgaengig::start() {
         m_undoStapel.vorneEntfernen();
     }
     startUndo();
+    m_anstehend = Anstehend::Befehl;   // trackersBegin
 }
 
 // finish (undo.cpp:292-301)
-void Rueckgaengig::finish(const std::string& name) { (void)finishUndo(name); }
+void Rueckgaengig::finish(const std::string& name) {
+    if (finishUndo(name) && ausgabe) { ausgabe(name); }
+}
 
 // undo (undo.cpp:302-317)
 bool Rueckgaengig::undo() {
-    if (m_undoStapel.leer()) { return false; }
+    if (m_undoStapel.leer()) {
+        if (ausgabe) { ausgabe("Undo: no undo available"); }
+        return false;
+    }
     Vorgang& v = m_undoStapel.hinten();
     const std::string befehl = v.befehl;
+    if (ausgabe) { ausgabe("Undo: " + befehl); }
     startRedo();
+    m_anstehend = Anstehend::Zurueck;   // trackersUndo
     for (auto& z : v.zustaende) {   // Snapshot::restore
         z.objekt->zustandLaden(*z.daten);
     }
@@ -149,10 +181,15 @@ bool Rueckgaengig::undo() {
 
 // redo (undo.cpp:318-333)
 bool Rueckgaengig::redo() {
-    if (m_redoStapel.leer()) { return false; }
+    if (m_redoStapel.leer()) {
+        if (ausgabe) { ausgabe("Redo: no redo available"); }
+        return false;
+    }
     Vorgang& v = m_redoStapel.hinten();
     const std::string befehl = v.befehl;
+    if (ausgabe) { ausgabe("Redo: " + befehl); }
     startUndo();
+    m_anstehend = Anstehend::Vor;   // trackersRedo
     for (auto& z : v.zustaende) {
         z.objekt->zustandLaden(*z.daten);
     }
@@ -166,6 +203,7 @@ void Rueckgaengig::clear() {
     markieren(nullptr);
     m_undoStapel.leeren();
     m_redoStapel.leeren();
+    m_stand = 0;   // trackersClear -> UndoFileChangeTracker::clear
 }
 
 std::string Rueckgaengig::undoName() const { return m_undoStapel.leer() ? std::string() : m_undoStapel.hinten().befehl; }

@@ -185,6 +185,12 @@ int main(int argc, char** argv) {
         std::printf("JK2 SP: %zu Klassen\n", jk2.anzahl());
         pruefe(jk2.anzahl() > 150 && jk2.finden("NPC_Kyle") != nullptr && jk2.finden("NPC_Tavion") != nullptr,
                "JK2 SP: ueber 150 Klassen, NPC_Kyle und NPC_Tavion da");
+        // Stufe 1b: NPC_spawner aus Ravens abgeschaltetem Block (codeJK2
+        // NPC_spawn.cpp:1500 "/*QUAK-ED", tools/gen_karten_def.py).
+        const EntitaetsKlasse* jnpc = jk2.finden("NPC_spawner");
+        pruefe(jnpc && jnpc->fixedsize && jnpc->mins == Vektor3f(-16, -16, -24) && jnpc->maxs == Vektor3f(16, 16, 32)
+                   && jnpc->flagnamen[4] == "DROPTOFLOOR" && jnpc->flagnamen[8] == "SHY",
+               "JK2 SP: NPC_spawner (-16 -16 -24)-(16 16 32), Spawnflags 16 DROPTOFLOOR, 256 SHY");
         // Movie Duels: JA + entdefs.h
         EntitaetsKlassen md;
         (void)md.ordnerLaden((daten / "ja").string(), "sp");

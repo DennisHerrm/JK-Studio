@@ -32,6 +32,18 @@ ZIELE = [
     ("codeJK2/game", "data/karte/jk2/sp_entities.def", "Jedi Outcast, Einzelspieler"),
 ]
 
+# Stufe 1b: Bloecke, die Raven fuer Radiant mit "/*QUAK-ED" abgeschaltet hat,
+# obwohl der Spielcode die Klasse kennt. In codeJK2 gilt das fuer NPC_spawner:
+# SP_NPC_spawner steht in g_spawn.cpp:620 ({"NPC_spawner", SP_NPC_spawner}),
+# sein Block in NPC_spawn.cpp:1500 beginnt aber mit "/*QUAK-ED", und der
+# einzige echte NPC-Block heisst "NPC_*****" (NPC_spawn.cpp:1644). Ohne den
+# Spawner koennte man in JK2-Karten keinen NPC_spawner anlegen - Ravens
+# eigene Karten benutzen ihn ueberall. Der Block wird unveraendert
+# uebernommen, nur das Schluesselwort heisst wieder QUAKED.
+ABGESCHALTET = {
+    "codeJK2/game": ("NPC_spawner",),
+}
+
 
 def bloecke(text):
     """Alle /*QUAKED ... */ wie der Zustandsautomat in Eclass_ScanFile."""
@@ -64,6 +76,8 @@ def main():
         anzahl = 0
         for d in dateien:
             text = open(d, "rb").read().decode("latin-1").replace("\r\n", "\n")
+            for name in ABGESCHALTET.get(ordner, ()):
+                text = text.replace("/*QUAK-ED " + name + " ", "/*QUAKED " + name + " ")
             gefunden = bloecke(text)
             if not gefunden:
                 continue

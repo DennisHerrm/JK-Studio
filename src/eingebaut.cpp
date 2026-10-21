@@ -147,13 +147,16 @@ bool auspacken(const std::filesystem::path& ziel, std::string_view fassung, std:
         // Umwandlung in einen Pfad ist dafuer sicher. rc604: "jk2/<name>"
         // (der Befehlssatz fuer Jedi Outcast, data/jk2) gehoert NEBEN
         // data/base, also nach <ziel>/../jk2 - wie im ausgepackten Zip.
+        // Karten-Editor (Stufe 1b): "karte/<spiel>/<name>" (die .def aus
+        // data/karte) ebenso nach <ziel>/../karte/<spiel>. Allgemein: ein
+        // Name mit Ordner liegt relativ zu data/, einer ohne in data/base.
         const std::string_view name = d.name;
-        const bool jk2 = name.rfind("jk2/", 0) == 0;
-        const fs::path p = jk2 ? ziel.parent_path() / "jk2" / std::string(name.substr(4)) : ziel / d.name;
+        const bool unterordner = name.find('/') != std::string_view::npos;
+        const fs::path p = unterordner ? ziel.parent_path() / std::string(name) : ziel / d.name;
         if (gleicherInhalt(p, d.daten, d.groesse)) {
             continue;
         }
-        if (jk2) {
+        if (unterordner) {
             std::error_code ecJk2;
             fs::create_directories(p.parent_path(), ecJk2);
         }

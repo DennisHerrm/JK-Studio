@@ -124,11 +124,24 @@ def _zeitstempel():
     return max(time.gmtime(int(wert))[:6], (1980, 1, 1, 0, 0, 0))
 
 
+def daten_ordner(wurzel):
+    """Die Datenordner unter data/, die ins Zip gehoeren: base, jk2 (rc604) und
+    je Spiel data/karte/<spiel> (Karten-Editor, Stufe 1b: die .def)."""
+    ordner = ["base", "jk2"]
+    karte = os.path.join(wurzel, "data", "karte")
+    if os.path.isdir(karte):
+        for s in sorted(os.listdir(karte)):
+            if os.path.isdir(os.path.join(karte, s)):
+                ordner.append("karte/" + s)
+    return ordner
+
+
 def zip_bauen(exe, ziel, wurzel, handbuch=None):
     eintraege = [(OBER + "/behaved.exe", exe)]
-    # rc604: data/jk2 (Befehlssatz fuer Jedi Outcast) neben data/base.
-    for ordner in ("base", "jk2"):
-        daten = os.path.join(wurzel, "data", ordner)
+    # rc604: data/jk2 (Befehlssatz fuer Jedi Outcast) neben data/base;
+    # Stufe 1b: data/karte/<spiel> (Entitaetsklassen des Karten-Editors).
+    for ordner in daten_ordner(wurzel):
+        daten = os.path.join(wurzel, "data", *ordner.split("/"))
         if not os.path.isdir(daten):
             continue
         for n in sorted(os.listdir(daten)):
@@ -293,13 +306,16 @@ def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print):
                   "schon die neue Fassung, und der Rest bleibt halb alt (zip_bauen legt sie zuletzt)")
         else:
             gut("behaved.exe ist der letzte Eintrag (ein abgebrochenes Update laesst die alte Fassung)")
-        for ordner in ("base", "jk2"):   # rc604: auch data/jk2 (Jedi Outcast)
-            daten_ordner = os.path.join(wurzel, "data", ordner)
-            if ordner != "base" and not os.path.isdir(daten_ordner):
+        # Alle Datenordner fuer die Pruefung, dass ihre Bytes in der .exe
+        # stecken (vorher nur die des letzten Ordners der Schleife).
+        alle_daten = []
+        for ordner in daten_ordner(wurzel):   # rc604: data/jk2, Stufe 1b: data/karte/<spiel>
+            pfad_ordner = os.path.join(wurzel, "data", *ordner.split("/"))
+            if ordner != "base" and not os.path.isdir(pfad_ordner):
                 continue
             daten = []
-            for n in sorted(os.listdir(daten_ordner)):
-                p = os.path.join(daten_ordner, n)
+            for n in sorted(os.listdir(pfad_ordner)):
+                p = os.path.join(pfad_ordner, n)
                 if not os.path.isfile(p):
                     continue
                 with open(p, "rb") as f:
@@ -315,6 +331,7 @@ def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print):
                 melde("data/%s weicht vom Repo ab: %s" % (ordner, ", ".join(abweichend)))
             elif daten and all(nach_name.get(OBER + "/data/%s/%s" % (ordner, n)) for n, _ in daten):
                 gut("data/%s: %d Dateien, Byte fuer Byte wie im Repo" % (ordner, len(daten)))
+            alle_daten += daten
         seiten = ["handbuch/index.html"] + ["handbuch/%s/index.html" % s for s in SPRACHEN]
         fehlen = [s for s in seiten if OBER + "/" + s not in nach_name]
         if fehlen:
@@ -322,7 +339,7 @@ def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print):
         else:
             gut("Handbuch: Startseite und alle vier Sprachen")
         if exe is not None:
-            m = _pe_maengel(exe, daten, _importpruefung())
+            m = _pe_maengel(exe, alle_daten, _importpruefung())
             for t in m:
                 melde(t)
             if not m:

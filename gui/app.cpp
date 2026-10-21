@@ -26,6 +26,7 @@
 #include "gpumap.h"
 #include "elemente.h"   // rc601 tour: das Element-Register (auch ohne Selbsttest)
 #include "tour.h"       // rc601 tour: Tutorials im Programm
+#include "karteneditor.h"   // Stufe 1b: der Arbeitsbereich Karten-Editor
 
 #include <atomic>
 #include <algorithm>
@@ -2356,6 +2357,10 @@ void zeigeAbweisung() {
 }
 
 void handleTreeKeys() {
+    // Stufe 1b: im Karten-Editor gelten NRCs Tasten, nicht die des Baums.
+    if (karteneditor::aktiv()) {
+        return;
+    }
     // Nur wenn kein Dialog offen ist und nichts getippt wird - sonst
     // wandert die Auswahl, waehrend man einen Wert eingibt.
     //
@@ -2716,6 +2721,12 @@ void klappeTeilbaum(const Path& weg, bool auf) {
 }
 
 void handleShortcuts() {
+    // Stufe 1b: im Karten-Editor gelten NRCs Tastenkuerzel (Befehlstabelle des
+    // Arbeitsbereichs) und nicht die von BehavEd - "Kuerzel gelten nur,
+    // solange der Karten-Tab den Fokus hat", und umgekehrt.
+    if (karteneditor::aktiv()) {
+        return;
+    }
     // Zwei Dinge auf einmal:
     //
     // 1. dialogAtFrameStart - ein Dialog, der GERADE mit Eingabe geschlossen
@@ -6734,6 +6745,8 @@ float drawModeBar(float height, float headerH) {
         {0, Str::ViewEvents, Str::ModeEventsHint},
         {1, Str::ViewMap, Str::ModeMapHint},
         {2, Str::ViewModel, Str::ModeModelHint},
+        // Stufe 1b: der Karten-Editor nach NetRadiant-Custom.
+        {3, Str::ViewMapEditor, Str::ModeMapEditorHint},
     };
 
     float textW = 0.0F;
@@ -6784,6 +6797,33 @@ float drawModeBar(float height, float headerH) {
     ImGui::EndChild();
     ImGui::EndGroup();
     return barW;
+}
+
+// --- Stufe 1b: der Arbeitsbereich Karten-Editor ---------------------------
+//
+// Zwei Spalten wie die anderen Modi (eigene Tabellen-ID, rc495): die
+// Modusleiste, so breit wie ihre Beschriftungen, und daneben der ganze
+// Editor - Menueleiste, Werkzeugleisten und Ansichten wie NetRadiant-Custom
+// (gui/app_karte.cpp). Keine Ereignisliste, kein Script Flow, keine
+// Actions: die gehoeren zum Skript.
+void drawKartenEditorBereich(const Layout& l) {
+    if (!ImGui::BeginTable("##spaltenKarteneditor", 2,
+                           ImGuiTableFlags_NoSavedSettings | ImGuiTableFlags_NoPadOuterX,
+                           ImVec2{0.0F, 0.0F})) {
+        return;
+    }
+    ImGui::TableSetupColumn("mode", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize,
+                            std::max(g_app->modeBarW, ImGui::GetFontSize() * 4.0F));
+    ImGui::TableSetupColumn("editor", ImGuiTableColumnFlags_WidthStretch, 1.0F);
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    g_app->modeBarW = drawModeBar(l.frameH, l.headerH);
+    ImGui::TableNextColumn();
+    // Oben buendig mit dem Rahmen der Modusleiste (die eine Kopfzeile Platz
+    // laesst, siehe drawModeBar).
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + l.headerH);
+    karteneditor::zeichne(l.frameH);
+    ImGui::EndTable();
 }
 
 // --- Die LINKE Spalte, je nach Modus --------------------------------
@@ -15158,7 +15198,12 @@ void draw() {
     //
     // Bei der KARTE hat die Knopfspalte nichts zu suchen: sie gehoert zum
     // Skript. Dann sind es zwei Spalten statt drei.
-    {
+    //
+    // Stufe 1b: der Karten-Editor ist eine eigene Oberflaeche - Modusleiste
+    // links, rechts daneben das ganze NRC-Fenster (drawKartenEditorBereich).
+    if (g_app->leftMode == 3) {
+        drawKartenEditorBereich(l);
+    } else {
         const bool mitKnoepfen = (g_app->leftMode != 1);
         const int spalten = mitKnoepfen ? 3 : 2;
         // --- KEINE gespeicherten Spaltenbreiten -------------------------
@@ -15817,7 +15862,7 @@ void draw() {
     }
 
     // Die Bedienleiste UNTER allen drei Spalten, ueber die volle Breite.
-    if (l.toolH > 0.0F) {
+    if (l.toolH > 0.0F && g_app->leftMode != 3) {
         // OHNE eigenen Hintergrund: ein Kasten mit eigener Farbe sieht wie
         // ein zusaetzlicher dunkler Balken aus. Die Bedienung soll auf der
         // Flaeche stehen, die ohnehin da ist.

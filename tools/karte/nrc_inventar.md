@@ -113,13 +113,13 @@ Menuepunkte: 239, Werkzeugknoepfe: 54, registrierte Befehle: 288, Dialoge: 24, E
 ### create_file_menu (radiant/mainframe.cpp)
 
   * SUB &File  (radiant/mainframe.cpp:870)
-    - [ ] ITEM &New Map -> `NewMap`  (radiant/mainframe.cpp:874)
+    - [x] ITEM &New Map -> `NewMap`  (radiant/mainframe.cpp:874)
     * ---
-    - [ ] ITEM &Open... -> `OpenMap`  (radiant/mainframe.cpp:877)
+    - [x] ITEM &Open... -> `OpenMap`  (radiant/mainframe.cpp:877)
     - [ ] ITEM &Import... -> `ImportMap`  (radiant/mainframe.cpp:878)
     * ---
-    - [ ] ITEM &Save -> `SaveMap`  (radiant/mainframe.cpp:880)
-    - [ ] ITEM Save &as... -> `SaveMapAs`  (radiant/mainframe.cpp:881)
+    - [x] ITEM &Save -> `SaveMap`  (radiant/mainframe.cpp:880)
+    - [x] ITEM Save &as... -> `SaveMapAs`  (radiant/mainframe.cpp:881)
     - [ ] ITEM Save s&elected... -> `SaveSelected`  (radiant/mainframe.cpp:882)
     - [ ] ITEM Save re&gion... -> `SaveRegion`  (radiant/mainframe.cpp:883)
     * ---

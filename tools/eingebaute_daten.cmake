@@ -29,9 +29,16 @@ function(behaved_eingebaute_daten ziel ausgabe)
     get_filename_component(_name "${_datei}" NAME)
     # rc604: Dateien aus data/jk2 heissen im Programm "jk2/<name>"
     # (eingebaut::auspacken legt sie neben data/base).
-    get_filename_component(_ordner "${_datei}" DIRECTORY)
-    get_filename_component(_ordner "${_ordner}" NAME)
-    if(_ordner STREQUAL "jk2")
+    get_filename_component(_verz "${_datei}" DIRECTORY)
+    get_filename_component(_ordner "${_verz}" NAME)
+    get_filename_component(_oben "${_verz}" DIRECTORY)
+    get_filename_component(_oben "${_oben}" NAME)
+    # Karten-Editor (Stufe 1b): data/karte/<spiel>/<datei> heisst
+    # "karte/<spiel>/<datei>" (eingebaut::auspacken legt es nach data/karte).
+    # ZUERST pruefen: data/karte/jk2 heisst sonst wie data/jk2.
+    if(_oben STREQUAL "karte")
+      set(_name "karte/${_ordner}/${_name}")
+    elseif(_ordner STREQUAL "jk2")
       set(_name "jk2/${_name}")
     endif()
     if(_name MATCHES "[^A-Za-z0-9_./-]" OR _name MATCHES "[.][.]")
