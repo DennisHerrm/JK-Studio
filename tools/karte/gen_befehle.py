@@ -49,6 +49,11 @@ CameraForward CameraBack CameraLeft CameraRight CameraStrafeRight CameraStrafeLe
 CameraAngleUp CameraAngleDown CameraFreeMoveForward CameraFreeMoveBack CameraFreeMoveLeft CameraFreeMoveRight
 CameraFreeMoveForward2 CameraFreeMoveBack2 CameraFreeMoveLeft2 CameraFreeMoveRight2 CameraFreeMoveUp
 CameraFreeMoveDown CameraFreeFocus
+Undo Redo Redo2 Copy Paste PasteToCamera MoveToCamera CloneSelection CloneSelectionAndMakeUnique
+DeleteSelection DeleteSelection2 DeleteSelection3 UnSelectSelection UnSelectSelection2 InvertSelection
+SelectAllOfType HideSelected ShowHidden SnapToGrid SelectNudgeLeft SelectNudgeRight SelectNudgeUp SelectNudgeDown
+MoveSelectionUP MoveSelectionDOWN MouseDrag MouseTranslate MouseRotate MouseScale MouseTransform
+MouseDragOrTransform MouseRotateOrScale
 '''.split())
 
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem

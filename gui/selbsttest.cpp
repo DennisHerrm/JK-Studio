@@ -25841,8 +25841,9 @@ std::vector<Schritt> karteneditorKameraSchritte() {
         return w[0] == 0 && w[1] == 90;
     }));
     // Fokus auf die Auswahl
-    add(tu("Wuerfel auswaehlen, Blick +x von weit weg", [] {
+    add(tu("Wuerfel auswaehlen, Blick +x von weit weg (Werkzeug Resize: kein Manipulator ueber der Mitte)", [] {
         ke::Editor& e = ke::editor();
+        if (e.bearbeitung.modus() != karte::ManipModus::Ziehen) { (void)ke::ausfuehren("MouseDrag"); }
         e.karte.auswahl.leeren();
         const auto w = e.karte.welt();
         if (w && !w->kinder().empty()) { e.karte.auswahl.waehlen(w, w->kinder().front()); }
@@ -26179,6 +26180,503 @@ std::vector<Schritt> karteneditorKameraSchritte() {
     return s;
 }
 
+// Punkt 7: Auswaehlen und Bearbeiten wie NRC - Klick (Tunnel), Ziehen,
+// Groesse aendern, die Werkzeuge W / R / Q, Klonen, Loeschen, Rechteck,
+// Verstecken, Schubsen, Raster, Kopieren/Einfuegen, Rueckgaengig mit Namen,
+// neuer Pinsel in 3D.
+std::vector<Schritt> karteneditorAuswahlSchritte() {
+    namespace ke = karteneditor;
+    namespace kb = karte::befehle;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    // Weltpunkt (x, y) der XY-Ansicht als Bildschirmpunkt
+    auto welt = [](float x, float y) {
+        const ke::XyFenster& f = ke::editor().xy[0];
+        const auto b = f.ansicht.zuBild(karte::Vektor3f(x, y, 0));
+        return ImVec2{f.bildX + b[0], f.bildY + b[1]};
+    };
+    // Maus ziehen in der XY-Ansicht: Zusatztasten, Druck, zehn Schritte, Loslassen.
+    auto ziehen = [welt](const std::string& was, int taste, ImGuiKeyChord mods, ImVec2 von, ImVec2 nach) {
+        return Schritt{was, [=](int b) {
+                           ImGuiIO& io = ImGui::GetIO();
+                           const ImVec2 a = welt(von.x, von.y);
+                           const ImVec2 z = welt(nach.x, nach.y);
+                           if (b == 0) {
+                               setzeMaus(a);
+                               if ((mods & ImGuiMod_Ctrl) != 0) { io.AddKeyEvent(ImGuiMod_Ctrl, true); }
+                               if ((mods & ImGuiMod_Shift) != 0) { io.AddKeyEvent(ImGuiMod_Shift, true); }
+                               if ((mods & ImGuiMod_Alt) != 0) { io.AddKeyEvent(ImGuiMod_Alt, true); }
+                               return false;
+                           }
+                           if (b == 1) {
+                               io.AddMouseButtonEvent(taste, true);
+                               return false;
+                           }
+                           if (b >= 2 && b <= 11) {
+                               const float t = static_cast<float>(b - 1) / 10.0F;
+                               setzeMaus(ImVec2{a.x + (z.x - a.x) * t, a.y + (z.y - a.y) * t});
+                               return false;
+                           }
+                           if (b == 12) {
+                               io.AddMouseButtonEvent(taste, false);
+                               return false;
+                           }
+                           if (b == 13) {
+                               if ((mods & ImGuiMod_Ctrl) != 0) { io.AddKeyEvent(ImGuiMod_Ctrl, false); }
+                               if ((mods & ImGuiMod_Shift) != 0) { io.AddKeyEvent(ImGuiMod_Shift, false); }
+                               if ((mods & ImGuiMod_Alt) != 0) { io.AddKeyEvent(ImGuiMod_Alt, false); }
+                           }
+                           return b >= 15;
+                       }};
+    };
+    // Klick ohne Bewegung (Tunnel-Auswahl)
+    auto klickWelt = [welt](const std::string& was, int taste, ImGuiKeyChord mods, ImVec2 an) {
+        return Schritt{was, [=](int b) {
+                           ImGuiIO& io = ImGui::GetIO();
+                           if (b == 0) {
+                               setzeMaus(welt(an.x, an.y));
+                               if ((mods & ImGuiMod_Shift) != 0) { io.AddKeyEvent(ImGuiMod_Shift, true); }
+                               return false;
+                           }
+                           if (b == 2) {
+                               io.AddMouseButtonEvent(taste, true);
+                               return false;
+                           }
+                           if (b == 3) {
+                               io.AddMouseButtonEvent(taste, false);
+                               return false;
+                           }
+                           if (b == 4 && (mods & ImGuiMod_Shift) != 0) { io.AddKeyEvent(ImGuiMod_Shift, false); }
+                           return b >= 6;
+                       }};
+    };
+    auto pinsel = [] {
+        const auto w = ke::editor().karte.welt();
+        return (w && !w->kinder().empty()) ? std::dynamic_pointer_cast<karte::Pinsel>(w->kinder().front()) : nullptr;
+    };
+    auto grenzen = [pinsel] {
+        const auto p = pinsel();
+        return p ? p->grenzen(ke::editor().karte.kontext) : karte::Kasten();
+    };
+    auto nah = [](float a, float b) { return std::fabs(a - b) < 0.01F; };
+    auto rueckgaengig = [](const std::string& name) {
+        return pruefe("Rueckgaengig-Name: " + name, [name] {
+            diag::detail("Knopftest: Karten-Editor Auswahl - Rueckgaengig \"" + ke::editor().karte.undo.undoName() + "\"");
+            return ke::editor().karte.undo.undoName().rfind(name, 0) == 0;
+        });
+    };
+    add(tu("Auswahl: Regular, Testkarte, XY Massstab 1 um (0 0 0), Raster 8, Werkzeug Resize", [] {
+        ke::Editor& e = ke::editor();
+        e.anordnung = kb::Anordnung::Regular;
+        e.teilerFuer = -1;
+        e.anzeige = ke::Anzeige{};
+        (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map"));
+        e.karte.auswahl.leeren();
+        e.aktivXy = 0;
+        e.xy[0].ansicht.typ = karte::Sicht::XY;
+        e.xy[0].ansicht.setzeMassstab(1);
+        e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        e.raster.setzePotenz(3);
+        e.kamera.setzeUrsprung(karte::Vektor3f(-256, 0, 32));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
+        ke::tastaturErsatz = deutscheTastatur;
+        if (e.bearbeitung.modus() != karte::ManipModus::Ziehen) { (void)ke::ausfuehren("MouseDrag"); }
+    }));
+    add(pause(0.4));
+    add(pruefe("Standardwerkzeug Resize (Q) gedrueckt (g_defaultToolMode = DragMode)",
+               [] { return ke::angehakt("MouseDrag") && !ke::angehakt("MouseTranslate"); }));
+    add(klickWelt("M1-Klick auf den Pinsel (32 32)", ImGuiMouseButton_Left, 0, ImVec2{32, 32}));
+    add(pruefe("Tunnel-Auswahl: der Pinsel ist gewaehlt", [pinsel] {
+        const ke::Editor& e = ke::editor();
+        return e.karte.auswahl.anzahl() == 1 && e.karte.auswahl.gewaehlt(e.karte.welt().get(), pinsel().get());
+    }));
+    add(ziehen("Resize: im Pinsel ziehen (32 32) -> (64 48)", ImGuiMouseButton_Left, 0, ImVec2{32, 32}, ImVec2{64, 48}));
+    add(pruefe("gezogen um (32 16)", [grenzen, nah] {
+        const karte::Kasten b = grenzen();
+        diag::detail("Knopftest: Karten-Editor Auswahl - Mitte " + std::to_string(b.origin[0]) + " " + std::to_string(b.origin[1]));
+        return nah(b.origin[0], 32) && nah(b.origin[1], 16) && nah(b.extents[0], 64);
+    }));
+    add(rueckgaengig("dragTool"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pruefe("Strg+Z: zurueck, Konsole \"Undo: dragTool\"", [grenzen, nah] {
+        const auto& k = ke::editor().konsole;
+        return nah(grenzen().origin[0], 0) && !k.empty() && k.back().text == "Undo: dragTool";
+    }));
+    add(ziehen("Resize: neben der +x-Seite (84 0) -> (100 0)", ImGuiMouseButton_Left, 0, ImVec2{84, 0}, ImVec2{100, 0}));
+    add(pruefe("Groesse: +x-Seite auf 80, danach keine Flaechen gewaehlt", [grenzen, nah] {
+        const karte::Kasten b = grenzen();
+        return nah(b.origin[0] + b.extents[0], 80) && nah(b.origin[0] - b.extents[0], -64) && ke::editor().karte.auswahl.flaechen().empty();
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiKey_W, "W"));
+    add(pruefe("W: Translate, Status wie NRC", [] {
+        const ke::Editor& e = ke::editor();
+        return e.bearbeitung.modus() == karte::ManipModus::Verschieben && ke::angehakt("MouseTranslate") &&
+               e.statusBefehl == "Translate Tool: translate objects and components";
+    }));
+    add(pause(0.2));
+    add(foto("karteneditor_verschieben"));
+    add(ziehen("x-Pfeil ziehen (30 0) -> (62 0)", ImGuiMouseButton_Left, 0, ImVec2{30, 0}, ImVec2{62, 4}));
+    add(pruefe("x-Pfeil: 32 nach rechts, y bleibt", [grenzen, nah] {
+        const karte::Kasten b = grenzen();
+        return nah(b.origin[0], 32) && nah(b.origin[1], 0);
+    }));
+    add(rueckgaengig("translateTool -xyz 32 0 0"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiKey_R, "R"));
+    add(pause(0.2));
+    add(foto("karteneditor_drehen"));
+    add(ziehen("Bildkreis ziehen (52 52) -> (-52 52)", ImGuiMouseButton_Left, 0, ImVec2{52, 52}, ImVec2{-52, 52}));
+    add(rueckgaengig("rotateTool -eulerXYZ"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiKey_Q, "Q"));
+    add(pruefe("Q nach Rotate: Resize (ToggleDragSkewModes)", [] { return ke::editor().bearbeitung.modus() == karte::ManipModus::Ziehen; }));
+    add(tasteKombi(ImGuiKey_Q, "Q"));
+    add(pruefe("Q nach Resize: Transform", [] {
+        return ke::editor().bearbeitung.modus() == karte::ManipModus::Verzerren && ke::angehakt("MouseTransform");
+    }));
+    add(pause(0.2));
+    add(foto("karteneditor_transform"));
+    add(tasteKombi(ImGuiKey_Q, "Q"));
+    add(tasteKombi(ImGuiKey_Space, "Leertaste"));
+    add(pruefe("Leertaste: geklont, der Klon gewaehlt", [] {
+        const ke::Editor& e = ke::editor();
+        return e.karte.welt()->kinder().size() == 2 && e.karte.auswahl.anzahl() == 1 &&
+               e.karte.auswahl.gewaehlt(e.karte.welt().get(), e.karte.welt()->kinder().back().get());
+    }));
+    add(rueckgaengig("cloneSelected"));
+    add(tasteKombi(ImGuiKey_Delete, "Entf"));
+    add(pruefe("Entf: der Klon ist geloescht", [] {
+        const ke::Editor& e = ke::editor();
+        return e.karte.welt()->kinder().size() == 1 && e.karte.auswahl.anzahl() == 0;
+    }));
+    add(rueckgaengig("deleteSelected"));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    // Rechteck mit Umschalt+M2: ziehen, halb zeigen (Foto), loslassen
+    add({"Umschalt+M2 druecken und halb ziehen", [welt](int b) {
+             ImGuiIO& io = ImGui::GetIO();
+             const ImVec2 a = welt(-100, -100);
+             const ImVec2 z = welt(100, 100);
+             if (b == 0) {
+                 setzeMaus(a);
+                 io.AddKeyEvent(ImGuiMod_Shift, true);
+             }
+             if (b == 1) { io.AddMouseButtonEvent(ImGuiMouseButton_Right, true); }
+             if (b >= 2 && b <= 7) {
+                 const float t = static_cast<float>(b - 1) / 10.0F;
+                 setzeMaus(ImVec2{a.x + (z.x - a.x) * t, a.y + (z.y - a.y) * t});
+             }
+             return b >= 9;
+         }});
+    add(pruefe("Auswahlrechteck sichtbar (rect_t eSelect)", [] {
+        const karte::AuswahlRechteck& r = ke::editor().beobachter[0].rechteck;
+        return r.max[0] > r.min[0] && r.max[1] > r.min[1] && r.art == karte::AuswahlRechteck::Art::Auswaehlen;
+    }));
+    add(foto("karteneditor_rechteck"));
+    add({"fertig ziehen, loslassen", [welt](int b) {
+             ImGuiIO& io = ImGui::GetIO();
+             if (b == 0) { setzeMaus(welt(100, 100)); }
+             if (b == 1) { io.AddMouseButtonEvent(ImGuiMouseButton_Right, false); }
+             if (b == 2) { io.AddKeyEvent(ImGuiMod_Shift, false); }
+             return b >= 4;
+         }});
+    add(pruefe("Rechteck: Pinsel und Licht gewaehlt", [] { return ke::editor().karte.auswahl.anzahl() == 2; }));
+    add(tasteKombi(ImGuiKey_H, "H"));
+    add(pruefe("H: versteckt und abgewaehlt, Knopf gedrueckt", [pinsel] {
+        const ke::Editor& e = ke::editor();
+        return pinsel()->versteckt && e.karte.auswahl.anzahl() == 0 && ke::angehakt("HideSelected");
+    }));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_H, "Umschalt+H"));
+    add(pruefe("Umschalt+H: wieder sichtbar", [pinsel] { return !pinsel()->versteckt && !ke::angehakt("HideSelected"); }));
+    add(klickWelt("M1-Klick auf den Pinsel", ImGuiMouseButton_Left, 0, ImVec2{32, 32}));
+    add(tasteKombi(ImGuiMod_Alt | ImGuiKey_RightArrow, "Alt+Rechts"));
+    add(pruefe("Alt+Rechts: um ein Raster (8) nach rechts", [grenzen, nah] { return nah(grenzen().origin[0], 8); }));
+    add(rueckgaengig("nudgeSelectedRight"));
+    add(tu("Raster 16", [] { ke::editor().raster.setzePotenz(4); }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_G, "Strg+G"));
+    add(pruefe("Strg+G: Ecken aufs Raster 16 (-56 -> -64, 72 -> 64)", [grenzen, nah] {
+        const karte::Kasten b = grenzen();
+        return nah(b.origin[0] - b.extents[0], -64) && nah(b.origin[0] + b.extents[0], 64);
+    }));
+    add(rueckgaengig("snapSelected -grid 16"));
+    add(tu("Raster 8", [] { ke::editor().raster.setzePotenz(3); }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_C, "Strg+C"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_V, "Strg+V"));
+    add(pruefe("Strg+C, Strg+V: eingefuegt und gewaehlt", [] {
+        const ke::Editor& e = ke::editor();
+        return e.karte.welt()->kinder().size() == 2 && e.karte.auswahl.anzahl() == 1;
+    }));
+    add(rueckgaengig("paste"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Y, "Strg+Y"));
+    add(pruefe("Strg+Y: Wiederholen (Redo2), Konsole \"Redo: paste\"", [] {
+        const ke::Editor& e = ke::editor();
+        return e.karte.welt()->kinder().size() == 2 && !e.konsole.empty() && e.konsole.back().text == "Redo: paste";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    // 3D: Klick waehlt, Ziehen ohne Auswahl baut einen Pinsel
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add({"Kamera: M1-Klick in die Mitte (der Wuerfel)", [](int b) {
+             const ke::KameraFenster& f = ke::editor().kamFenster;
+             ImGuiIO& io = ImGui::GetIO();
+             if (b == 0) { setzeMaus(ImVec2{f.bildX + static_cast<float>(f.breite) * 0.5F, f.bildY + static_cast<float>(f.hoehe) * 0.5F}); }
+             if (b == 2) { io.AddMouseButtonEvent(ImGuiMouseButton_Left, true); }
+             if (b == 3) { io.AddMouseButtonEvent(ImGuiMouseButton_Left, false); }
+             return b >= 5;
+         }});
+    add(pruefe("Kamera: Tunnel-Auswahl waehlt den Pinsel", [pinsel] {
+        const ke::Editor& e = ke::editor();
+        return e.karte.auswahl.anzahl() == 1 && e.karte.auswahl.gewaehlt(e.karte.welt().get(), pinsel().get());
+    }));
+    add(tasteKombi(ImGuiKey_W, "W"));
+    add(pause(0.3));
+    add(foto("karteneditor_kamera_verschieben"));
+    add(tasteKombi(ImGuiKey_W, "W (zurueck zu Resize)"));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(tu("Kamera 30 Grad nach unten (unter dem Wuerfel ist nichts)", [] { ke::editor().kamera.setzeWinkel(karte::Vektor3f(-30, 0, 0)); }));
+    add(pause(0.2));
+    add({"Kamera: M1 ziehen ohne Auswahl", [](int b) {
+             const ke::KameraFenster& f = ke::editor().kamFenster;
+             ImGuiIO& io = ImGui::GetIO();
+             const ImVec2 a{f.bildX + static_cast<float>(f.breite) * 0.5F, f.bildY + static_cast<float>(f.hoehe) * 0.5F};
+             const ImVec2 z{a.x + 120.0F, a.y - 60.0F};
+             if (b == 0) { setzeMaus(a); }
+             if (b == 1) { io.AddMouseButtonEvent(ImGuiMouseButton_Left, true); }
+             if (b >= 2 && b <= 11) {
+                 const float t = static_cast<float>(b - 1) / 10.0F;
+                 setzeMaus(ImVec2{a.x + (z.x - a.x) * t, a.y + (z.y - a.y) * t});
+             }
+             if (b == 12) { io.AddMouseButtonEvent(ImGuiMouseButton_Left, false); }
+             return b >= 14;
+         }});
+    add(pruefe("Kamera: neuer Pinsel (DragNewBrush), gewaehlt, Rueckgaengig \"dragTool\"", [] {
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Karten-Editor Auswahl - Pinsel " + std::to_string(e.karte.welt()->kinder().size()) + ", " +
+                     e.karte.undo.undoName());
+        return e.karte.welt()->kinder().size() == 2 && e.karte.auswahl.anzahl() == 1 && e.karte.undo.undoName() == "dragTool";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tu("Auswahl: Kamera zurueck, nichts gewaehlt", [] {
+        ke::Editor& e = ke::editor();
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
+        e.karte.auswahl.leeren();
+    }));
+    // Die uebrigen Befehle von Punkt 7 ueber ihre Knoepfe, Tasten und das Menue.
+    auto knopfOrt = [](const std::string& id) {
+        return [id]() {
+            const Element* el = finde(id, "", 0, true);
+            return el != nullptr ? el->rect.GetCenter() : ImVec2{0, 0};
+        };
+    };
+    auto licht = []() -> karte::Entitaet* {
+        for (const auto& ent : ke::editor().karte.entitaeten()) {
+            if (ent->klassenname() == "light") { return ent.get(); }
+        }
+        return nullptr;
+    };
+    auto kinder = [] { return ke::editor().karte.welt()->kinder().size(); };
+    auto anzahl = [] { return ke::editor().karte.auswahl.anzahl(); };
+    auto konsoleZuletzt = [](const std::string& text) {
+        const auto& k = ke::editor().konsole;
+        return !k.empty() && k.back().text == text;
+    };
+    add(klickWelt("M1-Klick auf den Pinsel", ImGuiMouseButton_Left, 0, ImVec2{32, 32}));
+    struct Werkzeug {
+        const char* befehl;
+        karte::ManipModus modus;
+    };
+    for (const Werkzeug& w : {Werkzeug{"MouseTranslate", karte::ManipModus::Verschieben}, Werkzeug{"MouseRotate", karte::ManipModus::Drehen},
+                              Werkzeug{"MouseScale", karte::ManipModus::Skalieren}, Werkzeug{"MouseTransform", karte::ManipModus::Verzerren},
+                              Werkzeug{"MouseDrag", karte::ManipModus::Ziehen}}) {
+        const std::string b = w.befehl;
+        const karte::ManipModus m = w.modus;
+        add(klickAn(std::string("Knopf ") + b, knopfOrt("##knopf" + b)));
+        add(pruefe("Knopf " + b + ": Werkzeug gewaehlt, Knopf gedrueckt",
+                   [b, m] { return ke::editor().bearbeitung.modus() == m && ke::angehakt(b); }));
+    }
+    add(klickAn("Knopf MouseScale", knopfOrt("##knopfMouseScale")));
+    add(klickAn("Knopf MouseScale noch einmal", knopfOrt("##knopfMouseScale")));
+    add(pruefe("Dasselbe Werkzeug noch einmal: zurueck zu Resize (g_defaultToolMode)",
+               [] { return ke::editor().bearbeitung.modus() == karte::ManipModus::Ziehen && ke::angehakt("MouseDrag"); }));
+    add(tu("MouseRotateOrScale", [] { (void)ke::ausfuehren("MouseRotateOrScale"); }));
+    add(pruefe("MouseRotateOrScale aus Resize: Rotate", [] { return ke::editor().bearbeitung.modus() == karte::ManipModus::Drehen; }));
+    add(tu("MouseRotateOrScale", [] { (void)ke::ausfuehren("MouseRotateOrScale"); }));
+    add(pruefe("MouseRotateOrScale aus Rotate: Scale", [] { return ke::editor().bearbeitung.modus() == karte::ManipModus::Skalieren; }));
+    add(tu("MouseDrag", [] { (void)ke::ausfuehren("MouseDrag"); }));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_Space, "Umschalt+Leertaste"));
+    add(pruefe("Umschalt+Leertaste: geklont (CloneSelectionAndMakeUnique)", [kinder, anzahl] { return kinder() == 2 && anzahl() == 1; }));
+    add(rueckgaengig("cloneSelectedMakeUnique"));
+    // Undo und Redo stehen in NRCs g_toolbarHiddenButtons (gtkmisc.cpp:147-160):
+    // erst ueber das Leistenmenue zeigen (dort schon geprueft), danach wieder weg.
+    add(tu("Knoepfe Undo und Redo zeigen", [] {
+        ke::editor().versteckteKnoepfe.erase("Undo");
+        ke::editor().versteckteKnoepfe.erase("Redo");
+    }));
+    add(pause(0.2));
+    add(klickAn("Knopf Undo", knopfOrt("##knopfUndo")));
+    add(pruefe("Knopf Undo: Klon weg, Konsole \"Undo: cloneSelectedMakeUnique\"",
+               [kinder, konsoleZuletzt] { return kinder() == 1 && konsoleZuletzt("Undo: cloneSelectedMakeUnique"); }));
+    add(klickAn("Knopf Redo", knopfOrt("##knopfRedo")));
+    add(pruefe("Knopf Redo: Klon wieder da, Konsole \"Redo: cloneSelectedMakeUnique\"",
+               [kinder, konsoleZuletzt] { return kinder() == 2 && konsoleZuletzt("Redo: cloneSelectedMakeUnique"); }));
+    add(tu("Knoepfe Undo und Redo wieder verstecken", [] {
+        ke::editor().versteckteKnoepfe.insert("Undo");
+        ke::editor().versteckteKnoepfe.insert("Redo");
+    }));
+    add(klickWelt("M1-Klick auf den Pinsel", ImGuiMouseButton_Left, 0, ImVec2{32, 32}));
+    add(tasteKombi(ImGuiKey_Backspace, "Ruecktaste"));
+    add(pruefe("Ruecktaste: geloescht (DeleteSelection2)", [kinder, anzahl] { return kinder() == 1 && anzahl() == 0; }));
+    add(rueckgaengig("deleteSelected"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, "Strg+Umschalt+Z"));
+    add(pruefe("Strg+Umschalt+Z: Wiederholen (Redo), Konsole \"Redo: deleteSelected\"",
+               [kinder, konsoleZuletzt] { return kinder() == 1 && konsoleZuletzt("Redo: deleteSelected"); }));
+    add(klickWelt("M1-Klick auf den Pinsel", ImGuiMouseButton_Left, 0, ImVec2{32, 32}));
+    add(tasteKombi(ImGuiKey_Z, "Z"));
+    add(pruefe("Z: geloescht (DeleteSelection)", [kinder] { return kinder() == 0; }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(klickWelt("M1-Klick auf den Pinsel", ImGuiMouseButton_Left, 0, ImVec2{32, 32}));
+    add(pruefe("Pinsel wieder da und gewaehlt", [kinder, anzahl] { return kinder() == 1 && anzahl() == 1; }));
+    add(tasteKombi(ImGuiKey_C, "C"));
+    add(pruefe("C: nichts gewaehlt (UnSelectSelection)", [anzahl] { return anzahl() == 0; }));
+    add(tasteKombi(ImGuiKey_I, "I"));
+    add(pruefe("I: Pinsel und Licht gewaehlt (InvertSelection)", [anzahl] { return anzahl() == 2; }));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(pruefe("Esc: nichts gewaehlt (UnSelectSelection2)", [anzahl] { return anzahl() == 0; }));
+    add(klick(ke::trK(Str::KeLEdit), "##karteneditor"));
+    add(klick(ke::trK(Str::KeLInvertSelection)));
+    add(pause(0.2));
+    add(pruefe("Edit > Invert Selection: Pinsel und Licht gewaehlt", [anzahl] { return anzahl() == 2; }));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(klickWelt("M1-Klick auf das Licht (0 0)", ImGuiMouseButton_Left, 0, ImVec2{0, 0}));
+    add(pruefe("Licht gewaehlt (Punkt-Entities in 2D bevorzugt)",
+               [licht] { return ke::editor().karte.auswahl.anzahl() == 1 && ke::editor().karte.auswahl.gewaehlt(licht()); }));
+    add(tasteKombi(ImGuiKey_Space, "Leertaste"));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_A, "Umschalt+A"));
+    add(pruefe("Umschalt+A: beide Lichter gewaehlt (SelectAllOfType)",
+               [anzahl] { return ke::editor().karte.entitaeten().size() == 3 && anzahl() == 2; }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_V, "Umschalt+V"));
+    add(pruefe("Umschalt+V: eingefuegt bei der Kamera (-256 0 32), gewaehlt (PasteToCamera)", [kinder, anzahl, nah] {
+        const ke::Editor& e = ke::editor();
+        const auto p = std::dynamic_pointer_cast<karte::Pinsel>(e.karte.welt()->kinder().back());
+        const karte::Kasten b = p ? p->grenzen(e.karte.kontext) : karte::Kasten();
+        return kinder() == 2 && anzahl() == 1 && nah(b.origin[0], -256) && nah(b.origin[1], 0) && nah(b.origin[2], 32);
+    }));
+    add(rueckgaengig("pasteToCamera"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(klickWelt("M1-Klick auf den Pinsel", ImGuiMouseButton_Left, 0, ImVec2{32, 32}));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_V, "Strg+Umschalt+V"));
+    add(pruefe("Strg+Umschalt+V: zur Kamera verschoben (MoveToCamera)", [grenzen, nah] { return nah(grenzen().origin[0], -256); }));
+    add(rueckgaengig("moveToCamera"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiMod_Alt | ImGuiKey_LeftArrow, "Alt+Links"));
+    add(pruefe("Alt+Links: 8 nach links", [grenzen, nah] { return nah(grenzen().origin[0], -8); }));
+    add(rueckgaengig("nudgeSelectedLeft"));
+    add(tasteKombi(ImGuiMod_Alt | ImGuiKey_UpArrow, "Alt+Hoch"));
+    add(pruefe("Alt+Hoch: 8 nach oben (+y)", [grenzen, nah] { return nah(grenzen().origin[1], 8); }));
+    add(rueckgaengig("nudgeSelectedUp"));
+    add(tasteKombi(ImGuiMod_Alt | ImGuiKey_DownArrow, "Alt+Runter"));
+    add(pruefe("Alt+Runter: zurueck auf y 0", [grenzen, nah] { return nah(grenzen().origin[1], 0); }));
+    add(rueckgaengig("nudgeSelectedDown"));
+    add(tasteKombi(ImGuiKey_KeypadAdd, "Ziffernblock +"));
+    add(pruefe("Ziffernblock +: 8 hoch (MoveSelectionUP)", [grenzen, nah] { return nah(grenzen().origin[2], 40); }));
+    add(rueckgaengig("nudgeSelected -axis z -amount 8"));
+    add(tasteKombi(ImGuiKey_KeypadSubtract, "Ziffernblock -"));
+    add(pruefe("Ziffernblock -: 8 runter (MoveSelectionDOWN)", [grenzen, nah] { return nah(grenzen().origin[2], 32); }));
+    add(rueckgaengig("nudgeSelected -axis z -amount -8"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pruefe("fuenfmal Strg+Z: wieder bei (0 0 32)", [grenzen, nah] {
+        const karte::Kasten b = grenzen();
+        return nah(b.origin[0], 0) && nah(b.origin[1], 0) && nah(b.origin[2], 32);
+    }));
+    // Hide Selected ist der letzte Filterknopf und steht bei dieser Fensterhoehe
+    // (wie in NRC) hinter dem Erweiterungsknopf: die Filterknoepfe davor
+    // verstecken (Leistenmenue), dann ist er sichtbar.
+    add(tu("Filterknoepfe vor Hide Selected verstecken", [] {
+        for (const kb::Knopf& k : kb::filterleiste()) {
+            if (!k.trenner && k.befehl[0] != 0 && std::string(k.befehl) != "HideSelected") { ke::editor().versteckteKnoepfe.insert(k.befehl); }
+        }
+    }));
+    add(pause(0.2));
+    add(klickAn("Filterleiste: Knopf Hide Selected", knopfOrt("##knopfHideSelected")));
+    add(pruefe("Knopf Hide Selected: versteckt, Knopf gedrueckt", [pinsel] { return pinsel()->versteckt && ke::angehakt("HideSelected"); }));
+    add(klickAn("Filterleiste: Rechtsklick auf Hide Selected", knopfOrt("##knopfHideSelected"), 1));
+    add(pruefe("Rechtsklick: Show Hidden (FilterToolbarHandler)", [pinsel] { return !pinsel()->versteckt && !ke::angehakt("HideSelected"); }));
+    add(tu("Filterknoepfe wieder zeigen, nichts gewaehlt", [] {
+        for (const kb::Knopf& k : kb::filterleiste()) {
+            if (!k.trenner && k.befehl[0] != 0) { ke::editor().versteckteKnoepfe.erase(k.befehl); }
+        }
+        ke::editor().karte.auswahl.leeren();
+    }));
+    // Einstellungsseite "Selection" (Vergleich mit SP\nrc_fotos\dialoge\pref_Selection.png)
+    add(tu("Einstellungen oeffnen", [] { (void)ke::ausfuehren("Preferences"); }));
+    add(pause(0.3));
+    add(klick(ke::trK(Str::KePgSelection), "###karteeinstellungen"));
+    add(pause(0.2));
+    add(pruefe("Seite Selection: vier Felder, Vorgaben wie NRC (12, an, an, XY plane + Z with Alt)", [] {
+        const ke::Editor& e = ke::editor();
+        // Die Beschriftungen links sind Text (kein Element), das Klappfeld meldet
+        // ImGui nicht (BeginCombo ohne IMGUI_TEST_ENGINE_ITEM_INFO): es wird
+        // unten ueber seine Zeile geprueft.
+        const bool felder = finde("##waehlergroesse", "", 0, true) != nullptr &&
+                            finde(ke::trK(Str::KePrSelPreferPoint), "", 0, false) != nullptr &&
+                            finde(ke::trK(Str::KePrSel3dBrushes), "", 0, false) != nullptr;
+        diag::detail(std::string("Knopftest: Karten-Editor Auswahl - Seite Selection, Felder ") + (felder ? "da" : "fehlen") + ", " +
+                     std::to_string(e.bearbeitung.waehlEpsilon) + " " + std::to_string(e.bearbeitung.einstellung.punktEntitaetenIn2d) +
+                     std::to_string(e.bearbeitung.pinselIn3d) + " " + std::to_string(e.bearbeitung.bewegStil3d));
+        return felder && e.bearbeitung.waehlEpsilon == 12.0F && e.bearbeitung.einstellung.punktEntitaetenIn2d &&
+               e.bearbeitung.pinselIn3d && e.bearbeitung.bewegStil3d == 0;
+    }));
+    add(foto("karteneditor_einstellungen_auswahl"));
+    // Das Klappfeld "Move style in 3D" liegt eine Zeile unter "Create brushes in 3D".
+    add(klickAn("Klappfeld Move style in 3D", [] {
+        const Element* a = finde(ke::trK(Str::KePrSelPreferPoint), "", 0, false);
+        const Element* b = finde(ke::trK(Str::KePrSel3dBrushes), "", 0, false);
+        if (a == nullptr || b == nullptr) { return ImVec2{0, 0}; }
+        const ImVec2 c = b->rect.GetCenter();
+        return ImVec2{c.x, c.y + (c.y - a->rect.GetCenter().y)};
+    }));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KePrSelMoveView)));
+    add(klick(ke::trK(Str::KePrSel3dBrushes)));
+    add(klick(ke::trK(Str::KePrefOk)));
+    add(pause(0.2));
+    add(pruefe("Einstellungen: Move style in 3D = View plane + Forward with Alt", [] { return ke::editor().bearbeitung.bewegStil3d == 1; }));
+    add(pruefe("Einstellungen: Create brushes in 3D aus", [] { return !ke::editor().bearbeitung.pinselIn3d; }));
+    add({"Kamera: M1 ziehen ohne Auswahl", [](int b) {
+             const ke::KameraFenster& f = ke::editor().kamFenster;
+             ImGuiIO& io = ImGui::GetIO();
+             const ImVec2 a{f.bildX + static_cast<float>(f.breite) * 0.5F, f.bildY + static_cast<float>(f.hoehe) * 0.5F};
+             const ImVec2 z{a.x + 120.0F, a.y - 60.0F};
+             if (b == 0) {
+                 ke::editor().kamera.setzeWinkel(karte::Vektor3f(-30, 0, 0));
+                 setzeMaus(a);
+             }
+             if (b == 1) { io.AddMouseButtonEvent(ImGuiMouseButton_Left, true); }
+             if (b >= 2 && b <= 11) {
+                 const float t = static_cast<float>(b - 1) / 10.0F;
+                 setzeMaus(ImVec2{a.x + (z.x - a.x) * t, a.y + (z.y - a.y) * t});
+             }
+             if (b == 12) { io.AddMouseButtonEvent(ImGuiMouseButton_Left, false); }
+             return b >= 14;
+         }});
+    add(pruefe("Ohne Create brushes in 3D: kein neuer Pinsel in der Kamera (g_3DCreateBrushes)", [kinder] { return kinder() == 1; }));
+    add(tu("Create brushes in 3D wieder an, Move style XY, Kamera zurueck, nichts gewaehlt", [] {
+        ke::Editor& e = ke::editor();
+        e.bearbeitung.pinselIn3d = true;
+        e.bearbeitung.bewegStil3d = 0;
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
+        e.karte.auswahl.leeren();
+    }));
+    return s;
+}
+
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
     std::vector<Schritt> s;
@@ -26295,6 +26793,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : karteneditorMassSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorXySchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorKameraSchritte()) { add(std::move(x)); }
+    for (Schritt& x : karteneditorAuswahlSchritte()) { add(std::move(x)); }
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
     return s;
 }

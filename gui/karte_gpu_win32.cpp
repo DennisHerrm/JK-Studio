@@ -10,6 +10,8 @@
 #include <d3dcompiler.h>
 
 #include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <map>
 #include <string>
@@ -56,6 +58,16 @@ VSO vs(VSI i) {
 [maxvertexcount(4)]
 void gs(line VSO e[2], inout TriangleStream<VSO> s) {
     float2 h = groesse * 0.5;
+    if (frei > 0.5) {
+        // glPointSize: ein Quadrat breite x breite um den Punkt
+        float2 q = (breite * 0.5) / h;
+        VSO p;
+        p = e[0]; p.pos.xy += float2(-q.x, q.y) * e[0].pos.w; s.Append(p);
+        p = e[0]; p.pos.xy += float2(-q.x, -q.y) * e[0].pos.w; s.Append(p);
+        p = e[0]; p.pos.xy += float2(q.x, q.y) * e[0].pos.w; s.Append(p);
+        p = e[0]; p.pos.xy += float2(q.x, -q.y) * e[0].pos.w; s.Append(p);
+        return;
+    }
     float2 a = e[0].pos.xy / e[0].pos.w * h;
     float2 b = e[1].pos.xy / e[1].pos.w * h;
     float2 d = b - a;
@@ -85,12 +97,14 @@ struct Zustand {
     ID3D11DepthStencilState* dsAus = nullptr;
     ID3D11Buffer* einmal = nullptr;   // gemeinsamer Puffer fuer Einmal-Linien
     std::size_t einmalPlatz = 0;
+    ID3D11BlendState* blendRechteck[2] = {nullptr, nullptr};   // XORRectangle: additiv, Filter
     // 3D (Kamera)
     bool gescheitert3 = false;
     ID3D11VertexShader* vs3 = nullptr;
     ID3D11PixelShader* ps3 = nullptr;
     ID3D11VertexShader* vsl = nullptr;
     ID3D11GeometryShader* gsl = nullptr;
+    ID3D11GeometryShader* gslBreit = nullptr;   // glLineWidth > 1
     ID3D11PixelShader* psl = nullptr;
     ID3D11InputLayout* layout3 = nullptr;
     ID3D11InputLayout* layoutl = nullptr;
@@ -140,6 +154,8 @@ void allesLoesen() {
     g.ziele.clear();
     los(g.einmal);
     g.einmalPlatz = 0;
+    los(g.blendRechteck[0]);
+    los(g.blendRechteck[1]);
     los(g.einmal3);
     g.einmal3Platz = 0;
     los(g.einmalL);
@@ -158,6 +174,7 @@ void allesLoesen() {
     los(g.layoutl);
     los(g.layout3);
     los(g.psl);
+    los(g.gslBreit);
     los(g.gsl);
     los(g.vsl);
     los(g.ps3);
@@ -278,7 +295,7 @@ bool fuellen(ID3D11Buffer*& vb, std::size_t& platz, const std::vector<karte::Lin
     return true;
 }
 
-void ziehen(ID3D11Buffer* vb, std::size_t anzahl, const float* matrix, float breite) {
+void ziehen(ID3D11Buffer* vb, std::size_t anzahl, const float* matrix, float breite, bool punktModus = false) {
     if (g.aktiv < 0 || vb == nullptr || anzahl == 0) { return; }
     ID3D11DeviceContext* c = kontext();
     const Ziel& z = g.ziele[g.aktiv];
@@ -289,7 +306,7 @@ void ziehen(ID3D11Buffer* vb, std::size_t anzahl, const float* matrix, float bre
     k->groesse[0] = static_cast<float>(z.breite);
     k->groesse[1] = static_cast<float>(z.hoehe);
     k->breite = breite;
-    k->frei = 0;
+    k->frei = punktModus ? 1.0F : 0.0F;
     c->Unmap(g.cb, 0);
     const UINT schritt = sizeof(Punkt);
     const UINT versatz = 0;
@@ -303,7 +320,7 @@ void ziehen(ID3D11Buffer* vb, std::size_t anzahl, const float* matrix, float bre
     c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
     c->VSSetShader(g.vs, nullptr, 0);
     c->VSSetConstantBuffers(0, 1, &g.cb);
-    if (breite > 1.0F) {
+    if (breite > 1.0F || punktModus) {
         c->GSSetShader(g.gs, nullptr, 0);
         c->GSSetConstantBuffers(0, 1, &g.cb);
     } else {
@@ -405,6 +422,119 @@ void zeichnen(const Puffer& p, const float* matrix, float breite) {
     ziehen(static_cast<ID3D11Buffer*>(p.m_vb), p.m_anzahl, matrix, breite);
 }
 
+void punkte(const std::vector<karte::Linie>& punkte, const float* matrix, float groesse) {
+    if (g.aktiv < 0 || punkte.empty()) { return; }
+    if (!fuellen(g.einmal, g.einmalPlatz, punkte)) { return; }
+    ziehen(g.einmal, punkte.size(), matrix, groesse, true);
+}
+
+void auswahlRechteck(float x0, float y0, float x1, float y1, int art) {
+    if (g.aktiv < 0 || !bereit()) { return; }
+    if (x1 == x0 || y1 == y0) { return; }
+    ID3D11Device* d = geraet();
+    if (g.blendRechteck[0] == nullptr) {
+        D3D11_BLEND_DESC bd{};
+        bd.RenderTarget[0].BlendEnable = TRUE;
+        bd.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+        bd.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+        bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+        // additiv fuer dunklen Hintergrund: glBlendFunc( GL_ONE, GL_ONE )
+        bd.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+        bd.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
+        bd.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+        bd.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
+        d->CreateBlendState(&bd, &g.blendRechteck[0]);
+        // Filter fuer hellen Hintergrund: glBlendFunc( GL_ZERO, GL_SRC_COLOR )
+        bd.RenderTarget[0].SrcBlend = D3D11_BLEND_ZERO;
+        bd.RenderTarget[0].DestBlend = D3D11_BLEND_SRC_COLOR;
+        bd.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ZERO;
+        bd.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+        d->CreateBlendState(&bd, &g.blendRechteck[1]);
+    }
+    const auto farbe = [](float r, float gr, float b, float a) {
+        const auto k = [](float v) { return static_cast<std::uint32_t>(std::lround(std::clamp(v, 0.0F, 1.0F) * 255.0F)); };
+        return k(r) | (k(gr) << 8U) | (k(b) << 16U) | (k(a) << 24U);
+    };
+    const float r = 10.F;
+    std::uint32_t f[4];
+    switch (art) {
+    case 1:
+        f[0] = farbe(0.F, 0.F, 1.F / r, 1);
+        f[1] = farbe(.8F, .8F, 1.F, 1);
+        f[2] = farbe(0.F, 0.F, 1.F, .3F);
+        break;
+    case 2:
+        f[0] = farbe(1.F / r, 1.F / r, 1.F / r, 1);
+        f[1] = farbe(.8F, .8F, .8F, 1);
+        f[2] = farbe(1.F, 1.F, 1.F, .3F);
+        break;
+    default:
+        f[0] = farbe(1.F / r, .5F / r, 0.F, 1);
+        f[1] = farbe(1.F, .9F, .7F, 1);
+        f[2] = farbe(1.F, .5F, 0.F, .3F);
+        break;
+    }
+    f[3] = farbe(1.F, .5F, 0.F, 1);   // der Rand
+    ID3D11DeviceContext* c = kontext();
+    const Ziel& z = g.ziele[g.aktiv];
+    D3D11_MAPPED_SUBRESOURCE m{};
+    if (FAILED(c->Map(g.cb, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) { return; }
+    auto* k = static_cast<Konstanten*>(m.pData);
+    static const float kEins[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};   // glOrtho( -1, 1, -1, 1, ... )
+    std::memcpy(k->mvp, kEins, sizeof(k->mvp));
+    k->groesse[0] = static_cast<float>(z.breite);
+    k->groesse[1] = static_cast<float>(z.hoehe);
+    k->breite = 1;
+    k->frei = 0;
+    c->Unmap(g.cb, 0);
+    const float faktor[4] = {0, 0, 0, 0};
+    c->OMSetDepthStencilState(g.dsAus, 0);
+    c->RSSetState(g.rsEinfach);   // glDisable( GL_MULTISAMPLE )
+    c->IASetInputLayout(g.layout);
+    c->VSSetShader(g.vs, nullptr, 0);
+    c->VSSetConstantBuffers(0, 1, &g.cb);
+    c->GSSetShader(nullptr, nullptr, 0);
+    c->PSSetShader(g.ps, nullptr, 0);
+    const UINT schritt = sizeof(Punkt);
+    const UINT versatz = 0;
+    for (int pass = 0; pass < 4; ++pass) {
+        Punkt p[8];
+        std::size_t n = 0;
+        if (pass < 3) {   // GL_QUADS (x0,y1) (x1,y1) (x1,y0) (x0,y0) als zwei Dreiecke
+            const Punkt q[4] = {{x0, y1, 0, f[pass]}, {x1, y1, 0, f[pass]}, {x1, y0, 0, f[pass]}, {x0, y0, 0, f[pass]}};
+            p[0] = q[0];
+            p[1] = q[1];
+            p[2] = q[2];
+            p[3] = q[0];
+            p[4] = q[2];
+            p[5] = q[3];
+            n = 6;
+        } else {   // GL_LINE_LOOP
+            const Punkt q[4] = {{x0, y1, 0, f[3]}, {x1, y1, 0, f[3]}, {x1, y0, 0, f[3]}, {x0, y0, 0, f[3]}};
+            for (std::size_t i = 0; i < 4; ++i) {
+                p[i * 2] = q[i];
+                p[i * 2 + 1] = q[(i + 1) % 4];
+            }
+            n = 8;
+        }
+        std::vector<karte::Linie> dummy;
+        if (g.einmal == nullptr || g.einmalPlatz < 8) {
+            dummy.resize(8);
+            if (!fuellen(g.einmal, g.einmalPlatz, dummy)) { return; }
+        }
+        D3D11_MAPPED_SUBRESOURCE vm{};
+        if (FAILED(c->Map(g.einmal, 0, D3D11_MAP_WRITE_DISCARD, 0, &vm))) { return; }
+        std::memcpy(vm.pData, p, n * sizeof(Punkt));
+        c->Unmap(g.einmal, 0);
+        ID3D11BlendState* b = pass == 0 ? g.blendRechteck[0] : pass == 1 ? g.blendRechteck[1] : g.blend;
+        if (pass == 3) { b = nullptr; }   // glDisable( GL_BLEND )
+        c->OMSetBlendState(b, faktor, 0xFFFFFFFFU);
+        c->IASetVertexBuffers(0, 1, &g.einmal, &schritt, &versatz);
+        c->IASetPrimitiveTopology(pass < 3 ? D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST : D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+        c->Draw(static_cast<UINT>(n), 0);
+    }
+}
+
 void zeichnen(const std::vector<karte::Linie>& linien, const float* matrix, float breite) {
     if (g.aktiv < 0 || linien.empty()) { return; }
     if (!fuellen(g.einmal, g.einmalPlatz, linien)) { return; }
@@ -447,6 +577,7 @@ struct Konstanten3 {
     float alpha[4];        // x Funktion, y Bezug, z Bild, w Wegschneiden (Linien)
     float versatz[4];      // x Faktor, y Einheiten, z an, w r
     float muster[4];       // x Muster, y Faktor, z/w Bildgroesse
+    float linie[4];        // x Breite
 };
 
 // renderstate.cpp: Licht (abgeleitet aus Cam_Draw: Umgebung 0,2 + 0,4,
@@ -454,7 +585,7 @@ struct Konstanten3 {
 // (gl/skybox_vp.glsl, skybox_fp.glsl), glPolygonOffset und glLineStipple.
 const char* const kShader3 = R"(
 cbuffer B3 : register(b0) {
-    float4x4 mvp; float4 farbe; float4 vpnLicht; float4 augeHimmel; float4 alpha; float4 versatz; float4 muster;
+    float4x4 mvp; float4 farbe; float4 vpnLicht; float4 augeHimmel; float4 alpha; float4 versatz; float4 muster; float4 linie;
 };
 Texture2D bild : register(t0);
 TextureCube wuerfel : register(t1);
@@ -537,6 +668,41 @@ void gsl(line VOL e[2], inout LineStream<GOL> s) {
         s.Append(v);
     }
 }
+// glLineWidth > 1: dasselbe wie gsl, die Linie als Viereck breite Bildpunkte breit
+[maxvertexcount(4)]
+void gslBreit(line VOL e[2], inout TriangleStream<GOL> s) {
+    float o = 0.0;
+    if (e[0].extra.w > 0.5) {
+        float3 a = e[0].welt;
+        float3 n = cross(e[1].welt - a, e[0].extra.xyz - a);
+        if (alpha.w > 0.5 && dot(n, augeHimmel.xyz - a) >= 0.0) { return; }
+        if (versatz.z > 0.5 && e[0].pos.w > 0.0 && e[1].pos.w > 0.0 && e[0].dritte.w > 0.0) {
+            float3 p0 = fenster(e[0].pos);
+            float3 m = cross(fenster(e[1].pos) - p0, fenster(e[0].dritte) - p0);
+            float steigung = abs(m.z) > 1e-20 ? max(abs(m.x / m.z), abs(m.y / m.z)) : 0.0;
+            o = versatz.x * steigung + versatz.y * versatz.w;
+        }
+    }
+    float2 st = e[0].pos.w > 0.0 ? fenster(e[0].pos).xy : fenster(e[1].pos).xy;
+    float2 h = muster.zw * 0.5;
+    float2 pa = e[0].pos.xy / e[0].pos.w * h;
+    float2 pb = e[1].pos.xy / e[1].pos.w * h;
+    float2 d = pb - pa;
+    float l = length(d);
+    d = (l > 1e-6) ? d / l : float2(1.0, 0.0);
+    float2 q = float2(-d.y, d.x) * (linie.x * 0.5) / h;
+    for (int k = 0; k < 2; ++k) {
+        for (int seite = 0; seite < 2; ++seite) {
+            GOL v;
+            v.pos = e[k].pos;
+            v.pos.z += o * v.pos.w;
+            v.pos.xy += (seite == 0 ? q : -q) * e[k].pos.w;
+            v.farbe = e[k].farbe;
+            v.start = st;
+            s.Append(v);
+        }
+    }
+}
 float4 psl(GOL i) : SV_Target {
     if (muster.x > 0.5) {
         float2 d = abs(i.pos.xy - i.start);
@@ -561,9 +727,9 @@ bool bereit3() {
         los(fehler);
         return SUCCEEDED(hr);
     };
-    ID3DBlob* b[5] = {nullptr, nullptr, nullptr, nullptr, nullptr};
+    ID3DBlob* b[6] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
     if (!uebersetzen("vs3", "vs_4_0", &b[0]) || !uebersetzen("ps3", "ps_4_0", &b[1]) || !uebersetzen("vsl", "vs_4_0", &b[2]) ||
-        !uebersetzen("gsl", "gs_4_0", &b[3]) || !uebersetzen("psl", "ps_4_0", &b[4])) {
+        !uebersetzen("gsl", "gs_4_0", &b[3]) || !uebersetzen("psl", "ps_4_0", &b[4]) || !uebersetzen("gslBreit", "gs_4_0", &b[5])) {
         for (auto*& x : b) { los(x); }
         return false;
     }
@@ -572,6 +738,7 @@ bool bereit3() {
     d->CreateVertexShader(b[2]->GetBufferPointer(), b[2]->GetBufferSize(), nullptr, &g.vsl);
     d->CreateGeometryShader(b[3]->GetBufferPointer(), b[3]->GetBufferSize(), nullptr, &g.gsl);
     d->CreatePixelShader(b[4]->GetBufferPointer(), b[4]->GetBufferSize(), nullptr, &g.psl);
+    d->CreateGeometryShader(b[5]->GetBufferPointer(), b[5]->GetBufferSize(), nullptr, &g.gslBreit);
     const D3D11_INPUT_ELEMENT_DESC e3[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -677,6 +844,10 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
     k->muster[1] = static_cast<float>(std::max(1, z.musterFaktor));
     k->muster[2] = static_cast<float>(ziel.breite);
     k->muster[3] = static_cast<float>(ziel.hoehe);
+    k->linie[0] = z.breite;
+    k->linie[1] = 0;
+    k->linie[2] = 0;
+    k->linie[3] = 0;
     c->Unmap(g.cb3, 0);
     const float faktor[4] = {0, 0, 0, 0};
     c->OMSetBlendState(z.mischen == Mischen::Aus ? g.blendAus : z.mischen == Mischen::Alpha ? g.blend : g.blendAdd, faktor, 0xFFFFFFFFU);
@@ -686,7 +857,7 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
         c->IASetInputLayout(g.layoutl);
         c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
         c->VSSetShader(g.vsl, nullptr, 0);
-        c->GSSetShader(g.gsl, nullptr, 0);
+        c->GSSetShader(z.breite > 1.0F && g.gslBreit != nullptr ? g.gslBreit : g.gsl, nullptr, 0);
         c->PSSetShader(g.psl, nullptr, 0);
         c->VSSetConstantBuffers(0, 1, &g.cb3);
         c->GSSetConstantBuffers(0, 1, &g.cb3);

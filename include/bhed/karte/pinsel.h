@@ -194,6 +194,8 @@ public:
     // Node::m_layer: Index in Karte::schichten; kSchichtUnerreichbar fuer eine
     // Ebene, die NRC beim Lesen nicht in den Baum haengen konnte (Kreis).
     int schicht = 0;
+    // Node::eHidden (Select_Hide, select.cpp:939-975) - nicht im Undo.
+    bool versteckt = false;
 };
 constexpr int kSchichtKeine = -1;          // m_layer == nullptr (Gruppenentitaeten)
 constexpr int kSchichtUnerreichbar = -2;   // m_ownIndex bleibt LAYERIDXPARENT (-1)
@@ -228,6 +230,11 @@ public:
 
     [[nodiscard]] bool istDetail() const { return !m_flaechen.empty() && m_flaechen.front()->istDetail(); }
     void setzeDetail(bool detail);   // MakeDetail / MakeStructural
+    // Brush::snapto -> BrushInstance::vertex_snap( snap, true ) (brush.h:3502-3516)
+    // mit vertexModeSnap / vertexModeBuildHull (brush.cpp:440-523): alle Ecken
+    // aufs Raster, die Flaechen aus der konvexen Huelle (QuickHull wie NRC).
+    // eckenSperre = g_brush_textureVertexlock_enabled.
+    void eckenEinrasten(float raster, const Kontext& k, bool eckenSperre = false);
 
     // Brush::transform + freezeTransform (mit Texture Lock, wenn k.texturLock).
     void transformieren(const Matrix4& m, const Kontext& k);

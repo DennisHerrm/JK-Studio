@@ -847,6 +847,10 @@ void einstellungenLaden() {
     };
     ed.anordnung = static_cast<befehle::Anordnung>(std::clamp(static_cast<int>(zahl("QE4StyleWindows", 0)), 0, 3));
     ed.gruppenDialogEingebaut = zahl("BuiltInGroupDialog", 0) != 0.0F;
+    ed.bearbeitung.waehlEpsilon = std::clamp(zahl("SELECT_EPSILON", 12), 2.0F, 64.0F);
+    ed.bearbeitung.einstellung.punktEntitaetenIn2d = zahl("PreferPointEntsIn2D", 1) != 0.0F;
+    ed.bearbeitung.pinselIn3d = zahl("3DCreateBrushes", 1) != 0.0F;
+    ed.bearbeitung.bewegStil3d = std::clamp(static_cast<int>(zahl("3DMoveStyle", 0)), 0, 1);
     // MainFrame/m_hSplit usw. (SplitterSetting::save: die Groessen), als
     // "a,b" in logischen Punkten; anderes (alte Anteile) gilt als nicht gemerkt.
     const auto groessen = [&](const char* n) {
@@ -934,6 +938,11 @@ void einstellungenSpeichern() {
         std::snprintf(z, sizeof(z), "%g", static_cast<double>(f));
         return std::string(z);
     };
+    // SelectionSystem_Construct: registerPreference
+    k["SELECT_EPSILON"] = std::to_string(static_cast<int>(ed.bearbeitung.waehlEpsilon));
+    k["PreferPointEntsIn2D"] = ed.bearbeitung.einstellung.punktEntitaetenIn2d ? "1" : "0";
+    k["3DCreateBrushes"] = ed.bearbeitung.pinselIn3d ? "1" : "0";
+    k["3DMoveStyle"] = std::to_string(ed.bearbeitung.bewegStil3d);
     k["CubicScale"] = std::to_string(c.kubikSkala);
     k["CamMoveSpeed"] = std::to_string(c.tempo);
     k["CamMoveTimeToMaxSpeed"] = std::to_string(c.zeitBisMax);

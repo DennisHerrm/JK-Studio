@@ -1,0 +1,559 @@
+// auswahlbefehle.cpp - Karten-Editor: die Auswahl-Befehle aus select.cpp.
+// Portiert aus NetRadiant-Custom 20260114 (Quellen in auswahlbefehle.h).
+//
+//   Copyright (C) 1999-2006 Id Software, Inc. and contributors.
+//   For a list of contributors, see the accompanying CONTRIBUTORS file.
+//   This file is part of GtkRadiant.
+//
+//   GtkRadiant is free software; you can redistribute it and/or modify it under
+//   the terms of the GNU General Public License as published by the Free
+//   Software Foundation; either version 2 of the License, or (at your option)
+//   any later version. GtkRadiant is distributed in the hope that it will be
+//   useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+//   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+//   Public License for more details (LICENSE).
+#include "bhed/karte/auswahlbefehle.h"
+
+#include "bhed/karte/bearbeitung.h"
+#include "bhed/karte/karte.h"
+#include "bhed/karte/kartenformat.h"
+#include "bhed/karte/patch.h"
+#include "bhed/karte/pinsel.h"
+#include "bhed/karte/texdef.h"
+#include "bhed/karte/wicklung.h"
+#include "bhed/karte/xyansicht.h"
+
+#include <algorithm>
+#include <cctype>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <set>
+#include <unordered_set>
+
+namespace bhed::karte {
+
+// --- libs/uniquenames.h ------------------------------------------------------------
+
+NamensZahl::NamensZahl(const std::string& text)
+    : wert(text.empty() ? -1 : std::atoi(text.c_str())), mindestBreite(!text.empty() && text[0] == '0' ? static_cast<int>(text.size()) : 0) {}
+
+Name nameLesen(const std::string& name) {
+    // die Ziffern am Ende (strrchr( "1234567890", *p ))
+    std::size_t ende = name.size();
+    while (ende > 0 && std::isdigit(static_cast<unsigned char>(name[ende - 1])) != 0) { --ende; }
+    return Name{name.substr(0, ende), NamensZahl(name.substr(ende))};
+}
+
+std::string nameSchreiben(const Name& n) {
+    std::string s = n.text;
+    if (n.zahl.wert != -1) {
+        char puffer[32];
+        std::snprintf(puffer, sizeof(puffer), "%0*i", n.zahl.mindestBreite, n.zahl.wert);
+        s += puffer;
+    }
+    return s;
+}
+
+Name EindeutigeNamen::eindeutig(const Name& n) const {
+    const auto it = m_namen.find(n.text);
+    if (it == m_namen.end()) { return n; }
+    const auto& zahlen = it->second;
+    if (zahlen.find(n.zahl) == zahlen.end()) { return n; }   // PostFixes::make_unique
+    // find_first_empty: ab 1 die erste Luecke
+    NamensZahl z("1");
+    for (auto i = zahlen.find(z); i != zahlen.end(); ++i, ++z.wert) {
+        if (i->first != z) { break; }
+    }
+    return Name{n.text, z};
+}
+
+void EindeutigeNamen::einfuegen(const Name& n) { ++m_namen[n.text][n.zahl]; }
+
+void EindeutigeNamen::entfernen(const Name& n) {
+    const auto it = m_namen.find(n.text);
+    if (it == m_namen.end()) { return; }
+    const auto z = it->second.find(n.zahl);
+    if (z != it->second.end() && --z->second == 0) { it->second.erase(z); }
+    if (it->second.empty()) { m_namen.erase(it); }
+}
+
+bool schluesselIstName(const std::string& s) {
+    if (s == "target" || s == "targetname" || s == "killtarget") { return true; }
+    if (s.size() > 6 && s.compare(0, 6, "target") == 0) {   // targetN (Nexuiz): string_is_integer
+        const char* rest = s.c_str() + 6;
+        char* e = nullptr;
+        (void)std::strtol(rest, &e, 10);
+        return *e == '\0';
+    }
+    return false;
+}
+
+// BasicNamespace::mergeNames
+void namenZusammenfuehren(Karte& k, const std::vector<Entitaet*>& neue) {
+    const std::set<const Entitaet*> neuSet(neue.begin(), neue.end());
+    EindeutigeNamen namen;   // g_defaultNamespace (NameObserver: nur nicht leere)
+    for (const auto& e : k.entitaeten()) {
+        if (neuSet.count(e.get()) != 0) { continue; }
+        for (const auto& [s, v] : e->schluessel()) {
+            if (schluesselIstName(s) && !v.empty()) { namen.einfuegen(nameLesen(v)); }
+        }
+    }
+    std::map<std::string, std::vector<std::pair<Entitaet*, std::string>>> gruppen;
+    for (Entitaet* e : neue) {
+        for (const auto& [s, v] : e->schluessel()) {
+            if (schluesselIstName(s)) { gruppen[v].emplace_back(e, s); }
+        }
+    }
+    for (const auto& [name, schluessel] : gruppen) {
+        const Name eindeutig = namen.eindeutig(nameLesen(name));
+        namen.einfuegen(eindeutig);
+        const std::string text = nameSchreiben(eindeutig);
+        for (const auto& [e, s] : schluessel) { e->setzen(s, text); }
+    }
+}
+
+namespace {
+
+std::shared_ptr<Primitiv> primitivKopie(const Primitiv& p, const Kontext& k) {
+    if (p.art() == Primitiv::Art::Pinsel) { return static_cast<const Pinsel&>(p).kopie(k); }
+    return static_cast<const Patch&>(p).kopie();
+}
+
+// Node_Clone / Node_Clone_Selected einer Entitaet
+template<typename F>
+std::shared_ptr<Entitaet> entitaetKopie(const Entitaet& e, const Kontext& k, F nimmKind) {
+    auto c = std::make_shared<Entitaet>(e.klasse());
+    for (const auto& [s, v] : e.schluessel()) { c->setzen(s, v); }
+    c->schicht = e.schicht;
+    for (const auto& p : e.kinder()) {
+        if (nimmKind(*p)) { c->kindEinfuegen(primitivKopie(*p, k)); }
+    }
+    return c;
+}
+
+// Instance_isSelected fuer Entitaeten (ganz) und Primitive
+struct GewaehltMenge {
+    std::unordered_set<const Entitaet*> ganz;
+    std::unordered_set<const Primitiv*> prim;
+    explicit GewaehltMenge(const Karte& k) {
+        for (const auto& el : k.auswahl.elemente()) {
+            const auto e = el.entitaet.lock();
+            const auto p = el.primitiv.lock();
+            if (!e) { continue; }
+            if (p) {
+                prim.insert(p.get());
+            } else {
+                ganz.insert(e.get());
+            }
+        }
+    }
+    [[nodiscard]] bool kindGewaehlt(const Entitaet& e) const {   // instance.childSelected()
+        return std::any_of(e.kinder().begin(), e.kinder().end(), [&](const auto& p) { return prim.count(p.get()) != 0; });
+    }
+};
+
+bool sichtbar(const Entitaet& e) { return !e.versteckt; }
+bool sichtbar(const Primitiv& p) { return !p.versteckt; }
+
+bool shaderGleich(const std::string& a, const std::string& b) {   // shader_equal: ohne Gross/klein
+    if (a.size() != b.size()) { return false; }
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) { return false; }
+    }
+    return true;
+}
+
+}  // namespace
+
+// --- select.cpp ------------------------------------------------------------------------
+
+void auswahlAufheben(Karte& k, AuswahlEinstellung& e) {   // Selection_Deselect
+    if (e.modus == AuswahlModus::Komponente) {
+        if (!k.auswahl.flaechen().empty()) {
+            k.auswahl.flaechenLeeren();
+        } else {   // SelectionSystem_DefaultMode
+            e.modus = AuswahlModus::Primitiv;
+            e.komponente = KomponentenModus::Standard;
+        }
+    } else if (!k.auswahl.flaechen().empty()) {
+        k.auswahl.flaechenLeeren();
+    } else {
+        k.auswahl.leeren();
+    }
+}
+
+void auswahlUmkehren(Karte& k, const AuswahlEinstellung& e) {   // InvertSelectionWalker
+    if (e.modus == AuswahlModus::Komponente) {
+        // nur Flaechen; Ecken/Kanten (und Patch-Ecken) mit Stufe 2
+        if (e.komponente != KomponentenModus::Flaeche) { return; }
+        const GewaehltMenge g(k);
+        for (const auto& ent : k.entitaeten()) {
+            if (!sichtbar(*ent)) { continue; }
+            for (const auto& p : ent->kinder()) {
+                if (!sichtbar(*p) || p->art() != Primitiv::Art::Pinsel || g.prim.count(p.get()) == 0) { continue; }
+                const auto pinsel = std::static_pointer_cast<Pinsel>(p);
+                for (const auto& f : pinsel->flaechen()) {   // invertComponentSelection( eFace ), ohne gefilterte
+                    if (k.auswahl.flaecheGewaehlt(f.get())) {
+                        k.auswahl.flaecheAbwaehlen(f.get());
+                    } else {
+                        k.auswahl.flaecheWaehlen(pinsel, f);
+                    }
+                }
+            }
+        }
+        return;
+    }
+    const auto liste = k.entitaeten();
+    for (const auto& ent : liste) {
+        if (!sichtbar(*ent)) { continue; }
+        if (e.modus == AuswahlModus::Entitaet) {
+            // die Entitaet wechselt bei ihrem ersten Kind (oder selbst ohne Kinder);
+            // ein verstecktes erstes Kind setzt m_selectable = 0
+            if (ent->kinder().empty() || sichtbar(*ent->kinder().front())) { k.auswahl.umschalten(ent); }
+            continue;
+        }
+        // ePrimitive: hat die Entitaet Kinder, wechseln nur die sichtbaren Kinder
+        if (ent->kinder().empty()) {
+            k.auswahl.umschalten(ent);
+            continue;
+        }
+        for (const auto& p : ent->kinder()) {
+            if (sichtbar(*p)) { k.auswahl.umschalten(ent, p); }
+        }
+    }
+}
+
+void alleVomTyp(Karte& k, const AuswahlEinstellung& e, const std::string& browserShader) {   // Select_AllOfType
+    if (e.modus == AuswahlModus::Komponente) {
+        if (e.komponente == KomponentenModus::Flaeche) {
+            k.auswahl.flaechenLeeren();
+            const GewaehltMenge g(k);   // Scene_BrushSelectByShader_Component: gewaehlte Pinsel
+            for (const auto& ent : k.entitaeten()) {
+                for (const auto& p : ent->kinder()) {
+                    if (p->art() != Primitiv::Art::Pinsel || g.prim.count(p.get()) == 0) { continue; }
+                    const auto pinsel = std::static_pointer_cast<Pinsel>(p);
+                    for (const auto& f : pinsel->flaechen()) {
+                        if (shaderGleich(f->shader(), browserShader)) { k.auswahl.flaecheWaehlen(pinsel, f); }
+                    }
+                }
+            }
+        }
+        return;
+    }
+    // EntityGetSelectedPropertyValuesWalker: classname gewaehlter Entitaeten (ohne worldspawn)
+    const auto welt = k.welt();
+    std::vector<std::string> klassen;
+    {
+        const GewaehltMenge g(k);
+        for (const auto& ent : k.entitaeten()) {
+            if (ent == welt) { continue; }
+            if (g.ganz.count(ent.get()) != 0 || g.kindGewaehlt(*ent)) {
+                const std::string c = ent->wert("classname");
+                if (std::find(klassen.begin(), klassen.end(), c) == klassen.end()) { klassen.push_back(c); }
+            }
+        }
+    }
+    k.auswahl.leeren();   // setSelectedAll( false )
+    if (!klassen.empty()) {   // EntityFindByPropertyValueWalker
+        for (const auto& ent : k.entitaeten()) {
+            if (!sichtbar(*ent) || ent == welt) { continue; }
+            if (std::find(klassen.begin(), klassen.end(), ent->wert("classname")) == klassen.end()) { continue; }
+            k.auswahl.waehlen(ent);
+            for (const auto& p : ent->kinder()) {
+                if (sichtbar(*p)) { k.auswahl.waehlen(ent, p); }
+            }
+        }
+        return;
+    }
+    // Scene_BrushPatchSelectByShader
+    for (const auto& ent : k.entitaeten()) {
+        if (!sichtbar(*ent)) { continue; }
+        for (const auto& p : ent->kinder()) {
+            if (!sichtbar(*p) || p->art() != Primitiv::Art::Pinsel) { continue; }
+            const auto& pinsel = static_cast<const Pinsel&>(*p);
+            if (std::any_of(pinsel.flaechen().begin(), pinsel.flaechen().end(), [&](const auto& f) { return shaderGleich(f->shader(), browserShader); })) {
+                k.auswahl.waehlen(ent, p);
+            }
+        }
+    }
+    for (const auto& ent : k.entitaeten()) {
+        if (!sichtbar(*ent)) { continue; }
+        for (const auto& p : ent->kinder()) {
+            if (sichtbar(*p) && p->art() == Primitiv::Art::Patch && shaderGleich(static_cast<const Patch&>(*p).shader(), browserShader)) {
+                k.auswahl.waehlen(ent, p);
+            }
+        }
+    }
+}
+
+bool versteckeGewaehlte(Karte& k, bool versteckt) {   // HideSelected
+    const GewaehltMenge g(k);
+    bool neu = versteckt;
+    for (const auto& ent : k.entitaeten()) {
+        if (g.ganz.count(ent.get()) != 0) {
+            neu = true;
+            ent->versteckt = true;
+        }
+        for (const auto& p : ent->kinder()) {
+            if (g.prim.count(p.get()) != 0) {
+                neu = true;
+                p->versteckt = true;
+            }
+        }
+        // Behaelter: Name verstecken, wenn der Inhalt ganz versteckt ist
+        if (ent->istBehaelter() && std::all_of(ent->kinder().begin(), ent->kinder().end(), [](const auto& p) { return p->versteckt; })) {
+            ent->versteckt = true;
+        }
+    }
+    // worldspawn nicht verstecken, damit neue Pinsel sichtbar sind
+    if (const auto welt = k.welt()) { welt->versteckt = false; }
+    k.auswahl.leeren();   // setSelectedAllComponents( false ), setSelectedAll( false )
+    return neu;
+}
+
+void zeigeVersteckte(Karte& k) {   // Select_ShowAllHidden
+    for (const auto& ent : k.entitaeten()) {
+        ent->versteckt = false;
+        for (const auto& p : ent->kinder()) { p->versteckt = false; }
+    }
+}
+
+void loescheAuswahl(Karte& k, const AuswahlEinstellung& e) {   // deleteSelection
+    if (e.modus == AuswahlModus::Komponente && !k.auswahl.flaechen().empty()) {
+        // CSG_DeleteComponents: mit der Komponenten-Bearbeitung (Stufe 2)
+        k.undo.start();
+        k.undo.finish("deleteSelectedComponents");
+        return;
+    }
+    k.undo.start();
+    const GewaehltMenge g(k);
+    std::unordered_set<const Primitiv*> geloeschtePrim;
+    std::unordered_set<const Entitaet*> geloeschteEnt;
+    const auto welt = k.welt();
+    const auto liste = k.entitaeten();
+    for (const auto& ent : liste) {   // DeleteSelected
+        if (g.ganz.count(ent.get()) != 0) {
+            k.entitaetEntfernen(ent.get());
+            geloeschteEnt.insert(ent.get());
+            continue;
+        }
+        bool kindEntfernt = false;
+        const auto kinder = ent->kinder();
+        for (const auto& p : kinder) {
+            if (g.prim.count(p.get()) != 0) {
+                ent->kindEntfernen(p.get());
+                geloeschtePrim.insert(p.get());
+                kindEntfernt = true;
+            }
+        }
+        // leere Entitaeten (nicht worldspawn) mitloeschen
+        if (kindEntfernt && ent != welt && ent->kinder().empty()) {
+            k.entitaetEntfernen(ent.get());
+            geloeschteEnt.insert(ent.get());
+        }
+    }
+    // die geloeschten Instanzen sind abgewaehlt
+    std::vector<AuswahlElement> rest;
+    for (const auto& el : k.auswahl.elemente()) {
+        const auto ent = el.entitaet.lock();
+        const auto p = el.primitiv.lock();
+        if (!ent || geloeschteEnt.count(ent.get()) != 0 || (p && geloeschtePrim.count(p.get()) != 0)) { continue; }
+        rest.push_back(el);
+    }
+    std::vector<FlaechenWahl> restFlaechen;
+    for (const auto& f : k.auswahl.flaechen()) {
+        const auto p = f.pinsel.lock();
+        if (p && geloeschtePrim.count(p.get()) == 0) { restFlaechen.push_back(f); }
+    }
+    k.auswahl.leeren();
+    for (const auto& el : rest) { k.auswahl.waehlen(el.entitaet.lock(), el.primitiv.lock()); }
+    for (const auto& f : restFlaechen) { k.auswahl.flaecheWaehlen(f.pinsel.lock(), f.flaeche.lock()); }
+    k.undo.finish("deleteSelected");
+}
+
+void klonen(Karte& k, const AuswahlEinstellung& e, bool eindeutig, bool befehl) {   // Selection_Clone(_MakeUnique)
+    if (e.modus != AuswahlModus::Primitiv) { return; }
+    if (befehl) { k.undo.start(); }
+    const GewaehltMenge g(k);
+    const auto welt = k.welt();
+    std::vector<std::shared_ptr<Entitaet>> neueEnt;
+    std::vector<std::pair<std::shared_ptr<Entitaet>, std::shared_ptr<Primitiv>>> neuePrim;
+    const auto liste = k.entitaeten();
+    for (const auto& ent : liste) {   // CloneSelected
+        const auto kinderKlonen = [&]() {
+            const auto kinder = ent->kinder();
+            for (const auto& p : kinder) {
+                if (g.prim.count(p.get()) == 0) { continue; }
+                auto c = primitivKopie(*p, k.kontext);
+                ent->kindEinfuegen(c);
+                neuePrim.emplace_back(ent, c);
+            }
+        };
+        if (ent == welt) {   // worldspawn nicht, aber seine Kinder
+            kinderKlonen();
+            continue;
+        }
+        if (g.ganz.count(ent.get()) != 0) {
+            auto c = entitaetKopie(*ent, k.kontext, [](const Primitiv&) { return true; });
+            k.entitaetEinfuegen(c);
+            neueEnt.push_back(c);
+            continue;
+        }
+        if (eindeutig && g.kindGewaehlt(*ent)) {   // gewaehlte Primitive einer Gruppe in eine neue Gruppe
+            auto c = entitaetKopie(*ent, k.kontext, [&](const Primitiv& p) { return g.prim.count(&p) != 0; });
+            k.entitaetEinfuegen(c);
+            neueEnt.push_back(c);
+            continue;
+        }
+        kinderKlonen();
+    }
+    // Map_mergeClonedNames( makeUnique )
+    if (eindeutig) {
+        std::vector<Entitaet*> roh;
+        for (const auto& c : neueEnt) { roh.push_back(c.get()); }
+        namenZusammenfuehren(k, roh);
+    }
+    // die Originale abwaehlen, die Klone waehlen (jede Instanz des Teilbaums)
+    k.auswahl.leeren();
+    for (const auto& [ent, p] : neuePrim) { k.auswahl.waehlen(ent, p); }
+    for (const auto& c : neueEnt) {
+        k.auswahl.waehlen(c);
+        for (const auto& p : c->kinder()) { k.auswahl.waehlen(c, p); }
+    }
+    if (befehl) { k.undo.finish(eindeutig ? "cloneSelectedMakeUnique" : "cloneSelected"); }
+}
+
+std::string kopieren(const Karte& k) {   // Map_ExportSelected (IncludeSelectedWalker)
+    const GewaehltMenge g(k);
+    return karteSchreiben(
+        k, [&](const Entitaet& e) { return g.ganz.count(&e) != 0 || g.kindGewaehlt(e); },
+        [&](const Entitaet& e, const Primitiv& p) { return g.ganz.count(&e) != 0 || g.prim.count(&p) != 0; });
+}
+
+void einfuegen(Karte& k, const std::string& text, bool befehl) {   // Paste -> Map_ImportSelected -> MergeMap
+    if (befehl) {
+        k.undo.start();
+        k.auswahl.leeren();   // setSelectedAll( false )
+    }
+    Karte neu;
+    neu.klassen = k.klassen;
+    neu.kontext = k.kontext;
+    (void)karteLesen(text, neu);
+    if (neu.kontext.format != k.kontext.format) {   // Convert_Brushes
+        Kontext umrechnen = k.kontext;
+        for (const auto& ent : neu.entitaeten()) {
+            for (const auto& p : ent->kinder()) {
+                if (p->art() != Primitiv::Art::Pinsel) { continue; }
+                for (const auto& f : static_cast<Pinsel&>(*p).flaechen()) { f->rechneTexdefUm(neu.kontext.art(), k.kontext.art(), umrechnen); }
+            }
+        }
+    }
+    // Map_mergeLayers: gleiche Ebenen behalten, sonst alles auf die aktuelle Ebene
+    bool gleicheEbenen = neu.schichten.size() == k.schichten.size();
+    for (std::size_t i = 0; gleicheEbenen && i < neu.schichten.size(); ++i) {
+        gleicheEbenen = neu.schichten[i].name == k.schichten[i].name && neu.schichten[i].eltern == k.schichten[i].eltern &&
+                        neu.schichten[i].farbe == k.schichten[i].farbe;
+    }
+    if (!gleicheEbenen) {   // LayersAssignWalker( currentLayer )
+        const int aktuell = static_cast<int>(k.aktuelleSchicht);
+        for (const auto& ent : neu.entitaeten()) {
+            if (ent->schicht != kSchichtKeine) { ent->schicht = aktuell; }
+            for (const auto& p : ent->kinder()) { p->schicht = aktuell; }
+        }
+    }
+    // Map_gatherNamespaced / Map_mergeClonedNames()
+    std::vector<std::shared_ptr<Entitaet>> liste = neu.entitaeten();
+    {
+        std::vector<Entitaet*> roh;
+        for (const auto& e : liste) {
+            if (e->klassenname() != "worldspawn") { roh.push_back(e.get()); }
+        }
+        namenZusammenfuehren(k, roh);
+    }
+    // MapMergeEntities
+    for (const auto& ent : liste) {
+        neu.entitaetEntfernen(ent.get());   // aus der Hilfskarte loesen (Undo-Anmeldung)
+        if (ent->klassenname() == "worldspawn") {
+            if (const auto welt = k.welt()) {   // MapMergeAll: die Pinsel in den vorhandenen worldspawn
+                const auto kinder = ent->kinder();
+                for (const auto& p : kinder) {
+                    ent->kindEntfernen(p.get());
+                    welt->kindEinfuegen(p);
+                    k.auswahl.waehlen(welt, p);
+                }
+            } else {
+                k.entitaetEinfuegen(ent);
+                for (const auto& p : ent->kinder()) { k.auswahl.waehlen(ent, p); }
+            }
+            continue;
+        }
+        k.entitaetEinfuegen(ent);
+        if (ent->istBehaelter()) {   // node_is_group: SelectChildren
+            for (const auto& p : ent->kinder()) { k.auswahl.waehlen(ent, p); }
+        } else {
+            k.auswahl.waehlen(ent);
+        }
+    }
+    if (befehl) { k.undo.finish("paste"); }
+}
+
+Vektor3f schubsRichtung(int richtung, float menge, Sicht s) {   // NudgeSelection, AxisBase_forViewType
+    Vektor3f x = kAchseX;
+    Vektor3f y = kAchseY;
+    if (s == Sicht::XZ) {
+        y = kAchseZ;
+    } else if (s == Sicht::YZ) {
+        x = kAchseY;
+        y = kAchseZ;
+    }
+    Vektor3f a;
+    switch (richtung) {   // AxisBase_axisForDirection
+    case 0: a = -x; break;   // eNudgeLeft
+    case 1: a = y; break;    // eNudgeUp
+    case 2: a = x; break;    // eNudgeRight
+    default: a = -y; break;  // eNudgeDown
+    }
+    return a * menge;
+}
+
+void amRasterAusrichten(Karte& k, const AuswahlEinstellung& e, float raster, bool eckenSperre) {   // Selection_SnapToGrid
+    k.undo.start();
+    const GewaehltMenge g(k);
+    if (e.modus == AuswahlModus::Komponente && !k.auswahl.flaechen().empty()) {
+        // ComponentSnappableSnapToGridSelected: FaceInstance::snapComponents -> Face::snapto
+        for (const auto& fw : k.auswahl.flaechen()) {
+            const auto p = fw.pinsel.lock();
+            const auto f = fw.flaeche.lock();
+            if (!p || !f || g.prim.count(p.get()) == 0 || p->versteckt) { continue; }
+            p->bRep(k.kontext);
+            if (!f->traegtBei()) { continue; }
+            // update_move_planepts_vertex( 0, planePoints )
+            const Wicklung& w = f->wicklung();
+            const std::size_t gegenueber = wicklungGegenueber(w, 0);
+            const std::size_t nachbar = (gegenueber + w.numpoints - 1) % w.numpoints;
+            EbenenPunkte pp = {w[gegenueber].vertex, w[0].vertex, w[nachbar].vertex};
+            for (auto& q : pp) { einrasten(q, raster); }
+            f->setzeEbenenPunkte(pp);
+        }
+    } else {
+        for (const auto& ent : k.entitaeten()) {   // SnappableSnapToGridSelected (nur sichtbare)
+            if (ent->versteckt) { continue; }
+            if (g.ganz.count(ent.get()) != 0 && !ent->istBehaelter()) {   // Punktentitaet: origin_snapped
+                const Vektor3f o = eingerastet(entitaetUrsprung(*ent), raster);
+                ent->setzen("origin", zahlText(o[0]) + ' ' + zahlText(o[1]) + ' ' + zahlText(o[2]));
+            }
+            for (const auto& p : ent->kinder()) {
+                if (p->versteckt || g.prim.count(p.get()) == 0) { continue; }
+                if (p->art() == Primitiv::Art::Pinsel) {
+                    static_cast<Pinsel&>(*p).eckenEinrasten(raster, k.kontext, eckenSperre);
+                } else {
+                    static_cast<Patch&>(*p).einrasten(raster);
+                }
+            }
+        }
+    }
+    k.undo.finish("snapSelected -grid " + zahlText(raster));
+}
+
+}  // namespace bhed::karte

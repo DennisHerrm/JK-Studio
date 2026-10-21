@@ -129,24 +129,24 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 ### create_edit_menu (radiant/mainframe.cpp)
 
   * SUB &Edit  (radiant/mainframe.cpp:894)
-    - [~] ITEM &Undo -> `Undo`  (radiant/mainframe.cpp:898) -- Stufe 2
-    - [~] ITEM &Redo -> `Redo`  (radiant/mainframe.cpp:899) -- Stufe 2
+    - [x] ITEM &Undo -> `Undo`  (radiant/mainframe.cpp:898)
+    - [x] ITEM &Redo -> `Redo`  (radiant/mainframe.cpp:899)
     * ---
-    - [~] ITEM &Copy -> `Copy`  (radiant/mainframe.cpp:901) -- Stufe 2
-    - [~] ITEM &Paste -> `Paste`  (radiant/mainframe.cpp:902) -- Stufe 2
-    - [~] ITEM P&aste To Camera -> `PasteToCamera`  (radiant/mainframe.cpp:903) -- Stufe 2
-    - [~] ITEM Move To Camera -> `MoveToCamera`  (radiant/mainframe.cpp:904) -- Stufe 2
+    - [x] ITEM &Copy -> `Copy`  (radiant/mainframe.cpp:901)
+    - [x] ITEM &Paste -> `Paste`  (radiant/mainframe.cpp:902)
+    - [x] ITEM P&aste To Camera -> `PasteToCamera`  (radiant/mainframe.cpp:903)
+    - [x] ITEM Move To Camera -> `MoveToCamera`  (radiant/mainframe.cpp:904)
     * ---
-    - [~] ITEM &Duplicate -> `CloneSelection`  (radiant/mainframe.cpp:906) -- Stufe 2
-    - [~] ITEM Duplicate, make uni&que -> `CloneSelectionAndMakeUnique`  (radiant/mainframe.cpp:907) -- Stufe 2
-    - [~] ITEM D&elete -> `DeleteSelection`  (radiant/mainframe.cpp:908) -- Stufe 2
+    - [x] ITEM &Duplicate -> `CloneSelection`  (radiant/mainframe.cpp:906)
+    - [x] ITEM Duplicate, make uni&que -> `CloneSelectionAndMakeUnique`  (radiant/mainframe.cpp:907)
+    - [x] ITEM D&elete -> `DeleteSelection`  (radiant/mainframe.cpp:908)
     * ---
-    - [~] ITEM C&lear Selection -> `UnSelectSelection`  (radiant/mainframe.cpp:911) -- Stufe 2
-    - [~] ITEM &Invert Selection -> `InvertSelection`  (radiant/mainframe.cpp:912) -- Stufe 2
+    - [x] ITEM C&lear Selection -> `UnSelectSelection`  (radiant/mainframe.cpp:911)
+    - [x] ITEM &Invert Selection -> `InvertSelection`  (radiant/mainframe.cpp:912)
     - [~] ITEM Select i&nside -> `SelectInside`  (radiant/mainframe.cpp:913) -- Stufe 2
     - [~] ITEM Select &touching -> `SelectTouching`  (radiant/mainframe.cpp:914) -- Stufe 2
     * ---
-    - [~] ITEM Select All Of Type -> `SelectAllOfType`  (radiant/mainframe.cpp:918) -- Stufe 2
+    - [x] ITEM Select All Of Type -> `SelectAllOfType`  (radiant/mainframe.cpp:918)
     - [~] ITEM Select Textured -> `SelectTextured`  (radiant/mainframe.cpp:919) -- Stufe 2
     - [~] ITEM &Expand Selection To Primitives -> `ExpandSelectionToPrimitives`  (radiant/mainframe.cpp:920) -- Stufe 2
     - [~] ITEM &Expand Selection To Entities -> `ExpandSelectionToEntities`  (radiant/mainframe.cpp:921) -- Stufe 2
@@ -217,8 +217,8 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
       - [x] CHECK Show Renderer Stats -> `ShowStats`  (radiant/mainframe.cpp:1025)
     * SUB Filter  (radiant/mainframe.cpp:1029)
     * ---
-    - [~] CHECK Hide Selected -> `HideSelected`  (radiant/mainframe.cpp:1037) -- Stufe 2
-    - [~] ITEM Show Hidden -> `ShowHidden`  (radiant/mainframe.cpp:1038) -- Stufe 2
+    - [x] CHECK Hide Selected -> `HideSelected`  (radiant/mainframe.cpp:1037)
+    - [x] ITEM Show Hidden -> `ShowHidden`  (radiant/mainframe.cpp:1038)
     * ---
     * SUB Region  (radiant/mainframe.cpp:1042)
       - [~] ITEM &Off -> `RegionOff`  (radiant/mainframe.cpp:1046) -- Stufe 2
@@ -234,16 +234,16 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
       - [~] CHECK &Vertices -> `DragVertices`  (radiant/mainframe.cpp:1066) -- Stufe 2
       - [~] CHECK &Faces -> `DragFaces`  (radiant/mainframe.cpp:1067) -- Stufe 2
     * ---
-    - [~] ITEM Snap To Grid -> `SnapToGrid`  (radiant/mainframe.cpp:1071) -- Stufe 2
+    - [x] ITEM Snap To Grid -> `SnapToGrid`  (radiant/mainframe.cpp:1071)
     * ---
     * SUB Nudge  (radiant/mainframe.cpp:1076)
-      - [~] ITEM Nudge Left -> `SelectNudgeLeft`  (radiant/mainframe.cpp:1080) -- Stufe 2
-      - [~] ITEM Nudge Right -> `SelectNudgeRight`  (radiant/mainframe.cpp:1081) -- Stufe 2
-      - [~] ITEM Nudge Up -> `SelectNudgeUp`  (radiant/mainframe.cpp:1082) -- Stufe 2
-      - [~] ITEM Nudge Down -> `SelectNudgeDown`  (radiant/mainframe.cpp:1083) -- Stufe 2
+      - [x] ITEM Nudge Left -> `SelectNudgeLeft`  (radiant/mainframe.cpp:1080)
+      - [x] ITEM Nudge Right -> `SelectNudgeRight`  (radiant/mainframe.cpp:1081)
+      - [x] ITEM Nudge Up -> `SelectNudgeUp`  (radiant/mainframe.cpp:1082)
+      - [x] ITEM Nudge Down -> `SelectNudgeDown`  (radiant/mainframe.cpp:1083)
       * ---
-      - [~] ITEM Nudge +Z -> `MoveSelectionUP`  (radiant/mainframe.cpp:1085) -- Stufe 2
-      - [~] ITEM Nudge -Z -> `MoveSelectionDOWN`  (radiant/mainframe.cpp:1086) -- Stufe 2
+      - [x] ITEM Nudge +Z -> `MoveSelectionUP`  (radiant/mainframe.cpp:1085)
+      - [x] ITEM Nudge -Z -> `MoveSelectionDOWN`  (radiant/mainframe.cpp:1086)
     * SUB Rotate  (radiant/mainframe.cpp:1089)
       - [~] ITEM Rotate X -> `RotateSelectionX`  (radiant/mainframe.cpp:1093) -- Stufe 2
       - [~] ITEM Rotate Y -> `RotateSelectionY`  (radiant/mainframe.cpp:1094) -- Stufe 2
@@ -441,7 +441,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 - [~] toggle_button Triggers / RightClick: tex Trigger | f-triggers.png -> `FilterTriggers`  (radiant/filterbar.cpp:185) -- Stufe 2
 - [~] button ResetFilters | f-reset.png -> `ResetFilters`  (radiant/filterbar.cpp:192) -- Stufe 2
 - [~] toggle_button Region Set Selection / RightClick: Region Off | f-region.png -> `RegionSetSelection`  (radiant/filterbar.cpp:195) -- Stufe 2
-- [~] toggle_button Hide Selected / RightClick: Show Hidden | f-hide.png -> `HideSelected`  (radiant/filterbar.cpp:198) -- Stufe 2
+- [x] toggle_button Hide Selected / RightClick: Show Hidden | f-hide.png -> `HideSelected`  (radiant/filterbar.cpp:198)
 
 ### File_constructToolbar (radiant/mainframe.cpp)
 
@@ -450,8 +450,8 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### UndoRedo_constructToolbar (radiant/mainframe.cpp)
 
-- [~] button Undo | undo.png -> `Undo`  (radiant/mainframe.cpp:1333) -- Stufe 2
-- [~] button Redo | redo.png -> `Redo`  (radiant/mainframe.cpp:1334) -- Stufe 2
+- [x] button Undo | undo.png -> `Undo`  (radiant/mainframe.cpp:1333)
+- [x] button Redo | redo.png -> `Redo`  (radiant/mainframe.cpp:1334)
 
 ### RotateFlip_constructToolbar (radiant/mainframe.cpp)
 
@@ -484,12 +484,12 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### Manipulators_constructToolbar (radiant/mainframe.cpp)
 
-- [~] toggle_button Resize (Q) | select_mouseresize.png -> `MouseDrag`  (radiant/mainframe.cpp:1374) -- Stufe 2
+- [x] toggle_button Resize (Q) | select_mouseresize.png -> `MouseDrag`  (radiant/mainframe.cpp:1374)
 - [~] toggle_button Clipper | select_clipper.png -> `ToggleClipper`  (radiant/mainframe.cpp:1375) -- Stufe 2
-- [~] toggle_button Translate | select_mousetranslate.png -> `MouseTranslate`  (radiant/mainframe.cpp:1376) -- Stufe 2
-- [~] toggle_button Rotate | select_mouserotate.png -> `MouseRotate`  (radiant/mainframe.cpp:1377) -- Stufe 2
-- [~] toggle_button Scale | select_mousescale.png -> `MouseScale`  (radiant/mainframe.cpp:1378) -- Stufe 2
-- [~] toggle_button Transform (Q) | select_mousetransform.png -> `MouseTransform`  (radiant/mainframe.cpp:1379) -- Stufe 2
+- [x] toggle_button Translate | select_mousetranslate.png -> `MouseTranslate`  (radiant/mainframe.cpp:1376)
+- [x] toggle_button Rotate | select_mouserotate.png -> `MouseRotate`  (radiant/mainframe.cpp:1377)
+- [x] toggle_button Scale | select_mousescale.png -> `MouseScale`  (radiant/mainframe.cpp:1378)
+- [x] toggle_button Transform (Q) | select_mousetransform.png -> `MouseTransform`  (radiant/mainframe.cpp:1379)
 - [~] toggle_button UV Tool | select_mouseuv.png -> `MouseUV`  (radiant/mainframe.cpp:1381) -- Stufe 2
 
 ### create_main_toolbar (radiant/mainframe.cpp)
@@ -620,9 +620,9 @@ Name | Art | Standardtaste | Quelle
 - [~] `ClipperClip` | Commands | Return | (radiant/clippertool.cpp:194) -- Stufe 2
 - [~] `ClipperFlip` | Commands | Ctrl+Return | (radiant/clippertool.cpp:196) -- Stufe 2
 - [~] `ClipperSplit` | Commands | Shift+Return | (radiant/clippertool.cpp:195) -- Stufe 2
-- [~] `CloneSelection` | Commands | Space | (radiant/select.cpp:1866) -- Stufe 2
-- [~] `CloneSelectionAndMakeUnique` | Commands | Shift+Space | (radiant/select.cpp:1867) -- Stufe 2
-- [~] `Copy` | Commands | Ctrl+C | (radiant/select.cpp:1862) -- Stufe 2
+- [x] `CloneSelection` | Commands | Space | (radiant/select.cpp:1866)
+- [x] `CloneSelectionAndMakeUnique` | Commands | Shift+Space | (radiant/select.cpp:1867)
+- [x] `Copy` | Commands | Ctrl+C | (radiant/select.cpp:1862)
 - [~] `CSGIntersect` | Commands | Ctrl+Shift+U | (radiant/csg.cpp:1595) -- Stufe 2
 - [~] `CSGMerge` | Commands | - | (radiant/csg.cpp:1593) -- Stufe 2
 - [~] `CSGroom` | Commands | - | (radiant/csg.cpp:1596) -- Stufe 2
@@ -631,9 +631,9 @@ Name | Art | Standardtaste | Quelle
 - [~] `CSGWrapMerge` | Commands | Ctrl+U | (radiant/csg.cpp:1594) -- Stufe 2
 - [x] `CubicClipZoomIn` | Commands | Ctrl+[ | (radiant/camwindow.cpp:2492)
 - [x] `CubicClipZoomOut` | Commands | Ctrl+] | (radiant/camwindow.cpp:2493)
-- [~] `DeleteSelection` | Commands | Z | (radiant/select.cpp:1870) -- Stufe 2
-- [~] `DeleteSelection2` | Commands | Backspace | (radiant/select.cpp:1869) -- Stufe 2
-- [~] `DeleteSelection3` | Commands | Delete | (radiant/select.cpp:1868) -- Stufe 2
+- [x] `DeleteSelection` | Commands | Z | (radiant/select.cpp:1870)
+- [x] `DeleteSelection2` | Commands | Backspace | (radiant/select.cpp:1869)
+- [x] `DeleteSelection3` | Commands | Delete | (radiant/select.cpp:1868)
 - [x] `DownFloor` | Commands | PgDown | (radiant/camwindow.cpp:2496)
 - [~] `DragEdges` | Toggles | E | (radiant/tools.cpp:423) -- Stufe 2
 - [~] `DragFaces` | Toggles | F | (radiant/tools.cpp:424) -- Stufe 2
@@ -685,13 +685,13 @@ Name | Art | Standardtaste | Quelle
 - [~] `Fullscreen` | Commands | F11 | (radiant/mainframe.cpp:2096) -- Stufe 2
 - [x] `GridDown` | Commands | [ | (radiant/grid.cpp:184)
 - [x] `GridUp` | Commands | ] | (radiant/grid.cpp:185)
-- [~] `HideSelected` | Toggles | H | (radiant/select.cpp:1842) -- Stufe 2
+- [x] `HideSelected` | Toggles | H | (radiant/select.cpp:1842)
 - [~] `ImportMap` | Commands | - | (radiant/map.cpp:2431) -- Stufe 2
 - [~] `InvertCurve` | Commands | Ctrl+I | (radiant/patchmanip.cpp:719) -- Stufe 2
 - [~] `InvertCurveTextureX` | Commands | Ctrl+Shift+I | (radiant/patchmanip.cpp:694) -- Stufe 2
 - [~] `InvertCurveTextureY` | Commands | Shift+I | (radiant/patchmanip.cpp:695) -- Stufe 2
 - [~] `InvertFilters` | Commands | - | (radiant/filters.cpp:210) -- Stufe 2
-- [~] `InvertSelection` | Commands | I | (radiant/select.cpp:1876) -- Stufe 2
+- [x] `InvertSelection` | Commands | I | (radiant/select.cpp:1876)
 - [~] `LayersMenu` | Commands | Shift+Q | (radiant/layerswindow.cpp:581) -- Stufe 2
 - [~] `MakeDetail` | Commands | Alt+D | (radiant/brushmanip.cpp:1493) -- Stufe 2
 - [~] `MakeStructural` | Commands | Alt+S | (radiant/brushmanip.cpp:1494) -- Stufe 2
@@ -720,17 +720,17 @@ Name | Art | Standardtaste | Quelle
 - [~] `MirrorSelectionY` | Commands | - | (radiant/select.cpp:1846) -- Stufe 2
 - [~] `MirrorSelectionZ` | Commands | - | (radiant/select.cpp:1848) -- Stufe 2
 - [~] `MouseBuild` | Toggles | B | (radiant/tools.cpp:433) -- Stufe 2
-- [~] `MouseDrag` | Toggles | - | (radiant/tools.cpp:432) -- Stufe 2
-- [~] `MouseDragOrTransform` | Commands | Q | (radiant/tools.cpp:436) -- Stufe 2
-- [~] `MouseRotate` | Toggles | R | (radiant/tools.cpp:429) -- Stufe 2
-- [~] `MouseRotateOrScale` | Commands | - | (radiant/tools.cpp:435) -- Stufe 2
-- [~] `MouseScale` | Toggles | - | (radiant/tools.cpp:430) -- Stufe 2
-- [~] `MouseTransform` | Toggles | - | (radiant/tools.cpp:431) -- Stufe 2
-- [~] `MouseTranslate` | Toggles | W | (radiant/tools.cpp:428) -- Stufe 2
+- [x] `MouseDrag` | Toggles | - | (radiant/tools.cpp:432)
+- [x] `MouseDragOrTransform` | Commands | Q | (radiant/tools.cpp:436)
+- [x] `MouseRotate` | Toggles | R | (radiant/tools.cpp:429)
+- [x] `MouseRotateOrScale` | Commands | - | (radiant/tools.cpp:435)
+- [x] `MouseScale` | Toggles | - | (radiant/tools.cpp:430)
+- [x] `MouseTransform` | Toggles | - | (radiant/tools.cpp:431)
+- [x] `MouseTranslate` | Toggles | W | (radiant/tools.cpp:428)
 - [~] `MouseUV` | Toggles | G | (radiant/tools.cpp:434) -- Stufe 2
-- [~] `MoveSelectionDOWN` | Commands | +Qt::Key_Minus + Qt::KeypadModifier | (radiant/select.cpp:1901) -- Stufe 2
-- [~] `MoveSelectionUP` | Commands | +Qt::Key_Plus + Qt::KeypadModifier | (radiant/select.cpp:1902) -- Stufe 2
-- [~] `MoveToCamera` | Commands | Ctrl+Shift+V | (radiant/select.cpp:1865) -- Stufe 2
+- [x] `MoveSelectionDOWN` | Commands | +Qt::Key_Minus + Qt::KeypadModifier | (radiant/select.cpp:1901)
+- [x] `MoveSelectionUP` | Commands | +Qt::Key_Plus + Qt::KeypadModifier | (radiant/select.cpp:1902)
+- [x] `MoveToCamera` | Commands | Ctrl+Shift+V | (radiant/select.cpp:1865)
 - [~] `NaturalizePatch` | Commands | Ctrl+N | (radiant/patchmanip.cpp:696) -- Stufe 2
 - [x] `NewMap` | Commands | - | (radiant/map.cpp:2429)
 - [~] `NextLeakSpot` | Commands | Ctrl+Shift+K | (radiant/points.cpp:321) -- Stufe 3
@@ -738,8 +738,8 @@ Name | Art | Standardtaste | Quelle
 - [~] `OpenGLFont` | Commands | - | (radiant/mainframe.cpp:2092) -- Stufe 2
 - [~] `OpenManual` | Commands | F1 | (radiant/mainframe.cpp:2069) -- Stufe 3
 - [x] `OpenMap` | Commands | Ctrl+O | (radiant/map.cpp:2430)
-- [~] `Paste` | Commands | Ctrl+V | (radiant/select.cpp:1863) -- Stufe 2
-- [~] `PasteToCamera` | Commands | Shift+V | (radiant/select.cpp:1864) -- Stufe 2
+- [x] `Paste` | Commands | Ctrl+V | (radiant/select.cpp:1863)
+- [x] `PasteToCamera` | Commands | Shift+V | (radiant/select.cpp:1864)
 - [~] `PatchBevel` | Commands | - | (radiant/patchmanip.cpp:705) -- Stufe 2
 - [~] `PatchCone` | Commands | - | (radiant/patchmanip.cpp:708) -- Stufe 2
 - [~] `PatchCylinder` | Commands | - | (radiant/patchmanip.cpp:697) -- Stufe 2
@@ -769,8 +769,8 @@ Name | Art | Standardtaste | Quelle
 - [~] `prtview::Unload.prtFile` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3
 - [~] `RedisperseCols` | Commands | - | (radiant/patchmanip.cpp:723) -- Stufe 2
 - [~] `RedisperseRows` | Commands | - | (radiant/patchmanip.cpp:721) -- Stufe 2
-- [~] `Redo` | Commands | Ctrl+Shift+Z | (radiant/select.cpp:1860) -- Stufe 2
-- [~] `Redo2` | Commands | Ctrl+Y | (radiant/select.cpp:1861) -- Stufe 2
+- [x] `Redo` | Commands | Ctrl+Shift+Z | (radiant/select.cpp:1860)
+- [x] `Redo2` | Commands | Ctrl+Y | (radiant/select.cpp:1861)
 - [~] `RefreshReferences` | Commands | - | (radiant/mainframe.cpp:2071) -- Stufe 2
 - [~] `RefreshShaders` | Commands | - | (radiant/texwindow.cpp:2100) -- Stufe 2
 - [~] `RegionOff` | Commands | - | (radiant/map.cpp:2437) -- Stufe 2
@@ -790,13 +790,13 @@ Name | Art | Standardtaste | Quelle
 - [~] `SaveRegion` | Commands | - | (radiant/map.cpp:2435) -- Stufe 2
 - [~] `SaveSelected` | Commands | - | (radiant/map.cpp:2434) -- Stufe 2
 - [~] `SearchFromStart` | Toggles | - | (radiant/texwindow.cpp:2111) -- Stufe 2
-- [~] `SelectAllOfType` | Commands | Shift+A | (radiant/select.cpp:1888) -- Stufe 2
+- [x] `SelectAllOfType` | Commands | Shift+A | (radiant/select.cpp:1888)
 - [~] `SelectConnectedEntities` | Commands | Ctrl+Shift+E | (radiant/select.cpp:1881) -- Stufe 2
 - [~] `SelectInside` | Commands | - | (radiant/select.cpp:1877) -- Stufe 2
-- [~] `SelectNudgeDown` | Commands | Alt+Down | (radiant/select.cpp:1907) -- Stufe 2
-- [~] `SelectNudgeLeft` | Commands | Alt+Left | (radiant/select.cpp:1904) -- Stufe 2
-- [~] `SelectNudgeRight` | Commands | Alt+Right | (radiant/select.cpp:1905) -- Stufe 2
-- [~] `SelectNudgeUp` | Commands | Alt+Up | (radiant/select.cpp:1906) -- Stufe 2
+- [x] `SelectNudgeDown` | Commands | Alt+Down | (radiant/select.cpp:1907)
+- [x] `SelectNudgeLeft` | Commands | Alt+Left | (radiant/select.cpp:1904)
+- [x] `SelectNudgeRight` | Commands | Alt+Right | (radiant/select.cpp:1905)
+- [x] `SelectNudgeUp` | Commands | Alt+Up | (radiant/select.cpp:1906)
 - [~] `SelectTextured` | Commands | Ctrl+Shift+A | (radiant/select.cpp:1857) -- Stufe 2
 - [~] `SelectTouching` | Commands | - | (radiant/select.cpp:1878) -- Stufe 2
 - [x] `SetGrid0.125` | Commands | - | (radiant/grid.cpp:189)
@@ -823,7 +823,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `ShowBlocks` | Toggles | - | (radiant/xywindow.cpp:2222) -- Stufe 1b Punkt 5
 - [x] `ShowConnections` | Toggles | - | (radiant/xywindow.cpp:2221) -- Stufe 1b Punkt 5
 - [x] `ShowCoordinates` | Toggles | - | (radiant/xywindow.cpp:2223) -- Stufe 1b Punkt 5
-- [~] `ShowHidden` | Commands | Shift+H | (radiant/select.cpp:1841) -- Stufe 2
+- [x] `ShowHidden` | Commands | Shift+H | (radiant/select.cpp:1841)
 - [~] `ShowInUse` | Toggles | U | (radiant/texwindow.cpp:2101) -- Stufe 2
 - [x] `ShowLightRadiuses` | Toggles | - | (radiant/entity.cpp:743)
 - [x] `ShowNames` | Toggles | - | (radiant/xywindow.cpp:2219) -- Stufe 1b Punkt 5
@@ -836,7 +836,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `SimplePatchMesh` | Commands | Shift+P | (radiant/patchmanip.cpp:710) -- Stufe 2
 - [~] `SmoothCols` | Commands | Ctrl+Shift+W | (radiant/patchmanip.cpp:725) -- Stufe 2
 - [~] `SmoothRows` | Commands | Ctrl+W | (radiant/patchmanip.cpp:724) -- Stufe 2
-- [~] `SnapToGrid` | Commands | Ctrl+G | (radiant/select.cpp:1886) -- Stufe 2
+- [x] `SnapToGrid` | Commands | Ctrl+G | (radiant/select.cpp:1886)
 - [~] `sunPlug::About` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 3
 - [~] `sunPlug::ET-MapCoordinator` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 3
 - [~] `SurfaceInspector` | Commands | S | (radiant/surfacedialog.cpp:1755) -- Stufe 2
@@ -899,9 +899,9 @@ Name | Art | Standardtaste | Quelle
 - [~] `uFO:AI::WeaponClip` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
 - [~] `uFO:AI::Worldspawn` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
 - [~] `uFO:AI::WorldspawnReset` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] `Undo` | Commands | Ctrl+Z | (radiant/select.cpp:1859) -- Stufe 2
-- [~] `UnSelectSelection` | Commands | C | (radiant/select.cpp:1875) -- Stufe 2
-- [~] `UnSelectSelection2` | Commands | Escape | (radiant/select.cpp:1874) -- Stufe 2
+- [x] `Undo` | Commands | Ctrl+Z | (radiant/select.cpp:1859)
+- [x] `UnSelectSelection` | Commands | C | (radiant/select.cpp:1875)
+- [x] `UnSelectSelection2` | Commands | Escape | (radiant/select.cpp:1874)
 - [x] `UpFloor` | Commands | PgUp | (radiant/camwindow.cpp:2495)
 - [x] `ViewFront` | Commands | +Qt::Key_1 + Qt::KeypadModifier | (radiant/xywindow.cpp:2274) -- Stufe 1b Punkt 5
 - [x] `ViewSide` | Commands | +Qt::Key_3 + Qt::KeypadModifier | (radiant/xywindow.cpp:2275) -- Stufe 1b Punkt 5
@@ -950,7 +950,7 @@ Name | Art | Standardtaste | Quelle
 - [x] Layout: "Layout Preferences"  (radiant/mainframe.cpp:2051)
 - [ ] Model Browser: "Model Browser Preferences"  (radiant/modelwindow.cpp:1364)
 - [ ] Patches: "Patch Display Preferences"  (radiant/patchmanip.cpp:676)
-- [ ] Selection: "Selection System Settings"  (radiant/selection.cpp:2328)
+- [x] Selection: "Selection System Settings"  (radiant/selection.cpp:2328)
 - [ ] Surface Inspector: "Surface Inspector Preferences"  (radiant/surfacedialog.cpp:1738)
 - [ ] Textures: "Texture Settings"  (radiant/textures.cpp:831)
 - [ ] Texture Browser: "Texture Browser Preferences"  (radiant/texwindow.cpp:2075)
@@ -1008,10 +1008,10 @@ Name | Art | Standardtaste | Quelle
 - [ ] Combo Select the game  (radiant/preferences.cpp:259)
 - [ ] CheckBox Startup / Show Global Preferences  (radiant/preferences.cpp:267)
 - [ ] CheckBox Nudge selected after duplication  (radiant/select.cpp:1921)
-- [ ] Spinner Selector size (pixels)  (radiant/selection.cpp:2314)
-- [ ] CheckBox Prefer point entities in 2D  (radiant/selection.cpp:2315)
-- [ ] CheckBox Create brushes in 3D  (radiant/selection.cpp:2316)
-- [ ] Combo Move style in 3D  (radiant/selection.cpp:2319)
+- [x] Spinner Selector size (pixels)  (radiant/selection.cpp:2314)
+- [x] CheckBox Prefer point entities in 2D  (radiant/selection.cpp:2315)
+- [x] CheckBox Create brushes in 3D  (radiant/selection.cpp:2316)
+- [x] Combo Move style in 3D  (radiant/selection.cpp:2319)
 - [ ] CheckBox Surface Inspector Increments Match Grid  (radiant/surfacedialog.cpp:1735)
 - [ ] Radio Texture Quality  (radiant/textures.cpp:764)
 - [ ] Spinner Texture Gamma  (radiant/textures.cpp:771)

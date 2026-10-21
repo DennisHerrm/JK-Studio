@@ -296,6 +296,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/karte_vektoricons.cpp
     gui/app_karte_xy.cpp
     gui/app_karte_cam.cpp
+    gui/app_karte_auswahl.cpp
     gui/karte_gpu_win32.cpp
     gui/tastatur_win32.cpp
     gui/backend_win32.cpp
@@ -674,7 +675,14 @@ target_sources(bhed_core PRIVATE
   src/karte/xyansicht.cpp
   # Stufe 1b: 3D-Kamera (CamWnd: Bewegung, Freelook, Fokus, Szene)
   src/karte/kamera.cpp
-  src/karte/kameraszene.cpp)
+  src/karte/kameraszene.cpp
+  # Stufe 1b: Auswahl und Bearbeiten (SelectionSystem, Manipulatoren, select.cpp)
+  src/karte/auswahltest.cpp
+  src/karte/auswahlsystem.cpp
+  src/karte/manipulator.cpp
+  src/karte/bearbeitung.cpp
+  src/karte/auswahlbefehle.cpp
+  src/karte/quickhull.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -756,6 +764,14 @@ if(BEHAVED_TESTS)
   add_executable(kartekamera tests/kartekamera.cpp)
   target_link_libraries(kartekamera PRIVATE bhed_core)
   add_test(NAME karte_kamera COMMAND kartekamera)
+  # Punkt 7: Auswaehlen (Treffer, Tunnel, Rechteck, Flaechen, Malen)
+  add_executable(karteauswahl tests/karteauswahl.cpp)
+  target_link_libraries(karteauswahl PRIVATE bhed_core)
+  add_test(NAME karte_auswahl COMMAND karteauswahl)
+  # Punkt 7: Manipulatoren (Verschieben, Drehen, Skalieren, Transform, Ziehen, neue Pinsel)
+  add_executable(kartebearbeitung tests/kartebearbeitung.cpp)
+  target_link_libraries(kartebearbeitung PRIVATE bhed_core)
+  add_test(NAME karte_bearbeitung COMMAND kartebearbeitung)
   # Punkte 3 und 4: die Befehlstabelle gegen die Checkliste (jeder Befehl mit
   # NRCs Taste, jeder Menuepunkt und Knopf), Uebersetzungen = NRC-Englisch,
   # Tastenkuerzel wie Qt (Text, possibleKeys, deutsche Tastatur).

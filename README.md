@@ -61,6 +61,9 @@ Details and known pitfalls are in [BAUEN.md](BAUEN.md), the tests in
 
 - `imgui/` – [Dear ImGui](https://github.com/ocornut/imgui) (MIT), as a submodule.
 - `third_party/minimp3.h` – minimp3 (CC0).
+- `third_party/quickhull/` – QuickHull by Antti Kuukka (public domain), unchanged
+  from NetRadiant-Custom (`libs/quickhull`); the map editor uses it for
+  Snap to Grid of brushes like NetRadiant-Custom.
 - `data/` contains files from the Jedi Academy SDK and from the original
   `BehavEd.exe` (images, the command description `behaved.bhc`, headers such as
   `Q3_Interface.h` and `anims.h`). These are the property of Raven Software /

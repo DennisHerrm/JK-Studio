@@ -107,6 +107,19 @@ std::map<std::string, Umsetzung>& umsetzungen() {
     // --- Edit ---
     m["Preferences"] = {[] { e().einstellungenOffen = true; }, nullptr};
     m["Shortcuts"] = {[] { e().tastenDialogOffen = true; }, nullptr};   // DoCommandListDlg (commands.cpp:332)
+    // --- Auswahl und Bearbeiten (select.cpp:1840-1907, tools.cpp:420-437) ---
+    for (const char* n : {"Undo", "Redo", "Redo2", "Copy", "Paste", "PasteToCamera", "MoveToCamera", "CloneSelection",
+                          "CloneSelectionAndMakeUnique", "DeleteSelection", "DeleteSelection2", "DeleteSelection3",
+                          "UnSelectSelection", "UnSelectSelection2", "InvertSelection", "SelectAllOfType", "SnapToGrid",
+                          "SelectNudgeLeft", "SelectNudgeRight", "SelectNudgeUp", "SelectNudgeDown", "MoveSelectionUP",
+                          "MoveSelectionDOWN", "ShowHidden", "MouseRotateOrScale", "MouseDragOrTransform"}) {
+        const std::string name = n;
+        m[name] = {[name] { auswahlBefehl(name); }, nullptr};
+    }
+    for (const char* n : {"MouseDrag", "MouseTranslate", "MouseRotate", "MouseScale", "MouseTransform", "HideSelected"}) {
+        const std::string name = n;
+        m[name] = {[name] { auswahlBefehl(name); }, [name] { return auswahlBefehlAn(name); }};
+    }
     // --- 2D-Ansichten (xywindow.cpp:2266-2278) ---
     for (const char* n : {"NextView", "ViewTop", "ViewFront", "ViewSide", "ZoomIn", "ZoomOut", "Zoom100", "CenterXYView",
                           "XYFocusOnSelected"}) {

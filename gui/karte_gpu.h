@@ -48,6 +48,13 @@ bool beginnen(int kennung, int breite, int hoehe, int msaa, const float* hinten,
 void zeichnen(const Puffer& p, const float* matrix, float breite);
 // Einmal-Linien (Raster, Overlay) ueber einen gemeinsamen Puffer.
 void zeichnen(const std::vector<karte::Linie>& linien, const float* matrix, float breite);
+// Punkte wie GL_POINTS mit glPointSize( groesse ): ein Quadrat je Linie am
+// Punkt "a" (b wird nicht gebraucht), ohne Tiefentest.
+void punkte(const std::vector<karte::Linie>& punkte, const float* matrix, float groesse);
+// XORRectangle::render (libs/gtkutil/xorrectangle.h): das Auswahlrechteck in
+// Geraetekoordinaten (-1..1) - drei Fuellungen (additiv, Filter, Alpha) und
+// der Rand. art: 0 auswaehlen, 1 abwaehlen, 2 umschalten (rect_t::EModifier).
+void auswahlRechteck(float x0, float y0, float x1, float y1, int art);
 // Aufloesen und die vorigen Renderziele wiederherstellen.
 void beenden();
 // Die Textur eines Renderziels fuer ImGui::Image (nullptr, wenn keine).
@@ -116,6 +123,7 @@ struct Zustand3 {
     float versatzEinheiten = 1;
     unsigned muster = 0;                // RENDER_LINESTIPPLE: Muster (0 = aus)
     int musterFaktor = 1;
+    float breite = 1;                   // glLineWidth (nur Linien)
 };
 // In das Renderziel mit Tiefe zeichnen (beginnen(..., true) vorher).
 void dreiecke(const Puffer3& p, std::size_t erstes, std::size_t anzahl, const Zustand3& z);

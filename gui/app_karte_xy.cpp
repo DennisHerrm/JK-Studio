@@ -100,6 +100,8 @@ std::size_t szeneStand() {
     h ^= static_cast<std::size_t>(farbe3(ed.farben.pinsel)) * 7U + static_cast<std::size_t>(farbe3(ed.farben.auswahl)) * 13U;
     h ^= static_cast<std::size_t>(farbe3(ed.farben.rasterHinten));
     h ^= (a.lichtRadien ? 8U : 0U) + (h << 6) + (h >> 2);
+    h ^= ed.sichtStand * 2246822519U + (h << 6) + (h >> 2);   // Verstecken/Zeigen
+    h ^= ed.karte.auswahl.flaechen().size() * 3266489917U + (h << 6) + (h >> 2);
     return h;
 }
 
@@ -151,6 +153,7 @@ void szeneBauen(Szene& s, Sicht sicht) {
         if (!tn.empty()) { ziele.emplace(tn, mitte(*ent)); }
     }
     for (const auto& ent : ed.karte.entitaeten()) {
+        if (ent->versteckt) { continue; }   // Node::eHidden: nicht sichtbar (auch die Kinder)
         const karte::EntitaetsKlasse* kl = ent->klasse();
         const bool welt = ent->klassenname() == "worldspawn";
         // SetWorldspawnColour: worldspawn in color_brushes
@@ -158,6 +161,7 @@ void szeneBauen(Szene& s, Sicht sicht) {
                            : (kl != nullptr ? karte::farbeAus(kl->farbe[0], kl->farbe[1], kl->farbe[2]) : karte::farbeAus(0, 0.5F, 0));
         const bool entGewaehlt = ed.karte.auswahl.gewaehlt(ent.get());
         for (const auto& p : ent->kinder()) {
+            if (p->versteckt) { continue; }
             const bool gew = entGewaehlt || ed.karte.auswahl.gewaehlt(ent.get(), p.get());
             std::vector<Linie>& ziel = gew ? s.wahl : s.welt;
             const Farbe f = gew ? auswahl : farbe;
@@ -406,6 +410,11 @@ void xyZeichnen(int index) {
     const int schriftHoehe = static_cast<int>(std::lround(ImGui::GetFontSize()));
     const int unterlaenge = static_cast<int>(std::lround(ImGui::GetFontSize() * 514.0F / 2724.0F));
 
+    // m_view.Construct( m_projection, m_modelview, m_nWidth, m_nHeight ) / onSizeChanged
+    ed.blicke[static_cast<std::size_t>(index)].bauen(v.projektion(), v.modelview(), static_cast<std::size_t>(v.breite),
+                                                     static_cast<std::size_t>(v.hoehe));
+    beobachterGroesse(index, v.breite, v.hoehe);
+
     // --- Szene (nur neu bauen, wenn sich etwas geaendert hat)
     Szene& s = g_szene[static_cast<std::size_t>(index)];
     const std::size_t stand = szeneStand();
@@ -432,6 +441,41 @@ void xyZeichnen(int index) {
     const std::vector<Linie> kam = karte::kameraSymbol(v, ed.kamera.ursprung, ed.kamera.winkel, farbe3(ed.farben.kamera));
     std::vector<Linie> kreuz;
     if (ed.anzeige.fadenkreuz) { kreuz = karte::fadenkreuz(v, f.maus); }
+    // GlobalSelectionSystem().renderSolid mit dem XYRenderer: globalstate
+    // RENDER_COLOURARRAY | RENDER_COLOURWRITE - kein Tiefentest, keine
+    // Fuellung (Pfeilspitzen als Dreieckskanten), $PLANE_WIRE_OVERLAY gelb und 2 breit.
+    const karte::ManipZeichnung mz = manipulatorZeichnung(index);
+    std::vector<Linie> manip1;
+    std::vector<Linie> manip2;
+    std::vector<Linie> manipPunkte;
+    {
+        const auto farbe = [](const karte::ManipFarbe& c) {
+            return karte::farbeAus(static_cast<float>(c.r) / 255.0F, static_cast<float>(c.g) / 255.0F, static_cast<float>(c.b) / 255.0F,
+                                   static_cast<float>(c.a) / 255.0F);
+        };
+        for (const auto& l : mz.ohneTiefe) { manip1.push_back(Linie{l.a, l.b, farbe(l.farbe)}); }   // $POINT (eSortControlFirst)
+        for (const auto& l : mz.draht) { manip1.push_back(Linie{l.a, l.b, farbe(l.farbe)}); }       // $WIRE_OVERLAY
+        for (const auto& d : mz.flach) {                                                          // $FLATSHADE_OVERLAY
+            for (std::size_t i = 0; i < 3; ++i) { manip1.push_back(Linie{d.p[i], d.p[(i + 1) % 3], farbe(d.farbe)}); }
+        }
+        const Farbe gelb = karte::farbeAus(1, 1, 0);   // $PLANE_WIRE_OVERLAY: m_colour( 1, 1, 0, 1 )
+        for (const auto& poly : mz.ebenen) {
+            for (std::size_t i = 0; i < poly.size(); ++i) { manip2.push_back(Linie{poly[i], poly[(i + 1) % poly.size()], gelb}); }
+        }
+        for (const auto& l : mz.ebenenLinien) { manip2.push_back(Linie{l.a, l.b, gelb}); }
+        for (const auto& pk : mz.grossePunkte) { manipPunkte.push_back(Linie{pk.p, pk.p, farbe(pk.farbe)}); }   // $BIGPOINT
+    }
+    const karte::AuswahlRechteck& rechteck = ed.beobachter[static_cast<std::size_t>(index)].rechteck;
+    // BrushInstance::renderComponentsSelected: Schwerpunkte gewaehlter Flaechen
+    // ($SELPOINT, 4 Bildpunkte, colour_selected)
+    std::vector<Linie> flaechenPunkte;
+    for (const auto& fw : ed.karte.auswahl.flaechen()) {
+        const auto pinsel = fw.pinsel.lock();
+        const auto fl = fw.flaeche.lock();
+        if (!pinsel || !fl || pinsel->versteckt) { continue; }
+        pinsel->bRep(ed.karte.kontext);
+        if (fl->traegtBei()) { flaechenPunkte.push_back(Linie{fl->schwerpunkt(), fl->schwerpunkt(), karte::farbeAus(0, 0, 1)}); }
+    }
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const float hinten[4] = {ed.farben.rasterHinten[0], ed.farben.rasterHinten[1], ed.farben.rasterHinten[2], 1.0F};
@@ -445,9 +489,14 @@ void xyZeichnen(int index) {
         kartegpu::zeichnen(raster.linien2, &mvp[0], 2.0F);
         kartegpu::zeichnen(s.gpuWelt, &mvp[0], 1.0F);
         kartegpu::zeichnen(s.gpuWahl, &mvp[0], 2.0F);
+        kartegpu::punkte(flaechenPunkte, &mvp[0], 4.0F);
+        kartegpu::zeichnen(manip1, &mvp[0], 1.0F);
+        kartegpu::zeichnen(manip2, &mvp[0], 2.0F);
+        kartegpu::punkte(manipPunkte, &mvp[0], 6.0F);
         kartegpu::zeichnen(overlay, &mvp[0], 1.0F);
         kartegpu::zeichnen(kam, &mvp[0], 1.0F);
         kartegpu::zeichnen(kreuz, &mvp[0], 1.0F);
+        kartegpu::auswahlRechteck(rechteck.min[0], rechteck.min[1], rechteck.max[0], rechteck.max[1], static_cast<int>(rechteck.art));
         kartegpu::beenden();
         dl->AddImage(reinterpret_cast<ImTextureID>(kartegpu::textur(100 + index)), o, ImVec2{o.x + groesse.x, o.y + groesse.y});
     } else {
@@ -456,6 +505,8 @@ void xyZeichnen(int index) {
         imguiLinien(dl, v, o, raster.linien2, 2.0F);
         imguiLinien(dl, v, o, s.welt, 1.0F);
         imguiLinien(dl, v, o, s.wahl, 2.0F);
+        imguiLinien(dl, v, o, manip1, 1.0F);
+        imguiLinien(dl, v, o, manip2, 2.0F);
         imguiLinien(dl, v, o, overlay, 1.0F);
         imguiLinien(dl, v, o, kam, 1.0F);
         imguiLinien(dl, v, o, kreuz, 1.0F);
@@ -492,7 +543,15 @@ void xyZeichnen(int index) {
                        !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
     const int mx = static_cast<int>(std::lround(io.MousePos.x - o.x));
     const int my = static_cast<int>(std::lround(io.MousePos.y - o.y));
+    const auto fx = static_cast<float>(mx);
+    const auto fy = static_cast<float>(my);
     const unsigned mods = (io.KeyShift ? kShift : 0U) | (io.KeyAlt ? kAlt : 0U) | (io.KeyCtrl ? kControl : 0U);
+    // modifiers_for_flags
+    karte::Zusatz zusatz;
+    zusatz.shift = (mods & kShift) != 0U;
+    zusatz.strg = (mods & kControl) != 0U;
+    zusatz.alt = (mods & kAlt) != 0U;
+    const bool bewegt = io.MouseDelta.x != 0.0F || io.MouseDelta.y != 0.0F;   // mouseMoveEvent
     // Qt liefert die Pan-Deltas in logischen Punkten (cursor.h), Klicks in
     // Geraetepunkten.
     const float qt = std::max(1.0F, std::round(g_app->dpiScale));
@@ -507,6 +566,12 @@ void xyZeichnen(int index) {
             }
         }
     }
+    // XYWnd::SetCustomPivotOrigin: die Blickachse bleibt
+    const auto eigenerUrsprung = [&]() {
+        bool gesetzt[3] = {true, true, true};
+        gesetzt[karte::blickachse(v.typ)] = false;
+        ed.bearbeitung.eigenenUrsprungSetzen(v.zuPunkt(mx, my), gesetzt);
+    };
     const int knopf[3] = {ImGuiMouseButton_Left, ImGuiMouseButton_Right, ImGuiMouseButton_Middle};
     const unsigned flag[3] = {kLinks, kRechts, kMitte};
     for (int b = 0; b < 3; ++b) {
@@ -530,10 +595,16 @@ void xyZeichnen(int index) {
                 f.ankerY = io.MousePos.y;
                 f.letzteX = io.MousePos.x;
                 f.letzteY = io.MousePos.y;
+            } else if (t == kLinks && ed.bearbeitung.neuerPinselMoeglich()) {   // NewBrushDrag_Begin
+                ed.bearbeitung.neuerPinselBeginnen(v, mx, my);
             } else if (t == (kControl | kMitte)) {   // XYWnd_PositionCamera
                 ed.kamera.setzeUrsprung(karte::kameraVersetzen(v, mx, my, ed.raster.einrastGroesse(), ed.kamera.ursprung));
             } else if (t == kMitte) {   // XYWnd_OrientCamera
                 ed.kamera.setzeWinkel(karte::kameraDrehen(v, mx, my, ed.kamera.ursprung, ed.kamera.winkel));
+            } else if (t == (kMitte | kShift)) {   // SetCustomPivotOrigin
+                eigenerUrsprung();
+            } else {   // m_window_observer->onMouseDown
+                beobachterDruck(index, fx, fy, b, zusatz);
             }
         }
     }
@@ -571,28 +642,44 @@ void xyZeichnen(int index) {
                 }
             }
             ImGui::SetMouseCursor(ImGuiMouseCursor_None);   // BlankCursor
-        } else {
+        } else if (bewegt) {
             const unsigned gehalten = (ImGui::IsMouseDown(ImGuiMouseButton_Left) ? kLinks : 0U) |
                                       (ImGui::IsMouseDown(ImGuiMouseButton_Right) ? kRechts : 0U) |
                                       (ImGui::IsMouseDown(ImGuiMouseButton_Middle) ? kMitte : 0U) | mods;
-            if (gehalten == (kControl | kMitte)) {
+            if (ed.bearbeitung.neuerPinselAktiv()) {   // NewBrushDrag( x, y, shift, ctrl )
+                ed.bearbeitung.neuerPinselZiehen(v, mx, my, (mods & kShift) != 0U, (mods & kControl) != 0U);
+            } else if (gehalten == (kControl | kMitte)) {
                 ed.kamera.setzeUrsprung(karte::kameraVersetzen(v, mx, my, ed.raster.einrastGroesse(), ed.kamera.ursprung));
             } else if (gehalten == kMitte) {
                 ed.kamera.setzeWinkel(karte::kameraDrehen(v, mx, my, ed.kamera.ursprung, ed.kamera.winkel));
+            } else if (gehalten == (kMitte | kShift)) {
+                eigenerUrsprung();
+            } else {
+                beobachterBewegung(index, fx, fy);
             }
         }
         // Loslassen (jede Taste beendet: m_buttonstate = 0)
-        bool los = false;
-        for (int b = 0; b < 3; ++b) { los = los || ImGui::IsMouseReleased(knopf[b]); }
-        if (los) {
+        int losKnopf = -1;
+        for (int b = 0; b < 3; ++b) {
+            if (ImGui::IsMouseReleased(knopf[b])) { losKnopf = b; }
+        }
+        if (losKnopf >= 0) {
             if (f.verschieben) {
                 f.verschieben = false;
                 if (!imTest) { ImGui::TeleportMousePos(ImVec2{f.ankerX, f.ankerY}); }   // unfreeze_pointer( false )
+            } else if (f.zoomen) {
+                f.zoomen = false;
+            } else if (ed.bearbeitung.neuerPinselAktiv()) {   // NewBrushDrag_End
+                // M1 ohne neuen Pinsel: Tunnel-Auswahl
+                if (!ed.bearbeitung.neuerPinselBeenden()) { beobachterLoslassen(index, fx, fy, losKnopf, zusatz); }
+            } else {
+                beobachterLoslassen(index, fx, fy, losKnopf, zusatz);
             }
-            f.zoomen = false;
             f.gedrueckt = false;
             f.tasten = 0;
         }
+    } else if (ueber && bewegt) {   // XY_MouseMoved ohne Taste: Manipulator hervorheben
+        beobachterBewegung(index, fx, fy);
     }
     // XY_MouseMoved ohne gefangene Bewegung: Position in der Statuszeile
     if (ueber && !f.verschieben && !f.zoomen) {

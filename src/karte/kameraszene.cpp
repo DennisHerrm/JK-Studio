@@ -397,12 +397,14 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
     std::vector<KameraPunkt> ecken;
     std::vector<KameraKante> umriss;
     for (const auto& ent : karte.entitaeten()) {
+        if (ent->versteckt) { continue; }   // Node::eHidden (mit den Kindern)
         const EntitaetsKlasse* kl = ent->klasse();
         const bool welt = ent->klassenname() == "worldspawn";
         const bool entGew = karte.auswahl.gewaehlt(ent.get());
         bool kindGew = false;
         Kasten kinderBox;
         for (const auto& p : ent->kinder()) {
+            if (p->versteckt) { continue; }
             const bool selbstGew = karte.auswahl.gewaehlt(ent.get(), p.get());
             const bool gew = entGew || selbstGew;   // RenderHighlighted: Zustand der Eltern gilt fuer die Kinder
             kindGew = kindGew || selbstGew;

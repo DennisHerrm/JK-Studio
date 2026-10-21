@@ -59,6 +59,7 @@ const Seite kSeiten[] = {
 };
 constexpr int kSeiteInterface = 4;
 constexpr int kSeiteLayout = 5;
+constexpr int kSeiteAuswahl = 12;
 constexpr int kSeiteKamera = 17;
 
 struct Entwurf {
@@ -69,6 +70,10 @@ struct Entwurf {
     bool abtrennbar = true;
     bool nrc = false;
     karte::KameraEinstellungen kamera;
+    int waehlEpsilon = 12;          // g_SELECT_EPSILON
+    bool punktEntitaeten2d = true;  // m_bPreferPointEntsIn2D
+    bool pinselIn3d = true;         // g_3DCreateBrushes
+    int bewegStil3d = 0;            // TranslateFreeXY_Z::m_viewdependent
 };
 Entwurf g_entwurf;
 
@@ -205,6 +210,25 @@ void kameraSeite() {
     ImGui::EndTable();
 }
 
+// SelectionSystem_constructPreferences (selection.cpp:2313-2325): appendSpinner
+// "Selector size (pixels)" 2..64, zwei Checkboxen, appendCombo "Move style in 3D"
+// (Foto pref_Selection.png).
+void auswahlSeite() {
+    if (!formBeginnen("##auswahlseite")) { return; }
+    formSpalten();
+    formZeile(Str::KePrSelSize);
+    ImGui::InputInt("##waehlergroesse", &g_entwurf.waehlEpsilon);
+    g_entwurf.waehlEpsilon = std::clamp(g_entwurf.waehlEpsilon, 2, 64);
+    formZeile(Str::Count);
+    ImGui::Checkbox(trK(Str::KePrSelPreferPoint), &g_entwurf.punktEntitaeten2d);
+    formZeile(Str::Count);
+    ImGui::Checkbox(trK(Str::KePrSel3dBrushes), &g_entwurf.pinselIn3d);
+    formZeile(Str::KePrSelMoveStyle);
+    const char* stile[2] = {trK(Str::KePrSelMoveXY), trK(Str::KePrSelMoveView)};
+    (void)ImGui::Combo("##bewegstil", &g_entwurf.bewegStil3d, stile, 2);
+    ImGui::EndTable();
+}
+
 void interfaceSeite() {
     // Interface Preferences: "Shader Editor Command" (preferences.cpp:64,
     // appendPathEntry: Feld mit "..."-Knopf; Foto pref_Interface.png), dazu
@@ -232,6 +256,10 @@ void zeichneEinstellungen() {
         g_entwurf.eingebaut = ed.gruppenDialogEingebaut;
         g_entwurf.nrc = nrcBegriffe();
         g_entwurf.kamera = ed.kameraE;
+        g_entwurf.waehlEpsilon = static_cast<int>(ed.bearbeitung.waehlEpsilon);
+        g_entwurf.punktEntitaeten2d = ed.bearbeitung.einstellung.punktEntitaetenIn2d;
+        g_entwurf.pinselIn3d = ed.bearbeitung.pinselIn3d;
+        g_entwurf.bewegStil3d = ed.bearbeitung.bewegStil3d;
     }
     if (!ed.einstellungenOffen) {
         g_entwurf.offen = false;
@@ -282,6 +310,8 @@ void zeichneEinstellungen() {
             interfaceSeite();
         } else if (g_entwurf.seite == kSeiteKamera) {
             kameraSeite();
+        } else if (g_entwurf.seite == kSeiteAuswahl) {
+            auswahlSeite();
         } else {
             char z[120];
             std::snprintf(z, sizeof(z), tr(Str::KeStufe), 2);
@@ -313,6 +343,10 @@ void zeichneEinstellungen() {
             neu.zeigeGroesse = ed.kameraE.zeigeGroesse;
             ed.kameraE = neu;
             ed.kamera.projektionAktualisieren(ed.kameraE);
+            ed.bearbeitung.waehlEpsilon = static_cast<float>(g_entwurf.waehlEpsilon);
+            ed.bearbeitung.einstellung.punktEntitaetenIn2d = g_entwurf.punktEntitaeten2d;
+            ed.bearbeitung.pinselIn3d = g_entwurf.pinselIn3d;
+            ed.bearbeitung.bewegStil3d = g_entwurf.bewegStil3d;
             ed.maximiert = false;
             einstellungenSpeichern();
             offen = false;

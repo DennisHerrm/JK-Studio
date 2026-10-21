@@ -612,10 +612,12 @@ void kontextmenueZeigen() { e().kamFenster.kontextmenue = true; }
 // camera_orbit_init (camwindow.cpp:1112-1123): Drehpunkt unter dem Zeiger.
 // Scene_Intersect mit Treffer (BestPointSelector) kommt mit der Auswahl
 // (Punkt 7); ohne Treffer 256 vor der Nahebene.
-void orbitBeginnen(float x, float y) {
-    karte::Kamera& k = e().kamera;
+void orbitBeginnen(float x, float y) {   // camera_orbit_init
+    Editor& ed = e();
+    karte::Kamera& k = ed.kamera;
     const karte::Vektor2f p = k.geraetePunkt(x, y);
-    k.orbitBeginnen(k.strahlOhneTreffer(p[0], p[1]));
+    const karte::GeraeteVektor eps(8.F / static_cast<float>(k.breite), 8.F / static_cast<float>(k.hoehe));   // device epsilon
+    k.orbitBeginnen(karte::szeneSchnitt(ed.karte, ed.blicke[3], p, eps));   // Scene_Intersect
 }
 
 void zahlText(char* z, std::size_t n, float f) { std::snprintf(z, n, "%g", static_cast<double>(f)); }
@@ -795,11 +797,15 @@ void kameraZeichnen() {
     k.projektionAktualisieren(c);
     k.modelviewAktualisieren();
     const double jetzt = ImGui::GetTime();
-    // Selection_UpdateWorkzone
+    // Selection_UpdateWorkzone: Select_GetBounds = getBoundsSelected
     if (ed.karte.auswahl.anzahl() != 0) {
-        Kasten b;
-        if (auswahlGrenzen(b)) { ed.workzone = b; }
+        const Kasten b = karte::auswahlGrenzenPivot(ed.karte);
+        if (karte::kastenGueltig(b)) { ed.workzone = b; }
     }
+    ed.bearbeitung.arbeitsbereich = ed.workzone;
+    // m_view (Camera_updateProjection/-Modelview) und onSizeChanged
+    ed.blicke[3].bauen(k.projektion, k.modelview, static_cast<std::size_t>(f.breite), static_cast<std::size_t>(f.hoehe));
+    beobachterGroesse(3, f.breite, f.hoehe);
     // Camera_keyMove: ein Schritt je Durchlauf mit gemessener Zeit
     if (k.bewegung != 0U) {
         float dt = f.tastenUhr >= 0.0 ? static_cast<float>(jetzt - f.tastenUhr) : 0.0F;
@@ -945,6 +951,30 @@ void kameraZeichnen() {
             if (st.art == karte::StapelArt::Shader) { shaderZiehen(st, true); }
         }
         const auto& sel = ed.farben.auswahl3d;
+        // gewaehlte Flaechen (Komponenten): Polygone, Kanten, Schwerpunkte
+        std::vector<kartegpu::Punkt3> flaechenTint;
+        std::vector<kartegpu::LinienPunkt> flaechenDraht;
+        std::vector<karte::Linie> flaechenPunkte;
+        for (const auto& fw : ed.karte.auswahl.flaechen()) {
+            const auto pinsel = fw.pinsel.lock();
+            const auto fl = fw.flaeche.lock();
+            if (!pinsel || !fl || pinsel->versteckt) { continue; }
+            pinsel->bRep(ed.karte.kontext);
+            if (!fl->traegtBei()) { continue; }
+            const karte::Wicklung& w = fl->wicklung();
+            const karte::Vektor3d& nd = fl->ebene().normal();
+            const Vektor3f n(static_cast<float>(nd[0]), static_cast<float>(nd[1]), static_cast<float>(nd[2]));
+            std::vector<karte::KameraPunkt> ecken;
+            for (std::size_t i = 0; i < w.numpoints; ++i) {
+                ecken.push_back({Vektor3f(w[i].vertex), n, w[i].texcoord, 0xFFFFFFFFU});
+            }
+            std::vector<karte::KameraPunkt> dreiecke;
+            std::vector<karte::KameraKante> kanten;
+            karte::polygonFuellung(ecken, dreiecke, &kanten);
+            for (const auto& d : dreiecke) { flaechenTint.push_back(punkt3(d, true)); }
+            for (const auto& kk : kanten) { kanteDazu(kk, true, flaechenDraht); }
+            flaechenPunkte.push_back(karte::Linie{fl->schwerpunkt(), fl->schwerpunkt(), karte::farbeAus(0, 0, 1)});   // colour_selected
+        }
         // eSortHighlight: $CAM_HIGHLIGHT (color_selbrushes3d, 0.3)
         if (c.faerben) {
             kartegpu::Zustand3 z = basis;
@@ -960,6 +990,11 @@ void kameraZeichnen() {
             }
             kartegpu::linien(s.tintLinien, z);
             zaehlen(s.tintObjekte, s.tintTransforms);
+            if (fuellen) {
+                kartegpu::dreiecke(flaechenTint, z);
+            } else {
+                kartegpu::linien(flaechenDraht, z);
+            }
         }
         // eSortOverlayFirst: verdeckte Kanten gestrichelt grau
         {
@@ -1001,6 +1036,22 @@ void kameraZeichnen() {
             kartegpu::linien(s.overlay, z);
             zaehlen(s.overlayObjekte, s.overlayTransforms);
         }
+        // $CAM_FACEWIRE ("Selected faces wire"): verdeckt (eSortOverlayFirst + 1,
+        // GL_GREATER, ohne Strichel - nicht im globalstate), dann sichtbar (+ 2)
+        if (c.flaechenDraht && !flaechenDraht.empty()) {
+            kartegpu::Zustand3 z = basis;
+            farbeSetzen(z, sel[0], sel[1], sel[2], 1.0F);
+            z.wegschneiden = true;
+            z.versatz = true;
+            z.tiefe = kartegpu::TiefenTest::Groesser;
+            z.tiefeSchreiben = false;
+            kartegpu::linien(flaechenDraht, z);
+            z.tiefe = kartegpu::TiefenTest::KleinerGleich;
+            z.tiefeSchreiben = true;
+            kartegpu::linien(flaechenDraht, z);
+        }
+        // $SELPOINT (eSortControlFirst + 1): Schwerpunkte, 4 Bildpunkte, ohne Tiefentest
+        kartegpu::punkte(flaechenPunkte, &vp[0], 4.0F);
         // eSortOverlayFirst + 3: $CAM_WORKZONE
         if (c.zeigeWorkzone && ed.karte.auswahl.anzahl() != 0) {
             Kasten b;
@@ -1027,6 +1078,99 @@ void kameraZeichnen() {
                 zaehlen(1, 1);
             }
         }
+        // GlobalSelectionSystem().renderSolid mit dem CamRenderer: die
+        // Strichel-Paesse fehlen im globalstate der Kamera (RENDER_LINESTIPPLE,
+        // RENDER_POLYGONSTIPPLE) - die verdeckten Teile erscheinen voll.
+        {
+            const karte::ManipZeichnung mz = manipulatorZeichnung(3);
+            const auto farbe = [](const karte::ManipFarbe& m) {
+                return karte::farbeAus(static_cast<float>(m.r) / 255.0F, static_cast<float>(m.g) / 255.0F,
+                                       static_cast<float>(m.b) / 255.0F, static_cast<float>(m.a) / 255.0F);
+            };
+            const auto linie = [](const Vektor3f& a, const Vektor3f& b, Farbe fa, const Vektor3f* dritte,
+                                  std::vector<kartegpu::LinienPunkt>& aus) {
+                kartegpu::LinienPunkt p{};
+                p.pos[0] = a[0];
+                p.pos[1] = a[1];
+                p.pos[2] = a[2];
+                p.farbe = fa;
+                if (dritte != nullptr) {   // Kante eines Polygons im Linienmodus
+                    p.extra[0] = (*dritte)[0];
+                    p.extra[1] = (*dritte)[1];
+                    p.extra[2] = (*dritte)[2];
+                    p.extra[3] = 1.0F;
+                }
+                kartegpu::LinienPunkt q = p;
+                q.pos[0] = b[0];
+                q.pos[1] = b[1];
+                q.pos[2] = b[2];
+                aus.push_back(p);
+                aus.push_back(q);
+            };
+            // $POINT (eSortControlFirst): Linien ohne Tiefentest
+            std::vector<kartegpu::LinienPunkt> ohne;
+            for (const auto& l : mz.ohneTiefe) { linie(l.a, l.b, farbe(l.farbe), nullptr, ohne); }
+            kartegpu::Zustand3 zo = basis;
+            zo.tiefe = kartegpu::TiefenTest::Aus;
+            zo.tiefeSchreiben = false;
+            zo.wegschneiden = false;
+            kartegpu::linien(ohne, zo);
+            // $WIRE_OVERLAY, $FLATSHADE_OVERLAY, $PLANE_WIRE_OVERLAY
+            std::vector<kartegpu::LinienPunkt> draht;
+            for (const auto& l : mz.draht) { linie(l.a, l.b, farbe(l.farbe), nullptr, draht); }
+            std::vector<kartegpu::LinienPunkt> flachKanten;
+            std::vector<kartegpu::Punkt3> flach;
+            for (const auto& d : mz.flach) {
+                if (fuellen) {
+                    for (std::size_t i = 0; i < 3; ++i) {
+                        kartegpu::Punkt3 q{};
+                        q.pos[0] = d.p[i][0];
+                        q.pos[1] = d.p[i][1];
+                        q.pos[2] = d.p[i][2];
+                        q.normale[0] = d.n[i][0];
+                        q.normale[1] = d.n[i][1];
+                        q.normale[2] = d.n[i][2];
+                        q.farbe = farbe(d.farbe);
+                        flach.push_back(q);
+                    }
+                } else {   // ohne RENDER_FILL: Dreieckskanten (GL_LINE) mit Wegschneiden
+                    for (std::size_t i = 0; i < 3; ++i) { linie(d.p[i], d.p[(i + 1) % 3], farbe(d.farbe), &d.p[(i + 2) % 3], flachKanten); }
+                }
+            }
+            const Farbe gelb = karte::farbeAus(1, 1, 0);   // $PLANE_WIRE_OVERLAY m_colour
+            std::vector<kartegpu::LinienPunkt> ebenen;
+            for (const auto& poly : mz.ebenen) {
+                for (std::size_t i = 0; i < poly.size(); ++i) {
+                    linie(poly[i], poly[(i + 1) % poly.size()], gelb, &poly[(i + 2) % poly.size()], ebenen);
+                }
+            }
+            for (const auto& l : mz.ebenenLinien) { linie(l.a, l.b, gelb, nullptr, ebenen); }
+            for (const bool sichtbar : {false, true}) {   // eSortGUI0 (verdeckt), dann eSortGUI1
+                kartegpu::Zustand3 z = basis;
+                z.tiefe = sichtbar ? kartegpu::TiefenTest::KleinerGleich : kartegpu::TiefenTest::Groesser;
+                z.tiefeSchreiben = true;
+                z.wegschneiden = false;
+                kartegpu::linien(draht, z);
+                kartegpu::Zustand3 zf = z;
+                zf.wegschneiden = true;   // RENDER_CULLFACE
+                if (fuellen) {
+                    zf.licht = true;   // RENDER_LIGHTING
+                    kartegpu::dreiecke(flach, zf);
+                } else {
+                    kartegpu::linien(flachKanten, zf);
+                }
+                kartegpu::Zustand3 ze = z;
+                if (sichtbar) {   // RENDER_OFFSETLINE, glLineWidth( 2 )
+                    ze.versatz = true;
+                    ze.breite = 2;
+                }
+                kartegpu::linien(ebenen, ze);
+            }
+            // $BIGPOINT (eSortGUI1 + 1): ohne Tiefentest, 6 Bildpunkte
+            std::vector<karte::Linie> punkte;
+            for (const auto& pk : mz.grossePunkte) { punkte.push_back(karte::Linie{pk.p, pk.p, farbe(pk.farbe)}); }
+            kartegpu::punkte(punkte, &vp[0], 6.0F);
+        }
         // Fadenkreuz im Freelook (camwindow.cpp:2080-2100): Ursprung links
         // oben, y nach unten; schwarz, dann weiss um (-1,-1) versetzt.
         if (f.frei) {
@@ -1052,6 +1196,9 @@ void kameraZeichnen() {
                 kartegpu::zeichnen(l, &ortho[0], 1.0F);
             }
         }
+        // XORRectangle::render nach dem Bild
+        const karte::AuswahlRechteck& r = ed.beobachter[3].rechteck;
+        kartegpu::auswahlRechteck(r.min[0], r.min[1], r.max[0], r.max[1], static_cast<int>(r.art));
         kartegpu::beenden();
         dl->AddImage(reinterpret_cast<ImTextureID>(kartegpu::textur(200)), o, ImVec2{o.x + groesse.x, o.y + groesse.y});
     } else {
@@ -1129,6 +1276,31 @@ void kameraZeichnen() {
     const bool nurAlt = io.KeyAlt && !io.KeyShift && !io.KeyCtrl;
     // Fokus verloren: der Freelook endet (FreezePointer: FocusOut)
     if (f.frei && (io.AppFocusLost || !aktiv())) { freelookBeenden(); }
+    // Fensterpunkte der Maus; im Freelook die Mitte (windowvector_for_widget_centre)
+    const int dpr = std::max(1, static_cast<int>(std::lround(g_app->dpiScale)));   // QRect::center in logischen Punkten
+    const float mausX = f.frei ? static_cast<float>(((f.breite / dpr - 1) / 2) * dpr) : io.MousePos.x - o.x;
+    const float mausY = f.frei ? static_cast<float>(((f.hoehe / dpr - 1) / 2) * dpr) : io.MousePos.y - o.y;
+    karte::Zusatz zusatz;   // modifiers_for_state
+    zusatz.shift = io.KeyShift;
+    zusatz.strg = io.KeyCtrl;
+    zusatz.alt = io.KeyAlt;
+    {
+        const ImGuiMouseButton knoepfe[3] = {ImGuiMouseButton_Left, ImGuiMouseButton_Right, ImGuiMouseButton_Middle};
+        for (int b = 0; b < 3; ++b) {
+            // selection_button_press (ORBIT_EVENT: Alt+M2 nicht)
+            if (ImGui::IsMouseClicked(knoepfe[b]) && (ueber || f.frei) && !(b == 1 && nurAlt)) {
+                beobachterDruck(3, mausX, mausY, b, zusatz);
+            }
+            if (ImGui::IsMouseReleased(knoepfe[b]) && (ueber || f.frei || ed.beobachter[3].mausUnten)) {   // selection_button_release
+                beobachterLoslassen(3, mausX, mausY, b, zusatz);
+            }
+        }
+        // selection_motion (DeferredMotion2: einmal je Bild); im Freelook
+        // selection_motion_freemove ueber FreezePointer
+        if (!f.frei && (ueber || ed.beobachter[3].mausUnten) && (io.MouseDelta.x != 0.0F || io.MouseDelta.y != 0.0F)) {
+            beobachterBewegung(3, mausX, mausY);
+        }
+    }
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right) && (ueber || f.frei)) {
         const bool m2 = keine;      // M2_EVENT
         const bool m2alt = nurAlt;  // ORBIT_EVENT
@@ -1179,6 +1351,15 @@ void kameraZeichnen() {
                                 ImGui::IsMouseDown(ImGuiMouseButton_Right), c.strafeModus);
                 k.mausBewegen(dx, dy, c);
                 f.rechtsWeg += std::sqrt(static_cast<double>((dx * dx) + (dy * dy)));   // selection_motion_freemove
+                {   // incMouseMove + onMouseMotion( Mitte )
+                    FensterBeobachter& fb = ed.beobachter[3];
+                    // NRC: logische Deltas, Geraete-Breite
+                    const karte::GeraeteVektor d(static_cast<float>(dx) * 2.F / static_cast<float>(fb.breite),
+                                                 static_cast<float>(dy) * 2.F / static_cast<float>(fb.hoehe));
+                    fb.bewegEnde = fb.bewegEnde - d;
+                    if (fb.mausUnten) { fb.bewegStart = fb.bewegStart - d; }
+                    beobachterBewegung(3, mausX, mausY);
+                }
                 f.letzteX += static_cast<float>(dx) * qt;
                 f.letzteY += static_cast<float>(dy) * qt;
                 if (!imTest) {

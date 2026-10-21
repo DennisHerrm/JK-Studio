@@ -80,6 +80,8 @@ public:
     // Node::m_layer: NRC setzt ihn beim Lesen nur fuer Punktentitaeten
     // (parse.cpp:236-237); Gruppen haben keine (kSchichtKeine).
     int schicht = kSchichtKeine;
+    // Node::eHidden (Select_Hide, select.cpp:939-975) - nicht im Undo.
+    bool versteckt = false;
 
     [[nodiscard]] std::unique_ptr<Memento> zustandSichern() const override;
     void zustandLaden(const Memento& m) override;

@@ -806,6 +806,12 @@ LeseErgebnis karteLesen(const std::string& text, Karte& karte) {
 
 // MapQ3API::writeGraph -> Map_Write / WriteTokensWalker (write.cpp)
 std::string karteSchreiben(const Karte& karte, std::vector<std::string>* meldungen) {
+    return karteSchreiben(
+        karte, [](const Entitaet&) { return true; }, [](const Entitaet&, const Primitiv&) { return true; }, meldungen);
+}
+
+std::string karteSchreiben(const Karte& karte, const std::function<bool(const Entitaet&)>& aufnehmen,
+                           const std::function<bool(const Entitaet&, const Primitiv&)>& kindAufnehmen, std::vector<std::string>* meldungen) {
     Schreiber w;
     // Layers_Write
     for (const Schicht& s : karte.schichten) {
@@ -821,6 +827,7 @@ std::string karteSchreiben(const Karte& karte, std::vector<std::string>* meldung
     int aktuelleEbene = 0;   // LAYERIDX0
     std::size_t entitaeten = 0;
     for (const auto& e : karte.entitaeten()) {
+        if (!aufnehmen(*e)) { continue; }
         if (e->istBehaelter() && e->kinder().empty() && e->klassenname() != "worldspawn" && !e->hat("origin")) {
             if (meldungen) {
                 meldungen->push_back("discarding empty group entity: # = " + std::to_string(entitaeten) +
@@ -842,6 +849,7 @@ std::string karteSchreiben(const Karte& karte, std::vector<std::string>* meldung
         }
         std::size_t pinsel = 0;
         for (const auto& p : e->kinder()) {
+            if (!kindAufnehmen(*e, *p)) { continue; }
             w.token("//");
             w.token("brush");
             w.vorzeichenlos(pinsel++);

@@ -21,6 +21,7 @@
 #define BHED_GUI_KARTENEDITOR_H
 
 #include "bhed/i18n.h"
+#include "bhed/karte/bearbeitung.h"
 #include "bhed/karte/befehle.h"
 #include "bhed/karte/eklasse.h"
 #include "bhed/karte/kamera.h"
@@ -183,6 +184,31 @@ struct KameraFenster {
     double zeichenMs = 0.0;         // ShowStats: msec des letzten Bilds
     double letzteStatistik = -1.0;  // m_render_time (f2f)
 };
+// RadiantWindowObserver (selection.cpp:2640-2800) einer Ansicht mit Selector_
+// und Manipulator_ (selection.cpp:2482-2638): 0..2 die 2D-Ansichten, 3 die Kamera.
+struct FensterBeobachter {
+    int breite = 1;                       // m_width (onSizeChanged)
+    int hoehe = 1;                        // m_height
+    bool mausUnten = false;               // m_mouse_down
+    float bewegt = 0;                     // m_move (seit dem letzten Loslassen)
+    float bewegtGedrueckt = 0;            // m_movePressed (seit dem Druck)
+    karte::GeraeteVektor bewegStart;      // m_moveStart
+    karte::GeraeteVektor bewegEnde;       // m_moveEnd
+    enum class Ziel { Keins, Manipulator, Auswahl };   // g_mouseMovedCallback / g_mouseUpCallback
+    Ziel ziel = Ziel::Keins;
+    // Selector_
+    karte::GeraeteVektor start;           // m_start
+    karte::GeraeteVektor aktuell;         // m_current
+    bool maus2 = false;                   // m_mouse2
+    bool mausBewegt = false;              // m_mouseMoved
+    bool mausBewegtGedrueckt = false;     // m_mouseMovedWhilePressed
+    karte::AuswahlArt malArt = karte::AuswahlArt::Auswaehlen;   // m_paintMode
+    karte::AuswahlRechteck rechteck;      // m_XORRect (draw_area)
+    // Manipulator_
+    bool ursprungBewegt = false;          // m_moving_transformOrigin
+    bool manipBewegtGedrueckt = false;    // m_mouseMovedWhilePressed
+};
+
 // View > Show und die Seite "Orthographic" (xywindow.cpp:77-98,
 // entity.cpp:114-122).
 struct Anzeige {
@@ -307,6 +333,19 @@ struct Editor {
     karte::Kasten workzone{karte::Vektor3f(0, 0, 0), karte::Vektor3f(64, 64, 64)};
     Anzeige anzeige;
     std::size_t ladeZaehler = 0;   // jede neu geladene/neue Karte
+
+    // --- Auswahl und Bearbeiten (Punkt 7) ---
+    karte::AuswahlBearbeitung bearbeitung{karte};   // RadiantSelectionSystem
+    karte::ManipModus werkzeug = karte::ManipModus::Ziehen;   // g_currentToolMode (g_defaultToolMode = DragMode)
+    bool knotenVersteckt = false;          // g_nodes_be_hidden (HideSelected)
+    std::size_t sichtStand = 0;            // Verstecken/Zeigen (nicht im Undo) fuer szeneStand
+    std::string zwischenablage;            // Copy/Paste (NRC: QClipboard "RadiantClippings")
+    bool nachKlonenSchubsen = false;       // g_bNudgeAfterClone ("Nudge selected after duplication")
+    std::array<FensterBeobachter, 4> beobachter;
+    std::array<karte::Blick, 4> blicke{karte::Blick(false), karte::Blick(false), karte::Blick(false), karte::Blick(true)};   // m_view
+    int letzterBeobachter = -1;            // RadiantWindowObserver::m_latestObserver
+    float letzteX = 0;                     // m_latestPosition (Fensterpunkte)
+    float letzteY = 0;
 };
 
 Editor& editor();
@@ -370,6 +409,23 @@ bool auswahlGrenzen(karte::Kasten& b);
 // Die Rad-Ereignisse dieses Bilds (Qt: ein wheelEvent je Ereignis): je
 // Ereignis das Vorzeichen (|y| > |x| ? y : x).
 [[nodiscard]] std::vector<int> radEreignisse();
+// --- Auswaehlen und Bearbeiten (app_karte_auswahl.cpp) ---
+// RadiantWindowObserver: knopf 0 links, 1 rechts, 2 Mitte; x/y in Fensterpunkten.
+void beobachterGroesse(int fenster, int breite, int hoehe);   // onSizeChanged
+void beobachterDruck(int fenster, float x, float y, int knopf, const karte::Zusatz& z);   // onMouseDown
+void beobachterBewegung(int fenster, float x, float y);                                  // onMouseMotion
+void beobachterLoslassen(int fenster, float x, float y, int knopf, const karte::Zusatz& z);   // onMouseUp
+// onModifierDown / onModifierUp: g_modifiers aus der Tastatur dieses Bilds.
+void zusatztastenPruefen();
+// Die Befehle aus select.cpp und tools.cpp (Undo, Copy, Clone, Delete, ...).
+void auswahlBefehl(const std::string& name);
+[[nodiscard]] bool auswahlBefehlAn(const std::string& name);   // Umschalter (Werkzeuge, HideSelected)
+// Was der Manipulator in einer Ansicht zeichnet (renderSolid).
+[[nodiscard]] karte::ManipZeichnung manipulatorZeichnung(int fenster);
+// Die Auswahl hat sich geaendert (setSelectedAll ... m_manipulator->setSelected(false),
+// ComponentMode_SelectionChanged).
+void auswahlGeaendert();
+
 // --- 3D-Kamera (app_karte_cam.cpp) ---
 // Die Kamera im aktuellen Kindfenster zeichnen und bedienen.
 void kameraZeichnen();

@@ -136,6 +136,8 @@ void zuletztHinzu(const std::string& pfad) {
 void karteFreigeben() {
     Editor& e = g();
     e.karte.auswahl.leeren();
+    e.bearbeitung.neueKarte();
+    for (auto& b : e.beobachter) { b = FensterBeobachter{b.breite, b.hoehe}; }
     e.karte.leeren();
     e.karte.undo.clear();
     e.karteSpiel = spielWarten();
@@ -806,6 +808,15 @@ void zeichne(float hoehe) {
     e.felderImBild.clear();
     spielPruefen();
     if (!e.belegungGeladen) { einstellungenLaden(); }
+    zusatztastenPruefen();   // g_modifiers (onModifierDown / onModifierUp)
+    // GetGridSize / GetSnapGridSize und Select_getWorkZone fuer das Auswahlsystem
+    if (e.karte.auswahl.anzahl() != 0) {   // Selection_UpdateWorkzone: getBoundsSelected
+        const karte::Kasten b = karte::auswahlGrenzenPivot(e.karte);
+        if (karte::kastenGueltig(b)) { e.workzone = b; }
+    }
+    e.bearbeitung.raster = e.raster.groesse();
+    e.bearbeitung.fang = e.raster.einrastGroesse();
+    e.bearbeitung.arbeitsbereich = e.workzone;
     farbenAusThema();
     g_s = massstab();
     // NRCs Schrift: Segoe UI 9 pt (Menues und Statuszeile von Qt unter

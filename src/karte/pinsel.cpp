@@ -19,6 +19,14 @@
 //   Public License for more details (LICENSE).
 #include "bhed/karte/pinsel.h"
 
+#if defined(_MSC_VER)
+#pragma warning(push, 0)
+#endif
+#include "../../third_party/quickhull/QuickHull.hpp"
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
+
 #include <algorithm>
 
 namespace bhed::karte {
@@ -547,6 +555,119 @@ void Pinsel::quaderBauen(const Kasten& grenzen, const std::string& shader, const
         p2[box[i][1]] = maxs[box[i][1]];
         ebeneHinzufuegen(mins, p1, p2, shader, projektion, k);
     }
+}
+
+// --- Ecken-Modus (brush.cpp:385-523, brush.h:1882-1911, 3276-3285, 3502-3516) ---
+
+namespace {
+
+struct EckenModusPunkt {   // Brush::VertexModeVertex
+    Vektor3d ecke;                         // m_vertex
+    Vektor3d neu;                          // m_vertexTransformed
+    bool gewaehlt = false;                 // m_selected
+    std::vector<const Flaeche*> flaechen;  // m_faces
+};
+
+struct EckenModusEbene {   // VertexModePlane
+    Ebene3d ebene;
+    const Flaeche* flaeche;
+    const EckenModusPunkt* p[3];
+    bool transformiert;
+};
+
+// vertex_mode_find_common_face
+const Flaeche* gemeinsameFlaeche(const EckenModusPunkt& a, const EckenModusPunkt& b, const EckenModusPunkt& c) {
+    for (const Flaeche* f : a.flaechen) {
+        if (std::find(b.flaechen.begin(), b.flaechen.end(), f) != b.flaechen.end() &&
+            std::find(c.flaechen.begin(), c.flaechen.end(), f) != c.flaechen.end()) {
+            return f;
+        }
+    }
+    return nullptr;
+}
+
+}  // namespace
+
+void Pinsel::eckenEinrasten(float raster, const Kontext& k, bool eckenSperre) {
+    bRep(k);
+    // vertexModeInit + VertexInstance::gather
+    sichern();
+    std::vector<EckenModusPunkt> punkte;
+    punkte.reserve(m_ecken.size());
+    for (const FlaechenPunkt& start : m_ecken) {
+        EckenModusPunkt e;
+        e.ecke = eckpunkt(start);
+        e.neu = e.ecke;
+        e.gewaehlt = false;
+        FlaechenPunkt fp = start;
+        do {
+            e.flaechen.push_back(m_flaechen[fp.flaeche].get());
+            fp = naechsteEcke(m_flaechen, fp);
+        } while (fp.flaeche != start.flaeche);
+        punkte.push_back(std::move(e));
+    }
+    // vertexModeSnap( snap, all = true )
+    for (auto& e : punkte) { einrasten(e.neu, raster); }
+    // vertexModeBuildHull( allTransformed = true )
+    quickhull::QuickHull<double> huelle;
+    std::vector<quickhull::Vector3<double>> wolke;
+    wolke.reserve(punkte.size());
+    for (const auto& e : punkte) { wolke.emplace_back(e.neu.x(), e.neu.y(), e.neu.z()); }
+    auto ergebnis = huelle.getConvexHull(wolke, true, true);
+    const auto& indizes = ergebnis.getIndexBuffer();
+    const std::size_t dreiecke = indizes.size() / 3;
+    std::vector<EckenModusEbene> ebenen;
+    for (std::size_t i = 0; i < dreiecke; ++i) {
+        const EckenModusPunkt* v[3];
+        bool transformiert = true;   // allTransformed
+        for (std::size_t j = 0; j < 3; ++j) {
+            v[j] = &punkte[indizes[i * 3 + j]];
+            transformiert = transformiert || v[j]->gewaehlt;
+        }
+        const Ebene3d ebene = ebeneAusPunkten(v[0]->neu, v[1]->neu, v[2]->neu);   // plane3_for_points
+        if (!ebeneGueltig(ebene)) { continue; }
+        auto it = std::find_if(ebenen.begin(), ebenen.end(), [&](const EckenModusEbene& e) { return ebenenGleich(ebene, e.ebene); });
+        if (it == ebenen.end()) {   // neue Ebene
+            const Flaeche* f = gemeinsameFlaeche(*v[0], *v[1], *v[2]);
+            if (f == nullptr) {   // keine gemeinsame Flaeche: irgendeine
+                f = v[0]->flaechen[0];
+                transformiert = true;
+            }
+            if (punkt(ebene.normal(), f->ebene().normal()) < 0) { transformiert = true; }   // vermutlich umgedreht
+            ebenen.push_back(EckenModusEbene{ebene, f, {v[0], v[1], v[2]}, transformiert});
+        } else {
+            it->transformiert = it->transformiert || transformiert;
+        }
+    }
+    if (ebenen.size() < 4) { return; }   // offensichtlich entartet: nichts aendern
+    const bool detail = istDetail();
+    // clear(): die alten Flaechen bleiben bis zum Ende am Leben (Zeiger in "ebenen")
+    const Flaechen alt = m_flaechen;
+    leeren();
+    for (const auto& e : ebenen) {
+        const Flaeche& f = *e.flaeche;
+        if (e.transformiert) {
+            TexturProjektion projektion = f.projektion();
+            if (eckenSperre) {
+                const auto [w, h] = k.groesse(f.shader());
+                Matrix4 lokalZuTex;
+                lokalZuTextur(k.art(), f.projektion(), w, h, Vektor3f(f.ebene().normal()), lokalZuTex);
+                const Vektor3d st[3] = {transformierterPunkt(lokalZuTex, e.p[0]->ecke), transformierterPunkt(lokalZuTex, e.p[1]->ecke),
+                                        transformierterPunkt(lokalZuTex, e.p[2]->ecke)};
+                const EbenenPunkte pp = {e.p[0]->neu, e.p[1]->neu, e.p[2]->neu};
+                texdefAusSt(k.art(), projektion, pp, st, w, h);
+            }
+            // addPlane setzt die 220-Basis zurueck: die Projektion danach
+            Flaeche* neu = ebeneHinzufuegen(e.p[0]->neu, e.p[1]->neu, e.p[2]->neu, f.shader(), TexturProjektion(), k);
+            if (neu != nullptr) {
+                neu->projektionRoh() = projektion;
+                neu->setzeDetail(detail);
+            }
+        } else {
+            flaecheHinzufuegen(f, k);
+        }
+    }
+    geaendert();
 }
 
 void Pinsel::setzeDetail(bool detail) {

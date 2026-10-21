@@ -34,6 +34,7 @@
 #include "bhed/karte/karte.h"
 
 #include <cstddef>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -52,6 +53,10 @@ LeseErgebnis karteLesen(const std::string& text, Karte& karte);
 
 // MapQ3API::writeGraph: die Karte im NRC-Format (LF).
 std::string karteSchreiben(const Karte& karte, std::vector<std::string>* meldungen = nullptr);
+// Nur ein Teil (Map_ExportSelected mit IncludeSelectedWalker): Entitaeten, fuer
+// die "entitaet" wahr ist, mit den Kindern, fuer die "kind" wahr ist.
+std::string karteSchreiben(const Karte& karte, const std::function<bool(const Entitaet&)>& entitaet,
+                           const std::function<bool(const Entitaet&, const Primitiv&)>& kind, std::vector<std::string>* meldungen = nullptr);
 
 // Textmodus von msvcrt (TextFileInputStream "rt" / TextFileOutputStream "wt").
 std::string textmodusLesen(const std::string& roh);
