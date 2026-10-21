@@ -16,6 +16,8 @@
 #include "bhed/karte/pinsel.h"
 #include "bhed/karte/texdef.h"
 #include "bhed/karte/texturbrowser.h"
+#include "bhed/karte/texturkopie.h"
+#include "bhed/karte/xyansicht.h"
 #include "bhed/pk3.h"
 
 #include <cstdio>
@@ -115,10 +117,185 @@ void rechnung() {
            "TextureGroups_constructTreeModel: gfx_a/gfx_b unter gfx, kor_x allein, nar und nar_shaddar getrennt");
 }
 
+// --- TexManipulator (surfacedialog.cpp) ----------------------------------------------
+
+void texturKopieren() {
+    // EPasteMode und die Rueckgaengig-Namen
+    pruefe(einfuegeArtFuer(false, false) == EinfuegeArt::Nichts && einfuegeArtFuer(true, false) == EinfuegeArt::Werte &&
+               einfuegeArtFuer(false, true) == EinfuegeArt::Nahtlos && einfuegeArtFuer(true, true) == EinfuegeArt::Projizieren,
+           "pastemode_for_modifiers");
+    pruefe(einfuegenMitShader(EinfuegeArt::Nichts, true) && !einfuegenMitShader(EinfuegeArt::Werte, true) &&
+               einfuegenMitShader(EinfuegeArt::Werte, false),
+           "pastemode_if_setShader");
+    pruefe(texturAuftragenName(false, false, true) == "paintTexture" && texturAuftragenName(true, false, false) == "paintTexture,Values,LightPower" &&
+               texturAuftragenName(true, false, true) == "paintTexDefValues" &&
+               texturAuftragenName(false, true, false) == "paintTextureSeamless,LightColor" &&
+               texturAuftragenName(false, true, true) == "paintTexDefValuesSeamless" &&
+               texturAuftragenName(true, true, false) == "projectTexture,LightColor&Power" &&
+               texturAuftragenName(true, true, true) == "projectTexDefValues",
+           "Scene_applyClosestTexture_getUndoName");
+
+    // Zwei Wuerfel nebeneinander, von oben (XY) gesehen
+    Karte k;
+    auto a = quader(k, Vektor3f(0, 0, 0), "textures/eins/a");
+    auto b = quader(k, Vektor3f(64, 0, 0), "textures/eins/b");
+    auto licht = k.neueEntitaet("light", false);
+    licht->setzen("origin", "0 64 0");
+    licht->setzen("light", "300");
+    k.entitaetEinfuegen(licht);
+    XyAnsicht v;
+    v.typ = Sicht::XY;
+    v.breite = 800;
+    v.hoehe = 600;
+    v.massstab = 1;
+    v.ursprung = Vektor3f(32, 0, 0);
+    Blick blick(false);
+    blick.bauen(v.projektion(), v.modelview(), 800, 600);
+    const auto geraet = [&v](float x, float y) {
+        const Vektor3f q = projiziert(transformierterVektor4(multipliziert(v.projektion(), v.modelview()), Vektor4f(x, y, 0, 1)));
+        return GeraeteVektor(q[0], q[1]);
+    };
+    const auto test = [&](float x, float y, Blick& g) {
+        g = blick;
+        auswahlTestBauen(g, auswahlKastenPunkt(geraet(x, y), GeraeteVektor(12.0F / 800, 12.0F / 600)));
+    };
+    // Werte der Oberseite von a etwas verschieben
+    Flaeche* oben = nullptr;
+    for (const auto& f : a->flaechen()) {
+        if (f->ebene().normal()[2] > 0.5) { oben = f.get(); }
+    }
+    pruefe(oben != nullptr, "Oberseite gefunden");
+    if (oben == nullptr) { return; }
+    {
+        TexturProjektion pr = oben->texdefHolen(k.kontext);
+        pr.texdef.shift[0] = 16;
+        pr.texdef.rotate = 45;
+        oben->setzeTexdef(pr, k.kontext);
+    }
+    FlaechenTextur ablage;
+    std::string shader;
+    Blick g(false);
+    test(0, 0, g);
+    {
+        AuswahlVolumen t(g);
+        pruefe(naechsteTexturHolen(k, t, "textures/browser", shader, ablage) && shader == "textures/eins/a" &&
+                   ablage.quelle == FlaechenTextur::Quelle::Pinsel && ablage.ebene.normal()[2] > 0.5 &&
+                   ablage.projektion.texdef.shift[0] == 16 && ablage.projektion.texdef.rotate == 45,
+               "M3 (kopieren): Shader und Werte der naechsten Flaeche (von oben die Oberseite)");
+    }
+    // Umschalt: Werte und Shader auf b
+    test(64, 0, g);
+    {
+        AuswahlVolumen t(g);
+        AuswahlEinstellung e;
+        naechsteTexturAuftragen(k, e, t, true, false, false, true, shader, ablage);
+    }
+    Flaeche* obenB = nullptr;
+    for (const auto& f : b->flaechen()) {
+        if (f->ebene().normal()[2] > 0.5) { obenB = f.get(); }
+    }
+    pruefe(obenB != nullptr && obenB->shader() == "textures/eins/a" && obenB->texdefHolen(k.kontext).texdef.shift[0] == 16 &&
+               obenB->texdefHolen(k.kontext).texdef.rotate == 45,
+           "Umschalt+M3 (Werte): Shader und Texdef der Ablage auf der Oberseite von b");
+    if (obenB == nullptr) { return; }
+    // Alt+Umschalt: nur die Werte, Shader bleibt
+    obenB->setzeShader("textures/eins/b", k.kontext);
+    {
+        TexturProjektion pr = obenB->texdefHolen(k.kontext);
+        pr.texdef.shift[0] = 0;
+        obenB->setzeTexdef(pr, k.kontext);
+    }
+    {
+        AuswahlVolumen t(g);
+        AuswahlEinstellung e;
+        naechsteTexturAuftragen(k, e, t, true, false, true, false, shader, ablage);
+    }
+    pruefe(obenB->shader() == "textures/eins/b" && obenB->texdefHolen(k.kontext).texdef.shift[0] == 16,
+           "Alt+Umschalt+M3: nur die Werte, der Shader bleibt");
+    // Strg (nahtlos): gleiche Ebene -> projiziert; die Ablage folgt der Flaeche
+    {
+        AuswahlVolumen t(g);
+        AuswahlEinstellung e;
+        naechsteTexturAuftragen(k, e, t, false, true, false, false, shader, ablage);
+    }
+    pruefe(obenB->shader() == "textures/eins/a" && ablage.ebene.normal()[2] > 0.5, "Strg+M3 (nahtlos) auf gleicher Ebene: Shader gesetzt");
+    // Licht: Umschalt setzt die Staerke, Strg die Farbe
+    ablage.licht = 500;
+    ablage.farbe = Vektor3f(1, 0.5F, 0);
+    test(0, 64, g);
+    {
+        AuswahlVolumen t(g);
+        AuswahlEinstellung e;
+        naechsteTexturAuftragen(k, e, t, true, false, false, false, shader, ablage);
+        pruefe(licht->wert("light") == "500" && !licht->hat("_color"), "Umschalt+M3 auf ein Licht: light = 500");
+    }
+    {
+        AuswahlVolumen t(g);
+        AuswahlEinstellung e;
+        naechsteTexturAuftragen(k, e, t, false, true, false, false, shader, ablage);
+        pruefe(licht->wert("_color") == "1 0.5 0", "Strg+M3 auf ein Licht: _color");
+    }
+    {
+        AuswahlVolumen t(g);
+        std::string s2;
+        FlaechenTextur ab2;
+        pruefe(naechsteTexturHolen(k, t, "textures/browser", s2, ab2) && s2 == "textures/browser" && ab2.licht == 500,
+               "M3 auf ein Licht: Staerke in die Ablage, der Shader des Browsers bleibt");
+    }
+    // texturize_selected: Alt+M3 setzt den Browser-Shader auf die Auswahl
+    k.auswahl.waehlen(k.welt(), a);
+    test(64, 0, g);
+    {
+        AuswahlVolumen t(g);
+        AuswahlEinstellung e;
+        naechsteTexturAuftragen(k, e, t, false, false, true, true, "textures/zwei/x", ablage);
+    }
+    pruefe(a->flaechen()[0]->shader() == "textures/zwei/x" && obenB->shader() == "textures/zwei/x",
+           "Alt+M3 mit Auswahl: die Auswahl und die Flaeche unter dem Zeiger bekommen den Shader");
+    // Patch: kopieren
+    Karte k2;
+    auto pa = std::make_shared<Patch>();
+    pa->setzeGroesse(3, 3);
+    for (std::size_t r = 0; r < 3; ++r) {
+        for (std::size_t c = 0; c < 3; ++c) {
+            pa->punkt(r, c).vertex = Vektor3f(static_cast<float>(c) * 32 - 32, static_cast<float>(r) * 32 - 32, 0);
+            pa->punkt(r, c).texcoord = Vektor2f(static_cast<float>(c) * 0.5F, static_cast<float>(r) * 0.5F);
+        }
+    }
+    pa->ladeShader("textures/patch/p");
+    pa->punkteGeaendert();
+    k2.weltHolenOderAnlegen()->kindEinfuegen(pa);
+    XyAnsicht v2 = v;
+    v2.ursprung = Vektor3f(0, 0, 0);
+    Blick blick2(false);
+    blick2.bauen(v2.projektion(), v2.modelview(), 800, 600);
+    Blick g2 = blick2;
+    auswahlTestBauen(g2, auswahlKastenPunkt(GeraeteVektor(0, 0), GeraeteVektor(12.0F / 800, 12.0F / 600)));
+    {
+        AuswahlVolumen t(g2);
+        std::string s3;
+        FlaechenTextur ab3;
+        pruefe(naechsteTexturHolen(k2, t, "", s3, ab3) && s3 == "textures/patch/p" && ab3.quelle == FlaechenTextur::Quelle::Patch &&
+                   ab3.patchBreite == 3 && ab3.patchPunkte.size() == 9,
+               "M3 auf einen Patch: Shader und Kontrollpunkte (PatchData) in der Ablage");
+    }
+    {   // Projizieren auf den Patch: st aus der Projektion der Ablage
+        FlaechenTextur ab4;
+        ablageStandard(ab4, k2.kontext.art());
+        ab4.ebene = Ebene3d(0, 0, 1, 0);
+        AuswahlEinstellung e;
+        AuswahlVolumen t(g2);
+        const float vorher = pa->punkt(0, 0).texcoord[0];
+        naechsteTexturAuftragen(k2, e, t, true, true, false, false, "textures/patch/q", ab4);
+        pruefe(pa->shader() == "textures/patch/q" && pa->punkt(0, 0).texcoord[0] != vorher, "Strg+Umschalt+M3 auf den Patch: projiziert");
+    }
+}
+
 }  // namespace
 
 int main() {
     rechnung();
+    texturKopieren();
 
     const std::filesystem::path tmp = std::filesystem::temp_directory_path() / "behaved_kartetexturbrowser";
     std::error_code ec;

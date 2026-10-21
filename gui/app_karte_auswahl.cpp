@@ -160,6 +160,47 @@ void auswahlLoslassen(int f, const GeraeteVektor& pos) {   // Selector_::mouseUp
     }
 }
 
+// --- TexManipulator_ (selection.cpp:2434-2479) ---
+karte::Blick texturBlick(int f, const GeraeteVektor& pos) {   // View scissored( *m_view ) + ConstructSelectionTest
+    karte::Blick geschoren = blick(f);
+    karte::auswahlTestBauen(geschoren, karte::auswahlKastenPunkt(pos, epsilon(beob(f))));
+    return geschoren;
+}
+
+void texturDruck(int f, const GeraeteVektor& pos) {   // TexManipulator_::mouseDown
+    Editor& ed = e();
+    FensterBeobachter& b = beob(f);
+    const karte::Blick geschoren = texturBlick(f, pos);
+    karte::AuswahlVolumen test(geschoren);
+    if (zusatz().keine()) {   // c_modifier_copy_texture: Scene_copyClosestTexture
+        std::string shader;
+        if (karte::naechsteTexturHolen(ed.karte, test, ed.texBro.shader, shader, ed.texturAblage)) { texturShaderWaehlen(shader); }
+    } else {
+        b.texRueckgaengig = true;
+        ed.karte.undo.start();
+        karte::naechsteTexturAuftragen(ed.karte, ed.bearbeitung.einstellung, test, zusatz().shift, zusatz().strg, zusatz().alt, true,
+                                       ed.texBro.shader, ed.texturAblage);
+    }
+}
+
+void texturBewegung(int f, const GeraeteVektor& pos) {   // TexManipulator_::mouseMoved
+    Editor& ed = e();
+    if (!beob(f).texRueckgaengig) { return; }
+    const karte::Blick geschoren = texturBlick(f, karte::geraetBegrenzt(pos));   // device_constrained
+    karte::AuswahlVolumen test(geschoren);
+    karte::naechsteTexturAuftragen(ed.karte, ed.bearbeitung.einstellung, test, zusatz().shift, zusatz().strg, zusatz().alt, false,
+                                   ed.texBro.shader, ed.texturAblage);
+}
+
+void texturLoslassen(int f) {   // TexManipulator_::mouseUp
+    Editor& ed = e();
+    FensterBeobachter& b = beob(f);
+    if (b.texRueckgaengig) {
+        ed.karte.undo.finish(karte::texturAuftragenName(zusatz().shift, zusatz().strg, zusatz().alt));
+        b.texRueckgaengig = false;
+    }
+}
+
 }  // namespace
 
 // --- RadiantWindowObserver -----------------------------------------------------------
@@ -189,8 +230,11 @@ void beobachterDruck(int fenster, float x, float y, int knopf, const karte::Zusa
             auswahlDruck(fenster, pos);
             b.ziel = FensterBeobachter::Ziel::Auswahl;
         }
+    } else if (knopf == 2) {   // c_button_texture: TexManipulator_
+        b.mausUnten = true;
+        texturDruck(fenster, pos);
+        b.ziel = FensterBeobachter::Ziel::Textur;
     }
-    // knopf == 2: TexManipulator_ (Textur kopieren/anwenden) mit Punkt 8
     b.bewegStart = pos;
     b.bewegtGedrueckt = 0;
 }
@@ -204,6 +248,8 @@ void beobachterBewegung(int fenster, float x, float y) {   // onMouseMotion
         b.manipBewegtGedrueckt = b.mausBewegtGedrueckt = bewegtEps(b, x, y, b.bewegStart, b.bewegtGedrueckt);
         if (b.ziel == FensterBeobachter::Ziel::Manipulator) {
             if (b.manipBewegtGedrueckt) { ed.bearbeitung.auswahlBewegen(blick(fenster), pos); }   // Manipulator_::mouseMoved
+        } else if (b.ziel == FensterBeobachter::Ziel::Textur) {
+            texturBewegung(fenster, pos);
         } else {
             auswahlBewegung(fenster, pos);
         }
@@ -222,6 +268,8 @@ void beobachterLoslassen(int fenster, float x, float y, int knopf, const karte::
     if (knopf >= 0 && b.ziel != FensterBeobachter::Ziel::Keins) {
         if (b.ziel == FensterBeobachter::Ziel::Manipulator) {
             b.ursprungBewegt = ed.bearbeitung.bewegenBeenden();   // Manipulator_::mouseUp
+        } else if (b.ziel == FensterBeobachter::Ziel::Textur) {
+            texturLoslassen(fenster);
         } else {
             auswahlLoslassen(fenster, pos);
         }

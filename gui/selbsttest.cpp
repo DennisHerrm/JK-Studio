@@ -27193,6 +27193,73 @@ std::vector<Schritt> karteneditorTexturSchritte() {
         diag::detail("Knopftest: Texturen - links nach dem Ziehen " + std::to_string(l != nullptr ? l->b : -1));
         return l != nullptr && l->b > 100 && !g.empty() && g[0] == l->b;
     }));
+    // TexManipulator (M3): in der Kamera kopieren, mit Alt auftragen; in 2D Alt+M3
+    add(tu("Kamera auf den Pinsel, Browser-Shader system/nodraw, nichts gewaehlt", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.kamera.setzeUrsprung(karte::Vektor3f(-256, 0, 32));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
+        e.aktivXy = 0;
+        e.xy[0].ansicht.typ = karte::Sicht::XY;
+        e.xy[0].ansicht.setzeMassstab(1);
+        e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        ke::texturShaderWaehlen("textures/system/nodraw");
+    }));
+    add(pause(0.3));
+    auto kameraMitte = [] {
+        const ke::KameraFenster& f = ke::editor().kamFenster;
+        return ImVec2{f.bildX + static_cast<float>(f.breite) * 0.5F, f.bildY + static_cast<float>(f.hoehe) * 0.5F};
+    };
+    add(klickAn("M3 in die Kamera (Pinsel)", kameraMitte, 2));
+    add(pause(0.2));
+    add(pruefe("M3 (Scene_copyClosestTexture): der Shader der Flaeche im Browser, Status", [] {
+        const ke::Editor& e = ke::editor();
+        return e.texBro.shader == "textures/common/caulk" && e.statusTextur.rfind("common/caulk W: ", 0) == 0;
+    }));
+    add(tu("Browser-Shader system/nodraw", [] { ke::texturShaderWaehlen("textures/system/nodraw"); }));
+    add({"Alt+M3 in die Kamera (auftragen)", [kameraMitte](int b) {
+             static Schritt k;
+             ImGuiIO& io = ImGui::GetIO();
+             if (b == 0) {
+                 io.AddKeyEvent(ImGuiMod_Alt, true);
+                 k = klickAn("Alt+M3", kameraMitte, 2);
+             }
+             const bool fertig = k.tun(b);
+             if (fertig) { io.AddKeyEvent(ImGuiMod_Alt, false); }
+             return fertig;
+         }});
+    add(pause(0.2));
+    add(pruefe("Alt+M3: die Flaeche zur Kamera hat system/nodraw, Rueckgaengig \"paintTexture\"", [pinsel] {
+        ke::Editor& e = ke::editor();
+        int neu = 0;
+        for (const auto& f : pinsel()->flaechen()) { neu += f->shader() == "textures/system/nodraw" ? 1 : 0; }
+        diag::detail("Knopftest: Texturen - Alt+M3: " + std::to_string(neu) + " Flaechen, " + e.karte.undo.undoName());
+        return neu == 1 && e.karte.undo.undoName() == "paintTexture";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add({"Alt+M3 in der XY-Ansicht (32 32)", [](int b) {
+             static Schritt k;
+             ImGuiIO& io = ImGui::GetIO();
+             if (b == 0) {
+                 io.AddKeyEvent(ImGuiMod_Alt, true);
+                 k = klickAn("Alt+M3 XY", [] {
+                     const ke::XyFenster& f = ke::editor().xy[0];
+                     const auto p = f.ansicht.zuBild(karte::Vektor3f(32, 32, 0));
+                     return ImVec2{f.bildX + p[0], f.bildY + p[1]};
+                 }, 2);
+             }
+             const bool fertig = k.tun(b);
+             if (fertig) { io.AddKeyEvent(ImGuiMod_Alt, false); }
+             return fertig;
+         }});
+    add(pause(0.2));
+    add(pruefe("Alt+M3 in 2D: die Oberseite hat system/nodraw", [pinsel] {
+        for (const auto& f : pinsel()->flaechen()) {
+            if (f->ebene().normal()[2] > 0.5) { return f->shader() == "textures/system/nodraw"; }
+        }
+        return false;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
     add(tu("Texturen: zurueck", [] {
         ke::Editor& e = ke::editor();
         e.texGroessen.clear();

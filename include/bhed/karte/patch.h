@@ -114,6 +114,12 @@ public:
     void einrasten(float raster);            // snapto
     void matrixUmkehren();                   // InvertMatrix
     void matrixTransponieren();              // TransposeMatrix
+    // ProjectTexture( TextureProjection, normal ) (patch.cpp:1212-1228): st
+    // aus der Projektion einer Flaeche (Texturgroesse aus dem Kontext).
+    void texturProjizieren(TexturProjektion projektion, const Vektor3f& normal, const Kontext& k);
+    // Patch_setTexture (seamless): jedes st durch die Matrix (undoSave,
+    // controlPointsChanged).
+    void texturkoordinatenTransformieren(const Matrix4& m);
 
     [[nodiscard]] std::unique_ptr<Memento> zustandSichern() const override;
     void zustandLaden(const Memento& m) override;

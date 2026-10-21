@@ -685,7 +685,9 @@ target_sources(bhed_core PRIVATE
   src/karte/auswahlbefehle.cpp
   src/karte/quickhull.cpp
   # Stufe 1b: Texturbrowser (texwindow.cpp, aktive Shader)
-  src/karte/texturbrowser.cpp)
+  src/karte/texturbrowser.cpp
+  # Stufe 1b: Texturen mit M3 kopieren und auftragen (TexManipulator, surfacedialog.cpp)
+  src/karte/texturkopie.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.

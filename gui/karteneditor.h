@@ -30,6 +30,7 @@
 #include "bhed/karte/raster.h"
 #include "bhed/karte/teiler.h"
 #include "bhed/karte/texturbrowser.h"
+#include "bhed/karte/texturkopie.h"
 #include "bhed/karte/xyansicht.h"
 #include "bhed/karte/texturen.h"
 #include "bhed/karte/zuletzt.h"
@@ -195,7 +196,7 @@ struct FensterBeobachter {
     float bewegtGedrueckt = 0;            // m_movePressed (seit dem Druck)
     karte::GeraeteVektor bewegStart;      // m_moveStart
     karte::GeraeteVektor bewegEnde;       // m_moveEnd
-    enum class Ziel { Keins, Manipulator, Auswahl };   // g_mouseMovedCallback / g_mouseUpCallback
+    enum class Ziel { Keins, Manipulator, Auswahl, Textur };   // g_mouseMovedCallback / g_mouseUpCallback
     Ziel ziel = Ziel::Keins;
     // Selector_
     karte::GeraeteVektor start;           // m_start
@@ -208,6 +209,8 @@ struct FensterBeobachter {
     // Manipulator_
     bool ursprungBewegt = false;          // m_moving_transformOrigin
     bool manipBewegtGedrueckt = false;    // m_mouseMovedWhilePressed
+    // TexManipulator_
+    bool texRueckgaengig = false;         // m_undo_begun
 };
 
 // View > Show und die Seite "Orthographic" (xywindow.cpp:77-98,
@@ -350,6 +353,7 @@ struct Editor {
 
     // --- Texturbrowser (Punkt 8, texwindow.cpp) ---
     karte::AktiveShader aktiveShader;      // g_ActiveShaders (shaders.cpp)
+    karte::FlaechenTextur texturAblage;    // g_faceTextureClipboard (surfacedialog.cpp)
     karte::TexturBrowser texBro;           // g_TexBro
     karte::Teiler texTeiler;               // QSplitter "TextureBrowser/splitter"
     std::vector<int> texGroessen;          // gemerkte Groessen (sonst { 100, 800 })

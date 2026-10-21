@@ -1086,6 +1086,30 @@ void Patch::einrasten(float raster) {
     punkteGeaendert();
 }
 
+// ProjectTexture( TextureProjection projection, const Vector3& normal ) (:1212-1228)
+void Patch::texturProjizieren(TexturProjektion projektion, const Vektor3f& normal, const Kontext& k) {
+    sichern();
+    const auto [w, h] = k.groesse(m_shader);
+    projektion.bp.addScale(w, h);
+    Matrix4 lokalZuTex;
+    lokalZuTextur(k.art(), projektion, w, h, normal, lokalZuTex);
+    for (auto& c : m_ctrl) {
+        const Vektor3f st = transformierterPunkt(lokalZuTex, c.vertex);
+        c.texcoord = Vektor2f(st[0], st[1]);
+    }
+    punkteGeaendert();
+}
+
+// Patch_setTexture (surfacedialog.cpp:1497-1502): p.m_texcoord = matrix4_transformed_point( mat, Vector3( p.m_texcoord, 0 ) ).vec2()
+void Patch::texturkoordinatenTransformieren(const Matrix4& m) {
+    sichern();
+    for (auto& c : m_ctrl) {
+        const Vektor3f st = transformierterPunkt(m, Vektor3f(c.texcoord[0], c.texcoord[1], 0));
+        c.texcoord = Vektor2f(st[0], st[1]);
+    }
+    punkteGeaendert();
+}
+
 // InvertMatrix (:292-298)
 void Patch::matrixUmkehren() {
     sichern();
