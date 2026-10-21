@@ -254,6 +254,35 @@ const std::vector<Knopf>& filterleiste() {
     return v;
 }
 
+// create_plugin_toolbar (plugintoolbar.cpp:91-120): die Knoepfe der Plugins.
+// Fuer Jedi Academy / Jedi Outcast bringt nur bobToolz welche mit
+// (contrib/bobtoolz/bobToolz-GTK.cpp:184-279; ufoaiplug: ToolbarNoButtons).
+// eSpace = Trenner; Befehlsname plugin_construct_command_name
+// (pluginmanager.cpp:43-70): "bobToolz::" + Text ohne Leerzeichen, Woerter
+// gross. Die Plugins kommen in Stufe 3.
+const std::vector<Knopf>& pluginleiste() {
+    using i18n::Str;
+    const auto z = [](Str s) { return std::array<Str, 5>{s, Str::Count, Str::Count, Str::Count, Str::Count}; };
+    const std::array<Str, 5> leer{Str::Count, Str::Count, Str::Count, Str::Count, Str::Count};
+    static const std::vector<Knopf> v = {
+        {"", "", "", false, kImmer, "", true, leer},
+        {"bobToolz::PolygonBuilder", "Polygons", "bobtoolz_poly", false, kImmer, "", false, z(Str::KePlPolygons)},
+        {"", "", "", false, kImmer, "", true, leer},
+        {"bobToolz::TreePlanter", "Tree Planter", "bobtoolz_treeplanter", true, kImmer, "", false, z(Str::KePlTreePlanter)},
+        {"bobToolz::PlotSplines", "Plot Splines", "bobtoolz_trainpathplot", false, kImmer, "", false, z(Str::KePlPlotSplines)},
+        {"bobToolz::DropEntity", "Drop Entity", "bobtoolz_dropent", false, kImmer, "", false, z(Str::KePlDropEntity)},
+        {"", "", "", false, kImmer, "", true, leer},
+        {"bobToolz::MergePatches", "Merge Patches", "bobtoolz_merge", false, kImmer, "", false, z(Str::KePlMergePatches)},
+        {"bobToolz::SplitPatch", "Split Patch", "bobtoolz_split", false, kImmer, "", false, z(Str::KePlSplitPatch)},
+        {"bobToolz::SplitPatchRows", "Split Patch Rows", "bobtoolz_splitrow", false, kImmer, "", false, z(Str::KePlSplitPatchRows)},
+        {"bobToolz::SplitPatchColumns", "Split Patch Columns", "bobtoolz_splitcol", false, kImmer, "", false,
+         z(Str::KePlSplitPatchColumns)},
+        {"", "", "", false, kImmer, "", true, leer},
+        {"bobToolz::FlipTerrain", "Flip Terrain (Turn Edge)", "bobtoolz_turnedge", false, kImmer, "", false, z(Str::KePlFlipTerrain)},
+    };
+    return v;
+}
+
 const std::vector<std::string>& standardVersteckt() {
     static const std::vector<std::string> v(std::begin(kVersteckt), std::end(kVersteckt));
     return v;

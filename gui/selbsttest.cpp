@@ -24818,6 +24818,14 @@ ImGuiWindow* karteFenster() {
     return nullptr;
 }
 
+// Ein Rechteck des Karten-Editors aus dem letzten Bild (logische Punkte).
+const karteneditor::Editor::Rechteck* karteFeld(const std::string& name) {
+    for (const auto& r : karteneditor::editor().felderImBild) {
+        if (r.name == name) { return &r; }
+    }
+    return nullptr;
+}
+
 std::vector<Schritt> karteneditorRahmenSchritte() {
     namespace ke = karteneditor;
     namespace kb = karte::befehle;
@@ -24894,7 +24902,7 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
     // 2. Werkzeugleisten: genau die Knoepfe, die NRC zeigt (gtkmisc.cpp:147).
     auto erwartet = [] {
         std::vector<std::string> v;
-        for (const auto* l : {&kb::werkzeugleiste(), &kb::filterleiste()}) {
+        for (const auto* l : {&kb::werkzeugleiste(), &kb::filterleiste(), &kb::pluginleiste()}) {
             for (const kb::Knopf& k : *l) {
                 if (k.trenner || !kb::bedingungGilt(k.bedingung, ke::editor().anordnung, ke::editor().gruppenDialogEingebaut)) {
                     continue;
@@ -24908,11 +24916,67 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
     add(pruefe("Werkzeugleisten: NRCs sichtbare Knoepfe (versteckt: OpenMap, SaveMap, Undo, Redo, ...)", [erwartet] {
         const auto soll = erwartet();
         const auto& ist = ke::editor().knoepfeImBild;
+        // Was nicht passt, liegt wie in Qt hinter dem Erweiterungsknopf seiner
+        // Leiste: gezeichnet ist eine Teilfolge der erwarteten Knoepfe.
+        std::size_t j = 0;
+        for (const std::string& k : soll) {
+            if (j < ist.size() && ist[j] == k) { ++j; }
+        }
+        const bool teilfolge = j == ist.size();
+        const bool erweitert = karteFeld("Erweiterung:filter") != nullptr || karteFeld("Erweiterung:plugin") != nullptr;
         diag::detail("Knopftest: Karten-Editor - " + std::to_string(ist.size()) + " Knoepfe gezeichnet, erwartet " +
-                     std::to_string(soll.size()));
-        return soll == ist && std::find(ist.begin(), ist.end(), "OpenMap") == ist.end() &&
+                     std::to_string(soll.size()) + (erweitert ? " (Rest hinter Erweiterungsknoepfen)" : ""));
+        return teilfolge && (ist.size() == soll.size() || erweitert) && std::find(ist.begin(), ist.end(), "OpenMap") == ist.end() &&
                std::find(ist.begin(), ist.end(), "MouseDrag") != ist.end() &&
                std::find(ist.begin(), ist.end(), "FilterWorldBrushes") != ist.end();
+    }));
+    // 2b. Jedes Symbol der Leisten, der Statuszeile und der Layout-Seite hat
+    //     eine eigene Vektorzeichnung (shank: moderner Stil, NRCs Bedeutung) -
+    //     keine fehlt, und keine zwei sehen gleich aus (ausser Entities und
+    //     Patches, die NRC selbst an zwei Stellen gleich zeigt).
+    add(pruefe("Knopfsymbole: alle als eigene Vektorzeichnung, keine doppelt", [] {
+        std::vector<std::string> namen;
+        for (const auto* l : {&kb::werkzeugleiste(), &kb::filterleiste(), &kb::texturKnoepfe(), &kb::pluginleiste()}) {
+            for (const kb::Knopf& k : *l) {
+                if (!k.trenner && k.bild[0] != 0) { namen.emplace_back(k.bild); }
+            }
+        }
+        for (const char* n : {"status_brush", "status_patch", "status_entity", "window1", "window2", "window3", "window4"}) {
+            namen.emplace_back(n);
+        }
+        ImDrawList* dl = ImGui::GetForegroundDrawList();
+        std::map<std::uint64_t, std::string> gesehen;
+        std::string fehlt;
+        std::string doppelt;
+        const auto gleichErlaubt = [](const std::string& a, const std::string& b) {
+            const auto gruppe = [](const std::string& n) {
+                if (n == "entities" || n == "f-entities" || n == "status_entity") { return 1; }
+                if (n == "f-patches" || n == "status_patch") { return 2; }
+                return 0;
+            };
+            return a == b || (gruppe(a) != 0 && gruppe(a) == gruppe(b));
+        };
+        for (const std::string& n : namen) {
+            const int vorher = dl->VtxBuffer.Size;
+            const ImVec2 pos{-4000.0F, -4000.0F};
+            if (!ke::karteIcon(dl, n.c_str(), pos, 32.0F, IM_COL32_WHITE)) {
+                fehlt += " " + n;
+                continue;
+            }
+            std::uint64_t h = 1469598103934665603ULL;
+            for (int v = vorher; v < dl->VtxBuffer.Size; ++v) {
+                const ImDrawVert& q = dl->VtxBuffer[v];
+                const auto x = static_cast<std::int64_t>(std::lround((q.pos.x - pos.x) * 4.0F));
+                const auto y = static_cast<std::int64_t>(std::lround((q.pos.y - pos.y) * 4.0F));
+                h = (h ^ static_cast<std::uint64_t>(x * 7919 + y)) * 1099511628211ULL;
+            }
+            const auto [it, neu] = gesehen.emplace(h, n);
+            if (!neu && !gleichErlaubt(it->second, n)) { doppelt += " " + it->second + "=" + n; }
+        }
+        diag::detail("Knopftest: Karten-Editor - " + std::to_string(namen.size()) + " Symbole, fehlen:" +
+                     (fehlt.empty() ? std::string(" keine") : fehlt) +
+                     ", doppelt:" + (doppelt.empty() ? std::string(" keine") : doppelt));
+        return fehlt.empty() && doppelt.empty();
     }));
     // 3. Kontextmenue der Leisten: MouseUV verstecken und wieder zeigen.
     auto knopfOrt = [](const std::string& id) {
@@ -24980,13 +25044,22 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
         if (w == nullptr) { return ImVec2{0, 0}; }
         return ImVec2{w->Pos.x + w->Size.x * 0.2F, w->Pos.y + w->Size.y * 0.4F};
     }));
-    add(tu("Feld unter der Maus vergessen, MaximizeView per Befehl", [] {
-        ke::editor().maximiertFeld = 3;   // die Maus steht ueber XY - das Feld muss sich aendern
-    }));
     add(pause(0.2));
     add(tu("MaximizeView (F12) per Befehl", [] { (void)ke::ausfuehren("MaximizeView"); }));
     add(pause(0.2));
-    add(pruefe("Maximize view: XY maximiert", [] { return ke::editor().maximiert && ke::editor().maximiertFeld == 0; }));
+    // mainframe.cpp:1563-1578: setSizes {9999,0} je Teiler - XY fuellt die
+    // Mitte bis auf den Griff, Kamera-Spalte 0 breit, Konsole 0 hoch.
+    add(pruefe("Maximize view: XY fuellt die Mitte, die anderen Felder 0, Griffe bleiben", [] {
+        const auto* xy = karteFeld("XY");
+        const auto* kam = karteFeld("Kamera");
+        const auto* kon = karteFeld("Konsole");
+        const auto* gr = karteFeld("Griff:h:1");
+        const auto* fl = karteFeld("Filterleiste");
+        if (xy == nullptr || kam == nullptr || kon == nullptr || gr == nullptr || fl == nullptr) { return false; }
+        diag::detail("Knopftest: Karten-Editor - maximiert XY " + std::to_string(xy->b) + "x" + std::to_string(xy->h) +
+                     ", Kamera " + std::to_string(kam->b) + ", Konsole " + std::to_string(kon->h));
+        return ke::editor().maximiert && xy->b == fl->x - 4 && kam->b == 0 && kon->h == 0 && gr->x == xy->b;
+    }));
     add(foto("karteneditor_maximiert"));
     add(klick(ke::trK(Str::KeLMisc), "##karteneditor"));
     add(klick(ke::trK(Str::KeLMaximizeView)));
@@ -25227,6 +25300,212 @@ std::vector<Schritt> karteneditorTastenSchritte() {
     return s;
 }
 
+// Feldgroessen wie NRC: bei Massstab 1 und dem Arbeitsbereich so gross wie
+// NRCs Client (1280 x 747 logische Punkte = das Foto bei 2560 x 1494 / 2)
+// muessen alle Felder auf den Punkt so liegen wie im Foto von NRC 20260114
+// (SP\nrc_fotos\dpi\radiant_dpi_layout_<n>_0.png, gemessen; Statuszeile mit
+// leeren Feldern und "G:16  F:BP  C:14  L:OFF  " wie dort).
+struct SollFeld {
+    const char* name;
+    int x;
+    int y;
+    int b;
+    int h;
+};
+
+bool feldVergleich(const std::string& was, const std::vector<SollFeld>& soll) {
+    std::string bericht;
+    bool ok = true;
+    for (const SollFeld& f : soll) {
+        const auto* r = karteFeld(f.name);
+        char z[200];
+        if (r == nullptr) {
+            std::snprintf(z, sizeof(z), " %s fehlt;", f.name);
+            ok = false;
+        } else {
+            const bool gleich = r->x == f.x && r->y == f.y && r->b == f.b && r->h == f.h;
+            ok = ok && gleich;
+            std::snprintf(z, sizeof(z), " %s %d,%d %dx%d%s;", f.name, r->x, r->y, r->b, r->h,
+                          gleich ? "" : (" SOLL " + std::to_string(f.x) + "," + std::to_string(f.y) + " " + std::to_string(f.b) +
+                                         "x" + std::to_string(f.h)).c_str());
+        }
+        bericht += z;
+    }
+    diag::detail("Knopftest: Karten-Editor Masse " + was + ":" + bericht);
+    return ok;
+}
+
+std::vector<Schritt> karteneditorMassSchritte() {
+    namespace ke = karteneditor;
+    namespace kb = karte::befehle;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto format = std::make_shared<karte::PinselFormat>(karte::PinselFormat::Quake3BP);
+    auto nrc = std::make_shared<bool>(false);
+    add(tu("Massstab 1, Arbeitsbereich 1280 x 747, Statuszeile wie im Foto, NRC-Begriffe", [format, nrc] {
+        ke::Editor& e = ke::editor();
+        *nrc = ke::nrcBegriffe();
+        ke::setzeNrcBegriffe(true);
+        diag::detail("Knopftest: Karten-Editor - dpiScale " + std::to_string(g_app->dpiScale) + ", uiScale " +
+                     std::to_string(g_app->uiScale) + ", massstab() " + std::to_string(ke::massstab()));
+        {
+            ImGui::PushFont(ke::schrift(), 16.0F / (g_app->dpiScale * g_app->uiScale));
+            diag::detail(std::string("Knopftest: Karten-Editor - Schrift ") +
+                         (ke::schrift() != nullptr ? ke::schrift()->GetDebugName() : "(keine)") + ", Groesse " +
+                         std::to_string(ImGui::GetFontSize()) + ", Edit " + std::to_string(ImGui::CalcTextSize("Edit").x) +
+                         ", File " + std::to_string(ImGui::CalcTextSize("File").x) + ", Raster " +
+                         std::to_string(ImGui::CalcTextSize("G:16  F:BP  C:14  L:OFF  ").x));
+            ImGui::PopFont();
+        }
+        ke::massstabErsatz = 1.0F;
+        ke::bereichErsatzB = 1280;
+        ke::bereichErsatzH = 747;
+        *format = e.karte.kontext.format;
+        e.karte.kontext.format = karte::PinselFormat::Quake3BP;
+        e.raster.setzePotenz(4);
+        e.statusBefehl.clear();
+        e.statusPosition.clear();
+        e.statusTextur.clear();
+        e.hGroessen.clear();
+        e.vGroessen.clear();
+        e.v2Groessen.clear();
+        e.hauptleiste = true;
+        e.filterleiste = true;
+        e.gruppenDialogEingebaut = false;
+        e.versteckteKnoepfe.clear();
+        for (const std::string& n : kb::standardVersteckt()) { e.versteckteKnoepfe.insert(n); }
+        e.anordnung = kb::Anordnung::Regular;
+        e.teilerFuer = -1;
+    }));
+    add(pause(0.3));
+    // Gemeinsam: Menue 21, Werkzeugleiste 39 (erster Knopf 13/25, 31 gross),
+    // Filterleiste rechts 39, Statuszeile 21 mit Qts Verteilung.
+    const std::vector<SollFeld> rahmen = {
+        {"Bereich", 0, 0, 1280, 747},       {"Menue:File", 6, 0, 26, 21},      {"Menue:Edit", 38, 0, 28, 21},
+        {"Leiste:filter", 1241, 60, 39, 606}, {"Knopf:ResetFilters", 1245, 593, 31, 31},
+        {"Erweiterung:filter", 1245, 651, 31, 12}, {"Leiste:plugin", 1241, 666, 39, 60},
+        {"Knopf:bobToolz::PolygonBuilder", 1245, 679, 31, 31}, {"Erweiterung:plugin", 1245, 711, 31, 12},
+        {"Werkzeugleiste", 0, 21, 1280, 39}, {"Knopf:MirrorSelectionHorizontally", 13, 25, 31, 31},   {"Knopf:CSGSubtract", 145, 25, 31, 31},
+        {"Knopf:MouseDrag", 378, 25, 31, 31}, {"Filterleiste", 1241, 60, 39, 606}, {"Knopf:FilterWorldBrushes", 1245, 73, 31, 31},
+        {"Statuszeile", 0, 726, 1280, 21},  {"Status:Befehl", 2, 729, 321, 16}, {"Status:Position", 329, 729, 320, 16},
+        {"Status:Zaehler", 655, 729, 168, 16}, {"Status:Textur", 829, 729, 321, 16}, {"Status:Raster", 1156, 729, 124, 16},
+    };
+    add(pruefe("Masse Rahmen: Menue, Werkzeugleiste, Filterleiste, Statuszeile wie NRC", [rahmen] {
+        return feldVergleich("Rahmen", rahmen);
+    }));
+    add(pruefe("Masse Knoepfe: alle der Hauptleiste, Filter bis Reset, Plugin nur Polygon (Rest hinter Erweiterung)", [] {
+        const auto& ist = ke::editor().knoepfeImBild;
+        const auto da = [&ist](const char* n) { return std::find(ist.begin(), ist.end(), n) != ist.end(); };
+        diag::detail("Knopftest: Karten-Editor - " + std::to_string(ist.size()) + " Knoepfe gezeichnet");
+        return da("ResetFilters") && !da("RegionSetSelection") && !da("HideSelected") && da("bobToolz::PolygonBuilder") &&
+               !da("bobToolz::TreePlanter") && da("MouseDrag") && da("FilterTriggers");
+    }));
+    add(pruefe("Masse Regular: XY 495 x 629, Konsole 33, Kamera 742 x 414, Texturen 248, Griffe 4", [] {
+        return feldVergleich("Regular", {{"XY", 0, 60, 495, 629},
+                                         {"Griff:v:1", 0, 689, 495, 4},
+                                         {"Konsole", 0, 693, 495, 33},
+                                         {"Griff:h:1", 495, 60, 4, 666},
+                                         {"Kamera", 499, 60, 742, 414},
+                                         {"Griff:v2:1", 499, 474, 742, 4},
+                                         {"Texturen", 499, 478, 742, 248}});
+    }));
+    add(foto("karteneditor_mass_regular"));
+    add(tu("Regular Left", [] {
+        ke::editor().anordnung = kb::Anordnung::RegularLeft;
+        ke::editor().teilerFuer = -1;
+    }));
+    add(pause(0.3));
+    add(pruefe("Masse Regular Left: Kamera-Spalte links 495, XY-Spalte rechts 742", [] {
+        return feldVergleich("RegularLeft", {{"Kamera", 0, 60, 495, 414},
+                                             {"Griff:v2:1", 0, 474, 495, 4},
+                                             {"Texturen", 0, 478, 495, 248},
+                                             {"Griff:h:1", 495, 60, 4, 666},
+                                             {"XY", 499, 60, 742, 629},
+                                             {"Griff:v:1", 499, 689, 742, 4},
+                                             {"Konsole", 499, 693, 742, 33}});
+    }));
+    add(foto("karteneditor_mass_regularleft"));
+    add(tu("Split", [] {
+        ke::editor().anordnung = kb::Anordnung::Split;
+        ke::editor().teilerFuer = -1;
+    }));
+    add(pause(0.3));
+    add(pruefe("Masse Split: vier gleiche Felder 619/618 x 331 (keine Groessen gesetzt)", [] {
+        return feldVergleich("Split", {{"Kamera", 0, 60, 619, 331},
+                                       {"Griff:v:1", 0, 391, 619, 4},
+                                       {"YZ", 0, 395, 619, 331},
+                                       {"Griff:h:1", 619, 60, 4, 666},
+                                       {"XY", 623, 60, 618, 331},
+                                       {"Griff:v2:1", 623, 391, 618, 4},
+                                       {"XZ", 623, 395, 618, 331}});
+    }));
+    add(foto("karteneditor_mass_split"));
+    add(tu("Floating", [] {
+        ke::Editor& e = ke::editor();
+        e.anordnung = kb::Anordnung::Floating;
+        e.teilerFuer = -1;
+        e.schwebendSichtbar = {true, true, true, true};
+        e.schwebendZuruecksetzen = true;
+    }));
+    add(pause(0.4));
+    add(pruefe("Masse Floating: Mitte leer, vier Fenster mit Innenmass 400 x 300", [] {
+        // Innenmass 400 x 300 (addWindow); die Lage des Rahmens 50/100,
+        // 500/100, 500/450, 50/450 - darunter die Titelleiste von ImGui statt
+        // der von Windows (Innenecke daher um deren Hoehe tiefer).
+        bool ok = feldVergleich("Floating", {{"Mitte", 0, 60, 1241, 666}});
+        const int titel = static_cast<int>(std::lround(ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F));
+        (void)titel;
+        std::string bericht;
+        const struct {
+            const char* n;
+            int x;
+            int y;
+        } soll[] = {{"Fenster:Kamera", 50, 100}, {"Fenster:XY", 500, 100}, {"Fenster:XZ", 500, 450}, {"Fenster:YZ", 50, 450}};
+        for (const auto& f : soll) {
+            const auto* r = karteFeld(f.n);
+            if (r == nullptr) {
+                ok = false;
+                bericht += std::string(" ") + f.n + " fehlt;";
+                continue;
+            }
+            bericht += " " + std::string(f.n) + " " + std::to_string(r->x) + "," + std::to_string(r->y) + " " + std::to_string(r->b) +
+                       "x" + std::to_string(r->h) + ";";
+            ok = ok && r->b == 400 && r->h == 300 && r->x == f.x && r->y > f.y && r->y < f.y + 40;
+        }
+        diag::detail("Knopftest: Karten-Editor Masse Floating-Fenster:" + bericht);
+        return ok;
+    }));
+    add(foto("karteneditor_mass_floating"));
+    add(tu("Massstab und Bereich wie vorher, Regular", [format, nrc] {
+        ke::Editor& e = ke::editor();
+        ke::setzeNrcBegriffe(*nrc);
+        ke::massstabErsatz = 0.0F;
+        ke::bereichErsatzB = 0;
+        ke::bereichErsatzH = 0;
+        e.karte.kontext.format = *format;
+        e.anordnung = kb::Anordnung::Regular;
+        e.teilerFuer = -1;
+    }));
+    add(pause(0.3));
+    // Beim echten Massstab (150 % -> Qt 2): Werkzeugleiste 78 Bildpunkte
+    // hoch, Knoepfe 62 - wie NRC auf demselben Bildschirm.
+    add(pruefe("echter Massstab: Werkzeugleiste und Knoepfe in Bildpunkten wie NRC (Qt rundet den Bildschirmmassstab)", [] {
+        const float s = ke::massstab();
+        const float qt = std::max(1.0F, std::round(g_app->dpiScale));
+        const auto* l = karteFeld("Werkzeugleiste");
+        const auto* b = karteFeld("Bereich");
+        const auto* xy = karteFeld("XY");
+        diag::detail("Knopftest: Karten-Editor - massstab " + std::to_string(s) + ", Werkzeugleiste " +
+                     std::to_string(l != nullptr ? static_cast<float>(l->h) * s : 0.0F) + " Bildpunkte, Bereich " +
+                     (b != nullptr ? std::to_string(b->b) + "x" + std::to_string(b->h) : std::string("-")) + ", XY " +
+                     (xy != nullptr ? std::to_string(xy->b) + "x" + std::to_string(xy->h) : std::string("-")));
+        return l != nullptr && l->h == 39 && s == qt * g_app->uiScale && b != nullptr && b->h > 300 && xy != nullptr &&
+               xy->h > 200;
+    }));
+    add(foto("karteneditor_mass_echt"));
+    return s;
+}
+
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
     std::vector<Schritt> s;
@@ -25340,6 +25619,7 @@ std::vector<Schritt> karteneditorSchritte() {
     add(foto("karteneditor_start"));
     for (Schritt& x : karteneditorRahmenSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorTastenSchritte()) { add(std::move(x)); }
+    for (Schritt& x : karteneditorMassSchritte()) { add(std::move(x)); }
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
     return s;
 }

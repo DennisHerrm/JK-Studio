@@ -24,7 +24,6 @@
 #include "karteneditor.h"
 
 #include "app_internal.h"
-#include "karte_icons.h"
 
 #include <algorithm>
 #include <cmath>
@@ -53,59 +52,20 @@ bool hellesThema() {
 }
 
 // --- Symbole ----------------------------------------------------------------
-struct Symbole {
-    void* textur = nullptr;
-    unsigned stand = ~0U;
-    int breite = 0;
-};
-// Wie NRC (set_icon_theme): die hellen Bitmaps zu einer hellen Farbgebung.
-Symbole& symbole() {
-    static Symbole dunkel;
-    static Symbole hell;
-    const bool h = hellesThema();
-    Symbole& s = h ? hell : dunkel;
-    if (s.textur == nullptr || s.stand != render::texturStand()) {
-        const image::Image bild = h ? image::decodePng(kKarteIconPngHell, kKarteIconPngHellGroesse)
-                                    : image::decodePng(kKarteIconPng, kKarteIconPngGroesse);
-        if (bild.ok) {
-            s.textur = render::createTexture(bild.rgba.data(), bild.width, bild.height);
-            s.breite = bild.width;
-            s.stand = render::texturStand();
-        }
-    }
-    return s;
-}
-
-int symbolSpalte(const char* name) {
-    for (std::size_t i = 0; i < kKarteIconAnzahl; ++i) {
-        if (std::strcmp(kKarteIcons[i].name, name) == 0) { return kKarteIcons[i].spalte; }
-    }
-    return -1;
-}
-
-// Das Symbol an eine Stelle zeichnen (fuer Knoepfe).
+// Eigene Vektorsymbole im Stil des Programms (karte_vektoricons.cpp) statt
+// NRCs Bitmaps - shank: "moderner ... aber dieselbe Positionen". Gesperrt
+// (QIcon::Disabled) in der Farbe fuer gesperrten Text.
 void symbolZeichnen(ImDrawList* dl, const char* name, ImVec2 a, float g, bool aktiv) {
-    Symbole& s = symbole();
-    const int spalte = symbolSpalte(name);
-    if (s.textur == nullptr || spalte < 0 || s.breite <= 0) { return; }
-    const float u0 = static_cast<float>(spalte * kKarteIconGroesse) / static_cast<float>(s.breite);
-    const float u1 = static_cast<float>((spalte + 1) * kKarteIconGroesse) / static_cast<float>(s.breite);
-    // QIcon::Disabled: Qt zeichnet das Symbol blass.
-    dl->AddImage(reinterpret_cast<ImTextureID>(s.textur), a, ImVec2{a.x + g, a.y + g}, ImVec2{u0, 0.0F},
-                 ImVec2{u1, 1.0F}, aktiv ? IM_COL32_WHITE : IM_COL32(255, 255, 255, 90));
-}
-
-float symbolGroesse() {
-    // PM_ToolBarIconSize des Fusion-Stils: 24 Punkte bei 96 dpi, zur
-    // Standardschrift von 9 pt (12 Punkte) - also doppelt so gross wie die
-    // Schrift, wie auf dem Foto von NRC.
-    return std::round(ImGui::GetFontSize() * 2.0F);
+    const ImVec4 f = aktiv ? karteIconFarbe(name) : ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
+    (void)karteIcon(dl, name, ImVec2{std::floor(a.x), std::floor(a.y)}, g, ImGui::GetColorU32(f));
 }
 
 std::string stufeText(const std::string& befehl) {
     const befehle::Befehl* b = befehle::finden(befehl);
     char z[160];
-    std::snprintf(z, sizeof(z), tr(Str::KeStufe), b != nullptr ? b->stufe : 2);
+    // Plugin-Befehle ("bobToolz::...") stehen nicht in der Tabelle: Stufe 3.
+    const int stufe = b != nullptr ? b->stufe : (befehl.find("::") != std::string::npos ? 3 : 2);
+    std::snprintf(z, sizeof(z), tr(Str::KeStufe), stufe);
     return z;
 }
 
@@ -357,66 +317,92 @@ void farbenAusThema() {
 }
 
 bool symbol(const char* name, float groesse, bool hell) {
-    if (symbolSpalte(name) < 0) { return false; }
     const ImVec2 p = ImGui::GetCursorScreenPos();
-    symbolZeichnen(ImGui::GetWindowDrawList(), name, p, groesse, hell);
+    const ImVec4 f = hell ? karteIconFarbe(name) : ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
+    const bool da = karteIcon(ImGui::GetWindowDrawList(), name, ImVec2{std::floor(p.x), std::floor(p.y)}, groesse,
+                              ImGui::GetColorU32(f));
     ImGui::Dummy(ImVec2{groesse, groesse});
-    return true;
+    return da;
 }
 
 // --- Menueleiste (create_main_menu, mainframe.cpp:1225) ---------------------
+//
+// Lage der Eintraege wie QMenuBarPrivate::calcActionRects (qmenubar.cpp:
+// 409-480): Feld = Textbreite + 8 (CT_MenuBarItem, Fusion), Abstand 6
+// (PM_MenuBarItemSpacing), der erste bei 6; der Text mittig, also 4 nach dem
+// Feldanfang. ImGui verlaengert die Hervorhebung eines Menuetitels um
+// ItemSpacing.x nach beiden Seiten (BeginMenu verdoppelt es fuer Selectable),
+// darum ItemSpacing.x = 4: Hervorhebung = Text + 8 = Qts Feld.
 
 void zeichneMenueleiste() {
     if (!ImGui::BeginMenuBar()) { return; }
+    const float s = massstab();
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
+                        ImVec2{static_cast<float>(mass::kMenuePolster) * 0.5F * s, ImGui::GetStyle().ItemSpacing.y});
+    const float halb = std::trunc(static_cast<float>(mass::kMenuePolster) * 0.5F * s * 0.5F);   // BeginMenu: += IM_TRUNC(ItemSpacing.x * 0.5)
+    const float zeile = ImGui::GetCursorScreenPos().y;
+    int x = mass::kMenueAbstand;
     const auto& liste = befehle::menues();
     for (std::size_t i = 0; i < liste.size(); ++i) {
         if (liste[i].art != MenueArt::Menue) { continue; }
-        const std::string id = std::string(trK(liste[i].str)) + "###menue" + std::to_string(i);
+        const char* text = trK(liste[i].str);
+        // fm.size(): ganze logische Punkte (ImGui::CalcTextSize rundet auf -
+        // hier die ungerundete Breite der Schrift).
+        const int w = static_cast<int>(std::lround(ImGui::GetFont()->CalcTextSizeA(ImGui::GetFontSize(), FLT_MAX, 0.0F, text).x / s));
+        merkeFeld(std::string("Menue:") + text, x, 0, w + mass::kMenuePolster, mass::kMenueH);
+        ImGui::SetCursorScreenPos(ImVec2{bildpunkt(x, 0).x + static_cast<float>(mass::kMenuePolster) * 0.5F * s - halb, zeile});
+        const std::string id = std::string(text) + "###menue" + std::to_string(i);
         if (menueAnfang(id.c_str())) {
             ++i;
             eintraegeZeichnen(liste, i);
             ImGui::EndMenu();
         }
+        x += w + mass::kMenuePolster + mass::kMenueAbstand;
     }
+    ImGui::PopStyleVar();
     ImGui::EndMenuBar();
 }
 
 // --- Werkzeugleisten -------------------------------------------------------------
+//
+// dark.qss "QToolBar": Rand 1, padding 3, spacing 0; Griff 9
+// (PM_ToolBarHandleExtent); Knoepfe 31 x 31 mit Symbol 24; Trenner 8.
+// Erster Knopf also 13 vom Rand, 4 von oben (gemessen: 13 und 4).
 
 namespace {
 
 bool g_rechtsklickBehandelt = false;
 
-// Ein Knopf einer QToolBar (dark.qss "QToolBar QToolButton").
-void knopf(const Knopf& k, float s, bool waagerecht, std::size_t nr) {
+// Ein Knopf einer QToolBar an der Stelle (x, y) in logischen Punkten.
+void knopf(const Knopf& k, int x, int y) {
     Editor& ed = e();
-    const float rand = 2.0F;   // padding 1px + border 1px
-    const ImVec2 groesse{s + rand * 2.0F, s + rand * 2.0F};
+    const float s = massstab();
     const std::string befehl = k.befehl;
     const bool da = befehl.empty() ? false : nachgebaut(befehl);
     ed.knoepfeImBild.push_back(befehl);
+    merkeFeld("Knopf:" + (befehl.empty() ? std::string(k.bild) : befehl), x, y, mass::kKnopf, mass::kKnopf);
     const std::string id = std::string("##knopf") + (befehl.empty() ? k.bild : befehl);
-    (void)nr;
-    ImGui::InvisibleButton(id.c_str(), groesse, ImGuiButtonFlags_MouseButtonLeft);
+    const ImVec2 a = bildpunkt(x, y);
+    const ImVec2 b = bildpunkt(x + mass::kKnopf, y + mass::kKnopf);
+    ImGui::SetCursorScreenPos(a);
+    ImGui::InvisibleButton(id.c_str(), ImVec2{b.x - a.x, b.y - a.y}, ImGuiButtonFlags_MouseButtonLeft);
     const bool hover = ImGui::IsItemHovered();
     const bool an = k.schalter && angehakt(befehl);
-    const ImVec2 a = ImGui::GetItemRectMin();
-    const ImVec2 b = ImGui::GetItemRectMax();
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    // QToolButton: gedrueckt (an) mit Rahmen in der Hervorhebung, unter der
-    // Maus hervorgehoben - in den Farben des Programms.
-    ImU32 hinten = 0;
-    ImU32 kante = 0;
+    // Knopfstil des Programms (iconKnopf, uiicons.cpp): ruhend ohne Flaeche,
+    // eingeschaltet (QToolButton checked) in der Farbe gedrueckter Knoepfe,
+    // unter der Maus hervorgehoben, abgerundet. Platz und Groesse wie NRC.
+    const ImGuiStyle& st = ImGui::GetStyle();
+    ImVec4 grund{0.0F, 0.0F, 0.0F, 0.0F};
     if (an) {
-        hinten = stil(hover && da ? ImGuiCol_ButtonHovered : ImGuiCol_FrameBg);
-        kante = stil(ImGuiCol_CheckMark, hover && da ? 0.95F : 0.75F);
-    } else if (hover && da) {
-        hinten = stil(ImGui::IsItemActive() ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered);
-        kante = stil(ImGuiCol_Border);
+        grund = st.Colors[ImGuiCol_ButtonActive];
+        grund.w = std::max(grund.w, 0.55F);
     }
-    if (hinten != 0U) { dl->AddRectFilled(a, b, hinten); }
-    if (kante != 0U) { dl->AddRect(a, b, kante); }
-    symbolZeichnen(dl, k.bild, ImVec2{a.x + rand, a.y + rand}, s, da);
+    if (hover && da) { grund = st.Colors[ImGui::IsItemActive() ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered]; }
+    if (grund.w > 0.0F) { dl->AddRectFilled(a, b, ImGui::GetColorU32(grund), st.FrameRounding + 2.0F); }
+    // Das Symbol 24 x 24 mittig (QToolButton: Rand 1 + padding 1 + 1,5).
+    const float g = std::round(static_cast<float>(mass::kSymbol) * s);
+    symbolZeichnen(dl, k.bild, ImVec2{std::floor(a.x + (b.x - a.x - g) * 0.5F), std::floor(a.y + (b.y - a.y - g) * 0.5F)}, g, da);
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && da) { (void)ausfuehren(befehl); }
     // FilterToolbarHandler (filterbar.cpp:104-118): Rechtsklick auf einen
     // Filterknopf mit eigener Handlung fuehrt sie aus.
@@ -442,7 +428,6 @@ void knopf(const Knopf& k, float s, bool waagerecht, std::size_t nr) {
         if (!da && !befehl.empty()) { tip += "\n" + stufeText(befehl); }
         ImGui::SetTooltip("%s", tip.c_str());
     }
-    if (waagerecht) { ImGui::SameLine(0.0F, 0.0F); }
 }
 
 // toolbar_construct_control_menu (gtkmisc.cpp:230-258) mit den Leisten davor
@@ -454,7 +439,7 @@ void leistenMenue() {
     ImGui::MenuItem(tr(Str::KeFilterToolbar), nullptr, &ed.filterleiste);
     ImGui::MenuItem(tr(Str::KePluginToolbar), nullptr, &ed.pluginleiste);
     ImGui::Separator();
-    for (const auto* liste : {&befehle::werkzeugleiste(), &befehle::filterleiste()}) {
+    for (const auto* liste : {&befehle::werkzeugleiste(), &befehle::filterleiste(), &befehle::pluginleiste()}) {
         for (const Knopf& k : *liste) {
             if (k.trenner || k.befehl[0] == 0) { continue; }
             const bool sichtbar = ed.versteckteKnoepfe.count(k.befehl) == 0U;
@@ -472,120 +457,221 @@ void leistenMenue() {
     ImGui::EndPopup();
 }
 
-// Die Knoepfe einer Leiste, mit ToolbarItems::update_separators_visibility:
-// ein Trenner nur zwischen sichtbaren Knoepfen.
-std::vector<const Knopf*> sichtbareKnoepfe(const std::vector<Knopf>& liste) {
+// Der Griff einer beweglichen QToolBar (PM_ToolBarHandleExtent 9): Punkte
+// in zwei Reihen, in der Farbe fuer gesperrten Text.
+void griff(ImDrawList* dl, int x, int y, int b, int h, bool waagerecht) {
+    const float s = massstab();
+    const ImU32 c = stil(ImGuiCol_TextDisabled);
+    const float d = std::max(1.0F, std::round(s));
+    const ImVec2 a = bildpunkt(x, y);
+    const ImVec2 e2 = bildpunkt(x + b, y + h);
+    const float mitte = waagerecht ? std::floor((a.x + e2.x) * 0.5F) : std::floor((a.y + e2.y) * 0.5F);
+    const float lang0 = waagerecht ? a.y + 2.0F * d : a.x + 2.0F * d;
+    const float lang1 = waagerecht ? e2.y - 2.0F * d : e2.x - 2.0F * d;
+    for (float k = lang0; k + d <= lang1; k += 3.0F * d) {
+        for (const float q : {mitte - 2.0F * d, mitte + d}) {
+            if (waagerecht) {
+                dl->AddRectFilled(ImVec2{q, k}, ImVec2{q + d, k + d}, c);
+            } else {
+                dl->AddRectFilled(ImVec2{k, q}, ImVec2{k + d, q + d}, c);
+            }
+        }
+    }
+}
+
+// Die Knoepfe einer Leiste, die in dieser Anordnung erzeugt werden
+// (create_main_toolbar fragt die Anordnung ab).
+std::vector<const Knopf*> erzeugteKnoepfe(const std::vector<Knopf>& liste) {
     Editor& ed = e();
     std::vector<const Knopf*> v;
     for (const Knopf& k : liste) {
-        if (!befehle::bedingungGilt(k.bedingung, ed.anordnung, ed.gruppenDialogEingebaut)) { continue; }
-        if (!k.trenner && ed.versteckteKnoepfe.count(k.befehl) != 0U) { continue; }
-        if (k.trenner && (v.empty() || v.back()->trenner)) { continue; }
-        v.push_back(&k);
+        if (befehle::bedingungGilt(k.bedingung, ed.anordnung, ed.gruppenDialogEingebaut)) { v.push_back(&k); }
     }
-    while (!v.empty() && v.back()->trenner) { v.pop_back(); }
     return v;
 }
 
-void griff(ImDrawList* dl, ImVec2 a, float h, bool waagerecht) {
-    // Der Griff einer beweglichen QToolBar: zwei Reihen Punkte.
-    const ImU32 c = stil(ImGuiCol_TextDisabled);
-    for (float k = 4.0F; k < h - 3.0F; k += 3.0F) {
-        if (waagerecht) {
-            dl->AddRectFilled(ImVec2{a.x + 3.0F, a.y + k}, ImVec2{a.x + 4.0F, a.y + k + 1.0F}, c);
-            dl->AddRectFilled(ImVec2{a.x + 6.0F, a.y + k}, ImVec2{a.x + 7.0F, a.y + k + 1.0F}, c);
-        } else {
-            dl->AddRectFilled(ImVec2{a.x + k, a.y + 3.0F}, ImVec2{a.x + k + 1.0F, a.y + 4.0F}, c);
-            dl->AddRectFilled(ImVec2{a.x + k, a.y + 6.0F}, ImVec2{a.x + k + 1.0F, a.y + 7.0F}, c);
+// Was QToolBarLayout sieht: Knoepfe 31, Trenner 8; versteckt (leer) sind
+// ausgeblendete Knoepfe und Trenner nach ToolbarItems::
+// update_separators_visibility (gtkmisc.cpp:189-211): ein Trenner nur mit
+// einem sichtbaren Knopf davor und einem bis zum naechsten Trenner danach.
+std::vector<karte::LeistenEintrag> leistenEintraege(const std::vector<const Knopf*>& k) {
+    Editor& ed = e();
+    const std::size_t n = k.size();
+    std::vector<bool> an(n, false);
+    for (std::size_t i = 0; i < n; ++i) { an[i] = !k[i]->trenner && ed.versteckteKnoepfe.count(k[i]->befehl) == 0U; }
+    for (std::size_t i = 0; i < n; ++i) {
+        if (!k[i]->trenner) { continue; }
+        bool danach = false;
+        for (std::size_t j = i + 1; j < n && !k[j]->trenner; ++j) { danach = danach || an[j]; }
+        bool davor = false;
+        for (std::size_t j = 0; j < i; ++j) { davor = davor || an[j]; }
+        an[i] = danach && davor;
+    }
+    std::vector<karte::LeistenEintrag> v;
+    for (std::size_t i = 0; i < n; ++i) { v.push_back({k[i]->trenner ? mass::kTrenner : mass::kKnopf, !an[i]}); }
+    return v;
+}
+
+// Der Erweiterungsknopf (QToolBarExtension, PM_ToolBarExtensionExtent 12):
+// zwei Winkel in Richtung der verdeckten Knoepfe; Klick zeigt sie in einem
+// Menue (QToolBarLayout mit popupMenu: Symbol und Text je Aktion).
+void erweiterung(const char* id, const std::vector<const Knopf*>& verdeckt, int x, int y, int b, int h, bool waagerecht) {
+    Editor& ed = e();
+    const float s = massstab();
+    merkeFeld(std::string("Erweiterung:") + id, x, y, b, h);
+    const ImVec2 a = bildpunkt(x, y);
+    const ImVec2 c = bildpunkt(x + b, y + h);
+    ImGui::SetCursorScreenPos(a);
+    const std::string kennung = std::string("##erweiterung") + id;
+    const bool geklickt = ImGui::InvisibleButton(kennung.c_str(), ImVec2{c.x - a.x, c.y - a.y});
+    const bool hover = ImGui::IsItemHovered();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    if (hover) {
+        dl->AddRectFilled(a, c, ImGui::GetColorU32(ImGui::IsItemActive() ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered),
+                          ImGui::GetStyle().FrameRounding);
+        ImGui::SetTooltip("%s", tr(Str::KeLeisteMehr));
+    }
+    const ImU32 farbe = ImGui::GetColorU32(ImGuiCol_Text);
+    const float m = std::max(1.0F, std::round(s));
+    const ImVec2 mitte{std::floor((a.x + c.x) * 0.5F), std::floor((a.y + c.y) * 0.5F)};
+    for (int k = 0; k < 2; ++k) {
+        const float o = (static_cast<float>(k) * 3.0F - 1.5F) * m;
+        if (waagerecht) {   // ">>"
+            dl->AddLine(ImVec2{mitte.x + o - 1.5F * m, mitte.y - 2.5F * m}, ImVec2{mitte.x + o + 1.0F * m, mitte.y}, farbe, m);
+            dl->AddLine(ImVec2{mitte.x + o + 1.0F * m, mitte.y}, ImVec2{mitte.x + o - 1.5F * m, mitte.y + 2.5F * m}, farbe, m);
+        } else {   // nach unten
+            dl->AddLine(ImVec2{mitte.x - 2.5F * m, mitte.y + o - 1.5F * m}, ImVec2{mitte.x, mitte.y + o + 1.0F * m}, farbe, m);
+            dl->AddLine(ImVec2{mitte.x, mitte.y + o + 1.0F * m}, ImVec2{mitte.x + 2.5F * m, mitte.y + o - 1.5F * m}, farbe, m);
         }
     }
+    const std::string popup = std::string("##erweiterungMenue") + id;
+    if (geklickt) { ImGui::OpenPopup(popup.c_str()); }
+    if (ImGui::BeginPopup(popup.c_str())) {
+        for (const Knopf* k : verdeckt) {
+            if (k->trenner) {
+                ImGui::Separator();
+                continue;
+            }
+            ed.knoepfeVerdeckt.push_back(k->befehl);
+            const bool da = nachgebaut(k->befehl);
+            const float g = ImGui::GetTextLineHeight();
+            symbolZeichnen(ImGui::GetWindowDrawList(), k->bild, ImGui::GetCursorScreenPos(), g, da);
+            ImGui::Indent(g * 1.3F);
+            std::string text = k->beschreibung;
+            text = text.substr(0, text.find('\n'));
+            if (k->zeilen[0] != Str::Count) { text = tr(k->zeilen[0]); }
+            const bool haken = k->schalter && angehakt(k->befehl);
+            if (ImGui::MenuItem((text + "##em" + k->befehl).c_str(), nullptr, haken, da)) { (void)ausfuehren(k->befehl); }
+            if (!da && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", stufeText(k->befehl).c_str()); }
+            ImGui::Unindent(g * 1.3F);
+        }
+        ImGui::EndPopup();
+    }
+}
+
+// Eine QToolBar an (x, y) mit der Laenge laenge entlang ihrer Richtung.
+void leisteZeichnen(const char* id, const std::vector<Knopf>& liste, bool waagerecht, int x, int y, int laenge) {
+    const std::vector<const Knopf*> k = erzeugteKnoepfe(liste);
+    const std::vector<karte::LeistenEintrag> ein = leistenEintraege(k);
+    const karte::LeistenErgebnis r = karte::leisteAnordnen(ein, laenge);
+    const int b = waagerecht ? laenge : mass::kLeisteH;
+    const int h = waagerecht ? mass::kLeisteH : laenge;
+    merkeFeld(std::string("Leiste:") + id, x, y, b, h);
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 a = bildpunkt(x, y);
+    const ImVec2 c = bildpunkt(x + b, y + h);
+    dl->AddRectFilled(a, c, stil(ImGuiCol_MenuBarBg));
+    const ImU32 linie = stil(ImGuiCol_Border);
+    if (waagerecht) {   // QToolBar:horizontal: border-top/bottom-color
+        dl->AddRectFilled(a, ImVec2{c.x, bildpunkt(0, y + mass::kLeisteRand).y}, linie);
+        dl->AddRectFilled(ImVec2{a.x, bildpunkt(0, y + h - mass::kLeisteRand).y}, c, linie);
+    } else {   // QToolBar:right: border-left-color
+        dl->AddRectFilled(a, ImVec2{bildpunkt(x + mass::kLeisteRand, 0).x, c.y}, linie);
+    }
+    const int innen = mass::kLeisteRand + mass::kLeistePolster;
+    if (waagerecht) {
+        griff(dl, x + innen, y + innen, mass::kLeisteGriff, mass::kKnopf, true);
+    } else {
+        griff(dl, x + innen, y + innen, mass::kKnopf, mass::kLeisteGriff, false);
+    }
+    for (std::size_t i = 0; i < k.size(); ++i) {
+        if (r.lage[i] < 0 || k[i]->trenner) { continue; }
+        knopf(*k[i], waagerecht ? x + r.lage[i] : x + innen, waagerecht ? y + innen : y + r.lage[i]);
+    }
+    if (r.erweiterung) {
+        std::vector<const Knopf*> verdeckt;
+        for (std::size_t i = static_cast<std::size_t>(r.ersterVersteckter); i < k.size(); ++i) {
+            if (!ein[i].leer) { verdeckt.push_back(k[i]); }
+        }
+        if (waagerecht) {
+            erweiterung(id, verdeckt, x + r.erweiterungLage, y + innen, 12, mass::kKnopf, true);
+        } else {
+            erweiterung(id, verdeckt, x + innen, y + r.erweiterungLage, mass::kKnopf, 12, false);
+        }
+    }
+    // Rechtsklick auf die Leiste oder einen ihrer Knoepfe ohne eigene
+    // Handlung: das Kontextmenue des Hauptfensters (createPopupMenu).
+    if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) && ImGui::IsMouseHoveringRect(a, c) &&
+        ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !g_rechtsklickBehandelt) {
+        ImGui::OpenPopup("##leistenmenue");
+    }
+}
+
+// {minimumSize, sizeHint} einer Leiste entlang ihrer Richtung.
+std::pair<int, int> leistenMass(const std::vector<Knopf>& liste) {
+    const karte::LeistenErgebnis r = karte::leisteAnordnen(leistenEintraege(erzeugteKnoepfe(liste)), karte::kLayoutMax);
+    return {r.minimum, r.hinweis};
 }
 
 }  // namespace
 
-void zeichneHauptleiste() {
-    Editor& ed = e();
-    if (!ed.hauptleiste) { return; }
-    const float s = symbolGroesse();
-    const float pad = 3.0F;   // QToolBar padding 3px
-    const float hoehe = s + 4.0F + pad * 2.0F;
-    ImDrawList* dl = ImGui::GetWindowDrawList();
-    const ImVec2 a = ImGui::GetCursorScreenPos();
-    const float breite = ImGui::GetContentRegionAvail().x;
-    dl->AddRectFilled(a, ImVec2{a.x + breite, a.y + hoehe}, stil(ImGuiCol_MenuBarBg));
-    dl->AddLine(a, ImVec2{a.x + breite, a.y}, stil(ImGuiCol_Border));
-    dl->AddLine(ImVec2{a.x, a.y + hoehe - 1.0F}, ImVec2{a.x + breite, a.y + hoehe - 1.0F}, stil(ImGuiCol_Border));
-    griff(dl, a, hoehe, true);
-    ImGui::SetCursorScreenPos(ImVec2{a.x + 10.0F, a.y + pad});
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, 0.0F});
-    std::size_t nr = 0;
-    for (const Knopf* k : sichtbareKnoepfe(befehle::werkzeugleiste())) {
-        if (k->trenner) {
-            ImGui::Dummy(ImVec2{8.0F, s});   // QToolBar::separator 8px
-            ImGui::SameLine(0.0F, 0.0F);
-            continue;
-        }
-        knopf(*k, s, true, nr++);
-    }
-    ImGui::PopStyleVar();
-    // Rechtsklick auf die Leiste oder einen ihrer Knoepfe: das Kontextmenue
-    // des Hauptfensters (QMainWindow::createPopupMenu).
-    if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) &&
-        ImGui::IsMouseHoveringRect(a, ImVec2{a.x + breite, a.y + hoehe}) && ImGui::IsMouseReleased(ImGuiMouseButton_Right)) {
-        ImGui::OpenPopup("##leistenmenue");
-    }
-    leistenMenue();
-    ImGui::SetCursorScreenPos(ImVec2{a.x, a.y + hoehe});
-    ImGui::Dummy(ImVec2{0.0F, 0.0F});
-}
-
-float zeichneFilterleiste(float hoehe) {
-    Editor& ed = e();
-    if (!ed.filterleiste) { return 0.0F; }
-    const float s = symbolGroesse();
-    const float pad = 3.0F;
-    const float breite = s + 4.0F + pad * 2.0F;
-    ImGui::BeginChild("##filterleiste", ImVec2{breite, hoehe}, ImGuiChildFlags_None,
-                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    ImDrawList* dl = ImGui::GetWindowDrawList();
-    const ImVec2 a = ImGui::GetCursorScreenPos();
-    dl->AddRectFilled(a, ImVec2{a.x + breite, a.y + hoehe}, stil(ImGuiCol_MenuBarBg));
-    dl->AddLine(a, ImVec2{a.x, a.y + hoehe}, stil(ImGuiCol_Border));   // QToolBar:right - Rand links
-    griff(dl, a, breite, false);
-    ImGui::SetCursorScreenPos(ImVec2{a.x + pad, a.y + 10.0F});
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, 0.0F});
-    std::size_t nr = 100;
-    for (const Knopf* k : sichtbareKnoepfe(befehle::filterleiste())) {
-        ImGui::SetCursorScreenPos(ImVec2{a.x + pad, ImGui::GetCursorScreenPos().y});
-        if (k->trenner) {
-            ImGui::Dummy(ImVec2{s, 8.0F});
-            continue;
-        }
-        knopf(*k, s, false, nr++);
-    }
-    ImGui::PopStyleVar();
-    if (ImGui::IsWindowHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !g_rechtsklickBehandelt) {
-        // Rechtsklick ohne eigene Handlung des Knopfs: das Leistenmenue.
-        ImGui::OpenPopup("##leistenmenue");
-    }
+// Obere Zeile (Qt::TopToolBarArea): nur die Hauptleiste, sie reicht bis zum
+// Ende (fitLayout: die letzte Leiste einer Zeile).
+void zeichneHauptleiste(int y, int breite) {
     g_rechtsklickBehandelt = false;
+    const std::vector<karte::Spanne> zeile = karte::leistenZeile({leistenMass(befehle::werkzeugleiste())}, breite);
+    merkeFeld("Werkzeugleiste", zeile[0].pos, y, zeile[0].groesse, mass::kLeisteH);
+    leisteZeichnen("haupt", befehle::werkzeugleiste(), true, zeile[0].pos, y, zeile[0].groesse);
     leistenMenue();
-    ImGui::EndChild();
-    return breite;
 }
 
-// --- Statuszeile (create_main_statusbar, mainframe.cpp:1447-1490) -----------------
-
-float statuszeilenHoehe() { return ImGui::GetTextLineHeight() + 8.0F; }
-
-void zeichneStatuszeile() {
+// Rechte Zeile (Qt::RightToolBarArea): Filterleiste und darunter die
+// Plugin-Leiste (mainframe.cpp:1686-1697), verteilt mit fitLayout.
+void zeichneRechteLeisten(int x, int y, int hoehe) {
     Editor& ed = e();
-    const float h = statuszeilenHoehe();
+    g_rechtsklickBehandelt = false;
+    std::vector<const std::vector<Knopf>*> leisten;
+    std::vector<const char*> namen;
+    if (ed.filterleiste) {
+        leisten.push_back(&befehle::filterleiste());
+        namen.push_back("filter");
+    }
+    if (ed.pluginleiste) {
+        leisten.push_back(&befehle::pluginleiste());
+        namen.push_back("plugin");
+    }
+    if (leisten.empty()) { return; }
+    std::vector<std::pair<int, int>> masse;
+    for (const auto* l : leisten) { masse.push_back(leistenMass(*l)); }
+    const std::vector<karte::Spanne> zeile = karte::leistenZeile(masse, hoehe);
+    for (std::size_t i = 0; i < leisten.size(); ++i) {
+        if (i == 0 && ed.filterleiste) { merkeFeld("Filterleiste", x, y + zeile[i].pos, mass::kLeisteH, zeile[i].groesse); }
+        leisteZeichnen(namen[i], *leisten[i], false, x, y + zeile[i].pos, zeile[i].groesse);
+    }
+    leistenMenue();
+}
+
+// --- Statuszeile (create_main_statusbar, mainframe.cpp:1445-1490) -----------------
+//
+// QStatusBar::reformat: 3 oben, Schrifthoehe 16, 2 unten; Eintraege mit
+// addPermanentWidget: Befehl (Dehnung 1), Position (1), die Zaehler (0),
+// Textur (1), Raster (0) - verteilt wie QBoxLayout (statuszeileVerteilen).
+
+void zeichneStatuszeile(int y, int breite) {
+    Editor& ed = e();
+    const float s = massstab();
+    merkeFeld("Statuszeile", 0, y, breite, mass::kStatusH);
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    const ImVec2 a = ImGui::GetCursorScreenPos();
-    const float breite = ImGui::GetContentRegionAvail().x;
-    const ImU32 linie = stil(ImGuiCol_Border);
-    dl->AddLine(a, ImVec2{a.x + breite, a.y}, linie);
     // QE_brushCountChange (qe3.cpp:107-119): Gesamtzahlen, bei einer Auswahl
     // die ausgewaehlten; 0 steht leer.
     std::size_t zahl[3] = {0, 0, 0};
@@ -611,40 +697,52 @@ void zeichneStatuszeile() {
     std::snprintf(raster, sizeof(raster), "%s%g  F:%s  C:%d  L:%s", ed.raster.einrastGroesse() > 0 ? "G:" : "g:",
                   static_cast<double>(ed.raster.groesse()), format, ed.kubikSkala,
                   ed.karte.kontext.texturLock ? "ON   " : "OFF  ");
-    const float s = std::round(16.0F * g_app->dpiScale * g_app->uiScale);
-    const float zahlB = ImGui::CalcTextSize("99999").x;
-    const float rasterB = ImGui::CalcTextSize(raster).x + 12.0F;
-    const float festB = (s + zahlB + 8.0F) * 3.0F + rasterB;
-    const float frei = std::max(0.0F, breite - festB);
-    float x = a.x + 4.0F;
-    const float ty = a.y + (h - ImGui::GetTextLineHeight()) * 0.5F;
-    const ImU32 text = ImGui::GetColorU32(ImGuiCol_Text);
-    const auto feld = [&](const std::string& t, float w) {
-        dl->PushClipRect(ImVec2{x, a.y}, ImVec2{x + w - 6.0F, a.y + h}, true);
-        dl->AddText(ImVec2{x, ty}, text, t.c_str());
-        dl->PopClipRect();
-        x += w;
-        dl->AddLine(ImVec2{x - 3.0F, a.y + 2.0F}, ImVec2{x - 3.0F, a.y + h - 2.0F}, linie);
+    const auto textB = [s](const std::string& t) {
+        return static_cast<int>(std::lround(ImGui::GetFont()->CalcTextSizeA(ImGui::GetFontSize(), FLT_MAX, 0.0F, t.c_str()).x / s));
     };
-    feld(ed.statusBefehl, frei / 3.0F);
-    feld(ed.statusPosition, frei / 3.0F);
+    // Zahlenfelder: setMinimumWidth( fontMetrics().horizontalAdvance( "99999" ) )
+    // - gemessen, solange das QLabel noch die Grundschrift von Qt unter
+    // Windows hat (MS Shell Dlg 2 = Tahoma 8 pt, 10,67 Punkte; Ziffer 1118/2048
+    // Geviert, auf ganze Geraetepunkte gerundet): 5 x 6 = 30 bei Massstab 2.
+    const float qt = std::max(1.0F, std::round(s));
+    const int zahlB = static_cast<int>(5.0F * std::round(1118.0F / 2048.0F * (8.0F * 96.0F / 72.0F) * qt) / qt);
+    const int zaehlerB = 3 * mass::kStatusBild + 3 * zahlB + 5 * mass::kStatusAbstand;
+    const int befehlB = textB(ed.statusBefehl);
+    const int positionB = textB(ed.statusPosition);
+    const int texturB = textB(ed.statusTextur);
+    const int rasterB = textB(raster);
+    const std::vector<karte::Spanne> sp = karte::statuszeileVerteilen(
+        {{befehlB, befehlB, 1}, {positionB, positionB, 1}, {zaehlerB, zaehlerB, 0}, {texturB, texturB, 1}, {rasterB, rasterB, 0}},
+        breite);
+    const int ty = y + 3;   // vbox->addSpacing(3)
+    const ImU32 text = ImGui::GetColorU32(ImGuiCol_Text);
+    const auto feld = [&](const char* name, const std::string& t, const karte::Spanne& f) {
+        merkeFeld(std::string("Status:") + name, f.pos, ty, f.groesse, mass::kSchrift);
+        const ImVec2 p0 = bildpunkt(f.pos, ty);
+        const ImVec2 p1 = bildpunkt(f.pos + f.groesse, ty + mass::kSchrift);
+        dl->PushClipRect(p0, p1, true);
+        dl->AddText(p0, text, t.c_str());
+        dl->PopClipRect();
+    };
+    feld("Befehl", ed.statusBefehl, sp[0]);
+    feld("Position", ed.statusPosition, sp[1]);
+    merkeFeld("Status:Zaehler", sp[2].pos, ty, sp[2].groesse, mass::kSchrift);
     static const char* const kBilder[3] = {"status_brush", "status_patch", "status_entity"};
+    int x = sp[2].pos;
     for (int k = 0; k < 3; ++k) {
-        symbolZeichnen(dl, kBilder[k], ImVec2{x, a.y + (h - s) * 0.5F}, s, true);
-        x += s + 4.0F;
+        const ImVec2 p = bildpunkt(x, ty);
+        symbolZeichnen(dl, kBilder[k], p, std::round(static_cast<float>(mass::kStatusBild) * s), true);
+        x += mass::kStatusBild + mass::kStatusAbstand;
         const std::size_t n = auswahl ? gewaehlt[k] : zahl[k];
         const std::string t = n != 0 ? std::to_string(n) : std::string();
-        dl->AddText(ImVec2{x, ty}, text, t.c_str());
-        x += zahlB + 4.0F;
+        dl->AddText(bildpunkt(x, ty), text, t.c_str());
+        x += zahlB + mass::kStatusAbstand;
     }
-    dl->AddLine(ImVec2{x - 2.0F, a.y + 2.0F}, ImVec2{x - 2.0F, a.y + h - 2.0F}, linie);
-    feld(ed.statusTextur, frei / 3.0F);
-    const ImVec2 rasterA{x, a.y};
-    dl->AddText(ImVec2{x + 4.0F, ty}, text, raster);
-    ImGui::Dummy(ImVec2{breite, h});
-    if (ImGui::IsMouseHoveringRect(rasterA, ImVec2{rasterA.x + rasterB, a.y + h})) {
-        ImGui::SetTooltip("%s", tr(Str::KeGridStatusTip));
-    }
+    feld("Textur", ed.statusTextur, sp[3]);
+    feld("Raster", raster, sp[4]);
+    const ImVec2 r0 = bildpunkt(sp[4].pos, y);
+    const ImVec2 r1 = bildpunkt(sp[4].pos + sp[4].groesse, y + mass::kStatusH);
+    if (ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(r0, r1)) { ImGui::SetTooltip("%s", tr(Str::KeGridStatusTip)); }
 }
 
 // --- Einstellungen ------------------------------------------------------------------
@@ -663,9 +761,27 @@ void einstellungenLaden() {
     };
     ed.anordnung = static_cast<befehle::Anordnung>(std::clamp(static_cast<int>(zahl("QE4StyleWindows", 0)), 0, 3));
     ed.gruppenDialogEingebaut = zahl("BuiltInGroupDialog", 0) != 0.0F;
-    ed.hSplit = std::clamp(zahl("hSplit", ed.hSplit), 0.05F, 0.95F);
-    ed.vSplit = std::clamp(zahl("vSplit", ed.vSplit), 0.05F, 0.98F);
-    ed.vSplit2 = std::clamp(zahl("vSplit2", ed.vSplit2), 0.05F, 0.95F);
+    // MainFrame/m_hSplit usw. (SplitterSetting::save: die Groessen), als
+    // "a,b" in logischen Punkten; anderes (alte Anteile) gilt als nicht gemerkt.
+    const auto groessen = [&](const char* n) {
+        std::vector<int> v;
+        const auto it = k.find(n);
+        if (it == k.end() || it->second.find('.') != std::string::npos) { return v; }
+        std::stringstream ss(it->second);
+        std::string teil;
+        while (std::getline(ss, teil, ',')) {
+            try {
+                v.push_back(std::stoi(teil));
+            } catch (...) {
+                return std::vector<int>{};
+            }
+        }
+        return v;
+    };
+    ed.hGroessen = groessen("hSplit");
+    ed.vGroessen = groessen("vSplit");
+    ed.v2Groessen = groessen("vSplit2");
+    ed.teilerFuer = -1;
     ed.raster.standardSetzen(std::clamp(static_cast<int>(zahl("GridDefault", karte::Raster::kStandard)), 0, 13));
     ed.raster.setzeMaxKoordPotenz(static_cast<int>(zahl("GridMaxCoordPower", 4)));
     ed.kubikSkala = std::clamp(static_cast<int>(zahl("CubicScale", 14)), 1, 23);
@@ -693,16 +809,16 @@ void einstellungenLaden() {
 void einstellungenSpeichern() {
     Editor& ed = e();
     auto& k = g_app->settings.karte;
-    const auto zahl = [](float v) {
-        char z[32];
-        std::snprintf(z, sizeof(z), "%g", static_cast<double>(v));
-        return std::string(z);
-    };
     k["QE4StyleWindows"] = std::to_string(static_cast<int>(ed.anordnung));
     k["BuiltInGroupDialog"] = ed.gruppenDialogEingebaut ? "1" : "0";
-    k["hSplit"] = zahl(ed.hSplit);
-    k["vSplit"] = zahl(ed.vSplit);
-    k["vSplit2"] = zahl(ed.vSplit2);
+    const auto liste = [](const std::vector<int>& v) {
+        std::string s;
+        for (const int i : v) { s += (s.empty() ? "" : ",") + std::to_string(i); }
+        return s;
+    };
+    if (!ed.hGroessen.empty()) { k["hSplit"] = liste(ed.hGroessen); }
+    if (!ed.vGroessen.empty()) { k["vSplit"] = liste(ed.vGroessen); }
+    if (!ed.v2Groessen.empty()) { k["vSplit2"] = liste(ed.v2Groessen); }
     k["CubicScale"] = std::to_string(ed.kubikSkala);
     std::string versteckt;
     for (const std::string& n : ed.versteckteKnoepfe) { versteckt += "%" + n + "%"; }

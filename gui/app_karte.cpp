@@ -373,15 +373,49 @@ void zuletztOeffnen(std::size_t index) {
 //   Split         vier Felder: links Kamera ueber YZ, rechts XY ueber XZ;
 //                 Konsole und Texturen im Gruppendialog
 //   Floating      Camera, XY, XZ, YZ und der Gruppendialog als eigene Fenster
-// Floating: ImGui dieser Fassung (1.93 WIP, ohne Docking/Viewports) kann keine
+// Floating: ImGui dieser Fassung (1.92, ohne Docking/Viewports) kann keine
 // eigenen Desktop-Fenster oeffnen - die Fenster schweben im Programmfenster.
+//
+// Groessen: alles in logischen Qt-Bildpunkten (mass::), verteilt mit Qts
+// eigener Rechnung (bhed/karte/teiler.h), mal massstab(). Am Foto von NRC
+// 20260114 (maximiert, 2560 x 1600 bei 150 % = Qt-Massstab 2) gemessen:
+// Menue 21, Werkzeugleiste 39, Filterleiste 39 breit, Statuszeile 21,
+// Griffe 4; Regular XY 495 x 629, Konsole 33, Kamera 742 x 414,
+// Texturbrowser 248.
+
+float massstabErsatz = 0.0F;
+int bereichErsatzB = 0;
+int bereichErsatzH = 0;
+
+namespace {
+
+ImFont* g_schrift = nullptr;
+ImVec2 g_ursprung{0.0F, 0.0F};   // linke obere Ecke des Arbeitsbereichs (Bildpunkte)
+float g_s = 1.0F;                // massstab() dieses Bildes
+
+}  // namespace
+
+void setzeSchrift(ImFont* schrift) { g_schrift = schrift; }
+ImFont* schrift() { return g_schrift; }
+
+float massstab() {
+    if (massstabErsatz > 0.0F) { return massstabErsatz; }
+    // QHighDpiScaling, Rundung Round (Qt-5.15-Vorgabe; NRC main.cpp:410-411
+    // laesst PassThrough auskommentiert): qRound(1,5) = 2.
+    const float qt = std::max(1.0F, std::round(g_app->dpiScale));
+    return qt * g_app->uiScale;
+}
+
+ImVec2 bildpunkt(int x, int y) {
+    return ImVec2{g_ursprung.x + std::round(static_cast<float>(x) * g_s),
+                  g_ursprung.y + std::round(static_cast<float>(y) * g_s)};
+}
+
+void merkeFeld(const std::string& name, int x, int y, int b, int h) { g().felderImBild.push_back({name, x, y, b, h}); }
 
 namespace {
 
 enum class Feld { XY, XZ, YZ, Kamera, Konsole, Texturen, Gruppe };
-
-// QSplitter-Griff (PM_SplitterWidth im Fusion-Stil).
-constexpr float kGriff = 5.0F;
 
 ImVec4 farbe(const Farben::F3& c) { return ImVec4{c[0], c[1], c[2], 1.0F}; }
 
@@ -396,6 +430,19 @@ const char* feldName(Feld f) {
     case Feld::Gruppe: return "##feldGruppe";
     }
     return "##feld";
+}
+
+const char* feldKurz(Feld f) {
+    switch (f) {
+    case Feld::XY: return "XY";
+    case Feld::XZ: return "XZ";
+    case Feld::YZ: return "YZ";
+    case Feld::Kamera: return "Kamera";
+    case Feld::Konsole: return "Konsole";
+    case Feld::Texturen: return "Texturen";
+    case Feld::Gruppe: return "Gruppe";
+    }
+    return "?";
 }
 
 // radiant/console.cpp: Ausgabe in der Textfarbe, Warnungen (255,127,0),
@@ -432,7 +479,7 @@ void konsoleZeichnen() {
 
 // Der Inhalt eines Feldes. Die Ansichten selbst kommen mit den Punkten 5
 // (XYWnd), 6 (CamWnd) und 8 (Texturbrowser); bis dahin der Hintergrund in der
-// NRC-Farbe und der Name.
+// Farbrolle und der Name.
 void feldInhalt(Feld f) {
     Editor& ed = editor();
     ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -461,110 +508,234 @@ void feldInhalt(Feld f) {
     }
 }
 
-void feld(Feld f, ImVec2 groesse) {
-    Editor& ed = editor();
-    ImGui::BeginChild(feldName(f), groesse, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    // MaximizeView merkt sich das Feld unter der Maus.
-    if (!ed.maximiert && ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows)) {
-        ed.maximiertFeld = static_cast<int>(f);
-    }
+// Ein Feld an seiner Stelle (logische Punkte).
+void feld(Feld f, int x, int y, int b, int h) {
+    merkeFeld(feldKurz(f), x, y, b, h);
+    if (b <= 0 || h <= 0) { return; }   // eingeklappt oder 0 breit (setGeo)
+    const ImVec2 p0 = bildpunkt(x, y);
+    const ImVec2 p1 = bildpunkt(x + b, y + h);
+    ImGui::SetCursorScreenPos(p0);
+    ImGui::BeginChild(feldName(f), ImVec2{p1.x - p0.x, p1.y - p0.y}, ImGuiChildFlags_None,
+                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     feldInhalt(f);
     ImGui::EndChild();
 }
 
-// Ein QSplitter mit zwei Feldern; anteil ist die Groesse des ersten.
-void teiler(const char* id, ImVec2 groesse, bool senkrecht, float& anteil, const std::function<void(ImVec2)>& erstes,
-            const std::function<void(ImVec2)>& zweites) {
-    const float gesamt = senkrecht ? groesse.y : groesse.x;
-    const float eins = std::floor(std::clamp(anteil, 0.0F, 1.0F) * (gesamt - kGriff));
-    const ImVec2 start = ImGui::GetCursorScreenPos();
-    erstes(senkrecht ? ImVec2{groesse.x, eins} : ImVec2{eins, groesse.y});
-    const ImVec2 griffA = senkrecht ? ImVec2{start.x, start.y + eins} : ImVec2{start.x + eins, start.y};
-    ImGui::SetCursorScreenPos(griffA);
-    ImGui::InvisibleButton(id, senkrecht ? ImVec2{groesse.x, kGriff} : ImVec2{kGriff, groesse.y});
-    if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
-        ImGui::SetMouseCursor(senkrecht ? ImGuiMouseCursor_ResizeNS : ImGuiMouseCursor_ResizeEW);
+// Was ein Kind eines Teilers zeichnet: ein Feld oder ein innerer Teiler.
+using Inhalt = std::function<void(int x, int y, int b, int h)>;
+
+// Ein QSplitter: ordnet seine Kinder auf das Rechteck an (doResize), zeichnet
+// sie und die Griffe; Ziehen wie QSplitterHandle::mouseMoveEvent (Lage der
+// Maus minus der Stelle, an der der Griff gepackt wurde -> moveSplitter).
+void teilerZeichnen(const char* id, karte::Teiler& t, bool senkrecht, int x, int y, int b, int h,
+                    const std::vector<Inhalt>& kinder) {
+    t.griff = mass::kTeilerGriff;
+    t.anordnen(0, senkrecht ? h : b);
+    static int packStelle = 0;   // d->mouseOffset
+    for (std::size_t i = 0; i < t.kinder.size() && i < kinder.size(); ++i) {
+        const karte::Teiler::Kind& k = t.kinder[i];
+        if (k.versteckt) { continue; }
+        if (!t.griffVersteckt(static_cast<int>(i))) {
+            const int gpos = t.griffPos(static_cast<int>(i));
+            const int gx = senkrecht ? x : x + gpos;
+            const int gy = senkrecht ? y + gpos : y;
+            const int gb = senkrecht ? b : t.griff;
+            const int gh = senkrecht ? t.griff : h;
+            merkeFeld(std::string("Griff:") + id + ":" + std::to_string(i), gx, gy, gb, gh);
+            const ImVec2 p0 = bildpunkt(gx, gy);
+            const ImVec2 p1 = bildpunkt(gx + gb, gy + gh);
+            ImGui::SetCursorScreenPos(p0);
+            const std::string kennung = std::string("##griff") + id + std::to_string(i);
+            ImGui::InvisibleButton(kennung.c_str(), ImVec2{std::max(1.0F, p1.x - p0.x), std::max(1.0F, p1.y - p0.y)});
+            const bool aktivGriff = ImGui::IsItemActive();
+            if (ImGui::IsItemHovered() || aktivGriff) {
+                ImGui::SetMouseCursor(senkrecht ? ImGuiMouseCursor_ResizeNS : ImGuiMouseCursor_ResizeEW);
+            }
+            // Fusion zeichnet den Griff in der Fensterfarbe mit Punkten in der
+            // Mitte (QFusionStyle CE_Splitter); hier in den Farben des Programms.
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+            const ImVec2 m{std::floor((p0.x + p1.x) * 0.5F), std::floor((p0.y + p1.y) * 0.5F)};
+            const ImU32 punkt = ImGui::GetColorU32(aktivGriff ? ImGuiCol_SeparatorActive : ImGuiCol_Separator);
+            const float d = std::max(1.0F, std::round(0.5F * g_s));
+            for (int k2 = -3; k2 <= 3; ++k2) {
+                const float o = static_cast<float>(k2) * 3.0F * d;
+                const ImVec2 q = senkrecht ? ImVec2{m.x + o, m.y} : ImVec2{m.x, m.y + o};
+                dl->AddRectFilled(ImVec2{q.x - d, q.y - d}, ImVec2{q.x + d, q.y + d}, punkt);
+            }
+            const float maus = senkrecht ? ImGui::GetIO().MousePos.y : ImGui::GetIO().MousePos.x;
+            const float anfang = senkrecht ? bildpunkt(0, y).y : bildpunkt(x, 0).x;
+            const int mausLog = static_cast<int>(std::floor((maus - anfang) / g_s));
+            if (ImGui::IsItemActivated()) { packStelle = mausLog - gpos; }
+            if (aktivGriff && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 0.0F)) {
+                t.ziehen(mausLog - packStelle, static_cast<int>(i));
+            }
+            if (ImGui::IsItemDeactivated()) {
+                Editor& ed = editor();
+                if (ed.anordnung == befehle::Anordnung::Regular || ed.anordnung == befehle::Anordnung::RegularLeft) {
+                    ed.hGroessen = ed.hSplit.groessen();
+                    ed.vGroessen = ed.vSplit.groessen();
+                    ed.v2Groessen = ed.vSplit2.groessen();
+                    einstellungenSpeichern();
+                }
+            }
+        }
+        const karte::Teiler::Kind& kk = t.kinder[i];
+        if (kk.eingeklappt) {
+            kinder[i](senkrecht ? x : x + kk.pos, senkrecht ? y + kk.pos : y, 0, 0);
+            continue;
+        }
+        if (senkrecht) {
+            kinder[i](x, y + kk.pos, b, kk.groesse);
+        } else {
+            kinder[i](x + kk.pos, y, kk.groesse, h);
+        }
     }
-    if (ImGui::IsItemActive() && gesamt > kGriff) {
-        const float d = senkrecht ? ImGui::GetIO().MouseDelta.y : ImGui::GetIO().MouseDelta.x;
-        anteil = std::clamp((eins + d) / (gesamt - kGriff), 0.0F, 1.0F);
-    }
-    if (ImGui::IsItemDeactivated()) { einstellungenSpeichern(); }
-    ImGui::SetCursorScreenPos(senkrecht ? ImVec2{start.x, start.y + eins + kGriff} : ImVec2{start.x + eins + kGriff, start.y});
-    zweites(senkrecht ? ImVec2{groesse.x, gesamt - eins - kGriff} : ImVec2{gesamt - eins - kGriff, groesse.y});
 }
 
-void anordnungZeichnen(ImVec2 groesse) {
+// Ein Kind eines QSplitter: GL-Fenster (QOpenGLWidget ohne gueltigen
+// sizeHint, ohne Eltern erzeugt = 640 x 480) oder ein innerer QSplitter
+// (sizeHint aus Kindern ohne gueltigen Hinweis = 0 x 0).
+karte::Teiler::Kind glKind(bool senkrecht) {
+    karte::Teiler::Kind k;
+    k.hinweis = -1;
+    k.startGroesse = senkrecht ? 480 : 640;
+    return k;
+}
+karte::Teiler::Kind teilerKind() {
+    karte::Teiler::Kind k;
+    k.hinweis = 0;
+    return k;
+}
+
+}  // namespace
+
+// Die Teiler fuer die Anordnung aufbauen (MainFrame::Create) und die
+// Groessen setzen (RestoreGuiState, mainframe.cpp:1891-1900).
+void teilerAufbauen() {
     Editor& ed = editor();
     using befehle::Anordnung;
-    if (ed.maximiert) {
-        feld(static_cast<Feld>(ed.maximiertFeld), groesse);
-        return;
-    }
-    if (ed.anordnung == Anordnung::Regular || ed.anordnung == Anordnung::RegularLeft) {
-        const auto links = [&](ImVec2 g) {   // m_vSplit: XY, Konsole
-            ImGui::BeginChild("##vSplit", g, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
-            teiler("##vgriff", g, true, ed.vSplit, [](ImVec2 g1) { feld(Feld::XY, g1); },
-                   [](ImVec2 g2) { feld(Feld::Konsole, g2); });
-            ImGui::EndChild();
-        };
-        const auto rechts = [&](ImVec2 g) {   // m_vSplit2: Kamera, Texturen
-            ImGui::BeginChild("##vSplit2", g, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
-            if (ed.gruppenDialogEingebaut) {
-                feld(Feld::Kamera, g);
-            } else {
-                teiler("##v2griff", g, true, ed.vSplit2, [](ImVec2 g1) { feld(Feld::Kamera, g1); },
-                       [](ImVec2 g2) { feld(Feld::Texturen, g2); });
-            }
-            ImGui::EndChild();
-        };
-        if (ed.anordnung == Anordnung::Regular) {
-            teiler("##hgriff", groesse, false, ed.hSplit, links, rechts);
-        } else {
-            teiler("##hgriff", groesse, false, ed.hSplit, rechts, links);
-        }
+    const int fuer = static_cast<int>(ed.anordnung) * 2 + (ed.gruppenDialogEingebaut ? 1 : 0);
+    if (ed.teilerFuer == fuer) { return; }
+    ed.teilerFuer = fuer;
+    ed.maximiert = false;
+    ed.hSplit = karte::Teiler{};
+    ed.vSplit = karte::Teiler{};
+    ed.vSplit2 = karte::Teiler{};
+    const bool regular = ed.anordnung == Anordnung::Regular || ed.anordnung == Anordnung::RegularLeft;
+    if (regular) {
+        ed.hSplit.kinder = {teilerKind(), teilerKind()};
+        ed.vSplit.kinder = {glKind(true), glKind(true)};   // XY, Konsole
+        ed.vSplit2.kinder = {glKind(true)};                 // Kamera
+        if (!ed.gruppenDialogEingebaut) { ed.vSplit2.kinder.push_back(glKind(true)); }   // Texturbrowser
     } else if (ed.anordnung == Anordnung::Split) {
-        // 4 way (mainframe.cpp:1838-1863): links Kamera ueber YZ, rechts XY ueber XZ
-        teiler("##hgriff", groesse, false, ed.hSplit,
-               [&](ImVec2 g) {
-                   ImGui::BeginChild("##vSplit", g, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
-                   teiler("##vgriff", g, true, ed.vSplit2, [](ImVec2 g1) { feld(Feld::Kamera, g1); },
-                          [](ImVec2 g2) { feld(Feld::YZ, g2); });
-                   ImGui::EndChild();
-               },
-               [&](ImVec2 g) {
-                   ImGui::BeginChild("##vSplit2", g, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
-                   teiler("##v2griff", g, true, ed.vSplit2, [](ImVec2 g1) { feld(Feld::XY, g1); },
-                          [](ImVec2 g2) { feld(Feld::XZ, g2); });
-                   ImGui::EndChild();
-               });
+        ed.hSplit.kinder = {teilerKind(), teilerKind()};
+        ed.vSplit.kinder = {glKind(true), glKind(true)};    // Kamera, YZ
+        ed.vSplit2.kinder = {glKind(true), glKind(true)};   // XY, XZ
     } else {
-        // Floating: der Hauptbereich bleibt leer, die Ansichten schweben.
-        ImGui::Dummy(groesse);
+        return;   // Floating: keine Teiler
+    }
+    if (ed.gruppenDialogEingebaut) {
+        // m_hSplit->addWidget( GroupDialog_getWindow() ) mit den Dehnfaktoren
+        // 2222, 2222, 0 (mainframe.cpp:1857-1862). Der Hinweis des
+        // Gruppendialogs ist nicht gemessen: seine Fensterbreite 444
+        // (groupdialog.cpp:85).
+        karte::Teiler::Kind gruppe;
+        gruppe.hinweis = 444;
+        ed.hSplit.kinder.push_back(gruppe);
+        ed.hSplit.kinder[0].dehnfaktor = 2222;
+        ed.hSplit.kinder[1].dehnfaktor = 2222;
+    }
+    if (regular) {
+        // g_guiSettings.addSplitter( ..., { 384, 576 } ) usw. - oder die
+        // gemerkten Groessen (restoreState).
+        ed.hSplit.setzeGroessen(ed.hGroessen.empty() ? std::vector<int>{384, 576} : ed.hGroessen);
+        ed.vSplit.setzeGroessen(ed.vGroessen.empty() ? std::vector<int>{377, 20} : ed.vGroessen);
+        ed.vSplit2.setzeGroessen(ed.v2Groessen.empty() ? std::vector<int>{250, 150} : ed.v2Groessen);
     }
 }
 
-// Ein schwebendes Fenster (Floating: g_guiSettings.addWindow( ..., w, h, x, y )).
-void schwebend(Feld f, const char* titel, bool& sichtbar, ImVec2 groesse, ImVec2 lage, ImVec2 ursprung) {
+namespace {
+
+void anordnungZeichnen(int x, int y, int b, int h) {
+    Editor& ed = editor();
+    using befehle::Anordnung;
+    teilerAufbauen();
+    const auto spalte = [](karte::Teiler& t, const char* id, std::vector<Feld> felder) -> Inhalt {
+        return [&t, id, felder](int x2, int y2, int b2, int h2) {
+            std::vector<Inhalt> kinder;
+            for (const Feld f : felder) {
+                kinder.emplace_back([f](int x3, int y3, int b3, int h3) { feld(f, x3, y3, b3, h3); });
+            }
+            teilerZeichnen(id, t, true, x2, y2, b2, h2, kinder);
+        };
+    };
+    const Inhalt gruppe = [](int x2, int y2, int b2, int h2) { feld(Feld::Gruppe, x2, y2, b2, h2); };
+    if (ed.anordnung == Anordnung::Regular || ed.anordnung == Anordnung::RegularLeft) {
+        std::vector<Feld> rechts{Feld::Kamera};
+        if (!ed.gruppenDialogEingebaut) { rechts.push_back(Feld::Texturen); }
+        const Inhalt xySpalte = spalte(ed.vSplit, "v", {Feld::XY, Feld::Konsole});
+        const Inhalt kamSpalte = spalte(ed.vSplit2, "v2", rechts);
+        std::vector<Inhalt> kinder = ed.anordnung == Anordnung::Regular ? std::vector<Inhalt>{xySpalte, kamSpalte}
+                                                                       : std::vector<Inhalt>{kamSpalte, xySpalte};
+        if (ed.gruppenDialogEingebaut) { kinder.push_back(gruppe); }
+        teilerZeichnen("h", ed.hSplit, false, x, y, b, h, kinder);
+    } else if (ed.anordnung == Anordnung::Split) {
+        // 4 way (mainframe.cpp:1829-1855): links Kamera ueber YZ, rechts XY ueber XZ
+        std::vector<Inhalt> kinder{spalte(ed.vSplit, "v", {Feld::Kamera, Feld::YZ}),
+                                   spalte(ed.vSplit2, "v2", {Feld::XY, Feld::XZ})};
+        if (ed.gruppenDialogEingebaut) { kinder.push_back(gruppe); }
+        teilerZeichnen("h", ed.hSplit, false, x, y, b, h, kinder);
+    } else {
+        // Floating: der Hauptbereich bleibt leer, die Ansichten schweben.
+        merkeFeld("Mitte", x, y, b, h);
+    }
+}
+
+// Ein schwebendes Fenster (Floating): g_guiSettings.addWindow( window, ...,
+// 400, 300, x, y ) - Innenmass 400 x 300 und die Lage des Rahmens in
+// Bildschirmpunkten (mainframe.cpp:1756, 1775, 1793, 1811); hier auf die
+// Ecke des Programmfensters bezogen.
+void schwebend(Feld f, const char* titel, bool& sichtbar, int lx, int ly) {
     if (!sichtbar) { return; }
-    ImGui::SetNextWindowPos(ImVec2{ursprung.x + lage.x, ursprung.y + lage.y}, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(groesse, ImGuiCond_FirstUseEver);
+    const ImGuiStyle& st = ImGui::GetStyle();
+    const float titelH = ImGui::GetFontSize() + st.FramePadding.y * 2.0F;
+    const ImVec2 vp = ImGui::GetMainViewport()->Pos;
+    const ImGuiCond wann = editor().schwebendZuruecksetzen ? ImGuiCond_Always : ImGuiCond_FirstUseEver;
+    ImGui::SetNextWindowPos(ImVec2{vp.x + std::round(static_cast<float>(lx) * g_s), vp.y + std::round(static_cast<float>(ly) * g_s)},
+                            wann);
+    // Innenmass 400 x 300: ImGui-Fenster ohne Polster, Inhalt = Groesse minus Titelleiste.
+    ImGui::SetNextWindowSize(ImVec2{std::round(400.0F * g_s), std::round(300.0F * g_s) + titelH}, wann);
     const std::string id = std::string(titel) + "###schwebend" + feldName(f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
     if (ImGui::Begin(id.c_str(), &sichtbar, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse)) {
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        const ImVec2 gr = ImGui::GetContentRegionAvail();
+        merkeFeld(std::string("Fenster:") + feldKurz(f), static_cast<int>(std::lround((p.x - vp.x) / g_s)),
+                  static_cast<int>(std::lround((p.y - vp.y) / g_s)), static_cast<int>(std::lround(gr.x / g_s)),
+                  static_cast<int>(std::lround(gr.y / g_s)));
         feldInhalt(f);
     }
     ImGui::End();
+    ImGui::PopStyleVar();
 }
 
 // Der Gruppendialog (groupdialog.cpp, Fenstertitel "Entities"): Reiter
 // Entities, (Console, Textures bei Floating/Split), Models, Layers.
-void gruppenDialog(ImVec2 ursprung, ImVec2 bereich) {
+// g_guiSettings.addWindow( m_window, "GroupDlg/geometry", 444, 777 ).
+void gruppenDialog() {
     Editor& ed = editor();
     using befehle::Anordnung;
     const bool schwebendeSeiten = ed.anordnung == Anordnung::Floating || ed.anordnung == Anordnung::Split;
     if (!ed.gruppenDialogOffen) { return; }
-    ImGui::SetNextWindowPos(ImVec2{ursprung.x + bereich.x * 0.55F, ursprung.y + bereich.y * 0.1F}, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2{bereich.x * 0.35F, bereich.y * 0.75F}, ImGuiCond_FirstUseEver);
+    const ImGuiStyle& st = ImGui::GetStyle();
+    const float titelH = ImGui::GetFontSize() + st.FramePadding.y * 2.0F;
+    const ImVec2 bereich = ImGui::GetMainViewport()->Size;
+    const ImVec2 vp = ImGui::GetMainViewport()->Pos;
+    const ImVec2 groesse{std::round(444.0F * g_s), std::round(777.0F * g_s) + titelH};
+    ImGui::SetNextWindowPos(ImVec2{vp.x + std::max(0.0F, (bereich.x - groesse.x) * 0.5F),
+                                   vp.y + std::max(0.0F, (bereich.y - groesse.y) * 0.5F)},
+                            ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(groesse, ImGuiCond_FirstUseEver);
     const char* seitenTitel[5] = {trK(Str::KePageEntities), trK(Str::KePageConsole), trK(Str::KePageTextures),
                                   trK(Str::KePageModels), trK(Str::KePageLayers)};
     const std::string titel = std::string(seitenTitel[ed.gruppenSeite]) + "###kartegruppe";
@@ -595,45 +766,102 @@ void gruppenDialog(ImVec2 ursprung, ImVec2 bereich) {
 
 }  // namespace
 
+// MaximizeView (mainframe.cpp:1550-1595): je Teiler das Feld unter der Maus
+// auf 9999, das andere auf 0; beim Zuruecknehmen die alten Groessen.
+void maximierenUmschalten() {
+    Editor& ed = editor();
+    if (ed.anordnung == befehle::Anordnung::Floating) { return; }   // m_hSplit == 0
+    teilerAufbauen();
+    if (ed.maximiert) {
+        ed.maximiert = false;
+        ed.vSplit.setzeGroessen(ed.maxV);
+        ed.vSplit2.setzeGroessen(ed.maxV2);
+        ed.hSplit.setzeGroessen(ed.maxH);
+        return;
+    }
+    ed.maximiert = true;
+    ed.maxV = ed.vSplit.groessen();
+    ed.maxV2 = ed.vSplit2.groessen();
+    ed.maxH = ed.hSplit.groessen();
+    const auto erstes = [](const std::vector<int>& v) { return v.empty() ? 0 : v[0]; };
+    ed.vSplit.setzeGroessen(ed.mausY < erstes(ed.maxV) ? std::vector<int>{9999, 0} : std::vector<int>{0, 9999});
+    ed.vSplit2.setzeGroessen(ed.mausY < erstes(ed.maxV2) ? std::vector<int>{9999, 0} : std::vector<int>{0, 9999});
+    ed.hSplit.setzeGroessen(ed.mausX < erstes(ed.maxH) ? std::vector<int>{9999, 0} : std::vector<int>{0, 9999});
+}
+
 void zeichne(float hoehe) {
     Editor& e = g();
     e.gezeichnet = true;
     e.knoepfeImBild.clear();
+    e.knoepfeVerdeckt.clear();
+    e.felderImBild.clear();
     spielPruefen();
     if (!e.belegungGeladen) { einstellungenLaden(); }
     farbenAusThema();
+    g_s = massstab();
+    // NRCs Schrift: Segoe UI 9 pt (Menues und Statuszeile von Qt unter
+    // Windows) = 12 Punkte Geviert, mal Massstab. ImGui multipliziert die
+    // Grundgroesse noch mit FontScaleDpi und FontScaleMain.
+    const float schrift = static_cast<float>(mass::kSchrift) * g_s / std::max(0.01F, g_app->dpiScale * g_app->uiScale);
+    ImGui::PushFont(g_schrift, schrift);
+    // hoehe <= 0 wie bei BeginChild: der restliche Platz minus |hoehe|
+    // (app.cpp gibt frameH = -fussH).
+    const ImVec2 rest = ImGui::GetContentRegionAvail();
+    ImVec2 platz{rest.x, hoehe > 0.0F ? hoehe : std::max(1.0F, rest.y + hoehe)};
+    if (bereichErsatzB > 0 && bereichErsatzH > 0) {
+        platz = ImVec2{static_cast<float>(bereichErsatzB) * g_s, static_cast<float>(bereichErsatzH) * g_s};
+    }
+    // QMenuBar 21 hoch: Schrift 16 + 2 x 2,5 (ImGui: FontSize + FramePadding.y * 2).
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, 0.0F});
-    ImGui::BeginChild("##karteneditor", ImVec2{-FLT_MIN, hoehe}, ImGuiChildFlags_None,
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+                        ImVec2{0.0F, static_cast<float>(mass::kMenueH - mass::kSchrift) * 0.5F * g_s});
+    ImGui::BeginChild("##karteneditor", platz, ImGuiChildFlags_None,
                       ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    ImGui::PopStyleVar(2);
+    ImGui::PopStyleVar(3);
+    g_ursprung = ImGui::GetWindowPos();
+    const int breite = static_cast<int>(std::floor(platz.x / g_s + 0.001F));
+    const int hoeheL = static_cast<int>(std::floor(platz.y / g_s + 0.001F));
+    merkeFeld("Bereich", 0, 0, breite, hoeheL);
     zeichneMenueleiste();
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, 0.0F});
-    zeichneHauptleiste();
-    const ImVec2 rest = ImGui::GetContentRegionAvail();
-    const float statusH = statuszeilenHoehe();
-    const float flaecheH = std::max(10.0F, rest.y - statusH);
-    const ImVec2 start = ImGui::GetCursorScreenPos();
-    // Filterleiste rechts angedockt (RightToolBarArea), daneben die Felder.
-    const float filterB = e.filterleiste ? std::round(ImGui::GetFontSize() * 2.0F) + 10.0F : 0.0F;
-    anordnungZeichnen(ImVec2{std::max(10.0F, rest.x - filterB), flaecheH});
-    ImGui::SetCursorScreenPos(ImVec2{start.x + rest.x - filterB, start.y});
-    (void)zeichneFilterleiste(flaecheH);
-    ImGui::SetCursorScreenPos(ImVec2{start.x, start.y + flaecheH});
-    zeichneStatuszeile();
+    int y = mass::kMenueH;
+    if (e.hauptleiste) {
+        zeichneHauptleiste(y, breite);
+        y += mass::kLeisteH;
+    }
+    const int statusY = hoeheL - mass::kStatusH;
+    const int mitteH = std::max(0, statusY - y);
+    // Filterleiste rechts angedockt (Qt::RightToolBarArea), daneben die Mitte.
+    const int filterB = (e.filterleiste || e.pluginleiste) ? mass::kLeisteH : 0;
+    const int mitteB = std::max(0, breite - filterB);
+    // Lage der Maus ueber m_hSplit (fuer MaximizeView).
+    const ImVec2 maus = ImGui::GetIO().MousePos;
+    e.mausX = static_cast<int>(std::floor((maus.x - bildpunkt(0, y).x) / g_s));
+    e.mausY = static_cast<int>(std::floor((maus.y - bildpunkt(0, y).y) / g_s));
+    anordnungZeichnen(0, y, mitteB, mitteH);
+    zeichneRechteLeisten(mitteB, y, mitteH);
+    zeichneStatuszeile(statusY, breite);
     ImGui::PopStyleVar();
     ImGui::EndChild();
     // Schwebende Fenster (Floating) und der Gruppendialog.
     if (e.anordnung == befehle::Anordnung::Floating) {
-        schwebend(Feld::Kamera, trK(Str::KeViewCamera), e.schwebendSichtbar[3], ImVec2{400, 300}, ImVec2{50, 100}, start);
-        schwebend(Feld::XY, trK(Str::KeViewXY), e.schwebendSichtbar[2], ImVec2{400, 300}, ImVec2{500, 100}, start);
-        schwebend(Feld::XZ, trK(Str::KeViewXZ), e.schwebendSichtbar[1], ImVec2{400, 300}, ImVec2{500, 450}, start);
-        schwebend(Feld::YZ, trK(Str::KeViewYZ), e.schwebendSichtbar[0], ImVec2{400, 300}, ImVec2{50, 450}, start);
+        schwebend(Feld::Kamera, trK(Str::KeViewCamera), e.schwebendSichtbar[3], 50, 100);
+        schwebend(Feld::XY, trK(Str::KeViewXY), e.schwebendSichtbar[2], 500, 100);
+        schwebend(Feld::XZ, trK(Str::KeViewXZ), e.schwebendSichtbar[1], 500, 450);
+        schwebend(Feld::YZ, trK(Str::KeViewYZ), e.schwebendSichtbar[0], 50, 450);
+        e.schwebendZuruecksetzen = false;
     }
-    gruppenDialog(start, rest);
+    gruppenDialog();
     zeichneEinstellungen();
     zeichneTastenDialog();
     zeichneRueckfrage();
+    ImGui::PopFont();
     tastenVerarbeiten();
 }
 }  // namespace bhed::gui::karteneditor
+
+namespace bhed::gui {
+// Aus buildFonts (main_win32.cpp): NRCs Schrift fuer den Karten-Editor.
+void setKartenSchrift(ImFont* schrift) { karteneditor::setzeSchrift(schrift); }
+}  // namespace bhed::gui

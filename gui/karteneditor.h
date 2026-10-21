@@ -26,6 +26,7 @@
 #include "bhed/karte/karte.h"
 #include "bhed/karte/kartenformat.h"
 #include "bhed/karte/raster.h"
+#include "bhed/karte/teiler.h"
 #include "bhed/karte/texturen.h"
 #include "bhed/karte/zuletzt.h"
 
@@ -37,6 +38,11 @@
 #include <set>
 #include <string>
 #include <vector>
+
+struct ImDrawList;
+struct ImFont;
+struct ImVec2;
+struct ImVec4;
 
 namespace bhed::gui::karteneditor {
 
@@ -101,6 +107,40 @@ struct FarbEintrag {
 // Die Rollen bekommen ihre Werte aus dem Farbschema des Programms (jedes Bild).
 void farbenAusThema();
 
+// Masse des Hauptfensters in logischen Qt-Bildpunkten - NRC 20260114 (Qt 5.15,
+// Stil Fusion mit dark.qss), am Foto gemessen und mit Qts Formeln belegt.
+// Mal massstab() ergibt Bildpunkte.
+namespace mass {
+inline constexpr int kSchrift = 16;        // Segoe UI 9 pt = 12 px Geviert = ImGui-Groesse 16 (Hoehe 16)
+inline constexpr int kMenueH = 21;         // QMenuBar: fm.height() 16 + CT_MenuBarItem 5
+inline constexpr int kMenuePolster = 8;    // CT_MenuBarItem (Fusion): Breite + 8
+inline constexpr int kMenueAbstand = 6;    // PM_MenuBarItemSpacing (Fusion)
+inline constexpr int kLeisteRand = 1;      // dark.qss QToolBar: border 1px
+inline constexpr int kLeistePolster = 3;   // dark.qss QToolBar: padding 3px
+inline constexpr int kLeisteGriff = 9;     // PM_ToolBarHandleExtent (Fusion)
+inline constexpr int kSymbol = 24;         // PM_ToolBarIconSize
+inline constexpr int kKnopf = 31;          // 24 + 3 ("broken QToolButton") + padding 2 x 1 + border 2 x 1
+inline constexpr int kTrenner = 8;         // dark.qss QToolBar::separator
+inline constexpr int kLeisteH = kLeisteRand * 2 + kLeistePolster * 2 + kKnopf;   // 39
+inline constexpr int kStatusH = 21;        // QStatusBar::reformat: 3 + fm.height() 16 + 2
+inline constexpr int kStatusBild = 16;     // create_main_statusbar: Bilder 16 hoch
+inline constexpr int kStatusAbstand = 6;   // QHBoxLayout der Zaehler (PM_LayoutHorizontalSpacing)
+inline constexpr int kTeilerGriff = 4;     // PM_SplitterWidth (Fusion)
+}   // namespace mass
+
+// Der Massstab des Editors: wie Qt 5.15 mit AA_EnableHighDpiScaling den
+// Bildschirmmassstab rundet (Qt::HighDpiScaleFactorRoundingPolicy::Round:
+// 150 % -> 2), mal der Schriftgroesse des Programms (uiScale).
+[[nodiscard]] float massstab();
+// Fuer den Selbsttest: fester Massstab (0 = wie oben) und feste Groesse des
+// Arbeitsbereichs in logischen Punkten (0 = der ganze Platz).
+extern float massstabErsatz;
+extern int bereichErsatzB;
+extern int bereichErsatzH;
+// NRCs Schrift (Segoe UI), aus buildFonts; nullptr = die des Programms.
+void setzeSchrift(ImFont* schrift);
+[[nodiscard]] ImFont* schrift();
+
 // Ein Fenster der Ansichten (XYWnd / CamWnd) - wo es gerade steht.
 enum class AnsichtTyp { YZ = 0, XZ = 1, XY = 2, Kamera = 3 };   // VIEWTYPE (xywindow.h)
 
@@ -128,13 +168,29 @@ struct Editor {
     // --- Fenster (MainFrame) ---
     befehle::Anordnung anordnung = befehle::Anordnung::Regular;   // g_Layout_viewStyle
     bool gruppenDialogEingebaut = false;   // g_Layout_builtInGroupDialog
-    float hSplit = 384.0F / 960.0F;        // RestoreGuiState: m_hSplit {384, 576}
-    float vSplit = 377.0F / 397.0F;        // m_vSplit {377, 20}
-    float vSplit2 = 250.0F / 400.0F;       // m_vSplit2 {250, 150}
-    bool maximiert = false;                // MaximizeView (F12)
-    int maximiertFeld = 0;                 // welches Feld maximiert ist
+    // QSplitter m_hSplit, m_vSplit, m_vSplit2 (MainFrame::Create) mit Qts
+    // Rechnung; teilerFuer: fuer welche Anordnung sie aufgebaut sind.
+    karte::Teiler hSplit;
+    karte::Teiler vSplit;
+    karte::Teiler vSplit2;
+    int teilerFuer = -1;
+    // Gemerkte Groessen (QSettings "MainFrame/m_hSplit" ...; RestoreGuiState
+    // nur ohne FloatingGroupDialog, also Regular und Regular Left).
+    std::vector<int> hGroessen;
+    std::vector<int> vGroessen;
+    std::vector<int> v2Groessen;
+    // MaximizeView (mainframe.cpp:1550-1595): Groessen vor dem Maximieren.
+    bool maximiert = false;
+    std::vector<int> maxH;
+    std::vector<int> maxV;
+    std::vector<int> maxV2;
+    // Lage des Mauszeigers ueber m_hSplit in logischen Punkten (fuer
+    // MaximizeView: mapFromGlobal(QCursor::pos())).
+    int mausX = 0;
+    int mausY = 0;
     // Floating: die Fenster Camera, XY, XZ, YZ (ToggleCamera, ToggleView ...).
     std::array<bool, 4> schwebendSichtbar{true, true, true, true};
+    bool schwebendZuruecksetzen = false;   // Lage und Groesse wieder wie addWindow (ein Bild lang)
     // Der Gruppendialog "Entities" (groupdialog.cpp) mit seinen Seiten.
     bool gruppenDialogOffen = false;
     int gruppenSeite = 0;   // 0 Entities, 1 Console, 2 Textures, 3 Models, 4 Layers
@@ -165,6 +221,17 @@ struct Editor {
     bool ueberOffen = false;
     std::string letzterBefehl;   // fuer den Selbsttest: zuletzt ausgeloest
     std::vector<std::string> knoepfeImBild;   // fuer den Selbsttest: gezeichnete Knoepfe
+    std::vector<std::string> knoepfeVerdeckt; // fuer den Selbsttest: im Erweiterungsmenue gezeigte
+    // Fuer den Selbsttest: die Rechtecke dieses Bildes in logischen Punkten,
+    // bezogen auf die linke obere Ecke des Arbeitsbereichs.
+    struct Rechteck {
+        std::string name;
+        int x = 0;
+        int y = 0;
+        int b = 0;
+        int h = 0;
+    };
+    std::vector<Rechteck> felderImBild;
 
     // Fuer den Selbsttest: die Kennung des Arbeitsbereichs im letzten Bild.
     bool gezeichnet = false;
@@ -206,13 +273,23 @@ bool tastenBelegung(int imguiKey, befehle::TastenBelegung& out, bool& ziffernblo
 [[nodiscard]] std::uint32_t qtZusatztasten();
 
 // --- Menues, Werkzeugleisten, Statuszeile (app_karte_menue.cpp) ---
+// Alle Lagen in logischen Punkten ab der Ecke des Arbeitsbereichs.
 void zeichneMenueleiste();
-void zeichneHauptleiste();
-float zeichneFilterleiste(float hoehe);   // gibt die Breite zurueck
-void zeichneStatuszeile();
-float statuszeilenHoehe();
-// Das Symbol <name> (bitmaps/<name>.svg) als Bild; false, wenn es fehlt.
+void zeichneHauptleiste(int y, int breite);
+void zeichneRechteLeisten(int x, int y, int hoehe);   // Filter- und Plugin-Leiste
+void zeichneStatuszeile(int y, int breite);
+// MaximizeView (Taste, Menue) und der Aufbau der Teiler fuer die Anordnung.
+void maximierenUmschalten();
+void teilerAufbauen();
+// Ein Rechteck fuer den Selbsttest merken und in Bildpunkte umrechnen.
+void merkeFeld(const std::string& name, int x, int y, int b, int h);
+[[nodiscard]] ImVec2 bildpunkt(int x, int y);
+// Das Symbol <name> (NRCs bitmaps/<name>.svg, hier als eigene
+// Vektorzeichnung) an der Schreibstelle; false, wenn es fehlt.
 bool symbol(const char* name, float groesse, bool hell = true);
+// --- Vektorsymbole (karte_vektoricons.cpp) ---
+bool karteIcon(ImDrawList* dl, const char* name, ImVec2 pos, float groesse, unsigned int farbe);
+ImVec4 karteIconFarbe(const char* name);
 // --- Dialoge (app_karte_dialoge.cpp) ---
 void zeichneEinstellungen();   // "NetRadiant Preferences" (P)
 void zeichneTastenDialog();    // "Mapped Commands" (Ctrl+Shift+P)

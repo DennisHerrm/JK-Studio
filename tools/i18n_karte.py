@@ -62,6 +62,19 @@ KARTE = [
     ("KeMainToolbar", "Main Toolbar", "Hauptleiste", "主工具栏", "メインツールバー"),
     ("KeFilterToolbar", "Filter Toolbar", "Filterleiste", "过滤工具栏", "フィルターツールバー"),
     ("KePluginToolbar", "Plugin Toolbar", "Plugin-Leiste", "插件工具栏", "プラグインツールバー"),
+    # QToolBarExtension (Qt: "Show more items" als Tooltip des Knopfs)
+    ("KeLeisteMehr", "Show more items", "Weitere Knöpfe zeigen", "显示更多项目", "その他の項目を表示"),
+    # Plugin-Leiste: bobToolz (contrib/bobtoolz/bobToolz-GTK.cpp:186-262, getTooltip)
+    ("KePlPolygons", "Polygons", "Vielecke", "多边形", "多角形"),
+    ("KePlTreePlanter", "Tree Planter", "Bäume pflanzen", "植树器", "ツリープランター"),
+    ("KePlPlotSplines", "Plot Splines", "Splines zeichnen", "绘制样条", "スプライン描画"),
+    ("KePlDropEntity", "Drop Entity", "Entity fallen lassen", "放下实体", "エンティティを落とす"),
+    ("KePlMergePatches", "Merge Patches", "Patches zusammenfügen", "合并面片", "パッチを結合"),
+    ("KePlSplitPatch", "Split Patch", "Patch teilen", "拆分面片", "パッチを分割"),
+    ("KePlSplitPatchRows", "Split Patch Rows", "Patch-Zeilen teilen", "拆分面片行", "パッチの行を分割"),
+    ("KePlSplitPatchColumns", "Split Patch Columns", "Patch-Spalten teilen", "拆分面片列", "パッチの列を分割"),
+    ("KePlFlipTerrain", "Flip Terrain (Turn Edge)", "Gelände drehen (Kante wenden)", "翻转地形(转边)",
+     "地形を反転(エッジを回転)"),
     # GroupDialog_addPage (mainframe.cpp:1704-1714) und Fenstertitel
     ("KePageEntities", "Entities", "Entities", "实体", "エンティティ"),
     ("KePageConsole", "Console", "Konsole", "控制台", "コンソール"),

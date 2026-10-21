@@ -101,8 +101,8 @@ std::map<std::string, Umsetzung>& umsetzungen() {
                             [] { return e().schwebendSichtbar[1]; }};
     m["ToggleSideView"] = {[] { e().schwebendSichtbar[0] = !e().schwebendSichtbar[0]; },
                            [] { return e().schwebendSichtbar[0]; }};
-    // MaximizeView (mainframe.cpp:1568-1625): das Feld unter der Maus.
-    m["MaximizeView"] = {[] { e().maximiert = !e().maximiert; }, nullptr};
+    // MaximizeView (mainframe.cpp:1550-1600): das Feld unter der Maus.
+    m["MaximizeView"] = {[] { maximierenUmschalten(); }, nullptr};
     // --- Edit ---
     m["Preferences"] = {[] { e().einstellungenOffen = true; }, nullptr};
     m["Shortcuts"] = {[] { e().tastenDialogOffen = true; }, nullptr};   // DoCommandListDlg (commands.cpp:332)

@@ -92,6 +92,7 @@ const theme::Theme* currentTheme(App* a);
 void setThemeById(App* a, const char* id);
 float uiScale(App* a);
 void setUiScale(App* a, float s);
+void setKartenSchrift(ImFont* schrift);
 }  // namespace bhed::gui
 
 namespace {
@@ -595,6 +596,25 @@ void buildFonts() {
             break;
         }
     }
+    // --- Die Schrift von NetRadiant-Custom fuer den Karten-Editor ----------
+    //
+    // Qt 5 nimmt unter Windows fuer Menues und Statuszeile die Systemschrift
+    // Segoe UI 9 pt (QWindowsTheme: lfMenuFont, lfStatusFont). Bei ImGui-
+    // Groesse 16 hat sie (Ober- plus Unterlaenge 2724/2048 Geviert) genau 12
+    // Punkte Geviert - wie Qts 9 pt. Mit derselben Schrift stehen die
+    // Menuetitel und Felder an denselben Stellen wie im Original.
+    ImFont* karte = nullptr;
+    if (GetFileAttributesA("C:\\Windows\\Fonts\\segoeui.ttf") != INVALID_FILE_ATTRIBUTES) {
+        karte = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeui.ttf", size);
+        if (karte != nullptr) {
+            for (const char* path : cjk) {
+                if (addFontIfPresent(io, path, size, true)) {
+                    break;
+                }
+            }
+        }
+    }
+    bhed::gui::setKartenSchrift(karte);
 }
 
 bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app) {
