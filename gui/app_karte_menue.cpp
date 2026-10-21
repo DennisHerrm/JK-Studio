@@ -29,6 +29,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <sstream>
 
 namespace bhed::gui::karteneditor {
@@ -73,8 +74,63 @@ std::string stufeText(const std::string& befehl) {
 
 // Ein Menuepunkt (create_menu_item_with_mnemonic): Beschriftung, Taste,
 // Haken, ausgegraut mit Tooltip, wenn er erst in einer spaeteren Stufe kommt.
-bool menuePunkt(const char* text, const char* taste, bool haken, bool aktiv, const std::string& tooltip) {
-    const bool gewaehlt = ImGui::MenuItem(text, taste != nullptr && taste[0] != 0 ? taste : nullptr, haken, aktiv);
+// Die Spalte links fuer Symbol und Haken: QMenu (Fusion) zeigt dort das
+// Symbol der Aktion (dasselbe QAction wie der Werkzeugknopf, z. B. Modify >
+// Components) und bei pruefbaren Eintraegen ein Kaestchen mit Haken (View >
+// Show). ImGui reserviert diese Spalte fuer den Text des "icon"-Arguments
+// von MenuItemEx/BeginMenuEx - hier Leerzeichen in Symbolbreite, darin
+// zeichnen wir.
+const char* symbolSpalte() {
+    static std::string leer;
+    static float fuer = -1.0F;
+    const float g = ImGui::GetTextLineHeight();
+    if (fuer != g) {
+        fuer = g;
+        leer.clear();
+        while (ImGui::CalcTextSize(leer.c_str()).x < g * 1.25F) { leer += ' '; }
+    }
+    return leer.c_str();
+}
+
+// Das Symbol eines Befehls, wenn er einen Werkzeugknopf hat.
+const char* knopfBild(const std::string& befehl) {
+    static std::map<std::string, const char*> bilder;
+    if (bilder.empty()) {
+        for (const auto* l : {&befehle::werkzeugleiste(), &befehle::filterleiste(), &befehle::pluginleiste()}) {
+            for (const Knopf& k : *l) {
+                if (!k.trenner && k.befehl[0] != 0 && k.bild[0] != 0) { bilder.emplace(k.befehl, k.bild); }
+            }
+        }
+    }
+    const auto it = bilder.find(befehl);
+    return it != bilder.end() ? it->second : nullptr;
+}
+
+// Ein Menuepunkt (create_menu_item_with_mnemonic): Beschriftung, Taste,
+// Symbol oder Kaestchen links, ausgegraut mit Tooltip, wenn er erst in einer
+// spaeteren Stufe kommt.
+bool menuePunkt(const char* text, const char* taste, bool haken, bool aktiv, const std::string& tooltip,
+                const char* bild = nullptr, bool pruefbar = false) {
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    const bool gewaehlt = ImGui::MenuItemEx(text, symbolSpalte(), taste != nullptr && taste[0] != 0 ? taste : nullptr, false, aktiv);
+    if (ImGui::IsItemVisible()) {
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        const float zeile = ImGui::GetTextLineHeight();
+        const float g = std::floor(zeile * 0.9F);
+        const ImVec2 a{std::floor(pos.x), std::floor(pos.y + (zeile - g) * 0.5F)};
+        if (pruefbar) {
+            // Kaestchen im Stil des Programms, Haken in der Hervorhebung
+            const ImU32 rand = ImGui::GetColorU32(aktiv ? ImGuiCol_Border : ImGuiCol_TextDisabled);
+            dl->AddRectFilled(a, ImVec2{a.x + g, a.y + g}, ImGui::GetColorU32(ImGuiCol_FrameBg), ImGui::GetStyle().FrameRounding);
+            dl->AddRect(a, ImVec2{a.x + g, a.y + g}, rand, ImGui::GetStyle().FrameRounding);
+            if (haken) {
+                const ImU32 c = ImGui::GetColorU32(aktiv ? ImGuiCol_CheckMark : ImGuiCol_TextDisabled);
+                ImGui::RenderCheckMark(dl, ImVec2{a.x + g * 0.15F, a.y + g * 0.15F}, c, g * 0.7F);
+            }
+        } else if (bild != nullptr && bild[0] != 0) {
+            symbolZeichnen(dl, bild, a, g, aktiv);
+        }
+    }
     if (!tooltip.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
         ImGui::SetTooltip("%s", tooltip.c_str());
     }
@@ -82,6 +138,8 @@ bool menuePunkt(const char* text, const char* taste, bool haken, bool aktiv, con
 }
 
 bool menueAnfang(const char* text, bool aktiv = true) { return ImGui::BeginMenu(text, aktiv); }
+// Ein Untermenue in einem Menue: Text in derselben Spalte wie die Punkte.
+bool untermenueAnfang(const char* text, bool aktiv = true) { return ImGui::BeginMenuEx(text, symbolSpalte(), aktiv); }
 
 void listeZeichnen(const std::string& name);
 
@@ -126,7 +184,8 @@ void eintraegeZeichnen(const std::vector<MenueEintrag>& liste, std::size_t& i) {
             const std::string taste = befehle::tasteAlsText(ed.belegung.taste(befehl));
             const std::string id = std::string(trK(m.str)) + "###" + befehl + std::to_string(i);
             const bool haken = m.art == MenueArt::Haken && angehakt(befehl);
-            if (menuePunkt(id.c_str(), taste.c_str(), haken, da, da ? std::string() : stufeText(befehl))) {
+            if (menuePunkt(id.c_str(), taste.c_str(), haken, da, da ? std::string() : stufeText(befehl), knopfBild(befehl),
+                           m.art == MenueArt::Haken)) {
                 (void)ausfuehren(befehl);
             }
             letzterTrenner = false;
@@ -145,7 +204,7 @@ void eintraegeZeichnen(const std::vector<MenueEintrag>& liste, std::size_t& i) {
         case MenueArt::Unter: {
             const std::string id = std::string(trK(m.str)) + "###unter" + std::to_string(i);
             const std::size_t start = i;
-            if (menueAnfang(id.c_str())) {
+            if (untermenueAnfang(id.c_str())) {
                 ++i;
                 eintraegeZeichnen(liste, i);
                 ImGui::EndMenu();
@@ -224,12 +283,34 @@ void listeZeichnen(const std::string& name) {
         // mit dem Kompilieren (Stufe 3).
         (void)menuePunkt("(build menu)", nullptr, false, false, stufeText("BuildMenuCustomize"));
     } else if (name == "Plugins") {
-        // create_plugins_menu (pluginmenu.cpp:131): je Plugin ein Untermenue.
-        for (const char* p : {"bobToolz", "brushexport", "meshtex", "Portal Viewer", "shaderplug", "sunplug"}) {
-            if (ImGui::BeginMenu(p, false)) { ImGui::EndMenu(); }
-            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-                ImGui::SetTooltip("%s", stufeText("bobToolz::About").c_str());
+        // create_plugins_menu (pluginmenu.cpp:131) mit PluginsMenu_populate:
+        // je Plugin ein Untermenue (Modulname), Eintraege von hinten nach
+        // vorn (PlugInMenu_Add); die Plugins kommen in Stufe 3.
+        const auto& liste = befehle::pluginEintraege();
+        for (std::size_t i = 0; i < liste.size();) {
+            const std::string menue = liste[i].menue;
+            std::size_t j = i;
+            while (j < liste.size() && menue == liste[j].menue) { ++j; }
+            if (untermenueAnfang((menue + "##plugin").c_str())) {
+                bool letzterTrenner = true;
+                for (std::size_t k = i; k < j; ++k) {
+                    if (liste[k].titel[0] == 0) {
+                        if (!letzterTrenner) { ImGui::Separator(); }
+                        letzterTrenner = true;
+                        continue;
+                    }
+                    const std::string text = karte::ohneMnemonik(liste[k].titel) + "##pl" + liste[k].befehl;
+                    const std::string befehl = liste[k].befehl;
+                    const bool da = nachgebaut(befehl);
+                    if (menuePunkt(text.c_str(), befehle::tasteAlsText(e().belegung.taste(befehl)).c_str(), false, da,
+                                   da ? std::string() : stufeText(befehl), knopfBild(befehl))) {
+                        (void)ausfuehren(befehl);
+                    }
+                    letzterTrenner = false;
+                }
+                ImGui::EndMenu();
             }
+            i = j;
         }
     } else if (name == "Hilfe") {
         // create_game_help_menu (help.cpp:112): global.xlink "General" und
@@ -239,7 +320,7 @@ void listeZeichnen(const std::string& name) {
             "Shader Manual", "q3map2 handbook", "Additional map compiler features", "Additional map editor features",
             "Editor features presentation", "Q3Map2 - FS20 - R5 readme", "Blendmodes cheatsheet", "MBSPC documentation",
             "iD Tech 3 mapping trello"};
-        if (ImGui::BeginMenu("General")) {
+        if (untermenueAnfang("General")) {
             for (const char* t : kGeneral) { (void)menuePunkt(t, nullptr, false, false, tr(Str::KeNichtDabei)); }
             ImGui::EndMenu();
         }
@@ -248,7 +329,9 @@ void listeZeichnen(const std::string& name) {
                                           "Bot waypoint tutorial", "ICARUS Manual", "Using EffectsEd", "How to play Siege",
                                           "Jedi Academy forum @ Raven Software",
                                           "Jedi Academy Editing forum @ MapCenter"};
-        if (ImGui::BeginMenu("Jedi Academy")) {
+        // game.xlink des Spiels unter dessen Namen (ja.game: name="Jedi
+        // Knight Jedi Academy"); jk2.game hat keine game.xlink - kein Untermenue.
+        if (e().spielStand != kRegelwerkJediOutcast && untermenueAnfang("Jedi Knight Jedi Academy")) {
             for (const char* t : kJa) { (void)menuePunkt(t, nullptr, false, false, tr(Str::KeNichtDabei)); }
             ImGui::EndMenu();
         }

@@ -60,7 +60,7 @@ constexpr int kSeiteLayout = 5;
 
 struct Entwurf {
     bool offen = false;
-    int seite = kSeiteLayout;
+    int seite = 0;   // PreferencesDialog: beim ersten Oeffnen die erste Seite (Global)
     int anordnung = 0;
     bool eingebaut = false;
     bool abtrennbar = true;
@@ -126,25 +126,41 @@ void zeichneEinstellungen() {
         g_entwurf.offen = false;
         return;
     }
+    // Groesse und Aufteilung wie NRC 20260114 (Foto dlg_Edit_Preferences_0:
+    // Innenmass 597 x 492 logische Punkte, Baum links 145 breit, unten
+    // "Clean" unter der Seite links, "OK" und "Cancel" rechts, Knoepfe 79).
     const ImGuiViewport* vp = ImGui::GetMainViewport();
-    ImGui::SetNextWindowSize(ImVec2{vp->WorkSize.x * 0.5F, vp->WorkSize.y * 0.6F}, ImGuiCond_FirstUseEver);
+    const float sk = massstab();
+    const float titelH = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F;
+    ImGui::SetNextWindowSize(ImVec2{std::round(597.0F * sk), std::round(492.0F * sk) + titelH}, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImVec2{vp->WorkPos.x + vp->WorkSize.x * 0.5F, vp->WorkPos.y + vp->WorkSize.y * 0.5F},
                             ImGuiCond_FirstUseEver, ImVec2{0.5F, 0.5F});
     const std::string titel = std::string(trK(Str::KePrefsTitle)) + "###karteeinstellungen";
     bool offen = true;
     if (ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse)) {
         const float knopfH = ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y;
-        ImGui::BeginChild("##baum", ImVec2{ImGui::GetFontSize() * 11.0F, -knopfH}, ImGuiChildFlags_Borders);
+        const float knopfB = std::round(79.0F * sk);
+        const float baumB = std::round(145.0F * sk);
+        ImGui::BeginChild("##baum", ImVec2{baumB, 0.0F}, ImGuiChildFlags_Borders);
+        // QTreeWidget, aufgeklappt: Pfeil vor den Oberseiten, Unterseiten
+        // eingerueckt.
+        const float pfeil = ImGui::GetFontSize();
         for (int i = 0; i < static_cast<int>(std::size(kSeiten)); ++i) {
             const Seite& s = kSeiten[i];
-            if (s.tiefe > 0) { ImGui::Indent(); }
+            const ImVec2 p = ImGui::GetCursorScreenPos();
+            ImGui::Indent(pfeil * (s.tiefe > 0 ? 2.0F : 1.0F));
             if (ImGui::Selectable((std::string(trK(s.baum)) + "##seite" + std::to_string(i)).c_str(), g_entwurf.seite == i)) {
                 g_entwurf.seite = i;
             }
-            if (s.tiefe > 0) { ImGui::Unindent(); }
+            ImGui::Unindent(pfeil * (s.tiefe > 0 ? 2.0F : 1.0F));
+            if (s.tiefe == 0) {
+                ImGui::RenderArrow(ImGui::GetWindowDrawList(), ImVec2{p.x + pfeil * 0.1F, p.y}, ImGui::GetColorU32(ImGuiCol_Text),
+                                   ImGuiDir_Down, 0.8F);
+            }
         }
         ImGui::EndChild();
         ImGui::SameLine();
+        ImGui::BeginGroup();
         ImGui::BeginChild("##seite", ImVec2{0.0F, -knopfH}, ImGuiChildFlags_Borders);
         ImGui::TextUnformatted(trK(kSeiten[g_entwurf.seite].titel));
         ImGui::Separator();
@@ -158,7 +174,15 @@ void zeichneEinstellungen() {
             ImGui::TextDisabled("%s", z);
         }
         ImGui::EndChild();
-        if (ImGui::Button(trK(Str::KePrefOk))) {
+        // "Clean" links unter der Seite (ausgegraut, Stufe 2), "OK" und
+        // "Cancel" rechts.
+        ImGui::BeginDisabled();
+        (void)ImGui::Button(trK(Str::KePrefClean), ImVec2{knopfB, 0.0F});
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        const float rechts = ImGui::GetContentRegionMax().x - knopfB * 2.0F - ImGui::GetStyle().ItemSpacing.x;
+        ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), rechts));
+        if (ImGui::Button(trK(Str::KePrefOk), ImVec2{knopfB, 0.0F})) {
             ed.anordnung = static_cast<befehle::Anordnung>(g_entwurf.anordnung);
             ed.gruppenDialogEingebaut = g_entwurf.eingebaut;
             setzeNrcBegriffe(g_entwurf.nrc);
@@ -167,11 +191,8 @@ void zeichneEinstellungen() {
             offen = false;
         }
         ImGui::SameLine();
-        if (ImGui::Button(trK(Str::KeCancel))) { offen = false; }
-        ImGui::SameLine();
-        ImGui::BeginDisabled();
-        (void)ImGui::Button(trK(Str::KePrefClean));
-        ImGui::EndDisabled();
+        if (ImGui::Button(trK(Str::KeCancel), ImVec2{knopfB, 0.0F})) { offen = false; }
+        ImGui::EndGroup();
     }
     ImGui::End();
     if (!offen) { ed.einstellungenOffen = false; }
@@ -341,20 +362,40 @@ void zeichneTastenDialog() {
             tasteAendern(b, t);
         }
     }
+    // Groesse wie NRC 20260114 (Foto dlg_Edit_Shortcuts_0: Innenmass 399 x
+    // 533 logische Punkte - QDialog ohne feste Groesse, sizeHint des
+    // Rasters), mittig.
     const ImGuiViewport* vp = ImGui::GetMainViewport();
-    ImGui::SetNextWindowSize(ImVec2{vp->WorkSize.x * 0.35F, vp->WorkSize.y * 0.7F}, ImGuiCond_FirstUseEver);
+    const float s = massstab();
+    const float titelH = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F;
+    ImGui::SetNextWindowSize(ImVec2{std::round(399.0F * s), std::round(533.0F * s) + titelH}, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImVec2{vp->WorkPos.x + vp->WorkSize.x * 0.5F, vp->WorkPos.y + vp->WorkSize.y * 0.5F},
                             ImGuiCond_FirstUseEver, ImVec2{0.5F, 0.5F});
     const std::string titel = std::string(trK(Str::KeMappedCommands)) + "###kartetasten";
     bool offen = true;
     if (ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse)) {
-        const float knopfB = ImGui::GetFontSize() * 7.0F;
+        // QDialogButtonBox senkrecht rechts: Knoepfe 79 breit (Foto)
+        const float knopfB = std::round(79.0F * s);
         const float listeB = ImGui::GetContentRegionAvail().x - knopfB - ImGui::GetStyle().ItemSpacing.x;
-        ImGui::SetNextItemWidth(listeB * 0.5F - ImGui::GetStyle().ItemSpacing.x * 0.5F);
-        ImGui::InputTextWithHint("##suchname", trK(Str::KeByName), g_td.suchName, sizeof(g_td.suchName));
+        // Suchfelder mit Lupe vorn (NRC 20260114: Emoji "🔍" im Platzhalter;
+        // hier die Lupe des Programms).
+        const auto suchfeld = [&](const char* id, const char* hinweis, char* puffer, std::size_t groesse, float breite) {
+            const float lupe = ImGui::GetFontSize();
+            const ImGuiStyle& st = ImGui::GetStyle();
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{st.FramePadding.x * 2.0F + lupe, st.FramePadding.y});
+            ImGui::SetNextItemWidth(breite);
+            const ImVec2 p = ImGui::GetCursorScreenPos();
+            ImGui::InputTextWithHint(id, hinweis, puffer, groesse);
+            ImGui::PopStyleVar();
+            const float h = ImGui::GetItemRectSize().y;
+            uiIcon(ImGui::GetWindowDrawList(), UiIcon::Suche, ImVec2{std::floor(p.x + st.FramePadding.x), std::floor(p.y + (h - lupe) * 0.5F)},
+                   lupe, ImGui::GetColorU32(uiIconFarbe(UiIcon::Suche)));
+        };
+        suchfeld("##suchname", trK(Str::KeByName), g_td.suchName, sizeof(g_td.suchName),
+                 listeB * 0.5F - ImGui::GetStyle().ItemSpacing.x * 0.5F);
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(listeB * 0.5F - ImGui::GetStyle().ItemSpacing.x * 0.5F);
-        ImGui::InputTextWithHint("##suchtaste", trK(Str::KeByKeys), g_td.suchTaste, sizeof(g_td.suchTaste));
+        suchfeld("##suchtaste", trK(Str::KeByKeys), g_td.suchTaste, sizeof(g_td.suchTaste),
+                 listeB * 0.5F - ImGui::GetStyle().ItemSpacing.x * 0.5F);
         const auto enthaelt = [](const std::string& text, const char* such) {
             if (such[0] == 0) { return true; }
             std::string a = text;
@@ -364,9 +405,12 @@ void zeichneTastenDialog() {
             return a.find(b) != std::string::npos;
         };
         ImGui::BeginChild("##tastenliste", ImVec2{listeB, 0.0F});
+        // header()->setSectionResizeMode( ResizeToContents ), letzte Spalte
+        // nicht gestreckt (commands.cpp:345-346): beide Spalten so breit wie
+        // ihr Inhalt.
         if (ImGui::BeginTable("##tasten", 2,
                               ImGuiTableFlags_Sortable | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY |
-                                  ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_Resizable,
+                                  ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingFixedFit,
                               ImVec2{0.0F, 0.0F})) {
             ImGui::TableSetupScrollFreeze(0, 1);
             ImGui::TableSetupColumn(trK(Str::KeColCommand), ImGuiTableColumnFlags_DefaultSort);
@@ -382,9 +426,16 @@ void zeichneTastenDialog() {
             if (ImGuiTableSortSpecs* sp = ImGui::TableGetSortSpecs(); sp != nullptr && sp->SpecsCount > 0) {
                 const int spalte = sp->Specs[0].ColumnIndex;
                 const bool ab = sp->Specs[0].SortDirection == ImGuiSortDirection_Descending;
-                std::stable_sort(zeilen.begin(), zeilen.end(), [spalte, ab](const auto& x, const auto& y) {
-                    const std::string& a = spalte == 0 ? x.first : x.second;
-                    const std::string& b = spalte == 0 ? y.first : y.second;
+                // Reihenfolge wie im Foto: Gross-/Kleinschreibung zaehlt nicht
+                // ("bobToolz::About" zwischen "AutoCaulkSelected" und "Brush3Sided").
+                const auto klein = [](const std::string& t) {
+                    std::string k = t;
+                    std::transform(k.begin(), k.end(), k.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                    return k;
+                };
+                std::stable_sort(zeilen.begin(), zeilen.end(), [spalte, ab, &klein](const auto& x, const auto& y) {
+                    const std::string a = klein(spalte == 0 ? x.first : x.second);
+                    const std::string b = klein(spalte == 0 ? y.first : y.second);
                     return ab ? b < a : a < b;
                 });
             }

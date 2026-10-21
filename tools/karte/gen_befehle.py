@@ -26,7 +26,9 @@ MD = os.path.join(HIER, 'nrc_inventar.md')
 INC = os.path.join(WURZEL, 'src', 'karte', 'befehle_liste.inc')
 MENUE_INC = os.path.join(WURZEL, 'src', 'karte', 'menues.inc')
 sys.path.insert(0, os.path.join(WURZEL, 'tools'))
+sys.path.insert(0, HIER)
 import karte_menues as km  # noqa: E402
+import nrc_inventar as inv  # noqa: E402
 
 BEDINGUNG = {'': 'kImmer', 'floating': 'kNurFloating', 'nichtRegular': 'kNichtRegular', 'texturen': 'kTexturen',
              'nichtSplit': 'kNichtSplit', 'split': 'kNurSplit'}
@@ -195,6 +197,20 @@ def menues_inc(befehle):
         z.append(knopf(e, False))
     z.append('};')
     z.append('const char* const kVersteckt[] = {' + ', '.join('"%s"' % v for v in km.VERSTECKT) + '};')
+    # Plugin-Menues (PlugInMenu_Add, radiant/pluginmenu.cpp:37-90): je Plugin
+    # die Eintraege von hinten nach vorn; Titel "" = Trenner.
+    z.append('const PluginEintrag kPluginEintraege[] = {')
+    for name, quelle, liste in inv.PLUGINS:
+        z.append('    // %s (%s)' % (name, quelle))
+        for e in reversed(liste):
+            if e == '-':
+                z.append('    {"%s", "", ""},' % name)
+            else:
+                befehl = inv.plugin_befehlsname(name, e[0])
+                if befehl not in befehle:
+                    raise SystemExit('Plugin-Befehl fehlt in der Checkliste: ' + befehl)
+                z.append('    {"%s", %s, "%s"},' % (name, cstr(e[1]), befehl))
+    z.append('};')
     return '\n'.join(z) + '\n'
 
 
@@ -222,7 +238,7 @@ def checkliste_markieren(befehle):
         if abschnitt == 'Registrierte Befehle':
             mm = re.match(r'`([^`]+)`', text)
             name = mm.group(1) if mm else None
-        elif abschnitt in ('Menues', 'Werkzeugleisten'):
+        elif abschnitt in ('Menues', 'Werkzeugleisten', 'Plugins'):
             mm = re.search(r'-> `([^`]+)`', text)
             name = mm.group(1) if mm else None
         if name is None or name not in befehle:

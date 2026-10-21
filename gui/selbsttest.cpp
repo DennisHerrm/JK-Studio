@@ -24899,6 +24899,30 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
         add(menuesZu());
         add(pause(0.1));
     }
+    // 1b. Plugins wie NRC 20260114 (Foto menu_Plugins): sieben Untermenues in
+    //     Ladereihenfolge, Eintraege von hinten nach vorn (PlugInMenu_Add).
+    add(klick(ke::trK(Str::KeLPlugins), "##karteneditor"));
+    add(pause(0.2));
+    add(pruefe("Plugins: MeshTex, ShaderPlug, SunPlug, UFO:AI, bobToolz, brushexport2, prtview", [] {
+        float y = -1.0F;
+        for (const char* n : {"MeshTex", "ShaderPlug", "SunPlug", "UFO:AI", "bobToolz", "brushexport2", "prtview"}) {
+            const Element* el = finde(n, "", 0, false);
+            if (el == nullptr || el->rect.Min.y <= y) { return false; }
+            y = el->rect.Min.y;
+        }
+        return true;
+    }));
+    add(klick("bobToolz", "", 0, false));
+    add(pause(0.2));
+    add(pruefe("Plugins > bobToolz: Flip terrain oben, About... unten, ausgegraut (Stufe 3)", [] {
+        const Element* oben = finde("Flip terrain", "", 0, false);
+        const Element* unten = finde("About...", "", 0, false);
+        return oben != nullptr && unten != nullptr && oben->rect.Min.y < unten->rect.Min.y &&
+               !ke::nachgebaut("bobToolz::FlipTerrain");
+    }));
+    add(foto("karteneditor_plugins"));
+    add(menuesZu());
+    add(pause(0.1));
     // 2. Werkzeugleisten: genau die Knoepfe, die NRC zeigt (gtkmisc.cpp:147).
     auto erwartet = [] {
         std::vector<std::string> v;
@@ -25076,8 +25100,9 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
     add(pause(0.2));
     add(klick(ke::trK(Str::KeLGUITheme)));
     add(pause(0.2));
-    add(pruefe("Misc > Theming > GUI Theme: NRCs Eintraege da (ausgegraut)", [] {
-        return finde("Darker", "", 0, false) != nullptr && finde("BlenderLight", "", 0, false) != nullptr;
+    add(pruefe("Misc > Theming > GUI Theme: NRC 20260114 hat vier Themen (Default, Fusion, Dark, Darker)", [] {
+        return finde("Darker", "", 0, false) != nullptr && finde("Fusion", "", 0, false) != nullptr &&
+               finde("BlenderLight", "", 0, false) == nullptr;
     }));
     add(menuesZu());
     auto themaVorher = std::make_shared<std::string>();
@@ -25237,6 +25262,15 @@ std::vector<Schritt> karteneditorTastenSchritte() {
     add(pause(0.3));
     add(pruefe("Ctrl+Shift+P = Shortcuts: Mapped Commands offen", [] { return ke::editor().tastenDialogOffen; }));
     add(foto("karteneditor_tasten"));
+    // Wie das Foto von NRC 20260114: Plugin-Befehle stehen in der Liste,
+    // ohne Ruecksicht auf Gross-/Kleinschreibung einsortiert.
+    add(pruefe("Mapped Commands: nach AutoCaulkSelected folgen bobToolz::About, bobToolz::ApertureDoor (wie NRC)", [] {
+        const Element* a = finde("AutoCaulkSelected##tz", "###kartetasten", 0, false);
+        const Element* b = finde("bobToolz::About##tz", "###kartetasten", 0, false);
+        const Element* c = finde("bobToolz::ApertureDoor##tz", "###kartetasten", 0, false);
+        diag::detail(std::string("Knopftest: Karten-Editor - Zeilen ") + (a ? "A" : "-") + (b ? "B" : "-") + (c ? "C" : "-"));
+        return a != nullptr && b != nullptr && c != nullptr && a->rect.Min.y < b->rect.Min.y && b->rect.Min.y < c->rect.Min.y;
+    }));
     // Suchen und neue Taste
     add(klick("##suchname", "###kartetasten"));
     add(tippe("GridUp"));

@@ -136,6 +136,14 @@ struct Knopf {
 [[nodiscard]] const std::vector<Knopf>& filterleiste();     // create_filter_toolbar
 [[nodiscard]] const std::vector<Knopf>& texturKnoepfe();    // Texturbrowser (texwindow.cpp:1800)
 [[nodiscard]] const std::vector<Knopf>& pluginleiste();     // create_plugin_toolbar (bobToolz)
+// Ein Eintrag eines Plugin-Menues (PlugInMenu_Add): Menue = Modulname,
+// Titel "" = Trenner.
+struct PluginEintrag {
+    const char* menue;
+    const char* titel;
+    const char* befehl;
+};
+[[nodiscard]] const std::vector<PluginEintrag>& pluginEintraege();
 // g_toolbarHiddenButtons (gtkmisc.cpp:147): standardmaessig versteckte Knoepfe.
 [[nodiscard]] const std::vector<std::string>& standardVersteckt();
 

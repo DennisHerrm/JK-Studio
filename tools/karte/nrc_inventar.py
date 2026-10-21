@@ -159,22 +159,62 @@ def vermerk(stapel):
     return (' [wenn: ' + ' und '.join(teile) + ']') if teile else ''
 
 
-# Plugins aus contrib/ (nur die fuer JA/JK2 im NRC-Paket mitgelieferten).
-# Quelle: contrib/bobtoolz/bobToolz-GTK.cpp:52, contrib/prtview/prtview.cpp:164,
-# contrib/brushexport, contrib/meshtex, contrib/shaderplug, contrib/sunplug.
+# Plugins aus contrib/, wie NRC 20260114 sie mitliefert (SP\nrc_dl\nrc\plugins:
+# bobtoolz, brushexport, meshtex, prtview, shaderplug, sunplug, ufoaiplug).
+# Je Plugin: Name im Menue (Modulname, CPluginSlot::m_menu_name), Quelle und
+# die Befehlsliste in der Reihenfolge von getCommandList, je Eintrag
+# (Befehl, Titel) - Titel aus getCommandTitleList, sonst der Befehl; '-' ist
+# ein Trenner. PlugInMenu_Add (radiant/pluginmenu.cpp:37-90) baut das Menue
+# von hinten nach vorn; die Menues stehen in der Reihenfolge, in der NRC die
+# Module laedt. Am Foto der Menues geprueft (SP\nrc_fotos\menues).
+def _p(*eintraege):
+    return [e if e == '-' else (e if isinstance(e, tuple) else (e, e)) for e in eintraege]
+
+
 PLUGINS = [
-    ('bobToolz', ['About...', 'Stair Builder...', 'Aperture Door...', 'Door Builder...', 'Find Duplicates',
-                  'Intersect...', 'Make Chain...', 'Path Plotter...', 'Reset Textures...', 'PitOMatic',
-                  'Vis Viewer', 'Brush Cleanup', 'Polygon Builder', 'Caulk Selection', 'Explode Entity',
-                  'Tree Planter', 'Drop Entity', 'Plot Splines', 'Merge Patches', 'Split patch',
-                  'Split patch columns', 'Split patch rows', 'Flip terrain'], 'contrib/bobtoolz/bobToolz-GTK.cpp:52'),
-    ('Portal Viewer', ['About Portal Viewer', 'Configure Portal Viewer', 'Toggle portals (3D)',
-                       'Toggle portals (2D)', 'Unload .prt file', 'Load .prt file'], 'contrib/prtview/prtview.cpp:164'),
-    ('brushexport', ['Export selected as Wavefront Object', 'About'], 'contrib/brushexport/plugin.cpp'),
-    ('meshtex', ['Set S/T Scale...', 'S/T Align', 'General Function...', 'About'], 'contrib/meshtex/PluginUI.cpp'),
-    ('shaderplug', ['Create tag file', 'About'], 'contrib/shaderplug/shaderplug.cpp'),
-    ('sunplug', ['About...'], 'contrib/sunplug/sunplug.cpp'),
+    ('MeshTex', 'contrib/meshtex/MainMenu.cpp:76', _p(
+        ('About', 'About...'), ('Help', 'Help...'), '-',
+        ('TMaxAlign', 'T Max Align'), ('TMinAlign', 'T Min Align'), ('SMaxAlign', 'S Max Align'),
+        ('SMinAlign', 'S Min Align'), '-',
+        ('TMinMaxAlignShrink', 'T Align Shrink'), ('TMinMaxAlignStretch', 'T Align Stretch'),
+        ('SMinMaxAlignShrink', 'S Align Shrink'), ('SMinMaxAlignStretch', 'S Align Stretch'), '-',
+        ('TMinMaxAlignAuto', 'T Align Auto'), ('SMinMaxAlignAuto', 'S Align Auto'),
+        ('STMinMaxAlignAuto', 'S&T Align Auto'), '-',
+        ('GeneralFunction', 'General Function...'), '-',
+        ('GetInfo', 'Get Info...'), ('SetScale', 'Set S/T Scale...'))),
+    ('ShaderPlug', 'contrib/shaderplug/shaderplug.cpp:71', _p('About', 'Create tag file')),
+    ('SunPlug', 'contrib/sunplug/sunplug.cpp:80', _p('About...', 'ET-MapCoordinator')),
+    ('UFO:AI', 'contrib/ufoaiplug/ufoai.cpp:69', _p(
+        'About', '-', 'Worldspawn reset', 'Worldspawn', 'Perform check', '-', 'Level 1', 'Level 2', 'Level 3',
+        'Level 4', 'Level 5', 'Level 6', 'Level 7', 'Level 8', '-', 'StepOn', 'ActorClip', 'WeaponClip', 'NoDraw')),
+    ('bobToolz', 'contrib/bobtoolz/bobToolz-GTK.cpp:52', _p(
+        'About...', '-', 'Stair Builder...', 'Aperture Door...', 'Door Builder...', 'Find Duplicates',
+        'Intersect...', 'Make Chain...', 'Path Plotter...', '-', 'Reset Textures...', 'PitOMatic', '-',
+        'Vis Viewer', 'Brush Cleanup', 'Polygon Builder', 'Caulk Selection', '-', 'Explode Entity',
+        'Tree Planter', 'Drop Entity', 'Plot Splines', '-', 'Merge Patches', 'Split patch',
+        'Split patch columns', 'Split patch rows', 'Flip terrain')),
+    ('brushexport2', 'contrib/brushexport/plugin.cpp:56', _p(
+        ('Export .obj', 'Export selected as Wavefront Object'), 'About')),
+    ('prtview', 'contrib/prtview/prtview.cpp:164', _p(
+        'About Portal Viewer', '-', 'Configure Portal Viewer', '-', 'Toggle portals (2D)',
+        'Toggle portals (3D)', '-', 'Unload .prt file', 'Load .prt file')),
 ]
+
+
+def plugin_befehlsname(plugin, befehl):
+    """plugin_construct_command_name (radiant/pluginmanager.cpp:43-70)."""
+    s = '' if befehl.lower().startswith(plugin.lower()) else plugin + '::'
+    gross = False
+    for c in befehl:
+        if c == ' ':
+            gross = True
+        elif gross:
+            gross = False
+            s += c.upper()
+        else:
+            s += c
+    s = s.rstrip('.')
+    return s[:1].lower() + s[1:]
 
 
 def sammeln(root):
@@ -261,6 +301,13 @@ def sammeln(root):
                 texte = re.findall(r'"([^"]*)"', rest)
                 beschr = ' / '.join(x for x in texte[:2] if x) or rest[:60]
                 felder.append((rel, ln, m.group('feldart'), beschr))
+    # CPluginSlot::CPluginSlot (radiant/pluginmanager.cpp:118-150): jeder
+    # Befehl eines Plugins wird registriert (ausser '-', '>', '<').
+    for name, quelle, liste in PLUGINS:
+        for e in liste:
+            if e != '-':
+                datei, zeile = quelle.rsplit(':', 1)
+                cmds.append((datei, int(zeile), 'Commands', plugin_befehlsname(name, e[0]), ''))
     return menus, toolbars, cmds, dialoge, seiten, felder
 
 
@@ -303,9 +350,9 @@ def erzeugen(root, md):
         zeilen.append(f'\n## {titel}\n')
 
     n_items = sum(1 for x in menus if x[4] in ('ITEM', 'CHECK'))
-    n_plug = sum(len(p[1]) for p in PLUGINS)
+    n_plug = sum(1 for p in PLUGINS for e in p[2] if e != '-')
     zeilen.append('# NetRadiant-Custom: Checkliste fuer den Karten-Editor\n')
-    zeilen.append('Erzeugt von `tools/karte/nrc_inventar.py` aus dem NRC-Quelltext (Stand master 2026); '
+    zeilen.append('Erzeugt von `tools/karte/nrc_inventar.py` aus dem NRC-Quelltext (Tag 20260114 = NRC 20260114); '
                   'der Stand je Eintrag wird beim Neuerzeugen uebernommen.\n')
     zeilen.append('Stand: `[x]` nachgebaut und getestet, `[~]` sichtbar und ausgegraut (Notiz: Stufe), '
                   '`[ ]` offen.\n')
@@ -347,10 +394,13 @@ def erzeugen(root, md):
     for rel, ln, art, beschr in felder:
         eintrag('', f'{art} {beschr}  ({rel}:{ln})')
     kopf('Plugins')
-    for name, punkte, quelle in PLUGINS:
+    for name, quelle, liste in PLUGINS:
         zeilen.append(f'\n### {name} ({quelle})\n')
-        for p in punkte:
-            eintrag('', f'{name}: {p}  ({quelle})')
+        for e in reversed(liste):   # PlugInMenu_Add: von hinten nach vorn
+            if e == '-':
+                zeilen.append('* ---')
+            else:
+                eintrag('', f'{name}: {e[1]} -> `{plugin_befehlsname(name, e[0])}`  ({quelle})')
     open(md, 'w', encoding='utf-8', newline='\n').write('\n'.join(zeilen) + '\n')
     print(f'{n_items} Menuepunkte, {len(toolbars)} Knoepfe, {len(cmds)} Befehle, {len(dialoge)} Dialoge, '
           f'{len(seiten)} Seiten, {len(felder)} Felder, {n_plug} Plugin-Eintraege')

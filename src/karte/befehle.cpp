@@ -283,6 +283,11 @@ const std::vector<Knopf>& pluginleiste() {
     return v;
 }
 
+const std::vector<PluginEintrag>& pluginEintraege() {
+    static const std::vector<PluginEintrag> v(std::begin(kPluginEintraege), std::end(kPluginEintraege));
+    return v;
+}
+
 const std::vector<std::string>& standardVersteckt() {
     static const std::vector<std::string> v(std::begin(kVersteckt), std::end(kVersteckt));
     return v;
