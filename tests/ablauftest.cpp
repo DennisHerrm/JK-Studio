@@ -820,6 +820,19 @@ void missionGescheitert() {
         pruefe(std::fabs(zeitVon(a, "", "camera", "DISABLE") - 1100.0) < 0.5, "in der Kamerafahrt laufen die Skripte weiter");
         pruefe(std::fabs(a.skripteStoppMs - 1100.0) < 0.5, "nach DISABLE halten sie an");
     }
+    // rc605 (Ende): SET_HEALTH 0 auf den Spieler - Q3_SetHealth setzt stop_icarus
+    // sofort, auch in einer Kamerafahrt (Q3_Interface.cpp:2310-2321 OpenJK).
+    {
+        const Script s = lies(
+            "camera ( ENABLE );\n"
+            "affect ( \"player\", FLUSH )\n{\n\twait ( 500.000 );\n\tset ( \"SET_HEALTH\", \"0\" );\n}\n"
+            "wait ( 1000.000 );\ncamera ( DISABLE );\n");
+        const Ablauf a = simuliereAblauf(s, "", w);
+        std::printf("  SET_HEALTH 0 auf den Spieler: Skripte bis %.0f (Spieler %d), DISABLE %.0f\n", a.skripteStoppMs,
+                    a.skripteStoppSpieler ? 1 : 0, zeitVon(a, "", "camera", "DISABLE"));
+        pruefe(a.skripteStoppSpieler && std::fabs(a.skripteStoppMs - 550.0) < 0.5 && zeitVon(a, "", "camera", "DISABLE") < 0.0,
+               "SET_HEALTH 0 auf den Spieler haelt alle Skripte an (stop_icarus), auch in der Kamerafahrt");
+    }
 }
 
 int main(int argc, char** argv) {

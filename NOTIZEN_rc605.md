@@ -512,3 +512,44 @@ Changelog:
 - DE: Türen, Aufzüge und Züge halten an, wenn ihnen eine Figur im Weg ist, wie im Spiel: eine Tür kehrt um (ein Crusher drückt weiter), ein Zug wartet, und die Figur nimmt ihren Schaden; eine Figur auf einem Aufzug, die gegen etwas gedrückt würde, bleibt zurück oder hält den Aufzug auf.
 - ZH: 门、升降机和列车被角色挡住时会像游戏中一样停下:门会反向(碾压门会继续压),列车会等待,角色会受到它们的伤害;升降机上会被挤到什么东西上的角色会留在原地或挡住升降机。
 - JA: 扉、リフト、列車はキャラクターが邪魔になるとゲームと同じく止まります。扉は逆戻りし(クラッシャーは押し続けます)、列車は待ち、キャラクターはそのダメージを受けます。リフト上で何かに押し付けられそうなキャラクターはその場に残るか、リフトを止めます。
+
+## 17. trigger_hurt: Rest (Punkt 4 der letzten Liste)
+
+- Ruestung (CheckArmor): in den Daten haben NPCs keine (0 .npc-Dateien mit "armor"); Ruestung kommt aus
+  NPC_SetMiscDefaultData (Attentaeterdroide 250 OpenJK / 100 MD, Droideka 100 MD), Galaks Schild (500,
+  NPC_GalakMech_Init, nicht nachgebildet) und SET_ARMOR (41 Skripte, u. a. kor1/intro, t3_hevil/noghri_battle_4a,
+  md_roc_hangar/droideka_hangar_jedi; md_gd/cin1_jedi nur fuer den Spieler). Gerechnet in gDamage (Abschnitt 15):
+  trigger_hurt mit MOD_TRIGGER_HURT nimmt Ruestung, der Sturz (spawnflags 32) hat DAMAGE_NO_ARMOR.
+- PM_InForceFall (MD, hurt_touch vor G_Damage beim Sturz; bg_pmove.cpp:371-450 MD): ausserhalb einer Kamera
+  (in_camera) nur, wenn PM_CanForceFall gilt - u. a. pm->cmd.upmove > 10 bei geloestem PMF_JUMP_HELD (ein
+  zweites Druecken des Sprungs in der Luft), FP_LEVITATION > 1, Machtpunkte, g_SerenityJediEngineMode. Ein NPC
+  ohne Kampf-KI setzt upmove nur in BS_NOCLIP (kein Pmove in der Luft) oder -127 (SCF_CROUCHED); NPC_Jump/BS_JUMP
+  setzen die Geschwindigkeit direkt - nie ein zweites Druecken. Fuer die Figuren der Vorschau ist der Zweig also
+  immer falsch: der Sturz schadet wie bisher. Keine Aenderung.
+- Reihenfolge im Bild: die Figuren beruehren die trigger_hurt in G_RunFrame nach ihrer Entity-Nummer; ein Feld teilt
+  painDebounceTime/attackDebounceTime (wait, delay). hurtTodeBerechnen ordnet die Figuren jetzt nach
+  NavFigurKoerper::reihe. Wirkt nur bei wait/delay (91 von 773 trigger_hurt der Daten) und zwei Figuren im selben
+  Bild im selben Feld - in taspir2, t3_hevil, kor1, t1_rail (Lauf hrt2) beruehrt keine Figur ein trigger_hurt.
+- FL_UNDYING: G_Damage ruft bei JEDEM Treffer, der health unter 1 bringt, G_ActivateBehavior(BSET_DEATH) und setzt
+  health 1 (g_combat.cpp:6510-6518 OpenJK) - jetzt je Treffer ein HurtTod (unsterblich), der Nachbau startet das
+  deathscript jedes Mal (CSequencer::Run wie bei jedem erneuten Start).
+- Dabei gefunden: ein SET_ORIGIN laeuft am Ende von NPC_Think (nach ClientThink) - die Beruehrung im selben Bild
+  hat noch den alten Ort, im naechsten beginnt die Spur am neuen (client->oldOrigin). Bis jetzt beruehrte eine
+  versetzte Figur das Feld schon im Bild des Befehls; mit deathscript und SET_MISSIONFAILED schwang der Nachbau
+  dadurch zwischen zwei Staenden (das deathscript kam vor dem SET_ORIGIN).
+- Ebenfalls deterministisch (zu Punkt 5): SET_HEALTH 0 auf den Spieler setzt in Q3_SetHealth stop_icarus sofort
+  (Q3_Interface.cpp:2310-2321 OpenJK, 2521-2528 MD, codeJK2 2414-2421) - auch in einer Kamerafahrt; die Entities
+  nach ihm im selben Bild laufen schon nicht mehr (Ablauf::skripteStoppSpieler).
+
+| Test | Rot (vorher) | Grün (nachher) |
+|---|---|---|
+| Selbsttest laserfalle/hrt5: md_gd_jedi ani1 mit SET_UNDYING in der Grube (trigger_hurt *1, wait 0) | 1 Eintrag (nur der erste), dazu ein Schwingen zwischen zwei Durchgaengen | 10 mal unter 1 (600, 650, ... 1050), 0 Tode, stabil; 8 OK |
+| ablauftest SET_HEALTH 0 auf den Spieler (in der Kamerafahrt) | Skripte laufen weiter, DISABLE bei 1050 | Stopp bei 550, DISABLE kommt nicht |
+| tuerlauf md_gd_jedi (mf2 / hrt6) | – | Uebersicht und Tode gleich (7650 / 7700) |
+| ctest | – | 67/67 |
+
+Changelog:
+- EN: trigger_hurt: armour now takes its share (not in a fall), figures touch the areas in the game's order, and with SET_UNDYING the deathscript runs again with every hit that would kill, like the game; a figure moved by SET_ORIGIN touches an area only from the next frame. SET_HEALTH 0 on the player stops all scripts at once, like the game.
+- DE: trigger_hurt: Rüstung fängt jetzt ihren Teil ab (nicht beim Sturz), Figuren berühren die Bereiche in der Reihenfolge des Spiels, und mit SET_UNDYING läuft das deathscript bei jedem tödlichen Treffer erneut, wie im Spiel; eine per SET_ORIGIN versetzte Figur berührt einen Bereich erst ab dem nächsten Bild. SET_HEALTH 0 auf den Spieler hält wie im Spiel sofort alle Skripte an.
+- ZH: trigger_hurt:护甲现在会吸收一部分伤害(坠落时除外),角色按游戏中的顺序接触区域,设置 SET_UNDYING 时每次致命伤害都会再次运行 deathscript,与游戏一致;通过 SET_ORIGIN 移动的角色从下一帧起才会接触区域。对玩家使用 SET_HEALTH 0 会像游戏中一样立即停止所有脚本。
+- JA: trigger_hurt:鎧がダメージの一部を受け止め(落下時を除く)、キャラクターはゲームと同じ順序で領域に触れ、SET_UNDYING では致命的な攻撃のたびに deathscript が再び実行されます(ゲームと同じ)。SET_ORIGIN で移動したキャラクターは次のフレームから領域に触れます。プレイヤーへの SET_HEALTH 0 はゲームと同じくすぐにすべてのスクリプトを止めます。

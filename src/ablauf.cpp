@@ -431,7 +431,8 @@ private:
     // level.time + int_data, Q3_Interface.cpp:9374-9377 OpenJK; cg beim
     // Kartenstart 0).
     bool kameraAn_ = false;
-    double statusTotMs_ = -1.0;   // 0 im Spiel, level.time dort immer > 0
+    double statusTotMs_ = -1.0;
+    bool icarusStopp_ = false;   // rc605 (Ende): stop_icarus ist gesetzt (SET_HEALTH 0 auf den Spieler)   // 0 im Spiel, level.time dort immer > 0
     int startFolge_ = 0;
 
     void hinweis(const std::string& h) {
@@ -2092,6 +2093,20 @@ private:
             }
             return true;
         }
+        // rc605 (Ende): Q3_SetHealth auf den Spieler mit 0 (negativ wird 0): pm_type
+        // PM_DEAD, respawnTime + 2000 und "stop all scripts" - stop_icarus sofort
+        // (Q3_Interface.cpp:2310-2321 OpenJK, 2521-2528 MD, codeJK2 2414-2421).
+        if (k == "set_health" && w.echterSpieler) {
+            const int d = std::max(0, std::atoi(wert.c_str()));
+            if (d == 0 && !icarusStopp_) {
+                icarusStopp_ = true;
+                aus_.skripteStoppSpieler = true;
+                if (aus_.skripteStoppMs < 0.0) { aus_.skripteStoppMs = t; }
+                hinweis("SET_HEALTH 0 auf den Spieler bei " + std::to_string(static_cast<long>(t)) +
+                        " ms - stop_icarus: alle Skripte halten an (die nach ihm im selben Bild schon)");
+            }
+            return true;
+        }
         if (k == "set_missionstatustime") {
             // Q3_Set SET_MISSIONSTATUSTIME: cg.missionStatusDeadTime = level.time + int_data
             // (Q3_Interface.cpp:9374-9377 OpenJK, 9978-9981 MD, codeJK2 7578-7581).
@@ -3172,6 +3187,7 @@ void Nachbau::takte() {
             return wesen_[static_cast<std::size_t>(a)]->reihe < wesen_[static_cast<std::size_t>(b)]->reihe;
         });
         for (const int wi : reihe) {
+            if (icarusStopp_) { break; }   // rc605 (Ende): "if( ent->taskManager && !stop_icarus )"
             aktualisiere(wi, t);
         }
         // rc603: Kartenstart - der Spieler kommt ins Spiel (ClientBegin ->
@@ -3192,6 +3208,10 @@ void Nachbau::takte() {
         // missionStatusDeadTime < level.time (g_active.cpp:4855-4865 OpenJK, 9706-9715
         // MD, codeJK2 2097-2107). Mit mehr als 40 Bildern/s des Clients liegen
         // beide vor dem naechsten G_RunFrame - ab dort kein taskManager->Update.
+        if (icarusStopp_) {   // rc605 (Ende): SET_HEALTH 0 auf den Spieler
+            if (ende < 0.0) { ende = t; }
+            break;
+        }
         if (aus_.missionFailedMs >= 0.0 && !kameraAn_ && statusTotMs_ < t) {
             aus_.skripteStoppMs = t;
             if (ende < 0.0) { ende = t; }

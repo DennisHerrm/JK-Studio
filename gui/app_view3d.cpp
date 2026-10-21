@@ -5215,6 +5215,25 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
         std::stable_sort(f.noclip.begin(), f.noclip.end(), [](const auto& x, const auto& y) { return x.first < y.first; });
         figuren.push_back(std::move(f));
     }
+    // rc605 (Ende): G_RunFrame laesst die Figuren nach ihrer Entity-Nummer denken
+    // (g_main.cpp:1077-1086 / 2038-2042 OpenJK) - in ClientThink beruehren sie die
+    // trigger_hurt in dieser Folge, und ein Feld teilt painDebounceTime und
+    // attackDebounceTime (hurt_touch): wer zuerst kommt, nimmt den Schaden dieses
+    // Bilds. Die Folge kommt aus dem Nachbau (NavFigurKoerper::reihe).
+    {
+        std::map<std::string, int> reiheNach;
+        const Ablauf& ab = g_app->ablauf;
+        for (std::size_t i = 0; i < ab.laufFiguren.size() && i < ab.laufFigurNamen.size(); ++i) {
+            reiheNach[ab.laufFigurNamen[i]] = ab.laufFiguren[i].reihe;
+        }
+        std::stable_sort(figuren.begin(), figuren.end(), [&reiheNach](const Figur& x, const Figur& y) {
+            const auto ix = reiheNach.find(x.a->name);
+            const auto iy = reiheNach.find(y.a->name);
+            const int rx = ix == reiheNach.end() ? std::numeric_limits<int>::max() : ix->second;
+            const int ry = iy == reiheNach.end() ? std::numeric_limits<int>::max() : iy->second;
+            return rx < ry;
+        });
+    }
     const auto zurZeit = [](const std::vector<std::pair<double, bool>>& v, double t) {
         bool an = false;
         for (const auto& [ms, w] : v) {
@@ -5273,11 +5292,13 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
         // hitLoc HL_NONE: damageModifier 1.0 (MOD_EXPLOSIVE_SPLASH zaehlt ohnehin nicht).
         if (take == 0) { return; }   // "if ( take || (dflags&DAMAGE_NO_DAMAGE) )"
         fi.gesundheit = std::max(0, fi.gesundheit - take);
+        // FL_UNDYING: "if(targ->health < 1) { G_ActivateBehavior( targ, BSET_DEATH );
+        // targ->health = 1; }" (g_combat.cpp:6510-6518 OpenJK) - bei JEDEM Treffer, der
+        // health unter 1 bringt, laeuft das deathscript erneut (rc605 Ende: bis dahin
+        // nur beim ersten).
         if (zurZeit(a.unsterblich, t) && fi.gesundheit < 1) {
-            if (!fi.unsterblichGemeldet) {
-                aus.push_back(AblaufWelt::HurtTod{t, a.name, entity, true});
-                fi.unsterblichGemeldet = true;
-            }
+            aus.push_back(AblaufWelt::HurtTod{t, a.name, entity, true});
+            fi.unsterblichGemeldet = true;
             fi.gesundheit = 1;
         }
         if (fi.gesundheit <= 0) {
@@ -5391,12 +5412,21 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
                 fi.hatLetzten = false;
                 continue;
             }
-            const float jetzt[3] = {st.pos[0], st.pos[1], st.pos[2]};
+            // rc605 (Ende): ein SET_ORIGIN dieses Bilds laeuft am Ende von NPC_Think
+            // (taskManager->Update nach ClientThink, NPC.cpp:2412-2415 MD) - die
+            // Beruehrung dieses Bilds (G_TouchTriggersLerped in ClientThink) hat noch den
+            // alten Ort; im naechsten Bild beginnt die Spur am neuen (client->oldOrigin).
+            bool versetzt = false;
+            for (const ActorStep& stp : a.steps) {
+                if (stp.kind == ActorStep::Kind::Teleport && std::fabs(stp.startMs - t) < 0.5) { versetzt = true; }
+            }
+            const ActorState vorher = versetzt ? a.at(t - 1.0) : st;
+            const float jetzt[3] = {vorher.pos[0], vorher.pos[1], vorher.pos[2]};
             float letzt[3] = {jetzt[0], jetzt[1], jetzt[2]};
             if (fi.hatLetzten) {
                 for (int i = 0; i < 3; ++i) { letzt[i] = fi.letzt[i]; }
             }
-            for (int i = 0; i < 3; ++i) { fi.letzt[i] = jetzt[i]; }
+            for (int i = 0; i < 3; ++i) { fi.letzt[i] = st.pos[i]; }
             fi.hatLetzten = true;
             if (zurZeit(fi.noclip, t) || fi.gesundheit <= 0) { continue; }
             const float hb = a.halbBreite;

@@ -238,6 +238,10 @@ struct Ablauf {
     double missionFailedMs = -1.0;    // erstes SET_MISSIONFAILED (-1: nie)
     std::string missionFailedText;    // Eintrag der missionFailedTable
     double skripteStoppMs = -1.0;     // nach diesem Bild laufen keine Skripte mehr
+    // rc605 (Ende): SET_HEALTH 0 auf den Spieler - Q3_SetHealth setzt stop_icarus sofort
+    // (Q3_Interface.cpp:2310-2321 OpenJK, MD 2521-2528, codeJK2 2414-2421): die
+    // Entities nach dieser im selben Bild laufen schon nicht mehr.
+    bool skripteStoppSpieler = false;
 
     std::vector<std::string> hinweise;
     double endeMs = 0.0;    // wann das Startskript fertig war
