@@ -1,0 +1,14 @@
+Testkarten fuer den Karten-Editor (ctest karte_rundlauf)
+
+oa_fan.map
+  Herkunft: OpenArena Unofficial Patch 0.8.8b, sources/maps/Done/fan.map
+  https://github.com/NeonKnightOA/openarena-unofficial-patch088b
+  (Stand 5bc9addf85fa622fa5e6bdc4cc45b08f4f875a4a). Lizenz: GNU GPL v2.
+  Geschrieben von NetRadiant-Custom (Kopf "//@$& layerdef"), 44 patchDef2.
+  Unveraendert, LF.
+
+nrc_tiny_structural_brush.map
+  Herkunft: NetRadiant-Custom, regression_tests/q3map2/tiny_structural_brush/
+  maps/tiny_structural_brush.map. Lizenz: GNU GPL v2 (wie NetRadiant-Custom).
+  Geschrieben von einem aelteren NetRadiant unter Windows (CR LF, ohne Ebenen),
+  Brush Primitives. Unveraendert, CR LF (siehe .gitattributes: -text).

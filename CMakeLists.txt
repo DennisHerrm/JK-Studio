@@ -642,7 +642,8 @@ target_sources(bhed_core PRIVATE
   src/karte/pinsel.cpp
   src/karte/patch.cpp
   src/karte/eklasse.cpp
-  src/karte/karte.cpp)
+  src/karte/karte.cpp
+  src/karte/kartenformat.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -665,4 +666,14 @@ if(BEHAVED_TESTS)
   add_executable(karteentitaet tests/karteentitaet.cpp)
   target_link_libraries(karteentitaet PRIVATE bhed_core)
   add_test(NAME karte_entitaet COMMAND karteentitaet)
+  # Punkt 2e: .map lesen/schreiben wie NRC - bytegleicher Rundlauf fuer
+  # NRC-geschriebene Karten (tests/karte), Fehlerverhalten, Zahlenformat.
+  # Weitere NRC-Karten und fremde Karten (Ravens JA-Beispiele) optional:
+  #   cmake -DBEHAVED_KARTEN_NRC=<Ordner> -DBEHAVED_KARTEN_FREMD=<Ordner>
+  set(BEHAVED_KARTEN_NRC "" CACHE PATH "Ordner mit von NetRadiant-Custom geschriebenen .map")
+  set(BEHAVED_KARTEN_FREMD "" CACHE PATH "Ordner mit .map in anderem Format (z. B. JA-Beispielkarten)")
+  add_executable(karterundlauf tests/karterundlauf.cpp)
+  target_link_libraries(karterundlauf PRIVATE bhed_core)
+  add_test(NAME karte_rundlauf COMMAND karterundlauf ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte
+           "${BEHAVED_KARTEN_NRC}" "${BEHAVED_KARTEN_FREMD}")
 endif()

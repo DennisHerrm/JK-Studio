@@ -267,7 +267,7 @@ std::shared_ptr<Entitaet> Karte::neueEntitaet(const std::string& klassenname, bo
     const EntitaetsKlasse* k = klasseFuer(klassenname, hatPinsel);
     auto e = std::make_shared<Entitaet>(k);
     e->setzen("classname", k->name);
-    e->schicht = aktuelleSchicht;
+    e->schicht = k->fixedsize ? static_cast<int>(aktuelleSchicht) : kSchichtKeine;
     return e;
 }
 

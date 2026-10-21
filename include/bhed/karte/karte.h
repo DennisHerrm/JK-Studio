@@ -77,7 +77,9 @@ public:
     void kindEinfuegen(std::shared_ptr<Primitiv> p);   // insert (am Ende)
     bool kindEntfernen(const Primitiv* p);             // erase
 
-    std::size_t schicht = 0;   // Node::m_layer (nur fuer Punktentitaeten geschrieben)
+    // Node::m_layer: NRC setzt ihn beim Lesen nur fuer Punktentitaeten
+    // (parse.cpp:236-237); Gruppen haben keine (kSchichtKeine).
+    int schicht = kSchichtKeine;
 
     [[nodiscard]] std::unique_ptr<Memento> zustandSichern() const override;
     void zustandLaden(const Memento& m) override;

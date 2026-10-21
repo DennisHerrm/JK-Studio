@@ -191,8 +191,12 @@ class Primitiv : public Rueckgaengigbar {
 public:
     enum class Art { Pinsel, Patch };
     [[nodiscard]] virtual Art art() const = 0;
-    std::size_t schicht = 0;   // Node::m_layer (Index in Karte::schichten)
+    // Node::m_layer: Index in Karte::schichten; kSchichtUnerreichbar fuer eine
+    // Ebene, die NRC beim Lesen nicht in den Baum haengen konnte (Kreis).
+    int schicht = 0;
 };
+constexpr int kSchichtKeine = -1;          // m_layer == nullptr (Gruppenentitaeten)
+constexpr int kSchichtUnerreichbar = -2;   // m_ownIndex bleibt LAYERIDXPARENT (-1)
 
 // Brush (brush.h:1553-2527)
 class Pinsel final : public Primitiv {
