@@ -649,4 +649,8 @@ if(BEHAVED_TESTS)
   add_executable(kartegeometrie tests/kartegeometrie.cpp)
   target_link_libraries(kartegeometrie PRIVATE bhed_core)
   add_test(NAME karte_geometrie COMMAND kartegeometrie)
+  # Punkt 2b: Texturprojektion AP/BP/Valve, Umrechnung, Texture Lock, Fit.
+  add_executable(kartetexdef tests/kartetexdef.cpp)
+  target_link_libraries(kartetexdef PRIVATE bhed_core)
+  add_test(NAME karte_texdef COMMAND kartetexdef)
 endif()
