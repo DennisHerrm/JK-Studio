@@ -324,6 +324,26 @@ int main() {
     fs.ordnerHinzufuegen(base.string(), "sp");
     Texturinventar inv;
     inv.laden(fs);
+    {   // Konsole wie NRC (vfs.cpp:98/227, shaders.cpp:1453/1670)
+        std::string ordner = base.string();
+        for (char& c : ordner) { c = c == '\\' ? '/' : c; }
+        if (ordner.back() != '/') { ordner += '/'; }
+        pruefe(fs.protokoll.size() == 2 && fs.protokoll[0].text == "vfs directory: " + ordner + "\n" &&
+                   fs.protokoll[1].text == "  pak file: " + ordner + "assets0.pk3\n",
+               "Dateisystem: vfs directory, pak file");
+        bool keineListe = false;
+        bool parsing = false;
+        for (const auto& teil : inv.protokoll) {
+            keineListe = keineListe || teil.text == "No shaderlist.txt found: loading all shaders\n";
+            parsing = parsing || (teil.text == "Parsing shaderfile shaders/stone.shader\n" && teil.art == ProtokollTeil::Art::Ausgabe);
+        }
+        pruefe(keineListe && parsing, "Shaders_Load: No shaderlist.txt found, Parsing shaderfile shaders/stone.shader");
+        Dateisystem fehlt;
+        fehlt.ordnerHinzufuegen((base / "gibtsnicht").string(), "sp");
+        pruefe(fehlt.protokoll.size() == 1 && fehlt.protokoll[0].art == ProtokollTeil::Art::Fehler &&
+                   fehlt.protokoll[0].text.rfind("vfs directory not found: ", 0) == 0,
+               "Dateisystem: vfs directory not found (Fehler)");
+    }
 
     // --- aktive Shader ----------------------------------------------------------------
     AktiveShader aktiv;

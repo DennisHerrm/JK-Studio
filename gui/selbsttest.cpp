@@ -26011,10 +26011,14 @@ std::vector<Schritt> karteneditorKameraSchritte() {
     add(rechtsKlick("M2 kurz: Freelook aus"));
     add(pruefe("Freelook aus", [] { return !ke::editor().kamFenster.frei; }));
     add(tasteKombi(ImGuiMod_Shift | ImGuiKey_KeypadAdd, "Umschalt+Num+"));
-    add(pruefe("Shift+Num+ = CameraSpeedInc: 750, Konsole \" ++Camera Move Speed: \"", [] {
+    add(pruefe("Shift+Num+ = CameraSpeedInc: 750, Konsole \" ++Camera Move Speed: 750\" (Text Ausgabe, Zahl Warnung, eine Zeile)", [] {
         const ke::Editor& e = ke::editor();
         bool zeile = false;
-        for (const ke::KonsolenZeile& z : e.konsole) { zeile = zeile || z.text == " ++Camera Move Speed: "; }
+        for (const ke::KonsolenZeile& z : e.konsole) {
+            zeile = zeile || (z.text == " ++Camera Move Speed: 750" && z.teile.size() == 2 &&
+                              z.teile[0].art == ke::KonsolenZeile::Art::Ausgabe && z.teile[0].laenge == 22 &&
+                              z.teile[1].art == ke::KonsolenZeile::Art::Warnung);
+        }
         return e.kameraE.tempo == 750 && zeile;
     }));
     add(tasteKombi(ImGuiMod_Shift | ImGuiKey_KeypadSubtract, "Umschalt+Num-"));
@@ -27273,6 +27277,244 @@ std::vector<Schritt> karteneditorTexturSchritte() {
     return s;
 }
 
+// Punkt 10: die Konsole wie NRC - Meldungen beim Laden des Spiels (vfs,
+// Shader, Entitaetsklassen), Karte laden/speichern ("Open file X for
+// read...success", ScopeTimer), Zeilen aus Stuecken verschiedener Art,
+// Umbruch an der Breite, Auswahl mit der Maus, Kontextmenue (Copy, Select
+// All, Copy All, Clear), O in Split (Seite Console des Gruppendialogs).
+std::vector<Schritt> karteneditorKonsoleSchritte() {
+    namespace ke = karteneditor;
+    namespace kb = karte::befehle;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto zeileMit = [](const std::string& anfang) -> const ke::KonsolenZeile* {
+        for (const auto& z : ke::editor().konsole) {
+            if (z.text.rfind(anfang, 0) == 0) { return &z; }
+        }
+        return nullptr;
+    };
+    auto feldVon = [](const std::string& name) -> const ke::Editor::Rechteck* {
+        for (const auto& r : ke::editor().felderImBild) {
+            if (r.name == name) { return &r; }
+        }
+        return nullptr;
+    };
+    add(pruefe("Spiel geladen: Konsole wie NRC (vfs directory, pak file, filesystem initialised, Shader, ScanFile)", [zeileMit] {
+        const auto& sp = ke::editor().spiel;
+        if (!sp) { return false; }
+        // Das Protokoll des Spiels steht in der Konsole (sie wurde dazwischen geleert): hier das Protokoll selbst
+        bool vfs = false;
+        bool init = false;
+        bool scan = false;
+        bool shader = false;
+        bool suche = false;
+        for (const auto& teil : sp->protokoll) {
+            vfs = vfs || teil.text.rfind("vfs directory: ", 0) == 0;
+            init = init || teil.text == "filesystem initialised\n";
+            scan = scan || teil.text.rfind("ScanFile: ", 0) == 0;
+            shader = shader || teil.text.rfind("Parsing shaderfile shaders/", 0) == 0 || teil.text.rfind("No shaderlist.txt found", 0) == 0;
+            suche = suche || teil.text.rfind("EntityClass: searching \"", 0) == 0;
+        }
+        diag::detail("Knopftest: Konsole - Protokoll des Spiels " + std::to_string(sp->protokoll.size()) + " Teile");
+        (void)zeileMit;
+        return (vfs || sp->ordner.empty()) && init && scan && shader && suche;
+    }));
+    add(tu("Konsole leeren, Karte oeffnen", [] {
+        ke::konsoleLeeren();
+        (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map"));
+    }));
+    add(pruefe("Karte laden: Loading map from, Open file ... for read...success (eine Zeile), map load timer, --- LoadMapFile ---", [] {
+        const auto& k = ke::editor().konsole;
+        std::string pfad = karteTestPfad("karte_kopie.map");
+        std::replace(pfad.begin(), pfad.end(), '\\', '/');
+        for (const auto& z : k) { diag::detail("Knopftest: Konsole - " + z.text); }
+        if (k.size() < 8) { return false; }
+        // readGraph meldet das erkannte Format als Warnung (mapq3/plugin.cpp:263)
+        const bool format = k[2].text == "detectedFormat = eBrushTypeQuake3" && k[2].art == ke::KonsolenZeile::Art::Warnung;
+        const bool zeitOk = k[3].text.rfind("map load timer: ", 0) == 0 && k[3].text.find(" second(s) elapsed") != std::string::npos &&
+                            k[3].text.size() == std::string("map load timer:  0.00 second(s) elapsed").size();
+        return k[0].text == "Loading map from " + pfad && k[1].text == "Open file " + pfad + " for read...success" &&
+               k[1].teile.size() == 1 && format && zeitOk && k[4].text == "--- LoadMapFile ---" && k[5].text == pfad &&
+               k[6].text == "1 primitives" && k[7].text == "2 entities";
+    }));
+    add(tu("Konsole leeren, Welt-Pinsel waehlen, aendern und speichern", [] {
+        ke::Editor& e = ke::editor();
+        ke::konsoleLeeren();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), e.karte.welt()->kinder().front());
+        karte::schluesselSetzenRueckgaengig(e.karte, "message", "konsole");
+        (void)ke::karteSpeichern();
+    }));
+    add(pruefe("Speichern: der Befehl, Open file ... for write...success, map save timer", [] {
+        const auto& k = ke::editor().konsole;
+        std::string pfad = karteTestPfad("karte_kopie.map");
+        std::replace(pfad.begin(), pfad.end(), '\\', '/');
+        for (const auto& z : k) { diag::detail("Knopftest: Konsole - " + z.text); }
+        return k.size() >= 3 && k[0].text == "entitySetKeyValue -key \"message\" -value \"konsole\"" &&
+               k[1].text == "Open file " + pfad + " for write...success" && k[2].text.rfind("map save timer: ", 0) == 0;
+    }));
+    add(tu("Zurueck: alte Meldung, gespeichert", [] {
+        ke::Editor& e = ke::editor();
+        karte::schluesselSetzenRueckgaengig(e.karte, "message", "karteneditor");
+        (void)ke::karteSpeichern();
+        e.karte.auswahl.leeren();
+    }));
+    add(tu("Stuecke: Ausgabe ohne Zeilenende, dann Fehler mit Zeilenende", [] {
+        ke::konsoleLeeren();
+        ke::konsoleSchreiben(ke::KonsolenZeile::Art::Ausgabe, "Open file x for read...");
+        ke::konsoleSchreiben(ke::KonsolenZeile::Art::Fehler, "failure\n");
+        ke::konsoleSchreiben(ke::KonsolenZeile::Art::Warnung, "zwei\nZeilen\n");
+    }));
+    add(pruefe("Sys_Print: eine Zeile aus zwei Stuecken (Ausgabe, Fehler), '\\n' trennt Zeilen", [] {
+        const auto& k = ke::editor().konsole;
+        return k.size() == 3 && k[0].text == "Open file x for read...failure" && k[0].teile.size() == 2 &&
+               k[0].teile[1].art == ke::KonsolenZeile::Art::Fehler && k[0].teile[1].von == 23 && k[1].text == "zwei" &&
+               k[2].text == "Zeilen" && !k[2].offen;
+    }));
+    // In Split ist die Konsole eine Seite des Gruppendialogs: O
+    add(tu("Split, Gruppendialog zu", [] {
+        ke::Editor& e = ke::editor();
+        e.anordnung = kb::Anordnung::Split;
+        e.gruppenDialogEingebaut = false;
+        e.teilerFuer = -1;
+    }));
+    add(pause(0.3));
+    add(tu("Gruppendialog zu", [] { ke::editor().gruppenDialogOffen = false; }));
+    add(tasteKombi(ImGuiKey_O, "O"));
+    add(pause(0.3));
+    add(pruefe("O (ToggleConsole) in Split: Gruppendialog auf der Seite Console", [] {
+        return ke::editor().gruppenDialogOffen && ke::editor().gruppenSeite == 1;
+    }));
+    add(tu("Eine lange Zeile (Umbruch an der Breite)", [] {
+        std::string lang;
+        for (int i = 0; i < 40; ++i) { lang += "wort" + std::to_string(i) + " "; }
+        ke::ausgabe(lang);
+    }));
+    add(pause(0.2));
+    add(foto("karteneditor_konsole"));
+    add({"Doppelklick auf das erste Wort (\"Open\")", [](int b) {
+             static Schritt k;
+             if (b == 0) {
+                 k = klickAn("Doppelklick", [] {
+                     const Element* el = finde("##konsoleText", "", 0, true);
+                     const ImGuiWindow* w = ImGui::FindWindowByName("##konsoleText");
+                     (void)el;
+                     if (w == nullptr) {
+                         for (ImGuiWindow* x : ImGui::GetCurrentContext()->Windows) {
+                             if (std::string(x->Name).find("##konsoleText") != std::string::npos && x->Active) { w = x; }
+                         }
+                     }
+                     const float s = ke::massstab();
+                     return w != nullptr ? ImVec2{w->Pos.x + 7.0F * s, w->Pos.y + 5.0F * s + 6.0F * s - w->Scroll.y}
+                                         : ImVec2{0, 0};
+                 }, 0, true);
+             }
+             return k.tun(b);
+         }});
+    add(pause(0.2));
+    add(pruefe("Doppelklick: das Wort ist gewaehlt", [] {
+        diag::detail("Knopftest: Konsole - Auswahl \"" + ke::konsoleAuswahl() + "\"");
+        return ke::konsoleAuswahl() == "Open";
+    }));
+    add({"Rechtsklick in die Konsole", [](int b) {
+             static Schritt k;
+             if (b == 0) {
+                 k = klickAn("Rechtsklick", [] {
+                     for (ImGuiWindow* x : ImGui::GetCurrentContext()->Windows) {
+                         if (std::string(x->Name).find("##konsoleText") != std::string::npos && x->Active) {
+                             return ImVec2{x->Pos.x + x->Size.x * 0.5F, x->Pos.y + x->Size.y * 0.5F};
+                         }
+                     }
+                     return ImVec2{0, 0};
+                 }, 1);
+             }
+             return k.tun(b);
+         }});
+    add(pause(0.2));
+    add(pruefe("Kontextmenue: Copy, Select All, Copy All, Clear", [] {
+        return finde(std::string(ke::trK(Str::KeKoCopy)) + "##konsolecopy", "", 0, false) != nullptr &&
+               finde(std::string(ke::trK(Str::KeKoSelectAll)) + "##konsoleselectall", "", 0, false) != nullptr &&
+               finde(std::string(ke::trK(Str::KeKoCopyAll)) + "##konsolecopyall", "", 0, false) != nullptr &&
+               finde(std::string(ke::trK(Str::KeKoClear)) + "##konsoleclear", "", 0, false) != nullptr;
+    }));
+    add(foto("karteneditor_konsole_menue"));
+    add(klick(std::string(ke::trK(Str::KeKoCopy)) + "##konsolecopy"));
+    add(pause(0.2));
+    add(pruefe("Copy: \"Open\" in der Zwischenablage", [] {
+        const char* c = ImGui::GetClipboardText();
+        return c != nullptr && std::string(c) == "Open";
+    }));
+    add({"Rechtsklick in die Konsole", [](int b) {
+             static Schritt k;
+             if (b == 0) {
+                 k = klickAn("Rechtsklick", [] {
+                     for (ImGuiWindow* x : ImGui::GetCurrentContext()->Windows) {
+                         if (std::string(x->Name).find("##konsoleText") != std::string::npos && x->Active) {
+                             return ImVec2{x->Pos.x + x->Size.x * 0.5F, x->Pos.y + x->Size.y * 0.5F};
+                         }
+                     }
+                     return ImVec2{0, 0};
+                 }, 1);
+             }
+             return k.tun(b);
+         }});
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeKoSelectAll)) + "##konsoleselectall"));
+    add(pause(0.2));
+    add(pruefe("Select All: alles gewaehlt (vier Zeilen)", [] {
+        const std::string a = ke::konsoleAuswahl();
+        return a.rfind("Open file x for read...failure\nzwei\nZeilen\nwort0 ", 0) == 0;
+    }));
+    add({"Rechtsklick in die Konsole", [](int b) {
+             static Schritt k;
+             if (b == 0) {
+                 k = klickAn("Rechtsklick", [] {
+                     for (ImGuiWindow* x : ImGui::GetCurrentContext()->Windows) {
+                         if (std::string(x->Name).find("##konsoleText") != std::string::npos && x->Active) {
+                             return ImVec2{x->Pos.x + x->Size.x * 0.5F, x->Pos.y + x->Size.y * 0.5F};
+                         }
+                     }
+                     return ImVec2{0, 0};
+                 }, 1);
+             }
+             return k.tun(b);
+         }});
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeKoCopyAll)) + "##konsolecopyall"));
+    add(pause(0.2));
+    add(pruefe("Copy All: der ganze Text (toPlainText)", [] {
+        const char* c = ImGui::GetClipboardText();
+        return c != nullptr && std::string(c).rfind("Open file x for read...failure\nzwei\nZeilen\nwort0 ", 0) == 0;
+    }));
+    add({"Rechtsklick in die Konsole", [](int b) {
+             static Schritt k;
+             if (b == 0) {
+                 k = klickAn("Rechtsklick", [] {
+                     for (ImGuiWindow* x : ImGui::GetCurrentContext()->Windows) {
+                         if (std::string(x->Name).find("##konsoleText") != std::string::npos && x->Active) {
+                             return ImVec2{x->Pos.x + x->Size.x * 0.5F, x->Pos.y + x->Size.y * 0.5F};
+                         }
+                     }
+                     return ImVec2{0, 0};
+                 }, 1);
+             }
+             return k.tun(b);
+         }});
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeKoClear)) + "##konsoleclear"));
+    add(pause(0.2));
+    add(pruefe("Clear: die Konsole ist leer", [] { return ke::editor().konsole.empty(); }));
+    add(tu("Zurueck: Regular, Gruppendialog zu", [] {
+        ke::Editor& e = ke::editor();
+        e.anordnung = kb::Anordnung::Regular;
+        e.teilerFuer = -1;
+        e.gruppenDialogOffen = false;
+    }));
+    add(pause(0.3));
+    (void)feldVon;
+    return s;
+}
+
 // Fuer den Selbsttest der Entitaeten: die nr-te Entitaet einer Klasse und
 // ihre Schluessel - ohne Absturz, wenn es sie (im roten Lauf) nicht gibt.
 std::shared_ptr<karte::Entitaet> entitaetNr(const std::string& klasse, std::size_t nr) {
@@ -28082,6 +28324,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : karteneditorAuswahlSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorTexturSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorEntitaetenSchritte()) { add(std::move(x)); }
+    for (Schritt& x : karteneditorKonsoleSchritte()) { add(std::move(x)); }
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
     return s;
 }

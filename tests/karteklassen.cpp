@@ -17,6 +17,7 @@
 // Aufruf: karteklassen <data/karte> [<NRC gamepacks>]
 #include "bhed/karte/eklasse.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <filesystem>
 #include <set>
@@ -165,6 +166,18 @@ int main(int argc, char** argv) {
         EntitaetsKlassen sp;
         const std::size_t fehler = sp.ordnerLaden((daten / "ja").string(), "sp");
         std::printf("JA SP: %zu Klassen, %zu Fehler\n", sp.anzahl(), fehler);
+        {   // Konsole wie NRC (eclass.cpp:145-172, eclass_def.cpp:293)
+            std::string o = (daten / "ja").string();
+            for (char& c : o) { c = c == '\\' ? '/' : c; }
+            if (o.back() != '/') { o += '/'; }
+            std::vector<std::string> t;
+            for (const auto& teil : sp.protokoll) { t.push_back(teil.text); }
+            const auto hat = [&t](const std::string& s) { return std::find(t.begin(), t.end(), s) != t.end(); };
+            pruefe(!t.empty() && t[0] == "EntityClass: searching \"" + o + "\" for *.def\n", "EntityClass: searching ... for *.def zuerst");
+            pruefe(hat("Ignoring 'mp_entities.def'\n") && hat("ScanFile: " + o + "sp_entities.def\n") &&
+                       hat("EntityClass: searching \"" + o + "\" for *.fgd\n") && hat("EntityClass: searching \"" + o + "\" for *.ent\n"),
+                   "Ignoring 'mp_entities.def', ScanFile, dann *.fgd und *.ent");
+        }
         pruefe(fehler == 0 && sp.anzahl() > 200, "data/karte/ja (sp): ueber 200 Klassen ohne Fehler");
         const EntitaetsKlasse* w = sp.finden("worldspawn");
         const EntitaetsKlasse* npc = sp.finden("NPC_spawner");

@@ -88,11 +88,16 @@ std::shared_ptr<Spielkontext> spielLadenJetzt(int spiel, std::vector<std::string
     // ("No shaderlist.txt found: loading all shaders"). NRCs
     // default_shaderlist.txt stammt aus dem Gamepack und kommt nicht mit.
     k->inventar.laden(k->fs);
-    const std::size_t fehlerDef = k->klassen.ordnerLaden(defs, "sp");
+    (void)k->klassen.ordnerLaden(defs, "sp");
     if (spiel == kRegelwerkMovieDuels) { (void)k->klassen.entdefsErgaenzen(); }
     k->meldungen = k->inventar.meldungen();
-    if (fehlerDef > 0) { k->meldungen.push_back(defs + ": " + std::to_string(fehlerDef) + " Fehler in den .def"); }
-    if (k->klassen.anzahl() == 0) { k->meldungen.push_back("keine Entitaetsklassen in " + defs); }
+    // Die Konsole wie NRC beim Start: QE_InitVFS (vfs directory, pak file),
+    // "filesystem initialised", dann die Beobachter: Shaders_Load und
+    // EntityClassQuake3_Construct.
+    k->protokoll = k->fs.protokoll;
+    karte::ausgabe(k->protokoll, "filesystem initialised\n");
+    k->protokoll.insert(k->protokoll.end(), k->inventar.protokoll.begin(), k->inventar.protokoll.end());
+    k->protokoll.insert(k->protokoll.end(), k->klassen.protokoll.begin(), k->klassen.protokoll.end());
     k->sekunden = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
     return k;
 }
@@ -100,11 +105,11 @@ std::shared_ptr<Spielkontext> spielLadenJetzt(int spiel, std::vector<std::string
 void spielUebernehmen(std::shared_ptr<Spielkontext> k) {
     g().spiel = std::move(k);
     const Spielkontext& s = *g().spiel;
-    for (const std::string& m : s.meldungen) { warnung(m); }
+    konsoleProtokoll(s.protokoll);
     char z[300];
-    std::snprintf(z, sizeof(z), tr(Str::KeGameLoaded), s.name.c_str(), static_cast<int>(s.inventar.shader().size()),
+    std::snprintf(z, sizeof(z), "%s: %d shaders, %d entity classes (%.1f s)", s.name.c_str(), static_cast<int>(s.inventar.shader().size()),
                   static_cast<int>(s.klassen.anzahl()), s.sekunden);
-    ausgabe(z);
+    diag::detail(std::string("Karten-Editor: ") + z);
     if (s.ordner.empty()) {
         std::snprintf(z, sizeof(z), tr(Str::KeGameNoFolders), s.name.c_str());
         warnung(z);
@@ -187,6 +192,39 @@ void zeichneRueckfrage() {
     }
 }
 
+// Ein Pfad, wie NRC ihn nennt (Qts Dateiwahl liefert '/').
+std::string nrcPfad(std::string p) {
+    std::replace(p.begin(), p.end(), '\\', '/');
+    return p;
+}
+
+// ScopeTimer (map.cpp:982-993): "<text> timer: %5.2f second(s) elapsed"
+std::string zeitText(const char* was, std::chrono::steady_clock::time_point t0) {
+    const double s = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+    char z[160];
+    std::snprintf(z, sizeof(z), "%s timer: %5.2f second(s) elapsed", was, s);   // FloatFormat( sec, 5, 2 )
+    return z;
+}
+
+// Map_Save (map.cpp:1249-1255): ScopeTimer "map save" um SaveReferences ->
+// MapResource_save (referencecache.cpp:96-140): Sicherung .bak, dann
+// "Open file X for write..." + success / failure.
+bool karteSchreibenMitMeldungen(const std::string& pfad) {
+    const auto t0 = std::chrono::steady_clock::now();
+    const std::string anzeige = nrcPfad(pfad);
+    std::string grund;
+    const bool ok = karte::karteSpeichern(pfad, g().karte, true, &grund);
+    if (!ok && grund.rfind("map path", 0) == 0) {   // file_saveBackup schlug fehl
+        fehler(grund);
+        fehler("failed to save map file: \"" + anzeige + "\"");
+    } else {
+        konsoleSchreiben(KonsolenZeile::Art::Ausgabe, "Open file " + anzeige + " for write...");
+        konsoleSchreiben(ok ? KonsolenZeile::Art::Ausgabe : KonsolenZeile::Art::Fehler, ok ? "success\n" : "failure\n");
+    }
+    ausgabe(zeitText("map save", t0));
+    return ok;
+}
+
 std::string startOrdner() {
     // map_open: bei einer unbenannten Karte der maps-Ordner, sonst die Karte.
     if (g().name != "unnamed.map") { return directoryOf(g().name); }
@@ -208,10 +246,10 @@ void entitaetenKlassenNeuLaden() {
     if (e.karteSpiel) {
         Spielkontext& s = *e.karteSpiel;
         s.klassen.leeren();
-        const std::string defs = defOrdner(s.spiel);
-        const std::size_t fehlerDef = s.klassen.ordnerLaden(defs, "sp");
+        s.klassen.protokoll.clear();
+        (void)s.klassen.ordnerLaden(defOrdner(s.spiel), "sp");
         if (s.spiel == kRegelwerkMovieDuels) { (void)s.klassen.entdefsErgaenzen(); }
-        if (fehlerDef > 0) { warnung(defs + ": " + std::to_string(fehlerDef) + " Fehler in den .def"); }
+        konsoleProtokoll(s.klassen.protokoll);   // EntityClassQuake3_Construct (realise)
     }
     ++e.ent.klassenStand;
     e.ent.geladen = false;
@@ -253,18 +291,6 @@ const char* trK(i18n::Str id) { return nrcBegriffe() ? i18n::trIn(i18n::Language
 
 bool geaendert() { return !g().karte.undo.gespeichert(); }
 
-void ausgabe(const std::string& text) {
-    g().konsole.push_back({KonsolenZeile::Art::Ausgabe, text});
-    diag::detail("Karten-Editor: " + text);
-}
-void warnung(const std::string& text) {
-    g().konsole.push_back({KonsolenZeile::Art::Warnung, text});
-    diag::detail("Karten-Editor Warnung: " + text);
-}
-void fehler(const std::string& text) {
-    g().konsole.push_back({KonsolenZeile::Art::Fehler, text});
-    diag::detail("Karten-Editor Fehler: " + text);
-}
 
 void spielPruefen() {
     Editor& e = g();
@@ -279,9 +305,7 @@ void spielPruefen() {
     // NRC default_scale (ja.game, jk2.game): 0.25 statt des Grundwerts 0.5
     // (Texdef_getDefaultTextureScale, brush_primit.cpp).
     karte::setzeStandardTexturSkalierung(0.25F);
-    char z[200];
-    std::snprintf(z, sizeof(z), tr(Str::KeGameLoading), spielName(spiel).c_str());
-    ausgabe(z);
+    diag::detail("Karten-Editor: lade " + spielName(spiel));
     e.spielLaden = std::async(std::launch::async, spielLadenJetzt, spiel, suchpfade(spiel), defOrdner(spiel));
 }
 
@@ -311,31 +335,32 @@ bool karteOeffnen(const std::string& pfad) {
     Editor& e = g();
     karteFreigeben();
     e.name = pfad;
-    // Map_LoadFile (map.cpp:1001-1026)
-    ausgabe("Loading map from " + pfad);
+    // Map_LoadFile (map.cpp:1001-1026): Pfade mit '/' wie aus Qts Dateiwahl
+    const std::string anzeige = nrcPfad(pfad);
+    ausgabe("Loading map from " + anzeige);
     const auto t0 = std::chrono::steady_clock::now();
     karte::LeseErgebnis ergebnis;
+    // MapResource_loadFile (referencecache.cpp:64-79): "Open file X for read..." + success / failure
+    konsoleSchreiben(KonsolenZeile::Art::Ausgabe, "Open file " + anzeige + " for read...");
     const bool ok = karte::karteLaden(pfad, e.karte, ergebnis);
-    for (const std::string& m : ergebnis.meldungen) {
-        if (m.find("rror") != std::string::npos) { fehler(m); } else { warnung(m); }
+    if (ok) {
+        konsoleSchreiben(KonsolenZeile::Art::Ausgabe, "success\n");
+        for (const std::string& m : ergebnis.meldungen) {
+            if (m.find("rror") != std::string::npos) { fehler(m); } else { warnung(m); }
+        }
+    } else {
+        konsoleSchreiben(KonsolenZeile::Art::Fehler, "failure\n");
     }
     e.karte.anmelden();
     e.karte.undo.clear();
     e.karte.undo.alsGespeichertMarkieren();
     std::size_t primitive = 0;
     for (const auto& ent : e.karte.entitaeten()) { primitive += ent->kinder().size(); }
-    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-    char z[160];
-    std::snprintf(z, sizeof(z), "map load: %.0f ms", ms);   // ScopeTimer timer( "map load" )
-    ausgabe(z);
+    ausgabe(zeitText("map load", t0));   // ScopeTimer timer( "map load" )
     ausgabe("--- LoadMapFile ---");
-    ausgabe(e.name);
+    ausgabe(nrcPfad(e.name));
     ausgabe(std::to_string(primitive) + " primitives");
     ausgabe(std::to_string(e.karte.entitaeten().size()) + " entities");
-    if (!ok) {
-        std::snprintf(z, sizeof(z), tr(Str::KeMapLoadFailed), pfad.c_str());
-        fehler(z);
-    }
     ++e.ladeZaehler;
     startPosition();   // Map_LoadFile: Map_StartPosition
     return ok;
@@ -354,16 +379,8 @@ bool karteSpeichernUnter(const std::string& pfad) {
     Editor& e = g();
     zuletztHinzu(pfad);   // Map_SaveAs: MRU_AddFile, Map_Rename, Map_Save
     e.name = pfad;
-    std::string grund;
-    // MapResource_save: mit Sicherung der alten Datei als .bak.
-    if (!karte::karteSpeichern(pfad, e.karte, true, &grund)) {
-        char z[400];
-        std::snprintf(z, sizeof(z), tr(Str::KeMapSaveFailed), pfad.c_str(), grund.c_str());
-        fehler(z);
-        return false;
-    }
+    if (!karteSchreibenMitMeldungen(pfad)) { return false; }
     e.karte.undo.alsGespeichertMarkieren();
-    ausgabe("Saved " + pfad);
     return true;
 }
 
@@ -379,13 +396,7 @@ bool karteSpeichern() {
     // wenn geaendert, und erst dann in die zuletzt-Liste.
     if (e.name == "unnamed.map") { return karteSpeichernUnterDialog(); }
     if (!geaendert()) { return true; }
-    std::string grund;
-    if (!karte::karteSpeichern(e.name, e.karte, true, &grund)) {
-        char z[400];
-        std::snprintf(z, sizeof(z), tr(Str::KeMapSaveFailed), e.name.c_str(), grund.c_str());
-        fehler(z);
-        return false;
-    }
+    if (!karteSchreibenMitMeldungen(e.name)) { return false; }
     e.karte.undo.alsGespeichertMarkieren();
     zuletztHinzu(e.name);
     return true;
@@ -484,38 +495,6 @@ const char* feldKurz(Feld f) {
 
 void feldInhalt(Feld f);
 void gruppenInhalt(int breite, int hoehe);
-
-// radiant/console.cpp: Ausgabe in der Textfarbe, Warnungen (255,127,0),
-// Fehler (255,0,0) - in einem schreibgeschuetzten Textfeld.
-void konsoleZeichnen() {
-    Editor& ed = editor();
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
-    ImGui::BeginChild("##konsoleText", ImVec2{-FLT_MIN, -FLT_MIN}, ImGuiChildFlags_None,
-                      ImGuiWindowFlags_HorizontalScrollbar);
-    static std::size_t gesehen = 0;
-    ImGuiListClipper clip;
-    clip.Begin(static_cast<int>(ed.konsole.size()));
-    while (clip.Step()) {
-        for (int i = clip.DisplayStart; i < clip.DisplayEnd; ++i) {
-            const KonsolenZeile& z = ed.konsole[static_cast<std::size_t>(i)];
-            if (z.art == KonsolenZeile::Art::Ausgabe) {
-                ImGui::TextUnformatted(z.text.c_str());
-            } else {
-                ImGui::PushStyleColor(ImGuiCol_Text, z.art == KonsolenZeile::Art::Warnung ? ImVec4{1.0F, 0.498F, 0.0F, 1.0F}
-                                                                                         : ImVec4{1.0F, 0.0F, 0.0F, 1.0F});
-                ImGui::TextUnformatted(z.text.c_str());
-                ImGui::PopStyleColor();
-            }
-        }
-    }
-    // Neue Zeilen: ans Ende rollen (Sys_Print: moveCursor End).
-    if (gesehen != ed.konsole.size()) {
-        gesehen = ed.konsole.size();
-        ImGui::SetScrollHereY(1.0F);
-    }
-    ImGui::EndChild();
-    ImGui::PopStyleColor();
-}
 
 // Der Inhalt eines Feldes: die Ansichten (XYWnd, CamWnd), die Konsole und
 // der Texturbrowser.

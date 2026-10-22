@@ -216,6 +216,12 @@ void Dateisystem::ordnerHinzufuegen(const std::string& ordner, const std::string
     Archiv dir;
     dir.name = pfad;
     m_archive.push_back(std::move(dir));
+    std::error_code ecDir;
+    if (!std::filesystem::is_directory(pfadAus(pfad), ecDir)) {   // g_dir_open schlug fehl
+        fehler(protokoll, "vfs directory not found: " + pfad + "\n");
+        return;
+    }
+    ausgabe(protokoll, "vfs directory: " + pfad + "\n");
 
     std::string ignorieren, vorrang;
     if (spielmodus == "sp") {
@@ -244,6 +250,7 @@ void Dateisystem::ordnerHinzufuegen(const std::string& ordner, const std::string
             Archiv a;
             a.name = pfad + name;
             a.istPak = true;
+            ausgabe(protokoll, "  pak file: " + a.name + "\n");   // InitPakFile
             if (readPk3Directory(a.name, a.pak)) {
                 m_archive.push_back(std::move(a));
             }
@@ -409,6 +416,12 @@ void Texturinventar::laden(const Dateisystem& fs, const std::string& standardSha
     m_fs = &fs;
     m_shaderDateien.clear();
     m_meldungen.clear();
+    protokoll.clear();
+    // Meldungen des Tokenizers (globalErrorStream) seit der letzten Stelle
+    std::size_t gemeldet = 0;
+    const auto tokenizerFehler = [this, &gemeldet]() {
+        for (; gemeldet < m_meldungen.size(); ++gemeldet) { fehler(protokoll, m_meldungen[gemeldet] + "\n"); }
+    };
     m_shader.clear();
     {
         std::lock_guard<std::mutex> l(m_sperre);
@@ -421,6 +434,7 @@ void Texturinventar::laden(const Dateisystem& fs, const std::string& standardSha
         for (const auto& s : m_shaderDateien) {
             if (gleichOhneFall(s, datei)) {
                 m_meldungen.push_back("duplicate entry \"" + s + "\" in shaderlist.txt");
+                ausgabe(protokoll, "duplicate entry \"" + s + "\" in shaderlist.txt\n");
                 return;
             }
         }
@@ -440,7 +454,10 @@ void Texturinventar::laden(const Dateisystem& fs, const std::string& standardSha
         std::string text;
         if (fs.textAusArchiv(archiv, pfad + "shaderlist.txt", text)) {
             m_meldungen.push_back("Found shaderlist.txt in " + archiv);
+            gemeldet = m_meldungen.size();
+            ausgabe(protokoll, "Found shaderlist.txt in " + archiv + "\n");
             listeLesen(text);
+            tokenizerFehler();
         }
     }
     if (m_shaderDateien.empty() && !standardShaderliste.empty()) {
@@ -452,16 +469,26 @@ void Texturinventar::laden(const Dateisystem& fs, const std::string& standardSha
             listeLesen(textmodusLesen(s.str()));
         }
     }
+    tokenizerFehler();
     if (m_shaderDateien.empty()) {
         m_meldungen.push_back("No shaderlist.txt found: loading all shaders");
+        gemeldet = m_meldungen.size();
+        ausgabe(protokoll, "No shaderlist.txt found: loading all shaders\n");
         for (const auto& d : fs.dateien(pfad, "shader", 1)) { hinzufuegen(d); }
     }
     for (const auto& datei : m_shaderDateien) {   // LoadShaderFile
         std::string text;
         if (fs.textLesen(pfad + datei, text)) {
+            ausgabe(protokoll, "Parsing shaderfile " + pfad + datei + "\n");
+            const std::size_t vorher = m_meldungen.size();
             shaderDateiParsen(text, pfad + datei);
+            // Tokenizer-Fehler, dann "Error parsing shader" (beides globalErrorStream)
+            for (std::size_t i = vorher; i < m_meldungen.size(); ++i) { fehler(protokoll, m_meldungen[i] + "\n"); }
+            gemeldet = m_meldungen.size();
         } else {
             m_meldungen.push_back("Unable to read shaderfile " + pfad + datei);
+            gemeldet = m_meldungen.size();
+            warnung(protokoll, "Unable to read shaderfile " + pfad + datei + "\n");
         }
     }
 }

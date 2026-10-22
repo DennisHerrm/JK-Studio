@@ -34,6 +34,7 @@
 #define BHED_KARTE_TEXTUREN_H
 
 #include "bhed/karte/pinsel.h"
+#include "bhed/karte/protokoll.h"
 #include "bhed/pk3.h"
 
 #include <cstddef>
@@ -49,6 +50,9 @@ namespace bhed::karte {
 // Das virtuelle Dateisystem (Quake3FileSystem).
 class Dateisystem {
 public:
+    // Die Meldungen von InitDirectory/InitPakFile (vfs.cpp:98, 227, 290) in
+    // ihrer Reihenfolge, fuer die Konsole.
+    Protokoll protokoll;
     // QE_InitVFS ruft initDirectory fuer Mod-Ordner, dann Basis-Ordner.
     void ordnerHinzufuegen(const std::string& ordner, const std::string& spielmodus);   // InitDirectory
     [[nodiscard]] bool dateiLesen(const std::string& pfad, std::string& inhalt) const;   // openFile (erstes Archiv)
@@ -119,6 +123,10 @@ public:
 
     [[nodiscard]] const std::vector<std::string>& shaderDateien() const { return m_shaderDateien; }   // l_shaderfiles
     [[nodiscard]] std::vector<std::string> meldungen() const { return m_meldungen; }
+    // Shaders_Load / LoadShaderFile / ParseShaderFile (shaders.cpp:1403-1670):
+    // "Found shaderlist.txt in", "No shaderlist.txt found: loading all
+    // shaders", "Parsing shaderfile", Fehler - in NRCs Reihenfolge und Art.
+    Protokoll protokoll;
     // g_shaderDefinitions: alle Shader aus den Dateien, Namen ohne Gross/klein sortiert
     [[nodiscard]] std::vector<const ShaderEintrag*> shader() const;
     [[nodiscard]] const ShaderEintrag* shaderFinden(const std::string& name) const;

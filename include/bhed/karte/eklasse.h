@@ -21,6 +21,7 @@
 #define BHED_KARTE_EKLASSE_H
 
 #include "bhed/karte/mathe.h"
+#include "bhed/karte/protokoll.h"
 
 #include <array>
 #include <cstddef>
@@ -116,12 +117,18 @@ public:
     [[nodiscard]] std::size_t anzahl() const { return m_klassen.size(); }
     [[nodiscard]] const EntitaetsKlasse* unbekannt() const { return m_unbekannt.get(); }
 
+    // Die Meldungen von ordnerLaden (eclass.cpp:145-172 "Ignoring",
+    // "EntityClass: searching", eclass_def.cpp:290-367 "ScanFile", "Error
+    // parsing", eclass_xml.cpp:530 "parsing entity classes from").
+    Protokoll protokoll;
+
 private:
     struct OhneFall {
         bool operator()(const std::string& a, const std::string& b) const;
     };
     std::map<std::string, std::unique_ptr<EntitaetsKlasse>, OhneFall> m_klassen;
     std::map<std::string, ListenTyp> m_listen;
+    std::string m_datei;   // ganzer Pfad der gerade gelesenen Datei (fuer "Error parsing")
     std::unique_ptr<EntitaetsKlasse> m_unbekannt;   // eclass_bad
 };
 

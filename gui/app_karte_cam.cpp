@@ -758,14 +758,16 @@ void kameraBefehl(const std::string& name) {
         c.modus = karte::vorherigerModus(c.modus);
         einstellungenSpeichern();
     } else if (name == "CameraSpeedInc" || name == "CameraSpeedDec") {
+        // CameraSpeed_increase/_decrease (camwindow.cpp:2474-2485): Text als
+        // Ausgabe, die Zahl als Warnung - auf einer Zeile
         if (name == "CameraSpeedInc") {
             karte::tempoHoeher(c);
-            ausgabe(" ++Camera Move Speed: ");
+            konsoleSchreiben(KonsolenZeile::Art::Ausgabe, " ++Camera Move Speed: ");
         } else {
             karte::tempoNiedriger(c);
-            ausgabe(" --Camera Move Speed: ");
+            konsoleSchreiben(KonsolenZeile::Art::Ausgabe, " --Camera Move Speed: ");
         }
-        warnung(std::to_string(c.tempo));
+        konsoleSchreiben(KonsolenZeile::Art::Warnung, std::to_string(c.tempo) + "\n");
         einstellungenSpeichern();
     } else if (name == "ShowStats") {
         c.zeigeStatistik = !c.zeigeStatistik;

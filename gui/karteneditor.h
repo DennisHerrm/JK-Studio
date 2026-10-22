@@ -68,14 +68,24 @@ struct Spielkontext {
     karte::Texturinventar inventar;
     karte::EntitaetsKlassen klassen;
     std::vector<std::string> meldungen;
+    karte::Protokoll protokoll;     // die Meldungen beim Laden in NRCs Wortlaut und Reihenfolge
     double sekunden = 0.0;
 };
 
 // Eine Zeile der Konsole (radiant/console.cpp): Ausgabe, Warnung, Fehler.
+// Eine Zeile kann Stuecke verschiedener Art haben (Sys_Print schreibt Teile,
+// erst '\n' beendet die Zeile).
 struct KonsolenZeile {
     enum class Art { Ausgabe, Warnung, Fehler };
-    Art art = Art::Ausgabe;
-    std::string text;
+    struct Teil {
+        Art art = Art::Ausgabe;
+        std::size_t von = 0;
+        std::size_t laenge = 0;
+    };
+    Art art = Art::Ausgabe;      // Art des ersten Stuecks
+    std::string text;            // die ganze Zeile ohne '\n'
+    std::vector<Teil> teile;
+    bool offen = true;           // noch ohne '\n'
 };
 
 // Die Farbrollen der Ansichten (xywindow.h:249-260 g_xywindow_globals,
@@ -333,6 +343,8 @@ struct Editor {
 
     // --- Konsole ---
     std::vector<KonsolenZeile> konsole;
+    std::size_t konsoleStand = 0;    // steigt mit jedem Schreiben und Leeren
+    bool konsoleRollen = false;      // nach einem '\n' ans Ende rollen (ensureCursorVisible)
 
     // --- Fenster (MainFrame) ---
     befehle::Anordnung anordnung = befehle::Anordnung::Regular;   // g_Layout_viewStyle
@@ -682,10 +694,18 @@ void rueckfrageDann(const char* titel, std::function<void()> danach);
 // (MapEntityClasses::unrealise/realise).
 void entitaetenKlassenNeuLaden();
 
-// Konsole: globalOutputStream / globalWarningStream / globalErrorStream.
+// Konsole (app_karte_konsole.cpp): Sys_Print - Text an das Ende, '\n'
+// beendet die Zeile; ausgabe/warnung/fehler schreiben eine ganze Zeile
+// (globalOutputStream / globalWarningStream / globalErrorStream << text << '\n').
+void konsoleSchreiben(KonsolenZeile::Art art, const std::string& text);
 void ausgabe(const std::string& text);
 void warnung(const std::string& text);
 void fehler(const std::string& text);
+void konsoleProtokoll(const karte::Protokoll& p);
+void konsoleLeeren();
+[[nodiscard]] std::string konsoleAuswahl();   // fuer den Selbsttest
+// Die Konsole im aktuellen Kindfenster (Console_constructWindow).
+void konsoleZeichnen();
 
 // Das Spiel: gewaehltes Regelwerk; startet das Laden im Hintergrund, wenn
 // es sich geaendert hat. bereit() wartet nicht.

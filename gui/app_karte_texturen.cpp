@@ -489,8 +489,8 @@ void kontextMenue() {
             std::vector<std::string> w;
             std::size_t n = 0;
             if (ed.texBro.verzeichnisDesShaders(name, ed.aktiveShader, ed.karteSpiel->inventar, ed.karteSpiel->fs, &w, &n)) {
+                for (const std::string& m : w) { warnung(m); }   // waehrend des Aufbaus (texwindow.cpp:679)
                 ausgabe("Showing " + std::to_string(n) + " shaders.");
-                for (const std::string& m : w) { warnung(m); }
             }
         }
     }
@@ -662,8 +662,8 @@ void ansichtMaus(ImVec2 a, ImVec2 c) {
                 std::vector<std::string> w;
                 std::size_t n = 0;
                 if (tb.verzeichnisDesShaders(tb.shader, ed.aktiveShader, ed.karteSpiel->inventar, ed.karteSpiel->fs, &w, &n)) {
+                    for (const std::string& m : w) { warnung(m); }   // waehrend des Aufbaus (texwindow.cpp:679)
                     ausgabe("Showing " + std::to_string(n) + " shaders.");
-                    for (const std::string& m : w) { warnung(m); }
                 }
             }
         } else if (d == Druck::Rechts) {   // TextureBrowser_Tracking_MouseDown
@@ -875,8 +875,8 @@ void texturVerzeichnisZeigen(const std::string& dir) {
     if (!ed.karteSpiel) { return; }
     std::vector<std::string> w;
     const std::size_t n = ed.texBro.verzeichnisZeigen(dir, ed.aktiveShader, ed.karteSpiel->inventar, ed.karteSpiel->fs, &w);
+    for (const std::string& m : w) { warnung(m); }   // waehrend des Aufbaus (texwindow.cpp:679)
     ausgabe("Showing " + std::to_string(n) + " shaders.");
-    for (const std::string& m : w) { warnung(m); }
 }
 
 void texturBrowserZeichnen(int breite, int hoehe) {

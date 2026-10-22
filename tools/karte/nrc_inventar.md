@@ -163,7 +163,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     - [x] CHECK XY (Top) View [wenn: if ( style == MainFrame::eFloating )] -> `ToggleView`  (radiant/mainframe.cpp:938)
     - [x] CHECK XZ (Front) View [wenn: if ( style == MainFrame::eFloating )] -> `ToggleFrontView`  (radiant/mainframe.cpp:939)
     - [x] CHECK YZ (Side) View [wenn: if ( style == MainFrame::eFloating )] -> `ToggleSideView`  (radiant/mainframe.cpp:940)
-    - [ ] ITEM Console [wenn: if ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft )] -> `ToggleConsole`  (radiant/mainframe.cpp:943)
+    - [x] ITEM Console [wenn: if ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft )] -> `ToggleConsole`  (radiant/mainframe.cpp:943) -- Stufe 1b Punkt 10
     - [ ] ITEM Texture Browser [wenn: if ( ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft ) || g_Layout_builtInGroupDialog.m_value )] -> `ToggleTextures`  (radiant/mainframe.cpp:946)
     - [ ] ITEM Model Browser -> `ToggleModelBrowser`  (radiant/mainframe.cpp:948)
     - [x] ITEM Entity Inspector -> `ToggleEntityInspector`  (radiant/mainframe.cpp:949) -- Stufe 1b Punkt 9
@@ -497,7 +497,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 - [~] toggle_button Texture Lock | texture_lock.png -> `TogTexLock`  (radiant/mainframe.cpp:1424) -- Stufe 2
 - [~] toggle_button Texture Vertex Lock | texture_vertexlock.png -> `TogTexVertexLock`  (radiant/mainframe.cpp:1425) -- Stufe 2
 - [x] button Entities | entities.png -> `ToggleEntityInspector`  (radiant/mainframe.cpp:1428) -- Stufe 1b Punkt 9
-- [ ] button Console [wenn: if ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft )] | console.png -> `ToggleConsole`  (radiant/mainframe.cpp:1431)
+- [x] button Console [wenn: if ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft )] | console.png -> `ToggleConsole`  (radiant/mainframe.cpp:1431) -- Stufe 1b Punkt 10
 - [ ] button Texture Browser [wenn: if ( ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft ) || g_Layout_builtInGroupDialog.m_value )] | texture_browser.png -> `ToggleTextures`  (radiant/mainframe.cpp:1434)
 - [~] button Refresh Models | refresh_models.png -> `RefreshReferences`  (radiant/mainframe.cpp:1441) -- Stufe 2
 
@@ -864,7 +864,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `TextureReset/Cap` | Commands | Shift+N | (radiant/surfacedialog.cpp:1746) -- Stufe 2
 - [x] `ToggleCamera` | Toggles | Ctrl+Shift+C | (radiant/camwindow.cpp:2498)
 - [~] `ToggleClipper` | Toggles | X | (radiant/tools.cpp:426) -- Stufe 2
-- [ ] `ToggleConsole` | Commands | O | (radiant/mainframe.cpp:2078)
+- [x] `ToggleConsole` | Commands | O | (radiant/mainframe.cpp:2078) -- Stufe 1b Punkt 10
 - [x] `ToggleCrosshairs` | Toggles | Shift+X | (radiant/xywindow.cpp:2215) -- Stufe 1b Punkt 5
 - [x] `ToggleCubicClip` | Toggles | Ctrl+\\ | (radiant/camwindow.cpp:2491)
 - [x] `ToggleEntityInspector` | Commands | N | (radiant/mainframe.cpp:2079) -- Stufe 1b Punkt 9

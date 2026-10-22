@@ -605,7 +605,8 @@ std::size_t EntitaetsKlassen::defLesen(const std::string& text, const std::strin
                     e->quelle = quelle;
                     einfuegen(std::move(e));
                 } else {
-                    ++fehler;   // NRC: "Error parsing: <debugname> in <filename>"
+                    ++fehler;
+                    karte::fehler(protokoll, "Error parsing: " + debugname + " in " + (m_datei.empty() ? quelle : m_datei) + "\n");
                 }
                 puffer.clear();
                 z = Normal;
@@ -634,7 +635,15 @@ std::size_t EntitaetsKlassen::entLesen(const std::string& text, const std::strin
 std::size_t EntitaetsKlassen::ordnerLaden(const std::string& ordner, const std::string& spielmodus) {
     std::size_t fehler = 0;
     const std::filesystem::path o(std::u8string(reinterpret_cast<const char8_t*>(ordner.data()), ordner.size()));
-    for (const char* endung : {".def", ".ent"}) {
+    // Der Ordner wie NRC ihn nennt: '/' statt '\\', mit '/' am Ende
+    std::string anzeige = ordner;
+    std::replace(anzeige.begin(), anzeige.end(), '\\', '/');
+    if (!anzeige.empty() && anzeige.back() != '/') { anzeige += '/'; }
+    // Module alphabetisch: def, fgd, xml (.ent); fgd liest dieser Editor nicht
+    // (die Spiele dieses Programms haben keine), NRC sucht trotzdem.
+    for (const char* endung : {".def", ".fgd", ".ent"}) {
+        ausgabe(protokoll, "EntityClass: searching \"" + anzeige + "\" for *." + std::string(endung + 1) + "\n");
+        if (std::string(endung) == ".fgd") { continue; }
         std::vector<std::string> namen;
         std::error_code ec;
         for (const auto& d : std::filesystem::directory_iterator(o, ec)) {
@@ -647,13 +656,25 @@ std::size_t EntitaetsKlassen::ordnerLaden(const std::string& ordner, const std::
         for (const auto& name : namen) {
             // eclass_filter_gamemode: sp ignoriert "mp_", mp ignoriert "sp_" (case-sensitiv, string_equal_n)
             const bool sp = spielmodus.empty() || spielmodus == "sp";
-            if ((sp && name.compare(0, 3, "mp_") == 0) || (!sp && name.compare(0, 3, "sp_") == 0)) { continue; }
+            if ((sp && name.compare(0, 3, "mp_") == 0) || (!sp && name.compare(0, 3, "sp_") == 0)) {
+                ausgabe(protokoll, "Ignoring '" + name + "'\n");
+                continue;
+            }
+            const bool def = std::string(endung) == ".def";
             std::string text;
             if (!dateiLesen(o / name, text)) {
                 ++fehler;
+                if (def) { karte::fehler(protokoll, "ScanFile: " + anzeige + name + " not found\n"); }
                 continue;
             }
-            fehler += std::string(endung) == ".def" ? defLesen(text, name) : entLesen(text, name);
+            if (def) {
+                ausgabe(protokoll, "ScanFile: " + anzeige + name + "\n");
+            } else {
+                ausgabe(protokoll, "parsing entity classes from \"" + anzeige + name + "\"\n");
+            }
+            m_datei = anzeige + name;
+            fehler += def ? defLesen(text, name) : entLesen(text, name);
+            m_datei.clear();
         }
     }
     return fehler;
