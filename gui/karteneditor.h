@@ -683,6 +683,9 @@ bool qtPopupAnfang(const char* id, bool abriss = false);
 void qtPopupEnde();
 bool qtPunkt(const QtPunkt& p);
 void qtTrenner();
+// QCheckBox wie Fusion an der Schreibstelle: Kaestchen 14 senkrecht mittig in
+// einer Zeile der Hoehe zeileH (logisch), Text 5 dahinter.
+bool qtHaken(const char* id, bool* wert, float zeileH);
 // Die Mnemonik unterstreichen (Lage im Text, -1 = keine) bzw. ihre Lage,
 // wenn text NRCs Wortlaut nrc (mit '&') ist.
 void qtUnterstreichen(ImDrawList* dl, ImVec2 textPos, const std::string& text, int lage, unsigned int farbe);

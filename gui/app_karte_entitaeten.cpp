@@ -507,8 +507,7 @@ void spawnflagsZeichnen(ImVec2 a, int breite) {
         const int y = static_cast<int>(i / 4) * (kCheckboxH + kAbstand);
         ImGui::SetCursorScreenPos(ImVec2{a.x + px(static_cast<float>(x)), a.y + px(static_cast<float>(y))});
         bool an = (flags & (1 << t[i])) != 0;
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, std::max(0.0F, (px(kCheckboxH) - ImGui::GetFontSize()) * 0.5F)});
-        if (ImGui::Checkbox((texte[i] + "##eiflag" + std::to_string(t[i])).c_str(), &an)) {   // EntityInspector_applySpawnflags
+        if (qtHaken((texte[i] + "##eiflag" + std::to_string(t[i])).c_str(), &an, static_cast<float>(kCheckboxH))) {   // EntityInspector_applySpawnflags
             int f = 0;
             for (std::size_t j = 0; j < t.size(); ++j) {
                 const bool v = j == i ? an : (flags & (1 << t[j])) != 0;
@@ -516,7 +515,6 @@ void spawnflagsZeichnen(ImVec2 a, int breite) {
             }
             karte::spawnflagsSetzen(ed.karte, f);
         }
-        ImGui::PopStyleVar();
         if (ImGui::IsItemHovered()) { tooltipAttribut(kl, kl->flagAttribut[static_cast<std::size_t>(t[i])]); }
     }
 }
@@ -792,7 +790,7 @@ void attributZeichnen(const std::string& schluessel, const karte::KlassenAttribu
     const float kamB = ImGui::CalcTextSize(trK(Str::KeEiCam)).x + px(16.0F);
     if (typ == "boolean") {   // BooleanAttribute
         bool an = std::atoi(wert.c_str()) != 0;
-        if (ImGui::Checkbox(id.c_str(), &an)) { setzen(an ? "1" : ""); }
+        if (qtHaken(id.c_str(), &an, static_cast<float>(kFeldH))) { setzen(an ? "1" : ""); }
     } else if (typ == "angle") {   // AngleAttribute: Feld + <-cam
         const std::string anzeige = wert.empty() ? std::string("0") : winkelText(alsZahl(wert));
         if (nichtModal((id + "w").c_str(), anzeige, breite - kamB - px(kAbstand), neu, true)) { setzen(winkelText(alsZahl(neu))); }
@@ -1343,11 +1341,9 @@ void entitaetenListeZeichnen() {
         const int hakenB = checkboxBreite(trK(Str::KeEiAutoFocus));
         merkeFeld("EntityList:AutoFocus", 4, zy, hakenB, zeileH);
         ImGui::SetCursorScreenPos(bp(4, zy));
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, std::max(0.0F, (px(zeileH) - ImGui::GetFontSize()) * 0.5F)});
-        if (ImGui::Checkbox((std::string(trK(Str::KeEiAutoFocus)) + "##elautofocus").c_str(), &u.listeAutoFokus)) {
+        if (qtHaken((std::string(trK(Str::KeEiAutoFocus)) + "##elautofocus").c_str(), &u.listeAutoFokus, static_cast<float>(zeileH))) {
             if (u.listeAutoFokus) { alleAnsichtenFokus(); }   // entitylist_focusSelected
         }
-        ImGui::PopStyleVar();
         const int fx = 4 + hakenB + kAbstand;
         const int fb = std::max(1, b - 4 - fx);
         merkeFeld("EntityList:Filter", fx, zy, fb, zeileH);
@@ -1512,7 +1508,7 @@ void lichtDialogZeichnen() {
         ImGui::InputInt("##lichtwert", &u.lichtWert);   // SpinBox( -99999, 99999 )
         u.lichtWert = std::clamp(u.lichtWert, -99999, 99999);
         const bool enterImFeld = ImGui::IsItemDeactivated() && (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter));
-        ImGui::Checkbox(trK(Str::KeLiDontShow), &u.lichtNichtZeigen);   // g_dontDoLightIntensityDlg
+        (void)qtHaken(trK(Str::KeLiDontShow), &u.lichtNichtZeigen, static_cast<float>(kCheckboxH));   // g_dontDoLightIntensityDlg
         // QDialogButtonBox: OK und Cancel rechts, je 79 breit (wie Preferences, gemessen)
         const float knopfB = px(79.0F);
         ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetContentRegionMax().x - knopfB * 2.0F - ImGui::GetStyle().ItemSpacing.x));

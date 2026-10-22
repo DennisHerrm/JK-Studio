@@ -1049,7 +1049,7 @@ void texturDialogeZeichnen() {
                 zeile(Str::KeFrReplace, ed.ersetzenText, "##ersetzen", trK(Str::KeFrPlaceholder), false);
                 ImGui::TableNextRow();
                 ImGui::TableSetColumnIndex(1);
-                ImGui::Checkbox(trK(Str::KeFrSelected), &ed.findenNurAuswahl);
+                (void)qtHaken(trK(Str::KeFrSelected), &ed.findenNurAuswahl, 17.0F);   // QCheckBox: max(fm 13 + 4, 14)
                 ImGui::EndTable();
             }
             ImGui::EndGroup();

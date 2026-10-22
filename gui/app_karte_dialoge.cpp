@@ -21,6 +21,7 @@
 #include "karteneditor.h"
 
 #include "app_internal.h"
+#include "platform.h"
 #include "tastatur.h"
 
 #include <algorithm>
@@ -29,6 +30,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
 
 namespace bhed::gui::karteneditor {
 
@@ -83,119 +85,209 @@ struct Entwurf {
 };
 Entwurf g_entwurf;
 
-// Eine Seite ist eine QGroupBox mit einem QFormLayout (PreferencesPage,
-// radiant/dialog.cpp: addSpinner/addCheckBox/addCombo/addRadioIcons/
-// addPathEntry): Beschriftung rechtsbuendig links, Feld ueber die ganze
-// rechte Spalte; Checkboxen haben links eine leere Beschriftung. Vorlage:
-// die Fotos SP\nrc_fotos\dialoge\pref_<Seite>.png.
-bool formBeginnen(const char* id) {
-    return ImGui::BeginTable(id, 2, ImGuiTableFlags_SizingFixedFit);
+// --- Masse wie Qt 5.15 / Fusion (logische Punkte) -----------------------------
+//
+// Gemessen an pref_Camera.png und pref_Layout.png (Innenraum ab 11/45 im
+// Foto, 2x) und mit Qts Werten belegt:
+//   QGridLayout des Dialogs: Rand 11 (PM_DefaultTopLevelMargin), Abstand 6
+//   (PM_DefaultLayoutSpacing); SetFixedSize: 597 x 492 (die groesste Seite)
+//   Baum (QTreeView, AdjustToContents) 11, 11, 147 x 470; Zeilen 16 (Segoe
+//   UI 9 pt: ItemViewFont = lfIconTitleFont), Einzug 20 (PM_TreeViewIndentation),
+//   Text 3 nach dem Einzug (PM_FocusFrameHMargin + 1), Pfeil 8 x 4 in der Mitte
+//   des ersten Einzugs (qt_fusion_draw_arrow)
+//   Seite (QGroupBox) 164, 11, 422 x 442: Titel bei 166, Rahmen ab 28
+//   (max(14, fm 13) + 3), Inhalt ab 39 und 176..574 (margin 3 + Layoutrand 9)
+//   QDialogButtonBox: Zeile 459..481, Knoepfe 80 breit - Clean 164, OK 420, Cancel 506
+// Die Widgets (Beschriftungen, Felder, Knoepfe, Titel) in Tahoma 8 pt
+// (SystemFont = MS Shell Dlg 2), der Baum in Segoe UI 9 pt.
+constexpr int kInnenB = 597;
+constexpr int kInnenH = 492;
+constexpr int kRand = 11;
+constexpr int kAbstand = 6;
+constexpr int kBaumB = 147;
+constexpr int kBaumZeile = 16;
+constexpr int kEinzug = 20;
+constexpr int kTextRand = 3;
+constexpr int kKnopfB = 80;
+constexpr int kKnopfH = 22;
+constexpr int kGruppeX = kRand + kBaumB + kAbstand;    // 164
+constexpr int kGruppeB = kInnenB - kRand - kGruppeX;   // 422
+constexpr int kKnopfY = kInnenH - kRand - kKnopfH;     // 459
+constexpr int kGruppeH = kKnopfY - kAbstand - kRand;   // 442
+constexpr int kRahmenOben = 17;    // PE_FrameGroupBox: topMargin
+constexpr int kInhaltOben = 28;    // erste Zeile bei 39
+constexpr int kInhaltRand = 12;
+constexpr int kTitelX = 2;
+constexpr int kFeldH = 22;         // QSpinBox, QComboBox, QLineEdit
+constexpr int kHakenZeile = 20;    // QCheckBox
+constexpr int kHaken = 14;         // PM_IndicatorWidth / PM_ExclusiveIndicatorWidth
+constexpr int kBildB = 72;         // addRadioIcons: Bild mit Rahmen (halbe Groesse)
+constexpr int kBildH = 40;
+
+float g_sk = 1.0F;
+ImVec2 g_innen{0.0F, 0.0F};   // Innenraum oben links (Bildpunkte)
+
+ImVec2 bp(float x, float y) { return ImVec2{std::round(g_innen.x + x * g_sk), std::round(g_innen.y + y * g_sk)}; }
+float px(float l) { return std::round(l * g_sk); }
+
+// QLabel::sizeHint in Tahoma 8 pt (GDI wie Qt)
+int labelBreite(const char* text) {
+    const int b = platform::gdiTextBreite(text, L"Tahoma", 11, false);
+    return b >= 0 ? b : static_cast<int>(std::lround(ImGui::CalcTextSize(text).x / g_sk));
 }
-void formSpalten() {
-    ImGui::TableSetupColumn("##beschriftung", ImGuiTableColumnFlags_WidthFixed);
-    ImGui::TableSetupColumn("##feld", ImGuiTableColumnFlags_WidthStretch);
-}
-// Neue Zeile; die Beschriftung rechtsbuendig (Str::Count: keine).
-void formZeile(Str text) {
-    ImGui::TableNextRow();
-    ImGui::TableSetColumnIndex(0);
-    ImGui::AlignTextToFramePadding();
-    if (text != Str::Count) {
-        const char* t = trK(text);
-        const float b = ImGui::CalcTextSize(t).x;
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(0.0F, ImGui::GetColumnWidth() - b));
-        ImGui::TextUnformatted(t);
+
+// Eine Seite ist eine QGroupBox mit einem QGridLayout (PreferencePages_addPage,
+// preferences.cpp:552-559: Spalten 111 : 333, oben ausgerichtet); jede
+// Zeile ist DialogGrid_packRow (gtkutil/dialog.cpp:56-74): Beschriftung
+// rechtsbuendig in Spalte 0, das Feld in Spalte 1, Abstand 6.
+struct Form {
+    int x0 = kGruppeX + kInhaltRand;   // 176
+    int b0 = 98;
+    int x1 = 280;
+    int b1 = 294;
+    int y = kRand + kInhaltOben;       // 39
+};
+Form g_form;
+
+// qGeomCalc mit Dehnung 111 : 333: die Spalten im Verhaeltnis, aber
+// wenigstens die breiteste Beschriftung bzw. das breiteste Feld (hint1).
+void formAnfang(std::initializer_list<Str> beschriftungen, int hint1 = 0) {
+    Form f;
+    const int platz = kGruppeB - 2 * kInhaltRand - kAbstand;   // 392
+    int hint0 = 0;
+    for (Str s : beschriftungen) { hint0 = std::max(hint0, labelBreite(trK(s))); }
+    int b0 = static_cast<int>(std::lround(static_cast<double>(platz) * 111.0 / 444.0));
+    if (b0 < hint0) {
+        b0 = hint0;
+    } else if (platz - b0 < hint1) {
+        b0 = platz - hint1;
     }
-    ImGui::TableSetColumnIndex(1);
-    ImGui::SetNextItemWidth(-FLT_MIN);
+    f.b0 = b0;
+    f.x1 = f.x0 + b0 + kAbstand;
+    f.b1 = platz - b0;
+    g_form = f;
+}
+
+// Neue Zeile der Hoehe h; die Beschriftung senkrecht mittig (QLabel AlignVCenter).
+void formZeile(Str text, int h) {
+    if (text != Str::Count) {
+        const char* s = trK(text);
+        ImVec2 p = bp(static_cast<float>(g_form.x0 + g_form.b0), static_cast<float>(g_form.y));
+        p.x -= ImGui::CalcTextSize(s).x;   // rechtsbuendig (Qt::AlignRight)
+        ImGui::GetWindowDrawList()->AddText(ImVec2{p.x, std::floor(p.y + (px(static_cast<float>(h)) - ImGui::GetTextLineHeight()) * 0.5F)},
+                                            ImGui::GetColorU32(ImGuiCol_Text), s);
+    }
+}
+
+void formWeiter(int h) { g_form.y += h + kAbstand; }
+
+// Ein Feld (QSpinBox/QComboBox/QLineEdit): Rahmen 22 hoch, volle Spalte.
+void feldAnfang(Str text) {
+    formZeile(text, kFeldH);
+    ImGui::SetCursorScreenPos(bp(static_cast<float>(g_form.x1), static_cast<float>(g_form.y)));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+                        ImVec2{px(3.0F), std::max(0.0F, (px(static_cast<float>(kFeldH)) - ImGui::GetTextLineHeight()) * 0.5F)});
+    ImGui::SetNextItemWidth(px(static_cast<float>(g_form.b1)));
+}
+void feldEnde() {
+    ImGui::PopStyleVar();
+    formWeiter(kFeldH);
+}
+
+// QCheckBox: Kaestchen 14 senkrecht mittig in der Zeile 20, Text 5 dahinter.
+bool haken(Str beschriftung, const char* text, bool& wert, bool aktiv = true) {
+    formZeile(beschriftung, kHakenZeile);
+    ImGui::SetCursorScreenPos(bp(static_cast<float>(g_form.x1), static_cast<float>(g_form.y)));
+    if (!aktiv) { ImGui::BeginDisabled(); }
+    const bool geaendert = qtHaken(text, &wert, static_cast<float>(kHakenZeile));
+    if (!aktiv) { ImGui::EndDisabled(); }
+    formWeiter(kHakenZeile);
+    return geaendert;
 }
 
 void layoutSeite() {
     // Layout_constructPreferences (mainframe.cpp): appendRadioIcons "Window
-    // Layout" (vier Bilder, darunter Radioknoepfe ohne Text), appendCheckBox
+    // Layout" (vier Bilder, darunter Radioknoepfe ohne Text; ein Untergitter,
+    // Abstand 6 - Spalte 1 wird 4 x 72 + 3 x 6 = 306 breit), appendCheckBox
     // "Detachable Menus", "Built-In Group Dialog" (Foto pref_Layout.png).
-    if (!formBeginnen("##layoutseite")) { return; }
-    formSpalten();
     static const char* const kBilder[4] = {"window1", "window2", "window3", "window4"};
     static const Str kNamen[4] = {Str::KeLayoutRegular, Str::KeLayoutFloating, Str::KeLayoutSplit, Str::KeLayoutRegularLeft};
-    const float s = std::round(48.0F * g_app->dpiScale * g_app->uiScale);
-    // QFormLayout: die Beschriftung mittig zur Zeile (Bilder und Knoepfe)
-    ImGui::TableNextRow();
-    ImGui::TableSetColumnIndex(0);
-    {
-        const char* t = trK(Str::KePrWindowLayout);
-        const float zeileH = s + ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y;
-        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + std::max(0.0F, (zeileH - ImGui::GetTextLineHeight()) * 0.5F));
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(0.0F, ImGui::GetColumnWidth() - ImGui::CalcTextSize(t).x));
-        ImGui::TextUnformatted(t);
-    }
-    ImGui::TableSetColumnIndex(1);
+    formAnfang({Str::KePrWindowLayout}, 4 * kBildB + 3 * kAbstand);
+    const int zeileH = kBildH + kAbstand + kHaken;   // 60
+    formZeile(Str::KePrWindowLayout, zeileH);
+    ImDrawList* dl = ImGui::GetWindowDrawList();
     for (int k = 0; k < 4; ++k) {
-        ImGui::BeginGroup();
-        (void)symbol(kBilder[k], s, true);
-        const float r = ImGui::GetFrameHeight();
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (s - r) * 0.5F);
+        const float x = static_cast<float>(g_form.x1 + k * (kBildB + kAbstand));
+        const ImVec2 a = bp(x, static_cast<float>(g_form.y));
+        const ImVec2 e = bp(x + static_cast<float>(kBildB), static_cast<float>(g_form.y + kBildH));
+        dl->AddRect(a, e, ImGui::GetColorU32(ImGuiCol_Border));
+        // Das Bild (eigene Vektorzeichnung) mittig im Rahmen
+        const float g = px(static_cast<float>(kBildH - 4));
+        (void)karteIcon(dl, kBilder[k], ImVec2{std::floor((a.x + e.x - g) * 0.5F), std::floor((a.y + e.y - g) * 0.5F)}, g,
+                        ImGui::GetColorU32(karteIconFarbe(kBilder[k])));
+        // QRadioButton ohne Text, mittig darunter (AlignHCenter)
+        const float r = px(static_cast<float>(kHaken));
+        ImGui::SetCursorScreenPos(ImVec2{std::floor((a.x + e.x - r) * 0.5F), bp(0.0F, static_cast<float>(g_form.y + kBildH + kAbstand)).y});
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, std::max(0.0F, (r - ImGui::GetTextLineHeight()) * 0.5F)});
         ImGui::RadioButton((std::string("##layout") + std::to_string(k)).c_str(), &g_entwurf.anordnung, k);
-        ImGui::EndGroup();
+        ImGui::PopStyleVar();
         if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", trK(kNamen[k])); }
-        if (k < 3) { ImGui::SameLine(); }
     }
+    formWeiter(zeileH);
     if (g_entwurf.anordnung == 1) {
-        formZeile(Str::Count);
-        ImGui::PushTextWrapPos(0.0F);
+        // Hinweis dieses Programms zu Floating (keine Zeile bei NRC)
+        ImGui::SetCursorScreenPos(bp(static_cast<float>(g_form.x1), static_cast<float>(g_form.y)));
+        ImGui::PushTextWrapPos(bp(static_cast<float>(g_form.x1 + g_form.b1), 0.0F).x - ImGui::GetWindowPos().x);
         ImGui::TextDisabled("%s", tr(Str::KeFloatingHinweis));
         ImGui::PopTextWrapPos();
+        g_form.y += static_cast<int>(std::lround((ImGui::GetItemRectSize().y) / g_sk)) + kAbstand;
     }
-    // Detachable Menus: ImGui-Menues lassen sich nicht abreissen (Qt: tear-off).
-    formZeile(Str::Count);
-    ImGui::BeginDisabled();
-    ImGui::Checkbox(trK(Str::KePrDetachableMenus), &g_entwurf.abtrennbar);
-    ImGui::EndDisabled();
+    // Detachable Menus: das Abreissen (QTornOffMenu) kommt in Stufe 2; die
+    // Menues zeigen die Abreisskante wie NRC (Vorgabe an).
+    (void)haken(Str::Count, trK(Str::KePrDetachableMenus), g_entwurf.abtrennbar, false);
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
         char z[120];
         std::snprintf(z, sizeof(z), tr(Str::KeStufe), 2);
         ImGui::SetTooltip("%s", z);
     }
-    formZeile(Str::Count);
-    ImGui::Checkbox(trK(Str::KePrBuiltInGroupDialog), &g_entwurf.eingebaut);
-    ImGui::EndTable();
+    (void)haken(Str::Count, trK(Str::KePrBuiltInGroupDialog), g_entwurf.eingebaut);
 }
 
 // Camera_constructPreferences (camwindow.cpp:2398-2460): appendSpinner,
 // appendCheckBox, appendCombo in dieser Reihenfolge (Foto pref_Camera.png).
 void kameraSeite() {
     karte::KameraEinstellungen& c = g_entwurf.kamera;
-    if (!formBeginnen("##kameraseite")) { return; }
-    formSpalten();
+    formAnfang({Str::KePrCamMoveSpeed, Str::KePrCamTimeMax, Str::KePrCamScrollSpeed, Str::KePrCamStrafeSpeed, Str::KePrCamSensitivity,
+                Str::KePrCamRenderMode, Str::KePrCamMsaa, Str::KePrCamStrafeMode, Str::KePrCamFov});
     const auto ganz = [&](Str text, int& wert, int von, int bis) {
-        formZeile(text);
+        feldAnfang(text);
         ImGui::InputInt((std::string("##") + trK(text)).c_str(), &wert);
         wert = std::clamp(wert, von, bis);
+        feldEnde();
     };
     const auto komma = [&](Str text, float& wert, float von, float bis, const char* format) {
-        formZeile(text);
+        feldAnfang(text);
         ImGui::InputFloat((std::string("##") + trK(text)).c_str(), &wert, 0.1F, 1.0F, format);
         wert = std::clamp(wert, von, bis);
-    };
-    const auto haken = [&](Str text, bool& wert) {
-        formZeile(Str::Count);
-        ImGui::Checkbox(trK(text), &wert);
+        feldEnde();
     };
     const auto auswahl = [&](Str text, int& wert, const char* const* eintraege, int anzahl) {
-        formZeile(text);
-        return ImGui::Combo((std::string("##") + trK(text)).c_str(), &wert, eintraege, anzahl);
+        feldAnfang(text);
+        const bool r = ImGui::Combo((std::string("##") + trK(text)).c_str(), &wert, eintraege, anzahl);
+        feldEnde();
+        return r;
     };
     ganz(Str::KePrCamMoveSpeed, c.tempo, 1, karte::kTempoMax);
     ganz(Str::KePrCamTimeMax, c.zeitBisMax, 0, 5000);
     ganz(Str::KePrCamScrollSpeed, c.radTempo, 0, 999);
     komma(Str::KePrCamStrafeSpeed, c.strafeTempo, 0.1F, 10.0F, "%.2f");
     komma(Str::KePrCamSensitivity, c.winkelTempo, 0.1F, 30.0F, "%.2f");
-    haken(Str::KePrCamInvert, c.mausUmkehren);
-    haken(Str::KePrCamZoomPointer, c.zumZeiger);
-    haken(Str::KePrCamDiscrete, c.diskret);
-    haken(Str::KePrCamFarClip, c.kubisch);
-    haken(Str::KePrCamColorize, c.faerben);
-    haken(Str::KePrCamFacesWire, c.flaechenDraht);
+    (void)haken(Str::Count, trK(Str::KePrCamInvert), c.mausUmkehren);
+    (void)haken(Str::Count, trK(Str::KePrCamZoomPointer), c.zumZeiger);
+    (void)haken(Str::Count, trK(Str::KePrCamDiscrete), c.diskret);
+    (void)haken(Str::Count, trK(Str::KePrCamFarClip), c.kubisch);
+    (void)haken(Str::Count, trK(Str::KePrCamColorize), c.faerben);
+    (void)haken(Str::Count, trK(Str::KePrCamFacesWire), c.flaechenDraht);
     // Render Mode: ohne "Lighting" (nur doom3)
     const char* modi[4] = {trK(Str::KePrCamWireframe), trK(Str::KePrCamFlatshade), trK(Str::KePrCamTextured),
                            trK(Str::KePrCamTexturedWire)};
@@ -213,26 +305,23 @@ void kameraSeite() {
     (void)auswahl(Str::KePrCamStrafeMode, c.strafeModus, strafe, 5);
     // Field Of View: 1 .. 175, 0 Nachkommastellen
     komma(Str::KePrCamFov, c.sichtfeld, 1.0F, 175.0F, "%.0f");
-    ImGui::EndTable();
 }
 
 // SelectionSystem_constructPreferences (selection.cpp:2313-2325): appendSpinner
 // "Selector size (pixels)" 2..64, zwei Checkboxen, appendCombo "Move style in 3D"
 // (Foto pref_Selection.png).
 void auswahlSeite() {
-    if (!formBeginnen("##auswahlseite")) { return; }
-    formSpalten();
-    formZeile(Str::KePrSelSize);
+    formAnfang({Str::KePrSelSize, Str::KePrSelMoveStyle});
+    feldAnfang(Str::KePrSelSize);
     ImGui::InputInt("##waehlergroesse", &g_entwurf.waehlEpsilon);
     g_entwurf.waehlEpsilon = std::clamp(g_entwurf.waehlEpsilon, 2, 64);
-    formZeile(Str::Count);
-    ImGui::Checkbox(trK(Str::KePrSelPreferPoint), &g_entwurf.punktEntitaeten2d);
-    formZeile(Str::Count);
-    ImGui::Checkbox(trK(Str::KePrSel3dBrushes), &g_entwurf.pinselIn3d);
-    formZeile(Str::KePrSelMoveStyle);
+    feldEnde();
+    (void)haken(Str::Count, trK(Str::KePrSelPreferPoint), g_entwurf.punktEntitaeten2d);
+    (void)haken(Str::Count, trK(Str::KePrSel3dBrushes), g_entwurf.pinselIn3d);
+    feldAnfang(Str::KePrSelMoveStyle);
     const char* stile[2] = {trK(Str::KePrSelMoveXY), trK(Str::KePrSelMoveView)};
     (void)ImGui::Combo("##bewegstil", &g_entwurf.bewegStil3d, stile, 2);
-    ImGui::EndTable();
+    feldEnde();
 }
 
 // TextureBrowser_constructPreferences (texwindow.cpp:2044-2073): Checkbox
@@ -241,47 +330,47 @@ void auswahlSeite() {
 // folder" (Foto pref_Texture_Browser.png).
 void texBroSeite() {
     karte::TexturBrowserEinstellungen& t = g_entwurf.texBro;
-    if (!formBeginnen("##texbroseite")) { return; }
-    formSpalten();
-    formZeile(Str::Count);
-    ImGui::Checkbox(trK(Str::KePrTbScrollbar), &t.rollbalken);
-    formZeile(Str::KePrTbScale);
+    formAnfang({Str::KePrTbScale, Str::KePrTbMax, Str::KePrTbMin, Str::KePrTbWheel, Str::KePrTbStartup});
+    (void)haken(Str::Count, trK(Str::KePrTbScrollbar), t.rollbalken);
+    feldAnfang(Str::KePrTbScale);
     static const char* const skalen[5] = {"10%", "25%", "50%", "100%", "200%"};
     int index = std::max(0, karte::texturSkalaIndex(t.skala));
     if (ImGui::Combo("##texskala", &index, skalen, 5)) { t.skala = karte::texturSkalaAusIndex(index); }
-    formZeile(Str::KePrTbMax);
+    feldEnde();
+    feldAnfang(Str::KePrTbMax);
     ImGui::InputInt("##texmax", &t.einheitsGroesse);
     t.einheitsGroesse = std::clamp(t.einheitsGroesse, 16, 8192);
-    formZeile(Str::KePrTbMin);
+    feldEnde();
+    feldAnfang(Str::KePrTbMin);
     ImGui::InputInt("##texmin", &t.einheitsMin);
     t.einheitsMin = std::clamp(t.einheitsMin, 16, 8192);
-    formZeile(Str::KePrTbWheel);
+    feldEnde();
+    feldAnfang(Str::KePrTbWheel);
     ImGui::InputInt("##texrad", &t.radSchritt);
     t.radSchritt = std::clamp(t.radSchritt, 0, 8192);
-    formZeile(Str::KePrTbStartup);
+    feldEnde();
+    feldAnfang(Str::KePrTbStartup);
     const char* start[2] = {trK(Str::KePrTbNone), "System"};   // TextureBrowser_getCommonShadersName
     (void)ImGui::Combo("##texstart", &t.startShader, start, 2);
-    formZeile(Str::Count);
+    feldEnde();
     char text[160];
     std::snprintf(text, sizeof(text), trK(Str::KePrTbHideCommon), editor().texBro.commonVerzeichnis.c_str());
-    ImGui::Checkbox(text, &t.commonOhneTexturen);
-    ImGui::EndTable();
+    (void)haken(Str::Count, text, t.commonOhneTexturen);
 }
 
 // Entity_constructPreferences (entity.cpp:663-679): zwei Spinner, eine
 // Checkbox "Entity Names" mit dem Text "= Targetnames" (Foto pref_Entities.png).
 void entitaetenSeite() {
-    if (!formBeginnen("##entitaetenseite")) { return; }
-    formSpalten();
-    formZeile(Str::KePrEnDist);
+    formAnfang({Str::KePrEnDist, Str::KePrEnRatio, Str::KePrEnNames});
+    feldAnfang(Str::KePrEnDist);
     ImGui::InputInt("##namenabstand", &g_entwurf.namenAbstand);
     g_entwurf.namenAbstand = std::clamp(g_entwurf.namenAbstand, 0, 200500);
-    formZeile(Str::KePrEnRatio);
+    feldEnde();
+    feldAnfang(Str::KePrEnRatio);
     ImGui::InputInt("##namenverhaeltnis", &g_entwurf.namenVerhaeltnis);
     g_entwurf.namenVerhaeltnis = std::clamp(g_entwurf.namenVerhaeltnis, 0, 100500);
-    formZeile(Str::KePrEnNames);
-    ImGui::Checkbox(trK(Str::KePrEnTargetnames), &g_entwurf.zielnamen);
-    ImGui::EndTable();
+    feldEnde();
+    (void)haken(Str::KePrEnNames, trK(Str::KePrEnTargetnames), g_entwurf.zielnamen);
 }
 
 void interfaceSeite() {
@@ -289,16 +378,23 @@ void interfaceSeite() {
     // appendPathEntry: Feld mit "..."-Knopf; Foto pref_Interface.png), dazu
     // die Einstellung dieses Programms "Begriffe wie NetRadiant".
     static char befehl[260] = "";
-    if (!formBeginnen("##interfaceseite")) { return; }
-    formSpalten();
-    formZeile(Str::KePrShaderEditor);
+    formAnfang({Str::KePrShaderEditor});
+    feldAnfang(Str::KePrShaderEditor);
     ImGui::BeginDisabled();
     ImGui::InputText("##shadereditor", befehl, sizeof(befehl));
     ImGui::EndDisabled();
-    formZeile(Str::Count);
-    ImGui::Checkbox(trK(Str::KeNrcTerms), &g_entwurf.nrc);
+    feldEnde();
+    (void)haken(Str::Count, trK(Str::KeNrcTerms), g_entwurf.nrc);
     if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::KeNrcTermsHint)); }
-    ImGui::EndTable();
+}
+
+// Die Pfeile des Baums (PE_IndicatorBranch, Fusion: qt_fusion_draw_arrow
+// 8 x 4 nach unten, aufgeklappt) in der Mitte des ersten Einzugs.
+void baumPfeil(ImDrawList* dl, float zeileY) {
+    const ImVec2 a = bp(18.0F, zeileY + 6.0F);
+    ImVec4 f = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+    f.w *= 160.0F / 255.0F;
+    dl->AddTriangleFilled(a, ImVec2{a.x + px(8.0F), a.y}, ImVec2{a.x + px(4.0F), a.y + px(4.0F)}, ImGui::GetColorU32(f));
 }
 
 }  // namespace
@@ -324,45 +420,61 @@ void zeichneEinstellungen() {
         g_entwurf.offen = false;
         return;
     }
-    // Groesse und Aufteilung wie NRC 20260114 (Foto dlg_Edit_Preferences_0:
-    // Innenmass 597 x 492 logische Punkte, Baum links 145 breit, unten
-    // "Clean" unter der Seite links, "OK" und "Cancel" rechts, Knoepfe 79).
+    // Groesse und Aufteilung wie NRC 20260114 (Masse oben, Fotos
+    // dlg_Edit_Preferences_0 und pref_<Seite>.png): fester Innenraum 597 x 492.
     const ImGuiViewport* vp = ImGui::GetMainViewport();
     const float sk = massstab();
+    g_sk = sk;
     const float titelH = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F;
-    ImGui::SetNextWindowSize(ImVec2{std::round(597.0F * sk), std::round(492.0F * sk) + titelH}, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2{px(static_cast<float>(kInnenB)), px(static_cast<float>(kInnenH)) + titelH}, ImGuiCond_Always);
     ImGui::SetNextWindowPos(ImVec2{vp->WorkPos.x + vp->WorkSize.x * 0.5F, vp->WorkPos.y + vp->WorkSize.y * 0.5F},
                             ImGuiCond_FirstUseEver, ImVec2{0.5F, 0.5F});
     const std::string titel = std::string(trK(Str::KePrefsTitle)) + "###karteeinstellungen";
     bool offen = true;
-    if (ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse)) {
-        const float knopfH = ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y;
-        const float knopfB = std::round(79.0F * sk);
-        const float baumB = std::round(145.0F * sk);
-        ImGui::BeginChild("##baum", ImVec2{baumB, 0.0F}, ImGuiChildFlags_Borders);
-        // QTreeWidget, aufgeklappt: Pfeil vor den Oberseiten, Unterseiten
-        // eingerueckt.
-        const float pfeil = ImGui::GetFontSize();
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
+    const bool sichtbar = ImGui::Begin(titel.c_str(), &offen,
+                                       ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
+                                           ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::PopStyleVar();
+    if (sichtbar) {
+        g_innen = ImGui::GetCursorScreenPos();
+        const float knopfB = px(static_cast<float>(kKnopfB));
+        const float knopfH = px(static_cast<float>(kKnopfH));
+        // QTreeView: Zeilen 16, Text 3 nach dem Einzug, der Pfeil vor den
+        // Oberseiten; die Auswahl ueber die ganze Zeile.
+        ImGui::SetCursorScreenPos(bp(static_cast<float>(kRand), static_cast<float>(kRand)));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, px(1.0F)});
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, 0.0F});
+        ImGui::BeginChild("##baum", ImVec2{px(static_cast<float>(kBaumB)), px(static_cast<float>(kInnenH - 2 * kRand))}, ImGuiChildFlags_Borders,
+                          ImGuiWindowFlags_NoScrollbar);
+        ImDrawList* dl = ImGui::GetWindowDrawList();
         for (int i = 0; i < static_cast<int>(std::size(kSeiten)); ++i) {
             const Seite& s = kSeiten[i];
-            const ImVec2 p = ImGui::GetCursorScreenPos();
-            ImGui::Indent(pfeil * (s.tiefe > 0 ? 2.0F : 1.0F));
-            if (ImGui::Selectable((std::string(trK(s.baum)) + "##seite" + std::to_string(i)).c_str(), g_entwurf.seite == i)) {
+            const float zeileY = static_cast<float>(kRand + 1 + i * kBaumZeile);
+            ImGui::SetCursorScreenPos(bp(static_cast<float>(kRand + 1), zeileY));
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
+            if (ImGui::Selectable((std::string(trK(s.baum)) + "##seite" + std::to_string(i)).c_str(), g_entwurf.seite == i,
+                                  ImGuiSelectableFlags_None, ImVec2{0.0F, px(static_cast<float>(kBaumZeile))})) {
                 g_entwurf.seite = i;
             }
-            ImGui::Unindent(pfeil * (s.tiefe > 0 ? 2.0F : 1.0F));
-            if (s.tiefe == 0) {
-                ImGui::RenderArrow(ImGui::GetWindowDrawList(), ImVec2{p.x + pfeil * 0.1F, p.y}, ImGui::GetColorU32(ImGuiCol_Text),
-                                   ImGuiDir_Down, 0.8F);
-            }
+            ImGui::PopStyleColor();
+            const float textX = static_cast<float>(kRand + 1 + kEinzug * (s.tiefe + 1) + kTextRand);
+            const ImVec2 tp = bp(textX, zeileY);
+            dl->AddText(ImVec2{tp.x, std::floor(tp.y + (px(static_cast<float>(kBaumZeile)) - ImGui::GetTextLineHeight()) * 0.5F)},
+                        ImGui::GetColorU32(ImGuiCol_Text), trK(s.baum));
+            if (s.tiefe == 0) { baumPfeil(dl, zeileY); }
         }
         ImGui::EndChild();
-        ImGui::SameLine();
-        ImGui::BeginGroup();
-        // QGroupBox: Titel ueber dem Rahmen, darin das Formular
-        ImGui::BeginChild("##seite", ImVec2{0.0F, -knopfH}, ImGuiChildFlags_None);
-        ImGui::TextUnformatted(trK(kSeiten[g_entwurf.seite].titel));
-        ImGui::BeginChild("##seitenrahmen", ImVec2{0.0F, 0.0F}, ImGuiChildFlags_Borders);
+        ImGui::PopStyleVar(2);
+        // QGroupBox: Titel, Rahmen, darin die Seite (Tahoma 8 pt)
+        dialogSchriftAn();
+        ImDrawList* fl = ImGui::GetWindowDrawList();
+        fl->AddText(bp(static_cast<float>(kGruppeX + kTitelX), static_cast<float>(kRand)), ImGui::GetColorU32(ImGuiCol_Text),
+                    trK(kSeiten[g_entwurf.seite].titel));
+        fl->AddRect(bp(static_cast<float>(kGruppeX), static_cast<float>(kRand + kRahmenOben)),
+                    bp(static_cast<float>(kGruppeX + kGruppeB), static_cast<float>(kRand + kGruppeH)), ImGui::GetColorU32(ImGuiCol_Border),
+                    ImGui::GetStyle().FrameRounding);
+        g_form = Form{};
         if (g_entwurf.seite == kSeiteLayout) {
             layoutSeite();
         } else if (g_entwurf.seite == kSeiteInterface) {
@@ -378,19 +490,16 @@ void zeichneEinstellungen() {
         } else {
             char z[120];
             std::snprintf(z, sizeof(z), tr(Str::KeStufe), 2);
-            ImGui::TextDisabled("%s", z);
+            fl->AddText(bp(static_cast<float>(g_form.x0), static_cast<float>(g_form.y)), ImGui::GetColorU32(ImGuiCol_TextDisabled), z);
         }
-        ImGui::EndChild();
-        ImGui::EndChild();
-        // "Clean" links unter der Seite (ausgegraut, Stufe 2), "OK" und
-        // "Cancel" rechts.
+        // QDialogButtonBox: "Clean" (ResetRole) links, "OK" und "Cancel" rechts
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, std::max(0.0F, (knopfH - ImGui::GetTextLineHeight()) * 0.5F)});
+        ImGui::SetCursorScreenPos(bp(static_cast<float>(kGruppeX), static_cast<float>(kKnopfY)));
         ImGui::BeginDisabled();
-        (void)ImGui::Button(trK(Str::KePrefClean), ImVec2{knopfB, 0.0F});
+        (void)ImGui::Button(trK(Str::KePrefClean), ImVec2{knopfB, knopfH});
         ImGui::EndDisabled();
-        ImGui::SameLine();
-        const float rechts = ImGui::GetContentRegionMax().x - knopfB * 2.0F - ImGui::GetStyle().ItemSpacing.x;
-        ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), rechts));
-        if (ImGui::Button(trK(Str::KePrefOk), ImVec2{knopfB, 0.0F})) {
+        ImGui::SetCursorScreenPos(bp(static_cast<float>(kGruppeX + kGruppeB - 2 * kKnopfB - kAbstand), static_cast<float>(kKnopfY)));
+        if (ImGui::Button(trK(Str::KePrefOk), ImVec2{knopfB, knopfH})) {
             ed.anordnung = static_cast<befehle::Anordnung>(g_entwurf.anordnung);
             ed.gruppenDialogEingebaut = g_entwurf.eingebaut;
             setzeNrcBegriffe(g_entwurf.nrc);
@@ -437,9 +546,13 @@ void zeichneEinstellungen() {
             einstellungenSpeichern();
             offen = false;
         }
-        ImGui::SameLine();
-        if (ImGui::Button(trK(Str::KeCancel), ImVec2{knopfB, 0.0F})) { offen = false; }
-        ImGui::EndGroup();
+        ImGui::SetCursorScreenPos(bp(static_cast<float>(kGruppeX + kGruppeB - kKnopfB), static_cast<float>(kKnopfY)));
+        if (ImGui::Button(trK(Str::KeCancel), ImVec2{knopfB, knopfH})) { offen = false; }
+        ImGui::PopStyleVar();
+        dialogSchriftAus();
+        // Platz belegen (sonst meldet ImGui die gesetzte Schreibstelle als Ausdehnung)
+        ImGui::SetCursorScreenPos(bp(0.0F, static_cast<float>(kInnenH)));
+        ImGui::Dummy(ImVec2{0.0F, 0.0F});
     }
     ImGui::End();
     if (!offen) { ed.einstellungenOffen = false; }
@@ -467,6 +580,8 @@ struct TastenDialog {
     std::string frageAnderer;    // der, der die Taste schon hat
     befehle::Taste frageTaste = 0;
     bool frageAlle = false;      // "Boo!" - Reset All
+    int sortSpalte = 0;          // sortByColumn( 0, AscendingOrder )
+    bool absteigend = false;
 };
 TastenDialog g_td;
 
@@ -595,6 +710,9 @@ void zeichneTastenDialog() {
         return;
     }
     if (!g_td.offen) {
+        // DoCommandListDlg baut den Dialog jedes Mal neu: leere Suchfelder,
+        // nichts gewaehlt, nach Command aufsteigend sortiert.
+        g_td = TastenDialog{};
         g_td.offen = true;
         befehlslisteSchreiben();
     }
@@ -609,125 +727,185 @@ void zeichneTastenDialog() {
             tasteAendern(b, t);
         }
     }
-    // Groesse wie NRC 20260114 (Foto dlg_Edit_Shortcuts_0: Innenmass 399 x
-    // 533 logische Punkte - QDialog ohne feste Groesse, sizeHint des
-    // Rasters), mittig.
+    // DoCommandListDlg (commands.cpp:332-420) mit Qts Massen, am Foto
+    // dlg_Edit_Shortcuts_0 gemessen (logische Punkte, Innenraum 399 x 533):
+    //   QGridLayout Rand 11, Abstand 6; Zeile 0 die zwei Suchfelder 22 hoch
+    //   (11..153, 159..301), Zeile 1 der Baum (11, 39, 290 x 483) und rechts
+    //   die senkrechte QDialogButtonBox (308, 39 + n x 28, je 80 x 22)
+    //   QTreeWidget: Kopf 20 hoch (Tahoma, Text 2 nach dem Rand -
+    //   PM_HeaderMargin), Zeilen 16 (Segoe UI 9 pt), Text 3 nach dem Rand,
+    //   Spalten ResizeToContents, Rollbalken 7 (dark.qss)
     const ImGuiViewport* vp = ImGui::GetMainViewport();
     const float s = massstab();
+    g_sk = s;
     const float titelH = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F;
-    ImGui::SetNextWindowSize(ImVec2{std::round(399.0F * s), std::round(533.0F * s) + titelH}, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2{px(399.0F), px(533.0F) + titelH}, ImGuiCond_Always);
     ImGui::SetNextWindowPos(ImVec2{vp->WorkPos.x + vp->WorkSize.x * 0.5F, vp->WorkPos.y + vp->WorkSize.y * 0.5F},
                             ImGuiCond_FirstUseEver, ImVec2{0.5F, 0.5F});
     const std::string titel = std::string(trK(Str::KeMappedCommands)) + "###kartetasten";
     bool offen = true;
-    if (ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse)) {
-        // QDialogButtonBox senkrecht rechts: Knoepfe 79 breit (Foto)
-        const float knopfB = std::round(79.0F * s);
-        const float listeB = ImGui::GetContentRegionAvail().x - knopfB - ImGui::GetStyle().ItemSpacing.x;
-        // Suchfelder mit Lupe vorn (NRC 20260114: Emoji "🔍" im Platzhalter;
-        // hier die Lupe des Programms).
-        const auto suchfeld = [&](const char* id, const char* hinweis, char* puffer, std::size_t groesse, float breite) {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
+    const bool sichtbar = ImGui::Begin(titel.c_str(), &offen,
+                                       ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
+                                           ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::PopStyleVar();
+    if (sichtbar) {
+        g_innen = ImGui::GetCursorScreenPos();
+        const float knopfB = px(80.0F);
+        const float feldH = px(22.0F);
+        dialogSchriftAn();   // QLineEdit, QPushButton, QHeaderView: Tahoma 8 pt
+        // Suchfelder mit Lupe vorn (NRC 20260114: Emoji im Platzhalter, hier
+        // die Lupe des Programms).
+        const auto suchfeld = [&](const char* id, const char* hinweis, char* puffer, std::size_t groesse, float x, float breite) {
             const float lupe = ImGui::GetFontSize();
-            const ImGuiStyle& st = ImGui::GetStyle();
-            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{st.FramePadding.x * 2.0F + lupe, st.FramePadding.y});
-            ImGui::SetNextItemWidth(breite);
+            ImGui::SetCursorScreenPos(bp(x, 11.0F));
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+                                ImVec2{px(4.0F) + lupe, std::max(0.0F, (feldH - ImGui::GetTextLineHeight()) * 0.5F)});
+            ImGui::SetNextItemWidth(px(breite));
             const ImVec2 p = ImGui::GetCursorScreenPos();
             ImGui::InputTextWithHint(id, hinweis, puffer, groesse);
             ImGui::PopStyleVar();
-            const float h = ImGui::GetItemRectSize().y;
-            uiIcon(ImGui::GetWindowDrawList(), UiIcon::Suche, ImVec2{std::floor(p.x + st.FramePadding.x), std::floor(p.y + (h - lupe) * 0.5F)},
-                   lupe, ImGui::GetColorU32(uiIconFarbe(UiIcon::Suche)));
+            uiIcon(ImGui::GetWindowDrawList(), UiIcon::Suche, ImVec2{std::floor(p.x + px(3.0F)), std::floor(p.y + (feldH - lupe) * 0.5F)}, lupe,
+                   ImGui::GetColorU32(uiIconFarbe(UiIcon::Suche)));
         };
-        suchfeld("##suchname", trK(Str::KeByName), g_td.suchName, sizeof(g_td.suchName),
-                 listeB * 0.5F - ImGui::GetStyle().ItemSpacing.x * 0.5F);
-        ImGui::SameLine();
-        suchfeld("##suchtaste", trK(Str::KeByKeys), g_td.suchTaste, sizeof(g_td.suchTaste),
-                 listeB * 0.5F - ImGui::GetStyle().ItemSpacing.x * 0.5F);
+        suchfeld("##suchname", trK(Str::KeByName), g_td.suchName, sizeof(g_td.suchName), 11.0F, 142.0F);
+        suchfeld("##suchtaste", trK(Str::KeByKeys), g_td.suchTaste, sizeof(g_td.suchTaste), 159.0F, 142.0F);
         const auto enthaelt = [](const std::string& text, const char* such) {
             if (such[0] == 0) { return true; }
-            std::string a = text;
-            std::string b = such;
-            std::transform(a.begin(), a.end(), a.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-            std::transform(b.begin(), b.end(), b.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-            return a.find(b) != std::string::npos;
+            std::string a2 = text;
+            std::string b2 = such;
+            std::transform(a2.begin(), a2.end(), a2.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            std::transform(b2.begin(), b2.end(), b2.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            return a2.find(b2) != std::string::npos;
         };
-        ImGui::BeginChild("##tastenliste", ImVec2{listeB, 0.0F});
-        // header()->setSectionResizeMode( ResizeToContents ), letzte Spalte
-        // nicht gestreckt (commands.cpp:345-346): beide Spalten so breit wie
-        // ihr Inhalt.
-        if (ImGui::BeginTable("##tasten", 2,
-                              ImGuiTableFlags_Sortable | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY |
-                                  ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingFixedFit,
-                              ImVec2{0.0F, 0.0F})) {
-            ImGui::TableSetupScrollFreeze(0, 1);
-            ImGui::TableSetupColumn(trK(Str::KeColCommand), ImGuiTableColumnFlags_DefaultSort);
-            ImGui::TableSetupColumn(trK(Str::KeColKey));
-            ImGui::TableHeadersRow();
-            std::vector<std::pair<std::string, std::string>> zeilen;
-            for (const std::string& n : ed.belegung.namen()) {
-                const std::string t = ed.tastenDialogBearbeitet == n ? std::string(trK(Str::KePressKey))
-                                                                      : befehle::tasteAlsText(ed.belegung.taste(n));
-                if (!enthaelt(n, g_td.suchName) || !enthaelt(t, g_td.suchTaste)) { continue; }
-                zeilen.emplace_back(n, t);
-            }
-            if (ImGuiTableSortSpecs* sp = ImGui::TableGetSortSpecs(); sp != nullptr && sp->SpecsCount > 0) {
-                const int spalte = sp->Specs[0].ColumnIndex;
-                const bool ab = sp->Specs[0].SortDirection == ImGuiSortDirection_Descending;
-                // Reihenfolge wie im Foto: Gross-/Kleinschreibung zaehlt nicht
-                // ("bobToolz::About" zwischen "AutoCaulkSelected" und "Brush3Sided").
-                const auto klein = [](const std::string& t) {
-                    std::string k = t;
-                    std::transform(k.begin(), k.end(), k.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-                    return k;
-                };
-                std::stable_sort(zeilen.begin(), zeilen.end(), [spalte, ab, &klein](const auto& x, const auto& y) {
-                    const std::string a = klein(spalte == 0 ? x.first : x.second);
-                    const std::string b = klein(spalte == 0 ? y.first : y.second);
-                    return ab ? b < a : a < b;
-                });
-            }
-            for (const auto& [n, t] : zeilen) {
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
-                const bool sel = g_td.gewaehlt == n;
-                if (ImGui::Selectable((n + "##tz").c_str(), sel, ImGuiSelectableFlags_SpanAllColumns |
-                                                                    ImGuiSelectableFlags_AllowDoubleClick)) {
-                    g_td.gewaehlt = n;
-                    // itemActivated (Doppelklick/Enter) -> accelerator_edit
-                    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { ed.tastenDialogBearbeitet = n; }
-                }
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted(t.c_str());
-                // accelerator_item_set_icon: geaendert gegenueber der Vorgabe
-                if (ed.belegung.taste(n) != ed.belegung.standard(n)) {
-                    ImGui::SameLine();
-                    ImGui::TextColored(ImVec4{0.85F, 0.2F, 0.2F, 1.0F}, "%s", "(x)");
-                    if (ImGui::IsItemHovered()) {
-                        ImGui::SetTooltip("%s: %s", tr(Str::KeKeyChanged),
-                                          befehle::tasteAlsText(ed.belegung.standard(n)).c_str());
-                    }
+        std::vector<std::pair<std::string, std::string>> zeilen;
+        for (const std::string& n : ed.belegung.namen()) {
+            const std::string tx = ed.tastenDialogBearbeitet == n ? std::string(trK(Str::KePressKey))
+                                                                   : befehle::tasteAlsText(ed.belegung.taste(n));
+            if (!enthaelt(n, g_td.suchName) || !enthaelt(tx, g_td.suchTaste)) { continue; }
+            zeilen.emplace_back(n, tx);
+        }
+        // QTreeWidget::sortItems: Gross-/Kleinschreibung zaehlt nicht
+        // ("bobToolz::About" zwischen "AutoCaulkSelected" und "Brush3Sided").
+        const auto klein = [](const std::string& tx) {
+            std::string k = tx;
+            std::transform(k.begin(), k.end(), k.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            return k;
+        };
+        std::stable_sort(zeilen.begin(), zeilen.end(), [&klein](const auto& x, const auto& y) {
+            const std::string a2 = klein(g_td.sortSpalte == 0 ? x.first : x.second);
+            const std::string b2 = klein(g_td.sortSpalte == 0 ? y.first : y.second);
+            return g_td.absteigend ? b2 < a2 : a2 < b2;
+        });
+        // ResizeToContents: Spalte = breiteste Zeile (Segoe UI) + 2 x 3, wenigstens
+        // der Kopf (Tahoma) + 2 x 2, beim sortierten mit Sortierpfeil.
+        const auto segoe = [](const std::string& tx) {
+            const int b2 = platform::gdiTextBreite(tx, L"Segoe UI", 12, false);
+            return b2 >= 0 ? b2 : 0;
+        };
+        int w[2] = {labelBreite(trK(Str::KeColCommand)) + 4, labelBreite(trK(Str::KeColKey)) + 4};
+        w[g_td.sortSpalte] += 16;   // PM_HeaderMarkSize + Rand
+        for (const auto& [n, tx] : zeilen) {
+            w[0] = std::max(w[0], segoe(n) + 6);
+            w[1] = std::max(w[1], segoe(tx) + 6);
+        }
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        // Rahmen des Baums (QFrame, 1) und der Kopf 40..60
+        dl->AddRect(bp(11.0F, 39.0F), bp(301.0F, 522.0F), ImGui::GetColorU32(ImGuiCol_Border));
+        const char* koepfe[2] = {trK(Str::KeColCommand), trK(Str::KeColKey)};
+        float kx = 12.0F;
+        for (int sp = 0; sp < 2; ++sp) {
+            const float kb = std::min(static_cast<float>(w[sp]), 300.0F - kx);
+            if (kb <= 0.0F) { break; }
+            const ImVec2 k0 = bp(kx, 40.0F);
+            const ImVec2 k1 = bp(kx + kb, 59.0F);
+            ImGui::SetCursorScreenPos(k0);
+            if (ImGui::InvisibleButton((std::string("##kopf") + std::to_string(sp)).c_str(), ImVec2{k1.x - k0.x, k1.y - k0.y})) {
+                // QHeaderView: Klick sortiert nach der Spalte, nochmal dreht um
+                if (g_td.sortSpalte == sp) {
+                    g_td.absteigend = !g_td.absteigend;
+                } else {
+                    g_td.sortSpalte = sp;
+                    g_td.absteigend = false;
                 }
             }
-            ImGui::EndTable();
+            dl->AddRectFilled(k0, k1, ImGui::GetColorU32(ImGui::IsItemHovered() ? ImGuiCol_HeaderHovered : ImGuiCol_TableHeaderBg));
+            dl->AddLine(ImVec2{k1.x, k0.y}, ImVec2{k1.x, k1.y}, ImGui::GetColorU32(ImGuiCol_Border));
+            dl->AddText(ImVec2{k0.x + px(2.0F), std::floor(k0.y + (k1.y - k0.y - ImGui::GetTextLineHeight()) * 0.5F)},
+                        ImGui::GetColorU32(ImGuiCol_Text), koepfe[sp]);
+            if (sp == g_td.sortSpalte) {
+                // PE_IndicatorHeaderArrow: aufsteigend nach oben (am Foto 173..181)
+                const float ax = k1.x - px(13.0F);
+                const float ay = std::floor((k0.y + k1.y) * 0.5F);
+                const ImU32 f = ImGui::GetColorU32(ImGuiCol_Text);
+                if (g_td.absteigend) {
+                    dl->AddTriangleFilled(ImVec2{ax, ay - px(2.0F)}, ImVec2{ax + px(8.0F), ay - px(2.0F)}, ImVec2{ax + px(4.0F), ay + px(2.0F)}, f);
+                } else {
+                    dl->AddTriangleFilled(ImVec2{ax + px(4.0F), ay - px(2.0F)}, ImVec2{ax + px(8.0F), ay + px(2.0F)}, ImVec2{ax, ay + px(2.0F)}, f);
+                }
+            }
+            kx += kb;
+        }
+        dl->AddLine(bp(12.0F, 59.0F), bp(300.0F, 59.0F), ImGui::GetColorU32(ImGuiCol_Border));
+        dialogSchriftAus();
+        // Die Zeilen (Segoe UI 9 pt, ItemViewFont), Rollbalken 7
+        ImGui::SetCursorScreenPos(bp(12.0F, 60.0F));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, 0.0F});
+        ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, px(7.0F));
+        ImGui::BeginChild("##tastenliste", ImVec2{px(288.0F), px(461.0F)}, ImGuiChildFlags_None);
+        ImDrawList* zl = ImGui::GetWindowDrawList();
+        const float zeileH = px(16.0F);
+        for (const auto& [n, tx] : zeilen) {
+            const ImVec2 zp = ImGui::GetCursorScreenPos();
+            const bool sel = g_td.gewaehlt == n;
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
+            if (ImGui::Selectable((n + "##tz").c_str(), sel, ImGuiSelectableFlags_AllowDoubleClick, ImVec2{0.0F, zeileH})) {
+                g_td.gewaehlt = n;
+                // itemActivated (Doppelklick/Enter) -> accelerator_edit
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { ed.tastenDialogBearbeitet = n; }
+            }
+            ImGui::PopStyleColor();
+            if (!ImGui::IsItemVisible()) { continue; }
+            const float ty = std::floor(zp.y + (zeileH - ImGui::GetTextLineHeight()) * 0.5F);
+            zl->AddText(ImVec2{zp.x + px(3.0F), ty}, ImGui::GetColorU32(ImGuiCol_Text), n.c_str());
+            zl->AddText(ImVec2{zp.x + px(static_cast<float>(w[0]) + 3.0F), ty}, ImGui::GetColorU32(ImGuiCol_Text), tx.c_str());
+            // accelerator_item_set_icon: geaendert gegenueber der Vorgabe
+            if (ed.belegung.taste(n) != ed.belegung.standard(n)) {
+                const float mx = zp.x + px(static_cast<float>(w[0]) + 3.0F) + ImGui::CalcTextSize(tx.c_str()).x + px(4.0F);
+                zl->AddText(ImVec2{mx, ty}, ImGui::GetColorU32(ImVec4{0.85F, 0.2F, 0.2F, 1.0F}), "(x)");
+                if (ImGui::IsMouseHoveringRect(ImVec2{mx, zp.y}, ImVec2{mx + ImGui::CalcTextSize("(x)").x, zp.y + zeileH})) {
+                    ImGui::SetTooltip("%s: %s", tr(Str::KeKeyChanged), befehle::tasteAlsText(ed.belegung.standard(n)).c_str());
+                }
+            }
         }
         ImGui::EndChild();
-        ImGui::SameLine();
-        ImGui::BeginGroup();
-        const ImVec2 kg{knopfB, 0.0F};
+        ImGui::PopStyleVar(3);
+        // QDialogButtonBox senkrecht: Edit, Clear, Reset, Reset All (je 80 x 22, Abstand 6)
+        dialogSchriftAn();
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, std::max(0.0F, (feldH - ImGui::GetTextLineHeight()) * 0.5F)});
+        const ImVec2 kg{knopfB, feldH};
+        // Die Knoepfe sind immer da; ohne Wahl tun sie nichts
+        // (tree->selectedItems().isEmpty()).
         const bool hatWahl = !g_td.gewaehlt.empty();
-        ImGui::BeginDisabled(!hatWahl);
-        if (ImGui::Button(trK(Str::KeEdit), kg)) { ed.tastenDialogBearbeitet = g_td.gewaehlt; }
-        if (ImGui::Button(trK(Str::KeClear), kg)) {   // accelerator_clear_button_clicked
+        ImGui::SetCursorScreenPos(bp(308.0F, 39.0F));
+        if (ImGui::Button(trK(Str::KeEdit), kg) && hatWahl) { ed.tastenDialogBearbeitet = g_td.gewaehlt; }
+        ImGui::SetCursorScreenPos(bp(308.0F, 67.0F));
+        if (ImGui::Button(trK(Str::KeClear), kg) && hatWahl) {   // accelerator_clear_button_clicked
             ed.belegung.setzen(g_td.gewaehlt, 0);
             einstellungenSpeichern();
         }
-        if (ImGui::Button(trK(Str::KeReset), kg)) { tasteAendern(g_td.gewaehlt, 0); }
-        ImGui::EndDisabled();
+        ImGui::SetCursorScreenPos(bp(308.0F, 95.0F));
+        if (ImGui::Button(trK(Str::KeReset), kg) && hatWahl) { tasteAendern(g_td.gewaehlt, 0); }
+        ImGui::SetCursorScreenPos(bp(308.0F, 123.0F));
         if (ImGui::Button(trK(Str::KeResetAll), kg)) {
             g_td.frage = true;
             g_td.frageAlle = true;
         }
-        ImGui::EndGroup();
+        ImGui::PopStyleVar();
+        dialogSchriftAus();
+        ImGui::SetCursorScreenPos(bp(0.0F, 533.0F));
+        ImGui::Dummy(ImVec2{0.0F, 0.0F});
         frageZeichnen();
     }
     ImGui::End();

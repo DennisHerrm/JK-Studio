@@ -25297,6 +25297,14 @@ std::vector<Schritt> karteneditorTastenSchritte() {
     // Konflikt: GridUp auf "1" (SetGrid1) - No laesst beide, dann mehrdeutig.
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P, "Strg+Umschalt+P"));
     add(pause(0.3));
+    // DoCommandListDlg baut den Dialog neu: die Suche ist wieder leer.
+    add(pruefe("Neu geoeffnet: Suchfeld leer, GridUp ausserhalb der ersten Zeilen", [] {
+        const Element* g = finde("GridUp##tz", "###kartetasten", 0, false);
+        return g == nullptr || !ganzSichtbar(*g);
+    }));
+    add(klick("##suchname", "###kartetasten"));
+    add(tippe("GridUp"));
+    add(pause(0.3));
     add(klick("GridUp##tz", "###kartetasten", 0, false, "", 0, 0.15F));
     add(klick(ke::trK(Str::KeEdit), "###kartetasten"));
     add(tasteKombi(ImGuiKey_1, "1"));
@@ -28720,6 +28728,12 @@ std::vector<Schritt> karteneditorSchritte() {
         return laden && prim;
     }));
     add(foto("karteneditor_start"));
+    // BHED_KARTE_NUR=fotos: nur die Fotos zum NRC-Vergleich (schnell beim Nachmessen)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "fotos") == 0) {
+        for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     for (Schritt& x : karteneditorRahmenSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorTastenSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorMassSchritte()) { add(std::move(x)); }

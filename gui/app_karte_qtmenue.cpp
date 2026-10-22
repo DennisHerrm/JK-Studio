@@ -19,7 +19,7 @@
 //                 Breite - 15 - tabWidth, der Pfeil (Breite - 13, 7, 10, 10)
 //   Mnemonik      unterstrichen (SH_UnderlineShortcut in Fusion immer an),
 //                 Buchstabe waehlt (QMenu::keyPressEvent, qmenu.cpp:3460-3530)
-// Untermenues gehen rechts buendig auf (PM_SubMenuOverlap 0), ihr erster
+// Untermenues gehen einen Punkt ueberlappend auf (PM_SubMenuOverlap -1), ihr erster
 // Eintrag auf der Hoehe des oeffnenden (qmenu.cpp popup: -actionGeometry(first).top()).
 //
 // ImGui macht Auswahl, Hervorhebung, Tastatur und das Oeffnen; der eigene
@@ -437,7 +437,8 @@ bool qtMenueAnfang(const char* id, bool aktiv, const char* nrc, bool abriss) {
     // Die Ruecklage des Popups (BeginMenuEx: popup_pos.y = Text - WindowPadding.y)
     // ist damit die Oberkante des Eintrags minus Abreisskante.
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, (abriss ? m.abriss : 0.0F) + m.abstand * 0.5F});
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2{0.0F, ImGui::GetStyle().ItemInnerSpacing.y});   // PM_SubMenuOverlap 0
+    // PM_SubMenuOverlap -1 (Fusion): subMenuPos = actionRect.right() - 1 + 1 - ein Punkt Ueberlappung
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2{px(m, 1.0F), ImGui::GetStyle().ItemInnerSpacing.y});
     if (!leiste) { ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{0.0F, 0.0F, 0.0F, 0.0F}); }
     ImDrawList* dl = fenster->DrawList;
     const bool offen = ImGui::BeginMenuEx(id, nullptr, aktiv);
@@ -513,6 +514,20 @@ bool qtPunkt(const QtPunkt& p) {
         if (mn >= 0) { menue->tasten.push_back({zeichenGross(text[static_cast<std::size_t>(mn)]), eintrag, 0, p.aktiv}); }
     }
     return gewaehlt;
+}
+
+bool qtHaken(const char* id, bool* wert, float zeileH) {
+    // QCheckBox (Fusion): Kaestchen 14 (PM_IndicatorWidth) senkrecht mittig,
+    // der Text bei indicator.right() + 6 (PM_CheckBoxLabelSpacing).
+    const float sk = massstab();
+    const ImVec2 p = ImGui::GetCursorScreenPos();
+    const float g = std::round(14.0F * sk);
+    ImGui::SetCursorScreenPos(ImVec2{p.x, p.y + std::floor((std::round(zeileH * sk) - g) * 0.5F)});
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, std::max(0.0F, (g - ImGui::GetTextLineHeight()) * 0.5F)});
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2{std::round(5.0F * sk), ImGui::GetStyle().ItemInnerSpacing.y});
+    const bool r = ImGui::Checkbox(id, wert);
+    ImGui::PopStyleVar(2);
+    return r;
 }
 
 void qtTrenner() {
