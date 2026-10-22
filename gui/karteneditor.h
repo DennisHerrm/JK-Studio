@@ -418,6 +418,14 @@ struct Editor {
 
     // Fuer den Selbsttest: die Kennung des Arbeitsbereichs im letzten Bild.
     bool gezeichnet = false;
+    // Fuer den Selbsttest (Punkt 12): Zeit des letzten Bildes im Editor
+    // (zeichne, Millisekunden) und davon die Ansichten (2D und Kamera).
+    double zeichenMs = 0.0;
+    double ansichtenMs = 0.0;
+    double kameraNeubauMs = 0.0;   // letzter Neubau der Kamera-Szene
+    double xyNeubauMs = 0.0;       // letzter Neubau einer 2D-Szene
+    std::size_t geoNeubauten = 0;  // Neubauten der Geometrie (Kamera und 2D)
+    std::size_t restNeubauten = 0; // Neubauten des Rests (Auswahl, Punktentitaeten, Namen)
 
     // --- 2D-Ansichten und Kamera ---
     std::array<XyFenster, 3> xy;   // 0 m_pXYWnd (XY), 1 m_pXZWnd (XZ), 2 m_pYZWnd (YZ)
@@ -535,6 +543,9 @@ void startPosition();
 // Ein Stand der Szene (aendert sich mit jedem Befehl, Undo, neuer Karte,
 // neuer Auswahl und den Show-Schaltern).
 [[nodiscard]] std::size_t szeneStand();
+// Der Stand nur der Geometrie (ohne Auswahl und Anzeige): Pinsel und Patches
+// bauen ihre Kanten und Dreiecke nur neu, wenn er sich aendert (Punkt 12).
+[[nodiscard]] std::size_t geometrieStand();
 // getBoundsSelected: false, wenn nichts ausgewaehlt ist.
 bool auswahlGrenzen(karte::Kasten& b);
 // Die Rad-Ereignisse dieses Bilds (Qt: ein wheelEvent je Ereignis): je
@@ -641,6 +652,9 @@ void kameraTastenLoslassen();
 [[nodiscard]] bool kameraBrauchtBilder();
 // Fuer den Selbsttest: sind alle angeforderten Bilder geladen?
 [[nodiscard]] bool kameraBilderFertig();
+// Fuer den Selbsttest (Punkt 12): Groesse der Kamera- und der 2D-Szenen als Text.
+[[nodiscard]] std::string kameraSzeneMass();
+[[nodiscard]] std::string xySzeneMass();
 // DisableFreeMove (auch bei Fokusverlust)
 void freelookBeenden();
 // Fuer den Selbsttest: ein Bildpunkt der Kamera (Geraetepunkte im Fenster)

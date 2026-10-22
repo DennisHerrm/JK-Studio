@@ -904,6 +904,7 @@ void maximierenUmschalten() {
 
 void zeichne(float hoehe) {
     Editor& e = g();
+    const auto zeichenStart = std::chrono::steady_clock::now();
     kartegpu::aufraeumen();   // Bilder, die ein frueheres Bild freigab
     e.gezeichnet = true;
     e.knoepfeImBild.clear();
@@ -963,7 +964,9 @@ void zeichne(float hoehe) {
     const ImVec2 maus = ImGui::GetIO().MousePos;
     e.mausX = static_cast<int>(std::floor((maus.x - bildpunkt(0, y).x) / g_s));
     e.mausY = static_cast<int>(std::floor((maus.y - bildpunkt(0, y).y) / g_s));
+    const auto ansichtenStart = std::chrono::steady_clock::now();
     anordnungZeichnen(0, y, mitteB, mitteH);
+    e.ansichtenMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ansichtenStart).count();
     zeichneRechteLeisten(mitteB, y, mitteH);
     zeichneStatuszeile(statusY, breite);
     ImGui::PopStyleVar();
@@ -984,6 +987,7 @@ void zeichne(float hoehe) {
     zeichneRueckfrage();
     ImGui::PopFont();
     tastenVerarbeiten();
+    e.zeichenMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - zeichenStart).count();
 }
 }  // namespace bhed::gui::karteneditor
 

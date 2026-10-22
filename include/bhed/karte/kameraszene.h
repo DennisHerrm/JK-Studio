@@ -83,6 +83,7 @@ struct KameraStapel {
     // (Renderables) und Wechsel der Objekt-Matrix in der Reihenfolge des Zustands.
     std::size_t objekte = 0;
     std::size_t transforms = 0;
+    const void* letzteMatrix = nullptr;   // beim Bauen: die Matrix des letzten Objekts
 };
 
 // Ein Name (RenderableNamedEntity): Ankerpunkt in der Welt, Text, Farbe.
@@ -93,7 +94,14 @@ struct KameraName {
     int art = 0;   // eNameNormal 0, eNameSelected 1, eNameChildSelected 2
 };
 
+// Teil der Szene (Punkt 12, grosse Karten): die Geometrie (Pinsel und Patches
+// in ihren Shader-Stapeln) haengt nicht an der Auswahl und wird nur bei einer
+// Aenderung der Karte neu gebaut; der Rest (Punktentitaeten, Gruppen, Namen,
+// Lichtradien und alles Ausgewaehlte) bei jedem Wechsel der Auswahl.
+enum class KameraTeil { Alles, Geometrie, Rest };
+
 struct KameraSzenenOptionen {
+    KameraTeil teil = KameraTeil::Alles;
     bool kanten = false;        // Polygon-Umrisse bauen (Wireframe, Textured+Wire)
     bool winkel = true;         // g_showAngles
     bool namen = true;          // g_showNames

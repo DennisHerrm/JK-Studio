@@ -581,6 +581,13 @@ int gdiTextBreite(const std::string& utf8, const wchar_t* schrift, int pixel, bo
     return static_cast<int>(s.cx);
 }
 
+long long heapBelegt() {
+    HEAP_SUMMARY s{};
+    s.cb = sizeof(s);
+    if (HeapSummary(GetProcessHeap(), 0, &s) == 0) { return -1; }
+    return static_cast<long long>(s.cbAllocated);
+}
+
 bool bildschirmFarbe(int x, int y, unsigned char rgb[3]) {
     HDC dc = GetDC(nullptr);
     if (dc == nullptr) { return false; }

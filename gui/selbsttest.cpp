@@ -28370,6 +28370,25 @@ std::vector<Schritt> karteneditorAlleBefehleSchritte() {
         add(pause(0.2));
     }
     add(warteBis("Texturbrowser: Bilder neu geladen, kein Absturz", [] { return ke::kameraBilderFertig(); }, 2000));
+    // Punkt 12: ein Auswahlwechsel baut die Geometrie nicht neu (auch auf der
+    // kleinen Testkarte, ohne BHED_KARTE_GROSS).
+    auto neubauten = std::make_shared<std::array<std::size_t, 2>>();
+    add(tu("Neubauten merken, Auswahl leeren", [neubauten] {
+        (*neubauten)[0] = ke::editor().geoNeubauten;
+        (*neubauten)[1] = ke::editor().restNeubauten;
+        ke::editor().karte.auswahl.leeren();
+    }));
+    add(pause(0.2));
+    add(tu("Pinsel und Licht wieder waehlen", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.waehlen(e.karte.welt(), e.karte.welt()->kinder().front());
+        waehleEnt("light", 0);
+    }));
+    add(pause(0.2));
+    add(pruefe("Auswahlwechsel: nur der Rest der Szenen neu, die Geometrie nicht", [neubauten] {
+        const ke::Editor& e = ke::editor();
+        return e.geoNeubauten == (*neubauten)[0] && e.restNeubauten > (*neubauten)[1];
+    }));
     std::vector<std::string> liste = ke::nachgebauteBefehle();
     liste.erase(std::remove_if(liste.begin(), liste.end(),
                                  [](const std::string& n) { return n == "Exit" || n == "OpenMap" || n == "SaveMapAs" || n == "NewMap"; }),
@@ -28617,6 +28636,177 @@ std::vector<Schritt> karteneditorFotoSchritte() {
     return s;
 }
 
+// --- Punkt 12: eine grosse Karte (Ladezeit, Bildzeit, Speicher) --------------
+//
+// BHED_KARTE_GROSS = Pfad einer grossen Karte (duel_mos_espa.map aus den mit
+// q3map2 dekompilierten Movie-Duels-Karten: 31671 Pinsel, 6820 Patches).
+// Gemessen: karteOeffnen, die Zeit des Editors je Bild (zeichne, davon die
+// Ansichten) bei sich drehender Kamera und wanderndem 2D-Bild, der private
+// Speicher des Prozesses und der Grafikspeicher.
+std::vector<Schritt> karteneditorGrossSchritte() {
+    namespace ke = karteneditor;
+    std::vector<Schritt> s;
+    const char* pfad = std::getenv("BHED_KARTE_GROSS");
+    if (pfad == nullptr || pfad[0] == 0) { return s; }
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    struct Mess {
+        double ladenMs = 0.0;
+        long long speicherVor = 0;
+        long long grafikVor = 0;
+        long long speicherGeladen = 0;   // gleich nach karteOeffnen (vor dem ersten Bild)
+        long long speicherGezeichnet = 0;   // nach den Texturen und dem ersten Zeichnen
+        long long speicherDraht = 0;        // gezeichnet im Drahtmodell (ohne Texturen)
+        long long speicherBRep = 0;         // nach buildBRep aller Pinsel
+        long long heapVor = 0;              // HeapSummary: was new/malloc halten
+        long long heapBRep = 0;
+        long long heapDraht = 0;
+        long long heapEnde = 0;
+        long long grafikDraht = 0;
+        std::vector<double> editor;
+        std::vector<double> ansichten;
+        std::vector<double> bild;
+        std::vector<double> neubau;   // Bilder direkt nach einem Auswahlwechsel
+        std::vector<double> neubauKamera;
+        std::vector<double> neubauXy;
+    };
+    auto m = std::make_shared<Mess>();
+    const std::string karte = pfad;
+    add(tu("Grosse Karte: Speicher vorher", [m] {
+        const gpu::SpeicherStand st = gpu::speicherStand();
+        m->speicherVor = st.prozessBytes;
+        m->grafikVor = st.grafikBytes;
+        m->heapVor = platform::heapBelegt();
+    }));
+    // Erst im Drahtmodell (keine Texturen), dann texturiert: was kosten die Bilder?
+    auto modusVorher = std::make_shared<karte::KameraModus>(karte::KameraModus::Textur);
+    add(tu("Grosse Karte: Kamera im Drahtmodell", [modusVorher] {
+        *modusVorher = ke::editor().kameraE.modus;
+        ke::editor().kameraE.modus = karte::KameraModus::Draht;
+    }));
+    add(tu("Grosse Karte laden: " + karte, [m, karte] {
+        const auto t0 = std::chrono::steady_clock::now();
+        (void)ke::karteOeffnen(karte);
+        m->ladenMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        m->speicherGeladen = gpu::speicherStand().prozessBytes;
+        // buildBRep aller Pinsel vor dem ersten Bild (sonst beim Zeichnen)
+        const ke::Editor& e = ke::editor();
+        for (const auto& ent : e.karte.entitaeten()) {
+            for (const auto& k : ent->kinder()) {
+                if (k->art() == karte::Primitiv::Art::Pinsel) { (void)static_cast<const karte::Pinsel&>(*k).ecken(e.karte.kontext); }
+            }
+        }
+        m->speicherBRep = gpu::speicherStand().prozessBytes;
+        m->heapBRep = platform::heapBelegt();
+    }));
+    add(pruefe("Grosse Karte offen", [karte] {
+        const ke::Editor& e = ke::editor();
+        std::size_t pinsel = 0;
+        std::size_t patches = 0;
+        for (const auto& ent : e.karte.entitaeten()) {
+            for (const auto& k : ent->kinder()) {
+                if (std::dynamic_pointer_cast<karte::Pinsel>(k)) { ++pinsel; } else { ++patches; }
+            }
+        }
+        diag::detail("Knopftest: Grosse Karte - " + std::to_string(e.karte.entitaeten().size()) + " Entities, " +
+                     std::to_string(pinsel) + " Pinsel, " + std::to_string(patches) + " Patches");
+        return e.name == karte && pinsel > 30000;
+    }));
+    add(pause(0.5));
+    add(tu("Grosse Karte: Speicher nach dem Drahtmodell, dann texturiert", [m, modusVorher] {
+        m->speicherDraht = gpu::speicherStand().prozessBytes;
+        m->heapDraht = platform::heapBelegt();
+        m->grafikDraht = gpu::speicherStand().grafikBytes;
+        ke::editor().kameraE.modus = *modusVorher;
+    }));
+    add(warteBis("Grosse Karte: Texturen geladen", [] { return ke::kameraBilderFertig(); }, 6000));
+    add(pause(0.5));
+    add(tu("Grosse Karte: Speicher nach dem ersten Zeichnen", [m] { m->speicherGezeichnet = gpu::speicherStand().prozessBytes; }));
+    // 240 Bilder: die Kamera dreht sich, das 2D-Bild wandert (alles neu zeichnen)
+    add({"Grosse Karte: Bildzeiten (240 Bilder)", [m](int b) {
+             ke::Editor& e = ke::editor();
+             if (b > 0) {
+                 m->editor.push_back(e.zeichenMs);
+                 m->ansichten.push_back(e.ansichtenMs);
+                 m->bild.push_back(static_cast<double>(ImGui::GetIO().DeltaTime) * 1000.0);
+             }
+             e.kamera.freiBewegen(6, (b / 60) % 2 == 0 ? 1 : -1, e.kameraE);
+             e.xy[0].ansicht.rollen((b / 60) % 2 == 0 ? 8 : -8, 0);
+             return b >= 240;
+         }});
+    // Eine Auswahl aendert den Stand der Szene: Kamera und 2D bauen nur den
+    // Rest neu, die Geometrie (Pinsel, Patches) bleibt.
+    auto neubauten = std::make_shared<std::array<std::size_t, 2>>();
+    add(tu("Grosse Karte: Neubauten merken", [neubauten] {
+        (*neubauten)[0] = ke::editor().geoNeubauten;
+        (*neubauten)[1] = ke::editor().restNeubauten;
+    }));
+    add({"Grosse Karte: Auswahl wechseln (5 x), Bildzeit mit Neubau", [m](int b) {
+             ke::Editor& e = ke::editor();
+             if (b > 0 && b % 2 == 0) {
+                 m->neubau.push_back(e.zeichenMs);
+                 m->neubauKamera.push_back(e.kameraNeubauMs);
+                 m->neubauXy.push_back(e.xyNeubauMs);
+             }
+             if (b % 2 == 1) {
+                 e.karte.auswahl.leeren();
+                 const auto& kinder = e.karte.welt()->kinder();
+                 if (!kinder.empty()) { e.karte.auswahl.waehlen(e.karte.welt(), kinder[static_cast<std::size_t>(b * 997) % kinder.size()]); }
+             }
+             return b >= 10;
+         }});
+    add(pruefe("Grosse Karte: Auswahlwechsel bauen nur den Rest neu, die Geometrie nicht", [neubauten] {
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Grosse Karte - Neubauten Geometrie " + std::to_string(e.geoNeubauten - (*neubauten)[0]) + ", Rest " +
+                     std::to_string(e.restNeubauten - (*neubauten)[1]));
+        return e.geoNeubauten == (*neubauten)[0] && e.restNeubauten >= (*neubauten)[1] + 5;
+    }));
+    add(pruefe("Grosse Karte: Kamera-Szene nach dem Hochladen nicht mehr im Speicher", [] {
+        return ke::kameraSzeneMass().find("im Speicher 0 MB") != std::string::npos;
+    }));
+    add(tu("Grosse Karte: Auswahl leeren", [] { ke::editor().karte.auswahl.leeren(); }));
+    add(pruefe("Grosse Karte: Messwerte", [m] {
+        const auto stat = [](std::vector<double> v) {
+            if (v.empty()) { return std::string("-"); }
+            std::sort(v.begin(), v.end());
+            double summe = 0.0;
+            for (double x : v) { summe += x; }
+            char z[160];
+            std::snprintf(z, sizeof(z), "Mittel %.2f ms, Median %.2f, 95%% %.2f, max %.2f", summe / static_cast<double>(v.size()),
+                          v[v.size() / 2], v[std::min(v.size() - 1, v.size() * 95 / 100)], v.back());
+            return std::string(z);
+        };
+        const gpu::SpeicherStand st = gpu::speicherStand();
+        char z[400];
+        std::snprintf(z, sizeof(z), "Knopftest: Grosse Karte - Laden %.0f ms; Speicher privat %lld -> %lld MB (+%lld), Grafik %lld -> %lld MB",
+                      m->ladenMs, m->speicherVor / (1024 * 1024), st.prozessBytes / (1024 * 1024),
+                      (st.prozessBytes - m->speicherVor) / (1024 * 1024), m->grafikVor / (1024 * 1024), st.grafikBytes / (1024 * 1024));
+        diag::detail(z);
+        std::snprintf(z, sizeof(z),
+                      "Knopftest: Grosse Karte - Speicher: nach dem Lesen +%lld MB, nach buildBRep +%lld MB, gezeichnet ohne Texturen +%lld MB (Grafik %lld MB), mit Texturen +%lld MB",
+                      (m->speicherGeladen - m->speicherVor) / (1024 * 1024), (m->speicherBRep - m->speicherVor) / (1024 * 1024),
+                      (m->speicherDraht - m->speicherVor) / (1024 * 1024),
+                      m->grafikDraht / (1024 * 1024), (m->speicherGezeichnet - m->speicherVor) / (1024 * 1024));
+        diag::detail(z);
+        m->heapEnde = platform::heapBelegt();
+        std::snprintf(z, sizeof(z), "Knopftest: Grosse Karte - Heap: nach buildBRep +%lld MB, Drahtmodell +%lld MB, Ende +%lld MB",
+                      (m->heapBRep - m->heapVor) / (1024 * 1024), (m->heapDraht - m->heapVor) / (1024 * 1024),
+                      (m->heapEnde - m->heapVor) / (1024 * 1024));
+        diag::detail(z);
+        diag::detail("Knopftest: Grosse Karte - " + ke::kameraSzeneMass());
+        diag::detail("Knopftest: Grosse Karte - " + ke::xySzeneMass());
+        diag::detail("Knopftest: Grosse Karte - Editor je Bild: " + stat(m->editor));
+        diag::detail("Knopftest: Grosse Karte - davon Ansichten: " + stat(m->ansichten));
+        diag::detail("Knopftest: Grosse Karte - Bildabstand: " + stat(m->bild));
+        diag::detail("Knopftest: Grosse Karte - Bild nach Auswahlwechsel (Neubau): " + stat(m->neubau));
+        diag::detail("Knopftest: Grosse Karte - davon Kamera-Szene: " + stat(m->neubauKamera));
+        diag::detail("Knopftest: Grosse Karte - davon 2D-Szene: " + stat(m->neubauXy));
+        return !m->editor.empty();
+    }));
+    add(tu("Grosse Karte: Testkarte wieder laden", [] { (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map")); }));
+    add(pause(0.3));
+    return s;
+}
+
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
     std::vector<Schritt> s;
@@ -28728,9 +28918,15 @@ std::vector<Schritt> karteneditorSchritte() {
         return laden && prim;
     }));
     add(foto("karteneditor_start"));
-    // BHED_KARTE_NUR=fotos: nur die Fotos zum NRC-Vergleich (schnell beim Nachmessen)
+    // BHED_KARTE_NUR=fotos: nur die Fotos zum NRC-Vergleich (schnell beim
+    // Nachmessen); =gross: nur die grosse Karte (BHED_KARTE_GROSS).
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "fotos") == 0) {
         for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "gross") == 0) {
+        for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
@@ -28745,6 +28941,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : karteneditorKonsoleSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorAlleBefehleSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
+    for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
     return s;
 }

@@ -127,5 +127,10 @@ bool bildschirmFarbe(int x, int y, unsigned char rgb[3]);
 // (Segoe UI 9 pt = 12 px, Tahoma 8 pt = 11 px). -1, wenn es nicht geht.
 [[nodiscard]] int gdiTextBreite(const std::string& utf8, const wchar_t* schrift, int pixel, bool fett);
 
+// Fuer den Selbsttest (Punkt 12): belegte Bytes des Prozess-Heaps (HeapSummary),
+// also was new/malloc halten - der Rest des privaten Speichers gehoert z. B.
+// dem Grafiktreiber. -1, wenn es nicht geht.
+[[nodiscard]] long long heapBelegt();
+
 }  // namespace bhed::platform
 #endif

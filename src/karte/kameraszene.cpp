@@ -346,7 +346,11 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
     std::map<std::string, std::size_t> shaderStapel;
     std::map<Farbe, std::size_t> fuellStapel;
     std::map<Farbe, std::size_t> additivStapel;
+    // Der Shader der letzten Flaeche (meist dieselbe wie davor): ohne Kleinschreiben und Suchen.
+    const std::string* letzterShader = nullptr;
+    std::size_t letzterStapel = 0;
     const auto stapel = [&](StapelArt art, const std::string& shader, Farbe farbe) -> KameraStapel& {
+        if (art == StapelArt::Shader && letzterShader != nullptr && *letzterShader == shader) { return s.stapel[letzterStapel]; }
         std::map<std::string, std::size_t>* sm = nullptr;
         std::map<Farbe, std::size_t>* fm = nullptr;
         std::string schluessel;
@@ -354,7 +358,11 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
             sm = &shaderStapel;
             schluessel = klein(shader);
             const auto it = sm->find(schluessel);
-            if (it != sm->end()) { return s.stapel[it->second]; }
+            if (it != sm->end()) {
+                letzterShader = &shader;
+                letzterStapel = it->second;
+                return s.stapel[it->second];
+            }
         } else {
             fm = art == StapelArt::Fuellung ? &fuellStapel : &additivStapel;
             const auto it = fm->find(farbe);
@@ -367,6 +375,8 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
         s.stapel.push_back(std::move(neu));
         if (sm != nullptr) {
             (*sm)[schluessel] = s.stapel.size() - 1;
+            letzterShader = &shader;
+            letzterStapel = s.stapel.size() - 1;
         } else {
             (*fm)[farbe] = s.stapel.size() - 1;
         }
@@ -375,7 +385,6 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
     // Objekte und Matrix-Wechsel je Zustand (OpenGLStateBucket::render: der
     // erste zaehlt immer, dann jeder Wechsel); 0 = Einheitsmatrix, sonst die
     // Entitaet (localToWorld = Ursprung).
-    std::map<const KameraStapel*, const void*> letzte;
     const void* tintLetzte = nullptr;
     const void* overlayLetzte = nullptr;
     const auto zaehlen = [](std::size_t& objekte, std::size_t& transforms, const void*& letzt, const void* matrix) {
@@ -383,12 +392,9 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
         letzt = matrix;
         ++objekte;
     };
-    const auto objekt = [&](KameraStapel& st, const void* matrix) {
-        auto it = letzte.find(&st);
-        const void* l = it != letzte.end() ? it->second : nullptr;
-        zaehlen(st.objekte, st.transforms, l, matrix);
-        letzte[&st] = l;
-    };
+    const auto objekt = [&](KameraStapel& st, const void* matrix) { zaehlen(st.objekte, st.transforms, st.letzteMatrix, matrix); };
+    const bool geometrie = o.teil != KameraTeil::Rest;   // Shader-Stapel der Pinsel und Patches
+    const bool rest = o.teil != KameraTeil::Geometrie;   // Punktentitaeten, Gruppen, Namen, Auswahl
     const auto tintObjekt = [&](const void* matrix) { zaehlen(s.tintObjekte, s.tintTransforms, tintLetzte, matrix); };
     const auto overlayObjekt = [&](const void* matrix) { zaehlen(s.overlayObjekte, s.overlayTransforms, overlayLetzte, matrix); };
     const auto wahlDazu = [&](std::size_t dreieckeVorher, const std::vector<KameraPunkt>& dreiecke, bool tint) {
@@ -400,20 +406,30 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
         if (ent->versteckt) { continue; }   // Node::eHidden (mit den Kindern)
         const EntitaetsKlasse* kl = ent->klasse();
         const bool welt = ent->klassenname() == "worldspawn";
-        const bool entGew = karte.auswahl.gewaehlt(ent.get());
+        const bool entGew = rest && karte.auswahl.gewaehlt(ent.get());
         bool kindGew = false;
         Kasten kinderBox;
         for (const auto& p : ent->kinder()) {
             if (p->versteckt) { continue; }
-            const bool selbstGew = karte.auswahl.gewaehlt(ent.get(), p.get());
+            const bool selbstGew = rest && karte.auswahl.gewaehlt(ent.get(), p.get());
             const bool gew = entGew || selbstGew;   // RenderHighlighted: Zustand der Eltern gilt fuer die Kinder
+            // Nur der Rest: unausgewaehlte Pinsel und Patches tragen nur ihre Grenzen bei.
+            if (!geometrie && !gew) {
+                const Kasten g = p->art() == Primitiv::Art::Pinsel ? static_cast<const Pinsel&>(*p).grenzen(k)
+                                                                    : static_cast<const Patch&>(*p).grenzen();
+                s.etagen.push_back({g, false});
+                kastenErweiternSicher(kinderBox, g);
+                continue;
+            }
             kindGew = kindGew || selbstGew;
             if (p->art() == Primitiv::Art::Pinsel) {
                 const auto& pinsel = static_cast<const Pinsel&>(*p);
                 pinsel.bRep(k);
                 const Kasten g = pinsel.grenzen(k);
-                s.etagen.push_back({g, selbstGew});
-                kastenErweiternSicher(kinderBox, g);
+                if (rest) {
+                    s.etagen.push_back({g, selbstGew});
+                    kastenErweiternSicher(kinderBox, g);
+                }
                 for (const auto& fl : pinsel.flaechen()) {
                     if (!fl->traegtBei()) { continue; }
                     const Wicklung& w = fl->wicklung();
@@ -425,15 +441,24 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
                         ecken.push_back({Vektor3f(static_cast<float>(v[0]), static_cast<float>(v[1]), static_cast<float>(v[2])), n,
                                          w[i].texcoord, 0xFFFFFFFFU});
                     }
-                    KameraStapel& st = stapel(StapelArt::Shader, fl->shader(), 0xFFFFFFFFU);
-                    const std::size_t vorher = st.dreiecke.size();
-                    polygonFuellung(ecken, st.dreiecke, o.kanten ? (gew ? &st.kantenGewaehlt : &st.kanten) : nullptr);
-                    objekt(st, nullptr);
+                    if (!rest) {
+                        // Nur Geometrie: alle Umrisse in kanten (die Auswahl zeichnet der Rest)
+                        KameraStapel& st = stapel(StapelArt::Shader, fl->shader(), 0xFFFFFFFFU);
+                        polygonFuellung(ecken, st.dreiecke, o.kanten ? &st.kanten : nullptr);
+                        objekt(st, nullptr);
+                        continue;
+                    }
+                    std::vector<KameraPunkt> nurWahl;
+                    KameraStapel* stp = geometrie ? &stapel(StapelArt::Shader, fl->shader(), 0xFFFFFFFFU) : nullptr;
+                    std::vector<KameraPunkt>& dreieckZiel = stp != nullptr ? stp->dreiecke : nurWahl;
+                    const std::size_t vorher = dreieckZiel.size();
+                    polygonFuellung(ecken, dreieckZiel, (o.kanten && stp != nullptr) ? (gew ? &stp->kantenGewaehlt : &stp->kanten) : nullptr);
+                    if (stp != nullptr) { objekt(*stp, nullptr); }
                     if (gew) {
                         tintObjekt(nullptr);
                         overlayObjekt(nullptr);
                         ++s.wahlPrimitive;
-                        wahlDazu(vorher, st.dreiecke, true);
+                        wahlDazu(vorher, dreieckZiel, true);
                         umriss.clear();
                         std::vector<KameraPunkt> leer;
                         polygonFuellung(ecken, leer, &umriss);
@@ -442,12 +467,17 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
                 }
             } else {
                 const auto& patch = static_cast<const Patch&>(*p);
-                s.etagen.push_back({patch.grenzen(), selbstGew});
-                kastenErweiternSicher(kinderBox, patch.grenzen());
+                if (rest) {
+                    s.etagen.push_back({patch.grenzen(), selbstGew});
+                    kastenErweiternSicher(kinderBox, patch.grenzen());
+                }
                 const PatchTesselierung& t = patch.tesselierung();
-                KameraStapel& st = stapel(StapelArt::Shader, patch.shader(), 0xFFFFFFFFU);
-                const std::size_t vorher = st.dreiecke.size();
-                std::vector<KameraKante>* ziel = o.kanten ? (gew ? &st.kantenGewaehlt : &st.kanten) : nullptr;
+                std::vector<KameraPunkt> nurWahl;
+                KameraStapel* stp = geometrie ? &stapel(StapelArt::Shader, patch.shader(), 0xFFFFFFFFU) : nullptr;
+                std::vector<KameraPunkt>& dreieckZiel = stp != nullptr ? stp->dreiecke : nurWahl;
+                const std::size_t vorher = dreieckZiel.size();
+                std::vector<KameraKante>* ziel =
+                    (o.kanten && stp != nullptr) ? ((gew && rest) ? &stp->kantenGewaehlt : &stp->kanten) : nullptr;
                 const auto punktAus = [&](unsigned int index) {
                     const NetzPunkt& v = t.vertices[index];
                     return KameraPunkt{v.vertex, v.normal, v.texcoord, 0xFFFFFFFFU};
@@ -460,12 +490,12 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
                         const KameraPunkt b = punktAus(q[i + 1]);
                         const KameraPunkt c = punktAus(q[i + 3]);
                         const KameraPunkt d = punktAus(q[i + 2]);
-                        st.dreiecke.push_back(a);
-                        st.dreiecke.push_back(b);
-                        st.dreiecke.push_back(d);
-                        st.dreiecke.push_back(d);
-                        st.dreiecke.push_back(b);
-                        st.dreiecke.push_back(c);
+                        dreieckZiel.push_back(a);
+                        dreieckZiel.push_back(b);
+                        dreieckZiel.push_back(d);
+                        dreieckZiel.push_back(d);
+                        dreieckZiel.push_back(b);
+                        dreieckZiel.push_back(c);
                         const KameraKante kk[4] = {{a.pos, b.pos, c.pos, a.farbe, b.farbe, true},
                                                    {b.pos, c.pos, d.pos, b.farbe, c.farbe, true},
                                                    {c.pos, d.pos, a.pos, c.farbe, d.farbe, true},
@@ -474,15 +504,16 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
                         if (gew) { s.wahlKanten.insert(s.wahlKanten.end(), std::begin(kk), std::end(kk)); }
                     }
                 }
-                objekt(st, nullptr);
+                if (stp != nullptr) { objekt(*stp, nullptr); }
                 if (gew) {
                     tintObjekt(nullptr);
                     overlayObjekt(nullptr);
                     ++s.wahlPrimitive;
-                    wahlDazu(vorher, st.dreiecke, true);
+                    wahlDazu(vorher, dreieckZiel, true);
                 }
             }
         }
+        if (!rest) { continue; }   // nur Geometrie: keine Punktentitaeten, Gruppen, Namen
         const Farbe kf = klassenFarbe(kl);
         if (!ent->istBehaelter()) {
             // Punktentitaet (GenericEntity / Light)

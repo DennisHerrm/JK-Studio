@@ -408,12 +408,16 @@ struct Szene3 {
     std::vector<kartegpu::LinienPunkt> overlay;       // $CAM_OVERLAY
     std::vector<karte::KameraName> namen;
     std::size_t dreieckAnzahl = 0;
+    std::size_t linienPunkte = 0;     // hochgeladene Linienpunkte (die Kopie ist danach frei)
     std::size_t tintObjekte = 0;      // ShowStats
     std::size_t tintTransforms = 0;
     std::size_t overlayObjekte = 0;
     std::size_t overlayTransforms = 0;
     std::size_t wahlPrimitive = 0;
 };
+// Punkt 12: zwei Teile - die Geometrie (Pinsel und Patches, nur bei einer
+// Aenderung der Karte neu) und der Rest (Punktentitaeten, Namen, Auswahl).
+Szene3 g_geo;
 Szene3 g_szene;
 
 kartegpu::Punkt3 punkt3(const karte::KameraPunkt& p, bool weiss) {
@@ -449,16 +453,16 @@ void kanteDazu(const karte::KameraKante& k, bool weiss, std::vector<kartegpu::Li
     aus.push_back(b);
 }
 
-void szeneBauen(bool mitKanten) {
+void szeneBauen(Szene3& s, karte::KameraTeil teil, bool mitKanten) {
     Editor& ed = e();
     karte::KameraSzenenOptionen o;
+    o.teil = teil;
     o.kanten = mitKanten;
     o.winkel = ed.anzeige.winkel;
     o.namen = ed.anzeige.namen;
     o.lichtRadien = ed.anzeige.lichtRadien;
     o.zielnamen = ed.ent.zielnamen;
     karte::KameraSzene roh = karte::kameraSzeneBauen(ed.karte, o);
-    Szene3& s = g_szene;
     s.stapel.clear();
     s.dreieckDaten.clear();
     s.linienDaten.clear();
@@ -498,6 +502,7 @@ void szeneBauen(bool mitKanten) {
     for (const karte::KameraKante& k : roh.wahlTintLinien) { kanteDazu(k, true, s.tintLinien); }
     s.namen = std::move(roh.namen);
     s.dreieckAnzahl = roh.dreieckAnzahl;
+    s.linienPunkte = s.linienDaten.size();
     s.tintObjekte = roh.tintObjekte;
     s.tintTransforms = roh.tintTransforms;
     s.overlayObjekte = roh.overlayObjekte;
@@ -505,6 +510,23 @@ void szeneBauen(bool mitKanten) {
     s.wahlPrimitive = roh.wahlPrimitive;
     s.gpuAktuell = false;
 }
+
+}  // namespace
+
+std::string kameraSzeneMass() {
+    char z[400];
+    const auto mb = [](const Szene3& s) {
+        return (s.dreieckDaten.capacity() * sizeof(kartegpu::Punkt3) + s.linienDaten.capacity() * sizeof(kartegpu::LinienPunkt)) /
+               (1024 * 1024);
+    };
+    std::snprintf(z, sizeof(z),
+                  "Kamera-Szene: Geometrie %zu Dreiecke, %zu Linienpunkte, %zu Stapel; Rest %zu Dreiecke, %zu Stapel; im Speicher %zu MB",
+                  g_geo.dreieckAnzahl, g_geo.linienPunkte, g_geo.stapel.size(), g_szene.dreieckAnzahl, g_szene.stapel.size(),
+                  mb(g_geo) + mb(g_szene));
+    return z;
+}
+
+namespace {
 
 // FloorHeightWalker: alle sichtbaren Knoten ausser Wurzel und Gruppen.
 std::vector<karte::EtagenKandidat> etagenKandidaten() {
@@ -847,10 +869,22 @@ void kameraZeichnen() {
     lager().abholen();
     const bool mitKanten = c.modus == karte::KameraModus::Draht || c.modus == karte::KameraModus::TexturDraht;
     const std::size_t stand = szeneStand();
-    if (g_szene.stand != stand || g_szene.mitKanten != mitKanten) {
-        szeneBauen(mitKanten);
-        g_szene.stand = stand;
+    const std::size_t geoStand = geometrieStand();
+    const auto t0 = std::chrono::steady_clock::now();
+    bool neu = false;
+    if (g_geo.stand != geoStand || g_geo.mitKanten != mitKanten) {
+        szeneBauen(g_geo, karte::KameraTeil::Geometrie, mitKanten);
+        g_geo.stand = geoStand;
+        ++ed.geoNeubauten;
+        neu = true;
     }
+    if (g_szene.stand != stand || g_szene.mitKanten != mitKanten) {
+        szeneBauen(g_szene, karte::KameraTeil::Rest, mitKanten);
+        g_szene.stand = stand;
+        ++ed.restNeubauten;
+        neu = true;
+    }
+    if (neu) { ed.kameraNeubauMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(); }
     Szene3& s = g_szene;
 
     // --- Schrift wie die 2D-Ansichten (Myriad Pro 8 pt -> Segoe UI)
@@ -874,10 +908,19 @@ void kameraZeichnen() {
         ++zustaende;
     };
     if (kartegpu::verfuegbar() && kartegpu::beginnen(200, f.breite, f.hoehe, c.msaa, hinten, true)) {
-        if (!s.gpuAktuell) {
-            s.dreiecke.setzen(s.dreieckDaten.data(), s.dreieckDaten.size() * sizeof(kartegpu::Punkt3));
-            s.linien.setzen(s.linienDaten.data(), s.linienDaten.size() * sizeof(kartegpu::LinienPunkt));
-            s.gpuAktuell = true;
+        for (Szene3* q : {&g_geo, &g_szene}) {
+            if (q->gpuAktuell && ((!q->dreiecke.gueltig() && q->dreieckAnzahl > 0) || (!q->linien.gueltig() && q->linienPunkte > 0))) {
+                q->stand = static_cast<std::size_t>(-1);   // Grafikgeraet neu: im naechsten Bild neu bauen
+            }
+            if (!q->gpuAktuell) {
+                q->dreiecke.setzen(q->dreieckDaten.data(), q->dreieckDaten.size() * sizeof(kartegpu::Punkt3));
+                q->linien.setzen(q->linienDaten.data(), q->linienDaten.size() * sizeof(kartegpu::LinienPunkt));
+                q->gpuAktuell = true;
+                // Punkt 12: die Daten liegen jetzt auf der Grafikkarte - die Kopien
+                // im Speicher freigeben (duel_mos_espa: rund 190 MB).
+                std::vector<kartegpu::Punkt3>().swap(q->dreieckDaten);
+                std::vector<kartegpu::LinienPunkt>().swap(q->linienDaten);
+            }
         }
         const bool fuellen = c.modus != karte::KameraModus::Draht;
         const bool texturen = c.modus == karte::KameraModus::Textur || c.modus == karte::KameraModus::TexturDraht;
@@ -897,7 +940,7 @@ void kameraZeichnen() {
         };
         // Ein Shader-Stapel: der Zustand aus OpenGLShader::construct (Shader)
         // UND der globale Zustand der Darstellungsart.
-        const auto shaderZiehen = [&](const Stapel3& st, bool durchsichtig) {
+        const auto shaderZiehen = [&](const Szene3& q, const Stapel3& st, bool durchsichtig) {
             const Bild* b = lager().holen(st.shader);
             if (b == nullptr || !b->fertig) { return; }
             const karte::ShaderEintrag* se = ed.karteSpiel ? ed.karteSpiel->inventar.shaderFinden(st.shader) : nullptr;
@@ -935,19 +978,19 @@ void kameraZeichnen() {
             }
             zaehlen(st.objekte, st.transforms);
             if (fuellen) {
-                kartegpu::dreiecke(s.dreiecke, st.dreiecke.erstes, st.dreiecke.anzahl, z);
+                kartegpu::dreiecke(q.dreiecke, st.dreiecke.erstes, st.dreiecke.anzahl, z);
             } else {
                 // ohne RENDER_FILL: GL_LINE, ohne Licht und Textur
                 z.licht = false;
                 z.bild = nullptr;
                 z.himmel = nullptr;
                 farbeSetzen(z, b->farbe[0], b->farbe[1], b->farbe[2], alpha);
-                kartegpu::linien(s.linien, st.kanten.erstes, st.kanten.anzahl, z);
-                kartegpu::linien(s.linien, st.kantenGewaehlt.erstes, st.kantenGewaehlt.anzahl, z);
+                kartegpu::linien(q.linien, st.kanten.erstes, st.kanten.anzahl, z);
+                kartegpu::linien(q.linien, st.kantenGewaehlt.erstes, st.kantenGewaehlt.anzahl, z);
             }
         };
         // "(r g b)" und "{r g b}"
-        const auto farbStapelZiehen = [&](const Stapel3& st) {
+        const auto farbStapelZiehen = [&](const Szene3& q, const Stapel3& st) {
             kartegpu::Zustand3 z = basis;
             z.licht = fuellen;
             z.wegschneiden = true;
@@ -956,28 +999,35 @@ void kameraZeichnen() {
                 z.tiefeSchreiben = false;
             }
             if (fuellen) {
-                kartegpu::dreiecke(s.dreiecke, st.dreiecke.erstes, st.dreiecke.anzahl, z);
+                kartegpu::dreiecke(q.dreiecke, st.dreiecke.erstes, st.dreiecke.anzahl, z);
             } else {
-                kartegpu::linien(s.linien, st.kanten.erstes, st.kanten.anzahl, z);
-                kartegpu::linien(s.linien, st.kantenGewaehlt.erstes, st.kantenGewaehlt.anzahl, z);
+                kartegpu::linien(q.linien, st.kanten.erstes, st.kanten.anzahl, z);
+                kartegpu::linien(q.linien, st.kantenGewaehlt.erstes, st.kantenGewaehlt.anzahl, z);
             }
-            kartegpu::linien(s.linien, st.linien.erstes, st.linien.anzahl, z);   // GL_LINES (Pfeile)
+            kartegpu::linien(q.linien, st.linien.erstes, st.linien.anzahl, z);   // GL_LINES (Pfeile)
             zaehlen(st.objekte, st.transforms);
         };
+        const Szene3* const teile[2] = {&g_geo, &g_szene};
         // eSortFullbright: deckende Shader, Himmel, Fuellungen
-        for (const Stapel3& st : s.stapel) {
-            if (st.art == karte::StapelArt::Shader) {
-                shaderZiehen(st, false);
-            } else if (st.art == karte::StapelArt::Fuellung) {
-                farbStapelZiehen(st);
+        for (const Szene3* q : teile) {
+            for (const Stapel3& st : q->stapel) {
+                if (st.art == karte::StapelArt::Shader) {
+                    shaderZiehen(*q, st, false);
+                } else if (st.art == karte::StapelArt::Fuellung) {
+                    farbStapelZiehen(*q, st);
+                }
             }
         }
         // eSortTranslucent: zuerst ohne Textur (Additiv), dann qer_trans
-        for (const Stapel3& st : s.stapel) {
-            if (st.art == karte::StapelArt::Additiv) { farbStapelZiehen(st); }
+        for (const Szene3* q : teile) {
+            for (const Stapel3& st : q->stapel) {
+                if (st.art == karte::StapelArt::Additiv) { farbStapelZiehen(*q, st); }
+            }
         }
-        for (const Stapel3& st : s.stapel) {
-            if (st.art == karte::StapelArt::Shader) { shaderZiehen(st, true); }
+        for (const Szene3* q : teile) {
+            for (const Stapel3& st : q->stapel) {
+                if (st.art == karte::StapelArt::Shader) { shaderZiehen(*q, st, true); }
+            }
         }
         const auto& sel = ed.farben.auswahl3d;
         // gewaehlte Flaechen (Komponenten): Polygone, Kanten, Schwerpunkte
@@ -1046,11 +1096,13 @@ void kameraZeichnen() {
             z.tiefeSchreiben = false;
             z.wegschneiden = true;
             std::size_t objekte = 0;
-            for (const Stapel3& st : s.stapel) {
-                if (st.art == karte::StapelArt::Shader) {
-                    // die weissen Eckenfarben der Pinselflaechen: grau aus dem Zustand
-                    kartegpu::linien(s.linien, st.kanten.erstes, st.kanten.anzahl, z);
-                    objekte += st.objekte;
+            for (const Szene3* q : teile) {
+                for (const Stapel3& st : q->stapel) {
+                    if (st.art == karte::StapelArt::Shader) {
+                        // die weissen Eckenfarben der Pinselflaechen: grau aus dem Zustand
+                        kartegpu::linien(q->linien, st.kanten.erstes, st.kanten.anzahl, z);
+                        objekte += st.objekte;
+                    }
                 }
             }
             zaehlen(objekte - std::min(objekte, s.wahlPrimitive), 1);

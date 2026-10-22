@@ -31,6 +31,7 @@
 #include <imgui_internal.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -67,6 +68,14 @@ struct Name {
     bool gewaehlt = false;
 };
 struct Szene {
+    // Punkt 12: die Kanten aller Pinsel und Patches in ihrer Farbe haengen nicht
+    // an der Auswahl - nur bei einer Aenderung der Karte neu (geo); das
+    // Ausgewaehlte liegt in wahl darueber.
+    std::size_t geoStand = static_cast<std::size_t>(-1);
+    Sicht geoSicht = Sicht::XY;
+    std::vector<Linie> geo;
+    kartegpu::Puffer gpuGeo;
+    bool geoGpuAktuell = false;
     std::size_t stand = static_cast<std::size_t>(-1);
     Sicht sicht = Sicht::XY;
     std::vector<Linie> welt;    // Breite 1
@@ -81,6 +90,31 @@ std::array<Szene, 3> g_szene;
 Farbe farbe3(const Farben::F3& c, float a = 1.0F) { return karte::farbeAus(c[0], c[1], c[2], a); }
 
 }  // namespace
+
+std::string xySzeneMass() {
+    std::string t;
+    for (std::size_t i = 0; i < g_szene.size(); ++i) {
+        const Szene& s = g_szene[i];
+        char z[160];
+        std::snprintf(z, sizeof(z), "%s2D %zu: Geometrie %zu Linien (%zu MB), Rest %zu, Auswahl %zu, %zu Namen", i == 0 ? "" : "; ", i,
+                      s.geo.size(), s.geo.capacity() * sizeof(Linie) / (1024 * 1024), s.welt.size(), s.wahl.size(), s.namen.size());
+        t += z;
+    }
+    return t;
+}
+
+// Der Stand der Geometrie (ohne Auswahl und Anzeige): Befehle, Rueckgaengig,
+// Wiederholen, neue Karte, Verstecken/Zeigen, die Farbe der Pinsel.
+std::size_t geometrieStand() {
+    const Editor& ed = e();
+    std::size_t h = ed.karte.undo.aenderungen() * 1315423911U;
+    h ^= ed.karte.undo.undoAnzahl() * 2654435761U + (h << 6) + (h >> 2);
+    h ^= ed.karte.undo.redoAnzahl() * 40503U + (h << 6) + (h >> 2);
+    h ^= ed.ladeZaehler * 97U + (h << 6) + (h >> 2);
+    h ^= ed.sichtStand * 2246822519U + (h << 6) + (h >> 2);
+    h ^= static_cast<std::size_t>(farbe3(ed.farben.pinsel)) * 7U + (h << 6) + (h >> 2);
+    return h;
+}
 
 // Ein Stand der Szene: aendert sich mit jedem Befehl, Rueckgaengig,
 // Wiederholen, neuer Karte und neuer Auswahl.
@@ -128,9 +162,40 @@ Vektor3f ursprungVon(const karte::Entitaet& ent) {
     return o;
 }
 
+// Die Farbe einer Entitaet im Drahtgitter (SetWorldspawnColour, Klassenfarbe).
+Farbe entitaetsFarbe(const karte::Entitaet& ent) {
+    const Editor& ed = e();
+    const karte::EntitaetsKlasse* kl = ent.klasse();
+    if (ent.klassenname() == "worldspawn") { return farbe3(ed.farben.pinsel); }
+    return kl != nullptr ? karte::farbeAus(kl->farbe[0], kl->farbe[1], kl->farbe[2]) : karte::farbeAus(0, 0.5F, 0);
+}
+
+// Die Kanten aller sichtbaren Pinsel und Patches in ihrer Farbe (der Teil der
+// Szene, der nicht an der Auswahl haengt).
+void geoBauen(Szene& s, Sicht sicht) {
+    Editor& ed = e();
+    s.geo.clear();
+    s.geoSicht = sicht;
+    const karte::Kontext& k = ed.karte.kontext;
+    for (const auto& ent : ed.karte.entitaeten()) {
+        if (ent->versteckt) { continue; }
+        const Farbe farbe = entitaetsFarbe(*ent);
+        for (const auto& p : ent->kinder()) {
+            if (p->versteckt) { continue; }
+            if (p->art() == karte::Primitiv::Art::Pinsel) {
+                karte::pinselKanten(static_cast<const karte::Pinsel&>(*p), k, sicht, farbe, s.geo);
+            } else {
+                karte::patchGitter(static_cast<const karte::Patch&>(*p), farbe, s.geo);
+            }
+        }
+    }
+    s.geoGpuAktuell = false;
+}
+
 // Scene_Render mit dem XYRenderer (xywindow.cpp:1647-1704): Drahtgitter in
 // der Klassenfarbe, Ausgewaehltes (auch Kinder ausgewaehlter Entities) in der
-// Auswahlfarbe und Breite 2.
+// Auswahlfarbe und Breite 2 - hier der Rest ohne die Geometrie (geoBauen):
+// ausgewaehlte Pinsel und Patches, Punktentitaeten, Gruppen, Namen, Verbindungen.
 void szeneBauen(Szene& s, Sicht sicht) {
     Editor& ed = e();
     s.welt.clear();
@@ -164,12 +229,11 @@ void szeneBauen(Szene& s, Sicht sicht) {
         for (const auto& p : ent->kinder()) {
             if (p->versteckt) { continue; }
             const bool gew = entGewaehlt || ed.karte.auswahl.gewaehlt(ent.get(), p.get());
-            std::vector<Linie>& ziel = gew ? s.wahl : s.welt;
-            const Farbe f = gew ? auswahl : farbe;
+            if (!gew) { continue; }   // in geo (geoBauen)
             if (p->art() == karte::Primitiv::Art::Pinsel) {
-                karte::pinselKanten(static_cast<const karte::Pinsel&>(*p), k, sicht, f, ziel);
+                karte::pinselKanten(static_cast<const karte::Pinsel&>(*p), k, sicht, auswahl, s.wahl);
             } else {
-                karte::patchGitter(static_cast<const karte::Patch&>(*p), f, ziel);
+                karte::patchGitter(static_cast<const karte::Patch&>(*p), auswahl, s.wahl);
             }
         }
         std::vector<Linie>& ziel = entGewaehlt ? s.wahl : s.welt;
@@ -421,10 +485,22 @@ void xyZeichnen(int index) {
     // --- Szene (nur neu bauen, wenn sich etwas geaendert hat)
     Szene& s = g_szene[static_cast<std::size_t>(index)];
     const std::size_t stand = szeneStand();
+    const std::size_t geoStand = geometrieStand();
+    const auto t0 = std::chrono::steady_clock::now();
+    bool neu = false;
+    if (s.geoStand != geoStand || s.geoSicht != v.typ) {
+        geoBauen(s, v.typ);
+        s.geoStand = geoStand;
+        ++ed.geoNeubauten;
+        neu = true;
+    }
     if (s.stand != stand || s.sicht != v.typ) {
         szeneBauen(s, v.typ);
         s.stand = stand;
+        ++ed.restNeubauten;
+        neu = true;
     }
+    if (neu) { ed.xyNeubauMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(); }
     const karte::RasterEinstellungen re = rasterEinstellungen(index, schriftHoehe, unterlaenge);
     const karte::RasterZeichnung raster = karte::rasterZeichnen(v, re);
     const karte::Matrix4 mvp = karte::multipliziert(v.projektion(), v.modelview());
@@ -483,6 +559,10 @@ void xyZeichnen(int index) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const float hinten[4] = {ed.farben.rasterHinten[0], ed.farben.rasterHinten[1], ed.farben.rasterHinten[2], 1.0F};
     if (kartegpu::verfuegbar() && kartegpu::beginnen(100 + index, v.breite, v.hoehe, ed.anzeige.msaa, hinten)) {
+        if (!s.geoGpuAktuell) {
+            s.gpuGeo.setzen(s.geo);
+            s.geoGpuAktuell = true;
+        }
         if (!s.gpuAktuell) {
             s.gpuWelt.setzen(s.welt);
             s.gpuWahl.setzen(s.wahl);
@@ -490,6 +570,7 @@ void xyZeichnen(int index) {
         }
         kartegpu::zeichnen(raster.linien, &mvp[0], 1.0F);
         kartegpu::zeichnen(raster.linien2, &mvp[0], 2.0F);
+        kartegpu::zeichnen(s.gpuGeo, &mvp[0], 1.0F);
         kartegpu::zeichnen(s.gpuWelt, &mvp[0], 1.0F);
         kartegpu::zeichnen(s.gpuWahl, &mvp[0], 2.0F);
         kartegpu::punkte(flaechenPunkte, &mvp[0], 4.0F);
@@ -506,6 +587,7 @@ void xyZeichnen(int index) {
         dl->AddRectFilled(o, ImVec2{o.x + groesse.x, o.y + groesse.y}, farbe3(ed.farben.rasterHinten));
         imguiLinien(dl, v, o, raster.linien, 1.0F);
         imguiLinien(dl, v, o, raster.linien2, 2.0F);
+        imguiLinien(dl, v, o, s.geo, 1.0F);
         imguiLinien(dl, v, o, s.welt, 1.0F);
         imguiLinien(dl, v, o, s.wahl, 2.0F);
         imguiLinien(dl, v, o, manip1, 1.0F);

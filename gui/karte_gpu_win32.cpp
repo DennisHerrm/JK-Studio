@@ -944,7 +944,9 @@ void Puffer3::setzen(const void* daten, std::size_t bytes) {
         m_stand = render::texturStand();
     }
     auto* vb = static_cast<ID3D11Buffer*>(m_vb);
-    if (vb == nullptr || bytes > m_platz) {
+    // Neu anlegen, wenn er zu klein ist - oder viel zu gross (Punkt 12: nach
+    // dem Drahtmodell blieb der Linienpuffer sonst in voller Groesse).
+    if (vb == nullptr || bytes > m_platz || bytes < m_platz / 2) {
         los(vb);
         m_vb = nullptr;
         m_platz = 0;
