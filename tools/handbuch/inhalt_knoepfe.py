@@ -33,6 +33,11 @@ SEITE = {
             [T("**{{ViewEvents}}**"), T("The **{{GroupEvents}}** list of every command and macro, the script tree, the action column - for writing scripts. [[skripte]]")],
             [T("**{{ViewMap}}**"), T("The mission: the entity list and inspector, the map in 3D with the timeline below - for cameras, figures, entities and saving the mission. [[karte]]")],
             [T("**{{ViewModel}}**"), T("A character model with its animations - to find an animation and put it into the script. [[modell]]")],
+            [T("**{{ViewMapEditor}}**"), T(
+                "Build and edit maps like in NetRadiant-Custom: 2D views, camera, texture browser and entities, with its menus and shortcuts. [[karteneditor]]",
+                "Karten bauen und bearbeiten wie in NetRadiant-Custom: 2D-Ansichten, Kamera, Texturbrowser und Entities, mit dessen Menüs und Tastenkürzeln. [[karteneditor]]",
+                "像在 NetRadiant-Custom 中一样制作和编辑地图:二维视图、摄像机、纹理浏览器和实体,菜单和快捷键也相同。[[karteneditor]]",
+                "NetRadiant-Custom と同じようにマップを作成・編集します。2D ビュー、カメラ、テクスチャブラウザー、エンティティ、メニューとショートカットも同じです。[[karteneditor]]")],
         ]),
 
         ("h2", "aktionen", T("The action column (Events mode)")),

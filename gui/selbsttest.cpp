@@ -24818,6 +24818,41 @@ ImGuiWindow* karteFenster() {
     return nullptr;
 }
 
+// Was ein Fenster zeichnet, liegt in seinem Rechteck (2 Punkte Rand fuer die
+// Kantenglaettung). Findet z. B. Umrisse, deren Flags als Dicke ankamen (ImGui
+// 1.92.8 tauschte bei AddRect thickness und flags). namensTeil: das Ende des
+// ImGui-Namens bis vor die Kennung ("/##gruppeinnen_") - nur das Fenster
+// selbst, nicht seine Kinder.
+bool zeichnungImFenster(const char* namensTeil, std::string* bericht) {
+    for (ImGuiWindow* w : GImGui->Windows) {
+        const char* wo = std::strstr(w->Name, namensTeil);
+        if (!(w->Active || w->WasActive) || wo == nullptr || std::strchr(wo + std::strlen(namensTeil), '/') != nullptr) { continue; }
+        ImRect aussen = w->Rect();
+        aussen.Expand(2.0F);
+        int raus = 0;
+        ImVec2 weitester = aussen.GetCenter();
+        float abstand = 0.0F;
+        for (const ImDrawVert& v : w->DrawList->VtxBuffer) {
+            if (aussen.Contains(v.pos)) { continue; }
+            ++raus;
+            const float d = std::max({aussen.Min.x - v.pos.x, v.pos.x - aussen.Max.x, aussen.Min.y - v.pos.y, v.pos.y - aussen.Max.y});
+            if (d > abstand) {
+                abstand = d;
+                weitester = v.pos;
+            }
+        }
+        if (bericht != nullptr) {
+            char z[200];
+            std::snprintf(z, sizeof(z), "%d Punkte, %d ausserhalb (am weitesten %.0f/%.0f, %.0f Pixel draussen)", w->DrawList->VtxBuffer.Size,
+                          raus, weitester.x, weitester.y, abstand);
+            *bericht = z;
+        }
+        return w->DrawList->VtxBuffer.Size > 0 && raus == 0;
+    }
+    if (bericht != nullptr) { *bericht = "kein Fenster"; }
+    return false;
+}
+
 // Ein Rechteck des Karten-Editors aus dem letzten Bild (logische Punkte).
 const karteneditor::Editor::Rechteck* karteFeld(const std::string& name) {
     for (const auto& r : karteneditor::editor().felderImBild) {
@@ -27683,6 +27718,14 @@ std::vector<Schritt> karteneditorEntitaetenSchritte() {
                                      std::abs(a->h - 255) <= 2 && c->y == k->y + k->h + 4 && b->y == c->y + c->h + 4;
                    return reiter && inhalt && summe && nahe;
                }));
+    // Punkt 13 (Handbuchbild): die Umrisse der Reiter kamen mit der Dicke 192
+    // (ImDrawFlags_RoundCornersBottom als thickness) und ueberdeckten die Reiter.
+    add(pruefe("Reiter: Umrisse 1 Punkt dick, alles im Gruppendialog", [] {
+        std::string bericht;
+        const bool ok = zeichnungImFenster("/##gruppeinnen_", &bericht);
+        diag::detail("Knopftest: Gruppendialog - " + bericht);
+        return ok;
+    }));
     add(pruefe("Behaelter ohne Auswahl: Liste, Key/Value 22 hoch (Abstand 6), Knoepfe 22; Clear All und Delete Key gleich breit",
                [feldVon] {
                    const auto* l = feldVon("Entities:Schluessel");
@@ -29214,11 +29257,154 @@ void skriptNeu() {
 
 }  // namespace hb
 
+// --- Punkt 13: Bilder des Karten-Editors fuer das Handbuch -----------------------
+//
+// BHED_EDITORTEST=handbuch mit BHED_HB_NUR=karteneditor: nur diese Bilder.
+// BHED_HB_KARTE = eine .map ohne Benutzerpfad (z. B. Y:\...\mp_duel1.map aus
+// q3map2 -convert); ohne sie die kleine Testkarte. Die Beschriftungen in der
+// Sprache des Laufs (BHED_SPRACHE), "Begriffe wie NetRadiant" aus.
+std::vector<Schritt> karteneditorHandbuchSchritte() {
+    namespace ke = karteneditor;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const char* kp = std::getenv("BHED_HB_KARTE");
+    const std::string karte = kp != nullptr ? kp : "";
+    add(tu("Handbuch Karten-Editor: Spielordner, Begriffe aus", [] {
+        if (g_app->gamePaths.empty()) { rescanGamePaths(); }
+        g_app->leftMode = 0;
+        ke::setzeNrcBegriffe(false);
+    }));
+    add(pause(0.3));
+    add(klick(tr(Str::ViewMapEditor), "###main"));
+    add(pause(0.3));
+    add(warteBis("Handbuch Karten-Editor: Spieldaten geladen", [] {
+        ke::spielPruefen();
+        return ke::spielBereit();
+    }, 20000));
+    add(tu("Handbuch Karten-Editor: Karte oeffnen", [karte] {
+        if (!karte.empty()) {
+            (void)ke::karteOeffnen(karte);
+            return;
+        }
+        karte::Karte k;
+        k.klassen = &ke::editor().spiel->klassen;
+        auto welt = k.weltHolenOderAnlegen();
+        auto pinsel = std::make_shared<karte::Pinsel>();
+        karte::TexturProjektion proj;
+        karte::texdefStandard(karte::TexdefArt::Quake, proj);
+        pinsel->quaderBauen(karte::Kasten(karte::Vektor3f(0, 0, 32), karte::Vektor3f(64, 64, 32)), "textures/common/caulk", proj, k.kontext);
+        welt->kindEinfuegen(pinsel);
+        auto licht = k.neueEntitaet("light", false);
+        licht->setzen("origin", "0 0 128");
+        k.entitaetEinfuegen(licht);
+        (void)karte::karteSpeichern(karteTestPfad("handbuch.map"), k, false);
+        (void)ke::karteOeffnen(karteTestPfad("handbuch.map"));
+    }));
+    add(warteBis("Handbuch Karten-Editor: Texturen geladen", [] { return ke::kameraBilderFertig(); }, 6000));
+    // Die Maus weg von der Modusleiste (sonst steht ihr Tooltip im Bild)
+    add(tu("Maus auf die Statuszeile", [] {
+        if (ImGuiWindow* w = karteFenster()) { setzeMaus(ImVec2{w->Pos.x + w->Size.x * 0.6F, w->Pos.y + w->Size.y - 4.0F}); }
+    }));
+    add(pause(0.5));
+    const auto editor = [] {
+        ImGuiWindow* w = karteFenster();
+        return w != nullptr ? w->Rect() : ImRect{};
+    };
+    add(hb::fotoTeil("h_karteneditor", editor));
+    // Ein Menue offen (View)
+    add(klick(ke::trK(Str::KeLView), "##karteneditor"));
+    add(pause(0.3));
+    add(hb::fotoTeil("h_karteneditor_menue", [] {
+        ImGuiWindow* w = karteFenster();
+        const ImRect m = obersterPopupRahmen();
+        if (w == nullptr) { return m; }
+        return ImRect{w->Pos.x, w->Pos.y, std::max(m.Max.x, w->Pos.x + m.GetWidth()) + 40.0F, m.Max.y + 20.0F};
+    }));
+    add(tu("Menue zu", [] { karteDialogeZu(); }));
+    add(pause(0.2));
+    // Entity Inspector mit der ersten Punktentitaet, deren Klasse eine
+    // Beschreibung hat (sonst der ersten Punktentitaet; die Klassen aus den
+    // Movie-Duels-Definitionen haben oft nur eine Leerzeile)
+    add(tu("Handbuch Karten-Editor: eine Punktentitaet waehlen, Entity Inspector", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        std::shared_ptr<karte::Entitaet> wahl;
+        for (const auto& ent : e.karte.entitaeten()) {
+            if (ent->istBehaelter() || ent->klassenname() == "worldspawn") { continue; }
+            if (wahl == nullptr) { wahl = ent; }
+            if (ent->klasse() != nullptr && !ent->klasse()->unknown && ent->klasse()->kommentar.size() >= 40) {
+                wahl = ent;
+                break;
+            }
+        }
+        if (wahl != nullptr) { e.karte.auswahl.waehlen(wahl); }
+        e.gruppenSeite = 0;
+        e.gruppenSeiteWechseln = true;
+        e.gruppenDialogOffen = true;
+    }));
+    add(pause(0.4));
+    // Der Gruppendialog (444 x 777 wie NRC) ist bei grosser Skalierung hoeher
+    // als der Bildschirm - fuer das Bild so hoch, dass die Reiter unten zu sehen sind.
+    add(tu("Handbuch Karten-Editor: Gruppendialog auf den Bildschirm", [] {
+        const ImGuiViewport* vp = ImGui::GetMainViewport();
+        const ImRect r = fensterRahmen("###kartegruppe");
+        const float h = std::min(r.GetHeight(), vp->WorkSize.y - 80.0F);
+        ImGui::SetWindowPos("###kartegruppe", ImVec2{r.Min.x, vp->WorkPos.y + 40.0F});
+        ImGui::SetWindowSize("###kartegruppe", ImVec2{r.GetWidth(), h});
+    }));
+    add(pause(0.4));
+    add(hb::fotoTeil("h_karteneditor_entities", [] { return fensterRahmen("###kartegruppe"); }));
+    add(pruefe("Gruppendialog: die Reiter zeichnen nur in ihrem Fenster", [] {
+        std::string bericht;
+        const bool ok = zeichnungImFenster("/##gruppeinnen_", &bericht);
+        diag::detail("Knopftest: Gruppendialog - " + bericht);
+        return ok;
+    }));
+    // Der Texturbrowser: in der Anordnung Regular ein Feld des Hauptfensters
+    add(tu("Handbuch Karten-Editor: Gruppendialog zu", [] { ke::editor().gruppenDialogOffen = false; }));
+    add(warteBis("Handbuch Karten-Editor: Vorschaubilder geladen", [] { return ke::kameraBilderFertig(); }, 6000));
+    add(pause(0.5));
+    add(hb::fotoTeil("h_karteneditor_texturen", [] {
+        for (ImGuiWindow* w : GImGui->Windows) {
+            if ((w->Active || w->WasActive) && std::strstr(w->Name, "/##feldTexturen_") != nullptr) { return w->Rect(); }
+        }
+        return ImRect{};
+    }));
+    add(tu("Gruppendialog zu, Auswahl leer, Einstellungen auf", [] {
+        ke::Editor& e = ke::editor();
+        e.gruppenDialogOffen = false;
+        e.karte.auswahl.leeren();
+        e.einstellungenOffen = true;
+    }));
+    add(pause(0.3));
+    add(klickAn("Einstellungen: Seite Layout", [] {
+        const Element* el = findeEndung("##seite5", "###karteeinstellungen");
+        return el != nullptr ? el->rect.GetCenter() : ImVec2{5, 5};
+    }));
+    add(pause(0.3));
+    add(hb::fotoTeil("h_karteneditor_einstellungen", [] { return fensterRahmen("###karteeinstellungen"); }));
+    add(tu("Einstellungen zu, Shortcuts auf", [] {
+        karteDialogeZu();
+        (void)ke::ausfuehren("Shortcuts");
+    }));
+    add(pause(0.4));
+    add(hb::fotoTeil("h_karteneditor_tasten", [] { return fensterRahmen("###kartetasten"); }));
+    add(tu("Handbuch Karten-Editor: Ende", [] {
+        karteDialogeZu();
+        g_app->leftMode = 0;
+    }));
+    add(pause(0.3));
+    return s;
+}
+
 std::vector<Schritt> handbuchSchritte() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
     // (tr) beim Aufbau der Liste - vorher suchten sie auf Deutsch "Cancel".
     if (const char* sp = std::getenv("BHED_SPRACHE")) {
         if (const i18n::LanguageInfo* l = i18n::findLanguage(sp)) { i18n::setLanguage(l->language); }
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karteneditor") == 0) {
+        return karteneditorHandbuchSchritte();
     }
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };

@@ -840,7 +840,9 @@ void gruppenInhalt(int breite, int hoehe) {
         const ImU32 farbe = aktiv ? ImGui::GetColorU32(ImGuiCol_WindowBg)
                                   : ImGui::GetColorU32(ImGui::IsItemHovered() ? ImGuiCol_TabHovered : ImGuiCol_Tab);
         dl->AddRectFilled(a, c, farbe, 2.0F * g_s, ImDrawFlags_RoundCornersBottom);
-        dl->AddRect(a, c, ImGui::GetColorU32(ImGuiCol_Border), 2.0F * g_s, ImDrawFlags_RoundCornersBottom);
+        // ImGui 1.92.8: AddRect( ..., rounding, thickness, flags ) - mit nur
+        // fuenf Werten kamen die Flags als Dicke 192 an.
+        dl->AddRect(a, c, ImGui::GetColorU32(ImGuiCol_Border), 2.0F * g_s, 1.0F, ImDrawFlags_RoundCornersBottom);
         const ImVec2 t = ImGui::CalcTextSize(seitenTitel[s]);
         dl->AddText(ImVec2{std::floor((a.x + c.x - t.x) * 0.5F), std::floor((a.y + c.y - t.y) * 0.5F)}, ImGui::GetColorU32(ImGuiCol_Text),
                     seitenTitel[s]);

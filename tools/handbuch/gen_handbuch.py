@@ -74,7 +74,13 @@ def _lade_ui_texte():
     baum = ast.parse(quelle)
     for knoten in baum.body:
         if isinstance(knoten, ast.Assign) and any(getattr(z, "id", "") == "S" for z in knoten.targets):
-            return {e[0]: e[1:] for e in ast.literal_eval(knoten.value)}
+            texte = {e[0]: e[1:] for e in ast.literal_eval(knoten.value)}
+            # Dazu die Texte des Karten-Editors (gen_i18n.py: S += KARTE aus
+            # tools/i18n_karte.py, die Menues aus tools/karte_menues.py).
+            sys.path.insert(0, os.path.join(WURZEL, "tools"))
+            from i18n_karte import KARTE
+            texte.update({e[0]: e[1:] for e in KARTE})
+            return texte
     raise SystemExit("gen_i18n.py: Liste S nicht gefunden")
 
 
