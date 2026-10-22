@@ -26,9 +26,11 @@
 #include "app_internal.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
 #include <map>
 #include <sstream>
 
@@ -71,28 +73,13 @@ std::string stufeText(const std::string& befehl) {
 }
 
 // --- Menues -------------------------------------------------------------------
+//
+// Gezeichnet wie QMenu (app_karte_qtmenue.cpp): Zeilen, Trenner, Breite,
+// Symbol, Haken und Mnemonik nach Qt 5.15 / Fusion / dark.qss.
 
-// Ein Menuepunkt (create_menu_item_with_mnemonic): Beschriftung, Taste,
-// Haken, ausgegraut mit Tooltip, wenn er erst in einer spaeteren Stufe kommt.
-// Die Spalte links fuer Symbol und Haken: QMenu (Fusion) zeigt dort das
-// Symbol der Aktion (dasselbe QAction wie der Werkzeugknopf, z. B. Modify >
-// Components) und bei pruefbaren Eintraegen ein Kaestchen mit Haken (View >
-// Show). ImGui reserviert diese Spalte fuer den Text des "icon"-Arguments
-// von MenuItemEx/BeginMenuEx - hier Leerzeichen in Symbolbreite, darin
-// zeichnen wir.
-const char* symbolSpalte() {
-    static std::string leer;
-    static float fuer = -1.0F;
-    const float g = ImGui::GetTextLineHeight();
-    if (fuer != g) {
-        fuer = g;
-        leer.clear();
-        while (ImGui::CalcTextSize(leer.c_str()).x < g * 1.25F) { leer += ' '; }
-    }
-    return leer.c_str();
-}
-
-// Das Symbol eines Befehls, wenn er einen Werkzeugknopf hat.
+// Das Symbol eines Befehls, wenn er einen Werkzeugknopf hat (QMenu zeigt das
+// Symbol der Aktion, dasselbe QAction wie der Werkzeugknopf, z. B. Modify >
+// Components).
 const char* knopfBild(const std::string& befehl) {
     static std::map<std::string, const char*> bilder;
     if (bilder.empty()) {
@@ -106,40 +93,9 @@ const char* knopfBild(const std::string& befehl) {
     return it != bilder.end() ? it->second : nullptr;
 }
 
-// Ein Menuepunkt (create_menu_item_with_mnemonic): Beschriftung, Taste,
-// Symbol oder Kaestchen links, ausgegraut mit Tooltip, wenn er erst in einer
-// spaeteren Stufe kommt.
-bool menuePunkt(const char* text, const char* taste, bool haken, bool aktiv, const std::string& tooltip,
-                const char* bild = nullptr, bool pruefbar = false) {
-    const ImVec2 pos = ImGui::GetCursorScreenPos();
-    const bool gewaehlt = ImGui::MenuItemEx(text, symbolSpalte(), taste != nullptr && taste[0] != 0 ? taste : nullptr, false, aktiv);
-    if (ImGui::IsItemVisible()) {
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-        const float zeile = ImGui::GetTextLineHeight();
-        const float g = std::floor(zeile * 0.9F);
-        const ImVec2 a{std::floor(pos.x), std::floor(pos.y + (zeile - g) * 0.5F)};
-        if (pruefbar) {
-            // Kaestchen im Stil des Programms, Haken in der Hervorhebung
-            const ImU32 rand = ImGui::GetColorU32(aktiv ? ImGuiCol_Border : ImGuiCol_TextDisabled);
-            dl->AddRectFilled(a, ImVec2{a.x + g, a.y + g}, ImGui::GetColorU32(ImGuiCol_FrameBg), ImGui::GetStyle().FrameRounding);
-            dl->AddRect(a, ImVec2{a.x + g, a.y + g}, rand, ImGui::GetStyle().FrameRounding);
-            if (haken) {
-                const ImU32 c = ImGui::GetColorU32(aktiv ? ImGuiCol_CheckMark : ImGuiCol_TextDisabled);
-                ImGui::RenderCheckMark(dl, ImVec2{a.x + g * 0.15F, a.y + g * 0.15F}, c, g * 0.7F);
-            }
-        } else if (bild != nullptr && bild[0] != 0) {
-            symbolZeichnen(dl, bild, a, g, aktiv);
-        }
-    }
-    if (!tooltip.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        ImGui::SetTooltip("%s", tooltip.c_str());
-    }
-    return gewaehlt;
-}
-
-bool menueAnfang(const char* text, bool aktiv = true) { return ImGui::BeginMenu(text, aktiv); }
-// Ein Untermenue in einem Menue: Text in derselben Spalte wie die Punkte.
-bool untermenueAnfang(const char* text, bool aktiv = true) { return ImGui::BeginMenuEx(text, symbolSpalte(), aktiv); }
+// Exklusive Aktionen (QActionGroup) zeigen einen Punkt statt des Kaestchens:
+// das Raster (grid.cpp:224-227) und das GUI-Thema (theme.cpp:160).
+bool exklusiv(const std::string& befehl) { return befehl.rfind("SetGrid", 0) == 0; }
 
 void listeZeichnen(const std::string& name);
 
@@ -172,7 +128,7 @@ void eintraegeZeichnen(const std::vector<MenueEintrag>& liste, std::size_t& i) {
                 }
             }
             if (!letzterTrenner && folgt) {
-                ImGui::Separator();
+                qtTrenner();
                 letzterTrenner = true;
             }
             break;
@@ -183,11 +139,16 @@ void eintraegeZeichnen(const std::vector<MenueEintrag>& liste, std::size_t& i) {
             const bool da = nachgebaut(befehl);
             const std::string taste = befehle::tasteAlsText(ed.belegung.taste(befehl));
             const std::string id = std::string(trK(m.str)) + "###" + befehl + std::to_string(i);
-            const bool haken = m.art == MenueArt::Haken && angehakt(befehl);
-            if (menuePunkt(id.c_str(), taste.c_str(), haken, da, da ? std::string() : stufeText(befehl), knopfBild(befehl),
-                           m.art == MenueArt::Haken)) {
-                (void)ausfuehren(befehl);
-            }
+            QtPunkt p;
+            p.id = id.c_str();
+            p.nrc = m.text;
+            p.taste = taste.c_str();
+            p.haken = m.art == MenueArt::Haken && angehakt(befehl);
+            p.aktiv = da;
+            p.art = m.art == MenueArt::Haken ? (exklusiv(befehl) ? QtArt::Exklusiv : QtArt::Pruefbar) : QtArt::Normal;
+            p.bild = knopfBild(befehl);
+            if (!da) { p.tooltip = stufeText(befehl); }
+            if (qtPunkt(p)) { (void)ausfuehren(befehl); }
             letzterTrenner = false;
             break;
         }
@@ -195,19 +156,21 @@ void eintraegeZeichnen(const std::vector<MenueEintrag>& liste, std::size_t& i) {
             // Eigene Rueckrufe (Set 2D Background image, Bug report, About).
             const std::string id = std::string(trK(m.str)) + "###ruf" + std::to_string(i);
             const bool da = nachgebaut(m.befehl);
-            if (menuePunkt(id.c_str(), nullptr, false, da, da ? std::string() : stufeText(m.befehl))) {
-                (void)ausfuehren(m.befehl);
-            }
+            QtPunkt p;
+            p.id = id.c_str();
+            p.nrc = m.text;
+            p.aktiv = da;
+            if (!da) { p.tooltip = stufeText(m.befehl); }
+            if (qtPunkt(p)) { (void)ausfuehren(m.befehl); }
             letzterTrenner = false;
             break;
         }
         case MenueArt::Unter: {
             const std::string id = std::string(trK(m.str)) + "###unter" + std::to_string(i);
-            const std::size_t start = i;
-            if (untermenueAnfang(id.c_str())) {
+            if (qtMenueAnfang(id.c_str(), true, m.text)) {
                 ++i;
                 eintraegeZeichnen(liste, i);
-                ImGui::EndMenu();
+                qtMenueEnde();
             } else {
                 int tiefe = 1;
                 while (tiefe > 0 && ++i < liste.size()) {
@@ -215,7 +178,6 @@ void eintraegeZeichnen(const std::vector<MenueEintrag>& liste, std::size_t& i) {
                     if (liste[i].art == MenueArt::Ende) { --tiefe; }
                 }
             }
-            (void)start;
             letzterTrenner = false;
             break;
         }
@@ -228,6 +190,95 @@ void eintraegeZeichnen(const std::vector<MenueEintrag>& liste, std::size_t& i) {
             break;
         }
     }
+}
+
+// Ein ausgegrauter Eintrag einer Liste.
+void grauerPunkt(const char* text, const std::string& tooltip, QtArt art = QtArt::Normal, const float* farbe = nullptr) {
+    QtPunkt p;
+    p.id = text;
+    p.aktiv = false;
+    p.art = art;
+    p.farbe = farbe;
+    p.tooltip = tooltip;
+    (void)qtPunkt(p);
+}
+
+// --- Build-Menue (build.cpp:1224 Build_constructMenu) ---------------------------
+//
+// LoadBuildMenu (build.cpp:1276-1293): ohne eigene build_menu.xml die
+// default_build_menu.xml des Spiels (NRC gamepacks/ja.game bzw. jk2.game,
+// hier data/karte/ja und data/karte/jk2). <build name> wird ein Eintrag mit
+// den Befehlen als Tooltip, <separator/> ein Trenner. Ausfuehren kommt mit
+// dem Kompilieren (Stufe 3).
+struct BuildEintrag {
+    std::string name;   // leer = Trenner
+    std::string befehle;
+};
+
+std::string xmlText(const std::string& s) {
+    std::string out;
+    for (std::size_t i = 0; i < s.size(); ++i) {
+        if (s[i] != '&') {
+            out.push_back(s[i]);
+            continue;
+        }
+        static const char* const kEnt[][2] = {{"&amp;", "&"}, {"&lt;", "<"}, {"&gt;", ">"}, {"&quot;", "\""}, {"&apos;", "'"}};
+        bool ersetzt = false;
+        for (const auto& en : kEnt) {
+            if (s.compare(i, std::strlen(en[0]), en[0]) == 0) {
+                out += en[1];
+                i += std::strlen(en[0]) - 1;
+                ersetzt = true;
+                break;
+            }
+        }
+        if (!ersetzt) { out.push_back('&'); }
+    }
+    return out;
+}
+
+const std::vector<BuildEintrag>& buildEintraege() {
+    static std::vector<BuildEintrag> liste;
+    static int fuer = -2;
+    if (fuer == e().spielStand) { return liste; }
+    fuer = e().spielStand;
+    liste.clear();
+    const std::string datei = directoryOf(g_app->dataDir) +
+                              (e().spielStand == kRegelwerkJediOutcast ? "/karte/jk2" : "/karte/ja") + "/default_build_menu.xml";
+    std::ifstream f(datei, std::ios::binary);
+    std::stringstream ss;
+    ss << f.rdbuf();
+    const std::string x = ss.str();
+    std::size_t pos = 0;
+    while ((pos = x.find('<', pos)) != std::string::npos) {
+        if (x.compare(pos, 4, "<!--") == 0) {
+            const std::size_t ende = x.find("-->", pos);
+            if (ende == std::string::npos) { break; }
+            pos = ende + 3;
+            continue;
+        }
+        if (x.compare(pos, 10, "<separator") == 0) {
+            liste.push_back({});
+        } else if (x.compare(pos, 7, "<build ") == 0) {
+            const std::size_t n = x.find("name=\"", pos);
+            const std::size_t ende = x.find("</build>", pos);
+            if (n == std::string::npos || ende == std::string::npos) { break; }
+            BuildEintrag b;
+            b.name = xmlText(x.substr(n + 6, x.find('"', n + 6) - (n + 6)));
+            // Tooltip: die Befehle, je eine Zeile (Build_constructMenu)
+            std::size_t c = pos;
+            while ((c = x.find("<command>", c)) != std::string::npos && c < ende) {
+                const std::size_t ce = x.find("</command>", c);
+                if (!b.befehle.empty()) { b.befehle += '\n'; }
+                b.befehle += xmlText(x.substr(c + 9, ce - (c + 9)));
+                c = ce;
+            }
+            liste.push_back(b);
+            pos = ende;
+        }
+        ++pos;
+    }
+    return liste;
 }
 
 // --- dynamische Listen ---------------------------------------------------------
@@ -247,41 +298,60 @@ void listeZeichnen(const std::string& name) {
         const karte::ZuletztListe& z = ed.zuletzt;
         for (std::size_t i = 0; i < karte::ZuletztListe::kMax; ++i) {
             if (i > 0 && i >= z.anzahl()) { break; }
-            const std::string roh = karte::ohneMnemonik(z.beschriftung(i));
+            const std::string mitUnd = z.beschriftung(i);
+            const std::string roh = karte::ohneMnemonik(mitUnd);
             const std::string text = (roh == "Recent Files" ? std::string(trK(Str::KeRecentFiles)) : roh) + "###karteMru" +
                                      std::to_string(i);
-            if (menuePunkt(text.c_str(), nullptr, false, i < z.anzahl(), std::string())) { zuletztOeffnen(i); }
+            QtPunkt p;
+            p.id = text.c_str();
+            p.nrc = mitUnd.c_str();
+            p.aktiv = i < z.anzahl();
+            if (qtPunkt(p)) { zuletztOeffnen(i); }
         }
     } else if (name == "Viewportthemen") {
         // themes/_colors/*.json (colors.cpp:218-226) - die Farben folgen hier
         // dem Farbschema des Programms (Entscheidung shank), die Eintraege
         // stehen da, ausgegraut.
-        for (const char* t : kViewportThemen) { (void)menuePunkt(t, nullptr, false, false, tr(Str::KeFarbenProgramm)); }
+        for (const char* t : kViewportThemen) { grauerPunkt(t, tr(Str::KeFarbenProgramm)); }
     } else if (name == "GuiThemen") {
-        // theme_construct_menu (theme.cpp, NRC 20260114: vier Themen; die
-        // drei weiteren gibt es erst in master)
-        for (const char* t : {"Default", "Fusion", "Dark", "Darker"}) {
-            (void)menuePunkt(t, nullptr, false, false, tr(Str::KeFarbenProgramm));
-        }
+        // theme_construct_menu (theme.cpp, NRC 20260114: vier Themen in einer
+        // QActionGroup; die drei weiteren gibt es erst in master)
+        for (const char* t : {"Default", "Fusion", "Dark", "Darker"}) { grauerPunkt(t, tr(Str::KeFarbenProgramm), QtArt::Exklusiv); }
     } else if (name == "Farben") {
-        // g_ColoursMenu (colors.cpp:153-171): je Farbe ein Eintrag mit Farbfeld.
+        // g_ColoursMenu (colors.cpp:153-171): je Farbe ein Eintrag, das
+        // Farbfeld als Symbol der Aktion.
         for (const FarbEintrag& f : farbEintraege()) {
             const Farben::F3& c = ed.farben.*(f.feld);
-            ImGui::ColorButton((std::string("##fk") + f.name).c_str(), ImVec4{c[0], c[1], c[2], 1.0F},
-                               ImGuiColorEditFlags_NoTooltip, ImVec2{ImGui::GetTextLineHeight(), ImGui::GetTextLineHeight()});
-            ImGui::SameLine();
-            (void)menuePunkt(f.text, nullptr, false, false, tr(Str::KeFarbenProgramm));
+            grauerPunkt(f.text, tr(Str::KeFarbenProgramm), QtArt::Normal, c.data());
         }
     } else if (name == "Transforms") {
-        // SelectionSystem_connectTransformsCallbacks: "Reset Translation" usw.
-        // erst mit den Manipulatoren (Stufe 1b, Punkt 7).
-        for (const char* t : {"Reset Translation", "Reset Rotation", "Reset Scale", "Reset Skew"}) {
-            (void)menuePunkt(t, nullptr, false, false, stufeText("ResetTransforms"));
+        // Modify > Repeat (mainframe.cpp:1116-1131): vier Eintraege, deren Text
+        // TransformsObserved (selection.cpp:918-940) setzt - ' ' bzw. 'x' (nicht
+        // die Identitaet), dann die wiederholbare Verschiebung, Drehung,
+        // Skalierung, Scherung; resetTransforms() setzt sie gleich zu Beginn.
+        // Wiederholen/Zuruecksetzen kommt mit RepeatTransforms (Stufe 2).
+        for (const char* t : {" Translate 0 0 0", " Rotate 0 0 0", " Scale 1 1 1", " Skew 4 0"}) {
+            grauerPunkt(t, stufeText("ResetTransforms"));
         }
     } else if (name == "Build") {
-        // Build_constructMenu: die Eintraege aus der Build-Konfiguration -
-        // mit dem Kompilieren (Stufe 3).
-        (void)menuePunkt("(build menu)", nullptr, false, false, stufeText("BuildMenuCustomize"));
+        bool letzterTrenner = true;   // der Trenner davor steht in der Tabelle
+        const auto& liste = buildEintraege();
+        for (std::size_t i = 0; i < liste.size(); ++i) {
+            const BuildEintrag& b = liste[i];
+            if (b.name.empty()) {
+                if (!letzterTrenner && i + 1 < liste.size()) { qtTrenner(); }
+                letzterTrenner = true;
+                continue;
+            }
+            const std::string id = b.name + "##build" + std::to_string(i);
+            QtPunkt p;
+            p.id = id.c_str();
+            p.nrc = b.name.c_str();
+            p.aktiv = false;
+            p.tooltip = b.befehle + "\n" + stufeText("BuildMenuCustomize");
+            (void)qtPunkt(p);
+            letzterTrenner = false;
+        }
     } else if (name == "Plugins") {
         // create_plugins_menu (pluginmenu.cpp:131) mit PluginsMenu_populate:
         // je Plugin ein Untermenue (Modulname), Eintraege von hinten nach
@@ -291,24 +361,29 @@ void listeZeichnen(const std::string& name) {
             const std::string menue = liste[i].menue;
             std::size_t j = i;
             while (j < liste.size() && menue == liste[j].menue) { ++j; }
-            if (untermenueAnfang((menue + "##plugin").c_str())) {
+            if (qtMenueAnfang((menue + "##plugin").c_str())) {
                 bool letzterTrenner = true;
                 for (std::size_t k = i; k < j; ++k) {
                     if (liste[k].titel[0] == 0) {
-                        if (!letzterTrenner) { ImGui::Separator(); }
+                        if (!letzterTrenner) { qtTrenner(); }
                         letzterTrenner = true;
                         continue;
                     }
                     const std::string text = karte::ohneMnemonik(liste[k].titel) + "##pl" + liste[k].befehl;
                     const std::string befehl = liste[k].befehl;
                     const bool da = nachgebaut(befehl);
-                    if (menuePunkt(text.c_str(), befehle::tasteAlsText(e().belegung.taste(befehl)).c_str(), false, da,
-                                   da ? std::string() : stufeText(befehl), knopfBild(befehl))) {
-                        (void)ausfuehren(befehl);
-                    }
+                    const std::string taste = befehle::tasteAlsText(e().belegung.taste(befehl));
+                    QtPunkt p;
+                    p.id = text.c_str();
+                    p.nrc = liste[k].titel;
+                    p.taste = taste.c_str();
+                    p.aktiv = da;
+                    p.bild = knopfBild(befehl);
+                    if (!da) { p.tooltip = stufeText(befehl); }
+                    if (qtPunkt(p)) { (void)ausfuehren(befehl); }
                     letzterTrenner = false;
                 }
-                ImGui::EndMenu();
+                qtMenueEnde();
             }
             i = j;
         }
@@ -320,9 +395,9 @@ void listeZeichnen(const std::string& name) {
             "Shader Manual", "q3map2 handbook", "Additional map compiler features", "Additional map editor features",
             "Editor features presentation", "Q3Map2 - FS20 - R5 readme", "Blendmodes cheatsheet", "MBSPC documentation",
             "iD Tech 3 mapping trello"};
-        if (untermenueAnfang("General")) {
-            for (const char* t : kGeneral) { (void)menuePunkt(t, nullptr, false, false, tr(Str::KeNichtDabei)); }
-            ImGui::EndMenu();
+        if (qtMenueAnfang("General")) {
+            for (const char* t : kGeneral) { grauerPunkt(t, tr(Str::KeNichtDabei)); }
+            qtMenueEnde();
         }
         static const char* const kJa[] = {"Tutorial: Mapping in NRC for JKA/MBII", "About Jedi Academy editing package",
                                           "Jedi Academy Tools disclaimer", "Jedi Academy SDK readme",
@@ -331,9 +406,9 @@ void listeZeichnen(const std::string& name) {
                                           "Jedi Academy Editing forum @ MapCenter"};
         // game.xlink des Spiels unter dessen Namen (ja.game: name="Jedi
         // Knight Jedi Academy"); jk2.game hat keine game.xlink - kein Untermenue.
-        if (e().spielStand != kRegelwerkJediOutcast && untermenueAnfang("Jedi Knight Jedi Academy")) {
-            for (const char* t : kJa) { (void)menuePunkt(t, nullptr, false, false, tr(Str::KeNichtDabei)); }
-            ImGui::EndMenu();
+        if (e().spielStand != kRegelwerkJediOutcast && qtMenueAnfang("Jedi Knight Jedi Academy")) {
+            for (const char* t : kJa) { grauerPunkt(t, tr(Str::KeNichtDabei)); }
+            qtMenueEnde();
         }
     }
 }
@@ -437,10 +512,18 @@ void zeichneMenueleiste() {
         merkeFeld(std::string("Menue:") + text, x, 0, w + mass::kMenuePolster, mass::kMenueH);
         ImGui::SetCursorScreenPos(ImVec2{bildpunkt(x, 0).x + static_cast<float>(mass::kMenuePolster) * 0.5F * s - halb, zeile});
         const std::string id = std::string(text) + "###menue" + std::to_string(i);
-        if (menueAnfang(id.c_str())) {
+        if (e().menueOeffnen == static_cast<int>(i)) {   // Alt + Mnemonik (QMenuBar)
+            ImGui::OpenPopup(id.c_str());
+            e().menueOeffnen = -1;
+        }
+        // CE_MenuBarItem (Fusion): Text mit Qt::TextShowMnemonic - unterstrichen
+        const ImVec2 textPos{bildpunkt(x, 0).x + static_cast<float>(mass::kMenuePolster) * 0.5F * s,
+                             zeile + ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset};
+        qtUnterstreichen(ImGui::GetWindowDrawList(), textPos, text, qtMnemonik(liste[i].text, text), stil(ImGuiCol_Text));
+        if (qtMenueAnfang(id.c_str(), true, liste[i].text)) {
             ++i;
             eintraegeZeichnen(liste, i);
-            ImGui::EndMenu();
+            qtMenueEnde();
         }
         x += w + mass::kMenuePolster + mass::kMenueAbstand;
     }
@@ -519,27 +602,47 @@ void knopf(const Knopf& k, int x, int y) {
 // (QMainWindow::createPopupMenu).
 void leistenMenue() {
     Editor& ed = e();
-    if (!ImGui::BeginPopup("##leistenmenue")) { return; }
-    ImGui::MenuItem(tr(Str::KeMainToolbar), nullptr, &ed.hauptleiste);
-    ImGui::MenuItem(tr(Str::KeFilterToolbar), nullptr, &ed.filterleiste);
-    ImGui::MenuItem(tr(Str::KePluginToolbar), nullptr, &ed.pluginleiste);
-    ImGui::Separator();
-    for (const auto* liste : {&befehle::werkzeugleiste(), &befehle::filterleiste(), &befehle::pluginleiste()}) {
+    if (!qtPopupAnfang("##leistenmenue")) { return; }
+    // toggleViewAction der Leisten (pruefbar)
+    for (auto [text, an] : {std::pair<const char*, bool*>{tr(Str::KeMainToolbar), &ed.hauptleiste},
+                            {tr(Str::KeFilterToolbar), &ed.filterleiste},
+                            {tr(Str::KePluginToolbar), &ed.pluginleiste}}) {
+        QtPunkt p;
+        p.id = text;
+        p.art = QtArt::Pruefbar;
+        p.haken = *an;
+        if (qtPunkt(p)) { *an = !*an; }
+    }
+    qtTrenner();
+    // je Knopf eine pruefbare Aktion mit seinem Symbol, Trenner zwischen den
+    // Leisten; "prevent closing the menu on clicks": das Menue bleibt offen.
+    const std::vector<Knopf>* const listen[] = {&befehle::werkzeugleiste(), &befehle::filterleiste(), &befehle::pluginleiste()};
+    bool davor = false;
+    for (const auto* liste : listen) {
+        bool erster = true;
         for (const Knopf& k : *liste) {
             if (k.trenner || k.befehl[0] == 0) { continue; }
+            if (erster && davor) { qtTrenner(); }
+            erster = false;
+            davor = true;
             const bool sichtbar = ed.versteckteKnoepfe.count(k.befehl) == 0U;
-            symbolZeichnen(ImGui::GetWindowDrawList(), k.bild, ImGui::GetCursorScreenPos(), ImGui::GetTextLineHeight(), true);
-            ImGui::Indent(ImGui::GetTextLineHeight() * 1.3F);
-            // "prevent closing the menu on clicks"
-            if (ImGui::MenuItem((std::string(k.befehl) + "##lm").c_str(), nullptr, sichtbar, true)) {
+            const std::string id = std::string(k.befehl) + "##lm";
+            QtPunkt p;
+            p.id = id.c_str();
+            p.nrc = k.befehl;
+            p.art = QtArt::Pruefbar;
+            p.haken = sichtbar;
+            p.bild = k.bild;
+            ImGui::PushItemFlag(ImGuiItemFlags_AutoClosePopups, false);
+            const bool geklickt = qtPunkt(p);
+            ImGui::PopItemFlag();
+            if (geklickt) {
                 if (sichtbar) { ed.versteckteKnoepfe.insert(k.befehl); } else { ed.versteckteKnoepfe.erase(k.befehl); }
                 einstellungenSpeichern();
             }
-            ImGui::Unindent(ImGui::GetTextLineHeight() * 1.3F);
         }
-        ImGui::Separator();
     }
-    ImGui::EndPopup();
+    qtPopupEnde();
 }
 
 // Der Griff einer beweglichen QToolBar (PM_ToolBarHandleExtent 9): Punkte
@@ -1057,6 +1160,22 @@ void einstellungenSpeichern() {
 void menueEintraege(const std::vector<MenueEintrag>& liste, std::size_t erster) {
     std::size_t i = erster;
     eintraegeZeichnen(liste, i);
+}
+
+// QMenuBar: "&File" usw. sind Alt-Kuerzel (QKeySequence::mnemonic) - nur mit
+// NRCs Wortlaut (uebersetzte Titel haben keine).
+bool leistenMnemonik(unsigned zeichen) {
+    const auto& liste = befehle::menues();
+    for (std::size_t i = 0; i < liste.size(); ++i) {
+        if (liste[i].art != MenueArt::Menue) { continue; }
+        const std::string text = trK(liste[i].str);
+        const int l = qtMnemonik(liste[i].text, text);
+        if (l >= 0 && static_cast<unsigned>(std::toupper(static_cast<unsigned char>(text[static_cast<std::size_t>(l)]))) == zeichen) {
+            e().menueOeffnen = static_cast<int>(i);
+            return true;
+        }
+    }
+    return false;
 }
 
 void leistenSymbol(ImDrawList* dl, const char* name, ImVec2 a, float g, bool aktiv) { symbolZeichnen(dl, name, a, g, aktiv); }

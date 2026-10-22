@@ -140,7 +140,12 @@ void linien(const std::vector<LinienPunkt>& p, const Zustand3& z);
 // dl ist eine ImDrawList*.
 void ohneMischen(void* dl);
 [[nodiscard]] void* wuerfelAnlegen(const unsigned char* const seiten[6], int groesse);
+// Freigeben erst nach dem laufenden Bild: ImGuis Zeichenlisten dieses Bildes
+// koennen das Bild noch nennen (RefreshShaders aus dem Menue oder einem
+// Schritt nach dem Zeichnen - Lauf k11e: Absturz 0x87D). aufraeumen() gibt
+// die Bilder frueherer Bilder frei (zu Beginn jedes Editor-Bildes).
 void bildFreigeben(void* bild);
+void aufraeumen();
 [[nodiscard]] unsigned geraetStand();
 // Fuer den Selbsttest: ein Bildpunkt des aufgeloesten Renderziels.
 bool pixel(int kennung, int x, int y, unsigned char rgba[4]);

@@ -25013,9 +25013,10 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
     add(pause(0.2));
     add(klick("MouseUV##lm"));
     add(pause(0.2));
-    add(pruefe("Kontextmenue: MouseUV versteckt", [] {
+    add(pruefe("Kontextmenue: MouseUV versteckt, das Menue bleibt offen (gtkmisc.cpp:252 \"prevent closing the menu on clicks\")", [] {
         const auto& ist = ke::editor().knoepfeImBild;
-        return ke::editor().versteckteKnoepfe.count("MouseUV") != 0U && std::find(ist.begin(), ist.end(), "MouseUV") == ist.end();
+        return ke::editor().versteckteKnoepfe.count("MouseUV") != 0U && std::find(ist.begin(), ist.end(), "MouseUV") == ist.end() &&
+               finde("MouseUV##lm", "", 0, false) != nullptr;
     }));
     add(klickAn("Rechtsklick auf den Knopf Resize", knopfOrt("##knopfMouseDrag"), 1));
     add(pause(0.2));
@@ -28205,6 +28206,409 @@ std::vector<Schritt> karteneditorEntitaetenSchritte() {
     return s;
 }
 
+// --- Punkt 11: jeder nachgebaute Befehl, Fotos zum Vergleich mit NRC ----------
+//
+// Alle Dialoge und Popups des Karten-Editors schliessen (nach einem Befehl,
+// der einen Dialog oeffnet). Die Rueckfrage "Karte geaendert" beantwortet
+// "Discard" - Reload Entity Definitions laedt dann wirklich neu.
+void karteDialogeZu() {
+    namespace ke = karteneditor;
+    ke::Editor& e = ke::editor();
+    e.einstellungenOffen = false;
+    e.tastenDialogOffen = false;
+    e.findenOffen = false;
+    e.shaderInfoOffen = false;
+    e.shaderText.offen = false;
+    e.ueberOffen = false;
+    e.ent.listeOffen = false;
+    e.ent.farbDialog.offen = false;
+    e.ent.lichtOffen = false;
+    if (e.frageOffen) {
+        std::function<void()> danach = std::move(e.nachFrage);
+        e.nachFrage = nullptr;
+        e.frageOffen = false;
+        if (danach) { danach(); }
+    }
+    if (GImGui->OpenPopupStack.Size > 0) { ImGui::ClosePopupToLevel(0, true); }
+}
+
+// Das Rechteck des obersten offenen Popups (Menue, Untermenue).
+ImRect obersterPopupRahmen() {
+    const ImGuiContext& g = *GImGui;
+    for (int i = g.OpenPopupStack.Size - 1; i >= 0; --i) {
+        if (const ImGuiWindow* w = g.OpenPopupStack[i].Window) { return w->Rect(); }
+    }
+    return ImRect{};
+}
+
+// Das Rechteck eines Fensters ("###kartetasten" ...), leer wenn es nicht da ist.
+ImRect fensterRahmen(const std::string& name) {
+    const ImGuiWindow* w = ImGui::FindWindowByName(name.c_str());
+    return (w != nullptr && (w->Active || w->WasActive)) ? w->Rect() : ImRect{};
+}
+
+// Foto wie foto(), dazu <name>.rect (x0 y0 x1 y1 in Bildpunkten): den
+// Ausschnitt schneidet der Vergleich mit dem NRC-Foto aus.
+Schritt fotoRahmen(const std::string& name, std::function<ImRect()> rahmen) {
+    return {"Foto " + name, [=](int b) {
+                const char* ordner = std::getenv("BHED_FOTOS");
+                if (b == 2) {
+                    const ImRect r = rahmen();
+                    if (r.GetWidth() < 2.0F || r.GetHeight() < 2.0F) {
+                        meldeFehler("Foto " + name + ": nichts zu sehen");
+                    } else if (ordner != nullptr) {
+                        std::ofstream f(std::string(ordner) + "\\" + name + ".rect");
+                        f << static_cast<int>(r.Min.x) << " " << static_cast<int>(r.Min.y) << " " << static_cast<int>(r.Max.x)
+                          << " " << static_cast<int>(r.Max.y) << "\n";
+                    }
+                    if (ordner != nullptr) { render::fotoAnfordern(std::string(ordner) + "\\" + name + ".bmp"); }
+                }
+                return b >= 5;
+            }};
+}
+
+// Jeder nachgebaute Befehl einmal (GlobalCommands_insert / GlobalToggles_insert):
+// mit gewaehltem Pinsel und Licht, Umschalter ein zweites Mal (zurueck),
+// danach alle Dialoge zu. Nicht hier: Exit (beendet), OpenMap und SaveMapAs
+// (Windows-Dateidialog - die Funktionen dahinter pruefen die Schritte oben).
+// New Map kommt zuletzt. Raster, Kamera, Anzeige, 2D-Ansichten, Texturbrowser,
+// Fenster und Werkzeug kommen danach zurueck, die Karte wird neu geladen.
+std::vector<Schritt> karteneditorAlleBefehleSchritte() {
+    namespace ke = karteneditor;
+    namespace kb = karte::befehle;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    struct Vorher {
+        karte::Raster raster;
+        karte::Kamera kamera;
+        karte::KameraEinstellungen kameraE;
+        ke::Anzeige anzeige;
+        std::vector<karte::XyAnsicht> xy;
+        int aktivXy = 0;
+        karte::TexturBrowserEinstellungen texBro;
+        std::array<bool, 4> schwebend{};
+        bool gruppeOffen = false;
+        int gruppenSeite = 0;
+        bool maximiert = false;
+        std::vector<std::string> modi;
+        std::vector<std::string> ausgefuehrt;
+        bool vorherAn = false;
+    };
+    auto v = std::make_shared<Vorher>();
+    static const char* const kModi[] = {"MouseDrag", "MouseTranslate", "MouseRotate", "MouseScale", "MouseTransform"};
+    // Befehle und Umschalter laufen ueber ausfuehren(); reine KeyEvents
+    // (CameraFreeMove*, CameraFreeFocus) haengen an der Taste - die
+    // Kameraschritte druecken sie.
+    add(pruefe("Checkliste: jeder Befehl der Stufe 1b ist nachgebaut, sonst keiner", [] {
+        std::vector<std::string> stufe1;
+        std::string fehlt;
+        std::string zuviel;
+        for (const kb::Befehl& b : kb::alle()) {
+            if (b.stufe != 1) { continue; }
+            stufe1.emplace_back(b.name);
+            const bool befehl = (b.art & (kb::kCommand | kb::kToggle)) != 0U;
+            if (befehl ? !ke::nachgebaut(b.name) : !ke::tastenEreignisNachgebaut(b.name)) { fehlt += std::string(" ") + b.name; }
+        }
+        const std::vector<std::string> da = ke::nachgebauteBefehle();
+        for (const std::string& n : da) {
+            if (std::find(stufe1.begin(), stufe1.end(), n) == stufe1.end()) { zuviel += " " + n; }
+        }
+        diag::detail("Knopftest: Checkliste - " + std::to_string(stufe1.size()) + " Befehle Stufe 1b, " +
+                     std::to_string(da.size()) + " nachgebaut; es fehlt:" + fehlt + "; zu viel:" + zuviel);
+        return fehlt.empty() && zuviel.empty();
+    }));
+    add(tu("Alle Befehle: Kopie oeffnen, Pinsel und Licht waehlen, Zustand merken", [v] {
+        ke::Editor& e = ke::editor();
+        (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map"));
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), e.karte.welt()->kinder().front());
+        waehleEnt("light", 0);
+        v->raster = e.raster;
+        v->kamera = e.kamera;
+        v->kameraE = e.kameraE;
+        v->anzeige = e.anzeige;
+        v->xy.clear();
+        for (const ke::XyFenster& x : e.xy) { v->xy.push_back(x.ansicht); }
+        v->aktivXy = e.aktivXy;
+        v->texBro = e.texBro.e;
+        v->schwebend = e.schwebendSichtbar;
+        v->gruppeOffen = e.gruppenDialogOffen;
+        v->gruppenSeite = e.gruppenSeite;
+        v->maximiert = e.maximiert;
+        v->modi.clear();
+        for (const char* m : kModi) {
+            if (ke::angehakt(m)) { v->modi.emplace_back(m); }
+        }
+        v->ausgefuehrt.clear();
+    }));
+    add(pause(0.2));
+    add(pruefe("Alle Befehle: 2 Entities, Pinsel und Licht gewaehlt", [] {
+        const ke::Editor& e = ke::editor();
+        return e.karte.entitaeten().size() == 2 && e.karte.auswahl.anzahl() == 2;
+    }));
+    // RefreshShaders gibt die Bilder frei - in einem Schritt nach dem
+    // Zeichnen nennen die Zeichenlisten dieses Bildes sie noch (Lauf k11e:
+    // Absturz 0x87D der Debugschicht). Mit sichtbaren Bildern dreimal.
+    add(tu("Texturbrowser zeigen", [] {
+        ke::Editor& e = ke::editor();
+        e.gruppenSeite = 2;
+        e.gruppenSeiteWechseln = true;
+        e.gruppenDialogOffen = true;
+    }));
+    add(pause(0.3));
+    add(warteBis("Texturbrowser: Bilder geladen", [] { return ke::kameraBilderFertig(); }, 2000));
+    for (int i = 0; i < 3; ++i) {
+        add(tu("RefreshShaders nach dem Zeichnen", [] { (void)ke::ausfuehren("RefreshShaders"); }));
+        add(pause(0.2));
+    }
+    add(warteBis("Texturbrowser: Bilder neu geladen, kein Absturz", [] { return ke::kameraBilderFertig(); }, 2000));
+    std::vector<std::string> liste = ke::nachgebauteBefehle();
+    liste.erase(std::remove_if(liste.begin(), liste.end(),
+                                 [](const std::string& n) { return n == "Exit" || n == "OpenMap" || n == "SaveMapAs" || n == "NewMap"; }),
+                  liste.end());
+    liste.emplace_back("NewMap");
+    for (const std::string& name : liste) {
+        add({"Befehl " + name, [name, v](int b) {
+                 ke::Editor& e = ke::editor();
+                 if (b == 0) {
+                     v->vorherAn = ke::angehakt(name);
+                     e.letzterBefehl.clear();
+                     if (ke::ausfuehren(name) && e.letzterBefehl == name) {
+                         v->ausgefuehrt.push_back(name);
+                     } else {
+                         meldeFehler("Befehl " + name + ": nicht ausgefuehrt");
+                     }
+                     return false;
+                 }
+                 // Umschalter (der Haken wechselt) und MaximizeView ein zweites Mal
+                 if (b == 3 && ((ke::angehakt(name) != v->vorherAn && name.rfind("SetGrid", 0) != 0 &&
+                                 std::find(std::begin(kModi), std::end(kModi), name) == std::end(kModi)) ||
+                                name == "MaximizeView" || name == "ToggleGridSnap")) {
+                     (void)ke::ausfuehren(name);
+                     return false;
+                 }
+                 if (b == 5) {
+                     karteDialogeZu();
+                     return false;
+                 }
+                 return b >= 7;
+             }});
+    }
+    add(pruefe("Alle Befehle: " + std::to_string(liste.size()) + " ausgefuehrt (ohne Exit, OpenMap, SaveMapAs)", [v, liste] {
+        diag::detail("Knopftest: Alle Befehle - " + std::to_string(v->ausgefuehrt.size()) + " von " +
+                     std::to_string(liste.size()));
+        return v->ausgefuehrt == liste;
+    }));
+    add(pruefe("New Map zuletzt: leere Karte \"unnamed.map\", keine Rueckfrage offen", [] {
+        const ke::Editor& e = ke::editor();
+        return e.name == "unnamed.map" && e.karte.entitaeten().empty() && !e.frageOffen;
+    }));
+    add(tu("Alle Befehle: Zustand zurueck, Kopie neu laden", [v] {
+        ke::Editor& e = ke::editor();
+        karteDialogeZu();
+        e.raster = v->raster;
+        e.kamera = v->kamera;
+        e.kameraE = v->kameraE;
+        e.kamera.projektionAktualisieren(e.kameraE);
+        e.anzeige = v->anzeige;
+        for (std::size_t i = 0; i < e.xy.size() && i < v->xy.size(); ++i) { e.xy[i].ansicht = v->xy[i]; }
+        e.aktivXy = v->aktivXy;
+        e.texBro.e = v->texBro;
+        e.schwebendSichtbar = v->schwebend;
+        e.gruppenDialogOffen = v->gruppeOffen;
+        e.gruppenSeite = v->gruppenSeite;
+        if (e.maximiert != v->maximiert) { (void)ke::ausfuehren("MaximizeView"); }
+        for (const std::string& m : v->modi) {
+            if (!ke::angehakt(m)) { (void)ke::ausfuehren(m); }
+        }
+        (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map"));
+        e.karte.auswahl.leeren();
+    }));
+    add(pause(0.3));
+    add(pruefe("Alle Befehle: Karte wieder offen, Raster und Werkzeug wie vorher, keine Dialoge", [v] {
+        const ke::Editor& e = ke::editor();
+        bool modi = true;
+        for (const std::string& m : v->modi) { modi = modi && ke::angehakt(m); }
+        return e.name == karteTestPfad("karte_kopie.map") && !e.karte.entitaeten().empty() &&
+               e.raster.potenz() == v->raster.potenz() && modi && !e.einstellungenOffen && !e.tastenDialogOffen &&
+               !e.findenOffen && !e.ent.listeOffen && !e.frageOffen && GImGui->OpenPopupStack.Size == 0;
+    }));
+    return s;
+}
+
+// Fotos mit "Begriffe wie NetRadiant" zum Vergleich mit SP\nrc_fotos: alle 38
+// Menues (menu_<Weg>.png, Weg wie NRCs Foto-Skript: '&' weg, sonst nur
+// A-Za-z0-9, Untermenues mit "__"), alle 23 Einstellungsseiten
+// (pref_<Seite>.png) und die nachgebauten Dialoge mit Foto (dlg_*.png).
+std::vector<Schritt> karteneditorFotoSchritte() {
+    namespace ke = karteneditor;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    // Menues im Code schliessen: ein Klick in die Statuszeile traf hohe
+    // Untermenues (View > Filter reicht bis dorthin).
+    auto menuesZu = [] { return tu("Menues zu", [] { karteDialogeZu(); }); };
+    add(tu("Fotos: Begriffe wie NetRadiant an", [] { ke::setzeNrcBegriffe(true); }));
+    add(pause(0.3));
+    add(pruefe("Fotos: Anordnung Regular wie die NRC-Fotos", [] {
+        return ke::editor().anordnung == karte::befehle::Anordnung::Regular && ke::nrcBegriffe();
+    }));
+    // Mit der Groesse des NRC-Fotos in logischen Punkten (Foto bei 2x / 2).
+    struct MenueFoto {
+        const char* datei;
+        std::vector<std::string> weg;
+        int b;
+        int h;
+    };
+    const std::vector<MenueFoto> menues = {
+        {"File", {"File"}, 212, 285},
+        {"Edit", {"Edit"}, 356, 549},
+        {"View", {"View"}, 262, 333},
+        {"View__Camera", {"View", "Camera"}, 255, 216},
+        {"View__Orthographic", {"View", "Orthographic"}, 307, 240},
+        {"View__Show", {"View", "Show"}, 253, 401},
+        {"View__Filter", {"View", "Filter"}, 270, 593},
+        {"View__Region", {"View", "Region"}, 264, 106},
+        {"Modify", {"Modify"}, 258, 230},
+        {"Modify__Components", {"Modify", "Components"}, 177, 82},
+        {"Modify__Nudge", {"Modify", "Nudge"}, 218, 161},
+        {"Modify__Rotate", {"Modify", "Rotate"}, 206, 137},
+        {"Modify__Flip", {"Modify", "Flip"}, 183, 137},
+        {"Modify__Repeat", {"Modify", "Repeat"}, 225, 154},
+        {"Build", {"Build"}, 193, 405},
+        {"Grid", {"Grid"}, 163, 346},
+        {"Misc", {"Misc"}, 262, 178},
+        {"Misc__Theming", {"Misc", "Theming"}, 263, 497},
+        {"Misc__Theming__GUI_Theme", {"Misc", "Theming", "GUI Theme"}, 122, 106},
+        {"Entity", {"Entity"}, 263, 137},
+        {"Brush", {"Brush"}, 273, 350},
+        {"Brush__CSG", {"Brush", "CSG"}, 288, 154},
+        {"Brush__Clipper", {"Brush", "Clipper"}, 264, 82},
+        {"Curve", {"Curve"}, 277, 429},
+        {"Curve__Insert_Delete", {"Curve", "Insert/Delete"}, 316, 223},
+        {"Curve__Matrix", {"Curve", "Matrix"}, 255, 168},
+        {"Curve__Texture", {"Curve", "Texture"}, 225, 106},
+        {"Plugins", {"Plugins"}, 144, 178},
+        {"Plugins__MeshTex", {"Plugins", "MeshTex"}, 159, 429},
+        {"Plugins__ShaderPlug", {"Plugins", "ShaderPlug"}, 135, 58},
+        {"Plugins__SunPlug", {"Plugins", "SunPlug"}, 166, 58},
+        {"Plugins__UFO_AI", {"Plugins", "UFO:AI"}, 156, 415},
+        {"Plugins__bobToolz", {"Plugins", "bobToolz"}, 201, 597},
+        {"Plugins__brushexport2", {"Plugins", "brushexport2"}, 253, 58},
+        {"Plugins__prtview", {"Plugins", "prtview"}, 187, 175},
+        {"Help", {"Help"}, 215, 130},
+        {"Help__General", {"Help", "General"}, 335, 298},
+        {"Help__Jedi_Knight_Jedi_Academy", {"Help", "Jedi Knight Jedi Academy"}, 286, 250},
+    };
+    add(pruefe("Fotos: 38 Menues wie SP\\nrc_fotos\\menues", [n = menues.size()] { return n == 38; }));
+    // Das NRC-Foto von File zeigt die leere MRU-Liste ("&1", ausgegraut).
+    auto mru = std::make_shared<karte::ZuletztListe>();
+    for (const MenueFoto& m : menues) {
+        add(menuesZu());
+        if (std::string(m.datei) == "File") {
+            add(tu("MRU-Liste leer wie auf dem NRC-Foto", [mru] {
+                *mru = ke::editor().zuletzt;
+                ke::editor().zuletzt = karte::ZuletztListe{};
+            }));
+        }
+        if (std::string(m.datei) == "Edit") {
+            add(tu("MRU-Liste zurueck", [mru] { ke::editor().zuletzt = *mru; }));
+        }
+        add(pause(0.1));
+        add(klick(m.weg[0], "##karteneditor"));
+        add(pause(0.2));
+        for (std::size_t k = 1; k < m.weg.size(); ++k) {
+            add(klick(m.weg[k], "##Menu_", 0, false));
+            add(pause(0.25));
+        }
+        add(fotoRahmen(std::string("karteneditor_menu_") + m.datei, obersterPopupRahmen));
+        // QMenu-Masse (app_karte_qtmenue.cpp): die Hoehe genau; die Breite
+        // mit GDI-Textbreiten wie Qt - Qt misst mit QTextLayout, die Laeufe
+        // k11rot zeigen bis 3 logische Punkte Unterschied je Menue (File, Help,
+        // General, Jedi Knight Jedi Academy u. a. genau).
+        const std::string name = m.datei;
+        const int b = m.b;
+        const int h = m.h;
+        add(pruefe("Menue " + name + ": " + std::to_string(b) + " x " + std::to_string(h) + " wie NRC", [name, b, h] {
+            const ImRect r = obersterPopupRahmen();
+            const float sk = ke::massstab();
+            const int ub = static_cast<int>(std::lround(r.GetWidth() / sk));
+            const int uh = static_cast<int>(std::lround(r.GetHeight() / sk));
+            diag::detail("Knopftest: Menue " + name + " - NRC " + std::to_string(b) + " x " + std::to_string(h) + ", hier " +
+                         std::to_string(ub) + " x " + std::to_string(uh));
+            return uh == h && std::abs(ub - b) <= 3;
+        }));
+    }
+    add(menuesZu());
+    add(pause(0.2));
+    // Mnemoniken (QMenuBar/QMenu::keyPressEvent): Alt+E oeffnet Edit, F
+    // waehlt Pre&ferences; E trifft "D&elete" und dreimal "&Expand ..." -
+    // nur die Hervorhebung wandert, nichts wird ausgefuehrt.
+    add(tasteMit(ImGuiMod_Alt, ImGuiKey_E, "Alt+E"));
+    add(pause(0.2));
+    add(pruefe("Alt+E: das Menue Edit ist offen", [] { return finde("Preferences...", "##Menu_", 0, true) != nullptr; }));
+    add(tu("letzter Befehl leer", [] { ke::editor().letzterBefehl.clear(); }));
+    add(tasteMit(ImGuiKey_None, ImGuiKey_E, "E"));
+    add(pause(0.2));
+    add(pruefe("E (viermal im Menue): nichts ausgefuehrt, Edit bleibt offen", [] {
+        return ke::editor().letzterBefehl.empty() && finde("Preferences...", "##Menu_", 0, true) != nullptr;
+    }));
+    add(tasteMit(ImGuiKey_None, ImGuiKey_F, "F"));
+    add(pause(0.3));
+    add(pruefe("F: Pre&ferences ausgefuehrt, Menue zu", [] {
+        return ke::editor().letzterBefehl == "Preferences" && ke::editor().einstellungenOffen &&
+               finde("Preferences...", "##Menu_", 0, true) == nullptr;
+    }));
+    add(tu("Einstellungen zu", [] { karteDialogeZu(); }));
+    add(pause(0.2));
+    // Edit > Preferences: jede Seite im Baum anklicken (PrefsDlg::BuildDialog,
+    // Reihenfolge wie kSeiten in app_karte_dialoge.cpp).
+    static const char* const kSeiten[] = {"Global", "Global_Game", "Game", "Paths", "Interface", "Layout",
+                                          "Display", "Textures", "Patches", "Entities", "Settings", "Undo",
+                                          "Selection", "Brush", "Clipper", "Grid", "Surface_Inspector", "Camera",
+                                          "Orthographic", "Build", "Texture_Browser", "Model_Browser", "Autosave"};
+    add(tu("Fotos: Einstellungen auf", [] { ke::editor().einstellungenOffen = true; }));
+    add(pause(0.3));
+    for (int i = 0; i < static_cast<int>(std::size(kSeiten)); ++i) {
+        const std::string endung = "##seite" + std::to_string(i);
+        add(pruefe(std::string("Einstellungen: Seite ") + kSeiten[i] + " im Baum sichtbar", [endung] {
+            const Element* el = findeEndung(endung, "###karteeinstellungen");
+            return el != nullptr && ganzSichtbar(*el);
+        }));
+        add(klickAn(std::string("Einstellungen: Seite ") + kSeiten[i], [endung] {
+            const Element* el = findeEndung(endung, "###karteeinstellungen");
+            return el != nullptr ? el->rect.GetCenter() : ImVec2{5, 5};
+        }));
+        add(pause(0.15));
+        add(fotoRahmen(std::string("karteneditor_pref_") + kSeiten[i], [] { return fensterRahmen("###karteeinstellungen"); }));
+    }
+    add(tu("Fotos: Einstellungen zu", [] { ke::editor().einstellungenOffen = false; }));
+    add(pause(0.2));
+    // Dialoge mit NRC-Foto (dlg_<Menue>_<Punkt>_0.png)
+    add(tu("Fotos: Edit > Shortcuts", [] { (void)ke::ausfuehren("Shortcuts"); }));
+    add(pause(0.3));
+    add(fotoRahmen("karteneditor_dlg_Edit_Shortcuts_0", [] { return fensterRahmen("###kartetasten"); }));
+    add(tu("Shortcuts zu", [] { karteDialogeZu(); }));
+    add(pause(0.2));
+    add(tu("Fotos: View > Entity Inspector", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        if (!e.gruppenDialogOffen || e.gruppenSeite != 0) { (void)ke::ausfuehren("ToggleEntityInspector"); }
+    }));
+    add(pause(0.4));
+    add(fotoRahmen("karteneditor_dlg_View_Entity_Inspector_0", [] { return fensterRahmen("###kartegruppe"); }));
+    add(tu("Entity Inspector zu", [] { ke::editor().gruppenDialogOffen = false; }));
+    add(pause(0.2));
+    add(tu("Fotos: View > Entity List", [] { (void)ke::ausfuehren("ToggleEntityList"); }));
+    add(pause(0.3));
+    add(fotoRahmen("karteneditor_dlg_View_Entity_List_0", [] { return fensterRahmen("###karteentliste"); }));
+    add(tu("Fotos: Entity List zu, Begriffe aus", [] {
+        karteDialogeZu();
+        ke::setzeNrcBegriffe(false);
+    }));
+    add(pause(0.2));
+    return s;
+}
+
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
     std::vector<Schritt> s;
@@ -28325,6 +28729,8 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : karteneditorTexturSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorEntitaetenSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorKonsoleSchritte()) { add(std::move(x)); }
+    for (Schritt& x : karteneditorAlleBefehleSchritte()) { add(std::move(x)); }
+    for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
     return s;
 }

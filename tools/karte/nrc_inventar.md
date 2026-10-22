@@ -777,9 +777,9 @@ Name | Art | Standardtaste | Quelle
 - [~] `RegionSetBrush` | Commands | - | (radiant/map.cpp:2439) -- Stufe 2
 - [~] `RegionSetSelection` | Toggles | Ctrl+Shift+R | (radiant/map.cpp:2441) -- Stufe 2
 - [~] `RegionSetXY` | Commands | - | (radiant/map.cpp:2438) -- Stufe 2
-- [~] `RepeatTransforms` | Commands | - | (radiant/select.cpp:1871) -- Stufe 2
+- [~] `RepeatTransforms` | Commands | Ctrl+R | (radiant/select.cpp:1871) -- Stufe 2
 - [~] `ResetFilters` | Commands | - | (radiant/filters.cpp:211) -- Stufe 2
-- [~] `ResetTransforms` | Commands | - | (radiant/select.cpp:1872) -- Stufe 2
+- [~] `ResetTransforms` | Commands | Alt+R | (radiant/select.cpp:1872) -- Stufe 2
 - [~] `RotateSelectionAnticlockwise` | Commands | - | (radiant/select.cpp:1855) -- Stufe 2
 - [~] `RotateSelectionClockwise` | Commands | - | (radiant/select.cpp:1854) -- Stufe 2
 - [~] `RotateSelectionX` | Commands | - | (radiant/select.cpp:1845) -- Stufe 2

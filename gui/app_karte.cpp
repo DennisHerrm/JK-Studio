@@ -21,6 +21,7 @@
 #include "karteneditor.h"
 
 #include "app_internal.h"
+#include "karte_gpu.h"
 #include "bhed/karte/texdef.h"
 
 #include <algorithm>
@@ -903,6 +904,7 @@ void maximierenUmschalten() {
 
 void zeichne(float hoehe) {
     Editor& e = g();
+    kartegpu::aufraeumen();   // Bilder, die ein frueheres Bild freigab
     e.gezeichnet = true;
     e.knoepfeImBild.clear();
     e.knoepfeVerdeckt.clear();

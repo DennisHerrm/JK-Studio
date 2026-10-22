@@ -554,6 +554,33 @@ bool zeigerLage(int& x, int& y) {
     return true;
 }
 
+int gdiTextBreite(const std::string& utf8, const wchar_t* schrift, int pixel, bool fett) {
+    static HDC dc = CreateCompatibleDC(nullptr);
+    struct Eintrag {
+        std::wstring name;
+        int pixel;
+        bool fett;
+        HFONT font;
+    };
+    static std::vector<Eintrag> schriften;
+    if (dc == nullptr) { return -1; }
+    HFONT font = nullptr;
+    for (const Eintrag& e : schriften) {
+        if (e.pixel == pixel && e.fett == fett && e.name == schrift) { font = e.font; }
+    }
+    if (font == nullptr) {
+        font = CreateFontW(-pixel, 0, 0, 0, fett ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                           CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, schrift);
+        if (font == nullptr) { return -1; }
+        schriften.push_back({schrift, pixel, fett, font});
+    }
+    SelectObject(dc, font);
+    const std::wstring w = toWide(utf8);
+    SIZE s{};
+    if (GetTextExtentPoint32W(dc, w.c_str(), static_cast<int>(w.size()), &s) == 0) { return -1; }
+    return static_cast<int>(s.cx);
+}
+
 bool bildschirmFarbe(int x, int y, unsigned char rgb[3]) {
     HDC dc = GetDC(nullptr);
     if (dc == nullptr) { return false; }

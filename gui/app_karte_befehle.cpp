@@ -272,6 +272,13 @@ void tastenVerarbeiten() {
             // QAction::event: "Ambiguous shortcut overload" - nichts wird ausgeloest.
             warnung("QAction::event: Ambiguous shortcut overload: " +
                     befehle::tasteAlsText(befehle::moeglicheTasten(kb, mods, erweitert).front()));
+        } else if (mods == befehle::kAlt) {
+            // QMenuBar: die Mnemoniken der Titel sind Alt-Kuerzel derselben
+            // Kuerzeltabelle (QKeySequence::mnemonic) - ohne Befehl auf der Taste.
+            unsigned z = 0;
+            if (key >= ImGuiKey_A && key <= ImGuiKey_Z) { z = 'A' + static_cast<unsigned>(key - ImGuiKey_A); }
+            if (key >= ImGuiKey_0 && key <= ImGuiKey_9) { z = '0' + static_cast<unsigned>(key - ImGuiKey_0); }
+            if (z != 0) { (void)leistenMnemonik(z); }
         }
     }
 }

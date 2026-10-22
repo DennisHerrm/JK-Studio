@@ -452,39 +452,43 @@ void kontextMenue() {
         ImGui::OpenPopup("##texmenue");
         s.menueOeffnen = false;
     }
-    if (!ImGui::BeginPopup("##texmenue")) { return; }
+    if (!qtPopupAnfang("##texmenue")) { return; }
     const karte::AktiverShader* sh = ed.aktiveShader.finden(s.menueShader);
     const std::string name = sh != nullptr ? sh->name : s.menueShader;
     const bool standard = sh == nullptr || sh->standard;
     const std::string datei = sh != nullptr ? sh->datei : std::string();
-    {   // copyable shader name (copy.png)
-        const ImVec2 p = ImGui::GetCursorScreenPos();
-        const float g = ImGui::GetTextLineHeight();
-        if (ImGui::MenuItem(("     " + name + "##texkopieren").c_str())) { ImGui::SetClipboardText(name.c_str()); }
-        leistenSymbol(ImGui::GetWindowDrawList(), "copy", p, g, true);
-    }
-    ImGui::Separator();
-    if (ImGui::MenuItem(trK(Str::KeTexOpenShader), nullptr, false, !standard)) { shaderAnsehen(datei, name, false); }
-    if (ImGui::MenuItem(trK(Str::KeTexOpenShaderExt), nullptr, false, !standard)) { shaderAnsehen(datei, name, true); }
-    if (ImGui::MenuItem(trK(Str::KeTexShaderInfo), nullptr, false, !standard)) { shaderInfo(name, datei); }
-    ImGui::Separator();
-    if (ImGui::MenuItem(trK(Str::KeTexSelObjects))) {   // Scene_BrushPatchSelectByShader
+    const auto punkt = [](const std::string& id, bool aktiv = true, const char* bild = nullptr) {
+        QtPunkt p;
+        p.id = id.c_str();
+        p.nrc = id.c_str();   // QAction-Text: '&' waere Mnemonik
+        p.aktiv = aktiv;
+        p.bild = bild;
+        return qtPunkt(p);
+    };
+    // copyable shader name (copy.png als Symbol der Aktion)
+    if (punkt(name + "##texkopieren", true, "copy")) { ImGui::SetClipboardText(name.c_str()); }
+    qtTrenner();
+    if (punkt(trK(Str::KeTexOpenShader), !standard)) { shaderAnsehen(datei, name, false); }
+    if (punkt(trK(Str::KeTexOpenShaderExt), !standard)) { shaderAnsehen(datei, name, true); }
+    if (punkt(trK(Str::KeTexShaderInfo), !standard)) { shaderInfo(name, datei); }
+    qtTrenner();
+    if (punkt(trK(Str::KeTexSelObjects))) {   // Scene_BrushPatchSelectByShader
         karte::waehleNachShader(ed.karte, name);
         auswahlGeaendert();
     }
-    if (ImGui::MenuItem(trK(Str::KeTexSelSurfaces))) {   // Select_FacesAndPatchesByShader
+    if (punkt(trK(Str::KeTexSelSurfaces))) {   // Select_FacesAndPatchesByShader
         karte::waehleFlaechenNachShader(ed.karte, name);
         auswahlGeaendert();
     }
-    ImGui::Separator();
-    if (ImGui::BeginMenu(trK(Str::KeTexRecent), !ed.texBro.zuletzt.empty())) {
+    qtTrenner();
+    if (qtMenueAnfang(trK(Str::KeTexRecent), !ed.texBro.zuletzt.empty(), trK(Str::KeTexRecent), false)) {
         const std::vector<std::string> ordner = ed.texBro.zuletzt;
         for (const std::string& f : ordner) {
-            if (ImGui::MenuItem((f + "##texzuletzt").c_str())) { texturVerzeichnisZeigen(f); }
+            if (punkt(f + "##texzuletzt")) { texturVerzeichnisZeigen(f); }
         }
-        ImGui::EndMenu();
+        qtMenueEnde();
     }
-    if (ImGui::MenuItem(trK(Str::KeTexShaderFolder))) {   // TextureBrowser_ShowDirectoryOfShader
+    if (punkt(trK(Str::KeTexShaderFolder))) {   // TextureBrowser_ShowDirectoryOfShader
         if (ed.karteSpiel) {
             std::vector<std::string> w;
             std::size_t n = 0;
@@ -494,10 +498,8 @@ void kontextMenue() {
             }
         }
     }
-    if (ImGui::MenuItem(("-> " + ed.texBro.commonVerzeichnis + "##texcommon").c_str())) {
-        texturVerzeichnisZeigen(ed.texBro.commonVerzeichnis);
-    }
-    ImGui::EndPopup();
+    if (punkt("-> " + ed.texBro.commonVerzeichnis + "##texcommon")) { texturVerzeichnisZeigen(ed.texBro.commonVerzeichnis); }
+    qtPopupEnde();
 }
 
 // --- Die GL-Flaeche (TexWndGLWidget) -------------------------------------------------
@@ -920,9 +922,9 @@ void texturBrowserZeichnen(int breite, int hoehe) {
             }
             kx += kKnopf + kKnopfAbstand;
         }
-        if (ImGui::BeginPopup("##texansicht")) {   // TextureBrowser_constructViewMenu
+        if (qtPopupAnfang("##texansicht", true)) {   // TextureBrowser_constructViewMenu (texwindow.cpp:1237: abreissbar)
             menueEintraege(befehle::texturMenues(), 1);
-            ImGui::EndPopup();
+            qtPopupEnde();
         }
         merkeFeld("Texturen:Filter", x, y + kLeisteH, b, kFilterH);
         filterZeichnen(bp(x, y + kLeisteH), bp(x + b, y + kLeisteH + kFilterH), sc);

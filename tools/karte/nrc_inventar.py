@@ -112,7 +112,7 @@ TOK = re.compile(r'''
  (?P<item>create_(?P<chk>check_)?menu_item_with_mnemonic\(\s*(?P<ivar>\w+)\s*,\s*"(?P<ilabel>[^"]*)"\s*,\s*(?:"(?P<icmd>[^"]*)"|(?P<icb>make\w*Call\w*|\w+Caller)))|
  (?P<sep>(?P<svar>\w+)\s*->\s*addSeparator\(\s*\)) |
  (?P<tb>toolbar_append_(?P<tbk>button|toggle_button)\(\s*\w+\s*,\s*"(?P<tbtip>[^"]*)"\s*,\s*"(?P<tbicon>[^"]*)"\s*,\s*"(?P<tbcmd>[^"]*)") |
- (?P<reg>Global(?P<regk>Commands|Toggles|KeyEvents|Shortcuts)_insert\(\s*"(?P<regname>[^"]+)"(?P<regrest>[^;]*);) |
+ (?P<reg>Global(?P<regk>Commands|Toggles|KeyEvents|Shortcuts)_insert\(\s*"(?P<regname>[^"]+)"(?P<regrest>(?:[^;{}]|\{[^{}]*\})*);) |
  (?P<filt>add_filter_command\(\s*\w+\s*,\s*"(?P<filtname>[^"]+)"(?P<filtrest>[^;]*);) |
  (?P<titel>setWindowTitle\(\s*"(?P<titeltext>[^"]+)"\s*\)) |
  (?P<seite>createPage\(\s*"(?P<seitebaum>[^"]+)"\s*,\s*"(?P<seitetitel>[^"]+)"\s*\)) |

@@ -119,5 +119,13 @@ std::uintptr_t starteProgramm(const std::string& exe, const std::string& argumen
 bool zeigerLage(int& x, int& y);
 bool bildschirmFarbe(int x, int y, unsigned char rgb[3]);
 
+// --- Karten-Editor, Textmasse wie Qt 5 (QWindowsFontEngine, GDI) ---------
+//
+// Breite eines Textes in Pixeln: Schrift schrift mit lfHeight = -pixel,
+// GetTextExtentPoint32W (Summe der gehinteten Vorschuebe, ohne Kerning).
+// Qt legt Menues und Dialoge in logischen Punkten mit diesen Breiten an
+// (Segoe UI 9 pt = 12 px, Tahoma 8 pt = 11 px). -1, wenn es nicht geht.
+[[nodiscard]] int gdiTextBreite(const std::string& utf8, const wchar_t* schrift, int pixel, bool fett);
+
 }  // namespace bhed::platform
 #endif

@@ -300,6 +300,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_texturen.cpp
     gui/app_karte_entitaeten.cpp
     gui/app_karte_konsole.cpp
+    gui/app_karte_qtmenue.cpp
     gui/karte_gpu_win32.cpp
     gui/tastatur_win32.cpp
     gui/backend_win32.cpp

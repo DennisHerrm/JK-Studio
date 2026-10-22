@@ -381,6 +381,9 @@ struct Editor {
     bool filterleiste = true;
     bool pluginleiste = true;
     std::set<std::string> versteckteKnoepfe;   // g_toolbarHiddenButtons
+    // Alt + Mnemonik: dieses Menue der Leiste im naechsten Bild oeffnen
+    // (Lage in befehle::menues(), -1 = keins).
+    int menueOeffnen = -1;
     Farben farben;
     // Statuszeile (create_main_statusbar): c_status_command, _position, _texture
     std::string statusBefehl;
@@ -630,6 +633,8 @@ void kameraBefehl(const std::string& name);
 bool kameraTasteVerbraucht(int key);
 // Haengt ein KeyEvent-Befehl gerade an seiner Taste (diskret/Freelook)?
 [[nodiscard]] bool befehlVerbunden(const std::string& name);
+// Ist name ein nachgebautes KeyEvent (GlobalKeyEvents_insert, camwindow.cpp:1332-1433)?
+[[nodiscard]] bool tastenEreignisNachgebaut(const std::string& name);
 // GlobalPressedKeys_releaseAll (Fokuswechsel)
 void kameraTastenLoslassen();
 // Braucht die Kamera Bilder (Bewegung, Freelook, Texturen laden)?
@@ -651,6 +656,37 @@ void teilerImFenster(const char* id, karte::Teiler& t, bool senkrecht, int b, in
 // ausfuehren (QMenu); ein Symbol im Stil der Werkzeugleisten.
 void menueEintraege(const std::vector<befehle::MenueEintrag>& liste, std::size_t erster);
 void leistenSymbol(ImDrawList* dl, const char* name, ImVec2 a, float g, bool aktiv);
+// Alt + Buchstabe (QMenuBar-Mnemonik): das Menue oeffnen; false ohne Treffer.
+bool leistenMnemonik(unsigned zeichen);
+
+// --- QMenu wie NRC (app_karte_qtmenue.cpp): Qt 5.15, Fusion, dark.qss ---
+// Art einer QAction im Menue: normal, pruefbar (Kaestchen) oder exklusiv
+// (QActionGroup: Punkt).
+enum class QtArt { Normal, Pruefbar, Exklusiv };
+struct QtPunkt {
+    const char* id = "";          // ImGui-Beschriftung (sichtbarer Text, dahinter "##..."/"###...")
+    const char* nrc = nullptr;    // NRCs Text mit '&' (Mnemonik), nullptr = keine
+    const char* taste = nullptr;  // Tastenkuerzel (Spalte rechts)
+    bool haken = false;
+    bool aktiv = true;
+    QtArt art = QtArt::Normal;
+    const char* bild = nullptr;   // Symbol (karteIcon)
+    const float* farbe = nullptr; // Farbfeld als Symbol (RGB 0..1)
+    std::string tooltip;
+};
+// Ein Menue der Menueleiste oder ein Untermenue (QMenu, abreissbar mit
+// "Detachable Menus"); qtMenueEnde nur, wenn es offen ist.
+bool qtMenueAnfang(const char* id, bool aktiv = true, const char* nrc = nullptr, bool abriss = true);
+void qtMenueEnde();
+// Ein Kontextmenue (QMenu::popup an der Maus), offen mit ImGui::OpenPopup(id).
+bool qtPopupAnfang(const char* id, bool abriss = false);
+void qtPopupEnde();
+bool qtPunkt(const QtPunkt& p);
+void qtTrenner();
+// Die Mnemonik unterstreichen (Lage im Text, -1 = keine) bzw. ihre Lage,
+// wenn text NRCs Wortlaut nrc (mit '&') ist.
+void qtUnterstreichen(ImDrawList* dl, ImVec2 textPos, const std::string& text, int lage, unsigned int farbe);
+[[nodiscard]] int qtMnemonik(const char* nrc, const std::string& text);
 // MaximizeView (Taste, Menue) und der Aufbau der Teiler fuer die Anordnung.
 void maximierenUmschalten();
 void teilerAufbauen();

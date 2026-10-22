@@ -1417,7 +1417,10 @@ void menueEintrag(const std::string& klasse) {
     const ImGuiIO& io = ImGui::GetIO();
     const bool strg = io.KeyCtrl;
     if (strg) { ImGui::PushItemFlag(ImGuiItemFlags_AutoClosePopups, false); }
-    if (ImGui::MenuItem(klasse.c_str())) { entitaetMenueGewaehlt(klasse); }
+    QtPunkt p;
+    p.id = klasse.c_str();
+    p.nrc = klasse.c_str();
+    if (qtPunkt(p)) { entitaetMenueGewaehlt(klasse); }
     if (strg) { ImGui::PopItemFlag(); }
     if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
         Editor& ed = e();
@@ -1435,37 +1438,19 @@ void entitaetenMenueZeichnen() {
         menueFuellen();
         ImGui::OpenPopup("##entitaetenmenue");   // m_mnuDrop->popup( QCursor::pos() )
     }
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{px(4.0F), px(4.0F)});
-    // QMenu: Escape schliesst das offene Untermenue, das naechste das Menue.
-    // ImGui nimmt Escape teils selbst (Untermenue zu oder nur ClearActiveID) -
-    // massgeblich ist, ob vor diesem Bild ein Untermenue offen war.
-    static int stapelVorher = 0;
-    if (ImGui::BeginPopup("##entitaetenmenue")) {
-        ImGuiContext& g = *GImGui;
-        const int ebene = g.BeginPopupStack.Size - 1;   // das Menue im Stapel der offenen Popups
-        const bool unterWarOffen = stapelVorher > ebene + 1;
-        if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
-            e().tasteVerbrauchtBild = ImGui::GetFrameCount();   // das Menue hat die Taste, kein Kuerzel
-            if (!unterWarOffen) {
-                ImGui::CloseCurrentPopup();
-            } else if (g.OpenPopupStack.Size > ebene + 1) {
-                ImGui::ClosePopupToLevel(ebene + 1, true);
-            }
-        }
+    // QMenu (app_karte_qtmenue.cpp): Escape schliesst das offene Untermenue,
+    // das naechste das Menue.
+    if (qtPopupAnfang("##entitaetenmenue")) {
         for (const karte::EntitaetMenuePunkt& p : g_menue) {
             if (p.kinder.empty()) {
                 menueEintrag(p.name);
-            } else if (ImGui::BeginMenu(p.name.c_str())) {
+            } else if (qtMenueAnfang(p.name.c_str(), true, p.name.c_str(), false)) {
                 for (const std::string& k : p.kinder) { menueEintrag(k); }
-                ImGui::EndMenu();
+                qtMenueEnde();
             }
         }
-        stapelVorher = g.OpenPopupStack.Size;
-        ImGui::EndPopup();
-    } else {
-        stapelVorher = 0;
+        qtPopupEnde();
     }
-    ImGui::PopStyleVar();
 }
 
 // --- Set Light intensity (DoLightIntensityDlg) ------------------------------------------

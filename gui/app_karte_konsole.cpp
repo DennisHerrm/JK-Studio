@@ -352,24 +352,30 @@ void konsoleZeichnen() {
     }
     // Kontextmenue beim Loslassen (WM_CONTEXTMENU)
     if (ueber && ImGui::IsMouseReleased(ImGuiMouseButton_Right)) { ImGui::OpenPopup("##konsolemenue"); }
-    // QMenu: Abstand zwischen Text und Kuerzel wie in den uebrigen Menues (ItemSpacing 4)
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{std::round(4.0F * s), std::round(4.0F * s)});
-    if (ImGui::BeginPopup("##konsolemenue")) {
-        if (ImGui::MenuItem((std::string(trK(Str::KeKoCopy)) + "##konsolecopy").c_str(), "Ctrl+C", false, hatAuswahl())) {
+    // QMenu wie die uebrigen Menues (app_karte_qtmenue.cpp)
+    if (qtPopupAnfang("##konsolemenue")) {
+        const auto punkt = [](const std::string& id, const char* nrc, const char* taste, bool aktiv) {
+            QtPunkt p;
+            p.id = id.c_str();
+            p.nrc = nrc;
+            p.taste = taste;
+            p.aktiv = aktiv;
+            return qtPunkt(p);
+        };
+        if (punkt(std::string(trK(Str::KeKoCopy)) + "##konsolecopy", "&Copy", "Ctrl+C", hatAuswahl())) {
             ImGui::SetClipboardText(auswahlText().c_str());   // copy()
         }
-        ImGui::Separator();
-        if (ImGui::MenuItem((std::string(trK(Str::KeKoSelectAll)) + "##konsoleselectall").c_str(), "Ctrl+A", false, !ed.konsole.empty())) {
+        qtTrenner();
+        if (punkt(std::string(trK(Str::KeKoSelectAll)) + "##konsoleselectall", "Select All", "Ctrl+A", !ed.konsole.empty())) {
             g_a.anker = Stelle{};   // selectAll()
             g_a.ende = ed.konsole.empty() ? Stelle{} : Stelle{ed.konsole.size() - 1, ed.konsole.back().text.size()};
         }
-        if (ImGui::MenuItem((std::string(trK(Str::KeKoCopyAll)) + "##konsolecopyall").c_str())) {
+        if (punkt(std::string(trK(Str::KeKoCopyAll)) + "##konsolecopyall", "Copy All", nullptr, true)) {
             ImGui::SetClipboardText(alles().c_str());   // clipboard()->setText( toPlainText() )
         }
-        if (ImGui::MenuItem((std::string(trK(Str::KeKoClear)) + "##konsoleclear").c_str())) { konsoleLeeren(); }
-        ImGui::EndPopup();
+        if (punkt(std::string(trK(Str::KeKoClear)) + "##konsoleclear", "Clear", nullptr, true)) { konsoleLeeren(); }
+        qtPopupEnde();
     }
-    ImGui::PopStyleVar();
     // Sys_Print: nach einem '\n' ans Ende
     if (ed.konsoleRollen) {
         ed.konsoleRollen = false;

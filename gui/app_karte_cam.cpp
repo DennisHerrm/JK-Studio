@@ -647,6 +647,11 @@ void freelookBeenden() {
     if (!imTest) { ImGui::TeleportMousePos(fensterMitte()); }   // unfreeze_pointer( true )
 }
 
+bool tastenEreignisNachgebaut(const std::string& name) {
+    return std::any_of(std::begin(kTastenEreignisse), std::end(kTastenEreignisse),
+                       [&name](const TastenEreignis& t) { return name == t.name; });
+}
+
 bool befehlVerbunden(const std::string& name) {
     const befehle::Befehl* b = befehle::finden(name);
     if (b == nullptr || (b->art & befehle::kKeyEvent) == 0U) { return true; }

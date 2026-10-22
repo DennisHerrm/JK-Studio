@@ -17,10 +17,14 @@
 #include <cstring>
 #include <map>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace bhed::gui::kartegpu {
 
 namespace {
+
+std::vector<std::pair<ID3D11ShaderResourceView*, int>> g_spaeter;   // bildFreigeben: Bild, ImGui-Bild der Freigabe
 
 struct Punkt {
     float x, y, z;
@@ -565,7 +569,11 @@ void* textur(int kennung) {
     return it->second.srv;
 }
 
-void freigeben() { allesLoesen(); }
+void freigeben() {
+    allesLoesen();
+    for (auto& s : g_spaeter) { s.first->Release(); }
+    g_spaeter.clear();
+}
 
 // --- 3D (Kamera) ---------------------------------------------------------------
 
@@ -1055,7 +1063,17 @@ void* wuerfelAnlegen(const unsigned char* const seiten[6], int groesse) {
 }
 
 void bildFreigeben(void* bild) {
-    if (bild != nullptr) { static_cast<ID3D11ShaderResourceView*>(bild)->Release(); }
+    if (bild != nullptr) { g_spaeter.emplace_back(static_cast<ID3D11ShaderResourceView*>(bild), ImGui::GetFrameCount()); }
+}
+
+void aufraeumen() {
+    const int jetzt = ImGui::GetFrameCount();
+    const auto ende = std::remove_if(g_spaeter.begin(), g_spaeter.end(), [jetzt](const auto& s) {
+        if (s.second >= jetzt) { return false; }
+        s.first->Release();
+        return true;
+    });
+    g_spaeter.erase(ende, g_spaeter.end());
 }
 
 unsigned geraetStand() { return render::texturStand(); }
