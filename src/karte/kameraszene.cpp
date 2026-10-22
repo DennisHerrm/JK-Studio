@@ -549,14 +549,14 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
                 }
             }
             if (o.namen || entGew) {
-                const std::string tn = ent->wert("targetname");
+                const std::string tn = o.zielnamen ? ent->wert("targetname") : std::string();
                 s.namen.push_back({namePos, tn.empty() ? ent->klassenname() : tn, kf, entGew ? 1 : 0});
             }
         } else if (!welt) {
             // Group: Name und Pfeil in der Mitte der Kinder (group.cpp:169-190)
             const Vektor3f mitte = kastenGueltig(kinderBox) && ausdehnungGueltig(kinderBox.extents.x()) ? kinderBox.origin : ursprungVon(*ent);
             if (entGew || kindGew || o.namen) {
-                const std::string tn = ent->wert("targetname");
+                const std::string tn = o.zielnamen ? ent->wert("targetname") : std::string();
                 s.namen.push_back({mitte, tn.empty() ? ent->klassenname() : tn, kf, entGew ? 1 : kindGew ? 2 : 0});
             }
             const bool winkelZeigen = (kl != nullptr && kl->hasAngles) || ent->hat("angle") || ent->hat("angles");

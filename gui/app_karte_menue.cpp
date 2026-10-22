@@ -872,6 +872,34 @@ void einstellungenLaden() {
     ed.vGroessen = groessen("vSplit");
     ed.v2Groessen = groessen("vSplit2");
     ed.texGroessen = groessen("TextureBrowserSplitter");   // "TextureBrowser/splitter"
+    // Entitaeten (Entity_Construct, EntityList_Construct, entity plugin: registerPreference)
+    {
+        EntitaetenOberflaeche& u = ed.ent;
+        u.groessen = groessen("EntityInspectorSplitter");   // "EntityInspector/splitter"
+        u.teiler = karte::Teiler{};
+        u.listeVonAnfang = zahl("EntListSearchFromStart", 0) != 0.0F;
+        u.lichtLetzte = static_cast<int>(zahl("LastLightIntensity", 300));
+        u.namenAbstand = std::clamp(static_cast<int>(zahl("SI_ShowNamesDist", 512)), 0, 200500);
+        ed.anzeige.namenVerhaeltnis = std::clamp(static_cast<int>(zahl("SI_ShowNamesRatio", 64)), 0, 100500);
+        u.zielnamen = zahl("SI_ShowTargetNames", 0) != 0.0F;
+        // EntitySelectedColor: Vector3 "r g b"
+        if (const auto f = k.find("EntitySelectedColor"); f != k.end()) {
+            float c[3] = {1, 1, 1};
+            if (std::sscanf(f->second.c_str(), "%f %f %f", &c[0], &c[1], &c[2]) == 3) { u.farbe = karte::Vektor3f(c[0], c[1], c[2]); }
+        }
+        // QColorDialogStaticData::readSettings: QtProject "Qt/customColors/i"
+        u.eigeneFarben.fill(0xFFFFFFU);
+        for (std::size_t i = 0; i < u.eigeneFarben.size(); ++i) {
+            const auto f = k.find("QtCustomColor" + std::to_string(i));
+            if (f != k.end()) {
+                try {
+                    u.eigeneFarben[i] = static_cast<unsigned>(std::stoul(f->second)) & 0xFFFFFFU;
+                } catch (...) {
+                }
+            }
+        }
+        u.eigeneFarbenGeladen = true;
+    }
     // Texturbrowser (TextureBrowser_Construct: registerPreference, texwindow.cpp:2113-2138)
     karte::TexturBrowserEinstellungen& t = ed.texBro.e;
     const int skala = static_cast<int>(zahl("TextureScale", 50));
@@ -953,6 +981,26 @@ void einstellungenSpeichern() {
     if (!ed.vGroessen.empty()) { k["vSplit"] = liste(ed.vGroessen); }
     if (!ed.v2Groessen.empty()) { k["vSplit2"] = liste(ed.v2Groessen); }
     if (!ed.texGroessen.empty()) { k["TextureBrowserSplitter"] = liste(ed.texGroessen); }
+    {
+        const EntitaetenOberflaeche& u = ed.ent;
+        if (!u.groessen.empty()) { k["EntityInspectorSplitter"] = liste(u.groessen); }
+        k["EntListSearchFromStart"] = u.listeVonAnfang ? "1" : "0";
+        k["LastLightIntensity"] = std::to_string(u.lichtLetzte);
+        k["SI_ShowNamesDist"] = std::to_string(u.namenAbstand);
+        k["SI_ShowNamesRatio"] = std::to_string(ed.anzeige.namenVerhaeltnis);
+        k["SI_ShowTargetNames"] = u.zielnamen ? "1" : "0";
+        char farbe[96];
+        std::snprintf(farbe, sizeof(farbe), "%g %g %g", static_cast<double>(u.farbe[0]), static_cast<double>(u.farbe[1]),
+                      static_cast<double>(u.farbe[2]));
+        k["EntitySelectedColor"] = farbe;
+        for (std::size_t i = 0; i < u.eigeneFarben.size(); ++i) {
+            if (u.eigeneFarben[i] != 0xFFFFFFU) {
+                k["QtCustomColor" + std::to_string(i)] = std::to_string(u.eigeneFarben[i]);
+            } else {
+                k.erase("QtCustomColor" + std::to_string(i));
+            }
+        }
+    }
     const karte::TexturBrowserEinstellungen& t = ed.texBro.e;
     k["TextureScale"] = std::to_string(t.skala);
     k["UniformTextureSize"] = std::to_string(t.einheitsGroesse);

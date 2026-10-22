@@ -59,6 +59,7 @@ const Seite kSeiten[] = {
 };
 constexpr int kSeiteInterface = 4;
 constexpr int kSeiteLayout = 5;
+constexpr int kSeiteEntities = 9;
 constexpr int kSeiteAuswahl = 12;
 constexpr int kSeiteKamera = 17;
 constexpr int kSeiteTexBro = 20;
@@ -76,6 +77,9 @@ struct Entwurf {
     bool pinselIn3d = true;         // g_3DCreateBrushes
     int bewegStil3d = 0;            // TranslateFreeXY_Z::m_viewdependent
     karte::TexturBrowserEinstellungen texBro;   // TextureBrowser_constructPreferences
+    int namenAbstand = 512;         // Entity_constructPreferences: g_showNamesDist
+    int namenVerhaeltnis = 64;      // g_showNamesRatio
+    bool zielnamen = false;         // g_showTargetNames
 };
 Entwurf g_entwurf;
 
@@ -264,6 +268,22 @@ void texBroSeite() {
     ImGui::EndTable();
 }
 
+// Entity_constructPreferences (entity.cpp:663-679): zwei Spinner, eine
+// Checkbox "Entity Names" mit dem Text "= Targetnames" (Foto pref_Entities.png).
+void entitaetenSeite() {
+    if (!formBeginnen("##entitaetenseite")) { return; }
+    formSpalten();
+    formZeile(Str::KePrEnDist);
+    ImGui::InputInt("##namenabstand", &g_entwurf.namenAbstand);
+    g_entwurf.namenAbstand = std::clamp(g_entwurf.namenAbstand, 0, 200500);
+    formZeile(Str::KePrEnRatio);
+    ImGui::InputInt("##namenverhaeltnis", &g_entwurf.namenVerhaeltnis);
+    g_entwurf.namenVerhaeltnis = std::clamp(g_entwurf.namenVerhaeltnis, 0, 100500);
+    formZeile(Str::KePrEnNames);
+    ImGui::Checkbox(trK(Str::KePrEnTargetnames), &g_entwurf.zielnamen);
+    ImGui::EndTable();
+}
+
 void interfaceSeite() {
     // Interface Preferences: "Shader Editor Command" (preferences.cpp:64,
     // appendPathEntry: Feld mit "..."-Knopf; Foto pref_Interface.png), dazu
@@ -296,6 +316,9 @@ void zeichneEinstellungen() {
         g_entwurf.pinselIn3d = ed.bearbeitung.pinselIn3d;
         g_entwurf.bewegStil3d = ed.bearbeitung.bewegStil3d;
         g_entwurf.texBro = ed.texBro.e;
+        g_entwurf.namenAbstand = ed.ent.namenAbstand;
+        g_entwurf.namenVerhaeltnis = ed.anzeige.namenVerhaeltnis;
+        g_entwurf.zielnamen = ed.ent.zielnamen;
     }
     if (!ed.einstellungenOffen) {
         g_entwurf.offen = false;
@@ -350,6 +373,8 @@ void zeichneEinstellungen() {
             auswahlSeite();
         } else if (g_entwurf.seite == kSeiteTexBro) {
             texBroSeite();
+        } else if (g_entwurf.seite == kSeiteEntities) {
+            entitaetenSeite();
         } else {
             char z[120];
             std::snprintf(z, sizeof(z), tr(Str::KeStufe), 2);
@@ -401,6 +426,13 @@ void zeichneEinstellungen() {
                 t.commonOhneTexturen = n.commonOhneTexturen;
                 if (hoehe) { ed.texBro.hoeheGeaendert(); }
             }
+            // ShowNamesDistImport / ShowNamesRatioImport (UpdateAllWindows),
+            // ShowTargetNamesImport: NRC verlangt dafuer einen Neustart
+            // (PreferencesDialog_restartRequired) - hier gilt es sofort, die
+            // Namen werden jedes Bild neu gebaut.
+            ed.ent.namenAbstand = g_entwurf.namenAbstand;
+            ed.anzeige.namenVerhaeltnis = g_entwurf.namenVerhaeltnis;
+            ed.ent.zielnamen = g_entwurf.zielnamen;
             ed.maximiert = false;
             einstellungenSpeichern();
             offen = false;

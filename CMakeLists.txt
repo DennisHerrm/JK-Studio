@@ -298,6 +298,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_cam.cpp
     gui/app_karte_auswahl.cpp
     gui/app_karte_texturen.cpp
+    gui/app_karte_entitaeten.cpp
     gui/karte_gpu_win32.cpp
     gui/tastatur_win32.cpp
     gui/backend_win32.cpp
@@ -687,7 +688,9 @@ target_sources(bhed_core PRIVATE
   # Stufe 1b: Texturbrowser (texwindow.cpp, aktive Shader)
   src/karte/texturbrowser.cpp
   # Stufe 1b: Texturen mit M3 kopieren und auftragen (TexManipulator, surfacedialog.cpp)
-  src/karte/texturkopie.cpp)
+  src/karte/texturkopie.cpp
+  # Stufe 1b: Entitaeten erzeugen, umwandeln, verbinden, Schluessel (entity.cpp, entityinspector.cpp)
+  src/karte/entitaetbefehle.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -781,6 +784,10 @@ if(BEHAVED_TESTS)
   add_executable(kartetexturbrowser tests/kartetexturbrowser.cpp)
   target_link_libraries(kartetexturbrowser PRIVATE bhed_core)
   add_test(NAME karte_texturbrowser COMMAND kartetexturbrowser)
+  # Punkt 9: Entitaeten (Inspector, Erzeugen, Klasse wechseln, Verbinden, Farbe, Auswahl)
+  add_executable(karteentitaeten tests/karteentitaeten.cpp)
+  target_link_libraries(karteentitaeten PRIVATE bhed_core)
+  add_test(NAME karte_entitaeten COMMAND karteentitaeten)
   # Punkte 3 und 4: die Befehlstabelle gegen die Checkliste (jeder Befehl mit
   # NRCs Taste, jeder Menuepunkt und Knopf), Uebersetzungen = NRC-Englisch,
   # Tastenkuerzel wie Qt (Text, possibleKeys, deutsche Tastatur).

@@ -111,5 +111,13 @@ std::uintptr_t starteProgramm(const std::string& exe, const std::string& argumen
 // Seitenverhaeltnis, mit dem es den Bildwinkel einer Kamera rechnet.
 [[nodiscard]] float hauptBildschirmSeiten();
 
+// --- Karten-Editor, Farbdialog (QColorDialog "Pick Screen Color") --------
+//
+// Lage des Mauszeigers in Bildschirmpunkten (QCursor::pos) und die Farbe
+// eines Bildschirmpunkts (QScreen::grabWindow( desktop, x, y, 1, 1 )) - nur
+// auf Knopfdruck des Anwenders, nie im Selbsttest.
+bool zeigerLage(int& x, int& y);
+bool bildschirmFarbe(int x, int y, unsigned char rgb[3]);
+
 }  // namespace bhed::platform
 #endif

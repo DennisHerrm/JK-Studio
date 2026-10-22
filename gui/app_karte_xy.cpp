@@ -96,7 +96,8 @@ std::size_t szeneStand() {
         h ^= reinterpret_cast<std::uintptr_t>(w.primitiv.lock().get()) + (h << 6) + (h >> 2);
     }
     const Anzeige& a = ed.anzeige;
-    h ^= (a.winkel ? 1U : 0U) | (a.verbindungen ? 2U : 0U) | (a.namen ? 4U : 0U);
+    h ^= (a.winkel ? 1U : 0U) | (a.verbindungen ? 2U : 0U) | (a.namen ? 4U : 0U) | (ed.ent.zielnamen ? 16U : 0U);
+    h ^= ed.karte.undo.aenderungen() * 2654435789U + (h << 6) + (h >> 2);   // jede Aenderung (auch bei vollem Undo-Stapel)
     h ^= static_cast<std::size_t>(farbe3(ed.farben.pinsel)) * 7U + static_cast<std::size_t>(farbe3(ed.farben.auswahl)) * 13U;
     h ^= static_cast<std::size_t>(farbe3(ed.farben.rasterHinten));
     h ^= (a.lichtRadien ? 8U : 0U) + (h << 6) + (h >> 2);
@@ -209,12 +210,14 @@ void szeneBauen(Szene& s, Sicht sicht) {
                 }
             }
             if (!welt) {
-                const std::string tn = ent->wert("targetname");
+                // NamedEntity::name(): der Wert von KeyIsName::m_nameKey - "classname",
+                // mit "Entity Names = Targetnames" "targetname" (leer: der Klassenname)
+                const std::string tn = ed.ent.zielnamen ? ent->wert("targetname") : std::string();
                 s.namen.push_back({o, box, tn.empty() ? ent->klassenname() : tn, farbe, entGewaehlt});
             }
         } else if (!welt) {
             box = kinderGrenzen(*ent, k);
-            const std::string tn = ent->wert("targetname");
+            const std::string tn = ed.ent.zielnamen ? ent->wert("targetname") : std::string();
             // Name in der Mitte der Kinder, sonst am Ursprung (group.cpp:198-201)
             const Vektor3f nameMitte = karte::kastenGueltig(box) ? box.origin : ursprungVon(*ent);
             s.namen.push_back({nameMitte, box, tn.empty() ? ent->klassenname() : tn, farbe, entGewaehlt});
@@ -586,6 +589,9 @@ void xyZeichnen(int index) {
                 f.ankerY = io.MousePos.y;
                 f.letzteX = io.MousePos.x;
                 f.letzteY = io.MousePos.y;
+                f.entitaetErzeugen = true;   // EntityCreate_MouseDown
+                f.erzeugX = mx;
+                f.erzeugY = my;
             } else if (t == (kRechts | kAlt)) {   // Zoom_Begin
                 f.zoomen = true;
                 f.dragZoom = 0;
@@ -618,6 +624,8 @@ void xyZeichnen(int index) {
             const int iy = static_cast<int>(std::lround(dy));
             if (ix != 0 || iy != 0) {
                 if (f.verschieben) {
+                    // EntityCreate_MouseMove( x, y ) mit den Deltas des FreezePointer
+                    if (f.entitaetErzeugen && (f.erzeugX != ix || f.erzeugY != iy)) { f.entitaetErzeugen = false; }
                     v.rollen(-ix, iy);   // Scroll( -x, y )
                 } else if (iy != 0) {
                     f.dragZoom += iy;
@@ -667,6 +675,10 @@ void xyZeichnen(int index) {
             if (f.verschieben) {
                 f.verschieben = false;
                 if (!imTest) { ImGui::TeleportMousePos(ImVec2{f.ankerX, f.ankerY}); }   // unfreeze_pointer( false )
+                if (f.entitaetErzeugen) {   // EntityCreate_MouseUp: OnContextMenu
+                    f.entitaetErzeugen = false;
+                    entitaetenMenueOeffnen(false);
+                }
             } else if (f.zoomen) {
                 f.zoomen = false;
             } else if (ed.bearbeitung.neuerPinselAktiv()) {   // NewBrushDrag_End

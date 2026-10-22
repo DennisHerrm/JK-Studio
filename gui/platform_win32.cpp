@@ -546,4 +546,24 @@ float hauptBildschirmSeiten() {
     return (b > 0 && h > 0) ? static_cast<float>(b) / static_cast<float>(h) : 0.0F;
 }
 
+bool zeigerLage(int& x, int& y) {
+    POINT p{};
+    if (GetCursorPos(&p) == 0) { return false; }
+    x = p.x;
+    y = p.y;
+    return true;
+}
+
+bool bildschirmFarbe(int x, int y, unsigned char rgb[3]) {
+    HDC dc = GetDC(nullptr);
+    if (dc == nullptr) { return false; }
+    const COLORREF c = GetPixel(dc, x, y);
+    ReleaseDC(nullptr, dc);
+    if (c == CLR_INVALID) { return false; }
+    rgb[0] = GetRValue(c);
+    rgb[1] = GetGValue(c);
+    rgb[2] = GetBValue(c);
+    return true;
+}
+
 }  // namespace bhed::platform

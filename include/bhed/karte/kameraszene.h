@@ -98,6 +98,7 @@ struct KameraSzenenOptionen {
     bool winkel = true;         // g_showAngles
     bool namen = true;          // g_showNames
     bool lichtRadien = true;    // g_lightRadii
+    bool zielnamen = false;     // g_showTargetNames (KeyIsName::m_nameKey "targetname" statt "classname")
 };
 
 struct KameraSzene {

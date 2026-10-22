@@ -456,6 +456,7 @@ void szeneBauen(bool mitKanten) {
     o.winkel = ed.anzeige.winkel;
     o.namen = ed.anzeige.namen;
     o.lichtRadien = ed.anzeige.lichtRadien;
+    o.zielnamen = ed.ent.zielnamen;
     karte::KameraSzene roh = karte::kameraSzeneBauen(ed.karte, o);
     Szene3& s = g_szene;
     s.stapel.clear();
@@ -614,8 +615,12 @@ void freelookBeginnen() {
     }
 }
 
-// context_menu_show: das Entitaetenmenue der aktiven 2D-Ansicht (Punkt 9).
-void kontextmenueZeigen() { e().kamFenster.kontextmenue = true; }
+// context_menu_show (camwindow.cpp:1097-1102): das Entitaetenmenue der
+// aktiven 2D-Ansicht (ActiveXY()->OnContextMenu()), g_bCamEntityMenu = true.
+void kontextmenueZeigen() {
+    e().kamFenster.kontextmenue = true;
+    entitaetenMenueOeffnen(true);
+}
 
 // camera_orbit_init (camwindow.cpp:1112-1123): Drehpunkt unter dem Zeiger.
 // Scene_Intersect mit Treffer (BestPointSelector) kommt mit der Auswahl
@@ -1241,9 +1246,10 @@ void kameraZeichnen() {
         dl->AddText(ImVec2{at.x + 1, at.y + 1}, IM_COL32(0, 0, 0, 255), t.c_str());
         dl->AddText(at, farbe, t.c_str());
     };
-    // Namen (namedentity.h:119-160): normal bis g_showNamesDist 512
+    // Namen (namedentity.h:119-160): normal bis g_showNamesDist (Vorgabe 512)
+    const double weit = static_cast<double>(ed.ent.namenAbstand);
     for (const karte::KameraName& n : s.namen) {
-        if (n.art == 0 && karte::laengeQuadrat(n.pos - k.ursprung) > 512.0 * 512.0) { continue; }
+        if (n.art == 0 && karte::laengeQuadrat(n.pos - k.ursprung) > weit * weit) { continue; }
         float x = 0;
         float y = 0;
         if (!aufBild(n.pos, x, y)) { continue; }

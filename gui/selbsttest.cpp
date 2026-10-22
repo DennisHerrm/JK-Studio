@@ -25816,6 +25816,8 @@ std::vector<Schritt> karteneditorKameraSchritte() {
         return std::fabs(ke::editor().kamera.winkel[1] - soll) < 1e-3F && ke::editor().kamera.ursprung == merk->ursprung;
     }));
     add(foto("karteneditor_kamera_freelook"));
+    // mehr als 250 ms nach dem ersten M2: sonst ist es der Doppel-M2 des Entitaetenmenues (context_menu_show)
+    add(pause(0.3));
     add(rechtsKlick("M2 kurz im Freelook"));
     add(pruefe("Freelook aus (kurzer M2 im Freelook)", [] { return !ke::editor().kamFenster.frei; }));
     // Diskrete Tasten (CamWnd_Move_Discrete_Enable): Up 32 vorwaerts in der
@@ -26005,6 +26007,7 @@ std::vector<Schritt> karteneditorKameraSchritte() {
         diag::detail("Knopftest: Karten-Editor Kamera - W " + std::to_string(d[0]) + " Tempo " + std::to_string(e.kamera.tempo));
         return d[0] > 40.0F && d[0] < 260.0F && e.kamera.bewegung == 0U && e.kamFenster.frei;
     }));
+    add(pause(0.3));   // kein Doppel-M2 (Entitaetenmenue)
     add(rechtsKlick("M2 kurz: Freelook aus"));
     add(pruefe("Freelook aus", [] { return !ke::editor().kamFenster.frei; }));
     add(tasteKombi(ImGuiMod_Shift | ImGuiKey_KeypadAdd, "Umschalt+Num+"));
@@ -26112,6 +26115,7 @@ std::vector<Schritt> karteneditorKameraSchritte() {
         const karte::Vektor3f soll = e.kamera.fokusPosition(e.workzone);
         return karte::laenge(e.kamera.ursprung - soll) < 0.01 && e.kamera.bewegung == 0U && e.kamera.fokusVersatz == 0;
     }));
+    add(pause(0.3));   // kein Doppel-M2 (Entitaetenmenue)
     add(rechtsKlick("M2 kurz: Freelook aus"));
     add(tu("Testbelegung zuruecksetzen, Auswahl leeren", [] {
         ke::Editor& e = ke::editor();
@@ -27269,6 +27273,696 @@ std::vector<Schritt> karteneditorTexturSchritte() {
     return s;
 }
 
+// Fuer den Selbsttest der Entitaeten: die nr-te Entitaet einer Klasse und
+// ihre Schluessel - ohne Absturz, wenn es sie (im roten Lauf) nicht gibt.
+std::shared_ptr<karte::Entitaet> entitaetNr(const std::string& klasse, std::size_t nr) {
+    for (const auto& ent : karteneditor::editor().karte.entitaeten()) {
+        if (ent->klassenname() == klasse && nr-- == 0) { return ent; }
+    }
+    return nullptr;
+}
+std::string entWert(const std::string& klasse, std::size_t nr, const std::string& schluessel) {
+    const auto e = entitaetNr(klasse, nr);
+    return e ? e->wert(schluessel) : std::string("<fehlt>");
+}
+bool entOhne(const std::string& klasse, std::size_t nr, const std::string& schluessel) {
+    const auto e = entitaetNr(klasse, nr);
+    return e && !e->hat(schluessel);
+}
+void waehleEnt(const std::string& klasse, std::size_t nr) {
+    if (const auto e = entitaetNr(klasse, nr)) { karteneditor::editor().karte.auswahl.waehlen(e); }
+}
+
+// Punkt 9: Entitaeten - die Seite "Entities" des Gruppendialogs (Reiter unten,
+// Teiler { 55, 175, 255, 255 }), Schluessel/Werte, Spawnflags, Attribute,
+// Klassenliste, das Entitaetenmenue der 2D-Ansicht (M2 ohne Bewegung, Strg
+// erzeugt ohne zu schliessen) und der Kamera (Doppel-M2), Lichtstaerke,
+// Verbinden (Strg+K), Farbe (K, Choose Color), Normalize, Entity List
+// (Umschalt+L), Auswahl nach Schluessel, Shift+E, Strg+Umschalt+E, die
+// Einstellungsseite Entities und Reload Entity Definitions.
+std::vector<Schritt> karteneditorEntitaetenSchritte() {
+    namespace ke = karteneditor;
+    namespace kb = karte::befehle;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto feldVon = [](const std::string& name) -> const ke::Editor::Rechteck* {
+        for (const auto& r : ke::editor().felderImBild) {
+            if (r.name == name) { return &r; }
+        }
+        return nullptr;
+    };
+    auto knopfOrt = [](const std::string& id) {
+        return [id]() {
+            const Element* el = finde(id, "", 0, true);
+            return el != nullptr ? el->rect.GetCenter() : ImVec2{0, 0};
+        };
+    };
+    auto xyOrt = [](float x, float y) {
+        return [x, y]() {
+            const ke::XyFenster& f = ke::editor().xy[0];
+            const auto p = f.ansicht.zuBild(karte::Vektor3f(x, y, 0));
+            return ImVec2{f.bildX + p[0], f.bildY + p[1]};
+        };
+    };
+    auto zahl = [](const std::string& klasse) {
+        std::size_t n = 0;
+        for (const auto& ent : ke::editor().karte.entitaeten()) { n += ent->klassenname() == klasse ? 1U : 0U; }
+        return n;
+    };
+    auto zeigerText = [](const void* p) {
+        char k[32];
+        std::snprintf(k, sizeof(k), "%p", p);
+        return std::string(k);
+    };
+    auto tippe = [](const std::string& was, const std::string& text) {
+        return Schritt{"Tippe \"" + text + "\" (" + was + ")", [text](int b) {
+                           if (b == 0) { ImGui::GetIO().AddInputCharactersUTF8(text.c_str()); }
+                           return b >= 3;
+                       }};
+    };
+    auto konsoleHat = [](const std::string& text) {
+        for (const auto& z : ke::editor().konsole) {
+            if (z.text == text) { return true; }
+        }
+        return false;
+    };
+    auto rechtsKamera = [] {
+        return Schritt{"M2 kurz in die Kamera", [](int b) {
+                           ImGuiIO& io = ImGui::GetIO();
+                           const ke::KameraFenster& f = ke::editor().kamFenster;
+                           if (b == 0) { setzeMaus(ImVec2{f.bildX + static_cast<float>(f.breite) * 0.5F, f.bildY + static_cast<float>(f.hoehe) * 0.5F}); }
+                           if (b == 1) { io.AddMouseButtonEvent(ImGuiMouseButton_Right, true); }
+                           if (b == 2) { io.AddMouseButtonEvent(ImGuiMouseButton_Right, false); }
+                           return b >= 3;
+                       }};
+    };
+    // Strg gehalten waehrend eines Klicks auf einen Menueeintrag
+    auto strgKlick = [](const std::string& label) {
+        return Schritt{"Strg+Klick \"" + label + "\"", [label](int b) {
+                           ImGuiIO& io = ImGui::GetIO();
+                           static ImVec2 m;
+                           if (b == 0) {
+                               const Element* el = finde(label, "", 0, false);
+                               m = el != nullptr ? el->rect.GetCenter() : ImVec2{0, 0};
+                               setzeMaus(m);
+                               io.AddKeyEvent(ImGuiMod_Ctrl, true);
+                               io.AddKeyEvent(ImGuiKey_LeftCtrl, true);
+                           }
+                           if (b == 2) { io.AddMouseButtonEvent(0, true); }
+                           if (b == 3) { io.AddMouseButtonEvent(0, false); }
+                           if (b == 5) {
+                               io.AddKeyEvent(ImGuiKey_LeftCtrl, false);
+                               io.AddKeyEvent(ImGuiMod_Ctrl, false);
+                           }
+                           return b >= 7;
+                       }};
+    };
+    static float wzZ = 0.0F;
+    static std::size_t anzahlVorher = 0;
+    add(tu("Entitaeten: Regular, Testkarte, nichts gewaehlt, Gruppendialog zu", [] {
+        ke::Editor& e = ke::editor();
+        e.anordnung = kb::Anordnung::Regular;
+        e.gruppenDialogEingebaut = false;
+        e.teilerFuer = -1;
+        (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map"));
+        e.karte.auswahl.leeren();
+        e.ent.groessen.clear();
+        e.ent.teiler = karte::Teiler{};
+        e.ent.autoFokus = false;
+        e.ent.listeOffen = false;
+        e.ent.lichtNichtZeigen = false;
+        e.ent.lichtLetzte = 300;
+        e.ent.zielnamen = false;
+        e.ent.namenAbstand = 512;
+        e.konsole.clear();
+        ke::tastaturErsatz = deutscheTastatur;
+    }));
+    add(pause(0.4));
+    add(pruefe("Regular ohne eingebauten Gruppendialog: zu (MainFrame::Create)", [] { return !ke::editor().gruppenDialogOffen; }));
+    add(tasteKombi(ImGuiKey_N, "N"));
+    add(pause(0.4));
+    add(pruefe("N: Gruppendialog auf Entities (Reiter gezeichnet)", [feldVon] {
+        return ke::editor().gruppenDialogOffen && ke::editor().gruppenSeite == 0 && feldVon("Gruppe:Reiter:0") != nullptr;
+    }));
+    add(pruefe("Lagen wie NRC: Reiter unten 25 hoch ab 0 (Text + 24), Inhalt 2 innen 440 x 750, Teiler 55 / 175 / 255 / 255 mit Griffen 4",
+               [feldVon] {
+                   const auto* r0 = feldVon("Gruppe:Reiter:0");
+                   const auto* r3 = feldVon("Gruppe:Reiter:3");
+                   const auto* r4 = feldVon("Gruppe:Reiter:4");
+                   const auto* in = feldVon("Gruppe:Inhalt");
+                   const auto* k = feldVon("Entities:Klassen");
+                   const auto* c = feldVon("Entities:Kommentar");
+                   const auto* b = feldVon("Entities:Behaelter");
+                   const auto* a = feldVon("Entities:Attribute");
+                   if (r0 == nullptr || r3 == nullptr || r4 == nullptr || in == nullptr || k == nullptr || c == nullptr || b == nullptr ||
+                       a == nullptr) {
+                       return false;
+                   }
+                   diag::detail("Knopftest: Entitaeten - Reiter " + std::to_string(r0->x) + "/" + std::to_string(r0->y) + " " +
+                                std::to_string(r0->b) + "x" + std::to_string(r0->h) + ", Models bei " + std::to_string(r3->x) + " " +
+                                std::to_string(r3->b) + ", Layers bei " + std::to_string(r4->x) + " " + std::to_string(r4->b) +
+                                "; Inhalt " + std::to_string(in->x) + "/" + std::to_string(in->y) + " " + std::to_string(in->b) + "x" +
+                                std::to_string(in->h) + "; Teiler " + std::to_string(k->h) + "/" + std::to_string(c->h) + "/" +
+                                std::to_string(b->h) + "/" + std::to_string(a->h) + " bei " + std::to_string(k->y) + "/" +
+                                std::to_string(c->y) + "/" + std::to_string(b->y) + "/" + std::to_string(a->y));
+                   const bool reiter = r0->x == 0 && r0->h == 25 && r0->y == 777 - 25 && r3->x == r0->b && r4->x == r3->x + r3->b;
+                   const bool inhalt = in->x == 2 && in->y == 2 && in->b == 440 && in->h == 750;
+                   const bool summe = k->h + c->h + b->h + a->h + 3 * 4 == 750;
+                   const bool nahe = std::abs(k->h - 55) <= 1 && std::abs(c->h - 175) <= 1 && std::abs(b->h - 255) <= 1 &&
+                                     std::abs(a->h - 255) <= 2 && c->y == k->y + k->h + 4 && b->y == c->y + c->h + 4;
+                   return reiter && inhalt && summe && nahe;
+               }));
+    add(pruefe("Behaelter ohne Auswahl: Liste, Key/Value 22 hoch (Abstand 6), Knoepfe 22; Clear All und Delete Key gleich breit",
+               [feldVon] {
+                   const auto* l = feldVon("Entities:Schluessel");
+                   const auto* key = feldVon("Entities:Key");
+                   const auto* val = feldVon("Entities:Value");
+                   const auto* ca = feldVon("Entities:ClearAll");
+                   const auto* dk = feldVon("Entities:DeleteKey");
+                   const auto* st = feldVon("Entities:SelectTargeting");
+                   const auto* sc = feldVon("Entities:SelectConnected");
+                   const auto* af = feldVon("Entities:AutoFocus");
+                   const auto* b = feldVon("Entities:Behaelter");
+                   if (l == nullptr || key == nullptr || val == nullptr || ca == nullptr || dk == nullptr || st == nullptr || sc == nullptr ||
+                       af == nullptr || b == nullptr) {
+                       return false;
+                   }
+                   diag::detail("Knopftest: Entitaeten - Liste " + std::to_string(l->h) + ", Key " + std::to_string(key->x) + " " +
+                                std::to_string(key->b) + "x" + std::to_string(key->h) + ", Clear All " + std::to_string(ca->x) + " " +
+                                std::to_string(ca->b) + ", Delete Key " + std::to_string(dk->b) + ", Pfeile " + std::to_string(st->b) + "/" +
+                                std::to_string(sc->b) + ", Augen " + std::to_string(af->b));
+                   return key->h == 22 && val->y == key->y + 28 && ca->h == 22 && ca->y == val->y + 28 && std::abs(ca->b - dk->b) <= 1 &&
+                          st->b == 21 && sc->b == 37 && ca->x == b->x + 4 && af->x + af->b == b->x + b->b - 4 && l->y == b->y &&
+                          l->h + 6 + 50 + 6 + 22 == b->h;
+               }));
+    add(foto("karteneditor_entities"));
+    // Ein Licht waehlen: Klasse, Schluessel, Spawnflags, Attribute
+    add(tu("Das Licht waehlen", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        waehleEnt("light", 0);
+    }));
+    add(pause(0.3));
+    add(pruefe("Licht gewaehlt: Klassenliste auf light, Zeilen classname / light / origin, Kommentar der Klasse", [] {
+        ke::Editor& e = ke::editor();
+        const auto& w = e.ent.werte.werte;
+        diag::detail("Knopftest: Entitaeten - Klasse " + e.ent.klasse + ", " + std::to_string(w.size()) + " Schluessel");
+        return e.ent.klasse == "light" && e.ent.kommentarKlasse == "light" && w.size() == 3 && w.count("light") != 0U &&
+               finde("##ezlight", "", 0, true) != nullptr && finde("##eklight", "", 0, true) != nullptr;
+    }));
+    add(foto("karteneditor_entities_licht"));
+    add(klick("##ezlight"));
+    add(pause(0.2));
+    add(pruefe("Zeile light gedrueckt: Key = light, Value = 300 (EntityProperties_selection_changed)", [] {
+        const ke::Editor& e = ke::editor();
+        return e.ent.schluessel == "light" && e.ent.wert == "300" && e.ent.zeile == "light";
+    }));
+    add(klick("##eivalue"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_A, "Strg+A"));
+    add(tippe("Value", "500"));
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(0.2));
+    add(pruefe("Value 500 + Enter: light = 500, Rueckgaengig entitySetKeyValue -key \"light\" -value \"500\"", [] {
+        ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Entitaeten - light " + entWert("light", 0, "light") + ", Rueckgaengig " + e.karte.undo.undoName());
+        return entWert("light", 0, "light") == "500" && e.karte.undo.undoName() == "entitySetKeyValue -key \"light\" -value \"500\"";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.2));
+    add(pruefe("Strg+Z: light wieder 300", [] { return entWert("light", 0, "light") == "300"; }));
+    add(klick("##ezlight"));
+    add(klick(ke::trK(Str::KeEiDeleteKey)));
+    add(pause(0.2));
+    add(pruefe("Delete Key: light weg, entityDeleteKey -key light", [] {
+        return entOhne("light", 0, "light") && ke::editor().karte.undo.undoName() == "entityDeleteKey -key light";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.2));
+    add(pruefe("Spawnflags des Lichts: linear, noincidence, start_off (LowerCase)", [] {
+        return finde("linear##eiflag0", "", 0, false) != nullptr && finde("noincidence##eiflag1", "", 0, false) != nullptr &&
+               finde("start_off##eiflag2", "", 0, false) != nullptr;
+    }));
+    add(klick("linear##eiflag0"));
+    add(pause(0.2));
+    add(pruefe("Spawnflag linear: spawnflags 1, entitySetSpawnflags -flags 1", [] {
+        return entWert("light", 0, "spawnflags") == "1" && ke::editor().karte.undo.undoName() == "entitySetSpawnflags -flags 1";
+    }));
+    add(klick("linear##eiflag0"));
+    add(pause(0.2));
+    add(pruefe("Spawnflag aus: der Schluessel ist weg (\"\" bei 0)", [] {
+        return entOhne("light", 0, "spawnflags") && ke::editor().karte.undo.undoName() == "entitySetSpawnflags -flags 0";
+    }));
+    // Attribute (eclass_def.cpp: angle "Yaw Angle", model, noise)
+    add({"Attribut angle: Feld anklicken", [](int b) {
+             static Schritt k;
+             if (b == 0) {
+                 const karte::EntitaetsKlasse* kl = ke::editor().karte.klasseFuer("light", false);
+                 int index = -1;
+                 for (std::size_t i = 0; i < kl->attribute.size(); ++i) {
+                     if (kl->attribute[i].first == "angle") { index = static_cast<int>(i); }
+                 }
+                 diag::detail("Knopftest: Entitaeten - angle ist Attribut " + std::to_string(index) + " (" +
+                              (index >= 0 ? kl->attribute[static_cast<std::size_t>(index)].second.typ : std::string("-")) + ")");
+                 k = klick("##eiattr" + std::to_string(index) + "w");
+             }
+             return k.tun(b);
+         }});
+    add(tippe("angle", "450"));
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(0.2));
+    add(pruefe("angle 450 + Enter: angle_normalised -> 90", [] {
+        diag::detail("Knopftest: Entitaeten - angle " + entWert("light", 0, "angle"));
+        return entWert("light", 0, "angle") == "90";
+    }));
+    add(tu("Kamera: Blick nach yaw 30", [] { ke::editor().kamera.setzeWinkel(karte::Vektor3f(0, 30, 0)); }));
+    add({"<-cam beim Winkel", [](int b) {
+             static Schritt k;
+             if (b == 0) {
+                 const Element* el = finde(std::string(ke::trK(Str::KeEiCam)) + "##eiattr", "", 0, true);
+                 k = klick(el != nullptr ? el->label : std::string("<-cam"));
+             }
+             return k.tun(b);
+         }});
+    add(pause(0.2));
+    add(pruefe("<-cam: angle = Gierwinkel der Kamera (30)", [] { return entWert("light", 0, "angle") == "30"; }));
+    add(klick(ke::trK(Str::KeEiClearAll)));
+    add(pause(0.2));
+    add(pruefe("Clear All: nur classname und origin bleiben, entityClear", [] {
+        const auto l = entitaetNr("light", 0);
+        return l && l->schluessel().size() == 2 && l->hat("origin") && ke::editor().karte.undo.undoName() == "entityClear";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.2));
+    add(pruefe("Dreimal Strg+Z: light 300, kein angle", [] {
+        const auto l = entitaetNr("light", 0);
+        return l && l->wert("light") == "300" && !l->hat("angle");
+    }));
+    // Auswahl nach Schluessel (Select_EntitiesByKeyValue)
+    add(tu("nichts gewaehlt, Key = light", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.ent.schluessel = "light";
+        e.ent.wert = "300";
+    }));
+    add(klickAn("Select by key", knopfOrt("##eiselkey")));
+    add(pruefe("Select by key: das Licht gewaehlt", [] {
+        const ke::Editor& e = ke::editor();
+        return e.karte.auswahl.anzahl() == 1 && e.karte.auswahl.gewaehlt(entitaetNr("light", 0).get());
+    }));
+    add(tu("nichts gewaehlt", [] { ke::editor().karte.auswahl.leeren(); }));
+    add(klickAn("Select by key + value", knopfOrt("##eiselkeyvalue")));
+    add(pruefe("Select by key + value: das Licht gewaehlt", [] { return ke::editor().karte.auswahl.gewaehlt(entitaetNr("light", 0).get()); }));
+    // Klassenliste: Doppelklick wandelt um (Welt-Pinsel -> func_group)
+    add(tu("Den Welt-Pinsel waehlen", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), e.karte.welt()->kinder().front());
+    }));
+    add(pause(0.2));
+    add(pruefe("Welt-Pinsel gewaehlt: Klassenliste auf worldspawn", [] { return ke::editor().ent.klasse == "worldspawn"; }));
+    add(tu("func_group in der Klassenliste zeigen (current item, scrollTo)", [] {
+        ke::Editor& e = ke::editor();
+        e.ent.klasse = "func_group";
+        e.ent.kommentarKlasse = "func_group";
+        e.ent.klasseRollen = true;
+    }));
+    add(pause(0.3));
+    add(klickAn("Doppelklick auf func_group", knopfOrt("##ekfunc_group"), 0, true));
+    add(pause(0.2));
+    add(pruefe("Doppelklick: der Pinsel in einer neuen func_group, gewaehlt, entitySetClass -class func_group", [] {
+        ke::Editor& e = ke::editor();
+        const auto g = entitaetNr("func_group", 0);
+        return g && g->kinder().size() == 1 && e.karte.welt()->kinder().empty() && e.karte.auswahl.gewaehlt(g.get(), g->kinder()[0].get()) &&
+               e.karte.undo.undoName() == "entitySetClass -class func_group";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.2));
+    add(pruefe("Strg+Z: der Pinsel wieder in der Welt", [zahl] { return zahl("func_group") == 0 && ke::editor().karte.welt()->kinder().size() == 1; }));
+    // Entity > Move Primitives (Strg+M), EntityMovePrimitivesToFirst, EntityUngroup, EntityUngroupPrimitives
+    add(tu("Welt-Pinsel in eine func_group, ein zweiter Pinsel in der Welt", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), e.karte.welt()->kinder().front());
+        karte::klasseSetzenAuswahl(e.karte, "func_group");
+        e.karte.undo.start();
+        karte::TexturProjektion proj;
+        karte::texdefStandard(karte::TexdefArt::Quake, proj);
+        auto p = std::make_shared<karte::Pinsel>();
+        e.karte.welt()->kindEinfuegen(p);
+        p->quaderBauen(karte::Kasten(karte::Vektor3f(256, 0, 32), karte::Vektor3f(32, 32, 32)), "textures/common/caulk", proj, e.karte.kontext);
+        e.karte.undo.finish("brushDragNew");
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), p);
+        const auto g = entitaetNr("func_group", 0);
+        if (g && !g->kinder().empty()) { e.karte.auswahl.waehlen(g, g->kinder().front()); }
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_M, "Strg+M"));
+    add(pause(0.2));
+    add(pruefe("Strg+M (Move Primitives to Entity): der Welt-Pinsel in der func_group des zuletzt Gewaehlten", [] {
+        const ke::Editor& e = ke::editor();
+        const auto g = entitaetNr("func_group", 0);
+        return g && g->kinder().size() == 2 && e.karte.welt()->kinder().empty() &&
+               e.karte.undo.undoName() == "movePrimitivesToEntity \"func_group\"";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tu("func_group-Pinsel zuerst, dann der Welt-Pinsel: EntityMovePrimitivesToFirst", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        const auto g = entitaetNr("func_group", 0);
+        if (g && !g->kinder().empty()) { e.karte.auswahl.waehlen(g, g->kinder().front()); }
+        if (!e.karte.welt()->kinder().empty()) { e.karte.auswahl.waehlen(e.karte.welt(), e.karte.welt()->kinder().front()); }
+        (void)ke::ausfuehren("EntityMovePrimitivesToFirst");
+    }));
+    add(pruefe("EntityMovePrimitivesToFirst: in die func_group des zuerst Gewaehlten", [] {
+        const auto g = entitaetNr("func_group", 0);
+        return g && g->kinder().size() == 2 && ke::editor().karte.welt()->kinder().empty();
+    }));
+    add(tu("Einen Pinsel der func_group waehlen: EntityUngroupPrimitives", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        const auto g = entitaetNr("func_group", 0);
+        if (g && !g->kinder().empty()) { e.karte.auswahl.waehlen(g, g->kinder().front()); }
+        (void)ke::ausfuehren("EntityUngroupPrimitives");
+    }));
+    add(pruefe("EntityUngroupPrimitives: der Pinsel in der Welt, ungroupSelectedPrimitives", [] {
+        const ke::Editor& e = ke::editor();
+        const auto g = entitaetNr("func_group", 0);
+        return g && g->kinder().size() == 1 && e.karte.welt()->kinder().size() == 1 && e.karte.undo.undoName() == "ungroupSelectedPrimitives";
+    }));
+    add(tu("Die func_group waehlen: EntityUngroup", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        waehleEnt("func_group", 0);
+        (void)ke::ausfuehren("EntityUngroup");
+    }));
+    add(pruefe("EntityUngroup: Gruppe aufgeloest, beide Pinsel in der Welt, ungroupSelectedEntities", [zahl] {
+        const ke::Editor& e = ke::editor();
+        return zahl("func_group") == 0 && e.karte.welt()->kinder().size() == 2 && e.karte.undo.undoName() == "ungroupSelectedEntities";
+    }));
+    add(tu("Zurueck: Karte neu, nichts gewaehlt", [] {
+        ke::Editor& e = ke::editor();
+        (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map"));
+        e.karte.auswahl.leeren();
+    }));
+    add(pause(0.2));
+    // Entitaetenmenue der 2D-Ansicht (der schwebende Gruppendialog ist dafuer zu)
+    add(tu("nichts gewaehlt, Workzone merken, Gruppendialog zu", [] {
+        ke::Editor& e = ke::editor();
+        e.gruppenDialogOffen = false;
+        e.karte.auswahl.leeren();
+        const karte::Kasten& wz = e.workzone;
+        wzZ = karte::zahlEingerastet(karte::zahlMitte(wz.origin[2] - wz.extents[2], wz.origin[2] + wz.extents[2]), e.raster.groesse());
+        anzahlVorher = e.karte.entitaeten().size();
+    }));
+    add(klickAn("M2 in die XY-Ansicht bei 64 64 (ohne Bewegung)", xyOrt(64, 64), 1));
+    add(pause(0.3));
+    add(pruefe("M2 ohne Bewegung: das Entitaetenmenue (Untermenues info, ...)", [] {
+        diag::detail("Knopftest: Entitaeten - Menue " + std::to_string(ke::entitaetenMenuePunkte().size()) + " Punkte oben");
+        return finde("info", "", 0, false) != nullptr && !ke::editor().ent.kameraMenue;
+    }));
+    add(foto("karteneditor_entitaetenmenue"));
+    add(klick("info"));
+    add(pause(0.3));
+    add(klick("info_null"));
+    add(pause(0.3));
+    add(pruefe("info_null erzeugt bei 64 64 (Mitte der Workzone auf dem Raster), gewaehlt, entityCreate -class info_null", [] {
+        ke::Editor& e = ke::editor();
+        const auto n = entitaetNr("info_null", 0);
+        char soll[64];
+        std::snprintf(soll, sizeof(soll), "64 64 %g", static_cast<double>(wzZ));
+        diag::detail("Knopftest: Entitaeten - info_null bei " + (n ? n->wert("origin") : std::string("-")) + ", soll " + soll);
+        return n && n->wert("origin") == soll && e.karte.auswahl.gewaehlt(n.get()) && e.karte.undo.undoName() == "entityCreate -class info_null";
+    }));
+    add(klickAn("M2 in die XY-Ansicht bei 128 64", xyOrt(128, 64), 1));
+    add(pause(0.3));
+    add(klick("info"));
+    add(pause(0.3));
+    add(strgKlick("info_notnull"));
+    add(pause(0.2));
+    add(pruefe("Strg+Klick: info_notnull erzeugt, das Menue bleibt offen", [] {
+        return entitaetNr("info_notnull", 0) != nullptr && finde("info_notnull", "", 0, false) != nullptr;
+    }));
+    add(strgKlick("info_notnull"));
+    add(pause(0.2));
+    add(taste(ImGuiKey_Escape, "Esc"));
+    add(taste(ImGuiKey_Escape, "Esc"));
+    add(pause(0.2));
+    add(pruefe("Zweimal: der zweite um max( 8, Raster ) weiter auf der x-Achse (g_entityCreationOffset)", [] {
+        const auto a = entitaetNr("info_notnull", 0);
+        const auto b = entitaetNr("info_notnull", 1);
+        char sa[64];
+        char sb[64];
+        std::snprintf(sa, sizeof(sa), "128 64 %g", static_cast<double>(wzZ));
+        std::snprintf(sb, sizeof(sb), "136 64 %g", static_cast<double>(wzZ));
+        diag::detail("Knopftest: Entitaeten - info_notnull " + (a ? a->wert("origin") : std::string("-")) + " / " +
+                     (b ? b->wert("origin") : std::string("-")));
+        return a && b && a->wert("origin") == sa && b->wert("origin") == sb;
+    }));
+    add(pruefe("Esc schliesst Untermenue und Menue, ohne Kuerzel (UnSelectSelection2): der zweite bleibt gewaehlt", [] {
+        const ke::Editor& e = ke::editor();
+        return !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) && e.karte.auswahl.anzahl() == 1 &&
+               e.karte.auswahl.gewaehlt(entitaetNr("info_notnull", 1).get());
+    }));
+    // Licht mit der Frage nach der Staerke
+    add(tu("nichts gewaehlt", [] { ke::editor().karte.auswahl.leeren(); }));
+    add(klickAn("M2 in die XY-Ansicht bei -64 -64", xyOrt(-64, -64), 1));
+    add(pause(0.3));
+    add(pruefe("M2 bei -64 -64: das Entitaetenmenue mit light", [xyOrt] {
+        const ImVec2 m = xyOrt(-64, -64)();
+        const ke::XyFenster& f = ke::editor().xy[0];
+        char z[200];
+        std::snprintf(z, sizeof(z), "Knopftest: Entitaeten - M2 bei %.0f/%.0f, XY ab %.0f/%.0f, Popup %d, info %d, light %d",
+                      static_cast<double>(m.x), static_cast<double>(m.y), static_cast<double>(f.bildX), static_cast<double>(f.bildY),
+                      ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) ? 1 : 0,
+                      finde("info", "", 0, false) != nullptr ? 1 : 0, finde("light", "", 0, false) != nullptr ? 1 : 0);
+        diag::detail(z);
+        return finde("light", "", 0, false) != nullptr;
+    }));
+    add(foto("karteneditor_entitaetenmenue_licht"));
+    add(klick("light"));
+    add(pause(0.3));
+    add(pruefe("light: Set Light intensity offen (300 vorgegeben)", [] {
+        return ke::editor().ent.lichtOffen && ke::editor().ent.lichtWert == 300 && finde(ke::trK(Str::KeLiDontShow), "", 0, false) != nullptr;
+    }));
+    add(foto("karteneditor_lichtstaerke"));
+    add(ziehenAn("Intensity: (SpinBoxLabel) 100 Bildpunkte nach rechts", knopfOrt("##lichtziehen"), 100.0F, 0.0F, 0));
+    add(pruefe("SpinBoxLabel: je 20 logische Punkte ein Schritt", [] {
+        const int soll = 300 + static_cast<int>((100.0F / std::max(1.0F, std::round(g_app->dpiScale))) / 20.0F);
+        diag::detail("Knopftest: Entitaeten - Lichtstaerke " + std::to_string(ke::editor().ent.lichtWert) + ", soll " + std::to_string(soll));
+        return ke::editor().ent.lichtWert == soll;
+    }));
+    add(klick(std::string(ke::trK(Str::KePrefOk)) + "##lichtok"));
+    add(pause(0.2));
+    add(pruefe("OK: das neue Licht hat diese Staerke, ein Schritt entityCreate -class light", [zahl] {
+        const auto l = entitaetNr("light", 1);
+        const int soll = 300 + static_cast<int>((100.0F / std::max(1.0F, std::round(g_app->dpiScale))) / 20.0F);
+        return zahl("light") == 2 && l && l->wert("light") == std::to_string(soll) && ke::editor().ent.lichtLetzte == soll &&
+               ke::editor().karte.undo.undoName() == "entityCreate -class light";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.2));
+    add(pruefe("Strg+Z: das Licht samt Staerke weg", [zahl] { return zahl("light") == 1; }));
+    // Gruppe ohne Pinsel: Fehler
+    add(klickAn("M2 in die XY-Ansicht bei 0 128", xyOrt(0, 128), 1));
+    add(pause(0.3));
+    add(klick("func"));
+    add(pause(0.3));
+    add(klick("func_group"));
+    add(pause(0.2));
+    add(pruefe("func_group ohne Pinsel: Konsole \"failed to create a group entity - no brushes are selected\"", [konsoleHat, zahl] {
+        return konsoleHat("failed to create a group entity - no brushes are selected") && zahl("func_group") == 0;
+    }));
+    // Kamera: Doppel-M2
+    add(tu("Kamera bei 0 0 64, Blick +x", [] {
+        ke::Editor& e = ke::editor();
+        e.kamera.setzeUrsprung(karte::Vektor3f(0, 0, 64));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
+        e.karte.auswahl.leeren();
+    }));
+    add(rechtsKamera());
+    add(rechtsKamera());
+    add(pause(0.3));
+    add(pruefe("Doppel-M2 in der Kamera: das Entitaetenmenue (g_bCamEntityMenu), Freelook aus", [] {
+        return finde("info", "", 0, false) != nullptr && ke::editor().ent.kameraMenue && !ke::editor().kamFenster.frei;
+    }));
+    add(klick("info"));
+    add(pause(0.3));
+    add(klick("info_null"));
+    add(pause(0.3));
+    add(pruefe("Aus der Kamera: info_null 64 vor der Kamera (-viewvector), eingerastet", [] {
+        const auto n = entitaetNr("info_null", 1);
+        diag::detail("Knopftest: Entitaeten - info_null aus der Kamera bei " + (n ? n->wert("origin") : std::string("-")));
+        return n && n->wert("origin") == "64 0 64";
+    }));
+    // Verbinden (Strg+K)
+    add(tu("info_null und dann info_notnull waehlen", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        waehleEnt("info_null", 0);
+        waehleEnt("info_notnull", 0);
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_K, "Strg+K"));
+    add(pause(0.2));
+    add(pruefe("Strg+K: target = targetname = info_notnull1, entityConnectSelected", [] {
+        const auto a = entitaetNr("info_null", 0);
+        const auto b = entitaetNr("info_notnull", 0);
+        return a && b && a->wert("target") == "info_notnull1" && b->wert("targetname") == "info_notnull1" &&
+               ke::editor().karte.undo.undoName() == "entityConnectSelected";
+    }));
+    add(tu("info_null waehlen", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        waehleEnt("info_null", 0);
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_E, "Strg+Umschalt+E"));
+    add(pause(0.2));
+    add(pruefe("Strg+Umschalt+E (Select Connected Entities): info_notnull dazu", [] {
+        const ke::Editor& e = ke::editor();
+        return e.karte.auswahl.gewaehlt(entitaetNr("info_null", 0).get()) && e.karte.auswahl.gewaehlt(entitaetNr("info_notnull", 0).get());
+    }));
+    add(tu("info_notnull waehlen, Gruppendialog auf Entities", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        waehleEnt("info_notnull", 0);
+        e.gruppenDialogOffen = true;
+        e.gruppenSeite = 0;
+    }));
+    add(pause(0.3));
+    add(klickAn("Select targeting entities", knopfOrt("##eiseltargeting")));
+    add(pruefe("<- (Select targeting entities): nur info_null", [] {
+        const ke::Editor& e = ke::editor();
+        return e.karte.auswahl.anzahl() == 1 && e.karte.auswahl.gewaehlt(entitaetNr("info_null", 0).get());
+    }));
+    add(klickAn("Select targets", knopfOrt("##eiseltargets")));
+    add(pruefe("-> (Select targets): nur info_notnull", [] {
+        const ke::Editor& e = ke::editor();
+        return e.karte.auswahl.anzahl() == 1 && e.karte.auswahl.gewaehlt(entitaetNr("info_notnull", 0).get());
+    }));
+    // Farbe (K) und Normalize
+    add(tu("Das Licht waehlen", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        waehleEnt("light", 0);
+    }));
+    add(tasteKombi(ImGuiKey_K, "K"));
+    add(pause(0.3));
+    add(pruefe("K: Choose Color offen (Grundfarben, Pick Screen Color, Custom colors)", [] {
+        return ke::editor().ent.farbDialog.offen && finde("##cdgrund", "", 0, true) != nullptr &&
+               finde(std::string(ke::trK(Str::KeCdPick)) + "##cdpick", "", 0, false) != nullptr;
+    }));
+    add(foto("karteneditor_farbe"));
+    add(klickAn("Grundfarbe Rot (Zeile 3, Spalte 1)", [] {
+        const Element* el = finde("##cdgrund", "", 0, true);
+        const float s = ke::massstab();
+        return el != nullptr ? ImVec2{el->rect.Min.x + (28.0F + 14.0F) * s, el->rect.Min.y + (3.0F * 24.0F + 12.0F) * s} : ImVec2{0, 0};
+    }));
+    add(pause(0.2));
+    add(pruefe("Rot gewaehlt: HTML #ff0000", [] { return ke::editor().ent.farbDialog.html == "#ff0000"; }));
+    add(klick(std::string(ke::trK(Str::KePrefOk)) + "##cdok"));
+    add(pause(0.2));
+    add(pruefe("OK: _color 1 0 0, entitySetColour 1 0 0", [] {
+        return entWert("light", 0, "_color") == "1 0 0" && ke::editor().karte.undo.undoName() == "entitySetColour 1 0 0";
+    }));
+    add(tu("_color 0.5 0.25 0 setzen", [] { karte::schluesselSetzenRueckgaengig(ke::editor().karte, "_color", "0.5 0.25 0"); }));
+    add(tu("Entity > Normalize Color", [] { (void)ke::ausfuehren("EntityColorNormalize"); }));
+    add(pruefe("Normalize Color: 1 0.5 0, entityNormalizeColour 1 0.5 0", [] {
+        return entWert("light", 0, "_color") == "1 0.5 0" && ke::editor().karte.undo.undoName() == "entityNormalizeColour 1 0.5 0";
+    }));
+    // Entity List (Umschalt+L)
+    add(tu("nichts gewaehlt", [] { ke::editor().karte.auswahl.leeren(); }));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_L, "Umschalt+L"));
+    add(pause(0.4));
+    add(tu("Gruppendialog zu", [] { ke::editor().gruppenDialogOffen = false; }));
+    add(pruefe("Umschalt+L: Entity List offen, Wurzel aufgeklappt, Zeilen der Entities", [zeigerText, feldVon] {
+        const ke::Editor& e = ke::editor();
+        return e.ent.listeOffen && finde("##elkarte", "", 0, true) != nullptr &&
+               finde("##el" + zeigerText(entitaetNr("light", 0).get()), "", 0, true) != nullptr && feldVon("EntityList:Filter") != nullptr;
+    }));
+    add(foto("karteneditor_entityliste"));
+    add({"Klick auf die Zeile des Lichts", [zeigerText](int b) {
+             static Schritt k;
+             if (b == 0) { k = klick("##el" + zeigerText(entitaetNr("light", 0).get())); }
+             return k.tun(b);
+         }});
+    add(pause(0.2));
+    add(pruefe("Klick in der Liste: das Licht gewaehlt", [] {
+        const ke::Editor& e = ke::editor();
+        return e.karte.auswahl.anzahl() == 1 && e.karte.auswahl.gewaehlt(entitaetNr("light", 0).get());
+    }));
+    add({"Maus ueber das Filterfeld, anklicken", [](int b) {
+             static Schritt k;
+             if (b == 0) { k = klick("##elfilter"); }
+             return k.tun(b);
+         }});
+    add(tippe("Filter", "notnull"));
+    add(pause(0.2));
+    add(pruefe("Filter \"notnull\": info_notnull sichtbar, das Licht nicht", [zeigerText] {
+        return finde("##el" + zeigerText(entitaetNr("info_notnull", 0).get()), "", 0, true) != nullptr &&
+               finde("##el" + zeigerText(entitaetNr("light", 0).get()), "", 0, true) == nullptr;
+    }));
+    add(tu("Entity List zu", [] { ke::editor().ent.listeOffen = false; }));
+    // Shift+E
+    add(tu("Den Welt-Pinsel waehlen", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), e.karte.welt()->kinder().front());
+    }));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_E, "Umschalt+E"));
+    add(pruefe("Umschalt+E (Expand Selection To Entities): der Pinsel bleibt, worldspawn selbst nicht", [] {
+        const ke::Editor& e = ke::editor();
+        return e.karte.auswahl.anzahl() == 1 && !e.karte.auswahl.gewaehlt(e.karte.welt().get());
+    }));
+    // Entity-Menue: die Punkte sind da und nicht ausgegraut
+    add(pruefe("Entity-Menue: Connect, Move Primitives, Select Color, Normalize, Reload nachgebaut", [] {
+        for (const char* b : {"EntitiesConnect", "EntityMovePrimitivesToLast", "EntityColorSet", "EntityColorNormalize",
+                              "EntityReloadDefinitions", "ToggleEntityList", "ExpandSelectionToEntities", "SelectConnectedEntities"}) {
+            if (!ke::nachgebaut(b)) { return false; }
+        }
+        return true;
+    }));
+    // Einstellungsseite Entities
+    add(tu("Einstellungen auf, Seite Entities", [] { ke::editor().einstellungenOffen = true; }));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KePgEntities)) + "##seite9"));
+    add(pause(0.2));
+    add(pruefe("Seite Entities: Names Display Distance (3D) 512, Ratio (2D) 64, Entity Names = Targetnames", [] {
+        return finde("##namenabstand", "", 0, true) != nullptr && finde("##namenverhaeltnis", "", 0, true) != nullptr &&
+               finde(ke::trK(Str::KePrEnTargetnames), "", 0, false) != nullptr;
+    }));
+    add(foto("karteneditor_einstellungen_entities"));
+    add(klick(ke::trK(Str::KePrEnTargetnames)));
+    add(klick(ke::trK(Str::KePrefOk)));
+    add(pause(0.2));
+    add(pruefe("OK: Entity Names = Targetnames an (Namen zeigen targetname)", [] { return ke::editor().ent.zielnamen; }));
+    add(tu("Targetnames wieder aus", [] {
+        ke::editor().ent.zielnamen = false;
+        ke::einstellungenSpeichern();
+    }));
+    // Reload Entity Definitions: Rueckfrage, Discard, Karte neu
+    add(tu("Entity > Reload Entity Definitions", [] { (void)ke::ausfuehren("EntityReloadDefinitions"); }));
+    add(pause(0.3));
+    add(pruefe("Reload bei geaenderter Karte: Rueckfrage \"Reload Entity Definitions\"", [] {
+        return ke::editor().frageOffen && ke::editor().frageTitel == "Reload Entity Definitions";
+    }));
+    add(klick(tr(Str::KeDiscard)));
+    add(pause(0.4));
+    add(pruefe("Discard: Klassen neu, Karte aus der Datei (2 Entities, nicht geaendert)", [] {
+        const ke::Editor& e = ke::editor();
+        return !e.frageOffen && e.ent.klassenStand > 0 && e.karte.entitaeten().size() == 2 && !ke::geaendert() && e.karteSpiel &&
+               e.karteSpiel->klassen.finden("light") != nullptr;
+    }));
+    add(tu("Entitaeten: zurueck", [] {
+        ke::Editor& e = ke::editor();
+        e.gruppenDialogOffen = false;
+        e.karte.auswahl.leeren();
+        e.ent.listeOffen = false;
+    }));
+    (void)anzahlVorher;
+    return s;
+}
+
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
     std::vector<Schritt> s;
@@ -27387,6 +28081,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : karteneditorKameraSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorAuswahlSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorTexturSchritte()) { add(std::move(x)); }
+    for (Schritt& x : karteneditorEntitaetenSchritte()) { add(std::move(x)); }
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
     return s;
 }

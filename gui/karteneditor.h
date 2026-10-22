@@ -24,6 +24,7 @@
 #include "bhed/karte/bearbeitung.h"
 #include "bhed/karte/befehle.h"
 #include "bhed/karte/eklasse.h"
+#include "bhed/karte/entitaetbefehle.h"
 #include "bhed/karte/kamera.h"
 #include "bhed/karte/karte.h"
 #include "bhed/karte/kartenformat.h"
@@ -166,6 +167,11 @@ struct XyFenster {
     karte::Vektor3f maus{0, 0, 0};   // m_mousePosition (eingerastet)
     float bildX = 0;             // linke obere Ecke im Programmfenster (Bildpunkte)
     float bildY = 0;
+    // EntityCreate_MouseDown/Move/Up (xywindow.cpp:1065-1083): M2 ohne
+    // Bewegung oeffnet beim Loslassen das Entitaetenmenue.
+    bool entitaetErzeugen = false;   // m_entityCreate
+    int erzeugX = 0;                 // m_entityCreate_x (Fensterpunkte)
+    int erzeugY = 0;
 };
 // Das Kamerafenster (CamWnd, camwindow.cpp:1625-1803): Freelook, Rechtsklick-
 // Uhr, gehaltene Tasten (PressedKeys, accelerator.cpp:88-170).
@@ -234,6 +240,77 @@ struct Anzeige {
     bool zumZeiger = true;       // m_bZoomToPointer
     bool jagen = true;           // m_bChaseMouse
     bool keineStrichelung = true;   // m_bNoStipple
+};
+
+// QColorDialog (Qt 5.15 qcolordialog.cpp) als Farbdialog von NRCs
+// color_dialog (gtkmisc.cpp:331-337, Titel "Choose Color").
+struct FarbDialog {
+    bool offen = false;
+    bool oeffnen = false;                  // im naechsten Bild als Popup oeffnen
+    std::function<void(const karte::Vektor3f&)> fertig;   // nur bei OK
+    int h = 0, s = 0, v = 255;             // QColorShower hue/sat/val
+    int r = 255, g = 255, b = 255;         // curCol
+    bool rgbOriginal = true;
+    std::string html = "#ffffff";          // htEd
+    int standardAktuell[2] = {0, 0};       // QWellArray curRow/curCol
+    int standardGewaehlt[2] = {-1, -1};    // selRow/selCol
+    int eigeneAktuell[2] = {0, 0};
+    int eigeneGewaehlt[2] = {-1, -1};
+    int naechsteEigene = 0;                // nextCust
+    bool picken = false;                   // _q_pickScreenColor
+    unsigned vorPicken = 0;                // beforeScreenColorPicking
+    std::string pickText = "\n";          // lblScreenColorInfo
+    int lumZiehen = 0;                     // 1: Farbfeld, 2: Helligkeit gezogen
+};
+
+// Die Seite "Entities" des Gruppendialogs, die Entity List, das
+// Entitaetenmenue und die Dialoge dazu (Punkt 9).
+struct EntitaetenOberflaeche {
+    // Entity Inspector (entityinspector.cpp)
+    karte::Teiler teiler;                  // QSplitter "EntityInspector/splitter"
+    std::vector<int> groessen;             // gemerkt (sonst { 55, 175, 255, 255 })
+    karte::GewaehlteSchluessel werte;      // g_selectedKeyValues / g_selectedDefaultKeyValues
+    std::vector<const void*> auswahlStand; // fuer die Aktualisierung (Auswahl)
+    bool geladen = false;
+    std::string klasse;                    // current item der Klassenliste (Name)
+    std::string kommentarKlasse;           // g_current_comment
+    bool klasseRollen = false;             // scrollTo(current)
+    bool klassenFokus = false;             // die Klassenliste hat den Fokus
+    std::string schluessel;                // g_entityKeyEntry
+    std::string wert;                      // g_entityValueEntry
+    std::string zeile;                     // g_entprops_store->currentItem() (Schluessel), leer: keins
+    bool zeilenFokus = false;
+    bool autoFokus = false;                // g_focusToggleButton
+    std::map<std::string, std::string> felder;   // Texte der NonModalEntry (Attribute) beim Bearbeiten
+    std::string hinweis;                   // QToolTip der Validatoren
+    double hinweisBis = 0;
+    // Entity List (entitylist.cpp)
+    bool listeOffen = false;
+    bool listeAutoFokus = false;           // m_check
+    bool listeVonAnfang = false;           // m_search_from_start (EntListSearchFromStart)
+    std::string listeFilter;
+    std::set<std::string> listeOffeneKnoten;   // aufgeklappte Zeilen
+    const void* listeAnker = nullptr;      // fuer Umschalt+Klick (ExtendedSelection)
+    // Entitaetenmenue (xywindow.cpp:743-878)
+    bool menueOeffnen = false;
+    bool kameraMenue = false;              // g_bCamEntityMenu
+    int erzeugtZaehler = 0;                // g_entityCreationOffset
+    // Set Light intensity (gtkdlgs.cpp:408-443)
+    bool lichtOffen = false;
+    bool lichtOeffnen = false;
+    int lichtLetzte = 300;                 // g_iLastLightIntensity (LastLightIntensity)
+    int lichtWert = 300;
+    bool lichtNichtZeigen = false;         // g_dontDoLightIntensityDlg
+    karte::ErzeugtErgebnis offen;          // der offene Schritt "entityCreate -class X"
+    // Farbe
+    karte::Vektor3f farbe{1, 1, 1};        // g_entity_globals.color_entity (EntitySelectedColor)
+    FarbDialog farbDialog;
+    std::array<unsigned, 16> eigeneFarben{};   // QColorDialogOptions customColors (QtProject Qt/customColors)
+    bool eigeneFarbenGeladen = false;
+    // Einstellungsseite Entities (entity.cpp:663-686)
+    int namenAbstand = 512;                // g_showNamesDist (SI_ShowNamesDist)
+    bool zielnamen = false;                // g_showTargetNames (SI_ShowTargetNames)
+    int klassenStand = 0;                  // steigt mit Reload Entity Definitions
 };
 
 struct Editor {
@@ -382,6 +459,9 @@ struct Editor {
         int springenBilder = 0;            // so viele Bilder lang (die Groesse des Inhalts kommt erst nach dem ersten)
         bool frageSchliessen = false;      // ensure_saved
     } shaderText;
+
+    // --- Entitaeten (Punkt 9) ---
+    EntitaetenOberflaeche ent;
 };
 
 Editor& editor();
@@ -498,6 +578,30 @@ struct TexturBrowserLage {
 void texturGlNeu();
 bool texturMitte(const std::string& shader, ImVec2& mitte);
 
+// --- Entitaeten (app_karte_entitaeten.cpp) ---
+// Die Seite "Entities" des Gruppendialogs (EntityInspector_constructWindow)
+// im aktuellen Kindfenster (breite x hoehe logische Punkte).
+void entitaetenSeiteZeichnen(int breite, int hoehe);
+// Entity List, Entitaetenmenue, Lichtstaerke- und Farbdialog (jedes Bild).
+void entitaetenDialogeZeichnen();
+// XYWnd::OnContextMenu / context_menu_show: das Entitaetenmenue oeffnen.
+void entitaetenMenueOeffnen(bool kamera);
+// Die Befehle aus entity.cpp, select.cpp und mainframe.cpp (Entity List).
+void entitaetBefehl(const std::string& name);
+// Fuer den Selbsttest: das Menue (Gruppen wie EntityClassMenuInserter).
+[[nodiscard]] std::vector<karte::EntitaetMenuePunkt> entitaetenMenuePunkte();
+// Ein Eintrag des Entitaetenmenues wurde gewaehlt (entitycreate_activated)
+// bzw. mit Rechtsklick (Scene_EntitySetClassname_Selected).
+void entitaetMenueGewaehlt(const std::string& klasse);
+// Der Farbdialog (color_dialog): fertig wird nur bei OK gerufen.
+void farbDialogOeffnen(const karte::Vektor3f& farbe, std::function<void(const karte::Vektor3f&)> fertig);
+// Die Schriften der Qt-Widgets: Tahoma 8 pt (MS Shell Dlg 2, Qt 5 systemDefaultFont),
+// fett fuer die Kommentare; aus buildFonts.
+void setzeDialogSchrift(ImFont* normal, ImFont* fett);
+// Die Dialogschrift (Tahoma 8 pt, fm.height() 13 logische Punkte) setzen/zuruecknehmen.
+void dialogSchriftAn(bool fett = false);
+void dialogSchriftAus();
+
 // --- 3D-Kamera (app_karte_cam.cpp) ---
 // Fuer den Texturbrowser: das Bild eines Shaders (ID3D11ShaderResourceView,
 // nullptr solange es laedt), fertige Bilder hochladen, alles neu laden
@@ -572,6 +676,11 @@ bool karteSpeichernUnter(const std::string& pfad);
 void zuletztOeffnen(std::size_t index);
 // Map_Modified
 [[nodiscard]] bool geaendert();
+// ConfirmModified( titel ) und danach (Save / Discard / Cancel).
+void rueckfrageDann(const char* titel, std::function<void()> danach);
+// Entity_reloadDefinitions: die Klassen neu lesen und die Karte neu laden
+// (MapEntityClasses::unrealise/realise).
+void entitaetenKlassenNeuLaden();
 
 // Konsole: globalOutputStream / globalWarningStream / globalErrorStream.
 void ausgabe(const std::string& text);

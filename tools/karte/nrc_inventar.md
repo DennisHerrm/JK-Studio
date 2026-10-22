@@ -52,12 +52,12 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### Entity_constructMenu (radiant/entity.cpp)
 
-  - [~] ITEM &Connect Entities -> `EntitiesConnect`  (radiant/entity.cpp:709) -- Stufe 2
-  - [~] ITEM &Move Primitives to Entity -> `EntityMovePrimitivesToLast`  (radiant/entity.cpp:713) -- Stufe 2
-  - [~] ITEM &Select Color... -> `EntityColorSet`  (radiant/entity.cpp:714) -- Stufe 2
-  - [~] ITEM &Normalize Color -> `EntityColorNormalize`  (radiant/entity.cpp:715) -- Stufe 2
+  - [x] ITEM &Connect Entities -> `EntitiesConnect`  (radiant/entity.cpp:709) -- Stufe 1b Punkt 9
+  - [x] ITEM &Move Primitives to Entity -> `EntityMovePrimitivesToLast`  (radiant/entity.cpp:713) -- Stufe 1b Punkt 9
+  - [x] ITEM &Select Color... -> `EntityColorSet`  (radiant/entity.cpp:714) -- Stufe 1b Punkt 9
+  - [x] ITEM &Normalize Color -> `EntityColorNormalize`  (radiant/entity.cpp:715) -- Stufe 1b Punkt 9
   * ---
-  - [~] ITEM Reload Entity Definitions -> `EntityReloadDefinitions`  (radiant/entity.cpp:717) -- Stufe 2
+  - [x] ITEM Reload Entity Definitions -> `EntityReloadDefinitions`  (radiant/entity.cpp:717) -- Stufe 1b Punkt 9
 
 ### Filters_constructMenu (radiant/filters.cpp)
 
@@ -149,9 +149,9 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     - [x] ITEM Select All Of Type -> `SelectAllOfType`  (radiant/mainframe.cpp:918)
     - [~] ITEM Select Textured -> `SelectTextured`  (radiant/mainframe.cpp:919) -- Stufe 2
     - [~] ITEM &Expand Selection To Primitives -> `ExpandSelectionToPrimitives`  (radiant/mainframe.cpp:920) -- Stufe 2
-    - [~] ITEM &Expand Selection To Entities -> `ExpandSelectionToEntities`  (radiant/mainframe.cpp:921) -- Stufe 2
+    - [x] ITEM &Expand Selection To Entities -> `ExpandSelectionToEntities`  (radiant/mainframe.cpp:921) -- Stufe 1b Punkt 9
     - [~] ITEM &Expand Selection To Layers -> `ExpandSelectionToLayers`  (radiant/mainframe.cpp:922) -- Stufe 2
-    - [~] ITEM Select Connected Entities -> `SelectConnectedEntities`  (radiant/mainframe.cpp:923) -- Stufe 2
+    - [x] ITEM Select Connected Entities -> `SelectConnectedEntities`  (radiant/mainframe.cpp:923) -- Stufe 1b Punkt 9
     * ---
     - [x] ITEM &Shortcuts... -> `Shortcuts`  (radiant/mainframe.cpp:926)
     - [ ] ITEM Pre&ferences... -> `Preferences`  (radiant/mainframe.cpp:927)
@@ -166,10 +166,10 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     - [ ] ITEM Console [wenn: if ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft )] -> `ToggleConsole`  (radiant/mainframe.cpp:943)
     - [ ] ITEM Texture Browser [wenn: if ( ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft ) || g_Layout_builtInGroupDialog.m_value )] -> `ToggleTextures`  (radiant/mainframe.cpp:946)
     - [ ] ITEM Model Browser -> `ToggleModelBrowser`  (radiant/mainframe.cpp:948)
-    - [ ] ITEM Entity Inspector -> `ToggleEntityInspector`  (radiant/mainframe.cpp:949)
+    - [x] ITEM Entity Inspector -> `ToggleEntityInspector`  (radiant/mainframe.cpp:949) -- Stufe 1b Punkt 9
     - [ ] ITEM Layers Browser -> `ToggleLayersBrowser`  (radiant/mainframe.cpp:950)
     - [~] ITEM &Surface Inspector -> `SurfaceInspector`  (radiant/mainframe.cpp:951) -- Stufe 2
-    - [~] ITEM Entity List -> `ToggleEntityList`  (radiant/mainframe.cpp:952) -- Stufe 2
+    - [x] ITEM Entity List -> `ToggleEntityList`  (radiant/mainframe.cpp:952) -- Stufe 1b Punkt 9
     * ---
     * SUB Camera  (radiant/mainframe.cpp:956)
       - [x] ITEM Focus on Selected -> `CameraFocusOnSelected`  (radiant/mainframe.cpp:960)
@@ -496,7 +496,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 - [~] toggle_button Texture Lock | texture_lock.png -> `TogTexLock`  (radiant/mainframe.cpp:1424) -- Stufe 2
 - [~] toggle_button Texture Vertex Lock | texture_vertexlock.png -> `TogTexVertexLock`  (radiant/mainframe.cpp:1425) -- Stufe 2
-- [ ] button Entities | entities.png -> `ToggleEntityInspector`  (radiant/mainframe.cpp:1428)
+- [x] button Entities | entities.png -> `ToggleEntityInspector`  (radiant/mainframe.cpp:1428) -- Stufe 1b Punkt 9
 - [ ] button Console [wenn: if ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft )] | console.png -> `ToggleConsole`  (radiant/mainframe.cpp:1431)
 - [ ] button Texture Browser [wenn: if ( ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft ) || g_Layout_builtInGroupDialog.m_value )] | texture_browser.png -> `ToggleTextures`  (radiant/mainframe.cpp:1434)
 - [~] button Refresh Models | refresh_models.png -> `RefreshReferences`  (radiant/mainframe.cpp:1441) -- Stufe 2
@@ -639,16 +639,16 @@ Name | Art | Standardtaste | Quelle
 - [~] `DragFaces` | Toggles | F | (radiant/tools.cpp:424) -- Stufe 2
 - [~] `DragVertices` | Toggles | V | (radiant/tools.cpp:422) -- Stufe 2
 - [x] `EnableAlpha` | Toggles | - | (radiant/texwindow.cpp:2109)
-- [~] `EntitiesConnect` | Commands | Ctrl+K | (radiant/entity.cpp:734) -- Stufe 2
-- [~] `EntityColorNormalize` | Commands | - | (radiant/entity.cpp:733) -- Stufe 2
-- [~] `EntityColorSet` | Commands | K | (radiant/entity.cpp:732) -- Stufe 2
-- [~] `EntityMovePrimitivesToFirst` | Commands | - | (radiant/entity.cpp:738) -- Stufe 2
-- [~] `EntityMovePrimitivesToLast` | Commands | Ctrl+M | (radiant/entity.cpp:737) -- Stufe 2
-- [~] `EntityReloadDefinitions` | Commands | - | (radiant/entity.cpp:741) -- Stufe 2
-- [~] `EntityUngroup` | Commands | - | (radiant/entity.cpp:739) -- Stufe 2
-- [~] `EntityUngroupPrimitives` | Commands | - | (radiant/entity.cpp:740) -- Stufe 2
+- [x] `EntitiesConnect` | Commands | Ctrl+K | (radiant/entity.cpp:734) -- Stufe 1b Punkt 9
+- [x] `EntityColorNormalize` | Commands | - | (radiant/entity.cpp:733) -- Stufe 1b Punkt 9
+- [x] `EntityColorSet` | Commands | K | (radiant/entity.cpp:732) -- Stufe 1b Punkt 9
+- [x] `EntityMovePrimitivesToFirst` | Commands | - | (radiant/entity.cpp:738) -- Stufe 1b Punkt 9
+- [x] `EntityMovePrimitivesToLast` | Commands | Ctrl+M | (radiant/entity.cpp:737) -- Stufe 1b Punkt 9
+- [x] `EntityReloadDefinitions` | Commands | - | (radiant/entity.cpp:741) -- Stufe 1b Punkt 9
+- [x] `EntityUngroup` | Commands | - | (radiant/entity.cpp:739) -- Stufe 1b Punkt 9
+- [x] `EntityUngroupPrimitives` | Commands | - | (radiant/entity.cpp:740) -- Stufe 1b Punkt 9
 - [ ] `Exit` | Commands | - | (radiant/mainframe.cpp:2073)
-- [~] `ExpandSelectionToEntities` | Commands | Shift+E | (radiant/select.cpp:1880) -- Stufe 2
+- [x] `ExpandSelectionToEntities` | Commands | Shift+E | (radiant/select.cpp:1880) -- Stufe 1b Punkt 9
 - [~] `ExpandSelectionToLayers` | Commands | Ctrl+Q | (radiant/layerswindow.cpp:580) -- Stufe 2
 - [~] `ExpandSelectionToPrimitives` | Commands | Ctrl+E | (radiant/select.cpp:1879) -- Stufe 2
 - [~] `FilterAreaportals` | Toggles | Alt+3 | (radiant/filters.cpp:220) -- Stufe 2
@@ -791,7 +791,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `SaveSelected` | Commands | - | (radiant/map.cpp:2434) -- Stufe 2
 - [x] `SearchFromStart` | Toggles | - | (radiant/texwindow.cpp:2111)
 - [x] `SelectAllOfType` | Commands | Shift+A | (radiant/select.cpp:1888)
-- [~] `SelectConnectedEntities` | Commands | Ctrl+Shift+E | (radiant/select.cpp:1881) -- Stufe 2
+- [x] `SelectConnectedEntities` | Commands | Ctrl+Shift+E | (radiant/select.cpp:1881) -- Stufe 1b Punkt 9
 - [~] `SelectInside` | Commands | - | (radiant/select.cpp:1877) -- Stufe 2
 - [x] `SelectNudgeDown` | Commands | Alt+Down | (radiant/select.cpp:1907)
 - [x] `SelectNudgeLeft` | Commands | Alt+Left | (radiant/select.cpp:1904)
@@ -867,8 +867,8 @@ Name | Art | Standardtaste | Quelle
 - [ ] `ToggleConsole` | Commands | O | (radiant/mainframe.cpp:2078)
 - [x] `ToggleCrosshairs` | Toggles | Shift+X | (radiant/xywindow.cpp:2215) -- Stufe 1b Punkt 5
 - [x] `ToggleCubicClip` | Toggles | Ctrl+\\ | (radiant/camwindow.cpp:2491)
-- [x] `ToggleEntityInspector` | Commands | N | (radiant/mainframe.cpp:2079)
-- [~] `ToggleEntityList` | Commands | Shift+L | (radiant/mainframe.cpp:2082) -- Stufe 2
+- [x] `ToggleEntityInspector` | Commands | N | (radiant/mainframe.cpp:2079) -- Stufe 1b Punkt 9
+- [x] `ToggleEntityList` | Commands | Shift+L | (radiant/mainframe.cpp:2082) -- Stufe 1b Punkt 9
 - [x] `ToggleFrontView` | Toggles | - | (radiant/xywindow.cpp:2269)
 - [x] `ToggleGrid` | Toggles | 0 | (radiant/xywindow.cpp:2216) -- Stufe 1b Punkt 5
 - [ ] `ToggleGridSnap` | Commands | - | (radiant/grid.cpp:187)
@@ -916,13 +916,13 @@ Name | Art | Standardtaste | Quelle
 - [ ] "Build Menu"  (radiant/build.cpp:1027)
 - [x] "Mapped Commands"  (radiant/commands.cpp:333)
 - [ ] "CSG Tool"  (radiant/csg.cpp:1486)
-- [ ] "Entity List"  (radiant/entitylist.cpp:279)
+- [x] "Entity List"  (radiant/entitylist.cpp:279) -- Stufe 1b Punkt 9
 - [ ] "Q3Map debug window"  (radiant/feedback.cpp:281)
 - [x] "Find / Replace Texture(s)"  (radiant/findtexturedialog.cpp:132)
-- [ ] "Entities"  (radiant/groupdialog.cpp:81)
+- [x] "Entities"  (radiant/groupdialog.cpp:81) -- Stufe 1b Punkt 9
 - [ ] "Arbitrary sides"  (radiant/gtkdlgs.cpp:274)
 - [ ] "About NetRadiant"  (radiant/gtkdlgs.cpp:333)
-- [ ] "Set Light intensity"  (radiant/gtkdlgs.cpp:415)
+- [x] "Set Light intensity"  (radiant/gtkdlgs.cpp:415) -- Stufe 1b Punkt 9
 - [ ] "Install Map Developer's Files"  (radiant/gtkdlgs.cpp:492)
 - [ ] "Engine Path Configuration"  (radiant/mainframe.cpp:421)
 - [x] "Camera"  (radiant/mainframe.cpp:1755)
@@ -944,7 +944,7 @@ Name | Art | Standardtaste | Quelle
 - [ ] Brush: "Brush Settings"  (radiant/brushmodule.cpp:113)
 - [x] Camera: "Camera View Preferences"  (radiant/camwindow.cpp:2461)
 - [ ] Clipper: "Clipper Tool Settings"  (radiant/clippertool.cpp:186)
-- [ ] Entities: "Entity Display Preferences"  (radiant/entity.cpp:682)
+- [x] Entities: "Entity Display Preferences"  (radiant/entity.cpp:682) -- Stufe 1b Punkt 9
 - [ ] Grid: "Grid Settings"  (radiant/grid.cpp:258)
 - [ ] Paths: "Path Settings"  (radiant/mainframe.cpp:404)
 - [x] Layout: "Layout Preferences"  (radiant/mainframe.cpp:2051)
@@ -987,9 +987,9 @@ Name | Art | Standardtaste | Quelle
 - [ ] CheckBox Reset Points on Split  (radiant/clippertool.cpp:172)
 - [ ] CheckBox 2 Points in 2D Views  (radiant/clippertool.cpp:174)
 - [ ] Radio On DoubleClick do:   (radiant/clippertool.cpp:177)
-- [ ] Spinner Names Display Distance (3D)  (radiant/entity.cpp:669)
-- [ ] Spinner Names Display Ratio (2D)  (radiant/entity.cpp:673)
-- [ ] CheckBox Entity Names / = Targetnames  (radiant/entity.cpp:677)
+- [x] Spinner Names Display Distance (3D)  (radiant/entity.cpp:669) -- Stufe 1b Punkt 9
+- [x] Spinner Names Display Ratio (2D)  (radiant/entity.cpp:673) -- Stufe 1b Punkt 9
+- [x] CheckBox Entity Names / = Targetnames  (radiant/entity.cpp:677) -- Stufe 1b Punkt 9
 - [ ] Combo Default grid spacing  (radiant/grid.cpp:241)
 - [ ] Combo Max grid coordinate  (radiant/grid.cpp:249)
 - [ ] Combo Select mod  (radiant/gtkdlgs.cpp:229)

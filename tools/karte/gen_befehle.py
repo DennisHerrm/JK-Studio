@@ -56,6 +56,9 @@ MoveSelectionUP MoveSelectionDOWN MouseDrag MouseTranslate MouseRotate MouseScal
 MouseDragOrTransform MouseRotateOrScale
 ShowInUse ShowAllTextures ToggleShowShaders ToggleShowTextures ToggleShowShaderlistOnly FixedSize FilterNotex
 EnableAlpha SearchFromStart RefreshShaders FindReplaceTextures
+EntitiesConnect EntityColorSet EntityColorNormalize EntityMovePrimitivesToLast EntityMovePrimitivesToFirst
+EntityUngroup EntityUngroupPrimitives EntityReloadDefinitions ExpandSelectionToEntities SelectConnectedEntities
+ToggleEntityList
 '''.split())
 
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem

@@ -130,6 +130,13 @@ std::map<std::string, Umsetzung>& umsetzungen() {
         const std::string name = n;
         m[name] = {[name] { texturBefehl(name); }, [name] { return texturBefehlAn(name); }};
     }
+    // --- Entitaeten (entity.cpp:723-746, select.cpp:1880-1881, mainframe.cpp:2082) ---
+    for (const char* n : {"EntitiesConnect", "EntityColorSet", "EntityColorNormalize", "EntityMovePrimitivesToLast",
+                          "EntityMovePrimitivesToFirst", "EntityUngroup", "EntityUngroupPrimitives", "EntityReloadDefinitions",
+                          "ExpandSelectionToEntities", "SelectConnectedEntities", "ToggleEntityList"}) {
+        const std::string name = n;
+        m[name] = {[name] { entitaetBefehl(name); }, nullptr};
+    }
     // --- 2D-Ansichten (xywindow.cpp:2266-2278) ---
     for (const char* n : {"NextView", "ViewTop", "ViewFront", "ViewSide", "ZoomIn", "ZoomOut", "Zoom100", "CenterXYView",
                           "XYFocusOnSelected"}) {

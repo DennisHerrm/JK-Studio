@@ -152,6 +152,10 @@ ImVec4 karteIconFarbe(const char* n) {
         setze(0.42F, 0.85F, 0.60F);
     } else if (ist(n, "f-reset") || ist(n, "f-hide")) {
         setze(1.00F, 0.50F, 0.45F);
+    } else if (ist(n, "select")) {
+        setze(0.36F, 0.82F, 0.95F);
+    } else if (std::strncmp(n, "arrow_", 6) == 0) {
+        setze(0.55F, 0.78F, 1.00F);
     } else if (std::strncmp(n, "bobtoolz_", 9) == 0) {
         setze(0.62F, 0.84F, 0.48F);
     } else if (ist(n, "view_change") || ist(n, "view_cubicclipping") || ist(n, "texture_browser") || ist(n, "console") ||
@@ -397,6 +401,33 @@ bool karteIcon(ImDrawList* dl, const char* n, ImVec2 pos, float groesse, unsigne
         return true;
     }
     if (ist(n, "copy")) { uiIcon(dl, UiIcon::Duplizieren, pos, groesse, farbe); return true; }   // Kontextmenue: Name kopieren
+    // --- Entity Inspector (entityinspector.cpp: select.png, arrow_*.png) ---
+    if (ist(n, "select")) {   // Select by key/value: gestrichelter Rahmen mit Zeiger
+        z.strichRahmen(1.5F, 1.5F, 11.5F, 11.5F);
+        z.flaeche({ImVec2{7.0F, 6.5F}, ImVec2{14.5F, 10.5F}, ImVec2{11.0F, 11.5F}, ImVec2{9.5F, 14.5F}}, farbe);
+        return true;
+    }
+    if (ist(n, "arrow_left") || ist(n, "arrow_right")) {   // Select targeting entities / Select targets
+        const bool links = ist(n, "arrow_left");
+        z.linie(2.0F, 8.0F, 14.0F, 8.0F);
+        if (links) { z.spitze(2.0F, 8.0F, -1.0F, 0.0F, 4.5F); } else { z.spitze(14.0F, 8.0F, 1.0F, 0.0F, 4.5F); }
+        return true;
+    }
+    if (ist(n, "arrow_left_right")) {   // Select connected entities (32 x 16, mittig im Quadrat)
+        const float m = 8.0F;   // Mitte des Quadrats
+        z.linie(2.0F, m, 14.0F, m);
+        z.spitze(2.0F, m, -1.0F, 0.0F, 2.3F);
+        z.spitze(14.0F, m, 1.0F, 0.0F, 2.3F);
+        return true;
+    }
+    if (ist(n, "eyes")) {   // AutoFocus on Selection ("ð")
+        for (const float x : {5.0F, 11.0F}) {
+            z.dl->AddEllipseFilled(z.p(x, 8.0F), ImVec2{2.6F * z.s, 3.6F * z.s}, IM_COL32(245, 245, 245, 255));
+            z.dl->AddEllipse(z.p(x, 8.0F), ImVec2{2.6F * z.s, 3.6F * z.s}, mitAlpha(farbe, 0.6F), 0.0F, 0, z.w * 0.6F);
+            z.punkt(x + 0.6F, 8.8F, 1.4F, IM_COL32(20, 20, 20, 255));
+        }
+        return true;
+    }
     if (ist(n, "texbro_find-replace")) {   // Lupe mit Wechselpfeil
         z.kreis(6.5F, 6.5F, 4.5F);
         z.linie(9.8F, 9.8F, 14.5F, 14.5F);

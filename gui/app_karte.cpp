@@ -195,6 +195,35 @@ std::string startOrdner() {
 
 }  // namespace
 
+void rueckfrageDann(const char* titel, std::function<void()> danach) { mitRueckfrage(titel, std::move(danach)); }
+
+// Entity_reloadDefinitions (entity.cpp:607-612): GlobalEntityClassManager()
+// unrealise / realise liest die Klassen neu; MapEntityClasses (map.cpp:
+// 2374-2396) haengt daran und laedt die Karte neu (flush + realise der
+// MapResource: aus der Datei, eine unbenannte ist danach leer).
+void entitaetenKlassenNeuLaden() {
+    Editor& e = g();
+    const std::string name = e.name;
+    karteFreigeben();   // die Entitaeten zeigen auf die alten Klassen
+    if (e.karteSpiel) {
+        Spielkontext& s = *e.karteSpiel;
+        s.klassen.leeren();
+        const std::string defs = defOrdner(s.spiel);
+        const std::size_t fehlerDef = s.klassen.ordnerLaden(defs, "sp");
+        if (s.spiel == kRegelwerkMovieDuels) { (void)s.klassen.entdefsErgaenzen(); }
+        if (fehlerDef > 0) { warnung(defs + ": " + std::to_string(fehlerDef) + " Fehler in den .def"); }
+    }
+    ++e.ent.klassenStand;
+    e.ent.geladen = false;
+    if (name != "unnamed.map") {
+        (void)karteOeffnen(name);
+    } else {
+        e.name = "unnamed.map";
+        e.karte.undo.alsGespeichertMarkieren();
+        ++e.ladeZaehler;
+    }
+}
+
 Editor& editor() {
     static Editor e;
     static bool angelegt = false;
@@ -453,6 +482,9 @@ const char* feldKurz(Feld f) {
     return "?";
 }
 
+void feldInhalt(Feld f);
+void gruppenInhalt(int breite, int hoehe);
+
 // radiant/console.cpp: Ausgabe in der Textfarbe, Warnungen (255,127,0),
 // Fehler (255,0,0) - in einem schreibgeschuetzten Textfeld.
 void konsoleZeichnen() {
@@ -508,7 +540,9 @@ void feldInhalt(Feld f) {
         texturBrowserZeichnen(static_cast<int>(std::lround(ImGui::GetWindowWidth() / g_s)),
                               static_cast<int>(std::lround(ImGui::GetWindowHeight() / g_s)));
         break;
-    case Feld::Gruppe:
+    case Feld::Gruppe:   // der eingebaute Gruppendialog (m_hSplit->addWidget( GroupDialog_getWindow() ))
+        gruppenInhalt(static_cast<int>(std::lround(ImGui::GetWindowWidth() / g_s)),
+                      static_cast<int>(std::lround(ImGui::GetWindowHeight() / g_s)));
         break;
     }
 }
@@ -635,6 +669,10 @@ void teilerAufbauen() {
     if (ed.teilerFuer == fuer) { return; }
     ed.teilerFuer = fuer;
     ed.maximiert = false;
+    // MainFrame::Create: Floating zeigt den Gruppendialog (GroupDialog_show),
+    // eingebaut steht er als Kind von m_hSplit da (QSplitter::addWidget
+    // zeigt ihn); sonst bleibt er versteckt, bis N ihn holt.
+    ed.gruppenDialogOffen = ed.anordnung == Anordnung::Floating || ed.gruppenDialogEingebaut;
     ed.hSplit = karte::Teiler{};
     ed.vSplit = karte::Teiler{};
     ed.vSplit2 = karte::Teiler{};
@@ -694,13 +732,19 @@ void anordnungZeichnen(int x, int y, int b, int h) {
         const Inhalt kamSpalte = spalte(ed.vSplit2, "v2", rechts);
         std::vector<Inhalt> kinder = ed.anordnung == Anordnung::Regular ? std::vector<Inhalt>{xySpalte, kamSpalte}
                                                                        : std::vector<Inhalt>{kamSpalte, xySpalte};
-        if (ed.gruppenDialogEingebaut) { kinder.push_back(gruppe); }
+        if (ed.gruppenDialogEingebaut) {
+            kinder.push_back(gruppe);
+            ed.hSplit.kinder.back().versteckt = !ed.gruppenDialogOffen;   // GroupDialog_setShown
+        }
         teilerZeichnen("h", ed.hSplit, false, x, y, b, h, kinder);
     } else if (ed.anordnung == Anordnung::Split) {
         // 4 way (mainframe.cpp:1829-1855): links Kamera ueber YZ, rechts XY ueber XZ
         std::vector<Inhalt> kinder{spalte(ed.vSplit, "v", {Feld::Kamera, Feld::YZ}),
                                    spalte(ed.vSplit2, "v2", {Feld::XY, Feld::XZ})};
-        if (ed.gruppenDialogEingebaut) { kinder.push_back(gruppe); }
+        if (ed.gruppenDialogEingebaut) {
+            kinder.push_back(gruppe);
+            ed.hSplit.kinder.back().versteckt = !ed.gruppenDialogOffen;
+        }
         teilerZeichnen("h", ed.hSplit, false, x, y, b, h, kinder);
     } else {
         // Floating: der Hauptbereich bleibt leer, die Ansichten schweben.
@@ -744,6 +788,7 @@ void gruppenDialog() {
     using befehle::Anordnung;
     const bool schwebendeSeiten = ed.anordnung == Anordnung::Floating || ed.anordnung == Anordnung::Split;
     if (!ed.gruppenDialogOffen) { return; }
+    if (ed.gruppenDialogEingebaut && ed.anordnung != Anordnung::Floating) { return; }   // steht in m_hSplit
     const ImGuiStyle& st = ImGui::GetStyle();
     const float titelH = ImGui::GetFontSize() + st.FramePadding.y * 2.0F;
     const ImVec2 bereich = ImGui::GetMainViewport()->Size;
@@ -758,32 +803,98 @@ void gruppenDialog() {
     // GroupDialog_updatePageTitle: die Textur-Seite meldet ihren Titel
     // (TextureBrowser_exportTitle, "Textures: <dir>").
     const std::string titel = (ed.gruppenSeite == 2 ? texturTitel() : std::string(seitenTitel[ed.gruppenSeite])) + "###kartegruppe";
-    if (ImGui::Begin(titel.c_str(), &ed.gruppenDialogOffen, ImGuiWindowFlags_NoCollapse)) {
-        if (ImGui::BeginTabBar("##gruppenreiter")) {
-            for (int s = 0; s < 5; ++s) {
-                if ((s == 1 || s == 2) && !schwebendeSeiten && !(s == 2 && ed.gruppenDialogEingebaut)) { continue; }
-                ImGuiTabItemFlags fl = ImGuiTabItemFlags_None;
-                if (ed.gruppenSeiteWechseln && ed.gruppenSeite == s) { fl |= ImGuiTabItemFlags_SetSelected; }
-                if (ImGui::BeginTabItem(seitenTitel[s], nullptr, fl)) {
-                    if (!ed.gruppenSeiteWechseln) { ed.gruppenSeite = s; }
-                    if (s == 1) {
-                        konsoleZeichnen();
-                    } else if (s == 2) {
-                        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
-                        ImGui::BeginChild("##gruppeTexturen", ImVec2{-FLT_MIN, -FLT_MIN}, ImGuiChildFlags_None,
-                                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-                        ImGui::PopStyleVar();
-                        feldInhalt(Feld::Texturen);
-                        ImGui::EndChild();
-                    }
-                    ImGui::EndTabItem();
-                }
-            }
-            ImGui::EndTabBar();
-        }
-        ed.gruppenSeiteWechseln = false;
+    (void)schwebendeSeiten;
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
+    const bool sichtbar = ImGui::Begin(titel.c_str(), &ed.gruppenDialogOffen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar |
+                                                                                   ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::PopStyleVar();
+    if (sichtbar) {
+        const ImVec2 gr = ImGui::GetContentRegionAvail();
+        ImGui::BeginChild("##gruppeinnen", gr, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        gruppenInhalt(static_cast<int>(std::lround(gr.x / g_s)), static_cast<int>(std::lround(gr.y / g_s)));
+        ImGui::EndChild();
     }
     ImGui::End();
+}
+
+// Der Inhalt des Gruppendialogs (GroupDlg::Create): QTabWidget mit den
+// Reitern unten (TabPosition::South), Seiten Entities, (Console, Textures),
+// Models, Layers. Masse wie Qt 5.15 (Fusion): Reiter fm.height() 13 + 12 =
+// 25 hoch und Text + 24 breit (QTabBar::tabSizeHint), linksbuendig; die
+// Seite (SE_TabWidgetTabPane) reicht 2 in die Reiter hinein, ihr Inhalt
+// (SE_TabWidgetTabContents) liegt 2 innen. Foto dlg_View_Entity_Inspector_0.png.
+void gruppenInhalt(int breite, int hoehe) {
+    Editor& ed = editor();
+    using befehle::Anordnung;
+    const bool schwebendeSeiten = ed.anordnung == Anordnung::Floating || ed.anordnung == Anordnung::Split;
+    const ImVec2 alt = g_ursprung;
+    g_ursprung = ImGui::GetWindowPos();
+    const char* seitenTitel[5] = {trK(Str::KePageEntities), trK(Str::KePageConsole), trK(Str::KePageTextures),
+                                  trK(Str::KePageModels), trK(Str::KePageLayers)};
+    std::vector<int> seiten;
+    for (int s = 0; s < 5; ++s) {
+        if ((s == 1 || s == 2) && !schwebendeSeiten && !(s == 2 && ed.gruppenDialogEingebaut)) { continue; }
+        seiten.push_back(s);
+    }
+    if (std::find(seiten.begin(), seiten.end(), ed.gruppenSeite) == seiten.end()) { ed.gruppenSeite = 0; }
+    ed.gruppenSeiteWechseln = false;
+    constexpr int kReiterH = 25;
+    const int seiteH = std::max(0, hoehe - kReiterH + 2);
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    // Reiter
+    dialogSchriftAn();
+    int x = 0;
+    for (const int s : seiten) {
+        const int w = static_cast<int>(std::ceil(ImGui::CalcTextSize(seitenTitel[s]).x / g_s)) + 24;
+        const bool aktiv = s == ed.gruppenSeite;
+        merkeFeld(std::string("Gruppe:Reiter:") + std::to_string(s), x, hoehe - kReiterH, w, kReiterH);
+        // CE_TabBarTabShape (Fusion, gedreht fuer South): der aktive 2 unter
+        // der Oberkante, die uebrigen 3 darunter und 2 kuerzer
+        const ImVec2 a = bildpunkt(x, hoehe - kReiterH + (aktiv ? 0 : 1));
+        const ImVec2 c = bildpunkt(x + w, hoehe - (aktiv ? 0 : 2));
+        ImGui::SetCursorScreenPos(bildpunkt(x, hoehe - kReiterH));
+        if (ImGui::InvisibleButton((std::string("##gruppenreiter") + std::to_string(s)).c_str(),
+                                   ImVec2{std::round(static_cast<float>(w) * g_s), std::round(static_cast<float>(kReiterH) * g_s)})) {
+            ed.gruppenSeite = s;   // QTabWidget::currentChanged -> GroupDialog_updatePageTitle
+        }
+        const ImU32 farbe = aktiv ? ImGui::GetColorU32(ImGuiCol_WindowBg)
+                                  : ImGui::GetColorU32(ImGui::IsItemHovered() ? ImGuiCol_TabHovered : ImGuiCol_Tab);
+        dl->AddRectFilled(a, c, farbe, 2.0F * g_s, ImDrawFlags_RoundCornersBottom);
+        dl->AddRect(a, c, ImGui::GetColorU32(ImGuiCol_Border), 2.0F * g_s, ImDrawFlags_RoundCornersBottom);
+        const ImVec2 t = ImGui::CalcTextSize(seitenTitel[s]);
+        dl->AddText(ImVec2{std::floor((a.x + c.x - t.x) * 0.5F), std::floor((a.y + c.y - t.y) * 0.5F)}, ImGui::GetColorU32(ImGuiCol_Text),
+                    seitenTitel[s]);
+        x += w;
+    }
+    dialogSchriftAus();
+    // Seite (PE_FrameTabWidget) und Inhalt
+    merkeFeld("Gruppe:Seite", 0, 0, breite, seiteH);
+    dl->AddRect(bildpunkt(0, 0), bildpunkt(breite, seiteH), ImGui::GetColorU32(ImGuiCol_Border));
+    const int ib = std::max(0, breite - 4);
+    const int ih = std::max(0, seiteH - 4);
+    merkeFeld("Gruppe:Inhalt", 2, 2, ib, ih);
+    if (ib > 0 && ih > 0) {
+        ImGui::SetCursorScreenPos(bildpunkt(2, 2));
+        const ImVec2 p0 = bildpunkt(2, 2);
+        const ImVec2 p1 = bildpunkt(2 + ib, 2 + ih);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
+        ImGui::BeginChild((std::string("##gruppenseite") + std::to_string(ed.gruppenSeite)).c_str(), ImVec2{p1.x - p0.x, p1.y - p0.y},
+                          ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        ImGui::PopStyleVar();
+        if (ed.gruppenSeite == 0) {
+            entitaetenSeiteZeichnen(ib, ih);
+        } else if (ed.gruppenSeite == 1) {
+            konsoleZeichnen();
+        } else if (ed.gruppenSeite == 2) {
+            feldInhalt(Feld::Texturen);
+        } else {
+            char z[120];
+            std::snprintf(z, sizeof(z), tr(Str::KeStufe), 2);
+            ImGui::TextDisabled("%s", z);
+        }
+        ImGui::EndChild();
+    }
+    g_ursprung = alt;
 }
 
 }  // namespace
@@ -886,6 +997,7 @@ void zeichne(float hoehe) {
     }
     gruppenDialog();
     texturDialogeZeichnen();
+    entitaetenDialogeZeichnen();
     zeichneEinstellungen();
     zeichneTastenDialog();
     zeichneRueckfrage();

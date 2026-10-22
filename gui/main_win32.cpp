@@ -93,6 +93,7 @@ void setThemeById(App* a, const char* id);
 float uiScale(App* a);
 void setUiScale(App* a, float s);
 void setKartenSchrift(ImFont* schrift);
+void setKartenDialogSchrift(ImFont* normal, ImFont* fett);
 }  // namespace bhed::gui
 
 namespace {
@@ -615,6 +616,27 @@ void buildFonts() {
         }
     }
     bhed::gui::setKartenSchrift(karte);
+    // Die Grundschrift der Qt-Widgets in NRCs Dialogen: Qt 5 nimmt unter
+    // Windows QWindowsFontDatabase::systemDefaultFont (DEFAULT_GUI_FONT =
+    // MS Shell Dlg 2, also Tahoma 8 pt; fm.height() 13). Bei ImGui-Groesse 13
+    // (Ober- plus Unterlaenge 2472/2048 Geviert) sind das 10,77 Punkte Geviert
+    // wie Qts 8 pt. Fett fuer die Kommentare der Klassen (SetComment).
+    ImFont* dialog = nullptr;
+    ImFont* dialogFett = nullptr;
+    if (GetFileAttributesA("C:\\Windows\\Fonts\\tahoma.ttf") != INVALID_FILE_ATTRIBUTES) {
+        dialog = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\tahoma.ttf", size);
+        if (dialog != nullptr) {
+            for (const char* path : cjk) {
+                if (addFontIfPresent(io, path, size, true)) {
+                    break;
+                }
+            }
+        }
+    }
+    if (GetFileAttributesA("C:\\Windows\\Fonts\\tahomabd.ttf") != INVALID_FILE_ATTRIBUTES) {
+        dialogFett = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\tahomabd.ttf", size);
+    }
+    bhed::gui::setKartenDialogSchrift(dialog, dialogFett);
 }
 
 bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app) {
