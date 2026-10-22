@@ -154,7 +154,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     - [x] ITEM Select Connected Entities -> `SelectConnectedEntities`  (radiant/mainframe.cpp:923) -- Stufe 1b Punkt 9
     * ---
     - [x] ITEM &Shortcuts... -> `Shortcuts`  (radiant/mainframe.cpp:926)
-    - [ ] ITEM Pre&ferences... -> `Preferences`  (radiant/mainframe.cpp:927)
+    - [x] ITEM Pre&ferences... -> `Preferences`  (radiant/mainframe.cpp:927)
 
 ### create_view_menu (radiant/mainframe.cpp)
 
@@ -165,9 +165,9 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     - [x] CHECK YZ (Side) View [wenn: if ( style == MainFrame::eFloating )] -> `ToggleSideView`  (radiant/mainframe.cpp:940)
     - [x] ITEM Console [wenn: if ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft )] -> `ToggleConsole`  (radiant/mainframe.cpp:943) -- Stufe 1b Punkt 10
     - [ ] ITEM Texture Browser [wenn: if ( ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft ) || g_Layout_builtInGroupDialog.m_value )] -> `ToggleTextures`  (radiant/mainframe.cpp:946)
-    - [ ] ITEM Model Browser -> `ToggleModelBrowser`  (radiant/mainframe.cpp:948)
+    - [x] ITEM Model Browser -> `ToggleModelBrowser`  (radiant/mainframe.cpp:948)
     - [x] ITEM Entity Inspector -> `ToggleEntityInspector`  (radiant/mainframe.cpp:949) -- Stufe 1b Punkt 9
-    - [ ] ITEM Layers Browser -> `ToggleLayersBrowser`  (radiant/mainframe.cpp:950)
+    - [x] ITEM Layers Browser -> `ToggleLayersBrowser`  (radiant/mainframe.cpp:950)
     - [~] ITEM &Surface Inspector -> `SurfaceInspector`  (radiant/mainframe.cpp:951) -- Stufe 2
     - [x] ITEM Entity List -> `ToggleEntityList`  (radiant/mainframe.cpp:952) -- Stufe 1b Punkt 9
     * ---
@@ -201,7 +201,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
       - [x] CHECK Show Entity &Angles -> `ShowAngles`  (radiant/mainframe.cpp:1007) -- Stufe 1b Punkt 5
       - [x] CHECK Show Entity &Names -> `ShowNames`  (radiant/mainframe.cpp:1008) -- Stufe 1b Punkt 5
       - [x] CHECK Show Light Radiuses -> `ShowLightRadiuses`  (radiant/mainframe.cpp:1009)
-      - [ ] CHECK Show Entity Boxes -> `ShowBboxes`  (radiant/mainframe.cpp:1010)
+      - [x] CHECK Show Entity Boxes -> `ShowBboxes`  (radiant/mainframe.cpp:1010)
       - [x] CHECK Show Entity Connections -> `ShowConnections`  (radiant/mainframe.cpp:1011) -- Stufe 1b Punkt 5
       * ---
       - [x] CHECK Show 2D Size Info -> `ShowSize2d`  (radiant/mainframe.cpp:1015) -- Stufe 1b Punkt 5
@@ -284,7 +284,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     - [~] ITEM Find brush... -> `FindBrush`  (radiant/mainframe.cpp:1173) -- Stufe 2
     - [~] ITEM Map Info... -> `MapInfo`  (radiant/mainframe.cpp:1174) -- Stufe 2
     - [~] ITEM &Refresh models -> `RefreshReferences`  (radiant/mainframe.cpp:1175) -- Stufe 2
-    - [ ] ITEM Set 2D &Background image...  (radiant/mainframe.cpp:1176)
+    - [~] ITEM Set 2D &Background image...  (radiant/mainframe.cpp:1176) -- Stufe 2 (ausgegraut, Tooltip nennt die Stufe)
     - [~] ITEM Fullscreen -> `Fullscreen`  (radiant/mainframe.cpp:1177) -- Stufe 2
     - [x] ITEM Maximize view -> `MaximizeView`  (radiant/mainframe.cpp:1178)
 
@@ -303,9 +303,9 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 ### create_help_menu (radiant/mainframe.cpp)
 
   * SUB &Help  (radiant/mainframe.cpp:1210)
-    - [ ] ITEM Bug report  (radiant/mainframe.cpp:1220)
+    - [~] ITEM Bug report  (radiant/mainframe.cpp:1220) -- Stufe 2 (ausgegraut, Tooltip nennt die Stufe)
     - [~] ITEM Check for NetRadiant update -> `CheckForUpdate`  (radiant/mainframe.cpp:1221) -- Stufe 3
-    - [ ] ITEM &About  (radiant/mainframe.cpp:1222)
+    - [~] ITEM &About  (radiant/mainframe.cpp:1222) -- Stufe 2 (ausgegraut, Tooltip nennt die Stufe)
 
 ### Maximize_View (radiant/mainframe.cpp)
 
@@ -313,7 +313,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### MRU_constructMenu (radiant/mru.cpp)
 
-  - [ ] ITEM &1  (radiant/mru.cpp:197)
+  - [x] ITEM &1  (radiant/mru.cpp:197) -- Eintrag 1 im Selbsttest angeklickt; 2-9 derselbe Weg
   - [ ] ITEM &2  (radiant/mru.cpp:202)
   - [ ] ITEM &3  (radiant/mru.cpp:207)
   - [ ] ITEM &4  (radiant/mru.cpp:212)
@@ -759,7 +759,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `PatchXactCone` | Commands | - | (radiant/patchmanip.cpp:703) -- Stufe 2
 - [~] `PatchXactCylinder` | Commands | - | (radiant/patchmanip.cpp:701) -- Stufe 2
 - [~] `PatchXactSphere` | Commands | - | (radiant/patchmanip.cpp:702) -- Stufe 2
-- [ ] `Preferences` | Commands | P | (radiant/mainframe.cpp:2076)
+- [x] `Preferences` | Commands | P | (radiant/mainframe.cpp:2076)
 - [~] `PrevLeakSpot` | Commands | Ctrl+Shift+L | (radiant/points.cpp:322) -- Stufe 3
 - [~] `prtview::AboutPortalViewer` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3
 - [~] `prtview::ConfigurePortalViewer` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3
@@ -819,7 +819,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `ShowAllTextures` | Commands | Ctrl+A | (radiant/texwindow.cpp:2102)
 - [x] `ShowAngles` | Toggles | - | (radiant/xywindow.cpp:2218) -- Stufe 1b Punkt 5
 - [x] `ShowAxes` | Toggles | - | (radiant/xywindow.cpp:2225) -- Stufe 1b Punkt 5
-- [ ] `ShowBboxes` | Toggles | - | (radiant/xywindow.cpp:2220)
+- [x] `ShowBboxes` | Toggles | - | (radiant/xywindow.cpp:2220)
 - [x] `ShowBlocks` | Toggles | - | (radiant/xywindow.cpp:2222) -- Stufe 1b Punkt 5
 - [x] `ShowConnections` | Toggles | - | (radiant/xywindow.cpp:2221) -- Stufe 1b Punkt 5
 - [x] `ShowCoordinates` | Toggles | - | (radiant/xywindow.cpp:2223) -- Stufe 1b Punkt 5
@@ -871,9 +871,9 @@ Name | Art | Standardtaste | Quelle
 - [x] `ToggleEntityList` | Commands | Shift+L | (radiant/mainframe.cpp:2082) -- Stufe 1b Punkt 9
 - [x] `ToggleFrontView` | Toggles | - | (radiant/xywindow.cpp:2269)
 - [x] `ToggleGrid` | Toggles | 0 | (radiant/xywindow.cpp:2216) -- Stufe 1b Punkt 5
-- [ ] `ToggleGridSnap` | Commands | - | (radiant/grid.cpp:187)
-- [ ] `ToggleLayersBrowser` | Commands | L | (radiant/mainframe.cpp:2081)
-- [ ] `ToggleModelBrowser` | Commands | / | (radiant/mainframe.cpp:2080)
+- [x] `ToggleGridSnap` | Commands | - | (radiant/grid.cpp:187)
+- [x] `ToggleLayersBrowser` | Commands | L | (radiant/mainframe.cpp:2081)
+- [x] `ToggleModelBrowser` | Commands | / | (radiant/mainframe.cpp:2080)
 - [~] `TogglePointfile` | Commands | - | (radiant/points.cpp:320) -- Stufe 3
 - [x] `ToggleShowShaderlistOnly` | Toggles | - | (radiant/texwindow.cpp:2106)
 - [x] `ToggleShowShaders` | Toggles | - | (radiant/texwindow.cpp:2104)
@@ -933,7 +933,7 @@ Name | Art | Standardtaste | Quelle
 - [ ] "Cap"  (radiant/patchmanip.cpp:949)
 - [ ] "Patch thicken"  (radiant/patchmanip.cpp:994)
 - [ ] "Global Preferences"  (radiant/preferences.cpp:271)
-- [ ] "NetRadiant Preferences"  (radiant/preferences.cpp:584)
+- [x] "NetRadiant Preferences"  (radiant/preferences.cpp:584) -- Rahmen, Baum, alle 23 Seiten (12 noch Platzhalter, siehe Einstellungsseiten)
 - [ ] "Arbitrary rotation"  (radiant/select.cpp:1589)
 - [ ] "Arbitrary scale"  (radiant/select.cpp:1681)
 - [ ] "Surface Inspector"  (radiant/surfacedialog.cpp:637)

@@ -28503,6 +28503,61 @@ std::vector<Schritt> karteneditorAlleBefehleSchritte() {
                e.raster.potenz() == v->raster.potenz() && modi && !e.einstellungenOffen && !e.tastenDialogOffen &&
                !e.findenOffen && !e.ent.listeOffen && !e.frageOffen && GImGui->OpenPopupStack.Size == 0;
     }));
+    // Punkt 14: die Wirkung der Befehle, die oben nur "ausgefuehrt" hiessen
+    // und in der Checkliste noch offen standen.
+    add(pruefe("ShowBboxes schaltet die Kaesten um (Haken folgt), zweimal: wie vorher", [] {
+        ke::Editor& e = ke::editor();
+        const bool vorher = e.anzeige.kaesten;
+        (void)ke::ausfuehren("ShowBboxes");
+        const bool um = e.anzeige.kaesten != vorher && ke::angehakt("ShowBboxes") == e.anzeige.kaesten;
+        (void)ke::ausfuehren("ShowBboxes");
+        return um && e.anzeige.kaesten == vorher;
+    }));
+    add(pruefe("ToggleGridSnap schaltet das Einrasten um, zweimal: wie vorher", [] {
+        ke::Editor& e = ke::editor();
+        const bool vorher = e.raster.einrasten();
+        (void)ke::ausfuehren("ToggleGridSnap");
+        const bool um = e.raster.einrasten() != vorher;
+        (void)ke::ausfuehren("ToggleGridSnap");
+        return um && e.raster.einrasten() == vorher;
+    }));
+    add(pruefe("NextView (XY_NextView): XY -> XZ -> YZ -> XY in der aktiven 2D-Ansicht", [] {
+        ke::Editor& e = ke::editor();
+        const auto typ = [&e] { return e.xy[static_cast<std::size_t>(e.aktivXy)].ansicht.typ; };
+        const karte::Sicht vorher = typ();
+        (void)ke::ausfuehren("NextView");
+        const karte::Sicht eins = typ();
+        (void)ke::ausfuehren("NextView");
+        (void)ke::ausfuehren("NextView");
+        return eins == karte::naechsteSicht(vorher) && eins != vorher && typ() == vorher;
+    }));
+    add(pruefe("ToggleModelBrowser / ToggleLayersBrowser: Gruppendialog auf Models / Layers, nochmal: zu", [] {
+        ke::Editor& e = ke::editor();
+        e.gruppenDialogOffen = false;
+        e.gruppenSeite = 0;
+        (void)ke::ausfuehren("ToggleModelBrowser");
+        const bool models = e.gruppenDialogOffen && e.gruppenSeite == 3;
+        (void)ke::ausfuehren("ToggleModelBrowser");
+        const bool zu1 = !e.gruppenDialogOffen;
+        (void)ke::ausfuehren("ToggleLayersBrowser");
+        const bool layers = e.gruppenDialogOffen && e.gruppenSeite == 4;
+        (void)ke::ausfuehren("ToggleLayersBrowser");
+        const bool zu2 = !e.gruppenDialogOffen;
+        e.gruppenSeite = 0;
+        return models && zu1 && layers && zu2;
+    }));
+    add(pruefe("ToggleTextures: Gruppendialog auf (Floating/Split/eingebaut: Seite Textures)", [] {
+        ke::Editor& e = ke::editor();
+        using karte::befehle::Anordnung;
+        const bool seite = e.anordnung == Anordnung::Floating || e.anordnung == Anordnung::Split || e.gruppenDialogEingebaut;
+        e.gruppenDialogOffen = false;
+        e.gruppenSeite = 0;
+        (void)ke::ausfuehren("ToggleTextures");
+        const bool auf = e.gruppenDialogOffen && (seite ? e.gruppenSeite == 2 : e.gruppenSeite == 0);
+        e.gruppenDialogOffen = false;
+        e.gruppenSeite = 0;
+        return auf;
+    }));
     return s;
 }
 
