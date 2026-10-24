@@ -22,6 +22,7 @@
 #include "tokenizer.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cctype>
 #include <filesystem>
 #include <fstream>
@@ -664,6 +665,33 @@ Texturinventar::BildMass Texturinventar::bildMass(const std::string& shader) con
     std::lock_guard<std::mutex> l(m_sperre);
     m_groessen[shader] = m;
     return m;
+}
+
+std::array<unsigned char, 256> gammaTabelle(float gamma) {
+    std::array<unsigned char, 256> t{};
+    if (gamma == 1) {
+        for (int i = 0; i < 256; ++i) { t[static_cast<std::size_t>(i)] = static_cast<unsigned char>(i); }
+    } else {
+        for (int i = 0; i < 256; ++i) {
+            const int v = static_cast<int>(255 * std::pow((i + 0.5) / 255.5, gamma) + 0.5);
+            t[static_cast<std::size_t>(i)] = static_cast<unsigned char>(std::clamp(v, 0, 255));
+        }
+    }
+    return t;
+}
+
+int mipBasis(int mipStufe, int breite, int hoehe) {
+    return std::min(mipStufe, static_cast<int>(std::log2(static_cast<float>(std::max(breite, hoehe)))));
+}
+
+int texturModusAusListe(int index) {
+    static const int modi[6] = {0, 1, 3, 2, 4, 5};   // NEAREST, NEAREST_MIPMAP_NEAREST, LINEAR, NEAREST_MIPMAP_LINEAR, ...
+    return index >= 0 && index < 6 ? modi[index] : 5;
+}
+
+int texturModusZuListe(int modus) {
+    static const int liste[6] = {0, 1, 3, 2, 4, 5};
+    return modus >= 0 && modus < 6 ? liste[modus] : 4;   // default: importer( 4 )
 }
 
 }  // namespace bhed::karte

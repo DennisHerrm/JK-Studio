@@ -952,7 +952,7 @@ Name | Art | Standardtaste | Quelle
 - [x] Patches: "Patch Display Preferences"  (radiant/patchmanip.cpp:676) -- Stufe 2 Punkt 6
 - [x] Selection: "Selection System Settings"  (radiant/selection.cpp:2328)
 - [x] Surface Inspector: "Surface Inspector Preferences"  (radiant/surfacedialog.cpp:1738) -- Stufe 2 Punkt 7
-- [ ] Textures: "Texture Settings"  (radiant/textures.cpp:831)
+- [x] Textures: "Texture Settings"  (radiant/textures.cpp:831) -- Stufe 2 Punkt 7
 - [x] Texture Browser: "Texture Browser Preferences"  (radiant/texwindow.cpp:2075)
 - [ ] Undo: "Undo Queue Settings"  (radiant/undo.cpp:403)
 - [ ] Build: "Build Preferences"  (radiant/watchbsp.cpp:243)
@@ -1013,10 +1013,10 @@ Name | Art | Standardtaste | Quelle
 - [x] CheckBox Create brushes in 3D  (radiant/selection.cpp:2316)
 - [x] Combo Move style in 3D  (radiant/selection.cpp:2319)
 - [x] CheckBox Surface Inspector Increments Match Grid  (radiant/surfacedialog.cpp:1735) -- Stufe 2 Punkt 7
-- [ ] Radio Texture Quality  (radiant/textures.cpp:764)
-- [ ] Spinner Texture Gamma  (radiant/textures.cpp:771)
-- [ ] Combo Texture Render Mode  (radiant/textures.cpp:780)
-- [ ] Combo Hardware Texture Compression  (radiant/textures.cpp:818)
+- [x] Radio Texture Quality  (radiant/textures.cpp:764) -- Stufe 2 Punkt 7
+- [x] Spinner Texture Gamma  (radiant/textures.cpp:771) -- Stufe 2 Punkt 7
+- [x] Combo Texture Render Mode  (radiant/textures.cpp:780) -- Stufe 2 Punkt 7
+- [x] Combo Hardware Texture Compression  (radiant/textures.cpp:818) -- Stufe 2 Punkt 7
 - [ ] CheckBox Anisotropy  (radiant/textures.cpp:826)
 - [x] CheckBox Texture scrollbar  (radiant/texwindow.cpp:2045)
 - [x] Combo Texture Thumbnail Scale  (radiant/texwindow.cpp:2052)

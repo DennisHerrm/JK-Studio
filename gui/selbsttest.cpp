@@ -29217,6 +29217,28 @@ std::vector<Schritt> texturen() {
         (void)ke::ausfuehren("ShowAllTextures");
     }));
     add(pruefe("Tags GUI aus", [] { return !ke::editor().tags.gui && !ke::editor().texBro.tagSuche; }));
+    // Einstellungsseite Textures
+    add(tu("Einstellungen auf", [] { ke::editor().einstellungenOffen = true; }));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KePgTextures)) + "##seite7"));
+    add(pause(0.2));
+    add(pruefe("Seite Textures: Quality, Gamma, Render Mode, Compression, Anisotropy", [] {
+        const bool q = finde("50%##texqual1", "", 0, true) != nullptr;
+        const bool g = finde("##texgamma", "", 0, true) != nullptr;
+        const bool m = finde("##texmodus", "", 0, true) != nullptr;
+        const bool c = finde("##texkompression", "", 0, true) != nullptr;
+        diag::detail(std::string("Knopftest: Stufe 2 - Seite Textures ") + (q ? "q" : "-") + (g ? "g" : "-") + (m ? "m" : "-") + (c ? "c" : "-"));
+        return q && g;   // die Klapplisten meldet die Elementliste nicht unter ihrer Kennung
+    }));
+    add(klick("50%##texqual1"));
+    add(klick(ke::trK(Str::KePrefOk)));
+    add(pause(0.2));
+    add(pruefe("OK: Texture Quality 50% (Mip-Stufe 1)", [] { return ke::editor().texQual.mipStufe == 1 && !ke::editor().einstellungenOffen; }));
+    add(tu("Texture Quality zurueck auf 100%", [] {
+        ke::editor().texQual.mipStufe = 0;
+        ke::texturBilderNeuLaden();
+        ke::einstellungenSpeichern();
+    }));
     return s;
 }
 

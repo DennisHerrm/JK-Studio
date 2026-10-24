@@ -11,6 +11,7 @@
 #include "bhed/karte/pinsel.h"
 #include "bhed/karte/texdef.h"
 #include "bhed/karte/texturbefehle.h"
+#include "bhed/karte/texturen.h"
 
 #include <cmath>
 #include <cstdio>
@@ -140,6 +141,19 @@ void patches() {
     pruefe(nah(patch->punkt(0, 2).texcoord[0], 2) && nah(patch->punkt(2, 0).texcoord[1], 3), "Fit 2 3 am Patch: SetTextureRepeat");
 }
 
+// Textures_constructPreferences: ResampleGamma, GL_TEXTURE_BASE_LEVEL, TextureModeImport
+void qualitaet() {
+    const auto eins = gammaTabelle(1.0F);
+    bool identisch = true;
+    for (int i = 0; i < 256; ++i) { identisch = identisch && eins[static_cast<std::size_t>(i)] == i; }
+    pruefe(identisch, "ResampleGamma 1: Identitaet");
+    const auto zwei = gammaTabelle(2.0F);   // 255 * ((128.5 / 255.5)^2) + 0.5 = 65.0
+    pruefe(zwei[128] == 65 && zwei[0] == 0 && zwei[255] == 255, "ResampleGamma 2: 128 -> 65 (" + std::to_string(zwei[128]) + ")");
+    pruefe(mipBasis(2, 256, 128) == 2 && mipBasis(3, 4, 4) == 2 && mipBasis(0, 64, 64) == 0, "GL_TEXTURE_BASE_LEVEL = min( Stufe, log2( max ) )");
+    pruefe(texturModusAusListe(2) == 3 && texturModusAusListe(3) == 2 && texturModusZuListe(3) == 2 && texturModusZuListe(5) == 5,
+           "TextureModeImport/Export: Linear = eTextures_LINEAR (3), Bilinear = NEAREST_MIPMAP_LINEAR (2)");
+}
+
 }  // namespace
 
 int main() {
@@ -147,6 +161,7 @@ int main() {
     inspektor();
     projektion();
     patches();
+    qualitaet();
     std::printf("kartetexturbefehle: %d Fehlschlaege\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

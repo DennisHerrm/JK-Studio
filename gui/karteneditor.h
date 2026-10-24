@@ -468,6 +468,15 @@ struct Editor {
     bool siOffen = false;
     karte::SiWerte siWerte;   // g_si_globals
     TagZustand tags;          // Tags des Texturbrowsers (app_karte_tags.cpp)
+    // Textures_constructPreferences (textures.cpp:761-829)
+    struct TexturQualitaet {
+        int mipStufe = 0;          // g_Textures_mipLevel ("Texture Quality")
+        float gamma = 1.0F;        // g_texture_globals.fGamma
+        int modus = 5;             // g_texture_mode (ETexturesMode)
+        int kompression = 0;       // m_nTextureCompressionFormat (D3D11: keine)
+        bool anisotropie = true;   // g_TextureAnisotropy
+    } texQual;
+    bool abtasterGesetzt = false;
     // qt_MessageBox als Klappfenster
     struct Meldung {
         bool offen = false;

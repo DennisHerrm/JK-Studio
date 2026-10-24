@@ -975,6 +975,13 @@ void einstellungenLaden() {
     ed.siWerte.drehung = zahl("SI_SurfaceTexdef_Rotate", 45.0F);
     ed.siWerte.rasterAnpassen = zahl("SnapTToGrid", 0) != 0.0F;
     ed.tags.gui = zahl("TagsShowGui", 0) != 0.0F;   // TextureBrowser_Construct (texwindow.cpp:2133)
+    // Textures_Construct (textures.cpp:848-852)
+    ed.texQual.mipStufe = std::clamp(static_cast<int>(zahl("TextureMipLevel", 0)), 0, 3);
+    ed.texQual.gamma = zahl("SI_Gamma", 1.0F);
+    ed.texQual.modus = std::clamp(static_cast<int>(zahl("TextureFiltering", 5)), 0, 5);
+    ed.texQual.anisotropie = zahl("TextureAnisotropy", 1) != 0.0F;
+    ed.texQual.kompression = 0;
+    ed.abtasterGesetzt = false;
     // MainFrame/m_hSplit usw. (SplitterSetting::save: die Groessen), als
     // "a,b" in logischen Punkten; anderes (alte Anteile) gilt als nicht gemerkt.
     const auto groessen = [&](const char* n) {
@@ -1109,6 +1116,11 @@ void einstellungenSpeichern() {
     k["SI_SurfaceTexdef_Rotate"] = karte::zahlText(ed.siWerte.drehung);
     k["SnapTToGrid"] = ed.siWerte.rasterAnpassen ? "1" : "0";
     k["TagsShowGui"] = ed.tags.gui ? "1" : "0";
+    k["TextureMipLevel"] = std::to_string(ed.texQual.mipStufe);
+    k["SI_Gamma"] = karte::zahlText(ed.texQual.gamma);
+    k["TextureFiltering"] = std::to_string(ed.texQual.modus);
+    k["TextureAnisotropy"] = ed.texQual.anisotropie ? "1" : "0";
+    k["TextureCompressionFormat"] = std::to_string(ed.texQual.kompression);
     const auto liste = [](const std::vector<int>& v) {
         std::string s;
         for (const int i : v) { s += (s.empty() ? "" : ",") + std::to_string(i); }

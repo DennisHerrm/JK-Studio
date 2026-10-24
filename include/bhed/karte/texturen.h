@@ -37,6 +37,7 @@
 #include "bhed/karte/protokoll.h"
 #include "bhed/pk3.h"
 
+#include <array>
 #include <cstddef>
 #include <map>
 #include <memory>
@@ -170,6 +171,17 @@ private:
 bool texturNameIgnorieren(const std::string& name);
 // shader_valid (shaderlib.h:46-55): kein Leerraum, kein Rueckstrich, nur ASCII.
 bool shaderGueltig(const std::string& s);
+
+// ResampleGamma (textures.cpp:143-155): die Gammatabelle der Texturen
+[[nodiscard]] std::array<unsigned char, 256> gammaTabelle(float gamma);
+// LoadTextureRGBA (textures.cpp:206): GL_TEXTURE_BASE_LEVEL =
+// min( g_Textures_mipLevel, (int)log2( max( w, h ) ) )
+[[nodiscard]] int mipBasis(int mipStufe, int breite, int hoehe);
+// ETexturesMode (textures.cpp:44-52) und die Reihenfolge der Klappliste
+// (TextureModeImport/Export: Nearest, Nearest Mipmap, Linear, Bilinear,
+// Bilinear Mipmap, Trilinear)
+[[nodiscard]] int texturModusAusListe(int index);
+[[nodiscard]] int texturModusZuListe(int modus);
 
 }  // namespace bhed::karte
 #endif

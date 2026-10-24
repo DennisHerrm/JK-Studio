@@ -214,6 +214,15 @@ public:
     // Fertige Bilder auf die Grafikkarte (nur im Hauptfaden).
     void abholen() {
         pruefen();
+        {   // SetTexParameters / SetTexAnisotropy nach den Einstellungen (auch nach einem neuen Geraet)
+            Editor& ed = e();
+            static std::size_t geraet = static_cast<std::size_t>(-1);
+            if (!ed.abtasterGesetzt || geraet != kartegpu::geraetStand()) {
+                kartegpu::abtasterSetzen(ed.texQual.modus, ed.texQual.anisotropie);
+                ed.abtasterGesetzt = true;
+                geraet = kartegpu::geraetStand();
+            }
+        }
         std::vector<Ergebnis> fertig;
         {
             std::lock_guard<std::mutex> l(m_sperre);
@@ -225,7 +234,17 @@ public:
             if (it == m_bilder.end()) { continue; }
             Bild& b = it->second;
             b.farbe = r.farbe;
-            if (r.bild.ok) { b.srv = kartegpu::bildAnlegen(r.bild.rgba.data(), r.bild.width, r.bild.height); }
+            if (r.bild.ok) {   // LoadTextureRGBA: Gamma der Einstellung, GL_TEXTURE_BASE_LEVEL
+                const Editor& ed = e();
+                if (ed.texQual.gamma != 1.0F) {
+                    const auto tabelle = karte::gammaTabelle(ed.texQual.gamma);
+                    auto& p = r.bild.rgba;
+                    for (std::size_t i = 0; i + 3 < p.size(); i += 4) {
+                        for (std::size_t j = 0; j < 3; ++j) { p[i + j] = tabelle[p[i + j]]; }
+                    }
+                }
+                b.srv = kartegpu::bildAnlegen(r.bild.rgba.data(), r.bild.width, r.bild.height, ed.texQual.mipStufe);
+            }
             if (r.himmelGroesse > 0) {
                 const unsigned char* s[6];
                 for (int i = 0; i < 6; ++i) { s[i] = r.seiten[static_cast<std::size_t>(i)].data(); }

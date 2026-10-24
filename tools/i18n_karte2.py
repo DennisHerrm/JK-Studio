@@ -102,6 +102,19 @@ KARTE2 = [
     # --- Texturbrowser: Reiter (texwindow.cpp:1297, 1870) -----------------------------
     ("KeTagTabTextures", "Textures", "Texturen", "纹理", "テクスチャ"),
     ("KeTagTabTags", "Tags", "Schlagwörter", "标签", "タグ"),
+    # --- Einstellungsseite Textures (textures.cpp:761-829) ---------------------------
+    ("KePrTexQuality", "Texture Quality", "Texturqualität", "纹理质量", "テクスチャ品質"),
+    ("KePrTexGamma", "Texture Gamma", "Textur-Gamma", "纹理伽马", "テクスチャのガンマ"),
+    ("KePrTexMode", "Texture Render Mode", "Textur-Darstellung", "纹理渲染模式", "テクスチャの描画モード"),
+    ("KePrTexCompression", "Hardware Texture Compression", "Hardware-Texturkompression", "硬件纹理压缩", "ハードウェアテクスチャ圧縮"),
+    ("KePrTexAnisotropy", "Anisotropy", "Anisotropie", "各向异性", "異方性"),
+    ("KePrTexNearest", "Nearest", "Nächster", "最近点", "ニアレスト"),
+    ("KePrTexNearestMip", "Nearest Mipmap", "Nächster Mipmap", "最近点 Mipmap", "ニアレスト ミップマップ"),
+    ("KePrTexLinear", "Linear", "Linear", "线性", "リニア"),
+    ("KePrTexBilinear", "Bilinear", "Bilinear", "双线性", "バイリニア"),
+    ("KePrTexBilinearMip", "Bilinear Mipmap", "Bilinear Mipmap", "双线性 Mipmap", "バイリニア ミップマップ"),
+    ("KePrTexTrilinear", "Trilinear", "Trilinear", "三线性", "トライリニア"),
+    ("KePrTexNone", "None", "Keine", "无", "なし"),
     # --- Einstellungsseite Patches (patchmanip.cpp:670-677) --------------------------
     ("KePrPatchThreshold", "Patch Subdivide Threshold", "Patch-Unterteilungsschwelle", "面片细分阈值", "パッチ分割しきい値"),
 ]

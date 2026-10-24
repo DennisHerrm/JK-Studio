@@ -21,6 +21,7 @@
 #include "karteneditor.h"
 
 #include "app_internal.h"
+#include "karte_gpu.h"
 #include "platform.h"
 #include "tastatur.h"
 
@@ -61,6 +62,7 @@ const Seite kSeiten[] = {
 };
 constexpr int kSeiteInterface = 4;
 constexpr int kSeiteLayout = 5;
+constexpr int kSeiteTexturen = 7;
 constexpr int kSeitePatches = 8;
 constexpr int kSeiteEntities = 9;
 constexpr int kSeiteAuswahl = 12;
@@ -93,6 +95,7 @@ struct Entwurf {
     int clipperDoppelklick = 1;
     int patchSchwelle = 4;   // g_PatchSubdivideThreshold
     bool siRaster = false;   // g_si_globals.m_bSnapTToGrid
+    Editor::TexturQualitaet texQual;
 };
 Entwurf g_entwurf;
 
@@ -427,6 +430,48 @@ void patchSeite() {
     feldEnde();
 }
 
+// Textures_constructPreferences (textures.cpp:761-829; Foto pref_Textures.png):
+// appendRadio "Texture Quality" (RadioHBox in der Feldspalte), appendSpinner
+// "Texture Gamma" 0..5, appendCombo "Texture Render Mode", appendCombo
+// "Hardware Texture Compression" (D3D11 meldet weder OpenGL- noch S3TC-
+// Kompression: nur "None", wie NRC ohne die Erweiterungen), Checkbox
+// "Anisotropy".
+void texturenSeite() {
+    Editor::TexturQualitaet& q = g_entwurf.texQual;
+    formAnfang({Str::KePrTexQuality, Str::KePrTexGamma, Str::KePrTexMode, Str::KePrTexCompression});
+    formZeile(Str::KePrTexQuality, kHakenZeile);
+    {
+        static const char* const prozent[4] = {"100%", "50%", "25%", "12.5%"};
+        float summe = 0.0F;
+        for (const char* p : prozent) { summe += 14.0F + 10.0F + static_cast<float>(labelBreite(p)); }
+        summe += 18.0F;
+        const float rest = std::max(0.0F, static_cast<float>(g_form.b1) - summe) / 4.0F;
+        float x = static_cast<float>(g_form.x1);
+        for (int i = 0; i < 4; ++i) {
+            radioKnopf((std::string(prozent[i]) + "##texqual" + std::to_string(i)).c_str(), q.mipStufe, i, x, static_cast<float>(kHakenZeile));
+            x += 24.0F + static_cast<float>(labelBreite(prozent[i])) + rest + 6.0F;
+        }
+    }
+    formWeiter(kHakenZeile);
+    feldAnfang(Str::KePrTexGamma);
+    ImGui::InputFloat("##texgamma", &q.gamma, 0.1F, 1.0F, "%.2f");
+    q.gamma = std::clamp(q.gamma, 0.0F, 5.0F);
+    feldEnde();
+    feldAnfang(Str::KePrTexMode);
+    const char* modi[6] = {trK(Str::KePrTexNearest), trK(Str::KePrTexNearestMip), trK(Str::KePrTexLinear), trK(Str::KePrTexBilinear),
+                           trK(Str::KePrTexBilinearMip), trK(Str::KePrTexTrilinear)};
+    int index = karte::texturModusZuListe(q.modus);
+    if (ImGui::Combo("##texmodus", &index, modi, 6)) { q.modus = karte::texturModusAusListe(index); }
+    feldEnde();
+    feldAnfang(Str::KePrTexCompression);
+    const char* keine[1] = {trK(Str::KePrTexNone)};
+    int k = 0;
+    (void)ImGui::Combo("##texkompression", &k, keine, 1);
+    q.kompression = 0;
+    feldEnde();
+    (void)haken(Str::Count, trK(Str::KePrTexAnisotropy), q.anisotropie);
+}
+
 // SurfaceInspector_constructPreferences (surfacedialog.cpp:1734-1736): eine Checkbox
 void surfaceSeite() {
     formAnfang({});
@@ -477,6 +522,7 @@ void zeichneEinstellungen() {
         g_entwurf.zielnamen = ed.ent.zielnamen;
         g_entwurf.patchSchwelle = karte::patchUnterteilungSchwelle();
         g_entwurf.siRaster = ed.siWerte.rasterAnpassen;
+        g_entwurf.texQual = ed.texQual;
         g_entwurf.clipperCaulk = ed.bearbeitung.clipperCaulk;
         g_entwurf.clipperUmdrehen = ed.bearbeitung.clipperUmdrehenZuruecksetzen;
         g_entwurf.clipperPunkte = ed.bearbeitung.clipperPunkteZuruecksetzen;
@@ -554,6 +600,8 @@ void zeichneEinstellungen() {
             texBroSeite();
         } else if (g_entwurf.seite == kSeiteEntities) {
             entitaetenSeite();
+        } else if (g_entwurf.seite == kSeiteTexturen) {
+            texturenSeite();
         } else if (g_entwurf.seite == kSeiteSurface) {
             surfaceSeite();
         } else if (g_entwurf.seite == kSeitePatches) {
@@ -617,6 +665,14 @@ void zeichneEinstellungen() {
             ed.ent.zielnamen = g_entwurf.zielnamen;
             karte::setzePatchUnterteilungSchwelle(g_entwurf.patchSchwelle);
             ed.siWerte.rasterAnpassen = g_entwurf.siRaster;
+            {   // TextureMiplevelImport / TextureGammaImport: unrealise + realise; Textures_SetMode
+                const Editor::TexturQualitaet alt = ed.texQual;
+                ed.texQual = g_entwurf.texQual;
+                if (alt.mipStufe != ed.texQual.mipStufe || alt.gamma != ed.texQual.gamma) { texturBilderNeuLaden(); }
+                if (alt.modus != ed.texQual.modus || alt.anisotropie != ed.texQual.anisotropie) {
+                    kartegpu::abtasterSetzen(ed.texQual.modus, ed.texQual.anisotropie);
+                }
+            }
             ed.bearbeitung.clipperCaulk = g_entwurf.clipperCaulk;
             ed.bearbeitung.clipperUmdrehenZuruecksetzen = g_entwurf.clipperUmdrehen;
             ed.bearbeitung.clipperPunkteZuruecksetzen = g_entwurf.clipperPunkte;

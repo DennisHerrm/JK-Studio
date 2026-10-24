@@ -4,6 +4,8 @@
 // Linienliste, breite Linien (glLineWidth 2) ueber einen Geometrie-Shader.
 #include "karte_gpu.h"
 
+#include "bhed/karte/texturen.h"
+
 #include "backend.h"
 
 #include "imgui.h"
@@ -1023,7 +1025,7 @@ void ohneMischen(void* dl) {
         nullptr);
 }
 
-void* bildAnlegen(const unsigned char* rgba, int breite, int hoehe) {
+void* bildAnlegen(const unsigned char* rgba, int breite, int hoehe, int mipStufe) {
     if (!bereit() || rgba == nullptr || breite <= 0 || hoehe <= 0) { return nullptr; }
     ID3D11Device* d = geraet();
     // GL_GENERATE_MIPMAP: alle Stufen aus der ersten
@@ -1040,11 +1042,50 @@ void* bildAnlegen(const unsigned char* rgba, int breite, int hoehe) {
     ID3D11Texture2D* tex = nullptr;
     if (FAILED(d->CreateTexture2D(&td, nullptr, &tex))) { return nullptr; }
     kontext()->UpdateSubresource(tex, 0, nullptr, rgba, static_cast<UINT>(breite) * 4U, 0);
+    ID3D11ShaderResourceView* voll = nullptr;   // fuer GenerateMips alle Stufen
+    d->CreateShaderResourceView(tex, nullptr, &voll);
+    if (voll != nullptr) { kontext()->GenerateMips(voll); }
+    const int basis = karte::mipBasis(mipStufe, breite, hoehe);
+    if (basis <= 0 || voll == nullptr) {
+        tex->Release();
+        return voll;
+    }
+    voll->Release();
+    D3D11_SHADER_RESOURCE_VIEW_DESC sv{};   // GL_TEXTURE_BASE_LEVEL
+    sv.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    sv.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    sv.Texture2D.MostDetailedMip = static_cast<UINT>(basis);
+    sv.Texture2D.MipLevels = static_cast<UINT>(-1);
     ID3D11ShaderResourceView* srv = nullptr;
-    d->CreateShaderResourceView(tex, nullptr, &srv);
+    d->CreateShaderResourceView(tex, &sv, &srv);
     tex->Release();
-    if (srv != nullptr) { kontext()->GenerateMips(srv); }
     return srv;
+}
+
+void abtasterSetzen(int modus, bool anisotropie) {
+    if (!bereit()) { return; }
+    D3D11_SAMPLER_DESC sd{};
+    sd.AddressU = sd.AddressV = sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    sd.MaxAnisotropy = 1;
+    sd.MaxLOD = D3D11_FLOAT32_MAX;
+    sd.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    switch (modus) {
+    case 0: sd.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT; sd.MaxLOD = 0; break;           // GL_NEAREST
+    case 1: sd.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT; break;                          // GL_NEAREST_MIPMAP_NEAREST
+    case 2: sd.Filter = D3D11_FILTER_MIN_MAG_POINT_MIP_LINEAR; break;                   // GL_NEAREST_MIPMAP_LINEAR
+    case 3: sd.Filter = D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT; sd.MaxLOD = 0; break;    // GL_LINEAR
+    case 4: sd.Filter = D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT; break;                   // GL_LINEAR_MIPMAP_NEAREST
+    default: sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR; break;                        // GL_LINEAR_MIPMAP_LINEAR
+    }
+    if (anisotropie && modus == 5) {   // GL_TEXTURE_MAX_ANISOTROPY_EXT = maxAniso (D3D11: nur mit Trilinear)
+        sd.Filter = D3D11_FILTER_ANISOTROPIC;
+        sd.MaxAnisotropy = 16;
+    }
+    ID3D11SamplerState* neu = nullptr;
+    if (SUCCEEDED(geraet()->CreateSamplerState(&sd, &neu)) && neu != nullptr) {
+        if (g.abtaster != nullptr) { g.abtaster->Release(); }
+        g.abtaster = neu;
+    }
 }
 
 void* wuerfelAnlegen(const unsigned char* const seiten[6], int groesse) {
