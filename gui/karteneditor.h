@@ -93,6 +93,7 @@ enum class MeldungArt { Info, Warnung, Frage, Fehler };
 
 struct Spielkontext {
     int spiel = 0;                  // kRegelwerkOpenJK / MovieDuels / JediOutcast
+    std::string modus = "sp";       // gamemode_get beim Laden (Mapping mode)
     std::string name;               // "OpenJK (ja)" usw. fuer Meldungen
     std::vector<std::string> ordner;   // Suchpfad, Mod zuerst (QE_InitVFS)
     karte::Dateisystem fs;
@@ -375,6 +376,18 @@ struct Editor {
     std::shared_ptr<Spielkontext> spiel;   // fertig geladen
     std::future<std::shared_ptr<Spielkontext>> spielLaden;
     int spielStand = -1;                   // fuer welches Regelwerk geladen
+    std::string spielKennung;              // Spiel, Suchordner und Modus des geladenen (EnginePath_Realise)
+    // Seiten Global > Game, Game, Paths (Stufe 2, Punkt 11b)
+    std::string spielDatei;                // CGameDialog::m_sGameFile ("gamefile"); leer = nach dem Regelwerk
+    std::string spielDateiNeu;             // m_sGameFile.m_latched: gilt nach dem Neustart
+    std::vector<std::string> neustartFragen;   // g_restart_required
+    bool spielFrage = false;               // m_bGamePrompt ("gamePrompt", Startup / Show Global Preferences)
+    bool spielFrageGezeigt = false;        // CGameDialog::Init: nur beim Start
+    bool globaleEinstellungenOffen = false;   // CGameDialog::DoGameDialog ("Global Preferences")
+    std::string spielName;                 // g_gamename ("GameName" = fs_game); leer = basegame
+    std::string spielModus = "sp";         // g_gamemode ("GameMode")
+    std::string enginePfad;                // g_strEnginePath ("EnginePath"); leer = aus den Spielordnern des Programms
+    std::array<std::string, 5> zusatzPfade;   // g_strExtraResourcePaths ("ExtraResourcePath0".."4")
 
     // --- Rueckfrage "Karte geaendert" (ConfirmModified, qe3.cpp:128) ---
     bool frageOffen = false;
@@ -1019,6 +1032,15 @@ void letzteKarteBeimStart();   // main.cpp:462 (g_bLoadLastMap)
 [[nodiscard]] std::string einstellungsFeld(const std::string& id);   // Selbsttest: Text eines Feldes der Einstellungen
 [[nodiscard]] const karte::SpielBeschreibung& kartenSpiel();   // g_pGameDescription
 [[nodiscard]] std::string kartenFsGame();                       // gamename_get
+[[nodiscard]] int kartenSpielNummer();                          // kRegelwerk* des Editors (gamefile, sonst Regelwerk)
+[[nodiscard]] std::string enginePfadAnzeige();                  // EnginePath_get (leer: aus den Spielordnern)
+[[nodiscard]] std::vector<std::string> kartenVfsOrdner();       // QE_InitVFS
+// Engine Path, Extra Resource Paths, fs_game oder Mapping mode geaendert:
+// EnginePath_Unrealise / Realise - das Spiel neu laden, die Karte aus der Datei
+// (MapEntityClasses). Fragt vorher wie ConfirmModified, wenn die Karte geaendert ist.
+void spielNeuRealisieren(const char* titel, std::function<void()> aendern);
+void radiantNeustart();                                         // Radiant_Restart (Select the game)
+void zeichneGlobaleEinstellungen();                             // CGameDialog "Global Preferences"
 void beimBeenden();            // main.cpp:476 (g_strLastMap)
 // OpenMap (map.cpp:1841) mit Dateiwahl; karteOeffnen ohne Dialog (fuer
 // Kommandozeile, zuletzt geoeffnet und den Selbsttest).

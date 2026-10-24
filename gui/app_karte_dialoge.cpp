@@ -62,6 +62,9 @@ const Seite kSeiten[] = {
     {Str::KePgAutosave, Str::KePgAutosaveT, 1},
 };
 constexpr int kSeiteGlobal = 0;
+constexpr int kSeiteGlobalGame = 1;
+constexpr int kSeiteGame = 2;
+constexpr int kSeitePaths = 3;
 constexpr int kSeiteDisplay = 6;
 constexpr int kSeiteSettings = 10;
 constexpr int kSeiteUndo = 11;
@@ -134,6 +137,15 @@ struct Entwurf {
     char bauEngineMp[260] = "";
     char bauArgumenteMp[260] = "";
     char regionShader[260] = "";
+    // Punkt 11b: CGameDialog::CreateGlobalFrame, Game_constructPreferences, Paths_constructPage
+    int spielWahl = 0;              // m_nComboSelect ("Select the game")
+    bool spielFrage = false;        // m_bGamePrompt
+    int modWahl = 0;                // s_gameCombo.game_select
+    char fsGame[128] = "";          // s_gameCombo.fsgame_entry (editierbar)
+    bool fsGameAktiv = false;       // setEnabled( gamecombo.sensitive )
+    int modusWahl = 0;              // Mapping mode: 0 sp, 1 mp
+    char enginePfad[512] = "";      // g_strEnginePath
+    char zusatzPfade[5][512] = {};  // g_strExtraResourcePaths
 };
 Entwurf g_entwurf;
 
@@ -257,6 +269,41 @@ bool haken(Str beschriftung, const char* text, bool& wert, bool aktiv = true) {
     return geaendert;
 }
 
+// QSpinBoxPrivate::calculateAdaptiveDecimalStep (Qt 5.15 qspinbox.cpp): auch
+// die ganzzahligen Spinner der Seiten stehen auf AdaptiveDecimalStepType
+// (Dialog::addSpinner, dialog.cpp:533-539) - unter 100 Schritt 1, sonst eine
+// Zehnerpotenz unter dem Wert.
+int ganzSchritt(int wert, int schritte) {
+    const int betrag = std::abs(wert);
+    if (betrag < 100) { return 1; }
+    const int ausgleich = ((wert < 0) == (schritte < 0)) ? 0 : 1;
+    const int lg = static_cast<int>(std::log10(static_cast<double>(betrag - ausgleich))) - 1;
+    return static_cast<int>(std::pow(10.0, lg));
+}
+
+// SpinBox (appendSpinner mit int): Feld mit den Pfeilen der adaptiven Schritte
+bool ganzSpinner(const char* id, int& wert, int von, int bis) {
+    const ImGuiStyle& st = ImGui::GetStyle();
+    const float knopf = ImGui::GetFrameHeight();
+    const float gesamt = ImGui::CalcItemWidth();
+    bool geaendert = false;
+    ImGui::PushID(id);
+    ImGui::SetNextItemWidth(std::max(1.0F, gesamt - 2.0F * (knopf + st.ItemInnerSpacing.x)));
+    geaendert = ImGui::InputInt(id, &wert, 0, 0);
+    for (const int r : {-1, 1}) {
+        ImGui::SameLine(0.0F, st.ItemInnerSpacing.x);
+        ImGui::PushItemFlag(ImGuiItemFlags_ButtonRepeat, true);
+        if (ImGui::Button(r < 0 ? "-" : "+", ImVec2{knopf, knopf})) {
+            wert += r * ganzSchritt(wert, r);
+            geaendert = true;
+        }
+        ImGui::PopItemFlag();
+    }
+    ImGui::PopID();
+    wert = std::clamp(wert, von, bis);
+    return geaendert;
+}
+
 void layoutSeite() {
     // Layout_constructPreferences (mainframe.cpp): appendRadioIcons "Window
     // Layout" (vier Bilder, darunter Radioknoepfe ohne Text; ein Untergitter,
@@ -313,8 +360,7 @@ void kameraSeite() {
                 Str::KePrCamRenderMode, Str::KePrCamMsaa, Str::KePrCamStrafeMode, Str::KePrCamFov});
     const auto ganz = [&](Str text, int& wert, int von, int bis) {
         feldAnfang(text);
-        ImGui::InputInt((std::string("##") + trK(text)).c_str(), &wert);
-        wert = std::clamp(wert, von, bis);
+        (void)ganzSpinner((std::string("##") + trK(text)).c_str(), wert, von, bis);
         feldEnde();
     };
     const auto komma = [&](Str text, float& wert, float von, float bis, const char* format) {
@@ -365,8 +411,7 @@ void kameraSeite() {
 void auswahlSeite() {
     formAnfang({Str::KePrSelSize, Str::KePrSelMoveStyle});
     feldAnfang(Str::KePrSelSize);
-    ImGui::InputInt("##waehlergroesse", &g_entwurf.waehlEpsilon);
-    g_entwurf.waehlEpsilon = std::clamp(g_entwurf.waehlEpsilon, 2, 64);
+    (void)ganzSpinner("##waehlergroesse", g_entwurf.waehlEpsilon, 2, 64);
     feldEnde();
     (void)haken(Str::Count, trK(Str::KePrSelPreferPoint), g_entwurf.punktEntitaeten2d);
     (void)haken(Str::Count, trK(Str::KePrSel3dBrushes), g_entwurf.pinselIn3d);
@@ -390,16 +435,13 @@ void texBroSeite() {
     if (ImGui::Combo("##texskala", &index, skalen, 5)) { t.skala = karte::texturSkalaAusIndex(index); }
     feldEnde();
     feldAnfang(Str::KePrTbMax);
-    ImGui::InputInt("##texmax", &t.einheitsGroesse);
-    t.einheitsGroesse = std::clamp(t.einheitsGroesse, 16, 8192);
+    (void)ganzSpinner("##texmax", t.einheitsGroesse, 16, 8192);
     feldEnde();
     feldAnfang(Str::KePrTbMin);
-    ImGui::InputInt("##texmin", &t.einheitsMin);
-    t.einheitsMin = std::clamp(t.einheitsMin, 16, 8192);
+    (void)ganzSpinner("##texmin", t.einheitsMin, 16, 8192);
     feldEnde();
     feldAnfang(Str::KePrTbWheel);
-    ImGui::InputInt("##texrad", &t.radSchritt);
-    t.radSchritt = std::clamp(t.radSchritt, 0, 8192);
+    (void)ganzSpinner("##texrad", t.radSchritt, 0, 8192);
     feldEnde();
     feldAnfang(Str::KePrTbStartup);
     const char* start[2] = {trK(Str::KePrTbNone), "System"};   // TextureBrowser_getCommonShadersName
@@ -415,12 +457,10 @@ void texBroSeite() {
 void entitaetenSeite() {
     formAnfang({Str::KePrEnDist, Str::KePrEnRatio, Str::KePrEnNames});
     feldAnfang(Str::KePrEnDist);
-    ImGui::InputInt("##namenabstand", &g_entwurf.namenAbstand);
-    g_entwurf.namenAbstand = std::clamp(g_entwurf.namenAbstand, 0, 200500);
+    (void)ganzSpinner("##namenabstand", g_entwurf.namenAbstand, 0, 200500);
     feldEnde();
     feldAnfang(Str::KePrEnRatio);
-    ImGui::InputInt("##namenverhaeltnis", &g_entwurf.namenVerhaeltnis);
-    g_entwurf.namenVerhaeltnis = std::clamp(g_entwurf.namenVerhaeltnis, 0, 100500);
+    (void)ganzSpinner("##namenverhaeltnis", g_entwurf.namenVerhaeltnis, 0, 100500);
     feldEnde();
     (void)haken(Str::KePrEnNames, trK(Str::KePrEnTargetnames), g_entwurf.zielnamen);
 }
@@ -463,8 +503,7 @@ void clipperSeite() {
 void patchSeite() {
     formAnfang({Str::KePrPatchThreshold});
     feldAnfang(Str::KePrPatchThreshold);
-    ImGui::InputInt("##patchschwelle", &g_entwurf.patchSchwelle);
-    g_entwurf.patchSchwelle = std::clamp(g_entwurf.patchSchwelle, 0, 128);
+    (void)ganzSpinner("##patchschwelle", g_entwurf.patchSchwelle, 0, 128);
     feldEnde();
 }
 
@@ -515,8 +554,7 @@ void texturenSeite() {
 void modBroSeite() {
     formAnfang({Str::KePrModViewSize, Str::KePrModFolders});
     feldAnfang(Str::KePrModViewSize);
-    ImGui::InputInt("##modzelle", &g_entwurf.modZelle);
-    g_entwurf.modZelle = std::clamp(g_entwurf.modZelle, 16, 8192);
+    (void)ganzSpinner("##modzelle", g_entwurf.modZelle, 16, 8192);
     feldEnde();
     feldAnfang(Str::KePrModFolders);
     ImGui::InputText("##modordner", g_entwurf.modOrdner, sizeof(g_entwurf.modOrdner));
@@ -532,9 +570,8 @@ void autosaveSeite() {
     (void)haken(Str::Count, (std::string(trK(Str::KePrAutosaveEnable)) + "##autosavean").c_str(), g_entwurf.autosaveAn);
     feldAnfang(Str::KePrAutosaveFreq);
     if (!g_entwurf.autosaveAn) { ImGui::BeginDisabled(); }
-    ImGui::InputInt("##autosaveminuten", &g_entwurf.autosaveMinuten);
+    (void)ganzSpinner("##autosaveminuten", g_entwurf.autosaveMinuten, 1, 60);
     if (!g_entwurf.autosaveAn) { ImGui::EndDisabled(); }
-    g_entwurf.autosaveMinuten = std::clamp(g_entwurf.autosaveMinuten, 1, 60);
     feldEnde();
     (void)haken(Str::Count, (std::string(trK(Str::KePrAutosaveSnapshots)) + "##schnappschuesse").c_str(), g_entwurf.schnappschuesse);
 }
@@ -594,6 +631,121 @@ bool kommaSpinner(const char* id, float& wert, float von, float bis, int stellen
     return geaendert;
 }
 
+// PathEntry_new (gtkutil/dialog.cpp:49-53): QLineEdit mit der Aktion
+// "ellipsis.png" am Ende; button_clicked_entry_browse_directory waehlt einen Ordner.
+void pfadEintrag(Str text, const char* id, char* puffer, std::size_t groesse) {
+    feldAnfang(text);
+    const float knopf = ImGui::GetFrameHeight();
+    const float gesamt = px(static_cast<float>(g_form.b1));
+    // Die Aktion liegt im Rahmen des QLineEdit: das Textfeld endet vor ihr, der
+    // Knopf hat den Feldhintergrund. QLineEdit::setText setzt den Cursor ans
+    // Ende - ohne Fokus ist das Ende eines langen Pfads zu sehen.
+    const bool aktiv = ImGui::GetActiveID() == ImGui::GetID(id);
+    if (!aktiv) { ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{0, 0, 0, 0}); }
+    ImGui::SetNextItemWidth(gesamt - knopf);
+    ImGui::InputText(id, puffer, groesse);
+    if (!aktiv) { ImGui::PopStyleColor(); }
+    const ImVec2 anfang = ImGui::GetItemRectMin();
+    const ImVec2 ende = ImGui::GetItemRectMax();
+    if (!aktiv) {
+        const ImGuiStyle& st = ImGui::GetStyle();
+        const float platz = ende.x - anfang.x - 2.0F * st.FramePadding.x;
+        const float breite = ImGui::CalcTextSize(puffer).x;
+        const float x = breite > platz ? ende.x - st.FramePadding.x - breite : anfang.x + st.FramePadding.x;
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        dl->PushClipRect(ImVec2{anfang.x + st.FramePadding.x, anfang.y}, ImVec2{ende.x - st.FramePadding.x, ende.y}, true);
+        dl->AddText(ImVec2{x, anfang.y + st.FramePadding.y}, ImGui::GetColorU32(ImGuiCol_Text), puffer);
+        dl->PopClipRect();
+    }
+    ImGui::SetCursorScreenPos(ImVec2{ende.x, anfang.y});
+    ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::GetStyleColorVec4(ImGuiCol_FrameBgHovered));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImGui::GetStyleColorVec4(ImGuiCol_FrameBgActive));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0F);
+    if (ImGui::Button((std::string("...") + id + "knopf").c_str(), ImVec2{knopf, ende.y - anfang.y})) {   // ellipsis.png
+        const std::string neu = platform::pickFolder(trK(text), puffer);
+        if (!neu.empty()) { std::snprintf(puffer, groesse, "%s", neu.c_str()); }
+    }
+    ImGui::PopStyleVar();
+    ImGui::PopStyleColor(3);
+    feldEnde();
+}
+
+// CGameDialog::CreateGlobalFrame (preferences.cpp:252-268; Foto pref_Global_Game.png):
+// appendCombo "Select the game" (die name-Attribute), appendCheckBox "Startup".
+void globalGameSeite() {
+    formAnfang({Str::KePrSelectGame, Str::KePrStartup});
+    feldAnfang(Str::KePrSelectGame);
+    std::vector<const char*> namen;
+    for (const karte::SpielBeschreibung& b : karte::spielBeschreibungen()) { namen.push_back(b.name); }
+    (void)klappe("##spielwahl", &g_entwurf.spielWahl, namen.data(), static_cast<int>(namen.size()));
+    feldEnde();
+    (void)haken(Str::KePrStartup, (std::string(trK(Str::KePrShowGlobal)) + "##spielfrage").c_str(), g_entwurf.spielFrage);
+}
+
+// Game_constructPreferences (gtkdlgs.cpp:226-271; Foto pref_Game.png): "Select mod",
+// "fs_game" (editierbar, die Ordner im Engine-Pfad), "Mapping mode" (show_gamemode).
+void gameSeite() {
+    Entwurf& w = g_entwurf;
+    const karte::SpielBeschreibung& sb = kartenSpiel();
+    formAnfang({Str::KePrSelectMod, Str::KePrFsGame, Str::KePrMappingMode});
+    feldAnfang(Str::KePrSelectMod);
+    const std::vector<std::string> mods = karte::modNamen(sb);
+    std::vector<const char*> modZeiger;
+    for (const std::string& m : mods) { modZeiger.push_back(m.c_str()); }
+    if (klappe("##modwahl", &w.modWahl, modZeiger.data(), static_cast<int>(modZeiger.size()))) {
+        // currentTextChanged: gamecombo_for_gamename
+        const karte::SpielAuswahl a = karte::spielAuswahlFuerName(sb, mods[static_cast<std::size_t>(w.modWahl)]);
+        std::snprintf(w.fsGame, sizeof(w.fsGame), "%s", a.fsGame.c_str());
+        w.fsGameAktiv = a.bearbeitbar;
+    }
+    feldEnde();
+    feldAnfang(Str::KePrFsGame);
+    {
+        const float knopf = ImGui::GetFrameHeight();
+        const float gesamt = px(static_cast<float>(g_form.b1));
+        if (!w.fsGameAktiv) { ImGui::BeginDisabled(); }
+        ImGui::SetNextItemWidth(gesamt - knopf);
+        ImGui::InputText("##fsgame", w.fsGame, sizeof(w.fsGame));
+        ImGui::SameLine(0.0F, 0.0F);
+        if (ImGui::ArrowButton("##fsgameliste", ImGuiDir_Down)) { ImGui::OpenPopup("##fsgameordner"); }
+        if (ImGui::BeginPopup("##fsgameordner")) {
+            // for( entry : directory_iterator( EnginePath_get() ) ) if( is_directory ) addItem
+            std::error_code ec;
+            const std::string engine = enginePfadAnzeige();
+            for (const auto& d : std::filesystem::directory_iterator(std::filesystem::path(std::u8string(
+                                                                         reinterpret_cast<const char8_t*>(engine.data()), engine.size())),
+                                                                     std::filesystem::directory_options::skip_permission_denied, ec)) {
+                std::error_code ec2;
+                if (!d.is_directory(ec2)) { continue; }
+                const std::u8string n = d.path().filename().u8string();
+                const std::string name(n.begin(), n.end());
+                if (ImGui::Selectable((name + "##fsgame" + name).c_str())) { std::snprintf(w.fsGame, sizeof(w.fsGame), "%s", name.c_str()); }
+            }
+            ImGui::EndPopup();
+        }
+        if (!w.fsGameAktiv) { ImGui::EndDisabled(); }
+    }
+    feldEnde();
+    if (sb.spielModusZeigen) {   // globalMappingMode().do_mapping_mode
+        feldAnfang(Str::KePrMappingMode);
+        const char* modi[2] = {trK(Str::KePrSpMode), trK(Str::KePrMpMode)};
+        (void)klappe("##spielmodus", &w.modusWahl, modi, 2);
+        feldEnde();
+    }
+}
+
+// Paths_constructPreferences / Paths_constructPage (mainframe.cpp:396-411; Foto
+// pref_Paths.png): appendPathEntry "Engine Path", fuenfmal "Extra Resource Path".
+void pathsSeite() {
+    formAnfang({Str::KePrEnginePath, Str::KePrExtraPath});
+    pfadEintrag(Str::KePrEnginePath, "##enginepfad", g_entwurf.enginePfad, sizeof(g_entwurf.enginePfad));
+    for (int i = 0; i < 5; ++i) {
+        const std::string id = "##zusatzpfad" + std::to_string(i);
+        pfadEintrag(Str::KePrExtraPath, id.c_str(), g_entwurf.zusatzPfade[i], sizeof(g_entwurf.zusatzPfade[i]));
+    }
+}
+
 // Nudge_constructPreferences (select.cpp:1920-1922) und Map_constructPreferences
 // (map.cpp:2369-2371) auf der Seite "Settings" (Foto pref_Settings.png).
 void settingsSeite() {
@@ -606,8 +758,7 @@ void settingsSeite() {
 void undoSeite() {
     formAnfang({Str::KePrUndoSize});
     feldAnfang(Str::KePrUndoSize);
-    ImGui::InputInt("##undostufen", &g_entwurf.undoStufen);
-    g_entwurf.undoStufen = std::clamp(g_entwurf.undoStufen, 0, 4096);
+    (void)ganzSpinner("##undostufen", g_entwurf.undoStufen, 0, 4096);
     feldEnde();
 }
 
@@ -714,6 +865,94 @@ void baumPfeil(ImDrawList* dl, float zeileY) {
 
 }  // namespace
 
+// CGameDialog::BuildDialog (preferences.cpp:271-295): "Global Preferences", feste
+// Groesse (SetFixedSize), QGroupBox "Game settings" mit dem Gitter 111 : 333 und
+// CreateGlobalFrame, darunter QDialogButtonBox mit OK. Kein Foto - die Lagen aus
+// den Qt-Massen der Einstellungen (Rand 11, Abstand 6, Rahmen ab 17, Inhalt ab
+// 28, innen 12) und den sizeHints (QComboBox: Text + 30, QCheckBox: 14 + 5 + Text).
+void zeichneGlobaleEinstellungen() {
+    Editor& ed = editor();
+    static bool offen = false;
+    static int wahl = 0;
+    static bool frage = false;
+    if (!ed.globaleEinstellungenOffen) {
+        offen = false;
+        return;
+    }
+    if (!offen) {
+        offen = true;
+        frage = ed.spielFrage;
+        wahl = 0;
+        const auto& alle = karte::spielBeschreibungen();
+        for (std::size_t i = 0; i < alle.size(); ++i) {
+            if (std::string(alle[i].datei) == kartenSpiel().datei) { wahl = static_cast<int>(i); }
+        }
+    }
+    const float sk = massstab();
+    g_sk = sk;
+    int b0 = std::max(labelBreite(trK(Str::KePrSelectGame)), labelBreite(trK(Str::KePrStartup)));
+    int b1 = 14 + 5 + labelBreite(trK(Str::KePrShowGlobal));
+    for (const karte::SpielBeschreibung& b : karte::spielBeschreibungen()) { b1 = std::max(b1, labelBreite(b.name) + 30); }
+    const int gruppeB = kInhaltRand + b0 + kAbstand + b1 + kInhaltRand;
+    const int gruppeH = kInhaltOben + kFeldH + kAbstand + kHakenZeile + kInhaltRand;
+    const int innenB = kRand + gruppeB + kRand;
+    const int innenH = kRand + gruppeH + kAbstand + kKnopfH + kRand;
+    const float titelH = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F;
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowSize(ImVec2{px(static_cast<float>(innenB)), px(static_cast<float>(innenH)) + titelH}, ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2{vp->WorkPos.x + vp->WorkSize.x * 0.5F, vp->WorkPos.y + vp->WorkSize.y * 0.5F}, ImGuiCond_Appearing,
+                            ImVec2{0.5F, 0.5F});
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
+    const bool sichtbar = ImGui::Begin((std::string(trK(Str::KeGlobalPrefsTitle)) + "###karteglobal").c_str(), nullptr,
+                                       ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
+                                           ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::PopStyleVar();
+    if (sichtbar) {
+        g_innen = ImGui::GetCursorScreenPos();
+        dialogSchriftAn();
+        ImDrawList* fl = ImGui::GetWindowDrawList();
+        fl->AddText(bp(static_cast<float>(kRand + kTitelX), static_cast<float>(kRand)), ImGui::GetColorU32(ImGuiCol_Text), trK(Str::KeGameSettingsGroup));
+        fl->AddRect(bp(static_cast<float>(kRand), static_cast<float>(kRand + kRahmenOben)),
+                    bp(static_cast<float>(kRand + gruppeB), static_cast<float>(kRand + gruppeH)), ImGui::GetColorU32(ImGuiCol_Border),
+                    ImGui::GetStyle().FrameRounding);
+        Form f;
+        f.x0 = kRand + kInhaltRand;
+        f.b0 = b0;
+        f.x1 = f.x0 + b0 + kAbstand;
+        f.b1 = b1;
+        f.y = kRand + kInhaltOben;
+        g_form = f;
+        feldAnfang(Str::KePrSelectGame);
+        std::vector<const char*> namen;
+        for (const karte::SpielBeschreibung& b : karte::spielBeschreibungen()) { namen.push_back(b.name); }
+        (void)klappe("##globalspielwahl", &wahl, namen.data(), static_cast<int>(namen.size()));
+        feldEnde();
+        (void)haken(Str::KePrStartup, (std::string(trK(Str::KePrShowGlobal)) + "##globalspielfrage").c_str(), frage);
+        const float knopfH = px(static_cast<float>(kKnopfH));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, std::max(0.0F, (knopfH - ImGui::GetTextLineHeight()) * 0.5F)});
+        ImGui::SetCursorScreenPos(bp(static_cast<float>(innenB - kRand - kKnopfB), static_cast<float>(innenH - kRand - kKnopfH)));
+        if (ImGui::Button((std::string(trK(Str::KePrefOk)) + "##globalok").c_str(), ImVec2{px(static_cast<float>(kKnopfB)), knopfH})) {
+            // GameFileAssign (global = true): sofort, kein Neustart; DoGameDialog -> SavePrefs
+            ed.globaleEinstellungenOffen = false;
+            ed.spielFrage = frage;
+            const std::string neu = karte::spielBeschreibungen()[static_cast<std::size_t>(wahl)].datei;
+            einstellungenSpeichern();
+            if (neu != kartenSpiel().datei) {
+                spielNeuRealisieren("Global Preferences", [neu] {
+                    editor().spielDatei = neu;
+                    editor().spielDateiNeu.clear();
+                    einstellungenSpeichern();
+                });
+            }
+        }
+        ImGui::PopStyleVar();
+        dialogSchriftAus();
+        ImGui::SetCursorScreenPos(bp(0.0F, static_cast<float>(innenH)));
+        ImGui::Dummy(ImVec2{0.0F, 0.0F});
+    }
+    ImGui::End();
+}
+
 // Fuer den Selbsttest: der Text eines Feldes im offenen Einstellungsdialog
 std::string einstellungsFeld(const std::string& id) {
     if (id == "bauengine") { return g_entwurf.bauEngine; }
@@ -721,6 +960,10 @@ std::string einstellungsFeld(const std::string& id) {
     if (id == "bauenginemp") { return g_entwurf.bauEngineMp; }
     if (id == "bauargumentemp") { return g_entwurf.bauArgumenteMp; }
     if (id == "regionshader") { return g_entwurf.regionShader; }
+    if (id == "fsgame") { return g_entwurf.fsGame; }
+    if (id == "fsgameaktiv") { return g_entwurf.fsGameAktiv ? "1" : "0"; }
+    if (id == "enginepfad") { return g_entwurf.enginePfad; }
+    if (id == "undostufen") { return std::to_string(g_entwurf.undoStufen); }
     return {};
 }
 
@@ -776,6 +1019,26 @@ void zeichneEinstellungen() {
             std::snprintf(g_entwurf.bauArgumenteMp, sizeof(g_entwurf.bauArgumenteMp), "%s", ed.bau.argumenteMp.mitVorgabe(args).c_str());
         }
         std::snprintf(g_entwurf.regionShader, sizeof(g_entwurf.regionShader), "%s", ed.regionKastenShader.c_str());
+        {   // GameFileExport: m_sGameFile.m_latched
+            const std::string datei = !ed.spielDateiNeu.empty() ? ed.spielDateiNeu : std::string(kartenSpiel().datei);
+            const auto& alle = karte::spielBeschreibungen();
+            g_entwurf.spielWahl = 0;
+            for (std::size_t i = 0; i < alle.size(); ++i) {
+                if (datei == alle[i].datei) { g_entwurf.spielWahl = static_cast<int>(i); }
+            }
+        }
+        g_entwurf.spielFrage = ed.spielFrage;
+        {   // GameExport: gamecombo_for_dir( gamename_get() )
+            const karte::SpielAuswahl a = karte::spielAuswahlFuerOrdner(kartenSpiel(), kartenFsGame());
+            g_entwurf.modWahl = a.spiel;
+            std::snprintf(g_entwurf.fsGame, sizeof(g_entwurf.fsGame), "%s", a.fsGame.c_str());
+            g_entwurf.fsGameAktiv = a.bearbeitbar;
+        }
+        g_entwurf.modusWahl = ed.spielModus == "mp" ? 1 : 0;   // GameModeExport
+        std::snprintf(g_entwurf.enginePfad, sizeof(g_entwurf.enginePfad), "%s", enginePfadAnzeige().c_str());
+        for (std::size_t i = 0; i < 5; ++i) {
+            std::snprintf(g_entwurf.zusatzPfade[i], sizeof(g_entwurf.zusatzPfade[i]), "%s", ed.zusatzPfade[i].c_str());
+        }
     }
     if (!ed.einstellungenOffen) {
         g_entwurf.offen = false;
@@ -862,6 +1125,12 @@ void zeichneEinstellungen() {
             modBroSeite();
         } else if (g_entwurf.seite == kSeiteSettings) {
             settingsSeite();
+        } else if (g_entwurf.seite == kSeiteGlobalGame) {
+            globalGameSeite();
+        } else if (g_entwurf.seite == kSeiteGame) {
+            gameSeite();
+        } else if (g_entwurf.seite == kSeitePaths) {
+            pathsSeite();
         } else if (g_entwurf.seite == kSeiteUndo) {
             undoSeite();
         } else if (g_entwurf.seite == kSeiteBrush) {
@@ -982,6 +1251,42 @@ void zeichneEinstellungen() {
                 ed.bau = b;
             }
             ed.regionKastenShader = g_entwurf.regionShader;
+            ed.spielFrage = g_entwurf.spielFrage;
+            {   // GameFileImport: LatchedValue - wirkt erst nach dem Neustart
+                const std::string neu = karte::spielBeschreibungen()[static_cast<std::size_t>(g_entwurf.spielWahl)].datei;
+                if (neu != kartenSpiel().datei || !ed.spielDateiNeu.empty()) {
+                    ed.spielDateiNeu = neu == kartenSpiel().datei ? std::string() : neu;
+                    if (!ed.spielDateiNeu.empty()) { ed.neustartFragen.emplace_back("Selected Game"); }   // m_sGameFile( "", "Selected Game" ): restartRequired
+                }
+            }
+            {   // GameImport, GameModeImport, setEnginePath (EnginePath_Unrealise / Realise)
+                const karte::SpielBeschreibung& sb = kartenSpiel();
+                const std::string fs = g_entwurf.fsGame[0] == '\0' ? std::string(sb.basisSpiel) : std::string(g_entwurf.fsGame);
+                const std::string modus = g_entwurf.modusWahl != 0 ? "mp" : "sp";
+                const std::string engine = karte::ordnerBereinigt(g_entwurf.enginePfad);
+                std::array<std::string, 5> zusatz;
+                for (std::size_t i = 0; i < 5; ++i) { zusatz[i] = karte::ordnerBereinigt(g_entwurf.zusatzPfade[i]); }
+                const auto gleich = [](const std::string& a, const std::string& b) {   // path_equal
+                    return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(), [](char x, char y) {
+                               return std::tolower(static_cast<unsigned char>(x)) == std::tolower(static_cast<unsigned char>(y));
+                           });
+                };
+                const bool fsNeu = !gleich(fs, kartenFsGame());
+                const bool modusNeu = modus != ed.spielModus;
+                const bool engineNeu = !gleich(engine, enginePfadAnzeige());
+                bool zusatzNeu = false;
+                for (std::size_t i = 0; i < 5; ++i) { zusatzNeu = zusatzNeu || !gleich(zusatz[i], ed.zusatzPfade[i]); }
+                if (fsNeu || modusNeu || engineNeu || zusatzNeu) {
+                    spielNeuRealisieren("Edit Project Settings", [=] {
+                        Editor& e2 = editor();
+                        if (fsNeu) { e2.spielName = fs; }               // gamename_set
+                        if (modusNeu) { e2.spielModus = modus; }        // gamemode_set
+                        if (engineNeu) { e2.enginePfad = engine; }      // setEnginePath
+                        if (zusatzNeu) { e2.zusatzPfade = zusatz; }
+                        einstellungenSpeichern();
+                    });
+                }
+            }
             ed.maximiert = false;
             einstellungenSpeichern();
             offen = false;

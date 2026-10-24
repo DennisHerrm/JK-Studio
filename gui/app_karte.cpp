@@ -81,18 +81,19 @@ std::string defOrdner(int spiel) {
     return directoryOf(g_app->dataDir) + (spiel == kRegelwerkJediOutcast ? "/karte/jk2" : "/karte/ja");
 }
 
-std::shared_ptr<Spielkontext> spielLadenJetzt(int spiel, std::vector<std::string> ordner, std::string defs) {
+std::shared_ptr<Spielkontext> spielLadenJetzt(int spiel, std::vector<std::string> ordner, std::string defs, std::string modus) {
     const auto t0 = std::chrono::steady_clock::now();
     auto k = std::make_shared<Spielkontext>();
     k->spiel = spiel;
+    k->modus = modus;
     k->name = spielName(spiel);
     k->ordner = std::move(ordner);
-    for (const std::string& o : k->ordner) { k->fs.ordnerHinzufuegen(o, "sp"); }
+    for (const std::string& o : k->ordner) { k->fs.ordnerHinzufuegen(o, modus); }
     // Shaders_Load: shaderlist.txt aus den Archiven, sonst alle Shader
     // ("No shaderlist.txt found: loading all shaders"). NRCs
     // default_shaderlist.txt stammt aus dem Gamepack und kommt nicht mit.
     k->inventar.laden(k->fs);
-    (void)k->klassen.ordnerLaden(defs, "sp");
+    (void)k->klassen.ordnerLaden(defs, modus);
     if (spiel == kRegelwerkMovieDuels) { (void)k->klassen.entdefsErgaenzen(); }
     k->meldungen = k->inventar.meldungen();
     // Die Konsole wie NRC beim Start: QE_InitVFS (vfs directory, pak file),
@@ -298,7 +299,7 @@ void entitaetenKlassenNeuLaden() {
         Spielkontext& s = *e.karteSpiel;
         s.klassen.leeren();
         s.klassen.protokoll.clear();
-        (void)s.klassen.ordnerLaden(defOrdner(s.spiel), "sp");
+        (void)s.klassen.ordnerLaden(defOrdner(s.spiel), s.modus);
         if (s.spiel == kRegelwerkMovieDuels) { (void)s.klassen.entdefsErgaenzen(); }
         konsoleProtokoll(s.klassen.protokoll);   // EntityClassQuake3_Construct (realise)
     }
@@ -349,9 +350,14 @@ void spielPruefen() {
         e.spielLaden.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
         spielUebernehmen(e.spielLaden.get());
     }
-    const int spiel = regelwerkSpielErmitteln();
-    if (spiel == e.spielStand) { return; }
+    const int spiel = kartenSpielNummer();
+    // EnginePath_Realise / gamemode_set: neu laden, wenn sich Spiel, Suchordner oder Modus aendern
+    const std::vector<std::string> ordner = kartenVfsOrdner();
+    std::string kennung = std::to_string(spiel) + "|" + e.spielModus;
+    for (const std::string& o : ordner) { kennung += "|" + o; }
+    if (kennung == e.spielKennung) { return; }
     if (e.spielLaden.valid()) { return; }   // erst das laufende fertig laden
+    e.spielKennung = kennung;
     e.spielStand = spiel;
     // Brush_Construct (brushmodule.cpp:166-182): default_scale aus ja.game/jk2.game
     // (0.25 statt des Grundwerts 0.5), dann die gemerkte "TexdefDefaultScale".
@@ -364,7 +370,7 @@ void spielPruefen() {
     }
     karte::setzeStandardTexturSkalierung(skala);
     diag::detail("Karten-Editor: lade " + spielName(spiel));
-    e.spielLaden = std::async(std::launch::async, spielLadenJetzt, spiel, suchpfade(spiel), defOrdner(spiel));
+    e.spielLaden = std::async(std::launch::async, spielLadenJetzt, spiel, ordner, defOrdner(spiel), e.spielModus);
 }
 
 bool spielBereit() { return g().spiel != nullptr && !g().spielLaden.valid(); }
@@ -426,14 +432,93 @@ bool karteOeffnen(const std::string& pfad) {
     return ok;
 }
 
+// Das Spiel des Editors: "gamefile" aus Global > Game, sonst nach dem Regelwerk
+// (CGameDialog::Init: m_sGameFile; Movie Duels ist Jedi Academy mit eigenen Ordnern).
+int kartenSpielNummer() {
+    const int regel = regelwerkSpielErmitteln();
+    const std::string& d = g().spielDatei;
+    if (d == "jk2.game") { return kRegelwerkJediOutcast; }
+    if (d == "ja.game") { return regel == kRegelwerkJediOutcast ? kRegelwerkOpenJK : regel; }
+    return regel;
+}
+
 // g_pGameDescription: ja.game bzw. jk2.game zum Spiel des Editors
 const karte::SpielBeschreibung& kartenSpiel() {
-    const int spiel = g().spielStand >= 0 ? g().spielStand : regelwerkSpielErmitteln();
-    return karte::spielBeschreibung(spiel == kRegelwerkJediOutcast ? "jk2.game" : "ja.game");
+    return karte::spielBeschreibung(kartenSpielNummer() == kRegelwerkJediOutcast ? "jk2.game" : "ja.game");
 }
 
 // gamename_get: der Ordner des Spiels (basegame, solange keine Mod gewaehlt ist)
-std::string kartenFsGame() { return kartenSpiel().basisSpiel; }
+std::string kartenFsGame() { return g().spielName.empty() ? std::string(kartenSpiel().basisSpiel) : g().spielName; }
+
+// EnginePath_get: der gesetzte Pfad, sonst der Ordner ueber dem ersten
+// Spielordner des Programms (der Engine-Pfad, unter dem basegame liegt).
+std::string enginePfadAnzeige() {
+    if (!g().enginePfad.empty()) { return g().enginePfad; }
+    const std::vector<std::string> prog = suchpfade(kartenSpielNummer());
+    if (prog.empty()) { return {}; }
+    const fs::path p = utf8Pfad(karte::ordnerBereinigt(prog.front()));
+    const std::u8string u = p.parent_path().parent_path().u8string();
+    return karte::ordnerBereinigt(std::string(u.begin(), u.end()));
+}
+
+// QE_InitVFS (qe3.cpp:68-102): die zusaetzlichen Pfade, <Engine><fs_game>/,
+// <Engine><basegame>/. Ohne gesetzten Engine-Pfad stehen statt
+// <Engine><basegame>/ die Spielordner des Programms (Movie Duels vor base).
+std::vector<std::string> kartenVfsOrdner() {
+    const Editor& e = g();
+    const karte::SpielBeschreibung& sb = kartenSpiel();
+    std::vector<std::string> zusatz;
+    for (const std::string& p : e.zusatzPfade) {
+        if (!p.empty()) { zusatz.push_back(p); }
+    }
+    if (!e.enginePfad.empty()) { return karte::vfsOrdner(e.enginePfad, kartenFsGame(), sb.basisSpiel, zusatz); }
+    std::vector<std::string> pfade = karte::vfsOrdner(enginePfadAnzeige(), kartenFsGame(), sb.basisSpiel, zusatz);
+    if (!pfade.empty()) { pfade.pop_back(); }   // <Engine><basegame>/ - dafuer die Spielordner
+    for (const std::string& o : suchpfade(kartenSpielNummer())) {
+        const std::string b = karte::ordnerBereinigt(o);
+        if (std::none_of(pfade.begin(), pfade.end(), [&](const std::string& q) { return karte::ordnerBereinigt(q) == b; })) { pfade.push_back(o); }
+    }
+    return pfade;
+}
+
+// setEnginePath / GameImport / gamemode_set: Unrealise, aendern, Realise. Die
+// Entity-Klassen haengen daran, und mit ihnen die Karte (MapEntityClasses: aus
+// der Datei neu, eine unbenannte ist danach leer).
+void spielNeuRealisieren(const char* titel, std::function<void()> aendern) {
+    mitRueckfrage(titel, [aendern] {
+        Editor& e = g();
+        const std::string name = e.name;
+        aendern();
+        spielPruefen();   // EnginePath_Realise: neu laden
+        if (name != "unnamed.map") {
+            (void)karteOeffnen(name);   // karteFreigeben -> spielWarten: mit dem neuen Spiel
+        } else {
+            karteFreigeben();
+            e.name = "unnamed.map";
+            e.karte.undo.alsGespeichertMarkieren();
+            ++e.ladeZaehler;
+        }
+    });
+}
+
+// Radiant_Restart (mainframe.cpp:638-656): ConfirmModified, dann mit der Karte
+// neu starten - hier der Editor mit dem gewaehlten Spiel (m_sGameFile).
+void radiantNeustart() {
+    mitRueckfrage("Restart Radiant", [] {
+        Editor& e = g();
+        const std::string name = e.name;
+        e.spielKennung.clear();
+        spielPruefen();
+        if (name != "unnamed.map") {
+            (void)karteOeffnen(name);
+        } else {
+            karteFreigeben();
+            e.name = "unnamed.map";
+            e.karte.undo.alsGespeichertMarkieren();
+            ++e.ladeZaehler;
+        }
+    });
+}
 
 // main.cpp:462-464: beim Start (hier: beim ersten Bild des Editors) die letzte
 // Karte, wenn "Load last map at startup" an ist (Map_LoadFile, ohne MRU).
@@ -1005,6 +1090,10 @@ void zeichne(float hoehe) {
     spielPruefen();
     if (!e.belegungGeladen) { einstellungenLaden(); }
     letzteKarteBeimStart();
+    if (!e.spielFrageGezeigt) {   // CGameDialog::Init: mit m_bGamePrompt die "Global Preferences" beim Start
+        e.spielFrageGezeigt = true;
+        if (e.spielFrage) { e.globaleEinstellungenOffen = true; }
+    }
     zusatztastenPruefen();   // g_modifiers (onModifierDown / onModifierUp)
     texturenAktualisieren();   // g_ActiveShaders: Shader der Karte, in Gebrauch
     filterPruefen();           // Filterable::updateFiltered (Node::eFiltered, Face::m_filtered)
@@ -1087,6 +1176,24 @@ void zeichne(float hoehe) {
     zeichneArbitraerDialoge();
     zeichnePatchDialog();
     zeichneSurfaceInspector();
+    zeichneGlobaleEinstellungen();
+    // PreferencesDialog_showDialog (preferences.cpp:783-797): nach OK die Liste der
+    // Einstellungen, die einen Neustart brauchen
+    if (!e.neustartFragen.empty() && !e.einstellungenOffen && !e.frageOffen && !e.meldung.offen) {
+        std::string text = "Preference changes require a restart:\n\n";
+        for (const std::string& n : e.neustartFragen) { text += n + "\n"; }
+        e.neustartFragen.clear();
+        text += "\nRestart now?";
+        qtMeldung("Restart is required", text, MeldungArt::Frage, true, [](bool ja) {
+            if (!ja) { return; }
+            Editor& ed = g();
+            if (!ed.spielDateiNeu.empty()) {   // m_sGameFile: der neue Wert gilt nach dem Start
+                ed.spielDatei = ed.spielDateiNeu;
+                ed.spielDateiNeu.clear();
+            }
+            radiantNeustart();
+        });
+    }
     zeichneQtMeldung();
     zeichneRueckfrage();
     ImGui::PopFont();

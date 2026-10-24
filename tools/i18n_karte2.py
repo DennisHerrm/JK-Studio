@@ -184,4 +184,17 @@ KARTE2 = [
     ("KePrBuildDump", "Dump non Monitored Builds Log", "Protokoll nicht überwachter Läufe schreiben", "转储未监视编译的日志",
      "監視しないビルドのログを書き出す"),
     ("KePrBuildRegion", "Region Box Shader", "Shader des Regionskastens", "区域框着色器", "リージョン枠のシェーダー"),
+    # --- Seiten Global > Game, Game, Paths, Dialog "Global Preferences" (Punkt 11b) ---
+    ("KePrSelectGame", "Select the game", "Spiel wählen", "选择游戏", "ゲームを選択"),
+    ("KePrStartup", "Startup", "Beim Start", "启动", "起動時"),
+    ("KePrShowGlobal", "Show Global Preferences", "Globale Einstellungen zeigen", "显示全局首选项", "グローバル設定を表示"),
+    ("KePrSelectMod", "Select mod", "Mod wählen", "选择模组", "Mod を選択"),
+    ("KePrFsGame", "fs_game", "fs_game", "fs_game", "fs_game"),
+    ("KePrMappingMode", "Mapping mode", "Bearbeitungsmodus", "制图模式", "マッピングモード"),
+    ("KePrSpMode", "Single Player mapping mode", "Einzelspieler-Modus", "单人制图模式", "シングルプレイヤー用マッピング"),
+    ("KePrMpMode", "Multiplayer mapping mode", "Mehrspieler-Modus", "多人制图模式", "マルチプレイヤー用マッピング"),
+    ("KePrEnginePath", "Engine Path", "Spielordner", "引擎路径", "エンジンのパス"),
+    ("KePrExtraPath", "Extra Resource Path", "Zusätzlicher Ordner", "额外资源路径", "追加リソースのパス"),
+    ("KeGlobalPrefsTitle", "Global Preferences", "Globale Einstellungen", "全局首选项", "グローバル設定"),
+    ("KeGameSettingsGroup", "Game settings", "Spiel", "游戏设置", "ゲームの設定"),
 ]

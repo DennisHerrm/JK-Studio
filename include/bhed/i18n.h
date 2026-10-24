@@ -1726,6 +1726,18 @@ enum class Str {
     KePrBuildMpArgs,
     KePrBuildDump,
     KePrBuildRegion,
+    KePrSelectGame,
+    KePrStartup,
+    KePrShowGlobal,
+    KePrSelectMod,
+    KePrFsGame,
+    KePrMappingMode,
+    KePrSpMode,
+    KePrMpMode,
+    KePrEnginePath,
+    KePrExtraPath,
+    KeGlobalPrefsTitle,
+    KeGameSettingsGroup,
     Count,
 };
 

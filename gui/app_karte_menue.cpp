@@ -1111,6 +1111,23 @@ void einstellungenLaden() {
     ed.anzeige.zumZeiger = zahl("2DZoomInToPointer", 1) != 0.0F;
     ed.anzeige.jagen = zahl("ChaseMouse", 1) != 0.0F;
     ed.anzeige.keineStrichelung = zahl("NoStipple", 1) != 0.0F;
+    // RegisterGlobalPreferences (preferences.cpp:182-183): gamefile (LatchedAssign), gamePrompt;
+    // RegisterPreferences (preferences.cpp:824-828): GameName, GameMode; MainFrame_Construct
+    // (mainframe.cpp:2113-2117): ExtraResourcePath0..4, EnginePath
+    {
+        const auto text = [&](const std::string& n) {
+            const auto it = k.find(n);
+            return it != k.end() ? it->second : std::string();
+        };
+        const std::string datei = text("gamefile");
+        ed.spielDatei = (datei == "ja.game" || datei == "jk2.game") ? datei : std::string();
+        ed.spielDateiNeu.clear();
+        ed.spielFrage = zahl("gamePrompt", 0) != 0.0F;
+        ed.spielName = text("GameName");
+        ed.spielModus = text("GameMode") == "mp" ? "mp" : "sp";
+        ed.enginePfad = text("EnginePath");
+        for (std::size_t i = 0; i < ed.zusatzPfade.size(); ++i) { ed.zusatzPfade[i] = text("ExtraResourcePath" + std::to_string(i)); }
+    }
     // BuildMonitor_Construct (watchbsp.cpp:257-268)
     {
         Editor::BauEinstellungen& b = ed.bau;
@@ -1225,6 +1242,12 @@ void einstellungenSpeichern() {
     k["BuildEngineExecutableMP"] = ed.bau.engineMp.text;
     k["BuildEngineArgs"] = ed.bau.argumente.text;
     k["BuildEngineArgsMP"] = ed.bau.argumenteMp.text;
+    k["gamefile"] = !ed.spielDateiNeu.empty() ? ed.spielDateiNeu : ed.spielDatei;   // CopiedStringExportStringCaller( m_latched )
+    k["gamePrompt"] = ed.spielFrage ? "1" : "0";
+    k["GameName"] = ed.spielName;
+    k["GameMode"] = ed.spielModus;
+    k["EnginePath"] = ed.enginePfad;
+    for (std::size_t i = 0; i < ed.zusatzPfade.size(); ++i) { k["ExtraResourcePath" + std::to_string(i)] = ed.zusatzPfade[i]; }
     k["TextureMipLevel"] = std::to_string(ed.texQual.mipStufe);
     k["SI_Gamma"] = karte::zahlText(ed.texQual.gamma);
     k["TextureFiltering"] = std::to_string(ed.texQual.modus);

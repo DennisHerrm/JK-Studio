@@ -30082,6 +30082,14 @@ std::vector<Schritt> einstellungen11() {
     seite(Str::KePgUndo, 11);
     add(pruefe("Seite Undo: Undo Queue Size 512", [] { return finde("##undostufen", "", 0, true) != nullptr && ke::editor().karte.undo.stufen() == 512; }));
     add(foto("karteneditor_pref_undo"));
+    add(klick("+", "karteeinstellungen"));
+    add(pruefe("Pfeil hoch: 512 -> 522 (QSpinBox AdaptiveDecimalStep: eine Zehnerpotenz unter dem Wert)", [] {
+        return ke::einstellungsFeld("undostufen") == "522";
+    }));
+    add(klickAn("Feld Undo Queue Size", elementOrt("##undostufen")));
+    add(tippe("100"));
+    add(klick("-", "karteeinstellungen"));
+    add(pruefe("Pfeil runter bei 100: 99 (Schritt 1 unter 100)", [] { return ke::einstellungsFeld("undostufen") == "99"; }));
     add(klickAn("Feld Undo Queue Size", elementOrt("##undostufen")));
     add(tippe("2"));
     ok();
@@ -30355,6 +30363,201 @@ std::vector<Schritt> einstellungen11() {
     return s;
 }
 
+bool protokollHat(const karte::Protokoll& p, const std::string& text) {
+    for (const karte::ProtokollTeil& t : p) {
+        if (t.text.find(text) != std::string::npos) { return true; }
+    }
+    return false;
+}
+
+bool dateiImSpiel(const std::string& pfad) {
+    const auto& sp = ke::editor().spiel;
+    std::string bytes;
+    return sp && sp->fs.dateiLesen(pfad, bytes);
+}
+
+void testDateiSchreiben(const std::string& pfad, const std::string& text) {
+    std::error_code ec;
+    std::filesystem::create_directories(std::filesystem::path(pfad).parent_path(), ec);
+    (void)spewDatei(pfad, text);
+}
+
+// Punkt 11b: Global > Game ("Select the game", Neustart), der Dialog "Global
+// Preferences" beim Start, Game (Mod, fs_game, Mapping mode), Paths (Engine Path,
+// Extra Resource Path) - jedes mit dem neu geladenen Spiel nachgeprueft
+std::vector<Schritt> einstellungen11b() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto seite = [&](Str baum, int i) {
+        add(tu("Einstellungen auf", [] { ke::editor().einstellungenOffen = true; }));
+        add(pause(0.3));
+        add(klick(std::string(ke::trK(baum)) + "##seite" + std::to_string(i)));
+        add(pause(0.2));
+    };
+    const auto ok = [&]() {
+        add(klick(ke::trK(Str::KePrefOk)));
+        add(pause(0.3));
+    };
+    const auto spielWaehlen = [&](const char* name) {
+        add(klickAn("Klappliste Select the game", klappOrt("##spielwahl")));
+        add(pause(0.2));
+        add(klick(name, "##Combo_"));
+        add(pause(0.2));
+    };
+    add(grundzustand("Stufe 2/11b: Grundzustand"));
+    // --- Global > Game: Select the game (LatchedValue, Neustart)
+    seite(Str::KePgGame, 1);
+    add(pruefe("Seite Game (Global): Select the game, Startup / Show Global Preferences", [] {
+        return klappOrt("##spielwahl")().x > 0.0F && finde(std::string(ke::trK(Str::KePrShowGlobal)) + "##spielfrage", "", 0, true) != nullptr;
+    }));
+    add(foto("karteneditor_pref_global_game"));
+    spielWaehlen("Jedi Knight II: Jedi Outcast");
+    ok();
+    add(pruefe("OK: Frage \"Restart is required\" mit \"Selected Game\" (PreferencesDialog_showDialog)", [] {
+        const auto& m = ke::editor().meldung;
+        return m.offen && m.titel == "Restart is required" && m.text.find("Selected Game") != std::string::npos && m.text.find("Restart now?") != std::string::npos;
+    }));
+    add(foto("karteneditor_neustart"));
+    add(klick(std::string(ke::trK(Str::KeNo)) + "##meldungnein"));
+    add(pause(0.2));
+    add(pruefe("No: jk2.game gemerkt (gamefile = m_latched), das Spiel bleibt Jedi Academy", [] {
+        const ke::Editor& e = ke::editor();
+        return e.spielDateiNeu == "jk2.game" && einstellung("gamefile") == "jk2.game" && ke::kartenSpielNummer() != kRegelwerkJediOutcast &&
+               e.spiel && e.spiel->spiel != kRegelwerkJediOutcast;
+    }));
+    seite(Str::KePgGame, 1);
+    spielWaehlen("Jedi Knight Jedi Academy");
+    ok();
+    add(pruefe("wieder Jedi Academy: keine Frage, nichts mehr gemerkt", [] {
+        return !ke::editor().meldung.offen && ke::editor().spielDateiNeu.empty() && einstellung("gamefile") != "jk2.game";
+    }));
+    seite(Str::KePgGame, 1);
+    spielWaehlen("Jedi Knight II: Jedi Outcast");
+    ok();
+    add(klick(std::string(ke::trK(Str::KeYes)) + "##meldungja"));
+    add(warteBis("Restart now: Jedi Outcast geladen", [] {
+        ke::spielPruefen();
+        return ke::spielBereit();
+    }, 20000));
+    add(pruefe("Yes (Radiant_Restart): Jedi Outcast mit data/karte/jk2, die Karte wieder offen", [] {
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Stufe 2 - nach dem Neustart " + (e.spiel ? e.spiel->name + ", " + std::to_string(e.spiel->klassen.anzahl()) + " Klassen" : std::string("-")));
+        return e.spiel && e.spiel->spiel == kRegelwerkJediOutcast && e.karteSpiel == e.spiel && std::string(ke::kartenSpiel().typ) == "jk2" &&
+               e.name == karteTestPfad("karte_kopie.map") && e.spielDatei == "jk2.game" && e.spiel->klassen.anzahl() > 50;
+    }));
+    seite(Str::KePgGame, 1);
+    spielWaehlen("Jedi Knight Jedi Academy");
+    ok();
+    add(klick(std::string(ke::trK(Str::KeYes)) + "##meldungja"));
+    add(warteBis("Restart now: Jedi Academy geladen", [] {
+        ke::spielPruefen();
+        return ke::spielBereit();
+    }, 20000));
+    add(pruefe("zurueck auf Jedi Academy", [] {
+        const ke::Editor& e = ke::editor();
+        return e.spiel && e.spiel->spiel != kRegelwerkJediOutcast && e.karteSpiel == e.spiel && e.spielDatei == "ja.game" &&
+               e.spiel->klassen.finden("info_player_start") != nullptr;
+    }));
+    // --- Startup / Show Global Preferences: der Dialog beim Start
+    seite(Str::KePgGame, 1);
+    add(klick(std::string(ke::trK(Str::KePrShowGlobal)) + "##spielfrage"));
+    ok();
+    add(pruefe("OK: gamePrompt 1", [] { return ke::editor().spielFrage && einstellung("gamePrompt") == "1"; }));
+    add(tu("Start des Editors nachstellen (CGameDialog::Init)", [] { ke::editor().spielFrageGezeigt = false; }));
+    add(pause(0.4));
+    add(pruefe("Start: \"Global Preferences\" offen (Game settings, Select the game, Startup)", [] {
+        return ke::editor().globaleEinstellungenOffen && finde(std::string(ke::trK(Str::KePrShowGlobal)) + "##globalspielfrage", "", 0, true) != nullptr &&
+               klappOrt("##globalspielwahl")().x > 0.0F;
+    }));
+    add(foto("karteneditor_global_preferences"));
+    add(klick(std::string(ke::trK(Str::KePrShowGlobal)) + "##globalspielfrage"));
+    add(klick(std::string(ke::trK(Str::KePrefOk)) + "##globalok"));
+    add(pause(0.3));
+    add(pruefe("OK: zu, Show Global Preferences aus (SavePrefs)", [] {
+        return !ke::editor().globaleEinstellungenOffen && !ke::editor().spielFrage && einstellung("gamePrompt") == "0";
+    }));
+    // --- Game: Select mod, fs_game, Mapping mode; Paths: Extra Resource Path
+    seite(Str::KePgGame, 2);
+    add(pruefe("Seite Game: Select mod (basegame), fs_game \"base\" gesperrt, Mapping mode", [] {
+        return ke::einstellungsFeld("fsgame") == "base" && ke::einstellungsFeld("fsgameaktiv") == "0" && klappOrt("##modwahl")().x > 0.0F &&
+               klappOrt("##spielmodus")().x > 0.0F;
+    }));
+    add(foto("karteneditor_pref_game"));
+    add(klickAn("Klappliste Select mod", klappOrt("##modwahl")));
+    add(pause(0.2));
+    add(klick("Custom JA modification", "##Combo_"));
+    add(pause(0.2));
+    add(pruefe("Custom JA modification: fs_game leer und frei (gamecombo_for_gamename)", [] {
+        return ke::einstellungsFeld("fsgame").empty() && ke::einstellungsFeld("fsgameaktiv") == "1";
+    }));
+    add(klickAn("Feld fs_game", elementOrt("##fsgame")));
+    add(tippe("testmod11"));
+    add(klickAn("Klappliste Mapping mode", klappOrt("##spielmodus")));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KePrMpMode), "##Combo_"));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KePgPaths)) + "##seite3"));
+    add(pause(0.2));
+    add(pruefe("Seite Paths: Engine Path = der Ordner ueber dem ersten Spielordner, fuenf Extra Resource Path", [] {
+        diag::detail("Knopftest: Stufe 2 - Engine Path " + ke::einstellungsFeld("enginepfad"));
+        return !ke::einstellungsFeld("enginepfad").empty() && ke::einstellungsFeld("enginepfad") == ke::enginePfadAnzeige() &&
+               finde("##zusatzpfad4", "", 0, true) != nullptr;
+    }));
+    add(foto("karteneditor_pref_paths"));
+    add(tu("Testordner zusatz11 mit maps/zusatz11.txt", [] { testDateiSchreiben(laufDatei("zusatz11/maps/zusatz11.txt"), "zusatz11"); }));
+    add(klickAn("Feld Extra Resource Path 1", elementOrt("##zusatzpfad0")));
+    add(tippe(laufDatei("zusatz11")));
+    ok();
+    add(pause(0.3));
+    add(pruefe("OK: fs_game testmod11, mp, Extra Resource Path - das Spiel neu geladen, gespeichert", [] {
+        const ke::Editor& e = ke::editor();
+        const std::string zusatz = karte::ordnerBereinigt(laufDatei("zusatz11"));
+        const std::vector<std::string> v = ke::kartenVfsOrdner();
+        diag::detail("Knopftest: Stufe 2 - VFS " + (v.empty() ? std::string("-") : v[0]) + " | " + (v.size() > 1 ? v[1] : std::string("-")));
+        return e.spielName == "testmod11" && e.spielModus == "mp" && e.zusatzPfade[0] == zusatz && e.spiel && e.spiel->modus == "mp" &&
+               v.size() >= 3 && v[0] == zusatz && v[1].size() > 10 && v[1].substr(v[1].size() - 10) == "testmod11/" &&
+               einstellung("GameName") == "testmod11" && einstellung("GameMode") == "mp" && einstellung("ExtraResourcePath0") == zusatz;
+    }));
+    add(pruefe("Extra Resource Path: maps/zusatz11.txt im Spiel (QE_InitVFS)", [] { return dateiImSpiel("maps/zusatz11.txt"); }));
+    add(pruefe("Mapping mode mp: sp_entities.def uebergangen (EntityClassesLoadFile)", [] {
+        return protokollHat(ke::editor().spiel->klassen.protokoll, "Ignoring 'sp_entities.def'");
+    }));
+    // --- Paths: Engine Path
+    add(tu("Testordner engine11 mit base/maps/engine11.txt und testmod11/maps/mod11.txt", [] {
+        testDateiSchreiben(laufDatei("engine11/base/maps/engine11.txt"), "engine11");
+        testDateiSchreiben(laufDatei("engine11/testmod11/maps/mod11.txt"), "mod11");
+    }));
+    seite(Str::KePgPaths, 3);
+    add(klickAn("Feld Engine Path", elementOrt("##enginepfad")));
+    add(tippe(laufDatei("engine11")));
+    ok();
+    add(pause(0.3));
+    add(pruefe("Engine Path: zusatz11/, engine11/testmod11/, engine11/base/ (QE_InitVFS), beide Dateien gefunden", [] {
+        const ke::Editor& e = ke::editor();
+        const std::string engine = karte::ordnerBereinigt(laufDatei("engine11"));
+        const std::vector<std::string> v = ke::kartenVfsOrdner();
+        return e.enginePfad == engine && v.size() == 3 && v[1] == engine + "testmod11/" && v[2] == engine + "base/" && dateiImSpiel("maps/engine11.txt") &&
+               dateiImSpiel("maps/mod11.txt") && dateiImSpiel("maps/zusatz11.txt") && einstellung("EnginePath") == engine;
+    }));
+    add(tu("Spiel zurueck: Engine Path aus den Spielordnern, ohne Mod und Zusatzpfad, sp", [] {
+        ke::spielNeuRealisieren("Edit Project Settings", [] {
+            ke::Editor& e = ke::editor();
+            e.enginePfad.clear();
+            e.zusatzPfade = {};
+            e.spielName.clear();
+            e.spielModus = "sp";
+            ke::einstellungenSpeichern();
+        });
+    }));
+    add(pause(0.3));
+    add(pruefe("zurueck: sp (mp_entities.def uebergangen), die Spielordner des Programms", [] {
+        const ke::Editor& e = ke::editor();
+        return e.spiel && e.spiel->modus == "sp" && protokollHat(e.spiel->klassen.protokoll, "Ignoring 'mp_entities.def'") && !dateiImSpiel("maps/zusatz11.txt") &&
+               e.spiel->klassen.finden("info_player_start") != nullptr;
+    }));
+    return s;
+}
+
 }  // namespace stufe2
 
 std::vector<Schritt> karteneditorStufe2Schritte() {
@@ -30363,7 +30566,10 @@ std::vector<Schritt> karteneditorStufe2Schritte() {
     const char* ab = std::getenv("BHED_STUFE2_AB");
     const int abPunkt = ab != nullptr ? std::atoi(ab) : 0;
     if (abPunkt >= 11) {
-        for (Schritt& x : stufe2::einstellungen11()) { s.push_back(std::move(x)); }
+        if (abPunkt == 11) {
+            for (Schritt& x : stufe2::einstellungen11()) { s.push_back(std::move(x)); }
+        }
+        for (Schritt& x : stufe2::einstellungen11b()) { s.push_back(std::move(x)); }
         return s;
     }
     for (Schritt& x : stufe2::komponenten()) { s.push_back(std::move(x)); }
@@ -30379,6 +30585,7 @@ std::vector<Schritt> karteneditorStufe2Schritte() {
     for (Schritt& x : stufe2::modelle()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::modellBrowser()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::einstellungen11()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe2::einstellungen11b()) { s.push_back(std::move(x)); }
     return s;
 }
 

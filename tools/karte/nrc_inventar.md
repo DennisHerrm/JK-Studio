@@ -932,7 +932,7 @@ Name | Art | Standardtaste | Quelle
 - [x] "Patch deform"  (radiant/patchmanip.cpp:918) -- Stufe 2 Punkt 6
 - [x] "Cap"  (radiant/patchmanip.cpp:949) -- Stufe 2 Punkt 6
 - [x] "Patch thicken"  (radiant/patchmanip.cpp:994) -- Stufe 2 Punkt 6
-- [ ] "Global Preferences"  (radiant/preferences.cpp:271)
+- [x] "Global Preferences"  (radiant/preferences.cpp:271) -- Stufe 2 Punkt 11
 - [x] "NetRadiant Preferences"  (radiant/preferences.cpp:584) -- Rahmen, Baum, alle 23 Seiten (12 noch Platzhalter, siehe Einstellungsseiten)
 - [x] "Arbitrary rotation"  (radiant/select.cpp:1589) -- Stufe 2 Punkt 5
 - [x] "Arbitrary scale"  (radiant/select.cpp:1681) -- Stufe 2 Punkt 5
@@ -946,7 +946,7 @@ Name | Art | Standardtaste | Quelle
 - [x] Clipper: "Clipper Tool Settings"  (radiant/clippertool.cpp:186) -- Stufe 2 Punkt 2
 - [x] Entities: "Entity Display Preferences"  (radiant/entity.cpp:682) -- Stufe 1b Punkt 9
 - [x] Grid: "Grid Settings"  (radiant/grid.cpp:258) -- Stufe 2 Punkt 11
-- [ ] Paths: "Path Settings"  (radiant/mainframe.cpp:404)
+- [x] Paths: "Path Settings"  (radiant/mainframe.cpp:404) -- Stufe 2 Punkt 11
 - [x] Layout: "Layout Preferences"  (radiant/mainframe.cpp:2051)
 - [x] Model Browser: "Model Browser Preferences"  (radiant/modelwindow.cpp:1364) -- Stufe 2 Punkt 10
 - [x] Patches: "Patch Display Preferences"  (radiant/patchmanip.cpp:676) -- Stufe 2 Punkt 6
@@ -992,11 +992,11 @@ Name | Art | Standardtaste | Quelle
 - [x] CheckBox Entity Names / = Targetnames  (radiant/entity.cpp:677) -- Stufe 1b Punkt 9
 - [x] Combo Default grid spacing  (radiant/grid.cpp:241) -- Stufe 2 Punkt 11
 - [x] Combo Max grid coordinate  (radiant/grid.cpp:249) -- Stufe 2 Punkt 11
-- [ ] Combo Select mod  (radiant/gtkdlgs.cpp:229)
-- [ ] Combo fs_game  (radiant/gtkdlgs.cpp:241)
-- [ ] Combo Mapping mode  (radiant/gtkdlgs.cpp:260)
-- [ ] PathEntry Engine Path  (radiant/mainframe.cpp:398)
-- [ ] PathEntry Extra Resource Path  (radiant/mainframe.cpp:407)
+- [x] Combo Select mod  (radiant/gtkdlgs.cpp:229) -- Stufe 2 Punkt 11
+- [x] Combo fs_game  (radiant/gtkdlgs.cpp:241) -- Stufe 2 Punkt 11
+- [x] Combo Mapping mode  (radiant/gtkdlgs.cpp:260) -- Stufe 2 Punkt 11
+- [x] PathEntry Engine Path  (radiant/mainframe.cpp:398) -- Stufe 2 Punkt 11
+- [x] PathEntry Extra Resource Path  (radiant/mainframe.cpp:407) -- Stufe 2 Punkt 11
 - [x] RadioIcons Window Layout  (radiant/mainframe.cpp:2031)
 - [~] CheckBox Detachable Menus  (radiant/mainframe.cpp:2038) -- Stufe 2 (ImGui-Menues lassen sich nicht abreissen)
 - [x] CheckBox Built-In Group Dialog  (radiant/mainframe.cpp:2043)
@@ -1005,8 +1005,8 @@ Name | Art | Standardtaste | Quelle
 - [x] Entry List of *folderToLoad/depth*  (radiant/modelwindow.cpp:1369) -- Stufe 2 Punkt 10
 - [x] Spinner Patch Subdivide Threshold  (radiant/patchmanip.cpp:673) -- Stufe 2 Punkt 6
 - [ ] PathEntry Shader Editor Command  (radiant/preferences.cpp:64)
-- [ ] Combo Select the game  (radiant/preferences.cpp:259)
-- [ ] CheckBox Startup / Show Global Preferences  (radiant/preferences.cpp:267)
+- [x] Combo Select the game  (radiant/preferences.cpp:259) -- Stufe 2 Punkt 11
+- [x] CheckBox Startup / Show Global Preferences  (radiant/preferences.cpp:267) -- Stufe 2 Punkt 11
 - [x] CheckBox Nudge selected after duplication  (radiant/select.cpp:1921) -- Stufe 2 Punkt 11
 - [x] Spinner Selector size (pixels)  (radiant/selection.cpp:2314)
 - [x] CheckBox Prefer point entities in 2D  (radiant/selection.cpp:2315)
