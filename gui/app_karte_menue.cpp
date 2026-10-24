@@ -987,6 +987,17 @@ void einstellungenLaden() {
     ed.texQual.modus = std::clamp(static_cast<int>(zahl("TextureFiltering", 5)), 0, 5);
     ed.texQual.anisotropie = zahl("TextureAnisotropy", 1) != 0.0F;
     ed.texQual.kompression = 0;
+    // ModelBrowser_Construct (modelwindow.cpp:1378-1380)
+    ed.modBroE.zelle = static_cast<int>(zahl("ModelBrowserCellSize", 80));
+    {
+        const auto it = k.find("ModelBrowserFolders");
+        if (it != k.end()) { ed.modBroE.ordner = it->second; }
+        const auto ft = k.find("ColorModBroBackground");
+        float r = 0;
+        float g = 0;
+        float b = 0;
+        if (ft != k.end() && std::sscanf(ft->second.c_str(), "%f %f %f", &r, &g, &b) == 3) { ed.modBroE.hintergrund = {r, g, b}; }
+    }
     // ConstructFilters: "SI_Exclude" (filters.cpp:206)
     ed.filterMaske = static_cast<unsigned int>(zahl("SI_Exclude", 0));
     // Autosave_Construct (autosave.cpp:184-190), RegionBoxShader (watchbsp.cpp:266)
@@ -1133,6 +1144,14 @@ void einstellungenSpeichern() {
     k["SnapTToGrid"] = ed.siWerte.rasterAnpassen ? "1" : "0";
     k["TagsShowGui"] = ed.tags.gui ? "1" : "0";
     k["SI_Exclude"] = std::to_string(ed.filterMaske);
+    k["ModelBrowserCellSize"] = std::to_string(ed.modBroE.zelle);
+    k["ModelBrowserFolders"] = ed.modBroE.ordner;
+    {
+        char z[96];
+        std::snprintf(z, sizeof(z), "%g %g %g", static_cast<double>(ed.modBroE.hintergrund[0]), static_cast<double>(ed.modBroE.hintergrund[1]),
+                      static_cast<double>(ed.modBroE.hintergrund[2]));
+        k["ColorModBroBackground"] = z;
+    }
     k["Autosave"] = ed.autosave.an ? "1" : "0";
     k["AutosaveMinutes"] = std::to_string(ed.autosave.minuten);
     k["Snapshots"] = ed.autosave.schnappschuesse ? "1" : "0";

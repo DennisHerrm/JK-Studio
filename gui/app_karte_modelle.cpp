@@ -73,6 +73,14 @@ public:
         return a;
     }
 
+    // ModelNode::setModel im Modell-Browser: das Modell ohne Skin und _remap
+    [[nodiscard]] karte::ModellAnsicht nachPfad(const std::string& pfad) const {
+        karte::ModellAnsicht a;
+        a.modell = modell(bereinigt(pfad));
+        for (const karte::ModellFlaeche& f : a.modell->flaechen) { a.shader.push_back(f.shader); }
+        return a;
+    }
+
     void leeren() {   // FlushReferences / ModelCache_clear
         std::lock_guard<std::mutex> l(m_sperre);
         m_modelle.clear();
@@ -143,6 +151,8 @@ KartenModelle& ablage() {
 }  // namespace
 
 const karte::ModellQuelle& kartenModelle() { return ablage(); }
+
+karte::ModellAnsicht kartenModellPfad(const std::string& pfad) { return ablage().nachPfad(pfad); }
 
 void modelleLeeren() {   // FlushReferences
     ablage().leeren();

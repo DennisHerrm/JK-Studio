@@ -56,6 +56,10 @@ struct ImFont;
 struct ImVec2;
 struct ImVec4;
 
+namespace bhed::gui::kartegpu {
+struct Zustand3;
+}
+
 namespace bhed::gui::karteneditor {
 
 namespace befehle = karte::befehle;
@@ -435,6 +439,13 @@ struct Editor {
         bool caulk = true;      // f-caulk.png, setChecked( true )
         bool innenWeg = true;   // csgtool_removeinner.png
     } csgWerkzeug;
+    // Der Modell-Browser (modelwindow.cpp): Einstellungen und QSplitter
+    struct ModellBrowserEinstellung {
+        int zelle = 80;                           // m_cellSize ("ModelBrowserCellSize")
+        std::string ordner = "*models/99*";       // m_prefFoldersToLoad ("ModelBrowserFolders")
+        std::array<float, 3> hintergrund{.25F, .25F, .25F};   // m_background_color ("ColorModBroBackground")
+    } modBroE;
+    karte::Teiler modTeiler;                      // "ModelBrowser/splitter"
     // Der Ebenen-Browser (layerswindow.cpp: LayersBrowser g_lbro)
     struct EbenenBrowser {
         std::vector<char> sichtbar;          // item->data( Column::visible ) je Ebene
@@ -798,6 +809,9 @@ void dialogSchriftAus();
 // (RefreshShaders).
 [[nodiscard]] void* texturBild(const std::string& shader);
 void texturBilderAbholen();
+// Der Zustand eines Shaders wie in der Kamera (Textured): Bild, Alphatest,
+// Durchsicht; false, solange das Bild noch geladen wird (app_karte_cam.cpp).
+bool shaderZustand(const std::string& shader, kartegpu::Zustand3& z, bool& durchsichtig);
 void texturBilderNeuLaden();
 // Die Kamera im aktuellen Kindfenster zeichnen und bedienen.
 void kameraZeichnen();
@@ -900,6 +914,14 @@ void autosaveJedeSekunde();
 // Stufe 2, Punkt 10b (app_karte_modelle.cpp): die Modelle der misc_model
 [[nodiscard]] const karte::ModellQuelle& kartenModelle();
 void modelleLeeren();   // FlushReferences (Map_Free) / RefreshReferences
+[[nodiscard]] karte::ModellAnsicht kartenModellPfad(const std::string& pfad);
+// Stufe 2, Punkt 10c (app_karte_modellbrowser.cpp): der Modell-Browser
+void modellBrowserZeichnen(int breite, int hoehe);
+void modellBrowserBaumBauen();      // ModelBrowser_constructTree
+void modellBrowserLagenNeu();       // CellSizeImport
+[[nodiscard]] std::string modellBrowserOrdner();
+[[nodiscard]] std::vector<std::string> modellBrowserDateien();
+[[nodiscard]] int modellBrowserAktuell();
 // Stufe 2, Punkt 10 (app_karte_ebenen.cpp): der Ebenen-Browser, Strg+Q, Umschalt+Q
 void ebenenSeiteZeichnen(int breite, int hoehe);
 void ebenenBefehl(const std::string& name);

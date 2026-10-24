@@ -131,6 +131,10 @@ KARTE2 = [
     ("KeMapInfoBreakdown", "*** Entity breakdown ***", "*** Entitäten nach Klasse ***", "*** 实体明细 ***", "*** エンティティ内訳 ***"),
     ("KeMapInfoColEntity", "Entity", "Entität", "实体", "エンティティ"),
     ("KeMapInfoColCount", "Count", "Anzahl", "数量", "個数"),
+    # --- Modell-Browser (modelwindow.cpp) -------------------------------------------
+    ("KeModReload", "Reload Model Folders Tree View", "Modellordner neu einlesen", "重新加载模型文件夹树", "モデルフォルダーのツリーを再読み込み"),
+    ("KePrModViewSize", "Model View Size", "Größe der Modellansicht", "模型视图大小", "モデル表示サイズ"),
+    ("KePrModFolders", "List of *folderToLoad/depth*", "Liste *Ordner/Tiefe*", "*文件夹/深度* 列表", "*フォルダー/深さ* の一覧"),
     # --- Ebenen-Browser (layerswindow.cpp) -------------------------------------------
     ("KeLayName", "Layer Name", "Ebenenname", "图层名称", "レイヤー名"),
     ("KeLayEnter", "Enter layer name:", "Name der Ebene:", "输入图层名称:", "レイヤー名を入力:"),

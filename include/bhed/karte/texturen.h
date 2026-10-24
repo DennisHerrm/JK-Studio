@@ -39,6 +39,7 @@
 
 #include <array>
 #include <cstddef>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -68,6 +69,10 @@ public:
                                                    std::size_t tiefe = 1) const;
     // forEachArchive: Namen der Archive, auf Wunsch umgekehrt.
     [[nodiscard]] std::vector<std::string> archive(bool umgekehrt) const;
+    // Archive::forEachFile( VisitorFunc( v, eFiles, tiefe ), basis ) auf einem
+    // Archiv: jede Datei unter basis bis zur Tiefe, mit vollem Pfad.
+    void dateienImArchiv(const std::string& archiv, const std::string& basis, std::size_t tiefe,
+                         const std::function<void(const std::string&)>& besuch) const;
     // Archive::openTextFile auf einem bestimmten Archiv.
     [[nodiscard]] bool textAusArchiv(const std::string& archiv, const std::string& pfad, std::string& inhalt) const;
     [[nodiscard]] std::size_t anzahl() const { return m_archive.size(); }

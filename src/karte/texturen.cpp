@@ -389,6 +389,17 @@ std::vector<std::string> Dateisystem::verzeichnisse(const std::string& basis, st
     return treffer;
 }
 
+void Dateisystem::dateienImArchiv(const std::string& archiv, const std::string& basis, std::size_t tiefe,
+                                  const std::function<void(const std::string&)>& besuch) const {
+    for (const auto& a : m_archive) {
+        if (a.name != archiv) { continue; }
+        std::vector<std::string> namen;
+        pfadeSammeln(a, basis, tiefe, false, namen);
+        for (const auto& n : namen) { besuch(n); }
+        return;
+    }
+}
+
 std::vector<std::string> Dateisystem::dateien(const std::string& basis, const std::string& endungWunsch, std::size_t tiefe) const {
     std::vector<std::string> treffer;
     for (const auto& a : m_archive) {

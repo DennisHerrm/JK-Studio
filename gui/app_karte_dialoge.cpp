@@ -70,6 +70,7 @@ constexpr int kSeiteClipper = 14;
 constexpr int kSeiteSurface = 16;
 constexpr int kSeiteKamera = 17;
 constexpr int kSeiteTexBro = 20;
+constexpr int kSeiteModBro = 21;
 constexpr int kSeiteAutosave = 22;
 
 struct Entwurf {
@@ -97,6 +98,9 @@ struct Entwurf {
     int patchSchwelle = 4;   // g_PatchSubdivideThreshold
     bool siRaster = false;   // g_si_globals.m_bSnapTToGrid
     Editor::TexturQualitaet texQual;
+    // ModelBrowser_constructPage (modelwindow.cpp:1363-1371)
+    int modZelle = 80;
+    char modOrdner[256] = "*models/99*";
     // Autosave_constructPreferences (autosave.cpp:167-173)
     bool autosaveAn = true;
     int autosaveMinuten = 15;
@@ -477,6 +481,19 @@ void texturenSeite() {
     (void)haken(Str::Count, trK(Str::KePrTexAnisotropy), q.anisotropie);
 }
 
+// ModelBrowser_constructPage (modelwindow.cpp:1363-1371; Foto pref_Model_Browser.png):
+// appendSpinner "Model View Size" 16..8192, appendEntry "List of *folderToLoad/depth*".
+void modBroSeite() {
+    formAnfang({Str::KePrModViewSize, Str::KePrModFolders});
+    feldAnfang(Str::KePrModViewSize);
+    ImGui::InputInt("##modzelle", &g_entwurf.modZelle);
+    g_entwurf.modZelle = std::clamp(g_entwurf.modZelle, 16, 8192);
+    feldEnde();
+    feldAnfang(Str::KePrModFolders);
+    ImGui::InputText("##modordner", g_entwurf.modOrdner, sizeof(g_entwurf.modOrdner));
+    feldEnde();
+}
+
 // Autosave_constructPreferences (autosave.cpp:167-173; Foto pref_Autosave.png):
 // appendCheckBox "Enable Autosave", appendSpinner "Autosave Frequency
 // (minutes)" 1..60 (Widget_connectToggleDependency: nur mit dem Haken),
@@ -544,6 +561,8 @@ void zeichneEinstellungen() {
         g_entwurf.patchSchwelle = karte::patchUnterteilungSchwelle();
         g_entwurf.siRaster = ed.siWerte.rasterAnpassen;
         g_entwurf.texQual = ed.texQual;
+        g_entwurf.modZelle = ed.modBroE.zelle;
+        std::snprintf(g_entwurf.modOrdner, sizeof(g_entwurf.modOrdner), "%s", ed.modBroE.ordner.c_str());
         g_entwurf.autosaveAn = ed.autosave.an;
         g_entwurf.autosaveMinuten = ed.autosave.minuten;
         g_entwurf.schnappschuesse = ed.autosave.schnappschuesse;
@@ -634,6 +653,8 @@ void zeichneEinstellungen() {
             clipperSeite();
         } else if (g_entwurf.seite == kSeiteAutosave) {
             autosaveSeite();
+        } else if (g_entwurf.seite == kSeiteModBro) {
+            modBroSeite();
         } else {
             char z[120];
             std::snprintf(z, sizeof(z), tr(Str::KeStufe), 2);
@@ -704,6 +725,14 @@ void zeichneEinstellungen() {
             ed.bearbeitung.clipperPunkteZuruecksetzen = g_entwurf.clipperPunkte;
             ed.bearbeitung.clipper2Punkte2d = g_entwurf.clipper2Punkte;
             ed.bearbeitung.clipperDoppelklickTeilen = g_entwurf.clipperDoppelklick;
+            if (ed.modBroE.zelle != g_entwurf.modZelle) {   // CellSizeImport
+                ed.modBroE.zelle = g_entwurf.modZelle;
+                modellBrowserLagenNeu();
+            }
+            if (ed.modBroE.ordner != g_entwurf.modOrdner) {   // FoldersToLoadImport
+                ed.modBroE.ordner = g_entwurf.modOrdner;
+                modellBrowserBaumBauen();
+            }
             ed.autosave.an = g_entwurf.autosaveAn;
             ed.autosave.minuten = g_entwurf.autosaveMinuten;
             ed.autosave.schnappschuesse = g_entwurf.schnappschuesse;

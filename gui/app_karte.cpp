@@ -919,6 +919,8 @@ void gruppenInhalt(int breite, int hoehe) {
             konsoleZeichnen();
         } else if (ed.gruppenSeite == 2) {
             feldInhalt(Feld::Texturen);
+        } else if (ed.gruppenSeite == 3) {
+            modellBrowserZeichnen(ib, ih);   // ModelBrowser_constructWindow
         } else if (ed.gruppenSeite == 4) {
             ebenenSeiteZeichnen(ib, ih);   // LayersBrowser_constructWindow
         } else {

@@ -303,6 +303,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_filter.cpp
     gui/app_karte_ebenen.cpp
     gui/app_karte_modelle.cpp
+    gui/app_karte_modellbrowser.cpp
     gui/karte_vektoricons.cpp
     gui/app_karte_xy.cpp
     gui/app_karte_cam.cpp
@@ -711,6 +712,7 @@ target_sources(bhed_core PRIVATE
   src/karte/filter.cpp
   src/karte/ebenen.cpp
   src/karte/modell.cpp
+  src/karte/modellbrowser.cpp
   # Stufe 1b: Texturbrowser (texwindow.cpp, aktive Shader)
   src/karte/texturbrowser.cpp
   # Stufe 1b: Texturen mit M3 kopieren und auftragen (TexManipulator, surfacedialog.cpp)
@@ -850,6 +852,9 @@ if(BEHAVED_TESTS)
   add_executable(kartemodell tests/kartemodell.cpp)
   target_link_libraries(kartemodell PRIVATE bhed_core)
   add_test(NAME karte_modell COMMAND kartemodell)
+  add_executable(kartemodellbrowser tests/kartemodellbrowser.cpp)
+  target_link_libraries(kartemodellbrowser PRIVATE bhed_core)
+  add_test(NAME karte_modellbrowser COMMAND kartemodellbrowser)
   # Punkte 3 und 4: die Befehlstabelle gegen die Checkliste (jeder Befehl mit
   # NRCs Taste, jeder Menuepunkt und Knopf), Uebersetzungen = NRC-Englisch,
   # Tastenkuerzel wie Qt (Text, possibleKeys, deutsche Tastatur).

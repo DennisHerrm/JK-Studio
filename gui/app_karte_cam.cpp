@@ -763,6 +763,32 @@ void* texturBild(const std::string& shader) {
 
 void texturBilderAbholen() { lager().abholen(); }
 
+bool shaderZustand(const std::string& shader, kartegpu::Zustand3& z, bool& durchsichtig) {   // OpenGLShader::construct (Textured)
+    const Bild* b = lager().holen(shader);
+    if (b == nullptr || !b->fertig) { return false; }
+    Editor& ed = e();
+    const karte::ShaderEintrag* se = ed.karteSpiel ? ed.karteSpiel->inventar.shaderFinden(shader) : nullptr;
+    const unsigned flags = se != nullptr ? se->flags : 0U;
+    durchsichtig = (flags & karte::QER_TRANS) != 0U;
+    z.licht = true;
+    z.wegschneiden = (flags & karte::QER_CULL) == 0U || se->cull == 1;   // eCullBack
+    if ((flags & karte::QER_ALPHATEST) != 0U) {
+        z.alphaFunktion = se->alphaFunc;
+        z.alphaRef = se->alphaRef;
+    }
+    if (durchsichtig) {
+        z.mischen = kartegpu::Mischen::Alpha;
+        z.tiefe = kartegpu::TiefenTest::KleinerGleich;
+        z.tiefeSchreiben = false;
+    }
+    z.bild = b->srv;
+    z.farbe[0] = 1;
+    z.farbe[1] = 1;
+    z.farbe[2] = 1;
+    z.farbe[3] = durchsichtig ? se->trans : 1.0F;
+    return true;
+}
+
 void texturBilderNeuLaden() { lager().neuLaden(); }
 
 bool kameraTexturFarbe(const std::string& shader, float rgb[3]) {

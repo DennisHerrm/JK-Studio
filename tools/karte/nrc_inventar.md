@@ -948,7 +948,7 @@ Name | Art | Standardtaste | Quelle
 - [ ] Grid: "Grid Settings"  (radiant/grid.cpp:258)
 - [ ] Paths: "Path Settings"  (radiant/mainframe.cpp:404)
 - [x] Layout: "Layout Preferences"  (radiant/mainframe.cpp:2051)
-- [ ] Model Browser: "Model Browser Preferences"  (radiant/modelwindow.cpp:1364)
+- [x] Model Browser: "Model Browser Preferences"  (radiant/modelwindow.cpp:1364) -- Stufe 2 Punkt 10
 - [x] Patches: "Patch Display Preferences"  (radiant/patchmanip.cpp:676) -- Stufe 2 Punkt 6
 - [x] Selection: "Selection System Settings"  (radiant/selection.cpp:2328)
 - [x] Surface Inspector: "Surface Inspector Preferences"  (radiant/surfacedialog.cpp:1738) -- Stufe 2 Punkt 7
@@ -1001,8 +1001,8 @@ Name | Art | Standardtaste | Quelle
 - [~] CheckBox Detachable Menus  (radiant/mainframe.cpp:2038) -- Stufe 2 (ImGui-Menues lassen sich nicht abreissen)
 - [x] CheckBox Built-In Group Dialog  (radiant/mainframe.cpp:2043)
 - [ ] CheckBox Load last map at startup  (radiant/map.cpp:2370)
-- [ ] Spinner Model View Size  (radiant/modelwindow.cpp:1366)
-- [ ] Entry List of *folderToLoad/depth*  (radiant/modelwindow.cpp:1369)
+- [x] Spinner Model View Size  (radiant/modelwindow.cpp:1366) -- Stufe 2 Punkt 10
+- [x] Entry List of *folderToLoad/depth*  (radiant/modelwindow.cpp:1369) -- Stufe 2 Punkt 10
 - [x] Spinner Patch Subdivide Threshold  (radiant/patchmanip.cpp:673) -- Stufe 2 Punkt 6
 - [ ] PathEntry Shader Editor Command  (radiant/preferences.cpp:64)
 - [ ] Combo Select the game  (radiant/preferences.cpp:259)

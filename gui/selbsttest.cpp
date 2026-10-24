@@ -48,6 +48,7 @@
 #include "karteneditor.h"           // Stufe 1b: der Karten-Editor
 #include "bhed/karte/ebenen.h"
 #include "bhed/karte/modell.h"
+#include "bhed/karte/modellbrowser.h"
 #include "bhed/karte/region.h"
 #include "bhed/karte/filter.h"
 #include "bhed/karte/kartenformat.h"
@@ -29802,6 +29803,102 @@ std::vector<Schritt> modelle() {
     return s;
 }
 
+// Die Mitte der Zelle i der Modellansicht (Geraetepunkte ab der linken oberen Ecke)
+std::function<ImVec2()> modellZelle(int i) {
+    return [i]() {
+        const Element* el = finde("##modbroansicht", "", 0, true);
+        if (el == nullptr) { return ImVec2{0, 0}; }
+        const int zelle = ke::editor().modBroE.zelle;
+        const int schrift = static_cast<int>(std::lround(ImGui::GetFontSize()));
+        const karte::ModellZellen z(static_cast<int>(el->rect.GetWidth()), zelle, schrift, static_cast<int>(std::lround(ImGui::GetFontSize() * 0.2F)));
+        const karte::Vektor3f o = z.ursprung(i);
+        return ImVec2{el->rect.Min.x + o[0], el->rect.Min.y - o[2]};
+    };
+}
+
+// Punkt 10c: der Modell-Browser (Baum, Ordner laden, Zuweisen, Einfuegen, Seite)
+std::vector<Schritt> modellBrowser() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(grundzustand("Stufe 2/10c: Grundzustand"));
+    add(tu("View > Model Browser", [] {
+        ke::editor().gruppenSeite = 0;
+        (void)ke::ausfuehren("ToggleModelBrowser");
+    }));
+    add(pause(0.3));
+    add(tu("Gruppendialog 444 x 600 rechts", [] {
+        const float s = ke::massstab();
+        ImGui::SetWindowPos("###kartegruppe", ImVec2{ImGui::GetMainViewport()->Size.x - 520.0F * s, 40.0F * s});
+        ImGui::SetWindowSize("###kartegruppe", ImVec2{444.0F * s, 600.0F * s});
+    }));
+    add(pause(0.5));
+    add(pruefe("Seite Models: Baum mit \"models\"", [] {
+        return ke::editor().gruppenSeite == 3 && finde("##mbmodels/", "", 0, true) != nullptr;
+    }));
+    add(foto("karteneditor_modellbrowser_baum"));
+    for (const char* p : {"models/", "models/map_objects/"}) {
+        const std::string id = std::string("##mb") + p;
+        add(klickAn(std::string("Pfeil vor ") + p, [id]() {
+            const Element* el = finde(id, "", 0, true);
+            if (el == nullptr) { return ImVec2{0, 0}; }
+            const int tiefe = static_cast<int>(std::count(id.begin(), id.end(), '/')) - 1;
+            return ImVec2{el->rect.Min.x + (20.0F * static_cast<float>(tiefe) + 8.0F) * ke::massstab(), el->rect.GetCenter().y};
+        }));
+        add(pause(0.2));
+    }
+    add(pruefe("aufgeklappt: models/map_objects/bespin/ sichtbar", [] { return finde("##mbmodels/map_objects/bespin/", "", 0, true) != nullptr; }));
+    add(klickAn("Doppelklick auf bespin", elementOrt("##mbmodels/map_objects/bespin/"), 0, true));
+    add(pause(0.6));
+    add(pruefe("bespin geladen: Dateien, Ordnerpfad", [] {
+        const auto d = ke::modellBrowserDateien();
+        diag::detail("Knopftest: Stufe 2 - bespin " + std::to_string(d.size()) + " Modelle");
+        return ke::modellBrowserOrdner() == "models/map_objects/bespin/" && !d.empty() &&
+               std::find(d.begin(), d.end(), "panels.md3") != d.end();
+    }));
+    add(pause(0.5));
+    add(foto("karteneditor_modellbrowser"));
+    add(modellDazu("misc_model ohne Modell, gewaehlt", "", "300 0 32"));
+    add(tu("das misc_model waehlen", [] {
+        ke::Editor& e = ke::editor();
+        for (const auto& ent : e.karte.entitaeten()) {
+            if (ent->klassenname() == "misc_model") { e.karte.auswahl.waehlen(ent); }
+        }
+    }));
+    add(klickAn("Klick auf die erste Zelle", modellZelle(0)));
+    add(pruefe("Klick: Modell 0 den gewaehlten zugewiesen (\"entityAssignModel\")", [] {
+        const auto d = ke::modellBrowserDateien();
+        const std::string soll = "models/map_objects/bespin/" + d[0];
+        for (const auto& ent : ke::editor().karte.entitaeten()) {
+            if (ent->klassenname() == "misc_model" && ent->wert("model") == soll) {
+                return ke::modellBrowserAktuell() == 0 && ke::editor().karte.undo.undoName() == "entityAssignModel";
+            }
+        }
+        return false;
+    }));
+    add(klickAn("Doppelklick auf die erste Zelle", modellZelle(0), 0, true));
+    add(pruefe("Doppelklick: neues misc_model vor der Kamera, gewaehlt (\"insertModel\")", [] {
+        const ke::Editor& e = ke::editor();
+        int n = 0;
+        for (const auto& ent : e.karte.entitaeten()) { n += ent->klassenname() == "misc_model" ? 1 : 0; }
+        return n == 2 && e.karte.undo.undoName() == "insertModel" && e.karte.auswahl.anzahl() == 1;
+    }));
+    // Einstellungsseite
+    add(tu("Einstellungen auf", [] { ke::editor().einstellungenOffen = true; }));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KePgModBro)) + "##seite21"));
+    add(pause(0.2));
+    add(pruefe("Seite Model Browser: Model View Size, Ordnerliste", [] {
+        return finde("##modordner", "", 0, true) != nullptr;
+    }));
+    add(foto("karteneditor_pref_modellbrowser"));
+    add(klick(ke::trK(Str::KePrefOk)));
+    add(tu("Gruppendialog zu", [] {
+        ke::editor().gruppenDialogOffen = false;
+        ke::editor().gruppenSeite = 0;
+    }));
+    return s;
+}
+
 }  // namespace stufe2
 
 std::vector<Schritt> karteneditorStufe2Schritte() {
@@ -29817,6 +29914,7 @@ std::vector<Schritt> karteneditorStufe2Schritte() {
     for (Schritt& x : stufe2::filter()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::ebenen()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::modelle()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe2::modellBrowser()) { s.push_back(std::move(x)); }
     return s;
 }
 

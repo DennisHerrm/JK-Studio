@@ -486,7 +486,7 @@ bool karteIcon(ImDrawList* dl, const char* n, ImVec2 pos, float groesse, unsigne
         }
         return true;
     }
-    if (ist(n, "refresh_models") || ist(n, "texbro_refresh")) {   // Kreispfeile um einen Kasten
+    if (ist(n, "refresh_models") || ist(n, "texbro_refresh") || ist(n, "refresh_modelstree")) {   // Kreispfeile um einen Kasten
         z.bogenPfeil(8.0F, 8.0F, 6.0F, 0.15F * kPi, 0.95F * kPi);
         z.bogenPfeil(8.0F, 8.0F, 6.0F, 1.15F * kPi, 1.95F * kPi);
         if (ist(n, "refresh_models")) { z.rahmen(5.5F, 5.5F, 10.5F, 10.5F, 0.4F); }
