@@ -61,6 +61,12 @@ EntityUngroup EntityUngroupPrimitives EntityReloadDefinitions ExpandSelectionToE
 ToggleEntityList
 '''.split())
 
+# Befehle, deren Funktion in Stufe 2 nachgebaut ist (gepflegt beim Nachbauen);
+# sie gelten wie die der Stufe 1b als fertig (Stufe 1 in befehle_liste.inc).
+STUFE_2_FERTIG = set('''
+DragVertices DragEdges DragFaces MouseBuild TogTexLock TogTexVertexLock
+'''.split())
+
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem
 # Kompilieren gibt. Alles andere ohne Eintrag oben: Stufe 2 (Werkzeuge).
 STUFE_3 = set('''
@@ -95,7 +101,7 @@ def qt_text(ausdruck):
 
 
 def stufe(name):
-    if name in STUFE_1B:
+    if name in STUFE_1B or name in STUFE_2_FERTIG:
         return 1
     if name in STUFE_3 or '::' in name:
         return 3

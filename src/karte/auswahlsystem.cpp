@@ -16,6 +16,7 @@
 
 #include "bhed/karte/eklasse.h"
 #include "bhed/karte/karte.h"
+#include "bhed/karte/komponenten.h"
 #include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
 
@@ -119,6 +120,9 @@ bool istGewaehlt(const Karte& k, const Waehlbar& w) {
     case Waehlbar::Art::Primitiv: return k.auswahl.gewaehlt(w.entitaet.get(), w.primitiv.get());
     case Waehlbar::Art::Entitaet: return k.auswahl.gewaehlt(w.entitaet.get());
     case Waehlbar::Art::Flaeche: return k.auswahl.flaecheGewaehlt(w.flaeche.get());
+    case Waehlbar::Art::Ecke: return static_cast<const Pinsel&>(*w.primitiv).eckeGewaehlt(w.index);
+    case Waehlbar::Art::Kante: return static_cast<const Pinsel&>(*w.primitiv).kanteGewaehlt(w.index);
+    case Waehlbar::Art::PatchPunkt: return static_cast<const Patch&>(*w.primitiv).punktGewaehlt(w.index);
     }
     return false;
 }
@@ -146,6 +150,9 @@ void setzeGewaehlt(Karte& k, const Waehlbar& w, bool an) {
             k.auswahl.flaecheAbwaehlen(w.flaeche.get());
         }
         break;
+    case Waehlbar::Art::Ecke: static_cast<Pinsel&>(*w.primitiv).eckeWaehlen(w.index, an); break;
+    case Waehlbar::Art::Kante: static_cast<Pinsel&>(*w.primitiv).kanteWaehlen(w.index, an); break;
+    case Waehlbar::Art::PatchPunkt: static_cast<Patch&>(*w.primitiv).punktWaehlen(w.index, an); break;
     }
 }
 
@@ -207,16 +214,50 @@ void szeneTestenPrimitive(const Karte& k, Waehler& w, AuswahlVolumen& test) {
     }
 }
 
+// testselect_component_visible(_selected) (selection.cpp:1902-1951) mit
+// BrushInstance::testSelectComponents (brush.h:3681-3722) und
+// PatchInstance::testSelectComponents (patch.h:1524-1540).
 void szeneTestenKomponenten(const Karte& k, Waehler& w, AuswahlVolumen& test, KomponentenModus komponente, bool nurGewaehlte) {
-    if (komponente != KomponentenModus::Flaeche) { return; }   // Ecken/Kanten: Stufe 2
+    if (komponente == KomponentenModus::Standard) { return; }
     for (const auto& ent : k.entitaeten()) {
         if (ent->versteckt) { continue; }
         for (const auto& p : ent->kinder()) {
-            if (p->versteckt || p->art() != Primitiv::Art::Pinsel) { continue; }
+            if (p->versteckt) { continue; }
             if (nurGewaehlte && !k.auswahl.gewaehlt(ent.get(), p.get())) { continue; }
+            if (p->art() == Primitiv::Art::Patch) {
+                if (komponente != KomponentenModus::Ecke) { continue; }
+                const auto& patch = static_cast<const Patch&>(*p);
+                test.netzBeginnen(kEinheitsMatrix);
+                for (std::size_t i = 0; i < patch.punkte().size(); ++i) {   // PatchControlInstance::testSelect
+                    Treffer t;
+                    test.testPunkt(patch.punkte()[i].vertex, t);
+                    if (t.gueltig()) { hinzu(w, Waehlbar{Waehlbar::Art::PatchPunkt, ent, p, nullptr, i}, t); }
+                }
+                continue;
+            }
             const auto& pinsel = static_cast<const Pinsel&>(*p);
             pinsel.bRep(k.kontext);
             test.netzBeginnen(kEinheitsMatrix);
+            if (komponente == KomponentenModus::Ecke) {   // VertexInstance::testSelect
+                const auto& ecken = pinsel.ecken(k.kontext);
+                for (std::size_t i = 0; i < ecken.size(); ++i) {
+                    Treffer t;
+                    test.testPunkt(Vektor3f(pinsel.eckpunkt(ecken[i])), t);
+                    if (t.gueltig()) { hinzu(w, Waehlbar{Waehlbar::Art::Ecke, ent, p, nullptr, i}, t); }
+                }
+                continue;
+            }
+            if (komponente == KomponentenModus::Kante) {   // EdgeInstance::testSelect mit SelectableEdge::getEdge
+                const auto& kanten = pinsel.kanten(k.kontext);
+                for (std::size_t i = 0; i < kanten.size(); ++i) {
+                    const Wicklung& wi = pinsel[kanten[i].flaeche].wicklung();
+                    const Vektor3d mitteD = mitte(wi[kanten[i].punkt].vertex, wi[wicklungNaechster(wi, kanten[i].punkt)].vertex);
+                    Treffer t;
+                    test.testPunkt(Vektor3f(mitteD), t);
+                    if (t.gueltig()) { hinzu(w, Waehlbar{Waehlbar::Art::Kante, ent, p, nullptr, i}, t); }
+                }
+                continue;
+            }
             std::vector<Vektor3d> punkte;
             for (const auto& f : pinsel.flaechen()) {
                 Treffer t;
@@ -253,7 +294,7 @@ void szeneTesten(const Karte& k, Waehler& w, AuswahlVolumen& test, AuswahlModus 
 
 void alleAbwaehlen(Karte& k, const AuswahlEinstellung& e) {
     if (e.modus == AuswahlModus::Komponente) {
-        k.auswahl.flaechenLeeren();   // setSelectedAllComponents( false )
+        alleKomponentenAbwaehlen(k);   // setSelectedAllComponents( false )
     } else {
         k.auswahl.leeren();           // setSelectedAll( false )
     }
@@ -261,7 +302,7 @@ void alleAbwaehlen(Karte& k, const AuswahlEinstellung& e) {
 
 void komponentenOderAlleAbwaehlen(Karte& k, const AuswahlEinstellung& e, bool komponenten) {
     if (komponenten) {
-        k.auswahl.flaechenLeeren();
+        alleKomponentenAbwaehlen(k);   // setSelectedAllComponents( false )
     } else {
         alleAbwaehlen(k, e);
     }

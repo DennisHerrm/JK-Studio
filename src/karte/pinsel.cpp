@@ -31,6 +31,13 @@
 
 namespace bhed::karte {
 
+namespace {
+std::size_t g_komponentenWahlStand = 0;
+}  // namespace
+
+std::size_t komponentenWahlStand() { return g_komponentenWahlStand; }
+void komponentenWahlGeaendert() { ++g_komponentenWahlStand; }
+
 // plane3_inside (:1445-1454)
 bool ebeneInnen(const Ebene3d& self, const Ebene3d& other, bool selfIsLater) {
     if (gleichEps(self.normal(), other.normal(), 0.001)) {
@@ -329,6 +336,11 @@ std::unique_ptr<Memento> Flaeche::zustandSichern() const {
 // die Projektion per Texdef_Assign; der sichtbare Endstand ist die gesicherte
 // Projektion - hier wird sie ganz zurueckgeschrieben.
 void Flaeche::zustandLaden(const Memento& mm) {
+    zustandZuruecksetzen(mm);
+    if (besitzer) { besitzer->komponentenWahlLoeschen(); }   // m_observer->connectivityChanged()
+}
+
+void Flaeche::zustandZuruecksetzen(const Memento& mm) {
     sichern();
     const auto& m = static_cast<const FlaechenMemento&>(mm);
     m_planepts = m.planepts;
@@ -336,7 +348,99 @@ void Flaeche::zustandLaden(const Memento& mm) {
     m_shader = m.shader;
     m_flags = m.flags;
     m_projektion = m.projektion;
+    bewegPunkteT = bewegPunkte;   // planeChanged -> revertTransform
     ebeneGeaendert();
+}
+
+// --- FaceInstance (:2620-3048) -------------------------------------------------
+
+// select_vertex (:2945-2956) mit VertexSelection_insert / _erase; update_selection_vertex
+// setzt nur m_selectableVertices (Update_move_planepts_vertex ist 0, :72).
+void Flaeche::eckeWaehlen(std::size_t index, bool an) {
+    komponentenWahlGeaendert();
+    const std::size_t nachbar = m_wicklung[index].adjacent;
+    const auto it = std::find(eckenWahl.begin(), eckenWahl.end(), nachbar);
+    if (an) {
+        if (it == eckenWahl.end()) { eckenWahl.push_back(nachbar); }
+    } else if (it != eckenWahl.end()) {
+        eckenWahl.erase(it);
+    }
+}
+
+bool Flaeche::eckeGewaehlt(std::size_t index) const {   // selected_vertex (:2958-2960)
+    return std::find(eckenWahl.begin(), eckenWahl.end(), m_wicklung[index].adjacent) != eckenWahl.end();
+}
+
+// select_edge (:3002-3013) mit update_selection_edge (:2985-3001)
+void Flaeche::kanteWaehlen(std::size_t index, bool an) {
+    komponentenWahlGeaendert();
+    const std::size_t nachbar = m_wicklung[index].adjacent;
+    const auto it = std::find(kantenWahl.begin(), kantenWahl.end(), nachbar);
+    if (an) {
+        if (it == kantenWahl.end()) { kantenWahl.push_back(nachbar); }
+    } else if (it != kantenWahl.end()) {
+        kantenWahl.erase(it);
+    }
+    if (kantenWahl.size() == 1) {
+        const std::size_t i = wicklungFindeNachbar(m_wicklung, kantenWahl.front());
+        if (i != kMaxFlaechen) { bewegPunkteKante(i); }
+    }
+}
+
+bool Flaeche::kanteGewaehlt(std::size_t index) const {   // selected_edge (:3015-3017)
+    return std::find(kantenWahl.begin(), kantenWahl.end(), m_wicklung[index].adjacent) != kantenWahl.end();
+}
+
+void Flaeche::verbindungGeaendert() {   // connectivityChanged (:3042-3048)
+    if (!eckenWahl.empty() || !kantenWahl.empty()) { komponentenWahlGeaendert(); }
+    eckenWahl.clear();
+    kantenWahl.clear();
+}
+
+// update_move_planepts_edge (:2972-2984): ohne Quantisierung (in NRC auskommentiert)
+void Flaeche::bewegPunkteKante(std::size_t index) {
+    if (!traegtBei()) { return; }
+    const std::size_t naechster = wicklungNaechster(m_wicklung, index);
+    const std::size_t gegenueber = wicklungGegenueber(m_wicklung, index);
+    bewegPunkte[0] = m_wicklung[index].vertex;
+    bewegPunkte[1] = m_wicklung[naechster].vertex;
+    bewegPunkte[2] = m_wicklung[gegenueber].vertex;
+}
+
+// Face::update_move_planepts_vertex (:1137-1150)
+void Flaeche::bewegPunkteEcke(std::size_t index, EbenenPunkte& punkte) const {
+    if (!traegtBei()) { return; }
+    const std::size_t anzahl = m_wicklung.numpoints;
+    const std::size_t gegenueber = wicklungGegenueber(m_wicklung, index);
+    const std::size_t nachbar = wicklungRing(m_wicklung, gegenueber + anzahl - 1);
+    punkte[0] = m_wicklung[gegenueber].vertex;
+    punkte[1] = m_wicklung[index].vertex;
+    punkte[2] = m_wicklung[nachbar].vertex;
+}
+
+// Face::snapto (:1152-1174), der #else-Zweig
+bool Flaeche::einrasten(float raster) {
+    if (!traegtBei()) { return true; }
+    EbenenPunkte punkte{};
+    bewegPunkteEcke(0, punkte);
+    karte::einrasten(punkte[0], raster);
+    karte::einrasten(punkte[1], raster);
+    karte::einrasten(punkte[2], raster);
+    setzeEbenenPunkte(punkte);   // assign_planepts + freezeTransform
+    return ebeneGueltig(m_plane);
+}
+
+// Face::texdef_from_points (:1077-1086)
+void Flaeche::texdefAusPunkten(const Kontext& k, const TexturProjektion& alt, const Vektor3f& altNormale) {
+    const auto [w, h] = k.groesse(m_shader);
+    Matrix4 lokalZuTex;
+    lokalZuTextur(k.art(), alt, w, h, altNormale, lokalZuTex);
+    Vektor3d st[3];
+    for (std::size_t i = 0; i < 3; ++i) { st[i] = transformierterPunkt(lokalZuTex, bewegPunkte[i]); }
+    TexturProjektion p = m_projektion;   // m_texdefTransformed
+    texdefAusSt(k.art(), p, bewegPunkteT, st, w, h);
+    sichern();
+    m_projektion = p;
 }
 
 // ===================== Pinsel ===============================================
@@ -557,71 +661,72 @@ void Pinsel::quaderBauen(const Kasten& grenzen, const std::string& shader, const
     }
 }
 
-// --- Ecken-Modus (brush.cpp:385-523, brush.h:1882-1911, 3276-3285, 3502-3516) ---
+// --- Ecken-Modus (brush.cpp:385-523, brush.h:1882-1911, 3276-3285, 3490-3516) ---
 
 namespace {
-
-struct EckenModusPunkt {   // Brush::VertexModeVertex
-    Vektor3d ecke;                         // m_vertex
-    Vektor3d neu;                          // m_vertexTransformed
-    bool gewaehlt = false;                 // m_selected
-    std::vector<const Flaeche*> flaechen;  // m_faces
-};
 
 struct EckenModusEbene {   // VertexModePlane
     Ebene3d ebene;
     const Flaeche* flaeche;
-    const EckenModusPunkt* p[3];
+    const Pinsel::EckenModusPunkt* p[3];
     bool transformiert;
 };
 
 // vertex_mode_find_common_face
-const Flaeche* gemeinsameFlaeche(const EckenModusPunkt& a, const EckenModusPunkt& b, const EckenModusPunkt& c) {
-    for (const Flaeche* f : a.flaechen) {
-        if (std::find(b.flaechen.begin(), b.flaechen.end(), f) != b.flaechen.end() &&
-            std::find(c.flaechen.begin(), c.flaechen.end(), f) != c.flaechen.end()) {
-            return f;
-        }
+const Flaeche* gemeinsameFlaeche(const Pinsel::EckenModusPunkt& a, const Pinsel::EckenModusPunkt& b, const Pinsel::EckenModusPunkt& c) {
+    const auto enthaelt = [](const Pinsel::EckenModusPunkt& v, const Flaeche* f) {
+        return std::any_of(v.flaechen.begin(), v.flaechen.end(), [f](const auto& g) { return g.get() == f; });
+    };
+    for (const auto& f : a.flaechen) {
+        if (enthaelt(b, f.get()) && enthaelt(c, f.get())) { return f.get(); }
     }
     return nullptr;
 }
 
 }  // namespace
 
-void Pinsel::eckenEinrasten(float raster, const Kontext& k, bool eckenSperre) {
+// VertexInstance::gather (brush.h:3276-3285) fuer jede Ecke in der Reihenfolge der Instanzen
+void Pinsel::eckenModusSammeln(const Kontext& k) {
     bRep(k);
-    // vertexModeInit + VertexInstance::gather
-    sichern();
-    std::vector<EckenModusPunkt> punkte;
-    punkte.reserve(m_ecken.size());
-    for (const FlaechenPunkt& start : m_ecken) {
+    eckenModusPunkte.reserve(m_ecken.size());
+    for (std::size_t i = 0; i < m_ecken.size(); ++i) {
         EckenModusPunkt e;
-        e.ecke = eckpunkt(start);
+        e.ecke = eckpunkt(m_ecken[i]);
         e.neu = e.ecke;
-        e.gewaehlt = false;
+        e.gewaehlt = eckeGewaehlt(i);
+        const FlaechenPunkt start = m_ecken[i];
         FlaechenPunkt fp = start;
         do {
-            e.flaechen.push_back(m_flaechen[fp.flaeche].get());
+            e.flaechen.push_back(m_flaechen[fp.flaeche]);
             fp = naechsteEcke(m_flaechen, fp);
         } while (fp.flaeche != start.flaeche);
-        punkte.push_back(std::move(e));
+        eckenModusPunkte.push_back(std::move(e));
     }
-    // vertexModeSnap( snap, all = true )
-    for (auto& e : punkte) { einrasten(e.neu, raster); }
-    // vertexModeBuildHull( allTransformed = true )
+}
+
+// vertexModeTransform (brush.cpp:511-516)
+void Pinsel::eckenModusTransformieren(const Matrix4& m, const Kontext& k, bool eckenSperre) {
+    for (auto& e : eckenModusPunkte) {
+        if (e.gewaehlt) { e.neu = transformierterPunkt(m, e.ecke); }
+    }
+    eckenModusHuelle(k, eckenSperre);
+}
+
+// vertexModeBuildHull (brush.cpp:440-509)
+void Pinsel::eckenModusHuelle(const Kontext& k, bool eckenSperre, bool alleTransformiert) {
     quickhull::QuickHull<double> huelle;
     std::vector<quickhull::Vector3<double>> wolke;
-    wolke.reserve(punkte.size());
-    for (const auto& e : punkte) { wolke.emplace_back(e.neu.x(), e.neu.y(), e.neu.z()); }
+    wolke.reserve(eckenModusPunkte.size());
+    for (const auto& e : eckenModusPunkte) { wolke.emplace_back(e.neu.x(), e.neu.y(), e.neu.z()); }
     auto ergebnis = huelle.getConvexHull(wolke, true, true);
     const auto& indizes = ergebnis.getIndexBuffer();
     const std::size_t dreiecke = indizes.size() / 3;
     std::vector<EckenModusEbene> ebenen;
     for (std::size_t i = 0; i < dreiecke; ++i) {
         const EckenModusPunkt* v[3];
-        bool transformiert = true;   // allTransformed
+        bool transformiert = alleTransformiert;
         for (std::size_t j = 0; j < 3; ++j) {
-            v[j] = &punkte[indizes[i * 3 + j]];
+            v[j] = &eckenModusPunkte[indizes[i * 3 + j]];
             transformiert = transformiert || v[j]->gewaehlt;
         }
         const Ebene3d ebene = ebeneAusPunkten(v[0]->neu, v[1]->neu, v[2]->neu);   // plane3_for_points
@@ -630,7 +735,7 @@ void Pinsel::eckenEinrasten(float raster, const Kontext& k, bool eckenSperre) {
         if (it == ebenen.end()) {   // neue Ebene
             const Flaeche* f = gemeinsameFlaeche(*v[0], *v[1], *v[2]);
             if (f == nullptr) {   // keine gemeinsame Flaeche: irgendeine
-                f = v[0]->flaechen[0];
+                f = v[0]->flaechen[0].get();
                 transformiert = true;
             }
             if (punkt(ebene.normal(), f->ebene().normal()) < 0) { transformiert = true; }   // vermutlich umgedreht
@@ -641,9 +746,7 @@ void Pinsel::eckenEinrasten(float raster, const Kontext& k, bool eckenSperre) {
     }
     if (ebenen.size() < 4) { return; }   // offensichtlich entartet: nichts aendern
     const bool detail = istDetail();
-    // clear(): die alten Flaechen bleiben bis zum Ende am Leben (Zeiger in "ebenen")
-    const Flaechen alt = m_flaechen;
-    leeren();
+    leeren();   // die alten Flaechen leben in eckenModusPunkte weiter
     for (const auto& e : ebenen) {
         const Flaeche& f = *e.flaeche;
         if (e.transformiert) {
@@ -668,6 +771,89 @@ void Pinsel::eckenEinrasten(float raster, const Kontext& k, bool eckenSperre) {
         }
     }
     geaendert();
+}
+
+// BrushInstance::vertex_snap( snap, all ) (brush.h:3502-3511): vertexModeInit,
+// gather, vertexModeSnap, evaluateBRep, vertexModeFree.
+void Pinsel::eckenEinrasten(float raster, const Kontext& k, bool eckenSperre, bool alle) {
+    bRep(k);
+    sichern();
+    eckenModusBeginnen();
+    eckenModusSammeln(k);
+    for (auto& e : eckenModusPunkte) {   // vertexModeSnap (brush.cpp:517-522)
+        if (alle || e.gewaehlt) { karte::einrasten(e.neu, raster); }
+    }
+    eckenModusHuelle(k, eckenSperre, alle);
+    bRep(k);
+    eckenModusEnde();
+}
+
+// VertexInstance::select_vertex (brush.h:3212-3221)
+void Pinsel::eckeWaehlen(std::size_t ecke, bool an) {
+    if (ecke >= m_ecken.size()) { return; }
+    const FlaechenPunkt start = m_ecken[ecke];
+    FlaechenPunkt fp = start;
+    do {
+        m_flaechen[fp.flaeche]->eckeWaehlen(fp.punkt, an);
+        fp = naechsteEcke(m_flaechen, fp);
+    } while (fp.flaeche != start.flaeche);
+}
+
+// VertexInstance::selected_vertex (brush.h:3222-3233)
+bool Pinsel::eckeGewaehlt(std::size_t ecke) const {
+    if (ecke >= m_ecken.size()) { return false; }
+    const FlaechenPunkt start = m_ecken[ecke];
+    FlaechenPunkt fp = start;
+    do {
+        if (!m_flaechen[fp.flaeche]->eckeGewaehlt(fp.punkt)) { return false; }
+        fp = naechsteEcke(m_flaechen, fp);
+    } while (fp.flaeche != start.flaeche);
+    return true;
+}
+
+// EdgeInstance::select_edge (brush.h:3118-3123)
+void Pinsel::kanteWaehlen(std::size_t kante, bool an) {
+    if (kante >= m_kanten.size()) { return; }
+    FlaechenPunkt fp = m_kanten[kante];
+    m_flaechen[fp.flaeche]->kanteWaehlen(fp.punkt, an);
+    fp = naechsteKante(m_flaechen, fp);
+    m_flaechen[fp.flaeche]->kanteWaehlen(fp.punkt, an);
+}
+
+// EdgeInstance::selected_edge (brush.h:3124-3135)
+bool Pinsel::kanteGewaehlt(std::size_t kante) const {
+    if (kante >= m_kanten.size()) { return false; }
+    FlaechenPunkt fp = m_kanten[kante];
+    if (!m_flaechen[fp.flaeche]->kanteGewaehlt(fp.punkt)) { return false; }
+    fp = naechsteKante(m_flaechen, fp);
+    return m_flaechen[fp.flaeche]->kanteGewaehlt(fp.punkt);
+}
+
+// BrushInstance::vertex_select (brush.h:3490-3500) mit VertexInstance::vertex_select (:3286-3292)
+void Pinsel::eckenNachModusWaehlen() {
+    bool quelle = false;
+    bool ziel = false;
+    for (const auto& v : eckenModusPunkte) {
+        if (!v.gewaehlt) { continue; }
+        quelle = true;
+        for (std::size_t i = 0; i < m_ecken.size(); ++i) {
+            if (laengeQuadrat(v.neu - eckpunkt(m_ecken[i])) < (0.1 * 0.1)) {
+                eckeWaehlen(i, true);
+                ziel = true;
+            }
+        }
+    }
+    // wenigstens etwas waehlen, damit das Ziehen nicht abbricht, wenn alle
+    // gewaehlten Ecken beim Huellenbau verschwunden sind
+    if (quelle && !ziel && !m_ecken.empty()) { eckeWaehlen(0, true); }
+}
+
+void Pinsel::komponentenWahlLoeschen() {
+    for (auto& f : m_flaechen) { f->verbindungGeaendert(); }
+}
+
+bool Pinsel::eckenOderKantenGewaehlt() const {
+    return std::any_of(m_flaechen.begin(), m_flaechen.end(), [](const auto& f) { return !f->eckenWahl.empty() || !f->kantenWahl.empty(); });
 }
 
 void Pinsel::setzeDetail(bool detail) {
@@ -938,6 +1124,7 @@ void Pinsel::bRepBauen(const Kontext& k) {
     for (auto& f : m_flaechen) {
         f->schwerpunktBerechnen();
     }
+    if (m_eckenModusAn) { eckenNachModusWaehlen(); }   // observer->vertex_select() (brush.cpp:305-308)
 }
 
 void Pinsel::bRep(const Kontext& k) const {   // evaluateBRep (:1788-1793)
@@ -999,6 +1186,8 @@ void Pinsel::zustandLaden(const Memento& mm) {
     for (const auto& f : m.flaechen) {
         anhaengen(f);
     }
+    // appendFaces: clear() + push_back bauen die FaceInstances neu - ohne Ecken-/Kantenwahl
+    komponentenWahlLoeschen();
     geaendert();
 }
 

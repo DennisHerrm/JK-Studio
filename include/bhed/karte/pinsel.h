@@ -36,6 +36,7 @@
 #include "bhed/karte/wicklung.h"
 
 #include <cstddef>
+#include <list>
 #include <memory>
 #include <string>
 #include <utility>
@@ -156,9 +157,39 @@ public:
 
     // Undo
     [[nodiscard]] std::unique_ptr<Memento> zustandSichern() const override;
+    // importState (:1042-1052): mit m_observer->connectivityChanged() - die
+    // Ecken- und Kantenwahl aller Flaechen des Pinsels geht verloren.
     void zustandLaden(const Memento& m) override;
+    // revertTransform beim Ziehen (:1125-1129): den gesicherten Zustand
+    // zurueckschreiben, ohne die Komponentenwahl anzufassen.
+    void zustandZuruecksetzen(const Memento& m) override;
 
     Pinsel* besitzer = nullptr;   // FaceObserver
+
+    // --- FaceInstance (:2620-3048): Ecken- und Kantenwahl der Instanz ---
+    // Wie NRC nicht im Undo: je Flaeche die "adjacent"-Kennungen der
+    // gewaehlten Wicklungspunkte (VertexSelection). Die Wahl der ganzen Flaeche
+    // steht in Karte::auswahl (g_SelectedFaceInstances).
+    std::list<std::size_t> eckenWahl;   // m_vertexSelection
+    std::list<std::size_t> kantenWahl;  // m_edgeSelection
+    EbenenPunkte bewegPunkte{};         // Face::m_move_planepts
+    EbenenPunkte bewegPunkteT{};        // Face::m_move_planeptsTransformed
+    void eckeWaehlen(std::size_t index, bool an);    // select_vertex
+    [[nodiscard]] bool eckeGewaehlt(std::size_t index) const;   // selected_vertex
+    void kanteWaehlen(std::size_t index, bool an);   // select_edge mit update_selection_edge
+    [[nodiscard]] bool kanteGewaehlt(std::size_t index) const;  // selected_edge
+    void verbindungGeaendert();   // FaceInstance::connectivityChanged
+    // update_move_planepts_edge (:2972-2984)
+    void bewegPunkteKante(std::size_t index);
+    // Face::update_move_planepts_vertex (:1137-1150)
+    void bewegPunkteEcke(std::size_t index, EbenenPunkte& punkte) const;
+    // Face::snapto (:1152-1174): Wicklungspunkte auf das Raster, neue Ebene.
+    // false: "WARNING: invalid plane after snap to grid".
+    bool einrasten(float raster);
+    // Face::texdef_from_points (:1077-1086): die Projektion so, dass die
+    // Texturkoordinaten der alten Bewegungspunkte an den neuen bleiben
+    // (Texture Vertex Lock); alt = Projektion und Normale vor dem Ziehen.
+    void texdefAusPunkten(const Kontext& k, const TexturProjektion& alt, const Vektor3f& altNormale);
 
 private:
     void ebeneGeaendert();   // planeChanged
@@ -230,11 +261,42 @@ public:
 
     [[nodiscard]] bool istDetail() const { return !m_flaechen.empty() && m_flaechen.front()->istDetail(); }
     void setzeDetail(bool detail);   // MakeDetail / MakeStructural
-    // Brush::snapto -> BrushInstance::vertex_snap( snap, true ) (brush.h:3502-3516)
-    // mit vertexModeSnap / vertexModeBuildHull (brush.cpp:440-523): alle Ecken
-    // aufs Raster, die Flaechen aus der konvexen Huelle (QuickHull wie NRC).
-    // eckenSperre = g_brush_textureVertexlock_enabled.
-    void eckenEinrasten(float raster, const Kontext& k, bool eckenSperre = false);
+    // Brush::snapto -> BrushInstance::vertex_snap( snap, all ) (brush.h:3502-3516)
+    // mit vertexModeSnap / vertexModeBuildHull (brush.cpp:440-523): alle (bzw.
+    // nur die gewaehlten) Ecken aufs Raster, die Flaechen aus der konvexen
+    // Huelle (QuickHull wie NRC). eckenSperre = g_brush_textureVertexlock_enabled.
+    void eckenEinrasten(float raster, const Kontext& k, bool eckenSperre = false, bool alle = true);
+
+    // --- Ecken-Modus (brush.h:1882-1911, brush.cpp:440-523) ---
+    struct EckenModusPunkt {   // Brush::VertexModeVertex
+        Vektor3d ecke;                                    // m_vertex
+        Vektor3d neu;                                     // m_vertexTransformed
+        bool gewaehlt = false;                            // m_selected
+        std::vector<std::shared_ptr<const Flaeche>> flaechen;   // m_faces
+    };
+    std::vector<EckenModusPunkt> eckenModusPunkte;   // m_vertexModeVertices
+    [[nodiscard]] bool eckenModusAn() const { return m_eckenModusAn; }   // m_vertexModeOn
+    void eckenModusBeginnen() {   // vertexModeInit
+        m_eckenModusAn = true;
+        eckenModusPunkte.clear();
+    }
+    void eckenModusEnde() { m_eckenModusAn = false; }   // vertexModeFree (die Punkte bleiben)
+    // VertexInstance::gather fuer alle Ecken (brush.h:3276-3285)
+    void eckenModusSammeln(const Kontext& k);
+    void eckenModusTransformieren(const Matrix4& m, const Kontext& k, bool eckenSperre);   // vertexModeTransform
+    void eckenModusHuelle(const Kontext& k, bool eckenSperre, bool alleTransformiert = false);   // vertexModeBuildHull
+
+    // --- VertexInstance / EdgeInstance (brush.h:3116-3290): Index in ecken() / kanten() ---
+    void eckeWaehlen(std::size_t ecke, bool an);
+    [[nodiscard]] bool eckeGewaehlt(std::size_t ecke) const;
+    void kanteWaehlen(std::size_t kante, bool an);
+    [[nodiscard]] bool kanteGewaehlt(std::size_t kante) const;
+    // vertex_select (brush.h:3490-3500): nach dem Huellenbau die Ecken an den
+    // gewaehlten neuen Lagen wieder waehlen.
+    void eckenNachModusWaehlen();
+    // Ecken- und Kantenwahl aller Flaechen loeschen (connectivityChanged).
+    void komponentenWahlLoeschen();
+    [[nodiscard]] bool eckenOderKantenGewaehlt() const;
 
     // Brush::transform + freezeTransform (mit Texture Lock, wenn k.texturLock).
     void transformieren(const Matrix4& m, const Kontext& k);
@@ -278,6 +340,7 @@ private:
     std::size_t absoluterIndex(FlaechenPunkt fp) const;
 
     Flaechen m_flaechen;
+    bool m_eckenModusAn = false;
     mutable bool m_ebeneGeaendert = true;
     bool m_entartet = false;
     bool m_eulerFehler = false;
@@ -287,6 +350,12 @@ private:
     std::vector<KantenFlaechen> m_kantenFlaechen;
     std::vector<KantenIndizes> m_kantenIndizes;
 };
+
+// Ein Zaehler, der bei jeder Aenderung einer Ecken-, Kanten- oder
+// Patch-Punktwahl steigt (NRC: SceneChangeNotify / pivotChanged ueber die
+// Beobachter der Waehlbaren) - fuer den Pivot und die Ansichten.
+[[nodiscard]] std::size_t komponentenWahlStand();
+void komponentenWahlGeaendert();
 
 // plane3_inside (brush.h:1445-1454): true, wenn "self" beim Bauen Vorrang hat.
 bool ebeneInnen(const Ebene3d& self, const Ebene3d& other, bool selfIsLater);

@@ -13,6 +13,7 @@
 //   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
 //   Public License for more details (LICENSE).
 #include "bhed/karte/auswahlbefehle.h"
+#include "bhed/karte/komponenten.h"
 
 #include "bhed/karte/bearbeitung.h"
 #include "bhed/karte/karte.h"
@@ -169,40 +170,24 @@ bool shaderGleich(const std::string& a, const std::string& b) {   // shader_equa
 
 // --- select.cpp ------------------------------------------------------------------------
 
-void auswahlAufheben(Karte& k, AuswahlEinstellung& e) {   // Selection_Deselect
+void auswahlAufheben(Karte& k, AuswahlEinstellung& e) {   // Selection_Deselect (select.cpp:1402-1423)
     if (e.modus == AuswahlModus::Komponente) {
-        if (!k.auswahl.flaechen().empty()) {
-            k.auswahl.flaechenLeeren();
+        if (komponentenAnzahl(k) != 0) {
+            alleKomponentenAbwaehlen(k);
         } else {   // SelectionSystem_DefaultMode
             e.modus = AuswahlModus::Primitiv;
             e.komponente = KomponentenModus::Standard;
         }
-    } else if (!k.auswahl.flaechen().empty()) {
-        k.auswahl.flaechenLeeren();
+    } else if (komponentenAnzahl(k) != 0) {
+        alleKomponentenAbwaehlen(k);
     } else {
         k.auswahl.leeren();
     }
 }
 
 void auswahlUmkehren(Karte& k, const AuswahlEinstellung& e) {   // InvertSelectionWalker
-    if (e.modus == AuswahlModus::Komponente) {
-        // nur Flaechen; Ecken/Kanten (und Patch-Ecken) mit Stufe 2
-        if (e.komponente != KomponentenModus::Flaeche) { return; }
-        const GewaehltMenge g(k);
-        for (const auto& ent : k.entitaeten()) {
-            if (!sichtbar(*ent)) { continue; }
-            for (const auto& p : ent->kinder()) {
-                if (!sichtbar(*p) || p->art() != Primitiv::Art::Pinsel || g.prim.count(p.get()) == 0) { continue; }
-                const auto pinsel = std::static_pointer_cast<Pinsel>(p);
-                for (const auto& f : pinsel->flaechen()) {   // invertComponentSelection( eFace ), ohne gefilterte
-                    if (k.auswahl.flaecheGewaehlt(f.get())) {
-                        k.auswahl.flaecheAbwaehlen(f.get());
-                    } else {
-                        k.auswahl.flaecheWaehlen(pinsel, f);
-                    }
-                }
-            }
-        }
+    if (e.modus == AuswahlModus::Komponente) {   // InvertSelectionWalker eComponent
+        komponentenUmkehren(k, e.komponente);
         return;
     }
     const auto liste = k.entitaeten();
@@ -302,11 +287,10 @@ void zeigeVersteckte(Karte& k) {   // Select_ShowAllHidden
     }
 }
 
-void loescheAuswahl(Karte& k, const AuswahlEinstellung& e) {   // deleteSelection
-    if (e.modus == AuswahlModus::Komponente && !k.auswahl.flaechen().empty()) {
-        // CSG_DeleteComponents: mit der Komponenten-Bearbeitung (Stufe 2)
-        k.undo.start();
-        k.undo.finish("deleteSelectedComponents");
+void loescheAuswahl(Karte& k, const AuswahlEinstellung& e, bool eckenSperre) {   // deleteSelection (select.cpp:1170-1179)
+    if (e.modus == AuswahlModus::Komponente && komponentenAnzahl(k) != 0) {
+        Befehl b(k.undo, "deleteSelectedComponents");
+        eckenEntfernen(k, eckenSperre);   // CSG_DeleteComponents
         return;
     }
     k.undo.start();
@@ -503,22 +487,8 @@ Vektor3f schubsRichtung(int richtung, float menge, Sicht s) {   // NudgeSelectio
 void amRasterAusrichten(Karte& k, const AuswahlEinstellung& e, float raster, bool eckenSperre) {   // Selection_SnapToGrid
     k.undo.start();
     const GewaehltMenge g(k);
-    if (e.modus == AuswahlModus::Komponente && !k.auswahl.flaechen().empty()) {
-        // ComponentSnappableSnapToGridSelected: FaceInstance::snapComponents -> Face::snapto
-        for (const auto& fw : k.auswahl.flaechen()) {
-            const auto p = fw.pinsel.lock();
-            const auto f = fw.flaeche.lock();
-            if (!p || !f || g.prim.count(p.get()) == 0 || p->versteckt) { continue; }
-            p->bRep(k.kontext);
-            if (!f->traegtBei()) { continue; }
-            // update_move_planepts_vertex( 0, planePoints )
-            const Wicklung& w = f->wicklung();
-            const std::size_t gegenueber = wicklungGegenueber(w, 0);
-            const std::size_t nachbar = (gegenueber + w.numpoints - 1) % w.numpoints;
-            EbenenPunkte pp = {w[gegenueber].vertex, w[0].vertex, w[nachbar].vertex};
-            for (auto& q : pp) { einrasten(q, raster); }
-            f->setzeEbenenPunkte(pp);
-        }
+    if (e.modus == AuswahlModus::Komponente && komponentenAnzahl(k) != 0) {
+        komponentenEinrasten(k, raster, eckenSperre);   // Scene_SnapToGrid_Component_Selected
     } else {
         for (const auto& ent : k.entitaeten()) {   // SnappableSnapToGridSelected (nur sichtbare)
             if (ent->versteckt) { continue; }

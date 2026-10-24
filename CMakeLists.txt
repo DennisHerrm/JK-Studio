@@ -687,6 +687,8 @@ target_sources(bhed_core PRIVATE
   src/karte/bearbeitung.cpp
   src/karte/auswahlbefehle.cpp
   src/karte/quickhull.cpp
+  # Stufe 2: Komponenten (Ecken, Kanten, Flaechen, Patch-Punkte; brush.h, patch.h)
+  src/karte/komponenten.cpp
   # Stufe 1b: Texturbrowser (texwindow.cpp, aktive Shader)
   src/karte/texturbrowser.cpp
   # Stufe 1b: Texturen mit M3 kopieren und auftragen (TexManipulator, surfacedialog.cpp)
@@ -790,6 +792,11 @@ if(BEHAVED_TESTS)
   add_executable(karteentitaeten tests/karteentitaeten.cpp)
   target_link_libraries(karteentitaeten PRIVATE bhed_core)
   add_test(NAME karte_entitaeten COMMAND karteentitaeten)
+  # Stufe 2, Punkt 1: Komponenten (Ecken, Kanten, Flaechen, Patch-Punkte) waehlen,
+  # ziehen, einfuegen, loeschen; Texture Vertex Lock; Build-Werkzeug
+  add_executable(kartekomponenten tests/kartekomponenten.cpp)
+  target_link_libraries(kartekomponenten PRIVATE bhed_core)
+  add_test(NAME karte_komponenten COMMAND kartekomponenten)
   # Punkte 3 und 4: die Befehlstabelle gegen die Checkliste (jeder Befehl mit
   # NRCs Taste, jeder Menuepunkt und Knopf), Uebersetzungen = NRC-Englisch,
   # Tastenkuerzel wie Qt (Text, possibleKeys, deutsche Tastatur).

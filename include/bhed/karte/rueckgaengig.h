@@ -57,6 +57,10 @@ public:
 
     [[nodiscard]] virtual std::unique_ptr<Memento> zustandSichern() const = 0;   // exportState
     virtual void zustandLaden(const Memento& m) = 0;                             // importState
+    // revertTransform beim Ziehen: wie zustandLaden, aber ohne die Folgen eines
+    // Rueckgaengig (Flaeche: connectivityChanged, Patch: onAllocate), die die
+    // Komponentenwahl der Instanz loeschen.
+    virtual void zustandZuruecksetzen(const Memento& m) { zustandLaden(m); }
 
     // instanceAttach / instanceDetach
     void anmelden(Rueckgaengig* undo);

@@ -545,16 +545,9 @@ void xyZeichnen(int index) {
         for (const auto& pk : mz.grossePunkte) { manipPunkte.push_back(Linie{pk.p, pk.p, farbe(pk.farbe)}); }   // $BIGPOINT
     }
     const karte::AuswahlRechteck& rechteck = ed.beobachter[static_cast<std::size_t>(index)].rechteck;
-    // BrushInstance::renderComponentsSelected: Schwerpunkte gewaehlter Flaechen
-    // ($SELPOINT, 4 Bildpunkte, colour_selected)
-    std::vector<Linie> flaechenPunkte;
-    for (const auto& fw : ed.karte.auswahl.flaechen()) {
-        const auto pinsel = fw.pinsel.lock();
-        const auto fl = fw.flaeche.lock();
-        if (!pinsel || !fl || pinsel->versteckt) { continue; }
-        pinsel->bRep(ed.karte.kontext);
-        if (fl->traegtBei()) { flaechenPunkte.push_back(Linie{fl->schwerpunkt(), fl->schwerpunkt(), karte::farbeAus(0, 0, 1)}); }
-    }
+    // BrushInstance::renderComponents / renderComponentsSelected, PatchInstance
+    // ebenso: $LATTICE, $POINT (6), $SELPOINT (4, colour_selected)
+    const KomponentenZeichnung komp = komponentenZeichnung(ed.blicke[static_cast<std::size_t>(index)]);
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const float hinten[4] = {ed.farben.rasterHinten[0], ed.farben.rasterHinten[1], ed.farben.rasterHinten[2], 1.0F};
@@ -573,7 +566,9 @@ void xyZeichnen(int index) {
         kartegpu::zeichnen(s.gpuGeo, &mvp[0], 1.0F);
         kartegpu::zeichnen(s.gpuWelt, &mvp[0], 1.0F);
         kartegpu::zeichnen(s.gpuWahl, &mvp[0], 2.0F);
-        kartegpu::punkte(flaechenPunkte, &mvp[0], 4.0F);
+        kartegpu::zeichnen(komp.gitter, &mvp[0], 1.0F);
+        kartegpu::punkte(komp.punkte, &mvp[0], 6.0F);
+        kartegpu::punkte(komp.gewaehlt, &mvp[0], 4.0F);
         kartegpu::zeichnen(manip1, &mvp[0], 1.0F);
         kartegpu::zeichnen(manip2, &mvp[0], 2.0F);
         kartegpu::punkte(manipPunkte, &mvp[0], 6.0F);

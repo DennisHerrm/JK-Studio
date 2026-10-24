@@ -116,7 +116,9 @@ std::map<std::string, Umsetzung>& umsetzungen() {
         const std::string name = n;
         m[name] = {[name] { auswahlBefehl(name); }, nullptr};
     }
-    for (const char* n : {"MouseDrag", "MouseTranslate", "MouseRotate", "MouseScale", "MouseTransform", "HideSelected"}) {
+    for (const char* n : {"MouseDrag", "MouseTranslate", "MouseRotate", "MouseScale", "MouseTransform", "HideSelected",
+                          // Stufe 2, Punkt 1: Komponenten (tools.cpp:426-434), Texture Lock (brushmanip.cpp:1476-1477)
+                          "DragVertices", "DragEdges", "DragFaces", "MouseBuild", "TogTexLock", "TogTexVertexLock"}) {
         const std::string name = n;
         m[name] = {[name] { auswahlBefehl(name); }, [name] { return auswahlBefehlAn(name); }};
     }

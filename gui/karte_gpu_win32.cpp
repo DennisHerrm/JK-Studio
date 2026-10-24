@@ -301,7 +301,10 @@ bool fuellen(ID3D11Buffer*& vb, std::size_t& platz, const std::vector<karte::Lin
     return true;
 }
 
-void ziehen(ID3D11Buffer* vb, std::size_t anzahl, const float* matrix, float breite, bool punktModus = false) {
+ID3D11DepthStencilState* tiefenZustand(TiefenTest t, bool schreiben);
+
+void ziehen(ID3D11Buffer* vb, std::size_t anzahl, const float* matrix, float breite, bool punktModus = false,
+            ID3D11DepthStencilState* tiefe = nullptr) {
     if (g.aktiv < 0 || vb == nullptr || anzahl == 0) { return; }
     ID3D11DeviceContext* c = kontext();
     const Ziel& z = g.ziele[g.aktiv];
@@ -319,7 +322,7 @@ void ziehen(ID3D11Buffer* vb, std::size_t anzahl, const float* matrix, float bre
     // Zustand der 2D-Linien (nach einem 3D-Durchgang im selben Ziel noetig)
     const float faktor[4] = {0, 0, 0, 0};
     c->OMSetBlendState(g.blend, faktor, 0xFFFFFFFFU);
-    c->OMSetDepthStencilState(g.dsAus, 0);
+    c->OMSetDepthStencilState(tiefe != nullptr ? tiefe : g.dsAus, 0);
     c->RSSetState(z.msaa > 1 ? g.rsMsaa : g.rsEinfach);
     c->IASetVertexBuffers(0, 1, &vb, &schritt, &versatz);
     c->IASetInputLayout(g.layout);
@@ -432,6 +435,12 @@ void punkte(const std::vector<karte::Linie>& punkte, const float* matrix, float 
     if (g.aktiv < 0 || punkte.empty()) { return; }
     if (!fuellen(g.einmal, g.einmalPlatz, punkte)) { return; }
     ziehen(g.einmal, punkte.size(), matrix, groesse, true);
+}
+
+void punkte(const std::vector<karte::Linie>& punkte, const float* matrix, float groesse, TiefenTest test) {
+    if (g.aktiv < 0 || punkte.empty()) { return; }
+    if (!fuellen(g.einmal, g.einmalPlatz, punkte)) { return; }
+    ziehen(g.einmal, punkte.size(), matrix, groesse, true, tiefenZustand(test, false));
 }
 
 void auswahlRechteck(float x0, float y0, float x1, float y1, int art) {

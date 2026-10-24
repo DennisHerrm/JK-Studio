@@ -111,6 +111,8 @@ public:
     [[nodiscard]] const Kasten& grenzen() const { return m_grenzen; }   // localAABB
 
     void transformieren(const Matrix4& m);   // transform + freezeTransform
+    // undoSave, die Kontrollpunkte setzen, controlPointsChanged
+    void punkteSetzen(const std::vector<PatchPunkt>& p);
     void einrasten(float raster);            // snapto
     void matrixUmkehren();                   // InvertMatrix
     void matrixTransponieren();              // TransposeMatrix
@@ -122,7 +124,26 @@ public:
     void texturkoordinatenTransformieren(const Matrix4& m);
 
     [[nodiscard]] std::unique_ptr<Memento> zustandSichern() const override;
+    // importState (patch.h:937-961) mit onAllocate: die Punktwahl geht verloren.
     void zustandLaden(const Memento& m) override;
+    void zustandZuruecksetzen(const Memento& m) override;   // revertTransform
+
+    // PatchControlInstance::m_selectable (patch.h:1263-1283): Wahl der
+    // Kontrollpunkte (Instanzzustand, nicht im Undo); allocate (patch.h:1411-1418)
+    // legt sie bei jeder neuen Groesse leer an.
+    std::vector<char> punktWahl;
+    [[nodiscard]] bool punktGewaehlt(std::size_t i) const { return i < punktWahl.size() && punktWahl[i] != 0; }
+    void punktWaehlen(std::size_t i, bool an) {
+        komponentenWahlGeaendert();
+        if (punktWahl.size() != m_ctrl.size()) { punktWahl.assign(m_ctrl.size(), 0); }
+        if (i < punktWahl.size()) { punktWahl[i] = an ? 1 : 0; }
+    }
+    [[nodiscard]] bool punkteGewaehlt() const {   // selectedVertices
+        for (const char c : punktWahl) {
+            if (c != 0) { return true; }
+        }
+        return false;
+    }
 
 private:
     struct Kurvenbaum;   // BezierCurveTree

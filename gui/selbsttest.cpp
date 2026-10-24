@@ -28324,6 +28324,212 @@ Schritt fotoRahmen(const std::string& name, std::function<ImRect()> rahmen) {
 // (Windows-Dateidialog - die Funktionen dahinter pruefen die Schritte oben).
 // New Map kommt zuletzt. Raster, Kamera, Anzeige, 2D-Ansichten, Texturbrowser,
 // Fenster und Werkzeug kommen danach zurueck, die Karte wird neu geladen.
+// --- Stufe 2 des Karten-Editors: die Bauwerkzeuge -----------------------------
+//
+// Je Punkt der Stufe 2 Wirkungspruefungen in der echten Oberflaeche (Maus und
+// Tasten wie ein Mensch); die Geometrie rechnen die ctests (kartekomponenten
+// usw.) exakt nach. BHED_KARTE_NUR=stufe2 laesst nur diese Schritte laufen.
+namespace stufe2 {
+
+namespace ke = karteneditor;
+
+ImVec2 weltXy(float x, float y) {
+    const ke::XyFenster& f = ke::editor().xy[0];
+    const auto b = f.ansicht.zuBild(karte::Vektor3f(x, y, 0));
+    return ImVec2{f.bildX + b[0], f.bildY + b[1]};
+}
+
+// Maus ziehen in der XY-Ansicht: Zusatztasten, Druck, zehn Schritte, Loslassen.
+Schritt ziehenXy(const std::string& was, int taste, ImGuiKeyChord mods, ImVec2 von, ImVec2 nach) {
+    return Schritt{was, [=](int b) {
+                       ImGuiIO& io = ImGui::GetIO();
+                       const ImVec2 a = weltXy(von.x, von.y);
+                       const ImVec2 z = weltXy(nach.x, nach.y);
+                       if (b == 0) {
+                           setzeMaus(a);
+                           if ((mods & ImGuiMod_Ctrl) != 0) { io.AddKeyEvent(ImGuiMod_Ctrl, true); }
+                           if ((mods & ImGuiMod_Shift) != 0) { io.AddKeyEvent(ImGuiMod_Shift, true); }
+                           if ((mods & ImGuiMod_Alt) != 0) { io.AddKeyEvent(ImGuiMod_Alt, true); }
+                           return false;
+                       }
+                       if (b == 1) {
+                           io.AddMouseButtonEvent(taste, true);
+                           return false;
+                       }
+                       if (b >= 2 && b <= 11) {
+                           const float t = static_cast<float>(b - 1) / 10.0F;
+                           setzeMaus(ImVec2{a.x + (z.x - a.x) * t, a.y + (z.y - a.y) * t});
+                           return false;
+                       }
+                       if (b == 12) {
+                           io.AddMouseButtonEvent(taste, false);
+                           return false;
+                       }
+                       if (b == 13) {
+                           if ((mods & ImGuiMod_Ctrl) != 0) { io.AddKeyEvent(ImGuiMod_Ctrl, false); }
+                           if ((mods & ImGuiMod_Shift) != 0) { io.AddKeyEvent(ImGuiMod_Shift, false); }
+                           if ((mods & ImGuiMod_Alt) != 0) { io.AddKeyEvent(ImGuiMod_Alt, false); }
+                       }
+                       return b >= 15;
+                   }};
+}
+
+Schritt klickXy(const std::string& was, int taste, ImVec2 an) {
+    return Schritt{was, [=](int b) {
+                       ImGuiIO& io = ImGui::GetIO();
+                       if (b == 0) {
+                           setzeMaus(weltXy(an.x, an.y));
+                           return false;
+                       }
+                       if (b == 2) {
+                           io.AddMouseButtonEvent(taste, true);
+                           return false;
+                       }
+                       if (b == 3) {
+                           io.AddMouseButtonEvent(taste, false);
+                           return false;
+                       }
+                       return b >= 6;
+                   }};
+}
+
+std::shared_ptr<karte::Pinsel> pinsel() {
+    const auto w = ke::editor().karte.welt();
+    return (w && !w->kinder().empty()) ? std::dynamic_pointer_cast<karte::Pinsel>(w->kinder().front()) : nullptr;
+}
+
+std::size_t beitragend() {
+    const auto p = pinsel();
+    if (!p) { return 0; }
+    p->bRep(ke::editor().karte.kontext);
+    std::size_t n = 0;
+    for (const auto& f : p->flaechen()) {
+        if (f->traegtBei()) { ++n; }
+    }
+    return n;
+}
+
+bool hatEcke(const karte::Vektor3d& v) {
+    const auto p = pinsel();
+    if (!p) { return false; }
+    for (const karte::FlaechenPunkt& fp : p->ecken(ke::editor().karte.kontext)) {
+        if (karte::laengeQuadrat(p->eckpunkt(fp) - v) < 1e-6) { return true; }
+    }
+    return false;
+}
+
+Schritt rueckgaengigName(const std::string& name) {
+    return pruefe("Rueckgaengig-Name: " + name, [name] {
+        diag::detail("Knopftest: Stufe 2 - Rueckgaengig \"" + ke::editor().karte.undo.undoName() + "\"");
+        return ke::editor().karte.undo.undoName().rfind(name, 0) == 0;
+    });
+}
+
+// Grundzustand: Regular, Testkarte (Pinsel -64..64 x -64..64 x 0..64), XY
+// Massstab 1 um (0 0 0), Raster 8, Werkzeug Resize, deutsche Tastatur.
+Schritt grundzustand(const std::string& was) {
+    return tu(was, [] {
+        ke::Editor& e = ke::editor();
+        e.anordnung = karte::befehle::Anordnung::Regular;
+        e.teilerFuer = -1;
+        e.anzeige = ke::Anzeige{};
+        (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map"));
+        e.karte.auswahl.leeren();
+        e.bearbeitung.einstellung.modus = karte::AuswahlModus::Primitiv;
+        e.bearbeitung.einstellung.komponente = karte::KomponentenModus::Standard;
+        e.aktivXy = 0;
+        e.xy[0].ansicht.typ = karte::Sicht::XY;
+        e.xy[0].ansicht.setzeMassstab(1);
+        e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        e.raster.setzePotenz(3);
+        ke::tastaturErsatz = deutscheTastatur;
+        if (e.bearbeitung.modus() != karte::ManipModus::Ziehen) { (void)ke::ausfuehren("MouseDrag"); }
+    });
+}
+
+// Punkt 1: Komponenten (V/E/F), Ecken ziehen mit Huellenbau, Texture Lock, Build-Werkzeug
+std::vector<Schritt> komponenten() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(grundzustand("Stufe 2/1: Grundzustand"));
+    add(pause(0.4));
+    add(klickXy("M1 auf den Pinsel", ImGuiMouseButton_Left, ImVec2{32, 32}));
+    add(pruefe("Pinsel gewaehlt", [] { return ke::editor().karte.auswahl.anzahl() == 1; }));
+    add(tasteKombi(ImGuiKey_V, "V"));
+    add(pruefe("V: Ecken-Modus (DragVertices angehakt), 8 Ecken gezeichnet ($POINT colour_vertex)", [] {
+        const ke::Editor& e = ke::editor();
+        const ke::KomponentenZeichnung z = ke::komponentenZeichnung(e.blicke[0]);
+        diag::detail("Knopftest: Stufe 2 - Ecken gezeichnet " + std::to_string(z.punkte.size()));
+        return ke::angehakt("DragVertices") && e.bearbeitung.einstellung.modus == karte::AuswahlModus::Komponente && z.punkte.size() == 8;
+    }));
+    add(pause(0.2));
+    add(ziehenXy("Ecke (64 64) nach (80 64) ziehen", ImGuiMouseButton_Left, 0, ImVec2{64, 64}, ImVec2{80, 64}));
+    add(pruefe("Huelle: 7 Flaechen, Ecke (80 64 64), die Ecke bleibt gewaehlt", [] {
+        const ke::KomponentenZeichnung z = ke::komponentenZeichnung(ke::editor().blicke[0]);
+        // FaceInstance::iterate_selected: je Flaeche um die Ecke ein $SELPOINT, alle an derselben Stelle
+        bool alleDort = !z.gewaehlt.empty();
+        for (const karte::Linie& l : z.gewaehlt) { alleDort = alleDort && l.a == karte::Vektor3f(80, 64, 64); }
+        diag::detail("Knopftest: Stufe 2 - Flaechen " + std::to_string(beitragend()) + ", gewaehlte Punkte " + std::to_string(z.gewaehlt.size()) +
+                     (alleDort ? " bei (80 64 64)" : " verstreut") + ", Ecken " + (hatEcke(karte::Vektor3d(80, 64, 64)) ? "a" : "-") +
+                     (hatEcke(karte::Vektor3d(64, 64, 0)) ? "b" : "-"));
+        return beitragend() == 7 && hatEcke(karte::Vektor3d(80, 64, 64)) && hatEcke(karte::Vektor3d(64, 64, 0)) && alleDort;
+    }));
+    add(rueckgaengigName("dragTool"));
+    add(foto("karteneditor_ecken"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pruefe("Strg+Z: wieder 6 Flaechen", [] { return beitragend() == 6 && hatEcke(karte::Vektor3d(64, 64, 64)); }));
+    add(tasteKombi(ImGuiKey_E, "E"));
+    add(pruefe("E: Kanten-Modus, 12 Kantenmitten", [] {
+        const ke::KomponentenZeichnung z = ke::komponentenZeichnung(ke::editor().blicke[0]);
+        return ke::angehakt("DragEdges") && !ke::angehakt("DragVertices") && z.punkte.size() == 12;
+    }));
+    add(ziehenXy("Kante (64 0 64) nach (80 0) ziehen", ImGuiMouseButton_Left, 0, ImVec2{64, 0}, ImVec2{80, 0}));
+    add(pruefe("Kante: oben x=80, unten x=64, 6 Flaechen", [] {
+        return beitragend() == 6 && hatEcke(karte::Vektor3d(80, 64, 64)) && hatEcke(karte::Vektor3d(80, -64, 64)) && hatEcke(karte::Vektor3d(64, 64, 0));
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiKey_F, "F"));
+    add(pruefe("F: Flaechen-Modus, 6 Schwerpunkte", [] {
+        const ke::KomponentenZeichnung z = ke::komponentenZeichnung(ke::editor().blicke[0]);
+        return ke::angehakt("DragFaces") && z.punkte.size() == 6;
+    }));
+    add(tasteKombi(ImGuiKey_F, "F"));
+    add(pruefe("F nochmal: zurueck in den Primitivmodus", [] {
+        return !ke::angehakt("DragFaces") && ke::editor().bearbeitung.einstellung.modus == karte::AuswahlModus::Primitiv;
+    }));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_T, "Umschalt+T"));
+    add(pause(0.2));
+    add(pruefe("Umschalt+T: Texture Lock an, Statuszeile L:ON", [] {
+        return ke::angehakt("TogTexLock") && ke::editor().karte.kontext.texturLock;
+    }));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_T, "Umschalt+T"));
+    add(pruefe("Umschalt+T: Texture Lock aus", [] { return !ke::angehakt("TogTexLock") && !ke::editor().karte.kontext.texturLock; }));
+    add(tu("TogTexVertexLock", [] { (void)ke::ausfuehren("TogTexVertexLock"); }));
+    add(pruefe("Texture Vertex Lock an", [] { return ke::angehakt("TogTexVertexLock") && ke::editor().bearbeitung.texturEckenSperre; }));
+    add(tu("TogTexVertexLock", [] { (void)ke::ausfuehren("TogTexVertexLock"); }));
+    add(tasteKombi(ImGuiKey_B, "B"));
+    add(pruefe("B: Build-Werkzeug, Status wie NRC", [] {
+        const ke::Editor& e = ke::editor();
+        return ke::angehakt("MouseBuild") && e.bearbeitung.modus() == karte::ManipModus::Bauen &&
+               e.statusBefehl == "Build Tool: extrude, build chains, clone";
+    }));
+    add(klickXy("Build: M1 neben den Pinsel", ImGuiMouseButton_Left, ImVec2{200, 200}));
+    add(pruefe("Build: der Klick waehlt nicht ab (testSelect_simpleM1 nicht im Build-Modus)", [] {
+        return ke::editor().karte.auswahl.anzahl() == 1;
+    }));
+    add(tasteKombi(ImGuiKey_B, "B"));
+    add(pruefe("B nochmal: Resize", [] { return ke::angehakt("MouseDrag"); }));
+    return s;
+}
+
+}  // namespace stufe2
+
+std::vector<Schritt> karteneditorStufe2Schritte() {
+    std::vector<Schritt> s;
+    for (Schritt& x : stufe2::komponenten()) { s.push_back(std::move(x)); }
+    return s;
+}
+
 std::vector<Schritt> karteneditorAlleBefehleSchritte() {
     namespace ke = karteneditor;
     namespace kb = karte::befehle;
@@ -29028,6 +29234,12 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =stufe2: nur die Wirkungspruefungen der Stufe 2 (Bauwerkzeuge)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe2") == 0) {
+        for (Schritt& x : karteneditorStufe2Schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     for (Schritt& x : karteneditorRahmenSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorTastenSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorMassSchritte()) { add(std::move(x)); }
@@ -29037,6 +29249,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : karteneditorTexturSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorEntitaetenSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorKonsoleSchritte()) { add(std::move(x)); }
+    for (Schritt& x : karteneditorStufe2Schritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorAlleBefehleSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS

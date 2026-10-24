@@ -32,9 +32,12 @@
 #include "app_internal.h"
 #include "bhed/karte/auswahlbefehle.h"
 #include "bhed/karte/auswahlsystem.h"
+#include "bhed/karte/komponenten.h"
+#include "bhed/karte/patch.h"
 
 #include <algorithm>
 #include <cmath>
+#include <set>
 
 namespace bhed::gui::karteneditor {
 
@@ -308,6 +311,93 @@ karte::ManipZeichnung manipulatorZeichnung(int fenster) {
     return z;
 }
 
+KomponentenZeichnung komponentenZeichnung(const karte::Blick& blick) {
+    const Editor& ed = e();
+    const karte::Karte& k = ed.karte;
+    KomponentenZeichnung z;
+    const karte::Farbe gruen = karte::farbeAus(0, 1, 0);                                // colour_vertex
+    const karte::Farbe blau = karte::farbeAus(0, 0, 1);                                 // colour_selected
+    const karte::Farbe magenta = karte::farbeAus(1, 0, 1);                              // colour_inside
+    const karte::Farbe orange = karte::farbeAus(1, 0.5F, 0);                            // $LATTICE
+    const auto punkt = [](std::vector<karte::Linie>& v, const karte::Vektor3f& p, karte::Farbe f) { v.push_back(karte::Linie{p, p, f}); };
+    const karte::AuswahlEinstellung& einst = ed.bearbeitung.einstellung;
+    const bool komponentenModus = einst.modus == karte::AuswahlModus::Komponente;
+    const auto pinselZeichnen = [&](const karte::Pinsel& pinsel, bool gewaehltesPrimitiv) {
+        pinsel.bRep(k.kontext);
+        // renderComponentsSelected: FaceInstance::iterate_selected der beitragenden Flaechen
+        for (const auto& f : pinsel.flaechen()) {
+            if (!f->traegtBei()) { continue; }
+            const karte::Wicklung& w = f->wicklung();
+            for (const std::size_t nachbar : f->eckenWahl) {
+                const std::size_t i = karte::wicklungFindeNachbar(w, nachbar);
+                if (i != karte::kMaxFlaechen) { punkt(z.gewaehlt, karte::Vektor3f(w[i].vertex), blau); }
+            }
+            for (const std::size_t nachbar : f->kantenWahl) {
+                const std::size_t i = karte::wicklungFindeNachbar(w, nachbar);
+                if (i != karte::kMaxFlaechen) { punkt(z.gewaehlt, karte::Vektor3f(karte::mitte(w[i].vertex, w[karte::wicklungNaechster(w, i)].vertex)), blau); }
+            }
+            if (k.auswahl.flaecheGewaehlt(f.get())) { punkt(z.gewaehlt, f->schwerpunkt(), blau); }
+        }
+        if (!komponentenModus || !gewaehltesPrimitiv) { return; }   // renderCommon: componentMode && isSelected()
+        if (blick.fuellen() && einst.komponente == karte::KomponentenModus::Flaeche) {   // m_render_faces_wireframe
+            for (const auto& f : pinsel.flaechen()) {
+                if (f->traegtBei() && karte::abstandZuPunkt(f->ebene(), blick.betrachter()) > 0) { punkt(z.punkte, f->schwerpunkt(), gruen); }
+            }
+            return;
+        }
+        switch (einst.komponente) {
+        case karte::KomponentenModus::Ecke:
+            for (const karte::FlaechenPunkt& fp : pinsel.ecken(k.kontext)) {
+                punkt(blick.fuellen() ? z.tiefPunkte : z.punkte, karte::Vektor3f(pinsel.eckpunkt(fp)), gruen);
+            }
+            break;
+        case karte::KomponentenModus::Kante:
+            for (const karte::FlaechenPunkt& fp : pinsel.kanten(k.kontext)) {
+                const karte::Wicklung& w = pinsel[fp.flaeche].wicklung();
+                punkt(z.punkte, karte::Vektor3f(karte::mitte(w[fp.punkt].vertex, w[karte::wicklungNaechster(w, fp.punkt)].vertex)), gruen);
+            }
+            break;
+        case karte::KomponentenModus::Flaeche:   // m_render_faces (m_faceCentroidPoints)
+            for (const auto& f : pinsel.flaechen()) { punkt(z.punkte, f->schwerpunkt(), gruen); }
+            break;
+        default: break;
+        }
+    };
+    const auto patchZeichnen = [&](const karte::Patch& patch, bool gewaehltesPrimitiv) {
+        const auto& pk = patch.punkte();
+        for (std::size_t i = 0; i < pk.size(); ++i) {   // update_selected
+            if (patch.punktGewaehlt(i)) { punkt(z.gewaehlt, pk[i].vertex, blau); }
+        }
+        if (!komponentenModus || !gewaehltesPrimitiv || einst.komponente != karte::KomponentenModus::Ecke) { return; }
+        const std::size_t b = patch.breite();
+        for (std::size_t i = 0; i < pk.size(); ++i) {
+            // colour_for_index: Ecken der Teilfelder gruen, innere Punkte magenta
+            punkt(z.punkte, pk[i].vertex, ((i % 2) != 0 || ((i / b) % 2) != 0) ? magenta : gruen);
+            if ((i % b) != 0) { z.gitter.push_back(karte::Linie{pk[i - 1].vertex, pk[i].vertex, orange}); }
+            if (i >= b) { z.gitter.push_back(karte::Linie{pk[i - b].vertex, pk[i].vertex, orange}); }
+        }
+    };
+    std::set<const karte::Primitiv*> gezeichnet;
+    for (const auto& g : karte::gewaehltePrimitiveListe(k)) {
+        if (g.primitiv->versteckt || g.entitaet->versteckt) { continue; }
+        gezeichnet.insert(g.primitiv.get());
+        if (g.primitiv->art() == karte::Primitiv::Art::Pinsel) {
+            pinselZeichnen(static_cast<const karte::Pinsel&>(*g.primitiv), true);
+        } else {
+            patchZeichnen(static_cast<const karte::Patch&>(*g.primitiv), true);
+        }
+    }
+    // gewaehlte Flaechen ungewaehlter Pinsel (Strg+Umschalt+M1)
+    for (const auto& fw : k.auswahl.flaechen()) {
+        const auto p = fw.pinsel.lock();
+        const auto f = fw.flaeche.lock();
+        if (!p || !f || p->versteckt || gezeichnet.count(p.get()) != 0) { continue; }
+        p->bRep(k.kontext);
+        if (f->traegtBei()) { punkt(z.gewaehlt, f->schwerpunkt(), blau); }
+    }
+    return z;
+}
+
 void auswahlGeaendert() {
     Editor& ed = e();
     ed.bearbeitung.manipulatorAbwaehlen();   // setSelectedAll: m_manipulator->setSelected( false )
@@ -336,6 +426,15 @@ const char* statusText(ManipModus m) {
     return "";
 }
 
+void standardModus() {   // SelectionSystem_DefaultMode (tools.cpp:38-42)
+    Editor& ed = e();
+    ed.bearbeitung.einstellung.modus = karte::AuswahlModus::Primitiv;
+    ed.bearbeitung.einstellung.komponente = karte::KomponentenModus::Standard;
+}
+
+// g_currentToolModeSupportsComponentEditing (tools.cpp:250-395)
+bool werkzeugMitKomponenten(ManipModus m) { return m != ManipModus::Clipper && m != ManipModus::Bauen && m != ManipModus::UV; }
+
 // DragMode, TranslateMode, ...: dasselbe Werkzeug noch einmal = das Standardwerkzeug
 void werkzeug(ManipModus m) {
     Editor& ed = e();
@@ -345,8 +444,23 @@ void werkzeug(ManipModus m) {
         return;
     }
     ed.werkzeug = m;
+    if (!werkzeugMitKomponenten(m)) { standardModus(); }   // ClipperMode, BuildMode, UVMode
     ed.statusBefehl = statusText(m);   // Sys_Status
     ed.bearbeitung.setzeModus(m);
+}
+
+// SelectVertexMode / SelectEdgeMode / SelectFaceMode (tools.cpp:106-162)
+void komponentenModus(karte::KomponentenModus m) {
+    Editor& ed = e();
+    karte::AuswahlEinstellung& einst = ed.bearbeitung.einstellung;
+    if (einst.modus == karte::AuswahlModus::Komponente && einst.komponente == m) {
+        standardModus();
+    } else if (ed.karte.auswahl.anzahl() != 0) {
+        if (!werkzeugMitKomponenten(ed.werkzeug)) { werkzeug(ManipModus::Ziehen); }   // g_defaultToolMode()
+        einst.modus = karte::AuswahlModus::Komponente;
+        einst.komponente = m;
+    }
+    ed.bearbeitung.pivotGeaendert();   // SetMode: pivotChanged
 }
 
 // GlobalXYWnd_getCurrentViewType
@@ -375,7 +489,15 @@ bool auswahlBefehlAn(const std::string& name) {
     if (name == "MouseRotate") { return ed.bearbeitung.modus() == ManipModus::Drehen; }
     if (name == "MouseScale") { return ed.bearbeitung.modus() == ManipModus::Skalieren; }
     if (name == "MouseTransform") { return ed.bearbeitung.modus() == ManipModus::Verzerren; }
+    if (name == "MouseBuild") { return ed.bearbeitung.modus() == ManipModus::Bauen; }   // BuildToolExport
     if (name == "HideSelected") { return ed.knotenVersteckt; }   // g_hidden_item
+    const karte::AuswahlEinstellung& einst = ed.bearbeitung.einstellung;
+    const bool komp = einst.modus == karte::AuswahlModus::Komponente;
+    if (name == "DragVertices") { return komp && einst.komponente == karte::KomponentenModus::Ecke; }   // VertexMode
+    if (name == "DragEdges") { return komp && einst.komponente == karte::KomponentenModus::Kante; }     // EdgeMode
+    if (name == "DragFaces") { return komp && einst.komponente == karte::KomponentenModus::Flaeche; }   // FaceMode
+    if (name == "TogTexLock") { return ed.karte.kontext.texturLock; }                 // g_brush_texturelock_enabled
+    if (name == "TogTexVertexLock") { return ed.bearbeitung.texturEckenSperre; }      // g_brush_textureVertexlock_enabled
     return false;
 }
 
@@ -393,6 +515,18 @@ void auswahlBefehl(const std::string& name) {
         werkzeug(ManipModus::Skalieren);
     } else if (name == "MouseTransform") {
         werkzeug(ManipModus::Verzerren);
+    } else if (name == "MouseBuild") {   // BuildMode (tools.cpp:372-388)
+        werkzeug(ManipModus::Bauen);
+    } else if (name == "DragVertices") {
+        komponentenModus(karte::KomponentenModus::Ecke);
+    } else if (name == "DragEdges") {
+        komponentenModus(karte::KomponentenModus::Kante);
+    } else if (name == "DragFaces") {
+        komponentenModus(karte::KomponentenModus::Flaeche);
+    } else if (name == "TogTexLock") {   // Texdef_ToggleMoveLock (brushmanip.cpp:1460-1464)
+        k.kontext.texturLock = !k.kontext.texturLock;
+    } else if (name == "TogTexVertexLock") {   // Texdef_ToggleMoveVLock (brushmanip.cpp:1467-1470)
+        ed.bearbeitung.texturEckenSperre = !ed.bearbeitung.texturEckenSperre;
     } else if (name == "MouseRotateOrScale") {   // ToggleRotateScaleModes
         werkzeug(ed.werkzeug == ManipModus::Drehen ? ManipModus::Skalieren : ManipModus::Drehen);
     } else if (name == "MouseDragOrTransform") {   // ToggleDragSkewModes
@@ -432,7 +566,7 @@ void auswahlBefehl(const std::string& name) {
             auswahlGeaendert();
         }
     } else if (name == "DeleteSelection" || name == "DeleteSelection2" || name == "DeleteSelection3") {
-        karte::loescheAuswahl(k, einst);
+        karte::loescheAuswahl(k, einst, ed.bearbeitung.texturEckenSperre);
         auswahlGeaendert();
     } else if (name == "UnSelectSelection" || name == "UnSelectSelection2") {
         karte::auswahlAufheben(k, einst);
@@ -444,7 +578,7 @@ void auswahlBefehl(const std::string& name) {
         karte::alleVomTyp(k, einst, ed.bearbeitung.browserShader);
         auswahlGeaendert();
     } else if (name == "SnapToGrid") {
-        karte::amRasterAusrichten(k, einst, ed.raster.groesse());
+        karte::amRasterAusrichten(k, einst, ed.raster.groesse(), ed.bearbeitung.texturEckenSperre);
     } else if (name == "SelectNudgeLeft") {
         schubsen(0, "nudgeSelectedLeft");
     } else if (name == "SelectNudgeUp") {

@@ -125,6 +125,9 @@ struct Zustand3 {
     int musterFaktor = 1;
     float breite = 1;                   // glLineWidth (nur Linien)
 };
+// Punkte wie punkte(), aber mit Tiefentest gegen die Tiefe der Kamera (fuer
+// $DEEPPOINT: erst die verdeckten mit GL_GREATER, dann die sichtbaren).
+void punkte(const std::vector<karte::Linie>& punkte, const float* matrix, float groesse, TiefenTest test);
 // In das Renderziel mit Tiefe zeichnen (beginnen(..., true) vorher).
 void dreiecke(const Puffer3& p, std::size_t erstes, std::size_t anzahl, const Zustand3& z);
 void linien(const Puffer3& p, std::size_t erstes, std::size_t anzahl, const Zustand3& z);

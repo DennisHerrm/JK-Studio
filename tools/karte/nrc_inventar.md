@@ -34,8 +34,8 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
   - [~] ITEM Make detail -> `MakeDetail`  (radiant/brushmanip.cpp:1527) -- Stufe 2
   - [~] ITEM Make structural -> `MakeStructural`  (radiant/brushmanip.cpp:1528) -- Stufe 2
   * ---
-  - [~] CHECK Texture Lock -> `TogTexLock`  (radiant/brushmanip.cpp:1531) -- Stufe 2
-  - [~] CHECK Texture Vertex Lock -> `TogTexVertexLock`  (radiant/brushmanip.cpp:1532) -- Stufe 2
+  - [x] CHECK Texture Lock -> `TogTexLock`  (radiant/brushmanip.cpp:1531) -- Stufe 2 Punkt 1
+  - [x] CHECK Texture Vertex Lock -> `TogTexVertexLock`  (radiant/brushmanip.cpp:1532) -- Stufe 2 Punkt 1
   - [~] ITEM Reset Texture -> `TextureReset/Cap`  (radiant/brushmanip.cpp:1533) -- Stufe 2
   - [~] ITEM AutoCaulk Selected -> `AutoCaulkSelected`  (radiant/brushmanip.cpp:1534) -- Stufe 2
 
@@ -230,9 +230,9 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
   * SUB M&odify  (radiant/mainframe.cpp:1057)
     * SUB Components  (radiant/mainframe.cpp:1061)
-      - [~] CHECK &Edges -> `DragEdges`  (radiant/mainframe.cpp:1065) -- Stufe 2
-      - [~] CHECK &Vertices -> `DragVertices`  (radiant/mainframe.cpp:1066) -- Stufe 2
-      - [~] CHECK &Faces -> `DragFaces`  (radiant/mainframe.cpp:1067) -- Stufe 2
+      - [x] CHECK &Edges -> `DragEdges`  (radiant/mainframe.cpp:1065) -- Stufe 2 Punkt 1
+      - [x] CHECK &Vertices -> `DragVertices`  (radiant/mainframe.cpp:1066) -- Stufe 2 Punkt 1
+      - [x] CHECK &Faces -> `DragFaces`  (radiant/mainframe.cpp:1067) -- Stufe 2 Punkt 1
     * ---
     - [x] ITEM Snap To Grid -> `SnapToGrid`  (radiant/mainframe.cpp:1071)
     * ---
@@ -392,16 +392,16 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
   - [x] CHECK Fixed Size -> `FixedSize`  (radiant/texwindow.cpp:1263)
   - [x] CHECK Transparency -> `EnableAlpha`  (radiant/texwindow.cpp:1264)
   * ---
-  - [~] CHECK Tags GUI -> `TagsToggleGui`  (radiant/texwindow.cpp:1267) -- Stufe 2 (Tags mit der ShaderPlug-Tagdatei)
-  - [~] ITEM Add tag -> `TagAdd`  (radiant/texwindow.cpp:1282) -- Stufe 2 (Tags mit der ShaderPlug-Tagdatei)
-  - [~] ITEM Rename tag -> `TagRename`  (radiant/texwindow.cpp:1283) -- Stufe 2 (Tags mit der ShaderPlug-Tagdatei)
-  - [~] ITEM Delete tag -> `TagDelete`  (radiant/texwindow.cpp:1284) -- Stufe 2 (Tags mit der ShaderPlug-Tagdatei)
+  - [~] CHECK Tags GUI -> `TagsToggleGui`  (radiant/texwindow.cpp:1267) -- Stufe 2
+  - [~] ITEM Add tag -> `TagAdd`  (radiant/texwindow.cpp:1282) -- Stufe 2
+  - [~] ITEM Rename tag -> `TagRename`  (radiant/texwindow.cpp:1283) -- Stufe 2
+  - [~] ITEM Delete tag -> `TagDelete`  (radiant/texwindow.cpp:1284) -- Stufe 2
   * ---
-  - [~] ITEM Copy tags from selected -> `TagCopy`  (radiant/texwindow.cpp:1286) -- Stufe 2 (Tags mit der ShaderPlug-Tagdatei)
-  - [~] ITEM Paste tags to selected -> `TagPaste`  (radiant/texwindow.cpp:1287) -- Stufe 2 (Tags mit der ShaderPlug-Tagdatei)
+  - [~] ITEM Copy tags from selected -> `TagCopy`  (radiant/texwindow.cpp:1286) -- Stufe 2
+  - [~] ITEM Paste tags to selected -> `TagPaste`  (radiant/texwindow.cpp:1287) -- Stufe 2
   * ---
-  - [~] ITEM Search tag -> `TagSearch`  (radiant/texwindow.cpp:1289) -- Stufe 2 (Tags mit der ShaderPlug-Tagdatei)
-  - [~] ITEM Search Untagged -> `TagSearchUntagged`  (radiant/texwindow.cpp:1290) -- Stufe 2 (Tags mit der ShaderPlug-Tagdatei)
+  - [~] ITEM Search tag -> `TagSearch`  (radiant/texwindow.cpp:1289) -- Stufe 2
+  - [~] ITEM Search Untagged -> `TagSearchUntagged`  (radiant/texwindow.cpp:1290) -- Stufe 2
 
 ### TextureBrowser_ContextMenu (radiant/texwindow.cpp)
 
@@ -474,9 +474,9 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### ComponentModes_constructToolbar (radiant/mainframe.cpp)
 
-- [~] toggle_button Select Vertices | modify_vertices.png -> `DragVertices`  (radiant/mainframe.cpp:1364) -- Stufe 2
-- [~] toggle_button Select Edges | modify_edges.png -> `DragEdges`  (radiant/mainframe.cpp:1365) -- Stufe 2
-- [~] toggle_button Select Faces | modify_faces.png -> `DragFaces`  (radiant/mainframe.cpp:1366) -- Stufe 2
+- [x] toggle_button Select Vertices | modify_vertices.png -> `DragVertices`  (radiant/mainframe.cpp:1364) -- Stufe 2 Punkt 1
+- [x] toggle_button Select Edges | modify_edges.png -> `DragEdges`  (radiant/mainframe.cpp:1365) -- Stufe 2 Punkt 1
+- [x] toggle_button Select Faces | modify_faces.png -> `DragFaces`  (radiant/mainframe.cpp:1366) -- Stufe 2 Punkt 1
 
 ### XYWnd_constructToolbar (radiant/mainframe.cpp)
 
@@ -494,8 +494,8 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### create_main_toolbar (radiant/mainframe.cpp)
 
-- [~] toggle_button Texture Lock | texture_lock.png -> `TogTexLock`  (radiant/mainframe.cpp:1424) -- Stufe 2
-- [~] toggle_button Texture Vertex Lock | texture_vertexlock.png -> `TogTexVertexLock`  (radiant/mainframe.cpp:1425) -- Stufe 2
+- [x] toggle_button Texture Lock | texture_lock.png -> `TogTexLock`  (radiant/mainframe.cpp:1424) -- Stufe 2 Punkt 1
+- [x] toggle_button Texture Vertex Lock | texture_vertexlock.png -> `TogTexVertexLock`  (radiant/mainframe.cpp:1425) -- Stufe 2 Punkt 1
 - [x] button Entities | entities.png -> `ToggleEntityInspector`  (radiant/mainframe.cpp:1428) -- Stufe 1b Punkt 9
 - [x] button Console [wenn: if ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft )] | console.png -> `ToggleConsole`  (radiant/mainframe.cpp:1431) -- Stufe 1b Punkt 10
 - [ ] button Texture Browser [wenn: if ( ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft ) || g_Layout_builtInGroupDialog.m_value )] | texture_browser.png -> `ToggleTextures`  (radiant/mainframe.cpp:1434)
@@ -635,9 +635,9 @@ Name | Art | Standardtaste | Quelle
 - [x] `DeleteSelection2` | Commands | Backspace | (radiant/select.cpp:1869)
 - [x] `DeleteSelection3` | Commands | Delete | (radiant/select.cpp:1868)
 - [x] `DownFloor` | Commands | PgDown | (radiant/camwindow.cpp:2496)
-- [~] `DragEdges` | Toggles | E | (radiant/tools.cpp:423) -- Stufe 2
-- [~] `DragFaces` | Toggles | F | (radiant/tools.cpp:424) -- Stufe 2
-- [~] `DragVertices` | Toggles | V | (radiant/tools.cpp:422) -- Stufe 2
+- [x] `DragEdges` | Toggles | E | (radiant/tools.cpp:423) -- Stufe 2 Punkt 1
+- [x] `DragFaces` | Toggles | F | (radiant/tools.cpp:424) -- Stufe 2 Punkt 1
+- [x] `DragVertices` | Toggles | V | (radiant/tools.cpp:422) -- Stufe 2 Punkt 1
 - [x] `EnableAlpha` | Toggles | - | (radiant/texwindow.cpp:2109)
 - [x] `EntitiesConnect` | Commands | Ctrl+K | (radiant/entity.cpp:734) -- Stufe 1b Punkt 9
 - [x] `EntityColorNormalize` | Commands | - | (radiant/entity.cpp:733) -- Stufe 1b Punkt 9
@@ -719,7 +719,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `MirrorSelectionX` | Commands | - | (radiant/select.cpp:1844) -- Stufe 2
 - [~] `MirrorSelectionY` | Commands | - | (radiant/select.cpp:1846) -- Stufe 2
 - [~] `MirrorSelectionZ` | Commands | - | (radiant/select.cpp:1848) -- Stufe 2
-- [~] `MouseBuild` | Toggles | B | (radiant/tools.cpp:433) -- Stufe 2
+- [x] `MouseBuild` | Toggles | B | (radiant/tools.cpp:433) -- Stufe 2 Punkt 1
 - [x] `MouseDrag` | Toggles | - | (radiant/tools.cpp:432)
 - [x] `MouseDragOrTransform` | Commands | Q | (radiant/tools.cpp:436)
 - [x] `MouseRotate` | Toggles | R | (radiant/tools.cpp:429)
@@ -840,14 +840,14 @@ Name | Art | Standardtaste | Quelle
 - [~] `sunPlug::About` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 3
 - [~] `sunPlug::ET-MapCoordinator` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 3
 - [~] `SurfaceInspector` | Commands | S | (radiant/surfacedialog.cpp:1755) -- Stufe 2
-- [~] `TagAdd` | Commands | - | (radiant/texwindow.cpp:2095) -- Stufe 2 (Tags mit der ShaderPlug-Tagdatei)
-- [~] `TagCopy` | Commands | - | (radiant/texwindow.cpp:2098) -- Stufe 2 (Tags mit der ShaderPlug-Tagdatei)
-- [~] `TagDelete` | Commands | - | (radiant/texwindow.cpp:2097) -- Stufe 2 (Tags mit der ShaderPlug-Tagdatei)
-- [~] `TagPaste` | Commands | - | (radiant/texwindow.cpp:2099) -- Stufe 2 (Tags mit der ShaderPlug-Tagdatei)
-- [~] `TagRename` | Commands | - | (radiant/texwindow.cpp:2096) -- Stufe 2 (Tags mit der ShaderPlug-Tagdatei)
-- [~] `TagSearch` | Commands | - | (radiant/texwindow.cpp:2094) -- Stufe 2 (Tags mit der ShaderPlug-Tagdatei)
-- [~] `TagSearchUntagged` | Commands | - | (radiant/texwindow.cpp:2093) -- Stufe 2 (Tags mit der ShaderPlug-Tagdatei)
-- [~] `TagsToggleGui` | Toggles | - | (radiant/texwindow.cpp:2110) -- Stufe 2 (Tags mit der ShaderPlug-Tagdatei)
+- [~] `TagAdd` | Commands | - | (radiant/texwindow.cpp:2095) -- Stufe 2
+- [~] `TagCopy` | Commands | - | (radiant/texwindow.cpp:2098) -- Stufe 2
+- [~] `TagDelete` | Commands | - | (radiant/texwindow.cpp:2097) -- Stufe 2
+- [~] `TagPaste` | Commands | - | (radiant/texwindow.cpp:2099) -- Stufe 2
+- [~] `TagRename` | Commands | - | (radiant/texwindow.cpp:2096) -- Stufe 2
+- [~] `TagSearch` | Commands | - | (radiant/texwindow.cpp:2094) -- Stufe 2
+- [~] `TagSearchUntagged` | Commands | - | (radiant/texwindow.cpp:2093) -- Stufe 2
+- [~] `TagsToggleGui` | Toggles | - | (radiant/texwindow.cpp:2110) -- Stufe 2
 - [~] `TexRotateClock` | Commands | Shift+PgDown | (radiant/select.cpp:1890) -- Stufe 2
 - [~] `TexRotateCounter` | Commands | Shift+PgUp | (radiant/select.cpp:1891) -- Stufe 2
 - [~] `TexScaleDown` | Commands | Ctrl+Down | (radiant/select.cpp:1893) -- Stufe 2
@@ -881,8 +881,8 @@ Name | Art | Standardtaste | Quelle
 - [x] `ToggleSideView` | Toggles | - | (radiant/xywindow.cpp:2268)
 - [x] `ToggleTextures` | Commands | T | (radiant/texwindow.cpp:2103)
 - [x] `ToggleView` | Toggles | - | (radiant/xywindow.cpp:2267)
-- [~] `TogTexLock` | Toggles | Shift+T | (radiant/brushmanip.cpp:1476) -- Stufe 2
-- [~] `TogTexVertexLock` | Toggles | - | (radiant/brushmanip.cpp:1477) -- Stufe 2
+- [x] `TogTexLock` | Toggles | Shift+T | (radiant/brushmanip.cpp:1476) -- Stufe 2 Punkt 1
+- [x] `TogTexVertexLock` | Toggles | - | (radiant/brushmanip.cpp:1477) -- Stufe 2 Punkt 1
 - [~] `uFO:AI::About` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
 - [~] `uFO:AI::ActorClip` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
 - [~] `uFO:AI::Level1` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3

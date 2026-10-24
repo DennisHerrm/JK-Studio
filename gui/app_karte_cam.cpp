@@ -1033,7 +1033,6 @@ void kameraZeichnen() {
         // gewaehlte Flaechen (Komponenten): Polygone, Kanten, Schwerpunkte
         std::vector<kartegpu::Punkt3> flaechenTint;
         std::vector<kartegpu::LinienPunkt> flaechenDraht;
-        std::vector<karte::Linie> flaechenPunkte;
         for (const auto& fw : ed.karte.auswahl.flaechen()) {
             const auto pinsel = fw.pinsel.lock();
             const auto fl = fw.flaeche.lock();
@@ -1052,7 +1051,6 @@ void kameraZeichnen() {
             karte::polygonFuellung(ecken, dreiecke, &kanten);
             for (const auto& d : dreiecke) { flaechenTint.push_back(punkt3(d, true)); }
             for (const auto& kk : kanten) { kanteDazu(kk, true, flaechenDraht); }
-            flaechenPunkte.push_back(karte::Linie{fl->schwerpunkt(), fl->schwerpunkt(), karte::farbeAus(0, 0, 1)});   // colour_selected
         }
         // eSortHighlight: $CAM_HIGHLIGHT (color_selbrushes3d, 0.3)
         if (c.faerben) {
@@ -1131,8 +1129,19 @@ void kameraZeichnen() {
             z.tiefeSchreiben = true;
             kartegpu::linien(flaechenDraht, z);
         }
-        // $SELPOINT (eSortControlFirst + 1): Schwerpunkte, 4 Bildpunkte, ohne Tiefentest
-        kartegpu::punkte(flaechenPunkte, &vp[0], 4.0F);
+        // Komponenten (BrushInstance::renderComponents/-Selected, PatchInstance):
+        // $LATTICE und $POINT (eSortControlFirst), $DEEPPOINT mit der Abfrage,
+        // ob ein Punkt verdeckt ist (colour_occluded), $SELPOINT (+ 1), ohne Tiefentest
+        {
+            const KomponentenZeichnung komp = komponentenZeichnung(ed.blicke[3]);
+            kartegpu::zeichnen(komp.gitter, &vp[0], 1.0F);
+            kartegpu::punkte(komp.punkte, &vp[0], 6.0F);
+            std::vector<karte::Linie> verdeckt = komp.tiefPunkte;
+            for (auto& l : verdeckt) { l.farbe = karte::farbeAus(74.0F / 255.0F, 150.0F / 255.0F, 75.0F / 255.0F); }
+            kartegpu::punkte(verdeckt, &vp[0], 6.0F, kartegpu::TiefenTest::Groesser);
+            kartegpu::punkte(komp.tiefPunkte, &vp[0], 6.0F, kartegpu::TiefenTest::KleinerGleich);
+            kartegpu::punkte(komp.gewaehlt, &vp[0], 4.0F);
+        }
         // eSortOverlayFirst + 3: $CAM_WORKZONE
         if (c.zeigeWorkzone && ed.karte.auswahl.anzahl() != 0) {
             Kasten b;

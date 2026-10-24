@@ -353,6 +353,7 @@ void Patch::setzeGroesse(std::size_t w, std::size_t h) {
     m_height = h;
     if (m_width * m_height != m_ctrl.size()) {
         m_ctrl.resize(m_width * m_height);
+        punktWahl.assign(m_ctrl.size(), 0);   // onAllocate
     }
 }
 
@@ -1152,7 +1153,18 @@ std::unique_ptr<Memento> Patch::zustandSichern() const {
 }
 
 // importState (patch.h:937-961)
+void Patch::punkteSetzen(const std::vector<PatchPunkt>& p) {
+    sichern();
+    m_ctrl = p;
+    punkteGeaendert();
+}
+
 void Patch::zustandLaden(const Memento& mm) {
+    zustandZuruecksetzen(mm);
+    punktWahl.assign(m_ctrl.size(), 0);   // onAllocate
+}
+
+void Patch::zustandZuruecksetzen(const Memento& mm) {
     sichern();
     const auto& m = static_cast<const PatchMemento&>(mm);
     m_width = m.width;
@@ -1162,6 +1174,7 @@ void Patch::zustandLaden(const Memento& mm) {
     patchDef3 = m.patchDef3;
     unterteilungX = m.unterteilungX;
     unterteilungY = m.unterteilungY;
+    if (punktWahl.size() != m_ctrl.size()) { punktWahl.assign(m_ctrl.size(), 0); }
     punkteGeaendert();
 }
 

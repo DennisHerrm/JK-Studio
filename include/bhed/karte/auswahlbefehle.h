@@ -92,7 +92,7 @@ bool versteckeGewaehlte(Karte& k, bool versteckt);
 // Select_ShowAllHidden (Shift+H)
 void zeigeVersteckte(Karte& k);
 // deleteSelection (Z, Backspace, Delete) mit Rueckgaengig "deleteSelected"
-void loescheAuswahl(Karte& k, const AuswahlEinstellung& e);
+void loescheAuswahl(Karte& k, const AuswahlEinstellung& e, bool eckenSperre = false);
 // Selection_Clone (Space) / Selection_Clone_MakeUnique (Shift+Space);
 // befehl: eigenes Rueckgaengig "cloneSelected(MakeUnique)" (sonst Scene_Clone_Selected).
 void klonen(Karte& k, const AuswahlEinstellung& e, bool eindeutig, bool befehl = true);

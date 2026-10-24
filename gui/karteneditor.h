@@ -567,6 +567,17 @@ void auswahlBefehl(const std::string& name);
 // Die Auswahl hat sich geaendert (setSelectedAll ... m_manipulator->setSelected(false),
 // ComponentMode_SelectionChanged).
 void auswahlGeaendert();
+// Was die Komponenten in einer Ansicht zeichnen: BrushInstance::renderComponents
+// / renderComponentsSelected (brush.h:3542-3596), Brush::renderComponents
+// (:1823-1846), PatchInstance::renderComponents / renderComponentsSelected
+// (patch.h:1434-1501), Patch::render_component (:629-637).
+struct KomponentenZeichnung {
+    std::vector<karte::Linie> punkte;       // $POINT (6 Bildpunkte): Ecken, Kantenmitten, Schwerpunkte, Patch-Punkte
+    std::vector<karte::Linie> tiefPunkte;   // $DEEPPOINT (6): Ecken in der Kamera, verdeckte in colour_occluded
+    std::vector<karte::Linie> gitter;       // $LATTICE: das Kontrollgitter der Patches (1, 0.5, 0)
+    std::vector<karte::Linie> gewaehlt;     // $SELPOINT (4): die gewaehlten Komponenten (colour_selected)
+};
+[[nodiscard]] KomponentenZeichnung komponentenZeichnung(const karte::Blick& blick);
 
 // --- Texturbrowser (app_karte_texturen.cpp) ---
 // Der Texturbrowser im aktuellen Kindfenster (breite x hoehe logische Punkte).

@@ -43,13 +43,16 @@ class Patch;
 struct Kontext;
 
 // Ein Waehlbares (Selectable): ein Primitiv (Pinsel, Patch), eine Entitaet
-// (Punktentitaet) oder eine Pinselflaeche (FaceInstance).
+// (Punktentitaet), eine Pinselflaeche (FaceInstance), eine Ecke oder Kante
+// eines Pinsels (VertexInstance, EdgeInstance) oder ein Kontrollpunkt eines
+// Patches (PatchControlInstance).
 struct Waehlbar {
-    enum class Art { Primitiv, Entitaet, Flaeche };
+    enum class Art { Primitiv, Entitaet, Flaeche, Ecke, Kante, PatchPunkt };
     Art art = Art::Primitiv;
     std::shared_ptr<Entitaet> entitaet;
-    std::shared_ptr<Primitiv> primitiv;    // Primitiv; bei Flaeche der Pinsel
+    std::shared_ptr<Primitiv> primitiv;    // Primitiv; bei Flaeche/Ecke/Kante der Pinsel, bei PatchPunkt der Patch
     std::shared_ptr<Flaeche> flaeche;
+    std::size_t index = 0;                 // Ecke/Kante: Index in Pinsel::ecken()/kanten(); PatchPunkt: Kontrollpunkt
 };
 [[nodiscard]] bool istGewaehlt(const Karte& k, const Waehlbar& w);   // Selectable::isSelected
 void setzeGewaehlt(Karte& k, const Waehlbar& w, bool an);           // Selectable::setSelected

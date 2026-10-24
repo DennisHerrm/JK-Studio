@@ -17,6 +17,7 @@
 
 #include "bhed/karte/eklasse.h"
 #include "bhed/karte/karte.h"
+#include "bhed/karte/komponenten.h"
 #include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
 #include "bhed/karte/texdef.h"
@@ -1711,8 +1712,20 @@ struct AuswahlBearbeitung::Impl final : Dienste, Verschiebbar, Drehbar, Skalierb
 
     void modusSetzen(ManipModus m);
     [[nodiscard]] bool etwasGewaehlt() const {   // somethingSelected
-        return (aussen.einstellung.modus == AuswahlModus::Komponente && !karte.auswahl.flaechen().empty()) ||
+        return (aussen.einstellung.modus == AuswahlModus::Komponente && komponentenZahl() != 0) ||
                (aussen.einstellung.modus == AuswahlModus::Primitiv && karte.auswahl.anzahl() != 0);
+    }
+    // countSelectedComponents, zwischengespeichert (die Zahl aendert sich nur mit
+    // der Komponentenwahl, der Flaechenwahl oder einer Aenderung der Karte)
+    [[nodiscard]] std::size_t komponentenZahl() const {
+        const std::size_t schluessel[3] = {komponentenWahlStand(), karte.auswahl.flaechen().size(), karte.undo.aenderungen()};
+        if (!komponentenZahlGueltig || schluessel[0] != komponentenZahlSchluessel[0] || schluessel[1] != komponentenZahlSchluessel[1] ||
+            schluessel[2] != komponentenZahlSchluessel[2]) {
+            komponentenZahlWert = komponentenAnzahl(karte);
+            std::copy(schluessel, schluessel + 3, komponentenZahlSchluessel);
+            komponentenZahlGueltig = true;
+        }
+        return komponentenZahlWert;
     }
     [[nodiscard]] bool ursprungVerschiebbar() const {   // transformOrigin_isTranslatable
         return modus == ManipModus::Skalieren || modus == ManipModus::Verzerren || modus == ManipModus::Drehen || modus == ManipModus::Verschieben;
@@ -1727,7 +1740,21 @@ struct AuswahlBearbeitung::Impl final : Dienste, Verschiebbar, Drehbar, Skalierb
     [[nodiscard]] Kasten auswahlKasten();   // getSelectionAABB
     void eigenenUrsprungSetzen(const Vektor3f& u, const bool gesetzt[3]);   // setCustomTransformOrigin
     void alleKomponentenAbwaehlen();   // setSelectedAllComponents( false )
-    void festschreiben() { sicherungen.clear(); }   // freezeTransforms
+    // freezeTransforms: Face::freezeTransform (m_move_planepts =
+    // m_move_planeptsTransformed), BrushInstance::applyTransform (evaluateBRep,
+    // vertexModeFree).
+    void festschreiben() {
+        for (auto& [schluessel, s] : sicherungen) {
+            (void)schluessel;
+            if (auto* f = dynamic_cast<Flaeche*>(s.objekt.get())) { f->bewegPunkte = f->bewegPunkteT; }
+        }
+        for (const auto& p : eckenModusPinsel) {
+            p->bRep(karte.kontext);
+            p->eckenModusEnde();
+        }
+        eckenModusPinsel.clear();
+        sicherungen.clear();
+    }
 
     // Anwenden (revertTransform + evaluateTransform)
     struct Objekt {
@@ -1743,7 +1770,23 @@ struct AuswahlBearbeitung::Impl final : Dienste, Verschiebbar, Drehbar, Skalierb
 
     // Ebenenwahl (selection_mtor_drag.cpp)
     bool ebenenWaehlen(AuswahlVolumen& test);   // Scene_forEachPlaneSelectable_selectPlanes
-    BesteEbene besteEbene(AuswahlVolumen& test);   // Scene_forEachPlaneSelectable_bestPlane
+    // Scene_forEachPlaneSelectable_bestPlane; nurPinsel: Scene_forEachSelectedBrush_bestPlane
+    BesteEbene besteEbene(AuswahlVolumen& test, bool nurPinsel = false);
+    // selection_selectVerticesOrFaceVertices (selection_mtor_drag.cpp:270-292)
+    bool eckenOderFlaechenEckenWaehlen(AuswahlVolumen& test);
+    // scene_insert_brush_vertices (selection_mtor_drag.cpp:295-337)
+    bool pinselEckenEinfuegen(const Blick& v, AuswahlVolumen& test, VerschiebeFreiXyZ& frei);
+    // gatherComponentsHighlight ueber die sichtbaren gewaehlten Pinsel und Patches
+    void komponentenHervorheben(AuswahlVolumen& test, KomponentenModus kmodus, std::vector<std::vector<Vektor3f>>& polygone);
+    // ScenePointSelector ueber testselect_scene_point (alle) bzw.
+    // testselect_scene_point_selected_brushes (nur gewaehlte Pinsel)
+    struct SzenenTreffer {
+        Treffer treffer;
+        const Flaeche* flaeche = nullptr;
+    };
+    [[nodiscard]] SzenenTreffer szenenPunktTesten(AuswahlVolumen& test, int art) const;   // 0 alle, 1 ungewaehlte, 2 gewaehlte Pinsel
+    // testSelected_scene_snapped_point (selection.cpp:668-719)
+    [[nodiscard]] Vektor3d szenenPunktEingerastet(AuswahlVolumen& test, const SzenenTreffer& t) const;
     bool ebenenWaehlen2(AuswahlVolumen& test, VerschiebeAchse2& achse);   // Scene_forEachPlaneSelectable_selectPlanes2
     void polygoneSammeln(AuswahlVolumen& test, std::vector<std::vector<Vektor3f>>& aus);
 
@@ -1777,6 +1820,10 @@ struct AuswahlBearbeitung::Impl final : Dienste, Verschiebbar, Drehbar, Skalierb
         bool veraendert = false;
     };
     std::map<const Rueckgaengigbar*, Sicherung> sicherungen;
+    std::vector<std::shared_ptr<Pinsel>> eckenModusPinsel;   // Pinsel mit m_vertexModeOn in dieser Bewegung
+    mutable std::size_t komponentenZahlWert = 0;
+    mutable std::size_t komponentenZahlSchluessel[3] = {0, 0, 0};
+    mutable bool komponentenZahlGueltig = false;
     std::size_t signatur = 0;
     // NewBrushDrag
     bool neuerPinselAktiv = false;
@@ -1830,8 +1877,9 @@ public:
                 if (z.genau(false, false, true)) {
                     if (v.fuellen()) {   // Alt: Groesse entlang der Achse
                         m_gewaehlt2 = m_u.ebenenWaehlen2(test, m_achseResize);
+                    } else {             // Alt in 2D: Ecken ziehen
+                        m_gewaehlt = m_u.eckenOderFlaechenEckenWaehlen(test);
                     }
-                    // Alt in 2D: Ecken ziehen (Komponenten) - Stufe 2
                 } else if (z.keine()) {
                     JaNeinWaehler jn(k);
                     szeneTestenPrimitive(k, jn, test);
@@ -1854,11 +1902,14 @@ public:
                 if (bester.besterTreffer().gueltig()) {
                     test.netzBeginnen(kEinheitsMatrix, true);
                     m_freiXyZ.setze0(projiziert(transformierterVektor4(test.bildZuWelt(), Vektor4f(0, 0, bester.besterTreffer().tiefe(), 1))));
-                } else if (!k.auswahl.flaechen().empty()) {   // auch ohne Treffer ziehen
+                } else if (m_u.komponentenZahl() != 0) {   // auch ohne Treffer ziehen, wenn etwas gewaehlt ist
                     m_ziehen = true;
                     m_freiXyZ.setze0(Vektor3f(0, 0, 0));
+                } else if (e.komponente == KomponentenModus::Ecke) {   // sonst Ecken einfuegen
+                    // hack: zeigt an, dass es kein voruebergehender Modus ist
+                    m_ziehen = m_u.tmpKomponenten = m_u.pinselEckenEinfuegen(v, test, m_freiXyZ);
+                    return;
                 }
-                // Ecken einfuegen (eVertex): Stufe 2
             }
             for (const Waehlbar& w : wahl) { bhed::karte::setzeGewaehlt(k, w, true); }
             m_u.tmpKomponenten = m_gewaehlt || m_gewaehlt2;
@@ -1901,10 +1952,35 @@ public:
             (k.auswahl.anzahl() != 0 || !k.auswahl.flaechen().empty())) {
             // Extrudieren: noch nicht portiert
         } else if (k.auswahl.anzahl() != 0) {
-            if (m_u.aussen.einstellung.modus == AuswahlModus::Primitiv) {
-                if (z.genau(false, false, true) && v.fuellen()) { m_u.polygoneSammeln(test, polygone); }
+            const AuswahlEinstellung& e = m_u.aussen.einstellung;
+            if (e.modus == AuswahlModus::Primitiv) {
+                if (z.genau(false, false, true)) {
+                    if (v.fuellen()) {   // Alt: Groesse
+                        m_u.polygoneSammeln(test, polygone);
+                    } else {             // Alt: Ecken ziehen
+                        m_u.komponentenHervorheben(test, KomponentenModus::Ecke, polygone);
+                        if (polygone.empty()) {
+                            const BesteEbene daten = m_u.besteEbene(test, true);
+                            if (daten.gueltig()) {   // gatherPolygonsByPlane der gewaehlten Pinsel (mit umgedrehter Ebene)
+                                for (const auto& g : gewaehltePrimitiveListe(k)) {
+                                    if (g.primitiv->art() != Primitiv::Art::Pinsel || g.primitiv->versteckt || g.entitaet->versteckt) { continue; }
+                                    for (const auto& f : static_cast<const Pinsel&>(*g.primitiv).flaechen()) {
+                                        if ((ebenenGleich(daten.ebene, f->ebene()) || ebenenGleich(daten.ebene, umgedreht(f->ebene()))) && f->traegtBei()) {
+                                            const Wicklung& w = f->wicklung();
+                                            std::vector<Vektor3f> poly(w.numpoints);
+                                            for (std::size_t i = 0; i < w.numpoints; ++i) { poly[i] = Vektor3f(w[i].vertex); }
+                                            polygone.push_back(std::move(poly));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (z.keine() || z.genau(true, false, false) || (z.genau(false, true, false) && e.komponente == KomponentenModus::Flaeche)) {
+                // Komponenten (wie RadiantSelectionSystem::SelectPoint)
+                m_u.komponentenHervorheben(test, e.komponente, polygone);
             }
-            // Komponenten-Hervorhebung (gatherComponentsHighlight): Stufe 2
         }
         m_polygone.swap(polygone);
     }
@@ -1964,6 +2040,7 @@ void AuswahlBearbeitung::Impl::signaturPruefen() {
     mischen(static_cast<std::size_t>(std::lround(aussen.fang * 1024.0F)));
     mischen(static_cast<std::size_t>(aussen.einstellung.modus));
     mischen(tmpKomponenten ? 1U : 0U);
+    mischen(komponentenWahlStand());
     if (h != signatur) {
         signatur = h;
         pivotWechsel = true;
@@ -1998,17 +2075,7 @@ Kasten AuswahlBearbeitung::Impl::auswahlKasten() {
     Kasten k;
     if (!etwasGewaehlt()) { return k; }
     if (aussen.einstellung.modus == AuswahlModus::Komponente || tmpKomponenten) {
-        for (const auto& fw : karte.auswahl.flaechen()) {   // FaceInstance::iterate_selected: Schwerpunkt (nur gewaehlte Pinsel)
-            const auto p = fw.pinsel.lock();
-            const auto f = fw.flaeche.lock();
-            if (!p || !f) { continue; }
-            const auto ent = std::find_if(karte.entitaeten().begin(), karte.entitaeten().end(), [&](const auto& e) {
-                return std::any_of(e->kinder().begin(), e->kinder().end(), [&](const auto& c) { return c.get() == p.get(); });
-            });
-            if (ent == karte.entitaeten().end() || !karte.auswahl.gewaehlt(ent->get(), p.get())) { continue; }
-            p->bRep(karte.kontext);
-            kastenErweiternSicher(k, f->schwerpunkt());   // SelectedFaces_foreach: centroid()
-        }
+        k = komponentenGrenzen(karte);   // Scene_BoundsSelectedComponent
         // PlaneSelectables setzen g_bTmpComponentMode, aber nur Pinsel liefern Komponentengrenzen
         if (!kastenGueltig(k)) { k = auswahlGrenzenPivot(karte); }
     } else {
@@ -2044,7 +2111,7 @@ void AuswahlBearbeitung::Impl::eigenenUrsprungSetzen(const Vektor3f& u, const bo
 }
 
 void AuswahlBearbeitung::Impl::alleKomponentenAbwaehlen() {   // setSelectedAllComponents( false )
-    karte.auswahl.flaechenLeeren();
+    bhed::karte::alleKomponentenAbwaehlen(karte);
     for (auto& [p, pe] : patchEbenen) { pe.flaechen.setze(false); }
     patchEbenen.clear();
     manip->setzeGewaehlt(false);
@@ -2072,6 +2139,7 @@ void AuswahlBearbeitung::Impl::vorAenderung(const std::shared_ptr<Rueckgaengigba
         s.objekt = o;
         s.zustand = o->zustandSichern();
         s.besitzer = besitzer;
+        if (auto* f = dynamic_cast<Flaeche*>(o.get())) { f->bewegPunkteT = f->bewegPunkte; }   // revertTransform
     }
     s.veraendert = true;
 }
@@ -2081,7 +2149,7 @@ void AuswahlBearbeitung::Impl::zuruecksetzen() {   // revertTransform
     for (auto& [schluessel, s] : sicherungen) {
         (void)schluessel;
         if (!s.veraendert) { continue; }
-        s.objekt->zustandLaden(*s.zustand);
+        s.objekt->zustandZuruecksetzen(*s.zustand);
         s.veraendert = false;
         if (s.besitzer != nullptr) { pinsel.insert(s.besitzer); }
     }
@@ -2188,63 +2256,108 @@ void AuswahlBearbeitung::Impl::komponentenAnwenden(TArt art, const Transformatio
     // keine Texturprojektion beim Groesse-Aendern (BrushInstance::evaluateTransform)
     Kontext k = karte.kontext;
     if (modus == ManipModus::Ziehen && aussen.einstellung.modus == AuswahlModus::Primitiv) { k.texturLock = false; }
-    std::map<Pinsel*, std::pair<std::shared_ptr<Pinsel>, std::vector<std::shared_ptr<Flaeche>>>> jePinsel;
-    for (const auto& fw : karte.auswahl.flaechen()) {
-        auto p = fw.pinsel.lock();
-        auto f = fw.flaeche.lock();
-        if (!p || !f) { continue; }
-        auto& eintrag = jePinsel[p.get()];
-        eintrag.first = p;
-        eintrag.second.push_back(f);
-    }
-    for (auto& [roh, eintrag] : jePinsel) {
-        // BrushInstance::transformComponents (brush.cpp:525-567)
-        const auto anwenden = [&](const Matrix4& m) {
-            roh->bRep(k);   // m_centroid_cached
-            for (const auto& f : eintrag.second) {
-                vorAenderung(f, roh);
-                f->transformieren(m, false, k);
-            }
-            roh->geaendert();
-        };
-        const auto zurueck = [&]() {   // m_brush.revertTransform()
-            for (const auto& f : eintrag.second) {
-                Sicherung& s = sicherungen[f.get()];
-                if (s.objekt && s.veraendert) {
-                    s.objekt->zustandLaden(*s.zustand);
-                    s.veraendert = false;
+    const bool sperre = aussen.texturEckenSperre;   // g_brush_textureVertexlock_enabled
+    // foreachSelectedComponent: Pinsel und Patches mit gewaehlten Komponenten
+    for (const auto& ent : karte.entitaeten()) {
+        for (const auto& prim : ent->kinder()) {
+            if (prim->art() == Primitiv::Art::Patch) {   // PatchInstance::transformComponents (patch.h:1590-1606)
+                const auto patch = std::static_pointer_cast<Patch>(prim);
+                if (!patch->punkteGewaehlt()) { continue; }
+                vorAenderung(patch, nullptr);
+                std::vector<PatchPunkt> punkte = patch->punkte();
+                for (std::size_t i = 0; i < punkte.size(); ++i) {
+                    if (patch->punktGewaehlt(i)) { transformierePunkt(mat, punkte[i].vertex); }
                 }
+                patch->punkteSetzen(punkte);   // UpdateCachedData
+                continue;
             }
-            roh->geaendert();
-        };
-        anwenden(mat);
-        const Vektor3f verschiebungT = mat.t().vec3();
-        if (verschiebungT == Vektor3f(0, 0, 0)) { continue; }
-        Matrix4 ma = mat;
-        ma.tx() = ma.ty() = ma.tz() = 0;
-        if (!(ma == kEinheitsMatrix)) { continue; }   // nur Verschiebung
-        // Flaechen gewaehlt und der Pinsel ergibt keinen Sinn: die groesste
-        // noch sinnvolle Verschiebung im Raster suchen (binaere Suche)
-        if (roh->traegtBei()) { continue; }
-        for (std::size_t achse = 0; achse < 3; ++achse) {
-            const float schritt = verschiebungT[achse] < 0 ? -aussen.raster : aussen.raster;
-            int maxI = static_cast<int>(verschiebungT[achse] / schritt + .5F);
-            int minI = 0;
-            while (maxI > minI) {
-                const int jetzt = minI + (maxI - minI + 1) / 2;
-                ma[12 + achse] = static_cast<float>(jetzt) * schritt;
-                zurueck();
-                anwenden(ma);
-                if (roh->traegtBei()) {
-                    minI = jetzt;
-                } else {
-                    maxI = jetzt - 1;
+            const auto pinsel = std::static_pointer_cast<Pinsel>(prim);
+            Pinsel* roh = pinsel.get();
+            if (!roh->eckenModusAn() && !pinselKomponentenGewaehlt(karte, *roh)) { continue; }
+            // BrushInstance::evaluateTransform (brush.h:3989-4040): eine neue
+            // Transformation mit gewaehlten Ecken schaltet den Ecken-Modus ein.
+            if (!roh->eckenModusAn() &&
+                std::any_of(roh->flaechen().begin(), roh->flaechen().end(), [](const auto& f) { return !f->eckenWahl.empty(); })) {
+                roh->eckenModusBeginnen();
+                roh->eckenModusSammeln(karte.kontext);
+                eckenModusPinsel.push_back(pinsel);
+            }
+            if (roh->eckenModusAn()) {   // vertexModeTransform (brush.cpp:511-516)
+                vorAenderung(pinsel, nullptr);
+                roh->eckenModusTransformieren(mat, karte.kontext, sperre);
+                continue;
+            }
+            // BrushInstance::transformComponents (brush.cpp:525-567) mit
+            // FaceInstance::transformComponents (brush.h:2850-2885)
+            const auto anwenden = [&](const Matrix4& m) {
+                roh->bRep(k);   // m_centroid_cached
+                for (const auto& f : roh->flaechen()) {
+                    const bool flaecheGewaehlt = karte.auswahl.flaecheGewaehlt(f.get());
+                    if (!flaecheGewaehlt && f->kantenWahl.empty()) { continue; }
+                    vorAenderung(f, roh);
+                    const TexturProjektion altProjektion = f->projektion();
+                    const Vektor3f altNormale(f->ebene().normal());
+                    f->bewegPunkteT = f->bewegPunkte;   // revertTransform
+                    if (flaecheGewaehlt) { f->transformieren(m, false, k); }
+                    // gewaehlte Ecken: hier nie, sie schalten oben den Ecken-Modus ein
+                    if (f->kantenWahl.size() == 1) {
+                        transformierePunkt(m, f->bewegPunkteT[0]);
+                        transformierePunkt(m, f->bewegPunkteT[1]);
+                        f->setzeEbenenPunkte(f->bewegPunkteT);   // assign_planepts
+                    } else if (f->kantenWahl.size() >= 2) {
+                        transformierePunkt(m, f->bewegPunkteT[0]);
+                        transformierePunkt(m, f->bewegPunkteT[1]);
+                        transformierePunkt(m, f->bewegPunkteT[2]);
+                        f->setzeEbenenPunkte(f->bewegPunkteT);
+                    }
+                    if (sperre && !f->kantenWahl.empty()) { f->texdefAusPunkten(k, altProjektion, altNormale); }
                 }
+                roh->geaendert();
+            };
+            const auto zurueck = [&]() {   // m_brush.revertTransform()
+                for (const auto& f : roh->flaechen()) {
+                    const auto it = sicherungen.find(f.get());
+                    if (it == sicherungen.end()) { continue; }
+                    Sicherung& s = it->second;
+                    if (s.objekt && s.veraendert) {
+                        s.objekt->zustandZuruecksetzen(*s.zustand);
+                        s.veraendert = false;
+                    }
+                }
+                roh->geaendert();
+            };
+            anwenden(mat);
+            const Vektor3f verschiebungT = mat.t().vec3();
+            if (verschiebungT == Vektor3f(0, 0, 0)) { continue; }
+            Matrix4 ma = mat;
+            ma.tx() = ma.ty() = ma.tz() = 0;
+            if (!(ma == kEinheitsMatrix)) { continue; }   // nur Verschiebung
+            // Flaechen gewaehlt und der Pinsel ergibt keinen Sinn: die groesste
+            // noch sinnvolle Verschiebung im Raster suchen (binaere Suche)
+            if (std::none_of(roh->flaechen().begin(), roh->flaechen().end(), [&](const auto& f) { return karte.auswahl.flaecheGewaehlt(f.get()); })) {
+                continue;
             }
-            ma[12 + achse] = static_cast<float>(minI) * schritt;
+            if (roh->traegtBei()) { continue; }
+            for (std::size_t achse = 0; achse < 3; ++achse) {
+                const float schritt = verschiebungT[achse] < 0 ? -aussen.raster : aussen.raster;
+                int maxI = static_cast<int>(verschiebungT[achse] / schritt + .5F);
+                int minI = 0;
+                while (maxI > minI) {
+                    const int jetzt = minI + (maxI - minI + 1) / 2;
+                    ma[12 + achse] = static_cast<float>(jetzt) * schritt;
+                    zurueck();
+                    anwenden(ma);
+                    if (roh->traegtBei()) {
+                        minI = jetzt;
+                    } else {
+                        maxI = jetzt - 1;
+                    }
+                }
+                ma[12 + achse] = static_cast<float>(minI) * schritt;
+            }
+            zurueck();
+            anwenden(ma);
         }
-        zurueck();
-        anwenden(ma);
     }
     for (auto& [roh, pe] : patchEbenen) {
         (void)roh;
@@ -2274,7 +2387,7 @@ void AuswahlBearbeitung::Impl::drehen(const Quaternion& q) {
     Transformationen t;
     t.drehung = q;
     if (aussen.einstellung.modus == AuswahlModus::Komponente) {
-        if (!karte.auswahl.flaechen().empty()) { komponentenAnwenden(TArt::Drehen, t, pivot.t().vec3()); }
+        if (komponentenZahl() != 0) { komponentenAnwenden(TArt::Drehen, t, pivot.t().vec3()); }
     } else if (karte.auswahl.anzahl() != 0) {
         primitiveAnwenden(TArt::Drehen, t, pivot.t().vec3());
     }
@@ -2286,7 +2399,7 @@ void AuswahlBearbeitung::Impl::skalieren(const Vektor3f& s) {
     Transformationen t;
     t.skalierung = s;
     if (aussen.einstellung.modus == AuswahlModus::Komponente) {
-        if (!karte.auswahl.flaechen().empty()) { komponentenAnwenden(TArt::Skalieren, t, pivot.t().vec3()); }
+        if (komponentenZahl() != 0) { komponentenAnwenden(TArt::Skalieren, t, pivot.t().vec3()); }
     } else if (karte.auswahl.anzahl() != 0) {
         primitiveAnwenden(TArt::Skalieren, t, pivot.t().vec3());
     }
@@ -2303,7 +2416,7 @@ void AuswahlBearbeitung::Impl::verzerren(const Verzerrung& v) {
     Transformationen t;
     t.verzerrung = v;
     if (aussen.einstellung.modus == AuswahlModus::Komponente) {
-        if (!karte.auswahl.flaechen().empty()) { komponentenAnwenden(TArt::Verzerren, t, pivot.t().vec3()); }
+        if (komponentenZahl() != 0) { komponentenAnwenden(TArt::Verzerren, t, pivot.t().vec3()); }
     } else if (karte.auswahl.anzahl() != 0) {
         primitiveAnwenden(TArt::Verzerren, t, pivot.t().vec3());
     }
@@ -2324,17 +2437,15 @@ void AuswahlBearbeitung::Impl::ursprungVerschieben(const Vektor3f& v, const bool
     eigenenUrsprungSetzen(v + pivotStart.t().vec3(), gesetzt);
 }
 
-// testselect_scene_point_unselected + testSelected_scene_snapped_point
-std::optional<SzenenPunkt> AuswahlBearbeitung::Impl::ungewaehlterSzenenPunkt(const Blick& v, const GeraeteVektor& p, const GeraeteVektor& e) const {
-    Blick geschert(v);
-    auswahlTestBauen(geschert, auswahlKastenPunkt(p, e));
-    AuswahlVolumen test(geschert);
-    Treffer bester;
-    const Flaeche* flaeche = nullptr;
+// testselect_scene_point (selection.cpp:608-623), testselect_scene_point_unselected
+// (:625-643) und testselect_scene_point_selected_brushes (:645-660) mit
+// ScenePointSelector (selection_selector.h:183-217).
+AuswahlBearbeitung::Impl::SzenenTreffer AuswahlBearbeitung::Impl::szenenPunktTesten(AuswahlVolumen& test, int art) const {
+    SzenenTreffer r;
     const auto dazu = [&](const Treffer& t, const Flaeche* f) {   // ScenePointSelector::addIntersection
-        if (t < bester) {
-            bester = t;
-            flaeche = f;
+        if (t < r.treffer) {
+            r.treffer = t;
+            r.flaeche = f;
         }
     };
     std::unordered_set<const void*> gewaehlt;
@@ -2346,16 +2457,20 @@ std::optional<SzenenPunkt> AuswahlBearbeitung::Impl::ungewaehlterSzenenPunkt(con
         }
     }
     for (const auto& ent : karte.entitaeten()) {
-        if (ent->versteckt || gewaehlt.count(ent.get()) != 0) { continue; }
+        if (ent->versteckt) { continue; }
+        if (art == 1 && gewaehlt.count(ent.get()) != 0) { continue; }
         if (!ent->istBehaelter()) {
+            if (art == 2) { continue; }
             Treffer t;
             testeEntitaet(*ent, test, t);
             dazu(t, nullptr);
             continue;
         }
         for (const auto& pr : ent->kinder()) {
-            if (pr->versteckt || gewaehlt.count(pr.get()) != 0) { continue; }
-            if (pr->art() == Primitiv::Art::Pinsel) {
+            if (pr->versteckt) { continue; }
+            const bool istGewaehlt = gewaehlt.count(pr.get()) != 0;
+            if ((art == 1 && istGewaehlt) || (art == 2 && !istGewaehlt)) { continue; }
+            if (pr->art() == Primitiv::Art::Pinsel) {   // testselect_scene_point__brush
                 const auto& pinsel = static_cast<const Pinsel&>(*pr);
                 pinsel.bRep(karte.kontext);
                 test.netzBeginnen(kEinheitsMatrix);
@@ -2364,21 +2479,23 @@ std::optional<SzenenPunkt> AuswahlBearbeitung::Impl::ungewaehlterSzenenPunkt(con
                     testeFlaeche(*f, test, t);
                     dazu(t, f.get());
                 }
-            } else {
+            } else if (art != 2) {
                 Treffer t;
                 testePatch(static_cast<const Patch&>(*pr), test, t);
                 dazu(t, nullptr);
             }
         }
     }
-    test.netzBeginnen(kEinheitsMatrix, true);
-    if (!bester.gueltig()) { return std::nullopt; }
+    return r;
+}
+
+Vektor3d AuswahlBearbeitung::Impl::szenenPunktEingerastet(AuswahlVolumen& test, const SzenenTreffer& t) const {
     const float fangW = aussen.fang;
-    Vektor3d punktD(projiziert(transformierterVektor4(test.bildZuWelt(), Vektor4f(0, 0, bester.tiefe(), 1))));
-    if (flaeche != nullptr) {
+    Vektor3d punktD(projiziert(transformierterVektor4(test.bildZuWelt(), Vektor4f(0, 0, t.treffer.tiefe(), 1))));
+    if (t.flaeche != nullptr) {
         double besterAbstand = FLT_MAX;
         Vektor3d kandidat;
-        const Wicklung& w = flaeche->wicklung();
+        const Wicklung& w = t.flaeche->wicklung();
         for (std::size_t i = 0; i < w.numpoints; ++i) {
             const Vektor3d v1 = w[(i + w.numpoints - 1) % w.numpoints].vertex;
             const Vektor3d v2 = w[i].vertex;
@@ -2404,8 +2521,8 @@ std::optional<SzenenPunkt> AuswahlBearbeitung::Impl::ungewaehlterSzenenPunkt(con
                 }
             }
         }
-        if (bester.abstand() == 0) {   // Ebene, wenn ins Polygon gezeigt
-            const Ebene3d& eb = flaeche->ebene();
+        if (t.treffer.abstand() == 0) {   // Ebene, wenn ins Polygon gezeigt
+            const Ebene3d& eb = t.flaeche->ebene();
             const std::size_t maxi = groessteBetragsKomponente(eb.normal());
             Vektor3d ebenenPunkt = eingerastet(punktD, fangW);
             ebenenPunkt[maxi] = (eb.dist() - eb.normal()[(maxi + 1) % 3] * ebenenPunkt[(maxi + 1) % 3] - eb.normal()[(maxi + 2) % 3] * ebenenPunkt[(maxi + 2) % 3]) /
@@ -2417,7 +2534,201 @@ std::optional<SzenenPunkt> AuswahlBearbeitung::Impl::ungewaehlterSzenenPunkt(con
     } else {
         einrasten(punktD, fangW);
     }
-    return SzenenPunkt{punktD, flaeche != nullptr ? std::optional<Ebene3d>(flaeche->ebene()) : std::nullopt};
+    return punktD;
+}
+
+// testSelect_unselected_scene_point (selection.cpp:721-737)
+std::optional<SzenenPunkt> AuswahlBearbeitung::Impl::ungewaehlterSzenenPunkt(const Blick& v, const GeraeteVektor& p, const GeraeteVektor& e) const {
+    Blick geschert(v);
+    auswahlTestBauen(geschert, auswahlKastenPunkt(p, e));
+    AuswahlVolumen test(geschert);
+    const SzenenTreffer t = szenenPunktTesten(test, 1);
+    test.netzBeginnen(kEinheitsMatrix, true);
+    if (!t.treffer.gueltig()) { return std::nullopt; }
+    return SzenenPunkt{szenenPunktEingerastet(test, t), t.flaeche != nullptr ? std::optional<Ebene3d>(t.flaeche->ebene()) : std::nullopt};
+}
+
+// selection_selectVerticesOrFaceVertices (selection_mtor_drag.cpp:270-292)
+bool AuswahlBearbeitung::Impl::eckenOderFlaechenEckenWaehlen(AuswahlVolumen& test) {
+    {   // zuerst Ecken treffen (DeepBestSelector)
+        BesterWaehler tief(2.F);
+        szeneTestenKomponenten(karte, tief, test, KomponentenModus::Ecke, true);
+        if (!tief.beste().empty()) {
+            for (const Waehlbar& w : tief.beste()) { setzeGewaehlt(karte, w, true); }
+            return true;
+        }
+    }
+    // sonst die Ecken der Pinselflaechen auf der besten Ebene
+    const BesteEbene daten = besteEbene(test, true);
+    if (daten.gueltig()) {
+        for (const auto& g : gewaehltePrimitiveListe(karte)) {   // BrushInstance::selectVerticesOnPlane (brush.h:3906-3912)
+            if (g.primitiv->art() != Primitiv::Art::Pinsel || g.primitiv->versteckt || g.entitaet->versteckt) { continue; }
+            auto& pinsel = static_cast<Pinsel&>(*g.primitiv);
+            pinsel.bRep(karte.kontext);
+            for (std::size_t fi = 0; fi < pinsel.anzahl(); ++fi) {
+                const Ebene3d& e = pinsel[fi].ebene();
+                if (!(ebenenGleich(daten.ebene, e) || ebenenGleich(daten.ebene, umgedreht(e)))) { continue; }
+                const auto& ecken = pinsel.ecken(karte.kontext);
+                for (std::size_t i = 0; i < ecken.size(); ++i) {   // VertexInstance::selectVerticesOfFace (brush.h:3264-3275)
+                    const FlaechenPunkt start = ecken[i];
+                    FlaechenPunkt fp = start;
+                    do {
+                        if (fp.flaeche == fi) {
+                            pinsel.eckeWaehlen(i, true);
+                            break;
+                        }
+                        // next_vertex
+                        const std::size_t nf = pinsel[fp.flaeche].wicklung()[fp.punkt].adjacent;
+                        const std::size_t np = wicklungFindeNachbar(pinsel[nf].wicklung(), fp.flaeche);
+                        fp = np == kMaxFlaechen ? fp : FlaechenPunkt{nf, wicklungNaechster(pinsel[nf].wicklung(), np)};
+                    } while (fp.flaeche != start.flaeche);
+                }
+            }
+        }
+    }
+    return daten.gueltig();
+}
+
+// scene_insert_brush_vertices (selection_mtor_drag.cpp:295-337)
+bool AuswahlBearbeitung::Impl::pinselEckenEinfuegen(const Blick& v, AuswahlVolumen& test, VerschiebeFreiXyZ& frei) {
+    const SzenenTreffer t = szenenPunktTesten(test, v.fuellen() ? 0 : 2);
+    test.netzBeginnen(kEinheitsMatrix, true);
+    std::vector<Pinsel::EckenModusPunkt> neue;
+    if (t.treffer.gueltig()) {
+        frei.setze0(projiziert(transformierterVektor4(test.bildZuWelt(), Vektor4f(0, 0, t.treffer.tiefe(), 1))));
+        Vektor3d punktD = szenenPunktEingerastet(test, t);
+        if (!v.fuellen()) { punktD -= Vektor3d(v.blickrichtung()) * static_cast<double>(aussen.raster); }
+        Pinsel::EckenModusPunkt e;
+        e.ecke = e.neu = punktD;
+        e.gewaehlt = true;
+        if (t.flaeche != nullptr) {   // die Flaeche als Vorlage (ihr Shader und ihre Projektion)
+            for (const auto& ent : karte.entitaeten()) {
+                for (const auto& pr : ent->kinder()) {
+                    if (pr->art() != Primitiv::Art::Pinsel) { continue; }
+                    for (const auto& f : static_cast<const Pinsel&>(*pr).flaechen()) {
+                        if (f.get() == t.flaeche) { e.flaechen.push_back(f); }
+                    }
+                }
+            }
+        }
+        neue.push_back(std::move(e));
+    } else if (!v.fuellen()) {   // zwei Punkte durch die ganze Tiefe der Auswahl
+        frei.setze0(Vektor3f(0, 0, 0));
+        const Kasten b = auswahlGrenzenPivot(karte);   // GlobalSelectionSystem().getBoundsSelected()
+        if (!kastenGueltig(b)) { return false; }
+        Vektor3d xy(projiziert(transformierterVektor4(test.bildZuWelt(), Vektor4f(0, 0, 0, 1))));
+        einrasten(xy, aussen.fang);
+        Vektor3d a = xy;
+        Vektor3d c = xy;
+        const std::size_t maxi = groessteBetragsKomponente(v.blickrichtung());
+        a[maxi] = b.origin[maxi] + b.extents[maxi];
+        c[maxi] = b.origin[maxi] - b.extents[maxi];
+        Pinsel::EckenModusPunkt ea;
+        ea.ecke = ea.neu = a;
+        ea.gewaehlt = true;
+        Pinsel::EckenModusPunkt ec;
+        ec.ecke = ec.neu = c;
+        ec.gewaehlt = true;
+        neue.push_back(std::move(ea));
+        neue.push_back(std::move(ec));
+    } else {
+        return false;
+    }
+    Befehl befehl(karte.undo, "InsertBrushVertices");
+    for (const auto& g : gewaehltePrimitiveListe(karte)) {   // Scene_forEachSelectedBrush
+        if (g.primitiv->art() != Primitiv::Art::Pinsel) { continue; }
+        const auto pinsel = std::static_pointer_cast<Pinsel>(g.primitiv);
+        eckenEinfuegen(*pinsel, neue, karte.kontext, aussen.texturEckenSperre);
+        if (pinsel->eckenModusAn()) { eckenModusPinsel.push_back(pinsel); }
+    }
+    return true;
+}
+
+// gatherComponentsHighlight: BrushInstance (brush.h:3723-3787), EdgeInstance
+// (:3160-3168), VertexInstance (:3254-3262), PatchInstance (patch.h:1541-1563)
+void AuswahlBearbeitung::Impl::komponentenHervorheben(AuswahlVolumen& test, KomponentenModus kmodus, std::vector<std::vector<Vektor3f>>& polygone) {
+    Treffer schnitt;
+    const auto naeher = [&](const Treffer& t, const Vektor3f& p) {
+        if (t < schnitt) {
+            schnitt = t;
+            polygone.clear();
+            polygone.push_back({p});
+        }
+    };
+    for (const auto& g : gewaehltePrimitiveListe(karte)) {   // Scene_forEachVisibleSelectedComponentSelectionTestable
+        if (g.primitiv->versteckt || g.entitaet->versteckt) { continue; }
+        if (g.primitiv->art() == Primitiv::Art::Patch) {
+            if (kmodus != KomponentenModus::Ecke) { continue; }
+            const auto& patch = static_cast<const Patch&>(*g.primitiv);
+            test.netzBeginnen(kEinheitsMatrix);
+            for (const auto& pk : patch.punkte()) {
+                Treffer t;
+                test.testPunkt(pk.vertex, t);
+                naeher(t, pk.vertex);
+            }
+            continue;
+        }
+        const auto& pinsel = static_cast<const Pinsel&>(*g.primitiv);
+        pinsel.bRep(karte.kontext);
+        test.netzBeginnen(kEinheitsMatrix);
+        switch (kmodus) {
+        case KomponentenModus::Ecke:
+            for (const FlaechenPunkt& fp : pinsel.ecken(karte.kontext)) {
+                const Vektor3f p(pinsel.eckpunkt(fp));
+                Treffer t;
+                test.testPunkt(p, t);
+                naeher(t, p);
+            }
+            break;
+        case KomponentenModus::Kante:
+            for (const FlaechenPunkt& fp : pinsel.kanten(karte.kontext)) {
+                const Wicklung& w = pinsel[fp.flaeche].wicklung();
+                const Vektor3f p(mitte(w[fp.punkt].vertex, w[wicklungNaechster(w, fp.punkt)].vertex));
+                Treffer t;
+                test.testPunkt(p, t);
+                naeher(t, p);
+            }
+            break;
+        case KomponentenModus::Flaeche:
+            if (test.blick().fuellen()) {
+                const Ebene3d* ebene = nullptr;
+                bool neuerTreffer = false;
+                for (const auto& f : pinsel.flaechen()) {
+                    Treffer t;
+                    testeFlaeche(*f, test, t);
+                    if (t.gueltig() && schnitt.gleichEps(t, 0.25F, 2e-6F)) {
+                        ebene = &f->ebene();
+                    } else if (t < schnitt) {
+                        schnitt = t;
+                        neuerTreffer = true;
+                        ebene = &f->ebene();
+                    }
+                }
+                if (ebene != nullptr) {
+                    if (neuerTreffer || (!polygone.empty() && polygone.back().size() >= 3 &&
+                                         !ebenenGleich(*ebene, ebeneAusPunkten(polygone.back()[0], polygone.back()[1], polygone.back()[2])))) {
+                        polygone.clear();
+                    }
+                    for (const auto& f : pinsel.flaechen()) {   // gatherPolygonsByPlane( plane, polygons, false )
+                        if (ebenenGleich(*ebene, f->ebene()) && f->traegtBei()) {
+                            const Wicklung& w = f->wicklung();
+                            std::vector<Vektor3f> poly(w.numpoints);
+                            for (std::size_t i = 0; i < w.numpoints; ++i) { poly[i] = Vektor3f(w[i].vertex); }
+                            polygone.push_back(std::move(poly));
+                        }
+                    }
+                }
+            } else {
+                for (const auto& f : pinsel.flaechen()) {   // testSelect_centroid
+                    Treffer t;
+                    test.testPunkt(f->schwerpunkt(), t);
+                    naeher(t, f->schwerpunkt());
+                }
+            }
+            break;
+        default: break;
+        }
+    }
 }
 
 // Scene_forEachPlaneSelectable_selectPlanes: Flaechen der gewaehlten Pinsel und
@@ -2504,7 +2815,7 @@ bool AuswahlBearbeitung::Impl::ebenenWaehlen(AuswahlVolumen& test) {
 }
 
 // Scene_forEachPlaneSelectable_bestPlane
-BesteEbene AuswahlBearbeitung::Impl::besteEbene(AuswahlVolumen& test) {
+BesteEbene AuswahlBearbeitung::Impl::besteEbene(AuswahlVolumen& test, bool nurPinsel) {
     BesteEbene daten;
     const std::vector<Objekt> objekte = gewaehlteObjekte();
     const auto direkt = [&](const Objekt& o) {
@@ -2581,12 +2892,15 @@ BesteEbene AuswahlBearbeitung::Impl::besteEbene(AuswahlVolumen& test) {
             patchEbenen[patch.get()].flaechen.besteEbeneIndirekt(patch->grenzen(), test, daten);
         }
     };
+    const auto passt = [nurPinsel](const Objekt& o) {
+        return o.prim && !o.prim->versteckt && !o.ent->versteckt && (!nurPinsel || o.prim->art() == Primitiv::Art::Pinsel);
+    };
     for (const Objekt& o : objekte) {
-        if (o.prim && !o.prim->versteckt && !o.ent->versteckt) { direkt(o); }
+        if (passt(o)) { direkt(o); }
     }
     if (!daten.gueltig()) {
         for (const Objekt& o : objekte) {
-            if (o.prim && !o.prim->versteckt && !o.ent->versteckt) { indirekt(o); }
+            if (passt(o)) { indirekt(o); }
         }
     }
     return daten;

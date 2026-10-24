@@ -78,6 +78,7 @@ public:
     float fang = 8;                            // GetSnapGridSize
     bool pinselIn3d = true;                    // g_3DCreateBrushes ("Create brushes in 3D")
     bool immerCaulk = false;                   // g_brush_always_caulk
+    bool texturEckenSperre = false;            // g_brush_textureVertexlock_enabled ("TogTexVertexLock")
     std::string browserShader = "textures/";   // TextureBrowser_GetSelectedShader (texdef_name_default)
     std::string caulkShader = "textures/common/caulk";   // GetCaulkShader
     Kasten arbeitsbereich{Vektor3f(0, 0, 0), Vektor3f(64, 64, 64)};   // Select_getWorkZone (-64..64)
