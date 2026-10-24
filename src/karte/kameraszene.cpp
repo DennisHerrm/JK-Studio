@@ -14,6 +14,8 @@
 //   Public License for more details (LICENSE).
 #include "bhed/karte/kameraszene.h"
 
+#include "bhed/karte/modell.h"
+
 #include "bhed/karte/karte.h"
 #include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
@@ -515,7 +517,47 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
         }
         if (!rest) { continue; }   // nur Geometrie: keine Punktentitaeten, Gruppen, Namen
         const Farbe kf = klassenFarbe(kl);
-        if (!ent->istBehaelter()) {
+        if (!ent->istBehaelter() && k.modelle != nullptr && kl != nullptr && kl->miscmodelIs) {
+            // MiscModel: das Modell (PicoModel/md3 Model::render mit den Shadern der
+            // Flaechen, Skin und _remap), der Name am Ursprung
+            const ModellAnsicht a = k.modelle->ansicht(*ent);
+            const Matrix4 m = miscModellMatrix(*ent);
+            s.etagen.push_back({modellWeltKasten(a, m), entGew});
+            if (a.modell) {
+                for (std::size_t fi = 0; fi < a.modell->flaechen.size(); ++fi) {
+                    const ModellFlaeche& f = a.modell->flaechen[fi];
+                    const std::string& sh = fi < a.shader.size() ? a.shader[fi] : f.shader;
+                    if (sh.empty()) { continue; }
+                    KameraStapel& st = stapel(StapelArt::Shader, sh, 0xFFFFFFFFU);
+                    const std::size_t vorher = st.dreiecke.size();
+                    for (std::size_t i = 0; i + 2 < f.indizes.size(); i += 3) {
+                        std::vector<KameraPunkt> d(3);
+                        for (std::size_t j = 0; j < 3; ++j) {
+                            const ModellPunkt& p = f.punkte[f.indizes[i + j]];
+                            Vektor3f n = transformierteRichtung(m, p.normale);
+                            const float l = static_cast<float>(laenge(n));
+                            if (l > 0) { n = n * (1.0F / l); }
+                            d[j] = {transformierterPunkt(m, p.ort), n, p.st, 0xFFFFFFFFU};
+                        }
+                        polygonFuellung(d, st.dreiecke, o.kanten ? (entGew ? &st.kantenGewaehlt : &st.kanten) : nullptr);
+                        if (entGew) {
+                            std::vector<KameraPunkt> leer;
+                            polygonFuellung(d, leer, &s.wahlKanten);
+                        }
+                    }
+                    objekt(st, ent.get());
+                    if (entGew) {
+                        tintObjekt(ent.get());
+                        overlayObjekt(ent.get());
+                        wahlDazu(vorher, st.dreiecke, true);
+                    }
+                }
+            }
+            if (o.namen || entGew) {
+                const std::string tn = o.zielnamen ? ent->wert("targetname") : std::string();
+                s.namen.push_back({ursprungVon(*ent), tn.empty() ? ent->klassenname() : tn, kf, entGew ? 1 : 0});
+            }
+        } else if (!ent->istBehaelter()) {
             // Punktentitaet (GenericEntity / Light)
             const Vektor3f ursprung = ursprungVon(*ent);
             const Vektor3f mins = kl != nullptr ? kl->mins : Vektor3f(-8, -8, -8);

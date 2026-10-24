@@ -354,7 +354,7 @@ Texturierbar naechstesTexturierbar(const Karte& k, AuswahlVolumen& test) {
         if (!ent->istBehaelter()) {
             // SelectionTestable der Punktentitaet mit OccludeSelector
             Treffer t2;
-            testeEntitaet(*ent, test, t2);
+            testeEntitaet(*ent, k.kontext, test, t2);
             if (t2 < bester) {
                 bester = t2;
                 const std::string kl = ent->klassenname();

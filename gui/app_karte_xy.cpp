@@ -241,7 +241,29 @@ void szeneBauen(Szene& s, Sicht sicht) {
         const bool punkt = kl != nullptr && kl->fixedsize;
         const bool licht = ent->klassenname() == "light" || ent->klassenname() == "lightJunior";
         Kasten box;
-        if (punkt) {
+        if (!ent->istBehaelter() && k.modelle != nullptr && kl != nullptr && kl->miscmodelIs) {
+            // MiscModel: das Modell als Drahtgitter (die Dreiecke), der Name am
+            // Ursprung mit aabb_fits_view( AABB( 0, 32 ) ) (miscmodel.cpp:293-303)
+            const karte::ModellAnsicht a = k.modelle->ansicht(*ent);
+            const karte::Matrix4 m = karte::miscModellMatrix(*ent);
+            if (a.modell) {
+                for (std::size_t fi = 0; fi < a.modell->flaechen.size(); ++fi) {
+                    if (fi < a.shader.size() && a.shader[fi].empty()) { continue; }
+                    const karte::ModellFlaeche& fl = a.modell->flaechen[fi];
+                    for (std::size_t i = 0; i + 2 < fl.indizes.size(); i += 3) {
+                        const Vektor3f p0 = karte::transformierterPunkt(m, fl.punkte[fl.indizes[i]].ort);
+                        const Vektor3f p1 = karte::transformierterPunkt(m, fl.punkte[fl.indizes[i + 1]].ort);
+                        const Vektor3f p2 = karte::transformierterPunkt(m, fl.punkte[fl.indizes[i + 2]].ort);
+                        ziel.push_back(Linie{p0, p1, f});
+                        ziel.push_back(Linie{p1, p2, f});
+                        ziel.push_back(Linie{p2, p0, f});
+                    }
+                }
+            }
+            const Vektor3f o = ursprungVon(*ent);
+            const std::string tn = ed.ent.zielnamen ? ent->wert("targetname") : std::string();
+            s.namen.push_back({o, Kasten(o, Vektor3f(32, 32, 32)), tn.empty() ? ent->klassenname() : tn, farbe, entGewaehlt});
+        } else if (punkt) {
             const Vektor3f o = ursprungVon(*ent);
             box = karte::kastenAusMinMax(o + kl->mins, o + kl->maxs);
             if (licht) {
@@ -545,6 +567,21 @@ void xyZeichnen(int index) {
         }
         for (const auto& l : mz.ebenenLinien) { manip2.push_back(Linie{l.a, l.b, gelb}); }
         for (const auto& pk : mz.grossePunkte) { manipPunkte.push_back(Linie{pk.p, pk.p, farbe(pk.farbe)}); }   // $BIGPOINT
+    }
+    // MiscModel::renderSolid: ausgewaehlt der RenderablePivot (16 Bildpunkte,
+    // Weltachsen x rot, y gruen, z blau; $PIVOT mit Breite 2)
+    if (ed.karte.kontext.modelle != nullptr) {
+        const float l = 16.0F / v.massstab;
+        for (const auto& w : ed.karte.auswahl.elemente()) {
+            const auto ent = w.entitaet.lock();
+            if (!ent || !w.primitiv.expired() || ent->istBehaelter() || ent->klasse() == nullptr || !ent->klasse()->miscmodelIs || !ent->sichtbar()) {
+                continue;
+            }
+            const Vektor3f o = ursprungVon(*ent);
+            manip2.push_back(Linie{o, o + Vektor3f(l, 0, 0), karte::farbeAus(1, 0, 0)});
+            manip2.push_back(Linie{o, o + Vektor3f(0, l, 0), karte::farbeAus(0, 1, 0)});
+            manip2.push_back(Linie{o, o + Vektor3f(0, 0, l), karte::farbeAus(0, 0, 1)});
+        }
     }
     const karte::AuswahlRechteck& rechteck = ed.beobachter[static_cast<std::size_t>(index)].rechteck;
     // BrushInstance::renderComponents / renderComponentsSelected, PatchInstance

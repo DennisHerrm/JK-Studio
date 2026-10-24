@@ -86,7 +86,7 @@ RegionSetBrush RegionSetSelection FindBrush MapInfo
 FilterWorldBrushes FilterEntities FilterAreaportals FilterTranslucent FilterLiquids FilterCaulk FilterClips FilterPaths
 FilterClusterportals FilterLights FilterStructural FilterLightgrid FilterPatches FilterDetails FilterHintsSkips FilterModels
 FilterTriggers FilterBotClips FilterDecals FilterFuncGroups FilterPointEntities FilterSky InvertFilters ResetFilters
-ExpandSelectionToLayers LayersMenu
+ExpandSelectionToLayers LayersMenu RefreshReferences
 '''.split())
 
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem

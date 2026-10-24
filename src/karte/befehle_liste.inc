@@ -227,7 +227,7 @@
 {"RedisperseRows", 1, "", "radiant/patchmanip.cpp:721", 1},
 {"Redo", 1, "Ctrl+Shift+Z", "radiant/select.cpp:1860", 1},
 {"Redo2", 1, "Ctrl+Y", "radiant/select.cpp:1861", 1},
-{"RefreshReferences", 1, "", "radiant/mainframe.cpp:2071", 2},
+{"RefreshReferences", 1, "", "radiant/mainframe.cpp:2071", 1},
 {"RefreshShaders", 1, "", "radiant/texwindow.cpp:2100", 1},
 {"RegionOff", 1, "", "radiant/map.cpp:2437", 1},
 {"RegionSetBrush", 1, "", "radiant/map.cpp:2439", 1},

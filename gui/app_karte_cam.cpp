@@ -32,6 +32,7 @@
 #include "app_internal.h"
 #include "bhed/image.h"
 #include "bhed/karte/kameraszene.h"
+#include "bhed/karte/manipulator.h"
 #include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
 #include "karte_gpu.h"
@@ -1318,6 +1319,24 @@ void kameraZeichnen() {
             for (const auto& l : mz.ebenenLinien) { linie(l.a, l.b, gelb, nullptr, ebenen); }
             std::vector<kartegpu::LinienPunkt> pivot;   // $PIVOT (RenderablePivot des UV-Werkzeugs)
             for (const auto& l : mz.pivotLinien) { linie(l.a, l.b, farbe(l.farbe), nullptr, pivot); }
+            // MiscModel::renderSolid: ausgewaehlt der RenderablePivot (16) im Weltraum
+            // (Pivot2World_worldSpace: Weltachsen, bildschirmfeste Groesse)
+            if (ed.karte.kontext.modelle != nullptr) {
+                const karte::Blick& bk = ed.blicke[3];
+                for (const auto& w : ed.karte.auswahl.elemente()) {
+                    const auto ent = w.entitaet.lock();
+                    if (!ent || !w.primitiv.expired() || ent->istBehaelter() || ent->klasse() == nullptr || !ent->klasse()->miscmodelIs ||
+                        !ent->sichtbar()) {
+                        continue;
+                    }
+                    karte::Matrix4 lz;
+                    karte::pivotWeltRaum(lz, karte::verschiebungsMatrix(karte::entitaetUrsprung(*ent)), bk.modelview(), bk.projektion(), bk.bildfeld());
+                    const karte::Vektor3f po = karte::transformierterPunkt(lz, karte::Vektor3f(0, 0, 0));
+                    linie(po, karte::transformierterPunkt(lz, karte::Vektor3f(16, 0, 0)), karte::farbeAus(1, 0, 0), nullptr, pivot);
+                    linie(po, karte::transformierterPunkt(lz, karte::Vektor3f(0, 16, 0)), karte::farbeAus(0, 1, 0), nullptr, pivot);
+                    linie(po, karte::transformierterPunkt(lz, karte::Vektor3f(0, 0, 16)), karte::farbeAus(0, 0, 1), nullptr, pivot);
+                }
+            }
             for (const bool sichtbar : {false, true}) {   // eSortGUI0 (verdeckt), dann eSortGUI1
                 {   // $PIVOT: glLineWidth( 2 ), GL_LEQUAL bzw. verdeckt GL_GREATER (Strichel nicht im globalstate)
                     kartegpu::Zustand3 zp = basis;

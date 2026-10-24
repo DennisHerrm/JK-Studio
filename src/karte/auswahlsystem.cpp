@@ -14,6 +14,9 @@
 //   Public License for more details (LICENSE).
 #include "bhed/karte/auswahlsystem.h"
 
+#include "bhed/karte/modell.h"
+#include "bhed/karte/region.h"
+
 #include "bhed/karte/eklasse.h"
 #include "bhed/karte/karte.h"
 #include "bhed/karte/komponenten.h"
@@ -50,8 +53,18 @@ std::array<Vektor3f, 8> ecken(const Kasten& k) {
             Vektor3f(mx[0], mn[1], mn[2]), Vektor3f(mn[0], mn[1], mn[2])};
 }
 
-// Punktentitaet: GenericEntity::testSelect (aabb_testselect) / Light (light_testselect)
-void entitaetTesten(const Entitaet& e, AuswahlVolumen& test, Treffer& bester) {
+bool istMiscModell(const Entitaet& e, const Kontext& k) {
+    const EntitaetsKlasse* kl = e.klasse();
+    return k.modelle != nullptr && kl != nullptr && kl->miscmodelIs;
+}
+
+// Punktentitaet: GenericEntity::testSelect (aabb_testselect) / Light (light_testselect);
+// misc_model: das Modell darunter (PicoModelInstance::testSelect / NullModel)
+void entitaetTesten(const Entitaet& e, const Kontext& kon, AuswahlVolumen& test, Treffer& bester) {
+    if (istMiscModell(e, kon)) {
+        modellTesten(kon.modelle->ansicht(e), miscModellMatrix(e), test, bester);
+        return;
+    }
     test.netzBeginnen(verschiebungsMatrix(entitaetUrsprung(e)));
     const Kasten k = lokalerKasten(e);
     if (istLicht(e)) {
@@ -196,7 +209,7 @@ void szeneTestenPrimitive(const Karte& k, Waehler& w, AuswahlVolumen& test) {
         if (!ent->sichtbar()) { continue; }
         if (!ent->istBehaelter()) {
             Treffer t;
-            entitaetTesten(*ent, test, t);
+            entitaetTesten(*ent, k.kontext, test, t);
             Waehlbar b{Waehlbar::Art::Entitaet, ent, nullptr, nullptr};
             hinzu(w, b, t);
             continue;
@@ -283,7 +296,7 @@ void szeneTesten(const Karte& k, Waehler& w, AuswahlVolumen& test, AuswahlModus 
         for (const auto& ent : k.entitaeten()) {
             if (!ent->sichtbar() || ent->istBehaelter()) { continue; }
             Treffer t;
-            entitaetTesten(*ent, test, t);
+            entitaetTesten(*ent, k.kontext, test, t);
             hinzu(w, Waehlbar{Waehlbar::Art::Entitaet, ent, nullptr, nullptr}, t);
         }
         break;
@@ -437,7 +450,7 @@ Vektor3f szeneSchnitt(const Karte& k, const Blick& blick, const GeraeteVektor& p
 
 Kasten entitaetKastenLokal(const Entitaet& e) { return lokalerKasten(e); }
 bool istLichtEntitaet(const Entitaet& e) { return istLicht(e); }
-void testeEntitaet(const Entitaet& e, AuswahlVolumen& test, Treffer& bester) { entitaetTesten(e, test, bester); }
+void testeEntitaet(const Entitaet& e, const Kontext& k, AuswahlVolumen& test, Treffer& bester) { entitaetTesten(e, k, test, bester); }
 void testePinsel(const Pinsel& p, const Kontext& k, AuswahlVolumen& test, Treffer& bester) { pinselTesten(p, k, test, bester); }
 void testePatch(const Patch& p, AuswahlVolumen& test, Treffer& bester) { patchTesten(p, test, bester); }
 void testeFlaeche(const Flaeche& f, AuswahlVolumen& test, Treffer& bester) {
@@ -485,6 +498,8 @@ Kasten auswahlGrenzenPivot(const Karte& k) {
             const EntitaetsKlasse* kl = ent->klasse();
             if (!ent->istBehaelter() && !(kl != nullptr && kl->miscmodelIs)) {
                 kastenErweiternSicher(b, Kasten(entitaetUrsprung(*ent), Vektor3f(0, 0, 0)));
+            } else if (istMiscModell(*ent, k.kontext)) {   // Instance_getPivotBounds: worldAABB
+                kastenErweiternSicher(b, instanzGrenzen(*ent, k.kontext));
             } else if (!ent->istBehaelter()) {
                 const Vektor3f o = entitaetUrsprung(*ent);
                 const Kasten l = lokalerKasten(*ent);
@@ -509,6 +524,8 @@ Kasten auswahlGrenzenMitEntitaeten(const Karte& k) {
             if (kl != nullptr && kl->fixedsize && !kl->miscmodelIs) {
                 const Vektor3f o = entitaetUrsprung(*ent);
                 kastenErweiternSicher(b, kastenAusMinMax(kl->mins + o, kl->maxs + o));
+            } else if (istMiscModell(*ent, k.kontext)) {   // instance.worldAABB()
+                kastenErweiternSicher(b, instanzGrenzen(*ent, k.kontext));
             } else if (!ent->istBehaelter()) {
                 const Vektor3f o = entitaetUrsprung(*ent);
                 const Kasten l = lokalerKasten(*ent);

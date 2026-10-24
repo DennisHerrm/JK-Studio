@@ -18,7 +18,9 @@
 #include "bhed/karte/auswahlbefehle.h"
 #include "bhed/karte/kartenformat.h"
 #include "bhed/karte/karte.h"
+#include "bhed/karte/eklasse.h"
 #include "bhed/karte/komponenten.h"
+#include "bhed/karte/modell.h"
 #include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
 
@@ -128,6 +130,10 @@ Kasten instanzGrenzen(const Primitiv& p, const Kontext& k) {
 
 Kasten instanzGrenzen(const Entitaet& e, const Kontext& k) {
     Kasten b;   // aabb_for_oriented_aabb_safe( localAABB, localToWorld )
+    const EntitaetsKlasse* kl = e.klasse();
+    if (k.modelle != nullptr && kl != nullptr && kl->miscmodelIs) {   // MiscModel: nur das Modell darunter (AABBExtendByChildren)
+        return modellWeltKasten(k.modelle->ansicht(e), miscModellMatrix(e));
+    }
     if (!e.istBehaelter()) {
         const Kasten l = entitaetKastenLokal(e);
         b = Kasten(l.origin + entitaetUrsprung(e), l.extents);

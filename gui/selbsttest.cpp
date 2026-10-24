@@ -47,6 +47,8 @@
 #include "bhed/kartenpruefung.h"   // rc602
 #include "karteneditor.h"           // Stufe 1b: der Karten-Editor
 #include "bhed/karte/ebenen.h"
+#include "bhed/karte/modell.h"
+#include "bhed/karte/region.h"
 #include "bhed/karte/filter.h"
 #include "bhed/karte/kartenformat.h"
 
@@ -29687,6 +29689,119 @@ std::vector<Schritt> ebenen() {
     return s;
 }
 
+std::shared_ptr<karte::Entitaet> modellEntitaet(const char* modell) {
+    for (const auto& e : ke::editor().karte.entitaeten()) {
+        if (e->wert("model") == modell) { return e; }
+    }
+    return nullptr;
+}
+
+Schritt modellDazu(const std::string& was, const char* modell, const char* ursprung) {
+    return tu(was, [modell, ursprung] {
+        ke::Editor& e = ke::editor();
+        e.karte.undo.start();
+        auto ent = e.karte.neueEntitaet("misc_model", false);
+        ent->setzen("origin", ursprung);
+        ent->setzen("model", modell);
+        e.karte.entitaetEinfuegen(ent);
+        e.karte.undo.finish("entityCreate -class misc_model");
+        e.karte.auswahl.leeren();
+        ke::auswahlGeaendert();
+    });
+}
+
+// Punkt 10b: misc_model mit Modell (md3, glm), Grenzen, Wahl, Filter, Meldungen
+std::vector<Schritt> modelle() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(grundzustand("Stufe 2/10b: Grundzustand"));
+    add(pause(0.4));
+    add(modellDazu("misc_model bespin/panels.md3 bei (200 0 32)", "models/map_objects/bespin/panels.md3", "200 0 32"));
+    add(pause(0.3));
+    add(pruefe("md3 geladen: \"Loaded Model:\", Flaechen, kein NullModel", [] {
+        const auto ent = modellEntitaet("models/map_objects/bespin/panels.md3");
+        if (!ent) { return false; }
+        const karte::ModellAnsicht a = ke::kartenModelle().ansicht(*ent);
+        diag::detail("Knopftest: Stufe 2 - panels.md3 Flaechen " + std::to_string(a.modell ? a.modell->flaechen.size() : 0));
+        return a.modell && !a.modell->null && !a.modell->flaechen.empty() && konsoleHat("Loaded Model: \"models/map_objects/bespin/panels.md3\"");
+    }));
+    add(pruefe("Grenzen: worldAABB des Modells (nicht der Klassenkasten)", [] {
+        const auto ent = modellEntitaet("models/map_objects/bespin/panels.md3");
+        const karte::Kasten b = karte::instanzGrenzen(*ent, ke::editor().karte.kontext);
+        const karte::Kasten m = karte::modellWeltKasten(ke::kartenModelle().ansicht(*ent), karte::miscModellMatrix(*ent));
+        return karte::kastenGueltig(b) && kastenGleich(b, m.origin - m.extents, m.origin + m.extents);
+    }));
+    add(klickAn("M1 auf ein Dreieck des Modells (XY)", [] {
+        const auto ent = modellEntitaet("models/map_objects/bespin/panels.md3");
+        const karte::ModellAnsicht a = ke::kartenModelle().ansicht(*ent);
+        const karte::Matrix4 m = karte::miscModellMatrix(*ent);
+        // das groesste Dreieck in der XY-Ebene, seine Mitte
+        float best = -1;
+        karte::Vektor3f mitte;
+        for (const auto& f : a.modell->flaechen) {
+            for (std::size_t i = 0; i + 2 < f.indizes.size(); i += 3) {
+                const karte::Vektor3f p0 = karte::transformierterPunkt(m, f.punkte[f.indizes[i]].ort);
+                const karte::Vektor3f p1 = karte::transformierterPunkt(m, f.punkte[f.indizes[i + 1]].ort);
+                const karte::Vektor3f p2 = karte::transformierterPunkt(m, f.punkte[f.indizes[i + 2]].ort);
+                const float fl = std::fabs((p1[0] - p0[0]) * (p2[1] - p0[1]) - (p2[0] - p0[0]) * (p1[1] - p0[1]));
+                if (fl > best) {
+                    best = fl;
+                    mitte = (p0 + p1 + p2) * (1.0F / 3.0F);
+                }
+            }
+        }
+        return weltXy(mitte[0], mitte[1]);
+    }));
+    add(pruefe("das Modell ist waehlbar: misc_model gewaehlt", [] {
+        const auto ent = modellEntitaet("models/map_objects/bespin/panels.md3");
+        return ke::editor().karte.auswahl.anzahl() == 1 && ke::editor().karte.auswahl.gewaehlt(ent.get());
+    }));
+    add(pause(0.3));
+    add(foto("karteneditor_misc_model"));
+    add(tu("modelscale 2", [] {
+        const auto ent = modellEntitaet("models/map_objects/bespin/panels.md3");
+        ke::editor().karte.undo.start();
+        ent->setzen("modelscale", "2");
+        ke::editor().karte.undo.finish("entitySetKeyValue -key modelscale -value 2");
+    }));
+    add(pruefe("modelscale 2: doppelte Grenzen", [] {
+        const auto ent = modellEntitaet("models/map_objects/bespin/panels.md3");
+        const karte::ModellAnsicht a = ke::kartenModelle().ansicht(*ent);
+        const karte::Kasten b = karte::instanzGrenzen(*ent, ke::editor().karte.kontext);
+        return std::fabs(b.extents[2] - 2.0F * a.modell->grenzen.extents[2]) < 0.01F;
+    }));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_M, "Umschalt+M"));
+    add(pruefe("Umschalt+M: Models-Filter - das misc_model unsichtbar", [] {
+        return ke::angehakt("FilterModels") && !modellEntitaet("models/map_objects/bespin/panels.md3")->sichtbar();
+    }));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_M, "Umschalt+M"));
+    add(modellDazu("misc_model hoth/eweb_model.glm (Grundhaltung, model_default.skin)", "models/map_objects/hoth/eweb_model.glm", "-200 0 32"));
+    add(pruefe("glm geladen: Flaechen mit Shadern", [] {
+        const auto ent = modellEntitaet("models/map_objects/hoth/eweb_model.glm");
+        const karte::ModellAnsicht a = ke::kartenModelle().ansicht(*ent);
+        bool shader = false;
+        for (const auto& n : a.shader) { shader = shader || !n.empty(); }
+        diag::detail("Knopftest: Stufe 2 - eweb_model.glm Flaechen " + std::to_string(a.modell ? a.modell->flaechen.size() : 0));
+        return a.modell && !a.modell->null && !a.modell->flaechen.empty() && shader;
+    }));
+    add(modellDazu("misc_model ohne Datei", "models/gibtsnicht.md3", "0 200 32"));
+    add(modellDazu("misc_model mit unbekannter Endung", "models/x.obj", "0 -200 32"));
+    add(pause(0.3));
+    add(pruefe("Meldungen \"Model load failed\" / \"Model type not supported\", NullModel (8)", [] {
+        const auto ent = modellEntitaet("models/gibtsnicht.md3");
+        const karte::ModellAnsicht a = ke::kartenModelle().ansicht(*ent);
+        return konsoleHat("Model load failed: \"models/gibtsnicht.md3\"") && konsoleHat("Model type not supported: \"models/x.obj\"") && a.modell->null &&
+               std::fabs(a.modell->grenzen.extents[0] - 8.0F) < 0.01F;
+    }));
+    add(tu("Misc > Refresh models", [] {
+        ke::konsoleLeeren();
+        (void)ke::ausfuehren("RefreshReferences");
+    }));
+    add(pause(0.3));
+    add(pruefe("Refresh models: neu geladen (\"Loaded Model:\" erneut)", [] { return konsoleHat("Loaded Model: \"models/map_objects/bespin/panels.md3\""); }));
+    return s;
+}
+
 }  // namespace stufe2
 
 std::vector<Schritt> karteneditorStufe2Schritte() {
@@ -29701,6 +29816,7 @@ std::vector<Schritt> karteneditorStufe2Schritte() {
     for (Schritt& x : stufe2::auswahlDatei()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::filter()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::ebenen()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe2::modelle()) { s.push_back(std::move(x)); }
     return s;
 }
 

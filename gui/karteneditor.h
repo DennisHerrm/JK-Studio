@@ -29,6 +29,7 @@
 #include "bhed/karte/texturbefehle.h"
 #include "bhed/karte/texturtags.h"
 #include "bhed/karte/kartendatei.h"
+#include "bhed/karte/modell.h"
 #include "bhed/karte/region.h"
 #include "bhed/karte/kamera.h"
 #include "bhed/karte/karte.h"
@@ -896,6 +897,9 @@ bool auswahlSpeichernUnter(const std::string& pfad);  // Map_SaveSelected
 bool regionSpeichernUnter(const std::string& pfad);   // Map_SaveRegion
 // EverySecondTimer (mainframe.cpp:727-746): jedes Bild aufrufen
 void autosaveJedeSekunde();
+// Stufe 2, Punkt 10b (app_karte_modelle.cpp): die Modelle der misc_model
+[[nodiscard]] const karte::ModellQuelle& kartenModelle();
+void modelleLeeren();   // FlushReferences (Map_Free) / RefreshReferences
 // Stufe 2, Punkt 10 (app_karte_ebenen.cpp): der Ebenen-Browser, Strg+Q, Umschalt+Q
 void ebenenSeiteZeichnen(int breite, int hoehe);
 void ebenenBefehl(const std::string& name);

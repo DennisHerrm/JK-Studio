@@ -283,7 +283,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
   * SUB M&isc  (radiant/mainframe.cpp:1165)
     - [x] ITEM Find brush... -> `FindBrush`  (radiant/mainframe.cpp:1173) -- Stufe 2 Punkt 8
     - [x] ITEM Map Info... -> `MapInfo`  (radiant/mainframe.cpp:1174) -- Stufe 2 Punkt 8
-    - [~] ITEM &Refresh models -> `RefreshReferences`  (radiant/mainframe.cpp:1175) -- Stufe 2
+    - [x] ITEM &Refresh models -> `RefreshReferences`  (radiant/mainframe.cpp:1175) -- Stufe 2 Punkt 10
     - [~] ITEM Set 2D &Background image...  (radiant/mainframe.cpp:1176) -- Stufe 2 (ausgegraut, Tooltip nennt die Stufe)
     - [~] ITEM Fullscreen -> `Fullscreen`  (radiant/mainframe.cpp:1177) -- Stufe 2
     - [x] ITEM Maximize view -> `MaximizeView`  (radiant/mainframe.cpp:1178)
@@ -499,7 +499,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 - [x] button Entities | entities.png -> `ToggleEntityInspector`  (radiant/mainframe.cpp:1428) -- Stufe 1b Punkt 9
 - [x] button Console [wenn: if ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft )] | console.png -> `ToggleConsole`  (radiant/mainframe.cpp:1431) -- Stufe 1b Punkt 10
 - [ ] button Texture Browser [wenn: if ( ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft ) || g_Layout_builtInGroupDialog.m_value )] | texture_browser.png -> `ToggleTextures`  (radiant/mainframe.cpp:1434)
-- [~] button Refresh Models | refresh_models.png -> `RefreshReferences`  (radiant/mainframe.cpp:1441) -- Stufe 2
+- [x] button Refresh Models | refresh_models.png -> `RefreshReferences`  (radiant/mainframe.cpp:1441) -- Stufe 2 Punkt 10
 
 ### Patch_constructToolbar (radiant/patchmanip.cpp)
 
@@ -771,7 +771,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `RedisperseRows` | Commands | - | (radiant/patchmanip.cpp:721) -- Stufe 2 Punkt 6
 - [x] `Redo` | Commands | Ctrl+Shift+Z | (radiant/select.cpp:1860)
 - [x] `Redo2` | Commands | Ctrl+Y | (radiant/select.cpp:1861)
-- [~] `RefreshReferences` | Commands | - | (radiant/mainframe.cpp:2071) -- Stufe 2
+- [x] `RefreshReferences` | Commands | - | (radiant/mainframe.cpp:2071) -- Stufe 2 Punkt 10
 - [x] `RefreshShaders` | Commands | - | (radiant/texwindow.cpp:2100)
 - [x] `RegionOff` | Commands | - | (radiant/map.cpp:2437) -- Stufe 2 Punkt 8
 - [x] `RegionSetBrush` | Commands | - | (radiant/map.cpp:2439) -- Stufe 2 Punkt 8

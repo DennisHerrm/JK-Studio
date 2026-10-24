@@ -4243,7 +4243,7 @@ AuswahlBearbeitung::Impl::SzenenTreffer AuswahlBearbeitung::Impl::szenenPunktTes
         if (!ent->istBehaelter()) {
             if (art == 2) { continue; }
             Treffer t;
-            testeEntitaet(*ent, test, t);
+            testeEntitaet(*ent, karte.kontext, test, t);
             dazu(t, nullptr);
             continue;
         }

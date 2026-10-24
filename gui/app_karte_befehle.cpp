@@ -160,6 +160,8 @@ std::map<std::string, Umsetzung>& umsetzungen() {
         m[name] = {[name] { dateiBefehl(name); }, nullptr};
     }
     m["RegionSetSelection"] = {[] { dateiBefehl("RegionSetSelection"); }, [] { return dateiBefehlAn("RegionSetSelection"); }};
+    // --- Stufe 2, Punkt 10b: Refresh models (mainframe.cpp:2071, referencecache.cpp:655-658) ---
+    m["RefreshReferences"] = {[] { modelleLeeren(); }, nullptr};
     // --- Stufe 2, Punkt 10: Ebenen (layerswindow.cpp:578-582) ---
     m["ExpandSelectionToLayers"] = {[] { ebenenBefehl("ExpandSelectionToLayers"); }, nullptr};
     m["LayersMenu"] = {[] { ebenenBefehl("LayersMenu"); }, nullptr};

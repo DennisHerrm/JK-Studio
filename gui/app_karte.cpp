@@ -154,6 +154,9 @@ void karteFreigeben() {
     e.karte.klassen = e.karteSpiel ? &e.karteSpiel->klassen : nullptr;
     e.karte.kontext.texturen = e.karteSpiel ? &e.karteSpiel->inventar : nullptr;
     e.karte.kontext.format = karte::PinselFormat::Quake3;
+    // Map_Free: FlushReferences (ModelCache_clear); die Modelle kommen aus dem Spiel
+    modelleLeeren();
+    e.karte.kontext.modelle = &kartenModelle();
 }
 
 // ConfirmModified (qe3.cpp:128-150) als Klappfenster: Save / Discard / Cancel.

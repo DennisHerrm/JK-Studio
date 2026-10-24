@@ -72,9 +72,13 @@ public:
     [[nodiscard]] virtual std::pair<std::size_t, std::size_t> groesse(const std::string& shader) const = 0;
 };
 
+class ModellQuelle;   // modell.h
+
 struct Kontext {
     PinselFormat format = PinselFormat::Quake3;
     const TexturGroessen* texturen = nullptr;
+    // Die Modelle fuer misc_model (nullptr: ohne Spiel, dann der Kasten der Klasse)
+    const ModellQuelle* modelle = nullptr;
     bool texturLock = false;   // g_brush_texturelock_enabled ("TogTexLock", Shift+T)
     [[nodiscard]] TexdefArt art() const { return texdefArtFuer(format); }
     [[nodiscard]] std::pair<std::size_t, std::size_t> groesse(const std::string& shader) const {

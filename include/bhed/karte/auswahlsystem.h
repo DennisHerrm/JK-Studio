@@ -185,7 +185,7 @@ void komponentenOderAlleAbwaehlen(Karte& k, const AuswahlEinstellung& e, bool ko
 [[nodiscard]] bool istLichtEntitaet(const Entitaet& e);   // light / lightJunior
 
 // Einzelne Treffertests (testSelect der Instanzen), fuer die Manipulatoren.
-void testeEntitaet(const Entitaet& e, AuswahlVolumen& test, Treffer& bester);                 // aabb_testselect / light_testselect
+void testeEntitaet(const Entitaet& e, const Kontext& k, AuswahlVolumen& test, Treffer& bester);   // aabb_testselect / light_testselect / Modell
 void testePinsel(const Pinsel& p, const Kontext& k, AuswahlVolumen& test, Treffer& bester);   // BrushInstance::testSelect
 void testePatch(const Patch& p, AuswahlVolumen& test, Treffer& bester);                       // PatchInstance::testSelect
 void testeFlaeche(const Flaeche& f, AuswahlVolumen& test, Treffer& bester);                   // Face::testSelect (ohne BeginMesh)
