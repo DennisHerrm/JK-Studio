@@ -32630,6 +32630,141 @@ std::vector<Schritt> karteneditorHandbuchSchritte() {
     }));
     add(pause(0.4));
     add(hb::fotoTeil("h_karteneditor_tasten", [] { return fensterRahmen("###kartetasten"); }));
+    // --- Stufe 2: die Bauwerkzeuge
+    // ein Pinsel nahe der Mitte der 2D-Ansicht (32..256 gross)
+    const auto pinselInDerMitte = [] {
+        ke::Editor& e = ke::editor();
+        const karte::Vektor3f o = e.xy[0].ansicht.ursprung;
+        std::shared_ptr<karte::Primitiv> bester;
+        float abstand = 1e30F;
+        for (const auto& k : e.karte.welt()->kinder()) {
+            if (k->art() != karte::Primitiv::Art::Pinsel) { continue; }
+            const karte::Kasten b = std::static_pointer_cast<karte::Pinsel>(k)->grenzen(e.karte.kontext);
+            if (b.extents[0] < 16 || b.extents[1] < 16 || b.extents[0] > 128 || b.extents[1] > 128 || b.extents[2] < 8) { continue; }
+            const float d = std::fabs(b.origin[0] - o[0]) + std::fabs(b.origin[1] - o[1]);
+            if (d < abstand) {
+                abstand = d;
+                bester = k;
+            }
+        }
+        e.karte.auswahl.leeren();
+        if (bester) { e.karte.auswahl.waehlen(e.karte.welt(), bester); }
+        ke::auswahlGeaendert();
+        return bester;
+    };
+    add(tu("Handbuch Karten-Editor: Dialoge zu, ein Pinsel in der Mitte, Ecken-Modus", [pinselInDerMitte] {
+        karteDialogeZu();
+        (void)pinselInDerMitte();
+        (void)ke::ausfuehren("DragVertices");
+    }));
+    add(pause(0.5));
+    add(hb::fotoTeil("h_karteneditor_ecken", editor));
+    add(tu("Ecken-Modus aus, Clipper mit drei Punkten durch den Pinsel", [] {
+        ke::Editor& e = ke::editor();
+        (void)ke::ausfuehren("DragVertices");
+        (void)ke::ausfuehren("ToggleClipper");
+        karte::Kasten b;
+        if (ke::auswahlGrenzen(b)) {
+            const karte::Vektor3d c(b.origin[0], b.origin[1], b.origin[2] + b.extents[2]);
+            e.bearbeitung.clipperPunkte.punkte[0] = c + karte::Vektor3d(-b.extents[0], -b.extents[1] * 0.5, 0);
+            e.bearbeitung.clipperPunkte.punkte[1] = c + karte::Vektor3d(b.extents[0], b.extents[1] * 0.5, 0);
+            e.bearbeitung.clipperPunkte.punkte[2] = c + karte::Vektor3d(b.extents[0], b.extents[1] * 0.5, -64);
+            e.bearbeitung.clipperPunkte.anzahl = 3;
+        }
+    }));
+    add(pause(0.5));
+    add(hb::fotoTeil("h_karteneditor_clipper", editor));
+    add(tu("Clipper aus, Brush > CSG > CSG Tool", [] {
+        (void)ke::ausfuehren("ToggleClipper");
+        (void)ke::ausfuehren("CSGTool");
+    }));
+    add(pause(0.4));
+    add(hb::fotoTeil("h_karteneditor_csg", [] { return fensterRahmen("###kartecsgtool"); }));
+    add(tu("CSG Tool zu, Brush > Prism...", [] {
+        karteDialogeZu();
+        ke::editor().csgWerkzeug.offen = false;
+        (void)ke::ausfuehren("BrushPrism");
+    }));
+    add(pause(0.4));
+    add(hb::fotoTeil("h_karteneditor_seiten", [] { return fensterRahmen("###karteseiten"); }));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(tu("Curve > Cylinder aus dem Pinsel", [pinselInDerMitte] {
+        (void)pinselInDerMitte();
+        (void)ke::ausfuehren("PatchCylinder");
+    }));
+    add(pause(0.5));
+    add(hb::fotoTeil("h_karteneditor_patch", editor));
+    add(tu("Rueckgaengig, den Pinsel waehlen, Surface Inspector", [pinselInDerMitte] {
+        (void)ke::ausfuehren("Undo");
+        (void)pinselInDerMitte();
+        (void)ke::ausfuehren("SurfaceInspector");
+    }));
+    add(pause(0.5));
+    add(hb::fotoTeil("h_karteneditor_surface", [] { return fensterRahmen("###kartesi"); }));
+    add(tu("Surface Inspector zu, Misc > Map Info...", [] {
+        (void)ke::ausfuehren("SurfaceInspector");
+        ke::editor().karte.auswahl.leeren();
+        (void)ke::ausfuehren("MapInfo");
+    }));
+    add(pause(0.4));
+    add(hb::fotoTeil("h_karteneditor_karteninfo", [] { return fensterRahmen("###kartekarteninfo"); }));
+    add(tu("Map Info zu, View > Layers Browser", [] {
+        karteDialogeZu();
+        (void)ke::ausfuehren("ToggleLayersBrowser");
+    }));
+    add(pause(0.4));
+    add(tu("Gruppendialog auf den Bildschirm", [] {
+        const ImGuiViewport* vp = ImGui::GetMainViewport();
+        const ImRect r = fensterRahmen("###kartegruppe");
+        ImGui::SetWindowPos("###kartegruppe", ImVec2{r.Min.x, vp->WorkPos.y + 40.0F});
+        ImGui::SetWindowSize("###kartegruppe", ImVec2{r.GetWidth(), std::min(r.GetHeight(), vp->WorkSize.y - 80.0F)});
+    }));
+    add(pause(0.4));
+    add(hb::fotoTeil("h_karteneditor_ebenen", [] { return fensterRahmen("###kartegruppe"); }));
+    add(tu("View > Model Browser", [] { (void)ke::ausfuehren("ToggleModelBrowser"); }));
+    add(pause(0.5));
+    for (const char* p : {"models/", "models/map_objects/"}) {   // die Pfeile aufklappen
+        const std::string id = std::string("##mb") + p;
+        add(klickAn(std::string("Pfeil vor ") + p, [id]() {
+            const Element* el = finde(id, "", 0, true);
+            if (el == nullptr) { return ImVec2{0, 0}; }
+            const int tiefe = static_cast<int>(std::count(id.begin(), id.end(), '/')) - 1;
+            return ImVec2{el->rect.Min.x + (20.0F * static_cast<float>(tiefe) + 8.0F) * ke::massstab(), el->rect.GetCenter().y};
+        }));
+        add(pause(0.2));
+    }
+    add(klickAn("Doppelklick auf bespin", stufe2::elementOrt("##mbmodels/map_objects/bespin/"), 0, true));
+    add(pause(1.0));
+    add(warteBis("Modelle und Texturen geladen", [] { return ke::kameraBilderFertig(); }, 4000));
+    add(pause(0.5));
+    add(hb::fotoTeil("h_karteneditor_modelle", [] { return fensterRahmen("###kartegruppe"); }));
+    add(tu("Gruppendialog zu, Einstellungen auf", [] {
+        ke::editor().gruppenDialogOffen = false;
+        ke::editor().gruppenSeite = 0;
+        ke::editor().einstellungenOffen = true;
+    }));
+    add(pause(0.3));
+    add(klickAn("Einstellungen: Seite Orthographic", [] {
+        const Element* el = findeEndung("##seite18", "###karteeinstellungen");
+        return el != nullptr ? el->rect.GetCenter() : ImVec2{5, 5};
+    }));
+    add(pause(0.3));
+    add(hb::fotoTeil("h_karteneditor_einstellungen2", [] { return fensterRahmen("###karteeinstellungen"); }));
+    add(tu("Einstellungen zu", [] { karteDialogeZu(); }));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KeLMisc), "##karteneditor"));
+    add(pause(0.3));
+    add(klickAn("Abreisskante des Menues Misc", [] {
+        ImGuiWindow* w = ImGui::FindWindowByName("###Menu_00");
+        return w != nullptr ? ImVec2{w->Pos.x + w->Size.x * 0.5F, w->Pos.y + 4.0F * ke::massstab()} : ImVec2{0, 0};
+    }));
+    add(pause(0.4));
+    add(hb::fotoTeil("h_karteneditor_abriss", [] {
+        ImGuiWindow* w = karteFenster();
+        if (w == nullptr) { return ImRect{}; }
+        return ImRect{w->Pos.x, w->Pos.y, w->Pos.x + w->Size.x * 0.75F, w->Pos.y + w->Size.y * 0.55F};
+    }));
+    add(tu("abgerissenes Fenster zu", [] { ke::editor().abrisse.clear(); }));
     add(tu("Handbuch Karten-Editor: Ende", [] {
         karteDialogeZu();
         g_app->leftMode = 0;

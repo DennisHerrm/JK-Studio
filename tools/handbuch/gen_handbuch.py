@@ -80,6 +80,8 @@ def _lade_ui_texte():
             sys.path.insert(0, os.path.join(WURZEL, "tools"))
             from i18n_karte import KARTE
             texte.update({e[0]: e[1:] for e in KARTE})
+            from i18n_karte2 import KARTE2   # Stufe 2: Bauwerkzeuge
+            texte.update({e[0]: e[1:] for e in KARTE2})
             return texte
     raise SystemExit("gen_i18n.py: Liste S nicht gefunden")
 
