@@ -954,6 +954,12 @@ void einstellungenLaden() {
     ed.bearbeitung.einstellung.punktEntitaetenIn2d = zahl("PreferPointEntsIn2D", 1) != 0.0F;
     ed.bearbeitung.pinselIn3d = zahl("3DCreateBrushes", 1) != 0.0F;
     ed.bearbeitung.bewegStil3d = std::clamp(static_cast<int>(zahl("3DMoveStyle", 0)), 0, 1);
+    // Clipper_Construct (clippertool.cpp:202-206)
+    ed.bearbeitung.clipperCaulk = zahl("ClipperCaulk", 1) != 0.0F;
+    ed.bearbeitung.clipperUmdrehenZuruecksetzen = zahl("ClipperResetFlip", 1) != 0.0F;
+    ed.bearbeitung.clipperPunkteZuruecksetzen = zahl("ClipperResetPoints", 1) != 0.0F;
+    ed.bearbeitung.clipper2Punkte2d = zahl("Clipper2PointsIn2D", 1) != 0.0F;
+    ed.bearbeitung.clipperDoppelklickTeilen = std::clamp(static_cast<int>(zahl("ClipperDoubleclickedSplit", 1)), 0, 1);
     // MainFrame/m_hSplit usw. (SplitterSetting::save: die Groessen), als
     // "a,b" in logischen Punkten; anderes (alte Anteile) gilt als nicht gemerkt.
     const auto groessen = [&](const char* n) {
@@ -1075,6 +1081,11 @@ void einstellungenSpeichern() {
     auto& k = g_app->settings.karte;
     k["QE4StyleWindows"] = std::to_string(static_cast<int>(ed.anordnung));
     k["BuiltInGroupDialog"] = ed.gruppenDialogEingebaut ? "1" : "0";
+    k["ClipperCaulk"] = ed.bearbeitung.clipperCaulk ? "1" : "0";
+    k["ClipperResetFlip"] = ed.bearbeitung.clipperUmdrehenZuruecksetzen ? "1" : "0";
+    k["ClipperResetPoints"] = ed.bearbeitung.clipperPunkteZuruecksetzen ? "1" : "0";
+    k["Clipper2PointsIn2D"] = ed.bearbeitung.clipper2Punkte2d ? "1" : "0";
+    k["ClipperDoubleclickedSplit"] = std::to_string(ed.bearbeitung.clipperDoppelklickTeilen);
     const auto liste = [](const std::vector<int>& v) {
         std::string s;
         for (const int i : v) { s += (s.empty() ? "" : ",") + std::to_string(i); }

@@ -65,6 +65,7 @@ ToggleEntityList
 # sie gelten wie die der Stufe 1b als fertig (Stufe 1 in befehle_liste.inc).
 STUFE_2_FERTIG = set('''
 DragVertices DragEdges DragFaces MouseBuild MouseUV TogTexLock TogTexVertexLock
+ToggleClipper ClipperClip ClipperSplit ClipperFlip
 '''.split())
 
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem

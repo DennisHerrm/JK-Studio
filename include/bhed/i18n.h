@@ -1579,6 +1579,13 @@ enum class Str {
     KeTView,
     KeTFindReplace,
     KeTFlushReloadShaders,
+    KePrClipCaulk,
+    KePrClipResetFlip,
+    KePrClipResetPoints,
+    KePrClip2Points,
+    KePrClipDouble,
+    KePrClipClip,
+    KePrClipSplit,
     Count,
 };
 

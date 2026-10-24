@@ -304,6 +304,9 @@ public:
     // Brush::transform + freezeTransform (mit Texture Lock, wenn k.texturLock).
     void transformieren(const Matrix4& m, const Kontext& k);
 
+    // windingForClipPlane (brush.h:2125-2158): die Wicklung einer Ebene im Pinsel
+    void wicklungFuerEbene(Wicklung& w, const Ebene3d& e) const { wicklungFuerSchnittEbene(w, e); }
+
     // B-Rep (buildBRep). Wird nach jeder Aenderung beim naechsten Zugriff
     // neu gebaut (evaluateBRep); bRep() erzwingt es.
     void bRep(const Kontext& k) const;

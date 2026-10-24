@@ -28547,11 +28547,127 @@ std::vector<Schritt> komponenten() {
     return s;
 }
 
+Schritt klickXyMit(const std::string& was, ImGuiKeyChord mods, ImVec2 an) {
+    return Schritt{was, [=](int b) {
+                       ImGuiIO& io = ImGui::GetIO();
+                       if (b == 0) {
+                           setzeMaus(weltXy(an.x, an.y));
+                           if ((mods & ImGuiMod_Ctrl) != 0) { io.AddKeyEvent(ImGuiMod_Ctrl, true); }
+                           return false;
+                       }
+                       if (b == 2) {
+                           io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+                           return false;
+                       }
+                       if (b == 3) {
+                           io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+                           return false;
+                       }
+                       if (b == 4 && (mods & ImGuiMod_Ctrl) != 0) { io.AddKeyEvent(ImGuiMod_Ctrl, false); }
+                       return b >= 6;
+                   }};
+}
+
+// Zwei Klicks kurz nacheinander (Clipper_tryDoubleclick: unter 200 ms)
+Schritt doppelklickXy(const std::string& was, ImVec2 an) {
+    return Schritt{was, [=](int b) {
+                       ImGuiIO& io = ImGui::GetIO();
+                       if (b == 0) {
+                           setzeMaus(weltXy(an.x, an.y));
+                           return false;
+                       }
+                       if (b == 1 || b == 3) {
+                           io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+                           return false;
+                       }
+                       if (b == 2 || b == 4) {
+                           io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+                           return false;
+                       }
+                       return b >= 7;
+                   }};
+}
+
+std::size_t pinselAnzahl() {
+    const auto w = ke::editor().karte.welt();
+    return w ? w->kinder().size() : 0;
+}
+
+karte::Kasten pinselGrenzen(std::size_t i) {
+    const auto w = ke::editor().karte.welt();
+    if (!w || i >= w->kinder().size()) { return karte::Kasten(); }
+    return std::static_pointer_cast<karte::Pinsel>(w->kinder()[i])->grenzen(ke::editor().karte.kontext);
+}
+
+// Punkt 2: Clipper (X, Return, Shift+Return, Ctrl+Return, Strg+M1 in 2D, Doppelklick)
+std::vector<Schritt> clipper() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(grundzustand("Stufe 2/2: Grundzustand"));
+    add(pause(0.4));
+    add(klickXy("M1 auf den Pinsel", ImGuiMouseButton_Left, ImVec2{32, 32}));
+    add(tasteKombi(ImGuiKey_X, "X"));
+    add(pruefe("X: Clipper, Status wie NRC", [] {
+        const ke::Editor& e = ke::editor();
+        return ke::angehakt("ToggleClipper") && e.bearbeitung.modus() == karte::ManipModus::Clipper &&
+               e.statusBefehl == "Clipper Tool: apply clip planes to brushes";
+    }));
+    add(klickXy("Clipper: Punkt 1 bei (0 -96)", ImGuiMouseButton_Left, ImVec2{0, -96}));
+    add(klickXy("Clipper: Punkt 2 bei (0 96)", ImGuiMouseButton_Left, ImVec2{0, 96}));
+    add(pause(0.2));
+    add(pruefe("zwei Punkte, die Schnittebene liegt im Pinsel (BrushClipPlane)", [] {
+        const ke::Editor& e = ke::editor();
+        const std::vector<ke::ClipperFlaeche> f = ke::clipperFlaechen();
+        return e.bearbeitung.clipperPunkte.anzahl == 2 && f.size() == 1 && f[0].punkte.size() == 4;
+    }));
+    add(foto("karteneditor_clipper"));
+    add(tasteKombi(ImGuiKey_Enter, "Return"));
+    add(pruefe("Return: Clip, es bleibt x 0..64 (Normale (p2-p0) x (p1-p0) = -x)", [] {
+        const karte::Kasten b = pinselGrenzen(0);
+        diag::detail("Knopftest: Stufe 2 - Clip x " + std::to_string(b.origin[0] - b.extents[0]) + ".." + std::to_string(b.origin[0] + b.extents[0]));
+        return pinselAnzahl() == 1 && std::fabs(b.origin[0] - b.extents[0]) < 0.01F && std::fabs(b.origin[0] + b.extents[0] - 64) < 0.01F;
+    }));
+    add(rueckgaengigName("clipperClip"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(klickXy("Clipper: Punkt 1 bei (0 -96)", ImGuiMouseButton_Left, ImVec2{0, -96}));
+    add(klickXy("Clipper: Punkt 2 bei (0 96)", ImGuiMouseButton_Left, ImVec2{0, 96}));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Enter, "Strg+Return"));
+    add(pruefe("Strg+Return: Flip", [] { return ke::editor().bearbeitung.clipperUmgedreht; }));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_Enter, "Umschalt+Return"));
+    add(pruefe("Umschalt+Return: Split in zwei Pinsel", [] { return pinselAnzahl() == 2 && ke::editor().karte.auswahl.anzahl() == 2; }));
+    add(rueckgaengigName("clipperSplit"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    // Doppelklick auf einen gesetzten Punkt: teilt ("On DoubleClick do: Split")
+    add(klickXy("Clipper: Punkt 1 bei (0 -96)", ImGuiMouseButton_Left, ImVec2{0, -96}));
+    add(klickXy("Clipper: Punkt 2 bei (0 96)", ImGuiMouseButton_Left, ImVec2{0, 96}));
+    add(doppelklickXy("Doppelklick auf Punkt 2", ImVec2{0, 96}));
+    add(pruefe("Doppelklick: Split", [] { return pinselAnzahl() == 2; }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiKey_X, "X"));
+    add(pruefe("X nochmal: Resize", [] { return ke::angehakt("MouseDrag"); }));
+    // Strg+M1 in 2D: der Clipper fuer einen Schnitt (ClipperModeQuick)
+    add(klickXy("M1 auf den Pinsel", ImGuiMouseButton_Left, ImVec2{32, 32}));
+    add(klickXyMit("Strg+M1 bei (32 -96)", ImGuiMod_Ctrl, ImVec2{32, -96}));
+    add(pruefe("Strg+M1: Clipper eingeschaltet (schnell)", [] {
+        const ke::Editor& e = ke::editor();
+        return e.bearbeitung.modus() == karte::ManipModus::Clipper && e.bearbeitung.clipperSchnell && e.bearbeitung.clipperPunkte.anzahl == 1;
+    }));
+    add(klickXyMit("Strg+M1 bei (32 96)", ImGuiMod_Ctrl, ImVec2{32, 96}));
+    add(tasteKombi(ImGuiKey_Enter, "Return"));
+    add(pruefe("schneller Clip: x 32..64, danach wieder Resize", [] {
+        const karte::Kasten b = pinselGrenzen(0);
+        return ke::angehakt("MouseDrag") && !ke::editor().bearbeitung.clipperSchnell && std::fabs(b.origin[0] - b.extents[0] - 32) < 0.01F;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    return s;
+}
+
 }  // namespace stufe2
 
 std::vector<Schritt> karteneditorStufe2Schritte() {
     std::vector<Schritt> s;
     for (Schritt& x : stufe2::komponenten()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe2::clipper()) { s.push_back(std::move(x)); }
     return s;
 }
 

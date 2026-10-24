@@ -118,9 +118,15 @@ std::map<std::string, Umsetzung>& umsetzungen() {
     }
     for (const char* n : {"MouseDrag", "MouseTranslate", "MouseRotate", "MouseScale", "MouseTransform", "HideSelected",
                           // Stufe 2, Punkt 1: Komponenten (tools.cpp:426-434), Texture Lock (brushmanip.cpp:1476-1477)
-                          "DragVertices", "DragEdges", "DragFaces", "MouseBuild", "MouseUV", "TogTexLock", "TogTexVertexLock"}) {
+                          "DragVertices", "DragEdges", "DragFaces", "MouseBuild", "MouseUV", "TogTexLock", "TogTexVertexLock",
+                          // Stufe 2, Punkt 2: Clipper (tools.cpp:429, clippertool.cpp:195-197)
+                          "ToggleClipper"}) {
         const std::string name = n;
         m[name] = {[name] { auswahlBefehl(name); }, [name] { return auswahlBefehlAn(name); }};
+    }
+    for (const char* n : {"ClipperClip", "ClipperSplit", "ClipperFlip"}) {
+        const std::string name = n;
+        m[name] = {[name] { auswahlBefehl(name); }, nullptr};
     }
     // --- Texturbrowser (texwindow.cpp:2092-2111, findtexturedialog.cpp:229) ---
     for (const char* n : {"ShowAllTextures", "RefreshShaders", "FindReplaceTextures"}) {

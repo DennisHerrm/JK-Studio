@@ -1530,7 +1530,7 @@ private:
     bool m_gewaehlt = false;
 };
 
-// Clipper ist noch nicht portiert: greift nie.
+// Ohne Funktion (nur fuer den Grundzustand).
 class LeerManipulator final : public Manipulator, public Manipulierbar {
 public:
     explicit LeerManipulator(Dienste& d) : Manipulierbar(d) {}
@@ -1688,12 +1688,14 @@ struct AuswahlBearbeitung::Impl final : Dienste, Verschiebbar, Drehbar, Skalierb
           drehM(std::make_unique<DrehManipulator>(*this, *this, 8, 64.0F)), skalierM(std::make_unique<SkalierManipulator>(*this, *this, 64.0F)),
           verzerrM(std::make_unique<VerzerrManipulator>(*this, *this, *this, *this, *this, *this, grenzenWert, pivot, pivotEigen)),
           ziehM(neuerZiehManipulator()), bauM(std::make_unique<BauManipulator>(*this)), leerM(std::make_unique<LeerManipulator>(*this)),
-          uvM(neuerUvManipulator()),
+          uvM(neuerUvManipulator()), clipM(neuerClipManipulator()),
           ursprungM(std::make_unique<UrsprungManipulator>(*this, *this, pivotEigen)) {
         modusSetzen(ManipModus::Verschieben);
     }
     std::unique_ptr<Manipulator> neuerZiehManipulator();
     std::unique_ptr<Manipulator> neuerUvManipulator();
+    std::unique_ptr<Manipulator> neuerClipManipulator();
+    void clipperZuruecksetzen(bool ausFlaeche);   // m_clip_manipulator->reset
     void uvFestschreiben();   // m_uv_manipulator->freezeTransform()
 
     // --- Dienste ---
@@ -1818,7 +1820,7 @@ struct AuswahlBearbeitung::Impl final : Dienste, Verschiebbar, Drehbar, Skalierb
     Quaternion drehung = kQuaternionEins;
     Vektor3f skalierung{1, 1, 1};
     Verzerrung verzerrung;
-    std::unique_ptr<Manipulator> verschiebeM, drehM, skalierM, verzerrM, ziehM, bauM, leerM, uvM, ursprungM;
+    std::unique_ptr<Manipulator> verschiebeM, drehM, skalierM, verzerrM, ziehM, bauM, leerM, uvM, clipM, ursprungM;
     Manipulator* manip = nullptr;
     struct PatchEbenen {
         std::shared_ptr<Patch> patch;
@@ -3452,10 +3454,280 @@ void UvManipulator::festschreiben() {   // freezeTransform: die Aenderungen steh
     m_ziehen = false;
 }
 
+// --- ClipManipulator (selection_mtor_clip.cpp) -------------------------------------------------------
+//
+// Drei Punkte ('1', '2', '3') legen die Schnittebene fest; in 2D genuegen
+// zwei (die dritte Richtung ist die Blickrichtung), in 3D liegen die Punkte
+// auf der Szene.
+
+class ClipManipulator final : public Manipulator, public Manipulierbar, public Verschiebbar, public AllesTransformierbar {
+public:
+    explicit ClipManipulator(AuswahlBearbeitung::Impl& u) : Manipulierbar(u), m_u(u), m_ziehen(u, *this, *this) {
+        m_punkte[0].name = '1';
+        m_punkte[1].name = '2';
+        m_punkte[2].name = '3';
+    }
+    void zeichnen(const Blick& v, const Matrix4& pivotZuWelt, ManipZeichnung& aus) override;   // render
+    void testen(const Blick& v, const Matrix4& pivotZuWelt) override;                         // testSelect
+    void hervorheben(const Blick& v, const Matrix4&) override { punkteTesten(v); }           // highlight
+    void zuruecksetzen(bool ausFlaeche);                                                       // reset
+    // Translatable (in 2D und mit TranslateFreeXY_Z in 3D)
+    void verschieben(const Vektor3f& v) override {
+        for (Punkt& p : m_punkte) {
+            if (p.gewaehlt) {
+                p.punkt = p.ohneTransform + Vektor3d(v);
+                ebeneAktualisieren();
+                break;
+            }
+        }
+    }
+    void allesTransformieren(const Transformationen&, const Vektor3f&) override {}   // unerreichbar
+    void bauen(const Matrix4& g, const GeraeteVektor& p, const Kasten&, const Vektor3f& ursprung) override {   // Construct
+        m_ziehen.setze0(ursprung);
+        m_ziehen.bauen(g, p, Kasten(ursprung, Vektor3f(0, 0, 0)), ursprung);
+    }
+    void transformieren(const Matrix4& m2o, const Matrix4& g, const GeraeteVektor& p) override;   // Transform
+    Manipulierbar* manipulierbar() override { return this; }
+    void setzeGewaehlt(bool an) override {
+        for (Punkt& p : m_punkte) { p.gewaehlt = an; }
+    }
+    [[nodiscard]] bool gewaehlt() const override { return m_punkte[0].gewaehlt || m_punkte[1].gewaehlt || m_punkte[2].gewaehlt; }
+    // quickCondition (selection_mtor_clip.h:31-33): Strg in 2D
+    static bool schnellBedingung(const Zusatz& z, const Blick& v) { return z.genau(false, true, false) && !v.fuellen(); }
+
+private:
+    struct Punkt {   // ClipperPoint
+        bool gesetzt = false;   // m_set
+        bool gewaehlt = false;  // SelectableBool
+        Vektor3d punkt;         // m_point
+        Vektor3d ohneTransform; // m_pointNonTransformed
+        char name = '1';
+    };
+    void blickrichtungSetzen(const Vektor3f& r) {   // viewdir_set
+        const std::size_t maxi = groessteBetragsKomponente(r);
+        m_blickrichtung = r[maxi] > 0 ? kAchsen[maxi] : -kAchsen[maxi];
+    }
+    void blickrichtungKorrigieren();                     // viewdir_fixup
+    void blickrichtungSchnittwuerdig(const Ebene3d& e);  // viewdir_make_cut_worthy
+    void ebeneAktualisieren();                           // updatePlane
+    [[nodiscard]] std::size_t neuerIndex(bool fuellen) const;   // newPointIndex
+    void neuerPunkt(const Vektor3d& p, const Blick& v);         // newPoint
+    bool szeneTesten(const Blick& v, Vektor3d& punktAus) const; // testSelect_scene
+    void punkteTesten(const Blick& v);                          // testSelect_points
+    void wahlWechsel(Punkt* p) {                                // ManipulatorSelectionChangeable::selectionChange
+        if (p != nullptr) { p->gewaehlt = true; }
+    }
+
+    AuswahlBearbeitung::Impl& m_u;
+    Punkt m_punkte[3];
+    VerschiebeFreiXyZ m_ziehen;   // m_dragXY_Z
+    Vektor3f m_blickrichtung{0, 0, 1};
+};
+
+void ClipManipulator::blickrichtungKorrigieren() {
+    const Vektor3d d = m_punkte[1].punkt - m_punkte[0].punkt;
+    if (std::fabs(laenge(d)) > 1e-3 && std::fabs(punkt(m_blickrichtung, normiert(d))) > 0.999) {   // zwei Punkte auf der Blickachse
+        blickrichtungSetzen(blick().blickrichtung());
+        if (std::fabs(punkt(m_blickrichtung, normiert(d))) > 0.999) {
+            const Matrix4 bildZuWelt = vollInvers(blick().sicht());
+            Vektor3f p[2];
+            for (std::size_t i = 0; i < 2; ++i) { p[i] = projiziert(transformierterVektor4(blick().sicht(), Vektor4f(Vektor3f(m_punkte[i].punkt), 1))); }
+            const float tiefenRichtung = p[1].z() > p[0].z() ? -1.0F : 1.0F;
+            for (std::size_t i = 0; i < 2; ++i) {
+                p[i].z() = -1;
+                p[i] = projiziert(transformierterVektor4(bildZuWelt, Vektor4f(p[i], 1)));
+            }
+            blickrichtungSetzen((p[1] - p[0]) * tiefenRichtung);
+        }
+    }
+}
+
+void ClipManipulator::blickrichtungSchnittwuerdig(const Ebene3d& e) {
+    const std::size_t maxi = groessteBetragsKomponente(e.normal());
+    const Kasten& b = m_u.grenzenWert;
+    if (ebeneGueltig(e) && kastenGueltig(b) && std::fabs(e.normal()[maxi]) > 0.999) {   // achsparallele Ebene
+        const double anker = e.normal()[maxi] * e.dist();
+        if (anker > b.origin[maxi]) {
+            if ((anker - (b.origin[maxi] + b.extents[maxi])) > -0.1) { blickrichtungSetzen(-kAchsen[maxi]); }
+        } else if ((-anker + (b.origin[maxi] - b.extents[maxi])) > -0.1) {
+            blickrichtungSetzen(kAchsen[maxi]);
+        }
+    }
+}
+
+void ClipManipulator::ebeneAktualisieren() {
+    std::size_t anzahl = 0;
+    while (anzahl < 3 && m_punkte[anzahl].gesetzt) { ++anzahl; }
+    ClipperPunkte neu;
+    switch (anzahl) {
+    case 1: neu = ClipperPunkte{{m_punkte[0].punkt, m_punkte[0].punkt, m_punkte[0].punkt}, anzahl}; break;
+    case 2:
+        if (blick().fuellen()) {   // 3D
+            blickrichtungKorrigieren();
+            m_punkte[2].punkt = m_punkte[0].punkt - Vektor3d(m_blickrichtung) * laenge(m_punkte[0].punkt - m_punkte[1].punkt);
+            blickrichtungSchnittwuerdig(ebeneAusPunkten(m_punkte[0].punkt, m_punkte[1].punkt, m_punkte[2].punkt));
+        }
+        m_punkte[2].punkt = m_punkte[0].punkt - Vektor3d(m_blickrichtung) * laenge(m_punkte[0].punkt - m_punkte[1].punkt);
+        [[fallthrough]];
+    case 3: neu = ClipperPunkte{{m_punkte[0].punkt, m_punkte[1].punkt, m_punkte[2].punkt}, anzahl}; break;
+    default: break;
+    }
+    m_u.aussen.clipperPunkte = neu;   // Clipper_setPlanePoints
+}
+
+std::size_t ClipManipulator::neuerIndex(bool fuellen) const {
+    const std::size_t maxi = (!fuellen && m_u.aussen.clipper2Punkte2d) ? 2 : 3;
+    std::size_t i = 0;
+    for (; i < maxi; ++i) {
+        if (!m_punkte[i].gesetzt) { break; }
+    }
+    return i % maxi;
+}
+
+void ClipManipulator::neuerPunkt(const Vektor3d& p, const Blick& v) {
+    const std::size_t i = neuerIndex(v.fuellen());
+    if (i == 0) { m_punkte[1].gesetzt = m_punkte[2].gesetzt = false; }
+    m_punkte[i].gesetzt = true;
+    m_punkte[i].punkt = p;
+    wahlWechsel(&m_punkte[i]);
+    if (i == 1) { blickrichtungSetzen(blick().blickrichtung()); }
+    ebeneAktualisieren();
+}
+
+bool ClipManipulator::szeneTesten(const Blick& v, Vektor3d& punktAus) const {
+    AuswahlVolumen test(v);
+    const AuswahlBearbeitung::Impl::SzenenTreffer t = m_u.szenenPunktTesten(test, 0);   // Scene_forEachVisible_testselect_scene_point
+    test.netzBeginnen(kEinheitsMatrix, true);
+    if (!t.treffer.gueltig()) { return false; }
+    punktAus = m_u.szenenPunktEingerastet(test, t);
+    return true;
+}
+
+void ClipManipulator::punkteTesten(const Blick& v) {
+    if (!zusatz().keine() && !schnellBedingung(zusatz(), v)) { return; }
+    Treffer bester;
+    Punkt* wahl = nullptr;
+    for (Punkt& p : m_punkte) {   // SelectionPool: der naechste
+        if (!p.gesetzt) { continue; }
+        Treffer t;
+        punktBesterPunkt(v.sicht(), Vektor3f(p.punkt), t);
+        if (t.gueltig() && t < bester) {
+            bester = t;
+            wahl = &p;
+        }
+    }
+    wahlWechsel(wahl);
+}
+
+void ClipManipulator::testen(const Blick& v, const Matrix4&) {
+    if (!zusatz().keine() && !schnellBedingung(zusatz(), v)) { return; }
+    punkteTesten(v);
+    if (!gewaehlt()) {
+        if (v.fuellen()) {
+            Vektor3d p;
+            if (szeneTesten(v, p)) { neuerPunkt(p, v); }
+        } else {
+            const Vektor3f mitte = projiziert(transformierterVektor4(vollInvers(v.sicht()), Vektor4f(0, 0, 0, 1)));
+            Vektor3d p(mitte);
+            einrasten(p, fang());
+            const std::size_t maxi = groessteBetragsKomponente(v.blickrichtung());
+            const std::size_t i = neuerIndex(false);
+            const Kasten& b = m_u.grenzenWert;
+            p[maxi] = b.origin[maxi] + (i == 2 ? -1.0F : 1.0F) * b.extents[maxi];
+            neuerPunkt(p, v);
+        }
+    }
+    for (Punkt& p : m_punkte) {
+        if (p.gewaehlt) {
+            p.ohneTransform = p.punkt;
+            m_u.pivot = verschiebungsMatrix(Vektor3f(p.ohneTransform));
+            break;
+        }
+    }
+}
+
+void ClipManipulator::transformieren(const Matrix4& m2o, const Matrix4& g, const GeraeteVektor& p) {
+    // 2D oder 3D mit Zusatztasten (ausser SnapBounds): frei ziehen
+    if (!(zusatz().keine() && blick().fuellen()) && !KastenFang::bedingung(zusatz(), blick())) {
+        m_ziehen.transformieren(m2o, g, p);
+        return;
+    }
+    Blick geschert(blick());
+    auswahlTestBauen(geschert, auswahlKastenPunkt(p, m_u.geraetEps));
+    Vektor3d neu;
+    if (szeneTesten(geschert, neu)) {
+        for (Punkt& q : m_punkte) {
+            if (q.gewaehlt) {
+                q.punkt = neu;
+                ebeneAktualisieren();
+                break;
+            }
+        }
+    }
+}
+
+void ClipManipulator::zuruecksetzen(bool ausFlaeche) {
+    for (Punkt& p : m_punkte) {
+        p.gesetzt = false;
+        p.gewaehlt = false;
+    }
+    Karte& k = m_u.karte;
+    if (ausFlaeche && !k.auswahl.flaechen().empty()) {
+        const auto f = k.auswahl.flaechen().back().flaeche.lock();
+        const auto pinsel = k.auswahl.flaechen().back().pinsel.lock();
+        if (f && pinsel) {
+            pinsel->bRep(k.kontext);
+            if (f->traegtBei()) {
+                const Wicklung& w = f->wicklung();
+                for (std::size_t i = 0; i < 3; ++i) {
+                    m_punkte[i].gesetzt = true;
+                    m_punkte[i].punkt = w[i].vertex;
+                }
+            }
+        }
+    }
+    ebeneAktualisieren();
+}
+
+void ClipManipulator::zeichnen(const Blick& v, const Matrix4&, ManipZeichnung& aus) {   // render
+    const Matrix4 proj = multipliziert(v.bildfeld(), v.sicht());
+    const Matrix4 projInv = vollInvers(proj);
+    for (const Punkt& p : m_punkte) {
+        if (!p.gesetzt) { continue; }
+        const ManipFarbe f = farbeGewaehlt(kFarbeBild, p.gewaehlt);   // UpdateColours
+        aus.grossePunkte.push_back(ManipZeichnung::Punkt{Vektor3f(p.punkt), f});
+        // der Name 2 Bildpunkte rechts vom Punkt (glRasterPos + drawChar)
+        const Vektor3f lage = projiziert(transformierterVektor4(proj, Vektor4f(Vektor3f(p.punkt), 1))) + Vektor3f(2, 0, 0);
+        aus.texte.push_back(ManipZeichnung::Text{projiziert(transformierterVektor4(projInv, Vektor4f(lage, 1))), std::string(1, p.name), f});
+    }
+}
 }  // namespace
 
 std::unique_ptr<Manipulator> AuswahlBearbeitung::Impl::neuerZiehManipulator() { return std::make_unique<ZiehManipulator>(*this); }
 std::unique_ptr<Manipulator> AuswahlBearbeitung::Impl::neuerUvManipulator() { return std::make_unique<UvManipulator>(*this); }
+std::unique_ptr<Manipulator> AuswahlBearbeitung::Impl::neuerClipManipulator() { return std::make_unique<ClipManipulator>(*this); }
+void AuswahlBearbeitung::Impl::clipperZuruecksetzen(bool ausFlaeche) { static_cast<ClipManipulator*>(clipM.get())->zuruecksetzen(ausFlaeche); }
+
+// Clipper_ok_plane / Clipper_ok (clippertool.cpp:56-62)
+bool AuswahlBearbeitung::clipperEbeneOk() const {
+    return modus() == ManipModus::Clipper && clipperPunkte.anzahl > 1 &&
+           ebeneGueltig(ebeneAusPunkten(clipperPunkte.punkte[0], clipperPunkte.punkte[1], clipperPunkte.punkte[2]));
+}
+bool AuswahlBearbeitung::clipperOk() const { return modus() == ManipModus::Clipper && clipperPunkte.anzahl > 0; }
+
+// Clipper_do (clippertool.cpp:121-130)
+void AuswahlBearbeitung::clipperAusfuehren(bool teilen, const CsgUmgebung& u, Protokoll& p) {
+    pinselTeilen(m->karte, u, clipperPunkte, clipperUmgedreht, clipperCaulk, teilen, p);
+    if (clipperPunkteZuruecksetzen) {
+        setzeModus(ManipModus::Clipper);   // setzt die Punkte so zurueck
+        if (clipperUmdrehenZuruecksetzen) { clipperUmgedreht = false; }
+    }
+}
+
+// Clipper_doFlip (clippertool.cpp:147-152)
+void AuswahlBearbeitung::clipperUmdrehen() {
+    if (clipperEbeneOk()) { clipperUmgedreht = !clipperUmgedreht; }
+}
 void AuswahlBearbeitung::Impl::uvFestschreiben() { static_cast<UvManipulator*>(uvM.get())->festschreiben(); }
 
 std::vector<std::pair<std::shared_ptr<Entitaet>, std::shared_ptr<Pinsel>>> AuswahlBearbeitung::Impl::extrudierPinsel() const {
@@ -3498,6 +3770,13 @@ BesteEbene AuswahlBearbeitung::Impl::besteEbeneExtrudieren(AuswahlVolumen& test)
 }
 
 void AuswahlBearbeitung::Impl::modusSetzen(ManipModus m) {   // SetManipulatorMode
+    if (clipM && (m == ManipModus::Clipper || modus == ManipModus::Clipper)) {
+        clipperZuruecksetzen(m == ManipModus::Clipper && modus != ManipModus::Clipper);
+        if ((m == ManipModus::Clipper) != (modus == ManipModus::Clipper)) {   // Clipper_modeChanged (clippertool.cpp:101-115)
+            if (aussen.clipperUmdrehenZuruecksetzen) { aussen.clipperUmgedreht = false; }
+            if (m != ManipModus::Clipper) { aussen.clipperSchnell = false; }
+        }
+    }
     pivotEigen = false;
     modus = m;
     switch (m) {
@@ -3507,7 +3786,7 @@ void AuswahlBearbeitung::Impl::modusSetzen(ManipModus m) {   // SetManipulatorMo
     case ManipModus::Verzerren: manip = verzerrM.get(); break;
     case ManipModus::Ziehen: manip = ziehM.get(); break;
     case ManipModus::Bauen: manip = bauM.get(); break;
-    case ManipModus::Clipper: manip = leerM.get(); break;
+    case ManipModus::Clipper: manip = clipM.get(); break;   // resetTransforms( eClip ): mit Repeat Transforms
     case ManipModus::UV: manip = uvM.get(); break;
     }
     pivotWechsel = true;

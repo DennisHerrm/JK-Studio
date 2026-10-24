@@ -548,6 +548,16 @@ void xyZeichnen(int index) {
     // BrushInstance::renderComponents / renderComponentsSelected, PatchInstance
     // ebenso: $LATTICE, $POINT (6), $SELPOINT (4, colour_selected)
     const KomponentenZeichnung komp = komponentenZeichnung(ed.blicke[static_cast<std::size_t>(index)]);
+    // BrushClipPlane::render ohne RENDER_FILL: Umriss und ein Strich in Richtung
+    // der Normalen (Winding_Centroid + Normale * m_maxWorldCoord * 4), $CLIPPER_OVERLAY
+    std::vector<Linie> clipLinien;
+    {
+        const Farbe fc = farbe3(ed.farben.clipper);
+        for (const ClipperFlaeche& cf : clipperFlaechen()) {
+            for (std::size_t i = 0; i < cf.punkte.size(); ++i) { clipLinien.push_back(Linie{cf.punkte[i], cf.punkte[(i + 1) % cf.punkte.size()], fc}); }
+            clipLinien.push_back(Linie{cf.mitte, cf.mitte + cf.normale * static_cast<float>(karte::kMaxWeltKoordinate * 4), fc});
+        }
+    }
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const float hinten[4] = {ed.farben.rasterHinten[0], ed.farben.rasterHinten[1], ed.farben.rasterHinten[2], 1.0F};
@@ -569,6 +579,7 @@ void xyZeichnen(int index) {
         kartegpu::zeichnen(komp.gitter, &mvp[0], 1.0F);
         kartegpu::punkte(komp.punkte, &mvp[0], 6.0F);
         kartegpu::punkte(komp.gewaehlt, &mvp[0], 4.0F);
+        kartegpu::zeichnen(clipLinien, &mvp[0], 1.0F);
         kartegpu::zeichnen(manip1, &mvp[0], 1.0F);
         kartegpu::zeichnen(manip2, &mvp[0], 2.0F);
         kartegpu::punkte(manipPunkte, &mvp[0], 6.0F);
@@ -585,6 +596,7 @@ void xyZeichnen(int index) {
         imguiLinien(dl, v, o, s.geo, 1.0F);
         imguiLinien(dl, v, o, s.welt, 1.0F);
         imguiLinien(dl, v, o, s.wahl, 2.0F);
+        imguiLinien(dl, v, o, clipLinien, 1.0F);
         imguiLinien(dl, v, o, manip1, 1.0F);
         imguiLinien(dl, v, o, manip2, 2.0F);
         imguiLinien(dl, v, o, overlay, 1.0F);
@@ -598,6 +610,10 @@ void xyZeichnen(int index) {
     };
     for (const karte::Text& t : raster.texte) { text(t); }
     for (const karte::Text& t : overlayTexte) { text(t); }
+    for (const auto& t : mz.texte) {   // ClipperPoint::render: drawChar am Rasterpunkt
+        const auto p = v.zuBild(t.p);
+        dl->AddText(ImVec2{o.x + p[0], o.y + p[1] - static_cast<float>(schriftHoehe)}, IM_COL32(t.farbe.r, t.farbe.g, t.farbe.b, t.farbe.a), t.text.c_str());
+    }
     // Namen (RenderableNamedEntity): ausgewaehlt immer, sonst wenn ShowNames
     // und aabb_fits_view; normal in der Klassenfarbe, ausgewaehlt gelb, mit
     // schwarzem Schatten.

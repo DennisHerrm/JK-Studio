@@ -32,6 +32,7 @@
 #include "app_internal.h"
 #include "bhed/karte/auswahlbefehle.h"
 #include "bhed/karte/auswahlsystem.h"
+#include "bhed/karte/csg.h"
 #include "bhed/karte/komponenten.h"
 #include "bhed/karte/patch.h"
 
@@ -221,12 +222,16 @@ void beobachterDruck(int fenster, float x, float y, int knopf, const karte::Zusa
     const GeraeteVektor pos = geraet(b, x, y);
     if (knopf == 0 || (knopf == 1 && !z.keine())) {
         b.mausUnten = true;
-        // ClipManipulator::quickCondition (Strg+M1 in 2D: Clipper) - der
-        // Clipper kommt mit Stufe 2; bis dahin geschieht hier nichts.
+        // ClipManipulator::quickCondition: Strg+M1 in 2D schaltet den Clipper
+        // fuer einen Schnitt ein (ClipperModeQuick)
         const bool clipper2d = knopf == 0 && z.genau(false, true, false) && !blick(fenster).fuellen();
         if (clipper2d && ed.bearbeitung.modus() != ManipModus::Clipper) {
-            b.ziel = FensterBeobachter::Ziel::Keins;
-        } else if (knopf == 0 && ed.bearbeitung.manipulatorWaehlen(blick(fenster), pos, manipEpsilon(b))) {   // Manipulator_::mouseDown
+            ed.bearbeitung.clipperSchnell = true;
+            auswahlBefehl("ToggleClipper");   // ClipperMode() (einschalten)
+        }
+        // Manipulator_::mouseDown: im Clipper vor SelectManipulator den Doppelklick verfolgen
+        if (knopf == 0 && ed.bearbeitung.modus() == ManipModus::Clipper) { clipperDoppelklickDruck(); }
+        if (knopf == 0 && ed.bearbeitung.manipulatorWaehlen(blick(fenster), pos, manipEpsilon(b))) {   // Manipulator_::mouseDown
             b.ziel = FensterBeobachter::Ziel::Manipulator;
         } else {
             b.maus2 = knopf == 1;
@@ -284,6 +289,9 @@ void beobachterLoslassen(int fenster, float x, float y, int knopf, const karte::
         ed.bearbeitung.modus() != ManipModus::Clipper && ed.bearbeitung.modus() != ManipModus::Bauen) {
         punktWaehlen(fenster, karte::geraetBegrenzt(pos), artFuerBewegt(b), false);   // testSelect_simpleM1
     }
+    if (ed.bearbeitung.modus() == ManipModus::Clipper && knopf == 0 && (z.keine() || (z.genau(false, true, false) && !blick(fenster).fuellen()))) {
+        clipperDoppelklickLoslassen();   // Clipper_tryDoubleclickedCut
+    }
     b.mausUnten = false;   // die Sperre immer loesen
     b.ursprungBewegt = false;
     b.mausBewegt = false;
@@ -309,6 +317,56 @@ karte::ManipZeichnung manipulatorZeichnung(int fenster) {
     karte::ManipZeichnung z;
     e().bearbeitung.zeichnen(blick(fenster), z);
     return z;
+}
+
+karte::CsgUmgebung csgUmgebung() {
+    const Editor& ed = e();
+    karte::CsgUmgebung u;
+    u.browserShader = ed.bearbeitung.browserShader;   // TextureBrowser_GetSelectedShader
+    u.caulkShader = ed.bearbeitung.caulkShader;       // GetCaulkShader
+    u.raster = ed.raster.groesse();                   // GetGridSize
+    u.primitivModus = ed.bearbeitung.einstellung.modus == karte::AuswahlModus::Primitiv;
+    return u;
+}
+
+namespace {
+double g_clipperUhr = -1000.0;          // g_clipper_timer
+bool g_clipperDoppelklick = false;      // g_clipper_doubleclicked
+std::size_t g_clipperDoppelPunkt = 0;   // g_clipper_doubleclicked_point
+}  // namespace
+
+void clipperDoppelklickDruck() {   // Clipper_tryDoubleclick (onMouseDown)
+    const double jetzt = ImGui::GetTime();
+    g_clipperDoppelklick = (jetzt - g_clipperUhr) * 1000.0 < 200.0;
+    g_clipperUhr = jetzt;
+    g_clipperDoppelPunkt = e().bearbeitung.clipperPunkte.anzahl;
+}
+
+void clipperDoppelklickLoslassen() {   // Clipper_tryDoubleclickedCut (onMouseUp)
+    if (g_clipperDoppelklick && g_clipperDoppelPunkt == e().bearbeitung.clipperPunkte.anzahl) {
+        g_clipperDoppelklick = false;
+        auswahlBefehl(e().bearbeitung.clipperDoppelklickTeilen != 0 ? "ClipperSplit" : "ClipperClip");
+    }
+}
+
+std::vector<ClipperFlaeche> clipperFlaechen() {
+    const Editor& ed = e();
+    std::vector<ClipperFlaeche> r;
+    if (ed.bearbeitung.modus() != ManipModus::Clipper) { return r; }
+    const karte::Ebene3d ebene = karte::clipperEbene(ed.bearbeitung.clipperPunkte, ed.bearbeitung.clipperUmgedreht);
+    if (!karte::ebeneGueltig(ebene)) { return r; }
+    for (const auto& g : karte::gewaehltePrimitiveListe(ed.karte)) {   // BrushInstanceSetClipPlane: sichtbar und gewaehlt
+        if (g.primitiv->art() != karte::Primitiv::Art::Pinsel || g.primitiv->versteckt || g.entitaet->versteckt) { continue; }
+        karte::Wicklung w;
+        karte::clipperWicklung(static_cast<const karte::Pinsel&>(*g.primitiv), ed.karte.kontext, ebene, w);
+        if (w.numpoints < 3) { continue; }
+        ClipperFlaeche f;
+        for (std::size_t i = 0; i < w.numpoints; ++i) { f.punkte.emplace_back(w[i].vertex); }
+        f.normale = karte::Vektor3f(ebene.normal());
+        karte::wicklungSchwerpunkt(w, ebene, f.mitte);
+        r.push_back(std::move(f));
+    }
+    return r;
 }
 
 KomponentenZeichnung komponentenZeichnung(const karte::Blick& blick) {
@@ -491,6 +549,7 @@ bool auswahlBefehlAn(const std::string& name) {
     if (name == "MouseTransform") { return ed.bearbeitung.modus() == ManipModus::Verzerren; }
     if (name == "MouseBuild") { return ed.bearbeitung.modus() == ManipModus::Bauen; }   // BuildToolExport
     if (name == "MouseUV") { return ed.bearbeitung.modus() == ManipModus::UV; }         // UVToolExport
+    if (name == "ToggleClipper") { return ed.bearbeitung.modus() == ManipModus::Clipper; }   // ClipperToolExport
     if (name == "HideSelected") { return ed.knotenVersteckt; }   // g_hidden_item
     const karte::AuswahlEinstellung& einst = ed.bearbeitung.einstellung;
     const bool komp = einst.modus == karte::AuswahlModus::Komponente;
@@ -520,6 +579,21 @@ void auswahlBefehl(const std::string& name) {
         werkzeug(ManipModus::Bauen);
     } else if (name == "MouseUV") {   // UVMode (tools.cpp:390-406)
         werkzeug(ManipModus::UV);
+    } else if (name == "ToggleClipper") {   // ClipperMode (tools.cpp:356-370)
+        werkzeug(ManipModus::Clipper);
+    } else if (name == "ClipperClip" || name == "ClipperSplit") {   // Clipper_doClip / Clipper_doSplit (clippertool.cpp:133-145)
+        if (ed.bearbeitung.clipperOk()) {
+            karte::Protokoll p;
+            {
+                karte::Befehl befehl(k.undo, name == "ClipperClip" ? "clipperClip" : "clipperSplit");
+                ed.bearbeitung.clipperAusfuehren(name == "ClipperSplit", csgUmgebung(), p);
+            }
+            konsoleProtokoll(p);
+            if (ed.bearbeitung.clipperSchnell) { werkzeug(ManipModus::Clipper); }   // ClipperMode() (ausschalten)
+            auswahlGeaendert();
+        }
+    } else if (name == "ClipperFlip") {   // Clipper_doFlip
+        ed.bearbeitung.clipperUmdrehen();
     } else if (name == "DragVertices") {
         komponentenModus(karte::KomponentenModus::Ecke);
     } else if (name == "DragEdges") {

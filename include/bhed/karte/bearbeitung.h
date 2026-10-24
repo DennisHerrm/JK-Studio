@@ -51,7 +51,9 @@
 #define BHED_KARTE_BEARBEITUNG_H
 
 #include "bhed/karte/auswahlsystem.h"
+#include "bhed/karte/csg.h"
 #include "bhed/karte/manipulator.h"
+#include "bhed/karte/protokoll.h"
 
 #include <memory>
 #include <string>
@@ -84,6 +86,22 @@ public:
     Kasten arbeitsbereich{Vektor3f(0, 0, 0), Vektor3f(64, 64, 64)};   // Select_getWorkZone (-64..64)
     float waehlEpsilon = 12;                   // g_SELECT_EPSILON ("Selector size (pixels)")
     int bewegStil3d = 0;                       // TranslateFreeXY_Z::m_viewdependent ("Move style in 3D")
+
+    // --- Clipper (radiant/clippertool.cpp) ----------------------------------------
+    ClipperPunkte clipperPunkte;                 // g_clipper_points
+    bool clipperUmgedreht = false;               // g_clipper_flipped
+    bool clipperSchnell = false;                 // g_clipper_quick (Strg+M1 in 2D)
+    bool clipperCaulk = true;                    // g_clipper_caulk ("Caulk Clipper Cuts")
+    bool clipperUmdrehenZuruecksetzen = true;    // g_clipper_resetFlip ("Reset Flipped State")
+    bool clipperPunkteZuruecksetzen = true;      // g_clipper_resetPoints ("Reset Points on Split")
+    bool clipper2Punkte2d = true;                // g_clipper_2pointsIn2d ("2 Points in 2D Views")
+    int clipperDoppelklickTeilen = 1;            // g_clipper_doubleclicked_split ("On DoubleClick do:" Clip / Split)
+    [[nodiscard]] bool clipperEbeneOk() const;   // Clipper_ok_plane
+    [[nodiscard]] bool clipperOk() const;        // Clipper_ok
+    // Clipper_do: Scene_BrushSplitByPlane, danach die Punkte zuruecksetzen;
+    // den Wechsel zurueck beim schnellen Clipper macht die Oberflaeche.
+    void clipperAusfuehren(bool teilen, const CsgUmgebung& u, Protokoll& p);
+    void clipperUmdrehen();                      // Clipper_doFlip
 
     // --- RadiantSelectionSystem -------------------------------------------------
     void setzeModus(ManipModus m);   // SetManipulatorMode

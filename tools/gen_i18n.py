@@ -2169,6 +2169,8 @@ import sys as _sys
 _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
 from i18n_karte import KARTE  # noqa: E402
 S += KARTE
+from i18n_karte2 import KARTE2  # noqa: E402  (Stufe 2: Bauwerkzeuge)
+S += KARTE2
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

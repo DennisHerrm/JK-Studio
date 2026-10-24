@@ -578,6 +578,20 @@ struct KomponentenZeichnung {
     std::vector<karte::Linie> gewaehlt;     // $SELPOINT (4): die gewaehlten Komponenten (colour_selected)
 };
 [[nodiscard]] KomponentenZeichnung komponentenZeichnung(const karte::Blick& blick);
+// BrushInstance::renderClipPlane (brush.h:3598-3602) mit BrushClipPlane
+// (brush.h:3050-3093): im Clipper-Werkzeug je gewaehltem Pinsel die Wicklung
+// der Schnittebene; die Normale fuer den Richtungsstrich in 2D.
+struct ClipperFlaeche {
+    std::vector<karte::Vektor3f> punkte;
+    karte::Vektor3f normale;
+    karte::Vektor3f mitte;
+};
+[[nodiscard]] std::vector<ClipperFlaeche> clipperFlaechen();
+// Was die CSG-Befehle aus der Oberflaeche brauchen (Browser-Shader, Caulk, Raster).
+[[nodiscard]] karte::CsgUmgebung csgUmgebung();
+// Clipper_tryDoubleclick / Clipper_tryDoubleclickedCut (clippertool.cpp:155-172)
+void clipperDoppelklickDruck();
+void clipperDoppelklickLoslassen();
 
 // --- Texturbrowser (app_karte_texturen.cpp) ---
 // Der Texturbrowser im aktuellen Kindfenster (breite x hoehe logische Punkte).

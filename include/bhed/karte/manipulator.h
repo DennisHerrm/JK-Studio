@@ -156,6 +156,12 @@ struct ManipZeichnung {
         Vektor3f normale;
     };
     std::vector<TexturNetz> texturNetze;
+    struct Text {   // glRasterPos + drawChar (die Namen der Clipper-Punkte)
+        Vektor3f p;
+        std::string text;
+        ManipFarbe farbe;
+    };
+    std::vector<Text> texte;
     void leeren() {
         draht.clear();
         ohneTiefe.clear();
@@ -166,6 +172,7 @@ struct ManipZeichnung {
         blendLinien.clear();
         pivotLinien.clear();
         texturNetze.clear();
+        texte.clear();
     }
 };
 

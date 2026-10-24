@@ -63,6 +63,7 @@ constexpr int kSeiteInterface = 4;
 constexpr int kSeiteLayout = 5;
 constexpr int kSeiteEntities = 9;
 constexpr int kSeiteAuswahl = 12;
+constexpr int kSeiteClipper = 14;
 constexpr int kSeiteKamera = 17;
 constexpr int kSeiteTexBro = 20;
 
@@ -82,6 +83,12 @@ struct Entwurf {
     int namenAbstand = 512;         // Entity_constructPreferences: g_showNamesDist
     int namenVerhaeltnis = 64;      // g_showNamesRatio
     bool zielnamen = false;         // g_showTargetNames
+    // Clipper_constructPreferences (clippertool.cpp:163-180)
+    bool clipperCaulk = true;
+    bool clipperUmdrehen = true;
+    bool clipperPunkte = true;
+    bool clipper2Punkte = true;
+    int clipperDoppelklick = 1;
 };
 Entwurf g_entwurf;
 
@@ -373,6 +380,39 @@ void entitaetenSeite() {
     (void)haken(Str::KePrEnNames, trK(Str::KePrEnTargetnames), g_entwurf.zielnamen);
 }
 
+// QRadioButton wie Fusion: Kreis 14 senkrecht mittig, Text 6 dahinter
+// (PM_ExclusiveIndicatorWidth, PM_RadioButtonLabelSpacing).
+void radioKnopf(const char* text, int& wert, int eigener, float x, float zeileH) {
+    ImGui::SetCursorScreenPos(bp(x, static_cast<float>(g_form.y)));
+    const float r = px(static_cast<float>(kHaken));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, std::max(0.0F, (r - ImGui::GetTextLineHeight()) * 0.5F)});
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2{px(6.0F), 0.0F});
+    const ImVec2 vorher = ImGui::GetCursorScreenPos();
+    ImGui::SetCursorScreenPos(ImVec2{vorher.x, std::floor(vorher.y + (px(zeileH) - r) * 0.5F)});
+    ImGui::RadioButton(text, &wert, eigener);
+    ImGui::PopStyleVar(2);
+}
+
+// Clipper_constructPreferences (clippertool.cpp:163-180): vier Checkboxen,
+// "Reset Flipped State" haengt an "Reset Points on Split"
+// (Widget_connectToggleDependency, preferences.cpp:517-542), dazu appendRadio
+// "On DoubleClick do: " (RadioHBox_new: QHBoxLayout, die Knoepfe teilen die
+// Spalte; Foto pref_Clipper.png).
+void clipperSeite() {
+    formAnfang({Str::KePrClipDouble});
+    (void)haken(Str::Count, trK(Str::KePrClipCaulk), g_entwurf.clipperCaulk);
+    (void)haken(Str::Count, trK(Str::KePrClipResetFlip), g_entwurf.clipperUmdrehen, g_entwurf.clipperPunkte);
+    (void)haken(Str::Count, trK(Str::KePrClipResetPoints), g_entwurf.clipperPunkte);
+    (void)haken(Str::Count, trK(Str::KePrClip2Points), g_entwurf.clipper2Punkte);
+    formZeile(Str::KePrClipDouble, kHakenZeile);
+    const float halb = static_cast<float>(g_form.b1) * 0.5F;
+    radioKnopf((std::string(trK(Str::KePrClipClip)) + "##clipperdoppelt0").c_str(), g_entwurf.clipperDoppelklick, 0, static_cast<float>(g_form.x1),
+               static_cast<float>(kHakenZeile));
+    radioKnopf((std::string(trK(Str::KePrClipSplit)) + "##clipperdoppelt1").c_str(), g_entwurf.clipperDoppelklick, 1,
+               static_cast<float>(g_form.x1) + halb, static_cast<float>(kHakenZeile));
+    formWeiter(kHakenZeile);
+}
+
 void interfaceSeite() {
     // Interface Preferences: "Shader Editor Command" (preferences.cpp:64,
     // appendPathEntry: Feld mit "..."-Knopf; Foto pref_Interface.png), dazu
@@ -415,6 +455,11 @@ void zeichneEinstellungen() {
         g_entwurf.namenAbstand = ed.ent.namenAbstand;
         g_entwurf.namenVerhaeltnis = ed.anzeige.namenVerhaeltnis;
         g_entwurf.zielnamen = ed.ent.zielnamen;
+        g_entwurf.clipperCaulk = ed.bearbeitung.clipperCaulk;
+        g_entwurf.clipperUmdrehen = ed.bearbeitung.clipperUmdrehenZuruecksetzen;
+        g_entwurf.clipperPunkte = ed.bearbeitung.clipperPunkteZuruecksetzen;
+        g_entwurf.clipper2Punkte = ed.bearbeitung.clipper2Punkte2d;
+        g_entwurf.clipperDoppelklick = ed.bearbeitung.clipperDoppelklickTeilen;
     }
     if (!ed.einstellungenOffen) {
         g_entwurf.offen = false;
@@ -487,6 +532,8 @@ void zeichneEinstellungen() {
             texBroSeite();
         } else if (g_entwurf.seite == kSeiteEntities) {
             entitaetenSeite();
+        } else if (g_entwurf.seite == kSeiteClipper) {
+            clipperSeite();
         } else {
             char z[120];
             std::snprintf(z, sizeof(z), tr(Str::KeStufe), 2);
@@ -542,6 +589,11 @@ void zeichneEinstellungen() {
             ed.ent.namenAbstand = g_entwurf.namenAbstand;
             ed.anzeige.namenVerhaeltnis = g_entwurf.namenVerhaeltnis;
             ed.ent.zielnamen = g_entwurf.zielnamen;
+            ed.bearbeitung.clipperCaulk = g_entwurf.clipperCaulk;
+            ed.bearbeitung.clipperUmdrehenZuruecksetzen = g_entwurf.clipperUmdrehen;
+            ed.bearbeitung.clipperPunkteZuruecksetzen = g_entwurf.clipperPunkte;
+            ed.bearbeitung.clipper2Punkte2d = g_entwurf.clipper2Punkte;
+            ed.bearbeitung.clipperDoppelklickTeilen = g_entwurf.clipperDoppelklick;
             ed.maximiert = false;
             einstellungenSpeichern();
             offen = false;

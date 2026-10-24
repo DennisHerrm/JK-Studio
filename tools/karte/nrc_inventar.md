@@ -27,9 +27,9 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     - [~] ITEM CSG &Tool -> `CSGTool`  (radiant/brushmanip.cpp:1514) -- Stufe 2
   * ---
   * SUB Clipper  (radiant/brushmanip.cpp:1518)
-    - [~] ITEM Clip selection -> `ClipperClip`  (radiant/brushmanip.cpp:1522) -- Stufe 2
-    - [~] ITEM Split selection -> `ClipperSplit`  (radiant/brushmanip.cpp:1523) -- Stufe 2
-    - [~] ITEM Flip Clip orientation -> `ClipperFlip`  (radiant/brushmanip.cpp:1524) -- Stufe 2
+    - [x] ITEM Clip selection -> `ClipperClip`  (radiant/brushmanip.cpp:1522) -- Stufe 2 Punkt 2
+    - [x] ITEM Split selection -> `ClipperSplit`  (radiant/brushmanip.cpp:1523) -- Stufe 2 Punkt 2
+    - [x] ITEM Flip Clip orientation -> `ClipperFlip`  (radiant/brushmanip.cpp:1524) -- Stufe 2 Punkt 2
   * ---
   - [~] ITEM Make detail -> `MakeDetail`  (radiant/brushmanip.cpp:1527) -- Stufe 2
   - [~] ITEM Make structural -> `MakeStructural`  (radiant/brushmanip.cpp:1528) -- Stufe 2
@@ -485,7 +485,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 ### Manipulators_constructToolbar (radiant/mainframe.cpp)
 
 - [x] toggle_button Resize (Q) | select_mouseresize.png -> `MouseDrag`  (radiant/mainframe.cpp:1374)
-- [~] toggle_button Clipper | select_clipper.png -> `ToggleClipper`  (radiant/mainframe.cpp:1375) -- Stufe 2
+- [x] toggle_button Clipper | select_clipper.png -> `ToggleClipper`  (radiant/mainframe.cpp:1375) -- Stufe 2 Punkt 2
 - [x] toggle_button Translate | select_mousetranslate.png -> `MouseTranslate`  (radiant/mainframe.cpp:1376)
 - [x] toggle_button Rotate | select_mouserotate.png -> `MouseRotate`  (radiant/mainframe.cpp:1377)
 - [x] toggle_button Scale | select_mousescale.png -> `MouseScale`  (radiant/mainframe.cpp:1378)
@@ -617,9 +617,9 @@ Name | Art | Standardtaste | Quelle
 - [x] `CenterView` | Commands | End | (radiant/camwindow.cpp:2488)
 - [x] `CenterXYView` | Commands | Ctrl+Shift+Tab | (radiant/xywindow.cpp:2277) -- Stufe 1b Punkt 5
 - [~] `CheckForUpdate` | Commands | - | (radiant/mainframe.cpp:2072) -- Stufe 3
-- [~] `ClipperClip` | Commands | Return | (radiant/clippertool.cpp:194) -- Stufe 2
-- [~] `ClipperFlip` | Commands | Ctrl+Return | (radiant/clippertool.cpp:196) -- Stufe 2
-- [~] `ClipperSplit` | Commands | Shift+Return | (radiant/clippertool.cpp:195) -- Stufe 2
+- [x] `ClipperClip` | Commands | Return | (radiant/clippertool.cpp:194) -- Stufe 2 Punkt 2
+- [x] `ClipperFlip` | Commands | Ctrl+Return | (radiant/clippertool.cpp:196) -- Stufe 2 Punkt 2
+- [x] `ClipperSplit` | Commands | Shift+Return | (radiant/clippertool.cpp:195) -- Stufe 2 Punkt 2
 - [x] `CloneSelection` | Commands | Space | (radiant/select.cpp:1866)
 - [x] `CloneSelectionAndMakeUnique` | Commands | Shift+Space | (radiant/select.cpp:1867)
 - [x] `Copy` | Commands | Ctrl+C | (radiant/select.cpp:1862)
@@ -863,7 +863,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `TextureProjectOrtho` | Commands | - | (radiant/surfacedialog.cpp:1753) -- Stufe 2
 - [~] `TextureReset/Cap` | Commands | Shift+N | (radiant/surfacedialog.cpp:1746) -- Stufe 2
 - [x] `ToggleCamera` | Toggles | Ctrl+Shift+C | (radiant/camwindow.cpp:2498)
-- [~] `ToggleClipper` | Toggles | X | (radiant/tools.cpp:426) -- Stufe 2
+- [x] `ToggleClipper` | Toggles | X | (radiant/tools.cpp:426) -- Stufe 2 Punkt 2
 - [x] `ToggleConsole` | Commands | O | (radiant/mainframe.cpp:2078) -- Stufe 1b Punkt 10
 - [x] `ToggleCrosshairs` | Toggles | Shift+X | (radiant/xywindow.cpp:2215) -- Stufe 1b Punkt 5
 - [x] `ToggleCubicClip` | Toggles | Ctrl+\\ | (radiant/camwindow.cpp:2491)
@@ -943,7 +943,7 @@ Name | Art | Standardtaste | Quelle
 - [ ] Autosave: "Autosave Preferences"  (radiant/autosave.cpp:173)
 - [ ] Brush: "Brush Settings"  (radiant/brushmodule.cpp:113)
 - [x] Camera: "Camera View Preferences"  (radiant/camwindow.cpp:2461)
-- [ ] Clipper: "Clipper Tool Settings"  (radiant/clippertool.cpp:186)
+- [x] Clipper: "Clipper Tool Settings"  (radiant/clippertool.cpp:186) -- Stufe 2 Punkt 2
 - [x] Entities: "Entity Display Preferences"  (radiant/entity.cpp:682) -- Stufe 1b Punkt 9
 - [ ] Grid: "Grid Settings"  (radiant/grid.cpp:258)
 - [ ] Paths: "Path Settings"  (radiant/mainframe.cpp:404)
@@ -982,11 +982,11 @@ Name | Art | Standardtaste | Quelle
 - [x] Combo MSAA  (radiant/camwindow.cpp:2438)
 - [x] Combo Strafe Mode  (radiant/camwindow.cpp:2448)
 - [x] Spinner Field Of View  (radiant/camwindow.cpp:2454)
-- [ ] CheckBox Caulk Clipper Cuts  (radiant/clippertool.cpp:170)
-- [ ] CheckBox Reset Flipped State  (radiant/clippertool.cpp:171)
-- [ ] CheckBox Reset Points on Split  (radiant/clippertool.cpp:172)
-- [ ] CheckBox 2 Points in 2D Views  (radiant/clippertool.cpp:174)
-- [ ] Radio On DoubleClick do:   (radiant/clippertool.cpp:177)
+- [x] CheckBox Caulk Clipper Cuts  (radiant/clippertool.cpp:170) -- Stufe 2 Punkt 2
+- [x] CheckBox Reset Flipped State  (radiant/clippertool.cpp:171) -- Stufe 2 Punkt 2
+- [x] CheckBox Reset Points on Split  (radiant/clippertool.cpp:172) -- Stufe 2 Punkt 2
+- [x] CheckBox 2 Points in 2D Views  (radiant/clippertool.cpp:174) -- Stufe 2 Punkt 2
+- [x] Radio On DoubleClick do:   (radiant/clippertool.cpp:177) -- Stufe 2 Punkt 2
 - [x] Spinner Names Display Distance (3D)  (radiant/entity.cpp:669) -- Stufe 1b Punkt 9
 - [x] Spinner Names Display Ratio (2D)  (radiant/entity.cpp:673) -- Stufe 1b Punkt 9
 - [x] CheckBox Entity Names / = Targetnames  (radiant/entity.cpp:677) -- Stufe 1b Punkt 9

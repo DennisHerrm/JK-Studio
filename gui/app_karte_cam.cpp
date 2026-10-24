@@ -1168,6 +1168,34 @@ void kameraZeichnen() {
                 zaehlen(1, 1);
             }
         }
+        // BrushClipPlane::render mit RENDER_FILL ($CLIPPER_OVERLAY, eSortOverlayFirst):
+        // gefuellt in color_clipper, Wegschneiden, Tiefe schreiben ohne Tiefentest;
+        // die Polygon-Strichel fehlen im globalstate der Kamera
+        {
+            std::vector<kartegpu::Punkt3> clip;
+            const auto& fc = ed.farben.clipper;
+            for (const ClipperFlaeche& cf : clipperFlaechen()) {
+                for (std::size_t i = 1; i + 1 < cf.punkte.size(); ++i) {   // Winding_Draw als Faecher
+                    for (const std::size_t j : {std::size_t{0}, i, i + 1}) {
+                        kartegpu::Punkt3 q{};
+                        q.pos[0] = cf.punkte[j][0];
+                        q.pos[1] = cf.punkte[j][1];
+                        q.pos[2] = cf.punkte[j][2];
+                        q.normale[0] = cf.normale[0];
+                        q.normale[1] = cf.normale[1];
+                        q.normale[2] = cf.normale[2];
+                        q.farbe = 0xFFFFFFFFU;
+                        clip.push_back(q);
+                    }
+                }
+            }
+            kartegpu::Zustand3 zc = basis;
+            farbeSetzen(zc, fc[0], fc[1], fc[2], 1.0F);
+            zc.tiefe = kartegpu::TiefenTest::Aus;
+            zc.tiefeSchreiben = true;
+            zc.wegschneiden = true;
+            kartegpu::dreiecke(clip, zc);
+        }
         // GlobalSelectionSystem().renderSolid mit dem CamRenderer: die
         // Strichel-Paesse fehlen im globalstate der Kamera (RENDER_LINESTIPPLE,
         // RENDER_POLYGONSTIPPLE) - die verdeckten Teile erscheinen voll.
@@ -1358,6 +1386,14 @@ void kameraZeichnen() {
         dl->AddText(ImVec2{at.x + 1, at.y + 1}, IM_COL32(0, 0, 0, 255), t.c_str());
         dl->AddText(at, farbe, t.c_str());
     };
+    {   // ClipperPoint::render: die Namen der Clipper-Punkte (drawChar)
+        const karte::ManipZeichnung mzt = manipulatorZeichnung(3);
+        for (const auto& t : mzt.texte) {
+            float x = 0;
+            float y = 0;
+            if (aufBild(t.p, x, y)) { dl->AddText(ImVec2{x, y - schriftHoehe}, IM_COL32(t.farbe.r, t.farbe.g, t.farbe.b, t.farbe.a), t.text.c_str()); }
+        }
+    }
     // Namen (namedentity.h:119-160): normal bis g_showNamesDist (Vorgabe 512)
     const double weit = static_cast<double>(ed.ent.namenAbstand);
     for (const karte::KameraName& n : s.namen) {

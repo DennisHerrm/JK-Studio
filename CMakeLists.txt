@@ -689,6 +689,8 @@ target_sources(bhed_core PRIVATE
   src/karte/quickhull.cpp
   # Stufe 2: Komponenten (Ecken, Kanten, Flaechen, Patch-Punkte; brush.h, patch.h)
   src/karte/komponenten.cpp
+  # Stufe 2: CSG und Clipper (csg.cpp, clippertool.cpp)
+  src/karte/csg.cpp
   # Stufe 1b: Texturbrowser (texwindow.cpp, aktive Shader)
   src/karte/texturbrowser.cpp
   # Stufe 1b: Texturen mit M3 kopieren und auftragen (TexManipulator, surfacedialog.cpp)
@@ -797,6 +799,10 @@ if(BEHAVED_TESTS)
   add_executable(kartekomponenten tests/kartekomponenten.cpp)
   target_link_libraries(kartekomponenten PRIVATE bhed_core)
   add_test(NAME karte_komponenten COMMAND kartekomponenten)
+  # Stufe 2, Punkte 2 und 3: Clipper und CSG
+  add_executable(kartecsg tests/kartecsg.cpp)
+  target_link_libraries(kartecsg PRIVATE bhed_core)
+  add_test(NAME karte_csg COMMAND kartecsg)
   # Punkte 3 und 4: die Befehlstabelle gegen die Checkliste (jeder Befehl mit
   # NRCs Taste, jeder Menuepunkt und Knopf), Uebersetzungen = NRC-Englisch,
   # Tastenkuerzel wie Qt (Text, possibleKeys, deutsche Tastatur).
