@@ -16703,11 +16703,17 @@ std::vector<Schritt> gluehenFigurSchritte() {
     add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
     add(pause(0.3));
     add(foto("gluehen_figur_ohne"));
+    // Schwelle 20: die Figur ist so gross, wie die Szene breit ist (fov_x fest).
+    // rc605 zeichnete die Szene 1384 breit (31 rote Punkte); seit dem Eintrag
+    // "Map Editor" der Modusleiste (Karten-Editor Stufe 1b, die Leiste ist so
+    // breit wie ihre laengste Beschriftung) sind es 1359 und 29 Punkte - das
+    // Auge ist weiter klar im Bild, die alte Schwelle 30 lag nur einen Punkt
+    // unter dem rc605-Wert.
     add(pruefe("Gluehen Figur: die Leuchtstufe (rotes Auge von sbd1) liegt im Bild", [=] {
         *ohne = rot();
         diag::detail("Knopftest: Gluehen Figur - sbd1 #" + std::to_string(*fi) + ", rote Bildpunkte am Kopf " +
                      std::to_string(*ohne));
-        return *fi >= 0 && *ohne > 30;
+        return *fi >= 0 && *ohne > 20;
     }));
     add(tu("Gluehen Figur: Gluehen an", [=] { stelle(true); }));
     add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
@@ -30886,8 +30892,9 @@ std::vector<Schritt> befehlsWirkungen() {
             return std::fabs(k.extents[0] - x) < 0.01F && std::fabs(k.extents[1] - y) < 0.01F && std::fabs(k.extents[2] - z) < 0.01F;
         };
     };
-    for (const auto& [name, x, y, z] : {std::tuple<const char*, float, float, float>{"RotateSelectionX", 32, 8, 16},
-                                        {"RotateSelectionY", 8, 16, 32}, {"RotateSelectionZ", 16, 32, 8}, {"RotateSelectionAnticlockwise", 16, 32, 8}}) {
+    for (const auto& [name, x, y, z] : {std::tuple<const char*, float, float, float>{"RotateSelectionX", 32.0F, 8.0F, 16.0F},
+                                        {"RotateSelectionY", 8.0F, 16.0F, 32.0F}, {"RotateSelectionZ", 16.0F, 32.0F, 8.0F},
+                                        {"RotateSelectionAnticlockwise", 16.0F, 32.0F, 8.0F}}) {
         const std::string n = name;
         add(tu(n, [n] { (void)ke::ausfuehren(n); }));
         add(pruefe(n + ": A um 90 Grad gedreht (Ausdehnung " + std::to_string(static_cast<int>(x)) + " " + std::to_string(static_cast<int>(y)) + " " +
@@ -31026,7 +31033,6 @@ std::vector<Schritt> befehlsWirkungen() {
         e.pinselTyp = 1;
         ke::neueKarte();
         e.pinselTyp = 0;
-        e.karte.welt();
         auto w = e.karte.weltHolenOderAnlegen();
         const auto p = testPinsel(karte::Vektor3f(-64, -64, 0), karte::Vektor3f(64, 64, 64), "textures/common/caulk");
         e.karte.auswahl.waehlen(w, p);
@@ -31410,22 +31416,33 @@ std::vector<Schritt> karteneditorAlleBefehleSchritte() {
     // Befehle und Umschalter laufen ueber ausfuehren(); reine KeyEvents
     // (CameraFreeMove*, CameraFreeFocus) haengen an der Taste - die
     // Kameraschritte druecken sie.
-    add(pruefe("Checkliste: jeder Befehl der Stufe 1b ist nachgebaut, sonst keiner", [] {
-        std::vector<std::string> stufe1;
+    // Stufe 1 in befehle_liste.inc = fertig (Stufe 1b und STUFE_2_FERTIG aus
+    // gen_befehle.py). Dazu die Rufe der Menues (MenueArt::Ruf: About, Bug
+    // report, Set 2D Background image - in NRC FreeCaller ohne Befehlsnamen),
+    // seit Stufe 2 Punkt 11c nachgebaut.
+    add(pruefe("Checkliste: jeder fertige Befehl (Stufe 1b und 2) und jeder Menue-Ruf ist nachgebaut, sonst keiner", [] {
+        std::vector<std::string> fertig;
         std::string fehlt;
         std::string zuviel;
         for (const kb::Befehl& b : kb::alle()) {
             if (b.stufe != 1) { continue; }
-            stufe1.emplace_back(b.name);
+            fertig.emplace_back(b.name);
             const bool befehl = (b.art & (kb::kCommand | kb::kToggle)) != 0U;
             if (befehl ? !ke::nachgebaut(b.name) : !ke::tastenEreignisNachgebaut(b.name)) { fehlt += std::string(" ") + b.name; }
         }
+        std::size_t rufe = 0;
+        for (const kb::MenueEintrag& m : kb::menues()) {
+            if (m.art != kb::MenueArt::Ruf) { continue; }
+            ++rufe;
+            fertig.emplace_back(m.befehl);
+            if (!ke::nachgebaut(m.befehl)) { fehlt += std::string(" ") + m.befehl; }
+        }
         const std::vector<std::string> da = ke::nachgebauteBefehle();
         for (const std::string& n : da) {
-            if (std::find(stufe1.begin(), stufe1.end(), n) == stufe1.end()) { zuviel += " " + n; }
+            if (std::find(fertig.begin(), fertig.end(), n) == fertig.end()) { zuviel += " " + n; }
         }
-        diag::detail("Knopftest: Checkliste - " + std::to_string(stufe1.size()) + " Befehle Stufe 1b, " +
-                     std::to_string(da.size()) + " nachgebaut; es fehlt:" + fehlt + "; zu viel:" + zuviel);
+        diag::detail("Knopftest: Checkliste - " + std::to_string(fertig.size() - rufe) + " fertige Befehle, " + std::to_string(rufe) +
+                     " Menue-Rufe, " + std::to_string(da.size()) + " nachgebaut; es fehlt:" + fehlt + "; zu viel:" + zuviel);
         return fehlt.empty() && zuviel.empty();
     }));
     add(tu("Alle Befehle: Kopie oeffnen, Pinsel und Licht waehlen, Zustand merken", [v] {

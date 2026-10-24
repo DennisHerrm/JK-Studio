@@ -608,10 +608,10 @@ void xyZeichnen(int index) {
             if (!ent || !w.primitiv.expired() || ent->istBehaelter() || ent->klasse() == nullptr || !ent->klasse()->miscmodelIs || !ent->sichtbar()) {
                 continue;
             }
-            const Vektor3f o = ursprungVon(*ent);
-            manip2.push_back(Linie{o, o + Vektor3f(l, 0, 0), karte::farbeAus(1, 0, 0)});
-            manip2.push_back(Linie{o, o + Vektor3f(0, l, 0), karte::farbeAus(0, 1, 0)});
-            manip2.push_back(Linie{o, o + Vektor3f(0, 0, l), karte::farbeAus(0, 0, 1)});
+            const Vektor3f pivot = ursprungVon(*ent);
+            manip2.push_back(Linie{pivot, pivot + Vektor3f(l, 0, 0), karte::farbeAus(1, 0, 0)});
+            manip2.push_back(Linie{pivot, pivot + Vektor3f(0, l, 0), karte::farbeAus(0, 1, 0)});
+            manip2.push_back(Linie{pivot, pivot + Vektor3f(0, 0, l), karte::farbeAus(0, 0, 1)});
         }
     }
     const karte::AuswahlRechteck& rechteck = ed.beobachter[static_cast<std::size_t>(index)].rechteck;
