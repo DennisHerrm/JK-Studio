@@ -293,6 +293,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_befehle.cpp
     gui/app_karte_menue.cpp
     gui/app_karte_dialoge.cpp
+    gui/app_karte_csg.cpp
     gui/karte_vektoricons.cpp
     gui/app_karte_xy.cpp
     gui/app_karte_cam.cpp

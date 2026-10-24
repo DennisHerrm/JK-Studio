@@ -19,25 +19,25 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
   - [~] ITEM Icosahedron... -> `BrushIcosahedron`  (radiant/brushmanip.cpp:1502) -- Stufe 2
   * ---
   * SUB CSG  (radiant/brushmanip.cpp:1505)
-    - [~] ITEM CSG &Subtract -> `CSGSubtract`  (radiant/brushmanip.cpp:1509) -- Stufe 2
-    - [~] ITEM CSG &Merge -> `CSGMerge`  (radiant/brushmanip.cpp:1510) -- Stufe 2
-    - [~] ITEM CSG &Wrap Merge -> `CSGWrapMerge`  (radiant/brushmanip.cpp:1511) -- Stufe 2
-    - [~] ITEM CSG &Intersect -> `CSGIntersect`  (radiant/brushmanip.cpp:1512) -- Stufe 2
-    - [~] ITEM Make &Room -> `CSGroom`  (radiant/brushmanip.cpp:1513) -- Stufe 2
-    - [~] ITEM CSG &Tool -> `CSGTool`  (radiant/brushmanip.cpp:1514) -- Stufe 2
+    - [x] ITEM CSG &Subtract -> `CSGSubtract`  (radiant/brushmanip.cpp:1509) -- Stufe 2 Punkt 3
+    - [x] ITEM CSG &Merge -> `CSGMerge`  (radiant/brushmanip.cpp:1510) -- Stufe 2 Punkt 3
+    - [x] ITEM CSG &Wrap Merge -> `CSGWrapMerge`  (radiant/brushmanip.cpp:1511) -- Stufe 2 Punkt 3
+    - [x] ITEM CSG &Intersect -> `CSGIntersect`  (radiant/brushmanip.cpp:1512) -- Stufe 2 Punkt 3
+    - [x] ITEM Make &Room -> `CSGroom`  (radiant/brushmanip.cpp:1513) -- Stufe 2 Punkt 3
+    - [x] ITEM CSG &Tool -> `CSGTool`  (radiant/brushmanip.cpp:1514) -- Stufe 2 Punkt 3
   * ---
   * SUB Clipper  (radiant/brushmanip.cpp:1518)
     - [x] ITEM Clip selection -> `ClipperClip`  (radiant/brushmanip.cpp:1522) -- Stufe 2 Punkt 2
     - [x] ITEM Split selection -> `ClipperSplit`  (radiant/brushmanip.cpp:1523) -- Stufe 2 Punkt 2
     - [x] ITEM Flip Clip orientation -> `ClipperFlip`  (radiant/brushmanip.cpp:1524) -- Stufe 2 Punkt 2
   * ---
-  - [~] ITEM Make detail -> `MakeDetail`  (radiant/brushmanip.cpp:1527) -- Stufe 2
-  - [~] ITEM Make structural -> `MakeStructural`  (radiant/brushmanip.cpp:1528) -- Stufe 2
+  - [x] ITEM Make detail -> `MakeDetail`  (radiant/brushmanip.cpp:1527) -- Stufe 2 Punkt 3
+  - [x] ITEM Make structural -> `MakeStructural`  (radiant/brushmanip.cpp:1528) -- Stufe 2 Punkt 3
   * ---
   - [x] CHECK Texture Lock -> `TogTexLock`  (radiant/brushmanip.cpp:1531) -- Stufe 2 Punkt 1
   - [x] CHECK Texture Vertex Lock -> `TogTexVertexLock`  (radiant/brushmanip.cpp:1532) -- Stufe 2 Punkt 1
   - [~] ITEM Reset Texture -> `TextureReset/Cap`  (radiant/brushmanip.cpp:1533) -- Stufe 2
-  - [~] ITEM AutoCaulk Selected -> `AutoCaulkSelected`  (radiant/brushmanip.cpp:1534) -- Stufe 2
+  - [~] ITEM AutoCaulk Selected -> `AutoCaulkSelected`  (radiant/brushmanip.cpp:1534) -- Stufe 3
 
 ### Build_constructMenu (radiant/build.cpp)
 
@@ -467,10 +467,10 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### CSG_constructToolbar (radiant/mainframe.cpp)
 
-- [~] button CSG Subtract | selection_csgsubtract.png -> `CSGSubtract`  (radiant/mainframe.cpp:1357) -- Stufe 2
-- [~] button CSG Wrap Merge | selection_csgmerge.png -> `CSGWrapMerge`  (radiant/mainframe.cpp:1358) -- Stufe 2
-- [~] button Room | selection_makeroom.png -> `CSGroom`  (radiant/mainframe.cpp:1359) -- Stufe 2
-- [~] button CSG Tool | ellipsis.png -> `CSGTool`  (radiant/mainframe.cpp:1360) -- Stufe 2
+- [x] button CSG Subtract | selection_csgsubtract.png -> `CSGSubtract`  (radiant/mainframe.cpp:1357) -- Stufe 2 Punkt 3
+- [x] button CSG Wrap Merge | selection_csgmerge.png -> `CSGWrapMerge`  (radiant/mainframe.cpp:1358) -- Stufe 2 Punkt 3
+- [x] button Room | selection_makeroom.png -> `CSGroom`  (radiant/mainframe.cpp:1359) -- Stufe 2 Punkt 3
+- [x] button CSG Tool | ellipsis.png -> `CSGTool`  (radiant/mainframe.cpp:1360) -- Stufe 2 Punkt 3
 
 ### ComponentModes_constructToolbar (radiant/mainframe.cpp)
 
@@ -516,7 +516,7 @@ Name | Art | Standardtaste | Quelle
 
 - [~] `ArbitraryRotation` | Commands | Shift+R | (radiant/select.cpp:1883) -- Stufe 2
 - [~] `ArbitraryScale` | Commands | Ctrl+Shift+S | (radiant/select.cpp:1884) -- Stufe 2
-- [~] `AutoCaulkSelected` | Commands | F4 | (radiant/map.cpp:2442) -- Stufe 2
+- [~] `AutoCaulkSelected` | Commands | F4 | (radiant/map.cpp:2442) -- Stufe 3
 - [~] `bobToolz::About` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
 - [~] `bobToolz::ApertureDoor` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
 - [~] `bobToolz::BrushCleanup` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
@@ -623,12 +623,12 @@ Name | Art | Standardtaste | Quelle
 - [x] `CloneSelection` | Commands | Space | (radiant/select.cpp:1866)
 - [x] `CloneSelectionAndMakeUnique` | Commands | Shift+Space | (radiant/select.cpp:1867)
 - [x] `Copy` | Commands | Ctrl+C | (radiant/select.cpp:1862)
-- [~] `CSGIntersect` | Commands | Ctrl+Shift+U | (radiant/csg.cpp:1595) -- Stufe 2
-- [~] `CSGMerge` | Commands | - | (radiant/csg.cpp:1593) -- Stufe 2
-- [~] `CSGroom` | Commands | - | (radiant/csg.cpp:1596) -- Stufe 2
-- [~] `CSGSubtract` | Commands | Shift+U | (radiant/csg.cpp:1592) -- Stufe 2
-- [~] `CSGTool` | Commands | - | (radiant/csg.cpp:1597) -- Stufe 2
-- [~] `CSGWrapMerge` | Commands | Ctrl+U | (radiant/csg.cpp:1594) -- Stufe 2
+- [x] `CSGIntersect` | Commands | Ctrl+Shift+U | (radiant/csg.cpp:1595) -- Stufe 2 Punkt 3
+- [x] `CSGMerge` | Commands | - | (radiant/csg.cpp:1593) -- Stufe 2 Punkt 3
+- [x] `CSGroom` | Commands | - | (radiant/csg.cpp:1596) -- Stufe 2 Punkt 3
+- [x] `CSGSubtract` | Commands | Shift+U | (radiant/csg.cpp:1592) -- Stufe 2 Punkt 3
+- [x] `CSGTool` | Commands | - | (radiant/csg.cpp:1597) -- Stufe 2 Punkt 3
+- [x] `CSGWrapMerge` | Commands | Ctrl+U | (radiant/csg.cpp:1594) -- Stufe 2 Punkt 3
 - [x] `CubicClipZoomIn` | Commands | Ctrl+[ | (radiant/camwindow.cpp:2492)
 - [x] `CubicClipZoomOut` | Commands | Ctrl+] | (radiant/camwindow.cpp:2493)
 - [x] `DeleteSelection` | Commands | Z | (radiant/select.cpp:1870)
@@ -693,8 +693,8 @@ Name | Art | Standardtaste | Quelle
 - [~] `InvertFilters` | Commands | - | (radiant/filters.cpp:210) -- Stufe 2
 - [x] `InvertSelection` | Commands | I | (radiant/select.cpp:1876)
 - [~] `LayersMenu` | Commands | Shift+Q | (radiant/layerswindow.cpp:581) -- Stufe 2
-- [~] `MakeDetail` | Commands | Alt+D | (radiant/brushmanip.cpp:1493) -- Stufe 2
-- [~] `MakeStructural` | Commands | Alt+S | (radiant/brushmanip.cpp:1494) -- Stufe 2
+- [x] `MakeDetail` | Commands | Alt+D | (radiant/brushmanip.cpp:1493) -- Stufe 2 Punkt 3
+- [x] `MakeStructural` | Commands | Alt+S | (radiant/brushmanip.cpp:1494) -- Stufe 2 Punkt 3
 - [~] `MapInfo` | Commands | M | (radiant/map.cpp:2445) -- Stufe 2
 - [~] `MatrixTranspose` | Commands | Ctrl+Shift+M | (radiant/patchmanip.cpp:726) -- Stufe 2
 - [x] `MaximizeView` | Commands | F12 | (radiant/mainframe.cpp:2097)
@@ -915,7 +915,7 @@ Name | Art | Standardtaste | Quelle
 
 - [ ] "Build Menu"  (radiant/build.cpp:1027)
 - [x] "Mapped Commands"  (radiant/commands.cpp:333)
-- [ ] "CSG Tool"  (radiant/csg.cpp:1486)
+- [x] "CSG Tool"  (radiant/csg.cpp:1486) -- Stufe 2 Punkt 3
 - [x] "Entity List"  (radiant/entitylist.cpp:279) -- Stufe 1b Punkt 9
 - [ ] "Q3Map debug window"  (radiant/feedback.cpp:281)
 - [x] "Find / Replace Texture(s)"  (radiant/findtexturedialog.cpp:132)

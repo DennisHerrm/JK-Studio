@@ -399,6 +399,16 @@ struct Editor {
     // Dialoge
     bool einstellungenOffen = false;
     bool tastenDialogOffen = false;   // "Mapped Commands" (DoCommandListDlg)
+    // CSG Tool (CSGToolDialog, csg.cpp:1372-1380): nicht modal, die Werte
+    // bleiben bis zum Programmende (NRC speichert nur die Fensterlage).
+    struct CsgWerkzeug {
+        bool offen = false;
+        double dicke = 16;      // DoubleSpinBox( 0, 9999, 16, 3, 16 )
+        double schritt = 16;    // singleStep
+        int ausschluss = 0;     // radFaces, radPlusFaces, radProj, radCam
+        bool caulk = true;      // f-caulk.png, setChecked( true )
+        bool innenWeg = true;   // csgtool_removeinner.png
+    } csgWerkzeug;
     std::string tastenDialogBearbeitet;   // Befehl, dessen Taste gerade aufgenommen wird
     int tasteVerbrauchtBild = -1;         // in diesem Bild hat die Aufnahme die Taste geschluckt
     bool ueberOffen = false;
@@ -744,6 +754,7 @@ ImVec4 karteIconFarbe(const char* name);
 // --- Dialoge (app_karte_dialoge.cpp) ---
 void zeichneEinstellungen();   // "NetRadiant Preferences" (P)
 void zeichneTastenDialog();    // "Mapped Commands" (Ctrl+Shift+P)
+void zeichneCsgWerkzeug();     // "CSG Tool" (app_karte_csg.cpp)
 // Einstellungen des Editors lesen/schreiben (Settings::karte).
 void einstellungenLaden();
 void einstellungenSpeichern();

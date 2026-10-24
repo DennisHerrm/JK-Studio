@@ -114,6 +114,7 @@ ImVec4 karteIconFarbe(const char* n) {
     ImVec4 c{0.80F, 0.82F, 0.86F, 1.0F};
     const auto setze = [&c](float r, float g, float b) { c = ImVec4{r, g, b, 1.0F}; };
     if (std::strncmp(n, "brush_", 6) == 0 || std::strncmp(n, "selection_csg", 13) == 0 || ist(n, "selection_makeroom") ||
+        std::strncmp(n, "csgtool_", 8) == 0 ||
         ist(n, "f-structural") || ist(n, "status_brush")) {
         setze(0.98F, 0.70F, 0.30F);
     } else if (std::strncmp(n, "selection_select", 16) == 0 || ist(n, "f-region") || ist(n, "select_mouseresize")) {
@@ -227,6 +228,77 @@ bool karteIcon(ImDrawList* dl, const char* n, ImVec2 pos, float groesse, unsigne
         z.kasten(8.5F, 2.5F, 13.5F, 9.5F, schwach, 0.6F);
         z.zug({ImVec2{1.5F, 5.5F}, ImVec2{7.5F, 1.5F}, ImVec2{14.5F, 1.5F}, ImVec2{14.5F, 10.5F}, ImVec2{8.5F, 14.5F},
                ImVec2{1.5F, 14.5F}}, true);
+        return true;
+    }
+    // --- CSG Tool (setup/data/tools/bitmaps/csgtool_*.svg) ---
+    if (ist(n, "csgtool_shrink")) {   // Kasten, vier Pfeile nach innen
+        z.kasten(5.5F, 5.5F, 10.5F, 10.5F, schwach, 0.6F);
+        z.rahmen(5.5F, 5.5F, 10.5F, 10.5F, 0.6F);
+        z.linie(0.8F, 8.0F, 3.8F, 8.0F);
+        z.spitze(3.8F, 8.0F, 1.0F, 0.0F, 1.6F);
+        z.linie(15.2F, 8.0F, 12.2F, 8.0F);
+        z.spitze(12.2F, 8.0F, -1.0F, 0.0F, 1.6F);
+        z.linie(8.0F, 0.8F, 8.0F, 3.8F);
+        z.spitze(8.0F, 3.8F, 0.0F, 1.0F, 1.6F);
+        z.linie(8.0F, 15.2F, 8.0F, 12.2F);
+        z.spitze(8.0F, 12.2F, 0.0F, -1.0F, 1.6F);
+        return true;
+    }
+    if (ist(n, "csgtool_expand")) {   // gestrichelter Kasten, vier Pfeile nach aussen
+        z.strichRahmen(4.5F, 4.5F, 11.5F, 11.5F);
+        z.linie(4.5F, 8.0F, 1.0F, 8.0F);
+        z.spitze(1.0F, 8.0F, -1.0F, 0.0F, 1.6F);
+        z.linie(11.5F, 8.0F, 15.0F, 8.0F);
+        z.spitze(15.0F, 8.0F, 1.0F, 0.0F, 1.6F);
+        z.linie(8.0F, 4.5F, 8.0F, 1.0F);
+        z.spitze(8.0F, 1.0F, 0.0F, -1.0F, 1.6F);
+        z.linie(8.0F, 11.5F, 8.0F, 15.0F);
+        z.spitze(8.0F, 15.0F, 0.0F, 1.0F, 1.6F);
+        return true;
+    }
+    if (ist(n, "csgtool_diagonal")) {   // Rahmen mit Gehrungen an den Ecken
+        z.kasten(1.5F, 1.5F, 14.5F, 14.5F, schwach, 0.4F);
+        z.kasten(5.0F, 5.0F, 11.0F, 11.0F, ImGui::GetColorU32(ImGuiCol_WindowBg), 0.0F);
+        z.rahmen(1.5F, 1.5F, 14.5F, 14.5F, 0.4F);
+        z.rahmen(5.0F, 5.0F, 11.0F, 11.0F, 0.0F);
+        z.linie(1.5F, 1.5F, 5.0F, 5.0F);
+        z.linie(14.5F, 1.5F, 11.0F, 5.0F);
+        z.linie(1.5F, 14.5F, 5.0F, 11.0F);
+        z.linie(14.5F, 14.5F, 11.0F, 11.0F);
+        return true;
+    }
+    if (ist(n, "csgtool_wrap")) {   // vier Wandstuecke im Kreis (jede Wand bis zur naechsten)
+        z.kasten(1.5F, 1.5F, 11.0F, 4.5F, schwach, 0.0F);
+        z.rahmen(1.5F, 1.5F, 11.0F, 4.5F, 0.0F);
+        z.kasten(11.5F, 1.5F, 14.5F, 11.0F, schwach, 0.0F);
+        z.rahmen(11.5F, 1.5F, 14.5F, 11.0F, 0.0F);
+        z.kasten(5.0F, 11.5F, 14.5F, 14.5F, schwach, 0.0F);
+        z.rahmen(5.0F, 11.5F, 14.5F, 14.5F, 0.0F);
+        z.kasten(1.5F, 5.0F, 4.5F, 14.5F, schwach, 0.0F);
+        z.rahmen(1.5F, 5.0F, 4.5F, 14.5F, 0.0F);
+        return true;
+    }
+    if (ist(n, "csgtool_extrude") || ist(n, "csgtool_pull")) {
+        // Pinsel mit schraeger Flaeche; davor die Platte: Extrude mit Seiten
+        // senkrecht zur Flaeche, Pull mit den verlaengerten Nachbarflaechen.
+        z.zug({ImVec2{5.5F, 14.5F}, ImVec2{5.5F, 9.5F}, ImVec2{9.5F, 5.5F}, ImVec2{14.5F, 5.5F}, ImVec2{14.5F, 14.5F}}, true);
+        if (ist(n, "csgtool_extrude")) {   // Platte senkrecht vor der schraegen Flaeche
+            z.flaeche({ImVec2{5.5F, 9.5F}, ImVec2{9.5F, 5.5F}, ImVec2{6.7F, 2.7F}, ImVec2{2.7F, 6.7F}}, schwach);
+            z.zug({ImVec2{5.5F, 9.5F}, ImVec2{2.7F, 6.7F}, ImVec2{6.7F, 2.7F}, ImVec2{9.5F, 5.5F}});
+        } else {   // Platte bis zu den verlaengerten Nachbarflaechen: die Ecke
+            z.flaeche({ImVec2{5.5F, 9.5F}, ImVec2{9.5F, 5.5F}, ImVec2{5.5F, 5.5F}}, schwach);
+            z.zug({ImVec2{5.5F, 9.5F}, ImVec2{5.5F, 5.5F}, ImVec2{9.5F, 5.5F}});
+            z.gestrichelt(5.5F, 5.5F, 5.5F, 1.5F, 1.0F);
+            z.gestrichelt(5.5F, 5.5F, 1.5F, 5.5F, 1.0F);
+        }
+        return true;
+    }
+    if (ist(n, "csgtool_removeinner")) {   // Kasten mit Kreuz: der innere Pinsel faellt weg
+        z.rahmen(1.5F, 1.5F, 14.5F, 14.5F, 0.6F);
+        z.kasten(4.5F, 4.5F, 11.5F, 11.5F, schwach, 0.4F);
+        const Stift rot{dl, pos, z.s, ImGui::GetColorU32(ImVec4{1.00F, 0.45F, 0.42F, 1.0F}), z.w * 1.3F};
+        rot.linie(5.5F, 5.5F, 10.5F, 10.5F);
+        rot.linie(10.5F, 5.5F, 5.5F, 10.5F);
         return true;
     }
     if (ist(n, "selection_makeroom")) {   // hohler Kasten: Waende um einen Raum

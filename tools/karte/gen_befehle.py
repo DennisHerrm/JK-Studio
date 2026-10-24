@@ -66,6 +66,7 @@ ToggleEntityList
 STUFE_2_FERTIG = set('''
 DragVertices DragEdges DragFaces MouseBuild MouseUV TogTexLock TogTexVertexLock
 ToggleClipper ClipperClip ClipperSplit ClipperFlip
+CSGSubtract CSGMerge CSGWrapMerge CSGIntersect CSGroom CSGTool MakeDetail MakeStructural
 '''.split())
 
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem
@@ -73,6 +74,7 @@ ToggleClipper ClipperClip ClipperSplit ClipperFlip
 STUFE_3 = set('''
 BuildMenuCustomize Build_runRecentExecutedBuild TogglePointfile NextLeakSpot PrevLeakSpot
 CheckForUpdate OpenManual
+AutoCaulkSelected
 '''.split())
 
 QT_TASTEN = {

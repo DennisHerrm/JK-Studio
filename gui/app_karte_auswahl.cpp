@@ -594,6 +594,26 @@ void auswahlBefehl(const std::string& name) {
         }
     } else if (name == "ClipperFlip") {   // Clipper_doFlip
         ed.bearbeitung.clipperUmdrehen();
+    } else if (name == "CSGSubtract" || name == "CSGMerge" || name == "CSGWrapMerge" || name == "CSGIntersect") {
+        karte::Protokoll p;
+        if (name == "CSGSubtract") {   // CSG_Subtract (csg.cpp:710)
+            karte::csgSubtrahieren(k, p);
+        } else if (name == "CSGMerge") {   // CSG_Merge (csg.cpp:937)
+            karte::csgVereinigen(k, p);
+        } else if (name == "CSGWrapMerge") {   // CSG_WrapMerge (csg.cpp:1210): mit Clipper_getPlanePoints
+            karte::csgHuellenVereinigen(k, csgUmgebung(), ed.bearbeitung.clipperPunkte, p);
+        } else {   // CSG_Intersect (csg.cpp:1216)
+            karte::csgSchneiden(k, p);
+        }
+        konsoleProtokoll(p);
+        auswahlGeaendert();
+    } else if (name == "CSGroom") {   // CSG_MakeRoom (csg.cpp:1401)
+        karte::csgRaumBauen(k, csgUmgebung());
+        auswahlGeaendert();
+    } else if (name == "CSGTool") {   // CSG_Tool (csg.cpp:1470): zeigen
+        ed.csgWerkzeug.offen = true;
+    } else if (name == "MakeDetail" || name == "MakeStructural") {   // Select_MakeDetail / Select_MakeStructural
+        karte::pinselDetailSetzen(k, name == "MakeDetail");
     } else if (name == "DragVertices") {
         komponentenModus(karte::KomponentenModus::Ecke);
     } else if (name == "DragEdges") {

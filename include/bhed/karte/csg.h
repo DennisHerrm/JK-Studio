@@ -87,6 +87,10 @@ void csgAushoehlen(Karte& k, const CsgUmgebung& u, const HohlEinstellung& e, con
 // CSGdlg_BrushShrink / CSGdlg_BrushExpand (csg.cpp:1451-1467): "Shrink brush" / "Expand brush"
 void csgPinselVersetzen(Karte& k, const HohlEinstellung& e, bool schrumpfen);
 
+// Select_MakeDetail / Select_MakeStructural (brushmanip.cpp:1402-1410) mit
+// Scene_BrushSetDetail_Selected (:656-658): "brushSetDetail" / "brushClearDetail"
+void pinselDetailSetzen(Karte& k, bool detail);
+
 // Scene_BrushSplitByPlane (csg.cpp:795-806): Clip (split = false) oder Split;
 // schneidet die Ebene nichts, macht es CSG_WrapMerge mit den Punkten.
 void pinselTeilen(Karte& k, const CsgUmgebung& u, const ClipperPunkte& punkte, bool umgedreht, bool caulk, bool teilen, Protokoll& p);

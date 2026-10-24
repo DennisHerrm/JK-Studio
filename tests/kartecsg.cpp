@@ -258,6 +258,355 @@ void clipper3d() {
     pruefe(be.clipperPunkte.anzahl == 0, "Wechsel in den Clipper: Punkte leer (reset)");
 }
 
+// --- Punkt 3: CSG --------------------------------------------------------------
+
+// Rauminhalt aus den Wicklungen: Summe Abstand * Flaeche / 3 (Ebenen nach aussen)
+double volumen(const Pinsel& p, const Kontext& k) {
+    p.bRep(k);
+    double v = 0;
+    for (const auto& f : p.flaechen()) {
+        const Wicklung& w = f->wicklung();
+        if (w.numpoints < 3) { continue; }
+        Vektor3d a(0, 0, 0);
+        for (std::size_t i = 1; i + 1 < w.numpoints; ++i) { a += kreuz(w[i].vertex - w[0].vertex, w[i + 1].vertex - w[0].vertex); }
+        v += f->ebene().dist() * laenge(a) * 0.5 / 3.0;
+    }
+    return v;
+}
+double volumenAlle(const Karte& k) {
+    double v = 0;
+    for (const auto& p : pinselListe(k)) { v += volumen(*p, k.kontext); }
+    return v;
+}
+std::size_t beitragend(const Pinsel& p, const Kontext& k) {
+    p.bRep(k);
+    std::size_t n = 0;
+    for (const auto& f : p.flaechen()) { n += f->traegtBei() ? 1U : 0U; }
+    return n;
+}
+std::size_t mitShader(const Pinsel& p, const std::string& s) {
+    std::size_t n = 0;
+    for (const auto& f : p.flaechen()) { n += f->shader() == s ? 1U : 0U; }
+    return n;
+}
+std::string letzteZeile(const Protokoll& pr) { return pr.empty() ? std::string() : pr.back().text; }
+bool kastenIn(const Kasten& a, const Vektor3f& mn, const Vektor3f& mx) {
+    for (std::size_t i = 0; i < 3; ++i) {
+        if (a.origin[i] - a.extents[i] < mn[i] - 1e-3F || a.origin[i] + a.extents[i] > mx[i] + 1e-3F) { return false; }
+    }
+    return true;
+}
+
+// SubtractBrushesFromUnselected (csg.cpp:574-708): Ziel 0..64, Schneider
+// 16..48 x 16..48 x 32..96. Die Flaechen des Schneiders nach der Achse
+// geordnet (Z > Y > X, die Gegenflaeche gleich dahinter); die +z-Flaeche
+// (z = 96) trifft nicht, die -z-Flaeche schneidet die Platte z 0..32 ab,
+// dann y (zwei Platten ueber die ganze Breite), dann x (zwei Stuecke):
+// 5 Teile, 64^3 - 32^3 = 229376.
+void subtrahieren() {
+    Karte k;
+    auto ziel = quader(k, Vektor3f(32, 32, 32), Vektor3f(32, 32, 32));
+    auto schneider = quader(k, Vektor3f(32, 32, 64), Vektor3f(16, 16, 32));
+    k.undo.clear();
+    {
+        Protokoll pr;
+        csgSubtrahieren(k, pr);
+        pruefe(pr.size() == 1 && pr[0].art == ProtokollTeil::Art::Warnung && pr[0].text == "CSG Subtract: No brushes selected.\n",
+               "Subtract ohne Auswahl: Warnung");
+        pruefe(k.undo.undoAnzahl() == 0, "Subtract ohne Auswahl: kein Schritt");
+    }
+    k.auswahl.waehlen(k.welt(), schneider);
+    Protokoll pr;
+    csgSubtrahieren(k, pr);
+    const auto l = pinselListe(k);
+    pruefe(l.size() == 6 && l[0] == schneider, "Subtract: Schneider + 5 Teile (" + std::to_string(l.size()) + ")");
+    pruefe(pr.size() == 2 && pr[0].text == "CSG Subtract: Subtracting 1 brushes.\n" && pr[1].text == "CSG Subtract: Result: 5 fragments from 1 brush.\n",
+           "Subtract: Ausgabe '" + letzteZeile(pr) + "'");
+    pruefe(k.undo.undoName() == "brushSubtract", "Subtract: Rueckgaengig-Name " + k.undo.undoName());
+    if (l.size() == 6) {
+        pruefe(kastenNah(l[1]->grenzen(k.kontext), Vektor3f(0, 0, 0), Vektor3f(64, 64, 32)), "Subtract: zuerst die z-Platte " + kastenText(l[1]->grenzen(k.kontext)));
+        const auto platteY = [&](const Kasten& b) {
+            return kastenNah(b, Vektor3f(0, 48, 32), Vektor3f(64, 64, 64)) || kastenNah(b, Vektor3f(0, 0, 32), Vektor3f(64, 16, 64));
+        };
+        const auto stueckX = [&](const Kasten& b) {
+            return kastenNah(b, Vektor3f(48, 16, 32), Vektor3f(64, 48, 64)) || kastenNah(b, Vektor3f(0, 16, 32), Vektor3f(16, 48, 64));
+        };
+        pruefe(platteY(l[2]->grenzen(k.kontext)) && platteY(l[3]->grenzen(k.kontext)), "Subtract: dann die y-Platten " + kastenText(l[2]->grenzen(k.kontext)));
+        pruefe(stueckX(l[4]->grenzen(k.kontext)) && stueckX(l[5]->grenzen(k.kontext)), "Subtract: dann die x-Stuecke " + kastenText(l[4]->grenzen(k.kontext)));
+        double v = 0;
+        for (std::size_t i = 1; i < l.size(); ++i) { v += volumen(*l[i], k.kontext); }
+        pruefe(nah(v, 229376.0, 0.5), "Subtract: Rauminhalt " + std::to_string(v));
+    }
+    k.undo.undo();
+    const auto z = pinselListe(k);
+    pruefe(z.size() == 2 && z[0] == ziel && kastenNah(ziel->grenzen(k.kontext), Vektor3f(0, 0, 0), Vektor3f(64, 64, 64)), "Subtract: Rueckgaengig");
+}
+
+// CSG_Merge / Brush_merge (csg.cpp:840-981): 0..32 und 32..64 in x.
+void vereinigen() {
+    {
+        Karte k;
+        auto a = quader(k, Vektor3f(16, 16, 16), Vektor3f(16, 16, 16));
+        auto b = quader(k, Vektor3f(48, 16, 16), Vektor3f(16, 16, 16));
+        k.auswahl.waehlen(k.welt(), a);
+        {
+            Protokoll pr;
+            csgVereinigen(k, pr);
+            pruefe(letzteZeile(pr) == "CSG Merge: At least two brushes have to be selected.\n", "Merge mit einem Pinsel: Warnung");
+        }
+        k.auswahl.waehlen(k.welt(), b);
+        Protokoll pr;
+        csgVereinigen(k, pr);
+        const auto l = pinselListe(k);
+        pruefe(l.size() == 1 && kastenNah(l[0]->grenzen(k.kontext), Vektor3f(0, 0, 0), Vektor3f(64, 32, 32)) && l[0]->anzahl() == 6,
+               "Merge: ein Pinsel 0..64 mit 6 Flaechen");
+        pruefe(l.size() == 1 && k.auswahl.anzahl() == 1 && k.auswahl.gewaehlt(k.welt().get(), l[0].get()), "Merge: der neue Pinsel ist gewaehlt");
+        pruefe(letzteZeile(pr) == "CSG Merge: Succeeded.\n" && k.undo.undoName() == "brushMerge", "Merge: Ausgabe und Rueckgaengig-Name");
+        k.undo.undo();
+        pruefe(pinselListe(k).size() == 2, "Merge: Rueckgaengig");
+    }
+    {   // versetzt: b.+x (x = 48) liegt vor a.+x (x = 32) - Winding_PlanesConcave
+        Karte k;
+        auto a = quader(k, Vektor3f(16, 16, 16), Vektor3f(16, 16, 16));
+        auto b = quader(k, Vektor3f(32, 48, 16), Vektor3f(16, 16, 16));
+        k.auswahl.waehlen(k.welt(), a);
+        k.auswahl.waehlen(k.welt(), b);
+        k.undo.clear();
+        Protokoll pr;
+        csgVereinigen(k, pr);
+        pruefe(pinselListe(k).size() == 2 && letzteZeile(pr) == "CSG Merge: Failed - result would not be convex.\n",
+               "Merge versetzt: abgelehnt");
+    }
+    {   // L aus drei Wuerfeln: wie NRC fallen gegenueberliegende Ebenen aller
+        // Pinsel weg (b.+y gegen c.-y, c.+x gegen b.-x), also das volle Quadrat
+        Karte k;
+        auto a = quader(k, Vektor3f(16, 16, 16), Vektor3f(16, 16, 16));
+        auto b = quader(k, Vektor3f(48, 16, 16), Vektor3f(16, 16, 16));
+        auto c = quader(k, Vektor3f(16, 48, 16), Vektor3f(16, 16, 16));
+        for (const auto& p : {a, b, c}) { k.auswahl.waehlen(k.welt(), p); }
+        Protokoll pr;
+        csgVereinigen(k, pr);
+        const auto l = pinselListe(k);
+        pruefe(l.size() == 1 && kastenNah(l[0]->grenzen(k.kontext), Vektor3f(0, 0, 0), Vektor3f(64, 64, 32)), "Merge L aus drei: das Quadrat wie NRC");
+    }
+}
+
+// CSG_WrapMerge (csg.cpp:1115-1214): Huelle zweier Wuerfel 0..16.
+void huelle() {
+    CsgUmgebung u;
+    u.browserShader = "textures/a/huelle";
+    {   // in einer Reihe: die 6 Ebenen kommen aus den Flaechen, b (zuletzt gewaehlt) wird neu gebaut
+        Karte k;
+        auto a = quader(k, Vektor3f(8, 8, 8), Vektor3f(8, 8, 8));
+        auto b = quader(k, Vektor3f(56, 8, 8), Vektor3f(8, 8, 8));
+        k.auswahl.waehlen(k.welt(), a);
+        k.auswahl.waehlen(k.welt(), b);
+        Protokoll pr;
+        csgHuellenVereinigen(k, u, ClipperPunkte{}, pr);
+        const auto l = pinselListe(k);
+        pruefe(l.size() == 1 && l[0] == b && kastenNah(b->grenzen(k.kontext), Vektor3f(0, 0, 0), Vektor3f(64, 16, 16)) && beitragend(*b, k.kontext) == 6 &&
+                   mitShader(*b, "textures/a/b") == 6,
+               "Wrap Merge: b wird 0..64 mit 6 Flaechen aus den alten");
+        pruefe(k.undo.undoName() == "brushWrapMerge", "Wrap Merge: Rueckgaengig-Name");
+    }
+    {   // ueber Eck: zwei schraege Seiten aus der Huelle (Shader des Browsers)
+        Karte k;
+        auto a = quader(k, Vektor3f(8, 8, 8), Vektor3f(8, 8, 8));
+        auto b = quader(k, Vektor3f(56, 56, 8), Vektor3f(8, 8, 8));
+        k.auswahl.waehlen(k.welt(), a);
+        k.auswahl.waehlen(k.welt(), b);
+        Protokoll pr;
+        csgHuellenVereinigen(k, u, ClipperPunkte{}, pr);
+        const auto l = pinselListe(k);
+        pruefe(l.size() == 1 && beitragend(*l[0], k.kontext) == 8 && mitShader(*l[0], "textures/a/huelle") == 2,
+               "Wrap Merge ueber Eck: 8 Flaechen, 2 neue");
+        // Sechseck 64x64 ohne zwei Dreiecke (48*48/2) mal 16
+        pruefe(l.size() == 1 && nah(volumen(*l[0], k.kontext), (64.0 * 64.0 - 48.0 * 48.0) * 16.0, 0.5), "Wrap Merge ueber Eck: Rauminhalt");
+    }
+}
+
+// CSG_Intersect (csg.cpp:1216-1259): der zuletzt gewaehlte bleibt.
+void schneiden() {
+    {
+        Karte k;
+        auto a = quader(k, Vektor3f(16, 16, 16), Vektor3f(16, 16, 16));
+        auto b = quader(k, Vektor3f(32, 32, 32), Vektor3f(16, 16, 16));
+        k.auswahl.waehlen(k.welt(), a);
+        k.auswahl.waehlen(k.welt(), b);
+        Protokoll pr;
+        csgSchneiden(k, pr);
+        const auto l = pinselListe(k);
+        pruefe(l.size() == 1 && l[0] == b && kastenNah(b->grenzen(k.kontext), Vektor3f(16, 16, 16), Vektor3f(32, 32, 32)), "Intersect: b wird 16..32");
+        pruefe(k.undo.undoName() == "brushIntersect", "Intersect: Rueckgaengig-Name");
+    }
+    {   // getrennt: kein Rest, alle gewaehlten weg
+        Karte k;
+        auto a = quader(k, Vektor3f(8, 8, 8), Vektor3f(8, 8, 8));
+        auto b = quader(k, Vektor3f(40, 40, 40), Vektor3f(8, 8, 8));
+        auto c = quader(k, Vektor3f(200, 0, 0), Vektor3f(8, 8, 8));
+        k.auswahl.waehlen(k.welt(), a);
+        k.auswahl.waehlen(k.welt(), b);
+        Protokoll pr;
+        csgSchneiden(k, pr);
+        const auto l = pinselListe(k);
+        pruefe(l.size() == 1 && l[0] == c && letzteZeile(pr) == "CSG Intersect: Failed - result would not be convex.\n", "Intersect getrennt: beide weg");
+    }
+}
+
+std::shared_ptr<Pinsel> raumWuerfel(Karte& k) {
+    auto p = quader(k, Vektor3f(32, 32, 32), Vektor3f(32, 32, 32));
+    k.auswahl.waehlen(k.welt(), p);
+    return p;
+}
+
+// CSG_MakeRoom (csg.cpp:1401-1414): ePull mit dem Raster, Caulk, Innen weg.
+void raum() {
+    Karte k;
+    (void)raumWuerfel(k);
+    CsgUmgebung u;
+    u.raster = 8;
+    u.caulkShader = "textures/common/caulk";
+    csgRaumBauen(k, u);
+    const auto l = pinselListe(k);
+    pruefe(l.size() == 6, "Make Room: 6 Waende (" + std::to_string(l.size()) + ")");
+    pruefe(k.undo.undoName() == "makeRoom", "Make Room: Rueckgaengig-Name");
+    int platten = 0;
+    for (const auto& p : l) {
+        const Kasten b = p->grenzen(k.kontext);
+        const bool passt = kastenNah(b, Vektor3f(64, 0, 0), Vektor3f(72, 64, 64)) || kastenNah(b, Vektor3f(-8, 0, 0), Vektor3f(0, 64, 64)) ||
+                           kastenNah(b, Vektor3f(0, 64, 0), Vektor3f(64, 72, 64)) || kastenNah(b, Vektor3f(0, -8, 0), Vektor3f(64, 0, 64)) ||
+                           kastenNah(b, Vektor3f(0, 0, 64), Vektor3f(64, 64, 72)) || kastenNah(b, Vektor3f(0, 0, -8), Vektor3f(64, 64, 0));
+        platten += passt ? 1 : 0;
+        pruefe(p->anzahl() == 6 && mitShader(*p, "textures/a/b") == 1 && mitShader(*p, "textures/common/caulk") == 5,
+               "Make Room: innen die alte Textur, sonst Caulk " + kastenText(b));
+    }
+    pruefe(platten == 6, "Make Room: Waende 8 dick aussen an jeder Seite");
+    k.undo.undo();
+    pruefe(pinselListe(k).size() == 1, "Make Room: Rueckgaengig");
+}
+
+// CSG_Hollow (csg.cpp:1438-1447) mit den Einstellungen des CSG Tools.
+void aushoehlen() {
+    CsgUmgebung u;
+    u.caulkShader = "textures/common/caulk";
+    u.browserShader = "textures/a/browser";
+    HohlEinstellung e;   // Vorgaben des Dialogs: 16, -faces, Caulk, Innen weg
+    {
+        Karte k;
+        (void)raumWuerfel(k);
+        e.art = HohlArt::Ziehen;
+        csgAushoehlen(k, u, e, "brushHollow::Pull");
+        const auto l = pinselListe(k);
+        pruefe(l.size() == 6 && nah(volumenAlle(k), 6.0 * 64 * 64 * 16, 0.5), "Hollow Pull: 6 Platten aussen");
+        pruefe(k.undo.undoName() == "brushHollow::Pull", "Hollow Pull: Rueckgaengig-Name");
+    }
+    {   // Wrap: innen, die Flaechen nacheinander (das Original waechst nach innen): 64^3 - 32^3
+        Karte k;
+        (void)raumWuerfel(k);
+        e.art = HohlArt::Huelle;
+        csgAushoehlen(k, u, e, "brushHollow::Wrap");
+        const auto l = pinselListe(k);
+        bool innen = true;
+        for (const auto& p : l) { innen = innen && kastenIn(p->grenzen(k.kontext), Vektor3f(0, 0, 0), Vektor3f(64, 64, 64)); }
+        pruefe(l.size() == 6 && innen && nah(volumenAlle(k), 229376.0, 0.5), "Hollow Wrap: 6 Waende innen, " + std::to_string(volumenAlle(k)));
+    }
+    {   // Extrude: je Flaeche eine Platte aussen, Seiten mit dem Shader des Browsers
+        Karte k;
+        (void)raumWuerfel(k);
+        e.art = HohlArt::Extrudieren;
+        csgAushoehlen(k, u, e, "brushHollow::Extrude");
+        const auto l = pinselListe(k);
+        pruefe(l.size() == 6 && nah(volumenAlle(k), 6.0 * 64 * 64 * 16, 0.5), "Hollow Extrude: 6 Platten");
+        pruefe(!l.empty() && mitShader(*l[0], "textures/a/browser") == 4 && mitShader(*l[0], "textures/a/b") == 2, "Hollow Extrude: 4 Seiten neu");
+    }
+    {   // Diag: Gehrungen, zusammen 96^3 - 64^3
+        Karte k;
+        (void)raumWuerfel(k);
+        e.art = HohlArt::Diagonal;
+        csgAushoehlen(k, u, e, "brushHollow::Diag");
+        const auto l = pinselListe(k);
+        bool drin = true;
+        for (const auto& p : l) { drin = drin && kastenIn(p->grenzen(k.kontext), Vektor3f(-16, -16, -16), Vektor3f(80, 80, 80)); }
+        pruefe(l.size() == 6 && drin && nah(volumenAlle(k), 622592.0, 0.5), "Hollow Diag: 6 Pyramidenstuempfe, " + std::to_string(volumenAlle(k)));
+    }
+    {   // Innen behalten: das Original bleibt, seine Flaechen werden Caulk (ePull)
+        Karte k;
+        auto p = raumWuerfel(k);
+        HohlEinstellung b = e;
+        b.art = HohlArt::Ziehen;
+        b.innenEntfernen = false;
+        csgAushoehlen(k, u, b, "brushHollow::Pull");
+        pruefe(pinselListe(k).size() == 7 && mitShader(*p, "textures/common/caulk") == 6, "Hollow ohne Innen weg: 7 Pinsel, innen Caulk");
+    }
+    // Ausschluss (HollowSettings::excludeFaces): die obere Flaeche gewaehlt
+    const auto oben = [](Karte& k, const std::shared_ptr<Pinsel>& p) {
+        for (const auto& f : p->flaechen()) {
+            if (f->ebene().normal()[2] > 0.5) { k.auswahl.flaecheWaehlen(p, f); }
+        }
+    };
+    {
+        Karte k;
+        auto p = raumWuerfel(k);
+        oben(k, p);
+        HohlEinstellung b = e;
+        b.art = HohlArt::Ziehen;
+        csgAushoehlen(k, u, b, "brushHollow::Pull");
+        bool keineDecke = true;
+        for (const auto& q : pinselListe(k)) { keineDecke = keineDecke && q->grenzen(k.kontext).origin[2] + q->grenzen(k.kontext).extents[2] < 64.5F; }
+        pruefe(pinselListe(k).size() == 5 && keineDecke, "-faces: ohne die gewaehlte Decke 5 Platten");
+    }
+    {
+        Karte k;
+        auto p = raumWuerfel(k);
+        oben(k, p);
+        HohlEinstellung b = e;
+        b.art = HohlArt::Ziehen;
+        b.gewaehlteAusschliessen = false;
+        csgAushoehlen(k, u, b, "brushHollow::Pull");
+        const auto l = pinselListe(k);
+        pruefe(l.size() == 1 && kastenNah(l[0]->grenzen(k.kontext), Vektor3f(0, 0, 64), Vektor3f(64, 64, 80)), "+faces: nur die Decke");
+    }
+    {
+        Karte k;
+        (void)raumWuerfel(k);
+        HohlEinstellung b = e;
+        b.art = HohlArt::Ziehen;
+        b.nachAchse = true;
+        b.achse = Vektor3f(0, 0, 1);
+        csgAushoehlen(k, u, b, "brushHollow::Pull");
+        bool seiten = true;
+        for (const auto& q : pinselListe(k)) { seiten = seiten && nah(q->grenzen(k.kontext).extents[2], 32); }
+        pruefe(pinselListe(k).size() == 4 && seiten, "-proj (z): nur die 4 Seiten");
+    }
+}
+
+// CSGdlg_BrushShrink / CSGdlg_BrushExpand (csg.cpp:1451-1467)
+void versetzen() {
+    Karte k;
+    auto p = raumWuerfel(k);
+    HohlEinstellung e;
+    csgPinselVersetzen(k, e, false);
+    pruefe(kastenNah(p->grenzen(k.kontext), Vektor3f(-16, -16, -16), Vektor3f(80, 80, 80)) && k.undo.undoName() == "Expand brush", "Expand: -16..80");
+    e.versatz = 8;
+    csgPinselVersetzen(k, e, true);
+    pruefe(kastenNah(p->grenzen(k.kontext), Vektor3f(-8, -8, -8), Vektor3f(72, 72, 72)) && k.undo.undoName() == "Shrink brush", "Shrink: -8..72");
+}
+
+// Select_MakeDetail / Select_MakeStructural (brushmanip.cpp:1402-1410)
+void detail() {
+    Karte k;
+    auto p = raumWuerfel(k);
+    auto q = quader(k, Vektor3f(200, 0, 0), Vektor3f(8, 8, 8));
+    pinselDetailSetzen(k, true);
+    bool alle = true;
+    for (const auto& f : p->flaechen()) { alle = alle && f->istDetail(); }
+    pruefe(alle && p->istDetail() && !q->istDetail() && k.undo.undoName() == "brushSetDetail", "Make detail: alle Flaechen des gewaehlten");
+    pinselDetailSetzen(k, false);
+    pruefe(!p->istDetail() && k.undo.undoName() == "brushClearDetail", "Make structural");
+    k.undo.undo();
+    pruefe(p->istDetail(), "Make structural rueckgaengig");
+}
+
 }  // namespace
 
 int main() {
@@ -269,6 +618,22 @@ int main() {
     clipper2d();
     schritt("clipper3d");
     clipper3d();
+    schritt("subtrahieren");
+    subtrahieren();
+    schritt("vereinigen");
+    vereinigen();
+    schritt("huelle");
+    huelle();
+    schritt("schneiden");
+    schneiden();
+    schritt("raum");
+    raum();
+    schritt("aushoehlen");
+    aushoehlen();
+    schritt("versetzen");
+    versetzen();
+    schritt("detail");
+    detail();
     std::printf("kartecsg: %d Fehlschlaege\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

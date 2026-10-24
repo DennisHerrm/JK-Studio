@@ -725,6 +725,16 @@ void csgPinselVersetzen(Karte& k, const HohlEinstellung& e, bool schrumpfen) {
     }
 }
 
+void pinselDetailSetzen(Karte& k, bool detail) {
+    Befehl befehl(k.undo, detail ? "brushSetDetail" : "brushClearDetail");
+    // Scene_ForEachSelectedBrush_ForEachFace (brush.h:4246-4250): die gewaehlten
+    // Pinsel (foreachSelected), jede Flaeche face.setDetail( detail )
+    for (const GewaehltesPrimitiv& g : gewaehltePrimitiveListe(k)) {
+        if (g.primitiv->art() != Primitiv::Art::Pinsel) { continue; }
+        for (const auto& f : static_cast<Pinsel&>(*g.primitiv).flaechen()) { f->setzeDetail(detail); }
+    }
+}
+
 Ebene3d clipperEbene(const ClipperPunkte& punkte, bool umgedreht) {
     if (punkte.anzahl < 2) { return Ebene3d(0, 0, 0, 0); }
     return umgedreht ? ebeneAusPunkten(punkte.punkte[0], punkte.punkte[2], punkte.punkte[1])

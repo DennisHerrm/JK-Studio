@@ -28664,10 +28664,186 @@ std::vector<Schritt> clipper() {
 
 }  // namespace stufe2
 
+namespace stufe2 {
+
+std::function<ImVec2()> elementOrt(const std::string& id) {
+    return [id]() {
+        const Element* el = finde(id, "", 0, true);
+        return el != nullptr ? el->rect.GetCenter() : ImVec2{0, 0};
+    };
+}
+
+std::size_t pinselZahl() {
+    const auto w = ke::editor().karte.welt();
+    return w ? w->kinder().size() : 0;
+}
+
+karte::Kasten grenzenVon(std::size_t i) {
+    const auto w = ke::editor().karte.welt();
+    if (!w || i >= w->kinder().size()) { return karte::Kasten(); }
+    return std::static_pointer_cast<karte::Pinsel>(w->kinder()[i])->grenzen(ke::editor().karte.kontext);
+}
+
+bool kastenGleich(const karte::Kasten& b, const karte::Vektor3f& mn, const karte::Vektor3f& mx) {
+    for (std::size_t i = 0; i < 3; ++i) {
+        if (std::fabs(b.origin[i] - b.extents[i] - mn[i]) > 0.01F || std::fabs(b.origin[i] + b.extents[i] - mx[i]) > 0.01F) { return false; }
+    }
+    return true;
+}
+
+// Ein zweiter Pinsel (32 -16 16)..(96 16 48), durch die +x-Seite des Testpinsels
+Schritt schneiderDazu(const std::string& was, bool beideWaehlen) {
+    return tu(was, [beideWaehlen] {
+        ke::Editor& e = ke::editor();
+        e.karte.undo.start();
+        karte::TexturProjektion proj;
+        karte::texdefStandard(karte::TexdefArt::Quake, proj);
+        auto p = std::make_shared<karte::Pinsel>();
+        e.karte.welt()->kindEinfuegen(p);
+        p->quaderBauen(karte::Kasten(karte::Vektor3f(64, 0, 32), karte::Vektor3f(32, 16, 16)), "textures/common/caulk", proj, e.karte.kontext);
+        e.karte.undo.finish("brushDragNew");
+        e.karte.auswahl.leeren();
+        if (beideWaehlen) { e.karte.auswahl.waehlen(e.karte.welt(), e.karte.welt()->kinder().front()); }
+        e.karte.auswahl.waehlen(e.karte.welt(), p);
+        ke::auswahlGeaendert();
+    });
+}
+
+// Punkt 3: CSG (Shift+U, Strg+U, Strg+Umschalt+U, Make Room, CSG Tool, Alt+D/Alt+S)
+std::vector<Schritt> csg() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(grundzustand("Stufe 2/3: Grundzustand"));
+    add(pause(0.4));
+    add(klickXy("M1 auf den Pinsel", ImGuiMouseButton_Left, ImVec2{32, 32}));
+    add(klickAn("Knopf Room", elementOrt("##knopfCSGroom")));
+    add(pruefe("Room: 6 Waende 8 dick (Raster), +x-Wand x 64..72", [] {
+        bool plusX = false;
+        for (std::size_t i = 0; i < pinselZahl(); ++i) {
+            plusX = plusX || kastenGleich(grenzenVon(i), karte::Vektor3f(64, -64, 0), karte::Vektor3f(72, 64, 64));
+        }
+        diag::detail("Knopftest: Stufe 2 - Room " + std::to_string(pinselZahl()) + " Pinsel");
+        return pinselZahl() == 6 && plusX;
+    }));
+    add(rueckgaengigName("makeRoom"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pruefe("Room rueckgaengig: ein Pinsel", [] { return pinselZahl() == 1; }));
+    // CSG Tool
+    add(klickAn("Knopf CSG Tool", elementOrt("##knopfCSGTool")));
+    add(pause(0.3));
+    add(pruefe("CSG Tool offen, Vorgaben wie NRC (16, -faces, Caulk, Innen weg)", [] {
+        const ke::Editor::CsgWerkzeug& w = ke::editor().csgWerkzeug;
+        return w.offen && finde("##csgpull", "", 0, true) != nullptr && w.dicke == 16.0 && w.ausschluss == 0 && w.caulk && w.innenWeg;
+    }));
+    add(foto("karteneditor_csgtool"));
+    add(klickXy("M1 auf den Pinsel", ImGuiMouseButton_Left, ImVec2{32, 32}));
+    add(klickAn("Hollow::pull faces", elementOrt("##csgpull")));
+    add(pruefe("Pull: 6 Platten 16 dick, das Innere weg", [] {
+        bool plusX = false;
+        for (std::size_t i = 0; i < pinselZahl(); ++i) {
+            plusX = plusX || kastenGleich(grenzenVon(i), karte::Vektor3f(64, -64, 0), karte::Vektor3f(80, 64, 64));
+        }
+        return pinselZahl() == 6 && plusX;
+    }));
+    add(rueckgaengigName("brushHollow::Pull"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(klickAn("Grid-> (ohne Ziehen: das Raster)", elementOrt("##csggitter")));
+    add(pruefe("Grid->: Dicke und Schritt = Raster 8", [] {
+        const ke::Editor::CsgWerkzeug& w = ke::editor().csgWerkzeug;
+        return w.dicke == 8.0 && w.schritt == 8.0;
+    }));
+    add(klickAn("Pfeil hoch", elementOrt("##csgdickehoch")));
+    add(pruefe("Pfeil hoch: 16", [] { return ke::editor().csgWerkzeug.dicke == 16.0; }));
+    add(klickAn("-proj", elementOrt(std::string(ke::trK(Str::KeCsgMinusProj)) + "##csgminusproj")));
+    add(klickAn("Remove inner brush aus", elementOrt("##csginnenweg")));
+    add(pruefe("-proj gewaehlt, Innen weg aus", [] {
+        const ke::Editor::CsgWerkzeug& w = ke::editor().csgWerkzeug;
+        return w.ausschluss == 2 && !w.innenWeg;
+    }));
+    add(klickXy("M1 auf den Pinsel", ImGuiMouseButton_Left, ImVec2{32, 32}));
+    add(klickAn("Hollow::extrude faces", elementOrt("##csgextrude")));
+    add(pruefe("Extrude mit -proj (XY): 4 Seitenplatten, das Original bleibt", [] {
+        diag::detail("Knopftest: Stufe 2 - Extrude -proj " + std::to_string(pinselZahl()) + " Pinsel");
+        return pinselZahl() == 5 && kastenGleich(grenzenVon(0), karte::Vektor3f(-64, -64, 0), karte::Vektor3f(64, 64, 64));
+    }));
+    add(rueckgaengigName("brushHollow::Extrude"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(klickAn("Expand brush", elementOrt("##csgerweitern")));
+    add(pruefe("Expand mit -proj: nur die Seiten 16 nach aussen", [] {
+        return kastenGleich(grenzenVon(0), karte::Vektor3f(-80, -80, 0), karte::Vektor3f(80, 80, 64)) && ke::editor().karte.undo.undoName() == "Expand brush";
+    }));
+    add(klickAn("Shrink brush", elementOrt("##csgschrumpfen")));
+    add(pruefe("Shrink: zurueck", [] {
+        return kastenGleich(grenzenVon(0), karte::Vektor3f(-64, -64, 0), karte::Vektor3f(64, 64, 64)) && ke::editor().karte.undo.undoName() == "Shrink brush";
+    }));
+    add(klickAn("-faces", elementOrt(std::string(ke::trK(Str::KeCsgMinusFaces)) + "##csgminusfaces")));
+    add(klickAn("Remove inner brush an", elementOrt("##csginnenweg")));
+    add(tu("CSG Tool zu", [] { ke::editor().csgWerkzeug.offen = false; }));
+    // Subtract (Umschalt+U): Schneider durch die +x-Seite; Z vor Y vor X
+    add(schneiderDazu("Schneider dazu, nur er gewaehlt", false));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_U, "Umschalt+U"));
+    add(pruefe("Subtract: 5 Teile, zuerst die Platte z 48..64", [] {
+        diag::detail("Knopftest: Stufe 2 - Subtract " + std::to_string(pinselZahl()) + " Pinsel");
+        return pinselZahl() == 6 && kastenGleich(grenzenVon(1), karte::Vektor3f(-64, -64, 48), karte::Vektor3f(64, 64, 64)) &&
+               ke::editor().karte.undo.undoName() == "brushSubtract";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    // Intersect (Strg+Umschalt+U): der zuletzt gewaehlte bleibt
+    add(schneiderDazu("Schneider dazu, beide gewaehlt", true));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_U, "Strg+Umschalt+U"));
+    add(pruefe("Intersect: ein Pinsel (32 -16 16)..(64 16 48)", [] {
+        return pinselZahl() == 1 && kastenGleich(grenzenVon(0), karte::Vektor3f(32, -16, 16), karte::Vektor3f(64, 16, 48)) &&
+               ke::editor().karte.undo.undoName() == "brushIntersect";
+    }));
+    // Rueckgaengig waehlt die wiederhergestellten Pinsel nicht (NRC: neue
+    // Instanzen sind nicht gewaehlt), also den Schneider neu
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pruefe("Intersect rueckgaengig: beide da, nur der Schneider gewaehlt", [] {
+        return pinselZahl() == 2 && ke::editor().karte.auswahl.anzahl() == 1;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    // Wrap Merge (Strg+U): die Huelle beider
+    add(schneiderDazu("Schneider dazu, beide gewaehlt", true));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_U, "Strg+U"));
+    add(pruefe("Wrap Merge: ein Pinsel x -64..96 mit schraegen Flaechen", [] {
+        const auto w = ke::editor().karte.welt();
+        const std::size_t n = pinselZahl() == 1 ? std::static_pointer_cast<karte::Pinsel>(w->kinder()[0])->anzahl() : 0;
+        diag::detail("Knopftest: Stufe 2 - Wrap Merge " + std::to_string(n) + " Flaechen");
+        return pinselZahl() == 1 && kastenGleich(grenzenVon(0), karte::Vektor3f(-64, -64, 0), karte::Vektor3f(96, 64, 64)) && n > 6 &&
+               ke::editor().karte.undo.undoName() == "brushWrapMerge";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    // Merge (Brush > CSG > CSG Merge): nicht konvex -> abgelehnt
+    add(schneiderDazu("Schneider dazu, beide gewaehlt", true));
+    add(tu("CSG Merge (Menue Brush > CSG)", [] { (void)ke::ausfuehren("CSGMerge"); }));
+    add(pruefe("Merge abgelehnt (nicht konvex), beide bleiben, kein Schritt", [] { return pinselZahl() == 2 && ke::editor().karte.undo.undoName() != "brushMerge"; }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    // Make detail / Make structural
+    add(klickXy("M1 auf den Pinsel", ImGuiMouseButton_Left, ImVec2{-32, -32}));
+    add(tasteKombi(ImGuiMod_Alt | ImGuiKey_D, "Alt+D"));
+    add(pruefe("Alt+D: Make detail", [] {
+        const auto w = ke::editor().karte.welt();
+        return pinselZahl() == 1 && std::static_pointer_cast<karte::Pinsel>(w->kinder()[0])->istDetail() &&
+               ke::editor().karte.undo.undoName() == "brushSetDetail";
+    }));
+    add(tasteKombi(ImGuiMod_Alt | ImGuiKey_S, "Alt+S"));
+    add(pruefe("Alt+S: Make structural", [] {
+        const auto w = ke::editor().karte.welt();
+        return pinselZahl() == 1 && !std::static_pointer_cast<karte::Pinsel>(w->kinder()[0])->istDetail() &&
+               ke::editor().karte.undo.undoName() == "brushClearDetail";
+    }));
+    return s;
+}
+
+}  // namespace stufe2
+
 std::vector<Schritt> karteneditorStufe2Schritte() {
     std::vector<Schritt> s;
     for (Schritt& x : stufe2::komponenten()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::clipper()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe2::csg()) { s.push_back(std::move(x)); }
     return s;
 }
 
