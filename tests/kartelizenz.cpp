@@ -9,7 +9,10 @@
 //     Lizenzabschnitt bzw. die Herkunft (NetRadiant-Custom/GtkRadiant/q3map2,
 //     OpenJK) nicht nennt,
 //   - eine Datei in src/karte/ oder include/bhed/karte/ ohne Herkunftskopf ist
-//     (aus welchen NRC-Dateien, Original-Copyright, GPL).
+//     (aus welchen NRC-Dateien, Original-Copyright, GPL),
+//   - (Stufe 3) q3map2 und seine Bibliotheken unter third_party ohne Herkunft,
+//     Lizenztext oder .gitattributes-Schutz sind, oder etclib.c (Apache-2.0)
+//     doch dabei ist.
 //
 // Aufruf: kartelizenz <Quellordner>
 #include <cstdio>
@@ -96,6 +99,31 @@ int main(int argc, char** argv) {
                name + ": Kopf nennt die Herkunft");
         pruefe(enthaelt(kopf, "Copyright (C)"), name + ": Kopf traegt die Original-Copyright-Zeile");
         pruefe(enthaelt(kopf, "GNU General Public License"), name + ": Kopf nennt die GPL");
+    }
+
+    // 4. Stufe 3 Punkt 1: q3map2 und seine Bibliotheken unveraendert unter
+    //    third_party, mit Herkunft und Lizenztext; etclib (Apache-2.0, nicht
+    //    GPL-v2-vertraeglich) nicht dabei, sondern eine eigene Fassung.
+    const std::string q3readme = lies(wurzel / "third_party/q3map2/README.md");
+    pruefe(enthaelt(q3readme, "20260114") && enthaelt(q3readme, "68ecbed"),
+           "third_party/q3map2/README.md nennt Tag 20260114 und Commit 68ecbed");
+    for (const char* datei : {"third_party/zlib/LICENSE", "third_party/libpng/LICENSE", "third_party/libjpeg-turbo/LICENSE.md",
+                              "third_party/libxml2/Copyright", "third_party/assimp/LICENSE",
+                              "third_party/q3map2/tools/quake3/q3map2/q3map2.h"}) {
+        pruefe(!lies(wurzel / datei).empty(), std::string(datei) + " vorhanden");
+    }
+    for (const char* bib : {"zlib 1.3.1", "libpng 1.6.53", "libjpeg-turbo 3.1.3", "libxml2 2.15.1", "assimp 6.0.2"}) {
+        pruefe(enthaelt(readme, bib), std::string("README nennt ") + bib);
+    }
+    std::error_code ec;
+    pruefe(!std::filesystem::exists(wurzel / "third_party/q3map2/libs/etclib.c", ec),
+           "etclib.c (Apache-2.0) liegt nicht in third_party/q3map2");
+    pruefe(enthaelt(lies(wurzel / "src/q3map2/kompat/etclib.c"), "GNU General Public License"), "eigene etclib.c steht unter der GPL");
+    const std::string attribute = lies(wurzel / ".gitattributes");
+    for (const char* regel : {"third_party/q3map2/** -text", "third_party/zlib/** -text", "third_party/libpng/** -text",
+                              "third_party/libjpeg-turbo/** -text", "third_party/libxml2/** -text",
+                              "third_party/assimp/** -text"}) {
+        pruefe(enthaelt(attribute, regel), std::string(".gitattributes: ") + regel);
     }
 
     std::printf("kartelizenz: %zu portierte Dateien geprueft, %d Fehlschlaege\n", dateien.size(), g_fehler);

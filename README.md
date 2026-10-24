@@ -64,6 +64,15 @@ Details and known pitfalls are in [BAUEN.md](BAUEN.md), the tests in
 - `third_party/quickhull/` – QuickHull by Antti Kuukka (public domain), unchanged
   from NetRadiant-Custom (`libs/quickhull`); the map editor uses it for
   Snap to Grid of brushes like NetRadiant-Custom.
+- `third_party/q3map2/` – the map compiler q3map2 (GPL v2) from the
+  NetRadiant-Custom tag 20260114, unchanged; built as `bhed_q3map2.exe` for the
+  map editor's Build menu. Its libraries, unchanged release sources:
+  `third_party/zlib/` zlib 1.3.1 (zlib), `third_party/libpng/` libpng 1.6.53
+  (PNG Reference Library License v2), `third_party/libjpeg-turbo/`
+  libjpeg-turbo 3.1.3 (IJG, BSD 3-clause, zlib), `third_party/libxml2/`
+  libxml2 2.15.1 (MIT), `third_party/assimp/` assimp 6.0.2 (BSD 3-clause).
+  Provenance, the licence of every part and what was left out are in
+  [third_party/q3map2/README.md](third_party/q3map2/README.md).
 - `data/` contains files from the Jedi Academy SDK and from the original
   `BehavEd.exe` (images, the command description `behaved.bhc`, headers such as
   `Q3_Interface.h` and `anims.h`). These are the property of Raven Software /

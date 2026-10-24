@@ -231,6 +231,13 @@ add_custom_command(TARGET bhed POST_BUILD
           ${CMAKE_CURRENT_SOURCE_DIR}/data/jk2
           $<TARGET_FILE_DIR:bhed>/data/jk2)
 
+# --- Stufe 3: q3map2 aus NetRadiant-Custom 20260114 als bhed_q3map2.exe -----------
+# (src/q3map2/CMakeLists.txt; die Quellen liegen unveraendert unter third_party).
+option(BEHAVED_Q3MAP2 "q3map2 (Karten bauen) mitbauen" ${MSVC})
+if(MSVC AND BEHAVED_Q3MAP2)
+  add_subdirectory(src/q3map2)
+endif()
+
 # --- Oberflaeche -------------------------------------------------------
 #
 # Dear ImGui 1.92 oder neuer wird erwartet. Nicht mitgeliefert:
@@ -661,6 +668,13 @@ if(BEHAVED_TESTS)
     # einer Sprache (Bilder nur, wenn handbuch/bilder vorhanden ist).
     add_test(NAME handbuch_sprachen
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/handbuch/gen_handbuch.py --pruefen)
+    # Stufe 3 Punkt 1: bhed_q3map2.exe bindet nur Windows-DLLs fest (statische
+    # Laufzeit wie behaved.exe).
+    if(TARGET bhed_q3map2)
+      add_test(NAME q3map2_importe
+               COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_exe_imports.py
+                       $<TARGET_FILE:bhed_q3map2>)
+    endif()
   endif()
 endif()
 

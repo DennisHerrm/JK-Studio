@@ -270,3 +270,74 @@ jetzt neben der Achse.
 
 Checkliste: 782 fertig, 152 ausgegraut, 2 offen von 936 Eintraegen (neu:
 Mausbelegung 62 / 0 / 0).
+
+## Punkt 1: q3map2 im eigenen Bau
+
+`bhed_q3map2.exe` = q3map2 aus NRC 20260114 (Commit `68ecbed`), mit MSVC 18
+(VS 2026) als eigenes Programm gebaut: Ziel `bhed_q3map2`,
+`src/q3map2/CMakeLists.txt`, im Wurzel-CMake mit `BEHAVED_Q3MAP2` (Vorgabe an
+bei MSVC). Statische Laufzeit wie behaved.exe; feste Importe nur
+`KERNEL32`, `WS2_32`, `bcrypt` (ctest `q3map2_importe`).
+
+### Was uebernommen wurde (unveraendert, `.gitattributes` `-text`)
+
+| Ordner | Quelle | Fassung | Lizenz |
+|---|---|---|---|
+| `third_party/q3map2/tools/quake3/q3map2`, `.../common` | NRC-Tag 20260114 (`SP\s3\tag`) | 2.5.17n-git-68ecbed | GPL v2+ |
+| `third_party/q3map2/include`, `.../libs` (Auswahl, 63 Dateien) | dito, nur was q3map2 einbindet (`SP\s3\werk\libs_noetig.txt`) | | GPL v2+, crunch zlib, ddslib BSD-3, tiny_webp BSD-3, rapidjson MIT |
+| `third_party/zlib` | zlib.net | 1.3.1 | zlib |
+| `third_party/libpng` | libpng.org | 1.6.53 | PNG v2 |
+| `third_party/libjpeg-turbo` (ohne `simd/`, Testbilder, Doku) | GitHub-Release | 3.1.3 | IJG, BSD-3, zlib |
+| `third_party/libxml2` | gitlab.gnome.org | 2.15.1 | MIT |
+| `third_party/assimp` (ohne test/samples/doc/tools/port, ohne eigenes zlib) | GitHub-Release | 6.0.2 | BSD-3, contrib MIT/BSD/Boost/ISC/zlib/Unlicense |
+
+Dieselben Fassungen wie die DLLs neben NRCs `q3map2.exe`. **Nicht uebernommen:**
+`libs/etclib.c/.h` (Apache-2.0, mit GPL v2 unvertraeglich) - eigene Fassung
+`src/q3map2/kompat/etclib.c` nach der Khronos-Beschreibung, auf 4 Mio.
+Zufallsbloecken gleich der NRC-Fassung. Herkunft und alle Lizenzen:
+`third_party/q3map2/README.md`; README nennt die Bibliotheken mit Fassung.
+
+### Anpassungen an MSVC (alle ausserhalb von third_party)
+
+| Nr. | Was | Wo | Warum |
+|---|---|---|---|
+| 1 | `g_locale_to_utf8`, `g_free`, `GDir` (FindFirstFileW) | `kompat/glib.h` | inout.cpp/vfs.cpp brauchen drei GLib-Aufrufe; ganze GLib (meson, gnulib, pcre2) waere ein Brocken. Windows-GLib nimmt dafuer auch CP_ACP. |
+| 2 | `R_OK`/`F_OK`/`W_OK`, `<io.h>` | `kompat/msvc_vorab.h` (/FI) | cmdlib.cpp:172 `access( path, R_OK )`; MinGW bringt R_OK mit, MSVC nicht |
+| 3 | `NOMINMAX` | CMake | windows.h-Makros min/max gegen `std::min/max` in inout.cpp |
+| 4 | `ASSIMP_INCLUDE(x)` | `kompat/msvc_vorab.h` | Makefile setzt `-DASSIMP_INCLUDE(x)=<x>`; ueber MSBuild nicht als Befehlszeilen-Makro moeglich |
+| 5 | `Span<T>( behaelter )` statt `Span( behaelter )` an 2 Stellen | Kopien surface.cpp, model.cpp | MSVC leitet Alias-Template-Argumente (CTAD) aus dem eingeschraenkten Leitfaden von std::span nicht ab (C2641) |
+| 6 | `LittleLong` in crnlib.cpp umbenannt | CMake (Quell-Define) | GCC: inline-Fassung schwaches Symbol; MSVC LNK2005 gegen cmdlib.cpp |
+| 7 | `std::sort`/`std::ranges::sort` wie libstdc++ | `kompat/gcc_sort.h`, alle 9 Kopien | Punkt 2 |
+| 8 | `entities.emplace_back()` verschiebt beim Wachsen | `kompat/gcc_vektor.h`, Kopie map.cpp | Punkt 2 (Fehler, nicht nur Reihenfolge) |
+
+Sonst wie NRCs Makefile: Stapel 4 MB (`/STACK:4194304`), `/fp:precise`
+(GCC -O3 ohne -ffast-math: SSE2, keine FMA), dieselben Kennungen
+`Q3MAP_VERSION` usw. (stehen in jeder .bsp). libxml2 nur mit Threads/Output,
+assimp ohne Export/Tests/Werkzeuge, beide gegen unser zlib. Die Kopien
+schreibt `bhed_q3_kopie` beim Konfigurieren nach `build/src/q3map2/angepasst`
+und bricht ab, wenn eine zu ersetzende Stelle fehlt.
+
+### Release
+
+- Zip: `BehavEd-Remake/bhed_q3map2.exe` neben behaved.exe (vor ihr, behaved.exe
+  bleibt letzter Eintrag) und `BehavEd-Remake/licenses/` mit 21 Texten (GPL v2,
+  README von third_party/q3map2, die Lizenzdateien, und aus Quelltextkoepfen
+  die Bloecke von crunch, ddslib, tiny_webp, rapidjson, Open3DGC, stb).
+  `tools/release_paket.py zip ... --q3map2 <exe>`, `pruefe ... --q3map2`;
+  `.github/workflows/release.yml` ruft beides.
+- **Abweichung:** die eigenstaendige .exe enthaelt q3map2 nicht. Eine .exe, die
+  eine zweite .exe in sich traegt und beim Start auspackt, ist das Muster eines
+  "Droppers" - bei einem unsignierten Programm ein sicherer Weg zu
+  Virenscanner-Fehlalarmen. Das Build-Menue sucht `bhed_q3map2.exe` neben
+  behaved.exe; die Release-Notizen sagen, dass der Kartenbauer nur im Zip ist.
+
+### Rot/Gruen
+
+| Pruefung | rot | gruen |
+|---|---|---|
+| `karte_lizenz` Abschnitt 4 (README Fassungen, Lizenzdateien, etclib nicht dabei, .gitattributes) | 5 FEHL (README nannte die Bibliotheken nicht) | 0 |
+| `release_paket selbsttest` (neu: Zip mit q3map2, Block aus Quelltextkopf, 4 kaputte Pakete) | - | 47/47 |
+| echtes Zip `pruefe --fassung rc604 --q3map2` | - | ok (2672 Eintraege, 21 Lizenztexte) |
+| `q3map2_importe` | bcrypt.dll "unbekannt" | ok (bcrypt.dll erlaubt: libxml2 dict.c BCryptGenRandom, seit Vista Teil von Windows) |
+| erster Vergleich ein_pinsel.map (-bsp) | - | alle 18 Lumps Byte-gleich mit NRC, Ausgabe gleich bis auf Pfade/Baudatum |
+

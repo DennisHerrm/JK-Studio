@@ -26,6 +26,11 @@ ERLAUBT = {'kernel32.dll', 'user32.dll', 'gdi32.dll', 'shell32.dll',
 # die Pruefung als ctest (exe_importe) - mit Fehlalarm waere sie dort
 # unbrauchbar.
 ERLAUBT |= {'winhttp.dll'}
+# Stufe 3 (Karten bauen): bhed_q3map2.exe bindet bcrypt.dll fest - libxml2
+# 2.15 holt den Startwert seiner Hash-Tabellen mit BCryptGenRandom
+# (third_party/libxml2/dict.c, xmlInitRandom). bcrypt.dll gehoert seit Vista zu
+# Windows; NRCs libxml2-2.dll neben q3map2.exe bindet sie genauso.
+ERLAUBT |= {'bcrypt.dll'}
 
 
 def imports(path):

@@ -21,13 +21,17 @@ Aufrufe
       kFassung ausgeben. Mit --marke: Abbruch, wenn die Marke nicht
       v1.0.0-<kFassung> heisst - sonst boete der Updater das Release ewig neu
       an (istNeuer vergleicht die rc-Nummer der Marke mit kFassung).
-  release_paket.py zip <behaved.exe> <ziel.zip>
+  release_paket.py zip <behaved.exe> <ziel.zip> [--q3map2 <bhed_q3map2.exe>]
       BehavEd-Remake/behaved.exe, BehavEd-Remake/data/base/* und jede Datei,
       die git unter handbuch/ fuehrt (git ls-files: Seiten, die nur im
       Arbeitsordner liegen, bleiben draussen). Deflate, '/' als Trenner,
       sortiert, keine Ordnereintraege - die Form von rc600.
-  release_paket.py pruefe <zip> --fassung rcNNN [--exe <eigenstaendige.exe>]
-      alles, was Updater und Anwender vom Zip erwarten (siehe pruefe()).
+      Stufe 3: mit --q3map2 dazu BehavEd-Remake/bhed_q3map2.exe (Karten bauen)
+      und BehavEd-Remake/licenses/ (GPL v2 und die Lizenztexte der
+      Bibliotheken in bhed_q3map2.exe, siehe LIZENZEN).
+  release_paket.py pruefe <zip> --fassung rcNNN [--exe <eigenstaendige.exe>] [--q3map2]
+      alles, was Updater und Anwender vom Zip erwarten (siehe pruefe()); mit
+      --q3map2 muss bhed_q3map2.exe samt Lizenztexten dabei sein.
   release_paket.py notizen rcNNN <ziel.md>
       die Release-Notizen: zuerst die Download-Zeilen, dann der [en]-Block der
       obersten Fassung in tools/changelog.txt - oder release-notes/rcNNN.md,
@@ -136,8 +140,75 @@ def daten_ordner(wurzel):
     return ordner
 
 
-def zip_bauen(exe, ziel, wurzel, handbuch=None):
+# Stufe 3 Punkt 1: bhed_q3map2.exe enthaelt q3map2 (GPL v2) und zlib, libpng,
+# libjpeg-turbo, libxml2, assimp, crunch, ddslib, tiny_webp, rapidjson. Wer die
+# .exe weitergibt, gibt die Lizenztexte mit (BSD/MIT/IJG verlangen das fuer
+# Binaerpakete). Ganze Dateien, oder (Anfang, Ende) eines Kommentarblocks, wenn
+# die Lizenz im Kopf einer Quelldatei steht. Boost, zlib und Unlicense
+# verlangen das fuer Binaerpakete nicht; mitgegeben wird trotzdem, was als
+# eigene Datei vorliegt.
+LIZENZEN = [
+    ("GPL-2.0.txt", "LICENSE", None),
+    ("q3map2-README.md", "third_party/q3map2/README.md", None),
+    ("zlib.txt", "third_party/zlib/LICENSE", None),
+    ("libpng.txt", "third_party/libpng/LICENSE", None),
+    ("libjpeg-turbo.md", "third_party/libjpeg-turbo/LICENSE.md", None),
+    ("libjpeg-turbo-README.ijg.txt", "third_party/libjpeg-turbo/README.ijg", None),
+    ("libxml2.txt", "third_party/libxml2/Copyright", None),
+    ("assimp.txt", "third_party/assimp/LICENSE", None),
+    ("assimp-clipper.txt", "third_party/assimp/contrib/clipper/License.txt", None),
+    ("assimp-earcut.txt", "third_party/assimp/contrib/earcut-hpp/LICENSE", None),
+    ("assimp-openddlparser.txt", "third_party/assimp/contrib/openddlparser/LICENSE", None),
+    ("assimp-poly2tri.txt", "third_party/assimp/contrib/poly2tri/LICENSE", None),
+    ("assimp-pugixml.md", "third_party/assimp/contrib/pugixml/LICENSE.md", None),
+    ("assimp-rapidjson.txt", "third_party/assimp/contrib/rapidjson/license.txt", None),
+    ("assimp-zip.txt", "third_party/assimp/contrib/zip/UNLICENSE", None),
+    ("assimp-open3dgc.txt", "third_party/assimp/contrib/Open3DGC/o3dgcCommon.h",
+     ("Copyright (c) 2013 Khaled Mammou", "THE SOFTWARE.")),
+    ("assimp-stb.txt", "third_party/assimp/contrib/stb/stb_image.h",
+     ("This software is available under 2 licenses", "WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.")),
+    ("crunch.txt", "third_party/q3map2/libs/crnlib/crunch/inc/crnlib.h",
+     ("crnlib uses the ZLIB license", "This notice may not be removed or altered from any source distribution.")),
+    ("ddslib.txt", "third_party/q3map2/libs/ddslib/ddslib.c",
+     ("Copyright (c) 2003 Randy Reddig", "SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.")),
+    ("tiny_webp.txt", "third_party/q3map2/libs/webplib/tiny_webp.h",
+     ("Copyright (c) 2010, 2011, Google Inc.", "OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.")),
+    ("rapidjson.txt", "third_party/q3map2/libs/rapidjson/rapidjson.h",
+     ("Tencent is pleased", "specific language governing permissions and limitations under the License.")),
+]
+
+
+def lizenz_eintraege(wurzel):
+    """[(Name im Zip, Bytes)] fuer BehavEd-Remake/licenses/."""
+    aus = []
+    for name, rel, block in LIZENZEN:
+        pfad = os.path.join(wurzel, *rel.split("/"))
+        try:
+            with open(pfad, "rb") as f:
+                inhalt = f.read()
+        except OSError:
+            raise Fehler("Lizenztext %s fehlt (%s)" % (rel, name))
+        if block is not None:
+            text = inhalt.decode("utf-8", "replace")
+            a = text.find(block[0])
+            e = text.find(block[1], a)
+            if a < 0 or e < 0:
+                raise Fehler("%s: Lizenzblock '%s' ... '%s' nicht gefunden" % (rel, block[0], block[1]))
+            zeilen = text[a:e + len(block[1])].replace("\r\n", "\n").split("\n")
+            # Kommentarzeichen am Zeilenanfang weg ("// ", " * ", "   ")
+            sauber = [re.sub(r"^\s*(//|\*)? ?", "", z).rstrip() for z in zeilen]
+            inhalt = ("From %s (part of bhed_q3map2.exe):\n\n" % rel + "\n".join(sauber) + "\n").encode("utf-8")
+        aus.append((OBER + "/licenses/" + name, inhalt))
+    return aus
+
+
+def zip_bauen(exe, ziel, wurzel, handbuch=None, q3map2=None):
     eintraege = [(OBER + "/behaved.exe", exe)]
+    if q3map2 is not None:
+        # Stufe 3: das Programm fuer Build-Menue (Karten bauen) neben behaved.exe,
+        # dazu die Lizenztexte (Bytes statt Pfad)
+        eintraege.append((OBER + "/bhed_q3map2.exe", q3map2))
+        eintraege += lizenz_eintraege(wurzel)
     # rc604: data/jk2 (Befehlssatz fuer Jedi Outcast) neben data/base;
     # Stufe 1b: data/karte/<spiel> (Entitaetsklassen des Karten-Editors).
     for ordner in daten_ordner(wurzel):
@@ -169,9 +240,13 @@ def zip_bauen(exe, ziel, wurzel, handbuch=None):
     fest = _zeitstempel()
     with zipfile.ZipFile(ziel, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for name, quelle in eintraege:
-            with open(quelle, "rb") as f:
-                inhalt = f.read()
-            zeit = fest or max(time.localtime(os.path.getmtime(quelle))[:6], (1980, 1, 1, 0, 0, 0))
+            if isinstance(quelle, bytes):
+                inhalt = quelle
+                zeit = fest or time.localtime()[:6]
+            else:
+                with open(quelle, "rb") as f:
+                    inhalt = f.read()
+                zeit = fest or max(time.localtime(os.path.getmtime(quelle))[:6], (1980, 1, 1, 0, 0, 0))
             info = zipfile.ZipInfo(name, date_time=zeit)
             info.compress_type = zipfile.ZIP_DEFLATED
             z.writestr(info, inhalt, compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
@@ -180,31 +255,31 @@ def zip_bauen(exe, ziel, wurzel, handbuch=None):
 
 # --- Die Pruefung -------------------------------------------------------------
 
-def _pe_maengel(exe, daten, imp):
-    """Was an der behaved.exe im Zip nicht stimmt (Liste von Saetzen)."""
+def _pe_maengel(exe, daten, imp, name="behaved.exe"):
+    """Was an der behaved.exe (oder bhed_q3map2.exe) im Zip nicht stimmt (Liste von Saetzen)."""
     maengel = []
     if len(exe) < 0x40 or exe[:2] != b"MZ":
-        return ["behaved.exe ist keine Windows-exe (MZ fehlt)"]
+        return ["%s ist keine Windows-exe (MZ fehlt)" % name]
     pe = struct.unpack_from("<I", exe, 0x3C)[0]
     if pe + 26 > len(exe) or exe[pe:pe + 4] != b"PE\0\0":
-        return ["behaved.exe: PE-Kopf fehlt"]
+        return ["%s: PE-Kopf fehlt" % name]
     maschine = struct.unpack_from("<H", exe, pe + 4)[0]
     if maschine != 0x8664:
-        maengel.append("behaved.exe ist keine 64-Bit-exe (Machine 0x%04x, erwartet 0x8664 = x64)" % maschine)
+        maengel.append("%s ist keine 64-Bit-exe (Machine 0x%04x, erwartet 0x8664 = x64)" % (name, maschine))
     if struct.unpack_from("<H", exe, pe + 24)[0] != 0x20B:
-        maengel.append("behaved.exe: kein PE32+-Kopf")
+        maengel.append("%s: kein PE32+-Kopf" % name)
     try:
         dlls = imp.imports_aus_daten(exe)
     except (struct.error, ValueError, IndexError, UnicodeDecodeError) as e:
-        return maengel + ["behaved.exe: Importtabelle nicht lesbar (%s)" % e]
+        return maengel + ["%s: Importtabelle nicht lesbar (%s)" % (name, e)]
     for dll in sorted(dlls, key=str.lower):
         klein = dll.lower()
         if klein in imp.VERBOTEN:
-            maengel.append("behaved.exe bindet %s fest - ohne die DLL startet das Programm nicht "
-                           "(Rueckfall auf OpenGL kaeme nie zum Zug)" % dll)
+            maengel.append("%s bindet %s fest - ohne die DLL startet das Programm nicht "
+                           "(Rueckfall auf OpenGL kaeme nie zum Zug)" % (name, dll))
         elif klein not in imp.ERLAUBT:
-            maengel.append("behaved.exe braucht %s - die liegt nicht auf jedem Windows "
-                           "(VC-Laufzeit? CMAKE_MSVC_RUNTIME_LIBRARY)" % dll)
+            maengel.append("%s braucht %s - die liegt nicht auf jedem Windows "
+                           "(VC-Laufzeit? CMAKE_MSVC_RUNTIME_LIBRARY)" % (name, dll))
     fehlend = [n for n, b in daten if b and b not in exe]
     if fehlend:
         maengel.append("behaved.exe enthaelt die eingebauten Daten nicht (%s) - allein liefe "
@@ -212,7 +287,7 @@ def _pe_maengel(exe, daten, imp):
     return maengel
 
 
-def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print):
+def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print, q3map2=False):
     """Gibt die Liste der Beanstandungen zurueck (leer = in Ordnung)."""
     maengel = []
 
@@ -344,6 +419,28 @@ def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print):
                 melde(t)
             if not m:
                 gut("behaved.exe: x64, nur Windows-DLLs fest gebunden, Daten eingebaut")
+        # Stufe 3: bhed_q3map2.exe (Karten bauen) mit den Lizenztexten
+        q3 = lies("bhed_q3map2.exe")
+        if q3 is None:
+            if q3map2:
+                melde("bhed_q3map2.exe fehlt - ohne sie baut das Build-Menue keine Karten")
+        else:
+            m = _pe_maengel(q3, [], _importpruefung(), "bhed_q3map2.exe")
+            for t in m:
+                melde(t)
+            if not m:
+                gut("bhed_q3map2.exe: x64, nur Windows-DLLs fest gebunden")
+            try:
+                soll_liz = lizenz_eintraege(wurzel)
+            except Fehler as e:
+                soll_liz = []
+                melde(str(e))
+            fehl_liz = [n for n, b in soll_liz if lies(n[len(OBER) + 1:]) != b]
+            if fehl_liz:
+                melde("Lizenztexte zu bhed_q3map2.exe fehlen oder weichen ab: %s"
+                      % ", ".join(n.split("/")[-1] for n in fehl_liz))
+            elif soll_liz:
+                gut("licenses/: %d Lizenztexte zu bhed_q3map2.exe" % len(soll_liz))
         if exe_pfad is not None:
             soll_exe = "BehavEd-Remake-%s-windows-x64.exe" % rc
             if os.path.basename(exe_pfad) != soll_exe:
@@ -376,7 +473,7 @@ KOPF = (
     "- Unzip it (right-click \u2192 Extract All\u2026), open the `BehavEd-Remake` folder and "
     "start `behaved.exe`. Nothing is installed; keep `behaved.exe` next to its `data` folder.\n"
     "- Just the program: `BehavEd-Remake-{rc}-windows-x64.exe` also runs on its own "
-    "(the offline guide is only in the zip).\n"
+    "(the offline guide and the map compiler `bhed_q3map2.exe` are only in the zip).\n"
     "- Already using BehavEd-Remake? It updates itself (Help \u2192 Check for updates\u2026).\n"
     "- \"Source code (zip)\" and \"Source code (tar.gz)\" are for developers \u2013 they "
     "contain no program.\n"
@@ -540,6 +637,11 @@ def selbsttest():
             schreibe(os.path.join(wurzel, *h.split("/")), "<!doctype html>" + h)
         schreibe(os.path.join(wurzel, "handbuch", "en", "entwurf.html"), "nur im Arbeitsordner")
         alle_daten = b"".join(daten[n] for n in sorted(daten))
+        # Stufe 3: die Lizenzquellen (ganze Datei oder Kommentarblock)
+        for _name, rel, block in LIZENZEN:
+            inhalt = "Lizenz " + rel + "\n" if block is None else \
+                "/* Kopf */\n// %s irgendwas\n// Mitte\n// %s\n// Rest\n" % block
+            schreibe(os.path.join(wurzel, *rel.split("/")), inhalt)
         exe = os.path.join(tmp, "behaved.exe")
         schreibe(exe, _probe_exe(["KERNEL32.dll", "USER32.dll", "WINHTTP.dll"], anhang=alle_daten))
 
@@ -578,6 +680,24 @@ def selbsttest():
         shutil.copyfile(exe, allein)
         m = pruefe(gut_zip, rc, wurzel, exe_pfad=allein, ausgabe=still)
         erwarte("pruefe --exe: die eigenstaendige exe gleicht der im Zip", not m, m)
+
+        # --- Stufe 3: Zip mit bhed_q3map2.exe und Lizenztexten
+        q3 = os.path.join(tmp, "bhed_q3map2.exe")
+        schreibe(q3, _probe_exe(["KERNEL32.dll", "WS2_32.dll", "bcrypt.dll"]))
+        q3_zip = os.path.join(tmp, "q3", "BehavEd-Remake-rc900-windows-x64.zip")
+        n3 = zip_bauen(exe, q3_zip, wurzel, handbuch=handbuch, q3map2=q3)
+        with zipfile.ZipFile(q3_zip) as z:
+            namen3 = z.namelist()
+            ddslib = z.read(OBER + "/licenses/ddslib.txt").decode("utf-8")
+        erwarte("zip --q3map2: bhed_q3map2.exe und %d Lizenztexte dabei, behaved.exe weiter zuletzt" % len(LIZENZEN),
+                n3 == n + 1 + len(LIZENZEN) and OBER + "/bhed_q3map2.exe" in namen3
+                and namen3[-1] == OBER + "/behaved.exe" and OBER + "/licenses/GPL-2.0.txt" in namen3)
+        erwarte("zip --q3map2: aus einem Quelltextkopf nur der Lizenzblock, ohne Kommentarzeichen",
+                "Mitte" in ddslib and "Kopf" not in ddslib and "Rest" not in ddslib and "//" not in ddslib)
+        m = pruefe(q3_zip, rc, wurzel, ausgabe=still, q3map2=True)
+        erwarte("pruefe --q3map2: das Zip mit bhed_q3map2.exe besteht", not m, m)
+        with zipfile.ZipFile(q3_zip) as z:
+            grund3 = [(i.filename, z.read(i)) for i in z.infolist()]
 
         # --- Kaputte Pakete: jedes muss auffallen
         with zipfile.ZipFile(gut_zip) as z:
@@ -643,6 +763,22 @@ def selbsttest():
         m = pruefe(os.path.join(tmp, "behaved.exe"), rc, wurzel, ausgabe=still)
         erwarte("pruefe weist ab: gar kein Zip", any("kein lesbares Zip" in t for t in m), m)
 
+        def kaputt3(was, eintraege, stichwort):
+            ordner = tempfile.mkdtemp(dir=tmp)
+            pfad = os.path.join(ordner, "BehavEd-Remake-rc900-windows-x64.zip")
+            _zip_aus(pfad, eintraege)
+            m = pruefe(pfad, rc, wurzel, ausgabe=still, q3map2=True)
+            treffer = [t for t in m if stichwort in t]
+            erwarte("pruefe --q3map2 weist ab: " + was, bool(treffer), treffer + [t for t in m if stichwort not in t])
+
+        kaputt3("bhed_q3map2.exe fehlt", grund, "bhed_q3map2.exe fehlt")
+        kaputt3("Lizenztext fehlt", [(n, b) for n, b in grund3 if not n.endswith("/libpng.txt")], "libpng.txt")
+        kaputt3("Lizenztext veraltet", [(n, b"alt" if n.endswith("/GPL-2.0.txt") else b) for n, b in grund3],
+                "GPL-2.0.txt")
+        kaputt3("bhed_q3map2.exe mit VC-Laufzeit",
+                [(n, _probe_exe(["KERNEL32.dll", "VCRUNTIME140.dll"]) if n.endswith("/bhed_q3map2.exe") else b)
+                 for n, b in grund3], "bhed_q3map2.exe braucht VCRUNTIME140.dll")
+
         # --- Die Notizen
         ziel = os.path.join(tmp, "notizen.md")
         text = notizen(rc, ziel, wurzel)
@@ -703,10 +839,12 @@ def main(argv=None, ausgabe=print):
     z = unter.add_parser("zip")
     z.add_argument("exe")
     z.add_argument("ziel")
+    z.add_argument("--q3map2")
     q = unter.add_parser("pruefe")
     q.add_argument("zip")
     q.add_argument("--fassung", required=True)
     q.add_argument("--exe")
+    q.add_argument("--q3map2", action="store_true")
     n = unter.add_parser("notizen")
     n.add_argument("rc")
     n.add_argument("ziel")
@@ -731,11 +869,11 @@ def main(argv=None, ausgabe=print):
             ausgabe(rc)
             return 0
         if a.befehl == "zip":
-            anzahl = zip_bauen(a.exe, a.ziel, wurzel)
+            anzahl = zip_bauen(a.exe, a.ziel, wurzel, q3map2=a.q3map2)
             ausgabe("Zip: %s (%d Eintraege)" % (a.ziel, anzahl))
             return 0
         if a.befehl == "pruefe":
-            return 1 if pruefe(a.zip, a.fassung, wurzel, exe_pfad=a.exe, ausgabe=ausgabe) else 0
+            return 1 if pruefe(a.zip, a.fassung, wurzel, exe_pfad=a.exe, ausgabe=ausgabe, q3map2=a.q3map2) else 0
         if a.befehl == "notizen":
             notizen(a.rc, a.ziel, wurzel)
             ausgabe("Notizen: %s" % a.ziel)

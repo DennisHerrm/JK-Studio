@@ -3,3 +3,13 @@ data/base/*.h -text
 data/jk2/*.h -text
 tests/karte/*.map -text
 tests/karte/*.bsp binary
+# Fremdquellen fuer bhed_q3map2 (Stufe 3): Bytes wie im Original, Git aendert keine Zeilenenden
+third_party/q3map2/** -text
+third_party/zlib/** -text
+third_party/libpng/** -text
+third_party/libjpeg-turbo/** -text
+third_party/libxml2/** -text
+third_party/assimp/** -text
+# Testkarten und NRC-Ergebnisse fuer ctest q3map2_vergleich: Bytes wie geschrieben
+tests/karte/q3map2/* -text
+tests/karte/q3map2/*.bsp binary
