@@ -916,6 +916,8 @@ void gruppenInhalt(int breite, int hoehe) {
             konsoleZeichnen();
         } else if (ed.gruppenSeite == 2) {
             feldInhalt(Feld::Texturen);
+        } else if (ed.gruppenSeite == 4) {
+            ebenenSeiteZeichnen(ib, ih);   // LayersBrowser_constructWindow
         } else {
             char z[120];
             std::snprintf(z, sizeof(z), tr(Str::KeStufe), 2);
@@ -1038,6 +1040,8 @@ void zeichne(float hoehe) {
     zeichneSeitenDialog();
     zeichnePinselSuche();
     zeichneKartenInfo();
+    zeichneEbenenMenue();
+    zeichneQtEingabe();
     zeichneArbitraerDialoge();
     zeichnePatchDialog();
     zeichneSurfaceInspector();

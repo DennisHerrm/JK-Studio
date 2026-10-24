@@ -160,6 +160,9 @@ std::map<std::string, Umsetzung>& umsetzungen() {
         m[name] = {[name] { dateiBefehl(name); }, nullptr};
     }
     m["RegionSetSelection"] = {[] { dateiBefehl("RegionSetSelection"); }, [] { return dateiBefehlAn("RegionSetSelection"); }};
+    // --- Stufe 2, Punkt 10: Ebenen (layerswindow.cpp:578-582) ---
+    m["ExpandSelectionToLayers"] = {[] { ebenenBefehl("ExpandSelectionToLayers"); }, nullptr};
+    m["LayersMenu"] = {[] { ebenenBefehl("LayersMenu"); }, nullptr};
     // --- Stufe 2, Punkt 9: Filter (filters.cpp:205-243) ---
     for (const karte::FilterBefehl& f : karte::filterBefehle()) {
         const std::string name = f.name;

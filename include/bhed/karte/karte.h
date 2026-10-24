@@ -87,8 +87,10 @@ public:
     bool ausgeschlossen = false;
     // Node::eFiltered (ClassnameFilter::updateFiltered, filter.h) - nicht im Undo.
     bool gefiltert = false;
-    // Node::visible (scenelib.h:220-222): weder versteckt noch gefiltert noch ausgeschlossen.
-    [[nodiscard]] bool sichtbar() const { return !versteckt && !ausgeschlossen && !gefiltert; }
+    // Node::eLayerHidden (LayerHideWalker, layerswindow.cpp:108-128) - nicht im Undo.
+    bool ebeneVersteckt = false;
+    // Node::visible (scenelib.h:220-222): m_state == eVisible.
+    [[nodiscard]] bool sichtbar() const { return !versteckt && !ausgeschlossen && !gefiltert && !ebeneVersteckt; }
 
     [[nodiscard]] std::unique_ptr<Memento> zustandSichern() const override;
     void zustandLaden(const Memento& m) override;

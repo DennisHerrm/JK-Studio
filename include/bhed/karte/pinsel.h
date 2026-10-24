@@ -235,8 +235,10 @@ public:
     bool ausgeschlossen = false;
     // Node::eFiltered (Brush/Patch::updateFiltered, filter.h) - nicht im Undo.
     bool gefiltert = false;
-    // Node::visible (scenelib.h:220-222): weder versteckt noch gefiltert noch ausgeschlossen.
-    [[nodiscard]] bool sichtbar() const { return !versteckt && !ausgeschlossen && !gefiltert; }
+    // Node::eLayerHidden (LayerHideWalker, layerswindow.cpp:108-128) - nicht im Undo.
+    bool ebeneVersteckt = false;
+    // Node::visible (scenelib.h:220-222): m_state == eVisible.
+    [[nodiscard]] bool sichtbar() const { return !versteckt && !ausgeschlossen && !gefiltert && !ebeneVersteckt; }
 };
 constexpr int kSchichtKeine = -1;          // m_layer == nullptr (Gruppenentitaeten)
 constexpr int kSchichtUnerreichbar = -2;   // m_ownIndex bleibt LAYERIDXPARENT (-1)

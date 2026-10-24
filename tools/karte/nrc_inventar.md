@@ -150,7 +150,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     - [x] ITEM Select Textured -> `SelectTextured`  (radiant/mainframe.cpp:919) -- Stufe 2 Punkt 7
     - [x] ITEM &Expand Selection To Primitives -> `ExpandSelectionToPrimitives`  (radiant/mainframe.cpp:920) -- Stufe 2 Punkt 8
     - [x] ITEM &Expand Selection To Entities -> `ExpandSelectionToEntities`  (radiant/mainframe.cpp:921) -- Stufe 1b Punkt 9
-    - [~] ITEM &Expand Selection To Layers -> `ExpandSelectionToLayers`  (radiant/mainframe.cpp:922) -- Stufe 2
+    - [x] ITEM &Expand Selection To Layers -> `ExpandSelectionToLayers`  (radiant/mainframe.cpp:922) -- Stufe 2 Punkt 10
     - [x] ITEM Select Connected Entities -> `SelectConnectedEntities`  (radiant/mainframe.cpp:923) -- Stufe 1b Punkt 9
     * ---
     - [x] ITEM &Shortcuts... -> `Shortcuts`  (radiant/mainframe.cpp:926)
@@ -649,7 +649,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `EntityUngroupPrimitives` | Commands | - | (radiant/entity.cpp:740) -- Stufe 1b Punkt 9
 - [ ] `Exit` | Commands | - | (radiant/mainframe.cpp:2073)
 - [x] `ExpandSelectionToEntities` | Commands | Shift+E | (radiant/select.cpp:1880) -- Stufe 1b Punkt 9
-- [~] `ExpandSelectionToLayers` | Commands | Ctrl+Q | (radiant/layerswindow.cpp:580) -- Stufe 2
+- [x] `ExpandSelectionToLayers` | Commands | Ctrl+Q | (radiant/layerswindow.cpp:580) -- Stufe 2 Punkt 10
 - [x] `ExpandSelectionToPrimitives` | Commands | Ctrl+E | (radiant/select.cpp:1879) -- Stufe 2 Punkt 8
 - [x] `FilterAreaportals` | Toggles | Alt+3 | (radiant/filters.cpp:220) -- Stufe 2 Punkt 9
 - [x] `FilterBotClips` | Toggles | Alt+M | (radiant/filters.cpp:241) -- Stufe 2 Punkt 9
@@ -692,7 +692,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `InvertCurveTextureY` | Commands | Shift+I | (radiant/patchmanip.cpp:695) -- Stufe 2 Punkt 6
 - [x] `InvertFilters` | Commands | - | (radiant/filters.cpp:210) -- Stufe 2 Punkt 9
 - [x] `InvertSelection` | Commands | I | (radiant/select.cpp:1876)
-- [~] `LayersMenu` | Commands | Shift+Q | (radiant/layerswindow.cpp:581) -- Stufe 2
+- [x] `LayersMenu` | Commands | Shift+Q | (radiant/layerswindow.cpp:581) -- Stufe 2 Punkt 10
 - [x] `MakeDetail` | Commands | Alt+D | (radiant/brushmanip.cpp:1493) -- Stufe 2 Punkt 3
 - [x] `MakeStructural` | Commands | Alt+S | (radiant/brushmanip.cpp:1494) -- Stufe 2 Punkt 3
 - [x] `MapInfo` | Commands | M | (radiant/map.cpp:2445) -- Stufe 2 Punkt 8

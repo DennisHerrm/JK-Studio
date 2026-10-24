@@ -46,6 +46,7 @@
 #include "bhed/roffanim.h"
 #include "bhed/kartenpruefung.h"   // rc602
 #include "karteneditor.h"           // Stufe 1b: der Karten-Editor
+#include "bhed/karte/ebenen.h"
 #include "bhed/karte/filter.h"
 #include "bhed/karte/kartenformat.h"
 
@@ -29585,6 +29586,107 @@ std::vector<Schritt> filter() {
     return s;
 }
 
+// Eine Spalte einer Zeile des Ebenen-Browsers: von rechts (select 42, visible 14)
+std::function<ImVec2()> ebenenSpalte(int ebene, float vonRechts) {
+    return [ebene, vonRechts]() {
+        const Element* el = finde("##ebene" + std::to_string(ebene), "", 0, true);
+        if (el == nullptr) { return ImVec2{0, 0}; }
+        return ImVec2{el->rect.Max.x - std::round(vonRechts * ke::massstab()), el->rect.GetCenter().y};
+    };
+}
+
+// Punkt 10a: Ebenen (Browser, Kontextmenue, Strg+Q, Umschalt+Q, Ziehen und Ablegen)
+std::vector<Schritt> ebenen() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(grundzustand("Stufe 2/10a: Grundzustand"));
+    add(tu("View > Layers Browser", [] {
+        ke::editor().gruppenSeite = 0;
+        (void)ke::ausfuehren("ToggleLayersBrowser");
+    }));
+    add(pause(0.3));
+    // 444 x 777 (GroupDlg/geometry) passt bei 1472 Bildpunkten Hoehe nicht ganz auf den Schirm
+    add(tu("Gruppendialog 444 x 600 rechts (die XY-Ansicht bleibt frei)", [] {
+        const float s = ke::massstab();
+        ImGui::SetWindowPos("###kartegruppe", ImVec2{ImGui::GetMainViewport()->Size.x - 520.0F * s, 40.0F * s});
+        ImGui::SetWindowSize("###kartegruppe", ImVec2{444.0F * s, 600.0F * s});
+    }));
+    add(pause(0.3));
+    add(pruefe("Seite Layers: eine Zeile \"0\", aktuell", [] {
+        return ke::editor().gruppenDialogOffen && ke::editor().gruppenSeite == 4 && finde("##ebene0", "", 0, true) != nullptr &&
+               ke::editor().karte.schichten.size() == 1;
+    }));
+    add(klickAn("New Layer", elementOrt("##ebenenknopf0")));
+    add(pause(0.3));
+    add(pruefe("Layer Name: Dialog mit UnnamedpLayer", [] { return ke::editor().eingabe.offen && std::string(ke::editor().eingabe.puffer) == "UnnamedpLayer"; }));
+    add(foto("karteneditor_ebene_name"));
+    add(tippe("Wald\"1"));
+    add(tasteKombi(ImGuiKey_Enter, "Return"));
+    add(pause(0.2));
+    add(pruefe("neue Ebene Wald1 (ohne '\"'), aktuell", [] {
+        const auto& k = ke::editor().karte;
+        return !ke::editor().eingabe.offen && k.schichten.size() == 2 && k.schichten[1].name == "Wald1" && k.aktuelleSchicht == 1;
+    }));
+    add(foto("karteneditor_ebenen"));
+    add(klickXy("M1 auf den Pinsel", ImGuiMouseButton_Left, ImVec2{32, 32}));
+    add(klickAn("Rechtsklick auf Wald1", elementOrt("##ebene1"), 1));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeLayMoveSel)) + "##ebenezuordnen"));
+    add(pruefe("Move Selection to This Layer: der Pinsel auf Wald1", [] { return pinsel()->schicht == 1; }));
+    add(klickAn("Auge von Wald1", ebenenSpalte(1, 14.0F)));
+    add(pruefe("Auge: Wald1 versteckt, der Pinsel unsichtbar und abgewaehlt", [] {
+        return !pinsel()->sichtbar() && pinsel()->ebeneVersteckt && ke::editor().karte.auswahl.anzahl() == 0 && ke::editor().ebenenBro.sichtbar[1] == 0;
+    }));
+    add(klickAn("Auge von Wald1 nochmal", ebenenSpalte(1, 14.0F)));
+    add(pruefe("Auge: wieder sichtbar", [] { return pinsel()->sichtbar(); }));
+    add(klickAn("Auswahlsymbol von 0", ebenenSpalte(0, 42.0F)));
+    add(pruefe("Select 0: nur das Licht", [] {
+        const auto& k = ke::editor().karte;
+        return k.auswahl.anzahl() == 1 && k.auswahl.gewaehlt(lichtEntitaet().get());
+    }));
+    add(ziehenAn("Umschalt+Klick auf das Auswahlsymbol von Wald1", ebenenSpalte(1, 42.0F), 0.0F, 0.0F, 0, ImGuiMod_Shift));
+    add(pruefe("Umschalt: das Licht auf Wald1", [] { return lichtEntitaet()->schicht == 1; }));
+    add(tu("Auswahl: nur der Pinsel", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), e.karte.welt()->kinder().front());
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Q, "Strg+Q"));
+    add(pruefe("Strg+Q: alles auf Wald1 (Pinsel und Licht)", [] { return ke::editor().karte.auswahl.anzahl() == 2; }));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_Q, "Umschalt+Q"));
+    add(pause(0.2));
+    add(pruefe("Umschalt+Q: Menue mit -> 0 und -> Wald1", [] {
+        return ke::editor().ebenenBro.menueOffen && finde("-> 0##ebenezu0", "", 0, true) != nullptr;
+    }));
+    add(foto("karteneditor_ebenen_menue"));
+    add(klick("-> 0##ebenezu0"));
+    add(pruefe("-> 0: beide auf 0", [] { return pinsel()->schicht == 0 && lichtEntitaet()->schicht == 0; }));
+    // Ziehen und Ablegen: eine zweite Ebene unter Wald1
+    add(tu("New Layer B (direkt)", [] {
+        (void)karte::ebeneNeu(ke::editor().karte, -1, "B");
+    }));
+    add(pause(0.2));
+    add(ziehenAn("Zeile B auf die Mitte von Wald1", elementOrt("##ebene2"), 0.0F, -std::round(22.0F * ke::massstab()), 0));
+    add(pause(0.2));
+    add(pruefe("abgelegt: B ist Kind von Wald1", [] {
+        const auto& k = ke::editor().karte;
+        return k.schichten.size() == 3 && k.schichten[2].name == "B" && k.schichten[2].eltern == 1;
+    }));
+    add(tu("Pinsel auf B", [] { pinsel()->schicht = 2; }));
+    add(klickAn("Rechtsklick auf Wald1", elementOrt("##ebene1"), 1));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeLayDelete)) + "##ebeneloeschen"));
+    add(pruefe("Delete Wald1: B mit, der Pinsel auf 0 (B war aktuell -> erste oberste)", [] {
+        const auto& k = ke::editor().karte;
+        return k.schichten.size() == 1 && pinsel()->schicht == 0 && k.aktuelleSchicht == 0;
+    }));
+    add(tu("Gruppendialog zu, Seite Entities", [] {
+        ke::editor().gruppenDialogOffen = false;
+        ke::editor().gruppenSeite = 0;
+    }));
+    return s;
+}
+
 }  // namespace stufe2
 
 std::vector<Schritt> karteneditorStufe2Schritte() {
@@ -29598,6 +29700,7 @@ std::vector<Schritt> karteneditorStufe2Schritte() {
     for (Schritt& x : stufe2::texturen()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::auswahlDatei()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::filter()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe2::ebenen()) { s.push_back(std::move(x)); }
     return s;
 }
 

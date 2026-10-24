@@ -434,6 +434,28 @@ struct Editor {
         bool caulk = true;      // f-caulk.png, setChecked( true )
         bool innenWeg = true;   // csgtool_removeinner.png
     } csgWerkzeug;
+    // Der Ebenen-Browser (layerswindow.cpp: LayersBrowser g_lbro)
+    struct EbenenBrowser {
+        std::vector<char> sichtbar;          // item->data( Column::visible ) je Ebene
+        std::size_t stand = static_cast<std::size_t>(-1);   // ladeZaehler beim Aufbau
+        int gewaehlt = -1;                   // die gewaehlte Zeile
+        int druck = -1;                      // Zeile beim Druecken (Klick oder Ziehen)
+        float druckX = 0.0F;                 // Ort beim Druecken (Bildpunkte)
+        float druckY = 0.0F;
+        bool ziehen = false;                 // QAbstractItemView: DraggingState
+        int menueEbene = -1;                 // context_menu: die Zeile unter der Maus
+        bool menueOeffnen = false;           // context_moveto_menu (Umschalt+Q)
+        bool menueOffen = false;
+    } ebenenBro;
+    // QInputDialog::getText (Layer Name)
+    struct Eingabe {
+        bool offen = false;
+        bool oeffnen = false;
+        std::string titel;
+        std::string beschriftung;
+        char puffer[256] = "";
+        std::function<void(const std::string&)> fertig;
+    } eingabe;
     // Filter (filters.cpp): g_filters_globals.exclude ("SI_Exclude")
     unsigned int filterMaske = 0;
     std::size_t filterSchluessel = 0;   // Stand, mit dem zuletzt gefiltert wurde
@@ -874,6 +896,13 @@ bool auswahlSpeichernUnter(const std::string& pfad);  // Map_SaveSelected
 bool regionSpeichernUnter(const std::string& pfad);   // Map_SaveRegion
 // EverySecondTimer (mainframe.cpp:727-746): jedes Bild aufrufen
 void autosaveJedeSekunde();
+// Stufe 2, Punkt 10 (app_karte_ebenen.cpp): der Ebenen-Browser, Strg+Q, Umschalt+Q
+void ebenenSeiteZeichnen(int breite, int hoehe);
+void ebenenBefehl(const std::string& name);
+void zeichneEbenenMenue();
+// QInputDialog::getText: fertig( text ) nur bei OK
+void qtEingabe(const std::string& titel, const std::string& beschriftung, const std::string& vorgabe, std::function<void(const std::string&)> fertig);
+void zeichneQtEingabe();
 // Stufe 2, Punkt 9 (app_karte_filter.cpp): die Filter
 void filterBefehl(const std::string& name);
 bool filterBefehlAn(const std::string& name);
