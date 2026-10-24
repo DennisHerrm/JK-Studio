@@ -37,7 +37,7 @@ struct PatchOrt {
 std::vector<PatchOrt> gewaehltePatches(const Karte& k) {
     std::vector<PatchOrt> r;
     for (const GewaehltesPrimitiv& g : gewaehltePrimitiveListe(k)) {
-        if (g.primitiv->art() != Primitiv::Art::Patch || g.primitiv->versteckt || g.entitaet->versteckt) { continue; }
+        if (g.primitiv->art() != Primitiv::Art::Patch || !g.primitiv->sichtbar() || !g.entitaet->sichtbar()) { continue; }
         r.push_back({g.entitaet, std::static_pointer_cast<Patch>(g.primitiv)});
     }
     return r;

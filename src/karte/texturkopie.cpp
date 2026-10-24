@@ -350,7 +350,7 @@ Texturierbar naechstesTexturierbar(const Karte& k, AuswahlVolumen& test) {
     Texturierbar t;
     Treffer bester;
     for (const auto& ent : k.entitaeten()) {
-        if (ent->versteckt) { continue; }   // !path.top().get().visible(): auch die Kinder nicht
+        if (!ent->sichtbar()) { continue; }   // !path.top().get().visible(): auch die Kinder nicht
         if (!ent->istBehaelter()) {
             // SelectionTestable der Punktentitaet mit OccludeSelector
             Treffer t2;
@@ -368,7 +368,7 @@ Texturierbar naechstesTexturierbar(const Karte& k, AuswahlVolumen& test) {
             }
         }
         for (const auto& p : ent->kinder()) {
-            if (p->versteckt) { continue; }
+            if (!p->sichtbar()) { continue; }
             if (p->art() == Primitiv::Art::Pinsel) {
                 const auto pinsel = std::static_pointer_cast<Pinsel>(p);
                 test.netzBeginnen(kEinheitsMatrix);   // m_test.BeginMesh( brush->localToWorld() )
@@ -445,7 +445,7 @@ void texturProjizierenAuswahl(Karte& k, const AuswahlEinstellung& e, const Textu
                 if (gewaehlt.count(pr.get()) == 0U) { continue; }
                 if (pr->art() == Primitiv::Art::Pinsel) {   // Scene_BrushProjectTexture_Selected
                     for (const auto& f : static_cast<Pinsel&>(*pr).flaechen()) { f->projiziereTextur(p, normal, k.kontext); }
-                } else if (!ent->versteckt && !pr->versteckt) {   // Scene_PatchProjectTexture_Selected (sichtbare)
+                } else if (ent->sichtbar() && pr->sichtbar()) {   // Scene_PatchProjectTexture_Selected (sichtbare)
                     static_cast<Patch&>(*pr).texturProjizieren(p, normal, k.kontext);
                 }
             }
@@ -474,7 +474,7 @@ void naechsteTexturAuftragen(Karte& k, const AuswahlEinstellung& e, AuswahlVolum
                         if (gewaehlt.count(pr.get()) == 0U) { continue; }
                         if (pr->art() == Primitiv::Art::Pinsel) {
                             for (const auto& f : static_cast<Pinsel&>(*pr).flaechen()) { f->setzeShader(browserShader, k.kontext); }
-                        } else if (!ent->versteckt && !pr->versteckt) {
+                        } else if (ent->sichtbar() && pr->sichtbar()) {
                             static_cast<Patch&>(*pr).setzeShader(browserShader);
                         }
                     }

@@ -151,6 +151,13 @@ std::map<std::string, Umsetzung>& umsetzungen() {
         const std::string name = n;
         m[name] = {[name] { auswahlBefehl(name); }, nullptr};
     }
+    // --- Stufe 2, Punkt 8: Auswahl und Datei (map.cpp:2429-2445, select.cpp:1877-1879) ---
+    for (const char* n : {"ImportMap", "SaveSelected", "SaveRegion", "SelectInside", "SelectTouching", "ExpandSelectionToPrimitives",
+                          "RegionOff", "RegionSetXY", "RegionSetBrush", "FindBrush", "MapInfo"}) {
+        const std::string name = n;
+        m[name] = {[name] { dateiBefehl(name); }, nullptr};
+    }
+    m["RegionSetSelection"] = {[] { dateiBefehl("RegionSetSelection"); }, [] { return dateiBefehlAn("RegionSetSelection"); }};
     // --- Texturbrowser (texwindow.cpp:2092-2111, findtexturedialog.cpp:229) ---
     for (const char* n : {"ShowAllTextures", "RefreshShaders", "FindReplaceTextures"}) {
         const std::string name = n;

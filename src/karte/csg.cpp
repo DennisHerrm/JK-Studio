@@ -61,9 +61,9 @@ bool kastenSchneiden(const Kasten& a, const Kasten& b) {
 std::vector<PinselOrt> gewaehltePinsel(const Karte& k) {
     std::vector<PinselOrt> r;
     for (const auto& ent : k.entitaeten()) {
-        if (ent->versteckt) { continue; }
+        if (!ent->sichtbar()) { continue; }
         for (const auto& p : ent->kinder()) {
-            if (p->versteckt || p->art() != Primitiv::Art::Pinsel || !k.auswahl.gewaehlt(ent.get(), p.get())) { continue; }
+            if (!p->sichtbar() || p->art() != Primitiv::Art::Pinsel || !k.auswahl.gewaehlt(ent.get(), p.get())) { continue; }
             r.push_back({ent, std::static_pointer_cast<Pinsel>(p)});
         }
     }
@@ -88,7 +88,7 @@ void gewaehltePinselLoeschen(Karte& k, const Primitiv* behalten = nullptr, const
         const auto kinder = ent->kinder();
         for (const auto& p : kinder) {
             if (p->art() != Primitiv::Art::Pinsel) { continue; }
-            if (!ent->versteckt && !p->versteckt && k.auswahl.gewaehlt(ent.get(), p.get()) && p.get() != behalten) {
+            if (ent->sichtbar() && p->sichtbar() && k.auswahl.gewaehlt(ent.get(), p.get()) && p.get() != behalten) {
                 pinselEntfernen(k, ent, std::static_pointer_cast<Pinsel>(p));
                 elternLoeschen = ent->kinder().empty();
             }
@@ -269,10 +269,10 @@ void aushoehlenAlle(Karte& k, const CsgUmgebung& u, const HohlEinstellung& e) {
     Ausschluss a{e};
     const auto liste = k.entitaeten();
     for (const auto& ent : liste) {
-        if (ent->versteckt) { continue; }
+        if (!ent->sichtbar()) { continue; }
         const auto kinder = ent->kinder();
         for (const auto& prim : kinder) {
-            if (prim->versteckt || prim->art() != Primitiv::Art::Pinsel) { continue; }
+            if (!prim->sichtbar() || prim->art() != Primitiv::Art::Pinsel) { continue; }
             const auto pinsel = std::static_pointer_cast<Pinsel>(prim);
             if (!k.auswahl.gewaehlt(ent.get(), pinsel.get()) && !pinselKomponentenGewaehlt(k, *pinsel)) { continue; }
             pinsel->bRep(kt);
@@ -451,11 +451,11 @@ void csgSubtrahieren(Karte& k, Protokoll& p) {
     const auto welt = k.welt();
     const auto liste = k.entitaeten();
     for (const auto& ent : liste) {
-        if (ent->versteckt) { continue; }
+        if (!ent->sichtbar()) { continue; }
         bool elternLoeschen = false;
         const auto kinder = ent->kinder();
         for (const auto& prim : kinder) {
-            if (prim->art() != Primitiv::Art::Pinsel || prim->versteckt || k.auswahl.gewaehlt(ent.get(), prim.get())) { continue; }
+            if (prim->art() != Primitiv::Art::Pinsel || !prim->sichtbar() || k.auswahl.gewaehlt(ent.get(), prim.get())) { continue; }
             const auto pinsel = std::static_pointer_cast<Pinsel>(prim);
             if (std::none_of(gewaehlt.begin(), gewaehlt.end(), [&](const PinselOrt& g) { return kastenSchneiden(pinsel->grenzen(kt), g.pinsel->grenzen(kt)); })) {
                 continue;
@@ -570,9 +570,9 @@ void csgHuelleBauen(Karte& k, const CsgUmgebung& u, const ClipperPunkte& punkte,
         }
     }
     for (const auto& ent : k.entitaeten()) {   // Scene_gatherSelectedComponents (sichtbare)
-        if (ent->versteckt) { continue; }
+        if (!ent->sichtbar()) { continue; }
         for (const auto& prim : ent->kinder()) {
-            if (prim->versteckt) { continue; }
+            if (!prim->sichtbar()) { continue; }
             if (prim->art() == Primitiv::Art::Pinsel) {
                 komponentenSammeln(k, static_cast<const Pinsel&>(*prim), [&](const Vektor3d& v) { ecken.dazu(v); });
             } else {
@@ -652,7 +652,7 @@ void csgSchneiden(Karte& k, Protokoll& p) {
     // Scene_forEachVisibleSelectedBrush: in Auswahlreihenfolge, der letzte bleibt
     std::vector<PinselOrt> gewaehlt;
     for (const GewaehltesPrimitiv& g : gewaehltePrimitiveListe(k)) {
-        if (g.primitiv->art() == Primitiv::Art::Pinsel && !g.primitiv->versteckt && !g.entitaet->versteckt) {
+        if (g.primitiv->art() == Primitiv::Art::Pinsel && g.primitiv->sichtbar() && g.entitaet->sichtbar()) {
             gewaehlt.push_back({g.entitaet, std::static_pointer_cast<Pinsel>(g.primitiv)});
         }
     }
@@ -712,9 +712,9 @@ void csgPinselVersetzen(Karte& k, const HohlEinstellung& e, bool schrumpfen) {
     Befehl befehl(k.undo, schrumpfen ? "Shrink brush" : "Expand brush");
     Ausschluss a{s};
     for (const auto& ent : k.entitaeten()) {   // Scene_forEachVisibleBrush mit BrushFaceOffset
-        if (ent->versteckt) { continue; }
+        if (!ent->sichtbar()) { continue; }
         for (const auto& prim : ent->kinder()) {
-            if (prim->versteckt || prim->art() != Primitiv::Art::Pinsel) { continue; }
+            if (!prim->sichtbar() || prim->art() != Primitiv::Art::Pinsel) { continue; }
             const auto pinsel = std::static_pointer_cast<Pinsel>(prim);
             if (!k.auswahl.gewaehlt(ent.get(), pinsel.get()) && !pinselKomponentenGewaehlt(k, *pinsel)) { continue; }
             a.sammeln(k, *pinsel);
@@ -765,7 +765,7 @@ void pinselTeilen(Karte& k, const CsgUmgebung& u, const ClipperPunkte& punkteEin
         for (const auto& ent : liste) {
             const auto kinder = ent->kinder();
             for (const auto& prim : kinder) {
-                if (ent->versteckt || prim->versteckt || prim->art() != Primitiv::Art::Pinsel || !k.auswahl.gewaehlt(ent.get(), prim.get())) { continue; }
+                if (!ent->sichtbar() || !prim->sichtbar() || prim->art() != Primitiv::Art::Pinsel || !k.auswahl.gewaehlt(ent.get(), prim.get())) { continue; }
                 const auto pinsel = std::static_pointer_cast<Pinsel>(prim);
                 const PinselTeilung t = pinselEinordnen(*pinsel, kt, ebene);
                 if (t.counts[kHinten] != 0 && t.counts[kVorne] != 0) {   // die Ebene schneidet den Pinsel

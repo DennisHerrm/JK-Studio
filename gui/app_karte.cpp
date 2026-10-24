@@ -29,6 +29,9 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <cstdlib>
+#include <fstream>
+#include <iterator>
 #include <functional>
 #include <utility>
 
@@ -141,6 +144,7 @@ void zuletztHinzu(const std::string& pfad) {
 // Map_Free + die Karte leeren; das Spiel der neuen Karte ist das aktuelle.
 void karteFreigeben() {
     Editor& e = g();
+    karte::regionAus(e.karte, e.region, e.raster.maxKoord());   // Map_Free: Map_RegionOff
     e.karte.auswahl.leeren();
     e.bearbeitung.neueKarte();
     for (auto& b : e.beobachter) { b = FensterBeobachter{b.breite, b.hoehe}; }
@@ -226,6 +230,20 @@ bool karteSchreibenMitMeldungen(const std::string& pfad) {
     return ok;
 }
 
+// MapResource_saveFile (referencecache.cpp:98-111)
+bool dateiSchreibenMitMeldung(const std::string& pfad, const std::string& text) {
+    konsoleSchreiben(KonsolenZeile::Art::Ausgabe, "Open file " + nrcPfad(pfad) + " for write...");
+    const std::string roh = karte::textmodusSchreiben(text);
+    std::ofstream f(utf8Pfad(pfad), std::ios::binary | std::ios::trunc);
+    bool ok = static_cast<bool>(f);
+    if (ok) {
+        f.write(roh.data(), static_cast<std::streamsize>(roh.size()));
+        ok = static_cast<bool>(f);
+    }
+    konsoleSchreiben(ok ? KonsolenZeile::Art::Ausgabe : KonsolenZeile::Art::Fehler, ok ? "success\n" : "failure\n");
+    return ok;
+}
+
 std::string startOrdner() {
     // map_open: bei einer unbenannten Karte der maps-Ordner, sonst die Karte.
     if (g().name != "unnamed.map") { return directoryOf(g().name); }
@@ -235,6 +253,33 @@ std::string startOrdner() {
 }  // namespace
 
 void rueckfrageDann(const char* titel, std::function<void()> danach) { mitRueckfrage(titel, std::move(danach)); }
+
+bool karteDateiSchreiben(const std::string& pfad, const std::string& text) { return dateiSchreibenMitMeldung(pfad, text); }
+
+bool karteDateiLesen(const std::string& pfad, std::string& text) {   // MapResource_loadFile
+    konsoleSchreiben(KonsolenZeile::Art::Ausgabe, "Open file " + nrcPfad(pfad) + " for read...");
+    std::ifstream f(utf8Pfad(pfad), std::ios::binary);
+    if (!f) {
+        konsoleSchreiben(KonsolenZeile::Art::Fehler, "failure\n");
+        return false;
+    }
+    konsoleSchreiben(KonsolenZeile::Art::Ausgabe, "success\n");
+    const std::string roh((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    text = karte::textmodusLesen(roh);
+    return true;
+}
+
+std::string kartenStartOrdner() { return startOrdner(); }
+const char* kartenDateiFilter() { return kKartenFilter; }
+
+std::string kartenBenutzerOrdner() {
+    // m_userGamePath: der Spielordner (fs_game vor basegame) + "maps/";
+    // im Selbsttest der Laufordner (nie in den Spielordner schreiben)
+    if (std::getenv("BHED_EDITORTEST") != nullptr) { return nrcPfad(fs::current_path().string()) + "/maps/"; }
+    const Editor& e = g();
+    if (e.karteSpiel && !e.karteSpiel->ordner.empty()) { return nrcPfad(e.karteSpiel->ordner.front()) + "/maps/"; }
+    return nrcPfad(platform::settingsDirectory()) + "/maps/";
+}
 
 // Entity_reloadDefinitions (entity.cpp:607-612): GlobalEntityClassManager()
 // unrealise / realise liest die Klassen neu; MapEntityClasses (map.cpp:
@@ -327,6 +372,7 @@ void neueKarte() {
         karteFreigeben();
         g().name = "unnamed.map";
         g().karte.undo.alsGespeichertMarkieren();
+        g().autosave.leeren();   // Map::realise: AutoSave_clear
         ++g().ladeZaehler;
         startPosition();   // Map_New: FocusViews( g_vector3_identity, 0 ) ueber Map_StartPosition
     });
@@ -355,6 +401,7 @@ bool karteOeffnen(const std::string& pfad) {
     e.karte.anmelden();
     e.karte.undo.clear();
     e.karte.undo.alsGespeichertMarkieren();
+    e.autosave.leeren();   // Map::realise: AutoSave_clear
     std::size_t primitive = 0;
     for (const auto& ent : e.karte.entitaeten()) { primitive += ent->kinder().size(); }
     ausgabe(zeitText("map load", t0));   // ScopeTimer timer( "map load" )
@@ -988,6 +1035,8 @@ void zeichne(float hoehe) {
     zeichneTastenDialog();
     zeichneCsgWerkzeug();
     zeichneSeitenDialog();
+    zeichnePinselSuche();
+    zeichneKartenInfo();
     zeichneArbitraerDialoge();
     zeichnePatchDialog();
     zeichneSurfaceInspector();

@@ -357,7 +357,7 @@ std::vector<ClipperFlaeche> clipperFlaechen() {
     const karte::Ebene3d ebene = karte::clipperEbene(ed.bearbeitung.clipperPunkte, ed.bearbeitung.clipperUmgedreht);
     if (!karte::ebeneGueltig(ebene)) { return r; }
     for (const auto& g : karte::gewaehltePrimitiveListe(ed.karte)) {   // BrushInstanceSetClipPlane: sichtbar und gewaehlt
-        if (g.primitiv->art() != karte::Primitiv::Art::Pinsel || g.primitiv->versteckt || g.entitaet->versteckt) { continue; }
+        if (g.primitiv->art() != karte::Primitiv::Art::Pinsel || !g.primitiv->sichtbar() || !g.entitaet->sichtbar()) { continue; }
         karte::Wicklung w;
         karte::clipperWicklung(static_cast<const karte::Pinsel&>(*g.primitiv), ed.karte.kontext, ebene, w);
         if (w.numpoints < 3) { continue; }
@@ -438,7 +438,7 @@ KomponentenZeichnung komponentenZeichnung(const karte::Blick& blick) {
     };
     std::set<const karte::Primitiv*> gezeichnet;
     for (const auto& g : karte::gewaehltePrimitiveListe(k)) {
-        if (g.primitiv->versteckt || g.entitaet->versteckt) { continue; }
+        if (!g.primitiv->sichtbar() || !g.entitaet->sichtbar()) { continue; }
         gezeichnet.insert(g.primitiv.get());
         if (g.primitiv->art() == karte::Primitiv::Art::Pinsel) {
             pinselZeichnen(static_cast<const karte::Pinsel&>(*g.primitiv), true);
@@ -450,7 +450,7 @@ KomponentenZeichnung komponentenZeichnung(const karte::Blick& blick) {
     for (const auto& fw : k.auswahl.flaechen()) {
         const auto p = fw.pinsel.lock();
         const auto f = fw.flaeche.lock();
-        if (!p || !f || p->versteckt || gezeichnet.count(p.get()) != 0) { continue; }
+        if (!p || !f || !p->sichtbar() || gezeichnet.count(p.get()) != 0) { continue; }
         p->bRep(k.kontext);
         if (f->traegtBei()) { punkt(z.gewaehlt, f->schwerpunkt(), blau); }
     }

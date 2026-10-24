@@ -28,6 +28,8 @@
 #include "bhed/karte/grundformen.h"
 #include "bhed/karte/texturbefehle.h"
 #include "bhed/karte/texturtags.h"
+#include "bhed/karte/kartendatei.h"
+#include "bhed/karte/region.h"
 #include "bhed/karte/kamera.h"
 #include "bhed/karte/karte.h"
 #include "bhed/karte/kartenformat.h"
@@ -432,6 +434,29 @@ struct Editor {
         bool caulk = true;      // f-caulk.png, setChecked( true )
         bool innenWeg = true;   // csgtool_removeinner.png
     } csgWerkzeug;
+    // Region (map.cpp:1292-1297): g_region_active, g_region_mins/maxs
+    karte::Region region;
+    std::string regionKastenShader;   // g_regionBoxShader ("RegionBoxShader", Seite Build)
+    // Autosave (autosave.cpp:104-158) mit dem EverySecondTimer
+    karte::AutoSpeichern autosave;
+    std::time_t autosaveVersatz = 0;  // Selbsttest: die Uhr vorstellen
+    double autosaveTakt = 0.0;
+    // "Find Brush" (DoFind, map.cpp:2085): modal, jedes Mal neu
+    struct PinselSuche {
+        bool offen = false;
+        bool oeffnen = false;
+        int entitaet = 0;
+        int pinsel = 0;
+    } pinselSuche;
+    // "Map Info" (DoMapInfo, map.cpp:906): modal
+    struct KartenInfoDialog {
+        bool offen = false;
+        bool oeffnen = false;
+        karte::KartenInfo info;
+        int sortSpalte = 0;      // sortByColumn( 0, AscendingOrder )
+        bool absteigend = false;
+        std::string gewaehlt;
+    } kartenInfo;
     // "Arbitrary sides" (DoSides, gtkdlgs.cpp:272): modal, jedes Mal neu
     struct SeitenDialog {
         bool offen = false;
@@ -835,6 +860,27 @@ void zeichneTastenDialog();    // "Mapped Commands" (Ctrl+Shift+P)
 void zeichneCsgWerkzeug();     // "CSG Tool" (app_karte_csg.cpp)
 void seitenDialogOeffnen(karte::Grundform art);   // DoSides (app_karte_formen.cpp)
 void zeichneSeitenDialog();
+// Stufe 2, Punkt 8 (app_karte_datei.cpp): Import, Save selected/region,
+// Select inside/touching, Expand To Primitives, Region, Find brush, Map Info
+void dateiBefehl(const std::string& name);
+bool dateiBefehlAn(const std::string& name);
+void zeichnePinselSuche();
+void zeichneKartenInfo();
+bool karteImportierenAus(const std::string& pfad);    // ImportMap ohne Dateiwahl
+bool auswahlSpeichernUnter(const std::string& pfad);  // Map_SaveSelected
+bool regionSpeichernUnter(const std::string& pfad);   // Map_SaveRegion
+// EverySecondTimer (mainframe.cpp:727-746): jedes Bild aufrufen
+void autosaveJedeSekunde();
+// MapResource_saveFile / MapResource_loadFile (referencecache.cpp:64-111):
+// "Open file X for write/read..." mit success / failure; Text wie
+// TextFileOutputStream (CR LF).
+bool karteDateiSchreiben(const std::string& pfad, const std::string& text);
+bool karteDateiLesen(const std::string& pfad, std::string& text);
+// map_open / map_save: der Startordner und die Dateitypen
+[[nodiscard]] std::string kartenStartOrdner();
+[[nodiscard]] const char* kartenDateiFilter();
+// g_qeglobals.m_userGamePath + "maps/" (Autosave einer unbenannten Karte)
+[[nodiscard]] std::string kartenBenutzerOrdner();
 void arbitraerDialogZeigen(bool drehen);   // DoRotateDlg / DoScaleDlg (app_karte_transform.cpp)
 void zeichneArbitraerDialoge();
 void patchDialogOeffnen(int art, karte::PatchVorlage vorlage = karte::PatchVorlage::Ebene);   // app_karte_patch.cpp

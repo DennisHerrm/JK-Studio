@@ -70,6 +70,7 @@ constexpr int kSeiteClipper = 14;
 constexpr int kSeiteSurface = 16;
 constexpr int kSeiteKamera = 17;
 constexpr int kSeiteTexBro = 20;
+constexpr int kSeiteAutosave = 22;
 
 struct Entwurf {
     bool offen = false;
@@ -96,6 +97,10 @@ struct Entwurf {
     int patchSchwelle = 4;   // g_PatchSubdivideThreshold
     bool siRaster = false;   // g_si_globals.m_bSnapTToGrid
     Editor::TexturQualitaet texQual;
+    // Autosave_constructPreferences (autosave.cpp:167-173)
+    bool autosaveAn = true;
+    int autosaveMinuten = 15;
+    bool schnappschuesse = false;
 };
 Entwurf g_entwurf;
 
@@ -472,6 +477,22 @@ void texturenSeite() {
     (void)haken(Str::Count, trK(Str::KePrTexAnisotropy), q.anisotropie);
 }
 
+// Autosave_constructPreferences (autosave.cpp:167-173; Foto pref_Autosave.png):
+// appendCheckBox "Enable Autosave", appendSpinner "Autosave Frequency
+// (minutes)" 1..60 (Widget_connectToggleDependency: nur mit dem Haken),
+// appendCheckBox "Save Snapshots".
+void autosaveSeite() {
+    formAnfang({Str::KePrAutosaveFreq});
+    (void)haken(Str::Count, (std::string(trK(Str::KePrAutosaveEnable)) + "##autosavean").c_str(), g_entwurf.autosaveAn);
+    feldAnfang(Str::KePrAutosaveFreq);
+    if (!g_entwurf.autosaveAn) { ImGui::BeginDisabled(); }
+    ImGui::InputInt("##autosaveminuten", &g_entwurf.autosaveMinuten);
+    if (!g_entwurf.autosaveAn) { ImGui::EndDisabled(); }
+    g_entwurf.autosaveMinuten = std::clamp(g_entwurf.autosaveMinuten, 1, 60);
+    feldEnde();
+    (void)haken(Str::Count, (std::string(trK(Str::KePrAutosaveSnapshots)) + "##schnappschuesse").c_str(), g_entwurf.schnappschuesse);
+}
+
 // SurfaceInspector_constructPreferences (surfacedialog.cpp:1734-1736): eine Checkbox
 void surfaceSeite() {
     formAnfang({});
@@ -523,6 +544,9 @@ void zeichneEinstellungen() {
         g_entwurf.patchSchwelle = karte::patchUnterteilungSchwelle();
         g_entwurf.siRaster = ed.siWerte.rasterAnpassen;
         g_entwurf.texQual = ed.texQual;
+        g_entwurf.autosaveAn = ed.autosave.an;
+        g_entwurf.autosaveMinuten = ed.autosave.minuten;
+        g_entwurf.schnappschuesse = ed.autosave.schnappschuesse;
         g_entwurf.clipperCaulk = ed.bearbeitung.clipperCaulk;
         g_entwurf.clipperUmdrehen = ed.bearbeitung.clipperUmdrehenZuruecksetzen;
         g_entwurf.clipperPunkte = ed.bearbeitung.clipperPunkteZuruecksetzen;
@@ -608,6 +632,8 @@ void zeichneEinstellungen() {
             patchSeite();
         } else if (g_entwurf.seite == kSeiteClipper) {
             clipperSeite();
+        } else if (g_entwurf.seite == kSeiteAutosave) {
+            autosaveSeite();
         } else {
             char z[120];
             std::snprintf(z, sizeof(z), tr(Str::KeStufe), 2);
@@ -678,6 +704,9 @@ void zeichneEinstellungen() {
             ed.bearbeitung.clipperPunkteZuruecksetzen = g_entwurf.clipperPunkte;
             ed.bearbeitung.clipper2Punkte2d = g_entwurf.clipper2Punkte;
             ed.bearbeitung.clipperDoppelklickTeilen = g_entwurf.clipperDoppelklick;
+            ed.autosave.an = g_entwurf.autosaveAn;
+            ed.autosave.minuten = g_entwurf.autosaveMinuten;
+            ed.autosave.schnappschuesse = g_entwurf.schnappschuesse;
             ed.maximiert = false;
             einstellungenSpeichern();
             offen = false;

@@ -1055,7 +1055,7 @@ void kameraZeichnen() {
         for (const auto& fw : ed.karte.auswahl.flaechen()) {
             const auto pinsel = fw.pinsel.lock();
             const auto fl = fw.flaeche.lock();
-            if (!pinsel || !fl || pinsel->versteckt) { continue; }
+            if (!pinsel || !fl || !pinsel->sichtbar()) { continue; }
             pinsel->bRep(ed.karte.kontext);
             if (!fl->traegtBei()) { continue; }
             const karte::Wicklung& w = fl->wicklung();

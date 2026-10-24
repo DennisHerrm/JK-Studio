@@ -107,10 +107,10 @@ template <typename F>
 void entitaetenWaehlen(Karte& k, F passt) {
     const auto welt = k.welt();
     for (const auto& ent : k.entitaeten()) {
-        if (ent->versteckt || ent == welt || !passt(*ent)) { continue; }
+        if (!ent->sichtbar() || ent == welt || !passt(*ent)) { continue; }
         k.auswahl.waehlen(ent);
         for (const auto& p : ent->kinder()) {
-            if (!p->versteckt) { k.auswahl.waehlen(ent, p); }
+            if (p->sichtbar()) { k.auswahl.waehlen(ent, p); }
         }
     }
 }
@@ -310,7 +310,7 @@ ErzeugtErgebnis entitaetErzeugen(Karte& k, const std::string& name, const Vektor
         const Gewaehlt g(k);
         for (const auto& ent : k.entitaeten()) {   // Scene_PatchSetShader_Selected, Scene_BrushSetShader_Selected
             for (const auto& p : ent->kinder()) {
-                if (g.prim.count(p.get()) == 0U || p->art() != Primitiv::Art::Patch || ent->versteckt || p->versteckt) { continue; }
+                if (g.prim.count(p.get()) == 0U || p->art() != Primitiv::Art::Patch || !ent->sichtbar() || !p->sichtbar()) { continue; }
                 static_cast<Patch&>(*p).setzeShader(trigger);
             }
         }
@@ -489,11 +489,11 @@ void auswahlAufEntitaetenErweitern(Karte& k) {   // ExpandSelectionToEntitiesWal
     const Gewaehlt g(k);
     const auto welt = k.welt();
     for (const auto& ent : k.entitaeten()) {
-        if (ent->versteckt || !g.betroffen(*ent)) { continue; }
+        if (!ent->sichtbar() || !g.betroffen(*ent)) { continue; }
         if (ent != welt) { k.auswahl.waehlen(ent); }   // avoid selecting world node
         if (!ent->istBehaelter()) { continue; }
         for (const auto& p : ent->kinder()) {
-            if (!p->versteckt) { k.auswahl.waehlen(ent, p); }
+            if (p->sichtbar()) { k.auswahl.waehlen(ent, p); }
         }
     }
 }

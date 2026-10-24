@@ -16093,6 +16093,7 @@ void draw() {
     elemente::bildEnde();
     handleShortcuts();
     handleTreeKeys();
+    karteneditor::autosaveJedeSekunde();   // Karten-Editor: EverySecondTimer (QE_CheckAutoSave)
     // rc601 ton (Review): als LETZTES im Bild - nach allem, was das Abspielen
     // anhalten kann. Schleifen, die tonBild in diesem Bild nicht gemeldet
     // hat, enden (vorher summte ein Schwert nach dem Ende der Zeitleiste

@@ -981,6 +981,14 @@ void einstellungenLaden() {
     ed.texQual.modus = std::clamp(static_cast<int>(zahl("TextureFiltering", 5)), 0, 5);
     ed.texQual.anisotropie = zahl("TextureAnisotropy", 1) != 0.0F;
     ed.texQual.kompression = 0;
+    // Autosave_Construct (autosave.cpp:184-190), RegionBoxShader (watchbsp.cpp:266)
+    ed.autosave.an = zahl("Autosave", 1) != 0.0F;
+    ed.autosave.minuten = std::clamp(static_cast<int>(zahl("AutosaveMinutes", 15)), 1, 60);
+    ed.autosave.schnappschuesse = zahl("Snapshots", 0) != 0.0F;
+    {
+        const auto it = k.find("RegionBoxShader");
+        ed.regionKastenShader = it != k.end() ? it->second : std::string();
+    }
     ed.abtasterGesetzt = false;
     // MainFrame/m_hSplit usw. (SplitterSetting::save: die Groessen), als
     // "a,b" in logischen Punkten; anderes (alte Anteile) gilt als nicht gemerkt.
@@ -1116,6 +1124,10 @@ void einstellungenSpeichern() {
     k["SI_SurfaceTexdef_Rotate"] = karte::zahlText(ed.siWerte.drehung);
     k["SnapTToGrid"] = ed.siWerte.rasterAnpassen ? "1" : "0";
     k["TagsShowGui"] = ed.tags.gui ? "1" : "0";
+    k["Autosave"] = ed.autosave.an ? "1" : "0";
+    k["AutosaveMinutes"] = std::to_string(ed.autosave.minuten);
+    k["Snapshots"] = ed.autosave.schnappschuesse ? "1" : "0";
+    k["RegionBoxShader"] = ed.regionKastenShader;
     k["TextureMipLevel"] = std::to_string(ed.texQual.mipStufe);
     k["SI_Gamma"] = karte::zahlText(ed.texQual.gamma);
     k["TextureFiltering"] = std::to_string(ed.texQual.modus);

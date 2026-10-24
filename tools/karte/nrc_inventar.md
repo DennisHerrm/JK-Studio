@@ -114,12 +114,12 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     - [x] ITEM &New Map -> `NewMap`  (radiant/mainframe.cpp:874)
     * ---
     - [x] ITEM &Open... -> `OpenMap`  (radiant/mainframe.cpp:877)
-    - [~] ITEM &Import... -> `ImportMap`  (radiant/mainframe.cpp:878) -- Stufe 2
+    - [x] ITEM &Import... -> `ImportMap`  (radiant/mainframe.cpp:878) -- Stufe 2 Punkt 8
     * ---
     - [x] ITEM &Save -> `SaveMap`  (radiant/mainframe.cpp:880)
     - [x] ITEM Save &as... -> `SaveMapAs`  (radiant/mainframe.cpp:881)
-    - [~] ITEM Save s&elected... -> `SaveSelected`  (radiant/mainframe.cpp:882) -- Stufe 2
-    - [~] ITEM Save re&gion... -> `SaveRegion`  (radiant/mainframe.cpp:883) -- Stufe 2
+    - [x] ITEM Save s&elected... -> `SaveSelected`  (radiant/mainframe.cpp:882) -- Stufe 2 Punkt 8
+    - [x] ITEM Save re&gion... -> `SaveRegion`  (radiant/mainframe.cpp:883) -- Stufe 2 Punkt 8
     * ---
     - [~] ITEM &Pointfile -> `TogglePointfile`  (radiant/mainframe.cpp:885) -- Stufe 3
     * ---
@@ -143,12 +143,12 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     * ---
     - [x] ITEM C&lear Selection -> `UnSelectSelection`  (radiant/mainframe.cpp:911)
     - [x] ITEM &Invert Selection -> `InvertSelection`  (radiant/mainframe.cpp:912)
-    - [~] ITEM Select i&nside -> `SelectInside`  (radiant/mainframe.cpp:913) -- Stufe 2
-    - [~] ITEM Select &touching -> `SelectTouching`  (radiant/mainframe.cpp:914) -- Stufe 2
+    - [x] ITEM Select i&nside -> `SelectInside`  (radiant/mainframe.cpp:913) -- Stufe 2 Punkt 8
+    - [x] ITEM Select &touching -> `SelectTouching`  (radiant/mainframe.cpp:914) -- Stufe 2 Punkt 8
     * ---
     - [x] ITEM Select All Of Type -> `SelectAllOfType`  (radiant/mainframe.cpp:918)
     - [x] ITEM Select Textured -> `SelectTextured`  (radiant/mainframe.cpp:919) -- Stufe 2 Punkt 7
-    - [~] ITEM &Expand Selection To Primitives -> `ExpandSelectionToPrimitives`  (radiant/mainframe.cpp:920) -- Stufe 2
+    - [x] ITEM &Expand Selection To Primitives -> `ExpandSelectionToPrimitives`  (radiant/mainframe.cpp:920) -- Stufe 2 Punkt 8
     - [x] ITEM &Expand Selection To Entities -> `ExpandSelectionToEntities`  (radiant/mainframe.cpp:921) -- Stufe 1b Punkt 9
     - [~] ITEM &Expand Selection To Layers -> `ExpandSelectionToLayers`  (radiant/mainframe.cpp:922) -- Stufe 2
     - [x] ITEM Select Connected Entities -> `SelectConnectedEntities`  (radiant/mainframe.cpp:923) -- Stufe 1b Punkt 9
@@ -221,10 +221,10 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     - [x] ITEM Show Hidden -> `ShowHidden`  (radiant/mainframe.cpp:1038)
     * ---
     * SUB Region  (radiant/mainframe.cpp:1042)
-      - [~] ITEM &Off -> `RegionOff`  (radiant/mainframe.cpp:1046) -- Stufe 2
-      - [~] ITEM &Set XY -> `RegionSetXY`  (radiant/mainframe.cpp:1047) -- Stufe 2
-      - [~] ITEM Set &Brush -> `RegionSetBrush`  (radiant/mainframe.cpp:1048) -- Stufe 2
-      - [~] CHECK Set Se&lection -> `RegionSetSelection`  (radiant/mainframe.cpp:1049) -- Stufe 2
+      - [x] ITEM &Off -> `RegionOff`  (radiant/mainframe.cpp:1046) -- Stufe 2 Punkt 8
+      - [x] ITEM &Set XY -> `RegionSetXY`  (radiant/mainframe.cpp:1047) -- Stufe 2 Punkt 8
+      - [x] ITEM Set &Brush -> `RegionSetBrush`  (radiant/mainframe.cpp:1048) -- Stufe 2 Punkt 8
+      - [x] CHECK Set Se&lection -> `RegionSetSelection`  (radiant/mainframe.cpp:1049) -- Stufe 2 Punkt 8
 
 ### create_selection_menu (radiant/mainframe.cpp)
 
@@ -281,8 +281,8 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 ### create_misc_menu (radiant/mainframe.cpp)
 
   * SUB M&isc  (radiant/mainframe.cpp:1165)
-    - [~] ITEM Find brush... -> `FindBrush`  (radiant/mainframe.cpp:1173) -- Stufe 2
-    - [~] ITEM Map Info... -> `MapInfo`  (radiant/mainframe.cpp:1174) -- Stufe 2
+    - [x] ITEM Find brush... -> `FindBrush`  (radiant/mainframe.cpp:1173) -- Stufe 2 Punkt 8
+    - [x] ITEM Map Info... -> `MapInfo`  (radiant/mainframe.cpp:1174) -- Stufe 2 Punkt 8
     - [~] ITEM &Refresh models -> `RefreshReferences`  (radiant/mainframe.cpp:1175) -- Stufe 2
     - [~] ITEM Set 2D &Background image...  (radiant/mainframe.cpp:1176) -- Stufe 2 (ausgegraut, Tooltip nennt die Stufe)
     - [~] ITEM Fullscreen -> `Fullscreen`  (radiant/mainframe.cpp:1177) -- Stufe 2
@@ -440,7 +440,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 - [~] toggle_button Models | f-models.png -> `FilterModels`  (radiant/filterbar.cpp:183) -- Stufe 2
 - [~] toggle_button Triggers / RightClick: tex Trigger | f-triggers.png -> `FilterTriggers`  (radiant/filterbar.cpp:185) -- Stufe 2
 - [~] button ResetFilters | f-reset.png -> `ResetFilters`  (radiant/filterbar.cpp:192) -- Stufe 2
-- [~] toggle_button Region Set Selection / RightClick: Region Off | f-region.png -> `RegionSetSelection`  (radiant/filterbar.cpp:195) -- Stufe 2
+- [ ] toggle_button Region Set Selection / RightClick: Region Off | f-region.png -> `RegionSetSelection`  (radiant/filterbar.cpp:195)
 - [x] toggle_button Hide Selected / RightClick: Show Hidden | f-hide.png -> `HideSelected`  (radiant/filterbar.cpp:198)
 
 ### File_constructToolbar (radiant/mainframe.cpp)
@@ -462,8 +462,8 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### Select_constructToolbar (radiant/mainframe.cpp)
 
-- [~] button Select touching | selection_selecttouching.png -> `SelectTouching`  (radiant/mainframe.cpp:1352) -- Stufe 2
-- [~] button Select inside | selection_selectinside.png -> `SelectInside`  (radiant/mainframe.cpp:1353) -- Stufe 2
+- [x] button Select touching | selection_selecttouching.png -> `SelectTouching`  (radiant/mainframe.cpp:1352) -- Stufe 2 Punkt 8
+- [x] button Select inside | selection_selectinside.png -> `SelectInside`  (radiant/mainframe.cpp:1353) -- Stufe 2 Punkt 8
 
 ### CSG_constructToolbar (radiant/mainframe.cpp)
 
@@ -650,7 +650,7 @@ Name | Art | Standardtaste | Quelle
 - [ ] `Exit` | Commands | - | (radiant/mainframe.cpp:2073)
 - [x] `ExpandSelectionToEntities` | Commands | Shift+E | (radiant/select.cpp:1880) -- Stufe 1b Punkt 9
 - [~] `ExpandSelectionToLayers` | Commands | Ctrl+Q | (radiant/layerswindow.cpp:580) -- Stufe 2
-- [~] `ExpandSelectionToPrimitives` | Commands | Ctrl+E | (radiant/select.cpp:1879) -- Stufe 2
+- [x] `ExpandSelectionToPrimitives` | Commands | Ctrl+E | (radiant/select.cpp:1879) -- Stufe 2 Punkt 8
 - [~] `FilterAreaportals` | Toggles | Alt+3 | (radiant/filters.cpp:220) -- Stufe 2
 - [~] `FilterBotClips` | Toggles | Alt+M | (radiant/filters.cpp:241) -- Stufe 2
 - [~] `FilterCaulk` | Toggles | Alt+6 | (radiant/filters.cpp:224) -- Stufe 2
@@ -674,7 +674,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `FilterTranslucent` | Toggles | Alt+4 | (radiant/filters.cpp:222) -- Stufe 2
 - [~] `FilterTriggers` | Toggles | Ctrl+Shift+T | (radiant/filters.cpp:239) -- Stufe 2
 - [~] `FilterWorldBrushes` | Toggles | Alt+1 | (radiant/filters.cpp:213) -- Stufe 2
-- [~] `FindBrush` | Commands | - | (radiant/map.cpp:2444) -- Stufe 2
+- [x] `FindBrush` | Commands | - | (radiant/map.cpp:2444) -- Stufe 2 Punkt 8
 - [x] `FindReplaceTextures` | Commands | - | (radiant/findtexturedialog.cpp:229)
 - [x] `FitTexture` | Commands | Ctrl+F | (radiant/surfacedialog.cpp:1747) -- Stufe 2 Punkt 7
 - [x] `FitTextureHeight` | Commands | - | (radiant/surfacedialog.cpp:1749) -- Stufe 2 Punkt 7
@@ -686,7 +686,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `GridDown` | Commands | [ | (radiant/grid.cpp:184)
 - [x] `GridUp` | Commands | ] | (radiant/grid.cpp:185)
 - [x] `HideSelected` | Toggles | H | (radiant/select.cpp:1842)
-- [~] `ImportMap` | Commands | - | (radiant/map.cpp:2431) -- Stufe 2
+- [x] `ImportMap` | Commands | - | (radiant/map.cpp:2431) -- Stufe 2 Punkt 8
 - [x] `InvertCurve` | Commands | Ctrl+I | (radiant/patchmanip.cpp:719) -- Stufe 2 Punkt 6
 - [x] `InvertCurveTextureX` | Commands | Ctrl+Shift+I | (radiant/patchmanip.cpp:694) -- Stufe 2 Punkt 6
 - [x] `InvertCurveTextureY` | Commands | Shift+I | (radiant/patchmanip.cpp:695) -- Stufe 2 Punkt 6
@@ -695,7 +695,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `LayersMenu` | Commands | Shift+Q | (radiant/layerswindow.cpp:581) -- Stufe 2
 - [x] `MakeDetail` | Commands | Alt+D | (radiant/brushmanip.cpp:1493) -- Stufe 2 Punkt 3
 - [x] `MakeStructural` | Commands | Alt+S | (radiant/brushmanip.cpp:1494) -- Stufe 2 Punkt 3
-- [~] `MapInfo` | Commands | M | (radiant/map.cpp:2445) -- Stufe 2
+- [x] `MapInfo` | Commands | M | (radiant/map.cpp:2445) -- Stufe 2 Punkt 8
 - [x] `MatrixTranspose` | Commands | Ctrl+Shift+M | (radiant/patchmanip.cpp:726) -- Stufe 2 Punkt 6
 - [x] `MaximizeView` | Commands | F12 | (radiant/mainframe.cpp:2097)
 - [~] `meshTex::About` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
@@ -773,10 +773,10 @@ Name | Art | Standardtaste | Quelle
 - [x] `Redo2` | Commands | Ctrl+Y | (radiant/select.cpp:1861)
 - [~] `RefreshReferences` | Commands | - | (radiant/mainframe.cpp:2071) -- Stufe 2
 - [x] `RefreshShaders` | Commands | - | (radiant/texwindow.cpp:2100)
-- [~] `RegionOff` | Commands | - | (radiant/map.cpp:2437) -- Stufe 2
-- [~] `RegionSetBrush` | Commands | - | (radiant/map.cpp:2439) -- Stufe 2
-- [~] `RegionSetSelection` | Toggles | Ctrl+Shift+R | (radiant/map.cpp:2441) -- Stufe 2
-- [~] `RegionSetXY` | Commands | - | (radiant/map.cpp:2438) -- Stufe 2
+- [x] `RegionOff` | Commands | - | (radiant/map.cpp:2437) -- Stufe 2 Punkt 8
+- [x] `RegionSetBrush` | Commands | - | (radiant/map.cpp:2439) -- Stufe 2 Punkt 8
+- [x] `RegionSetSelection` | Toggles | Ctrl+Shift+R | (radiant/map.cpp:2441) -- Stufe 2 Punkt 8
+- [x] `RegionSetXY` | Commands | - | (radiant/map.cpp:2438) -- Stufe 2 Punkt 8
 - [x] `RepeatTransforms` | Commands | Ctrl+R | (radiant/select.cpp:1871) -- Stufe 2 Punkt 5
 - [~] `ResetFilters` | Commands | - | (radiant/filters.cpp:211) -- Stufe 2
 - [x] `ResetTransforms` | Commands | Alt+R | (radiant/select.cpp:1872) -- Stufe 2 Punkt 5
@@ -787,18 +787,18 @@ Name | Art | Standardtaste | Quelle
 - [x] `RotateSelectionZ` | Commands | - | (radiant/select.cpp:1849) -- Stufe 2 Punkt 5
 - [x] `SaveMap` | Commands | Ctrl+S | (radiant/map.cpp:2432)
 - [x] `SaveMapAs` | Commands | - | (radiant/map.cpp:2433)
-- [~] `SaveRegion` | Commands | - | (radiant/map.cpp:2435) -- Stufe 2
-- [~] `SaveSelected` | Commands | - | (radiant/map.cpp:2434) -- Stufe 2
+- [x] `SaveRegion` | Commands | - | (radiant/map.cpp:2435) -- Stufe 2 Punkt 8
+- [x] `SaveSelected` | Commands | - | (radiant/map.cpp:2434) -- Stufe 2 Punkt 8
 - [x] `SearchFromStart` | Toggles | - | (radiant/texwindow.cpp:2111)
 - [x] `SelectAllOfType` | Commands | Shift+A | (radiant/select.cpp:1888)
 - [x] `SelectConnectedEntities` | Commands | Ctrl+Shift+E | (radiant/select.cpp:1881) -- Stufe 1b Punkt 9
-- [~] `SelectInside` | Commands | - | (radiant/select.cpp:1877) -- Stufe 2
+- [x] `SelectInside` | Commands | - | (radiant/select.cpp:1877) -- Stufe 2 Punkt 8
 - [x] `SelectNudgeDown` | Commands | Alt+Down | (radiant/select.cpp:1907)
 - [x] `SelectNudgeLeft` | Commands | Alt+Left | (radiant/select.cpp:1904)
 - [x] `SelectNudgeRight` | Commands | Alt+Right | (radiant/select.cpp:1905)
 - [x] `SelectNudgeUp` | Commands | Alt+Up | (radiant/select.cpp:1906)
 - [x] `SelectTextured` | Commands | Ctrl+Shift+A | (radiant/select.cpp:1857) -- Stufe 2 Punkt 7
-- [~] `SelectTouching` | Commands | - | (radiant/select.cpp:1878) -- Stufe 2
+- [x] `SelectTouching` | Commands | - | (radiant/select.cpp:1878) -- Stufe 2 Punkt 8
 - [x] `SetGrid0.125` | Commands | - | (radiant/grid.cpp:189)
 - [x] `SetGrid0.25` | Commands | - | (radiant/grid.cpp:190)
 - [x] `SetGrid0.5` | Commands | - | (radiant/grid.cpp:191)
@@ -926,8 +926,8 @@ Name | Art | Standardtaste | Quelle
 - [ ] "Install Map Developer's Files"  (radiant/gtkdlgs.cpp:492)
 - [ ] "Engine Path Configuration"  (radiant/mainframe.cpp:421)
 - [x] "Camera"  (radiant/mainframe.cpp:1755)
-- [ ] "Map Info"  (radiant/map.cpp:908)
-- [ ] "Find Brush"  (radiant/map.cpp:2085)
+- [x] "Map Info"  (radiant/map.cpp:908) -- Stufe 2 Punkt 8
+- [x] "Find Brush"  (radiant/map.cpp:2085) -- Stufe 2 Punkt 8
 - [x] "Patch density"  (radiant/patchmanip.cpp:839) -- Stufe 2 Punkt 6
 - [x] "Patch deform"  (radiant/patchmanip.cpp:918) -- Stufe 2 Punkt 6
 - [x] "Cap"  (radiant/patchmanip.cpp:949) -- Stufe 2 Punkt 6
@@ -940,7 +940,7 @@ Name | Art | Standardtaste | Quelle
 
 ## Einstellungsseiten
 
-- [ ] Autosave: "Autosave Preferences"  (radiant/autosave.cpp:173)
+- [x] Autosave: "Autosave Preferences"  (radiant/autosave.cpp:173) -- Stufe 2 Punkt 8
 - [ ] Brush: "Brush Settings"  (radiant/brushmodule.cpp:113)
 - [x] Camera: "Camera View Preferences"  (radiant/camwindow.cpp:2461)
 - [x] Clipper: "Clipper Tool Settings"  (radiant/clippertool.cpp:186) -- Stufe 2 Punkt 2
@@ -960,9 +960,9 @@ Name | Art | Standardtaste | Quelle
 
 ## Einstellungsfelder
 
-- [ ] CheckBox Enable Autosave  (radiant/autosave.cpp:167)
-- [ ] Spinner Autosave Frequency (minutes)  (radiant/autosave.cpp:168)
-- [ ] CheckBox Save Snapshots  (radiant/autosave.cpp:170)
+- [x] CheckBox Enable Autosave  (radiant/autosave.cpp:167) -- Stufe 2 Punkt 8
+- [x] Spinner Autosave Frequency (minutes)  (radiant/autosave.cpp:168) -- Stufe 2 Punkt 8
+- [x] CheckBox Save Snapshots  (radiant/autosave.cpp:170) -- Stufe 2 Punkt 8
 - [ ] Spinner Default texture scale  (radiant/brushmodule.cpp:86)
 - [ ] Combo New map Brush Type  (radiant/brushmodule.cpp:95)
 - [ ] CheckBox Always use caulk for new brushes  (radiant/brushmodule.cpp:102)

@@ -158,8 +158,8 @@ struct GewaehltMenge {
     }
 };
 
-bool sichtbar(const Entitaet& e) { return !e.versteckt; }
-bool sichtbar(const Primitiv& p) { return !p.versteckt; }
+bool sichtbar(const Entitaet& e) { return e.sichtbar(); }   // Node::visible
+bool sichtbar(const Primitiv& p) { return p.sichtbar(); }
 
 bool shaderGleich(const std::string& a, const std::string& b) {   // shader_equal: ohne Gross/klein
     if (a.size() != b.size()) { return false; }
@@ -498,13 +498,13 @@ void amRasterAusrichten(Karte& k, const AuswahlEinstellung& e, float raster, boo
         komponentenEinrasten(k, raster, eckenSperre);   // Scene_SnapToGrid_Component_Selected
     } else {
         for (const auto& ent : k.entitaeten()) {   // SnappableSnapToGridSelected (nur sichtbare)
-            if (ent->versteckt) { continue; }
+            if (!ent->sichtbar()) { continue; }
             if (g.ganz.count(ent.get()) != 0 && !ent->istBehaelter()) {   // Punktentitaet: origin_snapped
                 const Vektor3f o = eingerastet(entitaetUrsprung(*ent), raster);
                 ent->setzen("origin", zahlText(o[0]) + ' ' + zahlText(o[1]) + ' ' + zahlText(o[2]));
             }
             for (const auto& p : ent->kinder()) {
-                if (p->versteckt || g.prim.count(p.get()) == 0) { continue; }
+                if (!p->sichtbar() || g.prim.count(p.get()) == 0) { continue; }
                 if (p->art() == Primitiv::Art::Pinsel) {
                     static_cast<Pinsel&>(*p).eckenEinrasten(raster, k.kontext, eckenSperre);
                 } else {

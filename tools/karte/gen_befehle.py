@@ -81,6 +81,8 @@ SurfaceInspector FitTexture FitTextureWidth FitTextureHeight FitTextureWidthOnly
 TextureProjectOrtho TextureProjectCam TexRotateClock TexRotateCounter TexScaleUp TexScaleDown TexScaleLeft TexScaleRight
 TexShiftUp TexShiftDown TexShiftLeft TexShiftRight SelectTextured
 TagsToggleGui TagAdd TagRename TagDelete TagCopy TagPaste TagSearch TagSearchUntagged
+ImportMap SaveSelected SaveRegion SelectInside SelectTouching ExpandSelectionToPrimitives RegionOff RegionSetXY
+RegionSetBrush RegionSetSelection FindBrush MapInfo
 '''.split())
 
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem

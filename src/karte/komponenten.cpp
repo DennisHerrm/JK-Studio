@@ -98,9 +98,9 @@ void alleKomponentenAbwaehlen(Karte& k) {
 // PatchInstance::invertComponentSelection (patch.h:1608-1613)
 void komponentenUmkehren(Karte& k, KomponentenModus modus) {
     for (const auto& ent : k.entitaeten()) {
-        if (ent->versteckt) { continue; }
+        if (!ent->sichtbar()) { continue; }
         for (const auto& p : ent->kinder()) {
-            if (p->versteckt || !gewaehlt(k, *ent, *p)) { continue; }
+            if (!p->sichtbar() || !gewaehlt(k, *ent, *p)) { continue; }
             if (p->art() == Primitiv::Art::Patch) {
                 if (modus != KomponentenModus::Ecke) { continue; }
                 auto& patch = static_cast<Patch&>(*p);
@@ -181,9 +181,9 @@ void komponentenSammeln(const Karte& k, const Pinsel& p, const std::function<voi
 
 void komponentenEinrasten(Karte& k, float raster, bool eckenSperre) {
     for (const auto& ent : k.entitaeten()) {
-        if (ent->versteckt) { continue; }
+        if (!ent->sichtbar()) { continue; }
         for (const auto& p : ent->kinder()) {
-            if (p->versteckt || !gewaehlt(k, *ent, *p)) { continue; }
+            if (!p->sichtbar() || !gewaehlt(k, *ent, *p)) { continue; }
             if (p->art() == Primitiv::Art::Patch) {   // PatchInstance::snapComponents (patch.h:1641-1652)
                 auto& patch = static_cast<Patch&>(*p);
                 if (!patch.punkteGewaehlt()) { continue; }

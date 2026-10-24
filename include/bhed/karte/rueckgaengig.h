@@ -111,6 +111,7 @@ public:
     // Wiederholen und weiss, ob die Karte dem gespeicherten Stand entspricht
     // (Map_Modified). Stufe 1b.
     [[nodiscard]] bool gespeichert() const { return m_gespeichertStand == m_stand; }   // saved
+    [[nodiscard]] std::size_t stand() const { return m_stand; }                         // changes() (QE_CheckAutoSave)
     void alsGespeichertMarkieren() { m_gespeichertStand = m_stand; }                  // save
     // globalOutputStream: "<befehl>" nach jedem Befehl, "Undo: ..." und
     // "Redo: ..." (undo.cpp:292-333) - fuer die Konsole.

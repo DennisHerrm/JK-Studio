@@ -230,6 +230,10 @@ public:
     int schicht = 0;
     // Node::eHidden (Select_Hide, select.cpp:939-975) - nicht im Undo.
     bool versteckt = false;
+    // Node::eExcluded (Region: exclude_node, map.cpp:1369-1373) - nicht im Undo.
+    bool ausgeschlossen = false;
+    // Node::visible (scenelib.h:220-222): weder versteckt noch ausgeschlossen.
+    [[nodiscard]] bool sichtbar() const { return !versteckt && !ausgeschlossen; }
 };
 constexpr int kSchichtKeine = -1;          // m_layer == nullptr (Gruppenentitaeten)
 constexpr int kSchichtUnerreichbar = -2;   // m_ownIndex bleibt LAYERIDXPARENT (-1)

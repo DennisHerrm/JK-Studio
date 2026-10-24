@@ -178,10 +178,10 @@ void geoBauen(Szene& s, Sicht sicht) {
     s.geoSicht = sicht;
     const karte::Kontext& k = ed.karte.kontext;
     for (const auto& ent : ed.karte.entitaeten()) {
-        if (ent->versteckt) { continue; }
+        if (!ent->sichtbar()) { continue; }
         const Farbe farbe = entitaetsFarbe(*ent);
         for (const auto& p : ent->kinder()) {
-            if (p->versteckt) { continue; }
+            if (!p->sichtbar()) { continue; }
             if (p->art() == karte::Primitiv::Art::Pinsel) {
                 karte::pinselKanten(static_cast<const karte::Pinsel&>(*p), k, sicht, farbe, s.geo);
             } else {
@@ -219,7 +219,7 @@ void szeneBauen(Szene& s, Sicht sicht) {
         if (!tn.empty()) { ziele.emplace(tn, mitte(*ent)); }
     }
     for (const auto& ent : ed.karte.entitaeten()) {
-        if (ent->versteckt) { continue; }   // Node::eHidden: nicht sichtbar (auch die Kinder)
+        if (!ent->sichtbar()) { continue; }   // Node::visible: nicht sichtbar (auch die Kinder)
         const karte::EntitaetsKlasse* kl = ent->klasse();
         const bool welt = ent->klassenname() == "worldspawn";
         // SetWorldspawnColour: worldspawn in color_brushes
@@ -227,7 +227,7 @@ void szeneBauen(Szene& s, Sicht sicht) {
                            : (kl != nullptr ? karte::farbeAus(kl->farbe[0], kl->farbe[1], kl->farbe[2]) : karte::farbeAus(0, 0.5F, 0));
         const bool entGewaehlt = ed.karte.auswahl.gewaehlt(ent.get());
         for (const auto& p : ent->kinder()) {
-            if (p->versteckt) { continue; }
+            if (!p->sichtbar()) { continue; }
             const bool gew = entGewaehlt || ed.karte.auswahl.gewaehlt(ent.get(), p.get());
             if (!gew) { continue; }   // in geo (geoBauen)
             if (p->art() == karte::Primitiv::Art::Pinsel) {
@@ -326,8 +326,10 @@ karte::RasterEinstellungen rasterEinstellungen(int index, int schriftHoehe, int 
     r.aktiv = ed.aktivXy == index;
     r.workMin = ed.workzone.origin - ed.workzone.extents;   // Select_getWorkZone
     r.workMax = ed.workzone.origin + ed.workzone.extents;
-    r.regionMin = Vektor3f(-ed.raster.maxKoord(), -ed.raster.maxKoord(), -ed.raster.maxKoord());
-    r.regionMax = Vektor3f(ed.raster.maxKoord(), ed.raster.maxKoord(), ed.raster.maxKoord());
+    // g_region_mins/maxs: ohne Region +-GetMaxGridCoord() (Region_defaultMinMax)
+    r.regionAktiv = ed.region.aktiv;
+    r.regionMin = ed.region.aktiv ? ed.region.min : Vektor3f(-ed.raster.maxKoord(), -ed.raster.maxKoord(), -ed.raster.maxKoord());
+    r.regionMax = ed.region.aktiv ? ed.region.max : Vektor3f(ed.raster.maxKoord(), ed.raster.maxKoord(), ed.raster.maxKoord());
     const auto f3 = [](const Farben::F3& c) { return std::array<float, 3>{c[0], c[1], c[2]}; };
     r.hinten = f3(ed.farben.rasterHinten);
     r.klein = f3(ed.farben.rasterKlein);

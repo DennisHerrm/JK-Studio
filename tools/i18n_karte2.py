@@ -115,6 +115,26 @@ KARTE2 = [
     ("KePrTexBilinearMip", "Bilinear Mipmap", "Bilinear Mipmap", "双线性 Mipmap", "バイリニア ミップマップ"),
     ("KePrTexTrilinear", "Trilinear", "Trilinear", "三线性", "トライリニア"),
     ("KePrTexNone", "None", "Keine", "无", "なし"),
+    # --- Find Brush (map.cpp:2085-2131) ------------------------------------------------
+    ("KeFindBrushTitle", "Find Brush", "Pinsel finden", "查找画刷", "ブラシを検索"),
+    ("KeFindBrushEntity", "Entity number", "Entitätsnummer", "实体编号", "エンティティ番号"),
+    ("KeFindBrushBrush", "Brush number", "Pinselnummer", "画刷编号", "ブラシ番号"),
+    ("KeFindBrushFind", "Find", "Finden", "查找", "検索"),
+    # --- Map Info (map.cpp:906-978) ---------------------------------------------------
+    ("KeMapInfoTitle", "Map Info", "Karteninfo", "地图信息", "マップ情報"),
+    ("KeMapInfoBrushes", "Total Brushes:", "Pinsel gesamt:", "画刷总数:", "ブラシ合計:"),
+    ("KeMapInfoPatches", "Total Patches:", "Patches gesamt:", "面片总数:", "パッチ合計:"),
+    ("KeMapInfoEntities", "Total Entities:", "Entitäten gesamt:", "实体总数:", "エンティティ合計:"),
+    ("KeMapInfoIngame", "Ingame Entities:", "Entitäten im Spiel:", "游戏内实体:", "ゲーム内エンティティ:"),
+    ("KeMapInfoGroups", "Group Entities:", "Gruppenentitäten:", "组实体:", "グループエンティティ:"),
+    ("KeMapInfoIngameGroups", "Ingame Group Entities:", "Gruppenentitäten im Spiel:", "游戏内组实体:", "ゲーム内グループエンティティ:"),
+    ("KeMapInfoBreakdown", "*** Entity breakdown ***", "*** Entitäten nach Klasse ***", "*** 实体明细 ***", "*** エンティティ内訳 ***"),
+    ("KeMapInfoColEntity", "Entity", "Entität", "实体", "エンティティ"),
+    ("KeMapInfoColCount", "Count", "Anzahl", "数量", "個数"),
+    # --- Einstellungsseite Autosave (autosave.cpp:167-173) ----------------------------
+    ("KePrAutosaveEnable", "Enable Autosave", "Automatisch speichern", "启用自动保存", "自動保存を有効にする"),
+    ("KePrAutosaveFreq", "Autosave Frequency (minutes)", "Abstand (Minuten)", "自动保存间隔(分钟)", "自動保存の間隔 (分)"),
+    ("KePrAutosaveSnapshots", "Save Snapshots", "Schnappschüsse speichern", "保存快照", "スナップショットを保存"),
     # --- Einstellungsseite Patches (patchmanip.cpp:670-677) --------------------------
     ("KePrPatchThreshold", "Patch Subdivide Threshold", "Patch-Unterteilungsschwelle", "面片细分阈值", "パッチ分割しきい値"),
 ]

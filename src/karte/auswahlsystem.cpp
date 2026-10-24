@@ -192,7 +192,7 @@ void BesterWaehler::holen() {
 
 void szeneTestenPrimitive(const Karte& k, Waehler& w, AuswahlVolumen& test) {
     for (const auto& ent : k.entitaeten()) {
-        if (ent->versteckt) { continue; }
+        if (!ent->sichtbar()) { continue; }
         if (!ent->istBehaelter()) {
             Treffer t;
             entitaetTesten(*ent, test, t);
@@ -202,7 +202,7 @@ void szeneTestenPrimitive(const Karte& k, Waehler& w, AuswahlVolumen& test) {
         }
         // Gruppen und worldspawn haben keine eigene Form; ihre Kinder sind waehlbar.
         for (const auto& p : ent->kinder()) {
-            if (p->versteckt) { continue; }
+            if (!p->sichtbar()) { continue; }
             Treffer t;
             if (p->art() == Primitiv::Art::Pinsel) {
                 pinselTesten(static_cast<const Pinsel&>(*p), k.kontext, test, t);
@@ -220,9 +220,9 @@ void szeneTestenPrimitive(const Karte& k, Waehler& w, AuswahlVolumen& test) {
 void szeneTestenKomponenten(const Karte& k, Waehler& w, AuswahlVolumen& test, KomponentenModus komponente, bool nurGewaehlte) {
     if (komponente == KomponentenModus::Standard) { return; }
     for (const auto& ent : k.entitaeten()) {
-        if (ent->versteckt) { continue; }
+        if (!ent->sichtbar()) { continue; }
         for (const auto& p : ent->kinder()) {
-            if (p->versteckt) { continue; }
+            if (!p->sichtbar()) { continue; }
             if (nurGewaehlte && !k.auswahl.gewaehlt(ent.get(), p.get())) { continue; }
             if (p->art() == Primitiv::Art::Patch) {
                 if (komponente != KomponentenModus::Ecke) { continue; }
@@ -279,7 +279,7 @@ void szeneTesten(const Karte& k, Waehler& w, AuswahlVolumen& test, AuswahlModus 
     switch (modus) {
     case AuswahlModus::Entitaet:   // testselect_entity_visible: ohne worldspawn und Gruppen
         for (const auto& ent : k.entitaeten()) {
-            if (ent->versteckt || ent->istBehaelter()) { continue; }
+            if (!ent->sichtbar() || ent->istBehaelter()) { continue; }
             Treffer t;
             entitaetTesten(*ent, test, t);
             hinzu(w, Waehlbar{Waehlbar::Art::Entitaet, ent, nullptr, nullptr}, t);

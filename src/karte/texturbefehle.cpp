@@ -39,7 +39,7 @@ std::vector<std::shared_ptr<Pinsel>> gewaehltePinsel(const Karte& k) {
 std::vector<std::shared_ptr<Patch>> gewaehltePatches(const Karte& k) {
     std::vector<std::shared_ptr<Patch>> r;
     for (const GewaehltesPrimitiv& g : gewaehltePrimitiveListe(k)) {
-        if (g.primitiv->art() == Primitiv::Art::Patch && !g.primitiv->versteckt && !g.entitaet->versteckt) {
+        if (g.primitiv->art() == Primitiv::Art::Patch && g.primitiv->sichtbar() && g.entitaet->sichtbar()) {
             r.push_back(std::static_pointer_cast<Patch>(g.primitiv));
         }
     }
@@ -324,7 +324,7 @@ SiAnzeige siAusAuswahl(const Karte& k) {
     std::shared_ptr<Patch> patch;
     if (k.auswahl.anzahl() != 0) {
         patch = std::dynamic_pointer_cast<Patch>(k.auswahl.elemente().back().primitiv.lock());
-        if (patch && patch->versteckt) { patch = nullptr; }
+        if (patch && !patch->sichtbar()) { patch = nullptr; }
     }
     if (!patch) {
         for (const GewaehltesPrimitiv& g : gewaehltePrimitiveListe(k)) {

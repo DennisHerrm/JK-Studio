@@ -29244,6 +29244,262 @@ std::vector<Schritt> texturen() {
 
 }  // namespace stufe2
 
+namespace stufe2 {
+
+bool konsoleHat(const std::string& text) {
+    for (const ke::KonsolenZeile& z : ke::editor().konsole) {
+        if (z.text.find(text) != std::string::npos) { return true; }
+    }
+    return false;
+}
+
+std::shared_ptr<karte::Entitaet> lichtEntitaet() {
+    for (const auto& e : ke::editor().karte.entitaeten()) {
+        if (e->klassenname() == "light") { return e; }
+    }
+    return nullptr;
+}
+
+// Ein grosser Pinsel (-200..200)^3 dazu, allein gewaehlt
+Schritt grosserDazu(const std::string& was) {
+    return tu(was, [] {
+        ke::Editor& e = ke::editor();
+        e.karte.undo.start();
+        karte::TexturProjektion proj;
+        karte::texdefStandard(karte::TexdefArt::Quake, proj);
+        auto p = std::make_shared<karte::Pinsel>();
+        e.karte.welt()->kindEinfuegen(p);
+        p->quaderBauen(karte::Kasten(karte::Vektor3f(0, 0, 0), karte::Vektor3f(200, 200, 200)), "textures/common/caulk", proj, e.karte.kontext);
+        e.karte.undo.finish("brushDragNew");
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), p);
+        ke::auswahlGeaendert();
+    });
+}
+
+Schritt nurPinselWaehlen(const std::string& was, std::size_t i) {
+    return tu(was, [i] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), e.karte.welt()->kinder()[i]);
+        ke::auswahlGeaendert();
+    });
+}
+
+bool pinselSichtbar(std::size_t i) { return ke::editor().karte.welt()->kinder()[i]->sichtbar(); }
+
+std::string laufDatei(const char* name) { return (std::filesystem::current_path() / name).string(); }
+
+bool dateiDa(const std::string& p) {
+    std::error_code ec;
+    return std::filesystem::exists(std::filesystem::path(p), ec);
+}
+
+std::string dateiText(const std::string& p) {
+    std::ifstream f(std::filesystem::path(p), std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+}
+
+// Punkt 8: Auswahl und Datei (Select inside/touching, Strg+E, Region, Find
+// brush, Map Info, Import, Save selected/region, Autosave)
+std::vector<Schritt> auswahlDatei() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(grundzustand("Stufe 2/8: Grundzustand"));
+    add(pause(0.4));
+    add(schneiderDazu("zweiter Pinsel (32 -16 16)..(96 16 48), allein gewaehlt", false));
+    add(tu("Edit > Select touching", [] { (void)ke::ausfuehren("SelectTouching"); }));
+    add(pruefe("Select touching: beide Pinsel, das Licht nicht", [] {
+        const ke::Editor& e = ke::editor();
+        return e.karte.auswahl.anzahl() == 2 && !e.karte.auswahl.gewaehlt(lichtEntitaet().get());
+    }));
+    add(grosserDazu("grosser Pinsel (-200..200), allein gewaehlt"));
+    add(tu("Edit > Select inside", [] { (void)ke::ausfuehren("SelectInside"); }));
+    add(pruefe("Select inside: der grosse geloescht, beide Pinsel und das Licht gewaehlt", [] {
+        const ke::Editor& e = ke::editor();
+        return pinselZahl() == 2 && e.karte.auswahl.anzahl() == 3 && e.karte.auswahl.gewaehlt(lichtEntitaet().get()) &&
+               e.karte.undo.undoName() == "deleteSelected";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pruefe("Strg+Z: der grosse wieder da", [] { return pinselZahl() == 3; }));
+    add(nurPinselWaehlen("nur den Testpinsel waehlen", 0));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_E, "Strg+E"));
+    add(pruefe("Strg+E: alle drei Weltpinsel, das Licht nicht", [] {
+        const ke::Editor& e = ke::editor();
+        return e.karte.auswahl.anzahl() == 3 && !e.karte.auswahl.gewaehlt(lichtEntitaet().get());
+    }));
+    // Region
+    add(nurPinselWaehlen("nur den zweiten Pinsel waehlen", 1));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_R, "Strg+Umschalt+R"));
+    add(pruefe("Region Set Selection: angehakt, nur der zweite sichtbar, Auswahl leer", [] {
+        const ke::Editor& e = ke::editor();
+        return ke::angehakt("RegionSetSelection") && e.region.aktiv && !pinselSichtbar(0) && pinselSichtbar(1) && !pinselSichtbar(2) &&
+               !lichtEntitaet()->sichtbar() && e.karte.auswahl.anzahl() == 0 && std::fabs(e.region.min[0] - 32.0F) < 0.01F;
+    }));
+    add(pause(0.3));
+    add(foto("karteneditor_region"));
+    add(tu("File > Save region...", [] { (void)ke::regionSpeichernUnter(laufDatei("stufe2_region.map")); }));
+    add(pruefe("Save region: der zweite, sechs Waende, info_player_start; das Licht fehlt", [] {
+        const std::string t = dateiText(laufDatei("stufe2_region.map"));
+        karte::Karte k;
+        (void)karte::karteLesen(karte::textmodusLesen(t), k);
+        const auto w = k.welt();
+        return w && w->kinder().size() == 7 && k.entitaeten().size() == 2 && k.entitaeten().back()->klassenname() == "info_player_start" &&
+               t.find("\r\n") != std::string::npos && konsoleHat("for write...success");
+    }));
+    add(tu("Region > Off", [] { (void)ke::ausfuehren("RegionOff"); }));
+    add(pruefe("Region Off: alles sichtbar", [] {
+        return !ke::editor().region.aktiv && pinselSichtbar(0) && pinselSichtbar(2) && lichtEntitaet()->sichtbar() && !ke::angehakt("RegionSetSelection");
+    }));
+    add(tu("XY: Massstab 1 um (0 0 0), Region > Set XY", [] {
+        ke::Editor& e = ke::editor();
+        e.aktivXy = 0;
+        e.xy[0].ansicht.setzeMassstab(1);
+        e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        (void)ke::ausfuehren("RegionSetXY");
+    }));
+    add(pruefe("Set XY: Bereich = die sichtbare Flaeche der XY-Ansicht, Z -65472..65472", [] {
+        const ke::Editor& e = ke::editor();
+        const karte::XyAnsicht& v = e.xy[0].ansicht;
+        const float hb = 0.5F * static_cast<float>(v.breite);
+        diag::detail("Knopftest: Stufe 2 - Set XY " + std::to_string(e.region.min[0]) + " .. " + std::to_string(e.region.max[0]));
+        return e.region.aktiv && std::fabs(e.region.min[0] + hb) < 0.01F && std::fabs(e.region.max[0] - hb) < 0.01F &&
+               std::fabs(e.region.min[2] + 65472.0F) < 0.01F && pinselSichtbar(0) && lichtEntitaet()->sichtbar();
+    }));
+    add(tu("Region > Off", [] { (void)ke::ausfuehren("RegionOff"); }));
+    add(nurPinselWaehlen("nur den zweiten Pinsel waehlen", 1));
+    add(tu("Region > Set Brush", [] { (void)ke::ausfuehren("RegionSetBrush"); }));
+    add(pruefe("Set Brush: der zweite bestimmt den Bereich und ist geloescht, das Licht ausgeschlossen", [] {
+        const ke::Editor& e = ke::editor();
+        return e.region.aktiv && pinselZahl() == 2 && e.karte.undo.undoName() == "deleteSelected" && pinselSichtbar(0) &&
+               !lichtEntitaet()->sichtbar() && std::fabs(e.region.max[0] - 96.0F) < 0.01F;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tu("Region > Off", [] { (void)ke::ausfuehren("RegionOff"); }));
+    add(tu("Region Set Selection ohne Auswahl", [] {
+        ke::editor().karte.auswahl.leeren();
+        (void)ke::ausfuehren("RegionSetSelection");
+    }));
+    add(pruefe("ohne Auswahl: Region Off", [] { return !ke::editor().region.aktiv && pinselSichtbar(0); }));
+    // Find brush
+    add(tu("Misc > Find brush...", [] { (void)ke::ausfuehren("FindBrush"); }));
+    add(pause(0.3));
+    add(pruefe("Find Brush: offen mit 0 / 0", [] {
+        const auto& d = ke::editor().pinselSuche;
+        return d.offen && d.entitaet == 0 && d.pinsel == 0 && finde("##suchpinsel", "", 0, true) != nullptr;
+    }));
+    add(foto("karteneditor_find_brush"));
+    add(klickAn("Feld Brush number", elementOrt("##suchpinsel")));
+    add(tippe("1"));
+    add(tasteKombi(ImGuiKey_Enter, "Return"));
+    add(pause(0.2));
+    add(pruefe("Find: Pinsel 1 (der zweite) gewaehlt, die 2D-Ansichten auf seine Mitte (64 0 32)", [] {
+        const ke::Editor& e = ke::editor();
+        return !e.pinselSuche.offen && e.karte.auswahl.anzahl() == 1 && e.karte.auswahl.gewaehlt(e.karte.welt().get(), e.karte.welt()->kinder()[1].get()) &&
+               std::fabs(e.xy[0].ansicht.ursprung[0] - 64.0F) < 0.01F && std::fabs(e.xy[1].ansicht.ursprung[2] - 32.0F) < 0.01F;
+    }));
+    add(tu("Misc > Find brush... nochmal", [] { (void)ke::ausfuehren("FindBrush"); }));
+    add(pause(0.3));
+    add(pruefe("Find Brush: die Auswahl vorbelegt (Entity 0, Brush 1)", [] {
+        const auto& d = ke::editor().pinselSuche;
+        return d.offen && d.entitaet == 0 && d.pinsel == 1;
+    }));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(pruefe("Esc: zu", [] { return !ke::editor().pinselSuche.offen; }));
+    // Map Info
+    add(tasteKombi(ImGuiKey_M, "M"));
+    add(pause(0.3));
+    add(pruefe("M: Map Info mit 3 Pinseln, 0 Patches, 2 Entitaeten, ingame 1", [] {
+        const auto& d = ke::editor().kartenInfo;
+        return d.offen && d.info.pinsel == 3 && d.info.patches == 0 && d.info.entitaeten == 2 && d.info.imSpiel == 1 && d.info.gruppen == 1 &&
+               d.info.aufschluesselung.size() == 2;
+    }));
+    add(foto("karteneditor_map_info"));
+    add(klickAn("Kopf Count", elementOrt("##infokopf1")));
+    add(pruefe("Kopf Count: nach Anzahl sortiert", [] { return ke::editor().kartenInfo.sortSpalte == 1 && !ke::editor().kartenInfo.absteigend; }));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(pruefe("Esc: Map Info zu", [] { return !ke::editor().kartenInfo.offen; }));
+    // Save selected und Import
+    add(tu("das Licht waehlen, File > Save selected...", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(lichtEntitaet());
+        (void)ke::auswahlSpeichernUnter(laufDatei("stufe2_auswahl.map"));
+    }));
+    add(pruefe("Save selected: nur das Licht (IncludeSelectedWalker: worldspawn ohne gewaehlten Pinsel nicht)", [] {
+        karte::Karte k;
+        (void)karte::karteLesen(karte::textmodusLesen(dateiText(laufDatei("stufe2_auswahl.map"))), k);
+        return k.entitaeten().size() == 1 && k.entitaeten().front()->klassenname() == "light";
+    }));
+    add(tu("File > Import...", [] { (void)ke::karteImportierenAus(laufDatei("stufe2_auswahl.map")); }));
+    add(pruefe("Import: ein zweites Licht, gewaehlt mit dem ersten, \"mapImport\"", [] {
+        const ke::Editor& e = ke::editor();
+        return e.karte.entitaeten().size() == 3 && e.karte.auswahl.anzahl() == 2 && e.karte.undo.undoName() == "mapImport" &&
+               konsoleHat("for read...success");
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pruefe("Strg+Z: wieder ein Licht", [] { return ke::editor().karte.entitaeten().size() == 2; }));
+    // Autosave: Einstellungsseite und die Uhr
+    add(tu("Einstellungen auf", [] { ke::editor().einstellungenOffen = true; }));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KePgAutosave)) + "##seite22"));
+    add(pause(0.2));
+    add(pruefe("Seite Autosave: Enable, Frequency, Snapshots", [] {
+        return finde(std::string(ke::trK(Str::KePrAutosaveEnable)) + "##autosavean", "", 0, true) != nullptr &&
+               finde("##autosaveminuten", "", 0, true) != nullptr;
+    }));
+    add(foto("karteneditor_pref_autosave"));
+    add(klick(std::string(ke::trK(Str::KePrAutosaveSnapshots)) + "##schnappschuesse"));
+    add(klick(ke::trK(Str::KePrefOk)));
+    add(pause(0.2));
+    add(pruefe("OK: Save Snapshots an", [] { return ke::editor().autosave.schnappschuesse && !ke::editor().einstellungenOffen; }));
+    add(tu("Schnappschuesse wieder aus, Uhr starten (eine Aenderung)", [] {
+        ke::Editor& e = ke::editor();
+        e.autosave.schnappschuesse = false;
+        ke::einstellungenSpeichern();
+        e.autosave.leeren();
+        e.autosaveVersatz = 0;
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::path(laufDatei("karte_kopie.autosave.map")), ec);
+        std::filesystem::remove_all(std::filesystem::path(laufDatei("snapshots")), ec);
+        (void)ke::ausfuehren("SelectNudgeRight");
+    }));
+    add(pause(1.3));
+    add(tu("die Uhr 16 Minuten vor", [] { ke::editor().autosaveVersatz = 16 * 60; }));
+    add(pause(1.3));
+    add(pruefe("Autosave: \"Autosaving...\" und karte_kopie.autosave.map", [] {
+        return konsoleHat("Autosaving...") && dateiDa(laufDatei("karte_kopie.autosave.map"));
+    }));
+    add(tu("Snapshots an, noch eine Aenderung", [] {
+        ke::editor().autosave.schnappschuesse = true;
+        (void)ke::ausfuehren("SelectNudgeRight");
+    }));
+    add(pause(1.3));
+    add(tu("die Uhr 32 Minuten vor", [] { ke::editor().autosaveVersatz = 32 * 60; }));
+    add(pause(1.3));
+    add(pruefe("Snapshot: \"Autosaving snapshot...\" und snapshots/karte_kopie.0.map", [] {
+        return konsoleHat("Autosaving snapshot...") && dateiDa(laufDatei("snapshots/karte_kopie.0.map"));
+    }));
+    add(tu("Autosave aus, noch eine Aenderung", [] {
+        ke::editor().autosave.an = false;
+        ke::editor().autosave.schnappschuesse = false;
+        (void)ke::ausfuehren("SelectNudgeRight");
+    }));
+    add(pause(1.3));
+    add(tu("die Uhr 48 Minuten vor", [] { ke::editor().autosaveVersatz = 48 * 60; }));
+    add(pause(1.3));
+    add(pruefe("Autosave aus: \"Autosave skipped...\"", [] { return konsoleHat("Autosave skipped..."); }));
+    add(tu("Autosave zurueck", [] {
+        ke::Editor& e = ke::editor();
+        e.autosave = karte::AutoSpeichern{};
+        e.autosaveVersatz = 0;
+        ke::einstellungenSpeichern();
+    }));
+    return s;
+}
+
+}  // namespace stufe2
+
 std::vector<Schritt> karteneditorStufe2Schritte() {
     std::vector<Schritt> s;
     for (Schritt& x : stufe2::komponenten()) { s.push_back(std::move(x)); }
@@ -29253,6 +29509,7 @@ std::vector<Schritt> karteneditorStufe2Schritte() {
     for (Schritt& x : stufe2::transformationen()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::patches()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::texturen()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe2::auswahlDatei()) { s.push_back(std::move(x)); }
     return s;
 }
 

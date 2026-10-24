@@ -2033,7 +2033,7 @@ public:
                             const BesteEbene daten = m_u.besteEbene(test, true);
                             if (daten.gueltig()) {   // gatherPolygonsByPlane der gewaehlten Pinsel (mit umgedrehter Ebene)
                                 for (const auto& g : gewaehltePrimitiveListe(k)) {
-                                    if (g.primitiv->art() != Primitiv::Art::Pinsel || g.primitiv->versteckt || g.entitaet->versteckt) { continue; }
+                                    if (g.primitiv->art() != Primitiv::Art::Pinsel || !g.primitiv->sichtbar() || !g.entitaet->sichtbar()) { continue; }
                                     for (const auto& f : static_cast<const Pinsel&>(*g.primitiv).flaechen()) {
                                         if ((ebenenGleich(daten.ebene, f->ebene()) || ebenenGleich(daten.ebene, umgedreht(f->ebene()))) && f->traegtBei()) {
                                             const Wicklung& w = f->wicklung();
@@ -3736,9 +3736,9 @@ void AuswahlBearbeitung::Impl::uvFestschreiben() { static_cast<UvManipulator*>(u
 std::vector<std::pair<std::shared_ptr<Entitaet>, std::shared_ptr<Pinsel>>> AuswahlBearbeitung::Impl::extrudierPinsel() const {
     std::vector<std::pair<std::shared_ptr<Entitaet>, std::shared_ptr<Pinsel>>> r;
     for (const auto& ent : karte.entitaeten()) {
-        if (ent->versteckt) { continue; }
+        if (!ent->sichtbar()) { continue; }
         for (const auto& p : ent->kinder()) {
-            if (p->versteckt || p->art() != Primitiv::Art::Pinsel) { continue; }
+            if (!p->sichtbar() || p->art() != Primitiv::Art::Pinsel) { continue; }
             const auto pinsel = std::static_pointer_cast<Pinsel>(p);
             if (karte.auswahl.gewaehlt(ent.get(), p.get()) || pinselKomponentenGewaehlt(karte, *pinsel)) { r.emplace_back(ent, pinsel); }
         }
@@ -4238,7 +4238,7 @@ AuswahlBearbeitung::Impl::SzenenTreffer AuswahlBearbeitung::Impl::szenenPunktTes
         }
     }
     for (const auto& ent : karte.entitaeten()) {
-        if (ent->versteckt) { continue; }
+        if (!ent->sichtbar()) { continue; }
         if (art == 1 && gewaehlt.count(ent.get()) != 0) { continue; }
         if (!ent->istBehaelter()) {
             if (art == 2) { continue; }
@@ -4248,7 +4248,7 @@ AuswahlBearbeitung::Impl::SzenenTreffer AuswahlBearbeitung::Impl::szenenPunktTes
             continue;
         }
         for (const auto& pr : ent->kinder()) {
-            if (pr->versteckt) { continue; }
+            if (!pr->sichtbar()) { continue; }
             const bool istGewaehlt = gewaehlt.count(pr.get()) != 0;
             if ((art == 1 && istGewaehlt) || (art == 2 && !istGewaehlt)) { continue; }
             if (pr->art() == Primitiv::Art::Pinsel) {   // testselect_scene_point__brush
@@ -4343,7 +4343,7 @@ bool AuswahlBearbeitung::Impl::eckenOderFlaechenEckenWaehlen(AuswahlVolumen& tes
     const BesteEbene daten = besteEbene(test, true);
     if (daten.gueltig()) {
         for (const auto& g : gewaehltePrimitiveListe(karte)) {   // BrushInstance::selectVerticesOnPlane (brush.h:3906-3912)
-            if (g.primitiv->art() != Primitiv::Art::Pinsel || g.primitiv->versteckt || g.entitaet->versteckt) { continue; }
+            if (g.primitiv->art() != Primitiv::Art::Pinsel || !g.primitiv->sichtbar() || !g.entitaet->sichtbar()) { continue; }
             auto& pinsel = static_cast<Pinsel&>(*g.primitiv);
             pinsel.bRep(karte.kontext);
             for (std::size_t fi = 0; fi < pinsel.anzahl(); ++fi) {
@@ -4437,7 +4437,7 @@ void AuswahlBearbeitung::Impl::komponentenHervorheben(AuswahlVolumen& test, Komp
         }
     };
     for (const auto& g : gewaehltePrimitiveListe(karte)) {   // Scene_forEachVisibleSelectedComponentSelectionTestable
-        if (g.primitiv->versteckt || g.entitaet->versteckt) { continue; }
+        if (!g.primitiv->sichtbar() || !g.entitaet->sichtbar()) { continue; }
         if (g.primitiv->art() == Primitiv::Art::Patch) {
             if (kmodus != KomponentenModus::Ecke) { continue; }
             const auto& patch = static_cast<const Patch&>(*g.primitiv);
@@ -4520,7 +4520,7 @@ bool AuswahlBearbeitung::Impl::ebenenWaehlen(AuswahlVolumen& test) {
     std::vector<std::pair<std::shared_ptr<Patch>, std::vector<std::size_t>>> patchSeiten;
     const std::vector<Objekt> objekte = gewaehlteObjekte();
     for (const Objekt& o : objekte) {
-        if (!o.prim || o.prim->versteckt || o.ent->versteckt) { continue; }
+        if (!o.prim || !o.prim->sichtbar() || !o.ent->sichtbar()) { continue; }
         if (o.prim->art() == Primitiv::Art::Pinsel) {   // BrushInstance::selectPlanes
             const auto pinsel = std::static_pointer_cast<Pinsel>(o.prim);
             pinsel->bRep(karte.kontext);
@@ -4569,7 +4569,7 @@ bool AuswahlBearbeitung::Impl::ebenenWaehlen(AuswahlVolumen& test) {
     }
     // selectReversedPlanes
     for (const Objekt& o : objekte) {
-        if (!o.prim || o.prim->versteckt || o.ent->versteckt) { continue; }
+        if (!o.prim || !o.prim->sichtbar() || !o.ent->sichtbar()) { continue; }
         if (o.prim->art() == Primitiv::Art::Pinsel) {
             const auto pinsel = std::static_pointer_cast<Pinsel>(o.prim);
             for (const auto& f : pinsel->flaechen()) {
@@ -4679,7 +4679,7 @@ BesteEbene AuswahlBearbeitung::Impl::besteEbene(AuswahlVolumen& test, bool nurPi
         }
     };
     const auto passt = [nurPinsel](const Objekt& o) {
-        return o.prim && !o.prim->versteckt && !o.ent->versteckt && (!nurPinsel || o.prim->art() == Primitiv::Art::Pinsel);
+        return o.prim && o.prim->sichtbar() && o.ent->sichtbar() && (!nurPinsel || o.prim->art() == Primitiv::Art::Pinsel);
     };
     for (const Objekt& o : objekte) {
         if (passt(o)) { direkt(o); }
@@ -4705,7 +4705,7 @@ bool AuswahlBearbeitung::Impl::ebenenWaehlen2(AuswahlVolumen& test, VerschiebeAc
         }
         // selectByPlane
         for (const Objekt& o : gewaehlteObjekte()) {
-            if (!o.prim || o.prim->versteckt || o.ent->versteckt) { continue; }
+            if (!o.prim || !o.prim->sichtbar() || !o.ent->sichtbar()) { continue; }
             if (o.prim->art() == Primitiv::Art::Pinsel) {
                 for (const auto& f : static_cast<const Pinsel&>(*o.prim).flaechen()) {
                     if (ebenenGleich(e, f->ebene()) || ebenenGleich(e, umgedreht(f->ebene()))) {
@@ -4727,7 +4727,7 @@ void AuswahlBearbeitung::Impl::polygoneSammeln(AuswahlVolumen& test, std::vector
     const BesteEbene daten = besteEbene(test);
     if (!daten.gueltig()) { return; }
     for (const Objekt& o : gewaehlteObjekte()) {   // gatherPolygonsByPlane (mit umgedrehter Ebene)
-        if (!o.prim || o.prim->versteckt || o.ent->versteckt) { continue; }
+        if (!o.prim || !o.prim->sichtbar() || !o.ent->sichtbar()) { continue; }
         if (o.prim->art() == Primitiv::Art::Pinsel) {
             for (const auto& f : static_cast<const Pinsel&>(*o.prim).flaechen()) {
                 if ((ebenenGleich(daten.ebene, f->ebene()) || ebenenGleich(daten.ebene, umgedreht(f->ebene()))) && f->traegtBei()) {
