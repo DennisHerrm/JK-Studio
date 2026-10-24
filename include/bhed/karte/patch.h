@@ -114,6 +114,8 @@ public:
     // undoSave, die Kontrollpunkte setzen, controlPointsChanged
     void punkteSetzen(const std::vector<PatchPunkt>& p);
     void einrasten(float raster);            // snapto
+    void durchschnittsAchsen(Vektor3f& wRicht, Vektor3f& hRicht) const;   // Calculate_AvgAxes (patch.cpp:587-627)
+    [[nodiscard]] Vektor3f durchschnittsNormale() const;                  // Calculate_AvgNormal (patch.cpp:629-633)
     void matrixUmkehren();                   // InvertMatrix
     void matrixTransponieren();              // TransposeMatrix
     // ProjectTexture( TextureProjection, normal ) (patch.cpp:1212-1228): st

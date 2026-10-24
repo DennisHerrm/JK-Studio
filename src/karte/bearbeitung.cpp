@@ -28,6 +28,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <iterator>
 #include <limits>
 #include <map>
@@ -1529,7 +1530,7 @@ private:
     bool m_gewaehlt = false;
 };
 
-// Clipper und UV sind noch nicht portiert: greift nie.
+// Clipper ist noch nicht portiert: greift nie.
 class LeerManipulator final : public Manipulator, public Manipulierbar {
 public:
     explicit LeerManipulator(Dienste& d) : Manipulierbar(d) {}
@@ -1687,10 +1688,13 @@ struct AuswahlBearbeitung::Impl final : Dienste, Verschiebbar, Drehbar, Skalierb
           drehM(std::make_unique<DrehManipulator>(*this, *this, 8, 64.0F)), skalierM(std::make_unique<SkalierManipulator>(*this, *this, 64.0F)),
           verzerrM(std::make_unique<VerzerrManipulator>(*this, *this, *this, *this, *this, *this, grenzenWert, pivot, pivotEigen)),
           ziehM(neuerZiehManipulator()), bauM(std::make_unique<BauManipulator>(*this)), leerM(std::make_unique<LeerManipulator>(*this)),
+          uvM(neuerUvManipulator()),
           ursprungM(std::make_unique<UrsprungManipulator>(*this, *this, pivotEigen)) {
         modusSetzen(ManipModus::Verschieben);
     }
     std::unique_ptr<Manipulator> neuerZiehManipulator();
+    std::unique_ptr<Manipulator> neuerUvManipulator();
+    void uvFestschreiben();   // m_uv_manipulator->freezeTransform()
 
     // --- Dienste ---
     [[nodiscard]] const Zusatz& zusatzTasten() const override { return aussen.zusatz; }
@@ -1774,6 +1778,14 @@ struct AuswahlBearbeitung::Impl final : Dienste, Verschiebbar, Drehbar, Skalierb
     BesteEbene besteEbene(AuswahlVolumen& test, bool nurPinsel = false);
     // selection_selectVerticesOrFaceVertices (selection_mtor_drag.cpp:270-292)
     bool eckenOderFlaechenEckenWaehlen(AuswahlVolumen& test);
+    // Scene_forEachBrush_bestPlane (selection_mtor_drag.cpp:208-232): ohne
+    // gewaehlte Flaechen die der gewaehlten Pinsel, sonst aller sichtbaren
+    // Pinsel, die gewaehlt sind oder gewaehlte Komponenten haben.
+    BesteEbene besteEbeneExtrudieren(AuswahlVolumen& test);
+    void besteEbeneKanten(AuswahlVolumen& test, const Objekt& o, BesteEbene& daten);
+    // Die sichtbaren Pinsel, die gewaehlt sind oder Komponenten haben (in der
+    // Reihenfolge der Szene, Scene_forEachVisibleBrush).
+    [[nodiscard]] std::vector<std::pair<std::shared_ptr<Entitaet>, std::shared_ptr<Pinsel>>> extrudierPinsel() const;
     // scene_insert_brush_vertices (selection_mtor_drag.cpp:295-337)
     bool pinselEckenEinfuegen(const Blick& v, AuswahlVolumen& test, VerschiebeFreiXyZ& frei);
     // gatherComponentsHighlight ueber die sichtbaren gewaehlten Pinsel und Patches
@@ -1806,7 +1818,7 @@ struct AuswahlBearbeitung::Impl final : Dienste, Verschiebbar, Drehbar, Skalierb
     Quaternion drehung = kQuaternionEins;
     Vektor3f skalierung{1, 1, 1};
     Verzerrung verzerrung;
-    std::unique_ptr<Manipulator> verschiebeM, drehM, skalierM, verzerrM, ziehM, bauM, leerM, ursprungM;
+    std::unique_ptr<Manipulator> verschiebeM, drehM, skalierM, verzerrM, ziehM, bauM, leerM, uvM, ursprungM;
     Manipulator* manip = nullptr;
     struct PatchEbenen {
         std::shared_ptr<Patch> patch;
@@ -1849,16 +1861,57 @@ private:
     AuswahlBearbeitung::Impl& m_u;
 };
 
+// DragExtrudeFaces (selection_mtable_extrude.h)
+class FlaechenExtrudieren final : public Manipulierbar {
+public:
+    struct Quelle {   // ExtrudeSource
+        std::shared_ptr<Entitaet> entitaet;
+        std::shared_ptr<Pinsel> pinsel;   // m_brushInstance
+        struct FlaecheZuPinsel {          // InFaceOutBrush
+            std::shared_ptr<Flaeche> flaeche;
+            EbenenPunkte ebenenPunkte{};
+            std::shared_ptr<Pinsel> neu;   // m_outBrush
+        };
+        std::vector<FlaecheZuPinsel> flaechen;
+        [[nodiscard]] bool flaecheAusgenommen(const Flaeche* f) const {   // faceExcluded
+            return std::none_of(flaechen.begin(), flaechen.end(), [f](const FlaecheZuPinsel& x) { return x.flaeche.get() == f; });
+        }
+    };
+    std::vector<Quelle> quellen;   // m_extrudeSources
+
+    explicit FlaechenExtrudieren(AuswahlBearbeitung::Impl& u);
+    void bauen(const Matrix4& g, const GeraeteVektor& p, const Kasten& b, const Vektor3f& ursprung) override;
+    void transformieren(const Matrix4& m2o, const Matrix4& g, const GeraeteVektor& p) override;
+    void setze0(const Vektor3f& start, const Ebene3d& ebene) {
+        m_0 = start;
+        m_ebeneGewaehlt = ebene;
+    }
+
+private:
+    void flaechenVersetzen(const Quelle& q, Pinsel& pinsel, float abstand);   // offsetFaces
+    void diagonalExtrudieren(const Pinsel& p0, const Pinsel& p2, Quelle& q);    // brush_extrudeDiag
+
+    AuswahlBearbeitung::Impl& m_u;
+    Vektor3f m_0;
+    Ebene3d m_ebeneGewaehlt;
+    std::size_t m_achseZ = 2;
+    Ebene3d m_ebeneZ;
+    Vektor3f m_startZ;
+    bool m_originalGesichert = false;   // m_originalBrushSaved
+    bool m_originalGeaendert = false;   // m_originalBrushChanged
+};
+
 class ZiehManipulator final : public Manipulator {
 public:
     explicit ZiehManipulator(AuswahlBearbeitung::Impl& u)
-        : m_u(u), m_resize(u), m_freiResize(u, m_resize), m_achseResize(u, m_resize), m_freiXyZ(u, u, u), m_neuerPinsel(u) {
+        : m_u(u), m_resize(u), m_freiResize(u, m_resize), m_achseResize(u, m_resize), m_freiXyZ(u, u, u), m_neuerPinsel(u), m_extrudieren(u) {
         m_kreis.resize(2 << 3);
         kreisPunkte(m_kreis.size() >> 3, 5, m_kreis.data(), Umordnung::XYZ);
         setzeGewaehlt(false);
     }
     Manipulierbar* manipulierbar() override {
         if (m_neu) { return &m_neuerPinsel; }
+        if (m_extrudiert) { return &m_extrudieren; }
         if (m_gewaehlt) { return &m_freiResize; }
         if (m_gewaehlt2) { return &m_achseResize; }
         return &m_freiXyZ;
@@ -1870,8 +1923,7 @@ public:
         AuswahlVolumen test(v);
         std::vector<Waehlbar> wahl;   // SelectionPool selector
         if (z.genau(false, true, true) && e.modus == AuswahlModus::Primitiv && (k.auswahl.anzahl() != 0 || !k.auswahl.flaechen().empty())) {
-            // Extrudieren (DragExtrudeFaces): noch nicht portiert
-            m_extrudieren = false;
+            m_extrudiert = extrudierenVorbereiten(test);   // Scene_forEachBrush_setupExtrude
         } else if (k.auswahl.anzahl() != 0) {
             if (e.modus == AuswahlModus::Primitiv) {
                 if (z.genau(false, false, true)) {
@@ -1930,8 +1982,8 @@ public:
             m_neuerPinsel.setze0(start);
         }
     }
-    void setzeGewaehlt(bool an) override { m_ziehen = m_gewaehlt = m_gewaehlt2 = m_neu = m_extrudieren = an; }
-    [[nodiscard]] bool gewaehlt() const override { return m_ziehen || m_gewaehlt || m_gewaehlt2 || m_neu || m_extrudieren; }
+    void setzeGewaehlt(bool an) override { m_ziehen = m_gewaehlt = m_gewaehlt2 = m_neu = m_extrudiert = an; }
+    [[nodiscard]] bool gewaehlt() const override { return m_ziehen || m_gewaehlt || m_gewaehlt2 || m_neu || m_extrudiert; }
     void zeichnen(const Blick& v, const Matrix4&, ManipZeichnung& aus) override {
         if (m_polygone.empty()) { return; }
         if (m_polygone.back().size() == 1) {
@@ -1950,7 +2002,20 @@ public:
         // Bedingungen wie in testen()
         if (z.genau(false, true, true) && m_u.aussen.einstellung.modus == AuswahlModus::Primitiv &&
             (k.auswahl.anzahl() != 0 || !k.auswahl.flaechen().empty())) {
-            // Extrudieren: noch nicht portiert
+            const BesteEbene daten = m_u.besteEbeneExtrudieren(test);
+            if (daten.gueltig()) {   // gatherPolygonsByPlane( plane, polygons, false )
+                for (const auto& [ent, pinsel] : m_u.extrudierPinsel()) {
+                    (void)ent;
+                    for (const auto& f : pinsel->flaechen()) {
+                        if (ebenenGleich(daten.ebene, f->ebene()) && f->traegtBei()) {
+                            const Wicklung& w = f->wicklung();
+                            std::vector<Vektor3f> poly(w.numpoints);
+                            for (std::size_t i = 0; i < w.numpoints; ++i) { poly[i] = Vektor3f(w[i].vertex); }
+                            polygone.push_back(std::move(poly));
+                        }
+                    }
+                }
+            }
         } else if (k.auswahl.anzahl() != 0) {
             const AuswahlEinstellung& e = m_u.aussen.einstellung;
             if (e.modus == AuswahlModus::Primitiv) {
@@ -1986,24 +2051,1451 @@ public:
     }
 
 private:
+    // Scene_forEachBrush_setupExtrude (selection_mtor_drag.cpp:234-266)
+    bool extrudierenVorbereiten(AuswahlVolumen& test) {
+        Karte& k = m_u.karte;
+        const BesteEbene daten = m_u.besteEbeneExtrudieren(test);
+        if (!daten.gueltig()) { return false; }
+        const Ebene3d e = daten.ebene;
+        if (daten.direkt()) {
+            m_extrudieren.setze0(punktAufEbeneSicht(e, test.blick().sicht(), GeraeteVektor(0, 0)), e);
+        } else {
+            test.netzBeginnen(kEinheitsMatrix);
+            m_extrudieren.setze0(projiziert(transformierterVektor4(test.bildZuWelt(), Vektor4f(daten.naechsterPunkt, 1))), e);
+        }
+        m_extrudieren.quellen.clear();
+        for (const auto& [ent, pinsel] : m_u.extrudierPinsel()) {
+            bool angelegt = false;
+            for (const auto& f : pinsel->flaechen()) {
+                if (k.auswahl.flaecheGewaehlt(f.get()) || ebenenGleich(e, f->ebene())) {
+                    if (!angelegt) {
+                        m_extrudieren.quellen.emplace_back();
+                        m_extrudieren.quellen.back().entitaet = ent;
+                        m_extrudieren.quellen.back().pinsel = pinsel;
+                        angelegt = true;
+                    }
+                    m_extrudieren.quellen.back().flaechen.push_back({f, f->ebenenPunkte(), nullptr});
+                }
+            }
+            for (const auto& f : pinsel->flaechen()) { k.auswahl.flaecheAbwaehlen(f.get()); }   // setSelectedComponents( false, eFace )
+            k.auswahl.abwaehlen(ent, pinsel);                                                // setSelected( false )
+        }
+        return true;
+    }
+
     AuswahlBearbeitung::Impl& m_u;
     ResizeVerschiebbar m_resize;
     VerschiebeFrei m_freiResize;
     VerschiebeAchse2 m_achseResize;
     VerschiebeFreiXyZ m_freiXyZ;
     NeuerPinsel m_neuerPinsel;
+    FlaechenExtrudieren m_extrudieren;
     bool m_ziehen = false;        // m_dragSelected
     bool m_gewaehlt = false;      // m_selected: Komponenten zum Ziehen gewaehlt
     bool m_gewaehlt2 = false;     // m_selected2: Ebenen in der Kamera mit Alt
     bool m_neu = false;           // m_newBrush
-    bool m_extrudieren = false;   // m_extrudeFaces
+    bool m_extrudiert = false;    // m_extrudeFaces
     std::vector<std::vector<Vektor3f>> m_polygone;
     std::vector<Vektor3f> m_kreis;
 };
 
 }  // namespace
 
+namespace {
+
+FlaechenExtrudieren::FlaechenExtrudieren(AuswahlBearbeitung::Impl& u) : Manipulierbar(u), m_u(u) {}
+
+// DragExtrudeFaces::Construct (selection_mtable_extrude.h:60-110)
+void FlaechenExtrudieren::bauen(const Matrix4&, const GeraeteVektor& p, const Kasten&, const Vektor3f&) {
+    Karte& karte = m_u.karte;
+    const Kontext& k = karte.kontext;
+    m_achseZ = groessteBetragsKomponente(m_ebeneGewaehlt.normal());
+    Vektor3f xy = blick().betrachter() - m_0;
+    xy[m_achseZ] = 0;
+    normieren(xy);
+    m_ebeneZ = Ebene3d(xy, punkt(xy, m_0));
+    m_startZ = punktAufEbeneSicht(m_ebeneZ, blick().sicht(), p);
+    m_originalGesichert = false;
+    m_originalGeaendert = false;
+    Befehl befehl(karte.undo, "ExtrudeBrushFaces");
+    for (Quelle& q : quellen) {
+        for (auto& fp : q.flaechen) {
+            const Flaeche& f = *fp.flaeche;
+            auto neu = std::make_shared<Pinsel>();   // GlobalBrushCreator().createBrush()
+            neu->schicht = static_cast<int>(karte.aktuelleSchicht);
+            q.entitaet->kindEinfuegen(neu);
+            karte.auswahl.waehlen(q.entitaet, neu);   // selectPath( path, true )
+            fp.neu = neu;
+            Flaeche* g = neu->flaecheHinzufuegen(f, k);
+            if (g != nullptr) { g->versetzen(m_u.aussen.raster); }
+            g = neu->flaecheHinzufuegen(f, k);
+            if (g != nullptr) { g->umdrehen(); }
+            const Wicklung& w = f.wicklung();
+            for (std::size_t i = 0; i < w.numpoints; ++i) {
+                const WicklungsPunkt& v = w[i];
+                if (v.adjacent == kMaxFlaechen) { continue; }
+                g = neu->flaecheHinzufuegen(*q.pinsel->flaechen()[v.adjacent], k);
+                if (g == nullptr) { continue; }
+                const Vektor3d quer = kreuz(g->ebene().normal(), f.ebene().normal());
+                g->setzeEbenenPunkte({v.vertex, v.vertex + quer * 64.0, v.vertex + f.ebene().normal() * 64.0});
+            }
+        }
+    }
+}
+
+// DragExtrudeFaces::Transform (selection_mtable_extrude.h:111-216)
+void FlaechenExtrudieren::transformieren(const Matrix4&, const Matrix4&, const GeraeteVektor& p) {
+    Karte& karte = m_u.karte;
+    const Kontext& k = karte.kontext;
+    Vektor3f aktuell = kAchsen[m_achseZ] *
+                       static_cast<float>(punkt(m_ebeneGewaehlt.normal(), punktAufEbeneSicht(m_ebeneZ, blick().sicht(), p) - m_startZ)) *
+                       (m_ebeneGewaehlt.normal()[m_achseZ] >= 0 ? 1.0F : -1.0F);
+    // INF abfangen, kommt mit der Oberseite des Kastens in 2D vor
+    if (!std::isfinite(aktuell[0]) || !std::isfinite(aktuell[1]) || !std::isfinite(aktuell[2])) { return; }
+    einrasten(aktuell, m_u.aussen.fang);
+    const float versatz = static_cast<float>(std::fabs(m_ebeneGewaehlt.normal()[m_achseZ]) *
+                                             std::copysign(std::max(static_cast<double>(m_u.aussen.raster), laenge(aktuell)),
+                                                           punkt(aktuell, m_ebeneGewaehlt.normal())));
+    if (versatz >= 0) {   // nach aussen
+        if (m_originalGeaendert) {
+            m_originalGeaendert = false;
+            for (Quelle& q : quellen) {   // den Ausgangspinsel zuruecksetzen
+                for (auto& fp : q.flaechen) { fp.flaeche->setzeEbenenPunkte(fp.ebenenPunkte); }
+            }
+        }
+        for (Quelle& q : quellen) {
+            Pinsel& p0 = *q.pinsel;
+            if (q.flaechen.size() > 1) {
+                auto tmp = p0.kopie(k);
+                flaechenVersetzen(q, *tmp, versatz);
+                diagonalExtrudieren(p0, *tmp, q);
+            } else {
+                for (auto& fp : q.flaechen) {
+                    const Flaeche& f = *fp.flaeche;
+                    Pinsel& neu = *fp.neu;
+                    neu.leeren();
+                    Flaeche* g = neu.flaecheHinzufuegen(f, k);
+                    if (g != nullptr) { g->versetzen(versatz); }
+                    g = neu.flaecheHinzufuegen(f, k);
+                    if (g != nullptr) { g->umdrehen(); }
+                    const Wicklung& w = f.wicklung();
+                    for (std::size_t i = 0; i < w.numpoints; ++i) {
+                        if (w[i].adjacent != kMaxFlaechen) { neu.flaecheHinzufuegen(*p0.flaechen()[w[i].adjacent], k); }
+                    }
+                }
+            }
+        }
+    } else {   // nach innen
+        if (!m_originalGesichert) {
+            m_originalGesichert = true;   // undoSave der Ausgangsflaechen (sichern() in den Setzern)
+        }
+        m_originalGeaendert = true;
+        for (Quelle& q : quellen) {
+            Pinsel& p0 = *q.pinsel;
+            for (auto& fp : q.flaechen) { fp.flaeche->setzeEbenenPunkte(fp.ebenenPunkte); }   // den Ausgangspinsel zuruecksetzen
+            if (q.flaechen.size() > 1) {
+                auto tmp = p0.kopie(k);
+                tmp->bRep(k);
+                flaechenVersetzen(q, p0, versatz);
+                if (p0.hatBeitragendeFlaechen(k)) { diagonalExtrudieren(p0, *tmp, q); }
+            } else {
+                for (auto& fp : q.flaechen) {
+                    Flaeche& f = *fp.flaeche;
+                    Pinsel& neu = *fp.neu;
+                    neu.leeren();
+                    for (const auto& g0 : p0.flaechen()) { neu.flaecheHinzufuegen(*g0, k); }   // copy( brush0 )
+                    Flaeche* g = neu.flaecheHinzufuegen(f, k);
+                    if (g != nullptr) {
+                        g->versetzen(versatz);
+                        g->umdrehen();
+                    }
+                    neu.leereFlaechenEntfernen(k);
+                    f.versetzen(versatz);   // den Ausgangspinsel aendern
+                }
+            }
+        }
+    }
+}
+
+// offsetFaces (selection_mtable_extrude.h:224-236)
+void FlaechenExtrudieren::flaechenVersetzen(const Quelle& q, Pinsel& pinsel, float abstand) {
+    const Pinsel& p0 = *q.pinsel;
+    for (std::size_t i = 0; i < p0.anzahl(); ++i) {
+        if (!q.flaecheAusgenommen(p0.flaechen()[i].get())) { pinsel[i].versetzen(abstand); }
+    }
+    pinsel.bRep(m_u.karte.kontext);
+}
+
+// brush_extrudeDiag (selection_mtable_extrude.h:238-321): p0 und p2 haben
+// gleich viele Flaechen in derselben Reihenfolge, p2 ist groesser.
+void FlaechenExtrudieren::diagonalExtrudieren(const Pinsel& p0, const Pinsel& p2, Quelle& q) {
+    const Kontext& k = m_u.karte.kontext;
+    TexturProjektion projektion;
+    texdefStandard(k.art(), projektion);   // TexDef_Construct_Default
+    p0.bRep(k);
+    p2.bRep(k);
+    for (std::size_t i = 0; i < p0.anzahl(); ++i) {
+        const Flaeche& f0 = p0[i];
+        const Flaeche& f2 = p2[i];
+        auto it = std::find_if(q.flaechen.begin(), q.flaechen.end(), [&](const auto& x) { return x.flaeche.get() == &f0; });
+        if (it == q.flaechen.end() || !(f0.traegtBei() || f2.traegtBei())) { continue; }
+        const std::string shader = f0.shader();
+        Pinsel& neu = *it->neu;
+        neu.leeren();
+        if (f0.traegtBei()) {
+            if (Flaeche* g = neu.flaecheHinzufuegen(f0, k)) { g->umdrehen(); }
+        }
+        if (f2.traegtBei()) { neu.flaecheHinzufuegen(f2, k); }
+        if (f0.traegtBei() && f2.traegtBei()) {   // zwei gueltige Wicklungen vernaehen
+            const auto seiten = [&](const Wicklung& w0, const Wicklung& w2, const Vektor3d& normale, bool tauschen) {
+                for (std::size_t a = 0; a < w0.numpoints; ++a) {
+                    const std::size_t naechster = wicklungNaechster(w0, a);
+                    Vektor3d bester;
+                    double besterSkalar = -1;
+                    for (std::size_t b = 0; b < w2.numpoints; ++b) {
+                        const double skalar = punkt(normiert(kreuz(w0[a].vertex - w0[naechster].vertex, w0[a].vertex - w2[b].vertex)), normale);
+                        if (skalar > besterSkalar) {
+                            besterSkalar = skalar;
+                            bester = w2[b].vertex;
+                        }
+                    }
+                    neu.ebeneHinzufuegen(w0[tauschen ? naechster : a].vertex, w0[tauschen ? a : naechster].vertex, bester, shader, projektion, k);
+                }
+            };
+            // Seitenebenen aus der Sicht beider Wicklungen, weil sich ihre Form beim Aufweiten aendern kann
+            seiten(f0.wicklung(), f2.wicklung(), f0.ebene().normal(), false);
+            seiten(f2.wicklung(), f0.wicklung(), f0.ebene().normal(), true);
+        } else {   // eine gueltige Wicklung
+            const auto seiten = [&](const Wicklung& w0, const Pinsel& p, const Ebene3d& ebene, bool tauschen) {
+                for (std::size_t a = 0; a < w0.numpoints; ++a) {
+                    const std::size_t naechster = wicklungNaechster(w0, a);
+                    Vektor3d bester;
+                    double besterAbstand = 999999;
+                    for (const auto& g : p.flaechen()) {
+                        const Wicklung& w2 = g->wicklung();
+                        for (std::size_t b = 0; b < w2.numpoints; ++b) {
+                            const double abstand = laenge(w0[a].vertex - w2[b].vertex);
+                            if (abstand < besterAbstand && abstandZuPunkt(ebene, w2[b].vertex) > .05) {
+                                besterAbstand = abstand;
+                                bester = w2[b].vertex;
+                            }
+                        }
+                    }
+                    neu.ebeneHinzufuegen(w0[tauschen ? naechster : a].vertex, w0[tauschen ? a : naechster].vertex, bester, shader, projektion, k);
+                }
+            };
+            if (f0.traegtBei()) {
+                seiten(f0.wicklung(), p2, f0.ebene(), false);
+            } else if (f2.traegtBei()) {
+                seiten(f2.wicklung(), p0, umgedreht(f2.ebene()), true);
+            }
+        }
+        neu.leereFlaechenEntfernen(k);
+    }
+}
+
+// --- UVManipulator (selection_mtor_uv.cpp) ------------------------------------------------------------
+//
+// Das UV-Werkzeug (G) zeigt in der Kamera das Texturgitter der zuletzt
+// gewaehlten Flaeche (bzw. des zuletzt gewaehlten Patches) auf ihrer Ebene und
+// verschiebt, dreht, skaliert und schert damit die Texturprojektion.
+
+class UvManipulator final : public Manipulator, public Manipulierbar {
+public:
+    explicit UvManipulator(AuswahlBearbeitung::Impl& u);
+    void zeichnen(const Blick& v, const Matrix4& pivotZuWelt, ManipZeichnung& aus) override;   // render
+    void testen(const Blick& v, const Matrix4& pivotZuWelt) override;                         // testSelect
+    void bauen(const Matrix4& g, const GeraeteVektor& p, const Kasten& b, const Vektor3f& ursprung) override;   // Construct
+    void transformieren(const Matrix4& m2o, const Matrix4& g, const GeraeteVektor& p) override;               // Transform
+    void festschreiben();   // freezeTransform
+    Manipulierbar* manipulierbar() override { return this; }
+    void setzeGewaehlt(bool an) override { m_istGewaehlt = an; }
+    [[nodiscard]] bool gewaehlt() const override { return m_istGewaehlt; }
+
+private:
+    enum class Wahl { Keine, Pivot, GitterU, GitterV, PatchPunkt, PatchZeile, PatchSpalte, Kreis, PivotU, PivotV, U, V, UV, SchiefU, SchiefV, Textur };
+    struct Punkt {   // PointVertex
+        Vektor3f p;
+        ManipFarbe f;
+    };
+    static constexpr ManipFarbe kWeiss{255, 255, 255, 255};
+    static constexpr ManipFarbe kGrau{255, 255, 255, 125};
+    static constexpr ManipFarbe kGrauer{100, 100, 100, 150};
+    static constexpr ManipFarbe kRot{255, 0, 0, 255};
+    static constexpr ManipFarbe kGruen{0, 255, 0, 255};
+    static constexpr ManipFarbe kGrue{0, 150, 0, 255};
+    static constexpr ManipFarbe kPink{255, 0, 255, 255};
+    static constexpr ManipFarbe kPin{150, 0, 150, 255};
+    static constexpr ManipFarbe kOrange{255, 125, 0, 255};
+    static constexpr ManipFarbe kOrang{255, 125, 0, 125};
+
+    [[nodiscard]] bool patchPunktInnen(std::size_t i) const { return (i % 2) != 0 || ((i / m_patchBreite) % 2) != 0; }
+    template<typename F>
+    void jedeKante(const F& f) const {   // forEachEdge
+        if (m_flaeche) {
+            const Wicklung& w = m_flaeche->wicklung();
+            for (std::size_t i = 0; i < w.numpoints; ++i) {
+                const std::size_t vorher = (i + w.numpoints - 1) % w.numpoints;
+                f(Vektor3f(w[vorher].vertex), Vektor3f(w[i].vertex));
+            }
+        } else if (m_patch) {
+            for (std::size_t i = 0; i + 1 < m_patchGitter.size(); i += 2) {
+                const Vektor3f p0 = transformierterPunkt(m_flaecheTexZuLokal, m_patchGitter[i].p);
+                const Vektor3f p1 = transformierterPunkt(m_flaecheTexZuLokal, m_patchGitter[i + 1].p);
+                if (laengeQuadrat(p1 - p0) > 0.1) { f(p0, p1); }
+            }
+        }
+    }
+    template<typename F>
+    void jederPunkt(const F& f) const {   // forEachPoint
+        if (m_flaeche) {
+            const Wicklung& w = m_flaeche->wicklung();
+            for (std::size_t i = 0; i < w.numpoints; ++i) { f(Vektor3f(w[i].vertex)); }
+        } else if (m_patch) {
+            for (const auto& v : m_patchKontrolle) { f(transformierterPunkt(m_flaecheTexZuLokal, Vektor3f(v.texcoord.x(), v.texcoord.y(), 0))); }
+        }
+    }
+    template<typename F>
+    void jederUvPunkt(const F& f) const {   // forEachUVPoint
+        if (m_flaeche) {
+            const Wicklung& w = m_flaeche->wicklung();
+            for (std::size_t i = 0; i < w.numpoints; ++i) { f(transformierterPunkt(m_flaecheLokalZuTex, Vektor3f(w[i].vertex))); }
+        } else if (m_patch) {
+            for (const auto& v : m_patchKontrolle) { f(Vektor3f(v.texcoord.x(), v.texcoord.y(), 0)); }
+        }
+    }
+    [[nodiscard]] bool projektionGueltig() const;   // projection_valid
+    void flaechenDatenAktualisieren(bool ursprungAktualisieren, bool linienAktualisieren = true);   // UpdateFaceData
+    bool datenAktualisieren();   // UpdateData
+    void wahlAnwenden(Wahl wahl, int gewaehltU, int gewaehltV, int patchIndex);   // applySelection
+    void transformAuftragen(const Matrix4& transform);   // commitTransform
+
+    AuswahlBearbeitung::Impl& m_u;
+    Wahl m_wahl = Wahl::Keine;
+    int m_gewaehltU = -1;   // m_selectedU (Index der ersten Ecke der Linie in m_uLinien)
+    int m_gewaehltV = -1;
+    int m_patchIndex = -1;   // m_selectedPatchIndex
+    bool m_istGewaehlt = false;
+    bool m_ziehen = false;   // zwischen Construct und freezeTransform: NRC aendert nur die "Transformed"-Kopien
+
+    std::shared_ptr<Flaeche> m_flaeche;
+    Ebene3d m_ebene;
+    std::size_t m_breite = 0;
+    std::size_t m_hoehe = 0;
+    TexturProjektion m_projektion;
+    Matrix4 m_lokalZuTex = kEinheitsMatrix;         // m_local2tex
+    Matrix4 m_texZuLokal = kEinheitsMatrix;         // m_tex2local
+    Matrix4 m_flaecheLokalZuTex = kEinheitsMatrix;  // m_faceLocal2tex
+    Matrix4 m_flaecheTexZuLokal = kEinheitsMatrix;  // m_faceTex2local
+    Vektor3f m_ursprung;                            // m_origin
+
+    Matrix4 m_pivotZuWelt0 = kEinheitsMatrix;
+    Matrix4 m_pivotZuWelt = kEinheitsMatrix;
+    Punkt m_pivotPunkt{Vektor3f(0, 0, 0), kWeiss};
+    std::vector<Punkt> m_pivotLinien;
+    Matrix4 m_pivotLinienZuWelt = kEinheitsMatrix;
+    std::vector<Punkt> m_uLinien;   // im UV-Raum
+    std::vector<Punkt> m_vLinien;
+    Matrix4 m_linienZuWelt = kEinheitsMatrix;
+
+    unsigned int m_gitterU = 1;   // n - 1 Unterlinien in U, 1-16
+    unsigned int m_gitterV = 1;
+    Punkt m_gitterPunktU{Vektor3f(0, 0, 0), kWeiss};
+    Punkt m_gitterPunktV{Vektor3f(0, 0, 0), kWeiss};
+    Vektor2f m_gitterVorzeichen;
+
+    std::vector<Vektor3f> m_kreis;
+    ManipFarbe m_kreisFarbe = kGrau;
+    Matrix4 m_kreisZuWelt = kEinheitsMatrix;
+
+    std::shared_ptr<Patch> m_patch;
+    std::size_t m_patchBreite = 0;
+    std::size_t m_patchHoehe = 0;
+    std::vector<PatchPunkt> m_patchKontrolle;   // m_patchCtrl
+    std::vector<Punkt> m_patchPunkte;
+    std::vector<Punkt> m_patchGitter;
+    std::vector<unsigned int> m_patchDreiecke;
+    std::string m_patchShader;   // m_state_patch_raw
+
+    Vektor3f m_start;
+};
+
+UvManipulator::UvManipulator(AuswahlBearbeitung::Impl& u) : Manipulierbar(u), m_u(u) {
+    m_kreis.resize(8 << 3);
+    kreisPunkte(8, 1, m_kreis.data(), Umordnung::XYZ);
+    m_pivotLinien.assign(4, Punkt{Vektor3f(0, 0, 0), kWeiss});
+}
+
+bool UvManipulator::projektionGueltig() const {
+    return !(!std::isfinite(m_lokalZuTex[0]) || !std::isfinite(m_texZuLokal[0]) ||
+             std::fabs(punkt(m_ebene.normal(), m_texZuLokal.z().vec3())) < 1e-6 ||   // entlang der Flaeche projiziert
+             laengeQuadrat(m_texZuLokal.x().vec3()) < .01 ||   // stark verkleinert, hoechstens 10 Texturen je Einheit
+             laengeQuadrat(m_texZuLokal.y().vec3()) < .01 || laengeQuadrat(m_texZuLokal.x().vec3()) > 1e9 ||
+             laengeQuadrat(m_texZuLokal.y().vec3()) > 1e9);
+}
+
+void UvManipulator::flaechenDatenAktualisieren(bool ursprungAktualisieren, bool linienAktualisieren) {
+    const Kontext& k = m_u.karte.kontext;
+    if (m_flaeche) {
+        m_ebene = m_flaeche->ebene();
+        const auto [w, h] = k.groesse(m_flaeche->shader());
+        m_breite = w;
+        m_hoehe = h;
+        m_projektion = m_flaeche->projektion();
+        lokalZuTextur(k.art(), m_projektion, m_breite, m_hoehe, Vektor3f(m_ebene.normal()), m_lokalZuTex);
+        m_texZuLokal = affinInvers(m_lokalZuTex);
+    } else if (m_patch) {
+        const Vektor3f normale = m_patch->durchschnittsNormale();
+        m_ebene = Ebene3d(Vektor3d(normale), punkt(normale, m_patch->grenzen().origin));
+        m_patchBreite = m_patch->breite();
+        m_patchHoehe = m_patch->hoehe();
+        m_patchKontrolle = m_patch->punkte();
+        m_patchShader = m_patch->shader();
+        {
+            Vektor3f wRicht;
+            Vektor3f hRicht;
+            m_patch->durchschnittsAchsen(wRicht, hRicht);
+            normieren(wRicht);
+            normieren(hRicht);
+            // laengste Zeile und Spalte
+            float wLaenge = 0;
+            float hLaenge = 0;
+            std::size_t zeile = 0;
+            std::size_t spalte = 0;
+            for (std::size_t r = 0; r < m_patchHoehe; ++r) {
+                float l = 0;
+                for (std::size_t c = 0; c + 1 < m_patchBreite; ++c) { l += static_cast<float>(laenge(m_patch->punkt(r, c + 1).vertex - m_patch->punkt(r, c).vertex)); }
+                if (l - wLaenge > .1F || ((r == 0 || r == m_patchHoehe - 1) && gleichEps(l, wLaenge, .1F))) {   // erste und letzte Zeile bevorzugt
+                    wLaenge = l;
+                    zeile = r;
+                }
+            }
+            for (std::size_t c = 0; c < m_patchBreite; ++c) {
+                float l = 0;
+                for (std::size_t r = 0; r + 1 < m_patchHoehe; ++r) { l += static_cast<float>(laenge(m_patch->punkt(r + 1, c).vertex - m_patch->punkt(r, c).vertex)); }
+                if (l - hLaenge > .1F || ((c == 0 || c == m_patchBreite - 1) && gleichEps(l, hLaenge, .1F))) {
+                    hLaenge = l;
+                    spalte = c;
+                }
+            }
+            // drei Punkte auf der gefundenen Zeile und Spalte
+            const PatchPunkt* p0 = nullptr;
+            const PatchPunkt* p1 = nullptr;
+            const PatchPunkt* p2 = nullptr;
+            Vektor3f v0;
+            Vektor3f v1;
+            Vektor3f v2;
+            {
+                float distW0 = 0;
+                float distW1 = 0;
+                for (std::size_t c = 0; c < spalte; ++c) { distW0 += static_cast<float>(laenge(m_patch->punkt(zeile, c + 1).vertex - m_patch->punkt(zeile, c).vertex)); }
+                for (std::size_t c = spalte; c + 1 < m_patchBreite; ++c) { distW1 += static_cast<float>(laenge(m_patch->punkt(zeile, c + 1).vertex - m_patch->punkt(zeile, c).vertex)); }
+                float distH0 = 0;
+                float distH1 = 0;
+                for (std::size_t r = 0; r < zeile; ++r) { distH0 += static_cast<float>(laenge(m_patch->punkt(r + 1, spalte).vertex - m_patch->punkt(r, spalte).vertex)); }
+                for (std::size_t r = zeile; r + 1 < m_patchHoehe; ++r) { distH1 += static_cast<float>(laenge(m_patch->punkt(r + 1, spalte).vertex - m_patch->punkt(r, spalte).vertex)); }
+                const Kasten& g = m_patch->grenzen();
+                const auto betrag = [](const Vektor3f& a) { return Vektor3f(std::fabs(a.x()), std::fabs(a.y()), std::fabs(a.z())); };
+                if ((distW0 > distH0 && distW0 > distH1) || (distW1 > distH0 && distW1 > distH1)) {
+                    p0 = &m_patch->punkt(0, spalte);
+                    p1 = &m_patch->punkt(m_patchHoehe - 1, spalte);
+                    p2 = distW0 > distW1 ? &m_patch->punkt(zeile, 0) : &m_patch->punkt(zeile, m_patchBreite - 1);
+                    v0 = g.origin + hRicht * static_cast<float>(punkt(g.extents, betrag(hRicht)) * 1.1) + wRicht * (distW0 - wLaenge / 2);
+                    v1 = v0 + hRicht * hLaenge;
+                    v2 = v0 + hRicht * distH0 + (distW0 > distW1 ? (wRicht * -distW0) : (wRicht * distW1));
+                } else {
+                    p0 = &m_patch->punkt(zeile, 0);
+                    p1 = &m_patch->punkt(zeile, m_patchBreite - 1);
+                    p2 = distH0 > distH1 ? &m_patch->punkt(0, spalte) : &m_patch->punkt(m_patchHoehe - 1, spalte);
+                    v0 = g.origin + wRicht * static_cast<float>(punkt(g.extents, betrag(wRicht)) * 1.1) + hRicht * (distH0 - hLaenge / 2);
+                    v1 = v0 + wRicht * wLaenge;
+                    v2 = v0 + wRicht * distW0 + (distH0 > distH1 ? (hRicht * -distH0) : (hRicht * distH1));
+                }
+                if (punkt(ebeneAusPunkten(v0, v1, v2).normal(), m_ebene.normal()) < 0) {
+                    std::swap(p0, p1);
+                    std::swap(v0, v1);
+                }
+            }
+            const EbenenPunkte ecken{Vektor3d(v0), Vektor3d(v1), Vektor3d(v2)};
+            const Vektor3d sts[3] = {Vektor3d(p0->texcoord.x(), p0->texcoord.y(), 0), Vektor3d(p1->texcoord.x(), p1->texcoord.y(), 0),
+                                     Vektor3d(p2->texcoord.x(), p2->texcoord.y(), 0)};
+            lokalZuTexturAusSt(ecken, sts, m_lokalZuTex);
+            m_texZuLokal = affinInvers(m_lokalZuTex);
+        }
+    }
+    if (!projektionGueltig()) {   // Fehlerpruefung
+        m_gewaehltU = m_gewaehltV = -1;
+        m_uLinien.clear();
+        m_vLinien.clear();
+        m_patchIndex = -1;
+        return;
+    }
+    const Ebene3d ebene0(m_ebene.normal(), 0);
+    m_flaecheTexZuLokal = m_texZuLokal;
+    m_flaecheTexZuLokal.x().vec3() = punktAufEbene(ebene0, m_texZuLokal.x().vec3(), m_texZuLokal.z().vec3());
+    m_flaecheTexZuLokal.y().vec3() = punktAufEbene(ebene0, m_texZuLokal.y().vec3(), m_texZuLokal.z().vec3());
+    // so verschieben, dass z der UV gleich 0 ist: die Ebene entlang m_tex2local.z() bis dist() = 0
+    m_flaecheTexZuLokal = multipliziert(
+        verschiebungsMatrix(m_texZuLokal.z().vec3() *
+                            static_cast<float>((m_ebene.dist() - punkt(m_ebene.normal(), m_texZuLokal.t().vec3())) / punkt(m_ebene.normal(), m_texZuLokal.z().vec3()))),
+        m_flaecheTexZuLokal);
+    m_flaecheLokalZuTex = affinInvers(m_flaecheTexZuLokal);
+
+    if (m_patch) {
+        m_patchPunkte.clear();
+        for (std::size_t i = 0; i < m_patchKontrolle.size(); ++i) {
+            m_patchPunkte.push_back(Punkt{Vektor3f(m_patchKontrolle[i].texcoord.x(), m_patchKontrolle[i].texcoord.y(), 0), patchPunktInnen(i) ? kPin : kGrue});
+        }
+        m_patchGitter.clear();
+        for (std::size_t r = 0; r < m_patchHoehe; ++r) {
+            for (std::size_t c = 0; c + 1 < m_patchBreite; ++c) {
+                const Vektor2f& a = m_patch->punkt(r, c).texcoord;
+                const Vektor2f& b = m_patch->punkt(r, c + 1).texcoord;
+                m_patchGitter.push_back(Punkt{Vektor3f(a.x(), a.y(), 0), kOrang});
+                m_patchGitter.push_back(Punkt{Vektor3f(b.x(), b.y(), 0), kOrang});
+            }
+        }
+        for (std::size_t c = 0; c < m_patchBreite; ++c) {
+            for (std::size_t r = 0; r + 1 < m_patchHoehe; ++r) {
+                const Vektor2f& a = m_patch->punkt(r, c).texcoord;
+                const Vektor2f& b = m_patch->punkt(r + 1, c).texcoord;
+                m_patchGitter.push_back(Punkt{Vektor3f(a.x(), a.y(), 0), kOrang});
+                m_patchGitter.push_back(Punkt{Vektor3f(b.x(), b.y(), 0), kOrang});
+            }
+        }
+        m_patchDreiecke.clear();
+        const auto& pc = m_patch->punkte();
+        constexpr double kEntartet = 1e-5;
+        for (std::size_t r = 0; r + 1 < m_patchHoehe; ++r) {
+            for (std::size_t c = 0; c + 1 < m_patchBreite; ++c) {
+                const auto i0 = static_cast<unsigned int>(m_patchBreite * r + c);
+                const auto i1 = static_cast<unsigned int>(m_patchBreite * (r + 1) + c);
+                const auto i2 = static_cast<unsigned int>(m_patchBreite * (r + 1) + c + 1);
+                const auto i3 = static_cast<unsigned int>(m_patchBreite * r + c + 1);
+                double quer = kreuz(pc[i2].texcoord - pc[i0].texcoord, pc[i1].texcoord - pc[i0].texcoord);
+                if (!gleichEps(quer, 0.0, kEntartet)) {
+                    m_patchDreiecke.insert(m_patchDreiecke.end(), {i0, i1, i2});
+                    if (quer < 0) { std::swap(*(m_patchDreiecke.end() - 1), *(m_patchDreiecke.end() - 2)); }
+                }
+                quer = kreuz(pc[i3].texcoord - pc[i0].texcoord, pc[i2].texcoord - pc[i0].texcoord);
+                if (!gleichEps(quer, 0.0, kEntartet)) {
+                    m_patchDreiecke.insert(m_patchDreiecke.end(), {i0, i2, i3});
+                    if (quer < 0) { std::swap(*(m_patchDreiecke.end() - 1), *(m_patchDreiecke.end() - 2)); }
+                }
+            }
+        }
+        if (m_patchDreiecke.empty()) {   // wenigstens ein Dreieck versuchen
+            const unsigned int i0 = 0;
+            for (unsigned int i1 = 1; i1 < pc.size(); ++i1) {
+                if (laenge(pc[i1].texcoord - pc[i0].texcoord) > kEntartet) {
+                    for (unsigned int i2 = i1 + 1; i2 < pc.size(); ++i2) {
+                        const double quer = kreuz(pc[i2].texcoord - pc[i0].texcoord, pc[i1].texcoord - pc[i0].texcoord);
+                        if (!gleichEps(quer, 0.0, kEntartet)) {
+                            m_patchDreiecke.insert(m_patchDreiecke.end(), {i0, i1, i2});
+                            if (quer < 0) { std::swap(*(m_patchDreiecke.end() - 1), *(m_patchDreiecke.end() - 2)); }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Vektor2f kleinst(FLT_MAX, FLT_MAX);
+    Vektor2f groesst(-FLT_MAX, -FLT_MAX);
+    jederUvPunkt([&](const Vektor3f& p) {
+        kleinst.x() = std::min(kleinst.x(), p.x());
+        groesst.x() = std::max(groesst.x(), p.x());
+        kleinst.y() = std::min(kleinst.y(), p.y());
+        groesst.y() = std::max(groesst.y(), p.y());
+    });
+    if (ursprungAktualisieren) { m_ursprung = transformierterPunkt(m_flaecheTexZuLokal, Vektor3f(kleinst.x(), kleinst.y(), 0)); }
+    const Vektor3f uvUrsprung = transformierterPunkt(m_flaecheLokalZuTex, m_ursprung);
+    {   // Griffe der Gitterdichte, auf der Seite des Polygons
+        m_gitterVorzeichen.x() = groesst.y() - uvUrsprung.y() >= uvUrsprung.y() - kleinst.y() ? 1.0F : -1.0F;
+        m_gitterVorzeichen.y() = groesst.x() - uvUrsprung.x() >= uvUrsprung.x() - kleinst.x() ? 1.0F : -1.0F;
+        m_gitterPunktU.p = Vektor3f(uvUrsprung.x(),
+                                    static_cast<float>(zuGanzzahl(uvUrsprung.y() + m_gitterVorzeichen.x() * .25)) +
+                                        m_gitterVorzeichen.x() * (1 - 1.0F / std::max(static_cast<float>(m_gitterU), 1.8F)),
+                                    0);
+        m_gitterPunktV.p = Vektor3f(static_cast<float>(zuGanzzahl(uvUrsprung.x() + m_gitterVorzeichen.y() * .25)) +
+                                        m_gitterVorzeichen.y() * (1 - 1.0F / std::max(static_cast<float>(m_gitterV), 1.8F)),
+                                    uvUrsprung.y(), 0);
+    }
+    m_pivotZuWelt = m_texZuLokal;
+    normieren(m_pivotZuWelt.x().vec3());
+    normieren(m_pivotZuWelt.y().vec3());
+    m_pivotZuWelt.t().vec3() = m_ursprung;
+    m_pivotZuWelt0 = m_pivotZuWelt;
+    {
+        float besterAbstand = 0;
+        jederPunkt([&](const Vektor3f& p) {
+            const auto a = static_cast<float>(laengeQuadrat(p - m_ursprung));
+            if (a > besterAbstand) { besterAbstand = a; }
+        });
+        besterAbstand = std::sqrt(besterAbstand);
+        m_kreisZuWelt = kEinheitsMatrix;
+        berechneAchsenbasis(m_ebene.normal(), m_kreisZuWelt.x().vec3(), m_kreisZuWelt.y().vec3());
+        m_kreisZuWelt.x().vec3() *= besterAbstand;
+        m_kreisZuWelt.y().vec3() *= besterAbstand;
+        m_kreisZuWelt.z().vec3() = Vektor3f(m_ebene.normal());
+        m_kreisZuWelt.t().vec3() = m_ursprung;
+    }
+    kleinst = Vektor2f(kleinst.x() - 5, kleinst.y() - 5);
+    groesst = Vektor2f(groesst.x() + 5, groesst.y() + 5);
+    kleinst.x() = static_cast<float>(zuGanzzahl(kleinst.x()));
+    kleinst.y() = static_cast<float>(zuGanzzahl(kleinst.y()));
+    groesst.x() = static_cast<float>(zuGanzzahl(groesst.x()));
+    groesst.y() = static_cast<float>(zuGanzzahl(groesst.y()));
+    m_gewaehltU = m_gewaehltV = -1;
+    m_patchIndex = -1;
+    m_linienZuWelt = m_flaecheTexZuLokal;
+    m_pivotLinienZuWelt = m_flaecheTexZuLokal;
+    if (linienAktualisieren) {
+        const int imax = zuGanzzahl(groesst.y() - kleinst.y()) + 1;
+        m_uLinien.clear();
+        for (int i = 0; i < imax; ++i) {
+            if (i != 0) {
+                for (std::size_t j = m_gitterU - 1; j != 0; --j) {   // Unterlinien
+                    const float y = kleinst.y() + static_cast<float>(i) - static_cast<float>(j) / static_cast<float>(m_gitterU);
+                    m_uLinien.push_back(Punkt{Vektor3f(kleinst.x(), y, 0), kGrauer});
+                    m_uLinien.push_back(Punkt{Vektor3f(groesst.x(), y, 0), kGrauer});
+                }
+            }
+            m_uLinien.push_back(Punkt{Vektor3f(kleinst.x(), kleinst.y() + static_cast<float>(i), 0), kGrau});
+            m_uLinien.push_back(Punkt{Vektor3f(groesst.x(), kleinst.y() + static_cast<float>(i), 0), kGrau});
+        }
+    }
+    if (linienAktualisieren) {
+        const int imax = zuGanzzahl(groesst.x() - kleinst.x()) + 1;
+        m_vLinien.clear();
+        for (int i = 0; i < imax; ++i) {
+            if (i != 0) {
+                for (std::size_t j = m_gitterV - 1; j != 0; --j) {
+                    const float x = kleinst.x() + static_cast<float>(i) - static_cast<float>(j) / static_cast<float>(m_gitterV);
+                    m_vLinien.push_back(Punkt{Vektor3f(x, kleinst.y(), 0), kGrauer});
+                    m_vLinien.push_back(Punkt{Vektor3f(x, groesst.y(), 0), kGrauer});
+                }
+            }
+            m_vLinien.push_back(Punkt{Vektor3f(kleinst.x() + static_cast<float>(i), kleinst.y(), 0), kGrau});
+            m_vLinien.push_back(Punkt{Vektor3f(kleinst.x() + static_cast<float>(i), groesst.y(), 0), kGrau});
+        }
+    }
+    m_pivotLinien[0].p = Vektor3f(kleinst.x(), uvUrsprung.y(), 0);   // u-Pivotlinie
+    m_pivotLinien[1].p = Vektor3f(groesst.x(), uvUrsprung.y(), 0);
+    m_pivotLinien[2].p = Vektor3f(uvUrsprung.x(), kleinst.y(), 0);   // v-Pivotlinie
+    m_pivotLinien[3].p = Vektor3f(uvUrsprung.x(), groesst.y(), 0);
+}
+
+bool UvManipulator::datenAktualisieren() {   // UpdateData
+    Karte& karte = m_u.karte;
+    if (m_ziehen) { return projektionGueltig(); }
+    if (!karte.auswahl.flaechen().empty()) {
+        const auto f = karte.auswahl.flaechen().back().flaeche.lock();   // g_SelectedFaceInstances.last()
+        if (f) {
+            const auto [w, h] = karte.kontext.groesse(f->shader());
+            if (m_flaeche != f) {
+                m_flaeche = f;
+                m_patch.reset();
+                flaechenDatenAktualisieren(true);
+            } else if (std::memcmp(&m_projektion, &f->projektion(), sizeof(TexturProjektion)) != 0 || m_breite != w || m_hoehe != h) {
+                flaechenDatenAktualisieren(!projektionGueltig());   // Ursprung neu, wenn der vorige Stand ungueltig war
+            }
+            return projektionGueltig();
+        }
+    } else if (karte.auswahl.anzahl() != 0) {
+        const auto p = std::dynamic_pointer_cast<Patch>(karte.auswahl.elemente().back().primitiv.lock());   // ultimateSelected
+        if (p) {
+            if (m_patch != p) {
+                m_patch = p;
+                m_flaeche.reset();
+                flaechenDatenAktualisieren(true);
+            } else if (m_patchBreite != p->breite() || m_patchHoehe != p->hoehe() || m_patchKontrolle.size() != p->punkte().size() ||
+                       std::memcmp(m_patchKontrolle.data(), p->punkte().data(), sizeof(PatchPunkt) * m_patchKontrolle.size()) != 0 ||
+                       m_patchShader != p->shader()) {
+                flaechenDatenAktualisieren(!projektionGueltig());
+            }
+            return projektionGueltig();
+        }
+    }
+    return false;
+}
+
+void UvManipulator::zeichnen(const Blick& v, const Matrix4&, ManipZeichnung& aus) {   // render
+    if (!v.fuellen() || !datenAktualisieren()) { return; }
+    const auto linien = [&](const std::vector<Punkt>& l, const Matrix4& m) {
+        for (std::size_t i = 0; i + 1 < l.size(); i += 2) {
+            aus.blendLinien.push_back(ManipZeichnung::Linie{transformierterPunkt(m, l[i].p), transformierterPunkt(m, l[i + 1].p), l[i].f});
+        }
+    };
+    if (m_patch) {   // $uvtool/patchtexture: der Patch mit seiner Textur im UV-Raum
+        ManipZeichnung::TexturNetz netz;
+        netz.shader = m_patch->shader();
+        netz.normale = normiert(transformierteNormale(m_linienZuWelt, Vektor3f(0, 0, 1)));
+        for (const unsigned int i : m_patchDreiecke) {
+            const Vektor2f& st = m_patch->punkte()[i].texcoord;
+            netz.punkte.push_back(transformierterPunkt(m_linienZuWelt, Vektor3f(st.x(), st.y(), 0)));
+            netz.st.push_back(st);
+        }
+        aus.texturNetze.push_back(std::move(netz));
+    }
+    linien(m_uLinien, m_linienZuWelt);   // $BLENDLINE
+    linien(m_vLinien, m_linienZuWelt);
+    linien(m_pivotLinien, m_pivotLinienZuWelt);
+    if (m_patch) { linien(m_patchGitter, m_flaecheTexZuLokal); }
+    {   // RenderablePivot (32) etwas zur Kamera hin, damit er sichtbar ist ($PIVOT, Pivot2World_worldSpace)
+        Matrix4 lokalZuWelt;
+        pivotWeltRaum(lokalZuWelt, multipliziert(verschiebungsMatrix(normiert(v.betrachter() - m_ursprung)), m_pivotZuWelt), v.modelview(), v.projektion(),
+                      v.bildfeld());
+        const Vektor3f o = transformierterPunkt(lokalZuWelt, Vektor3f(0, 0, 0));
+        aus.pivotLinien.push_back(ManipZeichnung::Linie{o, transformierterPunkt(lokalZuWelt, Vektor3f(32, 0, 0)), kFarbeX});
+        aus.pivotLinien.push_back(ManipZeichnung::Linie{o, transformierterPunkt(lokalZuWelt, Vektor3f(0, 32, 0)), kFarbeY});
+        aus.pivotLinien.push_back(ManipZeichnung::Linie{o, transformierterPunkt(lokalZuWelt, Vektor3f(0, 0, 32)), kFarbeZ});
+    }
+    for (std::size_t i = 0; i < m_kreis.size(); ++i) {   // RenderableCircle (GL_LINE_LOOP)
+        aus.blendLinien.push_back(ManipZeichnung::Linie{transformierterPunkt(m_kreisZuWelt, m_kreis[i]),
+                                                        transformierterPunkt(m_kreisZuWelt, m_kreis[(i + 1) % m_kreis.size()]), m_kreisFarbe});
+    }
+    // $BIGPOINT
+    if (m_patch) {
+        for (const Punkt& p : m_patchPunkte) { aus.grossePunkte.push_back(ManipZeichnung::Punkt{transformierterPunkt(m_flaecheTexZuLokal, p.p), p.f}); }
+    }
+    aus.grossePunkte.push_back(ManipZeichnung::Punkt{transformierterPunkt(m_pivotZuWelt, m_pivotPunkt.p), m_pivotPunkt.f});
+    aus.grossePunkte.push_back(ManipZeichnung::Punkt{transformierterPunkt(m_pivotLinienZuWelt, m_gitterPunktU.p), m_gitterPunktU.f});
+    aus.grossePunkte.push_back(ManipZeichnung::Punkt{transformierterPunkt(m_pivotLinienZuWelt, m_gitterPunktV.p), m_gitterPunktV.f});
+}
+
+void UvManipulator::testen(const Blick& v, const Matrix4&) {   // testSelect
+    if (!v.fuellen() || !datenAktualisieren()) {
+        m_istGewaehlt = false;
+        return;
+    }
+    Wahl wahl = Wahl::Keine;
+    int index = -1;
+    Treffer bester;
+    const auto dazu = [&](const Treffer& t, Wahl w, int i = -1) {   // UVSelector::addIntersection
+        if (t < bester) {
+            bester = t;
+            wahl = w;
+            if (i >= 0) { index = i; }
+        }
+    };
+    const Zusatz& z = zusatz();
+    const bool alt = z.genau(false, false, true);
+    int gewaehltU = -1;
+    int gewaehltV = -1;
+    if (!alt) {
+        if (!z.keine()) {
+            wahlAnwenden(wahl, -1, -1, index);
+            return;
+        }
+        {   // Pivotpunkt
+            Treffer t;
+            punktBesterPunkt(multipliziert(v.sicht(), m_pivotZuWelt), m_pivotPunkt.p, t);
+            dazu(t, Wahl::Pivot);
+        }
+        if (!bester.gueltig()) {   // Griffe der Gitterdichte
+            const Matrix4 lzs = multipliziert(v.sicht(), m_flaecheTexZuLokal);
+            Treffer t;
+            punktBesterPunkt(lzs, m_gitterPunktU.p, t);
+            dazu(t, Wahl::GitterU);
+            punktBesterPunkt(lzs, m_gitterPunktV.p, t);
+            dazu(t, Wahl::GitterV);
+        }
+        if (!bester.gueltig() && m_patch) {   // Patch-Punkte
+            const Matrix4 lzs = multipliziert(v.sicht(), m_flaecheTexZuLokal);
+            Treffer t;
+            for (std::size_t i = 0; i < m_patchPunkte.size(); ++i) {
+                punktBesterPunkt(lzs, m_patchPunkte[i].p, t);
+                dazu(t, Wahl::PatchPunkt, static_cast<int>(i));
+            }
+        }
+        if (!bester.gueltig() && m_patch) {   // Patch-Zeilen und -Spalten
+            const Matrix4 lzs = multipliziert(v.sicht(), m_flaecheTexZuLokal);
+            Treffer t;
+            for (std::size_t r = 0; r < m_patchHoehe; ++r) {
+                for (std::size_t c = 0; c + 1 < m_patchBreite; ++c) {
+                    const std::size_t i = (r * (m_patchBreite - 1) + c) * 2;
+                    const Vektor3f l[2] = {m_patchGitter[i].p, m_patchGitter[i + 1].p};
+                    linieBesterPunkt(lzs, l, t);
+                    dazu(t, Wahl::PatchZeile, static_cast<int>(r));
+                }
+            }
+            for (std::size_t c = 0; c < m_patchBreite; ++c) {
+                for (std::size_t r = 0; r + 1 < m_patchHoehe; ++r) {
+                    const std::size_t i = (m_patchBreite - 1) * m_patchHoehe * 2 + (c * (m_patchHoehe - 1) + r) * 2;
+                    const Vektor3f l[2] = {m_patchGitter[i].p, m_patchGitter[i + 1].p};
+                    linieBesterPunkt(lzs, l, t);
+                    dazu(t, Wahl::PatchSpalte, static_cast<int>(c));
+                }
+            }
+        }
+        if (!bester.gueltig()) {   // Kreis
+            Treffer t;
+            linienSchleifeBesterPunkt(multipliziert(v.sicht(), m_kreisZuWelt), m_kreis.data(), m_kreis.size(), t);
+            dazu(t, Wahl::Kreis);
+        }
+        if (!bester.gueltig()) {   // Pivotlinien
+            const Matrix4 lzs = multipliziert(v.sicht(), m_flaecheTexZuLokal);
+            Treffer t;
+            const Vektor3f lu[2] = {m_pivotLinien[0].p, m_pivotLinien[1].p};
+            linieBesterPunkt(lzs, lu, t);
+            dazu(t, Wahl::PivotU);
+            const Vektor3f lv[2] = {m_pivotLinien[2].p, m_pivotLinien[3].p};
+            linieBesterPunkt(lzs, lv, t);
+            dazu(t, Wahl::PivotV);
+        }
+    }
+    // testSelectUVlines: UV-Linien, Textur
+    if (!bester.gueltig()) {
+        const Matrix4 bildZuWelt = vollInvers(v.sicht());
+        const auto proj = [&](double zz) {   // matrix4_transformed_vector4 mit BasicVector4<double>, vector4_projected
+            const Matrix4& m = bildZuWelt;
+            const double x = m[8] * zz + m[12];
+            const double y = m[9] * zz + m[13];
+            const double z = m[10] * zz + m[14];
+            const double w = m[11] * zz + m[15];
+            return Vektor3d(x / w, y / w, z / w);
+        };
+        const Strahld strahl = strahlAusPunkten(proj(-1), proj(1));
+        const Vektor3d treffer = strahlSchnittEbene(strahl, m_ebene);
+        const Vektor3f uvTreffer(transformierterPunkt(m_flaecheLokalZuTex, treffer));
+        if (std::fabs(punkt(strahl.direction, m_ebene.normal())) > 1e-6 && !m_uLinien.empty() && !m_vLinien.empty() &&
+            transformierterVektor4(v.sicht(), Vektor4f(Vektor3f(treffer), 1)).w() > 0) {
+            const int naechsteU = static_cast<int>(std::min(
+                m_uLinien.size() - 2,
+                static_cast<std::size_t>(zuGanzzahl(std::max(0.F, uvTreffer.y() - m_uLinien.front().p.y()) * static_cast<float>(m_gitterU)) * 2)));
+            const int naechsteV = static_cast<int>(std::min(
+                m_vLinien.size() - 2,
+                static_cast<std::size_t>(zuGanzzahl(std::max(0.F, uvTreffer.x() - m_vLinien.front().p.x()) * static_cast<float>(m_gitterV)) * 2)));
+            const Punkt& pu = m_uLinien[static_cast<std::size_t>(naechsteU)];
+            const Punkt& pv = m_vLinien[static_cast<std::size_t>(naechsteV)];
+            const Vektor2f vorzeichen(uvTreffer.y() > pu.p.y() ? 1.0F : -1.0F, uvTreffer.x() > pv.p.x() ? 1.0F : -1.0F);
+            const Vektor3f kreuzung(pv.p.x(), pu.p.y(), 0);
+            const Vektor3f uMitte(pv.p.x() + vorzeichen.y() / static_cast<float>(m_gitterV * 2), pu.p.y(), 0);
+            const Vektor3f vMitte(pv.p.x(), pu.p.y() + vorzeichen.x() / static_cast<float>(m_gitterU * 2), 0);
+            Vektor3f texUMitte[2] = {pu.p, m_uLinien[static_cast<std::size_t>(naechsteU) + 1].p};
+            texUMitte[0].y() = texUMitte[1].y() = vMitte.y();
+            Vektor3f texVMitte[2] = {pv.p, m_vLinien[static_cast<std::size_t>(naechsteV) + 1].p};
+            texVMitte[0].x() = texVMitte[1].x() = uMitte.x();
+            Treffer iKreuz, iUMitte, iVMitte, iTexU, iTexV, iU, iV;
+            const Treffer iNull;
+            const Matrix4 lzs = multipliziert(v.sicht(), m_flaecheTexZuLokal);
+            const Vektor3f lu[2] = {pu.p, m_uLinien[static_cast<std::size_t>(naechsteU) + 1].p};
+            const Vektor3f lv[2] = {pv.p, m_vLinien[static_cast<std::size_t>(naechsteV) + 1].p};
+            linieBesterPunkt(lzs, lu, iU);
+            linieBesterPunkt(lzs, lv, iV);
+            linieBesterPunkt(lzs, texUMitte, iTexU);
+            linieBesterPunkt(lzs, texVMitte, iTexV);
+            const bool uGewaehlt = iU < iNull;
+            const bool vGewaehlt = iV < iNull;
+            if (!uGewaehlt && !vGewaehlt) {   // keine Linie: die Textur
+                wahl = Wahl::Textur;
+            } else if ((!uGewaehlt || iTexU < iU) && (!vGewaehlt || iTexV < iV)) {   // Linien, aber die Texturmitten liegen naeher
+                wahl = Wahl::Textur;
+            } else if (uGewaehlt != vGewaehlt) {   // nur eine Linie
+                if (uGewaehlt) {
+                    wahl = alt ? Wahl::SchiefU : Wahl::U;
+                    gewaehltU = naechsteU;
+                } else {
+                    wahl = alt ? Wahl::SchiefV : Wahl::V;
+                    gewaehltV = naechsteV;
+                }
+            } else if (alt) {   // zwei Linien: zum Scheren nur eine
+                if (iU < iV) {
+                    wahl = Wahl::SchiefU;
+                    gewaehltU = naechsteU;
+                } else {
+                    wahl = Wahl::SchiefV;
+                    gewaehltV = naechsteV;
+                }
+            } else {
+                punktBesterPunkt(lzs, uMitte, iUMitte);
+                punktBesterPunkt(lzs, vMitte, iVMitte);
+                punktBesterPunkt(lzs, kreuzung, iKreuz);
+                const bool um = iUMitte < iNull;
+                const bool vm = iVMitte < iNull;
+                if ((!um && !vm) || (iKreuz < iUMitte && iKreuz < iVMitte)) {   // zwei Linien
+                    wahl = Wahl::UV;
+                    gewaehltU = naechsteU;
+                    gewaehltV = naechsteV;
+                } else if (iUMitte < iVMitte) {   // die naechste Linie
+                    wahl = Wahl::U;
+                    gewaehltU = naechsteU;
+                } else {
+                    wahl = Wahl::V;
+                    gewaehltV = naechsteV;
+                }
+            }
+        }
+    }
+    wahlAnwenden(wahl, gewaehltU, gewaehltV, index);
+}
+
+void UvManipulator::wahlAnwenden(Wahl wahl, int gewaehltU, int gewaehltV, int patchIndex) {   // applySelection
+    if (m_wahl != wahl || m_gewaehltU != gewaehltU || m_gewaehltV != gewaehltV || m_patchIndex != patchIndex) {
+        if (m_wahl != wahl) {
+            switch (m_wahl) {
+            case Wahl::Pivot: m_pivotPunkt.f = kWeiss; break;
+            case Wahl::GitterU: m_gitterPunktU.f = kWeiss; break;
+            case Wahl::GitterV: m_gitterPunktV.f = kWeiss; break;
+            case Wahl::Kreis: m_kreisFarbe = kGrau; break;
+            case Wahl::PivotU: m_pivotLinien[0].f = m_pivotLinien[1].f = kWeiss; break;
+            case Wahl::PivotV: m_pivotLinien[2].f = m_pivotLinien[3].f = kWeiss; break;
+            default: break;
+            }
+            switch (wahl) {
+            case Wahl::Pivot: m_pivotPunkt.f = kRot; break;
+            case Wahl::GitterU: m_gitterPunktU.f = kRot; break;
+            case Wahl::GitterV: m_gitterPunktV.f = kRot; break;
+            case Wahl::Kreis: m_kreisFarbe = kFarbeGewaehlt; break;
+            case Wahl::PivotU: m_pivotLinien[0].f = m_pivotLinien[1].f = kRot; break;
+            case Wahl::PivotV: m_pivotLinien[2].f = m_pivotLinien[3].f = kRot; break;
+            default: break;
+            }
+        }
+        const ManipFarbe gewaehltFarbe = zusatz().genau(false, false, true) ? kGruen : kFarbeGewaehlt;
+        if (m_gewaehltU != gewaehltU || m_wahl != wahl) {   // die Linie wechselt oder Skalieren <-> Scheren
+            if (m_gewaehltU >= 0 && static_cast<std::size_t>(m_gewaehltU) + 1 < m_uLinien.size()) {
+                const ManipFarbe f = ((m_gewaehltU / 2) % static_cast<int>(m_gitterU)) == 0 ? kGrau : kGrauer;
+                m_uLinien[static_cast<std::size_t>(m_gewaehltU)].f = m_uLinien[static_cast<std::size_t>(m_gewaehltU) + 1].f = f;
+            }
+            if (gewaehltU >= 0) { m_uLinien[static_cast<std::size_t>(gewaehltU)].f = m_uLinien[static_cast<std::size_t>(gewaehltU) + 1].f = gewaehltFarbe; }
+        }
+        if (m_gewaehltV != gewaehltV || m_wahl != wahl) {
+            if (m_gewaehltV >= 0 && static_cast<std::size_t>(m_gewaehltV) + 1 < m_vLinien.size()) {
+                const ManipFarbe f = ((m_gewaehltV / 2) % static_cast<int>(m_gitterV)) == 0 ? kGrau : kGrauer;
+                m_vLinien[static_cast<std::size_t>(m_gewaehltV)].f = m_vLinien[static_cast<std::size_t>(m_gewaehltV) + 1].f = f;
+            }
+            if (gewaehltV >= 0) { m_vLinien[static_cast<std::size_t>(gewaehltV)].f = m_vLinien[static_cast<std::size_t>(gewaehltV) + 1].f = gewaehltFarbe; }
+        }
+        if (m_patchIndex != patchIndex || m_wahl != wahl) {
+            const auto faerben = [&](Wahl w, int idx, bool an) {
+                if (idx < 0) { return; }
+                const auto ui = static_cast<std::size_t>(idx);
+                const auto punktFarbe = [&](std::size_t i) { return patchPunktInnen(i) ? (an ? kPink : kPin) : (an ? kGruen : kGrue); };
+                switch (w) {
+                case Wahl::PatchPunkt: m_patchPunkte[ui].f = punktFarbe(ui); break;
+                case Wahl::PatchZeile:
+                    for (std::size_t c = 0; c + 1 < m_patchBreite; ++c) {
+                        const std::size_t i = (ui * (m_patchBreite - 1) + c) * 2;
+                        m_patchGitter[i].f = m_patchGitter[i + 1].f = an ? kOrange : kOrang;
+                    }
+                    for (std::size_t c = 0; c < m_patchBreite; ++c) { m_patchPunkte[ui * m_patchBreite + c].f = punktFarbe(ui * m_patchBreite + c); }
+                    break;
+                case Wahl::PatchSpalte:
+                    for (std::size_t r = 0; r + 1 < m_patchHoehe; ++r) {
+                        const std::size_t i = (m_patchBreite - 1) * m_patchHoehe * 2 + (ui * (m_patchHoehe - 1) + r) * 2;
+                        m_patchGitter[i].f = m_patchGitter[i + 1].f = an ? kOrange : kOrang;
+                    }
+                    for (std::size_t r = 0; r < m_patchHoehe; ++r) { m_patchPunkte[r * m_patchBreite + ui].f = punktFarbe(r * m_patchBreite + ui); }
+                    break;
+                default: break;
+                }
+            };
+            faerben(m_wahl, m_patchIndex, false);
+            faerben(wahl, patchIndex, true);
+        }
+        m_wahl = wahl;
+        m_gewaehltU = gewaehltU;
+        m_gewaehltV = gewaehltV;
+        m_patchIndex = patchIndex;
+    }
+    m_istGewaehlt = wahl != Wahl::Keine;
+}
+
+// transform_local2object: object2local x local x local2object (selection_.h)
+Matrix4 transformLokalZuObjekt(const Matrix4& lokal, const Matrix4& lokalZuObjekt, const Matrix4& objektZuLokal) {
+    return multipliziert(multipliziert(lokalZuObjekt, lokal), objektZuLokal);
+}
+
+void UvManipulator::transformAuftragen(const Matrix4& transform) {   // commitTransform
+    const Kontext& k = m_u.karte.kontext;
+    if (m_flaeche) {   // Face::transform_texdef: revertTexdef, Texdef_transform, EmitTextureCoordinates
+        TexturProjektion p = m_projektion;
+        texdefTransformiert(k.art(), p, m_breite, m_hoehe, m_flaeche->ebene(), transform, m_ursprung);
+        m_flaeche->projektionSetzen(p);
+    } else if (m_patch) {
+        const Matrix4 uvTransform = transformLokalZuObjekt(affinInvers(transform), m_flaecheLokalZuTex, m_flaecheTexZuLokal);
+        std::vector<PatchPunkt> punkte = m_patch->punkte();
+        for (std::size_t i = 0; i < m_patchKontrolle.size() && i < punkte.size(); ++i) {
+            const Vektor3f uv = transformierterPunkt(uvTransform, Vektor3f(m_patchKontrolle[i].texcoord.x(), m_patchKontrolle[i].texcoord.y(), 0));
+            punkte[i].texcoord = Vektor2f(uv.x(), uv.y());
+        }
+        m_patch->punkteSetzen(punkte);
+    }
+}
+
+void UvManipulator::bauen(const Matrix4&, const GeraeteVektor& p, const Kasten&, const Vektor3f&) {   // Construct
+    m_start = punktAufEbeneSicht(m_ebene, blick().sicht(), p);
+    m_ziehen = true;
+}
+
+// Transform (selection_mtor_uv.cpp:952-1650)
+void UvManipulator::transformieren(const Matrix4&, const Matrix4&, const GeraeteVektor& p) {
+    const Vektor3f aktuell = punktAufEbeneSicht(m_ebene, blick().sicht(), p);
+    const bool fangen = zusatz().shift;
+    const bool hartFangen = zusatz().strg;
+    // Snapper: UV-Achse zu Bildschirm, damit das Einrasten auf dem Schirm gleich weit wirkt
+    float sx = 0;
+    float sy = 0;
+    {
+        Vektor3f skala(blick().bildfeld().x().x(), blick().bildfeld().y().y(), 0);
+        skala /= std::max(skala.x(), skala.y());
+        const Matrix4 proj = multipliziert(skalierungsMatrix(skala), blick().sicht());
+        const Vektor3f jetzt = projiziert(transformierterVektor4(proj, Vektor4f(aktuell, 1)));
+        const Vektor3f x = projiziert(transformierterVektor4(proj, Vektor4f(aktuell + normiert(m_flaecheTexZuLokal.x().vec3()), 1)));
+        const Vektor3f y = projiziert(transformierterVektor4(proj, Vektor4f(aktuell + normiert(m_flaecheTexZuLokal.y().vec3()), 1)));
+        sx = static_cast<float>(laenge(x - jetzt) * laenge(m_flaecheTexZuLokal.x().vec3()));
+        sy = static_cast<float>(laenge(y - jetzt) * laenge(m_flaecheTexZuLokal.y().vec3()));
+    }
+    const auto xFaengt = [sx](float uvAbstand, float eps = .01F) { return uvAbstand * sx < eps; };
+    const auto yFaengt = [sy](float uvAbstand, float eps = .01F) { return uvAbstand * sy < eps; };
+
+    switch (m_wahl) {
+    case Wahl::Pivot:
+    case Wahl::PivotU:
+    case Wahl::PivotV: {
+        const Vektor3f uvStart = transformierterPunkt(m_flaecheLokalZuTex, m_ursprung);
+        const Vektor3f uv = transformierterPunkt(m_flaecheLokalZuTex, aktuell);
+        float besterU = FLT_MAX;
+        float besterV = FLT_MAX;
+        float zielU = 0;
+        float zielV = 0;
+        if (m_wahl != Wahl::PivotV) {
+            for (std::size_t i = 0; i < m_uLinien.size(); i += 2) {
+                const float a = std::fabs(m_uLinien[i].p.y() - uv.y());
+                if (a < besterU) {
+                    besterU = a;
+                    zielU = m_uLinien[i].p.y();
+                }
+            }
+        }
+        if (m_wahl != Wahl::PivotU) {
+            for (std::size_t i = 0; i < m_vLinien.size(); i += 2) {
+                const float a = std::fabs(m_vLinien[i].p.x() - uv.x());
+                if (a < besterV) {
+                    besterV = a;
+                    zielV = m_vLinien[i].p.x();
+                }
+            }
+        }
+        jederUvPunkt([&](const Vektor3f& q) {
+            if (m_wahl != Wahl::PivotV) {
+                const float a = std::fabs(q.y() - uv.y());
+                if (a < besterU) {
+                    besterU = a;
+                    zielU = q.y();
+                }
+            }
+            if (m_wahl != Wahl::PivotU) {
+                const float a = std::fabs(q.x() - uv.x());
+                if (a < besterV) {
+                    besterV = a;
+                    zielV = q.x();
+                }
+            }
+        });
+        Vektor3f ergebnis(uvStart);
+        if (m_wahl != Wahl::PivotV) { ergebnis.y() = (yFaengt(besterU) || hartFangen) ? zielU : uv.y(); }
+        if (m_wahl != Wahl::PivotU) { ergebnis.x() = (xFaengt(besterV) || hartFangen) ? zielV : uv.x(); }
+        m_ursprung = transformierterPunkt(m_flaecheTexZuLokal, ergebnis);
+        flaechenDatenAktualisieren(false, false);
+        break;
+    }
+    case Wahl::GitterU:
+    case Wahl::GitterV: {
+        const bool u = m_wahl == Wahl::GitterU;
+        const Vektor3f uvUrsprung = transformierterPunkt(m_flaecheLokalZuTex, m_ursprung);
+        const Vektor3f uvJetzt = transformierterPunkt(m_flaecheLokalZuTex, aktuell);
+        const float vz = u ? m_gitterVorzeichen.x() : m_gitterVorzeichen.y();
+        const float o = u ? uvUrsprung.y() : uvUrsprung.x();
+        const float j = u ? uvJetzt.y() : uvJetzt.x();
+        const float abstand = std::max((static_cast<float>(zuGanzzahl(o + vz * .25)) + vz - j) * vz, .01F);
+        unsigned int gitter = static_cast<unsigned int>(std::max(1, std::min(16, static_cast<int>(1 / abstand))));
+        if (hartFangen) {   // auf die naechste Zweierpotenz
+            gitter--;
+            gitter |= gitter >> 1U;
+            gitter |= gitter >> 2U;
+            gitter |= gitter >> 4U;
+            gitter |= gitter >> 8U;
+            gitter |= gitter >> 16U;
+            gitter++;
+        }
+        unsigned int& eigen = u ? m_gitterU : m_gitterV;
+        unsigned int& anderes = u ? m_gitterV : m_gitterU;
+        if (eigen != gitter || (fangen && anderes != gitter)) {
+            eigen = gitter;
+            if (fangen) { anderes = gitter; }
+            flaechenDatenAktualisieren(false);
+        }
+        break;
+    }
+    case Wahl::Kreis: {
+        const Vektor3f achse = m_texZuLokal.z().vec3();
+        Vektor3f von = m_start - m_ursprung;
+        aufAchseBeschraenken(von, achse);
+        Vektor3f nach = aktuell - m_ursprung;
+        aufAchseBeschraenken(nach, achse);
+        const auto gedreht = [&](float winkel) {   // matrix4_pivoted_rotate_by_axisangle
+            Matrix4 r = verschiebungsMatrix(m_ursprung);
+            multipliziere(r, drehungAchseWinkel(achse, winkel));   // matrix4_rotate_by_axisangle (ohne Normieren, wie NRC)
+            multipliziere(r, verschiebungsMatrix(-m_ursprung));
+            return r;
+        };
+        Matrix4 dreh = gedreht(fangen ? zahlEingerastet(winkelFuerAchse(von, nach, achse), static_cast<float>(kPi / 12.0)) : winkelFuerAchse(von, nach, achse));
+        {   // an Kanten ausrichten
+            const Vektor3f uRicht = normiert(transformierteRichtung(dreh, m_texZuLokal.x().vec3()));
+            const Vektor3f vRicht = normiert(transformierteRichtung(dreh, m_texZuLokal.y().vec3()));
+            float besterSkalar = 0;
+            Vektor3f bestesZiel;
+            bool vAchse = false;
+            jedeKante([&](const Vektor3f& p0, const Vektor3f& p1) {
+                Vektor3f kante(p1 - p0);
+                aufAchseBeschraenken(kante, achse);
+                const auto du = static_cast<float>(std::fabs(punkt(uRicht, kante)));
+                if (du > besterSkalar) {
+                    besterSkalar = du;
+                    bestesZiel = punkt(uRicht, kante) > 0 ? kante : -kante;
+                    vAchse = false;
+                }
+                const auto dv = static_cast<float>(std::fabs(punkt(vRicht, kante)));
+                if (dv > besterSkalar) {
+                    besterSkalar = dv;
+                    bestesZiel = punkt(vRicht, kante) > 0 ? kante : -kante;
+                    vAchse = true;
+                }
+            });
+            if (besterSkalar > 0.9994F || hartFangen) {
+                const Vektor3f bestesVon = normiert(vAchse ? m_texZuLokal.y().vec3() : m_texZuLokal.x().vec3());
+                dreh = gedreht(winkelFuerAchse(bestesVon, bestesZiel, achse));
+            }
+        }
+        Matrix4 flaecheTexZuLokal = multipliziert(dreh, m_texZuLokal);
+        const Ebene3d ebene0(m_ebene.normal(), 0);
+        flaecheTexZuLokal.x().vec3() = punktAufEbene(ebene0, flaecheTexZuLokal.x().vec3(), m_texZuLokal.z().vec3());
+        flaecheTexZuLokal.y().vec3() = punktAufEbene(ebene0, flaecheTexZuLokal.y().vec3(), m_texZuLokal.z().vec3());
+        flaecheTexZuLokal = multipliziert(
+            verschiebungsMatrix(m_texZuLokal.z().vec3() *
+                                static_cast<float>((m_ebene.dist() - punkt(m_ebene.normal(), flaecheTexZuLokal.t().vec3())) / punkt(m_ebene.normal(), m_texZuLokal.z().vec3()))),
+            flaecheTexZuLokal);
+        m_linienZuWelt = m_pivotLinienZuWelt = flaecheTexZuLokal;
+        m_pivotZuWelt = multipliziert(dreh, m_pivotZuWelt0);
+        transformAuftragen(dreh);
+        break;
+    }
+    case Wahl::U:
+    case Wahl::V:
+    case Wahl::UV: {
+        const bool mitU = m_wahl != Wahl::V;
+        const bool mitV = m_wahl != Wahl::U;
+        const Vektor3f uvUrsprung = transformierterPunkt(m_lokalZuTex, m_ursprung);
+        const Vektor3f bewegung = transformierterPunkt(m_lokalZuTex, aktuell) - transformierterPunkt(m_lokalZuTex, m_start);
+        const Vektor3f uvStart(mitV ? m_vLinien[static_cast<std::size_t>(m_gewaehltV)].p.x() : 0, mitU ? m_uLinien[static_cast<std::size_t>(m_gewaehltU)].p.y() : 0, 0);
+        const Vektor3f uvJetzt(mitV ? (m_vLinien[static_cast<std::size_t>(m_gewaehltV)].p + bewegung).x() : 0,
+                               mitU ? (m_uLinien[static_cast<std::size_t>(m_gewaehltU)].p + bewegung).y() : 0, 0);
+        float besterU = FLT_MAX;
+        float zielU = 0;
+        float besterV = FLT_MAX;
+        float zielV = 0;
+        jederUvPunkt([&](const Vektor3f& q) {
+            const float au = std::fabs(q.y() - uvJetzt.y());
+            if (au < besterU) {
+                besterU = au;
+                zielU = q.y();
+            }
+            const float av = std::fabs(q.x() - uvJetzt.x());
+            if (av < besterV) {
+                besterV = av;
+                zielV = q.x();
+            }
+        });
+        Vektor3f ergebnis(mitV ? uvJetzt.x() : 1, mitU ? uvJetzt.y() : 1, 1);
+        if (mitU) {
+            if (yFaengt(besterU) || hartFangen) { ergebnis.y() = zielU; }
+            ergebnis.y() = (ergebnis.y() - uvUrsprung.y()) / (uvStart.y() - uvUrsprung.y());
+        }
+        if (mitV) {
+            if (xFaengt(besterV) || hartFangen) { ergebnis.x() = zielV; }
+            ergebnis.x() = (ergebnis.x() - uvUrsprung.x()) / (uvStart.x() - uvUrsprung.x());
+        }
+        if (fangen) {
+            if (m_wahl == Wahl::U) {
+                ergebnis.x() = std::fabs(ergebnis.y());
+            } else if (m_wahl == Wahl::V) {
+                ergebnis.y() = std::fabs(ergebnis.x());
+            } else {
+                const std::size_t best = std::fabs(ergebnis.x()) > std::fabs(ergebnis.y()) ? 0 : 1;
+                ergebnis[(best + 1) % 2] = std::copysign(ergebnis[best], ergebnis[(best + 1) % 2]);
+            }
+        }
+        // nicht auf 0 skalieren, hoechstens 10 Texturen je Welteinheit
+        if ((mitV && laengeQuadrat(m_texZuLokal.x().vec3() * ergebnis.x()) < .01) || (mitU && laengeQuadrat(m_texZuLokal.y().vec3() * ergebnis.y()) < .01)) {
+            return;
+        }
+        Matrix4 skala = kEinheitsMatrix;
+        skaliereUmPunkt(skala, ergebnis, uvUrsprung);   // matrix4_pivoted_scale_by_vec3
+        skala = transformLokalZuObjekt(skala, m_texZuLokal, m_lokalZuTex);
+        {
+            Matrix4 linienSkala = kEinheitsMatrix;
+            skaliereUmPunkt(linienSkala, ergebnis, transformierterPunkt(m_flaecheLokalZuTex, m_ursprung));
+            m_linienZuWelt = m_pivotLinienZuWelt = multipliziert(m_flaecheTexZuLokal, linienSkala);
+            m_pivotZuWelt = multipliziert(m_pivotZuWelt0, skalierungsMatrix(ergebnis));
+        }
+        transformAuftragen(skala);
+        break;
+    }
+    case Wahl::SchiefU:
+    case Wahl::SchiefV: {
+        const bool u = m_wahl == Wahl::SchiefU;
+        const Vektor3f uvUrsprung = transformierterPunkt(m_flaecheLokalZuTex, m_ursprung);
+        const Vektor3f bewegung = transformierterPunkt(m_flaecheLokalZuTex, aktuell) - transformierterPunkt(m_flaecheLokalZuTex, m_start);
+        Matrix4 schief = kEinheitsMatrix;
+        const Vektor3f linie = u ? m_uLinien[static_cast<std::size_t>(m_gewaehltU)].p : m_vLinien[static_cast<std::size_t>(m_gewaehltV)].p;
+        if (u) {
+            schief[4] = bewegung.x() / (linie - uvUrsprung).y();
+        } else {
+            schief[1] = bewegung.y() / (linie - uvUrsprung).x();
+        }
+        const Vektor3f geschert = transformierteRichtung(schief, u ? kAchseY : kAchseX);
+        const float messAbstand = u ? (linie - uvUrsprung).y() : (linie - uvUrsprung).x();
+        float besterAbstand = FLT_MAX;
+        Vektor3f bestesZiel;
+        const auto anKante = [&](const Vektor3f& kante) {
+            if (u) {
+                if (std::fabs(kante.y()) > 1e-5F) {   // nicht so einrasten, dass eine Achse gleich der anderen wird
+                    const float a = std::fabs(kante.x() * messAbstand / kante.y() - geschert.x() * messAbstand / geschert.y());
+                    if (a < besterAbstand) {
+                        besterAbstand = a;
+                        bestesZiel = kante;
+                    }
+                }
+            } else if (std::fabs(kante.x()) > 1e-5F) {
+                const float a = std::fabs(kante.y() * messAbstand / kante.x() - geschert.y() * messAbstand / geschert.x());
+                if (a < besterAbstand) {
+                    besterAbstand = a;
+                    bestesZiel = kante;
+                }
+            }
+        };
+        jedeKante([&](const Vektor3f& p0, const Vektor3f& p1) {
+            anKante(transformierterPunkt(m_flaecheLokalZuTex, p1) - transformierterPunkt(m_flaecheLokalZuTex, p0));
+        });
+        jederPunkt([&](const Vektor3f& q) {
+            const Vektor3f po = transformierterPunkt(m_flaecheLokalZuTex, q);
+            if (u) {
+                for (std::size_t i = 0; i < m_vLinien.size(); i += 2) { anKante(po - Vektor3f(m_vLinien[i].p.x(), uvUrsprung.y(), 0)); }
+            } else {
+                for (std::size_t i = 0; i < m_uLinien.size(); i += 2) { anKante(po - Vektor3f(uvUrsprung.x(), m_uLinien[i].p.y(), 0)); }
+            }
+            anKante(po - Vektor3f(uvUrsprung.x(), uvUrsprung.y(), 0));
+        });
+        if (u ? (xFaengt(besterAbstand, .015F) || hartFangen) : (yFaengt(besterAbstand, .015F) || hartFangen)) {
+            if (u) {
+                schief[4] = bestesZiel.x() / bestesZiel.y();
+            } else {
+                schief[1] = bestesZiel.y() / bestesZiel.x();
+            }
+        }
+        {
+            Matrix4 m = kEinheitsMatrix;
+            verschiebeUm(m, uvUrsprung);
+            multipliziere(m, schief);
+            verschiebeUm(m, -uvUrsprung);
+            schief = m;
+        }
+        m_linienZuWelt = m_pivotLinienZuWelt = multipliziert(m_flaecheTexZuLokal, schief);
+        m_pivotZuWelt = transformLokalZuObjekt(schief, m_texZuLokal, m_lokalZuTex);
+        multipliziere(m_pivotZuWelt, m_pivotZuWelt0);
+        schief = transformLokalZuObjekt(schief, m_flaecheTexZuLokal, m_flaecheLokalZuTex);
+        transformAuftragen(schief);
+        break;
+    }
+    case Wahl::Textur: {
+        const Vektor3f uvStart = transformierterPunkt(m_flaecheLokalZuTex, m_start);
+        const Vektor3f uvJetzt = transformierterPunkt(m_flaecheLokalZuTex, aktuell);
+        const Vektor3f bewegung = uvJetzt - uvStart;
+        float besterU = FLT_MAX;
+        float besterV = FLT_MAX;
+        float fangU = 0;
+        float fangV = 0;
+        const auto pruefen = [&](const Vektor3f& q) {
+            for (std::size_t i = 0; i < m_uLinien.size(); i += 2) {
+                const float a = q.y() - (m_uLinien[i].p.y() + bewegung.y());
+                if (std::fabs(a) < besterU) {
+                    besterU = std::fabs(a);
+                    fangU = bewegung.y() + a;
+                }
+            }
+            for (std::size_t i = 0; i < m_vLinien.size(); i += 2) {
+                const float a = q.x() - (m_vLinien[i].p.x() + bewegung.x());
+                if (std::fabs(a) < besterV) {
+                    besterV = std::fabs(a);
+                    fangV = bewegung.x() + a;
+                }
+            }
+        };
+        jederUvPunkt(pruefen);
+        pruefen(transformierterPunkt(m_flaecheLokalZuTex, m_ursprung));
+        Vektor3f ergebnis(bewegung);
+        if (yFaengt(besterU) || hartFangen) { ergebnis.y() = fangU; }
+        if (xFaengt(besterV) || hartFangen) { ergebnis.x() = fangV; }
+        if (fangen) {
+            float& kleiner = std::fabs(bewegung.x() * laenge(m_flaecheTexZuLokal.x().vec3())) < std::fabs(bewegung.y() * laenge(m_flaecheTexZuLokal.y().vec3()))
+                                 ? ergebnis.x()
+                                 : ergebnis.y();
+            kleiner = 0;
+        }
+        {   // translation_local2object( result, m_faceTex2local, m_faceLocal2tex )
+            Matrix4 m = m_flaecheTexZuLokal;
+            verschiebeUm(m, ergebnis);
+            ergebnis = multipliziert(m, m_flaecheLokalZuTex).t().vec3();
+        }
+        const Matrix4 verschiebung = verschiebungsMatrix(ergebnis);
+        m_linienZuWelt = multipliziert(verschiebung, m_flaecheTexZuLokal);
+        transformAuftragen(verschiebung);
+        break;
+    }
+    case Wahl::PatchPunkt:
+    case Wahl::PatchZeile:
+    case Wahl::PatchSpalte: {
+        std::vector<std::size_t> indizes;
+        const auto idx = static_cast<std::size_t>(m_patchIndex);
+        if (m_wahl == Wahl::PatchPunkt) {
+            indizes.push_back(idx);
+        } else if (m_wahl == Wahl::PatchZeile) {
+            for (std::size_t c = 0; c < m_patchBreite; ++c) { indizes.push_back(idx * m_patchBreite + c); }
+        } else {
+            for (std::size_t r = 0; r < m_patchHoehe; ++r) { indizes.push_back(r * m_patchBreite + idx); }
+        }
+        const Vektor3f uvStart = transformierterPunkt(m_flaecheLokalZuTex, m_start);
+        const Vektor3f uvJetzt = transformierterPunkt(m_flaecheLokalZuTex, aktuell);
+        const Vektor3f bewegung = uvJetzt - uvStart;
+        float besterU = FLT_MAX;
+        float besterV = FLT_MAX;
+        float fangU = 0;
+        float fangV = 0;
+        for (const std::size_t i : indizes) {
+            const Vektor2f& st = m_patchKontrolle[i].texcoord;
+            for (std::size_t l = 0; l < m_uLinien.size(); l += 2) {
+                const float a = st.y() + bewegung.y() - m_uLinien[l].p.y();
+                if (std::fabs(a) < besterU) {
+                    besterU = std::fabs(a);
+                    fangU = bewegung.y() - a;
+                }
+            }
+            for (std::size_t l = 0; l < m_vLinien.size(); l += 2) {
+                const float a = st.x() + bewegung.x() - m_vLinien[l].p.x();
+                if (std::fabs(a) < besterV) {
+                    besterV = std::fabs(a);
+                    fangV = bewegung.x() - a;
+                }
+            }
+            const Vektor3f o = transformierterPunkt(m_flaecheLokalZuTex, m_ursprung);
+            {
+                const float a = st.y() + bewegung.y() - o.y();
+                if (std::fabs(a) < besterU) {
+                    besterU = std::fabs(a);
+                    fangU = bewegung.y() - a;
+                }
+            }
+            {
+                const float a = st.x() + bewegung.x() - o.x();
+                if (std::fabs(a) < besterV) {
+                    besterV = std::fabs(a);
+                    fangV = bewegung.x() - a;
+                }
+            }
+        }
+        Vektor3f ergebnis(bewegung);
+        if (yFaengt(besterU) || hartFangen) { ergebnis.y() = fangU; }
+        if (xFaengt(besterV) || hartFangen) { ergebnis.x() = fangV; }
+        if (fangen) {
+            float& kleiner = std::fabs(bewegung.x() * laenge(m_flaecheTexZuLokal.x().vec3())) < std::fabs(bewegung.y() * laenge(m_flaecheTexZuLokal.y().vec3()))
+                                 ? ergebnis.x()
+                                 : ergebnis.y();
+            kleiner = 0;
+        }
+        const Matrix4 verschiebung = verschiebungsMatrix(ergebnis);
+        std::vector<PatchPunkt> punkte = m_patch->punkte();
+        for (const std::size_t i : indizes) {
+            const Vektor3f uv = transformierterPunkt(verschiebung, Vektor3f(m_patchKontrolle[i].texcoord.x(), m_patchKontrolle[i].texcoord.y(), 0));
+            punkte[i].texcoord = Vektor2f(uv.x(), uv.y());
+            m_patchPunkte[i].p = uv;
+        }
+        m_patch->punkteSetzen(punkte);
+        // das Gitter ganz neu
+        for (std::size_t r = 0; r < m_patchHoehe; ++r) {
+            for (std::size_t c = 0; c + 1 < m_patchBreite; ++c) {
+                const Vektor2f& a = punkte[r * m_patchBreite + c].texcoord;
+                const Vektor2f& b = punkte[r * m_patchBreite + c + 1].texcoord;
+                m_patchGitter[(r * (m_patchBreite - 1) + c) * 2].p = Vektor3f(a.x(), a.y(), 0);
+                m_patchGitter[(r * (m_patchBreite - 1) + c) * 2 + 1].p = Vektor3f(b.x(), b.y(), 0);
+            }
+        }
+        for (std::size_t c = 0; c < m_patchBreite; ++c) {
+            for (std::size_t r = 0; r + 1 < m_patchHoehe; ++r) {
+                const Vektor2f& a = punkte[r * m_patchBreite + c].texcoord;
+                const Vektor2f& b = punkte[(r + 1) * m_patchBreite + c].texcoord;
+                const std::size_t i = (m_patchBreite - 1) * m_patchHoehe * 2 + (c * (m_patchHoehe - 1) + r) * 2;
+                m_patchGitter[i].p = Vektor3f(a.x(), a.y(), 0);
+                m_patchGitter[i + 1].p = Vektor3f(b.x(), b.y(), 0);
+            }
+        }
+        break;
+    }
+    default: break;
+    }
+}
+
+void UvManipulator::festschreiben() {   // freezeTransform: die Aenderungen stehen schon (mit Undo) in Flaeche bzw. Patch
+    m_ziehen = false;
+}
+
+}  // namespace
+
 std::unique_ptr<Manipulator> AuswahlBearbeitung::Impl::neuerZiehManipulator() { return std::make_unique<ZiehManipulator>(*this); }
+std::unique_ptr<Manipulator> AuswahlBearbeitung::Impl::neuerUvManipulator() { return std::make_unique<UvManipulator>(*this); }
+void AuswahlBearbeitung::Impl::uvFestschreiben() { static_cast<UvManipulator*>(uvM.get())->festschreiben(); }
+
+std::vector<std::pair<std::shared_ptr<Entitaet>, std::shared_ptr<Pinsel>>> AuswahlBearbeitung::Impl::extrudierPinsel() const {
+    std::vector<std::pair<std::shared_ptr<Entitaet>, std::shared_ptr<Pinsel>>> r;
+    for (const auto& ent : karte.entitaeten()) {
+        if (ent->versteckt) { continue; }
+        for (const auto& p : ent->kinder()) {
+            if (p->versteckt || p->art() != Primitiv::Art::Pinsel) { continue; }
+            const auto pinsel = std::static_pointer_cast<Pinsel>(p);
+            if (karte.auswahl.gewaehlt(ent.get(), p.get()) || pinselKomponentenGewaehlt(karte, *pinsel)) { r.emplace_back(ent, pinsel); }
+        }
+    }
+    return r;
+}
+
+BesteEbene AuswahlBearbeitung::Impl::besteEbeneExtrudieren(AuswahlVolumen& test) {
+    if (karte.auswahl.flaechen().empty()) { return besteEbene(test, true); }   // Scene_forEachSelectedBrush_bestPlane
+    BesteEbene daten;
+    const auto pinselListe = extrudierPinsel();
+    for (const auto& [ent, pinsel] : pinselListe) {   // BrushInstance::bestPlaneDirect
+        (void)ent;
+        pinsel->bRep(karte.kontext);
+        test.netzBeginnen(kEinheitsMatrix);
+        for (const auto& f : pinsel->flaechen()) {
+            Treffer t;
+            testeFlaeche(*f, test, t);
+            if (t < daten.treffer) {
+                daten.treffer = t;
+                daten.ebene = f->ebene();
+            }
+        }
+    }
+    if (!daten.gueltig()) {   // bestPlaneIndirect ueber die Kanten
+        for (const auto& [ent, pinsel] : pinselListe) {
+            Objekt o{ent, pinsel};
+            besteEbeneKanten(test, o, daten);
+        }
+    }
+    return daten;
+}
 
 void AuswahlBearbeitung::Impl::modusSetzen(ManipModus m) {   // SetManipulatorMode
     pivotEigen = false;
@@ -2015,8 +3507,8 @@ void AuswahlBearbeitung::Impl::modusSetzen(ManipModus m) {   // SetManipulatorMo
     case ManipModus::Verzerren: manip = verzerrM.get(); break;
     case ManipModus::Ziehen: manip = ziehM.get(); break;
     case ManipModus::Bauen: manip = bauM.get(); break;
-    case ManipModus::Clipper:
-    case ManipModus::UV: manip = leerM.get(); break;
+    case ManipModus::Clipper: manip = leerM.get(); break;
+    case ManipModus::UV: manip = uvM.get(); break;
     }
     pivotWechsel = true;
 }
@@ -2814,6 +4306,55 @@ bool AuswahlBearbeitung::Impl::ebenenWaehlen(AuswahlVolumen& test) {
     return !gewaehlteEbenen.empty();
 }
 
+// BrushInstance::bestPlaneIndirect (brush.h:3863-3870) mit EdgeInstance::bestPlaneIndirect (:3169-3206)
+void AuswahlBearbeitung::Impl::besteEbeneKanten(AuswahlVolumen& test, const Objekt& o, BesteEbene& daten) {
+    const auto& pinsel = static_cast<const Pinsel&>(*o.prim);
+    test.netzBeginnen(kEinheitsMatrix);
+    float skalar = 1;
+    for (const FlaechenPunkt& kante : pinsel.kanten(karte.kontext)) {
+        const Wicklung& w = pinsel[kante.flaeche].wicklung();
+        Vektor3f start(w[kante.punkt].vertex);
+        Vektor3f ende(w[(kante.punkt + 1) % w.numpoints].vertex);
+        if (linieAnNahebeneKlippen(test.blick().sicht(), start, ende) != 2) { continue; }
+        const Vektor3f neu = ZiehFlaechen::naechsterPunktAufLinieF(start, ende);
+        const auto abstandNeu = static_cast<float>(laengeQuadrat(neu));
+        const auto skalarNeu = static_cast<float>(std::fabs(punkt(normiert(neu), normiert(ende - start))));
+        if (daten.abstand - abstandNeu > 1e-6F || (std::fabs(abstandNeu - daten.abstand) < 1e-6F && skalarNeu < skalar)) {
+            const Ebene3d& e1 = pinsel[kante.flaeche].ebene();
+            // next_edge: die Nachbarflaeche ueber "adjacent"
+            std::size_t nachbar = w[kante.punkt].adjacent;
+            if (nachbar >= pinsel.anzahl()) {
+                nachbar = kante.flaeche;
+            } else {
+                const Wicklung& wn = pinsel[nachbar].wicklung();
+                bool gefunden = false;
+                for (std::size_t i = 0; i < wn.numpoints; ++i) { gefunden = gefunden || wn[i].adjacent == kante.flaeche; }
+                if (!gefunden) { nachbar = kante.flaeche; }
+            }
+            const Ebene3d& e2 = pinsel[nachbar].ebene();
+            const auto zuweisen = [&](const Ebene3d& neueEbene) {
+                daten.ebene = neueEbene;
+                daten.naechsterPunkt = neu;
+                daten.abstand = abstandNeu;
+                skalar = skalarNeu;
+            };
+            if (test.blick().fuellen()) {
+                if (abstandZuPunkt(e1, test.blick().betrachter()) <= 0) {
+                    zuweisen(e1);
+                } else if (abstandZuPunkt(e2, test.blick().betrachter()) <= 0) {
+                    zuweisen(e2);
+                }
+            } else if (std::fabs(laengeQuadrat(ende - start)) > 1e-3) {
+                if (std::fabs(punkt(e1.normal(), test.blick().blickrichtung())) < std::fabs(punkt(e2.normal(), test.blick().blickrichtung()))) {
+                    zuweisen(e1);
+                } else {
+                    zuweisen(e2);
+                }
+            }
+        }
+    }
+}
+
 // Scene_forEachPlaneSelectable_bestPlane
 BesteEbene AuswahlBearbeitung::Impl::besteEbene(AuswahlVolumen& test, bool nurPinsel) {
     BesteEbene daten;
@@ -2840,51 +4381,7 @@ BesteEbene AuswahlBearbeitung::Impl::besteEbene(AuswahlVolumen& test, bool nurPi
     };
     const auto indirekt = [&](const Objekt& o) {
         if (o.prim->art() == Primitiv::Art::Pinsel) {   // BrushInstance::bestPlaneIndirect / EdgeInstance::bestPlaneIndirect
-            const auto& pinsel = static_cast<const Pinsel&>(*o.prim);
-            test.netzBeginnen(kEinheitsMatrix);
-            float skalar = 1;
-            for (const FlaechenPunkt& kante : pinsel.kanten(karte.kontext)) {
-                const Wicklung& w = pinsel[kante.flaeche].wicklung();
-                Vektor3f start(w[kante.punkt].vertex);
-                Vektor3f ende(w[(kante.punkt + 1) % w.numpoints].vertex);
-                if (linieAnNahebeneKlippen(test.blick().sicht(), start, ende) != 2) { continue; }
-                const Vektor3f neu = ZiehFlaechen::naechsterPunktAufLinieF(start, ende);
-                const auto abstandNeu = static_cast<float>(laengeQuadrat(neu));
-                const auto skalarNeu = static_cast<float>(std::fabs(punkt(normiert(neu), normiert(ende - start))));
-                if (daten.abstand - abstandNeu > 1e-6F || (std::fabs(abstandNeu - daten.abstand) < 1e-6F && skalarNeu < skalar)) {
-                    const Ebene3d& e1 = pinsel[kante.flaeche].ebene();
-                    // next_edge: die Nachbarflaeche ueber "adjacent"
-                    std::size_t nachbar = w[kante.punkt].adjacent;
-                    if (nachbar >= pinsel.anzahl()) {
-                        nachbar = kante.flaeche;
-                    } else {
-                        const Wicklung& wn = pinsel[nachbar].wicklung();
-                        bool gefunden = false;
-                        for (std::size_t i = 0; i < wn.numpoints; ++i) { gefunden = gefunden || wn[i].adjacent == kante.flaeche; }
-                        if (!gefunden) { nachbar = kante.flaeche; }
-                    }
-                    const Ebene3d& e2 = pinsel[nachbar].ebene();
-                    const auto zuweisen = [&](const Ebene3d& neueEbene) {
-                        daten.ebene = neueEbene;
-                        daten.naechsterPunkt = neu;
-                        daten.abstand = abstandNeu;
-                        skalar = skalarNeu;
-                    };
-                    if (test.blick().fuellen()) {
-                        if (abstandZuPunkt(e1, test.blick().betrachter()) <= 0) {
-                            zuweisen(e1);
-                        } else if (abstandZuPunkt(e2, test.blick().betrachter()) <= 0) {
-                            zuweisen(e2);
-                        }
-                    } else if (std::fabs(laengeQuadrat(ende - start)) > 1e-3) {
-                        if (std::fabs(punkt(e1.normal(), test.blick().blickrichtung())) < std::fabs(punkt(e2.normal(), test.blick().blickrichtung()))) {
-                            zuweisen(e1);
-                        } else {
-                            zuweisen(e2);
-                        }
-                    }
-                }
-            }
+            besteEbeneKanten(test, o, daten);
         } else {
             const auto patch = std::static_pointer_cast<Patch>(o.prim);
             test.netzBeginnen(kEinheitsMatrix);
@@ -3051,7 +4548,11 @@ bool AuswahlBearbeitung::bewegenBeenden() {   // endMove
         }
         return true;
     }
-    m->festschreiben();
+    if (modus() == ManipModus::UV) {   // m_uv_manipulator->freezeTransform()
+        m->uvFestschreiben();
+    } else {
+        m->festschreiben();   // freezeTransforms
+    }
     if (m->tmpKomponenten) {
         m->tmpKomponenten = false;
         m->alleKomponentenAbwaehlen();

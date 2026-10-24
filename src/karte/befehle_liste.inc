@@ -183,7 +183,7 @@
 {"MouseScale", 2, "", "radiant/tools.cpp:430", 1},
 {"MouseTransform", 2, "", "radiant/tools.cpp:431", 1},
 {"MouseTranslate", 2, "W", "radiant/tools.cpp:428", 1},
-{"MouseUV", 2, "G", "radiant/tools.cpp:434", 2},
+{"MouseUV", 2, "G", "radiant/tools.cpp:434", 1},
 {"MoveSelectionDOWN", 1, "Num+-", "radiant/select.cpp:1901", 1},
 {"MoveSelectionUP", 1, "Num++", "radiant/select.cpp:1902", 1},
 {"MoveToCamera", 1, "Ctrl+Shift+V", "radiant/select.cpp:1865", 1},

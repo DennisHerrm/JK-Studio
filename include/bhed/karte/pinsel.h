@@ -111,6 +111,9 @@ public:
     // Nur fuer den Leser: Punkte setzen und MakePlane, ohne Undo.
     void ladeEbenenPunkte(const EbenenPunkte& p);
     void umdrehen();   // flipWinding / FacePlane::reverse
+    void versetzen(double abstand);   // FacePlane::offset (brush.h:732-747) + planeChanged
+    // die Projektion so setzen, wie sie steht (mit Undo, EmitTextureCoordinates)
+    void projektionSetzen(const TexturProjektion& p);
 
     // --- FaceShader ---
     [[nodiscard]] const std::string& shader() const { return m_shader; }

@@ -28519,6 +28519,31 @@ std::vector<Schritt> komponenten() {
     }));
     add(tasteKombi(ImGuiKey_B, "B"));
     add(pruefe("B nochmal: Resize", [] { return ke::angehakt("MouseDrag"); }));
+    // UV-Werkzeug (G): mit gewaehlter Deckflaeche zeichnet die Kamera das Texturgitter
+    add(tu("Deckflaeche des Pinsels waehlen", [] {
+        ke::Editor& e = ke::editor();
+        const auto p = pinsel();
+        if (!p) { return; }
+        p->bRep(e.karte.kontext);
+        for (const auto& f : p->flaechen()) {
+            if (f->ebene().normal()[2] > 0.9) { e.karte.auswahl.flaecheWaehlen(p, f); }
+        }
+        e.kamera.setzeUrsprung(karte::Vektor3f(0, -160, 224));
+        e.kamera.setzeWinkel(karte::Vektor3f(-50, 90, 0));
+    }));
+    add(tasteKombi(ImGuiKey_G, "G"));
+    add(pause(0.3));
+    add(pruefe("G: UV-Werkzeug, Status wie NRC, Texturgitter in der Kamera", [] {
+        const ke::Editor& e = ke::editor();
+        const karte::ManipZeichnung mz = ke::manipulatorZeichnung(3);
+        diag::detail("Knopftest: Stufe 2 - UV-Gitter " + std::to_string(mz.blendLinien.size()) + " Linien, Pivot " +
+                     std::to_string(mz.pivotLinien.size()));
+        return ke::angehakt("MouseUV") && e.bearbeitung.modus() == karte::ManipModus::UV &&
+               e.statusBefehl == "UV Tool: edit texture alignment" && mz.blendLinien.size() > 8 && mz.pivotLinien.size() == 3;
+    }));
+    add(foto("karteneditor_uv"));
+    add(tasteKombi(ImGuiKey_G, "G"));
+    add(pruefe("G nochmal: Resize", [] { return ke::angehakt("MouseDrag"); }));
     return s;
 }
 

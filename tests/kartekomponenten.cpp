@@ -467,6 +467,193 @@ void sonstiges() {
     }
 }
 
+// --- Extrudieren (Strg+Alt+M1, DragExtrudeFaces) ---
+// Kamera schraeg vor der +x-Seite: (256,0,128), 30 Grad abwaerts nach -x.
+std::vector<std::shared_ptr<Pinsel>> neuePinsel(const Karte& k, const std::shared_ptr<Pinsel>& alt) {
+    std::vector<std::shared_ptr<Pinsel>> r;
+    for (const auto& c : k.welt()->kinder()) {
+        if (c != alt) { r.push_back(std::static_pointer_cast<Pinsel>(c)); }
+    }
+    return r;
+}
+
+void extrudieren() {
+    // eine Flaeche nach aussen (selection_mtable_extrude.h:132-160)
+    {
+        Karte k;
+        auto p = quader(k, Vektor3f(0, 0, 0), Vektor3f(32, 32, 32));
+        auswaehlen(k, p);
+        AuswahlBearbeitung be(k);
+        be.setzeModus(ManipModus::Ziehen);
+        const Blick b = blick3d(Vektor3f(256, 0, 128), Vektor3f(-30, 180, 0));
+        be.zusatz.strg = true;
+        be.zusatz.alt = true;
+        pruefe(be.manipulatorWaehlen(b, GeraeteVektor(0, 0), kEps12), "Strg+Alt: Extrudieren greift an der +x-Seite");
+        pruefe(k.undo.undoName() == "ExtrudeBrushFaces", "Construct: Rueckgaengig ExtrudeBrushFaces: " + k.undo.undoName());
+        auto neu = neuePinsel(k, p);
+        pruefe(neu.size() == 1 && k.auswahl.anzahl() == 1 && k.auswahl.gewaehlt(k.welt().get(), neu.empty() ? nullptr : neu[0].get()),
+               "Construct: ein neuer Pinsel, er ist gewaehlt, der alte nicht");
+        if (neu.size() == 1) {
+            const Kasten g = neu[0]->grenzen(k.kontext);
+            pruefe(nah(g.origin[0] - g.extents[0], 32) && nah(g.origin[0] + g.extents[0], 40), "Construct: Scheibe x 32..40 (ein Raster)");
+        }
+        be.auswahlBewegen(b, GeraeteVektor(0, -0.4F));   // zur Kamera: +x
+        be.zusatz = Zusatz{};
+        be.bewegenBeenden();
+        pruefe(k.undo.undoName() == "dragTool", "danach dragTool: " + k.undo.undoName());
+        if (neu.size() == 1) {
+            const Kasten g = neu[0]->grenzen(k.kontext);
+            const double aussen = g.origin[0] + g.extents[0];
+            pruefe(nah(g.origin[0] - g.extents[0], 32) && aussen > 40 && nah(std::fmod(aussen - 32, 8.0), 0) && nah(g.extents[1], 32) &&
+                       nah(g.extents[2], 32) && beitragend(*neu[0], k) == 6,
+                   "nach aussen: neuer Pinsel x 32.." + std::to_string(aussen) + " (Raster), y/z wie die Flaeche");
+        }
+        pruefe(nah(p->grenzen(k.kontext).extents[0], 32), "nach aussen: der Ausgangspinsel bleibt");
+    }
+    // nach innen (selection_mtable_extrude.h:162-205): der Ausgangspinsel schrumpft
+    {
+        Karte k;
+        auto p = quader(k, Vektor3f(0, 0, 0), Vektor3f(32, 32, 32));
+        auswaehlen(k, p);
+        AuswahlBearbeitung be(k);
+        be.setzeModus(ManipModus::Ziehen);
+        const Blick b = blick3d(Vektor3f(256, 0, 128), Vektor3f(-30, 180, 0));
+        be.zusatz.strg = true;
+        be.zusatz.alt = true;
+        (void)be.manipulatorWaehlen(b, GeraeteVektor(0, 0), kEps12);
+        be.auswahlBewegen(b, GeraeteVektor(0, 0.02F));   // etwas von der Kamera weg: -x (etwa 10.7, eingerastet 8)
+        be.zusatz = Zusatz{};
+        be.bewegenBeenden();
+        auto neu = neuePinsel(k, p);
+        const Kasten ga = p->grenzen(k.kontext);
+        const double innen = ga.origin[0] + ga.extents[0];
+        pruefe(innen < 32 && nah(std::fmod(32 - innen, 8.0), 0), "nach innen: +x-Seite des Ausgangspinsels auf " + std::to_string(innen));
+        if (neu.size() == 1) {
+            const Kasten g = neu[0]->grenzen(k.kontext);
+            pruefe(nah(g.origin[0] - g.extents[0], innen) && nah(g.origin[0] + g.extents[0], 32) && beitragend(*neu[0], k) == 6,
+                   "nach innen: neuer Pinsel fuellt x " + std::to_string(innen) + "..32");
+        } else {
+            pruefe(false, "nach innen: ein neuer Pinsel");
+        }
+        k.undo.undo();
+        k.undo.undo();
+        pruefe(nah(p->grenzen(k.kontext).extents[0], 32) && k.welt()->kinder().size() == 1, "zweimal Rueckgaengig: Quader allein");
+    }
+    // Massen-Extrusion: +x (beste Ebene) und +y (gewaehlte Flaeche) desselben Pinsels (brush_extrudeDiag)
+    {
+        Karte k;
+        auto p = quader(k, Vektor3f(0, 0, 0), Vektor3f(32, 32, 32));
+        p->bRep(k.kontext);
+        for (const auto& f : p->flaechen()) {
+            if (nah(f->ebene().normal()[1], 1, 1e-6)) { k.auswahl.flaecheWaehlen(p, f); }
+        }
+        AuswahlBearbeitung be(k);
+        be.setzeModus(ManipModus::Ziehen);
+        const Blick b = blick3d(Vektor3f(256, 0, 128), Vektor3f(-30, 180, 0));
+        be.zusatz.strg = true;
+        be.zusatz.alt = true;
+        pruefe(be.manipulatorWaehlen(b, GeraeteVektor(0, 0), kEps12), "Massen-Extrusion greift (Flaeche +y gewaehlt, Pinsel nicht)");
+        be.auswahlBewegen(b, GeraeteVektor(0, -0.4F));
+        be.zusatz = Zusatz{};
+        be.bewegenBeenden();
+        auto neu = neuePinsel(k, p);
+        pruefe(neu.size() == 2, "zwei neue Pinsel (je Flaeche einer)");
+        // die Gehrung an der Ecke: (-1,1,0)*0 fuer den +x-Pinsel, (1,-1,0)*0 fuer den +y-Pinsel
+        bool gehrungX = false;
+        bool gehrungY = false;
+        for (const auto& n : neu) {
+            gehrungX = gehrungX || (hatEbene(*n, k, Vektor3d(-1, 1, 0), 0) && n->grenzen(k.kontext).origin[0] > 32);
+            gehrungY = gehrungY || (hatEbene(*n, k, Vektor3d(1, -1, 0), 0) && n->grenzen(k.kontext).origin[1] > 32);
+        }
+        pruefe(gehrungX && gehrungY, "Gehrung: beide Pinsel treffen sich auf der Diagonalen x=y");
+        pruefe(k.auswahl.flaechen().empty(), "die Flaechenwahl ist danach leer (setSelectedComponents( false, eFace ))");
+    }
+}
+
+// --- UV-Werkzeug (G, selection_mtor_uv.cpp) ---
+GeraeteVektor geraet3d(const Blick& b, const Vektor3f& w) {
+    const Vektor3f p = projiziert(transformierterVektor4(b.sicht(), Vektor4f(w, 1)));
+    return GeraeteVektor(p[0], p[1]);
+}
+
+void uvWerkzeug() {
+    // Flaeche: die Textur verschieben (eTex) - der Punkt unter der Maus nimmt seine Texturkoordinate mit
+    {
+        Karte k;
+        auto p = quader(k, Vektor3f(0, 0, 0), Vektor3f(32, 32, 32));
+        p->bRep(k.kontext);
+        std::shared_ptr<Flaeche> oben;
+        for (const auto& f : p->flaechen()) {
+            if (nah(f->ebene().normal()[2], 1, 1e-6)) { oben = f; }
+        }
+        k.auswahl.waehlen(k.welt(), p);
+        k.auswahl.flaecheWaehlen(p, oben);   // g_SelectedFaceInstances.last()
+        AuswahlBearbeitung be(k);
+        be.setzeModus(ManipModus::UV);
+        const Blick b = blick3d(Vektor3f(0, -100, 200), Vektor3f(-60, 90, 0));
+        const auto st = [&](const Vektor3f& q) {
+            Matrix4 m;
+            lokalZuTextur(k.kontext.art(), oben->projektion(), 64, 64, Vektor3f(oben->ebene().normal()), m);
+            return transformierterPunkt(m, q);
+        };
+        // (8,8,32) liegt bei uv (0.25, 0.25) zwischen den Linien: die Textur wird gegriffen
+        const Vektor3f von(8, 8, 32);
+        const Vektor3f nach(8 + 9.6F, 8, 32);   // 0.3 Texturbreiten: kein Einrasten an Linien oder Ecken
+        const Vektor3d stVorher = st(von);
+        ManipZeichnung z0;
+        be.zeichnen(b, z0);
+        pruefe(!z0.blendLinien.empty() && z0.pivotLinien.size() == 3 && z0.grossePunkte.size() == 3,
+               "UV: Gitter ($BLENDLINE), Pivot ($PIVOT) und drei Punkte ($BIGPOINT) gezeichnet");
+        pruefe(be.manipulatorWaehlen(b, geraet3d(b, von), kEps12), "UV: die Textur gegriffen");
+        be.auswahlBewegen(b, geraet3d(b, nach));
+        be.bewegenBeenden();
+        pruefe(k.undo.undoName() == "UVTool", "UV: Rueckgaengig UVTool: " + k.undo.undoName());
+        const Vektor3d stNachher = st(Vektor3f(punktAufEbeneSicht(oben->ebene(), b.sicht(), geraet3d(b, nach))));
+        // AP_from_axes legt die Verschiebung in eine Texturbreite (die Textur wiederholt sich): bis auf ganze Wiederholungen gleich
+        const auto ganz = [](double d) { return std::fabs(d - std::round(d)) < 1e-3; };
+        pruefe(ganz(stVorher[0] - stNachher[0]) && ganz(stVorher[1] - stNachher[1]) && !nah(st(von)[0], stVorher[0], 1e-3),
+               "UV: die Texturkoordinate wandert mit der Maus (" + std::to_string(stVorher[0]) + "," + std::to_string(stVorher[1]) + ") -> (" +
+                   std::to_string(stNachher[0]) + "," + std::to_string(stNachher[1]) + ")");
+        k.undo.undo();
+        pruefe(nah(st(von)[0], stVorher[0], 1e-6), "UV: Rueckgaengig stellt die Projektion wieder her");
+    }
+    // Patch: einen Kontrollpunkt im UV-Raum verschieben (ePatchPoint)
+    {
+        Karte k;
+        auto patch = std::make_shared<Patch>();
+        patch->setzeGroesse(3, 3);
+        for (std::size_t r = 0; r < 3; ++r) {
+            for (std::size_t c = 0; c < 3; ++c) {
+                patch->punkt(r, c).vertex = Vektor3f(static_cast<float>(c) * 64 - 64, static_cast<float>(r) * 64 - 64, 0);
+                patch->punkt(r, c).texcoord = Vektor2f(static_cast<float>(c), static_cast<float>(r));
+            }
+        }
+        patch->punkteGeaendert();
+        k.weltHolenOderAnlegen()->kindEinfuegen(patch);
+        k.auswahl.waehlen(k.welt(), patch);
+        AuswahlBearbeitung be(k);
+        be.setzeModus(ManipModus::UV);
+        const Blick b = blick3d(Vektor3f(0, -150, 260), Vektor3f(-60, 90, 0));
+        ManipZeichnung z;
+        be.zeichnen(b, z);
+        pruefe(z.texturNetze.size() == 1 && z.texturNetze[0].punkte.size() == 24, "UV-Patch: Textur im UV-Raum (8 Dreiecke)");
+        // der mittlere Punkt (Index 4) liegt im UV-Raum bei (1,1); seine Lage in der Welt: aus den $BIGPOINT-Punkten
+        pruefe(z.grossePunkte.size() == 9 + 3, "UV-Patch: 9 Patch-Punkte und 3 Griffe");
+        if (z.grossePunkte.size() == 12) {
+            const Vektor3f mitteW = z.grossePunkte[4].p;
+            const Vektor3f rechtsW = z.grossePunkte[5].p;   // uv (2,1)
+            pruefe(be.manipulatorWaehlen(b, geraet3d(b, mitteW), kEps12), "UV-Patch: mittlerer Punkt gegriffen");
+            // ein Viertel des Weges zum rechten Nachbarn: uv +0.25 in u (zwischen den Linien, kein Einrasten)
+            be.auswahlBewegen(b, geraet3d(b, mitteW + (rechtsW - mitteW) * 0.25F));
+            be.bewegenBeenden();
+            const Vektor2f st = patch->punkt(1, 1).texcoord;
+            pruefe(nah(st.x(), 1.25, 2e-3) && nah(st.y(), 1, 2e-3) && patch->punkt(0, 0).texcoord == Vektor2f(0, 0),
+                   "UV-Patch: nur der mittlere Punkt, uv (1,1) -> (" + std::to_string(st.x()) + "," + std::to_string(st.y()) + ")");
+            pruefe(k.undo.undoName() == "UVTool", "UV-Patch: UVTool");
+        }
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -492,6 +679,10 @@ int main() {
     drehenUndVerzerren();
     schritt("sonstiges");
     sonstiges();
+    schritt("extrudieren");
+    extrudieren();
+    schritt("uvWerkzeug");
+    uvWerkzeug();
     std::printf("kartekomponenten: %d Fehlschlaege\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

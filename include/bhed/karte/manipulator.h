@@ -33,6 +33,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace bhed::karte {
@@ -145,6 +146,16 @@ struct ManipZeichnung {
     std::vector<Punkt> grossePunkte;             // $BIGPOINT
     std::vector<std::vector<Vektor3f>> ebenen;   // $PLANE_WIRE_OVERLAY: Polygone
     std::vector<Linie> ebenenLinien;             // $PLANE_WIRE_OVERLAY: Kreis um eine Ecke
+    // UV-Werkzeug (selection_mtor_uv.cpp)
+    std::vector<Linie> blendLinien;              // $BLENDLINE: Gitter, Pivotlinien, Kreis (mit Alpha, ohne Tiefentest)
+    std::vector<Linie> pivotLinien;              // $PIVOT (RenderablePivot): 2 breit, mit Tiefentest
+    struct TexturNetz {                          // $uvtool/patchtexture: Dreiecke mit der Textur eines Shaders
+        std::string shader;
+        std::vector<Vektor3f> punkte;
+        std::vector<Vektor2f> st;
+        Vektor3f normale;
+    };
+    std::vector<TexturNetz> texturNetze;
     void leeren() {
         draht.clear();
         ohneTiefe.clear();
@@ -152,6 +163,9 @@ struct ManipZeichnung {
         grossePunkte.clear();
         ebenen.clear();
         ebenenLinien.clear();
+        blendLinien.clear();
+        pivotLinien.clear();
+        texturNetze.clear();
     }
 };
 

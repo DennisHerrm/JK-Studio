@@ -1153,6 +1153,50 @@ std::unique_ptr<Memento> Patch::zustandSichern() const {
 }
 
 // importState (patch.h:937-961)
+void Patch::durchschnittsAchsen(Vektor3f& wRicht, Vektor3f& hRicht) const {
+    wRicht = hRicht = Vektor3f(0, 0, 0);
+    for (std::size_t r = 0; r < m_height; ++r) { wRicht += punkt(r, m_width - 1).vertex - punkt(r, 0).vertex; }
+    for (std::size_t c = 0; c < m_width; ++c) { hRicht += punkt(m_height - 1, c).vertex - punkt(0, c).vertex; }
+    // sonst die laengste Sehne
+    if (gleichEps(wRicht, Vektor3f(0, 0, 0), 1.F)) {
+        float besteLaenge = 0;
+        for (std::size_t r = 0; r < m_height; ++r) {
+            for (std::size_t c = 0; c + 1 < m_width; ++c) {
+                const Vektor3f richtung = punkt(r, c + 1).vertex - punkt(r, c).vertex;
+                const auto l = static_cast<float>(laenge(richtung));
+                if (l - besteLaenge > 1) {
+                    besteLaenge = l;
+                    wRicht = richtung;
+                }
+            }
+        }
+    }
+    if (gleichEps(hRicht, Vektor3f(0, 0, 0), 1.F)) {
+        float besteLaenge = 0;
+        for (std::size_t c = 0; c < m_width; ++c) {
+            for (std::size_t r = 0; r + 1 < m_height; ++r) {
+                const Vektor3f richtung = punkt(r + 1, c).vertex - punkt(r, c).vertex;
+                const auto l = static_cast<float>(laenge(richtung));
+                if (l - besteLaenge > 1) {
+                    besteLaenge = l;
+                    hRicht = richtung;
+                }
+            }
+        }
+    }
+    if (gleichEps(kreuz(wRicht, hRicht), Vektor3f(0, 0, 0), 0.1F)) {
+        wRicht = kAchseX;
+        hRicht = kAchseY;
+    }
+}
+
+Vektor3f Patch::durchschnittsNormale() const {
+    Vektor3f w;
+    Vektor3f h;
+    durchschnittsAchsen(w, h);
+    return normiert(kreuz(w, h));
+}
+
 void Patch::punkteSetzen(const std::vector<PatchPunkt>& p) {
     sichern();
     m_ctrl = p;

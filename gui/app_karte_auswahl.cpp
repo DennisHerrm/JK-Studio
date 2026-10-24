@@ -490,6 +490,7 @@ bool auswahlBefehlAn(const std::string& name) {
     if (name == "MouseScale") { return ed.bearbeitung.modus() == ManipModus::Skalieren; }
     if (name == "MouseTransform") { return ed.bearbeitung.modus() == ManipModus::Verzerren; }
     if (name == "MouseBuild") { return ed.bearbeitung.modus() == ManipModus::Bauen; }   // BuildToolExport
+    if (name == "MouseUV") { return ed.bearbeitung.modus() == ManipModus::UV; }         // UVToolExport
     if (name == "HideSelected") { return ed.knotenVersteckt; }   // g_hidden_item
     const karte::AuswahlEinstellung& einst = ed.bearbeitung.einstellung;
     const bool komp = einst.modus == karte::AuswahlModus::Komponente;
@@ -517,6 +518,8 @@ void auswahlBefehl(const std::string& name) {
         werkzeug(ManipModus::Verzerren);
     } else if (name == "MouseBuild") {   // BuildMode (tools.cpp:372-388)
         werkzeug(ManipModus::Bauen);
+    } else if (name == "MouseUV") {   // UVMode (tools.cpp:390-406)
+        werkzeug(ManipModus::UV);
     } else if (name == "DragVertices") {
         komponentenModus(karte::KomponentenModus::Ecke);
     } else if (name == "DragEdges") {

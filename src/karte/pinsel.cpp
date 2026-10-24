@@ -128,6 +128,23 @@ void Flaeche::umdrehen() {
     ebeneGeaendert();
 }
 
+void Flaeche::projektionSetzen(const TexturProjektion& p) {
+    sichern();
+    m_projektion = p;
+    ebeneGeaendert();
+}
+
+// FacePlane::offset (:732-747): die drei Punkte entlang der Normalen
+void Flaeche::versetzen(double abstand) {
+    sichern();
+    const Vektor3d bewegung = m_plane.normal() * abstand;
+    m_planepts[0] += bewegung;
+    m_planepts[1] += bewegung;
+    m_planepts[2] += bewegung;
+    m_plane = ebeneAusPunkten(m_planepts);
+    ebeneGeaendert();
+}
+
 // FaceTexdef::setBasis (:595-597, "face projection")
 void Flaeche::setzeBasis(const Vektor3f& normal) {
     berechneAchsenbasis(normal, m_projektion.basisS, m_projektion.basisT);

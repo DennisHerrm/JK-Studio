@@ -64,7 +64,7 @@ ToggleEntityList
 # Befehle, deren Funktion in Stufe 2 nachgebaut ist (gepflegt beim Nachbauen);
 # sie gelten wie die der Stufe 1b als fertig (Stufe 1 in befehle_liste.inc).
 STUFE_2_FERTIG = set('''
-DragVertices DragEdges DragFaces MouseBuild TogTexLock TogTexVertexLock
+DragVertices DragEdges DragFaces MouseBuild MouseUV TogTexLock TogTexVertexLock
 '''.split())
 
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem

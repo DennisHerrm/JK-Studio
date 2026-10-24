@@ -1204,7 +1204,41 @@ void kameraZeichnen() {
             zo.tiefe = kartegpu::TiefenTest::Aus;
             zo.tiefeSchreiben = false;
             zo.wegschneiden = false;
+            // UV-Werkzeug: $uvtool/patchtexture (eSortOverlayLast: RENDER_FILL, TEXTURE,
+            // LIGHTING, SMOOTH, ohne Tiefentest) - der Patch mit seiner Textur im UV-Raum
+            for (const auto& netz : mz.texturNetze) {
+                const Bild* b = lager().holen(netz.shader);
+                std::vector<kartegpu::Punkt3> dreiecke;
+                for (std::size_t i = 0; i < netz.punkte.size(); ++i) {
+                    kartegpu::Punkt3 q{};
+                    q.pos[0] = netz.punkte[i][0];
+                    q.pos[1] = netz.punkte[i][1];
+                    q.pos[2] = netz.punkte[i][2];
+                    q.normale[0] = netz.normale[0];
+                    q.normale[1] = netz.normale[1];
+                    q.normale[2] = netz.normale[2];
+                    q.st[0] = netz.st[i][0];
+                    q.st[1] = netz.st[i][1];
+                    q.farbe = 0xFFFFFFFFU;
+                    dreiecke.push_back(q);
+                }
+                kartegpu::Zustand3 zt = basis;
+                zt.tiefe = kartegpu::TiefenTest::Aus;
+                zt.tiefeSchreiben = false;
+                zt.wegschneiden = false;
+                zt.licht = true;
+                zt.bild = (b != nullptr && b->fertig) ? b->srv : nullptr;
+                kartegpu::dreiecke(dreiecke, zt);
+            }
             kartegpu::linien(ohne, zo);
+            // UV-Werkzeug: $BLENDLINE (eSortGUI0 - 1): mit Alpha gemischt, ohne Tiefentest
+            {
+                std::vector<kartegpu::LinienPunkt> blend;
+                for (const auto& l : mz.blendLinien) { linie(l.a, l.b, farbe(l.farbe), nullptr, blend); }
+                kartegpu::Zustand3 zb = zo;
+                zb.mischen = kartegpu::Mischen::Alpha;
+                kartegpu::linien(blend, zb);
+            }
             // $WIRE_OVERLAY, $FLATSHADE_OVERLAY, $PLANE_WIRE_OVERLAY
             std::vector<kartegpu::LinienPunkt> draht;
             for (const auto& l : mz.draht) { linie(l.a, l.b, farbe(l.farbe), nullptr, draht); }
@@ -1235,7 +1269,17 @@ void kameraZeichnen() {
                 }
             }
             for (const auto& l : mz.ebenenLinien) { linie(l.a, l.b, gelb, nullptr, ebenen); }
+            std::vector<kartegpu::LinienPunkt> pivot;   // $PIVOT (RenderablePivot des UV-Werkzeugs)
+            for (const auto& l : mz.pivotLinien) { linie(l.a, l.b, farbe(l.farbe), nullptr, pivot); }
             for (const bool sichtbar : {false, true}) {   // eSortGUI0 (verdeckt), dann eSortGUI1
+                {   // $PIVOT: glLineWidth( 2 ), GL_LEQUAL bzw. verdeckt GL_GREATER (Strichel nicht im globalstate)
+                    kartegpu::Zustand3 zp = basis;
+                    zp.tiefe = sichtbar ? kartegpu::TiefenTest::KleinerGleich : kartegpu::TiefenTest::Groesser;
+                    zp.tiefeSchreiben = sichtbar;
+                    zp.wegschneiden = false;
+                    zp.breite = 2;
+                    kartegpu::linien(pivot, zp);
+                }
                 kartegpu::Zustand3 z = basis;
                 z.tiefe = sichtbar ? kartegpu::TiefenTest::KleinerGleich : kartegpu::TiefenTest::Groesser;
                 z.tiefeSchreiben = true;

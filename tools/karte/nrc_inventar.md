@@ -490,7 +490,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 - [x] toggle_button Rotate | select_mouserotate.png -> `MouseRotate`  (radiant/mainframe.cpp:1377)
 - [x] toggle_button Scale | select_mousescale.png -> `MouseScale`  (radiant/mainframe.cpp:1378)
 - [x] toggle_button Transform (Q) | select_mousetransform.png -> `MouseTransform`  (radiant/mainframe.cpp:1379)
-- [~] toggle_button UV Tool | select_mouseuv.png -> `MouseUV`  (radiant/mainframe.cpp:1381) -- Stufe 2
+- [x] toggle_button UV Tool | select_mouseuv.png -> `MouseUV`  (radiant/mainframe.cpp:1381) -- Stufe 2 Punkt 1
 
 ### create_main_toolbar (radiant/mainframe.cpp)
 
@@ -727,7 +727,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `MouseScale` | Toggles | - | (radiant/tools.cpp:430)
 - [x] `MouseTransform` | Toggles | - | (radiant/tools.cpp:431)
 - [x] `MouseTranslate` | Toggles | W | (radiant/tools.cpp:428)
-- [~] `MouseUV` | Toggles | G | (radiant/tools.cpp:434) -- Stufe 2
+- [x] `MouseUV` | Toggles | G | (radiant/tools.cpp:434) -- Stufe 2 Punkt 1
 - [x] `MoveSelectionDOWN` | Commands | +Qt::Key_Minus + Qt::KeypadModifier | (radiant/select.cpp:1901)
 - [x] `MoveSelectionUP` | Commands | +Qt::Key_Plus + Qt::KeypadModifier | (radiant/select.cpp:1902)
 - [x] `MoveToCamera` | Commands | Ctrl+Shift+V | (radiant/select.cpp:1865)
