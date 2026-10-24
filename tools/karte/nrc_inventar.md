@@ -1017,7 +1017,7 @@ Name | Art | Standardtaste | Quelle
 - [x] Spinner Texture Gamma  (radiant/textures.cpp:771) -- Stufe 2 Punkt 7
 - [x] Combo Texture Render Mode  (radiant/textures.cpp:780) -- Stufe 2 Punkt 7
 - [x] Combo Hardware Texture Compression  (radiant/textures.cpp:818) -- Stufe 2 Punkt 7
-- [ ] CheckBox Anisotropy  (radiant/textures.cpp:826)
+- [x] CheckBox Anisotropy  (radiant/textures.cpp:826) -- Stufe 2 Punkt 7
 - [x] CheckBox Texture scrollbar  (radiant/texwindow.cpp:2045)
 - [x] Combo Texture Thumbnail Scale  (radiant/texwindow.cpp:2052)
 - [x] Spinner Thumbnails Max Size  (radiant/texwindow.cpp:2059)
