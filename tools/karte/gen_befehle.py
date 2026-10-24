@@ -69,6 +69,9 @@ ToggleClipper ClipperClip ClipperSplit ClipperFlip
 CSGSubtract CSGMerge CSGWrapMerge CSGIntersect CSGroom CSGTool MakeDetail MakeStructural
 BrushPrism BrushCone BrushSphere BrushRock BrushIcosahedron Brush3Sided Brush4Sided Brush5Sided Brush6Sided Brush7Sided
 Brush8Sided Brush9Sided
+RotateSelectionX RotateSelectionY RotateSelectionZ RotateSelectionClockwise RotateSelectionAnticlockwise MirrorSelectionX
+MirrorSelectionY MirrorSelectionZ MirrorSelectionHorizontally MirrorSelectionVertically ArbitraryRotation ArbitraryScale
+RepeatTransforms ResetTransforms
 '''.split())
 
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem

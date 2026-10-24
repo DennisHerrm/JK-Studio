@@ -329,9 +329,14 @@ void listeZeichnen(const std::string& name) {
         // TransformsObserved (selection.cpp:918-940) setzt - ' ' bzw. 'x' (nicht
         // die Identitaet), dann die wiederholbare Verschiebung, Drehung,
         // Skalierung, Scherung; resetTransforms() setzt sie gleich zu Beginn.
-        // Wiederholen/Zuruecksetzen kommt mit RepeatTransforms (Stufe 2).
-        for (const char* t : {" Translate 0 0 0", " Rotate 0 0 0", " Scale 1 1 1", " Skew 4 0"}) {
-            grauerPunkt(t, stufeText("ResetTransforms"));
+        // Ein Klick setzt nur diesen Teil zurueck (resetTransforms( mode )).
+        for (int i = 0; i < 4; ++i) {
+            const std::string t = ed.bearbeitung.transformText(i);
+            const std::string id = t + "###karteTransform" + std::to_string(i);
+            QtPunkt p;
+            p.id = id.c_str();
+            p.nrc = t.c_str();
+            if (qtPunkt(p)) { ed.bearbeitung.transformZuruecksetzen(i); }
         }
     } else if (name == "Build") {
         bool letzterTrenner = true;   // der Trenner davor steht in der Tabelle

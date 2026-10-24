@@ -54,6 +54,7 @@
 #include "bhed/karte/csg.h"
 #include "bhed/karte/manipulator.h"
 #include "bhed/karte/protokoll.h"
+#include "bhed/karte/xyansicht.h"
 
 #include <memory>
 #include <string>
@@ -116,6 +117,14 @@ public:
     void verschiebeAuswahl(const Vektor3f& v);   // translateSelected
     void dreheAuswahl(const Quaternion& q, bool ursprungEinrasten = false);   // rotateSelected
     void skaliereAuswahl(const Vektor3f& s, bool ursprungEinrasten = false);  // scaleSelected
+    // m_repeatableTransforms (TransformsObserved, selection.cpp:918-946, 1711-1734):
+    // jede Verschiebung, Drehung, Skalierung, Scherung merkt sich ihren Teil.
+    void transformWiederholen();                    // repeatTransforms ("repeatTransforms")
+    void transformZuruecksetzen(int welche = -1);   // resetTransforms: 0 eTranslate, 1 eRotate, 2 eScale, 3 eSkew, sonst alle
+    // Text der Menuepunkte unter Modify > Repeat (m_changedCallbacks):
+    // 'x' vorn, wenn der Teil nicht die Identitaet ist, sonst ' '.
+    [[nodiscard]] std::string transformText(int welche) const;
+    [[nodiscard]] const Transformationen& wiederholbar() const;
     void pivotGeaendert();   // pivotChanged
     [[nodiscard]] const Matrix4& pivotZuWelt();   // GetPivot2World
     [[nodiscard]] const Kasten& grenzen();        // m_bounds (nach ConstructPivot)
@@ -152,6 +161,22 @@ private:
 // Texte der Rueckgaengig-Befehle (endMove: outputTranslation, outputRotation,
 // outputScale) - "%g" wie NRCs TextOutputStream.
 [[nodiscard]] std::string zahlText(float f);
+
+// --- Drehen und Spiegeln der Auswahl (select.cpp:532-660, 1017-1105, 1133-1160) ---
+// Selection_Flipx/y/z: Rueckgaengig "mirrorSelected -axis x" usw.
+void auswahlSpiegeln(AuswahlBearbeitung& b, Karte& k, int achse);
+// Selection_Rotatex/y/z: x -90, y 90, z -90 ("rotateSelected -axis x -angle -90")
+void auswahlDrehen(AuswahlBearbeitung& b, Karte& k, int achse);
+// Selection_FlipHorizontally / Selection_FlipVertically nach der Ansicht
+void auswahlSpiegelnSicht(AuswahlBearbeitung& b, Karte& k, Sicht s, bool waagerecht);
+// Selection_RotateClockwise / Selection_RotateAnticlockwise ("rotateSelected Clockwise 90")
+void auswahlDrehenSicht(AuswahlBearbeitung& b, Karte& k, Sicht s, bool imUhrzeigersinn);
+// RotateDialog::apply: "rotateSelectedEulerXYZ -x .. -y .. -z ..", ohne Einrasten
+void auswahlDrehenEuler(AuswahlBearbeitung& b, Karte& k, const Vektor3f& eulerGrad);
+// ScaleDialog::apply: "scaleSelected -x .. -y .. -z .." (Select_Scale)
+void auswahlSkalieren(AuswahlBearbeitung& b, Karte& k, const Vektor3f& s);
+// quaternion_for_euler_xyz_degrees (select.cpp:1133-1160, der aktive Zweig)
+[[nodiscard]] Quaternion quaternionAusEulerGrad(const Vektor3f& euler);
 
 }  // namespace bhed::karte
 

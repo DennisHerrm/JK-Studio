@@ -418,6 +418,16 @@ struct Editor {
         int wert = 8;
         bool stutzen = false;   // "Truncate" (nur Icosahedron)
     } seitenDialog;
+    // "Arbitrary rotation" / "Arbitrary scale" (RotateDialog, ScaleDialog,
+    // select.cpp:1580-1757): nicht modal; die Werte bleiben nach OK stehen,
+    // Cancel setzt sie zurueck (0 bzw. 1).
+    struct ArbitraerDialog {
+        bool offen = false;
+        bool zeigen = false;
+        std::array<double, 3> werte{};
+    };
+    ArbitraerDialog drehDialog{false, false, {0.0, 0.0, 0.0}};
+    ArbitraerDialog skalierDialog{false, false, {1.0, 1.0, 1.0}};
     std::string tastenDialogBearbeitet;   // Befehl, dessen Taste gerade aufgenommen wird
     int tasteVerbrauchtBild = -1;         // in diesem Bild hat die Aufnahme die Taste geschluckt
     bool ueberOffen = false;
@@ -766,6 +776,8 @@ void zeichneTastenDialog();    // "Mapped Commands" (Ctrl+Shift+P)
 void zeichneCsgWerkzeug();     // "CSG Tool" (app_karte_csg.cpp)
 void seitenDialogOeffnen(karte::Grundform art);   // DoSides (app_karte_formen.cpp)
 void zeichneSeitenDialog();
+void arbitraerDialogZeigen(bool drehen);   // DoRotateDlg / DoScaleDlg (app_karte_transform.cpp)
+void zeichneArbitraerDialoge();
 // Einstellungen des Editors lesen/schreiben (Settings::karte).
 void einstellungenLaden();
 void einstellungenSpeichern();

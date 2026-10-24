@@ -1604,6 +1604,9 @@ const Entry kTable[] = {
     {"Sides:", "Seiten:", "\xe8\xbe\xb9\xe6\x95\xb0:", "\xe8\xbe\xba\xe3\x81\xae\xe6\x95\xb0:"},  // KeSidesSides
     {"Subdivisions:", "Unterteilungen:", "\xe7\xbb\x86\xe5\x88\x86:", "\xe5\x88\x86\xe5\x89\xb2\xe6\x95\xb0:"},  // KeSidesSubdivisions
     {"Truncate", "Stutzen", "\xe6\x88\xaa\xe8\xa7\x92", "\xe5\x88\x87\xe9\xa0\x82"},  // KeSidesTruncate
+    {"Arbitrary rotation", "Beliebige Drehung", "\xe4\xbb\xbb\xe6\x84\x8f\xe6\x97\x8b\xe8\xbd\xac", "\xe4\xbb\xbb\xe6\x84\x8f\xe3\x81\xae\xe5\x9b\x9e\xe8\xbb\xa2"},  // KeArbRotTitle
+    {"Arbitrary scale", "Beliebige Skalierung", "\xe4\xbb\xbb\xe6\x84\x8f\xe7\xbc\xa9\xe6\x94\xbe", "\xe4\xbb\xbb\xe6\x84\x8f\xe3\x81\xae\xe6\x8b\xa1\xe5\xa4\xa7\xe7\xb8\xae\xe5\xb0\x8f"},  // KeArbScaleTitle
+    {"Apply", "Anwenden", "\xe5\xba\x94\xe7\x94\xa8", "\xe9\x81\xa9\xe7\x94\xa8"},  // KeArbApply
 };
 
 static_assert(sizeof(kTable) / sizeof(kTable[0]) == static_cast<std::size_t>(Str::Count),
@@ -3198,6 +3201,9 @@ const char* const kNamen[] = {
     "KeSidesSides",
     "KeSidesSubdivisions",
     "KeSidesTruncate",
+    "KeArbRotTitle",
+    "KeArbScaleTitle",
+    "KeArbApply",
 };
 
 static_assert(sizeof(kNamen) / sizeof(kNamen[0]) == static_cast<std::size_t>(Str::Count),

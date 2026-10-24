@@ -295,6 +295,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_dialoge.cpp
     gui/app_karte_csg.cpp
     gui/app_karte_formen.cpp
+    gui/app_karte_transform.cpp
     gui/karte_vektoricons.cpp
     gui/app_karte_xy.cpp
     gui/app_karte_cam.cpp
@@ -809,6 +810,9 @@ if(BEHAVED_TESTS)
   add_executable(kartegrundformen tests/kartegrundformen.cpp)
   target_link_libraries(kartegrundformen PRIVATE bhed_core)
   add_test(NAME karte_grundformen COMMAND kartegrundformen)
+  add_executable(kartetransform tests/kartetransform.cpp)
+  target_link_libraries(kartetransform PRIVATE bhed_core)
+  add_test(NAME karte_transform COMMAND kartetransform)
   # Punkte 3 und 4: die Befehlstabelle gegen die Checkliste (jeder Befehl mit
   # NRCs Taste, jeder Menuepunkt und Knopf), Uebersetzungen = NRC-Englisch,
   # Tastenkuerzel wie Qt (Text, possibleKeys, deutsche Tastatur).

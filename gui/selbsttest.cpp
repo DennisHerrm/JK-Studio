@@ -28904,6 +28904,104 @@ std::vector<Schritt> grundformen() {
     return s;
 }
 
+karte::Kasten letzterGrenzen() {
+    const auto w = ke::editor().karte.welt();
+    if (!w || w->kinder().empty()) { return karte::Kasten(); }
+    return std::static_pointer_cast<karte::Pinsel>(w->kinder().back())->grenzen(ke::editor().karte.kontext);
+}
+
+// Punkt 5: Drehen, Spiegeln, Arbitrary rotation/scale, Repeat/Reset Transforms
+std::vector<Schritt> transformationen() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto nurSchneider = [] {
+        return tu("nur den Schneider waehlen", [] {
+            ke::Editor& e = ke::editor();
+            e.karte.auswahl.leeren();
+            e.karte.auswahl.waehlen(e.karte.welt(), e.karte.welt()->kinder().back());
+            ke::auswahlGeaendert();
+        });
+    };
+    add(grundzustand("Stufe 2/5: Grundzustand"));
+    add(pause(0.4));
+    add(schneiderDazu("Schneider (32 -16 16)..(96 16 48), nur er gewaehlt", false));
+    add(klickAn("Knopf Rotate Clockwise", elementOrt("##knopfRotateSelectionClockwise")));
+    add(pruefe("Rotate Clockwise (XY): um z -90 um die Mitte (64 0 32)", [] {
+        return kastenGleich(letzterGrenzen(), karte::Vektor3f(48, -32, 16), karte::Vektor3f(80, 32, 48)) &&
+               ke::editor().karte.undo.undoName() == "rotateSelected Clockwise 90";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tu("beide waehlen", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        for (const auto& p : e.karte.welt()->kinder()) { e.karte.auswahl.waehlen(e.karte.welt(), p); }
+        ke::auswahlGeaendert();
+    }));
+    add(klickAn("Knopf Flip Horizontally", elementOrt("##knopfMirrorSelectionHorizontally")));
+    add(pruefe("Flip Horizontally (XY): an x 16 gespiegelt, der Schneider bei -64..0", [] {
+        return kastenGleich(letzterGrenzen(), karte::Vektor3f(-64, -16, 16), karte::Vektor3f(0, 16, 48)) &&
+               ke::editor().karte.undo.undoName() == "mirrorSelected -axis x";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(nurSchneider());
+    // Arbitrary rotation (Umschalt+R)
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_R, "Umschalt+R"));
+    add(pause(0.3));
+    add(pruefe("Arbitrary rotation offen, 0 0 0", [] {
+        const auto& d = ke::editor().drehDialog;
+        return d.offen && d.werte[0] == 0.0 && d.werte[2] == 0.0 && finde("##kartedrehenwert2", "", 0, true) != nullptr;
+    }));
+    add(foto("karteneditor_drehen"));
+    add(klickAn("Feld Z", elementOrt("##kartedrehenwert2")));
+    add(tippe("90"));
+    add(klickAn("Apply", elementOrt(std::string(ke::trK(Str::KeArbApply)) + "##kartedrehenanwenden")));
+    add(pruefe("Apply: um z 90, der Dialog bleibt offen", [] {
+        return ke::editor().drehDialog.offen && kastenGleich(letzterGrenzen(), karte::Vektor3f(48, -32, 16), karte::Vektor3f(80, 32, 48)) &&
+               ke::editor().karte.undo.undoName() == "rotateSelectedEulerXYZ -x 0 -y 0 -z 90";
+    }));
+    add(klickAn("Feld X", elementOrt("##kartedrehenwert0")));
+    add(tasteKombi(ImGuiKey_Enter, "Return"));
+    add(pruefe("Return: OK - noch einmal 90, zu, die Werte bleiben", [] {
+        const auto& d = ke::editor().drehDialog;
+        return !d.offen && d.werte[2] == 90.0 && kastenGleich(letzterGrenzen(), karte::Vektor3f(32, -16, 16), karte::Vektor3f(96, 16, 48));
+    }));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_R, "Umschalt+R"));
+    add(pause(0.2));
+    add(klickAn("Feld X", elementOrt("##kartedrehenwert0")));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(pruefe("Esc: Cancel - zu, Werte 0, die Auswahl bleibt", [] {
+        const auto& d = ke::editor().drehDialog;
+        return !d.offen && d.werte[2] == 0.0 && ke::editor().karte.auswahl.anzahl() == 1;
+    }));
+    // Arbitrary scale (Strg+Umschalt+S)
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_S, "Strg+Umschalt+S"));
+    add(pause(0.3));
+    add(foto("karteneditor_skalieren"));
+    add(klickAn("Feld X", elementOrt("##karteskalierenwert0")));
+    add(tippe("2"));
+    add(klickAn("OK", elementOrt(std::string(ke::trK(Str::KePrefOk)) + "##karteskalierenok")));
+    add(pruefe("Arbitrary scale 2 1 1: x 0..128", [] {
+        return !ke::editor().skalierDialog.offen && kastenGleich(letzterGrenzen(), karte::Vektor3f(0, -16, 16), karte::Vektor3f(128, 16, 48)) &&
+               ke::editor().karte.undo.undoName() == "scaleSelected -x 2 -y 1 -z 1";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    // Repeat / Reset Transforms
+    add(tasteKombi(ImGuiMod_Alt | ImGuiKey_R, "Alt+R"));
+    add(pruefe("Alt+R: alles zurueckgesetzt (Texte mit Leerzeichen vorn)", [] {
+        const auto& b = ke::editor().bearbeitung;
+        return b.wiederholbar().eins() && b.transformText(0) == "  Translate 0 0 0" && b.transformText(2) == "  Scale 1 1 1";
+    }));
+    add(tasteKombi(ImGuiMod_Alt | ImGuiKey_RightArrow, "Alt+Rechts"));
+    add(pruefe("Nudge rechts: 'x Translate 8 0 0'", [] { return ke::editor().bearbeitung.transformText(0) == "x Translate 8 0 0"; }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_R, "Strg+R"));
+    add(pruefe("Strg+R: Kopie 8 weiter, die Kopie gewaehlt", [] {
+        return pinselZahl() == 3 && kastenGleich(letzterGrenzen(), karte::Vektor3f(48, -16, 16), karte::Vektor3f(112, 16, 48)) &&
+               ke::editor().karte.undo.undoName() == "repeatTransforms" && ke::editor().karte.auswahl.anzahl() == 1;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    return s;
+}
+
 }  // namespace stufe2
 
 std::vector<Schritt> karteneditorStufe2Schritte() {
@@ -28912,6 +29010,7 @@ std::vector<Schritt> karteneditorStufe2Schritte() {
     for (Schritt& x : stufe2::clipper()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::csg()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::grundformen()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe2::transformationen()) { s.push_back(std::move(x)); }
     return s;
 }
 

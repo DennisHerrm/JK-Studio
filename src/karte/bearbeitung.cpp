@@ -15,6 +15,8 @@
 //   Public License for more details (LICENSE).
 #include "bhed/karte/bearbeitung.h"
 
+#include "bhed/karte/auswahlbefehle.h"
+
 #include "bhed/karte/eklasse.h"
 #include "bhed/karte/karte.h"
 #include "bhed/karte/komponenten.h"
@@ -1816,6 +1818,7 @@ struct AuswahlBearbeitung::Impl final : Dienste, Verschiebbar, Drehbar, Skalierb
     bool pivotBewegt = false;         // m_pivot_moving
     bool rueckgaengigBegonnen = false;   // m_undo_begun
     bool tmpKomponenten = false;      // g_bTmpComponentMode
+    Transformationen wiederholbar;    // m_repeatableTransforms
     Vektor3f verschiebung{0, 0, 0};   // m_translation
     Quaternion drehung = kQuaternionEins;
     Vektor3f skalierung{1, 1, 1};
@@ -3786,7 +3789,10 @@ void AuswahlBearbeitung::Impl::modusSetzen(ManipModus m) {   // SetManipulatorMo
     case ManipModus::Verzerren: manip = verzerrM.get(); break;
     case ManipModus::Ziehen: manip = ziehM.get(); break;
     case ManipModus::Bauen: manip = bauM.get(); break;
-    case ManipModus::Clipper: manip = clipM.get(); break;   // resetTransforms( eClip ): mit Repeat Transforms
+    case ManipModus::Clipper:
+        manip = clipM.get();
+        wiederholbar = Transformationen{};   // resetTransforms( eClip ): alle
+        break;
     case ManipModus::UV: manip = uvM.get(); break;
     }
     pivotWechsel = true;
@@ -4141,6 +4147,7 @@ void AuswahlBearbeitung::Impl::komponentenAnwenden(TArt art, const Transformatio
 void AuswahlBearbeitung::Impl::verschieben(const Vektor3f& v) {
     if (!etwasGewaehlt()) { return; }
     verschiebung = v;
+    wiederholbar.verschiebung = v;   // m_repeatableTransforms.setTranslation
     pivot = pivotStart;
     verschiebeUm(pivot, v);
     Transformationen t;
@@ -4155,6 +4162,7 @@ void AuswahlBearbeitung::Impl::verschieben(const Vektor3f& v) {
 void AuswahlBearbeitung::Impl::drehen(const Quaternion& q) {
     if (!etwasGewaehlt()) { return; }
     drehung = q;
+    wiederholbar.drehung = q;   // setRotation
     Transformationen t;
     t.drehung = q;
     if (aussen.einstellung.modus == AuswahlModus::Komponente) {
@@ -4167,6 +4175,7 @@ void AuswahlBearbeitung::Impl::drehen(const Quaternion& q) {
 void AuswahlBearbeitung::Impl::skalieren(const Vektor3f& s) {
     if (!etwasGewaehlt()) { return; }
     skalierung = s;
+    wiederholbar.skalierung = s;   // setScale
     Transformationen t;
     t.skalierung = s;
     if (aussen.einstellung.modus == AuswahlModus::Komponente) {
@@ -4184,6 +4193,7 @@ void AuswahlBearbeitung::Impl::skalieren(const Vektor3f& s) {
 void AuswahlBearbeitung::Impl::verzerren(const Verzerrung& v) {
     if (!etwasGewaehlt()) { return; }
     verzerrung = v;
+    wiederholbar.verzerrung = v;   // setSkew
     Transformationen t;
     t.verzerrung = v;
     if (aussen.einstellung.modus == AuswahlModus::Komponente) {
@@ -4891,6 +4901,45 @@ void AuswahlBearbeitung::skaliereAuswahl(const Vektor3f& s, bool ursprungEinrast
     m->festschreiben();
 }
 
+void AuswahlBearbeitung::transformWiederholen() {   // repeatTransforms (selection.cpp:1713-1723)
+    if (m->etwasGewaehlt() && !m->wiederholbar.eins()) {
+        m->bewegungBeginnen();
+        Befehl befehl(m->karte.undo, "repeatTransforms");
+        if (einstellung.modus == AuswahlModus::Primitiv) { klonen(m->karte, einstellung, false, false); }   // Scene_Clone_Selected
+        const Transformationen t = m->wiederholbar;
+        m->allesTransformieren(t, m->pivotZuWelt().t().vec3());
+        m->festschreiben();
+    }
+}
+
+void AuswahlBearbeitung::transformZuruecksetzen(int welche) {   // resetTransforms (selection.cpp:1724-1734)
+    const bool alle = welche < 0 || welche > 3;
+    if (welche == 0 || alle) { m->wiederholbar.verschiebung = Vektor3f(0, 0, 0); }
+    if (welche == 1 || alle) { m->wiederholbar.drehung = kQuaternionEins; }
+    if (welche == 2 || alle) { m->wiederholbar.skalierung = Vektor3f(1, 1, 1); }
+    if (welche == 3 || alle) { m->wiederholbar.verzerrung = Verzerrung{}; }
+}
+
+std::string AuswahlBearbeitung::transformText(int welche) const {   // TransformsObserved::set* (selection.cpp:921-940)
+    const Transformationen& t = m->wiederholbar;
+    switch (welche) {
+    case 0:
+        return std::string(t.verschiebung == Vektor3f(0, 0, 0) ? " " : "x") + " Translate " + zahlText(t.verschiebung.x()) + ' ' +
+               zahlText(t.verschiebung.y()) + ' ' + zahlText(t.verschiebung.z());
+    case 1: {
+        const bool eins = t.drehung[0] == 0 && t.drehung[1] == 0 && t.drehung[2] == 0 && t.drehung[3] == 1;
+        return std::string(eins ? " " : "x") + " Rotate " + zahlText(t.drehung.x()) + ' ' + zahlText(t.drehung.y()) + ' ' + zahlText(t.drehung.z());
+    }
+    case 2:
+        return std::string(t.skalierung == Vektor3f(1, 1, 1) ? " " : "x") + " Scale " + zahlText(t.skalierung.x()) + ' ' +
+               zahlText(t.skalierung.y()) + ' ' + zahlText(t.skalierung.z());
+    default:
+        return std::string(t.verzerrung == Verzerrung{} ? " " : "x") + " Skew " + std::to_string(t.verzerrung.index) + ' ' + zahlText(t.verzerrung.wert);
+    }
+}
+
+const Transformationen& AuswahlBearbeitung::wiederholbar() const { return m->wiederholbar; }
+
 void AuswahlBearbeitung::zeichnen(const Blick& blick, ManipZeichnung& aus) {   // renderSolid
     if (m->etwasGewaehlt() || modus() == ManipModus::Clipper || modus() == ManipModus::Bauen || modus() == ManipModus::UV ||
         modus() == ManipModus::Ziehen) {
@@ -4981,6 +5030,85 @@ void AuswahlBearbeitung::quaderGroesse(std::shared_ptr<Pinsel>& pinsel, const Ka
     TexturProjektion projektion;
     texdefStandard(m->karte.kontext.art(), projektion);   // TextureTransform_getDefault
     pinsel->quaderBauen(grenzen, immerCaulk ? caulkShader : browserShader, projektion, m->karte.kontext);
+}
+
+// --- Drehen und Spiegeln (select.cpp) ---------------------------------------------------
+
+namespace {
+
+constexpr float kHalbeWurzel2 = 0.70710678118654752440084436210485F;   // c_half_sqrt2f
+
+// quaternion_for_axis90 (select.cpp:597-628)
+Quaternion quaternionAchse90(int achse, bool positiv) {
+    switch (achse) {
+    case 0: return positiv ? Quaternion(kHalbeWurzel2, 0, 0, kHalbeWurzel2) : Quaternion(-kHalbeWurzel2, 0, 0, -kHalbeWurzel2);
+    case 1: return positiv ? Quaternion(0, kHalbeWurzel2, 0, kHalbeWurzel2) : Quaternion(0, -kHalbeWurzel2, 0, -kHalbeWurzel2);
+    default: return positiv ? Quaternion(0, 0, kHalbeWurzel2, kHalbeWurzel2) : Quaternion(0, 0, -kHalbeWurzel2, -kHalbeWurzel2);
+    }
+}
+
+// Select_FlipAxis (select.cpp:532-536)
+void spiegelnAchse(AuswahlBearbeitung& b, int achse) {
+    Vektor3f s(1, 1, 1);
+    s[static_cast<std::size_t>(achse)] = -1;
+    b.skaliereAuswahl(s, true);
+}
+
+// Select_RotateAxis (select.cpp:630-650), nur mit +-90 aufgerufen
+void drehenAchse(AuswahlBearbeitung& b, int achse, float grad) { b.dreheAuswahl(quaternionAchse90(achse, grad > 0), true); }
+
+}  // namespace
+
+void auswahlSpiegeln(AuswahlBearbeitung& b, Karte& k, int achse) {
+    static const char* const namen[3] = {"mirrorSelected -axis x", "mirrorSelected -axis y", "mirrorSelected -axis z"};
+    Befehl befehl(k.undo, namen[achse]);
+    spiegelnAchse(b, achse);
+}
+
+void auswahlDrehen(AuswahlBearbeitung& b, Karte& k, int achse) {
+    static const char* const namen[3] = {"rotateSelected -axis x -angle -90", "rotateSelected -axis y -angle 90", "rotateSelected -axis z -angle -90"};
+    static const float grad[3] = {-90, 90, -90};
+    Befehl befehl(k.undo, namen[achse]);
+    drehenAchse(b, achse, grad[achse]);
+}
+
+void auswahlSpiegelnSicht(AuswahlBearbeitung& b, Karte& k, Sicht s, bool waagerecht) {
+    if (waagerecht) {   // XY, XZ: x; sonst y
+        auswahlSpiegeln(b, k, s == Sicht::XY || s == Sicht::XZ ? 0 : 1);
+    } else {   // XZ, YZ: z; sonst y
+        auswahlSpiegeln(b, k, s == Sicht::XZ || s == Sicht::YZ ? 2 : 1);
+    }
+}
+
+void auswahlDrehenSicht(AuswahlBearbeitung& b, Karte& k, Sicht s, bool imUhrzeigersinn) {
+    Befehl befehl(k.undo, imUhrzeigersinn ? "rotateSelected Clockwise 90" : "rotateSelected Anticlockwise 90");
+    const float v = imUhrzeigersinn ? 1.0F : -1.0F;
+    switch (s) {
+    case Sicht::XY: drehenAchse(b, 2, -90 * v); break;
+    case Sicht::XZ: drehenAchse(b, 1, 90 * v); break;
+    default: drehenAchse(b, 0, -90 * v); break;
+    }
+}
+
+Quaternion quaternionAusEulerGrad(const Vektor3f& e) {
+    const double cx = std::cos(gradZuBogen(e[0] * 0.5));
+    const double sx = std::sin(gradZuBogen(e[0] * 0.5));
+    const double cy = std::cos(gradZuBogen(e[1] * 0.5));
+    const double sy = std::sin(gradZuBogen(e[1] * 0.5));
+    const double cz = std::cos(gradZuBogen(e[2] * 0.5));
+    const double sz = std::sin(gradZuBogen(e[2] * 0.5));
+    return Quaternion(static_cast<float>(cz * cy * sx - sz * sy * cx), static_cast<float>(cz * sy * cx + sz * cy * sx),
+                      static_cast<float>(sz * cy * cx - cz * sy * sx), static_cast<float>(cz * cy * cx + sz * sy * sx));
+}
+
+void auswahlDrehenEuler(AuswahlBearbeitung& b, Karte& k, const Vektor3f& e) {
+    Befehl befehl(k.undo, "rotateSelectedEulerXYZ -x " + zahlText(e[0]) + " -y " + zahlText(e[1]) + " -z " + zahlText(e[2]));
+    b.dreheAuswahl(quaternionAusEulerGrad(e));
+}
+
+void auswahlSkalieren(AuswahlBearbeitung& b, Karte& k, const Vektor3f& s) {
+    Befehl befehl(k.undo, "scaleSelected -x " + zahlText(s[0]) + " -y " + zahlText(s[1]) + " -z " + zahlText(s[2]));
+    b.skaliereAuswahl(s);
 }
 
 }  // namespace bhed::karte

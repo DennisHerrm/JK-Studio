@@ -245,27 +245,27 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
       - [x] ITEM Nudge +Z -> `MoveSelectionUP`  (radiant/mainframe.cpp:1085)
       - [x] ITEM Nudge -Z -> `MoveSelectionDOWN`  (radiant/mainframe.cpp:1086)
     * SUB Rotate  (radiant/mainframe.cpp:1089)
-      - [~] ITEM Rotate X -> `RotateSelectionX`  (radiant/mainframe.cpp:1093) -- Stufe 2
-      - [~] ITEM Rotate Y -> `RotateSelectionY`  (radiant/mainframe.cpp:1094) -- Stufe 2
-      - [~] ITEM Rotate Z -> `RotateSelectionZ`  (radiant/mainframe.cpp:1095) -- Stufe 2
+      - [x] ITEM Rotate X -> `RotateSelectionX`  (radiant/mainframe.cpp:1093) -- Stufe 2 Punkt 5
+      - [x] ITEM Rotate Y -> `RotateSelectionY`  (radiant/mainframe.cpp:1094) -- Stufe 2 Punkt 5
+      - [x] ITEM Rotate Z -> `RotateSelectionZ`  (radiant/mainframe.cpp:1095) -- Stufe 2 Punkt 5
       * ---
-      - [~] ITEM Rotate Clockwise -> `RotateSelectionClockwise`  (radiant/mainframe.cpp:1097) -- Stufe 2
-      - [~] ITEM Rotate Anticlockwise -> `RotateSelectionAnticlockwise`  (radiant/mainframe.cpp:1098) -- Stufe 2
+      - [x] ITEM Rotate Clockwise -> `RotateSelectionClockwise`  (radiant/mainframe.cpp:1097) -- Stufe 2 Punkt 5
+      - [x] ITEM Rotate Anticlockwise -> `RotateSelectionAnticlockwise`  (radiant/mainframe.cpp:1098) -- Stufe 2 Punkt 5
     * SUB Flip  (radiant/mainframe.cpp:1101)
-      - [~] ITEM Flip &X -> `MirrorSelectionX`  (radiant/mainframe.cpp:1105) -- Stufe 2
-      - [~] ITEM Flip &Y -> `MirrorSelectionY`  (radiant/mainframe.cpp:1106) -- Stufe 2
-      - [~] ITEM Flip &Z -> `MirrorSelectionZ`  (radiant/mainframe.cpp:1107) -- Stufe 2
+      - [x] ITEM Flip &X -> `MirrorSelectionX`  (radiant/mainframe.cpp:1105) -- Stufe 2 Punkt 5
+      - [x] ITEM Flip &Y -> `MirrorSelectionY`  (radiant/mainframe.cpp:1106) -- Stufe 2 Punkt 5
+      - [x] ITEM Flip &Z -> `MirrorSelectionZ`  (radiant/mainframe.cpp:1107) -- Stufe 2 Punkt 5
       * ---
-      - [~] ITEM Flip Horizontally -> `MirrorSelectionHorizontally`  (radiant/mainframe.cpp:1109) -- Stufe 2
-      - [~] ITEM Flip Vertically -> `MirrorSelectionVertically`  (radiant/mainframe.cpp:1110) -- Stufe 2
+      - [x] ITEM Flip Horizontally -> `MirrorSelectionHorizontally`  (radiant/mainframe.cpp:1109) -- Stufe 2 Punkt 5
+      - [x] ITEM Flip Vertically -> `MirrorSelectionVertically`  (radiant/mainframe.cpp:1110) -- Stufe 2 Punkt 5
     * ---
-    - [~] ITEM Arbitrary rotation... -> `ArbitraryRotation`  (radiant/mainframe.cpp:1113) -- Stufe 2
-    - [~] ITEM Arbitrary scale... -> `ArbitraryScale`  (radiant/mainframe.cpp:1114) -- Stufe 2
+    - [x] ITEM Arbitrary rotation... -> `ArbitraryRotation`  (radiant/mainframe.cpp:1113) -- Stufe 2 Punkt 5
+    - [x] ITEM Arbitrary scale... -> `ArbitraryScale`  (radiant/mainframe.cpp:1114) -- Stufe 2 Punkt 5
     * ---
     * SUB Repeat  (radiant/mainframe.cpp:1117)
-      - [~] ITEM Repeat Transforms -> `RepeatTransforms`  (radiant/mainframe.cpp:1121) -- Stufe 2
-      - [ ] ITEM (dynamisch)  (radiant/mainframe.cpp:1125)
-      - [~] ITEM Reset Transforms -> `ResetTransforms`  (radiant/mainframe.cpp:1133) -- Stufe 2
+      - [x] ITEM Repeat Transforms -> `RepeatTransforms`  (radiant/mainframe.cpp:1121) -- Stufe 2 Punkt 5
+      - [x] ITEM (dynamisch)  (radiant/mainframe.cpp:1125) -- Stufe 2 Punkt 5
+      - [x] ITEM Reset Transforms -> `ResetTransforms`  (radiant/mainframe.cpp:1133) -- Stufe 2 Punkt 5
 
 ### create_bsp_menu (radiant/mainframe.cpp)
 
@@ -455,10 +455,10 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### RotateFlip_constructToolbar (radiant/mainframe.cpp)
 
-- [~] button Flip Horizontally | brush_flip_hor.png -> `MirrorSelectionHorizontally`  (radiant/mainframe.cpp:1344) -- Stufe 2
-- [~] button Flip Vertically | brush_flip_vert.png -> `MirrorSelectionVertically`  (radiant/mainframe.cpp:1345) -- Stufe 2
-- [~] button Rotate Anticlockwise | brush_rotate_anti.png -> `RotateSelectionAnticlockwise`  (radiant/mainframe.cpp:1347) -- Stufe 2
-- [~] button Rotate Clockwise | brush_rotate_clock.png -> `RotateSelectionClockwise`  (radiant/mainframe.cpp:1348) -- Stufe 2
+- [x] button Flip Horizontally | brush_flip_hor.png -> `MirrorSelectionHorizontally`  (radiant/mainframe.cpp:1344) -- Stufe 2 Punkt 5
+- [x] button Flip Vertically | brush_flip_vert.png -> `MirrorSelectionVertically`  (radiant/mainframe.cpp:1345) -- Stufe 2 Punkt 5
+- [x] button Rotate Anticlockwise | brush_rotate_anti.png -> `RotateSelectionAnticlockwise`  (radiant/mainframe.cpp:1347) -- Stufe 2 Punkt 5
+- [x] button Rotate Clockwise | brush_rotate_clock.png -> `RotateSelectionClockwise`  (radiant/mainframe.cpp:1348) -- Stufe 2 Punkt 5
 
 ### Select_constructToolbar (radiant/mainframe.cpp)
 
@@ -514,8 +514,8 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 Name | Art | Standardtaste | Quelle
 
-- [~] `ArbitraryRotation` | Commands | Shift+R | (radiant/select.cpp:1883) -- Stufe 2
-- [~] `ArbitraryScale` | Commands | Ctrl+Shift+S | (radiant/select.cpp:1884) -- Stufe 2
+- [x] `ArbitraryRotation` | Commands | Shift+R | (radiant/select.cpp:1883) -- Stufe 2 Punkt 5
+- [x] `ArbitraryScale` | Commands | Ctrl+Shift+S | (radiant/select.cpp:1884) -- Stufe 2 Punkt 5
 - [~] `AutoCaulkSelected` | Commands | F4 | (radiant/map.cpp:2442) -- Stufe 3
 - [~] `bobToolz::About` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
 - [~] `bobToolz::ApertureDoor` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
@@ -714,11 +714,11 @@ Name | Art | Standardtaste | Quelle
 - [~] `meshTex::TMinMaxAlignAuto` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
 - [~] `meshTex::TMinMaxAlignShrink` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
 - [~] `meshTex::TMinMaxAlignStretch` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] `MirrorSelectionHorizontally` | Commands | - | (radiant/select.cpp:1851) -- Stufe 2
-- [~] `MirrorSelectionVertically` | Commands | - | (radiant/select.cpp:1852) -- Stufe 2
-- [~] `MirrorSelectionX` | Commands | - | (radiant/select.cpp:1844) -- Stufe 2
-- [~] `MirrorSelectionY` | Commands | - | (radiant/select.cpp:1846) -- Stufe 2
-- [~] `MirrorSelectionZ` | Commands | - | (radiant/select.cpp:1848) -- Stufe 2
+- [x] `MirrorSelectionHorizontally` | Commands | - | (radiant/select.cpp:1851) -- Stufe 2 Punkt 5
+- [x] `MirrorSelectionVertically` | Commands | - | (radiant/select.cpp:1852) -- Stufe 2 Punkt 5
+- [x] `MirrorSelectionX` | Commands | - | (radiant/select.cpp:1844) -- Stufe 2 Punkt 5
+- [x] `MirrorSelectionY` | Commands | - | (radiant/select.cpp:1846) -- Stufe 2 Punkt 5
+- [x] `MirrorSelectionZ` | Commands | - | (radiant/select.cpp:1848) -- Stufe 2 Punkt 5
 - [x] `MouseBuild` | Toggles | B | (radiant/tools.cpp:433) -- Stufe 2 Punkt 1
 - [x] `MouseDrag` | Toggles | - | (radiant/tools.cpp:432)
 - [x] `MouseDragOrTransform` | Commands | Q | (radiant/tools.cpp:436)
@@ -777,14 +777,14 @@ Name | Art | Standardtaste | Quelle
 - [~] `RegionSetBrush` | Commands | - | (radiant/map.cpp:2439) -- Stufe 2
 - [~] `RegionSetSelection` | Toggles | Ctrl+Shift+R | (radiant/map.cpp:2441) -- Stufe 2
 - [~] `RegionSetXY` | Commands | - | (radiant/map.cpp:2438) -- Stufe 2
-- [~] `RepeatTransforms` | Commands | Ctrl+R | (radiant/select.cpp:1871) -- Stufe 2
+- [x] `RepeatTransforms` | Commands | Ctrl+R | (radiant/select.cpp:1871) -- Stufe 2 Punkt 5
 - [~] `ResetFilters` | Commands | - | (radiant/filters.cpp:211) -- Stufe 2
-- [~] `ResetTransforms` | Commands | Alt+R | (radiant/select.cpp:1872) -- Stufe 2
-- [~] `RotateSelectionAnticlockwise` | Commands | - | (radiant/select.cpp:1855) -- Stufe 2
-- [~] `RotateSelectionClockwise` | Commands | - | (radiant/select.cpp:1854) -- Stufe 2
-- [~] `RotateSelectionX` | Commands | - | (radiant/select.cpp:1845) -- Stufe 2
-- [~] `RotateSelectionY` | Commands | - | (radiant/select.cpp:1847) -- Stufe 2
-- [~] `RotateSelectionZ` | Commands | - | (radiant/select.cpp:1849) -- Stufe 2
+- [x] `ResetTransforms` | Commands | Alt+R | (radiant/select.cpp:1872) -- Stufe 2 Punkt 5
+- [x] `RotateSelectionAnticlockwise` | Commands | - | (radiant/select.cpp:1855) -- Stufe 2 Punkt 5
+- [x] `RotateSelectionClockwise` | Commands | - | (radiant/select.cpp:1854) -- Stufe 2 Punkt 5
+- [x] `RotateSelectionX` | Commands | - | (radiant/select.cpp:1845) -- Stufe 2 Punkt 5
+- [x] `RotateSelectionY` | Commands | - | (radiant/select.cpp:1847) -- Stufe 2 Punkt 5
+- [x] `RotateSelectionZ` | Commands | - | (radiant/select.cpp:1849) -- Stufe 2 Punkt 5
 - [x] `SaveMap` | Commands | Ctrl+S | (radiant/map.cpp:2432)
 - [x] `SaveMapAs` | Commands | - | (radiant/map.cpp:2433)
 - [~] `SaveRegion` | Commands | - | (radiant/map.cpp:2435) -- Stufe 2
@@ -934,8 +934,8 @@ Name | Art | Standardtaste | Quelle
 - [ ] "Patch thicken"  (radiant/patchmanip.cpp:994)
 - [ ] "Global Preferences"  (radiant/preferences.cpp:271)
 - [x] "NetRadiant Preferences"  (radiant/preferences.cpp:584) -- Rahmen, Baum, alle 23 Seiten (12 noch Platzhalter, siehe Einstellungsseiten)
-- [ ] "Arbitrary rotation"  (radiant/select.cpp:1589)
-- [ ] "Arbitrary scale"  (radiant/select.cpp:1681)
+- [x] "Arbitrary rotation"  (radiant/select.cpp:1589) -- Stufe 2 Punkt 5
+- [x] "Arbitrary scale"  (radiant/select.cpp:1681) -- Stufe 2 Punkt 5
 - [ ] "Surface Inspector"  (radiant/surfacedialog.cpp:637)
 
 ## Einstellungsseiten

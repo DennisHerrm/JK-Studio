@@ -130,7 +130,12 @@ std::map<std::string, Umsetzung>& umsetzungen() {
                           "MakeStructural",
                           // Stufe 2, Punkt 4: Grundformen (brushmanip.cpp:1479-1491)
                           "BrushPrism", "BrushCone", "BrushSphere", "BrushRock", "BrushIcosahedron", "Brush3Sided", "Brush4Sided",
-                          "Brush5Sided", "Brush6Sided", "Brush7Sided", "Brush8Sided", "Brush9Sided"}) {
+                          "Brush5Sided", "Brush6Sided", "Brush7Sided", "Brush8Sided", "Brush9Sided",
+                          // Stufe 2, Punkt 5: Drehen, Spiegeln, Arbitrary, Repeat (select.cpp:1844-1884)
+                          "RotateSelectionX", "RotateSelectionY", "RotateSelectionZ", "RotateSelectionClockwise",
+                          "RotateSelectionAnticlockwise", "MirrorSelectionX", "MirrorSelectionY", "MirrorSelectionZ",
+                          "MirrorSelectionHorizontally", "MirrorSelectionVertically", "ArbitraryRotation", "ArbitraryScale",
+                          "RepeatTransforms", "ResetTransforms"}) {
         const std::string name = n;
         m[name] = {[name] { auswahlBefehl(name); }, nullptr};
     }

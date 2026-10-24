@@ -625,6 +625,25 @@ void auswahlBefehl(const std::string& name) {
                             : name == "BrushSphere" ? karte::Grundform::Kugel
                             : name == "BrushRock" ? karte::Grundform::Fels
                                                   : karte::Grundform::Ikosaeder);
+    } else if (name == "RotateSelectionX" || name == "RotateSelectionY" || name == "RotateSelectionZ") {   // Selection_Rotatex/y/z
+        karte::auswahlDrehen(ed.bearbeitung, k, name.back() - 'X');
+        ed.bearbeitung.pivotGeaendert();
+    } else if (name == "MirrorSelectionX" || name == "MirrorSelectionY" || name == "MirrorSelectionZ") {   // Selection_Flipx/y/z
+        karte::auswahlSpiegeln(ed.bearbeitung, k, name.back() - 'X');
+        ed.bearbeitung.pivotGeaendert();
+    } else if (name == "MirrorSelectionHorizontally" || name == "MirrorSelectionVertically") {
+        karte::auswahlSpiegelnSicht(ed.bearbeitung, k, aktuelleSicht(), name == "MirrorSelectionHorizontally");
+        ed.bearbeitung.pivotGeaendert();
+    } else if (name == "RotateSelectionClockwise" || name == "RotateSelectionAnticlockwise") {
+        karte::auswahlDrehenSicht(ed.bearbeitung, k, aktuelleSicht(), name == "RotateSelectionClockwise");
+        ed.bearbeitung.pivotGeaendert();
+    } else if (name == "ArbitraryRotation" || name == "ArbitraryScale") {   // DoRotateDlg / DoScaleDlg
+        arbitraerDialogZeigen(name == "ArbitraryRotation");
+    } else if (name == "RepeatTransforms") {   // GlobalSelectionSystem().repeatTransforms()
+        ed.bearbeitung.transformWiederholen();
+        auswahlGeaendert();
+    } else if (name == "ResetTransforms") {   // resetTransforms() (eClip: alle)
+        ed.bearbeitung.transformZuruecksetzen();
     } else if (name == "MakeDetail" || name == "MakeStructural") {   // Select_MakeDetail / Select_MakeStructural
         karte::pinselDetailSetzen(k, name == "MakeDetail");
     } else if (name == "DragVertices") {

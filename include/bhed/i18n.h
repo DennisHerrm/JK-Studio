@@ -1609,6 +1609,9 @@ enum class Str {
     KeSidesSides,
     KeSidesSubdivisions,
     KeSidesTruncate,
+    KeArbRotTitle,
+    KeArbScaleTitle,
+    KeArbApply,
     Count,
 };
 

@@ -44,4 +44,8 @@ KARTE2 = [
     ("KeSidesSides", "Sides:", "Seiten:", "边数:", "辺の数:"),
     ("KeSidesSubdivisions", "Subdivisions:", "Unterteilungen:", "细分:", "分割数:"),
     ("KeSidesTruncate", "Truncate", "Stutzen", "截角", "切頂"),
+    # --- Arbitrary rotation / scale (select.cpp:1580-1757) -------------------------
+    ("KeArbRotTitle", "Arbitrary rotation", "Beliebige Drehung", "任意旋转", "任意の回転"),
+    ("KeArbScaleTitle", "Arbitrary scale", "Beliebige Skalierung", "任意缩放", "任意の拡大縮小"),
+    ("KeArbApply", "Apply", "Anwenden", "应用", "適用"),
 ]
