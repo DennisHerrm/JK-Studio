@@ -74,6 +74,7 @@ constexpr int kRollbalken = 7;      // dark.qss QScrollBar: width 7px
 constexpr int kZeile = 16;          // QTreeView: Zeilenhoehe (Schrift 16)
 constexpr int kEinzug = 20;         // QTreeView::indentation
 constexpr int kTextEinzug = 3;      // Abstand der Beschriftung im Eintrag
+constexpr int kReiterH = 22;        // QTabBar (documentMode)
 
 struct Zustand {
     std::shared_ptr<Spielkontext> spiel;           // fuer dieses Spiel gelten die aktiven Shader
@@ -851,6 +852,7 @@ void texturShaderWaehlen(const std::string& shader) {   // TextureBrowser_SetSel
         ed.statusTextur = karte::texturStatus(shader, s);
     }
     ed.texBro.fokus(shader, ed.aktiveShader);
+    if (ed.tags.gui && ed.tags.reiter == 1) { tagsShaderGewaehlt(); }   // m_tabs->currentIndex() == 1
     if (ed.findenOffen) {   // FindTextureDialog_selectTexture -> updateTextures
         const std::string kurz = shader.size() >= 9 ? shader.substr(9) : std::string();
         if (ed.findenAktiv) {
@@ -928,8 +930,20 @@ void texturBrowserZeichnen(int breite, int hoehe) {
         }
         merkeFeld("Texturen:Filter", x, y + kLeisteH, b, kFilterH);
         filterZeichnen(bp(x, y + kLeisteH), bp(x + b, y + kLeisteH + kFilterH), sc);
-        merkeFeld("Texturen:Baum", x, y + kLeisteH + kFilterH, b, std::max(0, h - kLeisteH - kFilterH));
-        if (h > kLeisteH + kFilterH) { baumZeichnen(bp(x, y + kLeisteH + kFilterH), bp(x + b, y + h), sc); }
+        int baumY = y + kLeisteH + kFilterH;
+        if (ed.tags.gui) {   // QTabWidget mit tabBarAutoHide: die Leiste nur mit dem Reiter Tags
+            merkeFeld("Texturen:Reiter", x, baumY, b, kReiterH);
+            tagsReiterZeichnen(bp(x, baumY), bp(x + b, baumY + kReiterH), sc);
+            baumY += kReiterH;
+        }
+        merkeFeld("Texturen:Baum", x, baumY, b, std::max(0, y + h - baumY));
+        if (y + h > baumY) {
+            if (ed.tags.gui && ed.tags.reiter == 1) {
+                tagsListeZeichnen(bp(x, baumY), bp(x + b, y + h), sc);
+            } else {
+                baumZeichnen(bp(x, baumY), bp(x + b, y + h), sc);
+            }
+        }
     };
     const TeilerInhalt rechtsZeichnen = [&](int x, int y, int b, int h) {
         if (b <= 0 || h <= 0) { return; }

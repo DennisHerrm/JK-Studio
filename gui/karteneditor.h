@@ -27,6 +27,7 @@
 #include "bhed/karte/entitaetbefehle.h"
 #include "bhed/karte/grundformen.h"
 #include "bhed/karte/texturbefehle.h"
+#include "bhed/karte/texturtags.h"
 #include "bhed/karte/kamera.h"
 #include "bhed/karte/karte.h"
 #include "bhed/karte/kartenformat.h"
@@ -62,6 +63,26 @@ namespace befehle = karte::befehle;
 //   OpenJK        -> ja (base),     data/karte/ja/*.def (sp)
 //   Movie Duels   -> ja + fs_game MD, ja-Klassen + bhed/entdefs.h
 //   Jedi Outcast  -> jk2,           data/karte/jk2/*.def (sp)
+// Die Tags des Texturbrowsers (texwindow.cpp: TagBuilder, m_tags, m_all_tags,
+// m_copied_tags, m_found_shaders, die Liste)
+struct TagZustand {
+    karte::TexturTags datei;          // TagBuilder
+    bool geladen = false;
+    bool gui = false;                 // m_tags ("TagsShowGui")
+    int reiter = 0;                   // m_tabs->currentIndex()
+    std::set<std::string> alle;       // m_all_tags
+    std::vector<std::string> kopiert; // m_copied_tags
+    std::set<std::string> gefunden;   // m_found_shaders
+    std::set<std::string> markiert;   // selectedItems
+    std::set<std::string> haken;      // CheckState der Zeilen (Tags des gewaehlten Shaders)
+    std::string bearbeitet;           // editItem
+    std::string puffer;
+    bool bearbeitenFokus = false;
+};
+
+// EMessageBoxType
+enum class MeldungArt { Info, Warnung, Frage, Fehler };
+
 struct Spielkontext {
     int spiel = 0;                  // kRegelwerkOpenJK / MovieDuels / JediOutcast
     std::string name;               // "OpenJK (ja)" usw. fuer Meldungen
@@ -446,6 +467,17 @@ struct Editor {
     // Surface Inspector (surfacedialog.cpp): nicht modal, S schaltet
     bool siOffen = false;
     karte::SiWerte siWerte;   // g_si_globals
+    TagZustand tags;          // Tags des Texturbrowsers (app_karte_tags.cpp)
+    // qt_MessageBox als Klappfenster
+    struct Meldung {
+        bool offen = false;
+        bool neu = false;
+        std::string titel;
+        std::string text;
+        MeldungArt art = MeldungArt::Info;
+        bool jaNein = false;
+        std::function<void(bool)> danach;
+    } meldung;
     std::string tastenDialogBearbeitet;   // Befehl, dessen Taste gerade aufgenommen wird
     int tasteVerbrauchtBild = -1;         // in diesem Bild hat die Aufnahme die Taste geschluckt
     bool ueberOffen = false;
@@ -802,6 +834,15 @@ void siUmschalten();                 // SurfaceInspector_toggleShown (app_karte_
 void siEinpassenBefehl(int art);     // FitTexture, FitTextureWidth, -Height, -WidthOnly, -HeightOnly
 void siProjizierenBefehl(int art);   // TextureProjectAxial / Ortho / Cam
 void zeichneSurfaceInspector();
+// qt_MessageBox (app_karte_tags.cpp): OK bzw. Yes/No; danach( true ) bei OK/Yes
+void qtMeldung(const std::string& titel, const std::string& text, MeldungArt art, bool jaNein, std::function<void(bool)> danach);
+void zeichneQtMeldung();
+void tagsLaden();                 // TextureBrowser_checkTagFile
+void tagsShaderGewaehlt();        // TextureBrowser_tagsSetCheckboxesForShader
+bool tagBefehlAn(const std::string& name);
+void tagBefehl(const std::string& name);
+void tagsReiterZeichnen(ImVec2 a, ImVec2 c, float sc);
+void tagsListeZeichnen(ImVec2 a, ImVec2 c, float sc);
 // Einstellungen des Editors lesen/schreiben (Settings::karte).
 void einstellungenLaden();
 void einstellungenSpeichern();

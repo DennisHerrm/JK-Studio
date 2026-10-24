@@ -80,6 +80,7 @@ PatchThicken
 SurfaceInspector FitTexture FitTextureWidth FitTextureHeight FitTextureWidthOnly FitTextureHeightOnly TextureProjectAxial
 TextureProjectOrtho TextureProjectCam TexRotateClock TexRotateCounter TexScaleUp TexScaleDown TexScaleLeft TexScaleRight
 TexShiftUp TexShiftDown TexShiftLeft TexShiftRight SelectTextured
+TagsToggleGui TagAdd TagRename TagDelete TagCopy TagPaste TagSearch TagSearchUntagged
 '''.split())
 
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem

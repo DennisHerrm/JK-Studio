@@ -392,16 +392,16 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
   - [x] CHECK Fixed Size -> `FixedSize`  (radiant/texwindow.cpp:1263)
   - [x] CHECK Transparency -> `EnableAlpha`  (radiant/texwindow.cpp:1264)
   * ---
-  - [~] CHECK Tags GUI -> `TagsToggleGui`  (radiant/texwindow.cpp:1267) -- Stufe 2
-  - [~] ITEM Add tag -> `TagAdd`  (radiant/texwindow.cpp:1282) -- Stufe 2
-  - [~] ITEM Rename tag -> `TagRename`  (radiant/texwindow.cpp:1283) -- Stufe 2
-  - [~] ITEM Delete tag -> `TagDelete`  (radiant/texwindow.cpp:1284) -- Stufe 2
+  - [x] CHECK Tags GUI -> `TagsToggleGui`  (radiant/texwindow.cpp:1267) -- Stufe 2 Punkt 7
+  - [x] ITEM Add tag -> `TagAdd`  (radiant/texwindow.cpp:1282) -- Stufe 2 Punkt 7
+  - [x] ITEM Rename tag -> `TagRename`  (radiant/texwindow.cpp:1283) -- Stufe 2 Punkt 7
+  - [x] ITEM Delete tag -> `TagDelete`  (radiant/texwindow.cpp:1284) -- Stufe 2 Punkt 7
   * ---
-  - [~] ITEM Copy tags from selected -> `TagCopy`  (radiant/texwindow.cpp:1286) -- Stufe 2
-  - [~] ITEM Paste tags to selected -> `TagPaste`  (radiant/texwindow.cpp:1287) -- Stufe 2
+  - [x] ITEM Copy tags from selected -> `TagCopy`  (radiant/texwindow.cpp:1286) -- Stufe 2 Punkt 7
+  - [x] ITEM Paste tags to selected -> `TagPaste`  (radiant/texwindow.cpp:1287) -- Stufe 2 Punkt 7
   * ---
-  - [~] ITEM Search tag -> `TagSearch`  (radiant/texwindow.cpp:1289) -- Stufe 2
-  - [~] ITEM Search Untagged -> `TagSearchUntagged`  (radiant/texwindow.cpp:1290) -- Stufe 2
+  - [x] ITEM Search tag -> `TagSearch`  (radiant/texwindow.cpp:1289) -- Stufe 2 Punkt 7
+  - [x] ITEM Search Untagged -> `TagSearchUntagged`  (radiant/texwindow.cpp:1290) -- Stufe 2 Punkt 7
 
 ### TextureBrowser_ContextMenu (radiant/texwindow.cpp)
 
@@ -840,14 +840,14 @@ Name | Art | Standardtaste | Quelle
 - [~] `sunPlug::About` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 3
 - [~] `sunPlug::ET-MapCoordinator` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 3
 - [x] `SurfaceInspector` | Commands | S | (radiant/surfacedialog.cpp:1755) -- Stufe 2 Punkt 7
-- [~] `TagAdd` | Commands | - | (radiant/texwindow.cpp:2095) -- Stufe 2
-- [~] `TagCopy` | Commands | - | (radiant/texwindow.cpp:2098) -- Stufe 2
-- [~] `TagDelete` | Commands | - | (radiant/texwindow.cpp:2097) -- Stufe 2
-- [~] `TagPaste` | Commands | - | (radiant/texwindow.cpp:2099) -- Stufe 2
-- [~] `TagRename` | Commands | - | (radiant/texwindow.cpp:2096) -- Stufe 2
-- [~] `TagSearch` | Commands | - | (radiant/texwindow.cpp:2094) -- Stufe 2
-- [~] `TagSearchUntagged` | Commands | - | (radiant/texwindow.cpp:2093) -- Stufe 2
-- [~] `TagsToggleGui` | Toggles | - | (radiant/texwindow.cpp:2110) -- Stufe 2
+- [x] `TagAdd` | Commands | - | (radiant/texwindow.cpp:2095) -- Stufe 2 Punkt 7
+- [x] `TagCopy` | Commands | - | (radiant/texwindow.cpp:2098) -- Stufe 2 Punkt 7
+- [x] `TagDelete` | Commands | - | (radiant/texwindow.cpp:2097) -- Stufe 2 Punkt 7
+- [x] `TagPaste` | Commands | - | (radiant/texwindow.cpp:2099) -- Stufe 2 Punkt 7
+- [x] `TagRename` | Commands | - | (radiant/texwindow.cpp:2096) -- Stufe 2 Punkt 7
+- [x] `TagSearch` | Commands | - | (radiant/texwindow.cpp:2094) -- Stufe 2 Punkt 7
+- [x] `TagSearchUntagged` | Commands | - | (radiant/texwindow.cpp:2093) -- Stufe 2 Punkt 7
+- [x] `TagsToggleGui` | Toggles | - | (radiant/texwindow.cpp:2110) -- Stufe 2 Punkt 7
 - [x] `TexRotateClock` | Commands | Shift+PgDown | (radiant/select.cpp:1890) -- Stufe 2 Punkt 7
 - [x] `TexRotateCounter` | Commands | Shift+PgUp | (radiant/select.cpp:1891) -- Stufe 2 Punkt 7
 - [x] `TexScaleDown` | Commands | Ctrl+Down | (radiant/select.cpp:1893) -- Stufe 2 Punkt 7

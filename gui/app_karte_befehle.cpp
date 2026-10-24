@@ -161,6 +161,12 @@ std::map<std::string, Umsetzung>& umsetzungen() {
         const std::string name = n;
         m[name] = {[name] { texturBefehl(name); }, [name] { return texturBefehlAn(name); }};
     }
+    // --- Tags des Texturbrowsers (texwindow.cpp:2093-2110) ---
+    for (const char* n : {"TagAdd", "TagRename", "TagDelete", "TagCopy", "TagPaste", "TagSearch", "TagSearchUntagged"}) {
+        const std::string name = n;
+        m[name] = {[name] { tagBefehl(name); }, nullptr};
+    }
+    m["TagsToggleGui"] = {[] { tagBefehl("TagsToggleGui"); }, [] { return tagBefehlAn("TagsToggleGui"); }};
     // --- Entitaeten (entity.cpp:723-746, select.cpp:1880-1881, mainframe.cpp:2082) ---
     for (const char* n : {"EntitiesConnect", "EntityColorSet", "EntityColorNormalize", "EntityMovePrimitivesToLast",
                           "EntityMovePrimitivesToFirst", "EntityUngroup", "EntityUngroupPrimitives", "EntityReloadDefinitions",

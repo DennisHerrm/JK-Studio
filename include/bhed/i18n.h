@@ -1655,6 +1655,8 @@ enum class Str {
     KeSiPatch,
     KeSiNatural,
     KePrSiMatchGrid,
+    KeTagTabTextures,
+    KeTagTabTags,
     KePrPatchThreshold,
     Count,
 };

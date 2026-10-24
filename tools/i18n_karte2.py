@@ -99,6 +99,9 @@ KARTE2 = [
     ("KeSiNatural", "Natural", "Natürlich", "自然", "自然"),
     ("KePrSiMatchGrid", "Surface Inspector Increments Match Grid", "Schritte des Oberflächen-Inspektors am Raster",
      "表面检查器步长匹配网格", "サーフェスインスペクタのステップをグリッドに合わせる"),
+    # --- Texturbrowser: Reiter (texwindow.cpp:1297, 1870) -----------------------------
+    ("KeTagTabTextures", "Textures", "Texturen", "纹理", "テクスチャ"),
+    ("KeTagTabTags", "Tags", "Schlagwörter", "标签", "タグ"),
     # --- Einstellungsseite Patches (patchmanip.cpp:670-677) --------------------------
     ("KePrPatchThreshold", "Patch Subdivide Threshold", "Patch-Unterteilungsschwelle", "面片细分阈值", "パッチ分割しきい値"),
 ]

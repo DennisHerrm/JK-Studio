@@ -29175,6 +29175,48 @@ std::vector<Schritt> texturen() {
     add(tasteKombi(ImGuiKey_S, "S"));
     add(pruefe("S: Surface Inspector zu", [] { return !ke::editor().siOffen; }));
     add(tu("Schritte zurueck auf 8", [] { ke::editor().siWerte = karte::SiWerte{}; }));
+    // Tags des Texturbrowsers
+    add(tu("View > Tags GUI", [] { (void)ke::ausfuehren("TagsToggleGui"); }));
+    add(pause(0.3));
+    add(pruefe("Tags GUI an: Reiterleiste da", [] { return ke::editor().tags.gui && finde("##tagreiter1", "", 0, true) != nullptr; }));
+    add(klickAn("Reiter Tags", elementOrt("##tagreiter1")));
+    add(pruefe("Reiter Tags gewaehlt", [] { return ke::editor().tags.reiter == 1; }));
+    add(tu("Tags > Add tag", [] { (void)ke::ausfuehren("TagAdd"); }));
+    add(pause(0.2));
+    add(tippe("Holz"));
+    add(tasteKombi(ImGuiKey_Enter, "Return"));
+    add(pruefe("Add tag: NewTag in Holz umbenannt", [] {
+        const auto& t = ke::editor().tags;
+        return t.alle.count("Holz") != 0U && t.alle.count("NewTag") == 0U && t.bearbeitet.empty();
+    }));
+    add(tu("Shader common/caulk waehlen", [] { ke::texturShaderWaehlen("textures/common/caulk"); }));
+    add(klickAn("Haken vor Holz", [] {
+        const Element* el = finde("##tagHolz", "", 0, true);
+        return el != nullptr ? ImVec2{el->rect.Min.x + 7.0F, el->rect.GetCenter().y} : ImVec2{0, 0};
+    }));
+    add(pruefe("Haken: Holz an textures/common/caulk (Eintrag in custom)", [] {
+        const auto& t = ke::editor().tags;
+        return t.datei.hatTag("textures/common/caulk", "Holz") && t.haken.count("Holz") != 0U;
+    }));
+    add(tu("Tags > Search tag", [] { (void)ke::ausfuehren("TagSearch"); }));
+    add(pruefe("Search tag: nur die gefundenen, Titel [TAGS] Holz", [] {
+        const auto& tb = ke::editor().texBro;
+        return tb.tagSuche && tb.gefundeneShader.count("textures/common/caulk") != 0U && tb.verzeichnis == "[TAGS] Holz";
+    }));
+    add(tu("Tags > Delete tag", [] { (void)ke::ausfuehren("TagDelete"); }));
+    add(pause(0.3));
+    add(pruefe("Delete tag: Rueckfrage offen", [] { return ke::editor().meldung.offen; }));
+    add(foto("karteneditor_tags_frage"));
+    add(tasteKombi(ImGuiKey_Enter, "Return"));
+    add(pruefe("Ja: Holz ueberall geloescht", [] {
+        const auto& t = ke::editor().tags;
+        return !ke::editor().meldung.offen && t.alle.empty() && !t.datei.hatTag("textures/common/caulk", "Holz");
+    }));
+    add(tu("View > Tags GUI aus, Show All", [] {
+        (void)ke::ausfuehren("TagsToggleGui");
+        (void)ke::ausfuehren("ShowAllTextures");
+    }));
+    add(pruefe("Tags GUI aus", [] { return !ke::editor().tags.gui && !ke::editor().texBro.tagSuche; }));
     return s;
 }
 

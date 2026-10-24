@@ -148,6 +148,8 @@ public:
     bool unbenutzteVerstecken = false;   // m_hideUnused
     std::vector<std::string> zuletzt;    // m_recent_folders (hoechstens 25)
     std::string commonVerzeichnis = "common/";   // TextureBrowser_getCommonShadersDir
+    bool tagSuche = false;                       // m_searchedTags: nur m_found_shaders zeigen
+    std::set<std::string> gefundeneShader;       // m_found_shaders
 
     // getTextureWH
     [[nodiscard]] std::pair<int, int> texturMass(const AktiverShader& s) const;

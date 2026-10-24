@@ -974,6 +974,7 @@ void einstellungenLaden() {
     ed.siWerte.verschiebung[1] = zahl("SI_SurfaceTexdef_Shift2", 8.0F);
     ed.siWerte.drehung = zahl("SI_SurfaceTexdef_Rotate", 45.0F);
     ed.siWerte.rasterAnpassen = zahl("SnapTToGrid", 0) != 0.0F;
+    ed.tags.gui = zahl("TagsShowGui", 0) != 0.0F;   // TextureBrowser_Construct (texwindow.cpp:2133)
     // MainFrame/m_hSplit usw. (SplitterSetting::save: die Groessen), als
     // "a,b" in logischen Punkten; anderes (alte Anteile) gilt als nicht gemerkt.
     const auto groessen = [&](const char* n) {
@@ -1107,6 +1108,7 @@ void einstellungenSpeichern() {
     k["SI_SurfaceTexdef_Shift2"] = karte::zahlText(ed.siWerte.verschiebung[1]);
     k["SI_SurfaceTexdef_Rotate"] = karte::zahlText(ed.siWerte.drehung);
     k["SnapTToGrid"] = ed.siWerte.rasterAnpassen ? "1" : "0";
+    k["TagsShowGui"] = ed.tags.gui ? "1" : "0";
     const auto liste = [](const std::vector<int>& v) {
         std::string s;
         for (const int i : v) { s += (s.empty() ? "" : ",") + std::to_string(i); }

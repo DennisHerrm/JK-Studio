@@ -222,6 +222,7 @@ bool TexturBrowser::gezeigt(const AktiverShader& s) const {
     if (e.commonOhneTexturen && s.standard && !s.imGebrauch && praefixOhneFall(shaderTexturName(s.name), commonVerzeichnis)) {
         return false;
     }
+    if (tagSuche) { return gefundeneShader.count(s.name) != 0U; }   // m_searchedTags
     if (!praefixOhneFall(shaderTexturName(s.name), verzeichnis)) { return false; }
     return !gefiltert(pfadDateiname(s.name));
 }
@@ -359,6 +360,7 @@ const AktiverShader* TexturBrowser::texturBei(int mx, int my, const AktiveShader
 // TexturePath_loadTexture (Bildmodule alphabetisch: jpg, png, tga).
 std::size_t TexturBrowser::verzeichnisZeigen(const std::string& dir, AktiveShader& aktiv, const Texturinventar& inventar,
                                              const Dateisystem& fs, std::vector<std::string>* warnungen) {
+    tagSuche = false;   // TextureBrowser_ShowDirectory: m_searchedTags = false
     verzeichnis = dir;
     // foreachShaderName: g_shaderDefinitions = die Definitionen und die ohne
     // Definition angeforderten Namen (CreateDefault).
@@ -425,11 +427,13 @@ void TexturBrowser::unbenutzteSetzen(bool an) {   // TextureBrowser_SetHideUnuse
 
 void TexturBrowser::alleZeigen() {   // TextureBrowser_showAll (texwindow.cpp:1940-1946)
     verzeichnis.clear();
+    tagSuche = false;
     unbenutzteSetzen(!unbenutzteVerstecken);   // toggle to show all used on the first hit and all on the second
 }
 
 void TexturBrowser::neuGeladen() {   // RefreshShaders (texwindow.cpp:1900-1909)
     verzeichnis.clear();
+    tagSuche = false;
     hoeheGeaendert();
 }
 

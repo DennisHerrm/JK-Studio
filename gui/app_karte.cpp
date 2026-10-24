@@ -991,6 +991,7 @@ void zeichne(float hoehe) {
     zeichneArbitraerDialoge();
     zeichnePatchDialog();
     zeichneSurfaceInspector();
+    zeichneQtMeldung();
     zeichneRueckfrage();
     ImGui::PopFont();
     tastenVerarbeiten();
