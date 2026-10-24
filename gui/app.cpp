@@ -6551,7 +6551,8 @@ Layout computeLayout() {
     // unten. In efxed ist sie die letzte Zeile des Fensters; genau so soll
     // es hier auch sein.
     // Die Reiterleiste kostet eine Zeile - sonst laeuft alles unten hinaus.
-    const float tabH = g_app->tabs.empty()
+    // Im Karten-Editor keine Reiterleiste (Stufe 3 Punkt 0b).
+    const float tabH = (g_app->tabs.empty() || g_app->leftMode == 3)
                            ? 0.0F
                            : ImGui::GetFrameHeightWithSpacing();
     // --- NEGATIVE Hoehe statt Abzugsrechnung ----------------------------
@@ -6606,9 +6607,11 @@ Layout computeLayout() {
     // zwischen Events-Text und dem Fenster unten?"
     //
     // Also die Hoehe danach richten, was tatsaechlich darin steht.
-    l.headerH = (g_app->leftMode == 0)
-                    ? ImGui::GetTextLineHeightWithSpacing()
-                    : ImGui::GetFrameHeightWithSpacing();
+    // Der Karten-Editor hat keine Kopfzeile: er beginnt direkt unter der
+    // Menueleiste (Stufe 3 Punkt 0b).
+    l.headerH = (g_app->leftMode == 3)   ? 0.0F
+                : (g_app->leftMode == 0) ? ImGui::GetTextLineHeightWithSpacing()
+                                         : ImGui::GetFrameHeightWithSpacing();
     // NEGATIV, und ohne die Kopfzeile.
     //
     // Am kopflosen Pruefstand gemessen (tools/layoutcheck.cpp): die
@@ -6807,6 +6810,12 @@ float drawModeBar(float height, float headerH) {
 // (gui/app_karte.cpp). Keine Ereignisliste, kein Script Flow, keine
 // Actions: die gehoeren zum Skript.
 void drawKartenEditorBereich(const Layout& l) {
+    // Stufe 3 Punkt 0b: ohne Reiter- und Kopfzeile direkt unter der
+    // Menueleiste - auch ohne den Fensterrand oben dazwischen.
+    {
+        const ImGuiWindow* w = ImGui::GetCurrentWindow();
+        ImGui::SetCursorScreenPos(ImVec2{ImGui::GetCursorScreenPos().x, w->Pos.y + w->TitleBarHeight + w->MenuBarHeight});
+    }
     if (!ImGui::BeginTable("##spaltenKarteneditor", 2,
                            ImGuiTableFlags_NoSavedSettings | ImGuiTableFlags_NoPadOuterX,
                            ImVec2{0.0F, 0.0F})) {
@@ -6817,11 +6826,8 @@ void drawKartenEditorBereich(const Layout& l) {
     ImGui::TableSetupColumn("editor", ImGuiTableColumnFlags_WidthStretch, 1.0F);
     ImGui::TableNextRow();
     ImGui::TableNextColumn();
-    g_app->modeBarW = drawModeBar(l.frameH, l.headerH);
+    g_app->modeBarW = drawModeBar(l.frameH, l.headerH);   // headerH = 0 im Karten-Editor
     ImGui::TableNextColumn();
-    // Oben buendig mit dem Rahmen der Modusleiste (die eine Kopfzeile Platz
-    // laesst, siehe drawModeBar).
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + l.headerH);
     karteneditor::zeichne(l.frameH);
     ImGui::EndTable();
 }
@@ -14727,6 +14733,12 @@ void draw() {
         title += " *";
     }
     title += "###main";   // ImGui-Kennung stabil halten
+    // Stufe 3 Punkt 0b ("Eine Leiste, die umschaltet", Entscheidung shank): im
+    // Modus Karten-Editor ist die Menueleiste dieses Fensters die von
+    // NetRadiant-Custom - 21 Qt-Punkte hoch in NRCs Schrift. ImGui legt die Hoehe
+    // beim Begin fest, darum Schrift und Polster schon hier.
+    const bool kartenLeiste = (g_app->leftMode == 3);
+    if (kartenLeiste) { karteneditor::hauptleisteStilAn(); }
     ImGui::Begin(title.c_str(), nullptr,
                  ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
                  ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar |
@@ -14747,7 +14759,12 @@ void draw() {
                  // Merker obendrein alle Tastenkuerzel ("Reset all to
                  // defaults breaks all keyboard shortcuts").
                  ImGuiWindowFlags_NoBringToFrontOnFocus);
-    drawMenu();
+    if (kartenLeiste) {
+        karteneditor::hauptleisteStilAus();
+        karteneditor::zeichneHauptmenue();
+    } else {
+        drawMenu();
+    }
     // --- Die Reiterleiste, ganz oben --------------------------------------
     //
     // Ueber Events, Script Flow und Actions - so, wie du es beschrieben
@@ -14762,7 +14779,10 @@ void draw() {
     //   TabListPopupButton   der Pfeil links listet alle offenen Skripte
     //
     // Der Stern hinter dem Namen ist derselbe wie im Fenstertitel.
-    if (!g_app->tabs.empty()) {
+    //
+    // Im Karten-Editor gibt es keine Skript-Reiter (Stufe 3 Punkt 0b): der
+    // Editor beginnt direkt unter der Menueleiste.
+    if (!g_app->tabs.empty() && !kartenLeiste) {
         // KEIN ImGuiTabBarFlags_AutoSelectNewTabs: das Programm waehlt einen
         // neuen Reiter selbst (addTab setzt homeTab), und die Nachfuehrung
         // unten bringt ImGui dorthin. Mit der Fahne hielt die Leiste einen

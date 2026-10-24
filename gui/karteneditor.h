@@ -633,6 +633,27 @@ struct Editor {
         float y1 = 0;
     };
     std::vector<KlappOrt> klappOrte;
+    int listenBild = -1;   // ImGui-Bild, in dem die Listen oben zuletzt geleert wurden (bildBeginnen)
+    // Stufe 3 Punkt 0b: Unterkante der Menueleiste im Programmfenster und
+    // Oberkante des Editors (Bildpunkte, fuer den Selbsttest: direkt darunter).
+    float leisteUnten = 0.0F;
+    float editorOben = 0.0F;
+    // Stufe 3 Punkt 0b, "Rahmen + Abstand" (Entscheidung shank): jedes Feld hat
+    // einen feinen Rahmen, das aktive einen in der Akzentfarbe. Fuer den
+    // Selbsttest: was gezeichnet wurde (Bildpunkte).
+    struct RahmenImBild {
+        std::string feld;
+        float x0 = 0;
+        float y0 = 0;
+        float x1 = 0;
+        float y1 = 0;
+        unsigned farbe = 0;
+        bool aktiv = false;
+    };
+    std::vector<RahmenImBild> rahmenImBild;
+    int aktivesFeld = 0;   // Feld (app_karte.cpp): zuletzt angeklickt; zu Beginn XY wie aktivXy
+    int aktivXyVorher = -1;
+    std::string letzteHilfe;   // fuer den Selbsttest: OpenManual / CheckForUpdate (Seite bzw. "update")
 
     // Fuer den Selbsttest: die Kennung des Arbeitsbereichs im letzten Bild.
     bool gezeichnet = false;
@@ -734,6 +755,13 @@ void setzeNrcBegriffe(bool an);
 
 // Den Arbeitsbereich zeichnen (aus app.cpp, rechts neben der Modusleiste).
 void zeichne(float hoehe);
+// Stufe 3 Punkt 0b: die NRC-Menueleiste ist im Modus Karten-Editor die des
+// Programmfensters. hauptleisteStilAn/Aus umklammern dessen Begin (Hoehe 21),
+// zeichneHauptmenue zeichnet sie darin; bildBeginnen leert die Listen des Bildes.
+void hauptleisteStilAn();
+void hauptleisteStilAus();
+void zeichneHauptmenue();
+void bildBeginnen();
 
 // --- Befehle (app_karte_befehle.cpp) ---
 // Einen NRC-Befehl ausfuehren (Menue, Knopf, Taste). false: unbekannt oder in

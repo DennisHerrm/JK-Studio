@@ -90,3 +90,103 @@ Menues (Lauf s3p0menue, logische Punkte, NRC-Foto gegen uns): genau bei 30
 von 38; +1 bei File, Modify > Components, Modify > Rotate, Misc > Theming,
 Curve, Curve > Texture, Help > General, Help > Jedi Knight Jedi Academy. Mit
 GDI (Stufe 1b) waren es bis 3 in beide Richtungen.
+
+## Punkt 0b: eine Leiste, die umschaltet; Rahmen + Abstand
+
+Auftrag shank (Bildschirmfoto: zwei Menueleisten uebereinander, dazwischen die
+Skript-Reiter und eine leere Zeile): **"Eine Leiste, die umschaltet"** und
+**"Rahmen + Abstand"**, zurueckhaltend ("dem Original treu, nur bisschen
+besser erkennbar und sauberer").
+
+Umgesetzt:
+
+- Im Modus Karten-Editor ist die Menueleiste des Programmfensters selbst die
+  von NRC (File Edit View Modify Build Grid Misc Entity Brush Curve Plugins
+  Help, Reihenfolge und Inhalt wie `create_main_menu`). Schrift und Polster
+  stehen schon beim `Begin` des Hauptfensters, damit sie wie NRCs QMenuBar 21
+  Qt-Punkte hoch ist (`karteneditor::hauptleisteStilAn/Aus`,
+  `zeichneHauptmenue`). Das Kindfenster des Editors hat keine eigene Leiste
+  mehr; seine Lagen bleiben ab der Oberkante der Leiste gerechnet (der Editor
+  beginnt bei y = 21), alle Masse-Pruefungen gelten unveraendert.
+- Skript-Reiter und Kopfzeile fallen im Karten-Editor weg
+  (`computeLayout`: `tabH`/`headerH` = 0), der Editor (Werkzeugleiste, dann
+  die Ansichten) beginnt direkt unter der Leiste; die Modusleiste links
+  bleibt. Wer den Modus verlaesst, hat wieder die Menues, Reiter und Zeilen
+  des Programms. Tastenkuerzel unveraendert (nur mit Fokus im Editor).
+- Programmweite Eintraege in NRCs Menues (Abweichungen von NRC, je so wenig
+  wie moeglich):
+  - **Misc**: am Ende ein Trenner und **Language**, **Color Scheme**,
+    **Scaling** (dieselben Wirkungen wie View > Sprache/Farbgebung/Skalierung
+    des Programms).
+  - **Help**: oben **Manual** (F1, `OpenManual`; bei NRC registriert, der
+    Menuepunkt auskommentiert, mainframe.cpp:1214) - oeffnet das Handbuch des
+    Programms auf der Seite "Der Karten-Editor"; am Ende **About BehavEd**.
+  - **Help > Check for NetRadiant update** (`CheckForUpdate`) startet die
+    Update-Pruefung des Programms (NRC: OpenUpdateURL, eine Webseite).
+  - **File > Exit** beendet das Programm (wie bisher).
+  - Die Menuefotos Misc und Help sind damit hoeher als NRCs (Misc + 7 + 3 x 24,
+    Help + 2 x 24); der Selbsttest erwartet genau das.
+- Rahmen: jedes Feld (2D-Ansichten, Kamera, Konsole, Texturbrowser,
+  eingebauter Gruppendialog, die schwebenden Fenster bei Floating) hat einen
+  Rahmen von einem Bildpunkt auf seiner Innenkante, im Ton
+  Flaeche + 18 % Richtung Schrift des Farbschemas (dunkel etwas heller, hell
+  etwas dunkler), ohne Rundung, Schatten oder Polster - Lagen und Groessen
+  bleiben die von NRC. Dazwischen NRCs Griff (PM_SplitterWidth 4) mit seinen
+  Punkten wie bisher.
+- Aktives Feld: das zuletzt angeklickte (jede Maustaste; wechselt die aktive
+  2D-Ansicht per Befehl, folgt es ihr) hat den Rahmen in der Akzentfarbe des
+  Farbschemas - dieselbe Dicke und Lage wie NRCs Umriss der aktiven 2D-Ansicht
+  (XYWnd overlayDraw, 1 Bildpunkt), der ihn ersetzt; bei den 2D-Ansichten gilt
+  weiter View > Show > Window Outline. Abweichung: NRC hebt nur 2D-Ansichten
+  hervor (in der Farbe je Ansicht), wir jedes Feld in der Akzentfarbe.
+- Handbuch: Seite "Der Karten-Editor" mit zwei neuen Absaetzen (eine Leiste,
+  Programm-Eintraege; Rahmen, aktives Feld, Teiler) in vier Sprachen, alle 17
+  Bilder der beiden Karten-Editor-Seiten neu (Laeufe hb3en/hb3de/hb3zh/hb3ja,
+  das Hauptbild jetzt mit Menueleiste und Modusleiste).
+
+Rot/Gruen (Selbsttest `BHED_KARTE_NUR=stufe3`, neue Schritte `stufe3::leiste`):
+
+| Lauf | Ergebnis |
+|---|---|
+| s3p0brot (Mutation 1: im Karten-Editor die alte Programm-Leiste und die Reiter; Mutation 2: keine Rahmen) | 17 OK / 37 FEHLER (zwoelf Titel, keine Reiter, Misc/Help-Eintraege, alle Rahmen, Masse Rahmen) |
+| s3p0b2, s3p0b3 | 43 OK / 0 FEHLER |
+
+Gepruefte Wirkungen: genau eine Menueleiste mit NRCs zwoelf Titeln in
+Reihenfolge, kein Programm-Menue (Debug); keine Reiter; Oberkante des Editors
+= Unterkante der Leiste, Leiste 21 x Massstab hoch; Misc > Scaling > 125 %
+skaliert das Programm; Help > Manual und F1 fragen das Handbuch an
+(karteneditor.html), Check for NetRadiant update die Update-Pruefung, About
+BehavEd oeffnet das About des Programms; Rahmen je Feld auf dessen Innenkante
+(Groesse = Feld), genau eines in der Akzentfarbe (auch in der Zeichenliste),
+Klick in Kamera / Konsole / XY verschiebt den Akzent; Window Outline aus:
+kein Akzent in den 2D-Ansichten; Griff der Konsole bis unten gezogen: Konsole
+eingeklappt, wieder hochgezogen: da; Regular Left, Split, Floating je mit
+allen Rahmen; helles Schema: feiner Rahmen dunkler als die Flaeche, dunkles:
+heller; Modus verlassen: Programm-Leiste mit Debug und Reiter zurueck,
+zurueck im Editor nur die NRC-Leiste; dazu die Masse-Schritte (unten).
+
+### Lagen gegen NRC (in den Rahmen gemessen)
+
+Bei 1280 x 747 logischen Punkten (= NRCs Client im Foto, 2560 x 1494 bei 2x;
+das beschnittene Foto 1721 x 1033 ist dessen linke obere Ecke) liefern die
+Masse-Schritte dieselben Werte wie in Stufe 1b: Menueleiste 0/0/1280/21,
+Werkzeugleiste 0/21/1280/39, XY 0/60/495/629, Griff 4, Konsole 33, Kamera
+499/60/742/414, Texturen 248, Filterleiste 1241/60/39/606, Statuszeile
+0/726/1280/21; Regular Left, Split (619/618 x 331) und Floating (400 x 300)
+ebenso - alle gruen. Der Rahmen liegt auf der Innenkante, die Felder sind
+also unveraendert.
+
+Beim echten Massstab (2) im Fenster des Selbsttests (2538 x 1472, wie das
+Fenster des Anwenders mit etwa 2559 x 1521): Bereich 1185 x 709 (mit der
+Leiste), Werkzeugleiste 0/21/1185/39, XY 0/60/457/593, Griff 0/653/457/4,
+Konsole 31, Griff h 457/60/4/628, Kamera 461/60/685/390, Griff v2 461/450,
+Texturen 461/454/685/234, Filterleiste 1146/60/39/568, Statuszeile
+0/688/1185/21 - QSplitter-Verhaeltnisse 384 : 576, 377 : 20, 250 : 150 wie
+NRC (1142 x 384/960 = 456,8 -> 457). Vor Punkt 0b war der Bereich um die
+Reiterzeile und die leere Zeile niedriger.
+
+Fotos `laeufe\fotos_s3p0b\karteneditor_s3_*.bmp` neben
+`SP\nrc_fotos\radiant_layout_*.png` und `radiant_duel1.png`: Lagen, Griffe
+mit Punkten und der Umriss von einem Bildpunkt um die aktive Ansicht wie NRC;
+der einzige Unterschied ist der feine Rahmen um jedes Feld und die
+Akzentfarbe (NRC: Blau 0,0,255 nur um die aktive 2D-Ansicht).

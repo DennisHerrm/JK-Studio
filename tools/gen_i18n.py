@@ -2171,6 +2171,8 @@ from i18n_karte import KARTE  # noqa: E402
 S += KARTE
 from i18n_karte2 import KARTE2  # noqa: E402  (Stufe 2: Bauwerkzeuge)
 S += KARTE2
+from i18n_karte3 import KARTE3  # noqa: E402  (Stufe 3: Karten bauen)
+S += KARTE3
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

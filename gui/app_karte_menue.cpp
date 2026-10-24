@@ -393,6 +393,64 @@ void listeZeichnen(const std::string& name) {
             }
             i = j;
         }
+    } else if (name == "ProgrammMisc") {
+        // Stufe 3 Punkt 0b ("Eine Leiste, die umschaltet"): die Menueleiste des
+        // Programms ist im Karten-Editor die von NRC. Was das Programm auch hier
+        // braucht - Sprache, Farbschema, Skalierung - steht darum am Ende von
+        // Misc (nicht in NRC; Abweichung). Dieselben Wirkungen wie im Menue
+        // View des Programms (app.cpp drawMenu).
+        qtTrenner();
+        if (qtMenueAnfang((std::string(trK(Str::KeLLanguage)) + "###progsprache").c_str())) {
+            for (const i18n::LanguageInfo& l : i18n::languages()) {
+                const std::string id = std::string(l.nativeName) + "###progsprache" + std::to_string(static_cast<int>(l.language));
+                QtPunkt p;
+                p.id = id.c_str();
+                p.art = QtArt::Exklusiv;
+                p.haken = i18n::currentLanguage() == l.language;
+                if (qtPunkt(p)) { i18n::setLanguage(l.language); }
+            }
+            qtMenueEnde();
+        }
+        if (qtMenueAnfang((std::string(trK(Str::KeLColorScheme)) + "###progfarben").c_str())) {
+            for (const theme::Theme& th : theme::themes()) {
+                const std::string id = std::string(th.name()) + "###progfarben" + th.id;
+                QtPunkt p;
+                p.id = id.c_str();
+                p.art = QtArt::Exklusiv;
+                p.haken = g_app->activeTheme != nullptr && g_app->activeTheme->id == th.id;
+                if (qtPunkt(p)) {
+                    g_app->activeTheme = &th;
+                    g_app->themePending = true;
+                }
+            }
+            qtMenueEnde();
+        }
+        if (qtMenueAnfang((std::string(trK(Str::KeLScaling)) + "###progskala").c_str())) {
+            for (const int stufe : {75, 100, 125, 150, 175, 200, 250, 300}) {
+                const float soll = static_cast<float>(stufe) / 100.0F;
+                const std::string id = std::to_string(stufe) + " %###progskala" + std::to_string(stufe);
+                QtPunkt p;
+                p.id = id.c_str();
+                p.art = QtArt::Exklusiv;
+                p.haken = std::fabs(g_app->uiScale - soll) < 0.005F;
+                if (qtPunkt(p)) { g_app->uiScale = soll; }
+            }
+            qtMenueEnde();
+        }
+    } else if (name == "ProgrammHilfeOben") {
+        // "Manual" (OpenManual, F1): bei NRC registriert, der Menuepunkt aber
+        // auskommentiert (mainframe.cpp:1214) - hier das Handbuch des Programms.
+        const std::string id = std::string(trK(Str::KeLManual)) + "###proghandbuch";
+        QtPunkt p;
+        p.id = id.c_str();
+        p.taste = "F1";
+        if (qtPunkt(p)) { (void)ausfuehren("OpenManual"); }
+    } else if (name == "ProgrammHilfeUnten") {
+        // About des Programms (Abweichung: nicht in NRC)
+        const std::string id = std::string(trK(Str::KeLAboutBehavEd)) + "###progueber";
+        QtPunkt p;
+        p.id = id.c_str();
+        if (qtPunkt(p)) { g_app->aboutOpen = true; }
     } else if (name == "Hilfe") {
         // create_game_help_menu (help.cpp:112): global.xlink "General" und
         // game.xlink des Spiels - Verweise auf NRCs docs/ und das JA-SDK.

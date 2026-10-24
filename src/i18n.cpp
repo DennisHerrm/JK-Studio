@@ -1753,6 +1753,11 @@ const Entry kTable[] = {
     {"Underline", "Unterstrichen", "\xe4\xb8\x8b\xe5\x88\x92\xe7\xba\xbf", "\xe4\xb8\x8b\xe7\xb7\x9a"},  // KeFontUnderline
     {"Sample", "Beispiel", "\xe7\xa4\xba\xe4\xbe\x8b", "\xe3\x82\xb5\xe3\x83\xb3\xe3\x83\x97\xe3\x83\xab"},  // KeFontSample
     {"Writing System", "Schriftsystem", "\xe4\xb9\xa6\xe5\x86\x99\xe7\xb3\xbb\xe7\xbb\x9f", "\xe6\x96\x87\xe5\xad\x97\xe4\xbd\x93\xe7\xb3\xbb"},  // KeFontWriting
+    {"Language", "Sprache", "\xe8\xaf\xad\xe8\xa8\x80", "\xe8\xa8\x80\xe8\xaa\x9e"},  // KeLLanguage
+    {"Color Scheme", "Farbschema", "\xe9\x85\x8d\xe8\x89\xb2\xe6\x96\xb9\xe6\xa1\x88", "\xe9\x85\x8d\xe8\x89\xb2"},  // KeLColorScheme
+    {"Scaling", "Skalierung", "\xe7\xbc\xa9\xe6\x94\xbe", "\xe6\x8b\xa1\xe5\xa4\xa7\xe7\xb8\xae\xe5\xb0\x8f"},  // KeLScaling
+    {"Manual", "Handbuch", "\xe6\x89\x8b\xe5\x86\x8c", "\xe3\x83\x9e\xe3\x83\x8b\xe3\x83\xa5\xe3\x82\xa2\xe3\x83\xab"},  // KeLManual
+    {"About BehavEd", "\xc3\x9c" "ber BehavEd", "\xe5\x85\xb3\xe4\xba\x8e BehavEd", "BehavEd \xe3\x81\xab\xe3\x81\xa4\xe3\x81\x84\xe3\x81\xa6"},  // KeLAboutBehavEd
 };
 
 static_assert(sizeof(kTable) / sizeof(kTable[0]) == static_cast<std::size_t>(Str::Count),
@@ -3496,6 +3501,11 @@ const char* const kNamen[] = {
     "KeFontUnderline",
     "KeFontSample",
     "KeFontWriting",
+    "KeLLanguage",
+    "KeLColorScheme",
+    "KeLScaling",
+    "KeLManual",
+    "KeLAboutBehavEd",
 };
 
 static_assert(sizeof(kNamen) / sizeof(kNamen[0]) == static_cast<std::size_t>(Str::Count),

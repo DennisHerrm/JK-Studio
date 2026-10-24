@@ -729,11 +729,9 @@ void xyZeichnen(int index) {
         dl->AddText(at, n.gewaehlt ? IM_COL32(255, 255, 0, 255) : n.farbe, n.text.c_str());
     }
     dl->PopClipRect();
-    // Fensterumriss der aktiven Ansicht (overlayDraw, 1 Bildpunkt)
-    if (ed.anzeige.umriss && ed.aktivXy == index) {
-        dl->AddRect(ImVec2{o.x + 0.5F, o.y + 0.5F}, ImVec2{o.x + groesse.x - 0.5F, o.y + groesse.y - 0.5F},
-                    karte::umrissFarbe(v.typ, ed.anordnung == befehle::Anordnung::Split, re));
-    }
+    // Fensterumriss der aktiven Ansicht (overlayDraw, 1 Bildpunkt): seit
+    // Stufe 3 Punkt 0b der Rahmen des Feldes (app_karte.cpp feldRahmen) in der
+    // Akzentfarbe des Farbschemas statt der Farbe je Ansicht.
     ImGui::PopFont();
 
     // --- Maus (XYGLWidget -> XY_MouseDown / Moved / Up)

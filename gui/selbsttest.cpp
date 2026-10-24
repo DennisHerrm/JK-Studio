@@ -24920,7 +24920,7 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
                 unter.back().second.emplace_back(ke::trK(m.str));
             }
         }
-        add(klick(titel, "##karteneditor"));
+        add(klick(titel, "###main"));
         add(pause(0.2));
         add(pruefe("Menue " + titel + ": " + std::to_string(punkte.size()) + " Eintraege da", [punkte, titel] {
             std::string fehlt;
@@ -24949,7 +24949,7 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
     }
     // 1b. Plugins wie NRC 20260114 (Foto menu_Plugins): sieben Untermenues in
     //     Ladereihenfolge, Eintraege von hinten nach vorn (PlugInMenu_Add).
-    add(klick(ke::trK(Str::KeLPlugins), "##karteneditor"));
+    add(klick(ke::trK(Str::KeLPlugins), "###main"));
     add(pause(0.2));
     add(pruefe("Plugins: MeshTex, ShaderPlug, SunPlug, UFO:AI, bobToolz, brushexport2, prtview", [] {
         float y = -1.0F;
@@ -25082,7 +25082,7 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
                          Lay{Str::KeLayoutFloating, kb::Anordnung::Floating, "karteneditor_floating"},
                          Lay{Str::KeLayoutRegularLeft, kb::Anordnung::RegularLeft, "karteneditor_regularleft"},
                          Lay{Str::KeLayoutRegular, kb::Anordnung::Regular, "karteneditor_regular"}}) {
-        add(klick(ke::trK(Str::KeLEdit), "##karteneditor"));
+        add(klick(ke::trK(Str::KeLEdit), "###main"));
         add(klick(ke::trK(Str::KeLPreferences)));
         add(pause(0.3));
         add(klick(ke::trK(Str::KePgLayout), "###karteeinstellungen"));
@@ -25101,7 +25101,7 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
             for (const auto& [str, nr] : {std::pair<Str, int>{Str::KeLCameraView, 3}, {Str::KeLXYTopView, 2},
                                           {Str::KeLXZFrontView, 1}, {Str::KeLYZSideView, 0}}) {
                 for (int runde = 0; runde < 2; ++runde) {
-                    add(klick(ke::trK(Str::KeLView), "##karteneditor"));
+                    add(klick(ke::trK(Str::KeLView), "###main"));
                     add(klick(ke::trK(str)));
                     add(pause(0.2));
                     const bool sichtbar = runde == 1;
@@ -25135,7 +25135,7 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
         return ke::editor().maximiert && xy->b == fl->x - 4 && kam->b == 0 && kon->h == 0 && gr->x == xy->b;
     }));
     add(foto("karteneditor_maximiert"));
-    add(klick(ke::trK(Str::KeLMisc), "##karteneditor"));
+    add(klick(ke::trK(Str::KeLMisc), "###main"));
     add(klick(ke::trK(Str::KeLMaximizeView)));
     add(pause(0.2));
     add(pruefe("Maximize view ueber das Menue: wieder alle Felder", [] { return !ke::editor().maximiert; }));
@@ -25145,7 +25145,7 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
     }));
     // 5. Farben: aus dem Farbschema des Programms (Entscheidung shank). Die
     //    NRC-Eintraege unter Misc > Theming stehen da, ausgegraut.
-    add(klick(ke::trK(Str::KeLMisc), "##karteneditor"));
+    add(klick(ke::trK(Str::KeLMisc), "###main"));
     add(klick(ke::trK(Str::KeLTheming)));
     add(pause(0.2));
     add(klick(ke::trK(Str::KeLGUITheme)));
@@ -25191,9 +25191,9 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
     }));
     add(pause(0.3));
     add(pruefe("Deutsch: Menue \"Datei\", kein \"File\"", [] {
-        return finde("Datei", "##karteneditor", 0, false) != nullptr && finde("File", "##karteneditor", 0, false) == nullptr;
+        return finde("Datei", "###main", 0, false) != nullptr && finde("File", "###main", 0, false) == nullptr;
     }));
-    add(klick("Bearbeiten", "##karteneditor"));
+    add(klick("Bearbeiten", "###main"));
     add(klick("Einstellungen..."));
     add(pause(0.3));
     add(klick("Oberfläche", "###karteeinstellungen"));
@@ -25202,8 +25202,8 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
     add(klick("OK", "###karteeinstellungen"));
     add(pause(0.3));
     add(pruefe("Begriffe wie NetRadiant: Menue \"File\", \"Edit\" trotz Deutsch", [] {
-        return ke::nrcBegriffe() && finde("File", "##karteneditor", 0, false) != nullptr &&
-               finde("Edit", "##karteneditor", 0, false) != nullptr && finde("Datei", "##karteneditor", 0, false) == nullptr;
+        return ke::nrcBegriffe() && finde("File", "###main", 0, false) != nullptr &&
+               finde("Edit", "###main", 0, false) != nullptr && finde("Datei", "###main", 0, false) == nullptr;
     }));
     add(foto("karteneditor_nrcbegriffe"));
     add(tu("Sprache zurueck, Begriffe aus", [sprache] {
@@ -25592,6 +25592,16 @@ std::vector<Schritt> karteneditorMassSchritte() {
                      std::to_string(l != nullptr ? static_cast<float>(l->h) * s : 0.0F) + " Bildpunkte, Bereich " +
                      (b != nullptr ? std::to_string(b->b) + "x" + std::to_string(b->h) : std::string("-")) + ", XY " +
                      (xy != nullptr ? std::to_string(xy->b) + "x" + std::to_string(xy->h) : std::string("-")));
+        // Stufe 3 Punkt 0b: alle Felder beim echten Massstab ins Protokoll (Tabelle
+        // in NOTIZEN_karte3.md, Fenster des Anwenders etwa 2559 x 1521).
+        std::string alle;
+        for (const auto& r : ke::editor().felderImBild) {
+            if (r.name.rfind("Knopf:", 0) == 0 || r.name.rfind("Menue:", 0) == 0 || r.name.rfind("Status:", 0) == 0) { continue; }
+            alle += " " + r.name + "=" + std::to_string(r.x) + "," + std::to_string(r.y) + "," + std::to_string(r.b) + "x" + std::to_string(r.h);
+        }
+        const ImGuiViewport* vp = ImGui::GetMainViewport();
+        diag::detail("Knopftest: Karten-Editor echte Felder (Fenster " + std::to_string(static_cast<int>(vp->Size.x)) + "x" +
+                     std::to_string(static_cast<int>(vp->Size.y)) + "):" + alle);
         return l != nullptr && l->h == 39 && s == qt * g_app->uiScale && b != nullptr && b->h > 300 && xy != nullptr &&
                xy->h > 200;
     }));
@@ -26608,7 +26618,7 @@ std::vector<Schritt> karteneditorAuswahlSchritte() {
     add(pruefe("I: Pinsel und Licht gewaehlt (InvertSelection)", [anzahl] { return anzahl() == 2; }));
     add(tasteKombi(ImGuiKey_Escape, "Esc"));
     add(pruefe("Esc: nichts gewaehlt (UnSelectSelection2)", [anzahl] { return anzahl() == 0; }));
-    add(klick(ke::trK(Str::KeLEdit), "##karteneditor"));
+    add(klick(ke::trK(Str::KeLEdit), "###main"));
     add(klick(ke::trK(Str::KeLInvertSelection)));
     add(pause(0.2));
     add(pruefe("Edit > Invert Selection: Pinsel und Licht gewaehlt", [anzahl] { return anzahl() == 2; }));
@@ -30637,7 +30647,7 @@ std::vector<Schritt> einstellungen11c() {
     }));
     add(pause(0.5));
     // --- Abreissbare Menues (QTornOffMenu)
-    add(klick(ke::trK(Str::KeLMisc), "##karteneditor"));
+    add(klick(ke::trK(Str::KeLMisc), "###main"));
     add(pause(0.3));
     add(klickAn("Abreisskante des Menues Misc", menueOben));
     add(pause(0.3));
@@ -30657,7 +30667,7 @@ std::vector<Schritt> einstellungen11c() {
         return ke::editor().kartenInfo.offen && ke::editor().abrisse.size() == 1;
     }));
     add(tasteKombi(ImGuiKey_Escape, "Esc"));
-    add(klick(ke::trK(Str::KeLMisc), "##karteneditor"));
+    add(klick(ke::trK(Str::KeLMisc), "###main"));
     add(pause(0.3));
     add(klickAn("Abreisskante noch einmal (toggleTearOff)", menueOben));
     add(pause(0.3));
@@ -30670,7 +30680,7 @@ std::vector<Schritt> einstellungen11c() {
     add(klick(ke::trK(Str::KePrefOk)));
     add(pause(0.3));
     add(pruefe("Detachable Menus aus (DetachableMenus 0)", [] { return !ke::editor().menueAbreissbar && einstellung("DetachableMenus") == "0"; }));
-    add(klick(ke::trK(Str::KeLMisc), "##karteneditor"));
+    add(klick(ke::trK(Str::KeLMisc), "###main"));
     add(pause(0.3));
     add(klickAn("oben ins Menue Misc", menueOben));
     add(pause(0.3));
@@ -31299,7 +31309,7 @@ std::vector<Schritt> stufe1Reste() {
         }
     }));
     for (int i = 2; i <= 9; ++i) {
-        add(klick(ke::trK(Str::KeLFile), "##karteneditor"));
+        add(klick(ke::trK(Str::KeLFile), "###main"));
         add(pause(0.2));
         add({"zuletzt geoeffnet: Eintrag " + std::to_string(i), [i](int b) {
                  static Schritt k;
@@ -31324,7 +31334,7 @@ std::vector<Schritt> stufe1Reste() {
         ke::editor().versteckteKnoepfe.erase("ToggleTextures");
     }));
     add(pause(0.4));
-    add(klick(ke::trK(Str::KeLView), "##karteneditor"));
+    add(klick(ke::trK(Str::KeLView), "###main"));
     add(pause(0.2));
     add(klick(ke::trK(Str::KeLTextureBrowser), "", 0, true));
     add(pause(0.3));
@@ -31366,6 +31376,368 @@ std::vector<Schritt> alleBefehle() {
 }
 
 }  // namespace stufe2
+
+// --- Stufe 3 des Karten-Editors: Karten bauen ----------------------------------
+//
+// BHED_KARTE_NUR=stufe3 laesst nur diese Schritte (und die Masse) laufen.
+namespace stufe3 {
+
+namespace ke = karteneditor;
+
+// Die Titel der NRC-Menueleiste (create_main_menu) in der Sprache der Anzeige.
+std::vector<std::string> nrcTitel() {
+    std::vector<std::string> v;
+    for (const auto& m : karte::befehle::menues()) {
+        if (m.art == karte::befehle::MenueArt::Menue) { v.emplace_back(ke::trK(m.str)); }
+    }
+    return v;
+}
+
+const ke::Editor::RahmenImBild* rahmen(const std::string& feld) {
+    for (const auto& r : ke::editor().rahmenImBild) {
+        if (r.feld == feld) { return &r; }
+    }
+    return nullptr;
+}
+
+std::function<ImVec2()> feldMitte(const std::string& feld) {
+    return [feld] {
+        const ke::Editor::RahmenImBild* r = rahmen(feld);
+        return r != nullptr ? ImVec2{(r->x0 + r->x1) * 0.5F, (r->y0 + r->y1) * 0.5F} : ImVec2{5.0F, 5.0F};
+    };
+}
+
+// Der feine Rahmen: ein Ton zwischen Flaeche und Schrift des Farbschemas.
+ImU32 feinerTon() {
+    const theme::Theme* th = g_app->activeTheme;
+    if (th == nullptr) { return 0; }
+    const float k = 0.18F;
+    return ImGui::ColorConvertFloat4ToU32(ImVec4{th->window.r + (th->text.r - th->window.r) * k, th->window.g + (th->text.g - th->window.g) * k,
+                                                 th->window.b + (th->text.b - th->window.b) * k, 1.0F});
+}
+ImU32 akzent() {
+    const theme::Theme* th = g_app->activeTheme;
+    return th != nullptr ? ImGui::ColorConvertFloat4ToU32(ImVec4{th->accent.r, th->accent.g, th->accent.b, 1.0F}) : 0;
+}
+
+// Jedes sichtbare Feld hat genau einen Rahmen auf seiner Innenkante, das
+// aktive (aktiv = "-": keines) in der Akzentfarbe, die anderen im feinen Ton.
+bool rahmenStimmen(const std::vector<std::string>& felder, const std::string& aktiv, std::string& bericht) {
+    const auto& liste = ke::editor().rahmenImBild;
+    bool ok = liste.size() == felder.size();
+    bericht = std::to_string(liste.size()) + " Rahmen:";
+    const float sk = ke::massstab();
+    for (const auto& r : liste) {
+        bericht += " " + r.feld + (r.aktiv ? "(aktiv)" : "") + " " + std::to_string(static_cast<int>(r.x1 - r.x0)) + "x" +
+                   std::to_string(static_cast<int>(r.y1 - r.y0));
+        const bool sollAktiv = r.feld == aktiv;
+        ok = ok && std::find(felder.begin(), felder.end(), r.feld) != felder.end() && r.aktiv == sollAktiv &&
+             r.farbe == (sollAktiv ? akzent() : feinerTon());
+        // Rechteck = das Feld (ausser bei den schwebenden Fenstern: "Fenster:<Feld>")
+        const auto* f = karteFeld(ke::editor().anordnung == karte::befehle::Anordnung::Floating ? "Fenster:" + r.feld : r.feld);
+        if (f != nullptr) {
+            const float b = std::round(static_cast<float>(f->x + f->b) * sk) - std::round(static_cast<float>(f->x) * sk);
+            const float h = std::round(static_cast<float>(f->y + f->h) * sk) - std::round(static_cast<float>(f->y) * sk);
+            ok = ok && std::fabs((r.x1 - r.x0) - b) <= 1.0F && std::fabs((r.y1 - r.y0) - h) <= 1.0F;
+        } else {
+            ok = false;
+        }
+    }
+    return ok;
+}
+
+// Punkt 0b: eine Leiste, die umschaltet; Rahmen + Abstand.
+std::vector<Schritt> leiste() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("Stufe 3/0b: Anordnung Regular, Texturbrowser unten rechts", [] {
+        ke::Editor& e = ke::editor();
+        e.anordnung = karte::befehle::Anordnung::Regular;
+        e.gruppenDialogEingebaut = false;
+        e.teilerFuer = -1;
+        e.anzeige.umriss = true;
+        e.aktivXy = 0;
+        e.aktivXyVorher = -1;
+    }));
+    add(pause(0.3));
+    add(pruefe("Eine Leiste: im Karten-Editor die zwoelf Titel von NRC in ihrer Reihenfolge, kein Programm-Menue", [] {
+        float x = -1.0F;
+        std::string bericht;
+        bool ok = true;
+        for (const std::string& n : nrcTitel()) {
+            const Element* el = finde(n, "###main", 0, false);
+            bericht += " " + n + (el != nullptr ? "@" + std::to_string(static_cast<int>(el->rect.Min.x)) : "?");
+            ok = ok && el != nullptr && el->rect.Min.x > x;
+            if (el != nullptr) { x = el->rect.Min.x; }
+        }
+        const bool debug = finde(tr(Str::MenuDebug), "###main", 0, false) != nullptr;
+        diag::detail("Knopftest: Stufe 3/0b Leiste:" + bericht + (debug ? " (Debug da)" : ""));
+        return ok && nrcTitel().size() == 12 && !debug;
+    }));
+    add(pruefe("Eine Leiste: genau eine Menueleiste (das Kindfenster des Editors hat keine)", [] {
+        int leisten = 0;
+        for (ImGuiWindow* w : GImGui->Windows) {
+            if (!w->WasActive || w->Hidden) { continue; }
+            const bool imHaupt = std::strstr(w->Name, "###main") != nullptr;
+            if (imHaupt && (w->Flags & ImGuiWindowFlags_MenuBar) != 0) { ++leisten; }
+        }
+        diag::detail("Knopftest: Stufe 3/0b - Fenster mit Menueleiste: " + std::to_string(leisten));
+        return leisten == 1;
+    }));
+    add(pruefe("Eine Leiste: keine Skript-Reiter, der Editor beginnt direkt unter der Leiste (21 Punkte hoch)", [] {
+        const ImGuiWindow* w = ImGui::FindWindowByName("###main");
+        ImGuiTabBar* tb = reiterLeiste();
+        const bool reiter = tb != nullptr && tb->PrevFrameVisible >= ImGui::GetFrameCount() - 1;
+        const ke::Editor& e = ke::editor();
+        const float sk = ke::massstab();
+        const float leisteH = w != nullptr ? e.leisteUnten - w->Pos.y : -1.0F;
+        diag::detail("Knopftest: Stufe 3/0b - Leiste " + std::to_string(leisteH) + " hoch (soll " + std::to_string(std::round(21.0F * sk)) +
+                     "), Leiste unten " + std::to_string(e.leisteUnten) + ", Editor oben " + std::to_string(e.editorOben) +
+                     (reiter ? ", Reiter sichtbar" : ", keine Reiter"));
+        return w != nullptr && !reiter && std::fabs(e.editorOben - e.leisteUnten) < 0.5F && std::fabs(leisteH - std::round(21.0F * sk)) < 0.5F;
+    }));
+    add(foto("karteneditor_s3_leiste"));
+    // Die Programm-Eintraege in Misc und Help (Abweichung, s. NOTIZEN_karte3.md)
+    add(klick(ke::trK(Str::KeLMisc), "###main"));
+    add(pause(0.2));
+    add(pruefe("Misc: am Ende Sprache, Farbschema, Skalierung des Programms", [] {
+        return finde(ke::trK(Str::KeLLanguage), "##Menu_", 0, false) != nullptr && finde(ke::trK(Str::KeLColorScheme), "##Menu_", 0, false) != nullptr &&
+               finde(ke::trK(Str::KeLScaling), "##Menu_", 0, false) != nullptr;
+    }));
+    add(klick(ke::trK(Str::KeLScaling), "##Menu_", 0, false));
+    add(pause(0.25));
+    auto skalaVorher = std::make_shared<float>(1.0F);
+    add(tu("Skalierung merken", [skalaVorher] { *skalaVorher = g_app->uiScale; }));
+    add(klick("125 %", "##Menu_", 0, false));
+    add(pause(0.3));
+    add(pruefe("Misc > Skalierung > 125 %: das Programm skaliert (uiScale 1,25)", [] { return std::fabs(g_app->uiScale - 1.25F) < 0.001F; }));
+    add(tu("Skalierung zurueck", [skalaVorher] {
+        g_app->uiScale = *skalaVorher;
+        karteDialogeZu();
+    }));
+    add(pause(0.4));
+    add(klick(ke::trK(Str::KeLHelp), "###main"));
+    add(pause(0.2));
+    add(tu("Hilfe-Merker leeren", [] { ke::editor().letzteHilfe.clear(); }));
+    add(klick(ke::trK(Str::KeLManual), "##Menu_", 0, false));
+    add(pause(0.2));
+    add(pruefe("Help > Manual: das Handbuch auf der Seite des Karten-Editors (im Test ohne Browser)", [] {
+        return ke::editor().letzteHilfe == "karteneditor.html";
+    }));
+    add(tu("Hilfe-Merker leeren", [] { ke::editor().letzteHilfe.clear(); }));
+    add(klickAn("in XY (Fokus)", feldMitte("XY"), 2));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(tasteKombi(ImGuiKey_F1, "F1"));
+    add(pause(0.2));
+    add(pruefe("F1 (OpenManual): dasselbe Handbuch", [] { return ke::editor().letzteHilfe == "karteneditor.html"; }));
+    add(klick(ke::trK(Str::KeLHelp), "###main"));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KeLCheckForNetRadiantUpdate), "##Menu_", 0, false));
+    add(pause(0.2));
+    add(pruefe("Help > Check for NetRadiant update: die Update-Pruefung des Programms (im Test ohne Netz)", [] {
+        return ke::editor().letzteHilfe == "update";
+    }));
+    add(klick(ke::trK(Str::KeLHelp), "###main"));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KeLAboutBehavEd), "##Menu_", 0, false));
+    add(pause(0.3));
+    add(pruefe("Help > About BehavEd: der About-Dialog des Programms", [] { return g_app->aboutOpen; }));
+    add(tu("About zu", [] { g_app->aboutOpen = false; }));
+    add(pause(0.3));
+    // Rahmen + Abstand
+    add(tu("XY aktiv", [] {
+        ke::editor().aktivXy = 0;
+        ke::editor().aktivXyVorher = -1;
+    }));
+    add(pause(0.2));
+    add(pruefe("Rahmen: XY, Konsole, Kamera, Texturen je mit Rahmen auf der Innenkante, XY aktiv (Akzent), die anderen fein", [] {
+        std::string b;
+        const bool ok = rahmenStimmen({"XY", "Konsole", "Kamera", "Texturen"}, "XY", b);
+        diag::detail("Knopftest: Stufe 3/0b - " + b);
+        return ok;
+    }));
+    add(pruefe("Rahmen: der Akzent ist in der Zeichenliste von XY, nicht in der der Kamera", [] {
+        const auto farbeIn = [](const char* teil, ImU32 c) {
+            for (ImGuiWindow* w : GImGui->Windows) {
+                if (!w->WasActive || std::strstr(w->Name, teil) == nullptr) { continue; }
+                for (const ImDrawVert& v : w->DrawList->VtxBuffer) {
+                    if (v.col == c) { return true; }
+                }
+            }
+            return false;
+        };
+        return farbeIn("/##feldXY", akzent()) && !farbeIn("/##feldKamera", akzent());
+    }));
+    add(klickAn("in die Kamera", feldMitte("Kamera"), 1));
+    add(pause(0.3));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(pruefe("Rahmen: nach dem Klick ist die Kamera aktiv (Akzent), XY fein", [] {
+        std::string b;
+        const bool ok = rahmenStimmen({"XY", "Konsole", "Kamera", "Texturen"}, "Kamera", b);
+        diag::detail("Knopftest: Stufe 3/0b - " + b);
+        return ok;
+    }));
+    add(klickAn("in die Konsole", feldMitte("Konsole"), 0));
+    add(pause(0.3));
+    add(pruefe("Rahmen: die Konsole aktiv", [] {
+        std::string b;
+        return rahmenStimmen({"XY", "Konsole", "Kamera", "Texturen"}, "Konsole", b);
+    }));
+    add(klickAn("in XY", feldMitte("XY"), 2));
+    add(pause(0.3));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(pruefe("Rahmen: XY wieder aktiv", [] {
+        std::string b;
+        return rahmenStimmen({"XY", "Konsole", "Kamera", "Texturen"}, "XY", b);
+    }));
+    add(tu("Window Outline aus", [] { ke::editor().anzeige.umriss = false; }));
+    add(pause(0.2));
+    add(pruefe("ShowWindowOutline aus: XY ohne Akzent (wie NRCs Schalter)", [] {
+        std::string b;
+        return rahmenStimmen({"XY", "Konsole", "Kamera", "Texturen"}, "-", b);
+    }));
+    add(tu("Window Outline an", [] { ke::editor().anzeige.umriss = true; }));
+    // Der Abstand ist NRCs Griff: ziehen und einklappen geht weiter
+    const auto griffKonsole = [] {
+        const auto* g = karteFeld("Griff:v:1");
+        const ke::Editor::RahmenImBild* xy = rahmen("XY");
+        if (g == nullptr || xy == nullptr) { return ImVec2{5, 5}; }
+        const float sk = ke::massstab();
+        return ImVec2{xy->x0 + 20.0F * sk, xy->y0 + (static_cast<float>(g->y - 60) + 2.0F) * sk};
+    };
+    add(ziehenAn("Griff Konsole ganz nach unten", griffKonsole, 0.0F, 400.0F, 0));
+    add(pause(0.3));
+    add(pruefe("Griff gezogen: die Konsole ist eingeklappt (QSplitter childrenCollapsible), kein Rahmen fuer sie", [] {
+        const auto* k = karteFeld("Konsole");
+        return k != nullptr && (k->b == 0 || k->h == 0) && rahmen("Konsole") == nullptr && rahmen("XY") != nullptr;
+    }));
+    add(ziehenAn("Griff wieder hoch", griffKonsole, 0.0F, -120.0F, 0));
+    add(pause(0.3));
+    add(pruefe("Griff zurueckgezogen: die Konsole ist wieder da, mit Rahmen", [] {
+        const auto* k = karteFeld("Konsole");
+        return k != nullptr && k->h > 30 && rahmen("Konsole") != nullptr;
+    }));
+    add(tu("Groessen wie vorher", [] {
+        ke::Editor& e = ke::editor();
+        e.hGroessen.clear();
+        e.vGroessen.clear();
+        e.v2Groessen.clear();
+        e.teilerFuer = -1;
+    }));
+    // Alle vier Anordnungen
+    add(tu("Anordnung Regular Left", [] {
+        ke::editor().anordnung = karte::befehle::Anordnung::RegularLeft;
+        ke::editor().teilerFuer = -1;
+    }));
+    add(pause(0.3));
+    add(pruefe("Regular Left: vier Rahmen, XY aktiv", [] {
+        std::string b;
+        const bool ok = rahmenStimmen({"XY", "Konsole", "Kamera", "Texturen"}, "XY", b);
+        diag::detail("Knopftest: Stufe 3/0b - Regular Left " + b);
+        return ok;
+    }));
+    add(tu("Anordnung Split", [] {
+        ke::editor().anordnung = karte::befehle::Anordnung::Split;
+        ke::editor().teilerFuer = -1;
+    }));
+    add(pause(0.3));
+    add(pruefe("Split: Kamera, YZ, XY, XZ mit Rahmen, XY aktiv", [] {
+        std::string b;
+        const bool ok = rahmenStimmen({"Kamera", "YZ", "XY", "XZ"}, "XY", b);
+        diag::detail("Knopftest: Stufe 3/0b - Split " + b);
+        return ok;
+    }));
+    add(foto("karteneditor_s3_split"));
+    add(tu("Anordnung Floating", [] {
+        ke::Editor& e = ke::editor();
+        e.anordnung = karte::befehle::Anordnung::Floating;
+        e.teilerFuer = -1;
+        e.schwebendSichtbar = {true, true, true, true};
+        e.schwebendZuruecksetzen = true;
+    }));
+    add(pause(0.4));
+    add(pruefe("Floating: die vier schwebenden Ansichten mit Rahmen, XY aktiv", [] {
+        std::string b;
+        const bool ok = rahmenStimmen({"Kamera", "XY", "XZ", "YZ"}, "XY", b);
+        diag::detail("Knopftest: Stufe 3/0b - Floating " + b);
+        return ok;
+    }));
+    add(tu("Anordnung Regular", [] {
+        ke::editor().anordnung = karte::befehle::Anordnung::Regular;
+        ke::editor().teilerFuer = -1;
+    }));
+    add(pause(0.3));
+    // Hell und dunkel
+    auto themaVorher = std::make_shared<const theme::Theme*>(nullptr);
+    add(tu("ein helles Farbschema", [themaVorher] {
+        *themaVorher = g_app->activeTheme;
+        for (const theme::Theme& th : theme::themes()) {
+            if (theme::relativeLuminance(th.window) > 0.5F) {
+                g_app->activeTheme = &th;
+                g_app->themePending = true;
+                break;
+            }
+        }
+    }));
+    add(pause(0.4));
+    add(pruefe("hell: der feine Rahmen ist dunkler als die Flaeche, der aktive in der Akzentfarbe", [] {
+        const theme::Theme* th = g_app->activeTheme;
+        const ke::Editor::RahmenImBild* r = rahmen("Kamera");
+        const ke::Editor::RahmenImBild* a = rahmen("XY");
+        if (th == nullptr || r == nullptr || a == nullptr || theme::relativeLuminance(th->window) <= 0.5F) { return false; }
+        const ImVec4 c = ImGui::ColorConvertU32ToFloat4(r->farbe);
+        return c.x + c.y + c.z < th->window.r + th->window.g + th->window.b && a->farbe == akzent();
+    }));
+    add(foto("karteneditor_s3_hell"));
+    add(tu("ein dunkles Farbschema", [] {
+        for (const theme::Theme& th : theme::themes()) {
+            if (theme::relativeLuminance(th.window) < 0.1F) {
+                g_app->activeTheme = &th;
+                g_app->themePending = true;
+                break;
+            }
+        }
+    }));
+    add(pause(0.4));
+    add(pruefe("dunkel: der feine Rahmen ist heller als die Flaeche", [] {
+        const theme::Theme* th = g_app->activeTheme;
+        const ke::Editor::RahmenImBild* r = rahmen("Kamera");
+        if (th == nullptr || r == nullptr || theme::relativeLuminance(th->window) >= 0.1F) { return false; }
+        const ImVec4 c = ImGui::ColorConvertU32ToFloat4(r->farbe);
+        return c.x + c.y + c.z > th->window.r + th->window.g + th->window.b;
+    }));
+    add(tu("Farbschema zurueck", [themaVorher] {
+        if (*themaVorher != nullptr) {
+            g_app->activeTheme = *themaVorher;
+            g_app->themePending = true;
+        }
+    }));
+    add(pause(0.4));
+    // Den Modus verlassen: alles wie vorher
+    add(klick(tr(Str::ViewEvents)));
+    add(pause(0.4));
+    add(pruefe("Modus verlassen: die Menueleiste des Programms (mit Debug) und die Reiter sind zurueck, keine NRC-Leiste", [] {
+        ImGuiTabBar* tb = reiterLeiste();
+        const bool reiter = tb != nullptr && tb->PrevFrameVisible >= ImGui::GetFrameCount() - 1;
+        return g_app->leftMode == 0 && finde(tr(Str::MenuDebug), "###main", 0, false) != nullptr && reiter &&
+               finde(ke::trK(Str::KeLBrush), "###main", 0, false) == nullptr;
+    }));
+    add(klick(tr(Str::ViewMapEditor)));
+    add(pause(0.4));
+    add(pruefe("zurueck im Karten-Editor: wieder nur die NRC-Leiste", [] {
+        return g_app->leftMode == 3 && finde(tr(Str::MenuDebug), "###main", 0, false) == nullptr &&
+               finde(ke::trK(Str::KeLBrush), "###main", 0, false) != nullptr;
+    }));
+    return s;
+}
+
+}  // namespace stufe3
+
+std::vector<Schritt> karteneditorStufe3Schritte() {
+    std::vector<Schritt> s;
+    for (Schritt& x : stufe3::leiste()) { s.push_back(std::move(x)); }
+    return s;
+}
 
 std::vector<Schritt> karteneditorStufe2Schritte() {
     std::vector<Schritt> s;
@@ -31698,7 +32070,9 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         {"Modify__Repeat", {"Modify", "Repeat"}, 225, 154},
         {"Build", {"Build"}, 193, 405},
         {"Grid", {"Grid"}, 163, 346},
-        {"Misc", {"Misc"}, 262, 178},
+        // Misc und Help: NRC + die Programm-Eintraege (Stufe 3 Punkt 0b, Abweichung):
+        // Misc + Trenner 7 + drei Untermenues je 24, Help + Manual und About BehavEd.
+        {"Misc", {"Misc"}, 262, 178 + 7 + 3 * 24},
         {"Misc__Theming", {"Misc", "Theming"}, 263, 497},
         {"Misc__Theming__GUI_Theme", {"Misc", "Theming", "GUI Theme"}, 122, 106},
         {"Entity", {"Entity"}, 263, 137},
@@ -31717,7 +32091,7 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         {"Plugins__bobToolz", {"Plugins", "bobToolz"}, 201, 597},
         {"Plugins__brushexport2", {"Plugins", "brushexport2"}, 253, 58},
         {"Plugins__prtview", {"Plugins", "prtview"}, 187, 175},
-        {"Help", {"Help"}, 215, 130},
+        {"Help", {"Help"}, 215, 130 + 2 * 24},
         {"Help__General", {"Help", "General"}, 335, 298},
         {"Help__Jedi_Knight_Jedi_Academy", {"Help", "Jedi Knight Jedi Academy"}, 286, 250},
     };
@@ -31736,7 +32110,7 @@ std::vector<Schritt> karteneditorFotoSchritte() {
             add(tu("MRU-Liste zurueck", [mru] { ke::editor().zuletzt = *mru; }));
         }
         add(pause(0.1));
-        add(klick(m.weg[0], "##karteneditor"));
+        add(klick(m.weg[0], "###main"));
         add(pause(0.2));
         for (std::size_t k = 1; k < m.weg.size(); ++k) {
             add(klick(m.weg[k], "##Menu_", 0, false));
@@ -32190,7 +32564,7 @@ std::vector<Schritt> karteneditorSchritte() {
         e.karte.welt()->setzen("message", "geaendert");
     }));
     add(pruefe("Geaendert (Map_Modified)", [] { return ke::geaendert(); }));
-    add(klick(ke::trK(Str::KeLFile), "##karteneditor"));
+    add(klick(ke::trK(Str::KeLFile), "###main"));
     add(klick(ke::trK(Str::KeLNewMap)));
     add(pause(0.3));
     add(pruefe("New Map bei geaenderter Karte: Rueckfrage offen", [] { return ke::editor().frageOffen; }));
@@ -32201,7 +32575,7 @@ std::vector<Schritt> karteneditorSchritte() {
         return !e.frageOffen && e.name == karteTestPfad("karte_kopie.map") && ke::geaendert() &&
                e.karte.welt()->wert("message") == "geaendert";
     }));
-    add(klick(ke::trK(Str::KeLFile), "##karteneditor"));
+    add(klick(ke::trK(Str::KeLFile), "###main"));
     add(klick(ke::trK(Str::KeLNewMap)));
     add(pause(0.3));
     add(klick(tr(Str::KeDiscard)));
@@ -32211,7 +32585,7 @@ std::vector<Schritt> karteneditorSchritte() {
         return !e.frageOffen && e.name == "unnamed.map" && e.karte.entitaeten().empty() && !ke::geaendert();
     }));
     // Zuletzt geoeffnet: der erste Eintrag oeffnet die gespeicherte Kopie.
-    add(klick(ke::trK(Str::KeLFile), "##karteneditor"));
+    add(klick(ke::trK(Str::KeLFile), "###main"));
     add({"Zuletzt geoeffnet: Eintrag 1 anklicken", [](int b) {
              static Schritt k;
              if (b == 0) { k = klick("1- " + karteTestPfad("karte_kopie.map")); }
@@ -32244,6 +32618,13 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =stufe3: nur die Stufe 3 (Karten bauen) und die Masse des Rahmens
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe3") == 0) {
+        for (Schritt& x : karteneditorStufe3Schritte()) { add(std::move(x)); }
+        for (Schritt& x : karteneditorMassSchritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =stufe2: nur die Wirkungspruefungen der Stufe 2 (Bauwerkzeuge)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe2") == 0) {
         for (Schritt& x : karteneditorStufe2Schritte()) { add(std::move(x)); }
@@ -32260,6 +32641,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : karteneditorEntitaetenSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorKonsoleSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorStufe2Schritte()) { add(std::move(x)); }
+    for (Schritt& x : karteneditorStufe3Schritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorAlleBefehleSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS
@@ -32584,19 +32966,26 @@ std::vector<Schritt> karteneditorHandbuchSchritte() {
         if (ImGuiWindow* w = karteFenster()) { setzeMaus(ImVec2{w->Pos.x + w->Size.x * 0.6F, w->Pos.y + w->Size.y - 4.0F}); }
     }));
     add(pause(0.5));
+    // Seit Stufe 3 Punkt 0b steht die Menueleiste im Programmfenster: das Bild
+    // nimmt sie und die Modusleiste mit (vom linken Fensterrand bis zum Editor).
     const auto editor = [] {
         ImGuiWindow* w = karteFenster();
-        return w != nullptr ? w->Rect() : ImRect{};
+        const ImGuiWindow* haupt = ImGui::FindWindowByName("###main");
+        if (w == nullptr) { return ImRect{}; }
+        const float oben = haupt != nullptr ? haupt->Pos.y : w->Pos.y;
+        const float links = haupt != nullptr ? haupt->Pos.x : w->Pos.x;
+        return ImRect{links, oben, w->Rect().Max.x, w->Rect().Max.y};
     };
     add(hb::fotoTeil("h_karteneditor", editor));
     // Ein Menue offen (View)
-    add(klick(ke::trK(Str::KeLView), "##karteneditor"));
+    add(klick(ke::trK(Str::KeLView), "###main"));
     add(pause(0.3));
     add(hb::fotoTeil("h_karteneditor_menue", [] {
         ImGuiWindow* w = karteFenster();
+        const ImGuiWindow* haupt = ImGui::FindWindowByName("###main");
         const ImRect m = obersterPopupRahmen();
-        if (w == nullptr) { return m; }
-        return ImRect{w->Pos.x, w->Pos.y, std::max(m.Max.x, w->Pos.x + m.GetWidth()) + 40.0F, m.Max.y + 20.0F};
+        if (w == nullptr || haupt == nullptr) { return m; }
+        return ImRect{haupt->Pos.x, haupt->Pos.y, std::max(m.Max.x, w->Pos.x + m.GetWidth()) + 40.0F, m.Max.y + 20.0F};
     }));
     add(tu("Menue zu", [] { karteDialogeZu(); }));
     add(pause(0.2));
@@ -32789,7 +33178,7 @@ std::vector<Schritt> karteneditorHandbuchSchritte() {
     add(hb::fotoTeil("h_karteneditor_einstellungen2", [] { return fensterRahmen("###karteeinstellungen"); }));
     add(tu("Einstellungen zu", [] { karteDialogeZu(); }));
     add(pause(0.2));
-    add(klick(ke::trK(Str::KeLMisc), "##karteneditor"));
+    add(klick(ke::trK(Str::KeLMisc), "###main"));
     add(pause(0.3));
     add(klickAn("Abreisskante des Menues Misc", [] {
         ImGuiWindow* w = ImGui::FindWindowByName("###Menu_00");

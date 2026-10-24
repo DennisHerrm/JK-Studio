@@ -1758,6 +1758,11 @@ enum class Str {
     KeFontUnderline,
     KeFontSample,
     KeFontWriting,
+    KeLLanguage,
+    KeLColorScheme,
+    KeLScaling,
+    KeLManual,
+    KeLAboutBehavEd,
     Count,
 };
 

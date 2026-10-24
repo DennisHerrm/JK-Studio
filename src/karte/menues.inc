@@ -235,6 +235,7 @@ const MenueEintrag kMenues[] = {
     {MenueArt::Ruf, "Set 2D &Background image...", "WXY_SetBackgroundImage", Str::KeLSet2DBackgroundImage, kImmer},
     {MenueArt::Punkt, "Fullscreen", "Fullscreen", Str::KeLFullscreen, kImmer},
     {MenueArt::Punkt, "Maximize view", "MaximizeView", Str::KeLMaximizeView, kImmer},
+    {MenueArt::Liste, "", "ProgrammMisc", Str::Count, kImmer},
     {MenueArt::Ende, "", "", Str::Count, kImmer},
     // Entity (radiant/mainframe.cpp:1180)
     {MenueArt::Menue, "E&ntity", "", Str::KeLEntity, kImmer},
@@ -332,10 +333,12 @@ const MenueEintrag kMenues[] = {
     {MenueArt::Ende, "", "", Str::Count, kImmer},
     // Help (radiant/mainframe.cpp:1207)
     {MenueArt::Menue, "&Help", "", Str::KeLHelp, kImmer},
+    {MenueArt::Liste, "", "ProgrammHilfeOben", Str::Count, kImmer},
     {MenueArt::Liste, "", "Hilfe", Str::Count, kImmer},
     {MenueArt::Ruf, "Bug report", "OpenBugReportURL", Str::KeLBugReport, kImmer},
     {MenueArt::Punkt, "Check for NetRadiant update", "CheckForUpdate", Str::KeLCheckForNetRadiantUpdate, kImmer},
     {MenueArt::Ruf, "&About", "DoAbout", Str::KeLAbout, kImmer},
+    {MenueArt::Liste, "", "ProgrammHilfeUnten", Str::Count, kImmer},
     {MenueArt::Ende, "", "", Str::Count, kImmer},
 };
 const MenueEintrag kTexturMenues[] = {

@@ -21,6 +21,7 @@
 #include "karteneditor.h"
 
 #include "app_internal.h"
+#include "bhed/theme.h"
 #include "karte_gpu.h"
 #include "bhed/karte/texdef.h"
 
@@ -787,6 +788,51 @@ void feldInhalt(Feld f) {
     }
 }
 
+bool istXyFeld(Feld f) { return f == Feld::XY || f == Feld::XZ || f == Feld::YZ; }
+
+// --- "Rahmen + Abstand" (Stufe 3 Punkt 0b, Entscheidung shank) ---------------
+//
+// "Es sollte dem Original treu sein, nur halt bisschen besser erkennbar und
+// sauberer": jedes Feld bekommt einen Rahmen von einem Bildpunkt in einem Ton
+// zwischen Hintergrund und Schrift des Farbschemas (dunkel: etwas heller,
+// hell: etwas dunkler), ohne Rundung, ohne Schatten und ohne Polster - er
+// liegt auf der Innenkante des Feldes, Lagen und Groessen bleiben die von NRC.
+// Der Abstand dazwischen ist NRCs Griff (PM_SplitterWidth 4) mit seinen
+// Punkten. Das aktive Feld (zuletzt angeklickt) hat den Rahmen in der
+// Akzentfarbe des Farbschemas - so wie NRC die aktive 2D-Ansicht mit einem
+// farbigen Umriss von einem Bildpunkt zeigt (XYWnd overlayDraw,
+// "ShowWindowOutline"; bei den 2D-Ansichten gilt dieser Schalter weiter).
+ImU32 rahmenFarbe(bool aktiv) {
+    const theme::Theme* th = g_app->activeTheme;
+    if (th == nullptr) { return ImGui::GetColorU32(aktiv ? ImGuiCol_CheckMark : ImGuiCol_Border); }
+    if (aktiv) { return ImGui::ColorConvertFloat4ToU32(ImVec4{th->accent.r, th->accent.g, th->accent.b, 1.0F}); }
+    const float k = 0.18F;
+    return ImGui::ColorConvertFloat4ToU32(ImVec4{th->window.r + (th->text.r - th->window.r) * k, th->window.g + (th->text.g - th->window.g) * k,
+                                                 th->window.b + (th->text.b - th->window.b) * k, 1.0F});
+}
+
+// Am Ende des Fensters eines Feldes: aktiv werden (Klick mit einer Maustaste)
+// und den Rahmen ueber den Inhalt legen.
+void feldRahmen(Feld f) {
+    Editor& ed = editor();
+    const ImGuiIO& io = ImGui::GetIO();
+    if (ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) &&
+        (io.MouseClicked[0] || io.MouseClicked[1] || io.MouseClicked[2])) {
+        ed.aktivesFeld = static_cast<int>(f);
+    }
+    const bool aktiv = ed.aktivesFeld == static_cast<int>(f) && (!istXyFeld(f) || ed.anzeige.umriss);
+    // InnerRect: bei den schwebenden Fenstern (Floating) ohne die Titelleiste
+    const ImRect innen = ImGui::GetCurrentWindow()->InnerRect;
+    const ImVec2 a{std::round(innen.Min.x), std::round(innen.Min.y)};
+    const ImVec2 b{std::round(innen.Max.x), std::round(innen.Max.y)};
+    const ImU32 farbe = rahmenFarbe(aktiv);
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->PushClipRect(a, b, false);
+    dl->AddRect(ImVec2{a.x + 0.5F, a.y + 0.5F}, ImVec2{b.x - 0.5F, b.y - 0.5F}, farbe, 0.0F, 0, 1.0F);
+    dl->PopClipRect();
+    ed.rahmenImBild.push_back({feldKurz(f), a.x, a.y, b.x, b.y, farbe, aktiv});
+}
+
 // Ein Feld an seiner Stelle (logische Punkte).
 void feld(Feld f, int x, int y, int b, int h) {
     merkeFeld(feldKurz(f), x, y, b, h);
@@ -797,6 +843,7 @@ void feld(Feld f, int x, int y, int b, int h) {
     ImGui::BeginChild(feldName(f), ImVec2{p1.x - p0.x, p1.y - p0.y}, ImGuiChildFlags_None,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     feldInhalt(f);
+    feldRahmen(f);
     ImGui::EndChild();
 }
 
@@ -955,6 +1002,13 @@ void anordnungZeichnen(int x, int y, int b, int h) {
     Editor& ed = editor();
     using befehle::Anordnung;
     teilerAufbauen();
+    // Wechselt die aktive 2D-Ansicht (Klick, NextView, Anordnung), wird sie das
+    // aktive Feld.
+    if (ed.aktivXy != ed.aktivXyVorher) {
+        ed.aktivXyVorher = ed.aktivXy;
+        static const Feld kXy[3] = {Feld::XY, Feld::XZ, Feld::YZ};
+        ed.aktivesFeld = static_cast<int>(kXy[std::clamp(ed.aktivXy, 0, 2)]);
+    }
     const auto spalte = [](karte::Teiler& t, const char* id, std::vector<Feld> felder) -> Inhalt {
         return [&t, id, felder](int x2, int y2, int b2, int h2) {
             std::vector<Inhalt> kinder;
@@ -1015,6 +1069,7 @@ void schwebend(Feld f, const char* titel, bool& sichtbar, int lx, int ly) {
                   static_cast<int>(std::lround((p.y - vp.y) / g_s)), static_cast<int>(std::lround(gr.x / g_s)),
                   static_cast<int>(std::lround(gr.y / g_s)));
         feldInhalt(f);
+        feldRahmen(f);
     }
     ImGui::End();
     ImGui::PopStyleVar();
@@ -1168,15 +1223,70 @@ void maximierenUmschalten() {
     ed.hSplit.setzeGroessen(ed.mausX < erstes(ed.maxH) ? std::vector<int>{9999, 0} : std::vector<int>{0, 9999});
 }
 
+// Die Listen eines Bildes (Knoepfe, Felder, Rahmen) einmal je Bild leeren -
+// die Menueleiste steht seit Stufe 3 Punkt 0b im Hauptfenster und wird vor
+// dem Editor gezeichnet.
+void bildBeginnen() {
+    Editor& e = g();
+    if (e.listenBild == ImGui::GetFrameCount()) { return; }
+    e.listenBild = ImGui::GetFrameCount();
+    e.knoepfeImBild.clear();
+    e.knoepfeVerdeckt.clear();
+    e.felderImBild.clear();
+    e.klappOrte.clear();
+    e.rahmenImBild.clear();
+}
+
+namespace {
+// NRCs Schrift: Segoe UI 9 pt (Menues und Statuszeile von Qt unter Windows) =
+// 12 Punkte Geviert, mal Massstab. ImGui multipliziert die Grundgroesse noch
+// mit FontScaleDpi und FontScaleMain.
+float schriftGroesse() { return static_cast<float>(mass::kSchrift) * g_s / std::max(0.01F, g_app->dpiScale * g_app->uiScale); }
+}  // namespace
+
+// --- Eine Leiste, die umschaltet (Stufe 3 Punkt 0b, Entscheidung shank) -----
+//
+// Im Modus "Karten-Editor" ist die Menueleiste des Programmfensters selbst die
+// von NRC (create_main_menu: File Edit View Modify Build Grid Misc Entity
+// Brush Curve Plugins Help); eine zweite Leiste im Editor gibt es nicht mehr.
+// Damit sie so hoch ist wie NRCs QMenuBar (21 Punkte), stehen Schrift und
+// FramePadding schon beim Begin des Hauptfensters (ImGui rechnet dort
+// MenuBarHeight = Schrift + 2 x FramePadding.y).
+void hauptleisteStilAn() {
+    g_s = massstab();
+    ImGui::PushFont(g_schrift, schriftGroesse());
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, static_cast<float>(mass::kMenueH - mass::kSchrift) * 0.5F * g_s});
+}
+void hauptleisteStilAus() {
+    ImGui::PopStyleVar();
+    ImGui::PopFont();
+}
+
+// Die Menueleiste von NRC in der Leiste des Programmfensters (zwischen dessen
+// Begin und dem Editor). Lagen in logischen Punkten ab der linken oberen Ecke
+// der Leiste.
+void zeichneHauptmenue() {
+    bildBeginnen();
+    g_s = massstab();
+    ImGui::PushFont(g_schrift, schriftGroesse());
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, 0.0F});
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, static_cast<float>(mass::kMenueH - mass::kSchrift) * 0.5F * g_s});
+    const ImVec2 alt = g_ursprung;
+    g_ursprung = ImGui::GetWindowPos();
+    zeichneMenueleiste();
+    const ImGuiWindow* w = ImGui::GetCurrentWindow();
+    g().leisteUnten = w->Pos.y + w->TitleBarHeight + w->MenuBarHeight;
+    g_ursprung = alt;
+    ImGui::PopStyleVar(2);
+    ImGui::PopFont();
+}
+
 void zeichne(float hoehe) {
     Editor& e = g();
     const auto zeichenStart = std::chrono::steady_clock::now();
     kartegpu::aufraeumen();   // Bilder, die ein frueheres Bild freigab
     e.gezeichnet = true;
-    e.knoepfeImBild.clear();
-    e.knoepfeVerdeckt.clear();
-    e.felderImBild.clear();
-    e.klappOrte.clear();
+    bildBeginnen();
     spielPruefen();
     if (!e.belegungGeladen) { einstellungenLaden(); }
     letzteKarteBeimStart();
@@ -1198,31 +1308,30 @@ void zeichne(float hoehe) {
     e.bearbeitung.arbeitsbereich = e.workzone;
     farbenAusThema();
     g_s = massstab();
-    // NRCs Schrift: Segoe UI 9 pt (Menues und Statuszeile von Qt unter
-    // Windows) = 12 Punkte Geviert, mal Massstab. ImGui multipliziert die
-    // Grundgroesse noch mit FontScaleDpi und FontScaleMain.
-    const float schrift = static_cast<float>(mass::kSchrift) * g_s / std::max(0.01F, g_app->dpiScale * g_app->uiScale);
-    ImGui::PushFont(g_schrift, schrift);
+    ImGui::PushFont(g_schrift, schriftGroesse());
+    // Direkt unter der Menueleiste des Programmfensters (ohne den Zellrand der
+    // Tabelle dazwischen).
+    if (e.leisteUnten > 0.0F) { ImGui::SetCursorScreenPos(ImVec2{ImGui::GetCursorScreenPos().x, e.leisteUnten}); }
     // hoehe <= 0 wie bei BeginChild: der restliche Platz minus |hoehe|
     // (app.cpp gibt frameH = -fussH).
     const ImVec2 rest = ImGui::GetContentRegionAvail();
     ImVec2 platz{rest.x, hoehe > 0.0F ? hoehe : std::max(1.0F, rest.y + hoehe)};
+    // Der Bereich wie NRCs Client: die Menueleiste (21) steht darueber im
+    // Programmfenster, der Editor beginnt mit der Werkzeugleiste.
     if (bereichErsatzB > 0 && bereichErsatzH > 0) {
-        platz = ImVec2{static_cast<float>(bereichErsatzB) * g_s, static_cast<float>(bereichErsatzH) * g_s};
+        platz = ImVec2{static_cast<float>(bereichErsatzB) * g_s, static_cast<float>(bereichErsatzH - mass::kMenueH) * g_s};
     }
-    // QMenuBar 21 hoch: Schrift 16 + 2 x 2,5 (ImGui: FontSize + FramePadding.y * 2).
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, 0.0F});
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-                        ImVec2{0.0F, static_cast<float>(mass::kMenueH - mass::kSchrift) * 0.5F * g_s});
-    ImGui::BeginChild("##karteneditor", platz, ImGuiChildFlags_None,
-                      ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    ImGui::PopStyleVar(3);
-    g_ursprung = ImGui::GetWindowPos();
+    ImGui::BeginChild("##karteneditor", platz, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::PopStyleVar(2);
+    // Lagen wie bisher ab der Oberkante der Menueleiste: der Editor beginnt
+    // bei y = 21 (mass::kMenueH), direkt unter der Leiste.
+    g_ursprung = ImVec2{ImGui::GetWindowPos().x, ImGui::GetWindowPos().y - std::round(static_cast<float>(mass::kMenueH) * g_s)};
+    e.editorOben = ImGui::GetWindowPos().y;
     const int breite = static_cast<int>(std::floor(platz.x / g_s + 0.001F));
-    const int hoeheL = static_cast<int>(std::floor(platz.y / g_s + 0.001F));
+    const int hoeheL = static_cast<int>(std::floor(platz.y / g_s + 0.001F)) + mass::kMenueH;
     merkeFeld("Bereich", 0, 0, breite, hoeheL);
-    zeichneMenueleiste();
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, 0.0F});
     int y = mass::kMenueH;
     if (e.hauptleiste) {

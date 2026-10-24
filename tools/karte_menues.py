@@ -248,6 +248,9 @@ MENUES = [
         ('RUF', 'Set 2D &Background image...', 'WXY_SetBackgroundImage', ''),
         ('ITEM', 'Fullscreen', 'Fullscreen', ''),
         ('ITEM', 'Maximize view', 'MaximizeView', ''),
+        # Stufe 3 Punkt 0b (eine Leiste, die umschaltet): Sprache, Farbschema
+        # und Skalierung des Programms - nicht in NRC, als Abweichung notiert.
+        ('LISTE', 'ProgrammMisc'),
     ]),
     ('E&ntity', 'radiant/mainframe.cpp:1180', [  # Entity_constructMenu (entity.cpp:708)
         ('ITEM', '&Connect Entities', 'EntitiesConnect', ''),
@@ -340,10 +343,14 @@ MENUES = [
         ('LISTE', 'Plugins'),
     ]),
     ('&Help', 'radiant/mainframe.cpp:1207', [
+        # Stufe 3 Punkt 0b: "Manual" (OpenManual, F1) - bei NRC auskommentiert
+        # (mainframe.cpp:1214), hier das Handbuch des Programms.
+        ('LISTE', 'ProgrammHilfeOben'),
         ('LISTE', 'Hilfe'),                      # create_game_help_menu (help.cpp:112): global.xlink + game.xlink
         ('RUF', 'Bug report', 'OpenBugReportURL', ''),
         ('ITEM', 'Check for NetRadiant update', 'CheckForUpdate', ''),
         ('RUF', '&About', 'DoAbout', ''),
+        ('LISTE', 'ProgrammHilfeUnten'),         # Stufe 3 Punkt 0b: About BehavEd
     ]),
 ]
 

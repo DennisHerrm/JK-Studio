@@ -22,10 +22,12 @@
 #include "bhed/karte/filter.h"
 
 #include "app_internal.h"
+#include "update.h"
 #include "platform.h"
 #include "tastatur.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <map>
 #include <utility>
 
@@ -172,6 +174,21 @@ std::map<std::string, Umsetzung>& umsetzungen() {
     m["WXY_SetBackgroundImage"] = {[] { hintergrundBildDialog(); }, nullptr};
     m["OpenBugReportURL"] = {[] { kartenUrlOeffnen(bugReportUrl()); }, nullptr};
     m["DoAbout"] = {[] { e().ueberOffen = true; }, nullptr};
+    // Stufe 3 Punkt 0b: OpenManual (mainframe.cpp:2069, F1; OpenHelpURL) oeffnet
+    // das Handbuch des Programms auf der Seite des Karten-Editors,
+    // CheckForUpdate (mainframe.cpp:2072, OpenUpdateURL) die Update-Pruefung
+    // des Programms - Abweichung: NRC oeffnet seine Webseiten. Im Selbsttest
+    // ohne Browser und ohne Netz (nur gemerkt).
+    m["OpenManual"] = {[] {
+                           e().letzteHilfe = "karteneditor.html";
+                           handbuchOeffnen("karteneditor.html");
+                       },
+                       nullptr};
+    m["CheckForUpdate"] = {[] {
+                               e().letzteHilfe = "update";
+                               if (std::getenv("BHED_EDITORTEST") == nullptr) { updater::pruefen(false); }
+                           },
+                           nullptr};
     // --- Stufe 2, Punkt 10: Ebenen (layerswindow.cpp:578-582) ---
     m["ExpandSelectionToLayers"] = {[] { ebenenBefehl("ExpandSelectionToLayers"); }, nullptr};
     m["LayersMenu"] = {[] { ebenenBefehl("LayersMenu"); }, nullptr};
