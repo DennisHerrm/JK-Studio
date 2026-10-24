@@ -127,7 +127,10 @@ std::map<std::string, Umsetzung>& umsetzungen() {
     for (const char* n : {"ClipperClip", "ClipperSplit", "ClipperFlip",
                           // Stufe 2, Punkt 3: CSG (csg.cpp:1592-1597), Detail (brushmanip.cpp:1493-1494)
                           "CSGSubtract", "CSGMerge", "CSGWrapMerge", "CSGIntersect", "CSGroom", "CSGTool", "MakeDetail",
-                          "MakeStructural"}) {
+                          "MakeStructural",
+                          // Stufe 2, Punkt 4: Grundformen (brushmanip.cpp:1479-1491)
+                          "BrushPrism", "BrushCone", "BrushSphere", "BrushRock", "BrushIcosahedron", "Brush3Sided", "Brush4Sided",
+                          "Brush5Sided", "Brush6Sided", "Brush7Sided", "Brush8Sided", "Brush9Sided"}) {
         const std::string name = n;
         m[name] = {[name] { auswahlBefehl(name); }, nullptr};
     }

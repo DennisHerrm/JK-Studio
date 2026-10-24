@@ -612,6 +612,19 @@ void auswahlBefehl(const std::string& name) {
         auswahlGeaendert();
     } else if (name == "CSGTool") {   // CSG_Tool (csg.cpp:1470): zeigen
         ed.csgWerkzeug.offen = true;
+    } else if (name.size() == 11 && name.rfind("Brush", 0) == 0 && name.compare(6, 5, "Sided") == 0) {   // BrushMakeSided::set
+        karte::Protokoll p;
+        karte::grundformAuswahl(k, karte::Grundform::Prisma, static_cast<std::size_t>(name[5] - '0'), false,
+                                static_cast<std::size_t>(aktuelleSicht()), ed.bearbeitung.browserShader, p);
+        konsoleProtokoll(p);
+        auswahlGeaendert();
+    } else if (name == "BrushPrism" || name == "BrushCone" || name == "BrushSphere" || name == "BrushRock" || name == "BrushIcosahedron") {
+        // BrushPrefab::set -> DoSides
+        seitenDialogOeffnen(name == "BrushPrism"  ? karte::Grundform::Prisma
+                            : name == "BrushCone" ? karte::Grundform::Kegel
+                            : name == "BrushSphere" ? karte::Grundform::Kugel
+                            : name == "BrushRock" ? karte::Grundform::Fels
+                                                  : karte::Grundform::Ikosaeder);
     } else if (name == "MakeDetail" || name == "MakeStructural") {   // Select_MakeDetail / Select_MakeStructural
         karte::pinselDetailSetzen(k, name == "MakeDetail");
     } else if (name == "DragVertices") {

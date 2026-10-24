@@ -294,6 +294,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_menue.cpp
     gui/app_karte_dialoge.cpp
     gui/app_karte_csg.cpp
+    gui/app_karte_formen.cpp
     gui/karte_vektoricons.cpp
     gui/app_karte_xy.cpp
     gui/app_karte_cam.cpp
@@ -692,6 +693,7 @@ target_sources(bhed_core PRIVATE
   src/karte/komponenten.cpp
   # Stufe 2: CSG und Clipper (csg.cpp, clippertool.cpp)
   src/karte/csg.cpp
+  src/karte/grundformen.cpp
   # Stufe 1b: Texturbrowser (texwindow.cpp, aktive Shader)
   src/karte/texturbrowser.cpp
   # Stufe 1b: Texturen mit M3 kopieren und auftragen (TexManipulator, surfacedialog.cpp)
@@ -804,6 +806,9 @@ if(BEHAVED_TESTS)
   add_executable(kartecsg tests/kartecsg.cpp)
   target_link_libraries(kartecsg PRIVATE bhed_core)
   add_test(NAME karte_csg COMMAND kartecsg)
+  add_executable(kartegrundformen tests/kartegrundformen.cpp)
+  target_link_libraries(kartegrundformen PRIVATE bhed_core)
+  add_test(NAME karte_grundformen COMMAND kartegrundformen)
   # Punkte 3 und 4: die Befehlstabelle gegen die Checkliste (jeder Befehl mit
   # NRCs Taste, jeder Menuepunkt und Knopf), Uebersetzungen = NRC-Englisch,
   # Tastenkuerzel wie Qt (Text, possibleKeys, deutsche Tastatur).

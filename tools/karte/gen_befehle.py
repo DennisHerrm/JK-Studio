@@ -67,6 +67,8 @@ STUFE_2_FERTIG = set('''
 DragVertices DragEdges DragFaces MouseBuild MouseUV TogTexLock TogTexVertexLock
 ToggleClipper ClipperClip ClipperSplit ClipperFlip
 CSGSubtract CSGMerge CSGWrapMerge CSGIntersect CSGroom CSGTool MakeDetail MakeStructural
+BrushPrism BrushCone BrushSphere BrushRock BrushIcosahedron Brush3Sided Brush4Sided Brush5Sided Brush6Sided Brush7Sided
+Brush8Sided Brush9Sided
 '''.split())
 
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem

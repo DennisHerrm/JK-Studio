@@ -28837,6 +28837,73 @@ std::vector<Schritt> csg() {
     return s;
 }
 
+std::size_t flaechenVon(std::size_t i) {
+    const auto w = ke::editor().karte.welt();
+    if (!w || i >= w->kinder().size()) { return 0; }
+    return std::static_pointer_cast<karte::Pinsel>(w->kinder()[i])->anzahl();
+}
+
+// Punkt 4: Grundformen (Strg+3..9, Prism..., Cone..., Sphere..., Rock..., Icosahedron...)
+std::vector<Schritt> grundformen() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(grundzustand("Stufe 2/4: Grundzustand"));
+    add(pause(0.4));
+    add(klickXy("M1 auf den Pinsel", ImGuiMouseButton_Left, ImVec2{32, 32}));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_5, "Strg+5"));
+    add(pruefe("Strg+5: Prisma mit 5 Seiten (7 Flaechen), Achse z", [] {
+        return flaechenVon(0) == 7 && ke::editor().karte.undo.undoName() == "brushPrism -sides 5 -axis 2";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tu("Brush > Prism...", [] { (void)ke::ausfuehren("BrushPrism"); }));
+    add(pause(0.3));
+    add(pruefe("Arbitrary sides: Sides 8 (Vorgabe), ohne Truncate", [] {
+        const ke::Editor::SeitenDialog& d = ke::editor().seitenDialog;
+        return d.offen && d.wert == 8 && finde("##seitenwert", "", 0, true) != nullptr && finde("##seitenstutzen", "", 0, true) == nullptr;
+    }));
+    add(foto("karteneditor_seiten_prism"));
+    add(klickAn("Pfeil hoch", elementOrt("##seitenhoch")));
+    add(klickAn("OK", elementOrt(std::string(ke::trK(Str::KePrefOk)) + "##seitenok")));
+    add(pruefe("OK: Prisma mit 9 Seiten (11 Flaechen)", [] {
+        return !ke::editor().seitenDialog.offen && flaechenVon(0) == 11 && ke::editor().karte.undo.undoName() == "brushPrism -sides 9 -axis 2";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tu("Brush > Icosahedron...", [] { (void)ke::ausfuehren("BrushIcosahedron"); }));
+    add(pause(0.3));
+    add(pruefe("Icosahedron: Subdivisions 1, Truncate sichtbar", [] {
+        const ke::Editor::SeitenDialog& d = ke::editor().seitenDialog;
+        return d.offen && d.wert == 1 && finde(std::string(ke::trK(Str::KeSidesTruncate)) + "##seitenstutzen", "", 0, true) != nullptr;
+    }));
+    add(foto("karteneditor_seiten_ikosaeder"));
+    add(klickAn("Pfeil runter", elementOrt("##seitenrunter")));
+    add(klickAn("Truncate", elementOrt(std::string(ke::trK(Str::KeSidesTruncate)) + "##seitenstutzen")));
+    add(klickAn("OK", elementOrt(std::string(ke::trK(Str::KePrefOk)) + "##seitenok")));
+    add(pruefe("Icosahedron 0 gestutzt: 32 Flaechen", [] {
+        return flaechenVon(0) == 32 && ke::editor().karte.undo.undoName() == "brushIcosahedron -subdivisions 0";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tu("Brush > Rock...", [] { (void)ke::ausfuehren("BrushRock"); }));
+    add(pause(0.3));
+    add(pruefe("Rock: Sides 32", [] { return ke::editor().seitenDialog.offen && ke::editor().seitenDialog.wert == 32; }));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(pruefe("Esc: abgebrochen, der Pinsel bleibt ein Quader", [] { return !ke::editor().seitenDialog.offen && flaechenVon(0) == 6; }));
+    add(tu("Brush > Sphere...", [] { (void)ke::ausfuehren("BrushSphere"); }));
+    add(pause(0.3));
+    add(tasteKombi(ImGuiKey_Enter, "Return"));
+    add(pruefe("Return: Kugel mit 8 Seiten (64 Ebenen)", [] {
+        return flaechenVon(0) == 64 && ke::editor().karte.undo.undoName() == "brushSphere -sides 8";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tu("Brush > Cone...", [] { (void)ke::ausfuehren("BrushCone"); }));
+    add(pause(0.3));
+    add(tasteKombi(ImGuiKey_Enter, "Return"));
+    add(pruefe("Return: Kegel mit 8 Seiten (9 Flaechen)", [] {
+        return flaechenVon(0) == 9 && ke::editor().karte.undo.undoName() == "brushCone -sides 8 -axis 2";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    return s;
+}
+
 }  // namespace stufe2
 
 std::vector<Schritt> karteneditorStufe2Schritte() {
@@ -28844,6 +28911,7 @@ std::vector<Schritt> karteneditorStufe2Schritte() {
     for (Schritt& x : stufe2::komponenten()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::clipper()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::csg()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe2::grundformen()) { s.push_back(std::move(x)); }
     return s;
 }
 

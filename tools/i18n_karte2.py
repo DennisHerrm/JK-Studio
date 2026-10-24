@@ -39,4 +39,9 @@ KARTE2 = [
     ("KeCsgTipWrap", "Hollow::wrap", "Aushöhlen::Umhüllen", "挖空::包裹", "くり抜き::ラップ"),
     ("KeCsgTipExtrude", "Hollow::extrude faces", "Aushöhlen::Flächen extrudieren", "挖空::挤出面", "くり抜き::面を押し出し"),
     ("KeCsgTipPull", "Hollow::pull faces", "Aushöhlen::Flächen ziehen", "挖空::拉出面", "くり抜き::面を引き出し"),
+    # --- Arbitrary sides (gtkdlgs.cpp:272-327) -------------------------------------
+    ("KeSidesTitle", "Arbitrary sides", "Beliebige Seiten", "任意边数", "任意の辺数"),
+    ("KeSidesSides", "Sides:", "Seiten:", "边数:", "辺の数:"),
+    ("KeSidesSubdivisions", "Subdivisions:", "Unterteilungen:", "细分:", "分割数:"),
+    ("KeSidesTruncate", "Truncate", "Stutzen", "截角", "切頂"),
 ]

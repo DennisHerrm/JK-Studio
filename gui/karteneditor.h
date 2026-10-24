@@ -25,6 +25,7 @@
 #include "bhed/karte/befehle.h"
 #include "bhed/karte/eklasse.h"
 #include "bhed/karte/entitaetbefehle.h"
+#include "bhed/karte/grundformen.h"
 #include "bhed/karte/kamera.h"
 #include "bhed/karte/karte.h"
 #include "bhed/karte/kartenformat.h"
@@ -409,6 +410,14 @@ struct Editor {
         bool caulk = true;      // f-caulk.png, setChecked( true )
         bool innenWeg = true;   // csgtool_removeinner.png
     } csgWerkzeug;
+    // "Arbitrary sides" (DoSides, gtkdlgs.cpp:272): modal, jedes Mal neu
+    struct SeitenDialog {
+        bool offen = false;
+        bool oeffnen = false;
+        karte::Grundform art = karte::Grundform::Prisma;
+        int wert = 8;
+        bool stutzen = false;   // "Truncate" (nur Icosahedron)
+    } seitenDialog;
     std::string tastenDialogBearbeitet;   // Befehl, dessen Taste gerade aufgenommen wird
     int tasteVerbrauchtBild = -1;         // in diesem Bild hat die Aufnahme die Taste geschluckt
     bool ueberOffen = false;
@@ -755,6 +764,8 @@ ImVec4 karteIconFarbe(const char* name);
 void zeichneEinstellungen();   // "NetRadiant Preferences" (P)
 void zeichneTastenDialog();    // "Mapped Commands" (Ctrl+Shift+P)
 void zeichneCsgWerkzeug();     // "CSG Tool" (app_karte_csg.cpp)
+void seitenDialogOeffnen(karte::Grundform art);   // DoSides (app_karte_formen.cpp)
+void zeichneSeitenDialog();
 // Einstellungen des Editors lesen/schreiben (Settings::karte).
 void einstellungenLaden();
 void einstellungenSpeichern();

@@ -12,11 +12,11 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### Brush_constructMenu (radiant/brushmanip.cpp)
 
-  - [~] ITEM Prism... -> `BrushPrism`  (radiant/brushmanip.cpp:1498) -- Stufe 2
-  - [~] ITEM Cone... -> `BrushCone`  (radiant/brushmanip.cpp:1499) -- Stufe 2
-  - [~] ITEM Sphere... -> `BrushSphere`  (radiant/brushmanip.cpp:1500) -- Stufe 2
-  - [~] ITEM Rock... -> `BrushRock`  (radiant/brushmanip.cpp:1501) -- Stufe 2
-  - [~] ITEM Icosahedron... -> `BrushIcosahedron`  (radiant/brushmanip.cpp:1502) -- Stufe 2
+  - [x] ITEM Prism... -> `BrushPrism`  (radiant/brushmanip.cpp:1498) -- Stufe 2 Punkt 4
+  - [x] ITEM Cone... -> `BrushCone`  (radiant/brushmanip.cpp:1499) -- Stufe 2 Punkt 4
+  - [x] ITEM Sphere... -> `BrushSphere`  (radiant/brushmanip.cpp:1500) -- Stufe 2 Punkt 4
+  - [x] ITEM Rock... -> `BrushRock`  (radiant/brushmanip.cpp:1501) -- Stufe 2 Punkt 4
+  - [x] ITEM Icosahedron... -> `BrushIcosahedron`  (radiant/brushmanip.cpp:1502) -- Stufe 2 Punkt 4
   * ---
   * SUB CSG  (radiant/brushmanip.cpp:1505)
     - [x] ITEM CSG &Subtract -> `CSGSubtract`  (radiant/brushmanip.cpp:1509) -- Stufe 2 Punkt 3
@@ -540,20 +540,20 @@ Name | Art | Standardtaste | Quelle
 - [~] `bobToolz::StairBuilder` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
 - [~] `bobToolz::TreePlanter` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
 - [~] `bobToolz::VisViewer` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `Brush3Sided` | Commands | Ctrl+3 | (radiant/brushmanip.cpp:1485) -- Stufe 2
-- [~] `Brush4Sided` | Commands | Ctrl+4 | (radiant/brushmanip.cpp:1486) -- Stufe 2
-- [~] `Brush5Sided` | Commands | Ctrl+5 | (radiant/brushmanip.cpp:1487) -- Stufe 2
-- [~] `Brush6Sided` | Commands | Ctrl+6 | (radiant/brushmanip.cpp:1488) -- Stufe 2
-- [~] `Brush7Sided` | Commands | Ctrl+7 | (radiant/brushmanip.cpp:1489) -- Stufe 2
-- [~] `Brush8Sided` | Commands | Ctrl+8 | (radiant/brushmanip.cpp:1490) -- Stufe 2
-- [~] `Brush9Sided` | Commands | Ctrl+9 | (radiant/brushmanip.cpp:1491) -- Stufe 2
-- [~] `BrushCone` | Commands | - | (radiant/brushmanip.cpp:1480) -- Stufe 2
+- [x] `Brush3Sided` | Commands | Ctrl+3 | (radiant/brushmanip.cpp:1485) -- Stufe 2 Punkt 4
+- [x] `Brush4Sided` | Commands | Ctrl+4 | (radiant/brushmanip.cpp:1486) -- Stufe 2 Punkt 4
+- [x] `Brush5Sided` | Commands | Ctrl+5 | (radiant/brushmanip.cpp:1487) -- Stufe 2 Punkt 4
+- [x] `Brush6Sided` | Commands | Ctrl+6 | (radiant/brushmanip.cpp:1488) -- Stufe 2 Punkt 4
+- [x] `Brush7Sided` | Commands | Ctrl+7 | (radiant/brushmanip.cpp:1489) -- Stufe 2 Punkt 4
+- [x] `Brush8Sided` | Commands | Ctrl+8 | (radiant/brushmanip.cpp:1490) -- Stufe 2 Punkt 4
+- [x] `Brush9Sided` | Commands | Ctrl+9 | (radiant/brushmanip.cpp:1491) -- Stufe 2 Punkt 4
+- [x] `BrushCone` | Commands | - | (radiant/brushmanip.cpp:1480) -- Stufe 2 Punkt 4
 - [~] `brushexport2::About` | Commands | - | (contrib/brushexport/plugin.cpp:56) -- Stufe 3
 - [~] `brushexport2::Export.obj` | Commands | - | (contrib/brushexport/plugin.cpp:56) -- Stufe 3
-- [~] `BrushIcosahedron` | Commands | - | (radiant/brushmanip.cpp:1483) -- Stufe 2
-- [~] `BrushPrism` | Commands | - | (radiant/brushmanip.cpp:1479) -- Stufe 2
-- [~] `BrushRock` | Commands | - | (radiant/brushmanip.cpp:1482) -- Stufe 2
-- [~] `BrushSphere` | Commands | - | (radiant/brushmanip.cpp:1481) -- Stufe 2
+- [x] `BrushIcosahedron` | Commands | - | (radiant/brushmanip.cpp:1483) -- Stufe 2 Punkt 4
+- [x] `BrushPrism` | Commands | - | (radiant/brushmanip.cpp:1479) -- Stufe 2 Punkt 4
+- [x] `BrushRock` | Commands | - | (radiant/brushmanip.cpp:1482) -- Stufe 2 Punkt 4
+- [x] `BrushSphere` | Commands | - | (radiant/brushmanip.cpp:1481) -- Stufe 2 Punkt 4
 - [~] `Build_runRecentExecutedBuild` | Commands | F5 | (radiant/mainframe.cpp:2090) -- Stufe 3
 - [~] `BuildMenuCustomize` | Commands | - | (radiant/mainframe.cpp:2089) -- Stufe 3
 - [x] `CameraAngleDown` | Commands | - | (radiant/camwindow.cpp:1432)
@@ -920,7 +920,7 @@ Name | Art | Standardtaste | Quelle
 - [ ] "Q3Map debug window"  (radiant/feedback.cpp:281)
 - [x] "Find / Replace Texture(s)"  (radiant/findtexturedialog.cpp:132)
 - [x] "Entities"  (radiant/groupdialog.cpp:81) -- Stufe 1b Punkt 9
-- [ ] "Arbitrary sides"  (radiant/gtkdlgs.cpp:274)
+- [x] "Arbitrary sides"  (radiant/gtkdlgs.cpp:274) -- Stufe 2 Punkt 4
 - [ ] "About NetRadiant"  (radiant/gtkdlgs.cpp:333)
 - [x] "Set Light intensity"  (radiant/gtkdlgs.cpp:415) -- Stufe 1b Punkt 9
 - [ ] "Install Map Developer's Files"  (radiant/gtkdlgs.cpp:492)

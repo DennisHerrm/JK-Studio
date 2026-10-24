@@ -1605,6 +1605,10 @@ enum class Str {
     KeCsgTipWrap,
     KeCsgTipExtrude,
     KeCsgTipPull,
+    KeSidesTitle,
+    KeSidesSides,
+    KeSidesSubdivisions,
+    KeSidesTruncate,
     Count,
 };
 

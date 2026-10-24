@@ -987,6 +987,7 @@ void zeichne(float hoehe) {
     zeichneEinstellungen();
     zeichneTastenDialog();
     zeichneCsgWerkzeug();
+    zeichneSeitenDialog();
     zeichneRueckfrage();
     ImGui::PopFont();
     tastenVerarbeiten();
