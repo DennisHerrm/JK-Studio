@@ -77,6 +77,9 @@ PatchXactSphere CapCurrentCurve PatchInsertFirstColumn PatchInsertLastColumn Pat
 PatchDeleteFirstColumn PatchDeleteLastColumn PatchDeleteFirstRow PatchDeleteLastRow InvertCurve MatrixTranspose RedisperseRows
 RedisperseCols SmoothRows SmoothCols TextureReset/Cap NaturalizePatch InvertCurveTextureX InvertCurveTextureY PatchDeform
 PatchThicken
+SurfaceInspector FitTexture FitTextureWidth FitTextureHeight FitTextureWidthOnly FitTextureHeightOnly TextureProjectAxial
+TextureProjectOrtho TextureProjectCam TexRotateClock TexRotateCounter TexScaleUp TexScaleDown TexScaleLeft TexScaleRight
+TexShiftUp TexShiftDown TexShiftLeft TexShiftRight SelectTextured
 '''.split())
 
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem

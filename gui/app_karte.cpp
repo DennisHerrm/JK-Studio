@@ -990,6 +990,7 @@ void zeichne(float hoehe) {
     zeichneSeitenDialog();
     zeichneArbitraerDialoge();
     zeichnePatchDialog();
+    zeichneSurfaceInspector();
     zeichneRueckfrage();
     ImGui::PopFont();
     tastenVerarbeiten();

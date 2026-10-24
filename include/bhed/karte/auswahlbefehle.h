@@ -114,6 +114,9 @@ void amRasterAusrichten(Karte& k, const AuswahlEinstellung& e, float raster, boo
 // Select_SetShader_Undo: bei einer Auswahl (Objekte oder Flaechen) Rueckgaengig
 // "textureNameSetSelected" und Select_SetShader; true, wenn etwas gesetzt wurde.
 bool shaderSetzen(Karte& k, const AuswahlEinstellung& e, const std::string& shader);
+// texdef_name_valid (shaderlib.h:68-70) und shader_equal (ohne Gross/klein)
+[[nodiscard]] bool texturNameGueltig(const std::string& name);
+[[nodiscard]] bool shaderNamenGleich(const std::string& a, const std::string& b);
 // Scene_BrushPatchSelectByShader: sichtbare Pinsel mit einer Flaeche dieses
 // Shaders und sichtbare Patches mit diesem Shader dazuwaehlen.
 void waehleNachShader(Karte& k, const std::string& shader);

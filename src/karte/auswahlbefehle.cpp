@@ -565,6 +565,9 @@ bool texdefNameGueltig(const std::string& name) {
 
 }  // namespace
 
+bool texturNameGueltig(const std::string& name) { return texdefNameGueltig(name); }
+bool shaderNamenGleich(const std::string& a, const std::string& b) { return shaderGleich(a, b); }
+
 // Select_SetShader_Undo (select.cpp:497-502) mit Select_SetShader (:489-495)
 bool shaderSetzen(Karte& k, const AuswahlEinstellung& e, const std::string& shader) {
     if (k.auswahl.flaechen().empty() && k.auswahl.anzahl() == 0) { return false; }

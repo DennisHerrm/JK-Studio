@@ -29120,6 +29120,64 @@ std::vector<Schritt> patches() {
     return s;
 }
 
+karte::Texdef ersteFlaecheSsr() {
+    const auto w = ke::editor().karte.welt();
+    karte::Texdef t;
+    if (!w || w->kinder().empty() || w->kinder()[0]->art() != karte::Primitiv::Art::Pinsel) { return t; }
+    const auto p = std::static_pointer_cast<karte::Pinsel>(w->kinder()[0]);
+    karte::schiebSkalDrehAusFlaeche(ke::editor().karte.kontext.art(), t, p->flaechen()[0]->texdefHolen(ke::editor().karte.kontext));
+    return t;
+}
+
+// Punkt 7: Surface Inspector, Textur-Tasten
+std::vector<Schritt> texturen() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(grundzustand("Stufe 2/7: Grundzustand"));
+    add(pause(0.4));
+    add(klickXy("M1 auf den Pinsel", ImGuiMouseButton_Left, ImVec2{32, 32}));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_UpArrow, "Umschalt+Hoch"));
+    add(pruefe("Shift+Up: shift t + 8 (Schritt 8)", [] {
+        return std::fabs(ersteFlaecheSsr().shift[1] - 8.0F) < 0.01F && ke::editor().karte.undo.undoName() == "brushShiftTexture -x 0 -y 8";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tasteKombi(ImGuiKey_S, "S"));
+    add(pause(0.3));
+    add(pruefe("S: Surface Inspector offen", [] { return ke::editor().siOffen && finde("##sitextur", "", 0, true) != nullptr; }));
+    add(foto("karteneditor_surface_inspector"));
+    add(klickAn("Horizontal shift: Pfeil hoch", elementOrt("##sihoch0")));
+    add(pruefe("Pfeil hoch: hShift 8 sofort (NonModalSpinner::stepBy)", [] {
+        return std::fabs(ersteFlaecheSsr().shift[0] - 8.0F) < 0.01F && ke::editor().karte.undo.undoName() == "textureProjectionSetSelected -hShift 8";
+    }));
+    add(klickAn("Feld Rotate", elementOrt("##siwert4")));
+    add(tippe("30"));
+    add(tasteKombi(ImGuiKey_Enter, "Return"));
+    add(pruefe("Rotate 30 mit Return", [] {
+        return std::fabs(ersteFlaecheSsr().rotate - 30.0F) < 0.01F && ke::editor().karte.undo.undoName() == "textureProjectionSetSelected -rotation 30";
+    }));
+    add(klickAn("Reset", elementOrt(std::string(ke::trK(Str::KeSiReset)) + "##sireset")));
+    add(pruefe("Reset: textureReset/Cap, rotate 0", [] {
+        return std::fabs(ersteFlaecheSsr().rotate) < 0.01F && ke::editor().karte.undo.undoName() == "textureReset/Cap";
+    }));
+    add(klickAn("Fit", elementOrt(std::string(ke::trK(Str::KeSiFit)) + "##sifit")));
+    add(pruefe("Fit 1 x 1: textureAutoFit", [] { return ke::editor().karte.undo.undoName() == "textureAutoFit"; }));
+    add(klickAn("Axial", elementOrt(std::string(ke::trK(Str::KeSiAxial)) + "##siaxial")));
+    add(pruefe("Axial: textureProjectAxial", [] { return ke::editor().karte.undo.undoName() == "textureProjectAxial"; }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_F, "Strg+F"));
+    add(pruefe("Strg+F: FitTexture", [] { return ke::editor().karte.undo.undoName() == "textureAutoFit"; }));
+    add(klickAn("Match Grid", elementOrt(std::string(ke::trK(Str::KeSiMatchGrid)) + "##simatchgrid")));
+    add(pruefe("Match Grid: Schritt = Raster / Skalierung", [] {
+        const karte::Texdef t = ersteFlaecheSsr();
+        const float soll = static_cast<float>(karte::zuGanzzahl(8.0F / t.scale[0]));
+        diag::detail("Knopftest: Stufe 2 - Match Grid " + std::to_string(ke::editor().siWerte.verschiebung[0]) + " soll " + std::to_string(soll));
+        return std::fabs(ke::editor().siWerte.verschiebung[0] - soll) < 0.01F;
+    }));
+    add(tasteKombi(ImGuiKey_S, "S"));
+    add(pruefe("S: Surface Inspector zu", [] { return !ke::editor().siOffen; }));
+    add(tu("Schritte zurueck auf 8", [] { ke::editor().siWerte = karte::SiWerte{}; }));
+    return s;
+}
+
 }  // namespace stufe2
 
 std::vector<Schritt> karteneditorStufe2Schritte() {
@@ -29130,6 +29188,7 @@ std::vector<Schritt> karteneditorStufe2Schritte() {
     for (Schritt& x : stufe2::grundformen()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::transformationen()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::patches()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe2::texturen()) { s.push_back(std::move(x)); }
     return s;
 }
 

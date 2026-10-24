@@ -65,6 +65,7 @@ constexpr int kSeitePatches = 8;
 constexpr int kSeiteEntities = 9;
 constexpr int kSeiteAuswahl = 12;
 constexpr int kSeiteClipper = 14;
+constexpr int kSeiteSurface = 16;
 constexpr int kSeiteKamera = 17;
 constexpr int kSeiteTexBro = 20;
 
@@ -91,6 +92,7 @@ struct Entwurf {
     bool clipper2Punkte = true;
     int clipperDoppelklick = 1;
     int patchSchwelle = 4;   // g_PatchSubdivideThreshold
+    bool siRaster = false;   // g_si_globals.m_bSnapTToGrid
 };
 Entwurf g_entwurf;
 
@@ -425,6 +427,12 @@ void patchSeite() {
     feldEnde();
 }
 
+// SurfaceInspector_constructPreferences (surfacedialog.cpp:1734-1736): eine Checkbox
+void surfaceSeite() {
+    formAnfang({});
+    (void)haken(Str::Count, trK(Str::KePrSiMatchGrid), g_entwurf.siRaster);
+}
+
 void interfaceSeite() {
     // Interface Preferences: "Shader Editor Command" (preferences.cpp:64,
     // appendPathEntry: Feld mit "..."-Knopf; Foto pref_Interface.png), dazu
@@ -468,6 +476,7 @@ void zeichneEinstellungen() {
         g_entwurf.namenVerhaeltnis = ed.anzeige.namenVerhaeltnis;
         g_entwurf.zielnamen = ed.ent.zielnamen;
         g_entwurf.patchSchwelle = karte::patchUnterteilungSchwelle();
+        g_entwurf.siRaster = ed.siWerte.rasterAnpassen;
         g_entwurf.clipperCaulk = ed.bearbeitung.clipperCaulk;
         g_entwurf.clipperUmdrehen = ed.bearbeitung.clipperUmdrehenZuruecksetzen;
         g_entwurf.clipperPunkte = ed.bearbeitung.clipperPunkteZuruecksetzen;
@@ -545,6 +554,8 @@ void zeichneEinstellungen() {
             texBroSeite();
         } else if (g_entwurf.seite == kSeiteEntities) {
             entitaetenSeite();
+        } else if (g_entwurf.seite == kSeiteSurface) {
+            surfaceSeite();
         } else if (g_entwurf.seite == kSeitePatches) {
             patchSeite();
         } else if (g_entwurf.seite == kSeiteClipper) {
@@ -605,6 +616,7 @@ void zeichneEinstellungen() {
             ed.anzeige.namenVerhaeltnis = g_entwurf.namenVerhaeltnis;
             ed.ent.zielnamen = g_entwurf.zielnamen;
             karte::setzePatchUnterteilungSchwelle(g_entwurf.patchSchwelle);
+            ed.siWerte.rasterAnpassen = g_entwurf.siRaster;
             ed.bearbeitung.clipperCaulk = g_entwurf.clipperCaulk;
             ed.bearbeitung.clipperUmdrehenZuruecksetzen = g_entwurf.clipperUmdrehen;
             ed.bearbeitung.clipperPunkteZuruecksetzen = g_entwurf.clipperPunkte;

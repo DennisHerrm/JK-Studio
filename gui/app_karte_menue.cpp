@@ -967,6 +967,13 @@ void einstellungenLaden() {
     ed.bearbeitung.clipperDoppelklickTeilen = std::clamp(static_cast<int>(zahl("ClipperDoubleclickedSplit", 1)), 0, 1);
     // PatchPreferences_construct (patchmanip.cpp:684-686): "Subdivisions"
     karte::setzePatchUnterteilungSchwelle(static_cast<int>(zahl("Subdivisions", karte::kPatchUnterteilungVorgabe)));
+    // SurfaceInspector_Construct (surfacedialog.cpp:1765-1770)
+    ed.siWerte.skalierung[0] = zahl("SI_SurfaceTexdef_Scale1", 0.5F);
+    ed.siWerte.skalierung[1] = zahl("SI_SurfaceTexdef_Scale2", 0.5F);
+    ed.siWerte.verschiebung[0] = zahl("SI_SurfaceTexdef_Shift1", 8.0F);
+    ed.siWerte.verschiebung[1] = zahl("SI_SurfaceTexdef_Shift2", 8.0F);
+    ed.siWerte.drehung = zahl("SI_SurfaceTexdef_Rotate", 45.0F);
+    ed.siWerte.rasterAnpassen = zahl("SnapTToGrid", 0) != 0.0F;
     // MainFrame/m_hSplit usw. (SplitterSetting::save: die Groessen), als
     // "a,b" in logischen Punkten; anderes (alte Anteile) gilt als nicht gemerkt.
     const auto groessen = [&](const char* n) {
@@ -1094,6 +1101,12 @@ void einstellungenSpeichern() {
     k["Clipper2PointsIn2D"] = ed.bearbeitung.clipper2Punkte2d ? "1" : "0";
     k["ClipperDoubleclickedSplit"] = std::to_string(ed.bearbeitung.clipperDoppelklickTeilen);
     k["Subdivisions"] = std::to_string(karte::patchUnterteilungSchwelle());
+    k["SI_SurfaceTexdef_Scale1"] = karte::zahlText(ed.siWerte.skalierung[0]);
+    k["SI_SurfaceTexdef_Scale2"] = karte::zahlText(ed.siWerte.skalierung[1]);
+    k["SI_SurfaceTexdef_Shift1"] = karte::zahlText(ed.siWerte.verschiebung[0]);
+    k["SI_SurfaceTexdef_Shift2"] = karte::zahlText(ed.siWerte.verschiebung[1]);
+    k["SI_SurfaceTexdef_Rotate"] = karte::zahlText(ed.siWerte.drehung);
+    k["SnapTToGrid"] = ed.siWerte.rasterAnpassen ? "1" : "0";
     const auto liste = [](const std::vector<int>& v) {
         std::string s;
         for (const int i : v) { s += (s.empty() ? "" : ",") + std::to_string(i); }

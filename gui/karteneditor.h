@@ -26,6 +26,7 @@
 #include "bhed/karte/eklasse.h"
 #include "bhed/karte/entitaetbefehle.h"
 #include "bhed/karte/grundformen.h"
+#include "bhed/karte/texturbefehle.h"
 #include "bhed/karte/kamera.h"
 #include "bhed/karte/karte.h"
 #include "bhed/karte/kartenformat.h"
@@ -442,6 +443,9 @@ struct Editor {
         bool waende = true;       // "Side walls"
         int kappe = 0;            // Bevel, Endcap, Inverted Bevel, Inverted Endcap, Cylinder
     } patchDialog;
+    // Surface Inspector (surfacedialog.cpp): nicht modal, S schaltet
+    bool siOffen = false;
+    karte::SiWerte siWerte;   // g_si_globals
     std::string tastenDialogBearbeitet;   // Befehl, dessen Taste gerade aufgenommen wird
     int tasteVerbrauchtBild = -1;         // in diesem Bild hat die Aufnahme die Taste geschluckt
     bool ueberOffen = false;
@@ -794,6 +798,10 @@ void arbitraerDialogZeigen(bool drehen);   // DoRotateDlg / DoScaleDlg (app_kart
 void zeichneArbitraerDialoge();
 void patchDialogOeffnen(int art, karte::PatchVorlage vorlage = karte::PatchVorlage::Ebene);   // app_karte_patch.cpp
 void zeichnePatchDialog();
+void siUmschalten();                 // SurfaceInspector_toggleShown (app_karte_si.cpp)
+void siEinpassenBefehl(int art);     // FitTexture, FitTextureWidth, -Height, -WidthOnly, -HeightOnly
+void siProjizierenBefehl(int art);   // TextureProjectAxial / Ortho / Cam
+void zeichneSurfaceInspector();
 // Einstellungen des Editors lesen/schreiben (Settings::karte).
 void einstellungenLaden();
 void einstellungenSpeichern();

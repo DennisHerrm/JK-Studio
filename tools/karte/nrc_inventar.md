@@ -147,7 +147,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     - [~] ITEM Select &touching -> `SelectTouching`  (radiant/mainframe.cpp:914) -- Stufe 2
     * ---
     - [x] ITEM Select All Of Type -> `SelectAllOfType`  (radiant/mainframe.cpp:918)
-    - [~] ITEM Select Textured -> `SelectTextured`  (radiant/mainframe.cpp:919) -- Stufe 2
+    - [x] ITEM Select Textured -> `SelectTextured`  (radiant/mainframe.cpp:919) -- Stufe 2 Punkt 7
     - [~] ITEM &Expand Selection To Primitives -> `ExpandSelectionToPrimitives`  (radiant/mainframe.cpp:920) -- Stufe 2
     - [x] ITEM &Expand Selection To Entities -> `ExpandSelectionToEntities`  (radiant/mainframe.cpp:921) -- Stufe 1b Punkt 9
     - [~] ITEM &Expand Selection To Layers -> `ExpandSelectionToLayers`  (radiant/mainframe.cpp:922) -- Stufe 2
@@ -168,7 +168,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     - [x] ITEM Model Browser -> `ToggleModelBrowser`  (radiant/mainframe.cpp:948)
     - [x] ITEM Entity Inspector -> `ToggleEntityInspector`  (radiant/mainframe.cpp:949) -- Stufe 1b Punkt 9
     - [x] ITEM Layers Browser -> `ToggleLayersBrowser`  (radiant/mainframe.cpp:950)
-    - [~] ITEM &Surface Inspector -> `SurfaceInspector`  (radiant/mainframe.cpp:951) -- Stufe 2
+    - [x] ITEM &Surface Inspector -> `SurfaceInspector`  (radiant/mainframe.cpp:951) -- Stufe 2 Punkt 7
     - [x] ITEM Entity List -> `ToggleEntityList`  (radiant/mainframe.cpp:952) -- Stufe 1b Punkt 9
     * ---
     * SUB Camera  (radiant/mainframe.cpp:956)
@@ -676,11 +676,11 @@ Name | Art | Standardtaste | Quelle
 - [~] `FilterWorldBrushes` | Toggles | Alt+1 | (radiant/filters.cpp:213) -- Stufe 2
 - [~] `FindBrush` | Commands | - | (radiant/map.cpp:2444) -- Stufe 2
 - [x] `FindReplaceTextures` | Commands | - | (radiant/findtexturedialog.cpp:229)
-- [~] `FitTexture` | Commands | Ctrl+F | (radiant/surfacedialog.cpp:1747) -- Stufe 2
-- [~] `FitTextureHeight` | Commands | - | (radiant/surfacedialog.cpp:1749) -- Stufe 2
-- [~] `FitTextureHeightOnly` | Commands | - | (radiant/surfacedialog.cpp:1751) -- Stufe 2
-- [~] `FitTextureWidth` | Commands | - | (radiant/surfacedialog.cpp:1748) -- Stufe 2
-- [~] `FitTextureWidthOnly` | Commands | - | (radiant/surfacedialog.cpp:1750) -- Stufe 2
+- [x] `FitTexture` | Commands | Ctrl+F | (radiant/surfacedialog.cpp:1747) -- Stufe 2 Punkt 7
+- [x] `FitTextureHeight` | Commands | - | (radiant/surfacedialog.cpp:1749) -- Stufe 2 Punkt 7
+- [x] `FitTextureHeightOnly` | Commands | - | (radiant/surfacedialog.cpp:1751) -- Stufe 2 Punkt 7
+- [x] `FitTextureWidth` | Commands | - | (radiant/surfacedialog.cpp:1748) -- Stufe 2 Punkt 7
+- [x] `FitTextureWidthOnly` | Commands | - | (radiant/surfacedialog.cpp:1750) -- Stufe 2 Punkt 7
 - [x] `FixedSize` | Toggles | - | (radiant/texwindow.cpp:2107)
 - [~] `Fullscreen` | Commands | F11 | (radiant/mainframe.cpp:2096) -- Stufe 2
 - [x] `GridDown` | Commands | [ | (radiant/grid.cpp:184)
@@ -797,7 +797,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `SelectNudgeLeft` | Commands | Alt+Left | (radiant/select.cpp:1904)
 - [x] `SelectNudgeRight` | Commands | Alt+Right | (radiant/select.cpp:1905)
 - [x] `SelectNudgeUp` | Commands | Alt+Up | (radiant/select.cpp:1906)
-- [~] `SelectTextured` | Commands | Ctrl+Shift+A | (radiant/select.cpp:1857) -- Stufe 2
+- [x] `SelectTextured` | Commands | Ctrl+Shift+A | (radiant/select.cpp:1857) -- Stufe 2 Punkt 7
 - [~] `SelectTouching` | Commands | - | (radiant/select.cpp:1878) -- Stufe 2
 - [x] `SetGrid0.125` | Commands | - | (radiant/grid.cpp:189)
 - [x] `SetGrid0.25` | Commands | - | (radiant/grid.cpp:190)
@@ -839,7 +839,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `SnapToGrid` | Commands | Ctrl+G | (radiant/select.cpp:1886)
 - [~] `sunPlug::About` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 3
 - [~] `sunPlug::ET-MapCoordinator` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 3
-- [~] `SurfaceInspector` | Commands | S | (radiant/surfacedialog.cpp:1755) -- Stufe 2
+- [x] `SurfaceInspector` | Commands | S | (radiant/surfacedialog.cpp:1755) -- Stufe 2 Punkt 7
 - [~] `TagAdd` | Commands | - | (radiant/texwindow.cpp:2095) -- Stufe 2
 - [~] `TagCopy` | Commands | - | (radiant/texwindow.cpp:2098) -- Stufe 2
 - [~] `TagDelete` | Commands | - | (radiant/texwindow.cpp:2097) -- Stufe 2
@@ -848,19 +848,19 @@ Name | Art | Standardtaste | Quelle
 - [~] `TagSearch` | Commands | - | (radiant/texwindow.cpp:2094) -- Stufe 2
 - [~] `TagSearchUntagged` | Commands | - | (radiant/texwindow.cpp:2093) -- Stufe 2
 - [~] `TagsToggleGui` | Toggles | - | (radiant/texwindow.cpp:2110) -- Stufe 2
-- [~] `TexRotateClock` | Commands | Shift+PgDown | (radiant/select.cpp:1890) -- Stufe 2
-- [~] `TexRotateCounter` | Commands | Shift+PgUp | (radiant/select.cpp:1891) -- Stufe 2
-- [~] `TexScaleDown` | Commands | Ctrl+Down | (radiant/select.cpp:1893) -- Stufe 2
-- [~] `TexScaleLeft` | Commands | Ctrl+Left | (radiant/select.cpp:1894) -- Stufe 2
-- [~] `TexScaleRight` | Commands | Ctrl+Right | (radiant/select.cpp:1895) -- Stufe 2
-- [~] `TexScaleUp` | Commands | Ctrl+Up | (radiant/select.cpp:1892) -- Stufe 2
-- [~] `TexShiftDown` | Commands | Shift+Down | (radiant/select.cpp:1897) -- Stufe 2
-- [~] `TexShiftLeft` | Commands | Shift+Left | (radiant/select.cpp:1898) -- Stufe 2
-- [~] `TexShiftRight` | Commands | Shift+Right | (radiant/select.cpp:1899) -- Stufe 2
-- [~] `TexShiftUp` | Commands | Shift+Up | (radiant/select.cpp:1896) -- Stufe 2
-- [~] `TextureProjectAxial` | Commands | - | (radiant/surfacedialog.cpp:1752) -- Stufe 2
-- [~] `TextureProjectCam` | Commands | - | (radiant/surfacedialog.cpp:1754) -- Stufe 2
-- [~] `TextureProjectOrtho` | Commands | - | (radiant/surfacedialog.cpp:1753) -- Stufe 2
+- [x] `TexRotateClock` | Commands | Shift+PgDown | (radiant/select.cpp:1890) -- Stufe 2 Punkt 7
+- [x] `TexRotateCounter` | Commands | Shift+PgUp | (radiant/select.cpp:1891) -- Stufe 2 Punkt 7
+- [x] `TexScaleDown` | Commands | Ctrl+Down | (radiant/select.cpp:1893) -- Stufe 2 Punkt 7
+- [x] `TexScaleLeft` | Commands | Ctrl+Left | (radiant/select.cpp:1894) -- Stufe 2 Punkt 7
+- [x] `TexScaleRight` | Commands | Ctrl+Right | (radiant/select.cpp:1895) -- Stufe 2 Punkt 7
+- [x] `TexScaleUp` | Commands | Ctrl+Up | (radiant/select.cpp:1892) -- Stufe 2 Punkt 7
+- [x] `TexShiftDown` | Commands | Shift+Down | (radiant/select.cpp:1897) -- Stufe 2 Punkt 7
+- [x] `TexShiftLeft` | Commands | Shift+Left | (radiant/select.cpp:1898) -- Stufe 2 Punkt 7
+- [x] `TexShiftRight` | Commands | Shift+Right | (radiant/select.cpp:1899) -- Stufe 2 Punkt 7
+- [x] `TexShiftUp` | Commands | Shift+Up | (radiant/select.cpp:1896) -- Stufe 2 Punkt 7
+- [x] `TextureProjectAxial` | Commands | - | (radiant/surfacedialog.cpp:1752) -- Stufe 2 Punkt 7
+- [x] `TextureProjectCam` | Commands | - | (radiant/surfacedialog.cpp:1754) -- Stufe 2 Punkt 7
+- [x] `TextureProjectOrtho` | Commands | - | (radiant/surfacedialog.cpp:1753) -- Stufe 2 Punkt 7
 - [x] `TextureReset/Cap` | Commands | Shift+N | (radiant/surfacedialog.cpp:1746) -- Stufe 2 Punkt 6
 - [x] `ToggleCamera` | Toggles | Ctrl+Shift+C | (radiant/camwindow.cpp:2498)
 - [x] `ToggleClipper` | Toggles | X | (radiant/tools.cpp:426) -- Stufe 2 Punkt 2
@@ -936,7 +936,7 @@ Name | Art | Standardtaste | Quelle
 - [x] "NetRadiant Preferences"  (radiant/preferences.cpp:584) -- Rahmen, Baum, alle 23 Seiten (12 noch Platzhalter, siehe Einstellungsseiten)
 - [x] "Arbitrary rotation"  (radiant/select.cpp:1589) -- Stufe 2 Punkt 5
 - [x] "Arbitrary scale"  (radiant/select.cpp:1681) -- Stufe 2 Punkt 5
-- [ ] "Surface Inspector"  (radiant/surfacedialog.cpp:637)
+- [x] "Surface Inspector"  (radiant/surfacedialog.cpp:637) -- Stufe 2 Punkt 7
 
 ## Einstellungsseiten
 
@@ -951,7 +951,7 @@ Name | Art | Standardtaste | Quelle
 - [ ] Model Browser: "Model Browser Preferences"  (radiant/modelwindow.cpp:1364)
 - [x] Patches: "Patch Display Preferences"  (radiant/patchmanip.cpp:676) -- Stufe 2 Punkt 6
 - [x] Selection: "Selection System Settings"  (radiant/selection.cpp:2328)
-- [ ] Surface Inspector: "Surface Inspector Preferences"  (radiant/surfacedialog.cpp:1738)
+- [x] Surface Inspector: "Surface Inspector Preferences"  (radiant/surfacedialog.cpp:1738) -- Stufe 2 Punkt 7
 - [ ] Textures: "Texture Settings"  (radiant/textures.cpp:831)
 - [x] Texture Browser: "Texture Browser Preferences"  (radiant/texwindow.cpp:2075)
 - [ ] Undo: "Undo Queue Settings"  (radiant/undo.cpp:403)
@@ -1012,7 +1012,7 @@ Name | Art | Standardtaste | Quelle
 - [x] CheckBox Prefer point entities in 2D  (radiant/selection.cpp:2315)
 - [x] CheckBox Create brushes in 3D  (radiant/selection.cpp:2316)
 - [x] Combo Move style in 3D  (radiant/selection.cpp:2319)
-- [ ] CheckBox Surface Inspector Increments Match Grid  (radiant/surfacedialog.cpp:1735)
+- [x] CheckBox Surface Inspector Increments Match Grid  (radiant/surfacedialog.cpp:1735) -- Stufe 2 Punkt 7
 - [ ] Radio Texture Quality  (radiant/textures.cpp:764)
 - [ ] Spinner Texture Gamma  (radiant/textures.cpp:771)
 - [ ] Combo Texture Render Mode  (radiant/textures.cpp:780)

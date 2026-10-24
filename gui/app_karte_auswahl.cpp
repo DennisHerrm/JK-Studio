@@ -688,6 +688,34 @@ void auswahlBefehl(const std::string& name) {
             if (name == n) { karte::patchBefehl(k, b); }
         }
         ed.bearbeitung.pivotGeaendert();
+    } else if (name == "SurfaceInspector") {   // SurfaceInspector_toggleShown
+        siUmschalten();
+    } else if (name.rfind("FitTexture", 0) == 0) {
+        siEinpassenBefehl(name == "FitTexture"            ? 0
+                          : name == "FitTextureWidth"     ? 1
+                          : name == "FitTextureHeight"    ? 2
+                          : name == "FitTextureWidthOnly" ? 3
+                                                          : 4);
+    } else if (name == "TextureProjectAxial" || name == "TextureProjectOrtho" || name == "TextureProjectCam") {
+        siProjizierenBefehl(name == "TextureProjectAxial" ? 0 : name == "TextureProjectOrtho" ? 1 : 2);
+    } else if (name == "TexRotateClock" || name == "TexRotateCounter") {   // Texdef_RotateClockwise / AntiClockwise
+        const float w = std::fabs(ed.siWerte.drehung);
+        karte::texdefDrehen(k, einst, name == "TexRotateClock" ? -w : w);
+    } else if (name.rfind("TexScale", 0) == 0) {   // Texdef_ScaleUp/Down/Left/Right
+        const karte::SiWerte& w = ed.siWerte;
+        if (name == "TexScaleUp") { karte::texdefSkalieren(k, einst, 0, w.skalierung[1]); }
+        if (name == "TexScaleDown") { karte::texdefSkalieren(k, einst, 0, -w.skalierung[1]); }
+        if (name == "TexScaleLeft") { karte::texdefSkalieren(k, einst, -w.skalierung[0], 0); }
+        if (name == "TexScaleRight") { karte::texdefSkalieren(k, einst, w.skalierung[0], 0); }
+    } else if (name.rfind("TexShift", 0) == 0) {   // Texdef_ShiftLeft/Right/Up/Down
+        const karte::SiWerte& w = ed.siWerte;
+        if (name == "TexShiftLeft") { karte::texdefSchieben(k, einst, -w.verschiebung[0], 0); }
+        if (name == "TexShiftRight") { karte::texdefSchieben(k, einst, w.verschiebung[0], 0); }
+        if (name == "TexShiftUp") { karte::texdefSchieben(k, einst, 0, w.verschiebung[1]); }
+        if (name == "TexShiftDown") { karte::texdefSchieben(k, einst, 0, -w.verschiebung[1]); }
+    } else if (name == "SelectTextured") {   // Select_FacesAndPatchesByShader_
+        karte::waehleFlaechenNachShader(k, ed.bearbeitung.browserShader);
+        auswahlGeaendert();
     } else if (name == "MakeDetail" || name == "MakeStructural") {   // Select_MakeDetail / Select_MakeStructural
         karte::pinselDetailSetzen(k, name == "MakeDetail");
     } else if (name == "DragVertices") {

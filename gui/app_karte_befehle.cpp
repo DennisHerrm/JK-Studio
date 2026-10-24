@@ -142,7 +142,12 @@ std::map<std::string, Umsetzung>& umsetzungen() {
                           "PatchInsertLastColumn", "PatchInsertFirstRow", "PatchInsertLastRow", "PatchDeleteFirstColumn",
                           "PatchDeleteLastColumn", "PatchDeleteFirstRow", "PatchDeleteLastRow", "InvertCurve", "MatrixTranspose",
                           "RedisperseRows", "RedisperseCols", "SmoothRows", "SmoothCols", "TextureReset/Cap", "NaturalizePatch",
-                          "InvertCurveTextureX", "InvertCurveTextureY", "PatchDeform", "PatchThicken"}) {
+                          "InvertCurveTextureX", "InvertCurveTextureY", "PatchDeform", "PatchThicken",
+                          // Stufe 2, Punkt 7: Texturen (surfacedialog.cpp:1745-1755, select.cpp:1857, 1890-1899)
+                          "SurfaceInspector", "FitTexture", "FitTextureWidth", "FitTextureHeight", "FitTextureWidthOnly",
+                          "FitTextureHeightOnly", "TextureProjectAxial", "TextureProjectOrtho", "TextureProjectCam", "TexRotateClock",
+                          "TexRotateCounter", "TexScaleUp", "TexScaleDown", "TexScaleLeft", "TexScaleRight", "TexShiftUp", "TexShiftDown",
+                          "TexShiftLeft", "TexShiftRight", "SelectTextured"}) {
         const std::string name = n;
         m[name] = {[name] { auswahlBefehl(name); }, nullptr};
     }
