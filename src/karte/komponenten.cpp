@@ -118,6 +118,7 @@ void komponentenUmkehren(Karte& k, KomponentenModus modus) {
                 break;
             case KomponentenModus::Flaeche:
                 for (const auto& f : pinsel->flaechen()) {   // ohne gefilterte Flaechen (isFiltered)
+                    if (f->gefiltert) { continue; }
                     if (k.auswahl.flaecheGewaehlt(f.get())) {
                         k.auswahl.flaecheAbwaehlen(f.get());
                     } else {

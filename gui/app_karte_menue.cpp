@@ -578,12 +578,12 @@ void knopf(const Knopf& k, int x, int y) {
     symbolZeichnen(dl, k.bild, ImVec2{std::floor(a.x + (b.x - a.x - g) * 0.5F), std::floor(a.y + (b.y - a.y - g) * 0.5F)}, g, da);
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && da) { (void)ausfuehren(befehl); }
     // FilterToolbarHandler (filterbar.cpp:104-118): Rechtsklick auf einen
-    // Filterknopf mit eigener Handlung fuehrt sie aus.
-    // Kontextmenues kommen unter Windows beim Loslassen (WM_CONTEXTMENU).
-    if (hover && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && k.rechtsklick[0] != 0) {
-        const std::string r = k.rechtsklick;
-        g_rechtsklickBehandelt = true;   // eventFilter: event->accept(); return true
-        if (r.rfind("tex:", 0) != 0 && r != "func_group") { (void)ausfuehren(r); }
+    // Filterknopf mit eigener Handlung fuehrt sie beim Druecken (auch beim
+    // Doppelklick) aus; das Kontextmenue (unter Windows beim Loslassen,
+    // WM_CONTEXTMENU) wird dort geschluckt.
+    if (hover && k.rechtsklick[0] != 0) {
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) { filterleisteRechtsklick(k); }
+        if (ImGui::IsMouseReleased(ImGuiMouseButton_Right)) { g_rechtsklickBehandelt = true; }   // eventFilter: return true
     }
     if (hover) {
         std::vector<std::string> zeilen;
@@ -848,7 +848,13 @@ void zeichneRechteLeisten(int x, int y, int hoehe) {
     for (const auto* l : leisten) { masse.push_back(leistenMass(*l)); }
     const std::vector<karte::Spanne> zeile = karte::leistenZeile(masse, hoehe);
     for (std::size_t i = 0; i < leisten.size(); ++i) {
-        if (i == 0 && ed.filterleiste) { merkeFeld("Filterleiste", x, y + zeile[i].pos, mass::kLeisteH, zeile[i].groesse); }
+        if (i == 0 && ed.filterleiste) {
+            merkeFeld("Filterleiste", x, y + zeile[i].pos, mass::kLeisteH, zeile[i].groesse);
+            static bool drin = false;   // QEvent::Enter der Filterleiste: m_recentFunc = nullptr
+            const bool jetzt = ImGui::IsMouseHoveringRect(bildpunkt(x, y + zeile[i].pos), bildpunkt(x + mass::kLeisteH, y + zeile[i].pos + zeile[i].groesse));
+            if (jetzt && !drin) { filterleisteBetreten(); }
+            drin = jetzt;
+        }
         leisteZeichnen(namen[i], *leisten[i], false, x, y + zeile[i].pos, zeile[i].groesse);
     }
     leistenMenue();
@@ -981,6 +987,8 @@ void einstellungenLaden() {
     ed.texQual.modus = std::clamp(static_cast<int>(zahl("TextureFiltering", 5)), 0, 5);
     ed.texQual.anisotropie = zahl("TextureAnisotropy", 1) != 0.0F;
     ed.texQual.kompression = 0;
+    // ConstructFilters: "SI_Exclude" (filters.cpp:206)
+    ed.filterMaske = static_cast<unsigned int>(zahl("SI_Exclude", 0));
     // Autosave_Construct (autosave.cpp:184-190), RegionBoxShader (watchbsp.cpp:266)
     ed.autosave.an = zahl("Autosave", 1) != 0.0F;
     ed.autosave.minuten = std::clamp(static_cast<int>(zahl("AutosaveMinutes", 15)), 1, 60);
@@ -1124,6 +1132,7 @@ void einstellungenSpeichern() {
     k["SI_SurfaceTexdef_Rotate"] = karte::zahlText(ed.siWerte.drehung);
     k["SnapTToGrid"] = ed.siWerte.rasterAnpassen ? "1" : "0";
     k["TagsShowGui"] = ed.tags.gui ? "1" : "0";
+    k["SI_Exclude"] = std::to_string(ed.filterMaske);
     k["Autosave"] = ed.autosave.an ? "1" : "0";
     k["AutosaveMinutes"] = std::to_string(ed.autosave.minuten);
     k["Snapshots"] = ed.autosave.schnappschuesse ? "1" : "0";

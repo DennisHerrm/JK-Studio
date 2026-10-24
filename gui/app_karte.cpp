@@ -963,6 +963,7 @@ void zeichne(float hoehe) {
     if (!e.belegungGeladen) { einstellungenLaden(); }
     zusatztastenPruefen();   // g_modifiers (onModifierDown / onModifierUp)
     texturenAktualisieren();   // g_ActiveShaders: Shader der Karte, in Gebrauch
+    filterPruefen();           // Filterable::updateFiltered (Node::eFiltered, Face::m_filtered)
     // GetGridSize / GetSnapGridSize und Select_getWorkZone fuer das Auswahlsystem
     if (e.karte.auswahl.anzahl() != 0) {   // Selection_UpdateWorkzone: getBoundsSelected
         const karte::Kasten b = karte::auswahlGrenzenPivot(e.karte);

@@ -61,31 +61,31 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### Filters_constructMenu (radiant/filters.cpp)
 
-  - [~] CHECK World -> `FilterWorldBrushes`  (radiant/filters.cpp:161) -- Stufe 2
-  - [~] CHECK Entities -> `FilterEntities`  (radiant/filters.cpp:162) -- Stufe 2
-  - [~] CHECK Areaportals -> `FilterAreaportals`  (radiant/filters.cpp:168) -- Stufe 2
-  - [~] CHECK Translucent -> `FilterTranslucent`  (radiant/filters.cpp:170) -- Stufe 2
-  - [~] CHECK Liquids -> `FilterLiquids`  (radiant/filters.cpp:172) -- Stufe 2
-  - [~] CHECK Caulk -> `FilterCaulk`  (radiant/filters.cpp:174) -- Stufe 2
-  - [~] CHECK Clips -> `FilterClips`  (radiant/filters.cpp:175) -- Stufe 2
-  - [~] CHECK Paths -> `FilterPaths`  (radiant/filters.cpp:176) -- Stufe 2
-  - [~] CHECK Clusterportals -> `FilterClusterportals`  (radiant/filters.cpp:178) -- Stufe 2
-  - [~] CHECK Lights -> `FilterLights`  (radiant/filters.cpp:180) -- Stufe 2
-  - [~] CHECK Structural -> `FilterStructural`  (radiant/filters.cpp:181) -- Stufe 2
-  - [~] CHECK Lightgrid -> `FilterLightgrid`  (radiant/filters.cpp:183) -- Stufe 2
-  - [~] CHECK Patches -> `FilterPatches`  (radiant/filters.cpp:185) -- Stufe 2
-  - [~] CHECK Details -> `FilterDetails`  (radiant/filters.cpp:186) -- Stufe 2
-  - [~] CHECK Hints -> `FilterHintsSkips`  (radiant/filters.cpp:187) -- Stufe 2
-  - [~] CHECK Models -> `FilterModels`  (radiant/filters.cpp:188) -- Stufe 2
-  - [~] CHECK Triggers -> `FilterTriggers`  (radiant/filters.cpp:189) -- Stufe 2
-  - [~] CHECK Botclips -> `FilterBotClips`  (radiant/filters.cpp:191) -- Stufe 2
-  - [~] CHECK Decals -> `FilterDecals`  (radiant/filters.cpp:192) -- Stufe 2
-  - [~] CHECK FuncGroups -> `FilterFuncGroups`  (radiant/filters.cpp:194) -- Stufe 2
-  - [~] CHECK Point Entities -> `FilterPointEntities`  (radiant/filters.cpp:195) -- Stufe 2
-  - [~] CHECK Sky -> `FilterSky`  (radiant/filters.cpp:196) -- Stufe 2
+  - [x] CHECK World -> `FilterWorldBrushes`  (radiant/filters.cpp:161) -- Stufe 2 Punkt 9
+  - [x] CHECK Entities -> `FilterEntities`  (radiant/filters.cpp:162) -- Stufe 2 Punkt 9
+  - [x] CHECK Areaportals -> `FilterAreaportals`  (radiant/filters.cpp:168) -- Stufe 2 Punkt 9
+  - [x] CHECK Translucent -> `FilterTranslucent`  (radiant/filters.cpp:170) -- Stufe 2 Punkt 9
+  - [x] CHECK Liquids -> `FilterLiquids`  (radiant/filters.cpp:172) -- Stufe 2 Punkt 9
+  - [x] CHECK Caulk -> `FilterCaulk`  (radiant/filters.cpp:174) -- Stufe 2 Punkt 9
+  - [x] CHECK Clips -> `FilterClips`  (radiant/filters.cpp:175) -- Stufe 2 Punkt 9
+  - [x] CHECK Paths -> `FilterPaths`  (radiant/filters.cpp:176) -- Stufe 2 Punkt 9
+  - [x] CHECK Clusterportals -> `FilterClusterportals`  (radiant/filters.cpp:178) -- Stufe 2 Punkt 9
+  - [x] CHECK Lights -> `FilterLights`  (radiant/filters.cpp:180) -- Stufe 2 Punkt 9
+  - [x] CHECK Structural -> `FilterStructural`  (radiant/filters.cpp:181) -- Stufe 2 Punkt 9
+  - [x] CHECK Lightgrid -> `FilterLightgrid`  (radiant/filters.cpp:183) -- Stufe 2 Punkt 9
+  - [x] CHECK Patches -> `FilterPatches`  (radiant/filters.cpp:185) -- Stufe 2 Punkt 9
+  - [x] CHECK Details -> `FilterDetails`  (radiant/filters.cpp:186) -- Stufe 2 Punkt 9
+  - [x] CHECK Hints -> `FilterHintsSkips`  (radiant/filters.cpp:187) -- Stufe 2 Punkt 9
+  - [x] CHECK Models -> `FilterModels`  (radiant/filters.cpp:188) -- Stufe 2 Punkt 9
+  - [x] CHECK Triggers -> `FilterTriggers`  (radiant/filters.cpp:189) -- Stufe 2 Punkt 9
+  - [x] CHECK Botclips -> `FilterBotClips`  (radiant/filters.cpp:191) -- Stufe 2 Punkt 9
+  - [x] CHECK Decals -> `FilterDecals`  (radiant/filters.cpp:192) -- Stufe 2 Punkt 9
+  - [x] CHECK FuncGroups -> `FilterFuncGroups`  (radiant/filters.cpp:194) -- Stufe 2 Punkt 9
+  - [x] CHECK Point Entities -> `FilterPointEntities`  (radiant/filters.cpp:195) -- Stufe 2 Punkt 9
+  - [x] CHECK Sky -> `FilterSky`  (radiant/filters.cpp:196) -- Stufe 2 Punkt 9
   * ---
-  - [~] ITEM Invert filters -> `InvertFilters`  (radiant/filters.cpp:199) -- Stufe 2
-  - [~] ITEM Reset filters -> `ResetFilters`  (radiant/filters.cpp:200) -- Stufe 2
+  - [x] ITEM Invert filters -> `InvertFilters`  (radiant/filters.cpp:199) -- Stufe 2 Punkt 9
+  - [x] ITEM Reset filters -> `ResetFilters`  (radiant/filters.cpp:200) -- Stufe 2 Punkt 9
 
 ### Grid_constructMenu (radiant/grid.cpp)
 
@@ -423,24 +423,24 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### create_filter_toolbar (radiant/filterbar.cpp)
 
-- [~] toggle_button World | f-world.png -> `FilterWorldBrushes`  (radiant/filterbar.cpp:140) -- Stufe 2
-- [~] toggle_button Structural / RightClick: MakeStructural | f-structural.png -> `FilterStructural`  (radiant/filterbar.cpp:142) -- Stufe 2
-- [~] toggle_button Details / RightClick: MakeDetail | f-details.png -> `FilterDetails`  (radiant/filterbar.cpp:145) -- Stufe 2
-- [~] toggle_button Func_Groups / RightClick: create func_group | f-funcgroups.png -> `FilterFuncGroups`  (radiant/filterbar.cpp:148) -- Stufe 2
-- [~] toggle_button Patches | f-patches.png -> `FilterPatches`  (radiant/filterbar.cpp:151) -- Stufe 2
-- [~] toggle_button Translucent / RightClick: toggle tex / noDraw / noDrawNonSolid | f-translucent.png -> `FilterTranslucent`  (radiant/filterbar.cpp:161) -- Stufe 2
-- [~] toggle_button Liquids / RightClick: toggle tex / waterCaulk / lavaCaulk / slimeCaulk | f-liquids.png -> `FilterLiquids`  (radiant/filterbar.cpp:164) -- Stufe 2
-- [~] toggle_button Caulk / RightClick: tex Caulk | f-caulk.png -> `FilterCaulk`  (radiant/filterbar.cpp:167) -- Stufe 2
-- [~] toggle_button Clips / RightClick: toggle tex / playerClip / weapClip | f-clip.png -> `FilterClips`  (radiant/filterbar.cpp:170) -- Stufe 2
-- [~] toggle_button HintsSkips / RightClick: toggle tex / hint / hintLocal / hintSkip | f-hint.png -> `FilterHintsSkips`  (radiant/filterbar.cpp:173) -- Stufe 2
-- [~] toggle_button Sky | f-sky.png -> `FilterSky`  (radiant/filterbar.cpp:176) -- Stufe 2
-- [~] toggle_button Entities | f-entities.png -> `FilterEntities`  (radiant/filterbar.cpp:180) -- Stufe 2
-- [~] toggle_button Point Entities | f-pointentities.png -> `FilterPointEntities`  (radiant/filterbar.cpp:181) -- Stufe 2
-- [~] toggle_button Lights | f-lights.png -> `FilterLights`  (radiant/filterbar.cpp:182) -- Stufe 2
-- [~] toggle_button Models | f-models.png -> `FilterModels`  (radiant/filterbar.cpp:183) -- Stufe 2
-- [~] toggle_button Triggers / RightClick: tex Trigger | f-triggers.png -> `FilterTriggers`  (radiant/filterbar.cpp:185) -- Stufe 2
-- [~] button ResetFilters | f-reset.png -> `ResetFilters`  (radiant/filterbar.cpp:192) -- Stufe 2
-- [ ] toggle_button Region Set Selection / RightClick: Region Off | f-region.png -> `RegionSetSelection`  (radiant/filterbar.cpp:195)
+- [x] toggle_button World | f-world.png -> `FilterWorldBrushes`  (radiant/filterbar.cpp:140) -- Stufe 2 Punkt 9
+- [x] toggle_button Structural / RightClick: MakeStructural | f-structural.png -> `FilterStructural`  (radiant/filterbar.cpp:142) -- Stufe 2 Punkt 9
+- [x] toggle_button Details / RightClick: MakeDetail | f-details.png -> `FilterDetails`  (radiant/filterbar.cpp:145) -- Stufe 2 Punkt 9
+- [x] toggle_button Func_Groups / RightClick: create func_group | f-funcgroups.png -> `FilterFuncGroups`  (radiant/filterbar.cpp:148) -- Stufe 2 Punkt 9
+- [x] toggle_button Patches | f-patches.png -> `FilterPatches`  (radiant/filterbar.cpp:151) -- Stufe 2 Punkt 9
+- [x] toggle_button Translucent / RightClick: toggle tex / noDraw / noDrawNonSolid | f-translucent.png -> `FilterTranslucent`  (radiant/filterbar.cpp:161) -- Stufe 2 Punkt 9
+- [x] toggle_button Liquids / RightClick: toggle tex / waterCaulk / lavaCaulk / slimeCaulk | f-liquids.png -> `FilterLiquids`  (radiant/filterbar.cpp:164) -- Stufe 2 Punkt 9
+- [x] toggle_button Caulk / RightClick: tex Caulk | f-caulk.png -> `FilterCaulk`  (radiant/filterbar.cpp:167) -- Stufe 2 Punkt 9
+- [x] toggle_button Clips / RightClick: toggle tex / playerClip / weapClip | f-clip.png -> `FilterClips`  (radiant/filterbar.cpp:170) -- Stufe 2 Punkt 9
+- [x] toggle_button HintsSkips / RightClick: toggle tex / hint / hintLocal / hintSkip | f-hint.png -> `FilterHintsSkips`  (radiant/filterbar.cpp:173) -- Stufe 2 Punkt 9
+- [x] toggle_button Sky | f-sky.png -> `FilterSky`  (radiant/filterbar.cpp:176) -- Stufe 2 Punkt 9
+- [x] toggle_button Entities | f-entities.png -> `FilterEntities`  (radiant/filterbar.cpp:180) -- Stufe 2 Punkt 9
+- [x] toggle_button Point Entities | f-pointentities.png -> `FilterPointEntities`  (radiant/filterbar.cpp:181) -- Stufe 2 Punkt 9
+- [x] toggle_button Lights | f-lights.png -> `FilterLights`  (radiant/filterbar.cpp:182) -- Stufe 2 Punkt 9
+- [x] toggle_button Models | f-models.png -> `FilterModels`  (radiant/filterbar.cpp:183) -- Stufe 2 Punkt 9
+- [x] toggle_button Triggers / RightClick: tex Trigger | f-triggers.png -> `FilterTriggers`  (radiant/filterbar.cpp:185) -- Stufe 2 Punkt 9
+- [x] button ResetFilters | f-reset.png -> `ResetFilters`  (radiant/filterbar.cpp:192) -- Stufe 2 Punkt 9
+- [x] toggle_button Region Set Selection / RightClick: Region Off | f-region.png -> `RegionSetSelection`  (radiant/filterbar.cpp:195) -- Stufe 2 Punkt 9
 - [x] toggle_button Hide Selected / RightClick: Show Hidden | f-hide.png -> `HideSelected`  (radiant/filterbar.cpp:198)
 
 ### File_constructToolbar (radiant/mainframe.cpp)
@@ -651,29 +651,29 @@ Name | Art | Standardtaste | Quelle
 - [x] `ExpandSelectionToEntities` | Commands | Shift+E | (radiant/select.cpp:1880) -- Stufe 1b Punkt 9
 - [~] `ExpandSelectionToLayers` | Commands | Ctrl+Q | (radiant/layerswindow.cpp:580) -- Stufe 2
 - [x] `ExpandSelectionToPrimitives` | Commands | Ctrl+E | (radiant/select.cpp:1879) -- Stufe 2 Punkt 8
-- [~] `FilterAreaportals` | Toggles | Alt+3 | (radiant/filters.cpp:220) -- Stufe 2
-- [~] `FilterBotClips` | Toggles | Alt+M | (radiant/filters.cpp:241) -- Stufe 2
-- [~] `FilterCaulk` | Toggles | Alt+6 | (radiant/filters.cpp:224) -- Stufe 2
-- [~] `FilterClips` | Toggles | Alt+7 | (radiant/filters.cpp:225) -- Stufe 2
-- [~] `FilterClusterportals` | Toggles | Alt+9 | (radiant/filters.cpp:228) -- Stufe 2
-- [~] `FilterDecals` | Toggles | Shift+D | (radiant/filters.cpp:242) -- Stufe 2
-- [~] `FilterDetails` | Toggles | Ctrl+D | (radiant/filters.cpp:236) -- Stufe 2
-- [~] `FilterEntities` | Toggles | Alt+2 | (radiant/filters.cpp:214) -- Stufe 2
-- [~] `FilterFuncGroups` | Toggles | - | (radiant/filters.cpp:244) -- Stufe 2
-- [~] `FilterHintsSkips` | Toggles | Ctrl+H | (radiant/filters.cpp:237) -- Stufe 2
-- [~] `FilterLightgrid` | Toggles | - | (radiant/filters.cpp:233) -- Stufe 2
-- [~] `FilterLights` | Toggles | Alt+0 | (radiant/filters.cpp:230) -- Stufe 2
-- [~] `FilterLiquids` | Toggles | Alt+5 | (radiant/filters.cpp:223) -- Stufe 2
-- [~] `FilterModels` | Toggles | Shift+M | (radiant/filters.cpp:238) -- Stufe 2
+- [x] `FilterAreaportals` | Toggles | Alt+3 | (radiant/filters.cpp:220) -- Stufe 2 Punkt 9
+- [x] `FilterBotClips` | Toggles | Alt+M | (radiant/filters.cpp:241) -- Stufe 2 Punkt 9
+- [x] `FilterCaulk` | Toggles | Alt+6 | (radiant/filters.cpp:224) -- Stufe 2 Punkt 9
+- [x] `FilterClips` | Toggles | Alt+7 | (radiant/filters.cpp:225) -- Stufe 2 Punkt 9
+- [x] `FilterClusterportals` | Toggles | Alt+9 | (radiant/filters.cpp:228) -- Stufe 2 Punkt 9
+- [x] `FilterDecals` | Toggles | Shift+D | (radiant/filters.cpp:242) -- Stufe 2 Punkt 9
+- [x] `FilterDetails` | Toggles | Ctrl+D | (radiant/filters.cpp:236) -- Stufe 2 Punkt 9
+- [x] `FilterEntities` | Toggles | Alt+2 | (radiant/filters.cpp:214) -- Stufe 2 Punkt 9
+- [x] `FilterFuncGroups` | Toggles | - | (radiant/filters.cpp:244) -- Stufe 2 Punkt 9
+- [x] `FilterHintsSkips` | Toggles | Ctrl+H | (radiant/filters.cpp:237) -- Stufe 2 Punkt 9
+- [x] `FilterLightgrid` | Toggles | - | (radiant/filters.cpp:233) -- Stufe 2 Punkt 9
+- [x] `FilterLights` | Toggles | Alt+0 | (radiant/filters.cpp:230) -- Stufe 2 Punkt 9
+- [x] `FilterLiquids` | Toggles | Alt+5 | (radiant/filters.cpp:223) -- Stufe 2 Punkt 9
+- [x] `FilterModels` | Toggles | Shift+M | (radiant/filters.cpp:238) -- Stufe 2 Punkt 9
 - [x] `FilterNotex` | Toggles | - | (radiant/texwindow.cpp:2108)
-- [~] `FilterPatches` | Toggles | Ctrl+P | (radiant/filters.cpp:235) -- Stufe 2
-- [~] `FilterPaths` | Toggles | Alt+8 | (radiant/filters.cpp:226) -- Stufe 2
-- [~] `FilterPointEntities` | Toggles | - | (radiant/filters.cpp:245) -- Stufe 2
-- [~] `FilterSky` | Toggles | - | (radiant/filters.cpp:246) -- Stufe 2
-- [~] `FilterStructural` | Toggles | Ctrl+Shift+D | (radiant/filters.cpp:231) -- Stufe 2
-- [~] `FilterTranslucent` | Toggles | Alt+4 | (radiant/filters.cpp:222) -- Stufe 2
-- [~] `FilterTriggers` | Toggles | Ctrl+Shift+T | (radiant/filters.cpp:239) -- Stufe 2
-- [~] `FilterWorldBrushes` | Toggles | Alt+1 | (radiant/filters.cpp:213) -- Stufe 2
+- [x] `FilterPatches` | Toggles | Ctrl+P | (radiant/filters.cpp:235) -- Stufe 2 Punkt 9
+- [x] `FilterPaths` | Toggles | Alt+8 | (radiant/filters.cpp:226) -- Stufe 2 Punkt 9
+- [x] `FilterPointEntities` | Toggles | - | (radiant/filters.cpp:245) -- Stufe 2 Punkt 9
+- [x] `FilterSky` | Toggles | - | (radiant/filters.cpp:246) -- Stufe 2 Punkt 9
+- [x] `FilterStructural` | Toggles | Ctrl+Shift+D | (radiant/filters.cpp:231) -- Stufe 2 Punkt 9
+- [x] `FilterTranslucent` | Toggles | Alt+4 | (radiant/filters.cpp:222) -- Stufe 2 Punkt 9
+- [x] `FilterTriggers` | Toggles | Ctrl+Shift+T | (radiant/filters.cpp:239) -- Stufe 2 Punkt 9
+- [x] `FilterWorldBrushes` | Toggles | Alt+1 | (radiant/filters.cpp:213) -- Stufe 2 Punkt 9
 - [x] `FindBrush` | Commands | - | (radiant/map.cpp:2444) -- Stufe 2 Punkt 8
 - [x] `FindReplaceTextures` | Commands | - | (radiant/findtexturedialog.cpp:229)
 - [x] `FitTexture` | Commands | Ctrl+F | (radiant/surfacedialog.cpp:1747) -- Stufe 2 Punkt 7
@@ -690,7 +690,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `InvertCurve` | Commands | Ctrl+I | (radiant/patchmanip.cpp:719) -- Stufe 2 Punkt 6
 - [x] `InvertCurveTextureX` | Commands | Ctrl+Shift+I | (radiant/patchmanip.cpp:694) -- Stufe 2 Punkt 6
 - [x] `InvertCurveTextureY` | Commands | Shift+I | (radiant/patchmanip.cpp:695) -- Stufe 2 Punkt 6
-- [~] `InvertFilters` | Commands | - | (radiant/filters.cpp:210) -- Stufe 2
+- [x] `InvertFilters` | Commands | - | (radiant/filters.cpp:210) -- Stufe 2 Punkt 9
 - [x] `InvertSelection` | Commands | I | (radiant/select.cpp:1876)
 - [~] `LayersMenu` | Commands | Shift+Q | (radiant/layerswindow.cpp:581) -- Stufe 2
 - [x] `MakeDetail` | Commands | Alt+D | (radiant/brushmanip.cpp:1493) -- Stufe 2 Punkt 3
@@ -778,7 +778,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `RegionSetSelection` | Toggles | Ctrl+Shift+R | (radiant/map.cpp:2441) -- Stufe 2 Punkt 8
 - [x] `RegionSetXY` | Commands | - | (radiant/map.cpp:2438) -- Stufe 2 Punkt 8
 - [x] `RepeatTransforms` | Commands | Ctrl+R | (radiant/select.cpp:1871) -- Stufe 2 Punkt 5
-- [~] `ResetFilters` | Commands | - | (radiant/filters.cpp:211) -- Stufe 2
+- [x] `ResetFilters` | Commands | - | (radiant/filters.cpp:211) -- Stufe 2 Punkt 9
 - [x] `ResetTransforms` | Commands | Alt+R | (radiant/select.cpp:1872) -- Stufe 2 Punkt 5
 - [x] `RotateSelectionAnticlockwise` | Commands | - | (radiant/select.cpp:1855) -- Stufe 2 Punkt 5
 - [x] `RotateSelectionClockwise` | Commands | - | (radiant/select.cpp:1854) -- Stufe 2 Punkt 5

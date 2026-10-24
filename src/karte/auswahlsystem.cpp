@@ -76,6 +76,7 @@ void pinselTesten(const Pinsel& p, const Kontext& k, AuswahlVolumen& test, Treff
     p.bRep(k);
     std::vector<Vektor3d> punkte;
     for (const auto& f : p.flaechen()) {
+        if (f->gefiltert) { continue; }   // FaceInstance::testSelect: !m_face->isFiltered()
         const Wicklung& w = f->wicklung();
         punkte.clear();
         for (std::size_t i = 0; i < w.numpoints; ++i) { punkte.push_back(w[i].vertex); }
@@ -260,6 +261,7 @@ void szeneTestenKomponenten(const Karte& k, Waehler& w, AuswahlVolumen& test, Ko
             }
             std::vector<Vektor3d> punkte;
             for (const auto& f : pinsel.flaechen()) {
+                if (f->gefiltert) { continue; }   // testSelect / testSelect_centroid: !isFiltered()
                 Treffer t;
                 if (test.blick().fuellen()) {   // FaceInstance::testSelect
                     const Wicklung& wi = f->wicklung();

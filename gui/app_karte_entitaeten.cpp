@@ -2028,6 +2028,8 @@ void erzeugen(const std::string& name, const karte::Vektor3f& ursprung) {
 
 }  // namespace
 
+void entitaetErzeugenAusAuswahl(const std::string& name, const karte::Vektor3f& ursprung) { erzeugen(name, ursprung); }
+
 void entitaetMenueGewaehlt(const std::string& klasse) {   // entitycreate_activated
     Editor& ed = e();
     EntitaetenOberflaeche& u = ed.ent;

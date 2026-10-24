@@ -129,6 +129,7 @@ public:
     [[nodiscard]] const TexturProjektion& projektion() const { return m_projektion; }
     TexturProjektion& projektionRoh() { return m_projektion; }   // fuer den Leser
     bool projektionInitialisiert = false;   // m_projectionInitialised
+    bool gefiltert = false;                 // m_filtered (face_filtered, filter.h): nicht gezeichnet, nicht waehlbar
     bool skalierungAngewandt = false;       // m_scaleApplied
     void setzeBasis(const Vektor3f& normal);   // FaceTexdef::setBasis (ComputeAxisBase)
     // GetTexdef: Projektion ohne Texturgroessen-Masstab (normalised).
@@ -232,8 +233,10 @@ public:
     bool versteckt = false;
     // Node::eExcluded (Region: exclude_node, map.cpp:1369-1373) - nicht im Undo.
     bool ausgeschlossen = false;
-    // Node::visible (scenelib.h:220-222): weder versteckt noch ausgeschlossen.
-    [[nodiscard]] bool sichtbar() const { return !versteckt && !ausgeschlossen; }
+    // Node::eFiltered (Brush/Patch::updateFiltered, filter.h) - nicht im Undo.
+    bool gefiltert = false;
+    // Node::visible (scenelib.h:220-222): weder versteckt noch gefiltert noch ausgeschlossen.
+    [[nodiscard]] bool sichtbar() const { return !versteckt && !ausgeschlossen && !gefiltert; }
 };
 constexpr int kSchichtKeine = -1;          // m_layer == nullptr (Gruppenentitaeten)
 constexpr int kSchichtUnerreichbar = -2;   // m_ownIndex bleibt LAYERIDXPARENT (-1)

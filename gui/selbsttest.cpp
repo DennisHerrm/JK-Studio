@@ -46,6 +46,7 @@
 #include "bhed/roffanim.h"
 #include "bhed/kartenpruefung.h"   // rc602
 #include "karteneditor.h"           // Stufe 1b: der Karten-Editor
+#include "bhed/karte/filter.h"
 #include "bhed/karte/kartenformat.h"
 
 #include <algorithm>
@@ -29498,6 +29499,92 @@ std::vector<Schritt> auswahlDatei() {
     return s;
 }
 
+bool alleFlaechen(const char* shader) {
+    const auto p = pinsel();
+    if (!p) { return false; }
+    for (const auto& f : p->flaechen()) {
+        if (f->shader() != shader) { return false; }
+    }
+    return true;
+}
+
+// Punkt 9: Filter (Menue, Tasten, Filterleiste mit Rechtsklick, Invert/Reset)
+std::vector<Schritt> filter() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(grundzustand("Stufe 2/9: Grundzustand"));
+    add(tu("Filter zuruecksetzen", [] { (void)ke::ausfuehren("ResetFilters"); }));
+    add(pause(0.4));
+    add(tasteKombi(ImGuiMod_Alt | ImGuiKey_6, "Alt+6"));
+    add(pause(0.2));
+    add(pruefe("Alt+6: Caulk-Filter an, der Caulk-Pinsel unsichtbar, Licht sichtbar", [] {
+        return ke::angehakt("FilterCaulk") && !pinsel()->sichtbar() && pinsel()->gefiltert && lichtEntitaet()->sichtbar();
+    }));
+    add(foto("karteneditor_filter_caulk"));
+    add(klickXy("M1 auf den gefilterten Pinsel", ImGuiMouseButton_Left, ImVec2{32, 32}));
+    add(pruefe("gefiltert: nicht waehlbar", [] { return ke::editor().karte.auswahl.anzahl() == 0; }));
+    add(tasteKombi(ImGuiMod_Alt | ImGuiKey_6, "Alt+6"));
+    add(pruefe("Alt+6: wieder sichtbar", [] { return !ke::angehakt("FilterCaulk") && pinsel()->sichtbar(); }));
+    add(tu("Filter > Lights", [] { (void)ke::ausfuehren("FilterLights"); }));
+    add(pruefe("Lights: das Licht gefiltert", [] { return ke::angehakt("FilterLights") && !lichtEntitaet()->sichtbar() && pinsel()->sichtbar(); }));
+    add(tu("Filter > Invert filters", [] { (void)ke::ausfuehren("InvertFilters"); }));
+    add(pruefe("Invert: Lights aus, alle anderen an - World und Entities filtern alles", [] {
+        const ke::Editor& e = ke::editor();
+        return !ke::angehakt("FilterLights") && ke::angehakt("FilterWorldBrushes") && ke::angehakt("FilterSky") && !pinsel()->sichtbar() &&
+               !lichtEntitaet()->sichtbar() && e.filterMaske == (karte::filterUmkehren(0) & ~static_cast<unsigned int>(karte::EXCLUDE_LIGHTS));
+    }));
+    // ResetFilters steht bei dieser Fensterhoehe (wie in NRC) hinter dem Erweiterungsknopf
+    add(tu("Filter > Reset filters", [] { (void)ke::ausfuehren("ResetFilters"); }));
+    add(pruefe("ResetFilters: nichts gefiltert", [] { return ke::editor().filterMaske == 0 && pinsel()->sichtbar() && lichtEntitaet()->sichtbar(); }));
+    add(klickAn("Filterleiste: Knopf Patches", elementOrt("##knopfFilterPatches")));
+    add(pruefe("Knopf Patches: FilterPatches an (SI_Exclude gespeichert)", [] {
+        const auto it = g_app->settings.karte.find("SI_Exclude");
+        return ke::angehakt("FilterPatches") && it != g_app->settings.karte.end() && it->second == std::to_string(karte::EXCLUDE_CURVES);
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_P, "Strg+P"));
+    add(pruefe("Strg+P: FilterPatches aus", [] { return !ke::angehakt("FilterPatches"); }));
+    // Rechtsklick-Handlungen der Filterleiste
+    add(klickXy("M1 auf den Pinsel", ImGuiMouseButton_Left, ImVec2{32, 32}));
+    add(klickAn("Rechtsklick Translucent", elementOrt("##knopfFilterTranslucent"), 1));
+    add(pruefe("Rechtsklick Translucent: system/nodraw, \"textureNameSetSelected\"", [] {
+        return alleFlaechen("textures/system/nodraw") && ke::editor().karte.undo.undoName() == "textureNameSetSelected";
+    }));
+    add(klickAn("Rechtsklick Translucent nochmal", elementOrt("##knopfFilterTranslucent"), 1));
+    add(pruefe("zweiter Rechtsklick: system/nodrawnonsolid", [] { return alleFlaechen("textures/system/nodrawnonsolid"); }));
+    add(klickAn("Rechtsklick Translucent ein drittes Mal", elementOrt("##knopfFilterTranslucent"), 1));
+    add(pruefe("dritter Rechtsklick: wieder system/nodraw", [] { return alleFlaechen("textures/system/nodraw"); }));
+    add(klickAn("Rechtsklick Translucent ein viertes Mal", elementOrt("##knopfFilterTranslucent"), 1));
+    add(tu("Maus aus der Filterleiste", [] { setzeMaus(weltXy(0, 0)); }));
+    add(pause(0.3));
+    add(klickAn("Rechtsklick Translucent nach dem Betreten", elementOrt("##knopfFilterTranslucent"), 1));
+    add(pruefe("nach QEvent::Enter: von vorn (system/nodraw)", [] { return alleFlaechen("textures/system/nodraw"); }));
+    add(klickAn("Rechtsklick Caulk", elementOrt("##knopfFilterCaulk"), 1));
+    add(pruefe("Rechtsklick Caulk: system/caulk", [] { return alleFlaechen("textures/system/caulk"); }));
+    add(klickAn("Rechtsklick Details", elementOrt("##knopfFilterDetails"), 1));
+    add(pruefe("Rechtsklick Details: MakeDetail", [] { return pinsel()->istDetail(); }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_D, "Strg+D"));
+    add(pruefe("Strg+D: der Detail-Pinsel gefiltert", [] { return ke::angehakt("FilterDetails") && !pinsel()->sichtbar(); }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_D, "Strg+D"));
+    add(klickAn("Rechtsklick Structural", elementOrt("##knopfFilterStructural"), 1));
+    add(pruefe("Rechtsklick Structural: MakeStructural", [] { return !pinsel()->istDetail(); }));
+    add(klickAn("Rechtsklick Func_Groups", elementOrt("##knopfFilterFuncGroups"), 1));
+    add(pruefe("Rechtsklick Func_Groups: func_group aus der Auswahl", [] {
+        const ke::Editor& e = ke::editor();
+        bool gruppe = false;
+        for (const auto& x : e.karte.entitaeten()) { gruppe = gruppe || (x->klassenname() == "func_group" && x->kinder().size() == 1); }
+        return gruppe && e.karte.undo.undoName() == "entityCreate -class func_group";
+    }));
+    add(tu("Filter > FuncGroups", [] { (void)ke::ausfuehren("FilterFuncGroups"); }));
+    add(pruefe("FuncGroups: die Gruppe (mit dem Pinsel) gefiltert", [] {
+        for (const auto& x : ke::editor().karte.entitaeten()) {
+            if (x->klassenname() == "func_group") { return !x->sichtbar(); }
+        }
+        return false;
+    }));
+    add(tu("Filter zuruecksetzen", [] { (void)ke::ausfuehren("ResetFilters"); }));
+    return s;
+}
+
 }  // namespace stufe2
 
 std::vector<Schritt> karteneditorStufe2Schritte() {
@@ -29510,6 +29597,7 @@ std::vector<Schritt> karteneditorStufe2Schritte() {
     for (Schritt& x : stufe2::patches()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::texturen()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::auswahlDatei()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe2::filter()) { s.push_back(std::move(x)); }
     return s;
 }
 

@@ -431,7 +431,7 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
                     kastenErweiternSicher(kinderBox, g);
                 }
                 for (const auto& fl : pinsel.flaechen()) {
-                    if (!fl->traegtBei()) { continue; }
+                    if (!fl->traegtBei() || fl->gefiltert) { continue; }   // FaceInstance::render: !m_face->isFiltered()
                     const Wicklung& w = fl->wicklung();
                     const Vektor3d& nd = fl->ebene().normal();
                     const Vektor3f n(static_cast<float>(nd[0]), static_cast<float>(nd[1]), static_cast<float>(nd[2]));

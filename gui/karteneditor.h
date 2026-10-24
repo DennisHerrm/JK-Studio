@@ -434,6 +434,9 @@ struct Editor {
         bool caulk = true;      // f-caulk.png, setChecked( true )
         bool innenWeg = true;   // csgtool_removeinner.png
     } csgWerkzeug;
+    // Filter (filters.cpp): g_filters_globals.exclude ("SI_Exclude")
+    unsigned int filterMaske = 0;
+    std::size_t filterSchluessel = 0;   // Stand, mit dem zuletzt gefiltert wurde
     // Region (map.cpp:1292-1297): g_region_active, g_region_mins/maxs
     karte::Region region;
     std::string regionKastenShader;   // g_regionBoxShader ("RegionBoxShader", Seite Build)
@@ -871,6 +874,15 @@ bool auswahlSpeichernUnter(const std::string& pfad);  // Map_SaveSelected
 bool regionSpeichernUnter(const std::string& pfad);   // Map_SaveRegion
 // EverySecondTimer (mainframe.cpp:727-746): jedes Bild aufrufen
 void autosaveJedeSekunde();
+// Stufe 2, Punkt 9 (app_karte_filter.cpp): die Filter
+void filterBefehl(const std::string& name);
+bool filterBefehlAn(const std::string& name);
+void filterPruefen();                       // jedes Bild vor dem Zeichnen: Filterables neu
+[[nodiscard]] std::size_t filterSchluesselJetzt();
+void filterleisteBetreten();                // QEvent::Enter der Filterleiste
+void filterleisteRechtsklick(const befehle::Knopf& k);
+// Entity_createFromSelection mit den Nachfragen (app_karte_entitaeten.cpp)
+void entitaetErzeugenAusAuswahl(const std::string& name, const karte::Vektor3f& ursprung);
 // MapResource_saveFile / MapResource_loadFile (referencecache.cpp:64-111):
 // "Open file X for write/read..." mit success / failure; Text wie
 // TextFileOutputStream (CR LF).

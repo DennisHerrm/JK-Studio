@@ -85,8 +85,10 @@ public:
     bool versteckt = false;
     // Node::eExcluded (Region: exclude_node, map.cpp:1369-1373) - nicht im Undo.
     bool ausgeschlossen = false;
-    // Node::visible (scenelib.h:220-222): weder versteckt noch ausgeschlossen.
-    [[nodiscard]] bool sichtbar() const { return !versteckt && !ausgeschlossen; }
+    // Node::eFiltered (ClassnameFilter::updateFiltered, filter.h) - nicht im Undo.
+    bool gefiltert = false;
+    // Node::visible (scenelib.h:220-222): weder versteckt noch gefiltert noch ausgeschlossen.
+    [[nodiscard]] bool sichtbar() const { return !versteckt && !ausgeschlossen && !gefiltert; }
 
     [[nodiscard]] std::unique_ptr<Memento> zustandSichern() const override;
     void zustandLaden(const Memento& m) override;

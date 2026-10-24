@@ -19,6 +19,8 @@
 //   Public License for more details (LICENSE).
 #include "karteneditor.h"
 
+#include "bhed/karte/filter.h"
+
 #include "app_internal.h"
 #include "tastatur.h"
 
@@ -158,6 +160,13 @@ std::map<std::string, Umsetzung>& umsetzungen() {
         m[name] = {[name] { dateiBefehl(name); }, nullptr};
     }
     m["RegionSetSelection"] = {[] { dateiBefehl("RegionSetSelection"); }, [] { return dateiBefehlAn("RegionSetSelection"); }};
+    // --- Stufe 2, Punkt 9: Filter (filters.cpp:205-243) ---
+    for (const karte::FilterBefehl& f : karte::filterBefehle()) {
+        const std::string name = f.name;
+        m[name] = {[name] { filterBefehl(name); }, [name] { return filterBefehlAn(name); }};
+    }
+    m["InvertFilters"] = {[] { filterBefehl("InvertFilters"); }, nullptr};
+    m["ResetFilters"] = {[] { filterBefehl("ResetFilters"); }, nullptr};
     // --- Texturbrowser (texwindow.cpp:2092-2111, findtexturedialog.cpp:229) ---
     for (const char* n : {"ShowAllTextures", "RefreshShaders", "FindReplaceTextures"}) {
         const std::string name = n;
