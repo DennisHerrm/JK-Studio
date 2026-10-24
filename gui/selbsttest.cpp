@@ -29402,6 +29402,26 @@ std::vector<Schritt> auswahlDatei() {
         return d.offen && d.entitaet == 0 && d.pinsel == 0 && finde("##suchpinsel", "", 0, true) != nullptr;
     }));
     add(foto("karteneditor_find_brush"));
+    // Stufe 3 Punkt 0: Textbreiten wie Qt (DirectWrite in Entwurfsmassen). Am
+    // Foto dlg_Misc_Find_brush_0.png (2x): die Felder beginnen bei 86 =
+    // 11 + 69 ("Entity number" in Tahoma 11 nach Qt) + 6, Innenraum 263 breit.
+    auto nrcVorher = std::make_shared<bool>(false);
+    add(tu("Find Brush: Begriffe wie NetRadiant", [nrcVorher] {
+        *nrcVorher = ke::nrcBegriffe();
+        ke::setzeNrcBegriffe(true);
+    }));
+    add(pause(0.2));
+    add(pruefe("Find Brush: Felder bei 86, Innenraum 263 breit wie das NRC-Foto", [] {
+        const ImGuiWindow* w = ImGui::FindWindowByName("###kartepinselsuche");
+        const Element* el = finde("##suchpinsel", "", 0, true);
+        if (w == nullptr || el == nullptr) { return false; }
+        const float sk = ke::massstab();
+        const long x = std::lround((el->rect.Min.x - w->Pos.x) / sk);
+        const long b = std::lround(w->Size.x / sk);
+        diag::detail("Knopftest: Find Brush - Feld ab " + std::to_string(x) + ", Innenraum " + std::to_string(b) + " breit");
+        return x == 86 && b == 263;
+    }));
+    add(tu("Find Brush: Begriffe zurueck", [nrcVorher] { ke::setzeNrcBegriffe(*nrcVorher); }));
     add(klickAn("Feld Brush number", elementOrt("##suchpinsel")));
     add(tippe("1"));
     add(tasteKombi(ImGuiKey_Enter, "Return"));
@@ -31724,9 +31744,9 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         }
         add(fotoRahmen(std::string("karteneditor_menu_") + m.datei, obersterPopupRahmen));
         // QMenu-Masse (app_karte_qtmenue.cpp): die Hoehe genau; die Breite
-        // mit GDI-Textbreiten wie Qt - Qt misst mit QTextLayout, die Laeufe
-        // k11rot zeigen bis 3 logische Punkte Unterschied je Menue (File, Help,
-        // General, Jedi Knight Jedi Academy u. a. genau).
+        // mit Textbreiten wie Qt (Stufe 3 Punkt 0: DirectWrite in
+        // Entwurfsmassen mit Unterschneidung) - 30 der 38 Menues genau, die
+        // uebrigen 1 Punkt breiter (mit GDI-Breiten waren es bis 3).
         const std::string name = m.datei;
         const int b = m.b;
         const int h = m.h;
@@ -31737,7 +31757,7 @@ std::vector<Schritt> karteneditorFotoSchritte() {
             const int uh = static_cast<int>(std::lround(r.GetHeight() / sk));
             diag::detail("Knopftest: Menue " + name + " - NRC " + std::to_string(b) + " x " + std::to_string(h) + ", hier " +
                          std::to_string(ub) + " x " + std::to_string(uh));
-            return uh == h && std::abs(ub - b) <= 3;
+            return uh == h && std::abs(ub - b) <= 1;
         }));
     }
     add(menuesZu());

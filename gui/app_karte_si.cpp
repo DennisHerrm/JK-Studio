@@ -58,7 +58,7 @@ ImVec2 bp(float x, float y) { return ImVec2{std::round(g_innen.x + x * g_sk), st
 float px(float l) { return std::round(l * g_sk); }
 
 float textBreite(const char* text) {
-    const int b = platform::gdiTextBreite(text, L"Tahoma", 11, false);
+    const int b = platform::qtTextBreite(text, L"Tahoma", 11.0F, false);
     return b >= 0 ? static_cast<float>(b) : std::round(ImGui::CalcTextSize(text).x / g_sk);
 }
 

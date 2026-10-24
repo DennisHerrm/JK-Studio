@@ -439,7 +439,7 @@ void zeichneQtEingabe() {
     dialogSchriftAn();
     // QVBoxLayout (Rand 11, Abstand 6): Beschriftung 13, QLineEdit 20, Knoepfe 22;
     // Breite: die Knopfreihe (2 x 80 + 6) oder die Beschriftung
-    const int lb = platform::gdiTextBreite(d.beschriftung, L"Tahoma", 11, false);
+    const int lb = platform::qtTextBreite(d.beschriftung, L"Tahoma", 11.0F, false);
     const float innenB = 11.0F + std::max(166.0F, static_cast<float>(std::max(lb, 0))) + 11.0F;
     const float innenH = 11.0F + 13.0F + 6.0F + 20.0F + 6.0F + 22.0F + 11.0F;
     const float titelH = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F;

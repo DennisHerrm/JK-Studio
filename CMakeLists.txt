@@ -318,6 +318,8 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/gpumap_win32.cpp
     gui/main_win32.cpp
     gui/platform_win32.cpp
+    # Stufe 3, Punkt 0: Textbreiten wie Qt 5 (DirectWrite, Entwurfsmasse)
+    gui/qttext_win32.cpp
     gui/audio_win32.cpp
     gui/icons_gen.cpp
     gui/selbsttest.cpp
@@ -859,6 +861,13 @@ if(BEHAVED_TESTS)
   add_executable(kartespiel tests/kartespiel.cpp)
   target_link_libraries(kartespiel PRIVATE bhed_core)
   add_test(NAME karte_spiel COMMAND kartespiel)
+  # Stufe 3, Punkt 0: Textbreiten wie Qt 5 bei NRC (DirectWrite in Entwurfsmassen
+  # mit Unterschneidung statt GDI) - Erwartungen aus den Schriftdateien gerechnet.
+  if(WIN32)
+    add_executable(karteqttext tests/karteqttext.cpp gui/qttext_win32.cpp)
+    target_include_directories(karteqttext PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/gui)
+    add_test(NAME karte_qttext COMMAND karteqttext)
+  endif()
   # Punkte 3 und 4: die Befehlstabelle gegen die Checkliste (jeder Befehl mit
   # NRCs Taste, jeder Menuepunkt und Knopf), Uebersetzungen = NRC-Englisch,
   # Tastenkuerzel wie Qt (Text, possibleKeys, deutsche Tastatur).

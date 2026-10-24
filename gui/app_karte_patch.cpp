@@ -8,8 +8,8 @@
 //
 // Masse an den Fotos dlg_Curve_*.png (doppelte Groesse): Rand 11, Abstand 6;
 // das Feld 166 breit (QComboBox / QSpinBox), 22 hoch; Radio- und
-// Checkboxzeilen 20; die RadioHBox braucht je Knopf Kreis 14 + 4 + 6 + Text
-// (CT_RadioButton) und verteilt Platz, der uebrig ist, gleichmaessig
+// Checkboxzeilen 20; die RadioHBox braucht je Knopf Kreis 14 + 4 + 6 + Text + 1
+// (CT_RadioButton, SH_EtchDisabledText) und verteilt Platz, der uebrig ist, gleichmaessig
 // (Deform: X 79, Y 136, Z 194); bei Thicken ist sie breiter als 166 und
 // bestimmt die Feldspalte (174). OK/Cancel rechts, je 80 x 22. Fuer "Cap"
 // gibt es kein Foto: Zeilen aus Symbol 32 (PM_LargeIconSize) und
@@ -49,11 +49,16 @@ ImVec2 bp(float x, float y) { return ImVec2{std::round(g_innen.x + x * g_sk), st
 float px(float l) { return std::round(l * g_sk); }
 
 float textBreite(const char* text) {
-    const int b = platform::gdiTextBreite(text, L"Tahoma", 11, false);
+    const int b = platform::qtTextBreite(text, L"Tahoma", 11.0F, false);
     return b >= 0 ? static_cast<float>(b) : std::round(ImGui::CalcTextSize(text).x / g_sk);
 }
 
-float radioHinweis(const char* text) { return 14.0F + 4.0F + 6.0F + textBreite(text); }   // CT_RadioButton (Fusion)
+// QRadioButton::sizeHint: itemTextRect(fm, QRect(), TextShowMnemonic, enabled =
+// false, text) - mit SH_EtchDisabledText (Fusion: an) einen Punkt breiter -,
+// dazu CT_RadioButton: Kreis 14 + 4 + PM_RadioButtonLabelSpacing 6. Am Foto
+// dlg_Curve_Thicken_0.png: die Kreise X, Y, Z, Normal je 38 auseinander =
+// 24 + 8 ("X" 6,39 -> 7, + 1) + 6, die Zeile 174 breit.
+float radioHinweis(const char* text) { return 14.0F + 4.0F + 6.0F + textBreite(text) + 1.0F; }
 
 void zeilenText(const char* text, float x, float y, float h) {
     ImGui::GetWindowDrawList()->AddText(ImVec2{bp(x, 0.0F).x, std::floor(bp(0.0F, y).y + (px(h) - ImGui::GetTextLineHeight()) * 0.5F)},

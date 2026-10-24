@@ -199,9 +199,9 @@ ImVec2 g_innen{0.0F, 0.0F};   // Innenraum oben links (Bildpunkte)
 ImVec2 bp(float x, float y) { return ImVec2{std::round(g_innen.x + x * g_sk), std::round(g_innen.y + y * g_sk)}; }
 float px(float l) { return std::round(l * g_sk); }
 
-// QLabel::sizeHint in Tahoma 8 pt (GDI wie Qt)
+// QLabel::sizeHint in der Dialogschrift (Tahoma 11, Textmass wie Qt)
 int labelBreite(const char* text) {
-    const int b = platform::gdiTextBreite(text, L"Tahoma", 11, false);
+    const int b = platform::qtTextBreite(text, L"Tahoma", 11.0F, false);
     return b >= 0 ? b : static_cast<int>(std::lround(ImGui::CalcTextSize(text).x / g_sk));
 }
 
@@ -1968,7 +1968,7 @@ void zeichneTastenDialog() {
         // ResizeToContents: Spalte = breiteste Zeile (Segoe UI) + 2 x 3, wenigstens
         // der Kopf (Tahoma) + 2 x 2, beim sortierten mit Sortierpfeil.
         const auto segoe = [](const std::string& tx) {
-            const int b2 = platform::gdiTextBreite(tx, L"Segoe UI", 12, false);
+            const int b2 = platform::qtTextBreite(tx, L"Segoe UI", 12.0F, false);
             return b2 >= 0 ? b2 : 0;
         };
         int w[2] = {labelBreite(trK(Str::KeColCommand)) + 4, labelBreite(trK(Str::KeColKey)) + 4};

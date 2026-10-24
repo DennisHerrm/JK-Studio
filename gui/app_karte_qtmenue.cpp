@@ -95,18 +95,23 @@ Masse masse() {
 
 float px(const Masse& m, float logisch) { return std::round(logisch * m.sk); }
 
-// Textbreite in logischen Punkten (fm.boundingRect / horizontalAdvance): Qt 5
-// misst mit der GDI-Schrift (QWindowsFontEngine) in logischen Punkten -
-// Segoe UI 9 pt = 12 px, gehintet. Am Foto: Help > General ist 335 breit =
-// "Complete list of Q3map2 command line parameters" (GDI 274) + 61; ImGuis
-// ungehintete Breite gaebe 275, je Zeichen gerundet 268.
+// Textbreite in logischen Punkten wie Qt 5 bei NRC (Stufe 3 Punkt 0): Qt misst
+// mit High-DPI-Skalierung ueber DirectWrite in Entwurfsmassen mit
+// Unterschneidung (qttext_win32.cpp), Segoe UI 9 pt = 12 Punkte. Der
+// Eintragstext geht ueber fm.boundingRect (aufgerundet, qmenu.cpp:445), die
+// Taste ueber fm.horizontalAdvance (gerundet, qmenu.cpp:436-442).
 int qtBreite(const std::string& text, float sk) {
     static std::unordered_map<std::string, int> gemerkt;
     const auto it = gemerkt.find(text);
     if (it != gemerkt.end()) { return it->second; }
-    int b = platform::gdiTextBreite(text, L"Segoe UI", mass::kSchrift * 3 / 4, false);
+    int b = platform::qtTextBreite(text, L"Segoe UI", static_cast<float>(mass::kSchrift * 3 / 4), false);
     if (b < 0) { b = static_cast<int>(std::lround(ImGui::CalcTextSize(text.c_str()).x / sk)); }
     gemerkt.emplace(text, b);
+    return b;
+}
+int qtVorschub(const std::string& text, float sk) {
+    int b = platform::qtTextVorschub(text, L"Segoe UI", static_cast<float>(mass::kSchrift * 3 / 4), false);
+    if (b < 0) { b = static_cast<int>(std::lround(ImGui::CalcTextSize(text.c_str()).x / sk)); }
     return b;
 }
 
@@ -543,7 +548,7 @@ bool qtPunkt(const QtPunkt& p) {
     if (Menue* menue = oben()) {
         const bool tab = p.taste != nullptr && p.taste[0] != 0;
         menue->roh.push_back({qtBreite(text, m.sk), tab, false});
-        if (tab) { menue->tab = std::max(menue->tab, qtBreite(p.taste, m.sk)); }
+        if (tab) { menue->tab = std::max(menue->tab, qtVorschub(p.taste, m.sk)); }
         if ((p.bild != nullptr && p.bild[0] != 0) || p.farbe != nullptr) { menue->symbole = true; }
         if (p.art != QtArt::Normal) { menue->pruefbar = true; }
         ++menue->zeilen;

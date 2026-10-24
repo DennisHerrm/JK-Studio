@@ -127,6 +127,22 @@ bool bildschirmFarbe(int x, int y, unsigned char rgb[3]);
 // (Segoe UI 9 pt = 12 px, Tahoma 8 pt = 11 px). -1, wenn es nicht geht.
 [[nodiscard]] int gdiTextBreite(const std::string& utf8, const wchar_t* schrift, int pixel, bool fett);
 
+// --- Karten-Editor, Stufe 3 Punkt 0: Textmasse wie Qt 5 bei NRC -------------
+//
+// Qt 5.15 mit High-DPI-Skalierung misst mit DirectWrite in Entwurfsmassen
+// (ungehintet, mit Unterschneidung), siehe qttext_win32.cpp. Schriftgroesse in
+// logischen Punkten: Dialoge Tahoma 11 (DEFAULT_GUI_FONT), Menues Segoe UI 12.
+struct QtTextMass {
+    double vorschub = 0.0;   // Summe der Vorschuebe (horizontalAdvance ungerundet)
+    double rechts = 0.0;     // negative rechte Peilung des letzten Zeichens (Betrag)
+    bool gueltig = false;
+};
+[[nodiscard]] QtTextMass qtTextMass(const std::string& utf8, const wchar_t* schrift, float pixel, bool fett);
+// fm.boundingRect(text).width() / fm.size(): naturalTextWidth aufgerundet; -1, wenn es nicht geht.
+[[nodiscard]] int qtTextBreite(const std::string& utf8, const wchar_t* schrift, float pixel, bool fett);
+// fm.horizontalAdvance(text): Summe der Vorschuebe gerundet; -1, wenn es nicht geht.
+[[nodiscard]] int qtTextVorschub(const std::string& utf8, const wchar_t* schrift, float pixel, bool fett);
+
 // Fuer den Selbsttest (Punkt 12): belegte Bytes des Prozess-Heaps (HeapSummary),
 // also was new/malloc halten - der Rest des privaten Speichers gehoert z. B.
 // dem Grafiktreiber. -1, wenn es nicht geht.
