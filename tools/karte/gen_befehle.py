@@ -72,6 +72,11 @@ Brush8Sided Brush9Sided
 RotateSelectionX RotateSelectionY RotateSelectionZ RotateSelectionClockwise RotateSelectionAnticlockwise MirrorSelectionX
 MirrorSelectionY MirrorSelectionZ MirrorSelectionHorizontally MirrorSelectionVertically ArbitraryRotation ArbitraryScale
 RepeatTransforms ResetTransforms
+SimplePatchMesh PatchBevel PatchEndCap PatchCylinder PatchSquareCylinder PatchXactCylinder PatchCone PatchXactCone PatchSphere
+PatchXactSphere CapCurrentCurve PatchInsertFirstColumn PatchInsertLastColumn PatchInsertFirstRow PatchInsertLastRow
+PatchDeleteFirstColumn PatchDeleteLastColumn PatchDeleteFirstRow PatchDeleteLastRow InvertCurve MatrixTranspose RedisperseRows
+RedisperseCols SmoothRows SmoothCols TextureReset/Cap NaturalizePatch InvertCurveTextureX InvertCurveTextureY PatchDeform
+PatchThicken
 '''.split())
 
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem

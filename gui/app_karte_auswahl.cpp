@@ -35,6 +35,7 @@
 #include "bhed/karte/csg.h"
 #include "bhed/karte/komponenten.h"
 #include "bhed/karte/patch.h"
+#include "bhed/karte/patchbefehle.h"
 
 #include <algorithm>
 #include <cmath>
@@ -644,6 +645,49 @@ void auswahlBefehl(const std::string& name) {
         auswahlGeaendert();
     } else if (name == "ResetTransforms") {   // resetTransforms() (eClip: alle)
         ed.bearbeitung.transformZuruecksetzen();
+    } else if (name == "SimplePatchMesh" || name == "PatchXactCylinder" || name == "PatchXactCone" || name == "PatchXactSphere") {
+        // Patch_Plane / Patch_Xact*: DoNewPatchDlg
+        patchDialogOeffnen(1, name == "SimplePatchMesh"     ? karte::PatchVorlage::Ebene
+                              : name == "PatchXactCylinder" ? karte::PatchVorlage::ExakterZylinder
+                              : name == "PatchXactCone"     ? karte::PatchVorlage::ExakterKegel
+                                                            : karte::PatchVorlage::ExakteKugel);
+    } else if (name == "PatchBevel" || name == "PatchEndCap" || name == "PatchCylinder" || name == "PatchSquareCylinder" || name == "PatchCone" ||
+               name == "PatchSphere") {   // Patch_Bevel usw. (patchmanip.cpp:399-467)
+        const karte::PatchVorlage v = name == "PatchBevel"            ? karte::PatchVorlage::Bevel
+                                      : name == "PatchEndCap"         ? karte::PatchVorlage::EndCap
+                                      : name == "PatchCylinder"       ? karte::PatchVorlage::Zylinder
+                                      : name == "PatchSquareCylinder" ? karte::PatchVorlage::EckZylinder
+                                      : name == "PatchCone"           ? karte::PatchVorlage::Kegel
+                                                                      : karte::PatchVorlage::Kugel;
+        karte::patchVorlageBefehl(k, karte::patchGrenzen(ed.workzone, ed.raster.groesse()), ed.bearbeitung.browserShader, v,
+                                  static_cast<int>(aktuelleSicht()));
+        auswahlGeaendert();
+    } else if (name == "CapCurrentCurve") {   // Patch_Cap: DoCapDlg
+        patchDialogOeffnen(3);
+    } else if (name == "PatchDeform") {   // DoPatchDeformDlg
+        patchDialogOeffnen(2);
+    } else if (name == "PatchThicken") {   // DoPatchThickenDlg
+        patchDialogOeffnen(4);
+    } else if (name == "TextureReset/Cap") {   // SurfaceInspector_ResetTexture
+        karte::texturZuruecksetzenKappen(k, einst);
+    } else if (name.rfind("PatchInsert", 0) == 0 || name.rfind("PatchDelete", 0) == 0 || name == "InvertCurve" || name == "MatrixTranspose" ||
+               name == "RedisperseRows" || name == "RedisperseCols" || name == "SmoothRows" || name == "SmoothCols" || name == "NaturalizePatch" ||
+               name == "InvertCurveTextureX" || name == "InvertCurveTextureY") {
+        using PB = karte::PatchBefehl;
+        static const std::pair<const char*, PB> tabelle[] = {
+            {"PatchInsertFirstColumn", PB::SpaltenVornEinfuegen}, {"PatchInsertLastColumn", PB::SpaltenHintenEinfuegen},
+            {"PatchInsertFirstRow", PB::ZeilenVornEinfuegen},     {"PatchInsertLastRow", PB::ZeilenHintenEinfuegen},
+            {"PatchDeleteFirstColumn", PB::SpaltenVornLoeschen},  {"PatchDeleteLastColumn", PB::SpaltenHintenLoeschen},
+            {"PatchDeleteFirstRow", PB::ZeilenVornLoeschen},      {"PatchDeleteLastRow", PB::ZeilenHintenLoeschen},
+            {"InvertCurve", PB::Umkehren},                        {"MatrixTranspose", PB::Transponieren},
+            {"RedisperseRows", PB::ZeilenVerteilen},              {"RedisperseCols", PB::SpaltenVerteilen},
+            {"SmoothRows", PB::ZeilenGlaetten},                   {"SmoothCols", PB::SpaltenGlaetten},
+            {"NaturalizePatch", PB::TexturNatuerlich},            {"InvertCurveTextureX", PB::TexturX},
+            {"InvertCurveTextureY", PB::TexturY}};
+        for (const auto& [n, b] : tabelle) {
+            if (name == n) { karte::patchBefehl(k, b); }
+        }
+        ed.bearbeitung.pivotGeaendert();
     } else if (name == "MakeDetail" || name == "MakeStructural") {   // Select_MakeDetail / Select_MakeStructural
         karte::pinselDetailSetzen(k, name == "MakeDetail");
     } else if (name == "DragVertices") {
@@ -662,9 +706,11 @@ void auswahlBefehl(const std::string& name) {
         werkzeug(ed.werkzeug == ManipModus::Ziehen ? ManipModus::Verzerren : ManipModus::Ziehen);
     } else if (name == "Undo") {
         k.undo.undo();
+        k.auswahlBereinigen();
         ed.bearbeitung.pivotGeaendert();
     } else if (name == "Redo" || name == "Redo2") {
         k.undo.redo();
+        k.auswahlBereinigen();
         ed.bearbeitung.pivotGeaendert();
     } else if (name == "Copy") {
         ed.zwischenablage = karte::kopieren(k);

@@ -229,6 +229,41 @@ void Auswahl::leeren() {
 
 void Auswahl::flaechenLeeren() { m_flaechen.clear(); }
 
+void Auswahl::entfernenWenn(const std::function<bool(const AuswahlElement&)>& weg) {
+    m_elemente.erase(std::remove_if(m_elemente.begin(), m_elemente.end(), weg), m_elemente.end());
+}
+
+void Auswahl::flaechenEntfernenWenn(const std::function<bool(const FlaechenWahl&)>& weg) {
+    m_flaechen.erase(std::remove_if(m_flaechen.begin(), m_flaechen.end(), weg), m_flaechen.end());
+}
+
+void Karte::auswahlBereinigen() {
+    const auto inSzene = [this](const Entitaet* e) {
+        return std::any_of(entitaeten().begin(), entitaeten().end(), [e](const auto& x) { return x.get() == e; });
+    };
+    const auto kind = [](const Entitaet& e, const Primitiv* p) {
+        return std::any_of(e.kinder().begin(), e.kinder().end(), [p](const auto& x) { return x.get() == p; });
+    };
+    const auto gesetzt = [](const std::weak_ptr<Primitiv>& w) {
+        return w.owner_before(std::weak_ptr<Primitiv>{}) || std::weak_ptr<Primitiv>{}.owner_before(w);
+    };
+    auswahl.entfernenWenn([&](const AuswahlElement& a) {
+        const auto e = a.entitaet.lock();
+        if (!e || !inSzene(e.get())) { return true; }
+        if (!gesetzt(a.primitiv)) { return false; }
+        const auto p = a.primitiv.lock();
+        return !p || !kind(*e, p.get());
+    });
+    auswahl.flaechenEntfernenWenn([&](const FlaechenWahl& w) {
+        const auto p = w.pinsel.lock();
+        const auto f = w.flaeche.lock();
+        if (!p || !f) { return true; }
+        const bool pinselDa = std::any_of(entitaeten().begin(), entitaeten().end(), [&](const auto& e) { return kind(*e, p.get()); });
+        const bool flaecheDa = std::any_of(p->flaechen().begin(), p->flaechen().end(), [&](const auto& x) { return x.get() == f.get(); });
+        return !pinselDa || !flaecheDa;
+    });
+}
+
 void Auswahl::aufraeumen() {
     // ein weak_ptr, der nie gesetzt war, hat keinen Besitzer
     auto gesetzt = [](const std::weak_ptr<Primitiv>& w) {

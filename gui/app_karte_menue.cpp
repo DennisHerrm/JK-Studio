@@ -965,6 +965,8 @@ void einstellungenLaden() {
     ed.bearbeitung.clipperPunkteZuruecksetzen = zahl("ClipperResetPoints", 1) != 0.0F;
     ed.bearbeitung.clipper2Punkte2d = zahl("Clipper2PointsIn2D", 1) != 0.0F;
     ed.bearbeitung.clipperDoppelklickTeilen = std::clamp(static_cast<int>(zahl("ClipperDoubleclickedSplit", 1)), 0, 1);
+    // PatchPreferences_construct (patchmanip.cpp:684-686): "Subdivisions"
+    karte::setzePatchUnterteilungSchwelle(static_cast<int>(zahl("Subdivisions", karte::kPatchUnterteilungVorgabe)));
     // MainFrame/m_hSplit usw. (SplitterSetting::save: die Groessen), als
     // "a,b" in logischen Punkten; anderes (alte Anteile) gilt als nicht gemerkt.
     const auto groessen = [&](const char* n) {
@@ -1091,6 +1093,7 @@ void einstellungenSpeichern() {
     k["ClipperResetPoints"] = ed.bearbeitung.clipperPunkteZuruecksetzen ? "1" : "0";
     k["Clipper2PointsIn2D"] = ed.bearbeitung.clipper2Punkte2d ? "1" : "0";
     k["ClipperDoubleclickedSplit"] = std::to_string(ed.bearbeitung.clipperDoppelklickTeilen);
+    k["Subdivisions"] = std::to_string(karte::patchUnterteilungSchwelle());
     const auto liste = [](const std::vector<int>& v) {
         std::string s;
         for (const int i : v) { s += (s.empty() ? "" : ",") + std::to_string(i); }

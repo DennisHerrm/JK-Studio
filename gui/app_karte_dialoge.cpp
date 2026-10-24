@@ -61,6 +61,7 @@ const Seite kSeiten[] = {
 };
 constexpr int kSeiteInterface = 4;
 constexpr int kSeiteLayout = 5;
+constexpr int kSeitePatches = 8;
 constexpr int kSeiteEntities = 9;
 constexpr int kSeiteAuswahl = 12;
 constexpr int kSeiteClipper = 14;
@@ -89,6 +90,7 @@ struct Entwurf {
     bool clipperPunkte = true;
     bool clipper2Punkte = true;
     int clipperDoppelklick = 1;
+    int patchSchwelle = 4;   // g_PatchSubdivideThreshold
 };
 Entwurf g_entwurf;
 
@@ -413,6 +415,16 @@ void clipperSeite() {
     formWeiter(kHakenZeile);
 }
 
+// Patch_constructPreferences (patchmanip.cpp:670-672): appendSpinner
+// "Patch Subdivide Threshold" 0..128 (Foto pref_Patches.png).
+void patchSeite() {
+    formAnfang({Str::KePrPatchThreshold});
+    feldAnfang(Str::KePrPatchThreshold);
+    ImGui::InputInt("##patchschwelle", &g_entwurf.patchSchwelle);
+    g_entwurf.patchSchwelle = std::clamp(g_entwurf.patchSchwelle, 0, 128);
+    feldEnde();
+}
+
 void interfaceSeite() {
     // Interface Preferences: "Shader Editor Command" (preferences.cpp:64,
     // appendPathEntry: Feld mit "..."-Knopf; Foto pref_Interface.png), dazu
@@ -455,6 +467,7 @@ void zeichneEinstellungen() {
         g_entwurf.namenAbstand = ed.ent.namenAbstand;
         g_entwurf.namenVerhaeltnis = ed.anzeige.namenVerhaeltnis;
         g_entwurf.zielnamen = ed.ent.zielnamen;
+        g_entwurf.patchSchwelle = karte::patchUnterteilungSchwelle();
         g_entwurf.clipperCaulk = ed.bearbeitung.clipperCaulk;
         g_entwurf.clipperUmdrehen = ed.bearbeitung.clipperUmdrehenZuruecksetzen;
         g_entwurf.clipperPunkte = ed.bearbeitung.clipperPunkteZuruecksetzen;
@@ -532,6 +545,8 @@ void zeichneEinstellungen() {
             texBroSeite();
         } else if (g_entwurf.seite == kSeiteEntities) {
             entitaetenSeite();
+        } else if (g_entwurf.seite == kSeitePatches) {
+            patchSeite();
         } else if (g_entwurf.seite == kSeiteClipper) {
             clipperSeite();
         } else {
@@ -589,6 +604,7 @@ void zeichneEinstellungen() {
             ed.ent.namenAbstand = g_entwurf.namenAbstand;
             ed.anzeige.namenVerhaeltnis = g_entwurf.namenVerhaeltnis;
             ed.ent.zielnamen = g_entwurf.zielnamen;
+            karte::setzePatchUnterteilungSchwelle(g_entwurf.patchSchwelle);
             ed.bearbeitung.clipperCaulk = g_entwurf.clipperCaulk;
             ed.bearbeitung.clipperUmdrehenZuruecksetzen = g_entwurf.clipperUmdrehen;
             ed.bearbeitung.clipperPunkteZuruecksetzen = g_entwurf.clipperPunkte;

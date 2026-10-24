@@ -36,7 +36,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
   * ---
   - [x] CHECK Texture Lock -> `TogTexLock`  (radiant/brushmanip.cpp:1531) -- Stufe 2 Punkt 1
   - [x] CHECK Texture Vertex Lock -> `TogTexVertexLock`  (radiant/brushmanip.cpp:1532) -- Stufe 2 Punkt 1
-  - [~] ITEM Reset Texture -> `TextureReset/Cap`  (radiant/brushmanip.cpp:1533) -- Stufe 2
+  - [x] ITEM Reset Texture -> `TextureReset/Cap`  (radiant/brushmanip.cpp:1533) -- Stufe 2 Punkt 6
   - [~] ITEM AutoCaulk Selected -> `AutoCaulkSelected`  (radiant/brushmanip.cpp:1534) -- Stufe 3
 
 ### Build_constructMenu (radiant/build.cpp)
@@ -325,50 +325,50 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### Patch_constructMenu (radiant/patchmanip.cpp)
 
-  - [~] ITEM Simple Patch Mesh... -> `SimplePatchMesh`  (radiant/patchmanip.cpp:739) -- Stufe 2
-  - [~] ITEM Bevel -> `PatchBevel`  (radiant/patchmanip.cpp:740) -- Stufe 2
-  - [~] ITEM End cap -> `PatchEndCap`  (radiant/patchmanip.cpp:741) -- Stufe 2
-  - [~] ITEM Cylinder (9x3) -> `PatchCylinder`  (radiant/patchmanip.cpp:742) -- Stufe 2
-  - [~] ITEM Square Cylinder (9x3) -> `PatchSquareCylinder`  (radiant/patchmanip.cpp:743) -- Stufe 2
-  - [~] ITEM Exact Cylinder... -> `PatchXactCylinder`  (radiant/patchmanip.cpp:744) -- Stufe 2
-  - [~] ITEM Cone (9x3) -> `PatchCone`  (radiant/patchmanip.cpp:745) -- Stufe 2
-  - [~] ITEM Exact Cone... -> `PatchXactCone`  (radiant/patchmanip.cpp:746) -- Stufe 2
-  - [~] ITEM Sphere (9x5) -> `PatchSphere`  (radiant/patchmanip.cpp:747) -- Stufe 2
-  - [~] ITEM Exact Sphere... -> `PatchXactSphere`  (radiant/patchmanip.cpp:748) -- Stufe 2
+  - [x] ITEM Simple Patch Mesh... -> `SimplePatchMesh`  (radiant/patchmanip.cpp:739) -- Stufe 2 Punkt 6
+  - [x] ITEM Bevel -> `PatchBevel`  (radiant/patchmanip.cpp:740) -- Stufe 2 Punkt 6
+  - [x] ITEM End cap -> `PatchEndCap`  (radiant/patchmanip.cpp:741) -- Stufe 2 Punkt 6
+  - [x] ITEM Cylinder (9x3) -> `PatchCylinder`  (radiant/patchmanip.cpp:742) -- Stufe 2 Punkt 6
+  - [x] ITEM Square Cylinder (9x3) -> `PatchSquareCylinder`  (radiant/patchmanip.cpp:743) -- Stufe 2 Punkt 6
+  - [x] ITEM Exact Cylinder... -> `PatchXactCylinder`  (radiant/patchmanip.cpp:744) -- Stufe 2 Punkt 6
+  - [x] ITEM Cone (9x3) -> `PatchCone`  (radiant/patchmanip.cpp:745) -- Stufe 2 Punkt 6
+  - [x] ITEM Exact Cone... -> `PatchXactCone`  (radiant/patchmanip.cpp:746) -- Stufe 2 Punkt 6
+  - [x] ITEM Sphere (9x5) -> `PatchSphere`  (radiant/patchmanip.cpp:747) -- Stufe 2 Punkt 6
+  - [x] ITEM Exact Sphere... -> `PatchXactSphere`  (radiant/patchmanip.cpp:748) -- Stufe 2 Punkt 6
   * ---
-  - [~] ITEM Cap Selection -> `CapCurrentCurve`  (radiant/patchmanip.cpp:764) -- Stufe 2
+  - [x] ITEM Cap Selection -> `CapCurrentCurve`  (radiant/patchmanip.cpp:764) -- Stufe 2 Punkt 6
   * ---
   * SUB Insert/Delete  (radiant/patchmanip.cpp:767)
-    - [~] ITEM Insert (2) First Columns -> `PatchInsertFirstColumn`  (radiant/patchmanip.cpp:771) -- Stufe 2
-    - [~] ITEM Insert (2) Last Columns -> `PatchInsertLastColumn`  (radiant/patchmanip.cpp:772) -- Stufe 2
+    - [x] ITEM Insert (2) First Columns -> `PatchInsertFirstColumn`  (radiant/patchmanip.cpp:771) -- Stufe 2 Punkt 6
+    - [x] ITEM Insert (2) Last Columns -> `PatchInsertLastColumn`  (radiant/patchmanip.cpp:772) -- Stufe 2 Punkt 6
     * ---
-    - [~] ITEM Insert (2) First Rows -> `PatchInsertFirstRow`  (radiant/patchmanip.cpp:774) -- Stufe 2
-    - [~] ITEM Insert (2) Last Rows -> `PatchInsertLastRow`  (radiant/patchmanip.cpp:775) -- Stufe 2
+    - [x] ITEM Insert (2) First Rows -> `PatchInsertFirstRow`  (radiant/patchmanip.cpp:774) -- Stufe 2 Punkt 6
+    - [x] ITEM Insert (2) Last Rows -> `PatchInsertLastRow`  (radiant/patchmanip.cpp:775) -- Stufe 2 Punkt 6
     * ---
-    - [~] ITEM Del First (2) Columns -> `PatchDeleteFirstColumn`  (radiant/patchmanip.cpp:777) -- Stufe 2
-    - [~] ITEM Del Last (2) Columns -> `PatchDeleteLastColumn`  (radiant/patchmanip.cpp:778) -- Stufe 2
+    - [x] ITEM Del First (2) Columns -> `PatchDeleteFirstColumn`  (radiant/patchmanip.cpp:777) -- Stufe 2 Punkt 6
+    - [x] ITEM Del Last (2) Columns -> `PatchDeleteLastColumn`  (radiant/patchmanip.cpp:778) -- Stufe 2 Punkt 6
     * ---
-    - [~] ITEM Del First (2) Rows -> `PatchDeleteFirstRow`  (radiant/patchmanip.cpp:780) -- Stufe 2
-    - [~] ITEM Del Last (2) Rows -> `PatchDeleteLastRow`  (radiant/patchmanip.cpp:781) -- Stufe 2
+    - [x] ITEM Del First (2) Rows -> `PatchDeleteFirstRow`  (radiant/patchmanip.cpp:780) -- Stufe 2 Punkt 6
+    - [x] ITEM Del Last (2) Rows -> `PatchDeleteLastRow`  (radiant/patchmanip.cpp:781) -- Stufe 2 Punkt 6
   * ---
   * SUB Matrix  (radiant/patchmanip.cpp:785)
-    - [~] ITEM Invert -> `InvertCurve`  (radiant/patchmanip.cpp:789) -- Stufe 2
-    - [~] ITEM Transpose -> `MatrixTranspose`  (radiant/patchmanip.cpp:790) -- Stufe 2
+    - [x] ITEM Invert -> `InvertCurve`  (radiant/patchmanip.cpp:789) -- Stufe 2 Punkt 6
+    - [x] ITEM Transpose -> `MatrixTranspose`  (radiant/patchmanip.cpp:790) -- Stufe 2 Punkt 6
     * ---
-    - [~] ITEM Re-disperse Rows -> `RedisperseRows`  (radiant/patchmanip.cpp:793) -- Stufe 2
-    - [~] ITEM Re-disperse Columns -> `RedisperseCols`  (radiant/patchmanip.cpp:794) -- Stufe 2
+    - [x] ITEM Re-disperse Rows -> `RedisperseRows`  (radiant/patchmanip.cpp:793) -- Stufe 2 Punkt 6
+    - [x] ITEM Re-disperse Columns -> `RedisperseCols`  (radiant/patchmanip.cpp:794) -- Stufe 2 Punkt 6
     * ---
-    - [~] ITEM Smooth Rows -> `SmoothRows`  (radiant/patchmanip.cpp:797) -- Stufe 2
-    - [~] ITEM Smooth Columns -> `SmoothCols`  (radiant/patchmanip.cpp:798) -- Stufe 2
+    - [x] ITEM Smooth Rows -> `SmoothRows`  (radiant/patchmanip.cpp:797) -- Stufe 2 Punkt 6
+    - [x] ITEM Smooth Columns -> `SmoothCols`  (radiant/patchmanip.cpp:798) -- Stufe 2 Punkt 6
   * ---
   * SUB Texture  (radiant/patchmanip.cpp:802)
-    - [~] ITEM Reset Texture -> `TextureReset/Cap`  (radiant/patchmanip.cpp:806) -- Stufe 2
-    - [~] ITEM Naturalize -> `NaturalizePatch`  (radiant/patchmanip.cpp:807) -- Stufe 2
-    - [~] ITEM Invert X -> `InvertCurveTextureX`  (radiant/patchmanip.cpp:808) -- Stufe 2
-    - [~] ITEM Invert Y -> `InvertCurveTextureY`  (radiant/patchmanip.cpp:809) -- Stufe 2
+    - [x] ITEM Reset Texture -> `TextureReset/Cap`  (radiant/patchmanip.cpp:806) -- Stufe 2 Punkt 6
+    - [x] ITEM Naturalize -> `NaturalizePatch`  (radiant/patchmanip.cpp:807) -- Stufe 2 Punkt 6
+    - [x] ITEM Invert X -> `InvertCurveTextureX`  (radiant/patchmanip.cpp:808) -- Stufe 2 Punkt 6
+    - [x] ITEM Invert Y -> `InvertCurveTextureY`  (radiant/patchmanip.cpp:809) -- Stufe 2 Punkt 6
   * ---
-  - [~] ITEM Deform... -> `PatchDeform`  (radiant/patchmanip.cpp:821) -- Stufe 2
-  - [~] ITEM Thicken... -> `PatchThicken`  (radiant/patchmanip.cpp:822) -- Stufe 2
+  - [x] ITEM Deform... -> `PatchDeform`  (radiant/patchmanip.cpp:821) -- Stufe 2 Punkt 6
+  - [x] ITEM Thicken... -> `PatchThicken`  (radiant/patchmanip.cpp:822) -- Stufe 2 Punkt 6
 
 ### PlugInMenu_Add (radiant/pluginmenu.cpp)
 
@@ -503,7 +503,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### Patch_constructToolbar (radiant/patchmanip.cpp)
 
-- [~] button Put caps on the current patch | curve_cap.png -> `CapCurrentCurve`  (radiant/patchmanip.cpp:735) -- Stufe 2
+- [x] button Put caps on the current patch | curve_cap.png -> `CapCurrentCurve`  (radiant/patchmanip.cpp:735) -- Stufe 2 Punkt 6
 
 ### TextureBrowser_filterSetModeIcon (radiant/texwindow.cpp)
 
@@ -613,7 +613,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `CameraUp` | Commands | - | (radiant/camwindow.cpp:1429)
 - [x] `CameraUp` | KeyEvents | - | (radiant/camwindow.cpp:1357)
 - [x] `CameraUp` | Shortcuts | - | (radiant/camwindow.cpp:2519)
-- [~] `CapCurrentCurve` | Commands | Shift+C | (radiant/patchmanip.cpp:727) -- Stufe 2
+- [x] `CapCurrentCurve` | Commands | Shift+C | (radiant/patchmanip.cpp:727) -- Stufe 2 Punkt 6
 - [x] `CenterView` | Commands | End | (radiant/camwindow.cpp:2488)
 - [x] `CenterXYView` | Commands | Ctrl+Shift+Tab | (radiant/xywindow.cpp:2277) -- Stufe 1b Punkt 5
 - [~] `CheckForUpdate` | Commands | - | (radiant/mainframe.cpp:2072) -- Stufe 3
@@ -687,16 +687,16 @@ Name | Art | Standardtaste | Quelle
 - [x] `GridUp` | Commands | ] | (radiant/grid.cpp:185)
 - [x] `HideSelected` | Toggles | H | (radiant/select.cpp:1842)
 - [~] `ImportMap` | Commands | - | (radiant/map.cpp:2431) -- Stufe 2
-- [~] `InvertCurve` | Commands | Ctrl+I | (radiant/patchmanip.cpp:719) -- Stufe 2
-- [~] `InvertCurveTextureX` | Commands | Ctrl+Shift+I | (radiant/patchmanip.cpp:694) -- Stufe 2
-- [~] `InvertCurveTextureY` | Commands | Shift+I | (radiant/patchmanip.cpp:695) -- Stufe 2
+- [x] `InvertCurve` | Commands | Ctrl+I | (radiant/patchmanip.cpp:719) -- Stufe 2 Punkt 6
+- [x] `InvertCurveTextureX` | Commands | Ctrl+Shift+I | (radiant/patchmanip.cpp:694) -- Stufe 2 Punkt 6
+- [x] `InvertCurveTextureY` | Commands | Shift+I | (radiant/patchmanip.cpp:695) -- Stufe 2 Punkt 6
 - [~] `InvertFilters` | Commands | - | (radiant/filters.cpp:210) -- Stufe 2
 - [x] `InvertSelection` | Commands | I | (radiant/select.cpp:1876)
 - [~] `LayersMenu` | Commands | Shift+Q | (radiant/layerswindow.cpp:581) -- Stufe 2
 - [x] `MakeDetail` | Commands | Alt+D | (radiant/brushmanip.cpp:1493) -- Stufe 2 Punkt 3
 - [x] `MakeStructural` | Commands | Alt+S | (radiant/brushmanip.cpp:1494) -- Stufe 2 Punkt 3
 - [~] `MapInfo` | Commands | M | (radiant/map.cpp:2445) -- Stufe 2
-- [~] `MatrixTranspose` | Commands | Ctrl+Shift+M | (radiant/patchmanip.cpp:726) -- Stufe 2
+- [x] `MatrixTranspose` | Commands | Ctrl+Shift+M | (radiant/patchmanip.cpp:726) -- Stufe 2 Punkt 6
 - [x] `MaximizeView` | Commands | F12 | (radiant/mainframe.cpp:2097)
 - [~] `meshTex::About` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
 - [~] `meshTex::GeneralFunction` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
@@ -731,7 +731,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `MoveSelectionDOWN` | Commands | +Qt::Key_Minus + Qt::KeypadModifier | (radiant/select.cpp:1901)
 - [x] `MoveSelectionUP` | Commands | +Qt::Key_Plus + Qt::KeypadModifier | (radiant/select.cpp:1902)
 - [x] `MoveToCamera` | Commands | Ctrl+Shift+V | (radiant/select.cpp:1865)
-- [~] `NaturalizePatch` | Commands | Ctrl+N | (radiant/patchmanip.cpp:696) -- Stufe 2
+- [x] `NaturalizePatch` | Commands | Ctrl+N | (radiant/patchmanip.cpp:696) -- Stufe 2 Punkt 6
 - [x] `NewMap` | Commands | - | (radiant/map.cpp:2429)
 - [~] `NextLeakSpot` | Commands | Ctrl+Shift+K | (radiant/points.cpp:321) -- Stufe 3
 - [x] `NextView` | Commands | Ctrl+Tab | (radiant/xywindow.cpp:2270) -- Stufe 1b Punkt 5
@@ -740,25 +740,25 @@ Name | Art | Standardtaste | Quelle
 - [x] `OpenMap` | Commands | Ctrl+O | (radiant/map.cpp:2430)
 - [x] `Paste` | Commands | Ctrl+V | (radiant/select.cpp:1863)
 - [x] `PasteToCamera` | Commands | Shift+V | (radiant/select.cpp:1864)
-- [~] `PatchBevel` | Commands | - | (radiant/patchmanip.cpp:705) -- Stufe 2
-- [~] `PatchCone` | Commands | - | (radiant/patchmanip.cpp:708) -- Stufe 2
-- [~] `PatchCylinder` | Commands | - | (radiant/patchmanip.cpp:697) -- Stufe 2
-- [~] `PatchDeform` | Commands | - | (radiant/patchmanip.cpp:730) -- Stufe 2
-- [~] `PatchDeleteFirstColumn` | Commands | - | (radiant/patchmanip.cpp:715) -- Stufe 2
-- [~] `PatchDeleteFirstRow` | Commands | - | (radiant/patchmanip.cpp:717) -- Stufe 2
-- [~] `PatchDeleteLastColumn` | Commands | Qt::CTRL + Qt::SHIFT + Qt::Key_Minus + Qt::KeypadModifier | (radiant/patchmanip.cpp:716) -- Stufe 2
-- [~] `PatchDeleteLastRow` | Commands | +Qt::CTRL + Qt::Key_Minus + Qt::KeypadModifier | (radiant/patchmanip.cpp:718) -- Stufe 2
-- [~] `PatchEndCap` | Commands | - | (radiant/patchmanip.cpp:704) -- Stufe 2
-- [~] `PatchInsertFirstColumn` | Commands | Qt::CTRL + Qt::SHIFT + Qt::Key_Plus + Qt::KeypadModifier | (radiant/patchmanip.cpp:711) -- Stufe 2
-- [~] `PatchInsertFirstRow` | Commands | +Qt::CTRL + Qt::Key_Plus + Qt::KeypadModifier | (radiant/patchmanip.cpp:713) -- Stufe 2
-- [~] `PatchInsertLastColumn` | Commands | - | (radiant/patchmanip.cpp:712) -- Stufe 2
-- [~] `PatchInsertLastRow` | Commands | - | (radiant/patchmanip.cpp:714) -- Stufe 2
-- [~] `PatchSphere` | Commands | - | (radiant/patchmanip.cpp:709) -- Stufe 2
-- [~] `PatchSquareCylinder` | Commands | - | (radiant/patchmanip.cpp:700) -- Stufe 2
-- [~] `PatchThicken` | Commands | Ctrl+T | (radiant/patchmanip.cpp:731) -- Stufe 2
-- [~] `PatchXactCone` | Commands | - | (radiant/patchmanip.cpp:703) -- Stufe 2
-- [~] `PatchXactCylinder` | Commands | - | (radiant/patchmanip.cpp:701) -- Stufe 2
-- [~] `PatchXactSphere` | Commands | - | (radiant/patchmanip.cpp:702) -- Stufe 2
+- [x] `PatchBevel` | Commands | - | (radiant/patchmanip.cpp:705) -- Stufe 2 Punkt 6
+- [x] `PatchCone` | Commands | - | (radiant/patchmanip.cpp:708) -- Stufe 2 Punkt 6
+- [x] `PatchCylinder` | Commands | - | (radiant/patchmanip.cpp:697) -- Stufe 2 Punkt 6
+- [x] `PatchDeform` | Commands | - | (radiant/patchmanip.cpp:730) -- Stufe 2 Punkt 6
+- [x] `PatchDeleteFirstColumn` | Commands | - | (radiant/patchmanip.cpp:715) -- Stufe 2 Punkt 6
+- [x] `PatchDeleteFirstRow` | Commands | - | (radiant/patchmanip.cpp:717) -- Stufe 2 Punkt 6
+- [x] `PatchDeleteLastColumn` | Commands | Qt::CTRL + Qt::SHIFT + Qt::Key_Minus + Qt::KeypadModifier | (radiant/patchmanip.cpp:716) -- Stufe 2 Punkt 6
+- [x] `PatchDeleteLastRow` | Commands | +Qt::CTRL + Qt::Key_Minus + Qt::KeypadModifier | (radiant/patchmanip.cpp:718) -- Stufe 2 Punkt 6
+- [x] `PatchEndCap` | Commands | - | (radiant/patchmanip.cpp:704) -- Stufe 2 Punkt 6
+- [x] `PatchInsertFirstColumn` | Commands | Qt::CTRL + Qt::SHIFT + Qt::Key_Plus + Qt::KeypadModifier | (radiant/patchmanip.cpp:711) -- Stufe 2 Punkt 6
+- [x] `PatchInsertFirstRow` | Commands | +Qt::CTRL + Qt::Key_Plus + Qt::KeypadModifier | (radiant/patchmanip.cpp:713) -- Stufe 2 Punkt 6
+- [x] `PatchInsertLastColumn` | Commands | - | (radiant/patchmanip.cpp:712) -- Stufe 2 Punkt 6
+- [x] `PatchInsertLastRow` | Commands | - | (radiant/patchmanip.cpp:714) -- Stufe 2 Punkt 6
+- [x] `PatchSphere` | Commands | - | (radiant/patchmanip.cpp:709) -- Stufe 2 Punkt 6
+- [x] `PatchSquareCylinder` | Commands | - | (radiant/patchmanip.cpp:700) -- Stufe 2 Punkt 6
+- [x] `PatchThicken` | Commands | Ctrl+T | (radiant/patchmanip.cpp:731) -- Stufe 2 Punkt 6
+- [x] `PatchXactCone` | Commands | - | (radiant/patchmanip.cpp:703) -- Stufe 2 Punkt 6
+- [x] `PatchXactCylinder` | Commands | - | (radiant/patchmanip.cpp:701) -- Stufe 2 Punkt 6
+- [x] `PatchXactSphere` | Commands | - | (radiant/patchmanip.cpp:702) -- Stufe 2 Punkt 6
 - [x] `Preferences` | Commands | P | (radiant/mainframe.cpp:2076)
 - [~] `PrevLeakSpot` | Commands | Ctrl+Shift+L | (radiant/points.cpp:322) -- Stufe 3
 - [~] `prtview::AboutPortalViewer` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3
@@ -767,8 +767,8 @@ Name | Art | Standardtaste | Quelle
 - [~] `prtview::TogglePortals(2D)` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3
 - [~] `prtview::TogglePortals(3D)` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3
 - [~] `prtview::Unload.prtFile` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3
-- [~] `RedisperseCols` | Commands | - | (radiant/patchmanip.cpp:723) -- Stufe 2
-- [~] `RedisperseRows` | Commands | - | (radiant/patchmanip.cpp:721) -- Stufe 2
+- [x] `RedisperseCols` | Commands | - | (radiant/patchmanip.cpp:723) -- Stufe 2 Punkt 6
+- [x] `RedisperseRows` | Commands | - | (radiant/patchmanip.cpp:721) -- Stufe 2 Punkt 6
 - [x] `Redo` | Commands | Ctrl+Shift+Z | (radiant/select.cpp:1860)
 - [x] `Redo2` | Commands | Ctrl+Y | (radiant/select.cpp:1861)
 - [~] `RefreshReferences` | Commands | - | (radiant/mainframe.cpp:2071) -- Stufe 2
@@ -833,9 +833,9 @@ Name | Art | Standardtaste | Quelle
 - [x] `ShowWindowOutline` | Toggles | - | (radiant/xywindow.cpp:2224) -- Stufe 1b Punkt 5
 - [x] `ShowWorkzone2d` | Toggles | - | (radiant/xywindow.cpp:2226) -- Stufe 1b Punkt 5
 - [x] `ShowWorkzone3d` | Toggles | - | (radiant/camwindow.cpp:2540)
-- [~] `SimplePatchMesh` | Commands | Shift+P | (radiant/patchmanip.cpp:710) -- Stufe 2
-- [~] `SmoothCols` | Commands | Ctrl+Shift+W | (radiant/patchmanip.cpp:725) -- Stufe 2
-- [~] `SmoothRows` | Commands | Ctrl+W | (radiant/patchmanip.cpp:724) -- Stufe 2
+- [x] `SimplePatchMesh` | Commands | Shift+P | (radiant/patchmanip.cpp:710) -- Stufe 2 Punkt 6
+- [x] `SmoothCols` | Commands | Ctrl+Shift+W | (radiant/patchmanip.cpp:725) -- Stufe 2 Punkt 6
+- [x] `SmoothRows` | Commands | Ctrl+W | (radiant/patchmanip.cpp:724) -- Stufe 2 Punkt 6
 - [x] `SnapToGrid` | Commands | Ctrl+G | (radiant/select.cpp:1886)
 - [~] `sunPlug::About` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 3
 - [~] `sunPlug::ET-MapCoordinator` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 3
@@ -861,7 +861,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `TextureProjectAxial` | Commands | - | (radiant/surfacedialog.cpp:1752) -- Stufe 2
 - [~] `TextureProjectCam` | Commands | - | (radiant/surfacedialog.cpp:1754) -- Stufe 2
 - [~] `TextureProjectOrtho` | Commands | - | (radiant/surfacedialog.cpp:1753) -- Stufe 2
-- [~] `TextureReset/Cap` | Commands | Shift+N | (radiant/surfacedialog.cpp:1746) -- Stufe 2
+- [x] `TextureReset/Cap` | Commands | Shift+N | (radiant/surfacedialog.cpp:1746) -- Stufe 2 Punkt 6
 - [x] `ToggleCamera` | Toggles | Ctrl+Shift+C | (radiant/camwindow.cpp:2498)
 - [x] `ToggleClipper` | Toggles | X | (radiant/tools.cpp:426) -- Stufe 2 Punkt 2
 - [x] `ToggleConsole` | Commands | O | (radiant/mainframe.cpp:2078) -- Stufe 1b Punkt 10
@@ -928,10 +928,10 @@ Name | Art | Standardtaste | Quelle
 - [x] "Camera"  (radiant/mainframe.cpp:1755)
 - [ ] "Map Info"  (radiant/map.cpp:908)
 - [ ] "Find Brush"  (radiant/map.cpp:2085)
-- [ ] "Patch density"  (radiant/patchmanip.cpp:839)
-- [ ] "Patch deform"  (radiant/patchmanip.cpp:918)
-- [ ] "Cap"  (radiant/patchmanip.cpp:949)
-- [ ] "Patch thicken"  (radiant/patchmanip.cpp:994)
+- [x] "Patch density"  (radiant/patchmanip.cpp:839) -- Stufe 2 Punkt 6
+- [x] "Patch deform"  (radiant/patchmanip.cpp:918) -- Stufe 2 Punkt 6
+- [x] "Cap"  (radiant/patchmanip.cpp:949) -- Stufe 2 Punkt 6
+- [x] "Patch thicken"  (radiant/patchmanip.cpp:994) -- Stufe 2 Punkt 6
 - [ ] "Global Preferences"  (radiant/preferences.cpp:271)
 - [x] "NetRadiant Preferences"  (radiant/preferences.cpp:584) -- Rahmen, Baum, alle 23 Seiten (12 noch Platzhalter, siehe Einstellungsseiten)
 - [x] "Arbitrary rotation"  (radiant/select.cpp:1589) -- Stufe 2 Punkt 5
@@ -949,7 +949,7 @@ Name | Art | Standardtaste | Quelle
 - [ ] Paths: "Path Settings"  (radiant/mainframe.cpp:404)
 - [x] Layout: "Layout Preferences"  (radiant/mainframe.cpp:2051)
 - [ ] Model Browser: "Model Browser Preferences"  (radiant/modelwindow.cpp:1364)
-- [ ] Patches: "Patch Display Preferences"  (radiant/patchmanip.cpp:676)
+- [x] Patches: "Patch Display Preferences"  (radiant/patchmanip.cpp:676) -- Stufe 2 Punkt 6
 - [x] Selection: "Selection System Settings"  (radiant/selection.cpp:2328)
 - [ ] Surface Inspector: "Surface Inspector Preferences"  (radiant/surfacedialog.cpp:1738)
 - [ ] Textures: "Texture Settings"  (radiant/textures.cpp:831)
@@ -1003,7 +1003,7 @@ Name | Art | Standardtaste | Quelle
 - [ ] CheckBox Load last map at startup  (radiant/map.cpp:2370)
 - [ ] Spinner Model View Size  (radiant/modelwindow.cpp:1366)
 - [ ] Entry List of *folderToLoad/depth*  (radiant/modelwindow.cpp:1369)
-- [ ] Spinner Patch Subdivide Threshold  (radiant/patchmanip.cpp:673)
+- [x] Spinner Patch Subdivide Threshold  (radiant/patchmanip.cpp:673) -- Stufe 2 Punkt 6
 - [ ] PathEntry Shader Editor Command  (radiant/preferences.cpp:64)
 - [ ] Combo Select the game  (radiant/preferences.cpp:259)
 - [ ] CheckBox Startup / Show Global Preferences  (radiant/preferences.cpp:267)

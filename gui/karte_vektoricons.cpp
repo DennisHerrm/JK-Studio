@@ -133,7 +133,7 @@ ImVec4 karteIconFarbe(const char* n) {
         setze(0.40F, 0.68F, 1.00F);
     } else if (ist(n, "f-details") || ist(n, "f-funcgroups")) {
         setze(0.85F, 0.66F, 0.42F);
-    } else if (ist(n, "f-patches") || ist(n, "curve_cap") || ist(n, "status_patch")) {
+    } else if (ist(n, "f-patches") || ist(n, "curve_cap") || ist(n, "status_patch") || std::strncmp(n, "cap_", 4) == 0) {
         setze(0.42F, 0.85F, 0.78F);
     } else if (ist(n, "f-liquids") || ist(n, "f-sky")) {
         setze(0.45F, 0.75F, 1.00F);
@@ -299,6 +299,35 @@ bool karteIcon(ImDrawList* dl, const char* n, ImVec2 pos, float groesse, unsigne
         const Stift rot{dl, pos, z.s, ImGui::GetColorU32(ImVec4{1.00F, 0.45F, 0.42F, 1.0F}), z.w * 1.3F};
         rot.linie(5.5F, 5.5F, 10.5F, 10.5F);
         rot.linie(10.5F, 5.5F, 5.5F, 10.5F);
+        return true;
+    }
+    // --- Kappen (setup/data/tools/bitmaps/cap_*.png): der Querschnitt des Patches
+    // (Bogen bzw. Ecke) und davor die Kappe als Flaeche ---
+    if (ist(n, "cap_bevel") || ist(n, "cap_ibevel")) {   // Ecke mit Dreieck
+        if (ist(n, "cap_bevel")) {
+            z.flaeche({ImVec2{2.5F, 2.5F}, ImVec2{13.5F, 13.5F}, ImVec2{2.5F, 13.5F}}, schwach);
+            z.zug({ImVec2{2.5F, 2.5F}, ImVec2{13.5F, 13.5F}});
+        } else {
+            z.flaeche({ImVec2{2.5F, 2.5F}, ImVec2{13.5F, 2.5F}, ImVec2{13.5F, 13.5F}}, schwach);
+            z.zug({ImVec2{2.5F, 2.5F}, ImVec2{13.5F, 13.5F}});
+        }
+        z.zug({ImVec2{2.5F, 2.5F}, ImVec2{2.5F, 13.5F}, ImVec2{13.5F, 13.5F}});
+        return true;
+    }
+    if (ist(n, "cap_endcap") || ist(n, "cap_iendcap")) {   // Halbkreis
+        if (ist(n, "cap_endcap")) {
+            z.dl->PathArcTo(z.p(8.0F, 12.5F), 5.5F * z.s, kPi, 2.0F * kPi);
+            z.dl->PathFillConvex(schwach);
+        } else {
+            z.kasten(2.5F, 7.0F, 13.5F, 12.5F, schwach, 0.0F);
+        }
+        z.bogen(8.0F, 12.5F, 5.5F, kPi, 2.0F * kPi);
+        z.linie(1.5F, 12.5F, 14.5F, 12.5F);
+        return true;
+    }
+    if (ist(n, "cap_cylinder")) {   // Kreis gefuellt
+        z.punkt(8.0F, 8.0F, 5.5F, schwach);
+        z.kreis(8.0F, 8.0F, 5.5F);
         return true;
     }
     if (ist(n, "selection_makeroom")) {   // hohler Kasten: Waende um einen Raum

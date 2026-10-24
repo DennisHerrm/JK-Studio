@@ -381,7 +381,15 @@ bool Patch::gueltig() const {
 }
 
 // controlPointsChanged -> UpdateCachedData (:215-290) + AccumulateBBox (:765-776)
+namespace {
+int g_patchSchwelle = kPatchUnterteilungVorgabe;   // g_PatchSubdivideThreshold
+}  // namespace
+
+int patchUnterteilungSchwelle() { return g_patchSchwelle; }
+void setzePatchUnterteilungSchwelle(int s) { g_patchSchwelle = s; }
+
 void Patch::punkteGeaendert(int schwellwert) {
+    if (schwellwert < 0) { schwellwert = g_patchSchwelle; }
     if (!gueltig()) {
         m_tess = PatchTesselierung();
         m_kurvenU.clear();

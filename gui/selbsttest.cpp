@@ -29002,6 +29002,124 @@ std::vector<Schritt> transformationen() {
     return s;
 }
 
+std::shared_ptr<karte::Patch> patchNr(std::size_t i) {
+    const auto w = ke::editor().karte.welt();
+    std::size_t n = 0;
+    for (const auto& c : w->kinder()) {
+        if (c->art() == karte::Primitiv::Art::Patch) {
+            if (n == i) { return std::static_pointer_cast<karte::Patch>(c); }
+            ++n;
+        }
+    }
+    return nullptr;
+}
+
+std::size_t patchZahl() {
+    std::size_t n = 0;
+    for (const auto& c : ke::editor().karte.welt()->kinder()) { n += c->art() == karte::Primitiv::Art::Patch ? 1U : 0U; }
+    return n;
+}
+
+// Punkt 6: das Curve-Menue und seine Dialoge
+std::vector<Schritt> patches() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(grundzustand("Stufe 2/6: Grundzustand"));
+    add(pause(0.4));
+    add(klickXy("M1 auf den Pinsel", ImGuiMouseButton_Left, ImVec2{32, 32}));
+    add(tu("Curve > Cylinder (9x3)", [] { (void)ke::ausfuehren("PatchCylinder"); }));
+    add(pruefe("Cylinder: 9x3 statt des Pinsels, gewaehlt", [] {
+        const auto p = patchNr(0);
+        return p && p->breite() == 9 && p->hoehe() == 3 && pinselZahl() == 1 && ke::editor().karte.auswahl.anzahl() == 1 &&
+               ke::editor().karte.undo.undoName() == "patchCreateCylinder";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_KeypadAdd, "Strg+Umschalt+Num+"));
+    add(pruefe("Insert (2) First Columns: 11 breit", [] {
+        return patchNr(0)->breite() == 11 && ke::editor().karte.undo.undoName() == "patchInsertFirstColumns";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_M, "Strg+Umschalt+M"));
+    add(pruefe("Transpose: 3 x 11", [] { return patchNr(0)->breite() == 3 && patchNr(0)->hoehe() == 11; }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_I, "Strg+I"));
+    add(pruefe("Invert Matrix", [] { return ke::editor().karte.undo.undoName() == "patchInvert"; }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_N, "Strg+N"));
+    add(pruefe("Naturalize", [] { return ke::editor().karte.undo.undoName() == "patchNaturalTexture"; }));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_I, "Umschalt+I"));
+    add(pruefe("Invert Y", [] { return ke::editor().karte.undo.undoName() == "patchFlipTextureV"; }));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_N, "Umschalt+N"));
+    add(pruefe("Reset Texture", [] { return ke::editor().karte.undo.undoName() == "textureReset/Cap"; }));
+    for (int i = 0; i < 6; ++i) { add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z")); }
+    add(pruefe("zurueck: Zylinder 9x3", [] { return patchNr(0) && patchNr(0)->breite() == 9 && patchNr(0)->hoehe() == 3; }));
+    // Cap (Umschalt+C)
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_C, "Umschalt+C"));
+    add(pause(0.3));
+    add(pruefe("Cap: Dialog mit Bevel gewaehlt", [] {
+        const auto& d = ke::editor().patchDialog;
+        return d.art == 3 && d.kappe == 0 && finde(std::string(ke::trK(Str::KePdCapCylinder)) + "##patchkappe4", "", 0, true) != nullptr;
+    }));
+    add(foto("karteneditor_patch_cap"));
+    add(klickAn("Cylinder", elementOrt(std::string(ke::trK(Str::KePdCapCylinder)) + "##patchkappe4")));
+    add(klickAn("OK", elementOrt(std::string(ke::trK(Str::KePrefOk)) + "##patchok")));
+    add(pruefe("Cylinder-Kappen: zwei 3x5, alle gewaehlt", [] {
+        const auto c = patchNr(1);
+        return patchZahl() == 3 && c && c->breite() == 3 && c->hoehe() == 5 && ke::editor().karte.auswahl.anzahl() == 3 &&
+               ke::editor().karte.undo.undoName() == "patchPutCaps";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tu("nur den Zylinder waehlen", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), patchNr(0));
+        ke::auswahlGeaendert();
+    }));
+    // Thicken (Strg+T)
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_T, "Strg+T"));
+    add(pause(0.3));
+    add(pruefe("Thicken: Dicke = Raster 8, Normal, Side walls", [] {
+        const auto& d = ke::editor().patchDialog;
+        return d.art == 4 && d.wert == 8 && d.achse == 3 && d.waende;
+    }));
+    add(foto("karteneditor_patch_thicken"));
+    add(klickAn("OK", elementOrt(std::string(ke::trK(Str::KePrefOk)) + "##patchok")));
+    add(pruefe("Thicken am Zylinder: Gegenseite + 2 Waende (Spalten geschlossen)", [] {
+        diag::detail("Knopftest: Stufe 2 - Thicken " + std::to_string(patchZahl()) + " Patches");
+        return patchZahl() == 4 && ke::editor().karte.undo.undoName() == "patchThicken";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    // Deform: Esc
+    add(tu("Curve > Deform...", [] { (void)ke::ausfuehren("PatchDeform"); }));
+    add(pause(0.3));
+    add(pruefe("Deform: Max deform 64, Z", [] { return ke::editor().patchDialog.art == 2 && ke::editor().patchDialog.wert == 64; }));
+    add(foto("karteneditor_patch_deform"));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(pruefe("Esc: abgebrochen", [] { return ke::editor().patchDialog.art == 0 && patchZahl() == 1; }));
+    // Simple Patch Mesh (Umschalt+P)
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_P, "Umschalt+P"));
+    add(pause(0.3));
+    add(pruefe("Patch density: 3 x 3, ohne Square", [] {
+        const auto& d = ke::editor().patchDialog;
+        return d.art == 1 && d.spalten == 0 && d.zeilen == 0 && finde("##patchquadrat", "", 0, true) == nullptr;
+    }));
+    add(foto("karteneditor_patch_dichte"));
+    add(tasteKombi(ImGuiKey_Enter, "Return"));
+    add(pruefe("Return: Ebene 3x3 statt des Zylinders", [] {
+        const auto p = patchNr(0);
+        return patchZahl() == 1 && p && p->breite() == 3 && p->hoehe() == 3 && ke::editor().karte.undo.undoName() == "patchCreatePlane";
+    }));
+    add(tu("Curve > Exact Cylinder...", [] { (void)ke::ausfuehren("PatchXactCylinder"); }));
+    add(pause(0.3));
+    add(pruefe("Exact Cylinder: 13 x 3 vorgewaehlt, Square da", [] {
+        const auto& d = ke::editor().patchDialog;
+        return d.art == 1 && d.spalten == 3 && d.zeilen == 0 && finde(std::string(ke::trK(Str::KePdSquare)) + "##patchquadrat", "", 0, true) != nullptr;
+    }));
+    add(foto("karteneditor_patch_exakt"));
+    add(klickAn("OK", elementOrt(std::string(ke::trK(Str::KePrefOk)) + "##patchok")));
+    add(pruefe("Exact Cylinder 13x3", [] {
+        const auto p = patchNr(0);
+        return p && p->breite() == 13 && p->hoehe() == 3 && ke::editor().karte.undo.undoName() == "patchCreateXactCylinder";
+    }));
+    return s;
+}
+
 }  // namespace stufe2
 
 std::vector<Schritt> karteneditorStufe2Schritte() {
@@ -29011,6 +29129,7 @@ std::vector<Schritt> karteneditorStufe2Schritte() {
     for (Schritt& x : stufe2::csg()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::grundformen()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::transformationen()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe2::patches()) { s.push_back(std::move(x)); }
     return s;
 }
 

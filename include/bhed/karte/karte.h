@@ -35,6 +35,7 @@
 #include "bhed/karte/rueckgaengig.h"
 
 #include <array>
+#include <functional>
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -124,6 +125,9 @@ public:
     void flaechenLeeren();
     // Verwaiste Eintraege (geloeschte Objekte) entfernen.
     void aufraeumen();
+    // Eintraege entfernen, fuer die "weg" wahr ist (Karte::auswahlBereinigen).
+    void entfernenWenn(const std::function<bool(const AuswahlElement&)>& weg);
+    void flaechenEntfernenWenn(const std::function<bool(const FlaechenWahl&)>& weg);
 
     // in Auswahlreihenfolge (NRC: SelectionSystem::ultimateSelected = letzte)
     [[nodiscard]] const std::vector<AuswahlElement>& elemente() const { return m_elemente; }
@@ -179,6 +183,9 @@ public:
     // Nach dem Laden einmal: alle Objekte beim Undo anmelden (instanceAttach).
     void anmelden();
     void leeren();   // neue, leere Karte (nur Ebene "0")
+    // Nach Rueckgaengig/Wiederholen: was nicht mehr in der Szene ist, ist
+    // nicht mehr gewaehlt (NRC: die Instanz wird zerstoert und abgewaehlt).
+    void auswahlBereinigen();
 
     // Klasse fuer einen Namen (Eclass_ForName ueber "klassen" oder eigener Vorrat).
     EntitaetsKlasse* klasseFuer(const std::string& name, bool hatPinsel);

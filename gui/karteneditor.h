@@ -428,6 +428,20 @@ struct Editor {
     };
     ArbitraerDialog drehDialog{false, false, {0.0, 0.0, 0.0}};
     ArbitraerDialog skalierDialog{false, false, {1.0, 1.0, 1.0}};
+    // Curve-Dialoge (patchmanip.cpp:837-1004): modal, jedes Mal neu;
+    // art 1 "Patch density", 2 "Patch deform", 3 "Cap", 4 "Patch thicken"
+    struct PatchDialog {
+        int art = 0;
+        bool oeffnen = false;
+        karte::PatchVorlage vorlage = karte::PatchVorlage::Ebene;
+        int spalten = 0;          // Index in der Breiten-Liste
+        int zeilen = 0;
+        bool quadrat = false;     // "Square" (Redisperse)
+        int wert = 0;             // Max deform / Thickness
+        int achse = 2;            // X Y Z (Normal)
+        bool waende = true;       // "Side walls"
+        int kappe = 0;            // Bevel, Endcap, Inverted Bevel, Inverted Endcap, Cylinder
+    } patchDialog;
     std::string tastenDialogBearbeitet;   // Befehl, dessen Taste gerade aufgenommen wird
     int tasteVerbrauchtBild = -1;         // in diesem Bild hat die Aufnahme die Taste geschluckt
     bool ueberOffen = false;
@@ -778,6 +792,8 @@ void seitenDialogOeffnen(karte::Grundform art);   // DoSides (app_karte_formen.c
 void zeichneSeitenDialog();
 void arbitraerDialogZeigen(bool drehen);   // DoRotateDlg / DoScaleDlg (app_karte_transform.cpp)
 void zeichneArbitraerDialoge();
+void patchDialogOeffnen(int art, karte::PatchVorlage vorlage = karte::PatchVorlage::Ebene);   // app_karte_patch.cpp
+void zeichnePatchDialog();
 // Einstellungen des Editors lesen/schreiben (Settings::karte).
 void einstellungenLaden();
 void einstellungenSpeichern();

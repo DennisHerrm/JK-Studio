@@ -139,13 +139,16 @@ struct GewaehltMenge {
     std::unordered_set<const Entitaet*> ganz;
     std::unordered_set<const Primitiv*> prim;
     explicit GewaehltMenge(const Karte& k) {
+        const auto gesetzt = [](const std::weak_ptr<Primitiv>& w) {
+            return w.owner_before(std::weak_ptr<Primitiv>{}) || std::weak_ptr<Primitiv>{}.owner_before(w);
+        };
         for (const auto& el : k.auswahl.elemente()) {
             const auto e = el.entitaet.lock();
             const auto p = el.primitiv.lock();
             if (!e) { continue; }
             if (p) {
                 prim.insert(p.get());
-            } else {
+            } else if (!gesetzt(el.primitiv)) {   // ein geloeschtes Primitiv ist nicht die ganze Entitaet
                 ganz.insert(e.get());
             }
         }
@@ -294,6 +297,11 @@ void loescheAuswahl(Karte& k, const AuswahlEinstellung& e, bool eckenSperre) {  
         return;
     }
     k.undo.start();
+    auswahlEntfernen(k);
+    k.undo.finish("deleteSelected");
+}
+
+void auswahlEntfernen(Karte& k) {   // Select_Delete / Scene_DeleteSelected (ohne eigenen Befehl)
     const GewaehltMenge g(k);
     std::unordered_set<const Primitiv*> geloeschtePrim;
     std::unordered_set<const Entitaet*> geloeschteEnt;
@@ -336,7 +344,6 @@ void loescheAuswahl(Karte& k, const AuswahlEinstellung& e, bool eckenSperre) {  
     k.auswahl.leeren();
     for (const auto& el : rest) { k.auswahl.waehlen(el.entitaet.lock(), el.primitiv.lock()); }
     for (const auto& f : restFlaechen) { k.auswahl.flaecheWaehlen(f.pinsel.lock(), f.flaeche.lock()); }
-    k.undo.finish("deleteSelected");
 }
 
 void klonen(Karte& k, const AuswahlEinstellung& e, bool eindeutig, bool befehl) {   // Selection_Clone(_MakeUnique)

@@ -135,7 +135,14 @@ std::map<std::string, Umsetzung>& umsetzungen() {
                           "RotateSelectionX", "RotateSelectionY", "RotateSelectionZ", "RotateSelectionClockwise",
                           "RotateSelectionAnticlockwise", "MirrorSelectionX", "MirrorSelectionY", "MirrorSelectionZ",
                           "MirrorSelectionHorizontally", "MirrorSelectionVertically", "ArbitraryRotation", "ArbitraryScale",
-                          "RepeatTransforms", "ResetTransforms"}) {
+                          "RepeatTransforms", "ResetTransforms",
+                          // Stufe 2, Punkt 6: Curve-Menue (patchmanip.cpp:694-731, surfacedialog.cpp:1746)
+                          "SimplePatchMesh", "PatchBevel", "PatchEndCap", "PatchCylinder", "PatchSquareCylinder", "PatchXactCylinder",
+                          "PatchCone", "PatchXactCone", "PatchSphere", "PatchXactSphere", "CapCurrentCurve", "PatchInsertFirstColumn",
+                          "PatchInsertLastColumn", "PatchInsertFirstRow", "PatchInsertLastRow", "PatchDeleteFirstColumn",
+                          "PatchDeleteLastColumn", "PatchDeleteFirstRow", "PatchDeleteLastRow", "InvertCurve", "MatrixTranspose",
+                          "RedisperseRows", "RedisperseCols", "SmoothRows", "SmoothCols", "TextureReset/Cap", "NaturalizePatch",
+                          "InvertCurveTextureX", "InvertCurveTextureY", "PatchDeform", "PatchThicken"}) {
         const std::string name = n;
         m[name] = {[name] { auswahlBefehl(name); }, nullptr};
     }

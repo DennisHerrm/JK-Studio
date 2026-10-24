@@ -45,7 +45,16 @@ constexpr std::size_t kMinPatchHoehe = 3;    // MIN_PATCH_HEIGHT
 // (patchmodule.cpp:58), Doom3 99.
 constexpr std::size_t kMaxPatchBreite = 31;
 constexpr std::size_t kMaxPatchHoehe = 31;
-constexpr int kPatchUnterteilungVorgabe = 4;   // g_PatchSubdivideThreshold
+constexpr int kPatchUnterteilungVorgabe = 4;   // g_PatchSubdivideThreshold (Vorgabe)
+// g_PatchSubdivideThreshold: die Einstellung "Patch Subdivide Threshold" (0..128)
+[[nodiscard]] int patchUnterteilungSchwelle();
+void setzePatchUnterteilungSchwelle(int s);
+
+// EPatchCap (patch.h:84-91)
+enum class PatchKappe { Bevel, EndCap, IBevel, IEndCap, Zylinder };
+// EPatchPrefab (patch.h:93-107)
+enum class PatchVorlage { Ebene, Bevel, EndCap, Zylinder, DichterZylinder, SehrDichterZylinder, EckZylinder, Kegel, Kugel,
+                          ExakterZylinder, ExakteKugel, ExakterKegel };
 
 // PatchControl (include/ipatch.h:211-216)
 struct PatchPunkt {
@@ -102,7 +111,7 @@ public:
 
     [[nodiscard]] bool gueltig() const;   // isValid
     // controlPointsChanged: neu tesselieren und Grenzen bestimmen.
-    void punkteGeaendert(int schwellwert = kPatchUnterteilungVorgabe);
+    void punkteGeaendert(int schwellwert = -1);   // -1: patchUnterteilungSchwelle()
     [[nodiscard]] const PatchTesselierung& tesselierung() const { return m_tess; }
     // Das Drahtgitter als Linienpaare (RenderablePatchWireframe::render,
     // patch.h:205-256; patchDef3: RenderablePatchFixedWireframe, Quad-Streifen
@@ -118,6 +127,25 @@ public:
     [[nodiscard]] Vektor3f durchschnittsNormale() const;                  // Calculate_AvgNormal (patch.cpp:629-633)
     void matrixUmkehren();                   // InvertMatrix
     void matrixTransponieren();              // TransposeMatrix
+    // --- Patch-Werkzeuge (patch.cpp:323-1590, 2870-3290; patchwerkzeuge.cpp) ---
+    void neuVerteilen(bool spalten);         // Redisperse( COL / ROW )
+    void glaetten(bool spalten);             // Smooth( COL / ROW )
+    void einfuegenEntfernen(bool einfuegen, bool spalte, bool erste);   // InsertRemove
+    // MakeCap: die Kappe in "ziel" aus der ersten bzw. letzten Zeile (ROW) oder Spalte (COL)
+    void kappeMachen(Patch& ziel, PatchKappe art, bool spalten, bool erste, const Kontext& k) const;
+    void nahtBauen(PatchKappe art, std::vector<Vektor3f>& p, std::size_t breite, const Kontext& k);   // ConstructSeam
+    void texturSpiegeln(int achse);                          // FlipTexture
+    void texturVerschieben(float s, float t, const Kontext& k);   // TranslateTexture
+    void texturSkalieren(float s, float t);                  // ScaleTexture
+    void texturDrehen(float winkel);                         // RotateTexture
+    void texturWiederholung(float s, float t);               // SetTextureRepeat
+    void texturKappen(const Kontext& k);                     // CapTexture
+    void texturNatuerlich(const Kontext& k);                 // NaturalTexture
+    void ebeneBauen(const Kasten& grenzen, int achse, std::size_t w, std::size_t h);   // constructPlane
+    void vorlageBauen(const Kasten& grenzen, PatchVorlage art, int achse, std::size_t w, std::size_t h, const Kontext& k);   // ConstructPrefab
+    // createThickenedOpposite / createThickenedWall
+    void verdicktGegenueber(const Patch& quelle, float dicke, int achse, bool& ohne12, bool& ohne34);
+    void verdicktWand(const Patch& quelle, const Patch& ziel, int wand, const Kontext& k);
     // ProjectTexture( TextureProjection, normal ) (patch.cpp:1212-1228): st
     // aus der Projektion einer Flaeche (Texturgroesse aus dem Kontext).
     void texturProjizieren(TexturProjektion projektion, const Vektor3f& normal, const Kontext& k);
@@ -157,6 +185,8 @@ private:
                   std::size_t offEndX, std::size_t offEndY, std::size_t flagsX, std::size_t flagsY, const Vektor3f& left,
                   const Vektor3f& mid, const Vektor3f& right, const Vektor2f& texLeft, const Vektor2f& texMid,
                   const Vektor2f& texRight, bool transponiert);   // TesselateSubMatrix
+    void punkteEinfuegen(bool spalten, bool erste);   // InsertPoints( COL / ROW )
+    void punkteEntfernen(bool spalten, bool erste);   // RemovePoints
     void tangentenSammeln(std::size_t index, Vektor3f tangentX[6], Vektor3f tangentY[6], Vektor2f tangentS[6],
                           Vektor2f tangentT[6], std::size_t index0, std::size_t index1);   // accumulateVertexTangentSpace
 

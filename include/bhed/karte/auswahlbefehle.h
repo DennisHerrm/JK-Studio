@@ -93,6 +93,9 @@ bool versteckeGewaehlte(Karte& k, bool versteckt);
 void zeigeVersteckte(Karte& k);
 // deleteSelection (Z, Backspace, Delete) mit Rueckgaengig "deleteSelected"
 void loescheAuswahl(Karte& k, const AuswahlEinstellung& e, bool eckenSperre = false);
+// Select_Delete (Scene_DeleteSelected): die gewaehlten Primitive und Entitaeten
+// loeschen, leere Entitaeten mit - innerhalb eines laufenden Befehls.
+void auswahlEntfernen(Karte& k);
 // Selection_Clone (Space) / Selection_Clone_MakeUnique (Shift+Space);
 // befehl: eigenes Rueckgaengig "cloneSelected(MakeUnique)" (sonst Scene_Clone_Selected).
 void klonen(Karte& k, const AuswahlEinstellung& e, bool eindeutig, bool befehl = true);
