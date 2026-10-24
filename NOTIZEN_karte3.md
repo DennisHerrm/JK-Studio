@@ -190,3 +190,83 @@ Fotos `laeufe\fotos_s3p0b\karteneditor_s3_*.bmp` neben
 mit Punkten und der Umriss von einem Bildpunkt um die aktive Ansicht wie NRC;
 der einzige Unterschied ist der feine Rahmen um jedes Feld und die
 Akzentfarbe (NRC: Blau 0,0,255 nur um die aktive 2D-Ansicht).
+
+## Punkt 0c: Stimmt alles von der Steuerung?
+
+Auftrag shank: jede Mausbelegung von NRC pruefen, die Teiler (einklappen,
+Griff am Rand, zurueckziehen) und Maximize view.
+
+### Mausbelegung (Checkliste, Abschnitt "Mausbelegung")
+
+Quelle `docs/mouse shortcuts.txt` (Tag 20260114, 51 Zeilen) gegen den Code
+gelesen (xywindow.cpp XY_MouseDown/Up/Moved und EntityMenu, camwindow.cpp
+enable/disable_freelook_*, wheelmove_scroll, Strafe-Modi, selection.cpp
+RadiantWindowObserver/Selector_/Manipulator_/TexManipulator_,
+selection_mtor_drag.cpp, selection_mtable_brush.h/_translate.h,
+surfacedialog.cpp Scene_applyClosestTexture, texwindow.cpp, entity.cpp
+EntitySetClassnameSelected). Ergaenzt um, was die Liste nicht nennt: die
+Zusatztasten allein (onModifierDown/Up), die Varianten von M3 mit Alt
+(Ausrichtung ohne Namen), worldspawn im Entitaetenmenue, Return/Umschalt+
+Return/Strg+Return im Clipper, Esc in Menue und Filterfeld, Return/Esc/Tab/
+Leertaste in Arbitrary rotation, die Teiler und F12.
+`tools/karte/mausbelegung.py` haelt die Liste (Belegung | Ansicht | Wirkung
+bei NRC | Ort bei NRC | Ort bei uns | Pruefung); `nrc_inventar.py erzeugen`
+schreibt sie als Abschnitt "Mausbelegung" in die Checkliste.
+
+Ergebnis: **62 Belegungen, alle 62 verhalten sich wie NRC** - jede mit echten
+Maus-/Tastenereignissen und einer Wirkungspruefung im Selbsttest (37 neue
+Pruefungen `Maus 2D/3D/Texturbrowser/Entitaetenmenue: ...` in
+`stufe3::maus`, die uebrigen aus Stufe 1b/2 mit Namen in der Liste). Im Code
+war keine Belegung falsch. Was die neuen Pruefungen zuerst rot zeigten, waren
+Annahmen, die NRC anders macht (jeweils im Code von NRC nachgesehen und so
+gelassen):
+
+- M1 ohne Bewegung laeuft durch alle Treffer der Tiefe - auch das Licht der
+  Karte, das zwischen den Pinseln C und A liegt (selection.cpp:1455 eCycle).
+- Nach dem Umwandeln im Entitaetenmenue ist die neue Entity nicht gewaehlt
+  (entity.cpp:132-163: neuer Knoten, der alte geloescht).
+- Im Verschieben-Werkzeug greift ein Klick genau auf den Drehpunkt den
+  Ursprung, nicht das Objekt (transformOrigin_isTranslatable,
+  selection.cpp:1281); "M1 + Alt = senkrecht" gilt beim freien Ziehen im
+  QE-Werkzeug (selection_mtable_translate.h:347).
+- Die Oberseite von A war von C verdeckt; Umschalt+M2 kuerzer als 16 Punkte
+  oeffnet das Kontextmenue (texwindow.cpp:1740).
+- Strg+Umschalt+M1 oeffnet nur lose Shader-Dateien extern; Movie Duels hat
+  `shaders/system.shader` lose im Ordner.
+
+Gefunden und behoben: ohne Ersatzfunktion haette der Selbsttest bei
+Strg+Umschalt+M1 die lose `system.shader` mit der Anwendung des Anwenders
+geoeffnet (`platform::openWithDefaultApp`). Das ist in den ersten beiden
+Laeufen (s3p0c1, s3p0c2) geschehen - die Datei wurde dabei nur geoeffnet, nicht
+veraendert. Seitdem starten `kartenUrlOeffnen`/`kartenBefehlStarten` im
+Selbsttest (BHED_EDITORTEST) nichts mehr, sie merken die Anfrage nur.
+
+### Teiler und Maximize view
+
+`stufe3::teiler`: jeder Teiler jeder Anordnung bis ans Ende gezogen (das Feld
+dahinter klappt ein, der Griff steht am Rand: Griff = Ende des vorderen
+Feldes), vom Rand zurueckgezogen (das Feld ist wieder da), dasselbe an den
+Anfang - Regular (h, v, v2 und der Teiler im Texturbrowser), Regular Left (h,
+v, v2), Split (h, v, v2), Regular mit eingebautem Gruppendialog (h:2);
+Floating hat keine Teiler. F12 mit der Maus ueber der Kamera: die Kamera
+fuellt den Bereich (1142 x 624), XY/Konsole/Texturen eingeklappt; F12 noch
+einmal: alle Groessen wie vorher (XY 457 x 593). 47 Pruefungen.
+
+### Rot/Gruen
+
+| Lauf | Mutation | Ergebnis |
+|---|---|---|
+| s3p0crot2 | Griff versteckt, wenn ein Nachbar 0 gross ist; Maximize stellt nicht zurueck | 64 OK / 35 FEHLER (alle Teiler, F12) |
+| s3p0crot3 | Tunnel immer "ersetzen"; Umschalt/Strg beim Auftragen vertauscht; Umschalt+M2 ohne Faktor 4 | 98 / 6 (Tunnel, vier M3-Varianten, Rollen) |
+| s3p0crot6 | Orbit ohne camera_orbit_init | 103 / 1 (Orbit: Abstand 190,84 statt 194,81) |
+| s3p0c13 (nur Maus und Teiler), s3p0c14 (Stufe 3 ganz) | - | 104 / 0, 128 / 0 |
+
+Der erste Lauf mit Mutation fuer die Teiler (Griff versteckt, wenn das Kind
+"eingeklappt" heisst) blieb gruen: beim Ziehen bis 0 setzt QSplitter nur die
+Groesse 0, nicht das Flag - die Mutation traf nichts; erst die Pruefung auf
+Groesse 0 zeigte die Wirkung. Ebenso war die erste Orbit-Pruefung zu weich
+(der Punkt lag auf der Blickachse, Kreisen um 0 0 0 fiel nicht auf) und ist
+jetzt neben der Achse.
+
+Checkliste: 782 fertig, 152 ausgegraut, 2 offen von 936 Eintraegen (neu:
+Mausbelegung 62 / 0 / 0).

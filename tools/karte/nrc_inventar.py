@@ -401,6 +401,14 @@ def erzeugen(root, md):
                 zeilen.append('* ---')
             else:
                 eintrag('', f'{name}: {e[1]} -> `{plugin_befehlsname(name, e[0])}`  ({quelle})')
+    # Stufe 3 Punkt 0c: die Mausbelegung (docs/mouse shortcuts.txt, gegen den
+    # Code geprueft, um fest verdrahtete Tasten ergaenzt) - Stand aus der Liste.
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from mausbelegung import MAUS
+    kopf('Mausbelegung')
+    zeilen.append('Belegung | Ansicht | Wirkung bei NRC | Ort bei NRC | Ort bei uns | Pruefung im Selbsttest (karteneditor)\n')
+    for st, belegung, ansicht, wirkung, nrc, uns, test in MAUS:
+        zeilen.append(f'- [{st}] {belegung} | {ansicht} | {wirkung} | {nrc} | {uns} | Test: {test}')
     open(md, 'w', encoding='utf-8', newline='\n').write('\n'.join(zeilen) + '\n')
     print(f'{n_items} Menuepunkte, {len(toolbars)} Knoepfe, {len(cmds)} Befehle, {len(dialoge)} Dialoge, '
           f'{len(seiten)} Seiten, {len(felder)} Felder, {n_plug} Plugin-Eintraege')

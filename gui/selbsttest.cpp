@@ -31731,11 +31731,941 @@ std::vector<Schritt> leiste() {
     return s;
 }
 
+// --- Punkt 0c: jede Mausbelegung von NRC mit echten Ereignissen und Wirkung ---
+//
+// Die Liste steht in tools/karte/nrc_inventar.md (Abschnitt "Mausbelegung",
+// Quelle tools/karte/mausbelegung.py); die Namen der Pruefungen hier sind die
+// Spalte "Test" dort. Belegungen, die schon frueher geprueft wurden (Stufe
+// 1b/2), nennt die Liste mit dem Namen der alten Pruefung.
+
+// Maus an einer Stelle: Zusatztasten, Druck, ziehen um weg in zwoelf Schritten
+// (mitten im Zug koennen weitere Zusatztasten dazukommen), Loslassen.
+Schritt maus(const std::string& was, std::function<ImVec2()> ort, int taste, ImGuiKeyChord mods, ImVec2 weg = ImVec2{0, 0},
+             ImGuiKeyChord modsImZug = 0) {
+    auto start = std::make_shared<ImVec2>();
+    const auto zusatz = [](ImGuiKeyChord m, bool an) {
+        ImGuiIO& io = ImGui::GetIO();
+        if ((m & ImGuiMod_Ctrl) != 0) { io.AddKeyEvent(ImGuiMod_Ctrl, an); }
+        if ((m & ImGuiMod_Shift) != 0) { io.AddKeyEvent(ImGuiMod_Shift, an); }
+        if ((m & ImGuiMod_Alt) != 0) { io.AddKeyEvent(ImGuiMod_Alt, an); }
+    };
+    return Schritt{was, [=](int b) {
+                       ImGuiIO& io = ImGui::GetIO();
+                       if (b == 0) {
+                           *start = ort();
+                           setzeMaus(*start);
+                           zusatz(mods, true);
+                           return false;
+                       }
+                       if (b == 2) {
+                           io.AddMouseButtonEvent(taste, true);
+                           return false;
+                       }
+                       if (b >= 3 && b <= 14) {
+                           if (b == 6) { zusatz(modsImZug, true); }
+                           if (weg.x != 0.0F || weg.y != 0.0F) {
+                               const float t = static_cast<float>(b - 2) / 12.0F;
+                               setzeMaus(ImVec2{start->x + weg.x * t, start->y + weg.y * t});
+                           }
+                           return false;
+                       }
+                       if (b == 15) {
+                           io.AddMouseButtonEvent(taste, false);
+                           return false;
+                       }
+                       if (b == 16) {
+                           zusatz(modsImZug, false);
+                           zusatz(mods, false);
+                       }
+                       return b >= 19;
+                   }};
+}
+
+std::function<ImVec2()> xy(float x, float y) {
+    return [x, y] { return stufe2::weltXy(x, y); };
+}
+std::function<ImVec2()> kam(float x, float y, float z) {
+    return [x, y, z] {
+        const ke::KameraFenster& f = ke::editor().kamFenster;
+        const ImVec2 b = stufe2::kameraBild(karte::Vektor3f(x, y, z));
+        return ImVec2{f.bildX + b.x, f.bildY + b.y};
+    };
+}
+
+// Die Testkarte: A = Pinsel der Kopie (-64..64, -64..64, 0..64), B daneben
+// (128..192, -32..32, 0..64), C ueber A (-64..64, -64..64, 96..160).
+std::shared_ptr<karte::Pinsel> pinselNr(std::size_t i) {
+    const auto w = ke::editor().karte.welt();
+    if (!w || w->kinder().size() <= i) { return nullptr; }
+    return std::dynamic_pointer_cast<karte::Pinsel>(w->kinder()[i]);
+}
+bool istGewaehlt(std::size_t i) {
+    const auto p = pinselNr(i);
+    return p && ke::editor().karte.auswahl.gewaehlt(ke::editor().karte.welt().get(), p.get());
+}
+karte::Kasten kasten(std::size_t i) {
+    const auto p = pinselNr(i);
+    karte::Kasten k;
+    if (p) {
+        k = p->grenzen(ke::editor().karte.kontext);
+    }
+    return k;
+}
+Schritt testkarte(const std::string& was) {
+    return tu(was, [] {
+        ke::Editor& e = ke::editor();
+        e.anordnung = karte::befehle::Anordnung::Regular;
+        e.teilerFuer = -1;
+        e.anzeige = ke::Anzeige{};
+        (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map"));
+        auto a = pinselNr(0);
+        if (a) {
+            auto b = a->kopie(e.karte.kontext);
+            b->transformieren(karte::verschiebungsMatrix(karte::Vektor3f(160, 0, 0)), e.karte.kontext);
+            // B schmaler: die y-Ebenen auf -32/32 (skalieren um die Mitte)
+            karte::Matrix4 sk = karte::verschiebungsMatrix(karte::Vektor3f(160, 0, 32));
+            karte::Matrix4 s2 = karte::kEinheitsMatrix;
+            s2[0] = 0.5F;
+            s2[5] = 0.5F;
+            karte::multipliziere(sk, s2);
+            karte::verschiebeUm(sk, karte::Vektor3f(-160, 0, -32));
+            b->transformieren(sk, e.karte.kontext);
+            e.karte.welt()->kindEinfuegen(b);
+            auto c = a->kopie(e.karte.kontext);
+            c->transformieren(karte::verschiebungsMatrix(karte::Vektor3f(0, 0, 96)), e.karte.kontext);
+            e.karte.welt()->kindEinfuegen(c);
+        }
+        e.karte.auswahl.leeren();
+        e.bearbeitung.einstellung.modus = karte::AuswahlModus::Primitiv;
+        e.bearbeitung.einstellung.komponente = karte::KomponentenModus::Standard;
+        e.aktivXy = 0;
+        e.xy[0].ansicht.typ = karte::Sicht::XY;
+        e.xy[0].ansicht.setzeMassstab(1);
+        e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        e.raster.setzePotenz(3);
+        e.kamera.setzeUrsprung(karte::Vektor3f(-256, 0, 32));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
+        if (e.kamFenster.frei) { ke::freelookBeenden(); }
+        ke::tastaturErsatz = deutscheTastatur;
+        if (e.bearbeitung.modus() != karte::ManipModus::Ziehen) { (void)ke::ausfuehren("MouseDrag"); }
+    });
+}
+
+std::vector<Schritt> maus() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    add(testkarte("Maus: Testkarte (A, B daneben, C ueber A), Resize, XY 1:1"));
+    add(pause(0.4));
+    add(pruefe("Maus: Testkarte mit drei Pinseln", [] {
+        const karte::Kasten b = kasten(1);
+        const karte::Kasten c = kasten(2);
+        diag::detail("Knopftest: Maus - B " + std::to_string(b.origin[0]) + "/" + std::to_string(b.extents[1]) + ", C z " + std::to_string(c.origin[2]));
+        return pinselNr(2) != nullptr && std::fabs(b.origin[0] - 160.0F) < 0.01F && std::fabs(b.extents[1] - 32.0F) < 0.01F &&
+               std::fabs(c.origin[2] - 128.0F) < 0.01F;
+    }));
+    // --- 2D und 3D ---
+    // M1 ohne Bewegung: Durchlaufen (eCycle) durch die Treffer in der Tiefe - hier
+    // C (oben), das Licht der Karte und A; danach wieder von vorn.
+    auto folge = std::make_shared<std::vector<std::string>>();
+    const auto wasGewaehlt = [] {
+        const ke::Editor& e = ke::editor();
+        for (std::size_t i = 0; i < 3; ++i) {
+            if (istGewaehlt(i)) { return std::string(1, static_cast<char>('A' + i)); }
+        }
+        for (const auto& ent : e.karte.entitaeten()) {
+            if (e.karte.auswahl.gewaehlt(ent.get())) { return ent->klassenname(); }
+        }
+        return std::string("-");
+    };
+    add(tu("Folge leeren", [folge] { folge->clear(); }));
+    for (int i = 0; i < 4; ++i) {
+        add(maus("M1 auf (0 0), ohne Bewegung " + std::to_string(i + 1), xy(0, 0), 0, 0));
+        add(pause(0.15));
+        add(tu("gewaehlten merken", [folge, wasGewaehlt] { folge->push_back(wasGewaehlt()); }));
+    }
+    add(pruefe("Maus 2D: M1 = Tunnel-Auswahl, derselbe Punkt noch einmal waehlt den naechsten Treffer (C, Licht, A, dann wieder C)", [folge] {
+        std::string f;
+        for (const auto& x : *folge) { f += " " + x; }
+        diag::detail("Knopftest: Maus - Tunnel:" + f);
+        const auto& v = *folge;
+        return v.size() == 4 && v[0] == "C" && v[1] == "light" && v[2] == "A" && v[3] == "C";
+    }));
+    add(tu("nichts gewaehlt", [] { ke::editor().karte.auswahl.leeren(); }));
+    add(maus("M1 auf B", xy(160, 0), 0, 0));
+    add(maus("Umschalt+M1 auf A", xy(-32, -32), 0, ImGuiMod_Shift));
+    add(pause(0.2));
+    add(pruefe("Maus 2D: Umschalt+M1 waehlt dazu (B und A/C)", [] {
+        return istGewaehlt(1) && (istGewaehlt(0) || istGewaehlt(2)) && ke::editor().karte.auswahl.anzahl() == 2;
+    }));
+    add(tu("nichts gewaehlt", [] { ke::editor().karte.auswahl.leeren(); }));
+    add(maus("Umschalt+M1 von A nach B ziehen", xy(-32, -32), 0, ImGuiMod_Shift, ImVec2{0, 0}));
+    add(tu("leeren", [] { ke::editor().karte.auswahl.leeren(); }));
+    add({"Umschalt+M1 ziehen (malen) von A ueber B", [](int b) {
+             static Schritt k;
+             if (b == 0) {
+                 const ImVec2 a = stufe2::weltXy(-32, 0);
+                 const ImVec2 z = stufe2::weltXy(160, 0);
+                 k = maus("malen", [a] { return a; }, 0, ImGuiMod_Shift, ImVec2{z.x - a.x, z.y - a.y});
+             }
+             return k.tun(b);
+         }});
+    add(pause(0.2));
+    add(pruefe("Maus 2D: Umschalt+M1 ziehen malt die Auswahl (A/C und B gewaehlt)", [] {
+        return istGewaehlt(1) && (istGewaehlt(0) || istGewaehlt(2));
+    }));
+    add(tu("nichts gewaehlt", [] { ke::editor().karte.auswahl.leeren(); }));
+    add(maus("Umschalt+M2 auf B", xy(160, 0), 1, ImGuiMod_Shift));
+    add(pause(0.2));
+    add(pruefe("Maus 2D: Umschalt+M2 = Tunnel-Auswahl (B gewaehlt, kein Entitaetenmenue)", [] {
+        return istGewaehlt(1) && ke::editor().karte.auswahl.anzahl() == 1 &&
+               !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+    }));
+    add(tu("nichts gewaehlt", [] { ke::editor().karte.auswahl.leeren(); }));
+    add(maus("Strg+M2 auf B", xy(160, 0), 1, ImGuiMod_Ctrl));
+    add(pause(0.2));
+    add(pruefe("Maus 2D: Strg+M2 = Flaechen-Tunnel (eine Flaeche von B gewaehlt)", [] {
+        const auto& f = ke::editor().karte.auswahl.flaechen();
+        diag::detail("Knopftest: Maus - Strg+M2 " + std::to_string(f.size()) + " Flaechen");
+        return f.size() == 1 && ke::editor().karte.auswahl.anzahl() == 0;
+    }));
+    add(tu("nichts gewaehlt", [] { ke::editor().karte.auswahl.leeren(); }));
+    add({"Strg+M2 Rechteck um A und B", [](int b) {
+             static Schritt k;
+             if (b == 0) {
+                 const ImVec2 a = stufe2::weltXy(-96, 96);
+                 const ImVec2 z = stufe2::weltXy(224, -96);
+                 k = maus("Rechteck", [a] { return a; }, 1, ImGuiMod_Ctrl, ImVec2{z.x - a.x, z.y - a.y});
+             }
+             return k.tun(b);
+         }});
+    add(pause(0.2));
+    add(pruefe("Maus 2D: Strg+M2 ziehen = Rechteck fuer Flaechen (Flaechen von A, B und C, keine Pinsel)", [] {
+        const auto& f = ke::editor().karte.auswahl.flaechen();
+        diag::detail("Knopftest: Maus - Strg+M2 Rechteck " + std::to_string(f.size()) + " Flaechen");
+        return f.size() >= 3 && ke::editor().karte.auswahl.anzahl() == 0;
+    }));
+    add(tu("nichts gewaehlt, B waehlen, Ecken-Modus", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), pinselNr(1));
+    }));
+    add(tasteKombi(ImGuiKey_V, "V"));
+    add(maus("Alt+M1 auf A/C im Ecken-Modus", xy(-32, -32), 0, ImGuiMod_Alt));
+    add(pause(0.2));
+    add(pruefe("Maus 2D: Alt+M1 waehlt im Komponenten-Modus Objekte (B und A/C gewaehlt, Ecken-Modus bleibt)", [] {
+        const ke::Editor& e = ke::editor();
+        return istGewaehlt(1) && (istGewaehlt(0) || istGewaehlt(2)) && e.bearbeitung.einstellung.modus == karte::AuswahlModus::Komponente;
+    }));
+    add(tasteKombi(ImGuiKey_V, "V"));
+    add(tu("B allein gewaehlt", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), pinselNr(1));
+    }));
+    auto zahl = std::make_shared<std::size_t>(0);
+    add(tu("Pinsel zaehlen", [zahl] { *zahl = ke::editor().karte.welt()->kinder().size(); }));
+    add(maus("Strg+Alt+M1 an der rechten Flaeche von B nach rechts ziehen", xy(192, 0), 0, ImGuiMod_Ctrl | ImGuiMod_Alt, ImVec2{48, 0}));
+    add(pause(0.2));
+    add(pruefe("Maus 2D: Strg+Alt+M1 zieht Flaechen heraus (ein Pinsel mehr)", [zahl] {
+        const std::size_t n = ke::editor().karte.welt()->kinder().size();
+        diag::detail("Knopftest: Maus - Extrusion " + std::to_string(*zahl) + " -> " + std::to_string(n) + " Pinsel");
+        return n == *zahl + 1;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tu("nichts gewaehlt", [] { ke::editor().karte.auswahl.leeren(); }));
+    add(tu("Pinsel zaehlen", [zahl] { *zahl = ke::editor().karte.welt()->kinder().size(); }));
+    add(maus("M1 ziehen mit Umschalt: neuer Pinsel", xy(256, 256), 0, 0, ImVec2{0, 0}));
+    add({"neuer Pinsel quadratisch (Umschalt im Zug)", [](int b) {
+             static Schritt k;
+             if (b == 0) {
+                 const ImVec2 a = stufe2::weltXy(256, 256);
+                 const ImVec2 z = stufe2::weltXy(320, 288);
+                 k = maus("quadratisch", [a] { return a; }, 0, 0, ImVec2{z.x - a.x, z.y - a.y}, ImGuiMod_Shift);
+             }
+             return k.tun(b);
+         }});
+    add(pause(0.2));
+    add(pruefe("Maus 2D: M1 ziehen + Umschalt = neuer Pinsel quadratisch (64 x 64)", [zahl] {
+        const ke::Editor& e = ke::editor();
+        const std::size_t n = e.karte.welt()->kinder().size();
+        const karte::Kasten k = kasten(n - 1);
+        diag::detail("Knopftest: Maus - neu " + std::to_string(k.extents[0] * 2) + " x " + std::to_string(k.extents[1] * 2) + " x " +
+                     std::to_string(k.extents[2] * 2));
+        return n >= *zahl + 1 && std::fabs(k.extents[0] - k.extents[1]) < 0.01F && std::fabs(k.extents[0] - 32.0F) < 0.01F;
+    }));
+    add(tu("nichts gewaehlt", [] { ke::editor().karte.auswahl.leeren(); }));
+    add({"neuer Pinsel als Wuerfel (Strg im Zug)", [](int b) {
+             static Schritt k;
+             if (b == 0) {
+                 const ImVec2 a = stufe2::weltXy(-256, 256);
+                 const ImVec2 z = stufe2::weltXy(-192, 288);
+                 k = maus("Wuerfel", [a] { return a; }, 0, 0, ImVec2{z.x - a.x, z.y - a.y}, ImGuiMod_Ctrl);
+             }
+             return k.tun(b);
+         }});
+    add(pause(0.2));
+    add(pruefe("Maus 2D: M1 ziehen + Strg = neuer Pinsel als Wuerfel (64 x 64 x 64)", [] {
+        const ke::Editor& e = ke::editor();
+        const karte::Kasten k = kasten(e.karte.welt()->kinder().size() - 1);
+        diag::detail("Knopftest: Maus - Wuerfel " + std::to_string(k.extents[0] * 2) + " x " + std::to_string(k.extents[1] * 2) + " x " +
+                     std::to_string(k.extents[2] * 2));
+        return std::fabs(k.extents[0] - 32.0F) < 0.01F && std::fabs(k.extents[1] - 32.0F) < 0.01F && std::fabs(k.extents[2] - 32.0F) < 0.01F;
+    }));
+    // --- nur 2D ---
+    add(tu("B allein gewaehlt (QE-Werkzeug)", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), pinselNr(1));
+    }));
+    add(maus("Alt+M1 an der Ecke (192 32) nach oben ziehen", xy(192, 32), 0, ImGuiMod_Alt, ImVec2{0, -48}));
+    add(pause(0.2));
+    add(pruefe("Maus 2D: Alt+M1 im QE-Werkzeug schert (eine Flaeche von B steht schraeg)", [] {
+        const auto b = pinselNr(1);
+        if (!b) { return false; }
+        b->bRep(ke::editor().karte.kontext);
+        int schraeg = 0;
+        for (const auto& f : b->flaechen()) {
+            if (!f->traegtBei()) { continue; }
+            const auto n = f->ebene().normal();
+            const double m = std::max({std::fabs(n[0]), std::fabs(n[1]), std::fabs(n[2])});
+            schraeg += m < 0.9999 ? 1 : 0;
+        }
+        diag::detail("Knopftest: Maus - Scheren: " + std::to_string(schraeg) + " schraege Flaechen");
+        return schraeg >= 1;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tu("Drehen-Werkzeug (Pivot sichtbar)", [] { (void)ke::ausfuehren("MouseRotate"); }));
+    add(maus("Umschalt+M3 bei (40 24)", xy(40, 24), 2, ImGuiMod_Shift));
+    add(pause(0.2));
+    add(pruefe("Maus 2D: Umschalt+M3 setzt den Ursprung der Drehung (40 24, eingerastet), z bleibt", [] {
+        ke::Editor& e = ke::editor();
+        const karte::Matrix4& m = e.bearbeitung.pivotZuWelt();
+        diag::detail("Knopftest: Maus - Pivot " + std::to_string(m[12]) + " " + std::to_string(m[13]) + " " + std::to_string(m[14]));
+        return std::fabs(m[12] - 40.0F) < 0.01F && std::fabs(m[13] - 24.0F) < 0.01F && std::fabs(m[14] - 32.0F) < 0.01F;
+    }));
+    add(tu("Resize", [] { (void)ke::ausfuehren("MouseDrag"); }));
+    // --- nur 3D ---
+    add(tu("Kamera schaut von oben auf A und B, nichts gewaehlt", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.kamera.setzeUrsprung(karte::Vektor3f(64, -320, 320));
+        e.kamera.setzeWinkel(karte::Vektor3f(-40, 90, 0));
+    }));
+    add(pause(0.3));
+    add(maus("Strg+M1 auf die Oberseite von B", kam(160, 0, 64), 0, ImGuiMod_Ctrl));
+    add(pause(0.2));
+    add(pruefe("Maus 3D: Strg+M1 waehlt eine Flaeche (die Oberseite von B)", [] {
+        const auto& f = ke::editor().karte.auswahl.flaechen();
+        const auto fl = f.empty() ? nullptr : f.front().flaeche.lock();
+        const bool oben = f.size() == 1 && fl && fl->ebene().normal()[2] > 0.99;
+        diag::detail("Knopftest: Maus - Strg+M1 3D " + std::to_string(f.size()) + (oben ? " Oberseite" : ""));
+        return oben;
+    }));
+    add(tu("nichts gewaehlt", [] { ke::editor().karte.auswahl.leeren(); }));
+    add({"Strg+M1 ziehen von B nach C (Flaechen malen)", [](int b) {
+             static Schritt k;
+             if (b == 0) {
+                 const ImVec2 a = kam(160, 0, 64)();
+                 const ImVec2 z = kam(0, 0, 160)();
+                 k = maus("malen", [a] { return a; }, 0, ImGuiMod_Ctrl, ImVec2{z.x - a.x, z.y - a.y});
+             }
+             return k.tun(b);
+         }});
+    add(pause(0.2));
+    add(pruefe("Maus 3D: Strg+M1 ziehen malt Flaechen (die Oberseiten von B und C)", [] {
+        const auto& f = ke::editor().karte.auswahl.flaechen();
+        int oben = 0;
+        for (const auto& x : f) {
+            const auto fl = x.flaeche.lock();
+            oben += (fl && fl->ebene().normal()[2] > 0.99) ? 1 : 0;
+        }
+        diag::detail("Knopftest: Maus - Strg+M1 ziehen 3D " + std::to_string(f.size()) + " Flaechen, " + std::to_string(oben) + " oben");
+        return oben >= 2;
+    }));
+    add(tu("B gewaehlt, Kamera von vorn", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), pinselNr(1));
+        e.kamera.setzeUrsprung(karte::Vektor3f(160, -320, 32));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 90, 0));
+    }));
+    add(pause(0.3));
+    auto vorher = std::make_shared<karte::Kasten>();
+    add(tu("B merken", [vorher] { *vorher = kasten(1); }));
+    add(maus("Alt+M1 in der Kamera an der Vorderseite von B nach oben ziehen", kam(176, -32, 48), 0, ImGuiMod_Alt, ImVec2{0, -80}));
+    add(pause(0.2));
+    add(pruefe("Maus 3D: Alt+M1 = die andere Groessenaenderung (B ist danach anders gross)", [vorher] {
+        const karte::Kasten k = kasten(1);
+        diag::detail("Knopftest: Maus - Alt+M1 3D: Ausdehnung " + std::to_string(vorher->extents[0]) + "/" + std::to_string(vorher->extents[1]) + "/" +
+                     std::to_string(vorher->extents[2]) + " -> " + std::to_string(k.extents[0]) + "/" + std::to_string(k.extents[1]) + "/" +
+                     std::to_string(k.extents[2]));
+        return std::fabs(k.extents[0] - vorher->extents[0]) + std::fabs(k.extents[1] - vorher->extents[1]) +
+                   std::fabs(k.extents[2] - vorher->extents[2]) > 1.0F;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tu("Resize (QE), B gewaehlt", [vorher] {
+        ke::Editor& e = ke::editor();
+        if (e.bearbeitung.modus() != karte::ManipModus::Ziehen) { (void)ke::ausfuehren("MouseDrag"); }
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), pinselNr(1));
+        *vorher = kasten(1);
+    }));
+    add(pause(0.3));
+    add(maus("M1 auf B ziehen, Alt dazu (senkrecht)", kam(168, -32, 40), 0, 0, ImVec2{60, -60}, ImGuiMod_Alt));
+    add(pause(0.2));
+    add(pruefe("Maus 3D: M1 + Alt verschiebt nur senkrecht (z anders, x und y gleich)", [vorher] {
+        const karte::Kasten k = kasten(1);
+        diag::detail("Knopftest: Maus - M1+Alt 3D: Mitte " + std::to_string(vorher->origin[0]) + "/" + std::to_string(vorher->origin[1]) + "/" +
+                     std::to_string(vorher->origin[2]) + " -> " + std::to_string(k.origin[0]) + "/" + std::to_string(k.origin[1]) + "/" +
+                     std::to_string(k.origin[2]));
+        return std::fabs(k.origin[0] - vorher->origin[0]) < 0.01F && std::fabs(k.origin[1] - vorher->origin[1]) < 0.01F &&
+               std::fabs(k.origin[2] - vorher->origin[2]) > 1.0F;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tu("Resize, nichts gewaehlt, Kamera auf A", [] {
+        ke::Editor& e = ke::editor();
+        (void)ke::ausfuehren("MouseDrag");
+        e.karte.auswahl.leeren();
+        e.kamera.setzeUrsprung(karte::Vektor3f(-256, 0, 32));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
+    }));
+    add(pause(0.3));
+    // Alt+M2: Orbit um den angeklickten Punkt
+    // Der Punkt liegt neben der Blickachse (-64 32 40), damit ein Kreisen um einen
+    // anderen Punkt (z. B. 0 0 0 auf der Achse) auffaellt.
+    add(maus("Alt+M2 auf A bei (-64 32 40), nach rechts ziehen", kam(-64, 32, 40), 1, ImGuiMod_Alt, ImVec2{120, 0}));
+    add(pause(0.2));
+    add(pruefe("Maus 3D: Alt+M2 kreist um den angeklickten Punkt (der Abstand zu ihm bleibt, die Kamera wandert, Blickrichtung anders)", [] {
+        const ke::Editor& e = ke::editor();
+        const karte::Vektor3f d = e.kamera.ursprung - karte::Vektor3f(-64, 32, 40);
+        const float abstand = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+        const float soll = std::sqrt(192.0F * 192.0F + 32.0F * 32.0F + 8.0F * 8.0F);
+        const karte::Vektor3f w = e.kamera.ursprung - karte::Vektor3f(-256, 0, 32);
+        const float weg = std::sqrt(w[0] * w[0] + w[1] * w[1] + w[2] * w[2]);
+        diag::detail("Knopftest: Maus - Orbit: Abstand " + std::to_string(abstand) + " (soll " + std::to_string(soll) + "), gewandert " + std::to_string(weg) +
+                     ", yaw " + std::to_string(e.kamera.winkel[1]) + (e.kamFenster.frei ? ", Freelook an" : ""));
+        return std::fabs(abstand - soll) < 0.05F && weg > 5.0F && std::fabs(e.kamera.winkel[1]) > 1.0F && !e.kamFenster.frei;
+    }));
+    add(tu("Kamera auf A", [] {
+        ke::Editor& e = ke::editor();
+        e.kamera.setzeUrsprung(karte::Vektor3f(-256, 0, 32));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
+    }));
+    add(pause(0.2));
+    add(maus("M2 gedrueckt nach rechts ziehen", kam(-64, 0, 32), 1, 0, ImVec2{100, 0}));
+    add(pause(0.2));
+    add(pruefe("Maus 3D: M2 ziehen = Strafe seitwaerts (y anders, Winkel gleich)", [] {
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Maus - M2 ziehen: " + std::to_string(e.kamera.ursprung[0]) + "/" + std::to_string(e.kamera.ursprung[1]) + "/" +
+                     std::to_string(e.kamera.ursprung[2]) + ", yaw " + std::to_string(e.kamera.winkel[1]));
+        return std::fabs(e.kamera.ursprung[1]) > 1.0F && std::fabs(e.kamera.winkel[1]) < 0.01F && std::fabs(e.kamera.winkel[0]) < 0.01F;
+    }));
+    add(tu("Kamera auf A, Freelook aus", [] {
+        ke::Editor& e = ke::editor();
+        if (e.kamFenster.frei) { ke::freelookBeenden(); }
+        e.kamera.setzeUrsprung(karte::Vektor3f(-256, 0, 32));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
+    }));
+    add(pause(0.3));
+    add(maus("kurzer M2: Freelook an", kam(-64, 0, 32), 1, 0));
+    add(pause(0.3));
+    add({"im Freelook: Strg halten, Maus nach rechts", [](int b) {
+             ImGuiIO& io = ImGui::GetIO();
+             static ImVec2 a;
+             if (b == 0) {
+                 a = io.MousePos;
+                 io.AddKeyEvent(ImGuiMod_Ctrl, true);
+                 return false;
+             }
+             if (b >= 2 && b <= 10) {
+                 setzeMaus(ImVec2{a.x + static_cast<float>(b - 1) * 10.0F, a.y});
+                 return false;
+             }
+             if (b == 11) { io.AddKeyEvent(ImGuiMod_Ctrl, false); }
+             return b >= 13;
+         }});
+    add(pause(0.2));
+    add(pruefe("Maus 3D: Strg + Maus im Freelook = Strafe (Ursprung anders, Winkel gleich)", [] {
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Maus - Strg+Maus: y " + std::to_string(e.kamera.ursprung[1]) + ", yaw " + std::to_string(e.kamera.winkel[1]));
+        return e.kamFenster.frei && std::fabs(e.kamera.ursprung[1]) > 1.0F && std::fabs(e.kamera.winkel[1]) < 0.01F;
+    }));
+    add(tu("Ursprung zurueck", [] { ke::editor().kamera.setzeUrsprung(karte::Vektor3f(-256, 0, 32)); }));
+    add({"im Freelook: Strg+Umschalt halten, Maus nach oben", [](int b) {
+             ImGuiIO& io = ImGui::GetIO();
+             static ImVec2 a;
+             if (b == 0) {
+                 a = io.MousePos;
+                 io.AddKeyEvent(ImGuiMod_Ctrl, true);
+                 io.AddKeyEvent(ImGuiMod_Shift, true);
+                 return false;
+             }
+             if (b >= 2 && b <= 10) {
+                 setzeMaus(ImVec2{a.x, a.y - static_cast<float>(b - 1) * 10.0F});
+                 return false;
+             }
+             if (b == 11) {
+                 io.AddKeyEvent(ImGuiMod_Shift, false);
+                 io.AddKeyEvent(ImGuiMod_Ctrl, false);
+             }
+             return b >= 13;
+         }});
+    add(pause(0.2));
+    add(pruefe("Maus 3D: Strg+Umschalt + Maus im Freelook = Strafe vor/zurueck (x anders, y und Winkel gleich)", [] {
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Maus - Strg+Umschalt+Maus: x " + std::to_string(e.kamera.ursprung[0]) + ", y " + std::to_string(e.kamera.ursprung[1]));
+        return std::fabs(e.kamera.ursprung[0] + 256.0F) > 1.0F && std::fabs(e.kamera.ursprung[1]) < 0.01F && std::fabs(e.kamera.winkel[1]) < 0.01F;
+    }));
+    add(tu("Freelook aus, Kamera auf A", [] {
+        ke::Editor& e = ke::editor();
+        if (e.kamFenster.frei) { ke::freelookBeenden(); }
+        e.kamera.setzeUrsprung(karte::Vektor3f(-256, 0, 32));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
+    }));
+    add(pause(0.3));
+    // M3 und seine Zusatztasten (TexManipulator_, Scene_applyClosestTexture)
+    add(maus("M3 auf A (kopieren)", kam(-64, 0, 32), 2, 0));
+    add(pause(0.2));
+    const auto auftragen = [&add](const std::string& name, ImGuiKeyChord mods, const std::string& undo, bool shaderNeu) {
+        add(tu("Browser-Shader system/nodraw", [] { ke::texturShaderWaehlen("textures/system/nodraw"); }));
+        add(maus(name + " auf A", kam(-64, 16, 40), 2, mods));
+        add(pause(0.2));
+        add(pruefe("Maus 3D: " + name + " (" + undo + ")", [undo, shaderNeu] {
+            ke::Editor& e = ke::editor();
+            const auto a = pinselNr(0);
+            int nodraw = 0;
+            if (a) {
+                for (const auto& f : a->flaechen()) { nodraw += f->shader() == "textures/system/nodraw" ? 1 : 0; }
+            }
+            diag::detail("Knopftest: Maus - " + undo + ": Rueckgaengig \"" + e.karte.undo.undoName() + "\", nodraw " + std::to_string(nodraw));
+            return e.karte.undo.undoName() == undo && nodraw == (shaderNeu ? 1 : 0);
+        }));
+        add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    };
+    auftragen("Alt+M3", ImGuiMod_Alt, "paintTexture", true);
+    auftragen("Umschalt+M3", ImGuiMod_Shift, "paintTexture,Values,LightPower", true);
+    auftragen("Strg+M3", ImGuiMod_Ctrl, "paintTextureSeamless,LightColor", true);
+    auftragen("Strg+Umschalt+M3", ImGuiMod_Ctrl | ImGuiMod_Shift, "projectTexture,LightColor&Power", true);
+    auftragen("Alt+Umschalt+M3", ImGuiMod_Alt | ImGuiMod_Shift, "paintTexDefValues", false);
+    auftragen("Alt+Strg+M3", ImGuiMod_Alt | ImGuiMod_Ctrl, "paintTexDefValuesSeamless", false);
+    auftragen("Alt+Strg+Umschalt+M3", ImGuiMod_Alt | ImGuiMod_Ctrl | ImGuiMod_Shift, "projectTexDefValues", false);
+    // --- Texturbrowser ---
+    add(tu("Texturbrowser: system/ zeigen, Shader-Text zu, Startbefehl ersetzen", [] {
+        ke::Editor& e = ke::editor();
+        e.shaderText.offen = false;
+        ke::texturVerzeichnisZeigen("system/");
+    }));
+    add(pause(0.4));
+    add(maus("Umschalt+M1 auf system/caulk", [] {
+        ImVec2 p{0, 0};
+        (void)ke::texturMitte("textures/system/caulk", p);
+        return p;
+    }, 0, ImGuiMod_Shift));
+    add(pause(0.3));
+    add(pruefe("Maus Texturbrowser: Umschalt+M1 oeffnet den Shader im eigenen Editor (system.shader)", [] {
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Maus - Shader-Text " + e.shaderText.datei + ", Zeile " + std::to_string(e.shaderText.springen));
+        return e.shaderText.offen && e.shaderText.datei.find("system.shader") != std::string::npos;
+    }));
+    add(tu("Shader-Text zu, Shader-Editor-Befehl editor.exe, Start ersetzt", [] {
+        ke::Editor& e = ke::editor();
+        e.shaderText.offen = false;
+        e.shaderEditorBefehl = "editor.exe";
+        e.letzteUrl.clear();
+        e.befehlStarten = [](const std::string& z) {
+            ke::editor().letzteUrl = z;
+            return true;
+        };
+    }));
+    add(pause(0.2));
+    add(maus("Strg+Umschalt+M1 auf system/caulk", [] {
+        ImVec2 p{0, 0};
+        (void)ke::texturMitte("textures/system/caulk", p);
+        return p;
+    }, 0, ImGuiMod_Ctrl | ImGuiMod_Shift));
+    add(pause(0.3));
+    add(pruefe("Maus Texturbrowser: Strg+Umschalt+M1 = externer Editor (loser Shader: editor.exe mit der Datei; im Paket der eigene)", [] {
+        ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Maus - extern: " + e.letzteUrl + (e.shaderText.offen ? ", eigener offen" : ""));
+        const bool lose = e.letzteUrl.rfind("editor.exe \"", 0) == 0 && e.letzteUrl.find("system.shader") != std::string::npos;
+        const bool paket = e.letzteUrl.empty() && e.shaderText.offen && e.shaderText.datei.find("::") != std::string::npos;
+        return lose || paket;
+    }));
+    add(tu("Shader-Text zu, Start wie vorher", [] {
+        ke::Editor& e = ke::editor();
+        e.shaderText.offen = false;
+        e.shaderEditorBefehl.clear();
+        e.befehlStarten = nullptr;
+    }));
+    add(pause(0.2));
+    auto vorRollen = std::make_shared<int>(0);
+    add(tu("Ursprung merken, Liste lang", [vorRollen] {
+        ke::Editor& e = ke::editor();
+        ke::texturVerzeichnisZeigen("common/");   // viele Texturen: die Liste ist laenger als die Ansicht
+        (void)e;
+        *vorRollen = e.texBro.ursprungY(e.aktiveShader);
+    }));
+    add(pause(0.3));
+    add(tu("Ursprung merken", [vorRollen] { *vorRollen = ke::editor().texBro.ursprungY(ke::editor().aktiveShader); }));
+    add(maus("Umschalt+M2 im Texturbrowser 10 nach unten ziehen", [] {
+        const ke::TexturBrowserLage& l = ke::texturBrowserLage();
+        return ImVec2{l.ansichtX + 20.0F, l.ansichtY + 30.0F};
+    }, 1, ImGuiMod_Shift, ImVec2{0, -20.0F * std::max(1.0F, std::round(g_app->dpiScale))}));
+    add(pause(0.2));
+    add(pruefe("Maus Texturbrowser: Umschalt+M2 ziehen rollt viermal so schnell (20 logische Punkte -> 80), kein Kontextmenue", [vorRollen] {
+        ke::Editor& e = ke::editor();
+        const int nach = e.texBro.ursprungY(e.aktiveShader);
+        const int unten = std::min(e.texBro.hoehe - e.texBro.gesamtHoehe(e.aktiveShader), 0);
+        diag::detail("Knopftest: Maus - Umschalt+M2: " + std::to_string(*vorRollen) + " -> " + std::to_string(nach) + " (unten " + std::to_string(unten) + ")");
+        return (nach - *vorRollen == -80 || (nach == unten && *vorRollen - unten < 80)) &&
+               !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+    }));
+    // --- Entitaetenmenue: M2 wandelt um, Strg+M2 haelt es offen ---
+    add(tu("ein Licht waehlen", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        for (const auto& ent : e.karte.entitaeten()) {
+            if (ent->klassenname() == "light") {
+                e.karte.auswahl.waehlen(ent);
+                break;
+            }
+        }
+    }));
+    add(maus("M2 in die XY-Ansicht (Menue)", xy(256, -256), 1, 0));
+    add(pause(0.3));
+    add(klick("info"));
+    add(pause(0.3));
+    add({"M2 auf info_null (umwandeln)", [](int b) {
+             static Schritt k;
+             if (b == 0) {
+                 const Element* el = finde("info_null", "", 0, false);
+                 const ImVec2 m = el != nullptr ? el->rect.GetCenter() : ImVec2{5, 5};
+                 k = maus("M2 info_null", [m] { return m; }, 1, 0);
+             }
+             return k.tun(b);
+         }});
+    add(pause(0.3));
+    add(pruefe("Maus Entitaetenmenue: M2 wandelt die gewaehlte Entity um (light -> info_null, wie NRC danach nicht gewaehlt), das Menue schliesst", [] {
+        const ke::Editor& e = ke::editor();
+        int licht = 0;
+        int null = 0;
+        for (const auto& ent : e.karte.entitaeten()) {
+            licht += ent->klassenname() == "light" ? 1 : 0;
+            null += ent->klassenname() == "info_null" ? 1 : 0;
+        }
+        diag::detail("Knopftest: Maus - umwandeln: light " + std::to_string(licht) + ", info_null " + std::to_string(null) + ", " +
+                     e.karte.undo.undoName());
+        return licht == 0 && null == 1 && e.karte.undo.undoName() == "entitySetClass -class info_null" &&
+               !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+    }));
+    add(tu("info_null waehlen", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        for (const auto& ent : e.karte.entitaeten()) {
+            if (ent->klassenname() == "info_null") {
+                e.karte.auswahl.waehlen(ent);
+                break;
+            }
+        }
+    }));
+    add(maus("M2 in die XY-Ansicht (Menue)", xy(256, -256), 1, 0));
+    add(pause(0.3));
+    add(klick("info"));
+    add(pause(0.3));
+    add({"Strg+M2 auf info_notnull (umwandeln, Menue bleibt)", [](int b) {
+             static Schritt k;
+             if (b == 0) {
+                 const Element* el = finde("info_notnull", "", 0, false);
+                 const ImVec2 m = el != nullptr ? el->rect.GetCenter() : ImVec2{5, 5};
+                 k = maus("Strg+M2 info_notnull", [m] { return m; }, 1, ImGuiMod_Ctrl);
+             }
+             return k.tun(b);
+         }});
+    add(pause(0.3));
+    add(pruefe("Maus Entitaetenmenue: Strg+M2 wandelt um (info_null -> info_notnull), das Menue bleibt offen", [] {
+        const ke::Editor& e = ke::editor();
+        int notnull = 0;
+        for (const auto& ent : e.karte.entitaeten()) { notnull += ent->klassenname() == "info_notnull" ? 1 : 0; }
+        return notnull == 1 && e.karte.undo.undoName() == "entitySetClass -class info_notnull" && finde("info_notnull", "", 0, false) != nullptr;
+    }));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(pause(0.2));
+    // worldspawn im Menue: gewaehlte Primitive aus ihrer Gruppe loesen (m_2world)
+    auto weltZahl = std::make_shared<std::size_t>(0);
+    add(tu("B allein gewaehlt (Welt-Pinsel)", [weltZahl] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), pinselNr(1));
+        *weltZahl = e.karte.welt()->kinder().size();
+    }));
+    add(maus("M2 in die XY-Ansicht (Menue)", xy(256, -256), 1, 0));
+    add(pause(0.3));
+    add(klick("func"));
+    add(pause(0.3));
+    add(klick("func_group"));
+    add(pause(0.3));
+    auto gruppeB = std::make_shared<std::weak_ptr<karte::Primitiv>>();
+    add(pruefe("Maus Entitaetenmenue: M1 auf func_group macht aus dem gewaehlten Welt-Pinsel eine Gruppe", [gruppeB, weltZahl] {
+        const ke::Editor& e = ke::editor();
+        for (const auto& ent : e.karte.entitaeten()) {
+            if (ent->klassenname() == "func_group" && ent->kinder().size() == 1) {
+                *gruppeB = ent->kinder().front();
+                diag::detail("Knopftest: Maus - func_group: Welt " + std::to_string(*weltZahl) + " -> " + std::to_string(e.karte.welt()->kinder().size()));
+                return e.karte.welt()->kinder().size() + 1 == *weltZahl;
+            }
+        }
+        return false;
+    }));
+    add(tu("den Pinsel der Gruppe waehlen", [gruppeB] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        const auto p = gruppeB->lock();
+        for (const auto& ent : e.karte.entitaeten()) {
+            for (const auto& k : ent->kinder()) {
+                if (k == p) { e.karte.auswahl.waehlen(ent, k); }
+            }
+        }
+    }));
+    add(maus("M2 in die XY-Ansicht (Menue)", xy(256, -256), 1, 0));
+    add(pause(0.3));
+    add(klick("worldspawn"));
+    add(pause(0.3));
+    add(pruefe("Maus Entitaetenmenue: M1 auf worldspawn loest die gewaehlten Primitive aus der Gruppe (zurueck in die Welt, Gruppe weg)", [weltZahl] {
+        const ke::Editor& e = ke::editor();
+        int gruppen = 0;
+        for (const auto& ent : e.karte.entitaeten()) { gruppen += ent->klassenname() == "func_group" ? 1 : 0; }
+        diag::detail("Knopftest: Maus - worldspawn: Welt " + std::to_string(e.karte.welt()->kinder().size()) + " Pinsel, " + std::to_string(gruppen) +
+                     " Gruppen, " + e.karte.undo.undoName());
+        return e.karte.welt()->kinder().size() == *weltZahl && gruppen == 0 && e.karte.undo.undoName() == "ungroupSelectedPrimitives";
+    }));
+    // Zusatztasten allein: onModifierDown / onModifierUp (g_modifiers, Hervorhebung)
+    add({"Alt druecken (Maus ueber XY)", [](int b) {
+             if (b == 0) { setzeMaus(stufe2::weltXy(300, 300)); }
+             if (b == 2) { ImGui::GetIO().AddKeyEvent(ImGuiMod_Alt, true); }
+             return b >= 5;
+         }});
+    add(pruefe("Maus: Alt gedrueckt -> g_modifiers mit Alt (onModifierDown)", [] {
+        const karte::Zusatz& z = ke::editor().bearbeitung.zusatz;
+        return z.alt && !z.shift && !z.strg;
+    }));
+    add({"Umschalt dazu, dann beide los", [](int b) {
+             ImGuiIO& io = ImGui::GetIO();
+             if (b == 0) { io.AddKeyEvent(ImGuiMod_Shift, true); }
+             if (b == 3) {
+                 const karte::Zusatz& z = ke::editor().bearbeitung.zusatz;
+                 diag::detail(std::string("Knopftest: Maus - Zusatz bei Alt+Umschalt: ") + (z.alt ? "alt " : "") + (z.shift ? "shift" : ""));
+                 io.AddKeyEvent(ImGuiMod_Shift, false);
+                 io.AddKeyEvent(ImGuiMod_Alt, false);
+             }
+             return b >= 6;
+         }});
+    add(pruefe("Maus: losgelassen -> g_modifiers leer (onModifierUp)", [] {
+        const karte::Zusatz& z = ke::editor().bearbeitung.zusatz;
+        return !z.alt && !z.shift && !z.strg;
+    }));
+    // Tab und Leertaste im Dialog Arbitrary rotation: ShortcutOverride angenommen
+    // (select.cpp:1645) - kein Klonen (Leertaste), kein Kamera-Fokus (Tab)
+    auto stand = std::make_shared<std::pair<std::size_t, karte::Vektor3f>>();
+    add(tu("B waehlen, Zahl und Kamera merken", [stand] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), pinselNr(1));
+        *stand = {e.karte.welt()->kinder().size(), e.kamera.ursprung};
+    }));
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_R, "Umschalt+R"));
+    add(pause(0.3));
+    add(klickAn("Feld X", stufe2::elementOrt("##kartedrehenwert0")));
+    add(tasteKombi(ImGuiKey_Space, "Leertaste"));
+    add(tasteKombi(ImGuiKey_Tab, "Tab"));
+    add(pause(0.2));
+    add(pruefe("Arbitrary rotation: Tab und Leertaste gehen an den Dialog (kein Klonen, kein Kamera-Fokus), er bleibt offen", [stand] {
+        const ke::Editor& e = ke::editor();
+        return e.drehDialog.offen && e.karte.welt()->kinder().size() == stand->first && e.kamera.ursprung == stand->second;
+    }));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(pause(0.2));
+    add(tu("Maus: zurueck (Resize, nichts gewaehlt)", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        if (e.kamFenster.frei) { ke::freelookBeenden(); }
+        if (e.bearbeitung.modus() != karte::ManipModus::Ziehen) { (void)ke::ausfuehren("MouseDrag"); }
+    }));
+    return s;
+}
+
+// --- Punkt 0c, Teil 3: Teiler einklappen und zurueckziehen, Maximize view ---
+//
+// QSplitter mit childrenCollapsible (Vorgabe, wie NRC): ein Feld laesst sich
+// bis auf 0 ziehen. Danach muss der Griff am Rand stehen bleiben und sich wieder
+// herausziehen lassen - fuer jeden Teiler jeder Anordnung.
+
+// Bildpunkt einer logischen Lage des Editors (aus einem Feld mit Rahmen).
+ImVec2 editorBild(float lx, float ly) {
+    const float sk = ke::massstab();
+    for (const auto& r : ke::editor().rahmenImBild) {
+        if (const auto* f = karteFeld(r.feld)) {
+            return ImVec2{r.x0 - static_cast<float>(f->x) * sk + lx * sk, r.y0 - static_cast<float>(f->y) * sk + ly * sk};
+        }
+    }
+    return ImVec2{5, 5};
+}
+std::function<ImVec2()> griffMitte(const std::string& griff) {
+    return [griff] {
+        const auto* g = karteFeld(griff);
+        if (g == nullptr) { return ImVec2{5, 5}; }
+        const float gx = static_cast<float>(g->x) + static_cast<float>(g->b) * 0.5F;
+        const float gy = static_cast<float>(g->y) + static_cast<float>(g->h) * 0.5F;
+        // Der Teiler im Texturbrowser rechnet ab der Ecke des Feldes "Texturen"
+        if (griff.rfind("Griff:tex:", 0) == 0) {
+            for (const auto& r : ke::editor().rahmenImBild) {
+                if (r.feld == "Texturen") {
+                    const float sk = ke::massstab();
+                    return ImVec2{r.x0 + gx * sk, r.y0 + gy * sk};
+                }
+            }
+        }
+        return editorBild(gx, gy);
+    };
+}
+int feldGroesse(const std::string& feld, bool senkrecht) {
+    const auto* f = karteFeld(feld);
+    if (f == nullptr) { return 0; }
+    return senkrecht ? f->h : f->b;
+}
+
+// Ein Teiler: Griff bis an den Rand ziehen (das Feld dahinter klappt ein, der
+// Griff bleibt am Rand), wieder herausziehen (das Feld ist zurueck); dasselbe in
+// die andere Richtung.
+void teilerPruefen(std::vector<Schritt>& s, const std::string& anordnung, const std::string& griff, bool senkrecht, const std::string& vorn,
+                   const std::string& hinten) {
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    const float weit = 3000.0F;
+    const float zurueck = 160.0F * std::max(1.0F, std::round(g_app->dpiScale));
+    add(maus(anordnung + ": " + griff + " ganz ans Ende ziehen", griffMitte(griff), 0, 0, senkrecht ? ImVec2{0, weit} : ImVec2{weit, 0}));
+    add(pause(0.2));
+    add(pruefe("Teiler " + anordnung + " " + griff + ": bis ans Ende gezogen klappt " + hinten + " ein, der Griff bleibt am Rand", [griff, senkrecht, hinten, vorn] {
+        const auto* g = karteFeld(griff);
+        const auto* v = karteFeld(vorn);
+        const int h = feldGroesse(hinten, senkrecht);
+        diag::detail("Knopftest: Teiler - " + griff + " am Ende: " + hinten + " " + std::to_string(h) + ", Griff " +
+                     (g != nullptr ? std::to_string(senkrecht ? g->y : g->x) : std::string("-")) + ", " + vorn + " endet bei " +
+                     (v != nullptr ? std::to_string(senkrecht ? v->y + v->h : v->x + v->b) : std::string("-")));
+        return g != nullptr && v != nullptr && h == 0 && (senkrecht ? g->y == v->y + v->h : g->x == v->x + v->b);
+    }));
+    add(maus(anordnung + ": " + griff + " vom Rand zurueckziehen", griffMitte(griff), 0, 0, senkrecht ? ImVec2{0, -zurueck} : ImVec2{-zurueck, 0}));
+    add(pause(0.2));
+    add(pruefe("Teiler " + anordnung + " " + griff + ": vom Rand zurueckgezogen ist " + hinten + " wieder da", [senkrecht, hinten] {
+        return feldGroesse(hinten, senkrecht) > 50;
+    }));
+    add(maus(anordnung + ": " + griff + " ganz an den Anfang ziehen", griffMitte(griff), 0, 0, senkrecht ? ImVec2{0, -weit} : ImVec2{-weit, 0}));
+    add(pause(0.2));
+    add(pruefe("Teiler " + anordnung + " " + griff + ": an den Anfang gezogen klappt " + vorn + " ein, der Griff bleibt am Rand", [griff, senkrecht, vorn, hinten] {
+        const auto* g = karteFeld(griff);
+        const auto* h = karteFeld(hinten);
+        const int v = feldGroesse(vorn, senkrecht);
+        diag::detail("Knopftest: Teiler - " + griff + " am Anfang: " + vorn + " " + std::to_string(v) + ", Griff " +
+                     (g != nullptr ? std::to_string(senkrecht ? g->y : g->x) : std::string("-")));
+        return g != nullptr && h != nullptr && v == 0 && (senkrecht ? g->y + g->h == h->y : g->x + g->b == h->x);
+    }));
+    add(maus(anordnung + ": " + griff + " vom Anfang zurueckziehen", griffMitte(griff), 0, 0, senkrecht ? ImVec2{0, zurueck} : ImVec2{zurueck, 0}));
+    add(pause(0.2));
+    add(pruefe("Teiler " + anordnung + " " + griff + ": vom Anfang zurueckgezogen ist " + vorn + " wieder da", [senkrecht, vorn] {
+        return feldGroesse(vorn, senkrecht) > 50;
+    }));
+}
+
+std::vector<Schritt> teiler() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    const auto anordnen = [&add](const std::string& name, karte::befehle::Anordnung a, bool gruppe) {
+        add(tu("Teiler: Anordnung " + name, [a, gruppe] {
+            ke::Editor& e = ke::editor();
+            e.anordnung = a;
+            e.gruppenDialogEingebaut = gruppe;
+            e.hGroessen.clear();
+            e.vGroessen.clear();
+            e.v2Groessen.clear();
+            e.teilerFuer = -1;
+        }));
+        add(pause(0.4));
+    };
+    using A = karte::befehle::Anordnung;
+    anordnen("Regular", A::Regular, false);
+    teilerPruefen(s, "Regular", "Griff:h:1", false, "XY", "Kamera");
+    teilerPruefen(s, "Regular", "Griff:v:1", true, "XY", "Konsole");
+    teilerPruefen(s, "Regular", "Griff:v2:1", true, "Kamera", "Texturen");
+    teilerPruefen(s, "Regular", "Griff:tex:1", false, "Texturen:Links", "Texturen:Ansicht");
+    anordnen("Regular Left", A::RegularLeft, false);
+    teilerPruefen(s, "Regular Left", "Griff:h:1", false, "Kamera", "XY");
+    teilerPruefen(s, "Regular Left", "Griff:v:1", true, "XY", "Konsole");
+    teilerPruefen(s, "Regular Left", "Griff:v2:1", true, "Kamera", "Texturen");
+    anordnen("Split", A::Split, false);
+    teilerPruefen(s, "Split", "Griff:h:1", false, "Kamera", "XY");
+    teilerPruefen(s, "Split", "Griff:v:1", true, "Kamera", "YZ");
+    teilerPruefen(s, "Split", "Griff:v2:1", true, "XY", "XZ");
+    anordnen("Regular mit eingebautem Gruppendialog", A::Regular, true);
+    add(tu("Gruppendialog zeigen", [] {
+        if (!ke::editor().gruppenDialogOffen) { (void)ke::ausfuehren("ToggleEntityInspector"); }
+    }));
+    add(pause(0.3));
+    teilerPruefen(s, "Regular+Gruppe", "Griff:h:2", false, "Kamera", "Gruppe");
+    add(pruefe("Floating: keine Teiler (die Ansichten schweben)", [] { return true; }));
+    // Maximize view (F12) und zurueck
+    anordnen("Regular", A::Regular, false);
+    auto vorher = std::make_shared<std::array<int, 4>>();
+    add(tu("Groessen merken", [vorher] {
+        *vorher = {feldGroesse("XY", false), feldGroesse("XY", true), feldGroesse("Kamera", false), feldGroesse("Konsole", true)};
+    }));
+    add({"Maus in die Kamera (ohne Klick)", [](int b) {
+             if (b == 0) {
+                 const auto* f = karteFeld("Kamera");
+                 setzeMaus(f != nullptr ? editorBild(static_cast<float>(f->x + f->b / 2), static_cast<float>(f->y + f->h / 2)) : ImVec2{5, 5});
+             }
+             return b >= 3;
+         }});
+    add(tasteKombi(ImGuiKey_F12, "F12"));
+    add(pause(0.3));
+    add(pruefe("Maximize view (F12): die Kamera unter der Maus fuellt den Bereich, XY, Konsole und Texturen sind eingeklappt", [] {
+        const int kb = feldGroesse("Kamera", false);
+        const int kh = feldGroesse("Kamera", true);
+        diag::detail("Knopftest: Teiler - F12: Kamera " + std::to_string(kb) + "x" + std::to_string(kh) + ", XY " + std::to_string(feldGroesse("XY", false)) +
+                     ", Texturen " + std::to_string(feldGroesse("Texturen", true)));
+        return feldGroesse("XY", false) == 0 && feldGroesse("Texturen", true) == 0 && kb > 1000 && kh > 500;
+    }));
+    add(tasteKombi(ImGuiKey_F12, "F12"));
+    add(pause(0.3));
+    add(pruefe("Maximize view (F12) noch einmal: alle Groessen wie vorher", [vorher] {
+        const std::array<int, 4> jetzt{feldGroesse("XY", false), feldGroesse("XY", true), feldGroesse("Kamera", false), feldGroesse("Konsole", true)};
+        diag::detail("Knopftest: Teiler - F12 zurueck: XY " + std::to_string(jetzt[0]) + "x" + std::to_string(jetzt[1]) + " (vorher " +
+                     std::to_string((*vorher)[0]) + "x" + std::to_string((*vorher)[1]) + ")");
+        return jetzt == *vorher;
+    }));
+    add(tu("Teiler: Groessen wie vorher", [] {
+        ke::Editor& e = ke::editor();
+        e.hGroessen.clear();
+        e.vGroessen.clear();
+        e.v2Groessen.clear();
+        e.gruppenDialogEingebaut = false;
+        e.teilerFuer = -1;
+    }));
+    return s;
+}
+
 }  // namespace stufe3
 
 std::vector<Schritt> karteneditorStufe3Schritte() {
     std::vector<Schritt> s;
+    // BHED_STUFE3_NUR=maus: nur die Mausbelegung (schneller beim Nachpruefen)
+    const char* nur = std::getenv("BHED_STUFE3_NUR");
+    if (nur != nullptr && std::strcmp(nur, "maus") == 0) {
+        for (Schritt& x : stufe3::maus()) { s.push_back(std::move(x)); }
+        for (Schritt& x : stufe3::teiler()) { s.push_back(std::move(x)); }
+        return s;
+    }
     for (Schritt& x : stufe3::leiste()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe3::maus()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe3::teiler()) { s.push_back(std::move(x)); }
     return s;
 }
 

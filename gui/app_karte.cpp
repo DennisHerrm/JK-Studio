@@ -528,9 +528,16 @@ void zuletztEintragen(const std::string& pfad) { zuletztHinzu(pfad); }
 std::string bugReportUrl() { return "https://github.com/Garux/netradiant-custom/issues"; }
 
 // OpenURL / Q_Exec: im Selbsttest ersetzbar (sonst Browser bzw. Programm)
+// Im Selbsttest (BHED_EDITORTEST) startet der Editor nie ein anderes Programm
+// und oeffnet keine Datei mit ihrer Anwendung - ohne Ersatz nur gemerkt
+// (Stufe 3 Punkt 0c: Strg+Umschalt+M1 im Texturbrowser oeffnete eine lose
+// .shader-Datei sonst mit der Anwendung des Anwenders).
 void kartenUrlOeffnen(const std::string& url) {
     if (g().urlOeffnen) {
         g().urlOeffnen(url);
+    } else if (std::getenv("BHED_EDITORTEST") != nullptr) {
+        g().letzteUrl = url;
+        ausgabe("(Selbsttest) nicht geoeffnet: " + url);
     } else {
         platform::openWithDefaultApp(url);
     }
@@ -541,7 +548,15 @@ std::string kartenDateiDialog(bool oeffnen, const char* titel, const char* filte
     return oeffnen ? platform::openFileDialog(titel, filter, start) : platform::saveFileDialog(titel, filter, start, name);
 }
 
-bool kartenBefehlStarten(const std::string& zeile) { return g().befehlStarten ? g().befehlStarten(zeile) : platform::befehlStarten(zeile); }
+bool kartenBefehlStarten(const std::string& zeile) {
+    if (g().befehlStarten) { return g().befehlStarten(zeile); }
+    if (std::getenv("BHED_EDITORTEST") != nullptr) {   // siehe kartenUrlOeffnen
+        g().letzteUrl = zeile;
+        ausgabe("(Selbsttest) nicht gestartet: " + zeile);
+        return true;
+    }
+    return platform::befehlStarten(zeile);
+}
 
 // EnginePath_verify (mainframe.cpp:467-475): fehlt der Engine-Pfad, beim Start
 // "Engine Path Configuration" (hier: ohne Spielordner im Programm).

@@ -654,6 +654,7 @@ struct Editor {
     int aktivesFeld = 0;   // Feld (app_karte.cpp): zuletzt angeklickt; zu Beginn XY wie aktivXy
     int aktivXyVorher = -1;
     std::string letzteHilfe;   // fuer den Selbsttest: OpenManual / CheckForUpdate (Seite bzw. "update")
+    std::string letzteUrl;     // fuer den Selbsttest: was ohne Ersatz geoeffnet bzw. gestartet worden waere
 
     // Fuer den Selbsttest: die Kennung des Arbeitsbereichs im letzten Bild.
     bool gezeichnet = false;
