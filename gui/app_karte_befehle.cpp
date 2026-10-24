@@ -22,6 +22,7 @@
 #include "bhed/karte/filter.h"
 
 #include "app_internal.h"
+#include "platform.h"
 #include "tastatur.h"
 
 #include <algorithm>
@@ -162,6 +163,15 @@ std::map<std::string, Umsetzung>& umsetzungen() {
     m["RegionSetSelection"] = {[] { dateiBefehl("RegionSetSelection"); }, [] { return dateiBefehlAn("RegionSetSelection"); }};
     // --- Stufe 2, Punkt 10b: Refresh models (mainframe.cpp:2071, referencecache.cpp:655-658) ---
     m["RefreshReferences"] = {[] { modelleLeeren(); }, nullptr};
+    // Stufe 2, Punkt 11c: MainFrame_toggleFullscreen (mainframe.cpp:1542-1548, F11),
+    // OpenGLFont_select (mainframe.cpp:1987-2000), WXY_SetBackgroundImage
+    // (xywindow.cpp:1214-1216), OpenBugReportURL (mainframe.cpp:697-700), DoAbout
+    // (gtkdlgs.cpp:333-405)
+    m["Fullscreen"] = {[] { (void)platform::vollbildUmschalten(); }, nullptr};
+    m["OpenGLFont"] = {[] { e().schriftDialogOffen = true; }, nullptr};
+    m["WXY_SetBackgroundImage"] = {[] { hintergrundBildDialog(); }, nullptr};
+    m["OpenBugReportURL"] = {[] { kartenUrlOeffnen(bugReportUrl()); }, nullptr};
+    m["DoAbout"] = {[] { e().ueberOffen = true; }, nullptr};
     // --- Stufe 2, Punkt 10: Ebenen (layerswindow.cpp:578-582) ---
     m["ExpandSelectionToLayers"] = {[] { ebenenBefehl("ExpandSelectionToLayers"); }, nullptr};
     m["LayersMenu"] = {[] { ebenenBefehl("LayersMenu"); }, nullptr};

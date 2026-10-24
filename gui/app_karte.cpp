@@ -520,6 +520,31 @@ void radiantNeustart() {
     });
 }
 
+// OpenBugReportURL (mainframe.cpp:697-700)
+std::string bugReportUrl() { return "https://github.com/Garux/netradiant-custom/issues"; }
+
+// OpenURL / Q_Exec: im Selbsttest ersetzbar (sonst Browser bzw. Programm)
+void kartenUrlOeffnen(const std::string& url) {
+    if (g().urlOeffnen) {
+        g().urlOeffnen(url);
+    } else {
+        platform::openWithDefaultApp(url);
+    }
+}
+
+bool kartenBefehlStarten(const std::string& zeile) { return g().befehlStarten ? g().befehlStarten(zeile) : platform::befehlStarten(zeile); }
+
+// EnginePath_verify (mainframe.cpp:467-475): fehlt der Engine-Pfad, beim Start
+// "Engine Path Configuration" (hier: ohne Spielordner im Programm).
+void enginePfadPruefen() {
+    Editor& e = g();
+    if (e.enginePfadGeprueft) { return; }
+    e.enginePfadGeprueft = true;
+    const std::string pfad = enginePfadAnzeige();
+    std::error_code ec;
+    if (pfad.empty() || !fs::exists(utf8Pfad(pfad), ec)) { e.enginePfadDialogOffen = true; }   // !file_exists( g_strEnginePath )
+}
+
 // main.cpp:462-464: beim Start (hier: beim ersten Bild des Editors) die letzte
 // Karte, wenn "Load last map at startup" an ist (Map_LoadFile, ohne MRU).
 void letzteKarteBeimStart() {
@@ -618,6 +643,63 @@ float g_s = 1.0F;                // massstab() dieses Bildes
 
 void setzeSchrift(ImFont* schrift) { g_schrift = schrift; }
 ImFont* schrift() { return g_schrift; }
+
+namespace {
+ImFont* g_glSchrift = nullptr;
+
+// (hhea ascender - descender) / head unitsPerEm: stb_truetype rastert die
+// ImGui-Groesse auf Ober- plus Unterlaenge (ScaleForPixelHeight).
+float schriftVerhaeltnis(const std::string& datei) {
+    std::FILE* f = std::fopen(datei.c_str(), "rb");
+    if (f == nullptr) { return 1.33F; }
+    std::vector<unsigned char> d;
+    unsigned char puffer[65536];
+    std::size_t n = 0;
+    while ((n = std::fread(puffer, 1, sizeof(puffer), f)) > 0 && d.size() < (1U << 24)) { d.insert(d.end(), puffer, puffer + n); }
+    std::fclose(f);
+    const auto u16 = [&](std::size_t o) { return o + 1 < d.size() ? static_cast<unsigned>((d[o] << 8U) | d[o + 1]) : 0U; };
+    const auto u32 = [&](std::size_t o) { return (static_cast<std::size_t>(u16(o)) << 16U) | u16(o + 2); };
+    std::size_t basis = 0;
+    if (d.size() > 16 && std::memcmp(d.data(), "ttcf", 4) == 0) { basis = u32(12); }   // die erste Schrift der Sammlung
+    const unsigned tabellen = u16(basis + 4);
+    int einheiten = 0;
+    int ober = 0;
+    int unter = 0;
+    for (unsigned i = 0; i < tabellen; ++i) {
+        const std::size_t e = basis + 12 + 16 * static_cast<std::size_t>(i);
+        if (e + 16 > d.size()) { break; }
+        const std::size_t o = u32(e + 8);
+        if (std::memcmp(&d[e], "head", 4) == 0) { einheiten = static_cast<int>(u16(o + 18)); }
+        if (std::memcmp(&d[e], "hhea", 4) == 0) {
+            ober = static_cast<std::int16_t>(u16(o + 4));
+            unter = static_cast<std::int16_t>(u16(o + 6));
+        }
+    }
+    return einheiten > 0 && ober - unter > 0 ? static_cast<float>(ober - unter) / static_cast<float>(einheiten) : 1.33F;
+}
+}  // namespace
+
+// GlobalOpenGL().m_font: die OpenGL-Schrift, wenn ihre Datei geladen ist; sonst
+// die Kartenschrift (Myriad Pro gehoert nicht zu Windows - Segoe UI wie bisher).
+ImFont* glSchrift() { return g_glSchrift != nullptr ? g_glSchrift : g_schrift; }
+
+// glfont_create( font, size ): Punkte bei 96 dpi (Qt rechnet size * 96 / 72),
+// als ImGui-Groesse mit dem Verhaeltnis der Schrift.
+float glSchriftPx() {
+    const Editor& e = g();
+    const float verhaeltnis = g_glSchrift != nullptr ? e.glSchriftVerhaeltnis : 1.33F;
+    return static_cast<float>(e.glSchriftGroesse) * 96.0F / 72.0F * verhaeltnis;
+}
+
+// OpenGLFont_select (mainframe.cpp:1987-2000): g_OpenGLFont / g_OpenGLFontSize
+// und die Schrift neu (glfont_create) - hier: die Schriften neu bauen.
+void glSchriftSetzen(const std::string& familie, int punkte) {
+    Editor& e = g();
+    e.glSchriftName = familie;
+    e.glSchriftGroesse = punkte;
+    einstellungenSpeichern();
+    schriftenNeuBauen();
+}
 
 float massstab() {
     if (massstabErsatz > 0.0F) { return massstabErsatz; }
@@ -1090,6 +1172,7 @@ void zeichne(float hoehe) {
     spielPruefen();
     if (!e.belegungGeladen) { einstellungenLaden(); }
     letzteKarteBeimStart();
+    enginePfadPruefen();   // EnginePath_verify (MainFrame_Construct)
     if (!e.spielFrageGezeigt) {   // CGameDialog::Init: mit m_bGamePrompt die "Global Preferences" beim Start
         e.spielFrageGezeigt = true;
         if (e.spielFrage) { e.globaleEinstellungenOffen = true; }
@@ -1177,6 +1260,10 @@ void zeichne(float hoehe) {
     zeichnePatchDialog();
     zeichneSurfaceInspector();
     zeichneGlobaleEinstellungen();
+    zeichneAbrisse();
+    zeichneUeber();
+    zeichneEnginePfadDialog();
+    zeichneSchriftDialog();
     // PreferencesDialog_showDialog (preferences.cpp:783-797): nach OK die Liste der
     // Einstellungen, die einen Neustart brauchen
     if (!e.neustartFragen.empty() && !e.einstellungenOffen && !e.frageOffen && !e.meldung.offen) {
@@ -1205,4 +1292,18 @@ void zeichne(float hoehe) {
 namespace bhed::gui {
 // Aus buildFonts (main_win32.cpp): NRCs Schrift fuer den Karten-Editor.
 void setKartenSchrift(ImFont* schrift) { karteneditor::setzeSchrift(schrift); }
+
+// buildFonts: die Datei der OpenGL-Schrift ("" = keine eigene) und die geladene Schrift
+std::string kartenGlSchriftDatei() {
+    if (g_app == nullptr) { return {}; }
+    const auto it = g_app->settings.karte.find("OpenGLFont");
+    const std::string name = it != g_app->settings.karte.end() ? it->second : std::string("Myriad Pro");
+    return platform::schriftDatei(name, false, false);
+}
+
+void setKartenGlSchrift(ImFont* schrift, const std::string& datei) {
+    karteneditor::g_glSchrift = schrift;
+    karteneditor::editor().glSchriftGeladen = schrift != nullptr ? datei : std::string();
+    karteneditor::editor().glSchriftVerhaeltnis = schrift != nullptr ? karteneditor::schriftVerhaeltnis(datei) : 1.33F;
+}
 }  // namespace bhed::gui

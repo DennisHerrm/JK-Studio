@@ -756,6 +756,18 @@ bool kameraBilderFertig() {
 
 bool kameraPixel(int x, int y, unsigned char rgba[4]) { return kartegpu::pixel(200, x, y, rgba); }
 
+// QERApp_LoadImage ueber das Dateisystem des Spiels (jpg, png, tga)
+bool kartenBildRgba(const std::string& name, std::vector<unsigned char>& rgba, int& breite, int& hoehe) {
+    const Editor& ed = e();
+    if (!ed.karteSpiel) { return false; }
+    image::Image b = bildLaden(ed.karteSpiel->fs, name);
+    if (!b.ok) { return false; }
+    rgba = std::move(b.rgba);
+    breite = b.width;
+    hoehe = b.height;
+    return true;
+}
+
 void* texturBild(const std::string& shader) {
     const Bild* b = lager().holen(shader);
     return b != nullptr && b->fertig ? b->srv : nullptr;
@@ -934,8 +946,8 @@ void kameraZeichnen() {
     Szene3& s = g_szene;
 
     // --- Schrift wie die 2D-Ansichten (Myriad Pro 8 pt -> Segoe UI)
-    ImFont* ansichtSchrift = schrift();
-    const float schriftPx = 8.0F * 96.0F / 72.0F * 1.33F;
+    ImFont* ansichtSchrift = glSchrift();   // GlobalOpenGL().m_font
+    const float schriftPx = glSchriftPx();
     ImGui::PushFont(ansichtSchrift, schriftPx / std::max(0.01F, g_app->dpiScale * g_app->uiScale));
     const float schriftHoehe = std::round(ImGui::GetFontSize());
 

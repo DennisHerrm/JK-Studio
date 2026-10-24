@@ -191,6 +191,8 @@ int shaderZeile(const std::string& text, const std::string& name) {
     return -1;
 }
 
+}  // namespace
+
 void shaderAnsehen(const std::string& datei, const std::string& name, bool extern_) {   // DoShaderView
     Editor& ed = e();
     if (!ed.karteSpiel) { return; }
@@ -202,8 +204,13 @@ void shaderAnsehen(const std::string& datei, const std::string& name, bool exter
         return;
     }
     if (extern_ && ordner) {
-        // g_TextEditor_editorCommand leer: ShellExecute( pathFull )
-        platform::openWithDefaultApp(voll);
+        if (ed.shaderEditorBefehl.empty()) {   // g_TextEditor_editorCommand leer: ShellExecute( pathFull )
+            kartenUrlOeffnen(voll);
+        } else {   // StringStream( g_TextEditor_editorCommand, ' ', Quoted( pathFull ) )
+            const std::string befehl = ed.shaderEditorBefehl + " \"" + voll + "\"";
+            ausgabe("Launching: " + befehl);
+            if (!kartenBefehlStarten(befehl)) { fehler("Failed to execute " + befehl); }   // Q_Exec
+        }
         return;
     }
     std::string text;
@@ -234,6 +241,8 @@ void shaderAnsehen(const std::string& datei, const std::string& name, bool exter
     }
     ImGui::SetWindowFocus("###shadertext");
 }
+
+namespace {
 
 void shaderInfo(const std::string& name, const std::string& datei) {   // DoShaderInfoDlg
     Editor& ed = e();
@@ -591,8 +600,8 @@ void ansichtZeichnen(ImVec2 a, ImVec2 c) {
         if (tb.e.startShader == 1) { texturVerzeichnisZeigen(tb.commonVerzeichnis); }
     }
     // Die Schrift der GL-Ansichten (wie die 2D-Ansichten: 8 pt bei 96 dpi)
-    const float schriftPx = 8.0F * 96.0F / 72.0F * 1.33F;
-    ImGui::PushFont(schrift(), schriftPx / std::max(0.01F, g_app->dpiScale * g_app->uiScale));
+    const float schriftPx = glSchriftPx();   // GlobalOpenGL().m_font->getPixelHeight()
+    ImGui::PushFont(glSchrift(), schriftPx / std::max(0.01F, g_app->dpiScale * g_app->uiScale));
     const int schriftHoehe = static_cast<int>(std::lround(ImGui::GetFontSize()));
     if (schriftHoehe != tb.schriftHoehe) {
         tb.schriftHoehe = schriftHoehe;

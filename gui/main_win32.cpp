@@ -94,6 +94,8 @@ float uiScale(App* a);
 void setUiScale(App* a, float s);
 void setKartenSchrift(ImFont* schrift);
 void setKartenDialogSchrift(ImFont* normal, ImFont* fett);
+std::string kartenGlSchriftDatei();
+void setKartenGlSchrift(ImFont* schrift, const std::string& datei);
 }  // namespace bhed::gui
 
 namespace {
@@ -637,7 +639,24 @@ void buildFonts() {
         dialogFett = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\tahomabd.ttf", size);
     }
     bhed::gui::setKartenDialogSchrift(dialog, dialogFett);
+    // Karten-Editor: die OpenGL-Schrift (Misc > Theming > OpenGL Font..., g_OpenGLFont) -
+    // glfont_create mit der Datei der Familie; ohne Datei (Myriad Pro gehoert nicht
+    // zu Windows) bleibt es die Kartenschrift.
+    ImFont* gl = nullptr;
+    const std::string glDatei = bhed::gui::kartenGlSchriftDatei();
+    if (!glDatei.empty() && GetFileAttributesA(glDatei.c_str()) != INVALID_FILE_ATTRIBUTES) {
+        gl = io.Fonts->AddFontFromFileTTF(glDatei.c_str(), size);
+    }
+    bhed::gui::setKartenGlSchrift(gl, glDatei);
 }
+
+}  // namespace
+
+namespace bhed::gui {
+void schriftenNeuBauen() { g_fontsDirty = true; }
+}  // namespace bhed::gui
+
+namespace {
 
 bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app) {
     IMGUI_CHECKVERSION();

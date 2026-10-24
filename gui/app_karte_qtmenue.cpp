@@ -144,6 +144,7 @@ ImGuiID g_wahl = 0;                      // per Mnemonik ausgeloest (im naechste
 int g_wurzelStapel = 0;                  // OpenPopupStack am Ende des letzten Bildes (offene Menueebenen)
 int g_wurzelBild = -1;
 ImGuiID g_oeffnen = 0;                   // per Mnemonik geoeffnetes Untermenue (im naechsten Bild)
+ImGuiID g_abrissKlick = 0;               // die Abreisskante dieses Menues wurde geklickt (QMenu::mouseReleaseEvent)
 
 Menue* oben() { return g_stapel.empty() ? nullptr : &g_stapel.back(); }
 
@@ -247,16 +248,18 @@ void eintragZeichnen(ImDrawList* dl, const ImRect& r, const Masse& m, const std:
 }
 
 // Die Abreisskante (CE_MenuTearoff, qcommonstyle.cpp:1487-1499): Flaeche in
-// der Knopffarbe, zwei gestrichelte Linien (dark, light) auf h/2 - 1 und
-// h/2 von x + 2 bis Breite - 4. Strich 4, Luecke 2 (Qt::DashLine) mit
-// SquareCap: 5 an, 1 aus. Das Abreissen selbst (QTornOffMenu) kommt mit der
-// Einstellung "Detachable Menus" in Stufe 2.
-void abrissZeichnen(const Masse& m) {
+// der Knopffarbe (unter der Maus: QMenuPrivate::tearoffHighlighted, State_Selected
+// in der Hervorhebungsfarbe), zwei gestrichelte Linien (dark, light) auf h/2 - 1
+// und h/2 von x + 2 bis Breite - 4. Strich 4, Luecke 2 (Qt::DashLine) mit
+// SquareCap: 5 an, 1 aus. Loslassen darueber reisst ab (QMenu::mouseReleaseEvent:
+// d->toggleTearOff, hideUpToMenuBar).
+void abrissZeichnen(const Masse& m, ImGuiID key) {
     ImGuiWindow* w = ImGui::GetCurrentWindow();
     ImDrawList* dl = w->DrawList;
     const ImVec2 a = w->Pos;
     const ImVec2 b{w->Pos.x + w->Size.x, w->Pos.y + m.abriss};
-    dl->AddRectFilled(a, b, ImGui::GetColorU32(ImGuiCol_Button));
+    const bool ueber = ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(a, b);
+    dl->AddRectFilled(a, b, ImGui::GetColorU32(ueber ? ImGuiCol_HeaderHovered : ImGuiCol_Button));
     const float d = std::max(1.0F, std::round(m.sk));
     const float y = a.y + std::round((static_cast<float>(kAbriss) * 0.5F - 1.5F) * m.sk);
     const float x0 = a.x + std::round(1.5F * m.sk);
@@ -270,11 +273,7 @@ void abrissZeichnen(const Masse& m) {
         dl->AddRectFilled(ImVec2{x, y}, ImVec2{xe, y + d}, dunkel);
         dl->AddRectFilled(ImVec2{x, y + d}, ImVec2{xe, y + 2.0F * d}, hell);
     }
-    if (ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(a, b)) {
-        char z[160];
-        std::snprintf(z, sizeof(z), tr(Str::KeStufe), 2);
-        ImGui::SetTooltip("%s\n%s", trK(Str::KePrDetachableMenus), z);
-    }
+    if (ueber && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) { g_abrissKlick = key; }
 }
 
 void groesseSetzen(ImGuiID key, const Masse& m, bool abriss) {
@@ -310,7 +309,7 @@ void menueBeginnen(ImGuiID key, bool abriss, const Masse& m) {
     // Waagerecht kein Abstand: die Zeile reicht genau von Rand zu Rand (Qt:
     // PM_MenuHMargin 0), senkrecht der Rest der Qt-Zeile ueber dem Text.
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, m.abstand});
-    if (abriss) { abrissZeichnen(m); }
+    if (abriss) { abrissZeichnen(m, key); }
 }
 
 // QMenu::keyPressEvent (qmenu.cpp:3460-3530): ein Buchstabe ohne Strg waehlt
@@ -425,6 +424,7 @@ void qtUnterstreichen(ImDrawList* dl, ImVec2 textPos, const std::string& text, i
 int qtMnemonik(const char* nrc, const std::string& text) { return mnemonik(nrc, text); }
 
 bool qtMenueAnfang(const char* id, bool aktiv, const char* nrc, bool abriss) {
+    abriss = abriss && editor().menueAbreissbar;   // setTearOffEnabled( g_Layout_enableDetachableMenus )
     ImGuiWindow* fenster = ImGui::GetCurrentWindow();
     const bool leiste = fenster->DC.LayoutType == ImGuiLayoutType_Horizontal;
     const Masse m = masse();
@@ -470,6 +470,7 @@ void qtMenueEnde() {
 }
 
 bool qtPopupAnfang(const char* id, bool abriss) {
+    abriss = abriss && editor().menueAbreissbar;
     const Masse m = masse();
     const ImGuiID key = ImGui::GetCurrentWindow()->GetID(id);
     groesseSetzen(key, m, abriss);
@@ -483,6 +484,41 @@ bool qtPopupAnfang(const char* id, bool abriss) {
 void qtPopupEnde() {
     menueAbschliessen();
     ImGui::EndPopup();
+}
+
+// Wurde die Abreisskante des eben geoeffneten (obersten) Menues geklickt?
+bool qtMenueAbgerissen() {
+    const Menue* mn = oben();
+    if (mn == nullptr || g_abrissKlick == 0 || mn->id != g_abrissKlick) { return false; }
+    g_abrissKlick = 0;
+    return true;
+}
+
+// QTornOffMenu: ein eigenes Fenster (Qt::Window | Qt::Tool) mit denselben
+// Eintraegen, ohne Abreisskante; die Groesse wie das Menue (sizeHint).
+bool qtAbrissFensterAnfang(const char* titel, const char* kennung, bool* offen, float x, float y, bool neu) {
+    const Masse m = masse();
+    const ImGuiID key = ImGui::GetID(kennung);
+    if (neu) { ImGui::SetNextWindowPos(ImVec2{x, y}); }
+    const auto it = g_groessen.find(key);
+    const float titelH = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F;
+    if (it != g_groessen.end()) { ImGui::SetNextWindowSize(ImVec2{it->second.b, it->second.h + titelH + m.abstand}); }
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, m.abstand * 0.5F});
+    const std::string id = std::string(titel) + "###" + kennung;
+    const bool sichtbar = ImGui::Begin(id.c_str(), offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
+                                                               ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings);
+    ImGui::PopStyleVar();
+    if (!sichtbar) {
+        ImGui::End();
+        return false;
+    }
+    menueBeginnen(key, false, m);
+    return true;
+}
+
+void qtAbrissFensterEnde() {
+    menueAbschliessen();
+    ImGui::End();
 }
 
 bool qtPunkt(const QtPunkt& p) {

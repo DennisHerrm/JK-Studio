@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <filesystem>
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
@@ -497,6 +498,16 @@ void startPosition() {
     for (auto& x : ed.xy) { x.ansicht.setzeUrsprung(o); }
 }
 
+namespace {
+
+// NDIM1NDIM2( viewtype )
+void dimensionen(Sicht s, int& d1, int& d2) {
+    d1 = s == Sicht::YZ ? 1 : 0;
+    d2 = s == Sicht::XY ? 1 : 2;
+}
+
+}  // namespace
+
 void xyZeichnen(int index) {
     Editor& ed = e();
     XyFenster& f = ed.xy[static_cast<std::size_t>(index)];
@@ -515,8 +526,8 @@ void xyZeichnen(int index) {
     // --- Schrift der Ansichten: NRC zeichnet Text mit "Myriad Pro" 8 pt in
     // Geraetepunkten bei 96 dpi (glfont, ohne Hochskalierung) - hier Segoe UI
     // in derselben Groesse (Myriad Pro darf nicht mitgeliefert werden).
-    ImFont* ansichtSchrift = schrift();
-    const float schriftPx = 8.0F * 96.0F / 72.0F * 1.33F;   // Geviert 10,67 -> ImGui-Hoehe
+    ImFont* ansichtSchrift = glSchrift();   // GlobalOpenGL().m_font (OpenGL Font...)
+    const float schriftPx = glSchriftPx();   // 8 pt: Geviert 10,67 -> ImGui-Hoehe
     ImGui::PushFont(ansichtSchrift, schriftPx / std::max(0.01F, g_app->dpiScale * g_app->uiScale));
     const int schriftHoehe = static_cast<int>(std::lround(ImGui::GetFontSize()));
     const int unterlaenge = static_cast<int>(std::lround(ImGui::GetFontSize() * 514.0F / 2724.0F));
@@ -629,6 +640,35 @@ void xyZeichnen(int index) {
             s.gpuWelt.setzen(s.welt);
             s.gpuWahl.setzen(s.wahl);
             s.gpuAktuell = true;
+        }
+        if (f.hintergrund.bild != nullptr && f.hintergrund.sicht == v.typ) {   // m_backgroundImage.render( m_viewType )
+            // GL_QUADS mit glColor4f( 1, 1, 1, _alpha ), GL_MODULATE, Mischen, ohne Tiefe
+            int d1 = 0;
+            int d2 = 0;
+            dimensionen(v.typ, d1, d2);
+            const XyFenster::Hintergrund& hb = f.hintergrund;
+            const auto ecke = [&](float x, float y, float s, float t) {
+                kartegpu::Punkt3 p{};
+                p.pos[d1] = x;
+                p.pos[d2] = y;
+                p.normale[2] = 1;
+                p.st[0] = s;
+                p.st[1] = t;
+                p.farbe = 0xFFFFFFFFU;
+                return p;
+            };
+            const kartegpu::Punkt3 a = ecke(hb.xmin, hb.ymin, 0, 1);
+            const kartegpu::Punkt3 b2 = ecke(hb.xmax, hb.ymin, 1, 1);
+            const kartegpu::Punkt3 c = ecke(hb.xmax, hb.ymax, 1, 0);
+            const kartegpu::Punkt3 d = ecke(hb.xmin, hb.ymax, 0, 0);
+            kartegpu::Zustand3 z;
+            z.matrix = &mvp[0];
+            z.bild = hb.bild;
+            z.tiefe = kartegpu::TiefenTest::Aus;
+            z.tiefeSchreiben = false;
+            z.wegschneiden = false;
+            z.mischen = kartegpu::Mischen::Alpha;
+            kartegpu::dreiecke(std::vector<kartegpu::Punkt3>{a, b2, c, a, c, d}, z);
         }
         kartegpu::zeichnen(raster.linien, &mvp[0], 1.0F);
         kartegpu::zeichnen(raster.linien2, &mvp[0], 2.0F);
@@ -907,6 +947,102 @@ void xyZeichnen(int index) {
 }
 
 bool xyPixel(int index, int x, int y, unsigned char rgba[4]) { return kartegpu::pixel(100 + index, x, y, rgba); }
+
+namespace {
+
+bool hintergrundKasten(Sicht s, Kasten& b) {   // getBoundsSelected, extents in beiden Achsen > 0
+    if (!auswahlGrenzen(b)) { return false; }
+    int d1 = 0;
+    int d2 = 0;
+    dimensionen(s, d1, d2);
+    return b.extents[static_cast<std::size_t>(d1)] > 0 && b.extents[static_cast<std::size_t>(d2)] > 0;
+}
+
+void keineAuswahlMelden() {
+    qtMeldung("No selection", "Select some objects to get the bounding box for image.\n", MeldungArt::Fehler, false, nullptr);
+}
+
+void hintergrundFrei(XyFenster& f) {   // BackgroundImage::free_tex
+    if (f.hintergrund.bild != nullptr) {
+        kartegpu::bildFreigeben(f.hintergrund.bild);
+        f.hintergrund.bild = nullptr;
+    }
+    f.hintergrund.datei.clear();
+}
+
+}  // namespace
+
+// BackgroundImage::set (xywindow.cpp:1178-1212), der Dateiname schon relativ zum Spiel
+void hintergrundBildSetzen(int index, const std::string& relativ) {
+    Editor& ed = e();
+    XyFenster& f = ed.xy[static_cast<std::size_t>(index)];
+    Kasten b;
+    if (!hintergrundKasten(f.ansicht.typ, b)) {
+        keineAuswahlMelden();
+        return;
+    }
+    hintergrundFrei(f);
+    // PathExtensionless( filename ), QERApp_LoadImage
+    const std::size_t punkt = relativ.find_last_of('.');
+    const std::size_t strich = relativ.find_last_of("/\\");
+    const std::string ohne = punkt != std::string::npos && (strich == std::string::npos || punkt > strich) ? relativ.substr(0, punkt) : relativ;
+    std::vector<unsigned char> rgba;
+    int w = 0;
+    int h = 0;
+    if (!kartenBildRgba(ohne, rgba, w, h)) {
+        fehler("Could not load texture " + ohne);
+        return;
+    }
+    void* bild = kartegpu::bildAnlegen(rgba.data(), w, h, 0);   // LoadTextureRGBA
+    if (bild == nullptr) { return; }
+    ausgabe("Loaded background texture " + relativ);
+    int d1 = 0;
+    int d2 = 0;
+    dimensionen(f.ansicht.typ, d1, d2);
+    f.hintergrund.bild = bild;
+    f.hintergrund.sicht = f.ansicht.typ;
+    f.hintergrund.xmin = b.origin[static_cast<std::size_t>(d1)] - b.extents[static_cast<std::size_t>(d1)];
+    f.hintergrund.ymin = b.origin[static_cast<std::size_t>(d2)] - b.extents[static_cast<std::size_t>(d2)];
+    f.hintergrund.xmax = b.origin[static_cast<std::size_t>(d1)] + b.extents[static_cast<std::size_t>(d1)];
+    f.hintergrund.ymax = b.origin[static_cast<std::size_t>(d2)] + b.extents[static_cast<std::size_t>(d2)];
+    f.hintergrund.datei = relativ;
+}
+
+// WXY_SetBackgroundImage -> ActiveXY()->setBackgroundImage(): erst die Auswahl,
+// dann der Dateidialog (background_image_dialog: m_userGamePath + "textures/"),
+// der Pfad relativ zum Ordner des Spiels (path_make_relative( findRoot )).
+void hintergrundBildDialog() {
+    Editor& ed = e();
+    const int index = ed.aktivXy;
+    XyFenster& f = ed.xy[static_cast<std::size_t>(index)];
+    Kasten b;
+    if (!hintergrundKasten(f.ansicht.typ, b)) {
+        keineAuswahlMelden();
+        return;
+    }
+    hintergrundFrei(f);
+    std::string start = kartenBenutzerOrdner();
+    if (start.size() > 5 && start.compare(start.size() - 5, 5, "maps/") == 0) { start.erase(start.size() - 5); }   // m_userGamePath
+    const std::string mitTexturen = start + "textures/";
+    std::error_code ec;
+    const std::string pfad = platform::openFileDialog("Background Image", "*.*|*.*",
+                                                      std::filesystem::is_directory(std::filesystem::path(mitTexturen), ec) ? mitTexturen : start);
+    if (pfad.empty()) { return; }
+    std::string datei = pfad;
+    std::replace(datei.begin(), datei.end(), '\\', '/');
+    std::string relativ = datei;
+    if (ed.karteSpiel) {
+        for (const std::string& o : ed.karteSpiel->ordner) {   // GlobalFileSystem().findRoot
+            std::string wurzel = karte::ordnerBereinigt(o);
+            if (datei.size() > wurzel.size() && _strnicmp(datei.c_str(), wurzel.c_str(), wurzel.size()) == 0) {
+                relativ = datei.substr(wurzel.size());
+                break;
+            }
+        }
+    }
+    if (relativ == datei) { warnung("WARNING: could not extract the relative path, using full path instead"); }
+    hintergrundBildSetzen(index, relativ);
+}
 int xyAbtastungen(int index) { return kartegpu::abtastungen(100 + index); }
 
 // --- Befehle der 2D-Ansichten (xywindow.cpp:1938-2003, 2096-2177) ------------

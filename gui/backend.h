@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 struct HWND__;
 using HWNDHandle = HWND__*;
@@ -90,6 +91,16 @@ bool ready();
 // nicht sagen kann - aelter als Windows 10 1803).
 [[nodiscard]] std::string geraeteKarte();
 [[nodiscard]] std::string staerksteKarte();
+// Karten-Editor, "About NetRadiant" (gtkdlgs.cpp:385-404 zeigt GL_VENDOR,
+// GL_VERSION, GL_RENDERER, GL_EXTENSIONS): dasselbe fuer das Direct3D-Geraet -
+// Hersteller (VendorId), Version mit Feature-Level, Karte und die Merkmale.
+struct GeraeteInfo {
+    std::string hersteller;
+    std::string version;
+    std::string karte;
+    std::vector<std::string> merkmale;
+};
+[[nodiscard]] GeraeteInfo geraeteInfo();
 // --- Verlorenes Geraet (rc596) ---------------------------------------------
 //
 // Treiber-Update, Wechsel der Grafikkarte, ein haengender Shader (TDR): dann

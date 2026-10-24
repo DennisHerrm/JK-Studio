@@ -21,8 +21,11 @@
 #include "karteneditor.h"
 
 #include "app_internal.h"
+#include "backend.h"
 #include "karte_gpu.h"
 #include "platform.h"
+
+#include "bhed/fassung.h"
 #include "tastatur.h"
 
 #include <algorithm>
@@ -33,6 +36,7 @@
 #include <filesystem>
 #include <fstream>
 #include <initializer_list>
+#include <cstring>
 
 namespace bhed::gui::karteneditor {
 
@@ -146,6 +150,7 @@ struct Entwurf {
     int modusWahl = 0;              // Mapping mode: 0 sp, 1 mp
     char enginePfad[512] = "";      // g_strEnginePath
     char zusatzPfade[5][512] = {};  // g_strExtraResourcePaths
+    char shaderEditor[512] = "";    // g_TextEditor_editorCommand
 };
 Entwurf g_entwurf;
 
@@ -341,14 +346,8 @@ void layoutSeite() {
         ImGui::PopTextWrapPos();
         g_form.y += static_cast<int>(std::lround((ImGui::GetItemRectSize().y) / g_sk)) + kAbstand;
     }
-    // Detachable Menus: das Abreissen (QTornOffMenu) kommt in Stufe 2; die
-    // Menues zeigen die Abreisskante wie NRC (Vorgabe an).
-    (void)haken(Str::Count, trK(Str::KePrDetachableMenus), g_entwurf.abtrennbar, false);
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        char z[120];
-        std::snprintf(z, sizeof(z), tr(Str::KeStufe), 2);
-        ImGui::SetTooltip("%s", z);
-    }
+    // Detachable Menus (g_Layout_enableDetachableMenus): Abreisskante und QTornOffMenu
+    (void)haken(Str::Count, (std::string(trK(Str::KePrDetachableMenus)) + "##abreissbar").c_str(), g_entwurf.abtrennbar);
     (void)haken(Str::Count, trK(Str::KePrBuiltInGroupDialog), g_entwurf.eingebaut);
 }
 
@@ -633,7 +632,7 @@ bool kommaSpinner(const char* id, float& wert, float von, float bis, int stellen
 
 // PathEntry_new (gtkutil/dialog.cpp:49-53): QLineEdit mit der Aktion
 // "ellipsis.png" am Ende; button_clicked_entry_browse_directory waehlt einen Ordner.
-void pfadEintrag(Str text, const char* id, char* puffer, std::size_t groesse) {
+void pfadEintrag(Str text, const char* id, char* puffer, std::size_t groesse, bool ordner = true) {
     feldAnfang(text);
     const float knopf = ImGui::GetFrameHeight();
     const float gesamt = px(static_cast<float>(g_form.b1));
@@ -662,9 +661,20 @@ void pfadEintrag(Str text, const char* id, char* puffer, std::size_t groesse) {
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::GetStyleColorVec4(ImGuiCol_FrameBgHovered));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImGui::GetStyleColorVec4(ImGuiCol_FrameBgActive));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0F);
-    if (ImGui::Button((std::string("...") + id + "knopf").c_str(), ImVec2{knopf, ende.y - anfang.y})) {   // ellipsis.png
-        const std::string neu = platform::pickFolder(trK(text), puffer);
+    const ImVec2 knopfA{ende.x, anfang.y};
+    if (ImGui::Button((std::string("##") + id + "knopf").c_str(), ImVec2{knopf, ende.y - anfang.y})) {
+        // button_clicked_entry_browse_directory / _file (gtkutil/dialog.cpp)
+        const std::string neu = ordner ? platform::pickFolder(trK(text), puffer) : platform::openFileDialog(trK(text), "*.*|*.*", puffer);
         if (!neu.empty()) { std::snprintf(puffer, groesse, "%s", neu.c_str()); }
+    }
+    {   // ellipsis.svg: drei Kreise (24/64/104 bei r 12 auf 128), #C0C0C0
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        const float h = ende.y - anfang.y;
+        const float k = std::min(knopf, h) * 0.6F;
+        const float x0 = knopfA.x + (knopf - k) * 0.5F;
+        for (const float cx : {24.0F, 64.0F, 104.0F}) {
+            dl->AddCircleFilled(ImVec2{x0 + cx / 128.0F * k, anfang.y + h * 0.5F}, 12.0F / 128.0F * k, IM_COL32(0xC0, 0xC0, 0xC0, 255));
+        }
     }
     ImGui::PopStyleVar();
     ImGui::PopStyleColor(3);
@@ -841,15 +851,10 @@ void buildSeite() {
 
 void interfaceSeite() {
     // Interface Preferences: "Shader Editor Command" (preferences.cpp:64,
-    // appendPathEntry: Feld mit "..."-Knopf; Foto pref_Interface.png), dazu
-    // die Einstellung dieses Programms "Begriffe wie NetRadiant".
-    static char befehl[260] = "";
+    // appendPathEntry( browse_directory = false ): Feld mit Dateiwahl; Foto
+    // pref_Interface.png), dazu die Einstellung dieses Programms "Begriffe wie NetRadiant".
     formAnfang({Str::KePrShaderEditor});
-    feldAnfang(Str::KePrShaderEditor);
-    ImGui::BeginDisabled();
-    ImGui::InputText("##shadereditor", befehl, sizeof(befehl));
-    ImGui::EndDisabled();
-    feldEnde();
+    pfadEintrag(Str::KePrShaderEditor, "##shadereditor", g_entwurf.shaderEditor, sizeof(g_entwurf.shaderEditor), false);
     (void)haken(Str::Count, trK(Str::KeNrcTerms), g_entwurf.nrc);
     if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::KeNrcTermsHint)); }
 }
@@ -953,6 +958,412 @@ void zeichneGlobaleEinstellungen() {
     ImGui::End();
 }
 
+// --- DoAbout (gtkdlgs.cpp:333-405; Foto dlg_Help_About_0.png) -----------------------
+//
+// QVBoxLayout: QHBoxLayout (Logo, Text, senkrechte QDialogButtonBox OK / Credits
+// (gesperrt) / Changelog / About Qt), QGroupBox "OpenGL Properties" (QFormLayout
+// Vendor, Version, Renderer), QGroupBox "OpenGL Extensions" (QPlainTextEdit). Am
+// Foto (2x) gemessen: Innenraum 391 x 488, Rand 11, Logo 128 (halbe Bildgroesse),
+// Text ab 145, Knoepfe 80 x 22 alle 28 bei x 300, Gruppen bei 145 und 253.
+// Dieses Programm zeichnet mit Direct3D 11: die Gruppen zeigen das Geraet.
+namespace {
+
+void sonnenLogo(ImDrawList* dl, ImVec2 o, float g) {
+    // logo.svg ("sun"): acht Strahlen um einen Kreis, Orange #FF8000 mit dunklem
+    // Rand - im Strichstil des Programms
+    const ImVec2 m{o.x + g * 0.5F, o.y + g * 0.5F};
+    const ImU32 orange = IM_COL32(0xFF, 0x80, 0x00, 255);
+    const ImU32 rand = IM_COL32(0, 0, 0, 255);
+    for (int i = 0; i < 8; ++i) {
+        const float w = static_cast<float>(i) * 3.14159265F / 4.0F + 0.32F;
+        const float c = std::cos(w);
+        const float s = std::sin(w);
+        const ImVec2 spitze{m.x + c * g * 0.47F, m.y + s * g * 0.47F};
+        const ImVec2 l{m.x - s * g * 0.09F + c * g * 0.12F, m.y + c * g * 0.09F + s * g * 0.12F};
+        const ImVec2 r{m.x + s * g * 0.09F + c * g * 0.12F, m.y - c * g * 0.09F + s * g * 0.12F};
+        const ImVec2 eck{m.x + c * g * 0.36F - s * g * 0.12F, m.y + s * g * 0.36F + c * g * 0.12F};
+        const ImVec2 pts[4] = {l, eck, spitze, r};
+        dl->AddConvexPolyFilled(pts, 4, orange);
+        dl->AddPolyline(pts, 4, rand, ImDrawFlags_Closed, std::max(1.0F, g / 48.0F));
+    }
+    dl->AddCircleFilled(m, g * 0.15F, orange);
+    dl->AddCircle(m, g * 0.15F, rand, 0, std::max(1.0F, g / 48.0F));
+}
+
+}  // namespace
+
+void zeichneUeber() {
+    Editor& ed = editor();
+    if (!ed.ueberOffen) { return; }
+    const float sk = massstab();
+    g_sk = sk;
+    constexpr int kB = 391;
+    constexpr int kH = 488;
+    const float titelH = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F;
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowSize(ImVec2{px(static_cast<float>(kB)), px(static_cast<float>(kH)) + titelH}, ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2{vp->WorkPos.x + vp->WorkSize.x * 0.5F, vp->WorkPos.y + vp->WorkSize.y * 0.5F}, ImGuiCond_Appearing,
+                            ImVec2{0.5F, 0.5F});
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
+    bool offen = true;
+    const bool sichtbar = ImGui::Begin((std::string(trK(Str::KeAboutTitle)) + "###karteueber").c_str(), &offen,
+                                       ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
+                                           ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings);
+    ImGui::PopStyleVar();
+    if (sichtbar) {
+        g_innen = ImGui::GetCursorScreenPos();
+        dialogSchriftAn();
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        sonnenLogo(dl, bp(static_cast<float>(kRand), static_cast<float>(kRand)), px(128.0F));
+        // RADIANT_VERSION, __DATE__, RADIANT_ABOUTMSG, GPL
+        const std::string text = std::string("NetRadiant-Custom 20260114\n") + __DATE__ + "\n\nbehaved " + std::string(bhed::kFassung) +
+                                 "\n\nThis program is free software\nlicensed under the GNU GPL.\n";
+        const float textH = ImGui::CalcTextSize(text.c_str()).y;
+        dl->AddText(ImVec2{bp(145.0F, 0.0F).x, std::round(bp(0.0F, static_cast<float>(kRand)).y + (px(128.0F) - textH) * 0.5F)},
+                    ImGui::GetColorU32(ImGuiCol_Text), text.c_str());
+        const float knopfH = px(static_cast<float>(kKnopfH));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, std::max(0.0F, (knopfH - ImGui::GetTextLineHeight()) * 0.5F)});
+        const auto knopf = [&](Str t, const char* id, int zeile, bool aktiv) {
+            ImGui::SetCursorScreenPos(bp(static_cast<float>(kB - kRand - kKnopfB), static_cast<float>(kRand + zeile * (kKnopfH + kAbstand))));
+            if (!aktiv) { ImGui::BeginDisabled(); }
+            const bool r = ImGui::Button((std::string(trK(t)) + id).c_str(), ImVec2{px(static_cast<float>(kKnopfB)), knopfH});
+            if (!aktiv) { ImGui::EndDisabled(); }
+            return r;
+        };
+        if (knopf(Str::KePrefOk, "##ueberok", 0, true)) { offen = false; }
+        (void)knopf(Str::KeAboutCredits, "##uebercredits", 1, false);   // credits.html: button->setEnabled( false )
+        if (knopf(Str::KeAboutChangelog, "##uebernotizen", 2, true)) {   // docs/changelog-custom.txt: hier die Aenderungen des Programms
+            kartenUrlOeffnen(directoryOf(g_app->dataDir) + "/AENDERUNGEN.md");
+        }
+        if (knopf(Str::KeAboutQt, "##ueberqt", 3, true)) {   // QApplication::aboutQt (QMessageBox): hier die Oberflaechenbibliothek
+            qtMeldung(trK(Str::KeAboutQt),
+                      std::string("Dear ImGui ") + IMGUI_VERSION + "\n\nCopyright (c) 2014-2025 Omar Cornut\nMIT License\nhttps://github.com/ocornut/imgui",
+                      MeldungArt::Info, false, nullptr);
+        }
+        ImGui::PopStyleVar();
+        // QGroupBox "OpenGL Properties"
+        const render::GeraeteInfo info = render::geraeteInfo();
+        const auto gruppe = [&](Str titel, int y, int h) {
+            dl->AddText(bp(static_cast<float>(kRand + kTitelX), static_cast<float>(y)), ImGui::GetColorU32(ImGuiCol_Text), trK(titel));
+            dl->AddRect(bp(static_cast<float>(kRand), static_cast<float>(y + kRahmenOben)), bp(static_cast<float>(kB - kRand), static_cast<float>(y + h)),
+                        ImGui::GetColorU32(ImGuiCol_Border), ImGui::GetStyle().FrameRounding);
+        };
+        gruppe(Str::KeAboutGlProps, 145, 94);
+        const Str namen[3] = {Str::KeAboutVendor, Str::KeAboutVersion, Str::KeAboutRenderer};
+        const std::string werte[3] = {info.hersteller, info.version, info.karte};
+        int b0 = 0;
+        for (const Str n : namen) { b0 = std::max(b0, labelBreite(trK(n))); }
+        for (int i = 0; i < 3; ++i) {   // QFormLayout: Zeilen 20, Beschriftung links, Abstand 6
+            const float y = static_cast<float>(145 + kInhaltOben + 2 + i * 20);
+            dl->AddText(bp(static_cast<float>(kRand + kInhaltRand), y), ImGui::GetColorU32(ImGuiCol_Text), trK(namen[i]));
+            dl->AddText(bp(static_cast<float>(kRand + kInhaltRand + b0 + kAbstand), y), ImGui::GetColorU32(ImGuiCol_Text), werte[i].c_str());
+        }
+        // QGroupBox "OpenGL Extensions" mit dem QPlainTextEdit (nur lesen, umbrochen)
+        gruppe(Str::KeAboutGlExt, 253, 223);
+        std::string merkmale;
+        for (const std::string& m : info.merkmale) { merkmale += (merkmale.empty() ? "" : " ") + m; }
+        ImGui::SetCursorScreenPos(bp(static_cast<float>(kRand + kInhaltRand), 272.0F));
+        ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
+        ImGui::BeginChild("##uebermerkmale", ImVec2{px(static_cast<float>(kB - 2 * kRand - 2 * kInhaltRand)), px(191.0F)}, ImGuiChildFlags_Borders);
+        ImGui::PushTextWrapPos(0.0F);
+        ImGui::TextUnformatted(merkmale.c_str());
+        ImGui::PopTextWrapPos();
+        ImGui::EndChild();
+        ImGui::PopStyleColor();
+        dialogSchriftAus();
+        ImGui::SetCursorScreenPos(bp(0.0F, static_cast<float>(kH)));
+        ImGui::Dummy(ImVec2{0.0F, 0.0F});
+    }
+    ImGui::End();
+    if (!offen) { ed.ueberOffen = false; }
+}
+
+// --- PathsDialog "Engine Path Configuration" (mainframe.cpp:417-458) ------------------
+//
+// QGroupBox "Path settings" mit dem Gitter 111 : 333: der Hinweis ueber beide
+// Spalten, dann Paths_constructPreferences (Engine Path); QDialogButtonBox OK. Kein
+// Foto - Lagen aus den Qt-Massen der Einstellungen.
+void zeichneEnginePfadDialog() {
+    Editor& ed = editor();
+    static bool offen = false;
+    static char pfad[512] = "";
+    if (!ed.enginePfadDialogOffen) {
+        offen = false;
+        return;
+    }
+    if (!offen) {
+        offen = true;
+        std::snprintf(pfad, sizeof(pfad), "%s", enginePfadAnzeige().c_str());
+    }
+    const float sk = massstab();
+    g_sk = sk;
+    // "Select directory, where game executable sits (typically "jaSP.exe")\n"
+    const std::string hinweis = std::string("Select directory, where game executable sits (typically \"") + kartenSpiel().engine + "\")";
+    const int hinweisB = labelBreite(hinweis.c_str());
+    const int b0 = labelBreite(trK(Str::KePrEnginePath));
+    const int b1 = std::max(hinweisB - b0 - kAbstand, 200);
+    const int gruppeB = kInhaltRand + b0 + kAbstand + b1 + kInhaltRand;
+    const int gruppeH = kInhaltOben + 26 + kAbstand + kFeldH + kInhaltRand;   // zwei Textzeilen (mit '\n'), das Feld
+    const int innenB = kRand + gruppeB + kRand;
+    const int innenH = kRand + gruppeH + kAbstand + kKnopfH + kRand;
+    const float titelH = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F;
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowSize(ImVec2{px(static_cast<float>(innenB)), px(static_cast<float>(innenH)) + titelH}, ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2{vp->WorkPos.x + vp->WorkSize.x * 0.5F, vp->WorkPos.y + vp->WorkSize.y * 0.5F}, ImGuiCond_Appearing,
+                            ImVec2{0.5F, 0.5F});
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
+    const bool sichtbar = ImGui::Begin((std::string(trK(Str::KeEnginePathTitle)) + "###karteenginepfad").c_str(), nullptr,
+                                       ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
+                                           ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings);
+    ImGui::PopStyleVar();
+    if (sichtbar) {
+        g_innen = ImGui::GetCursorScreenPos();
+        dialogSchriftAn();
+        ImDrawList* fl = ImGui::GetWindowDrawList();
+        fl->AddText(bp(static_cast<float>(kRand + kTitelX), static_cast<float>(kRand)), ImGui::GetColorU32(ImGuiCol_Text), trK(Str::KePathSettingsGroup));
+        fl->AddRect(bp(static_cast<float>(kRand), static_cast<float>(kRand + kRahmenOben)),
+                    bp(static_cast<float>(kRand + gruppeB), static_cast<float>(kRand + gruppeH)), ImGui::GetColorU32(ImGuiCol_Border),
+                    ImGui::GetStyle().FrameRounding);
+        fl->AddText(bp(static_cast<float>(kRand + kInhaltRand), static_cast<float>(kRand + kInhaltOben)), ImGui::GetColorU32(ImGuiCol_Text), hinweis.c_str());
+        Form f;
+        f.x0 = kRand + kInhaltRand;
+        f.b0 = b0;
+        f.x1 = f.x0 + b0 + kAbstand;
+        f.b1 = b1;
+        f.y = kRand + kInhaltOben + 26 + kAbstand;
+        g_form = f;
+        pfadEintrag(Str::KePrEnginePath, "##enginepfaddialog", pfad, sizeof(pfad));
+        const float knopfH = px(static_cast<float>(kKnopfH));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, std::max(0.0F, (knopfH - ImGui::GetTextLineHeight()) * 0.5F)});
+        ImGui::SetCursorScreenPos(bp(static_cast<float>(innenB - kRand - kKnopfB), static_cast<float>(innenH - kRand - kKnopfH)));
+        if (ImGui::Button((std::string(trK(Str::KePrefOk)) + "##enginepfadok").c_str(), ImVec2{px(static_cast<float>(kKnopfB)), knopfH})) {
+            ed.enginePfadDialogOffen = false;
+            const std::string neu = karte::ordnerBereinigt(pfad);
+            if (neu != enginePfadAnzeige()) {   // setEnginePath
+                spielNeuRealisieren("Engine Path Configuration", [neu] {
+                    editor().enginePfad = neu;
+                    einstellungenSpeichern();
+                });
+            }
+        }
+        ImGui::PopStyleVar();
+        dialogSchriftAus();
+        ImGui::SetCursorScreenPos(bp(0.0F, static_cast<float>(innenH)));
+        ImGui::Dummy(ImVec2{0.0F, 0.0F});
+    }
+    ImGui::End();
+}
+
+// --- QFontDialog::getFont (OpenGLFont_dialog, gtkmisc.cpp:339-347) ----------------------
+//
+// Qt 5.15 qfontdialog.cpp (QFontDialogPrivate::init): "Select Font", 500 x 360;
+// Gitter mit den Spalten 38 : 24 : 10 (dazwischen je 6): "&Font", "Font st&yle",
+// "&Size" mit Feld und Liste darunter; "Effects" (Stri&keout, &Underline), "Sample"
+// ("AaBbYyZz"), "Wr&iting System"; OK / Cancel. Die Familien: QFontDatabase unter
+// Windows (EnumFontFamiliesEx), die Groessen: QFontDatabase::standardSizes().
+namespace {
+
+struct SchriftWahl {
+    bool offen = false;
+    std::vector<std::string> familien;
+    int familie = 0;
+    int stil = 0;
+    int groesse = 8;
+    char familieText[128] = "";
+    char groesseText[16] = "";
+    bool durch = false;
+    bool unter = false;
+    int schriftsystem = 0;
+};
+SchriftWahl g_schrift;
+
+const int kStandardGroessen[] = {6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72};
+
+// Die Stile einer Familie: die Dateien, die Windows dafuer kennt (Regular, Italic, Bold, Bold Italic)
+std::vector<std::pair<std::string, std::pair<bool, bool>>> schriftStile(const std::string& familie) {
+    std::vector<std::pair<std::string, std::pair<bool, bool>>> s;
+    const std::pair<const char*, std::pair<bool, bool>> alle[4] = {{"Regular", {false, false}}, {"Italic", {false, true}}, {"Bold", {true, false}},
+                                                                    {"Bold Italic", {true, true}}};
+    for (const auto& [name, art] : alle) {
+        if (!platform::schriftDatei(familie, art.first, art.second).empty()) { s.emplace_back(name, art); }
+    }
+    if (s.empty()) { s.emplace_back("Regular", std::pair<bool, bool>{false, false}); }
+    return s;
+}
+
+}  // namespace
+
+void zeichneSchriftDialog() {
+    Editor& ed = editor();
+    SchriftWahl& w = g_schrift;
+    if (!ed.schriftDialogOffen) {
+        w.offen = false;
+        return;
+    }
+    if (!w.offen) {   // QFontDialog::getFont( &ok, QFont( font, size ) )
+        w.offen = true;
+        w.familien = platform::schriftFamilien();
+        w.familie = 0;
+        // QFont( "Myriad Pro" ) ohne die Schrift: Windows ersetzt sie (hier wie die Kartenschrift: Segoe UI)
+        const std::string gesucht = ed.glSchriftName;
+        for (std::size_t i = 0; i < w.familien.size(); ++i) {
+            if (w.familien[i] == gesucht || (w.familie == 0 && w.familien[i] == "Segoe UI")) { w.familie = static_cast<int>(i); }
+        }
+        w.stil = 0;
+        w.groesse = ed.glSchriftGroesse;
+        std::snprintf(w.familieText, sizeof(w.familieText), "%s", w.familien.empty() ? "" : w.familien[static_cast<std::size_t>(w.familie)].c_str());
+        std::snprintf(w.groesseText, sizeof(w.groesseText), "%d", w.groesse);
+    }
+    const float sk = massstab();
+    g_sk = sk;
+    constexpr int kB = 500;
+    constexpr int kH = 360;
+    const float titelH = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F;
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowSize(ImVec2{px(static_cast<float>(kB)), px(static_cast<float>(kH)) + titelH}, ImGuiCond_Appearing);
+    ImGui::SetNextWindowPos(ImVec2{vp->WorkPos.x + vp->WorkSize.x * 0.5F, vp->WorkPos.y + vp->WorkSize.y * 0.5F}, ImGuiCond_Appearing,
+                            ImVec2{0.5F, 0.5F});
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
+    bool offen = true;
+    const bool sichtbar = ImGui::Begin((std::string(trK(Str::KeFontTitle)) + "###karteschrift").c_str(), &offen,
+                                       ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+                                           ImGuiWindowFlags_NoSavedSettings);
+    ImGui::PopStyleVar();
+    if (sichtbar) {
+        g_innen = ImGui::GetCursorScreenPos();
+        dialogSchriftAn();
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        const float breite = ImGui::GetContentRegionAvail().x / sk;
+        const float hoehe = ImGui::GetContentRegionAvail().y / sk;
+        // Spalten 38 : 24 : 10 im Platz ohne Rand (11) und Zwischenraeume (2 x 6)
+        const float platz = breite - 2.0F * kRand - 2.0F * kAbstand;
+        const float s0 = platz * 38.0F / 72.0F;
+        const float s1 = platz * 24.0F / 72.0F;
+        const float s2 = platz - s0 - s1;
+        const float x0 = static_cast<float>(kRand);
+        const float x1 = x0 + s0 + kAbstand;
+        const float x2 = x1 + s1 + kAbstand;
+        // Zeilen: Beschriftung 13, Feld 22, Liste (Rest), 11, Gruppen 66, 13, 2, Feld 22, 11, Knoepfe 22
+        const float listeH = std::max(40.0F, hoehe - 2.0F * kRand - 13.0F - 22.0F - 11.0F - 66.0F - 13.0F - 2.0F - 22.0F - 11.0F - 22.0F);
+        const float yBeschr = static_cast<float>(kRand);
+        const float yFeld = yBeschr + 13.0F;
+        const float yListe = yFeld + 22.0F;
+        const float yGruppe = yListe + listeH + 11.0F;
+        dl->AddText(bp(x0, yBeschr), ImGui::GetColorU32(ImGuiCol_Text), trK(Str::KeFontFamily));
+        dl->AddText(bp(x1, yBeschr), ImGui::GetColorU32(ImGuiCol_Text), trK(Str::KeFontStyle));
+        dl->AddText(bp(x2, yBeschr), ImGui::GetColorU32(ImGuiCol_Text), trK(Str::KeFontSize));
+        const auto stile = schriftStile(w.familien.empty() ? std::string() : w.familien[static_cast<std::size_t>(w.familie)]);
+        w.stil = std::clamp(w.stil, 0, static_cast<int>(stile.size()) - 1);
+        // Felder ueber den Listen
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{px(3.0F), std::max(0.0F, (px(22.0F) - ImGui::GetTextLineHeight()) * 0.5F)});
+        ImGui::SetCursorScreenPos(bp(x0, yFeld));
+        ImGui::SetNextItemWidth(px(s0));
+        if (ImGui::InputText("##schriftfamilie", w.familieText, sizeof(w.familieText))) {   // familyEdit: passende Familie waehlen
+            for (std::size_t i = 0; i < w.familien.size(); ++i) {
+                if (_strnicmp(w.familien[i].c_str(), w.familieText, std::strlen(w.familieText)) == 0) {
+                    w.familie = static_cast<int>(i);
+                    break;
+                }
+            }
+        }
+        ImGui::SetCursorScreenPos(bp(x1, yFeld));
+        ImGui::SetNextItemWidth(px(s1));
+        ImGui::BeginDisabled();
+        char stilText[32];
+        std::snprintf(stilText, sizeof(stilText), "%s", stile[static_cast<std::size_t>(w.stil)].first.c_str());
+        ImGui::InputText("##schriftstilfeld", stilText, sizeof(stilText), ImGuiInputTextFlags_ReadOnly);   // styleEdit: setReadOnly( true )
+        ImGui::EndDisabled();
+        ImGui::SetCursorScreenPos(bp(x2, yFeld));
+        ImGui::SetNextItemWidth(px(s2));
+        if (ImGui::InputText("##schriftgroesse", w.groesseText, sizeof(w.groesseText), ImGuiInputTextFlags_CharsDecimal)) {
+            const int g = std::atoi(w.groesseText);
+            if (g > 0 && g <= 512) { w.groesse = g; }   // QIntValidator( 1, 512 )
+        }
+        ImGui::PopStyleVar();
+        // Listen
+        const auto liste = [&](const char* id, float x, float b, const std::vector<std::string>& eintraege, int& wahl) {
+            ImGui::SetCursorScreenPos(bp(x, yListe));
+            ImGui::BeginChild(id, ImVec2{px(b), px(listeH)}, ImGuiChildFlags_Borders);
+            bool geaendert = false;
+            for (std::size_t i = 0; i < eintraege.size(); ++i) {
+                const bool gewaehlt = static_cast<int>(i) == wahl;
+                if (ImGui::Selectable((eintraege[i] + id + std::to_string(i)).c_str(), gewaehlt)) {
+                    wahl = static_cast<int>(i);
+                    geaendert = true;
+                }
+                if (gewaehlt && ImGui::IsWindowAppearing()) { ImGui::SetScrollHereY(); }
+            }
+            ImGui::EndChild();
+            return geaendert;
+        };
+        if (liste("##schriftfamilien", x0, s0, w.familien, w.familie)) {
+            std::snprintf(w.familieText, sizeof(w.familieText), "%s", w.familien[static_cast<std::size_t>(w.familie)].c_str());
+        }
+        std::vector<std::string> stilNamen;
+        for (const auto& st : stile) { stilNamen.push_back(st.first); }
+        (void)liste("##schriftstile", x1, s1, stilNamen, w.stil);
+        std::vector<std::string> groessen;
+        int groesseWahl = -1;
+        for (std::size_t i = 0; i < std::size(kStandardGroessen); ++i) {
+            groessen.push_back(std::to_string(kStandardGroessen[i]));
+            if (kStandardGroessen[i] == w.groesse) { groesseWahl = static_cast<int>(i); }
+        }
+        if (liste("##schriftgroessen", x2, s2, groessen, groesseWahl)) {
+            w.groesse = kStandardGroessen[static_cast<std::size_t>(groesseWahl)];
+            std::snprintf(w.groesseText, sizeof(w.groesseText), "%d", w.groesse);
+        }
+        // "Effects" und "Sample"
+        const auto gruppe = [&](Str titel, float x, float y, float b, float h) {
+            dl->AddText(bp(x + kTitelX, y), ImGui::GetColorU32(ImGuiCol_Text), trK(titel));
+            dl->AddRect(bp(x, y + kRahmenOben), bp(x + b, y + h), ImGui::GetColorU32(ImGuiCol_Border), ImGui::GetStyle().FrameRounding);
+        };
+        gruppe(Str::KeFontEffects, x0, yGruppe, s0, 66.0F);
+        Form f;
+        f.x0 = static_cast<int>(x0) + kInhaltRand;
+        f.x1 = f.x0;
+        f.b0 = 0;
+        f.b1 = static_cast<int>(s0) - 2 * kInhaltRand;
+        f.y = static_cast<int>(yGruppe) + kInhaltOben - 4;
+        g_form = f;
+        (void)haken(Str::Count, (std::string(trK(Str::KeFontStrikeout)) + "##schriftdurch").c_str(), w.durch);
+        g_form.y -= kAbstand;
+        (void)haken(Str::Count, (std::string(trK(Str::KeFontUnderline)) + "##schriftunter").c_str(), w.unter);
+        const float sampleH = 66.0F + 13.0F + 2.0F + 22.0F;
+        gruppe(Str::KeFontSample, x1, yGruppe, s1 + kAbstand + s2, sampleH);
+        {   // QLineEdit "AaBbYyZz", mittig, in der gewaehlten Schrift (hier: die Schriftgroesse als Mass)
+            const char* probe = "AaBbYyZz";
+            const ImVec2 ta = ImGui::CalcTextSize(probe);
+            const ImVec2 mitte = bp(x1 + (s1 + kAbstand + s2) * 0.5F, yGruppe + kRahmenOben + (sampleH - kRahmenOben) * 0.5F);
+            dl->AddText(nullptr, ImGui::GetFontSize() * static_cast<float>(w.groesse) / 8.0F,
+                        ImVec2{mitte.x - ta.x * static_cast<float>(w.groesse) / 16.0F, mitte.y - ta.y * static_cast<float>(w.groesse) / 16.0F},
+                        ImGui::GetColorU32(ImGuiCol_Text), probe);
+        }
+        const float ySystem = yGruppe + 66.0F;
+        dl->AddText(bp(x0, ySystem), ImGui::GetColorU32(ImGuiCol_Text), trK(Str::KeFontWriting));
+        ImGui::SetCursorScreenPos(bp(x0, ySystem + 13.0F + 2.0F));
+        ImGui::SetNextItemWidth(px(s0));
+        static const char* const systeme[] = {"Any"};
+        (void)klappe("##schriftsystem", &w.schriftsystem, systeme, 1);
+        // QDialogButtonBox OK / Cancel unten rechts
+        const float knopfH = px(static_cast<float>(kKnopfH));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, std::max(0.0F, (knopfH - ImGui::GetTextLineHeight()) * 0.5F)});
+        const float yKnopf = hoehe - kRand - kKnopfH;
+        ImGui::SetCursorScreenPos(bp(breite - kRand - 2 * kKnopfB - kAbstand, yKnopf));
+        if (ImGui::Button((std::string(trK(Str::KePrefOk)) + "##schriftok").c_str(), ImVec2{px(static_cast<float>(kKnopfB)), knopfH})) {
+            ed.schriftDialogOffen = false;
+            if (!w.familien.empty()) { glSchriftSetzen(w.familien[static_cast<std::size_t>(w.familie)], w.groesse); }   // OpenGLFont_select
+        }
+        ImGui::SetCursorScreenPos(bp(breite - kRand - kKnopfB, yKnopf));
+        if (ImGui::Button((std::string(trK(Str::KeCancel)) + "##schriftabbrechen").c_str(), ImVec2{px(static_cast<float>(kKnopfB)), knopfH})) {
+            ed.schriftDialogOffen = false;
+        }
+        ImGui::PopStyleVar();
+        dialogSchriftAus();
+    }
+    ImGui::End();
+    if (!offen) { ed.schriftDialogOffen = false; }
+}
+
 // Fuer den Selbsttest: der Text eines Feldes im offenen Einstellungsdialog
 std::string einstellungsFeld(const std::string& id) {
     if (id == "bauengine") { return g_entwurf.bauEngine; }
@@ -964,6 +1375,13 @@ std::string einstellungsFeld(const std::string& id) {
     if (id == "fsgameaktiv") { return g_entwurf.fsGameAktiv ? "1" : "0"; }
     if (id == "enginepfad") { return g_entwurf.enginePfad; }
     if (id == "undostufen") { return std::to_string(g_entwurf.undoStufen); }
+    if (id == "schriftfamilie") { return g_schrift.familieText; }
+    if (id == "schriftgroesse") { return g_schrift.groesseText; }
+    if (id == "schriftfamilien") {
+        std::string alle;
+        for (const std::string& f : g_schrift.familien) { alle += f + "\n"; }
+        return alle;
+    }
     return {};
 }
 
@@ -1035,6 +1453,8 @@ void zeichneEinstellungen() {
             g_entwurf.fsGameAktiv = a.bearbeitbar;
         }
         g_entwurf.modusWahl = ed.spielModus == "mp" ? 1 : 0;   // GameModeExport
+        g_entwurf.abtrennbar = ed.menueAbreissbar;
+        std::snprintf(g_entwurf.shaderEditor, sizeof(g_entwurf.shaderEditor), "%s", ed.shaderEditorBefehl.c_str());
         std::snprintf(g_entwurf.enginePfad, sizeof(g_entwurf.enginePfad), "%s", enginePfadAnzeige().c_str());
         for (std::size_t i = 0; i < 5; ++i) {
             std::snprintf(g_entwurf.zusatzPfade[i], sizeof(g_entwurf.zusatzPfade[i]), "%s", ed.zusatzPfade[i].c_str());
@@ -1252,6 +1672,9 @@ void zeichneEinstellungen() {
             }
             ed.regionKastenShader = g_entwurf.regionShader;
             ed.spielFrage = g_entwurf.spielFrage;
+            ed.menueAbreissbar = g_entwurf.abtrennbar;   // LatchedImportCaller: hier sofort
+            if (!ed.menueAbreissbar) { ed.abrisse.clear(); }
+            ed.shaderEditorBefehl = g_entwurf.shaderEditor;
             {   // GameFileImport: LatchedValue - wirkt erst nach dem Neustart
                 const std::string neu = karte::spielBeschreibungen()[static_cast<std::size_t>(g_entwurf.spielWahl)].datei;
                 if (neu != kartenSpiel().datei || !ed.spielDateiNeu.empty()) {

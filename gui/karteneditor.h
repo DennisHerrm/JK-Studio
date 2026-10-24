@@ -61,6 +61,10 @@ namespace bhed::gui::kartegpu {
 struct Zustand3;
 }
 
+namespace bhed::gui {
+void schriftenNeuBauen();   // main_win32.cpp: buildFonts im naechsten Bild (OpenGL Font...)
+}  // namespace bhed::gui
+
 namespace bhed::gui::karteneditor {
 
 namespace befehle = karte::befehle;
@@ -223,6 +227,13 @@ struct XyFenster {
     int jagdX = 0;                   // m_chasemouse_current_x
     int jagdY = 0;
     double jagdUhr = 0.0;            // g_chasemouse_timer (Sekunden, ImGui-Zeit)
+    // XYWnd::m_backgroundImage (xywindow.h:55-72): Bild im Auswahlkasten einer Ansicht
+    struct Hintergrund {
+        void* bild = nullptr;        // _tex (Grafikkarte)
+        karte::Sicht sicht = karte::Sicht::XY;   // _viewtype
+        float xmin = 0, ymin = 0, xmax = 0, ymax = 0;
+        std::string datei;           // fuer den Selbsttest
+    } hintergrund;
 };
 // Das Kamerafenster (CamWnd, camwindow.cpp:1625-1803): Freelook, Rechtsklick-
 // Uhr, gehaltene Tasten (PressedKeys, accelerator.cpp:88-170).
@@ -574,7 +585,29 @@ struct Editor {
     } meldung;
     std::string tastenDialogBearbeitet;   // Befehl, dessen Taste gerade aufgenommen wird
     int tasteVerbrauchtBild = -1;         // in diesem Bild hat die Aufnahme die Taste geschluckt
-    bool ueberOffen = false;
+    bool ueberOffen = false;              // DoAbout ("About NetRadiant")
+    // Stufe 2, Punkt 11c
+    bool menueAbreissbar = true;          // g_Layout_enableDetachableMenus ("DetachableMenus")
+    struct Abriss {                       // QTornOffMenu
+        std::string titel;                // removeMnemonics( title ).trimmed()
+        std::size_t start = 0;            // erster Eintrag des Menues in der Tabelle
+        std::string kennung;              // die des Menues (fuer das Umschalten)
+        float x = 0;                      // setGeometry( menu->geometry() )
+        float y = 0;
+        bool neu = true;
+    };
+    std::vector<Abriss> abrisse;
+    std::string shaderEditorBefehl;       // g_TextEditor_editorCommand ("CustomShaderEditorCommand")
+    std::string glSchriftName = "Myriad Pro";   // g_OpenGLFont ("OpenGLFont")
+    int glSchriftGroesse = 8;             // g_OpenGLFontSize ("OpenGLFontSize")
+    float glSchriftVerhaeltnis = 1.33F;   // (hhea ascender - descender) / unitsPerEm der geladenen Schrift
+    std::string glSchriftGeladen;         // die Datei der geladenen OpenGL-Schrift (leer: die Kartenschrift)
+    bool schriftDialogOffen = false;      // QFontDialog::getFont ("Select Font")
+    bool enginePfadDialogOffen = false;   // PathsDialog ("Engine Path Configuration")
+    bool enginePfadGeprueft = false;      // EnginePath_verify beim Start
+    // Fuer den Selbsttest ersetzbar: OpenURL und Q_Exec (sonst Browser bzw. Programm)
+    std::function<void(const std::string&)> urlOeffnen;
+    std::function<bool(const std::string&)> befehlStarten;
     std::string letzterBefehl;   // fuer den Selbsttest: zuletzt ausgeloest
     std::vector<std::string> knoepfeImBild;   // fuer den Selbsttest: gezeichnete Knoepfe
     std::vector<std::string> knoepfeVerdeckt; // fuer den Selbsttest: im Erweiterungsmenue gezeigte
@@ -890,6 +923,7 @@ void freelookBeenden();
 // und die Durchschnittsfarbe eines geladenen Shaders (qtexture_t::color).
 bool kameraPixel(int x, int y, unsigned char rgba[4]);
 bool xyPixel(int index, int x, int y, unsigned char rgba[4]);   // Selbsttest: ein Bildpunkt der 2D-Ansicht
+bool kartenBildRgba(const std::string& name, std::vector<unsigned char>& rgba, int& breite, int& hoehe);   // QERApp_LoadImage
 [[nodiscard]] int xyAbtastungen(int index);                      // Selbsttest: MSAA des Renderziels
 bool kameraTexturFarbe(const std::string& shader, float rgb[3]);
 
@@ -922,6 +956,9 @@ struct QtPunkt {
 // Ein Menue der Menueleiste oder ein Untermenue (QMenu, abreissbar mit
 // "Detachable Menus"); qtMenueEnde nur, wenn es offen ist.
 bool qtMenueAnfang(const char* id, bool aktiv = true, const char* nrc = nullptr, bool abriss = true);
+[[nodiscard]] bool qtMenueAbgerissen();   // die Abreisskante des obersten Menues geklickt (einmal)
+bool qtAbrissFensterAnfang(const char* titel, const char* kennung, bool* offen, float x, float y, bool neu);
+void qtAbrissFensterEnde();
 void qtMenueEnde();
 // Ein Kontextmenue (QMenu::popup an der Maus), offen mit ImGui::OpenPopup(id).
 bool qtPopupAnfang(const char* id, bool abriss = false);
@@ -1041,6 +1078,22 @@ void letzteKarteBeimStart();   // main.cpp:462 (g_bLoadLastMap)
 void spielNeuRealisieren(const char* titel, std::function<void()> aendern);
 void radiantNeustart();                                         // Radiant_Restart (Select the game)
 void zeichneGlobaleEinstellungen();                             // CGameDialog "Global Preferences"
+// Stufe 2, Punkt 11c
+void zeichneAbrisse();                                          // QTornOffMenu
+void abreissen(std::size_t start, const std::string& kennung, const std::string& titel, float x, float y);
+void zeichneUeber();                                            // DoAbout
+void zeichneEnginePfadDialog();                                 // PathsDialog
+void enginePfadPruefen();                                       // EnginePath_verify
+void zeichneSchriftDialog();                                    // QFontDialog
+void hintergrundBildSetzen(int index, const std::string& relativ);   // BackgroundImage::set ohne Dateidialog
+void hintergrundBildDialog();                                   // WXY_SetBackgroundImage
+[[nodiscard]] ImFont* glSchrift();                              // GlobalOpenGL().m_font
+[[nodiscard]] float glSchriftPx();                              // ImGui-Groesse der OpenGL-Schrift (96 dpi)
+void glSchriftSetzen(const std::string& familie, int punkte);   // OpenGLFont_select nach OK
+[[nodiscard]] std::string bugReportUrl();                       // OpenBugReportURL
+void kartenUrlOeffnen(const std::string& url);                  // OpenURL
+[[nodiscard]] bool kartenBefehlStarten(const std::string& zeile);   // Q_Exec
+void shaderAnsehen(const std::string& datei, const std::string& name, bool extern_);   // DoShaderView
 void beimBeenden();            // main.cpp:476 (g_strLastMap)
 // OpenMap (map.cpp:1841) mit Dateiwahl; karteOeffnen ohne Dialog (fuer
 // Kommandozeile, zuletzt geoeffnet und den Selbsttest).

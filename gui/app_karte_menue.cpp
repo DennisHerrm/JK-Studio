@@ -168,6 +168,7 @@ void eintraegeZeichnen(const std::vector<MenueEintrag>& liste, std::size_t& i) {
         case MenueArt::Unter: {
             const std::string id = std::string(trK(m.str)) + "###unter" + std::to_string(i);
             if (qtMenueAnfang(id.c_str(), true, m.text)) {
+                if (qtMenueAbgerissen()) { abreissen(i + 1, id, trK(m.str), ImGui::GetWindowPos().x, ImGui::GetWindowPos().y); }
                 ++i;
                 eintraegeZeichnen(liste, i);
                 qtMenueEnde();
@@ -526,6 +527,7 @@ void zeichneMenueleiste() {
                              zeile + ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset};
         qtUnterstreichen(ImGui::GetWindowDrawList(), textPos, text, qtMnemonik(liste[i].text, text), stil(ImGuiCol_Text));
         if (qtMenueAnfang(id.c_str(), true, liste[i].text)) {
+            if (qtMenueAbgerissen()) { abreissen(i + 1, id, text, ImGui::GetWindowPos().x, ImGui::GetWindowPos().y); }
             ++i;
             eintraegeZeichnen(liste, i);
             qtMenueEnde();
@@ -1126,6 +1128,12 @@ void einstellungenLaden() {
         ed.spielName = text("GameName");
         ed.spielModus = text("GameMode") == "mp" ? "mp" : "sp";
         ed.enginePfad = text("EnginePath");
+        // Layout: "DetachableMenus" (mainframe.cpp:2106); "CustomShaderEditorCommand"
+        // (preferences.cpp:826); "OpenGLFont", "OpenGLFontSize" (mainframe.cpp:2110-2111)
+        ed.menueAbreissbar = zahl("DetachableMenus", 1) != 0.0F;
+        ed.shaderEditorBefehl = text("CustomShaderEditorCommand");
+        if (k.count("OpenGLFont") != 0U) { ed.glSchriftName = text("OpenGLFont"); }
+        ed.glSchriftGroesse = std::clamp(static_cast<int>(zahl("OpenGLFontSize", 8)), 1, 512);
         for (std::size_t i = 0; i < ed.zusatzPfade.size(); ++i) { ed.zusatzPfade[i] = text("ExtraResourcePath" + std::to_string(i)); }
     }
     // BuildMonitor_Construct (watchbsp.cpp:257-268)
@@ -1248,6 +1256,10 @@ void einstellungenSpeichern() {
     k["GameMode"] = ed.spielModus;
     k["EnginePath"] = ed.enginePfad;
     for (std::size_t i = 0; i < ed.zusatzPfade.size(); ++i) { k["ExtraResourcePath" + std::to_string(i)] = ed.zusatzPfade[i]; }
+    k["DetachableMenus"] = ed.menueAbreissbar ? "1" : "0";
+    k["CustomShaderEditorCommand"] = ed.shaderEditorBefehl;
+    k["OpenGLFont"] = ed.glSchriftName;
+    k["OpenGLFontSize"] = std::to_string(ed.glSchriftGroesse);
     k["TextureMipLevel"] = std::to_string(ed.texQual.mipStufe);
     k["SI_Gamma"] = karte::zahlText(ed.texQual.gamma);
     k["TextureFiltering"] = std::to_string(ed.texQual.modus);
@@ -1333,6 +1345,48 @@ void einstellungenSpeichern() {
     k["ToolbarHiddenButtons"] = versteckt;
     g_app->settings.karteTasten.clear();
     for (const auto& [name, taste] : ed.belegung.abweichende()) { g_app->settings.karteTasten[name] = taste; }
+}
+
+// QMenuPrivate::toggleTearOff: ist das Menue schon abgerissen, schliesst das
+// Fenster; sonst ein QTornOffMenu an der Stelle des Menues. Danach
+// hideUpToMenuBar: alle Menues zu.
+void abreissen(std::size_t start, const std::string& kennung, const std::string& titel, float x, float y) {
+    Editor& ed = e();
+    const auto it = std::find_if(ed.abrisse.begin(), ed.abrisse.end(), [&](const Editor::Abriss& a) { return a.kennung == kennung; });
+    if (it != ed.abrisse.end()) {
+        ed.abrisse.erase(it);
+    } else {
+        Editor::Abriss a;
+        a.titel = titel;   // QPlatformTheme::removeMnemonics( title ).trimmed(): die Titel tragen kein '&'
+        a.start = start;
+        a.kennung = kennung;
+        a.x = x;
+        a.y = y;
+        ed.abrisse.push_back(a);
+    }
+    ImGui::ClosePopupsExceptModals();
+}
+
+void zeichneAbrisse() {
+    Editor& ed = e();
+    const auto& liste = befehle::menues();
+    for (std::size_t n = 0; n < ed.abrisse.size();) {
+        Editor::Abriss& a = ed.abrisse[n];
+        bool offen = true;
+        std::string kennung = "abriss" + a.kennung;   // ohne '#' (sonst beginnt die ImGui-Kennung mitten darin)
+        std::replace(kennung.begin(), kennung.end(), '#', '_');
+        if (qtAbrissFensterAnfang(a.titel.c_str(), kennung.c_str(), &offen, a.x, a.y, a.neu)) {
+            std::size_t i = a.start;
+            eintraegeZeichnen(liste, i);
+            qtAbrissFensterEnde();
+        }
+        a.neu = false;
+        if (!offen) {   // WA_DeleteOnClose
+            ed.abrisse.erase(ed.abrisse.begin() + static_cast<std::ptrdiff_t>(n));
+        } else {
+            ++n;
+        }
+    }
 }
 
 void menueEintraege(const std::vector<MenueEintrag>& liste, std::size_t erster) {

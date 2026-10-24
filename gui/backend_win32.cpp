@@ -609,7 +609,64 @@ std::string karteNach(bool leistung) {
 
 std::string staerksteKarte() { return karteNach(true); }
 std::string sparsamsteKarte() { return karteNach(false); }
+
+GeraeteInfo geraeteInfo() {
+    GeraeteInfo i;
+    if (g_device == nullptr) { return i; }
+    IDXGIDevice* dxdev = nullptr;
+    if (SUCCEEDED(g_device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&dxdev))) && dxdev != nullptr) {
+        IDXGIAdapter* ad = nullptr;
+        if (SUCCEEDED(dxdev->GetAdapter(&ad)) && ad != nullptr) {
+            DXGI_ADAPTER_DESC d{};
+            if (SUCCEEDED(ad->GetDesc(&d))) {
+                switch (d.VendorId) {
+                case 0x8086: i.hersteller = "Intel"; break;
+                case 0x10DE: i.hersteller = "NVIDIA Corporation"; break;
+                case 0x1002: i.hersteller = "ATI Technologies Inc."; break;
+                case 0x1414: i.hersteller = "Microsoft"; break;
+                default: {
+                    char z[32];
+                    std::snprintf(z, sizeof(z), "0x%04X", d.VendorId);
+                    i.hersteller = z;
+                }
+                }
+                char z[64];
+                std::snprintf(z, sizeof(z), "%u MB", static_cast<unsigned>(d.DedicatedVideoMemory / (1024 * 1024)));
+                i.merkmale.push_back(std::string("DedicatedVideoMemory ") + z);
+            }
+            i.karte = kartenName(ad);
+            ad->Release();
+        }
+        dxdev->Release();
+    }
+    const D3D_FEATURE_LEVEL fl = g_device->GetFeatureLevel();
+    const char* stufe = fl >= D3D_FEATURE_LEVEL_11_1 ? "11_1" : fl >= D3D_FEATURE_LEVEL_11_0 ? "11_0" : fl >= D3D_FEATURE_LEVEL_10_1 ? "10_1" : "10_0";
+    i.version = std::string("Direct3D 11 - feature level ") + stufe;
+    i.merkmale.push_back(std::string("D3D_FEATURE_LEVEL_") + stufe);
+    std::string msaa = "MSAA R8G8B8A8_UNORM:";
+    for (UINT n = 2; n <= 32; n *= 2) {
+        UINT q = 0;
+        if (SUCCEEDED(g_device->CheckMultisampleQualityLevels(DXGI_FORMAT_R8G8B8A8_UNORM, n, &q)) && q > 0) { msaa += " " + std::to_string(n); }
+    }
+    i.merkmale.push_back(msaa);
+    for (const auto& [format, name] : {std::pair{DXGI_FORMAT_BC1_UNORM, "BC1_UNORM"}, std::pair{DXGI_FORMAT_BC2_UNORM, "BC2_UNORM"},
+                                       std::pair{DXGI_FORMAT_BC3_UNORM, "BC3_UNORM"}, std::pair{DXGI_FORMAT_D24_UNORM_S8_UINT, "D24_UNORM_S8_UINT"}}) {
+        UINT unterstuetzt = 0;
+        if (SUCCEEDED(g_device->CheckFormatSupport(format, &unterstuetzt)) && unterstuetzt != 0) { i.merkmale.push_back(std::string("DXGI_FORMAT_") + name); }
+    }
+    D3D11_FEATURE_DATA_THREADING t{};
+    if (SUCCEEDED(g_device->CheckFeatureSupport(D3D11_FEATURE_THREADING, &t, sizeof(t)))) {
+        if (t.DriverConcurrentCreates != 0) { i.merkmale.emplace_back("DriverConcurrentCreates"); }
+        if (t.DriverCommandLists != 0) { i.merkmale.emplace_back("DriverCommandLists"); }
+    }
+    D3D11_FEATURE_DATA_DOUBLES dbl{};
+    if (SUCCEEDED(g_device->CheckFeatureSupport(D3D11_FEATURE_DOUBLES, &dbl, sizeof(dbl))) && dbl.DoublePrecisionFloatShaderOps != 0) {
+        i.merkmale.emplace_back("DoublePrecisionFloatShaderOps");
+    }
+    return i;
+}
 #else
+GeraeteInfo geraeteInfo() { return {}; }
 std::string geraeteKarte() { return ""; }
 std::string staerksteKarte() { return ""; }
 std::string sparsamsteKarte() { return ""; }

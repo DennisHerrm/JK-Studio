@@ -47,7 +47,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
   * SUB Theming  (radiant/colors.cpp:211)
     * SUB Viewports Theme  (radiant/colors.cpp:216)
-    - [~] ITEM OpenGL Font... -> `OpenGLFont`  (radiant/colors.cpp:231) -- Stufe 2
+    - [x] ITEM OpenGL Font... -> `OpenGLFont`  (radiant/colors.cpp:231) -- Stufe 2 Punkt 11
     * ---
 
 ### Entity_constructMenu (radiant/entity.cpp)
@@ -284,8 +284,8 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     - [x] ITEM Find brush... -> `FindBrush`  (radiant/mainframe.cpp:1173) -- Stufe 2 Punkt 8
     - [x] ITEM Map Info... -> `MapInfo`  (radiant/mainframe.cpp:1174) -- Stufe 2 Punkt 8
     - [x] ITEM &Refresh models -> `RefreshReferences`  (radiant/mainframe.cpp:1175) -- Stufe 2 Punkt 10
-    - [~] ITEM Set 2D &Background image...  (radiant/mainframe.cpp:1176) -- Stufe 2 (ausgegraut, Tooltip nennt die Stufe)
-    - [~] ITEM Fullscreen -> `Fullscreen`  (radiant/mainframe.cpp:1177) -- Stufe 2
+    - [x] ITEM Set 2D &Background image...  (radiant/mainframe.cpp:1176) -- Stufe 2 Punkt 11
+    - [x] ITEM Fullscreen -> `Fullscreen`  (radiant/mainframe.cpp:1177) -- Stufe 2 Punkt 11
     - [x] ITEM Maximize view -> `MaximizeView`  (radiant/mainframe.cpp:1178)
 
 ### create_entity_menu (radiant/mainframe.cpp)
@@ -303,9 +303,9 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 ### create_help_menu (radiant/mainframe.cpp)
 
   * SUB &Help  (radiant/mainframe.cpp:1210)
-    - [~] ITEM Bug report  (radiant/mainframe.cpp:1220) -- Stufe 2 (ausgegraut, Tooltip nennt die Stufe)
+    - [x] ITEM Bug report  (radiant/mainframe.cpp:1220) -- Stufe 2 Punkt 11
     - [~] ITEM Check for NetRadiant update -> `CheckForUpdate`  (radiant/mainframe.cpp:1221) -- Stufe 3
-    - [~] ITEM &About  (radiant/mainframe.cpp:1222) -- Stufe 2 (ausgegraut, Tooltip nennt die Stufe)
+    - [x] ITEM &About  (radiant/mainframe.cpp:1222) -- Stufe 2 Punkt 11
 
 ### Maximize_View (radiant/mainframe.cpp)
 
@@ -682,7 +682,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `FitTextureWidth` | Commands | - | (radiant/surfacedialog.cpp:1748) -- Stufe 2 Punkt 7
 - [x] `FitTextureWidthOnly` | Commands | - | (radiant/surfacedialog.cpp:1750) -- Stufe 2 Punkt 7
 - [x] `FixedSize` | Toggles | - | (radiant/texwindow.cpp:2107)
-- [~] `Fullscreen` | Commands | F11 | (radiant/mainframe.cpp:2096) -- Stufe 2
+- [x] `Fullscreen` | Commands | F11 | (radiant/mainframe.cpp:2096) -- Stufe 2 Punkt 11
 - [x] `GridDown` | Commands | [ | (radiant/grid.cpp:184)
 - [x] `GridUp` | Commands | ] | (radiant/grid.cpp:185)
 - [x] `HideSelected` | Toggles | H | (radiant/select.cpp:1842)
@@ -735,7 +735,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `NewMap` | Commands | - | (radiant/map.cpp:2429)
 - [~] `NextLeakSpot` | Commands | Ctrl+Shift+K | (radiant/points.cpp:321) -- Stufe 3
 - [x] `NextView` | Commands | Ctrl+Tab | (radiant/xywindow.cpp:2270) -- Stufe 1b Punkt 5
-- [~] `OpenGLFont` | Commands | - | (radiant/mainframe.cpp:2092) -- Stufe 2
+- [x] `OpenGLFont` | Commands | - | (radiant/mainframe.cpp:2092) -- Stufe 2 Punkt 11
 - [~] `OpenManual` | Commands | F1 | (radiant/mainframe.cpp:2069) -- Stufe 3
 - [x] `OpenMap` | Commands | Ctrl+O | (radiant/map.cpp:2430)
 - [x] `Paste` | Commands | Ctrl+V | (radiant/select.cpp:1863)
@@ -913,18 +913,18 @@ Name | Art | Standardtaste | Quelle
 
 ## Dialoge und Fenster
 
-- [ ] "Build Menu"  (radiant/build.cpp:1027)
+- [~] "Build Menu"  (radiant/build.cpp:1027) -- Stufe 3 (der Bau mit q3map2)
 - [x] "Mapped Commands"  (radiant/commands.cpp:333)
 - [x] "CSG Tool"  (radiant/csg.cpp:1486) -- Stufe 2 Punkt 3
 - [x] "Entity List"  (radiant/entitylist.cpp:279) -- Stufe 1b Punkt 9
-- [ ] "Q3Map debug window"  (radiant/feedback.cpp:281)
+- [~] "Q3Map debug window"  (radiant/feedback.cpp:281) -- Stufe 3 (der Bau mit q3map2)
 - [x] "Find / Replace Texture(s)"  (radiant/findtexturedialog.cpp:132)
 - [x] "Entities"  (radiant/groupdialog.cpp:81) -- Stufe 1b Punkt 9
 - [x] "Arbitrary sides"  (radiant/gtkdlgs.cpp:274) -- Stufe 2 Punkt 4
-- [ ] "About NetRadiant"  (radiant/gtkdlgs.cpp:333)
+- [x] "About NetRadiant"  (radiant/gtkdlgs.cpp:333) -- Stufe 2 Punkt 11
 - [x] "Set Light intensity"  (radiant/gtkdlgs.cpp:415) -- Stufe 1b Punkt 9
-- [ ] "Install Map Developer's Files"  (radiant/gtkdlgs.cpp:492)
-- [ ] "Engine Path Configuration"  (radiant/mainframe.cpp:421)
+- [~] "Install Map Developer's Files"  (radiant/gtkdlgs.cpp:492) -- Stufe 2 Punkt 11: ja.game/jk2.game haben keinen install-Ordner, DoInstallDevFilesDlg zeigt bei JA/JK2 nichts
+- [x] "Engine Path Configuration"  (radiant/mainframe.cpp:421) -- Stufe 2 Punkt 11
 - [x] "Camera"  (radiant/mainframe.cpp:1755)
 - [x] "Map Info"  (radiant/map.cpp:908) -- Stufe 2 Punkt 8
 - [x] "Find Brush"  (radiant/map.cpp:2085) -- Stufe 2 Punkt 8
@@ -998,13 +998,13 @@ Name | Art | Standardtaste | Quelle
 - [x] PathEntry Engine Path  (radiant/mainframe.cpp:398) -- Stufe 2 Punkt 11
 - [x] PathEntry Extra Resource Path  (radiant/mainframe.cpp:407) -- Stufe 2 Punkt 11
 - [x] RadioIcons Window Layout  (radiant/mainframe.cpp:2031)
-- [~] CheckBox Detachable Menus  (radiant/mainframe.cpp:2038) -- Stufe 2 (ImGui-Menues lassen sich nicht abreissen)
+- [x] CheckBox Detachable Menus  (radiant/mainframe.cpp:2038) -- Stufe 2 Punkt 11
 - [x] CheckBox Built-In Group Dialog  (radiant/mainframe.cpp:2043)
 - [x] CheckBox Load last map at startup  (radiant/map.cpp:2370) -- Stufe 2 Punkt 11
 - [x] Spinner Model View Size  (radiant/modelwindow.cpp:1366) -- Stufe 2 Punkt 10
 - [x] Entry List of *folderToLoad/depth*  (radiant/modelwindow.cpp:1369) -- Stufe 2 Punkt 10
 - [x] Spinner Patch Subdivide Threshold  (radiant/patchmanip.cpp:673) -- Stufe 2 Punkt 6
-- [ ] PathEntry Shader Editor Command  (radiant/preferences.cpp:64)
+- [x] PathEntry Shader Editor Command  (radiant/preferences.cpp:64) -- Stufe 2 Punkt 11
 - [x] Combo Select the game  (radiant/preferences.cpp:259) -- Stufe 2 Punkt 11
 - [x] CheckBox Startup / Show Global Preferences  (radiant/preferences.cpp:267) -- Stufe 2 Punkt 11
 - [x] CheckBox Nudge selected after duplication  (radiant/select.cpp:1921) -- Stufe 2 Punkt 11

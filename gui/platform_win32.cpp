@@ -14,6 +14,7 @@
 #include <shlobj.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cwchar>
 #include <string>
 #include <vector>
@@ -597,6 +598,144 @@ bool bildschirmFarbe(int x, int y, unsigned char rgb[3]) {
     rgb[0] = GetRValue(c);
     rgb[1] = GetGValue(c);
     rgb[2] = GetBValue(c);
+    return true;
+}
+
+namespace {
+
+HWND hauptfenster() {
+    HWND fenster = nullptr;
+    EnumThreadWindows(
+        GetCurrentThreadId(),
+        [](HWND h, LPARAM l) -> BOOL {
+            if (IsWindowVisible(h) != 0 && GetWindow(h, GW_OWNER) == nullptr) {
+                *reinterpret_cast<HWND*>(l) = h;
+                return FALSE;
+            }
+            return TRUE;
+        },
+        reinterpret_cast<LPARAM>(&fenster));
+    return fenster;
+}
+
+bool g_vollbild = false;
+LONG g_stilVorher = 0;
+WINDOWPLACEMENT g_lageVorher{};
+
+}  // namespace
+
+bool vollbildUmschalten() {
+    HWND h = hauptfenster();
+    if (h == nullptr) { return g_vollbild; }
+    if (!g_vollbild) {
+        g_stilVorher = GetWindowLongW(h, GWL_STYLE);
+        g_lageVorher.length = sizeof(g_lageVorher);
+        if (GetWindowPlacement(h, &g_lageVorher) == 0) { return false; }
+        MONITORINFO mi{};
+        mi.cbSize = sizeof(mi);
+        if (GetMonitorInfoW(MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), &mi) == 0) { return false; }
+        // QWindowsWindow::setWindowState( Qt::WindowFullScreen ): WS_POPUP, Bildschirmgroesse;
+        // setHasBorderInFullScreen: WS_BORDER
+        SetWindowLongW(h, GWL_STYLE, (g_stilVorher & ~static_cast<LONG>(WS_OVERLAPPEDWINDOW)) | static_cast<LONG>(WS_POPUP | WS_BORDER));
+        SetWindowPos(h, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top,
+                     SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE);
+        g_vollbild = true;
+    } else {
+        SetWindowLongW(h, GWL_STYLE, g_stilVorher);
+        WINDOWPLACEMENT wp = g_lageVorher;
+        if (wp.showCmd == SW_SHOWNORMAL) { wp.showCmd = SW_SHOWNOACTIVATE; }
+        SetWindowPlacement(h, &wp);
+        SetWindowPos(h, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE);
+        g_vollbild = false;
+    }
+    return g_vollbild;
+}
+
+bool istVollbild() { return g_vollbild; }
+
+bool hauptfensterRechteck(int& x, int& y, int& b, int& h) {
+    HWND f = hauptfenster();
+    RECT r{};
+    if (f == nullptr || GetWindowRect(f, &r) == 0) { return false; }
+    x = r.left;
+    y = r.top;
+    b = r.right - r.left;
+    h = r.bottom - r.top;
+    return true;
+}
+
+bool bildschirmRechteck(int& x, int& y, int& b, int& h) {
+    HWND f = hauptfenster();
+    MONITORINFO mi{};
+    mi.cbSize = sizeof(mi);
+    if (f == nullptr || GetMonitorInfoW(MonitorFromWindow(f, MONITOR_DEFAULTTONEAREST), &mi) == 0) { return false; }
+    x = mi.rcMonitor.left;
+    y = mi.rcMonitor.top;
+    b = mi.rcMonitor.right - mi.rcMonitor.left;
+    h = mi.rcMonitor.bottom - mi.rcMonitor.top;
+    return true;
+}
+
+std::vector<std::string> schriftFamilien() {
+    std::vector<std::string> namen;
+    HDC dc = GetDC(nullptr);
+    if (dc == nullptr) { return namen; }
+    LOGFONTW lf{};
+    lf.lfCharSet = DEFAULT_CHARSET;
+    EnumFontFamiliesExW(
+        dc, &lf,
+        [](const LOGFONTW* l, const TEXTMETRICW*, DWORD, LPARAM p) -> int {
+            if (l->lfFaceName[0] != L'@') { reinterpret_cast<std::vector<std::string>*>(p)->push_back(toUtf8(l->lfFaceName)); }
+            return 1;
+        },
+        reinterpret_cast<LPARAM>(&namen), 0);
+    ReleaseDC(nullptr, dc);
+    std::sort(namen.begin(), namen.end(), [](const std::string& a, const std::string& b) {
+        return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(), [](char x, char y) {
+            return std::tolower(static_cast<unsigned char>(x)) < std::tolower(static_cast<unsigned char>(y));
+        });
+    });
+    namen.erase(std::unique(namen.begin(), namen.end()), namen.end());
+    return namen;
+}
+
+std::string schriftDatei(const std::string& familie, bool fett, bool kursiv) {
+    std::wstring name = toWide(familie);
+    if (fett) { name += L" Bold"; }
+    if (kursiv) { name += L" Italic"; }
+    const std::wstring schluessel[2] = {name + L" (TrueType)", name + L" (OpenType)"};
+    for (HKEY wurzel : {HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER}) {
+        HKEY k = nullptr;
+        if (RegOpenKeyExW(wurzel, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts", 0, KEY_READ, &k) != ERROR_SUCCESS) { continue; }
+        for (const std::wstring& s : schluessel) {
+            wchar_t wert[MAX_PATH] = {};
+            DWORD groesse = sizeof(wert);
+            DWORD typ = 0;
+            if (RegQueryValueExW(k, s.c_str(), nullptr, &typ, reinterpret_cast<BYTE*>(wert), &groesse) == ERROR_SUCCESS && typ == REG_SZ) {
+                RegCloseKey(k);
+                std::wstring pfad = wert;
+                if (pfad.find(L'\\') == std::wstring::npos) {   // nur der Dateiname: im Fonts-Ordner
+                    wchar_t ordner[MAX_PATH] = {};
+                    GetWindowsDirectoryW(ordner, MAX_PATH);
+                    pfad = std::wstring(ordner) + L"\\Fonts\\" + pfad;
+                }
+                return toUtf8(pfad);
+            }
+        }
+        RegCloseKey(k);
+    }
+    return {};
+}
+
+bool befehlStarten(const std::string& befehlszeile) {
+    std::wstring zeile = toWide(befehlszeile);
+    STARTUPINFOW si{};
+    si.cb = sizeof(si);
+    PROCESS_INFORMATION pi{};
+    // Q_Exec( 0, command, 0, bCreateConsole = true, waitfor = false )
+    if (CreateProcessW(nullptr, zeile.data(), nullptr, nullptr, FALSE, CREATE_NEW_CONSOLE, nullptr, nullptr, &si, &pi) == 0) { return false; }
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
     return true;
 }
 

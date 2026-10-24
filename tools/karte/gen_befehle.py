@@ -87,6 +87,7 @@ FilterWorldBrushes FilterEntities FilterAreaportals FilterTranslucent FilterLiqu
 FilterClusterportals FilterLights FilterStructural FilterLightgrid FilterPatches FilterDetails FilterHintsSkips FilterModels
 FilterTriggers FilterBotClips FilterDecals FilterFuncGroups FilterPointEntities FilterSky InvertFilters ResetFilters
 ExpandSelectionToLayers LayersMenu RefreshReferences
+Fullscreen OpenGLFont
 '''.split())
 
 # Stufe 3: Kompilieren, Lecksuche, Plugins, Fenster, die es erst mit dem

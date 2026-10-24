@@ -36,6 +36,8 @@
 #include "elemente.h"   // rc601 tour: das Element-Register
 #include "tour.h"       // rc601 tour: Tutorials im Programm (tourSicht)
 #include "backend.h"
+#include "karte_gpu.h"
+#include "platform.h"
 #include "wache.h"
 #include "gpumap.h"
 #include "bhed/changelog.h"
@@ -30558,6 +30560,269 @@ std::vector<Schritt> einstellungen11b() {
     return s;
 }
 
+// Eine unkomprimierte 24-Bit-TGA (4 x 4) in einer Farbe
+std::string tgaBild(unsigned char r, unsigned char g, unsigned char b) {
+    std::string t(18, '\0');
+    t[2] = 2;
+    t[12] = 4;
+    t[14] = 4;
+    t[16] = 24;
+    for (int i = 0; i < 16; ++i) {
+        t.push_back(static_cast<char>(b));
+        t.push_back(static_cast<char>(g));
+        t.push_back(static_cast<char>(r));
+    }
+    return t;
+}
+
+ImVec2 menueOben() {   // die Abreisskante des offenen Menues (###Menu_00)
+    ImGuiWindow* w = ImGui::FindWindowByName("###Menu_00");
+    return w != nullptr ? ImVec2{w->Pos.x + w->Size.x * 0.5F, w->Pos.y + 4.0F * ke::massstab()} : ImVec2{0, 0};
+}
+
+// Punkt 11c: Fullscreen, abreissbare Menues, Set 2D Background image, Bug report,
+// About, Shader Editor Command, Engine Path Configuration, OpenGL Font
+std::vector<Schritt> einstellungen11c() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto rechteck = std::make_shared<std::array<int, 4>>();
+    auto aufgezeichnet = std::make_shared<std::string>();
+    add(grundzustand("Stufe 2/11c: Grundzustand"));
+    // --- Fullscreen (F11)
+    add(tu("Fenster merken, Misc > Fullscreen", [rechteck] {
+        auto& r = *rechteck;
+        (void)platform::hauptfensterRechteck(r[0], r[1], r[2], r[3]);
+        (void)ke::ausfuehren("Fullscreen");
+    }));
+    add(pause(0.5));
+    add(pruefe("Fullscreen: das Fenster deckt den Bildschirm (WS_POPUP, Qt::WindowFullScreen)", [] {
+        int x = 0, y = 0, b = 0, h = 0, mx = 0, my = 0, mb = 0, mh = 0;
+        const bool ok = platform::hauptfensterRechteck(x, y, b, h) && platform::bildschirmRechteck(mx, my, mb, mh);
+        diag::detail("Knopftest: Stufe 2 - Vollbild " + std::to_string(b) + "x" + std::to_string(h) + " Bildschirm " + std::to_string(mb) + "x" +
+                     std::to_string(mh));
+        return ok && platform::istVollbild() && x == mx && y == my && b == mb && h == mh;
+    }));
+    add(tasteKombi(ImGuiKey_F11, "F11"));
+    add(pause(0.5));
+    add(pruefe("F11: zurueck auf die alte Lage", [rechteck] {
+        int x = 0, y = 0, b = 0, h = 0;
+        const auto& r = *rechteck;
+        return platform::hauptfensterRechteck(x, y, b, h) && !platform::istVollbild() && x == r[0] && y == r[1] && b == r[2] && h == r[3];
+    }));
+    add(pause(0.5));
+    // --- Abreissbare Menues (QTornOffMenu)
+    add(klick(ke::trK(Str::KeLMisc), "##karteneditor"));
+    add(pause(0.3));
+    add(klickAn("Abreisskante des Menues Misc", menueOben));
+    add(pause(0.3));
+    add(pruefe("Abgerissen: ein Fenster \"Misc\" mit den Eintraegen, das Menue zu", [] {
+        const ke::Editor& e = ke::editor();
+        ImGuiWindow* m = ImGui::FindWindowByName("###Menu_00");
+        diag::detail("Knopftest: Stufe 2 - Abrisse " + std::to_string(e.abrisse.size()) + ", Menue " + (m == nullptr ? "-" : (m->Active ? "aktiv" : "zu")) +
+                     ", Map Info " + (finde(std::string(ke::trK(Str::KeLMapInfo)) + "###MapInfo", "abriss", 0, true) != nullptr ? "da" : "fehlt"));
+        return e.abrisse.size() == 1 && e.abrisse[0].titel == ke::trK(Str::KeLMisc) && ImGui::FindWindowByName("###Menu_00") != nullptr &&
+               !ImGui::FindWindowByName("###Menu_00")->Active &&
+               finde(std::string(ke::trK(Str::KeLMapInfo)) + "###MapInfo", "abriss", 0, true) != nullptr;
+    }));
+    add(foto("karteneditor_abgerissen"));
+    add(klick(std::string(ke::trK(Str::KeLMapInfo)) + "###MapInfo", "abriss", 0, true));
+    add(pause(0.3));
+    add(pruefe("Klick im abgerissenen Fenster: Map Info geht auf, das Fenster bleibt", [] {
+        return ke::editor().kartenInfo.offen && ke::editor().abrisse.size() == 1;
+    }));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(klick(ke::trK(Str::KeLMisc), "##karteneditor"));
+    add(pause(0.3));
+    add(klickAn("Abreisskante noch einmal (toggleTearOff)", menueOben));
+    add(pause(0.3));
+    add(pruefe("noch einmal: das abgerissene Fenster ist zu", [] { return ke::editor().abrisse.empty(); }));
+    add(tu("Einstellungen auf", [] { ke::editor().einstellungenOffen = true; }));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KePgLayout)) + "##seite5"));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KePrDetachableMenus)) + "##abreissbar"));
+    add(klick(ke::trK(Str::KePrefOk)));
+    add(pause(0.3));
+    add(pruefe("Detachable Menus aus (DetachableMenus 0)", [] { return !ke::editor().menueAbreissbar && einstellung("DetachableMenus") == "0"; }));
+    add(klick(ke::trK(Str::KeLMisc), "##karteneditor"));
+    add(pause(0.3));
+    add(klickAn("oben ins Menue Misc", menueOben));
+    add(pause(0.3));
+    add(pruefe("ohne Abreisskante reisst nichts ab", [] { return ke::editor().abrisse.empty(); }));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(tu("Detachable Menus wieder an", [] {
+        ke::editor().menueAbreissbar = true;
+        ke::einstellungenSpeichern();
+    }));
+    // --- Bug report, About
+    add(tu("Help > Bug report (OpenURL im Test aufgezeichnet)", [aufgezeichnet] {
+        ke::editor().urlOeffnen = [aufgezeichnet](const std::string& u) { *aufgezeichnet = u; };
+        (void)ke::ausfuehren("OpenBugReportURL");
+    }));
+    add(pruefe("Bug report: OpenURL( https://github.com/Garux/netradiant-custom/issues )", [aufgezeichnet] {
+        return *aufgezeichnet == "https://github.com/Garux/netradiant-custom/issues";
+    }));
+    add(tu("Help > About", [] { (void)ke::ausfuehren("DoAbout"); }));
+    add(pause(0.4));
+    add(pruefe("About: OK, Credits (gesperrt), Changelog, About ...; Direct3D-Werte", [] {
+        const render::GeraeteInfo i = render::geraeteInfo();
+        diag::detail("Knopftest: Stufe 2 - About " + i.hersteller + " / " + i.version + " / " + i.karte + " / " + std::to_string(i.merkmale.size()) +
+                     " Merkmale");
+        return ke::editor().ueberOffen && finde(std::string(ke::trK(Str::KePrefOk)) + "##ueberok", "", 0, true) != nullptr &&
+               finde(std::string(ke::trK(Str::KeAboutCredits)) + "##uebercredits", "", 0, true) != nullptr && !i.karte.empty() &&
+               i.version.find("Direct3D 11") != std::string::npos && !i.merkmale.empty();
+    }));
+    add(foto("karteneditor_about"));
+    add(klick(std::string(ke::trK(Str::KeAboutQt)) + "##ueberqt"));
+    add(pause(0.3));
+    add(pruefe("About Dear ImGui: Meldung mit der Version (QApplication::aboutQt)", [] {
+        return ke::editor().meldung.offen && ke::editor().meldung.text.find(IMGUI_VERSION) != std::string::npos;
+    }));
+    add(klick(std::string(ke::trK(Str::KePrefOk)) + "##meldungok"));
+    add(klick(std::string(ke::trK(Str::KePrefOk)) + "##ueberok"));
+    add(pause(0.2));
+    add(pruefe("OK: About zu", [] { return !ke::editor().ueberOffen; }));
+    // --- Set 2D Background image, Shader Editor Command (Testordner als Extra Resource Path)
+    add(tu("Testordner zusatz12: textures/test12/bild.tga (rot), scripts/test12.shader; als Extra Resource Path", [] {
+        testDateiSchreiben(laufDatei("zusatz12/textures/test12/bild.tga"), tgaBild(255, 0, 0));
+        testDateiSchreiben(laufDatei("zusatz12/scripts/test12.shader"), "textures/test12/bild\n{\n\tqer_editorimage textures/test12/bild.tga\n}\n");
+        ke::spielNeuRealisieren("Edit Project Settings", [] {
+            ke::editor().zusatzPfade[0] = karte::ordnerBereinigt(laufDatei("zusatz12"));
+        });
+    }));
+    add(pause(0.3));
+    add(tu("ohne Auswahl: Set 2D Background image", [] {
+        ke::editor().karte.auswahl.leeren();
+        ke::hintergrundBildSetzen(0, "textures/test12/bild.tga");
+    }));
+    add(pruefe("ohne Auswahl: Meldung \"No selection\"", [] {
+        return ke::editor().meldung.offen && ke::editor().meldung.titel == "No selection" && ke::editor().xy[0].hintergrund.bild == nullptr;
+    }));
+    add(klick(std::string(ke::trK(Str::KePrefOk)) + "##meldungok"));
+    add(klickXy("M1 auf den Pinsel", ImGuiMouseButton_Left, ImVec2{32, 32}));
+    add(tu("mit Auswahl: Set 2D Background image textures/test12/bild.tga", [] { ke::hintergrundBildSetzen(0, "textures/test12/bild.tga"); }));
+    add(tu("Auswahl weg (die Auswahlfarbe soll nicht stoeren)", [] { ke::editor().karte.auswahl.leeren(); }));
+    add(pause(0.4));
+    add(pruefe("Hintergrund: im Kasten der Auswahl rot (BackgroundImage::render), \"Loaded background texture\"", [] {
+        const ke::XyFenster& f = ke::editor().xy[0];
+        const auto b = f.ansicht.zuBild(karte::Vektor3f(20, 20, 0));
+        int rot = 0;   // zwischen den Rasterlinien: wenigstens ein Punkt rein rot
+        for (int dy = -3; dy <= 3; ++dy) {
+            for (int dx = -3; dx <= 3; ++dx) {
+                unsigned char p[4] = {};
+                if (ke::xyPixel(0, static_cast<int>(b[0]) + dx, static_cast<int>(b[1]) + dy, p) && p[0] > 230 && p[1] < 30 && p[2] < 30) { ++rot; }
+            }
+        }
+        diag::detail("Knopftest: Stufe 2 - Hintergrund rot " + std::to_string(rot) + " von 49");
+        return rot > 10 && f.hintergrund.xmin == -64.0F && f.hintergrund.ymax == 64.0F && konsoleHat("Loaded background texture textures/test12/bild.tga");
+    }));
+    add(foto("karteneditor_hintergrundbild"));
+    add(tu("Interface: Shader Editor Command auf ein Programm, das es nicht gibt (Q_Exec im Test aufgezeichnet)", [aufgezeichnet] {
+        ke::editor().einstellungenOffen = true;
+        ke::editor().befehlStarten = [aufgezeichnet](const std::string& z) {
+            *aufgezeichnet = z;
+            return false;
+        };
+    }));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KePgInterface)) + "##seite4"));
+    add(pause(0.2));
+    add(klickAn("Feld Shader Editor Command", elementOrt("##shadereditor")));
+    add(tippe("bhed_gibtsnicht11.exe"));
+    add(foto("karteneditor_pref_interface"));
+    add(klick(ke::trK(Str::KePrefOk)));
+    add(pause(0.2));
+    add(tu("Open shader in External Editor (scripts/test12.shader)", [] { ke::shaderAnsehen("scripts/test12.shader", "textures/test12/bild", true); }));
+    add(pruefe("Launching: <Befehl> \"<Pfad>\", gescheitert: \"Failed to execute\" (DoShaderView)", [aufgezeichnet] {
+        const std::string pfad = karte::ordnerBereinigt(laufDatei("zusatz12")) + "scripts/test12.shader";
+        diag::detail("Knopftest: Stufe 2 - Q_Exec " + *aufgezeichnet);
+        return *aufgezeichnet == "bhed_gibtsnicht11.exe \"" + pfad + "\"" && konsoleHat("Launching: bhed_gibtsnicht11.exe") &&
+               konsoleHat("Failed to execute bhed_gibtsnicht11.exe") && einstellung("CustomShaderEditorCommand") == "bhed_gibtsnicht11.exe";
+    }));
+    add(tu("ohne Befehl: Open shader in External Editor", [aufgezeichnet] {
+        ke::editor().shaderEditorBefehl.clear();
+        aufgezeichnet->clear();
+        ke::shaderAnsehen("scripts/test12.shader", "textures/test12/bild", true);
+    }));
+    add(pruefe("ohne Befehl: ShellExecute( pathFull ) (aufgezeichnet)", [aufgezeichnet] {
+        return *aufgezeichnet == karte::ordnerBereinigt(laufDatei("zusatz12")) + "scripts/test12.shader";
+    }));
+    // --- Engine Path Configuration (EnginePath_verify)
+    add(pruefe("EnginePath_verify: mit vorhandenem Engine-Pfad kein Dialog, mit fehlendem der Dialog", [] {
+        ke::Editor& e = ke::editor();
+        e.enginePfadGeprueft = false;
+        ke::enginePfadPruefen();
+        const bool vorhanden = !e.enginePfadDialogOffen;
+        const std::string alt = e.enginePfad;
+        e.enginePfad = karte::ordnerBereinigt(laufDatei("gibtsnicht12"));
+        e.enginePfadGeprueft = false;
+        ke::enginePfadPruefen();
+        e.enginePfad = alt;
+        return vorhanden && e.enginePfadDialogOffen;
+    }));
+    add(pause(0.3));
+    add(pruefe("Dialog \"Engine Path Configuration\": Hinweis, Engine Path, OK", [] {
+        return finde("##enginepfaddialog", "", 0, true) != nullptr && finde(std::string(ke::trK(Str::KePrefOk)) + "##enginepfadok", "", 0, true) != nullptr;
+    }));
+    add(foto("karteneditor_engine_path"));
+    add(tu("Testordner engine12/base/maps/engine12.txt", [] { testDateiSchreiben(laufDatei("engine12/base/maps/engine12.txt"), "engine12"); }));
+    add(klickAn("Feld Engine Path", elementOrt("##enginepfaddialog")));
+    add(tippe(laufDatei("engine12")));
+    add(klick(std::string(ke::trK(Str::KePrefOk)) + "##enginepfadok"));
+    add(pause(0.3));
+    add(pruefe("OK: Engine Path engine12 (setEnginePath), maps/engine12.txt im Spiel", [] {
+        return !ke::editor().enginePfadDialogOffen && ke::editor().enginePfad == karte::ordnerBereinigt(laufDatei("engine12")) && dateiImSpiel("maps/engine12.txt");
+    }));
+    // --- OpenGL Font
+    add(tu("Misc > Theming > OpenGL Font...", [] { (void)ke::ausfuehren("OpenGLFont"); }));
+    add(pause(0.4));
+    add(pruefe("Select Font: Familien (Arial dabei), Segoe UI fuer Myriad Pro, Groesse 8", [] {
+        diag::detail("Knopftest: Stufe 2 - Schrift " + ke::einstellungsFeld("schriftfamilie") + " " + ke::einstellungsFeld("schriftgroesse"));
+        return ke::editor().schriftDialogOffen && ke::einstellungsFeld("schriftfamilie") == "Segoe UI" && ke::einstellungsFeld("schriftgroesse") == "8" &&
+               ("\n" + ke::einstellungsFeld("schriftfamilien")).find("\nArial\n") != std::string::npos;
+    }));
+    add(foto("karteneditor_select_font"));
+    add(klickAn("Feld Font", elementOrt("##schriftfamilie")));
+    add(tippe("Arial"));
+    add(klickAn("Feld Size", elementOrt("##schriftgroesse")));
+    add(tippe("12"));
+    add(klick(std::string(ke::trK(Str::KePrefOk)) + "##schriftok"));
+    add(pause(0.6));
+    add(pruefe("OK: OpenGLFont Arial 12, die Schrift der Ansichten neu gebaut (glfont_create)", [] {
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Stufe 2 - OpenGL-Schrift " + e.glSchriftGeladen + " " + std::to_string(ke::glSchriftPx()));
+        std::string datei = e.glSchriftGeladen;
+        for (char& c : datei) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        return e.glSchriftName == "Arial" && e.glSchriftGroesse == 12 && einstellung("OpenGLFont") == "Arial" && einstellung("OpenGLFontSize") == "12" &&
+               ke::glSchrift() != ke::schrift() && datei.find("arial.ttf") != std::string::npos && ke::glSchriftPx() > 17.0F && ke::glSchriftPx() < 19.0F;
+    }));
+    add(foto("karteneditor_opengl_schrift"));
+    add(tu("Schrift, Spiel und Hooks zurueck", [] {
+        ke::Editor& e = ke::editor();
+        ke::glSchriftSetzen("Myriad Pro", 8);
+        e.urlOeffnen = nullptr;
+        e.befehlStarten = nullptr;
+        e.shaderEditorBefehl.clear();
+        if (e.xy[0].hintergrund.bild != nullptr) {
+            kartegpu::bildFreigeben(e.xy[0].hintergrund.bild);
+            e.xy[0].hintergrund = ke::XyFenster::Hintergrund{};
+        }
+        ke::spielNeuRealisieren("Edit Project Settings", [] {
+            ke::editor().enginePfad.clear();
+            ke::editor().zusatzPfade = {};
+            ke::einstellungenSpeichern();
+        });
+    }));
+    add(pause(0.6));
+    add(pruefe("zurueck: Kartenschrift, Spielordner des Programms", [] {
+        const ke::Editor& e = ke::editor();
+        return ke::glSchrift() == ke::schrift() && e.enginePfad.empty() && e.spiel && e.spiel->klassen.finden("info_player_start") != nullptr &&
+               !dateiImSpiel("maps/engine12.txt");
+    }));
+    return s;
+}
+
 }  // namespace stufe2
 
 std::vector<Schritt> karteneditorStufe2Schritte() {
@@ -30569,7 +30834,10 @@ std::vector<Schritt> karteneditorStufe2Schritte() {
         if (abPunkt == 11) {
             for (Schritt& x : stufe2::einstellungen11()) { s.push_back(std::move(x)); }
         }
-        for (Schritt& x : stufe2::einstellungen11b()) { s.push_back(std::move(x)); }
+        if (abPunkt <= 12) {
+            for (Schritt& x : stufe2::einstellungen11b()) { s.push_back(std::move(x)); }
+        }
+        for (Schritt& x : stufe2::einstellungen11c()) { s.push_back(std::move(x)); }
         return s;
     }
     for (Schritt& x : stufe2::komponenten()) { s.push_back(std::move(x)); }
@@ -30586,6 +30854,7 @@ std::vector<Schritt> karteneditorStufe2Schritte() {
     for (Schritt& x : stufe2::modellBrowser()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::einstellungen11()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::einstellungen11b()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe2::einstellungen11c()) { s.push_back(std::move(x)); }
     return s;
 }
 

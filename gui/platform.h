@@ -132,5 +132,28 @@ bool bildschirmFarbe(int x, int y, unsigned char rgb[3]);
 // dem Grafiktreiber. -1, wenn es nicht geht.
 [[nodiscard]] long long heapBelegt();
 
+// --- Karten-Editor, Stufe 2 Punkt 11 -------------------------------------
+//
+// MainFrame_toggleFullscreen (NRC mainframe.cpp:1542-1548): das Hauptfenster
+// ein- und ausschalten wie Qt::WindowFullScreen unter Windows - ohne Rahmen
+// und Titel ueber den ganzen Bildschirm, mit QWindowsWindowFunctions::
+// setHasBorderInFullScreen( true ) einen Rand von einem Punkt (WS_BORDER);
+// zurueck mit Stil und Lage von vorher. Rueckgabe: jetzt Vollbild?
+bool vollbildUmschalten();
+[[nodiscard]] bool istVollbild();
+// Fuer den Selbsttest: das Rechteck des Hauptfensters und des Bildschirms.
+bool hauptfensterRechteck(int& x, int& y, int& b, int& h);
+bool bildschirmRechteck(int& x, int& y, int& b, int& h);
+
+// QFontDatabase::families() unter Windows (EnumFontFamiliesEx, DEFAULT_CHARSET,
+// ohne die senkrechten '@'-Schriften), sortiert; dazu die Datei einer Schrift
+// aus HKLM\...\Fonts ("<Familie>[ Bold][ Italic] (TrueType)"), leer wenn keine.
+[[nodiscard]] std::vector<std::string> schriftFamilien();
+[[nodiscard]] std::string schriftDatei(const std::string& familie, bool fett, bool kursiv);
+
+// Q_Exec (NRC): eine Befehlszeile ohne Warten starten (CreateProcess); false,
+// wenn es nicht ging.
+bool befehlStarten(const std::string& befehlszeile);
+
 }  // namespace bhed::platform
 #endif
