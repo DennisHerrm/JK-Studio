@@ -24,6 +24,7 @@ HIER = os.path.dirname(os.path.abspath(__file__))
 WURZEL = os.path.dirname(os.path.dirname(HIER))
 MD = os.path.join(HIER, 'nrc_inventar.md')
 INC = os.path.join(WURZEL, 'src', 'karte', 'befehle_liste.inc')
+STUFE2_INC = os.path.join(WURZEL, 'src', 'karte', 'befehle_stufe2.inc')
 MENUE_INC = os.path.join(WURZEL, 'src', 'karte', 'menues.inc')
 sys.path.insert(0, os.path.join(WURZEL, 'tools'))
 sys.path.insert(0, HIER)
@@ -316,6 +317,10 @@ def main():
         zeilen.append('{"%s", %d, "%s", "%s", %d},' % (name, art, b['taste'].replace('\\', '\\\\'),
                                                                b['quelle'], stufe(name)))
     schreib_wenn_anders(INC, '\n'.join(zeilen) + '\n')
+    # Die Befehle der Stufe 2 (fuer den Selbsttest: jeder einmal ausgefuehrt)
+    s2 = ['// Erzeugt von tools/karte/gen_befehle.py (STUFE_2_FERTIG) - nicht von Hand aendern.']
+    s2 += ['"%s",' % n for n in sorted((n for n in STUFE_2_FERTIG if n in befehle), key=str.lower)]
+    schreib_wenn_anders(STUFE2_INC, '\n'.join(s2) + '\n')
     schreib_wenn_anders(MENUE_INC, menues_inc(befehle))
     n = checkliste_markieren(befehle)
     print('%d Befehle -> %s, Menues -> %s, %d Eintraege der Checkliste neu markiert' % (

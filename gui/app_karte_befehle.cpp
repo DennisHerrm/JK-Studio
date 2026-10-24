@@ -356,6 +356,7 @@ bool ausfuehren(const std::string& name) {
     const auto it = m.find(name);
     if (it == m.end()) { return false; }
     e().letzterBefehl = name;
+    e().befehleAusgefuehrt.insert(name);
     it->second.tun();
     return true;
 }

@@ -1025,7 +1025,7 @@ void hintergrundBildDialog() {
     if (start.size() > 5 && start.compare(start.size() - 5, 5, "maps/") == 0) { start.erase(start.size() - 5); }   // m_userGamePath
     const std::string mitTexturen = start + "textures/";
     std::error_code ec;
-    const std::string pfad = platform::openFileDialog("Background Image", "*.*|*.*",
+    const std::string pfad = kartenDateiDialog(true, "Background Image", "*.*|*.*",
                                                       std::filesystem::is_directory(std::filesystem::path(mitTexturen), ec) ? mitTexturen : start);
     if (pfad.empty()) { return; }
     std::string datei = pfad;

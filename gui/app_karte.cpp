@@ -520,6 +520,9 @@ void radiantNeustart() {
     });
 }
 
+// MRU_AddFile (fuer den Selbsttest)
+void zuletztEintragen(const std::string& pfad) { zuletztHinzu(pfad); }
+
 // OpenBugReportURL (mainframe.cpp:697-700)
 std::string bugReportUrl() { return "https://github.com/Garux/netradiant-custom/issues"; }
 
@@ -530,6 +533,11 @@ void kartenUrlOeffnen(const std::string& url) {
     } else {
         platform::openWithDefaultApp(url);
     }
+}
+
+std::string kartenDateiDialog(bool oeffnen, const char* titel, const char* filter, const std::string& start, const std::string& name) {
+    if (g().dateiDialog) { return g().dateiDialog(titel); }
+    return oeffnen ? platform::openFileDialog(titel, filter, start) : platform::saveFileDialog(titel, filter, start, name);
 }
 
 bool kartenBefehlStarten(const std::string& zeile) { return g().befehlStarten ? g().befehlStarten(zeile) : platform::befehlStarten(zeile); }
@@ -564,7 +572,7 @@ void beimBeenden() {
 
 void karteOeffnenDialog() {
     mitRueckfrage("Open Map", [] {
-        const std::string pfad = platform::openFileDialog("Open Map", kKartenFilter, startOrdner());
+        const std::string pfad = kartenDateiDialog(true, "Open Map", kKartenFilter, startOrdner());
         if (pfad.empty()) { return; }
         zuletztHinzu(pfad);   // MRU_AddFile vor dem Laden (map.cpp:1848)
         (void)karteOeffnen(pfad);
@@ -581,7 +589,7 @@ bool karteSpeichernUnter(const std::string& pfad) {
 }
 
 bool karteSpeichernUnterDialog() {
-    const std::string pfad = platform::saveFileDialog("Save Map", kKartenFilter, startOrdner(), fileName(g().name));
+    const std::string pfad = kartenDateiDialog(false, "Save Map", kKartenFilter, startOrdner(), fileName(g().name));
     if (pfad.empty()) { return false; }
     return karteSpeichernUnter(pfad);
 }

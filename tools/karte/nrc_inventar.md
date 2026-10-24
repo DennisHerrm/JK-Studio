@@ -164,7 +164,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     - [x] CHECK XZ (Front) View [wenn: if ( style == MainFrame::eFloating )] -> `ToggleFrontView`  (radiant/mainframe.cpp:939)
     - [x] CHECK YZ (Side) View [wenn: if ( style == MainFrame::eFloating )] -> `ToggleSideView`  (radiant/mainframe.cpp:940)
     - [x] ITEM Console [wenn: if ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft )] -> `ToggleConsole`  (radiant/mainframe.cpp:943) -- Stufe 1b Punkt 10
-    - [ ] ITEM Texture Browser [wenn: if ( ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft ) || g_Layout_builtInGroupDialog.m_value )] -> `ToggleTextures`  (radiant/mainframe.cpp:946)
+    - [x] ITEM Texture Browser [wenn: if ( ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft ) || g_Layout_builtInGroupDialog.m_value )] -> `ToggleTextures`  (radiant/mainframe.cpp:946) -- Stufe 2 Punkt 12
     - [x] ITEM Model Browser -> `ToggleModelBrowser`  (radiant/mainframe.cpp:948)
     - [x] ITEM Entity Inspector -> `ToggleEntityInspector`  (radiant/mainframe.cpp:949) -- Stufe 1b Punkt 9
     - [x] ITEM Layers Browser -> `ToggleLayersBrowser`  (radiant/mainframe.cpp:950)
@@ -314,14 +314,14 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 ### MRU_constructMenu (radiant/mru.cpp)
 
   - [x] ITEM &1  (radiant/mru.cpp:197) -- Eintrag 1 im Selbsttest angeklickt; 2-9 derselbe Weg
-  - [ ] ITEM &2  (radiant/mru.cpp:202)
-  - [ ] ITEM &3  (radiant/mru.cpp:207)
-  - [ ] ITEM &4  (radiant/mru.cpp:212)
-  - [ ] ITEM &5  (radiant/mru.cpp:217)
-  - [ ] ITEM &6  (radiant/mru.cpp:222)
-  - [ ] ITEM &7  (radiant/mru.cpp:227)
-  - [ ] ITEM &8  (radiant/mru.cpp:232)
-  - [ ] ITEM &9  (radiant/mru.cpp:237)
+  - [x] ITEM &2  (radiant/mru.cpp:202) -- Stufe 2 Punkt 12
+  - [x] ITEM &3  (radiant/mru.cpp:207) -- Stufe 2 Punkt 12
+  - [x] ITEM &4  (radiant/mru.cpp:212) -- Stufe 2 Punkt 12
+  - [x] ITEM &5  (radiant/mru.cpp:217) -- Stufe 2 Punkt 12
+  - [x] ITEM &6  (radiant/mru.cpp:222) -- Stufe 2 Punkt 12
+  - [x] ITEM &7  (radiant/mru.cpp:227) -- Stufe 2 Punkt 12
+  - [x] ITEM &8  (radiant/mru.cpp:232) -- Stufe 2 Punkt 12
+  - [x] ITEM &9  (radiant/mru.cpp:237) -- Stufe 2 Punkt 12
 
 ### Patch_constructMenu (radiant/patchmanip.cpp)
 
@@ -445,8 +445,8 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### File_constructToolbar (radiant/mainframe.cpp)
 
-- [ ] button Open an existing map | file_open.png -> `OpenMap`  (radiant/mainframe.cpp:1328)
-- [ ] button Save the active map | file_save.png -> `SaveMap`  (radiant/mainframe.cpp:1329)
+- [x] button Open an existing map | file_open.png -> `OpenMap`  (radiant/mainframe.cpp:1328) -- Stufe 2 Punkt 12
+- [x] button Save the active map | file_save.png -> `SaveMap`  (radiant/mainframe.cpp:1329) -- Stufe 2 Punkt 12
 
 ### UndoRedo_constructToolbar (radiant/mainframe.cpp)
 
@@ -480,7 +480,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
 ### XYWnd_constructToolbar (radiant/mainframe.cpp)
 
-- [ ] button Change views | view_change.png -> `NextView`  (radiant/mainframe.cpp:1370)
+- [x] button Change views | view_change.png -> `NextView`  (radiant/mainframe.cpp:1370) -- Stufe 2 Punkt 12
 
 ### Manipulators_constructToolbar (radiant/mainframe.cpp)
 
@@ -498,7 +498,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 - [x] toggle_button Texture Vertex Lock | texture_vertexlock.png -> `TogTexVertexLock`  (radiant/mainframe.cpp:1425) -- Stufe 2 Punkt 1
 - [x] button Entities | entities.png -> `ToggleEntityInspector`  (radiant/mainframe.cpp:1428) -- Stufe 1b Punkt 9
 - [x] button Console [wenn: if ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft )] | console.png -> `ToggleConsole`  (radiant/mainframe.cpp:1431) -- Stufe 1b Punkt 10
-- [ ] button Texture Browser [wenn: if ( ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft ) || g_Layout_builtInGroupDialog.m_value )] | texture_browser.png -> `ToggleTextures`  (radiant/mainframe.cpp:1434)
+- [x] button Texture Browser [wenn: if ( ( style != MainFrame::eRegular && style != MainFrame::eRegularLeft ) || g_Layout_builtInGroupDialog.m_value )] | texture_browser.png -> `ToggleTextures`  (radiant/mainframe.cpp:1434) -- Stufe 2 Punkt 12
 - [x] button Refresh Models | refresh_models.png -> `RefreshReferences`  (radiant/mainframe.cpp:1441) -- Stufe 2 Punkt 10
 
 ### Patch_constructToolbar (radiant/patchmanip.cpp)

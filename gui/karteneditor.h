@@ -608,7 +608,9 @@ struct Editor {
     // Fuer den Selbsttest ersetzbar: OpenURL und Q_Exec (sonst Browser bzw. Programm)
     std::function<void(const std::string&)> urlOeffnen;
     std::function<bool(const std::string&)> befehlStarten;
+    std::function<std::string(const std::string&)> dateiDialog;   // file_dialog (Titel -> Pfad)
     std::string letzterBefehl;   // fuer den Selbsttest: zuletzt ausgeloest
+    std::set<std::string> befehleAusgefuehrt;   // fuer den Selbsttest: jeder ausgeloeste Befehl
     std::vector<std::string> knoepfeImBild;   // fuer den Selbsttest: gezeichnete Knoepfe
     std::vector<std::string> knoepfeVerdeckt; // fuer den Selbsttest: im Erweiterungsmenue gezeigte
     // Fuer den Selbsttest: die Rechtecke dieses Bildes in logischen Punkten,
@@ -1066,6 +1068,7 @@ void einstellungenSpeichern();
 // NewMap (map.cpp:1813): mit Rueckfrage, wenn geaendert.
 void neueKarte();
 void letzteKarteBeimStart();   // main.cpp:462 (g_bLoadLastMap)
+void zuletztEintragen(const std::string& pfad);   // MRU_AddFile
 [[nodiscard]] std::string einstellungsFeld(const std::string& id);   // Selbsttest: Text eines Feldes der Einstellungen
 [[nodiscard]] const karte::SpielBeschreibung& kartenSpiel();   // g_pGameDescription
 [[nodiscard]] std::string kartenFsGame();                       // gamename_get
@@ -1093,6 +1096,8 @@ void glSchriftSetzen(const std::string& familie, int punkte);   // OpenGLFont_se
 [[nodiscard]] std::string bugReportUrl();                       // OpenBugReportURL
 void kartenUrlOeffnen(const std::string& url);                  // OpenURL
 [[nodiscard]] bool kartenBefehlStarten(const std::string& zeile);   // Q_Exec
+// file_dialog (gtkmisc): Dateiwahl von Windows, im Selbsttest ersetzbar
+[[nodiscard]] std::string kartenDateiDialog(bool oeffnen, const char* titel, const char* filter, const std::string& start, const std::string& name = "");
 void shaderAnsehen(const std::string& datei, const std::string& name, bool extern_);   // DoShaderView
 void beimBeenden();            // main.cpp:476 (g_strLastMap)
 // OpenMap (map.cpp:1841) mit Dateiwahl; karteOeffnen ohne Dialog (fuer

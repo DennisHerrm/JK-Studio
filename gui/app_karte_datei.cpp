@@ -192,13 +192,13 @@ void dateiBefehl(const std::string& name) {
     karte::Karte& k = ed.karte;
     const float maxRaster = ed.raster.maxKoord();
     if (name == "ImportMap") {   // map_import( "Import Map" )
-        const std::string pfad = platform::openFileDialog("Import Map", kartenDateiFilter(), kartenStartOrdner());
+        const std::string pfad = kartenDateiDialog(true, "Import Map", kartenDateiFilter(), kartenStartOrdner());
         if (!pfad.empty()) { (void)karteImportierenAus(pfad); }
     } else if (name == "SaveSelected") {   // map_save( "Export Selection" )
-        const std::string pfad = platform::saveFileDialog("Export Selection", kartenDateiFilter(), kartenStartOrdner(), "");
+        const std::string pfad = kartenDateiDialog(false, "Export Selection", kartenDateiFilter(), kartenStartOrdner(), "");
         if (!pfad.empty()) { (void)auswahlSpeichernUnter(pfad); }
     } else if (name == "SaveRegion") {   // map_save( "Export Region" )
-        const std::string pfad = platform::saveFileDialog("Export Region", kartenDateiFilter(), kartenStartOrdner(), "");
+        const std::string pfad = kartenDateiDialog(false, "Export Region", kartenDateiFilter(), kartenStartOrdner(), "");
         if (!pfad.empty()) { (void)regionSpeichernUnter(pfad); }
     } else if (name == "SelectInside") {   // Select_Inside
         karte::auswahlInnen(k, ed.bearbeitung.einstellung);

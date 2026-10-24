@@ -30823,10 +30823,527 @@ std::vector<Schritt> einstellungen11c() {
     return s;
 }
 
+// Ein Pinsel (min..max) mit einem Shader in worldspawn (oder in "ent")
+std::shared_ptr<karte::Pinsel> testPinsel(const karte::Vektor3f& mn, const karte::Vektor3f& mx, const std::string& shader,
+                                          const std::shared_ptr<karte::Entitaet>& ent = nullptr) {
+    ke::Editor& e = ke::editor();
+    karte::TexturProjektion proj;
+    karte::texdefStandard(e.karte.kontext.art(), proj);
+    auto p = std::make_shared<karte::Pinsel>();
+    p->quaderBauen(karte::kastenAusMinMax(mn, mx), shader, proj, e.karte.kontext);
+    (ent ? ent : e.karte.welt())->kindEinfuegen(p);
+    return p;
+}
+
+std::vector<karte::Vektor3f> patchEcken(const std::shared_ptr<karte::Patch>& p) {
+    std::vector<karte::Vektor3f> v;
+    if (p) {
+        for (const karte::PatchPunkt& q : p->punkte()) { v.push_back(q.vertex); }
+    }
+    return v;
+}
+
+// Punkt 12: die Wirkung jedes Befehls der Stufe 2, der in den Schritten oben
+// nicht ueber ausfuehren/Taste/Menue lief (dort pruefte der Kern oder ein
+// anderer Weg die Wirkung): je ein Ausloesen ueber ausfuehren mit Pruefung.
+std::vector<Schritt> befehlsWirkungen() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto rueck = [&]() { add(tu("Rueckgaengig", [] { (void)ke::ausfuehren("Undo"); })); };
+    const auto pinselWaehlen = [&]() {
+        add(tu("den Pinsel waehlen", [] {
+            ke::Editor& e = ke::editor();
+            e.karte.auswahl.leeren();
+            e.karte.auswahl.waehlen(e.karte.welt(), pinsel());
+            ke::auswahlGeaendert();
+        }));
+    };
+    add(grundzustand("Stufe 2/12: Grundzustand (Befehlswirkungen)"));
+    // --- Brush > N sided (BrushMakeSided::set): Prisma mit N Seiten um die Blickachse
+    for (const int n : {3, 4, 6, 7, 8, 9}) {
+        pinselWaehlen();
+        const std::string name = "Brush" + std::to_string(n) + "Sided";
+        add(tu("Brush > " + std::to_string(n) + " sided", [name] { (void)ke::ausfuehren(name); }));
+        add(pruefe(name + ": " + std::to_string(n + 2) + " Flaechen, \"brushPrism -sides " + std::to_string(n) + " -axis 2\"", [n] {
+            return beitragend() == static_cast<std::size_t>(n + 2) &&
+                   ke::editor().karte.undo.undoName() == "brushPrism -sides " + std::to_string(n) + " -axis 2";
+        }));
+        rueck();
+    }
+    // --- Drehen und Spiegeln: zwei Pinsel A (0 0 0)..(64 32 16), B (64 0 0)..(96 64 32)
+    add(tu("Pinsel A und B dazu, beide waehlen", [] {
+        ke::Editor& e = ke::editor();
+        const auto a = testPinsel(karte::Vektor3f(0, 0, 0), karte::Vektor3f(64, 32, 16), "textures/common/caulk");
+        const auto b = testPinsel(karte::Vektor3f(64, 0, 0), karte::Vektor3f(96, 64, 32), "textures/common/caulk");
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), a);
+        e.karte.auswahl.waehlen(e.karte.welt(), b);
+        ke::auswahlGeaendert();
+    }));
+    const auto ausdehnung = [](float x, float y, float z) {
+        return [x, y, z] {
+            const karte::Kasten k = grenzenVon(1);
+            return std::fabs(k.extents[0] - x) < 0.01F && std::fabs(k.extents[1] - y) < 0.01F && std::fabs(k.extents[2] - z) < 0.01F;
+        };
+    };
+    for (const auto& [name, x, y, z] : {std::tuple<const char*, float, float, float>{"RotateSelectionX", 32, 8, 16},
+                                        {"RotateSelectionY", 8, 16, 32}, {"RotateSelectionZ", 16, 32, 8}, {"RotateSelectionAnticlockwise", 16, 32, 8}}) {
+        const std::string n = name;
+        add(tu(n, [n] { (void)ke::ausfuehren(n); }));
+        add(pruefe(n + ": A um 90 Grad gedreht (Ausdehnung " + std::to_string(static_cast<int>(x)) + " " + std::to_string(static_cast<int>(y)) + " " +
+                       std::to_string(static_cast<int>(z)) + ")",
+                   ausdehnung(x, y, z)));
+        rueck();
+    }
+    for (const auto& [name, mn, mx] : {std::tuple<const char*, karte::Vektor3f, karte::Vektor3f>{"MirrorSelectionX", {32, 0, 0}, {96, 32, 16}},
+                                       {"MirrorSelectionY", {0, 32, 0}, {64, 64, 16}}, {"MirrorSelectionZ", {0, 0, 16}, {64, 32, 32}},
+                                       {"MirrorSelectionVertically", {0, 32, 0}, {64, 64, 16}}}) {
+        const std::string n = name;
+        const karte::Vektor3f a = mn;
+        const karte::Vektor3f b = mx;
+        add(tu(n, [n] { (void)ke::ausfuehren(n); }));
+        add(pruefe(n + ": A um die Mitte der Auswahl gespiegelt", [a, b] { return kastenGleich(grenzenVon(1), a, b); }));
+        rueck();
+    }
+    add(grundzustand("Stufe 2/12: Grundzustand (Patches)"));
+    // --- Patches aus der Auswahl (Patch_Bevel, _EndCap, _SquareCylinder, _Cone, _Sphere)
+    for (const auto& [name, undo] : {std::pair<const char*, const char*>{"PatchBevel", "patchCreateBevel"}, {"PatchEndCap", "patchCreateEndCap"},
+                                     {"PatchSquareCylinder", "patchCreateSquareCylinder"}, {"PatchCone", "patchCreateCone"},
+                                     {"PatchSphere", "patchCreateSphere"}}) {
+        const std::string n = name;
+        const std::string u = undo;
+        pinselWaehlen();
+        add(tu(n, [n] { (void)ke::ausfuehren(n); }));
+        add(pruefe(n + ": ein Patch im Kasten der Auswahl, gewaehlt (\"" + u + "\")", [u] {
+            const auto p = patchNr(0);
+            return patchZahl() == 1 && p && ke::editor().karte.undo.undoName() == u && ke::editor().karte.auswahl.anzahl() == 1 &&
+                   std::fabs(p->grenzen().origin[0]) < 0.01F && p->grenzen().extents[0] > 32.0F;
+        }));
+        rueck();
+    }
+    for (const auto& [name, undo] : {std::pair<const char*, const char*>{"PatchXactCone", "patchCreateXactCone"}, {"PatchXactSphere", "patchCreateXactSphere"}}) {
+        const std::string n = name;
+        const std::string u = undo;
+        pinselWaehlen();
+        add(tu(n + " (Dialog)", [n] { (void)ke::ausfuehren(n); }));
+        add(pause(0.3));
+        add(klickAn("OK", elementOrt(std::string(ke::trK(Str::KePrefOk)) + "##patchok")));
+        add(pruefe(n + ": exakter Patch (\"" + u + "\")", [u] { return patchZahl() == 1 && ke::editor().karte.undo.undoName() == u; }));
+        rueck();
+    }
+    // --- Zeilen und Spalten an einer 3 x 3-Ebene
+    add(tasteKombi(ImGuiMod_Shift | ImGuiKey_P, "Umschalt+P"));
+    add(pause(0.3));
+    add(tasteKombi(ImGuiKey_Enter, "Return"));
+    add(pruefe("Ebene 3 x 3 gewaehlt", [] { return patchZahl() == 1 && patchNr(0)->breite() == 3 && patchNr(0)->hoehe() == 3; }));
+    for (const auto& [name, b, h] : {std::tuple<const char*, int, int>{"PatchInsertLastColumn", 5, 3}, {"PatchDeleteLastColumn", 3, 3},
+                                     {"PatchInsertFirstRow", 3, 5}, {"PatchInsertLastRow", 3, 7}, {"PatchDeleteFirstRow", 3, 5},
+                                     {"PatchDeleteLastRow", 3, 3}, {"PatchInsertLastColumn", 5, 3}, {"PatchDeleteFirstColumn", 3, 3}}) {
+        const std::string n = name;
+        add(tu(n, [n] { (void)ke::ausfuehren(n); }));
+        add(pruefe(n + ": " + std::to_string(b) + " x " + std::to_string(h), [b, h] {
+            return patchNr(0)->breite() == static_cast<std::size_t>(b) && patchNr(0)->hoehe() == static_cast<std::size_t>(h);
+        }));
+    }
+    add(tu("auf 5 x 5, einen Punkt verschieben", [] {
+        (void)ke::ausfuehren("PatchInsertLastColumn");
+        (void)ke::ausfuehren("PatchInsertLastRow");
+        const auto p = patchNr(0);
+        std::vector<karte::PatchPunkt> q = p->punkte();
+        q[6].vertex = q[6].vertex + karte::Vektor3f(20, 10, 0);
+        p->punkteSetzen(q);
+        p->punkteGeaendert();
+    }));
+    auto vorher = std::make_shared<std::vector<karte::Vektor3f>>();
+    auto stVorher = std::make_shared<karte::Vektor2f>();
+    for (const char* name : {"RedisperseRows", "RedisperseCols", "SmoothRows", "SmoothCols"}) {
+        const std::string n = name;
+        add(tu(n, [n, vorher] {
+            *vorher = patchEcken(patchNr(0));
+            (void)ke::ausfuehren(n);
+        }));
+        add(pruefe(n + ": Kontrollpunkte neu verteilt bzw. geglaettet", [vorher] { return patchEcken(patchNr(0)) != *vorher; }));
+        rueck();
+    }
+    add(tu("InvertCurveTextureX", [stVorher] {
+        *stVorher = patchNr(0)->punkt(0, 0).texcoord;
+        (void)ke::ausfuehren("InvertCurveTextureX");
+    }));
+    add(pruefe("InvertCurveTextureX: s gespiegelt (\"patchFlipTextureU\")", [stVorher] {
+        return patchNr(0)->punkt(0, 0).texcoord[0] != (*stVorher)[0] && ke::editor().karte.undo.undoName() == "patchFlipTextureU";
+    }));
+    add(grundzustand("Stufe 2/12: Grundzustand (Texturen)"));
+    // --- Fit, Shift, Scale, Rotate (Surface Inspector-Befehle an der ganzen Auswahl)
+    auto ssr = std::make_shared<karte::Texdef>();
+    const auto texturBefehl = [&](const std::string& n, std::function<bool(const karte::Texdef&, const karte::Texdef&)> pruef, const std::string& text) {
+        pinselWaehlen();
+        add(tu(n, [n, ssr] {
+            *ssr = ersteFlaecheSsr();
+            (void)ke::ausfuehren(n);
+        }));
+        add(pruefe(n + ": " + text, [ssr, pruef] { return pruef(*ssr, ersteFlaecheSsr()); }));
+        rueck();
+    };
+    const auto anders = [](float a, float b) { return std::fabs(a - b) > 1e-4F; };
+    texturBefehl("FitTextureWidth", [anders](const karte::Texdef& a, const karte::Texdef& b) { return anders(a.scale[0], b.scale[0]); }, "Breite eingepasst");
+    texturBefehl("FitTextureHeight", [anders](const karte::Texdef& a, const karte::Texdef& b) { return anders(a.scale[1], b.scale[1]); }, "Hoehe eingepasst");
+    texturBefehl("FitTextureWidthOnly", [anders](const karte::Texdef& a, const karte::Texdef& b) { return anders(a.scale[0], b.scale[0]) && !anders(a.scale[1], b.scale[1]); },
+                 "nur die Breite");
+    texturBefehl("FitTextureHeightOnly", [anders](const karte::Texdef& a, const karte::Texdef& b) { return anders(a.scale[1], b.scale[1]) && !anders(a.scale[0], b.scale[0]); },
+                 "nur die Hoehe");
+    for (const char* n : {"TexShiftLeft", "TexShiftRight"}) {
+        texturBefehl(n, [anders](const karte::Texdef& a, const karte::Texdef& b) { return anders(a.shift[0], b.shift[0]) && !anders(a.shift[1], b.shift[1]); },
+                     "waagerecht verschoben");
+    }
+    for (const char* n : {"TexShiftUp", "TexShiftDown"}) {
+        texturBefehl(n, [anders](const karte::Texdef& a, const karte::Texdef& b) { return anders(a.shift[1], b.shift[1]) && !anders(a.shift[0], b.shift[0]); },
+                     "senkrecht verschoben");
+    }
+    for (const char* n : {"TexScaleLeft", "TexScaleRight"}) {
+        texturBefehl(n, [anders](const karte::Texdef& a, const karte::Texdef& b) { return anders(a.scale[0], b.scale[0]) && !anders(a.scale[1], b.scale[1]); },
+                     "waagerecht skaliert");
+    }
+    for (const char* n : {"TexScaleUp", "TexScaleDown"}) {
+        texturBefehl(n, [anders](const karte::Texdef& a, const karte::Texdef& b) { return anders(a.scale[1], b.scale[1]) && !anders(a.scale[0], b.scale[0]); },
+                     "senkrecht skaliert");
+    }
+    for (const char* n : {"TexRotateClock", "TexRotateCounter"}) {
+        texturBefehl(n, [](const karte::Texdef& a, const karte::Texdef& b) {
+            const float d = std::fmod(std::fabs(b.rotate - a.rotate), 360.0F);
+            return std::fabs(d - 45.0F) < 0.01F || std::fabs(d - 315.0F) < 0.01F;
+        }, "um 45 Grad gedreht");
+    }
+    // --- Texture Project: an Axial-Projection-Pinseln nur die Warnung, an Brush Primitives die Projektion
+    pinselWaehlen();
+    add(tu("TextureProjectAxial (Axial Projection)", [] { (void)ke::ausfuehren("TextureProjectAxial"); }));
+    add(pruefe("Axial Projection: Warnung wie NRC, \"textureProjectAxial\"", [] {
+        return konsoleHat("function doesn't work for *brushes*, having Axial Projection type") &&
+               ke::editor().karte.undo.undoName() == "textureProjectAxial";
+    }));
+    rueck();
+    add(tu("Brush Primitives: New Map, ein Pinsel, gewaehlt, Textur gedreht", [] {
+        ke::Editor& e = ke::editor();
+        e.pinselTyp = 1;
+        ke::neueKarte();
+        e.pinselTyp = 0;
+        e.karte.welt();
+        auto w = e.karte.weltHolenOderAnlegen();
+        const auto p = testPinsel(karte::Vektor3f(-64, -64, 0), karte::Vektor3f(64, 64, 64), "textures/common/caulk");
+        e.karte.auswahl.waehlen(w, p);
+        ke::auswahlGeaendert();
+        (void)ke::ausfuehren("TexRotateClock");
+    }));
+    for (const auto& [name, undo] : {std::pair<const char*, const char*>{"TextureProjectAxial", "textureProjectAxial"},
+                                     {"TextureProjectOrtho", "textureProjectOrtho"}, {"TextureProjectCam", "textureProjectCam"}}) {
+        const std::string n = name;
+        const std::string u = undo;
+        auto bp = std::make_shared<std::string>();
+        add(tu(n + " (Brush Primitives)", [n, bp] {
+            *bp = karte::karteSchreiben(ke::editor().karte);
+            (void)ke::ausfuehren(n);
+        }));
+        add(pruefe(n + ": die Projektion der Flaechen neu (\"" + u + "\")", [u, bp] {
+            return ke::editor().karte.kontext.format == karte::PinselFormat::Quake3BP && karte::karteSchreiben(ke::editor().karte) != *bp &&
+                   ke::editor().karte.undo.undoName() == u;
+        }));
+        rueck();
+    }
+    add(grundzustand("Stufe 2/12: Grundzustand (Auswahl, Dateien)"));
+    // --- SelectTextured (Select_FacesAndPatchesByShader_)
+    add(tu("Browser-Shader common/caulk, Edit > Select All Faces with this Texture", [] {
+        ke::editor().karte.auswahl.leeren();
+        ke::editor().bearbeitung.browserShader = "textures/common/caulk";
+        (void)ke::ausfuehren("SelectTextured");
+    }));
+    add(pruefe("SelectTextured: die 6 Flaechen des Pinsels gewaehlt", [] { return ke::editor().karte.auswahl.flaechen().size() == 6; }));
+    add(tu("Auswahl weg", [] {
+        ke::editor().karte.auswahl.leeren();
+        ke::auswahlGeaendert();
+    }));
+    // --- Save selected, Import, Save region ueber die Dateiwahl (im Test ersetzt)
+    add(tu("das Licht waehlen, File > Save selected... (Dateiwahl: s12_auswahl.map)", [] {
+        ke::Editor& e = ke::editor();
+        e.dateiDialog = [](const std::string&) { return laufDatei("s12_auswahl.map"); };
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(lichtEntitaet());
+        (void)ke::ausfuehren("SaveSelected");
+    }));
+    add(pruefe("SaveSelected: s12_auswahl.map mit dem Licht", [] {
+        karte::Karte k;
+        (void)karte::karteLesen(karte::textmodusLesen(dateiText(laufDatei("s12_auswahl.map"))), k);
+        return k.entitaeten().size() == 1 && k.entitaeten().front()->klassenname() == "light";
+    }));
+    add(tu("File > Import... (Dateiwahl: s12_auswahl.map)", [] { (void)ke::ausfuehren("ImportMap"); }));
+    add(pruefe("ImportMap: ein zweites Licht (\"mapImport\")", [] {
+        return ke::editor().karte.entitaeten().size() == 3 && ke::editor().karte.undo.undoName() == "mapImport";
+    }));
+    rueck();
+    add(tu("den Pinsel waehlen, Region > Set selection, File > Save region... (s12_region.map)", [] {
+        ke::Editor& e = ke::editor();
+        e.dateiDialog = [](const std::string&) { return laufDatei("s12_region.map"); };
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), pinsel());
+        (void)ke::ausfuehren("RegionSetSelection");
+        (void)ke::ausfuehren("SaveRegion");
+        (void)ke::ausfuehren("RegionOff");
+        e.dateiDialog = nullptr;
+    }));
+    add(pruefe("SaveRegion: s12_region.map mit Startpunkt und den Waenden", [] {
+        const std::string t = dateiText(laufDatei("s12_region.map"));
+        return t.find("info_player_start") != std::string::npos && t.find("// brush 6") != std::string::npos;
+    }));
+    // --- Filter: je ein Gegenstand, der gefiltert wird
+    auto ziele = std::make_shared<std::map<std::string, std::shared_ptr<karte::Primitiv>>>();
+    auto zielEnt = std::make_shared<std::map<std::string, std::shared_ptr<karte::Entitaet>>>();
+    add(tu("Filterziele: Pinsel je Shader, Entitaeten info_player_start, path_corner, trigger_multiple", [ziele, zielEnt] {
+        ke::Editor& e = ke::editor();
+        auto& z = *ziele;
+        float x = 200;
+        const auto dazu = [&](const char* filter, const std::string& shader) {
+            z[filter] = testPinsel(karte::Vektor3f(x, 0, 0), karte::Vektor3f(x + 16, 16, 16), shader);
+            x += 32;
+        };
+        dazu("FilterClips", "textures/common/clip");
+        dazu("FilterBotClips", "textures/common/botclip");
+        dazu("FilterLiquids", "textures/liquids/wasser12");
+        dazu("FilterHintsSkips", "textures/common/hint");
+        dazu("FilterClusterportals", "textures/common/clusterportal");
+        dazu("FilterAreaportals", "textures/common/areaportal");
+        dazu("FilterLightgrid", "textures/common/lightgrid");
+        dazu("FilterDecals", "textures/decals/test12");
+        // Sky und Translucent: ein Shader des Spiels mit QER_SKY bzw. QER_TRANS
+        std::string himmel;
+        std::string durch;
+        for (const karte::ShaderEintrag* sh : e.karteSpiel->inventar.shader()) {
+            if (himmel.empty() && (sh->flags & karte::QER_SKY) != 0U) { himmel = sh->name; }
+            if (durch.empty() && (sh->flags & (karte::QER_TRANS | karte::QER_ALPHATEST)) != 0U && (sh->flags & karte::QER_SKY) == 0U) { durch = sh->name; }
+        }
+        dazu("FilterSky", himmel);
+        dazu("FilterTranslucent", durch);
+        dazu("FilterStructural", "textures/common/caulk");
+        z["FilterWorldBrushes"] = pinsel();
+        auto& ze = *zielEnt;
+        const auto ent = [&](const char* filter, const char* klasse) {
+            auto n = e.karte.neueEntitaet(klasse, false);
+            n->setzen("origin", "0 300 0");
+            e.karte.entitaetEinfuegen(n);
+            ze[filter] = n;
+            return n;
+        };
+        ent("FilterPointEntities", "info_player_start");
+        ent("FilterPaths", "path_corner");
+        auto trig = e.karte.neueEntitaet("trigger_multiple", true);
+        e.karte.entitaetEinfuegen(trig);
+        (void)testPinsel(karte::Vektor3f(0, 400, 0), karte::Vektor3f(32, 432, 32), "textures/common/trigger", trig);
+        ze["FilterTriggers"] = trig;
+        ze["FilterEntities"] = lichtEntitaet();
+        ze["FilterWorldBrushes"] = e.karte.welt();   // filter_entity_world: worldspawn samt Kindern
+    }));
+    add(pause(0.2));
+    for (const char* f : {"FilterClips", "FilterBotClips", "FilterLiquids", "FilterHintsSkips", "FilterClusterportals", "FilterAreaportals",
+                          "FilterLightgrid", "FilterDecals", "FilterSky", "FilterTranslucent", "FilterStructural"}) {
+        const std::string n = f;
+        add(tu(n + " an", [n] { (void)ke::ausfuehren(n); }));
+        add(pause(0.15));
+        add(pruefe(n + ": der Pinsel ist gefiltert, der Haken an", [n, ziele] {
+            const auto p = (*ziele)[n];
+            return p && !p->sichtbar() && ke::angehakt(n);
+        }));
+        add(tu(n + " aus", [n] { (void)ke::ausfuehren(n); }));
+        add(pause(0.15));
+        add(pruefe(n + " aus: wieder sichtbar", [n, ziele] { return (*ziele)[n] && (*ziele)[n]->sichtbar() && !ke::angehakt(n); }));
+    }
+    for (const char* f : {"FilterPointEntities", "FilterPaths", "FilterTriggers", "FilterEntities", "FilterWorldBrushes"}) {
+        const std::string n = f;
+        add(tu(n + " an", [n] { (void)ke::ausfuehren(n); }));
+        add(pause(0.15));
+        add(pruefe(n + ": die Entitaet ist gefiltert, der Haken an", [n, zielEnt] {
+            const auto e = (*zielEnt)[n];
+            return e && !e->sichtbar() && ke::angehakt(n);
+        }));
+        add(tu(n + " aus", [n] { (void)ke::ausfuehren(n); }));
+        add(pause(0.15));
+        add(pruefe(n + " aus: wieder sichtbar", [n, zielEnt] { return (*zielEnt)[n] && (*zielEnt)[n]->sichtbar() && !ke::angehakt(n); }));
+    }
+    // --- Tags: Copy, Paste, Rename, Show untagged
+    add(tu("Tags GUI an, Tag Stein an common/caulk, caulk im Browser", [] {
+        ke::Editor& e = ke::editor();
+        if (!e.tags.gui) { (void)ke::ausfuehren("TagsToggleGui"); }
+        if (!e.tags.datei.hatShader("textures/common/caulk")) {   // eintragAnlegen
+            (void)e.tags.datei.shaderDazu("textures/common/caulk", karte::TagTexturArt::Eigen, karte::TagKnotenArt::Shader);
+        }
+        (void)e.tags.datei.tagDazu("textures/common/caulk", "Stein");
+        e.tags.alle.insert("Stein");
+        ke::texturShaderWaehlen("textures/common/caulk");
+        (void)ke::ausfuehren("TagCopy");
+    }));
+    add(pruefe("TagCopy: die Tags von common/caulk gemerkt", [] {
+        const auto& k = ke::editor().tags.kopiert;
+        return k.size() == 1 && k[0] == "Stein";
+    }));
+    add(tu("anderen Shader waehlen (common/clip), TagPaste", [] {
+        ke::texturShaderWaehlen("textures/common/clip");
+        (void)ke::ausfuehren("TagPaste");
+    }));
+    add(pruefe("TagPaste: common/clip hat Stein", [] { return ke::editor().tags.datei.hatTag("textures/common/clip", "Stein"); }));
+    add(tu("Stein markieren, TagRename", [] {
+        ke::editor().tags.reiter = 1;
+        ke::editor().tags.markiert = {"Stein"};
+        (void)ke::ausfuehren("TagRename");
+    }));
+    add(pause(0.3));
+    add(pruefe("TagRename: Stein wird bearbeitet", [] { return ke::editor().tags.bearbeitet == "Stein"; }));
+    add(tippe("Fels"));
+    add(tasteKombi(ImGuiKey_Enter, "Return"));
+    add(pruefe("Return: Fels statt Stein, an beiden Shadern", [] {
+        const auto& t = ke::editor().tags;
+        return t.alle.count("Fels") != 0U && t.alle.count("Stein") == 0U && t.datei.hatTag("textures/common/caulk", "Fels") &&
+               t.datei.hatTag("textures/common/clip", "Fels");
+    }));
+    add(tu("TagSearchUntagged", [] { (void)ke::ausfuehren("TagSearchUntagged"); }));
+    add(pruefe("Show Untagged: die Warnung wie NRC", [] { return ke::editor().meldung.offen && ke::editor().meldung.titel == "Show Untagged"; }));
+    add(klick(std::string(ke::trK(Str::KeYes)) + "##meldungja"));
+    add(pause(0.2));
+    add(pruefe("Yes: der Browser zeigt die Shader ohne Tag (\"Untagged\")", [] {
+        const auto& tb = ke::editor().texBro;
+        return tb.tagSuche && tb.verzeichnis == "Untagged" && tb.gefundeneShader.count("textures/common/caulk") == 0U;
+    }));
+    add(tu("Tags weg, Tags GUI aus, Show All", [] {
+        ke::Editor& e = ke::editor();
+        e.tags.datei.tagUeberallWeg("Fels");
+        e.tags.alle.erase("Fels");
+        e.tags.markiert.clear();
+        (void)ke::ausfuehren("TagsToggleGui");
+        (void)ke::ausfuehren("ShowAllTextures");
+    }));
+    return s;
+}
+
+// Punkt 12: was in Stufe 1b offen blieb, weil es eine Dateiwahl von Windows
+// oeffnet oder nur in anderen Anordnungen da ist - die versteckten Knoepfe Open,
+// Save, Change views, die Eintraege 2 bis 9 der zuletzt-Liste, Texture Browser
+// (Menue und Knopf in Split).
+std::vector<Schritt> stufe1Reste() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto knopfOrt = [](const std::string& id) {
+        return [id]() {
+            const Element* el = finde(id, "", 0, true);
+            return el != nullptr ? el->rect.GetCenter() : ImVec2{0, 0};
+        };
+    };
+    add(grundzustand("Stufe 2/12: Grundzustand (Reste der Stufe 1b)"));
+    add(tu("Knoepfe Open, Save, Change views zeigen (ToolbarHiddenButtons), Kopie s12_knopf.map, Dateiwahl ersetzt", [] {
+        ke::Editor& e = ke::editor();
+        e.versteckteKnoepfe.erase("OpenMap");
+        e.versteckteKnoepfe.erase("SaveMap");
+        e.versteckteKnoepfe.erase("NextView");
+        (void)spewDatei(laufDatei("s12_knopf.map"), dateiText(karteTestPfad("karte_kopie.map")));
+        e.dateiDialog = [](const std::string&) { return laufDatei("s12_knopf.map"); };
+    }));
+    add(pause(0.3));
+    add(klickAn("Knopf Open", knopfOrt("##knopfOpenMap")));
+    add(pause(0.3));
+    add(pruefe("Knopf Open: s12_knopf.map offen (Dateiwahl)", [] { return ke::editor().name == laufDatei("s12_knopf.map"); }));
+    add(tu("Karte aendern (worldspawn message)", [] {
+        ke::Editor& e = ke::editor();
+        karte::Befehl b(e.karte.undo, "entitySetKeyValue -key \"message\" -value \"knopf12\"");
+        e.karte.welt()->setzen("message", "knopf12");
+    }));
+    add(klickAn("Knopf Save", knopfOrt("##knopfSaveMap")));
+    add(pause(0.2));
+    add(pruefe("Knopf Save: gespeichert, die Datei hat knopf12", [] {
+        return !ke::geaendert() && dateiText(laufDatei("s12_knopf.map")).find("knopf12") != std::string::npos;
+    }));
+    add(klickAn("Knopf Change views", knopfOrt("##knopfNextView")));
+    add(pruefe("Knopf Change views: XY -> XZ", [] { return ke::editor().xy[0].ansicht.typ == karte::Sicht::XZ; }));
+    add(tu("Ansicht XY, Knoepfe wieder versteckt", [] {
+        ke::Editor& e = ke::editor();
+        e.xy[0].ansicht.typ = karte::Sicht::XY;
+        for (const char* n : {"OpenMap", "SaveMap", "NextView"}) { e.versteckteKnoepfe.insert(n); }
+        e.dateiDialog = nullptr;
+    }));
+    // zuletzt geoeffnet: 9 Eintraege
+    add(tu("neun Karten s12_mru1..9.map in die zuletzt-Liste (1 oben)", [] {
+        const std::string text = dateiText(karteTestPfad("karte_kopie.map"));
+        for (int i = 9; i >= 1; --i) {
+            const std::string p = laufDatei(("s12_mru" + std::to_string(i) + ".map").c_str());
+            (void)spewDatei(p, text);
+            ke::zuletztEintragen(p);
+        }
+    }));
+    for (int i = 2; i <= 9; ++i) {
+        add(klick(ke::trK(Str::KeLFile), "##karteneditor"));
+        add(pause(0.2));
+        add({"zuletzt geoeffnet: Eintrag " + std::to_string(i), [i](int b) {
+                 static Schritt k;
+                 if (b == 0) { k = klick(karte::ohneMnemonik(ke::editor().zuletzt.beschriftung(static_cast<std::size_t>(i - 1)))); }
+                 return k.tun(b);
+             }});
+        add(pause(0.3));
+        // MRU_AddFile beim Oeffnen: der Eintrag rueckt nach oben
+        add(pruefe("Eintrag " + std::to_string(i) + ": s12_mru" + std::to_string(i) + ".map offen", [i] {
+            const std::string p = laufDatei(("s12_mru" + std::to_string(i) + ".map").c_str());
+            return ke::editor().name == p && ke::editor().zuletzt.pfade()[0] == p;
+        }));
+        add(tu("die Liste wieder 1..9", [] {
+            for (int k = 9; k >= 1; --k) { ke::zuletztEintragen(laufDatei(("s12_mru" + std::to_string(k) + ".map").c_str())); }
+        }));
+    }
+    // Texture Browser: Menue und Knopf in Split
+    add(tu("Anordnung Split", [] {
+        ke::editor().anordnung = karte::befehle::Anordnung::Split;
+        ke::editor().teilerFuer = -1;
+        ke::editor().gruppenDialogOffen = false;
+        ke::editor().versteckteKnoepfe.erase("ToggleTextures");
+    }));
+    add(pause(0.4));
+    add(klick(ke::trK(Str::KeLView), "##karteneditor"));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KeLTextureBrowser), "", 0, true));
+    add(pause(0.3));
+    add(pruefe("View > Texture Browser (Split): Gruppendialog mit dem Texturbrowser", [] {
+        return ke::editor().gruppenDialogOffen && ke::editor().gruppenSeite == 2;
+    }));
+    add(tu("Gruppendialog zu", [] { ke::editor().gruppenDialogOffen = false; }));
+    add(pause(0.2));
+    add(klickAn("Knopf Texture Browser", knopfOrt("##knopfToggleTextures")));
+    add(pause(0.3));
+    add(pruefe("Knopf Texture Browser (Split): Texturbrowser", [] { return ke::editor().gruppenDialogOffen && ke::editor().gruppenSeite == 2; }));
+    add(tu("zurueck: Regular, Knopf versteckt, Gruppendialog zu", [] {
+        ke::Editor& e = ke::editor();
+        e.anordnung = karte::befehle::Anordnung::Regular;
+        e.teilerFuer = -1;
+        e.gruppenDialogOffen = false;
+        e.gruppenSeite = 0;
+        e.versteckteKnoepfe.insert("ToggleTextures");
+    }));
+    add(pause(0.3));
+    return s;
+}
+
+// Punkt 12: jeder Befehl der Stufe 2 wurde in den Schritten oben (Taste, Menue,
+// Knopf oder ausfuehren) ausgeloest - die Wirkung pruefen die Schritte dort.
+std::vector<Schritt> alleBefehle() {
+    std::vector<Schritt> s;
+    s.push_back(pruefe("Stufe 2: jeder neue Befehl wurde ausgeloest (befehle::stufe2)", [] {
+        std::string fehlt;
+        int n = 0;
+        for (const std::string& b : karte::befehle::stufe2()) {
+            ++n;
+            if (ke::editor().befehleAusgefuehrt.count(b) == 0) { fehlt += " " + b; }
+        }
+        diag::detail("Knopftest: Stufe 2 - " + std::to_string(n) + " Befehle, nicht ausgeloest:" + (fehlt.empty() ? std::string(" -") : fehlt));
+        return n > 100 && fehlt.empty();
+    }));
+    return s;
+}
+
 }  // namespace stufe2
 
 std::vector<Schritt> karteneditorStufe2Schritte() {
     std::vector<Schritt> s;
+    s.push_back(tu("Stufe 2: Liste der ausgeloesten Befehle leeren", [] { karteneditor::editor().befehleAusgefuehrt.clear(); }));
     // BHED_STUFE2_AB=<Punkt>: erst ab diesem Punkt (schnelleres Nachpruefen)
     const char* ab = std::getenv("BHED_STUFE2_AB");
     const int abPunkt = ab != nullptr ? std::atoi(ab) : 0;
@@ -30837,7 +31354,13 @@ std::vector<Schritt> karteneditorStufe2Schritte() {
         if (abPunkt <= 12) {
             for (Schritt& x : stufe2::einstellungen11b()) { s.push_back(std::move(x)); }
         }
-        for (Schritt& x : stufe2::einstellungen11c()) { s.push_back(std::move(x)); }
+        if (abPunkt <= 13) {
+            for (Schritt& x : stufe2::einstellungen11c()) { s.push_back(std::move(x)); }
+        }
+        if (abPunkt <= 14) {
+            for (Schritt& x : stufe2::befehlsWirkungen()) { s.push_back(std::move(x)); }
+        }
+        for (Schritt& x : stufe2::stufe1Reste()) { s.push_back(std::move(x)); }
         return s;
     }
     for (Schritt& x : stufe2::komponenten()) { s.push_back(std::move(x)); }
@@ -30855,6 +31378,9 @@ std::vector<Schritt> karteneditorStufe2Schritte() {
     for (Schritt& x : stufe2::einstellungen11()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::einstellungen11b()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::einstellungen11c()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe2::befehlsWirkungen()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe2::stufe1Reste()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe2::alleBefehle()) { s.push_back(std::move(x)); }
     return s;
 }
 
@@ -31433,6 +31959,117 @@ std::vector<Schritt> karteneditorGrossSchritte() {
         diag::detail("Knopftest: Grosse Karte - davon Kamera-Szene: " + stat(m->neubauKamera));
         diag::detail("Knopftest: Grosse Karte - davon 2D-Szene: " + stat(m->neubauXy));
         return !m->editor.empty();
+    }));
+    // Stufe 2, Punkt 12: CSG, Clipper und Komponenten auf der grossen Karte
+    struct Stufe2Mess {
+        double csgMs = 0, csgUndoMs = 0, csgBild = 0, clipMs = 0, clipBild = 0, eckenMs = 0, eckenBild = 0, ecken1000Ms = 0, ecken1000Bild = 0;
+        long long pinselVor = 0, pinselNach = 0;
+    };
+    auto m2 = std::make_shared<Stufe2Mess>();
+    // das laengste der naechsten 6 Bilder (der Neubau nach dem Befehl faellt in eines davon)
+    const auto laengstesBild = [](double* ziel) {
+        return Schritt{"Grosse Karte: laengstes der naechsten 6 Bilder", [ziel](int b) {
+                           if (b == 0) {
+                               *ziel = 0.0;
+                               return false;
+                           }
+                           *ziel = std::max(*ziel, ke::editor().zeichenMs);
+                           return b >= 6;
+                       }};
+    };
+    const auto pinselZaehlen = [] {
+        long long n = 0;
+        for (const auto& ent : ke::editor().karte.entitaeten()) {
+            for (const auto& k : ent->kinder()) { n += k->art() == karte::Primitiv::Art::Pinsel ? 1 : 0; }
+        }
+        return n;
+    };
+    // ein Pinsel aus der Mitte der worldspawn-Liste mit einiger Groesse
+    const auto mittlererPinsel = [] {
+        const auto& kinder = ke::editor().karte.welt()->kinder();
+        for (std::size_t i = kinder.size() / 2; i < kinder.size(); ++i) {
+            if (kinder[i]->art() != karte::Primitiv::Art::Pinsel) { continue; }
+            const karte::Kasten b = std::static_pointer_cast<karte::Pinsel>(kinder[i])->grenzen(ke::editor().karte.kontext);
+            if (b.extents[0] > 32 && b.extents[1] > 32 && b.extents[2] > 32) { return kinder[i]; }
+        }
+        return kinder.front();
+    };
+    add(tu("Grosse Karte: CSG Subtract mit einem Pinsel aus der Mitte", [m2, pinselZaehlen, mittlererPinsel] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), mittlererPinsel());
+        m2->pinselVor = pinselZaehlen();
+        const auto t0 = std::chrono::steady_clock::now();
+        (void)ke::ausfuehren("CSGSubtract");
+        m2->csgMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        m2->pinselNach = pinselZaehlen();
+    }));
+    add(laengstesBild(&m2->csgBild));
+    add(tu("Grosse Karte: Rueckgaengig", [m2] {
+        const auto t0 = std::chrono::steady_clock::now();
+        (void)ke::ausfuehren("Undo");
+        m2->csgUndoMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    }));
+    add(pause(0.1));
+    add(tu("Grosse Karte: Clipper an, Ebene durch die Mitte, Clip", [m2, mittlererPinsel] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        const auto p = mittlererPinsel();
+        e.karte.auswahl.waehlen(e.karte.welt(), p);
+        (void)ke::ausfuehren("ToggleClipper");
+        const karte::Kasten b = std::static_pointer_cast<karte::Pinsel>(p)->grenzen(e.karte.kontext);
+        const karte::Vektor3d c(b.origin[0], b.origin[1], b.origin[2]);
+        e.bearbeitung.clipperPunkte.punkte[0] = c + karte::Vektor3d(0, -64, 0);
+        e.bearbeitung.clipperPunkte.punkte[1] = c + karte::Vektor3d(0, 64, 0);
+        e.bearbeitung.clipperPunkte.punkte[2] = c + karte::Vektor3d(0, 0, 64);
+        e.bearbeitung.clipperPunkte.anzahl = 3;
+        const auto t0 = std::chrono::steady_clock::now();
+        (void)ke::ausfuehren("ClipperClip");
+        m2->clipMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    }));
+    add(laengstesBild(&m2->clipBild));
+    add(tu("Grosse Karte: Rueckgaengig, Clipper aus", [m2] {
+        (void)ke::ausfuehren("Undo");
+        (void)ke::ausfuehren("ToggleClipper");
+    }));
+    add(pause(0.1));
+    add(tu("Grosse Karte: Ecken-Modus mit einem Pinsel", [m2, mittlererPinsel] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), mittlererPinsel());
+        const auto t0 = std::chrono::steady_clock::now();
+        (void)ke::ausfuehren("DragVertices");
+        m2->eckenMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    }));
+    add(laengstesBild(&m2->eckenBild));
+    add(tu("Grosse Karte: Ecken-Modus aus, 1000 Pinsel waehlen, Ecken-Modus", [m2] {
+        ke::Editor& e = ke::editor();
+        (void)ke::ausfuehren("DragVertices");
+        e.karte.auswahl.leeren();
+        std::size_t n = 0;
+        for (const auto& k : e.karte.welt()->kinder()) {
+            if (k->art() != karte::Primitiv::Art::Pinsel) { continue; }
+            e.karte.auswahl.waehlen(e.karte.welt(), k);
+            if (++n >= 1000) { break; }
+        }
+        const auto t0 = std::chrono::steady_clock::now();
+        (void)ke::ausfuehren("DragVertices");
+        m2->ecken1000Ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    }));
+    add(laengstesBild(&m2->ecken1000Bild));
+    add(tu("Grosse Karte: Ecken-Modus aus", [m2] {
+        (void)ke::ausfuehren("DragVertices");
+        ke::editor().karte.auswahl.leeren();
+    }));
+    add(pruefe("Grosse Karte: Stufe-2-Zeiten (CSG Subtract, Clip, Ecken-Modus)", [m2] {
+        char z[480];
+        std::snprintf(z, sizeof(z),
+                      "Knopftest: Grosse Karte - CSG Subtract %.1f ms (Pinsel %lld -> %lld), Bild danach %.1f ms, Rueckgaengig %.1f ms; Clip %.1f ms, Bild "
+                      "danach %.1f ms; Ecken-Modus 1 Pinsel %.2f ms (Bild %.1f ms), 1000 Pinsel %.1f ms (Bild %.1f ms)",
+                      m2->csgMs, m2->pinselVor, m2->pinselNach, m2->csgBild, m2->csgUndoMs, m2->clipMs, m2->clipBild, m2->eckenMs, m2->eckenBild,
+                      m2->ecken1000Ms, m2->ecken1000Bild);
+        diag::detail(z);
+        return m2->pinselNach >= m2->pinselVor && m2->csgMs > 0.0;
     }));
     add(tu("Grosse Karte: Testkarte wieder laden", [] { (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map")); }));
     add(pause(0.3));

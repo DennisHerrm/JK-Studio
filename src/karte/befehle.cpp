@@ -209,6 +209,13 @@ const std::vector<Befehl>& alle() {
     return v;
 }
 
+const std::vector<std::string>& stufe2() {
+    static const std::vector<std::string> v = {
+#include "befehle_stufe2.inc"
+    };
+    return v;
+}
+
 const Befehl* finden(std::string_view name) {
     for (const Befehl& b : alle()) {
         if (name == b.name) { return &b; }

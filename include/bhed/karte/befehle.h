@@ -101,6 +101,8 @@ struct Befehl {
     int stufe;             // 1 = Stufe 1b, 2/3 = kommt spaeter (sichtbar, ausgegraut)
 };
 [[nodiscard]] const std::vector<Befehl>& alle();
+// Die registrierten Befehle, die mit Stufe 2 kamen (gen_befehle.py STUFE_2_FERTIG)
+[[nodiscard]] const std::vector<std::string>& stufe2();
 [[nodiscard]] const Befehl* finden(std::string_view name);
 
 // --- Menues und Werkzeugleisten ----------------------------------------------
