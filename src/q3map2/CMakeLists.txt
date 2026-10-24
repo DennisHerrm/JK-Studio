@@ -172,6 +172,9 @@ set(Q3M ${Q3}/tools/quake3/q3map2)
 # Ableitungsleitfaden span(R&&) von std::span, C2641); GCC kann es, und Span(
 # Zeiger, Anzahl ) klappt auch bei MSVC. An den zwei Stellen mit einem Behaelter
 # steht das Argument ausdruecklich.
+# Nr. 7: std::sort und std::ranges::sort mit der Reihenfolge von libstdc++
+# (kompat/gcc_sort.h) - gleichwertige Elemente stehen danach wie bei NRCs
+# q3map2.exe.
 function(bhed_q3_kopie ordner datei ergebnis)
   file(READ ${ordner}/${datei} text)
   set(paare ${ARGN})
@@ -189,6 +192,9 @@ function(bhed_q3_kopie ordner datei ergebnis)
       string(REPLACE "${alt}" "${neu}" text "${text}")
     endforeach()
   endif()
+  # Nr. 7 in jeder Kopie
+  string(REPLACE "std::ranges::sort(" "bhed_gcc::ranges_sort(" text "${text}")
+  string(REPLACE "std::sort(" "bhed_gcc::sort(" text "${text}")
   file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/angepasst/${datei} "${text}")
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${ordner}/${datei})
   set(${ergebnis} ${CMAKE_CURRENT_BINARY_DIR}/angepasst/${datei} PARENT_SCOPE)
@@ -198,18 +204,29 @@ bhed_q3_kopie(${Q3M} surface.cpp Q3_SURFACE
 bhed_q3_kopie(${Q3M} model.cpp Q3_MODEL
               "SnapPlaneImproved( fplane, Span( std::as_const( fw ) ) )"
               "SnapPlaneImproved( fplane, Span<const winding_accu_t::value_type>( std::as_const( fw ) ) )")
+bhed_q3_kopie(${Q3M} convert_map.cpp Q3_CONVERT_MAP)
+# Nr. 8: entities waechst beim Laden; MSVCs std::vector wuerde die Entities dabei
+# kopieren statt verschieben (std::list ist bei MSVC nicht noexcept verschiebbar)
+# und brush_t::original ins Leere zeigen lassen (kompat/gcc_vektor.h).
+bhed_q3_kopie(${Q3M} map.cpp Q3_MAP
+              "entity_t& mapEnt = entities.emplace_back();" "entity_t& mapEnt = bhed_gcc::emplace_back( entities );")
+bhed_q3_kopie(${Q3M} lightmaps_ydnar.cpp Q3_LIGHTMAPS)
+bhed_q3_kopie(${Q3M} surface_meta.cpp Q3_SURFACE_META)
+bhed_q3_kopie(${Q3M} tjunction.cpp Q3_TJUNCTION)
+bhed_q3_kopie(${Q3M} vis.cpp Q3_VIS)
+bhed_q3_kopie(${Q3C} vfs.cpp Q3_VFS)
 
 add_executable(bhed_q3map2
   ${Q3C}/cmdlib.cpp ${Q3C}/qimagelib.cpp ${Q3C}/inout.cpp ${Q3C}/jpeg.cpp ${Q3C}/md4.cpp ${Q3C}/mutex.cpp
-  ${Q3C}/polylib.cpp ${Q3C}/scriplib.cpp ${Q3C}/threads.cpp ${Q3C}/unzip.cpp ${Q3C}/vfs.cpp ${Q3C}/miniz.cpp
+  ${Q3C}/polylib.cpp ${Q3C}/scriplib.cpp ${Q3C}/threads.cpp ${Q3C}/unzip.cpp ${Q3_VFS} ${Q3C}/miniz.cpp
   ${Q3M}/autopk3.cpp ${Q3M}/brush.cpp ${Q3M}/bspfile_abstract.cpp ${Q3M}/bspfile_ibsp.cpp ${Q3M}/bspfile_rbsp.cpp
-  ${Q3M}/bsp.cpp ${Q3M}/convert_ase.cpp ${Q3M}/convert_bsp.cpp ${Q3M}/convert_json.cpp ${Q3M}/convert_map.cpp
+  ${Q3M}/bsp.cpp ${Q3M}/convert_ase.cpp ${Q3M}/convert_bsp.cpp ${Q3M}/convert_json.cpp ${Q3_CONVERT_MAP}
   ${Q3M}/convert_obj.cpp ${Q3M}/decals.cpp ${Q3M}/exportents.cpp ${Q3M}/facebsp.cpp ${Q3M}/fog.cpp ${Q3M}/games.cpp
-  ${Q3M}/help.cpp ${Q3M}/image.cpp ${Q3M}/leakfile.cpp ${Q3M}/light_bounce.cpp ${Q3M}/lightmaps_ydnar.cpp
-  ${Q3M}/light.cpp ${Q3M}/light_trace.cpp ${Q3M}/light_ydnar.cpp ${Q3M}/main.cpp ${Q3M}/map.cpp ${Q3M}/minimap.cpp
+  ${Q3M}/help.cpp ${Q3M}/image.cpp ${Q3M}/leakfile.cpp ${Q3M}/light_bounce.cpp ${Q3_LIGHTMAPS}
+  ${Q3M}/light.cpp ${Q3M}/light_trace.cpp ${Q3M}/light_ydnar.cpp ${Q3M}/main.cpp ${Q3_MAP} ${Q3M}/minimap.cpp
   ${Q3M}/mesh.cpp ${Q3_MODEL} ${Q3M}/patch.cpp ${Q3M}/path_init.cpp ${Q3M}/portals.cpp ${Q3M}/prtfile.cpp
   ${Q3M}/shaders.cpp ${Q3M}/surface_extra.cpp ${Q3M}/surface_foliage.cpp ${Q3M}/surface_fur.cpp
-  ${Q3M}/surface_meta.cpp ${Q3_SURFACE} ${Q3M}/tjunction.cpp ${Q3M}/tree.cpp ${Q3M}/visflow.cpp ${Q3M}/vis.cpp
+  ${Q3_SURFACE_META} ${Q3_SURFACE} ${Q3_TJUNCTION} ${Q3M}/tree.cpp ${Q3M}/visflow.cpp ${Q3_VIS}
   ${Q3M}/writebsp.cpp
   # libs aus dem Tag (Makefile: libcrnlib, libddslib, libetclib, libfilematch, libl_net, libwebplib)
   ${Q3}/libs/crnlib/crnlib.cpp ${Q3}/libs/ddslib/ddslib.c ${Q3}/libs/filematch.c ${Q3}/libs/l_net/l_net.c

@@ -341,3 +341,143 @@ und bricht ab, wenn eine zu ersetzende Stelle fehlt.
 | `q3map2_importe` | bcrypt.dll "unbekannt" | ok (bcrypt.dll erlaubt: libxml2 dict.c BCryptGenRandom, seit Vista Teil von Windows) |
 | erster Vergleich ein_pinsel.map (-bsp) | - | alle 18 Lumps Byte-gleich mit NRC, Ausgabe gleich bis auf Pfade/Baudatum |
 
+## Punkt 2: Gleiche Ergebnisse wie das Original
+
+Verglichen mit `SP\nrc_dl\nrc\q3map2.exe` (NRC 20260114, MinGW-GCC). Schalter
+wie das Build-Menue: JA/MD "[Final] Fast" (`-meta`; `-vis`; `-light -fast
+-patchshadows -samples 2 -filter -bounce 8`), JK2 (`-meta`; `-vis -saveprt`;
+`-light -fast -filter -super 2`); MD mit `-fs_game MD`. Alle Laeufe mit
+Idle-Prioritaet in `Y:\karte\laeufe\q3vgl`, Werkzeuge in `SP\s3\werk`
+(`alle.py`, `kanon.py`, `lichtvergleich.py`, `*serie.py`).
+
+### Ergebnis in einem Satz
+
+Byte-gleich ist es, wo NRC selbst bei jedem Lauf dasselbe schreibt; wo NRC
+von Lauf zu Lauf andere Bytes schreibt, sind unsere Unterschiede genau
+dieselben, und alles, was davon nicht abhaengt, ist gleich (jedes Dreieck mit
+allen Eckdaten, jede Ebene, jeder Knoten, Sichtbarkeit, Lichtgitter,
+Eckfarben). Dabei kamen zwei echte Unterschiede heraus, beide behoben (Nr. 7, 8).
+
+### Was gefunden wurde
+
+1. **Muell in `leafbrushes` (behoben, Nr. 8).** Jeder Eintrag zeigte ins Leere
+   (z. B. 582359808 statt 136..317), und `-light` stuerzte auf mp__duel1 ab
+   (0xC0000005). Ursache: `std::vector<entity_t> entities` waechst beim Laden;
+   MSVCs `std::list` ist nicht noexcept verschiebbar
+   (`is_nothrow_move_constructible_v<std::list<int>>` = 0, bei libstdc++ 1),
+   also kopiert der Vektor die Entities samt Pinsellisten, und
+   `brush_t::original = &b` (map.cpp:828) zeigt in freigegebenen Speicher;
+   writebsp.cpp:133 schreibt `b.original->outputNum`. Abhilfe ohne die Quelle
+   zu aendern: in der Kopie von map.cpp `bhed_gcc::emplace_back( entities )`,
+   das vorher selbst mit `std::move` vergroessert (`kompat/gcc_vektor.h`).
+   Danach `leafbrushes` Byte-gleich, `-light` laeuft durch.
+2. **Reihenfolge gleichwertiger Elemente (behoben, Nr. 7).** `std::sort` ist
+   nicht stabil; MSVC teilt anders als libstdc++ (Grenze 32 statt 16, Median
+   aus 9). q3map2 sortiert u. a. Lightmaps, Kanten, Portale mit Gleichstaenden.
+   `kompat/gcc_sort.h` ist das Introsort von libstdc++ (SGI-STL-Verfahren).
+   Wirkung: raum_einfach.map nach `-light` - ohne Nr. 7 andere `lightmaps` und
+   `drawverts`, mit Nr. 7 Byte-gleich.
+3. **NRC ist selbst nicht deterministisch.** 12 Laeufe `-bsp` auf mp__duel1:
+   12 verschiedene .bsp - bei NRC wie bei uns, auch mit `-threads 1`.
+   Ursachen, je mit Beleg:
+   - surface_meta.cpp:144 `CompareMetaTriangles`: `a.si < b.si` vergleicht
+     Zeiger auf `shaderInfo_t`; die Shader liegen in einem `std::multiset`
+     (`UnsortedSet`, q3map2.h:1930), ihre Adressen kommen vom Heap. Versuch:
+     Vergleich ueber den Shadernamen statt des Zeigers -> drei Laeufe
+     hintereinander gleich bis auf `drawverts` (danach zurueckgebaut). Betroffen:
+     `surfaces`, `drawverts`, `drawindexes`, `leafsurfaces`,
+     `brushsides.surfaceNum`, und welche Dreiecke zu einer Flaeche
+     zusammengefasst werden.
+   - die Lightmap-Koordinaten der Ecken sind nach `-bsp` nicht belegt
+     (Speicherreste, z. B. 7.19e-43 oder 1.37e+32) - auch bei NRC.
+   - lightmaps_ydnar.cpp:837 `CompareSurfaceInfo`: `aInfo.si < bInfo.si` beim
+     Packen der Lightmaps; die Reihenfolge entscheidet auch, welche
+     "identischen" Lightmaps gemittelt werden (`MergeBSPLuxels`, :1395).
+     12 Laeufe `-light` auf derselben Eingabe: "identical surface lightmaps,
+     using N luxels" zwischen 10818 und 463809.
+   - `-vis` und `-light` mit mehreren Threads: oa_fan `-vis` bei NRC in 6
+     Laeufen 2 verschiedene Ergebnisse, bei uns 3; mit `-threads 1` beide
+     immer dasselbe und Byte-gleich. Lichtgitter mit Threads schwankend, mit
+     einem Thread gleich.
+   Ein Ergebnis "wie NRC" gibt es damit nur bis auf diese Reihenfolge. Jedes
+   Programm hat dabei sein eigenes Heap-Muster: auf raum_leck.map waren NRC
+   und wir in 6 Laeufen je stabil, aber verschieden; auf mp__duel1 fasste
+   unser `-light` in 4 von 12 Laeufen sieben kleine Flaechen zu einer
+   einfarbigen Lightmap zusammen, NRC in 0 von 12 - bei uns von Lauf zu Lauf
+   verschieden, also Reihenfolge, nicht Rechnung.
+4. **Fliesskomma ist gleich.** Mit `/fp:precise` sind alle Dreiecke aller
+   Karten gleich (unten). Gegenprobe `-DBHED_Q3MAP2_FP=/fp:fast`: 43 von 45,
+   413 von 446, 1115 von 1123 Dreiecken gleich, Eckfarben anders - der
+   Vergleich sieht Rechenunterschiede also. `/fp:strict`: wie precise. Es
+   bleibt bei `/fp:precise`; `/arch` bleibt bei SSE2 (NRC: GCC ohne -march).
+
+### Vergleich je Karte und Stufe
+
+Jede Stufe mit derselben Eingabe: `-bsp` aus der .map, `-vis` auf NRCs .bsp
+nach `-bsp`, `-light` auf NRCs .bsp nach `-vis`; daneben NRC gegen NRC
+(zweiter Lauf) als Grundlinie. "Dreiecke" = je Shader die Menge der Dreiecke
+mit allen Eckdaten ausser den unbelegten Lightmap-Koordinaten. "unabh." = alle
+Lumps, die nicht von der Flaechenreihenfolge abhaengen (entities, shaders,
+planes, nodes, leafs und models ohne Flaechenverweis, leafbrushes, brushes,
+brushsides ohne surfaceNum, fogs). Licht: Lightmap-Farbe am Schwerpunkt jedes
+Dreiecks (unabhaengig von der Packung), Anzahl anders (groesste Abweichung).
+Kuerzel: lsurf leafsurfaces, bside brushsides, dverts drawverts, dindex
+drawindexes, surf surfaces, lmaps lightmaps, grid lightgrid, larray lightarray.
+
+| Karte | Spiel | KB | Dreiecke gleich | unabh. | -bsp Bytes anders | NRC/NRC anders | -vis 1 Thread/mehrere | -light Bytes anders | Licht anders (max) | NRC/NRC (max) | Eckfarben anders | -bsp s uns/NRC | -light s uns/NRC |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| ein_pinsel | ja | 1 | 0/0 | gleich | - | - | gl/gl | - | 0 (0) | 0 (0) | 0 | 0.08/0.10 | 0.06/0.13 |
+| ein_licht | ja | 1 | 2/2 | gleich | - | - | gl/gl | - | 0 (0) | 0 (0) | 0 | 0.06/0.10 | 0.07/0.13 |
+| nrc_tiny_structural_brush | ja | 4 | 12/12 | gleich | - | - | gl/gl | - | 0 (0) | 0 (0) | 0 | 0.06/0.10 | 0.08/0.11 |
+| vergleich_q3 | ja | 4 | 45/45 | gleich | lsurf, bside, dverts, surf | lsurf, bside, dverts, surf | gl/gl | - | 0 (0) | 0 (0) | 0 | 0.08/0.12 | 0.10/0.14 |
+| vergleich_bp | ja | 5 | 45/45 | gleich | lsurf, bside, dverts, surf | lsurf, bside, dverts, surf | gl/gl | - | 0 (0) | 0 (0) | 0 | 0.07/0.12 | 0.10/0.14 |
+| raum (Testkarte) | ja | 5 | 55/55 | gleich | lsurf, bside, dverts, surf | lsurf, bside, dverts, surf | gl/gl | dverts, lmaps, grid, larray | 0 (0) | 0 (0) | 0 | 0.06/0.11 | 0.37/0.39 |
+| raum_leck (Testkarte) | ja | 7 | 135/135 | gleich | lsurf, bside, dverts, dindex, surf | dito | gl/gl | dverts, surf, lmaps, grid, larray | 0 (0) | 0 (0) | 0 | 0.07/0.10 | 0.45/0.44 |
+| oa_fan | ja | 134 | 1118/1118 | gleich | lsurf, bside, dverts, dindex, surf | dito | gl/an | dverts, surf, lmaps, larray | 0 (0) | 0 (0) | 0 | 0.18/0.22 | 4.28/3.12 |
+| t1_inter | ja | 81 | 446/446 | gleich | lsurf, bside, dverts, surf | dito | gl/an | dverts, surf, lmaps, larray | 0 (0) | 0 (0) | 0 | 0.21/0.24 | 0.26/0.31 |
+| mp__duel1 | ja | 408 | 1446/1446 | gleich | lsurf, bside, dverts, dindex, surf | dito | gl/gl | dverts, surf, lmaps, larray | 49 (51) | 2 (1) | 0 | 0.28/0.33 | 3.57/2.43 |
+| duel_pit | jk2 | 177 | 1123/1123 | gleich | lsurf, bside, dverts, dindex, surf | dito | gl/gl | dverts, lmaps, grid, larray | 9 (34) | 6 (34) | 0 | 0.61/0.19 | 0.74/0.63 |
+| duel_jedi | jk2 | 291 | 1409/1409 | gleich | lsurf, bside, dverts, dindex, surf | dito | gl/an | dverts, surf, lmaps, grid, larray | 2 (2) | 1 (2) | 0 | 0.26/0.29 | 0.40/0.42 |
+| duel_twinsuns | md | 34 | 29/29 | gleich | lsurf, bside, dverts, surf | dverts | gl/gl | larray | 0 (0) | 0 (0) | 0 | 0.66/0.75 | 1.62/1.70 |
+| md_ch_ben | md | 85 | 258/258 | gleich | lsurf, bside, dverts, dindex, surf | lsurf, bside, dverts, surf | gl/gl | dverts, lmaps, grid, larray | 0 (0) | 0 (0) | 0 | 0.71/0.79 | 4.62/3.52 |
+| duel_sithcatacombs | md | 181 | 1421/1421 | gleich | lsurf, bside, dverts, dindex, surf | dito | gl/gl | surf, larray | 0 (0) | 0 (0) | 0 | 0.80/0.90 | 0.81/0.94 |
+
+Die entkompilierten Karten (`SP\karte_dekomp\<spiel>\q3`) mit den Spieldaten
+des Rechners (JA "GameData original", MD "GameData Movie Duels", JK2). Lumps
+je Karte und Stufe mit Groesse, Anzahl und groesster Abweichung in Einheiten:
+`Y:\karte\laeufe\q3vgl\alle\alle.json`. Die 49 Schwerpunkte auf mp__duel1 sind
+die sieben zusammengefassten Flaechen aus 3. (in den Laeufen ohne diese
+Zusammenfassung: 3 bis 4, wie NRC gegen NRC). Mit `-threads 1` auf duel_pit:
+Lightmaps NRC/NRC 11 Flaechen (max 140), uns/NRC 10 bzw. 14 (max 173/150),
+Lichtgitter gleich.
+
+### Zeit
+
+`-bsp` und `-vis` gleich schnell (duel_pit `-bsp` 0,15 gegen 0,19 s, Median aus 3; die 0,61 s in der Tabelle waren der erste Lauf mit kaltem Dateicache). `-light` bei uns auf grossen Karten langsamer:
+mp__duel1 3,45 s gegen 2,39 s (je Median aus 3, 12 Threads), mit `-threads 1`
+11,5 s gegen 8,2 s (+41 %) - die Zeit steckt im Ausleuchten der
+Radiosity-Lichter (IlluminateRawLightmap je Bounce). Rechnung und Ergebnis sind
+gleich; es ist der Code, den MSVC fuer die kleinen Vektor-Rechnungen erzeugt.
+`/GL /Ob3 /LTCG` brachten nichts (3,46 s) und sind wieder raus. Offen fuer
+Stufe 4: mit einem Profiler (xperf braucht Administratorrechte) die heisse
+Stelle suchen.
+
+### Test mit festen Erwartungen: ctest `q3map2_vergleich`
+
+`tools/karte/q3map2_vergleich.py pruefen bhed_q3map2.exe tests/karte/q3map2`:
+drei Testkarten aus `tools/karte/gen_q3map2_testkarten.py` (raum: zwei Raeume,
+Durchgang, zwei Lichter, Detail-Saeule, Tuer, Patch, 7 Shader; raum_leck: Loch
+in der Ostwand; raum_einfach: raum mit einem Shader), ohne Spieldaten (leerer
+`-fs_basepath`), `-threads 1`. Erwartungen aus NRCs q3map2.exe
+(`... erwartung <NRC> <uns> tests/karte/q3map2 --laeufe 6`, je Stufe 6 Laeufe
+von beiden): erwartet wird jedes Merkmal, das bei beiden stabil und gleich war.
+Pflicht (der Test scheitert) sind die Merkmale, die von Zeigern und
+Speicherresten nicht abhaengen koennen; auf raum_einfach (ein Shader) jeder
+Lump ausser `drawverts` nach `-bsp`. Die uebrigen werden gemeldet ("dazu
+Byte-gleich n/m").
+
+| Lauf | Mutation | Ergebnis |
+|---|---|---|
+| p2_rot | Nr. 8 aus (map.cpp unveraendert uebersetzt) | 2 Abweichungen: `leafbrushes` auf raum und raum_leck |
+| p2_rot7 | Nr. 7 aus (MSVCs std::sort) | 2 Abweichungen: raum_einfach `-light` `drawverts`, `lightmaps` |
+| p2_gruen7 | - | 0 Abweichungen; raum bsp 17/17 Pflicht + 10/10 Byte-gleich, vis 18/18 + 8/8, light 19/19 + 5/5; raum_leck 17/17 + 2/2; raum_einfach 26/26 je Stufe |

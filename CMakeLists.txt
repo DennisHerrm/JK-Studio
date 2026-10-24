@@ -668,12 +668,17 @@ if(BEHAVED_TESTS)
     # einer Sprache (Bilder nur, wenn handbuch/bilder vorhanden ist).
     add_test(NAME handbuch_sprachen
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/handbuch/gen_handbuch.py --pruefen)
-    # Stufe 3 Punkt 1: bhed_q3map2.exe bindet nur Windows-DLLs fest (statische
-    # Laufzeit wie behaved.exe).
+    # Stufe 3 Punkt 1/2: bhed_q3map2.exe bindet nur Windows-DLLs fest (statische
+    # Laufzeit wie behaved.exe), und jede Stufe (-bsp, -vis, -light) schreibt,
+    # was NRCs q3map2.exe unter denselben Bedingungen schreibt
+    # (tools/karte/q3map2_vergleich.py, Erwartungen tests/karte/q3map2).
     if(TARGET bhed_q3map2)
       add_test(NAME q3map2_importe
                COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_exe_imports.py
                        $<TARGET_FILE:bhed_q3map2>)
+      add_test(NAME q3map2_vergleich
+               COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_vergleich.py pruefen
+                       $<TARGET_FILE:bhed_q3map2> ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
     endif()
   endif()
 endif()

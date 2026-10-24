@@ -700,6 +700,31 @@ Spielordner nicht.
   einem `MOVE` wird die Blickrichtung aus dem folgenden `PAN` dazugeholt,
   genau wie die Engine die Befehle nacheinander abarbeitet.
 
+## q3map2 für das Build-Menü (Karten-Editor, Stufe 3)
+
+`bhed_q3map2.exe` ist q3map2 aus NetRadiant-Custom 20260114, als eigenes
+Programm neben `behaved.exe` (Ziel `bhed_q3map2`, `src/q3map2/CMakeLists.txt`).
+Der Editor startet es wie NRC sein `q3map2.exe`.
+
+* Die Quellen liegen **unverändert** unter `third_party/`: `q3map2/` (q3map2,
+  common und die nötigen Teile von libs/ und include/ des Tags), `zlib/`,
+  `libpng/`, `libjpeg-turbo/` (ohne SIMD), `libxml2/`, `assimp/` – dieselben
+  Fassungen wie bei NRCs `q3map2.exe`. `.gitattributes` schützt die Bytes.
+  Herkunft und Lizenzen: `third_party/q3map2/README.md`.
+* Was MSVC anders braucht als MinGW, steht außerhalb: `src/q3map2/kompat/`
+  (per `/FI` vor jede Quelle) und angepasste **Kopien** einzelner Dateien im
+  Bauordner (`bhed_q3_kopie`: Ersetzungen, die abbrechen, wenn sich die Stelle
+  ändert). Die Liste mit Begründung: `NOTIZEN_karte3.md`, Punkt 1 und 2.
+  Zwei davon ändern das Ergebnis, nicht nur den Bau: `std::sort` mit der
+  Reihenfolge von libstdc++ (`kompat/gcc_sort.h`) und das Wachsen der
+  Entity-Liste ohne Kopieren (`kompat/gcc_vektor.h`, sonst zeigen
+  `brush_t::original` ins Leere und `leafbrushes` enthält Müll).
+* Fließkomma: `/fp:precise` (wie GCC ohne `-ffast-math`, keine FMA). Zum
+  Ausprobieren: `-DBHED_Q3MAP2_FP=/fp:strict` (gleiches Ergebnis) oder
+  `/fp:fast` (andere Dreiecke – der Test `q3map2_vergleich` fällt dann durch).
+* Nur mit MSVC (`BEHAVED_Q3MAP2`, Vorgabe an); ohne Internet baubar.
+* Tests: `q3map2_importe`, `q3map2_vergleich` (TESTING.md).
+
 ## Der anonyme Namensraum beim Aufteilen
 
 `gui/app.cpp` ist in `app.cpp` + `app_view3d.cpp` + `app_internal.h`

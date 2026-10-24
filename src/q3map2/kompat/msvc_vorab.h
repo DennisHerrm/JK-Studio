@@ -28,3 +28,12 @@
 #endif
 
 #define ASSIMP_INCLUDE(x) <x>
+
+// Nr. 7: std::sort mit der Reihenfolge von libstdc++ (gcc_sort.h), eingesetzt in
+// den Kopien der Dateien, die sortieren (src/q3map2/CMakeLists.txt).
+#ifdef __cplusplus
+#include "gcc_sort.h"
+// Nr. 8: emplace_back, das beim Vergroessern verschiebt wie libstdc++
+// (gcc_vektor.h), eingesetzt in der Kopie von map.cpp.
+#include "gcc_vektor.h"
+#endif

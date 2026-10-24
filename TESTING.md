@@ -312,10 +312,25 @@ A dry run without a release: Actions → Release → **Run workflow** on `main`
 Checks you can run locally:
 
 ```
-ctest --test-dir build -C Release -R "exe_importe|eingebaute_daten|release_paket|update"
-python tools/release_paket.py pruefe <zip> --fassung rcNNN [--exe <standalone exe>]
+ctest --test-dir build -C Release -R "exe_importe|eingebaute_daten|release_paket|update|q3map2"
+python tools/release_paket.py pruefe <zip> --fassung rcNNN [--exe <standalone exe>] [--q3map2]
 python tools/release_paket.py selbsttest
 ```
+
+Since the map editor's Build menu (Stufe 3) the zip also holds
+`bhed_q3map2.exe` (q3map2 from NetRadiant-Custom 20260114, built from
+`third_party/q3map2`) and `licenses/` with the GPL and the licence texts of the
+libraries inside it; `pruefe --q3map2` refuses a zip without them. The
+standalone exe does not contain the map compiler.
+
+- `q3map2_importe` – `bhed_q3map2.exe` binds only Windows DLLs as well.
+- `q3map2_vergleich` – `bhed_q3map2.exe` builds the maps in
+  `tests/karte/q3map2` (BSP, VIS, LIGHT with the switches of the Build menu,
+  `-threads 1`, no game data) and must write what NetRadiant-Custom's
+  `q3map2.exe` writes. The expectations come from that program
+  (`tools/karte/q3map2_vergleich.py erwartung <NRC q3map2.exe> <bhed_q3map2.exe>
+  tests/karte/q3map2`); why not every byte can be compared is explained at
+  the top of that script and in `NOTIZEN_karte3.md`, Punkt 2.
 
 - `exe_importe` – `behaved.exe` binds only Windows DLLs (no VC++ runtime:
   rc600 needed `MSVCP140.dll` and friends, which no zip contained).
