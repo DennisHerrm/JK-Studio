@@ -1078,8 +1078,55 @@ void einstellungenLaden() {
     t.commonOhneTexturen = zahl("HideNonShadersInCommon", 1) != 0.0F;
     ed.texBro.hoeheGeaendert();
     ed.teilerFuer = -1;
-    ed.raster.standardSetzen(std::clamp(static_cast<int>(zahl("GridDefault", karte::Raster::kStandard)), 0, 13));
-    ed.raster.setzeMaxKoordPotenz(static_cast<int>(zahl("GridMaxCoordPower", 4)));
+    // Grid_construct (grid.cpp:264-275): GridDefault -> g_grid_power; GridMaxCoordPower ->
+    // maxGridCoordPowerImport (Region_defaultMinMax)
+    ed.rasterStandard = std::clamp(static_cast<int>(zahl("GridDefault", karte::Raster::kStandard)), 0, 13);
+    ed.raster.standardSetzen(ed.rasterStandard);
+    ed.rasterMaxPotenz = static_cast<int>(zahl("GridMaxCoordPower", 4));
+    ed.raster.setzeMaxKoordPotenz(ed.rasterMaxPotenz);
+    karte::regionStandard(ed.region, ed.raster.maxKoord());
+    // Selection_construct "NudgeAfterClone" (select.cpp:1925); Map_Construct
+    // "LastMap", "LoadLastMap" (map.cpp:2447-2448)
+    ed.nachKlonenSchubsen = zahl("NudgeAfterClone", 0) != 0.0F;
+    ed.letzteKarteLaden = zahl("LoadLastMap", 1) != 0.0F;
+    {
+        const auto it = k.find("LastMap");
+        ed.letzteKarte = it != k.end() ? it->second : std::string();
+    }
+    // UndoSystemAPI: "UndoLevels" (undo.cpp:422) -> setLevels
+    ed.karte.undo.setzeStufen(static_cast<std::size_t>(std::max(0, static_cast<int>(zahl("UndoLevels", 512)))));
+    // Brush_Construct (brushmodule.cpp:132-182): BrushType, BrushAlwaysCaulk, BrushSnapPlanes
+    // (TexdefDefaultScale liest spielPruefen: nach default_scale aus der .game-Datei)
+    ed.pinselTyp = std::clamp(static_cast<int>(zahl("BrushType", 1)), 0, 2);
+    // die leere Karte des Starts (Map_New nach Brush_Construct) im Format der Einstellung
+    if (ed.karte.entitaeten().empty()) { ed.karte.kontext.format = static_cast<karte::PinselFormat>(ed.pinselTyp); }
+    ed.bearbeitung.immerCaulk = zahl("BrushAlwaysCaulk", 0) != 0.0F;
+    karte::setzeEbenenPunkteGanzzahlig(zahl("BrushSnapPlanes", 0) != 0.0F);
+    // XYWindow_Construct (xywindow.cpp:2280-2285): XYMSAA (Abtastungen), 2DZoomInToPointer,
+    // ChaseMouse, NoStipple
+    {
+        const int xyMsaa = static_cast<int>(zahl("XYMSAA", 8));
+        ed.anzeige.msaa = (xyMsaa == 0 || xyMsaa == 2 || xyMsaa == 4 || xyMsaa == 8 || xyMsaa == 16 || xyMsaa == 32) ? xyMsaa : 8;
+    }
+    ed.anzeige.zumZeiger = zahl("2DZoomInToPointer", 1) != 0.0F;
+    ed.anzeige.jagen = zahl("ChaseMouse", 1) != 0.0F;
+    ed.anzeige.keineStrichelung = zahl("NoStipple", 1) != 0.0F;
+    // BuildMonitor_Construct (watchbsp.cpp:257-268)
+    {
+        Editor::BauEinstellungen& b = ed.bau;
+        b.ueberwachen = zahl("BuildMonitor", 1) != 0.0F;   // ja.game: kein no_bsp_monitor
+        b.spielStarten = zahl("BuildRunGame", 0) != 0.0F;
+        b.leckStopp = zahl("BuildLeakStop", 1) != 0.0F;
+        b.logAusgeben = zahl("BuildDumpLog", 0) != 0.0F;
+        const auto text = [&](const char* n, karte::VorgabeText& t) {
+            const auto it = k.find(n);
+            t.importieren(it != k.end() ? it->second : std::string());
+        };
+        text("BuildEngineExecutable", b.engine);
+        text("BuildEngineExecutableMP", b.engineMp);
+        text("BuildEngineArgs", b.argumente);
+        text("BuildEngineArgsMP", b.argumenteMp);
+    }
     // Kamera (Camera_registerPreferencesPage, CamWnd_Construct: camwindow.cpp:2543-2563)
     karte::KameraEinstellungen& c = ed.kameraE;
     c.kubikSkala = std::clamp(static_cast<int>(zahl("CubicScale", 14)), 1, 23);
@@ -1156,6 +1203,28 @@ void einstellungenSpeichern() {
     k["AutosaveMinutes"] = std::to_string(ed.autosave.minuten);
     k["Snapshots"] = ed.autosave.schnappschuesse ? "1" : "0";
     k["RegionBoxShader"] = ed.regionKastenShader;
+    k["GridDefault"] = std::to_string(ed.rasterStandard);
+    k["GridMaxCoordPower"] = std::to_string(ed.rasterMaxPotenz);
+    k["NudgeAfterClone"] = ed.nachKlonenSchubsen ? "1" : "0";
+    k["LoadLastMap"] = ed.letzteKarteLaden ? "1" : "0";
+    k["LastMap"] = ed.letzteKarte;
+    k["UndoLevels"] = std::to_string(ed.karte.undo.stufen());
+    k["BrushType"] = std::to_string(ed.pinselTyp);
+    k["BrushAlwaysCaulk"] = ed.bearbeitung.immerCaulk ? "1" : "0";
+    k["BrushSnapPlanes"] = karte::ebenenPunkteGanzzahlig() ? "1" : "0";
+    k["TexdefDefaultScale"] = karte::zahlText(karte::standardTexturSkalierung());
+    k["XYMSAA"] = std::to_string(ed.anzeige.msaa);
+    k["2DZoomInToPointer"] = ed.anzeige.zumZeiger ? "1" : "0";
+    k["ChaseMouse"] = ed.anzeige.jagen ? "1" : "0";
+    k["NoStipple"] = ed.anzeige.keineStrichelung ? "1" : "0";
+    k["BuildMonitor"] = ed.bau.ueberwachen ? "1" : "0";
+    k["BuildRunGame"] = ed.bau.spielStarten ? "1" : "0";
+    k["BuildLeakStop"] = ed.bau.leckStopp ? "1" : "0";
+    k["BuildDumpLog"] = ed.bau.logAusgeben ? "1" : "0";
+    k["BuildEngineExecutable"] = ed.bau.engine.text;   // DefaultableString::Export: ohne Vorgabe
+    k["BuildEngineExecutableMP"] = ed.bau.engineMp.text;
+    k["BuildEngineArgs"] = ed.bau.argumente.text;
+    k["BuildEngineArgsMP"] = ed.bau.argumenteMp.text;
     k["TextureMipLevel"] = std::to_string(ed.texQual.mipStufe);
     k["SI_Gamma"] = karte::zahlText(ed.texQual.gamma);
     k["TextureFiltering"] = std::to_string(ed.texQual.modus);

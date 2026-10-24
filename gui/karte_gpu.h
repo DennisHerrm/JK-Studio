@@ -35,6 +35,7 @@ public:
 
 private:
     friend void zeichnen(const Puffer& p, const float* matrix, float breite);
+    friend void zeichnen(const Puffer& p, const float* matrix, float breite, unsigned muster, int faktor);
     void* m_vb = nullptr;      // ID3D11Buffer*
     std::size_t m_platz = 0;   // Linien, fuer die der Puffer Platz hat
     std::size_t m_anzahl = 0;
@@ -46,6 +47,9 @@ private:
 bool beginnen(int kennung, int breite, int hoehe, int msaa, const float* hinten, bool tiefe = false);
 // matrix: 4x4 spaltenweise (wie OpenGL: Clip = M * Welt).
 void zeichnen(const Puffer& p, const float* matrix, float breite);
+// Dasselbe mit glLineStipple( faktor, muster ) (RENDER_LINESTIPPLE, z. B.
+// $XY_OVERLAY: Faktor 3, Muster 0xaaaa).
+void zeichnen(const Puffer& p, const float* matrix, float breite, unsigned muster, int faktor);
 // Einmal-Linien (Raster, Overlay) ueber einen gemeinsamen Puffer.
 void zeichnen(const std::vector<karte::Linie>& linien, const float* matrix, float breite);
 // Punkte wie GL_POINTS mit glPointSize( groesse ): ein Quadrat je Linie am
@@ -155,6 +159,8 @@ void aufraeumen();
 [[nodiscard]] unsigned geraetStand();
 // Fuer den Selbsttest: ein Bildpunkt des aufgeloesten Renderziels.
 bool pixel(int kennung, int x, int y, unsigned char rgba[4]);
+// Fuer den Selbsttest: die Abtastungen (MSAA) des Renderziels, 0 ohne Ziel.
+[[nodiscard]] int abtastungen(int kennung);
 
 }  // namespace bhed::gui::kartegpu
 

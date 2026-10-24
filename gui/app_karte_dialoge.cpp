@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <cfloat>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -60,6 +61,14 @@ const Seite kSeiten[] = {
     {Str::KePgTexBro, Str::KePgTexBroT, 1},       {Str::KePgModBro, Str::KePgModBroT, 1},
     {Str::KePgAutosave, Str::KePgAutosaveT, 1},
 };
+constexpr int kSeiteGlobal = 0;
+constexpr int kSeiteDisplay = 6;
+constexpr int kSeiteSettings = 10;
+constexpr int kSeiteUndo = 11;
+constexpr int kSeiteBrush = 13;
+constexpr int kSeiteGrid = 15;
+constexpr int kSeiteOrtho = 18;
+constexpr int kSeiteBuild = 19;
 constexpr int kSeiteInterface = 4;
 constexpr int kSeiteLayout = 5;
 constexpr int kSeiteTexturen = 7;
@@ -105,6 +114,26 @@ struct Entwurf {
     bool autosaveAn = true;
     int autosaveMinuten = 15;
     bool schnappschuesse = false;
+    // Punkt 11: Nudge_constructPreferences, Map_constructPreferences (General Settings)
+    bool nachKlonen = false;
+    bool letzteKarte = true;
+    int undoStufen = 512;           // Undo_constructPreferences
+    float texSkala = 0.25F;         // Brush_constructPreferences
+    int pinselTyp = 1;
+    bool immerCaulk = false;
+    bool ganzzahlig = false;
+    int rasterStandard = 7;         // Grid_constructPreferences
+    int rasterMax = 4;
+    bool keineStrichelung = true;   // Orthographic_constructPreferences
+    bool jagen = true;
+    bool zumZeiger2d = true;
+    int xyMsaa = 8;
+    Editor::BauEinstellungen bau;   // Build_constructPreferences
+    char bauEngine[260] = "";
+    char bauArgumente[260] = "";
+    char bauEngineMp[260] = "";
+    char bauArgumenteMp[260] = "";
+    char regionShader[260] = "";
 };
 Entwurf g_entwurf;
 
@@ -516,6 +545,149 @@ void surfaceSeite() {
     (void)haken(Str::Count, trK(Str::KePrSiMatchGrid), g_entwurf.siRaster);
 }
 
+// QComboBox: ImGui::Combo, die Lage fuer den Selbsttest gemerkt
+bool klappe(const char* id, int* wert, const char* const* eintraege, int anzahl) {
+    const bool r = ImGui::Combo(id, wert, eintraege, anzahl);
+    const ImVec2 a = ImGui::GetItemRectMin();
+    const ImVec2 b = ImGui::GetItemRectMax();
+    editor().klappOrte.push_back({id, a.x, a.y, b.x, b.y});
+    return r;
+}
+
+// QDoubleSpinBoxPrivate::calculateAdaptiveDecimalStep (Qt 5.15 qspinbox.cpp):
+// addSpinner setzt QAbstractSpinBox::AdaptiveDecimalStepType (dialog.cpp:521).
+double adaptiverSchritt(double wert, int schritte, int stellen) {
+    const double minSchritt = std::pow(10.0, -stellen);
+    double betrag = std::fabs(wert);
+    if (betrag < minSchritt) { return minSchritt; }
+    if ((wert < 0) != (schritte < 0)) { betrag /= 1.01; }
+    const double verschiebung = std::pow(10.0, 1.0 - std::floor(std::log10(betrag)));
+    const double gerundet = std::round(betrag * verschiebung) / verschiebung;
+    const double lg = static_cast<double>(std::floor(static_cast<float>(std::log10(gerundet)))) - 1.0;   // floorf
+    return std::max(minSchritt, std::pow(10.0, lg));
+}
+
+// DoubleSpinBox (appendSpinner mit float): Feld mit "stellen" Nachkommastellen,
+// Pfeile mit dem anpassenden Schritt; QDoubleSpinBox rundet auf die Stellen.
+bool kommaSpinner(const char* id, float& wert, float von, float bis, int stellen) {
+    const ImGuiStyle& st = ImGui::GetStyle();
+    const float knopf = ImGui::GetFrameHeight();
+    const float gesamt = px(static_cast<float>(g_form.b1));
+    bool geaendert = false;
+    ImGui::PushID(id);
+    ImGui::SetNextItemWidth(std::max(1.0F, gesamt - 2.0F * (knopf + st.ItemInnerSpacing.x)));
+    char format[16];
+    std::snprintf(format, sizeof(format), "%%.%df", stellen);
+    geaendert = ImGui::InputFloat("##wert", &wert, 0.0F, 0.0F, format);
+    for (const int r : {-1, 1}) {
+        ImGui::SameLine(0.0F, st.ItemInnerSpacing.x);
+        ImGui::PushItemFlag(ImGuiItemFlags_ButtonRepeat, true);
+        if (ImGui::Button(r < 0 ? "-" : "+", ImVec2{knopf, knopf})) {
+            wert = static_cast<float>(static_cast<double>(wert) + r * adaptiverSchritt(wert, r, stellen));
+            geaendert = true;
+        }
+        ImGui::PopItemFlag();
+    }
+    ImGui::PopID();
+    const double faktor = std::pow(10.0, stellen);
+    wert = static_cast<float>(std::round(static_cast<double>(std::clamp(wert, von, bis)) * faktor) / faktor);
+    return geaendert;
+}
+
+// Nudge_constructPreferences (select.cpp:1920-1922) und Map_constructPreferences
+// (map.cpp:2369-2371) auf der Seite "Settings" (Foto pref_Settings.png).
+void settingsSeite() {
+    formAnfang({});
+    (void)haken(Str::Count, (std::string(trK(Str::KePrNudgeClone)) + "##nachklonen").c_str(), g_entwurf.nachKlonen);
+    (void)haken(Str::Count, (std::string(trK(Str::KePrLoadLastMap)) + "##letztekarte").c_str(), g_entwurf.letzteKarte);
+}
+
+// Undo_constructPreferences (undo.cpp:399-401): appendSpinner 0..4096 (Foto pref_Undo.png)
+void undoSeite() {
+    formAnfang({Str::KePrUndoSize});
+    feldAnfang(Str::KePrUndoSize);
+    ImGui::InputInt("##undostufen", &g_entwurf.undoStufen);
+    g_entwurf.undoStufen = std::clamp(g_entwurf.undoStufen, 0, 4096);
+    feldEnde();
+}
+
+// Brush_constructPreferences (brushmodule.cpp:85-108; Foto pref_Brush.png):
+// appendSpinner "Default texture scale" 0.0625..64 mit 4 Stellen, appendCombo
+// "New map Brush Type" (g_multipleBrushTypes), zwei Checkboxen.
+void brushSeite() {
+    formAnfang({Str::KePrBrushScale, Str::KePrBrushType, Str::KePrBrushDanger});
+    feldAnfang(Str::KePrBrushScale);
+    (void)kommaSpinner("##texskalavorgabe", g_entwurf.texSkala, 0.0625F, 64.0F, 4);
+    feldEnde();
+    feldAnfang(Str::KePrBrushType);
+    // BrushType_getName: Axial Projection, Brush Primitives, Valve 220
+    const char* typen[3] = {trK(Str::KePrBrushAxial), trK(Str::KePrBrushBp), trK(Str::KePrBrushValve)};
+    (void)klappe("##pinseltyp", &g_entwurf.pinselTyp, typen, 3);
+    feldEnde();
+    (void)haken(Str::Count, (std::string(trK(Str::KePrBrushCaulk)) + "##immercaulk").c_str(), g_entwurf.immerCaulk);
+    (void)haken(Str::KePrBrushDanger, (std::string(trK(Str::KePrBrushSnap)) + "##ganzzahlig").c_str(), g_entwurf.ganzzahlig);
+}
+
+// Grid_constructPreferences (grid.cpp:239-256; Foto pref_Grid.png): appendCombo
+// "Default grid spacing" (g_gridnames), "Max grid coordinate" 4096..65536.
+void gridSeite() {
+    formAnfang({Str::KePrGridDefault, Str::KePrGridMax});
+    feldAnfang(Str::KePrGridDefault);
+    const char* namen[14];
+    for (int i = 0; i < 14; ++i) { namen[i] = karte::Raster::name(i); }
+    (void)klappe("##rasterstandard", &g_entwurf.rasterStandard, namen, 14);
+    feldEnde();
+    feldAnfang(Str::KePrGridMax);
+    static const char* const koordinaten[5] = {"4096", "8192", "16384", "32768", "65536"};
+    int index = std::clamp(g_entwurf.rasterMax, 0, 4);   // maxGridCoordPowerExport
+    if (klappe("##rastermax", &index, koordinaten, 5)) { g_entwurf.rasterMax = index; }
+    feldEnde();
+}
+
+// Orthographic_constructPreferences (xywindow.cpp:2236-2251; Foto pref_Orthographic.png)
+void orthoSeite() {
+    formAnfang({Str::KePrCamMsaa});
+    (void)haken(Str::Count, (std::string(trK(Str::KePrOrthoStipple)) + "##keinestrichelung").c_str(), g_entwurf.keineStrichelung);
+    (void)haken(Str::Count, (std::string(trK(Str::KePrOrthoChase)) + "##jagen").c_str(), g_entwurf.jagen);
+    (void)haken(Str::Count, (std::string(trK(Str::KePrCamZoomPointer)) + "##zumzeiger2d").c_str(), g_entwurf.zumZeiger2d);
+    feldAnfang(Str::KePrCamMsaa);
+    static const char* const abtastungen[6] = {"0", "2", "4", "8", "16", "32"};
+    int index = 0;   // MSAAExport
+    for (int i = 1; i < 6; ++i) {
+        if (g_entwurf.xyMsaa == (1 << i)) { index = i; }
+    }
+    if (klappe("##xymsaa", &index, abtastungen, 6)) { g_entwurf.xyMsaa = index != 0 ? 1 << index : 0; }   // MSAAImport
+    feldEnde();
+}
+
+// Ein QLineEdit der Seite (appendEntry), gesperrt mit Widget_connectToggleDependency.
+void eintrag(Str text, const char* id, char* puffer, std::size_t groesse, bool aktiv = true) {
+    feldAnfang(text);
+    if (!aktiv) { ImGui::BeginDisabled(); }
+    ImGui::InputText(id, puffer, groesse);
+    if (!aktiv) { ImGui::EndDisabled(); }
+    feldEnde();
+}
+
+// Build_constructPreferences (watchbsp.cpp:220-241; Foto pref_Build.png): Leak
+// Stop haengt an der Ueberwachung, die vier Felder an "Run Engine After
+// Compile"; die MP-Felder, weil ja.game/jk2.game show_gamemode setzen.
+void buildSeite() {
+    Entwurf& w = g_entwurf;
+    formAnfang({Str::KePrBuildEngine, Str::KePrBuildArgs, Str::KePrBuildMpEngine, Str::KePrBuildMpArgs, Str::KePrBuildRegion});
+    (void)haken(Str::Count, (std::string(trK(Str::KePrBuildMonitor)) + "##bauueberwachen").c_str(), w.bau.ueberwachen);
+    (void)haken(Str::Count, (std::string(trK(Str::KePrBuildLeak)) + "##bauleck").c_str(), w.bau.leckStopp, w.bau.ueberwachen);
+    (void)haken(Str::Count, (std::string(trK(Str::KePrBuildRun)) + "##baustarten").c_str(), w.bau.spielStarten);
+    eintrag(Str::KePrBuildEngine, "##bauengine", w.bauEngine, sizeof(w.bauEngine), w.bau.spielStarten);
+    eintrag(Str::KePrBuildArgs, "##bauargumente", w.bauArgumente, sizeof(w.bauArgumente), w.bau.spielStarten);
+    if (kartenSpiel().spielModusZeigen) {
+        eintrag(Str::KePrBuildMpEngine, "##bauenginemp", w.bauEngineMp, sizeof(w.bauEngineMp), w.bau.spielStarten);
+        eintrag(Str::KePrBuildMpArgs, "##bauargumentemp", w.bauArgumenteMp, sizeof(w.bauArgumenteMp), w.bau.spielStarten);
+    }
+    (void)haken(Str::Count, (std::string(trK(Str::KePrBuildDump)) + "##baulog").c_str(), w.bau.logAusgeben);
+    eintrag(Str::KePrBuildRegion, "##regionshader", w.regionShader, sizeof(w.regionShader));
+}
+
 void interfaceSeite() {
     // Interface Preferences: "Shader Editor Command" (preferences.cpp:64,
     // appendPathEntry: Feld mit "..."-Knopf; Foto pref_Interface.png), dazu
@@ -541,6 +713,16 @@ void baumPfeil(ImDrawList* dl, float zeileY) {
 }
 
 }  // namespace
+
+// Fuer den Selbsttest: der Text eines Feldes im offenen Einstellungsdialog
+std::string einstellungsFeld(const std::string& id) {
+    if (id == "bauengine") { return g_entwurf.bauEngine; }
+    if (id == "bauargumente") { return g_entwurf.bauArgumente; }
+    if (id == "bauenginemp") { return g_entwurf.bauEngineMp; }
+    if (id == "bauargumentemp") { return g_entwurf.bauArgumenteMp; }
+    if (id == "regionshader") { return g_entwurf.regionShader; }
+    return {};
+}
 
 void zeichneEinstellungen() {
     Editor& ed = editor();
@@ -571,6 +753,29 @@ void zeichneEinstellungen() {
         g_entwurf.clipperPunkte = ed.bearbeitung.clipperPunkteZuruecksetzen;
         g_entwurf.clipper2Punkte = ed.bearbeitung.clipper2Punkte2d;
         g_entwurf.clipperDoppelklick = ed.bearbeitung.clipperDoppelklickTeilen;
+        g_entwurf.nachKlonen = ed.nachKlonenSchubsen;
+        g_entwurf.letzteKarte = ed.letzteKarteLaden;
+        g_entwurf.undoStufen = static_cast<int>(ed.karte.undo.stufen());
+        g_entwurf.texSkala = karte::standardTexturSkalierung();
+        g_entwurf.pinselTyp = ed.pinselTyp;
+        g_entwurf.immerCaulk = ed.bearbeitung.immerCaulk;
+        g_entwurf.ganzzahlig = karte::ebenenPunkteGanzzahlig();
+        g_entwurf.rasterStandard = ed.rasterStandard;
+        g_entwurf.rasterMax = ed.rasterMaxPotenz;
+        g_entwurf.keineStrichelung = ed.anzeige.keineStrichelung;
+        g_entwurf.jagen = ed.anzeige.jagen;
+        g_entwurf.zumZeiger2d = ed.anzeige.zumZeiger;
+        g_entwurf.xyMsaa = ed.anzeige.msaa;
+        g_entwurf.bau = ed.bau;
+        {   // getExportWithDefaultCaller: leer -> "default:<Vorgabe>"
+            const karte::SpielBeschreibung& sb = kartenSpiel();
+            const std::string args = karte::engineArgumente(kartenFsGame(), sb.basisSpiel);
+            std::snprintf(g_entwurf.bauEngine, sizeof(g_entwurf.bauEngine), "%s", ed.bau.engine.mitVorgabe(sb.engine).c_str());
+            std::snprintf(g_entwurf.bauArgumente, sizeof(g_entwurf.bauArgumente), "%s", ed.bau.argumente.mitVorgabe(args).c_str());
+            std::snprintf(g_entwurf.bauEngineMp, sizeof(g_entwurf.bauEngineMp), "%s", ed.bau.engineMp.mitVorgabe(sb.mpEngine).c_str());
+            std::snprintf(g_entwurf.bauArgumenteMp, sizeof(g_entwurf.bauArgumenteMp), "%s", ed.bau.argumenteMp.mitVorgabe(args).c_str());
+        }
+        std::snprintf(g_entwurf.regionShader, sizeof(g_entwurf.regionShader), "%s", ed.regionKastenShader.c_str());
     }
     if (!ed.einstellungenOffen) {
         g_entwurf.offen = false;
@@ -655,6 +860,21 @@ void zeichneEinstellungen() {
             autosaveSeite();
         } else if (g_entwurf.seite == kSeiteModBro) {
             modBroSeite();
+        } else if (g_entwurf.seite == kSeiteSettings) {
+            settingsSeite();
+        } else if (g_entwurf.seite == kSeiteUndo) {
+            undoSeite();
+        } else if (g_entwurf.seite == kSeiteBrush) {
+            brushSeite();
+        } else if (g_entwurf.seite == kSeiteGrid) {
+            gridSeite();
+        } else if (g_entwurf.seite == kSeiteOrtho) {
+            orthoSeite();
+        } else if (g_entwurf.seite == kSeiteBuild) {
+            buildSeite();
+        } else if (g_entwurf.seite == kSeiteGlobal || g_entwurf.seite == kSeiteDisplay) {
+            // Global Preferences, Display Preferences: Gruppen ohne Felder (Fotos
+            // pref_Global.png, pref_Display.png)
         } else {
             char z[120];
             std::snprintf(z, sizeof(z), tr(Str::KeStufe), 2);
@@ -736,6 +956,32 @@ void zeichneEinstellungen() {
             ed.autosave.an = g_entwurf.autosaveAn;
             ed.autosave.minuten = g_entwurf.autosaveMinuten;
             ed.autosave.schnappschuesse = g_entwurf.schnappschuesse;
+            ed.nachKlonenSchubsen = g_entwurf.nachKlonen;
+            ed.letzteKarteLaden = g_entwurf.letzteKarte;
+            ed.karte.undo.setzeStufen(static_cast<std::size_t>(g_entwurf.undoStufen));   // UndoLevelsImport: setLevels
+            karte::setzeStandardTexturSkalierung(g_entwurf.texSkala);
+            ed.pinselTyp = g_entwurf.pinselTyp;   // gilt ab der naechsten Karte (Map_Free)
+            ed.bearbeitung.immerCaulk = g_entwurf.immerCaulk;
+            karte::setzeEbenenPunkteGanzzahlig(g_entwurf.ganzzahlig);   // Face_importSnapPlanes
+            ed.rasterStandard = g_entwurf.rasterStandard;   // g_grid_default: gilt beim naechsten Start
+            if (g_entwurf.rasterMax != ed.rasterMaxPotenz) {   // maxGridCoordPowerImport: Region_defaultMinMax, GridChangeNotify
+                ed.rasterMaxPotenz = g_entwurf.rasterMax;
+                ed.raster.setzeMaxKoordPotenz(ed.rasterMaxPotenz);
+                karte::regionStandard(ed.region, ed.raster.maxKoord());
+            }
+            ed.anzeige.keineStrichelung = g_entwurf.keineStrichelung;
+            ed.anzeige.jagen = g_entwurf.jagen;
+            ed.anzeige.zumZeiger = g_entwurf.zumZeiger2d;
+            ed.anzeige.msaa = g_entwurf.xyMsaa;
+            {
+                Editor::BauEinstellungen b = g_entwurf.bau;
+                b.engine.importieren(g_entwurf.bauEngine);   // DefaultableString::Import
+                b.argumente.importieren(g_entwurf.bauArgumente);
+                b.engineMp.importieren(g_entwurf.bauEngineMp);
+                b.argumenteMp.importieren(g_entwurf.bauArgumenteMp);
+                ed.bau = b;
+            }
+            ed.regionKastenShader = g_entwurf.regionShader;
             ed.maximiert = false;
             einstellungenSpeichern();
             offen = false;

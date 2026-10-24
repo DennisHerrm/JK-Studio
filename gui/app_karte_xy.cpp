@@ -430,13 +430,33 @@ Kasten mittelKasten() {
 }
 
 // Linien ohne Direct3D: mit ImGui (glLineWidth ueber die Dicke).
-void imguiLinien(ImDrawList* dl, const karte::XyAnsicht& v, ImVec2 o, const std::vector<Linie>& l, float breite) {
+void imguiLinien(ImDrawList* dl, const karte::XyAnsicht& v, ImVec2 o, const std::vector<Linie>& l, float breite, unsigned muster = 0,
+                 int faktor = 1) {
     for (const Linie& x : l) {
         const auto a = v.zuBild(x.a);
         const auto b = v.zuBild(x.b);
-        dl->AddLine(ImVec2{o.x + a[0], o.y + a[1]}, ImVec2{o.x + b[0], o.y + b[1]}, x.farbe, breite);
+        if (muster == 0) {
+            dl->AddLine(ImVec2{o.x + a[0], o.y + a[1]}, ImVec2{o.x + b[0], o.y + b[1]}, x.farbe, breite);
+            continue;
+        }
+        // glLineStipple wie im GPU-Weg: Bit (Bildpunkt entlang der Hauptachse / Faktor) mod 16
+        const float dx = b[0] - a[0];
+        const float dy = b[1] - a[1];
+        const int n = static_cast<int>(std::ceil(std::max(std::fabs(dx), std::fabs(dy))));
+        for (int c = 0; c < n; ++c) {
+            if (((muster >> ((static_cast<unsigned>(c) / static_cast<unsigned>(faktor)) & 15U)) & 1U) == 0U) { continue; }
+            const float t0 = static_cast<float>(c) / static_cast<float>(n);
+            const float t1 = static_cast<float>(c + 1) / static_cast<float>(n);
+            dl->AddLine(ImVec2{o.x + a[0] + dx * t0, o.y + a[1] + dy * t0}, ImVec2{o.x + a[0] + dx * t1, o.y + a[1] + dy * t1}, x.farbe, breite);
+        }
     }
 }
+
+// XYWnd::XY_Draw (xywindow.cpp:1840-1843): ohne "Solid selection boxes" kommt
+// RENDER_LINESTIPPLE in den globalstate - $XY_OVERLAY (die Auswahl) zeichnet dann
+// mit glLineStipple( 3, 0xaaaa ) (renderstate.cpp:517-518, 1868-1874).
+constexpr unsigned kXyOverlayMuster = 0xAAAAU;
+constexpr int kXyOverlayFaktor = 3;
 
 }  // namespace
 
@@ -614,7 +634,11 @@ void xyZeichnen(int index) {
         kartegpu::zeichnen(raster.linien2, &mvp[0], 2.0F);
         kartegpu::zeichnen(s.gpuGeo, &mvp[0], 1.0F);
         kartegpu::zeichnen(s.gpuWelt, &mvp[0], 1.0F);
-        kartegpu::zeichnen(s.gpuWahl, &mvp[0], 2.0F);
+        if (ed.anzeige.keineStrichelung) {
+            kartegpu::zeichnen(s.gpuWahl, &mvp[0], 2.0F);
+        } else {
+            kartegpu::zeichnen(s.gpuWahl, &mvp[0], 2.0F, kXyOverlayMuster, kXyOverlayFaktor);
+        }
         kartegpu::zeichnen(komp.gitter, &mvp[0], 1.0F);
         kartegpu::punkte(komp.punkte, &mvp[0], 6.0F);
         kartegpu::punkte(komp.gewaehlt, &mvp[0], 4.0F);
@@ -634,7 +658,7 @@ void xyZeichnen(int index) {
         imguiLinien(dl, v, o, raster.linien2, 2.0F);
         imguiLinien(dl, v, o, s.geo, 1.0F);
         imguiLinien(dl, v, o, s.welt, 1.0F);
-        imguiLinien(dl, v, o, s.wahl, 2.0F);
+        imguiLinien(dl, v, o, s.wahl, 2.0F, ed.anzeige.keineStrichelung ? 0U : kXyOverlayMuster, kXyOverlayFaktor);
         imguiLinien(dl, v, o, clipLinien, 1.0F);
         imguiLinien(dl, v, o, manip1, 1.0F);
         imguiLinien(dl, v, o, manip2, 2.0F);
@@ -782,20 +806,66 @@ void xyZeichnen(int index) {
                 }
             }
             ImGui::SetMouseCursor(ImGuiMouseCursor_None);   // BlankCursor
-        } else if (bewegt) {
-            const unsigned gehalten = (ImGui::IsMouseDown(ImGuiMouseButton_Left) ? kLinks : 0U) |
-                                      (ImGui::IsMouseDown(ImGuiMouseButton_Right) ? kRechts : 0U) |
-                                      (ImGui::IsMouseDown(ImGuiMouseButton_Middle) ? kMitte : 0U) | mods;
-            if (ed.bearbeitung.neuerPinselAktiv()) {   // NewBrushDrag( x, y, shift, ctrl )
-                ed.bearbeitung.neuerPinselZiehen(v, mx, my, (mods & kShift) != 0U, (mods & kControl) != 0U);
-            } else if (gehalten == (kControl | kMitte)) {
-                ed.kamera.setzeUrsprung(karte::kameraVersetzen(v, mx, my, ed.raster.einrastGroesse(), ed.kamera.ursprung));
-            } else if (gehalten == kMitte) {
-                ed.kamera.setzeWinkel(karte::kameraDrehen(v, mx, my, ed.kamera.ursprung, ed.kamera.winkel));
-            } else if (gehalten == (kMitte | kShift)) {
-                eigenerUrsprung();
-            } else {
-                beobachterBewegung(index, fx, fy);
+        } else {
+            // XY_MouseMoved( x, y, buttons )
+            const auto mausBewegt = [&](int x, int y) {
+                const unsigned gehalten = (ImGui::IsMouseDown(ImGuiMouseButton_Left) ? kLinks : 0U) |
+                                          (ImGui::IsMouseDown(ImGuiMouseButton_Right) ? kRechts : 0U) |
+                                          (ImGui::IsMouseDown(ImGuiMouseButton_Middle) ? kMitte : 0U) | mods;
+                if (ed.bearbeitung.neuerPinselAktiv()) {   // NewBrushDrag( x, y, shift, ctrl )
+                    ed.bearbeitung.neuerPinselZiehen(v, x, y, (mods & kShift) != 0U, (mods & kControl) != 0U);
+                } else if (gehalten == (kControl | kMitte)) {
+                    ed.kamera.setzeUrsprung(karte::kameraVersetzen(v, x, y, ed.raster.einrastGroesse(), ed.kamera.ursprung));
+                } else if (gehalten == kMitte) {
+                    ed.kamera.setzeWinkel(karte::kameraDrehen(v, x, y, ed.kamera.ursprung, ed.kamera.winkel));
+                } else if (gehalten == (kMitte | kShift)) {
+                    eigenerUrsprung();
+                } else {
+                    beobachterBewegung(index, static_cast<float>(x), static_cast<float>(y));
+                }
+            };
+            // XYWnd::chaseMouseMotion (xywindow.cpp:302-345): mit M1 (ohne Zusatztaste
+            // beim Druck) naeher als 16 Punkte am Rand rollt die Ansicht, die Bewegung
+            // selbst geht dann nicht an XY_MouseMoved.
+            const auto jagdBewegung = [&](int x, int y) {
+                f.jagdDx = 0;
+                f.jagdDy = 0;
+                if (ed.anzeige.jagen && f.tasten == kLinks) {
+                    const int epsilon = 16;
+                    if (x < epsilon) {
+                        f.jagdDx = std::max(x, 0) - epsilon;
+                    } else if ((x - v.breite) > -epsilon) {
+                        f.jagdDx = std::min(x - v.breite, 0) + epsilon;
+                    }
+                    if (y < epsilon) {
+                        f.jagdDy = std::max(y, 0) - epsilon;
+                    } else if ((y - v.hoehe) > -epsilon) {
+                        f.jagdDy = std::min(y - v.hoehe, 0) + epsilon;
+                    }
+                    if (f.jagdDx != 0 || f.jagdDy != 0) {
+                        f.jagdX = x;
+                        f.jagdY = y;
+                        if (!f.jagen) {   // g_chasemouse_timer.start(); g_chasemouse_caller.start( 4 )
+                            f.jagdUhr = ImGui::GetTime();
+                            f.jagen = true;
+                        }
+                        return true;
+                    }
+                }
+                f.jagen = false;   // g_chasemouse_caller.stop()
+                return false;
+            };
+            if (bewegt && !jagdBewegung(mx, my)) {   // m_deferred_motion
+                mausBewegt(mx, my);
+            } else if (f.jagen && ImGui::GetTime() > f.jagdUhr) {
+                // XYWnd::ChaseMouse (xywindow.cpp:293-300): Faktor = Millisekunden seit dem
+                // letzten Mal / 10; Scroll( float_to_integer( m * dx ), float_to_integer( m * -dy ) )
+                const double jetzt = ImGui::GetTime();
+                const float faktor = static_cast<float>((jetzt - f.jagdUhr) * 1000.0) / 10.0F;
+                f.jagdUhr = jetzt;
+                v.rollen(static_cast<int>(std::lrint(faktor * static_cast<float>(f.jagdDx))),
+                         static_cast<int>(std::lrint(faktor * static_cast<float>(-f.jagdDy))));
+                mausBewegt(f.jagdX, f.jagdY);
             }
         }
         // Loslassen (jede Taste beendet: m_buttonstate = 0)
@@ -821,6 +891,7 @@ void xyZeichnen(int index) {
             }
             f.gedrueckt = false;
             f.tasten = 0;
+            f.jagen = false;   // mouseReleaseEvent: chaseMouseMotion beendet die Uhr
         }
     } else if (ueber && bewegt) {   // XY_MouseMoved ohne Taste: Manipulator hervorheben
         beobachterBewegung(index, fx, fy);
@@ -834,6 +905,9 @@ void xyZeichnen(int index) {
         ed.statusPosition = z;
     }
 }
+
+bool xyPixel(int index, int x, int y, unsigned char rgba[4]) { return kartegpu::pixel(100 + index, x, y, rgba); }
+int xyAbtastungen(int index) { return kartegpu::abtastungen(100 + index); }
 
 // --- Befehle der 2D-Ansichten (xywindow.cpp:1938-2003, 2096-2177) ------------
 

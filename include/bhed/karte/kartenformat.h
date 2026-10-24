@@ -71,6 +71,13 @@ bool karteSpeichern(const std::string& pfad, const Karte& karte, bool sicherung,
 // Leerzeichen vorne und Nullen hinten weg, ein "." am Ende auch.
 std::string dezimal(double f);
 
+// Face::m_quantise (brush.h:826-837, brushmodule.cpp:77-83): die Ebenenpunkte
+// beim Schreiben (FacePlane_exportTokens) unveraendert (quantiseFloating) oder
+// auf ganze Zahlen gerundet (quantiseInteger = float_to_integer = lrint) -
+// Einstellung "Snap plane points to integer grid" ("BrushSnapPlanes").
+void setzeEbenenPunkteGanzzahlig(bool an);   // Face_importSnapPlanes
+[[nodiscard]] bool ebenenPunkteGanzzahlig();   // Face_exportSnapPlanes
+
 // patchDef3 gibt es in NRC nur in den Doom3/Quake4-Formaten (mapdoom3,
 // mapquake4); in Quake3-Karten (mapq3) ist es ein Lesefehler, und q3map2 kennt
 // es nicht. Fuer Vollstaendigkeit hier die Token-Leser/-Schreiber von

@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -568,11 +569,14 @@ std::string texturName(const std::string& shader) {
     return shader.size() > n ? shader.substr(n) : std::string();
 }
 
-void ebenenPunkteSchreiben(Schreiber& w, const Flaeche& f) {   // FacePlane_exportTokens (quantiseFloating)
+bool g_ganzzahlig = false;   // Brush_Construct: Face::m_quantise = quantiseFloating
+
+void ebenenPunkteSchreiben(Schreiber& w, const Flaeche& f) {   // FacePlane_exportTokens: Face::m_quantise( planePoints )
     for (std::size_t i = 0; i < 3; ++i) {
         w.token("(");
         for (std::size_t j = 0; j < 3; ++j) {
-            w.zahl(f.ebenenPunkte()[i][j]);
+            const double v = f.ebenenPunkte()[i][j];
+            w.zahl(g_ganzzahlig ? static_cast<double>(std::lrint(v)) : v);   // quantiseInteger / quantiseFloating
         }
         w.token(")");
     }
@@ -753,6 +757,9 @@ bool binaerLesen(const std::string& pfad, std::string& out) {
 }  // namespace
 
 // ===================== oeffentliche Funktionen ==============================
+
+void setzeEbenenPunkteGanzzahlig(bool an) { g_ganzzahlig = an; }
+bool ebenenPunkteGanzzahlig() { return g_ganzzahlig; }
 
 std::string dezimal(double f) {   // ostream_write( Decimal )
     constexpr std::size_t groesse = 22;

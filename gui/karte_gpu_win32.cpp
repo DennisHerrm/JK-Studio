@@ -38,6 +38,7 @@ struct Konstanten {
     float groesse[2];
     float breite;
     float frei;
+    float muster[4];   // x glLineStipple-Muster (0 = aus), y Faktor
 };
 
 struct Ziel {
@@ -53,14 +54,15 @@ struct Ziel {
 };
 
 const char* const kShader = R"(
-cbuffer B : register(b0) { float4x4 mvp; float2 groesse; float breite; float frei; };
+cbuffer B : register(b0) { float4x4 mvp; float2 groesse; float breite; float frei; float4 muster; };
 struct VSI { float3 pos : POSITION; float4 farbe : COLOR; };
-struct VSO { float4 pos : SV_Position; float4 farbe : COLOR; };
+struct VSO { float4 pos : SV_Position; float4 farbe : COLOR; nointerpolation float2 start : TEXCOORD0; };
 VSO vs(VSI i) {
     VSO o;
     o.pos = mul(mvp, float4(i.pos, 1.0));
     o.pos.z = (o.pos.z + o.pos.w) * 0.5;   // OpenGL-Tiefe -1..1 -> Direct3D 0..1
     o.farbe = i.farbe;
+    o.start = float2(0.0, 0.0);
     return o;
 }
 [maxvertexcount(4)]
@@ -82,13 +84,24 @@ void gs(line VSO e[2], inout TriangleStream<VSO> s) {
     float l = length(d);
     d = (l > 1e-6) ? d / l : float2(1.0, 0.0);
     float2 n = float2(-d.y, d.x) * (breite * 0.5) / h;
+    // glLineStipple: der Zaehler beginnt an jedem Anfang einer GL_LINES-Strecke
+    float2 st = float2(a.x + h.x, h.y - a.y);
     VSO v;
-    v = e[0]; v.pos.xy += n * e[0].pos.w; s.Append(v);
-    v = e[0]; v.pos.xy -= n * e[0].pos.w; s.Append(v);
-    v = e[1]; v.pos.xy += n * e[1].pos.w; s.Append(v);
-    v = e[1]; v.pos.xy -= n * e[1].pos.w; s.Append(v);
+    v = e[0]; v.pos.xy += n * e[0].pos.w; v.start = st; s.Append(v);
+    v = e[0]; v.pos.xy -= n * e[0].pos.w; v.start = st; s.Append(v);
+    v = e[1]; v.pos.xy += n * e[1].pos.w; v.start = st; s.Append(v);
+    v = e[1]; v.pos.xy -= n * e[1].pos.w; v.start = st; s.Append(v);
 }
-float4 ps(VSO i) : SV_Target { return i.farbe; }
+// GL_LINE_STIPPLE: Bit (Bildpunkte entlang der Hauptachse / Faktor) mod 16 des Musters
+float4 ps(VSO i) : SV_Target {
+    if (muster.x > 0.5) {
+        float2 d = abs(i.pos.xy - i.start);
+        uint zaehler = (uint)floor(max(d.x, d.y));
+        uint bit = (zaehler / (uint)muster.y) & 15u;
+        if (((((uint)muster.x) >> bit) & 1u) == 0u) { discard; }
+    }
+    return i.farbe;
+}
 )";
 
 struct Zustand {
@@ -306,7 +319,7 @@ bool fuellen(ID3D11Buffer*& vb, std::size_t& platz, const std::vector<karte::Lin
 ID3D11DepthStencilState* tiefenZustand(TiefenTest t, bool schreiben);
 
 void ziehen(ID3D11Buffer* vb, std::size_t anzahl, const float* matrix, float breite, bool punktModus = false,
-            ID3D11DepthStencilState* tiefe = nullptr) {
+            ID3D11DepthStencilState* tiefe = nullptr, unsigned muster = 0, int musterFaktor = 1) {
     if (g.aktiv < 0 || vb == nullptr || anzahl == 0) { return; }
     ID3D11DeviceContext* c = kontext();
     const Ziel& z = g.ziele[g.aktiv];
@@ -318,6 +331,10 @@ void ziehen(ID3D11Buffer* vb, std::size_t anzahl, const float* matrix, float bre
     k->groesse[1] = static_cast<float>(z.hoehe);
     k->breite = breite;
     k->frei = punktModus ? 1.0F : 0.0F;
+    k->muster[0] = static_cast<float>(muster);
+    k->muster[1] = static_cast<float>(std::max(1, musterFaktor));
+    k->muster[2] = 0.0F;
+    k->muster[3] = 0.0F;
     c->Unmap(g.cb, 0);
     const UINT schritt = sizeof(Punkt);
     const UINT versatz = 0;
@@ -331,13 +348,14 @@ void ziehen(ID3D11Buffer* vb, std::size_t anzahl, const float* matrix, float bre
     c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
     c->VSSetShader(g.vs, nullptr, 0);
     c->VSSetConstantBuffers(0, 1, &g.cb);
-    if (breite > 1.0F || punktModus) {
+    if (breite > 1.0F || punktModus || muster != 0) {   // das Muster braucht den Anfang der Strecke
         c->GSSetShader(g.gs, nullptr, 0);
         c->GSSetConstantBuffers(0, 1, &g.cb);
     } else {
         c->GSSetShader(nullptr, nullptr, 0);
     }
     c->PSSetShader(g.ps, nullptr, 0);
+    c->PSSetConstantBuffers(0, 1, &g.cb);   // das Strichmuster (glLineStipple)
     c->Draw(static_cast<UINT>(anzahl * 2), 0);
     c->GSSetShader(nullptr, nullptr, 0);
 }
@@ -431,6 +449,11 @@ bool beginnen(int kennung, int breite, int hoehe, int msaa, const float* hinten,
 void zeichnen(const Puffer& p, const float* matrix, float breite) {
     if (p.m_stand != render::texturStand()) { return; }
     ziehen(static_cast<ID3D11Buffer*>(p.m_vb), p.m_anzahl, matrix, breite);
+}
+
+void zeichnen(const Puffer& p, const float* matrix, float breite, unsigned muster, int faktor) {
+    if (p.m_stand != render::texturStand()) { return; }
+    ziehen(static_cast<ID3D11Buffer*>(p.m_vb), p.m_anzahl, matrix, breite, false, nullptr, muster, faktor);
 }
 
 void punkte(const std::vector<karte::Linie>& punkte, const float* matrix, float groesse) {
@@ -1129,6 +1152,11 @@ void aufraeumen() {
 }
 
 unsigned geraetStand() { return render::texturStand(); }
+
+int abtastungen(int kennung) {
+    const auto it = g.ziele.find(kennung);
+    return it == g.ziele.end() ? 0 : it->second.msaa;
+}
 
 bool pixel(int kennung, int x, int y, unsigned char rgba[4]) {
     const auto it = g.ziele.find(kennung);

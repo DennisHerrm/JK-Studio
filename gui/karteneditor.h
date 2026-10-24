@@ -31,6 +31,7 @@
 #include "bhed/karte/kartendatei.h"
 #include "bhed/karte/modell.h"
 #include "bhed/karte/region.h"
+#include "bhed/karte/spielbeschreibung.h"
 #include "bhed/karte/kamera.h"
 #include "bhed/karte/karte.h"
 #include "bhed/karte/kartenformat.h"
@@ -212,6 +213,15 @@ struct XyFenster {
     bool entitaetErzeugen = false;   // m_entityCreate
     int erzeugX = 0;                 // m_entityCreate_x (Fensterpunkte)
     int erzeugY = 0;
+    // XYWnd::chaseMouseMotion / ChaseMouse (xywindow.cpp:293-345): M1 am Rand
+    // (16 Geraetepunkte) rollt die Ansicht; g_chasemouse_caller ruft alle
+    // 4 ms - hier je Bild, der Faktor ist die Zeit seit dem letzten Mal / 10 ms.
+    bool jagen = false;              // g_chasemouse_caller.isActive()
+    int jagdDx = 0;                  // m_chasemouse_delta_x
+    int jagdDy = 0;
+    int jagdX = 0;                   // m_chasemouse_current_x
+    int jagdY = 0;
+    double jagdUhr = 0.0;            // g_chasemouse_timer (Sekunden, ImGui-Zeit)
 };
 // Das Kamerafenster (CamWnd, camwindow.cpp:1625-1803): Freelook, Rechtsklick-
 // Uhr, gehaltene Tasten (PressedKeys, accelerator.cpp:88-170).
@@ -565,6 +575,16 @@ struct Editor {
         int h = 0;
     };
     std::vector<Rechteck> felderImBild;
+    // Fuer den Selbsttest: die Klapplisten (QComboBox) der Dialoge in diesem Bild
+    // (Bildpunkte; ImGui meldet sie nicht unter ihrer Kennung).
+    struct KlappOrt {
+        std::string id;
+        float x0 = 0;
+        float y0 = 0;
+        float x1 = 0;
+        float y1 = 0;
+    };
+    std::vector<KlappOrt> klappOrte;
 
     // Fuer den Selbsttest: die Kennung des Arbeitsbereichs im letzten Bild.
     bool gezeichnet = false;
@@ -595,6 +615,24 @@ struct Editor {
     std::size_t sichtStand = 0;            // Verstecken/Zeigen (nicht im Undo) fuer szeneStand
     std::string zwischenablage;            // Copy/Paste (NRC: QClipboard "RadiantClippings")
     bool nachKlonenSchubsen = false;       // g_bNudgeAfterClone ("Nudge selected after duplication")
+    // --- Einstellungsseiten der Stufe 2, Punkt 11 ---
+    bool letzteKarteLaden = true;          // g_bLoadLastMap ("LoadLastMap", map.cpp:2426)
+    std::string letzteKarte;               // g_strLastMap ("LastMap")
+    bool letzteKarteGeprueft = false;      // main.cpp:462: nur beim Start
+    int rasterStandard = karte::Raster::kStandard;   // g_grid_default ("GridDefault")
+    int rasterMaxPotenz = 4;               // g_maxGridCoordPower ("GridMaxCoordPower")
+    int pinselTyp = 1;                     // g_brushType ("BrushType"): quake3 -> Brush_Construct( eBrushTypeQuake3BP )
+    // BuildMonitor_Construct (watchbsp.cpp:257-268); der Bau selbst kommt in Stufe 3
+    struct BauEinstellungen {
+        bool ueberwachen = true;           // g_WatchBSP_Enabled ("BuildMonitor")
+        bool leckStopp = true;             // g_WatchBSP_LeakStop ("BuildLeakStop")
+        bool spielStarten = false;         // g_WatchBSP_RunQuake ("BuildRunGame")
+        bool logAusgeben = false;          // g_WatchBSP0_DumpLog ("BuildDumpLog")
+        karte::VorgabeText engine;         // g_engineExecutable ("BuildEngineExecutable")
+        karte::VorgabeText engineMp;       // g_engineExecutableMP
+        karte::VorgabeText argumente;      // g_engineArgs
+        karte::VorgabeText argumenteMp;    // g_engineArgsMP
+    } bau;
     std::array<FensterBeobachter, 4> beobachter;
     std::array<karte::Blick, 4> blicke{karte::Blick(false), karte::Blick(false), karte::Blick(false), karte::Blick(true)};   // m_view
     int letzterBeobachter = -1;            // RadiantWindowObserver::m_latestObserver
@@ -838,6 +876,8 @@ void freelookBeenden();
 // Fuer den Selbsttest: ein Bildpunkt der Kamera (Geraetepunkte im Fenster)
 // und die Durchschnittsfarbe eines geladenen Shaders (qtexture_t::color).
 bool kameraPixel(int x, int y, unsigned char rgba[4]);
+bool xyPixel(int index, int x, int y, unsigned char rgba[4]);   // Selbsttest: ein Bildpunkt der 2D-Ansicht
+[[nodiscard]] int xyAbtastungen(int index);                      // Selbsttest: MSAA des Renderziels
 bool kameraTexturFarbe(const std::string& shader, float rgb[3]);
 
 // Ein QSplitter im aktuellen Kindfenster (Lagen ab dessen Ecke): ordnet an,
@@ -975,6 +1015,11 @@ void einstellungenSpeichern();
 // --- Datei (radiant/map.cpp) ---
 // NewMap (map.cpp:1813): mit Rueckfrage, wenn geaendert.
 void neueKarte();
+void letzteKarteBeimStart();   // main.cpp:462 (g_bLoadLastMap)
+[[nodiscard]] std::string einstellungsFeld(const std::string& id);   // Selbsttest: Text eines Feldes der Einstellungen
+[[nodiscard]] const karte::SpielBeschreibung& kartenSpiel();   // g_pGameDescription
+[[nodiscard]] std::string kartenFsGame();                       // gamename_get
+void beimBeenden();            // main.cpp:476 (g_strLastMap)
 // OpenMap (map.cpp:1841) mit Dateiwahl; karteOeffnen ohne Dialog (fuer
 // Kommandozeile, zuletzt geoeffnet und den Selbsttest).
 void karteOeffnenDialog();

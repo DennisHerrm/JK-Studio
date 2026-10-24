@@ -14117,6 +14117,7 @@ App* createApp() {
 
 void destroyApp(App* a) {
     a->settings.legalExit = true;   // sauber beendet
+    if (a == g_app) { karteneditor::beimBeenden(); }   // Karten-Editor: g_strLastMap (main.cpp:476)
     saveSettings(a);
     delete a;
 }

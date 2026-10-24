@@ -713,6 +713,7 @@ target_sources(bhed_core PRIVATE
   src/karte/ebenen.cpp
   src/karte/modell.cpp
   src/karte/modellbrowser.cpp
+  src/karte/spielbeschreibung.cpp
   # Stufe 1b: Texturbrowser (texwindow.cpp, aktive Shader)
   src/karte/texturbrowser.cpp
   # Stufe 1b: Texturen mit M3 kopieren und auftragen (TexManipulator, surfacedialog.cpp)
@@ -855,6 +856,9 @@ if(BEHAVED_TESTS)
   add_executable(kartemodellbrowser tests/kartemodellbrowser.cpp)
   target_link_libraries(kartemodellbrowser PRIVATE bhed_core)
   add_test(NAME karte_modellbrowser COMMAND kartemodellbrowser)
+  add_executable(kartespiel tests/kartespiel.cpp)
+  target_link_libraries(kartespiel PRIVATE bhed_core)
+  add_test(NAME karte_spiel COMMAND kartespiel)
   # Punkte 3 und 4: die Befehlstabelle gegen die Checkliste (jeder Befehl mit
   # NRCs Taste, jeder Menuepunkt und Knopf), Uebersetzungen = NRC-Englisch,
   # Tastenkuerzel wie Qt (Text, possibleKeys, deutsche Tastatur).

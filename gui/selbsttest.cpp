@@ -29899,10 +29899,473 @@ std::vector<Schritt> modellBrowser() {
     return s;
 }
 
+// Die Mitte einer Klappliste (QComboBox) des Einstellungsdialogs
+std::function<ImVec2()> klappOrt(const std::string& id) {
+    return [id]() {
+        for (const auto& k : ke::editor().klappOrte) {
+            if (k.id == id) { return ImVec2{(k.x0 + k.x1) * 0.5F, (k.y0 + k.y1) * 0.5F}; }
+        }
+        return ImVec2{0, 0};
+    };
+}
+
+std::string einstellung(const char* schluessel) {
+    const auto it = g_app->settings.karte.find(schluessel);
+    return it != g_app->settings.karte.end() ? it->second : std::string("<fehlt>");
+}
+
+bool farbeNahe(const unsigned char* p, const ke::Farben::F3& f, int toleranz) {
+    for (int i = 0; i < 3; ++i) {
+        if (std::abs(static_cast<int>(p[i]) - static_cast<int>(std::lround(f[static_cast<std::size_t>(i)] * 255.0F))) > toleranz) { return false; }
+    }
+    return true;
+}
+
+// Anteil der Bildpunkte entlang der oberen Kante des Testpinsels (y = 64,
+// x -48..48) in der XY-Ansicht, die die Auswahlfarbe haben ($XY_OVERLAY, 2 breit)
+float auswahlKantenAnteil() {
+    const ke::Editor& e = ke::editor();
+    const karte::XyAnsicht& v = e.xy[0].ansicht;
+    int farbig = 0;
+    int alle = 0;
+    for (int x = -48; x <= 48; ++x) {
+        const auto b = v.zuBild(karte::Vektor3f(static_cast<float>(x), 64, 0));
+        bool treffer = false;
+        for (int dy = -1; dy <= 1; ++dy) {
+            unsigned char p[4] = {};
+            if (ke::xyPixel(0, static_cast<int>(std::lround(b[0])), static_cast<int>(std::lround(b[1])) + dy, p) && farbeNahe(p, e.farben.auswahl, 40)) {
+                treffer = true;
+            }
+        }
+        farbig += treffer ? 1 : 0;
+        ++alle;
+    }
+    return alle > 0 ? static_cast<float>(farbig) / static_cast<float>(alle) : 0.0F;
+}
+
+// Weltpunkt -> Bildpunkt der Kamera (Projektion x Modelview, spaltenweise)
+ImVec2 kameraBild(const karte::Vektor3f& w) {
+    const ke::Editor& e = ke::editor();
+    const karte::Matrix4 m = e.kamera.sicht();
+    const float x = m[0] * w[0] + m[4] * w[1] + m[8] * w[2] + m[12];
+    const float y = m[1] * w[0] + m[5] * w[1] + m[9] * w[2] + m[13];
+    const float q = m[3] * w[0] + m[7] * w[1] + m[11] * w[2] + m[15];
+    return ImVec2{(x / q * 0.5F + 0.5F) * static_cast<float>(e.kamFenster.breite), (0.5F - y / q * 0.5F) * static_cast<float>(e.kamFenster.hoehe)};
+}
+
+// Ein Bildpunkt in der Auswahlfarbe der Kamera im Umkreis von 2 um den Punkt?
+bool kameraAuswahlBei(const karte::Vektor3f& w) {
+    const ImVec2 b = kameraBild(w);
+    for (int dy = -2; dy <= 2; ++dy) {
+        for (int dx = -2; dx <= 2; ++dx) {
+            unsigned char p[4] = {};
+            if (ke::kameraPixel(static_cast<int>(b.x) + dx, static_cast<int>(b.y) + dy, p) && farbeNahe(p, ke::editor().farben.auswahl3d, 30)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// Mit M1 in der XY-Ansicht von einem Weltpunkt an den rechten Rand ziehen und
+// dort `halte` Bilder stehen bleiben (ChaseMouse).
+Schritt randZiehen(const std::string& was, ImVec2 von, int halte, std::shared_ptr<float> ursprungVorher) {
+    return Schritt{was, [=](int b) {
+                       ImGuiIO& io = ImGui::GetIO();
+                       const ke::XyFenster& f = ke::editor().xy[0];
+                       if (b == 0) {
+                           setzeMaus(weltXy(von.x, von.y));
+                           return false;
+                       }
+                       if (b == 1) {
+                           io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+                           return false;
+                       }
+                       const ImVec2 a = weltXy(von.x, von.y);
+                       const ImVec2 z{f.bildX + static_cast<float>(f.ansicht.breite) - 4.0F, a.y};
+                       if (b >= 2 && b <= 11) {
+                           const float t = static_cast<float>(b - 1) / 10.0F;
+                           setzeMaus(ImVec2{a.x + (z.x - a.x) * t, a.y});
+                           if (b == 11) { *ursprungVorher = f.ansicht.ursprung[0]; }
+                           return false;
+                       }
+                       if (b == 12 + halte) {
+                           io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+                           return false;
+                       }
+                       return b >= 15 + halte;
+                   }};
+}
+
+// Punkt 11a: die Einstellungsseiten Settings, Undo, Brush, Grid, Orthographic,
+// Build und "Selected faces wire" (Camera) mit ihren Wirkungen
+std::vector<Schritt> einstellungen11() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto seite = [&](Str baum, int i) {
+        add(tu("Einstellungen auf", [] { ke::editor().einstellungenOffen = true; }));
+        add(pause(0.3));
+        add(klick(std::string(ke::trK(baum)) + "##seite" + std::to_string(i)));
+        add(pause(0.2));
+    };
+    const auto ok = [&]() {
+        add(klick(ke::trK(Str::KePrefOk)));
+        add(pause(0.2));
+    };
+    add(grundzustand("Stufe 2/11a: Grundzustand"));
+    // --- Settings: Nudge selected after duplication, Load last map at startup
+    seite(Str::KePgSettings, 10);
+    add(pruefe("Seite Settings: Nudge selected after duplication, Load last map at startup (an)", [] {
+        return finde(std::string(ke::trK(Str::KePrNudgeClone)) + "##nachklonen", "", 0, true) != nullptr &&
+               finde(std::string(ke::trK(Str::KePrLoadLastMap)) + "##letztekarte", "", 0, true) != nullptr && ke::editor().letzteKarteLaden &&
+               !ke::editor().nachKlonenSchubsen;
+    }));
+    add(foto("karteneditor_pref_settings"));
+    add(klick(std::string(ke::trK(Str::KePrNudgeClone)) + "##nachklonen"));
+    add(klick(std::string(ke::trK(Str::KePrLoadLastMap)) + "##letztekarte"));
+    ok();
+    add(pruefe("OK: Nudge an, Load last map aus, gespeichert (NudgeAfterClone, LoadLastMap)", [] {
+        const ke::Editor& e = ke::editor();
+        return e.nachKlonenSchubsen && !e.letzteKarteLaden && einstellung("NudgeAfterClone") == "1" && einstellung("LoadLastMap") == "0";
+    }));
+    add(klickXy("M1 auf den Pinsel", ImGuiMouseButton_Left, ImVec2{32, 32}));
+    add(tu("Edit > Duplicate (CloneSelection)", [] { (void)ke::ausfuehren("CloneSelection"); }));
+    add(pruefe("Duplicate: der Klon ein Raster (8) nach rechts und unten (NudgeSelection eNudgeRight, eNudgeDown)", [] {
+        return pinselZahl() == 2 && kastenGleich(grenzenVon(1), karte::Vektor3f(-56, -72, 0), karte::Vektor3f(72, 56, 64)) &&
+               ke::editor().karte.undo.undoName() == "cloneSelected";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(klickXy("M1 auf den Pinsel (Rueckgaengig nahm den Klon samt Auswahl)", ImGuiMouseButton_Left, ImVec2{32, 32}));
+    add(tu("Nudge aus, Duplicate", [] {
+        ke::editor().nachKlonenSchubsen = false;
+        (void)ke::ausfuehren("CloneSelection");
+    }));
+    add(pruefe("ohne Nudge: der Klon liegt auf dem Original", [] {
+        return pinselZahl() == 2 && kastenGleich(grenzenVon(1), karte::Vektor3f(-64, -64, 0), karte::Vektor3f(64, 64, 64));
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(tu("Start mit \"Load last map\" aus (LastMap = karte_quelle.map)", [] {
+        ke::Editor& e = ke::editor();
+        e.letzteKarte = karteTestPfad("karte_quelle.map");
+        e.letzteKarteGeprueft = false;
+        ke::letzteKarteBeimStart();
+    }));
+    add(pruefe("aus: die Karte bleibt karte_kopie.map", [] { return ke::editor().name == karteTestPfad("karte_kopie.map"); }));
+    add(tu("Start mit \"Load last map\" an", [] {
+        ke::Editor& e = ke::editor();
+        e.letzteKarteLaden = true;
+        e.letzteKarteGeprueft = false;
+        ke::letzteKarteBeimStart();
+    }));
+    add(pruefe("an: karte_quelle.map geladen (Map_LoadFile, nicht in der MRU-Liste)", [] {
+        const ke::Editor& e = ke::editor();
+        return e.name == karteTestPfad("karte_quelle.map") && e.karte.entitaeten().size() == 2 &&
+               (e.zuletzt.anzahl() == 0 || e.zuletzt.pfade()[0] != karteTestPfad("karte_quelle.map"));
+    }));
+    add(pruefe("nur einmal: ein zweiter Aufruf laedt nicht neu", [] {
+        const std::size_t vorher = ke::editor().ladeZaehler;
+        ke::letzteKarteBeimStart();
+        return ke::editor().ladeZaehler == vorher;
+    }));
+    add(pruefe("Beenden: LastMap = die offene Karte; unbenannt bleibt der alte Name (main.cpp:476)", [] {
+        ke::Editor& e = ke::editor();
+        ke::beimBeenden();
+        const bool benannt = einstellung("LastMap") == karteTestPfad("karte_quelle.map");
+        const std::string alt = e.name;
+        e.name = "unnamed.map";
+        ke::beimBeenden();
+        e.name = alt;
+        return benannt && einstellung("LastMap") == karteTestPfad("karte_quelle.map");
+    }));
+    add(grundzustand("Stufe 2/11a: Grundzustand"));
+    // --- Undo: Undo Queue Size
+    seite(Str::KePgUndo, 11);
+    add(pruefe("Seite Undo: Undo Queue Size 512", [] { return finde("##undostufen", "", 0, true) != nullptr && ke::editor().karte.undo.stufen() == 512; }));
+    add(foto("karteneditor_pref_undo"));
+    add(klickAn("Feld Undo Queue Size", elementOrt("##undostufen")));
+    add(tippe("2"));
+    ok();
+    add(pruefe("OK: Undo Queue Size 2 (setLevels, UndoLevels)", [] { return ke::editor().karte.undo.stufen() == 2 && einstellung("UndoLevels") == "2"; }));
+    add(klickXy("M1 auf den Pinsel", ImGuiMouseButton_Left, ImVec2{32, 32}));
+    add(tu("dreimal Alt+Rechts (SelectNudgeRight)", [] {
+        for (int i = 0; i < 3; ++i) { (void)ke::ausfuehren("SelectNudgeRight"); }
+    }));
+    add(tu("dreimal Rueckgaengig", [] {
+        for (int i = 0; i < 3; ++i) { (void)ke::ausfuehren("Undo"); }
+    }));
+    add(pruefe("nur zwei Schritte zurueck: der Pinsel bleibt um 8 verschoben", [] {
+        return kastenGleich(grenzenVon(0), karte::Vektor3f(-56, -64, 0), karte::Vektor3f(72, 64, 64));
+    }));
+    add(tu("Undo Queue Size zurueck auf 512", [] {
+        ke::editor().karte.undo.setzeStufen(512);
+        ke::einstellungenSpeichern();
+    }));
+    add(grundzustand("Stufe 2/11a: Grundzustand"));
+    // --- Brush: Default texture scale, New map Brush Type, caulk, snap planes
+    seite(Str::KePgBrush, 13);
+    add(pruefe("Seite Brush: Feld 0.2500, Klappliste, zwei Haken", [] {
+        return finde(std::string(ke::trK(Str::KePrBrushCaulk)) + "##immercaulk", "", 0, true) != nullptr &&
+               finde(std::string(ke::trK(Str::KePrBrushSnap)) + "##ganzzahlig", "", 0, true) != nullptr &&
+               karte::standardTexturSkalierung() == 0.25F && klappOrt("##pinseltyp")().x > 0.0F;
+    }));
+    add(klickAn("Klappliste New map Brush Type", klappOrt("##pinseltyp")));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KePrBrushBp), "##Combo_"));
+    add(pause(0.2));
+    add(foto("karteneditor_pref_brush"));
+    add(klick("+", "karteeinstellungen"));
+    add(klick(std::string(ke::trK(Str::KePrBrushCaulk)) + "##immercaulk"));
+    add(klick(std::string(ke::trK(Str::KePrBrushSnap)) + "##ganzzahlig"));
+    ok();
+    add(pruefe("OK: Skala 0.26 (AdaptiveDecimalStep 0.01), Brush Primitives, Caulk, Snap - gespeichert", [] {
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Stufe 2 - Skala " + std::to_string(karte::standardTexturSkalierung()) + ", Typ " + std::to_string(e.pinselTyp));
+        return std::fabs(karte::standardTexturSkalierung() - 0.26F) < 1e-6F && e.pinselTyp == 1 && e.bearbeitung.immerCaulk &&
+               karte::ebenenPunkteGanzzahlig() && einstellung("BrushType") == "1" && einstellung("BrushAlwaysCaulk") == "1" &&
+               einstellung("BrushSnapPlanes") == "1" && einstellung("TexdefDefaultScale") == "0.26";
+    }));
+    add(tu("File > New Map", [] { ke::neueKarte(); }));
+    add(pause(0.2));
+    add(pruefe("New Map: Format Brush Primitives (Map_Free: Brush_unlatchPreferences)", [] {
+        const ke::Editor& e = ke::editor();
+        return !e.frageOffen && e.name == "unnamed.map" && e.karte.kontext.format == karte::PinselFormat::Quake3BP;
+    }));
+    add(tu("Testkarte wieder offen (Axial Projection aus der Datei)", [] { (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map")); }));
+    add(pruefe("Map_Read erkennt das Format der Datei: Axial Projection", [] {
+        return ke::editor().karte.kontext.format == karte::PinselFormat::Quake3;
+    }));
+    add(ziehenXy("neuer Pinsel (100 100)..(164 164)", ImGuiMouseButton_Left, 0, ImVec2{100, 100}, ImVec2{164, 164}));
+    add(pruefe("neuer Pinsel: alle Flaechen common/caulk, Skala 0.26 (Always use caulk, Default texture scale)", [] {
+        const auto w = ke::editor().karte.welt();
+        if (!w || w->kinder().size() != 2) { return false; }
+        const auto p = std::dynamic_pointer_cast<karte::Pinsel>(w->kinder().back());
+        if (!p) { return false; }
+        bool alle = !p->flaechen().empty();
+        for (const auto& f : p->flaechen()) {
+            alle = alle && f->shader() == "textures/common/caulk" && std::fabs(f->projektion().texdef.scale[0] - 0.26F) < 1e-6F;
+        }
+        return alle;
+    }));
+    add(tu("ein Pinsel mit Bruchteilen (0.25..64.75) dazu", [] {
+        ke::Editor& e = ke::editor();
+        karte::TexturProjektion proj;
+        karte::texdefStandard(karte::TexdefArt::Quake, proj);
+        auto p = std::make_shared<karte::Pinsel>();
+        p->quaderBauen(karte::Kasten(karte::Vektor3f(32.5F, 32.5F, 300.5F), karte::Vektor3f(32.25F, 32.25F, 32.25F)), "textures/common/caulk", proj,
+                       e.karte.kontext);
+        e.karte.welt()->kindEinfuegen(p);
+    }));
+    add(pruefe("Snap plane points: gespeichert ganzzahlig (64.75 -> 65)", [] {
+        const std::string t = karte::karteSchreiben(ke::editor().karte);
+        return t.find("64.75") == std::string::npos && t.find("( 65 65 333 )") != std::string::npos;
+    }));
+    add(pruefe("ohne Snap: 64.75 bleibt", [] {
+        karte::setzeEbenenPunkteGanzzahlig(false);
+        const std::string t = karte::karteSchreiben(ke::editor().karte);
+        return t.find("64.75") != std::string::npos;
+    }));
+    add(tu("Brush zurueck: 0.25, Axial Projection, kein Caulk", [] {
+        ke::Editor& e = ke::editor();
+        karte::setzeStandardTexturSkalierung(0.25F);
+        e.pinselTyp = 0;
+        e.bearbeitung.immerCaulk = false;
+        ke::einstellungenSpeichern();
+    }));
+    add(grundzustand("Stufe 2/11a: Grundzustand"));
+    // --- Grid: Default grid spacing, Max grid coordinate
+    seite(Str::KePgGrid, 15);
+    add(pruefe("Seite Grid: zwei Klapplisten", [] { return klappOrt("##rasterstandard")().x > 0.0F && klappOrt("##rastermax")().x > 0.0F; }));
+    add(foto("karteneditor_pref_grid"));
+    add(klickAn("Klappliste Default grid spacing", klappOrt("##rasterstandard")));
+    add(pause(0.2));
+    add(klick("64", "##Combo_"));
+    add(pause(0.2));
+    add(klickAn("Klappliste Max grid coordinate", klappOrt("##rastermax")));
+    add(pause(0.2));
+    add(klick("4096", "##Combo_"));
+    add(pause(0.2));
+    ok();
+    add(pruefe("OK: GridDefault 9 (64, gilt beim Start), Max 4096 sofort - Region-Grenzen +-4096 (Region_defaultMinMax)", [] {
+        const ke::Editor& e = ke::editor();
+        karte::Raster r;
+        r.standardSetzen(std::atoi(einstellung("GridDefault").c_str()));
+        return e.rasterStandard == 9 && einstellung("GridDefault") == "9" && r.groesse() == 64.0F && e.raster.groesse() == 8.0F &&
+               e.raster.maxKoord() == 4096.0F && e.region.max[0] == 4096.0F && e.region.min[2] == -4096.0F && einstellung("GridMaxCoordPower") == "0";
+    }));
+    add(tu("Grid zurueck: 16, 65536", [] {
+        ke::Editor& e = ke::editor();
+        e.rasterStandard = karte::Raster::kStandard;
+        e.rasterMaxPotenz = 4;
+        e.raster.setzeMaxKoordPotenz(4);
+        karte::regionStandard(e.region, e.raster.maxKoord());
+        ke::einstellungenSpeichern();
+    }));
+    // --- Orthographic: Solid selection boxes, Chase mouse, Zoom to Mouse pointer, MSAA
+    seite(Str::KePgOrtho, 18);
+    add(pruefe("Seite Orthographic: drei Haken (an), MSAA 8", [] {
+        const ke::Editor& e = ke::editor();
+        return finde(std::string(ke::trK(Str::KePrOrthoStipple)) + "##keinestrichelung", "", 0, true) != nullptr && e.anzeige.keineStrichelung &&
+               e.anzeige.jagen && e.anzeige.zumZeiger && e.anzeige.msaa == 8;
+    }));
+    add(foto("karteneditor_pref_ortho"));
+    add(klick(std::string(ke::trK(Str::KePrOrthoStipple)) + "##keinestrichelung"));
+    ok();
+    add(pruefe("OK: Solid selection boxes aus (NoStipple 0)", [] { return !ke::editor().anzeige.keineStrichelung && einstellung("NoStipple") == "0"; }));
+    add(klickXy("M1 auf den Pinsel", ImGuiMouseButton_Left, ImVec2{32, 32}));
+    add(pause(0.3));
+    add(pruefe("gestrichelt: an der Kante etwa die Haelfte in der Auswahlfarbe (glLineStipple 3, 0xaaaa)", [] {
+        const float a = auswahlKantenAnteil();
+        diag::detail("Knopftest: Stufe 2 - Kante gestrichelt " + std::to_string(a));
+        return a > 0.3F && a < 0.75F;
+    }));
+    add(tu("Solid selection boxes an", [] { ke::editor().anzeige.keineStrichelung = true; }));
+    add(pause(0.3));
+    add(pruefe("durchgezogen: die ganze Kante in der Auswahlfarbe", [] {
+        const float a = auswahlKantenAnteil();
+        diag::detail("Knopftest: Stufe 2 - Kante durchgezogen " + std::to_string(a));
+        return a > 0.95F;
+    }));
+    {
+        auto vorher = std::make_shared<float>(0.0F);
+        add(randZiehen("den Pinsel an den rechten Rand ziehen, 20 Bilder halten (Chase mouse an)", ImVec2{0, 0}, 20, vorher));
+        add(pruefe("Chase mouse an: die Ansicht rollt nach rechts (ChaseMouse: Scroll)", [vorher] {
+            diag::detail("Knopftest: Stufe 2 - Ursprung x " + std::to_string(*vorher) + " -> " + std::to_string(ke::editor().xy[0].ansicht.ursprung[0]));
+            return ke::editor().xy[0].ansicht.ursprung[0] > *vorher + 8.0F;
+        }));
+        add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+        add(tu("Ansicht zurueck, Chase mouse aus", [] {
+            ke::editor().xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+            ke::editor().anzeige.jagen = false;
+        }));
+        add(randZiehen("den Pinsel an den rechten Rand ziehen, 20 Bilder halten (Chase mouse aus)", ImVec2{0, 0}, 20, vorher));
+        add(pruefe("Chase mouse aus: die Ansicht bleibt", [vorher] { return ke::editor().xy[0].ansicht.ursprung[0] == *vorher; }));
+        add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    }
+    add(tu("Ansicht zurueck", [] {
+        ke::editor().xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        ke::editor().xy[0].ansicht.setzeMassstab(1);
+    }));
+    add(radAn("hinein bei (200 100)", [] { return weltXy(200, 100); }, 1.0F));
+    add(pruefe("Zoom to Mouse pointer an: der Ursprung wandert zur Maus (ZoomInWithMouse)", [] {
+        const karte::Vektor3f& o = ke::editor().xy[0].ansicht.ursprung;
+        return ke::editor().xy[0].ansicht.massstab > 1.0F && o[0] > 1.0F && o[1] > 1.0F;
+    }));
+    add(tu("Ansicht zurueck, Zoom to Mouse pointer aus", [] {
+        ke::editor().xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        ke::editor().xy[0].ansicht.setzeMassstab(1);
+        ke::editor().anzeige.zumZeiger = false;
+    }));
+    add(radAn("hinein bei (200 100)", [] { return weltXy(200, 100); }, 1.0F));
+    add(pruefe("Zoom to Mouse pointer aus: der Ursprung bleibt", [] {
+        const karte::Vektor3f& o = ke::editor().xy[0].ansicht.ursprung;
+        return ke::editor().xy[0].ansicht.massstab > 1.0F && o[0] == 0.0F && o[1] == 0.0F;
+    }));
+    seite(Str::KePgOrtho, 18);
+    add(klickAn("Klappliste MSAA", klappOrt("##xymsaa")));
+    add(pause(0.2));
+    add(klick("0", "##Combo_"));
+    add(pause(0.2));
+    ok();
+    add(pause(0.3));
+    add(pruefe("MSAA 0: das Renderziel der XY-Ansicht ohne Mehrfachabtastung (XYMSAA 0)", [] {
+        diag::detail("Knopftest: Stufe 2 - XY-Abtastungen " + std::to_string(ke::xyAbtastungen(0)));
+        return ke::editor().anzeige.msaa == 0 && einstellung("XYMSAA") == "0" && ke::xyAbtastungen(0) == 1;
+    }));
+    add(tu("MSAA 8", [] { ke::editor().anzeige.msaa = 8; }));
+    add(pause(0.3));
+    add(pruefe("MSAA 8: wieder mehrfach abgetastet", [] { return ke::xyAbtastungen(0) >= 2; }));
+    add(tu("Orthographic zurueck", [] {
+        ke::editor().anzeige = ke::Anzeige{};
+        ke::einstellungenSpeichern();
+    }));
+    // --- Build
+    seite(Str::KePgBuild, 19);
+    add(pruefe("Seite Build: default:jaSP.exe, default:+set sv_pure 0 +devmap %mapname% (DefaultableString)", [] {
+        const karte::SpielBeschreibung& sb = ke::kartenSpiel();
+        diag::detail("Knopftest: Stufe 2 - Build " + ke::einstellungsFeld("bauengine") + " / " + ke::einstellungsFeld("bauargumente"));
+        return ke::einstellungsFeld("bauengine") == std::string("default:") + sb.engine &&
+               ke::einstellungsFeld("bauargumente") == "default:+set sv_pure 0 +devmap %mapname%" &&
+               ke::einstellungsFeld("bauenginemp") == std::string("default:") + sb.mpEngine && finde("##bauengine", "", 0, true) != nullptr;
+    }));
+    add(foto("karteneditor_pref_build"));
+    add(klick(std::string(ke::trK(Str::KePrBuildRun)) + "##baustarten"));
+    add(klickAn("Feld Engine to Run", elementOrt("##bauengine")));
+    add(tippe("openjk.x86.exe"));
+    add(klickAn("Feld Region Box Shader", elementOrt("##regionshader")));
+    add(tippe("textures/common/nodraw"));
+    ok();
+    add(pruefe("OK: Run Engine an, eigenes Programm, Region Box Shader - gespeichert", [] {
+        const ke::Editor& e = ke::editor();
+        return e.bau.spielStarten && e.bau.engine.text == "openjk.x86.exe" && e.bau.argumente.text.empty() &&
+               e.regionKastenShader == "textures/common/nodraw" && einstellung("BuildRunGame") == "1" &&
+               einstellung("BuildEngineExecutable") == "openjk.x86.exe" && einstellung("BuildEngineArgs").empty() &&
+               einstellung("RegionBoxShader") == "textures/common/nodraw";
+    }));
+    add(tu("den Pinsel waehlen, Region > Set selection, File > Save region...", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), pinsel());
+        (void)ke::ausfuehren("RegionSetSelection");
+        (void)ke::regionSpeichernUnter(laufDatei("stufe2_region11.map"));
+        (void)ke::ausfuehren("RegionOff");
+    }));
+    add(pruefe("Save region: die Waende mit common/nodraw (ScopeRegionBrushes: g_regionBoxShader)", [] {
+        return dateiText(laufDatei("stufe2_region11.map")).find("common/nodraw") != std::string::npos;
+    }));
+    add(tu("Build zurueck", [] {
+        ke::Editor& e = ke::editor();
+        e.bau = ke::Editor::BauEinstellungen{};
+        e.regionKastenShader.clear();
+        ke::einstellungenSpeichern();
+    }));
+    // --- Camera: Selected faces wire
+    add(tu("Kamera vor die -x-Seite, Faerben aus, die Flaeche x = -64 waehlen", [] {
+        ke::Editor& e = ke::editor();
+        e.kameraE.faerben = false;
+        e.kamera.setzeUrsprung(karte::Vektor3f(-256, 0, 32));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
+        e.bearbeitung.einstellung.modus = karte::AuswahlModus::Komponente;
+        e.bearbeitung.einstellung.komponente = karte::KomponentenModus::Flaeche;
+        const auto p = pinsel();
+        for (const auto& f : p->flaechen()) {
+            if (f->ebene().normal()[0] < -0.5) { e.karte.auswahl.flaecheWaehlen(p, f); }
+        }
+    }));
+    add(pause(0.4));
+    add(pruefe("Selected faces wire an: Kante der Flaeche in der Auswahlfarbe ($CAM_FACEWIRE)", [] {
+        return ke::editor().karte.auswahl.flaechen().size() == 1 && kameraAuswahlBei(karte::Vektor3f(-64, 0, 64));
+    }));
+    add(tu("Selected faces wire aus", [] { ke::editor().kameraE.flaechenDraht = false; }));
+    add(pause(0.4));
+    add(pruefe("Selected faces wire aus: keine Kante in der Auswahlfarbe", [] { return !kameraAuswahlBei(karte::Vektor3f(-64, 0, 64)); }));
+    add(tu("Kamera zurueck", [] {
+        ke::Editor& e = ke::editor();
+        e.kameraE = karte::KameraEinstellungen{};
+        e.karte.auswahl.leeren();
+        e.bearbeitung.einstellung.modus = karte::AuswahlModus::Primitiv;
+        e.bearbeitung.einstellung.komponente = karte::KomponentenModus::Standard;
+    }));
+    // --- Global, Display: leer wie NRC
+    seite(Str::KePgGlobal, 0);
+    add(foto("karteneditor_pref_global"));
+    add(klick(std::string(ke::trK(Str::KePgDisplay)) + "##seite6"));
+    add(pause(0.2));
+    add(foto("karteneditor_pref_display"));
+    ok();
+    return s;
+}
+
 }  // namespace stufe2
 
 std::vector<Schritt> karteneditorStufe2Schritte() {
     std::vector<Schritt> s;
+    // BHED_STUFE2_AB=<Punkt>: erst ab diesem Punkt (schnelleres Nachpruefen)
+    const char* ab = std::getenv("BHED_STUFE2_AB");
+    const int abPunkt = ab != nullptr ? std::atoi(ab) : 0;
+    if (abPunkt >= 11) {
+        for (Schritt& x : stufe2::einstellungen11()) { s.push_back(std::move(x)); }
+        return s;
+    }
     for (Schritt& x : stufe2::komponenten()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::clipper()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::csg()) { s.push_back(std::move(x)); }
@@ -29915,6 +30378,7 @@ std::vector<Schritt> karteneditorStufe2Schritte() {
     for (Schritt& x : stufe2::ebenen()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::modelle()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe2::modellBrowser()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe2::einstellungen11()) { s.push_back(std::move(x)); }
     return s;
 }
 
@@ -30526,6 +30990,14 @@ std::vector<Schritt> karteneditorSchritte() {
     }));
     add(pruefe("Standard-Texturskalierung 0.25 (default_scale aus ja.game/jk2.game)",
                [] { return karte::standardTexturSkalierung() == 0.25F; }));
+    // NRC legt neue Karten fuer Quake3-Spiele als Brush Primitives an (Brush_Construct(
+    // eBrushTypeQuake3BP), Seite Brush "New map Brush Type"); die Schritte der Stufe 1
+    // setzen Axial Projection voraus - der Test stellt das ein (Punkt 11 prueft die Vorgabe).
+    add(pruefe("Vorgabe \"New map Brush Type\": Brush Primitives (Index 1, wie NRC)", [] { return ke::editor().pinselTyp == 1; }));
+    add(tu("Testeinstellung: New map Brush Type = Axial Projection", [] {
+        ke::editor().pinselTyp = 0;
+        if (ke::editor().karte.entitaeten().empty()) { ke::editor().karte.kontext.format = karte::PinselFormat::Quake3; }
+    }));
     // Eine kleine Karte im NRC-Format: worldspawn mit einem Pinsel, ein Licht.
     add(tu("Testkarte schreiben", [] {
         karte::Karte k;

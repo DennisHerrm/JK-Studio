@@ -153,7 +153,9 @@ void karteFreigeben() {
     e.karteSpiel = spielWarten();
     e.karte.klassen = e.karteSpiel ? &e.karteSpiel->klassen : nullptr;
     e.karte.kontext.texturen = e.karteSpiel ? &e.karteSpiel->inventar : nullptr;
-    e.karte.kontext.format = karte::PinselFormat::Quake3;
+    // Map_Free: Brush_unlatchPreferences -> Brush_toggleFormat( g_brushTypes[g_brushType] )
+    // ("New map Brush Type"; beim Lesen erkennt Map_Read das Format der Datei)
+    e.karte.kontext.format = static_cast<karte::PinselFormat>(std::clamp(e.pinselTyp, 0, 2));
     // Map_Free: FlushReferences (ModelCache_clear); die Modelle kommen aus dem Spiel
     modelleLeeren();
     e.karte.kontext.modelle = &kartenModelle();
@@ -351,9 +353,16 @@ void spielPruefen() {
     if (spiel == e.spielStand) { return; }
     if (e.spielLaden.valid()) { return; }   // erst das laufende fertig laden
     e.spielStand = spiel;
-    // NRC default_scale (ja.game, jk2.game): 0.25 statt des Grundwerts 0.5
-    // (Texdef_getDefaultTextureScale, brush_primit.cpp).
-    karte::setzeStandardTexturSkalierung(0.25F);
+    // Brush_Construct (brushmodule.cpp:166-182): default_scale aus ja.game/jk2.game
+    // (0.25 statt des Grundwerts 0.5), dann die gemerkte "TexdefDefaultScale".
+    float skala = karte::spielBeschreibung(spiel == kRegelwerkJediOutcast ? "jk2.game" : "ja.game").standardSkala;
+    if (const auto it = g_app->settings.karte.find("TexdefDefaultScale"); it != g_app->settings.karte.end()) {
+        try {
+            skala = std::stof(it->second);
+        } catch (...) {
+        }
+    }
+    karte::setzeStandardTexturSkalierung(skala);
     diag::detail("Karten-Editor: lade " + spielName(spiel));
     e.spielLaden = std::async(std::launch::async, spielLadenJetzt, spiel, suchpfade(spiel), defOrdner(spiel));
 }
@@ -415,6 +424,32 @@ bool karteOeffnen(const std::string& pfad) {
     ++e.ladeZaehler;
     startPosition();   // Map_LoadFile: Map_StartPosition
     return ok;
+}
+
+// g_pGameDescription: ja.game bzw. jk2.game zum Spiel des Editors
+const karte::SpielBeschreibung& kartenSpiel() {
+    const int spiel = g().spielStand >= 0 ? g().spielStand : regelwerkSpielErmitteln();
+    return karte::spielBeschreibung(spiel == kRegelwerkJediOutcast ? "jk2.game" : "ja.game");
+}
+
+// gamename_get: der Ordner des Spiels (basegame, solange keine Mod gewaehlt ist)
+std::string kartenFsGame() { return kartenSpiel().basisSpiel; }
+
+// main.cpp:462-464: beim Start (hier: beim ersten Bild des Editors) die letzte
+// Karte, wenn "Load last map at startup" an ist (Map_LoadFile, ohne MRU).
+void letzteKarteBeimStart() {
+    Editor& e = g();
+    if (e.letzteKarteGeprueft) { return; }
+    e.letzteKarteGeprueft = true;
+    if (e.letzteKarteLaden && !e.letzteKarte.empty()) { (void)karteOeffnen(e.letzteKarte); }
+}
+
+// main.cpp:476-478: beim Beenden der Name der Karte, wenn sie einen hat.
+void beimBeenden() {
+    Editor& e = g();
+    if (!e.belegungGeladen) { return; }   // der Editor lief nicht: "LastMap" bleibt
+    if (e.name != "unnamed.map") { e.letzteKarte = e.name; }   // !Map_Unnamed( g_map )
+    g_app->settings.karte["LastMap"] = e.letzteKarte;
 }
 
 void karteOeffnenDialog() {
@@ -966,8 +1001,10 @@ void zeichne(float hoehe) {
     e.knoepfeImBild.clear();
     e.knoepfeVerdeckt.clear();
     e.felderImBild.clear();
+    e.klappOrte.clear();
     spielPruefen();
     if (!e.belegungGeladen) { einstellungenLaden(); }
+    letzteKarteBeimStart();
     zusatztastenPruefen();   // g_modifiers (onModifierDown / onModifierUp)
     texturenAktualisieren();   // g_ActiveShaders: Shader der Karte, in Gebrauch
     filterPruefen();           // Filterable::updateFiltered (Node::eFiltered, Face::m_filtered)

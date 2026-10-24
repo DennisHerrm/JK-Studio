@@ -941,11 +941,11 @@ Name | Art | Standardtaste | Quelle
 ## Einstellungsseiten
 
 - [x] Autosave: "Autosave Preferences"  (radiant/autosave.cpp:173) -- Stufe 2 Punkt 8
-- [ ] Brush: "Brush Settings"  (radiant/brushmodule.cpp:113)
+- [x] Brush: "Brush Settings"  (radiant/brushmodule.cpp:113) -- Stufe 2 Punkt 11
 - [x] Camera: "Camera View Preferences"  (radiant/camwindow.cpp:2461)
 - [x] Clipper: "Clipper Tool Settings"  (radiant/clippertool.cpp:186) -- Stufe 2 Punkt 2
 - [x] Entities: "Entity Display Preferences"  (radiant/entity.cpp:682) -- Stufe 1b Punkt 9
-- [ ] Grid: "Grid Settings"  (radiant/grid.cpp:258)
+- [x] Grid: "Grid Settings"  (radiant/grid.cpp:258) -- Stufe 2 Punkt 11
 - [ ] Paths: "Path Settings"  (radiant/mainframe.cpp:404)
 - [x] Layout: "Layout Preferences"  (radiant/mainframe.cpp:2051)
 - [x] Model Browser: "Model Browser Preferences"  (radiant/modelwindow.cpp:1364) -- Stufe 2 Punkt 10
@@ -954,19 +954,19 @@ Name | Art | Standardtaste | Quelle
 - [x] Surface Inspector: "Surface Inspector Preferences"  (radiant/surfacedialog.cpp:1738) -- Stufe 2 Punkt 7
 - [x] Textures: "Texture Settings"  (radiant/textures.cpp:831) -- Stufe 2 Punkt 7
 - [x] Texture Browser: "Texture Browser Preferences"  (radiant/texwindow.cpp:2075)
-- [ ] Undo: "Undo Queue Settings"  (radiant/undo.cpp:403)
-- [ ] Build: "Build Preferences"  (radiant/watchbsp.cpp:243)
-- [ ] Orthographic: "Orthographic View Preferences"  (radiant/xywindow.cpp:2254)
+- [x] Undo: "Undo Queue Settings"  (radiant/undo.cpp:403) -- Stufe 2 Punkt 11
+- [x] Build: "Build Preferences"  (radiant/watchbsp.cpp:243) -- Stufe 2 Punkt 11
+- [x] Orthographic: "Orthographic View Preferences"  (radiant/xywindow.cpp:2254) -- Stufe 2 Punkt 11
 
 ## Einstellungsfelder
 
 - [x] CheckBox Enable Autosave  (radiant/autosave.cpp:167) -- Stufe 2 Punkt 8
 - [x] Spinner Autosave Frequency (minutes)  (radiant/autosave.cpp:168) -- Stufe 2 Punkt 8
 - [x] CheckBox Save Snapshots  (radiant/autosave.cpp:170) -- Stufe 2 Punkt 8
-- [ ] Spinner Default texture scale  (radiant/brushmodule.cpp:86)
-- [ ] Combo New map Brush Type  (radiant/brushmodule.cpp:95)
-- [ ] CheckBox Always use caulk for new brushes  (radiant/brushmodule.cpp:102)
-- [ ] CheckBox Dangerous! / Snap plane points to integer grid (may break brushes)  (radiant/brushmodule.cpp:106)
+- [x] Spinner Default texture scale  (radiant/brushmodule.cpp:86) -- Stufe 2 Punkt 11
+- [x] Combo New map Brush Type  (radiant/brushmodule.cpp:95) -- Stufe 2 Punkt 11
+- [x] CheckBox Always use caulk for new brushes  (radiant/brushmodule.cpp:102) -- Stufe 2 Punkt 11
+- [x] CheckBox Dangerous! / Snap plane points to integer grid (may break brushes)  (radiant/brushmodule.cpp:106) -- Stufe 2 Punkt 11
 - [x] Spinner Movement Speed  (radiant/camwindow.cpp:2399)
 - [x] Spinner Time to Max Speed  (radiant/camwindow.cpp:2400)
 - [x] Spinner Scroll Move Speed  (radiant/camwindow.cpp:2401)
@@ -977,7 +977,7 @@ Name | Art | Standardtaste | Quelle
 - [x] CheckBox Discrete movement  (radiant/camwindow.cpp:2406)
 - [x] CheckBox Enable far-clip plane  (radiant/camwindow.cpp:2411)
 - [x] CheckBox Colorize selection  (radiant/camwindow.cpp:2416)
-- [ ] CheckBox Selected faces wire  (radiant/camwindow.cpp:2421) -- Wirkung mit der Flaechenauswahl (Punkt 7)
+- [x] CheckBox Selected faces wire  (radiant/camwindow.cpp:2421) -- Stufe 2 Punkt 11
 - [x] Combo Render Mode / doom3  (radiant/camwindow.cpp:2428)
 - [x] Combo MSAA  (radiant/camwindow.cpp:2438)
 - [x] Combo Strafe Mode  (radiant/camwindow.cpp:2448)
@@ -990,8 +990,8 @@ Name | Art | Standardtaste | Quelle
 - [x] Spinner Names Display Distance (3D)  (radiant/entity.cpp:669) -- Stufe 1b Punkt 9
 - [x] Spinner Names Display Ratio (2D)  (radiant/entity.cpp:673) -- Stufe 1b Punkt 9
 - [x] CheckBox Entity Names / = Targetnames  (radiant/entity.cpp:677) -- Stufe 1b Punkt 9
-- [ ] Combo Default grid spacing  (radiant/grid.cpp:241)
-- [ ] Combo Max grid coordinate  (radiant/grid.cpp:249)
+- [x] Combo Default grid spacing  (radiant/grid.cpp:241) -- Stufe 2 Punkt 11
+- [x] Combo Max grid coordinate  (radiant/grid.cpp:249) -- Stufe 2 Punkt 11
 - [ ] Combo Select mod  (radiant/gtkdlgs.cpp:229)
 - [ ] Combo fs_game  (radiant/gtkdlgs.cpp:241)
 - [ ] Combo Mapping mode  (radiant/gtkdlgs.cpp:260)
@@ -1000,14 +1000,14 @@ Name | Art | Standardtaste | Quelle
 - [x] RadioIcons Window Layout  (radiant/mainframe.cpp:2031)
 - [~] CheckBox Detachable Menus  (radiant/mainframe.cpp:2038) -- Stufe 2 (ImGui-Menues lassen sich nicht abreissen)
 - [x] CheckBox Built-In Group Dialog  (radiant/mainframe.cpp:2043)
-- [ ] CheckBox Load last map at startup  (radiant/map.cpp:2370)
+- [x] CheckBox Load last map at startup  (radiant/map.cpp:2370) -- Stufe 2 Punkt 11
 - [x] Spinner Model View Size  (radiant/modelwindow.cpp:1366) -- Stufe 2 Punkt 10
 - [x] Entry List of *folderToLoad/depth*  (radiant/modelwindow.cpp:1369) -- Stufe 2 Punkt 10
 - [x] Spinner Patch Subdivide Threshold  (radiant/patchmanip.cpp:673) -- Stufe 2 Punkt 6
 - [ ] PathEntry Shader Editor Command  (radiant/preferences.cpp:64)
 - [ ] Combo Select the game  (radiant/preferences.cpp:259)
 - [ ] CheckBox Startup / Show Global Preferences  (radiant/preferences.cpp:267)
-- [ ] CheckBox Nudge selected after duplication  (radiant/select.cpp:1921)
+- [x] CheckBox Nudge selected after duplication  (radiant/select.cpp:1921) -- Stufe 2 Punkt 11
 - [x] Spinner Selector size (pixels)  (radiant/selection.cpp:2314)
 - [x] CheckBox Prefer point entities in 2D  (radiant/selection.cpp:2315)
 - [x] CheckBox Create brushes in 3D  (radiant/selection.cpp:2316)
@@ -1025,20 +1025,20 @@ Name | Art | Standardtaste | Quelle
 - [x] Spinner Mousewheel Increment  (radiant/texwindow.cpp:2061)
 - [x] Combo Load Shaders at Startup  (radiant/texwindow.cpp:2064)
 - [x] CheckBox "", str, g_TexBro.m_hideNonShadersInCommon )  (radiant/texwindow.cpp:2068)
-- [ ] Spinner Undo Queue Size  (radiant/undo.cpp:400)
-- [ ] CheckBox Enable Build Process Monitoring  (radiant/watchbsp.cpp:221)
-- [ ] CheckBox Stop Compilation on Leak  (radiant/watchbsp.cpp:222)
-- [ ] CheckBox Run Engine After Compile  (radiant/watchbsp.cpp:223)
-- [ ] Entry Engine to Run  (radiant/watchbsp.cpp:227)
-- [ ] Entry Engine Arguments  (radiant/watchbsp.cpp:229)
-- [ ] Entry MP Engine to Run  (radiant/watchbsp.cpp:232)
-- [ ] Entry MP Engine Arguments  (radiant/watchbsp.cpp:234)
-- [ ] CheckBox Dump non Monitored Builds Log  (radiant/watchbsp.cpp:238)
-- [ ] Entry Region Box Shader  (radiant/watchbsp.cpp:240)
-- [ ] CheckBox Solid selection boxes ( no stipple )  (radiant/xywindow.cpp:2237)
-- [ ] CheckBox Chase mouse during drags  (radiant/xywindow.cpp:2239)
-- [ ] CheckBox Zoom to Mouse pointer  (radiant/xywindow.cpp:2240)
-- [ ] Combo MSAA  (radiant/xywindow.cpp:2245)
+- [x] Spinner Undo Queue Size  (radiant/undo.cpp:400) -- Stufe 2 Punkt 11
+- [x] CheckBox Enable Build Process Monitoring  (radiant/watchbsp.cpp:221) -- Stufe 2 Punkt 11
+- [x] CheckBox Stop Compilation on Leak  (radiant/watchbsp.cpp:222) -- Stufe 2 Punkt 11
+- [x] CheckBox Run Engine After Compile  (radiant/watchbsp.cpp:223) -- Stufe 2 Punkt 11
+- [x] Entry Engine to Run  (radiant/watchbsp.cpp:227) -- Stufe 2 Punkt 11
+- [x] Entry Engine Arguments  (radiant/watchbsp.cpp:229) -- Stufe 2 Punkt 11
+- [x] Entry MP Engine to Run  (radiant/watchbsp.cpp:232) -- Stufe 2 Punkt 11
+- [x] Entry MP Engine Arguments  (radiant/watchbsp.cpp:234) -- Stufe 2 Punkt 11
+- [x] CheckBox Dump non Monitored Builds Log  (radiant/watchbsp.cpp:238) -- Stufe 2 Punkt 11
+- [x] Entry Region Box Shader  (radiant/watchbsp.cpp:240) -- Stufe 2 Punkt 11
+- [x] CheckBox Solid selection boxes ( no stipple )  (radiant/xywindow.cpp:2237) -- Stufe 2 Punkt 11
+- [x] CheckBox Chase mouse during drags  (radiant/xywindow.cpp:2239) -- Stufe 2 Punkt 11
+- [x] CheckBox Zoom to Mouse pointer  (radiant/xywindow.cpp:2240) -- Stufe 2 Punkt 11
+- [x] Combo MSAA  (radiant/xywindow.cpp:2245) -- Stufe 2 Punkt 11
 
 ## Plugins
 
