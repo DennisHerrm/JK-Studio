@@ -35328,6 +35328,192 @@ std::vector<Schritt> kleineplugins() {
     return s;
 }
 
+// Punkt 3: MeshTex - die elf Voreinstellungen, die drei Dialoge (Groesse wie
+// die NRC-Fotos), Help, About, "No valid patch meshes selected."
+std::shared_ptr<karte::Patch> erstesPatch() {
+    for (const auto& p : ke::editor().karte.welt()->kinder()) {
+        if (p->art() == karte::Primitiv::Art::Patch) { return std::static_pointer_cast<karte::Patch>(p); }
+    }
+    return nullptr;
+}
+
+// Die S/T-Werte des ersten Patches verschieben (Bruchteile) und es waehlen
+void patchTexturVersetzt(float ds, float dt) {
+    ke::Editor& e = ke::editor();
+    auto p = erstesPatch();
+    std::vector<karte::PatchPunkt> pk = p->punkte();
+    for (auto& q : pk) {
+        q.texcoord[0] = q.texcoord[0] * 1.15F + ds;
+        q.texcoord[1] = q.texcoord[1] * 1.15F + dt;
+    }
+    {
+        karte::Befehl b(e.karte.undo, "Stufe 4 Test");
+        p->punkteSetzen(pk);
+    }
+    e.karte.auswahl.leeren();
+    e.karte.auswahl.waehlen(e.karte.welt(), p);
+    ke::auswahlGeaendert();
+}
+
+std::pair<float, float> texSpanne(int achse) {
+    auto p = erstesPatch();
+    float lo = 1e9F;
+    float hi = -1e9F;
+    for (const auto& q : p->punkte()) {
+        lo = std::min(lo, q.texcoord[static_cast<std::size_t>(achse)]);
+        hi = std::max(hi, q.texcoord[static_cast<std::size_t>(achse)]);
+    }
+    return {lo, hi};
+}
+
+bool ganz(float f) { return std::fabs(f - std::round(f)) < 1e-3F; }
+
+std::vector<Schritt> meshtex() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    const auto zu = [] {
+        ke::editor().meldung.offen = false;
+        ke::editor().meldung.danach = nullptr;
+    };
+    add(stufe2::grundzustand("Stufe 4/3: MeshTex"));
+    add(pruefe("MeshTex: alle 16 Befehle nachgebaut", [] {
+        int n = 0;
+        for (const auto& p : karte::befehle::pluginEintraege()) {
+            if (std::string(p.menue) == "MeshTex" && p.befehl[0] != 0) { n += ke::nachgebaut(p.befehl) ? 1 : 0; }
+        }
+        diag::detail("Knopftest: Stufe 4/3 MeshTex " + std::to_string(n));
+        return n == 16;
+    }));
+    add(tu("Help", [] { (void)ke::ausfuehren("meshTex::Help"); }));
+    add(pruefe("Help: Kasten \"Help\"", [] { return ke::editor().meldung.offen && ke::editor().meldung.titel == "Help"; }));
+    add(tu("About", [zu] {
+        zu();
+        (void)ke::ausfuehren("meshTex::About");
+    }));
+    add(pruefe("About: MeshTex 3.0 beta, Joel Baxter", [] {
+        return ke::editor().meldung.offen && ke::editor().meldung.titel == "About" && ke::editor().meldung.text.find("MeshTex 3.0 beta") != std::string::npos;
+    }));
+    add(tu("Kasten zu; Karte mit einem 5x5-Patch, nichts gewaehlt; S Min Align", [zu] {
+        zu();
+        bobKarte(weltText(patchText(0, 0, 32, 5)));
+        (void)ke::ausfuehren("meshTex::SMinAlign");
+    }));
+    add(pruefe("Nichts gewaehlt: Kasten \"Warning\" / No valid patch meshes selected.", [] {
+        return ke::editor().meldung.offen && ke::editor().meldung.titel == "Warning" && ke::editor().meldung.text == "No valid patch meshes selected.";
+    }));
+    // die Voreinstellungen ueber das Menue bzw. die Befehle
+    struct Fall {
+        const char* befehl;
+        int achse;          // 0 S, 1 T
+        bool minGanz, maxGanz;
+    };
+    const Fall faelle[11] = {{"STMinMaxAlignAuto", 0, true, true},   {"SMinMaxAlignAuto", 0, true, true},  {"TMinMaxAlignAuto", 1, true, true},
+                             {"SMinMaxAlignStretch", 0, true, true}, {"SMinMaxAlignShrink", 0, true, true}, {"TMinMaxAlignStretch", 1, true, true},
+                             {"TMinMaxAlignShrink", 1, true, true},  {"SMinAlign", 0, true, false},        {"SMaxAlign", 0, false, true},
+                             {"TMinAlign", 1, true, false},          {"TMaxAlign", 1, false, true}};
+    for (const Fall& f : faelle) {
+        const Fall fall = f;
+        add(tu(std::string("S/T versetzt (0,3 / 0,4, mal 1,15), gewaehlt; ") + f.befehl, [zu, fall] {
+            zu();
+            patchTexturVersetzt(0.3F, 0.4F);
+            (void)ke::ausfuehren(std::string("meshTex::") + fall.befehl);
+        }));
+        add(pruefe(std::string(f.befehl) + ": " + (f.achse == 0 ? "S" : "T") + (f.minGanz ? " min ganz" : "") + (f.maxGanz ? " max ganz" : "") +
+                       ", Undo " + f.befehl,
+                   [fall] {
+                       const auto [lo, hi] = texSpanne(fall.achse);
+                       diag::detail(std::string("Knopftest: Stufe 4/3 ") + fall.befehl + " " + std::to_string(lo) + " .. " + std::to_string(hi));
+                       return (!fall.minGanz || ganz(lo)) && (!fall.maxGanz || ganz(hi)) && ke::editor().karte.undo.undoName() == fall.befehl &&
+                              !ke::editor().meldung.offen;
+                   }));
+    }
+    // Get Info
+    add(klick(ke::trK(Str::KeLPlugins), "###main"));
+    add(pause(0.25));
+    add(klick("MeshTex", "##Menu_", 0, true));
+    add(pause(0.25));
+    add(klick("Get Info...", "##Menu_", 0, false));
+    add(pause(0.4));
+    add(pruefe("Get Info: das Fenster 357 x 126 wie das NRC-Foto", [] {
+        const auto* d = stufe3::bauFeld("Plugin:MtGetInfo");
+        if (d != nullptr) { diag::detail("Knopftest: Stufe 4/3 Get Info " + std::to_string(d->b) + " x " + std::to_string(d->h)); }
+        return ke::editor().meshtex.getInfoOffen && d != nullptr && d->b == 357 && d->h == 126;
+    }));
+    add(fotoRahmen("karteneditor_dlg_Plugins_MeshTex_Get_Info_0", [] { return fensterRahmen("###mtgetinfo"); }));
+    add(tu("Transfer an, Set S/T Scale auf", [] {
+        ke::editor().meshtex.uebertragen = true;
+        (void)ke::ausfuehren("meshTex::SetScale");
+    }));
+    add(pause(0.3));
+    add(tu("Get Info wieder nach vorn (die Fenster liegen beide mittig)", [] { ImGui::SetWindowFocus("###mtgetinfo"); }));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeMtApply)) + "##mtinfook2", "###mtgetinfo", 0, true));
+    add(pause(0.3));
+    add(pruefe("Get Info Apply: Kasten \"Mesh Info\" mit Zeile 0, Spalte 0, dem Netz; Set S/T Scale bekommt die Werte; das Fenster bleibt (Apply)", [] {
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Stufe 4/3 Set S/T " + std::to_string(e.meshtex.sSkala) + " / " + std::to_string(e.meshtex.sKacheln));
+        return e.meldung.offen && e.meldung.titel == "Mesh Info" && e.meldung.text.find("On row 0:") != std::string::npos &&
+               e.meldung.text.find("Over entire mesh:\n  Rows: 5") != std::string::npos && e.meshtex.getInfoOffen && e.meshtex.sKacheln != 1.0;
+    }));
+    add(tu("Kasten zu; Get Info nach vorn (Apply hat Set S/T Scale gehoben: Raise)", [zu] {
+        zu();
+        ImGui::SetWindowFocus("###mtgetinfo");
+    }));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeCancel)) + "##mtinfook1", "###mtgetinfo", 0, true));
+    add(pause(0.2));
+    add(pruefe("Get Info Cancel: versteckt", [] { return !ke::editor().meshtex.getInfoOffen; }));
+    // Set S/T Scale
+    add(pruefe("Set S/T Scale: das Fenster 418 x 344 wie das NRC-Foto", [] {
+        const auto* d = stufe3::bauFeld("Plugin:MtSetScale");
+        return ke::editor().meshtex.setScaleOffen && d != nullptr && d->b == 418 && d->h == 344;
+    }));
+    add(tu("Natural 1 fuer S und T", [] {
+        auto& z = ke::editor().meshtex;
+        z.sArt = z.tArt = 0;
+        z.sSkala = z.tSkala = 1;
+    }));
+    add(fotoRahmen("karteneditor_dlg_Plugins_MeshTex_Set_S_T_Scale_0", [] { return fensterRahmen("###mtsetscale"); }));
+    add(klick(std::string(ke::trK(Str::KePrefOk)) + "##mtscaleok0", "###mtsetscale", 0, true));
+    add(pause(0.3));
+    add(pruefe("Set S/T Scale OK: S von 0 an in Schritten von 32 / (Textur / 2), Undo SetScale, Fenster zu", [] {
+        const ke::Editor& e = ke::editor();
+        const auto p = erstesPatch();
+        const auto g = e.karte.kontext.groesse(p->shader());
+        const float soll = 32.0F / (static_cast<float>(g.first) / 2.0F);   // natuerlich 1: Abstand / (Breite / 2)
+        diag::detail("Knopftest: Stufe 4/3 SetScale s(0,1) " + std::to_string(p->punkt(0, 1).texcoord[0]) + " soll " + std::to_string(soll));
+        return !e.meshtex.setScaleOffen && std::fabs(p->punkt(0, 0).texcoord[0]) < 1e-3F && std::fabs(p->punkt(0, 1).texcoord[0] - soll) < 1e-3F &&
+               e.karte.undo.undoName() == "SetScale";
+    }));
+    // General Function
+    add(tu("General Function auf", [] { (void)ke::ausfuehren("meshTex::GeneralFunction"); }));
+    add(pause(0.3));
+    add(pruefe("General Function: das Fenster 912 x 298 wie das NRC-Foto", [] {
+        const auto* d = stufe3::bauFeld("Plugin:MtGenFunc");
+        return ke::editor().meshtex.genFuncOffen && d != nullptr && d->b == 912 && d->h == 298;
+    }));
+    add(fotoRahmen("karteneditor_dlg_Plugins_MeshTex_General_Function_0", [] { return fensterRahmen("###mtgenfunc"); }));
+    auto vorher = std::make_shared<float>(0.0F);
+    add(tu("Control values, S = old_S + 0,5, T aus", [vorher] {
+        auto& z = ke::editor().meshtex;
+        z.flaechenWerte = false;
+        z.sFaktoren = {1, 0, 0, 0, 0, 0.5};
+        z.gfT = false;
+        *vorher = erstesPatch()->punkt(2, 3).texcoord[0];
+    }));
+    add(klick(std::string(ke::trK(Str::KeMtApply)) + "##mtgfok2", "###mtgenfunc", 0, true));
+    add(pause(0.3));
+    add(pruefe("General Function Apply: S + 0,5, Undo GeneralFunction, das Fenster bleibt", [vorher] {
+        const ke::Editor& e = ke::editor();
+        return std::fabs(erstesPatch()->punkt(2, 3).texcoord[0] - (*vorher + 0.5F)) < 1e-3F && e.karte.undo.undoName() == "GeneralFunction" &&
+               e.meshtex.genFuncOffen;
+    }));
+    add(klick(std::string(ke::trK(Str::KeCancel)) + "##mtgfok1", "###mtgenfunc", 0, true));
+    add(pause(0.2));
+    add(pruefe("General Function Cancel: versteckt", [] { return !ke::editor().meshtex.genFuncOffen; }));
+    return s;
+}
+
 }  // namespace stufe4
 
 std::vector<Schritt> karteneditorStufe4Schritte() {
@@ -35349,6 +35535,9 @@ std::vector<Schritt> karteneditorStufe4Schritte() {
     }
     if (teil("plugins") || teil("klein")) {
         for (Schritt& x : stufe4::kleineplugins()) { s.push_back(std::move(x)); }
+    }
+    if (teil("plugins") || teil("meshtex")) {
+        for (Schritt& x : stufe4::meshtex()) { s.push_back(std::move(x)); }
     }
     return s;
 }

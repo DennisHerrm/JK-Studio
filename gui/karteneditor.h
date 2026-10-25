@@ -25,6 +25,7 @@
 #include "bhed/karte/bobtoolz.h"
 #include "bhed/karte/brushexport.h"
 #include "bhed/karte/kleineplugins.h"
+#include "bhed/karte/meshtex.h"
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/baumonitor.h"
 #include "bhed/karte/portale.h"
@@ -170,6 +171,38 @@ struct SunplugZustand {
     bool oeffnen = false;
     std::array<int, 4> werte{0, 0, 0, 0};    // mapcoordsmins x y, mapcoordsmaxs x y
     karte::plugins::Kartenkoordinaten optimal;   // GetOptimalCoordinates
+};
+
+// Stufe 4 Punkt 3: MeshTex (contrib/meshtex) - drei nicht modale Dialoge, die
+// ihre Werte behalten (GenericDialog: show/hide), Vorgaben wie bei NRC.
+struct MeshTexSchnitt {               // "Zero" col/row: Radioknopf mit SpinBox( 0, 30 ) oder "Max"
+    bool max = false;
+    int nummer = 0;
+};
+struct MeshTexReferenz {              // "Use reference row/col" (ankreuzbare QGroupBox)
+    bool an = true;
+    MeshTexSchnitt schnitt;
+    bool nurGesamt = true;            // "Total length only"
+};
+struct MeshTexZustand {
+    bool setScaleOffen = false, getInfoOffen = false, genFuncOffen = false;
+    bool setScaleOeffnen = false, getInfoOeffnen = false, genFuncOeffnen = false;
+    // Set S/T Scale (SetScaleDialog.cpp)
+    bool sSetzen = true, tSetzen = true;
+    int sArt = 0, tArt = 0;           // 0 "Natural *", 1 "# Tiles"
+    double sSkala = 1, sKacheln = 1, tSkala = 1, tKacheln = 1;
+    MeshTexSchnitt nullSpalte, nullZeile;   // col_num_align, row_num_align
+    MeshTexReferenz refZeile, refSpalte;
+    // Get Info (GetInfoDialog.cpp)
+    bool infoZeileAn = true, infoSpalteAn = true, uebertragen = false;
+    int infoZeile = 0, infoSpalte = 0;
+    // General Function (GeneralFunctionDialog.cpp)
+    bool flaechenWerte = true;
+    bool gfS = true, gfT = true;
+    std::array<double, 6> sFaktoren{1, 0, 0, 0, 0, 0}, tFaktoren{1, 0, 0, 0, 0, 0};
+    MeshTexSchnitt gfNullSpalte, gfNullZeile;
+    MeshTexReferenz gfRefZeile, gfRefSpalte;
+    std::string letzterBefehl;        // Selbsttest
 };
 
 struct Spielkontext {
@@ -465,6 +498,7 @@ struct Editor {
     BobToolzZustand bob;
     BrushExportZustand brushExport;
     SunplugZustand sunplug;
+    MeshTexZustand meshtex;
     karte::plugins::UfoaiZustand ufoai;
     karte::ZuletztListe zuletzt;
     bool zuletztGeladen = false;
@@ -1339,6 +1373,9 @@ void brushExportZeigen();              // brushexport2: CreateWindow (app_karte_
 // ShaderPlug, SunPlug, UFO:AI (app_karte_kleineplugins.cpp)
 [[nodiscard]] std::vector<PluginUmsetzung> kleinePluginUmsetzungen();
 void kleinePluginDialogeZeichnen();
+// MeshTex (app_karte_meshtex.cpp)
+[[nodiscard]] std::vector<PluginUmsetzung> meshTexUmsetzungen();
+void meshTexDialogeZeichnen();
 // Tags des Texturbrowsers: die Datei (LocalRcPath + SHADERTAG_FILE) und neu laden
 [[nodiscard]] std::string tagDatei();
 void tagsNeuLaden();

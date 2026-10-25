@@ -307,6 +307,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_plugins.cpp
     gui/app_karte_brushexport.cpp
     gui/app_karte_kleineplugins.cpp
+    gui/app_karte_meshtex.cpp
     gui/karte_qtdialog.cpp
     gui/app_karte_menue.cpp
     gui/app_karte_dialoge.cpp
@@ -772,7 +773,9 @@ target_sources(bhed_core PRIVATE
   # Stufe 4 Punkt 3: brushexport2 (contrib/brushexport/export.cpp)
   src/karte/brushexport.cpp
   # Stufe 4 Punkt 3: ShaderPlug, SunPlug, UFO:AI
-  src/karte/kleineplugins.cpp)
+  src/karte/kleineplugins.cpp
+  # Stufe 4 Punkt 3: MeshTex (contrib/meshtex/MeshEntity.cpp)
+  src/karte/meshtex.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -959,6 +962,10 @@ if(BEHAVED_TESTS)
   add_executable(kartekleineplugins tests/kartekleineplugins.cpp)
   target_link_libraries(kartekleineplugins PRIVATE bhed_core)
   add_test(NAME karte_kleineplugins COMMAND kartekleineplugins)
+  # Stufe 4 Punkt 3: MeshTex
+  add_executable(kartemeshtex tests/kartemeshtex.cpp)
+  target_link_libraries(kartemeshtex PRIVATE bhed_core)
+  add_test(NAME karte_meshtex COMMAND kartemeshtex)
   add_executable(kartebefehle tests/kartebefehle.cpp)
   target_link_libraries(kartebefehle PRIVATE bhed_core)
   add_test(NAME karte_befehle COMMAND kartebefehle ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.md)

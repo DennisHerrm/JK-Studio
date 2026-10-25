@@ -698,22 +698,22 @@ Name | Art | Standardtaste | Quelle
 - [x] `MapInfo` | Commands | M | (radiant/map.cpp:2445) -- Stufe 2 Punkt 8
 - [x] `MatrixTranspose` | Commands | Ctrl+Shift+M | (radiant/patchmanip.cpp:726) -- Stufe 2 Punkt 6
 - [x] `MaximizeView` | Commands | F12 | (radiant/mainframe.cpp:2097)
-- [~] `meshTex::About` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] `meshTex::GeneralFunction` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] `meshTex::GetInfo` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] `meshTex::Help` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] `meshTex::SetScale` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] `meshTex::SMaxAlign` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] `meshTex::SMinAlign` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] `meshTex::SMinMaxAlignAuto` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] `meshTex::SMinMaxAlignShrink` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] `meshTex::SMinMaxAlignStretch` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] `meshTex::STMinMaxAlignAuto` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] `meshTex::TMaxAlign` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] `meshTex::TMinAlign` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] `meshTex::TMinMaxAlignAuto` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] `meshTex::TMinMaxAlignShrink` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] `meshTex::TMinMaxAlignStretch` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [x] `meshTex::About` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] `meshTex::GeneralFunction` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] `meshTex::GetInfo` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] `meshTex::Help` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] `meshTex::SetScale` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] `meshTex::SMaxAlign` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] `meshTex::SMinAlign` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] `meshTex::SMinMaxAlignAuto` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] `meshTex::SMinMaxAlignShrink` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] `meshTex::SMinMaxAlignStretch` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] `meshTex::STMinMaxAlignAuto` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] `meshTex::TMaxAlign` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] `meshTex::TMinAlign` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] `meshTex::TMinMaxAlignAuto` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] `meshTex::TMinMaxAlignShrink` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] `meshTex::TMinMaxAlignStretch` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
 - [x] `MirrorSelectionHorizontally` | Commands | - | (radiant/select.cpp:1851) -- Stufe 2 Punkt 5
 - [x] `MirrorSelectionVertically` | Commands | - | (radiant/select.cpp:1852) -- Stufe 2 Punkt 5
 - [x] `MirrorSelectionX` | Commands | - | (radiant/select.cpp:1844) -- Stufe 2 Punkt 5
@@ -1045,27 +1045,27 @@ Name | Art | Standardtaste | Quelle
 
 ### MeshTex (contrib/meshtex/MainMenu.cpp:76)
 
-- [~] MeshTex: Set S/T Scale... -> `meshTex::SetScale`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] MeshTex: Get Info... -> `meshTex::GetInfo`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [x] MeshTex: Set S/T Scale... -> `meshTex::SetScale`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] MeshTex: Get Info... -> `meshTex::GetInfo`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
 * ---
-- [~] MeshTex: General Function... -> `meshTex::GeneralFunction`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [x] MeshTex: General Function... -> `meshTex::GeneralFunction`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
 * ---
-- [~] MeshTex: S&T Align Auto -> `meshTex::STMinMaxAlignAuto`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] MeshTex: S Align Auto -> `meshTex::SMinMaxAlignAuto`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] MeshTex: T Align Auto -> `meshTex::TMinMaxAlignAuto`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [x] MeshTex: S&T Align Auto -> `meshTex::STMinMaxAlignAuto`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] MeshTex: S Align Auto -> `meshTex::SMinMaxAlignAuto`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] MeshTex: T Align Auto -> `meshTex::TMinMaxAlignAuto`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
 * ---
-- [~] MeshTex: S Align Stretch -> `meshTex::SMinMaxAlignStretch`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] MeshTex: S Align Shrink -> `meshTex::SMinMaxAlignShrink`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] MeshTex: T Align Stretch -> `meshTex::TMinMaxAlignStretch`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] MeshTex: T Align Shrink -> `meshTex::TMinMaxAlignShrink`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [x] MeshTex: S Align Stretch -> `meshTex::SMinMaxAlignStretch`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] MeshTex: S Align Shrink -> `meshTex::SMinMaxAlignShrink`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] MeshTex: T Align Stretch -> `meshTex::TMinMaxAlignStretch`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] MeshTex: T Align Shrink -> `meshTex::TMinMaxAlignShrink`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
 * ---
-- [~] MeshTex: S Min Align -> `meshTex::SMinAlign`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] MeshTex: S Max Align -> `meshTex::SMaxAlign`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] MeshTex: T Min Align -> `meshTex::TMinAlign`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] MeshTex: T Max Align -> `meshTex::TMaxAlign`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [x] MeshTex: S Min Align -> `meshTex::SMinAlign`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] MeshTex: S Max Align -> `meshTex::SMaxAlign`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] MeshTex: T Min Align -> `meshTex::TMinAlign`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] MeshTex: T Max Align -> `meshTex::TMaxAlign`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
 * ---
-- [~] MeshTex: Help... -> `meshTex::Help`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
-- [~] MeshTex: About... -> `meshTex::About`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [x] MeshTex: Help... -> `meshTex::Help`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
+- [x] MeshTex: About... -> `meshTex::About`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4 Punkt 3
 
 ### ShaderPlug (contrib/shaderplug/shaderplug.cpp:71)
 

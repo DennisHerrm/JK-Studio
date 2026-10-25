@@ -326,3 +326,32 @@ Menue) auf `[x]`.
 | ctest `karte_kleineplugins` (neu, 21 Pruefungen) | 3 Mutationen (Shader ohne Praefix, Mindestmass 175, Level-Flag der Entitaeten) je 1-2 FEHL | 0 |
 | Selbsttest `BHED_STUFE4_NUR=klein` | s4p3kl1 36 / 7 (Erwartungen: 16 UFO:AI-Befehle, level_active als Bitmaske) | s4p3kl2 43 / 0 |
 | ctest gesamt | - | 110 / 110 |
+
+## Punkt 3d: MeshTex
+
+Portiert: `include/bhed/karte/meshtex.h`, `src/karte/meshtex.cpp`
+(MeshEntity.cpp Zeile fuer Zeile: Min/Max Align, Stretch / Shrink / Auto,
+SetScale mit der Laengenmessung auf der Patch-Flaeche - Gauss-Legendre mit
+10 Punkten, rekursiv bis Fehler 0,5 -, GeneralFunction, GetInfo mit den
+Texten aus MeshEntityMessages.h; auch NRCs Eigenheit, dass GeneralFunction
+alignRow fuer beide Ausrichtungen nimmt, MeshEntity.cpp:550-551),
+`gui/app_karte_meshtex.cpp` (MainMenu, MeshVisitor, GenericDialog: drei
+nicht modale Dialoge mit OK / Cancel / Apply). Checkliste: 32 Eintraege
+`meshTex::*` auf `[x]`.
+
+Masse: Get Info 357 x 126 nach den Qt-Regeln; Set S/T Scale 418 x 344 und
+General Function 912 x 298 mit den Lagen der Gruppen, Felder und Knoepfe am
+Foto gemessen (verschachtelte QGroupBox, QGridLayout mit setColumnStretch).
+Wie bei NRC steht auch in der T-Zeile von General Function " * old_S  + ".
+Abweichung: mehrere Kaesten eines Befehls (je Netz) zeigt das Programm als
+einen Kasten mit allen Texten. Die Kopfzeile "Copyright 2012 Joel Baxter"
+steht als "Copyright (C) 2012 Joel Baxter" (ctest karte_lizenz sucht "(C)").
+
+| Test | Rot | Gruen |
+|---|---|---|
+| ctest `karte_meshtex` (neu, 24 Pruefungen) | 4 Mutationen (Spalten-Vorzeichen, Gauss-Gewicht, Kontrollpunkte aus Flaechenwerten, Auto-Wahl) je 1-8 FEHL | 0 |
+| Selbsttest `BHED_STUFE4_NUR=meshtex` (11 Voreinstellungen mit Undo-Namen, Get Info mit Uebertragen, Set S/T Scale, General Function, Fotos) | s4p3mt1 32 / 5 (Zahl der Befehle 16, verdeckte Fenster) | s4p3mt3 35 / 0 |
+| ctest gesamt | - | 111 / 111 |
+
+Damit sind alle Plugins von NRC fuer JA/JK2 nachgebaut: bobToolz, brushexport2,
+MeshTex, prtview (Stufe 3), ShaderPlug, SunPlug, UFO:AI.
