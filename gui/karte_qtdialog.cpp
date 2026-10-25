@@ -49,9 +49,20 @@ ImVec2 bp(float x, float y) { return ImVec2{std::round(g_innen.x + x * g_sk), st
 float px(float l) { return std::round(l * g_sk); }
 float sk() { return g_sk; }
 
+// QFontMetrics in der Dialogschrift (Tahoma 11). Stufe 4 Punkt 6 wie
+// labelBreite (Punkt 0c): Schriftzeichen, die Tahoma nicht hat (Chinesisch,
+// Japanisch), misst DirectWrite mit seiner Ersatzschrift, gezeichnet wird mit
+// der Schrift der Sprache - breiter. Dann gilt das Groessere, sonst ragt der
+// Text in das naechste Feld ("1 つのメッシュにまとめる" unter die Knoepfe von
+// brushexport2).
 float textBreite(const char* text) {
     const int b = platform::qtTextBreite(text, L"Tahoma", 11.0F, false);
-    return b >= 0 ? static_cast<float>(b) : std::round(ImGui::CalcTextSize(text).x / std::max(g_sk, 0.01F));
+    const float gezeichnet = std::ceil(ImGui::CalcTextSize(text).x / std::max(g_sk, 0.01F) - 0.01F);
+    if (b < 0) { return gezeichnet; }
+    for (const unsigned char* p = reinterpret_cast<const unsigned char*>(text); *p != 0; ++p) {
+        if (*p >= 0xE0) { return std::max(static_cast<float>(b), gezeichnet); }   // UTF-8 ab U+0800
+    }
+    return static_cast<float>(b);
 }
 
 // QCommonStyle CT_CheckBox wie CT_RadioButton: Kaestchen 14 + 4 (Raender) + 6 + Text + 1
@@ -126,14 +137,24 @@ void beenden(bool schliessen) {
 
 bool geschlossen() { return g_geschlossen; }
 
-void text(const std::string& t, float x, float y, float h, bool aktiv) {
-    ImGui::GetWindowDrawList()->AddText(ImVec2{bp(x, 0.0F).x, std::floor(bp(0.0F, y).y + (px(h) - ImGui::GetTextLineHeight()) * 0.5F)},
-                                        ImGui::GetColorU32(aktiv ? ImGuiCol_Text : ImGuiCol_TextDisabled), t.c_str());
-}
-
 void merke(const std::string& name, float x, float y, float b, float h) {
     merkeFeld("Plugin:" + name, static_cast<int>(std::lround(x)), static_cast<int>(std::lround(y)), static_cast<int>(std::lround(b)),
               static_cast<int>(std::lround(h)));
+}
+
+// Fuer den Selbsttest: der Platz, den das Layout einem Text gibt (Qt-Hinweis),
+// und wie breit er gezeichnet wurde (rechter Rand in Bildpunkten) - das
+// Gezeichnete muss in den Platz passen.
+void merkeText(const std::string& id, float x, float y, float platz, float rechtsBild, float h) {
+    merke(id + "~platz", x, y, platz, h);
+    merke(id + "~text", x, y, std::ceil((rechtsBild - bp(x, 0.0F).x) / g_sk - 0.01F), h);
+}
+
+void text(const std::string& t, float x, float y, float h, bool aktiv) {
+    const ImVec2 a{bp(x, 0.0F).x, std::floor(bp(0.0F, y).y + (px(h) - ImGui::GetTextLineHeight()) * 0.5F)};
+    ImGui::GetWindowDrawList()->AddText(a, ImGui::GetColorU32(aktiv ? ImGuiCol_Text : ImGuiCol_TextDisabled), t.c_str());
+    // Die Layouts rechnen mit textBreite und dem Abstand 6 bis zum naechsten Feld.
+    merkeText("T:" + t, x, y, textBreite(t) + 6.0F, a.x + ImGui::CalcTextSize(t.c_str()).x, h);
 }
 
 bool haken(const std::string& text, const std::string& id, bool& wert, float x, float y, float h, bool aktiv) {
@@ -142,6 +163,7 @@ bool haken(const std::string& text, const std::string& id, bool& wert, float x, 
     const bool r = qtHaken((text + "##" + id).c_str(), &wert, h);
     ImGui::EndDisabled();
     merke(id, x, y, hakenHinweis(text), h);
+    merkeText(id, x, y, hakenHinweis(text), ImGui::GetItemRectMax().x, h);
     return r;
 }
 
@@ -156,6 +178,7 @@ bool radio(const std::string& text, const std::string& id, int& wert, int eigene
     ImGui::EndDisabled();
     ImGui::PopStyleVar(2);
     merke(id, x, y, radioHinweis(text), h);
+    merkeText(id, x, y, radioHinweis(text), ImGui::GetItemRectMax().x, h);
     return r2;
 }
 
@@ -184,6 +207,8 @@ bool zahlFeld(const std::string& beschriftung, const std::string& id, double& we
     ImGui::BeginDisabled(!aktiv);
     if (beschriftungX >= 0.0F) {
         text(beschriftung, beschriftungX, y, 22.0F, aktiv);
+        merkeText(id + "~etikett", beschriftungX, y, x - beschriftungX, bp(beschriftungX, 0.0F).x + ImGui::CalcTextSize(beschriftung.c_str()).x,
+                  22.0F);
         ImGui::SetCursorScreenPos(bp(beschriftungX, y));
         ImGui::InvisibleButton(("##" + id + "zug").c_str(), ImVec2{std::max(1.0F, px(textBreite(beschriftung))), feldH});
         if (tip != nullptr && ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tip); }

@@ -64,7 +64,9 @@ schreibt er den Ausschnitt (`<name>.rect`). Umgebung:
 Die Bilder des Karten-Editors (`h_karteneditor*`, `h_kartebauen*`) nimmt
 `BHED_HB_NUR=karteneditor` auf, nur die der Seite „Karte bauen“
 `BHED_HB_NUR=kartebauen` (baut die Testkarten mit `bhed_q3map2.exe`, das der
-Lauf wie der Selbsttest der Stufe 3 aus der Arbeitskopie holt). Chinesisch:
+Lauf wie der Selbsttest der Stufe 3 aus der Arbeitskopie holt), die der
+Seiten „Fertige Karten öffnen und ändern“ und „Plugins“ (`h_karte4_*`)
+`BHED_HB_NUR=karte4` (öffnet mp/duel1 aus den .pk3 des Spiels). Chinesisch:
 `BHED_SPRACHE=zh-Hans`, aber `bilder.py … zh`.
 
 Je Sprache ein Lauf, dann

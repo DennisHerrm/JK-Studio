@@ -370,3 +370,46 @@ MeshTex, prtview (Stufe 3), ShaderPlug, SunPlug, UFO:AI.
   keinen install-Ordner, NRC zeigt dort nichts (Stufe 2 Punkt 11).
 
 Checkliste jetzt: 935 `[x]`, 1 `[~]`, 0 `[ ]`.
+
+## Punkt 6: Handbuch
+
+- Neue Seiten `tools/handbuch/inhalt_karte4.py` (Gruppe "karte", nach "Karte
+  bauen"): **Fertige Karten oeffnen und aendern** (`karte_oeffnen`: Open .bsp,
+  was zurueckkommt und was nicht, Import einer .bsp, Originallicht mit "Update
+  entities only", Kasten bei geaenderter Geometrie, -keeplights, Unterschied
+  zu NRCs "Entity-Only compile", Testen im Spiel) und **Plugins**
+  (`karte_plugins`: Menue, bobToolz-Tabelle aller Eintraege, Path Plotter in
+  Schritten, brushexport2, MeshTex, ShaderPlug/SunPlug/UFO:AI/prtview).
+- Veraltete Saetze ersetzt: "Plugins ausser prtview kommen in einer spaeteren
+  Stufe" (inhalt_karteneditor.py, inhalt_karteneditor2.py, 4 Sprachen) ->
+  Verweis auf [[karte_plugins]]; der Absatz zu File nennt Open .bsp.
+- gen_handbuch.py laedt jetzt auch KARTE4 / KARTE4B ({{Kennung}} der Stufe 4).
+- 7 Bilder je Sprache aus dem Selbsttest (`BHED_EDITORTEST=handbuch`,
+  `BHED_HB_NUR=karte4`, LIESMICH ergaenzt): h_karte4_bspdialog, _geladen
+  (mp/duel1 aus der .pk3, Kamera im Saal), _nurentities, _plugins,
+  _pathplotter, _meshtex, _brushexport. `gen_handbuch.py --pruefen`:
+  handbuch_sprachen ok (138 Seiten x 4 Sprachen).
+
+### Fund beim Ansehen der Bilder: japanische Beschriftungen zu lang
+
+Im japanischen Bild von brushexport2 ragten "1 つのメッシュにまとめる" und
+"マテリアルごとにまとめる" unter die Knopfspalte. Ursache wie in Punkt 0c:
+`qtd::textBreite` (die Masse aller Plugin-Dialoge) mass mit Tahoma
+(DirectWrite misst CJK mit seiner Ersatzschrift), gezeichnet wird mit der
+CJK-Schrift des Programms. Jetzt dieselbe Regel wie `labelBreite`: bei Text
+mit Zeichen ab U+0800 das Groessere von beidem (Latein unveraendert, die
+gegen die NRC-Fotos gemessenen Lagen bleiben).
+
+Neue Pruefung `BHED_STUFE4_NUR=texte` (`stufe4::pluginTexte`): jeder
+Radioknopf, jedes Kaestchen, jede Beschriftung vor einem Zahlenfeld und jeder
+`qtd::text` meldet Platz (Qt-Hinweis bzw. textBreite + Abstand 6) und
+gezeichnete Breite; 13 Dialoge (bobToolz 1-8, brushexport2, SunPlug, MeshTex
+3) in 4 Sprachen.
+
+| Lauf | Ergebnis |
+|---|---|
+| s4p6rot (vorher) | 54 OK / 10 FEHLER, alle Japanisch: z. B. brushexport2 bemodus0 gezeichnet 138, Platz 126; Intersect, Stair/Door Builder, Reset Textures, MeshTex Get Info; SunPlug ohne gemeldete Texte |
+| s4p6rot2 (Mutation: alte textBreite, mit qtd::text-Meldung) | 54 OK / 10 FEHLER (dazu Aperture Door, Make Chain, Set S/T Scale, General Function) |
+| s4p6gruen2 | 64 OK / 0 FEHLER |
+
+Die chinesischen und japanischen Bilder danach neu aufgenommen.

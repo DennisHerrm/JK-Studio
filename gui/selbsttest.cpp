@@ -69,6 +69,7 @@
 #include <filesystem>
 #include <functional>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <fstream>
 #include <sstream>
@@ -35580,6 +35581,126 @@ std::vector<Schritt> beenden() {
     return s;
 }
 
+// Punkt 6 (Fund bei den Handbuchbildern): auf Japanisch ragten im Fenster von
+// brushexport2 "1 つのメッシュにまとめる" und "マテリアルごとにまとめる" unter die
+// Knopfspalte. Jeder Radioknopf, jedes Kaestchen, jede Beschriftung vor einem
+// Zahlenfeld und jeder Text (qtd::text: textBreite + Abstand 6) meldet seinen
+// Platz und die gezeichnete Breite ("Plugin:<id>~platz" / "~text"); in allen
+// Plugin-Dialogen und allen vier Sprachen muss das Gezeichnete hineinpassen.
+bool pluginTexteGanz(std::string& bericht) {
+    std::map<std::string, const ke::Editor::Rechteck*> platz;
+    const std::string vor = "Plugin:";
+    for (const auto& r : ke::editor().felderImBild) {
+        if (r.name.size() > 6 + vor.size() && r.name.compare(0, vor.size(), vor) == 0 && r.name.compare(r.name.size() - 6, 6, "~platz") == 0) {
+            platz[r.name.substr(0, r.name.size() - 6)] = &r;
+        }
+    }
+    int n = 0;
+    int raus = 0;
+    std::string erste;
+    for (const auto& r : ke::editor().felderImBild) {
+        if (r.name.size() <= 5 || r.name.compare(r.name.size() - 5, 5, "~text") != 0) { continue; }
+        const auto p = platz.find(r.name.substr(0, r.name.size() - 5));
+        if (p == platz.end()) { continue; }
+        ++n;
+        if (r.x + r.b > p->second->x + p->second->b) {
+            ++raus;
+            if (erste.empty()) {
+                erste = r.name.substr(vor.size(), r.name.size() - vor.size() - 5) + ": gezeichnet " + std::to_string(r.b) + ", Platz " + std::to_string(p->second->b);
+            }
+        }
+    }
+    bericht = std::to_string(n) + " Texte, " + std::to_string(raus) + " zu breit" + (erste.empty() ? "" : " - " + erste);
+    return n > 0 && raus == 0;
+}
+
+std::vector<Schritt> pluginTexte() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    add(stufe2::grundzustand("Stufe 4/6: Grundzustand"));
+    auto sprache = std::make_shared<i18n::Language>(i18n::Language::English);
+    auto nrcVorher = std::make_shared<bool>(false);
+    add(tu("Sprache merken", [sprache, nrcVorher] {
+        *sprache = i18n::currentLanguage();
+        *nrcVorher = ke::nrcBegriffe();
+    }));
+    struct Dialog {
+        const char* name;
+        std::function<void(bool)> schalten;
+    };
+    const auto bob = [](int n) {
+        return [n](bool an) {
+            ke::editor().bob.dialog = an ? n : 0;
+            ke::editor().bob.oeffnen = an;
+            if (an) { ke::editor().bob.reiterInnen = 0; }
+        };
+    };
+    const std::vector<Dialog> dialoge = {
+        {"bobToolz Intersect", bob(1)},
+        {"bobToolz Polygon Builder", bob(2)},
+        {"bobToolz Stair Builder", bob(3)},
+        {"bobToolz Door Builder", bob(4)},
+        {"bobToolz Aperture Door", bob(5)},
+        {"bobToolz Path Plotter", bob(6)},
+        {"bobToolz Reset Textures", bob(7)},
+        {"bobToolz Make Chain", bob(8)},
+        {"brushexport2", [](bool an) {
+             ke::editor().brushExport.offen = an;
+             ke::editor().brushExport.oeffnen = an;
+         }},
+        {"SunPlug ET-MapCoordinator", [](bool an) {
+             ke::editor().sunplug.offen = an;
+             ke::editor().sunplug.oeffnen = an;
+         }},
+        {"MeshTex Get Info", [](bool an) {
+             ke::editor().meshtex.getInfoOffen = an;
+             ke::editor().meshtex.getInfoOeffnen = an;
+         }},
+        {"MeshTex Set S/T Scale", [](bool an) {
+             ke::editor().meshtex.setScaleOffen = an;
+             ke::editor().meshtex.setScaleOeffnen = an;
+         }},
+        {"MeshTex General Function", [](bool an) {
+             ke::editor().meshtex.genFuncOffen = an;
+             ke::editor().meshtex.genFuncOeffnen = an;
+         }},
+    };
+    const std::pair<i18n::Language, const char*> sprachen[] = {{i18n::Language::English, "Englisch"},
+                                                               {i18n::Language::German, "Deutsch"},
+                                                               {i18n::Language::ChineseSimplified, "Chinesisch"},
+                                                               {i18n::Language::Japanese, "Japanisch"}};
+    for (const auto& [l, name] : sprachen) {
+        const i18n::Language lang = l;
+        const std::string sname = name;
+        add(tu("Plugin-Dialoge auf " + sname, [lang] {
+            i18n::setLanguage(lang);
+            ke::setzeNrcBegriffe(false);
+        }));
+        for (const Dialog& d : dialoge) {
+            const std::function<void(bool)> schalten = d.schalten;
+            const std::string dname = d.name;
+            add(tu(dname + " auf", [schalten] { schalten(true); }));
+            add(pause(0.15));
+            add(pruefe(sname + ", " + dname + ": jeder Text passt in seinen Platz", [sname, dname] {
+                std::string bericht;
+                const bool ok = pluginTexteGanz(bericht);
+                diag::detail("Knopftest: Stufe 4/6 - " + sname + " " + dname + ": " + bericht);
+                return ok;
+            }));
+            add(tu(dname + " zu", [schalten] {
+                schalten(false);
+                karteDialogeZu();
+            }));
+            add(pause(0.1));
+        }
+    }
+    add(tu("Sprache zurueck", [sprache, nrcVorher] {
+        i18n::setLanguage(*sprache);
+        ke::setzeNrcBegriffe(*nrcVorher);
+    }));
+    return s;
+}
+
 }  // namespace stufe4
 
 std::vector<Schritt> karteneditorStufe4Schritte() {
@@ -35604,6 +35725,9 @@ std::vector<Schritt> karteneditorStufe4Schritte() {
     }
     if (teil("plugins") || teil("meshtex")) {
         for (Schritt& x : stufe4::meshtex()) { s.push_back(std::move(x)); }
+    }
+    if (teil("plugins") || teil("texte")) {
+        for (Schritt& x : stufe4::pluginTexte()) { s.push_back(std::move(x)); }
     }
     if (teil("exit")) {
         for (Schritt& x : stufe4::beenden()) { s.push_back(std::move(x)); }
@@ -37328,6 +37452,123 @@ std::vector<Schritt> karteneditorHandbuchSchritte(bool nurBauen = false) {
     return s;
 }
 
+// --- Stufe 4 Punkt 6: Bilder der Seiten "Fertige Karten oeffnen" und "Plugins" ---
+//
+// BHED_EDITORTEST=handbuch mit BHED_HB_NUR=karte4. mp/duel1 aus den .pk3 des
+// Spiels (der Arbeitsordner liegt in den Einstellungen - kein Benutzerpfad
+// im Bild), danach die Menues und einige Plugin-Dialoge.
+std::vector<Schritt> karte4HandbuchSchritte() {
+    namespace ke = karteneditor;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto editor = [] {
+        ImGuiWindow* w = karteFenster();
+        const ImGuiWindow* haupt = ImGui::FindWindowByName("###main");
+        if (w == nullptr) { return ImRect{}; }
+        const float oben = haupt != nullptr ? haupt->Pos.y : w->Pos.y;
+        const float links = haupt != nullptr ? haupt->Pos.x : w->Pos.x;
+        return ImRect{links, oben, w->Rect().Max.x, w->Rect().Max.y};
+    };
+    const auto menueBild = [] {
+        const ImGuiWindow* haupt = ImGui::FindWindowByName("###main");
+        ImRect m;
+        const ImGuiContext& g = *GImGui;
+        for (int i = 0; i < g.OpenPopupStack.Size; ++i) {
+            if (const ImGuiWindow* w = g.OpenPopupStack[i].Window) {
+                if (i == 0) {
+                    m = w->Rect();
+                } else {
+                    m.Add(w->Rect());
+                }
+            }
+        }
+        if (haupt == nullptr) { return m; }
+        return ImRect{haupt->Pos.x, haupt->Pos.y, m.Max.x + 40.0F, m.Max.y + 20.0F};
+    };
+    add(tu("Handbuch Stufe 4: Spielordner, Begriffe aus", [] {
+        if (g_app->gamePaths.empty()) { rescanGamePaths(); }
+        g_app->leftMode = 0;
+        ke::setzeNrcBegriffe(false);
+    }));
+    add(pause(0.3));
+    add(klick(tr(Str::ViewMapEditor), "###main"));
+    add(pause(0.3));
+    add(warteBis("Handbuch Stufe 4: Spieldaten geladen", [] {
+        ke::spielPruefen();
+        return ke::spielBereit();
+    }, 20000));
+    add(tu("Handbuch Stufe 4: bhed_q3map2, alter Arbeitsordner weg, File > Open .bsp...", [] {
+        karteDialogeZu();
+        stufe3::q3map2Bereitstellen();
+        std::error_code ec;
+        std::filesystem::remove_all(std::filesystem::path(platform::settingsDirectory()) / "karte_bsp" / "duel1", ec);
+        ke::bspOeffnenDialog();
+    }));
+    add(pause(0.6));
+    add(klickAn("Filter", stufe2::elementOrt("##bspfilter")));
+    add(tippe("duel"));
+    add(pause(0.4));
+    add(hb::fotoTeil("h_karte4_bspdialog", [] { return fensterRahmen("###kartebspoeffnen"); }));
+    add(tu("Handbuch Stufe 4: mp/duel1 oeffnen", [] {
+        karteDialogeZu();
+        (void)ke::bspOeffnenSpiel("maps/mp/duel1.bsp");
+    }));
+    add(warteBis("Handbuch Stufe 4: duel1 geladen", [] { return ke::editor().bspHerkunft.aktiv; }, 3000));
+    add(tu("Handbuch Stufe 4: Ansichten auf die Karte", [] {
+        ke::Editor& e = ke::editor();
+        e.kamera.setzeUrsprung(karte::Vektor3f(830, 180, 110));
+        e.kamera.setzeWinkel(karte::Vektor3f(-8, 90, 0));
+        e.xy[0].ansicht.typ = karte::Sicht::XY;
+        e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        e.xy[0].ansicht.setzeMassstab(0.25F);
+        ++e.sichtStand;
+    }));
+    add(warteBis("Handbuch Stufe 4: Texturen geladen", [] { return ke::kameraBilderFertig(); }, 6000));
+    add(tu("Maus auf die Statuszeile", [] {
+        if (ImGuiWindow* w = karteFenster()) { setzeMaus(ImVec2{w->Pos.x + w->Size.x * 0.6F, w->Pos.y + w->Size.y - 4.0F}); }
+    }));
+    add(pause(0.6));
+    add(hb::fotoTeil("h_karte4_geladen", editor));
+    // Build > Update entities only
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.4));
+    add(hb::fotoTeil("h_karte4_nurentities", menueBild));
+    add(tu("Menue zu", [] { karteDialogeZu(); }));
+    add(pause(0.3));
+    // Plugins > bobToolz
+    add(klick(ke::trK(Str::KeLPlugins), "###main"));
+    add(pause(0.3));
+    add(klick("bobToolz", "##Menu_", 0, true));
+    add(pause(0.4));
+    add(hb::fotoTeil("h_karte4_plugins", menueBild));
+    add(tu("Menue zu; Path Plotter", [] {
+        karteDialogeZu();
+        (void)ke::ausfuehren("bobToolz::PathPlotter");
+    }));
+    add(pause(0.5));
+    add(hb::fotoTeil("h_karte4_pathplotter", [] { return fensterRahmen("###btpathplotter"); }));
+    add(tu("Path Plotter zu; MeshTex > Set S/T Scale...", [] {
+        ke::editor().bob.dialog = 0;
+        karteDialogeZu();
+        (void)ke::ausfuehren("meshTex::SetScale");
+    }));
+    add(pause(0.5));
+    add(hb::fotoTeil("h_karte4_meshtex", [] { return fensterRahmen("###mtsetscale"); }));
+    add(tu("Set S/T Scale zu; brushexport2 > Export selected as Wavefront Object", [] {
+        ke::editor().meshtex.setScaleOffen = false;
+        (void)ke::ausfuehren("brushexport2::Export.obj");
+    }));
+    add(pause(0.5));
+    add(hb::fotoTeil("h_karte4_brushexport", [] { return fensterRahmen("###kartebrushexport"); }));
+    add(tu("Handbuch Stufe 4: Ende", [] {
+        ke::editor().brushExport.offen = false;
+        karteDialogeZu();
+        g_app->leftMode = 0;
+    }));
+    add(pause(0.3));
+    return s;
+}
+
 std::vector<Schritt> handbuchSchritte() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
     // (tr) beim Aufbau der Liste - vorher suchten sie auf Deutsch "Cancel".
@@ -37339,6 +37580,9 @@ std::vector<Schritt> handbuchSchritte() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartebauen") == 0) {
         return karteneditorHandbuchSchritte(true);
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte4") == 0) {
+        return karte4HandbuchSchritte();
     }
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };

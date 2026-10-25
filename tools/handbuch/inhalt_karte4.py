@@ -1,0 +1,259 @@
+"""Karte und Szene: fertige Karten oeffnen, Originallicht, Plugins (Stufe 4)."""
+from inhalt_basis import T
+
+KARTE_OEFFNEN = {
+    "id": "karte_oeffnen",
+    "gruppe": "karte",
+    "titel": T("Map editor: opening and changing finished maps", "Karten-Editor: fertige Karten öffnen und ändern",
+               "地图编辑器:打开并修改已完成的地图", "マップエディター:完成したマップを開いて変更する"),
+    "kurz": T(
+        "Open a compiled map of the game - straight from its .pk3 - with {{KeLFile}} > {{KeLOpenBsp}}, change its entities and write them back with {{KeLBuild}} > {{KeBmNurEntities}}: the geometry and the original light stay byte for byte as they are.",
+        "Öffne mit {{KeLFile}} > {{KeLOpenBsp}} eine fertige Karte des Spiels - direkt aus ihrer .pk3 -, ändere ihre Entities und schreibe sie mit {{KeLBuild}} > {{KeBmNurEntities}} zurück: Geometrie und Originallicht bleiben Byte für Byte, wie sie sind.",
+        "用 {{KeLFile}} > {{KeLOpenBsp}} 打开游戏中已编译的地图(可直接从 .pk3 中打开),修改其中的实体,再用 {{KeLBuild}} > {{KeBmNurEntities}} 写回:几何体和原始光照逐字节保持不变。",
+        "{{KeLFile}} > {{KeLOpenBsp}} でゲームのコンパイル済みマップを(.pk3 から直接)開き、エンティティを変更して {{KeLBuild}} > {{KeBmNurEntities}} で書き戻します。ジオメトリと元のライトはバイト単位でそのまま残ります。"),
+    "bloecke": [
+        ("h2", "oeffnen", T("Opening a compiled map", "Eine fertige Karte öffnen", "打开已编译的地图", "コンパイル済みマップを開く")),
+        ("img", "h_karte4_bspdialog", T(
+            "{{KeLFile}} > {{KeLOpenBsp}}: the dialog **{{KeBspTitel}}** with the filter `duel` - each map next to the archive the game loads it from.",
+            "{{KeLFile}} > {{KeLOpenBsp}}: der Dialog **{{KeBspTitel}}** mit dem Filter `duel` - jede Karte neben dem Archiv, aus dem das Spiel sie lädt.",
+            "{{KeLFile}} > {{KeLOpenBsp}}:**{{KeBspTitel}}** 对话框,筛选条件为 `duel`——每张地图旁边是游戏加载它所用的压缩包。",
+            "{{KeLFile}} > {{KeLOpenBsp}}:フィルター `duel` を入れた **{{KeBspTitel}}** ダイアログ。各マップの横に、ゲームがそのマップを読み込むアーカイブが表示されます。")),
+        ("steps", [
+            T("**{{KeLFile}} > {{KeLOpenBsp}}** lists every map (`maps/…/*.bsp`) of the game folders as the game sees it: for each name only the copy the game would load - a mod before `base`, a later .pk3 before an earlier one. The right column names the .pk3 or the folder. Type part of the name into **{{KeBspFilter}}**.",
+              "**{{KeLFile}} > {{KeLOpenBsp}}** listet jede Karte (`maps/…/*.bsp`) der Spielordner so, wie das Spiel sie sieht: je Name nur die Fassung, die das Spiel laden würde - eine Mod vor `base`, eine spätere .pk3 vor einer früheren. Die rechte Spalte nennt die .pk3 oder den Ordner. Tippe einen Teil des Namens in **{{KeBspFilter}}**.",
+              "**{{KeLFile}} > {{KeLOpenBsp}}** 按游戏的视角列出游戏文件夹中的每张地图(`maps/…/*.bsp`):每个名称只列出游戏实际会加载的那一份——模组优先于 `base`,后面的 .pk3 优先于前面的。右列显示所在的 .pk3 或文件夹。在 **{{KeBspFilter}}** 中输入名称的一部分即可筛选。",
+              "**{{KeLFile}} > {{KeLOpenBsp}}** は、ゲームフォルダーのすべてのマップ(`maps/…/*.bsp`)をゲームから見えるとおりに一覧にします。名前ごとに、ゲームが実際に読み込むものだけが表示されます(Mod は `base` より、後の .pk3 は前の .pk3 より優先)。右の列には .pk3 またはフォルダーが表示されます。**{{KeBspFilter}}** に名前の一部を入力して絞り込めます。"),
+            T("Double-click a map or select it and click **{{KeBspOeffnen}}**. **{{KeBspDatei}}** opens a .bsp from anywhere on disk instead.",
+              "Doppelklicke eine Karte oder wähle sie und klicke auf **{{KeBspOeffnen}}**. **{{KeBspDatei}}** öffnet stattdessen eine .bsp von irgendwo auf der Platte.",
+              "双击一张地图,或选中后单击 **{{KeBspOeffnen}}**。**{{KeBspDatei}}** 则可以打开磁盘上任意位置的 .bsp。",
+              "マップをダブルクリックするか、選んで **{{KeBspOeffnen}}** をクリックします。**{{KeBspDatei}}** を使うと、ディスク上の任意の場所にある .bsp を開けます。"),
+            (T("The map editor copies the .bsp into a work folder in the settings folder (`karte_bsp\\<name>`) - never into the game folder - and turns it back into a map with q3map2 `-convert`, as NetRadiant-Custom does when it imports a .bsp. Then the map is open like a `.map`. If the open map has unsaved changes, the editor asks first.",
+               "Der Karten-Editor kopiert die .bsp in einen Arbeitsordner im Einstellungsordner (`karte_bsp\\<Name>`) - nie in den Spielordner - und wandelt sie mit q3map2 `-convert` zurück in eine Karte, wie NetRadiant-Custom beim Importieren einer .bsp. Danach ist die Karte offen wie eine `.map`. Hat die offene Karte ungespeicherte Änderungen, fragt der Editor vorher.",
+               "地图编辑器把 .bsp 复制到设置文件夹中的工作文件夹(`karte_bsp\\<名称>`)——绝不写入游戏文件夹——再像 NetRadiant-Custom 导入 .bsp 时那样,用 q3map2 `-convert` 把它还原成地图。之后地图就像 `.map` 一样打开。如果当前地图有未保存的更改,编辑器会先询问。",
+               "マップエディターは .bsp を設定フォルダー内の作業フォルダー(`karte_bsp\\<名前>`)にコピーし(ゲームフォルダーには決して書き込みません)、NetRadiant-Custom が .bsp をインポートするときと同じく q3map2 `-convert` でマップに戻します。その後、マップは `.map` と同じように開いています。開いているマップに未保存の変更がある場合は、先に確認します。"),
+             "h_karte4_geladen",
+             T("mp/duel1 opened from the game's .pk3: 362 brushes, 66 patches and 26 entities.",
+               "mp/duel1 aus der .pk3 des Spiels geöffnet: 362 Brushes, 66 Patches und 26 Entities.",
+               "从游戏的 .pk3 打开的 mp/duel1:362 个笔刷、66 个曲面片和 26 个实体。",
+               "ゲームの .pk3 から開いた mp/duel1:ブラシ 362 個、パッチ 66 個、エンティティ 26 個。")),
+        ]),
+        ("p", T(
+            "A compiled map is not the original `.map`. Brushes with their textures, patches and entities come back. What q3map2 bakes into the .bsp does not: the models of `misc_model` entities, decals and the light entities - maps compiled for Jedi Academy normally no longer contain them, their light exists only in the lightmaps and the light grid. On some faces the texture alignment can differ slightly. Compiled again with LIGHT, such a map gets new light, calculated without the original lights. To change only entities - spawn points, NPCs, items, scripts, keys - keep the original light instead.",
+            "Eine fertige Karte ist nicht die ursprüngliche `.map`. Brushes mit ihren Texturen, Patches und Entities kommen zurück. Was q3map2 in die .bsp einbackt, nicht: die Modelle der `misc_model`-Entities, Decals und die Lichtentities - für Jedi Academy gebaute Karten enthalten sie meist nicht mehr, ihr Licht steckt nur noch in den Lightmaps und im Lichtgitter. Auf manchen Flächen kann die Texturausrichtung leicht abweichen. Mit LIGHT neu gebaut, bekommt so eine Karte neues Licht, berechnet ohne die ursprünglichen Lichter. Wer nur Entities ändern will - Startpunkte, NPCs, Gegenstände, Skripte, Schlüssel -, behält stattdessen das Originallicht.",
+            "已编译的地图并不是原来的 `.map`。笔刷(含纹理)、曲面片和实体都会还原,但 q3map2 烘焙进 .bsp 的内容不会还原:`misc_model` 实体的模型、贴花以及光源实体——为 Jedi Academy 编译的地图通常已不再包含光源实体,其光照只存在于光照贴图和光照网格中。某些面上的纹理对齐可能略有偏差。如果用 LIGHT 重新编译,地图会得到新的光照,而且是在没有原始光源的情况下计算的。如果只想修改实体(出生点、NPC、物品、脚本、键值),请改用保留原始光照的方法。",
+            "コンパイル済みマップは元の `.map` ではありません。ブラシ(テクスチャ付き)、パッチ、エンティティは戻りますが、q3map2 が .bsp に焼き込んだものは戻りません。`misc_model` エンティティのモデル、デカール、ライトエンティティです。Jedi Academy 向けにコンパイルされたマップには通常ライトエンティティが残っておらず、光はライトマップとライトグリッドの中にしかありません。一部の面ではテクスチャの位置合わせがわずかに異なることがあります。LIGHT で再ビルドすると、元のライトなしで計算された新しい光になります。エンティティ(スポーン地点、NPC、アイテム、スクリプト、キー)だけを変更したい場合は、代わりに元のライトを残す方法を使います。")),
+        ("note", T(
+            "**{{KeLFile}} > {{KeLImport}}** also takes a .bsp, as in NetRadiant-Custom: it is converted in the work folder and inserted into the open map.",
+            "**{{KeLFile}} > {{KeLImport}}** nimmt wie bei NetRadiant-Custom auch eine .bsp: sie wird im Arbeitsordner umgewandelt und in die offene Karte eingefügt.",
+            "与 NetRadiant-Custom 一样,**{{KeLFile}} > {{KeLImport}}** 也接受 .bsp:它在工作文件夹中转换后插入当前地图。",
+            "NetRadiant-Custom と同じく、**{{KeLFile}} > {{KeLImport}}** でも .bsp を読み込めます。作業フォルダーで変換され、開いているマップに挿入されます。")),
+        ("h2", "licht", T("Keeping the original light", "Das Originallicht behalten", "保留原始光照", "元のライトを残す")),
+        ("img", "h_karte4_nurentities", T(
+            "{{KeLBuild}} > {{KeBmNurEntities}} - at the bottom of the menu, available after {{KeLOpenBsp}}.",
+            "{{KeLBuild}} > {{KeBmNurEntities}} - unten im Menü, verfügbar nach {{KeLOpenBsp}}.",
+            "{{KeLBuild}} > {{KeBmNurEntities}}——位于菜单底部,在 {{KeLOpenBsp}} 之后可用。",
+            "{{KeLBuild}} > {{KeBmNurEntities}}:メニューの一番下にあり、{{KeLOpenBsp}} の後で使えます。")),
+        ("steps", [
+            T("Change entities: keys and values (also of worldspawn), move, add or delete point entities such as spawn points, NPC spawners and items, change the keys of brush entities.",
+              "Ändere Entities: Schlüssel und Werte (auch von worldspawn), Punkt-Entities wie Startpunkte, NPC-Spawner und Gegenstände verschieben, hinzufügen oder löschen, Schlüssel von Brush-Entities ändern.",
+              "修改实体:键和值(包括 worldspawn 的),移动、添加或删除点实体(如出生点、NPC 生成器和物品),修改笔刷实体的键。",
+              "エンティティを変更します。キーと値(worldspawn も含む)の変更、スポーン地点・NPC スポナー・アイテムなどのポイントエンティティの移動・追加・削除、ブラシエンティティのキーの変更ができます。"),
+            T("**{{KeLBuild}} > {{KeBmNurEntities}}** saves the map, takes a fresh copy of the original .bsp and runs q3map2 `-onlyents` in the background (output in the console, as when building). Only the entity lump is rebuilt; the editor puts it into the copy of the original, so every other lump - geometry, lightmaps, light grid, visibility - stays byte for byte as it was.",
+              "**{{KeLBuild}} > {{KeBmNurEntities}}** speichert die Karte, nimmt eine frische Kopie der Original-.bsp und lässt q3map2 `-onlyents` im Hintergrund laufen (Ausgabe in der Konsole, wie beim Bauen). Nur der Entity-Lump wird neu gebaut; der Editor setzt ihn in die Kopie des Originals ein, so bleibt jeder andere Lump - Geometrie, Lightmaps, Lichtgitter, Sichtbarkeit - Byte für Byte, wie er war.",
+              "**{{KeLBuild}} > {{KeBmNurEntities}}** 保存地图,取一份原始 .bsp 的新副本,并在后台运行 q3map2 `-onlyents`(输出显示在控制台中,与编译时相同)。只重建实体数据块;编辑器把它放进原始文件的副本中,因此其他每个数据块——几何体、光照贴图、光照网格、可见性——都逐字节保持原样。",
+              "**{{KeLBuild}} > {{KeBmNurEntities}}** はマップを保存し、元の .bsp の新しいコピーを用意して、バックグラウンドで q3map2 `-onlyents` を実行します(ビルドと同じく出力はコンソールに表示)。作り直されるのはエンティティランプだけで、エディターはそれを元のファイルのコピーに入れます。そのため、ほかのすべてのランプ(ジオメトリ、ライトマップ、ライトグリッド、可視性)はバイト単位で元のままです。"),
+            T("The console confirms it with **Entities updated** and the number of unchanged lumps. The result is `<name>.bsp` in the work folder; the untouched original stays next to it as `<name>_original.bsp`.",
+              "Die Konsole bestätigt es mit **Entities aktualisiert** und der Zahl der unveränderten Lumps. Das Ergebnis ist `<Name>.bsp` im Arbeitsordner; das unberührte Original liegt daneben als `<Name>_original.bsp`.",
+              "控制台显示 **实体已更新** 以及未改变的数据块数量作为确认。结果是工作文件夹中的 `<名称>.bsp`;未改动的原始文件以 `<名称>_original.bsp` 的名称放在旁边。",
+              "コンソールに **エンティティを更新しました** と、変更されていないランプの数が表示されます。結果は作業フォルダーの `<名前>.bsp` で、手を加えていない元のファイルは `<名前>_original.bsp` としてその隣に残ります。"),
+            T("To play it, copy the new .bsp into the `maps` folder of the game as described on [[karte_bauen]] - for a map from a .pk3 best under a new name, so the original in the .pk3 stays as it is (for example `duel1_neu.bsp` in `maps\\mp`, started with `devmap mp/duel1_neu`).",
+              "Zum Spielen kopiere die neue .bsp in den Ordner `maps` des Spiels, wie auf [[karte_bauen]] beschrieben - bei einer Karte aus einer .pk3 am besten unter neuem Namen, dann bleibt das Original in der .pk3, wie es ist (zum Beispiel `duel1_neu.bsp` in `maps\\mp`, gestartet mit `devmap mp/duel1_neu`).",
+              "要游玩时,按 [[karte_bauen]] 中的说明把新的 .bsp 复制到游戏的 `maps` 文件夹——对于来自 .pk3 的地图,最好换一个新名称,这样 .pk3 中的原始地图保持不变(例如放到 `maps\\mp` 中的 `duel1_neu.bsp`,用 `devmap mp/duel1_neu` 启动)。",
+              "遊ぶには、[[karte_bauen]] の説明どおりに新しい .bsp をゲームの `maps` フォルダーにコピーします。.pk3 から開いたマップは新しい名前にするのがおすすめです。そうすれば .pk3 の中の元のマップはそのまま残ります(例:`maps\\mp` に `duel1_neu.bsp` を置き、`devmap mp/duel1_neu` で起動)。"),
+        ]),
+        ("warn", T(
+            "Brushes, patches, brush entities and baked entities such as `misc_model` are part of the geometry. If any of them changed since the map was opened, **{{KeBmNurEntities}}** does not run q3map2; the box **{{KeBmGeometrieTitel}}** explains that the map has to be built again with BSP, VIS and LIGHT - with new light. Undo brings the geometry back to the original, and the entry works again.",
+            "Brushes, Patches, Brush-Entities und eingebackene Entities wie `misc_model` gehören zur Geometrie. Hat sich davon seit dem Öffnen etwas geändert, lässt **{{KeBmNurEntities}}** q3map2 nicht laufen; der Kasten **{{KeBmGeometrieTitel}}** erklärt, dass die Karte mit BSP, VIS und LIGHT neu gebaut werden muss - mit neuem Licht. Rückgängig bringt die Geometrie zurück auf das Original, dann geht der Eintrag wieder.",
+            "笔刷、曲面片、笔刷实体以及 `misc_model` 等会被烘焙的实体都属于几何体。如果打开地图后其中有任何改动,**{{KeBmNurEntities}}** 不会运行 q3map2;**{{KeBmGeometrieTitel}}** 提示框会说明必须用 BSP、VIS 和 LIGHT 重新编译地图——光照也会重新计算。撤销后几何体恢复为原样,该菜单项即可再次使用。",
+            "ブラシ、パッチ、ブラシエンティティ、`misc_model` のように焼き込まれるエンティティはジオメトリの一部です。開いた後にそのどれかが変わっていると、**{{KeBmNurEntities}}** は q3map2 を実行しません。**{{KeBmGeometrieTitel}}** ボックスが、BSP・VIS・LIGHT でマップを再ビルドする必要があること(光も新しく計算されること)を説明します。元に戻すでジオメトリを元の状態に戻せば、この項目はまた使えます。")),
+        ("note", T(
+            "Jedi Outcast maps keep their light entities in the .bsp. If the original contains lights, q3map2 runs with `-keeplights` so that they stay. NetRadiant-Custom's own **Entity-Only compile** in the same menu also runs `-onlyents`, but without the check and without putting the result into the original - with Jedi Outcast maps it can drop lights and rewrite the light grid. For a map opened with **{{KeLOpenBsp}}**, use **{{KeBmNurEntities}}**.",
+            "Jedi-Outcast-Karten behalten ihre Lichtentities in der .bsp. Enthält das Original Lichter, läuft q3map2 mit `-keeplights`, damit sie bleiben. Der eigene Eintrag **Entity-Only compile** von NetRadiant-Custom im selben Menü führt ebenfalls `-onlyents` aus, aber ohne die Prüfung und ohne das Einsetzen ins Original - bei Jedi-Outcast-Karten kann er Lichter verlieren und das Lichtgitter neu schreiben. Für eine mit **{{KeLOpenBsp}}** geöffnete Karte nimm **{{KeBmNurEntities}}**.",
+            "Jedi Outcast 的地图在 .bsp 中保留了光源实体。如果原始文件中有光源,q3map2 会带 `-keeplights` 运行,让光源保留下来。同一菜单中 NetRadiant-Custom 自带的 **Entity-Only compile** 也运行 `-onlyents`,但既不检查,也不把结果放回原始文件——对 Jedi Outcast 地图可能丢失光源并重写光照网格。对于用 **{{KeLOpenBsp}}** 打开的地图,请使用 **{{KeBmNurEntities}}**。",
+            "Jedi Outcast のマップは .bsp にライトエンティティを残しています。元のファイルにライトがある場合、q3map2 は `-keeplights` 付きで実行され、ライトが残ります。同じメニューにある NetRadiant-Custom 本来の **Entity-Only compile** も `-onlyents` を実行しますが、チェックも元のファイルへの書き戻しも行いません。Jedi Outcast のマップではライトが消えたり、ライトグリッドが書き換えられたりすることがあります。**{{KeLOpenBsp}}** で開いたマップには **{{KeBmNurEntities}}** を使ってください。")),
+    ],
+}
+
+PLUGINS = {
+    "id": "karte_plugins",
+    "gruppe": "karte",
+    "titel": T("Map editor: plugins", "Karten-Editor: Plugins", "地图编辑器:插件", "マップエディター:プラグイン"),
+    "kurz": T(
+        "The {{KeLPlugins}} menu has every plugin of NetRadiant-Custom - bobToolz, brushexport2, MeshTex, ShaderPlug, SunPlug, UFO:AI and prtview - with all their entries and dialogs, ported from the source code.",
+        "Das Menü {{KeLPlugins}} hat jedes Plugin von NetRadiant-Custom - bobToolz, brushexport2, MeshTex, ShaderPlug, SunPlug, UFO:AI und prtview - mit allen Einträgen und Dialogen, aus dem Quelltext portiert.",
+        "{{KeLPlugins}} 菜单包含 NetRadiant-Custom 的全部插件——bobToolz、brushexport2、MeshTex、ShaderPlug、SunPlug、UFO:AI 和 prtview——以及它们所有的菜单项和对话框,均从源代码移植而来。",
+        "{{KeLPlugins}} メニューには NetRadiant-Custom のすべてのプラグイン(bobToolz、brushexport2、MeshTex、ShaderPlug、SunPlug、UFO:AI、prtview)が、すべての項目とダイアログ付きで入っています。ソースコードから移植したものです。"),
+    "bloecke": [
+        ("h2", "menue", T("The {{KeLPlugins}} menu", "Das Menü {{KeLPlugins}}", "{{KeLPlugins}} 菜单", "{{KeLPlugins}} メニュー")),
+        ("img", "h_karte4_plugins", T(
+            "{{KeLPlugins}} > bobToolz: the entries of NetRadiant-Custom, with their icons.",
+            "{{KeLPlugins}} > bobToolz: die Einträge von NetRadiant-Custom mit ihren Symbolen.",
+            "{{KeLPlugins}} > bobToolz:NetRadiant-Custom 的菜单项及其图标。",
+            "{{KeLPlugins}} > bobToolz:NetRadiant-Custom の項目とそのアイコン。")),
+        ("p", T(
+            "The entries keep the English names of NetRadiant-Custom, as the plugins have them there; the dialogs are in the program language - with **{{KeNrcTerms}}** in NetRadiant-Custom's English. Every plugin has an **About** entry. Messages go to the console, errors in red. Each change a plugin makes is one undo step.",
+            "Die Einträge behalten die englischen Namen von NetRadiant-Custom, wie die Plugins sie dort haben; die Dialoge stehen in der Programmsprache - mit **{{KeNrcTerms}}** im Englisch von NetRadiant-Custom. Jedes Plugin hat einen Eintrag **About**. Meldungen kommen in die Konsole, Fehler rot. Jede Änderung eines Plugins ist ein Rückgängig-Schritt.",
+            "菜单项保留插件在 NetRadiant-Custom 中的英文名称;对话框使用程序语言——开启 **{{KeNrcTerms}}** 时使用 NetRadiant-Custom 的英文。每个插件都有 **About** 项。消息显示在控制台中,错误为红色。插件所做的每一次修改都是一个撤销步骤。",
+            "項目は、NetRadiant-Custom でプラグインが使っている英語名のままです。ダイアログはプログラムの言語で表示され、**{{KeNrcTerms}}** をオンにすると NetRadiant-Custom の英語になります。どのプラグインにも **About** 項目があります。メッセージはコンソールに表示され、エラーは赤になります。プラグインによる変更は 1 回ごとに元に戻せます。")),
+        ("h2", "bobtoolz", T("bobToolz", "bobToolz", "bobToolz", "bobToolz")),
+        ("table", [T("Entry", "Eintrag", "菜单项", "項目"), T("What it does", "Was er tut", "作用", "内容")], [
+            [T("Flip terrain", "Flip terrain", "Flip terrain", "Flip terrain"), T(
+                "Two selected terrain brushes (triangular prisms with a common edge): turns their common diagonal the other way.",
+                "Zwei gewählte Gelände-Brushes (dreieckige Prismen mit gemeinsamer Kante): dreht ihre gemeinsame Diagonale um.",
+                "两个选中的地形笔刷(有公共边的三棱柱):把它们的公共对角线翻转到另一方向。",
+                "選択した 2 つの地形ブラシ(辺を共有する三角柱)の共通の対角線を反対向きにします。")],
+            [T("Split patch rows / columns, Split patch", "Split patch rows / columns, Split patch", "Split patch rows / columns、Split patch", "Split patch rows / columns、Split patch"), T(
+                "Cuts the selected patch into strips along its rows, its columns, or both.",
+                "Schneidet den gewählten Patch in Streifen entlang seiner Zeilen, seiner Spalten oder beider.",
+                "把选中的曲面片沿行、沿列或同时沿行和列切成条。",
+                "選択したパッチを行に沿って、列に沿って、または両方で帯状に分割します。")],
+            [T("Merge Patches", "Merge Patches", "Merge Patches", "Merge Patches"), T(
+                "Joins two or more selected patches that share an edge into one.",
+                "Fügt zwei oder mehr gewählte Patches mit gemeinsamer Kante zu einem zusammen.",
+                "把两个或更多有公共边的选中曲面片合并为一个。",
+                "辺を共有する 2 つ以上の選択パッチを 1 つにまとめます。")],
+            [T("Plot Splines", "Plot Splines", "Plot Splines", "Plot Splines"), T(
+                "Draws the paths of `info_train_spline_main` chains with their `info_train_spline_control` points (see Make Chain).",
+                "Zeichnet die Bahnen von `info_train_spline_main`-Ketten mit ihren `info_train_spline_control`-Punkten (siehe Make Chain).",
+                "绘制 `info_train_spline_main` 链及其 `info_train_spline_control` 控制点构成的路径(见 Make Chain)。",
+                "`info_train_spline_main` のチェーンと `info_train_spline_control` の制御点が作る経路を描きます(Make Chain を参照)。")],
+            [T("Tree Planter, Drop Entity", "Tree Planter, Drop Entity", "Tree Planter、Drop Entity", "Tree Planter、Drop Entity"), T(
+                "Select the ground brushes and switch **Tree Planter** on: each left click in the XY view puts an entity from `data\\karte\\bt\\tp_ent.txt` onto them, with a random model, angle and scale (as shipped, the file names tree models from Quake - put your own models there). **Drop Entity** drops the selected entities onto the same brushes.",
+                "Wähle die Boden-Brushes und schalte **Tree Planter** ein: jeder Linksklick in die XY-Ansicht setzt eine Entity aus `data\\karte\\bt\\tp_ent.txt` darauf, mit zufälligem Modell, Winkel und Maßstab (wie ausgeliefert nennt die Datei Baummodelle aus Quake - trage deine eigenen Modelle ein). **Drop Entity** lässt die gewählten Entities auf dieselben Brushes fallen.",
+                "选中地面笔刷并打开 **Tree Planter**:在 XY 视图中每次左键单击,都会把 `data\\karte\\bt\\tp_ent.txt` 中定义的实体放到这些笔刷上,模型、角度和缩放随机(随附的文件写的是 Quake 的树木模型——请填入你自己的模型)。**Drop Entity** 让选中的实体落到同样的笔刷上。",
+                "地面のブラシを選択して **Tree Planter** をオンにすると、XY ビューで左クリックするたびに `data\\karte\\bt\\tp_ent.txt` のエンティティがその上に置かれます。モデル、角度、スケールはランダムです(付属のファイルには Quake の木のモデルが書かれているので、自分のモデルに書き換えてください)。**Drop Entity** は選択したエンティティを同じブラシの上に落とします。")],
+            [T("Explode Entity", "Explode Entity", "Explode Entity", "Explode Entity"), T(
+                "Splits the selected brush entity: each of its brushes becomes an entity of its own with the same keys (not worldspawn).",
+                "Teilt die gewählte Brush-Entity: jeder ihrer Brushes wird eine eigene Entity mit denselben Schlüsseln (nicht worldspawn).",
+                "拆分选中的笔刷实体:它的每个笔刷都成为一个具有相同键值的独立实体(worldspawn 除外)。",
+                "選択したブラシエンティティを分割し、各ブラシを同じキーを持つ別々のエンティティにします(worldspawn は不可)。")],
+            [T("Caulk Selection", "Caulk Selection", "Caulk Selection", "Caulk Selection"), T(
+                "Gives every face of the selected brushes and patches the caulk texture.",
+                "Gibt jeder Fläche der gewählten Brushes und Patches die Caulk-Textur.",
+                "给选中笔刷和曲面片的每个面赋予 caulk 纹理。",
+                "選択したブラシとパッチのすべての面に caulk テクスチャを付けます。")],
+            [T("Polygon Builder", "Polygon Builder", "Polygon Builder", "Polygon Builder"), T(
+                "Dialog **{{KeBtPolygon}}**: turns one selected brush into a prism with the given number of sides - optionally hollow with a border, inverse, aligned to the top edge.",
+                "Dialog **{{KeBtPolygon}}**: macht aus einem gewählten Brush ein Prisma mit der angegebenen Seitenzahl - wahlweise hohl mit Rand, umgekehrt, an der Oberkante ausgerichtet.",
+                "**{{KeBtPolygon}}** 对话框:把一个选中的笔刷变成指定边数的棱柱——可选空心带边框、反转、与上边对齐。",
+                "**{{KeBtPolygon}}** ダイアログ:選択した 1 つのブラシを指定した辺の数の角柱にします。縁付きの中空、反転、上辺に合わせることもできます。")],
+            [T("Brush Cleanup", "Brush Cleanup", "Brush Cleanup", "Brush Cleanup"), T(
+                "Removes invalid and duplicate planes from all brushes of the map and reports how many.",
+                "Entfernt ungültige und doppelte Ebenen aus allen Brushes der Karte und meldet, wie viele.",
+                "删除地图中所有笔刷的无效平面和重复平面,并报告数量。",
+                "マップのすべてのブラシから無効な面と重複した面を取り除き、その数を表示します。")],
+            [T("Vis Viewer", "Vis Viewer", "Vis Viewer", "Vis Viewer"), T(
+                "Reads the compiled `<map>.bsp` next to the map - after a build, or the original after {{KeLOpenBsp}} - and shows which BSP leafs are visible from the camera or the selection; the window **{{KeBtBspLeafs}}** lists them.",
+                "Liest die gebaute `<Karte>.bsp` neben der Karte - nach dem Bauen oder nach {{KeLOpenBsp}} das Original - und zeigt, welche BSP-Blätter von der Kamera oder der Auswahl aus sichtbar sind; das Fenster **{{KeBtBspLeafs}}** listet sie.",
+                "读取地图旁边编译好的 `<地图>.bsp`(编译之后,或 {{KeLOpenBsp}} 之后的原始文件),显示从摄像机或所选位置可以看到哪些 BSP 叶;**{{KeBtBspLeafs}}** 窗口列出它们。",
+                "マップの隣にあるコンパイル済みの `<マップ>.bsp`(ビルド後、または {{KeLOpenBsp}} 後の元のファイル)を読み、カメラまたは選択位置から見える BSP リーフを表示します。**{{KeBtBspLeafs}}** ウィンドウに一覧が出ます。")],
+            [T("PitOMatic", "PitOMatic", "PitOMatic", "PitOMatic"), T(
+                "Turns one selected brush into a death pit: triggers for the falling scream (`*falling1.wav`) and for removing powerups, a `trigger_hurt` at the bottom.",
+                "Macht aus einem gewählten Brush eine Todesgrube: Trigger für den Fallschrei (`*falling1.wav`) und zum Entfernen der Powerups, unten ein `trigger_hurt`.",
+                "把一个选中的笔刷变成死亡深坑:坠落惨叫(`*falling1.wav`)和移除强化道具的触发器,底部一个 `trigger_hurt`。",
+                "選択した 1 つのブラシを落とし穴にします。落下の叫び声(`*falling1.wav`)とパワーアップ除去のトリガー、底に `trigger_hurt` を作ります。")],
+            [T("Reset Textures...", "Reset Textures...", "Reset Textures...", "Reset Textures..."), T(
+                "Dialog **{{KeBtTexReset}}**: replaces a texture name and resets scale, shift and rotation - on the selected or on all brushes.",
+                "Dialog **{{KeBtTexReset}}**: ersetzt einen Texturnamen und setzt Maßstab, Verschiebung und Drehung zurück - auf den gewählten oder allen Brushes.",
+                "**{{KeBtTexReset}}** 对话框:替换纹理名称并重置缩放、偏移和旋转——作用于选中的或全部笔刷。",
+                "**{{KeBtTexReset}}** ダイアログ:テクスチャ名を置き換え、スケール・シフト・回転をリセットします。選択したブラシまたはすべてのブラシが対象です。")],
+            [T("Path Plotter...", "Path Plotter...", "Path Plotter...", "Path Plotter..."), T(
+                "Shows the flight path of a `trigger_push` - see below.",
+                "Zeigt die Flugbahn eines `trigger_push` - siehe unten.",
+                "显示 `trigger_push` 的飞行轨迹——见下文。",
+                "`trigger_push` の飛行経路を表示します(下記参照)。")],
+            [T("Make Chain...", "Make Chain...", "Make Chain...", "Make Chain..."), T(
+                "Dialog **{{KeBtMakeChain}}**: builds a chain of `info_train_spline_main` entities with control points, named after the base name.",
+                "Dialog **{{KeBtMakeChain}}**: baut eine Kette aus `info_train_spline_main`-Entities mit Kontrollpunkten, benannt nach dem Grundnamen.",
+                "**{{KeBtMakeChain}}** 对话框:生成一条带控制点的 `info_train_spline_main` 实体链,按基础名称命名。",
+                "**{{KeBtMakeChain}}** ダイアログ:制御点付きの `info_train_spline_main` エンティティのチェーンを作り、基本名で名前を付けます。")],
+            [T("Intersect..., Find Duplicates", "Intersect..., Find Duplicates", "Intersect...、Find Duplicates", "Intersect...、Find Duplicates"), T(
+                "Select brushes that intersect each other (in the whole map or among the selected ones, optionally only duplicates), or every brush that exactly duplicates another.",
+                "Wählen Brushes, die einander schneiden (in der ganzen Karte oder unter den gewählten, wahlweise nur Duplikate), bzw. jeden Brush, der einen anderen genau doppelt.",
+                "选中彼此相交的笔刷(在整张地图中或在已选笔刷中,可选只选重复的),或选中与另一个笔刷完全重复的每个笔刷。",
+                "互いに交差するブラシ(マップ全体または選択したブラシの中から。重複だけに絞ることも可)、または別のブラシとまったく同じブラシをすべて選択します。")],
+            [T("Door Builder...", "Door Builder...", "Door Builder...", "Door Builder..."), T(
+                "Turns one selected brush into two door halves (`func_door`) with door and trim textures from `bt\\door-tex*.txt`, North-South or East-West.",
+                "Macht aus einem gewählten Brush zwei Türhälften (`func_door`) mit Tür- und Rahmentexturen aus `bt\\door-tex*.txt`, Nord-Süd oder Ost-West.",
+                "把一个选中的笔刷变成两扇门(`func_door`),门和门框纹理来自 `bt\\door-tex*.txt`,方向为南北或东西。",
+                "選択した 1 つのブラシを 2 枚のドア(`func_door`)にします。ドアと枠のテクスチャは `bt\\door-tex*.txt` から選び、向きは南北または東西です。")],
+            [T("Aperture Door...", "Aperture Door...", "Aperture Door...", "Aperture Door..."), T(
+                "Builds an aperture door (an iris of segments) from the selected brush - from parameters or from a winding.",
+                "Baut aus dem gewählten Brush eine Blendentür (eine Iris aus Segmenten) - aus Parametern oder aus einer Windung.",
+                "用选中的笔刷构建一扇光圈门(由多个扇片组成的虹膜)——根据参数或根据多边形轮廓。",
+                "選択したブラシから絞り式ドア(セグメントでできたアイリス)を作ります。パラメーターから、または多角形の輪郭から作れます。")],
+            [T("Stair Builder...", "Stair Builder...", "Stair Builder...", "Stair Builder..."), T(
+                "Turns one selected brush into stairs: step height, direction, style (Original, Bob's Style, Corner Style), main and riser texture, optionally detail brushes.",
+                "Macht aus einem gewählten Brush eine Treppe: Stufenhöhe, Richtung, Stil (Original, Bob's Style, Corner Style), Haupt- und Setzstufentextur, wahlweise Detail-Brushes.",
+                "把一个选中的笔刷变成楼梯:台阶高度、方向、样式(Original、Bob's Style、Corner Style)、主纹理和踢面纹理,可选细节笔刷。",
+                "選択した 1 つのブラシを階段にします。段の高さ、方向、スタイル(Original、Bob's Style、Corner Style)、メインと蹴上げのテクスチャ、必要ならディテールブラシ。")],
+        ]),
+        ("h3", T("Path Plotter", "Path Plotter", "Path Plotter", "Path Plotter")),
+        ("steps", [
+            T("Select a `trigger_push` that has a `target`.", "Wähle einen `trigger_push`, der ein `target` hat.",
+              "选中一个带有 `target` 的 `trigger_push`。", "`target` を持つ `trigger_push` を選択します。"),
+            (T("**{{KeLPlugins}} > bobToolz > Path Plotter...** opens **{{KeBtPathPlotter}}**: number of points, distance multiplier and gravity of the path. **{{KeBtEnable}}** draws it in the 2D views and the camera.",
+               "**{{KeLPlugins}} > bobToolz > Path Plotter...** öffnet **{{KeBtPathPlotter}}**: Zahl der Punkte, Wegfaktor und Schwerkraft der Bahn. **{{KeBtEnable}}** zeichnet sie in den 2D-Ansichten und der Kamera.",
+               "**{{KeLPlugins}} > bobToolz > Path Plotter...** 打开 **{{KeBtPathPlotter}}**:设置轨迹的点数、距离倍数和重力。**{{KeBtEnable}}** 在二维视图和摄像机中绘制轨迹。",
+               "**{{KeLPlugins}} > bobToolz > Path Plotter...** で **{{KeBtPathPlotter}}** が開きます。経路の点の数、距離の倍率、重力を設定します。**{{KeBtEnable}}** で 2D ビューとカメラに経路が描かれます。"),
+             "h_karte4_pathplotter",
+             T("The dialog {{KeBtPathPlotter}} with NetRadiant-Custom's values.", "Der Dialog {{KeBtPathPlotter}} mit den Werten von NetRadiant-Custom.",
+               "{{KeBtPathPlotter}} 对话框,数值与 NetRadiant-Custom 相同。", "NetRadiant-Custom と同じ値の {{KeBtPathPlotter}} ダイアログ。")),
+            T("Move the target - the path follows, unless **{{KeBtNoUpdate}}** is ticked. **{{KeBtDisable}}** removes it.",
+              "Verschiebe das Ziel - die Bahn folgt, außer **{{KeBtNoUpdate}}** ist angekreuzt. **{{KeBtDisable}}** nimmt sie weg.",
+              "移动目标——轨迹会跟着变化,除非勾选了 **{{KeBtNoUpdate}}**。**{{KeBtDisable}}** 移除轨迹。",
+              "ターゲットを動かすと経路も追従します(**{{KeBtNoUpdate}}** にチェックを入れた場合を除く)。**{{KeBtDisable}}** で経路を消します。"),
+        ]),
+        ("h2", "brushexport", T("brushexport2", "brushexport2", "brushexport2", "brushexport2")),
+        ("img", "h_karte4_brushexport", T(
+            "The window {{KeBeTitel}}.", "Das Fenster {{KeBeTitel}}.", "{{KeBeTitel}} 窗口。", "{{KeBeTitel}} ウィンドウ。"), "schmal"),
+        ("p", T(
+            "**Export selected as Wavefront Object** writes the selected brushes as a `.obj` model, for example to continue them in a modelling program. The window chooses how faces are grouped (**{{KeBeCollapse}}**, **{{KeBeCollapseMat}}**, **{{KeBeNoCollapse}}**), which materials to leave out (**{{KeBeIgnored}}** - for example `textures/common/caulk`), and whether to shorten material names, write objects instead of groups, weld vertices and write a `.mtl` file. **{{KeBeSaveAs}}** asks for the file - the first time in the folder `karte_export` in the settings folder - and **{{KeBeSave}}** writes the same file again.",
+            "**Export selected as Wavefront Object** schreibt die gewählten Brushes als `.obj`-Modell, zum Beispiel um sie in einem Modellierprogramm weiterzubauen. Das Fenster legt fest, wie Flächen gruppiert werden (**{{KeBeCollapse}}**, **{{KeBeCollapseMat}}**, **{{KeBeNoCollapse}}**), welche Materialien wegfallen (**{{KeBeIgnored}}** - zum Beispiel `textures/common/caulk`) und ob Materialnamen gekürzt, Objekte statt Gruppen geschrieben, Eckpunkte verschweißt und eine `.mtl`-Datei geschrieben werden. **{{KeBeSaveAs}}** fragt nach der Datei - beim ersten Mal im Ordner `karte_export` im Einstellungsordner -, **{{KeBeSave}}** schreibt dieselbe Datei noch einmal.",
+            "**Export selected as Wavefront Object** 把选中的笔刷写成 `.obj` 模型,例如在建模软件中继续制作。窗口中可以选择面的分组方式(**{{KeBeCollapse}}**、**{{KeBeCollapseMat}}**、**{{KeBeNoCollapse}}**)、要排除的材质(**{{KeBeIgnored}}**——例如 `textures/common/caulk`),以及是否缩短材质名、写出对象而不是组、焊接顶点、写出 `.mtl` 文件。**{{KeBeSaveAs}}** 询问文件名(第一次在设置文件夹中的 `karte_export` 文件夹中),**{{KeBeSave}}** 再次写入同一个文件。",
+            "**Export selected as Wavefront Object** は選択したブラシを `.obj` モデルとして書き出します。たとえばモデリングソフトで続きを作るときに使います。ウィンドウでは面のまとめ方(**{{KeBeCollapse}}**、**{{KeBeCollapseMat}}**、**{{KeBeNoCollapse}}**)、除外するマテリアル(**{{KeBeIgnored}}**。例:`textures/common/caulk`)、マテリアル名を短くするか、グループの代わりにオブジェクトを書くか、頂点を溶接するか、`.mtl` ファイルを書くかを選びます。**{{KeBeSaveAs}}** でファイルを指定し(初回は設定フォルダー内の `karte_export` フォルダー)、**{{KeBeSave}}** で同じファイルにもう一度書き出します。")),
+        ("h2", "meshtex", T("MeshTex", "MeshTex", "MeshTex", "MeshTex")),
+        ("img", "h_karte4_meshtex", T(
+            "MeshTex > Set S/T Scale...", "MeshTex > Set S/T Scale...", "MeshTex > Set S/T Scale...", "MeshTex > Set S/T Scale..."), "schmal"),
+        ("p", T(
+            "MeshTex lays textures onto patches - curves, arches, terrain - where the Surface Inspector reaches its limits. **{{KeMtSetScale}}** sets the scale along S and T: natural (as on a brush face, `*`) or as a number of tiles, counted from a \"zero\" column or row, optionally measured along a reference row or column. **{{KeMtGetInfo}}** shows the scale of the selected patch and can hand it to {{KeMtSetScale}}. **{{KeMtGenFunc}}** sets S and T as a linear function of the row and column distances. The **Align** entries fit the texture to the patch edges (minimum or maximum, stretched or shrunk, or automatically); **Help...** shows MeshTex's own explanation.",
+            "MeshTex legt Texturen auf Patches - Rundungen, Bögen, Gelände -, wo der Surface Inspector an seine Grenzen kommt. **{{KeMtSetScale}}** setzt den Maßstab entlang S und T: natürlich (wie auf einer Brush-Fläche, `*`) oder als Zahl von Kacheln, gezählt ab einer „Null“-Spalte oder -Zeile, wahlweise gemessen entlang einer Bezugszeile oder -spalte. **{{KeMtGetInfo}}** zeigt den Maßstab des gewählten Patches und kann ihn an {{KeMtSetScale}} übergeben. **{{KeMtGenFunc}}** setzt S und T als lineare Funktion der Zeilen- und Spaltenabstände. Die **Align**-Einträge passen die Textur an die Patchkanten an (Minimum oder Maximum, gestreckt oder gestaucht oder automatisch); **Help...** zeigt die Erklärung von MeshTex selbst.",
+            "MeshTex 用于给曲面片(曲面、拱形、地形)贴纹理,适合表面检查器难以处理的情况。**{{KeMtSetScale}}** 设置沿 S 和 T 方向的缩放:自然缩放(与笔刷面相同,`*`)或平铺次数,从“零”列或“零”行开始计算,可选沿参考行或参考列测量。**{{KeMtGetInfo}}** 显示选中曲面片的缩放,并可传给 {{KeMtSetScale}}。**{{KeMtGenFunc}}** 把 S 和 T 设为行距与列距的线性函数。各 **Align** 项让纹理贴合曲面片的边缘(最小或最大、拉伸或收缩,或自动);**Help...** 显示 MeshTex 自带的说明。",
+            "MeshTex は、サーフェスインスペクターでは難しいパッチ(曲面、アーチ、地形)にテクスチャを貼るためのものです。**{{KeMtSetScale}}** は S と T 方向のスケールを設定します。自然(ブラシの面と同じ、`*`)またはタイル数で指定し、「ゼロ」列・行から数え、必要なら参照行・列に沿って測ります。**{{KeMtGetInfo}}** は選択したパッチのスケールを表示し、{{KeMtSetScale}} に渡せます。**{{KeMtGenFunc}}** は S と T を行・列の距離の一次関数として設定します。**Align** の各項目はテクスチャをパッチの端に合わせます(最小・最大、伸ばす・縮める、または自動)。**Help...** には MeshTex 自身の説明が表示されます。")),
+        ("h2", "weitere", T("ShaderPlug, SunPlug, UFO:AI, prtview", "ShaderPlug, SunPlug, UFO:AI, prtview", "ShaderPlug、SunPlug、UFO:AI、prtview", "ShaderPlug、SunPlug、UFO:AI、prtview")),
+        ("table", [T("Plugin", "Plugin", "插件", "プラグイン"), T("What it does", "Was es tut", "作用", "内容")], [
+            [T("ShaderPlug", "ShaderPlug", "ShaderPlug", "ShaderPlug"), T(
+                "**Create tag file** writes the tag file of the texture browser: every shader gets the name of its `.shader` file as a tag. The texture browser loads it again at once (NetRadiant-Custom only after a restart).",
+                "**Create tag file** schreibt die Tag-Datei des Texturbrowsers: jeder Shader bekommt den Namen seiner `.shader`-Datei als Tag. Der Texturbrowser lädt sie sofort neu (NetRadiant-Custom erst nach einem Neustart).",
+                "**Create tag file** 写出纹理浏览器的标签文件:每个着色器以其 `.shader` 文件名作为标签。纹理浏览器会立即重新加载(NetRadiant-Custom 要重启后才加载)。",
+                "**Create tag file** はテクスチャブラウザーのタグファイルを書き出します。各シェーダーに、その `.shader` ファイルの名前がタグとして付きます。テクスチャブラウザーはすぐに読み込み直します(NetRadiant-Custom では再起動後)。")],
+            [T("SunPlug", "SunPlug", "SunPlug", "SunPlug"), T(
+                "In NetRadiant-Custom it contains **ET-MapCoordinator**: it calculates `mapcoordsmins` and `mapcoordsmaxs` for the command map of Enemy Territory from the size of the map and writes them into worldspawn with **{{KeSunSet}}**. Jedi Academy does not use these keys.",
+                "Enthält bei NetRadiant-Custom **ET-MapCoordinator**: berechnet `mapcoordsmins` und `mapcoordsmaxs` für die Befehlskarte von Enemy Territory aus der Größe der Karte und schreibt sie mit **{{KeSunSet}}** in worldspawn. Jedi Academy verwendet diese Schlüssel nicht.",
+                "在 NetRadiant-Custom 中它包含 **ET-MapCoordinator**:根据地图大小计算 Enemy Territory 指挥地图所用的 `mapcoordsmins` 和 `mapcoordsmaxs`,并用 **{{KeSunSet}}** 写入 worldspawn。Jedi Academy 不使用这些键。",
+                "NetRadiant-Custom では **ET-MapCoordinator** が入っています。マップの大きさから Enemy Territory のコマンドマップ用の `mapcoordsmins` と `mapcoordsmaxs` を計算し、**{{KeSunSet}}** で worldspawn に書き込みます。Jedi Academy ではこれらのキーは使われません。")],
+            [T("UFO:AI", "UFO:AI", "UFO:AI", "UFO:AI"), T(
+                "Tools for the game UFO:AI: filters by its content flags (NoDraw, WeaponClip, ActorClip, StepOn, Level 1 to 8), **Perform check** and its worldspawn keys (**Worldspawn**, **Worldspawn reset**). They are there because NetRadiant-Custom shows them for every game.",
+                "Werkzeuge für das Spiel UFO:AI: Filter nach dessen Inhaltsflags (NoDraw, WeaponClip, ActorClip, StepOn, Level 1 bis 8), **Perform check** und dessen worldspawn-Schlüssel (**Worldspawn**, **Worldspawn reset**). Sie sind da, weil NetRadiant-Custom sie für jedes Spiel zeigt.",
+                "为游戏 UFO:AI 准备的工具:按其内容标志过滤(NoDraw、WeaponClip、ActorClip、StepOn、Level 1 到 8)、**Perform check** 以及它的 worldspawn 键(**Worldspawn**、**Worldspawn reset**)。之所以存在,是因为 NetRadiant-Custom 对每个游戏都显示它们。",
+                "ゲーム UFO:AI 用のツールです。コンテンツフラグによるフィルター(NoDraw、WeaponClip、ActorClip、StepOn、Level 1~8)、**Perform check**、worldspawn のキー(**Worldspawn**、**Worldspawn reset**)があります。NetRadiant-Custom がどのゲームでも表示するので入っています。")],
+            [T("prtview", "prtview", "prtview", "prtview"), T(
+                "Shows the portals of the last BSP stage - see [[karte_bauen]].",
+                "Zeigt die Portale der letzten BSP-Stufe - siehe [[karte_bauen]].",
+                "显示上次 BSP 阶段的门户——见 [[karte_bauen]]。",
+                "最後の BSP 段階のポータルを表示します([[karte_bauen]] を参照)。")],
+        ]),
+    ],
+}
+
+SEITEN = [KARTE_OEFFNEN, PLUGINS]
