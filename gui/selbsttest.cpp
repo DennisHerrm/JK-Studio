@@ -36536,6 +36536,8 @@ std::vector<Schritt> gross() {
 
 }  // namespace stufe5
 
+#include "selbsttest_karte6.inc"
+
 std::vector<Schritt> karteneditorStufe5Schritte() {
     std::vector<Schritt> s;
     const char* nur = std::getenv("BHED_STUFE5_NUR");
@@ -37504,6 +37506,12 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =stufe6: nur die Stufe 6 (die Pruefstufe: jeder Befehl, jede Taste, jeder Menuepunkt und Knopf mit Wirkung)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe6") == 0) {
+        for (Schritt& x : karteneditorStufe6Schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =stufe2: nur die Wirkungspruefungen der Stufe 2 (Bauwerkzeuge)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe2") == 0) {
         for (Schritt& x : karteneditorStufe2Schritte()) { add(std::move(x)); }
@@ -37524,6 +37532,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : karteneditorStufe4Schritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorStufe5Schritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorAlleBefehleSchritte()) { add(std::move(x)); }
+    for (Schritt& x : karteneditorStufe6Schritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));

@@ -1049,7 +1049,6 @@ void einstellungenLaden() {
     t.festeGroesse = zahl("FixedSize", 1) != 0.0F;
     t.ohneNotex = zahl("FilterNotex", 0) != 0.0F;
     t.transparenz = zahl("EnableAlpha", 0) != 0.0F;
-    t.tags = zahl("TagsShowGui", 0) != 0.0F;
     t.vonAnfang = zahl("SearchFromStart", 0) != 0.0F;
     t.startShader = std::clamp(static_cast<int>(zahl("LoadShaders", 0)), 0, 1);
     t.radSchritt = std::clamp(static_cast<int>(zahl("WheelMouseInc", 64)), 0, 8192);
@@ -1289,7 +1288,6 @@ void einstellungenSpeichern() {
     k["FixedSize"] = t.festeGroesse ? "1" : "0";
     k["FilterNotex"] = t.ohneNotex ? "1" : "0";
     k["EnableAlpha"] = t.transparenz ? "1" : "0";
-    k["TagsShowGui"] = t.tags ? "1" : "0";
     k["SearchFromStart"] = t.vonAnfang ? "1" : "0";
     k["LoadShaders"] = std::to_string(t.startShader);
     k["WheelMouseInc"] = std::to_string(t.radSchritt);

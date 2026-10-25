@@ -137,7 +137,7 @@ MAUS = [
      'gui/app_karte_transform.cpp', 'Return: OK - noch einmal 90, zu, die Werte bleiben; Esc: Cancel - zu, Werte 0, die Auswahl bleibt; Arbitrary rotation: Tab und Leertaste gehen an den Dialog (kein Klonen, kein Kamera-Fokus), er bleibt offen'),
     ('x', 'Teiler ziehen / bis 0 / zurueck', 'alle Anordnungen', 'QSplitter (childrenCollapsible): Feld klappt ein, Griff bleibt am Rand, laesst sich herausziehen',
      'qsplitter.cpp moveSplitter, mainframe.cpp:1816-1862', 'src/karte/teiler.cpp, gui/app_karte.cpp teilerZeichnen',
-     'Teiler Regular Griff:h:1: bis ans Ende gezogen klappt Kamera ein, der Griff bleibt am Rand (und 51 weitere Teiler-Pruefungen)'),
+     'Teiler Regular Griff:h:1: bis ans Ende gezogen klappt Kamera ein, der Griff bleibt am Rand; Teiler Regular Griff:h:1: vom Rand zurueckgezogen ist Kamera wieder da'),
     ('x', 'F12 (Maximize view) und noch einmal', 'Regular/Split', 'das Feld unter der Maus fuellt den Bereich; zurueck wie vorher', 'mainframe.cpp:1550-1595',
      'gui/app_karte.cpp maximierenUmschalten', 'Maximize view (F12): die Kamera unter der Maus fuellt den Bereich, XY, Konsole und Texturen sind eingeklappt; Maximize view (F12) noch einmal: alle Groessen wie vorher'),
 ]

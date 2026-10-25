@@ -1034,6 +1034,8 @@ void hintergrundFrei(XyFenster& f) {   // BackgroundImage::free_tex
 
 }  // namespace
 
+void hintergrundBildFrei(int index) { hintergrundFrei(e().xy[static_cast<std::size_t>(index)]); }
+
 // BackgroundImage::set (xywindow.cpp:1178-1212), der Dateiname schon relativ zum Spiel
 void hintergrundBildSetzen(int index, const std::string& relativ) {
     Editor& ed = e();

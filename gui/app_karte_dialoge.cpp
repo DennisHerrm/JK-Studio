@@ -717,7 +717,8 @@ void pfadEintrag(Str text, const char* id, char* puffer, std::size_t groesse, bo
     const ImVec2 knopfA{ende.x, anfang.y};
     if (ImGui::Button((std::string("##") + id + "knopf").c_str(), ImVec2{knopf, ende.y - anfang.y})) {
         // button_clicked_entry_browse_directory / _file (gtkutil/dialog.cpp)
-        const std::string neu = ordner ? platform::pickFolder(trK(text), puffer) : platform::openFileDialog(trK(text), "*.*|*.*", puffer);
+        // ueber kartenOrdnerDialog/kartenDateiDialog: im Selbsttest ersetzbar (nie ein Windows-Dialog im Test)
+        const std::string neu = ordner ? kartenOrdnerDialog(trK(text), puffer) : kartenDateiDialog(true, trK(text), "*.*|*.*", puffer);
         if (!neu.empty()) { std::snprintf(puffer, groesse, "%s", neu.c_str()); }
     }
     {   // ellipsis.svg: drei Kreise (24/64/104 bei r 12 auf 128), #C0C0C0

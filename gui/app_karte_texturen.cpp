@@ -856,6 +856,11 @@ void texturenAktualisieren() {
 void texturShaderWaehlen(const std::string& shader) {   // TextureBrowser_SetSelectedShader
     Editor& ed = e();
     ed.texBro.shader = shader;
+    // TextureBrowser_GetSelectedShader liefert g_TexBro.m_shader: neue Pinsel,
+    // CSG, Patch-Vorlagen, Grundformen und Select Textured nehmen die hier
+    // gewaehlte Textur (Stufe 6: vorher blieb bearbeitung.browserShader auf
+    // "textures/" stehen).
+    ed.bearbeitung.browserShader = shader;
     if (const karte::Texturinventar* inv = inventar()) {   // TextureBrowser_SetStatus: QERApp_Shader_ForName
         const karte::AktiverShader& s = ed.aktiveShader.holen(shader, inv);
         ed.statusTextur = karte::texturStatus(shader, s);
@@ -1022,6 +1027,7 @@ void texturBefehl(const std::string& name) {
         tb.hoeheGeaendert();
     } else if (name == "RefreshShaders") {   // RefreshShaders: Shader neu laden, Baum neu
         tb.neuGeladen();
+        ++ed.neuGeladen;
         if (ed.karteSpiel) {
             ed.karteSpiel->inventar.laden(ed.karteSpiel->fs);
             ed.aktiveShader.leeren();

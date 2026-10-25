@@ -17,6 +17,10 @@ Aufruf:
   python tools/karte/nrc_inventar.py erzeugen <nrc-quelltext> tools/karte/nrc_inventar.md
   python tools/karte/nrc_inventar.py pruefen tools/karte/nrc_inventar.md
   python tools/karte/nrc_inventar.py befehle tools/karte/nrc_inventar.md   (Befehlsnamen, je Zeile einer)
+  python tools/karte/nrc_inventar.py abdeckung tools/karte/nrc_inventar.md <protokoll> [<protokoll> ...] [--md <ausgabe.md>] [--pruefen]
+      Stufe 6: je Eintrag die Wirkungspruefung(en) aus dem Selbsttest-Protokoll
+      (Zeilen "Knopftest OK:/FEHLER:"); --pruefen: Rueckgabe 1, wenn ein Eintrag
+      keine Wirkungspruefung hat oder eine FEHLER meldete (tools/karte/abdeckung.py).
   python tools/karte/nrc_inventar.py setzen tools/karte/nrc_inventar.md <stand> <abschnitt> <muster> [notiz]
       setzt den Stand ([x], [~] oder [ ]; Kurzform x, ~, -) aller Eintraege des
       Abschnitts ("Menues", "Werkzeugleisten", "Registrierte Befehle", ...;
@@ -499,7 +503,48 @@ def setzen(md, stand, abschnitt, muster, notiz):
     return 0 if n else 1
 
 
+def abdeckung_befehl(argv):
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import abdeckung as ab
+    md = argv[0]
+    rest = argv[1:]
+    pruefen_ = '--pruefen' in rest
+    ausgabe = None
+    if '--md' in rest:
+        ausgabe = rest[rest.index('--md') + 1]
+        rest = rest[:rest.index('--md')] + rest[rest.index('--md') + 2:]
+    laeufe = [x for x in rest if not x.startswith('--')]
+    eintraege, fehler = lesen(md)
+    if fehler:
+        for f in fehler:
+            print('FEHLER: ' + f)
+        return 1
+    ok, fe = ab.protokoll_lesen(laeufe)
+    erg = ab.abdeckung([(e[0], e[2]) for e in eintraege], ok, fe)
+    if ausgabe:
+        ab.tabelle_schreiben(erg, ausgabe, laeufe)
+    arten = []
+    for e in erg:
+        if e[0] not in arten:
+            arten.append(e[0])
+    schlecht = 0
+    for a in arten:
+        z = [e for e in erg if e[0] == a]
+        n_ok = sum(1 for e in z if e[2] == 'OK')
+        n_aus = sum(1 for e in z if e[2] == 'AUSNAHME')
+        print(f'{a}: {len(z)} Eintraege, {n_ok} mit Wirkungspruefung, {n_aus} Ausnahme, {len(z) - n_ok - n_aus} ohne')
+    for e in erg:
+        if e[2] in ('FEHLT', 'FEHLER'):
+            schlecht += 1
+            print(f'{e[2]}: {e[0]} | {e[1]} | ' + '; '.join(e[3])[:300])
+    print(f'Gesamt: {len(erg)} Eintraege, {sum(1 for e in erg if e[2] == "OK")} mit Wirkungspruefung, '
+          f'{sum(1 for e in erg if e[2] == "AUSNAHME")} begruendete Ausnahmen, {schlecht} ohne/FEHLER (Protokoll: {len(ok)} OK, {len(fe)} FEHLER)')
+    return 1 if (pruefen_ and schlecht) else 0
+
+
 if __name__ == '__main__':
+    if len(sys.argv) >= 4 and sys.argv[1] == 'abdeckung':
+        sys.exit(abdeckung_befehl(sys.argv[2:]))
     if len(sys.argv) == 4 and sys.argv[1] == 'erzeugen':
         erzeugen(sys.argv[2], sys.argv[3])
     elif len(sys.argv) == 3 and sys.argv[1] == 'pruefen':

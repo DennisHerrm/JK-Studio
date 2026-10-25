@@ -915,6 +915,7 @@ void kameraZeichnen() {
     // m_view (Camera_updateProjection/-Modelview) und onSizeChanged
     ed.blicke[3].bauen(k.projektion, k.modelview, static_cast<std::size_t>(f.breite), static_cast<std::size_t>(f.hoehe));
     beobachterGroesse(3, f.breite, f.hoehe);
+    ++f.bilder;
     // Camera_keyMove: ein Schritt je Durchlauf mit gemessener Zeit
     if (k.bewegung != 0U) {
         float dt = f.tastenUhr >= 0.0 ? static_cast<float>(jetzt - f.tastenUhr) : 0.0F;

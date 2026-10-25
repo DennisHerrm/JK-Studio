@@ -297,6 +297,7 @@ std::string kartenBenutzerOrdner() {
 // MapResource: aus der Datei, eine unbenannte ist danach leer).
 void entitaetenKlassenNeuLaden() {
     Editor& e = g();
+    ++e.neuGeladen;
     const std::string name = e.name;
     karteFreigeben();   // die Entitaeten zeigen auf die alten Klassen
     if (e.karteSpiel) {
@@ -553,6 +554,11 @@ void kartenUrlOeffnen(const std::string& url) {
 std::string kartenDateiDialog(bool oeffnen, const char* titel, const char* filter, const std::string& start, const std::string& name) {
     if (g().dateiDialog) { return g().dateiDialog(titel); }
     return oeffnen ? platform::openFileDialog(titel, filter, start) : platform::saveFileDialog(titel, filter, start, name);
+}
+
+std::string kartenOrdnerDialog(const char* titel, const std::string& start) {
+    if (g().dateiDialog) { return g().dateiDialog(titel); }
+    return platform::pickFolder(titel, start);
 }
 
 bool kartenBefehlStarten(const std::string& zeile) {

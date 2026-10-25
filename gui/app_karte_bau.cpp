@@ -1249,6 +1249,7 @@ void schrittBeginnen() {
 void bauAusfuehren(const std::vector<std::string>& befehle) {
     BauLauf& l = g_lauf;
     Editor& ed = e();
+    ++ed.bauGestartet;
     if (l.zustand != BauZustand::Leerlauf || l.aktiv) {
         warnung("WatchBSP got a monitoring request while not idling...");
         // Abweichung: der alte Prozess endet (nicht zwei q3map2 an einer Karte)

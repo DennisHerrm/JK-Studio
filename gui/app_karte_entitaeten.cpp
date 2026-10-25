@@ -889,8 +889,9 @@ void attributZeichnen(const std::string& schluessel, const karte::KlassenAttribu
                 });
             } else {   // browse_sound / misc_model_dialog: Dateiwahl von Windows (file_dialog)
                 const bool ton = typ == "sound";
-                const std::string pfad = platform::openFileDialog(trK(ton ? Str::KeEiOpenSound : Str::KeEiChooseModel),
-                                                                  ton ? kTonFilter : kModellFilter, startOrdnerIn(ton ? "sound/" : "models/"));
+                // ueber kartenDateiDialog: im Selbsttest ersetzbar (nie ein Windows-Dialog im Test)
+                const std::string pfad = kartenDateiDialog(true, trK(ton ? Str::KeEiOpenSound : Str::KeEiChooseModel), ton ? kTonFilter : kModellFilter,
+                                                           startOrdnerIn(ton ? "sound/" : "models/"));
                 if (!pfad.empty()) { setzen(spielRelativ(pfad)); }
             }
         }
@@ -2017,7 +2018,7 @@ void erzeugen(const std::string& name, const karte::Vektor3f& ursprung) {
         return;
     }
     if (r.modellFragen) {   // misc_model_dialog (Dateiwahl von Windows)
-        const std::string pfad = platform::openFileDialog(trK(Str::KeEiChooseModel), kModellFilter, startOrdnerIn("models/"));
+        const std::string pfad = kartenDateiDialog(true, trK(Str::KeEiChooseModel), kModellFilter, startOrdnerIn("models/"));   // im Selbsttest ersetzbar
         if (!pfad.empty() && r.entitaet) {
             const EntitaetsKlasse* kl = r.entitaet->klasse();
             r.entitaet->setzen(kl != nullptr ? kl->miscmodelKey : std::string("model"), spielRelativ(pfad));

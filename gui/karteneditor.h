@@ -364,6 +364,7 @@ struct KameraFenster {
     bool kontextmenue = false;      // context_menu_show (Doppel-M2) - fuer den Selbsttest
     double zeichenMs = 0.0;         // ShowStats: msec des letzten Bilds
     double letzteStatistik = -1.0;  // m_render_time (f2f)
+    std::size_t bilder = 0;         // fuer den Selbsttest: gezeichnete Bilder der Kamera
 };
 // RadiantWindowObserver (selection.cpp:2640-2800) einer Ansicht mit Selector_
 // und Manipulator_ (selection.cpp:2482-2638): 0..2 die 2D-Ansichten, 3 die Kamera.
@@ -731,6 +732,8 @@ struct Editor {
     std::function<std::string(const std::string&)> dateiDialog;   // file_dialog (Titel -> Pfad)
     std::string letzterBefehl;   // fuer den Selbsttest: zuletzt ausgeloest
     std::set<std::string> befehleAusgefuehrt;   // fuer den Selbsttest: jeder ausgeloeste Befehl
+    std::size_t neuGeladen = 0;   // fuer den Selbsttest: RefreshShaders, RefreshReferences, Reload Entity Definitions
+    std::size_t bauGestartet = 0; // fuer den Selbsttest: jeder Bau (BuildMonitor_Run)
     std::vector<std::string> knoepfeImBild;   // fuer den Selbsttest: gezeichnete Knoepfe
     std::vector<std::string> knoepfeVerdeckt; // fuer den Selbsttest: im Erweiterungsmenue gezeigte
     // Fuer den Selbsttest: die Rechtecke dieses Bildes in logischen Punkten,
@@ -1274,6 +1277,7 @@ void enginePfadPruefen();                                       // EnginePath_ve
 void zeichneSchriftDialog();                                    // QFontDialog
 void hintergrundBildSetzen(int index, const std::string& relativ);   // BackgroundImage::set ohne Dateidialog
 void hintergrundBildDialog();                                   // WXY_SetBackgroundImage
+void hintergrundBildFrei(int index);                            // BackgroundImage::free_tex (Selbsttest: ohne Bild beginnen)
 [[nodiscard]] ImFont* glSchrift();                              // GlobalOpenGL().m_font
 [[nodiscard]] float glSchriftPx();                              // ImGui-Groesse der OpenGL-Schrift (96 dpi)
 void glSchriftSetzen(const std::string& familie, int punkte);   // OpenGLFont_select nach OK
@@ -1282,6 +1286,8 @@ void kartenUrlOeffnen(const std::string& url);                  // OpenURL
 [[nodiscard]] bool kartenBefehlStarten(const std::string& zeile);   // Q_Exec
 // file_dialog (gtkmisc): Dateiwahl von Windows, im Selbsttest ersetzbar
 [[nodiscard]] std::string kartenDateiDialog(bool oeffnen, const char* titel, const char* filter, const std::string& start, const std::string& name = "");
+// button_clicked_entry_browse_directory: Ordnerwahl von Windows, im Selbsttest ersetzbar (derselbe Ersatz)
+[[nodiscard]] std::string kartenOrdnerDialog(const char* titel, const std::string& start);
 void shaderAnsehen(const std::string& datei, const std::string& name, bool extern_);   // DoShaderView
 void beimBeenden();            // main.cpp:476 (g_strLastMap)
 // OpenMap (map.cpp:1841) mit Dateiwahl; karteOeffnen ohne Dialog (fuer

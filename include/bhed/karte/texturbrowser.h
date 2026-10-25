@@ -122,7 +122,8 @@ struct TexturBrowserEinstellungen {
     bool festeGroesse = true;        // FixedSize (g_TextureBrowser_fixedSize)
     bool ohneNotex = false;          // FilterNotex (g_TextureBrowser_filterNotex)
     bool transparenz = false;        // EnableAlpha (g_TextureBrowser_enableAlpha)
-    bool tags = false;               // TagsShowGui (m_tags)
+    // TagsShowGui (m_tags) steht nur in TagZustand::gui (Stufe 6: ein zweites
+    // Feld hier ueberschrieb beim Speichern den Wert von TagsToggleGui).
     bool vonAnfang = false;          // SearchFromStart (g_TextureBrowser_filter_searchFromStart)
     bool commonOhneTexturen = true;  // HideNonShadersInCommon (m_hideNonShadersInCommon)
 };

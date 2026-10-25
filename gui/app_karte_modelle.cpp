@@ -157,6 +157,7 @@ karte::ModellAnsicht kartenModellPfad(const std::string& pfad) { return ablage()
 void modelleLeeren() {   // FlushReferences
     ablage().leeren();
     ++editor().sichtStand;
+    ++editor().neuGeladen;
 }
 
 }  // namespace bhed::gui::karteneditor
