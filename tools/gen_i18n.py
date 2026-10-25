@@ -2179,6 +2179,8 @@ from i18n_karte4b import KARTE4B  # noqa: E402  (Stufe 4 Punkt 3: die Dialoge de
 S += KARTE4B
 from i18n_karte5 import KARTE5  # noqa: E402  (Stufe 5: Optimierer und Grenzen)
 S += KARTE5
+from i18n_karte6 import KARTE6  # noqa: E402  (Stufe 6: Pruefstufe)
+S += KARTE6
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

@@ -2140,6 +2140,9 @@ enum class Str {
     KeOptPrBaubefehl,
     KeOptPrBaubefehlE,
     KeBmGesperrt,
+    KeCapHintBevel,
+    KeCapHintEndcap,
+    KeCapHintCylinder,
     Count,
 };
 

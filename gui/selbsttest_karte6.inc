@@ -2563,6 +2563,39 @@ std::vector<Schritt> funde() {
         return w.numpoints == lage261->st.size() && abw < 1e-3;
     }));
     add(tu("NRC#261: aufraeumen", [] { grundzustand(); }));
+    // NRC#279 (ABSICHT): die Zylinderkappe geht nur fuer Patches mit 9 Punkten Breite oder
+    // Hoehe. Unter der englischen Konsolenzeile ein Hinweis in der Programmsprache.
+    for (const bool deutsch : {true, false}) {
+        auto sprache = std::make_shared<i18n::Language>(i18n::Language::English);
+        add(tu(std::string("NRC#279: Patch P1 (3x3), Sprache ") + (deutsch ? "Deutsch" : "Englisch") + ", Patch > Cap...", [sprache, deutsch] {
+            *sprache = i18n::currentLanguage();
+            i18n::setLanguage(deutsch ? i18n::Language::German : i18n::Language::English);
+            vorbereiten(Vor::Patch);
+            ke::konsoleLeeren();
+            (void)ke::ausfuehren("CapCurrentCurve");
+        }));
+        add(pause(0.3));
+        add(tu("NRC#279: Cylinder waehlen", [] { ke::editor().patchDialog.kappe = 4; }));
+        add(pause(0.1));
+        add(klickAn("OK", [] {
+            const Element* el = findeEndung("##patchok", "");
+            return el != nullptr ? el->rect.GetCenter() : ImVec2{5, 5};
+        }));
+        add(pause(0.3));
+        add(pruefe(std::string("NRC#279: ") + (deutsch ? "Deutsch: englische Zeile und darunter der Hinweis" : "Englisch: nur die englische Zeile wie NRC"),
+                   [sprache, deutsch] {
+                       const ke::Editor& e = ke::editor();
+                       bool englisch = false;
+                       bool hinweis = false;
+                       for (const auto& z : e.konsole) {
+                           englisch = englisch || z.text == "cannot create cylinder-cap - neither patch width, nor height is 9";
+                           hinweis = hinweis || z.text == i18n::trIn(i18n::Language::German, Str::KeCapHintCylinder);
+                       }
+                       i18n::setLanguage(*sprache);
+                       diag::detail(std::string("Knopftest: Stufe 6 - NRC#279: englisch ") + (englisch ? "ja" : "nein") + ", Hinweis " + (hinweis ? "ja" : "nein"));
+                       return englisch && hinweis == deutsch;
+                   }));
+    }
     // NRC-master nach 20260114: cc96c84 (Door Builder: die zweite Ausrichtung hiess auch
     // "North - South") und 7027470 ("Distance Multipler"); mit den Begriffen wie NetRadiant
     add(tu("NRC master: Begriffe wie NetRadiant, Pinsel A, bobToolz Door Builder", [] {

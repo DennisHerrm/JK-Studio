@@ -339,6 +339,19 @@ void zeichnePatchDialog() {
     } else if (art == 3) {
         karte::Protokoll pr;
         karte::patchKappen(k, ed.bearbeitung.browserShader, static_cast<karte::PatchKappe>(d.kappe), pr);
+        // Stufe 6 (NRC#279, ABSICHT): unter der englischen Zeile "cannot create ..." ein
+        // Hinweis in der Programmsprache (nicht bei Englisch / "Begriffe wie NetRadiant").
+        bool ohneKappe = false;
+        for (const auto& t : pr) { ohneKappe = ohneKappe || (t.art == karte::ProtokollTeil::Art::Fehler && t.text.rfind("cannot create ", 0) == 0); }
+        if (ohneKappe) {
+            const auto kappe = static_cast<karte::PatchKappe>(d.kappe);
+            const Str hinweis = kappe == karte::PatchKappe::Zylinder ? Str::KeCapHintCylinder
+                              : (kappe == karte::PatchKappe::EndCap || kappe == karte::PatchKappe::IEndCap) ? Str::KeCapHintEndcap
+                                                                                                         : Str::KeCapHintBevel;
+            if (std::string(trK(hinweis)) != i18n::trIn(i18n::Language::English, hinweis)) {
+                karte::fehler(pr, std::string(trK(hinweis)) + "\n");
+            }
+        }
         konsoleProtokoll(pr);
     } else {
         karte::patchVerdicken(k, d.wert, d.waende, d.achse);
