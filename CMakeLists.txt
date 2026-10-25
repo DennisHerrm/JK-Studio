@@ -1026,6 +1026,10 @@ if(BEHAVED_TESTS)
   # das Originallicht behalten (-onlyents: jeder Lump ausser den Entities
   # Byte-gleich); mit -DBEHAVED_KARTE_DEKOMP und den Spielordnern auch je zwei
   # Originalkarten aus Jedi Academy, Jedi Outcast und Movie Duels.
+  # Stufe 6 Punkt 5: kaputte .map/.bsp/.prt/.lin - kein Absturz, Festpunkt
+  add_executable(kartefuzz tests/kartefuzz.cpp)
+  target_link_libraries(kartefuzz PRIVATE bhed_core)
+  add_test(NAME karte_fuzz COMMAND kartefuzz ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte 2000)
   add_executable(kartebspoeffnen tests/kartebspoeffnen.cpp)
   target_link_libraries(kartebspoeffnen PRIVATE bhed_core)
   if(TARGET bhed_q3map2)

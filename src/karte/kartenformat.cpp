@@ -766,6 +766,23 @@ std::string dezimal(double f) {   // ostream_write( Decimal )
     char buf[groesse];
     const int n = std::snprintf(buf, groesse, "%10.10lf", f);
     const std::size_t laenge = n < 0 ? 0 : static_cast<std::size_t>(n);
+    // Stufe 6 (kartefuzz): ab etwa 1e10 passt "%10.10lf" nicht in die 22 Zeichen von NRC - NRC
+    // liest dann hinter dem Puffer weiter (last = buf + length - 1), der Text ist abgeschnitten,
+    // und das Entfernen der Nullen frisst Nullen vor dem Komma (1e21 -> "1"). Nur wenn der
+    // Schnitt den ganzzahligen Teil trifft (kein Komma in den 21 Zeichen): voller Text, Nullen nur
+    // hinter dem Komma weg. Sonst Byte fuer Byte wie bei NRC (dort fehlen nur Nachkommastellen).
+    if (laenge >= groesse && std::memchr(buf, '.', groesse - 1) == nullptr) {
+        std::string t(laenge + 1, ' ');
+        (void)std::snprintf(t.data(), t.size(), "%10.10lf", f);
+        t.resize(laenge);
+        const std::size_t vorn = t.find_first_not_of(' ');
+        t.erase(0, vorn == std::string::npos ? t.size() : vorn);
+        if (t.find('.') != std::string::npos) {
+            while (!t.empty() && t.back() == '0') { t.pop_back(); }
+            if (!t.empty() && t.back() == '.') { t.pop_back(); }
+        }
+        return t;
+    }
     const char* erstes = buf;
     for (; *erstes == ' '; ++erstes) {}
     const char* letztes = buf + std::min(laenge, groesse - 1) - 1;

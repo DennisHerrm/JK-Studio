@@ -98,7 +98,10 @@ int main(int argc, char** argv) {
     pruefe(dezimal(static_cast<double>(0.1f)) == "0.1000000015", "Decimal float 0.1 -> 0.1000000015");
     pruefe(dezimal(0.00048828125) == "0.0004882812", "Decimal 2^-11 rundet auf gerade (0.0004882812)");
     pruefe(dezimal(64) == "64" && dezimal(-21396.48046875) == "-21396.48046875", "Decimal ganze und lange Zahlen");
-    pruefe(dezimal(1e20) == "1", "Decimal 1e20: 21 Zeichen, Nullen weg -> \"1\" (wie NRC)");
+    // Stufe 6 (kartefuzz): NRC schneidet hier den ganzzahligen Teil ab (und liest hinter dem
+    // Puffer) - aus 1e20 wurde "1". Jetzt bleibt der Wert; mit Komma in den 21 Zeichen wie NRC.
+    pruefe(dezimal(1e20) == "100000000000000000000", "Decimal 1e20: der volle Wert (NRC: \"1\")");
+    pruefe(dezimal(-1e25) == "-10000000000000000905969664", "Decimal -1e25: der volle Wert");
     pruefe(dezimal(12345678901.25) == "12345678901.25", "Decimal 12345678901.25 (21 Zeichen)");
     pruefe(dezimal(123456789012.125) == "123456789012.125", "Decimal 123456789012.125: 21 Zeichen, dann Nullen weg");
     pruefe(dezimal(1234567890123.0625) == "1234567890123.0625", "Decimal 1234567890123.0625: 21 Zeichen");
