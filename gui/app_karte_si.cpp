@@ -36,6 +36,7 @@
 #include "app_internal.h"
 #include "bhed/karte/auswahlbefehle.h"
 #include "bhed/karte/patchbefehle.h"
+#include "bhed/karte/teiler.h"
 #include "bhed/karte/texturbefehle.h"
 #include "imgui_internal.h"
 #include "platform.h"
@@ -374,15 +375,44 @@ void zeichneSurfaceInspector() {
     float labelB = 0.0F;
     for (const char* l : labels) { labelB = std::max(labelB, textBreite(l)); }
     const float d = std::max(0.0F, labelB - 86.0F);   // breitere Beschriftung: alles dahinter rueckt
-    // die Gruppe "Texturing": Spalten nach den Texten
-    const auto knopfB = [](Str s) { return textBreite(trK(s)) + 16.0F; };
-    const float g0 = std::max({43.0F, textBreite(trK(Str::KeSiProject)), textBreite(trK(Str::KeSiPatch)), knopfB(Str::KeSiReset)});
-    const float g1 = std::max({44.0F, knopfB(Str::KeSiFit), knopfB(Str::KeSiAxial), knopfB(Str::KeSiNatural)});
-    const float g2 = std::max({67.0F, knopfB(Str::KeSiWidth), knopfB(Str::KeSiOrtho), knopfB(Str::KeSiCam)});
-    const float g3 = std::max({67.0F, knopfB(Str::KeSiHeight)});
-    const float gruppeB = 11.0F + g0 + 6.0F + g1 + 6.0F + g2 + 6.0F + g3 + 11.0F + 2.0F;   // mit Rahmen
-    const float innenB = std::max(285.0F + d, 11.0F + gruppeB - 1.0F + 11.0F);
+    // Die kleinste Groesse: NRC zieht das Fenster auf 99 x 99 (BuildDialog,
+    // surfacedialog.cpp:637 addWindow( ..., 99, 99 )), Qt macht daraus die
+    // Mindestgroesse des QVBoxLayout - das Breiteste der Mindestbreiten seiner
+    // Zeilen. Die Knoepfe tragen setMinimumWidth( 10 ) (surfacedialog.cpp:
+    // 762-830), zaehlen also nur mit 10; die Spinbox der Gruppe 67, das Feld
+    // "Step" 27 (QLineEdit::minimumSizeHint, Foto). Stufe 4 Punkt 0d: vorher
+    // rechneten wir die Knopfspalten mit Text + 16 - 6 Punkte zu breit.
+    const float stepB = textBreite(trK(Str::KeSiStep));
+    const float stepX = 124.0F + d + 89.0F + 6.0F;      // 219 (Foto)
+    const float stepFeldX = stepX + stepB + 6.0F;       // 247 (Foto)
+    const float rasterMin = stepFeldX + 27.0F + 11.0F;  // 285 (Foto)
+    const float spalte0Min = std::max({10.0F, textBreite(trK(Str::KeSiProject)), textBreite(trK(Str::KeSiPatch))});
+    const float gruppeMin = 23.0F + spalte0Min + 6.0F + 10.0F + 6.0F + 67.0F + 6.0F + 67.0F + 12.0F + 11.0F;
+    const float texturMin = 11.0F + textBreite(trK(Str::KeSiTexture)) + 6.0F + 27.0F + 11.0F;
+    const float innenB = std::max({rasterMin, gruppeMin, texturMin});
     const float rechts = innenB - 11.0F;
+    // Die Gruppe "Texturing" (QGridLayout, Abstand 6): qGeomCalc zwischen
+    // Mindest- und Wunschbreite je Spalte. Wunsch eines QPushButton:
+    // Text + PM_ButtonMargin 6 + 2 x PM_DefaultFrameWidth 1, wenigstens 80
+    // (QCommonStyle/QFusionStyle::sizeFromContents CT_PushButton); Mindest
+    // 10 (setMinimumWidth); QLabel: Mindest = Wunsch = Text. Im Foto: 43 / 44
+    // / 67 / 67 bei 23 / 72 / 122 / 195.
+    const auto knopfHinweis = [](Str s) { return std::max(80.0F, textBreite(trK(s)) + 8.0F); };
+    std::vector<karte::LayoutFeld> spalten(4);
+    spalten[0].minimum = static_cast<int>(spalte0Min);
+    spalten[0].hinweis = static_cast<int>(std::max(spalte0Min, knopfHinweis(Str::KeSiReset)));
+    spalten[1].minimum = 10;
+    spalten[1].hinweis = static_cast<int>(std::max({knopfHinweis(Str::KeSiFit), knopfHinweis(Str::KeSiAxial), knopfHinweis(Str::KeSiNatural)}));
+    spalten[2].minimum = 67;
+    spalten[2].hinweis = static_cast<int>(std::max({67.0F, knopfHinweis(Str::KeSiWidth), knopfHinweis(Str::KeSiOrtho)}));
+    spalten[3].minimum = 67;
+    spalten[3].hinweis = static_cast<int>(std::max({67.0F, knopfHinweis(Str::KeSiHeight), knopfHinweis(Str::KeSiCam)}));
+    for (karte::LayoutFeld& f : spalten) { f.leer = false; }
+    karte::geomCalc(spalten, 0, 4, 23, static_cast<int>(rechts - 12.0F) - 23, 6);
+    const float g0 = static_cast<float>(spalten[0].groesse);
+    const float g1 = static_cast<float>(spalten[1].groesse);
+    const float g2 = static_cast<float>(spalten[2].groesse);
+    const float g3 = static_cast<float>(spalten[3].groesse);
     const float innenH = 364.0F;
     const float titelH = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F;
     ImGui::SetNextWindowSize(ImVec2{px(innenB), px(innenH) + titelH}, ImGuiCond_Always);
@@ -424,8 +454,8 @@ void zeichneSurfaceInspector() {
         for (int i = 0; i < 5; ++i) {
             const float y = 39.0F + static_cast<float>(i) * 28.0F;
             spinZeile(i, labels[i], y, 11.0F, labelB, spinX, 89.0F);
-            zeilenText(trK(Str::KeSiStep), 219.0F + d, y);
-            schrittFeld(i, 247.0F + d, y, rechts - (247.0F + d));
+            zeilenText(trK(Str::KeSiStep), stepX, y);
+            schrittFeld(i, stepFeldX, y, rechts - stepFeldX);
         }
         // "-": Invert horizontally / vertically
         if (knopf("-", "siumkehrenh", 103.0F + d, 95.0F, 15.0F)) {
@@ -450,10 +480,10 @@ void zeichneSurfaceInspector() {
             ImDrawList* dl = ImGui::GetWindowDrawList();
             zeilenText(trK(Str::KeSiTexturing), 11.0F, 204.0F);
             dl->AddRect(bp(12.0F, 225.0F), bp(rechts, 353.0F), ImGui::GetColorU32(ImGuiCol_Border), 2.0F);
-            const float c0 = 23.0F;
-            const float c1 = c0 + g0 + 6.0F;
-            const float c2 = c1 + g1 + 6.0F;
-            const float c3 = c2 + g2 + 6.0F;
+            const float c0 = static_cast<float>(spalten[0].pos);
+            const float c1 = static_cast<float>(spalten[1].pos);
+            const float c2 = static_cast<float>(spalten[2].pos);
+            const float c3 = static_cast<float>(spalten[3].pos);
             if (knopf(trK(Str::KeSiWidth), "siwidth", c2, 235.0F, g2, Str::KeSiWidthTip)) {
                 karte::texturEinpassenBefehl(ed.karte, ed.bearbeitung.einstellung, g_si.einpassen[0], g_si.einpassen[1], 1);
             }

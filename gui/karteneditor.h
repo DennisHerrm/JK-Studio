@@ -1127,6 +1127,8 @@ void neueKarte();
 void letzteKarteBeimStart();   // main.cpp:462 (g_bLoadLastMap)
 void zuletztEintragen(const std::string& pfad);   // MRU_AddFile
 [[nodiscard]] std::string einstellungsFeld(const std::string& id);   // Selbsttest: Text eines Feldes der Einstellungen
+[[nodiscard]] int einstellungsSeitenAnzahl();     // Selbsttest: Seiten der Einstellungen
+void einstellungsSeiteZeigen(int seite);          // Selbsttest: eine Seite zeigen
 [[nodiscard]] const karte::SpielBeschreibung& kartenSpiel();   // g_pGameDescription
 [[nodiscard]] std::string kartenFsGame();                       // gamename_get
 [[nodiscard]] int kartenSpielNummer();                          // kRegelwerk* des Editors (gamefile, sonst Regelwerk)

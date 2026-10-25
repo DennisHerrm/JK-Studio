@@ -200,10 +200,21 @@ ImVec2 g_innen{0.0F, 0.0F};   // Innenraum oben links (Bildpunkte)
 ImVec2 bp(float x, float y) { return ImVec2{std::round(g_innen.x + x * g_sk), std::round(g_innen.y + y * g_sk)}; }
 float px(float l) { return std::round(l * g_sk); }
 
-// QLabel::sizeHint in der Dialogschrift (Tahoma 11, Textmass wie Qt)
+// QLabel::sizeHint in der Dialogschrift (Tahoma 11, Textmass wie Qt).
+// Stufe 4 Punkt 0c: Schriftzeichen, die Tahoma nicht hat (Chinesisch,
+// Japanisch), zeichnet ImGui mit der Schrift der Sprache - breiter als
+// DirectWrites Ersatzschrift, mit der qtTextBreite misst. Dann gilt das
+// Groessere, sonst ragt die rechtsbuendige Beschriftung links aus der Spalte
+// (auf der Seite Build hinter den Seitenbaum: "Region Box Shader" auf
+// Japanisch).
 int labelBreite(const char* text) {
     const int b = platform::qtTextBreite(text, L"Tahoma", 11.0F, false);
-    return b >= 0 ? b : static_cast<int>(std::lround(ImGui::CalcTextSize(text).x / g_sk));
+    const int gezeichnet = static_cast<int>(std::ceil(ImGui::CalcTextSize(text).x / g_sk - 0.01F));
+    if (b < 0) { return gezeichnet; }
+    for (const unsigned char* p = reinterpret_cast<const unsigned char*>(text); *p != 0; ++p) {
+        if (*p >= 0xE0) { return std::max(b, gezeichnet); }   // UTF-8 ab U+0800 (kein Latein, Griechisch, Kyrillisch)
+    }
+    return b;
 }
 
 // Eine Seite ist eine QGroupBox mit einem QGridLayout (PreferencePages_addPage,
@@ -1377,6 +1388,12 @@ void zeichneSchriftDialog() {
 }
 
 // Fuer den Selbsttest: der Text eines Feldes im offenen Einstellungsdialog
+// Selbsttest (Stufe 4 Punkt 0c): jede Seite der Einstellungen zeigen.
+int einstellungsSeitenAnzahl() { return static_cast<int>(std::size(kSeiten)); }
+void einstellungsSeiteZeigen(int seite) {
+    if (seite >= 0 && seite < einstellungsSeitenAnzahl()) { g_entwurf.seite = seite; }
+}
+
 std::string einstellungsFeld(const std::string& id) {
     if (id == "bauengine") { return g_entwurf.bauEngine; }
     if (id == "bauargumente") { return g_entwurf.bauArgumente; }

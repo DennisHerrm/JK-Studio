@@ -34217,6 +34217,161 @@ std::vector<Schritt> autocaulk() {
 
 }  // namespace stufe3
 
+// --- Stufe 4 des Karten-Editors: fertige Karten, Originallicht, Plugins ----------
+//
+// BHED_KARTE_NUR=stufe4 laesst nur diese Schritte laufen; BHED_STUFE4_NUR=<Teil>
+// nur einen Teil (reste, oeffnen, licht, plugins).
+namespace stufe4 {
+
+namespace ke = karteneditor;
+
+// Punkt 0c: keine Beschriftung einer Einstellungsseite abgeschnitten. Jede
+// Glyphe (Vierecke mit der Schrift-Textur, nicht das weisse Pixel) im Fenster
+// liegt waagerecht im Rahmen der Seitengruppe (QGroupBox 164..586 - links
+// davon verdeckt der Seitenbaum, was hinausragt), jede Glyphe des Baums in
+// seinem Ausschnitt.
+bool beschriftungenGanz(std::string& bericht) {
+    ImGuiWindow* w = ImGui::FindWindowByName("###karteeinstellungen");
+    if (w == nullptr || !(w->Active || w->WasActive)) {
+        bericht = "kein Fenster";
+        return false;
+    }
+    const float sk = ke::massstab();
+    const ImVec2 uvWeiss = ImGui::GetIO().Fonts->TexUvWhitePixel;
+    const ImTextureID schrift = ImGui::GetIO().Fonts->TexRef.GetTexID();
+    int ecken = 0;
+    int raus = 0;
+    std::string erste;
+    const float titelUnten = w->Pos.y + w->TitleBarHeight;   // der Fenstertitel zaehlt nicht
+    // Kantengeglaettete Linien (Fensterrand) nehmen ihre UV aus TexUvLines -
+    // keine Glyphen.
+    ImVec2 linienMin{1.0F, 1.0F};
+    ImVec2 linienMax{0.0F, 0.0F};
+    for (const ImVec4& l : ImGui::GetIO().Fonts->TexUvLines) {
+        linienMin = ImVec2{std::min({linienMin.x, l.x, l.z}), std::min({linienMin.y, l.y, l.w})};
+        linienMax = ImVec2{std::max({linienMax.x, l.x, l.z}), std::max({linienMax.y, l.y, l.w})};
+    }
+    const auto pruefeListe = [&](const ImDrawList* dl, float x0, float x1, const char* wo, float zeileOben) {
+        for (const ImDrawCmd& c : dl->CmdBuffer) {
+            if (c.UserCallback != nullptr || c.GetTexID() != schrift) { continue; }
+            for (unsigned int i = 0; i < c.ElemCount; ++i) {
+                const ImDrawVert& v = dl->VtxBuffer[static_cast<int>(c.VtxOffset + dl->IdxBuffer[static_cast<int>(c.IdxOffset + i)])];
+                if ((v.uv.x == uvWeiss.x && v.uv.y == uvWeiss.y) || v.pos.y < titelUnten) { continue; }
+                if (v.uv.x >= linienMin.x && v.uv.x <= linienMax.x && v.uv.y >= linienMin.y && v.uv.y <= linienMax.y) { continue; }
+                ++ecken;
+                if (v.pos.x < x0 - 0.5F || v.pos.x > x1 + 0.5F) {
+                    ++raus;
+                    if (erste.empty()) {
+                        char z[160];
+                        std::snprintf(z, sizeof(z), "%s: Glyphe bei x %.0f y %.0f (erlaubt %.0f..%.0f, Fenster %.0f/%.0f, Zeile %d)", wo, v.pos.x,
+                                      v.pos.y, x0, x1, w->Pos.x, w->Pos.y, static_cast<int>((v.pos.y - zeileOben) / (16.0F * sk)));
+                        erste = z;
+                    }
+                }
+            }
+        }
+    };
+    pruefeListe(w->DrawList, std::round(w->Pos.x + 164.0F * sk), std::round(w->Pos.x + (164.0F + 422.0F) * sk), "Seite", titelUnten);
+    for (ImGuiWindow* k : GImGui->Windows) {
+        if (k->ParentWindow == w && (k->Active || k->WasActive)) {
+            pruefeListe(k->DrawList, k->InnerClipRect.Min.x, k->InnerClipRect.Max.x, "Baum", k->Pos.y + 1.0F * sk);
+        }
+    }
+    bericht = std::to_string(ecken / 6) + " Glyphen, " + std::to_string(raus) + " Ecken draussen" + (erste.empty() ? "" : " - " + erste);
+    return ecken > 0 && raus == 0;
+}
+
+std::vector<Schritt> reste0() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    // --- 0d: Surface Inspector so breit wie das NRC-Foto ---------------------
+    // dlg_View_Surface_Inspector_0.png (2x): Innenraum 285 x 364; die Gruppe
+    // "Texturing" mit den Spalten 23 (43), 72 (44), 122 (67), 195 (67).
+    auto nrcVorher = std::make_shared<bool>(false);
+    add(stufe2::grundzustand("Stufe 4/0d: Grundzustand"));
+    add(tu("Begriffe wie NetRadiant, Surface Inspector auf", [nrcVorher] {
+        *nrcVorher = ke::nrcBegriffe();
+        ke::setzeNrcBegriffe(true);
+        ke::editor().siOffen = true;
+    }));
+    add(pause(0.4));
+    add(pruefe("Surface Inspector: Innenraum 285 x 364, Texturing-Spalten 23/43, 72/44, 122/67, 195/67 wie das NRC-Foto", [] {
+        const ImGuiWindow* w = ImGui::FindWindowByName("###kartesi");
+        if (w == nullptr) { return false; }
+        const float sk = ke::massstab();
+        const long b = std::lround(w->Size.x / sk);
+        const long h = std::lround((w->Size.y - w->TitleBarHeight) / sk);
+        std::string bericht = "Innenraum " + std::to_string(b) + " x " + std::to_string(h) + ", Spalten";
+        bool ok = b == 285 && h == 364;
+        const std::pair<Str, const char*> knoepfe[] = {{Str::KeSiReset, "##sireset"}, {Str::KeSiFit, "##sifit"}, {Str::KeSiWidth, "##siwidth"},
+                                                       {Str::KeSiHeight, "##siheight"}};
+        const long soll[4][2] = {{23, 43}, {72, 44}, {122, 67}, {195, 67}};
+        for (int i = 0; i < 4; ++i) {
+            const Element* el = finde(std::string(ke::trK(knoepfe[i].first)) + knoepfe[i].second, "", 0, true);
+            if (el == nullptr) { return false; }
+            const long x = std::lround((el->rect.Min.x - w->Pos.x) / sk);
+            const long bb = std::lround(el->rect.GetWidth() / sk);
+            bericht += " " + std::to_string(x) + "/" + std::to_string(bb);
+            ok = ok && x == soll[i][0] && bb == soll[i][1];
+        }
+        diag::detail("Knopftest: Stufe 4 - Surface Inspector " + bericht);
+        return ok;
+    }));
+    add(tu("Surface Inspector zu, Begriffe zurueck", [nrcVorher] {
+        ke::editor().siOffen = false;
+        ke::setzeNrcBegriffe(*nrcVorher);
+    }));
+    // --- 0c: keine abgeschnittene Beschriftung, alle Seiten, alle Sprachen ----
+    auto sprache = std::make_shared<i18n::Language>(i18n::Language::English);
+    add(tu("Sprache merken", [sprache, nrcVorher] {
+        *sprache = i18n::currentLanguage();
+        *nrcVorher = ke::nrcBegriffe();
+    }));
+    const std::pair<i18n::Language, const char*> sprachen[] = {{i18n::Language::English, "Englisch"},
+                                                               {i18n::Language::German, "Deutsch"},
+                                                               {i18n::Language::ChineseSimplified, "Chinesisch"},
+                                                               {i18n::Language::Japanese, "Japanisch"}};
+    for (const auto& [l, name] : sprachen) {
+        const i18n::Language lang = l;
+        const std::string sname = name;
+        add(tu("Einstellungen auf " + sname, [lang] {
+            i18n::setLanguage(lang);
+            ke::setzeNrcBegriffe(false);
+            ke::editor().einstellungenOffen = true;
+        }));
+        add(pause(0.3));
+        for (int seite = 0; seite < ke::einstellungsSeitenAnzahl(); ++seite) {
+            add(tu("Seite " + std::to_string(seite), [seite] { ke::einstellungsSeiteZeigen(seite); }));
+            add(pause(0.12));
+            add(pruefe("Einstellungen " + sname + ", Seite " + std::to_string(seite) + ": keine Beschriftung abgeschnitten", [seite, sname] {
+                std::string bericht;
+                const bool ok = beschriftungenGanz(bericht);
+                diag::detail("Knopftest: Stufe 4 - " + sname + " Seite " + std::to_string(seite) + ": " + bericht);
+                return ok;
+            }));
+        }
+        add(tu("Einstellungen zu", [] { ke::editor().einstellungenOffen = false; }));
+        add(pause(0.2));
+    }
+    add(tu("Sprache zurueck", [sprache, nrcVorher] {
+        i18n::setLanguage(*sprache);
+        ke::setzeNrcBegriffe(*nrcVorher);
+    }));
+    return s;
+}
+
+}  // namespace stufe4
+
+std::vector<Schritt> karteneditorStufe4Schritte() {
+    std::vector<Schritt> s;
+    const char* nur = std::getenv("BHED_STUFE4_NUR");
+    const auto teil = [nur](const char* name) { return nur == nullptr || std::strcmp(nur, name) == 0; };
+    if (teil("reste")) {
+        for (Schritt& x : stufe4::reste0()) { s.push_back(std::move(x)); }
+    }
+    return s;
+}
+
 std::vector<Schritt> karteneditorStufe3Schritte() {
     std::vector<Schritt> s;
     // BHED_STUFE3_NUR=maus: nur die Mausbelegung (schneller beim Nachpruefen)
@@ -35146,6 +35301,12 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =stufe4: nur die Stufe 4 (fertige Karten, Originallicht, Plugins)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe4") == 0) {
+        for (Schritt& x : karteneditorStufe4Schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =stufe2: nur die Wirkungspruefungen der Stufe 2 (Bauwerkzeuge)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe2") == 0) {
         for (Schritt& x : karteneditorStufe2Schritte()) { add(std::move(x)); }
@@ -35163,6 +35324,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : karteneditorKonsoleSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorStufe2Schritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorStufe3Schritte()) { add(std::move(x)); }
+    for (Schritt& x : karteneditorStufe4Schritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorAlleBefehleSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS

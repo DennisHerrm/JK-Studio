@@ -538,7 +538,7 @@ UEBERSETZUNG = {
     'Model Browser': ('Modellbrowser', '模型浏览器', 'モデルブラウザー'),
     'Entity Inspector': ('Entity-Inspektor', '实体检查器', 'エンティティインスペクター'),
     'Layers Browser': ('Ebenen', '图层浏览器', 'レイヤーブラウザー'),
-    'Surface Inspector': ('Oberflächen-Inspektor', '表面检查器', 'サーフェスインスペクター'),
+    'Surface Inspector': ('Flächeninspektor', '表面检查器', 'サーフェスインスペクター'),
     'Entity List': ('Entity-Liste', '实体列表', 'エンティティリスト'),
     'Camera': ('Kamera', '摄像机', 'カメラ'),
     'Focus on Selected': ('Auf Auswahl ausrichten', '聚焦所选', '選択に焦点'),

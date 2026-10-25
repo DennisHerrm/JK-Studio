@@ -67,7 +67,7 @@ KARTE2 = [
     ("KePdNormal", "Normal", "Normale", "法线", "法線"),
     ("KePdSideWalls", "Side walls", "Seitenwände", "侧壁", "側面"),
     # --- Surface Inspector (surfacedialog.cpp:632-929) -------------------------------
-    ("KeSiTitle", "Surface Inspector", "Oberflächen-Inspektor", "表面检查器", "サーフェスインスペクタ"),
+    ("KeSiTitle", "Surface Inspector", "Flächeninspektor", "表面检查器", "サーフェスインスペクタ"),
     ("KeSiTexture", "Texture", "Textur", "纹理", "テクスチャ"),
     ("KeSiHShift", "Horizontal shift", "Waagerecht verschieben", "水平平移", "水平シフト"),
     ("KeSiVShift", "Vertical shift", "Senkrecht verschieben", "垂直平移", "垂直シフト"),
@@ -97,7 +97,7 @@ KARTE2 = [
     ("KeSiCamTip", "Project along camera view direction", "Entlang der Kamerablickrichtung projizieren", "沿相机视线方向投影", "カメラの視線方向に沿って投影"),
     ("KeSiPatch", "Patch:", "Patch:", "面片:", "パッチ:"),
     ("KeSiNatural", "Natural", "Natürlich", "自然", "自然"),
-    ("KePrSiMatchGrid", "Surface Inspector Increments Match Grid", "Schritte des Oberflächen-Inspektors am Raster",
+    ("KePrSiMatchGrid", "Surface Inspector Increments Match Grid", "Schritte des Flächeninspektors am Raster",
      "表面检查器步长匹配网格", "サーフェスインスペクタのステップをグリッドに合わせる"),
     # --- Texturbrowser: Reiter (texwindow.cpp:1297, 1870) -----------------------------
     ("KeTagTabTextures", "Textures", "Texturen", "纹理", "テクスチャ"),
@@ -167,8 +167,8 @@ KARTE2 = [
     ("KePrBrushValve", "Valve 220", "Valve 220", "Valve 220", "Valve 220"),
     ("KePrBrushCaulk", "Always use caulk for new brushes", "Neue Pinsel immer mit Caulk", "新笔刷始终使用 Caulk", "新しいブラシには常に Caulk を使う"),
     ("KePrBrushDanger", "Dangerous!", "Gefährlich!", "危险!", "危険!"),
-    ("KePrBrushSnap", "Snap plane points to integer grid (may break brushes)", "Ebenenpunkte auf ganze Zahlen runden (kann Pinsel zerstören)",
-     "将平面点对齐到整数网格(可能损坏笔刷)", "平面の点を整数グリッドに丸める (ブラシが壊れることがあります)"),
+    ("KePrBrushSnap", "Snap plane points to integer grid (may break brushes)", "Ebenenpunkte ganzzahlig (kann Pinsel zerstören)",
+     "将平面点对齐到整数网格(可能损坏笔刷)", "平面の点を整数に丸める (ブラシが壊れる場合あり)"),
     ("KePrGridDefault", "Default grid spacing", "Standard-Rasterweite", "默认网格间距", "既定のグリッド間隔"),
     ("KePrGridMax", "Max grid coordinate", "Größte Rasterkoordinate", "最大网格坐标", "グリッド座標の最大値"),
     ("KePrOrthoStipple", "Solid selection boxes ( no stipple )", "Auswahl durchgezogen (nicht gestrichelt)", "选择框为实线(无点画)",
