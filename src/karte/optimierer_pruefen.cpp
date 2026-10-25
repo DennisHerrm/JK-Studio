@@ -53,7 +53,7 @@ std::string klein(std::string s) {
 bool beginntMit(const std::string& s, const char* p) { return s.rfind(p, 0) == 0; }
 int ganz(const std::string& s) { return std::atoi(s.c_str()); }
 
-constexpr std::size_t kMaxObjekte = 500;   // so viele Objekte je Befund (die Zahl steht in "anzahl")
+constexpr std::size_t kMaxObjekte = 2000000;   // so viele Objekte je Befund (die Behebung braucht alle)
 
 bool weltArtig(const AbbildEntitaet& e) { return e.klasse == "worldspawn" || e.klasse == "func_group"; }
 
@@ -333,7 +333,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
                         ++flaechen;
                         ObjektRef r{static_cast<int>(e), static_cast<int>(k), -1,
                                     stelle(ents[e], static_cast<int>(e), static_cast<int>(k)) + ", face " + std::to_string(f) + " " + fl.shader, static_cast<int>(f)};
-                        if (b.objekte.size() < kMaxObjekte * 4) { b.objekte.push_back(r); }
+                        if (b.objekte.size() < kMaxObjekte) { b.objekte.push_back(r); }
                     }
                 }
             }
@@ -837,7 +837,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
             std::vector<std::pair<std::string, std::string>> s;
             for (const auto& kv : en.schluessel) {
                 const std::string k = klein(kv.first);
-                if (k == "origin" || k == "model") { continue; }
+                if (k == "model") { continue; }   // "origin" bleibt: der Drehpunkt muss gleich sein
                 s.emplace_back(k, kv.second);
             }
             std::sort(s.begin(), s.end());

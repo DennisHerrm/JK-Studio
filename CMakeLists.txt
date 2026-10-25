@@ -782,7 +782,9 @@ target_sources(bhed_core PRIVATE
   src/karte/patchkollision.cpp
   src/karte/optimierer.cpp
   # Stufe 5 Punkt 3: Pruefungen auf Bauprobleme
-  src/karte/optimierer_pruefen.cpp)
+  src/karte/optimierer_pruefen.cpp
+  # Stufe 5 Punkt 4: Beheben auf Knopfdruck (mit Rueckgaengig)
+  src/karte/optimierer_beheben.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.

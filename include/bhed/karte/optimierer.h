@@ -227,6 +227,24 @@ struct PruefOptionen {
 [[nodiscard]] std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o);
 [[nodiscard]] const char* schwereName(Schwere s);   // "note" / "warning" / "error"
 
+// --- Beheben (Punkt 4) -----------------------------------------------------------
+
+struct BehebungsErgebnis {
+    bool ok = false;
+    long long geaendert = 0;   // Flaechen, Pinsel, Patches, Entitaeten
+    std::string undoName;      // der Rueckgaengig-Schritt
+    std::string meldung;       // Hinweis (Englisch), leer wenn alles glatt ging
+};
+// Passt die Momentaufnahme noch zur Karte (Rueckgaengig-Stand gleich)?
+[[nodiscard]] bool abbildPasst(const Karte& k, const KartenAbbild& a);
+// Was die Behebung tun wird (Englisch, fuer die Vorschau).
+[[nodiscard]] std::string behebungsVorschau(const Befund& b);
+// Ein Befund, ein Rueckgaengig-Schritt ("Optimizer: ..."). Nur, wenn die
+// Momentaufnahme noch passt (sonst ok = false: neu pruefen).
+BehebungsErgebnis beheben(Karte& k, const KartenAbbild& a, const Befund& b);
+// Jeder Befund mit "sicher" in EINEM Rueckgaengig-Schritt; je Befund das Ergebnis.
+std::vector<std::pair<std::string, BehebungsErgebnis>> allesSichereBeheben(Karte& k, const KartenAbbild& a, const std::vector<Befund>& befunde);
+
 }  // namespace bhed::karte
 
 #endif

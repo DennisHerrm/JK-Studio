@@ -8,6 +8,8 @@
 // Originalkarte darf an einer harten Grenze "ueber" sein.
 //
 // Punkt 3 (Pruefungen): je Pruefung eine Karte mit dem Problem und eine ohne.
+// Punkt 4 (Beheben): je Behebung die Wirkung (neu gepruefter Zaehler),
+// Rueckgaengig und Wiederholen; "Alles Sichere beheben" in einem Schritt.
 //
 // Aufruf: karteoptimierer [<JA base> <JK2 base> <MD base;MD> <tests/karte/q3map2>]
 //   (jeder Ordner "-" oder leer = uebersprungen)
@@ -25,6 +27,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -808,6 +811,184 @@ void testePruefungen(const std::string& q3dir) {
         pruefe(anzahlVon(pruefeKarte(a, o), "modellezusammen") == 0, "ohne knappe Brush-Modelle: kein Vorschlag");
     }
 }
+
+// --- Punkt 4: Beheben (mit Wirkung, Rueckgaengig und Wiederholen) ---------------
+
+std::string patchText(int w, int h, const std::vector<std::array<float, 3>>& p) {
+    std::string t = "{\npatchDef2\n{\ntextures/test/x\n( " + std::to_string(w) + " " + std::to_string(h) + " 0 0 0 )\n(\n";
+    for (int i = 0; i < w; ++i) {   // Spalten (patchDef2: je Zeile der Datei eine Spalte)
+        t += "( ";
+        for (int j = 0; j < h; ++j) {
+            const auto& q = p[static_cast<std::size_t>(j) * static_cast<std::size_t>(w) + static_cast<std::size_t>(i)];
+            char z[128];
+            std::snprintf(z, sizeof(z), "( %g %g %g 0 0 ) ", static_cast<double>(q[0]), static_cast<double>(q[1]), static_cast<double>(q[2]));
+            t += z;
+        }
+        t += ")\n";
+    }
+    return t + ")\n}\n}\n";
+}
+
+struct Fall {
+    Karte k;
+    KartenAbbild a;
+    std::vector<Befund> b;
+    explicit Fall(const std::string& text, const PruefOptionen& o = pruefOpt()) {
+        (void)karteLesen(text, k);
+        k.anmelden();
+        neu(o);
+    }
+    void neu(const PruefOptionen& o = pruefOpt()) {
+        a = kartenAbbild(k);
+        b = pruefeKarte(a, o);
+    }
+    long long n(const char* id) const { return anzahlVon(b, id); }
+};
+
+// Behebt den Befund id, prueft die Wirkung (neu gepruefter Zaehler), dann
+// Rueckgaengig (wieder wie vorher) und Wiederholen (wieder behoben).
+void behebenPruefen(const char* was, Fall& f, const char* id, long long nachher, const PruefOptionen& o = pruefOpt()) {
+    const long long vorher = f.n(id);
+    const Befund* b = befund(f.b, id);
+    pruefe(b != nullptr && vorher > 0, std::string(was) + ": Befund " + id + " vorhanden (" + std::to_string(vorher) + ")");
+    if (b == nullptr) { return; }
+    pruefe(!behebungsVorschau(*b).empty(), std::string(was) + ": Vorschau \"" + behebungsVorschau(*b) + "\"");
+    const BehebungsErgebnis e = beheben(f.k, f.a, *b);
+    pruefe(e.ok && e.geaendert > 0 && e.undoName.rfind("Optimizer: ", 0) == 0,
+           std::string(was) + ": behoben (" + std::to_string(e.geaendert) + ", \"" + e.undoName + "\") " + e.meldung);
+    pruefe(f.k.undo.undoName() == e.undoName, std::string(was) + ": ein Rueckgaengig-Schritt \"" + f.k.undo.undoName() + "\"");
+    f.neu(o);
+    pruefe(f.n(id) == nachher, std::string(was) + ": danach " + std::to_string(f.n(id)) + " (erwartet " + std::to_string(nachher) + ")");
+    (void)f.k.undo.undo();
+    f.neu(o);
+    pruefe(f.n(id) == vorher, std::string(was) + ": Rueckgaengig stellt " + std::to_string(vorher) + " wieder her (" + std::to_string(f.n(id)) + ")");
+    (void)f.k.undo.redo();
+    f.neu(o);
+    pruefe(f.n(id) == nachher, std::string(was) + ": Wiederholen behebt wieder (" + std::to_string(f.n(id)) + ")");
+}
+
+void testeBeheben() {
+    {   // Caulk fuer verdeckte Flaechen
+        Fall f(entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x") + kastenText(0, 0, 64, 64, 64, 128, "test/y")));
+        behebenPruefen("Caulk", f, "verdeckt", 0);
+        long long caulk = 0;
+        for (const auto& p : f.k.entitaeten().front()->kinder()) {
+            const auto& pin = static_cast<const Pinsel&>(*p);
+            for (std::size_t i = 0; i < pin.anzahl(); ++i) { caulk += pin[i].shader() == "textures/common/caulk" ? 1 : 0; }
+        }
+        pruefe(caulk == 2, "Caulk: genau die zwei verdeckten Flaechen tragen common/caulk (" + std::to_string(caulk) + ")");
+    }
+    {   // Make Detail fuer Deko
+        Fall f(entText("worldspawn", "", kastenText(0, 0, 0, 512, 512, 16, "test/boden") + kastenText(0, 0, 16, 32, 32, 48, "test/kiste")));
+        behebenPruefen("Detail", f, "deko", 0);
+        const auto& kinder = f.k.entitaeten().front()->kinder();
+        pruefe(kinder.size() == 2 && !static_cast<const Pinsel&>(*kinder[0]).istDetail() && static_cast<const Pinsel&>(*kinder[1]).istDetail(),
+               "Detail: nur die Kiste ist detail, der Boden bleibt structural");
+    }
+    {   // Make Structural fuer Hint als detail
+        Fall f(entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "common/hint", kDetail)));
+        behebenPruefen("Struktur", f, "mischinhalt", 0);
+    }
+    {   // Snap to Grid
+        Fall f(entText("worldspawn", "", kastenText(0, 0, 0, 64.02, 64, 64, "test/x")));
+        behebenPruefen("Einrasten", f, "offgrid", 0);
+        const Kasten& g = static_cast<const Pinsel&>(*f.k.entitaeten().front()->kinder().front()).grenzen(f.k.kontext);
+        pruefe(std::fabs(g.origin[0] + g.extents[0] - 64.0F) < 0.001F, "Einrasten: die Ecke liegt danach bei 64");
+    }
+    {   // Mikropinsel entfernen
+        Fall f(entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x") + kastenText(100, 0, 0, 164, 64, 0.5, "test/x")));
+        behebenPruefen("Mikropinsel", f, "mikro", 0);
+        pruefe(f.k.entitaeten().front()->kinder().size() == 1, "Mikropinsel: einer von zwei Pinseln bleibt");
+    }
+    {   // Patch teilen (bobToolz Split patch)
+        Fall f(entText("worldspawn", "", kastenText(-64, -64, -64, 64, 64, 0, "test/x")) + entText("func_static", "", patchText(31, 31, wellenPatch(31, 31, 96))));
+        behebenPruefen("Patch teilen", f, "patchgross", 0);
+        pruefe(f.k.entitaeten().back()->kinder().size() == 225, "Patch teilen: 31x31 wird zu 15 x 15 = 225 Teilen (" +
+                                                                       std::to_string(f.k.entitaeten().back()->kinder().size()) + ")");
+    }
+    {   // Brush-Modelle zusammenlegen; danach wird neu gezaehlt
+        std::string t = entText("worldspawn", "", kastenText(-64, -64, -64, 64, 64, 0, "test/x"));
+        for (int i = 0; i < 3; ++i) { t += entText("func_wall", "\"spawnflags\" \"1\"\n", kastenText(i * 100, 0, 0, i * 100 + 8, 8, 8, "test/w")); }
+        t += entText("func_wall", "\"spawnflags\" \"1\"\n\"targetname\" \"an\"\n", kastenText(500, 0, 0, 508, 8, 8, "test/w"));
+        PruefOptionen o = pruefOpt();
+        Bewertung bm;
+        bm.zaehlung.id = "kollision.submodelle";
+        bm.zaehlung.wert = 480;
+        bm.ampel = Ampel::Knapp;
+        o.bewertungen.push_back(bm);
+        Fall f(t, o);
+        auto modelle = [&]() {
+            for (const Zaehlung& z : zaehleKarte(kartenAbbild(f.k), optionen(GrenzSpiel::JkaSp))) {
+                if (z.id == "kollision.submodelle") { return z.wert; }
+            }
+            return -1LL;
+        };
+        const long long vorher = modelle();
+        behebenPruefen("Modelle zusammenlegen", f, "modellezusammen", 0, o);
+        pruefe(vorher == 5 && modelle() == 3, "Modelle zusammenlegen: Brush-Modelle 5 -> 3 (" + std::to_string(vorher) + " -> " + std::to_string(modelle()) + ")");
+        long long pinsel = 0;
+        for (const auto& e : f.k.entitaeten()) { pinsel += static_cast<long long>(e->kinder().size()); }
+        pruefe(pinsel == 5 && f.k.entitaeten()[1]->kinder().size() == 3, "Modelle zusammenlegen: kein Pinsel geht verloren, der erste func_wall traegt alle drei");
+    }
+    {   // worldspawn gridsize (volles Lichtgitter)
+        BspAnalyse an;
+        an.ok = true;
+        an.lichtgitterUeberlauf = 100;
+        PruefOptionen o = pruefOpt();
+        o.bsp = &an;
+        Fall f(entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x")), o);
+        const Befund* b = befund(f.b, "lichtgitter");
+        pruefe(b != nullptr, "gridsize: Befund vorhanden");
+        if (b != nullptr) {
+            const BehebungsErgebnis e = beheben(f.k, f.a, *b);
+            pruefe(e.ok && f.k.welt()->wert("gridsize") == "128 128 128", "gridsize: worldspawn \"gridsize\" \"128 128 128\" (" + f.k.welt()->wert("gridsize") + ")");
+            (void)f.k.undo.undo();
+            pruefe(f.k.welt()->wert("gridsize").empty(), "gridsize: Rueckgaengig entfernt den Schluessel");
+        }
+    }
+    {   // Brush-Entity ohne Pinsel entfernen
+        Fall f(entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x")) + entText("func_door", "\"angle\" \"90\"\n", ""));
+        f.a.ents.back().behaelter = true;   // ohne Entitaets-Definitionen kennt die Karte func_door nicht als Brush-Entity
+        f.b = pruefeKarte(f.a, pruefOpt());
+        const Befund* b = befund(f.b, "leereentity");
+        pruefe(b != nullptr, "leere Entity: Befund vorhanden");
+        if (b != nullptr) {
+            const BehebungsErgebnis e = beheben(f.k, f.a, *b);
+            pruefe(e.ok && f.k.entitaeten().size() == 1, "leere Entity: geloescht (" + std::to_string(f.k.entitaeten().size()) + " Entitaeten)");
+            (void)f.k.undo.undo();
+            pruefe(f.k.entitaeten().size() == 2, "leere Entity: Rueckgaengig bringt sie zurueck");
+        }
+    }
+    {   // Alles Sichere beheben: Caulk, Struktur, Einrasten - nicht die Deko
+        const std::string t = entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x") + kastenText(0, 0, 64, 64, 64, 128, "test/y") +
+                                                            kastenText(200, 0, 0, 264, 64, 64, "common/hint", kDetail) +
+                                                            kastenText(300, 0, 0, 428.02, 128, 128, "test/z") + kastenText(500, 0, 0, 532, 32, 32, "test/kiste"));
+        Fall f(t);
+        const long long deko = f.n("deko");
+        const auto r = allesSichereBeheben(f.k, f.a, f.b);
+        std::set<std::string> welche;
+        for (const auto& [id, e] : r) {
+            if (e.geaendert > 0) { welche.insert(id); }
+        }
+        pruefe(welche == std::set<std::string>{"verdeckt", "mischinhalt", "offgrid"}, "Alles Sichere: verdeckt, mischinhalt, offgrid (" + std::to_string(welche.size()) + ")");
+        pruefe(f.k.undo.undoName().rfind("Optimizer: fix all safe", 0) == 0, "Alles Sichere: ein Rueckgaengig-Schritt \"" + f.k.undo.undoName() + "\"");
+        f.neu();
+        pruefe(f.n("verdeckt") == 0 && f.n("mischinhalt") == 0 && f.n("offgrid") == 0 && f.n("deko") == deko && deko > 0,
+               "Alles Sichere: die drei behoben, die Deko-Vorschlaege bleiben");
+        (void)f.k.undo.undo();
+        f.neu();
+        pruefe(f.n("verdeckt") == 2 && f.n("mischinhalt") == 1 && f.n("offgrid") == 1, "Alles Sichere: ein Rueckgaengig stellt alles wieder her");
+    }
+    {   // veraltete Momentaufnahme: nicht beheben
+        Fall f(entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x") + kastenText(0, 0, 64, 64, 64, 128, "test/y")));
+        {
+            Befehl b(f.k.undo, "andere Aenderung");
+            f.k.welt()->setzen("message", "x");
+        }
+        const BehebungsErgebnis e = beheben(f.k, f.a, *befund(f.b, "verdeckt"));
+        pruefe(!e.ok && e.geaendert == 0, "geaenderte Karte: Behebung abgelehnt (" + e.meldung + ")");
+    }
+}
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -816,6 +997,7 @@ int main(int argc, char** argv) {
     testeBsp();
     auto arg = [&](int i) { return argc > i ? std::string(argv[i]) : std::string(); };
     testePruefungen(arg(4));
+    testeBeheben();
     // echte Karten (nur lesen)
     spielAbgleich({arg(1)}, GrenzSpiel::JkaSp, "Jedi Academy");
     spielAbgleich({arg(2)}, GrenzSpiel::Jk2, "Jedi Outcast");
