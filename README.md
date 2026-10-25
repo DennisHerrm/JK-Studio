@@ -91,7 +91,10 @@ Details and known pitfalls are in [BAUEN.md](BAUEN.md), the tests in
   QStatusBar; GPL v2/v3 or LGPL v3) in `src/karte/teiler.cpp`. The two
   placeholder textures `data/karte/bitmaps/notex.png` and `shadernotex.png`
   ("shader not found", "shader image missing") are NetRadiant-Custom's own
-  (`setup/data/tools/bitmaps`, GPL v2).
+  (`setup/data/tools/bitmaps`, GPL v2). The Portal Viewer
+  (`src/karte/portale.cpp`, `gui/app_karte_portale.cpp`) is ported from
+  NetRadiant-Custom's prtview plugin (Geoffrey Dewan, Loki Software, LGPL 2.1
+  or later), used here under GPL v2 as section 3 of the LGPL 2.1 allows.
 - Code ported from [OpenJK](https://github.com/JACoders/OpenJK) (GPL v2): the
   engine behaviour reproduced in the preview (movement, collision, ICARUS,
   rendering rules) and the entity definitions generated from its QUAKED comments.

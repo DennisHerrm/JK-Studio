@@ -128,6 +128,9 @@ struct Zustand3 {
     unsigned muster = 0;                // RENDER_LINESTIPPLE: Muster (0 = aus)
     int musterFaktor = 1;
     float breite = 1;                   // glLineWidth (nur Linien)
+    // RENDER_FOG mit GL_EXP (prtview, Stufe 3 Punkt 5): rgb die Farbe, a die
+    // Dichte (0 = aus); f = exp(-Dichte * Abstand), Abstand = -z im Auge (= w).
+    float nebel[4]{0, 0, 0, 0};
 };
 // Punkte wie punkte(), aber mit Tiefentest gegen die Tiefe der Kamera (fuer
 // $DEEPPOINT: erst die verdeckten mit GL_GREATER, dann die sichtbaren).

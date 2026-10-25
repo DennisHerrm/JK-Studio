@@ -121,7 +121,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     - [x] ITEM Save s&elected... -> `SaveSelected`  (radiant/mainframe.cpp:882) -- Stufe 2 Punkt 8
     - [x] ITEM Save re&gion... -> `SaveRegion`  (radiant/mainframe.cpp:883) -- Stufe 2 Punkt 8
     * ---
-    - [~] ITEM &Pointfile -> `TogglePointfile`  (radiant/mainframe.cpp:885) -- Stufe 3
+    - [x] ITEM &Pointfile -> `TogglePointfile`  (radiant/mainframe.cpp:885) -- Stufe 3 Punkt 5
     * ---
     * ---
     - [ ] ITEM E&xit -> `Exit`  (radiant/mainframe.cpp:889)
@@ -180,8 +180,8 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
       - [x] ITEM Far Clip Plane In -> `CubicClipZoomIn`  (radiant/mainframe.cpp:965)
       - [x] ITEM Far Clip Plane Out -> `CubicClipZoomOut`  (radiant/mainframe.cpp:966)
       * ---
-      - [~] ITEM Next leak spot -> `NextLeakSpot`  (radiant/mainframe.cpp:968) -- Stufe 3
-      - [~] ITEM Previous leak spot -> `PrevLeakSpot`  (radiant/mainframe.cpp:969) -- Stufe 3
+      - [x] ITEM Next leak spot -> `NextLeakSpot`  (radiant/mainframe.cpp:968) -- Stufe 3 Punkt 5
+      - [x] ITEM Previous leak spot -> `PrevLeakSpot`  (radiant/mainframe.cpp:969) -- Stufe 3 Punkt 5
     * ---
     * SUB Orthographic  (radiant/mainframe.cpp:977)
       - [x] ITEM &Next (XY, XZ, YZ) [wenn: if ( style == MainFrame::eRegular || style == MainFrame::eRegularLeft || style == MainFrame::eFloating )] -> `NextView`  (radiant/mainframe.cpp:982) -- Stufe 1b Punkt 5
@@ -733,7 +733,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `MoveToCamera` | Commands | Ctrl+Shift+V | (radiant/select.cpp:1865)
 - [x] `NaturalizePatch` | Commands | Ctrl+N | (radiant/patchmanip.cpp:696) -- Stufe 2 Punkt 6
 - [x] `NewMap` | Commands | - | (radiant/map.cpp:2429)
-- [~] `NextLeakSpot` | Commands | Ctrl+Shift+K | (radiant/points.cpp:321) -- Stufe 3
+- [x] `NextLeakSpot` | Commands | Ctrl+Shift+K | (radiant/points.cpp:321) -- Stufe 3 Punkt 5
 - [x] `NextView` | Commands | Ctrl+Tab | (radiant/xywindow.cpp:2270) -- Stufe 1b Punkt 5
 - [x] `OpenGLFont` | Commands | - | (radiant/mainframe.cpp:2092) -- Stufe 2 Punkt 11
 - [x] `OpenManual` | Commands | F1 | (radiant/mainframe.cpp:2069) -- Stufe 3 Punkt 0b
@@ -760,13 +760,13 @@ Name | Art | Standardtaste | Quelle
 - [x] `PatchXactCylinder` | Commands | - | (radiant/patchmanip.cpp:701) -- Stufe 2 Punkt 6
 - [x] `PatchXactSphere` | Commands | - | (radiant/patchmanip.cpp:702) -- Stufe 2 Punkt 6
 - [x] `Preferences` | Commands | P | (radiant/mainframe.cpp:2076)
-- [~] `PrevLeakSpot` | Commands | Ctrl+Shift+L | (radiant/points.cpp:322) -- Stufe 3
-- [~] `prtview::AboutPortalViewer` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3
-- [~] `prtview::ConfigurePortalViewer` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3
-- [~] `prtview::Load.prtFile` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3
-- [~] `prtview::TogglePortals(2D)` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3
-- [~] `prtview::TogglePortals(3D)` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3
-- [~] `prtview::Unload.prtFile` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3
+- [x] `PrevLeakSpot` | Commands | Ctrl+Shift+L | (radiant/points.cpp:322) -- Stufe 3 Punkt 5
+- [x] `prtview::AboutPortalViewer` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3 Punkt 5
+- [x] `prtview::ConfigurePortalViewer` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3 Punkt 5
+- [x] `prtview::Load.prtFile` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3 Punkt 5
+- [x] `prtview::TogglePortals(2D)` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3 Punkt 5
+- [x] `prtview::TogglePortals(3D)` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3 Punkt 5
+- [x] `prtview::Unload.prtFile` | Commands | - | (contrib/prtview/prtview.cpp:164) -- Stufe 3 Punkt 5
 - [x] `RedisperseCols` | Commands | - | (radiant/patchmanip.cpp:723) -- Stufe 2 Punkt 6
 - [x] `RedisperseRows` | Commands | - | (radiant/patchmanip.cpp:721) -- Stufe 2 Punkt 6
 - [x] `Redo` | Commands | Ctrl+Shift+Z | (radiant/select.cpp:1860)
@@ -874,7 +874,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `ToggleGridSnap` | Commands | - | (radiant/grid.cpp:187)
 - [x] `ToggleLayersBrowser` | Commands | L | (radiant/mainframe.cpp:2081)
 - [x] `ToggleModelBrowser` | Commands | / | (radiant/mainframe.cpp:2080)
-- [~] `TogglePointfile` | Commands | - | (radiant/points.cpp:320) -- Stufe 3
+- [x] `TogglePointfile` | Commands | - | (radiant/points.cpp:320) -- Stufe 3 Punkt 5
 - [x] `ToggleShowShaderlistOnly` | Toggles | - | (radiant/texwindow.cpp:2106)
 - [x] `ToggleShowShaders` | Toggles | - | (radiant/texwindow.cpp:2104)
 - [x] `ToggleShowTextures` | Toggles | - | (radiant/texwindow.cpp:2105)
@@ -1137,15 +1137,15 @@ Name | Art | Standardtaste | Quelle
 
 ### prtview (contrib/prtview/prtview.cpp:164)
 
-- [~] prtview: Load .prt file -> `prtview::Load.prtFile`  (contrib/prtview/prtview.cpp:164) -- Stufe 3
-- [~] prtview: Unload .prt file -> `prtview::Unload.prtFile`  (contrib/prtview/prtview.cpp:164) -- Stufe 3
+- [x] prtview: Load .prt file -> `prtview::Load.prtFile`  (contrib/prtview/prtview.cpp:164) -- Stufe 3 Punkt 5
+- [x] prtview: Unload .prt file -> `prtview::Unload.prtFile`  (contrib/prtview/prtview.cpp:164) -- Stufe 3 Punkt 5
 * ---
-- [~] prtview: Toggle portals (3D) -> `prtview::TogglePortals(3D)`  (contrib/prtview/prtview.cpp:164) -- Stufe 3
-- [~] prtview: Toggle portals (2D) -> `prtview::TogglePortals(2D)`  (contrib/prtview/prtview.cpp:164) -- Stufe 3
+- [x] prtview: Toggle portals (3D) -> `prtview::TogglePortals(3D)`  (contrib/prtview/prtview.cpp:164) -- Stufe 3 Punkt 5
+- [x] prtview: Toggle portals (2D) -> `prtview::TogglePortals(2D)`  (contrib/prtview/prtview.cpp:164) -- Stufe 3 Punkt 5
 * ---
-- [~] prtview: Configure Portal Viewer -> `prtview::ConfigurePortalViewer`  (contrib/prtview/prtview.cpp:164) -- Stufe 3
+- [x] prtview: Configure Portal Viewer -> `prtview::ConfigurePortalViewer`  (contrib/prtview/prtview.cpp:164) -- Stufe 3 Punkt 5
 * ---
-- [~] prtview: About Portal Viewer -> `prtview::AboutPortalViewer`  (contrib/prtview/prtview.cpp:164) -- Stufe 3
+- [x] prtview: About Portal Viewer -> `prtview::AboutPortalViewer`  (contrib/prtview/prtview.cpp:164) -- Stufe 3 Punkt 5
 
 ## Mausbelegung
 

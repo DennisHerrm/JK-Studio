@@ -622,6 +622,7 @@ struct Konstanten3 {
     float versatz[4];      // x Faktor, y Einheiten, z an, w r
     float muster[4];       // x Muster, y Faktor, z/w Bildgroesse
     float linie[4];        // x Breite
+    float nebel[4];        // rgb Farbe, a Dichte (GL_EXP; 0 = aus)
 };
 
 // renderstate.cpp: Licht (abgeleitet aus Cam_Draw: Umgebung 0,2 + 0,4,
@@ -629,7 +630,7 @@ struct Konstanten3 {
 // (gl/skybox_vp.glsl, skybox_fp.glsl), glPolygonOffset und glLineStipple.
 const char* const kShader3 = R"(
 cbuffer B3 : register(b0) {
-    float4x4 mvp; float4 farbe; float4 vpnLicht; float4 augeHimmel; float4 alpha; float4 versatz; float4 muster; float4 linie;
+    float4x4 mvp; float4 farbe; float4 vpnLicht; float4 augeHimmel; float4 alpha; float4 versatz; float4 muster; float4 linie; float4 nebel;
 };
 Texture2D bild : register(t0);
 TextureCube wuerfel : register(t1);
@@ -638,7 +639,13 @@ SamplerState wuerfelAbtaster : register(s1);
 float licht(float3 n) { return saturate(0.6 + 0.4 * max(0.0, dot(normalize(n), vpnLicht.xyz))); }
 float4 clip3(float3 p) { float4 c = mul(mvp, float4(p, 1.0)); c.z = (c.z + c.w) * 0.5; return c; }
 struct VI3 { float3 pos : POSITION; float3 n : NORMAL; float2 st : TEXCOORD0; float4 farbe : COLOR; };
-struct VO3 { float4 pos : SV_Position; float4 farbe : COLOR; float2 st : TEXCOORD0; float3 richtung : TEXCOORD1; };
+struct VO3 { float4 pos : SV_Position; float4 farbe : COLOR; float2 st : TEXCOORD0; float3 richtung : TEXCOORD1; float tiefe : TEXCOORD2; };
+// GL_FOG_MODE GL_EXP: C = f * C + (1 - f) * Nebelfarbe, f = exp(-Dichte * Abstand)
+float3 genebelt(float3 c, float abstand) {
+    if (nebel.w <= 0.0) { return c; }
+    float f = saturate(exp(-nebel.w * abs(abstand)));
+    return lerp(nebel.rgb, c, f);
+}
 VO3 vs3(VI3 i) {
     VO3 o;
     o.pos = clip3(i.pos);
@@ -647,6 +654,7 @@ VO3 vs3(VI3 i) {
     o.farbe = c;
     o.st = i.st;
     o.richtung = i.pos - augeHimmel.xyz;
+    o.tiefe = o.pos.w;
     return o;
 }
 bool alphaGut(float a) {
@@ -666,6 +674,7 @@ float4 ps3(VO3 i) : SV_Target {
     }
     float4 c = i.farbe;
     if (alpha.z > 0.5) { c *= bild.Sample(abtaster, i.st); }
+    c.rgb = genebelt(c.rgb, i.tiefe);
     if (!alphaGut(c.a)) { discard; }
     return c;
 }
@@ -682,7 +691,7 @@ VOL vsl(VIL i) {
     o.dritte = i.extra.w > 0.5 ? clip3(i.extra.xyz) : float4(0.0, 0.0, 0.0, 1.0);
     return o;
 }
-struct GOL { float4 pos : SV_Position; float4 farbe : COLOR; nointerpolation float2 start : TEXCOORD0; };
+struct GOL { float4 pos : SV_Position; float4 farbe : COLOR; nointerpolation float2 start : TEXCOORD0; float tiefe : TEXCOORD1; };
 float3 fenster(float4 c) {
     float2 h = muster.zw * 0.5;
     return float3((c.x / c.w + 1.0) * h.x, (1.0 - c.y / c.w) * h.y, c.z / c.w);
@@ -709,6 +718,7 @@ void gsl(line VOL e[2], inout LineStream<GOL> s) {
         v.pos.z += o * v.pos.w;
         v.farbe = e[k].farbe;
         v.start = st;
+        v.tiefe = e[k].pos.w;
         s.Append(v);
     }
 }
@@ -743,6 +753,7 @@ void gslBreit(line VOL e[2], inout TriangleStream<GOL> s) {
             v.pos.xy += (seite == 0 ? q : -q) * e[k].pos.w;
             v.farbe = e[k].farbe;
             v.start = st;
+            v.tiefe = e[k].pos.w;
             s.Append(v);
         }
     }
@@ -754,7 +765,9 @@ float4 psl(GOL i) : SV_Target {
         uint bit = (zaehler / (uint)muster.y) & 15u;
         if (((((uint)muster.x) >> bit) & 1u) == 0u) { discard; }
     }
-    return i.farbe;
+    float4 c = i.farbe;
+    c.rgb = genebelt(c.rgb, i.tiefe);
+    return c;
 }
 )";
 
@@ -892,6 +905,7 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
     k->linie[1] = 0;
     k->linie[2] = 0;
     k->linie[3] = 0;
+    std::memcpy(k->nebel, z.nebel, sizeof(k->nebel));
     c->Unmap(g.cb3, 0);
     const float faktor[4] = {0, 0, 0, 0};
     c->OMSetBlendState(z.mischen == Mischen::Aus ? g.blendAus : z.mischen == Mischen::Alpha ? g.blend : g.blendAdd, faktor, 0xFFFFFFFFU);

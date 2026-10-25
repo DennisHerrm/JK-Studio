@@ -1076,6 +1076,8 @@ void kameraZeichnen() {
                 }
             }
         }
+        // Stufe 3 Punkt 5: CPointfile ($POINTFILE, eSortFullbright: Tiefe testen und schreiben)
+        punktdateiKameraZeichnen(&vp[0]);
         // eSortTranslucent: zuerst ohne Textur (Additiv), dann qer_trans
         for (const Szene3* q : teile) {
             for (const Stapel3& st : q->stapel) {
@@ -1131,6 +1133,8 @@ void kameraZeichnen() {
                 kartegpu::linien(flaechenDraht, z);
             }
         }
+        // Stufe 3 Punkt 5: prtview (solid_outline, solid; eSortOverlayFirst)
+        portaleKameraZeichnen(&vp[0], vp, fuellen);
         // eSortOverlayFirst: verdeckte Kanten gestrichelt grau
         {
             kartegpu::Zustand3 z = basis;

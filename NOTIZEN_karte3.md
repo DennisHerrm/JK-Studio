@@ -654,3 +654,81 @@ TESTING.md), Spielordner Movie Duels als fs_basepath (nur gelesen):
 | Selbsttest s3p4f: Rueckgabe beim Absturz | 69 / 2 (der zweite war der Test: ein Pinsel ohne Startpunkt leckt - jetzt ein dichter Raum mit info_player_start) | s3p4g: 71 / 0 |
 
 ctest 104/104.
+
+## Punkt 5: Leck-Linie, Rueckmeldungen in 2D, Portal Viewer
+
+Leck-Linie (radiant/points.cpp) in `gui/app_karte_leck.cpp`:
+- Aus dem Rueckkanal (polyline, Punkt 4) oder mit File > Pointfile
+  (TogglePointfile) aus `<gebaute Karte>.lin`, sonst `.pts`; Meldungen wie NRC
+  ("Pointfile X not found" rot, je fuer .lin und .pts; "Reading pointfile X";
+  "Corrupt point file, line N" als Warnung). Wie NRC bleibt eine alte Linie im
+  Speicher, wenn die Datei fehlt, und erscheint beim naechsten Einschalten.
+- Gezeichnet wie $POINTFILE: rot, 4 breit; in der Kamera mit Tiefentest und
+  -schreiben (eSortFullbright, nach den deckenden Flaechen), in den
+  2D-Ansichten nach den Pinseln.
+- Next / Previous leak spot (Strg+Umschalt+K / L): Pointfile_UpdateViews -
+  Kamera und alle 2D-Ansichten an den Punkt, Gier/Nick zum naechsten Punkt;
+  "End of pointfile" / "Start of pointfile". Das erste Next nach dem
+  Einschalten geht wie bei NRC gleich zu Punkt 2.
+- Pointfile_Clear bei New Map, Open Map und beim Speichern (Map_Save) - also
+  auch vor jedem Bauen, das die Karte speichert.
+- Rueckmeldungen pointmsg / windingmsg (feedback.cpp Draw2D): die gewaehlte
+  Zeile des Q3Map debug window zeichnet in den 2D-Ansichten den Punkt (4) und
+  ein Quadrat +-8 rot bzw. die Ecken rot und die Flaeche (0.133, 0.4, 1, 0.5)
+  gemischt. Die Zeile einer select-Meldung waehlt die Entitaet/den Pinsel
+  (SelectBrush; beim Leck die Entitaet, aus der es leckt).
+
+Portal Viewer (contrib/prtview) - Kern `include/bhed/karte/portale.h`,
+`src/karte/portale.cpp`, Oberflaeche `gui/app_karte_portale.cpp`:
+- Plugins > prtview: Load .prt file (der modale Dialog "Load .prt": Datei mit
+  Suchen-Knopf, Show 3D, Show 2D, OK/Cancel; Vorgabe `<gebaute Karte>.prt`),
+  Unload, Toggle portals (3D)/(2D), Configure Portal Viewer, About. Jeder
+  Befehl schreibt wie QERPlug_Dispatch `Portal Viewer plugin: Command "..."`.
+- CPortals::Load wortgleich (PRT1, PRT2, PRT1-AM, Hint-Flags an der vierten
+  Kopfzeile erkannt, alle Fehlermeldungen); CBspPortal::Build mit Mitte,
+  inneren Punkten (1 % zur Mitte), Grenzen und Zufallsfarbe aus rand() - hier
+  eine eigene Folge wie die C-Laufzeit von Windows (41, 18467, 6334, ...),
+  damit kein anderer rand()-Aufruf die Farben aendert.
+- 2D: Linienzuege der Portale in color_2d, width_2d. Kamera: erst die Umrisse
+  (innere Punkte, color_3d, width_3d), dann die Polygone (Zufallsfarbe,
+  Opacity, nach Abstand sortiert ausser bei "Z-Buffer Test and Write") - die
+  Reihenfolge, die OpenGLState_less aus den Zustandsbits ergibt (beide
+  eSortOverlayFirst). Tiefe je Z-Buffer-Stufe wie Portals_constructShaders
+  (Umriss mit RENDER_DEPTHWRITE schon in der Grundstufe), Wuerfel-Ausschnitt wie
+  calculateCubicClipVolume (auch NRCs vertauschte min/max), ohne RENDER_FILL
+  (Kamera "Wireframe") die Polygone als Linien.
+- Nebel: RENDER_FOG mit GL_EXP, Dichte 0.001 - neu im Shader der Kamera
+  (f = exp(-Dichte * w), w = Abstand im Auge), nur fuer die Portale.
+- Einstellungen wie prtview.ini (LoadConfig beim ersten Gebrauch, SaveConfig beim
+  Beenden): `<Einstellungen>\karte_prtview.ini` (Name wie die anderen Dateien des
+  Editors), Inhalt wie IniFile + "wt": sortiert, `Wert        ; Kommentar`, CRLF.
+- Dialog "Portal Viewer Configuration": nicht modal, Lagen aus dem Foto
+  gemessen (Massstab 2, Innenraum 386 x 510): ankreuzbare Gruppen (aus = Inhalt
+  gesperrt), Schieber wie QSlider (Lage = QStyle::sliderPositionFromValue,
+  Ziehen = sliderValueFromPosition, Klick in die Rinne = Seitenschritt 10,
+  mittlere Taste = absolut, Rad = 3), Color-Knoepfe mit dem Farbdialog
+  (RGB_PACK wie OnColor), Klappliste Z-Buffer, Draw Hint/Regular Portals.
+  Im Selbsttest jede Lage auf den Punkt gegen das Foto geprueft.
+
+Abweichungen:
+- Farben der Dialoge nach dem Farbschema des Programms; About als Kasten mit
+  Text (NRC: Rich Text mit mailto-Links), "Built against NetRadiant
+  1.6.0n-git-68ecbed (BehavEd-Remake, <Datum>)".
+- "Load .prt" ohne NRC-Foto: Groesse nach Qt-Regeln (Rand 11, Abstand 6, Knoepfe
+  80 x 22) - 188 x 118.
+- Map_Name fuer .lin/.prt ist die gebaute Datei (mit Ziel-Ordner die Kopie dort).
+- Der Leck-Hinweis (Punkt 4) nennt File > Pointfile (vorher faelschlich View).
+- prtview steht unter LGPL 2.1 (oder spaeter); die portierten Dateien tragen
+  nach deren Abschnitt 3 den Vermerk der GPL v2 (README, ctest karte_lizenz).
+
+### Rot/Gruen
+
+| Pruefung | rot | gruen |
+|---|---|---|
+| ctest `karte_portale` (25: IniFile, LoadConfig/SaveConfig, rand(), Load an raum.nrc.prt, PRT2/PRT1-AM, alle Fehler) | Mutation Hint-Erkennung: 4 FEHL | 25/25 |
+| Selbsttest `BHED_STUFE3_NUR=leck`, Lauf s3p5rot: Linie in 2D nicht gezeichnet, Gier/Nick vertauscht, kein Nebel im Shader, Seitenschritt falsch herum (`// MUTATION M1-M4`) | 48 OK / 7 FEHLER | s3p5b: 55 / 0 |
+| Selbsttest s3p5a (erste Fassung) | 52 / 4 (Erwartungen: die Bildmitte nur teilweise rot, die Zeile heisst "Entity 3, Brush 0: Entity leaked" - es leckt aus dem Licht in Raum B -, eine 1 Punkt breite Kante unter MSAA) | s3p5b: 55 / 0 |
+
+ctest 105/105. Checkliste: TogglePointfile, NextLeakSpot, PrevLeakSpot und die
+sechs prtview-Befehle (Menue, Befehl, Plugin) [x] - Stand 808 fertig, 126
+ausgegraut, 2 offen von 936.

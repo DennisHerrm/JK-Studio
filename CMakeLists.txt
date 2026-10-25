@@ -301,6 +301,8 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     # Stufe 3: Karten bauen (Build-Menue, Customize, RunBSP, Ueberwachung)
     gui/app_karte_bau.cpp
     gui/karte_bau_win32.cpp
+    gui/app_karte_leck.cpp
+    gui/app_karte_portale.cpp
     gui/app_karte_menue.cpp
     gui/app_karte_dialoge.cpp
     gui/app_karte_csg.cpp
@@ -753,7 +755,9 @@ target_sources(bhed_core PRIVATE
   # Rueckkanal von q3map2 (watchbsp.cpp)
   src/karte/xmlstrom.cpp
   src/karte/bau.cpp
-  src/karte/baumonitor.cpp)
+  src/karte/baumonitor.cpp
+  # Stufe 3 Punkt 5: der Portal Viewer (contrib/prtview) ohne Oberflaeche
+  src/karte/portale.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -908,6 +912,10 @@ if(BEHAVED_TESTS)
   add_executable(kartebau tests/kartebau.cpp)
   target_link_libraries(kartebau PRIVATE bhed_core)
   add_test(NAME karte_bau COMMAND kartebau ${CMAKE_CURRENT_SOURCE_DIR}/data/karte ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
+  # Stufe 3 Punkt 5: Portaldatei lesen, prtview.ini (contrib/prtview)
+  add_executable(karteportale tests/karteportale.cpp)
+  target_link_libraries(karteportale PRIVATE bhed_core)
+  add_test(NAME karte_portale COMMAND karteportale ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
   add_executable(kartebefehle tests/kartebefehle.cpp)
   target_link_libraries(kartebefehle PRIVATE bhed_core)
   add_test(NAME karte_befehle COMMAND kartebefehle ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.md)

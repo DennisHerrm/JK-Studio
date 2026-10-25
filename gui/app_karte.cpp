@@ -222,6 +222,7 @@ std::string zeitText(const char* was, std::chrono::steady_clock::time_point t0) 
 // MapResource_save (referencecache.cpp:96-140): Sicherung .bak, dann
 // "Open file X for write..." + success / failure.
 bool karteSchreibenMitMeldungen(const std::string& pfad) {
+    punktdateiLeeren();   // Map_Save: Pointfile_Clear
     const auto t0 = std::chrono::steady_clock::now();
     const std::string anzeige = nrcPfad(pfad);
     std::string grund;
@@ -388,6 +389,7 @@ const std::shared_ptr<Spielkontext>& spielWarten() {
 void neueKarte() {
     mitRueckfrage("New Map", [] {
         // Map_Free + Map_New (map.cpp:1264)
+        punktdateiLeeren();   // Map_Free: Pointfile_Clear
         karteFreigeben();
         g().name = "unnamed.map";
         g().karte.undo.alsGespeichertMarkieren();
@@ -399,6 +401,7 @@ void neueKarte() {
 
 bool karteOeffnen(const std::string& pfad) {
     Editor& e = g();
+    punktdateiLeeren();   // Map_LoadFile -> Map_Free: Pointfile_Clear
     karteFreigeben();
     e.name = pfad;
     // Map_LoadFile (map.cpp:1001-1026): Pfade mit '/' wie aus Qts Dateiwahl
@@ -494,6 +497,7 @@ void spielNeuRealisieren(const char* titel, std::function<void()> aendern) {
         if (name != "unnamed.map") {
             (void)karteOeffnen(name);   // karteFreigeben -> spielWarten: mit dem neuen Spiel
         } else {
+            punktdateiLeeren();   // Map_Free
             karteFreigeben();
             e.name = "unnamed.map";
             e.karte.undo.alsGespeichertMarkieren();
@@ -513,6 +517,7 @@ void radiantNeustart() {
         if (name != "unnamed.map") {
             (void)karteOeffnen(name);
         } else {
+            punktdateiLeeren();   // Map_Free
             karteFreigeben();
             e.name = "unnamed.map";
             e.karte.undo.alsGespeichertMarkieren();
@@ -586,6 +591,7 @@ void beimBeenden() {
     g_app->settings.karte["LastMap"] = e.letzteKarte;
     bauMenueSpeichern();   // BuildMenu_Destroy: SaveBuildMenu
     bauBeimBeenden();      // BuildMonitor_Destroy
+    portalEinstellungenSchreiben();   // PrtView_destroy: SaveConfig
 }
 
 void karteOeffnenDialog() {
@@ -1400,6 +1406,7 @@ void zeichne(float hoehe) {
     zeichneSchriftDialog();
     bauDialogZeichnen();   // Stufe 3: "Build Menu" (DoBuildMenu)
     bauRueckmeldungenZeichnen();   // Stufe 3: "Q3Map debug window"
+    portalDialogeZeichnen();       // Stufe 3 Punkt 5: prtview ("Load .prt", "Portal Viewer Configuration")
     // PreferencesDialog_showDialog (preferences.cpp:783-797): nach OK die Liste der
     // Einstellungen, die einen Neustart brauchen
     if (!e.neustartFragen.empty() && !e.einstellungenOffen && !e.frageOffen && !e.meldung.offen) {

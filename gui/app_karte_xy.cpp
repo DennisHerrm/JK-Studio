@@ -629,6 +629,15 @@ void xyZeichnen(int index) {
         }
     }
 
+    // Stufe 3 Punkt 5: CPointfile ($POINTFILE: rot, 4 breit; eSortFullbright),
+    // CPortalsRender::renderWireframe (width_2d, color_2d; eSortOverlayFirst) und
+    // Feedback_draw2D (nach der Groessenanzeige)
+    const std::vector<Linie> leckLinien = punktdateiLinien();
+    float portalBreite = 1.0F;
+    const std::vector<Linie> portalLinien = portalLinien2d(portalBreite);
+    const RueckmeldungZeichnung rueck = rueckmeldungZeichnung2d(v.typ);
+    const Farbe wicklungFarbe = karte::farbeAus(0.133F, 0.4F, 1.0F, 0.5F);   // glColor4f( 0.133f, 0.4f, 1.0f, 0.5f )
+
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const float hinten[4] = {ed.farben.rasterHinten[0], ed.farben.rasterHinten[1], ed.farben.rasterHinten[2], 1.0F};
     if (kartegpu::verfuegbar() && kartegpu::beginnen(100 + index, v.breite, v.hoehe, ed.anzeige.msaa, hinten)) {
@@ -674,6 +683,8 @@ void xyZeichnen(int index) {
         kartegpu::zeichnen(raster.linien2, &mvp[0], 2.0F);
         kartegpu::zeichnen(s.gpuGeo, &mvp[0], 1.0F);
         kartegpu::zeichnen(s.gpuWelt, &mvp[0], 1.0F);
+        kartegpu::zeichnen(leckLinien, &mvp[0], 4.0F);
+        kartegpu::zeichnen(portalLinien, &mvp[0], portalBreite);
         if (ed.anzeige.keineStrichelung) {
             kartegpu::zeichnen(s.gpuWahl, &mvp[0], 2.0F);
         } else {
@@ -687,6 +698,33 @@ void xyZeichnen(int index) {
         kartegpu::zeichnen(manip2, &mvp[0], 2.0F);
         kartegpu::punkte(manipPunkte, &mvp[0], 6.0F);
         kartegpu::zeichnen(overlay, &mvp[0], 1.0F);
+        {   // Feedback_draw2D: Punkte (4), Umriss, die Flaeche gemischt
+            kartegpu::punkte(rueck.punkte, &mvp[0], 4.0F);
+            kartegpu::zeichnen(rueck.linien, &mvp[0], 1.0F);
+            std::vector<kartegpu::Punkt3> flaeche;
+            for (const auto& poly : rueck.flaechen) {
+                for (std::size_t i = 1; i + 1 < poly.size(); ++i) {   // GL_POLYGON
+                    for (const Vektor3f& q : {poly[0], poly[i], poly[i + 1]}) {
+                        kartegpu::Punkt3 pt{};
+                        pt.pos[0] = q[0];
+                        pt.pos[1] = q[1];
+                        pt.pos[2] = q[2];
+                        pt.normale[2] = 1;
+                        pt.farbe = wicklungFarbe;
+                        flaeche.push_back(pt);
+                    }
+                }
+            }
+            if (!flaeche.empty()) {
+                kartegpu::Zustand3 z;
+                z.matrix = &mvp[0];
+                z.tiefe = kartegpu::TiefenTest::Aus;
+                z.tiefeSchreiben = false;
+                z.wegschneiden = false;
+                z.mischen = kartegpu::Mischen::Alpha;
+                kartegpu::dreiecke(flaeche, z);
+            }
+        }
         kartegpu::zeichnen(kam, &mvp[0], 1.0F);
         kartegpu::zeichnen(kreuz, &mvp[0], 1.0F);
         kartegpu::auswahlRechteck(rechteck.min[0], rechteck.min[1], rechteck.max[0], rechteck.max[1], static_cast<int>(rechteck.art));
@@ -698,11 +736,26 @@ void xyZeichnen(int index) {
         imguiLinien(dl, v, o, raster.linien2, 2.0F);
         imguiLinien(dl, v, o, s.geo, 1.0F);
         imguiLinien(dl, v, o, s.welt, 1.0F);
+        imguiLinien(dl, v, o, leckLinien, 4.0F);
+        imguiLinien(dl, v, o, portalLinien, portalBreite);
         imguiLinien(dl, v, o, s.wahl, 2.0F, ed.anzeige.keineStrichelung ? 0U : kXyOverlayMuster, kXyOverlayFaktor);
         imguiLinien(dl, v, o, clipLinien, 1.0F);
         imguiLinien(dl, v, o, manip1, 1.0F);
         imguiLinien(dl, v, o, manip2, 2.0F);
         imguiLinien(dl, v, o, overlay, 1.0F);
+        for (const auto& poly : rueck.flaechen) {   // Feedback_draw2D ohne Direct3D
+            std::vector<ImVec2> ecken;
+            for (const Vektor3f& q : poly) {
+                const auto b = v.zuBild(q);
+                ecken.push_back(ImVec2{o.x + b[0], o.y + b[1]});
+            }
+            dl->AddConvexPolyFilled(ecken.data(), static_cast<int>(ecken.size()), wicklungFarbe);
+        }
+        imguiLinien(dl, v, o, rueck.linien, 1.0F);
+        for (const Linie& pk : rueck.punkte) {
+            const auto b = v.zuBild(pk.a);
+            dl->AddRectFilled(ImVec2{o.x + b[0] - 2.0F, o.y + b[1] - 2.0F}, ImVec2{o.x + b[0] + 2.0F, o.y + b[1] + 2.0F}, pk.farbe);
+        }
         imguiLinien(dl, v, o, kam, 1.0F);
         imguiLinien(dl, v, o, kreuz, 1.0F);
     }

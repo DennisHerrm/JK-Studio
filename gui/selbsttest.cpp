@@ -28300,6 +28300,8 @@ void karteDialogeZu() {
     e.ent.farbDialog.offen = false;
     e.ent.lichtOffen = false;
     e.bauDialogOffen = false;
+    e.portalLadenOffen = false;       // Stufe 3 Punkt 5: prtview
+    e.portalKonfigOffen = false;
     ke::bauAbbrechen();               // Stufe 3 Punkt 4: kein q3map2 in den naechsten Schritt
     e.bauRueckmeldungOffen = false;   // Q3Map debug window
     e.meldung.offen = false;          // qtMeldung (sonst offen, aber ohne Popup)
@@ -33542,6 +33544,539 @@ std::vector<Schritt> bauen() {
     return s;
 }
 
+// --- Punkt 5: Leck-Linie, Rueckmeldungen in 2D, Portal Viewer -------------------
+
+// Ein Bildpunkt der 2D-Ansicht 0 an einem Weltpunkt (Mitte; ok = im Bild)
+bool xyFarbe(const karte::Vektor3f& w, unsigned char rgba[4]) {
+    const karte::XyAnsicht& v = ke::editor().xy[0].ansicht;
+    const auto p = v.zuBild(w);
+    const int x = static_cast<int>(std::lround(p[0]));
+    const int y = static_cast<int>(std::lround(p[1]));
+    if (x < 2 || y < 2 || x >= v.breite - 2 || y >= v.hoehe - 2) { return false; }
+    return ke::xyPixel(0, x, y, rgba);
+}
+
+bool istRot(const unsigned char* c) { return c[0] > 200 && c[1] < 60 && c[2] < 60; }
+// Rot, aber vom Raster (MSAA) nur teilweise bedeckt: eine 1 Punkt breite Kante,
+// der Anfang einer Linie in der Bildmitte
+bool istRoetlich(const unsigned char* c) { return c[0] > 120 && c[1] < 70 && c[2] < 70; }
+
+std::string farbText(const unsigned char* c) {
+    return std::to_string(c[0]) + "," + std::to_string(c[1]) + "," + std::to_string(c[2]);
+}
+
+// Die Mitte des Kamerabildes
+bool kameraMitte(unsigned char rgba[4]) {
+    const ke::KameraFenster& f = ke::editor().kamFenster;
+    return ke::kameraPixel(f.breite / 2, f.hoehe / 2, rgba);
+}
+
+bool winkelGleich(float a, float b) { return std::fabs(a - b) < 0.01F; }
+
+std::vector<Schritt> leck() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    const std::string stamm = laufOrdner("s3bau") + "\\raum_leck";
+    const auto fertig = [](const char* was, int bilder) { return warteBis(was, [] { return !ke::bauLaeuft(); }, bilder); };
+    add(tu("Stufe 3/5: Testkarte raum_leck (Loch in der Ostwand), Build-Menue und Seite Build wie vorgegeben", [stamm] {
+        karteDialogeZu();
+        q3map2Bereitstellen();
+        ke::Editor& e = ke::editor();
+        e.bauProjektFuer = -2;
+        e.bauGeaendert = false;
+        ke::bauMenueSicherstellen();
+        e.bau = ke::Editor::BauEinstellungen{};
+        raumKarteOeffnen("raum_leck", true);
+        bauDateienWeg(stamm);
+        e.bauRueckmeldungen.clear();
+        e.bauRueckmeldungWahl = -1;
+        e.bauRueckmeldungOffen = false;
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Single: bsp stage"));
+    add(fertig("Bauen fertig", 2400));
+    add(pruefe("Leck: MAP LEAKED rot, Bauen angehalten (leak), der Hinweis in der Konsole, die .lin neben der Karte", [stamm] {
+        const std::string k = konsoleText();
+        diag::detail("Knopftest: Stufe 3/5 Leck: " + std::to_string(ke::editor().punktdatei.size()) + " Punkte");
+        return konsoleArtMit(ke::KonsolenZeile::Art::Fehler, "MAP LEAKED") && k.find(gestopptZeile("Single: bsp stage", 1, 1, "leak")) != std::string::npos &&
+               k.find(ke::trK(Str::KeBmLeckHinweis)) != std::string::npos && istDatei(stamm + ".lin");
+    }));
+    add(pruefe("Die Leck-Linie aus dem Rueckkanal (polyline) gleich der .lin, sichtbar, Stelle am Anfang", [stamm] {
+        const ke::Editor& e = ke::editor();
+        std::ifstream f(std::filesystem::path(stamm + ".lin"), std::ios::binary);
+        std::ostringstream o;
+        o << f.rdbuf();
+        const auto lin = karte::punktdateiLesen(o.str());
+        return e.punktdateiSichtbar && e.punktdatei.size() >= 2 && e.punktdatei == lin && e.punktdateiStelle == 0;
+    }));
+    add(pruefe("Q3Map debug window offen: \"Entity leaked\" (select) und \"Map leaked\" (die Linie)", [] {
+        const ke::Editor& e = ke::editor();
+        bool auswahl = false;
+        bool linie = false;
+        for (const auto& r : e.bauRueckmeldungen) {
+            auswahl = auswahl || (r.art == karte::BauRueckmeldung::Art::Auswahl && r.name.find("Entity leaked") != std::string::npos);
+            linie = linie || (r.art == karte::BauRueckmeldung::Art::Leck && r.name == "Map leaked");
+        }
+        return e.bauRueckmeldungOffen && auswahl && linie;
+    }));
+    add(foto("karteneditor_s3_leck"));
+    // 2D: die Linie rot, 4 breit (an der Mitte des laengsten Stuecks)
+    add(tu("2D-Ansicht XY auf die Leck-Linie (Massstab 0.5)", [] {
+        ke::Editor& e = ke::editor();
+        e.xy[0].ansicht.typ = karte::Sicht::XY;
+        e.xy[0].ansicht.setzeMassstab(0.5F);
+        const auto& p = e.punktdatei;
+        e.xy[0].ansicht.setzeUrsprung((p.front() + p.back()) * 0.5F);
+        ++e.sichtStand;
+    }));
+    add(pause(0.3));
+    auto mitte = std::make_shared<karte::Vektor3f>();
+    add(pruefe("2D: die Leck-Linie rot ($POINTFILE) auf der Mitte ihres laengsten Stuecks", [mitte] {
+        const auto& p = ke::editor().punktdatei;
+        std::size_t best = 0;
+        float bestL = -1.0F;
+        for (std::size_t i = 0; i + 1 < p.size(); ++i) {
+            const karte::Vektor3f d = p[i + 1] - p[i];
+            const float l = d[0] * d[0] + d[1] * d[1];
+            if (l > bestL) {
+                bestL = l;
+                best = i;
+            }
+        }
+        *mitte = (p[best] + p[best + 1]) * 0.5F;
+        unsigned char c[4] = {};
+        const bool ok = xyFarbe(*mitte, c);
+        diag::detail("Knopftest: Stufe 3/5 XY an der Linie " + farbText(c));
+        return ok && istRot(c);
+    }));
+    // Next / Previous leak spot (Strg+Umschalt+K / L)
+    add(klickAn("in XY (Fokus)", feldMitte("XY"), 2));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(tu("Konsole leeren", [] { ke::konsoleLeeren(); }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_K, "Strg+Umschalt+K"));
+    add(pause(0.3));
+    add(pruefe("Next leak spot: Kamera und 2D-Ansichten an Punkt 2 der Linie, Blick zu Punkt 3 (Pointfile_UpdateViews)", [] {
+        const ke::Editor& e = ke::editor();
+        const auto& p = e.punktdatei;
+        if (p.size() < 3 || e.punktdateiStelle != 1) { return false; }
+        const karte::Vektor3f d = p[2] - p[1];
+        const float l = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+        const float gier = std::atan2(d[1] / l, d[0] / l) * 57.29577951308232F;
+        const float nick = std::asin(d[2] / l) * 57.29577951308232F;
+        diag::detail("Knopftest: Stufe 3/5 Kamera " + std::to_string(e.kamera.winkel[0]) + " " + std::to_string(e.kamera.winkel[1]) + " soll " +
+                     std::to_string(nick) + " " + std::to_string(gier));
+        return e.kamera.ursprung == p[1] && e.xy[0].ansicht.ursprung == p[1] && e.xy[1].ansicht.ursprung == p[1] &&
+               winkelGleich(e.kamera.winkel[1], gier) && winkelGleich(e.kamera.winkel[0], nick);
+    }));
+    add(pruefe("Kamera: die Linie entlang - in der Bildmitte beginnt das naechste Stueck rot (Tiefe getestet, 4 breit)", [] {
+        unsigned char c[4] = {};
+        const bool ok = kameraMitte(c);
+        diag::detail("Knopftest: Stufe 3/5 Kamera Mitte " + farbText(c));
+        return ok && istRoetlich(c);
+    }));
+    add(foto("karteneditor_s3_leck_kamera"));
+    for (int i = 0; i < 8; ++i) { add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_K, "Strg+Umschalt+K")); }
+    add(pause(0.2));
+    add(pruefe("Am Ende: \"End of pointfile\", die Stelle bleibt beim vorletzten Punkt", [] {
+        const ke::Editor& e = ke::editor();
+        return konsoleText().find("End of pointfile\n") != std::string::npos && e.punktdateiStelle + 2 == e.punktdatei.size();
+    }));
+    for (int i = 0; i < 9; ++i) { add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_L, "Strg+Umschalt+L")); }
+    add(pause(0.2));
+    add(pruefe("Previous leak spot zurueck bis zum Anfang: \"Start of pointfile\", Kamera an Punkt 1", [] {
+        const ke::Editor& e = ke::editor();
+        return konsoleText().find("Start of pointfile\n") != std::string::npos && e.punktdateiStelle == 0 && e.kamera.ursprung == e.punktdatei[0];
+    }));
+    // File > Pointfile
+    add(tu("Konsole leeren", [] { ke::konsoleLeeren(); }));
+    add(klick(ke::trK(Str::KeLFile), "###main"));
+    add(pause(0.25));
+    add(klick(ke::trK(Str::KeLPointfile), "##Menu_", 0, false));
+    add(pause(0.3));
+    add(pruefe("File > Pointfile: aus, in 2D kein Rot mehr", [mitte] {
+        unsigned char c[4] = {};
+        (void)xyFarbe(*mitte, c);
+        return !ke::editor().punktdateiSichtbar && !istRot(c);
+    }));
+    add(tu("Leck-Linie im Speicher leeren (sie muss aus der .lin kommen)", [] { ke::editor().punktdatei.clear(); }));
+    add(klick(ke::trK(Str::KeLFile), "###main"));
+    add(pause(0.25));
+    add(klick(ke::trK(Str::KeLPointfile), "##Menu_", 0, false));
+    add(pause(0.3));
+    add(pruefe("File > Pointfile: \"Reading pointfile <Karte>.lin\", die Linie aus der Datei, sichtbar", [stamm] {
+        const ke::Editor& e = ke::editor();
+        std::string lin = ke::bauKartenPfad();
+        lin = lin.substr(0, lin.rfind('.')) + ".lin";
+        return konsoleText().find("Reading pointfile " + lin + "\n") != std::string::npos && e.punktdateiSichtbar && e.punktdatei.size() >= 2;
+    }));
+    add(tu("die .lin weg; Pointfile aus und wieder an; Konsole leeren", [stamm] {
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::path(stamm + ".lin"), ec);
+        ke::punktdateiUmschalten();
+        ke::konsoleLeeren();
+        ke::punktdateiUmschalten();
+    }));
+    add(pruefe("Ohne .lin: \"Pointfile <Karte>.lin not found\" und \".pts not found\" rot (globalErrorStream)", [] {
+        std::string stammK = ke::bauKartenPfad();
+        stammK = stammK.substr(0, stammK.rfind('.'));
+        return konsoleArtMit(ke::KonsolenZeile::Art::Fehler, "Pointfile " + stammK + ".lin not found") &&
+               konsoleArtMit(ke::KonsolenZeile::Art::Fehler, "Pointfile " + stammK + ".pts not found");
+    }));
+    add(tu("Pointfile an (die alte Linie, wie NRC), dann File > Save as (derselbe Name)", [] {
+        ke::Editor& e = ke::editor();
+        if (!e.punktdateiSichtbar) { ke::punktdateiUmschalten(); }
+        (void)ke::karteSpeichernUnter(e.name);   // Map_SaveAs -> Map_Save
+    }));
+    add(pruefe("Speichern (Map_Save: Pointfile_Clear) schaltet die Linie aus", [] { return !ke::editor().punktdateiSichtbar; }));
+    // Q3Map debug window: "Entity N, Brush 0: Entity leaked" waehlen (CSelectMsg::Highlight)
+    auto leckEnt = std::make_shared<int>(-1);
+    add(klickAn("Zeile \"Entity N, Brush 0: Entity leaked\" im Q3Map debug window", [leckEnt] {
+        for (const auto& r : ke::editor().bauRueckmeldungen) {
+            if (r.art != karte::BauRueckmeldung::Art::Auswahl) { continue; }
+            *leckEnt = r.entitaet;
+            if (const Element* el = finde(r.name, "###kartedbgdlg", 0, true)) { return el->rect.GetCenter(); }
+        }
+        return ImVec2{0.0F, 0.0F};
+    }));
+    add(pause(0.3));
+    add(pruefe("Q3Map debug window: die Zeile waehlt die Entitaet, aus der es leckt (SelectBrush), die 2D-Ansichten auf ihr", [leckEnt] {
+        const ke::Editor& e = ke::editor();
+        const auto el = e.karte.auswahl.elemente();
+        if (el.size() != 1 || *leckEnt < 0 || static_cast<std::size_t>(*leckEnt) >= e.karte.entitaeten().size()) { return false; }
+        const auto ent = el.front().entitaet.lock();
+        diag::detail("Knopftest: Stufe 3/5 leckt aus Entity " + std::to_string(*leckEnt) + " " + (ent ? ent->klassenname() + " " + ent->wert("origin") : std::string()));
+        return ent && ent == e.karte.entitaeten()[static_cast<std::size_t>(*leckEnt)] && e.bauRueckmeldungWahl >= 0;
+    }));
+    // CPointMsg / CWindingMsg::Draw2D (eine Meldung von Hand)
+    add(tu("Rueckmeldungen pointmsg (128 64 32) und windingmsg (Dreieck) dazu, die pointmsg waehlen", [] {
+        ke::Editor& e = ke::editor();
+        karte::BauRueckmeldung p;
+        p.art = karte::BauRueckmeldung::Art::Punkt;
+        p.name = "Testpunkt";
+        p.punkt = karte::Vektor3f(128, 64, 32);
+        e.bauRueckmeldungen.push_back(p);
+        karte::BauRueckmeldung w;
+        w.art = karte::BauRueckmeldung::Art::Wicklung;
+        w.name = "Testflaeche";
+        w.punkte = {karte::Vektor3f(-256, -192, 0), karte::Vektor3f(-64, -192, 0), karte::Vektor3f(-160, 0, 0)};
+        e.bauRueckmeldungen.push_back(w);
+        e.karte.auswahl.leeren();
+        ke::auswahlGeaendert();
+        e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        e.xy[0].ansicht.setzeMassstab(1.0F);
+        ++e.sichtStand;
+    }));
+    add(klick("Testpunkt", "###kartedbgdlg", 0, true));
+    add(pause(0.3));
+    add(pruefe("CPointMsg::Draw2D: der Punkt rot (4), das Quadrat +-8 rot", [] {
+        unsigned char m[4] = {};
+        unsigned char kante[4] = {};
+        const bool a = xyFarbe(karte::Vektor3f(128, 64, 32), m);
+        const bool b = xyFarbe(karte::Vektor3f(128 + 8, 64, 32), kante);
+        diag::detail("Knopftest: Stufe 3/5 pointmsg " + farbText(m) + " / " + farbText(kante));
+        return a && b && istRot(m) && istRoetlich(kante);
+    }));
+    add(klick("Testflaeche", "###kartedbgdlg", 0, true));
+    add(pause(0.3));
+    add(pruefe("CWindingMsg::Draw2D: die Flaeche blau gemischt (0.133, 0.4, 1, 0.5), die Ecken rot", [] {
+        unsigned char m[4] = {};
+        unsigned char ecke[4] = {};
+        const bool a = xyFarbe(karte::Vektor3f(-160, -128, 0), m);
+        const bool b = xyFarbe(karte::Vektor3f(-64, -192, 0), ecke);
+        diag::detail("Knopftest: Stufe 3/5 windingmsg " + farbText(m) + " / " + farbText(ecke));
+        return a && b && m[2] > m[0] + 60 && m[2] > m[1] + 30 && istRot(ecke);
+    }));
+    add(foto("karteneditor_s3_rueckmeldung2d"));
+    add(tu("Aufraeumen: Debug-Fenster zu, Wahl weg", [] {
+        ke::Editor& e = ke::editor();
+        e.bauRueckmeldungWahl = -1;
+        e.bauRueckmeldungOffen = false;
+    }));
+    return s;
+}
+
+// Im Konfigurationsdialog von prtview ziehen (logische Punkte des Dialogs)
+Schritt prtZiehen(const std::string& was, ImVec2 von, ImVec2 nach) {
+    auto a = std::make_shared<ImVec2>();
+    auto z = std::make_shared<ImVec2>();
+    return {"Ziehe " + was, [=](int b) {
+                ImGuiIO& io = ImGui::GetIO();
+                if (b == 0) {
+                    *a = ke::portalKonfigPunkt(von.x, von.y);
+                    *z = ke::portalKonfigPunkt(nach.x, nach.y);
+                    setzeMaus(*a);
+                    return false;
+                }
+                if (b == 2) {
+                    io.AddMouseButtonEvent(0, true);
+                    return false;
+                }
+                if (b >= 3 && b <= 14) {
+                    const float f = static_cast<float>(b - 2) / 12.0F;
+                    setzeMaus(ImVec2{a->x + (z->x - a->x) * f, a->y + (z->y - a->y) * f});
+                    return false;
+                }
+                if (b == 15) {
+                    io.AddMouseButtonEvent(0, false);
+                    return false;
+                }
+                return b >= 20;
+            }};
+}
+
+std::vector<Schritt> portale() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    const std::string stamm = laufOrdner("s3bau") + "\\raum";
+    const auto fertig = [](const char* was, int bilder) { return warteBis(was, [] { return !ke::bauLaeuft(); }, bilder); };
+    const auto menue = [&add](const char* punkt) {
+        add(klick(ke::trK(Str::KeLPlugins), "###main"));
+        add(pause(0.25));
+        add(klick("prtview", "##Menu_", 0, true));
+        add(pause(0.25));
+        add(klick(punkt, "##Menu_", 0, false));
+        add(pause(0.3));
+    };
+    add(tu("Stufe 3/5: prtview-Einstellungen frisch (ohne karte_prtview.ini), Testkarte raum, bsp stage", [stamm] {
+        karteDialogeZu();
+        ke::Editor& e = ke::editor();
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::path(ke::portalIniPfad()), ec);
+        e.portalEinstellungenGelesen = false;
+        e.portale.clear();
+        raumKarteOeffnen("raum", false);
+        bauDateienWeg(stamm);
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Single: bsp stage"));
+    add(fertig("Bauen fertig", 2400));
+    add(pruefe("bsp stage: raum.prt neben der Karte", [stamm] { return istDatei(stamm + ".prt"); }));
+    add(tu("Konsole leeren", [] { ke::konsoleLeeren(); }));
+    menue("Load .prt file");
+    add(pruefe("Load .prt file: der Dialog \"Load .prt\" mit <Karte>.prt, Show 3D an, Show 2D aus (Vorgaben aus LoadConfig)", [] {
+        const ke::Editor& e = ke::editor();
+        std::string prt = ke::bauKartenPfad();
+        prt = prt.substr(0, prt.rfind('.')) + ".prt";
+        diag::detail("Knopftest: Stufe 3/5 Load .prt: " + e.portalDatei);
+        return e.portalLadenOffen && e.portalDatei == prt && konsoleText().find("Portal Viewer plugin: Command \"Load .prt file\"\n") != std::string::npos &&
+               e.portalE.zeige3d && !e.portalE.zeige2d && bauFeld("PrtLaden:Dialog") != nullptr;
+    }));
+    add(fotoRahmen("karteneditor_dlg_Plugins_prtview_Load_prt_file_0", [] { return fensterRahmen("###karteprtladen"); }));
+    add(klick(std::string(ke::trK(Str::KePrtZeige2d)) + "##prtzeige2d", "###karteprtladen"));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KePrefOk)) + "##prtok", "###karteprtladen"));
+    add(pause(0.3));
+    add(pruefe("OK: \"Loading portal file <Karte>.prt.\", \"  10 portals read in.\", Show 2D an", [] {
+        const ke::Editor& e = ke::editor();
+        const std::string k = konsoleText();
+        return !e.portalLadenOffen && e.portale.size() == 10 && e.portalHintFlags && e.portalE.zeige2d && e.portalE.zeige3d &&
+               k.find("Portal Viewer plugin: Loading portal file " + e.portalDatei + ".\n") != std::string::npos &&
+               k.find("  10 portals read in.\n") != std::string::npos;
+    }));
+    add(tu("2D-Ansicht XY: Ursprung (256 0 0), Massstab 1", [] {
+        ke::Editor& e = ke::editor();
+        e.xy[0].ansicht.typ = karte::Sicht::XY;
+        e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(256, 0, 0));
+        e.xy[0].ansicht.setzeMassstab(1.0F);
+        ++e.sichtStand;
+    }));
+    add(pause(0.3));
+    add(pruefe("2D: das Portal (8 0 0)-(512 0 256) als blaue Linie (color_2d 0 0 255, 3 breit) bei (260 0)", [] {
+        unsigned char c[4] = {};
+        unsigned char neben[4] = {};
+        const bool a = xyFarbe(karte::Vektor3f(260, 0, 0), c);
+        const bool b = xyFarbe(karte::Vektor3f(260, 0, 0) + karte::Vektor3f(0, 6, 0), neben);
+        diag::detail("Knopftest: Stufe 3/5 Portal 2D " + farbText(c) + " daneben " + farbText(neben));
+        return a && b && c[2] > 200 && c[0] < 60 && c[1] < 60 && neben[2] < 150;
+    }));
+    add(foto("karteneditor_s3_portale_2d"));
+    // Kamera: im Raum B vor dem Portal x = 8 (Durchgang), Blick nach -x
+    add(tu("Kamera bei (200 32 64), Blick nach -x (Durchgang mit Portal)", [] {
+        ke::Editor& e = ke::editor();
+        e.kamera.setzeUrsprung(karte::Vektor3f(200, 32, 64));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 180, 0));
+        ++e.sichtStand;
+    }));
+    add(pause(0.3));
+    auto mit = std::make_shared<std::array<unsigned char, 4>>();
+    add(tu("Bildmitte mit Portalen merken", [mit] { (void)kameraMitte(mit->data()); }));
+    menue("Toggle portals (3D)");
+    add(pruefe("Toggle portals (3D): \"Portals will NOT be rendered in 3D view.\", die Bildmitte anders (ohne das Polygon)", [mit] {
+        unsigned char c[4] = {};
+        (void)kameraMitte(c);
+        diag::detail("Knopftest: Stufe 3/5 Kamera mit " + farbText(mit->data()) + " ohne " + farbText(c));
+        return !ke::editor().portalE.zeige3d && konsoleText().find("Portal Viewer plugin: Portals will NOT be rendered in 3D view.\n") != std::string::npos &&
+               (std::abs(c[0] - (*mit)[0]) + std::abs(c[1] - (*mit)[1]) + std::abs(c[2] - (*mit)[2])) > 30;
+    }));
+    menue("Toggle portals (3D)");
+    add(pruefe("Toggle portals (3D) wieder: \"Portals will be rendered in 3D view.\", die Bildmitte wie vorher", [mit] {
+        unsigned char c[4] = {};
+        (void)kameraMitte(c);
+        return ke::editor().portalE.zeige3d && konsoleText().find("Portal Viewer plugin: Portals will be rendered in 3D view.\n") != std::string::npos &&
+               (std::abs(c[0] - (*mit)[0]) + std::abs(c[1] - (*mit)[1]) + std::abs(c[2] - (*mit)[2])) < 8;
+    }));
+    add(foto("karteneditor_s3_portale_kamera"));
+    menue("Toggle portals (2D)");
+    add(pruefe("Toggle portals (2D): \"Portals will NOT be rendered in 2D view.\", die Linie weg", [] {
+        unsigned char c[4] = {};
+        (void)xyFarbe(karte::Vektor3f(260, 0, 0), c);
+        return !ke::editor().portalE.zeige2d && konsoleText().find("Portal Viewer plugin: Portals will NOT be rendered in 2D view.\n") != std::string::npos &&
+               c[2] < 150;
+    }));
+    menue("Toggle portals (2D)");
+    // Configure Portal Viewer
+    menue("Configure Portal Viewer");
+    add(pruefe("Configure Portal Viewer: der Dialog, 386 x 510 wie im Foto (nicht modal)", [] {
+        const auto* d = bauFeld("Prt:Dialog");
+        return ke::editor().portalKonfigOffen && d != nullptr && d->b == 386 && d->h == 510;
+    }));
+    add(pruefe("Lagen wie im Foto dlg_Plugins_prtview_Configure_Portal_Viewer_0 (Massstab 2 gemessen)", [] {
+        const auto r = [](const char* n, int x, int y, int b, int h) {
+            const auto* f = bauFeld(n);
+            const bool ok = f != nullptr && f->x == x && f->y == y && f->b == b && f->h == h;
+            if (!ok && f != nullptr) {
+                diag::detail(std::string("Knopftest: Stufe 3/5 ") + n + " " + std::to_string(f->x) + "/" + std::to_string(f->y) + " " +
+                             std::to_string(f->b) + "x" + std::to_string(f->h));
+            }
+            return ok;
+        };
+        return r("Prt:3DHaken", 12, 11, 13, 13) && r("Prt:3D", 12, 29, 363, 328) && r("Prt:LinesHaken", 24, 40, 13, 13) && r("Prt:Lines", 24, 59, 339, 65) &&
+               r("Prt:LinesWidth", 97, 70, 253, 13) && r("Prt:LinesColor", 271, 90, 80, 22) && r("Prt:PolygonsHaken", 24, 130, 13, 13) &&
+               r("Prt:Polygons", 24, 149, 339, 36) && r("Prt:Opacity", 122, 160, 228, 13) && r("Prt:FogHaken", 24, 192, 13, 13) &&
+               r("Prt:Fog", 24, 211, 339, 43) && r("Prt:FogColor", 271, 221, 80, 22) && r("Prt:ClipHaken", 24, 261, 13, 13) &&
+               r("Prt:Clip", 24, 280, 339, 36) && r("Prt:ClipRange", 130, 291, 220, 13) && r("Prt:ZBuffer", 23, 323, 340, 22) &&
+               r("Prt:Hints", 138, 366, 13, 13) && r("Prt:Regular", 129, 392, 13, 13) && r("Prt:2DHaken", 12, 415, 13, 13) &&
+               r("Prt:2D", 12, 433, 363, 66) && r("Prt:2DWidth", 85, 445, 277, 13) && r("Prt:2DColor", 283, 465, 80, 22);
+    }));
+    add(fotoRahmen("karteneditor_dlg_Plugins_prtview_Configure_Portal_Viewer_0", [] { return fensterRahmen("###karteprtkonfig"); }));
+    // Width (Lines): den Griff ziehen (QStyle::sliderPositionFromValue: 3 -> Lage 53)
+    add(prtZiehen("Griff Width (Lines) um 80 Punkte nach rechts", ImVec2{97.0F + 53.0F + 6.5F, 76.5F}, ImVec2{97.0F + 133.0F + 6.5F, 76.5F}));
+    add(pause(0.2));
+    add(pruefe("Width (Lines) gezogen: 3 -> 6 (sliderValueFromPosition), \"Width = 6\"", [] {
+        diag::detail("Knopftest: Stufe 3/5 Width3D " + std::to_string(ke::editor().portalE.breite3d));
+        return ke::editor().portalE.breite3d == 6;
+    }));
+    add(klickAn("Rinne von Opacity links vom Griff (Seitenschritt)", [] { return ke::portalKonfigPunkt(140.0F, 166.5F); }));
+    add(pause(0.2));
+    add(pruefe("Opacity: ein Klick in die Rinne = ein Seitenschritt (10) zur Maus: 50 -> 40", [] { return ke::editor().portalE.deckkraft == 40; }));
+    add(klickAn("Haken Lines", [] { return ke::portalKonfigPunkt(24.0F + 6.5F, 40.0F + 6.5F); }));
+    add(pause(0.2));
+    add(prtZiehen("Griff Width (Lines) gesperrt ziehen", ImVec2{97.0F + 133.0F + 6.5F, 76.5F}, ImVec2{97.0F + 60.0F, 76.5F}));
+    add(pause(0.2));
+    add(pruefe("Lines aus: der Inhalt gesperrt (Width bleibt 6)", [] {
+        const ke::Editor& e = ke::editor();
+        return !e.portalE.linien && e.portalE.breite3d == 6;
+    }));
+    add(klickAn("Haken Lines", [] { return ke::portalKonfigPunkt(24.0F + 6.5F, 40.0F + 6.5F); }));
+    add(pause(0.2));
+    // Fog: mit kraeftiger Farbe, damit der Unterschied im Bild sicher ist
+    add(tu("Kamera bei (500 32 64), Blick nach -x; Nebelfarbe Magenta", [] {
+        ke::Editor& e = ke::editor();
+        e.kamera.setzeUrsprung(karte::Vektor3f(500, 32, 64));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 180, 0));
+        e.portalE.farbeNebel = karte::rgbPacken(255, 0, 255);
+        e.portalE.farbenSetzen();
+        ++e.sichtStand;
+    }));
+    add(pause(0.3));
+    auto ohneNebel = std::make_shared<std::array<unsigned char, 4>>();
+    add(tu("Bildmitte ohne Nebel merken", [ohneNebel] { (void)kameraMitte(ohneNebel->data()); }));
+    add(klickAn("Haken Fog", [] { return ke::portalKonfigPunkt(24.0F + 6.5F, 192.0F + 6.5F); }));
+    add(pause(0.3));
+    add(pruefe("Fog an: das Portal in der Bildmitte zum Magenta hin (GL_EXP, Dichte 0.001, Abstand ~490)", [ohneNebel] {
+        unsigned char c[4] = {};
+        (void)kameraMitte(c);
+        diag::detail("Knopftest: Stufe 3/5 Nebel " + farbText(ohneNebel->data()) + " -> " + farbText(c));
+        return ke::editor().portalE.nebel && c[0] > (*ohneNebel)[0] + 8 && c[1] + 8 < (*ohneNebel)[1];
+    }));
+    add(klickAn("Color (Fog)", [] { return ke::portalKonfigPunkt(311.0F, 232.0F); }));
+    add(pause(0.3));
+    add(pruefe("Color (Fog): der Farbdialog geht auf (OnColor)", [] {
+        const ke::Editor& e = ke::editor();
+        return e.ent.farbDialog.offen || e.ent.farbDialog.oeffnen;
+    }));
+    add(tu("Farbdialog zu", [] {
+        ke::Editor& e = ke::editor();
+        e.ent.farbDialog.offen = false;
+        e.ent.farbDialog.oeffnen = false;
+        if (GImGui->OpenPopupStack.Size > 0) { ImGui::ClosePopupToLevel(0, true); }
+    }));
+    add(pause(0.2));
+    add(klickAn("Klappliste Z-Buffer", [] { return ke::portalKonfigPunkt(193.0F, 334.0F); }));
+    add(pause(0.3));
+    add(klick(ke::trK(Str::KePrtZAus), "##Combo_", 0, false));
+    add(pause(0.2));
+    add(pruefe("Z-Buffer Off gewaehlt (zbuffer 2)", [] { return ke::editor().portalE.zPuffer == 2; }));
+    add(tu("Dialog zu (WA_DeleteOnClose)", [] { ke::editor().portalKonfigOffen = false; }));
+    add(pause(0.2));
+    add(pruefe("SaveConfig: <Einstellungen>/karte_prtview.ini wie prtview.ini (CRLF, sortiert, Kommentare)", [] {
+        ke::portalEinstellungenSchreiben();
+        std::ifstream f(std::filesystem::path(ke::portalIniPfad()), std::ios::binary);
+        std::ostringstream o;
+        o << f.rdbuf();
+        const std::string t = o.str();
+        diag::detail("Knopftest: Stufe 3/5 ini " + std::to_string(t.size()) + " Byte");
+        return t.rfind("[Configuration]\r\nClip=0        ; Cubic clipper active for portal viewer\r\n", 0) == 0 &&
+               t.find("ColorFog=16711935        ; Color of distant lines/polygons in 3D window\r\n") != std::string::npos &&
+               t.find("Fog=1        ; Use depth cueing in 3D window\r\n") != std::string::npos &&
+               t.find("Opacity=40        ; Opacity in 3d view (0 = invisible, 100 = solid)\r\n") != std::string::npos &&
+               t.find("Render2D=1        ; Draw in 2D windows\r\n") != std::string::npos &&
+               t.find("Width3D=6        ; Width of lines in 3D window\r\n") != std::string::npos &&
+               t.find("ZBuffer=2        ; ZBuffer level in 3D window\r\n") != std::string::npos;
+    }));
+    add(pruefe("LoadConfig: dieselben Werte zurueck", [] {
+        ke::Editor& e = ke::editor();
+        const karte::PortalEinstellungen vorher = e.portalE;
+        e.portalEinstellungenGelesen = false;
+        e.portalE = karte::PortalEinstellungen{};
+        ke::portalEinstellungenLesen();
+        const karte::PortalEinstellungen& n = e.portalE;
+        return n.breite3d == vorher.breite3d && n.deckkraft == vorher.deckkraft && n.nebel && n.zPuffer == 2 && n.farbeNebel == vorher.farbeNebel &&
+               n.zeige2d == vorher.zeige2d;
+    }));
+    // Unload, About, Load abgebrochen, Load mit fehlender Datei
+    add(tu("Konsole leeren", [] { ke::konsoleLeeren(); }));
+    menue("Unload .prt file");
+    add(pruefe("Unload .prt file: keine Portale, \"Portals unloaded.\"", [] {
+        return ke::editor().portale.empty() && konsoleText().find("Portal Viewer plugin: Portals unloaded.\n") != std::string::npos;
+    }));
+    menue("About Portal Viewer");
+    add(pruefe("About Portal Viewer: der Kasten \"About Portal Viewer\" (Version 1.000, Leonardo Zide, Geoffrey DeWan)", [] {
+        const ke::Editor& e = ke::editor();
+        return e.meldung.offen && e.meldung.titel == "About Portal Viewer" && e.meldung.text.find("Version 1.000") == 0 &&
+               e.meldung.text.find("Geoffrey DeWan") != std::string::npos;
+    }));
+    add(klick(std::string(ke::trK(Str::KePrefOk)) + "##meldungok"));
+    add(pause(0.2));
+    menue("Load .prt file");
+    add(klick(std::string(ke::trK(Str::KeCancel)) + "##prtabbrechen", "###karteprtladen"));
+    add(pause(0.3));
+    add(pruefe("Load .prt, Cancel: \"Portal file load aborted.\", nichts geladen", [] {
+        return !ke::editor().portalLadenOffen && ke::editor().portale.empty() &&
+               konsoleText().find("Portal Viewer plugin: Portal file load aborted.\n") != std::string::npos;
+    }));
+    menue("Load .prt file");
+    add(klickAn("Feld der Datei", stufe2::elementOrt("##prtdatei")));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_A, "Strg+A"));
+    add(tippe(laufOrdner("s3bau\\nicht_da.prt")));
+    add(klick(std::string(ke::trK(Str::KePrefOk)) + "##prtok", "###karteprtladen"));
+    add(pause(0.3));
+    add(pruefe("Load .prt mit fehlender Datei: \"  ERROR - could not open file.\" rot, keine Portale", [] {
+        return ke::editor().portale.empty() && konsoleArtMit(ke::KonsolenZeile::Art::Fehler, "  ERROR - could not open file.") &&
+               ke::editor().portalDatei == laufOrdner("s3bau\\nicht_da.prt");
+    }));
+    add(tu("Aufraeumen: prtview-Einstellungen frisch, Dialoge zu", [] {
+        karteDialogeZu();
+        ke::Editor& e = ke::editor();
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::path(ke::portalIniPfad()), ec);
+        e.portalEinstellungenGelesen = false;
+        e.portale.clear();
+        ke::portalEinstellungenLesen();
+    }));
+    return s;
+}
+
 }  // namespace stufe3
 
 std::vector<Schritt> karteneditorStufe3Schritte() {
@@ -33557,6 +34092,14 @@ std::vector<Schritt> karteneditorStufe3Schritte() {
     if (nur != nullptr && std::strcmp(nur, "bau") == 0) {
         for (Schritt& x : stufe3::baumenue()) { s.push_back(std::move(x)); }
         for (Schritt& x : stufe3::bauen()) { s.push_back(std::move(x)); }
+        for (Schritt& x : stufe3::leck()) { s.push_back(std::move(x)); }
+        for (Schritt& x : stufe3::portale()) { s.push_back(std::move(x)); }
+        return s;
+    }
+    // BHED_STUFE3_NUR=leck: nur Leck-Linie und Portal Viewer (Punkt 5)
+    if (nur != nullptr && std::strcmp(nur, "leck") == 0) {
+        for (Schritt& x : stufe3::leck()) { s.push_back(std::move(x)); }
+        for (Schritt& x : stufe3::portale()) { s.push_back(std::move(x)); }
         return s;
     }
     for (Schritt& x : stufe3::leiste()) { s.push_back(std::move(x)); }
@@ -33564,6 +34107,8 @@ std::vector<Schritt> karteneditorStufe3Schritte() {
     for (Schritt& x : stufe3::teiler()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe3::baumenue()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe3::bauen()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe3::leck()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe3::portale()) { s.push_back(std::move(x)); }
     return s;
 }
 

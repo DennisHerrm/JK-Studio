@@ -340,7 +340,12 @@ standalone exe does not contain the map compiler.
   red, a busy port 39000, the 5 s timeout, unmonitored builds with `junk.txt`,
   Run Engine (only recorded), the output folder (never the game folder), region
   and unnamed maps, and that the editor zooms while q3map2 runs and
-  Build > Cancel build ends it.
+  Build > Cancel build ends it. `BHED_STUFE3_NUR=leck` runs only the leak line
+  (a map with a hole: the red line in 2D and 3D, Next/Previous leak spot,
+  File > Pointfile) and the Portal Viewer (Load .prt, 2D lines, 3D polygons,
+  fog, the configuration dialog against NetRadiant-Custom's photo, the ini).
+- `karte_portale` – reading `.prt` files and `prtview.ini` like the prtview
+  plugin, every error message word for word.
 
 - `exe_importe` – `behaved.exe` binds only Windows DLLs (no VC++ runtime:
   rc600 needed `MSVCP140.dll` and friends, which no zip contained).

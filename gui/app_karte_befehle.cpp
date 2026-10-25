@@ -176,6 +176,20 @@ std::map<std::string, Umsetzung>& umsetzungen() {
     // --- Build (mainframe.cpp:2089-2090, build.cpp) ---
     m["BuildMenuCustomize"] = {[] { e().bauDialogOffen = true; }, nullptr};   // DoBuildMenu
     m["Build_runRecentExecutedBuild"] = {[] { bauZuletztStarten(); }, nullptr};
+    // Stufe 3 Punkt 5: Leck-Linie (points.cpp:320-322)
+    m["TogglePointfile"] = {[] { punktdateiUmschalten(); }, nullptr};
+    m["NextLeakSpot"] = {[] { leckWeiter(); }, nullptr};
+    m["PrevLeakSpot"] = {[] { leckZurueck(); }, nullptr};
+    // Stufe 3 Punkt 5: das Plugin prtview (QERPlug_Dispatch mit dem Befehlstext)
+    for (const auto& [name, text] : {std::pair<const char*, const char*>{"prtview::AboutPortalViewer", "About Portal Viewer"},
+                                     {"prtview::ConfigurePortalViewer", "Configure Portal Viewer"},
+                                     {"prtview::TogglePortals(2D)", "Toggle portals (2D)"},
+                                     {"prtview::TogglePortals(3D)", "Toggle portals (3D)"},
+                                     {"prtview::Unload.prtFile", "Unload .prt file"},
+                                     {"prtview::Load.prtFile", "Load .prt file"}}) {
+        const std::string befehl = text;
+        m[name] = {[befehl] { portalBefehl(befehl); }, nullptr};
+    }
     m["DoAbout"] = {[] { e().ueberOffen = true; }, nullptr};
     // Stufe 3 Punkt 0b: OpenManual (mainframe.cpp:2069, F1; OpenHelpURL) oeffnet
     // das Handbuch des Programms auf der Seite des Karten-Editors,

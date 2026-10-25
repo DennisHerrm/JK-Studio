@@ -23,6 +23,7 @@
 #include "bhed/i18n.h"
 #include "bhed/karte/bau.h"
 #include "bhed/karte/baumonitor.h"
+#include "bhed/karte/portale.h"
 #include "bhed/karte/bearbeitung.h"
 #include "bhed/karte/befehle.h"
 #include "bhed/karte/eklasse.h"
@@ -711,6 +712,14 @@ struct Editor {
     std::vector<karte::Vektor3f> punktdatei;   // s_pointvecs
     bool punktdateiSichtbar = false;       // shown()
     std::size_t punktdateiStelle = 0;      // s_check_point
+    // Portal Viewer (contrib/prtview: CPortals portals, prtview.ini)
+    karte::PortalEinstellungen portalE;            // die Einstellungen von CPortals
+    std::vector<karte::BspPortal> portale;         // portals.portal
+    bool portalHintFlags = false;                  // portals.hint_flags
+    std::string portalDatei;                       // portals.fn
+    bool portalEinstellungenGelesen = false;       // LoadConfig (PrtView_construct)
+    bool portalLadenOffen = false;                 // DoLoadPortalFileDialog ("Load .prt")
+    bool portalKonfigOffen = false;                // DoConfigDialog ("Portal Viewer Configuration")
     struct BauEinstellungen {
         bool ueberwachen = true;           // g_WatchBSP_Enabled ("BuildMonitor")
         bool leckStopp = true;             // g_WatchBSP_LeakStop ("BuildLeakStop")
@@ -1189,6 +1198,34 @@ void bauRueckmeldungWaehlen(int zeile);   // feedback_selection_changed
 // nie im Spielordner - dann der Arbeitsordner), hinweis = warum.
 [[nodiscard]] std::string bauOrdnerVorschau(std::string* hinweis = nullptr);
 void bauDialogZeichnen();              // BuildMenuDialog_construct (jedes Bild)
+// --- Stufe 3 Punkt 5: Leck-Linie (points.cpp), Rueckmeldungen in 2D
+// (feedback.cpp Draw2D) und der Portal Viewer (contrib/prtview) ---
+void punktdateiUmschalten();           // Pointfile_Toggle ("TogglePointfile")
+void punktdateiLeeren();               // Pointfile_Clear (Map_Free, Map_Save)
+void leckWeiter();                     // Pointfile_Next ("NextLeakSpot")
+void leckZurueck();                    // Pointfile_Prev ("PrevLeakSpot")
+// CPointfile in den 2D-Ansichten: die Linie in Rot ($POINTFILE, 4 breit)
+[[nodiscard]] std::vector<karte::Linie> punktdateiLinien();
+// CPointMsg / CWindingMsg::Draw2D der gewaehlten Zeile des Q3Map debug window
+struct RueckmeldungZeichnung {
+    std::vector<karte::Linie> punkte;                 // glPointSize( 4 ), rot
+    std::vector<karte::Linie> linien;                 // GL_LINE_LOOP, rot
+    std::vector<std::vector<karte::Vektor3f>> flaechen;   // GL_POLYGON (0.133, 0.4, 1, 0.5) gemischt
+};
+[[nodiscard]] RueckmeldungZeichnung rueckmeldungZeichnung2d(karte::Sicht sicht);
+// CPointfile::renderSolid in der Kamera ($POINTFILE: Tiefe testen und schreiben)
+void punktdateiKameraZeichnen(const float* matrix);
+// prtview: Befehle des Plugins (QERPlug_Dispatch), Dialoge, Einstellungen
+void portalBefehl(const std::string& befehl);
+void portalDialogeZeichnen();          // "Load .prt" und "Portal Viewer Configuration"
+[[nodiscard]] ImVec2 portalKonfigPunkt(float x, float y);   // Selbsttest: logischer Punkt im Konfigurationsdialog -> Bildpunkt
+void portalEinstellungenLesen();       // LoadConfig (beim ersten Gebrauch)
+void portalEinstellungenSchreiben();   // SaveConfig (PrtView_destroy, beim Beenden)
+[[nodiscard]] std::string portalIniPfad();
+// CPortalsRender::renderWireframe: die Portale in den 2D-Ansichten
+[[nodiscard]] std::vector<karte::Linie> portalLinien2d(float& breite);
+// CPortalsRender::renderSolid in der Kamera; fuellen = RENDER_FILL der Darstellungsart
+void portaleKameraZeichnen(const float* matrix, const karte::Matrix4& viewproj, bool fuellen);
 struct BauDialogStand {                // fuer den Selbsttest
     bool offen = false;
     int aktuell = -1;

@@ -103,6 +103,9 @@ AutoCaulkSelected
 STUFE_3_FERTIG = set('''
 CheckForUpdate OpenManual
 BuildMenuCustomize Build_runRecentExecutedBuild
+TogglePointfile NextLeakSpot PrevLeakSpot
+prtview::AboutPortalViewer prtview::ConfigurePortalViewer prtview::Load.prtFile prtview::TogglePortals(2D)
+prtview::TogglePortals(3D) prtview::Unload.prtFile
 '''.split())
 
 QT_TASTEN = {
