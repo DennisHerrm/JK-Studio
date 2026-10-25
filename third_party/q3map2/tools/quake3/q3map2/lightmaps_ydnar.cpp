@@ -834,10 +834,10 @@ struct CompareSurfaceInfo
 		}
 
 		/* 27: then shader! */
-		if ( aInfo.si < bInfo.si ) {
+		if ( shaderInfo_less( aInfo.si, bInfo.si ) ) { // BehavEd stage 6: was aInfo.si < bInfo.si (pointer)
 			return false;
 		}
-		else if ( aInfo.si > bInfo.si ) {
+		else if ( shaderInfo_less( bInfo.si, aInfo.si ) ) {
 			return true;
 		}
 

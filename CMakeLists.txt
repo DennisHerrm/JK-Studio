@@ -754,6 +754,10 @@ if(BEHAVED_TESTS)
                COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_funde.py
                        $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe)
       set_tests_properties(q3map2_funde PROPERTIES TIMEOUT 3600)
+      # Stufe 6 (GL#173): -bsp/-vis/-light je 3 Laeufe gleich und gleich -threads 1
+      add_test(NAME q3map2_determinismus
+               COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_determinismus.py ctest
+                       $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
       add_test(NAME q3map2_vergleich
                COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_vergleich.py pruefen
                        $<TARGET_FILE:bhed_q3map2> ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)

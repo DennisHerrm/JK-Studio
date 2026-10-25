@@ -141,7 +141,7 @@ struct CompareMetaTriangles
 	bool operator()( const metaTriangle_t& a, const metaTriangle_t& b ) const {
 		/* shader first */
 		if ( a.si != b.si ) {
-			return a.si < b.si;
+			return shaderInfo_less( a.si, b.si ); // BehavEd stage 6: was a.si < b.si (pointer)
 		}
 		/* then fog */
 		else if ( a.fogNum != b.fogNum ) {

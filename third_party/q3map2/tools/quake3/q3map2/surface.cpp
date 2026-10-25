@@ -1854,6 +1854,13 @@ static void EmitDrawVerts( const mapDrawSurface_t& ds, bspDrawSurface_t& out ){
 		/* allocate a new vert */ /* copy it */
 		bspDrawVert_t& dv = bspDrawVerts.emplace_back( vert );
 
+		/* BehavEd stage 6 (determinism): -bsp never computes lightmap coordinates (-light
+		   does, StoreSurfaceLightmaps), and most surface verts are built without setting them -
+		   NRC wrote heap leftovers (7.19e-43, -1.18e-38 ...), so the drawverts lump differed
+		   from run to run (NOTIZEN_karte3.md point 2). Write zeros. */
+		for ( Vector2& lm : dv.lightmap )
+			lm = Vector2( 0 );
+
 		/* offset? */
 		if ( offset != 0 ) {
 			dv.xyz += dv.normal * offset;

@@ -646,7 +646,12 @@ struct shaderInfo_t_data
 struct shaderInfo_t : public shaderInfo_t_data
 {
 	const String64 shader;
-	shaderInfo_t( const char *shaderName ) : shaderInfo_t_data{}, shader( shaderName ){ // zero-initialze shaderInfo_t_data
+	/* BehavEd stage 6 (GL#173, determinism): creation number, the tie-break when two
+	   shaderInfo_t carry the same name (the set is a multiset). Not in shaderInfo_t_data,
+	   so copyData() keeps it. */
+	const int bhedNumber;
+	static inline std::atomic<int> s_bhedNumbers{ 0 };
+	shaderInfo_t( const char *shaderName ) : shaderInfo_t_data{}, shader( shaderName ), bhedNumber( s_bhedNumbers++ ){ // zero-initialze shaderInfo_t_data
 	}
 	void copyData( const shaderInfo_t& other ) noexcept {
 		static_cast<shaderInfo_t_data&>( *this ) = static_cast<const shaderInfo_t_data&>( other );
@@ -1167,6 +1172,10 @@ struct LightFlags : BitFlags<std::uint32_t, LightFlags>
 /* ydnar: new light struct with flags */
 struct light_t
 {
+	/* BehavEd stage 6 (determinism): radiosity lights (RadCreateDiffuseLights) carry their
+	   surface and running number, so they can be put into 1-thread order afterwards. */
+	int bhedSurface = -1;
+	int bhedSequence = 0;
 	ELightType type;
 	LightFlags flags;                   /* ydnar: condensed all the booleans into one flags int */
 	const shaderInfo_t  *si;
@@ -1513,6 +1522,9 @@ public:
    ------------------------------------------------------------------------------- */
 
 inline float Random(){ /* returns a pseudorandom number between 0 and 1 */
+	if ( g_bhedWorkRandom ) { /* BehavEd stage 6: per work item in threaded passes, see qthreads.h */
+		return BhedWorkRandom();
+	}
 	return (float) rand() / RAND_MAX;
 }
 
@@ -1928,6 +1940,22 @@ struct shaderInfo_t_compare
 
 /* general */
 inline UnsortedSet<shaderInfo_t, false, shaderInfo_t_compare>       shaderInfo;
+
+/* BehavEd stage 6 (GL#173, determinism): NRC sorts meta triangles (surface_meta.cpp
+   CompareMetaTriangles) and lightmap surfaces (lightmaps_ydnar.cpp CompareSurfaceInfo)
+   by the shaderInfo_t POINTER - heap addresses, so surface order, triangle merging and
+   lightmap packing changed from run to run (NOTIZEN_karte3.md point 2). Order by the
+   shader name instead (case-insensitive like the set), then by creation number. */
+inline bool shaderInfo_less( const shaderInfo_t *a, const shaderInfo_t *b ){
+	if ( a == b ) {
+		return false;
+	}
+	const int c = Q_stricmp( a->shader, b->shader );
+	if ( c != 0 ) {
+		return c < 0;
+	}
+	return a->bhedNumber < b->bhedNumber;
+}
 
 inline String64 mapName;                 /* ydnar: per-map custom shaders for larger lightmaps */
 inline CopiedString mapShaderFile;

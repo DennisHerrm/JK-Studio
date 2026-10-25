@@ -373,6 +373,11 @@ static void RadSample( int lightmapNum, const bspDrawSurface_t& ds, const rawLig
 
 
 
+/* BehavEd stage 6 (determinism): the surface RadLight is working on in this thread, and
+   the number of lights it has made for it so far. */
+static thread_local int t_bhedSurface = -1;
+static thread_local int t_bhedSequence = 0;
+
 static void RadSubdivideDiffuseLight( int lightmapNum, const bspDrawSurface_t& ds, const rawLightmap_t *lm, const shaderInfo_t& si,
                                       float scale, float subdivide, const radWinding_t& rw ){
 	int style = 0;
@@ -478,6 +483,8 @@ static void RadSubdivideDiffuseLight( int lightmapNum, const bspDrawSurface_t& d
 	ThreadLock();
 	light_t& light = lights.emplace_front();
 	ThreadUnlock();
+	light.bhedSurface = t_bhedSurface; // BehavEd stage 6: see RadCreateDiffuseLights
+	light.bhedSequence = t_bhedSequence++;
 
 	/* initialize the light */
 	light.flags = LightFlags::DefaultArea;
@@ -546,6 +553,8 @@ static void RadSubdivideDiffuseLight( int lightmapNum, const bspDrawSurface_t& d
 			ThreadLock();
 			light_t& splash = lights.emplace_front();
 			ThreadUnlock();
+			splash.bhedSurface = t_bhedSurface; // BehavEd stage 6: see RadCreateDiffuseLights
+			splash.bhedSequence = t_bhedSequence++;
 
 			/* set it up */
 			splash.flags = LightFlags::DefaultArea;
@@ -741,6 +750,8 @@ void RadLightForPatch( int num, int lightmapNum, const rawLightmap_t *lm, const 
  */
 
 static void RadLight( int num ){
+	t_bhedSurface = num; // BehavEd stage 6: see RadCreateDiffuseLights
+	t_bhedSequence = 0;
 	/* get drawsurface, lightmap, and shader info */
 	const bspDrawSurface_t& ds = bspDrawSurfaces[ num ];
 	const surfaceInfo_t& info = surfaceInfos[ num ];
@@ -809,7 +820,24 @@ void RadCreateDiffuseLights(){
 	static int iterations = 0;
 
 	/* hit every surface (threaded) */
+	const size_t bhedBefore = lights.size();
 	RunThreadsOnIndividual( bspDrawSurfaces.size(), true, RadLight );
+
+	/* BehavEd stage 6 (determinism, GL#173): every thread puts its lights at the FRONT
+	   of the list (emplace_front under ThreadLock), so their order depended on which thread
+	   came first - and IlluminateRawLightmap sums the light in list order, so the float
+	   sums (lightmaps, lightgrid) differed per run. A 1-thread run handles the surfaces
+	   0..n-1 in turn, each light in front of the earlier ones: the new lights stand in
+	   descending (surface, running number) order before the old ones. Restore exactly that
+	   order (std::list::sort is stable), so any thread count gives the 1-thread result. */
+	{
+		std::list<light_t> bhedNew;
+		bhedNew.splice( bhedNew.begin(), lights, lights.begin(), std::next( lights.begin(), lights.size() - bhedBefore ) );
+		bhedNew.sort( []( const light_t& a, const light_t& b ){
+			return a.bhedSurface != b.bhedSurface ? a.bhedSurface > b.bhedSurface : a.bhedSequence > b.bhedSequence;
+		} );
+		lights.splice( lights.begin(), bhedNew );
+	}
 
 	/* dump the lights generated to a file */
 	if ( dump && !lights.empty() ) {

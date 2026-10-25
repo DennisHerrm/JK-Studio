@@ -1456,6 +1456,69 @@ struct contribution_t
 	int style;
 };
 
+/* BehavEd stage 6 (determinism): TraceGrid nudges grid points that lie in solid with
+   Random() - rand(), whose state MSVC keeps per thread, so the lightgrid depended on which
+   points a thread had traced before (and differed between runs). A 1-thread NRC run draws
+   these numbers on the main thread, point after point. This pre-pass does exactly that
+   (same code, same order, same rand() state, main thread) before every TraceGrid pass and
+   stores origin and cluster; TraceGrid then only looks them up. Result: any thread count
+   gives the 1-thread NRC lightgrid. */
+static std::vector<Vector3> g_bhedGridOrigin;
+static std::vector<int> g_bhedGridCluster;
+static std::vector<char> g_bhedGridValid;
+
+static void BhedPrepareGridOrigins(){
+	const size_t n = rawGridPoints.size();
+	g_bhedGridOrigin.assign( n, Vector3( 0 ) );
+	g_bhedGridCluster.assign( n, -1 );
+	g_bhedGridValid.assign( n, 0 );
+	for ( size_t i = 0; i < n; ++i )
+	{
+		const int num = int( i );
+		int x, y, z, mod;
+		trace_t trace;
+
+		/* get grid origin */
+		mod = num;
+		z = mod / ( gridBounds[ 0 ] * gridBounds[ 1 ] );
+		mod -= z * ( gridBounds[ 0 ] * gridBounds[ 1 ] );
+		y = mod / gridBounds[ 0 ];
+		mod -= y * gridBounds[ 0 ];
+		x = mod;
+
+		trace.origin = gridMins + Vector3( x, y, z ) * gridSize;
+
+		/* find point cluster */
+		trace.cluster = ClusterForPointExt( trace.origin, GRID_EPSILON );
+		if ( trace.cluster < CLUSTER_NORMAL ) {
+			/* try to nudge the origin around to find a valid point */
+			const Vector3 baseOrigin( trace.origin );
+			double step = 0;
+			while ( ( step += 0.005 ) <= 1 )
+			{
+				trace.origin = baseOrigin;
+				trace.origin[ 0 ] += step * ( Random() - 0.5 ) * gridSize[0];
+				trace.origin[ 1 ] += step * ( Random() - 0.5 ) * gridSize[1];
+				trace.origin[ 2 ] += step * ( Random() - 0.5 ) * gridSize[2];
+
+				/* ydnar: changed to find cluster num */
+				trace.cluster = ClusterForPointExt( trace.origin, VERTEX_EPSILON );
+				if ( trace.cluster >= CLUSTER_NORMAL ) {
+					break;
+				}
+			}
+
+			/* can't find a valid point at all */
+			if ( step > 1 ) {
+				continue;
+			}
+		}
+		g_bhedGridOrigin[ i ] = trace.origin;
+		g_bhedGridCluster[ i ] = trace.cluster;
+		g_bhedGridValid[ i ] = 1;
+	}
+}
+
 static void TraceGrid( int num ){
 	int i, j, x, y, z, mod, numCon, numStyles;
 	Vector3 cheapColor, thisdir;
@@ -1466,44 +1529,16 @@ static void TraceGrid( int num ){
 	rawGridPoint_t& gp = rawGridPoints[ num ];
 	bspGridPoint_t& bgp = bspGridPoints[ num ];
 
-	/* get grid origin */
-	mod = num;
-	z = mod / ( gridBounds[ 0 ] * gridBounds[ 1 ] );
-	mod -= z * ( gridBounds[ 0 ] * gridBounds[ 1 ] );
-	y = mod / gridBounds[ 0 ];
-	mod -= y * gridBounds[ 0 ];
-	x = mod;
-
-	trace.origin = gridMins + Vector3( x, y, z ) * gridSize;
-
 	/* set inhibit sphere */
 	trace.inhibitRadius = gridSize[ vector3_max_abs_component_index( gridSize ) ] * 0.5f;
 
-	/* find point cluster */
-	trace.cluster = ClusterForPointExt( trace.origin, GRID_EPSILON );
-	if ( trace.cluster < CLUSTER_NORMAL ) {
-		/* try to nudge the origin around to find a valid point */
-		const Vector3 baseOrigin( trace.origin );
-		double step = 0;
-		while ( ( step += 0.005 ) <= 1 )
-		{
-			trace.origin = baseOrigin;
-			trace.origin[ 0 ] += step * ( Random() - 0.5 ) * gridSize[0];
-			trace.origin[ 1 ] += step * ( Random() - 0.5 ) * gridSize[1];
-			trace.origin[ 2 ] += step * ( Random() - 0.5 ) * gridSize[2];
-
-			/* ydnar: changed to find cluster num */
-			trace.cluster = ClusterForPointExt( trace.origin, VERTEX_EPSILON );
-			if ( trace.cluster >= CLUSTER_NORMAL ) {
-				break;
-			}
-		}
-
-		/* can't find a valid point at all */
-		if ( step > 1 ) {
-			return;
-		}
+	/* BehavEd stage 6 (determinism): origin and cluster from the serial pre-pass
+	   (BhedPrepareGridOrigins, the NRC code moved there unchanged) */
+	if ( !g_bhedGridValid[ num ] ) {
+		return; /* can't find a valid point at all */
 	}
+	trace.origin = g_bhedGridOrigin[ num ];
+	trace.cluster = g_bhedGridCluster[ num ];
 
 	/* setup trace */
 	trace.testOcclusion = !noTrace;
@@ -1989,6 +2024,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 
 		Sys_Printf( "--- TraceGrid ---\n" );
 		inGrid = true;
+		BhedPrepareGridOrigins(); // BehavEd stage 6: see there
 		RunThreadsOnIndividual( rawGridPoints.size(), true, TraceGrid );
 		inGrid = false;
 		Sys_Printf( "%d x %d x %d = %zu grid\n",
@@ -2089,6 +2125,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 
 			Sys_Printf( "--- BounceGrid ---\n" );
 			inGrid = true;
+			BhedPrepareGridOrigins(); // BehavEd stage 6: see there
 			RunThreadsOnIndividual( rawGridPoints.size(), true, TraceGrid );
 			inGrid = false;
 			Sys_FPrintf( SYS_VRB, "%9d grid points envelope culled\n", gridEnvelopeCulled );

@@ -21,9 +21,24 @@
 
 #pragma once
 
+#include <atomic>  /* BehavEd stage 6: shaderInfo_t::s_bhedNumbers (q3map2.h) */
+
 extern int numthreads;
 
 void ThreadSetDefault();
 void RunThreadsOnIndividual( int workcnt, bool showpacifier, void ( *func )( int ) );
 void ThreadLock();
 void ThreadUnlock();
+
+/* BehavEd stage 6 (determinism): Random() is rand(), and MSVC keeps the rand() state per
+   thread (each worker starts at seed 1) - so in threaded passes (TraceGrid nudging grid
+   points out of solid, dirt random mode, -randomsamples, minimap) the numbers a work item
+   got depended on which items its thread had done before. Each work item now gets its own
+   generator, seeded from (pass, item); outside the threaded passes Random() stays rand()
+   as in NRC. Same result for any thread count. */
+extern thread_local bool g_bhedWorkRandom;
+extern thread_local unsigned int g_bhedRandomState;
+inline float BhedWorkRandom(){ /* MSVC rand() LCG, 15 bits like RAND_MAX 0x7fff */
+	g_bhedRandomState = g_bhedRandomState * 214013u + 2531011u;
+	return (float)( ( g_bhedRandomState >> 16 ) & 0x7fff ) / 0x7fff;
+}

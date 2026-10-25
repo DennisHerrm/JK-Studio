@@ -195,7 +195,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.hart = false;
         g.stellen.push_back(st(b, b.qcommon, "qfiles.h", z.lightgridArray, "MAX_MAP_LIGHTGRID_ARRAY", 0x100000));
         g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 208, "MAX_MAP_LIGHTGRID", 0x100000));
-        g.pruefstelle = "the engine reads any size (" + rd + "tr_bsp.cpp R_LoadLightGridArray); q3map2 light.cpp:1749 "
+        g.pruefstelle = "the engine reads any size (" + rd + "tr_bsp.cpp R_LoadLightGridArray); q3map2 light.cpp:1784 "
                         "raises gridsize until the array fits";
         g.rechnung = "grid cells (gridBounds[0] * [1] * [2])";
         t.push_back(std::move(g));
@@ -472,7 +472,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 145, "VIS_HEADER_SIZE", 8));
         g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 209, "MAX_MAP_VISCLUSTERS", 0x4000));
         g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 210, "MAX_MAP_VISIBILITY", 8 + 0x4000LL * 0x800LL));
-        g.pruefstelle = "q3map2 vis.cpp:733 Error \"MAX_MAP_VISIBILITY exceeded\"";
+        g.pruefstelle = "q3map2 vis.cpp:735 Error \"MAX_MAP_VISIBILITY exceeded\"";
         g.rechnung = "bytes of visibility data";
         t.push_back(std::move(g));
     }

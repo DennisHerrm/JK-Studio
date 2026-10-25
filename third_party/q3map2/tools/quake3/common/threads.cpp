@@ -75,6 +75,21 @@ int GetThreadWork(){
 
 void ( *workfunction )( int );
 
+/* BehavEd stage 6 (determinism): see qthreads.h */
+thread_local bool g_bhedWorkRandom = false;
+thread_local unsigned int g_bhedRandomState = 1;
+static unsigned int g_bhedPass = 0;
+
+static unsigned int BhedWorkSeed( unsigned int pass, unsigned int work ){
+	unsigned int x = pass * 0x9E3779B9u ^ ( work + 1u ) * 0x85EBCA6Bu;
+	x ^= x >> 16;
+	x *= 0x7feb352du;
+	x ^= x >> 15;
+	x *= 0x846ca68bu;
+	x ^= x >> 16;
+	return x;
+}
+
 void ThreadWorkerFunction( int threadnum ){
 	while ( true )
 	{
@@ -83,7 +98,10 @@ void ThreadWorkerFunction( int threadnum ){
 			break;
 		}
 //Sys_Printf ("thread %i, work %i\n", threadnum, work);
+		g_bhedWorkRandom = true; // BehavEd stage 6: one generator per work item
+		g_bhedRandomState = BhedWorkSeed( g_bhedPass, work );
 		workfunction( work );
+		g_bhedWorkRandom = false;
 	}
 }
 
@@ -97,6 +115,7 @@ void RunThreadsOnIndividual( int workcnt, bool showpacifier, void ( *func )( int
 
 	dispatch = 0;
 	workcount = workcnt;
+	++g_bhedPass; // BehavEd stage 6: passes run in a fixed order
 	oldf = -1;
 	pacifier = showpacifier;
 
