@@ -35739,31 +35739,36 @@ std::vector<Schritt> karteneditorStufe4Schritte() {
 // --- Stufe 5 des Karten-Editors: der Optimierer -----------------------------------
 //
 // BHED_KARTE_NUR=stufe5 laesst nur diese Schritte laufen; BHED_STUFE5_NUR=<Teil>
-// nur einen Teil (fenster, ...).
+// nur einen Teil: fenster (Punkt 5), pruefungen, gebaut, original, gross
+// (Punkt 7; gross nur mit BHED_KARTE_GROSS, dazu BHED_KARTE_GROSS_BSP).
 namespace stufe5 {
 
 namespace ke = karteneditor;
+
+// Ein Quader als Pinsel (Q3-Format); ohneDeckel: nur fuenf Seiten - ein
+// offener, entarteter Pinsel.
+std::string kastenText(double x0, double y0, double z0, double x1, double y1, double z1, const char* tex, int inhalt = 0, bool ohneDeckel = false) {
+    auto f = [](double v) {
+        char z[32];
+        std::snprintf(z, sizeof(z), "%g", v);
+        return std::string(z);
+    };
+    const std::string t = std::string(" ") + tex + " 0 0 0 0.5 0.5 " + std::to_string(inhalt) + " 0 0\n";
+    auto p = [&](double a, double b, double c) { return "( " + f(a) + " " + f(b) + " " + f(c) + " ) "; };
+    std::string k = "{\n";
+    if (!ohneDeckel) { k += p(x1, y1, z1) + p(x1, y0, z1) + p(x0, y1, z1) + t; }
+    return k + p(x1, y1, z1) + p(x0, y1, z1) + p(x1, y1, z0) + t + p(x1, y1, z1) + p(x1, y1, z0) + p(x1, y0, z1) + t + p(x0, y0, z0) + p(x1, y0, z0) +
+           p(x0, y1, z0) + t + p(x0, y0, z0) + p(x0, y0, z1) + p(x1, y0, z0) + t + p(x0, y0, z0) + p(x0, y1, z0) + p(x0, y0, z1) + t + "}\n";
+}
 
 // Eine kleine Karte mit bekannten Befunden: zwei gestapelte Kaesten (2
 // verdeckte Flaechen), ein Hint-Pinsel als detail (Mischinhalt), ein Pinsel
 // mit einer Ecke bei 428.02 (neben dem Raster, sicher), eine kleine Kiste als
 // structural (Deko-Vorschlag).
 std::string testKarte() {
-    auto kasten = [](double x0, double y0, double z0, double x1, double y1, double z1, const char* tex, int inhalt) {
-        auto f = [](double v) {
-            char z[32];
-            std::snprintf(z, sizeof(z), "%g", v);
-            return std::string(z);
-        };
-        const std::string t = std::string(" ") + tex + " 0 0 0 0.5 0.5 " + std::to_string(inhalt) + " 0 0\n";
-        auto p = [&](double a, double b, double c) { return "( " + f(a) + " " + f(b) + " " + f(c) + " ) "; };
-        return "{\n" + p(x1, y1, z1) + p(x1, y0, z1) + p(x0, y1, z1) + t + p(x1, y1, z1) + p(x0, y1, z1) + p(x1, y1, z0) + t + p(x1, y1, z1) +
-               p(x1, y1, z0) + p(x1, y0, z1) + t + p(x0, y0, z0) + p(x1, y0, z0) + p(x0, y1, z0) + t + p(x0, y0, z0) + p(x0, y0, z1) +
-               p(x1, y0, z0) + t + p(x0, y0, z0) + p(x0, y1, z0) + p(x0, y0, z1) + t + "}\n";
-    };
-    return "{\n\"classname\" \"worldspawn\"\n" + kasten(0, 0, 0, 64, 64, 64, "test/a", 0) + kasten(0, 0, 64, 64, 64, 128, "test/b", 0) +
-           kasten(200, 0, 0, 264, 64, 64, "common/hint", 1 << 27) + kasten(300, 0, 0, 428.02, 128, 128, "test/c", 0) +
-           kasten(500, 0, 0, 532, 32, 32, "test/kiste", 0) + "}\n{\n\"classname\" \"info_player_start\"\n\"origin\" \"600 0 24\"\n}\n";
+    return "{\n\"classname\" \"worldspawn\"\n" + kastenText(0, 0, 0, 64, 64, 64, "test/a") + kastenText(0, 0, 64, 64, 64, 128, "test/b") +
+           kastenText(200, 0, 0, 264, 64, 64, "common/hint", 1 << 27) + kastenText(300, 0, 0, 428.02, 128, 128, "test/c") +
+           kastenText(500, 0, 0, 532, 32, 32, "test/kiste") + "}\n{\n\"classname\" \"info_player_start\"\n\"origin\" \"600 0 24\"\n}\n";
 }
 
 bool hatBefund(const char* id, long long* anzahl = nullptr) {
@@ -35930,15 +35935,560 @@ std::vector<Schritt> fenster() {
     return s;
 }
 
+// --- Punkt 7: jede Pruefung und jede Behebung mit Wirkung; gebaute Karten; eine
+// Originalkarte; eine grosse Karte (Zeit, das Programm bleibt bedienbar) ----------
+
+std::string entText(const std::string& klasse, const std::string& schluessel, const std::string& inhalt) {
+    return "{\n\"classname\" \"" + klasse + "\"\n" + schluessel + inhalt + "}\n";
+}
+
+// Ein Wellen-Patch w x h (wie wellenPatch in tests/karteoptimierer.cpp: 31 x 31
+// mit Hoehe 96 braucht mehr als MAX_PATCH_PLANES 2048 Kollisionsebenen).
+std::string wellenPatchText(int w, int h, float hoehe, float dx, float dy) {
+    std::string t = "{\npatchDef2\n{\ntest/welle\n( " + std::to_string(w) + " " + std::to_string(h) + " 0 0 0 )\n(\n";
+    for (int i = 0; i < w; ++i) {   // patchDef2: je Zeile der Datei eine Spalte
+        t += "( ";
+        for (int j = 0; j < h; ++j) {
+            const float z = hoehe * std::sin(static_cast<float>(i) * 1.3F) * std::cos(static_cast<float>(j) * 0.7F) +
+                            hoehe * 0.5F * std::sin(static_cast<float>(i * j) * 0.37F);
+            char c[128];
+            std::snprintf(c, sizeof(c), "( %g %g %g 0 0 ) ", static_cast<double>(dx + static_cast<float>(i) * 64.0F),
+                          static_cast<double>(dy + static_cast<float>(j) * 64.0F), static_cast<double>(z));
+            t += c;
+        }
+        t += ")\n";
+    }
+    return t + ")\n}\n}\n";
+}
+
+// Je Pruefung, die aus der Karte allein urteilt, ein Fall - weit genug
+// auseinander, dass sich die Faelle nicht beruehren.
+std::string befundKarte() {
+    std::string w;
+    w += kastenText(0, 0, 0, 64, 64, 64, "test/a") + kastenText(0, 0, 64, 64, 64, 128, "test/b");          // verdeckt
+    w += kastenText(0, 200, 0, 128, 328, 64, "test/a") + kastenText(0, 200, 64, 64, 328, 128, "test/b");   // tjunction
+    w += kastenText(200, 0, 0, 264, 64, 0.5, "test/a");                                                    // mikro
+    w += kastenText(300, 0, 0, 364.02, 64, 64, "test/c");                                                  // offgrid (sicher)
+    w += kastenText(400, 0, 0, 464, 64, 64, "common/hint", 1 << 27);                                       // mischinhalt
+    w += kastenText(0, -600, 0, 512, -88, 16, "test/boden") + kastenText(0, -600, 16, 32, -568, 48, "test/kiste");   // deko
+    w += kastenText(1000, 600, 0, 1040, 1112, 256, "test/wand");                                           // blockgitter
+    w += kastenText(0, 1200, 0, 64, 1264, 64, "test/a") + kastenText(32, 1200, 0, 96, 1264, 64, "test/b");    // ueberlappung
+    w += kastenText(600, 0, 0, 664, 64, 64, "test/a", 0, true);                                            // entartet (ohne Deckel)
+    std::string t = entText("worldspawn", "", w);
+    t += entText("func_wall", "", kastenText(0, 400, 0, 64, 464, 64, "common/areaportal"));                  // areaportalentity
+    t += entText("func_static", "", wellenPatchText(31, 31, 96.0F, 0.0F, 3000.0F));                          // patchgross
+    t += entText("misc_model", "\"origin\" \"800 0 0\"\n\"model\" \"models/map_objects/imperial/crate_banded.md3\"\n\"spawnflags\" \"2\"\n", "");   // clipmodell
+    t += entText("func_door", "\"angle\" \"90\"\n", "");                                                    // leereentity
+    t += entText("info_player_start", "\"origin\" \"700 300 24\"\n", "");
+    return t;
+}
+
+// 480 gleiche func_wall ohne Namen: 481 von 511 Brush-Modellen (knapp)
+std::string modellKarte() {
+    std::string t = entText("worldspawn", "", kastenText(-64, -64, -16, 1024, 1024, 0, "test/boden"));
+    for (int i = 0; i < 480; ++i) {
+        const double x = (i % 24) * 40.0;
+        const double y = (i / 24) * 40.0;
+        t += entText("func_wall", "\"spawnflags\" \"1\"\n", kastenText(x, y, 0, x + 8, y + 8, 8, "test/w"));
+    }
+    return t + entText("info_player_start", "\"origin\" \"0 -32 24\"\n", "");
+}
+
+// Die Leck-Karte aus Stufe 3 (Loch in der Ostwand), im Loch ein Detail-Pinsel:
+// detail versiegelt nichts, die Karte leckt durch ihn.
+std::string leckKarte() {
+    std::string t = stufe3::raumKarte(true);
+    const std::size_t e1 = t.find("// entity 1");
+    const std::size_t zu = t.rfind("}\n", e1);
+    if (e1 != std::string::npos && zu != std::string::npos) { t.insert(zu, kastenText(512, -32, 64, 528, 32, 128, "test/fuellung", 1 << 27)); }
+    return t;
+}
+
+// Eine hohle Halle 8192 x 8192 x 1024 aus 8 x 8 Boden- und Deckenkacheln, jede
+// auf eigener Hoehe (eigene Ebene: q3map2 legt sie nicht in eine Lightmap
+// zusammen und vergroessert dann die Probengroesse), mit 144 farbigen
+// Lichtern: 149769 Lichtgitter-Zellen mit mehr als 65535 verschiedenen Proben
+// (das Gitter laeuft ueber, bspfile_rbsp.cpp AddLightGridLumps) und 128
+// Lightmaps (die Haelfte von 256). Gemessen mit bhed_q3map2: 36339 Zellen
+// hinter dem Gitter; mit _lightmapscale 2 noch 15 Lightmaps.
+std::string halleKarte() {
+    std::string w;
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j) {
+            const double x0 = -4096.0 + i * 1024.0;
+            const double y0 = -4096.0 + j * 1024.0;
+            const double d = i * 8 + j;
+            w += kastenText(x0, y0, -16, x0 + 1024, y0 + 1024, d, "test/boden");
+            w += kastenText(x0, y0, 1024 - d, x0 + 1024, y0 + 1024, 1040, "test/decke");
+        }
+    }
+    w += kastenText(-4112, 4096, 0, 4112, 4112, 1024, "test/wand") + kastenText(-4112, -4112, 0, 4112, -4096, 1024, "test/wand") +
+         kastenText(-4112, -4096, 0, -4096, 4096, 1024, "test/wand") + kastenText(4096, -4096, 0, 4112, 4096, 1024, "test/wand");
+    std::string t = entText("worldspawn", "", w) + entText("info_player_start", "\"origin\" \"0 0 100\"\n", "");
+    unsigned zufall = 5;
+    const auto anteil = [&zufall] {
+        zufall = zufall * 1103515245U + 12345U;
+        return static_cast<double>((zufall >> 16U) & 0x7FFFU) / 32767.0;
+    };
+    for (int i = 0; i < 12; ++i) {
+        for (int j = 0; j < 12; ++j) {
+            const double r = anteil();
+            const double g = anteil();
+            const double b = anteil();
+            char z[256];
+            std::snprintf(z, sizeof(z), "\"origin\" \"%g %g %g\"\n\"light\" \"%d\"\n\"_color\" \"%.2f %.2f %.2f\"\n", -4096.0 + (i + 0.5) * 8192.0 / 12.0,
+                          -4096.0 + (j + 0.5) * 8192.0 / 12.0, 64.0 + ((i * 7 + j * 3) % 5) * (1024.0 - 128.0) / 4.0, 600 + (i * j) % 7 * 100, r, g, b);
+            t += entText("light", z, "");
+        }
+    }
+    return t;
+}
+
+std::string befundZahlen() { return befundListe(); }
+
+Schritt befundBehebenUndZurueck(std::vector<Schritt>& s, const std::string& id, std::shared_ptr<int> laeufe) {
+    auto vorher = std::make_shared<long long>(0);
+    s.push_back(tu("Beheben: " + id, [id, laeufe, vorher] {
+        *laeufe = ke::optimiererBlick().laeufe;
+        *vorher = 0;
+        (void)hatBefund(id.c_str(), vorher.get());
+        if (!ke::optimiererBefundBeheben(id)) { meldeFehler("Optimierer: \"" + id + "\" behoben ohne Wirkung"); }
+    }));
+    s.push_back(warteOptimierer("neu gezaehlt nach dem Beheben", laeufe));
+    s.push_back(pruefe("Beheben " + id + ": danach kein Befund mehr, ein Schritt \"Optimizer: ...\" im Rueckgaengig", [id, vorher] {
+        diag::detail("Knopftest: Stufe 5/7 - " + id + " (" + std::to_string(*vorher) + ") behoben: " + ke::editor().karte.undo.undoName() + " | " + befundZahlen());
+        return *vorher > 0 && !hatBefund(id.c_str()) && ke::editor().karte.undo.undoName().rfind("Optimizer: ", 0) == 0;
+    }));
+    s.push_back(tu("Rueckgaengig (Strg+Z), neu zaehlen", [laeufe] {
+        *laeufe = ke::optimiererBlick().laeufe;
+        (void)ke::ausfuehren("Undo");
+        ke::optimiererStarten();
+    }));
+    s.push_back(warteOptimierer("neu gezaehlt nach Rueckgaengig", laeufe));
+    return pruefe("Rueckgaengig: " + id + " wieder da, gleich oft", [id, vorher] {
+        long long n = 0;
+        return hatBefund(id.c_str(), &n) && n == *vorher;
+    });
+}
+
+// Die Pruefung im Hintergrund starten und dabei jedes Bild messen: das
+// Programm bleibt bedienbar (Bild 0 startet, Bild 1 traegt die Momentaufnahme).
+struct OptLauf {
+    double startMs = 0.0;
+    std::vector<double> bilder;
+    double groesstes() const { return bilder.empty() ? 0.0 : *std::max_element(bilder.begin(), bilder.end()); }
+    double mittel() const {
+        double s = 0.0;
+        for (const double b : bilder) { s += b; }
+        return bilder.empty() ? 0.0 : s / static_cast<double>(bilder.size());
+    }
+};
+Schritt optimiererGemessen(const std::string& was, std::shared_ptr<int> laeufe, std::shared_ptr<OptLauf> m, int maxBilder) {
+    return {was, [laeufe, m, maxBilder](int b) {
+                if (b == 0) {
+                    *laeufe = ke::optimiererBlick().laeufe;
+                    m->bilder.clear();
+                    const auto t0 = std::chrono::steady_clock::now();
+                    ke::optimiererOeffnen();
+                    m->startMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                    return false;
+                }
+                if (b >= 2) { m->bilder.push_back(static_cast<double>(ImGui::GetIO().DeltaTime) * 1000.0); }
+                if (!ke::optimiererLaeuft() && ke::optimiererBlick().laeufe > *laeufe) { return true; }
+                if (b > maxBilder) {
+                    meldeFehler("Optimierer nach " + std::to_string(maxBilder) + " Bildern nicht fertig");
+                    return true;
+                }
+                return false;
+            }};
+}
+
+std::string laufText(const OptLauf& m) {
+    char z[256];
+    std::snprintf(z, sizeof(z), "Start %.0f ms (Momentaufnahme), Pruefung %.0f ms, %zu Bilder dabei, groesstes %.0f ms, Mittel %.1f ms", m.startMs,
+                  ke::optimiererBlick().ms, m.bilder.size(), m.groesstes(), m.mittel());
+    return z;
+}
+
+// Jede Pruefung der Karte, jede Behebung mit Wirkung und Rueckgaengig
+std::vector<Schritt> pruefungen() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    auto laeufe = std::make_shared<int>(0);
+    add(tu("Handbuch-Begriffe aus; Spieldaten (Texturinventar fuer \"fehlende Textur\")", [] {
+        ke::setzeNrcBegriffe(false);
+        ke::spielPruefen();
+    }));
+    add(warteBis("Spieldaten geladen", [] {
+        ke::spielPruefen();
+        return ke::spielBereit();
+    }, 20000));
+    add(tu("Stufe 5/7: Testkarte opt_befunde.map (je Pruefung ein Fall) schreiben und oeffnen", [laeufe] {
+        karteDialogeZu();
+        {
+            std::ofstream f(std::filesystem::path(karteTestPfad("opt_befunde.map")), std::ios::binary | std::ios::trunc);
+            f << befundKarte();
+        }
+        (void)ke::karteOeffnen(karteTestPfad("opt_befunde.map"));
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.optimierer = ke::Editor::OptimiererEinstellungen{};
+        ke::optimiererSchliessen();
+        ke::konsoleLeeren();
+        *laeufe = ke::optimiererBlick().laeufe;
+        ke::optimiererOeffnen();
+    }));
+    add(warteOptimierer("Optimierer fertig", laeufe));
+    add(pruefe("Jede Pruefung aus der Karte schlaegt an: verdeckt, tjunction, mikro, offgrid, mischinhalt, deko, blockgitter, ueberlappung, entartet, "
+               "areaportalentity, patchgross, clipmodell, leereentity, textur; der Wellen-Patch ist auch als Grenze \"ueber\" (Patch-Ebenen)",
+               [] {
+                   const ke::OptimiererBlick b = ke::optimiererBlick();
+                   std::string grenzen;
+                   for (const std::string& g : b.grenzenIds) { grenzen += " " + g; }
+                   diag::detail("Knopftest: Stufe 5/7 - Befunde " + befundZahlen() + " | ueber " + std::to_string(b.grenzenUeber) + ", nicht ok:" + grenzen);
+                   bool ok = true;
+                   for (const char* id : {"verdeckt", "tjunction", "mikro", "offgrid", "mischinhalt", "deko", "blockgitter", "ueberlappung", "entartet",
+                                          "areaportalentity", "patchgross", "clipmodell", "leereentity", "textur"}) {
+                       if (!hatBefund(id)) {
+                           diag::detail(std::string("Knopftest: Stufe 5/7 - fehlt: ") + id);
+                           ok = false;
+                       }
+                   }
+                   return ok && b.grenzenUeber >= 1 && std::find(b.grenzenIds.begin(), b.grenzenIds.end(), "kollision.patchebenen@map") != b.grenzenIds.end();
+               }));
+    add(tu("Reiter Pruefungen", [] { ke::optimiererReiter(1); }));
+    add(pause(0.3));
+    add(foto("karteneditor_s5_befunde"));
+    // Klick auf eine Zeile waehlt die Objekte (hier der leere func_door)
+    add(tu("Zeile leereentity waehlen", [] { (void)ke::optimiererZeileWaehlen(1, "leereentity"); }));
+    add(pause(0.2));
+    add(pruefe("Zeile \"Brush entity without brushes\": der func_door ist gewaehlt", [] {
+        const auto& a = ke::editor().karte.auswahl.elemente();
+        return a.size() == 1 && a.front().entitaet.lock() && a.front().entitaet.lock()->klassenname() == "func_door";
+    }));
+    // Jede Behebung: wirkt, ist ein Rueckgaengig-Schritt, und Rueckgaengig bringt den Befund zurueck
+    for (const char* id : {"verdeckt", "entartet", "mikro", "offgrid", "mischinhalt", "deko", "patchgross", "leereentity"}) {
+        add(befundBehebenUndZurueck(s, id, laeufe));
+    }
+    add(tu("Alles Sichere beheben", [laeufe] {
+        *laeufe = ke::optimiererBlick().laeufe;
+        if (ke::optimiererAllesSichere() <= 0) { meldeFehler("Alles Sichere beheben: nichts behoben"); }
+    }));
+    add(warteOptimierer("neu gezaehlt nach Alles Sichere", laeufe));
+    add(pruefe("Alles Sichere beheben (ein Schritt): verdeckt, entartet, offgrid, mischinhalt weg; mikro, deko, patchgross, leereentity bleiben (nicht sicher)", [] {
+        diag::detail("Knopftest: Stufe 5/7 - nach Alles Sichere " + befundZahlen());
+        return !hatBefund("verdeckt") && !hatBefund("entartet") && !hatBefund("offgrid") && !hatBefund("mischinhalt") && hatBefund("mikro") &&
+               hatBefund("deko") && hatBefund("patchgross") && hatBefund("leereentity") &&
+               ke::editor().karte.undo.undoName().rfind("Optimizer: fix all safe", 0) == 0;
+    }));
+    // Brush-Modelle zusammenlegen: 481 von 511 (knapp)
+    add(tu("Testkarte opt_modelle.map: 480 gleiche func_wall", [laeufe] {
+        {
+            std::ofstream f(std::filesystem::path(karteTestPfad("opt_modelle.map")), std::ios::binary | std::ios::trunc);
+            f << modellKarte();
+        }
+        (void)ke::karteOeffnen(karteTestPfad("opt_modelle.map"));
+        *laeufe = ke::optimiererBlick().laeufe;
+        ke::optimiererStarten();
+    }));
+    add(warteOptimierer("Optimierer fertig", laeufe));
+    add(pruefe("481 Brush-Modelle: Grenze knapp, Vorschlag \"zusammenlegen\" (480)", [] {
+        const ke::OptimiererBlick b = ke::optimiererBlick();
+        long long n = 0;
+        diag::detail("Knopftest: Stufe 5/7 - Modelle " + befundZahlen());
+        return hatBefund("modellezusammen", &n) && n == 480 &&
+               std::find(b.grenzenIds.begin(), b.grenzenIds.end(), "kollision.submodelle@map") != b.grenzenIds.end();
+    }));
+    add(befundBehebenUndZurueck(s, "modellezusammen", laeufe));
+    return s;
+}
+
+// Gebaute Karten: Leck mit Detail-Pinsel, eine Halle mit vollem Lichtgitter und
+// knappen Lightmaps - jeweils beheben und neu bauen
+std::vector<Schritt> gebaut() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    auto laeufe = std::make_shared<int>(0);
+    const std::string ordner = stufe3::laufOrdner("s5bau");
+    const std::string leck = ordner + "\\opt_leck";
+    const std::string halle = ordner + "\\opt_halle";
+    const auto fertig = [](const char* was, int bilder) { return warteBis(was, [] { return !ke::bauLaeuft(); }, bilder); };
+    add(tu("Stufe 5/7: bhed_q3map2, Build-Menue wie vorgegeben, Testkarte opt_leck (Loch in der Ostwand, darin ein Detail-Pinsel), "
+           "Einstellung \"Nach jedem Bau\" an",
+           [leck, laeufe] {
+               karteDialogeZu();
+               stufe3::q3map2Bereitstellen();
+               ke::Editor& e = ke::editor();
+               e.bauProjektFuer = -2;
+               e.bauGeaendert = false;
+               ke::bauMenueSicherstellen();
+               e.bau = ke::Editor::BauEinstellungen{};
+               std::error_code ec;
+               std::filesystem::create_directories(std::filesystem::path(leck).parent_path(), ec);
+               {
+                   std::ofstream f(std::filesystem::path(leck + ".map"), std::ios::binary | std::ios::trunc);
+                   f << leckKarte();
+               }
+               (void)ke::karteOeffnen(leck + ".map");
+               stufe3::bauDateienWeg(leck);
+               e.optimierer = ke::Editor::OptimiererEinstellungen{};
+               e.optimierer.nachBau = true;
+               e.bauRueckmeldungOffen = false;
+               ke::optimiererSchliessen();
+               ke::konsoleLeeren();
+               *laeufe = ke::optimiererBlick().laeufe;
+           }));
+    add(stufe3::bauMenuepunkt("Single: bsp stage"));
+    add(fertig("Bauen fertig", 2400));
+    add(warteOptimierer("Optimierer nach dem Bau (auch wenn das Leck den Bau anhaelt)", laeufe));
+    add(pruefe("Nach dem Bau mit Leck: der Optimierer lief von selbst und ging auf (Probleme); Leck aus der .lin, der Detail-Pinsel an der Leck-Linie",
+               [leck] {
+                   diag::detail("Knopftest: Stufe 5/7 - Leck " + befundZahlen());
+                   return ke::optimiererOffen() && stufe3::istDatei(leck + ".lin") && hatBefund("leck") && hatBefund("detailamleck");
+               }));
+    add(tu("Reiter Pruefungen; Zeile detailamleck", [] {
+        ke::editor().bauRueckmeldungOffen = false;
+        ke::optimiererReiter(1);
+        (void)ke::optimiererZeileWaehlen(1, "detailamleck");
+    }));
+    add(pause(0.3));
+    add(pruefe("Zeile \"Detail brush at the leak line\": der Detail-Pinsel im Loch ist gewaehlt", [] {
+        const auto& a = ke::editor().karte.auswahl.elemente();
+        if (a.size() != 1 || !a.front().primitiv.lock()) { return false; }
+        const auto p = std::dynamic_pointer_cast<karte::Pinsel>(a.front().primitiv.lock());
+        return p && p->istDetail();
+    }));
+    add(foto("karteneditor_s5_leck"));
+    add(tu("Beheben: detailamleck (Make Structural)", [laeufe] {
+        *laeufe = ke::optimiererBlick().laeufe;
+        if (!ke::optimiererBefundBeheben("detailamleck")) { meldeFehler("detailamleck: Beheben ohne Wirkung"); }
+    }));
+    add(warteOptimierer("neu gezaehlt", laeufe));
+    add(pruefe("Der Pinsel ist structural, kein Detail mehr an der Leck-Linie; das Leck steht bis zum naechsten Bau", [] {
+        return !hatBefund("detailamleck") && hatBefund("leck");
+    }));
+    add(tu("Konsole leeren, neu bauen", [laeufe] {
+        ke::konsoleLeeren();
+        *laeufe = ke::optimiererBlick().laeufe;
+    }));
+    add(stufe3::bauMenuepunkt("Single: bsp stage"));
+    add(fertig("Bauen fertig", 2400));
+    add(warteOptimierer("Optimierer nach dem Bau", laeufe));
+    add(pruefe("Neu gebaut: dicht - keine .lin (q3map2 bsp.cpp:880 loescht sie), kein Leck; die gebaute .bsp wird mitgeprueft", [leck] {
+        diag::detail("Knopftest: Stufe 5/7 - nach dem Bau " + befundZahlen() + " | BSP " + ke::optimiererBlick().bsp);
+        return !hatBefund("leck") && !stufe3::istDatei(leck + ".lin") && stufe3::istDatei(leck + ".bsp") && !ke::optimiererBlick().bsp.empty();
+    }));
+    // Die Halle: viele farbige Lichter, ein eigener Build-Eintrag (ohne -bounce)
+    auto eintrag = std::make_shared<std::size_t>(0);
+    add(tu("Testkarte opt_halle (hohl, viele farbige Lichter), Build-Eintrag \"Optimizer test\" (-meta, -vis -fast -saveprt, -light -fast), "
+           "Knapp ab 40 %, VIS- und Dreiecks-Schwelle 1",
+           [halle, laeufe, eintrag] {
+               karteDialogeZu();
+               {
+                   std::ofstream f(std::filesystem::path(halle + ".map"), std::ios::binary | std::ios::trunc);
+                   f << halleKarte();
+               }
+               (void)ke::karteOeffnen(halle + ".map");
+               stufe3::bauDateienWeg(halle);
+               ke::Editor& e = ke::editor();
+               e.optimierer.knappProzent = 40;
+               e.optimierer.portalSchwelle = 1;
+               e.optimierer.dreieckSchwelle = 1;
+               e.bauProjekt.eintraege.push_back(karte::BauEintrag{
+                   "Optimizer test", {"[q3map2] -meta \"[MapFile]\"", "[q3map2] -vis -fast -saveprt \"[MapFile]\"", "[q3map2] -light -fast \"[MapFile]\""}});
+               *eintrag = e.bauProjekt.eintraege.size() - 1;
+               ke::konsoleLeeren();
+               *laeufe = ke::optimiererBlick().laeufe;
+               ke::bauStarten(*eintrag);
+           }));
+    add(fertig("Bauen fertig", 36000));
+    add(warteOptimierer("Optimierer nach dem Bau", laeufe));
+    add(pruefe("Halle gebaut: Lichtgitter voll (Zellen zeigen hinter das Gitter, gridsize verdoppeln), Lightmaps knapp (_lightmapscale 2, "
+               "die Anzahl sind Lightmaps, nicht Bytes), VIS und Dreiecke je Ansicht ueber den Schwellen",
+               [] {
+                   long long lg = 0;
+                   long long lm = 0;
+                   diag::detail("Knopftest: Stufe 5/7 - Halle " + befundZahlen());
+                   return hatBefund("lichtgitter", &lg) && lg > 0 && hatBefund("lightmapscale", &lm) && lm > 64 && lm <= 256 && hatBefund("vis") &&
+                          hatBefund("dreiecke");
+               }));
+    add(foto("karteneditor_s5_halle"));
+    add(tu("Beheben: lichtgitter (worldspawn gridsize)", [laeufe] {
+        *laeufe = ke::optimiererBlick().laeufe;
+        if (!ke::optimiererBefundBeheben("lichtgitter")) { meldeFehler("lichtgitter: Beheben ohne Wirkung"); }
+    }));
+    add(warteOptimierer("neu gezaehlt", laeufe));
+    add(tu("Beheben: lightmapscale (worldspawn _lightmapscale)", [laeufe] {
+        *laeufe = ke::optimiererBlick().laeufe;
+        if (!ke::optimiererBefundBeheben("lightmapscale")) { meldeFehler("lightmapscale: Beheben ohne Wirkung"); }
+    }));
+    add(warteOptimierer("neu gezaehlt", laeufe));
+    add(pruefe("worldspawn: gridsize \"128 128 128\" und _lightmapscale \"2\"; die Konsole bittet um einen neuen Bau", [] {
+        const auto w = ke::editor().karte.welt();
+        diag::detail("Knopftest: Stufe 5/7 - worldspawn gridsize \"" + (w ? w->wert("gridsize") : std::string()) + "\" _lightmapscale \"" +
+                     (w ? w->wert("_lightmapscale") : std::string()) + "\"");
+        return w && w->wert("gridsize") == "128 128 128" && w->wert("_lightmapscale") == "2" &&
+               stufe3::konsoleText().find(ke::trK(Str::KeOptNeuBauen)) != std::string::npos;
+    }));
+    add(tu("Neu bauen (Optimizer test)", [laeufe, eintrag] {
+        *laeufe = ke::optimiererBlick().laeufe;
+        ke::bauStarten(*eintrag);
+    }));
+    add(fertig("Bauen fertig", 36000));
+    add(warteOptimierer("Optimierer nach dem Bau", laeufe));
+    add(pruefe("Neu gebaut: das Lichtgitter passt, die Lightmaps sind nicht mehr knapp (Wirkung in der gebauten .bsp)", [] {
+        diag::detail("Knopftest: Stufe 5/7 - Halle neu gebaut " + befundZahlen());
+        return !hatBefund("lichtgitter") && !hatBefund("lightmapscale") && !ke::optimiererBlick().bsp.empty();
+    }));
+    // Spawnpunkt ausserhalb der Halle (im Leeren): Cluster -1 in der gebauten .bsp
+    add(tu("info_player_start nach 9000 0 24 (ausserhalb), neu zaehlen", [laeufe] {
+        for (const auto& en : ke::editor().karte.entitaeten()) {
+            if (en->klassenname() == "info_player_start") { en->setzen("origin", "9000 0 24"); }
+        }
+        *laeufe = ke::optimiererBlick().laeufe;
+        ke::optimiererStarten();
+    }));
+    add(warteOptimierer("neu gezaehlt", laeufe));
+    add(pruefe("Spawnpunkt im Leeren: Befund \"spawnimfesten\" (CM_PointLeafnum, Cluster -1)", [] { return hatBefund("spawnimfesten"); }));
+    add(tu("info_player_start zurueck nach 0 0 100, neu zaehlen", [laeufe] {
+        for (const auto& en : ke::editor().karte.entitaeten()) {
+            if (en->klassenname() == "info_player_start") { en->setzen("origin", "0 0 100"); }
+        }
+        *laeufe = ke::optimiererBlick().laeufe;
+        ke::optimiererStarten();
+    }));
+    add(warteOptimierer("neu gezaehlt", laeufe));
+    add(pruefe("Spawnpunkt in der Halle: kein Befund", [] { return !hatBefund("spawnimfesten"); }));
+    add(tu("Build-Eintrag \"Optimizer test\" weg, Einstellungen des Optimierers wie vorgegeben", [eintrag] {
+        ke::Editor& e = ke::editor();
+        if (*eintrag < e.bauProjekt.eintraege.size() && e.bauProjekt.eintraege[*eintrag].name == "Optimizer test") {
+            e.bauProjekt.eintraege.erase(e.bauProjekt.eintraege.begin() + static_cast<std::ptrdiff_t>(*eintrag));
+        }
+        e.bauGeaendert = false;
+        e.optimierer = ke::Editor::OptimiererEinstellungen{};
+        ke::optimiererSchliessen();
+    }));
+    return s;
+}
+
+// Eine Originalkarte: mp/duel1 aus den .pk3 (Stufe 4: dekompiliert, die
+// Original-BSP daneben) - keine Grenze darf "ueber" sein, weder mit den Regeln
+// von JKA SP noch MP.
+std::vector<Schritt> original() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    auto laeufe = std::make_shared<int>(0);
+    add(tu("Stufe 5/7: Originalkarte mp/duel1 oeffnen (File > Open .bsp...)", [] {
+        karteDialogeZu();
+        stufe3::q3map2Bereitstellen();
+        ke::optimiererSchliessen();
+        ke::editor().optimierer = ke::Editor::OptimiererEinstellungen{};
+        (void)ke::bspOeffnenSpiel("maps/mp/duel1.bsp");
+    }));
+    add(warteBis("duel1 geladen", [] { return ke::editor().bspHerkunft.aktiv; }, 6000));
+    for (int regel : {0, 1}) {
+        auto m = std::make_shared<OptLauf>();
+        add(tu(std::string("Regelwerk ") + (regel == 0 ? "JKA SP" : "JKA MP"), [regel] { ke::editor().optimierer.regelwerk = regel; }));
+        add(optimiererGemessen("Optimierer auf duel1 (Bildzeiten waehrend der Pruefung)", laeufe, m, 3000));
+        add(pruefe(std::string("duel1 mit den Regeln von ") + (regel == 0 ? "JKA SP" : "JKA MP") +
+                       ": keine Grenze \"ueber\", die BSP aus dem Spiel mitgeprueft (Kopie im Arbeitsordner), das Programm bleibt bedienbar (kein Bild ueber 250 ms)",
+                   [m] {
+                       const ke::OptimiererBlick b = ke::optimiererBlick();
+                       std::string knapp;
+                       for (const std::string& g : b.grenzenIds) { knapp += " " + g; }
+                       diag::detail("Knopftest: Stufe 5/7 - duel1: " + laufText(*m) + " | ueber " + std::to_string(b.grenzenUeber) + ", nicht ok:" + knapp +
+                                    " | Befunde " + befundZahlen() + " | BSP " + b.bsp);
+                       return b.hatErgebnis && b.grenzenUeber == 0 && b.bsp.size() > 4 && b.bsp.compare(b.bsp.size() - 4, 4, ".bsp") == 0 && m->groesstes() < 250.0;
+                   }));
+    }
+    // Im ganzen Lauf kommt vorher die Halle: deren letzte Behebung gehoert nicht zu duel1
+    add(pruefe("Neue Karte: keine Meldung einer Behebung aus der vorigen Karte unter der Liste", [] {
+        diag::detail("Knopftest: Stufe 5/7 - Meldung \"" + ke::optimiererBlick().meldung + "\"");
+        return ke::optimiererBlick().meldung.empty();
+    }));
+    add(tu("Reiter Grenzen", [] { ke::optimiererReiter(0); }));
+    add(pause(0.3));
+    add(foto("karteneditor_s5_duel1"));
+    add(tu("Regelwerk wieder automatisch, Fenster zu", [] {
+        ke::editor().optimierer = ke::Editor::OptimiererEinstellungen{};
+        ke::optimiererSchliessen();
+    }));
+    return s;
+}
+
+// Die groesste Karte (BHED_KARTE_GROSS, duel_mos_espa.map; mit BHED_KARTE_GROSS_BSP
+// die BSP aus Movie Duels daneben): Zeit, Bildzeiten waehrend der Pruefung, und
+// der echte Fehler der Karte (21752 Lichtgitter-Zellen zeigen hinter das Gitter).
+std::vector<Schritt> gross() {
+    std::vector<Schritt> s;
+    const char* pfad = std::getenv("BHED_KARTE_GROSS");
+    if (pfad == nullptr || pfad[0] == '\0') { return s; }
+    const char* bsp = std::getenv("BHED_KARTE_GROSS_BSP");
+    const std::string quelleMap = pfad;
+    const std::string quelleBsp = bsp != nullptr ? bsp : "";
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    auto laeufe = std::make_shared<int>(0);
+    auto m = std::make_shared<OptLauf>();
+    auto ladeMs = std::make_shared<double>(0.0);
+    const std::string ziel = stufe3::laufOrdner("s5gross") + "\\" + std::filesystem::path(quelleMap).stem().string();
+    add(tu("Stufe 5/7: grosse Karte " + quelleMap + (quelleBsp.empty() ? std::string() : " mit " + quelleBsp) + " in den Laufordner, oeffnen, Regelwerk Movie Duels",
+           [quelleMap, quelleBsp, ziel, ladeMs] {
+               karteDialogeZu();
+               ke::optimiererSchliessen();
+               std::error_code ec;
+               std::filesystem::create_directories(std::filesystem::path(ziel).parent_path(), ec);
+               std::filesystem::copy_file(std::filesystem::path(quelleMap), std::filesystem::path(ziel + ".map"), std::filesystem::copy_options::overwrite_existing, ec);
+               if (!quelleBsp.empty()) {
+                   std::filesystem::copy_file(std::filesystem::path(quelleBsp), std::filesystem::path(ziel + ".bsp"), std::filesystem::copy_options::overwrite_existing, ec);
+               }
+               const auto t0 = std::chrono::steady_clock::now();
+               (void)ke::karteOeffnen(ziel + ".map");
+               *ladeMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+               ke::editor().optimierer = ke::Editor::OptimiererEinstellungen{};
+               ke::editor().optimierer.regelwerk = 2;   // karte::GrenzSpiel::MovieDuels
+           }));
+    add(pause(0.5));
+    add(optimiererGemessen("Optimierer auf der grossen Karte (Bildzeiten waehrend der Pruefung)", laeufe, m, 60000));
+    add(pruefe("Grosse Karte: keine Grenze von Movie Duels \"ueber\", das Programm bleibt waehrend der Pruefung bedienbar (kein Bild ueber 250 ms)", [m, ladeMs] {
+        const ke::OptimiererBlick b = ke::optimiererBlick();
+        std::string knapp;
+        for (const std::string& g : b.grenzenIds) { knapp += " " + g; }
+        char z[64];
+        std::snprintf(z, sizeof(z), "Laden %.0f ms | ", *ladeMs);
+        diag::detail("Knopftest: Stufe 5/7 - grosse Karte: " + std::string(z) + laufText(*m) + " | ueber " + std::to_string(b.grenzenUeber) + ", nicht ok:" + knapp +
+                     " | Befunde " + befundZahlen() + " | BSP " + b.bsp);
+        return b.hatErgebnis && b.grenzenUeber == 0 && m->groesstes() < 250.0;
+    }));
+    if (!quelleBsp.empty()) {
+        add(pruefe("Die BSP aus Movie Duels: 21752 Lichtgitter-Zellen zeigen hinter das Gitter (Index 65535) - Befund mit Vorschlag gridsize", [] {
+            long long n = 0;
+            return hatBefund("lichtgitter", &n) && n == 21752 && !ke::optimiererBlick().bsp.empty();
+        }));
+    }
+    add(tu("Reiter Pruefungen", [] { ke::optimiererReiter(1); }));
+    add(pause(0.3));
+    add(foto("karteneditor_s5_gross"));
+    add(tu("Regelwerk wieder automatisch, Fenster zu", [] {
+        ke::editor().optimierer = ke::Editor::OptimiererEinstellungen{};
+        ke::optimiererSchliessen();
+    }));
+    return s;
+}
+
 }  // namespace stufe5
 
 std::vector<Schritt> karteneditorStufe5Schritte() {
     std::vector<Schritt> s;
     const char* nur = std::getenv("BHED_STUFE5_NUR");
     const auto teil = [nur](const char* name) { return nur == nullptr || std::strcmp(nur, name) == 0; };
-    if (teil("fenster")) {
-        for (Schritt& x : stufe5::fenster()) { s.push_back(std::move(x)); }
-    }
+    const auto dazu = [&s](std::vector<Schritt> v) {
+        for (Schritt& x : v) { s.push_back(std::move(x)); }
+    };
+    if (teil("fenster")) { dazu(stufe5::fenster()); }
+    if (teil("pruefungen")) { dazu(stufe5::pruefungen()); }
+    if (teil("gebaut")) { dazu(stufe5::gebaut()); }
+    if (teil("original")) { dazu(stufe5::original()); }
+    if (teil("gross")) { dazu(stufe5::gross()); }   // nur mit BHED_KARTE_GROSS
     return s;
 }
 

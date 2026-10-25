@@ -895,6 +895,12 @@ void testeBeheben() {
         const Kasten& g = static_cast<const Pinsel&>(*f.k.entitaeten().front()->kinder().front()).grenzen(f.k.kontext);
         pruefe(std::fabs(g.origin[0] + g.extents[0] - 64.0F) < 0.001F, "Einrasten: die Ecke liegt danach bei 64");
     }
+    {   // Snap to Grid mit einem 0.5 dicken Pinsel daneben (Selbsttest Stufe 5/7:
+        // danach blieb ein Befund "offgrid")
+        Fall f(entText("worldspawn", "", kastenText(0, 0, 0, 64.02, 64, 64, "test/x") + kastenText(100, 0, 0, 164, 64, 0.5, "test/x")));
+        pruefe(f.n("offgrid") == 1 && f.n("mikro") == 1, "0.5 dick: Mikropinsel, nicht \"offgrid\" (Einrasten kann ihn nur zerdruecken)");
+        behebenPruefen("Einrasten mit Mikropinsel daneben", f, "offgrid", 0);
+    }
     {   // Mikropinsel entfernen
         Fall f(entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x") + kastenText(100, 0, 0, 164, 64, 0.5, "test/x")));
         behebenPruefen("Mikropinsel", f, "mikro", 0);

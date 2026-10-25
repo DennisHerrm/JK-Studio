@@ -371,11 +371,16 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
                     continue;
                 }
                 const double ausdehnung = std::min({pr.maxs[0] - pr.mins[0], pr.maxs[1] - pr.mins[1], pr.maxs[2] - pr.mins[2]});
-                if (ausdehnung < 1.0) { add(mikro, r); }
                 double abw = 0;
-                for (const AbbildFlaeche& f : pr.flaechen) {
-                    for (const Vektor3d& v : f.punkte) {
-                        for (std::size_t i = 0; i < 3; ++i) { abw = std::max(abw, std::fabs(v[i] - std::round(v[i]))); }
+                if (ausdehnung < 1.0) {
+                    // duenner als das Raster: Einrasten kann ihn nur zerdruecken -
+                    // er zaehlt als Mikropinsel (Behebung: loeschen), nicht als "offgrid"
+                    add(mikro, r);
+                } else {
+                    for (const AbbildFlaeche& f : pr.flaechen) {
+                        for (const Vektor3d& v : f.punkte) {
+                            for (std::size_t i = 0; i < 3; ++i) { abw = std::max(abw, std::fabs(v[i] - std::round(v[i]))); }
+                        }
                     }
                 }
                 if (abw > 0.001) {
@@ -768,9 +773,18 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
                                                    : "light grid array has " + std::to_string(an.lichtgitterErwartet) + " cells expected by the engine";
             out.push_back(b);
         }
-        for (const Bewertung& bw : o.bewertungen) {
+        // Die Zahl der Lightmaps (Renderer, hart) vor der Groesse des Lumps
+        // (MAX_MAP_LIGHTING, Formatgrenze): die Anzahl des Befunds sind dann Lightmaps
+        std::vector<const Bewertung*> licht;
+        for (const char* id : {"renderer.lightmaps", "bsp.licht"}) {
+            for (const Bewertung& bw : o.bewertungen) {
+                if (bw.zaehlung.id == id) { licht.push_back(&bw); }
+            }
+        }
+        for (const Bewertung* lb : licht) {
+            const Bewertung& bw = *lb;
             if (bw.zaehlung.quelle != ZaehlQuelle::Bsp || (bw.ampel != Ampel::Knapp && bw.ampel != Ampel::Ueber && bw.ampel != Ampel::Hinweis)) { continue; }
-            if (bw.zaehlung.id == "renderer.lightmaps" || (bw.zaehlung.id == "bsp.licht" && bw.ampel != Ampel::Ok)) {
+            {
                 // _lightmapscale (lightmaps_ydnar.cpp: Lightmap-Massstab je Entity/worldspawn)
                 const std::string jetzt = ents.empty() ? std::string() : ents.front().wert("_lightmapscale");
                 const double alt = jetzt.empty() ? 1.0 : std::atof(jetzt.c_str());

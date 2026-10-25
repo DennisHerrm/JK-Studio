@@ -315,6 +315,8 @@ void abholen() {
     g_z.laeuft = false;
     {
         std::lock_guard<std::mutex> l(g_z.sperre);
+        // eine andere Karte: die Meldung der letzten Behebung gehoert nicht mehr dazu
+        if (g_z.e && g_z.neu && g_z.e->karteName != g_z.neu->karteName) { g_z.meldung.clear(); }
         g_z.e = std::move(g_z.neu);
     }
     ++g_z.laeufe;
@@ -576,6 +578,7 @@ bool optimiererBerichtSchreiben(const std::string& pfad) {
 OptimiererBlick optimiererBlick() {
     OptimiererBlick b;
     b.laeufe = g_z.laeufe;
+    b.meldung = g_z.meldung;
     if (!g_z.e) { return b; }
     b.hatErgebnis = true;
     b.veraltet = veraltet();

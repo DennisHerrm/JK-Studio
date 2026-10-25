@@ -1069,6 +1069,9 @@ void zusammenfassung(int art, const std::string& grund) {   // 0 fertig, 1 gesto
         std::snprintf(z, sizeof(z), trK(Str::KeBmGestoppt), l.eintrag.c_str(), static_cast<int>(l.schritt + 1),
                       static_cast<int>(l.befehle.size()), grund.c_str(), zeit.c_str());
         konsoleSchreiben(KonsolenZeile::Art::Fehler, std::string(z) + "\n");
+        // ein Leck haelt den Bau an - gerade dann zeigt der Optimierer die
+        // .lin und Detail-Pinsel an der Leck-Linie
+        if (!danach.f && grund == "leak" && e().optimierer.nachBau) { optimiererStarten(true); }
     } else {
         std::snprintf(z, sizeof(z), trK(Str::KeBmAbgebrochen), l.eintrag.c_str(), static_cast<int>(l.schritt + 1),
                       static_cast<int>(l.befehle.size()), zeit.c_str());
