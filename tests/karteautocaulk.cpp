@@ -127,9 +127,9 @@ int main() {
     pruefe(shader(a, 0) == "textures/system/caulk" && shader(a, 1) == "textures/system/caulk" && shader(a, 2) == "textures/a/a" &&
                shader(a, 3) == "textures/system/caulk" && shader(a, 4) == "textures/a/a" && shader(a, 5) == "textures/system/caulk",
            "caulkAnwenden: a nach \"cc-c-c\" (GetCommonShader: textures/system/caulk)");
-    pruefe(shader(d, 0) == "textures/system/nodraw" && shader(d, 1) == "textures/a/d" && shader(d, 2) == "textures/system/watercaulk" &&
-               shader(d, 4) == "textures/system/lavacaulk" && shader(d, 5) == "textures/system/slimecaulk",
-           "caulkAnwenden: d nach \"N-w-ls\" (nodraw, watercaulk, lavacaulk, slimecaulk)");
+    pruefe(shader(d, 0) == "textures/system/nodraw_solid" && shader(d, 1) == "textures/a/d" && shader(d, 2) == "textures/system/caulk_water" &&
+               shader(d, 4) == "textures/system/caulk_lava" && shader(d, 5) == "textures/system/caulk_acid",
+           "caulkAnwenden: d nach \"N-w-ls\" (Namen aus system.shader von JA: nodraw_solid, caulk_water, caulk_lava, caulk_acid)");
     pruefe(shader(b, 0) == "textures/a/b", "caulkAnwenden: b ohne Zeile bleibt");
     pruefe(k.undo.undoName() == "AutoCaulk 8 faces", "Rueckgaengig \"AutoCaulk 8 faces\": " + k.undo.undoName());
     k.undo.undo();

@@ -463,7 +463,7 @@ std::map<std::size_t, std::string> caulkLesen(const std::string& text) {
     return m;
 }
 
-std::size_t caulkAnwenden(Karte& k, const std::map<std::size_t, std::string>& caulk) {
+std::size_t caulkAnwenden(Karte& k, const std::map<std::size_t, std::string>& caulk, const std::function<bool(const std::string&)>& vorhanden) {
     const std::vector<std::shared_ptr<Pinsel>> pinsel = autocaulkPinsel(k);
     const std::string caulkS = gemeinsamerShader("caulk");
     const std::string wasser = gemeinsamerShader("watercaulk");
@@ -482,15 +482,19 @@ std::size_t caulkAnwenden(Karte& k, const std::map<std::size_t, std::string>& ca
         for (const auto& f : p->flaechen()) {
             if (*zeichen == 0) { break; }
             if (!f->traegtBei()) { continue; }
-            ++anzahl;
+            const std::string* neu = nullptr;
             switch (*zeichen) {
-            case 'c': f->setzeShader(caulkS, k.kontext); break;
-            case 'w': f->setzeShader(wasser, k.kontext); break;
-            case 'l': f->setzeShader(lava, k.kontext); break;
-            case 's': f->setzeShader(schleim, k.kontext); break;
-            case 'N': f->setzeShader(nodraw, k.kontext); break;
-            case 'n': f->setzeShader(nodrawNichtFest, k.kontext); break;
-            default: --anzahl; break;
+            case 'c': neu = &caulkS; break;
+            case 'w': neu = &wasser; break;
+            case 'l': neu = &lava; break;
+            case 's': neu = &schleim; break;
+            case 'N': neu = &nodraw; break;
+            case 'n': neu = &nodrawNichtFest; break;
+            default: break;
+            }
+            if (neu != nullptr && (!vorhanden || vorhanden(*neu))) {   // Stufe 6: kein Shader, den es im Spiel nicht gibt
+                f->setzeShader(*neu, k.kontext);
+                ++anzahl;
             }
             ++zeichen;
         }

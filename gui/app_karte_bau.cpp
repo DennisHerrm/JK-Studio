@@ -1716,7 +1716,9 @@ void autoCaulkAuswahl() {
         }
         caulk = karte::caulkLesen(karte::textmodusLesen(text));
     }
-    (void)karte::caulkAnwenden(ed.karte, caulk);   // apply: "AutoCaulk N faces"
+    (void)karte::caulkAnwenden(ed.karte, caulk, [&ed](const std::string& shader) {   // apply: "AutoCaulk N faces"
+        return !ed.karteSpiel || ed.karteSpiel->inventar.shaderFinden(shader) != nullptr;
+    });
     ++ed.sichtStand;
 }
 

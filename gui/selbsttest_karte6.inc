@@ -2335,7 +2335,10 @@ std::vector<Schritt> funde() {
         std::string t = stufe3::raumKarte(false);
         const std::string marke = "\"ambient\" \"8\"\n";
         const std::size_t p = t.find(marke);
-        if (p != std::string::npos) { t.insert(p + marke.size(), quader(-200, -100, -8, -100, 100, 48, "common/water2")); }
+        if (p != std::string::npos) {
+            t.insert(p + marke.size(), quader(-200, -100, -8, -100, 100, 48, "common/water2") +
+                                           quader(-400, -100, 0, -300, 100, 96, "byss/static_field"));   // durchsichtig, aber fest
+        }
         const std::string pfad = karteTestPfad("s6_wasser.map");
         (void)textSchreiben(pfad, t);
         (void)ke::karteOeffnen(pfad);
@@ -2359,13 +2362,34 @@ std::vector<Schritt> funde() {
             for (const auto& f : pin.flaechen()) { wasser = wasser || f->shader() == "textures/common/water2"; }
             if (!wasser) { continue; }
             for (const auto& f : pin.flaechen()) {
-                wasserCaulk += f->shader() == karte::gemeinsamerShader("watercaulk") ? 1 : 0;   // GetCommonShader: textures/system/watercaulk
-                caulk += (f->shader().find("caulk") != std::string::npos && f->shader() != karte::gemeinsamerShader("watercaulk")) ? 1 : 0;
+                wasserCaulk += f->shader() == "textures/system/caulk_water" ? 1 : 0;   // JA: caulk_water (system.shader)
+                caulk += (f->shader().find("caulk") != std::string::npos && f->shader() != "textures/system/caulk_water") ? 1 : 0;
             }
         }
         diag::detail("Knopftest: Stufe 6 - AutoCaulk/Wasser: watercaulk " + std::to_string(wasserCaulk) + ", caulk " + std::to_string(caulk) + ", " +
                      e.karte.undo.undoName());
         return wasserCaulk > 0 && caulk == 0;
+    }));
+    // NRC#145: AutoCaulk setzte nodraw auf feste (durchsichtige) Pinsel und machte sie damit
+    // nicht fest. NRCs q3map2 faellt auf caulk zurueck, wenn common/nodraw nicht fest ist -
+    // bei Jedi Academy heisst der feste aber system/nodraw_solid, system/nodraw ist nicht fest.
+    add(pruefe("NRC#145: der feste durchsichtige Pinsel (byss/static_field) bekommt unten einen festen nodraw-Shader (system/nodraw_solid)", [] {
+        const ke::Editor& e = ke::editor();
+        int fest = 0;
+        int nichtFest = 0;
+        for (const auto& pr : e.karte.welt()->kinder()) {
+            if (pr->art() != karte::Primitiv::Art::Pinsel) { continue; }
+            const auto& pin = static_cast<const karte::Pinsel&>(*pr);
+            bool glas = false;
+            for (const auto& f : pin.flaechen()) { glas = glas || f->shader() == "textures/byss/static_field"; }
+            if (!glas) { continue; }
+            for (const auto& f : pin.flaechen()) {
+                fest += f->shader() == "textures/system/nodraw_solid" ? 1 : 0;
+                nichtFest += f->shader() == "textures/system/nodraw" ? 1 : 0;
+            }
+        }
+        diag::detail("Knopftest: Stufe 6 - NRC#145: nodraw_solid " + std::to_string(fest) + ", nodraw (nicht fest) " + std::to_string(nichtFest));
+        return fest > 0 && nichtFest == 0;
     }));
     add(tu("AutoCaulk/Wasser: Grundzustand", [] { grundzustand(); }));
     // NRC-master nach 20260114: cc96c84 (Door Builder: die zweite Ausrichtung hiess auch

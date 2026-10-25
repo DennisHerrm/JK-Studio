@@ -86,7 +86,8 @@ std::vector<std::shared_ptr<Primitiv>> gewaehltePrimitiveUmhaengen(Karte& k, con
                                                                    const Entitaet* nurAus = nullptr);
 // Scene_countSelectedBrushes (gewaehlte Primitive)
 [[nodiscard]] std::size_t gewaehltePrimitive(const Karte& k);
-// GetCommonShader( name ): ja.game / jk2.game -> "textures/system/<name>"
+// GetCommonShader( name ): ja.game / jk2.game -> "textures/system/<name>", mit den
+// Namen aus system.shader von JA/JK2 (watercaulk -> caulk_water, nodraw -> nodraw_solid ...)
 [[nodiscard]] std::string gemeinsamerShader(const std::string& name);
 
 // Entity_createFromSelection. Das Ergebnis sagt, ob danach nach der

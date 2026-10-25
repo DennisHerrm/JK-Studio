@@ -228,7 +228,24 @@ std::size_t gewaehltePrimitive(const Karte& k) {   // Scene_countSelectedBrushes
     return n;
 }
 
-std::string gemeinsamerShader(const std::string& name) { return "textures/system/" + name; }   // GetCommonShader
+// GetCommonShader: ja.game / jk2.game -> "textures/system/<name>". Stufe 6 (NRC#145 fuer
+// JA/JK2): NRC nimmt die Quake-3-Namen (watercaulk, nodraw ...). Jedi Academy und Jedi
+// Outcast nennen sie in system.shader anders, und system/nodraw ist dort NICHT fest -
+// AutoCaulk machte so feste durchsichtige Pinsel durchlaessig (NRC#145) und gab
+// Wasser-/Lava-/Schleimpinseln Shader, die es nicht gibt (fest wie die Vorgabe).
+std::string gemeinsamerShader(const std::string& name) {
+    static const std::pair<const char*, const char*> kNamen[] = {
+        {"watercaulk", "caulk_water"},   // surfaceparm nodraw + water
+        {"lavacaulk", "caulk_lava"},     // nodraw + lava
+        {"slimecaulk", "caulk_acid"},    // nodraw + slime
+        {"nodraw", "nodraw_solid"},      // nodraw + trans, fest (shader_nodraw)
+        {"nodrawnonsolid", "nodraw"},    // nodraw + nonsolid (shader_nodrawnonsolid)
+    };
+    for (const auto& [q3, ja] : kNamen) {
+        if (name == q3) { return std::string("textures/system/") + ja; }
+    }
+    return "textures/system/" + name;
+}
 
 void klasseSetzenAuswahl(Karte& k, const std::string& klassenname) {   // Scene_EntitySetClassname_Selected
     if (k.auswahl.anzahl() == 0) { return; }

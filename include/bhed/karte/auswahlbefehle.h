@@ -36,6 +36,7 @@
 
 #include "bhed/karte/auswahlsystem.h"
 
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -123,7 +124,10 @@ void triggerAbwaehlen(Karte& k);
 // CaulkBrushesWalker: je beitragende Flaeche ein Zeichen (c caulk, w watercaulk,
 // l lavacaulk, s slimecaulk, N nodraw, n nodrawnonsolid; sonst nichts) mit
 // Rueckgaengig "AutoCaulk N faces"; Ergebnis N.
-std::size_t caulkAnwenden(Karte& k, const std::map<std::size_t, std::string>& caulk);
+// vorhanden: gibt es den Shader im Spiel? Sonst bleibt die Flaeche (Jedi Outcast hat
+// z. B. kein caulk_water) - nullptr: alle vorhanden.
+std::size_t caulkAnwenden(Karte& k, const std::map<std::size_t, std::string>& caulk,
+                          const std::function<bool(const std::string&)>& vorhanden = nullptr);
 
 // --- Shader (select.cpp, brushmanip.cpp, patchmanip.cpp) -----------------------------
 
