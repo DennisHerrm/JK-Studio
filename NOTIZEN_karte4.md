@@ -213,3 +213,53 @@ gleich. Die 40 % stecken im Maschinencode, den MSVC fuer die heissen
 Rechenfunktionen erzeugt, nicht in Threads, Allocator oder Inlining. Es bleibt
 bei /O2 /fp:precise (unveraenderter Bau); offen fuer spaeter: ein Bau mit
 clang-cl (VS-Komponente "C++-Clang-Tools", nicht installiert) zum Vergleich.
+
+## Punkt 3a: bobToolz
+
+Portiert (NRC 20260114, contrib/bobtoolz, GPL v2 nach LGPL 2.1 Abschnitt 3):
+`include/bhed/karte/bobtoolz.h`, `src/karte/bobtoolz_d.h/.cpp` (DPlane, DBrush,
+DPatch, DEntity, DMap, DShape, DWinding, DPoint, DEPair, mathlib in float wie
+bobToolz), `src/karte/bobtoolz.cpp` (funchandlers-GTK.cpp Do*, shapes.cpp,
+DTreePlanter, DTrainDrawer, DBobView, ScriptParser, lists, misc),
+`src/karte/bobtoolz_vis.cpp` (bsploader.cpp, visfind.cpp), die Oberflaeche
+`gui/app_karte_plugins.cpp` (QERPlug_Dispatch, Werkzeugleiste, die acht
+Dialoge aus dialogs-gtk.cpp, "BSP leafs" aus DVisDrawer.cpp, Zeichnen von
+DBobView / DTrainDrawer / DVisDrawer, DTreePlanter::mouseDown ueber
+XYWindowMouseDown), Qt-Bausteine fuer alle Plugin-Dialoge in
+`gui/karte_qtdialog.h/.cpp`; NRCs Datendateien `setup/data/tools/plugins/bt/*.txt`
+unveraendert nach `data/karte/bt` (.gitattributes `-text`).
+
+Alle 23 Befehle des Menues und die 9 Knoepfe der Plugin-Leiste (Tree Planter
+rastet ein) sind nachgebaut; Checkliste: 46 Eintraege `bobToolz::*` auf `[x]`
+(Befehle und Plugin-Menue).
+
+Masse der Dialoge nach den Qt-Regeln (karte_qtdialog.h). Gegen die NRC-Fotos:
+Intersect 192 x 157 (OK 15/124, Cancel 101/124), Path Plotter 367 x 180
+(Enable / Disable / Cancel 104 / 190 / 276, y 147), Make Chain 362 x 100
+statt 361 (Abweichung +1: die Beschriftung "Basename for chain's targetnames"
+misst unsere DirectWrite-Rechnung 168, Qt 167 - am Foto beginnt die
+Feldspalte bei 184). Gefunden dabei: QCheckBox ist wie QRadioButton
+14 + 4 + 6 + Text + 1 breit (QCommonStyle CT_CheckBox, "4 pixels for label
+margins"), nicht 14 + 6 + Text + 1. QFormLayout::addWidget legt Haken und
+Knopfleisten in die Feldspalte (FieldRole), daher die Feldbreite 166 (OK /
+Cancel) bzw. 252 (drei Knoepfe). Ohne Foto nach denselben Regeln: Polygon
+Builder, Stair Builder, Door Builder, Aperture Door Builder (QTabWidget:
+Reiter 22, Seite mit Rand 11), Texture Reset, BSP leafs.
+
+Abweichungen (bewusst): die Uebersetzungen der zweiten Ausrichtung im Door
+Builder sagen "Ost - West" (NRC beschriftet beide Knoepfe "North - South",
+im Modus "Begriffe wie NetRadiant" bleibt das so); Vis Viewer liest
+`<Karte>.bsp` neben der Karte wie NRC; im Selbsttest ist time( nullptr ) = 0
+(srand), damit Teamnamen fest sind.
+
+| Test | Rot | Gruen |
+|---|---|---|
+| ctest `karte_bobtoolz` (neu, 82 Pruefungen: jeder Befehl mit Wirkung, Undo-Namen, Meldungen) | 5 Mutationen (Treppenhoehe, Duplikate-Liste, Kettenabstand, Merge ohne Loeschen, Tree Planter ohne Raster) je 1-2 FEHL | 0 Fehlschlaege |
+| Selbsttest `BHED_STUFE4_NUR=bobtoolz` (Menue, Dialoge, Wirkung, 2D-Farbe, Klick in XY, Vis Viewer mit bsp stage) | s4p3bob1 42 / 8 (u. a. Intersect 188 statt 192: Haken-Hinweis) | s4p3bob3 50 / 0 |
+| ctest gesamt | - | 108 / 108 |
+
+Bei NRC gefunden und uebernommen: Brush Cleanup waehlt alles ab
+(DMap::LoadAll: GlobalSelectionSystem().setSelectedAll( false ), DMap.cpp:107);
+Reset Textures loescht den Pinsel und baut ihn neu (er steht danach hinten);
+der Undo-Name der Aperture Door ist "bobToolz.buildApertureDoor"
+(shapes.cpp:648).

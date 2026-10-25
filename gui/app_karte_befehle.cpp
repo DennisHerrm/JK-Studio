@@ -192,6 +192,8 @@ std::map<std::string, Umsetzung>& umsetzungen() {
         const std::string befehl = text;
         m[name] = {[befehl] { portalBefehl(befehl); }, nullptr};
     }
+    // Stufe 4 Punkt 3: die uebrigen Plugins (app_karte_plugins.cpp)
+    for (PluginUmsetzung& p : pluginUmsetzungen()) { m[p.name] = {std::move(p.tun), std::move(p.an)}; }
     m["DoAbout"] = {[] { e().ueberOffen = true; }, nullptr};
     // Stufe 3 Punkt 0b: OpenManual (mainframe.cpp:2069, F1; OpenHelpURL) oeffnet
     // das Handbuch des Programms auf der Seite des Karten-Editors,

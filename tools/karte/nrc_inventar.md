@@ -517,29 +517,29 @@ Name | Art | Standardtaste | Quelle
 - [x] `ArbitraryRotation` | Commands | Shift+R | (radiant/select.cpp:1883) -- Stufe 2 Punkt 5
 - [x] `ArbitraryScale` | Commands | Ctrl+Shift+S | (radiant/select.cpp:1884) -- Stufe 2 Punkt 5
 - [x] `AutoCaulkSelected` | Commands | F4 | (radiant/map.cpp:2442) -- Stufe 3 Punkt 6
-- [~] `bobToolz::About` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::ApertureDoor` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::BrushCleanup` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::CaulkSelection` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::DoorBuilder` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::DropEntity` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::ExplodeEntity` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::FindDuplicates` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::FlipTerrain` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::Intersect` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::MakeChain` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::MergePatches` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::PathPlotter` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::PitOMatic` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::PlotSplines` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::PolygonBuilder` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::ResetTextures` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::SplitPatch` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::SplitPatchColumns` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::SplitPatchRows` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::StairBuilder` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::TreePlanter` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] `bobToolz::VisViewer` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [x] `bobToolz::About` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::ApertureDoor` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::BrushCleanup` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::CaulkSelection` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::DoorBuilder` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::DropEntity` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::ExplodeEntity` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::FindDuplicates` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::FlipTerrain` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::Intersect` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::MakeChain` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::MergePatches` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::PathPlotter` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::PitOMatic` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::PlotSplines` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::PolygonBuilder` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::ResetTextures` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::SplitPatch` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::SplitPatchColumns` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::SplitPatchRows` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::StairBuilder` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::TreePlanter` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] `bobToolz::VisViewer` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
 - [x] `Brush3Sided` | Commands | Ctrl+3 | (radiant/brushmanip.cpp:1485) -- Stufe 2 Punkt 4
 - [x] `Brush4Sided` | Commands | Ctrl+4 | (radiant/brushmanip.cpp:1486) -- Stufe 2 Punkt 4
 - [x] `Brush5Sided` | Commands | Ctrl+5 | (radiant/brushmanip.cpp:1487) -- Stufe 2 Punkt 4
@@ -1101,34 +1101,34 @@ Name | Art | Standardtaste | Quelle
 
 ### bobToolz (contrib/bobtoolz/bobToolz-GTK.cpp:52)
 
-- [~] bobToolz: Flip terrain -> `bobToolz::FlipTerrain`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] bobToolz: Split patch rows -> `bobToolz::SplitPatchRows`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] bobToolz: Split patch columns -> `bobToolz::SplitPatchColumns`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] bobToolz: Split patch -> `bobToolz::SplitPatch`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] bobToolz: Merge Patches -> `bobToolz::MergePatches`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [x] bobToolz: Flip terrain -> `bobToolz::FlipTerrain`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] bobToolz: Split patch rows -> `bobToolz::SplitPatchRows`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] bobToolz: Split patch columns -> `bobToolz::SplitPatchColumns`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] bobToolz: Split patch -> `bobToolz::SplitPatch`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] bobToolz: Merge Patches -> `bobToolz::MergePatches`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
 * ---
-- [~] bobToolz: Plot Splines -> `bobToolz::PlotSplines`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] bobToolz: Drop Entity -> `bobToolz::DropEntity`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] bobToolz: Tree Planter -> `bobToolz::TreePlanter`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] bobToolz: Explode Entity -> `bobToolz::ExplodeEntity`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [x] bobToolz: Plot Splines -> `bobToolz::PlotSplines`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] bobToolz: Drop Entity -> `bobToolz::DropEntity`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] bobToolz: Tree Planter -> `bobToolz::TreePlanter`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] bobToolz: Explode Entity -> `bobToolz::ExplodeEntity`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
 * ---
-- [~] bobToolz: Caulk Selection -> `bobToolz::CaulkSelection`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] bobToolz: Polygon Builder -> `bobToolz::PolygonBuilder`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] bobToolz: Brush Cleanup -> `bobToolz::BrushCleanup`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] bobToolz: Vis Viewer -> `bobToolz::VisViewer`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [x] bobToolz: Caulk Selection -> `bobToolz::CaulkSelection`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] bobToolz: Polygon Builder -> `bobToolz::PolygonBuilder`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] bobToolz: Brush Cleanup -> `bobToolz::BrushCleanup`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] bobToolz: Vis Viewer -> `bobToolz::VisViewer`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
 * ---
-- [~] bobToolz: PitOMatic -> `bobToolz::PitOMatic`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] bobToolz: Reset Textures... -> `bobToolz::ResetTextures`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [x] bobToolz: PitOMatic -> `bobToolz::PitOMatic`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] bobToolz: Reset Textures... -> `bobToolz::ResetTextures`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
 * ---
-- [~] bobToolz: Path Plotter... -> `bobToolz::PathPlotter`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] bobToolz: Make Chain... -> `bobToolz::MakeChain`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] bobToolz: Intersect... -> `bobToolz::Intersect`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] bobToolz: Find Duplicates -> `bobToolz::FindDuplicates`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] bobToolz: Door Builder... -> `bobToolz::DoorBuilder`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] bobToolz: Aperture Door... -> `bobToolz::ApertureDoor`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
-- [~] bobToolz: Stair Builder... -> `bobToolz::StairBuilder`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [x] bobToolz: Path Plotter... -> `bobToolz::PathPlotter`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] bobToolz: Make Chain... -> `bobToolz::MakeChain`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] bobToolz: Intersect... -> `bobToolz::Intersect`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] bobToolz: Find Duplicates -> `bobToolz::FindDuplicates`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] bobToolz: Door Builder... -> `bobToolz::DoorBuilder`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] bobToolz: Aperture Door... -> `bobToolz::ApertureDoor`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
+- [x] bobToolz: Stair Builder... -> `bobToolz::StairBuilder`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
 * ---
-- [~] bobToolz: About... -> `bobToolz::About`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [x] bobToolz: About... -> `bobToolz::About`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4 Punkt 3
 
 ### brushexport2 (contrib/brushexport/plugin.cpp:56)
 

@@ -49,6 +49,7 @@
 #include "bhed/roffanim.h"
 #include "bhed/kartenpruefung.h"   // rc602
 #include "karteneditor.h"           // Stufe 1b: der Karten-Editor
+#include "karte_qtdialog.h"          // Stufe 4: Bausteine der Plugin-Dialoge
 #include "bhed/karte/ebenen.h"
 #include "bhed/karte/modell.h"
 #include "bhed/karte/modellbrowser.h"
@@ -34539,6 +34540,532 @@ std::vector<Schritt> licht() {
     return s;
 }
 
+// Punkt 3: bobToolz - jeder Eintrag des Menues mit seiner Wirkung, die Dialoge
+// (Groesse wie die NRC-Fotos dlg_Plugins_bobToolz_*_0.png, wo es sie gibt),
+// Path Plotter / Plot Splines in der 2D-Ansicht, Tree Planter per Klick,
+// Vis Viewer mit der .bsp der Testkarte.
+std::string kastenText(int x0, int y0, int z0, int x1, int y1, int z1, const char* tex) {
+    char z[1400];
+    std::snprintf(z, sizeof(z),
+                  "{\n( %d %d %d ) ( %d %d %d ) ( %d %d %d ) %s 0 0 0 0.5 0.5 0 0 0\n( %d %d %d ) ( %d %d %d ) ( %d %d %d ) %s 0 0 0 0.5 0.5 0 0 0\n"
+                  "( %d %d %d ) ( %d %d %d ) ( %d %d %d ) %s 0 0 0 0.5 0.5 0 0 0\n( %d %d %d ) ( %d %d %d ) ( %d %d %d ) %s 0 0 0 0.5 0.5 0 0 0\n"
+                  "( %d %d %d ) ( %d %d %d ) ( %d %d %d ) %s 0 0 0 0.5 0.5 0 0 0\n( %d %d %d ) ( %d %d %d ) ( %d %d %d ) %s 0 0 0 0.5 0.5 0 0 0\n}\n",
+                  x1, y1, z1, x1, y0, z1, x0, y1, z1, tex, x1, y1, z1, x0, y1, z1, x1, y1, z0, tex, x1, y1, z1, x1, y1, z0, x1, y0, z1, tex, x0, y0, z0, x1,
+                  y0, z0, x0, y1, z0, tex, x0, y0, z0, x0, y0, z1, x1, y0, z0, tex, x0, y0, z0, x0, y1, z0, x0, y0, z1, tex);
+    return z;
+}
+
+// Ein Pinsel aus Ebenen durch drei Punkte, die Normale ( (p2 - p0) x (p1 - p0) ) von "innen" weg
+using P3 = std::array<double, 3>;
+std::string ebenenPinsel(std::vector<std::array<P3, 3>> ebenen, const P3& innen, const char* tex) {
+    std::string t = "{\n";
+    for (auto& e : ebenen) {
+        const P3 a{e[2][0] - e[0][0], e[2][1] - e[0][1], e[2][2] - e[0][2]};
+        const P3 b{e[1][0] - e[0][0], e[1][1] - e[0][1], e[1][2] - e[0][2]};
+        const P3 n{(a[1] * b[2]) - (a[2] * b[1]), (a[2] * b[0]) - (a[0] * b[2]), (a[0] * b[1]) - (a[1] * b[0])};
+        if ((n[0] * (e[0][0] - innen[0])) + (n[1] * (e[0][1] - innen[1])) + (n[2] * (e[0][2] - innen[2])) < 0) { std::swap(e[1], e[2]); }
+        char z[300];
+        std::snprintf(z, sizeof(z), "( %g %g %g ) ( %g %g %g ) ( %g %g %g ) %s 0 0 0 0.5 0.5 0 0 0\n", e[0][0], e[0][1], e[0][2], e[1][0], e[1][1], e[1][2],
+                      e[2][0], e[2][1], e[2][2], tex);
+        t += z;
+    }
+    return t + "}\n";
+}
+
+// patchDef2 eines flachen Gitters n x n ab (x0, y0) mit Abstand d
+std::string patchText(int x0, int y0, int d, int n) {
+    std::string t = "{\npatchDef2\n{\ntest/patch\n( " + std::to_string(n) + " " + std::to_string(n) + " 0 0 0 )\n(\n";
+    for (int i = 0; i < n; ++i) {
+        t += "( ";
+        for (int j = 0; j < n; ++j) {
+            t += "( " + std::to_string(x0 + i * d) + " " + std::to_string(y0 + j * d) + " 0 " + std::to_string(i) + " " + std::to_string(j) + " ) ";
+        }
+        t += ")\n";
+    }
+    return t + ")\n}\n}\n";
+}
+
+std::string weltText(const std::string& pinsel) { return "{\n\"classname\" \"worldspawn\"\n" + pinsel + "}\n"; }
+
+void bobKarte(const std::string& text) {
+    const std::filesystem::path ordner = std::filesystem::current_path() / "s4bob";
+    std::error_code ec;
+    std::filesystem::create_directories(ordner, ec);
+    const std::filesystem::path p = ordner / "bob.map";
+    {
+        std::ofstream f(p, std::ios::binary | std::ios::trunc);
+        f.write(text.data(), static_cast<std::streamsize>(text.size()));
+    }
+    (void)ke::karteOeffnen(p.string());
+    karteDialogeZu();
+    ke::editor().karte.auswahl.leeren();
+    ke::auswahlGeaendert();
+    ke::konsoleLeeren();
+}
+
+std::vector<std::shared_ptr<karte::Entitaet>> klasseListe(const char* name) {
+    std::vector<std::shared_ptr<karte::Entitaet>> v;
+    for (const auto& en : ke::editor().karte.entitaeten()) {
+        if (en->klassenname() == name) { v.push_back(en); }
+    }
+    return v;
+}
+
+std::size_t pinselIn(const karte::Entitaet& en) {
+    std::size_t n = 0;
+    for (const auto& p : en.kinder()) { n += p->art() == karte::Primitiv::Art::Pinsel ? 1 : 0; }
+    return n;
+}
+std::size_t patchesIn(const karte::Entitaet& en) {
+    std::size_t n = 0;
+    for (const auto& p : en.kinder()) { n += p->art() == karte::Primitiv::Art::Patch ? 1 : 0; }
+    return n;
+}
+
+// Die Primitive der Welt mit den Nummern waehlen
+void weltWaehlen(std::initializer_list<std::size_t> nummern) {
+    ke::Editor& e = ke::editor();
+    e.karte.auswahl.leeren();
+    const auto& k = e.karte.welt()->kinder();
+    for (const std::size_t i : nummern) {
+        if (i < k.size()) { e.karte.auswahl.waehlen(e.karte.welt(), k[i]); }
+    }
+    ke::auswahlGeaendert();
+}
+
+// Die Groesse des Innenraums ("Plugin:Dialog"); toleranz: Abweichung der Breite,
+// die eine Textbreite erklaert (siehe NOTIZEN_karte4.md, Punkt 3)
+bool dialogGroesse(int b, int h, int toleranz = 0) {
+    const auto* d = stufe3::bauFeld("Plugin:Dialog");
+    if (d != nullptr) { diag::detail("Knopftest: Stufe 4/3 Dialog " + std::to_string(d->b) + " x " + std::to_string(d->h)); }
+    return d != nullptr && (b < 0 || (std::abs(d->b - b) <= toleranz && d->h == h));
+}
+
+std::vector<Schritt> bobtoolz() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    const auto menue = [&add](const char* punkt) {
+        add(klick(ke::trK(Str::KeLPlugins), "###main"));
+        add(pause(0.25));
+        add(klick("bobToolz", "##Menu_", 0, true));
+        add(pause(0.25));
+        add(klick(punkt, "##Menu_", 0, false));
+        add(pause(0.3));
+    };
+    const auto knopf = [&add](Str text, const char* id, const char* fenster) {
+        add(klick(std::string(ke::trK(text)) + "##" + id, fenster, 0, true));
+        add(pause(0.3));
+    };
+    add(stufe2::grundzustand("Stufe 4/3: Grundzustand"));
+    add(pruefe("bobToolz: alle 23 Befehle des Menues nachgebaut (keiner gesperrt), die Werkzeugleiste mit Polygons ... Flip Terrain", [] {
+        int n = 0;
+        for (const auto& p : karte::befehle::pluginEintraege()) {
+            if (std::string(p.menue) == "bobToolz" && p.befehl[0] != 0) { n += ke::nachgebaut(p.befehl) ? 1 : 0; }
+        }
+        int leiste = 0;
+        for (const auto& k : karte::befehle::pluginleiste()) { leiste += !k.trenner && ke::nachgebaut(k.befehl) ? 1 : 0; }
+        diag::detail("Knopftest: Stufe 4/3 bobToolz " + std::to_string(n) + " Befehle, Leiste " + std::to_string(leiste));
+        return n == 23 && leiste == 9;
+    }));
+    // About...
+    add(tu("About...", [] { (void)ke::ausfuehren("bobToolz::About"); }));
+    add(pause(0.3));
+    add(pruefe("About: Kasten \"About\" mit bobToolz for SDRadiant ... digibob", [] {
+        const ke::Editor& e = ke::editor();
+        return e.meldung.offen && e.meldung.titel == "About" && e.meldung.text.find("digibob") != std::string::npos;
+    }));
+    add(tu("Kasten zu", [] { ke::editor().meldung.offen = false; }));
+    // Intersect...: A und B ueberschneiden sich, C allein
+    add(tu("Karte: A (0..64), B (32..96), C (200..264)", [] {
+        bobKarte(weltText(kastenText(0, 0, 0, 64, 64, 64, "test/a") + kastenText(32, 32, 32, 96, 96, 96, "test/b") +
+                          kastenText(200, 0, 0, 264, 64, 64, "test/c")));
+    }));
+    menue("Intersect...");
+    add(pruefe("Intersect: der Dialog 192 x 157 wie das NRC-Foto, Use Whole Map gewaehlt", [] {
+        return ke::editor().bob.dialog == 1 && dialogGroesse(192, 157) && ke::editor().bob.intersect.ganzeKarte;
+    }));
+    add(pruefe("Intersect: OK bei 15/124 80 x 22, Cancel bei 101/124 wie im Foto", [] {
+        const auto* ok = stufe3::bauFeld("Plugin:btintersectok0");
+        const auto* ab = stufe3::bauFeld("Plugin:btintersectok1");
+        return ok != nullptr && ab != nullptr && ok->x == 15 && ok->y == 124 && ok->b == 80 && ok->h == 22 && ab->x == 101;
+    }));
+    add(fotoRahmen("karteneditor_dlg_Plugins_bobToolz_Intersect_0", [] { return fensterRahmen("###btintersect"); }));
+    knopf(Str::KePrefOk, "btintersectok0", "###btintersect");
+    add(pruefe("Intersect (ganze Karte): A und B gewaehlt, Konsole \"2 intersecting brushes found.\"", [] {
+        const ke::Editor& e = ke::editor();
+        return e.bob.dialog == 0 && e.karte.auswahl.anzahl() == 2 && stufe3::konsoleText().find("bobToolz Intersect: 2 intersecting brushes found.") != std::string::npos;
+    }));
+    // Find Duplicates
+    add(tu("Karte: C zweimal, Find Duplicates", [] {
+        bobKarte(weltText(kastenText(0, 0, 0, 64, 64, 64, "test/a") + kastenText(0, 0, 0, 64, 64, 64, "test/a")));
+        (void)ke::ausfuehren("bobToolz::FindDuplicates");
+    }));
+    add(pruefe("Find Duplicates: das zweite Exemplar gewaehlt, \"1 duplicate brushes found.\"", [] {
+        const ke::Editor& e = ke::editor();
+        return e.karte.auswahl.anzahl() == 1 && e.karte.auswahl.gewaehlt(e.karte.welt().get(), e.karte.welt()->kinder()[1].get()) &&
+               stufe3::konsoleText().find("bobToolz Find Duplicates: 1 duplicate brushes found.") != std::string::npos;
+    }));
+    // Polygon Builder
+    add(tu("Karte: ein Kasten 128 x 128 x 64, gewaehlt; Polygon Builder", [] {
+        bobKarte(weltText(kastenText(0, 0, 0, 128, 128, 64, "test/a")));
+        weltWaehlen({0});
+        (void)ke::ausfuehren("bobToolz::PolygonBuilder");
+    }));
+    add(pause(0.3));
+    add(pruefe("Polygon Builder: der Dialog (Number Of Sides 6, Border Width gesperrt)", [] {
+        const ke::Editor& e = ke::editor();
+        return e.bob.dialog == 2 && dialogGroesse(-1, -1) && e.bob.polygon.seiten == 6 && !e.bob.polygon.rand;
+    }));
+    add(foto("karteneditor_bobtoolz_polygon"));
+    knopf(Str::KePrefOk, "btpolygonok0", "###btpolygon");
+    add(pruefe("Polygon Builder: ein Prisma mit 6 Seiten + Boden + Deckel statt des Kastens, Undo bobToolz.polygons", [] {
+        const ke::Editor& e = ke::editor();
+        const auto& k = e.karte.welt()->kinder();
+        return k.size() == 1 && k[0]->art() == karte::Primitiv::Art::Pinsel && std::static_pointer_cast<karte::Pinsel>(k[0])->anzahl() == 8 &&
+               e.karte.undo.undoName() == "bobToolz.polygons";
+    }));
+    // Stair Builder
+    add(tu("Karte: Kasten 128 x 128 x 64 gewaehlt; Stair Builder", [] {
+        bobKarte(weltText(kastenText(0, 0, 0, 128, 128, 64, "test/a")));
+        weltWaehlen({0});
+        (void)ke::ausfuehren("bobToolz::StairBuilder");
+    }));
+    add(pause(0.3));
+    add(pruefe("Stair Builder: der Dialog, Stair Height 8, Main Texture = die Textur des Texturbrowsers", [] {
+        const ke::Editor& e = ke::editor();
+        return e.bob.dialog == 3 && e.bob.treppe.stufenHoehe == 8 && e.bob.treppe.hauptTextur == e.texBro.shader;
+    }));
+    add(foto("karteneditor_bobtoolz_stair"));
+    knopf(Str::KePrefOk, "btstairok0", "###btstair");
+    add(pruefe("Stair Builder: 64 / 8 = 8 Stufen statt des Kastens, Undo bobToolz.buildStairs", [] {
+        const ke::Editor& e = ke::editor();
+        return pinselIn(*e.karte.welt()) == 8 && e.karte.undo.undoName() == "bobToolz.buildStairs";
+    }));
+    // Door Builder
+    add(tu("Karte: Kasten 128 x 16 x 128 gewaehlt; Door Builder", [] {
+        bobKarte(weltText(kastenText(0, 0, 0, 128, 16, 128, "test/a")));
+        weltWaehlen({0});
+        (void)ke::ausfuehren("bobToolz::DoorBuilder");
+    }));
+    add(pause(0.3));
+    add(pruefe("Door Builder: der Dialog, die Liste aus bt/door-tex.txt (13 Texturen), Trim aus door-tex-trim.txt (5)", [] {
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Stufe 4/3 door-tex " + std::to_string(e.bob.tuerTexturen.size()) + " / " + std::to_string(e.bob.rahmenTexturen.size()));
+        return e.bob.dialog == 4 && e.bob.tuerTexturen.size() >= 10 && e.bob.rahmenTexturen.size() == 5 && e.bob.tuer.hauptH && !e.bob.tuer.randV;
+    }));
+    add(foto("karteneditor_bobtoolz_door"));
+    knopf(Str::KePrefOk, "btdoorok0", "###btdoor");
+    add(pruefe("Door Builder: zwei func_door (angle 180 / 360, gemeinsames team) statt des Kastens", [] {
+        const auto t = klasseListe("func_door");
+        return t.size() == 2 && t[0]->wert("angle") == "180" && t[1]->wert("angle") == "360" && !t[0]->wert("team").empty() &&
+               t[0]->wert("team") == t[1]->wert("team") && pinselIn(*ke::editor().karte.welt()) == 0;
+    }));
+    // Aperture Door...
+    add(tu("Karte: Kasten 16 x 128 x 128 gewaehlt; Aperture Door", [] {
+        bobKarte(weltText(kastenText(0, 0, 0, 16, 128, 128, "test/a")));
+        weltWaehlen({0});
+        (void)ke::ausfuehren("bobToolz::ApertureDoor");
+    }));
+    add(pause(0.3));
+    add(pruefe("Aperture Door Builder: der Dialog mit den Vorgaben von NRC (16 Segmente, base_floor/diamond2c)", [] {
+        const ke::Editor& e = ke::editor();
+        return e.bob.dialog == 5 && e.bob.apertur.segmente == 16 && e.bob.apertur.hauptTextur == "textures/base_floor/diamond2c";
+    }));
+    add(foto("karteneditor_bobtoolz_aperture"));
+    knopf(Str::KePrefOk, "btapok0", "###btaperture");
+    add(pruefe("Aperture Door: 16 Segmente als func_door, Undo bobToolz.buildApertureDoor", [] {
+        diag::detail("Knopftest: Stufe 4/3 Aperture " + std::to_string(klasseListe("func_door").size()) + " func_door");
+        return klasseListe("func_door").size() == 16 && ke::editor().karte.undo.undoName() == "bobToolz.buildApertureDoor";
+    }));
+    // Make Chain...
+    add(tu("Leere Karte", [] { bobKarte(weltText(kastenText(-256, -256, -16, 256, 256, 0, "test/boden"))); }));
+    menue("Make Chain...");
+    // "Basename for chain's targetnames": unsere DirectWrite-Messung 168, Qt 167 (Foto: Feldspalte ab 184)
+    add(pruefe("Make Chain: der Dialog 361 x 100 wie das NRC-Foto (Breite +1: Textbreite der Beschriftung)", [] {
+        return ke::editor().bob.dialog == 8 && dialogGroesse(361, 100, 1);
+    }));
+    add(fotoRahmen("karteneditor_dlg_Plugins_bobToolz_Make_Chain_0", [] { return fensterRahmen("###btmakechain"); }));
+    add(tu("3 Glieder, Grundname \"kette\"", [] {
+        ke::editor().bob.kette.glieder = 3;
+        ke::editor().bob.kette.name = "kette";
+    }));
+    knopf(Str::KePrefOk, "btchainok0", "###btmakechain");
+    add(pruefe("Make Chain: 3 info_train_spline_main (kette_pt0..2), 2 info_train_spline_control", [] {
+        const auto h = klasseListe("info_train_spline_main");
+        const auto c = klasseListe("info_train_spline_control");
+        return h.size() == 3 && c.size() == 2 && h[0]->wert("targetname") == "kette_pt0" && h[0]->wert("target") == "kette_pt1" &&
+               c[1]->wert("origin") == "0 96 0";
+    }));
+    // Plot Splines
+    add(tu("Die Kette um 64 nach x (weg von der y-Achse), Ansicht auf (64 32 0), Plot Splines", [] {
+        {
+            karte::Befehl b(ke::editor().karte.undo, "Stufe 4 Test");
+            for (const char* kl : {"info_train_spline_main", "info_train_spline_control"}) {
+                for (const auto& en : klasseListe(kl)) {
+                    const std::string o = en->wert("origin");
+                    en->setzen("origin", "64" + o.substr(o.find(' ')));
+                }
+            }
+        }
+        ke::editor().xy[0].ansicht.setzeMassstab(1.0F);
+        ke::editor().xy[0].ansicht.setzeUrsprung(karte::Vektor3f(64, 32, 0));
+        (void)ke::ausfuehren("bobToolz::PlotSplines");
+    }));
+    add(pause(0.4));
+    add(pruefe("Plot Splines: zwei Abschnitte, in der 2D-Ansicht rot (x = 64, y = 16)", [] {
+        unsigned char c[4]{};
+        const bool da = stufe3::xyFarbe(karte::Vektor3f(64, 16, 0), c);
+        diag::detail("Knopftest: Stufe 4/3 Splines " + std::to_string(ke::editor().bob.splines.linien.size()) + " Farbe " + stufe3::farbText(c));
+        return ke::editor().bob.splines.linien.size() == 2 && da && stufe3::istRoetlich(c);
+    }));
+    // Path Plotter...
+    add(tu("Karte: trigger_push mit target, target_position 192 hoeher; Trigger gewaehlt", [] {
+        bobKarte(weltText(kastenText(-256, -256, -16, 256, 256, 0, "test/boden")) + "{\n\"classname\" \"trigger_push\"\n\"target\" \"oben\"\n" +
+                 kastenText(-16, -16, 0, 16, 16, 16, "common/trigger") + "}\n" +
+                 "{\n\"classname\" \"target_position\"\n\"targetname\" \"oben\"\n\"origin\" \"256 0 200\"\n}\n");
+        ke::Editor& e = ke::editor();
+        const auto t = klasseListe("trigger_push");
+        e.karte.auswahl.waehlen(t[0], t[0]->kinder().front());
+        ke::auswahlGeaendert();
+        e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(128, 0, 0));
+    }));
+    menue("Path Plotter...");
+    add(pruefe("Path Plotter: der Dialog 367 x 180 wie das NRC-Foto, Enable / Disable / Cancel rechts bei 104 / 190 / 276, y 147", [] {
+        const auto* a = stufe3::bauFeld("Plugin:btpathok0");
+        const auto* b = stufe3::bauFeld("Plugin:btpathok1");
+        const auto* c = stufe3::bauFeld("Plugin:btpathok2");
+        return ke::editor().bob.dialog == 6 && dialogGroesse(367, 180) && a != nullptr && b != nullptr && c != nullptr && a->x == 104 && b->x == 190 &&
+               c->x == 276 && a->y == 147;
+    }));
+    add(fotoRahmen("karteneditor_dlg_Plugins_bobToolz_Path_Plotter_0", [] { return fensterRahmen("###btpathplotter"); }));
+    knopf(Str::KeBtEnable, "btpathok0", "###btpathplotter");
+    add(pause(0.3));
+    add(pruefe("Path Plotter: Bahn mit 50 Punkten ab der Mitte des Triggers, rot in der 2D-Ansicht, \"Initialization of Path Plotter succeeded.\"", [] {
+        const ke::Editor& e = ke::editor();
+        if (!e.bob.bahn.aktiv || e.bob.bahn.punkte.size() != 50) { return false; }
+        unsigned char c[4]{};
+        const karte::Vektor3f m = e.bob.bahn.punkte[8];
+        const bool da = stufe3::xyFarbe(karte::Vektor3f(m[0], m[1], 0), c);
+        diag::detail("Knopftest: Stufe 4/3 Bahn Farbe " + stufe3::farbText(c));
+        return e.bob.bahn.punkte[0] == karte::Vektor3f(0, 0, 8) && da && stufe3::istRoetlich(c) &&
+               stufe3::konsoleText().find("Initialization of Path Plotter succeeded.") != std::string::npos;
+    }));
+    add(tu("Ziel verschieben (dynamische Aktualisierung)", [] {
+        const auto z = klasseListe("target_position");
+        karte::Befehl b(ke::editor().karte.undo, "Stufe 4 Test");
+        z[0]->setzen("origin", "256 128 200");
+    }));
+    add(pause(0.2));
+    add(pruefe("Path Plotter folgt dem Ziel: der letzte Punkt mit y > 0", [] { return ke::editor().bob.bahn.punkte.back()[1] > 0.0F; }));
+    menue("Path Plotter...");
+    knopf(Str::KeBtDisable, "btpathok1", "###btpathplotter");
+    add(pruefe("Path Plotter: Disable - keine Bahn mehr", [] { return !ke::editor().bob.bahn.aktiv; }));
+    // Tree Planter / Drop Entity
+    add(tu("Karte: Boden gewaehlt, Tree Planter an", [] {
+        bobKarte(weltText(kastenText(-256, -256, -16, 256, 256, 0, "test/boden")));
+        weltWaehlen({0});
+        ke::editor().xy[0].ansicht.typ = karte::Sicht::XY;
+        ke::editor().xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        (void)ke::ausfuehren("bobToolz::TreePlanter");
+    }));
+    add(pruefe("Tree Planter an (Knopf eingerastet), tp_ent.txt gelesen: misc_model, 4 Modelle, offset -16", [] {
+        const auto& p = ke::editor().bob.planter;
+        return p.aktiv && ke::angehakt("bobToolz::TreePlanter") && p.klasse == "misc_model" && p.modelle.size() == 4 && p.versatz == -16;
+    }));
+    add(tu("Auswahl leer", [] {
+        ke::editor().karte.auswahl.leeren();
+        ke::auswahlGeaendert();
+    }));
+    add(klickAn("Klick in die XY-Ansicht bei (61, 66)", [] { return stufe2::weltXy(61, 66); }));
+    add(pause(0.3));
+    add(pruefe("Tree Planter: ein misc_model am Raster (64 64) auf dem Boden + offset (-16), angles, model, modelscale; keine Auswahl", [] {
+        const auto m = klasseListe("misc_model");
+        if (m.size() != 1) { return false; }
+        diag::detail("Knopftest: Stufe 4/3 Tree Planter origin " + m[0]->wert("origin") + " model " + m[0]->wert("model"));
+        return m[0]->wert("origin") == "64 64 -16" && m[0]->wert("model").rfind("models/mapobjects/trees_sd/tree_", 0) == 0 && m[0]->hat("angles") &&
+               m[0]->hat("modelscale") && ke::editor().karte.auswahl.anzahl() == 0;
+    }));
+    add(tu("misc_model hoch auf 200 und waehlen, Drop Entity", [] {
+        ke::Editor& e = ke::editor();
+        const auto m = klasseListe("misc_model");
+        {
+            karte::Befehl b(e.karte.undo, "Stufe 4 Test");
+            m[0]->setzen("origin", "64 64 200");
+        }
+        e.karte.auswahl.waehlen(m[0]);
+        ke::auswahlGeaendert();
+        (void)ke::ausfuehren("bobToolz::DropEntity");
+    }));
+    add(pruefe("Drop Entity: auf den Boden (64 64 0)", [] { return klasseListe("misc_model")[0]->wert("origin") == "64 64 0"; }));
+    add(tu("Tree Planter aus", [] { (void)ke::ausfuehren("bobToolz::TreePlanter"); }));
+    add(pruefe("Tree Planter aus; Drop Entity meldet den Fehler", [] {
+        ke::konsoleLeeren();
+        (void)ke::ausfuehren("bobToolz::DropEntity");
+        return !ke::editor().bob.planter.aktiv && stufe3::konsoleText().find("bobToolz::TreePlanter must be active") != std::string::npos;
+    }));
+    // Reset Textures...
+    add(tu("Karte: zwei Kaesten test/alt, der erste gewaehlt; Reset Textures", [] {
+        bobKarte(weltText(kastenText(0, 0, 0, 64, 64, 64, "test/alt") + kastenText(100, 0, 0, 164, 64, 64, "test/alt")));
+        weltWaehlen({0});
+        (void)ke::ausfuehren("bobToolz::ResetTextures");
+    }));
+    add(pause(0.3));
+    add(pruefe("Texture Reset: der Dialog, alle Gruppen aus", [] {
+        const auto& r = ke::editor().bob.textur;
+        return ke::editor().bob.dialog == 7 && !r.nameErsetzen && !r.skalaSetzen[0] && !r.drehungSetzen;
+    }));
+    add(foto("karteneditor_bobtoolz_texreset"));
+    add(tu("Reset Texture Names: textures/test/alt -> textures/test/neu", [] {
+        auto& r = ke::editor().bob.textur;
+        r.nameErsetzen = true;
+        r.alterName = "textures/test/alt";
+        r.neuerName = "textures/test/neu";
+    }));
+    knopf(Str::KeBtUseSel, "btresetok0", "###bttexreset");
+    add(pruefe("Reset Textures (Use Selected Brushes): nur der gewaehlte Kasten (neu gebaut, hinten) heisst test/neu", [] {
+        const auto& k = ke::editor().karte.welt()->kinder();
+        if (k.size() != 2) { return false; }
+        const auto a = std::static_pointer_cast<karte::Pinsel>(k[0]);
+        const auto b = std::static_pointer_cast<karte::Pinsel>(k[1]);
+        return (*a)[0].shader() == "textures/test/alt" && (*b)[0].shader() == "textures/test/neu";
+    }));
+    // PitOMatic
+    add(tu("Karte: Kasten 128 x 128 x 256 gewaehlt; PitOMatic", [] {
+        bobKarte(weltText(kastenText(0, 0, 0, 128, 128, 256, "test/a")));
+        weltWaehlen({0});
+        (void)ke::ausfuehren("bobToolz::PitOMatic");
+    }));
+    add(pruefe("PitOMatic: 2 trigger_multiple, trigger_hurt, target_speaker, target_remove_powerups, nodrop unten", [] {
+        return klasseListe("trigger_multiple").size() == 2 && klasseListe("trigger_hurt").size() == 1 && klasseListe("target_speaker").size() == 1 &&
+               klasseListe("target_remove_powerups").size() == 1 && pinselIn(*ke::editor().karte.welt()) == 1;
+    }));
+    // Brush Cleanup, Caulk Selection
+    add(tu("Karte: zwei Kaesten, der zweite gewaehlt; Brush Cleanup, Caulk Selection", [] {
+        bobKarte(weltText(kastenText(0, 0, 0, 64, 64, 64, "test/a") + kastenText(100, 0, 0, 164, 64, 64, "test/a")));
+        weltWaehlen({1});
+        (void)ke::ausfuehren("bobToolz::BrushCleanup");
+    }));
+    add(pruefe("Brush Cleanup: \"0 invalid/duplicate planes removed.\", danach nichts gewaehlt (DMap::LoadAll: setSelectedAll( false ))", [] {
+        return stufe3::konsoleText().find("bobToolz FixBrushes: 0 invalid/duplicate planes removed.") != std::string::npos &&
+               ke::editor().karte.auswahl.anzahl() == 0;
+    }));
+    add(tu("Den zweiten Kasten waehlen, Caulk Selection", [] {
+        weltWaehlen({1});
+        (void)ke::ausfuehren("bobToolz::CaulkSelection");
+    }));
+    add(pruefe("Caulk Selection: der gewaehlte Kasten ganz caulk, der andere nicht", [] {
+        const auto& k = ke::editor().karte.welt()->kinder();
+        int caulk = 0;
+        for (const auto& p : k) {
+            const auto b = std::static_pointer_cast<karte::Pinsel>(p);
+            for (std::size_t i = 0; i < b->anzahl(); ++i) { caulk += (*b)[i].shader() == "textures/common/caulk" ? 1 : 0; }
+        }
+        return caulk == 6 && ke::editor().karte.undo.undoName() == "bobToolz.caulkSelection";
+    }));
+    // Explode Entity
+    add(tu("Karte: func_group mit 3 Pinseln, einer gewaehlt; Explode Entity", [] {
+        bobKarte(weltText("") + "{\n\"classname\" \"func_group\"\n\"_note\" \"x\"\n" + kastenText(0, 0, 0, 16, 16, 16, "test/a") +
+                 kastenText(32, 0, 0, 48, 16, 16, "test/a") + kastenText(64, 0, 0, 80, 16, 16, "test/a") + "}\n");
+        ke::Editor& e = ke::editor();
+        const auto g = klasseListe("func_group");
+        e.karte.auswahl.waehlen(g[0], g[0]->kinder().front());
+        ke::auswahlGeaendert();
+        (void)ke::ausfuehren("bobToolz::ExplodeEntity");
+    }));
+    add(pruefe("Explode Entity: drei func_group mit je einem Pinsel, Schluessel uebernommen", [] {
+        const auto g = klasseListe("func_group");
+        return g.size() == 3 && pinselIn(*g[0]) == 1 && g[2]->wert("_note") == "x";
+    }));
+    // Merge Patches, Split patch (rows / columns)
+    add(tu("Karte: zwei 3x3-Patches an einer Kante, beide gewaehlt; Merge Patches", [] {
+        bobKarte(weltText(patchText(0, 0, 32, 3) + patchText(64, 0, 32, 3)));
+        weltWaehlen({0, 1});
+        (void)ke::ausfuehren("bobToolz::MergePatches");
+    }));
+    add(pruefe("Merge Patches: ein Patch mit 15 Punkten (5 x 3)", [] {
+        const auto& k = ke::editor().karte.welt()->kinder();
+        return k.size() == 1 && k[0]->art() == karte::Primitiv::Art::Patch && std::static_pointer_cast<karte::Patch>(k[0])->punkte().size() == 15;
+    }));
+    const std::pair<const char*, std::size_t> teile[3] = {{"SplitPatch", 4}, {"SplitPatchColumns", 2}, {"SplitPatchRows", 2}};
+    for (const auto& [befehl, soll] : teile) {
+        const std::string b = befehl;
+        const std::size_t n = soll;
+        add(tu("Karte: ein 5x5-Patch gewaehlt; " + b, [b] {
+            bobKarte(weltText(patchText(0, 0, 32, 5)));
+            weltWaehlen({0});
+            (void)ke::ausfuehren("bobToolz::" + b);
+        }));
+        add(pruefe(b + ": " + std::to_string(n) + " Patches", [n] { return patchesIn(*ke::editor().karte.welt()) == n; }));
+    }
+    // Flip terrain
+    add(tu("Karte: zwei dreieckige Saeulen (Diagonale A-C), beide gewaehlt; Flip terrain", [] {
+        const P3 a{0, 0, 0};
+        const P3 b{64, 0, 16};
+        const P3 c{64, 64, 0};
+        const P3 d{0, 64, 16};
+        const std::string p1 = ebenenPinsel({{P3{0, 0, -16}, P3{64, 0, -16}, P3{0, 64, -16}},
+                                             {P3{0, 0, 0}, P3{64, 0, 0}, P3{0, 0, 16}},
+                                             {P3{64, 0, 0}, P3{64, 64, 0}, P3{64, 0, 16}},
+                                             {P3{0, 0, 0}, P3{64, 64, 0}, P3{0, 0, 16}},
+                                             {a, b, c}},
+                                            P3{40, 20, -8}, "test/erde");
+        const std::string p2 = ebenenPinsel({{P3{0, 0, -16}, P3{64, 0, -16}, P3{0, 64, -16}},
+                                             {P3{0, 64, 0}, P3{64, 64, 0}, P3{0, 64, 16}},
+                                             {P3{0, 0, 0}, P3{0, 64, 0}, P3{0, 0, 16}},
+                                             {P3{0, 0, 0}, P3{64, 64, 0}, P3{0, 0, 16}},
+                                             {a, c, d}},
+                                            P3{20, 40, -8}, "test/erde");
+        bobKarte(weltText(p1 + p2));
+        weltWaehlen({0, 1});
+        (void)ke::ausfuehren("bobToolz::FlipTerrain");
+    }));
+    add(pruefe("Flip terrain: zwei neue Pinsel mit je einer Flaeche common/terrain", [] {
+        const auto& k = ke::editor().karte.welt()->kinder();
+        int erde = 0;
+        for (const auto& p : k) {
+            const auto b = std::static_pointer_cast<karte::Pinsel>(p);
+            for (std::size_t i = 0; i < b->anzahl(); ++i) { erde += (*b)[i].shader() == "textures/common/terrain" ? 1 : 0; }
+        }
+        return k.size() == 2 && erde == 2 && ke::editor().karte.undo.undoName() == "bobToolz.flipTerrain";
+    }));
+    // Vis Viewer: die Testkarte raum mit bsp stage bauen
+    add(tu("Testkarte raum, bsp stage", [] {
+        karteDialogeZu();
+        stufe3::q3map2Bereitstellen();
+        ke::editor().bauProjektFuer = -2;   // Build-Menue der Karte (default_build_menu.xml)
+        ke::bauMenueSicherstellen();
+        stufe3::raumKarteOeffnen("raum", false);
+        stufe3::bauDateienWeg(stufe3::laufOrdner("s3bau") + "\\raum");
+        ke::konsoleLeeren();
+    }));
+    add(stufe3::bauMenuepunkt("Single: bsp stage"));
+    add(warteBis("Bauen fertig", [] { return !ke::bauLaeuft(); }, 2400));
+    add(tu("Kamera in den Raum (-384 128 64), nichts gewaehlt; Vis Viewer", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        ke::auswahlGeaendert();
+        e.kamera.setzeUrsprung(karte::Vektor3f(-384, 128, 64));
+        ke::konsoleLeeren();
+        (void)ke::ausfuehren("bobToolz::VisViewer");
+    }));
+    add(pause(0.5));
+    add(pruefe("Vis Viewer: \"BSP leafs\" offen (ohne vis: unechte Sichtdaten), Blaetter in der Liste, das Blatt der Kamera mit Flaechen", [] {
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Stufe 4/3 Vis " + std::to_string(e.bob.vis.liste.size()) + " Blaetter, Blatt " + std::to_string(e.bob.vis.gewaehlt) + ", " +
+                     std::to_string(e.bob.vis.flaechen.size()) + " Flaechen");
+        return e.bob.vis.offen && !e.bob.vis.liste.empty() && e.bob.vis.gewaehlt >= 0 && !e.bob.vis.flaechen.empty() &&
+               stufe3::bauFeld("Plugin:BspLeafs") != nullptr &&
+               stufe3::konsoleText().find("bobToolz VisAnalyse: Setting up fake visibility data!") != std::string::npos;
+    }));
+    add(foto("karteneditor_bobtoolz_bspleafs"));
+    add(tu("BSP leafs schliessen (Fenster zu)", [] {
+        ImGuiWindow* w = ImGui::FindWindowByName("###btbspleafs");
+        if (w != nullptr) { ke::editor().bob.vis = karte::bobtoolz::VisAnsicht{}; }
+    }));
+    add(pruefe("Vis Viewer zu", [] { return !ke::editor().bob.vis.offen; }));
+    return s;
+}
+
 }  // namespace stufe4
 
 std::vector<Schritt> karteneditorStufe4Schritte() {
@@ -34551,6 +35078,9 @@ std::vector<Schritt> karteneditorStufe4Schritte() {
     if (teil("oeffnen") || teil("licht")) {
         for (Schritt& x : stufe4::oeffnen()) { s.push_back(std::move(x)); }
         for (Schritt& x : stufe4::licht()) { s.push_back(std::move(x)); }
+    }
+    if (teil("plugins") || teil("bobtoolz")) {
+        for (Schritt& x : stufe4::bobtoolz()) { s.push_back(std::move(x)); }
     }
     return s;
 }

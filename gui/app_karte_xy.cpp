@@ -636,6 +636,7 @@ void xyZeichnen(int index) {
     float portalBreite = 1.0F;
     const std::vector<Linie> portalLinien = portalLinien2d(portalBreite);
     const RueckmeldungZeichnung rueck = rueckmeldungZeichnung2d(v.typ);
+    const std::vector<PluginLinien> pluginLinien = pluginLinien2d();   // Stufe 4 Punkt 3: bobToolz (renderWireframe)
     const Farbe wicklungFarbe = karte::farbeAus(0.133F, 0.4F, 1.0F, 0.5F);   // glColor4f( 0.133f, 0.4f, 1.0f, 0.5f )
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -685,6 +686,7 @@ void xyZeichnen(int index) {
         kartegpu::zeichnen(s.gpuWelt, &mvp[0], 1.0F);
         kartegpu::zeichnen(leckLinien, &mvp[0], 4.0F);
         kartegpu::zeichnen(portalLinien, &mvp[0], portalBreite);
+        for (const PluginLinien& pl : pluginLinien) { kartegpu::zeichnen(pl.linien, &mvp[0], pl.breite); }
         if (ed.anzeige.keineStrichelung) {
             kartegpu::zeichnen(s.gpuWahl, &mvp[0], 2.0F);
         } else {
@@ -738,6 +740,7 @@ void xyZeichnen(int index) {
         imguiLinien(dl, v, o, s.welt, 1.0F);
         imguiLinien(dl, v, o, leckLinien, 4.0F);
         imguiLinien(dl, v, o, portalLinien, portalBreite);
+        for (const PluginLinien& pl : pluginLinien) { imguiLinien(dl, v, o, pl.linien, pl.breite); }
         imguiLinien(dl, v, o, s.wahl, 2.0F, ed.anzeige.keineStrichelung ? 0U : kXyOverlayMuster, kXyOverlayFaktor);
         imguiLinien(dl, v, o, clipLinien, 1.0F);
         imguiLinien(dl, v, o, manip1, 1.0F);
@@ -830,6 +833,12 @@ void xyZeichnen(int index) {
             f.gedrueckt = true;
             f.tasten = flag[b] | mods;   // buttons_for_event_button
             const unsigned t = f.tasten;
+            // Stufe 4 Punkt 3: onMouseDown der Plugins zuerst (XYWindowMouseDown_connect,
+            // connectFirst; DTreePlanter::mouseDown gibt SIGNAL_STOP_EMISSION zurueck)
+            if (pluginXyDruck(index, b, v.zuPunkt(mx, my))) {
+                f.pluginDruck = true;
+                continue;
+            }
             if (t == kRechts) {   // Move_Begin: FreezePointer
                 f.verschieben = true;
                 f.ankerX = io.MousePos.x;
@@ -965,7 +974,9 @@ void xyZeichnen(int index) {
             if (ImGui::IsMouseReleased(knopf[b])) { losKnopf = b; }
         }
         if (losKnopf >= 0) {
-            if (f.verschieben) {
+            if (f.pluginDruck) {   // XY_MouseDown lief nicht: auch kein onMouseUp fuer den Beobachter
+                f.pluginDruck = false;
+            } else if (f.verschieben) {
                 f.verschieben = false;
                 if (!imTest) { ImGui::TeleportMousePos(ImVec2{f.ankerX, f.ankerY}); }   // unfreeze_pointer( false )
                 if (f.entitaetErzeugen) {   // EntityCreate_MouseUp: OnContextMenu

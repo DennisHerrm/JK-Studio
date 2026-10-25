@@ -22,6 +22,7 @@
 
 #include "bhed/i18n.h"
 #include "bhed/karte/bau.h"
+#include "bhed/karte/bobtoolz.h"
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/baumonitor.h"
 #include "bhed/karte/portale.h"
@@ -107,6 +108,40 @@ struct BspHerkunft {
     std::string ordner;              // <Einstellungen>/karte_bsp/<stamm>
     std::string stamm;
     std::uint64_t fingerabdruck = 0; // karte::geometrieFingerabdruck nach dem Laden
+};
+
+// Stufe 4 Punkt 3: bobToolz (contrib/bobtoolz). Die Dialoge (dialogs-gtk.cpp)
+// sind modal wie bei NRC; dialog: 0 keiner, 1 Intersect, 2 Polygon Builder,
+// 3 Stair Builder, 4 Door Builder, 5 Aperture Door Builder, 6 Path Plotter,
+// 7 Texture Reset, 8 Make Chain. Die Werte je Aufruf neu, ausser bei
+// Aperture Door und Texture Reset (dort "static" wie bei NRC).
+struct BobToolzZustand {
+    int dialog = 0;
+    bool oeffnen = false;
+    karte::bobtoolz::IntersectRS intersect;
+    karte::bobtoolz::PolygonRS polygon;
+    karte::bobtoolz::BuildStairsRS treppe;
+    karte::bobtoolz::DoorRS tuer;
+    karte::bobtoolz::ApertureDoorRS apertur;      // static ApertureDoorRS rs
+    karte::bobtoolz::PathPlotterRS bahnWerte;
+    karte::bobtoolz::ResetTextureRS textur;       // static ResetTextureRS rs
+    karte::bobtoolz::MakeChainRS kette;
+    // Reiter des Aperture-Dialogs (QTabWidget::currentIndex)
+    int reiterInnen = 0;
+    // die Laufzeit-Objekte (g_PathView, g_TrainView, g_TreePlanter, g_VisView)
+    karte::bobtoolz::Bahn bahn;
+    karte::bobtoolz::Splines splines;
+    karte::bobtoolz::TreePlanter planter;
+    karte::bobtoolz::VisAnsicht vis;
+    bool visOeffnen = false;
+    // LoadLists (bt/bt-el1.txt, bt/bt-el2.txt)
+    bool listenGeladen = false;
+    std::vector<std::string> ausschluss;
+    std::vector<std::string> ausschlussFlaeche;
+    std::vector<std::string> tuerTexturen;        // bt/door-tex.txt
+    std::vector<std::string> rahmenTexturen;      // bt/door-tex-trim.txt
+    std::string letzterBefehl;                    // Selbsttest
+    int gepflanzt = 0;                            // Selbsttest: Tree Planter
 };
 
 struct Spielkontext {
@@ -224,6 +259,7 @@ struct XyFenster {
     float ankerY = 0;
     unsigned tasten = 0;         // m_buttonstate (RAD_*)
     bool gedrueckt = false;      // diese Ansicht hat den Druck bekommen
+    bool pluginDruck = false;    // ein Plugin (XYWindowMouseDown) hat den Druck genommen
     karte::Vektor3f maus{0, 0, 0};   // m_mousePosition (eingerastet)
     float bildX = 0;             // linke obere Ecke im Programmfenster (Bildpunkte)
     float bildY = 0;
@@ -397,6 +433,8 @@ struct Editor {
     // Stufe 4: die offene Karte kam aus einer .bsp (File > Open .bsp...)
     BspHerkunft bspHerkunft;
     std::string bspNurEntitaetenFertig;   // Selbsttest: zuletzt mit -onlyents geschriebene .bsp
+    // Stufe 4 Punkt 3: die Plugins
+    BobToolzZustand bob;
     karte::ZuletztListe zuletzt;
     bool zuletztGeladen = false;
 
@@ -1257,6 +1295,28 @@ void portalEinstellungenSchreiben();   // SaveConfig (PrtView_destroy, beim Been
 [[nodiscard]] std::vector<karte::Linie> portalLinien2d(float& breite);
 // CPortalsRender::renderSolid in der Kamera; fuellen = RENDER_FILL der Darstellungsart
 void portaleKameraZeichnen(const float* matrix, const karte::Matrix4& viewproj, bool fuellen);
+// Stufe 4 Punkt 3: die Plugins (app_karte_plugins.cpp). Je Befehl des
+// Plugins-Menues eine Umsetzung (QERPlug_Dispatch), "an" nur bei Umschaltern.
+struct PluginUmsetzung {
+    std::string name;
+    std::function<void()> tun;
+    std::function<bool()> an;
+};
+[[nodiscard]] std::vector<PluginUmsetzung> pluginUmsetzungen();
+void pluginDialogeZeichnen();          // die modalen Dialoge und "BSP leafs"
+void pluginsFreigeben();               // BobToolz_destroy beim Wechsel der Karte
+// XYWindowMouseDown_connect (DTreePlanter::mouseDown): true = genommen
+bool pluginXyDruck(int fenster, int knopf, const karte::Vektor3f& welt);
+// Was die Plugins in den 2D-Ansichten zeichnen (renderWireframe): je Gruppe eine Breite
+struct PluginLinien {
+    std::vector<karte::Linie> linien;
+    float breite = 1.0F;
+};
+[[nodiscard]] std::vector<PluginLinien> pluginLinien2d();
+// ... und in der Kamera: eSortFullbright (DBobView) bzw. eSortOverlayFirst
+// (DTrainDrawer, DVisDrawer); fuellen = Darstellung mit Flaechen (eFullMaterials)
+void pluginKameraVoll(const float* matrix, bool fuellen);
+void pluginKameraUeber(const float* matrix, bool fuellen);
 struct BauDialogStand {                // fuer den Selbsttest
     bool offen = false;
     int aktuell = -1;

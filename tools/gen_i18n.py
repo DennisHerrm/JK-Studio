@@ -2175,6 +2175,8 @@ from i18n_karte3 import KARTE3  # noqa: E402  (Stufe 3: Karten bauen)
 S += KARTE3
 from i18n_karte4 import KARTE4  # noqa: E402  (Stufe 4: fertige Karten, Originallicht, Plugins)
 S += KARTE4
+from i18n_karte4b import KARTE4B  # noqa: E402  (Stufe 4 Punkt 3: die Dialoge der Plugins)
+S += KARTE4B
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

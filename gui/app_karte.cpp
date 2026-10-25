@@ -149,6 +149,7 @@ void karteFreigeben() {
     karte::regionAus(e.karte, e.region, e.raster.maxKoord());   // Map_Free: Map_RegionOff
     e.karte.auswahl.leeren();
     e.bspHerkunft = BspHerkunft{};   // Stufe 4: die fertige Karte ist nicht mehr offen
+    pluginsFreigeben();              // Stufe 4 Punkt 3: BobToolz_destroy
     e.bearbeitung.neueKarte();
     for (auto& b : e.beobachter) { b = FensterBeobachter{b.breite, b.hoehe}; }
     e.karte.leeren();
@@ -1401,6 +1402,7 @@ void zeichne(float hoehe) {
     zeichnePatchDialog();
     zeichneSurfaceInspector();
     zeichneBspDialog();   // Stufe 4: File > Open .bsp...
+    pluginDialogeZeichnen();   // Stufe 4 Punkt 3: die Plugins
     zeichneGlobaleEinstellungen();
     zeichneAbrisse();
     zeichneUeber();

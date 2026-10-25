@@ -304,6 +304,8 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_leck.cpp
     gui/app_karte_portale.cpp
     gui/app_karte_bsp.cpp
+    gui/app_karte_plugins.cpp
+    gui/karte_qtdialog.cpp
     gui/app_karte_menue.cpp
     gui/app_karte_dialoge.cpp
     gui/app_karte_csg.cpp
@@ -760,7 +762,11 @@ target_sources(bhed_core PRIVATE
   # Stufe 3 Punkt 5: der Portal Viewer (contrib/prtview) ohne Oberflaeche
   src/karte/portale.cpp
   # Stufe 4 Punkte 1/2: fertige Karten oeffnen, Originallicht (-onlyents)
-  src/karte/bspoeffnen.cpp)
+  src/karte/bspoeffnen.cpp
+  # Stufe 4 Punkt 3: das Plugin bobToolz (contrib/bobtoolz) ohne Oberflaeche
+  src/karte/bobtoolz_d.cpp
+  src/karte/bobtoolz.cpp
+  src/karte/bobtoolz_vis.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -935,6 +941,10 @@ if(BEHAVED_TESTS)
   else()
     add_test(NAME karte_bspoeffnen COMMAND kartebspoeffnen - ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
   endif()
+  # Stufe 4 Punkt 3: bobToolz - die Wirkung jedes Befehls (funchandlers-GTK.cpp)
+  add_executable(kartebobtoolz tests/kartebobtoolz.cpp)
+  target_link_libraries(kartebobtoolz PRIVATE bhed_core)
+  add_test(NAME karte_bobtoolz COMMAND kartebobtoolz ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
   add_executable(kartebefehle tests/kartebefehle.cpp)
   target_link_libraries(kartebefehle PRIVATE bhed_core)
   add_test(NAME karte_befehle COMMAND kartebefehle ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.md)
