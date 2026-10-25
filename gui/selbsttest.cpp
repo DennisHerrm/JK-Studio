@@ -34832,12 +34832,17 @@ std::vector<Schritt> bobtoolz() {
         e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(128, 0, 0));
     }));
     menue("Path Plotter...");
-    add(pruefe("Path Plotter: der Dialog 367 x 180 wie das NRC-Foto, Enable / Disable / Cancel rechts bei 104 / 190 / 276, y 147", [] {
+    // Stufe 6: "Distance Multiplier" wie NRC-master 7027470 (das Foto von 20260114 zeigt
+    // "Multipler", 367 breit) - die laengere Beschriftung macht den Dialog 2 Punkte breiter.
+    add(pruefe("Path Plotter: der Dialog 369 x 180 (NRC-Foto 367 mit \"Multipler\"), Enable / Disable / Cancel rechts bei 106 / 192 / 278, y 147", [] {
         const auto* a = stufe3::bauFeld("Plugin:btpathok0");
         const auto* b = stufe3::bauFeld("Plugin:btpathok1");
         const auto* c = stufe3::bauFeld("Plugin:btpathok2");
-        return ke::editor().bob.dialog == 6 && dialogGroesse(367, 180) && a != nullptr && b != nullptr && c != nullptr && a->x == 104 && b->x == 190 &&
-               c->x == 276 && a->y == 147;
+        if (a != nullptr && b != nullptr && c != nullptr) {
+            diag::detail("Knopftest: Stufe 4/3 Path Plotter Knoepfe " + std::to_string(a->x) + " / " + std::to_string(b->x) + " / " + std::to_string(c->x));
+        }
+        return ke::editor().bob.dialog == 6 && dialogGroesse(369, 180) && a != nullptr && b != nullptr && c != nullptr && a->x == 106 && b->x == 192 &&
+               c->x == 278 && a->y == 147;
     }));
     add(fotoRahmen("karteneditor_dlg_Plugins_bobToolz_Path_Plotter_0", [] { return fensterRahmen("###btpathplotter"); }));
     knopf(Str::KeBtEnable, "btpathok0", "###btpathplotter");

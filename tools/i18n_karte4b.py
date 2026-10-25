@@ -3,9 +3,9 @@
 Plugins), fuer tools/gen_i18n.py.
 
 Englische Spalte wortgleich NRC 20260114 (contrib/bobtoolz/dialogs/dialogs-gtk.cpp,
-DVisDrawer.cpp), auch mit NRCs Schreibweisen ("Distance Multipler", die
-zweite Ausrichtung "North - South" im Door Builder). Die Uebersetzungen sagen,
-was gemeint ist (dort "Ost - West").
+DVisDrawer.cpp). Stufe 6: zwei Textfehler wie im NRC-master behoben - die
+zweite Ausrichtung im Door Builder heisst "East - West" (cc96c84, vorher
+zweimal "North - South"), "Distance Multiplier" (7027470, vorher "Multipler").
 """
 
 # (Kennung, English, Deutsch, 中文, 日本語)
@@ -48,7 +48,7 @@ KARTE4B = [
     ("KeBtScaleTrimV", "Scale Trim Texture Vertically", "Rahmentextur senkrecht skalieren", "垂直缩放门框纹理", "枠テクスチャを垂直に拡大縮小"),
     ("KeBtOrientation", "Orientation", "Ausrichtung", "朝向", "向き"),
     ("KeBtNS", "North - South", "Nord - Süd", "南北", "南北"),
-    ("KeBtEW", "North - South", "Ost - West", "东西", "東西"),
+    ("KeBtEW", "East - West", "Ost - West", "东西", "東西"),
     # --- Aperture Door Builder (DoApertureDoorsBox) --------------------------
     ("KeBtAperture", "Aperture Door Builder", "Irisblenden-Tür-Bauer", "光圈门生成器", "絞りドアビルダー"),
     ("KeBtFromParams", "From params", "Aus Werten", "由参数", "パラメータから"),
@@ -82,7 +82,7 @@ KARTE4B = [
     # --- Path Plotter (DoPathPlotterBox) -------------------------------------
     ("KeBtPathPlotter", "Path Plotter", "Bahn-Zeichner", "路径绘制器", "軌道プロッター"),
     ("KeBtPoints", "Number Of Points", "Anzahl der Punkte", "点数", "点の数"),
-    ("KeBtMultiplier", "Distance Multipler", "Wegfaktor", "距离倍数", "距離の倍率"),
+    ("KeBtMultiplier", "Distance Multiplier", "Wegfaktor", "距离倍数", "距離の倍率"),
     ("KeBtMultiplierTip", "Path Distance = dist(start -> apex) * multiplier", "Bahnlänge = Abstand(Start -> Scheitel) * Faktor",
      "路径长度 = 距离(起点 -> 顶点) * 倍数", "軌道の長さ = 距離(始点 -> 頂点) * 倍率"),
     ("KeBtGravity", "Gravity", "Schwerkraft", "重力", "重力"),

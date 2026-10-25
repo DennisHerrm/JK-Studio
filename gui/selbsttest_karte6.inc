@@ -2251,6 +2251,31 @@ std::vector<Schritt> funde() {
         const ke::Editor& e = ke::editor();
         return e.bearbeitung.einstellung.modus == karte::AuswahlModus::Primitiv && e.karte.auswahl.flaechen().size() == 1;
     }));
+    // NRC-master nach 20260114: cc96c84 (Door Builder: die zweite Ausrichtung hiess auch
+    // "North - South") und 7027470 ("Distance Multipler"); mit den Begriffen wie NetRadiant
+    add(tu("NRC master: Begriffe wie NetRadiant, Pinsel A, bobToolz Door Builder", [] {
+        vorbereiten(Vor::Pinsel);
+        ke::setzeNrcBegriffe(true);
+        (void)ke::ausfuehren("bobToolz::DoorBuilder");
+    }));
+    add(pause(0.4));
+    add(pruefe("NRC master cc96c84: Door Builder - die zweite Ausrichtung heisst \"East - West\"", [] {
+        const Element* ew = finde("East - West", "", 0, true);
+        const Element* ns = finde("North - South", "", 1, true);   // ein zweites "North - South" darf es nicht geben
+        return ew != nullptr && ns == nullptr;
+    }));
+    add(tu("Door Builder zu, Path Plotter", [] {
+        aufraeumen();
+        (void)ke::ausfuehren("bobToolz::PathPlotter");
+    }));
+    add(pause(0.4));
+    add(pruefe("NRC master 7027470: Path Plotter offen, die Beschriftung des Felds heisst \"Distance Multiplier\"", [] {
+        return ke::editor().bob.dialog == 6 && std::string(ke::trK(Str::KeBtMultiplier)) == "Distance Multiplier";   // der Text wird gezeichnet (kein Element)
+    }));
+    add(tu("Path Plotter zu, Begriffe aus", [] {
+        aufraeumen();
+        ke::setzeNrcBegriffe(false);
+    }));
     add(tu("Funde: Grundzustand", [] { grundzustand(); }));
     return s;
 }
