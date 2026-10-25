@@ -2392,6 +2392,96 @@ std::vector<Schritt> funde() {
         return fest > 0 && nichtFest == 0;
     }));
     add(tu("AutoCaulk/Wasser: Grundzustand", [] { grundzustand(); }));
+    // NRC#147: Textur-Kuerzel (Pfeile, Bild hoch/runter mit Umschalt/Strg) wirkten nicht,
+    // solange der Surface Inspector den Fokus hatte.
+    for (const auto& [taste, name, befehl] : std::vector<std::tuple<ImGuiKeyChord, const char*, const char*>>{
+             {ImGuiMod_Shift | ImGuiKey_UpArrow, "Umschalt+Hoch", "TexShiftUp"},
+             {ImGuiMod_Shift | ImGuiKey_DownArrow, "Umschalt+Runter", "TexShiftDown"},
+             {ImGuiMod_Ctrl | ImGuiKey_UpArrow, "Strg+Hoch", "TexScaleUp"},
+             {ImGuiMod_Ctrl | ImGuiKey_DownArrow, "Strg+Runter", "TexScaleDown"},
+             {ImGuiMod_Shift | ImGuiKey_PageUp, "Umschalt+Bild hoch", "TexRotateCounter"},
+             {ImGuiMod_Shift | ImGuiKey_PageDown, "Umschalt+Bild runter", "TexRotateClock"}}) {
+        const ImGuiKeyChord t = taste;
+        const std::string b2 = befehl;
+        auto vorher = std::make_shared<std::string>();
+        add(tu(std::string("NRC#147: Pinsel A, Surface Inspector offen (") + name + ")", [] {
+            vorbereiten(Vor::Pinsel);
+            ke::editor().siOffen = true;
+        }));
+        add(pause(0.3));
+        add(klickAn("Titel des Surface Inspectors (Fokus)", [] {
+            const ImRect r = fensterRahmen("###kartesi");
+            return ImVec2{r.Min.x + 60.0F, r.Min.y + 8.0F};
+        }));
+        add(tu("NRC#147: Karte merken", [vorher] {
+            *vorher = karte::karteSchreiben(ke::editor().karte);
+            ke::editor().letzterBefehl.clear();
+        }));
+        add(tasteKombi(t, std::string(name) + " (Fokus im Surface Inspector)"));
+        add(pause(0.2));
+        add(pruefe(std::string("NRC#147: ") + name + " = " + befehl + " wirkt bei Fokus im Surface Inspector (Textur der Flaechen geaendert)", [vorher, b2] {
+            const ke::Editor& e = ke::editor();
+            const bool fokus = GImGui->NavWindow != nullptr && std::string(GImGui->NavWindow->Name).find("###kartesi") != std::string::npos;
+            diag::detail("Knopftest: Stufe 6 - NRC#147 " + b2 + ": Fokus " + (GImGui->NavWindow != nullptr ? GImGui->NavWindow->Name : "-") + ", zuletzt " +
+                         e.letzterBefehl);
+            return fokus && e.letzterBefehl == b2 && karte::karteSchreiben(e.karte) != *vorher;
+        }));
+    }
+    add(tu("NRC#147: Surface Inspector zu", [] { aufraeumen(); }));
+    // NRC#152: die Standard-Texturskalierung nur mit 2 Nachkommastellen (0.125 ging nicht)
+    add(tu("NRC#152: Edit > Preferences > Brush", [] {
+        grundzustand();
+        (void)ke::ausfuehren("Preferences");
+    }));
+    add(pause(0.3));
+    add(klickAn("Seite Brush", [] {
+        const Element* el = findeEndung("##seite13", "###karteeinstellungen");
+        return el != nullptr ? el->rect.GetCenter() : ImVec2{5, 5};
+    }));
+    add(pause(0.2));
+    add(feldAendern(Feld{"radiant/brushmodule.cpp:86", "Default texture scale", FeldArt::Text, [] { return std::string("##wert"); },
+                         [] { return std::string("0.125"); }, "TexdefDefaultScale"}));
+    add(klick(ke::trK(Str::KePrefOk), "###karteeinstellungen"));
+    add(pause(0.3));
+    add(pruefe("NRC#152: Default texture scale 0.125 (vier Nachkommastellen) gespeichert und wirksam", [] {
+        return einstellungJetzt("TexdefDefaultScale") == "0.125" && karte::standardTexturSkalierung() == 0.125F;
+    }));
+    add(tu("NRC#152: Skalierung zurueck", [] {
+        karte::setzeStandardTexturSkalierung(0.25F);
+        ke::einstellungenSpeichern();
+    }));
+    // NRC#12: Arbitrary rotation mit dem Knopf OK nur 2 Nachkommastellen genau, mit Enter voll
+    auto mitKnopf = std::make_shared<std::string>();
+    static auto vorlage12 = []() -> std::string& {
+        static std::string v;
+        return v;
+    };
+    for (int weg = 0; weg < 2; ++weg) {
+        add(tu(std::string("NRC#12: Pinsel A, Arbitrary rotation, z = 33.333333, ") + (weg == 0 ? "OK" : "Enter"), [] {
+            vorbereiten(Vor::Pinsel);
+            ke::editor().drehDialog.werte = {0.0, 0.0, 0.0};
+            vorlage12() = karte::karteSchreiben(ke::editor().karte);
+            (void)ke::ausfuehren("ArbitraryRotation");
+        }));
+        add(pause(0.3));
+        add(klickAn("Feld Z", stufe2::elementOrt("##kartedrehenwert2")));
+        add(tippe("33.333333"));
+        if (weg == 0) {
+            add(klickAn("OK", stufe2::elementOrt(std::string(ke::trK(Str::KePrefOk)) + "##kartedrehenok")));
+        } else {
+            add(tasteKombi(ImGuiKey_Enter, "Enter"));
+        }
+        add(pause(0.3));
+        if (weg == 0) {
+            add(tu("NRC#12: Ergebnis mit OK merken", [mitKnopf] { *mitKnopf = karte::karteSchreiben(ke::editor().karte); }));
+        } else {
+            add(pruefe("NRC#12: OK und Enter drehen gleich genau (33.333333 Grad, .map-Text gleich)", [mitKnopf] {
+                const ke::Editor& e = ke::editor();
+                return *mitKnopf == karte::karteSchreiben(e.karte) && *mitKnopf != vorlage12() && std::fabs(e.drehDialog.werte[2] - 33.333333) < 1e-6;
+            }));
+        }
+    }
+    add(tu("NRC#12: Dialog zu", [] { aufraeumen(); }));
     // NRC-master nach 20260114: cc96c84 (Door Builder: die zweite Ausrichtung hiess auch
     // "North - South") und 7027470 ("Distance Multipler"); mit den Begriffen wie NetRadiant
     add(tu("NRC master: Begriffe wie NetRadiant, Pinsel A, bobToolz Door Builder", [] {
