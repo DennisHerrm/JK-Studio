@@ -780,7 +780,9 @@ target_sources(bhed_core PRIVATE
   src/karte/grenzen.cpp
   # Stufe 5 Punkt 2: der Optimierer zaehlt (cm_patch.cpp fuer die Patch-Kollision)
   src/karte/patchkollision.cpp
-  src/karte/optimierer.cpp)
+  src/karte/optimierer.cpp
+  # Stufe 5 Punkt 3: Pruefungen auf Bauprobleme
+  src/karte/optimierer_pruefen.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -985,7 +987,8 @@ if(BEHAVED_TESTS)
   # mit -DBEHAVED_KARTE_JA/JK2/MD der Abgleich gegen alle Originalkarten (nur lesen).
   add_executable(karteoptimierer tests/karteoptimierer.cpp)
   target_link_libraries(karteoptimierer PRIVATE bhed_core)
-  add_test(NAME karte_optimierer COMMAND karteoptimierer "${BEHAVED_KARTE_JA}" "${BEHAVED_KARTE_JK2}" "${BEHAVED_KARTE_MD}")
+  add_test(NAME karte_optimierer COMMAND karteoptimierer "${BEHAVED_KARTE_JA}" "${BEHAVED_KARTE_JK2}" "${BEHAVED_KARTE_MD}"
+           ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
   set_tests_properties(karte_optimierer PROPERTIES TIMEOUT 1800)
   add_executable(kartebefehle tests/kartebefehle.cpp)
   target_link_libraries(kartebefehle PRIVATE bhed_core)

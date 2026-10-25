@@ -296,6 +296,7 @@ KartenAbbild kartenAbbild(const Karte& k) {
         ae.schluessel = e->schluessel();
         ae.klasse = e->wert("classname");
         if (ae.klasse.empty()) { ae.klasse = e->klassenname(); }
+        ae.behaelter = e->istBehaelter();
         ae.prims.reserve(e->kinder().size());
         for (const auto& p : e->kinder()) {
             AbbildPrimitiv ap;
@@ -564,7 +565,9 @@ std::vector<Zaehlung> zaehleKarte(const KartenAbbild& a, const ZaehlOptionen& o)
         const bool gruppe = gleichOhneFall(klasse, "func_group") || gleichOhneFall(klasse, "group_info");
         for (std::size_t p = 0; p < e.prims.size(); ++p) {
             const AbbildPrimitiv& pr = e.prims[p];
-            for (int k = 0; k < 3; ++k) {
+            // entartete Pinsel (ohne gueltige Wicklung) laesst q3map2 fallen; ihre
+            // Grenzen sind die der unbegrenzten Welt
+            for (int k = 0; k < 3 && !pr.entartet; ++k) {
                 const double m = std::max(std::fabs(static_cast<double>(pr.mins[static_cast<std::size_t>(k)])), std::fabs(static_cast<double>(pr.maxs[static_cast<std::size_t>(k)])));
                 if (m > groesste) {
                     groesste = m;
@@ -1028,6 +1031,20 @@ BspAnalyse analysiereBsp(const std::string& d, const ZaehlOptionen& o, const std
             std::partial_sort(reihe.begin(), reihe.begin() + std::min<std::ptrdiff_t>(64, numClusters), reihe.end(),
                               [&](std::int32_t x, std::int32_t y) { return grob[static_cast<std::size_t>(x)] > grob[static_cast<std::size_t>(y)]; });
             std::vector<std::int32_t> marke(static_cast<std::size_t>(nFl), -1);
+            // Dreiecke je Flaeche: Indizes / 3; ein Patch grob mit vier
+            // Teilungen je Feld (r_subdivisions 4, tr_curve.cpp) - Schaetzung
+            std::vector<long long> dreiecke(static_cast<std::size_t>(nFl), 0);
+            for (long long s2 = 0; s2 < nFl; ++s2) {
+                const std::size_t b = ofs[kSurfaces] + static_cast<std::size_t>(s2) * 148;
+                const std::int32_t typ = i32(d, b + 8);
+                if (typ == kMstPatch) {
+                    const std::int32_t w = i32(d, b + 140);
+                    const std::int32_t h = i32(d, b + 144);
+                    dreiecke[static_cast<std::size_t>(s2)] = w > 1 && h > 1 ? 2LL * ((w - 1) / 2 * 4) * ((h - 1) / 2 * 4) : 0;
+                } else {
+                    dreiecke[static_cast<std::size_t>(s2)] = i32(d, b + 24) / 3;
+                }
+            }
             Zaehlung z = neueZaehlung("renderer.drawsurfs", q, 0);
             z.schaetzung = true;
             z.obergrenze = true;
@@ -1035,6 +1052,7 @@ BspAnalyse analysiereBsp(const std::string& d, const ZaehlOptionen& o, const std
                 const std::int32_t c = reihe[r];
                 const std::size_t zeile = ofs[kVisibility] + 8 + static_cast<std::size_t>(c) * static_cast<std::size_t>(clusterBytes);
                 long long n = 0;
+                long long tri = 0;
                 for (std::int32_t v = 0; v < numClusters; ++v) {
                     if ((static_cast<unsigned char>(d[zeile + static_cast<std::size_t>(v >> 3)]) & (1U << (v & 7))) == 0) { continue; }
                     for (const std::int32_t s : flJeCluster[static_cast<std::size_t>(v)]) {
@@ -1042,10 +1060,15 @@ BspAnalyse analysiereBsp(const std::string& d, const ZaehlOptionen& o, const std
                         if (marke[static_cast<std::size_t>(s)] != c) {
                             marke[static_cast<std::size_t>(s)] = c;
                             ++n;
+                            tri += dreiecke[static_cast<std::size_t>(s)];
                         }
                     }
                 }
                 z.wert = std::max(z.wert, n);
+                if (tri > an.dreieckeJeAnsicht) {
+                    an.dreieckeJeAnsicht = tri;
+                    an.dreieckeCluster = c;
+                }
                 z.beitraege.push_back({ObjektRef{-1, -1, -1, "cluster " + std::to_string(c)}, n});
             }
             beitraegeOrdnen(z.beitraege);
@@ -1067,6 +1090,40 @@ BspAnalyse analysiereBsp(const std::string& d, const ZaehlOptionen& o, const std
     }
     an.ok = true;
     return an;
+}
+
+// CM_PointLeafnum_r (cm_test.cpp): von Knoten 0 absteigen, bis ein Blatt kommt
+int bspCluster(const std::string& d, const Vektor3f& p) {
+    if (d.size() < 8 + kLumps * 8 || d.compare(0, 4, "RBSP") != 0) { return -2; }
+    auto lump = [&](int l, std::size_t& of, std::size_t& ln) {
+        of = static_cast<std::size_t>(std::max(0, i32(d, 8 + static_cast<std::size_t>(l) * 8)));
+        ln = static_cast<std::size_t>(std::max(0, i32(d, 12 + static_cast<std::size_t>(l) * 8)));
+        return of + ln <= d.size();
+    };
+    std::size_t oN = 0;
+    std::size_t lN = 0;
+    std::size_t oP = 0;
+    std::size_t lP = 0;
+    std::size_t oL = 0;
+    std::size_t lL = 0;
+    if (!lump(kNodes, oN, lN) || !lump(kPlanes, oP, lP) || !lump(kLeafs, oL, lL) || lN < 36) { return -2; }
+    const long long nNodes = static_cast<long long>(lN / 36);
+    const long long nPlanes = static_cast<long long>(lP / 16);
+    const long long nLeafs = static_cast<long long>(lL / 48);
+    std::int32_t num = 0;
+    int schritte = 0;
+    while (num >= 0) {
+        if (num >= nNodes || ++schritte > 100000) { return -2; }
+        const std::size_t b = oN + static_cast<std::size_t>(num) * 36;
+        const std::int32_t plane = i32(d, b);
+        if (plane < 0 || plane >= nPlanes) { return -2; }
+        const std::size_t pb = oP + static_cast<std::size_t>(plane) * 16;
+        const float dist = f32(d, pb) * p[0] + f32(d, pb + 4) * p[1] + f32(d, pb + 8) * p[2] - f32(d, pb + 12);
+        num = dist >= 0 ? i32(d, b + 4) : i32(d, b + 8);
+    }
+    const std::int32_t leaf = -1 - num;
+    if (leaf < 0 || leaf >= nLeafs) { return -2; }
+    return i32(d, oL + static_cast<std::size_t>(leaf) * 48);
 }
 
 // --- Bewerten -------------------------------------------------------------------------

@@ -38,6 +38,7 @@
 #include <array>
 #include <cstddef>
 #include <functional>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -78,6 +79,7 @@ struct AbbildPrimitiv {
 struct AbbildEntitaet {
     std::vector<std::pair<std::string, std::string>> schluessel;
     std::string klasse;
+    bool behaelter = false;          // Brush-Entity (!eclass->fixedsize): braucht Pinsel
     std::vector<AbbildPrimitiv> prims;
     [[nodiscard]] std::string wert(const std::string& schluessel) const;   // "" wenn nicht da (ohne Gross/klein)
     [[nodiscard]] bool hat(const std::string& schluessel) const;
@@ -95,6 +97,7 @@ struct ObjektRef {
     int primitiv = -1;     // Index in AbbildEntitaet::prims
     int bspFlaeche = -1;   // Index der Zeichenflaeche in der BSP
     std::string text;      // was es ist ("worldspawn, Pinsel 12", "textures/x", "maps/a.rof")
+    int flaeche = -1;      // Index der Flaeche im Pinsel
 };
 struct Beitrag {
     ObjektRef ref;
@@ -147,7 +150,12 @@ struct BspAnalyse {
     long long cluster = 0;
     long long portale = 0;
     long long sichtBytes = 0;
+    long long dreieckeJeAnsicht = 0;      // Schaetzung: Dreiecke im PVS des schlimmsten Clusters
+    int dreieckeCluster = -1;
 };
+// CM_PointLeafnum (cm_test.cpp): der Cluster des Blatts an diesem Punkt
+// (-1: im Festen oder ausserhalb), -2 bei einer ungueltigen BSP.
+[[nodiscard]] int bspCluster(const std::string& bspDaten, const Vektor3f& p);
 [[nodiscard]] BspAnalyse analysiereBsp(const std::string& bspDaten, const ZaehlOptionen& o, const std::string& prtDaten = std::string());
 
 // --- Bewerten --------------------------------------------------------------
@@ -164,6 +172,60 @@ struct Bewertung {
 // (Formatgrenzen) hoechstens "Hinweis".
 [[nodiscard]] std::vector<Bewertung> bewerten(GrenzSpiel s, const std::vector<Zaehlung>& z, double knappAb = 0.9);
 [[nodiscard]] const char* ampelName(Ampel a);   // "ok" / "near" / "over" / "note"
+
+// --- Pruefungen auf Bauprobleme (Punkt 3) ------------------------------------
+
+enum class Schwere { Hinweis, Warnung, Fehler };
+enum class Behebung {
+    Keine,                // nur anzeigen
+    Caulk,                // die betroffenen Flaechen bekommen common/caulk (verdeckte Flaechen)
+    Detail,               // Make Detail
+    Struktur,             // Make Structural
+    Einrasten,            // Snap to Grid (Raster 1)
+    PinselEntfernen,      // die Pinsel loeschen
+    PatchTeilen,          // bobToolz Split patch
+    ModelleZusammenlegen, // Brush-Entities mit gleichen Schluesseln zu einer
+    WeltSchluessel,       // worldspawn-Schluessel setzen (gridsize, _lightmapscale)
+    EntitaetEntfernen,    // die Entitaet loeschen
+};
+struct Befund {
+    std::string pruefung;            // Kennung der Pruefung ("verdeckt", "leck", ...)
+    Schwere schwere = Schwere::Hinweis;
+    std::string quelle;              // Engine-/q3map2-Stelle oder Tutorial
+    std::string detail;              // Technisches (Englisch, fuer den Bericht)
+    long long anzahl = 0;            // wie viele (Flaechen, Pinsel, Paare, ...)
+    std::vector<ObjektRef> objekte;  // die betroffenen Objekte
+    Behebung behebung = Behebung::Keine;
+    bool sicher = false;             // darf "Alles Sichere beheben" (ungefaehrlich)
+    std::string schluessel;          // fuer WeltSchluessel
+    std::string wert;
+    bool schaetzung = false;         // Vorschlag aus einer Faustregel / Schaetzung
+};
+
+// Was der Optimierer vom Shader wissen muss (vom Texturinventar, auf dem
+// Hauptfaden gesammelt). Ohne Angabe: nach dem Namen (textures/common/...).
+struct ShaderArt {
+    bool bekannt = true;       // Shader oder Bild gefunden
+    bool undurchsichtig = true;   // deckt, was dahinter liegt (nicht trans, nonsolid, fog, liquid, ...)
+    bool sichtbar = true;      // erzeugt eine Zeichenflaeche (nicht nodraw/caulk, kein Werkzeug)
+    bool werkzeug = false;     // clip, trigger, hint, skip, areaportal, origin, ...
+};
+[[nodiscard]] ShaderArt shaderArtNachName(const std::string& shader);
+
+struct PruefOptionen {
+    GrenzSpiel spiel = GrenzSpiel::JkaSp;
+    double knappAb = 0.9;
+    std::map<std::string, ShaderArt> shader;   // klein -> Art; fehlt ein Name: shaderArtNachName
+    bool shaderBekanntGeprueft = false;        // "bekannt" stammt aus dem Inventar
+    std::string linDaten;                      // die .lin (Leck), leer: kein Leck
+    const BspAnalyse* bsp = nullptr;           // nach einem Bau
+    const std::string* bspDaten = nullptr;
+    std::vector<Bewertung> bewertungen;        // aus Punkt 2 (fuer Lightmaps, Modelle)
+    int blockGroesse = 1024;                   // _blocksize (q3map2 bsp.cpp:260)
+    std::vector<std::pair<std::string, double>>* zeiten = nullptr;   // je Pruefung die Dauer in ms (optional)
+};
+[[nodiscard]] std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o);
+[[nodiscard]] const char* schwereName(Schwere s);   // "note" / "warning" / "error"
 
 }  // namespace bhed::karte
 

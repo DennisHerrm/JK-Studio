@@ -7,7 +7,9 @@
 // Modelle) und der Abgleich gegen die echten Karten der drei Spiele: keine
 // Originalkarte darf an einer harten Grenze "ueber" sein.
 //
-// Aufruf: karteoptimierer [<JA base> <JK2 base> <MD base;MD> <dekomp-Wurzel>]
+// Punkt 3 (Pruefungen): je Pruefung eine Karte mit dem Problem und eine ohne.
+//
+// Aufruf: karteoptimierer [<JA base> <JK2 base> <MD base;MD> <tests/karte/q3map2>]
 //   (jeder Ordner "-" oder leer = uebersprungen)
 #include "bhed/karte/grenzen.h"
 #include "bhed/karte/karte.h"
@@ -558,14 +560,263 @@ void spielAbgleich(const std::vector<std::string>& ordner, GrenzSpiel s, const c
     pruefe(ab.ueber == 0, std::string("Abgleich ") + spiel + ": keine Originalkarte ueber einer harten Grenze");
 }
 
+
+// --- Punkt 3: Pruefungen -------------------------------------------------------
+
+std::string kastenText(double x0, double y0, double z0, double x1, double y1, double z1, const char* tex, int inhalt = 0) {
+    auto f = [](double v) {
+        char z[32];
+        std::snprintf(z, sizeof(z), "%g", v);
+        return std::string(z);
+    };
+    const std::string t = std::string(" ") + tex + " 0 0 0 0.5 0.5 " + std::to_string(inhalt) + " 0 0\n";
+    auto p = [&](double a, double b, double c) { return "( " + f(a) + " " + f(b) + " " + f(c) + " ) "; };
+    return "{\n" + p(x1, y1, z1) + p(x1, y0, z1) + p(x0, y1, z1) + t + p(x1, y1, z1) + p(x0, y1, z1) + p(x1, y1, z0) + t + p(x1, y1, z1) + p(x1, y1, z0) +
+           p(x1, y0, z1) + t + p(x0, y0, z0) + p(x1, y0, z0) + p(x0, y1, z0) + t + p(x0, y0, z0) + p(x0, y0, z1) + p(x1, y0, z0) + t + p(x0, y0, z0) +
+           p(x0, y1, z0) + p(x0, y0, z1) + t + "}\n";
+}
+std::string entText(const std::string& klasse, const std::string& schluessel, const std::string& pinsel) {
+    return "{\n\"classname\" \"" + klasse + "\"\n" + schluessel + pinsel + "}\n";
+}
+KartenAbbild abbildAus(const std::string& text) {
+    Karte k;
+    (void)karteLesen(text, k);
+    k.anmelden();
+    return kartenAbbild(k);
+}
+const Befund* befund(const std::vector<Befund>& b, const char* id) {
+    for (const Befund& x : b) {
+        if (x.pruefung == id) { return &x; }
+    }
+    return nullptr;
+}
+long long anzahlVon(const std::vector<Befund>& b, const char* id) {
+    const Befund* x = befund(b, id);
+    return x != nullptr ? x->anzahl : 0;
+}
+PruefOptionen pruefOpt() {
+    PruefOptionen o;
+    o.spiel = GrenzSpiel::JkaSp;
+    return o;
+}
+constexpr int kDetail = 1 << 27;
+
+void testePruefungen(const std::string& q3dir) {
+    const PruefOptionen o = pruefOpt();
+    {   // Ebenen zeigen nach aussen: der Mittelpunkt liegt hinter jeder Flaeche
+        const KartenAbbild a = abbildAus(entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x")));
+        bool innen = !a.ents.front().prims.empty();
+        for (const AbbildFlaeche& f : a.ents.front().prims.front().flaechen) { innen = innen && abstandZuPunkt(f.ebene, Vektor3d(32, 32, 32)) < 0; }
+        pruefe(innen, "Ebenen der Pinsel zeigen nach aussen (Mittelpunkt innen)");
+    }
+    // 1. Leck und Detail an der Leck-Linie
+    {
+        PruefOptionen p = pruefOpt();
+        const std::string welt = entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x") + kastenText(100, 0, 0, 164, 64, 64, "test/x", kDetail));
+        pruefe(befund(pruefeKarte(abbildAus(welt), p), "leck") == nullptr, "ohne .lin: kein Leck");
+        p.linDaten = "0 -50 32\n132.000000 32.000000 32.000000\n132 200 32\n";
+        const std::vector<Befund> b = pruefeKarte(abbildAus(welt), p);
+        pruefe(befund(b, "leck") != nullptr && befund(b, "leck")->anzahl == 3, "Leck: 3 Punkte der .lin");
+        pruefe(anzahlVon(b, "detailamleck") == 1, "Leck-Linie durch den Detail-Pinsel: 1 (" + std::to_string(anzahlVon(b, "detailamleck")) + ")");
+    }
+    // 2. verdeckte Flaechen
+    {
+        const std::string zwei = entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x") + kastenText(0, 0, 64, 64, 64, 128, "test/y"));
+        pruefe(anzahlVon(pruefeKarte(abbildAus(zwei), o), "verdeckt") == 2, "zwei gleich grosse Kaesten aufeinander: Deckel und Boden verdeckt (2)");
+        const std::string kleiner = entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x") + kastenText(16, 16, 64, 48, 48, 128, "test/y"));
+        pruefe(anzahlVon(pruefeKarte(abbildAus(kleiner), o), "verdeckt") == 1, "kleiner Kasten auf grossem: nur sein Boden verdeckt (1)");
+        const std::string luecke = entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x") + kastenText(0, 0, 65, 64, 64, 128, "test/y"));
+        pruefe(anzahlVon(pruefeKarte(abbildAus(luecke), o), "verdeckt") == 0, "Abstand 1: nichts verdeckt");
+        const std::string glas = entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x") + kastenText(0, 0, 64, 64, 64, 128, "test/glass"));
+        pruefe(anzahlVon(pruefeKarte(abbildAus(glas), o), "verdeckt") == 1, "Glas deckt nicht: nur der Glasboden ist verdeckt (1)");
+        const std::string caulk = entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "common/caulk") + kastenText(0, 0, 64, 64, 64, 128, "common/caulk"));
+        pruefe(anzahlVon(pruefeKarte(abbildAus(caulk), o), "verdeckt") == 0, "schon gecaulkt: nichts");
+        const std::string raum = lies(std::filesystem::path(q3dir) / "raum.map");
+        if (!raum.empty()) {
+            const long long n = anzahlVon(pruefeKarte(abbildAus(raum), o), "verdeckt");
+            pruefe(n > 0, "raum.map: Waende auf dem Boden - verdeckte Flaechen gefunden (" + std::to_string(n) + ")");
+        }
+    }
+    // 3. entartet, Mikro, Off-Grid, Mischinhalt, Areaportal in Entity
+    {
+        KartenAbbild a = mitWelt();
+        AbbildPrimitiv kaputt = quader(0, 0, 0, 8, 8, 8);
+        kaputt.entartet = true;
+        a.ents.front().prims.push_back(kaputt);
+        pruefe(anzahlVon(pruefeKarte(a, o), "entartet") == 1, "entarteter Pinsel gefunden");
+        const std::string mikro = entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 0.5, "test/x"));
+        pruefe(anzahlVon(pruefeKarte(abbildAus(mikro), o), "mikro") == 1, "Pinsel 0.5 dick: Mikropinsel");
+        const std::string raster = entText("worldspawn", "", kastenText(0, 0, 0, 64.02, 64, 64, "test/x"));
+        const std::vector<Befund> br = pruefeKarte(abbildAus(raster), o);
+        pruefe(anzahlVon(br, "offgrid") == 1 && befund(br, "offgrid")->sicher, "Ecke bei 64.02: neben dem Raster, sicher einzurasten");
+        const std::string halb = entText("worldspawn", "", kastenText(0, 0, 0, 64.5, 64, 64, "test/x"));
+        const std::vector<Befund> bh = pruefeKarte(abbildAus(halb), o);
+        pruefe(anzahlVon(bh, "offgrid") == 1 && !befund(bh, "offgrid")->sicher, "Ecke bei 64.5: neben dem Raster, nicht 'sicher'");
+        pruefe(anzahlVon(pruefeKarte(abbildAus(entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x"))), o), "offgrid") == 0, "ganze Zahlen: kein Befund");
+        const std::string misch = entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "common/hint", kDetail));
+        pruefe(anzahlVon(pruefeKarte(abbildAus(misch), o), "mischinhalt") == 1, "Hint als detail: Mischinhalt (q3map2 map.cpp:509)");
+        const std::string portal = entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x")) +
+                                   entText("func_wall", "", kastenText(0, 0, 100, 64, 64, 164, "common/areaportal"));
+        pruefe(anzahlVon(pruefeKarte(abbildAus(portal), o), "areaportalentity") == 1, "Areaportal in func_wall (q3map2 map.cpp:810)");
+    }
+    // 4. Deko als structural
+    {
+        const std::string deko = entText("worldspawn", "", kastenText(0, 0, 0, 512, 512, 16, "test/boden") + kastenText(0, 0, 16, 32, 32, 48, "test/kiste"));
+        const std::vector<Befund> b = pruefeKarte(abbildAus(deko), o);
+        pruefe(anzahlVon(b, "deko") == 1 && befund(b, "deko")->schaetzung, "kleine Kiste structural: Vorschlag detail (1, Schaetzung)");
+        const std::string detail = entText("worldspawn", "", kastenText(0, 0, 0, 512, 512, 16, "test/boden") + kastenText(0, 0, 16, 32, 32, 48, "test/kiste", kDetail));
+        pruefe(anzahlVon(pruefeKarte(abbildAus(detail), o), "deko") == 0, "kleine Kiste als detail: kein Vorschlag");
+    }
+    // 5. Blockgitter und Ueberlappung
+    {
+        const std::string block = entText("worldspawn", "", kastenText(1000, 0, 0, 1040, 512, 256, "test/wand"));
+        pruefe(anzahlVon(pruefeKarte(abbildAus(block), o), "blockgitter") == 1, "Wand 1000..1040 ragt 16 ueber die Blockgrenze 1024");
+        PruefOptionen o2 = pruefOpt();
+        o2.blockGroesse = 0;
+        pruefe(anzahlVon(pruefeKarte(abbildAus(block), o2), "blockgitter") == 0, "_blocksize 0: kein Blockgitter");
+        const std::string ueber = entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x") + kastenText(32, 0, 0, 96, 64, 64, "test/y"));
+        pruefe(anzahlVon(pruefeKarte(abbildAus(ueber), o), "ueberlappung") == 1, "Kaesten 0..64 und 32..96: Ueberlappung");
+        const std::string buendig = entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x") + kastenText(64, 0, 0, 128, 64, 64, "test/y"));
+        pruefe(anzahlVon(pruefeKarte(abbildAus(buendig), o), "ueberlappung") == 0, "Kaesten buendig: keine Ueberlappung");
+    }
+    // 6. T-Verbindungen
+    {
+        const std::string t = entText("worldspawn", "", kastenText(0, 0, 0, 128, 128, 64, "test/x") + kastenText(0, 0, 64, 64, 128, 128, "test/y"));
+        pruefe(anzahlVon(pruefeKarte(abbildAus(t), o), "tjunction") >= 1, "kleiner Kasten auf grossem: T-Verbindung an x=64");
+        pruefe(anzahlVon(pruefeKarte(abbildAus(entText("worldspawn", "", kastenText(0, 0, 0, 128, 128, 64, "test/x"))), o), "tjunction") == 0, "ein Kasten: keine T-Verbindung");
+    }
+    // 7. Patches und Clip-Modelle
+    {
+        KartenAbbild a = mitWelt();
+        AbbildEntitaet e = ent("func_static");
+        AbbildPrimitiv p;
+        p.patch = true;
+        p.breite = 31;
+        p.hoehe = 31;
+        p.shader = "textures/x";
+        p.kontrollpunkte = wellenPatch(31, 31, 96);
+        e.prims.push_back(p);
+        a.ents.push_back(e);
+        const std::vector<Befund> b = pruefeKarte(a, o);
+        pruefe(befund(b, "patchgross") != nullptr && befund(b, "patchgross")->schwere == Schwere::Fehler && befund(b, "patchgross")->behebung == Behebung::PatchTeilen,
+               "Wellen-Patch 31x31: zu viele Kollisionsebenen (Fehler, Patch teilen)");
+        KartenAbbild c = mitWelt();
+        AbbildEntitaet e2 = ent("func_static");
+        AbbildPrimitiv spitz;
+        spitz.patch = true;
+        spitz.breite = 3;
+        spitz.hoehe = 3;
+        for (int j = 0; j < 3; ++j) {
+            for (int i = 0; i < 3; ++i) { spitz.kontrollpunkte.push_back({static_cast<float>(i * 64), static_cast<float>(j * 64), i == 1 ? 1000000.0F : 0.0F}); }
+        }
+        e2.prims.push_back(spitz);
+        c.ents.push_back(e2);
+        pruefe(anzahlVon(pruefeKarte(c, o), "patchgitter") == 1, "Patch mit Spitze 1e6: mehr als 129 Gitterspalten (CM_SubdivideGridColumns)");
+        KartenAbbild m = mitWelt();
+        m.ents.push_back(ent("misc_model", {{"model", "models/a.md3"}, {"spawnflags", "2"}}));
+        m.ents.push_back(ent("misc_model", {{"model", "models/b.md3"}}));
+        pruefe(anzahlVon(pruefeKarte(m, o), "clipmodell") == 1, "misc_model spawnflags 2: Clip-Modell");
+    }
+    // 8. fehlende Texturen
+    {
+        PruefOptionen p = pruefOpt();
+        p.shaderBekanntGeprueft = true;
+        ShaderArt fehlt;
+        fehlt.bekannt = false;
+        p.shader["textures/test/fehlt"] = fehlt;
+        const std::string t = entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/fehlt") + kastenText(100, 0, 0, 164, 64, 64, "test/da"));
+        pruefe(anzahlVon(pruefeKarte(abbildAus(t), p), "textur") == 1, "eine fehlende Textur (die bekannte zaehlt nicht)");
+    }
+    // 9. Brush-Entity ohne Pinsel
+    {
+        KartenAbbild a = mitWelt();
+        AbbildEntitaet tuer = ent("func_door");
+        tuer.behaelter = true;
+        a.ents.push_back(tuer);
+        AbbildEntitaet tuer2 = ent("func_door");
+        tuer2.behaelter = true;
+        tuer2.prims.push_back(quader(0, 0, 0, 8, 64, 64, "textures/tuer"));
+        a.ents.push_back(tuer2);
+        AbbildEntitaet nurUrsprung = ent("func_rotating");
+        nurUrsprung.behaelter = true;
+        nurUrsprung.prims.push_back(quader(0, 0, 0, 8, 8, 8, "textures/common/origin"));
+        a.ents.push_back(nurUrsprung);
+        pruefe(anzahlVon(pruefeKarte(a, o), "leereentity") == 2, "func_door ohne Pinsel und func_rotating nur mit Ursprung: SV_SetBrushModel NULL (2)");
+    }
+    // 10. aus der BSP: Lichtgitter, Lightmaps, VIS, Dreiecke, Spawnpunkt
+    {
+        BspAnalyse an;
+        an.ok = true;
+        an.lichtgitterUeberlauf = 21752;
+        an.gitterGroesse = {64, 64, 128};
+        an.portale = 9000;
+        an.cluster = 1200;
+        an.dreieckeJeAnsicht = 25000;
+        PruefOptionen p = pruefOpt();
+        p.bsp = &an;
+        Bewertung lm;
+        lm.zaehlung.id = "renderer.lightmaps";
+        lm.zaehlung.quelle = ZaehlQuelle::Bsp;
+        lm.zaehlung.wert = 242;
+        lm.anteil = 242.0 / 256.0;
+        lm.ampel = Ampel::Knapp;
+        p.bewertungen.push_back(lm);
+        const std::vector<Befund> b = pruefeKarte(mitWelt(), p);
+        const Befund* lg = befund(b, "lichtgitter");
+        pruefe(lg != nullptr && lg->schluessel == "gridsize" && lg->wert == "128 128 128" && lg->anzahl == 21752, "volles Lichtgitter: gridsize 128 128 128 vorgeschlagen");
+        const Befund* ls = befund(b, "lightmapscale");
+        pruefe(ls != nullptr && ls->schluessel == "_lightmapscale" && ls->wert == "2", "Lightmaps knapp: _lightmapscale 2 vorgeschlagen");
+        pruefe(befund(b, "vis") != nullptr && befund(b, "dreiecke") != nullptr, "9000 Portale und 25000 Dreiecke je Ansicht: Hinweise");
+        an.lichtgitterUeberlauf = 0;
+        an.portale = 100;
+        an.dreieckeJeAnsicht = 1000;
+        p.bewertungen.clear();
+        const std::vector<Befund> c = pruefeKarte(mitWelt(), p);
+        pruefe(befund(c, "lichtgitter") == nullptr && befund(c, "lightmapscale") == nullptr && befund(c, "vis") == nullptr && befund(c, "dreiecke") == nullptr,
+               "ohne Ueberlauf und kleine Werte: keine Befunde");
+        const std::string bsp = lies(std::filesystem::path(q3dir) / "raum.nrc.bsp");
+        const std::string raum = lies(std::filesystem::path(q3dir) / "raum.map");
+        if (!bsp.empty() && !raum.empty()) {
+            pruefe(bspCluster(bsp, Vektor3f(-384, 128, 32)) >= 0, "raum.nrc.bsp: der Spawnpunkt liegt in einem Cluster");
+            pruefe(bspCluster(bsp, Vektor3f(2000, 0, 100)) == -1, "raum.nrc.bsp: ausserhalb ist Cluster -1");
+            p.bspDaten = &bsp;
+            pruefe(befund(pruefeKarte(abbildAus(raum), p), "spawnimfesten") == nullptr, "raum.map: Spawnpunkt im Raum - kein Befund");
+            std::string draussen = raum;
+            const std::size_t i = draussen.find("\"-384 128 24\"");
+            if (i != std::string::npos) { draussen.replace(i, 13, "\"2000 0 24\""); }
+            pruefe(befund(pruefeKarte(abbildAus(draussen), p), "spawnimfesten") != nullptr, "Spawnpunkt nach 2000 0 24 verschoben: im Festen");
+        }
+    }
+    // 11. Brush-Modelle zusammenlegen
+    {
+        KartenAbbild a = mitWelt();
+        for (int i = 0; i < 3; ++i) {
+            AbbildEntitaet w = ent("func_wall", {{"spawnflags", "1"}});
+            w.prims.push_back(quader(static_cast<float>(i * 100), 0, 0, static_cast<float>(i * 100 + 8), 8, 8));
+            a.ents.push_back(w);
+        }
+        AbbildEntitaet t = ent("func_wall", {{"spawnflags", "1"}, {"targetname", "an"}});
+        t.prims.push_back(quader(500, 0, 0, 508, 8, 8));
+        a.ents.push_back(t);
+        PruefOptionen p = pruefOpt();
+        Bewertung bm;
+        bm.zaehlung.id = "kollision.submodelle";
+        bm.zaehlung.wert = 480;
+        bm.ampel = Ampel::Knapp;
+        p.bewertungen.push_back(bm);
+        pruefe(anzahlVon(pruefeKarte(a, p), "modellezusammen") == 3, "drei gleiche func_wall ohne targetname zusammenzulegen (3)");
+        pruefe(anzahlVon(pruefeKarte(a, o), "modellezusammen") == 0, "ohne knappe Brush-Modelle: kein Vorschlag");
+    }
+}
 }  // namespace
 
 int main(int argc, char** argv) {
     testeKartenGrenzen();
     testePatchKollision();
     testeBsp();
-    // echte Karten (nur lesen)
     auto arg = [&](int i) { return argc > i ? std::string(argv[i]) : std::string(); };
+    testePruefungen(arg(4));
+    // echte Karten (nur lesen)
     spielAbgleich({arg(1)}, GrenzSpiel::JkaSp, "Jedi Academy");
     spielAbgleich({arg(2)}, GrenzSpiel::Jk2, "Jedi Outcast");
     {
@@ -579,6 +830,52 @@ int main(int argc, char** argv) {
             s = s.substr(p + 1);
         }
         spielAbgleich(md, GrenzSpiel::MovieDuels, "Movie Duels");
+    }
+    // Zeitmessung an einer grossen Karte (optional): <map> [<bsp>]
+    if (!arg(5).empty() && arg(5) != "-") {
+        using Uhr = std::chrono::steady_clock;
+        auto ms = [](Uhr::time_point a, Uhr::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+        const auto t0 = Uhr::now();
+        const std::string text = lies(arg(5));
+        Karte k;
+        (void)karteLesen(text, k);
+        k.anmelden();
+        const auto t1 = Uhr::now();
+        const KartenAbbild a = kartenAbbild(k);
+        const auto t2 = Uhr::now();
+        const ZaehlOptionen zo = optionen(GrenzSpiel::MovieDuels);
+        std::vector<Zaehlung> z = zaehleKarte(a, zo);
+        const auto t3 = Uhr::now();
+        std::string bspDaten = arg(6).empty() || arg(6) == "-" ? std::string() : lies(arg(6));
+        BspAnalyse ba;
+        if (!bspDaten.empty()) {
+            ba = analysiereBsp(bspDaten, zo);
+            z.insert(z.end(), ba.werte.begin(), ba.werte.end());
+        }
+        const auto t4 = Uhr::now();
+        PruefOptionen po;
+        po.spiel = GrenzSpiel::MovieDuels;
+        po.bewertungen = bewerten(GrenzSpiel::MovieDuels, z, 0.9);
+        po.bsp = ba.ok ? &ba : nullptr;
+        po.bspDaten = ba.ok ? &bspDaten : nullptr;
+        std::vector<std::pair<std::string, double>> zeiten;
+        po.zeiten = &zeiten;
+        const std::vector<Befund> b = pruefeKarte(a, po);
+        const auto t5 = Uhr::now();
+        long long pinsel = 0;
+        for (const AbbildEntitaet& e : a.ents) { pinsel += static_cast<long long>(e.prims.size()); }
+        std::printf("Grosse Karte %s: %zu Entitaeten, %lld Primitive\n", arg(5).c_str(), a.ents.size(), pinsel);
+        std::printf("  laden %.0f ms, Abbild %.0f ms, Zaehlen (Karte) %.0f ms, BSP %.0f ms, Pruefen %.0f ms\n", ms(t0, t1), ms(t1, t2), ms(t2, t3), ms(t3, t4), ms(t4, t5));
+        for (const Bewertung& x : po.bewertungen) {
+            if (x.ampel != Ampel::Ok) {
+                std::printf("  %-6s %-26s %s %lld / %lld\n", ampelName(x.ampel), x.zaehlung.id.c_str(), x.zaehlung.quelle == ZaehlQuelle::Bsp ? "bsp" : "map", x.zaehlung.wert,
+                            x.grenze->erlaubt);
+            }
+        }
+        for (const Befund& x : b) { std::printf("  %-8s %-18s %lld  %s\n", schwereName(x.schwere), x.pruefung.c_str(), x.anzahl, x.detail.c_str()); }
+        std::printf("  Zeiten:");
+        for (const auto& [w, t] : zeiten) { std::printf(" %s %.0f", w.c_str(), t); }
+        std::printf(" ms\n");
     }
     std::printf("karteoptimierer: %d Pruefungen, %d Fehlschlaege\n", g_pruefungen, g_fehler);
     return g_fehler == 0 ? 0 : 1;
