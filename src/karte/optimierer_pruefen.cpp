@@ -164,6 +164,65 @@ void grenzenVon(const std::vector<Vektor3d>& pts, double* mn, double* mx) {
 
 }  // namespace
 
+std::string detailText(const std::string& vorlage, const std::vector<std::string>& werte) {
+    std::string out;
+    std::size_t w = 0;
+    for (std::size_t i = 0; i < vorlage.size(); ++i) {
+        if (vorlage[i] == '%' && i + 1 < vorlage.size() && vorlage[i + 1] == 's') {
+            out += w < werte.size() ? werte[w] : std::string();
+            ++w;
+            ++i;
+        } else {
+            out += vorlage[i];
+        }
+    }
+    return out;
+}
+
+void detailSetzen(Befund& b, const char* vorlage, std::vector<std::string> werte) {
+    b.detailVorlage = vorlage;
+    b.detailWerte = std::move(werte);
+    b.detail = detailText(b.detailVorlage, b.detailWerte);
+}
+
+// Stufe 6 (Punkt 5): jede Vorlage von detailSetzen in dieser Datei - die Oberflaeche
+// uebersetzt sie (KeOptD01..), der Test karte_optimierer prueft, dass die Liste vollstaendig ist.
+const char* const kOptimiererDetailVorlagen[] = {
+    "%s points in the leak line",
+    "%s detail brushes on the leak line",
+    "%s visible faces completely covered by an opaque face of another brush",
+    "%s brushes without a valid shape (fewer than 4 faces or no windings)",
+    "%s brushes thinner than 1 unit",
+    "%s brushes with vertices off the integer grid (largest deviation %s)",
+    "%s detail brushes with hint or areaportal faces",
+    "%s areaportal brushes in entities",
+    "%s small, thin or angled structural brushes (suggestion: detail)",
+    "%s structural brushes reach less than 32 units across a %s block boundary",
+    "%s pairs of opaque brushes overlapping by more than 1 unit",
+    "%s brush vertices lie inside an edge of another brush (T-junctions)",
+    "%s patches near or over the collision limits (most planes: %s)",
+    "%s patches subdivide to more than 129 grid columns",
+    "%s misc_model with clip flags",
+    "%s shaders without a shader script or image",
+    "%s brush entities without brushes or patches",
+    "%s light grid cells point behind the light grid (index 65535)",
+    "light grid array has %s cells expected by the engine",
+    "%s = %s (%s %)",
+    "%s portals, %s clusters",
+    "%s world triangles in the PVS of cluster %s",
+    "%s spawn points or NPC spawners in solid space or outside the map",
+    "%s misc_model_static whose cull point lies in solid space (the game never draws them), %s without a zoffset within 1024 units - move them",
+    "%s misc_model_static whose cull point lies in solid space (the game never draws them)",
+    "%s brush entities in groups with identical keys (no targetname)",
+    "%s faces with textures/common/origin (no surfaceparm origin in this game)",
+    "%s brushes with an edge of %s units or more",
+    "%s surface light faces whose backsplash lies behind a solid brush",
+    "%s build menu commands with switches this game cannot use (the build menu refuses them)",
+    "%s brushes or patches with q3map_lightmapSize: Jedi Outcast cannot load external lightmaps",
+    "%s brushes or patches with q3map_lightmapSize next to light styles: external lightmaps lose the style stages"
+};
+const std::size_t kOptimiererDetailVorlagenAnzahl = sizeof(kOptimiererDetailVorlagen) / sizeof(kOptimiererDetailVorlagen[0]);
+
 ShaderArt shaderArtNachName(const std::string& shader) {
     const std::string s = klein(shader);
     ShaderArt a;
@@ -230,7 +289,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
         while (in >> x >> y >> z) { punkte.emplace_back(x, y, z); }
         Befund b = neu("leck", Schwere::Fehler, "q3map2 leakfile.cpp LeakFile (.lin), bsp.cpp \"leaked\"; VIS needs a sealed hull");
         b.anzahl = static_cast<long long>(punkte.size());
-        b.detail = std::to_string(punkte.size()) + " points in the leak line";
+        detailSetzen(b, "%s points in the leak line", {std::to_string(punkte.size())});
         out.push_back(b);
         // Detail-Pinsel, durch die die Linie laeuft: detail versiegelt nichts
         Befund d = neu("detailamleck", Schwere::Warnung, "q3map2 map.cpp SetBrushContents: C_DETAIL brushes are not used for the BSP (tutorial r142: detail at the void leaks)");
@@ -259,7 +318,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
             }
         }
         if (d.anzahl > 0) {
-            d.detail = std::to_string(d.anzahl) + " detail brushes on the leak line";
+            detailSetzen(d, "%s detail brushes on the leak line", {std::to_string(d.anzahl)});
             out.push_back(d);
         }
     }
@@ -341,7 +400,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
         }
         b.anzahl = flaechen;
         if (flaechen > 0) {
-            b.detail = std::to_string(flaechen) + " visible faces completely covered by an opaque face of another brush";
+            detailSetzen(b, "%s visible faces completely covered by an opaque face of another brush", {std::to_string(flaechen)});
             out.push_back(b);
         }
     }
@@ -400,26 +459,26 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
             }
         }
         if (ent.anzahl > 0) {
-            ent.detail = std::to_string(ent.anzahl) + " brushes without a valid shape (fewer than 4 faces or no windings)";
+            detailSetzen(ent, "%s brushes without a valid shape (fewer than 4 faces or no windings)", {std::to_string(ent.anzahl)});
             out.push_back(ent);
         }
         if (mikro.anzahl > 0) {
-            mikro.detail = std::to_string(mikro.anzahl) + " brushes thinner than 1 unit";
+            detailSetzen(mikro, "%s brushes thinner than 1 unit", {std::to_string(mikro.anzahl)});
             out.push_back(mikro);
         }
         if (raster.anzahl > 0) {
             char z[64];
             std::snprintf(z, sizeof(z), "%.3f", rasterMax);
-            raster.detail = std::to_string(raster.anzahl) + " brushes with vertices off the integer grid (largest deviation " + z + ")";
+            detailSetzen(raster, "%s brushes with vertices off the integer grid (largest deviation %s)", {std::to_string(raster.anzahl), z});
             raster.sicher = rasterMax <= 0.05;   // nur Rundungsrauschen gilt als sicher
             out.push_back(raster);
         }
         if (misch.anzahl > 0) {
-            misch.detail = std::to_string(misch.anzahl) + " detail brushes with hint or areaportal faces";
+            detailSetzen(misch, "%s detail brushes with hint or areaportal faces", {std::to_string(misch.anzahl)});
             out.push_back(misch);
         }
         if (portalEnt.anzahl > 0) {
-            portalEnt.detail = std::to_string(portalEnt.anzahl) + " areaportal brushes in entities";
+            detailSetzen(portalEnt, "%s areaportal brushes in entities", {std::to_string(portalEnt.anzahl)});
             out.push_back(portalEnt);
         }
     }
@@ -461,7 +520,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
             }
         }
         if (b.anzahl > 0) {
-            b.detail = std::to_string(b.anzahl) + " small, thin or angled structural brushes (suggestion: detail)";
+            detailSetzen(b, "%s small, thin or angled structural brushes (suggestion: detail)", {std::to_string(b.anzahl)});
             out.push_back(b);
         }
     }
@@ -509,7 +568,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
             }
         }
         if (block.anzahl > 0) {
-            block.detail = std::to_string(block.anzahl) + " structural brushes reach less than 32 units across a " + std::to_string(bs) + " block boundary";
+            detailSetzen(block, "%s structural brushes reach less than 32 units across a %s block boundary", {std::to_string(block.anzahl), std::to_string(bs)});
             out.push_back(block);
         }
         // Ueberlappung: Kehrbesen ueber x, dann die Trennebenen beider Pinsel
@@ -544,7 +603,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
         }
         ueb.anzahl = paare;
         if (paare > 0) {
-            ueb.detail = std::to_string(paare) + " pairs of opaque brushes overlapping by more than 1 unit";
+            detailSetzen(ueb, "%s pairs of opaque brushes overlapping by more than 1 unit", {std::to_string(paare)});
             out.push_back(ueb);
         }
     }
@@ -645,7 +704,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
             }
         }
         if (b.anzahl > 0) {
-            b.detail = std::to_string(b.anzahl) + " brush vertices lie inside an edge of another brush (T-junctions)";
+            detailSetzen(b, "%s brush vertices lie inside an edge of another brush (T-junctions)", {std::to_string(b.anzahl)});
             out.push_back(b);
         }
     }
@@ -679,11 +738,11 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
             }
         }
         if (b.anzahl > 0) {
-            b.detail = std::to_string(b.anzahl) + " patches near or over the collision limits (most planes: " + std::to_string(schlimmste) + ")";
+            detailSetzen(b, "%s patches near or over the collision limits (most planes: %s)", {std::to_string(b.anzahl), std::to_string(schlimmste)});
             out.push_back(b);
         }
         if (gitter.anzahl > 0) {
-            gitter.detail = std::to_string(gitter.anzahl) + " patches subdivide to more than 129 grid columns";
+            detailSetzen(gitter, "%s patches subdivide to more than 129 grid columns", {std::to_string(gitter.anzahl)});
             out.push_back(gitter);
         }
         Befund clip = neu("clipmodell", Schwere::Hinweis, "q3map2 model.cpp:359 eClipModel (spawnflags 2): a clip brush per triangle; tutorial: use physics_clip brushes");
@@ -694,7 +753,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
             if ((sf & kClip) != 0) { add(clip, ObjektRef{static_cast<int>(e), -1, -1, stelle(ents[e], static_cast<int>(e), -1) + " " + ents[e].wert("model")}); }
         }
         if (clip.anzahl > 0) {
-            clip.detail = std::to_string(clip.anzahl) + " misc_model with clip flags";
+            detailSetzen(clip, "%s misc_model with clip flags", {std::to_string(clip.anzahl)});
             out.push_back(clip);
         }
     }
@@ -720,7 +779,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
         }
         for (const auto& [k, r] : fehlen) { add(b, r); }
         if (b.anzahl > 0) {
-            b.detail = std::to_string(b.anzahl) + " shaders without a shader script or image";
+            detailSetzen(b, "%s shaders without a shader script or image", {std::to_string(b.anzahl)});
             out.push_back(b);
         }
     }
@@ -752,7 +811,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
             if (!echt && !en.hat("model")) { add(b, ObjektRef{static_cast<int>(e), -1, -1, stelle(en, static_cast<int>(e), -1)}); }
         }
         if (b.anzahl > 0) {
-            b.detail = std::to_string(b.anzahl) + " brush entities without brushes or patches";
+            detailSetzen(b, "%s brush entities without brushes or patches", {std::to_string(b.anzahl)});
             out.push_back(b);
         }
     }
@@ -771,8 +830,11 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
             std::snprintf(z, sizeof(z), "%.0f %.0f %.0f", an.gitterGroesse[0] * 2, an.gitterGroesse[1] * 2, an.gitterGroesse[2]);
             b.wert = z;
             b.anzahl = an.lichtgitterUeberlauf;
-            b.detail = an.lichtgitterUeberlauf > 0 ? std::to_string(an.lichtgitterUeberlauf) + " light grid cells point behind the light grid (index 65535)"
-                                                   : "light grid array has " + std::to_string(an.lichtgitterErwartet) + " cells expected by the engine";
+            if (an.lichtgitterUeberlauf > 0) {
+                detailSetzen(b, "%s light grid cells point behind the light grid (index 65535)", {std::to_string(an.lichtgitterUeberlauf)});
+            } else {
+                detailSetzen(b, "light grid array has %s cells expected by the engine", {std::to_string(an.lichtgitterErwartet)});
+            }
             out.push_back(b);
         }
         // Die Zahl der Lightmaps (Renderer, hart) vor der Groesse des Lumps
@@ -798,7 +860,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
                 std::snprintf(z, sizeof(z), "%g", alt * 2.0);
                 b.wert = z;
                 b.anzahl = bw.zaehlung.wert;
-                b.detail = bw.zaehlung.id + " = " + std::to_string(bw.zaehlung.wert) + " (" + std::to_string(static_cast<int>(bw.anteil * 100)) + " %)";
+                detailSetzen(b, "%s = %s (%s %)", {bw.zaehlung.id, std::to_string(bw.zaehlung.wert), std::to_string(static_cast<int>(bw.anteil * 100))});
                 out.push_back(b);
                 break;
             }
@@ -810,7 +872,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
                 Befund b = neu("vis", Schwere::Hinweis, "q3map2 vis.cpp / visflow.cpp (PassagePortalFlow), tutorial r147 \"Reducing passage portal flow\": detail, hint, _blocksize");
                 b.schaetzung = true;
                 b.anzahl = an.portale;
-                b.detail = std::to_string(an.portale) + " portals, " + std::to_string(an.cluster) + " clusters";
+                detailSetzen(b, "%s portals, %s clusters", {std::to_string(an.portale), std::to_string(an.cluster)});
                 out.push_back(b);
             }
         }
@@ -820,7 +882,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
                 Befund b = neu("dreiecke", Schwere::Hinweis, "OpenJK tr_main.cpp (r_speeds), tutorials (RichDiesal: keep the triangles per view low) - estimate from the PVS");
                 b.schaetzung = true;
                 b.anzahl = an.dreieckeJeAnsicht;
-                b.detail = std::to_string(an.dreieckeJeAnsicht) + " world triangles in the PVS of cluster " + std::to_string(an.dreieckeCluster);
+                detailSetzen(b, "%s world triangles in the PVS of cluster %s", {std::to_string(an.dreieckeJeAnsicht), std::to_string(an.dreieckeCluster)});
                 out.push_back(b);
             }
         }
@@ -836,7 +898,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
                 if (c == -1) { add(b, ObjektRef{static_cast<int>(e), -1, -1, stelle(ents[e], static_cast<int>(e), -1) + " at " + ents[e].wert("origin")}); }
             }
             if (b.anzahl > 0) {
-                b.detail = std::to_string(b.anzahl) + " spawn points or NPC spawners in solid space or outside the map";
+                detailSetzen(b, "%s spawn points or NPC spawners in solid space or outside the map", {std::to_string(b.anzahl)});
                 out.push_back(b);
             }
             // misc_model_static: gezeichnet wird nur, wenn der Pruefpunkt
@@ -870,8 +932,12 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
                 add(m, r);
             }
             if (m.anzahl > 0) {
-                m.detail = std::to_string(m.anzahl) + " misc_model_static whose cull point lies in solid space (the game never draws them)" +
-                           (ohneWert > 0 ? ", " + std::to_string(ohneWert) + " without a zoffset within 1024 units - move them" : std::string());
+                if (ohneWert > 0) {
+                    detailSetzen(m, "%s misc_model_static whose cull point lies in solid space (the game never draws them), %s without a zoffset within 1024 units - move them",
+                                 {std::to_string(m.anzahl), std::to_string(ohneWert)});
+                } else {
+                    detailSetzen(m, "%s misc_model_static whose cull point lies in solid space (the game never draws them)", {std::to_string(m.anzahl)});
+                }
                 out.push_back(m);
             }
         }
@@ -904,7 +970,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
             for (const int e : liste) { add(b, ObjektRef{e, -1, -1, stelle(ents[static_cast<std::size_t>(e)], e, -1)}); }
         }
         if (b.anzahl > 0) {
-            b.detail = std::to_string(b.anzahl) + " brush entities in groups with identical keys (no targetname)";
+            detailSetzen(b, "%s brush entities in groups with identical keys (no targetname)", {std::to_string(b.anzahl)});
             out.push_back(b);
         }
         break;
@@ -993,15 +1059,15 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
             }
         }
         if (co.anzahl > 0) {
-            co.detail = std::to_string(co.anzahl) + " faces with textures/common/origin (no surfaceparm origin in this game)";
+            detailSetzen(co, "%s faces with textures/common/origin (no surfaceparm origin in this game)", {std::to_string(co.anzahl)});
             out.push_back(co);
         }
         if (rp.anzahl > 0) {
-            rp.detail = std::to_string(rp.anzahl) + " brushes with an edge of " + std::to_string(static_cast<long long>(o.riesigAb)) + " units or more";
+            detailSetzen(rp, "%s brushes with an edge of %s units or more", {std::to_string(rp.anzahl), std::to_string(static_cast<long long>(o.riesigAb))});
             out.push_back(rp);
         }
         if (fl.anzahl > 0) {
-            fl.detail = std::to_string(fl.anzahl) + " surface light faces whose backsplash lies behind a solid brush";
+            detailSetzen(fl, "%s surface light faces whose backsplash lies behind a solid brush", {std::to_string(fl.anzahl)});
             out.push_back(fl);
         }
     }
@@ -1013,8 +1079,45 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
             add(bb, ObjektRef{-1, -1, -1, p.eintrag + ": " + p.schalter + " - " + p.grund});
         }
         if (bb.anzahl > 0) {
-            bb.detail = std::to_string(bb.anzahl) + " build menu commands with switches this game cannot use (the build menu refuses them)";
+            detailSetzen(bb, "%s build menu commands with switches this game cannot use (the build menu refuses them)", {std::to_string(bb.anzahl)});
             out.push_back(bb);
+        }
+    }
+    // --- 14. Shader mit externen Lightmaps (q3map_lightmapSize) - Stufe 6, NRC#48 / NRC#98 ---
+    // Eine Flaeche, deren Shader eine andere Lightmap-Groesse als 128 verlangt, bekommt eine
+    // externe Lightmap (lightmaps_ydnar.cpp: eigener Shader mit "$lightmap" -> maps/<karte>/lm_N,
+    // nur fuer die erste Stufe - "fixme: make this work with light styles"). In RBSP verlieren
+    // ihre Stil-Stufen damit die Lightmap (NRC#48); Jedi Outcast laedt externe Lightmaps gar nicht
+    // (NRC#98, das Build-Menue sperrt dort schon -external).
+    {
+        const bool stile = lichtstile(a);
+        const bool jk2 = o.spiel == GrenzSpiel::Jk2;
+        Befund el = neu("lightmapextern", Schwere::Fehler,
+                        "q3map2 shaders.cpp q3map_lightmapSize (lmCustomWidth/Height), lightmaps_ydnar.cpp StoreSurfaceLightmaps (custom $lightmap shader for the first stage only: "
+                        "\"fixme: make this work with light styles\"); NRC#48 (light styles, RBSP), NRC#98 (Jedi Outcast)");
+        if (stile || jk2) {
+            for (std::size_t e = 0; e < ents.size(); ++e) {
+                for (std::size_t pi = 0; pi < ents[e].prims.size(); ++pi) {
+                    const AbbildPrimitiv& p = ents[e].prims[pi];
+                    std::vector<std::string> namen;
+                    if (p.patch) { namen.push_back(p.shader); }
+                    for (const AbbildFlaeche& f : p.flaechen) { namen.push_back(f.shader); }
+                    for (const std::string& n : namen) {
+                        const ShaderArt& art = artVon(o, n, vorrat);
+                        if (!art.sichtbar || art.lightmapBreite <= 0 || (art.lightmapBreite == 128 && art.lightmapHoehe == 128)) { continue; }
+                        add(el, ObjektRef{static_cast<int>(e), static_cast<int>(pi), -1, stelle(ents[e], static_cast<int>(e), static_cast<int>(pi)) + ": " + n});
+                        break;
+                    }
+                }
+            }
+        }
+        if (el.anzahl > 0) {
+            if (jk2) {
+                detailSetzen(el, "%s brushes or patches with q3map_lightmapSize: Jedi Outcast cannot load external lightmaps", {std::to_string(el.anzahl)});
+            } else {
+                detailSetzen(el, "%s brushes or patches with q3map_lightmapSize next to light styles: external lightmaps lose the style stages", {std::to_string(el.anzahl)});
+            }
+            out.push_back(el);
         }
     }
     messen("bekannt");
@@ -1086,6 +1189,9 @@ ShaderSkript shaderSkriptLesen(const std::string& text, const std::string& name)
             } else if (k == "q3map_backsplash" && j + 2 < w.size()) {   // shaders.cpp:1248-1252
                 r.backsplashAnteil = std::atof(w[j + 1].c_str()) * 0.01;
                 r.backsplashWeite = std::atof(w[j + 2].c_str());
+            } else if (k == "q3map_lightmapsize" && j + 2 < w.size()) {   // shaders.cpp: lmCustomWidth/Height (Stufe 6)
+                r.lightmapBreite = std::atoi(w[j + 1].c_str());
+                r.lightmapHoehe = std::atoi(w[j + 2].c_str());
             } else if (k == "surfaceparm" && j + 1 < w.size()) {
                 const std::string parm = klein(w[j + 1]);
                 if (parm == "sky") { r.himmel = true; }

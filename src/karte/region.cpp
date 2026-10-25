@@ -21,6 +21,7 @@
 #include "bhed/karte/eklasse.h"
 #include "bhed/karte/komponenten.h"
 #include "bhed/karte/modell.h"
+#include "bhed/karte/optimierer.h"
 #include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
 
@@ -328,6 +329,54 @@ std::string regionText(Karte& k, const Region& r, const Vektor3f& kameraUrsprung
     for (const auto& w : waende) { welt->kindEntfernen(w.get()); }   // ~ScopeRegionBrushes
     k.entitaetEntfernen(start.get());
     return text;
+}
+
+namespace {
+
+// Liegt p in einem festen strukturellen Pinsel der Region (worldspawn, func_group)?
+bool imFestenPinsel(const Karte& k, const Vektor3f& p) {
+    const Vektor3d pd(p[0], p[1], p[2]);
+    for (const auto& e : k.entitaeten()) {
+        if (e->ausgeschlossen) { continue; }
+        const std::string& klasse = e->klassenname();
+        if (klasse != "worldspawn" && klasse != "func_group") { continue; }
+        for (const auto& kind : e->kinder()) {
+            if (kind->ausgeschlossen) { continue; }
+            const auto* pin = dynamic_cast<const Pinsel*>(kind.get());
+            if (pin == nullptr || pin->istDetail() || pin->flaechen().empty()) { continue; }
+            bool drin = true;
+            bool fest = true;
+            for (const auto& f : pin->flaechen()) {
+                const ShaderArt a = shaderArtNachName(f->shader());
+                fest = fest && a.undurchsichtig && !a.werkzeug;
+                drin = drin && abstandZuPunkt(f->ebene(), pd) < -0.1;
+            }
+            if (drin && fest) { return true; }
+        }
+    }
+    return false;
+}
+
+}  // namespace
+
+bool regionStartImFesten(const Karte& k, const Region& r, const Vektor3f& kameraUrsprung) {
+    // der Startpunkt wie in regionText
+    const Vektor3f mn = r.min - Vektor3f(256, 256, 8);
+    const Vektor3f mx = r.max + Vektor3f(256, 256, 512);
+    Vektor3f spawn = kameraUrsprung;
+    for (std::size_t i = 0; i < 3; ++i) {
+        spawn[i] = std::max(spawn[i], mn[i] + 64);
+        spawn[i] = std::min(spawn[i], mx[i] - 64);
+    }
+    // eine andere Entity der Region im Freien: q3map2 flutet von dort
+    for (const auto& e : k.entitaeten()) {
+        if (e->ausgeschlossen || e->klassenname() == "worldspawn" || !e->kinder().empty()) { continue; }
+        const std::string o = e->wert("origin");
+        float v[3] = {0, 0, 0};
+        if (o.empty() || std::sscanf(o.c_str(), "%f %f %f", &v[0], &v[1], &v[2]) != 3) { continue; }
+        if (!imFestenPinsel(k, Vektor3f(v[0], v[1], v[2]))) { return false; }
+    }
+    return imFestenPinsel(k, spawn);
 }
 
 }  // namespace bhed::karte

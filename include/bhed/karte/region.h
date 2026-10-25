@@ -96,6 +96,12 @@ void regionPinselBauen(const std::array<Pinsel*, 6>& pinsel, const Vektor3f& min
 // (Map_Traverse_Region). kameraGier in Grad (CAMERA_YAW).
 [[nodiscard]] std::string regionText(Karte& k, const Region& r, const Vektor3f& kameraUrsprung, float kameraGier,
                                      const std::string& kastenShader, std::vector<std::string>* meldungen = nullptr);
+// Stufe 6 (NRC#132, ABSICHT in NRC): leckt der Region-Bau? Der Startpunkt der Region-Karte
+// (die Kamera, in den Kasten gezogen wie in regionText) liegt in einem festen
+// strukturellen Pinsel, und keine andere Entity der Region steht im Freien - dann findet
+// q3map2 (FloodEntities) keine Luft und meldet ein Leck. Fest = nicht detail, deckender
+// Shader, kein Werkzeug (shaderArtNachName des Optimierers).
+[[nodiscard]] bool regionStartImFesten(const Karte& k, const Region& r, const Vektor3f& kameraUrsprung);
 
 }  // namespace bhed::karte
 

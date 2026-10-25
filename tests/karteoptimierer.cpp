@@ -19,6 +19,7 @@
 #include "bhed/karte/optimierer.h"
 #include "bhed/karte/patchkollision.h"
 #include "bhed/pk3.h"
+#include "bhed/i18n.h"
 
 #include <chrono>
 #include <cmath>
@@ -1042,6 +1043,27 @@ void testeBekannteFehler(const std::string& q3dir) {
         o.bauBefehle = ext;
         pruefe(anzahlVon(pruefeKarte(abbildAus(welt), o), "baubefehl") == 1, "Optimierer: Befund baubefehl fuer JK2 mit -external");
     }
+    // Stufe 6: Shader mit q3map_lightmapSize (externe Lightmaps) neben Lichtstilen (NRC#48) / in JK2 (NRC#98)
+    {
+        const std::string welt = entText("worldspawn", "", kastenText(-64, -64, -16, 64, 64, 0, "test/gross") + kastenText(-64, -64, 64, 64, 64, 80, "test/x"));
+        const std::string stil = entText("light", "\"origin\" \"0 0 32\"\n\"style\" \"5\"\n", "");
+        PruefOptionen o = pruefOpt();
+        ShaderArt gross;
+        gross.lightmapBreite = 512;
+        gross.lightmapHoehe = 512;
+        o.shader["textures/test/gross"] = gross;
+        pruefe(anzahlVon(pruefeKarte(abbildAus(welt + stil), o), "lightmapextern") == 1, "q3map_lightmapSize 512 und ein Lichtstil (JKA): 1 Pinsel (NRC#48)");
+        pruefe(anzahlVon(pruefeKarte(abbildAus(welt), o), "lightmapextern") == 0, "q3map_lightmapSize 512 ohne Lichtstil (JKA): kein Befund");
+        o.spiel = GrenzSpiel::Jk2;
+        pruefe(anzahlVon(pruefeKarte(abbildAus(welt), o), "lightmapextern") == 1, "q3map_lightmapSize 512 in Jedi Outcast: 1 Pinsel auch ohne Stil (NRC#98)");
+        o.spiel = GrenzSpiel::JkaSp;
+        gross.lightmapBreite = 128;
+        gross.lightmapHoehe = 128;
+        o.shader["textures/test/gross"] = gross;
+        pruefe(anzahlVon(pruefeKarte(abbildAus(welt + stil), o), "lightmapextern") == 0, "q3map_lightmapSize 128 mit Lichtstil: kein Befund");
+        const ShaderSkript sk = shaderSkriptLesen("textures/test/gross\n{\n\tq3map_lightmapSize 256 512 // extern\n}\n", "textures/test/gross");
+        pruefe(sk.gefunden && sk.lightmapBreite == 256 && sk.lightmapHoehe == 512, "Shader-Skript: q3map_lightmapSize 256 512 gelesen");
+    }
     // common/origin statt system/origin (NRC#270)
     {
         const std::string t = entText("worldspawn", "", kastenText(-64, -64, -16, 64, 64, 0, "test/boden")) +
@@ -1115,6 +1137,22 @@ void testeBekannteFehler(const std::string& q3dir) {
 }
 
 int main(int argc, char** argv) {
+    {   // Stufe 6 (Punkt 5): Vorlagen der Befund-Angaben und ihre Uebersetzung (KeOptD01..)
+        bool gleich = bhed::karte::kOptimiererDetailVorlagenAnzahl == 32;
+        for (std::size_t i = 0; i < bhed::karte::kOptimiererDetailVorlagenAnzahl; ++i) {
+            char name[16];
+            std::snprintf(name, sizeof(name), "KeOptD%02zu", i + 1);
+            bhed::i18n::Str id{};
+            if (!bhed::i18n::strVonName(name, &id) ||
+                std::strcmp(bhed::i18n::trIn(bhed::i18n::Language::English, id), bhed::karte::kOptimiererDetailVorlagen[i]) != 0) {
+                std::printf("FEHL  Vorlage %zu (%s) ohne passende Uebersetzung %s\n", i, bhed::karte::kOptimiererDetailVorlagen[i], name);
+                gleich = false;
+            }
+        }
+        pruefe(gleich, "Optimierer: jede Vorlage einer Befund-Angabe hat ihre Uebersetzung KeOptD.. in derselben Reihenfolge");
+        pruefe(bhed::karte::detailText("%s = %s (%s %)", {"a", "1", "50"}) == "a = 1 (50 %)", "detailText setzt der Reihe nach ein, % bleibt");
+    }
+
     testeKartenGrenzen();
     testePatchKollision();
     testeBsp();

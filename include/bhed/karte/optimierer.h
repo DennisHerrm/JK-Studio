@@ -196,6 +196,10 @@ struct Befund {
     Schwere schwere = Schwere::Hinweis;
     std::string quelle;              // Engine-/q3map2-Stelle oder Tutorial
     std::string detail;              // Technisches (Englisch, fuer den Bericht)
+    // Stufe 6 (Punkt 5): dieselbe Angabe als englische Vorlage mit %s und den Werten - die
+    // Oberflaeche uebersetzt die Vorlage (kOptimiererDetailVorlagen) und setzt die Werte ein.
+    std::string detailVorlage;
+    std::vector<std::string> detailWerte;
     long long anzahl = 0;            // wie viele (Flaechen, Pinsel, Paare, ...)
     std::vector<ObjektRef> objekte;  // die betroffenen Objekte
     Behebung behebung = Behebung::Keine;
@@ -218,8 +222,17 @@ struct ShaderArt {
     double backsplashWeite = 23.0;   // q3map_backsplash ... <Abstand> (q3map2.h:101 DEF_BACKSPLASH_DISTANCE)
     bool himmel = false;             // surfaceparm sky
     bool ursprung = false;           // surfaceparm origin (games.cpp:803 C_ORIGIN): ein Ursprungs-Pinsel
+    int lightmapBreite = 0;          // q3map_lightmapSize W H (0: nicht gesetzt) - Stufe 6, NRC#48/#98
+    int lightmapHoehe = 0;
 };
 [[nodiscard]] ShaderArt shaderArtNachName(const std::string& shader);
+// Stufe 6: "%s" der Vorlage der Reihe nach durch die Werte ersetzen (sonst nichts, auch kein %%).
+[[nodiscard]] std::string detailText(const std::string& vorlage, const std::vector<std::string>& werte);
+// setzt detailVorlage, detailWerte und detail (englisch)
+void detailSetzen(Befund& b, const char* vorlage, std::vector<std::string> werte);
+// alle Vorlagen, die der Optimierer benutzt (fuer die Uebersetzung und ihren Test)
+extern const char* const kOptimiererDetailVorlagen[];
+extern const std::size_t kOptimiererDetailVorlagenAnzahl;
 // Was q3map2 aus dem Skript eines Shaders liest, das der Optimierer braucht
 // (shaders.cpp ParseShaderFile: q3map_surfacelight, q3map_backsplash,
 // surfaceparm sky / origin). text = der Inhalt der .shader-Datei.
@@ -230,6 +243,8 @@ struct ShaderSkript {
     double backsplashWeite = 23.0;
     bool himmel = false;
     bool ursprung = false;
+    int lightmapBreite = 0;   // q3map_lightmapSize (shaders.cpp: si.lmCustomWidth/Height)
+    int lightmapHoehe = 0;
 };
 [[nodiscard]] ShaderSkript shaderSkriptLesen(const std::string& text, const std::string& name);
 

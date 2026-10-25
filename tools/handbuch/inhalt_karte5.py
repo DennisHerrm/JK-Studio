@@ -41,6 +41,7 @@ _PRUEFUNGEN = [
     ("KeOptPrRiesig", None, False),
     ("KeOptPrLichtleck", None, False),
     ("KeOptPrBaubefehl", None, False),
+    ("KeOptPrLightmapExtern", None, False),
 ]
 
 _OFFEN = T("open: no Jedi Outcast source - checked against the Jedi Academy value",

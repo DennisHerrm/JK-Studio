@@ -16,6 +16,10 @@ Faelle:
   nrc102   Kartenname mit Punkt (test.q3.map, foo_0.1.map, GL#154): -bsp,
            -vis, -light mit vollem Pfad (wie der Editor) und ohne Endung;
            .bsp/.prt/.srf heissen wie die Karte, -light findet die .srf
+  gt113    -patchmeta behaelt Patches mit surfaceparm playerclip (Kollision)
+  gl143    -meta -patchmeta: die Patches werden Dreiecke, die Ausgabe ist nicht leer
+  gl108    q3map_lightmapBrightness 0.25 macht die Lightmap einer Flaeche dunkler
+  gl128    q3map_lightSubdivide teilt ein Flaechenlicht, der Backsplash bleibt
 """
 import os
 import shutil
@@ -206,7 +210,118 @@ def nrc102(exe, ordner):
     return fehler
 
 
-FAELLE = {'nrc270': nrc270, 'nrc43': nrc43, 'nrc72': nrc72, 'nrc101': nrc101, 'nrc102': nrc102}
+PATCH = ('{' + NL + 'patchDef2' + NL + '{' + NL + '%s' + NL + '( 3 3 0 0 0 )' + NL + '(' + NL +
+         '( ( -96 -96 0 0 0 ) ( -96 0 64 0 0.5 ) ( -96 96 0 0 1 ) )' + NL +
+         '( ( 0 -96 64 0.5 0 ) ( 0 0 128 0.5 0.5 ) ( 0 96 64 0.5 1 ) )' + NL +
+         '( ( 96 -96 0 1 0 ) ( 96 0 64 1 0.5 ) ( 96 96 0 1 1 ) )' + NL + ')' + NL + '}' + NL + '}' + NL)
+
+
+def raum_mit(extra_welt='', licht=True, boden='base/floor'):
+    w = '{' + NL + '"classname" "worldspawn"' + NL
+    w += kasten(-256, -256, -16, 256, 256, 0, boden) + kasten(-256, -256, 256, 256, 256, 272, 'base/floor')
+    w += kasten(-272, -256, 0, -256, 256, 256, 'base/wall') + kasten(256, -256, 0, 272, 256, 256, 'base/wall')
+    w += kasten(-256, -272, 0, 256, -256, 256, 'base/wall') + kasten(-256, 256, 0, 256, 272, 256, 'base/wall')
+    w += extra_welt + '}' + NL
+    if licht:
+        w += '{' + NL + '"classname" "light"' + NL + '"origin" "0 0 192"' + NL + '"light" "300"' + NL + '}' + NL
+    w += '{' + NL + '"classname" "info_player_start"' + NL + '"origin" "-128 0 24"' + NL + '}' + NL
+    return w
+
+
+def shader_datei(ordner, text):
+    os.makedirs(os.path.join(ordner, 'base', 'shaders'), exist_ok=True)
+    schreiben(os.path.join(ordner, 'base', 'shaders', 's6.shader'), text)
+
+
+def flaechen_je_shader(l):
+    shader = [l[1][i:i + 64].split(NUL)[0].decode('latin-1') for i in range(0, len(l[1]), 72)]
+    out = []
+    for i in range(0, len(l[13]), 148):
+        sh, _, typ = struct.unpack_from('<3i', l[13], i)
+        out.append((shader[sh] if 0 <= sh < len(shader) else '?', typ))
+    return out
+
+
+def gt113(exe, ordner):
+    shader_datei(ordner, 'textures/s6/clip' + NL + '{' + NL + '\tsurfaceparm nodraw' + NL + '\tsurfaceparm nolightmap' + NL + '\tsurfaceparm nonsolid' + NL +
+                 '\tsurfaceparm trans' + NL + '\tsurfaceparm nomarks' + NL + '\tsurfaceparm playerclip' + NL + '}' + NL)
+    karte = os.path.join(ordner, 'g113.map')
+    schreiben(karte, raum_mit(PATCH % 's6/clip'))
+    rc, _ = lauf(exe, ['-game', 'ja', '-fs_basepath', ordner, '-bsp', '-meta', '-patchmeta', karte], ordner)
+    l = lumps(os.path.join(ordner, 'g113.bsp'))
+    f = flaechen_je_shader(l) if l else []
+    patches = [x for x in f if x == ('textures/s6/clip', 2)]
+    gut = rc == 0 and len(patches) == 1
+    print(('ok    ' if gut else 'FEHL  ') + 'gt113: -patchmeta mit playerclip-Patch: %d Kollisions-Patch(es) in der BSP (soll 1)' % len(patches))
+    return 0 if gut else 1
+
+
+def gl143(exe, ordner):
+    karte = os.path.join(ordner, 'g143.map')
+    schreiben(karte, raum_mit(PATCH % 'base/patch'))
+    rc, _ = lauf(exe, ['-game', 'ja', '-fs_basepath', ordner, '-bsp', '-meta', '-patchmeta', '-subdivisions', '8', karte], ordner)
+    l = lumps(os.path.join(ordner, 'g143.bsp'))
+    f = flaechen_je_shader(l) if l else []
+    dreiecke = [x for x in f if x[0] == 'textures/base/patch' and x[1] != 2]   # Meta-Flaechen (planar oder Dreiecks-Suppe)
+    kollision = [x for x in f if x == ('textures/base/patch', 2)]
+    gut = rc == 0 and len(dreiecke) >= 1 and len(kollision) == 1 and len(l[11]) > 0
+    print(('ok    ' if gut else 'FEHL  ') + 'gl143: -meta -patchmeta: %d Dreiecks-Flaeche(n) und %d Kollisions-Patch aus dem Patch, %d Indizes' %
+          (len(dreiecke), len(kollision), len(l[11]) // 4 if l else 0))
+    return 0 if gut else 1
+
+
+def mittel_je_shader(l, name):
+    """Mittlerer Lightmap-Wert der Flaechen eines Shaders (ueber die Lightmap-ST der Ecken)."""
+    shader = [l[1][i:i + 64].split(NUL)[0].decode('latin-1') for i in range(0, len(l[1]), 72)]
+    werte = []
+    for i in range(0, len(l[13]), 148):
+        sh, _, typ, erste, anzahl = struct.unpack_from('<5i', l[13], i)
+        num = struct.unpack_from('<i', l[13], i + 36)[0]
+        if not (0 <= sh < len(shader)) or shader[sh] != name or num < 0:
+            continue
+        uv = [struct.unpack_from('<2f', l[10], (erste + k) * 80 + 20) for k in range(anzahl)]
+        us = [t[0] * 128 for t in uv]
+        vs = [t[1] * 128 for t in uv]
+        for y in range(int(min(vs)) + 1, int(max(vs)) - 1):
+            for x in range(int(min(us)) + 1, int(max(us)) - 1):
+                o = num * 128 * 128 * 3 + (y * 128 + x) * 3
+                werte.append(sum(l[14][o:o + 3]) / 3.0)
+    return sum(werte) / len(werte) if werte else 0.0
+
+
+def gl108(exe, ordner):
+    shader_datei(ordner, 'textures/s6/dunkel' + NL + '{' + NL + '\tq3map_lightmapBrightness 0.25' + NL + '}' + NL)
+    werte = {}
+    for name, boden in (('normal', 's6/hell'), ('dunkel', 's6/dunkel')):
+        karte = os.path.join(ordner, 'g108%s.map' % name)
+        schreiben(karte, raum_mit(boden=boden))
+        rc1, _ = lauf(exe, ['-game', 'ja', '-fs_basepath', ordner, '-bsp', '-meta', karte], ordner)
+        rc2, _ = lauf(exe, ['-game', 'ja', '-fs_basepath', ordner, '-light', '-fast', karte], ordner)
+        l = lumps(os.path.join(ordner, 'g108%s.bsp' % name))
+        werte[name] = mittel_je_shader(l, 'textures/' + boden) if l and not rc1 and not rc2 else 0.0
+    q = werte['dunkel'] / werte['normal'] if werte['normal'] else 0.0
+    gut = werte['normal'] > 5 and 0.15 < q < 0.4
+    print(('ok    ' if gut else 'FEHL  ') + 'gl108: q3map_lightmapBrightness 0.25: Boden %.1f gegen %.1f, Verhaeltnis %.2f (soll ~0.25)' % (werte['dunkel'], werte['normal'], q))
+    return 0 if gut else 1
+
+
+def gl128(exe, ordner):
+    zahlen = {}
+    for name, unterteilung in (('ohne', ''), ('mit', '\tq3map_lightSubdivide 32' + NL)):
+        shader_datei(ordner, 'textures/s6/lampe' + NL + '{' + NL + '\tq3map_surfacelight 2000' + NL + unterteilung + '}' + NL)
+        karte = os.path.join(ordner, 'g128%s.map' % name)
+        schreiben(karte, raum_mit(kasten(-64, -64, 240, 64, 64, 256, 's6/lampe'), licht=False))
+        rc1, _ = lauf(exe, ['-game', 'ja', '-fs_basepath', ordner, '-bsp', '-meta', karte], ordner)
+        rc2, aus = lauf(exe, ['-game', 'ja', '-fs_basepath', ordner, '-light', '-fast', '-v', karte], ordner)
+        m = [z for z in aus.split('\n') if 'diffuse (area) lights' in z]
+        zahlen[name] = int(m[-1].split()[0]) if m and not rc1 and not rc2 else -1
+    # q3map_backsplash (Vorgabe 0.05) legt zu jedem Flaechenlicht ein zweites an: die Zahl ist gerade
+    gut = zahlen['ohne'] > 0 and zahlen['mit'] > zahlen['ohne'] and zahlen['mit'] % 2 == 0 and zahlen['ohne'] % 2 == 0
+    print(('ok    ' if gut else 'FEHL  ') + 'gl128: Flaechenlichter ohne q3map_lightSubdivide %d, mit 32 %d (mehr, mit Backsplash je Licht)' % (zahlen['ohne'], zahlen['mit']))
+    return 0 if gut else 1
+
+
+FAELLE = {'nrc270': nrc270, 'nrc43': nrc43, 'nrc72': nrc72, 'nrc101': nrc101, 'nrc102': nrc102, 'gt113': gt113, 'gl143': gl143, 'gl108': gl108, 'gl128': gl128}
 
 
 def main():

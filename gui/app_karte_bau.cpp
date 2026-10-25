@@ -1552,6 +1552,9 @@ void bauStarten(std::size_t index) {
     if (ed.region.aktiv) {   // Map_SaveRegion( <map>.reg )
         const std::string karte = ed.name.substr(0, ed.name.rfind('.') == std::string::npos ? ed.name.size() : ed.name.rfind('.'));
         (void)regionSpeichernUnter(karte + ".reg");
+        // Stufe 6 (NRC#132): NRC baut trotzdem und meldet das Leck erst danach (ABSICHT) -
+        // hier vorher ein Hinweis mit Grund und Ausweg; gebaut wird wie in NRC.
+        if (karte::regionStartImFesten(ed.karte, ed.region, ed.kamera.ursprung)) { warnung(trK(Str::KeRegionLeckHinweis)); }
     }
     // if( !g_region_active && g_SnapShots_Enabled && Map_Modified( g_map ) ) Map_Snapshot(); -
     // nach SaveMap ist die Karte nicht mehr geaendert: der Zweig wirkt nur, wenn

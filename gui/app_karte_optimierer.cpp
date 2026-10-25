@@ -132,6 +132,7 @@ constexpr PruefText kPruefTexte[] = {
     {"riesenpinsel", Str::KeOptPrRiesig, Str::KeOptPrRiesigE},
     {"flaechenlichtleck", Str::KeOptPrLichtleck, Str::KeOptPrLichtleckE},
     {"baubefehl", Str::KeOptPrBaubefehl, Str::KeOptPrBaubefehlE},
+    {"lightmapextern", Str::KeOptPrLightmapExtern, Str::KeOptPrLightmapExternE},   // Stufe 6 (NRC#48/#98)
 };
 const PruefText* pruefText(const std::string& id) {
     for (const PruefText& p : kPruefTexte) {
@@ -292,6 +293,8 @@ void shaderArten(const karte::KartenAbbild& a, karte::PruefOptionen& o) {
                 art.backsplashWeite = sk.backsplashWeite;
                 art.himmel = sk.himmel;
                 art.ursprung = sk.ursprung;
+                art.lightmapBreite = sk.lightmapBreite;   // Stufe 6 (NRC#48/#98)
+                art.lightmapHoehe = sk.lightmapHoehe;
             }
             const unsigned f = s->flags;
             if ((f & (QER_TRANS | QER_NONSOLID | QER_FOG | QER_LIQUID | QER_ALPHATEST | QER_AREAPORTAL | QER_CLIP | QER_BOTCLIP)) != 0) {
@@ -541,6 +544,18 @@ void optimiererBeenden() { fadenAbwarten(); }
 
 // --- Bericht ---------------------------------------------------------------------------
 
+// Stufe 6 (Punkt 5): die Angabe eines Befunds in der Programmsprache - der Kern liefert
+// die englische Vorlage (kOptimiererDetailVorlagen) und die Werte, KeOptD01.. in derselben
+// Reihenfolge die Uebersetzung (Test: karte_optimierer).
+std::string befundDetail(const Befund& b) {
+    static const Str kIds[] = {Str::KeOptD01, Str::KeOptD02, Str::KeOptD03, Str::KeOptD04, Str::KeOptD05, Str::KeOptD06, Str::KeOptD07, Str::KeOptD08, Str::KeOptD09, Str::KeOptD10, Str::KeOptD11, Str::KeOptD12, Str::KeOptD13, Str::KeOptD14, Str::KeOptD15, Str::KeOptD16, Str::KeOptD17, Str::KeOptD18, Str::KeOptD19, Str::KeOptD20, Str::KeOptD21, Str::KeOptD22, Str::KeOptD23, Str::KeOptD24, Str::KeOptD25, Str::KeOptD26, Str::KeOptD27, Str::KeOptD28, Str::KeOptD29, Str::KeOptD30, Str::KeOptD31, Str::KeOptD32};
+    for (std::size_t i = 0; i < karte::kOptimiererDetailVorlagenAnzahl && i < sizeof(kIds) / sizeof(kIds[0]); ++i) {
+        if (b.detailVorlage == karte::kOptimiererDetailVorlagen[i]) { return karte::detailText(trK(kIds[i]), b.detailWerte); }
+    }
+    return b.detail;
+}
+
+
 std::string optimiererBericht() {
     std::ostringstream o;
     if (!g_z.e) {
@@ -572,7 +587,7 @@ std::string optimiererBericht() {
     }
     o << "\n== " << trK(Str::KeOptReiterBefunde) << " ==\n";
     for (const Befund* b : sichtbareBefunde()) {
-        o << "[" << schwereText(b->schwere) << "] " << befundTitel(*b) << ": " << b->anzahl << " - " << b->detail << "\n";
+        o << "[" << schwereText(b->schwere) << "] " << befundTitel(*b) << ": " << b->anzahl << " - " << befundDetail(*b) << "\n";
         const PruefText* p = pruefText(b->pruefung);
         if (p != nullptr) { o << "    " << trK(p->erklaerung) << "\n"; }
         o << "    " << trK(Str::KeOptQuelle) << " " << b->quelle << "\n";
@@ -925,7 +940,7 @@ void zeichneOptimierer() {
         ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ampelFarbe(ampelVonSchwere(b->schwere))), "%s - %s: %lld", schwereText(b->schwere), befundTitel(*b), b->anzahl);
         if (const PruefText* p = pruefText(b->pruefung)) { ImGui::TextUnformatted(trK(p->erklaerung)); }
         ImGui::Text("%s %s", trK(Str::KeOptQuelle), b->quelle.c_str());
-        if (!b->detail.empty()) { ImGui::TextDisabled("%s", b->detail.c_str()); }
+        if (!b->detail.empty()) { ImGui::TextDisabled("%s", befundDetail(*b).c_str()); }   // Stufe 6: uebersetzt
         ImGui::Text("%s %s - %s%s", trK(Str::KeOptVorschau), behebungText(b->behebung), karte::behebungsVorschau(*b).c_str(),
                     b->sicher ? (std::string(" (") + trK(Str::KeOptSicher) + ")").c_str() : "");
         ImGui::TextDisabled("%s", trK(Str::KeOptObjekte));

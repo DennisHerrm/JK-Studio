@@ -2596,6 +2596,49 @@ std::vector<Schritt> funde() {
                        return englisch && hinweis == deutsch;
                    }));
     }
+    // NRC#132 (ABSICHT in NRC): der Region-Bau leckt, wenn die Region keine Entity hat und die
+    // Kamera in einem Pinsel steht (der Startpunkt der Region-Karte liegt dann im Festen).
+    // BehavEd nennt das vor dem Bau; gebaut wird wie in NRC. Gegenprobe: Kamera im Freien.
+    for (const bool imPinsel : {true, false}) {
+        add(tu(std::string("NRC#132: Raum ohne Entities, Region um den Raum, Kamera ") + (imPinsel ? "in der Wand" : "im Freien") + ", Build > [Final] Fast",
+               [imPinsel] {
+                   grundzustand();
+                   std::string t = stufe3::raumKarte(false);
+                   const std::size_t zweite = t.find("// entity 1");
+                   if (zweite != std::string::npos) { t.resize(zweite); }
+                   const std::string pfad = karteTestPfad("s6_nrc132.map");
+                   (void)textSchreiben(pfad, t);
+                   (void)ke::karteOeffnen(pfad);
+                   ke::Editor& e = ke::editor();
+                   e.region.aktiv = true;
+                   e.region.min = karte::Vektor3f(-600, -300, -50);
+                   e.region.max = karte::Vektor3f(600, 300, 300);
+                   karte::regionAnwenden(e.karte, e.region);
+                   e.kamera.ursprung = imPinsel ? karte::Vektor3f(0, 264, 128) : karte::Vektor3f(-300, 100, 128);   // Wand y 256..272 / frei
+                   ke::konsoleLeeren();
+                   e.bau = ke::Editor::BauEinstellungen{};
+                   ke::bauMenueSicherstellen();
+                   const int i = stufe3::eintragNr("[Final] Fast");
+                   if (i >= 0) { ke::bauStarten(static_cast<std::size_t>(i)); }
+               }));
+        add(warteBis("NRC#132: Bauen fertig", [] { return !ke::bauLaeuft(); }, 6000));
+        add(pruefe(std::string("NRC#132: ") + (imPinsel ? "Hinweis vor dem Bau (Kamera in der Wand, keine Entity)" : "kein Hinweis (Kamera im Freien)"), [imPinsel] {
+            const ke::Editor& e = ke::editor();
+            bool hinweis = false;
+            bool leck = false;
+            for (const auto& z : e.konsole) {
+                hinweis = hinweis || z.text == ke::trK(Str::KeRegionLeckHinweis);
+                leck = leck || z.text.find("LEAKED") != std::string::npos || z.text.find("leaked") != std::string::npos;
+            }
+            diag::detail(std::string("Knopftest: Stufe 6 - NRC#132: Hinweis ") + (hinweis ? "ja" : "nein") + ", q3map2 leaked " + (leck ? "ja" : "nein"));
+            return hinweis == imPinsel && leck == imPinsel;
+        }));
+    }
+    add(tu("NRC#132: Region aus", [] {
+        ke::Editor& e = ke::editor();
+        karte::regionAus(e.karte, e.region, e.raster.maxKoord());
+        grundzustand();
+    }));
     // NRC-master nach 20260114: cc96c84 (Door Builder: die zweite Ausrichtung hiess auch
     // "North - South") und 7027470 ("Distance Multipler"); mit den Begriffen wie NetRadiant
     add(tu("NRC master: Begriffe wie NetRadiant, Pinsel A, bobToolz Door Builder", [] {
