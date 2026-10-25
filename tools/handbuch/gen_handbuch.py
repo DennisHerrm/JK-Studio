@@ -88,6 +88,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in KARTE4})
             from i18n_karte4b import KARTE4B   # Stufe 4: die Dialoge der Plugins
             texte.update({e[0]: e[1:] for e in KARTE4B})
+            from i18n_karte5 import KARTE5   # Stufe 5: der Optimierer und die Grenzen
+            texte.update({e[0]: e[1:] for e in KARTE5})
             return texte
     raise SystemExit("gen_i18n.py: Liste S nicht gefunden")
 

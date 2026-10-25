@@ -107,6 +107,11 @@ KARTE_BAUEN = {
             "Folge der Linie, bis sie die Karte verlässt - dort ist das Loch. Schließe es und baue noch einmal. **{{KeLFile}} > {{KeLPointfile}}** schaltet die Linie aus und ein (sie liest `<Karte>.lin`); Speichern nimmt sie weg.",
             "沿着线走,直到它离开地图——洞就在那里。把它堵上再编译一次。**{{KeLFile}} > {{KeLPointfile}}** 关闭或打开这条线(读取 `<地图>.lin`);保存地图时线会消失。",
             "線をたどってマップの外に出るところを探します。そこが穴です。穴をふさいで、もう一度ビルドします。**{{KeLFile}} > {{KeLPointfile}}** で線を消したり表示したりします(`<マップ>.lin` を読みます)。マップを保存すると線は消えます。")),
+        ("note", T(
+            "**{{KeLBuild}} > {{KeOptMenue}}** also shows the leak and detail brushes the line passes through - detail does not seal. It counts the map against the limits of the game and finds other build problems: [[karte_optimierer]].",
+            "**{{KeLBuild}} > {{KeOptMenue}}** zeigt das Leck ebenfalls, dazu Detail-Pinsel, durch die die Linie läuft - detail dichtet nicht ab. Er zählt die Karte gegen die Grenzen des Spiels und findet weitere Bauprobleme: [[karte_optimierer]].",
+            "**{{KeLBuild}} > {{KeOptMenue}}** 同样会显示泄漏,以及泄漏线穿过的 detail 笔刷——detail 不能封闭地图。它还会把地图与游戏的各项限制进行比较,并查找其他编译问题:[[karte_optimierer]]。",
+            "**{{KeLBuild}} > {{KeOptMenue}}** でもリークを確認でき、線が通る detail ブラシも表示されます(detail は密閉しません)。さらに、マップをゲームの上限と比べ、ほかのビルド上の問題も見つけます:[[karte_optimierer]]。")),
         ("h2", "portale", T("Showing portals", "Portale anzeigen", "显示门户", "ポータルを表示する")),
         ("imgs", [
             ("h_kartebauen_prtladen", T("Plugins > prtview > Load .prt file", "Plugins > prtview > Load .prt file", "Plugins > prtview > Load .prt file", "Plugins > prtview > Load .prt file")),

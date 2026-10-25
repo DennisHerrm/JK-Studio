@@ -16,6 +16,7 @@
 //   MovieDuels-Wurzel: Ordner mit code/ (SP\mdgit)
 //   q3map2-Wurzel: third_party/q3map2
 // Fehlt eine Wurzel, werden ihre Stellen uebersprungen (und gezaehlt).
+#include "bhed/i18n.h"
 #include "bhed/karte/grenzen.h"
 
 #include <cctype>
@@ -431,14 +432,68 @@ void pruefstellePruefen(const Grenze& g, const std::string& wo) {
     }
 }
 
+// Die Tabelle als JSON (fuer das Handbuch, tools/handbuch/grenzen.json):
+// je Spiel die Grenzen mit Wert, erlaubt, Vanilla, Art, hart, Stellen.
+std::string jsonText(const std::string& t) {
+    std::string o = "\"";
+    for (const char c : t) {
+        if (c == '"' || c == '\\') {
+            o += '\\';
+            o += c;
+        } else if (c == '\n') {
+            o += "\\n";
+        } else {
+            o += c;
+        }
+    }
+    return o + "\"";
+}
+std::string tabelleAlsJson() {
+    std::string o = "{\n";
+    for (int si = 0; si < kGrenzSpiele; ++si) {
+        const auto spiel = static_cast<GrenzSpiel>(si);
+        o += std::string(si > 0 ? ",\n" : "") + " " + jsonText(grenzSpielSchluessel(spiel)) + ": {\"name\": " + jsonText(grenzSpielName(spiel)) + ", \"grenzen\": [\n";
+        const std::vector<Grenze>& t = grenzen(spiel);
+        for (std::size_t i = 0; i < t.size(); ++i) {
+            const Grenze& g = t[i];
+            o += "  {\"id\": " + jsonText(g.id) + ", \"titel\": " + jsonText(bhed::i18n::strName(g.titel)) + ", \"art\": " + jsonText(grenzArtName(g.art)) +
+                 ", \"artTitel\": " + jsonText(bhed::i18n::strName(grenzArtTitel(g.art))) + ", \"name\": " + jsonText(g.name) +
+                 ", \"wert\": " + std::to_string(g.wert) + ", \"vanilla\": " + std::to_string(g.vanilla) + ", \"erlaubt\": " + std::to_string(g.erlaubt) +
+                 ", \"hart\": " + (g.hart ? "true" : "false") + ", \"jeObjekt\": " + (g.jeObjekt ? "true" : "false") +
+                 ", \"zaehlbar\": " + (g.zaehlbar ? "true" : "false") + ", \"offen\": " + (g.offen ? "true" : "false") + ", \"stellen\": [";
+            for (std::size_t k = 0; k < g.stellen.size(); ++k) {
+                const GrenzStelle& st = g.stellen[k];
+                o += std::string(k > 0 ? ", " : "") + jsonText(st.baum + " " + st.datei + ":" + std::to_string(st.zeile) + (st.name.empty() ? std::string() : " " + st.name));
+            }
+            o += "], \"pruefstelle\": " + jsonText(g.pruefstelle) + ", \"rechnung\": " + jsonText(g.rechnung) + ", \"vanillaQuelle\": " + jsonText(g.vanillaQuelle) +
+                 "}" + (i + 1 < t.size() ? "," : "") + "\n";
+        }
+        o += " ]}";
+    }
+    return o + "\n}\n";
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
+    // kartegrenzen --json <datei>: die Tabelle fuer das Handbuch schreiben
+    if (argc == 3 && std::string(argv[1]) == "--json") {
+        std::ofstream f(argv[2], std::ios::binary | std::ios::trunc);
+        f << tabelleAlsJson();
+        std::printf("kartegrenzen: %s geschrieben\n", argv[2]);
+        return f ? 0 : 1;
+    }
     if (argc < 4) {
-        std::printf("Aufruf: kartegrenzen <OpenJK-Wurzel|-> <MovieDuels-Wurzel|-> <q3map2-Wurzel>\n");
+        std::printf("Aufruf: kartegrenzen <OpenJK-Wurzel|-> <MovieDuels-Wurzel|-> <q3map2-Wurzel> [<grenzen.json>]\n"
+                    "        kartegrenzen --json <datei>\n");
         return 2;
     }
     for (int i = 0; i < 3; ++i) { g_wurzel[i] = argv[i + 1]; }
+    // Das Handbuch zeigt die Tabelle aus tools/handbuch/grenzen.json - sie muss zur Tabelle im Code passen
+    if (argc >= 5) {
+        const std::string json = lies(argv[4]);
+        pruefe(!json.empty() && json == tabelleAlsJson(), std::string("Handbuch: ") + argv[4] + " passt zur Tabelle (neu: kartegrenzen --json)");
+    }
 
     const char* kernIds[] = {"bsp.lichtgitter", "kollision.submodelle", "kollision.patchebenen", "kollision.patchfacetten",
                              "laufzeit.entitaeten", "laufzeit.modelle", "laufzeit.klaenge", "laufzeit.effekte",

@@ -38343,6 +38343,110 @@ std::vector<Schritt> karte4HandbuchSchritte() {
     return s;
 }
 
+// --- Stufe 5 Punkt 8: Bilder der Seite "Optimierer und Grenzen" ----------------
+//
+// BHED_EDITORTEST=handbuch mit BHED_HB_NUR=karte5. mp/duel1 aus den .pk3 des
+// Spiels, das Build-Menue mit dem Optimierer, das Fenster mit beiden Reitern,
+// die Vorschau einer Behebung und die Einstellungsseite.
+std::vector<Schritt> karte5HandbuchSchritte() {
+    namespace ke = karteneditor;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto menueBild = [] {
+        const ImGuiWindow* haupt = ImGui::FindWindowByName("###main");
+        ImRect m;
+        const ImGuiContext& g = *GImGui;
+        for (int i = 0; i < g.OpenPopupStack.Size; ++i) {
+            if (const ImGuiWindow* w = g.OpenPopupStack[i].Window) {
+                if (i == 0) {
+                    m = w->Rect();
+                } else {
+                    m.Add(w->Rect());
+                }
+            }
+        }
+        // der Tooltip des Eintrags (er sagt, dass NetRadiant-Custom keinen Optimierer hat)
+        if (const ImGuiWindow* t = ImGui::FindWindowByName("##Tooltip_00"); t != nullptr && t->Active) { m.Add(t->Rect()); }
+        if (haupt == nullptr) { return m; }
+        return ImRect{haupt->Pos.x, haupt->Pos.y, m.Max.x + 40.0F, m.Max.y + 20.0F};
+    };
+    const auto fenster = [] { return fensterRahmen("###karteoptimierer"); };
+    auto laeufe = std::make_shared<int>(0);
+    add(tu("Handbuch Stufe 5: Spielordner, Begriffe aus", [] {
+        if (g_app->gamePaths.empty()) { rescanGamePaths(); }
+        g_app->leftMode = 0;
+        ke::setzeNrcBegriffe(false);
+    }));
+    add(pause(0.3));
+    add(klick(tr(Str::ViewMapEditor), "###main"));
+    add(pause(0.3));
+    add(warteBis("Handbuch Stufe 5: Spieldaten geladen", [] {
+        ke::spielPruefen();
+        return ke::spielBereit();
+    }, 20000));
+    add(tu("Handbuch Stufe 5: bhed_q3map2, mp/duel1 oeffnen", [] {
+        karteDialogeZu();
+        stufe3::q3map2Bereitstellen();
+        ke::optimiererSchliessen();
+        ke::editor().optimierer = ke::Editor::OptimiererEinstellungen{};
+        std::error_code ec;
+        std::filesystem::remove_all(std::filesystem::path(platform::settingsDirectory()) / "karte_bsp" / "duel1", ec);
+        (void)ke::bspOeffnenSpiel("maps/mp/duel1.bsp");
+    }));
+    add(warteBis("Handbuch Stufe 5: duel1 geladen", [] { return ke::editor().bspHerkunft.aktiv; }, 3000));
+    add(warteBis("Handbuch Stufe 5: Texturen geladen", [] { return ke::kameraBilderFertig(); }, 6000));
+    // Build > Optimizer...
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.4));
+    add(tu("Maus auf Optimizer...", [] {
+        if (const Element* el = finde(std::string(ke::trK(Str::KeOptMenue)) + "##bauoptimierer", "", 0, true)) { setzeMaus(el->rect.GetCenter()); }
+    }));
+    add(pause(0.6));   // bis der Tooltip des Eintrags steht
+    add(hb::fotoTeil("h_karte5_menue", menueBild));
+    add(tu("Menue zu; Regelwerk Jedi Academy MP (duel1 ist eine MP-Karte), Optimizer oeffnen", [laeufe] {
+        karteDialogeZu();
+        ke::editor().optimierer.regelwerk = 1;   // karte::GrenzSpiel::JkaMp
+        *laeufe = ke::optimiererBlick().laeufe;
+        ke::optimiererOeffnen();
+    }));
+    add(warteBis("Handbuch Stufe 5: Optimierer fertig", [laeufe] { return !ke::optimiererLaeuft() && ke::optimiererBlick().laeufe > *laeufe; }, 3000));
+    // Reiter Grenzen, alle Zeilen, die Lightmaps gewaehlt (Quelle und Pruefstelle rechts)
+    add(tu("Reiter Grenzen; Nur Probleme aus", [] { ke::optimiererReiter(0); }));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeOptNurProbleme)) + "##optnurprobleme", "###karteoptimierer"));
+    add(pause(0.3));
+    add(tu("Zeile Lightmaps waehlen", [] {
+        if (!ke::optimiererZeileWaehlen(0, "renderer.lightmaps@bsp")) { meldeFehler("Zeile renderer.lightmaps@bsp fehlt"); }
+    }));
+    add(pause(0.6));
+    add(hb::fotoTeil("h_karte5_grenzen", fenster));
+    // Reiter Pruefungen, verdeckte Flaechen gewaehlt
+    add(tu("Reiter Pruefungen", [] { ke::optimiererReiter(1); }));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeOptPrVerdeckt)) + "##bfverdeckt", "###karteoptimierer"));
+    add(pause(0.6));
+    add(hb::fotoTeil("h_karte5_pruefungen", fenster));
+    add(klick(std::string(ke::trK(Str::KeOptBeheben)) + "##optbeheben", "###karteoptimierer"));
+    add(pause(0.6));
+    add(hb::fotoTeil("h_karte5_beheben", fenster));
+    // Einstellungen, Seite Optimizer
+    add(tu("Optimizer zu; Einstellungen auf", [] {
+        ke::optimiererSchliessen();
+        ke::editor().einstellungenOffen = true;
+    }));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KePgOptimizer)) + "##seite23"));
+    add(pause(0.6));
+    add(hb::fotoTeil("h_karte5_einstellungen", [] { return fensterRahmen("###karteeinstellungen"); }));
+    add(tu("Handbuch Stufe 5: Ende", [] {
+        karteDialogeZu();
+        ke::editor().optimierer = ke::Editor::OptimiererEinstellungen{};
+        g_app->leftMode = 0;
+    }));
+    add(pause(0.3));
+    return s;
+}
+
 std::vector<Schritt> handbuchSchritte() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
     // (tr) beim Aufbau der Liste - vorher suchten sie auf Deutsch "Cancel".
@@ -38357,6 +38461,9 @@ std::vector<Schritt> handbuchSchritte() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte4") == 0) {
         return karte4HandbuchSchritte();
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte5") == 0) {
+        return karte5HandbuchSchritte();
     }
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };

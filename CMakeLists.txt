@@ -1059,7 +1059,7 @@ if(BEHAVED_TESTS)
   add_executable(kartegrenzen tests/kartegrenzen.cpp)
   target_link_libraries(kartegrenzen PRIVATE bhed_core)
   add_test(NAME karte_grenzen COMMAND kartegrenzen "${BEHAVED_OPENJK_QUELLEN}" "${BEHAVED_MD_QUELLEN}"
-           ${CMAKE_CURRENT_SOURCE_DIR}/third_party/q3map2)
+           ${CMAKE_CURRENT_SOURCE_DIR}/third_party/q3map2 ${CMAKE_CURRENT_SOURCE_DIR}/tools/handbuch/grenzen.json)
   # Stufe 5: der Optimierer - Testkarten an jeder Grenze, erzeugte RBSP, und
   # mit -DBEHAVED_KARTE_JA/JK2/MD der Abgleich gegen alle Originalkarten (nur lesen).
   add_executable(karteoptimierer tests/karteoptimierer.cpp)
