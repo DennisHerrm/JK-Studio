@@ -343,6 +343,12 @@ void listeZeichnen(const std::string& name) {
             }
             qtMenueEnde();
         }
+    } else if (name == "ProgrammDatei") {
+        // Stufe 4 Punkt 1: File > Open .bsp... (nach Import...)
+        const std::string id = std::string(trK(Str::KeLOpenBsp)) + "###progbspoeffnen";
+        QtPunkt p;
+        p.id = id.c_str();
+        if (qtPunkt(p)) { bspOeffnenDialog(); }
     } else if (name == "ProgrammHilfeOben") {
         // "Manual" (OpenManual, F1): bei NRC registriert, der Menuepunkt aber
         // auskommentiert (mainframe.cpp:1214) - hier das Handbuch des Programms.

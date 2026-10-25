@@ -7,6 +7,7 @@ const MenueEintrag kMenues[] = {
     {MenueArt::Trenner, "", "", Str::Count, kImmer},
     {MenueArt::Punkt, "&Open...", "OpenMap", Str::KeLOpen, kImmer},
     {MenueArt::Punkt, "&Import...", "ImportMap", Str::KeLImport, kImmer},
+    {MenueArt::Liste, "", "ProgrammDatei", Str::Count, kImmer},
     {MenueArt::Trenner, "", "", Str::Count, kImmer},
     {MenueArt::Punkt, "&Save", "SaveMap", Str::KeLSave, kImmer},
     {MenueArt::Punkt, "Save &as...", "SaveMapAs", Str::KeLSaveAs, kImmer},

@@ -161,8 +161,15 @@ void ansichtenAuf(const karte::Vektor3f& mitte) {
 // --- Datei --------------------------------------------------------------------------------
 
 bool karteImportierenAus(const std::string& pfad) {   // ImportMap -> Map_ImportFile
+    // Map_ImportFile (map.cpp:1545-1547): eine .bsp geht gleich nach tryDecompile
+    // (q3map2 -convert, Stufe 4; im Arbeitsordner statt neben der .bsp)
+    if (pfad.size() > 4) {
+        std::string endung = pfad.substr(pfad.size() - 4);
+        for (char& c : endung) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        if (endung == ".bsp") { return bspImportieren(pfad); }
+    }
     std::string text;
-    if (!karteDateiLesen(pfad, text)) { return false; }   // tryDecompile (q3map2 -convert) ist Stufe 3
+    if (!karteDateiLesen(pfad, text)) { return false; }
     karte::karteImportieren(e().karte, text);
     auswahlGeaendert();
     return true;
@@ -192,7 +199,8 @@ void dateiBefehl(const std::string& name) {
     karte::Karte& k = ed.karte;
     const float maxRaster = ed.raster.maxKoord();
     if (name == "ImportMap") {   // map_import( "Import Map" )
-        const std::string pfad = kartenDateiDialog(true, "Import Map", kartenDateiFilter(), kartenStartOrdner());
+        // map_import: die Dateitypen mit can_import - .map, .reg und .bsp ("quake3 compiled maps")
+        const std::string pfad = kartenDateiDialog(true, "Import Map", "*.map;*.reg;*.bsp|*.map;*.reg;*.bsp|*.*|*.*", kartenStartOrdner());
         if (!pfad.empty()) { (void)karteImportierenAus(pfad); }
     } else if (name == "SaveSelected") {   // map_save( "Export Selection" )
         const std::string pfad = kartenDateiDialog(false, "Export Selection", kartenDateiFilter(), kartenStartOrdner(), "");

@@ -303,6 +303,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/karte_bau_win32.cpp
     gui/app_karte_leck.cpp
     gui/app_karte_portale.cpp
+    gui/app_karte_bsp.cpp
     gui/app_karte_menue.cpp
     gui/app_karte_dialoge.cpp
     gui/app_karte_csg.cpp
@@ -757,7 +758,9 @@ target_sources(bhed_core PRIVATE
   src/karte/bau.cpp
   src/karte/baumonitor.cpp
   # Stufe 3 Punkt 5: der Portal Viewer (contrib/prtview) ohne Oberflaeche
-  src/karte/portale.cpp)
+  src/karte/portale.cpp
+  # Stufe 4 Punkte 1/2: fertige Karten oeffnen, Originallicht (-onlyents)
+  src/karte/bspoeffnen.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -920,6 +923,18 @@ if(BEHAVED_TESTS)
   add_executable(karteautocaulk tests/karteautocaulk.cpp)
   target_link_libraries(karteautocaulk PRIVATE bhed_core)
   add_test(NAME karte_autocaulk COMMAND karteautocaulk)
+  # Stufe 4 Punkte 1/2: .bsp oeffnen (q3map2 -convert wie tryDecompile) und
+  # das Originallicht behalten (-onlyents: jeder Lump ausser den Entities
+  # Byte-gleich); mit -DBEHAVED_KARTE_DEKOMP und den Spielordnern auch je zwei
+  # Originalkarten aus Jedi Academy, Jedi Outcast und Movie Duels.
+  add_executable(kartebspoeffnen tests/kartebspoeffnen.cpp)
+  target_link_libraries(kartebspoeffnen PRIVATE bhed_core)
+  if(TARGET bhed_q3map2)
+    add_test(NAME karte_bspoeffnen COMMAND kartebspoeffnen $<TARGET_FILE:bhed_q3map2> ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2
+             "${BEHAVED_KARTE_DEKOMP}" "${BEHAVED_KARTE_JA}" "${BEHAVED_KARTE_JK2}" "${BEHAVED_KARTE_MD}")
+  else()
+    add_test(NAME karte_bspoeffnen COMMAND kartebspoeffnen - ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
+  endif()
   add_executable(kartebefehle tests/kartebefehle.cpp)
   target_link_libraries(kartebefehle PRIVATE bhed_core)
   add_test(NAME karte_befehle COMMAND kartebefehle ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.md)

@@ -30,6 +30,9 @@ MENUES = [
         ('SEP',),
         ('ITEM', '&Open...', 'OpenMap', ''),
         ('ITEM', '&Import...', 'ImportMap', ''),
+        # Stufe 4 Punkt 1 (Abweichung): eine fertige Karte (.bsp) oeffnen - NRC
+        # kann sie nur importieren (mapq3 "quake3 compiled maps", can_load = false).
+        ('LISTE', 'ProgrammDatei'),
         ('SEP',),
         ('ITEM', '&Save', 'SaveMap', ''),
         ('ITEM', 'Save &as...', 'SaveMapAs', ''),

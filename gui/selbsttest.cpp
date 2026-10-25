@@ -34360,6 +34360,107 @@ std::vector<Schritt> reste0() {
     return s;
 }
 
+// Punkt 1: fertige Karten oeffnen - File > Open .bsp..., der Dialog "Open
+// compiled map" mit den Karten der Spielordner (aus .pk3), mp/duel1 oeffnen:
+// im Arbeitsordner umgewandelt, Entitaeten/Pinsel/Patches wie die Massenlast
+// (SP\karte_dekomp\ja\bp\mp__duel1.map, von NRCs q3map2: 26 / 362 / 66).
+std::string bspArbeitsOrdner() { return (std::filesystem::path(platform::settingsDirectory()) / "karte_bsp" / "duel1").string(); }
+
+std::vector<Schritt> oeffnen() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    add(stufe2::grundzustand("Stufe 4/1: Grundzustand"));
+    add(tu("bhed_q3map2.exe neben behaved.exe, alter Arbeitsordner weg", [] {
+        stufe3::q3map2Bereitstellen();
+        std::error_code ec;
+        std::filesystem::remove_all(std::filesystem::path(bspArbeitsOrdner()), ec);
+        ke::konsoleLeeren();
+    }));
+    add(klick(ke::trK(Str::KeLFile), "###main"));
+    add(pause(0.2));
+    add(pruefe("File: \"Open .bsp...\" direkt nach \"Import...\"", [] {
+        const Element* imp = finde(ke::trK(Str::KeLImport), "", 0, false);
+        const Element* bsp = finde(std::string(ke::trK(Str::KeLOpenBsp)) + "###progbspoeffnen", "", 0, true);
+        return imp != nullptr && bsp != nullptr && bsp->rect.Min.y > imp->rect.Min.y && bsp->rect.Min.y - imp->rect.Max.y < 2.0F * ke::massstab();
+    }));
+    add(klick(std::string(ke::trK(Str::KeLOpenBsp)) + "###progbspoeffnen", "", 0, true));
+    add(pause(0.4));
+    add(pruefe("Dialog \"Open compiled map\" offen, mp/duel1.bsp aus einer .pk3 in der Liste", [] {
+        if (!ke::bspDialogOffen()) { return false; }
+        const auto liste = ke::bspDialogListe();
+        for (const auto& b : liste) {
+            if (b.pfad == "maps/mp/duel1.bsp") {
+                diag::detail("Knopftest: Stufe 4 - " + std::to_string(liste.size()) + " Karten, duel1 aus " + b.archiv);
+                return b.archiv.size() > 4 && b.archiv.substr(b.archiv.size() - 4) == ".pk3";
+            }
+        }
+        return false;
+    }));
+    add(fotoRahmen("karteneditor_dlg_Open_compiled_map", [] { return fensterRahmen("###kartebspoeffnen"); }));
+    add(klickAn("Filter", stufe2::elementOrt("##bspfilter")));
+    add(tippe("mp/duel1"));
+    add(pause(0.3));
+    add(klickAn("Eintrag mp/duel1.bsp", [] {
+        const ImGuiWindow* w = nullptr;
+        for (ImGuiWindow* x : GImGui->Windows) {
+            if (std::strstr(x->Name, "##bspliste") != nullptr && x->WasActive) { w = x; }
+        }
+        return w != nullptr ? ImVec2{w->Pos.x + 60.0F * ke::massstab(), w->Pos.y + 10.0F * ke::massstab()} : ImVec2{5, 5};
+    }));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeBspOeffnen)) + "##bspoeffnen", "###kartebspoeffnen", 0, true));
+    add(warteBis("Karte geladen", [] { return !ke::bspDialogOffen() && ke::editor().bspHerkunft.aktiv; }, 1200));
+    add(pruefe("mp/duel1 umgewandelt und geladen: 26 Entitaeten, 362 Pinsel, 66 Patches wie die Massenlast", [] {
+        const ke::Editor& e = ke::editor();
+        std::size_t pinsel = 0;
+        std::size_t patches = 0;
+        for (const auto& en : e.karte.entitaeten()) {
+            for (const auto& pr : en->kinder()) {
+                if (pr->art() == karte::Primitiv::Art::Patch) {
+                    ++patches;
+                } else if (pr->art() == karte::Primitiv::Art::Pinsel) {
+                    ++pinsel;
+                }
+            }
+        }
+        diag::detail("Knopftest: Stufe 4 - duel1 " + std::to_string(e.karte.entitaeten().size()) + " / " + std::to_string(pinsel) + " / " +
+                     std::to_string(patches) + ", " + e.name);
+        return e.karte.entitaeten().size() == 26 && pinsel == 362 && patches == 66;
+    }));
+    add(pruefe("Arbeitsordner statt Spielordner: duel1.bsp, duel1_original.bsp, duel1_converted.map, duel1.map; Karte = duel1.map dort", [] {
+        const std::string o = bspArbeitsOrdner();
+        const ke::Editor& e = ke::editor();
+        return stufe3::istDatei(o + "/duel1.bsp") && stufe3::istDatei(o + "/duel1_original.bsp") && stufe3::istDatei(o + "/duel1_converted.map") &&
+               stufe3::istDatei(o + "/duel1.map") && std::filesystem::equivalent(std::filesystem::path(e.name), std::filesystem::path(o + "/duel1.map")) &&
+               e.name.find("GameData") == std::string::npos;
+    }));
+    add(pruefe("Konsole: \"Opening compiled map maps/mp/duel1.bsp\", q3map2 -convert -format map / map_bp nach New map Brush Type, Loading map from", [] {
+        const std::string k = stufe3::konsoleText();
+        const std::string format = ke::editor().pinselTyp != 0 ? " -convert -format map_bp \"" : " -convert -format map \"";
+        return k.find("Opening compiled map maps/mp/duel1.bsp") != std::string::npos && k.find("bhed_q3map2.exe\" -v -game ja -fs_basepath") != std::string::npos &&
+               k.find(format) != std::string::npos && k.find("Loading map from ") != std::string::npos;
+    }));
+    // File > Import... mit einer .bsp (wie NRC: tryDecompile, dann eingefuegt)
+    add(tu("Import...: die Dateiwahl liefert die Original-.bsp", [] {
+        ke::editor().dateiDialog = [](const std::string&) { return bspArbeitsOrdner() + "/duel1_original.bsp"; };
+    }));
+    add(tu("File > Import... (ImportMap)", [] { (void)ke::ausfuehren("ImportMap"); }));
+    add(pause(0.3));
+    add(pruefe("Import einer .bsp: umgewandelt und eingefuegt - 26 + 25 Entitaeten (worldspawn verschmilzt)", [] {
+        diag::detail("Knopftest: Stufe 4 - nach Import " + std::to_string(ke::editor().karte.entitaeten().size()) + " Entitaeten");
+        return ke::editor().karte.entitaeten().size() == 51;
+    }));
+    add(tu("Dateiwahl zurueck, Rueckgaengig", [] {
+        ke::editor().dateiDialog = nullptr;
+        (void)ke::ausfuehren("Undo");
+    }));
+    add(pruefe("Rueckgaengig: wieder 26 Entitaeten, die Herkunft bleibt", [] {
+        return ke::editor().karte.entitaeten().size() == 26 && ke::editor().bspHerkunft.aktiv;
+    }));
+    return s;
+}
+
+
 }  // namespace stufe4
 
 std::vector<Schritt> karteneditorStufe4Schritte() {
@@ -34368,6 +34469,9 @@ std::vector<Schritt> karteneditorStufe4Schritte() {
     const auto teil = [nur](const char* name) { return nur == nullptr || std::strcmp(nur, name) == 0; };
     if (teil("reste")) {
         for (Schritt& x : stufe4::reste0()) { s.push_back(std::move(x)); }
+    }
+    if (teil("oeffnen") || teil("licht")) {
+        for (Schritt& x : stufe4::oeffnen()) { s.push_back(std::move(x)); }
     }
     return s;
 }
@@ -34727,7 +34831,8 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         int h;
     };
     const std::vector<MenueFoto> menues = {
-        {"File", {"File"}, 212, 285},
+        // File: NRC + "Open .bsp..." 24 (Stufe 4 Punkt 1, Abweichung)
+        {"File", {"File"}, 212, 285 + 24},
         {"Edit", {"Edit"}, 356, 549},
         {"View", {"View"}, 262, 333},
         {"View__Camera", {"View", "Camera"}, 255, 216},

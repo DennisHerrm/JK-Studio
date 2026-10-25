@@ -57,3 +57,42 @@ In der Gruppe verteilt QGridLayout 221 Punkte mit qGeomCalc zwischen Mindest-
 (Beschriftung "Project:" 43, Knoepfe 10, Spinbox 67) und Wunschbreite
 (QPushButton: Text + 8, wenigstens 80 - QCommonStyle/QFusionStyle
 CT_PushButton). Nachgebaut mit `karte::geomCalc` (aus Stufe 1b).
+
+## Punkt 1: fertige Karten oeffnen
+
+Kern `include/bhed/karte/bspoeffnen.h`, `src/karte/bspoeffnen.cpp` (map.cpp
+tryDecompile, q3map2 bsp.cpp -onlyents), Oberflaeche `gui/app_karte_bsp.cpp`.
+
+- **File > Open .bsp...** (eigener Eintrag direkt nach Import...; Abweichung:
+  NRC kennt die .bsp nur beim Import - mapq3/plugin.cpp:239 "quake3 compiled
+  maps" mit can_load = false). Der Dialog "Open compiled map" listet jede
+  maps/**.bsp der Spielordner wie das Spiel sie sieht (je Name das erste Archiv
+  in der Suchreihenfolge: fs_game vor base, spaetere .pk3 zuerst), mit Filter;
+  "From file..." nimmt eine .bsp von der Platte. Ohne NRC-Foto: Qt-Regeln (Rand
+  11, Abstand 6, Knoepfe 80 x 22), Innenraum 520 x 388.
+- Die .bsp kommt nach `<Einstellungen>/karte_bsp/<Name>/` (`<Name>.bsp` und
+  `<Name>_original.bsp`), nie in den Spielordner. Dort laeuft
+  `bhed_q3map2 -v -game ja|jk2 -fs_basepath "<Engine>" -fs_homepath "" -fs_game
+  <base|MD> -convert -format map|map_bp "<Name>.bsp"` (Map_ImportFile:
+  map.cpp:1583-1594; Movie Duels mit -fs_game MD, Jedi Outcast mit -game jk2).
+  Das Format folgt "New map Brush Type" (die neue Karte wird wie bei Open frei
+  gemacht); q3map2 schreibt `<Name>_converted.map`, die als `<Name>.map`
+  geladen wird (dort sucht -onlyents in Punkt 2 die Entitaeten). Warten wie
+  Q_Exec( ..., waitfor ) hoechstens 10 Minuten.
+- **File > Import...** nimmt wie bei NRC auch .bsp (Dateifilter
+  `*.map;*.reg;*.bsp`): umgewandelt im Arbeitsordner (NRC: neben der .bsp) und
+  eingefuegt, im Format der offenen Karte.
+
+Rot/Gruen:
+
+| Pruefung | rot | gruen |
+|---|---|---|
+| ctest `karte_bspoeffnen` (32: Befehle wie NRC, Fingerabdruck, raum.nrc.bsp -convert/-onlyents, je zwei Originalkarten aus JA/JK2/MD gegen die Massenlast) | Mutationen M2 (Fingerabdruck fest) und M3 (Einsetzen mit den neuen Lumps): 6 FEHL | 32/32 |
+| Selbsttest `BHED_STUFE4_NUR=oeffnen` (s4p1rot: Mutation M1 - .pk3 in der Liste uebergangen) | 15 OK / 16 FEHLER | s4p1gruen: 26 / 0 |
+
+Gezaehlt gegen die Massenlast (`SP\karte_dekomp\<spiel>\bp`, von NRCs q3map2
+umgewandelt): mp/duel1 26 Entitaeten / 362 Pinsel / 66 Patches (Selbsttest,
+aus assets0.pk3 von Movie Duels); t1_inter, mp__duel1 (JA), duel_pit,
+kejim_post (JK2), duel_twinsuns, md_ch_ben (MD) im ctest - alle gleich. Import
+von duel1 in duel1: 26 + 25 Entitaeten (worldspawn verschmilzt), Rueckgaengig
+wieder 26.

@@ -148,6 +148,7 @@ void karteFreigeben() {
     Editor& e = g();
     karte::regionAus(e.karte, e.region, e.raster.maxKoord());   // Map_Free: Map_RegionOff
     e.karte.auswahl.leeren();
+    e.bspHerkunft = BspHerkunft{};   // Stufe 4: die fertige Karte ist nicht mehr offen
     e.bearbeitung.neueKarte();
     for (auto& b : e.beobachter) { b = FensterBeobachter{b.breite, b.hoehe}; }
     e.karte.leeren();
@@ -1399,6 +1400,7 @@ void zeichne(float hoehe) {
     zeichneArbitraerDialoge();
     zeichnePatchDialog();
     zeichneSurfaceInspector();
+    zeichneBspDialog();   // Stufe 4: File > Open .bsp...
     zeichneGlobaleEinstellungen();
     zeichneAbrisse();
     zeichneUeber();

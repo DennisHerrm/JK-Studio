@@ -22,6 +22,7 @@
 
 #include "bhed/i18n.h"
 #include "bhed/karte/bau.h"
+#include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/baumonitor.h"
 #include "bhed/karte/portale.h"
 #include "bhed/karte/bearbeitung.h"
@@ -97,6 +98,16 @@ struct TagZustand {
 
 // EMessageBoxType
 enum class MeldungArt { Info, Warnung, Frage, Fehler };
+
+// Stufe 4 Punkt 2: woher die offene Karte kommt (File > Open .bsp...). Die
+// Original-.bsp liegt als <ordner>/<stamm>_original.bsp im Arbeitsordner.
+struct BspHerkunft {
+    bool aktiv = false;
+    std::string quelle;              // Anzeige: Pfad oder maps/... aus dem Spiel
+    std::string ordner;              // <Einstellungen>/karte_bsp/<stamm>
+    std::string stamm;
+    std::uint64_t fingerabdruck = 0; // karte::geometrieFingerabdruck nach dem Laden
+};
 
 struct Spielkontext {
     int spiel = 0;                  // kRegelwerkOpenJK / MovieDuels / JediOutcast
@@ -383,6 +394,8 @@ struct Editor {
     karte::Karte karte;
     std::string name = "unnamed.map";   // Map_Name; "unnamed.map" = Map_Unnamed
     std::shared_ptr<Spielkontext> karteSpiel;   // die Klassen der offenen Karte (Zeiger darauf)
+    // Stufe 4: die offene Karte kam aus einer .bsp (File > Open .bsp...)
+    BspHerkunft bspHerkunft;
     karte::ZuletztListe zuletzt;
     bool zuletztGeladen = false;
 
@@ -1190,6 +1203,14 @@ void bauMenueEintraegeZeichnen();      // Build_constructMenu
 void bauStarten(std::size_t index);    // RunBSP
 void bauZuletztStarten();              // Build_runRecentExecutedBuild
 void bauAusfuehren(const std::vector<std::string>& befehle);   // BuildMonitor_Run
+// --- Stufe 4 Punkte 1/2: fertige Karten (app_karte_bsp.cpp) ---
+void bspOeffnenDialog();                 // File > Open .bsp...
+void zeichneBspDialog();                 // der Dialog "Open compiled map" (jedes Bild)
+bool bspOeffnenSpiel(const std::string& pfad);   // maps/....bsp aus dem Dateisystem des Spiels
+bool bspOeffnenDatei(const std::string& pfad);   // eine .bsp von der Platte
+bool bspImportieren(const std::string& pfad);    // File > Import... mit .bsp (tryDecompile)
+[[nodiscard]] bool bspDialogOffen();
+[[nodiscard]] std::vector<karte::BspEintrag> bspDialogListe();
 void bauSchritt();                     // CWatchBSP::RoutineProcessing (jedes Bild, auch ausserhalb des Editors)
 [[nodiscard]] bool bauLaeuft();        // ein Bauen laeuft (Bilder weiter zeichnen)
 void bauAbbrechen();                   // Abweichung: Bauen abbrechen

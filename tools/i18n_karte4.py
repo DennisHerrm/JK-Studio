@@ -24,8 +24,7 @@ KARTE4 = [
     ("KeBspKeine", "No compiled maps in the game folders.", "Keine fertigen Karten in den Spielordnern.",
      "游戏文件夹中没有已编译的地图。", "ゲームフォルダーにコンパイル済みマップがありません。"),
     # --- Punkt 2: Originallicht behalten (Build > Update entities only) -----
-    ("KeBmNurEntities", "Update entities only (keep original light)", "Nur Entities aktualisieren (Originallicht behalten)",
-     "仅更新实体(保留原始光照)", "エンティティのみ更新 (元のライトを保持)"),
+    ("KeBmNurEntities", "Update entities only", "Nur Entities aktualisieren", "仅更新实体", "エンティティのみ更新"),
     ("KeBmNurEntitiesTip",
      "q3map2 -onlyents on a copy of the opened .bsp: geometry, lightmaps and light grid stay byte for byte as they are.",
      "q3map2 -onlyents auf eine Kopie der geöffneten .bsp: Geometrie, Lightmaps und Lichtgitter bleiben Byte für Byte, wie sie sind.",
