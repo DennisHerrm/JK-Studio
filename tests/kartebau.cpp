@@ -13,8 +13,17 @@
 //   - Werkzeug als XML-Text (Tabelle "Editables") und zurueck;
 //   - der XML-Leser liefert Zeichen fuer Zeichen gefuettert dasselbe wie am Stueck.
 //
-// Aufruf: kartebau <data/karte>
+//   - Punkt 4: der Rueckkanal von q3map2 - ein echter, aufgenommener Strom
+//     (tests/karte/q3map2/raum_leck.strom.bin, bhed_q3map2 -meta auf
+//     raum_leck.map): Nachrichten von l_net zerlegen, Text mit Stufe, die
+//     Auswahl "Entity leaked", die Leck-Linie gleich der .lin, Stopp am Ende
+//     der Fehlermeldung (Stop Compilation on Leak) bzw. weiter ohne;
+//     Fassungspruefung, unbekannte Knoten, pointmsg und windingmsg;
+//     Pointfile_Parse (auch der zhlt-Stil).
+//
+// Aufruf: kartebau <data/karte> [<tests/karte/q3map2>]
 #include "bhed/karte/bau.h"
+#include "bhed/karte/baumonitor.h"
 #include "bhed/karte/xmlstrom.h"
 
 #include <algorithm>
@@ -248,6 +257,113 @@ int main(int argc, char** argv) {
     pruefe(ereignisse(xml, 3) == e1, "XML-Leser: je 3 Zeichen dasselbe: " + ereignisse(xml, 3));
     pruefe(ereignisse("<a></b>", 7).find("E(") != std::string::npos, "XML-Leser: falsches Ende gemeldet");
     pruefe(xmlEntitiesAufloesen("&quot;&apos;&unbekannt;&#0;") == "\"'&unbekannt;&#0;", "Entities: unbekannte bleiben");
+
+    // --- 9. Rueckkanal von q3map2 (Punkt 4)
+    if (argc >= 3) {
+        const std::string q3ordner = argv[2];
+        const std::string roh = lies(q3ordner + "/raum_leck.strom.bin");
+        std::vector<std::string> nachrichten;
+        BauNetzRahmen rahmen;
+        rahmen.einspeisen(roh.data(), roh.size());
+        std::string n;
+        while (rahmen.naechste(n)) { nachrichten.push_back(n); }
+        pruefe(roh.size() > 1000 && nachrichten.size() > 5 && nachrichten[0].rfind("<?xml version=\"1.0\"?><q3map_feedback version=\"1\">", 0) == 0,
+               "Strom: " + std::to_string(nachrichten.size()) + " Nachrichten, die erste der Kopf");
+        struct Ablauf {
+            std::string text[4];
+            std::vector<std::string> warnungen;
+            std::vector<std::string> fehler;
+            std::vector<BauRueckmeldung> eintraege;
+            std::vector<Vektor3f> linie;
+            bool beendet = false;
+            std::size_t beendetNach = 0;
+        };
+        const auto lauf = [&](bool leckStopp, std::size_t stueck) {
+            Ablauf a;
+            BauMonitor m;
+            m.leckStopp = leckStopp;
+            m.drucken = [&](int s, const std::string& t) { a.text[s >= 0 && s <= 3 ? s : 0] += t; };
+            m.warnung = [&](const std::string& t) { a.warnungen.push_back(t); };
+            m.fehler = [&](const std::string& t) { a.fehler.push_back(t); };
+            m.rueckmeldung = [&](const BauRueckmeldung& r) { a.eintraege.push_back(r); };
+            m.leckLinie = [&](const std::vector<Vektor3f>& l) { a.linie = l; };
+            m.verbunden();
+            for (std::size_t i = 0; i < nachrichten.size() && !a.beendet; ++i) {
+                for (std::size_t j = 0; j < nachrichten[i].size(); j += stueck) {
+                    m.einspeisen(nachrichten[i].substr(j, stueck));
+                }
+                if (m.beenden()) {   // EndMonitoringLoop: nichts mehr lesen
+                    a.beendet = true;
+                    a.beendetNach = i;
+                }
+            }
+            return a;
+        };
+        const Ablauf s = lauf(true, 1 << 20);
+        const std::vector<Vektor3f> lin = punktdateiLesen(lies(q3ordner + "/raum_leck.strom.lin"));
+        pruefe(s.text[1].find("--- LoadMapFile ---") != std::string::npos && s.text[2].find("WARNING: Couldn't find image for shader textures/test/boden") != std::string::npos,
+               "Strom: Text der Stufe 1 und Warnungen der Stufe 2");
+        pruefe(s.eintraege.size() == 2 && s.eintraege[0].art == BauRueckmeldung::Art::Auswahl && s.eintraege[0].entitaet == 3 &&
+                   s.eintraege[0].pinsel == 0 && s.eintraege[0].name == "Entity 3, Brush 0: Entity leaked" &&
+                   s.eintraege[1].art == BauRueckmeldung::Art::Leck && s.eintraege[1].name == "Map leaked",
+               "Strom: debug window bekommt \"Entity 3, Brush 0: Entity leaked\" und \"Map leaked\"");
+        pruefe(!s.warnungen.empty() && s.warnungen[0] == "Entity 3, Brush 0: Entity leaked", "CSelectMsg: die Meldung als Warnung in die Konsole");
+        pruefe(s.text[3] == "MAP LEAKED\n", "Strom: \"MAP LEAKED\" mit Stufe 3");
+        bool linieGleich = lin.size() == 4 && s.linie.size() == 4;
+        for (std::size_t i = 0; linieGleich && i < 4; ++i) {
+            linieGleich = s.linie[i].x() == lin[i].x() && s.linie[i].y() == lin[i].y() && s.linie[i].z() == lin[i].z();
+        }
+        pruefe(linieGleich, "Leck-Linie aus dem Strom = die .lin (4 Punkte, 536 140 128 ... 256 160 192)");
+        pruefe(s.beendet && s.text[1].find("--- FillOutside") == std::string::npos,
+               "Stop Compilation on Leak: Ende am Ende der Fehlermeldung, danach nichts mehr");
+        const Ablauf w = lauf(false, 1 << 20);
+        pruefe(!w.beendet && w.text[1].find("Disconnecting") != std::string::npos && w.linie.size() == 4,
+               "ohne Stop on Leak: weiter bis \"Disconnecting\", die Linie trotzdem da");
+        const Ablauf z = lauf(true, 1);
+        pruefe(z.text[1] == s.text[1] && z.text[2] == s.text[2] && z.eintraege.size() == 2 && z.beendetNach == s.beendetNach,
+               "Strom Zeichen fuer Zeichen gefuettert: dasselbe");
+        // Fassung, unbekannte Knoten, pointmsg, windingmsg
+        const auto kurz = [&](const std::string& xml, Ablauf& a) {
+            BauMonitor m;
+            m.drucken = [&](int st, const std::string& t) { a.text[st >= 0 && st <= 3 ? st : 0] += t; };
+            m.warnung = [&](const std::string& t) { a.warnungen.push_back(t); };
+            m.fehler = [&](const std::string& t) { a.fehler.push_back(t); };
+            m.rueckmeldung = [&](const BauRueckmeldung& r) { a.eintraege.push_back(r); };
+            m.einspeisen(xml);
+            a.beendet = m.beenden();
+        };
+        Ablauf f1;
+        kurz("<?xml version=\"1.0\"?><q3map_feedback version=\"2\"><message level=\"1\">x</message>", f1);
+        pruefe(f1.beendet && !f1.fehler.empty() && f1.fehler[0].find("I got an incoming connection with version 2") != std::string::npos &&
+                   f1.text[1].empty(),
+               "falsche Fassung: Fehler, abgebrochen, nichts mehr gezeigt");
+        Ablauf f2;
+        kurz("<?xml version=\"1.0\"?><q3map_feedback><message level=\"1\">x</message>", f2);
+        pruefe(f2.beendet && !f2.fehler.empty() && f2.fehler[0].rfind("No stream version given", 0) == 0, "ohne Fassung: altes q3map, abgebrochen");
+        Ablauf f3;
+        kurz("<?xml version=\"1.0\"?><q3map_feedback version=\"1\"><frage>verborgen</frage><message level=\"1\">sichtbar</message>"
+             "<pointmsg level=\"3\">Punkt kaputt<point>1 2.5 -3</point></pointmsg>",
+             f3);
+        pruefe(f3.text[1] == "sichtbar" && !f3.warnungen.empty() && f3.warnungen[0] == "Warning: ignoring unrecognized node in XML stream (frage)",
+               "unbekannter Knoten: Warnung, Inhalt uebersprungen");
+        pruefe(f3.eintraege.size() == 1 && f3.eintraege[0].art == BauRueckmeldung::Art::Punkt && f3.eintraege[0].name == "Punkt kaputt" &&
+                   f3.eintraege[0].punkt.y() == 2.5F && f3.eintraege[0].punkt.z() == -3.0F,
+               "pointmsg: Meldung und Punkt");
+        Ablauf f4;
+        kurz("<?xml version=\"1.0\"?><q3map_feedback version=\"1\"><windingmsg level=\"3\">Wicklung<winding>3 (0 0 0)(64 0 0)(64 64 8)</winding></windingmsg>"
+             "<message level=\"3\">************ ERROR ************\nx\n</message><message level=\"1\">danach</message>",
+             f4);
+        pruefe(f4.eintraege.size() == 1 && f4.eintraege[0].art == BauRueckmeldung::Art::Wicklung && f4.eintraege[0].punkte.size() == 3 &&
+                   f4.eintraege[0].punkte[2].z() == 8.0F,
+               "windingmsg: drei Punkte");
+        pruefe(f4.beendet, "Fehlermeldung (Stufe 3): Ende der Ueberwachung am Ende des Elements");
+        std::string kaputt;
+        const std::vector<Vektor3f> zhlt = punktdateiLesen("1 2 3 - 4 5 6\n7 8 9\nxx\n", &kaputt);
+        pruefe(zhlt.size() == 2 && zhlt[0].x() == 4.0F && zhlt[1].z() == 9.0F && kaputt == "Corrupt point file, line 3",
+               "Pointfile_Parse: zhlt-Stil nimmt den zweiten Punkt, kaputte Zeile gemeldet");
+    } else {
+        pruefe(false, "Aufruf ohne tests/karte/q3map2");
+    }
 
     std::printf("kartebau: %d Pruefungen, %d Fehlschlaege\n", g_pruefungen, g_fehler);
     return g_fehler == 0 ? 0 : 1;

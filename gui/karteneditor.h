@@ -22,6 +22,7 @@
 
 #include "bhed/i18n.h"
 #include "bhed/karte/bau.h"
+#include "bhed/karte/baumonitor.h"
 #include "bhed/karte/bearbeitung.h"
 #include "bhed/karte/befehle.h"
 #include "bhed/karte/eklasse.h"
@@ -702,6 +703,14 @@ struct Editor {
     long long bauZuletzt = -1;             // g_lastExecutedBuild (Index, -1 = keiner)
     bool bauDialogOffen = false;           // DoBuildMenu ("Build Menu")
     std::string bauKarte;                  // die Datei, die gebaut wird, wenn nicht die Karte selbst (Punkt 4)
+    std::string bauKarteFuer;              // ... fuer diese Karte (sonst gilt die Karte selbst)
+    // Q3Map debug window (feedback.cpp g_DbgDlg) und die Leck-Linie (points.cpp CPointfile)
+    std::vector<karte::BauRueckmeldung> bauRueckmeldungen;   // m_feedbackElements
+    int bauRueckmeldungWahl = -1;          // m_pHighlight (Zeile)
+    bool bauRueckmeldungOffen = false;     // ShowDlg
+    std::vector<karte::Vektor3f> punktdatei;   // s_pointvecs
+    bool punktdateiSichtbar = false;       // shown()
+    std::size_t punktdateiStelle = 0;      // s_check_point
     struct BauEinstellungen {
         bool ueberwachen = true;           // g_WatchBSP_Enabled ("BuildMonitor")
         bool leckStopp = true;             // g_WatchBSP_LeakStop ("BuildLeakStop")
@@ -711,6 +720,7 @@ struct Editor {
         karte::VorgabeText engineMp;       // g_engineExecutableMP
         karte::VorgabeText argumente;      // g_engineArgs
         karte::VorgabeText argumenteMp;    // g_engineArgsMP
+        std::string zielOrdner;            // Abweichung: Ziel-Ordner ("BuildTargetFolder"), leer = neben der .map
     } bau;
     std::array<FensterBeobachter, 4> beobachter;
     std::array<karte::Blick, 4> blicke{karte::Blick(false), karte::Blick(false), karte::Blick(false), karte::Blick(true)};   // m_view
@@ -1169,6 +1179,15 @@ void bauMenueEintraegeZeichnen();      // Build_constructMenu
 void bauStarten(std::size_t index);    // RunBSP
 void bauZuletztStarten();              // Build_runRecentExecutedBuild
 void bauAusfuehren(const std::vector<std::string>& befehle);   // BuildMonitor_Run
+void bauSchritt();                     // CWatchBSP::RoutineProcessing (jedes Bild, auch ausserhalb des Editors)
+[[nodiscard]] bool bauLaeuft();        // ein Bauen laeuft (Bilder weiter zeichnen)
+void bauAbbrechen();                   // Abweichung: Bauen abbrechen
+void bauBeimBeenden();                 // ~CWatchBSP: kein q3map2 ohne Editor
+void bauRueckmeldungenZeichnen();      // "Q3Map debug window" (CDbgDlg)
+void bauRueckmeldungWaehlen(int zeile);   // feedback_selection_changed
+// Abweichung (Auftrag): der Ordner, in dem gebaut wird ("" = neben der Karte;
+// nie im Spielordner - dann der Arbeitsordner), hinweis = warum.
+[[nodiscard]] std::string bauOrdnerVorschau(std::string* hinweis = nullptr);
 void bauDialogZeichnen();              // BuildMenuDialog_construct (jedes Bild)
 struct BauDialogStand {                // fuer den Selbsttest
     bool offen = false;

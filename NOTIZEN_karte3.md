@@ -548,3 +548,109 @@ Checkliste: BuildMenuCustomize, Build_runRecentExecutedBuild (je Menue und
 Befehl), Dialog "Build Menu" [x]; dazu OpenManual und CheckForUpdate aus Punkt
 0b nachgetragen (gen_befehle.py STUFE_3_FERTIG). Stand: 790 fertig, 144
 ausgegraut, 2 offen von 936.
+
+## Punkt 4: Bauen aus dem Editor
+
+Kern ohne Oberflaeche: `include/bhed/karte/baumonitor.h`,
+`src/karte/baumonitor.cpp` (watchbsp.cpp: der l_net-Rahmen - 4 Byte Laenge LE,
+Inhalt bis NUL -, der SAX-Zustand wie message_info_t mit recurse, ignore_depth,
+stop_depth, msg_level, geometry_depth; message, polyline, select, pointmsg,
+windingmsg; Stop Compilation on Leak; Pointfile_Parse fuer die .lin).
+Windows: `gui/karte_bau_plattform.h`, `gui/karte_bau_win32.cpp` (q3map2 starten
+und lesen, Port 39000, die Engine losgeloest starten). Oberflaeche:
+`gui/app_karte_bau.cpp` (DoMonitoringLoop, DoEBeginStep, RoutineProcessing,
+runEngine, RunBSP, CDbgDlg "Q3Map debug window").
+
+Wie NRC:
+- RunBSP speichert vorher (SaveMap; eine unbenannte Karte fragt mit Speichern
+  unter, abgebrochen -> "build cancelled"; mit Region wird `<Karte>.reg`
+  geschrieben und gebaut - NRCs Temp-Datei), loescht die alte .lin
+  (Pointfile_Delete) und wertet die Befehle aus.
+- Je Schritt: "Setting up", lauschen auf Port 39000, "Listening...",
+  "=== running build command ===" mit dem Befehl, q3map2 starten, bis 5 s auf
+  die Verbindung warten (sonst der Kasten "The connection timed out, assuming
+  the build process failed ..."), "Connected.", den XML-Strom lesen (Stufe
+  1/2/3 als Ausgabe/Warnung/Fehler in der Konsole, live), "Connection closed.",
+  der naechste Schritt. Eine Meldung der Stufe 3 haelt die Ueberwachung am Ende
+  ihres Elements an (bei einem Leck nur mit "Stop Compilation on Leak"). Port
+  belegt: NRCs Meldung in der Konsole und der Kasten "Build monitoring".
+- Ohne "Enable Build Process Monitoring" (oder ein Befehl ohne
+  [MonitorAddress]): RunBatch. Run Engine After Compile: runEngineCmd mit
+  %mapname% = Name der Karte (im Selbsttest nur gemerkt, nie gestartet).
+- Q3Map debug window: oeffnet sich mit der ersten Rueckmeldung (select, point,
+  winding, Leck); eine Zeile waehlen hebt den Pinsel hervor (CSelectMsg). Das
+  Zeichnen von Punkten, Wicklungen und der Leck-Linie kommt mit Punkt 5.
+
+Abweichungen (Auftrag, Windows):
+- q3map2 laeuft ohne Konsolenfenster (CREATE_NO_WINDOW) in einem Job: es endet
+  mit dem Editor, auch wenn dieser abstuerzt. Der Socket lauscht nur auf
+  127.0.0.1 und exklusiv (kein Dialog der Windows-Firewall, kein fremder
+  Prozess auf dem Port). Das Kind erbt nur NUL und das Schreibende der Pipe.
+- Ohne Ueberwachung laufen die Befehle nacheinander im Hintergrund statt als
+  qe3bsp.bat in einem Konsolenfenster; die Ausgabe kommt ueber eine Pipe live in
+  die Konsole (WARNING gelb, ERROR und leaked rot - q3map2s eigene
+  Konsolenfarben). "Dump non Monitored Builds Log" schreibt sie nach
+  `<Einstellungen>\junk.txt` (NRC: "> junk.txt").
+- Dazu: Build > Cancel build (beendet q3map2), der Fortschritt in der
+  Statuszeile ("Building <Eintrag>: step i of n, m:ss"), am Ende eine Zeile mit
+  Eintrag, Schritten, Zeit und - wenn nicht 0 - den Rueckgaben von q3map2
+  ("(1: exit 0xC0000005)"), bei einem Leck ein Hinweis, wie man es findet. Ein
+  neuer Bauauftrag beendet einen laufenden (NRC: nur eine Warnung, der alte
+  Prozess lief weiter). Das Build-Menue ist dadurch 405 + 7 + 24 Punkte hoch.
+- Ziel-Ordner (Seite Build, Einstellung `BuildTargetFolder`, mit Hinweis
+  darunter): leer = neben der .map wie NRC; sonst wird die Karte (bzw. die .reg)
+  dorthin kopiert und dort gebaut. Liegt der Ziel-Ordner - oder ohne Ziel-Ordner
+  die Karte - im Spielordner (Engine-Pfad oder ein Suchordner des Spiels), wird
+  im Arbeitsordner `<Einstellungen>\karte_bau` gebaut, mit Hinweis in der
+  Konsole. Nie im Spielordner.
+- Engine-Argumente: constructEngineArgs nimmt gamename_get; hier dessen
+  Entsprechung `[GameName]` (beim Regelwerk Movie Duels `+set fs_game MD`),
+  auch als Vorgabe auf der Seite Build.
+
+Gefunden und behoben (je erst im Selbsttest rot):
+- s3p4a, s3p4b: in 2 von 3 Laeufen von [Final] Fast "Failed to get a listening
+  socket on port 39000" vor Schritt 2. Ursache: CreateProcess mit
+  bInheritHandles vererbte alle erblichen Handles, auch den lauschenden Socket;
+  q3map2 hielt Port 39000, bis es ganz zu Ende war. Ein Versuch mit SO_LINGER 0
+  aenderte nichts (wieder entfernt). Behoben mit
+  PROC_THREAD_ATTRIBUTE_HANDLE_LIST und WSA_FLAG_NO_HANDLE_INHERIT; ab s3p4c
+  verbindet sich jeder Schritt.
+- s3p4a: Run Engine unter Movie Duels ohne `+set fs_game MD`.
+- s3p4f: eine Karte ohne Entitaet (New Map, gleich gespeichert) laesst q3map2
+  abstuerzen - NRCs q3map2.exe genauso (gleiche Ausgabe, gleiche Rueckgabe). Die
+  Zeile am Ende sagte trotzdem nur "fertig", weil der Prozess beim Schliessen
+  des Sockets noch nicht zu Ende war. Jetzt wartet der Schritt bis 1 s auf das
+  Ende und nennt den Code. Der Absturz selbst bleibt (Fremdquelle unveraendert).
+- Beobachtet, nicht geaendert: `-light` ohne .bsp ruft Error() mit leerem Text
+  auf (nur der Rahmen "**** ERROR ****") - NRCs q3map2 genauso.
+
+Selbsttest `BHED_STUFE3_NUR=bau` (mit `BHED_Q3MAP2` und `BHED_Q3MAP2_DATEN`, siehe
+TESTING.md), Spielordner Movie Duels als fs_basepath (nur gelesen):
+- [Final] Fast aus dem Menue: waehrenddessen die Statuszeile; danach je Schritt
+  die Zeilen wie watchbsp, q3map2s Ausgabe live, Warnungen gelb, keine roten
+  Zeilen, die Schlusszeile; .bsp und .srf neben der Karte (keine .prt: -vis ohne
+  -saveprt loescht sie), keine .lin.
+- Die .bsp gegen `raum.nrc.bsp`: shaders, planes, nodes, leafbrushes, brushes
+  gleich; leafs, models, brushsides ohne Flaechenbezug gleich; visibility
+  (72 Byte), lightmaps, lightgrid gefuellt, lightarray 459 Gitterpunkte.
+- -light ohne .bsp: ERROR rot, die Ueberwachung haelt an. Port 39000 belegt:
+  Meldung und Kasten. Ein ueberwachter Befehl, der sich nicht verbindet: nach
+  5 s der Kasten. Ohne Ueberwachung mit Log: Pipe, junk.txt; dort ein Fehler mit
+  "(1: exit 1)". Run Engine: `"<Engine>jaSP.exe" +set sv_pure 0 +set fs_game MD
+  +devmap raum` gemerkt. Ziel-Ordner ueber die Seite Build eingetragen: dort
+  gebaut; Ziel-Ordner bzw. Karte im Spielordner: der Arbeitsordner (nur die
+  Vorschau, ohne zu bauen). Region: die .reg. Unbenannt: abgebrochen bzw. unter
+  neuem Namen gespeichert und gebaut; leere Karte: der Absturzcode.
+- Bedienbar: waehrend eines langen -light zoomt die 2D-Ansicht (1 -> 1.25);
+  Build > Cancel build beendet q3map2; der naechste Eintrag baut wieder.
+
+### Rot/Gruen
+
+| Pruefung | rot | gruen |
+|---|---|---|
+| ctest `karte_bau` (58, Abschnitt 9: der Rueckkanal mit einem aufgenommenen Strom `raum_leck.strom.bin`/`.lin`) | Mutation "Stufe 3 setzt stop_depth nicht": 2 FEHL | 58/58 |
+| Selbsttest s3p4rot: Ziel-Ordner wirkungslos, Abbrechen tut nichts, Meldungsstufen ohne Farbe (`// MUTATION M1-M3`) | 62 OK / 4 FEHLER | s3p4g: 71 / 0 |
+| Selbsttest s3p4a/b: Handle-Vererbung (s. oben) | 60 / 7 | s3p4c: Port gruen; s3p4d: 66 / 0 |
+| Selbsttest s3p4f: Rueckgabe beim Absturz | 69 / 2 (der zweite war der Test: ein Pinsel ohne Startpunkt leckt - jetzt ein dichter Raum mit info_player_start) | s3p4g: 71 / 0 |
+
+ctest 104/104.

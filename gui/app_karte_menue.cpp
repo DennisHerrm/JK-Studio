@@ -1114,6 +1114,8 @@ void einstellungenLaden() {
         text("BuildEngineExecutableMP", b.engineMp);
         text("BuildEngineArgs", b.argumente);
         text("BuildEngineArgsMP", b.argumenteMp);
+        const auto ziel = k.find("BuildTargetFolder");   // Abweichung: Ziel-Ordner
+        b.zielOrdner = ziel != k.end() ? ziel->second : std::string();
     }
     // Kamera (Camera_registerPreferencesPage, CamWnd_Construct: camwindow.cpp:2543-2563)
     karte::KameraEinstellungen& c = ed.kameraE;
@@ -1209,6 +1211,7 @@ void einstellungenSpeichern() {
     k["BuildRunGame"] = ed.bau.spielStarten ? "1" : "0";
     k["BuildLeakStop"] = ed.bau.leckStopp ? "1" : "0";
     k["BuildDumpLog"] = ed.bau.logAusgeben ? "1" : "0";
+    k["BuildTargetFolder"] = ed.bau.zielOrdner;
     k["BuildEngineExecutable"] = ed.bau.engine.text;   // DefaultableString::Export: ohne Vorgabe
     k["BuildEngineExecutableMP"] = ed.bau.engineMp.text;
     k["BuildEngineArgs"] = ed.bau.argumente.text;

@@ -141,6 +141,7 @@ struct Entwurf {
     char bauEngineMp[260] = "";
     char bauArgumenteMp[260] = "";
     char regionShader[260] = "";
+    char bauZiel[512] = "";         // Abweichung: Ziel-Ordner
     // Punkt 11b: CGameDialog::CreateGlobalFrame, Game_constructPreferences, Paths_constructPage
     int spielWahl = 0;              // m_nComboSelect ("Select the game")
     bool spielFrage = false;        // m_bGamePrompt
@@ -835,7 +836,7 @@ void eintrag(Str text, const char* id, char* puffer, std::size_t groesse, bool a
 // Compile"; die MP-Felder, weil ja.game/jk2.game show_gamemode setzen.
 void buildSeite() {
     Entwurf& w = g_entwurf;
-    formAnfang({Str::KePrBuildEngine, Str::KePrBuildArgs, Str::KePrBuildMpEngine, Str::KePrBuildMpArgs, Str::KePrBuildRegion});
+    formAnfang({Str::KePrBuildEngine, Str::KePrBuildArgs, Str::KePrBuildMpEngine, Str::KePrBuildMpArgs, Str::KePrBuildRegion, Str::KePrBuildZiel});
     (void)haken(Str::Count, (std::string(trK(Str::KePrBuildMonitor)) + "##bauueberwachen").c_str(), w.bau.ueberwachen);
     (void)haken(Str::Count, (std::string(trK(Str::KePrBuildLeak)) + "##bauleck").c_str(), w.bau.leckStopp, w.bau.ueberwachen);
     (void)haken(Str::Count, (std::string(trK(Str::KePrBuildRun)) + "##baustarten").c_str(), w.bau.spielStarten);
@@ -847,6 +848,17 @@ void buildSeite() {
     }
     (void)haken(Str::Count, (std::string(trK(Str::KePrBuildDump)) + "##baulog").c_str(), w.bau.logAusgeben);
     eintrag(Str::KePrBuildRegion, "##regionshader", w.regionShader, sizeof(w.regionShader));
+    // Abweichung (Auftrag): wohin gebaut wird - nie in den Spielordner
+    eintrag(Str::KePrBuildZiel, "##bauziel", w.bauZiel, sizeof(w.bauZiel));
+    {
+        const float b = px(static_cast<float>(g_form.b1));
+        ImVec2 p = bp(static_cast<float>(g_form.x1), static_cast<float>(g_form.y));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::GetWindowDrawList()->AddText(ImGui::GetFont(), ImGui::GetFontSize(), p, ImGui::GetColorU32(ImGuiCol_Text),
+                                            trK(Str::KePrBuildZielHinweis), nullptr, b);
+        ImGui::PopStyleColor();
+        (void)p;
+    }
 }
 
 void interfaceSeite() {
@@ -1371,6 +1383,7 @@ std::string einstellungsFeld(const std::string& id) {
     if (id == "bauenginemp") { return g_entwurf.bauEngineMp; }
     if (id == "bauargumentemp") { return g_entwurf.bauArgumenteMp; }
     if (id == "regionshader") { return g_entwurf.regionShader; }
+    if (id == "bauziel") { return g_entwurf.bauZiel; }
     if (id == "fsgame") { return g_entwurf.fsGame; }
     if (id == "fsgameaktiv") { return g_entwurf.fsGameAktiv ? "1" : "0"; }
     if (id == "enginepfad") { return g_entwurf.enginePfad; }
@@ -1430,13 +1443,14 @@ void zeichneEinstellungen() {
         g_entwurf.bau = ed.bau;
         {   // getExportWithDefaultCaller: leer -> "default:<Vorgabe>"
             const karte::SpielBeschreibung& sb = kartenSpiel();
-            const std::string args = karte::engineArgumente(kartenFsGame(), sb.basisSpiel);
+            const std::string args = karte::engineArgumente(bauSpielName(), sb.basisSpiel);   // gamename_get (Movie Duels: MD)
             std::snprintf(g_entwurf.bauEngine, sizeof(g_entwurf.bauEngine), "%s", ed.bau.engine.mitVorgabe(sb.engine).c_str());
             std::snprintf(g_entwurf.bauArgumente, sizeof(g_entwurf.bauArgumente), "%s", ed.bau.argumente.mitVorgabe(args).c_str());
             std::snprintf(g_entwurf.bauEngineMp, sizeof(g_entwurf.bauEngineMp), "%s", ed.bau.engineMp.mitVorgabe(sb.mpEngine).c_str());
             std::snprintf(g_entwurf.bauArgumenteMp, sizeof(g_entwurf.bauArgumenteMp), "%s", ed.bau.argumenteMp.mitVorgabe(args).c_str());
         }
         std::snprintf(g_entwurf.regionShader, sizeof(g_entwurf.regionShader), "%s", ed.regionKastenShader.c_str());
+        std::snprintf(g_entwurf.bauZiel, sizeof(g_entwurf.bauZiel), "%s", ed.bau.zielOrdner.c_str());
         {   // GameFileExport: m_sGameFile.m_latched
             const std::string datei = !ed.spielDateiNeu.empty() ? ed.spielDateiNeu : std::string(kartenSpiel().datei);
             const auto& alle = karte::spielBeschreibungen();
@@ -1668,6 +1682,7 @@ void zeichneEinstellungen() {
                 b.argumente.importieren(g_entwurf.bauArgumente);
                 b.engineMp.importieren(g_entwurf.bauEngineMp);
                 b.argumenteMp.importieren(g_entwurf.bauArgumenteMp);
+                b.zielOrdner = g_entwurf.bauZiel;
                 ed.bau = b;
             }
             ed.regionKastenShader = g_entwurf.regionShader;

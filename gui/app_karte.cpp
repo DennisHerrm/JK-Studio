@@ -585,6 +585,7 @@ void beimBeenden() {
     if (e.name != "unnamed.map") { e.letzteKarte = e.name; }   // !Map_Unnamed( g_map )
     g_app->settings.karte["LastMap"] = e.letzteKarte;
     bauMenueSpeichern();   // BuildMenu_Destroy: SaveBuildMenu
+    bauBeimBeenden();      // BuildMonitor_Destroy
 }
 
 void karteOeffnenDialog() {
@@ -1398,6 +1399,7 @@ void zeichne(float hoehe) {
     zeichneEnginePfadDialog();
     zeichneSchriftDialog();
     bauDialogZeichnen();   // Stufe 3: "Build Menu" (DoBuildMenu)
+    bauRueckmeldungenZeichnen();   // Stufe 3: "Q3Map debug window"
     // PreferencesDialog_showDialog (preferences.cpp:783-797): nach OK die Liste der
     // Einstellungen, die einen Neustart brauchen
     if (!e.neustartFragen.empty() && !e.einstellungenOffen && !e.frageOffen && !e.meldung.offen) {

@@ -37,6 +37,7 @@
 #include "tour.h"       // rc601 tour: Tutorials im Programm (tourSicht)
 #include "backend.h"
 #include "karte_gpu.h"
+#include "karte_bau_plattform.h"   // Stufe 3 Punkt 4: Port 39000 belegen
 #include "platform.h"
 #include "wache.h"
 #include "gpumap.h"
@@ -60,6 +61,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdarg>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -28298,6 +28300,10 @@ void karteDialogeZu() {
     e.ent.farbDialog.offen = false;
     e.ent.lichtOffen = false;
     e.bauDialogOffen = false;
+    ke::bauAbbrechen();               // Stufe 3 Punkt 4: kein q3map2 in den naechsten Schritt
+    e.bauRueckmeldungOffen = false;   // Q3Map debug window
+    e.meldung.offen = false;          // qtMeldung (sonst offen, aber ohne Popup)
+    e.meldung.danach = nullptr;
     if (e.frageOffen) {
         std::function<void()> danach = std::move(e.nachFrage);
         e.nachFrage = nullptr;
@@ -30327,11 +30333,12 @@ std::vector<Schritt> einstellungen11() {
     }));
     // --- Build
     seite(Str::KePgBuild, 19);
-    add(pruefe("Seite Build: default:jaSP.exe, default:+set sv_pure 0 +devmap %mapname% (DefaultableString)", [] {
+    add(pruefe("Seite Build: default:jaSP.exe, default:+set sv_pure 0 [+set fs_game MD] +devmap %mapname% (DefaultableString)", [] {
         const karte::SpielBeschreibung& sb = ke::kartenSpiel();
         diag::detail("Knopftest: Stufe 2 - Build " + ke::einstellungsFeld("bauengine") + " / " + ke::einstellungsFeld("bauargumente"));
+        const std::string fs = ke::bauSpielName() != sb.basisSpiel ? " +set fs_game " + ke::bauSpielName() : std::string();
         return ke::einstellungsFeld("bauengine") == std::string("default:") + sb.engine &&
-               ke::einstellungsFeld("bauargumente") == "default:+set sv_pure 0 +devmap %mapname%" &&
+               ke::einstellungsFeld("bauargumente") == "default:+set sv_pure 0" + fs + " +devmap %mapname%" &&
                ke::einstellungsFeld("bauenginemp") == std::string("default:") + sb.mpEngine && finde("##bauengine", "", 0, true) != nullptr;
     }));
     add(foto("karteneditor_pref_build"));
@@ -32786,6 +32793,126 @@ Schritt bauZiehen(const std::string& was, int von, int nach, bool strg) {
             }};
 }
 
+// --- Punkt 4: Bauen aus dem Editor ----------------------------------------------
+
+// Die 18 Lumps einer RBSP-Datei (leer, wenn es keine ist)
+std::vector<std::string> bspLumps(const std::string& pfad) {
+    std::ifstream f(std::filesystem::path(pfad), std::ios::binary);
+    std::ostringstream o;
+    o << f.rdbuf();
+    const std::string d = o.str();
+    std::vector<std::string> l;
+    if (d.size() < 8 + 18 * 8 || d.compare(0, 4, "RBSP") != 0) { return l; }
+    for (int i = 0; i < 18; ++i) {
+        std::int32_t ofs = 0;
+        std::int32_t len = 0;
+        std::memcpy(&ofs, d.data() + 8 + 8 * i, 4);
+        std::memcpy(&len, d.data() + 12 + 8 * i, 4);
+        if (ofs < 0 || len < 0 || static_cast<std::size_t>(ofs) + static_cast<std::size_t>(len) > d.size()) { return {}; }
+        l.push_back(d.substr(static_cast<std::size_t>(ofs), static_cast<std::size_t>(len)));
+    }
+    return l;
+}
+
+// Felder [von, bis) jedes Elements auf 0 (die Verweise auf Flaechen, wie
+// ohne_flaechen in tools/karte/q3map2_vergleich.py)
+std::string ohneFelder(std::string s, std::size_t groesse, std::size_t von, std::size_t bis) {
+    for (std::size_t i = 0; i + groesse <= s.size(); i += groesse) {
+        for (std::size_t j = von; j < bis; ++j) { s[i + j] = 0; }
+    }
+    return s;
+}
+
+std::string laufOrdner(const char* teil) { return (std::filesystem::current_path() / teil).string(); }
+
+bool istDatei(const std::string& p) {
+    std::error_code ec;
+    return std::filesystem::is_regular_file(std::filesystem::path(p), ec);
+}
+
+void bauDateienWeg(const std::string& stamm) {
+    std::error_code ec;
+    for (const char* x : {".bsp", ".prt", ".srf", ".lin"}) { std::filesystem::remove(std::filesystem::path(stamm + x), ec); }
+}
+
+std::size_t zaehle(const std::string& t, const std::string& was) {
+    std::size_t n = 0;
+    for (std::size_t p = 0; (p = t.find(was, p)) != std::string::npos; p += was.size()) { ++n; }
+    return n;
+}
+
+// Eine Zeile mit Zeitangabe bis vor die Zeit (die Zeit als "\x01" eingesetzt)
+std::string bisZeit(const char* z) {
+    const std::string s = z;
+    return s.substr(0, s.find('\x01'));
+}
+
+std::string fertigZeile(const char* eintrag, int schritte) {
+    char z[512];
+    std::snprintf(z, sizeof(z), ke::trK(Str::KeBmFertig), eintrag, schritte, "\x01");
+    return bisZeit(z);
+}
+
+std::string gestopptZeile(const char* eintrag, int schritt, int schritte, const char* grund) {
+    char z[512];
+    std::snprintf(z, sizeof(z), ke::trK(Str::KeBmGestoppt), eintrag, schritt, schritte, grund, "\x01");
+    return bisZeit(z);
+}
+
+std::string abgebrochenZeile(const char* eintrag, int schritt, int schritte) {
+    char z[512];
+    std::snprintf(z, sizeof(z), ke::trK(Str::KeBmAbgebrochen), eintrag, schritt, schritte, "\x01");
+    return bisZeit(z);
+}
+
+// Ein Ordner des Spiels (Engine-Pfad, sonst ein Suchordner)
+std::string spielOrdnerFuerTest() {
+    const std::string e = ke::enginePfadAnzeige();
+    if (!e.empty()) { return e; }
+    const std::vector<std::string> v = ke::kartenVfsOrdner();
+    return v.empty() ? std::string() : v.back();
+}
+
+// bhed_q3map2.exe neben behaved.exe: der Laufordner hat nur behaved.exe und
+// data, BHED_Q3MAP2 nennt das gebaute Programm.
+void q3map2Bereitstellen() {
+    const char* quelle = std::getenv("BHED_Q3MAP2");
+    if (quelle == nullptr || quelle[0] == '\0') { return; }
+    std::error_code ec;
+    std::filesystem::copy_file(std::filesystem::path(quelle), std::filesystem::path(platform::executableDirectory()) / "bhed_q3map2.exe",
+                               std::filesystem::copy_options::overwrite_existing, ec);
+}
+
+int eintragNr(const std::string& name) {
+    const auto& e = ke::editor().bauProjekt.eintraege;
+    for (std::size_t i = 0; i < e.size(); ++i) {
+        if (e[i].name == name) { return static_cast<int>(i); }
+    }
+    return -1;
+}
+
+// Ein Eintrag des Build-Menues (BuildMenuItem::run, ohne das Menue aufzuklappen)
+Schritt bauMenuepunkt(const std::string& name) {
+    return tu("Build > " + name, [name] {
+        const int i = eintragNr(name);
+        if (i < 0) {
+            meldeFehler("Eintrag " + name + " fehlt");
+            return;
+        }
+        ke::bauStarten(static_cast<std::size_t>(i));
+    });
+}
+
+// Ein Stueck der Konsole in dieser Farbe, das den Text enthaelt
+bool konsoleArtMit(ke::KonsolenZeile::Art art, const std::string& teil) {
+    for (const ke::KonsolenZeile& z : ke::editor().konsole) {
+        for (const auto& t : z.teile) {
+            if (t.art == art && z.text.substr(t.von, t.laenge).find(teil) != std::string::npos) { return true; }
+        }
+    }
+    return false;
+}
+
 std::vector<Schritt> baumenue() {
     std::vector<Schritt> s;
     auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
@@ -32803,6 +32930,7 @@ std::vector<Schritt> baumenue() {
         e.bauProjektFuer = -2;
         e.bauGeaendert = false;
         ke::bauMenueSicherstellen();
+        q3map2Bereitstellen();
         raumKarteOeffnen("raum", false);
     }));
     add(pause(0.3));
@@ -33030,7 +33158,7 @@ std::vector<Schritt> baumenue() {
     add(klick(ke::trK(Str::KeLBuild), "###main"));
     add(pause(0.25));
     add(klick("[Final] Fast", "##Menu_", 0, false));
-    add(pause(0.4));
+    add(warteBis("Bauen fertig", [] { return !ke::bauLaeuft(); }, 3600));
     add(pruefe("Build > [Final] Fast: die Karte gespeichert, drei Befehle ausgewertet (q3map2 mit -meta, -vis, -light ... \"<Karte>\")", [] {
         const std::string k = konsoleText();
         const std::string karte = ke::bauKartenPfad();
@@ -33045,7 +33173,8 @@ std::vector<Schritt> baumenue() {
     add(klickAn("in XY (Fokus)", feldMitte("XY"), 2));
     add(tasteKombi(ImGuiKey_Escape, "Esc"));
     add(tasteKombi(ImGuiKey_F5, "F5"));
-    add(pause(0.4));
+    add(pause(0.1));
+    add(warteBis("Bauen fertig", [] { return !ke::bauLaeuft(); }, 3600));
     add(pruefe("F5 (Run recent build): noch einmal [Final] Fast", [] {
         const std::string k = konsoleText();
         return k.find(" -light -fast -patchshadows -samples 2 -filter -bounce 8 ") != std::string::npos && ke::editor().bauZuletzt == 15;
@@ -33058,6 +33187,357 @@ std::vector<Schritt> baumenue() {
         e.bauGeaendert = false;
         g_app->settings.karte.erase("BuildMenu");
         ke::bauMenueSicherstellen();
+    }));
+    return s;
+}
+
+std::vector<Schritt> bauen() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    const std::string stamm = laufOrdner("s3bau") + "\\raum";
+    const auto fertig = [](const char* was, int bilder) { return warteBis(was, [] { return !ke::bauLaeuft(); }, bilder); };
+    add(tu("Stufe 3/4: bhed_q3map2.exe neben behaved.exe, Build-Menue und Seite Build wie vorgegeben, Testkarte raum", [stamm] {
+        karteDialogeZu();
+        q3map2Bereitstellen();
+        ke::Editor& e = ke::editor();
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::path(ke::bauMenueDateiPfad()), ec);
+        g_app->settings.karte.erase("BuildMenu");
+        e.bauProjektFuer = -2;
+        e.bauGeaendert = false;
+        ke::bauMenueSicherstellen();
+        e.bau = ke::Editor::BauEinstellungen{};
+        ke::einstellungenSpeichern();
+        raumKarteOeffnen("raum", false);
+        bauDateienWeg(stamm);
+        ke::konsoleLeeren();
+        e.letzteUrl.clear();
+        e.bauRueckmeldungen.clear();
+        e.bauRueckmeldungOffen = false;
+    }));
+    add(pause(0.3));
+    add(pruefe("bhed_q3map2.exe liegt neben behaved.exe ([RadiantPath]bhed_q3map2.[ExecutableType])", [] {
+        return istDatei((std::filesystem::path(platform::executableDirectory()) / "bhed_q3map2.exe").string());
+    }));
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.25));
+    add(klick("[Final] Fast", "##Menu_", 0, false));
+    add(pause(0.1));
+    add(pruefe("Build > [Final] Fast: q3map2 laeuft im Hintergrund, die Statuszeile zeigt Eintrag und Schritt", [] {
+        diag::detail("Knopftest: Stufe 3/4 Statuszeile: " + ke::editor().statusBefehl);
+        return ke::bauLaeuft() && ke::editor().statusBefehl.find("[Final] Fast") != std::string::npos;
+    }));
+    add(fertig("Bauen fertig", 3600));
+    add(pruefe("Konsole wie watchbsp.cpp: je Schritt Setting up / Listening... / === running build command === / Connected. / Connection closed. (3), "
+               "q3map2s Ausgabe live, am Ende Zeit und Ergebnis",
+               [] {
+                   const std::string k = konsoleText();
+                   diag::detail("Knopftest: Stufe 3/4 Konsole (Ende): " + k.substr(k.size() > 600 ? k.size() - 600 : 0));
+                   return zaehle(k, "Setting up\n") == 3 && zaehle(k, "Listening...\n") == 3 && zaehle(k, "Connected.\n") == 3 &&
+                          zaehle(k, "=== running build command ===\n") == 3 && zaehle(k, "Connection closed.\n") == 3 &&
+                          k.find(" -meta \"" + ke::bauKartenPfad() + "\"") != std::string::npos && k.find("--- LoadMapFile ---") != std::string::npos &&
+                          k.find("--- Radiosity (bounce 8 of 8) ---") != std::string::npos && k.find(fertigZeile("[Final] Fast", 3)) != std::string::npos &&
+                          k.find(": exit ") == std::string::npos && ke::editor().statusBefehl.empty();
+               }));
+    add(pruefe("Konsole: q3map2s Warnungen (message level 2) in der Warnfarbe, keine Fehler", [] {
+        return konsoleArtMit(ke::KonsolenZeile::Art::Warnung, "WARNING: Couldn't find image for shader textures/test/boden") &&
+               !konsoleArtMit(ke::KonsolenZeile::Art::Fehler, "");
+    }));
+    add(pruefe(".bsp und .srf neben der Karte (s3bau); keine .prt (-vis ohne -saveprt loescht sie), keine .lin, kein Q3Map debug window", [stamm] {
+        return istDatei(stamm + ".bsp") && istDatei(stamm + ".srf") && !istDatei(stamm + ".prt") && !istDatei(stamm + ".lin") &&
+               !ke::editor().bauRueckmeldungOffen;
+    }));
+    add(pruefe(".bsp wie NRCs (raum.nrc.bsp aus BHED_Q3MAP2_DATEN): shaders, planes, nodes, leafbrushes, brushes gleich, leafs/models/brushsides "
+               "ohne Flaechenbezug gleich; visibility, lightmaps, lightgrid von -vis und -light (lightarray 459 Gitterpunkte wie NRC)",
+               [stamm] {
+                   const char* daten = std::getenv("BHED_Q3MAP2_DATEN");
+                   if (daten == nullptr) {
+                       diag::detail("Knopftest: Stufe 3/4 BHED_Q3MAP2_DATEN fehlt");
+                       return false;
+                   }
+                   const auto u = bspLumps(stamm + ".bsp");
+                   const auto n = bspLumps(std::string(daten) + "\\raum.nrc.bsp");
+                   if (u.size() != 18 || n.size() != 18) { return false; }
+                   std::string bericht;
+                   bool ok = true;
+                   for (std::size_t i : {1U, 2U, 3U, 6U, 8U}) {
+                       const bool g = u[i] == n[i];
+                       bericht += " " + std::to_string(i) + (g ? "=" : "!");
+                       ok = ok && g;
+                   }
+                   const bool blaetter = ohneFelder(u[4], 48, 32, 40) == ohneFelder(n[4], 48, 32, 40);
+                   const bool modelle = ohneFelder(u[7], 40, 24, 32) == ohneFelder(n[7], 40, 24, 32);
+                   const bool seiten = ohneFelder(u[9], 12, 8, 12) == ohneFelder(n[9], 12, 8, 12);
+                   diag::detail("Knopftest: Stufe 3/4 Lumps" + bericht + (blaetter ? " leafs=" : " leafs!") + (modelle ? " models=" : " models!") +
+                                (seiten ? " brushsides=" : " brushsides!") + " vis " + std::to_string(u[16].size()) + " lightmaps " +
+                                std::to_string(u[14].size()) + " grid " + std::to_string(u[15].size()) + " lightarray " + std::to_string(u[17].size()));
+                   return ok && blaetter && modelle && seiten && u[16].size() > 8 && !u[14].empty() && !u[15].empty() && u[17].size() == 459U * 2U;
+               }));
+    add(foto("karteneditor_s3_bauen_konsole"));
+    // Fehler hervorgehoben: -light ohne .bsp - q3map2 meldet ERROR (message level 3),
+    // die Ueberwachung haelt an (saxCharacters: SYS_ERR -> stop_depth)
+    add(tu(".bsp und .srf weg, Konsole leeren", [stamm] {
+        bauDateienWeg(stamm);
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Single: light stage"));
+    add(fertig("Bauen fertig", 1200));
+    add(pruefe("Single: light stage ohne .bsp: q3map2s ERROR rot in der Konsole, die Ueberwachung haelt an (rote Zeile mit Grund und Zeit)", [] {
+        const std::string k = konsoleText();
+        diag::detail("Knopftest: Stufe 3/4 Fehler: " + k.substr(k.size() > 400 ? k.size() - 400 : 0));
+        return konsoleArtMit(ke::KonsolenZeile::Art::Fehler, "ERROR") &&
+               konsoleArtMit(ke::KonsolenZeile::Art::Fehler, gestopptZeile("Single: light stage", 1, 1, "error"));
+    }));
+    // Port 39000 belegt: NRCs Meldung und der Kasten "Build monitoring"
+    auto horcher = std::make_shared<bauplattform::Horcher>();
+    add(tu("Port 39000 belegen, Konsole leeren", [horcher] {
+        std::string f;
+        if (!horcher->lauschen(39000, f)) { meldeFehler("Port 39000 nicht belegt: " + f); }
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Single: bsp stage"));
+    add(pause(0.3));
+    add(pruefe("Port belegt: \"Failed to get a listening socket on port 39000.\" in der Konsole und im Kasten \"Build monitoring\", kein Bauen", [] {
+        const ke::Editor& e = ke::editor();
+        return konsoleText().find("Failed to get a listening socket on port 39000.\nTry running with Build monitoring disabled") != std::string::npos &&
+               e.meldung.offen && e.meldung.titel == "Build monitoring" && !ke::bauLaeuft();
+    }));
+    add(klick(std::string(ke::trK(Str::KePrefOk)) + "##meldungok"));
+    add(tu("Port 39000 frei", [horcher] { horcher->schliessen(); }));
+    add(pause(0.2));
+    // Zeitueberschreitung: ein ueberwachter Befehl (mit [MonitorAddress]), der sich nicht verbindet
+    add(tu("Eintrag \"Test ohne Verbindung\" (die Adresse nur im Dateinamen), Konsole leeren", [] {
+        ke::editor().bauProjekt.eintraege.push_back(
+            karte::BauEintrag{"Test ohne Verbindung", {"\"[RadiantPath]bhed_q3map2.[ExecutableType]\" -info \"nicht_da_[MonitorAddress].bsp\""}});
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Test ohne Verbindung"));
+    add(warteBis("der Kasten nach 5 s", [] { return ke::editor().meldung.offen; }, 4000));
+    add(pruefe("Ohne Verbindung nach 5 s: \"The connection timed out, assuming the build process failed\" (Kasten), Bauen angehalten (timeout)", [] {
+        const ke::Editor& e = ke::editor();
+        return e.meldung.text.find("The connection timed out, assuming the build process failed") == 0 && !ke::bauLaeuft() &&
+               konsoleText().find(gestopptZeile("Test ohne Verbindung", 1, 1, "timeout")) != std::string::npos;
+    }));
+    add(klick(std::string(ke::trK(Str::KePrefOk)) + "##meldungok"));
+    add(pause(0.2));
+    // Ohne Ueberwachung (RunBatch): die Ausgabe ueber die Pipe, "Dump non Monitored Builds Log"
+    add(tu("Seite Build: Build monitoring aus, Dump non Monitored Builds Log an; Konsole leeren", [stamm] {
+        ke::Editor& e = ke::editor();
+        e.bau.ueberwachen = false;
+        e.bau.logAusgeben = true;
+        bauDateienWeg(stamm);
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Single: bsp stage"));
+    add(fertig("Bauen fertig", 1200));
+    add(pruefe("Ohne Ueberwachung: ohne -connect, q3map2s Ausgabe ueber die Pipe (WARNING in der Warnfarbe), junk.txt im Einstellungsordner, .bsp da", [stamm] {
+        const std::string k = konsoleText();
+        std::ifstream f(std::filesystem::path(platform::settingsDirectory() + "\\junk.txt"), std::ios::binary);
+        std::ostringstream o;
+        o << f.rdbuf();
+        return k.find("-connect") == std::string::npos && k.find("Setting up") == std::string::npos && k.find("--- LoadMapFile ---") != std::string::npos &&
+               konsoleArtMit(ke::KonsolenZeile::Art::Warnung, "WARNING: Couldn't find image") && o.str().find("--- LoadMapFile ---") != std::string::npos &&
+               k.find("junk.txt") != std::string::npos && istDatei(stamm + ".bsp") && k.find(fertigZeile("Single: bsp stage", 1)) != std::string::npos;
+    }));
+    // Run Engine After Compile: im Selbsttest nur gemerkt (nie ein Spiel starten)
+    add(tu("Build monitoring an, Log aus, Run Engine After Compile an", [] {
+        ke::Editor& e = ke::editor();
+        e.bau.ueberwachen = true;
+        e.bau.logAusgeben = false;
+        e.bau.spielStarten = true;
+        e.letzteUrl.clear();
+    }));
+    add(bauMenuepunkt("Single: bsp stage"));
+    add(fertig("Bauen fertig", 1200));
+    add(pruefe("Run Engine After Compile: danach \"<Engine><exe>\" +set sv_pure 0 [+set fs_game MD] +devmap raum (im Test nur gemerkt, nicht gestartet)", [] {
+        const std::string& u = ke::editor().letzteUrl;
+        diag::detail("Knopftest: Stufe 3/4 Engine: " + u);
+        const std::string basis = ke::kartenSpiel().basisSpiel;
+        const std::string fs = ke::bauSpielName() != basis ? " +set fs_game " + ke::bauSpielName() : std::string();
+        return u.find("\" +set sv_pure 0" + fs + " +devmap raum") != std::string::npos &&
+               u.rfind("\"" + ke::enginePfadAnzeige(), 0) == 0 && konsoleText().find("Running engine...") != std::string::npos;
+    }));
+    add(tu("Run Engine aus", [] { ke::editor().bau.spielStarten = false; }));
+    // Ziel-Ordner (Abweichung): auf der Seite Build eintragen
+    add(tu("Edit > Preferences, Seite Build", [] {
+        bauDateienWeg(laufOrdner("s3bau\\ziel\\raum"));
+        ke::editor().einstellungenOffen = true;
+    }));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KePgBuild)) + "##seite19"));
+    add(pause(0.2));
+    add(pruefe("Seite Build: Feld Ziel-Ordner (leer) mit dem Hinweis darunter, ganz im Fenster", [] {
+        const Element* el = finde("##bauziel", "", 0, true);
+        const ImRect f = fensterRahmen("###karteeinstellungen");
+        return el != nullptr && ke::einstellungsFeld("bauziel").empty() && f.Contains(el->rect);
+    }));
+    add(foto("karteneditor_s3_pref_build_ziel"));
+    add(klickAn("Feld Ziel-Ordner", stufe2::elementOrt("##bauziel")));
+    add(tippe(laufOrdner("s3bau\\ziel")));
+    add(klick(ke::trK(Str::KePrefOk)));
+    add(pause(0.2));
+    add(pruefe("OK: Ziel-Ordner gesetzt und gespeichert (BuildTargetFolder)", [] {
+        return ke::editor().bau.zielOrdner == laufOrdner("s3bau\\ziel") && stufe2::einstellung("BuildTargetFolder") == laufOrdner("s3bau\\ziel");
+    }));
+    add(bauMenuepunkt("Single: bsp stage"));
+    add(fertig("Bauen fertig", 1200));
+    add(pruefe("Ziel-Ordner: raum.bsp und raum.prt in s3bau/ziel, die Karte dorthin kopiert, [MapFile] ist die Kopie", [] {
+        return istDatei(laufOrdner("s3bau\\ziel\\raum.bsp")) && istDatei(laufOrdner("s3bau\\ziel\\raum.prt")) &&
+               istDatei(laufOrdner("s3bau\\ziel\\raum.map")) && ke::bauKartenPfad().find("s3bau/ziel/raum.map") != std::string::npos &&
+               konsoleText().find(" -meta \"" + ke::bauKartenPfad() + "\"") != std::string::npos;
+    }));
+    add(pruefe("Ziel-Ordner im Spielordner: gebaut wird im Arbeitsordner (mit Hinweis), nie im Spielordner (nur die Vorschau, ohne zu bauen)", [] {
+        ke::Editor& e = ke::editor();
+        const std::string alt = e.bau.zielOrdner;
+        e.bau.zielOrdner = spielOrdnerFuerTest() + "maps";
+        std::string h;
+        const std::string o = ke::bauOrdnerVorschau(&h);
+        e.bau.zielOrdner = alt;
+        diag::detail("Knopftest: Stufe 3/4 Vorschau: " + o + " / " + h);
+        return !spielOrdnerFuerTest().empty() && o == platform::settingsDirectory() + "\\karte_bau" && !h.empty();
+    }));
+    add(pruefe("Karte im Spielordner (ohne Ziel-Ordner): der Arbeitsordner mit Hinweis; sonst neben der Karte", [] {
+        ke::Editor& e = ke::editor();
+        const std::string altZiel = e.bau.zielOrdner;
+        const std::string altName = e.name;
+        e.bau.zielOrdner.clear();
+        e.name = spielOrdnerFuerTest() + "maps/x.map";
+        std::string h;
+        const std::string o = ke::bauOrdnerVorschau(&h);
+        e.name = altName;
+        std::string h2;
+        const std::string o2 = ke::bauOrdnerVorschau(&h2);
+        e.bau.zielOrdner = altZiel;
+        return o == platform::settingsDirectory() + "\\karte_bau" && !h.empty() && o2.empty() && h2.empty();
+    }));
+    add(tu("Ziel-Ordner leer", [] {
+        ke::editor().bau.zielOrdner.clear();
+        ke::einstellungenSpeichern();
+    }));
+    // Bedienbar waehrend des Bauens, und Abbrechen
+    add(tu("Eintrag \"Test langsam\" (-light -super 8 -samples 16 -bounce 100), Konsole leeren", [] {
+        ke::editor().bauProjekt.eintraege.push_back(karte::BauEintrag{"Test langsam", {"[q3map2] -light -super 8 -samples 16 -bounce 100 \"[MapFile]\""}});
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Test langsam"));
+    add(warteBis("q3map2 verbunden (das Licht rechnet)", [] { return konsoleText().find("Connected.") != std::string::npos; }, 600));
+    auto massstab = std::make_shared<float>(0.0F);
+    add(tu("Massstab der 2D-Ansicht merken", [massstab] { *massstab = ke::editor().xy[0].ansicht.massstab; }));
+    add(radAn("2D-Ansicht zoomen, waehrend q3map2 rechnet", feldMitte("XY"), 2.0F));
+    add(pause(0.3));
+    add(pruefe("Der Editor bleibt bedienbar: die 2D-Ansicht zoomt, das Bauen laeuft weiter", [massstab] {
+        diag::detail("Knopftest: Stufe 3/4 Massstab " + std::to_string(*massstab) + " -> " + std::to_string(ke::editor().xy[0].ansicht.massstab));
+        return ke::bauLaeuft() && ke::editor().xy[0].ansicht.massstab != *massstab;
+    }));
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.25));
+    add(foto("karteneditor_s3_bauen_abbrechen"));
+    add(klick(ke::trK(Str::KeBmAbbrechen), "##Menu_", 0, false));
+    add(pause(0.3));
+    add(pruefe("Build > Cancel build: q3map2 beendet, Zeile mit Schritt und Zeit in der Konsole, Statuszeile leer", [] {
+        return !ke::bauLaeuft() && konsoleText().find(abgebrochenZeile("Test langsam", 1, 1)) != std::string::npos && ke::editor().statusBefehl.empty();
+    }));
+    add(tu("Konsole leeren", [] { ke::konsoleLeeren(); }));
+    add(bauMenuepunkt("Single: bsp stage"));
+    add(fertig("Bauen fertig", 1200));
+    add(pruefe("Nach dem Abbrechen baut der naechste Eintrag wieder (Port 39000 frei)", [] {
+        const std::string k = konsoleText();
+        return k.find("Connected.") != std::string::npos && k.find(fertigZeile("Single: bsp stage", 1)) != std::string::npos;
+    }));
+    // Region (Map_SaveRegion): gebaut wird die Datei <Karte>.reg
+    add(tu("einen Pinsel waehlen, Region > Set selection, Konsole leeren", [stamm] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), e.karte.welt()->kinder().front());
+        ke::auswahlGeaendert();
+        (void)ke::ausfuehren("RegionSetSelection");
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::path(stamm + ".reg"), ec);
+        bauDateienWeg(stamm);
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Single: bsp stage"));
+    add(fertig("Bauen fertig", 1200));
+    add(pruefe("Region: raum.reg geschrieben, q3map2 baut die .reg ([MapFile]), raum.bsp entsteht", [stamm] {
+        const std::string k = konsoleText();
+        return ke::editor().region.aktiv && istDatei(stamm + ".reg") && k.find("/s3bau/raum.reg\"") != std::string::npos && istDatei(stamm + ".bsp") &&
+               k.find(fertigZeile("Single: bsp stage", 1)) != std::string::npos;
+    }));
+    add(tu("Region aus", [] { (void)ke::ausfuehren("RegionOff"); }));
+    // Unbenannte Karte: SaveMap fragt mit Speichern unter; abgebrochen -> "build cancelled"
+    add(tu("File > New Map; Speichern unter wird abgebrochen; Konsole leeren", [] {
+        ke::Editor& e = ke::editor();
+        ke::neueKarte();
+        e.dateiDialog = [](const std::string&) { return std::string(); };
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Single: bsp stage"));
+    add(pause(0.2));
+    add(pruefe("Unbenannte Karte, Speichern unter abgebrochen: \"build cancelled\" wie NRC, kein Bauen", [] {
+        const std::string k = konsoleText();
+        return k.find("build cancelled\n") != std::string::npos && k.find("=== running build command ===") == std::string::npos && !ke::bauLaeuft();
+    }));
+    add(tu("Speichern unter: s3bau/leer.map (die leere Karte); Konsole leeren", [] {
+        bauDateienWeg(laufOrdner("s3bau\\leer"));
+        ke::editor().dateiDialog = [](const std::string&) { return laufOrdner("s3bau\\leer.map"); };
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Single: bsp stage"));
+    add(fertig("Bauen fertig", 1200));
+    add(pruefe("Leere Karte (ohne Entitaet) unter s3bau/leer.map gespeichert und gebaut: q3map2 stuerzt ab (NRCs q3map2.exe auch), "
+               "die Zeile am Ende nennt es (1: exit 0xC0000005)",
+               [] {
+                   const std::string k = konsoleText();
+                   diag::detail("Knopftest: Stufe 3/4 leere Karte: " + k.substr(k.size() > 200 ? k.size() - 200 : 0));
+                   return istDatei(laufOrdner("s3bau\\leer.map")) && ke::editor().name == laufOrdner("s3bau\\leer.map") &&
+                          k.find(fertigZeile("Single: bsp stage", 1)) != std::string::npos && k.find("(1: exit 0xC0000005)") != std::string::npos;
+               }));
+    add(tu("File > New Map, ein dichter Raum mit info_player_start; Speichern unter: s3bau/neu.map; Konsole leeren", [] {
+        ke::Editor& e = ke::editor();
+        ke::neueKarte();
+        (void)e.karte.weltHolenOderAnlegen();
+        using V = karte::Vektor3f;
+        for (const auto& [a, b] : {std::pair<V, V>{V(-272, -272, -16), V(272, 272, 0)}, {V(-272, -272, 256), V(272, 272, 272)},
+                                   {V(-272, -272, 0), V(-256, 272, 256)}, {V(256, -272, 0), V(272, 272, 256)},
+                                   {V(-256, -272, 0), V(256, -256, 256)}, {V(-256, 256, 0), V(256, 272, 256)}}) {
+            (void)stufe2::testPinsel(a, b, "textures/common/caulk");
+        }
+        const auto start = e.karte.neueEntitaet("info_player_start", false);
+        start->setzen("origin", "0 0 32");
+        e.karte.entitaetEinfuegen(start);
+        bauDateienWeg(laufOrdner("s3bau\\neu"));
+        e.dateiDialog = [](const std::string&) { return laufOrdner("s3bau\\neu.map"); };
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Single: bsp stage"));
+    add(fertig("Bauen fertig", 1200));
+    add(pruefe("Unbenannte Karte, Speichern unter s3bau/neu.map: erst gespeichert, dann gebaut (neu.bsp), ohne exit", [] {
+        ke::editor().dateiDialog = nullptr;
+        const std::string k = konsoleText();
+        return istDatei(laufOrdner("s3bau\\neu.map")) && istDatei(laufOrdner("s3bau\\neu.bsp")) && ke::editor().name == laufOrdner("s3bau\\neu.map") &&
+               k.find(fertigZeile("Single: bsp stage", 1)) != std::string::npos && k.find(": exit ") == std::string::npos;
+    }));
+    add(tu("Ohne Ueberwachung, neu.bsp weg; Konsole leeren", [] {
+        ke::editor().bau.ueberwachen = false;
+        bauDateienWeg(laufOrdner("s3bau\\neu"));
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Single: light stage"));
+    add(fertig("Bauen fertig", 1200));
+    add(pruefe("Ohne Ueberwachung, -light ohne .bsp: ERROR rot (aus der Pipe), am Ende (1: exit 1)", [] {
+        ke::editor().bau.ueberwachen = true;
+        const std::string k = konsoleText();
+        return konsoleArtMit(ke::KonsolenZeile::Art::Fehler, "************ ERROR ************") &&
+               k.find(fertigZeile("Single: light stage", 1) ) != std::string::npos && k.find("(1: exit 1)") != std::string::npos;
+    }));
+    add(tu("Aufraeumen: Build-Menue frisch, Seite Build wie vorgegeben", [] {
+        ke::Editor& e = ke::editor();
+        e.dateiDialog = nullptr;
+        e.bauProjektFuer = -2;
+        e.bauGeaendert = false;
+        ke::bauMenueSicherstellen();
+        e.bau = ke::Editor::BauEinstellungen{};
+        ke::einstellungenSpeichern();
     }));
     return s;
 }
@@ -33076,12 +33556,14 @@ std::vector<Schritt> karteneditorStufe3Schritte() {
     // BHED_STUFE3_NUR=bau: nur Build-Menue und Bauen (Punkte 3 ff.)
     if (nur != nullptr && std::strcmp(nur, "bau") == 0) {
         for (Schritt& x : stufe3::baumenue()) { s.push_back(std::move(x)); }
+        for (Schritt& x : stufe3::bauen()) { s.push_back(std::move(x)); }
         return s;
     }
     for (Schritt& x : stufe3::leiste()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe3::maus()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe3::teiler()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe3::baumenue()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe3::bauen()) { s.push_back(std::move(x)); }
     return s;
 }
 
@@ -33414,7 +33896,8 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         {"Modify__Rotate", {"Modify", "Rotate"}, 206, 137},
         {"Modify__Flip", {"Modify", "Flip"}, 183, 137},
         {"Modify__Repeat", {"Modify", "Repeat"}, 225, 154},
-        {"Build", {"Build"}, 193, 405},
+        // Build: NRC + Trenner 7 + "Cancel build" 24 (Stufe 3 Punkt 4, Abweichung)
+        {"Build", {"Build"}, 193, 405 + 7 + 24},
         {"Grid", {"Grid"}, 163, 346},
         // Misc und Help: NRC + die Programm-Eintraege (Stufe 3 Punkt 0b, Abweichung):
         // Misc + Trenner 7 + drei Untermenues je 24, Help + Manual und About BehavEd.

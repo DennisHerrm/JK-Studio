@@ -31,17 +31,22 @@
 #include "karteneditor.h"
 
 #include "app_internal.h"
+#include "karte_bau_plattform.h"
 #include "platform.h"
 
 #include "bhed/karte/bau.h"
+#include "bhed/karte/baumonitor.h"
+#include "bhed/karte/kartendatei.h"
 #include "bhed/karte/kartenformat.h"
 #include "bhed/karte/zuletzt.h"
 #include "bhed/regelwerk.h"
 
 #include <algorithm>
 #include <cfloat>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -211,7 +216,7 @@ std::string bauSpielName() {
 // im Arbeitsordner, siehe bauKartenPfad in Punkt 4)
 std::string bauKartenPfad() {
     Editor& ed = e();
-    return mitSchraegstrich(ed.bauKarte.empty() ? ed.name : ed.bauKarte);
+    return mitSchraegstrich(ed.bauKarte.empty() || ed.bauKarteFuer != ed.name ? ed.name : ed.bauKarte);
 }
 
 // Build_constructMenu (build.cpp:1224-1248): je Eintrag ein Menuepunkt mit den
@@ -237,6 +242,13 @@ void bauMenueEintraegeZeichnen() {
         if (qtPunkt(p)) { bauStarten(i); }   // BuildMenuItem::run -> RunBSP( m_buildIdx )
         letzterTrenner = false;
     }
+    // Abweichung (Auftrag): ein laufendes Bauen abbrechen
+    qtTrenner();
+    const std::string abbrechen = std::string(trK(Str::KeBmAbbrechen)) + "##bauabbrechen";
+    QtPunkt p;
+    p.id = abbrechen.c_str();
+    p.aktiv = bauLaeuft();
+    if (qtPunkt(p)) { bauAbbrechen(); }
 }
 
 // Build_runRecentExecutedBuild (build.cpp:1311-1314): der zuletzt gebaute
@@ -580,7 +592,6 @@ void baumListe(int art, const std::vector<std::string>& zeilen, int x, int y, in
 void listenTasten() {
     BauDialog& d = g_bd;
     if (d.bearbeitet != kKeine || (d.fokus != kEintraege && d.fokus != kBefehle)) { return; }
-    const ImGuiIO& io = ImGui::GetIO();
     auto& liste = eintraege();
     const bool eintragDa = d.aktuell >= 0 && d.aktuell < static_cast<int>(liste.size());
     if (d.fokus == kEintraege) {
@@ -958,6 +969,523 @@ ImVec2 bauDialogZeile(int liste, int zeile, int spalte) {
     return ImVec2{x, d.listeO[i].y + d.zeileH[i] * (static_cast<float>(zeile) + 0.5F)};
 }
 
+// --- Bauen mit Ueberwachung (watchbsp.cpp: CWatchBSP) -------------------------------
+//
+// Ein Schritt nach dem anderen: lauschen (127.0.0.1:39000), q3map2 starten
+// (ohne Fenster), die Verbindung annehmen (5 s Zeit), den XML-Strom lesen
+// (BauMonitor), bei "Connection closed." den naechsten Schritt. Ohne
+// Ueberwachung oder bei einem Befehl ohne Rueckkanal (RunBatch): die
+// restlichen Befehle nacheinander, ihre Ausgabe ueber eine Pipe in die Konsole.
+// Dazu (Abweichung, Auftrag): Fortschritt in der Statuszeile, Abbrechen, am
+// Ende Zeit und Ergebnis; q3map2 endet mit dem Editor (Job).
+
+namespace {
+
+enum class BauZustand { Leerlauf, Schrittbeginn, Beobachten, Stapel };
+
+struct BauLauf {
+    BauZustand zustand = BauZustand::Leerlauf;   // m_eState (Stapel: RunBatch)
+    std::vector<std::string> befehle;              // m_commands
+    std::size_t schritt = 0;                       // m_iCurrentStep
+    std::string eintrag;                           // der Name des Eintrags (fuer die Anzeige)
+    std::string bspName;                           // m_sBSPName (PathFilename der Karte)
+    bauplattform::Prozess prozess;
+    bauplattform::Horcher horcher;
+    karte::BauNetzRahmen rahmen;
+    karte::BauMonitor monitor;
+    std::chrono::steady_clock::time_point start;
+    std::chrono::steady_clock::time_point schrittStart;   // m_timeout_timer
+    bool aktiv = false;                            // eine Folge laeuft (fuer die Zusammenfassung)
+    bool leckGemeldet = false;
+    std::string zeilenRest;                        // Stapel: angefangene Zeile
+    std::string logPfad;                           // Stapel mit "Dump non Monitored Builds Log": junk.txt
+    std::vector<std::pair<std::size_t, int>> rueckgaben;   // Schritt und Rueckgabe von q3map2 (Abweichung: in der Zeile am Ende)
+};
+BauLauf g_lauf;
+
+double sekundenSeit(std::chrono::steady_clock::time_point t) {
+    return std::chrono::duration<double>(std::chrono::steady_clock::now() - t).count();
+}
+
+std::string zeitText(double s) {
+    char z[32];
+    std::snprintf(z, sizeof(z), "%.1f", s);
+    return z;
+}
+
+void meldungsKasten(const std::string& text) {   // qt_MessageBox( ..., "Build monitoring", EMessageBoxType::Error )
+    qtMeldung("Build monitoring", text, MeldungArt::Fehler, false, nullptr);
+}
+
+void zusammenfassung(int art, const std::string& grund) {   // 0 fertig, 1 gestoppt, 2 abgebrochen
+    BauLauf& l = g_lauf;
+    if (!l.aktiv) { return; }
+    l.aktiv = false;
+    const std::string zeit = zeitText(sekundenSeit(l.start));
+    char z[512];
+    if (art == 0) {
+        std::snprintf(z, sizeof(z), trK(Str::KeBmFertig), l.eintrag.c_str(), static_cast<int>(l.befehle.size()), zeit.c_str());
+        std::string text = z;
+        for (const auto& [schritt, code] : l.rueckgaben) {
+            if (code == 0) { continue; }
+            char c[32];
+            const unsigned u = static_cast<unsigned>(code);
+            std::snprintf(c, sizeof(c), u > 0xFFFFU ? "0x%08X" : "%u", u);   // Absturz: 0xC0000005
+            text += " (" + std::to_string(schritt + 1) + ": exit " + c + ")";
+        }
+        konsoleSchreiben(KonsolenZeile::Art::Ausgabe, text + "\n");
+    } else if (art == 1) {
+        std::snprintf(z, sizeof(z), trK(Str::KeBmGestoppt), l.eintrag.c_str(), static_cast<int>(l.schritt + 1),
+                      static_cast<int>(l.befehle.size()), grund.c_str(), zeit.c_str());
+        konsoleSchreiben(KonsolenZeile::Art::Fehler, std::string(z) + "\n");
+    } else {
+        std::snprintf(z, sizeof(z), trK(Str::KeBmAbgebrochen), l.eintrag.c_str(), static_cast<int>(l.schritt + 1),
+                      static_cast<int>(l.befehle.size()), zeit.c_str());
+        konsoleSchreiben(KonsolenZeile::Art::Warnung, std::string(z) + "\n");
+    }
+    e().statusBefehl.clear();
+}
+
+void leckHinweis() {   // Abweichung (Auftrag): ein Hinweis in der Konsole, wie man das Leck findet
+    if (g_lauf.leckGemeldet) { return; }
+    g_lauf.leckGemeldet = true;
+    konsoleSchreiben(KonsolenZeile::Art::Warnung, std::string(trK(Str::KeBmLeckHinweis)) + "\n");
+}
+
+// CWatchBSP::Reset: Sockets zu, Leerlauf (der Prozess laeuft weiter wie bei NRC)
+void ueberwachungZuruecksetzen() {
+    BauLauf& l = g_lauf;
+    l.horcher.schliessen();
+    l.rahmen = karte::BauNetzRahmen{};
+    l.zustand = BauZustand::Leerlauf;
+}
+
+// runEngineCmd / runEngine (watchbsp.cpp:273-307); constructEngineArgs nimmt
+// gamename_get - hier bauSpielName (Movie Duels: +set fs_game MD)
+void spielStarten() {
+    Editor& ed = e();
+    const karte::SpielBeschreibung& sb = kartenSpiel();
+    std::string exe = ed.bau.engine.wert(sb.engine);
+    std::string args = ed.bau.argumente.wert(karte::engineArgumente(bauSpielName(), sb.basisSpiel));
+    if (ed.spielModus == "mp") {
+        const std::string mp = ed.bau.engineMp.wert(sb.mpEngine);
+        if (!mp.empty()) {
+            exe = mp;
+            args = ed.bau.argumenteMp.wert(karte::engineArgumente(bauSpielName(), sb.basisSpiel));
+        }
+    }
+    const std::string engine = enginePfadAnzeige();
+    std::string cmd = "\"" + engine + exe + "\" ";
+    for (std::size_t p = 0;;) {   // substitute "%mapname%"
+        const std::size_t q = args.find("%mapname%", p);
+        if (q == std::string::npos) {
+            cmd += args.substr(p);
+            break;
+        }
+        cmd += args.substr(p, q - p) + g_lauf.bspName;
+        p = q + 9;
+    }
+    ausgabe("Running engine...");
+    ausgabe(cmd);
+    // Im Selbsttest (BHED_EDITORTEST) nur gemerkt: nie ein Spiel starten
+    const bool ok = (e().befehlStarten || std::getenv("BHED_EDITORTEST") != nullptr) ? kartenBefehlStarten(cmd)
+                                                                                     : bauplattform::losgeloestStarten(cmd, engine);
+    if (!ok) {
+        const std::string msg = "Failed to execute the following command: " + cmd + "\n";
+        konsoleSchreiben(KonsolenZeile::Art::Ausgabe, msg);
+        meldungsKasten(msg);
+    }
+}
+
+// Stapel (RunBatch): eine Zeile der Ausgabe mit der Farbe, die q3map2 ihr in
+// seiner Konsole gaebe (set_console_colour_for_flag: WARNING gelb, ERROR rot).
+void stapelZeile(const std::string& zeile) {
+    KonsolenZeile::Art art = KonsolenZeile::Art::Ausgabe;
+    if (zeile.find("WARNING") != std::string::npos) { art = KonsolenZeile::Art::Warnung; }
+    if (zeile.find("ERROR") != std::string::npos || zeile.find("leaked") != std::string::npos ||
+        zeile.find("LEAKED") != std::string::npos) {
+        art = KonsolenZeile::Art::Fehler;
+    }
+    konsoleSchreiben(art, zeile + "\n");
+}
+
+void stapelAusgabe(const std::string& stueck) {
+    BauLauf& l = g_lauf;
+    if (stueck.empty()) { return; }
+    if (!l.logPfad.empty()) {
+        std::ofstream f(pfadAus(l.logPfad), std::ios::binary | std::ios::app);
+        f.write(stueck.data(), static_cast<std::streamsize>(stueck.size()));
+    }
+    l.zeilenRest += stueck;
+    std::size_t p = 0;
+    for (std::size_t q; (q = l.zeilenRest.find('\n', p)) != std::string::npos; p = q + 1) {
+        std::string z = l.zeilenRest.substr(p, q - p);
+        if (!z.empty() && z.back() == '\r') { z.pop_back(); }
+        stapelZeile(z);
+    }
+    l.zeilenRest.erase(0, p);
+}
+
+bool stapelBefehlStarten() {
+    BauLauf& l = g_lauf;
+    ausgabe("=== running build command ===");
+    ausgabe(l.befehle[l.schritt]);
+    std::string grund;
+    if (!l.prozess.starten(l.befehle[l.schritt], std::string(), true, grund)) {
+        const std::string msg = "Failed to execute the following command: " + l.befehle[l.schritt] +
+                                "\nCheck that the file exists and that you don't run out of system resources.\n";
+        konsoleSchreiben(KonsolenZeile::Art::Ausgabe, msg);
+        meldungsKasten(msg);
+        return false;
+    }
+    l.schrittStart = std::chrono::steady_clock::now();
+    return true;
+}
+
+void schrittBeginnen();
+
+// EndMonitoringLoop mit dem Grund (Abweichung: die Zusammenfassung)
+void ueberwachungBeenden(const std::string& grund) {
+    ueberwachungZuruecksetzen();
+    zusammenfassung(1, grund);
+}
+
+// CWatchBSP::DoEBeginStep
+void schrittBeginnen() {
+    BauLauf& l = g_lauf;
+    Editor& ed = e();
+    ueberwachungZuruecksetzen();
+    if (l.schritt == l.befehle.size()) {   // finita
+        zusammenfassung(0, std::string());
+        if (ed.bau.spielStarten) { spielStarten(); }
+        return;
+    }
+    // monitoring off or unmonitored command
+    if (!ed.bau.ueberwachen || l.befehle[l.schritt].find(kBauMonitorAdresse) == std::string::npos) {
+        // RunBatch: die restlichen Befehle - hier nacheinander im Hintergrund statt
+        // einer qe3bsp.bat in einem Konsolenfenster (Abweichung)
+        if (ed.bau.logAusgeben) {   // "> junk.txt" beim ersten, ">>" danach
+            l.logPfad = platform::settingsDirectory() + "\\junk.txt";
+            std::ofstream f(pfadAus(l.logPfad), std::ios::binary | std::ios::trunc);
+            ausgabe("The build output will be saved in '" + mitSchraegstrich(l.logPfad) + "'");
+        } else {
+            l.logPfad.clear();
+        }
+        l.zustand = BauZustand::Stapel;
+        if (!stapelBefehlStarten()) {
+            l.zustand = BauZustand::Leerlauf;
+            zusammenfassung(1, "exec");
+        }
+        return;
+    }
+    // SetupListening
+    ausgabe("Setting up");
+    std::string grund;
+    if (!l.horcher.lauschen(39000, grund)) {
+        const std::string msg = "Failed to get a listening socket on port 39000.\nTry running with Build monitoring disabled if you can't fix this.\n";
+        konsoleSchreiben(KonsolenZeile::Art::Ausgabe, msg);
+        meldungsKasten(msg);
+        zusammenfassung(1, "port 39000");
+        return;
+    }
+    ausgabe("Listening...");
+    l.schrittStart = std::chrono::steady_clock::now();   // m_timeout_timer.start()
+    ausgabe("=== running build command ===");
+    ausgabe(l.befehle[l.schritt]);
+    if (!l.prozess.starten(l.befehle[l.schritt], std::string(), false, grund)) {
+        const std::string msg = "Failed to execute the following command: " + l.befehle[l.schritt] +
+                                "\nCheck that the file exists and that you don't run out of system resources.\n";
+        konsoleSchreiben(KonsolenZeile::Art::Ausgabe, msg);
+        meldungsKasten(msg);
+        ueberwachungZuruecksetzen();
+        zusammenfassung(1, "exec");
+        return;
+    }
+    if (l.schritt == 0) {   // re-initialise the debug window (g_DbgDlg.Init)
+        ed.bauRueckmeldungen.clear();
+        ed.bauRueckmeldungWahl = -1;
+    }
+    l.zustand = BauZustand::Schrittbeginn;
+}
+
+}  // namespace
+
+// BuildMonitor_Run -> CWatchBSP::DoMonitoringLoop
+void bauAusfuehren(const std::vector<std::string>& befehle) {
+    BauLauf& l = g_lauf;
+    Editor& ed = e();
+    if (l.zustand != BauZustand::Leerlauf || l.aktiv) {
+        warnung("WatchBSP got a monitoring request while not idling...");
+        // Abweichung: der alte Prozess endet (nicht zwei q3map2 an einer Karte)
+        l.prozess.beenden();
+        ueberwachungZuruecksetzen();
+        zusammenfassung(2, std::string());
+    }
+    if (befehle.empty()) { return; }
+    l.befehle = befehle;
+    l.schritt = 0;
+    l.start = std::chrono::steady_clock::now();
+    l.aktiv = !befehle.empty();
+    l.leckGemeldet = false;
+    l.zeilenRest.clear();
+    l.rueckgaben.clear();
+    l.monitor = karte::BauMonitor{};
+    l.monitor.leckStopp = ed.bau.leckStopp;
+    l.monitor.drucken = [](int stufe, const std::string& text) {   // Sys_Print( msg_level, ... )
+        konsoleSchreiben(stufe == karte::kBauStufeErr   ? KonsolenZeile::Art::Fehler
+                         : stufe == karte::kBauStufeWrn ? KonsolenZeile::Art::Warnung
+                                                        : KonsolenZeile::Art::Ausgabe,
+                         text);
+    };
+    l.monitor.warnung = [](const std::string& z) { warnung(z); };
+    l.monitor.fehler = [](const std::string& z) { fehler(z); };
+    l.monitor.rueckmeldung = [](const karte::BauRueckmeldung& r) {   // g_DbgDlg.Push: das Fenster zeigt sich
+        e().bauRueckmeldungen.push_back(r);
+        e().bauRueckmeldungOffen = true;
+    };
+    l.monitor.leckLinie = [](const std::vector<karte::Vektor3f>& punkte) {   // CPointfile: GenerateDisplayList
+        Editor& ed2 = e();
+        ed2.punktdatei = punkte;
+        ed2.punktdateiSichtbar = !punkte.empty();
+        ed2.punktdateiStelle = 0;   // s_check_point = begin()
+        ++ed2.sichtStand;
+        leckHinweis();
+    };
+    if (!l.aktiv) { return; }
+    schrittBeginnen();
+}
+
+// CWatchBSP::RoutineProcessing (jedes Bild) und der Stapel
+void bauSchritt() {
+    BauLauf& l = g_lauf;
+    Editor& ed = e();
+    if (l.aktiv) {   // Fortschritt in der Statuszeile (Abweichung)
+        char z[256];
+        const int s = static_cast<int>(sekundenSeit(l.start));
+        char zeit[16];
+        std::snprintf(zeit, sizeof(zeit), "%d:%02d", s / 60, s % 60);
+        std::snprintf(z, sizeof(z), trK(Str::KeBmStatus), l.eintrag.c_str(), static_cast<int>(std::min(l.schritt + 1, l.befehle.size())),
+                      static_cast<int>(l.befehle.size()), zeit);
+        ed.statusBefehl = z;
+    }
+    switch (l.zustand) {
+    case BauZustand::Schrittbeginn:
+        // timeout: if we don't get an incoming connection fast enough, go back to idle
+        if (sekundenSeit(l.schrittStart) > 5.0) {
+            meldungsKasten("The connection timed out, assuming the build process failed\nMake sure you are using a networked version of Q3Map?\n"
+                           "Otherwise you need to disable BSP Monitoring in prefs.");
+            ueberwachungBeenden("timeout");
+            return;
+        }
+        if (l.horcher.annehmen()) {
+            ausgabe("Connected.");
+            l.monitor.verbunden();   // memset( &m_message_info, 0 ), m_bNeedCtxtInit
+            l.rahmen = karte::BauNetzRahmen{};
+            l.zustand = BauZustand::Beobachten;
+        }
+        break;
+    case BauZustand::Beobachten: {
+        std::string daten;
+        const int r = l.horcher.empfangen(daten);
+        if (r == -1) {
+            fehler("SOCKET_ERROR in CWatchBSP::RoutineProcessing");
+            fehler("Terminating the connection.");
+            ueberwachungBeenden("socket");
+            return;
+        }
+        if (!daten.empty()) {
+            l.rahmen.einspeisen(daten.data(), daten.size());
+            std::string n;
+            bool kaputt = false;
+            while (l.rahmen.naechste(n, &kaputt)) {
+                l.monitor.einspeisen(n);
+                if (l.monitor.beenden()) {   // EndMonitoringLoop aus dem SAX-Rueckruf
+                    ueberwachungBeenden(l.monitor.leck() ? "leak" : "error");
+                    return;
+                }
+            }
+            if (kaputt) {
+                fehler("SOCKET_ERROR in CWatchBSP::RoutineProcessing");
+                ueberwachungBeenden("socket");
+                return;
+            }
+        }
+        if (r == 2) {   // error or connection closed/reset
+            l.horcher.schliessen();
+            ausgabe("Connection closed.");
+            // q3map2 schliesst den Socket beim Beenden - einen Augenblick warten, bis es
+            // ganz zu Ende ist, fuer die Rueckgabe (ein Absturz zeigt sich sonst nicht)
+            if (l.prozess.warten(1000)) { l.rueckgaben.emplace_back(l.schritt, l.prozess.rueckgabe()); }
+            ++l.schritt;   // move to next step or finish
+            schrittBeginnen();
+        }
+        break;
+    }
+    case BauZustand::Stapel: {
+        stapelAusgabe(l.prozess.lesen());
+        if (l.prozess.laeuft()) { break; }
+        stapelAusgabe(l.prozess.lesen());
+        if (!l.zeilenRest.empty()) {
+            stapelZeile(l.zeilenRest);
+            l.zeilenRest.clear();
+        }
+        l.rueckgaben.emplace_back(l.schritt, l.prozess.rueckgabe());
+        // das Leck nach einem Schritt: die .lin liegt neben der Karte
+        std::error_code ec;
+        const std::string karte = bauKartenPfad();
+        if (fs::exists(pfadAus(karte.substr(0, karte.rfind('.')) + ".lin"), ec)) { leckHinweis(); }
+        ++l.schritt;
+        if (l.schritt < l.befehle.size()) {
+            if (!stapelBefehlStarten()) {
+                l.zustand = BauZustand::Leerlauf;
+                zusammenfassung(1, "exec");
+            }
+        } else {
+            l.zustand = BauZustand::Leerlauf;
+            zusammenfassung(0, std::string());
+            if (ed.bau.spielStarten) { spielStarten(); }   // RunBatch: "cd /D <engine>" + runEngineCmd
+        }
+        break;
+    }
+    case BauZustand::Leerlauf:
+        break;
+    }
+}
+
+bool bauLaeuft() { return g_lauf.aktiv || g_lauf.zustand != BauZustand::Leerlauf; }
+
+// CDbgDlg::feedback_selection_changed / SetHighlight / Highlight
+void bauRueckmeldungWaehlen(int zeile) {
+    Editor& ed = e();
+    if (zeile < 0 || zeile >= static_cast<int>(ed.bauRueckmeldungen.size())) {
+        ed.bauRueckmeldungWahl = -1;
+        return;
+    }
+    ed.bauRueckmeldungWahl = zeile;
+    const karte::BauRueckmeldung& r = ed.bauRueckmeldungen[static_cast<std::size_t>(zeile)];
+    if (r.art == karte::BauRueckmeldung::Art::Auswahl) {   // CSelectMsg::Highlight
+        ed.karte.auswahl.leeren();   // GlobalSelectionSystem().setSelectedAll( false )
+        karte::Vektor3f mitte;
+        if (r.entitaet >= 0 && r.pinsel >= 0 && karte::pinselFinden(ed.karte, r.entitaet, r.pinsel, &mitte)) {   // SelectBrush
+            for (auto& x : ed.xy) { x.ansicht.setzeUrsprung(mitte); }
+        }
+        auswahlGeaendert();
+    }
+    ++ed.sichtStand;   // CPointMsg/CWindingMsg: m_pDraw2D (in den 2D-Ansichten)
+}
+
+// CDbgDlg::BuildDialog: "Q3Map debug window", ein QTreeWidget ohne Kopf
+void bauRueckmeldungenZeichnen() {
+    Editor& ed = e();
+    if (!ed.bauRueckmeldungOffen) { return; }
+    const float s = massstab();
+    ImGui::SetNextWindowSize(ImVec2{std::round(320.0F * s), std::round(200.0F * s)}, ImGuiCond_FirstUseEver);
+    const std::string titel = std::string(trK(Str::KeDbgTitel)) + "###kartedbgdlg";
+    bool offen = true;
+    if (ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse)) {
+        for (std::size_t i = 0; i < ed.bauRueckmeldungen.size(); ++i) {
+            const std::string text = ed.bauRueckmeldungen[i].name + "##dbg" + std::to_string(i);
+            if (ImGui::Selectable(text.c_str(), ed.bauRueckmeldungWahl == static_cast<int>(i))) { bauRueckmeldungWaehlen(static_cast<int>(i)); }
+        }
+    }
+    ImGui::End();
+    if (!offen) { ed.bauRueckmeldungOffen = false; }
+}
+
+// Abweichung (Auftrag): Bauen abbrechen - q3map2 beenden, Ueberwachung zu
+void bauAbbrechen() {
+    BauLauf& l = g_lauf;
+    if (!bauLaeuft()) { return; }
+    l.prozess.beenden();
+    ueberwachungZuruecksetzen();
+    zusammenfassung(2, std::string());
+}
+
+void bauBeimBeenden() {   // ~CWatchBSP; dazu: kein q3map2 ohne Editor
+    g_lauf.prozess.beenden();
+    g_lauf.prozess.loslassen();
+    ueberwachungZuruecksetzen();
+}
+
+
+// --- Wo gebaut wird (Abweichung: Ziel-Ordner, nie im Spielordner) -----------------
+
+namespace {
+
+std::string kleinPfad(std::string p) {
+    p = mitSchraegstrich(p);
+    std::transform(p.begin(), p.end(), p.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (!p.empty() && p.back() != '/') { p += '/'; }
+    return p;
+}
+
+// Liegt der Pfad im Spielordner (Engine-Pfad oder ein Suchordner des Spiels)?
+bool imSpielordner(const std::string& pfad) {
+    const std::string p = kleinPfad(pfad);
+    std::vector<std::string> spiel = kartenVfsOrdner();
+    spiel.push_back(enginePfadAnzeige());
+    for (const std::string& o : spiel) {
+        const std::string k = kleinPfad(o);
+        if (k.size() > 1 && p.rfind(k, 0) == 0) { return true; }
+    }
+    return false;
+}
+
+}  // namespace
+
+// Der Ordner, in dem gebaut wird ("" = neben der Karte), und warum nicht dort.
+std::string bauOrdnerVorschau(std::string* hinweis) {
+    Editor& ed = e();
+    const std::string arbeit = platform::settingsDirectory() + "\\karte_bau";
+    char z[1024];
+    if (!ed.bau.zielOrdner.empty()) {
+        if (imSpielordner(ed.bau.zielOrdner)) {
+            std::snprintf(z, sizeof(z), trK(Str::KeBmZielImSpiel), mitSchraegstrich(ed.bau.zielOrdner).c_str(), mitSchraegstrich(arbeit).c_str());
+            if (hinweis != nullptr) { *hinweis = z; }
+            return arbeit;
+        }
+        return ed.bau.zielOrdner;
+    }
+    if (imSpielordner(ed.name)) {
+        std::snprintf(z, sizeof(z), trK(Str::KeBmArbeitsordner), mitSchraegstrich(arbeit).c_str());
+        if (hinweis != nullptr) { *hinweis = z; }
+        return arbeit;
+    }
+    return std::string();
+}
+
+namespace {
+
+// Die Datei, die q3map2 baut: die Karte selbst, oder (Ziel-Ordner, Karte im
+// Spielordner) eine Kopie in einem Arbeitsordner - .bsp, .prt, .srf und .lin
+// entstehen dann dort. false, wenn die Kopie scheitert.
+bool bauOrtBestimmen() {
+    Editor& ed = e();
+    ed.bauKarte.clear();
+    const std::string stamm = ed.name.substr(0, ed.name.rfind('.') == std::string::npos ? ed.name.size() : ed.name.rfind('.'));
+    const std::string quelle = ed.region.aktiv ? stamm + ".reg" : ed.name;
+    std::string hinweis;
+    const std::string ordner = bauOrdnerVorschau(&hinweis);
+    if (!hinweis.empty()) { warnung(hinweis); }
+    if (ordner.empty()) { return true; }
+    std::error_code ec;
+    fs::create_directories(pfadAus(ordner), ec);
+    const fs::path q = pfadAus(quelle);
+    const fs::path ziel = pfadAus(ordner) / q.filename();
+    fs::copy_file(q, ziel, fs::copy_options::overwrite_existing, ec);
+    if (ec) {
+        fehler("build cancelled: cannot copy " + mitSchraegstrich(quelle) + " to " + mitSchraegstrich(ordner) + " (" + ec.message() + ")");
+        return false;
+    }
+    const fs::path karte = pfadAus(ordner) / (pfadAus(ed.name).stem().u8string() + u8".map");
+    const std::u8string u = karte.u8string();
+    ed.bauKarte = std::string(u.begin(), u.end());
+    ed.bauKarteFuer = ed.name;
+    return true;
+}
+
+}  // namespace
+
 // --- RunBSP (qe3.cpp:235-262) bis zu den Befehlen ----------------------------------
 
 void bauStarten(std::size_t index) {
@@ -965,28 +1493,37 @@ void bauStarten(std::size_t index) {
     bauMenueSicherstellen();
     // if( !g_region_active ) SaveMap();
     if (!ed.region.aktiv) { (void)karteSpeichern(); }
-    if (ed.name == "unnamed.map") {   // Map_Unnamed
-        fehler("build cancelled: the map is unnamed");
+    if (ed.name == "unnamed.map") {   // Map_Unnamed (SaveMap: Speichern unter abgebrochen)
+        ausgabe("build cancelled");
         return;
     }
     if (ed.region.aktiv) {   // Map_SaveRegion( <map>.reg )
         const std::string karte = ed.name.substr(0, ed.name.rfind('.') == std::string::npos ? ed.name.size() : ed.name.rfind('.'));
         (void)regionSpeichernUnter(karte + ".reg");
     }
+    // if( !g_region_active && g_SnapShots_Enabled && Map_Modified( g_map ) ) Map_Snapshot(); -
+    // nach SaveMap ist die Karte nicht mehr geaendert: der Zweig wirkt nur, wenn
+    // das Speichern scheiterte - dann baut auch q3map2 nicht die Aenderung.
+    if (!bauOrtBestimmen()) { return; }
+    // Pointfile_Delete: die alte Leck-Linie (.lin) der gebauten Datei weg
+    {
+        const std::string karte = bauKartenPfad();
+        std::error_code ec;
+        fs::remove(pfadAus(karte.substr(0, karte.rfind('.')) + ".lin"), ec);
+    }
     if (index < ed.bauProjekt.eintraege.size()) { ed.bauZuletzt = static_cast<long long>(index); }   // g_lastExecutedBuild
     std::vector<std::string> meldungen;
     const std::vector<std::string> befehle = karte::bauBefehle(ed.bauProjekt, index, bauVariablen(), &meldungen);
     for (const std::string& m : meldungen) { fehler(m); }
-    bauAusfuehren(befehle);
-}
-
-// BuildMonitor_Run: Punkt 3 baut die Befehle; das Ausfuehren mit Ueberwachung
-// kommt in Punkt 4 (bis dahin nur die Befehle in der Konsole).
-void bauAusfuehren(const std::vector<std::string>& befehle) {
-    for (const std::string& b : befehle) {
-        ausgabe("=== running build command ===");
-        ausgabe(b);
+    // bspname: PathFilename( Map_Name( g_map ) ) fuer die Engine
+    const std::u8string stamm = pfadAus(ed.name).stem().u8string();
+    const std::string name = index < ed.bauProjekt.eintraege.size() ? karte::ohneMnemonik(ed.bauProjekt.eintraege[index].name) : std::string();
+    if (bauLaeuft()) {   // DoMonitoringLoop: nicht im Leerlauf
+        bauAusfuehren(std::vector<std::string>{});
     }
+    g_lauf.eintrag = name;
+    g_lauf.bspName = std::string(stamm.begin(), stamm.end());
+    bauAusfuehren(befehle);
 }
 
 }  // namespace bhed::gui::karteneditor

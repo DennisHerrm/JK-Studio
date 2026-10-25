@@ -14570,6 +14570,10 @@ bool darfRuhen() {
     if (karteneditor::aktiv() && karteneditor::kameraBrauchtBilder()) {
         return false;
     }
+    // Stufe 3: waehrend q3map2 baut, Bild fuer Bild seine Ausgabe lesen
+    if (karteneditor::bauLaeuft()) {
+        return false;
+    }
     const ImGuiIO& io = ImGui::GetIO();
     if (io.WantTextInput) {
         return false;
@@ -14661,6 +14665,9 @@ void draw() {
     // rc601 integ: Regelwerk (OpenJK / Movie Duels) anwenden, wenn sich
     // Einstellung, Schwierigkeit oder Spielordner geaendert haben.
     (void)regelwerkPruefen();
+    // Stufe 3: ein laufendes Bauen im Karten-Editor weiterfuehren (q3map2 und
+    // sein Rueckkanal) - auch, wenn gerade ein anderer Arbeitsbereich offen ist.
+    karteneditor::bauSchritt();
 
     // --- Den Klangstrom nachfuellen ------------------------------------
     //

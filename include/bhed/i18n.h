@@ -1771,6 +1771,17 @@ enum class Str {
     KeBmWerkzeuge,
     KeBmResetTipp,
     KeBmKopiert,
+    KeBmAbbrechen,
+    KeBmStatus,
+    KeBmFertig,
+    KeBmGestoppt,
+    KeBmAbgebrochen,
+    KeBmLeckHinweis,
+    KeBmArbeitsordner,
+    KeBmZielImSpiel,
+    KePrBuildZiel,
+    KePrBuildZielHinweis,
+    KeDbgTitel,
     Count,
 };
 

@@ -300,6 +300,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_befehle.cpp
     # Stufe 3: Karten bauen (Build-Menue, Customize, RunBSP, Ueberwachung)
     gui/app_karte_bau.cpp
+    gui/karte_bau_win32.cpp
     gui/app_karte_menue.cpp
     gui/app_karte_dialoge.cpp
     gui/app_karte_csg.cpp
@@ -373,7 +374,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     set_source_files_properties(gui/selbsttest.cpp PROPERTIES COMPILE_OPTIONS /bigobj)
   endif()
 
-  target_link_libraries(behaved PRIVATE bhed_core imgui opengl32 gdi32 imm32 dwmapi comdlg32 ole32 shell32 uuid version winmm winhttp)
+  target_link_libraries(behaved PRIVATE bhed_core imgui opengl32 gdi32 imm32 dwmapi comdlg32 ole32 shell32 uuid version winmm winhttp ws2_32)
   # Stufe 3: das Build-Menue startet bhed_q3map2.exe neben behaved.exe - mit
   # behaved immer mitbauen (lauf_wp.sh baut nur das Ziel behaved).
   if(TARGET bhed_q3map2)
@@ -751,7 +752,8 @@ target_sources(bhed_core PRIVATE
   # Stufe 3: Build-Menue (build.cpp) und der XML-Leser dafuer und fuer den
   # Rueckkanal von q3map2 (watchbsp.cpp)
   src/karte/xmlstrom.cpp
-  src/karte/bau.cpp)
+  src/karte/bau.cpp
+  src/karte/baumonitor.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -905,7 +907,7 @@ if(BEHAVED_TESTS)
   # der XML-Leser.
   add_executable(kartebau tests/kartebau.cpp)
   target_link_libraries(kartebau PRIVATE bhed_core)
-  add_test(NAME karte_bau COMMAND kartebau ${CMAKE_CURRENT_SOURCE_DIR}/data/karte)
+  add_test(NAME karte_bau COMMAND kartebau ${CMAKE_CURRENT_SOURCE_DIR}/data/karte ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
   add_executable(kartebefehle tests/kartebefehle.cpp)
   target_link_libraries(kartebefehle PRIVATE bhed_core)
   add_test(NAME karte_befehle COMMAND kartebefehle ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.md)

@@ -331,6 +331,16 @@ standalone exe does not contain the map compiler.
   (`tools/karte/q3map2_vergleich.py erwartung <NRC q3map2.exe> <bhed_q3map2.exe>
   tests/karte/q3map2`); why not every byte can be compared is explained at
   the top of that script and in `NOTIZEN_karte3.md`, Punkt 2.
+- GUI self-test mode `karteneditor` builds from the editor (Stufe 3,
+  `BHED_KARTE_NUR=stufe3 BHED_STUFE3_NUR=bau` for only the Build menu and
+  building). It needs `BHED_Q3MAP2=<build>\bin\Release\bhed_q3map2.exe` (copied
+  next to the tested `behaved.exe`) and `BHED_Q3MAP2_DATEN=tests\karte\q3map2`
+  (`raum.nrc.bsp` for the lump comparison). It builds the test map with
+  [Final] Fast and checks the console line by line like watchbsp, an ERROR in
+  red, a busy port 39000, the 5 s timeout, unmonitored builds with `junk.txt`,
+  Run Engine (only recorded), the output folder (never the game folder), region
+  and unnamed maps, and that the editor zooms while q3map2 runs and
+  Build > Cancel build ends it.
 
 - `exe_importe` – `behaved.exe` binds only Windows DLLs (no VC++ runtime:
   rc600 needed `MSVCP140.dll` and friends, which no zip contained).
