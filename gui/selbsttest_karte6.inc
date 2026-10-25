@@ -2296,6 +2296,34 @@ std::vector<Schritt> funde() {
         });
     }));
     add(warteBis("NRC#164: Spiel wieder geladen", [] { return ke::spielBereit(); }, 3000));
+    // NRC#213: AutoCaulk scheiterte nur mit "reading ..._ac.caulk failure" ohne Grund.
+    // Hier: bhed_q3map2 fehlt neben behaved.exe - die Konsole muss sagen, warum.
+    const std::filesystem::path q3 = std::filesystem::path(platform::executableDirectory()) / "bhed_q3map2.exe";
+    const std::filesystem::path q3weg = std::filesystem::path(platform::executableDirectory()) / "bhed_q3map2.s6weg";
+    add(tu("NRC#213: bhed_q3map2 beiseite, Pinsel A, AutoCaulk Selected", [q3, q3weg] {
+        vorbereiten(Vor::Pinsel);
+        stufe3::q3map2Bereitstellen();
+        std::error_code ec;
+        std::filesystem::rename(q3, q3weg, ec);
+        ke::konsoleLeeren();
+        ke::editor().kamera.setzeUrsprung(karte::Vektor3f(0, 0, 32));
+        (void)ke::ausfuehren("AutoCaulkSelected");
+    }));
+    add(pause(0.3));
+    add(pruefe("NRC#213: die Konsole nennt den Grund (q3map2 nicht gestartet), nicht nur \"reading ..._ac.caulk failure\"", [] {
+        bool failure = false;
+        bool grund = false;
+        for (const ke::KonsolenZeile& z : ke::editor().konsole) {
+            failure = failure || z.text.find("_ac.caulk failure") != std::string::npos;
+            grund = grund || (z.text.find("bhed_q3map2") != std::string::npos && z.text.find("could not be started") != std::string::npos);
+        }
+        return failure && grund;
+    }));
+    add(tu("NRC#213: bhed_q3map2 zurueck", [q3, q3weg] {
+        std::error_code ec;
+        std::filesystem::rename(q3weg, q3, ec);
+        grundzustand();
+    }));
     // NRC-master nach 20260114: cc96c84 (Door Builder: die zweite Ausrichtung hiess auch
     // "North - South") und 7027470 ("Distance Multipler"); mit den Begriffen wie NetRadiant
     add(tu("NRC master: Begriffe wie NetRadiant, Pinsel A, bobToolz Door Builder", [] {

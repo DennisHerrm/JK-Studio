@@ -1655,16 +1655,32 @@ void autoCaulkAuswahl() {
             return;
         }
     }
+    std::string ausgabeQ3;
+    std::string grund;
+    bool gestartet = false;
+    int rueckgabe = 0;
     {   // compile: Q_Exec( nullptr, cmd, nullptr, false, true ) - ohne Fenster, warten
         std::string programm = mitSchraegstrich(platform::executableDirectory());
         if (!programm.empty() && programm.back() != '/') { programm += '/'; }
         const std::string cmd = "\"" + programm + "bhed_q3map2.exe\" -game quake3 -fs_basepath \"" + enginePfadAnzeige() + "\" -fs_homepath \"\" -fs_game " +
                                 bauSpielName() + " -autocaulk -fulldetail \"" + datei + "\"";
         bauplattform::Prozess p;
-        std::string grund;
-        if (p.starten(cmd, std::string(), false, grund)) {
+        // NRC#213 (Stufe 6): die Ausgabe von q3map2 mitlesen - scheitert es, nennt die
+        // Konsole den Grund statt nur "reading ..._ac.caulk failure".
+        if (p.starten(cmd, std::string(), true, grund)) {
             // Abweichung: hoechstens 10 Minuten (NRC wartet ohne Grenze)
-            if (!p.warten(600000)) { p.beenden(); }
+            const auto start = std::chrono::steady_clock::now();
+            while (!p.warten(50)) {
+                ausgabeQ3 += p.lesen();
+                if (std::chrono::steady_clock::now() - start > std::chrono::minutes(10)) {
+                    p.beenden();
+                    grund = "timeout after 10 minutes";
+                    break;
+                }
+            }
+            ausgabeQ3 += p.lesen();
+            gestartet = true;
+            rueckgabe = p.rueckgabe();
         }
     }
     std::map<std::size_t, std::string> caulk;
@@ -1673,6 +1689,23 @@ void autoCaulkAuswahl() {
         std::string text;
         if (!dateiLesen(datei2, text)) {
             fehler("reading " + datei2 + " failure");
+            if (!gestartet) {
+                fehler("map_autocaulk_selected(): bhed_q3map2 could not be started" + (grund.empty() ? std::string() : ": " + grund));
+            } else {
+                fehler("map_autocaulk_selected(): bhed_q3map2 -autocaulk ended with code " + std::to_string(rueckgabe) +
+                       (grund.empty() ? std::string() : " (" + grund + ")") + ", its last lines:");
+                std::vector<std::string> zeilen;
+                std::size_t a = 0;
+                while (a < ausgabeQ3.size()) {
+                    std::size_t e2 = ausgabeQ3.find('\n', a);
+                    if (e2 == std::string::npos) { e2 = ausgabeQ3.size(); }
+                    std::string z = ausgabeQ3.substr(a, e2 - a);
+                    while (!z.empty() && (z.back() == '\r' || z.back() == ' ')) { z.pop_back(); }
+                    if (!z.empty()) { zeilen.push_back(z); }
+                    a = e2 + 1;
+                }
+                for (std::size_t i = zeilen.size() > 8 ? zeilen.size() - 8 : 0; i < zeilen.size(); ++i) { fehler("  " + zeilen[i]); }
+            }
             return;
         }
         caulk = karte::caulkLesen(karte::textmodusLesen(text));
