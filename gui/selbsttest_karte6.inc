@@ -2255,6 +2255,148 @@ std::vector<Schritt> funde() {
     return s;
 }
 
+// --- Teil "pfade": NRC#130, Pfade ausserhalb von ASCII ------------------------------
+//
+// NRC: "Editor and all the tools are ASCII only" - eine Karte unter
+// C:\Users\Joerg\... oeffnete nicht. Hier: ein Ordner mit Umlaut, Leerzeichen,
+// chinesischen und japanischen Zeichen; Laden, Speichern, Speichern unter,
+// Bauen mit bhed_q3map2 (Licht), Leck-Linie, AutoCaulk und ein Suchpfad in den
+// Einstellungen.
+std::string utf8Pfad(const std::filesystem::path& p) {
+    const std::u8string u = p.u8string();
+    return std::string(u.begin(), u.end());
+}
+
+std::filesystem::path pfadOrdner() { return std::filesystem::current_path() / std::filesystem::path(u8"J\u00f6rg \u00dc \u6d4b\u8bd5 \u30de\u30c3\u30d7"); }
+
+std::string pfadKarte(const char8_t* name) { return utf8Pfad(pfadOrdner() / std::filesystem::path(name)); }
+
+bool pfadDa(const std::string& utf8) {
+    std::error_code ec;
+    return std::filesystem::is_regular_file(std::filesystem::path(std::u8string(utf8.begin(), utf8.end())), ec);
+}
+
+std::vector<Schritt> pfade() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const std::string karte = pfadKarte(u8"R\u00e4ume \u00fc \u6d4b\u8bd5.map");
+    const std::string kopie = pfadKarte(u8"Kopie \u00e4 \u65e5\u672c.map");
+    const std::string leck = pfadKarte(u8"Leck \u00f6 \u6d4b\u8bd5.map");
+    const auto stamm = [](const std::string& p) { return p.substr(0, p.size() - 4); };
+    add(tu("NRC#130: Ordner mit Umlaut, Leerzeichen, CJK; Raumkarte darin, oeffnen", [karte] {
+        grundzustand();
+        stufe3::q3map2Bereitstellen();
+        std::error_code ec;
+        std::filesystem::remove_all(pfadOrdner(), ec);
+        std::filesystem::create_directories(pfadOrdner(), ec);
+        (void)textSchreiben(karte, stufe3::raumKarte(false));
+        (void)ke::karteOeffnen(karte);
+    }));
+    add(pruefe("NRC#130: Karte aus dem Ordner geladen (Name, Pinsel)", [karte] {
+        const ke::Editor& e = ke::editor();
+        return e.name == karte && e.karte.welt() != nullptr && e.karte.welt()->kinder().size() > 4;
+    }));
+    add(tu("NRC#130: aendern und Save", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.waehlen(e.karte.welt(), e.karte.welt()->kinder().front());
+        (void)ke::ausfuehren("SelectNudgeUp");
+        (void)ke::ausfuehren("SaveMap");
+    }));
+    add(pruefe("NRC#130: Save schreibt in den Ordner (die Datei gelesen = die Karte, nicht geaendert)", [karte] {
+        karte::Karte k;
+        (void)karte::karteLesen(dateiInhalt(karte), k);
+        return !ke::geaendert() && karte::karteSchreiben(k) == karte::karteSchreiben(ke::editor().karte);
+    }));
+    add(tu("NRC#130: Save As in denselben Ordner", [kopie] {
+        dialogAntwort() = kopie;
+        ke::editor().dateiDialog = [](const std::string&) { return dialogAntwort(); };
+        (void)ke::ausfuehren("SaveMapAs");
+    }));
+    add(pruefe("NRC#130: Save As: Datei da, Name gewechselt, oben in der zuletzt-Liste", [kopie] {
+        const ke::Editor& e = ke::editor();
+        return pfadDa(kopie) && e.name == kopie && e.zuletzt.anzahl() > 0 && e.zuletzt.pfade()[0] == kopie;
+    }));
+    add(tu("NRC#130: die Kopie neu oeffnen, Build > [Final] Fast", [kopie] {
+        (void)ke::karteOeffnen(kopie);
+        ke::editor().bau = ke::Editor::BauEinstellungen{};
+        ke::bauMenueSicherstellen();
+        const int i = stufe3::eintragNr("[Final] Fast");
+        if (i >= 0) { ke::bauStarten(static_cast<std::size_t>(i)); }
+    }));
+    add(warteBis("NRC#130: Bauen fertig", [] { return !ke::bauLaeuft(); }, 6000));
+    add(pruefe("NRC#130: .bsp mit Licht neben der Karte im Ordner (bhed_q3map2 mit UTF-8-Pfad)", [kopie, stamm] {
+        const std::string bsp = stamm(kopie) + ".bsp";
+        const std::vector<std::string> l = stufe3::bspLumps(utf8Pfad(std::filesystem::path(std::u8string(bsp.begin(), bsp.end()))));
+        diag::detail("Knopftest: Stufe 6 - NRC#130 Bau: " + std::to_string(l.size()) + " Lumps, Licht " + (l.size() > 14 ? std::to_string(l[14].size()) : "-"));
+        return pfadDa(bsp) && l.size() == 18 && !l[14].empty();
+    }));
+    add(tu("NRC#130: Karte mit Loch im Ordner, Build > [Final] Fast", [leck] {
+        (void)textSchreiben(leck, stufe3::raumKarte(true));
+        (void)ke::karteOeffnen(leck);
+        const int i = stufe3::eintragNr("[Final] Fast");
+        if (i >= 0) { ke::bauStarten(static_cast<std::size_t>(i)); }
+    }));
+    add(warteBis("NRC#130: Bauen (Leck) fertig", [] { return !ke::bauLaeuft(); }, 6000));
+    add(tu("NRC#130: File > Pointfile", [] {
+        karteDialogeZu();
+        if (ke::editor().punktdateiSichtbar) { ke::punktdateiUmschalten(); }
+        (void)ke::ausfuehren("TogglePointfile");
+    }));
+    add(pruefe("NRC#130: die Leck-Linie aus dem Ordner gelesen (.lin neben der Karte, Punkte sichtbar)", [leck, stamm] {
+        const ke::Editor& e = ke::editor();
+        return pfadDa(stamm(leck) + ".lin") && e.punktdateiSichtbar && e.punktdatei.size() >= 2;
+    }));
+    add(tu("NRC#130: dichte Karte, alle Pinsel, AutoCaulk Selected", [karte] {
+        karteDialogeZu();
+        (void)ke::karteOeffnen(karte);
+        ke::Editor& e = ke::editor();
+        for (const auto& p : e.karte.welt()->kinder()) {
+            if (p->art() == karte::Primitiv::Art::Pinsel) { e.karte.auswahl.waehlen(e.karte.welt(), p); }
+        }
+        ke::auswahlGeaendert();
+        (void)ke::ausfuehren("AutoCaulkSelected");
+    }));
+    add(warteBis("NRC#130: AutoCaulk fertig", [] { return !ke::bauLaeuft(); }, 6000));
+    add(pause(0.3));
+    add(pruefe("NRC#130: AutoCaulk im Ordner: _ac.map und _ac.caulk, Rueckgaengig \"AutoCaulk N faces\" mit N > 0", [karte, stamm] {
+        const std::string u = ke::editor().karte.undo.undoName();
+        diag::detail("Knopftest: Stufe 6 - NRC#130 AutoCaulk: " + u);
+        return pfadDa(stamm(karte) + "_ac.map") && pfadDa(stamm(karte) + "_ac.caulk") && u.rfind("AutoCaulk ", 0) == 0 && u != "AutoCaulk 0 faces";
+    }));
+    // Einstellungen: ein Suchpfad mit Umlaut und CJK (Extra Resource Path), gespeichert und vom Dateisystem des Spiels gelesen
+    auto alt = std::make_shared<std::string>();
+    add(tu("NRC#130: Extra Resource Path im Ordner (maps/s6pfad.txt)", [alt] {
+        grundzustand();   // ungeaenderte Karte: kein ConfirmModified vor dem Neuladen des Spiels
+        const std::filesystem::path zusatz = pfadOrdner() / std::filesystem::path(u8"zus\u00e4tz \u6d4b");
+        std::error_code ec;
+        std::filesystem::create_directories(zusatz / "maps", ec);
+        (void)textSchreiben(utf8Pfad(zusatz / "maps" / "s6pfad.txt"), "s6");
+        *alt = ke::editor().zusatzPfade[0];
+        const std::string neu = karte::ordnerBereinigt(utf8Pfad(zusatz));
+        ke::spielNeuRealisieren("Edit Project Settings", [neu] { ke::editor().zusatzPfade[0] = neu; });
+        ke::einstellungenSpeichern();
+    }));
+    add(warteBis("NRC#130: Spiel neu geladen", [] { return ke::spielBereit(); }, 3000));
+    add(pause(0.5));
+    add(pruefe("NRC#130: der Suchpfad ist gespeichert und das Spiel findet maps/s6pfad.txt darin", [] {
+        const ke::Editor& e = ke::editor();
+        ke::einstellungenSpeichern();
+        const auto it = g_app->settings.karte.find("ExtraResourcePath0");
+        const std::string gefunden = e.karteSpiel ? e.karteSpiel->fs.finden("maps/s6pfad.txt") : std::string("-");
+        diag::detail("Knopftest: Stufe 6 - NRC#130 Suchpfad \"" + e.zusatzPfade[0] + "\", gespeichert \"" +
+                     (it != g_app->settings.karte.end() ? it->second : std::string("-")) + "\", gefunden in \"" + gefunden + "\"");
+        return it != g_app->settings.karte.end() && it->second == e.zusatzPfade[0] && !gefunden.empty();
+    }));
+    add(tu("NRC#130: Suchpfad zurueck, Grundzustand", [alt] {
+        const std::string a = *alt;
+        ke::spielNeuRealisieren("Edit Project Settings", [a] { ke::editor().zusatzPfade[0] = a; });
+        ke::einstellungenSpeichern();
+        grundzustand();
+    }));
+    add(pause(0.5));
+    return s;
+}
+
 }  // namespace stufe6
 
 std::vector<Schritt> karteneditorStufe6Schritte() {
@@ -2278,6 +2420,7 @@ std::vector<Schritt> karteneditorStufe6Schritte() {
     if (teil("felder")) { dazu(stufe6::felder()); }
     if (teil("dialoge")) { dazu(stufe6::dialoge()); }
     if (teil("funde")) { dazu(stufe6::funde()); }
+    if (teil("pfade")) { dazu(stufe6::pfade()); }
     s.push_back(tu("Stufe 6: Grundzustand, Aussenwelt zurueck", [] {
         stufe6::grundzustand();
         karteneditor::Editor& e = karteneditor::editor();

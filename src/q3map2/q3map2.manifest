@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- Stufe 6 (NRC#130): bhed_q3map2 mit UTF-8 als Codepage. NRC sagt "Editor
+     and all the tools are ASCII only"; mit dieser Codepage kommen Pfade mit
+     Umlauten, chinesischen und japanischen Zeichen in argv und fopen ohne
+     Fragezeichen an (ab Windows 10 1903). Am Quelltext von q3map2 aendert
+     sich nichts. -->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <assemblyIdentity type="win32" name="bhed_q3map2" version="1.0.0.0" processorArchitecture="*"/>
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
+    </windowsSettings>
+  </application>
+</assembly>

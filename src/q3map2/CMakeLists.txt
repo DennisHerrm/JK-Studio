@@ -246,7 +246,9 @@ add_executable(bhed_q3map2
   ${Q3}/libs/l_net/l_net_wins.c ${Q3}/libs/webplib/webplib.cpp
   # eigene Fassung statt libs/etclib.c (Apache-2.0)
   kompat/etclib.c
-  ${Q3M}/q3map2.rc)
+  ${Q3M}/q3map2.rc
+  # Stufe 6 (NRC#130): UTF-8 als Codepage - Pfade ausserhalb von ASCII
+  q3map2.manifest)
 # kompat zuerst: glib.h und etclib.h von hier
 target_include_directories(bhed_q3map2 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/kompat ${Q3M} ${Q3C} ${Q3}/libs ${Q3}/include)
 target_compile_definitions(bhed_q3map2 PRIVATE

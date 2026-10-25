@@ -744,6 +744,11 @@ if(BEHAVED_TESTS)
       add_test(NAME q3map2_importe
                COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_exe_imports.py
                        $<TARGET_FILE:bhed_q3map2>)
+      # Stufe 6 (NRC#130): Pfade mit Umlaut, Leerzeichen, chinesischen und japanischen Zeichen
+      # (das q3map2 neben behaved.exe: MSVC oder clang-cl)
+      add_test(NAME q3map2_pfade
+               COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_pfade.py
+                       $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe)
       add_test(NAME q3map2_vergleich
                COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_vergleich.py pruefen
                        $<TARGET_FILE:bhed_q3map2> ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
