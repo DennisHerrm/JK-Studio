@@ -1662,8 +1662,14 @@ void autoCaulkAuswahl() {
     {   // compile: Q_Exec( nullptr, cmd, nullptr, false, true ) - ohne Fenster, warten
         std::string programm = mitSchraegstrich(platform::executableDirectory());
         if (!programm.empty() && programm.back() != '/') { programm += '/'; }
-        const std::string cmd = "\"" + programm + "bhed_q3map2.exe\" -game quake3 -fs_basepath \"" + enginePfadAnzeige() + "\" -fs_homepath \"\" -fs_game " +
-                                bauSpielName() + " -autocaulk -fulldetail \"" + datei + "\"";
+        // Stufe 6 (Fund): NRC ruft "-game quake3" fuer jedes Spiel. Bei Jedi Academy/Jedi
+        // Outcast liegen die Shader in shaders/, q3map2 -game quake3 liest scripts/ - es
+        // kannte dann kein Wasser, keine Lava, nichts Durchsichtiges und schrieb caulk
+        // (fest) auf verdeckte Flaechen von Wasserpinseln statt watercaulk. Jetzt der
+        // q3map2-Typ des Spiels wie beim Bauen und Oeffnen einer .bsp.
+        const char* spiel = kartenSpielNummer() == kRegelwerkJediOutcast ? "jk2" : "ja";
+        const std::string cmd = "\"" + programm + "bhed_q3map2.exe\" -game " + spiel + " -fs_basepath \"" + enginePfadAnzeige() +
+                                "\" -fs_homepath \"\" -fs_game " + bauSpielName() + " -autocaulk -fulldetail \"" + datei + "\"";
         bauplattform::Prozess p;
         // NRC#213 (Stufe 6): die Ausgabe von q3map2 mitlesen - scheitert es, nennt die
         // Konsole den Grund statt nur "reading ..._ac.caulk failure".

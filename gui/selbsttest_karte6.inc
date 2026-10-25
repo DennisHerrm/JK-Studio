@@ -2324,6 +2324,50 @@ std::vector<Schritt> funde() {
         std::filesystem::rename(q3weg, q3, ec);
         grundzustand();
     }));
+    // AutoCaulk mit Wasser (Stufe 6, Fund): NRC ruft "q3map2 -game quake3 -autocaulk" fuer
+    // jedes Spiel; bei Jedi Academy liegen die Shader aber in shaders/ (nicht scripts/),
+    // q3map2 kennt dann kein Wasser und schreibt caulk auf die verdeckten Flaechen eines
+    // Wasserpinsels (fest statt watercaulk). Hier: Raum mit einem Wasserpinsel
+    // (textures/common/water2 aus common.shader von JA) im Boden.
+    add(tu("AutoCaulk/Wasser: Raum mit common/water2 im Boden, alle Pinsel, AutoCaulk Selected", [] {
+        grundzustand();
+        stufe3::q3map2Bereitstellen();
+        std::string t = stufe3::raumKarte(false);
+        const std::string marke = "\"ambient\" \"8\"\n";
+        const std::size_t p = t.find(marke);
+        if (p != std::string::npos) { t.insert(p + marke.size(), quader(-200, -100, -8, -100, 100, 48, "common/water2")); }
+        const std::string pfad = karteTestPfad("s6_wasser.map");
+        (void)textSchreiben(pfad, t);
+        (void)ke::karteOeffnen(pfad);
+        ke::Editor& e = ke::editor();
+        for (const auto& pr : e.karte.welt()->kinder()) {
+            if (pr->art() == karte::Primitiv::Art::Pinsel) { e.karte.auswahl.waehlen(e.karte.welt(), pr); }
+        }
+        ke::auswahlGeaendert();
+        e.kamera.setzeUrsprung(karte::Vektor3f(-384, 128, 64));   // in Raum A (wie Stufe 3)
+        (void)ke::ausfuehren("AutoCaulkSelected");
+    }));
+    add(warteBis("AutoCaulk/Wasser: fertig", [] { return !ke::bauLaeuft(); }, 6000));
+    add(pruefe("AutoCaulk/Wasser: die verdeckte Unterseite des Wasserpinsels wird watercaulk, nicht caulk (q3map2 mit den Shadern des Spiels)", [] {
+        const ke::Editor& e = ke::editor();
+        int wasserCaulk = 0;
+        int caulk = 0;
+        for (const auto& pr : e.karte.welt()->kinder()) {
+            if (pr->art() != karte::Primitiv::Art::Pinsel) { continue; }
+            const auto& pin = static_cast<const karte::Pinsel&>(*pr);
+            bool wasser = false;
+            for (const auto& f : pin.flaechen()) { wasser = wasser || f->shader() == "textures/common/water2"; }
+            if (!wasser) { continue; }
+            for (const auto& f : pin.flaechen()) {
+                wasserCaulk += f->shader() == karte::gemeinsamerShader("watercaulk") ? 1 : 0;   // GetCommonShader: textures/system/watercaulk
+                caulk += (f->shader().find("caulk") != std::string::npos && f->shader() != karte::gemeinsamerShader("watercaulk")) ? 1 : 0;
+            }
+        }
+        diag::detail("Knopftest: Stufe 6 - AutoCaulk/Wasser: watercaulk " + std::to_string(wasserCaulk) + ", caulk " + std::to_string(caulk) + ", " +
+                     e.karte.undo.undoName());
+        return wasserCaulk > 0 && caulk == 0;
+    }));
+    add(tu("AutoCaulk/Wasser: Grundzustand", [] { grundzustand(); }));
     // NRC-master nach 20260114: cc96c84 (Door Builder: die zweite Ausrichtung hiess auch
     // "North - South") und 7027470 ("Distance Multipler"); mit den Begriffen wie NetRadiant
     add(tu("NRC master: Begriffe wie NetRadiant, Pinsel A, bobToolz Door Builder", [] {
