@@ -1652,9 +1652,24 @@ void zeichneEinstellungen() {
         // QDialogButtonBox: "Clean" (ResetRole) links, "OK" und "Cancel" rechts
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, std::max(0.0F, (knopfH - ImGui::GetTextLineHeight()) * 0.5F)});
         ImGui::SetCursorScreenPos(bp(static_cast<float>(kGruppeX), static_cast<float>(kKnopfY)));
-        ImGui::BeginDisabled();
-        (void)ImGui::Button(trK(Str::KePrefClean), ImVec2{knopfB, knopfH});
-        ImGui::EndDisabled();
+        // OnButtonClean (preferences.cpp:407-419): Rueckfrage "Reset Registry", Yes setzt
+        // alle Einstellungen des Karten-Editors zurueck. Abweichung: NRC beendet sich
+        // danach (QCoreApplication::quit); hier gelten die Vorgaben sofort, das Programm
+        // laeuft weiter (der Karten-Editor ist ein Reiter von BehavEd). Stufe 6: der
+        // Knopf war ausgegraut.
+        if (ImGui::Button(trK(Str::KePrefClean), ImVec2{knopfB, knopfH})) {
+            qtMeldung("Reset Registry",
+                      "This will clean the map editor preferences.\nThey will be as good as new. Do you wish to continue?",
+                      MeldungArt::Warnung, true, [](bool ja) {
+                          if (!ja) { return; }
+                          editor().einstellungenOffen = false;
+                          g_app->settings.karte.clear();
+                          g_app->settings.karteTasten.clear();
+                          einstellungenLaden();
+                          einstellungenSpeichern();
+                          ausgabe("Preferences reset to defaults");
+                      });
+        }
         ImGui::SetCursorScreenPos(bp(static_cast<float>(kGruppeX + kGruppeB - 2 * kKnopfB - kAbstand), static_cast<float>(kKnopfY)));
         if (ImGui::Button(trK(Str::KePrefOk), ImVec2{knopfB, knopfH})) {
             ed.anordnung = static_cast<befehle::Anordnung>(g_entwurf.anordnung);

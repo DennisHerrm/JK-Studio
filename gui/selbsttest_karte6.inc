@@ -119,7 +119,7 @@ std::string quader(double x0, double y0, double z0, double x1, double y1, double
 
 // patchDef2 n x n ab (x0, y0) mit Abstand d; schief: die inneren Punkte versetzt
 std::string ebene(double x0, double y0, double d, int n, bool schief) {
-    std::string t = "{\npatchDef2\n{\ntextures/common/caulk\n( " + std::to_string(n) + " " + std::to_string(n) + " 0 0 0 )\n(\n";
+    std::string t = "{\npatchDef2\n{\ncommon/caulk\n( " + std::to_string(n) + " " + std::to_string(n) + " 0 0 0 )\n(\n";
     for (int i = 0; i < n; ++i) {
         t += "( ";
         for (int j = 0; j < n; ++j) {
@@ -150,7 +150,7 @@ std::string ebene(double x0, double y0, double d, int n, bool schief) {
 // target_position (p1), info_player_start, func_group (zwei Pinsel), func_door,
 // eine Kette aus info_train_spline_main/_control (Plot Splines).
 std::string vorlageText() {
-    const char* c = "textures/common/caulk";
+    const char* c = "common/caulk";   // im .map-Text ohne "textures/" (Quake-3-Format)
     std::string w = "{\n\"classname\" \"worldspawn\"\n\"message\" \"stufe6\"\n";
     w += quader(-64, -64, 0, 64, 64, 64, c);
     w += quader(32, 32, 32, 128, 128, 96, c);
@@ -203,11 +203,11 @@ std::string& externProtokoll() {
 
 void fixtureSchreiben() {
     (void)textSchreiben(vorlagePfad(), vorlageText());
-    (void)textSchreiben(zweitePfad(), "{\n\"classname\" \"worldspawn\"\n" + quader(1024, 1024, 0, 1088, 1088, 64, "textures/common/caulk") + "}\n");
+    (void)textSchreiben(zweitePfad(), "{\n\"classname\" \"worldspawn\"\n" + quader(1024, 1024, 0, 1088, 1088, 64, "common/caulk") + "}\n");
     for (int i = 1; i <= 9; ++i) {   // fuer File > 1..9 (MRU)
         (void)textSchreiben(karteTestPfad(("s6_mru" + std::to_string(i) + ".map").c_str()),
                             "{\n\"classname\" \"worldspawn\"\n\"message\" \"mru" + std::to_string(i) + "\"\n" +
-                                quader(1024, 1024, 0, 1088, 1088, 64 * i, "textures/common/caulk") + "}\n");
+                                quader(1024, 1024, 0, 1088, 1088, 64 * i, "common/caulk") + "}\n");
     }
     // Ein Bild fuer Set 2D Background image (TGA 2 x 2, 24 Bit, unkomprimiert)
     std::string bild(18, '\0');
@@ -362,9 +362,9 @@ void grundzustand() {
     if (ke::optimiererOffen()) { ke::optimiererSchliessen(); }
     if (e.kamFenster.frei) { ke::freelookBeenden(); }
     if (platform::istVollbild()) { (void)platform::vollbildUmschalten(); }
+    if (e.maximiert) { ke::maximierenUmschalten(); }   // vor dem Neuaufbau der Teiler (teilerAufbauen setzt maximiert zurueck)
     e.anordnung = karte::befehle::Anordnung::Regular;
     e.teilerFuer = -1;
-    if (e.maximiert) { ke::maximierenUmschalten(); }
     e.anzeige = ke::Anzeige{};
     if (anfang().gemerkt) {
         e.kameraE = anfang().kameraE;
@@ -1169,7 +1169,7 @@ Schritt wirkungsSchritt(const std::string& pruefung, const std::string& befehl, 
                 const bool ausgeloest = befehl.empty() || e.letzterBefehl == befehl;
                 const bool ok = l->fehler.empty() && ausgeloest && (ist & art.soll) == art.soll && ((art.soll & wKarte) != 0U || (ist & wKarte) == 0U);
                 diag::detail("Knopftest: Stufe 6 - " + pruefung + " | " + vorName(art.vor) + " | soll " + maskeKurz(art.soll) + " ist " + maskeKurz(ist) +
-                             (ausgeloest ? "" : " (nicht ausgeloest: zuletzt \"" + e.letzterBefehl + "\")") + (l->fehler.empty() ? "" : " " + l->fehler));
+                             (ausgeloest ? "" : " (nicht ausgeloest: zuletzt \"" + e.letzterBefehl + "\")") + (l->fehler.empty() ? "" : " " + l->fehler) + " [Kamera-Bilder " + std::to_string(e.kamFenster.bilder) + "]");
                 pruefeWahr(ok, pruefung);
                 if (art.mitUndo && (art.soll & wKarte) != 0U && !art.ohneUndo) {
                     const std::string nachher = n.karte;
@@ -1197,6 +1197,14 @@ std::function<std::function<bool(int)>(std::string*)> perAusfuehren(const std::s
             return true;
         };
     };
+}
+
+// BHED_STUFE6_BEFEHL=<Name>[,<Name>...]: nur diese Befehle (gezielter Rot/Gruen-Test)
+bool gewuenscht(const std::string& name) {
+    const char* nur = std::getenv("BHED_STUFE6_BEFEHL");
+    if (nur == nullptr || *nur == 0) { return true; }
+    const std::string liste = std::string(",") + nur + ",";
+    return liste.find("," + name + ",") != std::string::npos;
 }
 
 // --- Teil "befehle": jeder Befehl ueber ausfuehren() ----------------------------------
@@ -1242,6 +1250,7 @@ std::vector<Schritt> befehle() {
         return fehlt.empty() && fremd.empty();
     }));
     for (const Erwartung& x : tabelle()) {
+        if (!gewuenscht(x.name)) { continue; }
         Art a = artAus(x);
         a.mitUndo = true;
         s.push_back(wirkungsSchritt("Wirkung " + std::string(x.name) + ": " + maskeText(a.soll) + " (" + vorName(x.vor) + ")", x.name, a,
@@ -1259,6 +1268,7 @@ std::vector<Schritt> befehle() {
 std::vector<Schritt> robust() {
     std::vector<Schritt> s;
     for (const Erwartung& x : tabelle()) {
+        if (!gewuenscht(x.name)) { continue; }
         const std::string n = x.name;
         const bool ohneUndo = x.ohneUndo;
         struct R {
@@ -1312,7 +1322,7 @@ std::vector<Schritt> robust() {
 std::vector<Schritt> tasten() {
     std::vector<Schritt> s;
     for (const kb::Befehl& b : kb::alle()) {
-        if (b.taste[0] == 0) { continue; }
+        if (b.taste[0] == 0 || !gewuenscht(b.name)) { continue; }
         const std::string n = b.name;
         const kb::Taste t = kb::tasteAusText(b.taste);
         ImGuiKeyChord chord = 0;
@@ -1472,7 +1482,7 @@ std::vector<Schritt> menues() {
         };
         if (m.art == kb::MenueArt::Punkt || m.art == kb::MenueArt::Haken || m.art == kb::MenueArt::Ruf) {
             const std::string befehl = m.befehl;
-            if (befehl == "Exit") { continue; }   // Stufe 4 prueft File > Exit samt Rueckfrage
+            if (befehl == "Exit" || !gewuenscht(befehl)) { continue; }   // Stufe 4 prueft File > Exit samt Rueckfrage
             const Erwartung* x = erwartung(befehl);
             if (x == nullptr) {
                 s.push_back(pruefe("Menue " + wegText + beschriftung(m) + " = " + befehl + ": keine Erwartung", [] { return false; }));
@@ -1551,7 +1561,7 @@ std::vector<Schritt> knoepfe() {
     // leisteId: die Kennung der QToolBar (leisteZeichnen: "haupt", "filter", "plugin"; "" = Texturbrowser)
     const auto leiste = [&](const std::vector<kb::Knopf>& knoepfe, const std::string& leisteId) {
         for (const kb::Knopf& k : knoepfe) {
-            if (k.trenner || k.befehl[0] == 0) { continue; }
+            if (k.trenner || k.befehl[0] == 0 || !gewuenscht(k.befehl)) { continue; }
             const std::string befehl = k.befehl;
             const Erwartung* x = erwartung(befehl);
             if (x == nullptr) {
@@ -1596,6 +1606,333 @@ std::vector<Schritt> knoepfe() {
     return s;
 }
 
+// --- Teil "felder": jede Einstellungsseite und jedes Feld ueber die echte Oberflaeche ---
+//
+// Je Seite: Edit > Preferences..., die Seite im Baum anklicken, jedes Feld wie
+// ein Mensch aendern (Haken anklicken, "+" am Spinner, Eintrag der Klappliste
+// waehlen, Radioknopf, Text tippen), OK - danach muss sich der gespeicherte
+// Schluessel jedes Felds geaendert haben (behaved.cfg, Abschnitt karte). Dann
+// noch einmal: ein Feld aendern und Cancel - der Schluessel bleibt. Am Ende
+// kommen alle Einstellungen zurueck.
+enum class FeldArt { Haken, Plus, Klappe, Radio, Text };
+
+struct Feld {
+    const char* quelle;   // NRC-Datei:Zeile des Felds (Checkliste)
+    const char* name;
+    FeldArt art;
+    std::function<std::string()> ziel;   // Beschriftung des Elements (Haken, Radio, Klappliste, Textfeld, Spinner)
+    std::function<std::string()> wahl;   // Klappliste: der Eintrag; Text: was getippt wird
+    const char* schluessel;
+};
+
+struct Seite6 {
+    int index;              // ##seite<index> im Baum
+    const char* titel;      // NRC-Titel (Checkliste "Einstellungsseiten")
+    std::vector<Feld> felder;
+    std::function<void()> vorbereiten;   // vor dem Oeffnen (abhaengige Felder freischalten)
+};
+
+std::string trS(Str s) { return ke::trK(s); }
+
+std::map<std::string, std::string>& einstellungenVorher() {
+    static std::map<std::string, std::string> m;
+    return m;
+}
+std::map<std::string, std::string>& einstellungenAnfang() {
+    static std::map<std::string, std::string> m;
+    return m;
+}
+
+std::string einstellungJetzt(const char* schluessel) {
+    ke::einstellungenSpeichern();
+    const auto it = g_app->settings.karte.find(schluessel);
+    return it != g_app->settings.karte.end() ? it->second : std::string("<fehlt>");
+}
+
+// Ein Feld aendern: Schritte ueber mehrere Bilder (sechs je Klick).
+Schritt feldAendern(const Feld& f) {
+    const Feld feld = f;
+    return {std::string("Feld aendern: ") + f.name, [feld](int b) {
+                ImGuiIO& io = ImGui::GetIO();
+                const auto ort = [&]() -> const Element* {
+                    if (feld.art == FeldArt::Plus) { return finde("+", "###karteeinstellungen", 0, false, feld.ziel()); }
+                    return finde(feld.ziel(), "###karteeinstellungen", 0, false);
+                };
+                if (b == 0) {
+                    const Element* el = ort();
+                    if (el == nullptr) {
+                        meldeFehler(std::string("Feld ") + feld.quelle + " " + feld.name + ": Element \"" + feld.ziel() + "\" nicht gefunden");
+                        return true;
+                    }
+                    setzeMaus(el->rect.GetCenter());
+                }
+                if (b == 2) { io.AddMouseButtonEvent(0, true); }
+                if (b == 3) { io.AddMouseButtonEvent(0, false); }
+                if (b < 6) { return false; }
+                if (feld.art == FeldArt::Klappe) {
+                    if (b == 6) {
+                        const Element* item = finde(feld.wahl(), "##Combo_", 0, false);
+                        if (item == nullptr) {
+                            meldeFehler(std::string("Feld ") + feld.quelle + " " + feld.name + ": Eintrag \"" + feld.wahl() + "\" nicht gefunden");
+                            return true;
+                        }
+                        setzeMaus(item->rect.GetCenter());
+                    }
+                    if (b == 8) { io.AddMouseButtonEvent(0, true); }
+                    if (b == 9) { io.AddMouseButtonEvent(0, false); }
+                    return b >= 12;
+                }
+                if (feld.art == FeldArt::Text) {
+                    if (b == 6) {
+                        io.AddKeyEvent(ImGuiMod_Ctrl, true);
+                        io.AddKeyEvent(ImGuiKey_A, true);
+                    }
+                    if (b == 7) {
+                        io.AddKeyEvent(ImGuiKey_A, false);
+                        io.AddKeyEvent(ImGuiMod_Ctrl, false);
+                    }
+                    if (b == 8) { io.AddKeyEvent(ImGuiKey_Backspace, true); }
+                    if (b == 9) { io.AddKeyEvent(ImGuiKey_Backspace, false); }
+                    if (b == 10) { io.AddInputCharactersUTF8(feld.wahl().c_str()); }
+                    if (b == 12) {   // aus dem Feld heraus (ImGui uebernimmt den Text sofort)
+                        const ke::Editor& e = ke::editor();
+                        (void)e;
+                        io.AddKeyEvent(ImGuiKey_Tab, true);
+                    }
+                    if (b == 13) { io.AddKeyEvent(ImGuiKey_Tab, false); }
+                    return b >= 15;
+                }
+                return true;
+            }};
+}
+
+std::vector<Seite6> seiten6() {
+    using A = FeldArt;
+    const auto haken = [](Str s, const char* endung = "") { return [s, endung] { return trS(s) + endung; }; };
+    const auto fest = [](const char* t) { return [t] { return std::string(t); }; };
+    const auto kamera = [](Str s) { return [s] { return "##" + trS(s); }; };
+    ke::Editor& e0 = ke::editor();
+    (void)e0;
+    std::vector<Seite6> v;
+    v.push_back({22, "Autosave Preferences",
+                 {{"radiant/autosave.cpp:168", "Autosave Frequency (minutes)", A::Plus, fest("##autosaveminuten"), nullptr, "AutosaveMinutes"},
+                  {"radiant/autosave.cpp:170", "Save Snapshots", A::Haken, haken(Str::KePrAutosaveSnapshots, "##schnappschuesse"), nullptr, "Snapshots"},
+                  {"radiant/autosave.cpp:167", "Enable Autosave", A::Haken, haken(Str::KePrAutosaveEnable, "##autosavean"), nullptr, "Autosave"}},
+                 [] { ke::editor().autosave.an = true; }});
+    v.push_back({13, "Brush Settings",
+                 {{"radiant/brushmodule.cpp:86", "Default texture scale", A::Plus, fest("##wert"), nullptr, "TexdefDefaultScale"},
+                  {"radiant/brushmodule.cpp:95", "New map Brush Type", A::Klappe, fest("##pinseltyp"),
+                   [] { return trS(ke::editor().pinselTyp == 0 ? Str::KePrBrushBp : Str::KePrBrushAxial); }, "BrushType"},
+                  {"radiant/brushmodule.cpp:102", "Always use caulk for new brushes", A::Haken, haken(Str::KePrBrushCaulk, "##immercaulk"), nullptr,
+                   "BrushAlwaysCaulk"},
+                  {"radiant/brushmodule.cpp:106", "Snap plane points to integer grid", A::Haken, haken(Str::KePrBrushSnap, "##ganzzahlig"), nullptr,
+                   "BrushSnapPlanes"}},
+                 nullptr});
+    v.push_back({17, "Camera View Preferences",
+                 {{"radiant/camwindow.cpp:2399", "Movement Speed", A::Plus, kamera(Str::KePrCamMoveSpeed), nullptr, "CamMoveSpeed"},
+                  {"radiant/camwindow.cpp:2400", "Time to Max Speed", A::Plus, kamera(Str::KePrCamTimeMax), nullptr, "CamMoveTimeToMaxSpeed"},
+                  {"radiant/camwindow.cpp:2401", "Scroll Move Speed", A::Plus, kamera(Str::KePrCamScrollSpeed), nullptr, "ScrollMoveSpeed"},
+                  {"radiant/camwindow.cpp:2402", "Strafe Speed", A::Plus, kamera(Str::KePrCamStrafeSpeed), nullptr, "CamStrafeSpeed"},
+                  {"radiant/camwindow.cpp:2403", "Mouse Sensitivity", A::Plus, kamera(Str::KePrCamSensitivity), nullptr, "Sensitivity"},
+                  {"radiant/camwindow.cpp:2404", "Invert mouse vertical axis", A::Haken, haken(Str::KePrCamInvert), nullptr, "CamInverseMouse"},
+                  {"radiant/camwindow.cpp:2405", "Zoom to Mouse pointer", A::Haken, haken(Str::KePrCamZoomPointer), nullptr, "3DZoomInToPointer"},
+                  {"radiant/camwindow.cpp:2406", "Discrete movement", A::Haken, haken(Str::KePrCamDiscrete), nullptr, "CamDiscrete"},
+                  {"radiant/camwindow.cpp:2411", "Enable far-clip plane", A::Haken, haken(Str::KePrCamFarClip), nullptr, "CubicClipping"},
+                  {"radiant/camwindow.cpp:2416", "Colorize selection", A::Haken, haken(Str::KePrCamColorize), nullptr, "CameraFaceFill"},
+                  {"radiant/camwindow.cpp:2421", "Selected faces wire", A::Haken, haken(Str::KePrCamFacesWire), nullptr, "CameraFaceWire"},
+                  {"radiant/camwindow.cpp:2428", "Render Mode", A::Klappe, kamera(Str::KePrCamRenderMode),
+                   [] { return trS(ke::editor().kameraE.modus == karte::KameraModus::Flach ? Str::KePrCamTextured : Str::KePrCamFlatshade); },
+                   "CameraRenderMode"},
+                  {"radiant/camwindow.cpp:2438", "MSAA", A::Klappe, kamera(Str::KePrCamMsaa),
+                   [] { return std::string(ke::editor().kameraE.msaa == 4 ? "2" : "4"); }, "CameraMSAA"},
+                  {"radiant/camwindow.cpp:2448", "Strafe Mode", A::Klappe, kamera(Str::KePrCamStrafeMode),
+                   [] { return trS(ke::editor().kameraE.strafeModus == 0 ? Str::KePrCamStrafeUp : Str::KePrCamStrafeNone); }, "StrafeMode"},
+                  {"radiant/camwindow.cpp:2454", "Field Of View", A::Plus, kamera(Str::KePrCamFov), nullptr, "fieldOfView"}},
+                 nullptr});
+    v.push_back({14, "Clipper Tool Settings",
+                 {{"radiant/clippertool.cpp:170", "Caulk Clipper Cuts", A::Haken, haken(Str::KePrClipCaulk), nullptr, "ClipperCaulk"},
+                  {"radiant/clippertool.cpp:171", "Reset Flipped State", A::Haken, haken(Str::KePrClipResetFlip), nullptr, "ClipperResetFlip"},
+                  {"radiant/clippertool.cpp:172", "Reset Points on Split", A::Haken, haken(Str::KePrClipResetPoints), nullptr, "ClipperResetPoints"},
+                  {"radiant/clippertool.cpp:174", "2 Points in 2D Views", A::Haken, haken(Str::KePrClip2Points), nullptr, "Clipper2PointsIn2D"},
+                  {"radiant/clippertool.cpp:177", "On DoubleClick do:", A::Radio,
+                   [] {
+                       return ke::editor().bearbeitung.clipperDoppelklickTeilen == 1 ? trS(Str::KePrClipClip) + "##clipperdoppelt0"
+                                                                                      : trS(Str::KePrClipSplit) + "##clipperdoppelt1";
+                   },
+                   nullptr, "ClipperDoubleclickedSplit"}},
+                 [] { ke::editor().bearbeitung.clipperPunkteZuruecksetzen = true; }});
+    v.push_back({9, "Entity Display Preferences",
+                 {{"radiant/entity.cpp:669", "Names Display Distance (3D)", A::Plus, fest("##namenabstand"), nullptr, "SI_ShowNamesDist"},
+                  {"radiant/entity.cpp:673", "Names Display Ratio (2D)", A::Plus, fest("##namenverhaeltnis"), nullptr, "SI_ShowNamesRatio"},
+                  {"radiant/entity.cpp:677", "Entity Names = Targetnames", A::Haken, haken(Str::KePrEnTargetnames), nullptr, "SI_ShowTargetNames"}},
+                 nullptr});
+    v.push_back({15, "Grid Settings",
+                 {{"radiant/grid.cpp:241", "Default grid spacing", A::Klappe, fest("##rasterstandard"),
+                   [] { return std::string(karte::Raster::name(ke::editor().rasterStandard == 3 ? 4 : 3)); }, "GridDefault"},
+                  {"radiant/grid.cpp:249", "Max grid coordinate", A::Klappe, fest("##rastermax"),
+                   [] { return std::string(ke::editor().rasterMaxPotenz == 1 ? "16384" : "8192"); }, "GridMaxCoordPower"}},
+                 nullptr});
+    v.push_back({5, "Layout Preferences",
+                 {{"radiant/mainframe.cpp:2031", "Window Layout", A::Radio,
+                   [] { return std::string(ke::editor().anordnung == karte::befehle::Anordnung::RegularLeft ? "##layout0" : "##layout3"); }, nullptr,
+                   "QE4StyleWindows"},
+                  {"radiant/mainframe.cpp:2038", "Detachable Menus", A::Haken, haken(Str::KePrDetachableMenus, "##abreissbar"), nullptr, "DetachableMenus"},
+                  {"radiant/mainframe.cpp:2043", "Built-In Group Dialog", A::Haken, haken(Str::KePrBuiltInGroupDialog), nullptr, "BuiltInGroupDialog"}},
+                 nullptr});
+    v.push_back({10, "Settings",
+                 {{"radiant/select.cpp:1921", "Nudge selected after duplication", A::Haken, haken(Str::KePrNudgeClone, "##nachklonen"), nullptr,
+                   "NudgeAfterClone"},
+                  {"radiant/map.cpp:2370", "Load last map at startup", A::Haken, haken(Str::KePrLoadLastMap, "##letztekarte"), nullptr, "LoadLastMap"}},
+                 nullptr});
+    v.push_back({21, "Model Browser Preferences",
+                 {{"radiant/modelwindow.cpp:1366", "Model View Size", A::Plus, fest("##modzelle"), nullptr, "ModelBrowserCellSize"},
+                  {"radiant/modelwindow.cpp:1369", "List of *folderToLoad/depth*", A::Text, fest("##modordner"), fest("*models/s6*"), "ModelBrowserFolders"}},
+                 nullptr});
+    v.push_back({8, "Patch Display Preferences",
+                 {{"radiant/patchmanip.cpp:673", "Patch Subdivide Threshold", A::Plus, fest("##patchschwelle"), nullptr, "Subdivisions"}}, nullptr});
+    v.push_back({4, "Interface Preferences",
+                 {{"radiant/preferences.cpp:64", "Shader Editor Command", A::Text, fest("##shadereditor"), fest("s6editor.exe"), "CustomShaderEditorCommand"}},
+                 nullptr});
+    v.push_back({1, "Global Game",
+                 {{"radiant/preferences.cpp:267", "Startup / Show Global Preferences", A::Haken, haken(Str::KePrShowGlobal, "##spielfrage"), nullptr,
+                   "gamePrompt"}},
+                 nullptr});
+    v.push_back({12, "Selection System Settings",
+                 {{"radiant/selection.cpp:2314", "Selector size (pixels)", A::Plus, fest("##waehlergroesse"), nullptr, "SELECT_EPSILON"},
+                  {"radiant/selection.cpp:2315", "Prefer point entities in 2D", A::Haken, haken(Str::KePrSelPreferPoint), nullptr, "PreferPointEntsIn2D"},
+                  {"radiant/selection.cpp:2316", "Create brushes in 3D", A::Haken, haken(Str::KePrSel3dBrushes), nullptr, "3DCreateBrushes"},
+                  {"radiant/selection.cpp:2319", "Move style in 3D", A::Klappe, fest("##bewegstil"),
+                   [] { return trS(ke::editor().bearbeitung.bewegStil3d == 0 ? Str::KePrSelMoveView : Str::KePrSelMoveXY); }, "3DMoveStyle"}},
+                 nullptr});
+    v.push_back({16, "Surface Inspector Preferences",
+                 {{"radiant/surfacedialog.cpp:1735", "Surface Inspector Increments Match Grid", A::Haken, haken(Str::KePrSiMatchGrid), nullptr, "SnapTToGrid"}},
+                 nullptr});
+    v.push_back({7, "Texture Settings",
+                 {{"radiant/textures.cpp:764", "Texture Quality", A::Radio,
+                   [] { return ke::editor().texQual.mipStufe == 1 ? std::string("100%##texqual0") : std::string("50%##texqual1"); }, nullptr,
+                   "TextureMipLevel"},
+                  {"radiant/textures.cpp:771", "Texture Gamma", A::Plus, fest("##texgamma"), nullptr, "SI_Gamma"},
+                  {"radiant/textures.cpp:780", "Texture Render Mode", A::Klappe, fest("##texmodus"),
+                   [] { return trS(karte::texturModusZuListe(ke::editor().texQual.modus) == 0 ? Str::KePrTexTrilinear : Str::KePrTexNearest); },
+                   "TextureFiltering"},
+                  {"radiant/textures.cpp:826", "Anisotropy", A::Haken, haken(Str::KePrTexAnisotropy), nullptr, "TextureAnisotropy"}},
+                 nullptr});
+    v.push_back({20, "Texture Browser Preferences",
+                 {{"radiant/texwindow.cpp:2045", "Texture scrollbar", A::Haken, haken(Str::KePrTbScrollbar), nullptr, "TextureScrollbar"},
+                  {"radiant/texwindow.cpp:2052", "Texture Thumbnail Scale", A::Klappe, fest("##texskala"),
+                   [] { return std::string(ke::editor().texBro.e.skala == 50 ? "100%" : "50%"); }, "TextureScale"},
+                  {"radiant/texwindow.cpp:2059", "Thumbnails Max Size", A::Plus, fest("##texmax"), nullptr, "UniformTextureSize"},
+                  {"radiant/texwindow.cpp:2060", "Thumbnails Min Size", A::Plus, fest("##texmin"), nullptr, "UniformTextureMinSize"},
+                  {"radiant/texwindow.cpp:2061", "Mousewheel Increment", A::Plus, fest("##texrad"), nullptr, "WheelMouseInc"},
+                  {"radiant/texwindow.cpp:2064", "Load Shaders at Startup", A::Klappe, fest("##texstart"),
+                   [] { return ke::editor().texBro.e.startShader == 0 ? std::string("System") : trS(Str::KePrTbNone); }, "LoadShaders"},
+                  {"radiant/texwindow.cpp:2068", "Hide nonShaders in common folder", A::Haken,
+                   [] {
+                       char text[160];
+                       std::snprintf(text, sizeof(text), ke::trK(Str::KePrTbHideCommon), ke::editor().texBro.commonVerzeichnis.c_str());
+                       return std::string(text);
+                   },
+                   nullptr, "HideNonShadersInCommon"}},
+                 nullptr});
+    v.push_back({11, "Undo Queue Settings",
+                 {{"radiant/undo.cpp:400", "Undo Queue Size", A::Plus, fest("##undostufen"), nullptr, "UndoLevels"}}, nullptr});
+    v.push_back({19, "Build Preferences",
+                 {{"radiant/watchbsp.cpp:222", "Stop Compilation on Leak", A::Haken, haken(Str::KePrBuildLeak, "##bauleck"), nullptr, "BuildLeakStop"},
+                  {"radiant/watchbsp.cpp:227", "Engine to Run", A::Text, fest("##bauengine"), fest("s6engine.exe"), "BuildEngineExecutable"},
+                  {"radiant/watchbsp.cpp:229", "Engine Arguments", A::Text, fest("##bauargumente"), fest("+set s6 1"), "BuildEngineArgs"},
+                  {"radiant/watchbsp.cpp:232", "MP Engine to Run", A::Text, fest("##bauenginemp"), fest("s6mp.exe"), "BuildEngineExecutableMP"},
+                  {"radiant/watchbsp.cpp:234", "MP Engine Arguments", A::Text, fest("##bauargumentemp"), fest("+set s6mp 1"), "BuildEngineArgsMP"},
+                  {"radiant/watchbsp.cpp:238", "Dump non Monitored Builds Log", A::Haken, haken(Str::KePrBuildDump, "##baulog"), nullptr, "BuildDumpLog"},
+                  {"radiant/watchbsp.cpp:240", "Region Box Shader", A::Text, fest("##regionshader"), fest("textures/common/s6"), "RegionBoxShader"},
+                  {"radiant/watchbsp.cpp:221", "Enable Build Process Monitoring", A::Haken, haken(Str::KePrBuildMonitor, "##bauueberwachen"), nullptr,
+                   "BuildMonitor"},
+                  {"radiant/watchbsp.cpp:223", "Run Engine After Compile", A::Haken, haken(Str::KePrBuildRun, "##baustarten"), nullptr, "BuildRunGame"}},
+                 [] {
+                     ke::editor().bau.spielStarten = true;
+                     ke::editor().bau.ueberwachen = true;
+                 }});
+    v.push_back({18, "Orthographic View Preferences",
+                 {{"radiant/xywindow.cpp:2237", "Solid selection boxes ( no stipple )", A::Haken, haken(Str::KePrOrthoStipple, "##keinestrichelung"), nullptr,
+                   "NoStipple"},
+                  {"radiant/xywindow.cpp:2239", "Chase mouse during drags", A::Haken, haken(Str::KePrOrthoChase, "##jagen"), nullptr, "ChaseMouse"},
+                  {"radiant/xywindow.cpp:2240", "Zoom to Mouse pointer", A::Haken, haken(Str::KePrCamZoomPointer, "##zumzeiger2d"), nullptr, "2DZoomInToPointer"},
+                  {"radiant/xywindow.cpp:2245", "MSAA", A::Klappe, fest("##xymsaa"), [] { return std::string(ke::editor().anzeige.msaa == 4 ? "2" : "4"); },
+                   "XYMSAA"}},
+                 nullptr});
+    return v;
+}
+
+std::vector<Schritt> felder() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("Stufe 6: Einstellungen merken (am Ende zurueck)", [] {
+        grundzustand();
+        ke::einstellungenSpeichern();
+        einstellungenAnfang() = g_app->settings.karte;
+    }));
+    const auto oeffnen = [&](int index) {
+        add(tu("Edit > Preferences...", [] { (void)ke::ausfuehren("Preferences"); }));
+        add(pause(0.3));
+        add(klickAn("Seite " + std::to_string(index), [index] {
+            const Element* el = findeEndung("##seite" + std::to_string(index), "###karteeinstellungen");
+            return el != nullptr ? el->rect.GetCenter() : ImVec2{5, 5};
+        }));
+        add(pause(0.2));
+    };
+    for (const Seite6& seite : seiten6()) {
+        const Seite6 sw = seite;
+        add(tu(std::string("Seite ") + seite.titel + ": vorbereiten, Werte merken", [sw] {
+            if (sw.vorbereiten) { sw.vorbereiten(); }
+            ke::einstellungenSpeichern();
+            einstellungenVorher() = g_app->settings.karte;
+        }));
+        oeffnen(seite.index);
+        add(pruefe(std::string("Seite ") + seite.titel + ": im Baum gewaehlt, Felder da", [sw] {
+            const Feld& f = sw.felder.front();
+            const Element* el = f.art == FeldArt::Plus ? finde("+", "###karteeinstellungen", 0, false, f.ziel()) : finde(f.ziel(), "###karteeinstellungen", 0, false);
+            return ke::editor().einstellungenOffen && el != nullptr;
+        }));
+        for (const Feld& f : seite.felder) {
+            add(feldAendern(f));
+            add(pause(0.1));
+        }
+        add(klick(ke::trK(Str::KePrefOk), "###karteeinstellungen"));
+        add(pause(0.3));
+        for (const Feld& f : seite.felder) {
+            const std::string schluessel = f.schluessel;
+            add(pruefe(std::string("Feld ") + f.quelle + ": " + f.name + " - nach OK geaendert und gespeichert (" + schluessel + ")", [schluessel] {
+                const auto it = einstellungenVorher().find(schluessel);
+                const std::string alt = it != einstellungenVorher().end() ? it->second : std::string("<fehlt>");
+                const std::string neu = einstellungJetzt(schluessel.c_str());
+                diag::detail("Knopftest: Stufe 6 - Feld " + schluessel + ": " + alt + " -> " + neu);
+                return !ke::editor().einstellungenOffen && neu != alt && neu != "<fehlt>";
+            }));
+        }
+        // Cancel verwirft: das erste Feld noch einmal aendern, Cancel
+        const Feld erstes = seite.felder.front();
+        add(tu(std::string("Seite ") + seite.titel + ": Werte nach OK merken", [] {
+            ke::einstellungenSpeichern();
+            einstellungenVorher() = g_app->settings.karte;
+        }));
+        oeffnen(seite.index);
+        add(feldAendern(erstes));
+        add(klick(ke::trK(Str::KeCancel), "###karteeinstellungen"));
+        add(pause(0.3));
+        const std::string schluessel = erstes.schluessel;
+        add(pruefe(std::string("Seite ") + seite.titel + ": OK uebernimmt, Cancel verwirft (" + schluessel + " bleibt)", [schluessel] {
+            return !ke::editor().einstellungenOffen && einstellungJetzt(schluessel.c_str()) == einstellungenVorher()[schluessel];
+        }));
+    }
+    add(tu("Stufe 6: Einstellungen zurueck", [] {
+        karteDialogeZu();
+        g_app->settings.karte = einstellungenAnfang();
+        ke::einstellungenLaden();
+        ke::einstellungenSpeichern();
+        grundzustand();
+    }));
+    return s;
+}
+
 }  // namespace stufe6
 
 std::vector<Schritt> karteneditorStufe6Schritte() {
@@ -1616,6 +1953,7 @@ std::vector<Schritt> karteneditorStufe6Schritte() {
     if (teil("ereignisse")) { dazu(stufe6::ereignisse()); }
     if (teil("menues")) { dazu(stufe6::menues()); }
     if (teil("knoepfe")) { dazu(stufe6::knoepfe()); }
+    if (teil("felder")) { dazu(stufe6::felder()); }
     s.push_back(tu("Stufe 6: Grundzustand, Aussenwelt zurueck", [] {
         stufe6::grundzustand();
         karteneditor::Editor& e = karteneditor::editor();
