@@ -36932,8 +36932,8 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         {"Modify__Flip", {"Modify", "Flip"}, 183, 137},
         {"Modify__Repeat", {"Modify", "Repeat"}, 225, 154},
         // Build: NRC + Trenner 7 + "Cancel build" 24 (Stufe 3 Punkt 4, Abweichung)
-        // + "Update entities only" 24 (Stufe 4 Punkt 2, Abweichung)
-        {"Build", {"Build"}, 193, 405 + 7 + 24 + 24},
+        // + "Update entities only" 24 (Stufe 4 Punkt 2, Abweichung) + "Optimizer..." 24 (Stufe 5 Punkt 5, Abweichung)
+        {"Build", {"Build"}, 193, 405 + 7 + 24 + 24 + 24},
         {"Grid", {"Grid"}, 163, 346},
         // Misc und Help: NRC + die Programm-Eintraege (Stufe 3 Punkt 0b, Abweichung):
         // Misc + Trenner 7 + drei Untermenues je 24, Help + Manual und About BehavEd.
