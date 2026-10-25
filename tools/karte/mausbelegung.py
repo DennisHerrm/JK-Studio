@@ -102,7 +102,7 @@ MAUS = [
     ('x', 'Umschalt+M1', 'Texturbrowser', 'Shader im eigenen Editor oeffnen', 'texwindow.cpp:1744 TextureBrowser_ViewShader', TEX,
      'Maus Texturbrowser: Umschalt+M1 oeffnet den Shader im eigenen Editor (system.shader)'),
     ('x', 'Strg+Umschalt+M1', 'Texturbrowser', 'Shader im externen Editor oeffnen (nur lose Dateien)', 'texwindow.cpp:899 DoShaderView( external )', TEX,
-     'Maus Texturbrowser: Strg+Umschalt+M1 = externer Editor (loser Shader: editor.exe mit der Datei; im Paket der eigene)'),
+     'Maus Texturbrowser: Strg+Umschalt+M1 = externer Editor (loser Shader: editor.exe mit der Datei'),
     ('x', 'M2', 'Texturbrowser', 'Kontextmenue (Weg unter 16)', 'texwindow.cpp:1740 TextureBrowser_ContextMenu', TEX,
      'Kontextmenue: alle Eintraege da (Name, Open Shader, Shader Info, Select ..., Recent, Shader\'s Folder, system/)'),
     ('x', 'M2 ziehen', 'Texturbrowser', 'rollen', 'texwindow.cpp:874 TextureBrowser_Tracking_MouseDown', TEX,

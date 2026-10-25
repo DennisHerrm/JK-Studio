@@ -709,6 +709,13 @@ std::string offeneFenster() {
     f("bob", e.bob.dialog != 0 || e.bob.oeffnen || e.bob.visOeffnen);
     f("meshtex", e.meshtex.getInfoOffen || e.meshtex.setScaleOffen || e.meshtex.genFuncOffen);
     f("popup", GImGui->OpenPopupStack.Size > 0);
+    // Zustand in den Dialogen (Sortierung, Werte, Haken)
+    const ke::Editor::CsgWerkzeug& c = e.csgWerkzeug;
+    s += "csg " + zahl(c.dicke) + " " + std::to_string(c.ausschluss) + (c.caulk ? "c" : "-") + (c.innenWeg ? "i" : "-") + "|info " +
+         std::to_string(e.kartenInfo.sortSpalte) + (e.kartenInfo.absteigend ? "a" : "-") + "|taste " + e.tastenDialogBearbeitet + "|finden " +
+         (e.findenNurAuswahl ? "a" : "-") + "|meldung " + e.meldung.titel + "|seiten " + (e.seitenDialog.stutzen ? "s" : "-") + "|patch " +
+         (e.patchDialog.quadrat ? "q" : "-") + (e.patchDialog.waende ? "w" : "-") + "|liste " + (e.ent.listeAutoFokus ? "f" : "-") + "|licht " +
+         (e.ent.lichtNichtZeigen ? "n" : "-") + "|si " + (e.siWerte.rasterAnpassen ? "r" : "-");
     return s;
 }
 
@@ -941,8 +948,11 @@ std::function<bool(int)> klickFolge(std::vector<std::function<std::string()>> zi
         if (i >= ziele.size()) { return true; }
         const int f = b % 6;
         ImGuiIO& io = ImGui::GetIO();
+        const std::string roh = ziele[i]();
+        const bool rechts = roh.rfind("@R", 0) == 0;   // "@R<Kennung>": Rechtsklick
+        const int knopf = rechts ? 1 : 0;
         if (f == 0) {
-            const std::string ziel = ziele[i]();
+            const std::string ziel = rechts ? roh.substr(2) : roh;
             const Element* el = findeEndung(ziel, i == 0 ? fenster : std::string());
             if (el == nullptr) {
                 if (fehler != nullptr && fehler->empty()) { *fehler = "nicht gefunden: " + ziel; }
@@ -951,10 +961,10 @@ std::function<bool(int)> klickFolge(std::vector<std::function<std::string()>> zi
             setzeMaus(el->rect.GetCenter());
         }
         if (f == 2) {
-            io.AddMouseButtonEvent(0, true);
-            if (fehler != nullptr && i + 1 == ziele.size()) { diag::detail("Knopftest: Stufe 6 - Klick " + ziele[i]() + ": " + wasImGuiSieht()); }
+            io.AddMouseButtonEvent(knopf, true);
+            if (fehler != nullptr && i + 1 == ziele.size()) { diag::detail("Knopftest: Stufe 6 - Klick " + roh + ": " + wasImGuiSieht()); }
         }
-        if (f == 3) { io.AddMouseButtonEvent(0, false); }
+        if (f == 3) { io.AddMouseButtonEvent(knopf, false); }
         return false;
     };
 }
@@ -1121,6 +1131,7 @@ struct Art {
     std::string datei;
     bool mitUndo = false;
     std::function<void()> vorher;   // nach vorbereiten() (z. B. eine andere Fensteranordnung)
+    int warten = 0;                 // Bilder mehr bis zum Erfassen (ein Dialog geht auf)
 };
 
 Art artAus(const Erwartung& x) {
@@ -1150,8 +1161,8 @@ Schritt wirkungsSchritt(const std::string& pruefung, const std::string& befehl, 
                     l->start = 0;
                     return false;
                 }
-                if (b < 3) { return false; }
-                if (b == 3) {
+                if (b < 3 + art.warten) { return false; }
+                if (b == 3 + art.warten) {
                     l->vorher = erfassen();
                     l->hakenVorher = ke::angehakt(befehl);
                     e.letzterBefehl.clear();
@@ -1183,7 +1194,8 @@ Schritt wirkungsSchritt(const std::string& pruefung, const std::string& befehl, 
                                      std::to_string(zurueck.size()) + ", nachher " + std::to_string(nachher.size()) + ", wieder " +
                                      std::to_string(wieder.size()));
                     }
-                    pruefeWahr(gleich, "Rueckgaengig " + befehl + ": .map-Text wie vorher, Wiederholen wie nachher");
+                    pruefeWahr(gleich, "Rueckgaengig " + (befehl.empty() ? pruefung.substr(0, pruefung.find(':')) : befehl) +
+                                           ": .map-Text wie vorher, Wiederholen wie nachher");
                 }
                 aufraeumen();
                 return true;
@@ -1551,6 +1563,49 @@ std::vector<Schritt> menues() {
             }
         }
     }
+    // Die Menues des Texturbrowsers (texwindow.cpp:1238 View ueber den Knopf, :1281 Tags ueber das Kontextmenue der Tag-Liste)
+    const auto& tm = kb::texturMenues();
+    std::string tmenue;
+    for (std::size_t i = 0; i < tm.size(); ++i) {
+        const kb::MenueEintrag& m = tm[i];
+        if (m.art == kb::MenueArt::Menue) {
+            tmenue = m.text;
+            continue;
+        }
+        if ((m.art != kb::MenueArt::Punkt && m.art != kb::MenueArt::Haken) || !gewuenscht(m.befehl)) { continue; }
+        const std::string befehl = m.befehl;
+        const Erwartung* x = erwartung(befehl);
+        if (x == nullptr) {
+            s.push_back(pruefe("Menue Texturbrowser " + tmenue + " > " + karte::ohneMnemonik(m.text) + " = " + befehl + ": keine Erwartung", [] { return false; }));
+            continue;
+        }
+        Art a = artAus(*x);
+        const bool tags = tmenue == "Tags";
+        const Vor vor = tags ? (befehl == "TagPaste" ? Vor::TagsKopiert : Vor::Tags) : a.vor;
+        a.vor = vor;
+        a.vorher = [tags] {
+            ke::Editor& e = ke::editor();
+            e.gruppenSeite = 2;
+            e.gruppenSeiteWechseln = true;
+            e.gruppenDialogOffen = true;
+            if (tags) {
+                e.tags.gui = true;
+                e.tags.reiter = 1;
+            }
+        };
+        a.warten = 4;
+        std::vector<std::function<std::string()>> z;
+        if (tags) {
+            z.emplace_back([] { return std::string("@R##tags6tag"); });
+        } else {
+            z.emplace_back([] { return std::string("##texknopftexbro_view"); });
+        }
+        const std::string kennung = "###" + befehl + std::to_string(i);
+        z.emplace_back([kennung] { return kennung; });
+        s.push_back(wirkungsSchritt("Menue Texturbrowser " + tmenue + " > " + karte::ohneMnemonik(m.text) + " = " + befehl + ": " + maskeText(a.soll) + " (" +
+                                        vorName(vor) + ")",
+                                    befehl, a, [z](std::string* fehler) { return klickFolge(z, "", fehler); }));
+    }
     return s;
 }
 
@@ -1658,6 +1713,16 @@ Schritt feldAendern(const Feld& f) {
                     if (feld.art == FeldArt::Plus) { return finde("+", "###karteeinstellungen", 0, false, feld.ziel()); }
                     return finde(feld.ziel(), "###karteeinstellungen", 0, false);
                 };
+                if (b == 0 && feld.art == FeldArt::Klappe) {   // QComboBox: die Lage aus klappOrte (ImGui meldet sie nicht als Element)
+                    for (const auto& k : ke::editor().klappOrte) {
+                        if (k.id == feld.ziel()) {
+                            setzeMaus(ImVec2{(k.x0 + k.x1) * 0.5F, (k.y0 + k.y1) * 0.5F});
+                            return false;
+                        }
+                    }
+                    meldeFehler(std::string("Feld ") + feld.quelle + " " + feld.name + ": Klappliste \"" + feld.ziel() + "\" nicht gefunden");
+                    return true;
+                }
                 if (b == 0) {
                     const Element* el = ort();
                     if (el == nullptr) {
@@ -1889,8 +1954,13 @@ std::vector<Schritt> felder() {
         oeffnen(seite.index);
         add(pruefe(std::string("Seite ") + seite.titel + ": im Baum gewaehlt, Felder da", [sw] {
             const Feld& f = sw.felder.front();
-            const Element* el = f.art == FeldArt::Plus ? finde("+", "###karteeinstellungen", 0, false, f.ziel()) : finde(f.ziel(), "###karteeinstellungen", 0, false);
-            return ke::editor().einstellungenOffen && el != nullptr;
+            bool da = false;
+            if (f.art == FeldArt::Klappe) {
+                for (const auto& k : ke::editor().klappOrte) { da = da || k.id == f.ziel(); }
+            } else {
+                da = (f.art == FeldArt::Plus ? finde("+", "###karteeinstellungen", 0, false, f.ziel()) : finde(f.ziel(), "###karteeinstellungen", 0, false)) != nullptr;
+            }
+            return ke::editor().einstellungenOffen && da;
         }));
         for (const Feld& f : seite.felder) {
             add(feldAendern(f));
@@ -1933,6 +2003,194 @@ std::vector<Schritt> felder() {
     return s;
 }
 
+// --- Teil "dialoge": jeder Knopf der Dialoge --------------------------------------
+//
+// Je Knopf: die Vorbedingung, der Dialog wird geoeffnet (Befehl oder Rueckruf),
+// der Zustand erfasst, dann wird der Knopf wie von einem Menschen angeklickt
+// (ggf. mehrere Klicks: Zeile waehlen, dann Knopf) und die erwartete Wirkung
+// geprueft. Pruefname "Dialog <NRC-Titel> > <Knopf>: ...".
+struct DialogKnopf {
+    const char* dialog;     // Titel wie in der NRC-Checkliste
+    const char* knopf;      // Anzeige im Pruefnamen
+    Vor vor;
+    std::function<void()> oeffnen;
+    std::vector<std::function<std::string()>> klicks;   // Endungen der Elemente
+    const char* wirkung;
+    bool oeffnenErfasst = false;   // das Oeffnen gehoert zum Ausloesen (Zustand vor dem Oeffnen erfassen)
+};
+
+std::function<std::string()> endung(const char* t) {
+    return [t] { return std::string(t); };
+}
+std::function<std::string()> beschriftet(Str s) {
+    return [s] { return trS(s); };
+}
+std::function<void()> befehl(const char* n) {
+    return [n] { (void)ke::ausfuehren(n); };
+}
+
+std::vector<DialogKnopf> dialogKnoepfe() {
+    std::vector<DialogKnopf> v;
+    const auto add = [&v](DialogKnopf d) { v.push_back(std::move(d)); };
+    // Build Menu (BuildMenuCustomize, build.cpp:1027)
+    add({"Build Menu", "OK", Vor::Leer, befehl("BuildMenuCustomize"), {endung("##bauOK")}, "D"});
+    add({"Build Menu", "Cancel", Vor::Leer, befehl("BuildMenuCustomize"), {endung("##bauCancel")}, "D"});
+    add({"Build Menu", "Reset", Vor::Leer, befehl("BuildMenuCustomize"), {endung("##bauReset")}, "D"});
+    // Mapped Commands (Shortcuts, commands.cpp:333): eine Zeile waehlen, dann der Knopf
+    add({"Mapped Commands", "Edit", Vor::Leer, befehl("Shortcuts"), {endung("ArbitraryRotation##tz"), beschriftet(Str::KeEdit)}, "D"});
+    add({"Mapped Commands", "Clear", Vor::Leer, befehl("Shortcuts"), {endung("ArbitraryRotation##tz"), beschriftet(Str::KeClear)}, "E"});
+    add({"Mapped Commands", "Reset", Vor::Leer,
+         [] {
+             ke::editor().belegung.setzen("ArbitraryRotation", karte::befehle::kKeyF1 + 6);
+             ke::einstellungenSpeichern();
+             (void)ke::ausfuehren("Shortcuts");
+         },
+         {endung("ArbitraryRotation##tz"), beschriftet(Str::KeReset)}, "E"});
+    add({"Mapped Commands", "Reset All", Vor::Leer, befehl("Shortcuts"), {beschriftet(Str::KeResetAll)}, "D"});
+    add({"Mapped Commands", "Reset All > Yes", Vor::Leer,
+         [] {
+             ke::editor().belegung.setzen("GridUp", karte::befehle::kKeyF1 + 6);
+             ke::einstellungenSpeichern();
+             (void)ke::ausfuehren("Shortcuts");
+         },
+         {beschriftet(Str::KeResetAll), beschriftet(Str::KeYes)}, "E"});
+    // CSG Tool (csg.cpp:1486)
+    for (const auto& [knopf, kennung, wirkung] : std::vector<std::tuple<const char*, const char*, const char*>>{
+             {"Shrink", "##csgschrumpfen", "K"},     {"Expand", "##csgerweitern", "K"},   {"Diagonal", "##csgdiag", "K"},
+             {"Wrap", "##csgwrap", "K"},             {"Extrude", "##csgextrude", "K"},    {"Pull", "##csgpull", "K"},
+             {"+faces", "##csgplusfaces", "D"},      {"-proj", "##csgminusproj", "D"},    {"-cam", "##csgminuscam", "D"},
+             {"Caulk", "##csgcaulk", "D"},           {"Remove inner", "##csginnenweg", "D"}, {"Offset up", "##csgdickehoch", "D"},
+             {"Offset down", "##csgdickerunter", "D"}}) {
+        add({"CSG Tool", knopf, Vor::Pinsel, befehl("CSGTool"), {endung(kennung)}, wirkung});
+    }
+    add({"CSG Tool", "-faces", Vor::Pinsel,
+         [] {
+             (void)ke::ausfuehren("CSGTool");
+             ke::editor().csgWerkzeug.ausschluss = 1;
+         },
+         {endung("##csgminusfaces")}, "D"});
+    // Entity List (entitylist.cpp:279): Haken "Auto focus"
+    add({"Entity List", "Auto focus", Vor::Leer, befehl("ToggleEntityList"), {endung("##elautofocus")}, "D"});
+    // Find / Replace Texture(s) (findtexturedialog.cpp:132)
+    add({"Find / Replace Texture(s)", "Apply", Vor::Leer,
+         [] {
+             (void)ke::ausfuehren("FindReplaceTextures");
+             ke::editor().findenText = "common/caulk";
+             ke::editor().ersetzenText = "common/s6";
+         },
+         {beschriftet(Str::KeFrApply)}, "K"});
+    add({"Find / Replace Texture(s)", "Close", Vor::Leer, befehl("FindReplaceTextures"), {beschriftet(Str::KeFrClose)}, "D"});
+    add({"Find / Replace Texture(s)", "Within selected brushes only", Vor::Leer, befehl("FindReplaceTextures"), {beschriftet(Str::KeFrSelected)}, "D"});
+    // Arbitrary sides (gtkdlgs.cpp:274)
+    add({"Arbitrary sides", "OK", Vor::Pinsel, befehl("BrushPrism"), {endung("##seitenok")}, "K"});
+    add({"Arbitrary sides", "Cancel", Vor::Pinsel, befehl("BrushPrism"), {endung("##seitenabbrechen")}, "D"});
+    add({"Arbitrary sides", "Truncate", Vor::Pinsel, befehl("BrushIcosahedron"), {endung("##seitenstutzen")}, "D"});
+    // About NetRadiant (gtkdlgs.cpp:333); Credits ist wie bei NRC gesperrt (button->setEnabled( false ))
+    add({"About NetRadiant", "OK", Vor::Leer, befehl("DoAbout"), {endung("##ueberok")}, "D"});
+    add({"About NetRadiant", "Changelog", Vor::Leer, befehl("DoAbout"), {endung("##uebernotizen")}, "X"});
+    add({"About NetRadiant", "About Qt", Vor::Leer, befehl("DoAbout"), {endung("##ueberqt")}, "D"});
+    // Set Light intensity (gtkdlgs.cpp:415): ein Licht aus dem Entitaetenmenue
+    // Entity_createFromSelection (entity.cpp:474-483): das Licht entsteht mit dem Menue, OK setzt "light",
+    // Cancel laesst es ohne - beides ein Rueckgaengig-Schritt "entityCreate"
+    add({"Set Light intensity", "OK", Vor::Leer, [] { ke::entitaetMenueGewaehlt("light"); }, {endung("##lichtok")}, "K", true});
+    add({"Set Light intensity", "Cancel", Vor::Leer, [] { ke::entitaetMenueGewaehlt("light"); }, {endung("##lichtabbrechen")}, "K", true});
+    add({"Set Light intensity", "Don't show", Vor::Leer, [] { ke::entitaetMenueGewaehlt("light"); }, {beschriftet(Str::KeLiDontShow)}, "D"});
+    // Choose Color (QColorDialog, EntityColorSet)
+    add({"Choose Color", "OK", Vor::Licht,
+         [] {
+             (void)ke::ausfuehren("EntityColorSet");
+             ke::editor().ent.farbDialog.r = 10;
+         },
+         {endung("##cdok")}, "K"});
+    add({"Choose Color", "Cancel", Vor::Licht, befehl("EntityColorSet"), {endung("##cdabbrechen")}, "D"});
+    // Engine Path Configuration (mainframe.cpp:421)
+    add({"Engine Path Configuration", "OK", Vor::Leer, [] { ke::editor().enginePfadDialogOffen = true; }, {endung("##enginepfadok")}, "D"});
+    // Map Info (map.cpp:908): Spaltenkopf sortiert
+    add({"Map Info", "Spalte Anzahl", Vor::Leer, befehl("MapInfo"), {endung("##infokopf1")}, "D"});
+    // Find Brush (map.cpp:2085)
+    add({"Find Brush", "Find", Vor::Leer, befehl("FindBrush"), {endung("##suchefinden")}, "A"});
+    add({"Find Brush", "Close", Vor::Leer, befehl("FindBrush"), {endung("##sucheschliessen")}, "D"});
+    // Patch density / deform / Cap / thicken (patchmanip.cpp)
+    add({"Patch density", "OK", Vor::Leer, befehl("SimplePatchMesh"), {endung("##patchok")}, "K"});
+    add({"Patch density", "Cancel", Vor::Leer, befehl("SimplePatchMesh"), {endung("##patchabbrechen")}, "D"});
+    add({"Patch deform", "OK", Vor::Patch, befehl("PatchDeform"), {endung("##patchok")}, "K"});
+    add({"Patch deform", "Cancel", Vor::Patch, befehl("PatchDeform"), {endung("##patchabbrechen")}, "D"});
+    add({"Cap", "OK", Vor::Patch, befehl("CapCurrentCurve"), {endung("##patchok")}, "K"});
+    add({"Cap", "Cancel", Vor::Patch, befehl("CapCurrentCurve"), {endung("##patchabbrechen")}, "D"});
+    add({"Patch thicken", "OK", Vor::Patch, befehl("PatchThicken"), {endung("##patchok")}, "K"});
+    add({"Patch thicken", "Cancel", Vor::Patch, befehl("PatchThicken"), {endung("##patchabbrechen")}, "D"});
+    add({"Patch thicken", "Side walls", Vor::Patch, befehl("PatchThicken"), {endung("##patchwaende")}, "D"});
+    // Global Preferences (preferences.cpp:271)
+    add({"Global Preferences", "OK", Vor::Leer, [] { ke::editor().globaleEinstellungenOffen = true; }, {endung("##globalok")}, "D"});
+    // NetRadiant Preferences (preferences.cpp:584): Clean (OK/Cancel pruefen die Seiten im Teil "felder")
+    add({"NetRadiant Preferences", "Clean", Vor::Leer, befehl("Preferences"), {beschriftet(Str::KePrefClean)}, "D"});
+    add({"NetRadiant Preferences", "Clean > Yes", Vor::Leer,
+         [] {
+             ke::editor().nachKlonenSchubsen = !ke::editor().nachKlonenSchubsen;
+             ke::einstellungenSpeichern();
+             (void)ke::ausfuehren("Preferences");
+         },
+         {beschriftet(Str::KePrefClean), endung("##meldungja")}, "E"});
+    // Arbitrary rotation / scale (select.cpp:1589/1681)
+    for (const char* knopf : {"OK", "Apply", "Cancel"}) {
+        const std::string k = knopf;
+        const char* drehEnde = k == "OK" ? "##kartedrehenok" : k == "Apply" ? "##kartedrehenanwenden" : "##kartedrehenabbrechen";
+        const char* skalEnde = k == "OK" ? "##karteskalierenok" : k == "Apply" ? "##karteskalierenanwenden" : "##karteskalierenabbrechen";
+        add({"Arbitrary rotation", knopf, Vor::Pinsel,
+             [] {
+                 (void)ke::ausfuehren("ArbitraryRotation");
+                 ke::editor().drehDialog.werte = {0.0, 0.0, 45.0};
+             },
+             {endung(drehEnde)}, k == "Cancel" ? "D" : "K"});
+        add({"Arbitrary scale", knopf, Vor::Pinsel,
+             [] {
+                 (void)ke::ausfuehren("ArbitraryScale");
+                 ke::editor().skalierDialog.werte = {2.0, 1.0, 1.0};
+             },
+             {endung(skalEnde)}, k == "Cancel" ? "D" : "K"});
+    }
+    // Surface Inspector (surfacedialog.cpp:637)
+    add({"Surface Inspector", "Reset", Vor::PinselVersetzt, befehl("SurfaceInspector"), {endung("##sireset")}, "K"});
+    add({"Surface Inspector", "Fit", Vor::Pinsel, befehl("SurfaceInspector"), {endung("##sifit")}, "K"});
+    add({"Surface Inspector", "Width", Vor::Pinsel, befehl("SurfaceInspector"), {endung("##siwidth")}, "K"});
+    add({"Surface Inspector", "Height", Vor::Pinsel, befehl("SurfaceInspector"), {endung("##siheight")}, "K"});
+    add({"Surface Inspector", "Axial", Vor::Patch, befehl("SurfaceInspector"), {endung("##siaxial")}, "K"});
+    add({"Surface Inspector", "Ortho", Vor::Patch, befehl("SurfaceInspector"), {endung("##siortho")}, "K"});
+    add({"Surface Inspector", "Cam", Vor::Patch, befehl("SurfaceInspector"), {endung("##sicam")}, "K"});
+    add({"Surface Inspector", "Natural", Vor::Patch, befehl("SurfaceInspector"), {endung("##sinatural")}, "K"});
+    add({"Surface Inspector", "Match Grid", Vor::Pinsel, befehl("SurfaceInspector"), {endung("##simatchgrid")}, "E"});
+    // OpenGL Font (QFontDialog)
+    add({"Select Font", "OK", Vor::Leer, befehl("OpenGLFont"), {endung("##schriftok")}, "D"});
+    add({"Select Font", "Cancel", Vor::Leer, befehl("OpenGLFont"), {endung("##schriftabbrechen")}, "D"});
+    return v;
+}
+
+std::vector<Schritt> dialoge() {
+    std::vector<Schritt> s;
+    for (const DialogKnopf& d : dialogKnoepfe()) {
+        Art a;
+        a.vor = d.vor;
+        a.soll = maskeAus(d.wirkung);
+        if (!d.oeffnenErfasst) {
+            a.vorher = d.oeffnen;
+            a.warten = 4;
+        }
+        a.mitUndo = (a.soll & wKarte) != 0U;
+        const auto klicks = d.klicks;
+        const auto oeffnen = d.oeffnenErfasst ? d.oeffnen : std::function<void()>();
+        s.push_back(wirkungsSchritt(std::string("Dialog ") + d.dialog + " > " + d.knopf + ": " + maskeText(a.soll) + " (" + vorName(d.vor) + ")", "", a,
+                                    [klicks, oeffnen](std::string* fehler) {
+                                        auto folge = std::make_shared<std::function<bool(int)>>(klickFolge(klicks, "", fehler));
+                                        return std::function<bool(int)>([oeffnen, folge](int b) {
+                                            if (!oeffnen) { return (*folge)(b); }
+                                            if (b == 0) { oeffnen(); }
+                                            return b < 5 ? false : (*folge)(b - 5);
+                                        });
+                                    }));
+    }
+    return s;
+}
+
 }  // namespace stufe6
 
 std::vector<Schritt> karteneditorStufe6Schritte() {
@@ -1954,6 +2212,7 @@ std::vector<Schritt> karteneditorStufe6Schritte() {
     if (teil("menues")) { dazu(stufe6::menues()); }
     if (teil("knoepfe")) { dazu(stufe6::knoepfe()); }
     if (teil("felder")) { dazu(stufe6::felder()); }
+    if (teil("dialoge")) { dazu(stufe6::dialoge()); }
     s.push_back(tu("Stufe 6: Grundzustand, Aussenwelt zurueck", [] {
         stufe6::grundzustand();
         karteneditor::Editor& e = karteneditor::editor();

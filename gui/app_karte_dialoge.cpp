@@ -51,6 +51,9 @@ struct Seite {
     int tiefe;
 };
 
+// QComboBox der Seiten (unten): die Lage merkt sich der Selbsttest (klappOrte)
+bool klappe(const char* id, int* wert, const char* const* eintraege, int anzahl);
+
 // PrefsDlg::BuildDialog (preferences.cpp:604-694) und die Unterseiten in
 // Registrierungsreihenfolge.
 const Seite kSeiten[] = {
@@ -423,7 +426,7 @@ void kameraSeite() {
     };
     const auto auswahl = [&](Str text, int& wert, const char* const* eintraege, int anzahl) {
         feldAnfang(text);
-        const bool r = ImGui::Combo((std::string("##") + trK(text)).c_str(), &wert, eintraege, anzahl);
+        const bool r = klappe((std::string("##") + trK(text)).c_str(), &wert, eintraege, anzahl);
         feldEnde();
         return r;
     };
@@ -469,7 +472,7 @@ void auswahlSeite() {
     (void)haken(Str::Count, trK(Str::KePrSel3dBrushes), g_entwurf.pinselIn3d);
     feldAnfang(Str::KePrSelMoveStyle);
     const char* stile[2] = {trK(Str::KePrSelMoveXY), trK(Str::KePrSelMoveView)};
-    (void)ImGui::Combo("##bewegstil", &g_entwurf.bewegStil3d, stile, 2);
+    (void)klappe("##bewegstil", &g_entwurf.bewegStil3d, stile, 2);
     feldEnde();
 }
 
@@ -484,7 +487,7 @@ void texBroSeite() {
     feldAnfang(Str::KePrTbScale);
     static const char* const skalen[5] = {"10%", "25%", "50%", "100%", "200%"};
     int index = std::max(0, karte::texturSkalaIndex(t.skala));
-    if (ImGui::Combo("##texskala", &index, skalen, 5)) { t.skala = karte::texturSkalaAusIndex(index); }
+    if (klappe("##texskala", &index, skalen, 5)) { t.skala = karte::texturSkalaAusIndex(index); }
     feldEnde();
     feldAnfang(Str::KePrTbMax);
     (void)ganzSpinner("##texmax", t.einheitsGroesse, 16, 8192);
@@ -497,7 +500,7 @@ void texBroSeite() {
     feldEnde();
     feldAnfang(Str::KePrTbStartup);
     const char* start[2] = {trK(Str::KePrTbNone), "System"};   // TextureBrowser_getCommonShadersName
-    (void)ImGui::Combo("##texstart", &t.startShader, start, 2);
+    (void)klappe("##texstart", &t.startShader, start, 2);
     feldEnde();
     char text[160];
     std::snprintf(text, sizeof(text), trK(Str::KePrTbHideCommon), editor().texBro.commonVerzeichnis.c_str());
@@ -590,12 +593,12 @@ void texturenSeite() {
     const char* modi[6] = {trK(Str::KePrTexNearest), trK(Str::KePrTexNearestMip), trK(Str::KePrTexLinear), trK(Str::KePrTexBilinear),
                            trK(Str::KePrTexBilinearMip), trK(Str::KePrTexTrilinear)};
     int index = karte::texturModusZuListe(q.modus);
-    if (ImGui::Combo("##texmodus", &index, modi, 6)) { q.modus = karte::texturModusAusListe(index); }
+    if (klappe("##texmodus", &index, modi, 6)) { q.modus = karte::texturModusAusListe(index); }
     feldEnde();
     feldAnfang(Str::KePrTexCompression);
     const char* keine[1] = {trK(Str::KePrTexNone)};
     int k = 0;
-    (void)ImGui::Combo("##texkompression", &k, keine, 1);
+    (void)klappe("##texkompression", &k, keine, 1);
     q.kompression = 0;
     feldEnde();
     (void)haken(Str::Count, trK(Str::KePrTexAnisotropy), q.anisotropie);

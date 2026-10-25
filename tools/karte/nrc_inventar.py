@@ -513,6 +513,10 @@ def abdeckung_befehl(argv):
     if '--md' in rest:
         ausgabe = rest[rest.index('--md') + 1]
         rest = rest[:rest.index('--md')] + rest[rest.index('--md') + 2:]
+    vergleich = None
+    if '--vergleich' in rest:
+        vergleich = rest[rest.index('--vergleich') + 1]
+        rest = rest[:rest.index('--vergleich')] + rest[rest.index('--vergleich') + 2:]
     laeufe = [x for x in rest if not x.startswith('--')]
     eintraege, fehler = lesen(md)
     if fehler:
@@ -523,6 +527,16 @@ def abdeckung_befehl(argv):
     erg = ab.abdeckung([(e[0], e[2]) for e in eintraege], ok, fe)
     if ausgabe:
         ab.tabelle_schreiben(erg, ausgabe, laeufe)
+    veraltet = False
+    if vergleich:
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            neu = os.path.join(d, 'abdeckung.md')
+            ab.tabelle_schreiben(erg, neu, laeufe)
+            alt = open(vergleich, encoding='utf-8').read() if os.path.exists(vergleich) else ''
+            veraltet = open(neu, encoding='utf-8').read() != alt
+        if veraltet:
+            print('FEHLER: ' + vergleich + ' ist nicht aktuell (neu erzeugen: abdeckung ... --md ' + vergleich + ')')
     arten = []
     for e in erg:
         if e[0] not in arten:
@@ -539,7 +553,9 @@ def abdeckung_befehl(argv):
             print(f'{e[2]}: {e[0]} | {e[1]} | ' + '; '.join(e[3])[:300])
     print(f'Gesamt: {len(erg)} Eintraege, {sum(1 for e in erg if e[2] == "OK")} mit Wirkungspruefung, '
           f'{sum(1 for e in erg if e[2] == "AUSNAHME")} begruendete Ausnahmen, {schlecht} ohne/FEHLER (Protokoll: {len(ok)} OK, {len(fe)} FEHLER)')
-    return 1 if (pruefen_ and schlecht) else 0
+    if fe:
+        print(f'FEHLER: das Protokoll hat {len(fe)} FEHLER-Zeilen, z. B. ' + fe[0][:200])
+    return 1 if (pruefen_ and (schlecht or veraltet or fe)) else 0
 
 
 if __name__ == '__main__':

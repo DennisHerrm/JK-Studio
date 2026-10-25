@@ -50,6 +50,59 @@ RUFE = {
 EXPLIZIT = {}
 
 
+def _dialog(titel, *knoepfe):
+    return [r'Dialog ' + re.escape(titel) + ' > ' + re.escape(k) + ': ' for k in knoepfe]
+
+
+EXPLIZIT.update({
+    'Dialog|Build Menu': _dialog('Build Menu', 'OK', 'Cancel', 'Reset'),
+    'Dialog|Mapped Commands': _dialog('Mapped Commands', 'Edit', 'Clear', 'Reset', 'Reset All', 'Reset All > Yes'),
+    'Dialog|CSG Tool': _dialog('CSG Tool', 'Shrink', 'Expand', 'Diagonal', 'Wrap', 'Extrude', 'Pull', '-faces', '+faces', '-proj', '-cam',
+                               'Caulk', 'Remove inner', 'Offset up', 'Offset down'),
+    'Dialog|Entity List': _dialog('Entity List', 'Auto focus') + [re.escape('Umschalt+L: Entity List offen')],
+    'Dialog|Q3Map debug window': [re.escape('Q3Map debug window offen: "Entity leaked"'),
+                                  re.escape('Q3Map debug window: die Zeile waehlt die Entitaet')],
+    'Dialog|Find / Replace Texture(s)': _dialog('Find / Replace Texture(s)', 'Apply', 'Close', 'Within selected brushes only'),
+    'Dialog|Entities': [re.escape('Licht gewaehlt: Klassenliste auf light'), re.escape('Value 500 + Enter: light = 500'),
+                        re.escape('Delete Key: light weg'), re.escape('Clear All: nur classname und origin bleiben'),
+                        re.escape('Spawnflag linear: spawnflags 1')],
+    'Dialog|Arbitrary sides': _dialog('Arbitrary sides', 'OK', 'Cancel', 'Truncate'),
+    'Dialog|About NetRadiant': _dialog('About NetRadiant', 'OK', 'Changelog', 'About Qt'),
+    'Dialog|Set Light intensity': _dialog('Set Light intensity', 'OK', 'Cancel', "Don't show"),
+    'Dialog|Engine Path Configuration': _dialog('Engine Path Configuration', 'OK') + [re.escape('OK: Engine Path engine12 (setEnginePath)')],
+    'Dialog|Camera': [r'Wirkung ToggleCamera: ', r'Menue .* = ToggleCamera: '],
+    'Dialog|Map Info': _dialog('Map Info', 'Spalte Anzahl') + [re.escape('Esc: Map Info zu')],
+    'Dialog|Find Brush': _dialog('Find Brush', 'Find', 'Close'),
+    'Dialog|Patch density': _dialog('Patch density', 'OK', 'Cancel'),
+    'Dialog|Patch deform': _dialog('Patch deform', 'OK', 'Cancel'),
+    'Dialog|Cap': _dialog('Cap', 'OK', 'Cancel'),
+    'Dialog|Patch thicken': _dialog('Patch thicken', 'OK', 'Cancel', 'Side walls'),
+    'Dialog|Global Preferences': _dialog('Global Preferences', 'OK'),
+    'Dialog|NetRadiant Preferences': _dialog('NetRadiant Preferences', 'Clean', 'Clean > Yes') + [r'Seite .*: OK uebernimmt, Cancel verwirft'],
+    'Dialog|Arbitrary rotation': _dialog('Arbitrary rotation', 'OK', 'Apply', 'Cancel'),
+    'Dialog|Arbitrary scale': _dialog('Arbitrary scale', 'OK', 'Apply', 'Cancel'),
+    'Dialog|Surface Inspector': _dialog('Surface Inspector', 'Reset', 'Fit', 'Width', 'Height', 'Axial', 'Ortho', 'Cam', 'Natural', 'Match Grid'),
+    # Seiten ohne eigenen Feldertest (Spiel/Pfade laden das Spiel neu): die Pruefungen der Stufe 2
+    'Seite|Path Settings': [re.escape('Seite Paths: Engine Path = der Ordner ueber dem ersten Spielordner'),
+                            re.escape('OK: Engine Path engine12 (setEnginePath)')],
+    'Feld|radiant/preferences.cpp:259': [re.escape('OK: Frage "Restart is required" mit "Selected Game"'),
+                                         re.escape('Yes (Radiant_Restart): Jedi Outcast mit data/karte/jk2')],
+    'Feld|radiant/gtkdlgs.cpp:229': [re.escape('Seite Game: Select mod (basegame)'), re.escape('Custom JA modification: fs_game leer und frei')],
+    'Feld|radiant/gtkdlgs.cpp:241': [re.escape('OK: fs_game testmod11, mp, Extra Resource Path - das Spiel neu geladen, gespeichert')],
+    'Feld|radiant/gtkdlgs.cpp:260': [re.escape('Mapping mode mp: sp_entities.def uebergangen')],
+    'Feld|radiant/mainframe.cpp:398': [re.escape('OK: Engine Path engine12 (setEnginePath)')],
+    'Feld|radiant/mainframe.cpp:407': [re.escape('Extra Resource Path: maps/zusatz11.txt im Spiel')],
+})
+
+# File > Exit beendet das Programm: geprueft ist der Weg davor (Stufe 4, ConfirmModified)
+AUSNAHMEN.update({
+    'Befehl|Exit|Commands': 'beendet das Programm - Stufe 4 prueft ConfirmModified (Save/Discard/Cancel) und das Beenden: siehe Pruefungen "Exit"',
+    'Menue|Exit|radiant/mainframe.cpp:889': 'wie der Befehl Exit (Stufe 4 prueft den Menuepunkt mit der Rueckfrage)',
+    'Feld|radiant/textures.cpp:818': 'Hardware Texture Compression: D3D11 meldet weder OpenGL- noch S3TC-Kompression, die Liste hat wie NRC ohne '
+                                     'diese Erweiterungen nur "None" - es gibt nichts zu waehlen',
+})
+
+
 def esc(t):
     return re.escape(t)
 
@@ -66,6 +119,8 @@ def schluessel(abschnitt, text):
             return 'Menue|' + cmd + '|' + quelle, [r'Menue .* = ' + esc(cmd) + r': ']
         if label in RUFE:
             return 'Menue|' + label, [r'Menue .* = ' + esc(RUFE[label]) + r': ']
+        if label == '(dynamisch)':   # Modify > Repeat: die vier Eintraege der wiederholbaren Transformationen
+            return 'Menue|' + label + '|' + quelle, [r'Menue .* = Transform' + t + ': ' for t in ('Translate', 'Rotate', 'Scale')]
         mru = re.match(r'&(\d)$', label)
         if mru:
             return 'Menue|MRU ' + mru.group(1), [r'Menue .* = MRU' + mru.group(1) + r': ']
@@ -82,8 +137,13 @@ def schluessel(abschnitt, text):
         name, art, taste = m.group(1), m.group(2), m.group(3)
         k = 'Befehl|' + name + '|' + art
         if art in ('Commands', 'Toggles'):
-            return k, [r'Wirkung ' + esc(name) + r': ']
+            anf = [r'Wirkung ' + esc(name) + r': ', r'Robust ' + esc(name) + r': ']
+            if taste != '-':   # mit Standardtaste: auch ueber die Taste
+                anf.append(r'Taste .* = ' + esc(name) + r': ')
+            return k, anf
         if art == 'Shortcuts':
+            if taste == '-':   # ohne Standardtaste: belegt im Test (Teil "ereignisse", F9)
+                return k, [r'Ereignis ' + esc(name) + r': ']
             return k, [r'Taste .* = ' + esc(name) + r': ']
         if art == 'KeyEvents':
             return k, [r'Ereignis ' + esc(name) + r': ']
@@ -93,10 +153,10 @@ def schluessel(abschnitt, text):
         return ('Dialog|' + m.group(1), None) if m else (None, None)
     if abschnitt == 'Einstellungsseiten':
         m = re.match(r'(.*?): "(.*)"  \(', text)
-        return ('Seite|' + m.group(2), None) if m else (None, None)
+        return ('Seite|' + m.group(2), [r'Seite ' + esc(m.group(2)) + r': OK uebernimmt, Cancel verwirft']) if m else (None, None)
     if abschnitt == 'Einstellungsfelder':
         m = re.match(r'(\w+) (.*)  \((\S+)\)$', text)
-        return ('Feld|' + m.group(3), None) if m else (None, None)
+        return ('Feld|' + m.group(3), [r'Feld ' + esc(m.group(3)) + r': ']) if m else (None, None)
     if abschnitt == 'Plugins':
         m = re.match(r'(.*?): (.*) -> `([^`]*)`', text)
         if not m:
@@ -108,7 +168,7 @@ def schluessel(abschnitt, text):
         if len(teile) < 6:
             return None, None
         test = teile[5][len('Test: '):] if teile[5].startswith('Test: ') else teile[5]
-        namen = [t.strip() for t in test.split(';') if t.strip()]
+        namen = [t.strip() for t in test.split('; ') if t.strip()]
         return 'Maus|' + teile[0] + '|' + teile[1], [esc(n) for n in namen]
     return None, None
 
@@ -116,6 +176,17 @@ def schluessel(abschnitt, text):
 # --- Eigene Eintraege (nicht in NRC) ----------------------------------------------
 EIGENE = [
     # (Schluessel, Beschreibung, Anforderungen)
+    ('Eigen|Build > Optimizer...', 'Optimierer (Stufe 5): Fenster, Pruefung, Beheben',
+     [re.escape('Fenster "Optimizer" offen, Pruefung im Hintergrund fertig')]),
+    ('Eigen|Seite Optimizer', 'Einstellungsseite des Optimierers', [r'.*Optimizer.*']),
+    ('Eigen|File > Open .bsp...', 'fertige Karte oeffnen (Stufe 4)', [re.escape('Dialog "Open compiled map" offen'),
+                                                                     re.escape('mp/duel1 umgewandelt und geladen')]),
+    ('Eigen|Build > Update entities only', 'Originallicht behalten (Stufe 4)',
+     [re.escape('duel1.bsp: jeder Lump ausser den Entities Byte-gleich')]),
+    ('Eigen|Build > Cancel build', 'Bauen abbrechen (Stufe 3)', [re.escape('Nach dem Abbrechen baut der naechste Eintrag wieder')]),
+    ('Eigen|Karten-Editor-Modus', 'der Reiter Karten-Editor (leftMode 3)', [re.escape('Kuerzel gelten nur im Karten-Editor')]),
+    ('Eigen|Begriffe wie NetRadiant', 'Umschalter der Begriffe (Seite Interface)', [re.escape('Begriffe wie NetRadiant: Menue "File", "Edit" trotz Deutsch')]),
+    ('Eigen|Help > About BehavEd', 'Hilfe des Programms', [re.escape('Help > About BehavEd: der About-Dialog des Programms')]),
 ]
 
 

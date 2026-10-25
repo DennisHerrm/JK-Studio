@@ -1064,5 +1064,12 @@ if(BEHAVED_TESTS)
     add_test(NAME karte_inventar
              COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.py pruefen
                      ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.md)
+    # Stufe 6, Punkt 1: jeder Eintrag der Checkliste und jeder eigene Eintrag hat
+    # eine Wirkungspruefung im Selbsttest (Protokoll des letzten vollen Laufs:
+    # tools/karte/abdeckung_lauf.txt); die Tabelle tools/karte/abdeckung.md passt dazu.
+    add_test(NAME karte_abdeckung
+             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.py abdeckung
+                     ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.md ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/abdeckung_lauf.txt
+                     --vergleich ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/abdeckung.md --pruefen)
   endif()
 endif()
