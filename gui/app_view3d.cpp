@@ -9360,6 +9360,23 @@ void loadMapModels() {
     int fehlt = 0;
     for (const MapEntity& e : g_app->map.entities) {
         if (!gespawntImSpiel(e)) { continue; }   // rc604
+        // Stufe 6 (OpenJK#1358): CG_DrawMiscEnts (OpenJK code/cgame/cg_main.cpp, MD
+        // cg_main.cpp:3224-3227) zeichnet ein misc_model_static nur bei gi.inPVS(vieworg,
+        // origin + (0 0 zoffset+1)) - zoffset aus SP_misc_model_static (g_misc.cpp:417).
+        // Liegt der Punkt im Festen (Blatt mit Cluster -1, Area -1), sagt SV_inPVS ueber
+        // CM_AreasConnected (cm_test.cpp:607) immer nein: das Spiel zeigt es nie.
+        if (e.classname == "misc_model_static" && !g_app->geo.empty()) {
+            float pruef[3] = {0.0F, 0.0F, 0.0F};
+            (void)std::sscanf(e.origin.c_str(), "%f %f %f", &pruef[0], &pruef[1], &pruef[2]);
+            const std::string* zo = e.find("zoffset");
+            pruef[2] += (zo != nullptr ? static_cast<float>(std::atof(zo->c_str())) : 0.0F) + 1.0F;
+            const int blatt = g_app->geo.leafAt(pruef);
+            if (blatt >= 0 && static_cast<std::size_t>(blatt) < g_app->geo.leafs.size() &&
+                g_app->geo.leafs[static_cast<std::size_t>(blatt)].cluster == -1) {
+                diag::info("misc_model_static bei " + e.origin + ": Pruefpunkt im Festen, das Spiel zeichnet es nie (OpenJK#1358)");
+                continue;
+            }
+        }
         const std::string* mp = e.find("model");
         // Die Waffenstaender nehmen ihr Modell NICHT aus dem Schluessel -
         // g_misc_model.cpp setzt es fest: SP_misc_model_gun_rack

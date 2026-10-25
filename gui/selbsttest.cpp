@@ -18844,6 +18844,79 @@ std::vector<Schritt> kartenmodellSchritte(const std::string& karte, const std::s
     return s;
 }
 
+// --- Stufe 6 (OpenJK#1358, zweiter Teil): misc_model_static mit Pruefpunkt im Festen --------
+//
+// CG_DrawMiscEnts (OpenJK code/cgame/cg_main.cpp, MD cg_main.cpp:3212-3236) zeichnet ein
+// misc_model_static nur, wenn gi.inPVS(vieworg, origin + (0 0 zoffset+1)) gilt; liegt der
+// Punkt im Festen, ist das Blatt undurchsichtig (Area -1) und CM_AreasConnected sagt nein -
+// das Modell erscheint nie. Die Vorschau "wie im Spiel" zeigte es trotzdem. Probe: t1_inter
+// mit zwei angehaengten misc_model_static (Pruefpunkt im Freien neben dem Spielerstart und
+// weit ausserhalb der Karte).
+std::vector<Schritt> modellImFestenSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("OpenJK#1358: t1_inter mit zwei misc_model_static laden", [] {
+        std::string bsp;
+        if (!readFromArchives("maps/t1_inter.bsp", bsp) || bsp.size() < 8 + 18 * 8) {
+            diag::detail("Knopftest: OpenJK#1358 - maps/t1_inter.bsp nicht gefunden");
+            return;
+        }
+        std::int32_t ofs = 0;
+        std::int32_t len = 0;
+        std::memcpy(&ofs, bsp.data() + 8, 4);
+        std::memcpy(&len, bsp.data() + 12, 4);
+        std::string text = bsp.substr(static_cast<std::size_t>(ofs), static_cast<std::size_t>(len));
+        while (!text.empty() && text.back() == '\0') { text.pop_back(); }
+        // Ort des Spielerstarts
+        float sx = 0.0F;
+        float sy = 0.0F;
+        float sz = 0.0F;
+        const std::size_t st = text.find("\"info_player_start\"");
+        if (st != std::string::npos) {
+            const std::size_t a = text.rfind('{', st);
+            const std::size_t o = text.find("\"origin\"", a);
+            if (o != std::string::npos) { (void)std::sscanf(text.c_str() + o + 8, " \"%f %f %f\"", &sx, &sy, &sz); }
+        }
+        char frei[160];
+        std::snprintf(frei, sizeof(frei), "%g %g %g", static_cast<double>(sx), static_cast<double>(sy), static_cast<double>(sz + 8.0F));
+        const std::string modell = "\"model\" \"models/map_objects/imperial/crate_banded.md3\"\n";
+        text += "{\n\"classname\" \"misc_model_static\"\n\"origin\" \"" + std::string(frei) + "\"\n" + modell + "\"targetname\" \"s6frei\"\n}\n";
+        text += "{\n\"classname\" \"misc_model_static\"\n\"origin\" \"60000 60000 60000\"\n" + modell + "\"targetname\" \"s6fest\"\n}\n";
+        text.push_back('\0');
+        while (bsp.size() % 4 != 0) { bsp.push_back('\0'); }
+        const auto neuOfs = static_cast<std::int32_t>(bsp.size());
+        const auto neuLen = static_cast<std::int32_t>(text.size());
+        bsp += text;
+        std::memcpy(bsp.data() + 8, &neuOfs, 4);
+        std::memcpy(bsp.data() + 12, &neuLen, 4);
+        g_app->leftMode = 1;   // Kartenansicht - sonst baut die Ansicht nichts
+        loadMapFromBytes(bsp, "maps/t1_inter_openjk1358.bsp");
+        g_app->mapDirty = true;
+    }));
+    add(warteBis("Karte bereit", [] { return g_app->mapBereit; }, 900));
+    add(warteBis("Szene aufgebaut", [] { return g_app->camTrackValid; }, 900));
+    add(gezeichnet("t1_inter (OpenJK#1358)"));
+    add(pruefe("OpenJK#1358: misc_model_static mit Pruefpunkt im Festen fehlt in der Vorschau, der im Freien steht", [] {
+        int frei = -1;
+        int fest = -1;
+        for (std::size_t i = 0; i < g_app->map.entities.size(); ++i) {
+            const std::string* t = g_app->map.entities[i].find("targetname");
+            if (t != nullptr && *t == "s6frei") { frei = static_cast<int>(i); }
+            if (t != nullptr && *t == "s6fest") { fest = static_cast<int>(i); }
+        }
+        bool mitFrei = false;
+        bool mitFest = false;
+        for (const App::MapModel& mm : g_app->mapModels) {
+            mitFrei = mitFrei || (frei >= 0 && mm.entity == static_cast<std::size_t>(frei));
+            mitFest = mitFest || (fest >= 0 && mm.entity == static_cast<std::size_t>(fest));
+        }
+        diag::detail("Knopftest: OpenJK#1358 - Entity frei " + std::to_string(frei) + (mitFrei ? " gezeigt" : " fehlt") + ", im Festen " +
+                     std::to_string(fest) + (mitFest ? " gezeigt" : " fehlt"));
+        return frei >= 0 && fest >= 0 && mitFrei && !mitFest;
+    }));
+    return s;
+}
+
 std::vector<Schritt> festeModelleSchritte() {
     std::vector<Schritt> s;
     for (Schritt& x : kartenmodellSchritte("maps/hoth2.bsp", "misc_shield_floor_unit", 1)) { s.push_back(std::move(x)); }
@@ -42790,6 +42863,7 @@ void selbsttest() {
     static const bool nurGegenstaende = std::strcmp(modus, "gegenstaende") == 0 || std::strcmp(modus, "kartenfunde") == 0;
     static const bool nurFix604b = std::strcmp(modus, "fix604b") == 0;   // rc604 fix604b: die neuen Kartenproben
     static const bool nurLaserfalle = std::strcmp(modus, "laserfalle") == 0;   // rc604: nur die Laserfallen
+    static const bool nurModellImFesten = std::strcmp(modus, "modellimfesten") == 0;   // Stufe 6: OpenJK#1358
     static const bool nurGeschuetzAnim = std::strcmp(modus, "geschuetzanim") == 0;   // rc604: Wachgeschuetz, Ionenkanone
     static const bool nurZielstrahl = std::strcmp(modus, "zielstrahl") == 0;   // rc604: fx_target_beam
     static const bool nurEffektGrund = std::strcmp(modus, "effektgrund") == 0;   // rc604: Grundstufe der Effektshader
@@ -42980,6 +43054,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurGeschuetzAnim) {
                 a.schritte = geschuetzAnimSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurModellImFesten) {
+                a.schritte = modellImFestenSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurLaserfalle) {
