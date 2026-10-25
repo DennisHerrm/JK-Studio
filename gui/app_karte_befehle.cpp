@@ -63,13 +63,16 @@ std::map<std::string, Umsetzung>& umsetzungen() {
     m["OpenMap"] = {[] { karteOeffnenDialog(); }, nullptr};
     m["SaveMap"] = {[] { (void)karteSpeichern(); }, nullptr};
     m["SaveMapAs"] = {[] { (void)karteSpeichernUnterDialog(); }, nullptr};
-    // Exit (mainframe.cpp:2073): beendet das Programm - hier behaved, mit
-    // den Rueckfragen des Programms.
+    // Exit (mainframe.cpp:2073, 621-625): ConfirmModified( "Exit Radiant" ) fuer
+    // die Karte, dann beenden - hier behaved, mit den Rueckfragen des Programms
+    // (ungesicherte Skripte, "Exit?").
     m["Exit"] = {[] {
-                     if (confirmQuit()) {
-                         g_app->quitConfirmed = true;
-                         g_app->wantQuit = true;
-                     }
+                     rueckfrageDann("Exit Radiant", [] {
+                         if (confirmQuit()) {
+                             g_app->quitConfirmed = true;
+                             g_app->wantQuit = true;
+                         }
+                     });
                  },
                  nullptr};
     // --- Fenster (mainframe.cpp:2078-2082, groupdialog.cpp) ---

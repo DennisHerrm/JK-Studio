@@ -35514,6 +35514,72 @@ std::vector<Schritt> meshtex() {
     return s;
 }
 
+// Punkt 4: File > Exit (mainframe.cpp:621-625 Exit: ConfirmModified( "Exit
+// Radiant" ), dann beenden). Beenden heisst hier: der Weg des Programms
+// (confirmQuit - mit einem ungesicherten Skript fragt es selbst). Das wird im
+// selben Schritt zurueckgenommen (wantsQuit wertet die Fensterschicht erst
+// nach dem Bild aus; die Speichernfrage des Programms abgebrochen).
+bool beendenAngestossen() {
+    diag::detail("Knopftest: Stufe 4/4 Beenden: wantQuit " + std::to_string(g_app->wantQuit) + " askSave " + std::to_string(g_app->askSaveOpen) +
+                 " frage " + std::to_string(g_app->frageOffen) + " " + g_app->frageText);
+    const bool ja = g_app->wantQuit || g_app->askSaveOpen || g_app->frageOffen;
+    if (g_app->frageOffen) {   // "Exit?" (queryOnDiscard) bzw. eine Frage des Programms: Nein
+        g_app->frageOffen = false;
+        g_app->frageJa = nullptr;
+        g_app->frageNein = nullptr;
+    }
+    g_app->wantQuit = false;
+    g_app->quitConfirmed = false;
+    if (g_app->askSaveOpen) {
+        g_app->askSaveOpen = false;
+        std::function<void()> abbruch = std::move(g_app->askSaveCancel);
+        g_app->askSaveCancel = nullptr;
+        g_app->askSaveThen = nullptr;
+        if (abbruch) { abbruch(); }
+    }
+    g_app->quitAskFrom = 0;
+    return ja;
+}
+
+std::vector<Schritt> beenden() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    auto ergebnis = std::make_shared<std::array<bool, 3>>();
+    add(stufe2::grundzustand("Stufe 4/4: File > Exit"));
+    add(tu("Karte geaendert (worldspawn message), File > Exit; Beenden gleich zuruecknehmen", [ergebnis] {
+        bobKarte(weltText(kastenText(0, 0, 0, 64, 64, 64, "test/a")));
+        ke::Editor& e = ke::editor();
+        {
+            karte::Befehl b(e.karte.undo, "Stufe 4 Test");
+            e.karte.welt()->setzen("message", "geaendert");
+        }
+        (void)ke::ausfuehren("Exit");
+        (*ergebnis)[1] = e.frageOffen && e.frageTitel == "Exit Radiant";
+        (*ergebnis)[0] = beendenAngestossen();
+    }));
+    add(pruefe("Exit mit geaenderter Karte: erst die Rueckfrage \"Exit Radiant\" (ConfirmModified), noch kein Beenden", [ergebnis] {
+        return !(*ergebnis)[0] && (*ergebnis)[1];
+    }));
+    add(tu("Verwerfen (Discard): danach beenden; zuruecknehmen", [ergebnis] {
+        ke::Editor& e = ke::editor();
+        std::function<void()> danach = std::move(e.nachFrage);
+        e.nachFrage = nullptr;
+        e.frageOffen = false;
+        if (danach) { danach(); }
+        (*ergebnis)[2] = beendenAngestossen();
+    }));
+    add(pruefe("Nach \"Discard\": das Programm beendet (bzw. fragt nach ungesicherten Skripten)", [ergebnis] { return (*ergebnis)[2]; }));
+    add(tu("Karte gespeichert (unveraendert), File > Exit; zuruecknehmen", [ergebnis] {
+        ke::Editor& e = ke::editor();
+        bobKarte(weltText(kastenText(0, 0, 0, 64, 64, 64, "test/a")));
+        (void)ke::ausfuehren("Exit");
+        (*ergebnis)[1] = e.frageOffen;
+        (*ergebnis)[0] = beendenAngestossen();
+    }));
+    add(pruefe("Exit mit unveraenderter Karte: ohne Rueckfrage der Karte beenden", [ergebnis] { return (*ergebnis)[0] && !(*ergebnis)[1]; }));
+    return s;
+}
+
 }  // namespace stufe4
 
 std::vector<Schritt> karteneditorStufe4Schritte() {
@@ -35538,6 +35604,9 @@ std::vector<Schritt> karteneditorStufe4Schritte() {
     }
     if (teil("plugins") || teil("meshtex")) {
         for (Schritt& x : stufe4::meshtex()) { s.push_back(std::move(x)); }
+    }
+    if (teil("exit")) {
+        for (Schritt& x : stufe4::beenden()) { s.push_back(std::move(x)); }
     }
     return s;
 }

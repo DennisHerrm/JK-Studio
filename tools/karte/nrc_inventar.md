@@ -124,7 +124,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
     - [x] ITEM &Pointfile -> `TogglePointfile`  (radiant/mainframe.cpp:885) -- Stufe 3 Punkt 5
     * ---
     * ---
-    - [ ] ITEM E&xit -> `Exit`  (radiant/mainframe.cpp:889)
+    - [x] ITEM E&xit -> `Exit`  (radiant/mainframe.cpp:889) -- Stufe 4 Punkt 4
 
 ### create_edit_menu (radiant/mainframe.cpp)
 
@@ -647,7 +647,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `EntityReloadDefinitions` | Commands | - | (radiant/entity.cpp:741) -- Stufe 1b Punkt 9
 - [x] `EntityUngroup` | Commands | - | (radiant/entity.cpp:739) -- Stufe 1b Punkt 9
 - [x] `EntityUngroupPrimitives` | Commands | - | (radiant/entity.cpp:740) -- Stufe 1b Punkt 9
-- [ ] `Exit` | Commands | - | (radiant/mainframe.cpp:2073)
+- [x] `Exit` | Commands | - | (radiant/mainframe.cpp:2073) -- Stufe 4 Punkt 4
 - [x] `ExpandSelectionToEntities` | Commands | Shift+E | (radiant/select.cpp:1880) -- Stufe 1b Punkt 9
 - [x] `ExpandSelectionToLayers` | Commands | Ctrl+Q | (radiant/layerswindow.cpp:580) -- Stufe 2 Punkt 10
 - [x] `ExpandSelectionToPrimitives` | Commands | Ctrl+E | (radiant/select.cpp:1879) -- Stufe 2 Punkt 8

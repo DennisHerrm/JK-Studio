@@ -355,3 +355,18 @@ steht als "Copyright (C) 2012 Joel Baxter" (ctest karte_lizenz sucht "(C)").
 
 Damit sind alle Plugins von NRC fuer JA/JK2 nachgebaut: bobToolz, brushexport2,
 MeshTex, prtview (Stufe 3), ShaderPlug, SunPlug, UFO:AI.
+
+## Punkt 4: die uebrigen Eintraege der Checkliste
+
+- "Check for NetRadiant update" und "Manual" (F1) leiten seit Stufe 3 Punkt 0b
+  auf die Update-Pruefung bzw. das Handbuch des Programms (Abweichung, dort
+  dokumentiert; im Selbsttest nur gemerkt, ohne Browser und Netz).
+- File > Exit war offen (`[ ]`): beendete das Programm ohne die Rueckfrage
+  der Karte. Jetzt wie mainframe.cpp:621-625: ConfirmModified( "Exit
+  Radiant" ) (Save / Discard / Cancel), danach der Beenden-Weg des Programms
+  (confirmQuit: ungesicherte Skripte, "Exit?"). Rot s4p4rot3 13 / 2 (kein
+  "Exit Radiant", das Programm fragte gleich "Exit?") -> gruen s4p4gruen 15 / 0.
+- "Install Map Developer's Files" bleibt `[~]`: ja.game / jk2.game haben
+  keinen install-Ordner, NRC zeigt dort nichts (Stufe 2 Punkt 11).
+
+Checkliste jetzt: 935 `[x]`, 1 `[~]`, 0 `[ ]`.
