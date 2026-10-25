@@ -12,6 +12,7 @@
 // relative Abweichungen bis etwa 1e-6 je Rechenschritt.
 #include "bhed/karte/pinsel.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -260,6 +261,87 @@ int main() {
         d1 -= std::round(d1);
         pruefe(std::fabs(d0) < 1e-3 && std::fabs(d1) < 1e-3,
                std::string("Texture Lock Drehen 90 (") + (format == PinselFormat::Quake3 ? "AP" : "BP") + "): st dreht mit");
+    }
+    // --- GL#93: Texture Lock bei affinen Transformationen (Garux 2017) -------
+    // 1: BP-Wuerfel entlang Z skaliert -> NaN in der Projektion; 3: Wuerfel um Z gedreht
+    // (Seiten nicht achsparallel), dann entlang X skaliert -> Seiten falsch gelockt;
+    // 4: AP gedrehter Wuerfel falsch gelockt. Geprueft: kein NaN, und st jedes Eckpunkts
+    // bleibt (bis auf ganze Kacheln), wo das Format die Abbildung darstellen kann.
+    for (const PinselFormat format : {PinselFormat::Quake3, PinselFormat::Quake3BP}) {
+        const std::string fname = format == PinselFormat::Quake3 ? "AP" : "BP";
+        struct Fall {
+            const char* name;
+            std::vector<Matrix4> vorher;   // ohne Pruefung (Aufbau)
+            Matrix4 m;                      // gepruefte Transformation
+            bool apDarstellbar;
+        };
+        const std::vector<Fall> faelle = {
+            {"Skalieren Z x2", {}, skalierungsMatrix(Vektor3f(1, 1, 2)), true},
+            {"Skalieren Z x0.5", {}, skalierungsMatrix(Vektor3f(1, 1, 0.5f)), true},
+            {"Drehen Z 30", {}, drehungZGrad(30), true},
+            {"Drehen Z 30, dann Skalieren X x2", {drehungZGrad(30)}, skalierungsMatrix(Vektor3f(2, 1, 1)), false},
+            {"Drehen Z 30, dann Skalieren Z x2", {drehungZGrad(30)}, skalierungsMatrix(Vektor3f(1, 1, 2)), true},
+        };
+        for (const Fall& fall : faelle) {
+            Kontext k;
+            k.format = format;
+            k.texturen = &groessen;
+            k.texturLock = true;
+            TexturProjektion p;
+            p.texdef.scale[0] = 0.5f;
+            p.texdef.scale[1] = 0.5f;
+            p.bp.coords[0][0] = 1.0f / 64.0f;
+            p.bp.coords[1][1] = 1.0f / 64.0f;
+            auto b = quader(k.art(), p);
+            b->bRep(k);
+            for (const Matrix4& m : fall.vorher) { b->transformieren(m, k); }
+            b->bRep(k);
+            // st aller Eckpunkte vorher (je Flaeche)
+            std::vector<std::vector<std::pair<Vektor3d, Vektor2f>>> st(b->anzahl());
+            for (std::size_t i = 0; i < b->anzahl(); ++i) {
+                const Wicklung& w = (*b)[i].wicklung();
+                for (std::size_t j = 0; j < w.numpoints; ++j) { st[i].emplace_back(w[j].vertex, stVon((*b)[i], k, w[j].vertex)); }
+            }
+            b->transformieren(fall.m, k);
+            b->bRep(k);
+            bool endlich = true;
+            double abw = 0.0;
+            double abwSeiten = 0.0;   // Flaechen mit senkrechter Ebene (Normale ohne z)
+            for (std::size_t i = 0; i < b->anzahl(); ++i) {
+                const Flaeche& f = (*b)[i];
+                const bool seite = std::fabs(f.ebene().normal().z()) < 1e-6;
+                const TexturProjektion& pr = f.projektion();
+                for (int r = 0; r < 2; ++r) {
+                    for (int c = 0; c < 3; ++c) { endlich = endlich && std::isfinite(pr.bp.coords[r][c]); }
+                    endlich = endlich && std::isfinite(pr.texdef.scale[r]) && std::isfinite(pr.texdef.shift[r]);
+                }
+                endlich = endlich && std::isfinite(pr.texdef.rotate);
+                const Wicklung& w = f.wicklung();
+                for (std::size_t j = 0; j < w.numpoints; ++j) {
+                    endlich = endlich && std::isfinite(w[j].texcoord.x()) && std::isfinite(w[j].texcoord.y());
+                }
+                for (const auto& [punkt, st0] : st[i]) {
+                    const Vektor3d neu = transformierterPunkt(fall.m, punkt);
+                    const Vektor2f st1 = stVon(f, k, neu);
+                    double d0 = static_cast<double>(st1.x()) - st0.x();
+                    double d1 = static_cast<double>(st1.y()) - st0.y();
+                    d0 -= std::round(d0);
+                    d1 -= std::round(d1);
+                    abw = std::max({abw, std::fabs(d0), std::fabs(d1)});
+                    if (seite) { abwSeiten = std::max({abwSeiten, std::fabs(d0), std::fabs(d1)}); }
+                }
+            }
+            std::printf("   GL#93 %s %s: groesste st-Abweichung %.6g (Seiten %.6g)%s\n", fname.c_str(), fall.name, abw, abwSeiten, endlich ? "" : " (NaN!)");
+            pruefe(endlich, "GL#93 " + fname + " " + fall.name + ": kein NaN in Projektion und st");
+            if (format == PinselFormat::Quake3BP || fall.apDarstellbar) {
+                pruefe(abw < 1e-3, "GL#93 " + fname + " " + fall.name + ": Texture Lock haelt st an jedem Eckpunkt (Abweichung " + std::to_string(abw) + ")");
+            } else {
+                // AP oben/unten: gedreht + entlang X skaliert ist eine Scherung der Textur
+                // (R1 * D * R2); AP kennt nur Drehung * Skalierung - Grenze des Formats
+                // (Garux: "AP is limited format"). Die Seiten muessen trotzdem genau halten.
+                pruefe(abwSeiten < 1e-3, "GL#93 " + fname + " " + fall.name + ": Texture Lock haelt st an den Seiten (Abweichung " + std::to_string(abwSeiten) + ")");
+            }
+        }
     }
     // AP: ohne Lock wandert die Textur nicht mit
     {

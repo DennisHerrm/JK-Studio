@@ -1277,6 +1277,8 @@ void enginePfadPruefen();                                       // EnginePath_ve
 void zeichneSchriftDialog();                                    // QFontDialog
 void hintergrundBildSetzen(int index, const std::string& relativ);   // BackgroundImage::set ohne Dateidialog
 void hintergrundBildDialog();                                   // WXY_SetBackgroundImage
+// Selbsttest: der angezeigte Wert im Surface Inspector (0/1 Shift, 2/3 Scale, 4 Rotate)
+[[nodiscard]] float siAnzeigeWert(int i);
 void hintergrundBildFrei(int index);                            // BackgroundImage::free_tex (Selbsttest: ohne Bild beginnen)
 [[nodiscard]] ImFont* glSchrift();                              // GlobalOpenGL().m_font
 [[nodiscard]] float glSchriftPx();                              // ImGui-Groesse der OpenGL-Schrift (96 dpi)

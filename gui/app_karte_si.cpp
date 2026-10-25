@@ -115,6 +115,21 @@ void ausAuswahl() {
     } else {
         karte::schiebSkalDrehAusFlaeche(ed.karte.kontext.art(), ssr, a.projektion);
     }
+    // Stufe 6 (NRC#261): andere Radiants schreiben nicht normierte BP-Verschiebungen
+    // (Bromine: coords[0][2] = 254.75 -> -16304 bei 64 Texeln). Der Spinner reicht nur bis
+    // +-8192; Pfeil/Enter klemmten den Wert und verschoben die Textur. Ausserhalb des
+    // Bereichs wird die Anzeige um ganze Kacheln (Texturgroesse) normiert - gleiche Lage,
+    // die .map bleibt, bis der Benutzer einen Wert setzt. Im Bereich wie NRC (unveraendert).
+    if (!a.patchModus && a.gefunden) {
+        const auto [tw, th] = ed.karte.kontext.groesse(name);
+        const auto normieren = [](float& s, std::size_t groesse, double grenze) {
+            if (std::fabs(static_cast<double>(s)) > grenze && groesse > 0) {
+                s = static_cast<float>(std::fmod(static_cast<double>(s), static_cast<double>(groesse)));
+            }
+        };
+        normieren(ssr.shift[0], tw, kSpins[0].max);
+        normieren(ssr.shift[1], th, kSpins[1].max);
+    }
     g_si.felder[0] = ssr.shift[0];
     g_si.felder[1] = ssr.shift[1];
     g_si.felder[2] = ssr.scale[0];
@@ -532,5 +547,7 @@ void zeichneSurfaceInspector() {
     dialogSchriftAus();
     if (!offen) { ed.siOffen = false; }
 }
+
+float siAnzeigeWert(int i) { return g_si.felder[std::clamp(i, 0, 4)]; }
 
 }  // namespace bhed::gui::karteneditor

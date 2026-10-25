@@ -2482,6 +2482,87 @@ std::vector<Schritt> funde() {
         }
     }
     add(tu("NRC#12: Dialog zu", [] { aufraeumen(); }));
+    // NRC#261: nicht normierte BP-Verschiebungen aus anderen Radiants (Bromine, Xonotic:
+    // "( ( 0.015625 0 254.75 ) ( 0 0.0078125 0.875 ) )") - der Surface Inspector zeigte
+    // einen Wert ausserhalb des Spinners (+-8192); Enter/Pfeil setzte ihn dann auf 8192 und
+    // verschob die Textur.
+    struct Lage261 {
+        std::vector<karte::Vektor2f> st;
+        float breite = 0.0F;
+    };
+    auto lage261 = std::make_shared<Lage261>();
+    const auto flaeche261 = []() -> std::shared_ptr<karte::Flaeche> {
+        const auto p = std::dynamic_pointer_cast<karte::Pinsel>(ke::editor().karte.welt()->kinder().front());
+        if (!p) { return nullptr; }
+        for (const auto& f : p->flaechen()) {
+            if (f->ebene().normal().x() < -0.5) { return f; }
+        }
+        return nullptr;
+    };
+    add(tu("NRC#261: Karte im BP-Format mit der Verschiebung 254.75 laden, die -x-Flaeche waehlen, Surface Inspector", [lage261, flaeche261] {
+        grundzustand();
+        const std::string pfad = karteTestPfad("s6_nrc261.map");
+        (void)textSchreiben(pfad,
+                            "// entity 0\n{\n\"classname\" \"worldspawn\"\n// brush 0\n{\nbrushDef\n{\n"
+                            "( 1168 240 304 ) ( 1104 240 304 ) ( 1168 240 240 ) ( ( 0.015625 0 0.25 ) ( 0 0.0078125 0.875 ) ) system/caulk 0 0 0\n"
+                            "( 1168 240 304 ) ( 1168 240 240 ) ( 1168 176 304 ) ( ( 0.015625 0 -0 ) ( -0 0.015625 0 ) ) system/caulk 0 0 0\n"
+                            "( 1104 176 240 ) ( 1168 176 240 ) ( 1104 240 240 ) ( ( 0.015625 0 -0 ) ( -0 0.015625 0 ) ) system/caulk 0 0 0\n"
+                            "( 1104 176 240 ) ( 1104 176 304 ) ( 1168 176 240 ) ( ( 0.015625 0 -0 ) ( -0 0.015625 0 ) ) system/caulk 0 0 0\n"
+                            "( 1104 176 240 ) ( 1104 240 240 ) ( 1104 176 304 ) ( ( 0.015625 0 254.75 ) ( 0 0.0078125 0.875 ) ) system/caulk 0 0 0\n"
+                            "( 1168 176 304 ) ( 1104 176 304 ) ( 1168 240 304 ) ( ( 0.015625 0 -0 ) ( -0 0.015625 0 ) ) system/caulk 0 0 0\n"
+                            "}\n}\n}\n");
+        (void)ke::karteOeffnen(pfad);
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.bearbeitung.einstellung.modus = karte::AuswahlModus::Komponente;
+        e.bearbeitung.einstellung.komponente = karte::KomponentenModus::Flaeche;
+        const auto p = std::dynamic_pointer_cast<karte::Pinsel>(e.karte.welt()->kinder().front());
+        const auto f = flaeche261();
+        if (p && f) {
+            e.karte.auswahl.flaecheWaehlen(p, f);
+            p->bRep(e.karte.kontext);
+            lage261->st.clear();
+            const karte::Wicklung& w = f->wicklung();
+            for (std::size_t i = 0; i < w.numpoints; ++i) { lage261->st.push_back(w[i].texcoord); }
+            lage261->breite = static_cast<float>(e.karte.kontext.groesse(f->shader()).first);
+        }
+        e.siOffen = true;
+    }));
+    add(pause(0.4));
+    add(pruefe("NRC#261: der Surface Inspector zeigt die Verschiebung im Bereich des Spinners (+-8192), gleichwertig zu 254.75 Kacheln", [lage261] {
+        const float s = ke::siAnzeigeWert(0);
+        const double soll = -254.75 * lage261->breite;   // BP -> fake: shift = -coords[0][2] * Breite
+        const double kacheln = (static_cast<double>(s) - soll) / std::max(1.0F, lage261->breite);
+        diag::detail("Knopftest: Stufe 6 - NRC#261: Format " + std::to_string(static_cast<int>(ke::editor().karte.kontext.format)) + ", Breite " +
+                     std::to_string(lage261->breite) + ", angezeigt " + std::to_string(s) + ", roh " + std::to_string(soll));
+        return lage261->breite > 0.0F && std::fabs(s) <= 8192.0F && std::fabs(kacheln - std::round(kacheln)) < 1e-4;
+    }));
+    for (const char* pfeil : {"##sihoch0", "##sirunter0"}) {
+        const std::string id = pfeil;
+        add(klickAn(std::string("Horizontal shift ") + (id == "##sihoch0" ? "Pfeil hoch" : "Pfeil runter"), [id] {
+            const Element* el = findeEndung(id, "###kartesi");
+            return el != nullptr ? el->rect.GetCenter() : ImVec2{5, 5};
+        }));
+        add(pause(0.2));
+    }
+    add(pruefe("NRC#261: Pfeil hoch und wieder runter laesst die Textur der Flaeche liegen (st an jedem Eckpunkt gleich bis auf ganze Kacheln)", [lage261, flaeche261] {
+        const auto f = flaeche261();
+        if (!f || lage261->st.empty()) { return false; }
+        const auto p = std::dynamic_pointer_cast<karte::Pinsel>(ke::editor().karte.welt()->kinder().front());
+        p->bRep(ke::editor().karte.kontext);
+        const karte::Wicklung& w = f->wicklung();
+        double abw = 0.0;
+        for (std::size_t i = 0; i < w.numpoints && i < lage261->st.size(); ++i) {
+            for (int k = 0; k < 2; ++k) {
+                double d = static_cast<double>(w[i].texcoord[k]) - lage261->st[i][k];
+                d -= std::round(d);
+                abw = std::max(abw, std::fabs(d));
+            }
+        }
+        diag::detail("Knopftest: Stufe 6 - NRC#261: st-Abweichung nach hoch/runter " + std::to_string(abw));
+        return w.numpoints == lage261->st.size() && abw < 1e-3;
+    }));
+    add(tu("NRC#261: aufraeumen", [] { grundzustand(); }));
     // NRC-master nach 20260114: cc96c84 (Door Builder: die zweite Ausrichtung hiess auch
     // "North - South") und 7027470 ("Distance Multipler"); mit den Begriffen wie NetRadiant
     add(tu("NRC master: Begriffe wie NetRadiant, Pinsel A, bobToolz Door Builder", [] {

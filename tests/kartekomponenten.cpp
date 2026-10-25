@@ -25,6 +25,7 @@
 #include "bhed/karte/bearbeitung.h"
 #include "bhed/karte/kamera.h"
 #include "bhed/karte/karte.h"
+#include "bhed/karte/kartenformat.h"
 #include "bhed/karte/komponenten.h"
 #include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
@@ -656,6 +657,82 @@ void uvWerkzeug() {
 
 }  // namespace
 
+// --- GT#679: Absturz in SelectFaceEdge (f2 == NULL) beim Kanten-Ziehen an einem schlecht
+// geformten Pinsel (GtkRadiant 1.5, Minimal-Pinsel aus dem Issue). NRC hat SelectFaceEdge
+// nicht mehr (Kanten ueber brush.h EdgeInstance); hier: jede Kante und jede Ecke des
+// Pinsels in XY herumziehen (wie "move the blue dot around"), kein Absturz, keine NaN-Ebene,
+// Rueckgaengig gibt den Text Byte fuer Byte zurueck.
+void gt679() {
+    const std::string text =
+        "{\n\"classname\" \"worldspawn\"\n{\n"
+        "( -176 -8 0 ) ( -184 488 152 ) ( 184 480 152 ) common/caulk 16 16 0 0.500000 0.500000 0 0 0\n"
+        "( -176 -8 0 ) ( 184 -8 0 ) ( 184 504 152 ) common/caulk 16 16 0 0.500000 0.500000 0 0 0\n"
+        "( 184 504 152 ) ( 184 480 152 ) ( -184 488 152 ) common/caulk 16 16 0 0.500000 0.500000 0 0 0\n"
+        "( -184 504 152 ) ( -184 504 151 ) ( 184 504 151 ) common/caulk 16 0 0 0.500000 0.500000 0 0 0\n"
+        "( -184 488 152 ) ( -176 -8 0 ) ( -184 504 152 ) common/caulk -16 0 0 0.500000 0.500000 0 0 0\n"
+        "( -184 488 152 ) ( -184 504 151 ) ( -184 504 152 ) common/caulk -16 0 0 0.500000 0.500000 0 0 0\n"
+        "( 184 -8 0 ) ( -176 -8 0 ) ( 184 480 152 ) common/caulk 16 16 0 0.500000 0.500000 0 0 0\n"
+        "( 184 504 152 ) ( 184 -8 0 ) ( 184 480 152 ) common/caulk -16 0 0 0.500000 0.500000 0 0 0\n"
+        "}\n}\n";
+    const XyAnsicht a = ansicht2d(Sicht::XY);
+    XyAnsicht a2 = a;
+    a2.massstab = 0.5F;   // der ganze Pinsel (bis y=504) im Bild
+    const Blick b = blick2d(a2);
+    const GeraeteVektor eps(12.0F / 800.0F, 12.0F / 600.0F);
+    const auto geraet2 = [&](double x, double y) { return geraet(a2, static_cast<float>(x), static_cast<float>(y)); };
+    int gezogen = 0;
+    for (const KomponentenModus modus : {KomponentenModus::Kante, KomponentenModus::Ecke}) {
+        std::size_t anzahl = 0;
+        {
+            Karte k;
+            (void)karteLesen(text, k);
+            const auto& p = static_cast<const Pinsel&>(*k.welt()->kinder().front());
+            anzahl = modus == KomponentenModus::Kante ? p.kanten(k.kontext).size() : p.ecken(k.kontext).size();
+        }
+        pruefe(anzahl > 0, "GT#679: der Minimal-Pinsel hat Kanten/Ecken");
+        for (std::size_t i = 0; i < anzahl; ++i) {
+            Karte k;
+            (void)karteLesen(text, k);
+            const std::string vorher = karteSchreiben(k);
+            auto p = std::static_pointer_cast<Pinsel>(k.welt()->kinder().front());
+            auswaehlen(k, p);
+            AuswahlBearbeitung be(k);
+            be.setzeModus(ManipModus::Ziehen);
+            be.einstellung.modus = AuswahlModus::Komponente;
+            be.einstellung.komponente = modus;
+            Vektor3d ort;
+            if (modus == KomponentenModus::Kante) {
+                const auto& ks = p->kanten(k.kontext);
+                const Wicklung& w = (*p)[ks[i].flaeche].wicklung();
+                ort = mitte(w[ks[i].punkt].vertex, w[wicklungNaechster(w, ks[i].punkt)].vertex);
+                setzeGewaehlt(k, Waehlbar{Waehlbar::Art::Kante, k.welt(), p, nullptr, i}, true);
+            } else {
+                ort = p->eckpunkt(p->ecken(k.kontext)[i]);
+                setzeGewaehlt(k, Waehlbar{Waehlbar::Art::Ecke, k.welt(), p, nullptr, i}, true);
+            }
+            if (!be.manipulatorWaehlen(b, geraet2(ort[0], ort[1]), eps)) { continue; }
+            ++gezogen;
+            // im Kreis um den Griff (und durch (0,0) hindurch), dann loslassen
+            for (const auto& [dx, dy] : std::vector<std::pair<double, double>>{{16, 0}, {16, 16}, {0, 16}, {-16, 16}, {-16, 0}, {-16, -16}, {0, -16}, {16, -16}}) {
+                be.auswahlBewegen(b, geraet2(ort[0] + dx, ort[1] + dy));
+            }
+            be.auswahlBewegen(b, geraet2(0, 0));
+            be.bewegenBeenden();
+            p->bRep(k.kontext);
+            bool endlich = true;
+            for (const auto& f : p->flaechen()) {
+                const Ebene3d& e = f->ebene();
+                endlich = endlich && std::isfinite(e.dist()) && std::isfinite(e.normal()[0]) && std::isfinite(e.normal()[1]) && std::isfinite(e.normal()[2]);
+            }
+            const std::string was = std::string("GT#679: ") + (modus == KomponentenModus::Kante ? "Kante " : "Ecke ") + std::to_string(i);
+            pruefe(endlich, was + ": keine NaN-Ebene nach dem Ziehen");
+            while (k.undo.undo()) {}
+            pruefe(karteSchreiben(k) == vorher, was + ": Rueckgaengig gibt den Text Byte fuer Byte zurueck");
+        }
+    }
+    pruefe(gezogen >= 10, "GT#679: Kanten und Ecken gegriffen, " + std::to_string(gezogen));
+}
+
 int main() {
     const auto schritt = [](const char* n) {
         std::printf("-- %s\n", n);
@@ -683,6 +760,8 @@ int main() {
     extrudieren();
     schritt("uvWerkzeug");
     uvWerkzeug();
+    schritt("gt679");
+    gt679();
     std::printf("kartekomponenten: %d Fehlschlaege\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }
