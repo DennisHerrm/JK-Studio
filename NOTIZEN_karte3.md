@@ -806,3 +806,36 @@ Neu in Punkt 7: der Test findet bhed_q3map2.exe und die Erwartungen selbst
 
 Laeufe: s3p7a (mit den Variablen und Fotos) 222 OK / 0 FEHLER, s3p7b (ohne
 Variablen) 222 / 0.
+
+## Punkt 8: Handbuchseite "Karte bauen"
+
+`tools/handbuch/inhalt_kartebauen.py` (id `karte_bauen`, Gruppe "Karte und
+Szene", nach den Bauwerkzeugen), vier Sprachen: das Menue Build und der Dialog
+Build Menu, die drei Stufen (Tabelle) und die Eintraege, was beim Bauen
+passiert (Speichern, Hintergrund, Konsole, Statuszeile, Abbrechen,
+Schlusszeile, ohne Ueberwachung), Lecks finden (rote Linie, Q3Map debug window,
+Strg+Umschalt+K / L, File > Pointfile), Portale (prtview: Laden, Anzeige,
+Einstellungen), wohin die Dateien kommen (Ziel-Ordner, nie in den Spielordner),
+im Spiel testen (die .bsp selbst nach `maps` kopieren, das Spiel selbst
+starten, `devmap <Name>` in der Konsole; Run Engine After Compile als Hinweis)
+und AutoCaulk. Beschriftungen ueber `{{Kennung}}` (in jeder Sprache wie im
+Programm, z. B. deutsch "Kompilieren > Bauen abbrechen").
+
+Neun Bilder je Sprache aus dem Selbsttest (`BHED_EDITORTEST=handbuch`,
+`BHED_HB_NUR=kartebauen`, Laeufe hb4en, hb4de, hb4zhHans, hb4ja; auch Teil von
+`BHED_HB_NUR=karteneditor`): Menue, Customize, Statuszeile beim Bauen, Konsole
+danach, Seite Build, Leck (2D, Kamera auf der Linie, Q3Map debug window),
+Load .prt, Portale, Portal Viewer Configuration. Fuer die Bilder bekommt die
+Testkarte Texturen des Spiels (imperial) statt test/* ("shader not found").
+
+Mitgezogen: die Seiten "Der Karten-Editor" und "Bauwerkzeuge" sagten,
+Kompilieren und Plugins seien ausgegraut - jetzt nur noch die Plugins ausser
+prtview, mit Verweis auf [[karte_bauen]]. LIESMICH: die Bildlaeufe des
+Karten-Editors (und zh-Hans -> Ordner zh).
+
+`gen_handbuch.py`: 136 Seiten x 4 Sprachen, `--pruefen`: ok.
+
+Beobachtet (aelter, nicht Teil von Stufe 3): auf der Seite Build der
+Einstellungen ist auf Japanisch die Beschriftung "リージョン枠のシェーダー" links
+abgeschnitten - die Spaltenbreite misst mit Tahoma (labelBreite), gezeichnet
+wird mit der Schrift der Sprache.

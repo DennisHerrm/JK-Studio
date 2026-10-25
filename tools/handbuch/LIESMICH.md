@@ -61,6 +61,12 @@ schreibt er den Ausschnitt (`<name>.rect`). Umgebung:
   Aufnehmen auf ein Laufwerk aus `subst` legen (z. B. `X:\missionen`), damit
   kein Benutzerpfad im Bild steht; danach `subst X: /d`.
 
+Die Bilder des Karten-Editors (`h_karteneditor*`, `h_kartebauen*`) nimmt
+`BHED_HB_NUR=karteneditor` auf, nur die der Seite „Karte bauen“
+`BHED_HB_NUR=kartebauen` (baut die Testkarten mit `bhed_q3map2.exe`, das der
+Lauf wie der Selbsttest der Stufe 3 aus der Arbeitskopie holt). Chinesisch:
+`BHED_SPRACHE=zh-Hans`, aber `bilder.py … zh`.
+
 Je Sprache ein Lauf, dann
 
 ```

@@ -35436,13 +35436,207 @@ void skriptNeu() {
 
 }  // namespace hb
 
+// --- Stufe 3 Punkt 8: Bilder der Seite "Karte bauen" ------------------------------
+//
+// Teil von karteneditorHandbuchSchritte; allein mit BHED_HB_NUR=kartebauen.
+// Die Testkarten raum / raum_leck (stufe3::raumKarte) im Laufordner,
+// bhed_q3map2 wie im Selbsttest der Stufe 3.
+// Fuer die Bilder: die Testkarte mit Texturen des Spiels statt test/* (die
+// es nicht gibt - "shader not found"): Boden, Decke, Waende aus einem Ordner
+// wie imperial, nur Bilder ohne Durchsicht.
+void handbuchRaumTexturen() {
+    namespace ke = karteneditor;
+    ke::Editor& e = ke::editor();
+    if (!e.karteSpiel) { return; }
+    const karte::Texturinventar& inv = e.karteSpiel->inventar;
+    std::vector<std::string> wahl;
+    for (const char* dir : {"imperial", "kejim", "yavin", "doomgiver", "hoth", "vjun"}) {
+        for (const karte::ShaderEintrag& s : inv.verzeichnis(dir)) {
+            if ((s.flags & (karte::QER_TRANS | karte::QER_SKY | karte::QER_ALPHATEST | karte::QER_FOG)) != 0U) { continue; }
+            if (!inv.bildMass(s.name).gefunden) { continue; }
+            wahl.push_back(s.name);
+        }
+        if (wahl.size() >= 3) { break; }
+        wahl.clear();
+    }
+    if (wahl.size() < 3) { return; }
+    const auto finde = [&](const char* teil, std::size_t sonst) {
+        for (const std::string& n : wahl) {
+            if (n.find(teil) != std::string::npos) { return n; }
+        }
+        return wahl[sonst % wahl.size()];
+    };
+    const std::string boden = finde("floor", 0);
+    const std::string decke = finde("ceil", 1);
+    const std::string wand = finde("wall", 2);
+    std::size_t i = 0;
+    for (const auto& ent : e.karte.entitaeten()) {
+        const bool welt = ent->klassenname() == "worldspawn";
+        for (const auto& p : ent->kinder()) {
+            if (p->art() == karte::Primitiv::Art::Patch) {   // der Bogen: wie der Boden
+                static_cast<karte::Patch&>(*p).setzeShader(boden);
+                continue;
+            }
+            const std::string& tex = !welt ? wand : (i == 0 ? boden : (i == 1 ? decke : wand));
+            for (const auto& f : std::static_pointer_cast<karte::Pinsel>(p)->flaechen()) { f->setzeShader(tex, e.karte.kontext); }
+            if (welt) { ++i; }
+        }
+    }
+    e.karte.undo.start();   // als geaendert: Bauen speichert vorher
+    e.karte.undo.finish("textureNameSetSelected");
+    ++e.sichtStand;
+}
+
+std::vector<Schritt> karteBauenHandbuchBilder() {
+    namespace ke = karteneditor;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto editor = [] {
+        ImGuiWindow* w = karteFenster();
+        const ImGuiWindow* haupt = ImGui::FindWindowByName("###main");
+        if (w == nullptr) { return ImRect{}; }
+        const float oben = haupt != nullptr ? haupt->Pos.y : w->Pos.y;
+        const float links = haupt != nullptr ? haupt->Pos.x : w->Pos.x;
+        return ImRect{links, oben, w->Rect().Max.x, w->Rect().Max.y};
+    };
+    const auto fertig = [](const char* was) { return warteBis(was, [] { return !ke::bauLaeuft(); }, 4000); };
+    add(tu("Handbuch Karte bauen: bhed_q3map2, Build-Menue wie vorgegeben, Testkarte raum", [] {
+        karteDialogeZu();
+        stufe3::q3map2Bereitstellen();
+        ke::Editor& e = ke::editor();
+        e.bauProjektFuer = -2;
+        e.bauGeaendert = false;
+        ke::bauMenueSicherstellen();
+        e.bau = ke::Editor::BauEinstellungen{};
+        stufe3::raumKarteOeffnen("raum", false);
+        handbuchRaumTexturen();
+        e.kamera.setzeUrsprung(karte::Vektor3f(-460, 200, 150));
+        e.kamera.setzeWinkel(karte::Vektor3f(-18, -28, 0));
+        e.xy[0].ansicht.typ = karte::Sicht::XY;
+        e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        e.xy[0].ansicht.setzeMassstab(0.6F);
+        ke::konsoleLeeren();
+        ++e.sichtStand;
+    }));
+    add(warteBis("Handbuch Karte bauen: Texturen geladen", [] { return ke::kameraBilderFertig(); }, 6000));
+    add(pause(0.4));
+    // Das Build-Menue
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.3));
+    add(hb::fotoTeil("h_kartebauen_menue", [] {
+        const ImGuiWindow* haupt = ImGui::FindWindowByName("###main");
+        const ImRect m = obersterPopupRahmen();
+        if (haupt == nullptr) { return m; }
+        return ImRect{haupt->Pos.x, haupt->Pos.y, m.Max.x + 220.0F, m.Max.y + 20.0F};
+    }));
+    add(tu("Menue zu, Build > Customize...", [] {
+        karteDialogeZu();
+        (void)ke::ausfuehren("BuildMenuCustomize");
+    }));
+    add(pause(0.4));
+    add(klickAn("Eintrag [Final] Fast", [] { return ke::bauDialogZeile(1, 15); }));
+    add(pause(0.3));
+    add(hb::fotoTeil("h_kartebauen_customize", [] { return fensterRahmen("###kartebaumenue"); }));
+    add(tu("Dialog zu (Cancel)", [] { karteDialogeZu(); }));
+    add(pause(0.3));
+    // Bauen: [Final] Fast, danach die Konsole
+    add(tu("Build > [Final] Fast", [] {
+        for (std::size_t i = 0; i < ke::editor().bauProjekt.eintraege.size(); ++i) {
+            if (ke::editor().bauProjekt.eintraege[i].name == "[Final] Fast") { ke::bauStarten(i); }
+        }
+    }));
+    add(pause(0.15));
+    add(hb::fotoTeil("h_kartebauen_status", editor));
+    add(fertig("Handbuch Karte bauen: gebaut"));
+    add(pause(0.3));
+    add(hb::fotoTeil("h_kartebauen_konsole", editor));
+    // Die Seite Build mit dem Ziel-Ordner
+    add(tu("Einstellungen, Seite Build", [] { ke::editor().einstellungenOffen = true; }));
+    add(pause(0.3));
+    add(klickAn("Einstellungen: Seite Build", [] {
+        const Element* el = findeEndung("##seite19", "###karteeinstellungen");
+        return el != nullptr ? el->rect.GetCenter() : ImVec2{5, 5};
+    }));
+    add(pause(0.3));
+    add(hb::fotoTeil("h_kartebauen_einstellungen", [] { return fensterRahmen("###karteeinstellungen"); }));
+    add(tu("Einstellungen zu", [] { karteDialogeZu(); }));
+    add(pause(0.2));
+    // Ein Leck: raum_leck, bsp stage, die Linie; Next leak spot
+    add(tu("Testkarte raum_leck, Build > Single: bsp stage", [] {
+        ke::Editor& e = ke::editor();
+        stufe3::raumKarteOeffnen("raum_leck", true);
+        handbuchRaumTexturen();
+        ke::konsoleLeeren();
+        e.bauRueckmeldungen.clear();
+        ke::bauStarten(0);
+    }));
+    add(fertig("Handbuch Karte bauen: Leck"));
+    add(tu("2D-Ansicht auf die Linie, Next leak spot", [] {
+        ke::Editor& e = ke::editor();
+        if (!e.punktdatei.empty()) {
+            e.xy[0].ansicht.setzeUrsprung((e.punktdatei.front() + e.punktdatei.back()) * 0.5F);
+            e.xy[0].ansicht.setzeMassstab(0.5F);
+        }
+        ke::leckWeiter();
+        // das Q3Map debug window ueber den Texturbrowser (rechts unten)
+        if (const ImGuiWindow* k = karteFenster()) {
+            ImGui::SetWindowPos("###kartedbgdlg", ImVec2{k->Pos.x + k->Size.x * 0.58F, k->Pos.y + k->Size.y * 0.66F});
+        }
+        ++e.sichtStand;
+    }));
+    add(pause(0.5));
+    add(hb::fotoTeil("h_kartebauen_leck", editor));
+    // Portale: raum, bsp stage, Load .prt (Show 2D an), dann die Einstellungen
+    add(tu("Testkarte raum, Build > Single: bsp stage; Leck-Linie aus", [] {
+        ke::Editor& e = ke::editor();
+        e.bauRueckmeldungOffen = false;
+        stufe3::raumKarteOeffnen("raum", false);
+        handbuchRaumTexturen();
+        ke::konsoleLeeren();
+        ke::bauStarten(0);
+    }));
+    add(fertig("Handbuch Karte bauen: Portale"));
+    add(tu("Plugins > prtview > Load .prt file (Show 2D an)", [] {
+        ke::Editor& e = ke::editor();
+        ke::portalEinstellungenLesen();
+        e.portalE.zeige2d = true;
+        (void)ke::ausfuehren("prtview::Load.prtFile");
+    }));
+    add(pause(0.4));
+    add(hb::fotoTeil("h_kartebauen_prtladen", [] { return fensterRahmen("###karteprtladen"); }));
+    add(klick(std::string(ke::trK(Str::KePrefOk)) + "##prtok", "###karteprtladen"));
+    add(tu("Kamera vor den Durchgang", [] {
+        ke::Editor& e = ke::editor();
+        e.kamera.setzeUrsprung(karte::Vektor3f(330, -40, 110));
+        e.kamera.setzeWinkel(karte::Vektor3f(-8, 170, 0));
+        e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        e.xy[0].ansicht.setzeMassstab(0.6F);
+        ++e.sichtStand;
+    }));
+    add(pause(0.5));
+    add(hb::fotoTeil("h_kartebauen_portale", editor));
+    add(tu("Configure Portal Viewer", [] { (void)ke::ausfuehren("prtview::ConfigurePortalViewer"); }));
+    add(pause(0.4));
+    add(hb::fotoTeil("h_kartebauen_prtview", [] { return fensterRahmen("###karteprtkonfig"); }));
+    add(tu("Handbuch Karte bauen: Ende - Portale weg, Dialoge zu", [] {
+        ke::Editor& e = ke::editor();
+        karteDialogeZu();
+        e.portale.clear();
+        e.portalE.zeige2d = false;
+        e.bauRueckmeldungOffen = false;
+        ke::punktdateiLeeren();
+    }));
+    add(pause(0.3));
+    return s;
+}
+
 // --- Punkt 13: Bilder des Karten-Editors fuer das Handbuch -----------------------
 //
 // BHED_EDITORTEST=handbuch mit BHED_HB_NUR=karteneditor: nur diese Bilder.
 // BHED_HB_KARTE = eine .map ohne Benutzerpfad (z. B. Y:\...\mp_duel1.map aus
 // q3map2 -convert); ohne sie die kleine Testkarte. Die Beschriftungen in der
 // Sprache des Laufs (BHED_SPRACHE), "Begriffe wie NetRadiant" aus.
-std::vector<Schritt> karteneditorHandbuchSchritte() {
+std::vector<Schritt> karteneditorHandbuchSchritte(bool nurBauen = false) {
     namespace ke = karteneditor;
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -35485,6 +35679,15 @@ std::vector<Schritt> karteneditorHandbuchSchritte() {
         if (ImGuiWindow* w = karteFenster()) { setzeMaus(ImVec2{w->Pos.x + w->Size.x * 0.6F, w->Pos.y + w->Size.y - 4.0F}); }
     }));
     add(pause(0.5));
+    if (nurBauen) {   // BHED_HB_NUR=kartebauen: nur die Seite "Karte bauen"
+        for (Schritt& x : karteBauenHandbuchBilder()) { s.push_back(std::move(x)); }
+        add(tu("Handbuch Karten-Editor: Ende", [] {
+            karteDialogeZu();
+            g_app->leftMode = 0;
+        }));
+        add(pause(0.3));
+        return s;
+    }
     // Seit Stufe 3 Punkt 0b steht die Menueleiste im Programmfenster: das Bild
     // nimmt sie und die Modusleiste mit (vom linken Fensterrand bis zum Editor).
     const auto editor = [] {
@@ -35710,6 +35913,8 @@ std::vector<Schritt> karteneditorHandbuchSchritte() {
         return ImRect{w->Pos.x, w->Pos.y, w->Pos.x + w->Size.x * 0.75F, w->Pos.y + w->Size.y * 0.55F};
     }));
     add(tu("abgerissenes Fenster zu", [] { ke::editor().abrisse.clear(); }));
+    // Stufe 3 Punkt 8: die Seite "Karte bauen"
+    for (Schritt& x : karteBauenHandbuchBilder()) { s.push_back(std::move(x)); }
     add(tu("Handbuch Karten-Editor: Ende", [] {
         karteDialogeZu();
         g_app->leftMode = 0;
@@ -35726,6 +35931,9 @@ std::vector<Schritt> handbuchSchritte() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karteneditor") == 0) {
         return karteneditorHandbuchSchritte();
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartebauen") == 0) {
+        return karteneditorHandbuchSchritte(true);
     }
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };

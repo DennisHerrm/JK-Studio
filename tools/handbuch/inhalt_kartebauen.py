@@ -1,0 +1,165 @@
+"""Karte und Szene: Karte bauen - q3map2 aus dem Karten-Editor (Stufe 3)."""
+from inhalt_basis import T
+
+KARTE_BAUEN = {
+    "id": "karte_bauen",
+    "gruppe": "karte",
+    "titel": T("Map editor: compiling the map", "Karten-Editor: Karte bauen", "地图编辑器:编译地图", "マップエディター:マップのビルド"),
+    "kurz": T(
+        "Turn the map into a playable .bsp with q3map2 from the {{KeLBuild}} menu: it runs in the background with its output in the console, shows leaks as a red line and portals on request, and never writes into the game folder.",
+        "Mach aus der Karte mit q3map2 aus dem Menü {{KeLBuild}} eine spielbare .bsp: es läuft im Hintergrund mit seiner Ausgabe in der Konsole, zeigt Lecks als rote Linie und auf Wunsch die Portale und schreibt nie in den Spielordner.",
+        "在 {{KeLBuild}} 菜单中用 q3map2 把地图编译成可游玩的 .bsp:它在后台运行,输出显示在控制台中;泄漏显示为红线,也可以显示门户;它从不写入游戏文件夹。",
+        "{{KeLBuild}} メニューから q3map2 でマップを遊べる .bsp にします。q3map2 はバックグラウンドで動き、出力はコンソールに表示されます。リークは赤い線で、ポータルは必要に応じて表示され、ゲームフォルダーには書き込みません。"),
+    "bloecke": [
+        ("h2", "menue", T("The {{KeLBuild}} menu", "Das Menü {{KeLBuild}}", "{{KeLBuild}} 菜单", "{{KeLBuild}} メニュー")),
+        ("img", "h_kartebauen_menue", T(
+            "The {{KeLBuild}} menu: the entries of NetRadiant-Custom's build menu for Jedi Academy, and at the bottom {{KeBmAbbrechen}}.",
+            "Das Menü {{KeLBuild}}: die Einträge des Build-Menüs von NetRadiant-Custom für Jedi Academy, unten {{KeBmAbbrechen}}.",
+            "{{KeLBuild}} 菜单:NetRadiant-Custom 为 Jedi Academy 提供的编译菜单项,最下面是 {{KeBmAbbrechen}}。",
+            "{{KeLBuild}} メニュー:NetRadiant-Custom の Jedi Academy 用ビルドメニューの項目と、一番下の {{KeBmAbbrechen}}。")),
+        ("p", T(
+            "Each entry runs one or more q3map2 commands on the map. The map compiler `bhed_q3map2.exe` is q3map2 from NetRadiant-Custom, built with the program and shipped next to `behaved.exe`; it produces the same results. **{{KeLRunRecentBuild}}** (<kbd>F5</kbd>) repeats the last entry. **{{KeLCustomize}}** opens the dialog **{{KeBmTitel}}**: entries and their commands can be added (double-click the `+`), renamed, reordered by dragging (with <kbd>Ctrl</kbd> copied) and deleted; **{{KeBmVariablen}}** shows the variables such as `[MapFile]` and `[q3map2]`. The menu is saved when the map editor closes.",
+            "Jeder Eintrag führt einen oder mehrere q3map2-Befehle auf der Karte aus. Der Kartencompiler `bhed_q3map2.exe` ist q3map2 aus NetRadiant-Custom, mit dem Programm gebaut und neben `behaved.exe` ausgeliefert; er liefert dieselben Ergebnisse. **{{KeLRunRecentBuild}}** (<kbd>F5</kbd>) wiederholt den letzten Eintrag. **{{KeLCustomize}}** öffnet den Dialog **{{KeBmTitel}}**: Einträge und ihre Befehle lassen sich anlegen (Doppelklick auf `+`), umbenennen, durch Ziehen umordnen (mit <kbd>Strg</kbd> kopieren) und löschen; **{{KeBmVariablen}}** zeigt die Variablen wie `[MapFile]` und `[q3map2]`. Das Menü wird beim Schließen des Karten-Editors gespeichert.",
+            "每个菜单项对地图执行一条或多条 q3map2 命令。地图编译器 `bhed_q3map2.exe` 就是 NetRadiant-Custom 的 q3map2,随程序一起编译,放在 `behaved.exe` 旁边,结果完全相同。**{{KeLRunRecentBuild}}**(<kbd>F5</kbd>)重复上一项。**{{KeLCustomize}}** 打开 **{{KeBmTitel}}** 对话框:可以添加菜单项和命令(双击 `+`)、改名、拖动排序(按住 <kbd>Ctrl</kbd> 复制)和删除;**{{KeBmVariablen}}** 显示 `[MapFile]`、`[q3map2]` 等变量。关闭地图编辑器时保存菜单。",
+            "各項目はマップに対して q3map2 のコマンドを 1 つ以上実行します。マップコンパイラー `bhed_q3map2.exe` は NetRadiant-Custom の q3map2 で、プログラムと一緒にビルドされ `behaved.exe` の隣にあります。結果も同じです。**{{KeLRunRecentBuild}}**(<kbd>F5</kbd>)で最後の項目を繰り返します。**{{KeLCustomize}}** で **{{KeBmTitel}}** ダイアログが開きます。項目とコマンドを追加(`+` をダブルクリック)、名前変更、ドラッグで並べ替え(<kbd>Ctrl</kbd> でコピー)、削除できます。**{{KeBmVariablen}}** には `[MapFile]` や `[q3map2]` などの変数が表示されます。メニューはマップエディターを閉じるときに保存されます。")),
+        ("img", "h_kartebauen_customize", T(
+            "{{KeLBuild}} > {{KeLCustomize}}: the entry [Final] Fast with its three commands.",
+            "{{KeLBuild}} > {{KeLCustomize}}: der Eintrag [Final] Fast mit seinen drei Befehlen.",
+            "{{KeLBuild}} > {{KeLCustomize}}:菜单项 [Final] Fast 及其三条命令。",
+            "{{KeLBuild}} > {{KeLCustomize}}:項目 [Final] Fast と 3 つのコマンド。")),
+        ("h2", "stufen", T("The three stages", "Die drei Stufen", "三个阶段", "3 つの段階")),
+        ("table", [T("Stage", "Stufe", "阶段", "段階"), T("What it does", "Was sie tut", "作用", "内容")], [
+            [T("BSP (`-meta`)", "BSP (`-meta`)", "BSP(`-meta`)", "BSP(`-meta`)"), T(
+                "Turns brushes and patches into the BSP tree and the surfaces, writes `.bsp`, `.prt` and `.srf`. If the map is not sealed, it stops with a leak.",
+                "Macht aus Brushes und Patches den BSP-Baum und die Flächen, schreibt `.bsp`, `.prt` und `.srf`. Ist die Karte nicht dicht, hält sie mit einem Leck an.",
+                "把笔刷和曲面片变成 BSP 树和表面,写出 `.bsp`、`.prt` 和 `.srf`。如果地图不封闭,会因泄漏而停止。",
+                "ブラシとパッチから BSP ツリーとサーフェスを作り、`.bsp`、`.prt`、`.srf` を書き出します。マップが閉じていなければリークで止まります。")],
+            [T("VIS (`-vis`)", "VIS (`-vis`)", "VIS(`-vis`)", "VIS(`-vis`)"), T(
+                "Computes which areas can see each other, so the game draws less. Needs the portal file of the BSP stage.",
+                "Berechnet, welche Bereiche einander sehen können, damit das Spiel weniger zeichnet. Braucht die Portaldatei der BSP-Stufe.",
+                "计算哪些区域彼此可见,让游戏少绘制一些。需要 BSP 阶段生成的门户文件。",
+                "どの領域どうしが見えるかを計算し、ゲームの描画を減らします。BSP 段階のポータルファイルが必要です。")],
+            [T("LIGHT (`-light`)", "LIGHT (`-light`)", "LIGHT(`-light`)", "LIGHT(`-light`)"), T(
+                "Bakes the light of the light entities and the sky into lightmaps and the light grid.",
+                "Brennt das Licht der Lichtentities und des Himmels in Lightmaps und das Lichtgitter.",
+                "把光源实体和天空的光照烘焙到光照贴图和光照网格中。",
+                "ライトエンティティと空の光をライトマップとライトグリッドに焼き込みます。")],
+        ]),
+        ("p", T(
+            "**[Test] Quick and Crude** runs all three stages quickly for a first look, **[Final] Fast** and **[Final] Extreme Quality** give the light its real quality. The single stages are useful while working on one part, for example only **Single: light stage** after moving lights.",
+            "**[Test] Quick and Crude** läuft alle drei Stufen schnell für einen ersten Blick, **[Final] Fast** und **[Final] Extreme Quality** geben dem Licht seine richtige Qualität. Die einzelnen Stufen helfen, wenn man an einem Teil arbeitet, zum Beispiel nur **Single: light stage** nach dem Verschieben von Lichtern.",
+            "**[Test] Quick and Crude** 快速运行全部三个阶段,便于先看一眼;**[Final] Fast** 和 **[Final] Extreme Quality** 给光照应有的质量。只修改某一部分时单独的阶段很有用,例如移动光源后只运行 **Single: light stage**。",
+            "**[Test] Quick and Crude** は 3 段階を手早く実行して、まず確認するためのものです。**[Final] Fast** と **[Final] Extreme Quality** で光を本来の品質にします。一部だけを作業しているときは単独の段階が便利です。たとえばライトを動かしたあとは **Single: light stage** だけを実行します。")),
+        ("h2", "ablauf", T("While it builds", "Während es baut", "编译过程中", "ビルド中")),
+        ("img", "h_kartebauen_status", T(
+            "q3map2 runs in the background: its output appears in the console, the status bar shows the entry, the step and the time.",
+            "q3map2 läuft im Hintergrund: seine Ausgabe erscheint in der Konsole, die Statuszeile zeigt Eintrag, Schritt und Zeit.",
+            "q3map2 在后台运行:输出显示在控制台中,状态栏显示菜单项、步骤和时间。",
+            "q3map2 はバックグラウンドで動きます。出力はコンソールに表示され、ステータスバーには項目、ステップ、時間が表示されます。"), "breit"),
+        ("steps", [
+            T("The map is saved first (an unnamed map asks for a name). With a region, only the region is built (`<map>.reg`).",
+              "Zuerst wird die Karte gespeichert (eine unbenannte fragt nach einem Namen). Mit einer Region wird nur die Region gebaut (`<Karte>.reg`).",
+              "首先保存地图(未命名的地图会询问名称)。设置了区域时,只编译该区域(`<地图>.reg`)。",
+              "最初にマップが保存されます(名前のないマップは名前を尋ねます)。リージョンがあるときはリージョンだけがビルドされます(`<マップ>.reg`)。"),
+            T("q3map2 starts without a window and reports back over a local connection, as in NetRadiant-Custom. Warnings appear yellow, errors red; an error stops the remaining steps.",
+              "q3map2 startet ohne Fenster und meldet sich über eine lokale Verbindung zurück, wie bei NetRadiant-Custom. Warnungen erscheinen gelb, Fehler rot; ein Fehler hält die übrigen Schritte an.",
+              "q3map2 无窗口启动,并像 NetRadiant-Custom 一样通过本地连接回报。警告显示为黄色,错误显示为红色;出错时停止其余步骤。",
+              "q3map2 はウィンドウなしで起動し、NetRadiant-Custom と同じくローカル接続で結果を返します。警告は黄色、エラーは赤で表示され、エラーが出ると残りのステップは実行されません。"),
+            T("You can keep working - look around, select, edit. **{{KeLBuild}} > {{KeBmAbbrechen}}** ends q3map2.",
+              "Du kannst weiterarbeiten - umsehen, auswählen, bearbeiten. **{{KeLBuild}} > {{KeBmAbbrechen}}** beendet q3map2.",
+              "你可以继续工作——四处查看、选择、编辑。**{{KeLBuild}} > {{KeBmAbbrechen}}** 结束 q3map2。",
+              "作業を続けられます。見回したり、選択したり、編集したりできます。**{{KeLBuild}} > {{KeBmAbbrechen}}** で q3map2 を終了します。"),
+            (T("At the end a line names the entry, the steps and the time - and q3map2's exit code if it was not 0.",
+               "Am Ende nennt eine Zeile Eintrag, Schritte und Zeit - und die Rückgabe von q3map2, wenn sie nicht 0 war.",
+               "最后一行显示菜单项、步骤数和用时;如果 q3map2 的返回值不是 0,也会显示。",
+               "最後の行に項目、ステップ数、時間が表示されます。q3map2 の終了コードが 0 でなければそれも表示されます。"),
+             "h_kartebauen_konsole",
+             T("The console after [Final] Fast.", "Die Konsole nach [Final] Fast.", "运行 [Final] Fast 后的控制台。", "[Final] Fast のあとのコンソール。")),
+        ]),
+        ("note", T(
+            "Without **{{KePrBuildMonitor}}** (page **{{KePgBuild}}** of the preferences) the steps run one after another, their output still comes into the console; **{{KePrBuildDump}}** also writes it to `junk.txt` in the settings folder.",
+            "Ohne **{{KePrBuildMonitor}}** (Seite **{{KePgBuild}}** der Einstellungen) laufen die Schritte nacheinander, ihre Ausgabe kommt trotzdem in die Konsole; **{{KePrBuildDump}}** schreibt sie zusätzlich nach `junk.txt` im Einstellungsordner.",
+            "关闭 **{{KePrBuildMonitor}}**(首选项的 **{{KePgBuild}}** 页)时,各步骤依次运行,输出仍显示在控制台;**{{KePrBuildDump}}** 还会把输出写入设置文件夹中的 `junk.txt`。",
+            "**{{KePrBuildMonitor}}**(設定の **{{KePgBuild}}** ページ)をオフにすると、ステップは順に実行され、出力はやはりコンソールに表示されます。**{{KePrBuildDump}}** をオンにすると、設定フォルダーの `junk.txt` にも書き出します。")),
+        ("h2", "leck", T("Finding leaks", "Lecks finden", "查找泄漏", "リークを探す")),
+        ("img", "h_kartebauen_leck", T(
+            "A hole in a wall: the red line runs from an entity inside to the outside. The camera stands on the line and looks along it.",
+            "Ein Loch in einer Wand: die rote Linie führt von einer Entity im Inneren nach draußen. Die Kamera steht auf der Linie und blickt an ihr entlang.",
+            "墙上有个洞:红线从内部的一个实体通向外面。摄像机位于线上,并沿线方向看去。",
+            "壁の穴:赤い線が内側のエンティティから外へ延びています。カメラは線の上に立ち、線に沿って見ています。"), "breit"),
+        ("p", T(
+            "The inside of a map must be sealed by brushes. If q3map2 finds a way from an entity to the void, the BSP stage stops with **MAP LEAKED** (red), and the leak line appears red in the 2D views and the camera. The **{{KeDbgTitel}}** lists the entity it leaks from - a click selects it.",
+            "Das Innere einer Karte muss von Brushes dicht umschlossen sein. Findet q3map2 einen Weg von einer Entity ins Leere, hält die BSP-Stufe mit **MAP LEAKED** (rot) an, und die Leck-Linie erscheint rot in den 2D-Ansichten und der Kamera. Das **{{KeDbgTitel}}** nennt die Entity, aus der es leckt - ein Klick wählt sie.",
+            "地图内部必须被笔刷完全封闭。如果 q3map2 找到从某个实体通往虚空的路径,BSP 阶段会以 **MAP LEAKED**(红色)停止,泄漏线以红色显示在二维视图和摄像机中。**{{KeDbgTitel}}** 列出泄漏起点的实体——单击即可选中它。",
+            "マップの内側はブラシで完全に閉じていなければなりません。q3map2 がエンティティから外の空間への道を見つけると、BSP 段階は **MAP LEAKED**(赤)で止まり、リーク線が 2D ビューとカメラに赤く表示されます。**{{KeDbgTitel}}** にはリーク元のエンティティが表示され、クリックで選択できます。")),
+        ("keys", [
+            (T("Ctrl+Shift+K", "Strg+Umschalt+K", "Ctrl+Shift+K", "Ctrl+Shift+K"), T("{{KeLNextLeakSpot}}: camera and 2D views to the next point of the line, looking along it",
+                               "{{KeLNextLeakSpot}}: Kamera und 2D-Ansichten zum nächsten Punkt der Linie, Blick an ihr entlang",
+                               "{{KeLNextLeakSpot}}:摄像机和二维视图移到线上的下一个点,沿线看去",
+                               "{{KeLNextLeakSpot}}:カメラと 2D ビューを線の次の点へ移し、線に沿って見る")),
+            (T("Ctrl+Shift+L", "Strg+Umschalt+L", "Ctrl+Shift+L", "Ctrl+Shift+L"), T("{{KeLPreviousLeakSpot}}: back to the previous point",
+                               "{{KeLPreviousLeakSpot}}: zurück zum vorigen Punkt",
+                               "{{KeLPreviousLeakSpot}}:回到上一个点",
+                               "{{KeLPreviousLeakSpot}}:前の点に戻る")),
+        ]),
+        ("p", T(
+            "Follow the line until it leaves the map - there is the hole. Close it and build again. **{{KeLFile}} > {{KeLPointfile}}** switches the line off and on (it reads `<map>.lin`); saving the map removes it.",
+            "Folge der Linie, bis sie die Karte verlässt - dort ist das Loch. Schließe es und baue noch einmal. **{{KeLFile}} > {{KeLPointfile}}** schaltet die Linie aus und ein (sie liest `<Karte>.lin`); Speichern nimmt sie weg.",
+            "沿着线走,直到它离开地图——洞就在那里。把它堵上再编译一次。**{{KeLFile}} > {{KeLPointfile}}** 关闭或打开这条线(读取 `<地图>.lin`);保存地图时线会消失。",
+            "線をたどってマップの外に出るところを探します。そこが穴です。穴をふさいで、もう一度ビルドします。**{{KeLFile}} > {{KeLPointfile}}** で線を消したり表示したりします(`<マップ>.lin` を読みます)。マップを保存すると線は消えます。")),
+        ("h2", "portale", T("Showing portals", "Portale anzeigen", "显示门户", "ポータルを表示する")),
+        ("imgs", [
+            ("h_kartebauen_prtladen", T("Plugins > prtview > Load .prt file", "Plugins > prtview > Load .prt file", "Plugins > prtview > Load .prt file", "Plugins > prtview > Load .prt file")),
+            ("h_kartebauen_prtview", T("Configure Portal Viewer", "Configure Portal Viewer", "Configure Portal Viewer", "Configure Portal Viewer")),
+        ]),
+        ("p", T(
+            "Portals are the openings between the areas that the VIS stage works with. **{{KeLPlugins}} > prtview > Load .prt file** loads the portal file of the last BSP stage (**{{KePrtZeige3d}}**, **{{KePrtZeige2d}}**): in the camera each portal is a coloured, half-transparent polygon with an outline, in the 2D views a blue line. Many small portals where the player sees far make the map slow - hint brushes and detail brushes help. **Configure Portal Viewer** sets colours, line widths, opacity, fog and a clipping cube; **Toggle portals (3D)/(2D)** and **Unload .prt file** switch the display.",
+            "Portale sind die Öffnungen zwischen den Bereichen, mit denen die VIS-Stufe rechnet. **{{KeLPlugins}} > prtview > Load .prt file** lädt die Portaldatei der letzten BSP-Stufe (**{{KePrtZeige3d}}**, **{{KePrtZeige2d}}**): in der Kamera ist jedes Portal ein farbiges, halb durchsichtiges Polygon mit Umriss, in den 2D-Ansichten eine blaue Linie. Viele kleine Portale, wo der Spieler weit sieht, machen die Karte langsam - Hint- und Detail-Brushes helfen. **Configure Portal Viewer** stellt Farben, Linienbreiten, Deckkraft, Nebel und einen Ausschnitt-Würfel ein; **Toggle portals (3D)/(2D)** und **Unload .prt file** schalten die Anzeige.",
+            "门户是 VIS 阶段计算时使用的区域之间的开口。**{{KeLPlugins}} > prtview > Load .prt file** 加载上次 BSP 阶段的门户文件(**{{KePrtZeige3d}}**、**{{KePrtZeige2d}}**):在摄像机中,每个门户是一个带轮廓的彩色半透明多边形,在二维视图中是一条蓝线。玩家视野很远的地方如果有许多小门户,地图会变慢——提示笔刷和细节笔刷可以改善。**Configure Portal Viewer** 设置颜色、线宽、不透明度、雾和裁剪立方体;**Toggle portals (3D)/(2D)** 和 **Unload .prt file** 切换显示。",
+            "ポータルは、VIS 段階が計算に使う領域間の開口部です。**{{KeLPlugins}} > prtview > Load .prt file** で最後の BSP 段階のポータルファイルを読み込みます(**{{KePrtZeige3d}}**、**{{KePrtZeige2d}}**)。カメラでは各ポータルが輪郭付きの色付き半透明ポリゴンとして、2D ビューでは青い線として表示されます。プレイヤーが遠くまで見える場所に小さなポータルが多いとマップが重くなります。ヒントブラシやディテールブラシが役立ちます。**Configure Portal Viewer** で色、線の幅、不透明度、フォグ、クリップ用の立方体を設定し、**Toggle portals (3D)/(2D)** と **Unload .prt file** で表示を切り替えます。")),
+        ("img", "h_kartebauen_portale", T(
+            "The portals of the test map: blue in the 2D view, coloured in the camera at the passage between the two rooms.",
+            "Die Portale der Testkarte: blau in der 2D-Ansicht, farbig in der Kamera am Durchgang zwischen den beiden Räumen.",
+            "测试地图的门户:二维视图中为蓝色,摄像机中两个房间之间的通道处为彩色。",
+            "テストマップのポータル:2D ビューでは青、カメラでは 2 つの部屋の間の通路に色付きで表示されます。"), "breit"),
+        ("h2", "ziel", T("Where the files go", "Wohin die Dateien kommen", "文件放在哪里", "ファイルの出力先")),
+        ("img", "h_kartebauen_einstellungen", T(
+            "Page {{KePgBuild}} of the preferences with **{{KePrBuildZiel}}**.",
+            "Seite {{KePgBuild}} der Einstellungen mit **{{KePrBuildZiel}}**.",
+            "首选项的 {{KePgBuild}} 页,含 **{{KePrBuildZiel}}**。",
+            "設定の {{KePgBuild}} ページと **{{KePrBuildZiel}}**。")),
+        ("p", T(
+            "The `.bsp` and the other files are written next to the `.map`, as in NetRadiant-Custom. **{{KePrBuildZiel}}** on the page **{{KePgBuild}}** puts them into a folder of your choice instead (the map is copied there and built). Nothing is ever written into the game folder: if the map or the output folder lies there, the build runs in a work folder in the settings folder, and the console says so.",
+            "Die `.bsp` und die anderen Dateien entstehen neben der `.map`, wie bei NetRadiant-Custom. **{{KePrBuildZiel}}** auf der Seite **{{KePgBuild}}** legt sie stattdessen in einen Ordner deiner Wahl (die Karte wird dorthin kopiert und dort gebaut). In den Spielordner wird nie geschrieben: liegt die Karte oder der Ziel-Ordner dort, wird in einem Arbeitsordner im Einstellungsordner gebaut, und die Konsole sagt es.",
+            "`.bsp` 和其他文件写在 `.map` 旁边,与 NetRadiant-Custom 相同。**{{KePgBuild}}** 页上的 **{{KePrBuildZiel}}** 可改为写入你选择的文件夹(地图会复制到那里再编译)。程序从不写入游戏文件夹:如果地图或输出文件夹位于游戏文件夹中,就在设置文件夹里的工作文件夹中编译,并在控制台中说明。",
+            "`.bsp` などのファイルは、NetRadiant-Custom と同じく `.map` の隣に書き出されます。**{{KePgBuild}}** ページの **{{KePrBuildZiel}}** を指定すると、代わりに選んだフォルダーに出力します(マップをそこへコピーしてビルドします)。ゲームフォルダーには決して書き込みません。マップや出力フォルダーがゲームフォルダー内にある場合は、設定フォルダー内の作業フォルダーでビルドし、コンソールにそう表示します。")),
+        ("h2", "testen", T("Testing in the game", "Im Spiel testen", "在游戏中测试", "ゲームでテストする")),
+        ("steps", [
+            T("Copy the built `<name>.bsp` into the `maps` folder of the game, for example `GameData\\base\\maps` (with a mod: its folder, e.g. `MD\\maps`). The map editor does not do this itself - it never writes into the game folder.",
+              "Kopiere die gebaute `<Name>.bsp` in den Ordner `maps` des Spiels, zum Beispiel `GameData\\base\\maps` (mit einer Mod: deren Ordner, z. B. `MD\\maps`). Der Karten-Editor tut das nicht selbst - er schreibt nie in den Spielordner.",
+              "把编译好的 `<名称>.bsp` 复制到游戏的 `maps` 文件夹,例如 `GameData\\base\\maps`(使用模组时复制到模组文件夹,如 `MD\\maps`)。地图编辑器不会自己复制——它从不写入游戏文件夹。",
+              "ビルドした `<名前>.bsp` をゲームの `maps` フォルダーにコピーします。たとえば `GameData\\base\\maps`(Mod の場合はその Mod のフォルダー、例:`MD\\maps`)です。マップエディターはこれを自分では行いません。ゲームフォルダーには書き込まないからです。"),
+            T("Start the game yourself, open the console with <kbd>Shift</kbd>+<kbd>~</kbd> and type `devmap <name>` - the name without `.bsp`. `devmap` also allows cheats such as `noclip` and `god` for looking around.",
+              "Starte das Spiel selbst, öffne die Konsole mit <kbd>Umschalt</kbd>+<kbd>~</kbd> und tippe `devmap <Name>` - den Namen ohne `.bsp`. `devmap` erlaubt auch Cheats wie `noclip` und `god` zum Umsehen.",
+              "自己启动游戏,用 <kbd>Shift</kbd>+<kbd>~</kbd> 打开控制台,输入 `devmap <名称>`(不带 `.bsp`)。`devmap` 还允许使用 `noclip`、`god` 等作弊命令四处查看。",
+              "ゲームを自分で起動し、<kbd>Shift</kbd>+<kbd>~</kbd> でコンソールを開いて `devmap <名前>` と入力します(`.bsp` は付けません)。`devmap` では、見て回るための `noclip` や `god` などのチートも使えます。"),
+            T("After the next build, copy the `.bsp` again and type `devmap <name>` once more - the game loads the new version.",
+              "Nach dem nächsten Bauen die `.bsp` wieder kopieren und noch einmal `devmap <Name>` tippen - das Spiel lädt die neue Fassung.",
+              "下次编译后,再复制一次 `.bsp`,再输入一次 `devmap <名称>`——游戏会加载新版本。",
+              "次にビルドしたら `.bsp` をもう一度コピーし、もう一度 `devmap <名前>` と入力します。ゲームが新しい版を読み込みます。"),
+        ]),
+        ("note", T(
+            "**{{KePrBuildRun}}** on the page **{{KePgBuild}}** starts the game after a build with `+devmap <name>`, as in NetRadiant-Custom - the `.bsp` must then already be in a folder the game searches.",
+            "**{{KePrBuildRun}}** auf der Seite **{{KePgBuild}}** startet das Spiel nach dem Bauen mit `+devmap <Name>`, wie bei NetRadiant-Custom - die `.bsp` muss dann schon in einem Ordner liegen, den das Spiel durchsucht.",
+            "**{{KePgBuild}}** 页上的 **{{KePrBuildRun}}** 会像 NetRadiant-Custom 一样在编译后用 `+devmap <名称>` 启动游戏——此时 `.bsp` 必须已经位于游戏会搜索的文件夹中。",
+            "**{{KePgBuild}}** ページの **{{KePrBuildRun}}** をオンにすると、NetRadiant-Custom と同じくビルド後に `+devmap <名前>` でゲームを起動します。その場合、`.bsp` はゲームが探すフォルダーにすでに置かれている必要があります。")),
+        ("h2", "autocaulk", T("AutoCaulk", "AutoCaulk", "AutoCaulk", "AutoCaulk")),
+        ("p", T(
+            "**{{KeLBrush}} > {{KeLAutoCaulkSelected}}** (<kbd>F4</kbd>) gives every face of the selected brushes that cannot be seen from inside the caulk texture - fewer surfaces, a faster map. Stand with the camera inside the selection; q3map2 decides which faces are hidden. One undo step takes it back.",
+            "**{{KeLBrush}} > {{KeLAutoCaulkSelected}}** (<kbd>F4</kbd>) gibt jeder Fläche der gewählten Brushes, die von innen nicht zu sehen ist, die Caulk-Textur - weniger Flächen, eine schnellere Karte. Stell die Kamera in die Auswahl; q3map2 entscheidet, welche Flächen verdeckt sind. Ein Rückgängig-Schritt nimmt es zurück.",
+            "**{{KeLBrush}} > {{KeLAutoCaulkSelected}}**(<kbd>F4</kbd>)给所选笔刷中从内部看不到的每个面赋予 caulk 纹理——表面更少,地图更快。把摄像机放在所选范围内;由 q3map2 判断哪些面被遮住。一次撤销即可恢复。",
+            "**{{KeLBrush}} > {{KeLAutoCaulkSelected}}**(<kbd>F4</kbd>)は、選択したブラシのうち内側から見えない面すべてに caulk テクスチャを付けます。サーフェスが減り、マップが軽くなります。カメラを選択範囲の中に置いてください。どの面が隠れているかは q3map2 が判断します。元に戻すは 1 回で済みます。")),
+    ],
+}
+
+SEITEN = [KARTE_BAUEN]
