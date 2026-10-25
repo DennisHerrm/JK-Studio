@@ -441,3 +441,185 @@ In der Schlussrunde gefunden:
 | Punkt | Rot (vorher) | Gruen (nachher) |
 |---|---|---|
 | Zwei Erwartungen aus Stufe 3 im vollen Karten-Editor-Lauf (die Pruefungen je Punkt liefen nur mit BHED_STUFE4_NUR): "Plugins > bobToolz ... ausgegraut (Stufe 3)" - seit Punkt 3a nachgebaut; die Checkliste liess nur die fertigen Befehle der Stufen 1b/2 und die Menue-Rufe zu, die 61 Plugin-Befehle der Stufe 4 standen als "zu viel" da. Beide auf Stufe 4 gestellt (bobToolz nachgebaut; jeder Eintrag der Plugin-Menues muss nachgebaut sein) | s4eke 1246 / 2 | s4eke2 1248 / 0 |
+
+## Punkt 8: Abschluss der Stufe 4
+
+### Commits (Zweig karte1, auf Stufe 3 `f7334a9`)
+
+| Commit | Punkt | Inhalt |
+|---|---|---|
+| `2616824` | 0c, 0d | keine abgeschnittene Beschriftung auf den Einstellungsseiten (4 Sprachen), Surface Inspector so breit wie NRC |
+| `5fbef5a` | 1 | fertige Karten oeffnen (.bsp aus Ordner oder .pk3 des Spiels), Import einer .bsp |
+| `a885583` | 2 | Originallicht behalten: Build > Update entities only |
+| `53edf68` | 0a, 0b | ASan: veralteter Shader-Zeiger in der Kameraszene behoben; Messung -light |
+| `a2816b6` | 3a | bobToolz: alle 23 Befehle, Werkzeugleiste, acht Dialoge, BSP leafs |
+| `fa392bd` | 3b | brushexport2: Export als Wavefront .obj/.mtl |
+| `4101dee` | 3c | ShaderPlug, SunPlug (ET-MapCoordinator), UFO:AI |
+| `f8de283` | 3d | MeshTex |
+| `b1cca05` | 4 | File > Exit mit ConfirmModified; Checkliste 935 / 1 / 0 |
+| `991f57b` | 6 | Handbuchseiten, CJK-Breiten in den Plugin-Dialogen, Selbsttest "texte" |
+| `3f8d94b` | 7 | Schlussrunde; Selbsttest erwartet die Plugins der Stufe 4 |
+
+### Portiert (NRC 20260114, mit Quellangaben je Funktion)
+
+| Datei | aus NRC |
+|---|---|
+| `include/bhed/karte/bspoeffnen.h`, `src/karte/bspoeffnen.cpp`, `gui/app_karte_bsp.cpp` | map.cpp tryDecompile / Map_ImportFile (q3map2 -convert), q3map2 bsp.cpp -onlyents (Ablauf), bspfile_rbsp.cpp (Lump-Verzeichnis); eigener Dialog "Open compiled map", Fingerabdruck, Einsetzen des Entity-Lumps |
+| `include/bhed/karte/bobtoolz.h`, `src/karte/bobtoolz.cpp`, `bobtoolz_d.h/.cpp`, `bobtoolz_vis.cpp`, `gui/app_karte_plugins.cpp` | contrib/bobtoolz: bobToolz-GTK.cpp, funchandlers-GTK.cpp, shapes.cpp, DShape/DBrush/DPlane/DPatch/DEntity/DMap/DWinding/DPoint/DEPair, misc.cpp, DTreePlanter, DTrainDrawer, DBobView, DVisDrawer, visfind.cpp, bsploader.cpp, ScriptParser.cpp, lists.cpp, dialogs/dialogs-gtk.cpp; libs/mathlib |
+| `include/bhed/karte/brushexport.h`, `src/karte/brushexport.cpp`, `gui/app_karte_brushexport.cpp` | contrib/brushexport: export.cpp, interface.cpp, callbacks.cpp, plugin.cpp |
+| `include/bhed/karte/kleineplugins.h`, `src/karte/kleineplugins.cpp`, `gui/app_karte_kleineplugins.cpp` | contrib/shaderplug/shaderplug.cpp, contrib/sunplug/sunplug.cpp, contrib/ufoaiplug (ufoai.cpp, ufoai_level.cpp, ufoai_filters.cpp) |
+| `include/bhed/karte/meshtex.h`, `src/karte/meshtex.cpp`, `gui/app_karte_meshtex.cpp` | contrib/meshtex: MeshEntity.cpp, MeshEntityMessages.h, MainMenu.cpp, MeshVisitor, GenericDialog, SetScaleDialog, GetInfoDialog, GeneralFunctionDialog |
+| `gui/karte_qtdialog.h/.cpp` | Qt 5.15-Regeln der Plugin-Dialoge (QCommonStyle CT_CheckBox/CT_RadioButton/CT_PushButton, QSpinBox/QLineEdit/QComboBox sizeHint, QDialogButtonBox, QFormLayout, QGridLayout/qGeomCalc) |
+| `data/karte/bt/*.txt` | setup/data/tools/plugins/bt (unveraendert) |
+| Tests | `tests/kartebspoeffnen.cpp` (32), `kartebobtoolz.cpp` (82), `kartebrushexport.cpp` (19), `kartekleineplugins.cpp` (21), `kartemeshtex.cpp` (24); kartekamera um modellShader erweitert |
+
+Lizenzen: bobToolz und prtview LGPL 2.1, nach Abschnitt 3 unter GPL v2;
+brushexport, MeshTex, ShaderPlug, SunPlug, UFO:AI GPL v2 (ctest karte_lizenz).
+
+### Rot / Gruen je Punkt (Kurzfassung)
+
+| Punkt | Rot | Gruen |
+|---|---|---|
+| 0a | ASan karteneditor: heap-use-after-free kameraszene.cpp:355; ctest kartekamera unter ASan rot | ctest gruen, ASan karteneditor 1089 / 0 ohne Befund |
+| 0c | s4p0rot4: Deutsch 23, Japanisch 23 FEHLER | s4p0gruen5 105 / 0 |
+| 0d | Surface Inspector 292 statt 285 | 285 x 364, Spalten wie das Foto |
+| 1 | s4p1rot 15 / 16; ctest Mutationen 6 FEHL | s4p1gruen 26 / 0; ctest 32 / 32 |
+| 2 | M2/M3 (Fingerabdruck, Einsetzen) rot | s4p2gruen; 17 von 17 Lumps Byte-gleich |
+| 3a bobToolz | s4p3bob1 42 / 8; 5 Mutationen | s4p3bob3 50 / 0 |
+| 3b brushexport2 | s4p3be1 17 / 2; 3 Mutationen | s4p3be4 19 / 0 |
+| 3c Shader/Sun/UFO | s4p3kl1 36 / 7; 3 Mutationen | s4p3kl2 43 / 0 |
+| 3d MeshTex | s4p3mt1 32 / 5; 4 Mutationen | s4p3mt3 35 / 0 |
+| 4 Exit | s4p4rot3 13 / 2 | s4p4gruen 15 / 0 |
+| 6 CJK-Breiten | s4p6rot 54 / 10, s4p6rot2 (Mutation) 54 / 10 | s4p6gruen2 64 / 0 |
+| 7 Erwartungen Stufe 3 | s4eke 1246 / 2 | s4eke2 1248 / 0 |
+
+### Abweichungen von NRC (gesammelt)
+
+- **File > Open .bsp...** ist ein eigener Eintrag nach Import... (NRC kennt
+  die .bsp nur beim Import, mapq3 "quake3 compiled maps"); Dialog "Open
+  compiled map" ohne NRC-Vorbild nach Qt-Regeln; Arbeitsordner
+  `<Einstellungen>/karte_bsp/<Name>` statt neben der .bsp (nie im
+  Spielordner); Import einer .bsp ebenfalls im Arbeitsordner.
+- **Build > Update entities only** ist ein eigener Eintrag (nach Cancel
+  build): Fingerabdruck der Geometrie, `-onlyents` auf eine frische Kopie,
+  Einsetzen des Entity-Lumps in die Original-Datei (alle anderen Lumps
+  Byte-gleich), `-keeplights`, wenn das Original Lichter hat.
+- SunPlug ist bei NRC der ET-MapCoordinator (kein "q3map_sun"); so portiert.
+- bobToolz Make Chain: Dialog 362 statt 361 breit (Textmass 168 statt 167).
+- bobToolz Door Builder: die zweite Ausrichtung heisst in den Uebersetzungen
+  "Ost - West" (NRC beschriftet beide "North - South"; mit "Begriffe wie
+  NetRadiant" wie NRC).
+- brushexport2: Save As schlaegt `<Einstellungen>/karte_export/` vor; das
+  Fenster ist nicht ziehbar; Pfad mit '/'.
+- ShaderPlug: die Tag-Datei wird gleich neu geladen (NRC: Neustart).
+- MeshTex: mehrere Kaesten eines Befehls als ein Kasten.
+- UFO:AI: Schluessel in einem Undo-Schritt "UFO:AI"; About mit der Fassung
+  des Programms.
+- Exit: nach ConfirmModified der Beenden-Weg des Programms (ungesicherte
+  Skripte, "Exit?").
+- Plugin-Dialoge auf Chinesisch/Japanisch so breit wie der gezeichnete Text
+  (Tahoma kennt die Zeichen nicht; Englisch/Deutsch wie Qt).
+- Farben der neuen Dialoge aus dem Farbschema des Programms.
+
+### Checkliste
+
+`tools/karte/nrc_inventar.md`: 935 `[x]`, 1 `[~]` ("Install Map Developer's
+Files" - ja.game/jk2.game haben keinen install-Ordner, NRC zeigt nichts),
+0 `[ ]` von 936.
+
+### Messungen
+
+- Selbsttest Punkt 5 (alle Teile der Stufe 4 im vollen Karten-Editor-Lauf):
+  Einstellungsseiten in 4 Sprachen, Open .bsp, Originallicht mit
+  Byte-Pruefung (17 von 17 Lumps), bobToolz 50, brushexport2 19, kleine
+  Plugins 43, MeshTex 35, Texte der Plugin-Dialoge 64, Exit 15 Pruefungen;
+  der volle Lauf 1248 / 0.
+- Dialoge gegen die NRC-Fotos: Intersect 192 x 157, Path Plotter 367 x 180,
+  Make Chain 362 x 100 (+1), brushexport2 278 x 478 (Spalten 125 / 125),
+  MeshTex Get Info 357 x 126, Set S/T Scale 418 x 344, General Function
+  912 x 298, Surface Inspector 285 x 364.
+- Originallicht: mp/duel1 (Movie Duels) nach "Update entities only" 17 von 17
+  Lumps ausser den Entities Byte-gleich; Rundlauf ohne Aenderung bei
+  t1_inter, academy1, mp__ffa3, mp__siege_hoth mit gleichem Entity-Lump.
+- q3map2 -light: 39-46 % langsamer als NRCs MinGW-Bau, mit keinem
+  MSVC-Schalter besser (Punkt 0b).
+- Schlussrunde (Punkt 7): Leistung wie rc605 (md_am_sith), Kartenpruefung
+  unveraendert, grosse Karte im A/B gegen den Stufe-3-Bau ohne messbaren
+  Unterschied.
+
+### Was Stufe 5 braucht (Optimierer gegen die Grenzen von JKA/JK2)
+
+- Die Grenzen je Regelwerk aus den Quellen der Engines, nicht geschaetzt:
+  OpenJK (SP/MP, ja), Movie Duels (eigene Engine, in `SP\mdgit` vorhanden) und
+  Jedi Outcast (jk2, Quellen noch zu beschaffen). Aus `SP\mdgit\code` (Movie
+  Duels) schon gesehen: qfiles.h MAX_MAP_MODELS 0x400, MAX_MAP_BRUSHES 0x8000,
+  MAX_MAP_ENTITIES 0x800, MAX_MAP_ENTSTRING 0x40000, MAX_MAP_SHADERS 0x400,
+  MAX_MAP_AREAS 0x100, MAX_MAP_FOGS 0x100, MAX_MAP_PLANES / NODES /
+  BRUSHSIDES / LEAFS / LEAFFACES / PORTALS 0x20000, MAX_MAP_LEAFBRUSHES
+  0x40000, MAX_MAP_LIGHTING 0x800000, MAX_MAP_LIGHTGRID 65535 (bei q3map2
+  0x100000 Punkte - eine Karte kann sich bauen lassen und trotzdem darueber
+  liegen), MAX_MAP_LIGHTGRID_ARRAY 0x100000, MAX_MAP_VISIBILITY 0x400000,
+  MAX_MAP_DRAW_SURFS 0x20000, MAX_MAP_DRAW_VERTS / INDEXES 0x80000;
+  q_shared.h GENTITYNUM_BITS 12 (Movie Duels; OpenJK hat weniger), MAX_MODELS
+  512, MAX_SOUNDS 512, MAX_SUBMODELS 512, MAX_CONFIGSTRINGS 2048,
+  MAX_WORLD_COORD 65536; cm_patch.h MAX_FACETS 4096, MAX_PATCH_PLANES 8192;
+  tr_local.h MAX_PATCH_SIZE 32, SHADERNUM_BITS 13. Fuer OpenJK und Jedi
+  Outcast fehlen die Werte noch.
+- Zaehlen aus der Karte und aus der gebauten .bsp: das Lump-Verzeichnis liest
+  `karte::bspoeffnen` schon (Punkt 2) - Zahl und Groesse je Lump gegen die
+  Grenzen; dazu was erst zur Laufzeit zaehlt (Entities mit NPC-Spawnern,
+  Modelle / Klaenge / Effekte als Configstrings, Brush-Modelle,
+  Patch-Kollision je Patch).
+- Vorschlaege mit Wirkung und Undo wie die Plugins: Detail statt
+  Struktur, AutoCaulk (Stufe 3), Hint-Brushes, Lightmap-Massstab,
+  `gridsize` im worldspawn, Zusammenlegen von Brush-Modellen, zu grosse
+  Patches teilen (bobToolz Split patch ist da).
+- Testkarten, die jede Grenze knapp ueber- und unterschreiten (Rot/Gruen),
+  und ein Abgleich gegen echte Karten der drei Spiele (die Massenlast aus
+  `SP\karte_dekomp`).
+- Offen aus Stufe 4: -light 40 % langsamer als NRCs q3map2 (MSVC-Maschinencode;
+  ein Bau mit clang-cl zum Vergleich); der Absturz 0xC000001D im Modus karte
+  (Stufe 3) ist nicht nachgestellt - ASan fand dabei den veralteten
+  Shader-Zeiger (behoben), ob das die Ursache war, ist nicht bewiesen.
+
+## Changelog
+
+## English
+
+- Map editor: open finished maps. File > Open .bsp... lists every compiled map of the game folders, also inside the game's .pk3 files, and turns it back into an editable map with q3map2 in a work folder - never in the game folder. File > Import... also takes a .bsp.
+- Map editor: keep the original light. Build > Update entities only writes changed entities back into the opened map; geometry, lightmaps and light grid stay byte for byte as they were. If brushes or patches changed, it says so instead of building.
+- Map editor: all plugins of NetRadiant-Custom with their menus and dialogs - bobToolz (23 commands and its toolbar: stair, door, aperture door and polygon builders, Path Plotter, Tree Planter, splines, Vis Viewer, patch tools and more), brushexport2 (export the selection as a Wavefront .obj with .mtl), MeshTex (texture scaling and alignment on patches), ShaderPlug, SunPlug and UFO:AI.
+- Map editor: File > Exit asks whether to save a changed map first, like NetRadiant-Custom.
+- Map editor: labels on the preference pages and in the plugin dialogs are no longer cut off in German, Chinese and Japanese; the Surface Inspector has NetRadiant-Custom's width.
+- Map editor: fixed a possible crash in the camera view of maps with several models.
+- Guide: new pages "Map editor: opening and changing finished maps" and "Map editor: plugins" in four languages.
+
+## Deutsch
+
+- Karten-Editor: fertige Karten öffnen. „Datei > .bsp öffnen...“ listet jede gebaute Karte der Spielordner, auch in den .pk3 des Spiels, und macht sie mit q3map2 in einem Arbeitsordner wieder zu einer bearbeitbaren Karte - nie im Spielordner. „Datei > Importieren...“ nimmt auch eine .bsp.
+- Karten-Editor: das Originallicht behalten. „Kompilieren > Nur Entities aktualisieren“ schreibt geänderte Entities in die geöffnete Karte zurück; Geometrie, Lightmaps und Lichtgitter bleiben Byte für Byte, wie sie waren. Wurden Brushes oder Patches geändert, sagt es das, statt zu bauen.
+- Karten-Editor: alle Plugins von NetRadiant-Custom mit ihren Menüs und Dialogen - bobToolz (23 Befehle und seine Werkzeugleiste: Treppen, Türen, Blendentüren, Polygone, Path Plotter, Tree Planter, Splines, Vis Viewer, Patch-Werkzeuge und mehr), brushexport2 (die Auswahl als Wavefront-.obj mit .mtl exportieren), MeshTex (Texturmaßstab und -ausrichtung auf Patches), ShaderPlug, SunPlug und UFO:AI.
+- Karten-Editor: „Datei > Beenden“ fragt bei einer geänderten Karte erst, ob gespeichert werden soll, wie NetRadiant-Custom.
+- Karten-Editor: Beschriftungen auf den Einstellungsseiten und in den Plugin-Dialogen werden auf Deutsch, Chinesisch und Japanisch nicht mehr abgeschnitten; der Surface Inspector hat die Breite von NetRadiant-Custom.
+- Karten-Editor: ein möglicher Absturz in der Kameraansicht von Karten mit mehreren Modellen behoben.
+- Handbuch: neue Seiten „Karten-Editor: fertige Karten öffnen und ändern“ und „Karten-Editor: Plugins“ in vier Sprachen.
+
+## 中文
+
+- 地图编辑器:打开已完成的地图。“文件 > 打开 .bsp...”列出游戏文件夹中所有已编译的地图(包括游戏 .pk3 中的),并用 q3map2 在工作文件夹中把它还原成可编辑的地图——绝不写入游戏文件夹。“文件 > 导入...”也接受 .bsp。
+- 地图编辑器:保留原始光照。“编译 > 仅更新实体”把修改过的实体写回打开的地图;几何体、光照贴图和光照网格逐字节保持原样。如果笔刷或曲面片有改动,它会给出提示而不进行编译。
+- 地图编辑器:NetRadiant-Custom 的全部插件及其菜单和对话框——bobToolz(23 条命令及其工具栏:楼梯、门、光圈门和多边形生成器、Path Plotter、Tree Planter、样条、Vis Viewer、曲面片工具等)、brushexport2(把所选内容导出为带 .mtl 的 Wavefront .obj)、MeshTex(曲面片上的纹理缩放与对齐)、ShaderPlug、SunPlug 和 UFO:AI。
+- 地图编辑器:与 NetRadiant-Custom 一样,“文件 > 退出”会先询问是否保存已修改的地图。
+- 地图编辑器:首选项页面和插件对话框中的标签在德语、中文和日语下不再被截断;表面检查器的宽度与 NetRadiant-Custom 相同。
+- 地图编辑器:修复了包含多个模型的地图在摄像机视图中可能崩溃的问题。
+- 手册:新增四种语言的“地图编辑器:打开并修改已完成的地图”和“地图编辑器:插件”页。
+
+## 日本語
+
+- マップエディター:完成したマップを開く。「ファイル > .bsp を開く...」で、ゲームフォルダー(ゲームの .pk3 の中も含む)のコンパイル済みマップをすべて一覧にし、作業フォルダーで q3map2 を使って編集できるマップに戻します。ゲームフォルダーには書き込みません。「ファイル > インポート...」でも .bsp を読み込めます。
+- マップエディター:元のライトを残す。「ビルド > エンティティのみ更新」で、変更したエンティティを開いたマップに書き戻します。ジオメトリ、ライトマップ、ライトグリッドはバイト単位で元のままです。ブラシやパッチが変更されている場合は、ビルドせずにそのことを知らせます。
+- マップエディター:NetRadiant-Custom のすべてのプラグインを、メニューとダイアログ付きで搭載。bobToolz(23 のコマンドとツールバー:階段・ドア・絞り式ドア・多角形の作成、Path Plotter、Tree Planter、スプライン、Vis Viewer、パッチツールなど)、brushexport2(選択範囲を .mtl 付きの Wavefront .obj として書き出し)、MeshTex(パッチのテクスチャのスケールと位置合わせ)、ShaderPlug、SunPlug、UFO:AI。
+- マップエディター:NetRadiant-Custom と同じく、「ファイル > 終了」で変更されたマップを保存するかどうかを先に確認します。
+- マップエディター:設定ページとプラグインのダイアログで、ドイツ語・中国語・日本語のラベルが切れなくなりました。サーフェスインスペクターの幅が NetRadiant-Custom と同じになりました。
+- マップエディター:複数のモデルがあるマップのカメラビューで起こりうるクラッシュを修正しました。
+- ガイド:新しいページ「マップエディター:完成したマップを開いて変更する」と「マップエディター:プラグイン」(4 言語)。
