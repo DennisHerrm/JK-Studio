@@ -42,27 +42,12 @@ struct passage_t
 };
 
 
-#include <atomic>  /* BehavEd stage 6 */
-#include <thread>
-
 enum class EVStatus
 {
 	None,
 	Working,
 	Done
 };
-
-/* BehavEd stage 6 (determinism): the flows (PortalFlow, PassageFlow, PassagePortalFlow)
-   cut with p->portalvis when portal p is already Done, else with the looser
-   p->portalflood. With several threads, which portals are Done depends on the thread
-   timing, so -vis gave different visibility per run (NOTIZEN_karte3.md point 2). The work
-   is handed out in sorted_portals order, so in a 1-thread run exactly the portals sorted
-   before the base portal are Done. Same rule here: earlier portals - wait until Done and
-   use portalvis; later ones - portalflood. Result = the 1-thread result for any thread
-   count. No deadlock: every earlier portal is already handed to a thread, and it only
-   waits for portals even earlier. */
-inline void bhed_set_status( struct vportal_t *p, EVStatus s );
-inline const long *bhed_portal_test( const struct vportal_t *p, const struct vportal_t *base );
 
 
 struct vportal_t
@@ -84,24 +69,9 @@ struct vportal_t
 	byte                *portalvis;     /* [portals], final */
 
 	int nummightsee;                    /* bit count on portalflood for sort */
-	int bhedSortIndex;                  /* BehavEd stage 6: position in sorted_portals (= work order) */
 	passage_t           *passages;      /* there are just as many passages as there */
 	                                    /* are portals in the leaf this portal leads */
 };
-
-
-inline void bhed_set_status( vportal_t *p, EVStatus s ){
-	std::atomic_ref<EVStatus>( p->status ).store( s, std::memory_order_release );
-}
-inline const long *bhed_portal_test( const vportal_t *p, const vportal_t *base ){
-	if ( p->bhedSortIndex < base->bhedSortIndex ) {
-		std::atomic_ref<EVStatus> status( const_cast<vportal_t *>( p )->status );
-		while ( status.load( std::memory_order_acquire ) != EVStatus::Done )
-			std::this_thread::yield();
-		return reinterpret_cast<const long *>( p->portalvis );
-	}
-	return reinterpret_cast<const long *>( p->portalflood );
-}
 
 
 struct leaf_t

@@ -84,8 +84,6 @@ static void SortPortals(){
 
 	if ( !nosort )
 		std::ranges::sort( Span( sorted_portals, numportals * 2 ), {}, &vportal_t::nummightsee );
-	for ( int i = 0; i < numportals * 2; ++i ) /* BehavEd stage 6: see bhed_portal_test */
-		sorted_portals[i]->bhedSortIndex = i;
 }
 
 

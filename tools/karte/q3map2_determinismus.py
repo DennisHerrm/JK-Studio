@@ -17,6 +17,12 @@ Aufruf
       Lichtstilen ("style" 1 und 5) mit -game ja und -game quake3 (dort legt
       q3map2 die Stil-Shader an, GL#173), je 3 Laeufe + 1 Thread.
 
+-vis laeuft dabei immer mit -threads 1: mit mehreren Threads haengt NRCs Ergebnis von der
+Reihenfolge der Threads ab (ein Portal schneidet mit portalvis der Portale, die gerade fertig
+sind - auch mitten im Lauf). Jede Regel, die das unabhaengig von der Thread-Zahl macht, war auf
+kejim_post mehr als doppelt so langsam wie NRC (NOTIZEN_karte6.md, offen fuer Stufe 7);
+-bsp und -light sind mit beliebig vielen Threads deterministisch.
+
 Ohne --basepath ist -fs_basepath ein leerer Ordner (alle Shader implizit).
 Rueckgabe 0: alle Stufen in allen Laeufen gleich und gleich dem 1-Thread-Lauf.
 
@@ -130,7 +136,8 @@ def main(argv):
         laeufe = []
         erste = None
         for r in range(a.laeufe):
-            bsp, m = lauf(a.exe, os.path.join(arbeit, '%s_%s_%d' % (karte, stufe, r)), karte, stufe, a.game, basis, a.threads, eingabe, a.karte)
+            threads = 1 if stufe == 'vis' else a.threads   # siehe oben
+            bsp, m = lauf(a.exe, os.path.join(arbeit, '%s_%s_%d' % (karte, stufe, r)), karte, stufe, a.game, basis, threads, eingabe, a.karte)
             laeufe.append(m)
             if erste is None:
                 erste = bsp
