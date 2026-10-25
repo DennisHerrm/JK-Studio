@@ -21,6 +21,12 @@ set(Q3 ${TP}/q3map2)
 
 # Fremdcode mit seiner eigenen Warnstufe: nur Fehler, keine Warnungen.
 set(BHED_FREMD_OPTIONEN /W0 /utf-8)
+# Mit clang-cl (BEHAVED_Q3MAP2_LLVM, Stufe 5 Punkt 6) haengt libxml2 fuer
+# "Clang" GCC-Schalter wie -pedantic an, die clang-cl nicht kennt und nur
+# meldet - die Meldung gehoert zum Fremdcode und wird ebenso still.
+if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+  list(APPEND BHED_FREMD_OPTIONEN -Wno-unknown-argument)
+endif()
 
 # --- Fliesskomma wie GCC -O3 auf x86-64 (NRCs Bau) -----------------------------
 #
@@ -157,6 +163,13 @@ set(ASSIMP_INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
 set(ASSIMP_IGNORE_GIT_HASH ON CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_USE_CCACHE OFF CACHE BOOL "" FORCE)
 add_subdirectory(${TP}/assimp ${CMAKE_CURRENT_BINARY_DIR}/assimp EXCLUDE_FROM_ALL)
+# llvm-rc (clang-cl-Bau) lehnt das (c) in assimp.rc ab ("Non-ASCII 8-bit
+# codepoint", trotz #pragma code_page(1252)). Die Versionsressource landet
+# ohnehin nicht in bhed_q3map2.exe (eine .res in einer statischen Bibliothek
+# bindet niemand ein) - mit llvm-rc wird sie gar nicht erst uebersetzt.
+if(CMAKE_RC_COMPILER MATCHES "llvm-rc")
+  set_source_files_properties(${TP}/assimp/code/res/assimp.rc TARGET_DIRECTORY assimp PROPERTIES HEADER_FILE_ONLY ON)
+endif()
 
 # --- q3map2 ---------------------------------------------------------------------------
 set(Q3C ${Q3}/tools/quake3/common)

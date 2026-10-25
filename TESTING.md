@@ -331,6 +331,9 @@ standalone exe does not contain the map compiler.
   (`tools/karte/q3map2_vergleich.py erwartung <NRC q3map2.exe> <bhed_q3map2.exe>
   tests/karte/q3map2`); why not every byte can be compared is explained at
   the top of that script and in `NOTIZEN_karte3.md`, Punkt 2.
+- `q3map2_uebersetzer` – with `-DBEHAVED_Q3MAP2_LLVM` (Stufe 5, BAUEN.md)
+  the `bhed_q3map2.exe` next to `behaved.exe` must be the one built by
+  clang-cl/lld-link (no Rich header), without it the one built by MSVC.
 - GUI self-test mode `karteneditor` builds from the editor (Stufe 3,
   `BHED_KARTE_NUR=stufe3 BHED_STUFE3_NUR=bau` for only the Build menu and
   building). It looks for the working copy above the tested `behaved.exe`

@@ -46,6 +46,12 @@ Aufrufe
       schreibt erwartung.json und <karte>.nrc.bsp/.prt/.srf neu (NRC je
       Stufe N-mal, unsere N-mal). Bricht ab, wenn ein Merkmal bei beiden
       stabil ist und trotzdem abweicht.
+  q3map2_vergleich.py uebersetzer <bhed_q3map2.exe> <clang|msvc>
+      ctest q3map2_uebersetzer (Stufe 5 Punkt 6): mit -DBEHAVED_Q3MAP2_LLVM
+      muss neben behaved.exe die mit clang-cl/lld-link gebaute q3map2 liegen,
+      sonst die von MSVC. Erkennungszeichen: link.exe schreibt zwischen
+      DOS-Stub und PE-Kopf den "Rich"-Kopf (Liste der Werkzeuge), lld-link
+      nicht.
 
 Nur die Standardbibliothek.
 """
@@ -291,9 +297,28 @@ def erwartung_schreiben(nrc, uns, daten, laeufe):
     return 0
 
 
+def uebersetzer(exe, soll):
+    """Mit welchem Linker bhed_q3map2.exe gebaut ist: 'msvc' (link.exe, mit Rich-Kopf) oder 'clang' (lld-link, ohne)."""
+    with open(exe, 'rb') as f:
+        kopf = f.read(4096)
+    if kopf[:2] != b'MZ':
+        print('q3map2_uebersetzer: %s ist kein Windows-Programm' % exe)
+        return 1
+    pe = struct.unpack_from('<I', kopf, 0x3c)[0]
+    if pe + 4 > len(kopf) or kopf[pe:pe + 4] != b'PE\0\0':
+        print('q3map2_uebersetzer: %s ohne PE-Kopf' % exe)
+        return 1
+    ist = 'msvc' if kopf.find(b'Rich', 0x40, pe) >= 0 else 'clang'
+    linker = '%d.%d' % (kopf[pe + 26], kopf[pe + 27])
+    print('q3map2_uebersetzer: %s gebaut mit %s (Linker-Fassung %s), erwartet %s' % (exe, ist, linker, soll))
+    return 0 if ist == soll else 1
+
+
 def main(argv):
     if len(argv) >= 3 and argv[0] == 'pruefen':
         return pruefen(argv[1], argv[2])
+    if len(argv) >= 3 and argv[0] == 'uebersetzer' and argv[2] in ('clang', 'msvc'):
+        return uebersetzer(argv[1], argv[2])
     if len(argv) >= 4 and argv[0] == 'erwartung':
         laeufe = int(argv[argv.index('--laeufe') + 1]) if '--laeufe' in argv else 6
         return erwartung_schreiben(argv[1], argv[2], argv[3], laeufe)

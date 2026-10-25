@@ -234,8 +234,73 @@ add_custom_command(TARGET bhed POST_BUILD
 # --- Stufe 3: q3map2 aus NetRadiant-Custom 20260114 als bhed_q3map2.exe -----------
 # (src/q3map2/CMakeLists.txt; die Quellen liegen unveraendert unter third_party).
 option(BEHAVED_Q3MAP2 "q3map2 (Karten bauen) mitbauen" ${MSVC})
+# Stufe 5 Punkt 6: q3map2 mit clang-cl statt MSVC - dieselben Ergebnisse
+# (q3map2_vergleich, der Byte-Vergleich wie Stufe 3), -light 13-16 % und -vis
+# bis 20 % schneller (NOTIZEN_karte5.md). BEHAVED_Q3MAP2_LLVM = Ordner mit
+# clang-cl.exe, lld-link.exe, llvm-lib.exe und llvm-rc.exe (LLVM 23.1.4, mit
+# dieser Fassung ist verglichen); leer = MSVC wie bisher. q3map2 wird dann als
+# eigenes Projekt mit Ninja und clang-cl gebaut (ExternalProject, Ordner
+# q3map2_clang im Bauordner) und neben behaved.exe gelegt. clang-cl und
+# lld-link finden Visual Studio und das Windows SDK selbst.
+set(BEHAVED_Q3MAP2_LLVM "" CACHE PATH "LLVM-bin-Ordner mit clang-cl: q3map2 damit bauen (schneller, gleiches Ergebnis)")
+set(BHED_Q3MAP2_ZIEL "")
 if(MSVC AND BEHAVED_Q3MAP2)
-  add_subdirectory(src/q3map2)
+  set(BHED_Q3_CLANG OFF)
+  if(BEHAVED_Q3MAP2_LLVM AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    find_program(BHED_NINJA ninja
+                 HINTS "${CMAKE_GENERATOR_INSTANCE}/Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja"
+                       "${BEHAVED_Q3MAP2_LLVM}")
+    set(BHED_Q3_FEHLT "")
+    foreach(w clang-cl lld-link llvm-lib llvm-rc)
+      if(NOT EXISTS "${BEHAVED_Q3MAP2_LLVM}/${w}.exe")
+        string(APPEND BHED_Q3_FEHLT " ${w}.exe")
+      endif()
+    endforeach()
+    if(NOT BHED_NINJA)
+      string(APPEND BHED_Q3_FEHLT " ninja.exe")
+    endif()
+    if(BHED_Q3_FEHLT)
+      message(WARNING "BEHAVED_Q3MAP2_LLVM=${BEHAVED_Q3MAP2_LLVM}: es fehlt${BHED_Q3_FEHLT} - q3map2 wird mit MSVC gebaut")
+    else()
+      set(BHED_Q3_CLANG ON)
+    endif()
+  endif()
+  if(BHED_Q3_CLANG)
+    include(ExternalProject)
+    set(BHED_Q3_CLANG_BAU ${CMAKE_BINARY_DIR}/q3map2_clang)
+    set(BHED_Q3_MT "")
+    if(EXISTS "${BEHAVED_Q3MAP2_LLVM}/llvm-mt.exe")
+      set(BHED_Q3_MT -DCMAKE_MT=${BEHAVED_Q3MAP2_LLVM}/llvm-mt.exe)
+    endif()
+    ExternalProject_Add(bhed_q3map2_clang
+      SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}
+      BINARY_DIR ${BHED_Q3_CLANG_BAU}
+      CMAKE_GENERATOR Ninja
+      CMAKE_ARGS -DCMAKE_BUILD_TYPE=Release
+                 -DCMAKE_MAKE_PROGRAM=${BHED_NINJA}
+                 -DCMAKE_C_COMPILER=${BEHAVED_Q3MAP2_LLVM}/clang-cl.exe
+                 -DCMAKE_CXX_COMPILER=${BEHAVED_Q3MAP2_LLVM}/clang-cl.exe
+                 -DCMAKE_LINKER=${BEHAVED_Q3MAP2_LLVM}/lld-link.exe
+                 -DCMAKE_AR=${BEHAVED_Q3MAP2_LLVM}/llvm-lib.exe
+                 -DCMAKE_RC_COMPILER=${BEHAVED_Q3MAP2_LLVM}/llvm-rc.exe
+                 ${BHED_Q3_MT}
+                 -DBEHAVED_TESTS=OFF -DBEHAVED_D3D11=OFF -DBEHAVED_Q3MAP2_LLVM= -DIMGUI_DIR=
+      BUILD_COMMAND ${CMAKE_COMMAND} --build ${BHED_Q3_CLANG_BAU} --target bhed_q3map2
+      INSTALL_COMMAND ${CMAKE_COMMAND} -E copy_if_different ${BHED_Q3_CLANG_BAU}/bin/bhed_q3map2.exe
+                      ${CMAKE_BINARY_DIR}/bin/$<CONFIG>/bhed_q3map2.exe
+      BUILD_ALWAYS ON
+      USES_TERMINAL_BUILD ON)
+    add_executable(bhed_q3map2 IMPORTED GLOBAL)
+    foreach(k Release Debug RelWithDebInfo MinSizeRel)
+      string(TOUPPER ${k} K)
+      set_target_properties(bhed_q3map2 PROPERTIES IMPORTED_LOCATION_${K} ${CMAKE_BINARY_DIR}/bin/${k}/bhed_q3map2.exe)
+    endforeach()
+    set(BHED_Q3MAP2_ZIEL bhed_q3map2_clang)
+    message(STATUS "q3map2: clang-cl aus ${BEHAVED_Q3MAP2_LLVM}")
+  else()
+    add_subdirectory(src/q3map2)
+    set(BHED_Q3MAP2_ZIEL bhed_q3map2)
+  endif()
 endif()
 
 # --- Oberflaeche -------------------------------------------------------
@@ -386,8 +451,8 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
   target_link_libraries(behaved PRIVATE bhed_core imgui opengl32 gdi32 imm32 dwmapi comdlg32 ole32 shell32 uuid version winmm winhttp ws2_32)
   # Stufe 3: das Build-Menue startet bhed_q3map2.exe neben behaved.exe - mit
   # behaved immer mitbauen (lauf_wp.sh baut nur das Ziel behaved).
-  if(TARGET bhed_q3map2)
-    add_dependencies(behaved bhed_q3map2)
+  if(BHED_Q3MAP2_ZIEL)
+    add_dependencies(behaved ${BHED_Q3MAP2_ZIEL})
   endif()
 
   if(BEHAVED_D3D11)
@@ -696,6 +761,15 @@ if(BEHAVED_TESTS)
       add_test(NAME q3map2_vergleich
                COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_vergleich.py pruefen
                        $<TARGET_FILE:bhed_q3map2> ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
+      # Stufe 5 Punkt 6: mit BEHAVED_Q3MAP2_LLVM liegt die clang-cl-q3map2 neben behaved.exe
+      if(BHED_Q3MAP2_ZIEL STREQUAL "bhed_q3map2_clang")
+        set(BHED_Q3_SOLL clang)
+      else()
+        set(BHED_Q3_SOLL msvc)
+      endif()
+      add_test(NAME q3map2_uebersetzer
+               COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_vergleich.py uebersetzer
+                       $<TARGET_FILE:bhed_q3map2> ${BHED_Q3_SOLL})
     endif()
   endif()
 endif()

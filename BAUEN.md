@@ -723,7 +723,40 @@ Der Editor startet es wie NRC sein `q3map2.exe`.
   Ausprobieren: `-DBHED_Q3MAP2_FP=/fp:strict` (gleiches Ergebnis) oder
   `/fp:fast` (andere Dreiecke – der Test `q3map2_vergleich` fällt dann durch).
 * Nur mit MSVC (`BEHAVED_Q3MAP2`, Vorgabe an); ohne Internet baubar.
-* Tests: `q3map2_importe`, `q3map2_vergleich` (TESTING.md).
+* Tests: `q3map2_importe`, `q3map2_vergleich`, `q3map2_uebersetzer` (TESTING.md).
+
+### Schneller mit clang-cl (Stufe 5)
+
+Mit `-DBEHAVED_Q3MAP2_LLVM=<LLVM>/bin` wird nur `bhed_q3map2.exe` mit
+clang-cl und lld-link gebaut (LLVM 23.1.4, das Paket
+`clang+llvm-23.1.4-x86_64-pc-windows-msvc` oder der Installer
+`LLVM-23.1.4-win64.exe`; gebraucht werden `clang-cl.exe`, `lld-link.exe`,
+`llvm-lib.exe`, `llvm-rc.exe` und `lib/clang/23`). behaved selbst bleibt bei
+MSVC. CMake baut q3map2 dann als eigenes Projekt mit Ninja
+(`ExternalProject`, Ordner `q3map2_clang` im Bauordner) und legt die .exe wie
+bisher neben `behaved.exe`; clang-cl und lld-link finden Visual Studio und das
+Windows SDK selbst, ein Entwickler-Prompt ist nicht nötig.
+
+```
+cmake -S . -B build -DBEHAVED_Q3MAP2_LLVM=C:/llvm-23.1.4/bin
+```
+
+* **Gleiches Ergebnis:** `q3map2_vergleich` grün, und der Byte-Vergleich wie
+  in Stufe 3 (sieben Karten aus JA, JK2 und Movie Duels gegen NRCs
+  `q3map2.exe`) zeigt dieselben Unterschiede wie der MSVC-Bau – alle Dreiecke
+  gleich, die von der Reihenfolge unabhängigen Lumps gleich, -vis mit einem
+  Thread gleich, -light im Rahmen dessen, was NRC gegen NRC schwankt.
+  `/fp:precise` und SSE2 gelten für clang-cl genauso (keine FMA).
+* **Schneller:** -light 13–16 %, -vis bis 20 % (Messwerte in
+  `NOTIZEN_karte5.md`, Punkt 6). `-O3` und ThinLTO bringen nichts dazu.
+* Fehlt eines der Werkzeuge oder `ninja.exe` (Visual Studio: „C++-CMake-Tools“),
+  warnt CMake und baut q3map2 mit MSVC wie bisher.
+* `q3map2_uebersetzer` prüft, welche q3map2 neben `behaved.exe` liegt: ohne
+  Rich-Kopf (lld-link) mit `BEHAVED_Q3MAP2_LLVM`, mit Rich-Kopf (link.exe) ohne.
+* Die Release-Pipeline (`.github/workflows/release.yml`) installiert LLVM
+  23.1.4 und baut damit; klappt das Laden nicht, baut sie mit MSVC und warnt.
+* Eine andere LLVM-Fassung erst mit `q3map2_vergleich` und dem Byte-Vergleich
+  prüfen, bevor sie in die Pipeline kommt.
 
 ## Der anonyme Namensraum beim Aufteilen
 

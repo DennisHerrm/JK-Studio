@@ -76,11 +76,33 @@ jobs:
           # Zeitstempel im Zip = Zeit des Commits: zweimal gebaut, dieselben Bytes.
           "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> $env:GITHUB_ENV
 
+      - name: LLVM for the map compiler
+        # Stufe 5 Punkt 6: bhed_q3map2.exe mit clang-cl statt MSVC - dieselben
+        # Ergebnisse (q3map2_vergleich, Byte-Vergleich wie Stufe 3), -light
+        # 13-16 % und -vis bis 20 % schneller (NOTIZEN_karte5.md). Fest LLVM
+        # 23.1.4: mit dieser Fassung ist verglichen. Klappt das Laden nicht,
+        # baut MSVC wie bisher (Warnung; q3map2_uebersetzer erwartet dann msvc).
+        id: llvm
+        run: |
+          $ver = '23.1.4'
+          $setup = "$env:RUNNER_TEMP\LLVM-$ver-win64.exe"
+          $ziel = "$env:RUNNER_TEMP\llvm"
+          try {
+            Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/releases/download/llvmorg-$ver/LLVM-$ver-win64.exe" -OutFile $setup
+            Start-Process -Wait -FilePath $setup -ArgumentList '/S', "/D=$ziel"
+            $v = & "$ziel\bin\clang-cl.exe" --version
+            if (-not "$v".Contains("clang version $ver")) { throw "clang-cl: '$v'" }
+            Write-Host $v
+            "bin=$("$ziel\bin" -replace '\\', '/')" >> $env:GITHUB_OUTPUT
+          } catch {
+            Write-Host "::warning::LLVM $ver not available, bhed_q3map2.exe is built with MSVC: $_"
+          }
+
       - name: Configure
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           $imgui = "$env:GITHUB_WORKSPACE/imgui" -replace '\\', '/'
-          cmake -S . -B build -G "Visual Studio 18 2026" -A x64 "-DIMGUI_DIR=$imgui"
+          cmake -S . -B build -G "Visual Studio 18 2026" -A x64 "-DIMGUI_DIR=$imgui" "-DBEHAVED_Q3MAP2_LLVM=${{ steps.llvm.outputs.bin }}"
 
       - name: Build (second try with safe codegen, like build.bat)
         run: |
@@ -98,7 +120,8 @@ jobs:
         # Darunter exe_importe (nur Windows-DLLs fest gebunden: statische
         # Laufzeit), eingebaute_daten und release_paket; seit Stufe 3 auch
         # q3map2_importe und q3map2_vergleich (bhed_q3map2.exe gegen die
-        # Erwartungen aus NRCs q3map2.exe, ohne Spieldaten).
+        # Erwartungen aus NRCs q3map2.exe, ohne Spieldaten), seit Stufe 5
+        # q3map2_uebersetzer (die clang-cl-q3map2 liegt neben behaved.exe).
         run: ctest --test-dir build -C Release --output-on-failure --timeout 600
 
       - name: Package and check
