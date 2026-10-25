@@ -839,3 +839,31 @@ Beobachtet (aelter, nicht Teil von Stufe 3): auf der Seite Build der
 Einstellungen ist auf Japanisch die Beschriftung "リージョン枠のシェーダー" links
 abgeschnitten - die Spaltenbreite misst mit Tahoma (labelBreite), gezeichnet
 wird mit der Schrift der Sprache.
+
+## Punkt 9: Schlussrunde
+
+Ein Testprozess zur Zeit, Selbsttests mit Prioritaet Idle und dem 8-GB-Waechter
+(nie ausgeloest, hoechste Spitze 1.5 GB in spulen); Skript `SP\s3\ende_s3.sh`,
+Summe `SP\s3\ende_summe.txt`.
+
+| Test | Ergebnis |
+|---|---|
+| ctest | 106 / 106 |
+| Karten-Editor voll mit grosser Karte (s3eke) | 986 / 1 - die Breite des Menues Help (unten); nach der Korrektur s3eke2: 987 / 0 (Spitze 973 MB); "145 Befehle, nicht ausgeloest: -"; Checkliste "304 fertige Befehle, 3 Menue-Rufe, 296 nachgebaut; es fehlt: -; zu viel: -" |
+| Modus 1 (Gesamttest) | s3e1: 2644 / 1 ("... und legt das ganze Skript in die Zwischenablage" - die Windows-Zwischenablage, die Statuszeile meldete "18 command(s) copied"); Wiederholung s3e1b: 2645 / 0 - wie rc605 |
+| karte | s3ekarte: Absturz nach 57 s bei "Halte D" (0xC000001D, s. u.); Wiederholungen s3ekarte2, s3ekarte3: je 227 / 0 |
+| kartenfunde, fix604b, laserfalle, geschuetzanim, zielstrahl, effektgrund, figurdeform, jk2, tuerlauf | 53, 32, 8, 3, 2, 1, 1, 15, 13 OK / je 0 FEHLER |
+| kamera, missionsbau, szenen, ton, npcklasse | 95, 95, 26, 34, 12 / je 0 |
+| gluehen, gras, spulen, figurstufen, missionsliste, rest605 | 8, 13, 13, 8, 11, 6 / je 0 |
+| Leistung (md_am_sith, BHED_D3D_DEBUG=0, rc605-Bau aus Y:\integ und unser Bau abwechselnd, je zweimal) | Vorbereitung 6.48 / 6.46 s (rc605) gegen 6.81 / 6.51 s; intro2_sith Mittel 15 / 14 gegen 14 / 15 ms (max 203 / 196 gegen 219 / 181); Flug 8.0 / 8.2 gegen 8.6 / 8.1 ms; zweiter Durchgang 10 / 12 gegen 11 / 10 ms - kein Unterschied |
+| Kartenpruefung (278 Karten, Movie Duels, gegen das rc605-Schlussaudit `f5audit`) | alle Summen gleich (563 s): abgestuerzt/haengend, nicht geladen, GPU-Fehler, D3D-Meldungen, Protokollfehler 0 -> 0; nicht gezeichnete Entities 1 -> 1; NPC ohne Modell 2 -> 2; Weltshader-Luecken 0 -> 0; fehlende efx/Klaenge/Texturen/Modelle 27/29/139/5 unveraendert |
+| grosse Karte duel_mos_espa (s3eke2) | Laden 823 ms; Editor je Bild 2.75 ms (Median 2.37, 95 % 4.66); Bild nach Auswahlwechsel 7.24 ms; Neubauten Geometrie 0 / Rest 10; Speicher privat +946 MB, Grafik +524 MB (Stufe 2: 661 ms, 2.05 ms, 6.97 ms, +934 / +523 - Idle-Prioritaet, die Bildzeiten schwankten schon dort um bis zu das Doppelte) |
+| sauberer Neubau (Release, `--clean-first`) | 0 Fehler; 127 Warnungen, alle aus aelteren Stellen (C4996 u8path, C4456/C4458 verdeckte Namen, C4125 in entdefs.cpp) - keine aus Stufe 3 |
+| Handbuch | `gen_handbuch.py --pruefen`: handbuch_sprachen ok |
+
+In der Schlussrunde gefunden:
+
+| Punkt | Rot (vorher) | Gruen (nachher) |
+|---|---|---|
+| Menue Help 227 statt 215 breit: seit Punkt 3 ist OpenManual nachgebaut (gen_befehle STUFE_3_FERTIG, Stufe 3 -> 1), unser Eintrag Manual zeigt darum seine Taste F1, und QMenu legt dafuer die Tastenspalte an (max_column_width += tabWidth = Vorschub "F1" = 12). Erwartung 215 + 12, Begruendung im Code | s3eke 986 / 1 | s3eke2 987 / 0 |
+| Absturz im Modus karte bei "Halte D" (Kamera seitwaerts in der Kartenansicht, nicht im Editor): 0xC000001D, RIP 0x...4C7E = `std::string::_Assign+0x3E` (dbghelp gegen behaved.pdb, `SP\s3\werk\dump_sym.py`), mitten in einem Befehl; der Stapel ueber RSP haelt nur noch wWinMainCRTStartup (`dump_stapel.py`) - ein Sprung an eine falsche Adresse, kein Fehler in std::string. Zweimal wiederholt: 227 / 0. Nicht nachgestellt, also nicht behoben; Stufe 3 aendert an der Kartenansicht nur den Aufruf von karteneditor::bauSchritt (im Leerlauf ohne Wirkung) und darfRuhen | s3ekarte: Absturz | s3ekarte2, s3ekarte3: 227 / 0 (offen) |

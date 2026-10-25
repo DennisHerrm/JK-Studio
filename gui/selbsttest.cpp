@@ -34610,7 +34610,9 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         {"Plugins__bobToolz", {"Plugins", "bobToolz"}, 201, 597},
         {"Plugins__brushexport2", {"Plugins", "brushexport2"}, 253, 58},
         {"Plugins__prtview", {"Plugins", "prtview"}, 187, 175},
-        {"Help", {"Help"}, 215, 130 + 2 * 24},
+        // Help: seit Stufe 3 Punkt 3 ist OpenManual nachgebaut - unser Eintrag
+        // Manual zeigt F1, und QMenu legt dafuer die Tastenspalte an (+ Vorschub "F1" = 12)
+        {"Help", {"Help"}, 215 + 12, 130 + 2 * 24},
         {"Help__General", {"Help", "General"}, 335, 298},
         {"Help__Jedi_Knight_Jedi_Academy", {"Help", "Jedi Knight Jedi Academy"}, 286, 250},
     };
