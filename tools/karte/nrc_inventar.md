@@ -270,8 +270,8 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 ### create_bsp_menu (radiant/mainframe.cpp)
 
   * SUB &Build  (radiant/mainframe.cpp:1139)
-    - [~] ITEM Customize... -> `BuildMenuCustomize`  (radiant/mainframe.cpp:1143) -- Stufe 3
-    - [~] ITEM Run recent build -> `Build_runRecentExecutedBuild`  (radiant/mainframe.cpp:1144) -- Stufe 3
+    - [x] ITEM Customize... -> `BuildMenuCustomize`  (radiant/mainframe.cpp:1143) -- Stufe 3 Punkt 3
+    - [x] ITEM Run recent build -> `Build_runRecentExecutedBuild`  (radiant/mainframe.cpp:1144) -- Stufe 3 Punkt 3
     * ---
 
 ### create_grid_menu (radiant/mainframe.cpp)
@@ -304,7 +304,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
 
   * SUB &Help  (radiant/mainframe.cpp:1210)
     - [x] ITEM Bug report  (radiant/mainframe.cpp:1220) -- Stufe 2 Punkt 11
-    - [~] ITEM Check for NetRadiant update -> `CheckForUpdate`  (radiant/mainframe.cpp:1221) -- Stufe 3
+    - [x] ITEM Check for NetRadiant update -> `CheckForUpdate`  (radiant/mainframe.cpp:1221) -- Stufe 3 Punkt 0b
     - [x] ITEM &About  (radiant/mainframe.cpp:1222) -- Stufe 2 Punkt 11
 
 ### Maximize_View (radiant/mainframe.cpp)
@@ -554,8 +554,8 @@ Name | Art | Standardtaste | Quelle
 - [x] `BrushPrism` | Commands | - | (radiant/brushmanip.cpp:1479) -- Stufe 2 Punkt 4
 - [x] `BrushRock` | Commands | - | (radiant/brushmanip.cpp:1482) -- Stufe 2 Punkt 4
 - [x] `BrushSphere` | Commands | - | (radiant/brushmanip.cpp:1481) -- Stufe 2 Punkt 4
-- [~] `Build_runRecentExecutedBuild` | Commands | F5 | (radiant/mainframe.cpp:2090) -- Stufe 3
-- [~] `BuildMenuCustomize` | Commands | - | (radiant/mainframe.cpp:2089) -- Stufe 3
+- [x] `Build_runRecentExecutedBuild` | Commands | F5 | (radiant/mainframe.cpp:2090) -- Stufe 3 Punkt 3
+- [x] `BuildMenuCustomize` | Commands | - | (radiant/mainframe.cpp:2089) -- Stufe 3 Punkt 3
 - [x] `CameraAngleDown` | Commands | - | (radiant/camwindow.cpp:1432)
 - [x] `CameraAngleDown` | KeyEvents | - | (radiant/camwindow.cpp:1369)
 - [x] `CameraAngleDown` | Shortcuts | - | (radiant/camwindow.cpp:2522)
@@ -616,7 +616,7 @@ Name | Art | Standardtaste | Quelle
 - [x] `CapCurrentCurve` | Commands | Shift+C | (radiant/patchmanip.cpp:727) -- Stufe 2 Punkt 6
 - [x] `CenterView` | Commands | End | (radiant/camwindow.cpp:2488)
 - [x] `CenterXYView` | Commands | Ctrl+Shift+Tab | (radiant/xywindow.cpp:2277) -- Stufe 1b Punkt 5
-- [~] `CheckForUpdate` | Commands | - | (radiant/mainframe.cpp:2072) -- Stufe 3
+- [x] `CheckForUpdate` | Commands | - | (radiant/mainframe.cpp:2072) -- Stufe 3 Punkt 0b
 - [x] `ClipperClip` | Commands | Return | (radiant/clippertool.cpp:194) -- Stufe 2 Punkt 2
 - [x] `ClipperFlip` | Commands | Ctrl+Return | (radiant/clippertool.cpp:196) -- Stufe 2 Punkt 2
 - [x] `ClipperSplit` | Commands | Shift+Return | (radiant/clippertool.cpp:195) -- Stufe 2 Punkt 2
@@ -736,7 +736,7 @@ Name | Art | Standardtaste | Quelle
 - [~] `NextLeakSpot` | Commands | Ctrl+Shift+K | (radiant/points.cpp:321) -- Stufe 3
 - [x] `NextView` | Commands | Ctrl+Tab | (radiant/xywindow.cpp:2270) -- Stufe 1b Punkt 5
 - [x] `OpenGLFont` | Commands | - | (radiant/mainframe.cpp:2092) -- Stufe 2 Punkt 11
-- [~] `OpenManual` | Commands | F1 | (radiant/mainframe.cpp:2069) -- Stufe 3
+- [x] `OpenManual` | Commands | F1 | (radiant/mainframe.cpp:2069) -- Stufe 3 Punkt 0b
 - [x] `OpenMap` | Commands | Ctrl+O | (radiant/map.cpp:2430)
 - [x] `Paste` | Commands | Ctrl+V | (radiant/select.cpp:1863)
 - [x] `PasteToCamera` | Commands | Shift+V | (radiant/select.cpp:1864)
@@ -913,7 +913,7 @@ Name | Art | Standardtaste | Quelle
 
 ## Dialoge und Fenster
 
-- [~] "Build Menu"  (radiant/build.cpp:1027) -- Stufe 3 (der Bau mit q3map2)
+- [x] "Build Menu"  (radiant/build.cpp:1027) -- Stufe 3 Punkt 3
 - [x] "Mapped Commands"  (radiant/commands.cpp:333)
 - [x] "CSG Tool"  (radiant/csg.cpp:1486) -- Stufe 2 Punkt 3
 - [x] "Entity List"  (radiant/entitylist.cpp:279) -- Stufe 1b Punkt 9

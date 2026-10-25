@@ -21,6 +21,7 @@
 #define BHED_GUI_KARTENEDITOR_H
 
 #include "bhed/i18n.h"
+#include "bhed/karte/bau.h"
 #include "bhed/karte/bearbeitung.h"
 #include "bhed/karte/befehle.h"
 #include "bhed/karte/eklasse.h"
@@ -693,6 +694,14 @@ struct Editor {
     int rasterMaxPotenz = 4;               // g_maxGridCoordPower ("GridMaxCoordPower")
     int pinselTyp = 1;                     // g_brushType ("BrushType"): quake3 -> Brush_Construct( eBrushTypeQuake3BP )
     // BuildMonitor_Construct (watchbsp.cpp:257-268); der Bau selbst kommt in Stufe 3
+    // --- Build-Menue (Stufe 3, build.cpp) ---
+    karte::BauProjekt bauProjekt;          // g_build_project + g_build_tools
+    int bauProjektFuer = -2;               // Spiel (kRegelwerk*), fuer das bauProjekt gelesen ist
+    std::string bauMenueName;              // g_buildMenu ("BuildMenu")
+    bool bauGeaendert = false;             // g_build_changed
+    long long bauZuletzt = -1;             // g_lastExecutedBuild (Index, -1 = keiner)
+    bool bauDialogOffen = false;           // DoBuildMenu ("Build Menu")
+    std::string bauKarte;                  // die Datei, die gebaut wird, wenn nicht die Karte selbst (Punkt 4)
     struct BauEinstellungen {
         bool ueberwachen = true;           // g_WatchBSP_Enabled ("BuildMonitor")
         bool leckStopp = true;             // g_WatchBSP_LeakStop ("BuildLeakStop")
@@ -1146,6 +1155,34 @@ void rueckfrageDann(const char* titel, std::function<void()> danach);
 // Entity_reloadDefinitions: die Klassen neu lesen und die Karte neu laden
 // (MapEntityClasses::unrealise/realise).
 void entitaetenKlassenNeuLaden();
+
+// --- Karten bauen (Stufe 3, app_karte_bau.cpp; build.cpp, qe3.cpp, watchbsp.cpp) ---
+inline constexpr const char* kBauMonitorAdresse = "127.0.0.1:39000";   // RADIANT_MONITOR_ADDRESS
+void bauMenueSicherstellen();          // BuildMenu_Construct/LoadBuildMenu fuer das Spiel des Editors
+void bauMenueSpeichern();              // SaveBuildMenu (BuildMenu_Destroy)
+void bauMenueNeuLaden();               // Reset: build_commands_clear + LoadBuildMenu
+[[nodiscard]] std::string bauMenueDateiPfad();   // g_buildMenuFullPah
+[[nodiscard]] karte::BauVariablen bauVariablen();   // build_init_variables
+[[nodiscard]] std::string bauSpielName();          // [GameName]
+[[nodiscard]] std::string bauKartenPfad();         // Map_Name der gebauten Datei
+void bauMenueEintraegeZeichnen();      // Build_constructMenu
+void bauStarten(std::size_t index);    // RunBSP
+void bauZuletztStarten();              // Build_runRecentExecutedBuild
+void bauAusfuehren(const std::vector<std::string>& befehle);   // BuildMonitor_Run
+void bauDialogZeichnen();              // BuildMenuDialog_construct (jedes Bild)
+struct BauDialogStand {                // fuer den Selbsttest
+    bool offen = false;
+    int aktuell = -1;
+    int befehlAktuell = -1;
+    bool variablenOffen = false;
+    int bearbeitet = 0;
+    bool kopiertSichtbar = false;
+};
+[[nodiscard]] BauDialogStand bauDialogStand();
+// Bildpunkt (Mitte) einer Zeile im letzten Bild: liste 1 Eintraege, 2 Befehle,
+// 3 Konstanten, 4 Werkzeuge (Tabellen: Spalte 0 oder 1).
+[[nodiscard]] ImVec2 bauDialogZeile(int liste, int zeile, int spalte = 0);
+[[nodiscard]] ImVec2 bauDialogPunkt(int x, int y);   // logischer Punkt im Dialog -> Bildpunkt
 
 // Konsole (app_karte_konsole.cpp): Sys_Print - Text an das Ende, '\n'
 // beendet die Zeile; ausgabe/warnung/fehler schreiben eine ganze Zeile

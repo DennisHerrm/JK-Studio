@@ -28297,6 +28297,7 @@ void karteDialogeZu() {
     e.ent.listeOffen = false;
     e.ent.farbDialog.offen = false;
     e.ent.lichtOffen = false;
+    e.bauDialogOffen = false;
     if (e.frageOffen) {
         std::function<void()> danach = std::move(e.nachFrage);
         e.nachFrage = nullptr;
@@ -32652,6 +32653,415 @@ std::vector<Schritt> teiler() {
     return s;
 }
 
+
+// --- Punkt 3: Build-Menue und der Dialog "Build Menu" -------------------------
+
+// Die Testkarte von tools/karte/gen_q3map2_testkarten.py (raum.map: zwei Raeume
+// mit Durchgang, zwei Lichter, Detail-Saeule, Tuer, Patch; leck: Loch in der
+// Ostwand) - derselbe Text.
+std::string raumKarte(bool leck) {
+    const auto kasten = [](int x0, int y0, int z0, int x1, int y1, int z1, const char* tex, int inhalt) {
+        char t[96];
+        std::snprintf(t, sizeof(t), "%s 0 0 0 0.5 0.5 %d 0 0", tex, inhalt);
+        char z[6][200];
+        std::snprintf(z[0], sizeof(z[0]), "( %d %d %d ) ( %d %d %d ) ( %d %d %d ) %s", x1, y1, z1, x1, y0, z1, x0, y1, z1, t);
+        std::snprintf(z[1], sizeof(z[1]), "( %d %d %d ) ( %d %d %d ) ( %d %d %d ) %s", x1, y1, z1, x0, y1, z1, x1, y1, z0, t);
+        std::snprintf(z[2], sizeof(z[2]), "( %d %d %d ) ( %d %d %d ) ( %d %d %d ) %s", x1, y1, z1, x1, y1, z0, x1, y0, z1, t);
+        std::snprintf(z[3], sizeof(z[3]), "( %d %d %d ) ( %d %d %d ) ( %d %d %d ) %s", x0, y0, z0, x1, y0, z0, x0, y1, z0, t);
+        std::snprintf(z[4], sizeof(z[4]), "( %d %d %d ) ( %d %d %d ) ( %d %d %d ) %s", x0, y0, z0, x0, y0, z1, x1, y0, z0, t);
+        std::snprintf(z[5], sizeof(z[5]), "( %d %d %d ) ( %d %d %d ) ( %d %d %d ) %s", x0, y0, z0, x0, y1, z0, x0, y0, z1, t);
+        std::vector<std::string> v(std::begin(z), std::end(z));
+        return v;
+    };
+    std::vector<std::string> zeilen = {"// entity 0", "{", "\"classname\" \"worldspawn\"", "\"message\" \"BehavEd q3map2 test\"",
+                                       "\"_color\" \"1 0.95 0.9\"", "\"ambient\" \"8\""};
+    std::vector<std::vector<std::string>> pinsel;
+    pinsel.push_back(kasten(-528, -272, -16, 528, 272, 0, "test/boden", 0));
+    pinsel.push_back(kasten(-528, -272, 256, 528, 272, 272, "test/decke", 0));
+    pinsel.push_back(kasten(-528, 256, 0, 528, 272, 256, "test/wand", 0));
+    pinsel.push_back(kasten(-528, -272, 0, 528, -256, 256, "test/wand", 0));
+    pinsel.push_back(kasten(-528, -256, 0, -512, 256, 256, "test/wand", 0));
+    if (leck) {
+        pinsel.push_back(kasten(512, -256, 0, 528, -32, 256, "test/wand", 0));
+        pinsel.push_back(kasten(512, 32, 0, 528, 256, 256, "test/wand", 0));
+        pinsel.push_back(kasten(512, -32, 0, 528, 32, 64, "test/wand", 0));
+        pinsel.push_back(kasten(512, -32, 128, 528, 32, 256, "test/wand", 0));
+    } else {
+        pinsel.push_back(kasten(512, -256, 0, 528, 256, 256, "test/wand", 0));
+    }
+    pinsel.push_back(kasten(-8, -256, 0, 8, -64, 256, "test/mitte", 0));
+    pinsel.push_back(kasten(-8, 64, 0, 8, 256, 256, "test/mitte", 0));
+    pinsel.push_back(kasten(-8, -64, 128, 8, 64, 256, "test/mitte", 0));
+    pinsel.push_back(kasten(-288, -32, 0, -224, 32, 256, "test/saeule", 134217728));
+    for (std::size_t i = 0; i < pinsel.size(); ++i) {
+        zeilen.push_back("// brush " + std::to_string(i));
+        zeilen.emplace_back("{");
+        for (const std::string& z : pinsel[i]) { zeilen.push_back(z); }
+        zeilen.emplace_back("}");
+    }
+    for (const char* z : {"{", "patchDef2", "{", "test/patch", "( 3 3 0 0 0 )", "(", "( ( 128 -192 0 0 0 ) ( 128 -128 96 0 0.5 ) ( 128 -64 0 0 1 ) )",
+                          "( ( 256 -192 0 0.5 0 ) ( 256 -128 96 0.5 0.5 ) ( 256 -64 0 0.5 1 ) )",
+                          "( ( 384 -192 0 1 0 ) ( 384 -128 96 1 0.5 ) ( 384 -64 0 1 1 ) )", ")", "}", "}", "}"}) {
+        if (std::string(z) == "{" && zeilen.back().rfind("// brush", 0) != 0 && zeilen.back() == "}") { zeilen.push_back("// brush " + std::to_string(pinsel.size())); }
+        zeilen.emplace_back(z);
+    }
+    for (const char* z : {"// entity 1", "{", "\"classname\" \"info_player_start\"", "\"origin\" \"-384 128 24\"", "\"angle\" \"0\"", "}",
+                          "// entity 2", "{", "\"classname\" \"light\"", "\"origin\" \"-256 -160 192\"", "\"light\" \"400\"", "}",
+                          "// entity 3", "{", "\"classname\" \"light\"", "\"origin\" \"256 160 192\"", "\"light\" \"300\"",
+                          "\"_color\" \"0.6 0.8 1\"", "}", "// entity 4", "{", "\"classname\" \"func_door\"", "\"angle\" \"-1\"",
+                          "\"targetname\" \"tuer\"", "// brush 0", "{"}) {
+        zeilen.emplace_back(z);
+    }
+    for (const std::string& z : kasten(384, 128, 0, 448, 192, 96, "test/tuer", 0)) { zeilen.push_back(z); }
+    zeilen.emplace_back("}");
+    zeilen.emplace_back("}");
+    std::string text;
+    for (const std::string& z : zeilen) { text += z + "\n"; }
+    return text;
+}
+
+// Eine Testkarte als Datei im Laufordner (s3bau/<name>.map) und im Editor offen
+std::string raumKarteOeffnen(const char* name, bool leck) {
+    const std::filesystem::path ordner = std::filesystem::current_path() / "s3bau";
+    std::error_code ec;
+    std::filesystem::create_directories(ordner, ec);
+    const std::filesystem::path p = ordner / (std::string(name) + ".map");
+    {
+        std::ofstream f(p, std::ios::binary | std::ios::trunc);
+        const std::string t = raumKarte(leck);
+        f.write(t.data(), static_cast<std::streamsize>(t.size()));
+    }
+    (void)ke::karteOeffnen(p.string());
+    return p.string();
+}
+
+std::function<ImVec2()> bauZeile(int liste, int zeile, int spalte = 0) {
+    return [liste, zeile, spalte] { return ke::bauDialogZeile(liste, zeile, spalte); };
+}
+
+std::vector<std::string> bauNamen() {
+    std::vector<std::string> v;
+    for (const auto& b : ke::editor().bauProjekt.eintraege) { v.push_back(b.name); }
+    return v;
+}
+
+const ke::Editor::Rechteck* bauFeld(const std::string& name) {
+    for (const auto& r : ke::editor().felderImBild) {
+        if (r.name == name) { return &r; }
+    }
+    return nullptr;
+}
+
+std::string konsoleText() {
+    std::string t;
+    for (const ke::KonsolenZeile& z : ke::editor().konsole) { t += z.text + "\n"; }
+    return t;
+}
+
+// Eine Zeile der Eintragsliste auf eine andere ziehen (obere Haelfte = davor),
+// mit Strg kopieren; nach >= 99: unter die Liste.
+Schritt bauZiehen(const std::string& was, int von, int nach, bool strg) {
+    auto a = std::make_shared<ImVec2>();
+    auto z = std::make_shared<ImVec2>();
+    return {"Ziehe " + was, [=](int b) {
+                ImGuiIO& io = ImGui::GetIO();
+                if (b == 0) {
+                    *a = ke::bauDialogZeile(1, von);
+                    const ImVec2 n = ke::bauDialogZeile(1, std::min(nach, 40));
+                    const float zh = ke::bauDialogZeile(1, 1).y - ke::bauDialogZeile(1, 0).y;
+                    *z = nach >= 99 ? ImVec2{n.x, n.y + zh * 20.0F} : ImVec2{n.x, n.y - zh * 0.25F};
+                    setzeMaus(*a);
+                    return false;
+                }
+                if (b == 1 && strg) { io.AddKeyEvent(ImGuiMod_Ctrl, true); return false; }
+                if (b == 2) { io.AddMouseButtonEvent(0, true); return false; }
+                if (b >= 3 && b <= 14) {
+                    const float f = static_cast<float>(b - 2) / 12.0F;
+                    setzeMaus(ImVec2{a->x + (z->x - a->x) * f, a->y + (z->y - a->y) * f});
+                    return false;
+                }
+                if (b == 15) { io.AddMouseButtonEvent(0, false); return false; }
+                if (b == 16 && strg) { io.AddKeyEvent(ImGuiMod_Ctrl, false); return false; }
+                return b >= 20;
+            }};
+}
+
+std::vector<Schritt> baumenue() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    static const std::vector<std::string> kJa = {"Single: bsp stage", "Single: vis stage", "Single: light stage", "-", "Entity-Only compile", "-",
+                                                 "convert to .ASE model", "convert to .OBJ model", "-", "Export Lightmaps", "Import Lightmaps",
+                                                 "Create .pk3", "-", "[Test] Quick and Crude", "[Test] Floodlight", "[Final] Fast",
+                                                 "[Final] Extreme Quality"};
+    add(tu("Stufe 3/3: eigene build_menu.xml weg, Build-Menue frisch (default_build_menu.xml)", [] {
+        karteDialogeZu();
+        ke::Editor& e = ke::editor();
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::path(ke::bauMenueDateiPfad()), ec);
+        g_app->settings.karte.erase("BuildMenu");
+        g_app->settings.karte.erase("BuildMenu/geometry");
+        e.bauProjektFuer = -2;
+        e.bauGeaendert = false;
+        ke::bauMenueSicherstellen();
+        raumKarteOeffnen("raum", false);
+    }));
+    add(pause(0.3));
+    add(pruefe("Build-Menue: die 17 Eintraege der default_build_menu.xml (JA), Trenner an ihrer Stelle", [] {
+        diag::detail("Knopftest: Stufe 3/3 Eintraege: " + std::to_string(bauNamen().size()) + ", Datei " + ke::bauMenueDateiPfad());
+        return bauNamen() == kJa && ke::editor().bauMenueName == "build_menu.xml";
+    }));
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.25));
+    add(pruefe("Build: Customize..., Run recent build und alle Eintraege anklickbar im Menue", [] {
+        bool ok = finde(ke::trK(Str::KeLCustomize), "##Menu_", 0, false) != nullptr &&
+                  finde(ke::trK(Str::KeLRunRecentBuild), "##Menu_", 0, false) != nullptr;
+        std::string fehlt;
+        for (const std::string& n : kJa) {
+            if (n == "-") { continue; }
+            const Element* el = finde(n, "##Menu_", 0, false);
+            if (el == nullptr) { fehlt += " " + n; }
+            ok = ok && el != nullptr;
+        }
+        if (!fehlt.empty()) { diag::detail("Knopftest: Stufe 3/3 fehlt im Menue:" + fehlt); }
+        return ok;
+    }));
+    add(foto("karteneditor_s3_build_menue"));
+    add(klick(ke::trK(Str::KeLCustomize), "##Menu_", 0, false));
+    add(pause(0.4));
+    add(pruefe("Customize...: der Dialog \"Build Menu\" ist offen, 700 x 500 wie NRC (g_guiSettings 700, 500)", [] {
+        const auto* d = bauFeld("Bau:Dialog");
+        if (d != nullptr) { diag::detail("Knopftest: Stufe 3/3 Dialog " + std::to_string(d->b) + " x " + std::to_string(d->h)); }
+        return ke::bauDialogStand().offen && d != nullptr && d->b == 700 && d->h == 500;
+    }));
+    add(pruefe("Dialog: Lagen wie im Foto dlg_Build_Customize_0 (OK 611/9 80x22, Cancel 37, Reset 65, Liste 21/37 572x276, Befehle 21/359 572x73, Variablen 9/450 h 41)", [] {
+        const auto r = [](const char* n, int x, int y, int b, int h) {
+            const auto* f = bauFeld(n);
+            const bool ok = f != nullptr && f->x == x && f->y == y && f->b == b && f->h == h;
+            if (!ok && f != nullptr) {
+                diag::detail(std::string("Knopftest: Stufe 3/3 ") + n + " " + std::to_string(f->x) + "/" + std::to_string(f->y) + " " +
+                             std::to_string(f->b) + "x" + std::to_string(f->h));
+            }
+            return ok;
+        };
+        return r("Bau:OK", 611, 9, 80, 22) && r("Bau:Cancel", 611, 37, 80, 22) && r("Bau:Reset", 611, 65, 80, 22) &&
+               r("Bau:Eintraege", 21, 37, 572, 276) && r("Bau:Befehle", 21, 359, 572, 73) && r("Bau:Variablen", 9, 450, 596, 41);
+    }));
+    add(foto("karteneditor_s3_build_customize"));
+    // Wahl: [Final] Fast -> drei Befehle und "+"
+    add(klickAn("Eintrag [Final] Fast", bauZeile(1, 15)));
+    add(pause(0.2));
+    add(pruefe("Klick auf [Final] Fast: gewaehlt, die Befehlsliste zeigt seine drei Befehle (Hoehe 4 Zeilen: 73)", [] {
+        const auto* f = bauFeld("Bau:Befehle");
+        return ke::bauDialogStand().aktuell == 15 && f != nullptr && f->h == 73;
+    }));
+    // Neuer Eintrag ueber "+" (project_cell_edited: add new). Die Liste rollt (18 Zeilen > 17 sichtbar).
+    add(radAn("Liste nach unten rollen", bauZeile(1, 8), -5.0F));
+    add(klickAn("\"+\" doppelt (Zeile 17)", bauZeile(1, 17), 0, true));
+    add(pause(0.2));
+    add(pruefe("Doppelklick auf \"+\": Bearbeiten an Ort und Stelle", [] { return ke::bauDialogStand().bearbeitet == 1; }));
+    add(tippe("Mein Bau"));
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(0.2));
+    add(pruefe("\"Mein Bau\" + Enter: neuer Eintrag am Ende (18), gewaehlt", [] {
+        const auto n = bauNamen();
+        return n.size() == 18 && n.back() == "Mein Bau" && ke::bauDialogStand().aktuell == 17;
+    }));
+    add(klickAn("\"+\" der Befehle doppelt", bauZeile(2, 0), 0, true));
+    add(pause(0.2));
+    add(tippe("[q3map2] -meta \"[MapFile]\""));
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(0.2));
+    add(pruefe("Befehl ueber \"+\": [q3map2] -meta \"[MapFile]\" haengt an \"Mein Bau\" (der Tooltip im Menue)", [] {
+        const auto& e = ke::editor().bauProjekt.eintraege;
+        return !e.empty() && e.back().befehle == std::vector<std::string>{"[q3map2] -meta \"[MapFile]\""} &&
+               karte::bauTooltip(e.back()) == "[q3map2] -meta \"[MapFile]\"";
+    }));
+    // Umbenennen mit F2
+    add(radAn("Liste nach unten rollen", bauZeile(1, 8), -5.0F));
+    add(klickAn("Eintrag Mein Bau", bauZeile(1, 17)));
+    add(taste(ImGuiKey_F2, "F2"));
+    add(pause(0.2));
+    add(tippe("Mein Bau 2"));
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(0.2));
+    add(pruefe("F2: umbenannt in \"Mein Bau 2\"", [] { return bauNamen().size() == 18 && bauNamen().back() == "Mein Bau 2"; }));
+    // Kopieren und Einfuegen (vor dem aktuellen)
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_C, "Ctrl+C"));
+    add(radAn("Liste nach oben rollen", bauZeile(1, 8), 5.0F));
+    add(klickAn("Eintrag Single: bsp stage", bauZeile(1, 0)));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_V, "Ctrl+V"));
+    add(pause(0.2));
+    add(pruefe("Ctrl+C / Ctrl+V: die Kopie steht vor dem gewaehlten Eintrag (Stelle 0), mit ihrem Befehl", [] {
+        const auto& e = ke::editor().bauProjekt.eintraege;
+        return e.size() == 19 && e[0].name == "Mein Bau 2" && e[0].befehle.size() == 1 && e[1].name == "Single: bsp stage";
+    }));
+    // Entfernen (erst nach der Doppelklickzeit: derselbe Ort wie eben)
+    add(pause(0.5));
+    add(klickAn("Eintrag 0 (die Kopie)", bauZeile(1, 0)));
+    add(taste(ImGuiKey_Delete, "Entf"));
+    add(pause(0.2));
+    add(pruefe("Entf: die Kopie ist weg, 18 Eintraege", [] {
+        std::string n;
+        for (const std::string& x : bauNamen()) { n += x + "|"; }
+        diag::detail("Knopftest: Stufe 3/3 Eintraege: " + n);
+        return bauNamen().size() == 18 && bauNamen()[0] == "Single: bsp stage";
+    }));
+    // Ziehen (InternalMove) und Strg+Ziehen (DragDrop = kopieren)
+    add(bauZiehen("[Final] Fast vor [Test] Quick and Crude", 15, 13, false));
+    add(pause(0.2));
+    add(pruefe("Ziehen: [Final] Fast steht vor [Test] Quick and Crude", [] {
+        const auto n = bauNamen();
+        return n.size() == 18 && n[13] == "[Final] Fast" && n[14] == "[Test] Quick and Crude";
+    }));
+    add(bauZiehen("Strg: Single: bsp stage vor Zeile 2 kopieren", 0, 2, true));
+    add(pause(0.2));
+    add(pruefe("Strg+Ziehen: eine Kopie an Stelle 2, das Original bleibt an 0", [] {
+        const auto n = bauNamen();
+        return n.size() == 19 && n[0] == "Single: bsp stage" && n[2] == "Single: bsp stage" && n[1] == "Single: vis stage";
+    }));
+    add(bauZiehen("unter \"+\" ziehen tut nichts (positionBelowLast)", 0, 99, false));
+    add(pause(0.2));
+    add(pruefe("Ziehen unter die letzte Zeile: abgewiesen, nichts verschoben", [] { return bauNamen().size() == 19 && bauNamen()[0] == "Single: bsp stage"; }));
+    // Variablen
+    add(klickAn("Build Variables ankreuzen", [] { return ke::bauDialogPunkt(17, 457); }));
+    add(pause(0.3));
+    add(pruefe("Build Variables: aufgeklappt, Konstanten [BspFile] .. [UserEnginePath] (10), Werkzeuge mit \"+\"", [] {
+        const auto* k = bauFeld("Bau:Konstanten");
+        const auto* w = bauFeld("Bau:Werkzeuge");
+        return ke::bauDialogStand().variablenOffen && k != nullptr && w != nullptr && k->h == 10 * 20 + 2 && w->h == 2 * 20 + 2;
+    }));
+    add(pruefe("Konstanten wie build_init_variables: RadiantPath = Programmordner, MapFile = die Karte, MonitorAddress 127.0.0.1:39000, GameName base", [] {
+        const karte::BauVariablen v = ke::bauVariablen();
+        std::string prog = platform::executableDirectory();
+        std::replace(prog.begin(), prog.end(), '\\', '/');
+        while (!prog.empty() && prog.back() == '/') { prog.pop_back(); }
+        const std::string karte = ke::bauKartenPfad();
+        diag::detail("Knopftest: Stufe 3/3 RadiantPath " + v.at("RadiantPath") + ", MapFile " + v.at("MapFile") + ", GameName " + v.at("GameName"));
+        // GameName: gamename_get; beim Regelwerk Movie Duels der Ordner der Mod (MD)
+        const std::string spiel = ke::kartenSpielNummer() == kRegelwerkMovieDuels ? "MD" : "base";
+        return v.size() == 10 && v.at("RadiantPath") == prog + "/" && v.at("ExecutableType") == "exe" && v.at("MapFile") == karte &&
+               karte.size() > 14 && karte.compare(karte.size() - 14, 14, "s3bau/raum.map") == 0 && v.at("BspFile").find("s3bau/raum.bsp") != std::string::npos &&
+               v.at("MapName") == "raum.map" && v.at("MonitorAddress") == "127.0.0.1:39000" && v.at("GameName") == spiel;
+    }));
+    add(klickAn("[MapFile] anklicken (Spalte 0)", bauZeile(3, 5, 0)));
+    add(pause(0.15));
+    add(pruefe("Klick auf [MapFile]: \"[MapFile]\" in der Zwischenablage, Tooltip \"Copied to clipboard.\"", [] {
+        const char* c = ImGui::GetClipboardText();
+        return c != nullptr && std::string(c) == "[MapFile]" && ke::bauDialogStand().kopiertSichtbar;
+    }));
+    add(pruefe("Werkzeug q3map2 ausgewertet: \"<Programm>/bhed_q3map2.exe\" -v ... -connect 127.0.0.1:39000 -game ja -fs_basepath ... -fs_game base", [] {
+        karte::BauVariablen v = ke::bauVariablen();
+        karte::bauWerkzeugeAuswerten(ke::editor().bauProjekt, v);
+        const std::string& q = v["q3map2"];
+        diag::detail("Knopftest: Stufe 3/3 q3map2 = " + q);
+        return q.rfind("\"" + v["RadiantPath"] + "bhed_q3map2.exe\" -v -connect 127.0.0.1:39000 -game ja -fs_basepath \"", 0) == 0 &&
+               q.find("\" -fs_game " + v["GameName"]) != std::string::npos;
+    }));
+    add(foto("karteneditor_s3_build_variablen"));
+    // Editables: ein Werkzeug ueber "+" (CustomDelegate0), dann sein Wert (CustomDelegate1)
+    add(klickAn("Editables \"+\" doppelt (Spalte 0)", bauZeile(4, 1, 0), 0, true));
+    add(pause(0.2));
+    add(tippe("zzwz"));
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(0.2));
+    add(pruefe("neues Werkzeug zzwz (insert), leer", [] { return ke::editor().bauProjekt.werkzeuge.count("zzwz") == 1; }));
+    add(klickAn("Wert von zzwz doppelt (Spalte 1)", bauZeile(4, 1, 1), 0, true));
+    add(pause(0.2));
+    add(tippe("[q3map2] -x <cond value=\"[GameName]\">-y</cond>"));
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(0.2));
+    add(pruefe("Wert von zzwz als XML gelesen: ausgewertet = q3map2 + \" -x -y\" (vorher definierte Werkzeuge gelten)", [] {
+        karte::BauVariablen v = ke::bauVariablen();
+        karte::bauWerkzeugeAuswerten(ke::editor().bauProjekt, v);
+        return v["zzwz"] == v["q3map2"] + " -x -y";
+    }));
+    // Cancel: alles zurueck
+    add(klick(ke::trK(Str::KeCancel), "###kartebaumenue"));
+    add(pause(0.3));
+    add(pruefe("Cancel: zu, und alles wie vorher (17 Eintraege, kein Mein Bau, kein zzwz, Reihenfolge)", [] {
+        return !ke::bauDialogStand().offen && bauNamen() == kJa && ke::editor().bauProjekt.werkzeuge.count("zzwz") == 0;
+    }));
+    // OK: der neue Eintrag bleibt und wird beim Beenden gespeichert
+    add(tu("Customize... (BuildMenuCustomize)", [] { (void)ke::ausfuehren("BuildMenuCustomize"); }));
+    add(pause(0.4));
+    add(radAn("Liste nach unten rollen", bauZeile(1, 8), -5.0F));
+    add(klickAn("\"+\" doppelt", bauZeile(1, 17), 0, true));
+    add(pause(0.2));
+    add(tippe("Test OK"));
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KePrefOk), "###kartebaumenue"));
+    add(pause(0.3));
+    add(pruefe("OK: zu, \"Test OK\" bleibt, g_build_changed", [] {
+        return !ke::bauDialogStand().offen && bauNamen().size() == 18 && bauNamen().back() == "Test OK" && ke::editor().bauGeaendert;
+    }));
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.25));
+    add(pruefe("... und im Build-Menue (Build_refreshMenu)", [] { return finde("Test OK", "##Menu_", 0, false) != nullptr; }));
+    add(tu("Menue zu", [] { karteDialogeZu(); }));
+    add(pause(0.2));
+    add(tu("SaveBuildMenu (wie beim Beenden: BuildMenu_Destroy)", [] { ke::bauMenueSpeichern(); }));
+    add(pruefe("build_menu.xml im Einstellungsordner mit <build name=\"Test OK\">, BuildMenu = build_menu.xml; beim naechsten Start gelesen", [] {
+        std::ifstream f(std::filesystem::path(ke::bauMenueDateiPfad()), std::ios::binary);
+        std::ostringstream o;
+        o << f.rdbuf();
+        const bool inDatei = o.str().find("<build name=\"Test OK\">") != std::string::npos && o.str().find("\r\n") != std::string::npos;
+        ke::Editor& e = ke::editor();
+        e.bauProjektFuer = -2;   // wie ein Neustart: BuildMenu_Construct
+        ke::bauMenueSicherstellen();
+        diag::detail("Knopftest: Stufe 3/3 gespeichert in " + ke::bauMenueDateiPfad());
+        return inDatei && g_app->settings.karte["BuildMenu"] == "build_menu.xml" && bauNamen().size() == 18 && bauNamen().back() == "Test OK";
+    }));
+    // Reset: zurueck auf den Stand der Datei (Start des Editors)
+    add(tu("Customize..., Eintrag 0 entfernen", [] { (void)ke::ausfuehren("BuildMenuCustomize"); }));
+    add(pause(0.4));
+    add(radAn("Liste nach oben rollen", bauZeile(1, 8), 5.0F));
+    add(klickAn("Eintrag 0", bauZeile(1, 0)));
+    add(taste(ImGuiKey_Delete, "Entf"));
+    add(pause(0.2));
+    add(pruefe("Entf im Dialog: 17 Eintraege", [] { return bauNamen().size() == 17; }));
+    add(klick(ke::trK(Str::KeReset), "###kartebaumenue"));
+    add(pause(0.3));
+    add(pruefe("Reset: zu, das Projekt aus der Datei (18 mit Test OK) - \"Reset to editor start state\"", [] {
+        return !ke::bauDialogStand().offen && bauNamen().size() == 18 && bauNamen()[0] == "Single: bsp stage" && bauNamen().back() == "Test OK";
+    }));
+    // Bauen: ein Menuepunkt und Run recent build (F5) - Punkt 3: die Befehle in der Konsole
+    add(tu("Konsole leeren", [] { ke::konsoleLeeren(); }));
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.25));
+    add(klick("[Final] Fast", "##Menu_", 0, false));
+    add(pause(0.4));
+    add(pruefe("Build > [Final] Fast: die Karte gespeichert, drei Befehle ausgewertet (q3map2 mit -meta, -vis, -light ... \"<Karte>\")", [] {
+        const std::string k = konsoleText();
+        const std::string karte = ke::bauKartenPfad();
+        diag::detail("Knopftest: Stufe 3/3 Konsole: " + k.substr(0, std::min<std::size_t>(k.size(), 600)));
+        std::size_t n = 0;
+        for (std::size_t p = 0; (p = k.find("=== running build command ===", p)) != std::string::npos; ++p) { ++n; }
+        return n >= 3 && k.find("bhed_q3map2.exe\" -v") != std::string::npos && k.find(" -meta \"" + karte + "\"") != std::string::npos &&
+               k.find(" -vis \"" + karte + "\"") != std::string::npos && k.find(" -light -fast -patchshadows -samples 2 -filter -bounce 8 \"" + karte + "\"") != std::string::npos &&
+               ke::editor().bauZuletzt == 15;
+    }));
+    add(tu("Konsole leeren", [] { ke::konsoleLeeren(); }));
+    add(klickAn("in XY (Fokus)", feldMitte("XY"), 2));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(tasteKombi(ImGuiKey_F5, "F5"));
+    add(pause(0.4));
+    add(pruefe("F5 (Run recent build): noch einmal [Final] Fast", [] {
+        const std::string k = konsoleText();
+        return k.find(" -light -fast -patchshadows -samples 2 -filter -bounce 8 ") != std::string::npos && ke::editor().bauZuletzt == 15;
+    }));
+    add(tu("Aufraeumen: build_menu.xml weg, Vorgabe neu", [] {
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::path(ke::bauMenueDateiPfad()), ec);
+        ke::Editor& e = ke::editor();
+        e.bauProjektFuer = -2;
+        e.bauGeaendert = false;
+        g_app->settings.karte.erase("BuildMenu");
+        ke::bauMenueSicherstellen();
+    }));
+    return s;
+}
+
 }  // namespace stufe3
 
 std::vector<Schritt> karteneditorStufe3Schritte() {
@@ -32663,9 +33073,15 @@ std::vector<Schritt> karteneditorStufe3Schritte() {
         for (Schritt& x : stufe3::teiler()) { s.push_back(std::move(x)); }
         return s;
     }
+    // BHED_STUFE3_NUR=bau: nur Build-Menue und Bauen (Punkte 3 ff.)
+    if (nur != nullptr && std::strcmp(nur, "bau") == 0) {
+        for (Schritt& x : stufe3::baumenue()) { s.push_back(std::move(x)); }
+        return s;
+    }
     for (Schritt& x : stufe3::leiste()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe3::maus()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe3::teiler()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe3::baumenue()) { s.push_back(std::move(x)); }
     return s;
 }
 

@@ -99,6 +99,12 @@ CheckForUpdate OpenManual
 AutoCaulkSelected
 '''.split())
 
+# Stufe 3: fertig nachgebaut (gepflegt beim Nachbauen) - gelten als fertig (Stufe 1).
+STUFE_3_FERTIG = set('''
+CheckForUpdate OpenManual
+BuildMenuCustomize Build_runRecentExecutedBuild
+'''.split())
+
 QT_TASTEN = {
     'Key_Plus': '+', 'Key_Minus': '-', 'Key_1': '1', 'Key_3': '3', 'Key_7': '7',
 }
@@ -126,7 +132,7 @@ def qt_text(ausdruck):
 
 
 def stufe(name):
-    if name in STUFE_1B or name in STUFE_2_FERTIG:
+    if name in STUFE_1B or name in STUFE_2_FERTIG or name in STUFE_3_FERTIG:
         return 1
     if name in STUFE_3 or '::' in name:
         return 3

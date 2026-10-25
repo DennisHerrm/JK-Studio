@@ -1,13 +1,19 @@
 <?xml version="1.0"?>
 <!--
+BehavEd-Remake (Stufe 3): q3map2 is built from NetRadiant-Custom 20260114 as
+bhed_q3map2.exe next to behaved.exe, so [RadiantPath]q3map2 became
+[RadiantPath]bhed_q3map2. To use another q3map2, edit the variable in
+Build > Customize... > Build Variables.
+-->
+<!--
 build commands
 [RadiantPath]: path to Radiant .. C:\Program Files\Gtkradiant
 [EnginePath]: path to the engine .. C:\quake3\ C:\Program Files\Quake III Arena\ /usr/local/games/quake3/
 -->
 <project version="2.0">
-  <var name="bsp">"[RadiantPath]q3map2.[ExecutableType]" -v<cond value="[MonitorAddress]"> -connect [MonitorAddress]</cond> -game jk2 -fs_basepath "[EnginePath]"</var>
-  <var name="vis">"[RadiantPath]q3map2.[ExecutableType]"<cond value="[MonitorAddress]"> -connect [MonitorAddress]</cond> -game jk2 -fs_basepath "[EnginePath]" -vis</var>
-  <var name="light">"[RadiantPath]q3map2.[ExecutableType]" -v<cond value="[MonitorAddress]"> -connect [MonitorAddress]</cond> -game jk2 -fs_basepath "[EnginePath]" -light</var>
+  <var name="bsp">"[RadiantPath]bhed_q3map2.[ExecutableType]" -v<cond value="[MonitorAddress]"> -connect [MonitorAddress]</cond> -game jk2 -fs_basepath "[EnginePath]"</var>
+  <var name="vis">"[RadiantPath]bhed_q3map2.[ExecutableType]"<cond value="[MonitorAddress]"> -connect [MonitorAddress]</cond> -game jk2 -fs_basepath "[EnginePath]" -vis</var>
+  <var name="light">"[RadiantPath]bhed_q3map2.[ExecutableType]" -v<cond value="[MonitorAddress]"> -connect [MonitorAddress]</cond> -game jk2 -fs_basepath "[EnginePath]" -light</var>
   
   <build name="Q3Map2: (single) BSP -meta">
   <command>[bsp] -meta "[MapFile]"</command>

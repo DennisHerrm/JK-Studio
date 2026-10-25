@@ -204,84 +204,6 @@ void grauerPunkt(const char* text, const std::string& tooltip, QtArt art = QtArt
     (void)qtPunkt(p);
 }
 
-// --- Build-Menue (build.cpp:1224 Build_constructMenu) ---------------------------
-//
-// LoadBuildMenu (build.cpp:1276-1293): ohne eigene build_menu.xml die
-// default_build_menu.xml des Spiels (NRC gamepacks/ja.game bzw. jk2.game,
-// hier data/karte/ja und data/karte/jk2). <build name> wird ein Eintrag mit
-// den Befehlen als Tooltip, <separator/> ein Trenner. Ausfuehren kommt mit
-// dem Kompilieren (Stufe 3).
-struct BuildEintrag {
-    std::string name;   // leer = Trenner
-    std::string befehle;
-};
-
-std::string xmlText(const std::string& s) {
-    std::string out;
-    for (std::size_t i = 0; i < s.size(); ++i) {
-        if (s[i] != '&') {
-            out.push_back(s[i]);
-            continue;
-        }
-        static const char* const kEnt[][2] = {{"&amp;", "&"}, {"&lt;", "<"}, {"&gt;", ">"}, {"&quot;", "\""}, {"&apos;", "'"}};
-        bool ersetzt = false;
-        for (const auto& en : kEnt) {
-            if (s.compare(i, std::strlen(en[0]), en[0]) == 0) {
-                out += en[1];
-                i += std::strlen(en[0]) - 1;
-                ersetzt = true;
-                break;
-            }
-        }
-        if (!ersetzt) { out.push_back('&'); }
-    }
-    return out;
-}
-
-const std::vector<BuildEintrag>& buildEintraege() {
-    static std::vector<BuildEintrag> liste;
-    static int fuer = -2;
-    if (fuer == e().spielStand) { return liste; }
-    fuer = e().spielStand;
-    liste.clear();
-    const std::string datei = directoryOf(g_app->dataDir) +
-                              (e().spielStand == kRegelwerkJediOutcast ? "/karte/jk2" : "/karte/ja") + "/default_build_menu.xml";
-    std::ifstream f(datei, std::ios::binary);
-    std::stringstream ss;
-    ss << f.rdbuf();
-    const std::string x = ss.str();
-    std::size_t pos = 0;
-    while ((pos = x.find('<', pos)) != std::string::npos) {
-        if (x.compare(pos, 4, "<!--") == 0) {
-            const std::size_t ende = x.find("-->", pos);
-            if (ende == std::string::npos) { break; }
-            pos = ende + 3;
-            continue;
-        }
-        if (x.compare(pos, 10, "<separator") == 0) {
-            liste.push_back({});
-        } else if (x.compare(pos, 7, "<build ") == 0) {
-            const std::size_t n = x.find("name=\"", pos);
-            const std::size_t ende = x.find("</build>", pos);
-            if (n == std::string::npos || ende == std::string::npos) { break; }
-            BuildEintrag b;
-            b.name = xmlText(x.substr(n + 6, x.find('"', n + 6) - (n + 6)));
-            // Tooltip: die Befehle, je eine Zeile (Build_constructMenu)
-            std::size_t c = pos;
-            while ((c = x.find("<command>", c)) != std::string::npos && c < ende) {
-                const std::size_t ce = x.find("</command>", c);
-                if (!b.befehle.empty()) { b.befehle += '\n'; }
-                b.befehle += xmlText(x.substr(c + 9, ce - (c + 9)));
-                c = ce;
-            }
-            liste.push_back(b);
-            pos = ende;
-        }
-        ++pos;
-    }
-    return liste;
-}
-
 // --- dynamische Listen ---------------------------------------------------------
 
 // themes/_colors/*.json (Directory_forEach, alphabetisch)
@@ -340,24 +262,7 @@ void listeZeichnen(const std::string& name) {
             if (qtPunkt(p)) { ed.bearbeitung.transformZuruecksetzen(i); }
         }
     } else if (name == "Build") {
-        bool letzterTrenner = true;   // der Trenner davor steht in der Tabelle
-        const auto& liste = buildEintraege();
-        for (std::size_t i = 0; i < liste.size(); ++i) {
-            const BuildEintrag& b = liste[i];
-            if (b.name.empty()) {
-                if (!letzterTrenner && i + 1 < liste.size()) { qtTrenner(); }
-                letzterTrenner = true;
-                continue;
-            }
-            const std::string id = b.name + "##build" + std::to_string(i);
-            QtPunkt p;
-            p.id = id.c_str();
-            p.nrc = b.name.c_str();
-            p.aktiv = false;
-            p.tooltip = b.befehle + "\n" + stufeText("BuildMenuCustomize");
-            (void)qtPunkt(p);
-            letzterTrenner = false;
-        }
+        bauMenueEintraegeZeichnen();   // Build_constructMenu (app_karte_bau.cpp)
     } else if (name == "Plugins") {
         // create_plugins_menu (pluginmenu.cpp:131) mit PluginsMenu_populate:
         // je Plugin ein Untermenue (Modulname), Eintraege von hinten nach

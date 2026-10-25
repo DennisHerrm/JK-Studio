@@ -298,6 +298,8 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     # Stufe 1b: der Arbeitsbereich Karten-Editor (NetRadiant-Custom)
     gui/app_karte.cpp
     gui/app_karte_befehle.cpp
+    # Stufe 3: Karten bauen (Build-Menue, Customize, RunBSP, Ueberwachung)
+    gui/app_karte_bau.cpp
     gui/app_karte_menue.cpp
     gui/app_karte_dialoge.cpp
     gui/app_karte_csg.cpp
@@ -372,6 +374,11 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
   endif()
 
   target_link_libraries(behaved PRIVATE bhed_core imgui opengl32 gdi32 imm32 dwmapi comdlg32 ole32 shell32 uuid version winmm winhttp)
+  # Stufe 3: das Build-Menue startet bhed_q3map2.exe neben behaved.exe - mit
+  # behaved immer mitbauen (lauf_wp.sh baut nur das Ziel behaved).
+  if(TARGET bhed_q3map2)
+    add_dependencies(behaved bhed_q3map2)
+  endif()
 
   if(BEHAVED_D3D11)
     target_compile_definitions(behaved PRIVATE BHED_WITH_D3D11)
@@ -740,7 +747,11 @@ target_sources(bhed_core PRIVATE
   # Stufe 1b: Texturen mit M3 kopieren und auftragen (TexManipulator, surfacedialog.cpp)
   src/karte/texturkopie.cpp
   # Stufe 1b: Entitaeten erzeugen, umwandeln, verbinden, Schluessel (entity.cpp, entityinspector.cpp)
-  src/karte/entitaetbefehle.cpp)
+  src/karte/entitaetbefehle.cpp
+  # Stufe 3: Build-Menue (build.cpp) und der XML-Leser dafuer und fuer den
+  # Rueckkanal von q3map2 (watchbsp.cpp)
+  src/karte/xmlstrom.cpp
+  src/karte/bau.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -890,6 +901,11 @@ if(BEHAVED_TESTS)
   # Punkte 3 und 4: die Befehlstabelle gegen die Checkliste (jeder Befehl mit
   # NRCs Taste, jeder Menuepunkt und Knopf), Uebersetzungen = NRC-Englisch,
   # Tastenkuerzel wie Qt (Text, possibleKeys, deutsche Tastatur).
+  # Stufe 3 Punkt 3: Build-Menue lesen, schreiben, auswerten (build.cpp) und
+  # der XML-Leser.
+  add_executable(kartebau tests/kartebau.cpp)
+  target_link_libraries(kartebau PRIVATE bhed_core)
+  add_test(NAME karte_bau COMMAND kartebau ${CMAKE_CURRENT_SOURCE_DIR}/data/karte)
   add_executable(kartebefehle tests/kartebefehle.cpp)
   target_link_libraries(kartebefehle PRIVATE bhed_core)
   add_test(NAME karte_befehle COMMAND kartebefehle ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.md)

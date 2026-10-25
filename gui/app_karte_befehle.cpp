@@ -173,6 +173,9 @@ std::map<std::string, Umsetzung>& umsetzungen() {
     m["OpenGLFont"] = {[] { e().schriftDialogOffen = true; }, nullptr};
     m["WXY_SetBackgroundImage"] = {[] { hintergrundBildDialog(); }, nullptr};
     m["OpenBugReportURL"] = {[] { kartenUrlOeffnen(bugReportUrl()); }, nullptr};
+    // --- Build (mainframe.cpp:2089-2090, build.cpp) ---
+    m["BuildMenuCustomize"] = {[] { e().bauDialogOffen = true; }, nullptr};   // DoBuildMenu
+    m["Build_runRecentExecutedBuild"] = {[] { bauZuletztStarten(); }, nullptr};
     m["DoAbout"] = {[] { e().ueberOffen = true; }, nullptr};
     // Stufe 3 Punkt 0b: OpenManual (mainframe.cpp:2069, F1; OpenHelpURL) oeffnet
     // das Handbuch des Programms auf der Seite des Karten-Editors,

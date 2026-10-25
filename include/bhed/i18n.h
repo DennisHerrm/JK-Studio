@@ -1763,6 +1763,14 @@ enum class Str {
     KeLScaling,
     KeLManual,
     KeLAboutBehavEd,
+    KeBmTitel,
+    KeBmGruppe,
+    KeBmBefehle,
+    KeBmVariablen,
+    KeBmKonstanten,
+    KeBmWerkzeuge,
+    KeBmResetTipp,
+    KeBmKopiert,
     Count,
 };
 

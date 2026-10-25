@@ -481,3 +481,70 @@ Byte-gleich n/m").
 | p2_rot | Nr. 8 aus (map.cpp unveraendert uebersetzt) | 2 Abweichungen: `leafbrushes` auf raum und raum_leck |
 | p2_rot7 | Nr. 7 aus (MSVCs std::sort) | 2 Abweichungen: raum_einfach `-light` `drawverts`, `lightmaps` |
 | p2_gruen7 | - | 0 Abweichungen; raum bsp 17/17 Pflicht + 10/10 Byte-gleich, vis 18/18 + 8/8, light 19/19 + 5/5; raum_leck 17/17 + 2/2; raum_einfach 26/26 je Stufe |
+
+## Punkt 3: Build-Menue wie NRC
+
+Kern ohne Oberflaeche: `include/bhed/karte/bau.h`, `src/karte/bau.cpp`
+(build.cpp: VariableString/Conditional/Tool, die XML-Leser mit dem
+ExtraResourcePaths-Kniff, build_construct_commands, ProjectXMLExporter wie
+XMLStreamWriter, version_compatible) und `include/bhed/karte/xmlstrom.h`,
+`src/karte/xmlstrom.cpp` (XML Stueck fuer Stueck wie der SAX-Leser von libxml2:
+Elemente, Attribute, Entities, CR LF -> LF; auch fuer den Rueckkanal von q3map2
+in Punkt 4). Oberflaeche: `gui/app_karte_bau.cpp` (Build_constructMenu mit den
+Befehlen als Tooltip, Build_runRecentExecutedBuild auf F5, der Dialog
+"Build Menu" = BuildMenuDialog_construct/DoBuildMenu, LoadBuildMenu/
+SaveBuildMenu, build_init_variables, RunBSP bis zu den Befehlen).
+
+- Gespeichert wie NRC erst beim Beenden (BuildMenu_Destroy) und nur, wenn
+  geaendert; Datei `<Einstellungen>\karte_<ja|jk2>_build_menu.xml` (NRC:
+  `settings/<spiel>.game/build_menu.xml`), Name in der Einstellung
+  `BuildMenu`; ohne eigene Datei die `default_build_menu.xml` des Spiels aus
+  `data/karte/<spiel>`. Reset liest die Datei neu ("Reset to editor start
+  state"), Cancel stellt Eintraege, Werkzeuge und den zuletzt gebauten Eintrag
+  wieder her. Fenstergroesse in `BuildMenu/geometry` (Vorgabe 700 x 500).
+- Dialog: Eintragsliste und Befehlsliste wie QTreeWidget_drag (Doppelklick/F2
+  bearbeitet an Ort und Stelle, leer = entfernen, "+" haengt an, Entf, Strg+C/
+  Strg+V vor dem aktuellen, Ziehen verschiebt, mit Strg kopiert, nicht unter
+  "+"), Befehlsliste 16 x max(Zeilen, 4) + 7 + 2 hoch; "Build Variables"
+  (flache, ankreuzbare Gruppe): Konstanten mit Kopiersymbol (Klick legt
+  "[Name]" in die Zwischenablage, Tooltip 666 ms), Werkzeuge mit "+" (Name:
+  CustomDelegate0, Wert als XML-Text: CustomDelegate1); OK / Cancel / Reset
+  (Tooltip). Modal wie QDialog::exec - das Build-Menue oeffnet sich solange
+  nicht. Waechst der Inhalt (Variablen aufgeklappt), waechst der Dialog.
+- Variablen wie build_init_variables: RadiantPath (Ordner von behaved.exe),
+  ExecutableType exe, EnginePath, UserEnginePath (leer: die .game haben kein
+  prefix), ExtraResourcePaths (` -fs_pakpath "..."` je zusaetzlichem Pfad),
+  MonitorAddress (127.0.0.1:39000 bei Ueberwachung), GameName, BspFile,
+  MapFile (bei aktiver Region die .reg), MapName.
+
+Abweichungen:
+- `data/karte/ja|jk2/default_build_menu.xml`: `[RadiantPath]bhed_q3map2` statt
+  `[RadiantPath]q3map2` (unser Programm; Kommentar in der Datei), der
+  ExtraResourcePaths-Kniff erkennt beide Namen.
+- `[GameName]`: beim Regelwerk Movie Duels ohne gesetztes fs_game der Ordner der
+  Mod (`MD`), sonst wie NRC gamename_get (fs_game oder basegame).
+- Eine Variable `[ExtraQ3map2Args]` gibt es in NRC 20260114 nicht (build.cpp,
+  qe3.cpp, Spielpakete durchsucht); die Entsprechung ist `[ExtraResourcePaths]`
+  - nachgebaut sind genau NRCs Variablen.
+- Farben nach dem Farbschema des Programms; OK ohne den Rahmen des
+  Standardknopfs (wie die anderen Dialoge des Editors); lange Werte in den
+  Variablentabellen abgeschnitten statt umgebrochen (QTableView::wordWrap).
+- Bis Punkt 4 baute ein Eintrag nur die Befehle und schrieb sie in die Konsole.
+
+Fotovergleich (`SP\s3\werk\foto_bau_vgl.py`, Lauf s3p3gruen, Massstab 2):
+Innenraum 700 x 500 wie NRC; im Selbsttest auf den Punkt geprueft: OK 611/9
+80 x 22, Cancel 37, Reset 65, Eintragsliste 21/37 572 x 276, Befehlsliste
+21/359 572 x 73, Build Variables 9/450 Hoehe 41 - alles wie im Foto
+`dlg_Build_Customize_0.png` gemessen.
+
+### Rot/Gruen
+
+| Pruefung | rot | gruen |
+|---|---|---|
+| ctest `karte_bau` (42 Pruefungen) | 10 FEHL (Menue noch mit `q3map2`, Rundlauf, XML-Leser bei CR am Stueckende) | 42/42 |
+| Selbsttest `BHED_STUFE3_NUR=bau`, Lauf s3p3rot: Cancel stellt nicht zurueck, Strg+V nach statt vor, ohne MonitorAddress (`// MUTATION s3p3`) | 34 OK / 13 FEHLER | s3p3gruen2: 47 / 0 |
+
+Checkliste: BuildMenuCustomize, Build_runRecentExecutedBuild (je Menue und
+Befehl), Dialog "Build Menu" [x]; dazu OpenManual und CheckForUpdate aus Punkt
+0b nachgetragen (gen_befehle.py STUFE_3_FERTIG). Stand: 790 fertig, 144
+ausgegraut, 2 offen von 936.
