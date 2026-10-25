@@ -20,6 +20,8 @@
 #include "bhed/karte/texdef.h"
 #include "bhed/karte/texturkopie.h"
 
+#include <cmath>
+#include <algorithm>
 #include <cstdlib>
 #include <memory>
 #include <vector>
@@ -123,25 +125,84 @@ PatchDichte patchDichte(PatchVorlage art) {
     }
 }
 
+namespace {
+
+// NRC#302 (Stufe 6, nach dem Vorschlag aus dem Issue, fix-degenerate-bevel-caps-302):
+// Patch_makeCaps kappte immer entlang ROW, also mit der Kurve in der Breite.
+// Ist die Kurve in der Hoehe (gebaut oder transponiert), entstanden zwei
+// entartete Patches mit allen Punkten auf einer Linie. Jetzt gilt die
+// Groessenbedingung fuer Breite und Hoehe; passen beide, nimmt die Kappe die
+// Richtung, deren Randschnitt am weitesten von einer Geraden abweicht.
+bool kappenGroesseGilt(PatchKappe art, std::size_t n) {   // patch_capSizeValid
+    switch (art) {
+    case PatchKappe::Bevel:
+    case PatchKappe::IBevel: return n == 3 || n == 5;
+    case PatchKappe::EndCap:
+    case PatchKappe::IEndCap: return n == 5;
+    case PatchKappe::Zylinder: return n == 9;
+    }
+    return false;
+}
+
+const char* kappenBedingung(PatchKappe art) {   // patch_capRequirement
+    switch (art) {
+    case PatchKappe::Bevel:
+    case PatchKappe::IBevel: return "bevel-cap - neither patch width, nor height is 3 or 5";
+    case PatchKappe::EndCap:
+    case PatchKappe::IEndCap: return "end-cap - neither patch width, nor height is 5";
+    case PatchKappe::Zylinder: return "cylinder-cap - neither patch width, nor height is 9";
+    }
+    return "cap - invalid cap type";
+}
+
+// points_deviation ueber den Randschnitt (patch_capPoints): spalten = COL
+double kappenAbweichung(const Patch& p, bool spalten, bool erste) {
+    const std::size_t n = spalten ? p.hoehe() : p.breite();
+    const std::size_t index = erste ? 0 : (spalten ? p.breite() : p.hoehe()) - 1;
+    std::vector<Vektor3f> pk(n);
+    for (std::size_t i = 0; i < n; ++i) { pk[i] = spalten ? p.punkt(i, index).vertex : p.punkt(index, i).vertex; }
+    const Vektor3f basis = pk[0];
+    std::size_t fern = 0;   // ein geschlossener Schnitt (Zylinder): die Gerade zum entferntesten Punkt
+    const auto quadrat = [](const Vektor3f& v) { return static_cast<double>(v[0]) * v[0] + static_cast<double>(v[1]) * v[1] + static_cast<double>(v[2]) * v[2]; };
+    for (std::size_t i = 1; i < n; ++i) {
+        if (quadrat(pk[i] - basis) > quadrat(pk[fern] - basis)) { fern = i; }
+    }
+    const double l = std::sqrt(quadrat(pk[fern] - basis));
+    if (l == 0) { return 0; }
+    const Vektor3f r = pk[fern] - basis;
+    double abw = 0;
+    for (const Vektor3f& q : pk) {
+        const Vektor3f d = q - basis;
+        const double t = (static_cast<double>(d[0]) * r[0] + static_cast<double>(d[1]) * r[1] + static_cast<double>(d[2]) * r[2]) / (l * l);
+        const double x = d[0] - r[0] * t;
+        const double y = d[1] - r[1] * t;
+        const double z = d[2] - r[2] * t;
+        abw = std::max(abw, std::sqrt(x * x + y * y + z * z));
+    }
+    return abw;
+}
+
+}  // namespace
+
 void patchKappen(Karte& k, const std::string& shader, PatchKappe art, Protokoll& pr) {
     Befehl befehl(k.undo, "patchPutCaps");
     for (const PatchOrt& o : gewaehltePatches(k)) {   // Patch_makeCaps (patchmanip.cpp:85-127)
         const Patch& patch = *o.patch;
-        if ((art == PatchKappe::EndCap || art == PatchKappe::IEndCap) && patch.breite() != 5) {
-            fehler(pr, "cannot create end-cap - patch width != 5\n");
+        const bool zeilen = kappenGroesseGilt(art, patch.breite());
+        const bool spaltenOk = kappenGroesseGilt(art, patch.hoehe());
+        if (!zeilen && !spaltenOk) {
+            fehler(pr, std::string("cannot create ") + kappenBedingung(art) + "\n");
             continue;
         }
-        if ((art == PatchKappe::Bevel || art == PatchKappe::IBevel) && patch.breite() != 3 && patch.breite() != 5) {
-            fehler(pr, "cannot create bevel-cap - patch width != 3\n");
-            continue;
-        }
-        if (art == PatchKappe::Zylinder && patch.breite() != 9) {
-            fehler(pr, "cannot create cylinder-cap - patch width != 9\n");
-            continue;
+        bool spalten = !zeilen;
+        if (zeilen && spaltenOk) {
+            const double c = std::max(kappenAbweichung(patch, true, true), kappenAbweichung(patch, true, false));
+            const double r = std::max(kappenAbweichung(patch, false, true), kappenAbweichung(patch, false, false));
+            spalten = c > r;
         }
         for (const bool erste : {true, false}) {
             auto kappe = neuerPatch(k, o.entitaet);
-            patch.kappeMachen(*kappe, art, false, erste, k.kontext);   // ROW
+            patch.kappeMachen(*kappe, art, spalten, erste, k.kontext);   // ROW bzw. COL
             kappe->setzeShader(shader);
             k.auswahl.waehlen(o.entitaet, kappe);   // selectPath( path, true )
         }

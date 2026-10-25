@@ -7,10 +7,12 @@
 // z 2). Texturen 64 x 64, Standardskalierung 0.5: NaturalTexture teilt durch
 // 32. Sollwerte von Hand aus den Tabellen pCylIndex/pBevIndex/pEndIndex.
 #include "bhed/karte/karte.h"
+#include "bhed/karte/kartenformat.h"
 #include "bhed/karte/patchbefehle.h"
 #include "bhed/karte/pinsel.h"
 #include "bhed/karte/texdef.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -248,7 +250,7 @@ void kappen() {
     const auto p = a.vorlage(PatchVorlage::Zylinder);
     Protokoll pr;
     patchKappen(a.k, "textures/a/kappe", PatchKappe::EndCap, pr);
-    pruefe(pr.size() == 1 && pr[0].text == "cannot create end-cap - patch width != 5\n" && a.patches() == 1, "End-cap an 9 breit: Fehler");
+    pruefe(pr.size() == 1 && pr[0].text == "cannot create end-cap - neither patch width, nor height is 5\n" && a.patches() == 1, "End-cap an 9 breit: Fehler");
     Protokoll pr2;
     patchKappen(a.k, "textures/a/kappe", PatchKappe::Zylinder, pr2);
     pruefe(pr2.empty() && a.patches() == 3 && a.k.auswahl.anzahl() == 3 && a.k.undo.undoName() == "patchPutCaps", "Cylinder cap: zwei Kappen, alle gewaehlt");
@@ -257,6 +259,74 @@ void kappen() {
         pruefe(c->breite() == 3 && c->hoehe() == 5 && punktNah(c->punkt(0, 0).vertex, -32, 0, 0) && punktNah(c->punkt(2, 0).vertex, 0, -32, 0) &&
                    punktNah(c->punkt(2, 2).vertex, 0, 32, 0) && punktNah(c->punkt(2, 1).vertex, 0, 0, 0) && c->shader() == "textures/a/kappe",
                "Cylinder cap: Punkte " + text(c->punkt(2, 1).vertex));
+    }
+}
+
+// NRC#302 (Stufe 6): Bevel- und Endcap-Kappen an einem Patch, dessen Kurve
+// entlang der Hoehe statt der Breite laeuft (gebaut oder transponiert), ergaben
+// zwei entartete Patches (alle Punkte auf einer Linie). Testkarte aus dem Issue
+// (test2.zip, "brush 9" und "brush 10").
+double abweichung(const Patch& p) {   // groesste Entfernung eines Punkts von der Linie durch den ersten und den entferntesten
+    const auto& pk = p.punkte();
+    if (pk.empty()) { return 0; }
+    const Vektor3f a = pk.front().vertex;
+    Vektor3f fern = a;
+    for (const auto& q : pk) {
+        const Vektor3f d = q.vertex - a;
+        const Vektor3f e = fern - a;
+        if (d[0] * d[0] + d[1] * d[1] + d[2] * d[2] > e[0] * e[0] + e[1] * e[1] + e[2] * e[2]) { fern = q.vertex; }
+    }
+    const Vektor3f r = fern - a;
+    const double l = std::sqrt(static_cast<double>(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]));
+    if (l == 0) { return 0; }
+    double best = 0;
+    for (const auto& q : pk) {
+        const Vektor3f d = q.vertex - a;
+        const double t = (static_cast<double>(d[0]) * r[0] + static_cast<double>(d[1]) * r[1] + static_cast<double>(d[2]) * r[2]) / l;
+        const double x = d[0] - r[0] * t / l;
+        const double y = d[1] - r[1] * t / l;
+        const double z = d[2] - r[2] * t / l;
+        best = std::max(best, std::sqrt(x * x + y * y + z * z));
+    }
+    return best;
+}
+
+void kappenAusrichtung() {
+    const char* bevel =
+        "{\n\"classname\" \"worldspawn\"\n{\npatchDef2\n{\ntrak4x/base-concrete5b\n( 3 3 0 0 0 )\n(\n"
+        "( ( 480 416 192 10.5 10 ) ( 480 544 192 10.5 8.375 ) ( 480 544 64 10.5 7.7596154213 ) )\n"
+        "( ( 416 416 192 11 10 ) ( 416 544 192 11 8.375 ) ( 416 544 64 11 7.7596154213 ) )\n"
+        "( ( 352 416 192 11.5 10 ) ( 352 544 192 11.5 8.375 ) ( 352 544 64 11.5 7.7596154213 ) )\n)\n}\n}\n}\n";
+    const char* endcap =
+        "{\n\"classname\" \"worldspawn\"\n{\npatchDef2\n{\ntrak4x/base-concrete5b\n( 5 3 0 0 0 )\n(\n"
+        "( ( 480 240 64 10.5 7.7596154213 ) ( 416 240 64 11 7.7596154213 ) ( 352 240 64 11.5 7.7596154213 ) )\n"
+        "( ( 480 240 192 10.5 8.375 ) ( 416 240 192 11 8.375 ) ( 352 240 192 11.5 8.375 ) )\n"
+        "( ( 480 112 192 10.5 10 ) ( 416 112 192 11 10 ) ( 352 112 192 11.5 10 ) )\n"
+        "( ( 480 -16 192 10.5 8.375 ) ( 416 -16 192 11 8.375 ) ( 352 -16 192 11.5 8.375 ) )\n"
+        "( ( 480 -16 64 10.5 7.7596154213 ) ( 416 -16 64 11 7.7596154213 ) ( 352 -16 64 11.5 7.7596154213 ) )\n)\n}\n}\n}\n";
+    struct Fall {
+        const char* name;
+        const char* karte;
+        PatchKappe art;
+        bool transponiert;
+    };
+    for (const Fall& f : {Fall{"Bevel", bevel, PatchKappe::Bevel, false}, Fall{"Inverted Bevel", bevel, PatchKappe::IBevel, false},
+                          Fall{"Endcap", endcap, PatchKappe::EndCap, false}, Fall{"Inverted Endcap", endcap, PatchKappe::IEndCap, false},
+                          Fall{"Endcap transponiert (3 x 5)", endcap, PatchKappe::EndCap, true},
+                          Fall{"Bevel transponiert (wieder laengs)", bevel, PatchKappe::IBevel, true}}) {
+        Karte k;
+        (void)karteLesen(f.karte, k);
+        const auto quelle = std::static_pointer_cast<Patch>(k.welt()->kinder().front());
+        if (f.transponiert) { quelle->matrixTransponieren(); }
+        k.auswahl.waehlen(k.welt(), quelle);
+        Protokoll pr;
+        patchKappen(k, "textures/a/kappe", f.art, pr);
+        const auto& kinder = k.welt()->kinder();
+        double kleinste = 1e30;
+        for (std::size_t i = 1; i < kinder.size(); ++i) { kleinste = std::min(kleinste, abweichung(*std::static_pointer_cast<Patch>(kinder[i]))); }
+        char z[200];
+        std::snprintf(z, sizeof(z), "NRC#302 %s an der quer liegenden Kurve: zwei Kappen, keine auf einer Linie (kleinste Abweichung %g)", f.name, kleinste);
+        pruefe(pr.empty() && kinder.size() == 3 && kleinste > 1.0, z);
     }
 }
 
@@ -327,6 +397,7 @@ int main() {
     matrix();
     textur();
     kappen();
+    kappenAusrichtung();
     verformenVerdicken();
     verwaisteAuswahl();
     std::printf("kartepatchwerkzeuge: %d Fehlschlaege\n", g_fehler);
