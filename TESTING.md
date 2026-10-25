@@ -354,6 +354,20 @@ standalone exe does not contain the map compiler.
 - `karte_autocaulk` – AutoCaulk Selected: the map written for
   `q3map2 -autocaulk`, reading and applying the `.caulk` result, undo.
   `BHED_STUFE3_NUR=caulk` runs it from the editor (F4) with bhed_q3map2.
+- `karte_grenzen` – the limits of the optimizer (Stufe 5) against the engine
+  sources: every define and its line in OpenJK, Movie Duels and q3map2, every
+  enforcement site, and `tools/handbuch/grenzen.json` (the guide's tables,
+  rewritten with `kartegrenzen --json tools/handbuch/grenzen.json`).
+- `karte_optimierer` – counting against the limits (test maps just below and
+  above, every original map of JKA, JK2 and Movie Duels: nothing over a hard
+  limit), every check with and without its problem, every fix with undo and
+  redo, the checks from known bugs.
+- GUI self-test `karteneditor` with `BHED_KARTE_NUR=stufe5` (optimizer):
+  `BHED_STUFE5_NUR=fenster|pruefungen|gebaut|original|gross` for one part.
+  `gebaut` builds test maps with bhed_q3map2 (leak, a hall with a full light
+  grid), `original` opens mp/duel1 from the game's pk3, `gross` needs
+  `BHED_KARTE_GROSS` (a .map) and optionally `BHED_KARTE_GROSS_BSP` (its .bsp)
+  and measures the frame times while the optimizer runs.
 
 - `exe_importe` – `behaved.exe` binds only Windows DLLs (no VC++ runtime:
   rc600 needed `MSVCP140.dll` and friends, which no zip contained).
