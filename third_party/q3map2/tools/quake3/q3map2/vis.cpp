@@ -924,13 +924,13 @@ int VisMain( Args& args ){
 
 	/* load the bsp */
 	strcpy( source, ExpandArg( fileName ) );
-	path_set_extension( source, ".bsp" );
+	bhed_set_map_extension( source, ".bsp" ); /* BehavEd stage 6 (NRC#102): was path_set_extension */
 	Sys_Printf( "Loading %s\n", source );
 	LoadBSPFile( source );
 
 	/* load the portal file */
 	strcpy( portalfile, ExpandArg( fileName ) );
-	path_set_extension( portalfile, ".prt" );
+	bhed_set_map_extension( portalfile, ".prt" ); /* BehavEd stage 6 (NRC#102): was path_set_extension */
 	Sys_Printf( "Loading %s\n", portalfile );
 	LoadPortals( portalfile );
 

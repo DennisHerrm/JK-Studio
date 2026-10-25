@@ -10,6 +10,12 @@ Faelle:
            system/origin (q3map2 setzt "origin" bei JA/JK2 nur dafuer)
   nrc43    q3map_origin (q3map_<surfaceparm>) wirkt wie surfaceparm origin
   nrc72    mit den Shadern von Jedi Academy ist common/caulk nodraw
+  nrc101   -dirty dunkelt Flaechen neben dem Himmel ab (divVerent aa00101d):
+           Raum mit Himmel als Decke, -dirtdebug; die Wand oben muss so hell
+           sein wie in der Mitte (Gegenprobe: mit fester Decke dunkler)
+  nrc102   Kartenname mit Punkt (test.q3.map, foo_0.1.map, GL#154): -bsp,
+           -vis, -light mit vollem Pfad (wie der Editor) und ohne Endung;
+           .bsp/.prt/.srf heissen wie die Karte, -light findet die .srf
 """
 import os
 import shutil
@@ -108,7 +114,99 @@ def nrc72(exe, ordner):
     return 0 if gut else 1
 
 
-FAELLE = {'nrc270': nrc270, 'nrc43': nrc43, 'nrc72': nrc72}
+def wand_baender(l, wand_shader):
+    """Mittlere Dirt-Werte (-dirtdebug: Lightmap = Dirt) der Wandflaechen oben (z > 216) und
+    in der Mitte (96 < z < 160). Die Groessenfelder der Flaechen bleiben bei RBSP nach -light 0;
+    darum ueber die Lightmap-Koordinaten der Ecken: affine Abbildung (u, v) -> z."""
+    shader = [l[1][i:i + 64].split(NUL)[0].decode('latin-1') for i in range(0, len(l[1]), 72)]
+    lm = l[14]
+    oben, mitte = [], []
+    for i in range(0, len(l[13]), 148):
+        sh, _, typ, erste, anzahl = struct.unpack_from('<5i', l[13], i)
+        num = struct.unpack_from('<i', l[13], i + 36)[0]
+        if not (0 <= sh < len(shader)) or shader[sh] != wand_shader or num < 0 or anzahl < 3:
+            continue
+        ecken = [(struct.unpack_from('<3f', l[10], (erste + k) * 80), struct.unpack_from('<2f', l[10], (erste + k) * 80 + 20)) for k in range(anzahl)]
+        (p0, t0), (p1, t1), (p2, t2) = ecken[0], ecken[1], ecken[2]
+        # z = a*u + b*v + c aus drei Ecken (Cramersche Regel)
+        det = (t1[0] - t0[0]) * (t2[1] - t0[1]) - (t2[0] - t0[0]) * (t1[1] - t0[1])
+        if abs(det) < 1e-12:
+            continue
+        ka = ((p1[2] - p0[2]) * (t2[1] - t0[1]) - (p2[2] - p0[2]) * (t1[1] - t0[1])) / det
+        kb = ((t1[0] - t0[0]) * (p2[2] - p0[2]) - (t2[0] - t0[0]) * (p1[2] - p0[2])) / det
+        us = [t[0] * 128 for _, t in ecken]
+        vs = [t[1] * 128 for _, t in ecken]
+        for y in range(int(min(vs)) + 1, int(max(vs)) - 1):
+            for x in range(int(min(us)) + 1, int(max(us)) - 1):
+                u, v = (x + 0.5) / 128.0, (y + 0.5) / 128.0
+                z = p0[2] + ka * (u - t0[0]) + kb * (v - t0[1])
+                o = num * 128 * 128 * 3 + (y * 128 + x) * 3
+                wert = sum(lm[o:o + 3]) / 3.0
+                if z > 216:
+                    oben.append(wert)
+                elif 96 < z < 160:
+                    mitte.append(wert)
+    m = lambda v: sum(v) / len(v) if v else 0.0
+    return m(oben), m(mitte), len(oben), len(mitte)
+
+
+def nrc101(exe, ordner):
+    os.makedirs(os.path.join(ordner, 'base', 'shaders'))
+    schreiben(os.path.join(ordner, 'base', 'shaders', 's6.shader'),
+              'textures/s6/himmel' + NL + '{' + NL + '\tsurfaceparm sky' + NL + '\tsurfaceparm noimpact' + NL + '\tsurfaceparm nolightmap' + NL + '}' + NL)
+    ergebnis = {}
+    for name, decke in (('himmel', 's6/himmel'), ('fest', 's6/decke')):
+        w = '{' + NL + '"classname" "worldspawn"' + NL + '"_ambient" "120"' + NL
+        w += kasten(-256, -256, -16, 256, 256, 0, 's6/boden')
+        w += kasten(-256, -256, 256, 256, 256, 272, decke)
+        w += kasten(-272, -256, 0, -256, 256, 256, 's6/wand')
+        w += kasten(256, -256, 0, 272, 256, 256, 's6/wand')
+        w += kasten(-256, -272, 0, 256, -256, 256, 's6/wand')
+        w += kasten(-256, 256, 0, 256, 272, 256, 's6/wand')
+        w += '}' + NL + '{' + NL + '"classname" "info_player_start"' + NL + '"origin" "0 0 24"' + NL + '}' + NL
+        karte = os.path.join(ordner, 'u101%s.map' % name)
+        schreiben(karte, w)
+        rc1, _ = lauf(exe, ['-game', 'ja', '-fs_basepath', ordner, '-bsp', '-meta', karte], ordner)
+        rc2, _ = lauf(exe, ['-game', 'ja', '-fs_basepath', ordner, '-light', '-fast', '-dirty', '-dirtdebug', '-dirtdepth', '64', karte], ordner)
+        l = lumps(os.path.join(ordner, 'u101%s.bsp' % name))
+        if not l or rc1 or rc2:
+            print('FEHL  nrc101: %s: -bsp %d, -light %d' % (name, rc1, rc2))
+            return 1
+        ergebnis[name] = wand_baender(l, 'textures/s6/wand')
+    ho, hm, hn, _ = ergebnis['himmel']
+    fo, fm, fn, _ = ergebnis['fest']
+    q_himmel = ho / hm if hm else 0.0
+    q_fest = fo / fm if fm else 0.0
+    gut = hn > 0 and fn > 0 and q_himmel > 0.985 and q_fest < 0.96
+    print(('ok    ' if gut else 'FEHL  ') + 'nrc101: Dirt oben/Mitte an der Wand: unter dem Himmel %.3f (soll > 0.985), unter fester Decke %.3f (Gegenprobe, soll < 0.96)' % (q_himmel, q_fest))
+    return 0 if gut else 1
+
+
+def nrc102(exe, ordner):
+    fehler = 0
+    for name in ('u102.q3', 'foo_0.1'):
+        for mit_endung in (True, False):
+            unter = os.path.join(ordner, name.replace('.', '_') + ('_m' if mit_endung else '_o'))
+            os.makedirs(unter)
+            karte = os.path.join(unter, name + '.map')
+            schreiben(karte, raum())
+            arg = karte if mit_endung else karte[:-4]
+            rcs = []
+            for st in (['-bsp', '-meta'], ['-vis'], ['-light', '-fast']):
+                rc, aus = lauf(exe, ['-game', 'ja', '-fs_basepath', ordner] + st + [arg], unter)
+                rcs.append(rc)
+            dateien = sorted(os.listdir(unter))
+            soll = [name + e for e in ('.bsp', '.map', '.srf')]   # -vis loescht die .prt (ohne -saveprt)
+            l = lumps(os.path.join(unter, name + '.bsp'))
+            licht = bool(l) and len(l[14]) > 0
+            gut = rcs == [0, 0, 0] and all(d in dateien for d in soll) and licht and not any(d.endswith('.bsp') and d != name + '.bsp' for d in dateien)
+            fehler += 0 if gut else 1
+            print(('ok    ' if gut else 'FEHL  ') + 'nrc102: "%s" %s Endung: Rueckgaben %s, Dateien %s, Lightmaps %s' %
+                  (name + '.map', 'mit' if mit_endung else 'ohne', rcs, ' '.join(dateien), 'ja' if licht else 'nein'))
+    return fehler
+
+
+FAELLE = {'nrc270': nrc270, 'nrc43': nrc43, 'nrc72': nrc72, 'nrc101': nrc101, 'nrc102': nrc102}
 
 
 def main():

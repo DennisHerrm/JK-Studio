@@ -1946,6 +1946,24 @@ inline UnsortedSet<shaderInfo_t, false, shaderInfo_t_compare>       shaderInfo;
    by the shaderInfo_t POINTER - heap addresses, so surface order, triangle merging and
    lightmap packing changed from run to run (NOTIZEN_karte3.md point 2). Order by the
    shader name instead (case-insensitive like the set), then by creation number. */
+/* BehavEd stage 6 (NRC#102, GL#154): a map name with a dot ("test.q3", "foo_0.1") given
+   without its extension lost the part after the dot (StripExtension / path_set_extension take
+   the last dot as the extension): -bsp looked for test.map, -vis/-light for test.bsp. Only
+   the extensions q3map2 itself uses are replaced; anything else stays part of the name. */
+inline bool bhed_has_map_extension( const char *path ){
+	const char *ext = path_get_filename_base_end( path );
+	for ( const char *known : { ".map", ".bsp", ".reg", ".ent", ".prt", ".srf", ".lin" } )
+		if ( striEqual( ext, known ) )
+			return true;
+	return false;
+}
+inline void bhed_set_map_extension( char *path, const char *extension ){
+	if ( bhed_has_map_extension( path ) )
+		path_set_extension( path, extension );
+	else
+		strcat( path, extension );
+}
+
 inline bool shaderInfo_less( const shaderInfo_t *a, const shaderInfo_t *b ){
 	if ( a == b ) {
 		return false;

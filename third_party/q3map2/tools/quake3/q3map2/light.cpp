@@ -2958,7 +2958,7 @@ int LightMain( Args& args ){
 
 	/* clean up map name */
 	strcpy( source, ExpandArg( fileName ) );
-	path_set_extension( source, ".bsp" );
+	bhed_set_map_extension( source, ".bsp" ); /* BehavEd stage 6 (NRC#102): was path_set_extension */
 
 	/* ydnar: set default sample size */
 	SetDefaultSampleSize( sampleSize );
@@ -2986,7 +2986,7 @@ int LightMain( Args& args ){
 	if ( !entities[ 0 ].boolForKey( "_keepLights" ) ) {
 		char *mapFileName = ExpandArg( fileName );
 		if ( !path_extension_is( fileName, "reg" ) ) /* not .reg */
-			path_set_extension( mapFileName, ".map" );
+			bhed_set_map_extension( mapFileName, ".map" ); /* BehavEd stage 6 (NRC#102): was path_set_extension */
 
 		LoadMapFile( CopiedString( mapFileName ).c_str(), true, false );
 	}

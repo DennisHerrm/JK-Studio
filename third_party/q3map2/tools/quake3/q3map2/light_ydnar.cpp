@@ -1450,6 +1450,29 @@ void SetupDirt(){
    calculates dirt value for a given sample
  */
 
+/* BehavEd stage 6 (NRC#101, "dark near sky"): dirt rays trace with testAll = false (divVerent
+   aa00101d), so a ray into a sky brush stops in its opaque leaf (TraceLine_r TRACE_LEAF_SOLID,
+   passSolid) before any surface is tested - compileFlags never gets C_SKY, the existing
+   "&& !( trace->compileFlags & C_SKY )" never fires, and surfaces next to the sky got as much
+   dirt as under a solid ceiling (measured: wall top/middle 0.926 under both). When a ray stops
+   in solid, trace it once more with testAll up to just behind the entry point: did it cross a
+   sky surface there, the ray left the map through the sky and is no occluder. */
+static bool BhedDirtRayHitsSky( const trace_t *trace ){
+	if ( trace->compileFlags & C_SKY ) {
+		return true;
+	}
+	if ( !trace->opaque || !trace->passSolid ) {
+		return false;
+	}
+	trace_t sky = *trace;
+	sky.testAll = true;
+	sky.end = trace->hit + trace->direction;
+	SetupTrace( &sky );
+	sky.color.set( 1 );
+	TraceLine( &sky );
+	return ( sky.compileFlags & C_SKY ) != 0;
+}
+
 static float DirtForSample( trace_t *trace ){
 	int i;
 	float gatherDirt, outDirt, angle, elevation, ooDepth;
@@ -1508,7 +1531,7 @@ static float DirtForSample( trace_t *trace ){
 
 			/* trace */
 			TraceLine( trace );
-			if ( trace->opaque && !( trace->compileFlags & C_SKY ) ) {
+			if ( trace->opaque && !BhedDirtRayHitsSky( trace ) ) { // BehavEd stage 6: was !( trace->compileFlags & C_SKY )
 				gatherDirt += 1.0f - ooDepth * vector3_length( trace->hit - trace->origin );
 			}
 		}
@@ -1528,7 +1551,7 @@ static float DirtForSample( trace_t *trace ){
 
 			/* trace */
 			TraceLine( trace );
-			if ( trace->opaque ) {
+			if ( trace->opaque && !BhedDirtRayHitsSky( trace ) ) { // BehavEd stage 6 (NRC#101)
 				gatherDirt += 1.0f - ooDepth * vector3_length( trace->hit - trace->origin );
 			}
 		}
@@ -1541,7 +1564,7 @@ static float DirtForSample( trace_t *trace ){
 
 	/* trace */
 	TraceLine( trace );
-	if ( trace->opaque ) {
+	if ( trace->opaque && !BhedDirtRayHitsSky( trace ) ) { // BehavEd stage 6 (NRC#101)
 		gatherDirt += 1.0f - ooDepth * vector3_length( trace->hit - trace->origin );
 	}
 
@@ -2439,7 +2462,10 @@ void IlluminateRawLightmap( int rawLightmapNum ){
 									continue;
 								}
 								SuperLuxel& lightLuxel = tmplm.getSuperLuxel( 0, sx, sy );
-								Vector3* lightDeluxel = &tmplm.getSuperDeluxel( sx, sy );
+								/* no deluxels without a deluxemap: superDeluxels is null then, and binding a reference to its
+								   element is undefined behaviour (UBSan, S12.passage) even if it is never read */
+								/* BehavEd stage 6: from Garux/netradiant-custom PR #316, commit ca2e281df (auto-pigeon) */
+								Vector3* lightDeluxel = deluxemap ? &tmplm.getSuperDeluxel( sx, sy ) : nullptr;
 								const Vector3& origin = lm->getSuperOrigin( sx, sy );
 
 								/* only subsample shadowed luxels */
@@ -2448,10 +2474,10 @@ void IlluminateRawLightmap( int rawLightmapNum ){
 
 								/* subsample it */
 								if ( lightRandomSamples ) {
-									RandomSubsampleRawLuxel( lm, &trace, origin, sx, sy, 0.5f * lightSamplesSearchBoxSize, lightLuxel, deluxemap ? lightDeluxel : nullptr );
+									RandomSubsampleRawLuxel( lm, &trace, origin, sx, sy, 0.5f * lightSamplesSearchBoxSize, lightLuxel, lightDeluxel );
 								}
 								else{
-									SubsampleRawLuxel_r( lm, &trace, origin, sx, sy, 0.25f * lightSamplesSearchBoxSize, lightLuxel, deluxemap ? lightDeluxel : nullptr );
+									SubsampleRawLuxel_r( lm, &trace, origin, sx, sy, 0.25f * lightSamplesSearchBoxSize, lightLuxel, lightDeluxel );
 								}
 
 								flag |= FLAG_ALREADY_SUBSAMPLED;

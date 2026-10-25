@@ -919,7 +919,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
         co.wert = "textures/system/origin";
         Befund rp = neu("riesenpinsel", Schwere::Hinweis, "GtkRadiant#271 (huge brushes such as a sky box leak: plane precision); q3map2 common/maxworld.h MAX_WORLD_COORD");
         Befund fl = neu("flaechenlichtleck", Schwere::Warnung,
-                        "q3map2 light_bounce.cpp:544-566 (area backsplash light: the light surface moved by q3map_backsplash distance, default 23, "
+                        "q3map2 light_bounce.cpp:551-575 (area backsplash light: the light surface moved by q3map_backsplash distance, default 23, "
                         "q3map2.h:100-101); GL#189, NRC#144 (light through brushes above lava)");
         for (std::size_t e = 0; e < ents.size(); ++e) {
             for (std::size_t k = 0; k < ents[e].prims.size(); ++k) {
@@ -1008,7 +1008,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
     // --- 13. Schalter im Build-Menue, die mit diesem Spiel nicht gehen ------------------
     {
         Befund bb = neu("baubefehl", Schwere::Fehler,
-                        "q3map2 light.cpp:2522-2547 (-external, -lightmapsize: external lightmaps), lightmaps_ydnar.cpp:3109; NRC#98 (Jedi Outcast), NRC#48 (light styles)");
+                        "q3map2 light.cpp:2559-2584 (-external, -lightmapsize: external lightmaps), lightmaps_ydnar.cpp:3109; NRC#98 (Jedi Outcast), NRC#48 (light styles)");
         for (const BauBefehlProblem& p : bauBefehlProbleme(o.spiel, lichtstile(a), o.bauBefehle)) {
             add(bb, ObjektRef{-1, -1, -1, p.eintrag + ": " + p.schalter + " - " + p.grund});
         }
@@ -1129,7 +1129,7 @@ std::vector<BauBefehlProblem> bauBefehlProbleme(GrenzSpiel spiel, bool mitLichts
         for (std::size_t i = 0; i < w.size(); ++i) {
             if (w[i] == "-external") { schalter.emplace_back("-external"); }
             if (w[i] == "-lightmapsize" && i + 1 < w.size()) {
-                // light.cpp:2528-2547: jede andere Groesse als die des Spiels (128) speichert extern
+                // light.cpp:2565-2584: jede andere Groesse als die des Spiels (128) speichert extern
                 const int b = std::atoi(w[i + 1].c_str());
                 const bool zwei = i + 2 < w.size() && std::isdigit(static_cast<unsigned char>(w[i + 2][0])) != 0;
                 const int h = zwei ? std::atoi(w[i + 2].c_str()) : b;
@@ -1138,7 +1138,7 @@ std::vector<BauBefehlProblem> bauBefehlProbleme(GrenzSpiel spiel, bool mitLichts
         }
         for (const std::string& sch : schalter) {
             if (spiel == GrenzSpiel::Jk2) {
-                r.push_back({eintrag, sch, "Jedi Outcast cannot load external lightmaps (NRC#98); q3map2 light.cpp:2522-2547 stores every lightmap externally"});
+                r.push_back({eintrag, sch, "Jedi Outcast cannot load external lightmaps (NRC#98); q3map2 light.cpp:2559-2584 stores every lightmap externally"});
             } else if (mitLichtstilen) {
                 r.push_back({eintrag, sch,
                              "external lightmaps with light styles are broken in RBSP: styled surfaces lose their lightmap stages (q3map2 lightmaps_ydnar.cpp:3109, NRC#48)"});

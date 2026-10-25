@@ -30,6 +30,7 @@
 
 /* dependencies */
 #include "q3map2.h"
+#include <limits>  // BehavEd stage 6: bhed_bounds_to_int
 #include "bspfile_rbsp.h"
 
 
@@ -116,6 +117,15 @@ static void EmitPlanes(){
    emits a leafnode to the bsp file
  */
 
+/* BehavEd stage 6 (UBSan float-cast-overflow, PR #316 case G02.rod_along_01875): an empty
+   node/leaf has the empty bounds (+-FLT_MAX), and converting those to int is undefined
+   behaviour. x86 (cvttss2si, also in NRC's GCC build) gives INT_MIN for anything out of
+   range - write exactly that, so the output stays byte for byte as before. */
+static BasicVector3<int> bhed_bounds_to_int( const Vector3& v ){
+	const auto f = []( float x ){ return ( x >= -2147483648.f && x < 2147483648.f )? int( x ) : std::numeric_limits<int>::min(); };
+	return BasicVector3<int>( f( v[0] ), f( v[1] ), f( v[2] ) );
+}
+
 static void EmitLeaf( node_t *node ){
 	bspLeaf_t& leaf = bspLeafs.emplace_back();
 
@@ -123,8 +133,8 @@ static void EmitLeaf( node_t *node ){
 	leaf.area = node->area;
 
 	/* emit bounding box */
-	leaf.minmax.maxs = node->minmax.maxs;
-	leaf.minmax.mins = node->minmax.mins;
+	leaf.minmax.maxs = bhed_bounds_to_int( node->minmax.maxs ); // BehavEd stage 6: was node->minmax.maxs
+	leaf.minmax.mins = bhed_bounds_to_int( node->minmax.mins );
 
 	/* emit leaf brushes */
 	leaf.firstBSPLeafBrush = bspLeafBrushes.size();
@@ -166,8 +176,8 @@ static int EmitDrawNode_r( node_t *node ){
 	{
 		bspNode_t& bnode = bspNodes.emplace_back();
 
-		bnode.minmax.mins = node->minmax.mins;
-		bnode.minmax.maxs = node->minmax.maxs;
+		bnode.minmax.mins = bhed_bounds_to_int( node->minmax.mins ); // BehavEd stage 6: see bhed_bounds_to_int
+		bnode.minmax.maxs = bhed_bounds_to_int( node->minmax.maxs );
 
 		if ( node->planenum & 1 ) {
 			Error( "WriteDrawNodes_r: odd planenum" );

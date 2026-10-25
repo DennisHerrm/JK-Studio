@@ -238,7 +238,7 @@ struct ShaderSkript {
 [[nodiscard]] bool lichtstile(const KartenAbbild& a);
 [[nodiscard]] bool lichtstileInKarte(const Karte& k);
 // Schalter im Build-Menue, die mit diesem Spiel nicht gehen: externe
-// Lightmaps (-external, -lightmapsize ungleich 128: light.cpp:2522-2547) bei
+// Lightmaps (-external, -lightmapsize ungleich 128: light.cpp:2559-2584) bei
 // Jedi Outcast (die Engine laedt keine, NRC#98) und bei Lichtstilen in jedem
 // Spiel (lightmaps_ydnar.cpp:3109 "fixme: make this work with external
 // lightmaps", NRC#48). befehle = (Eintrag, Befehlszeile).

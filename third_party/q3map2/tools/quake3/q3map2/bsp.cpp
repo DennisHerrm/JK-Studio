@@ -870,7 +870,8 @@ int BSPMain( Args& args ){
 
 	/* copy source name */
 	strcpy( source, ExpandArg( fileName ) );
-	StripExtension( source );
+	if ( bhed_has_map_extension( source ) ) /* BehavEd stage 6 (NRC#102): was StripExtension( source ) */
+		StripExtension( source );
 
 	/* ydnar: set default sample size */
 	SetDefaultSampleSize( sampleSize );
@@ -889,7 +890,7 @@ int BSPMain( Args& args ){
 	if ( path_extension_is( fileName, "reg" ) || ( onlyents && path_extension_is( fileName, "ent" ) ) )
 		mapFileName << ExpandArg( fileName );
 	else
-		mapFileName << PathExtensionless( ExpandArg( fileName ) ) << ".map";
+		mapFileName << source << ".map"; /* BehavEd stage 6 (NRC#102): was PathExtensionless( ExpandArg( fileName ) ) */
 
 	/* if onlyents, just grab the entites and resave */
 	if ( onlyents ) {

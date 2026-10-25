@@ -247,7 +247,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.stellen.push_back(st(b, b.renderer, "tr_local.h", z.refentShift, "QSORT_REFENTITYNUM_SHIFT", 7));
         g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 204, "MAX_RBSP_FOGS", 30));
         g.pruefstelle = rd + "tr_main.cpp R_AddDrawSurf: the fog sits in bits 2..6 of the sort key; "
-                             "q3map2 writebsp.cpp:450 warns";
+                             "q3map2 writebsp.cpp:460 warns";
         g.rechnung = "5 bits (7 - 2) = 31 fog indexes; index = fog + 1, plus the night vision slot (tr_bsp.cpp R_LoadFogs): 30";
         t.push_back(std::move(g));
     }
@@ -463,7 +463,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
     {
         Grenze g = neu("compiler.lichtschalter", GrenzArt::Compiler, Str::KeGrCoLichtschalter, "MAX_SWITCHED_LIGHTS", 32);
         g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 191, "MAX_SWITCHED_LIGHTS", 32));
-        g.pruefstelle = "q3map2 writebsp.cpp:272 Error \"MAX_SWITCHED_LIGHTS (32) exceeded\" (SetLightStyles)";
+        g.pruefstelle = "q3map2 writebsp.cpp:282 Error \"MAX_SWITCHED_LIGHTS (32) exceeded\" (SetLightStyles)";
         g.rechnung = "distinct pairs (targetname, style) of light entities with a targetname";
         t.push_back(std::move(g));
     }
