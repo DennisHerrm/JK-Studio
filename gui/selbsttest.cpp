@@ -24966,11 +24966,12 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
     }));
     add(klick("bobToolz", "", 0, false));
     add(pause(0.2));
-    add(pruefe("Plugins > bobToolz: Flip terrain oben, About... unten, ausgegraut (Stufe 3)", [] {
+    // Seit Stufe 4 Punkt 3a ist bobToolz nachgebaut (vorher ausgegraut).
+    add(pruefe("Plugins > bobToolz: Flip terrain oben, About... unten, nachgebaut (Stufe 4)", [] {
         const Element* oben = finde("Flip terrain", "", 0, false);
         const Element* unten = finde("About...", "", 0, false);
         return oben != nullptr && unten != nullptr && oben->rect.Min.y < unten->rect.Min.y &&
-               !ke::nachgebaut("bobToolz::FlipTerrain");
+               ke::nachgebaut("bobToolz::FlipTerrain") && ke::nachgebaut("bobToolz::About");
     }));
     add(foto("karteneditor_plugins"));
     add(menuesZu());
@@ -35847,8 +35848,10 @@ std::vector<Schritt> karteneditorAlleBefehleSchritte() {
     // Stufe 1 in befehle_liste.inc = fertig (Stufe 1b und STUFE_2_FERTIG aus
     // gen_befehle.py). Dazu die Rufe der Menues (MenueArt::Ruf: About, Bug
     // report, Set 2D Background image - in NRC FreeCaller ohne Befehlsnamen),
-    // seit Stufe 2 Punkt 11c nachgebaut.
-    add(pruefe("Checkliste: jeder fertige Befehl (Stufe 1b und 2) und jeder Menue-Ruf ist nachgebaut, sonst keiner", [] {
+    // seit Stufe 2 Punkt 11c nachgebaut. Seit Stufe 4 (Punkte 3a-3d) auch jeder
+    // Eintrag der Plugin-Menues (bobToolz, brushexport2, MeshTex, ShaderPlug,
+    // SunPlug, UFO:AI; prtview seit Stufe 3).
+    add(pruefe("Checkliste: jeder fertige Befehl (Stufe 1b und 2), jeder Menue-Ruf und jeder Plugin-Eintrag (Stufe 4) ist nachgebaut, sonst keiner", [] {
         std::vector<std::string> fertig;
         std::string fehlt;
         std::string zuviel;
@@ -35865,12 +35868,20 @@ std::vector<Schritt> karteneditorAlleBefehleSchritte() {
             fertig.emplace_back(m.befehl);
             if (!ke::nachgebaut(m.befehl)) { fehlt += std::string(" ") + m.befehl; }
         }
+        std::size_t plugins = 0;
+        for (const auto& pe : karte::befehle::pluginEintraege()) {
+            if (pe.befehl[0] == 0 || std::find(fertig.begin(), fertig.end(), pe.befehl) != fertig.end()) { continue; }
+            ++plugins;
+            fertig.emplace_back(pe.befehl);
+            if (!ke::nachgebaut(pe.befehl)) { fehlt += std::string(" ") + pe.befehl; }
+        }
         const std::vector<std::string> da = ke::nachgebauteBefehle();
         for (const std::string& n : da) {
             if (std::find(fertig.begin(), fertig.end(), n) == fertig.end()) { zuviel += " " + n; }
         }
-        diag::detail("Knopftest: Checkliste - " + std::to_string(fertig.size() - rufe) + " fertige Befehle, " + std::to_string(rufe) +
-                     " Menue-Rufe, " + std::to_string(da.size()) + " nachgebaut; es fehlt:" + fehlt + "; zu viel:" + zuviel);
+        diag::detail("Knopftest: Checkliste - " + std::to_string(fertig.size() - rufe - plugins) + " fertige Befehle, " + std::to_string(rufe) +
+                     " Menue-Rufe, " + std::to_string(plugins) + " Plugin-Eintraege, " + std::to_string(da.size()) + " nachgebaut; es fehlt:" + fehlt +
+                     "; zu viel:" + zuviel);
         return fehlt.empty() && zuviel.empty();
     }));
     add(tu("Alle Befehle: Kopie oeffnen, Pinsel und Licht waehlen, Zustand merken", [v] {

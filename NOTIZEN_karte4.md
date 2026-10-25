@@ -413,3 +413,31 @@ gezeichnete Breite; 13 Dialoge (bobToolz 1-8, brushexport2, SunPlug, MeshTex
 | s4p6gruen2 | 64 OK / 0 FEHLER |
 
 Die chinesischen und japanischen Bilder danach neu aufgenommen.
+
+## Punkt 7: Schlussrunde
+
+Ein Testprozess zur Zeit, Selbsttests mit Prioritaet Idle und dem 8-GB-Waechter
+(nie ausgeloest, hoechste Spitze 1.5 GB in spulen); Skript `SP\s4\ende_s4.sh`
+(wie `SP\s3\ende_s3.sh`), Summe `SP\s4\ende_summe.txt`.
+
+| Test | Ergebnis |
+|---|---|
+| ctest | 111 / 111 (auch nach dem sauberen Neubau) |
+| Karten-Editor voll mit grosser Karte (s4eke) | 1246 / 2 - zwei Erwartungen aus frueheren Stufen (unten); nach der Korrektur s4eke2: 1248 / 0 (Spitze 952 MB); Checkliste "304 fertige Befehle, 3 Menue-Rufe, 61 Plugin-Eintraege, 357 nachgebaut; es fehlt: -; zu viel: -" |
+| Modus 1 (Gesamttest) | s4e1: 2645 / 0 - wie rc605 |
+| karte | s4ekarte: 227 / 0 (kein Absturz; in Stufe 3 einmal 0xC000001D) |
+| kartenfunde, fix604b, laserfalle, geschuetzanim, zielstrahl, effektgrund, figurdeform, jk2, tuerlauf | 53, 32, 8, 3, 2, 1, 1, 15, 13 OK / je 0 FEHLER |
+| kamera, missionsbau, szenen, ton, npcklasse | 95, 95, 26, 34, 12 / je 0 |
+| gluehen, gras, spulen, figurstufen, missionsliste, rest605 | 8, 13, 13, 8, 11, 6 / je 0 |
+| Leistung (md_am_sith, BHED_D3D_DEBUG=0, rc605-Bau aus Y:\integ und unser Bau abwechselnd, je zweimal) | Vorbereitung 8.40 / 6.81 s (rc605) gegen 7.16 / 6.56 s; intro2_sith Mittel 15 / 14 gegen 14 / 13 ms (max 235 / 197 gegen 177 / 171); Flug 6.8 / 7.3 gegen 6.8 / 7.5 ms; zweiter Durchgang 10 / 11 gegen 10 / 11 ms - kein Unterschied |
+| Kartenpruefung (278 Karten, Movie Duels, gegen das rc605-Schlussaudit `f5audit`) | alle Summen gleich (604 s): abgestuerzt/haengend, nicht geladen, GPU-Fehler, D3D-Meldungen, Protokollfehler 0 -> 0; nicht gezeichnete Entities 1 -> 1; NPC ohne Modell 2 -> 2; Weltshader-Luecken 0 -> 0; fehlende efx/Klaenge/Texturen/Modelle 27/29/139/5 unveraendert |
+| grosse Karte duel_mos_espa (s4eke / s4eke2) | Laden 1176 / 1065 ms; Editor je Bild 2.96 / 3.72 ms; Bild nach Auswahlwechsel 10.1 / 13.4 ms; Neubauten Geometrie 0 / Rest 10; Speicher privat +918 / +911 MB, Grafik +523 / +514 MB |
+| A/B grosse Karte (`SP\s4\ab_gross.sh`, BHED_KARTE_NUR=gross, Stufe-3-Bau aus laeufe\s3eke2 und unser Bau abwechselnd, je zweimal) | Laden 875 / 1040 ms (Stufe 3) gegen 946 / 977 ms; Editor je Bild 3.36 / 3.63 gegen 3.00 / 3.92 ms; Bild nach Auswahlwechsel 13.0 / 10.7 gegen 15.2 / 13.5 ms (davon Kamera-Szene 5.8 / 4.8 gegen 6.6 / 6.0) - die Bereiche ueberlappen, die Streuung innerhalb eines Baus ist so gross wie der Abstand. Im Pfad geaendert ist nur Punkt 0a (letzterShader als Kopie: eine Zuweisung je Shaderwechsel neben dem schon vorhandenen klein() und map::find); der Ladeweg ist unveraendert |
+| sauberer Neubau (Release, `--clean-first`) | 0 Fehler; 127 Warnungen wie in Stufe 3, alle aus aelteren Stellen (C4996 u8path, C4456/C4457/C4458 verdeckte Namen, C4125 in entdefs.cpp) - keine aus Stufe 4 |
+| Handbuch | `gen_handbuch.py --pruefen`: handbuch_sprachen ok |
+
+In der Schlussrunde gefunden:
+
+| Punkt | Rot (vorher) | Gruen (nachher) |
+|---|---|---|
+| Zwei Erwartungen aus Stufe 3 im vollen Karten-Editor-Lauf (die Pruefungen je Punkt liefen nur mit BHED_STUFE4_NUR): "Plugins > bobToolz ... ausgegraut (Stufe 3)" - seit Punkt 3a nachgebaut; die Checkliste liess nur die fertigen Befehle der Stufen 1b/2 und die Menue-Rufe zu, die 61 Plugin-Befehle der Stufe 4 standen als "zu viel" da. Beide auf Stufe 4 gestellt (bobToolz nachgebaut; jeder Eintrag der Plugin-Menues muss nachgebaut sein) | s4eke 1246 / 2 | s4eke2 1248 / 0 |
