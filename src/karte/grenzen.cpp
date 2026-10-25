@@ -144,8 +144,8 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
     // Die Engine legt jeden Lump in seiner Groesse an (cm_load.cpp CMod_Load*,
     // tr_bsp.cpp R_Load*) und prueft die MAX_MAP_*-Werte nicht: Format- und
     // Compilergrenzen, "weich".
-    const std::string nichtGeprueft = "nicht von der Engine geprueft (" + qc + "cm_load.cpp / " + rd +
-                                      "tr_bsp.cpp legen den Lump in seiner Groesse an)";
+    const std::string nichtGeprueft = "not checked by the engine (" + qc + "cm_load.cpp / " + rd +
+                                      "tr_bsp.cpp allocate each lump in its size)";
     struct Lump {
         const char* id;
         Str titel;
@@ -178,16 +178,16 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.hart = false;
         g.stellen.push_back(st(b, b.qcommon, "qfiles.h", l.zeile, l.name, l.wert));
         g.pruefstelle = nichtGeprueft;
-        g.rechnung = "Formatgrenze aus qfiles.h";
+        g.rechnung = "format limit from qfiles.h";
         t.push_back(std::move(g));
     }
     {   // Lichtgitter: das Feld lightGridArray haelt unsigned short (tr_bsp.cpp)
         Grenze g = neu("bsp.lichtgitter", GrenzArt::BspLump, Str::KeGrBspLichtgitter, "MAX_MAP_LIGHTGRID", 65535);
         g.stellen.push_back(st(b, b.qcommon, "qfiles.h", z.lightgrid, "MAX_MAP_LIGHTGRID", 65535));
         g.stellen.push_back(q3("tools/quake3/q3map2/bspfile_rbsp.cpp", 80, "MAX_MAP_GRID", 0xffff));
-        g.pruefstelle = rd + "tr_bsp.cpp R_LoadLightGridArray: Indizes als unsigned short; q3map2 "
-                             "bspfile_rbsp.cpp:158 schreibt bei vollem Gitter den Index 65535 (hinter dem Feld)";
-        g.rechnung = "hoechstens 65535 Punkte (Index 0..65534)";
+        g.pruefstelle = rd + "tr_bsp.cpp R_LoadLightGridArray: indexes are unsigned short; q3map2 "
+                             "bspfile_rbsp.cpp:158 writes index 65535 (behind the array) when the grid is full";
+        g.rechnung = "at most 65535 points (index 0..65534)";
         t.push_back(std::move(g));
     }
     {
@@ -195,9 +195,9 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.hart = false;
         g.stellen.push_back(st(b, b.qcommon, "qfiles.h", z.lightgridArray, "MAX_MAP_LIGHTGRID_ARRAY", 0x100000));
         g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 208, "MAX_MAP_LIGHTGRID", 0x100000));
-        g.pruefstelle = "Engine liest jede Groesse (" + rd + "tr_bsp.cpp R_LoadLightGridArray); q3map2 light.cpp:1749 "
-                        "vergroessert gridsize, bis das Feld passt";
-        g.rechnung = "Zellen des Gitters (gridBounds[0] * [1] * [2])";
+        g.pruefstelle = "the engine reads any size (" + rd + "tr_bsp.cpp R_LoadLightGridArray); q3map2 light.cpp:1749 "
+                        "raises gridsize until the array fits";
+        g.rechnung = "grid cells (gridBounds[0] * [1] * [2])";
         t.push_back(std::move(g));
     }
     {   // Areas: Bitfeld MAX_MAP_AREA_BYTES (cm_test.cpp CM_WriteAreaBits)
@@ -205,7 +205,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.stellen.push_back(st(b, b.qcommon, "qfiles.h", z.areas, "MAX_MAP_AREAS", 0x100));
         g.stellen.push_back(st(b, b.qcommon, "q_shared.h", z.areaBytes, "MAX_MAP_AREA_BYTES", 32));
         g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 201, "MAX_MAP_AREAS", 0x100));
-        g.pruefstelle = qc + "cm_test.cpp CM_WriteAreaBits: Bitfeld aus MAX_MAP_AREA_BYTES (32 Bytes = 256 Areas)";
+        g.pruefstelle = qc + "cm_test.cpp CM_WriteAreaBits: bit field of MAX_MAP_AREA_BYTES (32 bytes = 256 areas)";
         g.rechnung = "MAX_MAP_AREA_BYTES * 8";
         t.push_back(std::move(g));
     }
@@ -220,8 +220,8 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.pruefstelle = rd + (md ? "tr_bsp.cpp:525 ParseTriSurf, tr_surface.cpp:60 RB_CheckOverflow"
                                  : (mp ? "tr_bsp.cpp:538 ParseTriSurf, tr_surface.cpp:59 RB_CheckOverflow"
                                        : "tr_bsp.cpp:555 ParseTriSurf, tr_surface.cpp:61 RB_CheckOverflow")) +
-                        " (Com_Error bei numVerts >= SHADER_MAX_VERTEXES)";
-        g.rechnung = "Fehler ab 1000 Punkten je Flaeche (>=), also hoechstens 999 - wie q3map2 (games.cpp:756)";
+                        " (Com_Error at numVerts >= SHADER_MAX_VERTEXES)";
+        g.rechnung = "error from 1000 vertices per surface (>=), so at most 999 - like q3map2 (games.cpp:756)";
         t.push_back(std::move(g));
     }
     {
@@ -229,16 +229,16 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.jeObjekt = true;
         g.erlaubt = 5999;
         g.stellen.push_back(st(b, b.qcommon, "qfiles.h", z.shaderMaxIndexes, "SHADER_MAX_INDEXES", 6000));
-        g.pruefstelle = rd + "tr_surface.cpp RB_CheckOverflow (Com_Error bei indexes >= SHADER_MAX_INDEXES)";
-        g.rechnung = "Fehler ab 6000 Indizes je Flaeche (>=)";
+        g.pruefstelle = rd + "tr_surface.cpp RB_CheckOverflow (Com_Error at indexes >= SHADER_MAX_INDEXES)";
+        g.rechnung = "error from 6000 indexes per surface (>=)";
         t.push_back(std::move(g));
     }
     {
         Grenze g = neu("renderer.lightmaps", GrenzArt::Renderer, Str::KeGrRenLightmaps, "MAX_LIGHTMAPS", 256);
         g.stellen.push_back(st(b, b.renderer, "tr_local.h", z.maxLightmaps, "MAX_LIGHTMAPS", 256));
         g.pruefstelle = rd + (md ? "tr_bsp.cpp:236" : (mp ? "tr_bsp.cpp:246" : "tr_bsp.cpp:250")) +
-                        " R_LoadLightmaps schreibt tr.lightmaps[] ohne Pruefung (Feld mit MAX_LIGHTMAPS Plaetzen)";
-        g.rechnung = "Lightmaps zu 128 x 128 (LIGHTMAP_SIZE)";
+                        " R_LoadLightmaps writes tr.lightmaps[] without a check (array of MAX_LIGHTMAPS)";
+        g.rechnung = "lightmaps of 128 x 128 (LIGHTMAP_SIZE)";
         t.push_back(std::move(g));
     }
     {
@@ -246,9 +246,9 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.stellen.push_back(st(b, b.renderer, "tr_local.h", z.fognumShift, "QSORT_FOGNUM_SHIFT", 2));
         g.stellen.push_back(st(b, b.renderer, "tr_local.h", z.refentShift, "QSORT_REFENTITYNUM_SHIFT", 7));
         g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 204, "MAX_RBSP_FOGS", 30));
-        g.pruefstelle = rd + "tr_main.cpp R_AddDrawSurf: der Nebel steht in den Bits 2..6 des Sortierschluessels; "
-                             "q3map2 writebsp.cpp:450 warnt";
-        g.rechnung = "5 Bits (7 - 2) = 31 Nebel-Indizes; Index = Nebel + 1, dazu der Platz der Nachtsicht (tr_bsp.cpp R_LoadFogs): 30";
+        g.pruefstelle = rd + "tr_main.cpp R_AddDrawSurf: the fog sits in bits 2..6 of the sort key; "
+                             "q3map2 writebsp.cpp:450 warns";
+        g.rechnung = "5 bits (7 - 2) = 31 fog indexes; index = fog + 1, plus the night vision slot (tr_bsp.cpp R_LoadFogs): 30";
         t.push_back(std::move(g));
     }
     {
@@ -259,15 +259,15 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.stellen.push_back(st(b, b.renderer, "tr_local.h", z.patchSize, "MAX_PATCH_SIZE", 32));
         g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 124, "MAX_PATCH_SIZE", 31));
         g.pruefstelle = "q3map2 fog.cpp:128 Error \"MAX_PATCH_SIZE after split\"; NRC patchmodule.cpp:58 (31)";
-        g.rechnung = "Kontrollpunkte je Richtung; q3map2 erlaubt 31";
-        g.vanillaQuelle = "q3map2.h:124 (strenger als der Renderer)";
+        g.rechnung = "control points per direction; q3map2 allows 31";
+        g.vanillaQuelle = "q3map2.h:124 (stricter than the renderer)";
         t.push_back(std::move(g));
     }
     {
         Grenze g = neu("renderer.drawsurfs", GrenzArt::Renderer, Str::KeGrRenDrawsurfs, "MAX_DRAWSURFS", 0x10000);
         g.stellen.push_back(st(b, b.renderer, "tr_local.h", z.maxDrawsurfs, "MAX_DRAWSURFS", 0x10000));
-        g.pruefstelle = rd + "tr_main.cpp R_AddDrawSurf: index = numDrawSurfs & DRAWSURF_MASK (ueberschreibt)";
-        g.rechnung = "je Ansicht; geschaetzt aus dem PVS je Cluster (ohne Sichtkegel, ohne Modelle)";
+        g.pruefstelle = rd + "tr_main.cpp R_AddDrawSurf: index = numDrawSurfs & DRAWSURF_MASK (overwrites)";
+        g.rechnung = "per view; estimated from the PVS of each cluster (no view frustum, no models)";
         t.push_back(std::move(g));
     }
     {
@@ -275,8 +275,8 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.zaehlbar = false;
         g.stellen.push_back(st(b, b.renderer, "tr_local.h", z.shadernumBits, "SHADERNUM_BITS", mp ? 14 : 13));
         g.stellen.push_back(st(b, b.renderer, "tr_local.h", z.maxShaders, "MAX_SHADERS", mp ? (1 << 14) : (1 << 13)));
-        g.pruefstelle = rd + "tr_shader.cpp (alle geladenen Shader: Welt, Modelle, Effekte, Menue)";
-        g.rechnung = "1 << SHADERNUM_BITS; aus der Karte nicht zu zaehlen";
+        g.pruefstelle = rd + "tr_shader.cpp (every loaded shader: world, models, effects, menus)";
+        g.rechnung = "1 << SHADERNUM_BITS; cannot be counted from the map";
         t.push_back(std::move(g));
     }
     {
@@ -284,7 +284,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.zaehlbar = false;
         g.stellen.push_back(st(b, b.renderer, "tr_local.h", z.maxSkins, "MAX_SKINS", (md || mp) ? 1024 : 512));
         g.pruefstelle = rd + "tr_image.cpp RE_RegisterSkin";
-        g.rechnung = "alle geladenen Skins; aus der Karte nicht zu zaehlen";
+        g.rechnung = "every loaded skin; cannot be counted from the map";
         t.push_back(std::move(g));
     }
 
@@ -295,9 +295,9 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.stellen.push_back(st(b, b.qcommon, "cm_local.h", z.boxHandle, "BOX_MODEL_HANDLE", 511));
         g.erlaubt = mp ? 510 : 511;
         g.pruefstelle = qc + (md ? "cm_load.cpp:188" : (mp ? "cm_load.cpp:146" : "cm_load.cpp:143")) +
-                        " Com_Error bei mehr als MAX_SUBMODELS; der letzte Platz ist BOX_MODEL_HANDLE";
-        g.rechnung = mp ? "MAX_SUBMODELS - 2 (BOX_MODEL_HANDLE, CAPSULE_MODEL_HANDLE, cm_local.h:31-32), samt Welt (Modell 0)"
-                        : "MAX_SUBMODELS - 1 (BOX_MODEL_HANDLE, cm_local.h:31), samt Welt (Modell 0)";
+                        " Com_Error above MAX_SUBMODELS; the last slot is BOX_MODEL_HANDLE";
+        g.rechnung = mp ? "MAX_SUBMODELS - 2 (BOX_MODEL_HANDLE, CAPSULE_MODEL_HANDLE, cm_local.h:31-32), including the world (model 0)"
+                        : "MAX_SUBMODELS - 1 (BOX_MODEL_HANDLE, cm_local.h:31), including the world (model 0)";
         t.push_back(std::move(g));
     }
     {
@@ -308,7 +308,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         if (!md) {
             g.vanilla = 2048;
             g.erlaubt = 2048;
-            g.vanillaQuelle = jk2 ? "offen: keine eigene JK2-Quelle; geprueft gegen Jedi Academy vanilla 2048 (" + qc +
+            g.vanillaQuelle = jk2 ? "offen (open): no own JK2 source; checked against Jedi Academy vanilla 2048 (" + qc +
                                         "cm_patch.h:65 \"Was 2048 on vanilla jka\")"
                                   : qc + (mp ? "cm_patch.h:67" : "cm_patch.h:65") + " \"Was 2048 on vanilla jka\"";
             g.offen = jk2;
@@ -316,8 +316,8 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
             g.erlaubt = w;
         }
         g.pruefstelle = qc + (md ? "cm_patch.cpp:423 / :475" : (mp ? "cm_patch.cpp:479 / :533" : "cm_patch.cpp:514 / :568")) +
-                        " Com_Error, wenn eine weitere Ebene kommt (numPlanes == MAX_PATCH_PLANES)";
-        g.rechnung = "je Patch (CM_GeneratePatchCollide); hoechstens MAX_PATCH_PLANES";
+                        " Com_Error when one more plane comes (numPlanes == MAX_PATCH_PLANES)";
+        g.rechnung = "per patch (CM_GeneratePatchCollide); at most MAX_PATCH_PLANES";
         t.push_back(std::move(g));
     }
     {
@@ -326,7 +326,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.jeObjekt = true;
         g.stellen.push_back(st(b, b.qcommon, "cm_patch.h", z.facets, "MAX_FACETS", w));
         g.pruefstelle = qc + (md ? "cm_patch.cpp:1005" : (mp ? "cm_patch.cpp:1060" : "cm_patch.cpp:1094")) + " Com_Error \"MAX_FACETS\"";
-        g.rechnung = "je Patch; hoechstens MAX_FACETS";
+        g.rechnung = "per patch; at most MAX_FACETS";
         t.push_back(std::move(g));
     }
     {
@@ -334,7 +334,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.jeObjekt = true;
         g.stellen.push_back(st(b, b.qcommon, "cm_load.cpp", z.patchVerts, "MAX_PATCH_VERTS", 1024));
         g.pruefstelle = qc + (md ? "cm_load.cpp:581" : (mp ? "cm_load.cpp:556" : "cm_load.cpp:564")) + " Com_Error \"ParseMesh: MAX_PATCH_VERTS\"";
-        g.rechnung = "Breite * Hoehe der Kontrollpunkte je Patch";
+        g.rechnung = "width * height of the control points per patch";
         t.push_back(std::move(g));
     }
     {
@@ -343,8 +343,8 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.stellen.push_back(st(b, b.qcommon, "q_shared.h", z.worldCoord, "MAX_WORLD_COORD", 65536));
         g.stellen.push_back(q3("tools/quake3/common/maxworld.h", 4, "MAX_WORLD_COORD", 65536));
         g.erlaubt = 65534;
-        g.pruefstelle = qc + "cm_patch.cpp CM_ValidateFacet: eine Facette mit einer Grenze >= MAX_MAP_BOUNDS wird verworfen";
-        g.rechnung = "groesster Betrag einer Koordinate (ganze Einheiten) unter MAX_MAP_BOUNDS";
+        g.pruefstelle = qc + "cm_patch.cpp CM_ValidateFacet: a facet with a bound >= MAX_MAP_BOUNDS is dropped";
+        g.rechnung = "largest absolute coordinate (whole units) below MAX_MAP_BOUNDS";
         t.push_back(std::move(g));
     }
 
@@ -358,10 +358,10 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.erlaubt = (1LL << bits) - 2 - clients;
         g.pruefstelle = gm + (md ? "g_utils.cpp:1130" : (mp ? "g_utils.c:845" : (jk2 ? "g_utils.cpp:802" : "g_utils.cpp:847"))) +
                         " G_Error \"G_Spawn: no free entities\"";
-        g.rechnung = "MAX_GENTITIES - ENTITYNUM_WORLD/NONE (2) - MAX_CLIENTS; gezaehlt wird, was nach dem Spawn bleibt";
+        g.rechnung = "MAX_GENTITIES - ENTITYNUM_WORLD/NONE (2) - MAX_CLIENTS; counted is what remains after spawning";
         t.push_back(std::move(g));
     }
-    const std::string cfgStelle = gm + (md ? "g_utils.cpp:107 (nur Meldung, schreibt dann in den naechsten Bereich)"
+    const std::string cfgStelle = gm + (md ? "g_utils.cpp:107 (message only, then writes into the next range)"
                                            : (mp ? "g_utils.c:110 Error" : (jk2 ? "g_utils.cpp:78 G_Error" : "g_utils.cpp:76 G_Error"))) +
                                   " \"G_FindConfigstringIndex: overflow\"";
     {
@@ -370,7 +370,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.stellen.push_back(st(b, b.qcommon, "q_shared.h", z.maxModels, "MAX_MODELS", w));
         g.erlaubt = w - 1;
         g.pruefstelle = cfgStelle;
-        g.rechnung = "Index 1..MAX_MODELS-1 (G_FindConfigstringIndex beginnt bei 1)";
+        g.rechnung = "index 1..MAX_MODELS-1 (G_FindConfigstringIndex starts at 1)";
         t.push_back(std::move(g));
     }
     {
@@ -379,7 +379,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.stellen.push_back(st(b, b.qcommon, "q_shared.h", z.maxSounds, "MAX_SOUNDS", w));
         g.erlaubt = w - 1;
         g.pruefstelle = cfgStelle;
-        g.rechnung = "Index 1..MAX_SOUNDS-1";
+        g.rechnung = "index 1..MAX_SOUNDS-1";
         t.push_back(std::move(g));
     }
     {
@@ -388,7 +388,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.stellen.push_back(st(b, b.qcommon, "q_shared.h", z.maxFx, "MAX_FX", w));
         g.erlaubt = w - 1;
         g.pruefstelle = cfgStelle;
-        g.rechnung = "Index 1..MAX_FX-1";
+        g.rechnung = "index 1..MAX_FX-1";
         t.push_back(std::move(g));
     }
     if (sp) {
@@ -397,25 +397,25 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.stellen.push_back(st(b, b.qcommon, "q_shared.h", z.maxWorldFx, "MAX_WORLD_FX", w));
         g.erlaubt = w - 1;
         g.pruefstelle = cfgStelle + (jk2 ? "" : "; " + gm + "g_fx.cpp (fx_rain, fx_snow, fx_wind, ...)");
-        g.rechnung = "Index 1..MAX_WORLD_FX-1";
+        g.rechnung = "index 1..MAX_WORLD_FX-1";
         t.push_back(std::move(g));
     }
     {
         const long long w = md ? 32000 : 16000;
         Grenze g = neu("laufzeit.gamestate", GrenzArt::Laufzeit, Str::KeGrLzGamestate, "MAX_GAMESTATE_CHARS", w);
         g.stellen.push_back(st(b, b.qcommon, "q_shared.h", z.maxGamestate, "MAX_GAMESTATE_CHARS", w));
-        g.pruefstelle = md ? "code/client/cl_parse.cpp:457 und cl_cgame.cpp:354 Com_Error \"MAX_GAMESTATE_CHARS exceeded\""
-                           : "client/cl_parse.cpp Com_Error \"MAX_GAMESTATE_CHARS exceeded\" (nicht im Quellstand SP\\ojk\\oj; "
-                             "dieselbe Pruefung wie MovieDuels code/client/cl_parse.cpp:457)";
-        g.rechnung = "alle Configstrings samt Endnull; aus der Karte nur eine Untergrenze (Modelle, Klaenge, Effekte, Text)";
+        g.pruefstelle = md ? "code/client/cl_parse.cpp:457 and cl_cgame.cpp:354 Com_Error \"MAX_GAMESTATE_CHARS exceeded\""
+                           : "client/cl_parse.cpp Com_Error \"MAX_GAMESTATE_CHARS exceeded\" (not in the source checkout SP\\ojk\\oj; "
+                             "the same check as MovieDuels code/client/cl_parse.cpp:457)";
+        g.rechnung = "every configstring with its terminating zero; from the map only a lower bound (models, sounds, effects, text)";
         t.push_back(std::move(g));
     }
     if (sp) {
         Grenze g = neu("laufzeit.roffs", GrenzArt::Laufzeit, Str::KeGrLzRoffs, "MAX_ROFFS", 128);
         g.stellen.push_back(st(b, b.spiel, "g_roff.h", z.roffs, "MAX_ROFFS", 128));
         g.pruefstelle = gm + (md ? "g_roff.cpp:459" : (jk2 ? "g_roff.cpp:425" : "g_roff.cpp:648")) +
-                        " \"MAX_ROFFS count exceeded. Skipping load\" (die ROFF fehlt)";
-        g.rechnung = "verschiedene .rof je Level; num_roffs >= MAX_ROFFS laedt nicht mehr";
+                        " \"MAX_ROFFS count exceeded. Skipping load\" (the ROFF is missing)";
+        g.rechnung = "distinct .rof per level; num_roffs >= MAX_ROFFS loads no more";
         t.push_back(std::move(g));
     }
     if (sp && !jk2) {
@@ -423,7 +423,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         Grenze g = neu("laufzeit.npcmodelle", GrenzArt::Laufzeit, Str::KeGrLzNpcModelle, "MAX_MODELS_PER_LEVEL", w);
         g.stellen.push_back(st(b, b.spiel, "NPC_stats.cpp", z.npcModelle, "MAX_MODELS_PER_LEVEL", w));
         g.pruefstelle = gm + (md ? "NPC_stats.cpp:1334" : "NPC_stats.cpp:1179") + " Com_Error \"About to overflow modelsAlreadyDone\"";
-        g.rechnung = "verschiedene Figurenmodelle (playerModel) je Level, samt Spieler";
+        g.rechnung = "distinct character models (playerModel) per level, including the player";
         t.push_back(std::move(g));
     }
     if (!jk2) {   // codeJK2/game kennt kein misc_bsp (kein G_BSPIndex)
@@ -433,8 +433,8 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.pruefstelle = qc + (md ? "cm_load.cpp:1131" : (mp ? "cm_load.cpp:1040" : "cm_load.cpp:1117")) +
                         " Com_Error \"CM_LoadSubBSP: too many unique sub BSPs\"" +
                         (mp ? std::string() : "; " + cfgStelle + " (G_BSPIndex)");
-        g.rechnung = mp ? "verschiedene misc_bsp (bspmodel) je Level"
-                        : "verschiedene misc_bsp je Level: G_BSPIndex legt sie als Configstring ab Index 1 an (MAX_SUB_BSP - 1)";
+        g.rechnung = mp ? "distinct misc_bsp (bspmodel) per level"
+                        : "distinct misc_bsp per level: G_BSPIndex stores them as configstrings from index 1 (MAX_SUB_BSP - 1)";
         t.push_back(std::move(g));
     }
 
@@ -445,7 +445,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.stellen.push_back(st(b, b.spiel, mp ? "bg_public.h" : "g_local.h", z.spawnVars, "MAX_SPAWN_VARS", 64));
         g.pruefstelle = gm + (md ? "g_spawn.cpp:1430" : (mp ? "g_spawn.c:1182" : (jk2 ? "g_spawn.cpp:1037" : "g_spawn.cpp:1257"))) +
                         " \"G_ParseSpawnVars: MAX_SPAWN_VARS\"";
-        g.rechnung = "Schluessel je Entitaet (wie im Entity-Lump, samt \"model\" der Brush-Entities)";
+        g.rechnung = "keys per entity (as in the entity lump, including \"model\" of brush entities)";
         t.push_back(std::move(g));
     }
     {
@@ -455,7 +455,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.stellen.push_back(st(b, b.spiel, mp ? "bg_public.h" : "g_local.h", z.spawnVarsChars, "MAX_SPAWN_VARS_CHARS", w));
         g.pruefstelle = gm + (md ? "g_spawn.cpp:1355" : (mp ? "g_spawn.c:976" : (jk2 ? "g_spawn.cpp:970" : "g_spawn.cpp:1189"))) +
                         " \"G_AddSpawnVarToken: MAX_SPAWN_VARS\"";
-        g.rechnung = "je Entitaet: Summe (Laenge + 1) aller Schluessel und Werte";
+        g.rechnung = "per entity: sum of (length + 1) of all keys and values";
         t.push_back(std::move(g));
     }
 
@@ -464,7 +464,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         Grenze g = neu("compiler.lichtschalter", GrenzArt::Compiler, Str::KeGrCoLichtschalter, "MAX_SWITCHED_LIGHTS", 32);
         g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 191, "MAX_SWITCHED_LIGHTS", 32));
         g.pruefstelle = "q3map2 writebsp.cpp:272 Error \"MAX_SWITCHED_LIGHTS (32) exceeded\" (SetLightStyles)";
-        g.rechnung = "verschiedene Paare (targetname, style) der light-Entities mit targetname";
+        g.rechnung = "distinct pairs (targetname, style) of light entities with a targetname";
         t.push_back(std::move(g));
     }
     {
@@ -473,7 +473,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 209, "MAX_MAP_VISCLUSTERS", 0x4000));
         g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 210, "MAX_MAP_VISIBILITY", 8 + 0x4000LL * 0x800LL));
         g.pruefstelle = "q3map2 vis.cpp:733 Error \"MAX_MAP_VISIBILITY exceeded\"";
-        g.rechnung = "Bytes der Sichtbarkeitsdaten";
+        g.rechnung = "bytes of visibility data";
         t.push_back(std::move(g));
     }
     return t;

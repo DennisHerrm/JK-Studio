@@ -789,7 +789,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
         }
         if (an.portale > 0) {
             // VIS-Aufwand (vis.cpp PassagePortalFlow): mit den Portalen waechst er schnell
-            const long long schwelle = 8000;
+            const long long schwelle = o.portalSchwelle;
             if (an.portale >= schwelle) {
                 Befund b = neu("vis", Schwere::Hinweis, "q3map2 vis.cpp / visflow.cpp (PassagePortalFlow), tutorial r147 \"Reducing passage portal flow\": detail, hint, _blocksize");
                 b.schaetzung = true;
@@ -799,7 +799,7 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
             }
         }
         if (an.dreieckeJeAnsicht > 0) {
-            const long long schwelle = 20000;   // Faustregel der Tutorials (r_speeds)
+            const long long schwelle = o.dreieckSchwelle;   // Faustregel der Tutorials (r_speeds)
             if (an.dreieckeJeAnsicht >= schwelle) {
                 Befund b = neu("dreiecke", Schwere::Hinweis, "OpenJK tr_main.cpp (r_speeds), tutorials (RichDiesal: keep the triangles per view low) - estimate from the PVS");
                 b.schaetzung = true;

@@ -976,6 +976,12 @@ void einstellungenLaden() {
     ed.autosave.an = zahl("Autosave", 1) != 0.0F;
     ed.autosave.minuten = std::clamp(static_cast<int>(zahl("AutosaveMinutes", 15)), 1, 60);
     ed.autosave.schnappschuesse = zahl("Snapshots", 0) != 0.0F;
+    // Stufe 5: Optimierer (eigene Einstellungsseite)
+    ed.optimierer.knappProzent = std::clamp(static_cast<int>(zahl("OptimizerNear", 90)), 50, 100);
+    ed.optimierer.nachBau = zahl("OptimizerAfterBuild", 0) != 0.0F;
+    ed.optimierer.regelwerk = std::clamp(static_cast<int>(zahl("OptimizerRules", -1)), -1, 3);
+    ed.optimierer.portalSchwelle = std::clamp(static_cast<int>(zahl("OptimizerPortals", 8000)), 100, 1000000);
+    ed.optimierer.dreieckSchwelle = std::clamp(static_cast<int>(zahl("OptimizerTriangles", 20000)), 1000, 10000000);
     {
         const auto it = k.find("RegionBoxShader");
         ed.regionKastenShader = it != k.end() ? it->second : std::string();
@@ -1199,6 +1205,11 @@ void einstellungenSpeichern() {
     k["Autosave"] = ed.autosave.an ? "1" : "0";
     k["AutosaveMinutes"] = std::to_string(ed.autosave.minuten);
     k["Snapshots"] = ed.autosave.schnappschuesse ? "1" : "0";
+    k["OptimizerNear"] = std::to_string(ed.optimierer.knappProzent);
+    k["OptimizerAfterBuild"] = ed.optimierer.nachBau ? "1" : "0";
+    k["OptimizerRules"] = std::to_string(ed.optimierer.regelwerk);
+    k["OptimizerPortals"] = std::to_string(ed.optimierer.portalSchwelle);
+    k["OptimizerTriangles"] = std::to_string(ed.optimierer.dreieckSchwelle);
     k["RegionBoxShader"] = ed.regionKastenShader;
     k["GridDefault"] = std::to_string(ed.rasterStandard);
     k["GridMaxCoordPower"] = std::to_string(ed.rasterMaxPotenz);

@@ -20,6 +20,8 @@
 //   Public License for more details (LICENSE).
 #include "karteneditor.h"
 
+#include "bhed/karte/grenzen.h"
+
 #include "app_internal.h"
 #include "backend.h"
 #include "karte_gpu.h"
@@ -64,6 +66,8 @@ const Seite kSeiten[] = {
     {Str::KePgOrtho, Str::KePgOrthoT, 1},         {Str::KePgBuild, Str::KePgBuildT, 1},
     {Str::KePgTexBro, Str::KePgTexBroT, 1},       {Str::KePgModBro, Str::KePgModBroT, 1},
     {Str::KePgAutosave, Str::KePgAutosaveT, 1},
+    // Stufe 5 (Abweichung, eigene Seite): die Schwellen des Optimierers
+    {Str::KePgOptimizer, Str::KePgOptimizerT, 1},
 };
 constexpr int kSeiteGlobal = 0;
 constexpr int kSeiteGlobalGame = 1;
@@ -88,6 +92,7 @@ constexpr int kSeiteKamera = 17;
 constexpr int kSeiteTexBro = 20;
 constexpr int kSeiteModBro = 21;
 constexpr int kSeiteAutosave = 22;
+constexpr int kSeiteOptimierer = 23;
 
 struct Entwurf {
     bool offen = false;
@@ -152,6 +157,12 @@ struct Entwurf {
     char enginePfad[512] = "";      // g_strEnginePath
     char zusatzPfade[5][512] = {};  // g_strExtraResourcePaths
     char shaderEditor[512] = "";    // g_TextEditor_editorCommand
+    // Stufe 5: Optimierer
+    int optKnapp = 90;
+    bool optNachBau = false;
+    int optRegelwerk = -1;
+    int optPortale = 8000;
+    int optDreiecke = 20000;
 };
 Entwurf g_entwurf;
 
@@ -319,6 +330,36 @@ bool ganzSpinner(const char* id, int& wert, int von, int bis) {
     ImGui::PopID();
     wert = std::clamp(wert, von, bis);
     return geaendert;
+}
+
+// Stufe 5 (Abweichung, NRC hat keinen Optimierer): die Seite "Optimizer" im
+// Stil der Seiten oben - ab wann "knapp", nach jedem Bau pruefen, das
+// Regelwerk und die Schwellen der Faustregel-Hinweise (VIS, Dreiecke).
+void optimiererSeite() {
+    formAnfang({Str::KePrOptKnapp, Str::KePrOptRegelwerk, Str::KePrOptPortale, Str::KePrOptDreiecke});
+    feldAnfang(Str::KePrOptKnapp);
+    (void)ganzSpinner("##optknapp", g_entwurf.optKnapp, 50, 100);
+    feldEnde();
+    (void)haken(Str::Count, (std::string(trK(Str::KePrOptNachBau)) + "##optnachbau").c_str(), g_entwurf.optNachBau);
+    feldAnfang(Str::KePrOptRegelwerk);
+    {
+        const std::string vorschau = g_entwurf.optRegelwerk < 0 ? std::string(trK(Str::KeOptAuto))
+                                                                : karte::grenzSpielName(static_cast<karte::GrenzSpiel>(g_entwurf.optRegelwerk));
+        if (ImGui::BeginCombo("##optregelwerkseite", vorschau.c_str())) {
+            if (ImGui::Selectable(trK(Str::KeOptAuto), g_entwurf.optRegelwerk < 0)) { g_entwurf.optRegelwerk = -1; }
+            for (int i = 0; i < karte::kGrenzSpiele; ++i) {
+                if (ImGui::Selectable(karte::grenzSpielName(static_cast<karte::GrenzSpiel>(i)), g_entwurf.optRegelwerk == i)) { g_entwurf.optRegelwerk = i; }
+            }
+            ImGui::EndCombo();
+        }
+    }
+    feldEnde();
+    feldAnfang(Str::KePrOptPortale);
+    (void)ganzSpinner("##optportale", g_entwurf.optPortale, 100, 1000000);
+    feldEnde();
+    feldAnfang(Str::KePrOptDreiecke);
+    (void)ganzSpinner("##optdreiecke", g_entwurf.optDreiecke, 1000, 10000000);
+    feldEnde();
 }
 
 void layoutSeite() {
@@ -1438,6 +1479,11 @@ void zeichneEinstellungen() {
         std::snprintf(g_entwurf.modOrdner, sizeof(g_entwurf.modOrdner), "%s", ed.modBroE.ordner.c_str());
         g_entwurf.autosaveAn = ed.autosave.an;
         g_entwurf.autosaveMinuten = ed.autosave.minuten;
+        g_entwurf.optKnapp = ed.optimierer.knappProzent;
+        g_entwurf.optNachBau = ed.optimierer.nachBau;
+        g_entwurf.optRegelwerk = ed.optimierer.regelwerk;
+        g_entwurf.optPortale = ed.optimierer.portalSchwelle;
+        g_entwurf.optDreiecke = ed.optimierer.dreieckSchwelle;
         g_entwurf.schnappschuesse = ed.autosave.schnappschuesse;
         g_entwurf.clipperCaulk = ed.bearbeitung.clipperCaulk;
         g_entwurf.clipperUmdrehen = ed.bearbeitung.clipperUmdrehenZuruecksetzen;
@@ -1592,6 +1638,8 @@ void zeichneEinstellungen() {
             orthoSeite();
         } else if (g_entwurf.seite == kSeiteBuild) {
             buildSeite();
+        } else if (g_entwurf.seite == kSeiteOptimierer) {
+            optimiererSeite();
         } else if (g_entwurf.seite == kSeiteGlobal || g_entwurf.seite == kSeiteDisplay) {
             // Global Preferences, Display Preferences: Gruppen ohne Felder (Fotos
             // pref_Global.png, pref_Display.png)
@@ -1675,6 +1723,11 @@ void zeichneEinstellungen() {
             }
             ed.autosave.an = g_entwurf.autosaveAn;
             ed.autosave.minuten = g_entwurf.autosaveMinuten;
+            ed.optimierer.knappProzent = g_entwurf.optKnapp;
+            ed.optimierer.nachBau = g_entwurf.optNachBau;
+            ed.optimierer.regelwerk = g_entwurf.optRegelwerk;
+            ed.optimierer.portalSchwelle = g_entwurf.optPortale;
+            ed.optimierer.dreieckSchwelle = g_entwurf.optDreiecke;
             ed.autosave.schnappschuesse = g_entwurf.schnappschuesse;
             ed.nachKlonenSchubsen = g_entwurf.nachKlonen;
             ed.letzteKarteLaden = g_entwurf.letzteKarte;

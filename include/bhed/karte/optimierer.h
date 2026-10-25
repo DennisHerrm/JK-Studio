@@ -222,6 +222,8 @@ struct PruefOptionen {
     const std::string* bspDaten = nullptr;
     std::vector<Bewertung> bewertungen;        // aus Punkt 2 (fuer Lightmaps, Modelle)
     int blockGroesse = 1024;                   // _blocksize (q3map2 bsp.cpp:260)
+    long long portalSchwelle = 8000;           // VIS-Hinweis ab so vielen Portalen (Faustregel, Einstellung)
+    long long dreieckSchwelle = 20000;         // Dreieck-Hinweis ab (r_speeds-Faustregel, Einstellung)
     std::vector<std::pair<std::string, double>>* zeiten = nullptr;   // je Pruefung die Dauer in ms (optional)
 };
 [[nodiscard]] std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o);

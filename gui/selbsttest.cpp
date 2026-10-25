@@ -35736,6 +35736,212 @@ std::vector<Schritt> karteneditorStufe4Schritte() {
     return s;
 }
 
+// --- Stufe 5 des Karten-Editors: der Optimierer -----------------------------------
+//
+// BHED_KARTE_NUR=stufe5 laesst nur diese Schritte laufen; BHED_STUFE5_NUR=<Teil>
+// nur einen Teil (fenster, ...).
+namespace stufe5 {
+
+namespace ke = karteneditor;
+
+// Eine kleine Karte mit bekannten Befunden: zwei gestapelte Kaesten (2
+// verdeckte Flaechen), ein Hint-Pinsel als detail (Mischinhalt), ein Pinsel
+// mit einer Ecke bei 428.02 (neben dem Raster, sicher), eine kleine Kiste als
+// structural (Deko-Vorschlag).
+std::string testKarte() {
+    auto kasten = [](double x0, double y0, double z0, double x1, double y1, double z1, const char* tex, int inhalt) {
+        auto f = [](double v) {
+            char z[32];
+            std::snprintf(z, sizeof(z), "%g", v);
+            return std::string(z);
+        };
+        const std::string t = std::string(" ") + tex + " 0 0 0 0.5 0.5 " + std::to_string(inhalt) + " 0 0\n";
+        auto p = [&](double a, double b, double c) { return "( " + f(a) + " " + f(b) + " " + f(c) + " ) "; };
+        return "{\n" + p(x1, y1, z1) + p(x1, y0, z1) + p(x0, y1, z1) + t + p(x1, y1, z1) + p(x0, y1, z1) + p(x1, y1, z0) + t + p(x1, y1, z1) +
+               p(x1, y1, z0) + p(x1, y0, z1) + t + p(x0, y0, z0) + p(x1, y0, z0) + p(x0, y1, z0) + t + p(x0, y0, z0) + p(x0, y0, z1) +
+               p(x1, y0, z0) + t + p(x0, y0, z0) + p(x0, y1, z0) + p(x0, y0, z1) + t + "}\n";
+    };
+    return "{\n\"classname\" \"worldspawn\"\n" + kasten(0, 0, 0, 64, 64, 64, "test/a", 0) + kasten(0, 0, 64, 64, 64, 128, "test/b", 0) +
+           kasten(200, 0, 0, 264, 64, 64, "common/hint", 1 << 27) + kasten(300, 0, 0, 428.02, 128, 128, "test/c", 0) +
+           kasten(500, 0, 0, 532, 32, 32, "test/kiste", 0) + "}\n{\n\"classname\" \"info_player_start\"\n\"origin\" \"600 0 24\"\n}\n";
+}
+
+bool hatBefund(const char* id, long long* anzahl = nullptr) {
+    const ke::OptimiererBlick b = ke::optimiererBlick();
+    for (std::size_t i = 0; i < b.befundIds.size(); ++i) {
+        if (b.befundIds[i] == id) {
+            if (anzahl != nullptr) { *anzahl = b.befundAnzahl[i]; }
+            return true;
+        }
+    }
+    return false;
+}
+
+std::string befundListe() {
+    const ke::OptimiererBlick b = ke::optimiererBlick();
+    std::string t;
+    for (std::size_t i = 0; i < b.befundIds.size(); ++i) { t += (t.empty() ? "" : ", ") + b.befundIds[i] + " " + std::to_string(b.befundAnzahl[i]); }
+    return t;
+}
+
+Schritt warteOptimierer(const std::string& was, std::shared_ptr<int> laeufe) {
+    return warteBis(was, [laeufe] { return !ke::optimiererLaeuft() && ke::optimiererBlick().laeufe > *laeufe; }, 1800);
+}
+
+int caulkFlaechen() {
+    int n = 0;
+    for (const auto& en : ke::editor().karte.entitaeten()) {
+        for (const auto& p : en->kinder()) {
+            if (p->art() != karte::Primitiv::Art::Pinsel) { continue; }
+            const auto& pin = static_cast<const karte::Pinsel&>(*p);
+            for (std::size_t i = 0; i < pin.anzahl(); ++i) { n += pin[i].shader() == "textures/common/caulk" ? 1 : 0; }
+        }
+    }
+    return n;
+}
+
+// Punkt 5: das Fenster - Menue, Lauf im Hintergrund, Liste, Auswahl, Beheben,
+// Alles Sichere beheben, Bericht, Einstellungsseite.
+std::vector<Schritt> fenster() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    auto laeufe = std::make_shared<int>(0);
+    add(tu("Stufe 5/5: Testkarte opt_test.map schreiben und oeffnen", [laeufe] {
+        {
+            std::ofstream f(std::filesystem::path(karteTestPfad("opt_test.map")), std::ios::binary | std::ios::trunc);
+            f << testKarte();
+        }
+        (void)ke::karteOeffnen(karteTestPfad("opt_test.map"));
+        ke::editor().karte.auswahl.leeren();
+        ke::optimiererSchliessen();
+        ke::konsoleLeeren();
+        *laeufe = ke::optimiererBlick().laeufe;
+    }));
+    add(pause(0.3));
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.25));
+    add(pruefe("Build-Menue: \"Optimizer...\" nach \"Update entities only\" (eigener Eintrag)", [] {
+        return finde(std::string(ke::trK(Str::KeOptMenue)) + "##bauoptimierer", "", 0, true) != nullptr;
+    }));
+    add(klick(std::string(ke::trK(Str::KeOptMenue)) + "##bauoptimierer", "", 0, true));
+    add(warteOptimierer("Optimierer fertig", laeufe));
+    add(pruefe("Fenster \"Optimizer\" offen, Pruefung im Hintergrund fertig", [] {
+        const ImGuiWindow* w = ImGui::FindWindowByName("###karteoptimierer");
+        return ke::optimiererOffen() && w != nullptr && ke::optimiererBlick().hatErgebnis;
+    }));
+    add(pruefe("Befunde der Testkarte: verdeckt 2, mischinhalt 1, offgrid 1, deko", [] {
+        long long v = 0;
+        long long m = 0;
+        long long o = 0;
+        diag::detail("Knopftest: Stufe 5 - Befunde " + befundListe());
+        return hatBefund("verdeckt", &v) && v == 2 && hatBefund("mischinhalt", &m) && m == 1 && hatBefund("offgrid", &o) && o == 1 && hatBefund("deko");
+    }));
+    add(pruefe("Konsole: die Zusammenfassung des Optimierers", [] {
+        const std::string vorlage = ke::trK(Str::KeOptZusammenfassung);
+        return stufe3::konsoleText().find(vorlage.substr(0, vorlage.find("%d"))) != std::string::npos;
+    }));
+    // Reiter "Pruefungen", Zeile "verdeckt": waehlt die zwei Pinsel aus
+    add(tu("Reiter Pruefungen", [] { ke::optimiererReiter(1); }));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeOptPrVerdeckt)) + "##bfverdeckt", "###karteoptimierer"));
+    add(pause(0.2));
+    add(pruefe("Klick auf \"verdeckt\": die zwei Pinsel gewaehlt", [] { return ke::editor().karte.auswahl.anzahl() == 2; }));
+    add(klick(std::string(ke::trK(Str::KeOptBeheben)) + "##optbeheben", "###karteoptimierer"));
+    add(pause(0.2));
+    add(pruefe("Beheben...: Vorschau mit Anwenden", [] { return finde(std::string(ke::trK(Str::KeOptAnwenden)) + "##optanwenden", "###karteoptimierer", 0, false) != nullptr; }));
+    add(tu("Laeufe merken", [laeufe] { *laeufe = ke::optimiererBlick().laeufe; }));
+    add(klick(std::string(ke::trK(Str::KeOptAnwenden)) + "##optanwenden", "###karteoptimierer"));
+    add(warteOptimierer("neu gezaehlt nach dem Beheben", laeufe));
+    add(pruefe("Anwenden: 2 Flaechen caulk, Rueckgaengig \"Optimizer: caulk 2 hidden faces\", neu gezaehlt ohne \"verdeckt\"", [] {
+        diag::detail("Knopftest: Stufe 5 - nach Caulk " + befundListe() + ", Undo " + ke::editor().karte.undo.undoName());
+        return caulkFlaechen() == 2 && ke::editor().karte.undo.undoName() == "Optimizer: caulk 2 hidden faces" && !hatBefund("verdeckt") &&
+               !ke::optimiererBlick().veraltet;
+    }));
+    add(tu("Laeufe merken", [laeufe] { *laeufe = ke::optimiererBlick().laeufe; }));
+    add(klick(std::string(ke::trK(Str::KeOptAllesSichere)) + "##optsicher", "###karteoptimierer"));
+    add(warteOptimierer("neu gezaehlt nach Alles Sichere", laeufe));
+    add(pruefe("Alles Sichere beheben: Mischinhalt und Raster behoben (ein Schritt), Deko bleibt (nicht sicher)", [] {
+        diag::detail("Knopftest: Stufe 5 - nach Alles Sichere " + befundListe());
+        return !hatBefund("mischinhalt") && !hatBefund("offgrid") && hatBefund("deko") &&
+               ke::editor().karte.undo.undoName().rfind("Optimizer: fix all safe", 0) == 0;
+    }));
+    // Bericht exportieren (der Dateidialog des Selbsttests liefert den Pfad)
+    add(tu("Dateidialog: opt_bericht.txt", [] {
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::path(karteTestPfad("opt_bericht.txt")), ec);
+        ke::editor().dateiDialog = [](const std::string&) { return karteTestPfad("opt_bericht.txt"); };
+    }));
+    add(klick(std::string(ke::trK(Str::KeOptExport)) + "##optexport", "###karteoptimierer"));
+    add(pause(0.2));
+    add(tu("Dateidialog zurueck", [] { ke::editor().dateiDialog = nullptr; }));
+    add(pruefe("Bericht: opt_bericht.txt mit Grenzen und Pruefungen samt Quellen", [] {
+        const std::string t = dateiInhalt(karteTestPfad("opt_bericht.txt"));
+        return t.find(std::string("== ") + ke::trK(Str::KeOptReiterGrenzen)) != std::string::npos &&
+               t.find(std::string("== ") + ke::trK(Str::KeOptReiterBefunde)) != std::string::npos && t.find("code/qcommon/qfiles.h:") != std::string::npos &&
+               t.find("MAX_PATCH_PLANES") != std::string::npos;
+    }));
+    // Reiter "Grenzen": "Nur Probleme" aus, die Zeile Entities nach dem Spawn
+    add(tu("Reiter Grenzen", [] { ke::optimiererReiter(0); }));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeOptNurProbleme)) + "##optnurprobleme", "###karteoptimierer"));
+    add(pause(0.2));
+    add(pruefe("Nur Probleme aus: jede Grenze als Zeile (Entities nach dem Spawn aus der Karte)", [] {
+        return finde(std::string(ke::trK(Str::KeGrLzEntitaeten)) + "##laufzeit.entitaeten@map", "###karteoptimierer", 0, false) != nullptr &&
+               ke::optimiererBlick().grenzenIds.empty();
+    }));
+    add(klick(std::string(ke::trK(Str::KeGrLzEntitaeten)) + "##laufzeit.entitaeten@map", "###karteoptimierer"));
+    add(pause(0.2));
+    add(pruefe("Klick auf die Zeile: info_player_start (der Beitrag) gewaehlt", [] {
+        const auto& a = ke::editor().karte.auswahl.elemente();
+        return a.size() == 1 && a.front().entitaet.lock() && a.front().entitaet.lock()->klassenname() == "info_player_start";
+    }));
+    add(klick(std::string(ke::trK(Str::KeOptNurProbleme)) + "##optnurprobleme", "###karteoptimierer"));
+    // Einstellungsseite "Optimizer" (Abweichung) und Speichern
+    add(tu("Einstellungen auf", [] { ke::editor().einstellungenOffen = true; }));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KePgOptimizer)) + "##seite23"));
+    add(pause(0.3));
+    add(pruefe("Seite Optimizer (Abweichung, die letzte unter Settings): Knapp ab, Nach jedem Bau, Regelwerk, Schwellen", [] {
+        std::string gesehen;
+        for (const Element& el : elemente::alle()) {
+            if (el.label.find("opt") != std::string::npos || el.label.find("seite2") != std::string::npos) { gesehen += " [" + el.label + "|" + el.fenster + "]"; }
+        }
+        diag::detail("Knopftest: Stufe 5 - Elemente der Seite" + gesehen);
+        return finde("##optknapp", "", 0, true) != nullptr && finde("##optdreiecke", "", 0, true) != nullptr &&
+               finde(std::string(ke::trK(Str::KePrOptNachBau)) + "##optnachbau", "", 0, true) != nullptr && finde("##optportale", "", 0, true) != nullptr;
+    }));
+    add(foto("karteneditor_pref_optimierer"));
+    add(tu("Einstellungen zu", [] { karteDialogeZu(); }));
+    add(pause(0.2));
+    add(pruefe("Speichern: OptimizerNear und OptimizerAfterBuild in den Einstellungen", [] {
+        ke::Editor& e = ke::editor();
+        const int vorher = e.optimierer.knappProzent;
+        e.optimierer.knappProzent = 75;
+        ke::einstellungenSpeichern();
+        const bool ok = g_app->settings.karte["OptimizerNear"] == "75" && g_app->settings.karte.count("OptimizerAfterBuild") == 1;
+        e.optimierer.knappProzent = vorher;
+        ke::einstellungenSpeichern();
+        return ok;
+    }));
+    add(foto("karteneditor_optimierer"));
+    add(klick(std::string(ke::trK(Str::KeOptSchliessen)) + "##optzu", "###karteoptimierer"));
+    add(pause(0.2));
+    add(pruefe("Schliessen: das Fenster ist zu", [] { return !ke::optimiererOffen(); }));
+    return s;
+}
+
+}  // namespace stufe5
+
+std::vector<Schritt> karteneditorStufe5Schritte() {
+    std::vector<Schritt> s;
+    const char* nur = std::getenv("BHED_STUFE5_NUR");
+    const auto teil = [nur](const char* name) { return nur == nullptr || std::strcmp(nur, name) == 0; };
+    if (teil("fenster")) {
+        for (Schritt& x : stufe5::fenster()) { s.push_back(std::move(x)); }
+    }
+    return s;
+}
+
 std::vector<Schritt> karteneditorStufe3Schritte() {
     std::vector<Schritt> s;
     // BHED_STUFE3_NUR=maus: nur die Mausbelegung (schneller beim Nachpruefen)
@@ -36683,6 +36889,12 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =stufe5: nur die Stufe 5 (der Optimierer)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe5") == 0) {
+        for (Schritt& x : karteneditorStufe5Schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =stufe2: nur die Wirkungspruefungen der Stufe 2 (Bauwerkzeuge)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe2") == 0) {
         for (Schritt& x : karteneditorStufe2Schritte()) { add(std::move(x)); }
@@ -36701,6 +36913,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : karteneditorStufe2Schritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorStufe3Schritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorStufe4Schritte()) { add(std::move(x)); }
+    for (Schritt& x : karteneditorStufe5Schritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorAlleBefehleSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS

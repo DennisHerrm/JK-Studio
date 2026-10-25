@@ -260,6 +260,13 @@ void bauMenueEintraegeZeichnen() {
     n.aktiv = bspNurEntitaetenMoeglich() && !bauLaeuft();
     n.tooltip = bspNurEntitaetenMoeglich() ? trK(Str::KeBmNurEntitiesTip) : trK(Str::KeBmNurEntitiesAus);
     if (qtPunkt(n)) { bspNurEntitaeten(); }
+    // Stufe 5 (Abweichung, eigene Funktion - NRC hat keinen Optimierer): die
+    // Grenzen von JKA / JK2 / Movie Duels zaehlen, Bauprobleme finden und beheben
+    const std::string opt = std::string(trK(Str::KeOptMenue)) + "##bauoptimierer";
+    QtPunkt o;
+    o.id = opt.c_str();
+    o.tooltip = trK(Str::KeOptMenueTip);
+    if (qtPunkt(o)) { optimiererOeffnen(); }
 }
 
 // Build_runRecentExecutedBuild (build.cpp:1311-1314): der zuletzt gebaute
@@ -1055,6 +1062,9 @@ void zusammenfassung(int art, const std::string& grund) {   // 0 fertig, 1 gesto
             text += " (" + std::to_string(schritt + 1) + ": exit " + c + ")";
         }
         konsoleSchreiben(KonsolenZeile::Art::Ausgabe, text + "\n");
+        // Stufe 5: nach einem Bau des Build-Menues (nicht nach eigenen
+        // Auftraegen wie AutoCaulk) auf Wunsch der Optimierer im Hintergrund
+        if (!danach.f && e().optimierer.nachBau) { optimiererStarten(true); }
     } else if (art == 1) {
         std::snprintf(z, sizeof(z), trK(Str::KeBmGestoppt), l.eintrag.c_str(), static_cast<int>(l.schritt + 1),
                       static_cast<int>(l.befehle.size()), grund.c_str(), zeit.c_str());
@@ -1423,6 +1433,7 @@ void bauAbbrechen() {
 }
 
 void bauBeimBeenden() {   // ~CWatchBSP; dazu: kein q3map2 ohne Editor
+    optimiererBeenden();   // Stufe 5: den Faden des Optimierers abwarten
     g_lauf.prozess.beenden();
     g_lauf.prozess.loslassen();
     ueberwachungZuruecksetzen();

@@ -848,6 +848,14 @@ struct Editor {
         karte::VorgabeText argumenteMp;    // g_engineArgsMP
         std::string zielOrdner;            // Abweichung: Ziel-Ordner ("BuildTargetFolder"), leer = neben der .map
     } bau;
+    // Stufe 5: der Optimierer (eigene Funktion, nicht in NRC; Einstellungsseite "Optimizer")
+    struct OptimiererEinstellungen {
+        int knappProzent = 90;             // ab diesem Anteil "knapp" ("OptimizerNear")
+        bool nachBau = false;              // nach jedem Bau pruefen ("OptimizerAfterBuild")
+        int regelwerk = -1;                // -1 automatisch (Spiel der Karte), sonst karte::GrenzSpiel ("OptimizerRules")
+        int portalSchwelle = 8000;         // VIS-Hinweis ab so vielen Portalen ("OptimizerPortals")
+        int dreieckSchwelle = 20000;       // Dreieck-Hinweis ab ("OptimizerTriangles")
+    } optimierer;
     std::array<FensterBeobachter, 4> beobachter;
     std::array<karte::Blick, 4> blicke{karte::Blick(false), karte::Blick(false), karte::Blick(false), karte::Blick(true)};   // m_view
     int letzterBeobachter = -1;            // RadiantWindowObserver::m_latestObserver
@@ -1310,6 +1318,35 @@ void bauAusfuehren(const std::vector<std::string>& befehle);   // BuildMonitor_R
 // Stufe 4: eigene Befehle im Hintergrund wie ein Build-Eintrag (Konsole,
 // Statuszeile, Schlusszeile); danach(art) mit 0 fertig, 1 gestoppt, 2 abgebrochen.
 void bauEigeneBefehle(const std::string& eintrag, const std::vector<std::string>& befehle, std::function<void(int)> danach);
+// --- Stufe 5: der Optimierer (app_karte_optimierer.cpp) ---
+void optimiererOeffnen();                // Build > Optimizer... (Fenster auf, Pruefung starten)
+void optimiererStarten(bool nachBau = false);   // die Pruefung im Hintergrund starten
+void zeichneOptimierer();                // das Fenster (jedes Bild) und das Abholen des Ergebnisses
+[[nodiscard]] bool optimiererLaeuft();
+[[nodiscard]] bool optimiererOffen();
+void optimiererSchliessen();
+void optimiererBeenden();                // beim Beenden: den Faden abwarten
+[[nodiscard]] std::string optimiererBericht();                  // der Textbericht (Programmsprache)
+bool optimiererBerichtSchreiben(const std::string& pfad);
+// Fuer den Selbsttest
+struct OptimiererBlick {
+    bool hatErgebnis = false;
+    bool veraltet = false;
+    int grenzenUeber = 0;
+    int grenzenKnapp = 0;
+    int befunde = 0;
+    double ms = 0;
+    std::string bsp;                     // die gepruefte BSP ("" = keine)
+    std::vector<std::string> befundIds;  // in der Reihenfolge der Liste
+    std::vector<long long> befundAnzahl;
+    std::vector<std::string> grenzenIds; // Grenzen, die nicht "ok" sind
+    int laeufe = 0;                      // abgeschlossene Pruefungen
+};
+[[nodiscard]] OptimiererBlick optimiererBlick();
+void optimiererReiter(int reiter);       // 0 Grenzen, 1 Pruefungen
+bool optimiererZeileWaehlen(int reiter, const std::string& id);   // waehlt die Objekte aus, zentriert die Ansichten
+bool optimiererBefundBeheben(const std::string& id);              // wie "Beheben..." + "Anwenden"
+int optimiererAllesSichere();            // wie "Alles Sichere beheben": Zahl der behobenen Befunde
 // --- Stufe 4 Punkte 1/2: fertige Karten (app_karte_bsp.cpp) ---
 void bspOeffnenDialog();                 // File > Open .bsp...
 void zeichneBspDialog();                 // der Dialog "Open compiled map" (jedes Bild)
