@@ -2177,6 +2177,8 @@ from i18n_karte4 import KARTE4  # noqa: E402  (Stufe 4: fertige Karten, Original
 S += KARTE4
 from i18n_karte4b import KARTE4B  # noqa: E402  (Stufe 4 Punkt 3: die Dialoge der Plugins)
 S += KARTE4B
+from i18n_karte5 import KARTE5  # noqa: E402  (Stufe 5: Optimierer und Grenzen)
+S += KARTE5
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

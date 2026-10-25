@@ -775,7 +775,9 @@ target_sources(bhed_core PRIVATE
   # Stufe 4 Punkt 3: ShaderPlug, SunPlug, UFO:AI
   src/karte/kleineplugins.cpp
   # Stufe 4 Punkt 3: MeshTex (contrib/meshtex/MeshEntity.cpp)
-  src/karte/meshtex.cpp)
+  src/karte/meshtex.cpp
+  # Stufe 5 Punkt 1: die Grenzen von JKA / MP / Movie Duels / JK2 als Daten
+  src/karte/grenzen.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -966,6 +968,16 @@ if(BEHAVED_TESTS)
   add_executable(kartemeshtex tests/kartemeshtex.cpp)
   target_link_libraries(kartemeshtex PRIVATE bhed_core)
   add_test(NAME karte_meshtex COMMAND kartemeshtex)
+  # Stufe 5 Punkt 1: die Grenzen-Tabelle gegen die Quelltexte der Engines
+  # (Wert und Zeile jedes #define/constexpr, JK2_MODE-Zweige, Pruefstellen).
+  # Ohne -DBEHAVED_OPENJK_QUELLEN=<oj> / -DBEHAVED_MD_QUELLEN=<mdgit> werden
+  # deren Stellen uebersprungen; q3map2 liegt unter third_party.
+  set(BEHAVED_OPENJK_QUELLEN "" CACHE PATH "OpenJK-Quelltext (Ordner mit code/, codemp/, codeJK2/), nur lesen")
+  set(BEHAVED_MD_QUELLEN "" CACHE PATH "Movie-Duels-Quelltext (Ordner mit code/), nur lesen")
+  add_executable(kartegrenzen tests/kartegrenzen.cpp)
+  target_link_libraries(kartegrenzen PRIVATE bhed_core)
+  add_test(NAME karte_grenzen COMMAND kartegrenzen "${BEHAVED_OPENJK_QUELLEN}" "${BEHAVED_MD_QUELLEN}"
+           ${CMAKE_CURRENT_SOURCE_DIR}/third_party/q3map2)
   add_executable(kartebefehle tests/kartebefehle.cpp)
   target_link_libraries(kartebefehle PRIVATE bhed_core)
   add_test(NAME karte_befehle COMMAND kartebefehle ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.md)
