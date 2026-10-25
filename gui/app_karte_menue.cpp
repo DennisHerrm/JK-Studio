@@ -1102,14 +1102,14 @@ void einstellungenLaden() {
         ed.spielFrage = zahl("gamePrompt", 0) != 0.0F;
         ed.spielName = text("GameName");
         ed.spielModus = text("GameMode") == "mp" ? "mp" : "sp";
-        ed.enginePfad = text("EnginePath");
+        ed.enginePfad = ordnerAbsolut(text("EnginePath"));   // NRC#164: ein relativer Pfad aus der Einstellung wird absolut
         // Layout: "DetachableMenus" (mainframe.cpp:2106); "CustomShaderEditorCommand"
         // (preferences.cpp:826); "OpenGLFont", "OpenGLFontSize" (mainframe.cpp:2110-2111)
         ed.menueAbreissbar = zahl("DetachableMenus", 1) != 0.0F;
         ed.shaderEditorBefehl = text("CustomShaderEditorCommand");
         if (k.count("OpenGLFont") != 0U) { ed.glSchriftName = text("OpenGLFont"); }
         ed.glSchriftGroesse = std::clamp(static_cast<int>(zahl("OpenGLFontSize", 8)), 1, 512);
-        for (std::size_t i = 0; i < ed.zusatzPfade.size(); ++i) { ed.zusatzPfade[i] = text("ExtraResourcePath" + std::to_string(i)); }
+        for (std::size_t i = 0; i < ed.zusatzPfade.size(); ++i) { ed.zusatzPfade[i] = ordnerAbsolut(text("ExtraResourcePath" + std::to_string(i))); }   // NRC#164
     }
     // BuildMonitor_Construct (watchbsp.cpp:257-268)
     {

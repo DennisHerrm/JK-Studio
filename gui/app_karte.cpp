@@ -459,6 +459,18 @@ std::string kartenFsGame() { return g().spielName.empty() ? std::string(kartenSp
 
 // EnginePath_get: der gesetzte Pfad, sonst der Ordner ueber dem ersten
 // Spielordner des Programms (der Engine-Pfad, unter dem basegame liegt).
+// NRC#164 (Stufe 6): ein relativer Pfad (../../Academy/) loeste in NRC beim
+// Speichern eine Zusicherung aus und gilt fuer die Werkzeuge relativ zu deren
+// Arbeitsordner. Beim Setzen wird er absolut - zum Programmordner, wie NRC
+// ihn mit dem Programmordner als Arbeitsordner meinte.
+std::string ordnerAbsolut(const std::string& pfad) {
+    if (pfad.empty()) { return pfad; }
+    fs::path p = utf8Pfad(pfad);
+    if (p.is_relative()) { p = utf8Pfad(platform::executableDirectory()) / p; }
+    const std::u8string u = p.lexically_normal().u8string();
+    return karte::ordnerBereinigt(std::string(u.begin(), u.end()));
+}
+
 std::string enginePfadAnzeige() {
     if (!g().enginePfad.empty()) { return g().enginePfad; }
     const std::vector<std::string> prog = suchpfade(kartenSpielNummer());

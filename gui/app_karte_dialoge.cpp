@@ -1206,7 +1206,7 @@ void zeichneEnginePfadDialog() {
         ImGui::SetCursorScreenPos(bp(static_cast<float>(innenB - kRand - kKnopfB), static_cast<float>(innenH - kRand - kKnopfH)));
         if (ImGui::Button((std::string(trK(Str::KePrefOk)) + "##enginepfadok").c_str(), ImVec2{px(static_cast<float>(kKnopfB)), knopfH})) {
             ed.enginePfadDialogOffen = false;
-            const std::string neu = karte::ordnerBereinigt(pfad);
+            const std::string neu = ordnerAbsolut(pfad);   // NRC#164: nie relativ
             if (neu != enginePfadAnzeige()) {   // setEnginePath
                 spielNeuRealisieren("Engine Path Configuration", [neu] {
                     editor().enginePfad = neu;
@@ -1790,9 +1790,9 @@ void zeichneEinstellungen() {
                 const karte::SpielBeschreibung& sb = kartenSpiel();
                 const std::string fs = g_entwurf.fsGame[0] == '\0' ? std::string(sb.basisSpiel) : std::string(g_entwurf.fsGame);
                 const std::string modus = g_entwurf.modusWahl != 0 ? "mp" : "sp";
-                const std::string engine = karte::ordnerBereinigt(g_entwurf.enginePfad);
+                const std::string engine = ordnerAbsolut(g_entwurf.enginePfad);   // NRC#164: nie relativ
                 std::array<std::string, 5> zusatz;
-                for (std::size_t i = 0; i < 5; ++i) { zusatz[i] = karte::ordnerBereinigt(g_entwurf.zusatzPfade[i]); }
+                for (std::size_t i = 0; i < 5; ++i) { zusatz[i] = ordnerAbsolut(g_entwurf.zusatzPfade[i]); }
                 const auto gleich = [](const std::string& a, const std::string& b) {   // path_equal
                     return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(), [](char x, char y) {
                                return std::tolower(static_cast<unsigned char>(x)) == std::tolower(static_cast<unsigned char>(y));

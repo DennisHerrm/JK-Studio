@@ -2251,6 +2251,51 @@ std::vector<Schritt> funde() {
         const ke::Editor& e = ke::editor();
         return e.bearbeitung.einstellung.modus == karte::AuswahlModus::Primitiv && e.karte.auswahl.flaechen().size() == 1;
     }));
+    // NRC#164: ein relativer Engine-Pfad (../../Academy/) loeste beim Speichern eine
+    // Zusicherung aus; die Werkzeuge bekommen ihn ausserdem relativ zu ihrem eigenen
+    // Arbeitsordner. Jetzt wird er beim Setzen absolut (zum Programmordner).
+    auto engineAlt = std::make_shared<std::string>();
+    add(tu("NRC#164: Grundzustand, Engine-Pfad merken, Edit > Preferences > Paths", [engineAlt] {
+        grundzustand();
+        *engineAlt = ke::editor().enginePfad;
+        (void)ke::ausfuehren("Preferences");
+    }));
+    add(pause(0.3));
+    add(klickAn("Seite Paths", [] {
+        const Element* el = findeEndung("##seite3", "###karteeinstellungen");
+        return el != nullptr ? el->rect.GetCenter() : ImVec2{5, 5};
+    }));
+    add(pause(0.2));
+    add(feldAendern(Feld{"radiant/mainframe.cpp:398", "Engine Path", FeldArt::Text, [] { return std::string("##enginepfad"); },
+                         [] { return std::string("../"); }, "EnginePath"}));
+    add(klick(ke::trK(Str::KePrefOk), "###karteeinstellungen"));
+    add(warteBis("NRC#164: Spiel neu geladen", [] { return ke::spielBereit(); }, 3000));
+    add(pause(0.3));
+    add(pruefe("NRC#164: der Engine-Pfad ist absolut (Programmordner/..), gespeichert", [] {
+        const ke::Editor& e = ke::editor();
+        const std::filesystem::path soll = (std::filesystem::path(platform::executableDirectory()) / "..").lexically_normal();
+        const std::u8string u = soll.u8string();
+        const std::string erwartet = karte::ordnerBereinigt(std::string(u.begin(), u.end()));
+        diag::detail("Knopftest: Stufe 6 - NRC#164 Engine-Pfad \"" + e.enginePfad + "\", erwartet \"" + erwartet + "\"");
+        return std::filesystem::path(std::u8string(e.enginePfad.begin(), e.enginePfad.end())).is_absolute() && e.enginePfad == erwartet &&
+               einstellungJetzt("EnginePath") == erwartet;
+    }));
+    add(tu("NRC#164: aendern und Save", [] {
+        ke::Editor& e = ke::editor();
+        (void)ke::karteOeffnen(fixturePfad());
+        e.karte.auswahl.waehlen(e.karte.welt(), weltKind(0));
+        (void)ke::ausfuehren("SelectNudgeUp");
+        (void)ke::ausfuehren("SaveMap");
+    }));
+    add(pruefe("NRC#164: Save mit diesem Engine-Pfad: gespeichert, keine Zusicherung", [] { return !ke::geaendert(); }));
+    add(tu("NRC#164: Engine-Pfad zurueck", [engineAlt] {
+        const std::string a = *engineAlt;
+        ke::spielNeuRealisieren("Engine Path Configuration", [a] {
+            ke::editor().enginePfad = a;
+            ke::einstellungenSpeichern();
+        });
+    }));
+    add(warteBis("NRC#164: Spiel wieder geladen", [] { return ke::spielBereit(); }, 3000));
     // NRC-master nach 20260114: cc96c84 (Door Builder: die zweite Ausrichtung hiess auch
     // "North - South") und 7027470 ("Distance Multipler"); mit den Begriffen wie NetRadiant
     add(tu("NRC master: Begriffe wie NetRadiant, Pinsel A, bobToolz Door Builder", [] {

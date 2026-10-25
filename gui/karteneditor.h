@@ -1288,6 +1288,8 @@ void kartenUrlOeffnen(const std::string& url);                  // OpenURL
 [[nodiscard]] std::string kartenDateiDialog(bool oeffnen, const char* titel, const char* filter, const std::string& start, const std::string& name = "");
 // button_clicked_entry_browse_directory: Ordnerwahl von Windows, im Selbsttest ersetzbar (derselbe Ersatz)
 [[nodiscard]] std::string kartenOrdnerDialog(const char* titel, const std::string& start);
+// NRC#164: ein Ordner (Engine-Pfad, Suchpfad) absolut zum Programmordner, mit '/' am Ende
+[[nodiscard]] std::string ordnerAbsolut(const std::string& pfad);
 void shaderAnsehen(const std::string& datei, const std::string& name, bool extern_);   // DoShaderView
 void beimBeenden();            // main.cpp:476 (g_strLastMap)
 // OpenMap (map.cpp:1841) mit Dateiwahl; karteOeffnen ohne Dialog (fuer
