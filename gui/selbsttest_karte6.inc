@@ -539,6 +539,7 @@ void vorbereiten(Vor v) {
         e.bearbeitung.einstellung.modus = karte::AuswahlModus::Komponente;
         e.bearbeitung.einstellung.komponente = karte::KomponentenModus::Ecke;
         if (const auto p = std::dynamic_pointer_cast<karte::Pinsel>(weltKind(0))) {
+            (void)p->ecken(e.karte.kontext);
             karte::Waehlbar w;
             w.art = karte::Waehlbar::Art::Ecke;
             w.entitaet = welt;
@@ -2191,6 +2192,69 @@ std::vector<Schritt> dialoge() {
     return s;
 }
 
+// --- Teil "funde": bekannte Fehler aus NRC/GtkRadiant, nachgestellt im laufenden Programm ---
+
+std::size_t komponentenGewaehlt(bool ecken) {
+    std::size_t n = 0;
+    for (const auto& ent : ke::editor().karte.entitaeten()) {
+        for (const auto& p : ent->kinder()) {
+            if (p->art() != karte::Primitiv::Art::Pinsel) { continue; }
+            for (const auto& f : static_cast<karte::Pinsel&>(*p).flaechen()) { n += ecken ? f->eckenWahl.size() : f->kantenWahl.size(); }
+        }
+    }
+    return n;
+}
+
+std::vector<Schritt> funde() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    // NRC#65: nach dem Verlassen des Ecken- bzw. Kantenmodus blieb die Teilauswahl
+    // aktiv, der naechste Zug verformte den Pinsel. Garux: "Probably should just do
+    // deselection, at least for vertices and edges". Der Flaechenmodus bleibt wie NRC.
+    struct Modus {
+        const char* name;
+        ImGuiKey taste;
+        karte::KomponentenModus modus;
+        karte::Waehlbar::Art art;
+    };
+    for (const Modus& m : {Modus{"Ecken", ImGuiKey_V, karte::KomponentenModus::Ecke, karte::Waehlbar::Art::Ecke},
+                           Modus{"Kanten", ImGuiKey_E, karte::KomponentenModus::Kante, karte::Waehlbar::Art::Kante}}) {
+        const Modus mm = m;
+        add(tu(std::string("NRC#65: Pinsel A, ") + m.name + "modus, eine " + m.name + " gewaehlt", [mm] {
+            vorbereiten(Vor::Pinsel);
+            ke::Editor& e = ke::editor();
+            e.bearbeitung.einstellung.modus = karte::AuswahlModus::Komponente;
+            e.bearbeitung.einstellung.komponente = mm.modus;
+            if (const auto p = std::dynamic_pointer_cast<karte::Pinsel>(weltKind(0))) {
+                (void)p->ecken(e.karte.kontext);   // m_ecken / m_kanten aufbauen
+                (void)p->kanten(e.karte.kontext);
+                karte::Waehlbar w;
+                w.art = mm.art;
+                w.entitaet = e.karte.welt();
+                w.primitiv = p;
+                w.index = 0;
+                karte::setzeGewaehlt(e.karte, w, true);
+            }
+            ke::auswahlGeaendert();
+        }));
+        add(pruefe(std::string("NRC#65: ") + m.name + " gewaehlt", [mm] { return komponentenGewaehlt(mm.modus == karte::KomponentenModus::Ecke) > 0; }));
+        add(tasteKombi(m.taste, m.taste == ImGuiKey_V ? "V" : "E"));
+        add(pruefe(std::string("NRC#65: ") + m.name + "modus verlassen (Taste noch einmal): Primitivmodus, keine " + m.name + " mehr gewaehlt", [mm] {
+            const ke::Editor& e = ke::editor();
+            return e.bearbeitung.einstellung.modus == karte::AuswahlModus::Primitiv && komponentenGewaehlt(mm.modus == karte::KomponentenModus::Ecke) == 0 &&
+                   e.karte.auswahl.anzahl() == 1;
+        }));
+    }
+    add(tu("NRC#65: Flaechenmodus mit der oberen Flaeche von A", [] { vorbereiten(Vor::Flaeche); }));
+    add(tasteKombi(ImGuiKey_F, "F"));
+    add(pruefe("NRC#65: Flaechenmodus verlassen: die Flaeche bleibt gewaehlt (wie NRC: Flaechen dienen dem Extrudieren)", [] {
+        const ke::Editor& e = ke::editor();
+        return e.bearbeitung.einstellung.modus == karte::AuswahlModus::Primitiv && e.karte.auswahl.flaechen().size() == 1;
+    }));
+    add(tu("Funde: Grundzustand", [] { grundzustand(); }));
+    return s;
+}
+
 }  // namespace stufe6
 
 std::vector<Schritt> karteneditorStufe6Schritte() {
@@ -2213,6 +2277,7 @@ std::vector<Schritt> karteneditorStufe6Schritte() {
     if (teil("knoepfe")) { dazu(stufe6::knoepfe()); }
     if (teil("felder")) { dazu(stufe6::felder()); }
     if (teil("dialoge")) { dazu(stufe6::dialoge()); }
+    if (teil("funde")) { dazu(stufe6::funde()); }
     s.push_back(tu("Stufe 6: Grundzustand, Aussenwelt zurueck", [] {
         stufe6::grundzustand();
         karteneditor::Editor& e = karteneditor::editor();

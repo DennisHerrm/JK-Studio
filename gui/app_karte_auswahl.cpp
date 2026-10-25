@@ -512,6 +512,7 @@ void werkzeug(ManipModus m) {
 void komponentenModus(karte::KomponentenModus m) {
     Editor& ed = e();
     karte::AuswahlEinstellung& einst = ed.bearbeitung.einstellung;
+    const karte::KomponentenModus alt = einst.modus == karte::AuswahlModus::Komponente ? einst.komponente : karte::KomponentenModus::Standard;
     if (einst.modus == karte::AuswahlModus::Komponente && einst.komponente == m) {
         standardModus();
     } else if (ed.karte.auswahl.anzahl() != 0) {
@@ -519,6 +520,12 @@ void komponentenModus(karte::KomponentenModus m) {
         einst.modus = karte::AuswahlModus::Komponente;
         einst.komponente = m;
     }
+    // NRC#65 (Stufe 6): wer den Ecken- oder Kantenmodus verlaesst, laesst keine
+    // gewaehlten Ecken/Kanten zurueck - sonst verformte der naechste Zug im
+    // Primitivmodus den Pinsel. Garux: "Probably should just do deselection, at
+    // least for vertices and edges"; gewaehlte Flaechen bleiben (Extrudieren).
+    const bool nochDa = einst.modus == karte::AuswahlModus::Komponente && einst.komponente == alt;
+    if ((alt == karte::KomponentenModus::Ecke || alt == karte::KomponentenModus::Kante) && !nochDa) { karte::komponentenAbwaehlen(ed.karte, alt); }
     ed.bearbeitung.pivotGeaendert();   // SetMode: pivotChanged
 }
 
