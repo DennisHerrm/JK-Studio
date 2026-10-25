@@ -34,6 +34,7 @@
 #include "bhed/karte/karte.h"
 
 #include <cstddef>
+#include <array>
 #include <functional>
 #include <string>
 #include <vector>
@@ -57,6 +58,14 @@ std::string karteSchreiben(const Karte& karte, std::vector<std::string>* meldung
 // die "entitaet" wahr ist, mit den Kindern, fuer die "kind" wahr ist.
 std::string karteSchreiben(const Karte& karte, const std::function<bool(const Entitaet&)>& entitaet,
                            const std::function<bool(const Entitaet&, const Primitiv&)>& kind, std::vector<std::string>* meldungen = nullptr);
+
+// map_autocaulk_selected (map.cpp:2160-2250): die Karte fuer "q3map2 -autocaulk"
+// - "{ classname worldspawn" mit den Pinseln (exportTokens, ohne Kommentare),
+// den sechs Kastenpinseln, "}", ein info_player_start am spawn ("%g") und die
+// gewaehlten Punktentitaeten ueber writeGraph (Ebenen, "// entity N"); am Ende
+// das ausstehende '\n' des ersten TokenWriter (writer.release()).
+std::string autocaulkKarteSchreiben(const Karte& karte, const std::vector<const Pinsel*>& pinsel, const std::array<const Pinsel*, 6>& kasten,
+                                    const Vektor3f& spawn, const std::function<bool(const Entitaet&)>& punktEntitaet);
 
 // Textmodus von msvcrt (TextFileInputStream "rt" / TextFileOutputStream "wt").
 std::string textmodusLesen(const std::string& roh);

@@ -346,6 +346,9 @@ standalone exe does not contain the map compiler.
   fog, the configuration dialog against NetRadiant-Custom's photo, the ini).
 - `karte_portale` – reading `.prt` files and `prtview.ini` like the prtview
   plugin, every error message word for word.
+- `karte_autocaulk` – AutoCaulk Selected: the map written for
+  `q3map2 -autocaulk`, reading and applying the `.caulk` result, undo.
+  `BHED_STUFE3_NUR=caulk` runs it from the editor (F4) with bhed_q3map2.
 
 - `exe_importe` – `behaved.exe` binds only Windows DLLs (no VC++ runtime:
   rc600 needed `MSVCP140.dll` and friends, which no zip contained).

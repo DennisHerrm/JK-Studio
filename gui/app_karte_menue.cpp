@@ -66,8 +66,9 @@ void symbolZeichnen(ImDrawList* dl, const char* name, ImVec2 a, float g, bool ak
 std::string stufeText(const std::string& befehl) {
     const befehle::Befehl* b = befehle::finden(befehl);
     char z[160];
-    // Plugin-Befehle ("bobToolz::...") stehen nicht in der Tabelle: Stufe 3.
-    const int stufe = b != nullptr ? b->stufe : (befehl.find("::") != std::string::npos ? 3 : 2);
+    // Plugin-Befehle ("bobToolz::...") ohne Eintrag in der Tabelle: Stufe 4
+    // (prtview kam in Stufe 3, die uebrigen Plugins kommen in Stufe 4).
+    const int stufe = b != nullptr ? b->stufe : (befehl.find("::") != std::string::npos ? 4 : 2);
     std::snprintf(z, sizeof(z), tr(Str::KeStufe), stufe);
     return z;
 }

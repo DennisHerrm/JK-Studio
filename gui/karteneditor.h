@@ -1198,6 +1198,7 @@ void bauRueckmeldungWaehlen(int zeile);   // feedback_selection_changed
 // nie im Spielordner - dann der Arbeitsordner), hinweis = warum.
 [[nodiscard]] std::string bauOrdnerVorschau(std::string* hinweis = nullptr);
 void bauDialogZeichnen();              // BuildMenuDialog_construct (jedes Bild)
+void autoCaulkAuswahl();               // map_autocaulk_selected ("AutoCaulkSelected", F4)
 // --- Stufe 3 Punkt 5: Leck-Linie (points.cpp), Rueckmeldungen in 2D
 // (feedback.cpp Draw2D) und der Portal Viewer (contrib/prtview) ---
 void punktdateiUmschalten();           // Pointfile_Toggle ("TogglePointfile")

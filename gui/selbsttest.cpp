@@ -34077,6 +34077,111 @@ std::vector<Schritt> portale() {
     return s;
 }
 
+// --- Punkt 6: AutoCaulk Selected (F4) ------------------------------------------
+
+// Die Flaeche eines Pinsels mit dieser Ebenen-Normalen (gerundet)
+std::shared_ptr<karte::Flaeche> flaecheMitNormale(const std::shared_ptr<karte::Pinsel>& p, int nx, int ny, int nz) {
+    p->bRep(ke::editor().karte.kontext);
+    for (const auto& f : p->flaechen()) {
+        const karte::Vektor3d& n = f->ebene().normal();
+        if (std::lround(n[0]) == nx && std::lround(n[1]) == ny && std::lround(n[2]) == nz) { return f; }
+    }
+    return nullptr;
+}
+
+std::shared_ptr<karte::Pinsel> weltPinsel(std::size_t i) {
+    const auto& k = ke::editor().karte.welt()->kinder();
+    return i < k.size() && k[i]->art() == karte::Primitiv::Art::Pinsel ? std::static_pointer_cast<karte::Pinsel>(k[i]) : nullptr;
+}
+
+std::vector<Schritt> autocaulk() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    const std::string stamm = laufOrdner("s3bau") + "\\raum";
+    add(tu("Stufe 3/6: Testkarte raum, alle Pinsel von worldspawn gewaehlt, Kamera in Raum A", [stamm] {
+        karteDialogeZu();
+        q3map2Bereitstellen();
+        ke::Editor& e = ke::editor();
+        e.bau = ke::Editor::BauEinstellungen{};
+        raumKarteOeffnen("raum", false);
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::path(stamm + "_ac.map"), ec);
+        std::filesystem::remove(std::filesystem::path(stamm + "_ac.caulk"), ec);
+        e.karte.auswahl.leeren();
+        for (const auto& p : e.karte.welt()->kinder()) {
+            if (p->art() == karte::Primitiv::Art::Pinsel) { e.karte.auswahl.waehlen(e.karte.welt(), p); }
+        }
+        ke::auswahlGeaendert();
+        e.kamera.setzeUrsprung(karte::Vektor3f(-384, 128, 64));
+        ke::konsoleLeeren();
+    }));
+    add(klickAn("in XY (Fokus)", feldMitte("XY"), 2));
+    add(tasteKombi(ImGuiKey_F4, "F4"));
+    add(pause(0.3));
+    add(pruefe("F4 (AutoCaulk Selected): raum_ac.map und raum_ac.caulk neben der Karte, Rueckgaengig \"AutoCaulk N faces\" mit N > 0", [stamm] {
+        const ke::Editor& e = ke::editor();
+        const std::string u = e.karte.undo.undoName();
+        diag::detail("Knopftest: Stufe 3/6 " + u + " / Konsole: " + konsoleText().substr(0, 200));
+        return istDatei(stamm + "_ac.map") && istDatei(stamm + "_ac.caulk") && u.rfind("AutoCaulk ", 0) == 0 && u != "AutoCaulk 0 faces" &&
+               !konsoleArtMit(ke::KonsolenZeile::Art::Fehler, "map_autocaulk_selected");
+    }));
+    add(pruefe("Der Boden: unten (Normale -z, von aussen) caulk, oben (+z, im Raum) bleibt test/boden; die Nordwand aussen (+y) caulk", [] {
+        const auto boden = weltPinsel(0);
+        const auto nord = weltPinsel(2);
+        if (!boden || !nord) { return false; }
+        const auto unten = flaecheMitNormale(boden, 0, 0, -1);
+        const auto oben = flaecheMitNormale(boden, 0, 0, 1);
+        const auto aussen = flaecheMitNormale(nord, 0, 1, 0);
+        const auto innen = flaecheMitNormale(nord, 0, -1, 0);
+        diag::detail("Knopftest: Stufe 3/6 Boden unten " + (unten ? unten->shader() : std::string("-")) + ", oben " + (oben ? oben->shader() : std::string("-")) +
+                     ", Nordwand aussen " + (aussen ? aussen->shader() : std::string("-")) + ", innen " + (innen ? innen->shader() : std::string("-")));
+        return unten && oben && aussen && innen && unten->shader() == "textures/system/caulk" && oben->shader() == "textures/test/boden" &&
+               aussen->shader() == "textures/system/caulk" && innen->shader() == "textures/test/wand";
+    }));
+    add(pruefe("raum_ac.map wie NRC: worldspawn mit den Pinseln und dem Kasten, info_player_start am Auge (-384 128 64; nicht in der Saeule), CRLF", [stamm] {
+        std::ifstream f(std::filesystem::path(stamm + "_ac.map"), std::ios::binary);
+        std::ostringstream o;
+        o << f.rdbuf();
+        const std::string t = o.str();
+        return t.rfind("{\r\n\"classname\" \"worldspawn\"\r\n{\r\n", 0) == 0 &&
+               t.find("{\r\n\"classname\" \"info_player_start\"\r\n\"origin\" \"-384 128 64\"\r\n}\r\n") != std::string::npos;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.2));
+    add(pruefe("Strg+Z: die alten Shader zurueck", [] {
+        const auto boden = weltPinsel(0);
+        const auto unten = boden ? flaecheMitNormale(boden, 0, 0, -1) : nullptr;
+        return unten && unten->shader() == "textures/test/boden";
+    }));
+    // Fehler wie NRC
+    add(tu("Kamera weit weg (5000 5000 5000), Konsole leeren", [] {
+        ke::editor().kamera.setzeUrsprung(karte::Vektor3f(5000, 5000, 5000));
+        ke::konsoleLeeren();
+    }));
+    add(tasteKombi(ImGuiKey_F4, "F4"));
+    add(pause(0.2));
+    add(pruefe("Kamera nicht bei der Auswahl: \"map_autocaulk_selected(): camera must be near selection!\" rot", [] {
+        return konsoleArtMit(ke::KonsolenZeile::Art::Fehler, "map_autocaulk_selected(): camera must be near selection!");
+    }));
+    add(tu("Nur ein trigger_multiple gewaehlt; Konsole leeren", [] {
+        ke::Editor& e = ke::editor();
+        e.kamera.setzeUrsprung(karte::Vektor3f(-384, 128, 64));
+        auto trig = e.karte.neueEntitaet("trigger_multiple", true);
+        e.karte.entitaetEinfuegen(trig);
+        (void)stufe2::testPinsel(karte::Vektor3f(-300, -32, 0), karte::Vektor3f(-260, 32, 64), "textures/system/trigger", trig);
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(trig, trig->kinder().front());
+        ke::auswahlGeaendert();
+        ke::konsoleLeeren();
+    }));
+    add(tasteKombi(ImGuiKey_F4, "F4"));
+    add(pause(0.2));
+    add(pruefe("Nur ein Trigger: abgewaehlt (DeselectTriggers), dann \"map_autocaulk_selected(): nothing is selected\" rot", [] {
+        return ke::editor().karte.auswahl.anzahl() == 0 && konsoleArtMit(ke::KonsolenZeile::Art::Fehler, "map_autocaulk_selected(): nothing is selected");
+    }));
+    return s;
+}
+
 }  // namespace stufe3
 
 std::vector<Schritt> karteneditorStufe3Schritte() {
@@ -34094,6 +34199,12 @@ std::vector<Schritt> karteneditorStufe3Schritte() {
         for (Schritt& x : stufe3::bauen()) { s.push_back(std::move(x)); }
         for (Schritt& x : stufe3::leck()) { s.push_back(std::move(x)); }
         for (Schritt& x : stufe3::portale()) { s.push_back(std::move(x)); }
+        for (Schritt& x : stufe3::autocaulk()) { s.push_back(std::move(x)); }
+        return s;
+    }
+    // BHED_STUFE3_NUR=caulk: nur AutoCaulk Selected (Punkt 6)
+    if (nur != nullptr && std::strcmp(nur, "caulk") == 0) {
+        for (Schritt& x : stufe3::autocaulk()) { s.push_back(std::move(x)); }
         return s;
     }
     // BHED_STUFE3_NUR=leck: nur Leck-Linie und Portal Viewer (Punkt 5)
@@ -34109,6 +34220,7 @@ std::vector<Schritt> karteneditorStufe3Schritte() {
     for (Schritt& x : stufe3::bauen()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe3::leck()) { s.push_back(std::move(x)); }
     for (Schritt& x : stufe3::portale()) { s.push_back(std::move(x)); }
+    for (Schritt& x : stufe3::autocaulk()) { s.push_back(std::move(x)); }
     return s;
 }
 

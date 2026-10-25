@@ -16,6 +16,7 @@
 #include "bhed/karte/komponenten.h"
 
 #include "bhed/karte/bearbeitung.h"
+#include "bhed/karte/entitaetbefehle.h"
 #include "bhed/karte/karte.h"
 #include "bhed/karte/kartenformat.h"
 #include "bhed/karte/patch.h"
@@ -396,6 +397,106 @@ void klonen(Karte& k, const AuswahlEinstellung& e, bool eindeutig, bool befehl) 
         for (const auto& p : c->kinder()) { k.auswahl.waehlen(c, p); }
     }
     if (befehl) { k.undo.finish(eindeutig ? "cloneSelectedMakeUnique" : "cloneSelected"); }
+}
+
+// --- AutoCaulk (map.cpp:2121-2368) ---------------------------------------------------
+
+void triggerAbwaehlen(Karte& k) {   // DeselectTriggers
+    const GewaehltMenge g(k);
+    for (const auto& e : k.entitaeten()) {
+        const std::string& kl = e->klassenname();
+        bool trigger = kl.size() >= 8;
+        for (std::size_t i = 0; trigger && i < 8; ++i) {   // string_equal_nocase_n( ..., "trigger_", 8 )
+            trigger = std::tolower(static_cast<unsigned char>(kl[i])) == "trigger_"[i];
+        }
+        if (!e->istBehaelter() || !trigger || !(g.ganz.count(e.get()) != 0 || g.kindGewaehlt(*e))) { continue; }
+        for (const auto& p : e->kinder()) { k.auswahl.abwaehlen(e, p); }   // post: Instance_setSelected( instance, false )
+        k.auswahl.abwaehlen(e);
+    }
+}
+
+std::vector<std::shared_ptr<Pinsel>> autocaulkPinsel(const Karte& k) {
+    const GewaehltMenge g(k);
+    std::vector<std::shared_ptr<Pinsel>> v;
+    for (const auto& e : k.entitaeten()) {
+        const bool ganz = g.ganz.count(e.get()) != 0;
+        if (!ganz && !g.kindGewaehlt(*e)) { continue; }   // Node_selectedDescendant || selectedParent
+        for (const auto& p : e->kinder()) {
+            if (p->art() != Primitiv::Art::Pinsel || !(ganz || g.prim.count(p.get()) != 0)) { continue; }
+            v.push_back(std::static_pointer_cast<Pinsel>(p));
+        }
+    }
+    return v;
+}
+
+bool autocaulkPunktEntitaet(const Karte& k, const Entitaet& e) {
+    return !e.istBehaelter() && k.auswahl.gewaehlt(&e);   // !isContainer() && Node_instanceSelected
+}
+
+std::map<std::size_t, std::string> caulkLesen(const std::string& text) {
+    // SimpleTokeniser: Leerraum trennt; getToken, getToken, nextLine
+    std::map<std::size_t, std::string> m;
+    std::size_t i = 0;
+    const auto leer = [&](char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; };
+    const auto token = [&](bool zeileBleibt, std::string& out) {
+        while (i < text.size() && leer(text[i])) {
+            if (zeileBleibt && text[i] == '\n') { return false; }
+            ++i;
+        }
+        if (i >= text.size()) { return false; }
+        const std::size_t a = i;
+        while (i < text.size() && !leer(text[i])) { ++i; }
+        out = text.substr(a, i - a);
+        return true;
+    };
+    for (;;) {
+        std::string num;
+        if (!token(false, num)) { break; }
+        std::size_t n = 0;
+        char* ende = nullptr;
+        n = static_cast<std::size_t>(std::strtoul(num.c_str(), &ende, 10));   // string_parse_size
+        std::string flaechen;
+        if (!token(false, flaechen)) { break; }
+        while (i < text.size() && text[i] != '\n') { ++i; }   // tokeniser.nextLine()
+        m.emplace(n, flaechen);
+    }
+    return m;
+}
+
+std::size_t caulkAnwenden(Karte& k, const std::map<std::size_t, std::string>& caulk) {
+    const std::vector<std::shared_ptr<Pinsel>> pinsel = autocaulkPinsel(k);
+    const std::string caulkS = gemeinsamerShader("caulk");
+    const std::string wasser = gemeinsamerShader("watercaulk");
+    const std::string lava = gemeinsamerShader("lavacaulk");
+    const std::string schleim = gemeinsamerShader("slimecaulk");
+    const std::string nodraw = gemeinsamerShader("nodraw");
+    const std::string nodrawNichtFest = gemeinsamerShader("nodrawnonsolid");
+    std::size_t anzahl = 0;
+    k.undo.start();
+    for (std::size_t index = 0; index < pinsel.size(); ++index) {   // m_brushIndex
+        const auto it = caulk.find(index);
+        if (it == caulk.end()) { continue; }
+        const std::shared_ptr<Pinsel>& p = pinsel[index];
+        p->bRep(k.kontext);
+        const char* zeichen = it->second.c_str();
+        for (const auto& f : p->flaechen()) {
+            if (*zeichen == 0) { break; }
+            if (!f->traegtBei()) { continue; }
+            ++anzahl;
+            switch (*zeichen) {
+            case 'c': f->setzeShader(caulkS, k.kontext); break;
+            case 'w': f->setzeShader(wasser, k.kontext); break;
+            case 'l': f->setzeShader(lava, k.kontext); break;
+            case 's': f->setzeShader(schleim, k.kontext); break;
+            case 'N': f->setzeShader(nodraw, k.kontext); break;
+            case 'n': f->setzeShader(nodrawNichtFest, k.kontext); break;
+            default: --anzahl; break;
+            }
+            ++zeichen;
+        }
+    }
+    k.undo.finish("AutoCaulk " + std::to_string(anzahl) + " faces");
+    return anzahl;
 }
 
 std::string kopieren(const Karte& k) {   // Map_ExportSelected (IncludeSelectedWalker)

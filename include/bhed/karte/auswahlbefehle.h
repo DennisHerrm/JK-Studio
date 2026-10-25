@@ -109,6 +109,22 @@ void einfuegen(Karte& k, const std::string& text, bool befehl = true);
 // Selection_SnapToGrid (Ctrl+G) mit Rueckgaengig "snapSelected -grid N"
 void amRasterAusrichten(Karte& k, const AuswahlEinstellung& e, float raster, bool eckenSperre = false);
 
+// --- AutoCaulk (map.cpp map_autocaulk_selected) -------------------------------------
+// DeselectTriggers: gewaehlte trigger_* (Behaelter) samt Kindern abwaehlen
+void triggerAbwaehlen(Karte& k);
+// Map_Traverse_Selected (IncludeSelectedWalker) mit WriteBrushesWalker: die
+// Pinsel der Auswahl in dieser Reihenfolge (auch die Kinder ganz gewaehlter
+// Entitaeten), ohne Patches.
+[[nodiscard]] std::vector<std::shared_ptr<Pinsel>> autocaulkPinsel(const Karte& k);
+// traverse_selected_point_entities: eine gewaehlte Punktentitaet?
+[[nodiscard]] bool autocaulkPunktEntitaet(const Karte& k, const Entitaet& e);
+// <Karte>_ac.caulk (SimpleTokeniser): je Zeile Pinselnummer und Zeichen je Seite
+[[nodiscard]] std::map<std::size_t, std::string> caulkLesen(const std::string& text);
+// CaulkBrushesWalker: je beitragende Flaeche ein Zeichen (c caulk, w watercaulk,
+// l lavacaulk, s slimecaulk, N nodraw, n nodrawnonsolid; sonst nichts) mit
+// Rueckgaengig "AutoCaulk N faces"; Ergebnis N.
+std::size_t caulkAnwenden(Karte& k, const std::map<std::size_t, std::string>& caulk);
+
 // --- Shader (select.cpp, brushmanip.cpp, patchmanip.cpp) -----------------------------
 
 // Select_SetShader_Undo: bei einer Auswahl (Objekte oder Flaechen) Rueckgaengig

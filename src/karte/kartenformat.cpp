@@ -875,6 +875,29 @@ std::string karteSchreiben(const Karte& karte, const std::function<bool(const En
     return w.text;
 }
 
+std::string autocaulkKarteSchreiben(const Karte& karte, const std::vector<const Pinsel*>& pinsel, const std::array<const Pinsel*, 6>& kasten,
+                                    const Vektor3f& spawn, const std::function<bool(const Entitaet&)>& punktEntitaet) {
+    // all brushes to the worldspawn
+    std::string s = "{\n\"classname\" \"worldspawn\"";
+    Schreiber w;   // GlobalScripLibModule::getTable().m_pfnNewSimpleTokenWriter( file )
+    for (const Pinsel* p : pinsel) { pinselSchreiben(w, *p, karte.kontext, nullptr); }
+    // plus box
+    for (const Pinsel* p : kasten) { pinselSchreiben(w, *p, karte.kontext, nullptr); }
+    s += w.text;
+    // close world
+    s += "\n}\n";
+    // spawn: file << spawn[0] (ostream_write double: "%g")
+    char z[3][32];
+    for (int i = 0; i < 3; ++i) { std::snprintf(z[i], sizeof(z[i]), "%g", static_cast<double>(spawn[static_cast<std::size_t>(i)])); }
+    s += std::string("{\n\"classname\" \"info_player_start\"\n\"origin\" \"") + z[0] + ' ' + z[1] + ' ' + z[2] + "\"\n}\n";
+    // point entities: format.writeGraph( root, traverse_selected_point_entities, file )
+    s += karteSchreiben(karte, punktEntitaet, [](const Entitaet&, const Primitiv&) { return false; });
+    // writer.release(): ~SimpleTokenWriter schreibt den ausstehenden Trenner
+    w.ende();
+    s += w.text.substr(w.text.size() - 1);
+    return s;
+}
+
 // TextFileInputStream "rt" (msvcrt): CR LF -> LF, Strg+Z = Dateiende.
 std::string textmodusLesen(const std::string& roh) {
     std::string out;

@@ -37,7 +37,7 @@ Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, E
   - [x] CHECK Texture Lock -> `TogTexLock`  (radiant/brushmanip.cpp:1531) -- Stufe 2 Punkt 1
   - [x] CHECK Texture Vertex Lock -> `TogTexVertexLock`  (radiant/brushmanip.cpp:1532) -- Stufe 2 Punkt 1
   - [x] ITEM Reset Texture -> `TextureReset/Cap`  (radiant/brushmanip.cpp:1533) -- Stufe 2 Punkt 6
-  - [~] ITEM AutoCaulk Selected -> `AutoCaulkSelected`  (radiant/brushmanip.cpp:1534) -- Stufe 3
+  - [x] ITEM AutoCaulk Selected -> `AutoCaulkSelected`  (radiant/brushmanip.cpp:1534) -- Stufe 3 Punkt 6
 
 ### Build_constructMenu (radiant/build.cpp)
 
@@ -516,30 +516,30 @@ Name | Art | Standardtaste | Quelle
 
 - [x] `ArbitraryRotation` | Commands | Shift+R | (radiant/select.cpp:1883) -- Stufe 2 Punkt 5
 - [x] `ArbitraryScale` | Commands | Ctrl+Shift+S | (radiant/select.cpp:1884) -- Stufe 2 Punkt 5
-- [~] `AutoCaulkSelected` | Commands | F4 | (radiant/map.cpp:2442) -- Stufe 3
-- [~] `bobToolz::About` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::ApertureDoor` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::BrushCleanup` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::CaulkSelection` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::DoorBuilder` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::DropEntity` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::ExplodeEntity` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::FindDuplicates` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::FlipTerrain` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::Intersect` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::MakeChain` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::MergePatches` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::PathPlotter` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::PitOMatic` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::PlotSplines` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::PolygonBuilder` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::ResetTextures` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::SplitPatch` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::SplitPatchColumns` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::SplitPatchRows` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::StairBuilder` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::TreePlanter` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] `bobToolz::VisViewer` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
+- [x] `AutoCaulkSelected` | Commands | F4 | (radiant/map.cpp:2442) -- Stufe 3 Punkt 6
+- [~] `bobToolz::About` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::ApertureDoor` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::BrushCleanup` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::CaulkSelection` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::DoorBuilder` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::DropEntity` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::ExplodeEntity` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::FindDuplicates` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::FlipTerrain` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::Intersect` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::MakeChain` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::MergePatches` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::PathPlotter` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::PitOMatic` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::PlotSplines` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::PolygonBuilder` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::ResetTextures` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::SplitPatch` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::SplitPatchColumns` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::SplitPatchRows` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::StairBuilder` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::TreePlanter` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] `bobToolz::VisViewer` | Commands | - | (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
 - [x] `Brush3Sided` | Commands | Ctrl+3 | (radiant/brushmanip.cpp:1485) -- Stufe 2 Punkt 4
 - [x] `Brush4Sided` | Commands | Ctrl+4 | (radiant/brushmanip.cpp:1486) -- Stufe 2 Punkt 4
 - [x] `Brush5Sided` | Commands | Ctrl+5 | (radiant/brushmanip.cpp:1487) -- Stufe 2 Punkt 4
@@ -548,8 +548,8 @@ Name | Art | Standardtaste | Quelle
 - [x] `Brush8Sided` | Commands | Ctrl+8 | (radiant/brushmanip.cpp:1490) -- Stufe 2 Punkt 4
 - [x] `Brush9Sided` | Commands | Ctrl+9 | (radiant/brushmanip.cpp:1491) -- Stufe 2 Punkt 4
 - [x] `BrushCone` | Commands | - | (radiant/brushmanip.cpp:1480) -- Stufe 2 Punkt 4
-- [~] `brushexport2::About` | Commands | - | (contrib/brushexport/plugin.cpp:56) -- Stufe 3
-- [~] `brushexport2::Export.obj` | Commands | - | (contrib/brushexport/plugin.cpp:56) -- Stufe 3
+- [~] `brushexport2::About` | Commands | - | (contrib/brushexport/plugin.cpp:56) -- Stufe 4
+- [~] `brushexport2::Export.obj` | Commands | - | (contrib/brushexport/plugin.cpp:56) -- Stufe 4
 - [x] `BrushIcosahedron` | Commands | - | (radiant/brushmanip.cpp:1483) -- Stufe 2 Punkt 4
 - [x] `BrushPrism` | Commands | - | (radiant/brushmanip.cpp:1479) -- Stufe 2 Punkt 4
 - [x] `BrushRock` | Commands | - | (radiant/brushmanip.cpp:1482) -- Stufe 2 Punkt 4
@@ -698,22 +698,22 @@ Name | Art | Standardtaste | Quelle
 - [x] `MapInfo` | Commands | M | (radiant/map.cpp:2445) -- Stufe 2 Punkt 8
 - [x] `MatrixTranspose` | Commands | Ctrl+Shift+M | (radiant/patchmanip.cpp:726) -- Stufe 2 Punkt 6
 - [x] `MaximizeView` | Commands | F12 | (radiant/mainframe.cpp:2097)
-- [~] `meshTex::About` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] `meshTex::GeneralFunction` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] `meshTex::GetInfo` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] `meshTex::Help` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] `meshTex::SetScale` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] `meshTex::SMaxAlign` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] `meshTex::SMinAlign` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] `meshTex::SMinMaxAlignAuto` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] `meshTex::SMinMaxAlignShrink` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] `meshTex::SMinMaxAlignStretch` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] `meshTex::STMinMaxAlignAuto` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] `meshTex::TMaxAlign` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] `meshTex::TMinAlign` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] `meshTex::TMinMaxAlignAuto` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] `meshTex::TMinMaxAlignShrink` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] `meshTex::TMinMaxAlignStretch` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
+- [~] `meshTex::About` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] `meshTex::GeneralFunction` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] `meshTex::GetInfo` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] `meshTex::Help` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] `meshTex::SetScale` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] `meshTex::SMaxAlign` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] `meshTex::SMinAlign` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] `meshTex::SMinMaxAlignAuto` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] `meshTex::SMinMaxAlignShrink` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] `meshTex::SMinMaxAlignStretch` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] `meshTex::STMinMaxAlignAuto` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] `meshTex::TMaxAlign` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] `meshTex::TMinAlign` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] `meshTex::TMinMaxAlignAuto` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] `meshTex::TMinMaxAlignShrink` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] `meshTex::TMinMaxAlignStretch` | Commands | - | (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
 - [x] `MirrorSelectionHorizontally` | Commands | - | (radiant/select.cpp:1851) -- Stufe 2 Punkt 5
 - [x] `MirrorSelectionVertically` | Commands | - | (radiant/select.cpp:1852) -- Stufe 2 Punkt 5
 - [x] `MirrorSelectionX` | Commands | - | (radiant/select.cpp:1844) -- Stufe 2 Punkt 5
@@ -813,8 +813,8 @@ Name | Art | Standardtaste | Quelle
 - [x] `SetGrid512` | Commands | - | (radiant/grid.cpp:201)
 - [x] `SetGrid64` | Commands | 7 | (radiant/grid.cpp:198)
 - [x] `SetGrid8` | Commands | 4 | (radiant/grid.cpp:195)
-- [~] `shaderPlug::About` | Commands | - | (contrib/shaderplug/shaderplug.cpp:71) -- Stufe 3
-- [~] `shaderPlug::CreateTagFile` | Commands | - | (contrib/shaderplug/shaderplug.cpp:71) -- Stufe 3
+- [~] `shaderPlug::About` | Commands | - | (contrib/shaderplug/shaderplug.cpp:71) -- Stufe 4
+- [~] `shaderPlug::CreateTagFile` | Commands | - | (contrib/shaderplug/shaderplug.cpp:71) -- Stufe 4
 - [x] `Shortcuts` | Commands | Ctrl+Shift+P | (radiant/mainframe.cpp:2075)
 - [x] `ShowAllTextures` | Commands | Ctrl+A | (radiant/texwindow.cpp:2102)
 - [x] `ShowAngles` | Toggles | - | (radiant/xywindow.cpp:2218) -- Stufe 1b Punkt 5
@@ -837,8 +837,8 @@ Name | Art | Standardtaste | Quelle
 - [x] `SmoothCols` | Commands | Ctrl+Shift+W | (radiant/patchmanip.cpp:725) -- Stufe 2 Punkt 6
 - [x] `SmoothRows` | Commands | Ctrl+W | (radiant/patchmanip.cpp:724) -- Stufe 2 Punkt 6
 - [x] `SnapToGrid` | Commands | Ctrl+G | (radiant/select.cpp:1886)
-- [~] `sunPlug::About` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 3
-- [~] `sunPlug::ET-MapCoordinator` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 3
+- [~] `sunPlug::About` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 4
+- [~] `sunPlug::ET-MapCoordinator` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 4
 - [x] `SurfaceInspector` | Commands | S | (radiant/surfacedialog.cpp:1755) -- Stufe 2 Punkt 7
 - [x] `TagAdd` | Commands | - | (radiant/texwindow.cpp:2095) -- Stufe 2 Punkt 7
 - [x] `TagCopy` | Commands | - | (radiant/texwindow.cpp:2098) -- Stufe 2 Punkt 7
@@ -883,22 +883,22 @@ Name | Art | Standardtaste | Quelle
 - [x] `ToggleView` | Toggles | - | (radiant/xywindow.cpp:2267)
 - [x] `TogTexLock` | Toggles | Shift+T | (radiant/brushmanip.cpp:1476) -- Stufe 2 Punkt 1
 - [x] `TogTexVertexLock` | Toggles | - | (radiant/brushmanip.cpp:1477) -- Stufe 2 Punkt 1
-- [~] `uFO:AI::About` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] `uFO:AI::ActorClip` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] `uFO:AI::Level1` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] `uFO:AI::Level2` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] `uFO:AI::Level3` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] `uFO:AI::Level4` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] `uFO:AI::Level5` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] `uFO:AI::Level6` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] `uFO:AI::Level7` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] `uFO:AI::Level8` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] `uFO:AI::NoDraw` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] `uFO:AI::PerformCheck` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] `uFO:AI::StepOn` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] `uFO:AI::WeaponClip` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] `uFO:AI::Worldspawn` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] `uFO:AI::WorldspawnReset` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
+- [~] `uFO:AI::About` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] `uFO:AI::ActorClip` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] `uFO:AI::Level1` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] `uFO:AI::Level2` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] `uFO:AI::Level3` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] `uFO:AI::Level4` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] `uFO:AI::Level5` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] `uFO:AI::Level6` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] `uFO:AI::Level7` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] `uFO:AI::Level8` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] `uFO:AI::NoDraw` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] `uFO:AI::PerformCheck` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] `uFO:AI::StepOn` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] `uFO:AI::WeaponClip` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] `uFO:AI::Worldspawn` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] `uFO:AI::WorldspawnReset` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
 - [x] `Undo` | Commands | Ctrl+Z | (radiant/select.cpp:1859)
 - [x] `UnSelectSelection` | Commands | C | (radiant/select.cpp:1875)
 - [x] `UnSelectSelection2` | Commands | Escape | (radiant/select.cpp:1874)
@@ -917,7 +917,7 @@ Name | Art | Standardtaste | Quelle
 - [x] "Mapped Commands"  (radiant/commands.cpp:333)
 - [x] "CSG Tool"  (radiant/csg.cpp:1486) -- Stufe 2 Punkt 3
 - [x] "Entity List"  (radiant/entitylist.cpp:279) -- Stufe 1b Punkt 9
-- [~] "Q3Map debug window"  (radiant/feedback.cpp:281) -- Stufe 3 (der Bau mit q3map2)
+- [x] "Q3Map debug window"  (radiant/feedback.cpp:281) -- Stufe 3 Punkt 4/5 (Bauen mit q3map2; Punkte und Wicklungen in 2D)
 - [x] "Find / Replace Texture(s)"  (radiant/findtexturedialog.cpp:132)
 - [x] "Entities"  (radiant/groupdialog.cpp:81) -- Stufe 1b Punkt 9
 - [x] "Arbitrary sides"  (radiant/gtkdlgs.cpp:274) -- Stufe 2 Punkt 4
@@ -1045,95 +1045,95 @@ Name | Art | Standardtaste | Quelle
 
 ### MeshTex (contrib/meshtex/MainMenu.cpp:76)
 
-- [~] MeshTex: Set S/T Scale... -> `meshTex::SetScale`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] MeshTex: Get Info... -> `meshTex::GetInfo`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
+- [~] MeshTex: Set S/T Scale... -> `meshTex::SetScale`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] MeshTex: Get Info... -> `meshTex::GetInfo`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
 * ---
-- [~] MeshTex: General Function... -> `meshTex::GeneralFunction`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
+- [~] MeshTex: General Function... -> `meshTex::GeneralFunction`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
 * ---
-- [~] MeshTex: S&T Align Auto -> `meshTex::STMinMaxAlignAuto`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] MeshTex: S Align Auto -> `meshTex::SMinMaxAlignAuto`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] MeshTex: T Align Auto -> `meshTex::TMinMaxAlignAuto`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
+- [~] MeshTex: S&T Align Auto -> `meshTex::STMinMaxAlignAuto`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] MeshTex: S Align Auto -> `meshTex::SMinMaxAlignAuto`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] MeshTex: T Align Auto -> `meshTex::TMinMaxAlignAuto`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
 * ---
-- [~] MeshTex: S Align Stretch -> `meshTex::SMinMaxAlignStretch`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] MeshTex: S Align Shrink -> `meshTex::SMinMaxAlignShrink`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] MeshTex: T Align Stretch -> `meshTex::TMinMaxAlignStretch`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] MeshTex: T Align Shrink -> `meshTex::TMinMaxAlignShrink`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
+- [~] MeshTex: S Align Stretch -> `meshTex::SMinMaxAlignStretch`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] MeshTex: S Align Shrink -> `meshTex::SMinMaxAlignShrink`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] MeshTex: T Align Stretch -> `meshTex::TMinMaxAlignStretch`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] MeshTex: T Align Shrink -> `meshTex::TMinMaxAlignShrink`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
 * ---
-- [~] MeshTex: S Min Align -> `meshTex::SMinAlign`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] MeshTex: S Max Align -> `meshTex::SMaxAlign`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] MeshTex: T Min Align -> `meshTex::TMinAlign`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] MeshTex: T Max Align -> `meshTex::TMaxAlign`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
+- [~] MeshTex: S Min Align -> `meshTex::SMinAlign`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] MeshTex: S Max Align -> `meshTex::SMaxAlign`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] MeshTex: T Min Align -> `meshTex::TMinAlign`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] MeshTex: T Max Align -> `meshTex::TMaxAlign`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
 * ---
-- [~] MeshTex: Help... -> `meshTex::Help`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
-- [~] MeshTex: About... -> `meshTex::About`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 3
+- [~] MeshTex: Help... -> `meshTex::Help`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
+- [~] MeshTex: About... -> `meshTex::About`  (contrib/meshtex/MainMenu.cpp:76) -- Stufe 4
 
 ### ShaderPlug (contrib/shaderplug/shaderplug.cpp:71)
 
-- [~] ShaderPlug: Create tag file -> `shaderPlug::CreateTagFile`  (contrib/shaderplug/shaderplug.cpp:71) -- Stufe 3
-- [~] ShaderPlug: About -> `shaderPlug::About`  (contrib/shaderplug/shaderplug.cpp:71) -- Stufe 3
+- [~] ShaderPlug: Create tag file -> `shaderPlug::CreateTagFile`  (contrib/shaderplug/shaderplug.cpp:71) -- Stufe 4
+- [~] ShaderPlug: About -> `shaderPlug::About`  (contrib/shaderplug/shaderplug.cpp:71) -- Stufe 4
 
 ### SunPlug (contrib/sunplug/sunplug.cpp:80)
 
-- [~] SunPlug: ET-MapCoordinator -> `sunPlug::ET-MapCoordinator`  (contrib/sunplug/sunplug.cpp:80) -- Stufe 3
-- [~] SunPlug: About... -> `sunPlug::About`  (contrib/sunplug/sunplug.cpp:80) -- Stufe 3
+- [~] SunPlug: ET-MapCoordinator -> `sunPlug::ET-MapCoordinator`  (contrib/sunplug/sunplug.cpp:80) -- Stufe 4
+- [~] SunPlug: About... -> `sunPlug::About`  (contrib/sunplug/sunplug.cpp:80) -- Stufe 4
 
 ### UFO:AI (contrib/ufoaiplug/ufoai.cpp:69)
 
-- [~] UFO:AI: NoDraw -> `uFO:AI::NoDraw`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] UFO:AI: WeaponClip -> `uFO:AI::WeaponClip`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] UFO:AI: ActorClip -> `uFO:AI::ActorClip`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] UFO:AI: StepOn -> `uFO:AI::StepOn`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
+- [~] UFO:AI: NoDraw -> `uFO:AI::NoDraw`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] UFO:AI: WeaponClip -> `uFO:AI::WeaponClip`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] UFO:AI: ActorClip -> `uFO:AI::ActorClip`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] UFO:AI: StepOn -> `uFO:AI::StepOn`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
 * ---
-- [~] UFO:AI: Level 8 -> `uFO:AI::Level8`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] UFO:AI: Level 7 -> `uFO:AI::Level7`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] UFO:AI: Level 6 -> `uFO:AI::Level6`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] UFO:AI: Level 5 -> `uFO:AI::Level5`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] UFO:AI: Level 4 -> `uFO:AI::Level4`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] UFO:AI: Level 3 -> `uFO:AI::Level3`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] UFO:AI: Level 2 -> `uFO:AI::Level2`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] UFO:AI: Level 1 -> `uFO:AI::Level1`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
+- [~] UFO:AI: Level 8 -> `uFO:AI::Level8`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] UFO:AI: Level 7 -> `uFO:AI::Level7`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] UFO:AI: Level 6 -> `uFO:AI::Level6`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] UFO:AI: Level 5 -> `uFO:AI::Level5`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] UFO:AI: Level 4 -> `uFO:AI::Level4`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] UFO:AI: Level 3 -> `uFO:AI::Level3`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] UFO:AI: Level 2 -> `uFO:AI::Level2`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] UFO:AI: Level 1 -> `uFO:AI::Level1`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
 * ---
-- [~] UFO:AI: Perform check -> `uFO:AI::PerformCheck`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] UFO:AI: Worldspawn -> `uFO:AI::Worldspawn`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
-- [~] UFO:AI: Worldspawn reset -> `uFO:AI::WorldspawnReset`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
+- [~] UFO:AI: Perform check -> `uFO:AI::PerformCheck`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] UFO:AI: Worldspawn -> `uFO:AI::Worldspawn`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [~] UFO:AI: Worldspawn reset -> `uFO:AI::WorldspawnReset`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
 * ---
-- [~] UFO:AI: About -> `uFO:AI::About`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 3
+- [~] UFO:AI: About -> `uFO:AI::About`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
 
 ### bobToolz (contrib/bobtoolz/bobToolz-GTK.cpp:52)
 
-- [~] bobToolz: Flip terrain -> `bobToolz::FlipTerrain`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] bobToolz: Split patch rows -> `bobToolz::SplitPatchRows`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] bobToolz: Split patch columns -> `bobToolz::SplitPatchColumns`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] bobToolz: Split patch -> `bobToolz::SplitPatch`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] bobToolz: Merge Patches -> `bobToolz::MergePatches`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
+- [~] bobToolz: Flip terrain -> `bobToolz::FlipTerrain`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] bobToolz: Split patch rows -> `bobToolz::SplitPatchRows`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] bobToolz: Split patch columns -> `bobToolz::SplitPatchColumns`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] bobToolz: Split patch -> `bobToolz::SplitPatch`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] bobToolz: Merge Patches -> `bobToolz::MergePatches`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
 * ---
-- [~] bobToolz: Plot Splines -> `bobToolz::PlotSplines`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] bobToolz: Drop Entity -> `bobToolz::DropEntity`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] bobToolz: Tree Planter -> `bobToolz::TreePlanter`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] bobToolz: Explode Entity -> `bobToolz::ExplodeEntity`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
+- [~] bobToolz: Plot Splines -> `bobToolz::PlotSplines`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] bobToolz: Drop Entity -> `bobToolz::DropEntity`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] bobToolz: Tree Planter -> `bobToolz::TreePlanter`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] bobToolz: Explode Entity -> `bobToolz::ExplodeEntity`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
 * ---
-- [~] bobToolz: Caulk Selection -> `bobToolz::CaulkSelection`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] bobToolz: Polygon Builder -> `bobToolz::PolygonBuilder`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] bobToolz: Brush Cleanup -> `bobToolz::BrushCleanup`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] bobToolz: Vis Viewer -> `bobToolz::VisViewer`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
+- [~] bobToolz: Caulk Selection -> `bobToolz::CaulkSelection`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] bobToolz: Polygon Builder -> `bobToolz::PolygonBuilder`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] bobToolz: Brush Cleanup -> `bobToolz::BrushCleanup`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] bobToolz: Vis Viewer -> `bobToolz::VisViewer`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
 * ---
-- [~] bobToolz: PitOMatic -> `bobToolz::PitOMatic`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] bobToolz: Reset Textures... -> `bobToolz::ResetTextures`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
+- [~] bobToolz: PitOMatic -> `bobToolz::PitOMatic`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] bobToolz: Reset Textures... -> `bobToolz::ResetTextures`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
 * ---
-- [~] bobToolz: Path Plotter... -> `bobToolz::PathPlotter`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] bobToolz: Make Chain... -> `bobToolz::MakeChain`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] bobToolz: Intersect... -> `bobToolz::Intersect`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] bobToolz: Find Duplicates -> `bobToolz::FindDuplicates`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] bobToolz: Door Builder... -> `bobToolz::DoorBuilder`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] bobToolz: Aperture Door... -> `bobToolz::ApertureDoor`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
-- [~] bobToolz: Stair Builder... -> `bobToolz::StairBuilder`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
+- [~] bobToolz: Path Plotter... -> `bobToolz::PathPlotter`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] bobToolz: Make Chain... -> `bobToolz::MakeChain`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] bobToolz: Intersect... -> `bobToolz::Intersect`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] bobToolz: Find Duplicates -> `bobToolz::FindDuplicates`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] bobToolz: Door Builder... -> `bobToolz::DoorBuilder`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] bobToolz: Aperture Door... -> `bobToolz::ApertureDoor`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
+- [~] bobToolz: Stair Builder... -> `bobToolz::StairBuilder`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
 * ---
-- [~] bobToolz: About... -> `bobToolz::About`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 3
+- [~] bobToolz: About... -> `bobToolz::About`  (contrib/bobtoolz/bobToolz-GTK.cpp:52) -- Stufe 4
 
 ### brushexport2 (contrib/brushexport/plugin.cpp:56)
 
-- [~] brushexport2: About -> `brushexport2::About`  (contrib/brushexport/plugin.cpp:56) -- Stufe 3
-- [~] brushexport2: Export selected as Wavefront Object -> `brushexport2::Export.obj`  (contrib/brushexport/plugin.cpp:56) -- Stufe 3
+- [~] brushexport2: About -> `brushexport2::About`  (contrib/brushexport/plugin.cpp:56) -- Stufe 4
+- [~] brushexport2: Export selected as Wavefront Object -> `brushexport2::Export.obj`  (contrib/brushexport/plugin.cpp:56) -- Stufe 4
 
 ### prtview (contrib/prtview/prtview.cpp:164)
 

@@ -176,6 +176,8 @@ std::map<std::string, Umsetzung>& umsetzungen() {
     // --- Build (mainframe.cpp:2089-2090, build.cpp) ---
     m["BuildMenuCustomize"] = {[] { e().bauDialogOffen = true; }, nullptr};   // DoBuildMenu
     m["Build_runRecentExecutedBuild"] = {[] { bauZuletztStarten(); }, nullptr};
+    // Stufe 3 Punkt 6: AutoCaulk Selected (map.cpp:2442, F4)
+    m["AutoCaulkSelected"] = {[] { autoCaulkAuswahl(); }, nullptr};
     // Stufe 3 Punkt 5: Leck-Linie (points.cpp:320-322)
     m["TogglePointfile"] = {[] { punktdateiUmschalten(); }, nullptr};
     m["NextLeakSpot"] = {[] { leckWeiter(); }, nullptr};

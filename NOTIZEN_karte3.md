@@ -732,3 +732,50 @@ Abweichungen:
 ctest 105/105. Checkliste: TogglePointfile, NextLeakSpot, PrevLeakSpot und die
 sechs prtview-Befehle (Menue, Befehl, Plugin) [x] - Stand 808 fertig, 126
 ausgegraut, 2 offen von 936.
+
+## Punkt 6: AutoCaulk Selected (F4) und der Rest der Checkliste
+
+AutoCaulk wie map_autocaulk_selected (radiant/map.cpp:2121-2368) - Kern in
+`src/karte/auswahlbefehle.cpp` (triggerAbwaehlen = DeselectTriggers,
+autocaulkPinsel = Map_Traverse_Selected mit WriteBrushesWalker, caulkLesen,
+caulkAnwenden = CaulkBrushesWalker) und `src/karte/kartenformat.cpp`
+(autocaulkKarteSchreiben), Oberflaeche `autoCaulkAuswahl` in
+`gui/app_karte_bau.cpp`:
+- unbenannt: erst Speichern unter; gewaehlte trigger_* samt Kindern ab; ohne
+  Auswahl "map_autocaulk_selected(): nothing is selected"; das Auge muss in den
+  Auswahlgrenzen +-1024 liegen ("camera must be near selection!").
+- `<Karte>_ac.map` wie NRC: "{ classname worldspawn" mit den gewaehlten Pinseln
+  (ohne Kommentare), dem Kasten (ConstructRegionBrushes mit dem Region Box
+  Shader), "}", info_player_start am Auge ("%g"), die gewaehlten
+  Punktentitaeten ueber writeGraph (Ebenen, "// entity N"), am Ende das '\n'
+  des ersten TokenWriter; Textmodus (CRLF).
+- `bhed_q3map2 -game quake3 -fs_basepath ... -fs_homepath "" -fs_game <[GameName]>
+  -autocaulk -fulldetail "<Datei>"` ohne Fenster, der Editor wartet (Q_Exec
+  waitfor); dann `<Karte>_ac.caulk`: je beitragende Flaeche ein Zeichen - c
+  caulk, w watercaulk, l lavacaulk, s slimecaulk, N nodraw, n nodrawnonsolid
+  (GetCommonShader: textures/system/...); Rueckgaengig "AutoCaulk N faces".
+- Wie NRC zaehlt ein Pinsel ohne beitragende Flaeche beim Anwenden mit, obwohl
+  er nicht in die Datei kommt (dann verrutschen die Nummern) - so gelassen.
+
+Abweichungen:
+- Die Dateien `_ac.map`, `_ac.caulk` (und was q3map2 dazu schreibt: `_ac.bsp`,
+  `_ac.srf`) entstehen wie beim Bauen nie im Spielordner (Arbeitsordner, mit
+  Ziel-Ordner dort). Das Programm ist bhed_q3map2 (in Anfuehrungszeichen - NRC
+  setzt den Pfad ohne, mit Leerzeichen scheitert es). Warten hoechstens 10
+  Minuten (NRC ohne Grenze).
+
+Checkliste: AutoCaulkSelected (Befehl und Menue Brush) [x] Punkt 6; "Q3Map
+debug window" [x] (Punkte 4/5). Die uebrigen Plugins (bobToolz, brushexport2,
+MeshTex, ShaderPlug, SunPlug, UFO:AI) tragen jetzt "Stufe 4" (Auftrag; Tooltip
+und Checkliste). Stand 811 fertig, 123 ausgegraut, 2 offen (Exit: Menue und
+Befehl - aus Stufe 1, nicht Teil von Stufe 3) von 936.
+
+### Rot/Gruen
+
+| Pruefung | rot | gruen |
+|---|---|---|
+| ctest `karte_autocaulk` (16: DeselectTriggers, Reihenfolge, die _ac.map, .caulk lesen, anwenden, Rueckgaengig) | erste Fassung 1 FEHL (Test: Shadernamen stehen ohne "textures/" in der .map) | 16/16 |
+| Selbsttest `BHED_STUFE3_NUR=caulk`, Lauf s3p6rot: ohne -autocaulk, ohne DeselectTriggers (`// MUTATION`) | 22 OK / 3 FEHLER | s3p6b: 25 / 0 (Boden unten und Nordwand aussen caulk, innen nicht; 41 Flaechen) |
+| s3p6a (erste Fassung) | 23 / 2: das Auge stand in der Detail-Saeule - q3map2 "Entity in solid", leaked, keine .caulk (NRC genauso) | Auge bei (-384 128 64) |
+
+ctest 106/106.

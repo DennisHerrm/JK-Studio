@@ -34,10 +34,13 @@
 #include "karte_bau_plattform.h"
 #include "platform.h"
 
+#include "bhed/karte/auswahlbefehle.h"
+#include "bhed/karte/auswahlsystem.h"
 #include "bhed/karte/bau.h"
 #include "bhed/karte/baumonitor.h"
 #include "bhed/karte/kartendatei.h"
 #include "bhed/karte/kartenformat.h"
+#include "bhed/karte/region.h"
 #include "bhed/karte/zuletzt.h"
 #include "bhed/regelwerk.h"
 
@@ -1524,6 +1527,101 @@ void bauStarten(std::size_t index) {
     g_lauf.eintrag = name;
     g_lauf.bspName = std::string(stamm.begin(), stamm.end());
     bauAusfuehren(befehle);
+}
+
+// --- AutoCaulk Selected (map.cpp:2121-2368 map_autocaulk_selected, F4) -------------
+//
+// Die Auswahl (ohne trigger_*) als eigene Karte <Karte>_ac.map mit einem Kasten
+// und einem Startpunkt am Auge, "q3map2 -game quake3 ... -autocaulk -fulldetail"
+// darauf (wartet wie Q_Exec( ..., waitfor = true )), dann <Karte>_ac.caulk: je
+// Flaeche, die von innen nicht zu sehen ist, caulk (bzw. watercaulk, nodraw ...).
+
+void autoCaulkAuswahl() {
+    Editor& ed = e();
+    if (ed.name == "unnamed.map") {   // Map_Unnamed: Map_SaveAs
+        if (!karteSpeichernUnterDialog()) { return; }
+    }
+    karte::triggerAbwaehlen(ed.karte);   // DeselectTriggers
+    auswahlGeaendert();
+    if (ed.karte.auswahl.anzahl() == 0) {
+        fehler("map_autocaulk_selected(): nothing is selected");
+        return;
+    }
+    // PathExtensionless( g_map.m_name ) + "_ac.map" - Abweichung: wie beim Bauen
+    // nie im Spielordner (dann im Arbeitsordner), mit Ziel-Ordner dort
+    std::string hinweis;
+    const std::string ordner = bauOrdnerVorschau(&hinweis);
+    if (!hinweis.empty()) { warnung(hinweis); }
+    const std::string name = mitSchraegstrich(ed.name);
+    std::string stamm = name.substr(0, name.rfind('.') == std::string::npos ? name.size() : name.rfind('.'));
+    if (!ordner.empty()) {
+        std::error_code ec;
+        fs::create_directories(pfadAus(ordner), ec);
+        const std::u8string s = pfadAus(ed.name).stem().u8string();
+        stamm = mitSchraegstrich(ordner);
+        if (!stamm.empty() && stamm.back() != '/') { stamm += '/'; }
+        stamm += std::string(s.begin(), s.end());
+    }
+    const std::string datei = stamm + "_ac.map";
+    {   // write .map
+        const karte::Vektor3f spawn = ed.kamera.ursprung;   // Camera_getOrigin
+        const karte::Kasten b = karte::auswahlGrenzenPivot(ed.karte);   // Select_GetBounds
+        const karte::Vektor3f mins = b.origin - b.extents - karte::Vektor3f(1024, 1024, 1024);
+        const karte::Vektor3f maxs = b.origin + b.extents + karte::Vektor3f(1024, 1024, 1024);
+        const karte::Kasten k = karte::kastenAusMinMax(mins, maxs);
+        bool innen = true;
+        for (std::size_t i = 0; i < 3; ++i) { innen = innen && std::fabs(spawn[i] - k.origin[i]) < k.extents[i]; }   // aabb_intersects_point
+        if (!innen) {
+            fehler("map_autocaulk_selected(): camera must be near selection!");
+            return;
+        }
+        const std::vector<std::shared_ptr<karte::Pinsel>> pinsel = karte::autocaulkPinsel(ed.karte);
+        std::vector<const karte::Pinsel*> liste;
+        for (const auto& p : pinsel) { liste.push_back(p.get()); }
+        std::array<std::shared_ptr<karte::Pinsel>, 6> kasten;
+        std::array<karte::Pinsel*, 6> roh{};
+        std::array<const karte::Pinsel*, 6> konst{};
+        for (std::size_t i = 0; i < 6; ++i) {
+            kasten[i] = std::make_shared<karte::Pinsel>();
+            roh[i] = kasten[i].get();
+            konst[i] = kasten[i].get();
+        }
+        std::string w;
+        karte::regionPinselBauen(roh, mins, maxs, karte::regionKastenShader(ed.regionKastenShader, &w), ed.karte.kontext);   // ConstructRegionBrushes
+        if (!w.empty()) { warnung(w); }
+        const std::string text = karte::autocaulkKarteSchreiben(ed.karte, liste, konst, spawn,
+                                                                [&](const karte::Entitaet& en) { return karte::autocaulkPunktEntitaet(ed.karte, en); });
+        std::ofstream f(pfadAus(datei), std::ios::binary | std::ios::trunc);   // TextFileOutputStream ("wt")
+        const std::string roh2 = karte::textmodusSchreiben(text);
+        if (!f || !f.write(roh2.data(), static_cast<std::streamsize>(roh2.size()))) {
+            fehler("writing " + datei + " failure");
+            return;
+        }
+    }
+    {   // compile: Q_Exec( nullptr, cmd, nullptr, false, true ) - ohne Fenster, warten
+        std::string programm = mitSchraegstrich(platform::executableDirectory());
+        if (!programm.empty() && programm.back() != '/') { programm += '/'; }
+        const std::string cmd = "\"" + programm + "bhed_q3map2.exe\" -game quake3 -fs_basepath \"" + enginePfadAnzeige() + "\" -fs_homepath \"\" -fs_game " +
+                                bauSpielName() + " -autocaulk -fulldetail \"" + datei + "\"";
+        bauplattform::Prozess p;
+        std::string grund;
+        if (p.starten(cmd, std::string(), false, grund)) {
+            // Abweichung: hoechstens 10 Minuten (NRC wartet ohne Grenze)
+            if (!p.warten(600000)) { p.beenden(); }
+        }
+    }
+    std::map<std::size_t, std::string> caulk;
+    {   // load
+        const std::string datei2 = stamm + "_ac.caulk";
+        std::string text;
+        if (!dateiLesen(datei2, text)) {
+            fehler("reading " + datei2 + " failure");
+            return;
+        }
+        caulk = karte::caulkLesen(karte::textmodusLesen(text));
+    }
+    (void)karte::caulkAnwenden(ed.karte, caulk);   // apply: "AutoCaulk N faces"
+    ++ed.sichtStand;
 }
 
 }  // namespace bhed::gui::karteneditor

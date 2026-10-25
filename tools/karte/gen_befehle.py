@@ -106,6 +106,7 @@ BuildMenuCustomize Build_runRecentExecutedBuild
 TogglePointfile NextLeakSpot PrevLeakSpot
 prtview::AboutPortalViewer prtview::ConfigurePortalViewer prtview::Load.prtFile prtview::TogglePortals(2D)
 prtview::TogglePortals(3D) prtview::Unload.prtFile
+AutoCaulkSelected
 '''.split())
 
 QT_TASTEN = {
@@ -137,8 +138,10 @@ def qt_text(ausdruck):
 def stufe(name):
     if name in STUFE_1B or name in STUFE_2_FERTIG or name in STUFE_3_FERTIG:
         return 1
-    if name in STUFE_3 or '::' in name:
+    if name in STUFE_3:
         return 3
+    if '::' in name:   # die uebrigen Plugins (bobToolz, MeshTex, ...): Stufe 4 (Auftrag Stufe 3)
+        return 4
     return 2
 
 
