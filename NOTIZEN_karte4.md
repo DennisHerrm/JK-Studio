@@ -11,6 +11,36 @@ Regeln wie in Stufe 3: je Punkt ein gezielter Rot/Gruen-Test, ctest, ein
 Commit je Punkt; radiant.exe nie gestartet; ein Testprozess zur Zeit mit
 Prioritaet Idle (`SP\s2\idle_karte.sh`, 8-GB-Waechter).
 
+## Punkt 0a: Absturz 0xC000001D im Modus `karte` (ASan)
+
+Methode: eigener ASan-Bau `Y:\karte\build-asan` (MSVC `/fsanitize=address /Zi
+/bigobj`, `clang_rt.asan_dynamic-x86_64.dll` und `llvm-symbolizer.exe` neben
+der exe, `ASAN_OPTIONS=log_path=asan.log:halt_on_error=1`), Selbsttest ueber
+`SP\s4\asan_lauf.sh` (Idle, 8-GB-Waechter, eigener Einstellungsordner).
+
+| Lauf | Modus | Ergebnis |
+|---|---|---|
+| s4asan1..3 | `karte` (je samt "Halte D", seitlich) | je 227 OK, 0 FEHLER, kein ASan-Bericht |
+| s4asanke | `karteneditor` (ganz) | **heap-use-after-free**, Lauf bei der ersten Meldung beendet |
+| s4asanke2 | `karteneditor` nach dem Fix | 1089 OK, 0 FEHLER, kein ASan-Bericht, Spitze 2036 MB |
+
+Fund: `kameraSzeneBauen` (src/karte/kameraszene.cpp) merkte sich den Shader
+der letzten Flaeche als `const std::string*`, um das Kleinschreiben und Suchen
+zu sparen. Bei misc_model zeigte der Zeiger in die `ModellAnsicht` der
+Entitaet (die Shader nach Skin und `_remap`), die nach jeder Entitaet
+freigegeben wird; der naechste Vergleich las freigegebenen Speicher. Lag die
+Ansicht des naechsten Modells an derselben Stelle, verglich der Zeiger den
+neuen Shader mit sich selbst, und das Modell landete im Stapel (Shader) des
+vorigen - ein sichtbarer Fehler (falsche Textur am zweiten Modell), dazu
+undefiniertes Verhalten. Rot: ctest `kartekamera` im ASan-Bau mit dem neuen
+Fall "sechs misc_model mit eigenen Shadern" -> ASan meldet dieselbe Stelle
+(kameraszene.cpp:355, freigegeben in :560) wie der Selbsttest. Fix: der letzte
+Shader als Kopie (`std::string` + gueltig). Gruen: `kartekamera` unter ASan
+0 Fehlschlaege, der ganze Karten-Editor-Selbsttest unter ASan ohne Bericht.
+Ob genau das der einmalige 0xC000001D war, laesst sich nicht beweisen: der
+Absturz selbst kam in 3 ASan-Laeufen von `karte` nicht wieder, und das war die
+einzige Speicherverletzung, die ASan in beiden Modi fand.
+
 ## Punkt 0c: keine abgeschnittene Beschriftung (Einstellungen, 4 Sprachen)
 
 Neue Pruefung im Selbsttest (`BHED_KARTE_NUR=stufe4`, `stufe4::reste0`): jede
@@ -147,3 +177,39 @@ von 17 Lumps ausser den Entities Byte-gleich zu `duel1_original.bsp`, der
 Entity-Lump traegt `"message" "Stufe 4 bhed_test"` und `"origin" "100 200
 64"`; nach dem Verschieben eines Pinsels der Kasten und kein q3map2; nach
 Rueckgaengig wieder gleich; eine andere Karte geoeffnet: der Eintrag gesperrt.
+
+## Punkt 0b: -light langsamer als NRCs q3map2
+
+Messung (`SP\s4\werk\lichtzeit.py`, mp__duel1 nach NRCs -vis samt .srf/.map,
+`-light -fast -patchshadows -samples 2 -filter -bounce 8`, Median aus 3, Idle):
+
+| Bau | -threads 1 | Verhaeltnis zu NRC | q3map2_vergleich |
+|---|---|---|---|
+| NRC 20260114 (MinGW-GCC -O3) | 8.39-8.45 s | 1 | - |
+| unser Bau wie bisher (/O2 /fp:precise) | 11.66 s | 1.39 | 0 Abweichungen |
+| + /arch:AVX2 | 11.57 s | 1.40 | 0 |
+| + /Ob3 | 12.22 s | 1.45 | 0 |
+| + /Ob3 /GL /LTCG | 11.77 s | 1.40 | 0 |
+| + /GS- (ohne Stapelpruefung) | 11.66 s | 1.39 | 0 |
+| nur P-Kerne (Affinitaet 0xFFFF) | 11.91 gegen 8.45 s | 1.41 | - |
+| nur E-Kerne (0xFFFF0000) | 23.65 gegen 18.57 s | 1.27 | - |
+| -threads 4 / 16 / 32 | 3.73 / 3.52 / 3.61 gegen 2.78 / 2.48 / 2.48 s | 1.34 / 1.42 / 1.46 | - |
+
+Profil ohne Administratorrechte: ein eigener Abtaster
+(`SP\s4\werk\abtaster.py`: SuspendThread/GetThreadContext je Thread, RIP,
+Module, dbghelp aus den Windows Kits gegen die PDB eines Baus mit /Zi in
+`Y:\karte\build-q3perf`). Arbeit (ohne die wartenden Threads des Windows-Pools,
+ntdll!NtWaitForWorkViaWorkerFactory): TraceLine 25 %, VectorNormalize<float>
+22 %, IlluminateRawLightmap 13 %, LightContributionToSample 11 %,
+PointToPolygonFormFactor 9 %, SetupTrace 8 %, acos 6 %. Kein Allocator im Profil
+(keine HeapAlloc/malloc-Proben). VectorNormalize ist bei MSVC eine eigene
+Funktion (in double: sqrtpd und drei divsd - dieselbe Rechnung wie bei GCC);
+acos der UCRT (acos_fma) ist schneller als msvcrt!acos bei NRC (dort 10 % der
+Arbeit). NRCs q3map2.exe hat keine Symbole, ein Vergleich je Funktion geht
+nicht; einen GCC oder clang gibt es auf dem Rechner nicht.
+
+Ergebnis: keiner der Schalter bringt etwas, die Ergebnisse bleiben mit jedem
+gleich. Die 40 % stecken im Maschinencode, den MSVC fuer die heissen
+Rechenfunktionen erzeugt, nicht in Threads, Allocator oder Inlining. Es bleibt
+bei /O2 /fp:precise (unveraenderter Bau); offen fuer spaeter: ein Bau mit
+clang-cl (VS-Komponente "C++-Clang-Tools", nicht installiert) zum Vergleich.

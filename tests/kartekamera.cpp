@@ -12,6 +12,7 @@
 #include "bhed/karte/kamera.h"
 #include "bhed/karte/kameraszene.h"
 #include "bhed/karte/karte.h"
+#include "bhed/karte/modell.h"
 #include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
 #include "bhed/karte/texdef.h"
@@ -356,9 +357,55 @@ void szene() {
     pruefe(add2 == 0, "Licht mit target: keine Radien");
 }
 
+// Stufe 4 Punkt 0a (ASan, Selbsttest karteneditor): kameraSzeneBauen merkte
+// sich den Shader der letzten Flaeche als Zeiger - bei misc_model in die
+// ModellAnsicht, die nach jeder Entitaet freigegeben wird. Liegt die Ansicht
+// der naechsten Entitaet an derselben Stelle, verglich der Zeiger den neuen
+// Shader mit sich selbst: das zweite Modell landete im Stapel des ersten
+// (und las freigegebenen Speicher).
+class ZweiModelle final : public ModellQuelle {
+public:
+    [[nodiscard]] ModellAnsicht ansicht(const Entitaet& e) const override {
+        auto m = std::make_shared<Modell>();
+        ModellFlaeche f;
+        f.shader = "models/test/" + e.wert("model") + "_mit_langem_namen";
+        f.punkte = {{Vektor3f(0, 0, 0), Vektor3f(0, 0, 1), Vektor2f(0, 0)}, {Vektor3f(8, 0, 0), Vektor3f(0, 0, 1), Vektor2f(1, 0)},
+                    {Vektor3f(0, 8, 0), Vektor3f(0, 0, 1), Vektor2f(0, 1)}};
+        f.indizes = {0, 1, 2};
+        f.grenzen = Kasten(Vektor3f(4, 4, 0), Vektor3f(4, 4, 0));
+        m->flaechen.push_back(f);
+        m->grenzen = f.grenzen;
+        ModellAnsicht a;
+        a.modell = m;
+        a.shader.push_back(f.shader);   // eigene Zeichenkette in der Ansicht (wie Skin/_remap)
+        return a;
+    }
+};
+
+void modellShader() {
+    ZweiModelle quelle;
+    Karte karte;
+    karte.kontext.modelle = &quelle;
+    (void)karte.weltHolenOderAnlegen();
+    for (int i = 0; i < 6; ++i) {
+        auto m = karte.neueEntitaet("misc_model", false);
+        m->setzen("model", "m" + std::to_string(i));
+        m->setzen("origin", std::to_string(i * 64) + " 0 0");
+        karte.entitaetEinfuegen(m);
+    }
+    KameraSzenenOptionen o;
+    const KameraSzene s = kameraSzeneBauen(karte, o);
+    int richtig = 0;
+    for (const KameraStapel& st : s.stapel) {
+        if (st.art == StapelArt::Shader && st.shader.rfind("models/test/m", 0) == 0) { richtig += st.dreiecke.size() == 3 ? 1 : 0; }
+    }
+    pruefe(richtig == 6, "misc_model: jedes Modell in seinem eigenen Shader-Stapel (" + std::to_string(richtig) + " von 6)");
+}
+
 }  // namespace
 
 int main() {
+    modellShader();
     projektion();
     achsen();
     freelook();

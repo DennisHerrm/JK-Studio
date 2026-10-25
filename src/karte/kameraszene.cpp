@@ -349,10 +349,15 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
     std::map<Farbe, std::size_t> fuellStapel;
     std::map<Farbe, std::size_t> additivStapel;
     // Der Shader der letzten Flaeche (meist dieselbe wie davor): ohne Kleinschreiben und Suchen.
-    const std::string* letzterShader = nullptr;
+    // Als Kopie, nicht als Zeiger: die Shader der misc_model stehen in der
+    // ModellAnsicht, die nach jeder Entitaet freigegeben wird (Stufe 4 Punkt 0a,
+    // ASan: der Zeiger las freigegebenen Speicher, und lag die naechste Ansicht an
+    // derselben Stelle, landete das naechste Modell im Stapel des vorigen).
+    std::string letzterShader;
+    bool letzterGueltig = false;
     std::size_t letzterStapel = 0;
     const auto stapel = [&](StapelArt art, const std::string& shader, Farbe farbe) -> KameraStapel& {
-        if (art == StapelArt::Shader && letzterShader != nullptr && *letzterShader == shader) { return s.stapel[letzterStapel]; }
+        if (art == StapelArt::Shader && letzterGueltig && letzterShader == shader) { return s.stapel[letzterStapel]; }
         std::map<std::string, std::size_t>* sm = nullptr;
         std::map<Farbe, std::size_t>* fm = nullptr;
         std::string schluessel;
@@ -361,7 +366,8 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
             schluessel = klein(shader);
             const auto it = sm->find(schluessel);
             if (it != sm->end()) {
-                letzterShader = &shader;
+                letzterShader = shader;
+                letzterGueltig = true;
                 letzterStapel = it->second;
                 return s.stapel[it->second];
             }
@@ -377,7 +383,8 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
         s.stapel.push_back(std::move(neu));
         if (sm != nullptr) {
             (*sm)[schluessel] = s.stapel.size() - 1;
-            letzterShader = &shader;
+            letzterShader = shader;
+            letzterGueltig = true;
             letzterStapel = s.stapel.size() - 1;
         } else {
             (*fm)[farbe] = s.stapel.size() - 1;
