@@ -252,6 +252,14 @@ void bauMenueEintraegeZeichnen() {
     p.id = abbrechen.c_str();
     p.aktiv = bauLaeuft();
     if (qtPunkt(p)) { bauAbbrechen(); }
+    // Stufe 4 Punkt 2 (Abweichung, eigener Eintrag): nur die Entities einer
+    // geoeffneten .bsp aktualisieren - Geometrie und Licht bleiben
+    const std::string nurEnt = std::string(trK(Str::KeBmNurEntities)) + "##baunurentities";
+    QtPunkt n;
+    n.id = nurEnt.c_str();
+    n.aktiv = bspNurEntitaetenMoeglich() && !bauLaeuft();
+    n.tooltip = bspNurEntitaetenMoeglich() ? trK(Str::KeBmNurEntitiesTip) : trK(Str::KeBmNurEntitiesAus);
+    if (qtPunkt(n)) { bspNurEntitaeten(); }
 }
 
 // Build_runRecentExecutedBuild (build.cpp:1311-1314): der zuletzt gebaute
@@ -1003,6 +1011,7 @@ struct BauLauf {
     std::string zeilenRest;                        // Stapel: angefangene Zeile
     std::string logPfad;                           // Stapel mit "Dump non Monitored Builds Log": junk.txt
     std::vector<std::pair<std::size_t, int>> rueckgaben;   // Schritt und Rueckgabe von q3map2 (Abweichung: in der Zeile am Ende)
+    std::function<void(int)> danach;               // Stufe 4: bauEigeneBefehle
 };
 BauLauf g_lauf;
 
@@ -1026,6 +1035,15 @@ void zusammenfassung(int art, const std::string& grund) {   // 0 fertig, 1 gesto
     l.aktiv = false;
     const std::string zeit = zeitText(sekundenSeit(l.start));
     char z[512];
+    // Stufe 4: der Rueckruf eines eigenen Auftrags (bauEigeneBefehle) nach der Schlusszeile
+    struct Danach {
+        std::function<void(int)> f;
+        int art;
+        ~Danach() {
+            if (f) { f(art); }
+        }
+    } danach{std::move(l.danach), art};
+    l.danach = nullptr;
     if (art == 0) {
         std::snprintf(z, sizeof(z), trK(Str::KeBmFertig), l.eintrag.c_str(), static_cast<int>(l.befehle.size()), zeit.c_str());
         std::string text = z;
@@ -1527,6 +1545,14 @@ void bauStarten(std::size_t index) {
     g_lauf.eintrag = name;
     g_lauf.bspName = std::string(stamm.begin(), stamm.end());
     bauAusfuehren(befehle);
+}
+
+void bauEigeneBefehle(const std::string& eintrag, const std::vector<std::string>& befehle, std::function<void(int)> danach) {
+    if (bauLaeuft()) { bauAusfuehren(std::vector<std::string>{}); }
+    g_lauf.eintrag = eintrag;
+    g_lauf.bspName.clear();
+    bauAusfuehren(befehle);
+    g_lauf.danach = std::move(danach);   // nach bauAusfuehren: ein abgebrochener alter Auftrag ruft ihn nicht
 }
 
 // --- AutoCaulk Selected (map.cpp:2121-2368 map_autocaulk_selected, F4) -------------

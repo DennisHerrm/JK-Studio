@@ -34460,6 +34460,84 @@ std::vector<Schritt> oeffnen() {
     return s;
 }
 
+// Punkt 2: Originallicht behalten - nur Entities geaendert: Build > "Update
+// entities only" (q3map2 -onlyents auf eine Kopie, Entity-Lump ins Original);
+// danach jeder Lump ausser den Entities Byte-gleich. Geometrie geaendert: ein
+// Hinweis, q3map2 laeuft nicht.
+std::vector<Schritt> licht() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("Stufe 4/2: worldspawn \"message\", info_player_deathmatch verschoben", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        {
+            karte::Befehl b(e.karte.undo, "Stufe 4 Test");
+            e.karte.welt()->setzen("message", "Stufe 4 bhed_test");
+            for (const auto& en : e.karte.entitaeten()) {
+                if (en->klassenname() == "info_player_deathmatch") {
+                    en->setzen("origin", "100 200 64");
+                    break;
+                }
+            }
+        }
+        e.bspNurEntitaetenFertig.clear();
+        ke::konsoleLeeren();
+    }));
+    add(pruefe("Nur Entities geaendert: derselbe Fingerabdruck, Build > Update entities only verfuegbar", [] {
+        return ke::bspNurEntitaetenMoeglich() && !ke::bspGeometrieGeaendert();
+    }));
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.2));
+    add(foto("karteneditor_baumenue_nurentities"));
+    add(klick(std::string(ke::trK(Str::KeBmNurEntities)) + "##baunurentities", "", 0, true));
+    add(warteBis("-onlyents fertig", [] { return !ke::bauLaeuft() && !ke::editor().bspNurEntitaetenFertig.empty(); }, 1800));
+    add(pruefe("duel1.bsp: jeder Lump ausser den Entities Byte-gleich zur Original-.bsp, der Entity-Lump traegt die Aenderung", [] {
+        const std::string o = bspArbeitsOrdner();
+        karte::BspDatei a;
+        karte::BspDatei b;
+        if (!karte::bspLesen(dateiInhalt(o + "/duel1_original.bsp"), a) || !karte::bspLesen(dateiInhalt(o + "/duel1.bsp"), b)) { return false; }
+        bool gleich = a.lumps.size() == 18 && b.lumps.size() == 18;
+        for (std::size_t i = 1; gleich && i < a.lumps.size(); ++i) { gleich = a.lumps[i] == b.lumps[i]; }
+        const std::string ent = karte::bspEntitaetenText(b);
+        diag::detail("Knopftest: Stufe 4 - onlyents " + std::string(gleich ? "17 Lumps gleich" : "Lumps anders") + ", Entity-Lump " +
+                     std::to_string(ent.size()) + " Bytes");
+        return gleich && ent.find("\"message\" \"Stufe 4 bhed_test\"") != std::string::npos && ent.find("\"origin\" \"100 200 64\"") != std::string::npos &&
+               a.lumps[0] != b.lumps[0];
+    }));
+    add(pruefe("Konsole: q3map2 -bsp -onlyents, die Schlusszeile \"Entities updated ... (17 of 17)\"", [] {
+        const std::string k = stufe3::konsoleText();
+        const std::string vorlage = ke::trK(Str::KeBmNurEntitiesFertig);
+        const std::string anfang = vorlage.substr(0, vorlage.find("%s"));
+        return k.find(" -bsp -onlyents \"") != std::string::npos && k.find(anfang) != std::string::npos;
+    }));
+    // Geometrie geaendert: Hinweis, kein q3map2
+    add(tu("Einen Pinsel waehlen und verschieben (SelectNudgeUp)", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), e.karte.welt()->kinder().front());
+        ke::auswahlGeaendert();
+        (void)ke::ausfuehren("SelectNudgeUp");
+        e.bspNurEntitaetenFertig.clear();
+        ke::konsoleLeeren();
+    }));
+    add(pruefe("Pinsel verschoben: Fingerabdruck anders", [] { return ke::bspGeometrieGeaendert(); }));
+    add(tu("Build > Update entities only", [] { ke::bspNurEntitaeten(); }));
+    add(pause(0.3));
+    add(pruefe("Hinweis: neu bauen und belichten (Kasten und Konsole), q3map2 nicht gestartet", [] {
+        const ke::Editor& e = ke::editor();
+        return e.meldung.offen && e.meldung.titel == ke::trK(Str::KeBmGeometrieTitel) && !ke::bauLaeuft() && e.bspNurEntitaetenFertig.empty() &&
+               stufe3::konsoleText().find(ke::trK(Str::KeBmGeometrie)) != std::string::npos;
+    }));
+    add(foto("karteneditor_nurentities_hinweis"));
+    add(tu("Kasten zu, Rueckgaengig", [] {
+        ke::editor().meldung.offen = false;
+        (void)ke::ausfuehren("Undo");
+    }));
+    add(pruefe("Rueckgaengig: Fingerabdruck wieder gleich", [] { return !ke::bspGeometrieGeaendert(); }));
+    add(tu("Eine andere Karte oeffnen: die Herkunft ist weg", [] { (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map")); }));
+    add(pruefe("Ohne geoeffnete .bsp: Update entities only gesperrt", [] { return !ke::bspNurEntitaetenMoeglich(); }));
+    return s;
+}
 
 }  // namespace stufe4
 
@@ -34472,6 +34550,7 @@ std::vector<Schritt> karteneditorStufe4Schritte() {
     }
     if (teil("oeffnen") || teil("licht")) {
         for (Schritt& x : stufe4::oeffnen()) { s.push_back(std::move(x)); }
+        for (Schritt& x : stufe4::licht()) { s.push_back(std::move(x)); }
     }
     return s;
 }
@@ -34847,7 +34926,8 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         {"Modify__Flip", {"Modify", "Flip"}, 183, 137},
         {"Modify__Repeat", {"Modify", "Repeat"}, 225, 154},
         // Build: NRC + Trenner 7 + "Cancel build" 24 (Stufe 3 Punkt 4, Abweichung)
-        {"Build", {"Build"}, 193, 405 + 7 + 24},
+        // + "Update entities only" 24 (Stufe 4 Punkt 2, Abweichung)
+        {"Build", {"Build"}, 193, 405 + 7 + 24 + 24},
         {"Grid", {"Grid"}, 163, 346},
         // Misc und Help: NRC + die Programm-Eintraege (Stufe 3 Punkt 0b, Abweichung):
         // Misc + Trenner 7 + drei Untermenues je 24, Help + Manual und About BehavEd.

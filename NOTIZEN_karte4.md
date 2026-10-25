@@ -96,3 +96,54 @@ aus assets0.pk3 von Movie Duels); t1_inter, mp__duel1 (JA), duel_pit,
 kejim_post (JK2), duel_twinsuns, md_ch_ben (MD) im ctest - alle gleich. Import
 von duel1 in duel1: 26 + 25 Entitaeten (worldspawn verschmilzt), Rueckgaengig
 wieder 26.
+
+## Punkt 2: Originallicht behalten
+
+- Beim Oeffnen (Punkt 1) merkt sich der Editor Herkunft, Arbeitsordner und den
+  **Fingerabdruck der Geometrie** (`karte::geometrieFingerabdruck`: jede
+  Entitaet mit Pinseln/Patches nur mit ihren Primitiven - Ebenenpunkte,
+  Shader, Texturprojektion, Flags, Kontrollpunkte, ohne Schluessel und ohne
+  "// entity N" -, dazu jede Entitaet, die q3map2 einbackt: misc_model,
+  _decal, _skybox mit Schluesseln, UnparseEntities in bspfile_abstract.cpp).
+- **Build > Update entities only** (Abweichung, eigener Eintrag nach "Cancel
+  build"; nur mit geoeffneter .bsp, Tooltip erklaert es): ist der
+  Fingerabdruck gleich (Schluessel/Werte geaendert, Punkt-Entities verschoben
+  oder neu), wird die Karte als `<Arbeitsordner>/<Name>.map` geschrieben, die
+  Original-.bsp frisch nach `<Name>.bsp` kopiert und im Hintergrund (Konsole,
+  Statuszeile, Schlusszeile wie beim Bauen) `bhed_q3map2 ... -bsp -onlyents
+  [-keeplights] "<Name>.map"` ausgefuehrt. Danach wird der Entity-Lump aus
+  q3map2s Ergebnis in die Original-Datei eingesetzt
+  (`karte::bspEntitaetenEinsetzen`), die Konsole meldet "Entities updated: ...
+  - every other lump byte for byte as in the original (17 of 17)".
+- Ist die Geometrie anders: der Kasten "Update entities only" mit dem Hinweis,
+  dass neu gebaut und belichtet werden muss (BSP, VIS, LIGHT), auch in der
+  Konsole; q3map2 laeuft nicht.
+
+Warum mehr als nur `-onlyents`:
+- Ravens Jedi-Outcast-Karten haben ihre Lichter im Entity-Lump; SetLightStyles
+  (writebsp.cpp:222-260) wirft jedes light ohne targetname hinaus, wenn nicht
+  `-keeplights` gilt. Darum `-keeplights`, wenn die Original-.bsp ein light
+  hat (Jedi Academy: nie).
+- WriteRBSPFile packt das Lichtgitter neu (AddLightGridLumps: Naeherungs-
+  Zwillinge mit LG_EPSILON 4). Bei Ravens JA-Karten ergibt das dieselben Bytes,
+  bei JK2 nicht: duel_pit nach `-onlyents` lightgrid und lightarray anders.
+  Mit dem Einsetzen in die Original-Datei bleiben alle Lumps ausser Lump 0
+  Byte fuer Byte (Reihenfolge wie im Original, je auf 4 Bytes aufgefuellt).
+- Rundlauf ohne Aenderung (q3map2 allein, SP\s4\werk\onlyents_serie.py):
+  t1_inter, academy1, mp__ffa3, mp__siege_hoth: Entity-Lump gleich; hoth2, kor1,
+  mp__duel1: nur "origin" von Pinsel-Entities mit Ursprungspinsel neu
+  formatiert ("6120 -4064 1568" -> "6120.000000 -4064.000000 1568.000000",
+  LoadMapFile); alle anderen Lumps gleich.
+
+Rot/Gruen:
+
+| Pruefung | rot | gruen |
+|---|---|---|
+| ctest `karte_bspoeffnen` (Einsetzen, -keeplights, raum: -onlyents Byte-gleich und die Aenderung im Entity-Lump; JK2 duel_pit/kejim_post) | M3 (Einsetzen mit q3map2s Lumps): JK2 2 FEHL; M2 (Fingerabdruck fest): 3 FEHL | 32/32 |
+| Selbsttest `BHED_STUFE4_NUR=licht` (worldspawn "message", info_player_deathmatch verschoben, Build > Update entities only; Pinsel verschoben -> Hinweis) | s4p1rot: M2 - "Pinsel verschoben: Fingerabdruck anders", "Hinweis ..." FEHLER | s4p2gruen |
+
+Gepruefte Wirkung im Selbsttest: duel1.bsp nach "Update entities only" - 17
+von 17 Lumps ausser den Entities Byte-gleich zu `duel1_original.bsp`, der
+Entity-Lump traegt `"message" "Stufe 4 bhed_test"` und `"origin" "100 200
+64"`; nach dem Verschieben eines Pinsels der Kasten und kein q3map2; nach
+Rueckgaengig wieder gleich; eine andere Karte geoeffnet: der Eintrag gesperrt.

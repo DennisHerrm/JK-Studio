@@ -352,4 +352,72 @@ void zeichneBspDialog() {
     ImGui::EndPopup();
 }
 
+// --- Punkt 2: Originallicht -----------------------------------------------------------
+
+namespace {
+
+std::string g_nurEntitaetenBsp;   // die Datei, die q3map2 gerade schreibt (fuer den Abschluss)
+
+}  // namespace
+
+bool bspNurEntitaetenMoeglich() { return e().bspHerkunft.aktiv; }
+
+bool bspGeometrieGeaendert() {
+    const Editor& ed = e();
+    return !ed.bspHerkunft.aktiv || karte::geometrieFingerabdruck(ed.karte) != ed.bspHerkunft.fingerabdruck;
+}
+
+void bspNurEntitaeten() {
+    Editor& ed = e();
+    if (!ed.bspHerkunft.aktiv) {
+        fehler(trK(Str::KeBmNurEntitiesAus));
+        return;
+    }
+    if (bspGeometrieGeaendert()) {
+        warnung(std::string(trK(Str::KeBmGeometrie)));
+        qtMeldung(trK(Str::KeBmGeometrieTitel), trK(Str::KeBmGeometrie), MeldungArt::Warnung, false, nullptr);
+        return;
+    }
+    const BspHerkunft& h = ed.bspHerkunft;
+    const std::string karteDatei = h.ordner + "/" + h.stamm + ".map";
+    const std::string bsp = h.ordner + "/" + h.stamm + ".bsp";
+    std::string original;
+    if (!dateiLesen(h.ordner + "/" + h.stamm + "_original.bsp", original)) {
+        fehler("reading " + h.ordner + "/" + h.stamm + "_original.bsp failure");
+        return;
+    }
+    // Die Entitaeten fuer q3map2: <Arbeitsordner>/<Name>.map (die Karte des
+    // Editors bleibt, wo sie ist); eine frische Kopie der Original-.bsp
+    if (!karte::karteSpeichern(karteDatei, ed.karte, false) || !dateiSchreibenRoh(bsp, original)) {
+        fehler("writing " + karteDatei + " failure");
+        return;
+    }
+    karte::BspDatei b;
+    const bool lichter = karte::bspLesen(original, b) && karte::bspHatLichter(karte::bspEntitaetenText(b));
+    g_nurEntitaetenBsp = bsp;
+    bauEigeneBefehle(karte::ohneMnemonik(trK(Str::KeBmNurEntities)), {karte::onlyentsBefehl(q3map2Aufruf(), karteDatei, lichter)},
+                     [](int art) {
+                         if (art != 0) { return; }
+                         Editor& ed2 = e();
+                         std::string orig;
+                         std::string neu;
+                         const BspHerkunft& h2 = ed2.bspHerkunft;
+                         if (!dateiLesen(h2.ordner + "/" + h2.stamm + "_original.bsp", orig) || !dateiLesen(g_nurEntitaetenBsp, neu)) { return; }
+                         const std::string fertig = karte::bspEntitaetenEinsetzen(orig, neu);
+                         karte::BspDatei a;
+                         karte::BspDatei c;
+                         if (fertig.empty() || !karte::bspLesen(orig, a) || !karte::bspLesen(fertig, c) || !dateiSchreibenRoh(g_nurEntitaetenBsp, fertig)) {
+                             fehler("bspEntitaetenEinsetzen failed: " + g_nurEntitaetenBsp);
+                             return;
+                         }
+                         int gleich = 0;
+                         for (std::size_t i = 1; i < a.lumps.size() && i < c.lumps.size(); ++i) { gleich += a.lumps[i] == c.lumps[i] ? 1 : 0; }
+                         char z[1024];
+                         std::snprintf(z, sizeof(z), trK(Str::KeBmNurEntitiesFertig), g_nurEntitaetenBsp.c_str(), gleich,
+                                       static_cast<int>(a.lumps.size()) - 1);
+                         ausgabe(z);
+                         ed2.bspNurEntitaetenFertig = g_nurEntitaetenBsp;
+                     });
+}
+
 }  // namespace bhed::gui::karteneditor

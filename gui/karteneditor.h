@@ -396,6 +396,7 @@ struct Editor {
     std::shared_ptr<Spielkontext> karteSpiel;   // die Klassen der offenen Karte (Zeiger darauf)
     // Stufe 4: die offene Karte kam aus einer .bsp (File > Open .bsp...)
     BspHerkunft bspHerkunft;
+    std::string bspNurEntitaetenFertig;   // Selbsttest: zuletzt mit -onlyents geschriebene .bsp
     karte::ZuletztListe zuletzt;
     bool zuletztGeladen = false;
 
@@ -1203,6 +1204,9 @@ void bauMenueEintraegeZeichnen();      // Build_constructMenu
 void bauStarten(std::size_t index);    // RunBSP
 void bauZuletztStarten();              // Build_runRecentExecutedBuild
 void bauAusfuehren(const std::vector<std::string>& befehle);   // BuildMonitor_Run
+// Stufe 4: eigene Befehle im Hintergrund wie ein Build-Eintrag (Konsole,
+// Statuszeile, Schlusszeile); danach(art) mit 0 fertig, 1 gestoppt, 2 abgebrochen.
+void bauEigeneBefehle(const std::string& eintrag, const std::vector<std::string>& befehle, std::function<void(int)> danach);
 // --- Stufe 4 Punkte 1/2: fertige Karten (app_karte_bsp.cpp) ---
 void bspOeffnenDialog();                 // File > Open .bsp...
 void zeichneBspDialog();                 // der Dialog "Open compiled map" (jedes Bild)
@@ -1211,6 +1215,9 @@ bool bspOeffnenDatei(const std::string& pfad);   // eine .bsp von der Platte
 bool bspImportieren(const std::string& pfad);    // File > Import... mit .bsp (tryDecompile)
 [[nodiscard]] bool bspDialogOffen();
 [[nodiscard]] std::vector<karte::BspEintrag> bspDialogListe();
+[[nodiscard]] bool bspNurEntitaetenMoeglich();   // eine .bsp ist offen
+[[nodiscard]] bool bspGeometrieGeaendert();      // Fingerabdruck anders als beim Oeffnen
+void bspNurEntitaeten();                 // Build > Update entities only
 void bauSchritt();                     // CWatchBSP::RoutineProcessing (jedes Bild, auch ausserhalb des Editors)
 [[nodiscard]] bool bauLaeuft();        // ein Bauen laeuft (Bilder weiter zeichnen)
 void bauAbbrechen();                   // Abweichung: Bauen abbrechen
