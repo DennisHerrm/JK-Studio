@@ -248,7 +248,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 204, "MAX_RBSP_FOGS", 30));
         g.pruefstelle = rd + "tr_main.cpp R_AddDrawSurf: der Nebel steht in den Bits 2..6 des Sortierschluessels; "
                              "q3map2 writebsp.cpp:450 warnt";
-        g.rechnung = "5 Bits (7 - 2) = 31 Nebel-Indizes; Index = Nebel + 1, dazu der globale Nebel: 30";
+        g.rechnung = "5 Bits (7 - 2) = 31 Nebel-Indizes; Index = Nebel + 1, dazu der Platz der Nachtsicht (tr_bsp.cpp R_LoadFogs): 30";
         t.push_back(std::move(g));
     }
     {
@@ -426,12 +426,15 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.rechnung = "verschiedene Figurenmodelle (playerModel) je Level, samt Spieler";
         t.push_back(std::move(g));
     }
-    {
+    if (!jk2) {   // codeJK2/game kennt kein misc_bsp (kein G_BSPIndex)
         Grenze g = neu("laufzeit.subbsp", GrenzArt::Laufzeit, Str::KeGrLzSubBsp, "MAX_SUB_BSP", 32);
         g.stellen.push_back(st(b, b.qcommon, "q_shared.h", z.maxSubBsp, "MAX_SUB_BSP", 32));
+        g.erlaubt = mp ? 32 : 31;
         g.pruefstelle = qc + (md ? "cm_load.cpp:1131" : (mp ? "cm_load.cpp:1040" : "cm_load.cpp:1117")) +
-                        " Com_Error \"CM_LoadSubBSP: too many unique sub BSPs\"";
-        g.rechnung = "verschiedene misc_bsp (bspmodel) je Level";
+                        " Com_Error \"CM_LoadSubBSP: too many unique sub BSPs\"" +
+                        (mp ? std::string() : "; " + cfgStelle + " (G_BSPIndex)");
+        g.rechnung = mp ? "verschiedene misc_bsp (bspmodel) je Level"
+                        : "verschiedene misc_bsp je Level: G_BSPIndex legt sie als Configstring ab Index 1 an (MAX_SUB_BSP - 1)";
         t.push_back(std::move(g));
     }
 

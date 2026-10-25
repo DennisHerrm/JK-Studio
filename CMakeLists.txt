@@ -777,7 +777,10 @@ target_sources(bhed_core PRIVATE
   # Stufe 4 Punkt 3: MeshTex (contrib/meshtex/MeshEntity.cpp)
   src/karte/meshtex.cpp
   # Stufe 5 Punkt 1: die Grenzen von JKA / MP / Movie Duels / JK2 als Daten
-  src/karte/grenzen.cpp)
+  src/karte/grenzen.cpp
+  # Stufe 5 Punkt 2: der Optimierer zaehlt (cm_patch.cpp fuer die Patch-Kollision)
+  src/karte/patchkollision.cpp
+  src/karte/optimierer.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -978,6 +981,12 @@ if(BEHAVED_TESTS)
   target_link_libraries(kartegrenzen PRIVATE bhed_core)
   add_test(NAME karte_grenzen COMMAND kartegrenzen "${BEHAVED_OPENJK_QUELLEN}" "${BEHAVED_MD_QUELLEN}"
            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/q3map2)
+  # Stufe 5: der Optimierer - Testkarten an jeder Grenze, erzeugte RBSP, und
+  # mit -DBEHAVED_KARTE_JA/JK2/MD der Abgleich gegen alle Originalkarten (nur lesen).
+  add_executable(karteoptimierer tests/karteoptimierer.cpp)
+  target_link_libraries(karteoptimierer PRIVATE bhed_core)
+  add_test(NAME karte_optimierer COMMAND karteoptimierer "${BEHAVED_KARTE_JA}" "${BEHAVED_KARTE_JK2}" "${BEHAVED_KARTE_MD}")
+  set_tests_properties(karte_optimierer PROPERTIES TIMEOUT 1800)
   add_executable(kartebefehle tests/kartebefehle.cpp)
   target_link_libraries(kartebefehle PRIVATE bhed_core)
   add_test(NAME karte_befehle COMMAND kartebefehle ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.md)
