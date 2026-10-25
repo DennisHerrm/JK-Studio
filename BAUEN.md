@@ -733,7 +733,7 @@ clang-cl und lld-link gebaut (LLVM 23.1.4, das Paket
 `LLVM-23.1.4-win64.exe`; gebraucht werden `clang-cl.exe`, `lld-link.exe`,
 `llvm-lib.exe`, `llvm-rc.exe` und `lib/clang/23`). behaved selbst bleibt bei
 MSVC. CMake baut q3map2 dann als eigenes Projekt mit Ninja
-(`ExternalProject`, Ordner `q3map2_clang` im Bauordner) und legt die .exe wie
+(`tools/karte/q3map2_clang.cmake`, Ordner `q3map2_clang` im Bauordner) und legt die .exe wie
 bisher neben `behaved.exe`; clang-cl und lld-link finden Visual Studio und das
 Windows SDK selbst, ein Entwickler-Prompt ist nicht nötig.
 
@@ -747,7 +747,7 @@ cmake -S . -B build -DBEHAVED_Q3MAP2_LLVM=C:/llvm-23.1.4/bin
   gleich, die von der Reihenfolge unabhängigen Lumps gleich, -vis mit einem
   Thread gleich, -light im Rahmen dessen, was NRC gegen NRC schwankt.
   `/fp:precise` und SSE2 gelten für clang-cl genauso (keine FMA).
-* **Schneller:** -light 13–16 %, -vis bis 20 % (Messwerte in
+* **Schneller:** -light 14–21 %, -vis bis 25 % (Messwerte in
   `NOTIZEN_karte5.md`, Punkt 6). `-O3` und ThinLTO bringen nichts dazu.
 * Fehlt eines der Werkzeuge oder `ninja.exe` (Visual Studio: „C++-CMake-Tools“),
   warnt CMake und baut q3map2 mit MSVC wie bisher.

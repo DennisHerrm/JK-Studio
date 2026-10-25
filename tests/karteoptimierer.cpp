@@ -997,6 +997,123 @@ void testeBeheben() {
 }
 }  // namespace
 
+// --- Nachtrag: Pruefungen aus bekannten Fehlern (NRC-/q3map2-/OpenJK-Meldungen) ------
+
+void testeBekannteFehler(const std::string& q3dir) {
+    // Shader-Skript: q3map_surfacelight, q3map_backsplash, surfaceparm sky / origin
+    {
+        const std::string text =
+            "// Kommentar mit textures/korriban/kor1_lava\n"
+            "textures/korriban/kor1_lava\n{\n\tqer_editorimage textures/x\n\tq3map_surfacelight 1600\n\tsurfaceparm lava\n"
+            "\t{\n\t\tmap $lightmap // q3map_surfacelight 9\n\t}\n}\n"
+            "textures/a/b { q3map_surfacelight 10 q3map_backsplash 100 5 surfaceparm sky }\n"
+            "/* textures/system/origin { surfaceparm nodraw } */\n"
+            "textures/system/origin\n{\n\tsurfaceparm origin\n}\n";
+        const ShaderSkript lava = shaderSkriptLesen(text, "textures/korriban/kor1_lava");
+        pruefe(lava.gefunden && lava.flaechenlicht == 1600.0 && lava.backsplashAnteil == 0.05 && lava.backsplashWeite == 23.0 && !lava.himmel,
+               "Shader-Skript: kor1_lava q3map_surfacelight 1600, Backsplash wie q3map2 (5 %, 23), Stufen und Kommentare zaehlen nicht");
+        const ShaderSkript ab = shaderSkriptLesen(text, "TEXTURES/A/B");
+        pruefe(ab.gefunden && ab.flaechenlicht == 10.0 && ab.backsplashAnteil == 1.0 && ab.backsplashWeite == 5.0 && ab.himmel,
+               "Shader-Skript: q3map_backsplash 100 5 und surfaceparm sky (ohne Gross/klein)");
+        const ShaderSkript ursprung = shaderSkriptLesen(text, "textures/system/origin");
+        pruefe(ursprung.gefunden && ursprung.ursprung, "Shader-Skript: surfaceparm origin (der Block im /* */-Kommentar zaehlt nicht)");
+        pruefe(!shaderSkriptLesen(text, "textures/fehlt").gefunden, "Shader-Skript: unbekannter Name nicht gefunden");
+    }
+    // Lichtstile (style, _style, targetname) und Schalter im Build-Menue
+    {
+        const std::string welt = entText("worldspawn", "", kastenText(0, 0, 0, 64, 64, 64, "test/x"));
+        pruefe(!lichtstile(abbildAus(welt + entText("light", "\"origin\" \"0 0 100\"\n", ""))), "ein Licht ohne Stil: keine Lichtstile");
+        pruefe(lichtstile(abbildAus(welt + entText("light", "\"origin\" \"0 0 100\"\n\"style\" \"1\"\n", ""))), "Licht mit style 1: Lichtstile");
+        pruefe(lichtstile(abbildAus(welt + entText("light", "\"origin\" \"0 0 100\"\n\"targetname\" \"an\"\n", ""))),
+               "Licht mit targetname (schaltbar): Lichtstile");
+        const std::vector<std::pair<std::string, std::string>> ext = {{"A", "[q3map2] -light -fast -external \"[MapFile]\""}};
+        const std::vector<std::pair<std::string, std::string>> gross = {{"B", "[q3map2] -light -lightmapsize 256 \"[MapFile]\""}};
+        const std::vector<std::pair<std::string, std::string>> normal = {{"C", "[q3map2] -light -lightmapsize 128 \"[MapFile]\""},
+                                                                         {"D", "[q3map2] -vis -external \"[MapFile]\""}};
+        pruefe(bauBefehlProbleme(GrenzSpiel::Jk2, false, ext).size() == 1, "JK2 mit -external: gesperrt (NRC#98)");
+        const auto g = bauBefehlProbleme(GrenzSpiel::Jk2, false, gross);
+        pruefe(g.size() == 1 && g.front().schalter == "-lightmapsize 256", "JK2 mit -lightmapsize 256: gesperrt (externe Lightmaps, light.cpp:2544)");
+        pruefe(bauBefehlProbleme(GrenzSpiel::Jk2, true, normal).empty(), "JK2 mit -lightmapsize 128 und -external ausserhalb von -light: frei");
+        pruefe(bauBefehlProbleme(GrenzSpiel::JkaSp, false, ext).empty(), "JKA ohne Lichtstile mit -external: frei");
+        pruefe(bauBefehlProbleme(GrenzSpiel::JkaSp, true, ext).size() == 1 && bauBefehlProbleme(GrenzSpiel::MovieDuels, true, gross).size() == 1,
+               "JKA/MD mit Lichtstilen und externen Lightmaps: gesperrt (NRC#48)");
+        PruefOptionen o = pruefOpt();
+        o.spiel = GrenzSpiel::Jk2;
+        o.bauBefehle = ext;
+        pruefe(anzahlVon(pruefeKarte(abbildAus(welt), o), "baubefehl") == 1, "Optimierer: Befund baubefehl fuer JK2 mit -external");
+    }
+    // common/origin statt system/origin (NRC#270)
+    {
+        const std::string t = entText("worldspawn", "", kastenText(-64, -64, -16, 64, 64, 0, "test/boden")) +
+                              entText("func_door", "\"angle\" \"90\"\n", kastenText(0, 0, 0, 8, 64, 64, "test/tuer") + kastenText(0, 0, 0, 8, 8, 8, "common/origin"));
+        PruefOptionen o = pruefOpt();
+        const std::vector<Befund> b = pruefeKarte(abbildAus(t), o);
+        const Befund* co = befund(b, "commonorigin");
+        pruefe(co != nullptr && co->anzahl == 6 && co->behebung == Behebung::TexturErsetzen && co->wert == "textures/system/origin",
+               "common/origin im func_door: 6 Flaechen, Behebung system/origin");
+        ShaderArt mod;
+        mod.ursprung = true;
+        o.shader["textures/common/origin"] = mod;
+        pruefe(anzahlVon(pruefeKarte(abbildAus(t), o), "commonorigin") == 0, "ein Mod mit common/origin samt surfaceparm origin: kein Befund");
+        Fall f(t);
+        behebenPruefen("system/origin", f, "commonorigin", 0);
+        long long sys = 0;
+        for (const auto& p : f.k.entitaeten()[1]->kinder()) {
+            const auto& pin = static_cast<const Pinsel&>(*p);
+            for (std::size_t i = 0; i < pin.anzahl(); ++i) { sys += pin[i].shader() == "textures/system/origin" ? 1 : 0; }
+        }
+        pruefe(sys == 6, "system/origin: die 6 Flaechen des Ursprungs-Pinsels (" + std::to_string(sys) + ")");
+    }
+    // riesige Pinsel (GT#271)
+    {
+        const std::string riesig = entText("worldspawn", "", kastenText(-10000, 0, 0, 10000, 64, 64, "test/x"));
+        const std::string gross = entText("worldspawn", "", kastenText(-4096, 0, 0, 4096, 64, 64, "test/x"));
+        pruefe(anzahlVon(pruefeKarte(abbildAus(riesig), pruefOpt()), "riesenpinsel") == 1, "Pinsel 20000 lang: riesig");
+        pruefe(anzahlVon(pruefeKarte(abbildAus(gross), pruefOpt()), "riesenpinsel") == 0, "Pinsel 8192 lang: kein Befund");
+    }
+    // Flaechenlicht unter festen Flaechen: der Backsplash (light_bounce.cpp:544-566)
+    {
+        PruefOptionen o = pruefOpt();
+        ShaderArt lava;
+        lava.undurchsichtig = false;
+        lava.flaechenlicht = 1600;
+        o.shader["textures/korriban/kor1_lava"] = lava;
+        const std::string unten = kastenText(0, 0, -16, 256, 256, 0, "korriban/kor1_lava");
+        const std::string eng = entText("worldspawn", "", unten + kastenText(0, 0, 8, 256, 256, 24, "test/boden"));
+        const std::string weit = entText("worldspawn", "", unten + kastenText(0, 0, 40, 256, 256, 56, "test/boden"));
+        const std::string frei = entText("worldspawn", "", unten);
+        pruefe(anzahlVon(pruefeKarte(abbildAus(eng), o), "flaechenlichtleck") == 1, "Lava 8 unter einer Platte: der Backsplash (23) liegt im Festen");
+        pruefe(anzahlVon(pruefeKarte(abbildAus(weit), o), "flaechenlichtleck") == 0, "Platte 40 ueber der Lava: frei");
+        pruefe(anzahlVon(pruefeKarte(abbildAus(frei), o), "flaechenlichtleck") == 0, "Lava ohne Platte: frei");
+        lava.backsplashAnteil = 0;
+        o.shader["textures/korriban/kor1_lava"] = lava;
+        pruefe(anzahlVon(pruefeKarte(abbildAus(eng), o), "flaechenlichtleck") == 0, "q3map_backsplash 0: kein Backsplash, kein Befund");
+    }
+    // misc_model_static: der Pruefpunkt origin + (0 0 zoffset+1) im Festen (OpenJK#1358)
+    {
+        const std::string bsp = lies(std::filesystem::path(q3dir) / "raum.nrc.bsp");
+        const std::string raum = lies(std::filesystem::path(q3dir) / "raum.map");
+        if (!bsp.empty() && !raum.empty()) {
+            PruefOptionen o = pruefOpt();
+            BspAnalyse an;
+            an.ok = true;
+            o.bsp = &an;
+            o.bspDaten = &bsp;
+            const std::string modelle = entText("misc_model_static", "\"origin\" \"-384 128 -100\"\n\"model\" \"models/a.md3\"\n", "") +
+                                        entText("misc_model_static", "\"origin\" \"-384 128 24\"\n\"model\" \"models/b.md3\"\n", "");
+            Fall f(raum + modelle, o);
+            const Befund* m = befund(f.b, "modellunsichtbar");
+            float z = 0;
+            const bool zahl = m != nullptr && m->objekte.size() == 1 && std::sscanf(m->objekte.front().wert.c_str(), "%f", &z) == 1;
+            pruefe(m != nullptr && m->anzahl == 1 && zahl && m->behebung == Behebung::EntitaetSchluessel && m->schluessel == "zoffset",
+                   "misc_model_static unter dem Boden: Befund, Vorschlag zoffset " + (zahl ? m->objekte.front().wert : std::string("-")));
+            pruefe(zahl && bspCluster(bsp, Vektor3f(-384, 128, -100 + z + 1)) >= 0 && bspCluster(bsp, Vektor3f(-384, 128, -100 + z)) == -1,
+                   "der Vorschlag ist der kleinste zoffset, der den Pruefpunkt in einen Cluster bringt");
+            behebenPruefen("zoffset", f, "modellunsichtbar", 0, o);
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     testeKartenGrenzen();
     testePatchKollision();
@@ -1004,6 +1121,7 @@ int main(int argc, char** argv) {
     auto arg = [&](int i) { return argc > i ? std::string(argv[i]) : std::string(); };
     testePruefungen(arg(4));
     testeBeheben();
+    testeBekannteFehler(arg(4));
     // echte Karten (nur lesen)
     spielAbgleich({arg(1)}, GrenzSpiel::JkaSp, "Jedi Academy");
     spielAbgleich({arg(2)}, GrenzSpiel::Jk2, "Jedi Outcast");

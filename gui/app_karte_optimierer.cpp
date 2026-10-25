@@ -127,6 +127,11 @@ constexpr PruefText kPruefTexte[] = {
     {"dreiecke", Str::KeOptPrDreiecke, Str::KeOptPrDreieckeE},
     {"spawnimfesten", Str::KeOptPrSpawn, Str::KeOptPrSpawnE},
     {"modellezusammen", Str::KeOptPrModelle, Str::KeOptPrModelleE},
+    {"modellunsichtbar", Str::KeOptPrModellCull, Str::KeOptPrModellCullE},
+    {"commonorigin", Str::KeOptPrCommonOrigin, Str::KeOptPrCommonOriginE},
+    {"riesenpinsel", Str::KeOptPrRiesig, Str::KeOptPrRiesigE},
+    {"flaechenlichtleck", Str::KeOptPrLichtleck, Str::KeOptPrLichtleckE},
+    {"baubefehl", Str::KeOptPrBaubefehl, Str::KeOptPrBaubefehlE},
 };
 const PruefText* pruefText(const std::string& id) {
     for (const PruefText& p : kPruefTexte) {
@@ -150,6 +155,8 @@ const char* behebungText(Behebung b) {
     case Behebung::ModelleZusammenlegen: return trK(Str::KeOptBhModelle);
     case Behebung::WeltSchluessel: return trK(Str::KeOptBhWelt);
     case Behebung::EntitaetEntfernen: return trK(Str::KeOptBhEntitaet);
+    case Behebung::TexturErsetzen: return trK(Str::KeOptBhTextur);
+    case Behebung::EntitaetSchluessel: return trK(Str::KeOptBhSchluessel);
     }
     return "";
 }
@@ -266,11 +273,26 @@ void shaderArten(const karte::KartenAbbild& a, karte::PruefOptionen& o) {
             for (const auto& f : p.flaechen) { namen.insert(klein(f.shader)); }
         }
     }
+    std::map<std::string, std::string> dateien;   // Shaderdatei -> Text (fuer Flaechenlicht, Backsplash, origin)
     for (const std::string& n : namen) {
         karte::ShaderArt art = karte::shaderArtNachName(n);
         const karte::ShaderEintrag* s = spiel->inventar.shaderFinden(n);
         if (s != nullptr && !s->istStandard()) {
             using namespace karte;
+            auto text = dateien.find(s->datei);
+            if (text == dateien.end()) {
+                std::string t;
+                (void)spiel->fs.textLesen(s->datei, t);
+                text = dateien.emplace(s->datei, std::move(t)).first;
+            }
+            const ShaderSkript sk = shaderSkriptLesen(text->second, n);
+            if (sk.gefunden) {
+                art.flaechenlicht = sk.flaechenlicht;
+                art.backsplashAnteil = sk.backsplashAnteil;
+                art.backsplashWeite = sk.backsplashWeite;
+                art.himmel = sk.himmel;
+                art.ursprung = sk.ursprung;
+            }
             const unsigned f = s->flags;
             if ((f & (QER_TRANS | QER_NONSOLID | QER_FOG | QER_LIQUID | QER_ALPHATEST | QER_AREAPORTAL | QER_CLIP | QER_BOTCLIP)) != 0) {
                 art.undurchsichtig = false;
@@ -453,6 +475,9 @@ void optimiererStarten(bool nachBau) {
     po.portalSchwelle = ed.optimierer.portalSchwelle;
     po.dreieckSchwelle = ed.optimierer.dreieckSchwelle;
     shaderArten(*abbild, po);
+    for (const auto& b : ed.bauProjekt.eintraege) {   // die Schalter des Build-Menues (Pruefung "baubefehl")
+        for (const std::string& befehl : b.befehle) { po.bauBefehle.emplace_back(b.name, befehl); }
+    }
     if (!abbild->ents.empty()) {
         const std::string bs = abbild->ents.front().wert("_blocksize");
         if (!bs.empty()) { po.blockGroesse = std::atoi(bs.c_str()); }

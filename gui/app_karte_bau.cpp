@@ -40,6 +40,7 @@
 #include "bhed/karte/baumonitor.h"
 #include "bhed/karte/kartendatei.h"
 #include "bhed/karte/kartenformat.h"
+#include "bhed/karte/optimierer.h"
 #include "bhed/karte/region.h"
 #include "bhed/karte/zuletzt.h"
 #include "bhed/regelwerk.h"
@@ -1526,6 +1527,21 @@ bool bauOrtBestimmen() {
 void bauStarten(std::size_t index) {
     Editor& ed = e();
     bauMenueSicherstellen();
+    // Abweichung (Stufe 5): externe Lightmaps, die das Spiel nicht laden kann
+    // (Jedi Outcast, NRC#98) oder die mit Lichtstilen kaputt sind (RBSP, NRC#48),
+    // gar nicht erst bauen - dieselbe Regel wie die Pruefung "baubefehl".
+    if (index < ed.bauProjekt.eintraege.size()) {
+        std::vector<std::pair<std::string, std::string>> zeilen;
+        for (const std::string& b : ed.bauProjekt.eintraege[index].befehle) { zeilen.emplace_back(ed.bauProjekt.eintraege[index].name, b); }
+        const auto probleme = karte::bauBefehlProbleme(karte::grenzSpielFuerRegelwerk(kartenSpielNummer()), karte::lichtstileInKarte(ed.karte), zeilen);
+        if (!probleme.empty()) {
+            char z[1024];
+            std::snprintf(z, sizeof(z), trK(Str::KeBmGesperrt), karte::ohneMnemonik(probleme.front().eintrag).c_str(), probleme.front().schalter.c_str(),
+                          probleme.front().grund.c_str());
+            fehler(z);
+            return;
+        }
+    }
     // if( !g_region_active ) SaveMap();
     if (!ed.region.aktiv) { (void)karteSpeichern(); }
     if (ed.name == "unnamed.map") {   // Map_Unnamed (SaveMap: Speichern unter abgebrochen)

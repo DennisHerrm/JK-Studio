@@ -35974,7 +35974,11 @@ std::string befundKarte() {
     w += kastenText(1000, 600, 0, 1040, 1112, 256, "test/wand");                                           // blockgitter
     w += kastenText(0, 1200, 0, 64, 1264, 64, "test/a") + kastenText(32, 1200, 0, 96, 1264, 64, "test/b");    // ueberlappung
     w += kastenText(600, 0, 0, 664, 64, 64, "test/a", 0, true);                                            // entartet (ohne Deckel)
+    w += kastenText(-10000, -3000, -64, 10000, -2936, -48, "test/riesig");                                   // riesenpinsel
+    w += kastenText(1200, 0, -16, 1456, 256, 0, "korriban/kor1_lava") + kastenText(1200, 0, 8, 1456, 256, 24, "test/boden");   // flaechenlichtleck
     std::string t = entText("worldspawn", "", w);
+    t += entText("func_door", "\"angle\" \"90\"\n", kastenText(800, 300, 0, 808, 364, 64, "test/tuer") + kastenText(800, 300, 0, 808, 308, 8, "common/origin"));   // commonorigin
+    t += entText("light", "\"origin\" \"700 400 64\"\n\"style\" \"1\"\n", "");                          // Lichtstil (baubefehl)
     t += entText("func_wall", "", kastenText(0, 400, 0, 64, 464, 64, "common/areaportal"));                  // areaportalentity
     t += entText("func_static", "", wellenPatchText(31, 31, 96.0F, 0.0F, 3000.0F));                          // patchgross
     t += entText("misc_model", "\"origin\" \"800 0 0\"\n\"model\" \"models/map_objects/imperial/crate_banded.md3\"\n\"spawnflags\" \"2\"\n", "");   // clipmodell
@@ -36025,6 +36029,8 @@ std::string halleKarte() {
     w += kastenText(-4112, 4096, 0, 4112, 4112, 1024, "test/wand") + kastenText(-4112, -4112, 0, 4112, -4096, 1024, "test/wand") +
          kastenText(-4112, -4096, 0, -4096, 4096, 1024, "test/wand") + kastenText(4096, -4096, 0, 4112, 4096, 1024, "test/wand");
     std::string t = entText("worldspawn", "", w) + entText("info_player_start", "\"origin\" \"0 0 100\"\n", "");
+    // ein misc_model_static, dessen Pruefpunkt (origin + 0 0 1) in der Bodenkachel liegt (OpenJK#1358)
+    t += entText("misc_model_static", "\"origin\" \"-3584 -3584 -10\"\n\"model\" \"models/map_objects/imperial/crate_banded.md3\"\n", "");
     unsigned zufall = 5;
     const auto anteil = [&zufall] {
         zufall = zufall * 1103515245U + 12345U;
@@ -36140,7 +36146,8 @@ std::vector<Schritt> pruefungen() {
     }));
     add(warteOptimierer("Optimierer fertig", laeufe));
     add(pruefe("Jede Pruefung aus der Karte schlaegt an: verdeckt, tjunction, mikro, offgrid, mischinhalt, deko, blockgitter, ueberlappung, entartet, "
-               "areaportalentity, patchgross, clipmodell, leereentity, textur; der Wellen-Patch ist auch als Grenze \"ueber\" (Patch-Ebenen)",
+               "areaportalentity, patchgross, clipmodell, leereentity, textur, commonorigin, riesenpinsel, flaechenlichtleck (kor1_lava 8 unter einer "
+               "Platte, Flaechenlicht aus korriban.shader); der Wellen-Patch ist auch als Grenze \"ueber\" (Patch-Ebenen)",
                [] {
                    const ke::OptimiererBlick b = ke::optimiererBlick();
                    std::string grenzen;
@@ -36148,7 +36155,8 @@ std::vector<Schritt> pruefungen() {
                    diag::detail("Knopftest: Stufe 5/7 - Befunde " + befundZahlen() + " | ueber " + std::to_string(b.grenzenUeber) + ", nicht ok:" + grenzen);
                    bool ok = true;
                    for (const char* id : {"verdeckt", "tjunction", "mikro", "offgrid", "mischinhalt", "deko", "blockgitter", "ueberlappung", "entartet",
-                                          "areaportalentity", "patchgross", "clipmodell", "leereentity", "textur"}) {
+                                          "areaportalentity", "patchgross", "clipmodell", "leereentity", "textur", "commonorigin", "riesenpinsel",
+                                          "flaechenlichtleck"}) {
                        if (!hatBefund(id)) {
                            diag::detail(std::string("Knopftest: Stufe 5/7 - fehlt: ") + id);
                            ok = false;
@@ -36167,18 +36175,52 @@ std::vector<Schritt> pruefungen() {
         return a.size() == 1 && a.front().entitaet.lock() && a.front().entitaet.lock()->klassenname() == "func_door";
     }));
     // Jede Behebung: wirkt, ist ein Rueckgaengig-Schritt, und Rueckgaengig bringt den Befund zurueck
-    for (const char* id : {"verdeckt", "entartet", "mikro", "offgrid", "mischinhalt", "deko", "patchgross", "leereentity"}) {
+    for (const char* id : {"verdeckt", "entartet", "mikro", "offgrid", "mischinhalt", "deko", "patchgross", "leereentity", "commonorigin"}) {
         add(befundBehebenUndZurueck(s, id, laeufe));
     }
+    // Externe Lightmaps mit Lichtstilen (NRC#48): Befund, und das Build-Menue baut den Eintrag nicht
+    auto extern_ = std::make_shared<std::size_t>(0);
+    add(tu("Build-Eintrag \"Optimizer external\" (-light -external), neu zaehlen", [laeufe, extern_] {
+        ke::Editor& e = ke::editor();
+        ke::bauMenueSicherstellen();
+        e.bauProjekt.eintraege.push_back(karte::BauEintrag{"Optimizer external", {"[q3map2] -light -fast -external \"[MapFile]\""}});
+        *extern_ = e.bauProjekt.eintraege.size() - 1;
+        *laeufe = ke::optimiererBlick().laeufe;
+        ke::optimiererStarten();
+    }));
+    add(warteOptimierer("neu gezaehlt", laeufe));
+    add(pruefe("Lichtstil in der Karte und -external im Build-Menue: Befund \"baubefehl\"", [] { return hatBefund("baubefehl"); }));
+    add(tu("Konsole leeren; Build > Optimizer external", [extern_] {
+        ke::konsoleLeeren();
+        ke::bauStarten(*extern_);
+    }));
+    add(pause(0.3));
+    add(pruefe("Das Build-Menue startet den Eintrag nicht und sagt warum (rot in der Konsole)", [] {
+        const std::string vorlage = ke::trK(Str::KeBmGesperrt);
+        const std::string k = stufe3::konsoleText();
+        diag::detail("Knopftest: Stufe 5/7 - gesperrt: " + k.substr(k.size() > 300 ? k.size() - 300 : 0));
+        return !ke::bauLaeuft() && stufe3::konsoleArtMit(ke::KonsolenZeile::Art::Fehler, vorlage.substr(0, vorlage.find('%'))) &&
+               k.find("-external") != std::string::npos;
+    }));
+    add(tu("Eintrag weg, neu zaehlen", [laeufe, extern_] {
+        ke::Editor& e = ke::editor();
+        if (*extern_ < e.bauProjekt.eintraege.size()) { e.bauProjekt.eintraege.erase(e.bauProjekt.eintraege.begin() + static_cast<std::ptrdiff_t>(*extern_)); }
+        e.bauGeaendert = false;
+        *laeufe = ke::optimiererBlick().laeufe;
+        ke::optimiererStarten();
+    }));
+    add(warteOptimierer("neu gezaehlt", laeufe));
+    add(pruefe("Ohne den Eintrag: kein Befund \"baubefehl\"", [] { return !hatBefund("baubefehl"); }));
     add(tu("Alles Sichere beheben", [laeufe] {
         *laeufe = ke::optimiererBlick().laeufe;
         if (ke::optimiererAllesSichere() <= 0) { meldeFehler("Alles Sichere beheben: nichts behoben"); }
     }));
     add(warteOptimierer("neu gezaehlt nach Alles Sichere", laeufe));
-    add(pruefe("Alles Sichere beheben (ein Schritt): verdeckt, entartet, offgrid, mischinhalt weg; mikro, deko, patchgross, leereentity bleiben (nicht sicher)", [] {
+    add(pruefe("Alles Sichere beheben (ein Schritt): verdeckt, entartet, offgrid, mischinhalt weg; mikro, deko, patchgross, leereentity, commonorigin bleiben "
+               "(nicht sicher)", [] {
         diag::detail("Knopftest: Stufe 5/7 - nach Alles Sichere " + befundZahlen());
         return !hatBefund("verdeckt") && !hatBefund("entartet") && !hatBefund("offgrid") && !hatBefund("mischinhalt") && hatBefund("mikro") &&
-               hatBefund("deko") && hatBefund("patchgross") && hatBefund("leereentity") &&
+               hatBefund("deko") && hatBefund("patchgross") && hatBefund("leereentity") && hatBefund("commonorigin") &&
                ke::editor().karte.undo.undoName().rfind("Optimizer: fix all safe", 0) == 0;
     }));
     // Brush-Modelle zusammenlegen: 481 von 511 (knapp)
@@ -36313,6 +36355,23 @@ std::vector<Schritt> gebaut() {
                           hatBefund("dreiecke");
                }));
     add(foto("karteneditor_s5_halle"));
+    add(pruefe("misc_model_static mit dem Pruefpunkt in der Bodenkachel: Befund \"modellunsichtbar\" mit Vorschlag zoffset", [] {
+        diag::detail("Knopftest: Stufe 5/7 - Halle " + befundZahlen());
+        return hatBefund("modellunsichtbar");
+    }));
+    add(tu("Beheben: modellunsichtbar (zoffset)", [laeufe] {
+        *laeufe = ke::optimiererBlick().laeufe;
+        if (!ke::optimiererBefundBeheben("modellunsichtbar")) { meldeFehler("modellunsichtbar: Beheben ohne Wirkung"); }
+    }));
+    add(warteOptimierer("neu gezaehlt", laeufe));
+    add(pruefe("zoffset gesetzt (das Modell bleibt), der Pruefpunkt liegt jetzt frei: kein Befund mehr - ohne neuen Bau", [] {
+        std::string z;
+        for (const auto& en : ke::editor().karte.entitaeten()) {
+            if (en->klassenname() == "misc_model_static") { z = en->wert("zoffset") + " / origin " + en->wert("origin"); }
+        }
+        diag::detail("Knopftest: Stufe 5/7 - misc_model_static zoffset " + z);
+        return !hatBefund("modellunsichtbar") && z.rfind("/ origin -3584 -3584 -10") != std::string::npos && z.find(' ') > 0 && z[0] != ' ';
+    }));
     add(tu("Beheben: lichtgitter (worldspawn gridsize)", [laeufe] {
         *laeufe = ke::optimiererBlick().laeufe;
         if (!ke::optimiererBefundBeheben("lichtgitter")) { meldeFehler("lichtgitter: Beheben ohne Wirkung"); }

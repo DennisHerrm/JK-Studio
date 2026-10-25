@@ -98,6 +98,7 @@ struct ObjektRef {
     int bspFlaeche = -1;   // Index der Zeichenflaeche in der BSP
     std::string text;      // was es ist ("worldspawn, Pinsel 12", "textures/x", "maps/a.rof")
     int flaeche = -1;      // Index der Flaeche im Pinsel
+    std::string wert;      // Behebung je Objekt (EntitaetSchluessel: der neue Wert)
 };
 struct Beitrag {
     ObjektRef ref;
@@ -187,6 +188,8 @@ enum class Behebung {
     ModelleZusammenlegen, // Brush-Entities mit gleichen Schluesseln zu einer
     WeltSchluessel,       // worldspawn-Schluessel setzen (gridsize, _lightmapscale)
     EntitaetEntfernen,    // die Entitaet loeschen
+    TexturErsetzen,       // die Flaechen bekommen Befund::wert (common/origin -> system/origin)
+    EntitaetSchluessel,   // je Entitaet Befund::schluessel = ObjektRef::wert (zoffset)
 };
 struct Befund {
     std::string pruefung;            // Kennung der Pruefung ("verdeckt", "leck", ...)
@@ -209,8 +212,43 @@ struct ShaderArt {
     bool undurchsichtig = true;   // deckt, was dahinter liegt (nicht trans, nonsolid, fog, liquid, ...)
     bool sichtbar = true;      // erzeugt eine Zeichenflaeche (nicht nodraw/caulk, kein Werkzeug)
     bool werkzeug = false;     // clip, trigger, hint, skip, areaportal, origin, ...
+    // aus dem Shader-Skript (shaderSkriptLesen), sonst die Vorgaben von q3map2
+    double flaechenlicht = 0.0;      // q3map_surfacelight
+    double backsplashAnteil = 0.05;  // q3map_backsplash <Prozent> (q3map2.h:100 DEF_BACKSPLASH_FRACTION)
+    double backsplashWeite = 23.0;   // q3map_backsplash ... <Abstand> (q3map2.h:101 DEF_BACKSPLASH_DISTANCE)
+    bool himmel = false;             // surfaceparm sky
+    bool ursprung = false;           // surfaceparm origin (games.cpp:803 C_ORIGIN): ein Ursprungs-Pinsel
 };
 [[nodiscard]] ShaderArt shaderArtNachName(const std::string& shader);
+// Was q3map2 aus dem Skript eines Shaders liest, das der Optimierer braucht
+// (shaders.cpp ParseShaderFile: q3map_surfacelight, q3map_backsplash,
+// surfaceparm sky / origin). text = der Inhalt der .shader-Datei.
+struct ShaderSkript {
+    bool gefunden = false;
+    double flaechenlicht = 0.0;
+    double backsplashAnteil = 0.05;
+    double backsplashWeite = 23.0;
+    bool himmel = false;
+    bool ursprung = false;
+};
+[[nodiscard]] ShaderSkript shaderSkriptLesen(const std::string& text, const std::string& name);
+
+// Lichtstile in der Karte: Lichter mit "style"/"_style" (q3map2 light.cpp:433)
+// oder mit targetname (schaltbar: q3map2 gibt ihnen in RBSP einen Stil, light.cpp:337).
+[[nodiscard]] bool lichtstile(const KartenAbbild& a);
+[[nodiscard]] bool lichtstileInKarte(const Karte& k);
+// Schalter im Build-Menue, die mit diesem Spiel nicht gehen: externe
+// Lightmaps (-external, -lightmapsize ungleich 128: light.cpp:2522-2547) bei
+// Jedi Outcast (die Engine laedt keine, NRC#98) und bei Lichtstilen in jedem
+// Spiel (lightmaps_ydnar.cpp:3109 "fixme: make this work with external
+// lightmaps", NRC#48). befehle = (Eintrag, Befehlszeile).
+struct BauBefehlProblem {
+    std::string eintrag;
+    std::string schalter;   // "-external", "-lightmapsize 256"
+    std::string grund;      // Englisch, mit Quelle
+};
+[[nodiscard]] std::vector<BauBefehlProblem> bauBefehlProbleme(GrenzSpiel spiel, bool mitLichtstilen,
+                                                              const std::vector<std::pair<std::string, std::string>>& befehle);
 
 struct PruefOptionen {
     GrenzSpiel spiel = GrenzSpiel::JkaSp;
@@ -225,6 +263,8 @@ struct PruefOptionen {
     long long portalSchwelle = 8000;           // VIS-Hinweis ab so vielen Portalen (Faustregel, Einstellung)
     long long dreieckSchwelle = 20000;         // Dreieck-Hinweis ab (r_speeds-Faustregel, Einstellung)
     std::vector<std::pair<std::string, double>>* zeiten = nullptr;   // je Pruefung die Dauer in ms (optional)
+    std::vector<std::pair<std::string, std::string>> bauBefehle;     // Build-Menue: (Eintrag, Befehlszeile)
+    double riesigAb = 16384.0;                 // Pinsel ab dieser Kantenlaenge melden (GT#271)
 };
 [[nodiscard]] std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o);
 [[nodiscard]] const char* schwereName(Schwere s);   // "note" / "warning" / "error"

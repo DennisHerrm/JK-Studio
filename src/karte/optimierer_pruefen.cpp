@@ -28,6 +28,7 @@
 //   GNU General Public License for more details (LICENSE).
 #include "bhed/karte/optimierer.h"
 
+#include "bhed/karte/karte.h"
 #include "bhed/karte/patchkollision.h"
 
 #include <algorithm>
@@ -426,7 +427,8 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
     messen("pinsel");
     // --- 4. Deko-Pinsel als structural (Vorschlag) ------------------------------------------
     {
-        Befund b = neu("deko", Schwere::Hinweis, "q3map2 map.cpp (structural brushes split the BSP); tutorial r142 \"Leaf with too many portals\", RichDiesal: details as detail");
+        Befund b = neu("deko", Schwere::Hinweis,
+                       "q3map2 map.cpp (structural brushes split the BSP); tutorial r142 \"Leaf with too many portals\", RichDiesal: details as detail; NRC#109 (vis errors and black lightmap spots from many small or angled structural brushes)");
         b.behebung = Behebung::Detail;
         b.schaetzung = true;
         for (std::size_t e = 0; e < ents.size(); ++e) {
@@ -837,6 +839,41 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
                 b.detail = std::to_string(b.anzahl) + " spawn points or NPC spawners in solid space or outside the map";
                 out.push_back(b);
             }
+            // misc_model_static: gezeichnet wird nur, wenn der Pruefpunkt
+            // origin + (0 0 zoffset+1) in einem Cluster liegt (OpenJK#1358)
+            Befund m = neu("modellunsichtbar", Schwere::Fehler,
+                           "OpenJK code/game/g_misc.cpp:417 (zoffset), MovieDuels code/cgame/cg_main.cpp:3226-3229 CG_DrawMiscEnts (cull point origin + zoffset + 1), "
+                           "OpenJK code/server/sv_game.cpp:236-239 SV_inPVS (cluster -1: mask[-1], never drawn); OpenJK#1358");
+            m.behebung = Behebung::EntitaetSchluessel;
+            m.schluessel = "zoffset";
+            long long ohneWert = 0;
+            for (std::size_t e = 0; e < ents.size(); ++e) {
+                if (klein(ents[e].klasse) != "misc_model_static") { continue; }
+                float p[3] = {0, 0, 0};
+                (void)std::sscanf(ents[e].wert("origin").c_str(), "%f %f %f", &p[0], &p[1], &p[2]);
+                const float zoff = static_cast<float>(std::atof(ents[e].wert("zoffset").c_str()));
+                if (bspCluster(*o.bspDaten, Vektor3f(p[0], p[1], p[2] + zoff + 1.0F)) != -1) { continue; }
+                ObjektRef r{static_cast<int>(e), -1, -1, stelle(ents[e], static_cast<int>(e), -1) + " at " + ents[e].wert("origin")};
+                // der kleinste Versatz (1 Einheit genau, bis 1024), der den Pruefpunkt aus dem Festen holt
+                for (int d = 1; d <= 1024 && r.wert.empty(); ++d) {
+                    for (const int richtung : {1, -1}) {
+                        const float versuch = zoff + static_cast<float>(richtung * d);
+                        if (bspCluster(*o.bspDaten, Vektor3f(p[0], p[1], p[2] + versuch + 1.0F)) != -1) {
+                            char z[32];
+                            std::snprintf(z, sizeof(z), "%g", static_cast<double>(versuch));
+                            r.wert = z;
+                            break;
+                        }
+                    }
+                }
+                if (r.wert.empty()) { ++ohneWert; }
+                add(m, r);
+            }
+            if (m.anzahl > 0) {
+                m.detail = std::to_string(m.anzahl) + " misc_model_static whose cull point lies in solid space (the game never draws them)" +
+                           (ohneWert > 0 ? ", " + std::to_string(ohneWert) + " without a zoffset within 1024 units - move them" : std::string());
+                out.push_back(m);
+            }
         }
     }
     messen("bsp");
@@ -873,7 +910,242 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
         break;
     }
     messen("modelle");
+    // --- 12. aus bekannten Fehlern: common/origin, riesige Pinsel, Flaechenlicht-Backsplash ----
+    {
+        Befund co = neu("commonorigin", Schwere::Fehler,
+                        "NRC#270; q3map2 map.cpp:792 (only a shader with surfaceparm origin, games.cpp:803 C_ORIGIN, makes an origin brush - "
+                        "Jedi Academy and Jedi Outcast define textures/system/origin): the entity ends up at 0 0 0");
+        co.behebung = Behebung::TexturErsetzen;
+        co.wert = "textures/system/origin";
+        Befund rp = neu("riesenpinsel", Schwere::Hinweis, "GtkRadiant#271 (huge brushes such as a sky box leak: plane precision); q3map2 common/maxworld.h MAX_WORLD_COORD");
+        Befund fl = neu("flaechenlichtleck", Schwere::Warnung,
+                        "q3map2 light_bounce.cpp:544-566 (area backsplash light: the light surface moved by q3map_backsplash distance, default 23, "
+                        "q3map2.h:100-101); GL#189, NRC#144 (light through brushes above lava)");
+        for (std::size_t e = 0; e < ents.size(); ++e) {
+            for (std::size_t k = 0; k < ents[e].prims.size(); ++k) {
+                const AbbildPrimitiv& pr = ents[e].prims[k];
+                if (pr.patch || pr.entartet) { continue; }
+                const ObjektRef r{static_cast<int>(e), static_cast<int>(k), -1, stelle(ents[e], static_cast<int>(e), static_cast<int>(k))};
+                double groesste = 0;
+                for (int i = 0; i < 3; ++i) { groesste = std::max(groesste, static_cast<double>(pr.maxs[i] - pr.mins[i])); }
+                if (groesste >= o.riesigAb) { add(rp, r); }
+                for (std::size_t i = 0; i < pr.flaechen.size(); ++i) {
+                    const AbbildFlaeche& f = pr.flaechen[i];
+                    const std::string sh = klein(f.shader);
+                    const ShaderArt& art = artVon(o, f.shader, vorrat);
+                    if (sh == "textures/common/origin" && !art.ursprung) {
+                        ObjektRef rf = r;
+                        rf.flaeche = static_cast<int>(i);
+                        rf.text += ", face " + std::to_string(i);
+                        add(co, rf);
+                    }
+                    if (art.flaechenlicht <= 0 || art.backsplashAnteil <= 0 || art.himmel || f.punkte.size() < 3) { continue; }
+                    // die Backsplash-Flaeche liegt backsplashWeite vor der Lichtflaeche: liegt
+                    // zwischen beiden ein fester Pinsel, leuchtet sie auf seiner anderen Seite
+                    Vektor3d mitte(0, 0, 0);
+                    for (const Vektor3d& v : f.punkte) { mitte = mitte + v; }
+                    mitte = mitte * (1.0 / static_cast<double>(f.punkte.size()));
+                    const Vektor3d n = f.ebene.normal();
+                    std::vector<Vektor3d> proben;
+                    for (double d = 1.0; d <= art.backsplashWeite + 1e-9; d += 1.0) { proben.push_back(mitte + n * d); }
+                    for (const Vektor3d& v : f.punkte) { proben.push_back(v + n * art.backsplashWeite); }
+                    // erst der Kasten um alle Proben, dann nur Pinsel, die ihn schneiden
+                    double pmin[3] = {proben.front()[0], proben.front()[1], proben.front()[2]};
+                    double pmax[3] = {pmin[0], pmin[1], pmin[2]};
+                    for (const Vektor3d& v : proben) {
+                        for (int a2 = 0; a2 < 3; ++a2) {
+                            pmin[a2] = std::min(pmin[a2], v[a2]);
+                            pmax[a2] = std::max(pmax[a2], v[a2]);
+                        }
+                    }
+                    bool leck = false;
+                    for (std::size_t e2 = 0; e2 < ents.size() && !leck; ++e2) {
+                        for (std::size_t k2 = 0; k2 < ents[e2].prims.size() && !leck; ++k2) {
+                            if (e2 == e && k2 == k) { continue; }
+                            const AbbildPrimitiv& q = ents[e2].prims[k2];
+                            if (q.patch || q.entartet || q.flaechen.empty()) { continue; }
+                            if (pmax[0] < q.mins[0] || pmin[0] > q.maxs[0] || pmax[1] < q.mins[1] || pmin[1] > q.maxs[1] || pmax[2] < q.mins[2] ||
+                                pmin[2] > q.maxs[2]) {
+                                continue;
+                            }
+                            bool fest = true;
+                            for (const AbbildFlaeche& qf : q.flaechen) {
+                                const ShaderArt& qa = artVon(o, qf.shader, vorrat);
+                                if (!qa.undurchsichtig || qa.werkzeug) { fest = false; }
+                            }
+                            if (!fest) { continue; }
+                            for (const Vektor3d& v : proben) {
+                                if (v[0] < q.mins[0] || v[0] > q.maxs[0] || v[1] < q.mins[1] || v[1] > q.maxs[1] || v[2] < q.mins[2] || v[2] > q.maxs[2]) { continue; }
+                                if (imPinsel(q, v, 0.01)) {
+                                    leck = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (leck) {
+                        ObjektRef rf = r;
+                        rf.flaeche = static_cast<int>(i);
+                        rf.text += ", face " + std::to_string(i) + " " + f.shader;
+                        add(fl, rf);
+                    }
+                }
+            }
+        }
+        if (co.anzahl > 0) {
+            co.detail = std::to_string(co.anzahl) + " faces with textures/common/origin (no surfaceparm origin in this game)";
+            out.push_back(co);
+        }
+        if (rp.anzahl > 0) {
+            rp.detail = std::to_string(rp.anzahl) + " brushes with an edge of " + std::to_string(static_cast<long long>(o.riesigAb)) + " units or more";
+            out.push_back(rp);
+        }
+        if (fl.anzahl > 0) {
+            fl.detail = std::to_string(fl.anzahl) + " surface light faces whose backsplash lies behind a solid brush";
+            out.push_back(fl);
+        }
+    }
+    // --- 13. Schalter im Build-Menue, die mit diesem Spiel nicht gehen ------------------
+    {
+        Befund bb = neu("baubefehl", Schwere::Fehler,
+                        "q3map2 light.cpp:2522-2547 (-external, -lightmapsize: external lightmaps), lightmaps_ydnar.cpp:3109; NRC#98 (Jedi Outcast), NRC#48 (light styles)");
+        for (const BauBefehlProblem& p : bauBefehlProbleme(o.spiel, lichtstile(a), o.bauBefehle)) {
+            add(bb, ObjektRef{-1, -1, -1, p.eintrag + ": " + p.schalter + " - " + p.grund});
+        }
+        if (bb.anzahl > 0) {
+            bb.detail = std::to_string(bb.anzahl) + " build menu commands with switches this game cannot use (the build menu refuses them)";
+            out.push_back(bb);
+        }
+    }
+    messen("bekannt");
     return out;
+}
+
+// Die Woerter einer .shader-Datei wie q3map2s Skript-Leser (scriplib.cpp
+// GetToken: // und /* */ sind Kommentar, "..." ein Wort, { } eigene Woerter).
+std::vector<std::string> shaderWoerter(const std::string& t) {
+    std::vector<std::string> w;
+    std::size_t i = 0;
+    const std::size_t n = t.size();
+    while (i < n) {
+        const char c = t[i];
+        if (std::isspace(static_cast<unsigned char>(c)) != 0) {
+            ++i;
+        } else if (c == '/' && i + 1 < n && t[i + 1] == '/') {
+            while (i < n && t[i] != '\n') { ++i; }
+        } else if (c == '/' && i + 1 < n && t[i + 1] == '*') {
+            const std::size_t e = t.find("*/", i + 2);
+            i = e == std::string::npos ? n : e + 2;
+        } else if (c == '{' || c == '}') {
+            w.emplace_back(1, c);
+            ++i;
+        } else if (c == '"') {
+            const std::size_t e = t.find('"', i + 1);
+            w.push_back(t.substr(i + 1, (e == std::string::npos ? n : e) - i - 1));
+            i = e == std::string::npos ? n : e + 1;
+        } else {
+            const std::size_t a = i;
+            while (i < n && std::isspace(static_cast<unsigned char>(t[i])) == 0 && t[i] != '{' && t[i] != '}') { ++i; }
+            w.push_back(t.substr(a, i - a));
+        }
+    }
+    return w;
+}
+
+ShaderSkript shaderSkriptLesen(const std::string& text, const std::string& name) {
+    ShaderSkript r;
+    const std::vector<std::string> w = shaderWoerter(text);
+    const std::string gesucht = klein(name);
+    int tiefe = 0;
+    for (std::size_t i = 0; i < w.size(); ++i) {
+        if (w[i] == "{") {
+            ++tiefe;
+            continue;
+        }
+        if (w[i] == "}") {
+            tiefe = std::max(0, tiefe - 1);
+            continue;
+        }
+        if (tiefe != 0 || klein(w[i]) != gesucht || i + 1 >= w.size() || w[i + 1] != "{") { continue; }
+        // der Block dieses Shaders (shaders.cpp ParseShaderFile: nur die oberste Ebene)
+        r.gefunden = true;
+        int t = 0;
+        for (std::size_t j = i + 1; j < w.size(); ++j) {
+            if (w[j] == "{") {
+                ++t;
+                continue;
+            }
+            if (w[j] == "}") {
+                if (--t == 0) { break; }
+                continue;
+            }
+            if (t != 1) { continue; }
+            const std::string k = klein(w[j]);
+            if (k == "q3map_surfacelight" && j + 1 < w.size()) {   // shaders.cpp: si.value = atof( token )
+                r.flaechenlicht = std::atof(w[j + 1].c_str());
+            } else if (k == "q3map_backsplash" && j + 2 < w.size()) {   // shaders.cpp:1248-1252
+                r.backsplashAnteil = std::atof(w[j + 1].c_str()) * 0.01;
+                r.backsplashWeite = std::atof(w[j + 2].c_str());
+            } else if (k == "surfaceparm" && j + 1 < w.size()) {
+                const std::string parm = klein(w[j + 1]);
+                if (parm == "sky") { r.himmel = true; }
+                if (parm == "origin") { r.ursprung = true; }
+            }
+        }
+        return r;
+    }
+    return r;
+}
+
+namespace {
+bool lichtMitStil(const std::string& klasse, const std::string& stil1, const std::string& stil2, const std::string& name) {
+    if (klein(klasse).rfind("light", 0) != 0) { return false; }   // q3map2 light.cpp: classname_prefixed( "light" )
+    return std::atoi(stil1.c_str()) > 0 || std::atoi(stil2.c_str()) > 0 || !name.empty();
+}
+}  // namespace
+
+bool lichtstile(const KartenAbbild& a) {
+    for (const AbbildEntitaet& e : a.ents) {
+        if (lichtMitStil(e.klasse, e.wert("style"), e.wert("_style"), e.wert("targetname"))) { return true; }
+    }
+    return false;
+}
+
+bool lichtstileInKarte(const Karte& k) {
+    for (const auto& e : k.entitaeten()) {
+        if (lichtMitStil(e->klassenname(), e->wert("style"), e->wert("_style"), e->wert("targetname"))) { return true; }
+    }
+    return false;
+}
+
+std::vector<BauBefehlProblem> bauBefehlProbleme(GrenzSpiel spiel, bool mitLichtstilen, const std::vector<std::pair<std::string, std::string>>& befehle) {
+    std::vector<BauBefehlProblem> r;
+    for (const auto& [eintrag, zeile] : befehle) {
+        std::vector<std::string> w;
+        std::istringstream in(zeile);
+        for (std::string x; in >> x;) { w.push_back(x); }
+        if (std::find(w.begin(), w.end(), "-light") == w.end()) { continue; }   // -external gehoert zu LIGHT
+        std::vector<std::string> schalter;
+        for (std::size_t i = 0; i < w.size(); ++i) {
+            if (w[i] == "-external") { schalter.emplace_back("-external"); }
+            if (w[i] == "-lightmapsize" && i + 1 < w.size()) {
+                // light.cpp:2528-2547: jede andere Groesse als die des Spiels (128) speichert extern
+                const int b = std::atoi(w[i + 1].c_str());
+                const bool zwei = i + 2 < w.size() && std::isdigit(static_cast<unsigned char>(w[i + 2][0])) != 0;
+                const int h = zwei ? std::atoi(w[i + 2].c_str()) : b;
+                if (b != 128 || h != 128) { schalter.push_back("-lightmapsize " + w[i + 1] + (zwei ? " " + w[i + 2] : std::string())); }
+            }
+        }
+        for (const std::string& sch : schalter) {
+            if (spiel == GrenzSpiel::Jk2) {
+                r.push_back({eintrag, sch, "Jedi Outcast cannot load external lightmaps (NRC#98); q3map2 light.cpp:2522-2547 stores every lightmap externally"});
+            } else if (mitLichtstilen) {
+                r.push_back({eintrag, sch,
+                             "external lightmaps with light styles are broken in RBSP: styled surfaces lose their lightmap stages (q3map2 lightmaps_ydnar.cpp:3109, NRC#48)"});
+            }
+        }
+    }
+    return r;
 }
 
 }  // namespace bhed::karte

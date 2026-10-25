@@ -48,6 +48,7 @@ struct Aufgeloest {
     std::shared_ptr<Entitaet> ent;
     std::shared_ptr<Primitiv> prim;
     int flaeche = -1;
+    std::string wert;   // ObjektRef::wert
 };
 
 // Die Objekte eines Befunds als Zeiger in die Karte (vor jeder Aenderung).
@@ -63,6 +64,7 @@ std::vector<Aufgeloest> aufloesen(const Karte& k, const Befund& b) {
             a.prim = a.ent->kinder()[static_cast<std::size_t>(o.primitiv)];
         }
         a.flaeche = o.flaeche;
+        a.wert = o.wert;
         r.push_back(std::move(a));
     }
     return r;
@@ -192,6 +194,34 @@ BehebungsErgebnis anwenden(Karte& k, const Befund& b, const std::vector<Aufgeloe
         }
         e.undoName = "Optimizer: delete " + mehrzahl(e.geaendert, "entity", "entities");
         break;
+    case Behebung::TexturErsetzen:
+        for (const Aufgeloest& a : objekte) {
+            if (!a.prim || a.prim->art() != Primitiv::Art::Pinsel || a.flaeche < 0) { continue; }
+            auto& p = static_cast<Pinsel&>(*a.prim);
+            if (a.flaeche >= static_cast<int>(p.anzahl())) { continue; }
+            Flaeche& f = p[static_cast<std::size_t>(a.flaeche)];
+            if (klein(f.shader()) == klein(b.wert)) { continue; }
+            f.setzeShader(b.wert, k.kontext);   // Face::SetShader
+            ++e.geaendert;
+        }
+        e.undoName = "Optimizer: " + b.wert + " on " + mehrzahl(e.geaendert, "face", "faces");
+        break;
+    case Behebung::EntitaetSchluessel: {
+        long long ohne = 0;
+        for (const Aufgeloest& a : objekte) {
+            if (!a.ent || a.prim) { continue; }
+            if (a.wert.empty()) {
+                ++ohne;
+                continue;
+            }
+            if (a.ent->wert(b.schluessel) == a.wert) { continue; }
+            a.ent->setzen(b.schluessel, a.wert);   // SetKeyValue
+            ++e.geaendert;
+        }
+        e.undoName = "Optimizer: " + b.schluessel + " on " + mehrzahl(e.geaendert, "entity", "entities");
+        if (ohne > 0) { e.meldung = std::to_string(ohne) + " entities without a suggested value - fix them by hand"; }
+        break;
+    }
     }
     if (e.ok && e.geaendert == 0 && e.meldung.empty()) { e.meldung = "already fixed"; }
     return e;
@@ -216,6 +246,8 @@ std::string behebungsVorschau(const Befund& b) {
     case Behebung::ModelleZusammenlegen: return n + " brush entities are merged into one per group";
     case Behebung::WeltSchluessel: return "worldspawn: \"" + b.schluessel + "\" \"" + b.wert + "\" (rebuild and relight afterwards)";
     case Behebung::EntitaetEntfernen: return n + " entities are deleted";
+    case Behebung::TexturErsetzen: return n + " faces get " + b.wert;
+    case Behebung::EntitaetSchluessel: return n + " entities get \"" + b.schluessel + "\" (only the cull point moves, the model stays)";
     }
     return std::string();
 }
