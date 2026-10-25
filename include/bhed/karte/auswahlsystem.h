@@ -178,6 +178,8 @@ void komponentenOderAlleAbwaehlen(Karte& k, const AuswahlEinstellung& e, bool ko
 [[nodiscard]] Kasten auswahlGrenzenPivot(const Karte& k);
 // Scene_BoundsSelected_withEntityBounds
 [[nodiscard]] Kasten auswahlGrenzenMitEntitaeten(const Karte& k);
+// GetMapBounds (sunplug.cpp): die worldAABB der Wurzel - alle Entitaeten samt Kindern
+[[nodiscard]] Kasten kartenGrenzen(const Karte& k);
 // Die Weltlage einer Punktentitaet (localToWorld = Ursprung).
 [[nodiscard]] Vektor3f entitaetUrsprung(const Entitaet& e);
 // Der lokale Kasten einer Punktentitaet (read_aabb / m_aabb_light).

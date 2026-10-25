@@ -291,3 +291,38 @@ Bild gemittelt.
 | ctest `karte_brushexport` (neu, 19 Pruefungen) | 3 Mutationen (Achsen, Verschweissen, Material-Reihenfolge) je 1-2 FEHL | 0 |
 | Selbsttest `BHED_STUFE4_NUR=brushexport` | s4p3be1 17 / 2 (Spalten 146 / 104, mtllib mit Pfad) | s4p3be4 19 / 0 |
 | ctest gesamt | - | 109 / 109 |
+
+## Punkt 3c: ShaderPlug, SunPlug, UFO:AI
+
+Portiert: `include/bhed/karte/kleineplugins.h`, `src/karte/kleineplugins.cpp`
+(shaderplug.cpp, sunplug.cpp, ufoai_level.cpp, ufoai_filters.cpp),
+`gui/app_karte_kleineplugins.cpp` (die Kaesten, der Dialog "ET-MapCoordinator"),
+`karte::kartenGrenzen` in auswahlsystem (GetMapBounds: worldAABB der Wurzel).
+Checkliste: 40 Eintraege (ShaderPlug 2, SunPlug 2, UFO:AI 16; je Befehl und
+Menue) auf `[x]`.
+
+- ShaderPlug: About; "Create tag file" sammelt die Shader (nur "textures/")
+  und die Bilder unter textures/ (jpg, tga, png, alle Tiefen: forEachFile mit
+  depth 0) ohne gleichnamigen Shader, baut die Tag-Datei (AddShaderNode fuegt
+  vorn ein - rueckwaerts eingefuegt steht sie sortiert in der Datei), fragt
+  "Overwrite tag file?" wenn es sie gibt. Abweichung: die Datei wird gleich
+  neu geladen (NRC: "Please restart Radiant now."), der INFO-Kasten sagt das.
+- SunPlug: NRCs SunPlug ist nicht "q3map_sun aus Licht", wie der Auftrag
+  vermutete, sondern About und der ET-MapCoordinator (mapcoordsmins /
+  mapcoordsmaxs fuer Enemy Territory, das Menue zeigt ihn bei NRC fuer jedes
+  Spiel). Nachgebaut wie bei NRC: Vorschlag aus den Kartengrenzen (Quadrat,
+  halbe Seite >= 175), Dialog mit "Get optimal mapcoords", Set als Undo
+  "SunPlug.entitySetMapcoords".
+- UFO:AI: About (Version des Programms statt RADIANT_VERSION), Worldspawn /
+  Worldspawn reset (maxlevel, maxteams), Perform check, Level 1-8 (Filter nach
+  den Inhalts-Flags der letzten Flaeche und spawnflags & level_active wie
+  NRC - level_active ist 1 << (n - 1)), StepOn / ActorClip / WeaponClip /
+  NoDraw (verstecken an/aus). Abweichung: die Schluessel werden in einem
+  Undo-Schritt "UFO:AI" gesetzt (NRC ohne UndoableCommand). Die Werkzeugleiste
+  von UFO:AI gibt es bei NRC nur fuer das Spiel UFO:AI - fuer JA keine.
+
+| Test | Rot | Gruen |
+|---|---|---|
+| ctest `karte_kleineplugins` (neu, 21 Pruefungen) | 3 Mutationen (Shader ohne Praefix, Mindestmass 175, Level-Flag der Entitaeten) je 1-2 FEHL | 0 |
+| Selbsttest `BHED_STUFE4_NUR=klein` | s4p3kl1 36 / 7 (Erwartungen: 16 UFO:AI-Befehle, level_active als Bitmaske) | s4p3kl2 43 / 0 |
+| ctest gesamt | - | 110 / 110 |

@@ -512,6 +512,26 @@ Kasten auswahlGrenzenPivot(const Karte& k) {
     return b;
 }
 
+namespace {
+
+// instance.worldAABB() einer ganzen Entitaet
+Kasten ganzeEntitaetGrenzen(const Entitaet& ent, const Karte& k) {
+    const EntitaetsKlasse* kl = ent.klasse();
+    if (kl != nullptr && kl->fixedsize && !kl->miscmodelIs) {
+        const Vektor3f o = entitaetUrsprung(ent);
+        return kastenAusMinMax(kl->mins + o, kl->maxs + o);
+    }
+    if (istMiscModell(ent, k.kontext)) { return instanzGrenzen(ent, k.kontext); }
+    if (!ent.istBehaelter()) {
+        const Vektor3f o = entitaetUrsprung(ent);
+        const Kasten l = lokalerKasten(ent);
+        return Kasten(l.origin + o, l.extents);
+    }
+    return kinderGrenzen(ent, k.kontext);
+}
+
+}  // namespace
+
 Kasten auswahlGrenzenMitEntitaeten(const Karte& k) {
     Kasten b;
     for (const auto& w : k.auswahl.elemente()) {
@@ -520,21 +540,15 @@ Kasten auswahlGrenzenMitEntitaeten(const Karte& k) {
         if (p) {
             kastenErweiternSicher(b, primitivGrenzen(*p, k.kontext));
         } else if (ent) {
-            const EntitaetsKlasse* kl = ent->klasse();
-            if (kl != nullptr && kl->fixedsize && !kl->miscmodelIs) {
-                const Vektor3f o = entitaetUrsprung(*ent);
-                kastenErweiternSicher(b, kastenAusMinMax(kl->mins + o, kl->maxs + o));
-            } else if (istMiscModell(*ent, k.kontext)) {   // instance.worldAABB()
-                kastenErweiternSicher(b, instanzGrenzen(*ent, k.kontext));
-            } else if (!ent->istBehaelter()) {
-                const Vektor3f o = entitaetUrsprung(*ent);
-                const Kasten l = lokalerKasten(*ent);
-                kastenErweiternSicher(b, Kasten(l.origin + o, l.extents));
-            } else {
-                kastenErweiternSicher(b, kinderGrenzen(*ent, k.kontext));
-            }
+            kastenErweiternSicher(b, ganzeEntitaetGrenzen(*ent, k));
         }
     }
+    return b;
+}
+
+Kasten kartenGrenzen(const Karte& k) {   // GlobalSceneGraph().root(): Instance::worldAABB ueber alle Entitaeten
+    Kasten b;
+    for (const auto& ent : k.entitaeten()) { kastenErweiternSicher(b, ganzeEntitaetGrenzen(*ent, k)); }
     return b;
 }
 

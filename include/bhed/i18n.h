@@ -1926,6 +1926,12 @@ enum class Str {
     KeBeWeld,
     KeBeWeldTip,
     KeBeMtl,
+    KeSpGespeichert,
+    KeSunTitel,
+    KeSunOptimal,
+    KeSunMins,
+    KeSunMaxs,
+    KeSunSet,
     Count,
 };
 

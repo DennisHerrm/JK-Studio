@@ -139,4 +139,13 @@ KARTE4B = [
     ("KeBeWeldTip", "inside groups/objects", "innerhalb der Gruppen/Objekte", "在组/对象内部", "グループ/オブジェクト内"),
     ("KeBeMtl", "Create material information (.mtl file)", "Materialangaben anlegen (.mtl-Datei)", "创建材质信息(.mtl 文件)",
      "マテリアル情報を作成 (.mtl ファイル)"),
+    # --- ShaderPlug / SunPlug ---------------------------------------------------
+    ("KeSpGespeichert", "Tag file saved to\n%s\nThe texture browser has loaded it again.",
+     "Tag-Datei gespeichert:\n%s\nDer Texturbrowser hat sie neu geladen.",
+     "标签文件已保存到\n%s\n纹理浏览器已重新加载。", "タグファイルを保存しました:\n%s\nテクスチャブラウザーが読み込み直しました。"),
+    ("KeSunTitel", "ET-MapCoordinator", "ET-Kartenkoordinaten", "ET 地图坐标", "ET マップ座標"),
+    ("KeSunOptimal", "Get optimal mapcoords", "Beste mapcoords holen", "获取最佳 mapcoords", "最適な mapcoords を取得"),
+    ("KeSunMins", "MapCoordsMins", "MapCoordsMins", "MapCoordsMins", "MapCoordsMins"),
+    ("KeSunMaxs", "MapCoordsMaxs", "MapCoordsMaxs", "MapCoordsMaxs", "MapCoordsMaxs"),
+    ("KeSunSet", "Set", "Setzen", "设置", "設定"),
 ]

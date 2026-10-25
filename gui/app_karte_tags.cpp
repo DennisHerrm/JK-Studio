@@ -185,6 +185,14 @@ void zeichneQtMeldung() {
 
 // --- Tags -------------------------------------------------------------------------------
 
+std::string tagDatei() { return tagDateiPfad(); }
+
+void tagsNeuLaden() {   // Stufe 4 (ShaderPlug "Create tag file"): die neue Datei gleich lesen
+    e().tags.geladen = false;
+    tagsLaden();
+    tagsShaderGewaehlt();
+}
+
 void tagsLaden() {   // TextureBrowser_checkTagFile (texwindow.cpp:1476-1495)
     TagZustand& t = e().tags;
     if (t.geladen) { return; }

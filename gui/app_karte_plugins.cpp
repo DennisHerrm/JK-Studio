@@ -893,6 +893,7 @@ std::vector<PluginUmsetzung> pluginUmsetzungen() {
                  },
                  nullptr});
     v.push_back({"brushexport2::Export.obj", [] { brushExportZeigen(); }, nullptr});
+    for (PluginUmsetzung& p : kleinePluginUmsetzungen()) { v.push_back(std::move(p)); }
     return v;
 }
 
@@ -903,6 +904,7 @@ void pluginDialogeZeichnen() {
     if (b.bahn.aktiv && b.bahn.aktualisieren) { (void)bt::bahnAktualisieren(ed.karte, b.bahn); }
     visZeichnen();
     brushExportZeichnen();
+    kleinePluginDialogeZeichnen();
     if (b.dialog == 0) { return; }
     bool fertig = false;
     bool ok = false;

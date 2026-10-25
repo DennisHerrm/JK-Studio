@@ -813,8 +813,8 @@ Name | Art | Standardtaste | Quelle
 - [x] `SetGrid512` | Commands | - | (radiant/grid.cpp:201)
 - [x] `SetGrid64` | Commands | 7 | (radiant/grid.cpp:198)
 - [x] `SetGrid8` | Commands | 4 | (radiant/grid.cpp:195)
-- [~] `shaderPlug::About` | Commands | - | (contrib/shaderplug/shaderplug.cpp:71) -- Stufe 4
-- [~] `shaderPlug::CreateTagFile` | Commands | - | (contrib/shaderplug/shaderplug.cpp:71) -- Stufe 4
+- [x] `shaderPlug::About` | Commands | - | (contrib/shaderplug/shaderplug.cpp:71) -- Stufe 4 Punkt 3
+- [x] `shaderPlug::CreateTagFile` | Commands | - | (contrib/shaderplug/shaderplug.cpp:71) -- Stufe 4 Punkt 3
 - [x] `Shortcuts` | Commands | Ctrl+Shift+P | (radiant/mainframe.cpp:2075)
 - [x] `ShowAllTextures` | Commands | Ctrl+A | (radiant/texwindow.cpp:2102)
 - [x] `ShowAngles` | Toggles | - | (radiant/xywindow.cpp:2218) -- Stufe 1b Punkt 5
@@ -837,8 +837,8 @@ Name | Art | Standardtaste | Quelle
 - [x] `SmoothCols` | Commands | Ctrl+Shift+W | (radiant/patchmanip.cpp:725) -- Stufe 2 Punkt 6
 - [x] `SmoothRows` | Commands | Ctrl+W | (radiant/patchmanip.cpp:724) -- Stufe 2 Punkt 6
 - [x] `SnapToGrid` | Commands | Ctrl+G | (radiant/select.cpp:1886)
-- [~] `sunPlug::About` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 4
-- [~] `sunPlug::ET-MapCoordinator` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 4
+- [x] `sunPlug::About` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 4 Punkt 3
+- [x] `sunPlug::ET-MapCoordinator` | Commands | - | (contrib/sunplug/sunplug.cpp:80) -- Stufe 4 Punkt 3
 - [x] `SurfaceInspector` | Commands | S | (radiant/surfacedialog.cpp:1755) -- Stufe 2 Punkt 7
 - [x] `TagAdd` | Commands | - | (radiant/texwindow.cpp:2095) -- Stufe 2 Punkt 7
 - [x] `TagCopy` | Commands | - | (radiant/texwindow.cpp:2098) -- Stufe 2 Punkt 7
@@ -883,22 +883,22 @@ Name | Art | Standardtaste | Quelle
 - [x] `ToggleView` | Toggles | - | (radiant/xywindow.cpp:2267)
 - [x] `TogTexLock` | Toggles | Shift+T | (radiant/brushmanip.cpp:1476) -- Stufe 2 Punkt 1
 - [x] `TogTexVertexLock` | Toggles | - | (radiant/brushmanip.cpp:1477) -- Stufe 2 Punkt 1
-- [~] `uFO:AI::About` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] `uFO:AI::ActorClip` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] `uFO:AI::Level1` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] `uFO:AI::Level2` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] `uFO:AI::Level3` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] `uFO:AI::Level4` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] `uFO:AI::Level5` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] `uFO:AI::Level6` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] `uFO:AI::Level7` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] `uFO:AI::Level8` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] `uFO:AI::NoDraw` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] `uFO:AI::PerformCheck` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] `uFO:AI::StepOn` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] `uFO:AI::WeaponClip` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] `uFO:AI::Worldspawn` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] `uFO:AI::WorldspawnReset` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [x] `uFO:AI::About` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] `uFO:AI::ActorClip` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] `uFO:AI::Level1` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] `uFO:AI::Level2` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] `uFO:AI::Level3` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] `uFO:AI::Level4` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] `uFO:AI::Level5` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] `uFO:AI::Level6` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] `uFO:AI::Level7` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] `uFO:AI::Level8` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] `uFO:AI::NoDraw` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] `uFO:AI::PerformCheck` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] `uFO:AI::StepOn` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] `uFO:AI::WeaponClip` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] `uFO:AI::Worldspawn` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] `uFO:AI::WorldspawnReset` | Commands | - | (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
 - [x] `Undo` | Commands | Ctrl+Z | (radiant/select.cpp:1859)
 - [x] `UnSelectSelection` | Commands | C | (radiant/select.cpp:1875)
 - [x] `UnSelectSelection2` | Commands | Escape | (radiant/select.cpp:1874)
@@ -1069,35 +1069,35 @@ Name | Art | Standardtaste | Quelle
 
 ### ShaderPlug (contrib/shaderplug/shaderplug.cpp:71)
 
-- [~] ShaderPlug: Create tag file -> `shaderPlug::CreateTagFile`  (contrib/shaderplug/shaderplug.cpp:71) -- Stufe 4
-- [~] ShaderPlug: About -> `shaderPlug::About`  (contrib/shaderplug/shaderplug.cpp:71) -- Stufe 4
+- [x] ShaderPlug: Create tag file -> `shaderPlug::CreateTagFile`  (contrib/shaderplug/shaderplug.cpp:71) -- Stufe 4 Punkt 3
+- [x] ShaderPlug: About -> `shaderPlug::About`  (contrib/shaderplug/shaderplug.cpp:71) -- Stufe 4 Punkt 3
 
 ### SunPlug (contrib/sunplug/sunplug.cpp:80)
 
-- [~] SunPlug: ET-MapCoordinator -> `sunPlug::ET-MapCoordinator`  (contrib/sunplug/sunplug.cpp:80) -- Stufe 4
-- [~] SunPlug: About... -> `sunPlug::About`  (contrib/sunplug/sunplug.cpp:80) -- Stufe 4
+- [x] SunPlug: ET-MapCoordinator -> `sunPlug::ET-MapCoordinator`  (contrib/sunplug/sunplug.cpp:80) -- Stufe 4 Punkt 3
+- [x] SunPlug: About... -> `sunPlug::About`  (contrib/sunplug/sunplug.cpp:80) -- Stufe 4 Punkt 3
 
 ### UFO:AI (contrib/ufoaiplug/ufoai.cpp:69)
 
-- [~] UFO:AI: NoDraw -> `uFO:AI::NoDraw`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] UFO:AI: WeaponClip -> `uFO:AI::WeaponClip`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] UFO:AI: ActorClip -> `uFO:AI::ActorClip`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] UFO:AI: StepOn -> `uFO:AI::StepOn`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [x] UFO:AI: NoDraw -> `uFO:AI::NoDraw`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] UFO:AI: WeaponClip -> `uFO:AI::WeaponClip`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] UFO:AI: ActorClip -> `uFO:AI::ActorClip`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] UFO:AI: StepOn -> `uFO:AI::StepOn`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
 * ---
-- [~] UFO:AI: Level 8 -> `uFO:AI::Level8`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] UFO:AI: Level 7 -> `uFO:AI::Level7`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] UFO:AI: Level 6 -> `uFO:AI::Level6`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] UFO:AI: Level 5 -> `uFO:AI::Level5`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] UFO:AI: Level 4 -> `uFO:AI::Level4`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] UFO:AI: Level 3 -> `uFO:AI::Level3`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] UFO:AI: Level 2 -> `uFO:AI::Level2`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] UFO:AI: Level 1 -> `uFO:AI::Level1`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [x] UFO:AI: Level 8 -> `uFO:AI::Level8`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] UFO:AI: Level 7 -> `uFO:AI::Level7`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] UFO:AI: Level 6 -> `uFO:AI::Level6`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] UFO:AI: Level 5 -> `uFO:AI::Level5`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] UFO:AI: Level 4 -> `uFO:AI::Level4`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] UFO:AI: Level 3 -> `uFO:AI::Level3`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] UFO:AI: Level 2 -> `uFO:AI::Level2`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] UFO:AI: Level 1 -> `uFO:AI::Level1`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
 * ---
-- [~] UFO:AI: Perform check -> `uFO:AI::PerformCheck`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] UFO:AI: Worldspawn -> `uFO:AI::Worldspawn`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
-- [~] UFO:AI: Worldspawn reset -> `uFO:AI::WorldspawnReset`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [x] UFO:AI: Perform check -> `uFO:AI::PerformCheck`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] UFO:AI: Worldspawn -> `uFO:AI::Worldspawn`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
+- [x] UFO:AI: Worldspawn reset -> `uFO:AI::WorldspawnReset`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
 * ---
-- [~] UFO:AI: About -> `uFO:AI::About`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4
+- [x] UFO:AI: About -> `uFO:AI::About`  (contrib/ufoaiplug/ufoai.cpp:69) -- Stufe 4 Punkt 3
 
 ### bobToolz (contrib/bobtoolz/bobToolz-GTK.cpp:52)
 

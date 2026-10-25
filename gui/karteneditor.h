@@ -24,6 +24,7 @@
 #include "bhed/karte/bau.h"
 #include "bhed/karte/bobtoolz.h"
 #include "bhed/karte/brushexport.h"
+#include "bhed/karte/kleineplugins.h"
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/baumonitor.h"
 #include "bhed/karte/portale.h"
@@ -161,6 +162,14 @@ struct BrushExportZustand {
     bool materialien = true;               // t_exportmaterials
     std::string pfad;                      // s_export_path (leer: "Save" gesperrt)
     std::string zuletzt;                   // Selbsttest: zuletzt geschriebene .obj
+};
+
+// Stufe 4 Punkt 3: SunPlug "ET-MapCoordinator" (modal)
+struct SunplugZustand {
+    bool offen = false;
+    bool oeffnen = false;
+    std::array<int, 4> werte{0, 0, 0, 0};    // mapcoordsmins x y, mapcoordsmaxs x y
+    karte::plugins::Kartenkoordinaten optimal;   // GetOptimalCoordinates
 };
 
 struct Spielkontext {
@@ -455,6 +464,8 @@ struct Editor {
     // Stufe 4 Punkt 3: die Plugins
     BobToolzZustand bob;
     BrushExportZustand brushExport;
+    SunplugZustand sunplug;
+    karte::plugins::UfoaiZustand ufoai;
     karte::ZuletztListe zuletzt;
     bool zuletztGeladen = false;
 
@@ -1325,6 +1336,12 @@ struct PluginUmsetzung {
 [[nodiscard]] std::vector<PluginUmsetzung> pluginUmsetzungen();
 void pluginDialogeZeichnen();          // die modalen Dialoge und "BSP leafs"
 void brushExportZeigen();              // brushexport2: CreateWindow (app_karte_brushexport.cpp)
+// ShaderPlug, SunPlug, UFO:AI (app_karte_kleineplugins.cpp)
+[[nodiscard]] std::vector<PluginUmsetzung> kleinePluginUmsetzungen();
+void kleinePluginDialogeZeichnen();
+// Tags des Texturbrowsers: die Datei (LocalRcPath + SHADERTAG_FILE) und neu laden
+[[nodiscard]] std::string tagDatei();
+void tagsNeuLaden();
 void brushExportZeichnen();
 void pluginsFreigeben();               // BobToolz_destroy beim Wechsel der Karte
 // XYWindowMouseDown_connect (DTreePlanter::mouseDown): true = genommen

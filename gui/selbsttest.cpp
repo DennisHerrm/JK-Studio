@@ -35159,6 +35159,175 @@ std::vector<Schritt> brushexport() {
     return s;
 }
 
+// Punkt 3: ShaderPlug, SunPlug, UFO:AI - jeder Menuepunkt mit Wirkung
+std::vector<Schritt> kleineplugins() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    const auto kasten = [](const char* titel, const char* teil) {
+        return [titel, teil] {
+            const ke::Editor& e = ke::editor();
+            return e.meldung.offen && e.meldung.titel == titel && e.meldung.text.find(teil) != std::string::npos;
+        };
+    };
+    const auto zu = [] {
+        ke::editor().meldung.offen = false;
+        ke::editor().meldung.danach = nullptr;
+    };
+    add(stufe2::grundzustand("Stufe 4/3: ShaderPlug, SunPlug, UFO:AI"));
+    add(pruefe("ShaderPlug (2), SunPlug (2), UFO:AI (16): alle Befehle nachgebaut", [] {
+        int n = 0;
+        for (const auto& p : karte::befehle::pluginEintraege()) {
+            const std::string m = p.menue;
+            if ((m == "ShaderPlug" || m == "SunPlug" || m == "UFO:AI") && p.befehl[0] != 0) { n += ke::nachgebaut(p.befehl) ? 1 : 0; }
+        }
+        diag::detail("Knopftest: Stufe 4/3 kleine Plugins " + std::to_string(n));
+        return n == 20;
+    }));
+    // ShaderPlug
+    add(tu("ShaderPlug > About", [] { (void)ke::ausfuehren("shaderPlug::About"); }));
+    add(pruefe("ShaderPlug About: \"Shaderplug (1.0)\"", kasten("About", "Shaderplug (1.0)")));
+    add(tu("Kasten zu; Karte offen (Spiel geladen), Tag-Datei weg; Create tag file", [zu] {
+        zu();
+        bobKarte(weltText(kastenText(0, 0, 0, 64, 64, 64, "test/a")));
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::path(ke::tagDatei()), ec);
+        (void)ke::ausfuehren("shaderPlug::CreateTagFile");
+    }));
+    add(pause(0.3));
+    add(pruefe("Create tag file: Konsole \"Shaderplug: N shaders found.\" / \"textures found.\" / \"Creating XML tag file.\", Kasten INFO, Datei da, neu geladen", [kasten] {
+        const std::string k = stufe3::konsoleText();
+        const bool da = stufe3::istDatei(ke::tagDatei());
+        const std::string t = dateiInhalt(ke::tagDatei());
+        diag::detail("Knopftest: Stufe 4/3 Tag-Datei " + std::to_string(t.size()) + " Bytes");
+        return k.find(" shaders found.") != std::string::npos && k.find(" textures found.") != std::string::npos &&
+               k.find("Shaderplug: Creating XML tag file.") != std::string::npos && kasten("INFO", ke::tagDatei().c_str())() && da &&
+               t.find("<shader path=\"textures/") != std::string::npos && ke::editor().tags.datei.hatShader("textures/system/caulk") == (t.find("textures/system/caulk") != std::string::npos);
+    }));
+    add(tu("Kasten zu; noch einmal Create tag file", [zu] {
+        zu();
+        (void)ke::ausfuehren("shaderPlug::CreateTagFile");
+    }));
+    add(pruefe("Die Datei gibt es schon: Frage \"Overwrite tag file?\" (Ja / Nein)", [] {
+        const ke::Editor& e = ke::editor();
+        return e.meldung.offen && e.meldung.titel == "Overwrite tag file?" && e.meldung.jaNein;
+    }));
+    add(tu("Nein", [] {
+        auto f = ke::editor().meldung.danach;
+        ke::editor().meldung.offen = false;
+        if (f) { f(false); }
+    }));
+    add(pruefe("Nein: kein INFO-Kasten", [] { return !ke::editor().meldung.offen; }));
+    // SunPlug
+    add(tu("SunPlug > About...", [] { (void)ke::ausfuehren("sunPlug::About"); }));
+    add(pruefe("SunPlug About: \"About SunPlug\" / SunPlug v1.0 for NetRadiant 1.5", kasten("About SunPlug", "SunPlug v1.0 for NetRadiant 1.5\nby Topsun")));
+    add(tu("Kasten zu; Karte 0..1000 x 0..200; ET-MapCoordinator", [zu] {
+        zu();
+        bobKarte(weltText(kastenText(0, 0, 0, 1000, 200, 64, "test/a")));
+        (void)ke::ausfuehren("sunPlug::ET-MapCoordinator");
+    }));
+    add(pause(0.3));
+    add(pruefe("ET-MapCoordinator: der Dialog, Konsole advised mapcoordsmins=0 -400 / mapcoordsmaxs=1000 600", [] {
+        const std::string k = stufe3::konsoleText();
+        return ke::editor().sunplug.offen && stufe3::bauFeld("Plugin:SunDialog") != nullptr &&
+               k.find("SunPlug: advised mapcoordsmins=0 600") != std::string::npos && k.find("SunPlug: advised mapcoordsmaxs=1000 -400") != std::string::npos;
+    }));
+    add(foto("karteneditor_sunplug"));
+    add(klick(std::string(ke::trK(Str::KeSunOptimal)) + "##sunoptimal", "###kartesunplug", 0, true));
+    add(pause(0.2));
+    add(pruefe("Get optimal mapcoords: X/Y der Felder 0 600 / 1000 -400", [] {
+        const auto& w = ke::editor().sunplug.werte;
+        return w[0] == 0 && w[1] == 600 && w[2] == 1000 && w[3] == -400;
+    }));
+    add(klick(std::string(ke::trK(Str::KeSunSet)) + "##sunok0", "###kartesunplug", 0, true));
+    add(pause(0.2));
+    add(pruefe("Set: worldspawn mapcoordsmins \"0 600\", mapcoordsmaxs \"1000 -400\", Undo SunPlug.entitySetMapcoords", [] {
+        const ke::Editor& e = ke::editor();
+        return !e.sunplug.offen && e.karte.welt()->wert("mapcoordsmins") == "0 600" && e.karte.welt()->wert("mapcoordsmaxs") == "1000 -400" &&
+               e.karte.undo.undoName() == "SunPlug.entitySetMapcoords";
+    }));
+    // UFO:AI
+    add(tu("UFO:AI > About", [] { (void)ke::ausfuehren("uFO:AI::About"); }));
+    add(pruefe("UFO:AI About: Plugin version 0.4, Martin Gerhardy", kasten("About", "Plugin version: 0.4")));
+    add(tu("Kasten zu; Karte mit zwei info_player_start (team 1, 2) und Pinseln mit Level-Flags; Worldspawn", [zu] {
+        zu();
+        bobKarte("{\n\"classname\" \"worldspawn\"\n" + kastenText(0, 0, 0, 16, 16, 16, "test/a") + "}\n" +
+                 "{\n\"classname\" \"info_player_start\"\n\"origin\" \"0 0 32\"\n\"team\" \"1\"\n}\n" +
+                 "{\n\"classname\" \"info_player_start\"\n\"origin\" \"32 0 32\"\n\"team\" \"2\"\n}\n");
+        (void)ke::ausfuehren("uFO:AI::Worldspawn");
+    }));
+    add(pruefe("Worldspawn: Kasten \"Note\" Set maxlevel to: 5Set maxteams to: 2..., Schluessel gesetzt", [kasten] {
+        const ke::Editor& e = ke::editor();
+        return kasten("Note", "Set maxlevel to: 5Set maxteams to: 2You should at least place 16 info_player_start")() && e.karte.welt()->wert("maxlevel") == "5" &&
+               e.karte.welt()->wert("maxteams") == "2";
+    }));
+    add(tu("Kasten zu; Perform check", [zu] {
+        zu();
+        (void)ke::ausfuehren("uFO:AI::PerformCheck");
+    }));
+    add(pruefe("Perform check: Kasten \"Note\" mit den fehlenden Startpunkten", kasten("Note", "No singleplayer start positions (info_human_start)")));
+    add(tu("Kasten zu; Worldspawn reset", [zu] {
+        zu();
+        (void)ke::ausfuehren("uFO:AI::WorldspawnReset");
+    }));
+    add(pruefe("Worldspawn reset: wieder gesetzt (Note)", kasten("Note", "Set maxlevel to: 5")));
+    add(tu("Kasten zu; Pinsel: einer mit Inhalt Level 2 (0x200); Level 1 an", [zu] {
+        zu();
+        ke::Editor& e = ke::editor();
+        karte::Befehl b(e.karte.undo, "Stufe 4 Test");
+        auto p = std::static_pointer_cast<karte::Pinsel>(e.karte.welt()->kinder().front());
+        for (std::size_t i = 0; i < p->anzahl(); ++i) {
+            karte::InhaltFlags f = (*p)[i].flags();
+            f.inhaltFlags = 0x200;
+            (*p)[i].setzeFlags(f);
+        }
+    }));
+    add(tu("Level 1", [] { (void)ke::ausfuehren("uFO:AI::Level1"); }));
+    add(pruefe("Level 1: der Pinsel ohne Level 1 versteckt, Konsole level_active: 1", [] {
+        const ke::Editor& e = ke::editor();
+        return e.ufoai.level == 1 && e.karte.welt()->kinder().front()->versteckt &&
+               stufe3::konsoleText().find("UFO:AI: level_active: 1, flag: 256.") != std::string::npos;
+    }));
+    add(tu("Level 2", [] { (void)ke::ausfuehren("uFO:AI::Level2"); }));
+    add(pruefe("Level 2: sichtbar (hat Level 2)", [] {
+        const ke::Editor& e = ke::editor();
+        return e.ufoai.level == 2 && !e.karte.welt()->kinder().front()->versteckt;
+    }));
+    for (int i = 3; i <= 8; ++i) {
+        add(tu("Level " + std::to_string(i), [i] { (void)ke::ausfuehren("uFO:AI::Level" + std::to_string(i)); }));
+        // level_active = CONTENTS_LEVELn >> 8 = 1 << ( n - 1 )
+        add(pruefe("Level " + std::to_string(i) + ": level_active " + std::to_string(1 << (i - 1)) + ", der Pinsel versteckt", [i] {
+            const ke::Editor& e = ke::editor();
+            return e.ufoai.level == (1 << (i - 1)) && e.karte.welt()->kinder().front()->versteckt;
+        }));
+    }
+    add(tu("Level 8 noch einmal: aus", [] { (void)ke::ausfuehren("uFO:AI::Level8"); }));
+    add(pruefe("Level-Filter aus: sichtbar", [] { return ke::editor().ufoai.level == 0 && !ke::editor().karte.welt()->kinder().front()->versteckt; }));
+    const std::pair<const char*, int> filter[4] = {{"StepOn", 0x40000000}, {"ActorClip", 0x10000}, {"WeaponClip", 0x2000000}, {"NoDraw", 0x80}};
+    for (const auto& [name, flag] : filter) {
+        const std::string n = name;
+        const int f = flag;
+        add(tu(n + ": der Pinsel bekommt das Flag, " + n + " an", [n, f] {
+            ke::Editor& e = ke::editor();
+            {
+                karte::Befehl b(e.karte.undo, "Stufe 4 Test");
+                auto p = std::static_pointer_cast<karte::Pinsel>(e.karte.welt()->kinder().front());
+                for (std::size_t i = 0; i < p->anzahl(); ++i) {
+                    karte::InhaltFlags fl = (*p)[i].flags();
+                    fl.inhaltFlags = n == "NoDraw" ? 0 : f;
+                    fl.flaechenFlags = n == "NoDraw" ? f : 0;
+                    (*p)[i].setzeFlags(fl);
+                }
+            }
+            (void)ke::ausfuehren("uFO:AI::" + n);
+        }));
+        add(pruefe(n + ": versteckt", [] { return ke::editor().karte.welt()->kinder().front()->versteckt; }));
+        add(tu(n + " aus", [n] { (void)ke::ausfuehren("uFO:AI::" + n); }));
+        add(pruefe(n + " aus: sichtbar", [] { return !ke::editor().karte.welt()->kinder().front()->versteckt; }));
+    }
+    add(pruefe("StepOn: Konsole \"UFO:AI: Hiding 1 stepon brushes.\"", [] { return stufe3::konsoleText().find("UFO:AI: Hiding 1 stepon brushes.") != std::string::npos; }));
+    return s;
+}
+
 }  // namespace stufe4
 
 std::vector<Schritt> karteneditorStufe4Schritte() {
@@ -35177,6 +35346,9 @@ std::vector<Schritt> karteneditorStufe4Schritte() {
     }
     if (teil("plugins") || teil("brushexport")) {
         for (Schritt& x : stufe4::brushexport()) { s.push_back(std::move(x)); }
+    }
+    if (teil("plugins") || teil("klein")) {
+        for (Schritt& x : stufe4::kleineplugins()) { s.push_back(std::move(x)); }
     }
     return s;
 }
