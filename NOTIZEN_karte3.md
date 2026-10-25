@@ -867,3 +867,153 @@ In der Schlussrunde gefunden:
 |---|---|---|
 | Menue Help 227 statt 215 breit: seit Punkt 3 ist OpenManual nachgebaut (gen_befehle STUFE_3_FERTIG, Stufe 3 -> 1), unser Eintrag Manual zeigt darum seine Taste F1, und QMenu legt dafuer die Tastenspalte an (max_column_width += tabWidth = Vorschub "F1" = 12). Erwartung 215 + 12, Begruendung im Code | s3eke 986 / 1 | s3eke2 987 / 0 |
 | Absturz im Modus karte bei "Halte D" (Kamera seitwaerts in der Kartenansicht, nicht im Editor): 0xC000001D, RIP 0x...4C7E = `std::string::_Assign+0x3E` (dbghelp gegen behaved.pdb, `SP\s3\werk\dump_sym.py`), mitten in einem Befehl; der Stapel ueber RSP haelt nur noch wWinMainCRTStartup (`dump_stapel.py`) - ein Sprung an eine falsche Adresse, kein Fehler in std::string. Zweimal wiederholt: 227 / 0. Nicht nachgestellt, also nicht behoben; Stufe 3 aendert an der Kartenansicht nur den Aufruf von karteneditor::bauSchritt (im Leerlauf ohne Wirkung) und darfRuhen | s3ekarte: Absturz | s3ekarte2, s3ekarte3: 227 / 0 (offen) |
+
+## Punkt 10: Abschluss der Stufe 3
+
+### Commits (Zweig karte1, auf d1e5ac4)
+
+| Commit | Punkt | Inhalt |
+|---|---|---|
+| `5b9e5f6` | 0 | Textbreiten wie Qt (DirectWrite-Entwurfsmasse) in allen Dialogen und Menues |
+| `e56c9aa` | 0b | eine Menueleiste, die umschaltet; Felder mit Rahmen, das aktive mit Akzent |
+| `483035d` | 0c | jede Mausbelegung mit echten Ereignissen geprueft, Teiler, Maximize view |
+| `ee49209` | 1 | q3map2 aus NRC 20260114 im eigenen Bau (`bhed_q3map2.exe`), Release-Zip |
+| `4a85390` | 2 | gleiche Ergebnisse wie NRCs q3map2, feste Erwartungen (ctest q3map2_vergleich) |
+| `8a5bbf1` | 3 | Build-Menue wie NRC mit dem Dialog Customize |
+| `df60693` | 4 | Bauen aus dem Editor im Hintergrund, Ueberwachung wie watchbsp, Ziel-Ordner |
+| `e971bb1` | 5 | Leck-Linie, Rueckmeldungen in 2D, Portal Viewer (prtview) |
+| `4642c01` | 6 | AutoCaulk Selected (F4), Checkliste (Q3Map debug window, Plugins -> Stufe 4) |
+| `36ea303` | 7 | Selbsttest Stufe 3 findet q3map2 und die Erwartungen selbst; 222 / 0 |
+| `5a992d7` | 8 | Handbuchseite "Karte bauen" in vier Sprachen |
+| `d123201` | 9 | Schlussrunde; Erwartung Menue Help mit der Tastenspalte F1 |
+
+### Quellen und Fassungen
+
+NRC 20260114 (Git-Tag, Commit `68ecbed`; q3map2 2.5.17n-git-68ecbed): q3map2
+unveraendert in `third_party/q3map2`; die Bibliotheken zlib 1.3.1, libpng
+1.6.53, libjpeg-turbo 3.1.3, libxml2 2.15.1, assimp 6.0.2 (dieselben Fassungen
+wie neben NRCs q3map2.exe); etclib eigene Fassung (Apache-2.0 nicht
+uebernommen). Portiert (mit Quellangaben je Funktion): radiant/build.cpp,
+watchbsp.cpp, feedback.cpp, points.cpp, qe3.cpp (RunBSP, build_init_variables),
+map.cpp (map_autocaulk_selected), brushmanip.cpp (ConstructRegionBrushes),
+contrib/prtview (LGPL 2.1, unter GPL v2 nach Abschnitt 3), libs/profile
+(IniFile), libs/l_net (Nachrichtenrahmen), Qt 5.15 qstyle.cpp
+(sliderPositionFromValue/ValueFromPosition).
+
+MSVC-Anpassungen Nr. 1-8 siehe Punkt 1 (glib-Ersatz, R_OK, NOMINMAX,
+ASSIMP_INCLUDE, Span-Argumente, LittleLong, Sortierung wie libstdc++,
+Vektorwachstum durch Verschieben).
+
+### Byte-Vergleich (Punkt 2) in einem Satz
+
+Wo NRCs q3map2 selbst bestimmt ist, ist unseres Byte fuer Byte gleich; sonst
+gleich in jedem Dreieck und jedem reihenfolgeunabhaengigen Lump, -vis mit einem
+Thread gleich, -light im Rahmen von NRC gegen NRC. NRCs eigene Unbestimmtheit
+(Zeigervergleiche in CompareMetaTriangles, CompareSurfaceInfo, MergeBSPLuxels;
+nicht gesetzte Lightmap-ST nach -bsp; Thread-Rennen in vis/light) ist belegt.
+Je Karte und Stufe: Tabelle in Punkt 2.
+
+### Abweichungen von NRC (gesammelt)
+
+- Das Programm heisst `bhed_q3map2.exe` (default_build_menu.xml: `[RadiantPath]bhed_q3map2`);
+  die eigenstaendige .exe enthaelt es nicht (nur das Zip).
+- q3map2 ohne Konsolenfenster, in einem Job (endet mit dem Editor); Port 39000 nur
+  auf 127.0.0.1 und exklusiv; das Kind erbt nur NUL und die Pipe.
+- Ohne Ueberwachung: Befehle nacheinander im Hintergrund mit der Ausgabe ueber
+  eine Pipe in der Konsole statt qe3bsp.bat im Konsolenfenster; junk.txt im
+  Einstellungsordner.
+- Dazu: Build > Cancel build, Fortschritt in der Statuszeile, Schlusszeile mit
+  Zeit und Rueckgaben, Leck-Hinweis; ein neuer Bauauftrag beendet den laufenden.
+- Ziel-Ordner (Seite Build); nie im Spielordner - dann der Arbeitsordner
+  (auch fuer AutoCaulk und die .lin/.prt, Map_Name = die gebaute Datei).
+- `[GameName]` und die Engine-Argumente beim Regelwerk Movie Duels mit MD.
+- AutoCaulk: Pfad in Anfuehrungszeichen, hoechstens 10 Minuten warten.
+- prtview: Einstellungen in `karte_prtview.ini`, eine eigene rand()-Folge fuer
+  die Portalfarben, Nebel im Shader (GL_EXP mit w), About als Textkasten,
+  "Load .prt" ohne NRC-Foto nach Qt-Regeln.
+- Farben der neuen Dialoge nach dem Farbschema des Programms.
+- Die uebrigen Plugins tragen "Stufe 4".
+
+### Messungen
+
+- q3map2: BSP und VIS so schnell wie NRCs; LIGHT 41 % langsamer (MSVC gegen
+  MinGW -O3; ein Profiler braeuchte Administratorrechte) - offen.
+- Bauen der Testkarte aus dem Editor: [Final] Fast 1.5-1.8 s (drei Schritte).
+- Schlussrunde (Punkt 9): Leistung wie rc605 (md_am_sith), grosse Karte wie in Stufe 2, Kartenpruefung unveraendert.
+
+### Checkliste
+
+Stand nach Stufe 3: 811 fertig, 123 ausgegraut (die Plugins der Stufe 4 und
+"Install Map Developer's Files"), 2 offen (Exit in Menue und Befehlsliste - aus
+Stufe 1 nachgebaut, aber nie im Selbsttest ausgeloest, weil es das Programm
+beendet) von 936.
+
+### Was Stufe 4 braucht
+
+- Die uebrigen Plugins: bobToolz (24 Befehle, mit den Dialogen Intersect, Make
+  Chain, Path Plotter ...), brushexport2 (Export .obj), MeshTex (8 Befehle +
+  Dialoge), ShaderPlug (Create tag file), SunPlug, UFO:AI.
+- Import einer .bsp (q3map2 -convert, tryDecompile).
+- Offene Punkte aus Stufe 3: LIGHT 41 % langsamer als NRCs q3map2 (Profil);
+  auf Japanisch die Beschriftung "Region Box Shader" der Seite Build links
+  abgeschnitten (Spaltenbreite mit Tahoma gemessen); Surface Inspector 12 Punkte
+  schmaler als das NRC-Foto (Layout der Knopfspalten, aus Punkt 0); der einmalige
+  Absturz im Modus karte (Punkt 9, nicht nachgestellt).
+
+## Changelog
+
+## English
+
+- Map editor: compiling maps. q3map2 from NetRadiant-Custom 20260114 is built with the program as `bhed_q3map2.exe` (in the zip next to `behaved.exe`) and gives the same results as NetRadiant-Custom's q3map2.
+- Map editor: the Build menu of NetRadiant-Custom with all entries for Jedi Academy and Jedi Outcast, Run recent build (F5) and the Customize dialog to add, rename, reorder and copy entries and commands.
+- Map editor: building runs in the background - the map is saved first, q3map2's output appears live in the console (warnings yellow, errors red), the status bar shows the step and the time, Build > Cancel build stops it, and a closing line names the time and the result. You can keep working meanwhile.
+- Map editor: built files never go into the game folder - next to the map, into an Output Folder of your choice (page Build of the preferences), or into a work folder.
+- Map editor: leaks are shown as a red line in the 2D views and the camera; Next / Previous leak spot (Ctrl+Shift+K / L) walk along it, File > Pointfile switches it, the Q3Map debug window selects the leaking entity.
+- Map editor: the Portal Viewer (Plugins > prtview) shows the portals of the map as lines in 2D and coloured polygons in 3D, with its configuration dialog.
+- Map editor: AutoCaulk Selected (F4) gives hidden faces the caulk texture.
+- Map editor: Run Engine After Compile starts Movie Duels with `+set fs_game MD`.
+- Map editor: one menu bar that switches between the program and the map editor; the panes have a frame and the active one an accent.
+- Map editor: dialogs and menus measure text like Qt, so their sizes match NetRadiant-Custom; every mouse binding, the splitters and Maximize view were checked against it.
+- Guide: new page "Map editor: compiling the map" in four languages.
+
+## Deutsch
+
+- Karten-Editor: Karten bauen. q3map2 aus NetRadiant-Custom 20260114 wird mit dem Programm als `bhed_q3map2.exe` gebaut (im Zip neben `behaved.exe`) und liefert dieselben Ergebnisse wie das q3map2 von NetRadiant-Custom.
+- Karten-Editor: das Build-Menü von NetRadiant-Custom (Menü „Kompilieren“) mit allen Einträgen für Jedi Academy und Jedi Outcast, „Letzten Build ausführen“ (F5) und dem Dialog „Anpassen“ zum Anlegen, Umbenennen, Umordnen und Kopieren von Einträgen und Befehlen.
+- Karten-Editor: Bauen läuft im Hintergrund - die Karte wird vorher gespeichert, die Ausgabe von q3map2 steht live in der Konsole (Warnungen gelb, Fehler rot), die Statuszeile zeigt Schritt und Zeit, „Bauen abbrechen“ hält es an, und eine Schlusszeile nennt Zeit und Ergebnis. Währenddessen kannst du weiterarbeiten.
+- Karten-Editor: gebaute Dateien kommen nie in den Spielordner - neben die Karte, in einen Ziel-Ordner deiner Wahl (Seite „Kompilieren“ der Einstellungen) oder in einen Arbeitsordner.
+- Karten-Editor: Lecks erscheinen als rote Linie in den 2D-Ansichten und der Kamera; „Nächste / Vorige Leckstelle“ (Strg+Umschalt+K / L) gehen an ihr entlang, „Datei > Pointfile (Leck-Linie)“ schaltet sie, das Q3Map-Debugfenster wählt die Entity, aus der es leckt.
+- Karten-Editor: der Portal Viewer (Plugins > prtview) zeigt die Portale der Karte als Linien in 2D und farbige Polygone in 3D, mit seinem Einstellungsdialog.
+- Karten-Editor: AutoCaulk Selected (F4) gibt verdeckten Flächen die Caulk-Textur.
+- Karten-Editor: „Nach dem Bauen das Spiel starten“ startet Movie Duels mit `+set fs_game MD`.
+- Karten-Editor: eine Menüleiste, die zwischen Programm und Karten-Editor umschaltet; die Felder haben einen Rahmen, das aktive einen Akzent.
+- Karten-Editor: Dialoge und Menüs messen Text wie Qt, ihre Größen stimmen mit NetRadiant-Custom überein; jede Mausbelegung, die Teiler und „Ansicht maximieren“ wurden damit verglichen.
+- Handbuch: neue Seite „Karten-Editor: Karte bauen“ in vier Sprachen.
+
+## 中文
+
+- 地图编辑器:编译地图。NetRadiant-Custom 20260114 的 q3map2 随程序编译为 `bhed_q3map2.exe`(在压缩包中与 `behaved.exe` 放在一起),结果与 NetRadiant-Custom 的 q3map2 相同。
+- 地图编辑器:NetRadiant-Custom 的 Build 菜单(“编译”菜单),包含 Jedi Academy 和 Jedi Outcast 的全部菜单项、“运行上次编译”(F5)以及用于添加、改名、排序和复制菜单项与命令的“自定义”对话框。
+- 地图编辑器:编译在后台运行——先保存地图,q3map2 的输出实时显示在控制台中(警告为黄色,错误为红色),状态栏显示步骤和时间,“取消编译”可以停止,最后一行显示用时和结果。期间可以继续工作。
+- 地图编辑器:编译生成的文件从不写入游戏文件夹——放在地图旁边、你选择的输出文件夹(首选项的“编译”页)或工作文件夹中。
+- 地图编辑器:泄漏以红线显示在二维视图和摄像机中;“下一个/上一个泄漏点”(Ctrl+Shift+K / L)沿线移动,“文件 > 点文件(泄漏线)”切换显示,Q3Map 调试窗口选中泄漏起点的实体。
+- 地图编辑器:门户查看器(Plugins > prtview)以二维线条和三维彩色多边形显示地图的门户,并带有设置对话框。
+- 地图编辑器:AutoCaulk Selected(F4)给被遮挡的面赋予 caulk 纹理。
+- 地图编辑器:“编译后运行游戏”以 `+set fs_game MD` 启动 Movie Duels。
+- 地图编辑器:一个菜单栏在程序和地图编辑器之间切换;各窗格带边框,当前窗格带强调色。
+- 地图编辑器:对话框和菜单像 Qt 一样测量文字,尺寸与 NetRadiant-Custom 一致;每个鼠标操作、分隔条和“最大化视图”都已与之核对。
+- 手册:新增四种语言的“地图编辑器:编译地图”页。
+
+## 日本語
+
+- マップエディター:マップのビルド。NetRadiant-Custom 20260114 の q3map2 をプログラムと一緒に `bhed_q3map2.exe` としてビルドし(zip では `behaved.exe` の隣)、NetRadiant-Custom の q3map2 と同じ結果を出します。
+- マップエディター:NetRadiant-Custom の Build メニュー(「ビルド」メニュー)。Jedi Academy と Jedi Outcast の全項目、「前回のビルドを実行」(F5)、項目とコマンドを追加・名前変更・並べ替え・コピーできる「カスタマイズ」ダイアログ。
+- マップエディター:ビルドはバックグラウンドで実行されます。まずマップを保存し、q3map2 の出力をリアルタイムでコンソールに表示します(警告は黄、エラーは赤)。ステータスバーにはステップと時間、「ビルドを中止」で停止、最後の行に時間と結果が表示されます。その間も作業を続けられます。
+- マップエディター:ビルドしたファイルはゲームフォルダーには書き込みません。マップの隣、選んだ出力フォルダー(設定の「ビルド」ページ)、または作業フォルダーに出力します。
+- マップエディター:リークは 2D ビューとカメラに赤い線で表示されます。「次/前のリーク箇所」(Ctrl+Shift+K / L)で線をたどり、「ファイル > ポイントファイル(リーク線)」で切り替え、Q3Map デバッグウィンドウでリーク元のエンティティを選択できます。
+- マップエディター:ポータルビューアー(Plugins > prtview)がマップのポータルを 2D の線と 3D の色付きポリゴンで表示します。設定ダイアログ付きです。
+- マップエディター:AutoCaulk Selected(F4)で見えない面に caulk テクスチャを付けます。
+- マップエディター:「コンパイル後にゲームを起動」で Movie Duels を `+set fs_game MD` 付きで起動します。
+- マップエディター:プログラムとマップエディターを切り替える 1 本のメニューバー。各ペインには枠があり、アクティブなペインはアクセント色で示されます。
+- マップエディター:ダイアログとメニューは Qt と同じ方法で文字幅を測り、サイズが NetRadiant-Custom と一致します。マウス操作、スプリッター、「ビューを最大化」もすべて照合しました。
+- ガイド:新しいページ「マップエディター:マップのビルド」(4 言語)。
