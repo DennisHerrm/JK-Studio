@@ -32875,14 +32875,47 @@ std::string spielOrdnerFuerTest() {
     return v.empty() ? std::string() : v.back();
 }
 
+// Die Wurzel der Arbeitskopie: der erste Ordner ueber behaved.exe mit
+// tests/karte/q3map2/raum.nrc.bsp (Laufordner laeufe/<name>, build-test/bin/Release)
+std::filesystem::path arbeitskopie() {
+    std::filesystem::path p = std::filesystem::path(platform::executableDirectory());
+    for (int i = 0; i < 6 && !p.empty(); ++i) {
+        std::error_code ec;
+        if (std::filesystem::is_regular_file(p / "tests" / "karte" / "q3map2" / "raum.nrc.bsp", ec)) { return p; }
+        if (p == p.parent_path()) { break; }
+        p = p.parent_path();
+    }
+    return {};
+}
+
+// Das gebaute bhed_q3map2.exe: BHED_Q3MAP2, sonst <Arbeitskopie>/build-test bzw. build/bin/Release
+std::string q3map2Quelle() {
+    if (const char* q = std::getenv("BHED_Q3MAP2"); q != nullptr && q[0] != '\0') { return q; }
+    const std::filesystem::path w = arbeitskopie();
+    if (w.empty()) { return {}; }
+    for (const char* b : {"build-test", "build"}) {
+        const std::filesystem::path p = w / b / "bin" / "Release" / "bhed_q3map2.exe";
+        std::error_code ec;
+        if (std::filesystem::is_regular_file(p, ec)) { return p.string(); }
+    }
+    return {};
+}
+
+// Die Erwartungen (raum.nrc.bsp): BHED_Q3MAP2_DATEN, sonst <Arbeitskopie>/tests/karte/q3map2
+std::string q3map2Daten() {
+    if (const char* d = std::getenv("BHED_Q3MAP2_DATEN"); d != nullptr && d[0] != '\0') { return d; }
+    const std::filesystem::path w = arbeitskopie();
+    return w.empty() ? std::string() : (w / "tests" / "karte" / "q3map2").string();
+}
+
 // bhed_q3map2.exe neben behaved.exe: der Laufordner hat nur behaved.exe und
-// data, BHED_Q3MAP2 nennt das gebaute Programm.
+// data - die Quelle von q3map2Quelle (nichts, wenn es schon daneben liegt).
 void q3map2Bereitstellen() {
-    const char* quelle = std::getenv("BHED_Q3MAP2");
-    if (quelle == nullptr || quelle[0] == '\0') { return; }
+    const std::string quelle = q3map2Quelle();
+    const std::filesystem::path ziel = std::filesystem::path(platform::executableDirectory()) / "bhed_q3map2.exe";
     std::error_code ec;
-    std::filesystem::copy_file(std::filesystem::path(quelle), std::filesystem::path(platform::executableDirectory()) / "bhed_q3map2.exe",
-                               std::filesystem::copy_options::overwrite_existing, ec);
+    if (quelle.empty() || std::filesystem::equivalent(std::filesystem::path(quelle), ziel, ec)) { return; }
+    std::filesystem::copy_file(std::filesystem::path(quelle), ziel, std::filesystem::copy_options::overwrite_existing, ec);
 }
 
 int eintragNr(const std::string& name) {
@@ -33249,16 +33282,16 @@ std::vector<Schritt> bauen() {
         return istDatei(stamm + ".bsp") && istDatei(stamm + ".srf") && !istDatei(stamm + ".prt") && !istDatei(stamm + ".lin") &&
                !ke::editor().bauRueckmeldungOffen;
     }));
-    add(pruefe(".bsp wie NRCs (raum.nrc.bsp aus BHED_Q3MAP2_DATEN): shaders, planes, nodes, leafbrushes, brushes gleich, leafs/models/brushsides "
+    add(pruefe(".bsp wie NRCs (raum.nrc.bsp aus tests/karte/q3map2): shaders, planes, nodes, leafbrushes, brushes gleich, leafs/models/brushsides "
                "ohne Flaechenbezug gleich; visibility, lightmaps, lightgrid von -vis und -light (lightarray 459 Gitterpunkte wie NRC)",
                [stamm] {
-                   const char* daten = std::getenv("BHED_Q3MAP2_DATEN");
-                   if (daten == nullptr) {
-                       diag::detail("Knopftest: Stufe 3/4 BHED_Q3MAP2_DATEN fehlt");
+                   const std::string daten = q3map2Daten();
+                   if (daten.empty()) {
+                       diag::detail("Knopftest: Stufe 3/4 tests/karte/q3map2 nicht gefunden (BHED_Q3MAP2_DATEN)");
                        return false;
                    }
                    const auto u = bspLumps(stamm + ".bsp");
-                   const auto n = bspLumps(std::string(daten) + "\\raum.nrc.bsp");
+                   const auto n = bspLumps(daten + "\\raum.nrc.bsp");
                    if (u.size() != 18 || n.size() != 18) { return false; }
                    std::string bericht;
                    bool ok = true;

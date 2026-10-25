@@ -779,3 +779,30 @@ Befehl - aus Stufe 1, nicht Teil von Stufe 3) von 936.
 | s3p6a (erste Fassung) | 23 / 2: das Auge stand in der Detail-Saeule - q3map2 "Entity in solid", leaked, keine .caulk (NRC genauso) | Auge bei (-384 128 64) |
 
 ctest 106/106.
+
+## Punkt 7: Selbsttest im Modus karteneditor
+
+Stufe 3 im Selbsttest (`BHED_KARTE_NUR=stufe3`; Teile mit `BHED_STUFE3_NUR`
+= `maus`, `bau` (Build-Menue, Bauen, Leck, Portale, AutoCaulk), `leck`,
+`caulk`):
+- Bauen aus dem Editor (Punkt 4): [Final] Fast mit BSP, VIS, LIGHT; die Konsole
+  Zeile fuer Zeile wie watchbsp; die .bsp gegen `raum.nrc.bsp` (shaders, planes,
+  nodes, leafbrushes, brushes gleich, leafs/models/brushsides ohne
+  Flaechenbezug, visibility/lightmaps/lightgrid gefuellt, lightarray 459); die
+  Fehlerfaelle; bedienbar beim Bauen, Abbrechen.
+- Leck-Karte (Punkt 5): die Linie aus dem Rueckkanal gleich der .lin, rot in
+  2D und 3D (Bildpunkte), Next/Previous leak spot, File > Pointfile.
+- Portale (Punkt 5): Load .prt, Linien in 2D, Polygone in 3D, Nebel, der
+  Konfigurationsdialog, die Ini.
+- Fotos gegen NRC: "Build Menu" (Punkt 3) und "Portal Viewer Configuration"
+  (Punkt 5) - die Lagen prueft der Test auf den logischen Punkt; nebeneinander
+  (SP\s3\werk\foto_bau_vgl.py, Lauf s3p7a) stimmen Rahmen, Listen und Knoepfe
+  ueberein, die Farben folgen dem Farbschema des Programms.
+- AutoCaulk (Punkt 6).
+
+Neu in Punkt 7: der Test findet bhed_q3map2.exe und die Erwartungen selbst
+(die Arbeitskopie ueber behaved.exe: `build-test` bzw. `build/bin/Release`,
+`tests/karte/q3map2`); BHED_Q3MAP2 / BHED_Q3MAP2_DATEN gehen weiter vor.
+
+Laeufe: s3p7a (mit den Variablen und Fotos) 222 OK / 0 FEHLER, s3p7b (ohne
+Variablen) 222 / 0.

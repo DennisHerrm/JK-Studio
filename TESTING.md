@@ -333,9 +333,11 @@ standalone exe does not contain the map compiler.
   the top of that script and in `NOTIZEN_karte3.md`, Punkt 2.
 - GUI self-test mode `karteneditor` builds from the editor (Stufe 3,
   `BHED_KARTE_NUR=stufe3 BHED_STUFE3_NUR=bau` for only the Build menu and
-  building). It needs `BHED_Q3MAP2=<build>\bin\Release\bhed_q3map2.exe` (copied
-  next to the tested `behaved.exe`) and `BHED_Q3MAP2_DATEN=tests\karte\q3map2`
-  (`raum.nrc.bsp` for the lump comparison). It builds the test map with
+  building). It looks for the working copy above the tested `behaved.exe`
+  (the folder with `tests\karte\q3map2`), copies `build-test` (or `build`)
+  `\bin\Release\bhed_q3map2.exe` next to it and compares with
+  `tests\karte\q3map2\raum.nrc.bsp`; `BHED_Q3MAP2` and `BHED_Q3MAP2_DATEN` set
+  other places. It builds the test map with
   [Final] Fast and checks the console line by line like watchbsp, an ERROR in
   red, a busy port 39000, the 5 s timeout, unmonitored builds with `junk.txt`,
   Run Engine (only recorded), the output folder (never the game folder), region
