@@ -305,6 +305,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_portale.cpp
     gui/app_karte_bsp.cpp
     gui/app_karte_plugins.cpp
+    gui/app_karte_brushexport.cpp
     gui/karte_qtdialog.cpp
     gui/app_karte_menue.cpp
     gui/app_karte_dialoge.cpp
@@ -766,7 +767,9 @@ target_sources(bhed_core PRIVATE
   # Stufe 4 Punkt 3: das Plugin bobToolz (contrib/bobtoolz) ohne Oberflaeche
   src/karte/bobtoolz_d.cpp
   src/karte/bobtoolz.cpp
-  src/karte/bobtoolz_vis.cpp)
+  src/karte/bobtoolz_vis.cpp
+  # Stufe 4 Punkt 3: brushexport2 (contrib/brushexport/export.cpp)
+  src/karte/brushexport.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -945,6 +948,10 @@ if(BEHAVED_TESTS)
   add_executable(kartebobtoolz tests/kartebobtoolz.cpp)
   target_link_libraries(kartebobtoolz PRIVATE bhed_core)
   add_test(NAME karte_bobtoolz COMMAND kartebobtoolz ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
+  # Stufe 4 Punkt 3: brushexport2 - .obj / .mtl wie export.cpp
+  add_executable(kartebrushexport tests/kartebrushexport.cpp)
+  target_link_libraries(kartebrushexport PRIVATE bhed_core)
+  add_test(NAME karte_brushexport COMMAND kartebrushexport)
   add_executable(kartebefehle tests/kartebefehle.cpp)
   target_link_libraries(kartebefehle PRIVATE bhed_core)
   add_test(NAME karte_befehle COMMAND kartebefehle ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.md)

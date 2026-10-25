@@ -23,6 +23,7 @@
 #include "bhed/i18n.h"
 #include "bhed/karte/bau.h"
 #include "bhed/karte/bobtoolz.h"
+#include "bhed/karte/brushexport.h"
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/baumonitor.h"
 #include "bhed/karte/portale.h"
@@ -142,6 +143,24 @@ struct BobToolzZustand {
     std::vector<std::string> rahmenTexturen;      // bt/door-tex-trim.txt
     std::string letzterBefehl;                    // Selbsttest
     int gepflanzt = 0;                            // Selbsttest: Tree Planter
+};
+
+// Stufe 4 Punkt 3: brushexport2 (contrib/brushexport/interface.cpp): ein
+// Fenster, das einmal gebaut wird und seinen Zustand behaelt (show/hide).
+struct BrushExportZustand {
+    bool offen = false;
+    bool oeffnen = false;
+    int modus = 2;                         // 0 Collapse mesh, 1 by material, 2 Don't collapse
+    std::vector<std::string> ignoriert;    // t_materialist
+    int gewaehlt = -1;                     // die markierte Zeile
+    int bearbeitet = -1;                   // Zeile im Bearbeiten (DoubleClicked / EditKeyPressed)
+    std::string eingabe;                   // ed_materialname
+    bool kurzeNamen = false;               // t_limitmatnames
+    bool objekte = false;                  // t_objects
+    bool verschweissen = true;             // t_weld
+    bool materialien = true;               // t_exportmaterials
+    std::string pfad;                      // s_export_path (leer: "Save" gesperrt)
+    std::string zuletzt;                   // Selbsttest: zuletzt geschriebene .obj
 };
 
 struct Spielkontext {
@@ -435,6 +454,7 @@ struct Editor {
     std::string bspNurEntitaetenFertig;   // Selbsttest: zuletzt mit -onlyents geschriebene .bsp
     // Stufe 4 Punkt 3: die Plugins
     BobToolzZustand bob;
+    BrushExportZustand brushExport;
     karte::ZuletztListe zuletzt;
     bool zuletztGeladen = false;
 
@@ -1304,6 +1324,8 @@ struct PluginUmsetzung {
 };
 [[nodiscard]] std::vector<PluginUmsetzung> pluginUmsetzungen();
 void pluginDialogeZeichnen();          // die modalen Dialoge und "BSP leafs"
+void brushExportZeigen();              // brushexport2: CreateWindow (app_karte_brushexport.cpp)
+void brushExportZeichnen();
 void pluginsFreigeben();               // BobToolz_destroy beim Wechsel der Karte
 // XYWindowMouseDown_connect (DTreePlanter::mouseDown): true = genommen
 bool pluginXyDruck(int fenster, int knopf, const karte::Vektor3f& welt);

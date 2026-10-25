@@ -35066,6 +35066,99 @@ std::vector<Schritt> bobtoolz() {
     return s;
 }
 
+// Punkt 3: brushexport2 - About, das Fenster wie das NRC-Foto, Liste, Save As
+// (Dateiwahl ersetzt), .obj / .mtl, Save, "Nothing is selected."
+std::vector<Schritt> brushexport() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    const auto pfad = [] {
+        std::string p = (std::filesystem::current_path() / "s4bob" / "export").string();
+        std::replace(p.begin(), p.end(), '\\', '/');
+        return p;
+    };
+    add(stufe2::grundzustand("Stufe 4/3: brushexport2"));
+    add(tu("About", [] { (void)ke::ausfuehren("brushexport2::About"); }));
+    add(pause(0.3));
+    add(pruefe("About: Kasten \"About me...\" mit Brushexport plugin v 3.0 by namespace", [] {
+        const ke::Editor& e = ke::editor();
+        return e.meldung.offen && e.meldung.titel == "About me..." && e.meldung.text.find("Brushexport plugin v 3.0 by namespace") != std::string::npos;
+    }));
+    add(tu("Kasten zu; Karte: zwei Kaesten (einer mit caulk), beide gewaehlt", [] {
+        ke::editor().meldung.offen = false;
+        bobKarte(weltText(kastenText(0, 0, 0, 64, 64, 64, "test/a") + kastenText(100, 0, 0, 164, 64, 64, "common/caulk")));
+        weltWaehlen({0, 1});
+    }));
+    add(klick(ke::trK(Str::KeLPlugins), "###main"));
+    add(pause(0.25));
+    add(klick("brushexport2", "##Menu_", 0, true));
+    add(pause(0.25));
+    add(klick("Export selected as Wavefront Object", "##Menu_", 0, false));
+    add(pause(0.4));
+    add(pruefe("Das Fenster 278 x 478 wie das NRC-Foto: Save 142/11 125 x 22 (gesperrt), Liste 11/115 256 x 192, Add 11/341, Remove 142/341, Haken bei 369..447", [] {
+        const auto r = [](const char* n, int x, int y, int b, int h) {
+            const auto* f = stufe3::bauFeld(std::string("Plugin:") + n);
+            const bool ok = f != nullptr && f->x == x && f->y == y && f->b == b && f->h == h;
+            if (!ok && f != nullptr) {
+                diag::detail(std::string("Knopftest: Stufe 4/3 ") + n + " " + std::to_string(f->x) + "/" + std::to_string(f->y) + " " + std::to_string(f->b) +
+                             "x" + std::to_string(f->h));
+            }
+            return ok;
+        };
+        return ke::editor().brushExport.offen && r("BeDialog", 0, 0, 278, 478) && r("besave", 142, 11, 125, 22) && r("besaveas", 142, 39, 125, 22) &&
+               r("becancel", 142, 67, 125, 22) && r("beliste", 11, 115, 256, 192) && r("beeingabe", 11, 313, 256, 22) && r("beadd", 11, 341, 125, 22) &&
+               r("beremove", 142, 341, 125, 22) && stufe3::bauFeld("Plugin:bemtl") != nullptr && stufe3::bauFeld("Plugin:bemtl")->y == 447 &&
+               stufe3::bauFeld("Plugin:beshort")->y == 369 && ke::editor().brushExport.pfad.empty();
+    }));
+    add(fotoRahmen("karteneditor_dlg_Plugins_brushexport2_Export_selected_as_Wavefront_Object_0", [] { return fensterRahmen("###kartebrushexport"); }));
+    add(klickAn("Eingabefeld", stufe2::elementOrt("##beeingabe")));
+    add(tippe("textures/common/caulk"));
+    add(klick(std::string(ke::trK(Str::KeBeAdd)) + "##beadd", "###kartebrushexport", 0, true));
+    add(pause(0.2));
+    add(pruefe("Add: \"caulk\" in der Liste (path_get_filename_start)", [] {
+        const auto& l = ke::editor().brushExport.ignoriert;
+        return l.size() == 1 && l[0] == "caulk";
+    }));
+    add(tu("Save As: die Dateiwahl liefert s4bob/export (ohne .obj)", [pfad] { ke::editor().dateiDialog = [pfad](const std::string&) { return pfad(); }; }));
+    add(klick(std::string(ke::trK(Str::KeBeSaveAs)) + "##besaveas", "###kartebrushexport", 0, true));
+    add(pause(0.3));
+    add(pruefe("Save As: export.obj und export.mtl geschrieben; caulk ausgelassen (Pinsel 2 faellt weg), Konsole brushexport::ExportSelection", [pfad] {
+        const std::string obj = dateiInhalt(pfad() + ".obj");
+        const std::string mtl = dateiInhalt(pfad() + ".mtl");
+        return ke::editor().brushExport.pfad == pfad() + ".obj" && obj.find("mtllib export.mtl\n") != std::string::npos &&
+               obj.find("\ng Brush1\n") != std::string::npos && obj.find("\ng Brush2\n") == std::string::npos && obj.find("caulk") == std::string::npos &&
+               mtl.find("# Material Count: 1\n") != std::string::npos && stufe3::konsoleText().find("brushexport::ExportSelection") != std::string::npos;
+    }));
+    add(tu("Dateiwahl zurueck, Collapse mesh, export.obj loeschen", [pfad] {
+        ke::editor().dateiDialog = nullptr;
+        ke::editor().brushExport.modus = 0;
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::path(pfad() + ".obj"), ec);
+    }));
+    add(klick(std::string(ke::trK(Str::KeBeSave)) + "##besave", "###kartebrushexport", 0, true));
+    add(pause(0.3));
+    add(pruefe("Save (frei nach Save As): ohne Dateiwahl wieder export.obj, jetzt g all / usemtl material", [pfad] {
+        const std::string obj = dateiInhalt(pfad() + ".obj");
+        return obj.find("\ng all\nusemtl material\n") != std::string::npos;
+    }));
+    add(tu("Nichts gewaehlt", [] {
+        ke::editor().karte.auswahl.leeren();
+        ke::auswahlGeaendert();
+    }));
+    add(klick(std::string(ke::trK(Str::KeBeSave)) + "##besave", "###kartebrushexport", 0, true));
+    add(pause(0.3));
+    add(pruefe("Nichts gewaehlt: Kasten \"brushexport\" / \"Nothing is selected.\"", [] {
+        const ke::Editor& e = ke::editor();
+        return e.meldung.offen && e.meldung.titel == "brushexport" && e.meldung.text == "Nothing is selected.";
+    }));
+    add(tu("Kasten zu", [] { ke::editor().meldung.offen = false; }));
+    add(klick(std::string(ke::trK(Str::KeCancel)) + "##becancel", "###kartebrushexport", 0, true));
+    add(pause(0.2));
+    add(pruefe("Cancel: das Fenster versteckt, die Liste bleibt (hide)", [] {
+        return !ke::editor().brushExport.offen && ke::editor().brushExport.ignoriert.size() == 1;
+    }));
+    return s;
+}
+
 }  // namespace stufe4
 
 std::vector<Schritt> karteneditorStufe4Schritte() {
@@ -35081,6 +35174,9 @@ std::vector<Schritt> karteneditorStufe4Schritte() {
     }
     if (teil("plugins") || teil("bobtoolz")) {
         for (Schritt& x : stufe4::bobtoolz()) { s.push_back(std::move(x)); }
+    }
+    if (teil("plugins") || teil("brushexport")) {
+        for (Schritt& x : stufe4::brushexport()) { s.push_back(std::move(x)); }
     }
     return s;
 }

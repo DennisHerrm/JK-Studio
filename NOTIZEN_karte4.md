@@ -263,3 +263,31 @@ Bei NRC gefunden und uebernommen: Brush Cleanup waehlt alles ab
 Reset Textures loescht den Pinsel und baut ihn neu (er steht danach hinten);
 der Undo-Name der Aperture Door ist "bobToolz.buildApertureDoor"
 (shapes.cpp:648).
+
+## Punkt 3b: brushexport2
+
+Portiert: `include/bhed/karte/brushexport.h`, `src/karte/brushexport.cpp`
+(contrib/brushexport/export.cpp: ExportData, ExportDataAsWavefront,
+ExportSelection; FloatFormat "%1.6lf", "%g" fuer Kd, Edge_isDegenerate),
+`gui/app_karte_brushexport.cpp` (interface.cpp create_w_plugplug2,
+callbacks.cpp). "About" ("About me...") und "Export selected as Wavefront
+Object" (das Fenster, einmal gebaut, show/hide). Checkliste: 4 Eintraege
+`brushexport2::*` auf `[x]`.
+
+Masse am Foto: Innenraum 278 x 478, Spalten 125 / 125, Zeilen wie im Kopf von
+app_karte_brushexport.cpp. Gefunden dabei: QGridLayout verteilt die Breite
+eines Elements ueber zwei Spalten (die Liste, 256) mit qGeomCalc - gleich
+geteilt, nicht Hinweis + halber Rest (sonst 146 / 104).
+
+Abweichungen: "Save As" schlaegt `<Einstellungen>/karte_export/` vor statt
+`<Spiel>/base/models/` (nie in den Spielordner); das Fenster ist nicht
+ziehbar; der gewaehlte Pfad wird mit '/' gespeichert wie QFileDialog ihn
+liefert (sonst stuende in "mtllib" der ganze Pfad: find_last_of( "//" )).
+Die Farbe in der .mtl (Kd) ist qtexture_t::color: aus der Kamera, sonst das
+Bild gemittelt.
+
+| Test | Rot | Gruen |
+|---|---|---|
+| ctest `karte_brushexport` (neu, 19 Pruefungen) | 3 Mutationen (Achsen, Verschweissen, Material-Reihenfolge) je 1-2 FEHL | 0 |
+| Selbsttest `BHED_STUFE4_NUR=brushexport` | s4p3be1 17 / 2 (Spalten 146 / 104, mtllib mit Pfad) | s4p3be4 19 / 0 |
+| ctest gesamt | - | 109 / 109 |

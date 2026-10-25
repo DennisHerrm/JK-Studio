@@ -887,6 +887,12 @@ std::vector<PluginUmsetzung> pluginUmsetzungen() {
     bob("SplitPatchColumns", [] { direkt([](karte::Karte& k) { return bt::splitPatch(k, 1); }); });
     bob("SplitPatchRows", [] { direkt([](karte::Karte& k) { return bt::splitPatch(k, 2); }); });
     bob("FlipTerrain", [] { direkt([](karte::Karte& k) { return bt::flipTerrain(k); }); });
+    // brushexport2 (plugin.cpp:62-71): "About" und "Export .obj" (CreateWindow)
+    v.push_back({"brushexport2::About", [] {
+                     qtMeldung("About me...", karte::brushexport::kAbout, MeldungArt::Info, false, nullptr);
+                 },
+                 nullptr});
+    v.push_back({"brushexport2::Export.obj", [] { brushExportZeigen(); }, nullptr});
     return v;
 }
 
@@ -896,6 +902,7 @@ void pluginDialogeZeichnen() {
     // DBobView: folgt dem Ziel (TargetChanged / UpdatePath), solange nicht "No Dynamic Update"
     if (b.bahn.aktiv && b.bahn.aktualisieren) { (void)bt::bahnAktualisieren(ed.karte, b.bahn); }
     visZeichnen();
+    brushExportZeichnen();
     if (b.dialog == 0) { return; }
     bool fertig = false;
     bool ok = false;

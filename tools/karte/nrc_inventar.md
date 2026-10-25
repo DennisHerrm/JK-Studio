@@ -548,8 +548,8 @@ Name | Art | Standardtaste | Quelle
 - [x] `Brush8Sided` | Commands | Ctrl+8 | (radiant/brushmanip.cpp:1490) -- Stufe 2 Punkt 4
 - [x] `Brush9Sided` | Commands | Ctrl+9 | (radiant/brushmanip.cpp:1491) -- Stufe 2 Punkt 4
 - [x] `BrushCone` | Commands | - | (radiant/brushmanip.cpp:1480) -- Stufe 2 Punkt 4
-- [~] `brushexport2::About` | Commands | - | (contrib/brushexport/plugin.cpp:56) -- Stufe 4
-- [~] `brushexport2::Export.obj` | Commands | - | (contrib/brushexport/plugin.cpp:56) -- Stufe 4
+- [x] `brushexport2::About` | Commands | - | (contrib/brushexport/plugin.cpp:56) -- Stufe 4 Punkt 3
+- [x] `brushexport2::Export.obj` | Commands | - | (contrib/brushexport/plugin.cpp:56) -- Stufe 4 Punkt 3
 - [x] `BrushIcosahedron` | Commands | - | (radiant/brushmanip.cpp:1483) -- Stufe 2 Punkt 4
 - [x] `BrushPrism` | Commands | - | (radiant/brushmanip.cpp:1479) -- Stufe 2 Punkt 4
 - [x] `BrushRock` | Commands | - | (radiant/brushmanip.cpp:1482) -- Stufe 2 Punkt 4
@@ -1132,8 +1132,8 @@ Name | Art | Standardtaste | Quelle
 
 ### brushexport2 (contrib/brushexport/plugin.cpp:56)
 
-- [~] brushexport2: About -> `brushexport2::About`  (contrib/brushexport/plugin.cpp:56) -- Stufe 4
-- [~] brushexport2: Export selected as Wavefront Object -> `brushexport2::Export.obj`  (contrib/brushexport/plugin.cpp:56) -- Stufe 4
+- [x] brushexport2: About -> `brushexport2::About`  (contrib/brushexport/plugin.cpp:56) -- Stufe 4 Punkt 3
+- [x] brushexport2: Export selected as Wavefront Object -> `brushexport2::Export.obj`  (contrib/brushexport/plugin.cpp:56) -- Stufe 4 Punkt 3
 
 ### prtview (contrib/prtview/prtview.cpp:164)
 
