@@ -151,10 +151,10 @@ KARTE_OEFFNEN = {
             "不带编辑器数据的测试地图:2D 视图中的估算灯光(原图在一条线上有三盏灯,其中一盏可开关,保留在 .bsp 中)。",
             "エディターデータなしのテストマップ:2D ビューの推定ライト(元のマップには一直線上に 3 つのライトがあり、そのうち 1 つは切り替え可能で .bsp に残っていました)。")),
         ("warn", T(
-            "This is an **estimate**, not the original lights. On jeditemple_garden 279 lights were estimated for 388 in the source; baked again with them, the lightmaps differ from the original by 38 of 255 steps on average. Use the estimated lights as a starting point and adjust them by eye - or build your own maps with {{KeEdMenue}}.",
-            "Das ist eine **Schätzung**, nicht die ursprünglichen Lichter. Bei jeditemple_garden wurden für 388 Lichter der Quelle 279 geschätzt; damit neu gebacken, weichen die Lightmaps im Mittel um 38 von 255 Stufen vom Original ab. Nimm die geschätzten Lichter als Ausgangspunkt und stelle sie nach Augenmaß nach - oder baue eigene Karten mit {{KeEdMenue}}.",
-            "这只是**估算**,并非原始灯光。在 jeditemple_garden 上,源文件有 388 盏灯,估算出 279 盏;用它们重新烘焙后,光照贴图与原图平均相差 255 级中的 38 级。请把估算的灯光作为起点,再凭肉眼调整——或者用 {{KeEdMenue}} 编译自己的地图。",
-            "これは**推定**であり、元のライトではありません。jeditemple_garden ではソースの 388 個に対して 279 個のライトが推定され、それで焼き直したライトマップは元のものと平均で 255 段階中 38 段階異なりました。推定ライトは出発点として使い、目で見て調整してください。自分のマップは {{KeEdMenue}} でビルドしましょう。")),
+            "This is an **estimate**, not the original lights. On jeditemple_garden 279 lights were estimated for 388 in the source; baked again with them, the lightmaps differ from the original by 38 of 255 steps on average (baked again with the true lights: 9), and only 2 estimated lights lie within 32 units of a source light. Use the estimated lights as a starting point and adjust them by eye - or build your own maps with {{KeEdMenue}}.",
+            "Das ist eine **Schätzung**, nicht die ursprünglichen Lichter. Bei jeditemple_garden wurden für 388 Lichter der Quelle 279 geschätzt; damit neu gebacken, weichen die Lightmaps im Mittel um 38 von 255 Stufen vom Original ab (mit den echten Lichtern neu gebacken: 9), und nur 2 geschätzte Lichter liegen näher als 32 Einheiten an einem Licht der Quelle. Nimm die geschätzten Lichter als Ausgangspunkt und stelle sie nach Augenmaß nach - oder baue eigene Karten mit {{KeEdMenue}}.",
+            "这只是**估算**,并非原始灯光。在 jeditemple_garden 上,源文件有 388 盏灯,估算出 279 盏;用它们重新烘焙后,光照贴图与原图平均相差 255 级中的 38 级(用真实灯光重新烘焙:9),而且只有 2 盏估算的灯光距离源文件中的灯光不到 32 单位。请把估算的灯光作为起点,再凭肉眼调整——或者用 {{KeEdMenue}} 编译自己的地图。",
+            "これは**推定**であり、元のライトではありません。jeditemple_garden ではソースの 388 個に対して 279 個のライトが推定され、それで焼き直したライトマップは元のものと平均で 255 段階中 38 段階異なりました(本物のライトで焼き直した場合は 9)。また、ソースのライトから 32 ユニット以内にある推定ライトは 2 個だけでした。推定ライトは出発点として使い、目で見て調整してください。自分のマップは {{KeEdMenue}} でビルドしましょう。")),
         ("h2", "licht", T("Keeping the original light", "Das Originallicht behalten", "保留原始光照", "元のライトを残す")),
         ("img", "h_karte4_nurentities", T(
             "{{KeLBuild}} > {{KeBmNurEntities}} - at the bottom of the menu, available after {{KeLOpenBsp}}.",
