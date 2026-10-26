@@ -438,6 +438,81 @@ std::vector<Schritt> modelle() {
     return s;
 }
 
+
+// --- Punkt 4: Lichter schaetzen (experimentell) ------------------------------------------
+//
+// Wirkung: die Testkarte aus Punkt 2 (Lichter 300 bei 0 0 96, 200 bei 256 0 96, das
+// schaltbare 250 bei -256 0 96) ohne Editor-Daten gebaut und mit "Lichter schaetzen"
+// geoeffnet: in der Ebene "Geschaetzte Lichter" liegen Lichter mit _bhed_geschaetzt 1
+// nahe an den zwei entfernten; das schaltbare kommt aus dem Entity-Lump (keine Doppelung).
+std::vector<Schritt> lichter() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("Stufe 8/4: Testkarte ohne Editor-Daten bauen", [] {
+        karteDialogeZu();
+        q3map2Bereitstellen();
+        ke::bauMenueSicherstellen();
+        ke::Editor& e = ke::editor();
+        e.bau.editorDaten = false;
+        e.bspRueck = ke::Editor::BspRueckEinstellungen{};
+        e.bspRueck.modelle = false;
+        e.bspRueck.lichter = true;
+        ke::einstellungenSpeichern();
+        edKarteSchreiben();
+        (void)ke::karteOeffnen(edKarte());
+        std::error_code ec;
+        for (const char* x : {".bsp", ".prt", ".srf", ".bhed"}) { std::filesystem::remove(std::filesystem::path(edStamm() + x), ec); }
+        e.bauProjekt.eintraege.push_back(karte::BauEintrag{"Test Lichter", {"[q3map2] -meta \"[MapFile]\"", "[q3map2] -vis -fast \"[MapFile]\"", "[q3map2] -light -fast \"[MapFile]\""}});
+    }));
+    add(bauMenuepunkt("Test Lichter"));
+    add(warteSek("Bau fertig", [] { return !ke::bauLaeuft(); }, 300));
+    add(tu("File > Open .bsp mit \"Lichter schaetzen\"", [] {
+        ke::konsoleLeeren();
+        ke::editor().bspRueckLetzt = ke::Editor::BspRueckLetzt{};
+        (void)ke::bspOeffnenDatei(edStamm() + ".bsp");
+    }));
+    add(warteSek("Schaetzung fertig", [] { return ke::bspRueckStand().stand == 0 && konsoleText().find(vorlageAnfang(Str::KeLsFertig)) != std::string::npos; }, 120));
+    add(pruefe("geschaetzte Lichter: Ebene \"Geschaetzte Lichter\", _bhed_geschaetzt 1, eines nahe an 0 0 96; das schaltbare nicht doppelt", [] {
+        const ke::Editor& e = ke::editor();
+        int ebene = -1;
+        for (std::size_t i = 0; i < e.karte.schichten.size(); ++i) {
+            if (e.karte.schichten[i].name == ke::trK(Str::KeLsEbene)) { ebene = static_cast<int>(i); }
+        }
+        const double ziel[3][3] = {{0, 0, 96}, {256, 0, 96}, {-256, 0, 96}};
+        double naechst[3] = {1e9, 1e9, 1e9};
+        int geschaetzt = 0;
+        int inEbene = 0;
+        std::string text;
+        for (const auto& en : e.karte.entitaeten()) {
+            if (en->klassenname() != "light" || en->wert("_bhed_geschaetzt") != "1") { continue; }
+            ++geschaetzt;
+            inEbene += en->schicht == ebene ? 1 : 0;
+            double p[3] = {0, 0, 0};
+            (void)std::sscanf(en->wert("origin").c_str(), "%lf %lf %lf", &p[0], &p[1], &p[2]);
+            text += " [" + en->wert("origin") + " light " + en->wert("light") + "]";
+            for (int z = 0; z < 3; ++z) {
+                naechst[z] = std::min(naechst[z], std::sqrt((p[0] - ziel[z][0]) * (p[0] - ziel[z][0]) + (p[1] - ziel[z][1]) * (p[1] - ziel[z][1]) +
+                                                            (p[2] - ziel[z][2]) * (p[2] - ziel[z][2])));
+            }
+        }
+        diag::detail("Knopftest: Stufe 8/4 " + std::to_string(geschaetzt) + " geschaetzt:" + text + "; Abstand " + std::to_string(naechst[0]) + " / " +
+                     std::to_string(naechst[1]) + " / schaltbar " + std::to_string(naechst[2]));
+        // experimentell: geprueft wird die Wirkung (Ebene, Schluessel, eines nahe am hellsten Licht, keins am behaltenen),
+        // die Genauigkeit steht in den Notizen (drei Lichter auf einer Linie: das zweite liegt 84 Einheiten daneben)
+        return ebene >= 0 && geschaetzt >= 1 && inEbene == geschaetzt && naechst[0] < 48.0 && naechst[2] > 47.0 &&
+               e.bspRueckLetzt.lichter == static_cast<std::size_t>(geschaetzt);
+    }));
+    add(foto("karteneditor_s8_lichter"));
+    add(tu("Optionen zurueck, Eintrag weg", [] {
+        ke::Editor& e = ke::editor();
+        e.bspRueck = ke::Editor::BspRueckEinstellungen{};
+        ke::einstellungenSpeichern();
+        auto& v = e.bauProjekt.eintraege;
+        v.erase(std::remove_if(v.begin(), v.end(), [](const karte::BauEintrag& b) { return b.name == "Test Lichter"; }), v.end());
+    }));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     const char* nur = std::getenv("BHED_STUFE8_NUR");
@@ -448,6 +523,7 @@ std::vector<Schritt> schritte() {
     if (teil("fortschritt")) { dazu(fortschritt()); }
     if (teil("editordaten")) { dazu(editordaten()); }
     if (teil("modelle")) { dazu(modelle()); }
+    if (teil("lichter")) { dazu(lichter()); }
     return s;
 }
 

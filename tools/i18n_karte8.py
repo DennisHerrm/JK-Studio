@@ -107,3 +107,28 @@ KARTE8 += [
     ("KeRkAndereKarte", "Recover misc_model: another map is open now, the result is dropped", "misc_model zurückgewinnen: inzwischen ist eine andere Karte offen, das Ergebnis verfällt",
      "恢复 misc_model:现在打开的是另一张地图,结果已丢弃", "misc_model の復元:別のマップが開かれたため、結果は破棄されました"),
 ]
+
+# Punkt 4: Lichter schaetzen (experimentell)
+KARTE8 += [
+    ("KeLsOpt", "Estimate lights (experimental)", "Lichter schätzen (experimentell)", "估算灯光(实验性)", "ライトを推定(実験的)"),
+    ("KeLsOptTip",
+     "q3map2 removes every light without targetname. This estimates lights from the light grid (where the light directions of the grid cells meet) and puts them in the layer \"Estimated lights\" with the key _bhed_geschaetzt 1. Good for simple rooms with few lights; with many small or spot lights (below the 64x64x128 grid) mostly wrong - an estimate, not the original (not in NetRadiant-Custom)",
+     "q3map2 entfernt jedes Licht ohne targetname. Das schätzt Lichter aus dem Lichtgitter (wo sich die Lichtrichtungen der Gitterzellen treffen) und legt sie mit dem Schlüssel _bhed_geschaetzt 1 in die Ebene „Geschätzte Lichter“. Gut für einfache Räume mit wenigen Lichtern; bei vielen kleinen oder Spot-Lichtern (unter dem 64x64x128-Gitter) meist falsch - eine Schätzung, nicht das Original (nicht in NetRadiant-Custom)",
+     "q3map2 会移除每个没有 targetname 的灯光。此功能根据光照网格(网格单元的光照方向交汇处)估算灯光,并以键 _bhed_geschaetzt 1 放入图层“估算的灯光”。适合灯光较少的简单房间;对于大量小灯或聚光灯(低于 64x64x128 网格精度)大多不准——这是估算,不是原始灯光(NetRadiant-Custom 中没有)",
+     "q3map2 は targetname のないライトをすべて削除します。これはライトグリッド(グリッドセルの光の方向が交わる場所)からライトを推定し、キー _bhed_geschaetzt 1 を付けてレイヤー「推定ライト」に置きます。ライトの少ない単純な部屋には向いていますが、小さなライトやスポットライトが多い場合(64x64x128 のグリッドより細かい)はたいてい外れます。推定であり、元のライトではありません(NetRadiant-Custom にはありません)"),
+    ("KeLsEbene", "Estimated lights", "Geschätzte Lichter", "估算的灯光", "推定ライト"),
+    ("KeLsFertig", "%d lights estimated (experimental) in the layer \"Estimated lights\" - an estimate from the light grid, not the original lights",
+     "%d Lichter geschätzt (experimentell) in der Ebene „Geschätzte Lichter“ - eine Schätzung aus dem Lichtgitter, nicht die Originallichter",
+     "已估算 %d 个灯光(实验性),位于图层“估算的灯光”——这是根据光照网格的估算,不是原始灯光",
+     "%d 個のライトを推定しました(実験的)。レイヤー「推定ライト」にあります。ライトグリッドからの推定で、元のライトではありません"),
+]
+
+# Punkt 5: Teil-Kompilierungen
+KARTE8 += [
+    ("KeTkVis", "Partial compile: reuse VIS", "Teil-Kompilierung: VIS wiederverwenden", "部分编译:重用 VIS", "部分コンパイル:VIS を再利用"),
+    ("KeTkVisTip",
+     "Every -vis step gets -bhedvisreuse: if the portal file (.prt), the vis switches and the far plane key are unchanged since the last -vis of this map, bhed_q3map2 takes the visibility from <map>.bhedvis instead of computing it - changes to detail brushes, patches, models and entities need no new VIS. Structural changes compute as usual. The .bsp is byte-identical to a full -vis (with -threads 1; with more threads -vis itself varies between runs) (not in NetRadiant-Custom)",
+     "Jeder -vis-Schritt bekommt -bhedvisreuse: sind die Portaldatei (.prt), die VIS-Schalter und der Schlüssel der Fernebene seit dem letzten -vis dieser Karte gleich, nimmt bhed_q3map2 die Sichtbarkeit aus <Karte>.bhedvis statt sie zu rechnen - Änderungen an Detail-Pinseln, Patches, Modellen und Entities brauchen kein neues VIS. Strukturänderungen werden wie gewohnt gerechnet. Die .bsp ist Byte für Byte gleich einem vollen -vis (mit -threads 1; mit mehreren Threads schwankt -vis selbst von Lauf zu Lauf) (nicht in NetRadiant-Custom)",
+     "每个 -vis 步骤都会加上 -bhedvisreuse:如果自此地图上次 -vis 以来门户文件(.prt)、vis 开关和远平面键都未改变,bhed_q3map2 会从 <地图>.bhedvis 取得可见性而不重新计算——修改 detail 笔刷、曲面片、模型和实体都不需要重新 VIS。结构性修改照常计算。生成的 .bsp 与完整 -vis 逐字节相同(使用 -threads 1;多线程时 -vis 本身每次运行都会略有不同)(NetRadiant-Custom 中没有)",
+     "各 -vis ステップに -bhedvisreuse が付きます。このマップの前回の -vis からポータルファイル(.prt)・vis スイッチ・ファープレーンのキーが変わっていなければ、bhed_q3map2 は可視性を計算せず <マップ>.bhedvis から取得します。detail ブラシ・パッチ・モデル・エンティティの変更には新しい VIS が要りません。構造の変更は通常どおり計算します。.bsp は完全な -vis とバイト単位で同じです(-threads 1 の場合。複数スレッドでは -vis 自体が実行ごとに変わります)(NetRadiant-Custom にはありません)"),
+]

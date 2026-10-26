@@ -18,6 +18,7 @@
 
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/ebenen.h"
+#include "bhed/karte/lichtschaetzung.h"
 #include "bhed/karte/modellrueck.h"
 #include "bhed/karte/pinsel.h"
 #include "bhed/regelwerk.h"
@@ -64,6 +65,9 @@ struct Rueck {
     std::atomic<bool> abbrechen{false};
     std::mutex sperre;
     karte::RueckErgebnis erg;           // unter sperre, gueltig bei stand 3
+    std::vector<karte::GeschaetztesLicht> lichter;   // Punkt 4 (experimentell), unter sperre
+    bool mitModellen = true;
+    bool mitLichtern = false;
     std::string fehlerText;
     std::string karteDatei;             // die geoeffnete Karte (Ergebnis nur fuer sie)
     std::size_t kandidaten = 0;
@@ -92,8 +96,10 @@ BspRueckStand bspRueckStand() {
 
 void bspRueckStarten(const std::string& bspDaten, const std::string& ordner, const std::string& stamm, const std::string& karteDatei) {
     Editor& ed = e();
-    if (!ed.bspRueck.modelle || !ed.karteSpiel) { return; }
+    if ((!ed.bspRueck.modelle && !ed.bspRueck.lichter) || !ed.karteSpiel) { return; }
     fadenWeg();
+    g_r.mitModellen = ed.bspRueck.modelle;
+    g_r.mitLichtern = ed.bspRueck.lichter;
     g_r.stand = 1;
     g_r.anteil = 0.0;
     g_r.abbrechen = false;
@@ -128,6 +134,25 @@ void bspRueckStarten(const std::string& bspDaten, const std::string& ordner, con
     const std::string befehl = karte::bhedModelleBefehl(a, std::vector<std::string>(ed.zusatzPfade.begin(), ed.zusatzPfade.end()), liste, aus);
     ausgabe(befehl);
     g_r.faden = std::thread([befehl, aus, bspDaten]() {
+        // Punkt 4: Lichter schaetzen (vor den Modellen - braucht keine Spieldateien)
+        if (g_r.mitLichtern) {
+            karte::LichtSchaetzOptionen lo;
+            lo.fortschritt = [](double x) {
+                g_r.anteil = x * (g_r.mitModellen ? 0.3 : 1.0);
+                return !g_r.abbrechen.load();
+            };
+            std::vector<karte::GeschaetztesLicht> l = karte::lichterSchaetzen(bspDaten, lo);
+            if (g_r.abbrechen) {
+                g_r.stand = 5;
+                return;
+            }
+            std::lock_guard<std::mutex> lk(g_r.sperre);
+            g_r.lichter = std::move(l);
+        }
+        if (!g_r.mitModellen) {
+            g_r.stand = 3;
+            return;
+        }
         bauplattform::Prozess p;
         p.niedrigePrioritaet(true);
         std::string grund;
@@ -160,7 +185,7 @@ void bspRueckStarten(const std::string& bspDaten, const std::string& ordner, con
         g_r.stand = 2;
         karte::RueckOptionen o;
         o.fortschritt = [](double x) {
-            g_r.anteil = x;
+            g_r.anteil = g_r.mitLichtern ? 0.3 + 0.7 * x : x;
             return !g_r.abbrechen.load();
         };
         karte::RueckErgebnis erg = karte::modelleZurueckgewinnen(bspDaten, modelle, o);
@@ -190,9 +215,12 @@ void ergebnisAnwenden() {
     if (g_r.faden.joinable()) { g_r.faden.join(); }
     g_r.sekunden = std::chrono::duration<double>(std::chrono::steady_clock::now() - g_r.start).count();
     karte::RueckErgebnis erg;
+    std::vector<karte::GeschaetztesLicht> lichter;
     {
         std::lock_guard<std::mutex> l(g_r.sperre);
         erg = std::move(g_r.erg);
+        lichter = std::move(g_r.lichter);
+        g_r.lichter.clear();
     }
     g_r.stand = 0;
     if (mitSchraeg(ed.name) != mitSchraeg(g_r.karteDatei)) {
@@ -229,7 +257,26 @@ void ergebnisAnwenden() {
             ++pinsel;
         }
     }
-    k.undo.finish("Recover misc_model (" + std::to_string(erg.treffer.size()) + ")");
+    // Punkt 4 (experimentell): geschaetzte Lichter in der Ebene "Geschaetzte Lichter",
+    // je mit "_bhed_geschaetzt" "1" (q3map2 und das Spiel lesen den Schluessel nicht)
+    std::size_t lichtZahl = 0;
+    if (g_r.mitLichtern && !lichter.empty()) {
+        int ebene = -1;
+        const std::size_t vorher = k.aktuelleSchicht;
+        (void)karte::ebeneNeu(k, -1, trK(Str::KeLsEbene), &ebene);
+        k.aktuelleSchicht = vorher;
+        for (const karte::GeschaetztesLicht& l : lichter) {
+            auto en = k.neueEntitaet("light", false);
+            for (const auto& [kk, vv] : karte::lichtSchluessel(l)) {
+                if (kk != "classname") { en->setzen(kk, vv); }
+            }
+            en->schicht = ebene;
+            k.entitaetEinfuegen(en);
+            ++lichtZahl;
+        }
+    }
+    k.undo.finish(g_r.mitModellen ? "Recover misc_model (" + std::to_string(erg.treffer.size()) + ")" : "Estimate lights (" + std::to_string(lichtZahl) + ")");
+    ed.bspRueckLetzt.lichter = lichtZahl;
     // die zurueckgewonnenen Modelle und Flaechen stecken schon in der .bsp: "Update entities
     // only" bleibt moeglich
     if (ed.bspHerkunft.aktiv) { ed.bspHerkunft.fingerabdruck = karte::geometrieFingerabdruck(k); }
@@ -240,6 +287,15 @@ void ergebnisAnwenden() {
     ed.bspRueckLetzt.maxFehler = maxFehler;
     ed.bspRueckLetzt.sekunden = g_r.sekunden;
     char z[512];
+    if (g_r.mitLichtern) {
+        std::snprintf(z, sizeof(z), trK(Str::KeLsFertig), static_cast<int>(lichtZahl));
+        warnung(z);
+    }
+    if (!g_r.mitModellen) {
+        ++ed.sichtStand;
+        auswahlGeaendert();
+        return;
+    }
     std::snprintf(z, sizeof(z), trK(Str::KeRkFertig), static_cast<int>(erg.treffer.size()), static_cast<int>(forceMeta), maxFehler,
                   static_cast<int>(g_r.modelleGeladen), static_cast<int>(g_r.kandidaten), g_r.sekunden);
     ausgabe(z);

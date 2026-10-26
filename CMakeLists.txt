@@ -770,6 +770,12 @@ if(BEHAVED_TESTS)
       add_test(NAME q3map2_determinismus
                COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_determinismus.py ctest
                        $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
+      # Stufe 8a Punkt 5: Teil-Kompilierungen Byte fuer Byte gleich der vollen (VIS wiederverwenden, ...)
+      add_test(NAME q3map2_teilbau
+               COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_teilbau.py
+                       $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2
+                       ${CMAKE_CURRENT_BINARY_DIR}/q3map2_teilbau)
+      set_tests_properties(q3map2_teilbau PROPERTIES TIMEOUT 1800)
       add_test(NAME q3map2_vergleich
                COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_vergleich.py pruefen
                        $<TARGET_FILE:bhed_q3map2> ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
@@ -852,6 +858,7 @@ target_sources(bhed_core PRIVATE
   src/karte/baufortschritt.cpp
   src/karte/editordaten.cpp
   src/karte/modellrueck.cpp
+  src/karte/lichtschaetzung.cpp
   # Stufe 3 Punkt 5: der Portal Viewer (contrib/prtview) ohne Oberflaeche
   src/karte/portale.cpp
   # Stufe 4 Punkte 1/2: fertige Karten oeffnen, Originallicht (-onlyents)
@@ -1039,6 +1046,10 @@ if(BEHAVED_TESTS)
   add_executable(kartemodellrueck tests/kartemodellrueck.cpp)
   target_link_libraries(kartemodellrueck PRIVATE bhed_core)
   add_test(NAME karte_modellrueck COMMAND kartemodellrueck)
+  # Stufe 8a Punkt 4: Lichter schaetzen (raum_licht.bsp; mit Argumenten: Messung)
+  add_executable(kartelichtschaetzung tests/kartelichtschaetzung.cpp)
+  target_link_libraries(kartelichtschaetzung PRIVATE bhed_core)
+  add_test(NAME karte_lichtschaetzung COMMAND kartelichtschaetzung ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
   # Stufe 3 Punkt 5: Portaldatei lesen, prtview.ini (contrib/prtview)
   add_executable(karteportale tests/karteportale.cpp)
   target_link_libraries(karteportale PRIVATE bhed_core)

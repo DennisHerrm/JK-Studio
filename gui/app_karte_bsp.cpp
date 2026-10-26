@@ -327,7 +327,7 @@ void zeichneBspDialog() {
     ImGui::PopStyleVar();
     // Liste: Karte | Aus
     const int listeY = 11 + 22 + 6;
-    const int listeH = kH - listeY - 6 - 30 - 6 - 22 - 11 - 2 * 22;
+    const int listeH = kH - listeY - 6 - 30 - 6 - 22 - 11 - 3 * 22;
     merkeFeld("BspOeffnen:Liste", 11, listeY, kB - 22, listeH);
     ImGui::SetCursorScreenPos(bp(11, static_cast<float>(listeY)));
     ImGui::BeginChild("##bspliste", ImVec2{px(static_cast<float>(kB - 22)), px(static_cast<float>(listeH))}, ImGuiChildFlags_Borders);
@@ -371,9 +371,13 @@ void zeichneBspDialog() {
         if (ImGui::Checkbox((std::string(trK(Str::KeRkFlaechenOpt)) + "##bsprueckflaechen").c_str(), &ed.bspRueck.flaechen)) { einstellungenSpeichern(); }
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", trK(Str::KeRkFlaechenOptTip)); }
         if (!ed.bspRueck.modelle) { ImGui::EndDisabled(); }
+        merkeFeld("BspOeffnen:Lichter", 11, hakenY + 44, kB - 22, 22);
+        ImGui::SetCursorScreenPos(bp(11, static_cast<float>(hakenY + 44)));
+        if (ImGui::Checkbox((std::string(trK(Str::KeLsOpt)) + "##bsprueckLichter").c_str(), &ed.bspRueck.lichter)) { einstellungenSpeichern(); }
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", trK(Str::KeLsOptTip)); }
     }
     // Hinweis
-    const int hinweisY = listeY + listeH + 6 + 2 * 22;
+    const int hinweisY = listeY + listeH + 6 + 3 * 22;
     ImGui::SetCursorScreenPos(bp(11, static_cast<float>(hinweisY)));
     ImGui::PushTextWrapPos(bp(static_cast<float>(kB - 11), 0).x);
     ImGui::TextDisabled("%s", trK(Str::KeBspHinweis));

@@ -2233,6 +2233,12 @@ enum class Str {
     KeRkFlaechenAus,
     KeRkAbgebrochen,
     KeRkAndereKarte,
+    KeLsOpt,
+    KeLsOptTip,
+    KeLsEbene,
+    KeLsFertig,
+    KeTkVis,
+    KeTkVisTip,
     Count,
 };
 

@@ -894,6 +894,7 @@ struct Editor {
         std::string zielOrdner;            // Abweichung: Ziel-Ordner ("BuildTargetFolder"), leer = neben der .map
         bool melden = true;                // Stufe 8a: Taskleiste blinkt, wenn ein Bau fertig ist ("BhedBuildNotify")
         bool editorDaten = false;          // Stufe 8a: -keeplights und <karte>.bhed ("BhedKeepEditorData"), Vorgabe aus wie NRC
+        bool visWieder = false;            // Stufe 8a Punkt 5a: -bhedvisreuse fuer -vis ("BhedVisReuse")
     } bau;
     // Stufe 8a Punkt 3/4: was "Open .bsp" zurueckgewinnt (eigene Funktion, nicht in NRC)
     struct BspRueckEinstellungen {
@@ -908,6 +909,7 @@ struct Editor {
         std::size_t dreiecke = 0;
         double maxFehler = 0;
         double sekunden = 0;
+        std::size_t lichter = 0;   // Punkt 4: geschaetzte Lichter
     } bspRueckLetzt;
     // Stufe 8a Punkt 1: Fortschrittsfenster (zu bis zum naechsten Bau), Restzeit-Text, Meldungen im Selbsttest
     bool bauFortschrittZu = false;
