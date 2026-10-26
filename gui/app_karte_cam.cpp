@@ -37,6 +37,7 @@
 #include "bhed/karte/pinsel.h"
 #include "karte_echtlicht.h"
 #include "karte_gpu.h"
+#include "platform.h"
 #include "tastatur.h"
 
 #include <algorithm>
@@ -635,7 +636,7 @@ void tasteHoch(const TastenEreignis& t) {
 ImVec2 fensterMitte() {
     // FreezePointer::getCenter: rect().center() in logischen Punkten
     const KameraFenster& f = e().kamFenster;
-    const float qt = std::max(1.0F, std::round(g_app->dpiScale));
+    const float qt = qtFaktor();
     const int b = static_cast<int>(std::lround(static_cast<float>(f.breite) / qt));
     const int h = static_cast<int>(std::lround(static_cast<float>(f.hoehe) / qt));
     return ImVec2{f.bildX + (static_cast<float>((b - 1) / 2) * qt), f.bildY + (static_cast<float>((h - 1) / 2) * qt)};
@@ -646,16 +647,9 @@ void freelookBeginnen() {
     KameraFenster& f = ed.kamFenster;
     f.frei = true;
     if (ed.kamera.flagsLoeschen(karte::kBewegAlle)) { f.tastenUhr = -1.0; }
-    static const bool imTest = std::getenv("BHED_EDITORTEST") != nullptr;
-    const ImVec2 m = fensterMitte();
-    if (!imTest) {
-        ImGui::TeleportMousePos(m);   // QCursor::setPos( getCenter() )
-        f.letzteX = m.x;
-        f.letzteY = m.y;
-    } else {
-        f.letzteX = ImGui::GetIO().MousePos.x;
-        f.letzteY = ImGui::GetIO().MousePos.y;
-    }
+    zeigerSetzen(fensterMitte());   // QCursor::setPos( getCenter() )
+    f.restX = 0.0F;
+    f.restY = 0.0F;
 }
 
 // context_menu_show (camwindow.cpp:1097-1102): das Entitaetenmenue der
@@ -686,8 +680,141 @@ void freelookBeenden() {
     if (!f.frei) { return; }
     f.frei = false;
     if (ed.kamera.flagsLoeschen(karte::kBewegAlle)) { f.tastenUhr = -1.0; }
+    zeigerSetzen(fensterMitte());   // unfreeze_pointer( true )
+}
+
+ZeigerSim& zeigerSim() {
+    static ZeigerSim z;
+    return z;
+}
+
+// --- Der Zeiger fuer FreezePointer (Stufe 7 Punkt 6c) ------------------------------
+//
+// Vorher: Delta aus io.MousePos, zurueck mit ImGui::TeleportMousePos. Das setzt
+// den Zeiger erst im naechsten ImGui_ImplWin32_NewFrame, und ImGui verwirft in
+// dem Bild alle Lagen aus der Warteschlange (imgui.cpp UpdateInputEvents: "if
+// (g.IO.WantSetMousePos) continue"). Der Weg zwischen den beiden Bildern ging
+// verloren - jedes zweite Bild, etwa die Haelfte der Drehung, je nach Bildrate
+// mehr oder weniger (Selbsttest: 15 statt 30 Grad bei 30 und 144 fps, 20 bei
+// 500 fps). Das war "terribly low mouse sensitivity"; eine Einstellung war es
+// nicht (die Vorgaben sind NRCs, auch beim ersten Start).
+// Jetzt wie FreezePointer::eventFilter (NRC, Qt): die Lage sofort lesen
+// (GetCursorPos), das Delta zur Mitte, sofort zurueck (SetCursorPos). Was unter
+// einem logischen Qt-Punkt bleibt, wird mitgenommen statt gerundet - so dreht
+// derselbe Mausweg gleich weit, egal in wie vielen Bildern er ankommt.
+
+float qtFaktor() {
+    const float dpi = freelookDpiErsatz > 0.0F ? freelookDpiErsatz : g_app->dpiScale;
+    return std::max(1.0F, std::round(dpi));
+}
+
+namespace {
+
+bool imSelbsttest() {
     static const bool imTest = std::getenv("BHED_EDITORTEST") != nullptr;
-    if (!imTest) { ImGui::TeleportMousePos(fensterMitte()); }   // unfreeze_pointer( true )
+    return imTest;
+}
+
+// Im Selbsttest ohne ZeigerSim: ein Zeiger, der den Lagen der Testmaus folgt
+// (setzeMaus) - die Tests der Stufen 1-6 bewegen die Maus so.
+struct TestZeiger {
+    ImVec2 lage{0.0F, 0.0F};
+    ImVec2 io{0.0F, 0.0F};
+    bool an = false;
+};
+TestZeiger g_testZeiger;
+
+void* hauptfenster() { return ImGui::GetMainViewport()->PlatformHandleRaw; }
+
+}  // namespace
+
+bool zeigerHolen(ImVec2& p) {
+    const ZeigerSim& z = zeigerSim();
+    if (z.an) {
+        p = ImVec2{z.x, z.y};
+        return true;
+    }
+    if (imSelbsttest()) {
+        if (!ImGui::IsMousePosValid()) { return false; }
+        const ImVec2 jetzt = ImGui::GetIO().MousePos;
+        if (!g_testZeiger.an) {
+            g_testZeiger.an = true;
+            g_testZeiger.lage = jetzt;
+            g_testZeiger.io = jetzt;
+        }
+        g_testZeiger.lage = ImVec2{g_testZeiger.lage.x + jetzt.x - g_testZeiger.io.x, g_testZeiger.lage.y + jetzt.y - g_testZeiger.io.y};
+        g_testZeiger.io = jetzt;
+        p = g_testZeiger.lage;
+        return true;
+    }
+    int x = 0;
+    int y = 0;
+    if (!platform::zeigerImFenster(hauptfenster(), x, y)) { return false; }
+    p = ImVec2{static_cast<float>(x), static_cast<float>(y)};
+    return true;
+}
+
+void zeigerSetzen(ImVec2 p) {
+    ZeigerSim& z = zeigerSim();
+    if (z.an) {
+        z.x = std::floor(p.x);
+        z.y = std::floor(p.y);
+        ++z.gesetzt;
+        return;
+    }
+    if (imSelbsttest()) {   // der echte Zeiger des Anwenders bleibt
+        g_testZeiger.an = true;
+        g_testZeiger.lage = p;
+        g_testZeiger.io = ImGui::GetIO().MousePos;
+        return;
+    }
+    (void)platform::zeigerImFensterSetzen(hauptfenster(), static_cast<int>(std::floor(p.x)), static_cast<int>(std::floor(p.y)));
+}
+
+bool zeigerDelta(ImVec2 anker, float qt, float& restX, float& restY, int& dx, int& dy) {
+    dx = 0;
+    dy = 0;
+    ImVec2 p;
+    if (!zeigerHolen(p)) { return false; }
+    const float ddx = p.x - anker.x;
+    const float ddy = p.y - anker.y;
+    if (ddx == 0.0F && ddy == 0.0F) { return false; }
+    restX += ddx;
+    restY += ddy;
+    dx = static_cast<int>(std::trunc(restX / qt));
+    dy = static_cast<int>(std::trunc(restY / qt));
+    restX -= static_cast<float>(dx) * qt;
+    restY -= static_cast<float>(dy) * qt;
+    zeigerSetzen(anker);
+    return dx != 0 || dy != 0;
+}
+
+// Wie ImGui_ImplWin32_UpdateMouseData: ein io.WantSetMousePos setzt den Zeiger
+// (SetCursorPos, ganze Punkte) vor dem naechsten ImGui::NewFrame - hier den
+// simulierten; der echte Zeiger des Anwenders bleibt, wo er ist.
+void zeigerSimVorBackend() {
+    ZeigerSim& z = zeigerSim();
+    ImGuiIO& io = ImGui::GetIO();
+    if (!z.an || !io.WantSetMousePos) { return; }
+    z.x = std::floor(io.MousePos.x);
+    z.y = std::floor(io.MousePos.y);
+    ++z.gesetzt;
+    z.setzenOffen = true;
+    io.WantSetMousePos = false;
+}
+
+// WM_MOUSEMOVE der Nachrichtenschleife: die Lage des simulierten Zeigers. Ein
+// eben abgefangenes WantSetMousePos gilt fuer ImGui::NewFrame weiter (ImGui
+// verwirft dann die Lagen aus der Warteschlange, imgui.cpp UpdateInputEvents).
+void zeigerSimVorBild() {
+    ZeigerSim& z = zeigerSim();
+    if (!z.an) { return; }
+    ImGuiIO& io = ImGui::GetIO();
+    if (z.setzenOffen) {
+        io.WantSetMousePos = true;
+        z.setzenOffen = false;
+    }
+    io.AddMousePosEvent(z.x, z.y);
 }
 
 bool tastenEreignisNachgebaut(const std::string& name) {
@@ -900,7 +1027,6 @@ void kameraZeichnen() {
     karte::Kamera& k = ed.kamera;
     const karte::KameraEinstellungen& c = ed.kameraE;
     KameraFenster& f = ed.kamFenster;
-    static const bool imTest = std::getenv("BHED_EDITORTEST") != nullptr;
     const auto beginn = std::chrono::steady_clock::now();
     const ImVec2 o = ImGui::GetWindowPos();
     const ImVec2 groesse = ImGui::GetWindowSize();
@@ -1565,7 +1691,7 @@ void kameraZeichnen() {
     // Fokus verloren: der Freelook endet (FreezePointer: FocusOut)
     if (f.frei && (io.AppFocusLost || !aktiv())) { freelookBeenden(); }
     // Fensterpunkte der Maus; im Freelook die Mitte (windowvector_for_widget_centre)
-    const int dpr = std::max(1, static_cast<int>(std::lround(g_app->dpiScale)));   // QRect::center in logischen Punkten
+    const int dpr = static_cast<int>(qtFaktor());   // QRect::center in logischen Punkten
     const float mausX = f.frei ? static_cast<float>(((f.breite / dpr - 1) / 2) * dpr) : io.MousePos.x - o.x;
     const float mausY = f.frei ? static_cast<float>(((f.hoehe / dpr - 1) / 2) * dpr) : io.MousePos.y - o.y;
     karte::Zusatz zusatz;   // modifiers_for_state
@@ -1629,33 +1755,23 @@ void kameraZeichnen() {
     if (f.frei) {
         ImGui::SetMouseCursor(ImGuiMouseCursor_None);   // BlankCursor
         // FreezePointer: ganzzahlige Deltas in logischen Qt-Punkten,
-        // DeferredMotionDelta2 sammelt sie je Durchlauf.
-        const float qt = std::max(1.0F, std::round(g_app->dpiScale));
-        if (ImGui::IsMousePosValid()) {
-            const int dx = static_cast<int>(std::lround((io.MousePos.x - f.letzteX) / qt));
-            const int dy = static_cast<int>(std::lround((io.MousePos.y - f.letzteY) / qt));
-            if (dx != 0 || dy != 0) {
-                k.strafeAusMaus(io.KeyAlt, io.KeyCtrl, io.KeyShift, ImGui::IsMouseDown(ImGuiMouseButton_Left),
-                                ImGui::IsMouseDown(ImGuiMouseButton_Right), c.strafeModus);
-                k.mausBewegen(dx, dy, c);
-                f.rechtsWeg += std::sqrt(static_cast<double>((dx * dx) + (dy * dy)));   // selection_motion_freemove
-                {   // incMouseMove + onMouseMotion( Mitte )
-                    FensterBeobachter& fb = ed.beobachter[3];
-                    // NRC: logische Deltas, Geraete-Breite
-                    const karte::GeraeteVektor d(static_cast<float>(dx) * 2.F / static_cast<float>(fb.breite),
-                                                 static_cast<float>(dy) * 2.F / static_cast<float>(fb.hoehe));
-                    fb.bewegEnde = fb.bewegEnde - d;
-                    if (fb.mausUnten) { fb.bewegStart = fb.bewegStart - d; }
-                    beobachterBewegung(3, mausX, mausY);
-                }
-                f.letzteX += static_cast<float>(dx) * qt;
-                f.letzteY += static_cast<float>(dy) * qt;
-                if (!imTest) {
-                    const ImVec2 m = fensterMitte();
-                    ImGui::TeleportMousePos(m);
-                    f.letzteX = m.x;
-                    f.letzteY = m.y;
-                }
+        // DeferredMotionDelta2 sammelt sie je Durchlauf (zeigerDelta: sofort
+        // gelesen und zurueckgesetzt, Stufe 7 Punkt 6c).
+        int dx = 0;
+        int dy = 0;
+        if (zeigerDelta(fensterMitte(), qtFaktor(), f.restX, f.restY, dx, dy)) {
+            k.strafeAusMaus(io.KeyAlt, io.KeyCtrl, io.KeyShift, ImGui::IsMouseDown(ImGuiMouseButton_Left),
+                            ImGui::IsMouseDown(ImGuiMouseButton_Right), c.strafeModus);
+            k.mausBewegen(dx, dy, c);
+            f.rechtsWeg += std::sqrt(static_cast<double>((dx * dx) + (dy * dy)));   // selection_motion_freemove
+            {   // incMouseMove + onMouseMotion( Mitte )
+                FensterBeobachter& fb = ed.beobachter[3];
+                // NRC: logische Deltas, Geraete-Breite
+                const karte::GeraeteVektor d(static_cast<float>(dx) * 2.F / static_cast<float>(fb.breite),
+                                             static_cast<float>(dy) * 2.F / static_cast<float>(fb.hoehe));
+                fb.bewegEnde = fb.bewegEnde - d;
+                if (fb.mausUnten) { fb.bewegStart = fb.bewegStart - d; }
+                beobachterBewegung(3, mausX, mausY);
             }
         }
     }

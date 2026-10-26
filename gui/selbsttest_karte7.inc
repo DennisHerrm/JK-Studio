@@ -937,6 +937,233 @@ std::vector<Schritt> menue() {
     return s;
 }
 
+// --- Punkt 6c: Mausempfindlichkeit im Freelook (Tester: "terribly low mouse
+// sensitivity ... changed to normal after changing to dark or something",
+// erster Start ohne Einstellungsdatei). Der Zeiger wird simuliert (ZeigerSim,
+// die Hauptschleife spielt Windows), keine echte Maus, keine Fotos. ---------
+
+// NRC 20260114: die Vorgaben, die Maus und Ansichten betreffen (Quelle: Datei:Zeile)
+struct NrcVorgabe {
+    const char* schluessel;
+    const char* wert;
+    const char* quelle;
+};
+const NrcVorgabe kNrcVorgaben[] = {
+    {"CamMoveSpeed", "500", "camwindow.cpp:151 m_nMoveSpeed = 500"},
+    {"CamMoveTimeToMaxSpeed", "200", "camwindow.cpp:152 m_time_toMaxSpeed = 200"},
+    {"ScrollMoveSpeed", "100", "camwindow.cpp:153 m_nScrollMoveSpeed = 100"},
+    {"3DZoomInToPointer", "1", "camwindow.cpp:154 m_bZoomToPointer = true"},
+    {"CamStrafeSpeed", "1", "camwindow.cpp:155 m_strafeSpeed = 1"},
+    {"Sensitivity", "3", "camwindow.cpp:156 m_angleSpeed = 3"},
+    {"CamInverseMouse", "0", "camwindow.cpp:157 m_bCamInverseMouse = false"},
+    {"CamDiscrete", "1", "camwindow.cpp:158 m_bCamDiscrete = true"},
+    {"CubicClipping", "0", "camwindow.cpp:159 m_bCubicClipping = false"},
+    {"StrafeMode", "3", "camwindow.cpp:160 m_strafeMode = 3"},
+    {"CameraFaceWire", "1", "camwindow.cpp:161 m_bFaceWire = true"},
+    {"CameraFaceFill", "1", "camwindow.cpp:162 m_bFaceFill = true"},
+    {"CameraMSAA", "8", "camwindow.cpp:163 m_MSAA = 8"},
+    {"fieldOfView", "100", "camwindow.cpp:265 camera_t::fieldOfView = 100.0f"},
+    {"CubicScale", "14", "camwindow.cpp m_nCubicScale = 14"},
+    {"2DZoomInToPointer", "1", "xywindow.cpp g_xywindow_globals.m_bZoomInToPointer = true"},
+    {"ChaseMouse", "1", "xywindow.cpp g_xywindow_globals_private.m_bChaseMouse = true"},
+    {"XYMSAA", "8", "xywindow.cpp g_xywindow_globals.m_MSAA = 8"},
+};
+
+std::map<std::string, std::string>& einstellungenSicher7() {
+    static std::map<std::string, std::string> m;
+    return m;
+}
+
+// Freelook ein: M2 kurz in der Kameramitte (der simulierte Zeiger steht dort)
+Schritt freelookUmschalten7(const std::string& was) {
+    return {was, [](int b) {
+                ImGuiIO& io = ImGui::GetIO();
+                ke::ZeigerSim& z = ke::zeigerSim();
+                const ke::KameraFenster& f = ke::editor().kamFenster;
+                if (b == 0 && !f.frei) {
+                    z.x = std::floor(f.bildX + static_cast<float>(f.breite) * 0.5F);
+                    z.y = std::floor(f.bildY + static_cast<float>(f.hoehe) * 0.5F);
+                }
+                if (b == 2) { io.AddMouseButtonEvent(ImGuiMouseButton_Right, true); }
+                if (b == 3) { io.AddMouseButtonEvent(ImGuiMouseButton_Right, false); }
+                return b >= 6;
+            }};
+}
+
+// Die Maus um weg Bildpunkte nach rechts, gleichmaessig ueber bilder Bilder
+// (bilder = Bildrate bei einer Sekunde Mausweg); Windows meldet ganze Punkte.
+Schritt mausWeg7(const std::string& was, int weg, int bilder) {
+    return {was, [weg, bilder](int b) {
+                ke::ZeigerSim& z = ke::zeigerSim();
+                if (b >= 1 && b <= bilder) {
+                    const int vorher = (weg * (b - 1)) / bilder;
+                    const int jetzt = (weg * b) / bilder;
+                    z.x += static_cast<float>(jetzt - vorher);
+                }
+                return b >= bilder + 6;
+            }};
+}
+
+std::vector<Schritt> maus() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    // Erster Start gegen gespeicherte Werte: jede Einstellung des Karten-Editors
+    add(tu("Stufe 7/6c: Einstellungen merken, dann wie beim ersten Start (keine gespeicherten Werte)", [] {
+        ke::einstellungenSpeichern();
+        einstellungenSicher7() = g_app->settings.karte;
+    }));
+    add(pruefe("Stufe 7/6c: erster Start - die Kamera vor dem Laden (KameraEinstellungen{}) = nach dem Laden ohne Datei = NRC", [] {
+        g_app->settings.karte.clear();
+        const karte::KameraEinstellungen vorLaden{};
+        ke::einstellungenLaden();
+        const karte::KameraEinstellungen& c = ke::editor().kameraE;
+        const bool gleich = c.tempo == vorLaden.tempo && c.zeitBisMax == vorLaden.zeitBisMax && c.radTempo == vorLaden.radTempo &&
+                            c.zumZeiger == vorLaden.zumZeiger && c.strafeTempo == vorLaden.strafeTempo && c.winkelTempo == vorLaden.winkelTempo &&
+                            c.mausUmkehren == vorLaden.mausUmkehren && c.diskret == vorLaden.diskret && c.kubisch == vorLaden.kubisch &&
+                            c.strafeModus == vorLaden.strafeModus && c.flaechenDraht == vorLaden.flaechenDraht && c.faerben == vorLaden.faerben &&
+                            c.msaa == vorLaden.msaa && c.kubikSkala == vorLaden.kubikSkala && c.sichtfeld == vorLaden.sichtfeld;
+        diag::detail("Knopftest: Stufe 7/6c - erster Start: Sensitivity " + std::to_string(c.winkelTempo) + ", Tempo " + std::to_string(c.tempo) +
+                     ", Strafe " + std::to_string(c.strafeTempo) + (gleich ? " (gleich vor/nach dem Laden)" : " (VERSCHIEDEN vor/nach dem Laden)"));
+        return gleich && c.winkelTempo == 3.0F && c.tempo == 500;
+    }));
+    add(pruefe("Stufe 7/6c: erster Start - die gespeicherten Vorgaben wie NRC 20260114 (Kamera, 2D)", [] {
+        ke::einstellungenSpeichern();
+        std::string abweichung;
+        for (const NrcVorgabe& v : kNrcVorgaben) {
+            const auto it = g_app->settings.karte.find(v.schluessel);
+            const std::string ist = it != g_app->settings.karte.end() ? it->second : std::string("(fehlt)");
+            if (ist != v.wert) { abweichung += std::string(" ") + v.schluessel + "=" + ist + " (NRC " + v.wert + ", " + v.quelle + ")"; }
+        }
+        diag::detail("Knopftest: Stufe 7/6c - " + std::to_string(std::size(kNrcVorgaben)) + " NRC-Vorgaben, Abweichungen:" +
+                     (abweichung.empty() ? std::string(" keine") : abweichung));
+        return abweichung.empty();
+    }));
+    add(pruefe("Stufe 7/6c: jede Einstellung - erster Start gespeichert, wieder geladen und gespeichert: dieselben Werte", [] {
+        const std::map<std::string, std::string> frisch = g_app->settings.karte;
+        ke::einstellungenLaden();
+        ke::einstellungenSpeichern();
+        std::string abweichung;
+        int n = 0;
+        for (const auto& [k, v] : frisch) {
+            ++n;
+            const auto it = g_app->settings.karte.find(k);
+            if (it == g_app->settings.karte.end() || it->second != v) {
+                abweichung += " " + k + "=" + v + "->" + (it == g_app->settings.karte.end() ? std::string("(fehlt)") : it->second);
+            }
+        }
+        diag::detail("Knopftest: Stufe 7/6c - " + std::to_string(n) + " Einstellungen, Abweichungen:" + (abweichung.empty() ? std::string(" keine") : abweichung));
+        return abweichung.empty() && n > 50;
+    }));
+    add(tu("Stufe 7/6c: gespeicherte Einstellungen zurueck", [] {
+        g_app->settings.karte = einstellungenSicher7();
+        ke::einstellungenLaden();
+    }));
+    // Freelook: dieselbe Drehung je Mausweg bei jeder Bildrate, vor und nach
+    // einem Farbschemawechsel und bei 100 / 125 / 150 % Windows-Skalierung
+    add(tu("Stufe 7/6c: Testkarte, Anordnung Regular, Kamera wie NRC, simulierter Zeiger an", [] {
+        karteDialogeZu();
+        ke::Editor& e = ke::editor();
+        e.anordnung = karte::befehle::Anordnung::Regular;
+        e.teilerFuer = -1;
+        e.kameraE = karte::KameraEinstellungen{};
+        ke::zeigerSim().an = true;
+    }));
+    add(pause(0.4));
+    auto yaw = std::make_shared<float>(0.0F);
+    struct Fall {
+        int fps;
+        float dpi;
+        const char* farbe;
+    };
+    const Fall faelle[] = {{30, 1.0F, "dark"},  {144, 1.0F, "dark"},  {500, 1.0F, "dark"},  {30, 1.0F, "light"}, {144, 1.0F, "light"},
+                           {500, 1.0F, "light"}, {144, 1.25F, "light"}, {500, 1.25F, "light"}, {30, 1.5F, "light"}, {500, 1.5F, "light"}};
+    const char* farbeVorher = "";
+    for (const Fall& fa : faelle) {
+        if (std::strcmp(farbeVorher, fa.farbe) != 0) {
+            const char* farbe = fa.farbe;
+            add(tu(std::string("Stufe 7/6c: Farbschema ") + farbe, [farbe] {
+                g_app->activeTheme = theme::findTheme(farbe);
+                g_app->themePending = true;
+            }));
+            add(pause(0.3));
+            farbeVorher = fa.farbe;
+        }
+        char name[160];
+        std::snprintf(name, sizeof(name), "%d fps, Windows %d %%, %s", fa.fps, static_cast<int>(std::lround(fa.dpi * 100.0F)), fa.farbe);
+        const std::string n = name;
+        const float dpi = fa.dpi;
+        add(tu("Stufe 7/6c: " + n + " - Massstab, Kamera merken", [dpi, yaw] {
+            ke::freelookDpiErsatz = dpi;
+            *yaw = ke::editor().kamera.winkel[1];
+        }));
+        add(freelookUmschalten7("Stufe 7/6c: M2 kurz - Freelook an (" + n + ")"));
+        add(pruefe("Stufe 7/6c: Freelook an (" + n + ")", [] { return ke::editor().kamFenster.frei; }));
+        add(mausWeg7("Stufe 7/6c: Maus 300 Bildpunkte nach rechts in einer Sekunde (" + n + ")", 300, fa.fps));
+        add(pruefe("Stufe 7/6c: " + n + " - Drehung = 300 / Qt-Massstab x 0,0333333 x Sensitivity 3 (wie NRC)", [yaw, n, dpi] {
+            const float qt = std::max(1.0F, std::round(dpi));
+            const float soll = (300.0F / qt) * 0.0333333F * 3.0F;
+            float ist = *yaw - ke::editor().kamera.winkel[1];
+            if (ist < 0.0F) { ist += 360.0F; }
+            char z[220];
+            std::snprintf(z, sizeof(z), "Knopftest: Stufe 7/6c - %s: Drehung %.4f Grad (soll %.4f), Zeiger %d-mal gesetzt", n.c_str(), static_cast<double>(ist),
+                          static_cast<double>(soll), ke::zeigerSim().gesetzt);
+            diag::detail(z);
+            return std::fabs(ist - soll) < 0.01F;
+        }));
+        add(pause(0.3));   // nicht als Doppel-M2 (context_menu_show)
+        add(freelookUmschalten7("Stufe 7/6c: M2 kurz - Freelook aus (" + n + ")"));
+        add(pruefe("Stufe 7/6c: Freelook aus (" + n + ")", [] { return !ke::editor().kamFenster.frei; }));
+        add(pause(0.3));
+    }
+    // 2D: M2 ziehen verschiebt die XY-Ansicht (Move_Begin, FreezePointer) - derselbe Weg
+    for (const int fps : {30, 500}) {
+        const std::string n = std::to_string(fps) + " fps";
+        auto vorher = std::make_shared<float>(0.0F);
+        add(tu("Stufe 7/6c: XY verschieben " + n + " - Lage merken", [vorher] {
+            ke::freelookDpiErsatz = 1.0F;
+            *vorher = ke::editor().xy[0].ansicht.ursprung[0];
+        }));
+        add({"Stufe 7/6c: M2 in der XY-Ansicht halten, 300 Bildpunkte nach rechts (" + n + ")", [fps](int b) {
+                 ImGuiIO& io = ImGui::GetIO();
+                 ke::ZeigerSim& z = ke::zeigerSim();
+                 if (b == 0) {
+                     const ke::Editor::RahmenImBild* r = rahmen7("XY");
+                     if (r != nullptr) {
+                         z.x = std::floor((r->x0 + r->x1) * 0.5F);
+                         z.y = std::floor((r->y0 + r->y1) * 0.5F);
+                     }
+                 }
+                 if (b == 2) { io.AddMouseButtonEvent(ImGuiMouseButton_Right, true); }
+                 if (b >= 4 && b < 4 + fps) {
+                     const int k = b - 3;
+                     z.x += static_cast<float>((300 * k) / fps - (300 * (k - 1)) / fps);
+                 }
+                 if (b == fps + 8) { io.AddMouseButtonEvent(ImGuiMouseButton_Right, false); }
+                 return b >= fps + 12;
+             }});
+        add(pruefe("Stufe 7/6c: XY verschieben " + n + " - um 300 / Massstab nach links (wie NRC)", [vorher, n] {
+            const karte::XyAnsicht& v = ke::editor().xy[0].ansicht;
+            const float soll = -300.0F / v.massstab;
+            const float ist = v.ursprung[0] - *vorher;
+            char z[200];
+            std::snprintf(z, sizeof(z), "Knopftest: Stufe 7/6c - XY verschieben %s: %.3f Einheiten (soll %.3f)", n.c_str(), static_cast<double>(ist),
+                          static_cast<double>(soll));
+            diag::detail(z);
+            return std::fabs(ist - soll) < 0.01F;
+        }));
+        add(tu("Menues zu", [] { karteDialogeZu(); }));
+        add(pause(0.3));
+    }
+    add(tu("Stufe 7/6c: simulierter Zeiger aus, Massstab und Farbschema zurueck", [] {
+        ke::zeigerSim().an = false;
+        ke::freelookDpiErsatz = 0.0F;
+        g_app->activeTheme = theme::findTheme("dark");
+        g_app->themePending = true;
+    }));
+    add(pause(0.3));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     const char* nur = std::getenv("BHED_STUFE7_NUR");
@@ -948,6 +1175,7 @@ std::vector<Schritt> schritte() {
     if (teil("backen")) { dazu(backen()); }
     if (teil("gross")) { dazu(gross()); }
     if (teil("menue")) { dazu(menue()); }
+    if (teil("maus")) { dazu(maus()); }
     return s;
 }
 

@@ -42908,10 +42908,17 @@ Ablauf g_ablauf;
 }  // namespace
 
 void selbsttestVorBild() {
+    if (karteneditor::zeigerSim().an) {   // Stufe 7 Punkt 6c: der simulierte Zeiger (wie Windows)
+        karteneditor::zeigerSimVorBild();
+        g_maus = ImVec2{karteneditor::zeigerSim().x, karteneditor::zeigerSim().y};
+        return;
+    }
     if (g_mausAn) {
         ImGui::GetIO().AddMousePosEvent(g_maus.x, g_maus.y);
     }
 }
+
+void selbsttestVorBackend() { karteneditor::zeigerSimVorBackend(); }
 
 void selbsttest() {
     static const char* const modus = std::getenv("BHED_EDITORTEST");

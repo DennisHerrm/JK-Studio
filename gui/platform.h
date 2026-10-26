@@ -117,6 +117,11 @@ std::uintptr_t starteProgramm(const std::string& exe, const std::string& argumen
 // eines Bildschirmpunkts (QScreen::grabWindow( desktop, x, y, 1, 1 )) - nur
 // auf Knopfdruck des Anwenders, nie im Selbsttest.
 bool zeigerLage(int& x, int& y);
+// Stufe 7 Punkt 6c: der Zeiger in Fensterpunkten des Fensters fenster (HWND
+// als void*; GetCursorPos + ScreenToClient) und dorthin setzen (ClientToScreen
+// + SetCursorPos) - beides sofort, fuer den Freelook der Kamera (FreezePointer).
+bool zeigerImFenster(void* fenster, int& x, int& y);
+bool zeigerImFensterSetzen(void* fenster, int x, int y);
 bool bildschirmFarbe(int x, int y, unsigned char rgb[3]);
 
 // --- Karten-Editor, Textmasse wie Qt 5 (QWindowsFontEngine, GDI) ---------

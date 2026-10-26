@@ -320,8 +320,8 @@ struct XyFenster {
     int zoomX = 0;               // g_zoom2x
     int zoomY = 0;
     int dragZoom = 0;            // g_dragZoom
-    float letzteX = 0;           // FreezePointer: letzte Mauslage (Bildpunkte)
-    float letzteY = 0;
+    float restX = 0;             // FreezePointer: Rest unter einem logischen Punkt (Bildpunkte, Stufe 7 Punkt 6c)
+    float restY = 0;
     float ankerX = 0;            // FreezePointer: Lage beim Festhalten
     float ankerY = 0;
     unsigned tasten = 0;         // m_buttonstate (RAD_*)
@@ -364,14 +364,43 @@ struct KameraFenster {
     float bildY = 0;
     int breite = 0;                 // Geraetepunkte
     int hoehe = 0;
-    float letzteX = 0;              // Freelook: Lage des Zeigers nach dem Zuruecksetzen
-    float letzteY = 0;
+    float restX = 0;                // Freelook: Rest unter einem logischen Punkt (Bildpunkte, Stufe 7 Punkt 6c)
+    float restY = 0;
     std::vector<int> tasten;        // PressedKeys::keys (ImGuiKey)
     bool kontextmenue = false;      // context_menu_show (Doppel-M2) - fuer den Selbsttest
     double zeichenMs = 0.0;         // ShowStats: msec des letzten Bilds
     double letzteStatistik = -1.0;  // m_render_time (f2f)
     std::size_t bilder = 0;         // fuer den Selbsttest: gezeichnete Bilder der Kamera
 };
+// Stufe 7 Punkt 6c (Tester: "terribly low mouse sensitivity" im 3D-Fenster):
+// der Mauszeiger, den der Freelook liest und zuruecksetzt. Im Programm ist es
+// der von Windows (sofort: GetCursorPos / SetCursorPos); im Selbsttest
+// bewegt ihn der Test (an = true) wie eine echte Maus, und die Hauptschleife
+// spielt dazu Windows: WM_MOUSEMOVE als AddMousePosEvent, ein io.WantSetMousePos
+// setzt den simulierten Zeiger erst vor dem naechsten Bild (wie
+// ImGui_ImplWin32_NewFrame) - der echte Zeiger bleibt dabei unberuehrt.
+struct ZeigerSim {
+    bool an = false;
+    float x = 0;            // Lage im Programmfenster (Bildpunkte, ganzzahlig wie Windows)
+    float y = 0;
+    bool setzenOffen = false;   // io.WantSetMousePos vor dem Backend abgefangen
+    int gesetzt = 0;            // so oft gesetzt (SetCursorPos)
+};
+ZeigerSim& zeigerSim();
+// Fuer den Selbsttest: fester Bildschirmmassstab des Freelooks (0 = der von Windows)
+inline float freelookDpiErsatz = 0.0F;
+// FreezePointer (Kamera-Freelook, 2D verschieben / zoomen): Qts devicePixelRatio
+// (Rundung Round: 150 % -> 2), den Zeiger lesen und setzen (Fensterpunkte, sofort),
+// und das Delta zum Anker in logischen Punkten - der Zeiger geht zum Anker
+// zurueck, der Rest unter einem Punkt bleibt in restX/restY.
+[[nodiscard]] float qtFaktor();
+bool zeigerHolen(ImVec2& p);
+void zeigerSetzen(ImVec2 p);
+bool zeigerDelta(ImVec2 anker, float qt, float& restX, float& restY, int& dx, int& dy);
+// Die Hauptschleife im Selbsttest: vor ImGui_ImplWin32_NewFrame bzw. davor ImGui::NewFrame
+void zeigerSimVorBackend();
+void zeigerSimVorBild();
+
 // RadiantWindowObserver (selection.cpp:2640-2800) einer Ansicht mit Selector_
 // und Manipulator_ (selection.cpp:2482-2638): 0..2 die 2D-Ansichten, 3 die Kamera.
 struct FensterBeobachter {

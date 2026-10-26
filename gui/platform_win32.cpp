@@ -555,6 +555,20 @@ bool zeigerLage(int& x, int& y) {
     return true;
 }
 
+bool zeigerImFenster(void* fenster, int& x, int& y) {
+    POINT p{};
+    if (fenster == nullptr || GetCursorPos(&p) == 0 || ScreenToClient(static_cast<HWND>(fenster), &p) == 0) { return false; }
+    x = p.x;
+    y = p.y;
+    return true;
+}
+
+bool zeigerImFensterSetzen(void* fenster, int x, int y) {
+    POINT p{x, y};
+    if (fenster == nullptr || ClientToScreen(static_cast<HWND>(fenster), &p) == 0) { return false; }
+    return SetCursorPos(p.x, p.y) != 0;
+}
+
 int gdiTextBreite(const std::string& utf8, const wchar_t* schrift, int pixel, bool fett) {
     static HDC dc = CreateCompatibleDC(nullptr);
     struct Eintrag {

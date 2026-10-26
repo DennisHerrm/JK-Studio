@@ -512,7 +512,6 @@ void xyZeichnen(int index) {
     Editor& ed = e();
     XyFenster& f = ed.xy[static_cast<std::size_t>(index)];
     karte::XyAnsicht& v = f.ansicht;
-    static const bool imTest = std::getenv("BHED_EDITORTEST") != nullptr;
     const ImVec2 o = ImGui::GetWindowPos();
     const ImVec2 groesse = ImGui::GetWindowSize();
     f.bildX = o.x;
@@ -807,7 +806,7 @@ void xyZeichnen(int index) {
     const bool bewegt = io.MouseDelta.x != 0.0F || io.MouseDelta.y != 0.0F;   // mouseMoveEvent
     // Qt liefert die Pan-Deltas in logischen Punkten (cursor.h), Klicks in
     // Geraetepunkten.
-    const float qt = std::max(1.0F, std::round(g_app->dpiScale));
+    const float qt = qtFaktor();
     // Mausrad: ein Zoomschritt je Ereignis, macht die Ansicht aktiv.
     if (ueber) {
         for (const int r : radEreignisse()) {
@@ -841,10 +840,11 @@ void xyZeichnen(int index) {
             }
             if (t == kRechts) {   // Move_Begin: FreezePointer
                 f.verschieben = true;
-                f.ankerX = io.MousePos.x;
-                f.ankerY = io.MousePos.y;
-                f.letzteX = io.MousePos.x;
-                f.letzteY = io.MousePos.y;
+                f.ankerX = std::floor(io.MousePos.x);
+                f.ankerY = std::floor(io.MousePos.y);
+                f.restX = 0.0F;
+                f.restY = 0.0F;
+                zeigerSetzen(ImVec2{f.ankerX, f.ankerY});
                 f.entitaetErzeugen = true;   // EntityCreate_MouseDown
                 f.erzeugX = mx;
                 f.erzeugY = my;
@@ -853,10 +853,11 @@ void xyZeichnen(int index) {
                 f.dragZoom = 0;
                 f.zoomX = mx;
                 f.zoomY = my;
-                f.ankerX = io.MousePos.x;
-                f.ankerY = io.MousePos.y;
-                f.letzteX = io.MousePos.x;
-                f.letzteY = io.MousePos.y;
+                f.ankerX = std::floor(io.MousePos.x);
+                f.ankerY = std::floor(io.MousePos.y);
+                f.restX = 0.0F;
+                f.restY = 0.0F;
+                zeigerSetzen(ImVec2{f.ankerX, f.ankerY});
             } else if (t == kLinks && ed.bearbeitung.neuerPinselMoeglich()) {   // NewBrushDrag_Begin
                 ed.bearbeitung.neuerPinselBeginnen(v, mx, my);
             } else if (t == (kControl | kMitte)) {   // XYWnd_PositionCamera
@@ -873,12 +874,11 @@ void xyZeichnen(int index) {
     if (f.gedrueckt) {
         // Bewegung waehrend des Drucks
         if (f.verschieben || f.zoomen) {
-            const bool gueltig = ImGui::IsMousePosValid();
-            const float dx = gueltig ? (io.MousePos.x - f.letzteX) / qt : 0.0F;
-            const float dy = gueltig ? (io.MousePos.y - f.letzteY) / qt : 0.0F;
-            const int ix = static_cast<int>(std::lround(dx));
-            const int iy = static_cast<int>(std::lround(dy));
-            if (ix != 0 || iy != 0) {
+            // FreezePointer wie im Kamera-Freelook (zeigerDelta, Stufe 7 Punkt 6c):
+            // sofort gelesen und zum Anker zurueck, der Rest bleibt
+            int ix = 0;
+            int iy = 0;
+            if (zeigerDelta(ImVec2{f.ankerX, f.ankerY}, qt, f.restX, f.restY, ix, iy)) {
                 if (f.verschieben) {
                     // EntityCreate_MouseMove( x, y ) mit den Deltas des FreezePointer
                     if (f.entitaetErzeugen && (f.erzeugX != ix || f.erzeugY != iy)) { f.entitaetErzeugen = false; }
@@ -895,14 +895,6 @@ void xyZeichnen(int index) {
                             f.dragZoom += schwelle;
                         }
                     }
-                }
-                f.letzteX += static_cast<float>(ix) * qt;
-                f.letzteY += static_cast<float>(iy) * qt;
-                if (!imTest) {
-                    // Zeiger zurueck an die Ausgangslage (freeze_pointer)
-                    ImGui::TeleportMousePos(ImVec2{f.ankerX, f.ankerY});
-                    f.letzteX = f.ankerX;
-                    f.letzteY = f.ankerY;
                 }
             }
             ImGui::SetMouseCursor(ImGuiMouseCursor_None);   // BlankCursor
@@ -978,7 +970,7 @@ void xyZeichnen(int index) {
                 f.pluginDruck = false;
             } else if (f.verschieben) {
                 f.verschieben = false;
-                if (!imTest) { ImGui::TeleportMousePos(ImVec2{f.ankerX, f.ankerY}); }   // unfreeze_pointer( false )
+                zeigerSetzen(ImVec2{f.ankerX, f.ankerY});   // unfreeze_pointer( false )
                 if (f.entitaetErzeugen) {   // EntityCreate_MouseUp: OnContextMenu
                     f.entitaetErzeugen = false;
                     entitaetenMenueOeffnen(false);

@@ -66,6 +66,7 @@ bool darfRuhen();
 void grafikNeuAufgebaut();
 bool confirmQuit();
 void selbsttestVorBild();
+void selbsttestVorBackend();
 std::string windowTitle();
 // Schreibt Geraet, Zustaende, Zaehler, Zeiten und die Meldungen der
 // Debugschicht ins Protokoll. Ohne Zutun - beim Beenden und beim Absturz.
@@ -788,6 +789,8 @@ bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app)
         bhed::gui::setDpiScale(app, static_cast<float>(windowDpi(hwnd)) / 96.0F);
 
         bhed::render::newFrame();
+        // Nur im Selbsttest wirksam: der simulierte Zeiger statt des echten (Stufe 7 Punkt 6c).
+        bhed::gui::selbsttestVorBackend();
         ImGui_ImplWin32_NewFrame();
         // Nur im Selbsttest wirksam: die simulierte Maus nach der echten.
         bhed::gui::selbsttestVorBild();
