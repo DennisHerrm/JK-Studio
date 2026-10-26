@@ -312,6 +312,9 @@ _EDITOR_HB = [
     ('Vorschau: Bild Flug Mittel', ('Preview: frame time, free flight (mean)', 'Vorschau: Bildzeit Flug (Mittel)', '预览:自由飞行帧时间(平均)', 'プレビュー:フリーフライトのフレーム時間(平均)')),
 ]
 
+# im Handbuch nur die grossen Karten (die kleinen liegen alle unter 0,1 s)
+_EDITOR_KARTEN = ('duel_mos_espa', 'md_am_sith', 'kejim_post')
+
 _STUFE_HB = {'1': ('(1 thread)', '(1 Thread)', '(1 线程)', '(1 スレッド)'),
              '0': ('(all threads)', '(alle Threads)', '(所有线程)', '(全スレッド)')}
 
@@ -350,6 +353,8 @@ def handbuch(a):
             if not k.startswith(anfang) or k.endswith('Bild danach'):
                 continue
             karte = k[len(anfang):].rstrip(')') if anfang.endswith('(') else ''
+            if karte and karte not in _EDITOR_KARTEN:
+                continue
             zeilen_e.append((namen, karte, ea[k]['median'], en.get(k, {}).get('median')))
     out = ['"""Tempo-Tabellen der Stufe 7 (Messliste vorher/nachher, tools/karte/tempo.py).', '',
            'Erzeugt von tools/karte/tempo.py handbuch; nicht von Hand aendern.', '"""',

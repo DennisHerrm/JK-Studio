@@ -108,6 +108,11 @@ KARTE_TEMPO = {
         ]),
         ("table", _KOPF, tempo7.Q3MAP2),
         ("table", _EDITOR_KOPF, tempo7.EDITOR),
+        ("p", T(
+            "kejim_post \"Textures loaded\" was so fast before only because Stage 6 loaded Jedi Outcast without its folders in this run (0 shaders, every face with the replacement image - the error fixed in Stage 7); now the 1187 shaders and their images are loaded. Steps that were not changed vary by about 20 % from run to run.",
+            "kejim_post „Texturen geladen“ war vorher nur so schnell, weil Stufe 6 Jedi Outcast in diesem Lauf ohne seine Ordner lud (0 Shader, jede Fläche mit dem Ersatzbild - der in Stufe 7 behobene Fehler); jetzt werden die 1187 Shader und ihre Bilder geladen. Nicht geänderte Schritte schwanken von Lauf zu Lauf um etwa 20 %.",
+            "kejim_post 的“纹理加载完成”之前之所以这么快,只是因为第 6 阶段在这次运行中加载 Jedi Outcast 时没有其文件夹(0 个着色器,每个面都是替代图像——第 7 阶段修复的错误);现在会加载 1187 个着色器及其图像。未改动的步骤每次运行的波动约为 20%。",
+            "kejim_post の「テクスチャの読み込み」が以前とても速かったのは、ステージ 6 がこの実行で Jedi Outcast をフォルダーなしで読み込んでいたため(シェーダー 0 個、すべての面が代替画像。ステージ 7 で修正した不具合)です。現在は 1187 個のシェーダーとその画像を読み込みます。変更していない処理は実行ごとに約 20 % 変動します。")),
         ("note", T(
             "Times on the test laptop (32 threads), median of three runs; \"-\" = not measured. Your computer will give other numbers, the ratio stays similar.",
             "Zeiten auf dem Test-Laptop (32 Threads), Median aus drei Läufen; \"-\" = nicht gemessen. Dein Rechner liefert andere Zahlen, das Verhältnis bleibt ähnlich.",
