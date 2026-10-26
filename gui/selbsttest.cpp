@@ -37064,7 +37064,8 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         // File: NRC + "Open .bsp..." 24 (Stufe 4 Punkt 1, Abweichung)
         {"File", {"File"}, 212, 285 + 24},
         {"Edit", {"Edit"}, 356, 549},
-        {"View", {"View"}, 262, 333},
+        // View: NRC + die Programm-Eintraege (Stufe 7 Punkt 6b, Abweichung): Trenner 7 + fuenf Untermenues je 24
+        {"View", {"View"}, 262, 333 + 7 + 5 * 24},
         {"View__Camera", {"View", "Camera"}, 255, 216},
         {"View__Orthographic", {"View", "Orthographic"}, 307, 240},
         {"View__Show", {"View", "Show"}, 253, 401},
@@ -37538,6 +37539,10 @@ std::vector<Schritt> karteneditorSchritte() {
     // eBrushTypeQuake3BP), Seite Brush "New map Brush Type"); die Schritte der Stufe 1
     // setzen Axial Projection voraus - der Test stellt das ein (Punkt 11 prueft die Vorgabe).
     add(pruefe("Vorgabe \"New map Brush Type\": Brush Primitives (Index 1, wie NRC)", [] { return ke::editor().pinselTyp == 1; }));
+    // Stufe 7 Punkt 6b: die Menues zeichnet der Editor jetzt im Stil des Programms
+    // (Vorgabe); die Masse und Fotos der Stufen 1-6 sind NRCs - der Test stellt
+    // "Menus like NetRadiant-Custom" ein (stufe7::menue prueft den Programmstil).
+    add(tu("Testeinstellung: Menus like NetRadiant-Custom", [] { ke::editor().menueNrcStil = true; }));
     add(tu("Testeinstellung: New map Brush Type = Axial Projection", [] {
         ke::editor().pinselTyp = 0;
         if (ke::editor().karte.entitaeten().empty()) { ke::editor().karte.kontext.format = karte::PinselFormat::Quake3; }

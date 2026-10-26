@@ -26,6 +26,14 @@
 // Text der ImGui-Eintraege bleibt unsichtbar (die Beschriftung bleibt fuer
 // den Selbsttest), gezeichnet wird nach Qts Lagen.
 //
+// Stufe 7 Punkt 6b (Abweichung, eigene Einstellung): ohne "Menus like
+// NetRadiant-Custom" (Editor::menueNrcStil, Vorgabe aus) zeichnen dieselben
+// Aufrufe die Menues im Stil des Programms - wie das normale Menue in app.cpp
+// drawMenu (ImGui-Menues mit der Schrift, den Abstaenden und Farben des
+// Programms). Eintraege, Reihenfolge, Untermenues, Haken, Tastenkuerzel,
+// Mnemoniken (die Taste, ohne Unterstrich), Abreisskante und Wirkung bleiben
+// wie NRC; nur das Aussehen ist das des Programms.
+//
 // Portiert aus Qt 5.15 (qtbase: src/widgets/widgets/qmenu.cpp,
 // src/widgets/styles/qfusionstyle.cpp, qcommonstyle.cpp, qstylesheetstyle.cpp),
 // Copyright (C) The Qt Company Ltd., unter der GNU General Public License
@@ -129,6 +137,7 @@ struct Taste {
 struct Menue {
     ImGuiID id = 0;
     bool abriss = true;
+    bool nrc = true;        // wie NRC gezeichnet (sonst Stil des Programms)
     std::vector<Roh> roh;
     int tab = 0;            // tabWidth
     bool symbole = false;   // maxIconWidth = 16 + 4
@@ -152,6 +161,30 @@ ImGuiID g_oeffnen = 0;                   // per Mnemonik geoeffnetes Untermenue 
 ImGuiID g_abrissKlick = 0;               // die Abreisskante dieses Menues wurde geklickt (QMenu::mouseReleaseEvent)
 
 Menue* oben() { return g_stapel.empty() ? nullptr : &g_stapel.back(); }
+
+// Menues wie NRCs QMenu (true) oder im Stil des Programms (false)
+bool nrcStil() { return editor().menueNrcStil; }
+
+// Programmstil: das Fenster eines Menues bekommt oben Platz fuer die
+// Abreisskante (dieselbe Zeichnung wie bei NRC, abrissZeichnen).
+void programmPolsterAn(const Masse& m, bool abriss) {
+    const ImVec2 wp = ImGui::GetStyle().WindowPadding;
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{wp.x, wp.y + (abriss ? m.abriss : 0.0F)});
+}
+
+// Programmstil: Leerzeichen so breit wie ein Symbol (die Symbolspalte von
+// MenuItemEx: icon_w = CalcTextSize(icon).x), das Symbol zeichnet qtPunkt darueber.
+const char* symbolPlatz() {
+    static std::string platz;
+    static float fuer = -1.0F;
+    const float g = ImGui::GetFontSize();
+    if (fuer != g) {
+        fuer = g;
+        platz = " ";
+        while (ImGui::CalcTextSize(platz.c_str()).x < g && platz.size() < 64) { platz += ' '; }
+    }
+    return platz.c_str();
+}
 
 // Der sichtbare Teil einer ImGui-Beschriftung (bis "##").
 std::string sichtbar(const char* id) {
@@ -310,10 +343,11 @@ void menueBeginnen(ImGuiID key, bool abriss, const Masse& m) {
     Menue neu;
     neu.id = key;
     neu.abriss = abriss;
+    neu.nrc = nrcStil();
     g_stapel.push_back(neu);
     // Waagerecht kein Abstand: die Zeile reicht genau von Rand zu Rand (Qt:
     // PM_MenuHMargin 0), senkrecht der Rest der Qt-Zeile ueber dem Text.
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, m.abstand});
+    if (neu.nrc) { ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, m.abstand}); }
     if (abriss) { abrissZeichnen(m, key); }
 }
 
@@ -368,7 +402,7 @@ void menueAbschliessen() {
     if (g_stapel.empty()) { return; }
     const Menue mn = g_stapel.back();
     g_stapel.pop_back();
-    ImGui::PopStyleVar();   // ItemSpacing
+    if (mn.nrc) { ImGui::PopStyleVar(); }   // ItemSpacing
     const Masse m = masse();
     // updateActionRects: sizeFromContents(CT_MenuItem) je Eintrag
     const int maxpmw = mn.symbole ? kSymbol + 4 : 0;
@@ -438,6 +472,22 @@ bool qtMenueAnfang(const char* id, bool aktiv, const char* nrc, bool abriss) {
         ImGui::OpenPopup(id);
         g_oeffnen = 0;
     }
+    if (!nrcStil()) {
+        // Stil des Programms: ein ImGui-Menue wie in app.cpp drawMenu
+        programmPolsterAn(m, abriss);
+        const bool offen = ImGui::BeginMenuEx(id, nullptr, aktiv);
+        ImGui::PopStyleVar();
+        if (!leiste) {
+            if (Menue* eltern = oben()) {
+                const std::string text = sichtbar(id);
+                const int mn = mnemonik(nrc, text);
+                ++eltern->zeilen;
+                if (mn >= 0) { eltern->tasten.push_back({zeichenGross(text[static_cast<std::size_t>(mn)]), ImGui::GetItemID(), key, aktiv}); }
+            }
+        }
+        if (offen) { menueBeginnen(key, abriss, m); }
+        return offen;
+    }
     groesseSetzen(key, m, abriss);
     // Die Ruecklage des Popups (BeginMenuEx: popup_pos.y = Text - WindowPadding.y)
     // ist damit die Oberkante des Eintrags minus Abreisskante.
@@ -478,8 +528,12 @@ bool qtPopupAnfang(const char* id, bool abriss) {
     abriss = abriss && editor().menueAbreissbar;
     const Masse m = masse();
     const ImGuiID key = ImGui::GetCurrentWindow()->GetID(id);
-    groesseSetzen(key, m, abriss);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, (abriss ? m.abriss : 0.0F) + m.abstand * 0.5F});
+    if (nrcStil()) {
+        groesseSetzen(key, m, abriss);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, (abriss ? m.abriss : 0.0F) + m.abstand * 0.5F});
+    } else {
+        programmPolsterAn(m, abriss);
+    }
     const bool offen = ImGui::BeginPopup(id);
     ImGui::PopStyleVar();
     if (offen) { menueBeginnen(key, abriss, m); }
@@ -507,12 +561,15 @@ bool qtAbrissFensterAnfang(const char* titel, const char* kennung, bool* offen, 
     if (neu) { ImGui::SetNextWindowPos(ImVec2{x, y}); }
     const auto it = g_groessen.find(key);
     const float titelH = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F;
-    if (it != g_groessen.end()) { ImGui::SetNextWindowSize(ImVec2{it->second.b, it->second.h + titelH + m.abstand}); }
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, m.abstand * 0.5F});
+    const bool nrc = nrcStil();
+    if (nrc && it != g_groessen.end()) { ImGui::SetNextWindowSize(ImVec2{it->second.b, it->second.h + titelH + m.abstand}); }
+    if (nrc) { ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, m.abstand * 0.5F}); }
     const std::string id = std::string(titel) + "###" + kennung;
+    // Programmstil: die Groesse aus dem Inhalt (wie ein ImGui-Menue)
     const bool sichtbar = ImGui::Begin(id.c_str(), offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
-                                                               ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings);
-    ImGui::PopStyleVar();
+                                                               ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings |
+                                                               (nrc ? ImGuiWindowFlags_None : ImGuiWindowFlags_AlwaysAutoResize));
+    if (nrc) { ImGui::PopStyleVar(); }
     if (!sichtbar) {
         ImGui::End();
         return false;
@@ -531,9 +588,29 @@ bool qtPunkt(const QtPunkt& p) {
     const Masse m = masse();
     const std::string text = sichtbar(p.id);
     const int mn = mnemonik(p.nrc, text);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
-    bool gewaehlt = ImGui::MenuItemEx(p.id, nullptr, nullptr, false, p.aktiv);
-    ImGui::PopStyleColor();
+    const bool nrc = nrcStil();
+    const bool symbol = (p.bild != nullptr && p.bild[0] != 0) || p.farbe != nullptr;
+    bool gewaehlt = false;
+    if (nrc) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
+        gewaehlt = ImGui::MenuItemEx(p.id, nullptr, nullptr, false, p.aktiv);
+        ImGui::PopStyleColor();
+    } else {
+        // Stil des Programms: MenuItem mit Taste und Haken (angehakt: Haken
+        // rechts, wie im Programm), das Symbol in der Symbolspalte davor.
+        const ImVec2 pos = w->DC.CursorPos;
+        gewaehlt = ImGui::MenuItemEx(p.id, symbol ? symbolPlatz() : nullptr, p.taste, p.art != QtArt::Normal && p.haken, p.aktiv);
+        if (symbol && ImGui::IsItemVisible()) {
+            const float g = ImGui::GetFontSize();
+            const ImVec2 a{std::floor(pos.x + static_cast<float>(w->DC.MenuColumns.OffsetIcon)), std::floor(pos.y + w->DC.CurrLineTextBaseOffset)};
+            if (p.farbe != nullptr) {
+                w->DrawList->AddRectFilled(a, ImVec2{a.x + g, a.y + g}, ImGui::GetColorU32(ImVec4{p.farbe[0], p.farbe[1], p.farbe[2], 1.0F}));
+            } else {
+                const ImVec4 f = p.aktiv ? karteIconFarbe(p.bild) : ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
+                (void)karteIcon(w->DrawList, p.bild, a, g, ImGui::GetColorU32(f));
+            }
+        }
+    }
     const ImGuiID eintrag = ImGui::GetItemID();
     if (g_wahl != 0 && eintrag == g_wahl) {
         g_wahl = 0;
@@ -543,13 +620,13 @@ bool qtPunkt(const QtPunkt& p) {
         }
     }
     const ImRect r{ImVec2{w->Pos.x, ImGui::GetItemRectMin().y}, ImVec2{w->Pos.x + w->Size.x, ImGui::GetItemRectMax().y}};
-    if (ImGui::IsItemVisible()) { eintragZeichnen(w->DrawList, r, m, text, mn, p.taste, tabWidth(), &p, false); }
+    if (nrc && ImGui::IsItemVisible()) { eintragZeichnen(w->DrawList, r, m, text, mn, p.taste, tabWidth(), &p, false); }
     if (!p.tooltip.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", p.tooltip.c_str()); }
     if (Menue* menue = oben()) {
         const bool tab = p.taste != nullptr && p.taste[0] != 0;
         menue->roh.push_back({qtBreite(text, m.sk), tab, false});
         if (tab) { menue->tab = std::max(menue->tab, qtVorschub(p.taste, m.sk)); }
-        if ((p.bild != nullptr && p.bild[0] != 0) || p.farbe != nullptr) { menue->symbole = true; }
+        if (symbol) { menue->symbole = true; }
         if (p.art != QtArt::Normal) { menue->pruefbar = true; }
         ++menue->zeilen;
         if (mn >= 0) { menue->tasten.push_back({zeichenGross(text[static_cast<std::size_t>(mn)]), eintrag, 0, p.aktiv}); }
@@ -572,6 +649,11 @@ bool qtHaken(const char* id, bool* wert, float zeileH) {
 }
 
 void qtTrenner() {
+    if (!nrcStil()) {   // Stil des Programms
+        ImGui::Separator();
+        if (Menue* mn = oben()) { ++mn->trenner; }
+        return;
+    }
     ImGuiWindow* w = ImGui::GetCurrentWindow();
     const Masse m = masse();
     // Qts Rechteck des Trenners beginnt am Ende des vorigen Eintrags.

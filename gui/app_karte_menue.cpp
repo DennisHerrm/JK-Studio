@@ -343,6 +343,87 @@ void listeZeichnen(const std::string& name) {
             }
             qtMenueEnde();
         }
+    } else if (name == "ProgrammView") {
+        // Stufe 7 Punkt 6b (shank: "settings in den Map editor auch einbauen das
+        // man theme und language aendern kann"): die Einstellungen des Programms
+        // als eigener Abschnitt am Ende von NRCs View-Menue (nicht in NRC;
+        // Abweichung). Dieselben Wirkungen wie im Menue View des Programms
+        // (app.cpp drawMenu: Zielspiel, Farbgebung, Sprache, Skalierung), dazu
+        // die Knopfgroesse der Werkzeugleisten. Der Hinweis "Strg + Mausrad"
+        // fehlt mit Absicht: im Karten-Editor gehoert das Rad den Ansichten
+        // (NRC: XYWnd zoomt, CamWnd faehrt, der Texturbrowser rollt - auch mit Strg).
+        qtTrenner();
+        if (qtMenueAnfang((std::string(trK(Str::ViewTarget)) + "###progziel").c_str())) {
+            QtPunkt sp;
+            const std::string spId = std::string(trK(Str::TargetSp)) + "###progzielsp";
+            sp.id = spId.c_str();
+            sp.art = QtArt::Exklusiv;
+            sp.haken = !g_app->settings.mpZiel;
+            if (qtPunkt(sp)) {
+                g_app->settings.mpZiel = false;
+                rebuildTree();
+            }
+            QtPunkt mp;
+            const std::string mpId = std::string(trK(Str::TargetMp)) + "###progzielmp";
+            mp.id = mpId.c_str();
+            mp.art = QtArt::Exklusiv;
+            mp.haken = g_app->settings.mpZiel;
+            mp.tooltip = trK(Str::TargetMpHint);
+            if (qtPunkt(mp)) {
+                g_app->settings.mpZiel = true;
+                rebuildTree();
+            }
+            qtMenueEnde();
+        }
+        if (qtMenueAnfang((std::string(trK(Str::ViewTheme)) + "###progviewfarben").c_str())) {
+            for (const theme::Theme& th : theme::themes()) {
+                const std::string id = std::string(th.name()) + "###progviewfarben" + th.id;
+                QtPunkt p;
+                p.id = id.c_str();
+                p.art = QtArt::Exklusiv;
+                p.haken = g_app->activeTheme != nullptr && g_app->activeTheme->id == th.id;
+                if (qtPunkt(p)) {
+                    g_app->activeTheme = &th;
+                    g_app->themePending = true;
+                }
+            }
+            qtMenueEnde();
+        }
+        if (qtMenueAnfang((std::string(trK(Str::ViewLanguage)) + "###progviewsprache").c_str())) {
+            for (const i18n::LanguageInfo& l : i18n::languages()) {
+                const std::string id = std::string(l.nativeName) + "###progviewsprache" + std::to_string(static_cast<int>(l.language));
+                QtPunkt p;
+                p.id = id.c_str();
+                p.art = QtArt::Exklusiv;
+                p.haken = i18n::currentLanguage() == l.language;
+                if (qtPunkt(p)) { i18n::setLanguage(l.language); }
+            }
+            qtMenueEnde();
+        }
+        if (qtMenueAnfang((std::string(trK(Str::ViewDpiScale)) + "###progviewskala").c_str())) {
+            for (const int stufe : {75, 100, 125, 150, 175, 200, 250, 300}) {
+                const float soll = static_cast<float>(stufe) / 100.0F;
+                const std::string id = std::to_string(stufe) + " %###progviewskala" + std::to_string(stufe);
+                QtPunkt p;
+                p.id = id.c_str();
+                p.art = QtArt::Exklusiv;
+                p.haken = std::fabs(g_app->uiScale - soll) < 0.005F;
+                if (qtPunkt(p)) { g_app->uiScale = soll; }
+            }
+            qtMenueEnde();
+        }
+        if (qtMenueAnfang((std::string(trK(Str::KeKnopfGroesse)) + "###progviewknopf").c_str())) {
+            const Str namen[3] = {Str::KeKnopfKlein, Str::KeKnopfNormal, Str::KeKnopfGross};
+            for (int stufe = 0; stufe < 3; ++stufe) {
+                const std::string id = std::string(trK(namen[stufe])) + "###progviewknopf" + std::to_string(stufe);
+                QtPunkt p;
+                p.id = id.c_str();
+                p.art = QtArt::Exklusiv;
+                p.haken = mass::knopfStufe == stufe;
+                if (qtPunkt(p)) { knopfGroesseSetzen(stufe); }
+            }
+            qtMenueEnde();
+        }
     } else if (name == "ProgrammDatei") {
         // Stufe 4 Punkt 1: File > Open .bsp... (nach Import...)
         const std::string id = std::string(trK(Str::KeLOpenBsp)) + "###progbspoeffnen";
@@ -472,6 +553,32 @@ bool symbol(const char* name, float groesse, bool hell) {
 void zeichneMenueleiste() {
     if (!ImGui::BeginMenuBar()) { return; }
     const float s = massstab();
+    if (!e().menueNrcStil) {
+        // Stufe 7 Punkt 6b: die Leiste im Stil des Programms (app.cpp drawMenu) -
+        // dieselben Menues, Eintraege und Wirkungen, Lage und Schrift des Programms.
+        const auto& liste = befehle::menues();
+        for (std::size_t i = 0; i < liste.size(); ++i) {
+            if (liste[i].art != MenueArt::Menue) { continue; }
+            const char* text = trK(liste[i].str);
+            const ImVec2 vor = ImGui::GetCursorScreenPos();
+            const float b = ImGui::CalcTextSize(text).x + ImGui::GetStyle().ItemSpacing.x * 2.0F;
+            merkeFeld(std::string("Menue:") + text, static_cast<int>(std::lround((vor.x - bildpunkt(0, 0).x) / s)), 0,
+                      static_cast<int>(std::lround(b / s)), static_cast<int>(std::lround(ImGui::GetFrameHeight() / s)));
+            const std::string id = std::string(text) + "###menue" + std::to_string(i);
+            if (e().menueOeffnen == static_cast<int>(i)) {   // Alt + Mnemonik (QMenuBar)
+                ImGui::OpenPopup(id.c_str());
+                e().menueOeffnen = -1;
+            }
+            if (qtMenueAnfang(id.c_str(), true, liste[i].text)) {
+                if (qtMenueAbgerissen()) { abreissen(i + 1, id, text, ImGui::GetWindowPos().x, ImGui::GetWindowPos().y); }
+                ++i;
+                eintraegeZeichnen(liste, i);
+                qtMenueEnde();
+            }
+        }
+        ImGui::EndMenuBar();
+        return;
+    }
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
                         ImVec2{static_cast<float>(mass::kMenuePolster) * 0.5F * s, ImGui::GetStyle().ItemSpacing.y});
     const float halb = std::trunc(static_cast<float>(mass::kMenuePolster) * 0.5F * s * 0.5F);   // BeginMenu: += IM_TRUNC(ItemSpacing.x * 0.5)
@@ -525,10 +632,10 @@ void knopf(const Knopf& k, int x, int y) {
     const std::string befehl = k.befehl;
     const bool da = befehl.empty() ? false : nachgebaut(befehl);
     ed.knoepfeImBild.push_back(befehl);
-    merkeFeld("Knopf:" + (befehl.empty() ? std::string(k.bild) : befehl), x, y, mass::kKnopf, mass::kKnopf);
+    merkeFeld("Knopf:" + (befehl.empty() ? std::string(k.bild) : befehl), x, y, mass::knopf(), mass::knopf());
     const std::string id = std::string("##knopf") + (befehl.empty() ? k.bild : befehl);
     const ImVec2 a = bildpunkt(x, y);
-    const ImVec2 b = bildpunkt(x + mass::kKnopf, y + mass::kKnopf);
+    const ImVec2 b = bildpunkt(x + mass::knopf(), y + mass::knopf());
     ImGui::SetCursorScreenPos(a);
     ImGui::InvisibleButton(id.c_str(), ImVec2{b.x - a.x, b.y - a.y}, ImGuiButtonFlags_MouseButtonLeft);
     const bool hover = ImGui::IsItemHovered();
@@ -546,7 +653,7 @@ void knopf(const Knopf& k, int x, int y) {
     if (hover && da) { grund = st.Colors[ImGui::IsItemActive() ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered]; }
     if (grund.w > 0.0F) { dl->AddRectFilled(a, b, ImGui::GetColorU32(grund), st.FrameRounding + 2.0F); }
     // Das Symbol 24 x 24 mittig (QToolButton: Rand 1 + padding 1 + 1,5).
-    const float g = std::round(static_cast<float>(mass::kSymbol) * s);
+    const float g = std::round(static_cast<float>(mass::symbol()) * s);
     symbolZeichnen(dl, k.bild, ImVec2{std::floor(a.x + (b.x - a.x - g) * 0.5F), std::floor(a.y + (b.y - a.y - g) * 0.5F)}, g, da);
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && da) { (void)ausfuehren(befehl); }
     // FilterToolbarHandler (filterbar.cpp:104-118): Rechtsklick auf einen
@@ -673,7 +780,7 @@ std::vector<karte::LeistenEintrag> leistenEintraege(const std::vector<const Knop
         an[i] = danach && davor;
     }
     std::vector<karte::LeistenEintrag> v;
-    for (std::size_t i = 0; i < n; ++i) { v.push_back({k[i]->trenner ? mass::kTrenner : mass::kKnopf, !an[i]}); }
+    for (std::size_t i = 0; i < n; ++i) { v.push_back({k[i]->trenner ? mass::kTrenner : mass::knopf(), !an[i]}); }
     return v;
 }
 
@@ -739,8 +846,8 @@ void leisteZeichnen(const char* id, const std::vector<Knopf>& liste, bool waager
     const std::vector<const Knopf*> k = erzeugteKnoepfe(liste);
     const std::vector<karte::LeistenEintrag> ein = leistenEintraege(k);
     const karte::LeistenErgebnis r = karte::leisteAnordnen(ein, laenge);
-    const int b = waagerecht ? laenge : mass::kLeisteH;
-    const int h = waagerecht ? mass::kLeisteH : laenge;
+    const int b = waagerecht ? laenge : mass::leisteH();
+    const int h = waagerecht ? mass::leisteH() : laenge;
     merkeFeld(std::string("Leiste:") + id, x, y, b, h);
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const ImVec2 a = bildpunkt(x, y);
@@ -755,9 +862,9 @@ void leisteZeichnen(const char* id, const std::vector<Knopf>& liste, bool waager
     }
     const int innen = mass::kLeisteRand + mass::kLeistePolster;
     if (waagerecht) {
-        griff(dl, x + innen, y + innen, mass::kLeisteGriff, mass::kKnopf, true);
+        griff(dl, x + innen, y + innen, mass::kLeisteGriff, mass::knopf(), true);
     } else {
-        griff(dl, x + innen, y + innen, mass::kKnopf, mass::kLeisteGriff, false);
+        griff(dl, x + innen, y + innen, mass::knopf(), mass::kLeisteGriff, false);
     }
     for (std::size_t i = 0; i < k.size(); ++i) {
         if (r.lage[i] < 0 || k[i]->trenner) { continue; }
@@ -769,9 +876,9 @@ void leisteZeichnen(const char* id, const std::vector<Knopf>& liste, bool waager
             if (!ein[i].leer) { verdeckt.push_back(k[i]); }
         }
         if (waagerecht) {
-            erweiterung(id, verdeckt, x + r.erweiterungLage, y + innen, 12, mass::kKnopf, true);
+            erweiterung(id, verdeckt, x + r.erweiterungLage, y + innen, 12, mass::knopf(), true);
         } else {
-            erweiterung(id, verdeckt, x + innen, y + r.erweiterungLage, mass::kKnopf, 12, false);
+            erweiterung(id, verdeckt, x + innen, y + r.erweiterungLage, mass::knopf(), 12, false);
         }
     }
     // Rechtsklick auf die Leiste oder einen ihrer Knoepfe ohne eigene
@@ -795,7 +902,7 @@ std::pair<int, int> leistenMass(const std::vector<Knopf>& liste) {
 void zeichneHauptleiste(int y, int breite) {
     g_rechtsklickBehandelt = false;
     const std::vector<karte::Spanne> zeile = karte::leistenZeile({leistenMass(befehle::werkzeugleiste())}, breite);
-    merkeFeld("Werkzeugleiste", zeile[0].pos, y, zeile[0].groesse, mass::kLeisteH);
+    merkeFeld("Werkzeugleiste", zeile[0].pos, y, zeile[0].groesse, mass::leisteH());
     leisteZeichnen("haupt", befehle::werkzeugleiste(), true, zeile[0].pos, y, zeile[0].groesse);
     leistenMenue();
 }
@@ -821,9 +928,9 @@ void zeichneRechteLeisten(int x, int y, int hoehe) {
     const std::vector<karte::Spanne> zeile = karte::leistenZeile(masse, hoehe);
     for (std::size_t i = 0; i < leisten.size(); ++i) {
         if (i == 0 && ed.filterleiste) {
-            merkeFeld("Filterleiste", x, y + zeile[i].pos, mass::kLeisteH, zeile[i].groesse);
+            merkeFeld("Filterleiste", x, y + zeile[i].pos, mass::leisteH(), zeile[i].groesse);
             static bool drin = false;   // QEvent::Enter der Filterleiste: m_recentFunc = nullptr
-            const bool jetzt = ImGui::IsMouseHoveringRect(bildpunkt(x, y + zeile[i].pos), bildpunkt(x + mass::kLeisteH, y + zeile[i].pos + zeile[i].groesse));
+            const bool jetzt = ImGui::IsMouseHoveringRect(bildpunkt(x, y + zeile[i].pos), bildpunkt(x + mass::leisteH(), y + zeile[i].pos + zeile[i].groesse));
             if (jetzt && !drin) { filterleisteBetreten(); }
             drin = jetzt;
         }
@@ -1106,6 +1213,9 @@ void einstellungenLaden() {
         // Layout: "DetachableMenus" (mainframe.cpp:2106); "CustomShaderEditorCommand"
         // (preferences.cpp:826); "OpenGLFont", "OpenGLFontSize" (mainframe.cpp:2110-2111)
         ed.menueAbreissbar = zahl("DetachableMenus", 1) != 0.0F;
+        // Stufe 7 Punkt 6b: eigene Einstellungen (Vorgaben: Menues im Stil des Programms, Knoepfe wie NRC)
+        ed.menueNrcStil = text("BhedMenuStyle") == "nrc";
+        mass::knopfStufe = std::clamp(static_cast<int>(zahl("BhedToolbarButtons", 1)), 0, 2);
         ed.shaderEditorBefehl = text("CustomShaderEditorCommand");
         if (k.count("OpenGLFont") != 0U) { ed.glSchriftName = text("OpenGLFont"); }
         ed.glSchriftGroesse = std::clamp(static_cast<int>(zahl("OpenGLFontSize", 8)), 1, 512);
@@ -1174,9 +1284,24 @@ void einstellungenLaden() {
     ed.belegungGeladen = true;
 }
 
+// Stufe 7 Punkt 6b: Knopfgroesse der Werkzeugleisten (0 klein, 1 normal wie
+// NRC, 2 gross) - wirkt im naechsten Bild (die Leisten und die Teiler rechnen
+// mit mass::leisteH()) und wird gleich gespeichert.
+void knopfGroesseSetzen(int stufe) {
+    mass::knopfStufe = std::clamp(stufe, 0, 2);
+    einstellungenSpeichern();
+}
+void menueStilSetzen(bool nrc) {
+    e().menueNrcStil = nrc;
+    einstellungenSpeichern();
+}
+
 void einstellungenSpeichern() {
     Editor& ed = e();
     auto& k = g_app->settings.karte;
+    // Stufe 7 Punkt 6b: eigene Einstellungen (nicht in NRC)
+    k["BhedMenuStyle"] = ed.menueNrcStil ? "nrc" : "program";
+    k["BhedToolbarButtons"] = std::to_string(mass::knopfStufe);
     k["QE4StyleWindows"] = std::to_string(static_cast<int>(ed.anordnung));
     k["BuiltInGroupDialog"] = ed.gruppenDialogEingebaut ? "1" : "0";
     k["ClipperCaulk"] = ed.bearbeitung.clipperCaulk ? "1" : "0";

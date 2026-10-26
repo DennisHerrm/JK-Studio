@@ -104,6 +104,8 @@ struct Entwurf {
     bool eingebaut = false;
     bool abtrennbar = true;
     bool nrc = false;
+    bool menueNrc = false;          // Stufe 7 Punkt 6b: Editor::menueNrcStil
+    int knopfStufe = 1;             // mass::knopfStufe
     karte::KameraEinstellungen kamera;
     int waehlEpsilon = 12;          // g_SELECT_EPSILON
     bool punktEntitaeten2d = true;  // m_bPreferPointEntsIn2D
@@ -921,10 +923,26 @@ void interfaceSeite() {
     // Interface Preferences: "Shader Editor Command" (preferences.cpp:64,
     // appendPathEntry( browse_directory = false ): Feld mit Dateiwahl; Foto
     // pref_Interface.png), dazu die Einstellung dieses Programms "Begriffe wie NetRadiant".
-    formAnfang({Str::KePrShaderEditor});
+    formAnfang({Str::KePrShaderEditor, Str::KeKnopfGroesse});
     pfadEintrag(Str::KePrShaderEditor, "##shadereditor", g_entwurf.shaderEditor, sizeof(g_entwurf.shaderEditor), false);
     (void)haken(Str::Count, trK(Str::KeNrcTerms), g_entwurf.nrc);
     if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::KeNrcTermsHint)); }
+    // Stufe 7 Punkt 6b (eigene Einstellungen, nicht in NRC): Menuestil und
+    // Knopfgroesse der Werkzeugleisten - auch im View-Menue (ProgrammView).
+    (void)haken(Str::Count, (std::string(trK(Str::KeMenueNrc)) + "##menuenrc").c_str(), g_entwurf.menueNrc);
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::KeMenueNrcTip)); }
+    feldAnfang(Str::KeKnopfGroesse);
+    const Str namen[3] = {Str::KeKnopfKlein, Str::KeKnopfNormal, Str::KeKnopfGross};
+    if (ImGui::BeginCombo("##knopfgroesse", trK(namen[std::clamp(g_entwurf.knopfStufe, 0, 2)]))) {
+        for (int i = 0; i < 3; ++i) {
+            if (ImGui::Selectable((std::string(trK(namen[i])) + "##knopfgroesse" + std::to_string(i)).c_str(), g_entwurf.knopfStufe == i)) {
+                g_entwurf.knopfStufe = i;
+            }
+        }
+        ImGui::EndCombo();
+    }
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::KeKnopfGroesseTip)); }
+    feldEnde();
 }
 
 // Die Pfeile des Baums (PE_IndicatorBranch, Fusion: qt_fusion_draw_arrow
@@ -1467,6 +1485,8 @@ void zeichneEinstellungen() {
         g_entwurf.anordnung = static_cast<int>(ed.anordnung);
         g_entwurf.eingebaut = ed.gruppenDialogEingebaut;
         g_entwurf.nrc = nrcBegriffe();
+        g_entwurf.menueNrc = ed.menueNrcStil;
+        g_entwurf.knopfStufe = mass::knopfStufe;
         g_entwurf.kamera = ed.kameraE;
         g_entwurf.waehlEpsilon = static_cast<int>(ed.bearbeitung.waehlEpsilon);
         g_entwurf.punktEntitaeten2d = ed.bearbeitung.einstellung.punktEntitaetenIn2d;
@@ -1678,6 +1698,8 @@ void zeichneEinstellungen() {
             ed.anordnung = static_cast<befehle::Anordnung>(g_entwurf.anordnung);
             ed.gruppenDialogEingebaut = g_entwurf.eingebaut;
             setzeNrcBegriffe(g_entwurf.nrc);
+            ed.menueNrcStil = g_entwurf.menueNrc;     // Stufe 7 Punkt 6b (gespeichert unten mit einstellungenSpeichern)
+            mass::knopfStufe = g_entwurf.knopfStufe;
             // CamWnd_Move_Discrete_Import / Camera_SetFarClip / fieldOfViewImport;
             // Cubic-Skala, Show-Schalter und das Tempo-Kuerzel bleiben.
             if (g_entwurf.kamera.diskret != ed.kameraE.diskret && ed.kamera.flagsLoeschen(karte::kBewegAlle)) {

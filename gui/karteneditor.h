@@ -280,10 +280,16 @@ inline constexpr int kMenueAbstand = 6;    // PM_MenuBarItemSpacing (Fusion)
 inline constexpr int kLeisteRand = 1;      // dark.qss QToolBar: border 1px
 inline constexpr int kLeistePolster = 3;   // dark.qss QToolBar: padding 3px
 inline constexpr int kLeisteGriff = 9;     // PM_ToolBarHandleExtent (Fusion)
-inline constexpr int kSymbol = 24;         // PM_ToolBarIconSize
-inline constexpr int kKnopf = 31;          // 24 + 3 ("broken QToolButton") + padding 2 x 1 + border 2 x 1
 inline constexpr int kTrenner = 8;         // dark.qss QToolBar::separator
-inline constexpr int kLeisteH = kLeisteRand * 2 + kLeistePolster * 2 + kKnopf;   // 39
+// Knopfgroesse der Haupt-, Filter- und Plugin-Leiste (Stufe 7 Punkt 6b, eigene
+// Einstellung, nicht in NRC): 0 klein, 1 normal (wie NRC), 2 gross. Normal ist
+// NRC: PM_ToolBarIconSize 24, Knopf 31 = 24 + 3 ("broken QToolButton") +
+// padding 2 x 1 + border 2 x 1, Leiste 39. Klein und gross aendern nur das
+// Symbol (16 / 32), der Rest des Knopfes bleibt (+ 7).
+inline int knopfStufe = 1;
+[[nodiscard]] inline int symbol() { return knopfStufe == 0 ? 16 : (knopfStufe == 2 ? 32 : 24); }
+[[nodiscard]] inline int knopf() { return symbol() + 7; }
+[[nodiscard]] inline int leisteH() { return kLeisteRand * 2 + kLeistePolster * 2 + knopf(); }
 inline constexpr int kStatusH = 21;        // QStatusBar::reformat: 3 + fm.height() 16 + 2
 inline constexpr int kStatusBild = 16;     // create_main_statusbar: Bilder 16 hoch
 inline constexpr int kStatusAbstand = 6;   // QHBoxLayout der Zaehler (PM_LayoutHorizontalSpacing)
@@ -709,6 +715,10 @@ struct Editor {
     bool ueberOffen = false;              // DoAbout ("About NetRadiant")
     // Stufe 2, Punkt 11c
     bool menueAbreissbar = true;          // g_Layout_enableDetachableMenus ("DetachableMenus")
+    // Stufe 7 Punkt 6b (shank: "Gerade das file edit usw. Koennte normal aussehen"):
+    // Menueleiste und Menues im Stil des Programms (false, Vorgabe) oder wie
+    // NRCs QMenu (true, "Menus like NetRadiant-Custom" unter Preferences > Interface).
+    bool menueNrcStil = false;
     struct Abriss {                       // QTornOffMenu
         std::string titel;                // removeMnemonics( title ).trimmed()
         std::size_t start = 0;            // erster Eintrag des Menues in der Tabelle
@@ -1262,6 +1272,10 @@ void tagsReiterZeichnen(ImVec2 a, ImVec2 c, float sc);
 void tagsListeZeichnen(ImVec2 a, ImVec2 c, float sc);
 // Einstellungen des Editors lesen/schreiben (Settings::karte).
 void einstellungenLaden();
+// Stufe 7 Punkt 6b: Knopfgroesse (0 klein, 1 normal, 2 gross) und Menuestil
+// (true: wie NRC) setzen und gleich speichern.
+void knopfGroesseSetzen(int stufe);
+void menueStilSetzen(bool nrc);
 void einstellungenSpeichern();
 // true, solange der Karten-Editor Tastatur und Maus fuer sich hat (der
 // Arbeitsbereich ist sichtbar). Dann gelten die BehavEd-Kuerzel nicht.

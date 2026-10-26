@@ -170,6 +170,9 @@ MENUES = [
             ('ITEM', 'Set &Brush', 'RegionSetBrush', ''),
             ('CHECK', 'Set Se&lection', 'RegionSetSelection', ''),
         ]),
+        # Stufe 7 Punkt 6b: Zielspiel, Farbgebung, Sprache, Skalierung und
+        # Knopfgroesse des Programms - nicht in NRC, als Abweichung notiert.
+        ('LISTE', 'ProgrammView'),
     ]),
     ('M&odify', 'radiant/mainframe.cpp:1053', [
         ('SUB', 'Components', [

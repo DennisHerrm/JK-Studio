@@ -679,6 +679,264 @@ std::vector<Schritt> gross() {
     return s;
 }
 
+// --- Punkt 6b: Menues im Stil des Programms, Programm-Einstellungen im
+// View-Menue, Knopfgroesse (shank: "settings in den Map editor auch einbauen
+// das man theme und language aendern kann ... auch sollte man die buttons
+// kleiner machen koennen") ---------------------------------------------------
+struct MenueZustand {
+    bool nrcStil = true;
+    int knopf = 1;
+    const theme::Theme* farben = nullptr;
+    i18n::Language sprache = i18n::Language::English;
+    float skala = 1.0F;
+    bool mp = false;
+    bool nrcBegriffe = false;
+    float zoom[3] = {0, 0, 0};
+};
+
+const ke::Editor::RahmenImBild* rahmen7(const std::string& feld) {
+    for (const auto& r : ke::editor().rahmenImBild) {
+        if (r.feld == feld) { return &r; }
+    }
+    return nullptr;
+}
+
+// Ein Feld dieses Bildes in logischen Punkten (merkeFeld); nullptr ohne
+const ke::Editor::Rechteck* feld7(const std::string& name) {
+    for (const auto& r : ke::editor().felderImBild) {
+        if (r.name == name) { return &r; }
+    }
+    return nullptr;
+}
+
+std::string einstellung7(const std::string& k) {
+    const auto it = g_app->settings.karte.find(k);
+    return it != g_app->settings.karte.end() ? it->second : std::string("(fehlt)");
+}
+
+std::vector<Schritt> menue() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto z = std::make_shared<MenueZustand>();
+    add(tu("Stufe 7/6b: Zustand merken, Begriffe des Programms (Englisch)", [z] {
+        z->nrcStil = ke::editor().menueNrcStil;
+        z->knopf = ke::mass::knopfStufe;
+        z->farben = g_app->activeTheme;
+        z->sprache = i18n::currentLanguage();
+        z->skala = g_app->uiScale;
+        z->mp = g_app->settings.mpZiel;
+        z->nrcBegriffe = ke::nrcBegriffe();
+        ke::setzeNrcBegriffe(false);
+        i18n::setLanguage(i18n::Language::English);
+        karteDialogeZu();
+    }));
+    // Erster Start (keine Einstellung gespeichert): Menues im Stil des Programms, Knoepfe wie NRC
+    add(tu("Stufe 7/6b: erster Start - eigene Einstellungen entfernen, Einstellungen neu lesen", [] {
+        g_app->settings.karte.erase("BhedMenuStyle");
+        g_app->settings.karte.erase("BhedToolbarButtons");
+        ke::einstellungenLaden();
+    }));
+    add(pause(0.3));
+    add(pruefe("Stufe 7/6b: Vorgabe - Menues im Stil des Programms, Knopfgroesse Normal (Knopf 31 wie NRC)", [] {
+        const ke::Editor::Rechteck* k = feld7("Knopf:MirrorSelectionHorizontally");
+        diag::detail("Knopftest: Stufe 7/6b - Vorgabe Menuestil " + std::string(ke::editor().menueNrcStil ? "NRC" : "Programm") + ", Knopf " +
+                     std::to_string(k != nullptr ? k->b : -1) + " (soll 31)");
+        return !ke::editor().menueNrcStil && ke::mass::knopfStufe == 1 && k != nullptr && k->b == 31 && k->h == 31;
+    }));
+    add(pruefe("Stufe 7/6b: Menueleiste im Stil des Programms - Schrift und Hoehe des Programms, Editor direkt darunter", [] {
+        const ImGuiWindow* w = ImGui::FindWindowByName("###main");
+        const ke::Editor& e = ke::editor();
+        const float leisteH = w != nullptr ? w->MenuBarHeight : -1.0F;
+        const float soll = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F;   // die Schrift des Programms (nicht Segoe UI 21)
+        diag::detail("Knopftest: Stufe 7/6b - Menueleiste " + std::to_string(leisteH) + " hoch (Programm " + std::to_string(soll) + ")");
+        return w != nullptr && std::fabs(leisteH - soll) < 0.5F && std::fabs(e.editorOben - e.leisteUnten) < 0.5F;
+    }));
+    // View: am Ende Zielspiel, Farbgebung, Sprache, Skalierung, Knopfgroesse
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(pruefe("Stufe 7/6b: View endet mit Target game, Theme, Language, Interface Scale, Toolbar Button Size", [] {
+        return finde(ke::trK(Str::ViewTarget), "##Menu_", 0, false) != nullptr && finde(ke::trK(Str::ViewTheme), "##Menu_", 0, false) != nullptr &&
+               finde(ke::trK(Str::ViewLanguage), "##Menu_", 0, false) != nullptr && finde(ke::trK(Str::ViewDpiScale), "##Menu_", 0, false) != nullptr &&
+               finde(ke::trK(Str::KeKnopfGroesse), "##Menu_", 0, false) != nullptr &&
+               finde(ke::trK(Str::KeLCameraView), "##Menu_", 0, false) == nullptr;   // Regular: Camera View nur bei Floating (wie NRC)
+    }));
+    add(pruefe("Stufe 7/6b: kein Hinweis auf Strg + Mausrad im Karten-Editor", [] { return finde(tr(Str::ViewScaleHint), "", 0, false) == nullptr; }));
+    add(foto("karte7_menue_view_programm"));
+    // Farbgebung
+    add(klick(ke::trK(Str::ViewTheme), "##Menu_", 0, false));
+    add(pause(0.3));
+    add({"Stufe 7/6b: View > Theme > Light", [](int b) {
+             static Schritt k;
+             if (b == 0) { k = klick(theme::findTheme("light")->name(), "##Menu_", 0, false); }
+             return k.tun(b);
+         }});
+    add(pause(0.4));
+    add(pruefe("Stufe 7/6b: Farbgebung Light gilt (activeTheme, angewendet)", [] {
+        return g_app->activeTheme != nullptr && g_app->activeTheme->id == "light" && !g_app->themePending;
+    }));
+    add(tu("Menues zu", [] { karteDialogeZu(); }));
+    // Sprache
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(klick(ke::trK(Str::ViewLanguage), "##Menu_", 0, false));
+    add(pause(0.3));
+    add(klick("Deutsch", "##Menu_", 0, false));
+    add(pause(0.4));
+    add(pruefe("Stufe 7/6b: Sprache Deutsch gilt (die Menues des Editors deutsch)", [] {
+        return i18n::currentLanguage() == i18n::Language::German && std::string(ke::trK(Str::KeLView)) != "View";
+    }));
+    add(tu("Menues zu, Englisch", [] {
+        karteDialogeZu();
+        i18n::setLanguage(i18n::Language::English);
+    }));
+    add(pause(0.3));
+    // Skalierung
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(klick(ke::trK(Str::ViewDpiScale), "##Menu_", 0, false));
+    add(pause(0.3));
+    add(klick("125 %", "##Menu_", 0, false));
+    add(pause(0.4));
+    add(pruefe("Stufe 7/6b: View > Interface Scale > 125 %: uiScale 1,25", [] { return std::fabs(g_app->uiScale - 1.25F) < 0.001F; }));
+    add(tu("Menues zu, Skalierung zurueck", [z] {
+        karteDialogeZu();
+        g_app->uiScale = z->skala;
+    }));
+    add(pause(0.4));
+    // Zielspiel
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(klick(ke::trK(Str::ViewTarget), "##Menu_", 0, false));
+    add(pause(0.3));
+    add(klick(ke::trK(Str::TargetMp), "##Menu_", 0, false));
+    add(pause(0.3));
+    add(pruefe("Stufe 7/6b: View > Target game > Multiplayer: settings.mpZiel", [] { return g_app->settings.mpZiel; }));
+    add(tu("Menues zu, Zielspiel zurueck", [z] {
+        karteDialogeZu();
+        g_app->settings.mpZiel = z->mp;
+        rebuildTree();
+    }));
+    add(pause(0.3));
+    // Knopfgroesse: Klein, Gross, Normal - wirkt sofort, die Teiler passen sich an, gespeichert
+    struct Stufe {
+        int stufe;
+        Str name;
+        int knopf;
+    };
+    for (const Stufe st : {Stufe{0, Str::KeKnopfKlein, 23}, Stufe{2, Str::KeKnopfGross, 39}, Stufe{1, Str::KeKnopfNormal, 31}}) {
+        add(klick(ke::trK(Str::KeLView), "###main"));
+        add(pause(0.3));
+        add(klick(ke::trK(Str::KeKnopfGroesse), "##Menu_", 0, false));
+        add(pause(0.3));
+        add(klick(ke::trK(st.name), "##Menu_", 0, false));
+        add(pause(0.4));
+        add(pruefe("Stufe 7/6b: Knopfgroesse " + std::string(i18n::trIn(i18n::Language::English, st.name)) + " - Knopf " + std::to_string(st.knopf) +
+                       ", Leiste " + std::to_string(st.knopf + 8) + ", Ansichten darunter, gespeichert",
+                   [st] {
+                       // logische Punkte (merkeFeld): Knopf, Leiste oben, Filterleiste rechts
+                       // (so breit wie die Leiste hoch, beginnt unter ihr), die Ansichten darunter
+                       const ke::Editor::Rechteck* knopf = feld7("Knopf:MirrorSelectionHorizontally");
+                       const ke::Editor::Rechteck* leiste = feld7("Werkzeugleiste");
+                       const ke::Editor::Rechteck* filter = feld7("Leiste:filter");
+                       const int lh = st.knopf + 8;
+                       const bool knopfOk = knopf != nullptr && knopf->b == st.knopf && knopf->h == st.knopf;
+                       const bool leisteOk = leiste != nullptr && leiste->h == lh;
+                       const bool filterOk = filter != nullptr && filter->b == lh && leiste != nullptr && filter->y == leiste->y + lh;
+                       bool mitte = leiste != nullptr;
+                       const float sk = ke::massstab();
+                       for (const auto& r : ke::editor().rahmenImBild) {
+                           if (leiste != nullptr && (r.feld == "XY" || r.feld == "Kamera")) {
+                               mitte = mitte && r.y0 >= ke::bildpunkt(0, leiste->y + lh).y - 0.5F * sk;
+                           }
+                       }
+                       diag::detail("Knopftest: Stufe 7/6b - Knopfgroesse " + std::to_string(st.stufe) + ": Knopf " +
+                                    std::to_string(knopf != nullptr ? knopf->b : -1) + ", Leiste " + std::to_string(leiste != nullptr ? leiste->h : -1) +
+                                    ", Filterleiste " + std::to_string(filter != nullptr ? filter->b : -1) + " breit ab " +
+                                    std::to_string(filter != nullptr ? filter->y : -1) + ", Ansichten darunter " + (mitte ? "ja" : "nein") +
+                                    ", gespeichert " + einstellung7("BhedToolbarButtons"));
+                       return ke::mass::knopfStufe == st.stufe && knopfOk && leisteOk && filterOk && mitte &&
+                              einstellung7("BhedToolbarButtons") == std::to_string(st.stufe);
+                   }));
+        if (st.stufe == 0) { add(foto("karte7_knoepfe_klein")); }
+        if (st.stufe == 2) { add(foto("karte7_knoepfe_gross")); }
+    }
+    // Preferences > Interface: "Menus like NetRadiant-Custom" und die Knopfgroesse
+    add(tu("Preferences > Interface oeffnen", [] { (void)ke::ausfuehren("Preferences"); }));
+    add(pause(0.3));
+    add(klick(ke::trK(Str::KePgInterface), "###karteeinstellungen"));
+    add(pause(0.3));
+    add(foto("karte7_pref_interface"));
+    add(klick(ke::trK(Str::KeMenueNrc), "###karteeinstellungen", 0, true));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KePrefOk), "###karteeinstellungen"));
+    add(pause(0.4));
+    add(pruefe("Stufe 7/6b: Preferences > Interface > Menus like NetRadiant-Custom: an und gespeichert, Leiste wieder 21 hoch (Segoe UI)", [] {
+        const ImGuiWindow* w = ImGui::FindWindowByName("###main");
+        const float sk = ke::massstab();
+        return ke::editor().menueNrcStil && einstellung7("BhedMenuStyle") == "nrc" && w != nullptr &&
+               std::fabs(w->MenuBarHeight - std::round(21.0F * sk)) < 0.5F;
+    }));
+    add(tu("Menuestil zurueck: Programm", [] { ke::menueStilSetzen(false); }));
+    add(pause(0.3));
+    add(pruefe("Stufe 7/6b: menueStilSetzen(false) gespeichert", [] { return !ke::editor().menueNrcStil && einstellung7("BhedMenuStyle") == "program"; }));
+    // Strg + Mausrad: im Karten-Editor skaliert es das Programm nicht (NRC: das Rad gehoert den Ansichten)
+    add({"Stufe 7/6b: Strg + Rad ueber der XY-Ansicht", [z](int b) {
+             ImGuiIO& io = ImGui::GetIO();
+             if (b == 0) {
+                 const ke::Editor::RahmenImBild* r = rahmen7("XY");
+                 if (r != nullptr) { setzeMaus(ImVec2{(r->x0 + r->x1) * 0.5F, (r->y0 + r->y1) * 0.5F}); }
+                 z->skala = g_app->uiScale;
+                 for (int i = 0; i < 3; ++i) { z->zoom[i] = ke::editor().xy[static_cast<std::size_t>(i)].ansicht.massstab; }
+                 return false;
+             }
+             if (b == 2) { io.AddKeyEvent(ImGuiMod_Ctrl, true); return false; }
+             if (b == 4) { io.AddMouseWheelEvent(0.0F, 1.0F); return false; }
+             if (b == 7) { io.AddKeyEvent(ImGuiMod_Ctrl, false); return false; }
+             return b >= 10;
+         }});
+    add(pruefe("Stufe 7/6b: Strg + Rad im Karten-Editor - Skalierung bleibt, die XY-Ansicht zoomt (wie NRC)", [z] {
+        bool zoomt = false;
+        for (int i = 0; i < 3; ++i) { zoomt = zoomt || ke::editor().xy[static_cast<std::size_t>(i)].ansicht.massstab != z->zoom[i]; }
+        diag::detail("Knopftest: Stufe 7/6b - Strg+Rad: uiScale " + std::to_string(g_app->uiScale) + " (vorher " + std::to_string(z->skala) + "), XY " +
+                     (zoomt ? "zoomt" : "zoomt nicht"));
+        return std::fabs(g_app->uiScale - z->skala) < 0.001F && zoomt;
+    }));
+    // Fotos der Menues in zwei Farbschemata und allen vier Sprachen (View offen)
+    for (const char* farbe : {"dark", "light"}) {
+        for (const i18n::LanguageInfo& l : i18n::languages()) {
+            const i18n::Language sprache = l.language;
+            const std::string name = std::string("karte7_menue_") + farbe + "_" + l.code;
+            add(tu("Foto " + name + ": Farbgebung und Sprache", [farbe, sprache] {
+                karteDialogeZu();
+                g_app->activeTheme = theme::findTheme(farbe);
+                g_app->themePending = true;
+                i18n::setLanguage(sprache);
+            }));
+            add(pause(0.3));
+            add({"View oeffnen (" + name + ")", [](int b) {
+                     static Schritt k;
+                     if (b == 0) { k = klick(ke::trK(Str::KeLView), "###main"); }
+                     return k.tun(b);
+                 }});
+            add(pause(0.3));
+            add(foto(name));
+        }
+    }
+    add(tu("Stufe 7/6b: Zustand zurueck", [z] {
+        karteDialogeZu();
+        ke::editor().menueNrcStil = z->nrcStil;
+        ke::mass::knopfStufe = z->knopf;
+        ke::einstellungenSpeichern();
+        g_app->activeTheme = z->farben;
+        g_app->themePending = true;
+        i18n::setLanguage(z->sprache);
+        g_app->uiScale = z->skala;
+        ke::setzeNrcBegriffe(z->nrcBegriffe);
+    }));
+    add(pause(0.4));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     const char* nur = std::getenv("BHED_STUFE7_NUR");
@@ -689,6 +947,7 @@ std::vector<Schritt> schritte() {
     if (teil("licht")) { dazu(licht()); }
     if (teil("backen")) { dazu(backen()); }
     if (teil("gross")) { dazu(gross()); }
+    if (teil("menue")) { dazu(menue()); }
     return s;
 }
 

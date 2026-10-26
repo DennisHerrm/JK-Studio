@@ -147,6 +147,7 @@ const MenueEintrag kMenues[] = {
     {MenueArt::Punkt, "Set &Brush", "RegionSetBrush", Str::KeLSetBrush, kImmer},
     {MenueArt::Haken, "Set Se&lection", "RegionSetSelection", Str::KeLSetSelection, kImmer},
     {MenueArt::Ende, "", "", Str::Count, kImmer},
+    {MenueArt::Liste, "", "ProgrammView", Str::Count, kImmer},
     {MenueArt::Ende, "", "", Str::Count, kImmer},
     // Modify (radiant/mainframe.cpp:1053)
     {MenueArt::Menue, "M&odify", "", Str::KeLModify, kImmer},

@@ -14716,9 +14716,11 @@ void draw() {
 
     // Strg+Mausrad vergroessert und verkleinert, wie in jedem Editor - nur
     // nicht ueber der Zeitleiste: dort zoomt Strg+Rad die Spuren (rc599,
-    // vorher geschah beides zugleich).
+    // vorher geschah beides zugleich). Im Karten-Editor auch nicht (Stufe 7
+    // Punkt 6b): dort gehoert das Rad mit und ohne Strg den Ansichten wie bei
+    // NRC (XYWnd zoomt, CamWnd faehrt, der Texturbrowser rollt).
     if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().MouseWheel != 0.0F &&
-        !ImGui::GetIO().WantTextInput && !g_app->tlUnterMaus) {
+        !ImGui::GetIO().WantTextInput && !g_app->tlUnterMaus && g_app->leftMode != 3) {
         g_app->uiScale = std::clamp(
             g_app->uiScale + ImGui::GetIO().MouseWheel * 0.1F, 0.5F, 3.0F);
     }

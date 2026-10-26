@@ -1296,12 +1296,22 @@ float schriftGroesse() { return static_cast<float>(mass::kSchrift) * g_s / std::
 // Damit sie so hoch ist wie NRCs QMenuBar (21 Punkte), stehen Schrift und
 // FramePadding schon beim Begin des Hauptfensters (ImGui rechnet dort
 // MenuBarHeight = Schrift + 2 x FramePadding.y).
+//
+// Stufe 7 Punkt 6b: im Stil des Programms (Editor::menueNrcStil aus, Vorgabe)
+// bleibt die Leiste so, wie das Programm sie zeichnet - Schrift und Hoehe des
+// Programms; der Editor beginnt trotzdem direkt darunter (Editor::leisteUnten).
+namespace {
+bool g_hauptleisteNrc = false;   // was hauptleisteStilAn geschoben hat
+}
 void hauptleisteStilAn() {
     g_s = massstab();
+    g_hauptleisteNrc = g().menueNrcStil;
+    if (!g_hauptleisteNrc) { return; }
     ImGui::PushFont(g_schrift, schriftGroesse());
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, static_cast<float>(mass::kMenueH - mass::kSchrift) * 0.5F * g_s});
 }
 void hauptleisteStilAus() {
+    if (!g_hauptleisteNrc) { return; }
     ImGui::PopStyleVar();
     ImGui::PopFont();
 }
@@ -1312,17 +1322,22 @@ void hauptleisteStilAus() {
 void zeichneHauptmenue() {
     bildBeginnen();
     g_s = massstab();
-    ImGui::PushFont(g_schrift, schriftGroesse());
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, 0.0F});
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, static_cast<float>(mass::kMenueH - mass::kSchrift) * 0.5F * g_s});
+    const bool nrc = g().menueNrcStil;   // Stufe 7 Punkt 6b: sonst Schrift und Abstaende des Programms
+    if (nrc) {
+        ImGui::PushFont(g_schrift, schriftGroesse());
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, 0.0F});
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, static_cast<float>(mass::kMenueH - mass::kSchrift) * 0.5F * g_s});
+    }
     const ImVec2 alt = g_ursprung;
     g_ursprung = ImGui::GetWindowPos();
     zeichneMenueleiste();
     const ImGuiWindow* w = ImGui::GetCurrentWindow();
     g().leisteUnten = w->Pos.y + w->TitleBarHeight + w->MenuBarHeight;
     g_ursprung = alt;
-    ImGui::PopStyleVar(2);
-    ImGui::PopFont();
+    if (nrc) {
+        ImGui::PopStyleVar(2);
+        ImGui::PopFont();
+    }
 }
 
 void zeichne(float hoehe) {
@@ -1382,12 +1397,12 @@ void zeichne(float hoehe) {
     int y = mass::kMenueH;
     if (e.hauptleiste) {
         zeichneHauptleiste(y, breite);
-        y += mass::kLeisteH;
+        y += mass::leisteH();
     }
     const int statusY = hoeheL - mass::kStatusH;
     const int mitteH = std::max(0, statusY - y);
     // Filterleiste rechts angedockt (Qt::RightToolBarArea), daneben die Mitte.
-    const int filterB = (e.filterleiste || e.pluginleiste) ? mass::kLeisteH : 0;
+    const int filterB = (e.filterleiste || e.pluginleiste) ? mass::leisteH() : 0;
     const int mitteB = std::max(0, breite - filterB);
     // Lage der Maus ueber m_hSplit (fuer MaximizeView).
     const ImVec2 maus = ImGui::GetIO().MousePos;
