@@ -368,9 +368,9 @@ void schnellBauStarten(std::size_t kartenStand) {
 }
 
 // Ein gebautes Netz auf die Grafikkarte (Schnell-Backen, Stufe 8a: die Vorlage)
-void netzUebernehmen(Gebacken& g_gebacken, std::unique_ptr<Ergebnis> r) {
+void netzUebernehmen(Gebacken& ziel, std::unique_ptr<Ergebnis> r) {
     if (!r) { return; }
-    g_gebacken.leeren();
+    ziel.leeren();
     std::vector<kartegpu::GebackenPunkt> punkte;
     punkte.reserve(r->netz.verts.size());
     for (const BspVertex& v : r->netz.verts) {
@@ -383,17 +383,17 @@ void netzUebernehmen(Gebacken& g_gebacken, std::unique_ptr<Ergebnis> r) {
                   (static_cast<std::uint32_t>(v.colour[2]) << 16U) | (static_cast<std::uint32_t>(v.colour[3]) << 24U);
         punkte.push_back(p);
     }
-    if (!g_gebacken.netz.setzen(punkte, r->netz.indexes)) { return; }
+    if (!ziel.netz.setzen(punkte, r->netz.indexes)) { return; }
     for (std::size_t i = 0; i < r->geo.lightmaps.size(); ++i) {
-        g_gebacken.lightmaps.push_back(kartegpu::lightmapAnlegen(r->geo.lightmaps[i].data(), r->geo.lightmapW(i), r->geo.lightmapH(i)));
+        ziel.lightmaps.push_back(kartegpu::lightmapAnlegen(r->geo.lightmaps[i].data(), r->geo.lightmapW(i), r->geo.lightmapH(i)));
     }
     for (const BspMesh::Batch& b : r->netz.batches) {
         if (b.shader < 0 || static_cast<std::size_t>(b.shader) >= r->geo.shaders.size()) { continue; }
         const BspShader& sh = r->geo.shaders[static_cast<std::size_t>(b.shader)];
         if (!sh.isDrawn() || sh.isSky()) { continue; }
-        g_gebacken.teile.push_back({sh.name, b.lightmap, b.firstIndex, b.numIndexes});
+        ziel.teile.push_back({sh.name, b.lightmap, b.firstIndex, b.numIndexes});
     }
-    g_gebacken.geraet = kartegpu::geraetStand();
+    ziel.geraet = kartegpu::geraetStand();
 }
 
 void ergebnisUebernehmen() {

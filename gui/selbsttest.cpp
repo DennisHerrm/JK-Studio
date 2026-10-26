@@ -38537,6 +38537,7 @@ std::vector<Schritt> karte4HandbuchSchritte() {
         (void)ke::bspOeffnenSpiel("maps/mp/duel1.bsp");
     }));
     add(warteBis("Handbuch Stufe 4: duel1 geladen", [] { return ke::editor().bspHerkunft.aktiv; }, 3000));
+    add(stufe8::warteSek("Handbuch Stufe 4: Rueckgewinnung (Stufe 8a) fertig", [] { return ke::bspRueckStand().stand == 0; }, 300));
     add(tu("Handbuch Stufe 4: Ansichten auf die Karte", [] {
         ke::Editor& e = ke::editor();
         e.kamera.setzeUrsprung(karte::Vektor3f(830, 180, 110));
@@ -38643,6 +38644,7 @@ std::vector<Schritt> karte5HandbuchSchritte() {
         (void)ke::bspOeffnenSpiel("maps/mp/duel1.bsp");
     }));
     add(warteBis("Handbuch Stufe 5: duel1 geladen", [] { return ke::editor().bspHerkunft.aktiv; }, 3000));
+    add(stufe8::warteSek("Handbuch Stufe 5: Rueckgewinnung (Stufe 8a) fertig", [] { return ke::bspRueckStand().stand == 0; }, 300));
     add(warteBis("Handbuch Stufe 5: Texturen geladen", [] { return ke::kameraBilderFertig(); }, 6000));
     // Build > Optimizer...
     add(klick(ke::trK(Str::KeLBuild), "###main"));
@@ -38808,6 +38810,194 @@ std::vector<Schritt> karte7HandbuchSchritte() {
     return s;
 }
 
+// BHED_EDITORTEST=handbuch mit BHED_HB_NUR=karte8: Stufe 8a - das Fortschrittsfenster
+// mit Restzeit, das Build-Menue mit den neuen Eintraegen, ein zurueckgewonnenes
+// misc_model, geschaetzte Lichter und "Zur fertigen Karte hinzufuegen".
+std::vector<Schritt> karte8HandbuchSchritte() {
+    namespace ke = karteneditor;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto menueBild = [] {
+        const ImGuiWindow* haupt = ImGui::FindWindowByName("###main");
+        ImRect m;
+        const ImGuiContext& g = *GImGui;
+        for (int i = 0; i < g.OpenPopupStack.Size; ++i) {
+            if (const ImGuiWindow* w = g.OpenPopupStack[i].Window) {
+                if (i == 0) {
+                    m = w->Rect();
+                } else {
+                    m.Add(w->Rect());
+                }
+            }
+        }
+        if (const ImGuiWindow* t = ImGui::FindWindowByName("##Tooltip_00"); t != nullptr && t->Active) { m.Add(t->Rect()); }
+        if (haupt == nullptr) { return m; }
+        return ImRect{haupt->Pos.x, haupt->Pos.y, m.Max.x + 40.0F, m.Max.y + 20.0F};
+    };
+    const auto editor = [] {
+        ImGuiWindow* w = karteFenster();
+        const ImGuiWindow* haupt = ImGui::FindWindowByName("###main");
+        if (w == nullptr) { return ImRect{}; }
+        const float oben = haupt != nullptr ? haupt->Pos.y : w->Pos.y;
+        const float links = haupt != nullptr ? haupt->Pos.x : w->Pos.x;
+        return ImRect{links, oben, w->Rect().Max.x, w->Rect().Max.y};
+    };
+    const auto eintraegeWeg = [] {
+        auto& v = ke::editor().bauProjekt.eintraege;
+        v.erase(std::remove_if(v.begin(), v.end(), [](const karte::BauEintrag& b) { return b.name.rfind("Handbuch", 0) == 0; }), v.end());
+    };
+    // Kamera (Ort, Winkel) und die 2D-Ansicht XY um 0 0 im Massstab 0.8
+    const auto ansichten = [](karte::Vektor3f ort, karte::Vektor3f winkel) {
+        ke::Editor& e = ke::editor();
+        e.kamera.setzeUrsprung(ort);
+        e.kamera.setzeWinkel(winkel);
+        e.xy[0].ansicht.typ = karte::Sicht::XY;
+        e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        e.xy[0].ansicht.setzeMassstab(0.8F);
+        ++e.sichtStand;
+    };
+    add(tu("Handbuch Stufe 8: Spielordner, Begriffe aus", [] {
+        if (g_app->gamePaths.empty()) { rescanGamePaths(); }
+        g_app->leftMode = 0;
+        ke::setzeNrcBegriffe(false);
+    }));
+    add(pause(0.3));
+    add(klick(tr(Str::ViewMapEditor), "###main"));
+    add(pause(0.3));
+    add(warteBis("Handbuch Stufe 8: Spieldaten geladen", [] {
+        ke::spielPruefen();
+        return ke::spielBereit();
+    }, 20000));
+    // 1. Fortschritt: zweimal bauen, im zweiten Bau die Restzeit aus dem ersten
+    add(tu("Handbuch Stufe 8: Testraum, keine Bauzeiten, Eintrag Handbuch", [eintraegeWeg] {
+        karteDialogeZu();
+        stufe3::q3map2Bereitstellen();
+        ke::bauMenueSicherstellen();
+        ke::Editor& e = ke::editor();
+        e.bau = ke::Editor::BauEinstellungen{};
+        e.bspRueck = ke::Editor::BspRueckEinstellungen{};
+        ke::einstellungenSpeichern();
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::path(stufe8::bauZeitenDatei()), ec);
+        stufe3::raumKarteOeffnen("raum8", false);
+        ke::konsoleLeeren();
+        eintraegeWeg();
+        e.bauProjekt.eintraege.push_back(karte::BauEintrag{"Handbuch",
+                                                           {"[q3map2] -meta \"[MapFile]\"", "[q3map2] -vis -saveprt \"[MapFile]\"",
+                                                            "[q3map2] -light -super 4 -samples 4 -filter -bounce 16 \"[MapFile]\""}});
+    }));
+    add(stufe3::bauMenuepunkt("Handbuch"));
+    add(stufe8::warteSek("Handbuch Stufe 8: erster Bau fertig", [] { return !ke::bauLaeuft(); }, 300));
+    add(stufe3::bauMenuepunkt("Handbuch"));
+    add(stufe8::warteSek("Handbuch Stufe 8: zweiter Bau im Licht, Bounce 3, Restzeit aus dem ersten", [] {
+        const ke::BauFortschrittStand st = ke::bauFortschrittStand();
+        return st.laeuft && st.schritt == 2 && st.bounce >= 3 && st.schaetzung.ausVerlauf;
+    }, 120));
+    add(hb::fotoTeil("h_karte8_fortschritt", [] { return fensterRahmen("###kartebaufortschritt"); }));
+    add(stufe8::warteSek("Handbuch Stufe 8: zweiter Bau fertig", [] { return !ke::bauLaeuft(); }, 300));
+    // 3. misc_model aus der Geometrie: die Testkarte ohne Editor-Daten bauen, als .bsp oeffnen
+    add(tu("Handbuch Stufe 8: Testkarte mit misc_model ohne Editor-Daten bauen", [eintraegeWeg] {
+        karteDialogeZu();
+        ke::Editor& e = ke::editor();
+        stufe8::edKarteSchreiben();
+        (void)ke::karteOeffnen(stufe8::edKarte());
+        std::error_code ec;
+        for (const char* x : {".bsp", ".prt", ".srf", ".bhed", ".bhedvis", ".bhedlight"}) {
+            std::filesystem::remove(std::filesystem::path(stufe8::edStamm() + x), ec);
+        }
+        eintraegeWeg();
+        e.bauProjekt.eintraege.push_back(
+            karte::BauEintrag{"Handbuch Modelle", {"[q3map2] -meta \"[MapFile]\"", "[q3map2] -vis -fast \"[MapFile]\"", "[q3map2] -light -fast \"[MapFile]\""}});
+    }));
+    // Build-Menue mit den neuen Eintraegen (Editor-Daten behalten und die Teil-Kompilierung an)
+    add(tu("Handbuch Stufe 8: Editor-Daten behalten, VIS und Licht wiederverwenden an", [ansichten] {
+        ke::Editor& e = ke::editor();
+        e.bau.editorDaten = true;
+        e.bau.visWieder = true;
+        e.bau.lichtWieder = true;
+        ansichten(karte::Vektor3f(-330.0F, -300.0F, 230.0F), karte::Vektor3f(-22.0F, 45.0F, 0.0F));
+    }));
+    add(warteBis("Handbuch Stufe 8: Texturen geladen", [] { return ke::kameraBilderFertig(); }, 6000));
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.6));
+    add(hb::fotoTeil("h_karte8_menue", menueBild));
+    add(tu("Menue zu, die Optionen wieder aus (die Rueckgewinnung braucht eine .bsp ohne Editor-Daten)", [] {
+        karteDialogeZu();
+        ke::editor().bau = ke::Editor::BauEinstellungen{};
+    }));
+    add(pause(0.3));
+    add(stufe3::bauMenuepunkt("Handbuch Modelle"));
+    add(stufe8::warteSek("Handbuch Stufe 8: Bau fertig", [] { return !ke::bauLaeuft(); }, 300));
+    add(tu("Handbuch Stufe 8: File > Open .bsp - misc_model zurueckgewinnen", [] {
+        ke::konsoleLeeren();
+        ke::editor().bspRueckLetzt = ke::Editor::BspRueckLetzt{};
+        (void)ke::bspOeffnenDatei(stufe8::edStamm() + ".bsp");
+    }));
+    add(stufe8::warteSek("Handbuch Stufe 8: Rueckgewinnung fertig",
+                         [] { return ke::bspRueckStand().stand == 0 && ke::editor().bspRueckLetzt.sekunden > 0; }, 180));
+    add(tu("Handbuch Stufe 8: Ansichten auf die Saeule", [ansichten] { ansichten(karte::Vektor3f(-90.0F, -90.0F, 130.0F), karte::Vektor3f(-8.0F, 45.0F, 0.0F)); }));
+    add(warteBis("Handbuch Stufe 8: Texturen geladen", [] { return ke::kameraBilderFertig(); }, 6000));
+    add(pause(0.8));
+    add(hb::fotoTeil("h_karte8_modelle", editor));
+    // 4. Lichter schaetzen
+    add(tu("Handbuch Stufe 8: noch einmal oeffnen, nur Lichter schaetzen", [] {
+        ke::Editor& e = ke::editor();
+        e.bspRueck.modelle = false;
+        e.bspRueck.lichter = true;
+        e.bspRueckLetzt = ke::Editor::BspRueckLetzt{};
+        ke::konsoleLeeren();
+        (void)ke::bspOeffnenDatei(stufe8::edStamm() + ".bsp");
+    }));
+    add(stufe8::warteSek("Handbuch Stufe 8: Schaetzung fertig", [] {
+        return ke::bspRueckStand().stand == 0 && stufe3::konsoleText().find(stufe8::vorlageAnfang(Str::KeLsFertig)) != std::string::npos;
+    }, 120));
+    add(tu("Handbuch Stufe 8: Ansichten", [ansichten] { ansichten(karte::Vektor3f(-330.0F, -300.0F, 230.0F), karte::Vektor3f(-22.0F, 45.0F, 0.0F)); }));
+    add(pause(0.8));
+    add(hb::fotoTeil("h_karte8_lichter", [] { return hb::vereint(hb::fensterRect("##feldXY"), hb::fensterRect("##feldKonsole")); }));
+    // 5. Zur fertigen Karte hinzufuegen: die gebaute Testkarte als Vorlage, eine Saeule in der Ebene "Neu"
+    auto ebene = std::make_shared<int>(-1);
+    add(tu("Handbuch Stufe 8: Quelle oeffnen, Ebene \"Neu\" mit einer Saeule, Dialog mit der gebauten Karte als Vorlage", [ebene, ansichten] {
+        ke::Editor& e = ke::editor();
+        e.bspRueck = ke::Editor::BspRueckEinstellungen{};
+        ke::einstellungenSpeichern();
+        (void)ke::karteOeffnen(stufe8::edKarte());
+        karte::Karte& k = e.karte;
+        (void)karte::ebeneNeu(k, -1, "Neu", ebene.get());
+        k.aktuelleSchicht = static_cast<std::size_t>(*ebene);
+        karte::TexturProjektion proj;
+        karte::texdefStandard(karte::TexdefArt::Quake, proj);
+        auto p = std::make_shared<karte::Pinsel>();
+        p->quaderBauen(karte::Kasten(karte::Vektor3f(64, -128, 64), karte::Vektor3f(32, 32, 64)), "textures/yavin/temple_stone2", proj, k.kontext);
+        p->schicht = *ebene;
+        k.weltHolenOderAnlegen()->kindEinfuegen(p);
+        ke::zusammenDialogOeffnen();
+        ke::zusammenVorlageWaehlenDatei(stufe8::edStamm() + ".bsp");
+        ansichten(karte::Vektor3f(-330.0F, -300.0F, 230.0F), karte::Vektor3f(-22.0F, 45.0F, 0.0F));
+    }));
+    add(warteBis("Handbuch Stufe 8: Vorlage geladen", [] { return ke::vorlageAktiv() && ke::kameraBilderFertig(); }, 6000));
+    add(pause(1.0));
+    add(hb::fotoTeil("h_karte8_zusammen", editor));
+    add(tu("Handbuch Stufe 8: Bauen und hinzufuegen", [ebene] {
+        ke::konsoleLeeren();
+        ke::zusammenStarten(*ebene);
+    }));
+    add(stufe8::warteSek("Handbuch Stufe 8: zusammengefuehrt", [] { return ke::zusammenStand().stand == 2 || ke::zusammenStand().stand == 3; }, 300));
+    add(pause(0.5));
+    add(hb::fotoTeil("h_karte8_zusammen_fertig", [] { return fensterRahmen("###kartezusammen"); }));
+    add(tu("Handbuch Stufe 8: Ende", [eintraegeWeg] {
+        ke::vorlageEntfernen();
+        karteDialogeZu();
+        ke::Editor& e = ke::editor();
+        e.bau = ke::Editor::BauEinstellungen{};
+        e.bspRueck = ke::Editor::BspRueckEinstellungen{};
+        ke::einstellungenSpeichern();
+        eintraegeWeg();
+        g_app->leftMode = 0;
+    }));
+    add(pause(0.3));
+    return s;
+}
+
 std::vector<Schritt> handbuchSchritte() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
     // (tr) beim Aufbau der Liste - vorher suchten sie auf Deutsch "Cancel".
@@ -38828,6 +39018,9 @@ std::vector<Schritt> handbuchSchritte() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte7") == 0) {
         return karte7HandbuchSchritte();
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte8") == 0) {
+        return karte8HandbuchSchritte();
     }
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };

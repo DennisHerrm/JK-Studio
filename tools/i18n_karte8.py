@@ -31,8 +31,8 @@ KARTE8 = [
     ("KeFsMelden", "Notify when a build is done", "Melden, wenn der Bau fertig ist", "编译完成时通知", "ビルド完了時に通知"),
     ("KeFsMeldenTip",
      "When a build ends while BehavEd is not the front window, its taskbar button flashes until you switch to it - no sound, no dialog (not in NetRadiant-Custom)",
-     "Endet ein Bau, während BehavEd nicht das vordere Fenster ist, blinkt sein Knopf in der Taskleiste, bis Sie dorthin wechseln - ohne Ton, ohne Dialog (nicht in NetRadiant-Custom)",
-     "编译结束时如果 BehavEd 不是前台窗口,它在任务栏上的按钮会闪烁,直到您切换过去——没有声音,没有对话框(NetRadiant-Custom 中没有)",
+     "Endet ein Bau, während BehavEd nicht das vordere Fenster ist, blinkt sein Knopf in der Taskleiste, bis du dorthin wechselst - ohne Ton, ohne Dialog (nicht in NetRadiant-Custom)",
+     "编译结束时如果 BehavEd 不是前台窗口,它在任务栏上的按钮会闪烁,直到你切换过去——没有声音,没有对话框(NetRadiant-Custom 中没有)",
      "ビルドが終わったときに BehavEd が前面のウィンドウでなければ、切り替えるまでタスクバーのボタンが点滅します。音もダイアログもありません(NetRadiant-Custom にはありません)"),
 ]
 
@@ -81,7 +81,7 @@ KARTE8 += [
      "認識できなかったモデル面をブラシとして残す"),
     ("KeRkFlaechenOptTip",
      "Faces that belong to no recognized model and lie on no brush (a model whose file is missing, or faces of non-solid brushes) become thin detail brushes in the layer \"Unrecognized model faces\" - check them; they can duplicate geometry (not in NetRadiant-Custom)",
-     "Flächen, die zu keinem erkannten Modell gehören und auf keinem Pinsel liegen (ein Modell, dessen Datei fehlt, oder Flächen nicht fester Pinsel), werden dünne Detail-Pinsel in der Ebene „Nicht erkannte Modellflächen“ - prüfen Sie sie; sie können Geometrie doppeln (nicht in NetRadiant-Custom)",
+     "Flächen, die zu keinem erkannten Modell gehören und auf keinem Pinsel liegen (ein Modell, dessen Datei fehlt, oder Flächen nicht fester Pinsel), werden dünne Detail-Pinsel in der Ebene „Nicht erkannte Modellflächen“ - prüfe sie; sie können Geometrie doppeln (nicht in NetRadiant-Custom)",
      "不属于任何已识别模型、也不在任何笔刷上的面(模型文件缺失,或非实体笔刷的面)会成为图层“未识别的模型面”中的细薄 detail 笔刷——请检查它们;它们可能与几何体重复(NetRadiant-Custom 中没有)",
      "認識されたモデルにも属さず、どのブラシ上にもない面(ファイルがないモデル、または非ソリッドブラシの面)は、レイヤー「認識できなかったモデル面」の薄い detail ブラシになります。確認してください。ジオメトリが重複することがあります(NetRadiant-Custom にはありません)"),
     ("KeRkEbene", "Unrecognized model faces", "Nicht erkannte Modellflächen", "未识别的模型面", "認識できなかったモデル面"),

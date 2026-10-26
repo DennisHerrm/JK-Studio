@@ -255,6 +255,10 @@ _BEDIENUNG = [
       "**Fenstertitel.** Im Karten-Editor zeigt der Titel die Karte und ein `*` bei ungespeicherten Änderungen, wie in NetRadiant-Custom.",
       "**窗口标题。**在地图编辑器中,标题显示地图名称,有未保存更改时显示 `*`,与 NetRadiant-Custom 相同。",
       "**ウィンドウタイトル。**マップエディターではタイトルにマップ名と、未保存の変更があるときは `*` が表示されます(NetRadiant-Custom と同じ)。"),
+    T("**Own build functions.** The window {{KeFsTitel}} with the remaining time, {{KeTkVis}} and {{KeTkLicht}}, {{KeZfMenue}} ([[karte_teilbau]]), {{KeEdMenue}}, {{KeRkModelle}} and {{KeLsOpt}} ([[karte_oeffnen#editordaten]]) - each with its own menu entry or option and the hint \"not in NetRadiant-Custom\". bhed_q3map2 has the switches `-bhedvisreuse`, `-bhedlightcache` and `-bhedmodels` for them; without them it builds as before.",
+      "**Eigene Bau-Funktionen.** Das Fenster {{KeFsTitel}} mit der Restzeit, {{KeTkVis}} und {{KeTkLicht}}, {{KeZfMenue}} ([[karte_teilbau]]), {{KeEdMenue}}, {{KeRkModelle}} und {{KeLsOpt}} ([[karte_oeffnen#editordaten]]) - jede mit eigenem Menüeintrag oder eigener Option und dem Hinweis „nicht in NetRadiant-Custom“. bhed_q3map2 hat dafür die Schalter `-bhedvisreuse`, `-bhedlightcache` und `-bhedmodels`; ohne sie baut es wie vorher.",
+      "**自有编译功能。**带剩余时间的 {{KeFsTitel}} 窗口、{{KeTkVis}} 和 {{KeTkLicht}}、{{KeZfMenue}}([[karte_teilbau]])、{{KeEdMenue}}、{{KeRkModelle}} 和 {{KeLsOpt}}([[karte_oeffnen#editordaten]])——每项都有自己的菜单项或选项,并注明“NetRadiant-Custom 中没有”。bhed_q3map2 为此提供了开关 `-bhedvisreuse`、`-bhedlightcache` 和 `-bhedmodels`;不使用这些开关时,编译方式与以前相同。",
+      "**独自のビルド機能。**残り時間つきの {{KeFsTitel}} ウィンドウ、{{KeTkVis}} と {{KeTkLicht}}、{{KeZfMenue}}([[karte_teilbau]])、{{KeEdMenue}}、{{KeRkModelle}}、{{KeLsOpt}}([[karte_oeffnen#editordaten]])。どれも専用のメニュー項目かオプションがあり、「NetRadiant-Custom にはありません」と表示されます。bhed_q3map2 にはそのためのスイッチ `-bhedvisreuse`、`-bhedlightcache`、`-bhedmodels` があり、使わなければ以前と同じようにビルドします。"),
 ]
 
 

@@ -99,6 +99,12 @@ std::string q3(const std::string& rest) {
     return "\"" + a.programm + "\" -v -game " + a.spielTyp + " -fs_basepath \"" + a.enginePfad + "\" -fs_homepath \"\" -fs_game " + a.fsGame + pak + " " + rest;
 }
 
+// Ein Ergebnis ohne Befund (Licht, Kollision): in die Konsole und in den Dialog
+void notiz(const std::string& t) {
+    g_st.befunde.push_back(t);
+    ausgabe(t);
+}
+
 void befund(const std::string& t, bool fehlerArt) {
     g_st.befunde.push_back(t);
     if (fehlerArt) {
@@ -159,7 +165,7 @@ bool teilKarteSchreiben(int ebene, const std::string& karte) {
         }
         char z[200];
         std::snprintf(z, sizeof(z), trK(Str::KeZfLicht), l.ambient, l.gitterPunkte, static_cast<int>(l.lichter.size()));
-        ausgabe(z);
+        notiz(z);
     }
     return schreiben(karte, karte::textmodusSchreiben(text));
 }
@@ -228,7 +234,7 @@ void nachZusammenfuehren(int art) {
     if (!k.geladen || k.stoppen < k.gesamt) {
         befund(k.geladen ? std::string(z) : std::string(trK(Str::KeZfNichtGeladen)), true);
     } else {
-        ausgabe(z);
+        notiz(z);
     }
     std::snprintf(z, sizeof(z), trK(Str::KeZfFertig), mitSchraeg(merged).c_str());
     ausgabe(z);
@@ -241,6 +247,7 @@ const ZusammenStand& zusammenStand() { return g_st; }
 
 void zusammenDialogOeffnen() {
     g_d.offen = true;
+    g_d.ebene = static_cast<int>(e().karte.aktuelleSchicht);   // die Ebene, in der man gerade baut
     if (e().karteSpiel) { g_d.liste = karte::bspListe(e().karteSpiel->fs); }
 }
 
