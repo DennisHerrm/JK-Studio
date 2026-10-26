@@ -299,6 +299,17 @@ void bauMenueEintraegeZeichnen() {
         ed.bau.editorDaten = !ed.bau.editorDaten;
         einstellungenSpeichern();
     }
+    // Stufe 8a Punkt 5a (Abweichung, eigene Funktion): Teil-Kompilierung - VIS wiederverwenden
+    const std::string visW = std::string(trK(Str::KeTkVis)) + "##bauviswieder";
+    QtPunkt vw;
+    vw.id = visW.c_str();
+    vw.art = QtArt::Pruefbar;
+    vw.haken = ed.bau.visWieder;
+    vw.tooltip = trK(Str::KeTkVisTip);
+    if (qtPunkt(vw)) {
+        ed.bau.visWieder = !ed.bau.visWieder;
+        einstellungenSpeichern();
+    }
     // Stufe 8a Punkt 1 (Abweichung, eigene Funktion): melden, wenn ein Bau fertig ist
     const std::string melden = std::string(trK(Str::KeFsMelden)) + "##baumelden";
     QtPunkt m;
@@ -1813,6 +1824,10 @@ void bauStarten(std::size_t index) {
             std::snprintf(z, sizeof(z), trK(Str::KeEdLichter), n);
             ausgabe(z);
         }
+    }
+    // Stufe 8a Punkt 5a (Abweichung): VIS wiederverwenden, wenn sich die Portale nicht aendern
+    if (ed.bau.visWieder) {
+        for (std::string& b : befehle) { b = karte::befehlMitVisWiederverwendung(b); }
     }
     // bspname: PathFilename( Map_Name( g_map ) ) fuer die Engine
     const std::u8string stamm = pfadAus(ed.name).stem().u8string();

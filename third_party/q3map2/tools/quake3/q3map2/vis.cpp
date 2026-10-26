@@ -860,6 +860,47 @@ static void LoadPortals( char *name ){
    VisMain
    ===========
  */
+/*
+   BehavEd stage 8a (partial compile, not in NetRadiant-Custom): -bhedvisreuse
+   The visibility data depend only on the portal file, the merge/pass switches and
+   the worldspawn far plane key (CalcVis). With -bhedvisreuse the result of a full
+   -vis is kept in <map>.bhedvis together with these inputs; the next -vis with
+   the same inputs (byte-identical .prt) takes the data instead of computing them
+   and writes the .bsp the same way - the output equals a full -vis (with one
+   thread, where -vis is deterministic). The switch is not injected into the
+   worldspawn command line, so the entity lump stays the same as without it.
+ */
+static std::string BhedReadFile( const char *name ){
+	std::string data;
+	if ( FILE *f = fopen( name, "rb" ) ) {
+		char buf[65536];
+		size_t n;
+		while ( ( n = fread( buf, 1, sizeof( buf ), f ) ) > 0 )
+			data.append( buf, n );
+		fclose( f );
+	}
+	return data;
+}
+
+static void BhedWriteBlock( FILE *f, const std::string& s ){
+	const uint32_t n = s.size();
+	fwrite( &n, 4, 1, f );
+	fwrite( s.data(), 1, n, f );
+}
+
+static bool BhedReadBlock( const std::string& d, size_t& pos, std::string& out ){
+	uint32_t n = 0;
+	if ( pos + 4 > d.size() )
+		return false;
+	memcpy( &n, d.data() + pos, 4 );
+	pos += 4;
+	if ( pos + n > d.size() )
+		return false;
+	out.assign( d.data() + pos, n );
+	pos += n;
+	return true;
+}
+
 int VisMain( Args& args ){
 	char portalfile[1024];
 
@@ -872,6 +913,7 @@ int VisMain( Args& args ){
 		Error( "usage: vis [-threads #] [-fast] [-v] bspfile" );
 	}
 	const char *fileName = args.takeBack();
+	const bool bhedReuse = args.takeArg( "-bhedvisreuse" ); /* BehavEd stage 8a: before argsToInject */
 	const auto argsToInject = args.getVector();
 	{
 		while ( args.takeArg( "-fast" ) ) {
@@ -930,6 +972,7 @@ int VisMain( Args& args ){
 	strcpy( portalfile, ExpandArg( fileName ) );
 	bhed_set_map_extension( portalfile, ".prt" ); /* BehavEd stage 6 (NRC#102): was path_set_extension */
 	Sys_Printf( "Loading %s\n", portalfile );
+	const std::string bhedPortalData = bhedReuse ? BhedReadFile( portalfile ) : std::string(); /* BehavEd stage 8a */
 	LoadPortals( portalfile );
 
 	/* ydnar: exit if no portals, hence no vis */
@@ -957,7 +1000,46 @@ int VisMain( Args& args ){
 
 	Sys_Printf( "visdatasize:%zu\n", bspVisBytes.size() );
 
-	CalcVis();
+	/* BehavEd stage 8a: the inputs of CalcVis besides the portals */
+	std::string bhedKey;
+	char bhedCache[1024];
+	if ( bhedReuse ) {
+		const char *far = "";
+		entities[ 0 ].read_keyvalue( far, "_farplanedist", "fogclip", "distancecull" );
+		bhedKey = StringStream( "vis1 fast=", fastvis, " merge=", mergevis, " mergeportals=", mergevisportals, " nopassage=", noPassageVis,
+		                        " passageOnly=", passageVisOnly, " nosort=", nosort, " hint=", hint, " far=", far ).c_str();
+		strcpy( bhedCache, ExpandArg( fileName ) );
+		bhed_set_map_extension( bhedCache, ".bhedvis" );
+	}
+	bool bhedReused = false;
+	if ( bhedReuse && !bhedPortalData.empty() ) {
+		const std::string cache = BhedReadFile( bhedCache );
+		size_t pos = 6;
+		std::string key, prt, vis;
+		if ( cache.size() > 6 && cache.compare( 0, 6, "BHVIS1" ) == 0 && BhedReadBlock( cache, pos, key ) && BhedReadBlock( cache, pos, prt )
+		  && BhedReadBlock( cache, pos, vis ) && key == bhedKey && prt == bhedPortalData && vis.size() == bspVisBytes.size() ) {
+			memcpy( bspVisBytes.data(), vis.data(), vis.size() );
+			bhedReused = true;
+			Sys_Printf( "BehavEd: visibility reused from %s (portal file and vis switches unchanged)\n", bhedCache );
+		}
+		else{
+			Sys_Printf( "BehavEd: visibility computed (no matching %s)\n", bhedCache );
+		}
+	}
+
+	if ( !bhedReused ) {
+		CalcVis();
+	}
+
+	if ( bhedReuse && !bhedReused && !bhedPortalData.empty() ) {
+		if ( FILE *f = fopen( bhedCache, "wb" ) ) {
+			fwrite( "BHVIS1", 1, 6, f );
+			BhedWriteBlock( f, bhedKey );
+			BhedWriteBlock( f, bhedPortalData );
+			BhedWriteBlock( f, std::string( reinterpret_cast<const char*>( bspVisBytes.data() ), bspVisBytes.size() ) );
+			fclose( f );
+		}
+	}
 
 	/* delete the prt file */
 	if ( !saveprt ) {

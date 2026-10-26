@@ -69,6 +69,9 @@ enum class EditorDatenStand { Passt, AndereBsp, Kaputt };
 // -keeplights vor dem letzten Argument (der Karte); andere Stufen und Befehle,
 // die es schon haben, bleiben.
 [[nodiscard]] std::string befehlMitLichtern(const std::string& befehl);
+// Stufe 8a Punkt 5a: ein -vis-Befehl bekommt -bhedvisreuse (bhed_q3map2: die Sichtbarkeit
+// aus <karte>.bhedvis, wenn .prt und Schalter gleich sind)
+[[nodiscard]] std::string befehlMitVisWiederverwendung(const std::string& befehl);
 
 }  // namespace bhed::karte
 

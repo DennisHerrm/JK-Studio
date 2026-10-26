@@ -89,8 +89,11 @@ EditorDatenStand editorDatenLesen(const std::string& begleit, const std::string&
     return EditorDatenStand::Passt;
 }
 
-std::string befehlMitLichtern(const std::string& befehl) {
-    if (bauStufeAusBefehl(befehl) != BauStufe::Bsp) { return befehl; }
+namespace {
+
+// schalter vor das letzte Argument (die Karte), wenn die Stufe passt und er fehlt
+std::string mitSchalter(const std::string& befehl, BauStufe stufe, const std::string& schalter) {
+    if (bauStufeAusBefehl(befehl) != stufe) { return befehl; }
     // schon da? (Woerter ohne Anfuehrungszeichen vergleichen)
     std::size_t letzter = std::string::npos;   // Anfang des letzten Wortes
     bool inQuote = false;
@@ -107,12 +110,18 @@ std::string befehlMitLichtern(const std::string& befehl) {
             imWort = false;
             std::string w = befehl.substr(anfang, i - anfang);
             for (char& x : w) { x = static_cast<char>(std::tolower(static_cast<unsigned char>(x))); }
-            if (w == "-keeplights") { return befehl; }
+            if (w == schalter) { return befehl; }
             letzter = anfang;
         }
     }
     if (letzter == std::string::npos || letzter == 0) { return befehl; }
-    return befehl.substr(0, letzter) + "-keeplights " + befehl.substr(letzter);
+    return befehl.substr(0, letzter) + schalter + " " + befehl.substr(letzter);
 }
+
+}  // namespace
+
+std::string befehlMitLichtern(const std::string& befehl) { return mitSchalter(befehl, BauStufe::Bsp, "-keeplights"); }
+
+std::string befehlMitVisWiederverwendung(const std::string& befehl) { return mitSchalter(befehl, BauStufe::Vis, "-bhedvisreuse"); }
 
 }  // namespace bhed::karte
