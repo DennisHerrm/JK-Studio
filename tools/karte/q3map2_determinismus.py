@@ -71,6 +71,9 @@ def merkmale(bsp):
     return m
 
 
+PARALLEL = []   # Stufe 7: je Lichtlauf mit mehreren Threads die Zahl der parallel gerechneten Lightmaps
+
+
 def lauf(exe, ordner, karte, stufe, game, basis, threads, eingabe, quelle):
     if os.path.exists(ordner):
         shutil.rmtree(ordner)
@@ -82,8 +85,16 @@ def lauf(exe, ordner, karte, stufe, game, basis, threads, eingabe, quelle):
     if threads:
         args += ['-threads', str(threads)]
     args.append('maps/%s.map' % karte)
+    # Stufe 7: BHED_Q3_ZEITEN laesst q3map2 Abschnittszeiten und die Zahl der parallel
+    # gerechneten grossen Lightmaps melden ("BHED-Parallel: n") - die Ausgabe-BSP bleibt gleich.
+    env = dict(os.environ, BHED_Q3_ZEITEN='1')
     with open(os.path.join(ordner, 'ausgabe.txt'), 'wb') as f:
-        p = subprocess.run(args, cwd=ordner, stdout=f, stderr=subprocess.STDOUT, creationflags=IDLE)
+        p = subprocess.run(args, cwd=ordner, stdout=f, stderr=subprocess.STDOUT, creationflags=IDLE, env=env)
+    if stufe == 'light' and threads != 1:
+        with open(os.path.join(ordner, 'ausgabe.txt'), 'rb') as f:
+            for z in f.read().decode('utf-8', 'replace').splitlines():
+                if z.startswith('BHED-Parallel: '):
+                    PARALLEL.append(int(z.split()[1]))
     bsp = os.path.join(ordner, 'maps', karte + '.bsp')
     if p.returncode != 0 or not os.path.exists(bsp):
         raise RuntimeError('%s %s: Rueckgabe %d (%s)' % (karte, stufe, p.returncode, os.path.join(ordner, 'ausgabe.txt')))
@@ -103,6 +114,14 @@ def ctest(exe, daten):
         for karte, game in ((os.path.join(daten, 'raum.map'), 'ja'), (stil, 'ja'), (stil, 'quake3')):
             rc |= main([exe, karte, '--game', game, '--laeufe', '3', '--arbeit', os.path.join(arbeit, game + '_' + os.path.basename(karte)[:-4])])
         print('q3map2_determinismus: %s' % ('alle Stufen deterministisch, gleich -threads 1' if rc == 0 else 'NICHT deterministisch'))
+        # Stufe 7: die grossen Lightmaps rechnen mit mehreren Threads zeilenweise parallel
+        # (BhedIlluminateRawLightmaps) - der Vergleich oben deckt den Weg nur ab, wenn er lief.
+        if (os.cpu_count() or 1) >= 4:
+            n = max(PARALLEL, default=0)
+            print('q3map2_determinismus: zeilenweise parallel gerechnete Lightmaps je Lauf bis %d' % n)
+            if n == 0:
+                print('q3map2_determinismus: FEHLER - der parallele Weg fuer grosse Lightmaps lief nicht')
+                rc = 1
         return rc
     finally:
         shutil.rmtree(arbeit, ignore_errors=True)

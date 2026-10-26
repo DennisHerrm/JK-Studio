@@ -31,6 +31,7 @@
 /* dependencies */
 #include "q3map2.h"
 #include "timer.h"
+#include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, parallel rows of big lightmaps */
 
 
 // http://www.graficaobscura.com/matrix/index.html
@@ -2126,7 +2127,414 @@ inline void FreeTraceLights( trace_t *trace ){
  */
 static void FloodlightIlluminateLightmap( rawLightmap_t *lm );
 
+/* BehavEd stage 7 (speed, same result): the light loop of IlluminateRawLightmap for one big raw
+   lightmap on all threads. On mp__duel1 one lightmap took 21 % of the radiosity time, so more than
+   4.8 times faster was impossible however many threads (measured 3.9 with 32). Here the luxel rows
+   and blocks of lights are spread over the threads; every luxel gets exactly the same float
+   operations in the same order as in the loop below:
+   - pass 1 (one sample per luxel) for a block of lights at once, each light into its own buffer
+     (the loop below reuses one buffer and lm->superFlags per light; nothing else is written);
+   - in light order, serially: the style check (it depends on the styles set by earlier lights),
+     the "nothing lit" skip, allocation of the style lightmap and setting the style;
+   - pass 2 (adaptive supersampling) per light as a wavefront: stamp (x,y) reads and writes the
+     luxels (x..x+1, y..y+1); the earlier stamps sharing a luxel are (x-1..x+1, y-1) and (x-1, y),
+     so row y starts stamp x only when row y-1 has finished stamps 0..x+1 - every stamp sees the
+     luxels and flags of the serial row-by-row order;
+   - pass 3 (filter, add to the lightmap) per row, the lights of the block in their order.
+   Not used with -randomsamples (random numbers per work item) or the debug fills. */
+static void BhedLichterParallel( rawLightmap_t *lm, trace_t& trace, bhed_par::Pool& pool ){
+	const int sw = lm->sw;
+	const int sh = lm->sh;
+	const size_t n = size_t( sw ) * sh;
+	const bool proben = lightSamples > 1;
+	const float tests[ 4 ][ 2 ] = { { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 } };
+	/* at most about 64 MB of temporary luxels per block; the buffers are kept between calls
+	   (only the main thread comes here) - fresh memory costs page faults every time */
+	const size_t jeLicht = n * ( sizeof( SuperLuxel ) + ( deluxemap ? sizeof( Vector3 ) : 0 ) + 1 );
+	const int block = int( std::clamp<size_t>( ( size_t( 64 ) << 20 ) / std::max<size_t>( jeLicht, 1 ), 1, 128 ) );
+	static std::vector<SuperLuxel> luxelPuffer;
+	static std::vector<Vector3> deluxelPuffer;
+	static std::vector<byte> flagPuffer;
+	static std::vector<int> licht;
+	static std::vector<int> kandidatSlot;
+	static std::vector<std::vector<int>> kandidaten;
+	static std::vector<std::vector<SuperLuxel>> ergebnisse;
+	static std::vector<std::vector<Vector3>> ergebnisseDir;
+	static std::vector<std::pair<int, int>> arbeit;
+	if ( luxelPuffer.size() < n * block ) {
+		luxelPuffer.resize( n * block );
+	}
+	if ( deluxemap && deluxelPuffer.size() < n * block ) {
+		deluxelPuffer.resize( n * block );
+	}
+	if ( proben && flagPuffer.size() < n * block ) {
+		flagPuffer.resize( n * block );
+	}
+	if ( licht.size() < size_t( sh ) * block ) {
+		licht.resize( size_t( sh ) * block );
+	}
+	struct Aktiv
+	{
+		int j;
+		int lightmapNum;
+		int luxelFilterRadius;
+		const light_t *light;
+	};
+	std::vector<Aktiv> aktiv;
+	for ( int basis = 0; basis < trace.numLights; basis += block )
+	{
+		const int k = std::min( block, trace.numLights - basis );
+		memset( static_cast<void*>( luxelPuffer.data() ), 0, n * k * sizeof( SuperLuxel ) );
+		if ( deluxemap ) {
+			memset( static_cast<void*>( deluxelPuffer.data() ), 0, n * k * sizeof( Vector3 ) );
+		}
+		if ( proben ) {
+			memset( flagPuffer.data(), 0, n * k );
+		}
+
+		/* pass 1 */
+		pool.fuerAlle( k * sh, [&]( int aufgabe ){
+			const int j = aufgabe / sh;
+			const int y = aufgabe % sh;
+			trace_t tr = trace;
+			tr.light = trace.lights[ basis + j ];
+			SuperLuxel *luxel = luxelPuffer.data() + n * j;
+			Vector3 *deluxel = deluxemap ? deluxelPuffer.data() + n * j : nullptr;
+			byte *flag = proben ? flagPuffer.data() + n * j : nullptr;
+			int lit = 0;
+			for ( int x = 0; x < sw; ++x )
+			{
+				const int cluster = lm->getSuperCluster( x, y );
+				if ( cluster < CLUSTER_NORMAL ) {
+					continue;
+				}
+				SuperLuxel& lightLuxel = luxel[ y * sw + x ];
+				lightLuxel.count = 1;
+				tr.cluster = cluster;
+				tr.origin = lm->getSuperOrigin( x, y );
+				tr.normal = lm->getSuperNormal( x, y );
+				LightContributionToSample( &tr );
+				lightLuxel.value = tr.color;
+				if ( deluxemap ) {
+					deluxel[ y * sw + x ] = tr.directionContribution;
+				}
+				if ( tr.forceSubsampling > 1 && proben ) {
+					lit++;
+					flag[ y * sw + x ] |= FLAG_FORCE_SUBSAMPLING;
+				}
+				else if ( tr.color != g_vector3_identity ) {
+					lit++;
+				}
+			}
+			licht[ size_t( j ) * sh + y ] = lit;
+		} );
+
+		/* in light order */
+		aktiv.clear();
+		for ( int j = 0; j < k; ++j )
+		{
+			const light_t *light = trace.lights[ basis + j ];
+			int lightmapNum;
+			for ( lightmapNum = 0; lightmapNum < MAX_LIGHTMAPS; ++lightmapNum )
+			{
+				if ( lm->styles[ lightmapNum ] == light->style ||
+				     lm->styles[ lightmapNum ] == LS_NONE ) {
+					break;
+				}
+			}
+			if ( lightmapNum >= MAX_LIGHTMAPS ) {
+				Sys_Warning( "Hit per-surface style limit (%d)\n", MAX_LIGHTMAPS );
+				continue;
+			}
+			int totalLighted = 0;
+			for ( int y = 0; y < sh; ++y )
+				totalLighted += licht[ size_t( j ) * sh + y ];
+			const float filterRadius = std::max( { 0.f, lm->filterRadius, light->filterRadius } );
+			int luxelFilterRadius = lm->sampleSize != 0 ? superSample * filterRadius / lm->sampleSize : 0;
+			if ( luxelFilterRadius == 0 && ( filterRadius > 0 || filter ) ) {
+				luxelFilterRadius = 1;
+			}
+			if ( totalLighted == 0 ) {
+				continue;
+			}
+			if ( lm->superLuxels[ lightmapNum ] == nullptr ) {
+				lm->superLuxels[ lightmapNum ] = safe_calloc( n * sizeof( *lm->superLuxels[0] ) );
+			}
+			if ( lightmapNum > 0 ) {
+				lm->styles[ lightmapNum ] = light->style;
+			}
+			aktiv.push_back( { j, lightmapNum, luxelFilterRadius, light } );
+		}
+		if ( aktiv.empty() ) {
+			continue;
+		}
+
+		/* pass 2: adaptive supersampling. The serial stamp scan is cheap; the work is in
+		   SubsampleRawLuxel_r, and its result for a luxel depends only on the luxel's value from
+		   pass 1 (each luxel is subsampled at most once, FLAG_ALREADY_SUBSAMPLED, and nothing else
+		   changes luxels in this pass). So: predict the luxels with the pass-1 values, subsample
+		   them in parallel into a side buffer, then run the exact serial scan per light (lights in
+		   parallel) and take the precomputed result where there is one - a luxel the prediction
+		   missed is subsampled right there, exactly as in the loop below. */
+		if ( proben && sh > 1 && sw > 1 ) {
+			const int na = int( aktiv.size() );
+			if ( kandidatSlot.size() < n * block ) {
+				kandidatSlot.resize( n * block );
+			}
+			kandidaten.resize( na );
+			ergebnisse.resize( na );
+			ergebnisseDir.resize( na );
+			/* the stamp test of the loop below */
+			const auto stempel = [&]( const SuperLuxel *luxel, const byte *flags, int x, int y ){
+				int mapped = 0;
+				int lighted = 0;
+				Vector3 total( 0 );
+				for ( int t = 0; t < 4; ++t )
+				{
+					const int sx = x + tests[ t ][ 0 ];
+					const int sy = y + tests[ t ][ 1 ];
+					if ( lm->getSuperCluster( sx, sy ) < CLUSTER_NORMAL ) {
+						continue;
+					}
+					mapped++;
+					if ( flags[ sy * sw + sx ] & FLAG_FORCE_SUBSAMPLING ) {
+						++lighted;
+						++mapped;
+						++mapped;
+					}
+					const SuperLuxel& lightLuxel = luxel[ sy * sw + sx ];
+					total += lightLuxel.value;
+					if ( ( lightLuxel.value[ 0 ] + lightLuxel.value[ 1 ] + lightLuxel.value[ 2 ] ) > 0 ) {
+						lighted++;
+					}
+				}
+				return !( total[ 0 ] <= 4.0f && total[ 1 ] <= 4.0f && total[ 2 ] <= 4.0f ) && lighted != 0 && lighted != mapped;
+			};
+			/* prediction */
+			pool.fuerAlle( na, [&]( int ai ){
+				const int j = aktiv[ ai ].j;
+				const SuperLuxel *luxel = luxelPuffer.data() + n * j;
+				const byte *flags = flagPuffer.data() + n * j;
+				int *slot = kandidatSlot.data() + n * j;
+				std::fill( slot, slot + n, -1 );
+				std::vector<int>& liste = kandidaten[ ai ];
+				liste.clear();
+				for ( int y = 0; y < sh - 1; ++y )
+				{
+					for ( int x = 0; x < sw - 1; ++x )
+					{
+						if ( !stempel( luxel, flags, x, y ) ) {
+							continue;
+						}
+						for ( int t = 0; t < 4; ++t )
+						{
+							const int sx = x + tests[ t ][ 0 ];
+							const int sy = y + tests[ t ][ 1 ];
+							if ( lm->getSuperCluster( sx, sy ) < CLUSTER_NORMAL || slot[ sy * sw + sx ] >= 0 ) {
+								continue;
+							}
+							slot[ sy * sw + sx ] = int( liste.size() );
+							liste.push_back( sy * sw + sx );
+						}
+					}
+				}
+				ergebnisse[ ai ].resize( liste.size() );
+				ergebnisseDir[ ai ].resize( deluxemap ? liste.size() : 0 );
+			} );
+			/* subsample the predicted luxels, all lights, in chunks */
+			arbeit.clear();
+			for ( int ai = 0; ai < na; ++ai )
+				for ( size_t k = 0; k < kandidaten[ ai ].size(); k += 8 )
+					arbeit.push_back( { ai, int( k ) } );
+			pool.fuerAlle( int( arbeit.size() ), [&]( int w ){
+				const int ai = arbeit[ w ].first;
+				const int j = aktiv[ ai ].j;
+				trace_t tr = trace;
+				tr.light = aktiv[ ai ].light;
+				const SuperLuxel *luxel = luxelPuffer.data() + n * j;
+				const Vector3 *deluxel = deluxemap ? deluxelPuffer.data() + n * j : nullptr;
+				const std::vector<int>& liste = kandidaten[ ai ];
+				const size_t ende = std::min( liste.size(), size_t( arbeit[ w ].second ) + 8 );
+				for ( size_t k = arbeit[ w ].second; k < ende; ++k )
+				{
+					const int i = liste[ k ];
+					const int sx = i % sw;
+					const int sy = i / sw;
+					SuperLuxel& ziel = ergebnisse[ ai ][ k ];
+					ziel = luxel[ i ];
+					Vector3 *zielDir = nullptr;
+					if ( deluxemap ) {
+						ergebnisseDir[ ai ][ k ] = deluxel[ i ];
+						zielDir = &ergebnisseDir[ ai ][ k ];
+					}
+					SubsampleRawLuxel_r( lm, &tr, lm->getSuperOrigin( sx, sy ), sx, sy, 0.25f * lightSamplesSearchBoxSize, ziel, zielDir );
+				}
+			} );
+			/* the exact serial scan, one light per task */
+			pool.fuerAlle( na, [&]( int ai ){
+				const int j = aktiv[ ai ].j;
+				trace_t tr = trace;
+				tr.light = aktiv[ ai ].light;
+				SuperLuxel *luxel = luxelPuffer.data() + n * j;
+				Vector3 *deluxel = deluxemap ? deluxelPuffer.data() + n * j : nullptr;
+				byte *flags = flagPuffer.data() + n * j;
+				const int *slot = kandidatSlot.data() + n * j;
+				for ( int y = 0; y < sh - 1; ++y )
+				{
+					for ( int x = 0; x < sw - 1; ++x )
+					{
+						if ( !stempel( luxel, flags, x, y ) ) {
+							continue;
+						}
+						for ( int t = 0; t < 4; ++t )
+						{
+							const int sx = x + tests[ t ][ 0 ];
+							const int sy = y + tests[ t ][ 1 ];
+							if ( lm->getSuperCluster( sx, sy ) < CLUSTER_NORMAL ) {
+								continue;
+							}
+							byte& flag = flags[ sy * sw + sx ];
+							if ( flag & FLAG_ALREADY_SUBSAMPLED ) {
+								continue;
+							}
+							const int i = sy * sw + sx;
+							if ( slot[ i ] >= 0 ) {
+								luxel[ i ] = ergebnisse[ ai ][ slot[ i ] ];
+								if ( deluxemap ) {
+									deluxel[ i ] = ergebnisseDir[ ai ][ slot[ i ] ];
+								}
+							}
+							else
+							{
+								Vector3 *lightDeluxel = deluxemap ? &deluxel[ i ] : nullptr;
+								SubsampleRawLuxel_r( lm, &tr, lm->getSuperOrigin( sx, sy ), sx, sy, 0.25f * lightSamplesSearchBoxSize, luxel[ i ], lightDeluxel );
+							}
+							flag |= FLAG_ALREADY_SUBSAMPLED;
+						}
+					}
+				}
+			} );
+		}
+
+		/* pass 3 */
+		pool.fuerAlle( sh, [&]( int y ){
+			for ( const Aktiv& a : aktiv )
+			{
+				const SuperLuxel *luxel = luxelPuffer.data() + n * a.j;
+				const Vector3 *deluxel = deluxemap ? deluxelPuffer.data() + n * a.j : nullptr;
+				const int r = a.luxelFilterRadius;
+				for ( int x = 0; x < sw; ++x )
+				{
+					if ( lm->getSuperCluster( x, y ) < CLUSTER_NORMAL ) {
+						continue;
+					}
+					if ( r ) {
+						Vector3 averageColor( 0 ), averageDir( 0 );
+						float samples = 0;
+						for ( int sy = ( y - r ); sy <= ( y + r ); ++sy )
+						{
+							if ( sy < 0 || sy >= sh ) {
+								continue;
+							}
+							for ( int sx = ( x - r ); sx <= ( x + r ); ++sx )
+							{
+								if ( sx < 0 || sx >= sw ) {
+									continue;
+								}
+								if ( lm->getSuperCluster( sx, sy ) < CLUSTER_NORMAL ) {
+									continue;
+								}
+								float weight = ( abs( sx - x ) == r ? 0.5f : 1.0f );
+								weight *= ( abs( sy - y ) == r ? 0.5f : 1.0f );
+								averageColor += luxel[ sy * sw + sx ].value * weight;
+								if ( deluxemap ) {
+									averageDir += deluxel[ sy * sw + sx ] * weight;
+								}
+								samples += weight;
+							}
+						}
+						if ( samples <= 0 ) {
+							continue;
+						}
+						SuperLuxel& ziel = lm->getSuperLuxel( a.lightmapNum, x, y );
+						ziel.count = 1;
+						if ( a.light->flags & LightFlags::Negative ) {
+							ziel.value -= averageColor / samples;
+						}
+						else
+						{
+							ziel.value += averageColor / samples;
+						}
+						if ( deluxemap ) {
+							lm->getSuperDeluxel( x, y ) += averageDir / samples;
+						}
+					}
+					else
+					{
+						const SuperLuxel& lightLuxel = luxel[ y * sw + x ];
+						SuperLuxel& ziel = lm->getSuperLuxel( a.lightmapNum, x, y );
+						ziel.count = 1;
+						if ( a.light->flags & LightFlags::Negative ) {
+							ziel.value -= lightLuxel.value;
+						}
+						else{
+							ziel.value += lightLuxel.value;
+						}
+						if ( deluxemap ) {
+							lm->getSuperDeluxel( x, y ) += deluxel[ y * sw + x ];
+						}
+					}
+				}
+			}
+		} );
+	}
+}
+
+/* BehavEd stage 7 (speed, same result): the big raw lightmaps are lit in advance with
+   BhedLichterParallel (BhedIlluminateRawLightmaps below); the normal threaded pass then skips
+   them. g_bhedVorab[ n ] != 0: lightmap n is already done. */
+static std::vector<char> g_bhedVorab;
+static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool );
+
 void IlluminateRawLightmap( int rawLightmapNum ){
+	if ( rawLightmapNum < int( g_bhedVorab.size() ) && g_bhedVorab[ rawLightmapNum ] ) {
+		return;
+	}
+	IlluminateRawLightmap_( rawLightmapNum, nullptr );
+}
+
+static bhed_par::Pool& BhedPool(){
+	return bhed_par::pool( numthreads );
+}
+
+void BhedIlluminateRawLightmaps(){
+	g_bhedVorab.assign( numRawLightmaps, 0 );
+	if ( numthreads > 1 && !lightRandomSamples &&
+	     !( debugSurfaces || debugAxis || debugCluster || debugOrigin || dirtDebug || normalmap ) ) {
+		double total = 0;
+		for ( int i = 0; i < numRawLightmaps; ++i )
+			total += double( rawLightmaps[ i ].sw ) * rawLightmaps[ i ].sh;
+		/* big: more luxels than the share of one thread - such a lightmap would keep one
+		   thread busy while the others run out of work */
+		const double grenze = total / numthreads;
+		int gross = 0;
+		for ( int i = 0; i < numRawLightmaps; ++i )
+		{
+			if ( double( rawLightmaps[ i ].sw ) * rawLightmaps[ i ].sh > grenze ) {
+				IlluminateRawLightmap_( i, &BhedPool() );
+				g_bhedVorab[ i ] = 1;
+				++gross;
+			}
+		}
+		if ( getenv( "BHED_Q3_ZEITEN" ) != nullptr ) { /* for the determinism ctest: the path really ran */
+			Sys_Printf( "BHED-Parallel: %d\n", gross );
+		}
+	}
+	RunThreadsOnIndividual( numRawLightmaps, true, IlluminateRawLightmap );
+	g_bhedVorab.clear();
+}
+
+static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool ){
 	int t, x, y, sx, sy, size, luxelFilterRadius, lightmapNum;
 	int                 mapped, lighted, totalLighted;
 	rawLightmap_t       *lm;
@@ -2296,6 +2704,10 @@ void IlluminateRawLightmap( int rawLightmapNum ){
 		//%		Sys_Printf( "Lightmap %9d: 0 lights, axis: %.2f, %.2f, %.2f\n", rawLightmapNum, lm->axis[ 0 ], lm->axis[ 1 ], lm->axis[ 2 ] );
 
 		/* walk light list */
+		if ( pool != nullptr ) { /* BehavEd stage 7: the same light loop, rows and lights in blocks on all threads */
+			BhedLichterParallel( lm, trace, *pool );
+		}
+		else
 		for ( int i = 0; i < trace.numLights; ++i )
 		{
 			/* setup trace */

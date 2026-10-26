@@ -31,6 +31,7 @@
 /* dependencies */
 #include "q3map2.h"
 #include "bspfile_rbsp.h"
+#include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, grid pre-pass in parallel */
 #include <set>
 
 
@@ -1467,11 +1468,70 @@ static std::vector<Vector3> g_bhedGridOrigin;
 static std::vector<int> g_bhedGridCluster;
 static std::vector<char> g_bhedGridValid;
 
+/* BehavEd stage 7 (speed, same result): can any point of the box mins..maxs end in a leaf with
+   a cluster? Same walk as PointInLeafNum_r (within 0.1 of a plane both sides count), for the
+   whole box at once, with a small margin. false: every point of the box gets CLUSTER_OPAQUE. */
+static bool BhedBoxMayBeOpen( int nodenum, const Vector3& mins, const Vector3& maxs ){
+	while ( nodenum >= 0 )
+	{
+		const bspNode_t& node = bspNodes[ nodenum ];
+		const bspPlane_t& plane = bspPlanes[ node.planeNum ];
+		double lo = -double( plane.dist() );
+		double hi = lo;
+		for ( int c = 0; c < 3; ++c )
+		{
+			const double nc = plane.normal()[ c ];
+			lo += nc * ( nc >= 0 ? mins[ c ] : maxs[ c ] );
+			hi += nc * ( nc >= 0 ? maxs[ c ] : mins[ c ] );
+		}
+		if ( lo > 0.11 ) {
+			nodenum = node.children[ eFront ];
+		}
+		else if ( hi < -0.11 ) {
+			nodenum = node.children[ eBack ];
+		}
+		else
+		{
+			if ( BhedBoxMayBeOpen( node.children[ eFront ], mins, maxs ) ) {
+				return true;
+			}
+			nodenum = node.children[ eBack ];
+		}
+	}
+	return bspLeafs[ -nodenum - 1 ].cluster > CLUSTER_OPAQUE;
+}
+
 static void BhedPrepareGridOrigins(){
 	const size_t n = rawGridPoints.size();
 	g_bhedGridOrigin.assign( n, Vector3( 0 ) );
 	g_bhedGridCluster.assign( n, -1 );
 	g_bhedGridValid.assign( n, 0 );
+	/* BehavEd stage 7 (speed, same result): the part without random numbers in parallel - the
+	   cluster of every grid point, and for points in solid whether any nudge could leave the solid
+	   at all (a nudge stays within half a grid cell, see below). Only the points in solid then run
+	   serially in point order, drawing the same random numbers as before; for a point whose whole
+	   nudge box is solid the 200 steps cannot succeed, so only the numbers are drawn. */
+	std::vector<int> basisCluster( n );
+	std::vector<char> zuMachen( n, 0 ); /* 0 valid, 1 nudge, 2 nudge box all solid */
+	bhed_par::pool( numthreads ).fuerAlle( int( ( n + 255 ) / 256 ), [&]( int block ){
+		const size_t ende = std::min( n, size_t( block ) * 256 + 256 );
+		for ( size_t i = size_t( block ) * 256; i < ende; ++i )
+		{
+			const int num = int( i );
+			int mod = num;
+			const int z = mod / ( gridBounds[ 0 ] * gridBounds[ 1 ] );
+			mod -= z * ( gridBounds[ 0 ] * gridBounds[ 1 ] );
+			const int y = mod / gridBounds[ 0 ];
+			mod -= y * gridBounds[ 0 ];
+			const int x = mod;
+			const Vector3 origin = gridMins + Vector3( x, y, z ) * gridSize;
+			basisCluster[ i ] = ClusterForPointExt( origin, GRID_EPSILON );
+			if ( basisCluster[ i ] < CLUSTER_NORMAL ) {
+				const Vector3 halb = gridSize * 0.5f + Vector3( 1 );
+				zuMachen[ i ] = BhedBoxMayBeOpen( 0, origin - halb, origin + halb ) ? 1 : 2;
+			}
+		}
+	} );
 	for ( size_t i = 0; i < n; ++i )
 	{
 		const int num = int( i );
@@ -1489,7 +1549,18 @@ static void BhedPrepareGridOrigins(){
 		trace.origin = gridMins + Vector3( x, y, z ) * gridSize;
 
 		/* find point cluster */
-		trace.cluster = ClusterForPointExt( trace.origin, GRID_EPSILON );
+		trace.cluster = basisCluster[ i ]; /* BehavEd stage 7: was ClusterForPointExt( trace.origin, GRID_EPSILON ), computed above */
+		if ( trace.cluster < CLUSTER_NORMAL && zuMachen[ i ] == 2 ) {
+			/* BehavEd stage 7: the nudge loop below cannot find a point - draw its numbers only */
+			double step = 0;
+			while ( ( step += 0.005 ) <= 1 )
+			{
+				Random();
+				Random();
+				Random();
+			}
+			continue;
+		}
 		if ( trace.cluster < CLUSTER_NORMAL ) {
 			/* try to nudge the origin around to find a valid point */
 			const Vector3 baseOrigin( trace.origin );
@@ -2028,6 +2099,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 		Sys_Printf( "--- TraceGrid ---\n" );
 		inGrid = true;
 		BhedPrepareGridOrigins(); // BehavEd stage 6: see there
+		BhedZeit( "Gitter-Vorlauf" );
 		RunThreadsOnIndividual( rawGridPoints.size(), true, TraceGrid );
 		inGrid = false;
 		Sys_Printf( "%d x %d x %d = %zu grid\n",
@@ -2071,7 +2143,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 	lightsClusterCulled = 0;
 
 	Sys_Printf( "--- IlluminateRawLightmap ---\n" );
-	RunThreadsOnIndividual( numRawLightmaps, true, IlluminateRawLightmap );
+	BhedIlluminateRawLightmaps(); /* BehavEd stage 7: was RunThreadsOnIndividual( numRawLightmaps, true, IlluminateRawLightmap ) */
 	Sys_Printf( "%9d luxels illuminated\n", numLuxelsIlluminated );
 	BhedZeit( "IlluminateRawLightmap" );
 
@@ -2140,6 +2212,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 			Sys_Printf( "--- BounceGrid ---\n" );
 			inGrid = true;
 			BhedPrepareGridOrigins(); // BehavEd stage 6: see there
+			BhedZeit( "Bounce: Gitter-Vorlauf" );
 			RunThreadsOnIndividual( rawGridPoints.size(), true, TraceGrid );
 			inGrid = false;
 			Sys_FPrintf( SYS_VRB, "%9d grid points envelope culled\n", gridEnvelopeCulled );
@@ -2154,7 +2227,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 		lightsClusterCulled = 0;
 
 		Sys_Printf( "--- IlluminateRawLightmap ---\n" );
-		RunThreadsOnIndividual( numRawLightmaps, true, IlluminateRawLightmap );
+		BhedIlluminateRawLightmaps(); /* BehavEd stage 7: was RunThreadsOnIndividual( numRawLightmaps, true, IlluminateRawLightmap ) */
 		Sys_Printf( "%9d luxels illuminated\n", numLuxelsIlluminated );
 		Sys_Printf( "%9d vertexes illuminated\n", numVertsIlluminated );
 		BhedZeit( "Bounce: IlluminateRawLightmap" );

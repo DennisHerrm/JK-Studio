@@ -32,6 +32,8 @@
 #include "q3map2.h"
 #include "bspfile_abstract.h"
 #include <ctime>
+#include <cstdint> // BehavEd stage 7: lightgrid buckets
+#include <unordered_map> // BehavEd stage 7: lightgrid buckets
 
 
 
@@ -102,6 +104,71 @@ static void AddLightGridLumps( FILE *file, rbspHeader_t& header ){
 	std::vector<bspGridPoint_t> gridPoints;
 	std::vector<unsigned short> gridArray( bspGridPoints.size() );
 
+	/* BehavEd stage 7 (speed, same result): the twin is the FIRST stored point within LG_EPSILON.
+	   NRC walked the whole list for every grid point (kejim_post: 496800 points, 2 s on every
+	   write of the bsp, also after each bounce). A twin needs the same styles and ambient[ 0 ]
+	   within LG_EPSILON per channel, so it lies in the same or a neighbouring bucket of width
+	   LG_EPSILON + 1; the smallest matching index over those buckets is NRC's first match. */
+	const auto twin = []( const bspGridPoint_t& in, const bspGridPoint_t& out ){
+		/* compare styles */
+		if ( in.styles != out.styles ) {
+			return false;
+		}
+		/* compare direction */
+		if ( const int d = abs( in.latLong[ 0 ] - out.latLong[ 0 ] );
+			d < ( 255 - LG_EPSILON ) && d > LG_EPSILON ) {
+			return false;
+		}
+		if ( const int d = abs( in.latLong[ 1 ] - out.latLong[ 1 ] );
+			d < 255 - LG_EPSILON && d > LG_EPSILON ) {
+			return false;
+		}
+		/* compare light */
+		for ( int k = 0; k < MAX_LIGHTMAPS; ++k )
+			for ( int c = 0; c < 3; ++c )
+				if ( abs( (int) in.ambient [ k ][ c ] - (int) out.ambient [ k ][ c ] ) > LG_EPSILON ||
+				     abs( (int) in.directed[ k ][ c ] - (int) out.directed[ k ][ c ] ) > LG_EPSILON ) {
+					return false;
+				}
+		return true;
+	};
+	/* bucket of a byte value: a twin differs by at most LG_EPSILON, so it lies in the same or a
+	   neighbouring bucket */
+	const auto eimerVon = []( int v ){ return v / ( LG_EPSILON + 1 ) + 1; };
+	/* outer key: styles and the ambient[ 0 ] buckets; inner key: the directed[ 0 ] buckets */
+	const auto aussen = [&]( const bspGridPoint_t& p, int dr, int dg, int db ){
+		std::uint64_t s = 0;
+		for ( int k = 0; k < MAX_LIGHTMAPS; ++k )
+			s = ( s << 8 ) | p.styles[ k ];
+		s = ( s << 8 ) | std::uint8_t( eimerVon( p.ambient[ 0 ][ 0 ] ) + dr );
+		s = ( s << 8 ) | std::uint8_t( eimerVon( p.ambient[ 0 ][ 1 ] ) + dg );
+		s = ( s << 8 ) | std::uint8_t( eimerVon( p.ambient[ 0 ][ 2 ] ) + db );
+		return s;
+	};
+	const auto innen = [&]( const bspGridPoint_t& p, int dr, int dg, int db ){
+		return ( unsigned( eimerVon( p.directed[ 0 ][ 0 ] ) + dr ) << 16 ) |
+		       ( unsigned( eimerVon( p.directed[ 0 ][ 1 ] ) + dg ) << 8 ) |
+		         unsigned( eimerVon( p.directed[ 0 ][ 2 ] ) + db );
+	};
+	std::unordered_map<std::uint64_t, std::unordered_map<unsigned, std::vector<unsigned>>> eimer;
+	/* the same bytes give the same twin: the entries before the earlier result did not match
+	   then and still do not, the earlier result still does (it is the point itself when it was
+	   added) */
+	struct Gleich
+	{
+		std::size_t operator()( const bspGridPoint_t& p ) const {
+			std::size_t h = 1469598103934665603ULL;
+			const byte *b = reinterpret_cast<const byte*>( &p );
+			for ( std::size_t i = 0; i < sizeof( p ); ++i )
+				h = ( h ^ b[ i ] ) * 1099511628211ULL;
+			return h;
+		}
+		bool operator()( const bspGridPoint_t& a, const bspGridPoint_t& b ) const {
+			return memcmp( &a, &b, sizeof( a ) ) == 0;
+		}
+	};
+	std::unordered_map<bspGridPoint_t, std::size_t, Gleich, Gleich> schonGesehen;
+
 	/* for each bsp grid point, find an approximate twin */
 	Sys_Printf( "Storing lightgrid: %zu points\n", bspGridPoints.size() );
 	for ( size_t i = 0; i < gridArray.size(); ++i )
@@ -109,49 +176,41 @@ static void AddLightGridLumps( FILE *file, rbspHeader_t& header ){
 		/* get points */
 		const bspGridPoint_t& in = bspGridPoints[ i ];
 
-		/* walk existing list */
-		size_t j;
-		for ( j = 0; j < gridPoints.size(); ++j )
+		size_t j = gridPoints.size();
+		if ( const auto gesehen = schonGesehen.find( in ); gesehen != schonGesehen.end() ) {
+			j = gesehen->second;
+		}
+		else
 		{
-			/* get point */
-			const bspGridPoint_t& out = gridPoints[ j ];
-
-			/* compare styles */
-			if ( in.styles != out.styles ) {
-				continue;
-			}
-
-			/* compare direction */
-			if ( const int d = abs( in.latLong[ 0 ] - out.latLong[ 0 ] );
-				d < ( 255 - LG_EPSILON ) && d > LG_EPSILON ) {
-				continue;
-			}
-			if ( const int d = abs( in.latLong[ 1 ] - out.latLong[ 1 ] );
-				d < 255 - LG_EPSILON && d > LG_EPSILON ) {
-				continue;
-			}
-
-			/* compare light */
-			bool bad = false;
-			for ( int k = 0; ( k < MAX_LIGHTMAPS && !bad ); ++k )
-			{
-				for ( int c = 0; c < 3; ++c )
-				{
-					if ( abs( (int) in.ambient [ k ][ c ] - (int) out.ambient [ k ][ c ] ) > LG_EPSILON ||
-					     abs( (int) in.directed[ k ][ c ] - (int) out.directed[ k ][ c ] ) > LG_EPSILON ) {
-						bad = true;
-						break;
+			for ( int ar = -1; ar <= 1; ++ar )
+				for ( int ag = -1; ag <= 1; ++ag )
+					for ( int ab = -1; ab <= 1; ++ab )
+					{
+						const auto au = eimer.find( aussen( in, ar, ag, ab ) );
+						if ( au == eimer.end() ) {
+							continue;
+						}
+						for ( int dr = -1; dr <= 1; ++dr )
+							for ( int dg = -1; dg <= 1; ++dg )
+								for ( int db = -1; db <= 1; ++db )
+								{
+									const auto it = au->second.find( innen( in, dr, dg, db ) );
+									if ( it == au->second.end() ) {
+										continue;
+									}
+									for ( const unsigned k : it->second ) /* ascending */
+									{
+										if ( k >= j ) {
+											break;
+										}
+										if ( twin( in, gridPoints[ k ] ) ) {
+											j = k;
+											break;
+										}
+									}
+								}
 					}
-				}
-			}
-
-			/* failure */
-			if ( bad ) {
-				continue;
-			}
-
-			/* this sample is ok */
-			break;
+			schonGesehen.emplace( in, j );
 		}
 
 		/* set sample index */
@@ -159,6 +218,7 @@ static void AddLightGridLumps( FILE *file, rbspHeader_t& header ){
 
 		/* if no sample found, add a new one */
 		if ( j >= gridPoints.size() && gridPoints.size() < maxGridPoints ) {
+			eimer[ aussen( in, 0, 0, 0 ) ][ innen( in, 0, 0, 0 ) ].push_back( unsigned( gridPoints.size() ) );
 			gridPoints.push_back( in );
 		}
 	}
