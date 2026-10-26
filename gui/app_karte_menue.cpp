@@ -1246,6 +1246,7 @@ void einstellungenLaden() {
         b.melden = zahl("BhedBuildNotify", 1) != 0.0F;   // Stufe 8a (eigene Einstellung)
         b.editorDaten = zahl("BhedKeepEditorData", 0) != 0.0F;
         b.visWieder = zahl("BhedVisReuse", 0) != 0.0F;
+        b.lichtWieder = zahl("BhedLightReuse", 0) != 0.0F;
         ed.bspRueck.modelle = zahl("BhedBspRecoverModels", 1) != 0.0F;
         ed.bspRueck.flaechen = zahl("BhedBspUnknownFaces", 1) != 0.0F;
         ed.bspRueck.lichter = zahl("BhedBspEstimateLights", 0) != 0.0F;
@@ -1368,6 +1369,7 @@ void einstellungenSpeichern() {
     k["BhedBuildNotify"] = ed.bau.melden ? "1" : "0";
     k["BhedKeepEditorData"] = ed.bau.editorDaten ? "1" : "0";
     k["BhedVisReuse"] = ed.bau.visWieder ? "1" : "0";
+    k["BhedLightReuse"] = ed.bau.lichtWieder ? "1" : "0";
     k["BhedBspRecoverModels"] = ed.bspRueck.modelle ? "1" : "0";
     k["BhedBspUnknownFaces"] = ed.bspRueck.flaechen ? "1" : "0";
     k["BhedBspEstimateLights"] = ed.bspRueck.lichter ? "1" : "0";

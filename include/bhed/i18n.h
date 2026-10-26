@@ -2239,6 +2239,8 @@ enum class Str {
     KeLsFertig,
     KeTkVis,
     KeTkVisTip,
+    KeTkLicht,
+    KeTkLichtTip,
     Count,
 };
 

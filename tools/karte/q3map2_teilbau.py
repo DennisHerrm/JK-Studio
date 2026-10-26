@@ -15,6 +15,7 @@ ohne Spielordner: die Shader fehlen, die Geometrie ist trotzdem dieselbe).
 """
 import os
 import re
+LICHT = os.environ.get('BHED_TEILBAU_LICHT', '-fast -threads 1').split()   # Schalter fuer -light
 import shutil
 import subprocess
 import sys
@@ -26,7 +27,8 @@ fehler = 0
 
 
 def lauf(*args):
-    r = subprocess.run([Q3, '-game', 'ja', '-fs_basepath', ARBEIT, '-fs_homepath', ''] + list(args), capture_output=True, text=True,
+    spiel = os.environ.get('BHED_TEILBAU_SPIEL', ARBEIT)   # Spielordner (Shader, Bilder), sonst keiner
+    r = subprocess.run([Q3, '-game', 'ja', '-fs_basepath', spiel, '-fs_homepath', ''] + list(args), capture_output=True, text=True,
                        errors='replace', creationflags=0x40 if os.name == 'nt' else 0)
     return r.stdout + r.stderr
 
@@ -35,7 +37,7 @@ def bauen(karte, wieder):
     t = ''
     t += lauf('-meta', karte)
     t += lauf('-vis', '-threads', '1', *(['-bhedvisreuse'] if wieder else []), karte)
-    t += lauf('-light', '-fast', '-threads', '1', karte)
+    t += lauf('-light', *LICHT, karte)
     return t
 
 
@@ -112,5 +114,78 @@ for quelle in KARTEN:
         pruefe(ersterCache and (wieder is None or wiederverwendet == wieder),
                '%s, %s: Sichtbarkeit %s' % (name, was, 'wiederverwendet' if wiederverwendet else 'neu gerechnet'))
         pruefe(not anders, '%s, %s: .bsp gleich dem vollen Bau (andere Lumps: %s)' % (name, was, anders))
+
+    # b) und d) -light -bhedlightcache: Lichter geaendert bzw. nur die Nachbearbeitung
+    licht = re.search(r'"classname" "light"[^}]*?"origin" "([-\d.]+) ([-\d.]+) ([-\d.]+)"', text)
+    if licht:
+        lx, ly, lz = (float(v) for v in licht.groups())
+        alt = licht.group(0)
+        verschoben = alt.replace('"origin" "%s %s %s"' % licht.groups(), '"origin" "%g %g %g"' % (lx + 48, ly, lz), 1)
+        mitLicht = text.replace(alt, verschoben, 1)
+    else:   # ohne Licht: eines am Startpunkt dazu
+        mitLicht = text + '{\n"classname" "light"\n"origin" "%g %g %g"\n"light" "300"\n}\n' % (sx, sy, sz + 64)
+    lichtFaelle = [
+        ('Licht verschoben bzw. neu', mitLicht, [], []),
+        ('nur Nachbearbeitung (-gamma 1.3 -exposure 200 -saturation 0.7 -compensate 1.5, _minlight 20)',
+         text.replace('"classname" "worldspawn"', '"classname" "worldspawn"\n"_minlight" "20"', 1), [],
+         ['-gamma', '1.3', '-exposure', '200', '-saturation', '0.7', '-compensate', '1.5']),
+    ]
+    for was, neu, _, nach in lichtFaelle:
+        a = os.path.join(ARBEIT, name + '_la')
+        b = os.path.join(ARBEIT, name + '_lb')
+        for o in (a, b):
+            shutil.rmtree(o, ignore_errors=True)
+            os.makedirs(o)
+        ka = os.path.join(a, name + '.map')
+        kb = os.path.join(b, name + '.map')
+        open(ka, 'w', encoding='latin-1', newline='').write(text)
+        lauf('-meta', ka)
+        lauf('-vis', '-threads', '1', ka)
+        lauf('-light', *LICHT, '-bhedlightcache', ka)
+        cache = os.path.exists(os.path.join(a, name + '.bhedlight'))
+        open(ka, 'w', encoding='latin-1', newline='').write(neu)
+        lauf('-meta', ka)
+        lauf('-vis', '-threads', '1', ka)
+        ausgabe = lauf('-light', *LICHT, '-bhedlightcache', *nach, ka)
+        open(kb, 'w', encoding='latin-1', newline='').write(neu)
+        lauf('-meta', kb)
+        lauf('-vis', '-threads', '1', kb)
+        lauf('-light', *LICHT, *nach, kb)
+        la, lb = lumps(os.path.join(a, name + '.bsp')), lumps(os.path.join(b, name + '.bsp'))
+        anders = [i for i in range(18) if la[i] != lb[i]]
+        m = re.search(r'light cache: (\d+) of (\d+) lightmaps and (\d+) of (\d+) vertex lit surfaces taken from the cache, grid ([a-z ]+);', ausgabe)
+        zeile = m.group(0) if m else '(keine Zeile)'
+        aus = int(m.group(1)) if m else -1
+        gitter = m.group(5) if m else ''
+        if nach or 'minlight' in was:
+            ok = m is not None and aus == int(m.group(2)) and gitter == 'from the cache'
+        else:
+            ok = m is not None and aus < int(m.group(2))
+        pruefe(cache and ok, '%s, %s: %s' % (name, was, zeile))
+        pruefe(not anders, '%s, %s: .bsp gleich dem vollen -light (andere Lumps: %s)' % (name, was, anders))
+    # d) nur -light noch einmal auf der schon beleuchteten .bsp (Single: light stage) mit neuer Nachbearbeitung
+    a = os.path.join(ARBEIT, name + '_lc')
+    b = os.path.join(ARBEIT, name + '_ld')
+    for o in (a, b):
+        shutil.rmtree(o, ignore_errors=True)
+        os.makedirs(o)
+    ka = os.path.join(a, name + '.map')
+    kb = os.path.join(b, name + '.map')
+    nach = ['-gamma', '0.8', '-saturation', '1.4']
+    for k in (ka, kb):
+        open(k, 'w', encoding='latin-1', newline='').write(text)
+        lauf('-meta', k)
+        lauf('-vis', '-threads', '1', k)
+    # dieselbe Folge ohne Cache: erst -light, dann -light mit den neuen Werten (auch der worldspawn-Befehlszeile wegen)
+    lauf('-light', *LICHT, '-bhedlightcache', ka)
+    ausgabe = lauf('-light', *LICHT, '-bhedlightcache', *nach, ka)
+    lauf('-light', *LICHT, kb)
+    lauf('-light', *LICHT, *nach, kb)
+    la, lb = lumps(os.path.join(a, name + '.bsp')), lumps(os.path.join(b, name + '.bsp'))
+    anders = [i for i in range(18) if la[i] != lb[i]]
+    m = re.search(r'light cache: (\d+) of (\d+) lightmaps and (\d+) of (\d+) vertex lit surfaces taken from the cache, grid ([a-z ]+);', ausgabe)
+    pruefe(m is not None and m.group(1) == m.group(2) and m.group(5) == 'from the cache',
+           '%s, nur -light noch einmal (-gamma 0.8 -saturation 1.4): %s' % (name, m.group(0) if m else '(keine Zeile)'))
+    pruefe(not anders, '%s, nur -light noch einmal: .bsp gleich zweimal vollem -light (andere Lumps: %s)' % (name, anders))
 print('q3map2_teilbau: %d Fehlschlaege' % fehler)
 sys.exit(1 if fehler else 0)

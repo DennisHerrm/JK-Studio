@@ -72,6 +72,9 @@ enum class EditorDatenStand { Passt, AndereBsp, Kaputt };
 // Stufe 8a Punkt 5a: ein -vis-Befehl bekommt -bhedvisreuse (bhed_q3map2: die Sichtbarkeit
 // aus <karte>.bhedvis, wenn .prt und Schalter gleich sind)
 [[nodiscard]] std::string befehlMitVisWiederverwendung(const std::string& befehl);
+// Stufe 8a Punkt 5b/5d: ein -light-Befehl bekommt -bhedlightcache (bhed_q3map2: Lightmaps,
+// Vertexlicht und Lichtgitter aus <karte>.bhedlight, wo sie sich nicht aendern koennen)
+[[nodiscard]] std::string befehlMitLichtWiederverwendung(const std::string& befehl);
 
 }  // namespace bhed::karte
 

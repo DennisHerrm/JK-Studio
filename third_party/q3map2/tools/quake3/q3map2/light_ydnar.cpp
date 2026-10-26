@@ -30,6 +30,7 @@
 
 /* dependencies */
 #include "q3map2.h"
+#include "bhed_lichtcache.h" /* BehavEd stage 8a: -bhedlightcache */
 #include "timer.h"
 #include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, parallel rows of big lightmaps */
 
@@ -2579,6 +2580,12 @@ static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool ){
 	/* create a culled light list for this raw lightmap */
 	CreateTraceLightsForBounds( lm->minmax, ( lm->plane == nullptr? nullptr : &lm->plane->normal() ), lm->numLightClusters, lm->lightClusters, LightFlags::Surfaces, &trace );
 
+	/* BehavEd stage 8a: the same culled lights as in the cached run - the raw luxels are the same */
+	if ( BhedLmAusCache( rawLightmapNum, trace ) ) {
+		FreeTraceLights( &trace );
+		return;
+	}
+
 	/* -----------------------------------------------------------------
 	   fill pass
 	   ----------------------------------------------------------------- */
@@ -3302,6 +3309,12 @@ void IlluminateVertexes( int num ){
 
 		/* make light list for this surface */
 		CreateTraceLightsForSurface( num, &trace );
+
+		/* BehavEd stage 8a: the same lights as in the cached run - vertex light and colours from the cache */
+		if ( BhedFlaecheAusCache( num, trace ) ) {
+			FreeTraceLights( &trace );
+			return;
+		}
 
 		/* setup */
 		bspDrawVert_t *verts = &yDrawVerts[ ds.firstVert ];

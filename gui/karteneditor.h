@@ -895,6 +895,7 @@ struct Editor {
         bool melden = true;                // Stufe 8a: Taskleiste blinkt, wenn ein Bau fertig ist ("BhedBuildNotify")
         bool editorDaten = false;          // Stufe 8a: -keeplights und <karte>.bhed ("BhedKeepEditorData"), Vorgabe aus wie NRC
         bool visWieder = false;            // Stufe 8a Punkt 5a: -bhedvisreuse fuer -vis ("BhedVisReuse")
+        bool lichtWieder = false;          // Stufe 8a Punkt 5b/5d: -bhedlightcache fuer -light ("BhedLightReuse")
     } bau;
     // Stufe 8a Punkt 3/4: was "Open .bsp" zurueckgewinnt (eigene Funktion, nicht in NRC)
     struct BspRueckEinstellungen {

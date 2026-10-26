@@ -310,6 +310,16 @@ void bauMenueEintraegeZeichnen() {
         ed.bau.visWieder = !ed.bau.visWieder;
         einstellungenSpeichern();
     }
+    const std::string lichtW = std::string(trK(Str::KeTkLicht)) + "##baulichtwieder";
+    QtPunkt lw;
+    lw.id = lichtW.c_str();
+    lw.art = QtArt::Pruefbar;
+    lw.haken = ed.bau.lichtWieder;
+    lw.tooltip = trK(Str::KeTkLichtTip);
+    if (qtPunkt(lw)) {
+        ed.bau.lichtWieder = !ed.bau.lichtWieder;
+        einstellungenSpeichern();
+    }
     // Stufe 8a Punkt 1 (Abweichung, eigene Funktion): melden, wenn ein Bau fertig ist
     const std::string melden = std::string(trK(Str::KeFsMelden)) + "##baumelden";
     QtPunkt m;
@@ -1828,6 +1838,10 @@ void bauStarten(std::size_t index) {
     // Stufe 8a Punkt 5a (Abweichung): VIS wiederverwenden, wenn sich die Portale nicht aendern
     if (ed.bau.visWieder) {
         for (std::string& b : befehle) { b = karte::befehlMitVisWiederverwendung(b); }
+    }
+    // Stufe 8a Punkt 5b/5d (Abweichung): Licht nur fuer betroffene Lightmaps, Nachbearbeitung ohne neu zu tracen
+    if (ed.bau.lichtWieder) {
+        for (std::string& b : befehle) { b = karte::befehlMitLichtWiederverwendung(b); }
     }
     // bspname: PathFilename( Map_Name( g_map ) ) fuer die Engine
     const std::u8string stamm = pfadAus(ed.name).stem().u8string();

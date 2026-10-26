@@ -124,4 +124,6 @@ std::string befehlMitLichtern(const std::string& befehl) { return mitSchalter(be
 
 std::string befehlMitVisWiederverwendung(const std::string& befehl) { return mitSchalter(befehl, BauStufe::Vis, "-bhedvisreuse"); }
 
+std::string befehlMitLichtWiederverwendung(const std::string& befehl) { return mitSchalter(befehl, BauStufe::Licht, "-bhedlightcache"); }
+
 }  // namespace bhed::karte

@@ -30,6 +30,7 @@
 
 /* dependencies */
 #include "q3map2.h"
+#include "bhed_lichtcache.h" /* BehavEd stage 8a: -bhedlightcache */
 #include "bspfile_rbsp.h"
 #include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, grid pre-pass in parallel */
 #include <set>
@@ -1590,6 +1591,15 @@ static void BhedPrepareGridOrigins(){
 	}
 }
 
+static void BhedGitterSpeichern( int num );
+
+/* BehavEd stage 8a: the grid from -bhedlightcache - store the restored raw point (TraceGrid returns early for invalid points) */
+static void BhedGitterSpeichernGueltig( int num ){
+	if ( g_bhedGridValid[ num ] ) {
+		BhedGitterSpeichern( num );
+	}
+}
+
 static void TraceGrid( int num ){
 	int i, j, x, y, z, mod, numCon, numStyles;
 	Vector3 cheapColor, thisdir;
@@ -1773,6 +1783,17 @@ static void TraceGrid( int num ){
  */
 	}
 
+
+	BhedGitterSpeichern( num ); /* BehavEd stage 8a: the store part on its own (unchanged) */
+}
+
+/* BehavEd stage 8a: the end of TraceGrid - minimum light, gridscale, ColorToBytes, direction -
+   separated, so that -bhedlightcache can store restored raw grid points with new post-processing values */
+static void BhedGitterSpeichern( int num ){
+	int i, j;
+	rawGridPoint_t& gp = rawGridPoints[ num ];
+	bspGridPoint_t& bgp = bspGridPoints[ num ];
+	const Vector3 thisdir = VectorNormalized( gp.dir );
 
 	/* store off sample */
 	for ( i = 0; i < MAX_LIGHTMAPS; ++i )
@@ -2100,7 +2121,12 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 		inGrid = true;
 		BhedPrepareGridOrigins(); // BehavEd stage 6: see there
 		BhedZeit( "Gitter-Vorlauf" );
-		RunThreadsOnIndividual( rawGridPoints.size(), true, TraceGrid );
+		/* BehavEd stage 8a: the same grid lights as last time - only the store part (post-processing) runs,
+		   on the same number of work items (the pass numbering of the later passes stays the same) */
+		if ( BhedGitterAusCache() )
+			RunThreadsOnIndividual( rawGridPoints.size(), true, BhedGitterSpeichernGueltig );
+		else
+			RunThreadsOnIndividual( rawGridPoints.size(), true, TraceGrid );
 		inGrid = false;
 		Sys_Printf( "%d x %d x %d = %zu grid\n",
 		            gridBounds[ 0 ], gridBounds[ 1 ], gridBounds[ 2 ], bspGridPoints.size() );
@@ -2143,7 +2169,9 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 	lightsClusterCulled = 0;
 
 	Sys_Printf( "--- IlluminateRawLightmap ---\n" );
+	BhedLichtCacheLichter(); /* BehavEd stage 8a */
 	BhedIlluminateRawLightmaps(); /* BehavEd stage 7: was RunThreadsOnIndividual( numRawLightmaps, true, IlluminateRawLightmap ) */
+	BhedLmDatenMerken(); /* BehavEd stage 8a: the raw lightmaps before stitching */
 	Sys_Printf( "%9d luxels illuminated\n", numLuxelsIlluminated );
 	BhedZeit( "IlluminateRawLightmap" );
 
@@ -2154,6 +2182,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 	RunThreadsOnIndividual( bspDrawSurfaces.size(), true, IlluminateVertexes );
 	Sys_Printf( "%9d vertexes illuminated\n", numVertsIlluminated );
 	BhedZeit( "IlluminateVertexes" );
+	BhedLichtCacheSchreiben(); /* BehavEd stage 8a: <map>.bhedlight (only without -bounce) */
 
 	/* ydnar: emit statistics on light culling */
 	Sys_FPrintf( SYS_VRB, "%9d lights plane culled\n", lightsPlaneCulled );
@@ -2370,6 +2399,7 @@ int LightMain( Args& args ){
 
 	/* process commandline arguments */
 	const char *fileName = args.takeBack();
+	const bool bhedLichtCache = args.takeArg( "-bhedlightcache" ); /* BehavEd stage 8a: before argsToInject (not in the worldspawn command line) */
 	const auto argsToInject = args.getVector();
 	{
 		/* lightsource scaling */
@@ -3069,6 +3099,7 @@ int LightMain( Args& args ){
 	LoadSurfaceExtraFile( source );
 
 	/* load bsp file */
+	BhedLichtCacheSchalter( bhedLichtCache, argsToInject, source ); /* BehavEd stage 8a */
 	LoadBSPFile( source );
 
 	/* parse bsp entities */
@@ -3088,6 +3119,7 @@ int LightMain( Args& args ){
 
 	/* set the entity/model origins and init yDrawVerts */
 	SetEntityOrigins();
+	BhedLichtCacheGeometrie(); /* BehavEd stage 8a: key of the traced input, read <map>.bhedlight */
 
 	/* ydnar: set up optimization */
 	SetupBrushes();

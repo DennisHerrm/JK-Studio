@@ -307,6 +307,9 @@ void editorDatenPruefen(const std::string& q3) {
                befehlMitVisWiederverwendung(q + "-meta \"C:/m/a.map\"") == q + "-meta \"C:/m/a.map\"" &&
                befehlMitVisWiederverwendung(q + "-vis -bhedvisreuse \"C:/m/a.map\"") == q + "-vis -bhedvisreuse \"C:/m/a.map\"",
            "Stufe 8a/5a: -bhedvisreuse nur fuer -vis, vor der Karte, nicht doppelt");
+    pruefe(befehlMitLichtWiederverwendung(q + "-light -fast -samples 2 \"C:/m/a.map\"") == q + "-light -fast -samples 2 -bhedlightcache \"C:/m/a.map\"" &&
+               befehlMitLichtWiederverwendung(q + "-vis \"C:/m/a.map\"") == q + "-vis \"C:/m/a.map\"",
+           "Stufe 8a/5b: -bhedlightcache nur fuer -light, vor der Karte");
     pruefe(editorDatenPfad("C:/maps/a.b/raum.bsp") == "C:/maps/a.b/raum.bhed" && editorDatenPfad("maps/x") == "maps/x.bhed", "Pfad der Begleitdatei");
     const std::string bsp = lies(q3 + "/raum.nrc.bsp");
     const std::string map = lies(q3 + "/raum.map");
