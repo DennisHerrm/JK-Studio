@@ -13,6 +13,7 @@
 //   2. was karteLesen liest, wird nach hoechstens vier Schreib-Durchgaengen fest (siehe kartePruefen)
 //
 //   kartefuzz <tests/karte> [runden]
+//   kartefuzz <tests/karte> <runden> --schreiben <ordner>   (nur die mutierten Karten schreiben)
 #include "bhed/karte/baumonitor.h"
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/kartendatei.h"
@@ -191,6 +192,8 @@ int main(int argc, char** argv) {
         std::printf("%s\n", a == b ? "Festpunkt" : "verschieden");
         return a == b ? 0 : 1;
     }
+    // Untersuchung (Stufe 6 Punkt 5): N mutierte Karten in einen Ordner schreiben - fuer q3map2 unter ASan/UBSan
+    const bool schreiben = argc > 4 && std::string(argv[3]) == "--schreiben";
     const int runden = argc > 2 ? std::atoi(argv[2]) : 2000;
     std::vector<std::string> karten;
     std::vector<std::string> bsps;
@@ -232,7 +235,12 @@ int main(int argc, char** argv) {
     for (const std::string& t : karten) { kartePruefen(t, "Original"); }
     for (int r = 0; r < runden; ++r) {
         const std::string& basis = karten[static_cast<std::size_t>(r) % karten.size()];
-        kartePruefen(mutieren(basis, z), "Runde " + std::to_string(r));
+        const std::string m = mutieren(basis, z);
+        if (schreiben) {
+            std::ofstream(fs::path(argv[4]) / ("fuzz_" + std::to_string(r) + ".map"), std::ios::binary) << m;
+            continue;
+        }
+        kartePruefen(m, "Runde " + std::to_string(r));
         if (r % 4 == 0) {
             BspDatei b;
             const std::string d = bspMutieren(bsps[static_cast<std::size_t>(r) % bsps.size()], z);
