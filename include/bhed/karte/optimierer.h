@@ -124,6 +124,8 @@ struct ZaehlOptionen {
     std::function<std::string(const std::string&)> npcModell;
     // items.dat des Spiels (Gegenstaende spawnen ohne Eintrag in spawns[]).
     const Gegenstandsliste* gegenstaende = nullptr;
+    // Stufe 8a: "Editor-Daten behalten" baut mit -keeplights (wie _keepLights im worldspawn)
+    bool lichterBehalten = false;
 };
 
 // Eine Entitaet nur mit Schluesseln (Entity-Lump der BSP oder Karte).
@@ -301,6 +303,7 @@ struct PruefOptionen {
     std::vector<std::pair<std::string, double>>* zeiten = nullptr;   // je Pruefung die Dauer in ms (optional)
     std::vector<std::pair<std::string, std::string>> bauBefehle;     // Build-Menue: (Eintrag, Befehlszeile)
     double riesigAb = 16384.0;                 // Pinsel ab dieser Kantenlaenge melden (GT#271)
+    bool lichterBehalten = false;              // Stufe 8a: "Editor-Daten behalten" (-keeplights) - Pruefung "enttext"
 };
 [[nodiscard]] std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o);
 [[nodiscard]] const char* schwereName(Schwere s);   // "note" / "warning" / "error"

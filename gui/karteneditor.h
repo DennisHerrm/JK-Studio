@@ -893,6 +893,7 @@ struct Editor {
         karte::VorgabeText argumenteMp;    // g_engineArgsMP
         std::string zielOrdner;            // Abweichung: Ziel-Ordner ("BuildTargetFolder"), leer = neben der .map
         bool melden = true;                // Stufe 8a: Taskleiste blinkt, wenn ein Bau fertig ist ("BhedBuildNotify")
+        bool editorDaten = false;          // Stufe 8a: -keeplights und <karte>.bhed ("BhedKeepEditorData"), Vorgabe aus wie NRC
     } bau;
     // Stufe 8a Punkt 1: Fortschrittsfenster (zu bis zum naechsten Bau), Restzeit-Text, Meldungen im Selbsttest
     bool bauFortschrittZu = false;

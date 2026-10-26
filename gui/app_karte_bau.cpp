@@ -40,6 +40,8 @@
 #include "bhed/karte/bau.h"
 #include "bhed/karte/baufortschritt.h"
 #include "bhed/karte/baumonitor.h"
+#include "bhed/karte/bspoeffnen.h"
+#include "bhed/karte/editordaten.h"
 #include "bhed/karte/kartendatei.h"
 #include "bhed/karte/kartenformat.h"
 #include "bhed/karte/optimierer.h"
@@ -286,6 +288,17 @@ void bauMenueEintraegeZeichnen() {
     b.haken = ed.echtLicht.backen;
     b.tooltip = trK(Str::KeBackenMenueTip);
     if (qtPunkt(b)) { ed.echtLicht.backen = !ed.echtLicht.backen; }
+    // Stufe 8a Punkt 2 (Abweichung, eigene Funktion): Editor-Daten behalten
+    const std::string edDaten = std::string(trK(Str::KeEdMenue)) + "##baueditordaten";
+    QtPunkt ed2;
+    ed2.id = edDaten.c_str();
+    ed2.art = QtArt::Pruefbar;
+    ed2.haken = ed.bau.editorDaten;
+    ed2.tooltip = trK(Str::KeEdMenueTip);
+    if (qtPunkt(ed2)) {
+        ed.bau.editorDaten = !ed.bau.editorDaten;
+        einstellungenSpeichern();
+    }
     // Stufe 8a Punkt 1 (Abweichung, eigene Funktion): melden, wenn ein Bau fertig ist
     const std::string melden = std::string(trK(Str::KeFsMelden)) + "##baumelden";
     QtPunkt m;
@@ -1056,6 +1069,9 @@ struct BauLauf {
     std::vector<double> fertig;                    // Dauern der fertigen Schritte
     bool hatVerlauf = false;
     karte::BauLaufZeiten verlauf;                  // der letzte Bau dieser Karte mit diesem Eintrag
+    // Stufe 8a Punkt 2: nach dem Bau <karte>.bhed schreiben (Quelle, .bsp)
+    std::string editorDatenQuelle;
+    std::string editorDatenBsp;
 };
 BauLauf g_lauf;
 
@@ -1083,6 +1099,27 @@ void schrittZeitMerken() {
 }
 
 void schrittBeobachten(const std::string& text) { g_lauf.beob.text(text, sekundenSeit(g_lauf.schrittStart)); }
+
+// Stufe 8a Punkt 2: nach einem Bau mit BSP-Stufe die Quelle als <karte>.bhed neben die .bsp
+void editorDatenSchreiben() {
+    BauLauf& l = g_lauf;
+    if (l.editorDatenQuelle.empty()) { return; }
+    std::string mapText;
+    std::string bsp;
+    if (dateiLesen(l.editorDatenQuelle, mapText) && dateiLesen(l.editorDatenBsp, bsp)) {
+        const std::string pfad = karte::editorDatenPfad(l.editorDatenBsp);
+        const std::string inhalt = karte::editorDatenSchreiben(mapText, bsp);
+        std::ofstream f(pfadAus(pfad), std::ios::binary | std::ios::trunc);
+        if (f && f.write(inhalt.data(), static_cast<std::streamsize>(inhalt.size()))) {
+            char z[1024];
+            std::snprintf(z, sizeof(z), trK(Str::KeEdGeschrieben), mitSchraegstrich(pfad).c_str());
+            ausgabe(z);
+        } else {
+            fehler("writing " + mitSchraegstrich(pfad) + " failure");
+        }
+    }
+    l.editorDatenQuelle.clear();
+}
 
 // Bau fertig: ist das Fenster nicht vorne, blinkt der Knopf in der Taskleiste (ohne
 // Ton). Im Selbsttest nie - dort zaehlt nur, ob gemeldet wuerde.
@@ -1148,6 +1185,7 @@ void zusammenfassung(int art, const std::string& grund) {   // 0 fertig, 1 gesto
                 if (f) { f.write(j.data(), static_cast<std::streamsize>(j.size())); }
             }
         }
+        editorDatenSchreiben();
         bauFertigMelden();
         // Stufe 5: nach einem Bau des Build-Menues (nicht nach eigenen
         // Auftraegen wie AutoCaulk) auf Wunsch der Optimierer im Hintergrund
@@ -1751,8 +1789,30 @@ void bauStarten(std::size_t index) {
     }
     if (index < ed.bauProjekt.eintraege.size()) { ed.bauZuletzt = static_cast<long long>(index); }   // g_lastExecutedBuild
     std::vector<std::string> meldungen;
-    const std::vector<std::string> befehle = karte::bauBefehle(ed.bauProjekt, index, bauVariablen(), &meldungen);
+    std::vector<std::string> befehle = karte::bauBefehle(ed.bauProjekt, index, bauVariablen(), &meldungen);
     for (const std::string& m : meldungen) { fehler(m); }
+    // Stufe 8a Punkt 2 (Abweichung, eigene Bauoption): Editor-Daten behalten - jede
+    // BSP-Stufe mit -keeplights, nach dem Bau die Quelle als <karte>.bhed neben die .bsp
+    std::string edQuelle;
+    std::string edBsp;
+    if (ed.bau.editorDaten) {
+        int n = 0;
+        for (std::string& b : befehle) {
+            const std::string neu = karte::befehlMitLichtern(b);
+            if (neu != b) { ++n; }
+            if (karte::bauStufeAusBefehl(b) == karte::BauStufe::Bsp) {
+                const karte::BauVariablen v = bauVariablen();
+                edQuelle = v.at("MapFile");
+                edBsp = v.at("BspFile");
+            }
+            b = neu;
+        }
+        if (n > 0) {
+            char z[256];
+            std::snprintf(z, sizeof(z), trK(Str::KeEdLichter), n);
+            ausgabe(z);
+        }
+    }
     // bspname: PathFilename( Map_Name( g_map ) ) fuer die Engine
     const std::u8string stamm = pfadAus(ed.name).stem().u8string();
     const std::string name = index < ed.bauProjekt.eintraege.size() ? karte::ohneMnemonik(ed.bauProjekt.eintraege[index].name) : std::string();
@@ -1763,6 +1823,8 @@ void bauStarten(std::size_t index) {
     g_lauf.bspName = std::string(stamm.begin(), stamm.end());
     g_lauf.kartenPfad = ed.name;
     bauAusfuehren(befehle);
+    g_lauf.editorDatenQuelle = edQuelle;
+    g_lauf.editorDatenBsp = edBsp;
 }
 
 void bauEigeneBefehle(const std::string& eintrag, const std::vector<std::string>& befehle, std::function<void(int)> danach) {
@@ -1771,6 +1833,7 @@ void bauEigeneBefehle(const std::string& eintrag, const std::vector<std::string>
     g_lauf.bspName.clear();
     g_lauf.kartenPfad = e().name;
     bauAusfuehren(befehle);
+    g_lauf.editorDatenQuelle.clear();
     g_lauf.danach = std::move(danach);   // nach bauAusfuehren: ein abgebrochener alter Auftrag ruft ihn nicht
 }
 

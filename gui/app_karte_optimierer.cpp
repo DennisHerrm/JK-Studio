@@ -136,6 +136,7 @@ constexpr PruefText kPruefTexte[] = {
     {"flaechenlichtleck", Str::KeOptPrLichtleck, Str::KeOptPrLichtleckE},
     {"baubefehl", Str::KeOptPrBaubefehl, Str::KeOptPrBaubefehlE},
     {"lightmapextern", Str::KeOptPrLightmapExtern, Str::KeOptPrLightmapExternE},   // Stufe 6 (NRC#48/#98)
+    {"enttext", Str::KeOptPrEnttext, Str::KeOptPrEnttextE},                        // Stufe 8a (Editor-Daten behalten)
 };
 const PruefText* pruefText(const std::string& id) {
     for (const PruefText& p : kPruefTexte) {
@@ -517,6 +518,7 @@ void optimiererStarten(bool nachBau) {
     npcModelleSicherstellen();
     karte::ZaehlOptionen zo;
     zo.spiel = spiel;
+    zo.lichterBehalten = ed.bau.editorDaten;   // Stufe 8a: -keeplights
     std::map<std::string, std::string> npc = g_npcModelle;
     zo.npcModell = [npc](const std::string& typ) {
         const auto it = npc.find(klein(typ));
@@ -524,6 +526,7 @@ void optimiererStarten(bool nachBau) {
     };
     karte::PruefOptionen po;
     po.spiel = spiel;
+    po.lichterBehalten = ed.bau.editorDaten;   // Stufe 8a: Pruefung "enttext"
     po.knappAb = std::clamp(ed.optimierer.knappProzent, 1, 100) / 100.0;
     po.portalSchwelle = ed.optimierer.portalSchwelle;
     po.dreieckSchwelle = ed.optimierer.dreieckSchwelle;
@@ -601,7 +604,7 @@ void optimiererBeenden() { fadenAbwarten(); }
 // die englische Vorlage (kOptimiererDetailVorlagen) und die Werte, KeOptD01.. in derselben
 // Reihenfolge die Uebersetzung (Test: karte_optimierer).
 std::string befundDetail(const Befund& b) {
-    static const Str kIds[] = {Str::KeOptD01, Str::KeOptD02, Str::KeOptD03, Str::KeOptD04, Str::KeOptD05, Str::KeOptD06, Str::KeOptD07, Str::KeOptD08, Str::KeOptD09, Str::KeOptD10, Str::KeOptD11, Str::KeOptD12, Str::KeOptD13, Str::KeOptD14, Str::KeOptD15, Str::KeOptD16, Str::KeOptD17, Str::KeOptD18, Str::KeOptD19, Str::KeOptD20, Str::KeOptD21, Str::KeOptD22, Str::KeOptD23, Str::KeOptD24, Str::KeOptD25, Str::KeOptD26, Str::KeOptD27, Str::KeOptD28, Str::KeOptD29, Str::KeOptD30, Str::KeOptD31, Str::KeOptD32};
+    static const Str kIds[] = {Str::KeOptD01, Str::KeOptD02, Str::KeOptD03, Str::KeOptD04, Str::KeOptD05, Str::KeOptD06, Str::KeOptD07, Str::KeOptD08, Str::KeOptD09, Str::KeOptD10, Str::KeOptD11, Str::KeOptD12, Str::KeOptD13, Str::KeOptD14, Str::KeOptD15, Str::KeOptD16, Str::KeOptD17, Str::KeOptD18, Str::KeOptD19, Str::KeOptD20, Str::KeOptD21, Str::KeOptD22, Str::KeOptD23, Str::KeOptD24, Str::KeOptD25, Str::KeOptD26, Str::KeOptD27, Str::KeOptD28, Str::KeOptD29, Str::KeOptD30, Str::KeOptD31, Str::KeOptD32, Str::KeOptD33, Str::KeOptD34};
     for (std::size_t i = 0; i < karte::kOptimiererDetailVorlagenAnzahl && i < sizeof(kIds) / sizeof(kIds[0]); ++i) {
         if (b.detailVorlage == karte::kOptimiererDetailVorlagen[i]) { return karte::detailText(trK(kIds[i]), b.detailWerte); }
     }

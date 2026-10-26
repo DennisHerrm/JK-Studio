@@ -546,7 +546,7 @@ std::vector<Zaehlung> zaehleKarte(const KartenAbbild& a, const ZaehlOptionen& o)
     // SetLightStyles, ohne _keepLights), misc_model/_decal/_skybox kommen nicht
     // in den Entity-Lump (bspfile_abstract.cpp UnparseEntities).
     const auto* welt = a.ents.empty() ? nullptr : &a.ents.front();
-    const bool lichterBehalten = welt != nullptr && ganz(welt->wert("_keepLights")) != 0;
+    const bool lichterBehalten = o.lichterBehalten || (welt != nullptr && ganz(welt->wert("_keepLights")) != 0);
     std::vector<EntEingabe> lump;
     long long modelle = 1;
     long long pinsel = 0;

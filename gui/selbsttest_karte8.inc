@@ -8,6 +8,8 @@ namespace stufe8 {
 
 namespace ke = karteneditor;
 using stufe3::abgebrochenZeile;
+using stufe3::bspLumps;
+using stufe3::istDatei;
 using stufe3::bauMenuepunkt;
 using stufe3::konsoleText;
 using stufe3::q3map2Bereitstellen;
@@ -177,6 +179,199 @@ std::vector<Schritt> fortschritt() {
     return s;
 }
 
+
+// --- Punkt 2: Editor-Daten behalten ----------------------------------------------
+//
+// Wirkung: dieselbe Karte ohne und mit der Option gebaut - Lumps 1..17 Byte fuer
+// Byte gleich, nur der Entity-Lump hat mit der Option alle drei Lichter (sonst nur
+// das schaltbare); daneben <karte>.bhed. Open .bsp bringt mit der Begleitdatei die
+// Quelle zurueck (Lichter, misc_model mit seinen Schluesseln, func_group mit seinen
+// zwei Pinseln, gleiche Pinselzahl, gespeichert Byte fuer Byte wie die Quelle);
+// ohne Begleitdatei kommen nur die Lichter zurueck (-keeplights).
+std::string edKarte() { return karteTestPfad("s8ed\\ed.map"); }
+std::string edStamm() { return karteTestPfad("s8ed\\ed"); }
+
+void edKarteSchreiben() {
+    karte::Karte k;
+    k.klassen = &ke::editor().spiel->klassen;
+    auto welt = k.weltHolenOderAnlegen();
+    karte::TexturProjektion proj;
+    karte::texdefStandard(karte::TexdefArt::Quake, proj);
+    const auto quader = [&](const std::shared_ptr<karte::Entitaet>& en, const karte::Vektor3f& mitte, const karte::Vektor3f& halb) {
+        auto p = std::make_shared<karte::Pinsel>();
+        p->quaderBauen(karte::Kasten(mitte, halb), "textures/yavin/temple_stone2", proj, k.kontext);
+        en->kindEinfuegen(p);
+    };
+    quader(welt, karte::Vektor3f(0, 0, -8), karte::Vektor3f(512, 512, 8));
+    quader(welt, karte::Vektor3f(0, 0, 520), karte::Vektor3f(512, 512, 8));
+    quader(welt, karte::Vektor3f(-520, 0, 256), karte::Vektor3f(8, 528, 272));
+    quader(welt, karte::Vektor3f(520, 0, 256), karte::Vektor3f(8, 528, 272));
+    quader(welt, karte::Vektor3f(0, -520, 256), karte::Vektor3f(512, 8, 272));
+    quader(welt, karte::Vektor3f(0, 520, 256), karte::Vektor3f(512, 8, 272));
+    const auto punkt = [&](const char* klasse, std::vector<std::pair<const char*, const char*>> kv) {
+        auto en = k.neueEntitaet(klasse, false);
+        for (const auto& [a, b] : kv) { en->setzen(a, b); }
+        k.entitaetEinfuegen(en);
+    };
+    punkt("light", {{"origin", "0 0 96"}, {"light", "300"}});
+    punkt("light", {{"origin", "256 0 96"}, {"light", "200"}, {"_color", "1 0.5 0.25"}});
+    punkt("light", {{"origin", "-256 0 96"}, {"light", "250"}, {"targetname", "schalter"}});
+    punkt("misc_model", {{"origin", "128 128 0"}, {"model", "models/map_objects/bounty/pillar.md3"}, {"angle", "45"}, {"modelscale", "1.5"}});
+    punkt("info_player_start", {{"origin", "-128 -128 24"}});
+    auto gruppe = k.neueEntitaet("func_group", true);
+    gruppe->setzen("_bhed_notiz", "zwei Kisten");
+    quader(gruppe, karte::Vektor3f(-200, 200, 32), karte::Vektor3f(32, 32, 32));
+    quader(gruppe, karte::Vektor3f(-120, 200, 32), karte::Vektor3f(32, 32, 32));
+    k.entitaetEinfuegen(gruppe);
+    std::error_code ec;
+    std::filesystem::create_directories(std::filesystem::path(edKarte()).parent_path(), ec);
+    (void)karte::karteSpeichern(edKarte(), k, false);
+}
+
+struct EdZahl {
+    int lichter = 0;
+    int schaltbar = 0;
+    int modelle = 0;
+    int gruppen = 0;
+    int gruppenPinsel = 0;
+    int pinsel = 0;
+    std::string modellSchluessel;
+};
+EdZahl edZaehlen() {
+    EdZahl z;
+    for (const auto& en : ke::editor().karte.entitaeten()) {
+        const std::string c = en->klassenname();
+        if (c == "light") {
+            ++z.lichter;
+            if (!en->wert("targetname").empty()) { ++z.schaltbar; }
+        }
+        if (c == "misc_model") {
+            ++z.modelle;
+            z.modellSchluessel = en->wert("model") + "|" + en->wert("angle") + "|" + en->wert("modelscale") + "|" + en->wert("origin");
+        }
+        if (c == "func_group") {
+            ++z.gruppen;
+            z.gruppenPinsel += static_cast<int>(en->kinder().size());
+        }
+        for (const auto& p : en->kinder()) { z.pinsel += p->art() == karte::Primitiv::Art::Pinsel ? 1 : 0; }
+    }
+    return z;
+}
+
+std::string edZahlText(const EdZahl& z) {
+    return "Lichter " + std::to_string(z.lichter) + " (schaltbar " + std::to_string(z.schaltbar) + "), misc_model " + std::to_string(z.modelle) + " [" +
+           z.modellSchluessel + "], func_group " + std::to_string(z.gruppen) + " mit " + std::to_string(z.gruppenPinsel) + " Pinseln, Pinsel " +
+           std::to_string(z.pinsel);
+}
+
+int lichterImLump(const std::string& lump) { return static_cast<int>(zaehle(lump, "\"classname\" \"light\"")); }
+
+std::vector<Schritt> editordaten() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    const char* kEintrag = "Test Editordaten";
+    auto quelle = std::make_shared<std::string>();
+    add(tu("Stufe 8/2: Testkarte mit 3 Lichtern (1 schaltbar), misc_model, func_group (2 Pinsel); Option aus; Eintrag Test Editordaten", [kEintrag, quelle] {
+        karteDialogeZu();
+        q3map2Bereitstellen();
+        ke::bauMenueSicherstellen();   // sonst laedt bauStarten das Menue neu und der Eintrag ist weg
+        ke::Editor& e = ke::editor();
+        e.bau.editorDaten = false;
+        ke::einstellungenSpeichern();
+        edKarteSchreiben();
+        (void)ke::karteOeffnen(edKarte());
+        *quelle = dateiInhalt(edKarte());
+        std::error_code ec;
+        for (const char* x : {".bsp", ".prt", ".srf", ".bhed", "_ohne.bsp"}) { std::filesystem::remove(std::filesystem::path(edStamm() + x), ec); }
+        ke::konsoleLeeren();
+        e.bauProjekt.eintraege.push_back(karte::BauEintrag{
+            kEintrag, {"[q3map2] -meta \"[MapFile]\"", "[q3map2] -vis -threads 1 \"[MapFile]\"", "[q3map2] -light -fast -samples 2 -bounce 2 \"[MapFile]\""}});
+    }));
+    add(bauMenuepunkt(kEintrag));
+    add(warteSek("Bau ohne Option fertig", [] { return !ke::bauLaeuft(); }, 300));
+    add(pruefe("ohne Option: .bsp ohne .bhed, keine -keeplights, im Entity-Lump nur das schaltbare Licht", [] {
+        const std::vector<std::string> l = bspLumps(edStamm() + ".bsp");
+        std::error_code ec;
+        std::filesystem::copy_file(std::filesystem::path(edStamm() + ".bsp"), std::filesystem::path(edStamm() + "_ohne.bsp"),
+                                   std::filesystem::copy_options::overwrite_existing, ec);
+        const std::string k = konsoleText();
+        return l.size() == 18 && lichterImLump(l[0]) == 1 && !istDatei(edStamm() + ".bhed") && k.find("-keeplights") == std::string::npos;
+    }));
+    // Die Option ueber das Build-Menue
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.25));
+    add(klick(ke::trK(Str::KeEdMenue), "##Menu_", 0, false));
+    add(pause(0.2));
+    add(pruefe("Build > Editor-Daten behalten: an, als BhedKeepEditorData 1 gespeichert", [] {
+        return ke::editor().bau.editorDaten && g_app->settings.karte["BhedKeepEditorData"] == "1";
+    }));
+    add(tu("Konsole leeren, mit Option bauen", [] { ke::konsoleLeeren(); }));
+    add(bauMenuepunkt(kEintrag));
+    add(warteSek("Bau mit Option fertig", [] { return !ke::bauLaeuft(); }, 300));
+    add(pruefe("mit Option: -keeplights nur fuer -meta, <karte>.bhed geschrieben (Kopf + die Quelle Byte fuer Byte)", [quelle] {
+        const std::string k = konsoleText();
+        char z[256];
+        std::snprintf(z, sizeof(z), ke::trK(Str::KeEdLichter), 1);
+        const std::string b = dateiInhalt(edStamm() + ".bhed");
+        return k.find(z) != std::string::npos && zaehle(k, " -meta -keeplights \"") == 1 && k.find("-vis -threads 1 -keeplights") == std::string::npos &&
+               k.find("-bounce 2 -keeplights") == std::string::npos && k.find(vorlageAnfang(Str::KeEdGeschrieben)) != std::string::npos && !quelle->empty() && b.size() > quelle->size() &&
+               b.compare(b.size() - quelle->size(), quelle->size(), *quelle) == 0;
+    }));
+    add(pruefe("Byte-Vergleich: Lumps 1..17 (Geometrie, Lightmaps, Lichtgitter, Sicht) gleich, nur der Entity-Lump anders - mit allen 3 Lichtern", [] {
+        const std::vector<std::string> a = bspLumps(edStamm() + "_ohne.bsp");
+        const std::vector<std::string> b = bspLumps(edStamm() + ".bsp");
+        if (a.size() != 18 || b.size() != 18) { return false; }
+        int anders = 0;
+        std::string welche;
+        for (std::size_t i = 1; i < 18; ++i) {
+            if (a[i] != b[i]) {
+                ++anders;
+                welche += " " + std::to_string(i);
+            }
+        }
+        diag::detail("Knopftest: Stufe 8/2 Entity-Lump ohne " + std::to_string(a[0].size()) + " Byte, mit " + std::to_string(b[0].size()) +
+                     " Byte; Lichter " + std::to_string(lichterImLump(a[0])) + " -> " + std::to_string(lichterImLump(b[0])) + "; andere Lumps:" + welche);
+        return anders == 0 && a[0] != b[0] && lichterImLump(b[0]) == 3 && b[14].size() > 0;
+    }));
+    add(tu("File > Open .bsp (mit ed.bhed daneben)", [] {
+        ke::konsoleLeeren();
+        (void)ke::bspOeffnenDatei(edStamm() + ".bsp");
+    }));
+    add(pause(0.5));
+    add(pruefe("Open .bsp mit Begleitdatei: genaue Quelle - 3 Lichter, misc_model mit Schluesseln, func_group mit 2 Pinseln, 8 Pinsel", [quelle] {
+        const EdZahl z = edZaehlen();
+        diag::detail("Knopftest: Stufe 8/2 mit .bhed: " + edZahlText(z));
+        const std::string k = konsoleText();
+        return k.find(vorlageAnfang(Str::KeEdGefunden)) != std::string::npos && z.lichter == 3 && z.schaltbar == 1 && z.modelle == 1 &&
+               z.modellSchluessel == "models/map_objects/bounty/pillar.md3|45|1.5|128 128 0" && z.gruppen == 1 && z.gruppenPinsel == 2 && z.pinsel == 8;
+    }));
+    add(pruefe("die geoeffnete Karte gespeichert: Byte fuer Byte die Quelle", [quelle] {
+        const std::string p = karteTestPfad("s8ed\\zurueck.map");
+        (void)ke::karteSpeichernUnter(p);
+        return dateiInhalt(p) == *quelle;
+    }));
+    add(tu("Begleitdatei weg, Open .bsp noch einmal", [] {
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::path(edStamm() + ".bhed"), ec);
+        ke::konsoleLeeren();
+        (void)ke::bspOeffnenDatei(edStamm() + ".bsp");
+    }));
+    add(pause(0.5));
+    add(pruefe("Open .bsp ohne Begleitdatei: die 3 Lichter kommen aus dem Entity-Lump zurueck (misc_model und func_group nicht - eingebacken)", [] {
+        const EdZahl z = edZaehlen();
+        diag::detail("Knopftest: Stufe 8/2 ohne .bhed: " + edZahlText(z));
+        return konsoleText().find(vorlageAnfang(Str::KeEdGefunden)) == std::string::npos && z.lichter == 3 && z.modelle == 0 && z.gruppen == 0;
+    }));
+    add(tu("Option aus, Eintrag weg", [] {
+        ke::Editor& e = ke::editor();
+        e.bau.editorDaten = false;
+        ke::einstellungenSpeichern();
+        auto& v = e.bauProjekt.eintraege;
+        v.erase(std::remove_if(v.begin(), v.end(), [](const karte::BauEintrag& b) { return b.name == "Test Editordaten"; }), v.end());
+    }));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     const char* nur = std::getenv("BHED_STUFE8_NUR");
@@ -185,6 +380,7 @@ std::vector<Schritt> schritte() {
         for (Schritt& y : x) { s.push_back(std::move(y)); }
     };
     if (teil("fortschritt")) { dazu(fortschritt()); }
+    if (teil("editordaten")) { dazu(editordaten()); }
     return s;
 }
 

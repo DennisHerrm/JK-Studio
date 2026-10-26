@@ -33,6 +33,7 @@
 
 #include "app_internal.h"
 #include "bhed/karte/bspoeffnen.h"
+#include "bhed/karte/editordaten.h"
 #include "bhed/karte/kartenformat.h"
 #include "karte_bau_plattform.h"
 #include "platform.h"
@@ -165,20 +166,55 @@ std::string kleinVon(std::string s) {
 
 // --- Punkt 1: oeffnen ---------------------------------------------------------------
 
-bool bspOeffnenAus(const std::string& anzeige, const std::string& daten) {
+bool bspOeffnenAus(const std::string& anzeige, const std::string& daten, const std::string& begleitName, const std::string& begleit) {
     Editor& ed = e();
     const std::string stamm = stammVon(anzeige);
     ausgabe("Opening compiled map " + anzeige);
     std::string ordner;
-    // Wie Open: die neue Karte bekommt das Format "New map Brush Type" (Map_Free:
-    // Brush_unlatchPreferences); q3map2 schreibt map bzw. map_bp danach
-    // (map.cpp:1589: TEXDEFTYPEID_QUAKE ? "map" : "map_bp").
-    const std::string konvertiert = umwandeln(daten, stamm, ordner, std::clamp(ed.pinselTyp, 0, 2) != 0);
-    if (konvertiert.empty()) { return false; }
+    // Stufe 8a Punkt 2 (Abweichung, eigene Funktion): liegt <karte>.bhed daneben und passt
+    // ihr Fingerabdruck zur Geometrie dieser .bsp, kommt statt des Dekompilats die genaue Quelle
+    std::string quelle;
+    if (!begleit.empty()) {
+        char z[1024];
+        switch (karte::editorDatenLesen(begleit, daten, quelle)) {
+        case karte::EditorDatenStand::Passt:
+            std::snprintf(z, sizeof(z), trK(Str::KeEdGefunden), begleitName.c_str());
+            ausgabe(z);
+            break;
+        case karte::EditorDatenStand::AndereBsp:
+            std::snprintf(z, sizeof(z), trK(Str::KeEdAndere), begleitName.c_str());
+            warnung(z);
+            break;
+        case karte::EditorDatenStand::Kaputt:
+            std::snprintf(z, sizeof(z), trK(Str::KeEdKaputt), begleitName.c_str());
+            warnung(z);
+            break;
+        }
+    }
+    std::string text;
+    if (!quelle.empty()) {
+        ordner = arbeitsOrdner(stamm);
+        std::error_code ec;
+        fs::create_directories(pfadVon(ordner), ec);
+        if (!dateiSchreibenRoh(ordner + "/" + stamm + ".bsp", daten) || !dateiSchreibenRoh(ordner + "/" + stamm + "_original.bsp", daten)) {
+            fehler("writing " + ordner + "/" + stamm + ".bsp failure");
+            return false;
+        }
+        text = quelle;
+    } else {
+        // Wie Open: die neue Karte bekommt das Format "New map Brush Type" (Map_Free:
+        // Brush_unlatchPreferences); q3map2 schreibt map bzw. map_bp danach
+        // (map.cpp:1589: TEXDEFTYPEID_QUAKE ? "map" : "map_bp").
+        const std::string konvertiert = umwandeln(daten, stamm, ordner, std::clamp(ed.pinselTyp, 0, 2) != 0);
+        if (konvertiert.empty()) { return false; }
+        if (!dateiLesen(konvertiert, text)) {
+            fehler("reading " + konvertiert + " failure");
+            return false;
+        }
+    }
     // <Arbeitsordner>/<Name>.map: dort sucht -onlyents die Entitaeten
     const std::string karteDatei = ordner + "/" + stamm + ".map";
-    std::string text;
-    if (!dateiLesen(konvertiert, text) || !dateiSchreibenRoh(karteDatei, text)) {
+    if (!dateiSchreibenRoh(karteDatei, text)) {
         fehler("writing " + karteDatei + " failure");
         return false;
     }
@@ -201,7 +237,10 @@ bool bspOeffnenDatei(const std::string& pfad) {
         fehler("Open file " + mitSchraeg(pfad) + " for read... failure");
         return false;
     }
-    return bspOeffnenAus(mitSchraeg(pfad), daten);
+    std::string begleit;
+    const std::string begleitPfad = karte::editorDatenPfad(pfad);
+    if (!dateiLesen(begleitPfad, begleit)) { begleit.clear(); }
+    return bspOeffnenAus(mitSchraeg(pfad), daten, mitSchraeg(begleitPfad), begleit);
 }
 
 bool bspOeffnenSpiel(const std::string& pfad) {
@@ -211,7 +250,10 @@ bool bspOeffnenSpiel(const std::string& pfad) {
         fehler("Open file " + pfad + " for read... failure");
         return false;
     }
-    return bspOeffnenAus(pfad, daten);
+    std::string begleit;
+    const std::string begleitPfad = karte::editorDatenPfad(pfad);
+    if (!ed.karteSpiel->fs.dateiLesen(begleitPfad, begleit)) { begleit.clear(); }
+    return bspOeffnenAus(pfad, daten, begleitPfad, begleit);
 }
 
 // File > Import... mit einer .bsp: tryDecompile (map.cpp:1580-1622) - umwandeln, einfuegen

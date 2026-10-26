@@ -1123,6 +1123,58 @@ void testeBekannteFehler(const std::string& q3dir) {
         const ShaderSkript sk = shaderSkriptLesen("textures/test/gross\n{\n\tq3map_lightmapSize 256 512 // extern\n}\n", "textures/test/gross");
         pruefe(sk.gefunden && sk.lightmapBreite == 256 && sk.lightmapHoehe == 512, "Shader-Skript: q3map_lightmapSize 256 512 gelesen");
     }
+    // Stufe 8a Punkt 2: Entity-Lump gegen die Grenzen ("enttext"), -keeplights in der Zaehlung
+    {
+        const std::string welt = entText("worldspawn", "", kastenText(-64, -64, -16, 64, 64, 0, "test/boden"));
+        std::string lichter;
+        for (int i = 0; i < 3; ++i) { lichter += entText("light", "\"origin\" \"" + std::to_string(i * 16) + " 0 32\"\n\"light\" \"300\"\n", ""); }
+        const auto enttext = [](const KartenAbbild& a, bool behalten) {
+            ZaehlOptionen zo;
+            zo.spiel = GrenzSpiel::JkaSp;
+            zo.lichterBehalten = behalten;
+            for (const Zaehlung& z : zaehleKarte(a, zo)) {
+                if (z.id == "bsp.enttext") { return z.wert; }
+            }
+            return -1LL;
+        };
+        const KartenAbbild a = abbildAus(welt + lichter);
+        const long long ohne = enttext(a, false);
+        const long long mit = enttext(a, true);
+        // je Licht "{\n" "}\n" (4) + "classname" "light" (9+5+6) + "origin" "x 0 32" + "light" "300"
+        long long erwartet = 0;
+        for (int i = 0; i < 3; ++i) {
+            const std::string o = std::to_string(i * 16) + " 0 32";
+            erwartet += 4 + (9 + 5 + 6) + (6 + static_cast<long long>(o.size()) + 6) + (5 + 3 + 6);
+        }
+        pruefe(ohne > 0 && mit - ohne == erwartet, "-keeplights: der Entity-Text waechst um die drei Lichter (" + std::to_string(mit - ohne) + " = " +
+                                                       std::to_string(erwartet) + " Byte)");
+        PruefOptionen o = pruefOpt();
+        pruefe(anzahlVon(pruefeKarte(a, o), "enttext") == 0, "kleine Karte: kein Befund enttext");
+        const std::string lang(1100, 'x');
+        // der Leser der .map kuerzt wie NRCs Tokeniser auf 1023 Zeichen - ein so langer Wert
+        // entsteht im Entity Inspector; hier direkt in der Momentaufnahme
+        KartenAbbild langA = abbildAus(welt + entText("info_null", "\"origin\" \"0 0 0\"\n", ""));
+        langA.ents[1].schluessel.emplace_back("message", lang);
+        const std::vector<Befund> b = pruefeKarte(langA, o);
+        const Befund* lt = befund(b, "enttext");
+        pruefe(lt != nullptr && lt->schwere == Schwere::Fehler && lt->anzahl == 1, "Wert mit 1100 Zeichen: Befund enttext (Fehler, q3map2 \"Token too large\")");
+        // nahe MAX_MAP_ENTSTRING: viele Lichter; mit -keeplights steht ihr Anteil im Befund
+        std::string viele;
+        for (int i = 0; i < 2600; ++i) {
+            viele += entText("light", "\"origin\" \"" + std::to_string(i) + " 0 32\"\n\"light\" \"300\"\n\"_color\" \"1 0.9 0.8\"\n\"radius\" \"" +
+                                          std::string(40, '9') + "\"\n", "");
+        }
+        const KartenAbbild va = abbildAus(welt + viele);
+        o.lichterBehalten = false;
+        pruefe(anzahlVon(pruefeKarte(va, o), "enttext") == 0, "2600 Lichter ohne -keeplights: kein Befund (sie kommen nicht in den Lump)");
+        o.lichterBehalten = true;
+        const std::vector<Befund> vb = pruefeKarte(va, o);
+        const Befund* gr = befund(vb, "enttext");
+        pruefe(gr != nullptr && gr->schwere == Schwere::Warnung && gr->detailWerte.size() == 3 && std::stoll(gr->detailWerte[0]) > 0x40000 &&
+                   std::stoll(gr->detailWerte[2]) > 0x40000 - 1000,
+               "2600 Lichter mit -keeplights: ueber MAX_MAP_ENTSTRING, Warnung mit dem Anteil der Lichter (" +
+                   (gr != nullptr ? gr->detail : std::string("-")) + ")");
+    }
     // common/origin statt system/origin (NRC#270)
     {
         const std::string t = entText("worldspawn", "", kastenText(-64, -64, -16, 64, 64, 0, "test/boden")) +
@@ -1197,7 +1249,7 @@ void testeBekannteFehler(const std::string& q3dir) {
 
 int main(int argc, char** argv) {
     {   // Stufe 6 (Punkt 5): Vorlagen der Befund-Angaben und ihre Uebersetzung (KeOptD01..)
-        bool gleich = bhed::karte::kOptimiererDetailVorlagenAnzahl == 32;
+        bool gleich = bhed::karte::kOptimiererDetailVorlagenAnzahl == 34;   // Stufe 8a: 33, 34 (enttext)
         for (std::size_t i = 0; i < bhed::karte::kOptimiererDetailVorlagenAnzahl; ++i) {
             char name[16];
             std::snprintf(name, sizeof(name), "KeOptD%02zu", i + 1);

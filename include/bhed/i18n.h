@@ -2208,6 +2208,17 @@ enum class Str {
     KeFsZeitVergleich,
     KeFsMelden,
     KeFsMeldenTip,
+    KeEdMenue,
+    KeEdMenueTip,
+    KeEdLichter,
+    KeEdGeschrieben,
+    KeEdGefunden,
+    KeEdAndere,
+    KeEdKaputt,
+    KeOptD33,
+    KeOptD34,
+    KeOptPrEnttext,
+    KeOptPrEnttextE,
     Count,
 };
 

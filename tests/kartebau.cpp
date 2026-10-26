@@ -24,11 +24,14 @@
 // Aufruf: kartebau <data/karte> [<tests/karte/q3map2>]
 #include "bhed/karte/bau.h"
 #include "bhed/karte/baufortschritt.h"
+#include "bhed/karte/bspoeffnen.h"
+#include "bhed/karte/editordaten.h"
 #include "bhed/karte/baumonitor.h"
 #include "bhed/karte/xmlstrom.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <fstream>
 #include <sstream>
@@ -289,6 +292,54 @@ void fortschrittPruefen(const std::string& q3) {
                "Zeiten je Schritt gegen den letzten Lauf: " + (v.empty() ? std::string() : v[0]));
         pruefe(bauZeitText(65.4) == "1:05" && bauZeitText(7) == "0:07" && bauZeitText(3723) == "1:02:03", "Zeittext m:ss / h:mm:ss");
     }
+}
+
+void editorDatenPruefen(const std::string& q3) {
+    const std::string q = "\"C:/x/bhed_q3map2.exe\" -v -game ja -fs_basepath \"C:/Spiel/GameData\" ";
+    pruefe(befehlMitLichtern(q + "-meta \"C:/m/a b.map\"") == q + "-meta -keeplights \"C:/m/a b.map\"" &&
+               befehlMitLichtern(q + "-onlyents \"C:/m/a.bsp\"") == q + "-onlyents -keeplights \"C:/m/a.bsp\"" &&
+               befehlMitLichtern(q + "-vis \"C:/m/a.map\"") == q + "-vis \"C:/m/a.map\"" &&
+               befehlMitLichtern(q + "-light -fast \"C:/m/a.map\"") == q + "-light -fast \"C:/m/a.map\"" &&
+               befehlMitLichtern(q + "-meta -keepLights \"C:/m/a.map\"") == q + "-meta -keepLights \"C:/m/a.map\"" &&
+               befehlMitLichtern(q + "-convert -format ase \"C:/m/a.bsp\"") == q + "-convert -format ase \"C:/m/a.bsp\"",
+           "-keeplights nur fuer die BSP-Stufe (auch -onlyents), vor der Karte, nicht doppelt");
+    pruefe(editorDatenPfad("C:/maps/a.b/raum.bsp") == "C:/maps/a.b/raum.bhed" && editorDatenPfad("maps/x") == "maps/x.bhed", "Pfad der Begleitdatei");
+    const std::string bsp = lies(q3 + "/raum.nrc.bsp");
+    const std::string map = lies(q3 + "/raum.map");
+    const std::string begleit = editorDatenSchreiben(map, bsp);
+    std::string zurueck;
+    pruefe(!bsp.empty() && editorDatenLesen(begleit, bsp, zurueck) == EditorDatenStand::Passt && zurueck == map,
+           "Begleitdatei: die Quelle Byte fuer Byte zurueck (" + std::to_string(map.size()) + " Byte)");
+    pruefe(begleit.rfind("// BehavEd editor data 1", 0) == 0 && begleit.find("\n// bsp-geometry ") != std::string::npos &&
+               begleit.substr(begleit.size() - map.size()) == map,
+           "Begleitdatei: drei //-Zeilen, dann die .map (selbst eine ladbare Karte)");
+    // Entity-Lump geaendert (-onlyents, -keeplights): passt weiter; Geometrie geaendert: andere .bsp
+    BspDatei b;
+    (void)bspLesen(bsp, b);
+    const auto mitLump = [&](std::size_t i, const std::string& neu) {
+        // Lumps neu zusammensetzen (Kopf ident, version, je Lump ofs/len)
+        std::vector<std::string> l = b.lumps;
+        l[i] = neu;
+        std::string d = bsp.substr(0, 8);
+        std::string daten;
+        const std::size_t kopf = 8 + 8 * l.size();
+        for (const std::string& x : l) {
+            const std::int32_t ofs = static_cast<std::int32_t>(kopf + daten.size());
+            const std::int32_t len = static_cast<std::int32_t>(x.size());
+            d.append(reinterpret_cast<const char*>(&ofs), 4);
+            d.append(reinterpret_cast<const char*>(&len), 4);
+            daten += x;
+            while (daten.size() % 4 != 0) { daten += '\0'; }
+        }
+        return d + daten;
+    };
+    const std::string andereEnts = mitLump(0, b.lumps[0] + "{\n\"classname\" \"light\"\n}\n");
+    const std::string andereGeo = mitLump(2, b.lumps[2] + std::string(16, '\0'));
+    pruefe(editorDatenLesen(begleit, andereEnts, zurueck) == EditorDatenStand::Passt, "nur der Entity-Lump anders: passt");
+    pruefe(editorDatenLesen(begleit, andereGeo, zurueck) == EditorDatenStand::AndereBsp, "eine Ebene mehr (Lump planes): andere .bsp");
+    pruefe(editorDatenLesen(begleit.substr(0, begleit.size() - 1), bsp, zurueck) == EditorDatenStand::Kaputt &&
+               editorDatenLesen("// irgendwas\n" + map, bsp, zurueck) == EditorDatenStand::Kaputt,
+           "abgeschnitten oder fremder Kopf: kaputt");
 }
 
 }  // namespace
@@ -555,6 +606,9 @@ int main(int argc, char** argv) {
 
     // --- 10. Stufe 8a Punkt 1: Fortschritt mit Restzeit aus eingespielten Stroemen
     if (argc >= 3) { fortschrittPruefen(argv[2]); }
+
+    // --- 11. Stufe 8a Punkt 2: Editor-Daten behalten (-keeplights, <karte>.bhed)
+    if (argc >= 3) { editorDatenPruefen(argv[2]); }
 
     std::printf("kartebau: %d Pruefungen, %d Fehlschlaege\n", g_pruefungen, g_fehler);
     return g_fehler == 0 ? 0 : 1;

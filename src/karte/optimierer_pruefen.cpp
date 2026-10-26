@@ -219,7 +219,9 @@ const char* const kOptimiererDetailVorlagen[] = {
     "%s surface light faces whose backsplash lies behind a solid brush",
     "%s build menu commands with switches this game cannot use (the build menu refuses them)",
     "%s brushes or patches with q3map_lightmapSize: Jedi Outcast cannot load external lightmaps",
-    "%s brushes or patches with q3map_lightmapSize next to light styles: external lightmaps lose the style stages"
+    "%s brushes or patches with q3map_lightmapSize next to light styles: external lightmaps lose the style stages",
+    "%s keys or values longer than 1023 characters (q3map2 stops with \"Token too large\", the game cuts them off)",
+    "entity text about %s bytes of %s (%s bytes from kept lights)"
 };
 const std::size_t kOptimiererDetailVorlagenAnzahl = sizeof(kOptimiererDetailVorlagen) / sizeof(kOptimiererDetailVorlagen[0]);
 
@@ -1082,6 +1084,54 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
             detailSetzen(bb, "%s build menu commands with switches this game cannot use (the build menu refuses them)", {std::to_string(bb.anzahl)});
             out.push_back(bb);
         }
+    }
+    // --- 13b. Stufe 8a: Entity-Lump gegen die Grenzen (mit "Editor-Daten behalten") ----------
+    // Ein Schluessel oder Wert ab 1024 Zeichen: q3map2 bricht ab (scriplib.cpp:248 MAXTOKEN
+    // "Token too large"), die Engine schneidet ab (q_shared.cpp:371 MAX_TOKEN_CHARS). Der
+    // Entity-Text nahe MAX_MAP_ENTSTRING (qfiles.h 0x40000; die Engine prueft ihn nicht -
+    // cm_load.cpp CMod_LoadEntityString legt ihn in seiner Groesse an -, aber es ist die
+    // Formatgrenze der Werkzeuge); mit -keeplights steht dabei, wie viel die Lichter beitragen.
+    // Die Grenzen je Entitaet (MAX_SPAWN_VARS, MAX_SPAWN_VARS_CHARS) zaehlt Punkt 2.
+    {
+        Befund lt = neu("enttext", Schwere::Fehler,
+                        "q3map2 common/scriplib.cpp:248 (MAXTOKEN 1024, \"Token too large\"); OpenJK code/qcommon/q_shared.cpp:371 (MAX_TOKEN_CHARS); "
+                        "qfiles.h MAX_MAP_ENTSTRING 0x40000 (not checked by cm_load.cpp)");
+        for (std::size_t e = 0; e < ents.size(); ++e) {
+            for (const auto& [k, v] : ents[e].schluessel) {
+                if (k.size() > 1023 || v.size() > 1023) {
+                    add(lt, ObjektRef{static_cast<int>(e), -1, -1, stelle(ents[e], static_cast<int>(e), -1) + ": " + k.substr(0, 40)});
+                }
+            }
+        }
+        if (lt.anzahl > 0) {
+            detailSetzen(lt, "%s keys or values longer than 1023 characters (q3map2 stops with \"Token too large\", the game cuts them off)",
+                         {std::to_string(lt.anzahl)});
+            out.push_back(lt);
+        }
+        ZaehlOptionen zo;
+        zo.spiel = o.spiel;
+        zo.lichterBehalten = o.lichterBehalten;
+        const auto text = [&](bool mitLichtern) {
+            zo.lichterBehalten = mitLichtern;
+            for (const Zaehlung& z : zaehleKarte(a, zo)) {
+                if (z.id == "bsp.enttext") { return z.wert; }
+            }
+            return 0LL;
+        };
+        const long long jetzt = text(o.lichterBehalten);
+        const long long grenze = 0x40000;
+        if (static_cast<double>(jetzt) >= o.knappAb * static_cast<double>(grenze)) {
+            Befund gr = neu("enttext", jetzt > grenze ? Schwere::Warnung : Schwere::Hinweis,
+                            "qfiles.h MAX_MAP_ENTSTRING 0x40000 (format limit; OpenJK cm_load.cpp CMod_LoadEntityString does not check it); "
+                            "q3map2 writebsp.cpp SetLightStyles (-keeplights)");
+            gr.anzahl = 1;
+            gr.schaetzung = true;
+            const long long lichter = o.lichterBehalten ? jetzt - text(false) : 0;
+            detailSetzen(gr, "entity text about %s bytes of %s (%s bytes from kept lights)",
+                         {std::to_string(jetzt), std::to_string(grenze), std::to_string(lichter)});
+            out.push_back(gr);
+        }
+        messen("enttext");
     }
     // --- 14. Shader mit externen Lightmaps (q3map_lightmapSize) - Stufe 6, NRC#48 / NRC#98 ---
     // Eine Flaeche, deren Shader eine andere Lightmap-Groesse als 128 verlangt, bekommt eine
