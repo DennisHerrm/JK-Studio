@@ -153,6 +153,7 @@ std::size_t lmGroesse( std::size_t pos ){   // bytes of one lightmap record afte
 			g += n * sizeof( SuperLuxel );
 	if ( maske & 16 ) g += n * sizeof( Vector3 );
 	if ( maske & 32 ) g += n;
+	if ( maske & 64 ) g += n * sizeof( int );
 	return g;
 }
 
@@ -162,7 +163,7 @@ bool cacheZerlegen(){
 	if ( g_alt.size() < 8 + 16 )
 		return false;
 	memcpy( kopf, g_alt.data(), 8 );
-	if ( memcmp( kopf, "BHLICHT1", 8 ) != 0 )
+	if ( memcmp( kopf, "BHLICHT2", 8 ) != 0 )   // 2: with the super clusters (an older cache is not used)
 		return false;
 	pos = 8;
 	std::uint64_t geo[2];
@@ -426,6 +427,12 @@ bool BhedLmAusCache( int lmNum, const trace_t& trace ){
 		memcpy( lm->superFlags, g_alt.data() + pos, n );
 		pos += n;
 	}
+	/* the filter pass of IlluminateRawLightmap marks filled unmapped luxels CLUSTER_FLOODED;
+	   StoreSurfaceLightmaps reads that when it averages super samples (-super) */
+	if ( maske & 64 ) {
+		memcpy( lm->superClusters, g_alt.data() + pos, n * sizeof( int ) );
+		pos += n * sizeof( int );
+	}
 	std::lock_guard<std::mutex> l( g_sperre );
 	++g_lmAusCache;
 	return true;
@@ -452,6 +459,7 @@ void BhedLmDatenMerken(){
 				maske |= 1 << l;
 		if ( lm->superDeluxels != nullptr ) maske |= 16;
 		if ( lm->superFlags != nullptr ) maske |= 32;
+		if ( lm->superClusters != nullptr ) maske |= 64;
 		anhaengen( g_lmDaten, maske );
 		const std::size_t n = std::size_t( lm->sw ) * lm->sh;
 		for ( int l = 0; l < MAX_LIGHTMAPS; ++l )
@@ -461,6 +469,8 @@ void BhedLmDatenMerken(){
 			g_lmDaten.append( reinterpret_cast<const char*>( lm->superDeluxels ), n * sizeof( Vector3 ) );
 		if ( lm->superFlags != nullptr )
 			g_lmDaten.append( reinterpret_cast<const char*>( lm->superFlags ), n );
+		if ( lm->superClusters != nullptr )
+			g_lmDaten.append( reinterpret_cast<const char*>( lm->superClusters ), n * sizeof( int ) );
 	}
 	g_lmDatenDa = true;
 }
@@ -505,7 +515,7 @@ bool BhedFlaecheAusCache( int surfaceNum, const trace_t& trace ){
 void BhedLichtCacheSchreiben(){
 	if ( !g_an || !g_benutzbar )
 		return;
-	std::string d( "BHLICHT1", 8 );
+	std::string d( "BHLICHT2", 8 );
 	anhaengen( d, g_geo[0] );
 	anhaengen( d, g_geo[1] );
 	const unsigned char gitter = g_gitterDa ? 1 : 0;

@@ -124,13 +124,17 @@ for quelle in KARTEN:
         mitLicht = text.replace(alt, verschoben, 1)
     else:   # ohne Licht: eines am Startpunkt dazu
         mitLicht = text + '{\n"classname" "light"\n"origin" "%g %g %g"\n"light" "300"\n}\n' % (sx, sy, sz + 64)
+    nachbearbeitet = text.replace('"classname" "worldspawn"', '"classname" "worldspawn"\n"_minlight" "20"', 1)
+    nachSchalter = ['-gamma', '1.3', '-exposure', '200', '-saturation', '0.7', '-compensate', '1.5']
+    # (was, Karte, zusaetzliche -light-Schalter in allen drei Laeufen, Nachbearbeitung nur im zweiten)
     lichtFaelle = [
         ('Licht verschoben bzw. neu', mitLicht, [], []),
-        ('nur Nachbearbeitung (-gamma 1.3 -exposure 200 -saturation 0.7 -compensate 1.5, _minlight 20)',
-         text.replace('"classname" "worldspawn"', '"classname" "worldspawn"\n"_minlight" "20"', 1), [],
-         ['-gamma', '1.3', '-exposure', '200', '-saturation', '0.7', '-compensate', '1.5']),
+        ('nur Nachbearbeitung (-gamma 1.3 -exposure 200 -saturation 0.7 -compensate 1.5, _minlight 20)', nachbearbeitet, [], nachSchalter),
+        # -super: StoreSurfaceLightmaps liest die Cluster, die der Filterdurchgang setzt (Fehler bis zum Cache-Format 2)
+        ('Licht verschoben bzw. neu, -super 2', mitLicht, ['-super', '2'], []),
+        ('nur Nachbearbeitung, -super 2 (_minlight 20)', nachbearbeitet, ['-super', '2'], nachSchalter),
     ]
-    for was, neu, _, nach in lichtFaelle:
+    for was, neu, extra, nach in lichtFaelle:
         a = os.path.join(ARBEIT, name + '_la')
         b = os.path.join(ARBEIT, name + '_lb')
         for o in (a, b):
@@ -141,16 +145,16 @@ for quelle in KARTEN:
         open(ka, 'w', encoding='latin-1', newline='').write(text)
         lauf('-meta', ka)
         lauf('-vis', '-threads', '1', ka)
-        lauf('-light', *LICHT, '-bhedlightcache', ka)
+        lauf('-light', *LICHT, *extra, '-bhedlightcache', ka)
         cache = os.path.exists(os.path.join(a, name + '.bhedlight'))
         open(ka, 'w', encoding='latin-1', newline='').write(neu)
         lauf('-meta', ka)
         lauf('-vis', '-threads', '1', ka)
-        ausgabe = lauf('-light', *LICHT, '-bhedlightcache', *nach, ka)
+        ausgabe = lauf('-light', *LICHT, *extra, '-bhedlightcache', *nach, ka)
         open(kb, 'w', encoding='latin-1', newline='').write(neu)
         lauf('-meta', kb)
         lauf('-vis', '-threads', '1', kb)
-        lauf('-light', *LICHT, *nach, kb)
+        lauf('-light', *LICHT, *extra, *nach, kb)
         la, lb = lumps(os.path.join(a, name + '.bsp')), lumps(os.path.join(b, name + '.bsp'))
         anders = [i for i in range(18) if la[i] != lb[i]]
         m = re.search(r'light cache: (\d+) of (\d+) lightmaps and (\d+) of (\d+) vertex lit surfaces taken from the cache, grid ([a-z ]+);', ausgabe)
