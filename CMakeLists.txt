@@ -754,6 +754,16 @@ if(BEHAVED_TESTS)
                COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_funde.py
                        $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe)
       set_tests_properties(q3map2_funde PROPERTIES TIMEOUT 3600)
+      # Stufe 6: die Regressionsfaelle aus NRC-PR #316 (regression_tests/auto-pigeon des Forks
+      # auto-pigeon/q3map2, nicht im Repo) - mit -DBEHAVED_Q3MAP2_PR316=<Ordner mit cases.json>
+      set(BEHAVED_Q3MAP2_PR316 "" CACHE PATH "Ordner regression_tests/auto-pigeon aus NRC-PR #316 (optional)")
+      if(BEHAVED_Q3MAP2_PR316)
+        add_test(NAME q3map2_pr316
+                 COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_pr316.py
+                         $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe ${BEHAVED_Q3MAP2_PR316}
+                         --erwartet ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_pr316_erwartet.json)
+        set_tests_properties(q3map2_pr316 PROPERTIES TIMEOUT 3600)
+      endif()
       # Stufe 6 (GL#173): -bsp/-vis/-light je 3 Laeufe gleich und gleich -threads 1
       add_test(NAME q3map2_determinismus
                COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_determinismus.py ctest

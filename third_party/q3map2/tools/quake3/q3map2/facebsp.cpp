@@ -217,13 +217,17 @@ static void BuildFaceTree_r( node_t *node, facelist_t& list ){
 
 		/* switch on side */
 		if ( side == eSideCross ) {
-			auto [frontWinding, backWinding] = ClipWindingEpsilonStrict( split.w, plane.plane, CLIP_EPSILON * 2 ); /* strict; if no winding is left, we have a "virtually identical" plane and don't want to split by it */
+			/* WindingOnPlaneSide() found points beyond ON_EPSILON on BOTH sides; clipping with a wider epsilon here
+			   dropped a crossing part narrower than that from its subtree, leaving leaves that straddle the face */ /* BehavEd stage 6: from Garux/netradiant-custom PR #316 (auto-pigeon) commit 4c7c216fd5 (P2) */
+			auto [frontWinding, backWinding] = ClipWindingEpsilonStrict( split.w, plane.plane, ON_EPSILON ); /* strict; if no winding is left, we have a "virtually identical" plane and don't want to split by it */
 			if ( !frontWinding.empty() ) {
 				face_t& newFace = childLists[0].emplace_front();
 				newFace.w.swap( frontWinding );
 				newFace.planenum = split.planenum;
 				newFace.priority = split.priority;
 				newFace.compileFlags = split.compileFlags;
+				newFace.brush = split.brush; /* BehavEd stage 6: from Garux/netradiant-custom PR #316 (auto-pigeon) commit 7e109335f7 (M3, sliver) */
+				newFace.sidePlanenum = split.sidePlanenum;
 			}
 			if ( !backWinding.empty() ) {
 				face_t& newFace = childLists[1].emplace_front();
@@ -231,6 +235,8 @@ static void BuildFaceTree_r( node_t *node, facelist_t& list ){
 				newFace.planenum = split.planenum;
 				newFace.priority = split.priority;
 				newFace.compileFlags = split.compileFlags;
+				newFace.brush = split.brush; /* BehavEd stage 6: from Garux/netradiant-custom PR #316 (auto-pigeon) commit 7e109335f7 (M3, sliver) */
+				newFace.sidePlanenum = split.sidePlanenum;
 			}
 			list.pop_front();
 		}
@@ -241,6 +247,14 @@ static void BuildFaceTree_r( node_t *node, facelist_t& list ){
 			childLists[1].splice_after( childLists[1].cbefore_begin(), list, list.cbefore_begin() );
 		}
 		else{ // eSideOn
+			/* a side of ANOTHER plane lying within ON_EPSILON of this one is consumed here: its own plane splits
+			   nothing below, and this plane bounds the brush's leaves instead. Record it, so FilterBrushIntoTree_r
+			   keeps the brush wholly on its inner side of this node like the tree does */
+			/* BehavEd stage 6: from Garux/netradiant-custom PR #316 (auto-pigeon) commit 7e109335f7 (M3, sliver) */
+			if ( split.brush != nullptr && ( split.planenum | 1 ) != ( node->planenum | 1 ) ) {
+				node->coplanarBrushes.emplace_back( split.brush,
+				                                    vector3_dot( mapplanes[ split.sidePlanenum ].normal(), plane.normal() ) > 0 ? eBack : eFront );
+			}
 			list.pop_front();
 		}
 	}
@@ -370,6 +384,8 @@ facelist_t MakeStructuralBSPFaceList( const brushlist_t& list ){
 			f.w = w;
 			f.planenum = s.planenum & ~1;
 			f.compileFlags = s.compileFlags;  /* ydnar */
+			f.brush = b.original; /* BehavEd stage 6: from Garux/netradiant-custom PR #316 (auto-pigeon) commit 7e109335f7 (M3, sliver) */
+			f.sidePlanenum = s.planenum;
 			if ( b.detail ) {
 				f.compileFlags |= C_DETAIL;
 			}
@@ -428,6 +444,8 @@ facelist_t MakeVisibleBSPFaceList( const brushlist_t& list ){
 			f.w = w;
 			f.planenum = s.planenum & ~1;
 			f.compileFlags = s.compileFlags;  /* ydnar */
+			f.brush = b.original; /* BehavEd stage 6: from Garux/netradiant-custom PR #316 (auto-pigeon) commit 7e109335f7 (M3, sliver) */
+			f.sidePlanenum = s.planenum;
 			if ( b.detail ) {
 				f.compileFlags |= C_DETAIL;
 			}

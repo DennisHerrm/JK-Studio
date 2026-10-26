@@ -113,6 +113,7 @@ static void HelpBsp()
 		{ "-mi <N>", "Sets the maximum number of indexes per surface" },
 		{ "-mv <N>", "Sets the maximum number of vertices of a lightmapped surface" },
 		{ "-ne <F>", "Normal epsilon for plane snapping etc." },
+		{ "-microvolume <F>", "Discard split brush fragments whose volume is not above F (default 0; was 1)" }, /* BehavEd stage 6: PR #316 d95377cc26 */
 		{ "-nobrushsnap", "Disable brush vertices snapping" },
 		{ "-nocurves", "Turn off support for patches" },
 		{ "-nodetail", "Leave out detail brushes" },

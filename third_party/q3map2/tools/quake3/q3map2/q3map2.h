@@ -666,6 +666,7 @@ struct shaderInfo_t : public shaderInfo_t_data
 
    ------------------------------------------------------------------------------- */
 
+struct brush_t;
 struct face_t
 {
 	int planenum;
@@ -673,6 +674,9 @@ struct face_t
 	//bool			checked;
 	int compileFlags;
 	winding_t           w;
+	/* BehavEd stage 6: from Garux/netradiant-custom PR #316 (auto-pigeon) commit 7e109335f7 (M3, sliver) */
+	const brush_t       *brush;             /* original of the brush this face is a side of */
+	int sidePlanenum;                       /* that side's plane, oriented (planenum is always the even one) */
 };
 using facelist_t = std::forward_list<face_t>;
 
@@ -1099,6 +1103,11 @@ struct node_t
 	struct portal_t     *portals;       /* also on nodes during construction */
 
 	bool has_structural_children;
+
+	/* nodes only: brushes a side of which BuildFaceTree_r consumed as ON this node's plane, and the child their
+	   inside is on */
+	/* BehavEd stage 6: from Garux/netradiant-custom PR #316 (auto-pigeon) commit 7e109335f7 (M3, sliver) */
+	std::vector<std::pair<const brush_t*, int>> coplanarBrushes;
 };
 
 
@@ -2017,6 +2026,8 @@ inline int maxSurfaceIndexes = 6000;                    /* ydnar */
 inline float npDegrees;                                 /* ydnar: nonplanar degrees */
 inline int bevelSnap;                                   /* ydnar: bevel plane snap */
 inline bool g_brushSnap = true;
+/* SplitBrush discards a fragment whose volume is not above this (-microvolume); was a hard-coded 1 */
+inline float g_microVolume = 0; /* BehavEd stage 6: from Garux/netradiant-custom PR #316 (auto-pigeon) commit d95377cc26 (P1) */
 inline bool flat;
 inline bool meta;
 inline bool patchMeta;

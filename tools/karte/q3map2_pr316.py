@@ -19,7 +19,8 @@ cases.json: jede Karte mit -game quake3 -bsp -meta bauen, dann
   not_drawn    kein solches Dreieck
   patch        der n-te Patch: shader, Groesse, Kontrollpunkte (0.001) und st
 Bekannte Fehlschlaege: known-failures.json (bleibt Fehlschlag, darf aber nicht bestehen).
-Rueckgabe: Anzahl unerwarteter Ergebnisse (fail oder unexpected_pass).
+Rueckgabe: Anzahl unerwarteter Ergebnisse (fail oder unexpected_pass); mit --erwartet die Zahl
+der Faelle, deren Zustand von der Datei abweicht (ctest q3map2_pr316, tools/karte/q3map2_pr316_erwartet.json).
 """
 import argparse
 import json
@@ -233,6 +234,7 @@ def main(argv):
     ap.add_argument('--fall', action='append', default=[])
     ap.add_argument('--json')
     ap.add_argument('--threads', default='2')
+    ap.add_argument('--erwartet', help='JSON mit dem erwarteten Zustand je Fall (ctest): Rueckgabe = Abweichungen davon')
     a = ap.parse_args(argv)
     exe = os.path.abspath(a.exe)
     daten = os.path.abspath(a.daten)
@@ -266,6 +268,13 @@ def main(argv):
     if a.json:
         with open(a.json, 'w', encoding='utf-8', newline='\n') as f:
             json.dump(bericht, f, indent=1, sort_keys=True)
+    if a.erwartet:
+        soll = json.load(open(a.erwartet, encoding='utf-8'))['faelle']
+        abw = [k for k in sorted(set(soll) | set(bericht)) if soll.get(k) != bericht.get(k, {}).get('zustand')]
+        for k in abw:
+            print('ANDERS  %s: erwartet %s, ist %s' % (k, soll.get(k), bericht.get(k, {}).get('zustand')))
+        print('q3map2_pr316: %d Abweichung(en) vom erwarteten Zustand' % len(abw))
+        return len(abw)
     return unerwartet
 
 
