@@ -74,6 +74,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <limits> // BehavEd stage 6: bhed_to_int
+#include <chrono> // BehavEd stage 7: BhedZeit
 
 #include "maxworld.h"
 #include "games.h"
@@ -1980,6 +1981,20 @@ inline void bhed_set_map_extension( char *path, const char *extension ){
    output stays byte for byte as before. */
 inline int bhed_to_int( double x ){
 	return ( x >= -2147483648.0 && x < 2147483648.0 )? int( x ) : std::numeric_limits<int>::min();
+}
+
+/* BehavEd stage 7 (speed): wall time of each section since the previous mark, printed only
+   when the environment variable BHED_Q3_ZEITEN is set (tools/karte/tempo.py, NOTIZEN_karte7.md).
+   Without it nothing is printed and nothing changes. */
+inline void BhedZeit( const char *abschnitt ){
+	static const bool an = getenv( "BHED_Q3_ZEITEN" ) != nullptr;
+	static std::chrono::steady_clock::time_point zuletzt = std::chrono::steady_clock::now();
+	if ( !an ) {
+		return;
+	}
+	const auto jetzt = std::chrono::steady_clock::now();
+	Sys_Printf( "BHED-Zeit %-32s %9.3f s\n", abschnitt, std::chrono::duration<double>( jetzt - zuletzt ).count() );
+	zuletzt = jetzt;
 }
 
 inline bool shaderInfo_less( const shaderInfo_t *a, const shaderInfo_t *b ){

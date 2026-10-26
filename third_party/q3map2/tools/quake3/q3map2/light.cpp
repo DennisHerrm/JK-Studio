@@ -2007,6 +2007,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 	/* determine the number of grid points */
 	Sys_Printf( "--- SetupGrid ---\n" );
 	SetupGrid( ambientColor );
+	BhedZeit( "SmoothNormals, SetupGrid" );
 
 	/* create world lights */
 	Sys_FPrintf( SYS_VRB, "--- CreateLights ---\n" );
@@ -2016,11 +2017,13 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 	Sys_Printf( "%9d spotlights\n", numSpotLights );
 	Sys_Printf( "%9d diffuse (area) lights\n", numDiffuseLights );
 	Sys_Printf( "%9d sun/sky lights\n", numSunLights );
+	BhedZeit( "CreateLights" );
 
 	/* calculate lightgrid */
 	if ( !noGridLighting ) {
 		/* ydnar: set up light envelopes */
 		SetupEnvelopes( true, fastgrid );
+		BhedZeit( "SetupEnvelopes (Gitter)" );
 
 		Sys_Printf( "--- TraceGrid ---\n" );
 		inGrid = true;
@@ -2029,6 +2032,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 		inGrid = false;
 		Sys_Printf( "%d x %d x %d = %zu grid\n",
 		            gridBounds[ 0 ], gridBounds[ 1 ], gridBounds[ 2 ], bspGridPoints.size() );
+		BhedZeit( "TraceGrid" );
 
 		/* ydnar: emit statistics on light culling */
 		Sys_FPrintf( SYS_VRB, "%9d grid points envelope culled\n", gridEnvelopeCulled );
@@ -2041,6 +2045,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 	/* map the world luxels */
 	Sys_Printf( "--- MapRawLightmap ---\n" );
 	RunThreadsOnIndividual( numRawLightmaps, true, MapRawLightmap );
+	BhedZeit( "MapRawLightmap" );
 	Sys_Printf( "%9d luxels\n", numLuxels );
 	Sys_Printf( "%9d luxels mapped\n", numLuxelsMapped );
 	Sys_Printf( "%9d luxels occluded\n", numLuxelsOccluded );
@@ -2053,9 +2058,11 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 
 	/* floodlight pass */
 	FloodlightRawLightmaps();
+	BhedZeit( "Dirty, Floodlight" );
 
 	/* ydnar: set up light envelopes */
 	SetupEnvelopes( false, fast );
+	BhedZeit( "SetupEnvelopes" );
 
 	/* light up my world */
 	lightsPlaneCulled = 0;
@@ -2066,12 +2073,15 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 	Sys_Printf( "--- IlluminateRawLightmap ---\n" );
 	RunThreadsOnIndividual( numRawLightmaps, true, IlluminateRawLightmap );
 	Sys_Printf( "%9d luxels illuminated\n", numLuxelsIlluminated );
+	BhedZeit( "IlluminateRawLightmap" );
 
 	StitchSurfaceLightmaps();
+	BhedZeit( "StitchSurfaceLightmaps" );
 
 	Sys_Printf( "--- IlluminateVertexes ---\n" );
 	RunThreadsOnIndividual( bspDrawSurfaces.size(), true, IlluminateVertexes );
 	Sys_Printf( "%9d vertexes illuminated\n", numVertsIlluminated );
+	BhedZeit( "IlluminateVertexes" );
 
 	/* ydnar: emit statistics on light culling */
 	Sys_FPrintf( SYS_VRB, "%9d lights plane culled\n", lightsPlaneCulled );
@@ -2086,10 +2096,12 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 	{
 		/* store off the bsp between bounces */
 		StoreSurfaceLightmaps( fastAllocate, bounceStore );
+		BhedZeit( "Bounce: StoreSurfaceLightmaps" );
 		if( bounceStore ){
 			UnparseEntities();
 			WriteBSPFileAfterLight( source );
 		}
+		BhedZeit( "Bounce: WriteBSPFile" );
 
 		/* note it */
 		Sys_Printf( "\n--- Radiosity (bounce %d of %d) ---\n", b, bt );
@@ -2107,9 +2119,11 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 		lights.clear();
 		/* generate diffuse lights */
 		RadCreateDiffuseLights();
+		BhedZeit( "Bounce: RadCreateDiffuseLights" );
 
 		/* setup light envelopes */
 		SetupEnvelopes( false, fastbounce );
+		BhedZeit( "Bounce: SetupEnvelopes" );
 		if ( lights.empty() ) {
 			Sys_Printf( "No diffuse light to calculate, ending radiosity.\n" );
 			if( bounceStore ){ // already stored, just quit
@@ -2130,6 +2144,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 			inGrid = false;
 			Sys_FPrintf( SYS_VRB, "%9d grid points envelope culled\n", gridEnvelopeCulled );
 			Sys_FPrintf( SYS_VRB, "%9d grid points bounds culled\n", gridBoundsCulled );
+			BhedZeit( "Bounce: BounceGrid" );
 		}
 
 		/* light up my world */
@@ -2142,12 +2157,15 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 		RunThreadsOnIndividual( numRawLightmaps, true, IlluminateRawLightmap );
 		Sys_Printf( "%9d luxels illuminated\n", numLuxelsIlluminated );
 		Sys_Printf( "%9d vertexes illuminated\n", numVertsIlluminated );
+		BhedZeit( "Bounce: IlluminateRawLightmap" );
 
 		StitchSurfaceLightmaps();
+		BhedZeit( "Bounce: StitchSurfaceLightmaps" );
 
 		Sys_Printf( "--- IlluminateVertexes ---\n" );
 		RunThreadsOnIndividual( bspDrawSurfaces.size(), true, IlluminateVertexes );
 		Sys_Printf( "%9d vertexes illuminated\n", numVertsIlluminated );
+		BhedZeit( "Bounce: IlluminateVertexes" );
 
 		/* ydnar: emit statistics on light culling */
 		Sys_FPrintf( SYS_VRB, "%9d lights plane culled\n", lightsPlaneCulled );
@@ -2162,10 +2180,12 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 
 	/* ydnar: store off lightmaps */
 	StoreSurfaceLightmaps( fastAllocate, true );
+	BhedZeit( "Ende: StoreSurfaceLightmaps" );
 
 	/* write out the bsp */
 	UnparseEntities();
 	WriteBSPFileAfterLight( source );
+	BhedZeit( "Ende: WriteBSPFile" );
 }
 
 
@@ -2964,8 +2984,10 @@ int LightMain( Args& args ){
 	SetDefaultSampleSize( sampleSize );
 
 	/* ydnar: handle shaders */
+	BhedZeit( "light: Kommandozeile" ); /* BehavEd stage 7: section times, see q3map2.h */
 	BeginMapShaderFile( source );
 	LoadShaderInfo();
+	BhedZeit( "light: LoadShaderInfo" );
 
 	/* note loading */
 	Sys_Printf( "Loading %s\n", source );
@@ -3000,11 +3022,14 @@ int LightMain( Args& args ){
 	SetupFloodLight();
 	SetupSurfaceLightmaps();
 
+	BhedZeit( "light: BSP/Karte laden, Setup*" );
 	/* initialize the surface facet tracing */
 	SetupTraceNodes();
+	BhedZeit( "light: SetupTraceNodes" );
 
 	/* light the world */
 	LightWorld( fastAllocate, bounceStore );
+	BhedZeit( "light: nach LightWorld" );
 
 	/* ydnar: export lightmaps */
 	if ( exportLightmaps && !externalLightmaps ) {

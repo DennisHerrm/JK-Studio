@@ -828,6 +828,28 @@ bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app)
                                                      : bhed::theme::Color{0.2F, 0.2F, 0.2F, 1.0F};
         bhed::render::present(bg.r, bg.g, bg.b);
         BHED_BILD();
+        // Stufe 7 (tools/karte/tempo.py): Programmstart bis zum ersten
+        // gezeigten Bild - ab der Entstehung des Prozesses (GetProcessTimes),
+        // also mit dem Laden der .exe und allem vor wWinMain.
+        static bool erstesBild = true;
+        if (erstesBild) {
+            erstesBild = false;
+            FILETIME entstanden{};
+            FILETIME beendet{};
+            FILETIME kern{};
+            FILETIME nutzer{};
+            if (GetProcessTimes(GetCurrentProcess(), &entstanden, &beendet, &kern, &nutzer) != 0) {
+                FILETIME jetzt{};
+                GetSystemTimePreciseAsFileTime(&jetzt);
+                const auto zahl = [](const FILETIME& f) {
+                    return (static_cast<unsigned long long>(f.dwHighDateTime) << 32U) | f.dwLowDateTime;
+                };
+                char z[96];
+                std::snprintf(z, sizeof(z), "Tempo: Programmstart bis erstes Bild = %.2f ms",
+                              static_cast<double>(zahl(jetzt) - zahl(entstanden)) / 10000.0);
+                bhed::diag::detail(z);
+            }
+        }
         if (nachricht || !bhed::gui::darfRuhen()) {
             letzteUnruhe = std::chrono::steady_clock::now();
         }

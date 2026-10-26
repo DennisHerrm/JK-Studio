@@ -36678,6 +36678,7 @@ std::vector<Schritt> gross() {
 }  // namespace stufe5
 
 #include "selbsttest_karte6.inc"
+#include "selbsttest_karte7.inc"
 
 std::vector<Schritt> karteneditorStufe5Schritte() {
     std::vector<Schritt> s;
@@ -37501,6 +37502,12 @@ std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    // =tempo: nur die Messliste der Stufe 7 (tools/karte/tempo.py editor)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "tempo") == 0) {
+        for (Schritt& x : tempo::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     add(tu("Karten-Editor: Spielordner, Modus Events", [] {
         if (g_app->gamePaths.empty()) { rescanGamePaths(); }
         g_app->leftMode = 0;

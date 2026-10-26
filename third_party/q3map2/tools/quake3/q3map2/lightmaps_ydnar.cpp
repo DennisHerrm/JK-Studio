@@ -2605,6 +2605,7 @@ void StoreSurfaceLightmaps( bool fastAllocate, bool storeForReal ){
 	}
 
 	Sys_Printf( "%d.", int( timer.elapsed_sec() ) );
+	BhedZeit( "  Store: Subsampling" ); /* BehavEd stage 7: section times, see q3map2.h */
 
 	/* -----------------------------------------------------------------
 	   convert modelspace deluxemaps to tangentspace
@@ -2792,6 +2793,7 @@ void StoreSurfaceLightmaps( bool fastAllocate, bool storeForReal ){
 		}
 
 		Sys_Printf( "%d.", int( timer.elapsed_sec() ) );
+		BhedZeit( "  Store: collapsing" );
 	}
 
 	/* -----------------------------------------------------------------
