@@ -1581,3 +1581,90 @@ void AddTriangleModels( entity_t& eparent ){
 		InsertModel( model, skin, frame, ModelGetTransform( e, eparent.origin ), &remaps, eparent, spawnFlags, clipDepth, params );
 	}
 }
+
+
+
+/*
+   BhedModelsMain() - BehavEd stage 8a (not in NetRadiant-Custom)
+   -bhedmodels <list> <out>: loads every model of the list ("path<TAB>frame" per line)
+   exactly like InsertModel does (LoadModel: assimp with the same flags, the same
+   vertex order) and writes its meshes untransformed - shader name as AssModelMesh
+   derives it, vertices, triangles. BehavEd's "Open .bsp" matches them against the
+   triangle soups of a compiled map to recover misc_model entities (position,
+   angles, scale); the vertex order is what makes the match exact. Reason for the
+   change: the order comes from assimp's post-processing (JoinIdenticalVertices,
+   SplitLargeMeshes), which only q3map2 itself reproduces. Compiling is unchanged.
+   Output (little endian): "BHMD", u32 version 2, u32 models; per model u32 name
+   length, name, i32 frame, u32 loaded, u32 meshes; per mesh u32 shader length,
+   shader, u32 verts, u32 triangles, float xyz[verts], float st[verts] (as
+   InsertModel copies them without tcGen), u32 index[triangles][3].
+ */
+int BhedModelsMain( Args& args ){
+	if ( args.size() < 2 ) {
+		Sys_Printf( "Usage: q3map2 -bhedmodels <list> <out>\n" );
+		return 1;
+	}
+	const char *outName = args.takeBack();
+	const char *listName = args.takeBack();
+	FILE *list = fopen( listName, "rb" );
+	if ( list == nullptr ) {
+		Sys_Warning( "cannot open %s\n", listName );
+		return 1;
+	}
+	std::vector<std::pair<std::string, int>> names;
+	char line[1024];
+	while ( fgets( line, sizeof( line ), list ) != nullptr ) {
+		std::string l( line );
+		while ( !l.empty() && ( l.back() == '\n' || l.back() == '\r' ) )
+			l.pop_back();
+		if ( l.empty() )
+			continue;
+		const size_t tab = l.find( '\t' );
+		names.emplace_back( l.substr( 0, tab ), tab == std::string::npos ? 0 : atoi( l.c_str() + tab + 1 ) );
+	}
+	fclose( list );
+	FILE *out = fopen( outName, "wb" );
+	if ( out == nullptr ) {
+		Sys_Warning( "cannot write %s\n", outName );
+		return 1;
+	}
+	const auto u32 = [out]( uint32_t v ){ fwrite( &v, 4, 1, out ); };
+	const auto str = [&]( const char *t ){ const uint32_t n = strlen( t ); u32( n ); fwrite( t, 1, n, out ); };
+	fwrite( "BHMD", 1, 4, out );
+	u32( 2 );
+	u32( names.size() );
+	for ( const auto& [ name, frame ] : names ) {
+		str( name.c_str() );
+		u32( static_cast<uint32_t>( frame ) );
+		AssModel *model = LoadModel( name.c_str(), frame );
+		u32( model != nullptr );
+		u32( model != nullptr ? model->m_meshes.size() : 0 );
+		if ( model == nullptr )
+			continue;
+		for ( const auto& surface : model->m_meshes ) {
+			const aiMesh *mesh = surface.m_mesh;
+			str( surface.m_shader.c_str() );
+			u32( mesh->mNumVertices );
+			u32( mesh->mNumFaces );
+			for ( size_t i = 0; i < mesh->mNumVertices; ++i ) {
+				const float v[3] = { mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z };
+				fwrite( v, 4, 3, out );
+			}
+			for ( size_t i = 0; i < mesh->mNumVertices; ++i ) {
+				float st[2] = { 0, 0 };
+				if ( mesh->HasTextureCoords( 0 ) ) {
+					st[0] = mesh->mTextureCoords[0][i].x;
+					st[1] = mesh->mTextureCoords[0][i].y;
+				}
+				fwrite( st, 4, 2, out );
+			}
+			for ( const aiFace& face : Span( mesh->mFaces, mesh->mNumFaces ) ) {
+				for ( size_t i = 0; i < 3; ++i )
+					u32( i < face.mNumIndices ? face.mIndices[i] : 0 );
+			}
+		}
+	}
+	fclose( out );
+	Sys_Printf( "%9zu models dumped to %s\n", names.size(), outName );
+	return 0;
+}

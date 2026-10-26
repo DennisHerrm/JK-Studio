@@ -1752,6 +1752,7 @@ void                        assimp_init();
 void                        InsertModel( const char *name, const char *skin, int frame, const Matrix4& transform, const std::list<remap_t> *remaps,
                                          entity_t& entity, int spawnFlags, float clipDepth, const EntityCompileParams& params );
 void                        AddTriangleModels( entity_t& eparent );
+int                         BhedModelsMain( Args& args ); // BehavEd stage 8a
 
 
 /* surface.c */

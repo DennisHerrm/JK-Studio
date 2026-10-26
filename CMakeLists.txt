@@ -850,6 +850,7 @@ target_sources(bhed_core PRIVATE
   src/karte/baumonitor.cpp
   src/karte/baufortschritt.cpp
   src/karte/editordaten.cpp
+  src/karte/modellrueck.cpp
   # Stufe 3 Punkt 5: der Portal Viewer (contrib/prtview) ohne Oberflaeche
   src/karte/portale.cpp
   # Stufe 4 Punkte 1/2: fertige Karten oeffnen, Originallicht (-onlyents)
@@ -1033,6 +1034,10 @@ if(BEHAVED_TESTS)
   add_executable(kartebau tests/kartebau.cpp)
   target_link_libraries(kartebau PRIVATE bhed_core)
   add_test(NAME karte_bau COMMAND kartebau ${CMAKE_CURRENT_SOURCE_DIR}/data/karte ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
+  # Stufe 8a Punkt 3: misc_model aus der Geometrie (Lage-Rechnung, Kandidaten, Dump; mit Argumenten: Messung)
+  add_executable(kartemodellrueck tests/kartemodellrueck.cpp)
+  target_link_libraries(kartemodellrueck PRIVATE bhed_core)
+  add_test(NAME karte_modellrueck COMMAND kartemodellrueck)
   # Stufe 3 Punkt 5: Portaldatei lesen, prtview.ini (contrib/prtview)
   add_executable(karteportale tests/karteportale.cpp)
   target_link_libraries(karteportale PRIVATE bhed_core)

@@ -220,6 +220,11 @@ int main( int argc, char **argv ){
 		r = ConvertJsonMain( args );
 	}
 
+	/* BehavEd stage 8a: dump models as InsertModel sees them (misc_model recovery) */
+	else if ( args.takeFront( "-bhedmodels" ) ) {
+		r = BhedModelsMain( args );
+	}
+
 	/* merge two bsps */
 	else if ( args.takeFront( "-mergebsp" ) ) {
 		r = MergeBSPMain( args );
