@@ -1662,6 +1662,12 @@ void autoCaulkAuswahl() {
     std::string grund;
     bool gestartet = false;
     int rueckgabe = 0;
+    {   // Stufe 6 (eigener Fund, auch in NRC): die .caulk eines frueheren Laufs weg - schreibt
+        // q3map2 keine neue (Leck, q3map2 fehlt), las "load" sonst die alte und caulkte damit
+        // stillschweigend Flaechen der jetzigen Auswahl
+        std::error_code ec;
+        fs::remove(pfadAus(stamm + "_ac.caulk"), ec);
+    }
     {   // compile: Q_Exec( nullptr, cmd, nullptr, false, true ) - ohne Fenster, warten
         std::string programm = mitSchraegstrich(platform::executableDirectory());
         if (!programm.empty() && programm.back() != '/') { programm += '/'; }

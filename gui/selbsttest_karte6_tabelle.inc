@@ -3,7 +3,7 @@
 // Dateidialogs. Grundlage: Erkundungslauf (jede Art der Wirkung gemessen) und die NRC-Quellen.
 {"ArbitraryRotation", Vor::Pinsel, "D", false, ""},
 {"ArbitraryScale", Vor::Pinsel, "D", false, ""},
-{"AutoCaulkSelected", Vor::Pinsel, "NP", false, ""},
+{"AutoCaulkSelected", Vor::Pinsel, "P", false, ""},   // Konsole nur, wenn q3map2 scheitert (Stufe 6, Schlussrunde: im Einzellauf fehlt bhed_q3map2)
 {"bobToolz::About", Vor::Leer, "D", false, ""},
 {"bobToolz::ApertureDoor", Vor::Pinsel, "D", false, ""},
 {"bobToolz::BrushCleanup", Vor::Pinsel, "AN", false, ""},

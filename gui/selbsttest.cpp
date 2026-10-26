@@ -29673,18 +29673,20 @@ std::vector<Schritt> filter() {
     // Rechtsklick-Handlungen der Filterleiste
     add(klickXy("M1 auf den Pinsel", ImGuiMouseButton_Left, ImVec2{32, 32}));
     add(klickAn("Rechtsklick Translucent", elementOrt("##knopfFilterTranslucent"), 1));
-    add(pruefe("Rechtsklick Translucent: system/nodraw, \"textureNameSetSelected\"", [] {
-        return alleFlaechen("textures/system/nodraw") && ke::editor().karte.undo.undoName() == "textureNameSetSelected";
+    // Stufe 6 (NRC#145): GetCommonShader mit den Namen aus system.shader von JA/JK2 - "nodraw" ist dort
+    // system/nodraw_solid (fest), "nodrawnonsolid" ist system/nodraw (NRC: system/nodraw, system/nodrawnonsolid)
+    add(pruefe("Rechtsklick Translucent: system/nodraw_solid, \"textureNameSetSelected\"", [] {
+        return alleFlaechen("textures/system/nodraw_solid") && ke::editor().karte.undo.undoName() == "textureNameSetSelected";
     }));
     add(klickAn("Rechtsklick Translucent nochmal", elementOrt("##knopfFilterTranslucent"), 1));
-    add(pruefe("zweiter Rechtsklick: system/nodrawnonsolid", [] { return alleFlaechen("textures/system/nodrawnonsolid"); }));
+    add(pruefe("zweiter Rechtsklick: system/nodraw (nicht fest)", [] { return alleFlaechen("textures/system/nodraw"); }));
     add(klickAn("Rechtsklick Translucent ein drittes Mal", elementOrt("##knopfFilterTranslucent"), 1));
-    add(pruefe("dritter Rechtsklick: wieder system/nodraw", [] { return alleFlaechen("textures/system/nodraw"); }));
+    add(pruefe("dritter Rechtsklick: wieder system/nodraw_solid", [] { return alleFlaechen("textures/system/nodraw_solid"); }));
     add(klickAn("Rechtsklick Translucent ein viertes Mal", elementOrt("##knopfFilterTranslucent"), 1));
     add(tu("Maus aus der Filterleiste", [] { setzeMaus(weltXy(0, 0)); }));
     add(pause(0.3));
     add(klickAn("Rechtsklick Translucent nach dem Betreten", elementOrt("##knopfFilterTranslucent"), 1));
-    add(pruefe("nach QEvent::Enter: von vorn (system/nodraw)", [] { return alleFlaechen("textures/system/nodraw"); }));
+    add(pruefe("nach QEvent::Enter: von vorn (system/nodraw_solid)", [] { return alleFlaechen("textures/system/nodraw_solid"); }));
     add(klickAn("Rechtsklick Caulk", elementOrt("##knopfFilterCaulk"), 1));
     add(pruefe("Rechtsklick Caulk: system/caulk", [] { return alleFlaechen("textures/system/caulk"); }));
     add(klickAn("Rechtsklick Details", elementOrt("##knopfFilterDetails"), 1));
@@ -33595,13 +33597,17 @@ std::vector<Schritt> bauen() {
     }));
     add(bauMenuepunkt("Single: bsp stage"));
     add(fertig("Bauen fertig", 1200));
-    add(pruefe("Leere Karte (ohne Entitaet) unter s3bau/leer.map gespeichert und gebaut: q3map2 stuerzt ab (NRCs q3map2.exe auch), "
-               "die Zeile am Ende nennt es (1: exit 0xC0000005)",
+    // Stufe 6 (13bdbab, kartefuzz/ASan): NRCs q3map2.exe stuerzt hier ab (entities[0] auf leerem
+    // Vektor, 0xC0000005); bhed_q3map2 nennt den Grund, und der Bau stoppt mit Fehler
+    add(pruefe("Leere Karte (ohne Entitaet) unter s3bau/leer.map gespeichert und gebaut: q3map2 nennt den Grund (keine Entity), "
+               "der Bau stoppt mit Fehler (NRCs q3map2.exe stuerzt ab)",
                [] {
                    const std::string k = konsoleText();
                    diag::detail("Knopftest: Stufe 3/4 leere Karte: " + k.substr(k.size() > 200 ? k.size() - 200 : 0));
                    return istDatei(laufOrdner("s3bau\\leer.map")) && ke::editor().name == laufOrdner("s3bau\\leer.map") &&
-                          k.find(fertigZeile("Single: bsp stage", 1)) != std::string::npos && k.find("(1: exit 0xC0000005)") != std::string::npos;
+                          konsoleArtMit(ke::KonsolenZeile::Art::Fehler, "No entity in map file") &&
+                          konsoleArtMit(ke::KonsolenZeile::Art::Fehler, gestopptZeile("Single: bsp stage", 1, 1, "error")) &&
+                          k.find("0xC0000005") == std::string::npos;
                }));
     add(tu("File > New Map, ein dichter Raum mit info_player_start; Speichern unter: s3bau/neu.map; Konsole leeren", [] {
         ke::Editor& e = ke::editor();

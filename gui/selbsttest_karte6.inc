@@ -372,6 +372,14 @@ void grundzustand() {
     }
     e.gruppenDialogOffen = false;
     e.gruppenSeite = 0;
+    // Schlussrunde Stufe 6: im vollen Lauf schoben fruehere Teile (Stufe 2/10) den
+    // Gruppendialog nach rechts oben ueber die Werkzeugleiste - die Klicks auf ToggleConsole
+    // und ToggleTextures trafen dann das Fenster. Zurueck in die Mitte wie beim ersten Oeffnen.
+    if (ImGuiWindow* g = ImGui::FindWindowByName("###kartegruppe"); g != nullptr) {
+        const ImVec2 vp = ImGui::GetMainViewport()->Pos;
+        const ImVec2 bereich = ImGui::GetMainViewport()->Size;
+        ImGui::SetWindowPos("###kartegruppe", ImVec2{vp.x + std::max(0.0F, (bereich.x - g->Size.x) * 0.5F), vp.y + std::max(0.0F, (bereich.y - g->Size.y) * 0.5F)});
+    }
     e.filterMaske = 0;
     e.ufoai = karte::plugins::UfoaiZustand{};
     e.bob.splines = karte::bobtoolz::Splines{};
@@ -2322,6 +2330,47 @@ std::vector<Schritt> funde() {
     add(tu("NRC#213: bhed_q3map2 zurueck", [q3, q3weg] {
         std::error_code ec;
         std::filesystem::rename(q3weg, q3, ec);
+        grundzustand();
+    }));
+    // Eigener Fund (Schlussrunde Stufe 6): schreibt q3map2 keine neue <name>_ac.caulk (die Karte
+    // leckt, q3map2 fehlt), las AutoCaulk die alte eines frueheren Laufs und caulkte damit
+    // stillschweigend Flaechen der jetzigen Auswahl (NRC map_autocaulk_selected ebenso).
+    // Hier: die Testkarte leckt; erster Lauf nennt den Pfad der .caulk, dann liegt dort eine
+    // alte Datei (jede Flaeche 'c'), zweiter Lauf.
+    auto caulkPfad = std::make_shared<std::string>();
+    auto karteVorher = std::make_shared<std::string>();
+    add(tu("Fund alte .caulk: Pinsel A, AutoCaulk Selected (die Karte leckt)", [] {
+        vorbereiten(Vor::Pinsel);
+        stufe3::q3map2Bereitstellen();
+        ke::konsoleLeeren();
+        ke::editor().kamera.setzeUrsprung(karte::Vektor3f(0, 0, 32));
+        (void)ke::ausfuehren("AutoCaulkSelected");
+    }));
+    add(pause(0.3));
+    add(tu("Fund alte .caulk: alte Datei (jede Flaeche 'c') an den genannten Pfad, AutoCaulk Selected noch einmal", [caulkPfad, karteVorher] {
+        for (const ke::KonsolenZeile& z : ke::editor().konsole) {
+            const std::size_t a = z.text.find("reading ");
+            const std::size_t b = z.text.find("_ac.caulk failure");
+            if (a != std::string::npos && b != std::string::npos && b > a) { *caulkPfad = z.text.substr(a + 8, b + 9 - a - 8); }
+        }
+        std::string alt;
+        for (int i = 0; i < 32; ++i) { alt += std::to_string(i) + " cccccccc\n"; }
+        if (!caulkPfad->empty()) { (void)textSchreiben(*caulkPfad, alt); }
+        ke::konsoleLeeren();
+        *karteVorher = karte::karteSchreiben(ke::editor().karte);
+        (void)ke::ausfuehren("AutoCaulkSelected");
+    }));
+    add(pause(0.3));
+    add(pruefe("Fund alte .caulk: nicht gelesen - die Konsole meldet das Scheitern, die Karte bleibt gleich", [caulkPfad, karteVorher] {
+        bool failure = false;
+        for (const ke::KonsolenZeile& z : ke::editor().konsole) { failure = failure || z.text.find("_ac.caulk failure") != std::string::npos; }
+        const bool gleich = karte::karteSchreiben(ke::editor().karte) == *karteVorher;
+        diag::detail("Knopftest: Stufe 6 - alte .caulk: " + *caulkPfad + ", Scheitern gemeldet " + (failure ? "ja" : "nein") + ", Karte gleich " + (gleich ? "ja" : "nein"));
+        return !caulkPfad->empty() && failure && gleich;
+    }));
+    add(tu("Fund alte .caulk: Grundzustand", [caulkPfad] {
+        std::error_code ec;
+        if (!caulkPfad->empty()) { std::filesystem::remove(std::filesystem::path(*caulkPfad), ec); }
         grundzustand();
     }));
     // AutoCaulk mit Wasser (Stufe 6, Fund): NRC ruft "q3map2 -game quake3 -autocaulk" fuer
