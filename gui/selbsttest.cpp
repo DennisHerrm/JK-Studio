@@ -38688,6 +38688,118 @@ std::vector<Schritt> karte5HandbuchSchritte() {
     return s;
 }
 
+// BHED_EDITORTEST=handbuch mit BHED_HB_NUR=karte7: Stufe 7 - Echtzeit-Licht,
+// Schnell-Backen, das Build-Menue mit beiden Eintraegen, die Programm-Einstellungen
+// in View, Preferences > Interface und die kleinen Knoepfe.
+std::vector<Schritt> karte7HandbuchSchritte() {
+    namespace ke = karteneditor;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto menueBild = [] {
+        const ImGuiWindow* haupt = ImGui::FindWindowByName("###main");
+        ImRect m;
+        const ImGuiContext& g = *GImGui;
+        for (int i = 0; i < g.OpenPopupStack.Size; ++i) {
+            if (const ImGuiWindow* w = g.OpenPopupStack[i].Window) {
+                if (i == 0) {
+                    m = w->Rect();
+                } else {
+                    m.Add(w->Rect());
+                }
+            }
+        }
+        if (const ImGuiWindow* t = ImGui::FindWindowByName("##Tooltip_00"); t != nullptr && t->Active) { m.Add(t->Rect()); }
+        if (haupt == nullptr) { return m; }
+        return ImRect{haupt->Pos.x, haupt->Pos.y, m.Max.x + 40.0F, m.Max.y + 20.0F};
+    };
+    const auto kamera = [] { return hb::fensterRect("##feldKamera"); };
+    const auto voll = [] { return ImRect{0.0F, 0.0F, ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y}; };
+    const auto kameraSetzen = [] {
+        ke::Editor& e = ke::editor();
+        e.kamera.ursprung = karte::Vektor3f(-470.0F, -330.0F, 300.0F);
+        e.kamera.winkel = karte::Vektor3f(-28.0F, 38.0F, 0.0F);
+    };
+    add(tu("Handbuch Stufe 7: Spielordner, Begriffe aus", [] {
+        if (g_app->gamePaths.empty()) { rescanGamePaths(); }
+        g_app->leftMode = 0;
+        ke::setzeNrcBegriffe(false);
+    }));
+    add(pause(0.3));
+    add(klick(tr(Str::ViewMapEditor), "###main"));
+    add(pause(0.3));
+    add(warteBis("Handbuch Stufe 7: Spieldaten geladen", [] {
+        ke::spielPruefen();
+        return ke::spielBereit();
+    }, 20000));
+    add(tu("Handbuch Stufe 7: Testraum mit Licht und Wand, Echtzeit-Licht an", [kameraSetzen] {
+        karteDialogeZu();
+        stufe3::q3map2Bereitstellen();
+        stufe7::lichtKarteSchreiben(true);
+        (void)ke::karteOeffnen(stufe7::lichtKarte());
+        ke::Editor& e = ke::editor();
+        e.kameraE.modus = karte::KameraModus::Textur;
+        e.echtLicht.an = true;
+        e.echtLicht.backen = false;
+        kameraSetzen();
+    }));
+    add(warteBis("Handbuch Stufe 7: Texturen geladen", [] { return ke::kameraBilderFertig(); }, 6000));
+    add(pause(0.8));
+    add(hb::fotoTeil("h_karte7_licht", kamera));
+    // Build-Menue, die Maus auf "Real-time light" (Tooltip)
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.4));
+    add(tu("Maus auf Real-time light", [] {
+        if (const Element* el = finde(ke::trK(Str::KeLichtMenue), "##Menu_", 0, true)) { setzeMaus(el->rect.GetCenter()); }
+    }));
+    add(pause(0.8));
+    add(hb::fotoTeil("h_karte7_menue", menueBild));
+    // Schnell-Backen: die echten Lightmaps
+    add(tu("Menue zu, Schnell-Backen an (1 s Pause)", [kameraSetzen] {
+        karteDialogeZu();
+        ke::Editor& e = ke::editor();
+        e.echtLicht.backen = true;
+        e.echtLicht.pauseSekunden = 1.0;
+        kameraSetzen();
+    }));
+    add({"Handbuch Stufe 7: Schnell-Backen fertig", [](int b) {
+             const ke::Editor& e = ke::editor();
+             return e.echtLicht.gebackenZeigen || e.echtLicht.bauStand == 5 || b > 7000;
+         }});
+    add(pause(0.8));
+    add(hb::fotoTeil("h_karte7_gebacken", kamera));
+    add(tu("Schnell-Backen und Echtzeit-Licht aus", [] {
+        ke::Editor& e = ke::editor();
+        e.echtLicht.backen = false;
+        e.echtLicht.an = false;
+        e.echtLicht.pauseSekunden = 2.0;
+    }));
+    add(pause(0.3));
+    // View mit den Programm-Einstellungen (Stil des Programms)
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.6));
+    add(hb::fotoTeil("h_karte7_view", menueBild));
+    add(tu("Menue zu; Preferences > Interface", [] {
+        karteDialogeZu();
+        ke::editor().einstellungenOffen = true;
+    }));
+    add(pause(0.3));
+    add(klick(ke::trK(Str::KePgInterface), "###karteeinstellungen"));
+    add(pause(0.6));
+    add(hb::fotoTeil("h_karte7_interface", [] { return fensterRahmen("###karteeinstellungen"); }));
+    add(tu("Einstellungen zu; Knopfgroesse Klein", [] {
+        karteDialogeZu();
+        ke::knopfGroesseSetzen(0);
+    }));
+    add(pause(0.6));
+    add(hb::fotoTeil("h_karte7_klein", voll));
+    add(tu("Handbuch Stufe 7: Ende, Knopfgroesse Normal", [] {
+        ke::knopfGroesseSetzen(1);
+        g_app->leftMode = 0;
+    }));
+    add(pause(0.3));
+    return s;
+}
+
 std::vector<Schritt> handbuchSchritte() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
     // (tr) beim Aufbau der Liste - vorher suchten sie auf Deutsch "Cancel".
@@ -38705,6 +38817,9 @@ std::vector<Schritt> handbuchSchritte() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte5") == 0) {
         return karte5HandbuchSchritte();
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte7") == 0) {
+        return karte7HandbuchSchritte();
     }
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };

@@ -112,6 +112,15 @@ _EIGENE = [
 ]
 
 _Q3MAP2 = [
+    _zeile("Tester (Stage 7)",
+           T("-convert (File > Open .bsp) writes hint, areaportal and skip brushes of Jedi Academy, Jedi Outcast and SoF2 maps as detail: in these games \"structural\" has no content flag, so the check for structural transparent brushes never applies.",
+             "-convert (File > Open .bsp) schreibt hint-, areaportal- und skip-Brushes von Jedi-Academy-, Jedi-Outcast- und SoF2-Karten als detail: in diesen Spielen hat \"structural\" kein Inhaltsflag, die Prüfung auf durchsichtige structural-Brushes greift nie.",
+             "-convert(File > Open .bsp)会把 Jedi Academy、Jedi Outcast 和 SoF2 地图中的 hint、areaportal 和 skip 笔刷写成 detail:这些游戏中 \"structural\" 没有内容标志,对透明 structural 笔刷的检查永远不起作用。",
+             "-convert(File > Open .bsp)は Jedi Academy・Jedi Outcast・SoF2 のマップの hint・areaportal・skip ブラシを detail として書き出します。これらのゲームでは \"structural\" に内容フラグがないため、透明な structural ブラシの判定が働きません。"),
+           T("The compile flags of the shaders decide as when building (q3map_structural / surfaceparm structural): such brushes come back structural, as in the source map.",
+             "Die Compile-Flags der Shader entscheiden wie beim Bauen (q3map_structural / surfaceparm structural): solche Brushes kommen structural zurück, wie in der Quellkarte.",
+             "与编译时一样由着色器的编译标志决定(q3map_structural / surfaceparm structural):这些笔刷会像源地图中一样以 structural 还原。",
+             "ビルド時と同じくシェーダーのコンパイルフラグ(q3map_structural / surfaceparm structural)で判定します。これらのブラシは元のマップと同じく structural として戻ります。")),
     _zeile("GL#173",
            T("Not deterministic: every build writes a different .bsp (shader pointers as sort keys, uninitialized lightmap coordinates, thread races in -vis and -light); the names of generated style shaders change with every build.",
              "Nicht deterministisch: jeder Bau schreibt eine andere .bsp (Shader-Zeiger als Sortierschlüssel, nicht belegte Lightmap-Koordinaten, Thread-Rennen in -vis und -light); die Namen erzeugter Stil-Shader ändern sich bei jedem Bau.",
@@ -201,6 +210,10 @@ _SPIEL.append(
              "切り替え可能なライトが元の .bsp と異なる場合、**{{KeBmNurEntities}}** は実行せず、完全なビルドを求めます([[karte_oeffnen]])。")))
 
 _ABSICHT = [
+    T("**Camera inside a brush** (Stage 7): back faces are culled, so a brush you stand in disappears - unless its shader says `cull none`, `cull twosided` or `cull disable` (fog volumes, glass, water); then its walls stay visible from inside, as in NetRadiant-Custom (renderstate.cpp OpenGLShader::construct, shaders.cpp `cull`).",
+      "**Kamera in einem Brush** (Stufe 7): Rückseiten werden verworfen, ein Brush, in dem man steht, verschwindet also - außer sein Shader sagt `cull none`, `cull twosided` oder `cull disable` (Nebelvolumen, Glas, Wasser); dann bleiben seine Wände von innen sichtbar, wie in NetRadiant-Custom (renderstate.cpp OpenGLShader::construct, shaders.cpp `cull`).",
+      "**摄像机位于笔刷内部**(第 7 阶段):背面会被剔除,因此你所在的笔刷会消失——除非其着色器写有 `cull none`、`cull twosided` 或 `cull disable`(雾体积、玻璃、水);这时从内部仍能看到它的墙面,与 NetRadiant-Custom 相同(renderstate.cpp OpenGLShader::construct,shaders.cpp `cull`)。",
+      "**ブラシの中のカメラ**(ステージ 7):裏面は描画されないので、中に立っているブラシは消えます。ただしシェーダーに `cull none`・`cull twosided`・`cull disable` がある場合(フォグボリューム、ガラス、水)は、NetRadiant-Custom と同じく内側から壁が見えます(renderstate.cpp OpenGLShader::construct、shaders.cpp `cull`)。"),
     T("**NRC#281**: Ctrl+K to several targets gives them the same targetname - as in NRC.",
       "**NRC#281**: Strg+K zu mehreren Zielen vergibt denselben targetname - wie in NRC.",
       "**NRC#281**:对多个目标按 Ctrl+K 会赋予相同的 targetname——与 NRC 相同。",
@@ -219,6 +232,32 @@ _ABSICHT = [
       "**GL#189、NRC#144**:床下の面光源は backsplash により床を透過して照らします(NRC と同じ)。最適化ツールがこうした光源を見つけます([[karte_optimierer]])。"),
 ]
 
+# Stufe 7 Punkt 6b: eigene Bedienung (Wunsch shank: Einstellungen des Programms im
+# Map-Editor, Menues wie im Programm, kleinere Knoepfe)
+_BEDIENUNG = [
+    T("**Menus in the style of BehavEd.** The menu bar and all menus of the map editor look like the menus of the rest of the program. Entries, order, submenus, checks, shortcuts, the mnemonic keys and what each entry does are those of NetRadiant-Custom. **Preferences > Interface > {{KeMenueNrc}}** brings back the look of NetRadiant-Custom.",
+      "**Menüs im Stil von BehavEd.** Die Menüleiste und alle Menüs des Karten-Editors sehen aus wie die Menüs im übrigen Programm. Einträge, Reihenfolge, Untermenüs, Haken, Tastenkürzel, die Mnemonik-Tasten und die Wirkung jedes Eintrags sind die von NetRadiant-Custom. **Preferences > Interface > {{KeMenueNrc}}** holt das Aussehen von NetRadiant-Custom zurück.",
+      "**BehavEd 风格的菜单。**地图编辑器的菜单栏和所有菜单与程序其他部分的菜单外观相同。条目、顺序、子菜单、勾选、快捷键、助记键以及每个条目的功能都与 NetRadiant-Custom 相同。**Preferences > Interface > {{KeMenueNrc}}** 可恢复 NetRadiant-Custom 的外观。",
+      "**BehavEd 風のメニュー。**マップエディターのメニューバーとすべてのメニューは、プログラムのほかの部分のメニューと同じ見た目です。項目、順序、サブメニュー、チェック、ショートカット、ニーモニックキー、各項目の動作は NetRadiant-Custom と同じです。**Preferences > Interface > {{KeMenueNrc}}** で NetRadiant-Custom の見た目に戻せます。"),
+    T("**Program settings in View.** At the end of **{{KeLView}}**: {{ViewTarget}}, {{ViewTheme}}, {{ViewLanguage}}, {{ViewDpiScale}} and {{KeKnopfGroesse}} - with the same effect as in the program's View menu. Language, theme and scaling also stay at the end of **{{KeLMisc}}**.",
+      "**Programm-Einstellungen in View.** Am Ende von **{{KeLView}}**: {{ViewTarget}}, {{ViewTheme}}, {{ViewLanguage}}, {{ViewDpiScale}} und {{KeKnopfGroesse}} - mit derselben Wirkung wie im View-Menü des Programms. Sprache, Farbschema und Skalierung bleiben auch am Ende von **{{KeLMisc}}**.",
+      "**View 中的程序设置。**在 **{{KeLView}}** 的末尾:{{ViewTarget}}、{{ViewTheme}}、{{ViewLanguage}}、{{ViewDpiScale}} 和 {{KeKnopfGroesse}}——作用与程序 View 菜单中的相同。语言、配色和缩放也仍保留在 **{{KeLMisc}}** 的末尾。",
+      "**View のプログラム設定。****{{KeLView}}** の最後に {{ViewTarget}}、{{ViewTheme}}、{{ViewLanguage}}、{{ViewDpiScale}}、{{KeKnopfGroesse}} があり、プログラムの View メニューと同じ働きをします。言語・配色・拡大縮小は **{{KeLMisc}}** の最後にも残っています。"),
+    T("**Toolbar button size.** {{KeKnopfKlein}}, {{KeKnopfNormal}} or {{KeKnopfGross}} for the main, filter and plugin toolbars, under **Preferences > Interface** and in **{{KeLView}} > {{KeKnopfGroesse}}**. It applies at once and is saved; the views move up or down with the toolbars.",
+      "**Knopfgröße der Werkzeugleisten.** {{KeKnopfKlein}}, {{KeKnopfNormal}} oder {{KeKnopfGross}} für Haupt-, Filter- und Plugin-Leiste, unter **Preferences > Interface** und in **{{KeLView}} > {{KeKnopfGroesse}}**. Sie gilt sofort und wird gespeichert; die Ansichten rücken mit den Leisten nach.",
+      "**工具栏按钮大小。**主工具栏、过滤器工具栏和插件工具栏可选 {{KeKnopfKlein}}、{{KeKnopfNormal}} 或 {{KeKnopfGross}},位于 **Preferences > Interface** 和 **{{KeLView}} > {{KeKnopfGroesse}}**。立即生效并会保存;视图会随工具栏一起移动。",
+      "**ツールバーのボタンサイズ。**メイン・フィルター・プラグインの各ツールバーで {{KeKnopfKlein}}・{{KeKnopfNormal}}・{{KeKnopfGross}} を選べます。**Preferences > Interface** と **{{KeLView}} > {{KeKnopfGroesse}}** にあり、すぐに反映されて保存されます。ビューもツールバーに合わせて移動します。"),
+    T("**Ctrl + mouse wheel** does not scale the program inside the map editor: as in NetRadiant-Custom the wheel belongs to the views (zoom in 2D, move in the camera, scroll in the texture browser), also with Ctrl. The scaling is in **{{KeLView}} > {{ViewDpiScale}}**.",
+      "**Strg + Mausrad** skaliert im Karten-Editor nicht das Programm: wie in NetRadiant-Custom gehört das Rad den Ansichten (zoomen in 2D, fahren in der Kamera, rollen im Texturbrowser), auch mit Strg. Die Skalierung steht in **{{KeLView}} > {{ViewDpiScale}}**.",
+      "在地图编辑器中,**Ctrl + 鼠标滚轮**不会缩放程序:与 NetRadiant-Custom 一样,滚轮归视图使用(2D 中缩放、摄像机中移动、纹理浏览器中滚动),按住 Ctrl 也一样。缩放位于 **{{KeLView}} > {{ViewDpiScale}}**。",
+      "マップエディターでは **Ctrl + マウスホイール** でプログラムは拡大縮小されません。NetRadiant-Custom と同じく、ホイールは Ctrl を押していてもビューのもの(2D のズーム、カメラの移動、テクスチャブラウザーのスクロール)です。拡大縮小は **{{KeLView}} > {{ViewDpiScale}}** にあります。"),
+    T("**Window title.** In the map editor the title shows the map and a `*` when it has unsaved changes, as in NetRadiant-Custom.",
+      "**Fenstertitel.** Im Karten-Editor zeigt der Titel die Karte und ein `*` bei ungespeicherten Änderungen, wie in NetRadiant-Custom.",
+      "**窗口标题。**在地图编辑器中,标题显示地图名称,有未保存更改时显示 `*`,与 NetRadiant-Custom 相同。",
+      "**ウィンドウタイトル。**マップエディターではタイトルにマップ名と、未保存の変更があるときは `*` が表示されます(NetRadiant-Custom と同じ)。"),
+]
+
+
 UNTERSCHIEDE = {
     "id": "karte_unterschiede",
     "gruppe": "karte",
@@ -230,6 +269,21 @@ UNTERSCHIEDE = {
         "地图编辑器在外观和操作上遵循 NetRadiant-Custom 20260114。NetRadiant-Custom、Xonotic NetRadiant、GtkRadiant 和 q3map2 的已知错误都逐一检查过:BehavEd 有哪些不同之处,以及哪些地方有意与 NetRadiant-Custom 保持一致。",
         "マップエディターは外観と操作で NetRadiant-Custom 20260114 に従っています。NetRadiant-Custom、Xonotic NetRadiant、GtkRadiant、q3map2 の既知の不具合を一つずつ確認しました。BehavEd が異なる点と、意図的に NetRadiant-Custom と同じにしている点をまとめます。"),
     "bloecke": [
+        ("h2", "bedienung", T("Own handling (not in NetRadiant-Custom)", "Eigene Bedienung (nicht in NetRadiant-Custom)",
+                              "自有操作(NetRadiant-Custom 中没有)", "独自の操作(NetRadiant-Custom にはありません)")),
+        ("list", _BEDIENUNG),
+        ("imgs", [("h_karte7_view", T("{{KeLView}}: the program settings at the end, menus in the style of BehavEd.",
+                                       "{{KeLView}}: die Programm-Einstellungen am Ende, Menüs im Stil von BehavEd.",
+                                       "{{KeLView}}:末尾是程序设置,菜单为 BehavEd 风格。",
+                                       "{{KeLView}}:最後にプログラム設定、BehavEd 風のメニュー。")),
+                  ("h_karte7_interface", T("Preferences > Interface: {{KeMenueNrc}} and {{KeKnopfGroesse}}.",
+                                           "Preferences > Interface: {{KeMenueNrc}} und {{KeKnopfGroesse}}.",
+                                           "Preferences > Interface:{{KeMenueNrc}} 和 {{KeKnopfGroesse}}。",
+                                           "Preferences > Interface:{{KeMenueNrc}} と {{KeKnopfGroesse}}。")),
+                  ("h_karte7_klein", T("{{KeKnopfGroesse}} {{KeKnopfKlein}}: the toolbars take less room.",
+                                       "{{KeKnopfGroesse}} {{KeKnopfKlein}}: die Leisten brauchen weniger Platz.",
+                                       "{{KeKnopfGroesse}} {{KeKnopfKlein}}:工具栏占用的空间更少。",
+                                       "{{KeKnopfGroesse}} {{KeKnopfKlein}}:ツールバーが小さくなります。"))]),
         ("h2", "editor", T("Editor: fixed bugs", "Editor: behobene Fehler", "编辑器:已修复的错误", "エディター:修正した不具合")),
         ("table", _KOPF, _EDITOR),
         ("h3", T("Found during the check", "Bei der Prüfung gefunden", "检查中发现的问题", "確認中に見つかった問題")),
