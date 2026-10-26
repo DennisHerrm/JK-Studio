@@ -45,7 +45,7 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 | `Menue \| TogTexLock \| radiant/brushmanip.cpp:1531` | OK | Menue Brush > Texture Lock = TogTexLock: Haken+Modus (leer) |
 | `Menue \| TogTexVertexLock \| radiant/brushmanip.cpp:1532` | OK | Menue Brush > Texture Vertex Lock = TogTexVertexLock: Haken+Modus (leer) |
 | `Menue \| TextureReset/Cap \| radiant/brushmanip.cpp:1533` | OK | Menue Brush > Reset Texture = TextureReset/Cap: Karte (Pinsel, Textur versetzt); (+1) |
-| `Menue \| AutoCaulkSelected \| radiant/brushmanip.cpp:1534` | OK | Menue Brush > AutoCaulk Selected = AutoCaulkSelected: Konsole+Datei (Pinsel) |
+| `Menue \| AutoCaulkSelected \| radiant/brushmanip.cpp:1534` | OK | Menue Brush > AutoCaulk Selected = AutoCaulkSelected: Datei (Pinsel) |
 | `Menue \| OpenGLFont \| radiant/colors.cpp:231` | OK | Menue Misc > Theming > OpenGL Font... = OpenGLFont: Dialog (leer) |
 | `Menue \| EntitiesConnect \| radiant/entity.cpp:709` | OK | Menue Entity > Connect Entities = EntitiesConnect: Karte (zwei Entitaeten) |
 | `Menue \| EntityMovePrimitivesToLast \| radiant/entity.cpp:713` | OK | Menue Entity > Move Primitives to Entity = EntityMovePrimitivesToLast: Karte (Pinsel, dann func_door) |
@@ -329,7 +329,7 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 |---|---|---|
 | `Befehl \| ArbitraryRotation \| Commands` | OK | Wirkung ArbitraryRotation: Dialog (Pinsel); Robust ArbitraryRotation: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck; Taste Shift+R = ArbitraryRotation: Dialog (Pinsel) |
 | `Befehl \| ArbitraryScale \| Commands` | OK | Wirkung ArbitraryScale: Dialog (Pinsel); Robust ArbitraryScale: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck; Taste Ctrl+Shift+S = ArbitraryScale: Dialog (Pinsel) |
-| `Befehl \| AutoCaulkSelected \| Commands` | OK | Wirkung AutoCaulkSelected: Konsole+Datei (Pinsel); Robust AutoCaulkSelected: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck; Taste F4 = AutoCaulkSelected: Konsole+Datei (Pinsel) |
+| `Befehl \| AutoCaulkSelected \| Commands` | OK | Wirkung AutoCaulkSelected: Datei (Pinsel); Robust AutoCaulkSelected: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck; Taste F4 = AutoCaulkSelected: Datei (Pinsel) |
 | `Befehl \| bobToolz::About \| Commands` | OK | Wirkung bobToolz::About: Dialog (leer); Robust bobToolz::About: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck |
 | `Befehl \| bobToolz::ApertureDoor \| Commands` | OK | Wirkung bobToolz::ApertureDoor: Dialog (Pinsel); Robust bobToolz::ApertureDoor: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck |
 | `Befehl \| bobToolz::BrushCleanup \| Commands` | OK | Wirkung bobToolz::BrushCleanup: Auswahl+Konsole (Pinsel); Robust bobToolz::BrushCleanup: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck |

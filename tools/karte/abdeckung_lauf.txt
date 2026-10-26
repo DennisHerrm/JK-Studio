@@ -479,10 +479,10 @@ Knopftest OK: Invert: Lights aus, alle anderen an - World und Entities filtern a
 Knopftest OK: ResetFilters: nichts gefiltert
 Knopftest OK: Knopf Patches: FilterPatches an (SI_Exclude gespeichert)
 Knopftest OK: Strg+P: FilterPatches aus
-Knopftest OK: Rechtsklick Translucent: system/nodraw, "textureNameSetSelected"
-Knopftest OK: zweiter Rechtsklick: system/nodrawnonsolid
-Knopftest OK: dritter Rechtsklick: wieder system/nodraw
-Knopftest OK: nach QEvent::Enter: von vorn (system/nodraw)
+Knopftest OK: Rechtsklick Translucent: system/nodraw_solid, "textureNameSetSelected"
+Knopftest OK: zweiter Rechtsklick: system/nodraw (nicht fest)
+Knopftest OK: dritter Rechtsklick: wieder system/nodraw_solid
+Knopftest OK: nach QEvent::Enter: von vorn (system/nodraw_solid)
 Knopftest OK: Rechtsklick Caulk: system/caulk
 Knopftest OK: Rechtsklick Details: MakeDetail
 Knopftest OK: Strg+D: der Detail-Pinsel gefiltert
@@ -858,7 +858,7 @@ Knopftest OK: Build > Cancel build: q3map2 beendet, Zeile mit Schritt und Zeit i
 Knopftest OK: Nach dem Abbrechen baut der naechste Eintrag wieder (Port 39000 frei)
 Knopftest OK: Region: raum.reg geschrieben, q3map2 baut die .reg ([MapFile]), raum.bsp entsteht
 Knopftest OK: Unbenannte Karte, Speichern unter abgebrochen: "build cancelled" wie NRC, kein Bauen
-Knopftest OK: Leere Karte (ohne Entitaet) unter s3bau/leer.map gespeichert und gebaut: q3map2 stuerzt ab (NRCs q3map2.exe auch), die Zeile am Ende nennt es (1: exit 0xC0000005)
+Knopftest OK: Leere Karte (ohne Entitaet) unter s3bau/leer.map gespeichert und gebaut: q3map2 nennt den Grund (keine Entity), der Bau stoppt mit Fehler (NRCs q3map2.exe stuerzt ab)
 Knopftest OK: Unbenannte Karte, Speichern unter s3bau/neu.map: erst gespeichert, dann gebaut (neu.bsp), ohne exit
 Knopftest OK: Ohne Ueberwachung, -light ohne .bsp: ERROR rot (aus der Pipe), am Ende (1: exit 1)
 Knopftest OK: Leck: MAP LEAKED rot, Bauen angehalten (leak), der Hinweis in der Konsole, die .lin neben der Karte
@@ -1013,6 +1013,7 @@ Knopftest OK: Konsole: q3map2 -bsp -onlyents, die Schlusszeile "Entities updated
 Knopftest OK: Pinsel verschoben: Fingerabdruck anders
 Knopftest OK: Hinweis: neu bauen und belichten (Kasten und Konsole), q3map2 nicht gestartet
 Knopftest OK: Rueckgaengig: Fingerabdruck wieder gleich
+Knopftest OK: Stufe 6: schaltbares Licht dazu - Hinweis (Lichtstile), q3map2 nicht gestartet
 Knopftest OK: Ohne geoeffnete .bsp: Update entities only gesperrt
 Knopftest OK: bobToolz: alle 23 Befehle des Menues nachgebaut (keiner gesperrt), die Werkzeugleiste mit Polygons ... Flip Terrain
 Knopftest OK: About: Kasten "About" mit bobToolz for SDRadiant ... digibob
@@ -1031,7 +1032,7 @@ Knopftest OK: Aperture Door: 16 Segmente als func_door, Undo bobToolz.buildApert
 Knopftest OK: Make Chain: der Dialog 361 x 100 wie das NRC-Foto (Breite +1: Textbreite der Beschriftung)
 Knopftest OK: Make Chain: 3 info_train_spline_main (kette_pt0..2), 2 info_train_spline_control
 Knopftest OK: Plot Splines: zwei Abschnitte, in der 2D-Ansicht rot (x = 64, y = 16)
-Knopftest OK: Path Plotter: der Dialog 367 x 180 wie das NRC-Foto, Enable / Disable / Cancel rechts bei 104 / 190 / 276, y 147
+Knopftest OK: Path Plotter: der Dialog 369 x 180 (NRC-Foto 367 mit "Multipler"), Enable / Disable / Cancel rechts bei 106 / 192 / 278, y 147
 Knopftest OK: Path Plotter: Bahn mit 50 Punkten ab der Mitte des Triggers, rot in der 2D-Ansicht, "Initialization of Path Plotter succeeded."
 Knopftest OK: Path Plotter folgt dem Ziel: der letzte Punkt mit y > 0
 Knopftest OK: Path Plotter: Disable - keine Bahn mehr
@@ -1225,6 +1226,10 @@ Knopftest OK: duel1 mit den Regeln von JKA MP: keine Grenze "ueber", die BSP aus
 Knopftest OK: Neue Karte: keine Meldung einer Behebung aus der vorigen Karte unter der Liste
 Knopftest OK: Grosse Karte: keine Grenze von Movie Duels "ueber", das Programm bleibt waehrend der Pruefung bedienbar (kein Bild ueber 250 ms)
 Knopftest OK: Die BSP aus Movie Duels: 21752 Lichtgitter-Zellen zeigen hinter das Gitter (Index 65535) - Befund mit Vorschlag gridsize
+Knopftest OK: Stufe 6: grosse Karte, Sprache en: Ergebnis noch da
+Knopftest OK: Stufe 6: grosse Karte, Sprache de: Ergebnis noch da
+Knopftest OK: Stufe 6: grosse Karte, Sprache zh: Ergebnis noch da
+Knopftest OK: Stufe 6: grosse Karte, Sprache ja: Ergebnis noch da
 Knopftest OK: Checkliste: jeder fertige Befehl (Stufe 1b und 2), jeder Menue-Ruf und jeder Plugin-Eintrag (Stufe 4) ist nachgebaut, sonst keiner
 Knopftest OK: Alle Befehle: 2 Entities, Pinsel und Licht gewaehlt
 Knopftest OK: Auswahlwechsel: nur der Rest der Szenen neu, die Geometrie nicht
@@ -1236,170 +1241,10 @@ Knopftest OK: ToggleGridSnap schaltet das Einrasten um, zweimal: wie vorher
 Knopftest OK: NextView (XY_NextView): XY -> XZ -> YZ -> XY in der aktiven 2D-Ansicht
 Knopftest OK: ToggleModelBrowser / ToggleLayersBrowser: Gruppendialog auf Models / Layers, nochmal: zu
 Knopftest OK: ToggleTextures: Gruppendialog auf (Floating/Split/eingebaut: Seite Textures)
-Knopftest OK: Fotos: Anordnung Regular wie die NRC-Fotos
-Knopftest OK: Fotos: 38 Menues wie SP\nrc_fotos\menues
-Knopftest OK: Menue File: 212 x 309 wie NRC
-Knopftest OK: Menue Edit: 356 x 549 wie NRC
-Knopftest OK: Menue View: 262 x 333 wie NRC
-Knopftest OK: Menue View__Camera: 255 x 216 wie NRC
-Knopftest OK: Menue View__Orthographic: 307 x 240 wie NRC
-Knopftest OK: Menue View__Show: 253 x 401 wie NRC
-Knopftest OK: Menue View__Filter: 270 x 593 wie NRC
-Knopftest OK: Menue View__Region: 264 x 106 wie NRC
-Knopftest OK: Menue Modify: 258 x 230 wie NRC
-Knopftest OK: Menue Modify__Components: 177 x 82 wie NRC
-Knopftest OK: Menue Modify__Nudge: 218 x 161 wie NRC
-Knopftest OK: Menue Modify__Rotate: 206 x 137 wie NRC
-Knopftest OK: Menue Modify__Flip: 183 x 137 wie NRC
-Knopftest OK: Menue Modify__Repeat: 225 x 154 wie NRC
-Knopftest OK: Menue Grid: 163 x 346 wie NRC
-Knopftest OK: Menue Misc: 262 x 257 wie NRC
-Knopftest OK: Menue Misc__Theming: 263 x 497 wie NRC
-Knopftest OK: Menue Misc__Theming__GUI_Theme: 122 x 106 wie NRC
-Knopftest OK: Menue Entity: 263 x 137 wie NRC
-Knopftest OK: Menue Brush: 273 x 350 wie NRC
-Knopftest OK: Menue Brush__CSG: 288 x 154 wie NRC
-Knopftest OK: Menue Brush__Clipper: 264 x 82 wie NRC
-Knopftest OK: Menue Curve: 277 x 429 wie NRC
-Knopftest OK: Menue Curve__Insert_Delete: 316 x 223 wie NRC
-Knopftest OK: Menue Curve__Matrix: 255 x 168 wie NRC
-Knopftest OK: Menue Curve__Texture: 225 x 106 wie NRC
-Knopftest OK: Menue Plugins: 144 x 178 wie NRC
-Knopftest OK: Menue Plugins__MeshTex: 159 x 429 wie NRC
-Knopftest OK: Menue Plugins__ShaderPlug: 135 x 58 wie NRC
-Knopftest OK: Menue Plugins__SunPlug: 166 x 58 wie NRC
-Knopftest OK: Menue Plugins__UFO_AI: 156 x 415 wie NRC
-Knopftest OK: Menue Plugins__bobToolz: 201 x 597 wie NRC
-Knopftest OK: Menue Plugins__brushexport2: 253 x 58 wie NRC
-Knopftest OK: Menue Plugins__prtview: 187 x 175 wie NRC
-Knopftest OK: Menue Help: 227 x 178 wie NRC
-Knopftest OK: Menue Help__General: 335 x 298 wie NRC
-Knopftest OK: Menue Help__Jedi_Knight_Jedi_Academy: 286 x 250 wie NRC
-Knopftest OK: Alt+E: das Menue Edit ist offen
-Knopftest OK: E (viermal im Menue): nichts ausgefuehrt, Edit bleibt offen
-Knopftest OK: F: Pre&ferences ausgefuehrt, Menue zu
-Knopftest OK: Einstellungen: Seite Global im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Global_Game im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Game im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Paths im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Interface im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Layout im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Display im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Textures im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Patches im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Entities im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Settings im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Undo im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Selection im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Brush im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Clipper im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Grid im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Surface_Inspector im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Camera im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Orthographic im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Build im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Texture_Browser im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Model_Browser im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Autosave im Baum sichtbar
-Knopftest OK: Grosse Karte offen
-Knopftest OK: Grosse Karte: Auswahlwechsel bauen nur den Rest neu, die Geometrie nicht
-Knopftest OK: Grosse Karte: Kamera-Szene nach dem Hochladen nicht mehr im Speicher
-Knopftest OK: Grosse Karte: Messwerte
-Knopftest OK: Grosse Karte: Stufe-2-Zeiten (CSG Subtract, Clip, Ecken-Modus)
-Knopftest OK: Modusleiste: Karten-Editor ist der Arbeitsbereich
-Knopftest OK: Spiel: Entity-Klassen aus data/karte, worldspawn und info_player_start bekannt
-Knopftest OK: Standard-Texturskalierung 0.25 (default_scale aus ja.game/jk2.game)
-Knopftest OK: Vorgabe "New map Brush Type": Brush Primitives (Index 1, wie NRC)
-Knopftest OK: Geoeffnet: Name, 2 Entities, 1 Pinsel, nicht geaendert
-Knopftest OK: Gespeichert: Datei bytegleich zur Quelle (NRC-Format), oben in der zuletzt-Liste
-Knopftest OK: Geaendert (Map_Modified)
-Knopftest OK: New Map bei geaenderter Karte: Rueckfrage offen
-Knopftest OK: Cancel: Karte bleibt (Name, Aenderung)
-Knopftest OK: Discard: neue, leere Karte "unnamed.map"
-Knopftest OK: Zuletzt geoeffnet: die Kopie ist offen
-Knopftest OK: Konsole: Ladezeilen wie NRC (Loading map from, primitives, entities)
-Knopftest OK: Fotos: Anordnung Regular wie die NRC-Fotos
-Knopftest OK: Fotos: 38 Menues wie SP\nrc_fotos\menues
-Knopftest OK: Menue File: 212 x 309 wie NRC
-Knopftest OK: Menue Edit: 356 x 549 wie NRC
-Knopftest OK: Menue View: 262 x 333 wie NRC
-Knopftest OK: Menue View__Camera: 255 x 216 wie NRC
-Knopftest OK: Menue View__Orthographic: 307 x 240 wie NRC
-Knopftest OK: Menue View__Show: 253 x 401 wie NRC
-Knopftest OK: Menue View__Filter: 270 x 593 wie NRC
-Knopftest OK: Menue View__Region: 264 x 106 wie NRC
-Knopftest OK: Menue Modify: 258 x 230 wie NRC
-Knopftest OK: Menue Modify__Components: 177 x 82 wie NRC
-Knopftest OK: Menue Modify__Nudge: 218 x 161 wie NRC
-Knopftest OK: Menue Modify__Rotate: 206 x 137 wie NRC
-Knopftest OK: Menue Modify__Flip: 183 x 137 wie NRC
-Knopftest OK: Menue Modify__Repeat: 225 x 154 wie NRC
-Knopftest OK: Menue Build: 193 x 484 wie NRC
-Knopftest OK: Menue Grid: 163 x 346 wie NRC
-Knopftest OK: Menue Misc: 262 x 257 wie NRC
-Knopftest OK: Menue Misc__Theming: 263 x 497 wie NRC
-Knopftest OK: Menue Misc__Theming__GUI_Theme: 122 x 106 wie NRC
-Knopftest OK: Menue Entity: 263 x 137 wie NRC
-Knopftest OK: Menue Brush: 273 x 350 wie NRC
-Knopftest OK: Menue Brush__CSG: 288 x 154 wie NRC
-Knopftest OK: Menue Brush__Clipper: 264 x 82 wie NRC
-Knopftest OK: Menue Curve: 277 x 429 wie NRC
-Knopftest OK: Menue Curve__Insert_Delete: 316 x 223 wie NRC
-Knopftest OK: Menue Curve__Matrix: 255 x 168 wie NRC
-Knopftest OK: Menue Curve__Texture: 225 x 106 wie NRC
-Knopftest OK: Menue Plugins: 144 x 178 wie NRC
-Knopftest OK: Menue Plugins__MeshTex: 159 x 429 wie NRC
-Knopftest OK: Menue Plugins__ShaderPlug: 135 x 58 wie NRC
-Knopftest OK: Menue Plugins__SunPlug: 166 x 58 wie NRC
-Knopftest OK: Menue Plugins__UFO_AI: 156 x 415 wie NRC
-Knopftest OK: Menue Plugins__bobToolz: 201 x 597 wie NRC
-Knopftest OK: Menue Plugins__brushexport2: 253 x 58 wie NRC
-Knopftest OK: Menue Plugins__prtview: 187 x 175 wie NRC
-Knopftest OK: Menue Help: 227 x 178 wie NRC
-Knopftest OK: Menue Help__General: 335 x 298 wie NRC
-Knopftest OK: Menue Help__Jedi_Knight_Jedi_Academy: 286 x 250 wie NRC
-Knopftest OK: Alt+E: das Menue Edit ist offen
-Knopftest OK: E (viermal im Menue): nichts ausgefuehrt, Edit bleibt offen
-Knopftest OK: F: Pre&ferences ausgefuehrt, Menue zu
-Knopftest OK: Einstellungen: Seite Global im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Global_Game im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Game im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Paths im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Interface im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Layout im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Display im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Textures im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Patches im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Entities im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Settings im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Undo im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Selection im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Brush im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Clipper im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Grid im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Surface_Inspector im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Camera im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Orthographic im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Build im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Texture_Browser im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Model_Browser im Baum sichtbar
-Knopftest OK: Einstellungen: Seite Autosave im Baum sichtbar
-Knopftest OK: Modusleiste: Karten-Editor ist der Arbeitsbereich
-Knopftest OK: Spiel: Entity-Klassen aus data/karte, worldspawn und info_player_start bekannt
-Knopftest OK: Standard-Texturskalierung 0.25 (default_scale aus ja.game/jk2.game)
-Knopftest OK: Vorgabe "New map Brush Type": Brush Primitives (Index 1, wie NRC)
-Knopftest OK: Geoeffnet: Name, 2 Entities, 1 Pinsel, nicht geaendert
-Knopftest OK: Gespeichert: Datei bytegleich zur Quelle (NRC-Format), oben in der zuletzt-Liste
-Knopftest OK: Geaendert (Map_Modified)
-Knopftest OK: New Map bei geaenderter Karte: Rueckfrage offen
-Knopftest OK: Cancel: Karte bleibt (Name, Aenderung)
-Knopftest OK: Discard: neue, leere Karte "unnamed.map"
-Knopftest OK: Zuletzt geoeffnet: die Kopie ist offen
-Knopftest OK: Konsole: Ladezeilen wie NRC (Loading map from, primitives, entities)
 Knopftest OK: Stufe 6: jeder Befehl (Command/Toggle) und jeder Menue-Ruf hat eine Erwartung, die Tabelle nur echte Befehle
 Knopftest OK: Wirkung ArbitraryRotation: Dialog (Pinsel)
 Knopftest OK: Wirkung ArbitraryScale: Dialog (Pinsel)
-Knopftest OK: Wirkung AutoCaulkSelected: Konsole+Datei (Pinsel)
+Knopftest OK: Wirkung AutoCaulkSelected: Datei (Pinsel)
 Knopftest OK: Wirkung bobToolz::About: Dialog (leer)
 Knopftest OK: Wirkung bobToolz::ApertureDoor: Dialog (Pinsel)
 Knopftest OK: Wirkung bobToolz::BrushCleanup: Auswahl+Konsole (Pinsel)
@@ -2226,7 +2071,7 @@ Knopftest OK: Robust OpenBugReportURL: leere Auswahl, leere Karte, Pinsel+Patch+
 Knopftest OK: Robust DoAbout: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck
 Knopftest OK: Taste Shift+R = ArbitraryRotation: Dialog (Pinsel)
 Knopftest OK: Taste Ctrl+Shift+S = ArbitraryScale: Dialog (Pinsel)
-Knopftest OK: Taste F4 = AutoCaulkSelected: Konsole+Datei (Pinsel)
+Knopftest OK: Taste F4 = AutoCaulkSelected: Datei (Pinsel)
 Knopftest OK: Taste Ctrl+3 = Brush3Sided: Karte (Pinsel)
 Knopftest OK: Taste Ctrl+4 = Brush4Sided: Karte (Pinsel)
 Knopftest OK: Taste Ctrl+5 = Brush5Sided: Karte (Pinsel)
@@ -2610,7 +2455,7 @@ Knopftest OK: Menue Brush > Make structural = MakeStructural: Karte (Detail-Pins
 Knopftest OK: Menue Brush > Texture Lock = TogTexLock: Haken+Modus (leer)
 Knopftest OK: Menue Brush > Texture Vertex Lock = TogTexVertexLock: Haken+Modus (leer)
 Knopftest OK: Menue Brush > Reset Texture = TextureReset/Cap: Karte (Pinsel, Textur versetzt)
-Knopftest OK: Menue Brush > AutoCaulk Selected = AutoCaulkSelected: Konsole+Datei (Pinsel)
+Knopftest OK: Menue Brush > AutoCaulk Selected = AutoCaulkSelected: Datei (Pinsel)
 Knopftest OK: Menue Curve > Simple Patch Mesh... = SimplePatchMesh: Dialog (leer)
 Knopftest OK: Menue Curve > Bevel = PatchBevel: Karte+Auswahl (Pinsel)
 Knopftest OK: Menue Curve > End cap = PatchEndCap: Karte+Auswahl (Pinsel)
@@ -2998,3 +2843,108 @@ Knopftest OK: Rueckgaengig Dialog Surface Inspector > Natural: .map-Text wie vor
 Knopftest OK: Dialog Surface Inspector > Match Grid: Einstellung (Pinsel)
 Knopftest OK: Dialog Select Font > OK: Dialog (leer)
 Knopftest OK: Dialog Select Font > Cancel: Dialog (leer)
+Knopftest OK: NRC#65: Ecken gewaehlt
+Knopftest OK: NRC#65: Eckenmodus verlassen (Taste noch einmal): Primitivmodus, keine Ecken mehr gewaehlt
+Knopftest OK: NRC#65: Kanten gewaehlt
+Knopftest OK: NRC#65: Kantenmodus verlassen (Taste noch einmal): Primitivmodus, keine Kanten mehr gewaehlt
+Knopftest OK: NRC#65: Flaechenmodus verlassen: die Flaeche bleibt gewaehlt (wie NRC: Flaechen dienen dem Extrudieren)
+Knopftest OK: NRC#164: der Engine-Pfad ist absolut (Programmordner/..), gespeichert
+Knopftest OK: NRC#164: Save mit diesem Engine-Pfad: gespeichert, keine Zusicherung
+Knopftest OK: NRC#213: die Konsole nennt den Grund (q3map2 nicht gestartet), nicht nur "reading ..._ac.caulk failure"
+Knopftest OK: Fund alte .caulk: nicht gelesen - die Konsole meldet das Scheitern, die Karte bleibt gleich
+Knopftest OK: AutoCaulk/Wasser: die verdeckte Unterseite des Wasserpinsels wird watercaulk, nicht caulk (q3map2 mit den Shadern des Spiels)
+Knopftest OK: NRC#145: der feste durchsichtige Pinsel (byss/static_field) bekommt unten einen festen nodraw-Shader (system/nodraw_solid)
+Knopftest OK: NRC#147: Umschalt+Hoch = TexShiftUp wirkt bei Fokus im Surface Inspector (Textur der Flaechen geaendert)
+Knopftest OK: NRC#147: Umschalt+Runter = TexShiftDown wirkt bei Fokus im Surface Inspector (Textur der Flaechen geaendert)
+Knopftest OK: NRC#147: Strg+Hoch = TexScaleUp wirkt bei Fokus im Surface Inspector (Textur der Flaechen geaendert)
+Knopftest OK: NRC#147: Strg+Runter = TexScaleDown wirkt bei Fokus im Surface Inspector (Textur der Flaechen geaendert)
+Knopftest OK: NRC#147: Umschalt+Bild hoch = TexRotateCounter wirkt bei Fokus im Surface Inspector (Textur der Flaechen geaendert)
+Knopftest OK: NRC#147: Umschalt+Bild runter = TexRotateClock wirkt bei Fokus im Surface Inspector (Textur der Flaechen geaendert)
+Knopftest OK: NRC#152: Default texture scale 0.125 (vier Nachkommastellen) gespeichert und wirksam
+Knopftest OK: NRC#12: OK und Enter drehen gleich genau (33.333333 Grad, .map-Text gleich)
+Knopftest OK: NRC#261: der Surface Inspector zeigt die Verschiebung im Bereich des Spinners (+-8192), gleichwertig zu 254.75 Kacheln
+Knopftest OK: NRC#261: Pfeil hoch und wieder runter laesst die Textur der Flaeche liegen (st an jedem Eckpunkt gleich bis auf ganze Kacheln)
+Knopftest OK: NRC#279: Deutsch: englische Zeile und darunter der Hinweis
+Knopftest OK: NRC#279: Englisch: nur die englische Zeile wie NRC
+Knopftest OK: NRC#132: Hinweis vor dem Bau (Kamera in der Wand, keine Entity)
+Knopftest OK: NRC#132: kein Hinweis (Kamera im Freien)
+Knopftest OK: NRC master cc96c84: Door Builder - die zweite Ausrichtung heisst "East - West"
+Knopftest OK: NRC master 7027470: Path Plotter offen, die Beschriftung des Felds heisst "Distance Multiplier"
+Knopftest OK: NRC#130: Karte aus dem Ordner geladen (Name, Pinsel)
+Knopftest OK: NRC#130: Save schreibt in den Ordner (die Datei gelesen = die Karte, nicht geaendert)
+Knopftest OK: NRC#130: Save As: Datei da, Name gewechselt, oben in der zuletzt-Liste
+Knopftest OK: NRC#130: .bsp mit Licht neben der Karte im Ordner (bhed_q3map2 mit UTF-8-Pfad)
+Knopftest OK: NRC#130: die Leck-Linie aus dem Ordner gelesen (.lin neben der Karte, Punkte sichtbar)
+Knopftest OK: NRC#130: AutoCaulk im Ordner: _ac.map und _ac.caulk, Rueckgaengig "AutoCaulk N faces" mit N > 0
+Knopftest OK: NRC#130: der Suchpfad ist gespeichert und das Spiel findet maps/s6pfad.txt darin
+Knopftest OK: Fotos: Anordnung Regular wie die NRC-Fotos
+Knopftest OK: Fotos: 38 Menues wie SP\nrc_fotos\menues
+Knopftest OK: Menue File: 212 x 309 wie NRC
+Knopftest OK: Menue Edit: 356 x 549 wie NRC
+Knopftest OK: Menue View: 262 x 333 wie NRC
+Knopftest OK: Menue View__Camera: 255 x 216 wie NRC
+Knopftest OK: Menue View__Orthographic: 307 x 240 wie NRC
+Knopftest OK: Menue View__Show: 253 x 401 wie NRC
+Knopftest OK: Menue View__Filter: 270 x 593 wie NRC
+Knopftest OK: Menue View__Region: 264 x 106 wie NRC
+Knopftest OK: Menue Modify: 258 x 230 wie NRC
+Knopftest OK: Menue Modify__Components: 177 x 82 wie NRC
+Knopftest OK: Menue Modify__Nudge: 218 x 161 wie NRC
+Knopftest OK: Menue Modify__Rotate: 206 x 137 wie NRC
+Knopftest OK: Menue Modify__Flip: 183 x 137 wie NRC
+Knopftest OK: Menue Modify__Repeat: 225 x 154 wie NRC
+Knopftest OK: Menue Build: 193 x 484 wie NRC
+Knopftest OK: Menue Grid: 163 x 346 wie NRC
+Knopftest OK: Menue Misc: 262 x 257 wie NRC
+Knopftest OK: Menue Misc__Theming: 263 x 497 wie NRC
+Knopftest OK: Menue Misc__Theming__GUI_Theme: 122 x 106 wie NRC
+Knopftest OK: Menue Entity: 263 x 137 wie NRC
+Knopftest OK: Menue Brush: 273 x 350 wie NRC
+Knopftest OK: Menue Brush__CSG: 288 x 154 wie NRC
+Knopftest OK: Menue Brush__Clipper: 264 x 82 wie NRC
+Knopftest OK: Menue Curve: 277 x 429 wie NRC
+Knopftest OK: Menue Curve__Insert_Delete: 316 x 223 wie NRC
+Knopftest OK: Menue Curve__Matrix: 255 x 168 wie NRC
+Knopftest OK: Menue Curve__Texture: 225 x 106 wie NRC
+Knopftest OK: Menue Plugins: 144 x 178 wie NRC
+Knopftest OK: Menue Plugins__MeshTex: 159 x 429 wie NRC
+Knopftest OK: Menue Plugins__ShaderPlug: 135 x 58 wie NRC
+Knopftest OK: Menue Plugins__SunPlug: 166 x 58 wie NRC
+Knopftest OK: Menue Plugins__UFO_AI: 156 x 415 wie NRC
+Knopftest OK: Menue Plugins__bobToolz: 201 x 597 wie NRC
+Knopftest OK: Menue Plugins__brushexport2: 253 x 58 wie NRC
+Knopftest OK: Menue Plugins__prtview: 187 x 175 wie NRC
+Knopftest OK: Menue Help: 227 x 178 wie NRC
+Knopftest OK: Menue Help__General: 335 x 298 wie NRC
+Knopftest OK: Menue Help__Jedi_Knight_Jedi_Academy: 286 x 250 wie NRC
+Knopftest OK: Alt+E: das Menue Edit ist offen
+Knopftest OK: E (viermal im Menue): nichts ausgefuehrt, Edit bleibt offen
+Knopftest OK: F: Pre&ferences ausgefuehrt, Menue zu
+Knopftest OK: Einstellungen: Seite Global im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Global_Game im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Game im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Paths im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Interface im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Layout im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Display im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Textures im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Patches im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Entities im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Settings im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Undo im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Selection im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Brush im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Clipper im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Grid im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Surface_Inspector im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Camera im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Orthographic im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Build im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Texture_Browser im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Model_Browser im Baum sichtbar
+Knopftest OK: Einstellungen: Seite Autosave im Baum sichtbar
+Knopftest OK: Grosse Karte offen
+Knopftest OK: Grosse Karte: Auswahlwechsel bauen nur den Rest neu, die Geometrie nicht
+Knopftest OK: Grosse Karte: Kamera-Szene nach dem Hochladen nicht mehr im Speicher
+Knopftest OK: Grosse Karte: Messwerte
+Knopftest OK: Grosse Karte: Stufe-2-Zeiten (CSG Subtract, Clip, Ecken-Modus)
