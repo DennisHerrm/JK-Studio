@@ -1181,6 +1181,15 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
         } else if (k == "q3map_lightmapsize" && j + 2 < w.size()) {   // shaders.cpp: lmCustomWidth/Height (Stufe 6)
             r.lightmapBreite = std::atoi(w[j + 1].c_str());
             r.lightmapHoehe = std::atoi(w[j + 2].c_str());
+        } else if ((k == "q3map_sun" || k == "q3map_sunext") && j + 6 < w.size()) {   // shaders.cpp:1049-1100 (Stufe 7)
+            r.sonne = true;
+            for (int c = 0; c < 3; ++c) { r.sonneFarbe[c] = std::atof(w[j + 1 + static_cast<std::size_t>(c)].c_str()); }
+            r.sonneStaerke = std::atof(w[j + 4].c_str());
+            r.sonneGrad = std::atof(w[j + 5].c_str());
+            r.sonneHoehe = std::atof(w[j + 6].c_str());
+        } else if (k == "q3map_lightrgb" && j + 3 < w.size()) {   // shaders.cpp: si.lightColor (Stufe 7)
+            r.lichtFarbe = true;
+            for (int c = 0; c < 3; ++c) { r.lichtRGB[c] = std::atof(w[j + 1 + static_cast<std::size_t>(c)].c_str()); }
         } else if (k == "surfaceparm" && j + 1 < w.size()) {
             const std::string parm = klein(w[j + 1]);
             if (parm == "sky") { r.himmel = true; }

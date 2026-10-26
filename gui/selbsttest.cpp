@@ -38,6 +38,7 @@
 #include "backend.h"
 #include "karte_gpu.h"
 #include "karte_bau_plattform.h"   // Stufe 3 Punkt 4: Port 39000 belegen
+#include "karte_echtlicht.h"         // Stufe 7: Echtzeit-Licht
 #include "platform.h"
 #include "wache.h"
 #include "gpumap.h"
@@ -37077,7 +37078,9 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         {"Modify__Repeat", {"Modify", "Repeat"}, 225, 154},
         // Build: NRC + Trenner 7 + "Cancel build" 24 (Stufe 3 Punkt 4, Abweichung)
         // + "Update entities only" 24 (Stufe 4 Punkt 2, Abweichung) + "Optimizer..." 24 (Stufe 5 Punkt 5, Abweichung)
-        {"Build", {"Build"}, 193, 405 + 7 + 24 + 24 + 24},
+        // + "Real-time light" 24 + "Quick bake" 24 (Stufe 7 Punkt 5, Abweichung; pruefbar: Qt
+        // reserviert dann fuer alle Eintraege die Spalte des Hakens, 193 -> 215)
+        {"Build", {"Build"}, 215, 405 + 7 + 24 + 24 + 24 + 24 + 24},
         {"Grid", {"Grid"}, 163, 346},
         // Misc und Help: NRC + die Programm-Eintraege (Stufe 3 Punkt 0b, Abweichung):
         // Misc + Trenner 7 + drei Untermenues je 24, Help + Manual und About BehavEd.
@@ -37660,6 +37663,12 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =stufe7: nur die Stufe 7 (Echtzeit-Licht, Schnell-Backen; BHED_STUFE7_NUR=licht|backen|gross)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe7") == 0) {
+        for (Schritt& x : stufe7::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =stufe2: nur die Wirkungspruefungen der Stufe 2 (Bauwerkzeuge)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe2") == 0) {
         for (Schritt& x : karteneditorStufe2Schritte()) { add(std::move(x)); }
@@ -37681,6 +37690,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : karteneditorStufe5Schritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorAlleBefehleSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorStufe6Schritte()) { add(std::move(x)); }
+    for (Schritt& x : stufe7::schritte()) { add(std::move(x)); }   // Stufe 7: Echtzeit-Licht, Schnell-Backen (gross nur mit BHED_KARTE_GROSS)
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));

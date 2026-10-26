@@ -356,6 +356,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_portale.cpp
     gui/app_karte_bsp.cpp
     gui/app_karte_optimierer.cpp
+    gui/app_karte_echtlicht.cpp
     gui/app_karte_plugins.cpp
     gui/app_karte_brushexport.cpp
     gui/app_karte_kleineplugins.cpp
@@ -869,7 +870,9 @@ target_sources(bhed_core PRIVATE
   # Stufe 5 Punkt 3: Pruefungen auf Bauprobleme
   src/karte/optimierer_pruefen.cpp
   # Stufe 5 Punkt 4: Beheben auf Knopfdruck (mit Rueckgaengig)
-  src/karte/optimierer_beheben.cpp)
+  src/karte/optimierer_beheben.cpp
+  # Stufe 7 Punkt 5: Echtzeit-Licht (die Lichter der Karte wie q3map2 -light)
+  src/karte/echtlicht.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -952,6 +955,10 @@ if(BEHAVED_TESTS)
   target_link_libraries(kartekamera PRIVATE bhed_core)
   add_test(NAME karte_kamera COMMAND kartekamera)
   # Punkt 7: Auswaehlen (Treffer, Tunnel, Rechteck, Flaechen, Malen)
+  # Stufe 7 Punkt 5: Echtzeit-Licht - Lichter wie q3map2, Formeln von LightContributionToSample
+  add_executable(karteechtlicht tests/karteechtlicht.cpp)
+  target_link_libraries(karteechtlicht PRIVATE bhed_core)
+  add_test(NAME karte_echtlicht COMMAND karteechtlicht)
   add_executable(karteauswahl tests/karteauswahl.cpp)
   target_link_libraries(karteauswahl PRIVATE bhed_core)
   add_test(NAME karte_auswahl COMMAND karteauswahl)

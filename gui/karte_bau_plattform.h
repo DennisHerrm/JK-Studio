@@ -33,6 +33,8 @@ public:
     [[nodiscard]] bool gestartet() const;
     void beenden();                        // TerminateProcess (Abbrechen)
     void loslassen();                      // Handles schliessen, ohne zu beenden
+    // Stufe 7 (Schnell-Backen): vor starten() - der Prozess laeuft mit Prioritaet "Leerlauf"
+    void niedrigePrioritaet(bool an);
 
 private:
     struct Teile;

@@ -29,6 +29,7 @@
 //   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
 //   Public License for more details (LICENSE).
 #include "karteneditor.h"
+#include "karte_echtlicht.h"
 
 #include "app_internal.h"
 #include "karte_bau_plattform.h"
@@ -268,6 +269,22 @@ void bauMenueEintraegeZeichnen() {
     o.id = opt.c_str();
     o.tooltip = trK(Str::KeOptMenueTip);
     if (qtPunkt(o)) { optimiererOeffnen(); }
+    // Stufe 7 (Abweichung, eigene Funktionen - nicht in NRC): Echtzeit-Licht in der
+    // Kamera (Vorschau) und Schnell-Backen im Hintergrund
+    const std::string licht = std::string(trK(Str::KeLichtMenue)) + "##bauechtlicht";
+    QtPunkt l;
+    l.id = licht.c_str();
+    l.art = QtArt::Pruefbar;
+    l.haken = ed.echtLicht.an;
+    l.tooltip = trK(Str::KeLichtMenueTip);
+    if (qtPunkt(l)) { ed.echtLicht.an = !ed.echtLicht.an; }
+    const std::string backen = std::string(trK(Str::KeBackenMenue)) + "##bauschnellbacken";
+    QtPunkt b;
+    b.id = backen.c_str();
+    b.art = QtArt::Pruefbar;
+    b.haken = ed.echtLicht.backen;
+    b.tooltip = trK(Str::KeBackenMenueTip);
+    if (qtPunkt(b)) { ed.echtLicht.backen = !ed.echtLicht.backen; }
 }
 
 // Build_runRecentExecutedBuild (build.cpp:1311-1314): der zuletzt gebaute
@@ -1439,6 +1456,7 @@ void bauAbbrechen() {
 
 void bauBeimBeenden() {   // ~CWatchBSP; dazu: kein q3map2 ohne Editor
     optimiererBeenden();   // Stufe 5: den Faden des Optimierers abwarten
+    echtLichtBeenden();    // Stufe 7: einen laufenden Schnell-Bau abbrechen
     g_lauf.prozess.beenden();
     g_lauf.prozess.loslassen();
     ueberwachungZuruecksetzen();

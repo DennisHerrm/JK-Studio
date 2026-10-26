@@ -63,7 +63,10 @@ struct Prozess::Teile {
     HANDLE lesen = nullptr;
     DWORD rueckgabe = 0;
     bool fertig = false;
+    bool niedrig = false;   // Stufe 7: IDLE_PRIORITY_CLASS
 };
+
+void Prozess::niedrigePrioritaet(bool an) { m->niedrig = an; }
 
 Prozess::Prozess() : m(std::make_unique<Teile>()) {}
 Prozess::~Prozess() { loslassen(); }
@@ -116,7 +119,7 @@ bool Prozess::starten(const std::string& befehlszeile, const std::string& ordner
     const std::wstring o = breit(ordner);
     // CREATE_SUSPENDED: erst in den Job, dann laufen lassen
     const BOOL ok = CreateProcessW(nullptr, puffer.data(), nullptr, nullptr, !erben.empty(),
-                                   (mitListe ? EXTENDED_STARTUPINFO_PRESENT : 0) | CREATE_NO_WINDOW | CREATE_SUSPENDED | NORMAL_PRIORITY_CLASS, nullptr,
+                                   (mitListe ? EXTENDED_STARTUPINFO_PRESENT : 0) | CREATE_NO_WINDOW | CREATE_SUSPENDED | (m->niedrig ? IDLE_PRIORITY_CLASS : NORMAL_PRIORITY_CLASS), nullptr,
                                    o.empty() ? nullptr : o.c_str(), &si, &pi);
     const std::string grund = ok ? std::string() : letzterFehler();
     if (mitListe) { DeleteProcThreadAttributeList(attribute); }

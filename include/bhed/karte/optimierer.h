@@ -246,6 +246,15 @@ struct ShaderSkript {
     bool ursprung = false;
     int lightmapBreite = 0;   // q3map_lightmapSize (shaders.cpp: si.lmCustomWidth/Height)
     int lightmapHoehe = 0;
+    // Stufe 7 (Echtzeit-Licht): q3map_sun / q3map_sunExt <r> <g> <b> <Staerke> <Grad> <Hoehe>
+    // (shaders.cpp:1049-1100) und q3map_lightRGB <r> <g> <b>
+    bool sonne = false;
+    double sonneFarbe[3] = {1, 1, 1};
+    double sonneStaerke = 0;
+    double sonneGrad = 0;
+    double sonneHoehe = 0;
+    bool lichtFarbe = false;
+    double lichtRGB[3] = {1, 1, 1};
 };
 [[nodiscard]] ShaderSkript shaderSkriptLesen(const std::string& text, const std::string& name);
 // Eine .shader-Datei einmal zerlegt (Stufe 6, schnellerer Start des

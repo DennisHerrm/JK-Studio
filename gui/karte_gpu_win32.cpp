@@ -141,6 +141,34 @@ struct Zustand {
     ID3D11Buffer* einmalL = nullptr;   // Einmal-Linien (3D)
     std::size_t einmalLPlatz = 0;
     std::map<int, Ziel> ziele;
+    // Stufe 7: Echtzeit-Licht
+    bool gescheitert4 = false;
+    ID3D11VertexShader* vs4 = nullptr;
+    ID3D11PixelShader* ps4 = nullptr;
+    ID3D11VertexShader* vsSchatten = nullptr;
+    ID3D11PixelShader* psSchatten = nullptr;
+    ID3D11PixelShader* psSonne = nullptr;
+    ID3D11Buffer* cb4 = nullptr;          // Lichter
+    ID3D11Buffer* cbSchatten = nullptr;   // Seite eines Wuerfels
+    ID3D11Texture2D* wuerfelTex = nullptr;            // 6 * kSchattenMax Seiten, R16F
+    ID3D11RenderTargetView* wuerfelRtv[6 * kSchattenMax] = {};
+    ID3D11ShaderResourceView* wuerfelSrv = nullptr;   // TextureCubeArray
+    ID3D11Texture2D* wuerfelTiefe = nullptr;
+    ID3D11DepthStencilView* wuerfelDsv = nullptr;
+    ID3D11Texture2D* sonneTex = nullptr;              // R32F
+    ID3D11RenderTargetView* sonneRtv = nullptr;
+    ID3D11ShaderResourceView* sonneSrv = nullptr;
+    ID3D11Texture2D* sonneTiefe = nullptr;
+    ID3D11DepthStencilView* sonneDsv = nullptr;
+    ID3D11SamplerState* punktAbtaster = nullptr;
+    ID3D11RasterizerState* rsSchatten = nullptr;
+    float sonneVp[16] = {};
+    bool sonneAn = false;
+    // Stufe 7 Punkt 5b: gebackene Flaechen mit Lightmap
+    bool gescheitertG = false;
+    ID3D11VertexShader* vsG = nullptr;
+    ID3D11PixelShader* psG = nullptr;
+    ID3D11InputLayout* layoutG = nullptr;
     // waehrend beginnen/beenden
     int aktiv = -1;
     ID3D11RenderTargetView* altRtv = nullptr;
@@ -158,6 +186,34 @@ void los(T*& p) {
     }
 }
 
+void echtLichtLoesen() {
+    los(g.vs4);
+    los(g.ps4);
+    los(g.vsSchatten);
+    los(g.psSchatten);
+    los(g.psSonne);
+    los(g.cb4);
+    los(g.cbSchatten);
+    for (auto& v : g.wuerfelRtv) { los(v); }
+    los(g.wuerfelSrv);
+    los(g.wuerfelTex);
+    los(g.wuerfelDsv);
+    los(g.wuerfelTiefe);
+    los(g.sonneRtv);
+    los(g.sonneSrv);
+    los(g.sonneTex);
+    los(g.sonneDsv);
+    los(g.sonneTiefe);
+    los(g.punktAbtaster);
+    los(g.rsSchatten);
+    los(g.vsG);
+    los(g.psG);
+    los(g.layoutG);
+    g.gescheitertG = false;
+    g.gescheitert4 = false;
+    g.sonneAn = false;
+}
+
 void zielLoesen(Ziel& z) {
     los(z.dsv);
     los(z.tiefe);
@@ -173,6 +229,7 @@ void allesLoesen() {
         zielLoesen(z);
     }
     g.ziele.clear();
+    echtLichtLoesen();
     los(g.einmal);
     g.einmalPlatz = 0;
     los(g.blendRechteck[0]);
@@ -871,6 +928,8 @@ ID3D11DepthStencilState* tiefenZustand(TiefenTest t, bool schreiben) {
     return z;
 }
 
+bool bereit4();
+
 // Zustand und Konstanten setzen; false: nichts zu zeichnen.
 bool zustandSetzen(const Zustand3& z, bool linie) {
     if (g.aktiv < 0 || !bereit3() || z.matrix == nullptr) { return false; }
@@ -920,6 +979,20 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
         c->VSSetConstantBuffers(0, 1, &g.cb3);
         c->GSSetConstantBuffers(0, 1, &g.cb3);
         c->PSSetConstantBuffers(0, 1, &g.cb3);
+    } else if (z.echtLicht && !linie && z.himmel == nullptr && bereit4()) {
+        // Stufe 7: Echtzeit-Licht
+        c->IASetInputLayout(g.layout3);
+        c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        c->VSSetShader(g.vs4, nullptr, 0);
+        c->GSSetShader(nullptr, nullptr, 0);
+        c->PSSetShader(g.ps4, nullptr, 0);
+        ID3D11Buffer* cbs[2] = {g.cb3, g.cb4};
+        c->VSSetConstantBuffers(0, 2, cbs);
+        c->PSSetConstantBuffers(0, 2, cbs);
+        ID3D11ShaderResourceView* srv[4] = {static_cast<ID3D11ShaderResourceView*>(z.bild), nullptr, g.wuerfelSrv, g.sonneSrv};
+        c->PSSetShaderResources(0, 4, srv);
+        ID3D11SamplerState* sm[3] = {g.abtaster, g.wuerfelAbtaster, g.punktAbtaster};
+        c->PSSetSamplers(0, 3, sm);
     } else {
         c->IASetInputLayout(g.layout3);
         c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -1034,6 +1107,604 @@ void linien(const std::vector<LinienPunkt>& p, const Zustand3& z) {
     if (p.empty() || g.aktiv < 0) { return; }
     if (!dynamischFuellen(g.einmalL, g.einmalLPlatz, p.data(), p.size() * sizeof(LinienPunkt))) { return; }
     ziehen3(g.einmalL, sizeof(LinienPunkt), 0, p.size(), z, true);
+}
+
+
+// --- Stufe 7: Echtzeit-Licht ----------------------------------------------------------
+//
+// Die Formeln von LightContributionToSample (q3map2 light.cpp:777-1177, siehe
+// bhed/karte/echtlicht.cpp echtLichtBeitrag - der Unit-Test karte_echtlicht
+// prueft dieselben Werte auf dem Prozessor). Der Luxel wie StoreSurfaceLightmaps/
+// ColorToBytes: Umgebung + Summe, mindestens _minlight, ueber 255 auf 255
+// normiert; im Spiel mit der Textur * 2 (r_mapOverBrightBits). Vorschau: kein
+// Bounce, kein Filter, kein Supersampling, Schatten aus Wuerfeln statt Strahlen.
+namespace {
+
+struct Konstanten4 {
+    float umgebung[4];
+    float minimum[4];
+    float sonne[4];      // x an
+    float sonneVp[16];   // zeilenweise
+    int anzahl[4];
+    LichtGpu lichter[kLichtMax];
+};
+struct KonstantenSchatten {
+    float vp[16];        // zeilenweise
+    float licht[4];      // xyz Ursprung, w Weite
+};
+
+const char* const kShader4 = R"(
+cbuffer B3 : register(b0) {
+    float4x4 mvp; float4 farbe; float4 vpnLicht; float4 augeHimmel; float4 alpha; float4 versatz; float4 muster; float4 linie; float4 nebel;
+};
+struct LichtD { float4 pos; float4 farbe; float4 richtung; float4 werte; float4 mehr; };
+cbuffer B4 : register(b1) {
+    float4 umgebung; float4 minimum; float4 sonne; row_major float4x4 sonneVp; int4 anzahl; LichtD lichter[64];
+};
+Texture2D bild : register(t0);
+TextureCubeArray schattenW : register(t2);
+Texture2D sonneK : register(t3);
+SamplerState abtaster : register(s0);
+SamplerState punktAbtaster : register(s2);
+float4 clip3(float3 p) { float4 c = mul(mvp, float4(p, 1.0)); c.z = (c.z + c.w) * 0.5; return c; }
+struct VI3 { float3 pos : POSITION; float3 n : NORMAL; float2 st : TEXCOORD0; float4 farbe : COLOR; };
+struct VO4 { float4 pos : SV_Position; float4 farbe : COLOR; float2 st : TEXCOORD0; float3 welt : TEXCOORD1; float3 n : TEXCOORD2; float tiefe : TEXCOORD3; };
+VO4 vs4(VI3 i) {
+    VO4 o;
+    o.pos = clip3(i.pos);
+    o.farbe = i.farbe * farbe;
+    o.st = i.st;
+    o.welt = i.pos;
+    o.n = i.n;
+    o.tiefe = o.pos.w;
+    return o;
+}
+bool alphaGut(float a) {
+    int f = (int)alpha.x;
+    float r = alpha.y;
+    if (f == 1) { return a == r; }
+    if (f == 2) { return a < r; }
+    if (f == 3) { return a > r; }
+    if (f == 4) { return a <= r; }
+    if (f == 5) { return a >= r; }
+    return true;
+}
+float3 genebelt(float3 c, float abstand) {
+    if (nebel.w <= 0.0) { return c; }
+    float f = saturate(exp(-nebel.w * abs(abstand)));
+    return lerp(nebel.rgb, c, f);
+}
+// LightContributionToSample ohne Strahl
+float beitrag(LichtD L, float3 p, float3 n) {
+    int art = (int)L.farbe.a;
+    if (art == 2) {
+        float w = L.werte.y > 0.5 ? dot(n, L.richtung.xyz) : 1.0;
+        return max(0.0, L.pos.w * w);
+    }
+    if (dot(L.pos.xyz, n) - dot(p, n) < 0.0) { return 0.0; }
+    float3 d = L.pos.xyz - p;
+    float abstand = length(d);
+    if (abstand >= L.werte.w) { return 0.0; }
+    float3 richtung = abstand > 0.0 ? d / abstand : float3(0, 0, 1);
+    abstand = max(16.0, sqrt(abstand * abstand + L.mehr.w * L.mehr.w));
+    float w = 1.0;
+    if (L.werte.y > 0.5) { w = dot(n, richtung); }
+    if (L.mehr.z != 0.0) { w = min(w / L.mehr.z, 1.0); }
+    float add;
+    if (art == 3) {
+        w *= -dot(L.richtung.xyz, richtung);
+        if (w <= 0.0) { return 0.0; }
+        add = L.pos.w / (abstand * abstand) * w;
+    } else if (L.werte.x > 0.5) {
+        add = max(0.0, w * L.pos.w * (1.0 / 8000.0) - abstand * L.werte.z);
+    } else {
+        add = max(0.0, (L.pos.w / (abstand * abstand)) * w);
+    }
+    if (art == 1) {
+        float entlang = dot(p - L.pos.xyz, L.richtung.xyz);
+        if (entlang < 0.0) { return 0.0; }
+        float3 dort = L.pos.xyz + L.richtung.xyz * entlang;
+        float rd = L.richtung.w * entlang;
+        float r = length(p - dort);
+        if (r >= rd) { return 0.0; }
+        if (r > rd - 32.0) { add = max(0.0, add * ((rd - r) / 32.0)); }
+    }
+    if (add <= 1.0) { return 0.0; }
+    return add;
+}
+float schatten(LichtD L, float3 p, float3 n) {
+    int art = (int)L.farbe.a;
+    if (art == 2) {
+        if (sonne.x < 0.5) { return 1.0; }
+        float4 c = mul(float4(p + n * 2.0, 1.0), sonneVp);
+        float2 uv = float2(c.x * 0.5 + 0.5, 0.5 - c.y * 0.5);
+        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return 1.0; }
+        float gespeichert = sonneK.SampleLevel(punktAbtaster, uv, 0).r;
+        return c.z - 0.002 <= gespeichert ? 1.0 : 0.0;
+    }
+    if (L.mehr.x < 0.0) { return 1.0; }
+    float3 d = (p + n * 1.0) - L.pos.xyz;
+    float abstand = length(d);
+    float gespeichert = schattenW.SampleLevel(punktAbtaster, float4(d, L.mehr.x), 0).r * L.mehr.y;
+    return abstand - 3.0 <= gespeichert ? 1.0 : 0.0;
+}
+float4 ps4(VO4 i) : SV_Target {
+    float3 n = normalize(i.n);
+    float3 lm = umgebung.rgb;
+    [loop] for (int k = 0; k < anzahl.x; ++k) {
+        LichtD L = lichter[k];
+        float add = beitrag(L, i.welt, n);
+        if (add > 0.0) {
+            float s = schatten(L, i.welt, n);
+            lm += L.farbe.rgb * add * s * (L.mehr.x < -1.5 ? -1.0 : 1.0);
+        }
+    }
+    lm = max(lm, minimum.rgb);
+    float m = max(lm.r, max(lm.g, lm.b));
+    if (m > 255.0) { lm *= 255.0 / m; }
+    float4 c = i.farbe;
+    if (alpha.z > 0.5) { c *= bild.Sample(abtaster, i.st); }
+    c.rgb = saturate(c.rgb * (lm / 255.0) * 2.0);
+    c.rgb = genebelt(c.rgb, i.tiefe);
+    if (!alphaGut(c.a)) { discard; }
+    return c;
+}
+cbuffer BS : register(b2) { row_major float4x4 seiteVp; float4 lichtPos; };
+struct VOS { float4 pos : SV_Position; float3 welt : TEXCOORD0; };
+VOS vss(VI3 i) {
+    VOS o;
+    o.pos = mul(float4(i.pos, 1.0), seiteVp);
+    o.welt = i.pos;
+    return o;
+}
+float pss(VOS i) : SV_Target { return length(i.welt - lichtPos.xyz) / lichtPos.w; }
+float pssonne(VOS i) : SV_Target { return i.pos.z; }
+)";
+
+bool bereit4() {
+    if (!bereit3()) { return false; }
+    if (g.vs4 != nullptr) { return true; }
+    if (g.gescheitert4) { return false; }
+    g.gescheitert4 = true;
+    ID3D11Device* d = geraet();
+    if (d->GetFeatureLevel() < D3D_FEATURE_LEVEL_10_1) { return false; }   // TextureCubeArray
+    const auto uebersetzen = [](const char* einstieg, const char* ziel, ID3DBlob** code) {
+        ID3DBlob* fehler = nullptr;
+        const HRESULT hr = D3DCompile(kShader4, std::strlen(kShader4), "karte4", nullptr, nullptr, einstieg, ziel,
+                                      D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, code, &fehler);
+        los(fehler);
+        return SUCCEEDED(hr);
+    };
+    ID3DBlob* b[5] = {nullptr, nullptr, nullptr, nullptr, nullptr};
+    if (!uebersetzen("vs4", "vs_4_1", &b[0]) || !uebersetzen("ps4", "ps_4_1", &b[1]) || !uebersetzen("vss", "vs_4_1", &b[2]) ||
+        !uebersetzen("pss", "ps_4_1", &b[3]) || !uebersetzen("pssonne", "ps_4_1", &b[4])) {
+        for (auto*& x : b) { los(x); }
+        return false;
+    }
+    d->CreateVertexShader(b[0]->GetBufferPointer(), b[0]->GetBufferSize(), nullptr, &g.vs4);
+    d->CreatePixelShader(b[1]->GetBufferPointer(), b[1]->GetBufferSize(), nullptr, &g.ps4);
+    d->CreateVertexShader(b[2]->GetBufferPointer(), b[2]->GetBufferSize(), nullptr, &g.vsSchatten);
+    d->CreatePixelShader(b[3]->GetBufferPointer(), b[3]->GetBufferSize(), nullptr, &g.psSchatten);
+    d->CreatePixelShader(b[4]->GetBufferPointer(), b[4]->GetBufferSize(), nullptr, &g.psSonne);
+    for (auto*& x : b) { los(x); }
+    D3D11_BUFFER_DESC cb{};
+    cb.ByteWidth = sizeof(Konstanten4);
+    cb.Usage = D3D11_USAGE_DYNAMIC;
+    cb.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    cb.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    d->CreateBuffer(&cb, nullptr, &g.cb4);
+    cb.ByteWidth = sizeof(KonstantenSchatten);
+    d->CreateBuffer(&cb, nullptr, &g.cbSchatten);
+    // Schattenwuerfel: 6 * kSchattenMax Seiten je 256 x 256 (Abstand / Weite, R16F)
+    D3D11_TEXTURE2D_DESC td{};
+    td.Width = 256;
+    td.Height = 256;
+    td.MipLevels = 1;
+    td.ArraySize = 6 * kSchattenMax;
+    td.Format = DXGI_FORMAT_R16_FLOAT;
+    td.SampleDesc.Count = 1;
+    td.Usage = D3D11_USAGE_DEFAULT;
+    td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+    td.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
+    if (FAILED(d->CreateTexture2D(&td, nullptr, &g.wuerfelTex))) { return false; }
+    for (int i = 0; i < 6 * kSchattenMax; ++i) {
+        D3D11_RENDER_TARGET_VIEW_DESC rd{};
+        rd.Format = td.Format;
+        rd.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DARRAY;
+        rd.Texture2DArray.FirstArraySlice = static_cast<UINT>(i);
+        rd.Texture2DArray.ArraySize = 1;
+        d->CreateRenderTargetView(g.wuerfelTex, &rd, &g.wuerfelRtv[i]);
+        const float eins[4] = {1, 1, 1, 1};
+        if (g.wuerfelRtv[i] != nullptr) { kontext()->ClearRenderTargetView(g.wuerfelRtv[i], eins); }
+    }
+    D3D11_SHADER_RESOURCE_VIEW_DESC sv{};
+    sv.Format = td.Format;
+    sv.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBEARRAY;
+    sv.TextureCubeArray.MipLevels = 1;
+    sv.TextureCubeArray.NumCubes = kSchattenMax;
+    d->CreateShaderResourceView(g.wuerfelTex, &sv, &g.wuerfelSrv);
+    td.ArraySize = 1;
+    td.MiscFlags = 0;
+    td.Format = DXGI_FORMAT_D32_FLOAT;
+    td.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    d->CreateTexture2D(&td, nullptr, &g.wuerfelTiefe);
+    if (g.wuerfelTiefe != nullptr) { d->CreateDepthStencilView(g.wuerfelTiefe, nullptr, &g.wuerfelDsv); }
+    // Sonne: 2048 x 2048, Tiefe (R32F)
+    td.Width = 2048;
+    td.Height = 2048;
+    td.Format = DXGI_FORMAT_R32_FLOAT;
+    td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+    d->CreateTexture2D(&td, nullptr, &g.sonneTex);
+    if (g.sonneTex != nullptr) {
+        d->CreateRenderTargetView(g.sonneTex, nullptr, &g.sonneRtv);
+        d->CreateShaderResourceView(g.sonneTex, nullptr, &g.sonneSrv);
+    }
+    td.Format = DXGI_FORMAT_D32_FLOAT;
+    td.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    d->CreateTexture2D(&td, nullptr, &g.sonneTiefe);
+    if (g.sonneTiefe != nullptr) { d->CreateDepthStencilView(g.sonneTiefe, nullptr, &g.sonneDsv); }
+    D3D11_SAMPLER_DESC sd{};
+    sd.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+    sd.AddressU = sd.AddressV = sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sd.MaxLOD = D3D11_FLOAT32_MAX;
+    d->CreateSamplerState(&sd, &g.punktAbtaster);
+    D3D11_RASTERIZER_DESC rs{};
+    rs.FillMode = D3D11_FILL_SOLID;
+    rs.CullMode = D3D11_CULL_NONE;
+    rs.DepthClipEnable = TRUE;
+    d->CreateRasterizerState(&rs, &g.rsSchatten);
+    g.gescheitert4 = g.vs4 == nullptr || g.ps4 == nullptr || g.vsSchatten == nullptr || g.psSchatten == nullptr || g.psSonne == nullptr ||
+                     g.cb4 == nullptr || g.cbSchatten == nullptr || g.wuerfelSrv == nullptr || g.wuerfelDsv == nullptr ||
+                     g.sonneSrv == nullptr || g.sonneDsv == nullptr || g.punktAbtaster == nullptr || g.rsSchatten == nullptr;
+    return !g.gescheitert4;
+}
+
+// Zeilenweise Matrizen (wie row_major im Shader: clip = p * M)
+void blickLH(const float* auge, const float* vorn, const float* oben, float* m) {
+    const auto norm = [](float* v) {
+        const float l = std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+        if (l > 0) { v[0] /= l, v[1] /= l, v[2] /= l; }
+    };
+    float z[3] = {vorn[0], vorn[1], vorn[2]};
+    norm(z);
+    float x[3] = {oben[1] * z[2] - oben[2] * z[1], oben[2] * z[0] - oben[0] * z[2], oben[0] * z[1] - oben[1] * z[0]};
+    norm(x);
+    const float y[3] = {z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0]};
+    const float m0[16] = {x[0], y[0], z[0], 0,
+                          x[1], y[1], z[1], 0,
+                          x[2], y[2], z[2], 0,
+                          -(x[0] * auge[0] + x[1] * auge[1] + x[2] * auge[2]), -(y[0] * auge[0] + y[1] * auge[1] + y[2] * auge[2]),
+                          -(z[0] * auge[0] + z[1] * auge[1] + z[2] * auge[2]), 1};
+    std::memcpy(m, m0, sizeof(m0));
+}
+void mal(const float* a, const float* b, float* r) {   // r = a * b (zeilenweise)
+    float t[16];
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            t[i * 4 + j] = a[i * 4] * b[j] + a[i * 4 + 1] * b[4 + j] + a[i * 4 + 2] * b[8 + j] + a[i * 4 + 3] * b[12 + j];
+        }
+    }
+    std::memcpy(r, t, sizeof(t));
+}
+
+struct RtSicherung {
+    ID3D11RenderTargetView* rtv = nullptr;
+    ID3D11DepthStencilView* dsv = nullptr;
+    D3D11_VIEWPORT vp{};
+    UINT vpAnzahl = 1;
+    RtSicherung() {
+        kontext()->OMGetRenderTargets(1, &rtv, &dsv);
+        kontext()->RSGetViewports(&vpAnzahl, &vp);
+    }
+    ~RtSicherung() {
+        kontext()->OMSetRenderTargets(1, &rtv, dsv);
+        if (vpAnzahl > 0) { kontext()->RSSetViewports(1, &vp); }
+        los(rtv);
+        los(dsv);
+    }
+    RtSicherung(const RtSicherung&) = delete;
+    RtSicherung& operator=(const RtSicherung&) = delete;
+};
+
+void schattenZiehen(const float* vp, const float* licht, ID3D11PixelShader* ps, const std::vector<SchattenTeil>& teile) {
+    ID3D11DeviceContext* c = kontext();
+    D3D11_MAPPED_SUBRESOURCE m{};
+    if (FAILED(c->Map(g.cbSchatten, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) { return; }
+    auto* k = static_cast<KonstantenSchatten*>(m.pData);
+    std::memcpy(k->vp, vp, sizeof(k->vp));
+    std::memcpy(k->licht, licht, sizeof(k->licht));
+    c->Unmap(g.cbSchatten, 0);
+    c->IASetInputLayout(g.layout3);
+    c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    c->VSSetShader(g.vsSchatten, nullptr, 0);
+    c->GSSetShader(nullptr, nullptr, 0);
+    c->PSSetShader(ps, nullptr, 0);
+    c->VSSetConstantBuffers(2, 1, &g.cbSchatten);
+    c->PSSetConstantBuffers(2, 1, &g.cbSchatten);
+    const float faktor[4] = {0, 0, 0, 0};
+    c->OMSetBlendState(g.blendAus, faktor, 0xFFFFFFFFU);
+    c->OMSetDepthStencilState(tiefenZustand(TiefenTest::Kleiner, true), 0);
+    c->RSSetState(g.rsSchatten);
+    for (const SchattenTeil& t : teile) {
+        if (t.puffer == nullptr || t.anzahl == 0) { continue; }
+        ID3D11Buffer* vb = Zugriff3::vb(*t.puffer);
+        if (vb == nullptr) { continue; }
+        const UINT schritt = sizeof(Punkt3);
+        const UINT versatz = 0;
+        c->IASetVertexBuffers(0, 1, &vb, &schritt, &versatz);
+        c->Draw(static_cast<UINT>(t.anzahl), static_cast<UINT>(t.erstes));
+    }
+}
+
+}  // namespace
+
+bool echtLichtVerfuegbar() { return verfuegbar() && bereit4(); }
+
+void lichtSetzen(const std::vector<LichtGpu>& lichter, const float* umgebung, const float* minimum) {
+    if (!bereit4()) { return; }
+    ID3D11DeviceContext* c = kontext();
+    D3D11_MAPPED_SUBRESOURCE m{};
+    if (FAILED(c->Map(g.cb4, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) { return; }
+    auto* k = static_cast<Konstanten4*>(m.pData);
+    std::memset(k, 0, sizeof(Konstanten4));
+    for (int i = 0; i < 3; ++i) {
+        k->umgebung[i] = umgebung[i];
+        k->minimum[i] = minimum[i];
+    }
+    k->sonne[0] = g.sonneAn ? 1.0F : 0.0F;
+    std::memcpy(k->sonneVp, g.sonneVp, sizeof(k->sonneVp));
+    const std::size_t n = std::min<std::size_t>(lichter.size(), kLichtMax);
+    k->anzahl[0] = static_cast<int>(n);
+    if (n > 0) { std::memcpy(k->lichter, lichter.data(), n * sizeof(LichtGpu)); }
+    c->Unmap(g.cb4, 0);
+}
+
+bool schattenWuerfel(int slot, const float* pos, float weite, const std::vector<SchattenTeil>& teile) {
+    if (slot < 0 || slot >= kSchattenMax || !bereit4() || weite <= 1.0F) { return false; }
+    ID3D11DeviceContext* c = kontext();
+    RtSicherung sicher;
+    D3D11_VIEWPORT vp{};
+    vp.Width = 256;
+    vp.Height = 256;
+    vp.MaxDepth = 1;
+    c->RSSetViewports(1, &vp);
+    // Seiten wie TextureCube: +X -X +Y -Y +Z -Z (Blickrichtung, oben)
+    static const float vorn[6][3] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    static const float oben[6][3] = {{0, 1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}, {0, 1, 0}, {0, 1, 0}};
+    const float nah = 1.0F;
+    const float fern = weite;
+    // perspektivisch, 90 Grad, Seitenverhaeltnis 1, D3D-Tiefe 0..1 (zeilenweise, LH)
+    const float q = fern / (fern - nah);
+    const float proj[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, q, 1, 0, 0, -q * nah, 0};
+    const float licht[4] = {pos[0], pos[1], pos[2], weite};
+    for (int s = 0; s < 6; ++s) {
+        ID3D11RenderTargetView* rtv = g.wuerfelRtv[slot * 6 + s];
+        if (rtv == nullptr) { continue; }
+        c->OMSetRenderTargets(1, &rtv, g.wuerfelDsv);
+        const float eins[4] = {1, 1, 1, 1};
+        c->ClearRenderTargetView(rtv, eins);
+        c->ClearDepthStencilView(g.wuerfelDsv, D3D11_CLEAR_DEPTH, 1.0F, 0);
+        float blick[16];
+        blickLH(pos, vorn[s], oben[s], blick);
+        float m[16];
+        mal(blick, proj, m);
+        schattenZiehen(m, licht, g.psSchatten, teile);
+    }
+    return true;
+}
+
+bool sonnenSchatten(const float* richtung, const float* mitte, float halb, const std::vector<SchattenTeil>& teile) {
+    if (!bereit4() || g.sonneRtv == nullptr || halb <= 0) { return false; }
+    ID3D11DeviceContext* c = kontext();
+    RtSicherung sicher;
+    D3D11_VIEWPORT vp{};
+    vp.Width = 2048;
+    vp.Height = 2048;
+    vp.MaxDepth = 1;
+    c->RSSetViewports(1, &vp);
+    c->OMSetRenderTargets(1, &g.sonneRtv, g.sonneDsv);
+    const float eins[4] = {1, 1, 1, 1};
+    c->ClearRenderTargetView(g.sonneRtv, eins);
+    c->ClearDepthStencilView(g.sonneDsv, D3D11_CLEAR_DEPTH, 1.0F, 0);
+    // von der Sonne her auf die Karte: Auge vor der Mitte, Blick gegen die Sonnenrichtung
+    const float auge[3] = {mitte[0] + richtung[0] * halb * 2, mitte[1] + richtung[1] * halb * 2, mitte[2] + richtung[2] * halb * 2};
+    const float vorn[3] = {-richtung[0], -richtung[1], -richtung[2]};
+    const float oben[3] = {std::fabs(richtung[2]) > 0.99F ? 1.0F : 0.0F, 0.0F, std::fabs(richtung[2]) > 0.99F ? 0.0F : 1.0F};
+    float blick[16];
+    blickLH(auge, vorn, oben, blick);
+    const float tief = halb * 4;
+    const float ortho[16] = {1.0F / halb, 0, 0, 0, 0, 1.0F / halb, 0, 0, 0, 0, 1.0F / tief, 0, 0, 0, 0, 1};
+    mal(blick, ortho, g.sonneVp);
+    const float licht[4] = {0, 0, 0, 1};
+    schattenZiehen(g.sonneVp, licht, g.psSonne, teile);
+    g.sonneAn = true;
+    return true;
+}
+
+void sonnenSchattenAus() { g.sonneAn = false; }
+
+
+// --- Stufe 7 Punkt 5b: gebackene Flaechen ---------------------------------------------
+namespace {
+
+const char* const kShaderG = R"(
+cbuffer B3 : register(b0) {
+    float4x4 mvp; float4 farbe; float4 vpnLicht; float4 augeHimmel; float4 alpha; float4 versatz; float4 muster; float4 linie; float4 nebel;
+};
+Texture2D bild : register(t0);
+Texture2D lightmap : register(t2);
+SamplerState abtaster : register(s0);
+SamplerState lmAbtaster : register(s1);
+struct VIG { float3 pos : POSITION; float2 st : TEXCOORD0; float2 lm : TEXCOORD1; float3 n : NORMAL; float4 farbe : COLOR; };
+struct VOG { float4 pos : SV_Position; float4 farbe : COLOR; float2 st : TEXCOORD0; float2 lm : TEXCOORD1; };
+VOG vsg(VIG i) {
+    VOG o;
+    float4 c = mul(mvp, float4(i.pos, 1.0));
+    c.z = (c.z + c.w) * 0.5;
+    o.pos = c;
+    o.farbe = i.farbe;
+    o.st = i.st;
+    o.lm = i.lm;
+    return o;
+}
+float4 psg(VOG i) : SV_Target {
+    float4 c = farbe;
+    if (alpha.z > 0.5) { c *= bild.Sample(abtaster, i.st); }
+    float3 licht = versatz.w > 0.5 ? lightmap.Sample(lmAbtaster, i.lm).rgb : i.farbe.rgb;
+    c.rgb = saturate(c.rgb * licht * 2.0);
+    int f = (int)alpha.x;
+    if (f == 3 && !(c.a > alpha.y)) { discard; }
+    if (f == 2 && !(c.a < alpha.y)) { discard; }
+    if (f == 5 && !(c.a >= alpha.y)) { discard; }
+    return c;
+}
+)";
+
+bool bereitG() {
+    if (!bereit3()) { return false; }
+    if (g.vsG != nullptr) { return true; }
+    if (g.gescheitertG) { return false; }
+    g.gescheitertG = true;
+    ID3D11Device* d = geraet();
+    ID3DBlob* b[2] = {nullptr, nullptr};
+    ID3DBlob* fehler = nullptr;
+    if (FAILED(D3DCompile(kShaderG, std::strlen(kShaderG), "karteG", nullptr, nullptr, "vsg", "vs_4_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &b[0], &fehler)) ||
+        FAILED(D3DCompile(kShaderG, std::strlen(kShaderG), "karteG", nullptr, nullptr, "psg", "ps_4_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &b[1], &fehler))) {
+        los(fehler);
+        for (auto*& x : b) { los(x); }
+        return false;
+    }
+    los(fehler);
+    d->CreateVertexShader(b[0]->GetBufferPointer(), b[0]->GetBufferSize(), nullptr, &g.vsG);
+    d->CreatePixelShader(b[1]->GetBufferPointer(), b[1]->GetBufferSize(), nullptr, &g.psG);
+    const D3D11_INPUT_ELEMENT_DESC e[] = {
+        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT, 0, 20, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 40, D3D11_INPUT_PER_VERTEX_DATA, 0},
+    };
+    d->CreateInputLayout(e, 5, b[0]->GetBufferPointer(), b[0]->GetBufferSize(), &g.layoutG);
+    for (auto*& x : b) { los(x); }
+    g.gescheitertG = g.vsG == nullptr || g.psG == nullptr || g.layoutG == nullptr;
+    return !g.gescheitertG;
+}
+
+}  // namespace
+
+struct ZugriffGebacken {
+    static ID3D11Buffer* vb(const GebackenNetz& n) { return n.m_stand == render::texturStand() ? static_cast<ID3D11Buffer*>(n.m_vb) : nullptr; }
+    static ID3D11Buffer* ib(const GebackenNetz& n) { return n.m_stand == render::texturStand() ? static_cast<ID3D11Buffer*>(n.m_ib) : nullptr; }
+};
+
+GebackenNetz::~GebackenNetz() { leeren(); }
+
+void GebackenNetz::leeren() {
+    if (m_stand == render::texturStand()) {
+        if (m_vb != nullptr) { static_cast<ID3D11Buffer*>(m_vb)->Release(); }
+        if (m_ib != nullptr) { static_cast<ID3D11Buffer*>(m_ib)->Release(); }
+    }
+    m_vb = nullptr;
+    m_ib = nullptr;
+    m_stand = ~0U;
+}
+
+bool GebackenNetz::gueltig() const { return m_vb != nullptr && m_ib != nullptr && m_stand == render::texturStand(); }
+
+bool GebackenNetz::setzen(const std::vector<GebackenPunkt>& punkte, const std::vector<std::uint32_t>& indizes) {
+    leeren();
+    if (!bereit() || punkte.empty() || indizes.empty()) { return false; }
+    static_assert(sizeof(GebackenPunkt) == 44, "wie das Eingabeformat des Shaders");
+    D3D11_BUFFER_DESC bd{};
+    bd.ByteWidth = static_cast<UINT>(punkte.size() * sizeof(GebackenPunkt));
+    bd.Usage = D3D11_USAGE_IMMUTABLE;
+    bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    D3D11_SUBRESOURCE_DATA sd{};
+    sd.pSysMem = punkte.data();
+    ID3D11Buffer* vb = nullptr;
+    if (FAILED(geraet()->CreateBuffer(&bd, &sd, &vb))) { return false; }
+    bd.ByteWidth = static_cast<UINT>(indizes.size() * sizeof(std::uint32_t));
+    bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+    sd.pSysMem = indizes.data();
+    ID3D11Buffer* ib = nullptr;
+    if (FAILED(geraet()->CreateBuffer(&bd, &sd, &ib))) {
+        vb->Release();
+        return false;
+    }
+    m_vb = vb;
+    m_ib = ib;
+    m_stand = render::texturStand();
+    return true;
+}
+
+void* lightmapAnlegen(const std::uint8_t* rgb, int breite, int hoehe) {
+    if (!bereit() || rgb == nullptr || breite <= 0 || hoehe <= 0) { return nullptr; }
+    std::vector<std::uint8_t> rgba(static_cast<std::size_t>(breite) * static_cast<std::size_t>(hoehe) * 4);
+    for (std::size_t i = 0; i < static_cast<std::size_t>(breite) * static_cast<std::size_t>(hoehe); ++i) {
+        rgba[i * 4] = rgb[i * 3];
+        rgba[i * 4 + 1] = rgb[i * 3 + 1];
+        rgba[i * 4 + 2] = rgb[i * 3 + 2];
+        rgba[i * 4 + 3] = 255;
+    }
+    D3D11_TEXTURE2D_DESC td{};
+    td.Width = static_cast<UINT>(breite);
+    td.Height = static_cast<UINT>(hoehe);
+    td.MipLevels = 1;
+    td.ArraySize = 1;
+    td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    td.SampleDesc.Count = 1;
+    td.Usage = D3D11_USAGE_IMMUTABLE;
+    td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    D3D11_SUBRESOURCE_DATA sd{};
+    sd.pSysMem = rgba.data();
+    sd.SysMemPitch = static_cast<UINT>(breite) * 4;
+    ID3D11Texture2D* tex = nullptr;
+    if (FAILED(geraet()->CreateTexture2D(&td, &sd, &tex))) { return nullptr; }
+    ID3D11ShaderResourceView* srv = nullptr;
+    geraet()->CreateShaderResourceView(tex, nullptr, &srv);
+    tex->Release();
+    return srv;
+}
+
+void gebackenZeichnen(const GebackenNetz& netz, std::uint32_t erster, std::uint32_t anzahl, void* lightmap, const Zustand3& z) {
+    ID3D11Buffer* vb = ZugriffGebacken::vb(netz);
+    ID3D11Buffer* ib = ZugriffGebacken::ib(netz);
+    if (vb == nullptr || ib == nullptr || anzahl == 0 || !bereitG()) { return; }
+    Zustand3 zz = z;
+    zz.echtLicht = false;
+    zz.licht = false;
+    zz.versatz = false;
+    zz.versatzEinheiten = 1;
+    if (!zustandSetzen(zz, false)) { return; }
+    ID3D11DeviceContext* c = kontext();
+    // versatz.w traegt hier "mit Lightmap" (Konstanten3 neu schreiben)
+    D3D11_MAPPED_SUBRESOURCE m{};
+    if (SUCCEEDED(c->Map(g.cb3, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) {
+        auto* k = static_cast<Konstanten3*>(m.pData);
+        std::memset(k, 0, sizeof(Konstanten3));
+        std::memcpy(k->mvp, zz.matrix, sizeof(k->mvp));
+        std::memcpy(k->farbe, zz.farbe, sizeof(k->farbe));
+        k->alpha[0] = static_cast<float>(zz.alphaFunktion);
+        k->alpha[1] = zz.alphaRef;
+        k->alpha[2] = zz.bild != nullptr ? 1.0F : 0.0F;
+        k->versatz[3] = lightmap != nullptr ? 1.0F : 0.0F;
+        c->Unmap(g.cb3, 0);
+    }
+    c->IASetInputLayout(g.layoutG);
+    c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    c->VSSetShader(g.vsG, nullptr, 0);
+    c->PSSetShader(g.psG, nullptr, 0);
+    c->VSSetConstantBuffers(0, 1, &g.cb3);
+    c->PSSetConstantBuffers(0, 1, &g.cb3);
+    ID3D11ShaderResourceView* srv[3] = {static_cast<ID3D11ShaderResourceView*>(zz.bild), nullptr, static_cast<ID3D11ShaderResourceView*>(lightmap)};
+    c->PSSetShaderResources(0, 3, srv);
+    ID3D11SamplerState* sm[2] = {g.abtaster, g.wuerfelAbtaster};
+    c->PSSetSamplers(0, 2, sm);
+    const UINT schritt = sizeof(GebackenPunkt);
+    const UINT versatz = 0;
+    c->IASetVertexBuffers(0, 1, &vb, &schritt, &versatz);
+    c->IASetIndexBuffer(ib, DXGI_FORMAT_R32_UINT, 0);
+    c->DrawIndexed(anzahl, erster, 0);
 }
 
 void ohneMischen(void* dl) {

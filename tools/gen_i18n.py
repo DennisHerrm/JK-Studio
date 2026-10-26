@@ -2181,6 +2181,8 @@ from i18n_karte5 import KARTE5  # noqa: E402  (Stufe 5: Optimierer und Grenzen)
 S += KARTE5
 from i18n_karte6 import KARTE6  # noqa: E402  (Stufe 6: Pruefstufe)
 S += KARTE6
+from i18n_karte7 import KARTE7  # noqa: E402  (Stufe 7: Tempo und Echtzeit-Licht)
+S += KARTE7
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

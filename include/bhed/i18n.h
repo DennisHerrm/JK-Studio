@@ -2179,6 +2179,13 @@ enum class Str {
     KeOptPrLightmapExtern,
     KeOptPrLightmapExternE,
     KeBmSchaltlichter,
+    KeLichtMenue,
+    KeLichtMenueTip,
+    KeBackenMenue,
+    KeBackenMenueTip,
+    KeLichtVorschau,
+    KeLichtBaeckt,
+    KeLichtGebacken,
     Count,
 };
 

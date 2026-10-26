@@ -19,6 +19,7 @@
 //   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
 //   Public License for more details (LICENSE).
 #include "karteneditor.h"
+#include "karte_echtlicht.h"
 
 #include "app_internal.h"
 #include "bhed/theme.h"
@@ -1332,6 +1333,7 @@ void zeichne(float hoehe) {
     bildBeginnen();
     spielPruefen();
     npcModelleVorab();   // Stufe 7: die NPC-Dateien des Optimierers im Faden, nicht beim ersten Oeffnen
+    echtLichtSchritt(geometrieStand());   // Stufe 7 Punkt 5b: Schnell-Backen nach einer Pause ohne Aenderung
     if (!e.belegungGeladen) { einstellungenLaden(); }
     letzteKarteBeimStart();
     enginePfadPruefen();   // EnginePath_verify (MainFrame_Construct)

@@ -859,6 +859,23 @@ struct Editor {
         int portalSchwelle = 8000;         // VIS-Hinweis ab so vielen Portalen ("OptimizerPortals")
         int dreieckSchwelle = 20000;       // Dreieck-Hinweis ab ("OptimizerTriangles")
     } optimierer;
+    // Stufe 7: Echtzeit-Licht (eigene Funktion, nicht in NRC; Build-Menue)
+    struct EchtLichtZustand {
+        bool an = false;                   // Vorschau in der Kamera ("RealtimeLight")
+        bool backen = false;               // Schnell-Backen im Hintergrund ("QuickBake")
+        double pauseSekunden = 2.0;        // so lange ohne Aenderung, dann backen
+        // fuer den Selbsttest und die Anzeige
+        std::size_t lichter = 0;           // Lichter der Karte
+        std::size_t gezeichnet = 0;        // davon im letzten Bild
+        std::size_t schattenNeu = 0;       // Schattenwuerfel neu gerendert (gesamt)
+        double lichtMs = 0;                // Lichtliste + Schatten im letzten Bild (Prozessor)
+        // Schnell-Backen
+        int bauStand = 0;                  // 0 aus, 1 wartet, 2 laeuft, 3 fertig, 4 abgebrochen, 5 Fehler
+        double bauSekunden = 0;            // Dauer des letzten Baus
+        std::size_t baueAbgebrochen = 0;   // abgebrochene Baue (neue Aenderung)
+        std::string bauOrdner;             // der temporaere Ordner des letzten Baus
+        bool gebackenZeigen = false;       // die echten Lightmaps statt der Vorschau
+    } echtLicht;
     std::array<FensterBeobachter, 4> beobachter;
     std::array<karte::Blick, 4> blicke{karte::Blick(false), karte::Blick(false), karte::Blick(false), karte::Blick(true)};   // m_view
     int letzterBeobachter = -1;            // RadiantWindowObserver::m_latestObserver
@@ -1113,6 +1130,7 @@ bool xyPixel(int index, int x, int y, unsigned char rgba[4]);   // Selbsttest: e
 bool kartenBildRgba(const std::string& name, std::vector<unsigned char>& rgba, int& breite, int& hoehe);   // QERApp_LoadImage
 [[nodiscard]] int xyAbtastungen(int index);                      // Selbsttest: MSAA des Renderziels
 bool kameraTexturFarbe(const std::string& shader, float rgb[3]);
+void* kameraTexturBild(const std::string& shader);   // Stufe 7: SRV des Shaderbilds (nullptr: noch nicht da)
 
 // Ein QSplitter im aktuellen Kindfenster (Lagen ab dessen Ecke): ordnet an,
 // zeichnet die Griffe und ruft je Kind kinder[i](x, y, b, h) in logischen Punkten.

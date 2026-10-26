@@ -35,6 +35,7 @@
 #include "bhed/karte/manipulator.h"
 #include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
+#include "karte_echtlicht.h"
 #include "karte_gpu.h"
 #include "tastatur.h"
 
@@ -803,6 +804,12 @@ bool shaderZustand(const std::string& shader, kartegpu::Zustand3& z, bool& durch
 
 void texturBilderNeuLaden() { lager().neuLaden(); }
 
+// Stufe 7 (Schnell-Backen): das Bild eines Shaders fuer die gebackenen Flaechen
+void* kameraTexturBild(const std::string& shader) {
+    const Bild* b = lager().holen(shader);
+    return (b != nullptr && b->fertig) ? b->srv : nullptr;
+}
+
 bool kameraTexturFarbe(const std::string& shader, float rgb[3]) {
     const Bild* b = lager().holen(shader);
     if (b == nullptr || !b->fertig) { return false; }
@@ -966,6 +973,24 @@ void kameraZeichnen() {
         transforms += wechsel;
         ++zustaende;
     };
+    // Stufe 7 Punkt 5: Echtzeit-Licht (eigene Funktion) - Lichter und Schatten vor dem Bild.
+    // Erst, wenn die Geometrie auf der Grafikkarte liegt (sonst merkte sich ein
+    // Schattenwuerfel den alten Stand).
+    bool echtJetzt = false;
+    if (echtLichtAktiv() && g_geo.gpuAktuell && g_geo.dreiecke.gueltig()) {
+        std::vector<kartegpu::SchattenTeil> teile;
+        for (const Stapel3& st : g_geo.stapel) {
+            if (st.art != karte::StapelArt::Shader || st.dreiecke.anzahl == 0) { continue; }
+            const Bild* b = lager().holen(st.shader);
+            if (b != nullptr && b->himmel != nullptr) { continue; }   // Himmel laesst die Sonne durch
+            const karte::ShaderEintrag* se = ed.karteSpiel ? ed.karteSpiel->inventar.shaderFinden(st.shader) : nullptr;
+            if (se != nullptr && (se->flags & karte::QER_TRANS) != 0U) { continue; }
+            teile.push_back({&g_geo.dreiecke, st.dreiecke.erstes, st.dreiecke.anzahl});
+        }
+        echtLichtBildVorbereiten(k.ursprung, stand, geoStand, teile);
+        echtJetzt = true;
+    }
+    const bool gebacken = ed.echtLicht.gebackenZeigen;
     if (kartegpu::verfuegbar() && kartegpu::beginnen(200, f.breite, f.hoehe, c.msaa, hinten, true)) {
         for (Szene3* q : {&g_geo, &g_szene}) {
             if (q->gpuAktuell && ((!q->dreiecke.gueltig() && q->dreieckAnzahl > 0) || (!q->linien.gueltig() && q->linienPunkte > 0))) {
@@ -1018,6 +1043,7 @@ void kameraZeichnen() {
                 if (texturen) { z.himmel = b->himmel; }
             } else {
                 z.licht = true;
+                z.echtLicht = echtJetzt && texturen;   // Stufe 7: Echtzeit-Licht statt Licht aus Blickrichtung
                 z.wegschneiden = (flags & karte::QER_CULL) == 0U || se->cull == 1;   // eCullBack
                 if ((flags & karte::QER_ALPHATEST) != 0U) {
                     z.alphaFunktion = se->alphaFunc;
@@ -1071,12 +1097,14 @@ void kameraZeichnen() {
         for (const Szene3* q : teile) {
             for (const Stapel3& st : q->stapel) {
                 if (st.art == karte::StapelArt::Shader) {
-                    shaderZiehen(*q, st, false);
+                    // Stufe 7 Punkt 5b: gebacken - die gebauten Flaechen statt der Pinsel und Patches
+                    if (!(gebacken && fuellen && q == &g_geo)) { shaderZiehen(*q, st, false); }
                 } else if (st.art == karte::StapelArt::Fuellung) {
                     farbStapelZiehen(*q, st);
                 }
             }
         }
+        if (gebacken && fuellen) { (void)gebackenZeichnen(&vp[0]); }
         // Stufe 3 Punkt 5: CPointfile ($POINTFILE, eSortFullbright: Tiefe testen und schreiben)
         punktdateiKameraZeichnen(&vp[0]);
         pluginKameraVoll(&vp[0], fuellen);   // Stufe 4 Punkt 3: DBobView (eSortFullbright)
@@ -1088,7 +1116,7 @@ void kameraZeichnen() {
         }
         for (const Szene3* q : teile) {
             for (const Stapel3& st : q->stapel) {
-                if (st.art == karte::StapelArt::Shader) { shaderZiehen(*q, st, true); }
+                if (st.art == karte::StapelArt::Shader && !(gebacken && fuellen && q == &g_geo)) { shaderZiehen(*q, st, true); }
             }
         }
         const auto& sel = ed.farben.auswahl3d;
@@ -1508,6 +1536,12 @@ void kameraZeichnen() {
                 text(x, y, farben[i], z);
             }
         }
+    }
+    // Stufe 7: Echtzeit-Licht ist eine Vorschau - das steht in der Ecke (oben rechts)
+    if (echtJetzt || gebacken) {
+        const std::string hinweis = echtLichtHinweis();
+        const float breiteText = ImGui::CalcTextSize(hinweis.c_str()).x;
+        dl->AddText(ImVec2{o.x + groesse.x - breiteText - 6, o.y + 4}, IM_COL32(255, 220, 120, 255), hinweis.c_str());
     }
     // ShowStats: unten links
     if (c.zeigeStatistik) {

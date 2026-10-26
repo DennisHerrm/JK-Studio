@@ -131,6 +131,8 @@ struct Zustand3 {
     // RENDER_FOG mit GL_EXP (prtview, Stufe 3 Punkt 5): rgb die Farbe, a die
     // Dichte (0 = aus); f = exp(-Dichte * Abstand), Abstand = -z im Auge (= w).
     float nebel[4]{0, 0, 0, 0};
+    // Stufe 7: Echtzeit-Licht (lichtSetzen) statt des Lichts aus Blickrichtung
+    bool echtLicht = false;
 };
 // Punkte wie punkte(), aber mit Tiefentest gegen die Tiefe der Kamera (fuer
 // $DEEPPOINT: erst die verdeckten mit GL_GREATER, dann die sichtbaren).
@@ -160,6 +162,66 @@ void ohneMischen(void* dl);
 void bildFreigeben(void* bild);
 void aufraeumen();
 [[nodiscard]] unsigned geraetStand();
+// --- Stufe 7: Echtzeit-Licht (eigene Funktion, Vorschau) -------------------
+//
+// Die Grafikkarte rechnet das direkte Licht je Bildpunkt mit den Formeln von
+// q3map2 (bhed/karte/echtlicht.h); Schatten ueber Schattenwuerfel je Licht
+// (256 x 256 je Seite, Abstand zum Licht) und eine Schattenkarte der Sonne.
+inline constexpr int kLichtMax = 64;       // Lichter je Bild
+inline constexpr int kSchattenMax = 32;    // Schattenwuerfel
+struct LichtGpu {
+    float pos[4];        // xyz Ursprung, w photons
+    float farbe[4];      // rgb, a Art (0 Punkt, 1 Spot, 2 Sonne, 3 Flaeche)
+    float richtung[4];   // xyz Spot-/Flaechennormale bzw. zur Sonne, w radiusByDist
+    float werte[4];      // x linear, y Winkel, z fade, w Huelle
+    float mehr[4];       // x Schattenwuerfel (-1 keiner), y dessen Weite, z angleScale, w extraDist
+};
+struct SchattenTeil {
+    const Puffer3* puffer = nullptr;
+    std::size_t erstes = 0;
+    std::size_t anzahl = 0;
+};
+[[nodiscard]] bool echtLichtVerfuegbar();
+// Lichter, Umgebung (rgb), Minimum (rgb), Faktor fuer negative Lichter in mehr.
+void lichtSetzen(const std::vector<LichtGpu>& lichter, const float* umgebung, const float* minimum);
+// Den Schattenwuerfel slot fuer ein Licht an pos (Weite = Huelle) aus den
+// Dreiecken der Teile rendern. Vor beginnen() der Kamera rufen.
+bool schattenWuerfel(int slot, const float* pos, float weite, const std::vector<SchattenTeil>& teile);
+// Die Schattenkarte der Sonne (richtung zur Sonne) ueber den Kasten mitte +- halb.
+bool sonnenSchatten(const float* richtung, const float* mitte, float halb, const std::vector<SchattenTeil>& teile);
+void sonnenSchattenAus();
+
+// Schnell-Backen (Stufe 7 Punkt 5b): die gebauten Flaechen einer .bsp mit ihren
+// echten Lightmaps. Ecke wie bhed::BspVertex (xyz, st, Lightmap-st, Normale, Farbe).
+struct GebackenPunkt {
+    float pos[3];
+    float st[2];
+    float lm[2];
+    float normale[3];
+    std::uint32_t farbe;
+};
+class GebackenNetz {
+public:
+    GebackenNetz() = default;
+    ~GebackenNetz();
+    GebackenNetz(const GebackenNetz&) = delete;
+    GebackenNetz& operator=(const GebackenNetz&) = delete;
+    bool setzen(const std::vector<GebackenPunkt>& punkte, const std::vector<std::uint32_t>& indizes);
+    void leeren();
+    [[nodiscard]] bool gueltig() const;
+
+private:
+    friend struct ZugriffGebacken;
+    void* m_vb = nullptr;
+    void* m_ib = nullptr;
+    unsigned m_stand = ~0U;
+};
+// Eine 128x128-Lightmap (RGB) als Bild ohne Mipmaps; mit bildFreigeben freigeben.
+[[nodiscard]] void* lightmapAnlegen(const std::uint8_t* rgb, int breite, int hoehe);
+// Einen Bereich zeichnen: Textur (z.bild) mal Lightmap (nullptr: die Eckfarbe,
+// LIGHTMAP_BY_VERTEX) mal 2 (r_mapOverBrightBits), Zustand wie dreiecke().
+void gebackenZeichnen(const GebackenNetz& netz, std::uint32_t erster, std::uint32_t anzahl, void* lightmap, const Zustand3& z);
+
 // Fuer den Selbsttest: ein Bildpunkt des aufgeloesten Renderziels.
 bool pixel(int kennung, int x, int y, unsigned char rgba[4]);
 // Fuer den Selbsttest: die Abtastungen (MSAA) des Renderziels, 0 ohne Ziel.
