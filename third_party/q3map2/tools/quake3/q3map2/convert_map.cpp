@@ -409,7 +409,20 @@ static void ConvertBrush( FILE *f, int bspBrushNum, const Vector3& origin, EBrus
 
 	/* find out if brush is detail */
 	int contentFlag = 0;
-	if( !( bspShaders[bspBrushes[bspBrushNum].shaderNum].contentFlags & GetRequiredSurfaceParm<"structural">().contentFlags ) ){ // sort out structural transparent brushes, e.g. hints
+	/* BehavEd stage 7 (6e): in the SOF2/JA/JK2 surfaceparm tables "structural" has no content
+	   flag (games.cpp: contentFlags 0), so the test below never sorted out the structural
+	   transparent brushes there - hint, areaportal and skip came out as detail (tester report,
+	   jeditemple_garden: 81/81 hint, 15/15 areaportal, 359/359 skip faces detail). Also use the
+	   compile flags of the shaders (q3map_structural / surfaceparm structural -> C_STRUCTURAL,
+	   game independent), like SetBrushContents (map.cpp): any structural side makes the brush
+	   structural ("Mixed detail and structural (defaulting to structural)"). */
+	bool structural = ( bspShaders[bspBrushes[bspBrushNum].shaderNum].contentFlags & GetRequiredSurfaceParm<"structural">().contentFlags ) != 0;
+	if( !structural && ( ShaderInfoForShader( bspShaders[bspBrushes[bspBrushNum].shaderNum].shader ).compileFlags & C_STRUCTURAL ) )
+		structural = true;
+	for( const side_t& side : buildBrush.sides )
+		if( side.shaderInfo != nullptr && ( side.shaderInfo->compileFlags & C_STRUCTURAL ) )
+			structural = true;
+	if( !structural ){ // sort out structural transparent brushes, e.g. hints
 		for( const auto& leaf : bspLeafs ){
 			if( leaf.cluster > CLUSTER_OPAQUE )
 				for( const int id : Span( &bspLeafBrushes[ leaf.firstBSPLeafBrush ], leaf.numBSPLeafBrushes ) ){

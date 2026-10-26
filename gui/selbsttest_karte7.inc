@@ -1164,6 +1164,238 @@ std::vector<Schritt> maus() {
     return s;
 }
 
+// --- Punkt 6e: File > Open .bsp mit einer eigenen JKA-Karte (Tester) ------------
+//
+// 1. hint-, areaportal- und skip-Pinsel kamen nach dem Dekompilieren als detail.
+// 2. Kamera in einem Pinsel mit durchsichtigem Shader: was NRC zeichnet.
+// BHED_S7E_BSP=<.bsp>: zusaetzlich die echte Karte des Testers (jeditemple_garden).
+
+std::string bsp6eKarte() { return karteTestPfad("s7e_hint.map"); }
+
+// Zwei Raeume (x < 0, x > 0), dazwischen eine Wand mit Tuer (func_door) und
+// einem areaportal-Pinsel in der Tuer, ein hint-Pinsel (hint/skip) im linken Raum.
+void bsp6eKarteSchreiben() {
+    karte::Karte k;
+    k.klassen = &ke::editor().spiel->klassen;
+    auto welt = k.weltHolenOderAnlegen();
+    karte::TexturProjektion proj;
+    karte::texdefStandard(karte::TexdefArt::Quake, proj);
+    const auto quader = [&](const std::shared_ptr<karte::Entitaet>& wo, const karte::Vektor3f& mitte, const karte::Vektor3f& halb, const char* shader) {
+        auto p = std::make_shared<karte::Pinsel>();
+        p->quaderBauen(karte::Kasten(mitte, halb), shader, proj, k.kontext);
+        wo->kindEinfuegen(p);
+    };
+    const char* stein = "textures/yavin/temple_stone2";
+    quader(welt, karte::Vektor3f(0, 0, -8), karte::Vektor3f(528, 272, 8), stein);      // Boden
+    quader(welt, karte::Vektor3f(0, 0, 264), karte::Vektor3f(528, 272, 8), stein);     // Decke
+    quader(welt, karte::Vektor3f(-520, 0, 128), karte::Vektor3f(8, 264, 128), stein);  // Waende aussen
+    quader(welt, karte::Vektor3f(520, 0, 128), karte::Vektor3f(8, 264, 128), stein);
+    quader(welt, karte::Vektor3f(0, -264, 128), karte::Vektor3f(512, 8, 128), stein);
+    quader(welt, karte::Vektor3f(0, 264, 128), karte::Vektor3f(512, 8, 128), stein);
+    quader(welt, karte::Vektor3f(0, -160, 128), karte::Vektor3f(8, 96, 128), stein);   // Trennwand mit Tuer (y -64..64, z 0..128)
+    quader(welt, karte::Vektor3f(0, 160, 128), karte::Vektor3f(8, 96, 128), stein);
+    quader(welt, karte::Vektor3f(0, 0, 192), karte::Vektor3f(8, 64, 64), stein);
+    quader(welt, karte::Vektor3f(0, 0, 64), karte::Vektor3f(4, 64, 64), "textures/system/areaportal");   // in der Tuer
+    quader(welt, karte::Vektor3f(-256, 0, 128), karte::Vektor3f(4, 256, 128), "textures/system/hint");   // hint im linken Raum
+    quader(welt, karte::Vektor3f(256, 128, 128), karte::Vektor3f(4, 128, 128), "textures/system/skip");  // skip im rechten Raum
+    auto tuer = k.neueEntitaet("func_door", true);
+    k.entitaetEinfuegen(tuer);
+    quader(tuer, karte::Vektor3f(0, 0, 64), karte::Vektor3f(8, 64, 64), stein);
+    auto start = k.neueEntitaet("info_player_start", false);
+    start->setzen("origin", "-400 0 32");
+    k.entitaetEinfuegen(start);
+    (void)karte::karteSpeichern(bsp6eKarte(), k, false);
+}
+
+// bhed_q3map2 -meta (wie der Bau "-bsp" ohne -vis/-light)
+bool bsp6eBauen(const std::string& karte) {
+    std::string exe = platform::executableDirectory();
+    if (!exe.empty() && exe.back() != '/' && exe.back() != '\\') { exe += '\\'; }
+    exe += "bhed_q3map2.exe";
+    const std::string befehl = "\"" + exe + "\" -game ja -fs_basepath \"" + ke::enginePfadAnzeige() + "\" -fs_homepath \"\" -fs_game " + ke::bauSpielName() +
+                               " -meta \"" + karte + "\"";
+    bauplattform::Prozess p;
+    std::string fehler;
+    if (!p.starten(befehl, std::string(), false, fehler)) { return false; }
+    while (!p.warten(50)) {}
+    return true;
+}
+
+// Die Pinsel der offenen Karte mit diesen Shadern: wie viele, wie viele detail, Flaechen
+struct SystemPinsel {
+    int pinsel = 0;
+    int detail = 0;
+    int flaechen = 0;
+};
+std::map<std::string, SystemPinsel> systemPinselZaehlen() {
+    std::map<std::string, SystemPinsel> z;
+    for (const auto& ent : ke::editor().karte.entitaeten()) {
+        for (const auto& kind : ent->kinder()) {
+            const auto p = std::dynamic_pointer_cast<karte::Pinsel>(kind);
+            if (!p) { continue; }
+            std::set<std::string> drin;
+            for (const auto& f : p->flaechen()) {
+                for (const char* s : {"system/hint", "system/areaportal", "system/skip"}) {
+                    if (f->shader().find(s) != std::string::npos) {
+                        drin.insert(s);
+                        ++z[s].flaechen;
+                    }
+                }
+            }
+            for (const std::string& s : drin) {
+                ++z[s].pinsel;
+                if (p->istDetail()) { ++z[s].detail; }
+            }
+        }
+    }
+    return z;
+}
+
+std::string systemPinselText(const std::map<std::string, SystemPinsel>& z) {
+    std::string t;
+    for (const auto& [s, n] : z) {
+        t += " " + s + ": " + std::to_string(n.pinsel) + " Pinsel (" + std::to_string(n.flaechen) + " Flaechen), davon detail " + std::to_string(n.detail) + ";";
+    }
+    return t.empty() ? std::string(" keine") : t;
+}
+
+// Bildpunkte der Kamera, die nicht Hintergrund sind (16 x 12 Stichproben)
+int kameraGezeichnet() {
+    const ke::KameraFenster& f = ke::editor().kamFenster;
+    unsigned char h[4] = {0, 0, 0, 0};
+    if (!ke::kameraPixel(1, 1, h)) { return -1; }
+    int n = 0;
+    for (int y = 0; y < 12; ++y) {
+        for (int x = 0; x < 16; ++x) {
+            unsigned char c[4] = {0, 0, 0, 0};
+            if (!ke::kameraPixel((f.breite * (2 * x + 1)) / 32, (f.hoehe * (2 * y + 1)) / 24, c)) { continue; }
+            if (std::abs(c[0] - h[0]) + std::abs(c[1] - h[1]) + std::abs(c[2] - h[2]) > 6) { ++n; }
+        }
+    }
+    return n;
+}
+
+std::vector<Schritt> bsp6e() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    // 1. hint/areaportal/skip
+    add(tu("Stufe 7/6e: Testkarte mit hint, areaportal (Tuer) und skip, bhed_q3map2 -meta", [] {
+        karteDialogeZu();
+        stufe3::q3map2Bereitstellen();
+        bsp6eKarteSchreiben();
+        (void)bsp6eBauen(bsp6eKarte());
+    }));
+    add(tu("Stufe 7/6e: File > Open .bsp", [] { (void)ke::bspOeffnenDatei(karteTestPfad("s7e_hint.bsp")); }));
+    add({"Stufe 7/6e: .bsp geoeffnet", [](int b) { return b > 30; }});
+    add(pruefe("Stufe 7/6e: die .bsp enthaelt hint, areaportal und skip - alle structural (wie in der Quelle)", [] {
+        const auto z = systemPinselZaehlen();
+        diag::detail("Knopftest: Stufe 7/6e - Testkarte:" + systemPinselText(z));
+        int detail = 0;
+        for (const auto& [n, w] : z) { detail += w.detail; }
+        return z.count("system/hint") != 0U && z.count("system/areaportal") != 0U && z.count("system/skip") != 0U && detail == 0;
+    }));
+    if (const char* echt = std::getenv("BHED_S7E_BSP"); echt != nullptr && echt[0] != 0) {
+        const std::string pfad = echt;
+        add(tu("Stufe 7/6e: echte Karte des Testers oeffnen (" + pfad + ")", [pfad] { (void)ke::bspOeffnenDatei(pfad); }));
+        add({"Stufe 7/6e: echte Karte geoeffnet", [](int b) { return b > 30; }});
+        add(pruefe("Stufe 7/6e: echte Karte - hint 81, areaportal 15, skip 359 Flaechen wie in der Quelle, keine davon detail", [] {
+            const auto z = systemPinselZaehlen();
+            diag::detail("Knopftest: Stufe 7/6e - jeditemple_garden:" + systemPinselText(z));
+            int detail = 0;
+            for (const auto& [n, w] : z) { detail += w.detail; }
+            const auto fl = [&z](const char* k) { return z.count(k) != 0U ? z.at(k).flaechen : 0; };
+            return detail == 0 && fl("system/hint") == 81 && fl("system/areaportal") == 15 && fl("system/skip") == 359;
+        }));
+    }
+    add(tu("Stufe 7/6e: Testkarte wieder laden", [] { (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map")); }));
+    add(pause(0.3));
+    return s;
+}
+
+// 2. Kamera in einem Pinsel mit durchsichtigem Shader - wie NRC 20260114:
+// RENDER_CULLFACE ohne "cull", mit "cull back"; ohne bei "cull none/twosided/disable"
+// (renderstate.cpp:2001-2010, shaders.cpp:1247-1271), auch fuer qer_trans
+// (renderstate.cpp:2038-2048: nur Mischen und Sortierung kommen dazu).
+struct KameraFall6e {
+    std::string shader;
+    bool zweiseitig = false;
+};
+std::vector<KameraFall6e>& kameraFaelle6e() {
+    static std::vector<KameraFall6e> v;
+    return v;
+}
+
+void innenKarteSchreiben(const std::string& shader) {
+    karte::Karte k;
+    k.klassen = &ke::editor().spiel->klassen;
+    auto welt = k.weltHolenOderAnlegen();
+    karte::TexturProjektion proj;
+    karte::texdefStandard(karte::TexdefArt::Quake, proj);
+    auto p = std::make_shared<karte::Pinsel>();
+    p->quaderBauen(karte::Kasten(karte::Vektor3f(0, 0, 0), karte::Vektor3f(256, 256, 256)), shader, proj, k.kontext);
+    welt->kindEinfuegen(p);
+    (void)karte::karteSpeichern(karteTestPfad("s7e_innen.map"), k, false);
+}
+
+std::vector<Schritt> kamera6e() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(pruefe("Stufe 7/6e: durchsichtige Shader des Spiels gefunden (qer_trans ohne cull, qer_trans mit cull twosided/none/disable)", [] {
+        auto& v = kameraFaelle6e();
+        v.clear();
+        const ke::Editor& e = ke::editor();
+        std::string ohne;
+        std::string zwei;
+        for (const karte::ShaderEintrag* se : e.karteSpiel->inventar.shader()) {
+            if ((se->flags & karte::QER_TRANS) == 0U || (se->flags & (karte::QER_SKY | karte::QER_NODRAW)) != 0U) { continue; }
+            if (se->name.find("textures/") != 0 || se->name.find("textures/system/") == 0) { continue; }   // der Tester: kein system-Shader
+            if ((se->flags & karte::QER_ALPHATEST) != 0U) { continue; }   // ganz sichtbare Flaechen (keine ausgestanzten Blaetter)
+            const bool zweiseitig = (se->flags & karte::QER_CULL) != 0U && se->cull == 0;
+            const bool weg = (se->flags & karte::QER_CULL) == 0U;
+            if (weg && ohne.empty()) { ohne = se->name; }
+            if (zweiseitig && zwei.empty()) { zwei = se->name; }
+        }
+        if (!ohne.empty()) { v.push_back({ohne, false}); }
+        if (!zwei.empty()) { v.push_back({zwei, true}); }
+        v.push_back({"textures/yavin/temple_stone2", false});   // undurchsichtig, ohne Shader
+        diag::detail("Knopftest: Stufe 7/6e - Kamera innen: " + ohne + " (ohne cull), " + zwei + " (zweiseitig)");
+        return !ohne.empty() && !zwei.empty();
+    }));
+    for (int i = 0; i < 3; ++i) {
+        auto zahl = std::make_shared<int>(-1);
+        add(tu("Stufe 7/6e: Kamera in einem Pinsel, Fall " + std::to_string(i), [i] {
+            karteDialogeZu();
+            const auto& v = kameraFaelle6e();
+            if (i >= static_cast<int>(v.size())) { return; }
+            innenKarteSchreiben(v[static_cast<std::size_t>(i)].shader);
+            (void)ke::karteOeffnen(karteTestPfad("s7e_innen.map"));
+            ke::Editor& e = ke::editor();
+            e.kameraE.modus = karte::KameraModus::Textur;
+            e.echtLicht.an = false;
+            e.kamera.ursprung = karte::Vektor3f(0, 0, 0);
+            e.kamera.winkel = karte::Vektor3f(0, 45.0F, 0);
+        }));
+        add(warteBis("Stufe 7/6e: Bild des Shaders geladen, Fall " + std::to_string(i), [i] {
+            const auto& v = kameraFaelle6e();
+            return i >= static_cast<int>(v.size()) || ke::texturBild(v[static_cast<std::size_t>(i)].shader) != nullptr;
+        }, 600));
+        add(pause(0.5));
+        add(foto("karte7_innen_" + std::to_string(i)));
+        add(pruefe("Stufe 7/6e: Kamera innen, Fall " + std::to_string(i) + " - Rueckseiten nur bei cull twosided/none/disable (wie NRC)", [i] {
+            const auto& v = kameraFaelle6e();
+            if (i >= static_cast<int>(v.size())) { return false; }
+            const KameraFall6e& f = v[static_cast<std::size_t>(i)];
+            const int n = kameraGezeichnet();
+            diag::detail("Knopftest: Stufe 7/6e - Kamera in " + f.shader + (f.zweiseitig ? " (zweiseitig)" : " (Rueckseiten weg)") + ": " + std::to_string(n) +
+                         " von 192 Stichproben gezeichnet");
+            return f.zweiseitig ? n > 50 : n == 0;
+        }));
+    }
+    add(tu("Stufe 7/6e: Testkarte wieder laden", [] { (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map")); }));
+    add(pause(0.3));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     const char* nur = std::getenv("BHED_STUFE7_NUR");
@@ -1176,6 +1408,8 @@ std::vector<Schritt> schritte() {
     if (teil("gross")) { dazu(gross()); }
     if (teil("menue")) { dazu(menue()); }
     if (teil("maus")) { dazu(maus()); }
+    if (teil("bsp")) { dazu(bsp6e()); }
+    if (teil("innen")) { dazu(kamera6e()); }
     return s;
 }
 
