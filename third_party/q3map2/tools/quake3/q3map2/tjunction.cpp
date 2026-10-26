@@ -32,6 +32,7 @@
 #include "q3map2.h"
 #include "tjunction.h"
 #include <ranges>
+#include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, edge search in parallel */
 
 
 
@@ -163,6 +164,138 @@ static int AddEdge( bspDrawVert_t& dv1, bspDrawVert_t& dv2, bool createNonAxial 
 
 
 
+/* BehavEd stage 7 (speed, same result): AddEdge looks for the FIRST edge line both points lie on
+   - a walk over all lines for every edge (duel_mos_espa: 147000 lines, about 70 % of the whole
+   -bsp). The calls do not depend on each other's results (only on the vertices), so they are
+   queued in their order and done in batches: for every query of a batch the first matching line
+   among the lines that exist at the start of the batch is searched on all threads; then the batch
+   is applied serially in order exactly like AddEdge - a found line is the first match (lines are
+   never removed and keep their planes), otherwise only the lines created inside the batch are
+   searched, then a new line is made. */
+struct BhedKantenAnfrage
+{
+	bspDrawVert_t *dv1;
+	bspDrawVert_t *dv2;
+	bool createNonAxial;
+	bspDrawVert_t *ziel; /* bspDrawVert_edge_index_write( *ziel, result ), or nullptr */
+};
+static std::vector<BhedKantenAnfrage> g_bhedKanten;
+
+static void BhedKanteAnfragen( bspDrawVert_t& dv1, bspDrawVert_t& dv2, bool createNonAxial, bspDrawVert_t *ziel ){
+	g_bhedKanten.push_back( { &dv1, &dv2, createNonAxial, ziel } );
+}
+
+static bool BhedAufLinie( const edgeLine_t& e, const Vector3& v1, const Vector3& v2 ){
+	return !( !float_equal_epsilon( vector3_dot( v1, e.normal1 ), e.dist1, POINT_ON_LINE_EPSILON )
+	       || !float_equal_epsilon( vector3_dot( v1, e.normal2 ), e.dist2, POINT_ON_LINE_EPSILON )
+	       || !float_equal_epsilon( vector3_dot( v2, e.normal1 ), e.dist1, POINT_ON_LINE_EPSILON )
+	       || !float_equal_epsilon( vector3_dot( v2, e.normal2 ), e.dist2, POINT_ON_LINE_EPSILON ) );
+}
+
+static void BhedKantenAbarbeiten(){
+	constexpr size_t kStapel = 4096;
+	std::vector<int> art( kStapel );      /* 0 degenerate, 1 later as non-axial, 2 search */
+	std::vector<float> laenge( kStapel );
+	std::vector<Vector3> richtung( kStapel );
+	std::vector<long long> treffer( kStapel );
+	for ( size_t basis = 0; basis < g_bhedKanten.size(); basis += kStapel )
+	{
+		const size_t k = std::min( kStapel, g_bhedKanten.size() - basis );
+		const size_t vorher = edgeLines.size();
+		/* in parallel: the checks of AddEdge and the first matching line among the old lines */
+		bhed_par::pool( numthreads ).fuerAlle( int( ( k + 15 ) / 16 ), [&]( int block ){
+			const size_t ende = std::min( k, size_t( block ) * 16 + 16 );
+			for ( size_t q = size_t( block ) * 16; q < ende; ++q )
+			{
+				const BhedKantenAnfrage& a = g_bhedKanten[ basis + q ];
+				const Vector3& v1 = a.dv1->xyz;
+				const Vector3& v2 = a.dv2->xyz;
+				Vector3 dir = v2 - v1;
+				const float d = VectorNormalize( dir );
+				laenge[ q ] = d;
+				richtung[ q ] = dir;
+				treffer[ q ] = -1;
+				if ( d < 0.1 ) {
+					art[ q ] = 0;
+					continue;
+				}
+				if ( !a.createNonAxial && std::fabs( dir[0] + dir[1] + dir[2] ) != 1 ) {
+					art[ q ] = 1;
+					continue;
+				}
+				art[ q ] = 2;
+				for ( size_t i = 0; i < vorher; ++i )
+				{
+					if ( BhedAufLinie( edgeLines[ i ], v1, v2 ) ) {
+						treffer[ q ] = (long long)i;
+						break;
+					}
+				}
+			}
+		} );
+		/* in order, exactly like AddEdge */
+		for ( size_t q = 0; q < k; ++q )
+		{
+			const BhedKantenAnfrage& a = g_bhedKanten[ basis + q ];
+			const Vector3& v1 = a.dv1->xyz;
+			const Vector3& v2 = a.dv2->xyz;
+			int ergebnis;
+			if ( art[ q ] == 0 ) {
+				// if we added a 0 length vector, it would make degenerate planes
+				c_degenerateEdges++;
+				ergebnis = -1;
+			}
+			else if ( art[ q ] == 1 ) {
+				originalEdges.push_back( originalEdge_t{ .length = laenge[ q ], .dv1 = a.dv1, .dv2 = a.dv2 } );
+				ergebnis = -1;
+			}
+			else
+			{
+				long long i = treffer[ q ];
+				if ( i < 0 ) {
+					for ( size_t j = vorher; j < edgeLines.size(); ++j )
+					{
+						if ( BhedAufLinie( edgeLines[ j ], v1, v2 ) ) {
+							i = (long long)j;
+							break;
+						}
+					}
+				}
+				if ( i >= 0 ) {
+					// this is the edge
+					edgeLine_t& e = edgeLines[ i ];
+					InsertPointOnEdge( v1, e );
+					InsertPointOnEdge( v2, e );
+					ergebnis = int( i );
+				}
+				else
+				{
+					// create a new edge
+					edgeLine_t& e = edgeLines.emplace_back();
+
+					e.origin = v1;
+					e.dir = richtung[ q ];
+
+					MakeNormalVectors( e.dir, e.normal1, e.normal2 );
+					e.dist1 = vector3_dot( e.origin, e.normal1 );
+					e.dist2 = vector3_dot( e.origin, e.normal2 );
+
+					InsertPointOnEdge( v1, e );
+					InsertPointOnEdge( v2, e );
+
+					ergebnis = int( edgeLines.size() - 1 );
+				}
+			}
+			if ( a.ziel != nullptr ) {
+				bspDrawVert_edge_index_write( *a.ziel, ergebnis );
+			}
+		}
+	}
+	g_bhedKanten.clear();
+}
+
+
+
 /*
    AddSurfaceEdges()
    adds a surface's edges
@@ -172,7 +305,7 @@ static void AddSurfaceEdges( mapDrawSurface_t& ds ){
 	for ( auto prev = ds.verts.end() - 1, next = ds.verts.begin(); next != ds.verts.end(); prev = next++ )
 	{
 		/* save the edge number in the lightmap field so we don't need to look it up again */
-		bspDrawVert_edge_index_write( *prev, AddEdge( *prev, *next, false ) );
+		BhedKanteAnfragen( *prev, *next, false, &*prev ); /* BehavEd stage 7: was bspDrawVert_edge_index_write( *prev, AddEdge( *prev, *next, false ) ) */
 	}
 }
 
@@ -216,7 +349,7 @@ static void AddPatchEdges( mapDrawSurface_t& ds ) {
 
 			// if v2 is the midpoint of v1 to v3, add an edge from v1 to v3
 			if ( ColinearEdge( v1.xyz, v2.xyz, v3.xyz ) ) {
-				AddEdge( v1, v3, false );
+				BhedKanteAnfragen( v1, v3, false, nullptr ); /* BehavEd stage 7: was AddEdge( v1, v3, false ) */
 			}
 		}
 		{
@@ -226,7 +359,7 @@ static void AddPatchEdges( mapDrawSurface_t& ds ) {
 
 			// if v2 is on the v1 to v3 line, add an edge from v1 to v3
 			if ( ColinearEdge( v1.xyz, v2.xyz, v3.xyz ) ) {
-				AddEdge( v1, v3, false );
+				BhedKanteAnfragen( v1, v3, false, nullptr ); /* BehavEd stage 7: was AddEdge( v1, v3, false ) */
 			}
 		}
 	}
@@ -239,7 +372,7 @@ static void AddPatchEdges( mapDrawSurface_t& ds ) {
 
 			// if v2 is the midpoint of v1 to v3, add an edge from v1 to v3
 			if ( ColinearEdge( v1.xyz, v2.xyz, v3.xyz ) ) {
-				AddEdge( v1, v3, false );
+				BhedKanteAnfragen( v1, v3, false, nullptr ); /* BehavEd stage 7: was AddEdge( v1, v3, false ) */
 			}
 		}
 		{
@@ -249,7 +382,7 @@ static void AddPatchEdges( mapDrawSurface_t& ds ) {
 
 			// if v2 is the midpoint of v1 to v3, add an edge from v1 to v3
 			if ( ColinearEdge( v1.xyz, v2.xyz, v3.xyz ) ) {
-				AddEdge( v1, v3, false );
+				BhedKanteAnfragen( v1, v3, false, nullptr ); /* BehavEd stage 7: was AddEdge( v1, v3, false ) */
 			}
 		}
 	}
@@ -493,6 +626,7 @@ void FixTJunctions( const entity_t& ent ){
 
 	/* note it */
 	Sys_FPrintf( SYS_VRB, "--- FixTJunctions ---\n" );
+	BhedZeit( "bsp: vor FixTJunctions" ); /* BehavEd stage 7: section times, see q3map2.h */
 
 	// add all the edges
 	// this actually creates axial edges, but it
@@ -525,6 +659,7 @@ void FixTJunctions( const entity_t& ent ){
 		}
 	}
 
+	BhedKantenAbarbeiten(); /* BehavEd stage 7: the queued AddEdge calls */
 	const size_t axialEdgeLines = edgeLines.size();
 
 	// sort the non-axial edges by length
@@ -533,8 +668,10 @@ void FixTJunctions( const entity_t& ent ){
 	// add the non-axial edges, longest first
 	// this gives the most accurate edge description
 	for ( originalEdge_t& e : originalEdges ) { // originalEdges might not change during AddEdge( true )
-		bspDrawVert_edge_index_write( *e.dv1, AddEdge( *e.dv1, *e.dv2, true ) );
+		BhedKanteAnfragen( *e.dv1, *e.dv2, true, e.dv1 ); /* BehavEd stage 7: was bspDrawVert_edge_index_write( *e.dv1, AddEdge( *e.dv1, *e.dv2, true ) ) */
 	}
+	BhedKantenAbarbeiten();
+	BhedZeit( "bsp: FixTJunctions Kanten" );
 	originalEdges.clear();
 
 	Sys_FPrintf( SYS_VRB, "%9zu axial edge lines\n", axialEdgeLines );

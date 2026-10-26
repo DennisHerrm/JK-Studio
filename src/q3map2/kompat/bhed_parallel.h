@@ -20,6 +20,7 @@
 
 #include <immintrin.h>
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <functional>
@@ -126,7 +127,11 @@ private:
 
 // Der Pool des Prozesses (q3map2: numthreads Faeden). Nie zerstoert - q3map2
 // kann aus jedem Faden heraus exit() rufen; der Prozess endet mit dem Bau.
+// faeden = -1 (q3map2 hat numthreads noch nicht gesetzt, -bsp ruft
+// ThreadSetDefault erst beim ersten RunThreadsOn): so viele wie Kerne, wie
+// ThreadSetDefault es setzen wird (ohne dessen Ausgabe vorzuziehen).
 inline Pool& pool(int faeden) {
+    if (faeden == -1) { faeden = static_cast<int>(std::max(std::thread::hardware_concurrency(), 1U)); }
     static Pool* p = new Pool(faeden < 1 ? 1 : faeden);
     return *p;
 }
