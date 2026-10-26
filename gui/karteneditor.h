@@ -1476,7 +1476,31 @@ struct BspRueckStand {
 void bspRueckStarten(const std::string& bspDaten, const std::string& ordner, const std::string& stamm, const std::string& karteDatei);
 void bspRueckAbbrechen();
 void bspRueckBeenden();
-void bspRueckSchritt();   // jedes Bild: Ergebnis uebernehmen, Fortschritt zeigen                 // Build > Update entities only
+void bspRueckSchritt();   // jedes Bild: Ergebnis uebernehmen, Fortschritt zeigen
+// Stufe 8a Punkt 5c: eine fertige .bsp als Vorlage (gezeichnet in Kamera und 2D, nicht bearbeitbar)
+bool vorlageLaden(const std::string& bytes, const std::string& pfad, std::string* fehlerText = nullptr);
+void vorlageEntfernen();
+[[nodiscard]] bool vorlageAktiv();
+[[nodiscard]] const std::string& vorlagePfad();
+[[nodiscard]] const std::vector<karte::Linie>& vorlageLinien();
+[[nodiscard]] std::size_t vorlageStand();
+bool vorlageZeichnen(const float* matrix);
+// Stufe 8a Punkt 5c: der Dialog "Zur fertigen Karte hinzufuegen"
+void zusammenDialogOeffnen();
+void zusammenDialogZeichnen();
+struct ZusammenStand {
+    int stand = 0;           // 0 nichts, 1 baut, 2 fertig, 3 Fehler
+    std::string ergebnis;    // die zusammengefuehrte .bsp
+    std::vector<std::string> befunde;   // Pruefungen (Text)
+    int fehler = 0;
+    int kollisionGesamt = 0;
+    int kollisionStoppen = 0;
+    bool kollisionGeladen = false;
+    int grenzenUeber = 0;
+};
+[[nodiscard]] const ZusammenStand& zusammenStand();
+void zusammenVorlageWaehlenDatei(const std::string& pfad);   // fuer den Selbsttest ohne Dateidialog
+void zusammenStarten(int ebene);                 // Build > Update entities only
 void bauSchritt();                     // CWatchBSP::RoutineProcessing (jedes Bild, auch ausserhalb des Editors)
 [[nodiscard]] bool bauLaeuft();        // ein Bauen laeuft (Bilder weiter zeichnen)
 void bauAbbrechen();                   // Abweichung: Bauen abbrechen

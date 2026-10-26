@@ -681,6 +681,16 @@ void xyZeichnen(int index) {
         }
         kartegpu::zeichnen(raster.linien, &mvp[0], 1.0F);
         kartegpu::zeichnen(raster.linien2, &mvp[0], 2.0F);
+        // Stufe 8a Punkt 5c: die Kanten der Vorlage (eine fertige .bsp) unter der Karte
+        {
+            static kartegpu::Puffer vorlagePuffer;
+            static std::size_t vorlageGesetzt = static_cast<std::size_t>(-1);
+            if (vorlageGesetzt != vorlageStand()) {
+                vorlagePuffer.setzen(vorlageLinien());
+                vorlageGesetzt = vorlageStand();
+            }
+            if (vorlageAktiv()) { kartegpu::zeichnen(vorlagePuffer, &mvp[0], 1.0F); }
+        }
         kartegpu::zeichnen(s.gpuGeo, &mvp[0], 1.0F);
         kartegpu::zeichnen(s.gpuWelt, &mvp[0], 1.0F);
         kartegpu::zeichnen(leckLinien, &mvp[0], 4.0F);

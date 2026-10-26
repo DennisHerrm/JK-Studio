@@ -513,6 +513,136 @@ std::vector<Schritt> lichter() {
     return s;
 }
 
+
+// --- Punkt 5: Teil-Kompilierungen ----------------------------------------------------------
+//
+// a/b) Build > "VIS wiederverwenden" und "Licht wiederverwenden": die Testkarte bauen, ein
+// Licht verschieben (nur eine Entity), wieder bauen - die Sichtbarkeit kommt aus dem Cache,
+// ein Teil der Lightmaps auch; danach nur -light mit anderem -gamma: alles aus dem Cache.
+// (Byte-Gleichheit gegen den vollen Bau: ctest q3map2_teilbau.)
+// c) "Zur fertigen Karte hinzufuegen": die gebaute Testkarte als Vorlage, eine Saeule in
+// einer eigenen Ebene, gebaut und eingefuegt; die Saeule stoppt den Spieler im CM-Port,
+// keine Grenze ueberschritten.
+std::vector<Schritt> teilbau() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("Stufe 8/5: Testkarte, VIS und Licht wiederverwenden an (Build-Menue), Eintrag Test Teilbau", [] {
+        karteDialogeZu();
+        q3map2Bereitstellen();
+        ke::bauMenueSicherstellen();
+        ke::Editor& e = ke::editor();
+        e.bau = ke::Editor::BauEinstellungen{};
+        e.bspRueck = ke::Editor::BspRueckEinstellungen{};
+        ke::einstellungenSpeichern();
+        edKarteSchreiben();
+        (void)ke::karteOeffnen(edKarte());
+        std::error_code ec;
+        for (const char* x : {".bsp", ".prt", ".srf", ".bhed", ".bhedvis", ".bhedlight"}) { std::filesystem::remove(std::filesystem::path(edStamm() + x), ec); }
+        e.bauProjekt.eintraege.push_back(karte::BauEintrag{
+            "Test Teilbau", {"[q3map2] -meta \"[MapFile]\"", "[q3map2] -vis -threads 1 \"[MapFile]\"", "[q3map2] -light -fast \"[MapFile]\""}});
+        e.bauProjekt.eintraege.push_back(karte::BauEintrag{"Test Teilbau Licht", {"[q3map2] -light -fast -gamma 0.8 \"[MapFile]\""}});
+        ke::konsoleLeeren();
+    }));
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.25));
+    add(klick(ke::trK(Str::KeTkVis), "##Menu_", 0, false));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.25));
+    add(klick(ke::trK(Str::KeTkLicht), "##Menu_", 0, false));
+    add(pause(0.2));
+    add(pruefe("Build > Teil-Kompilierung: VIS und Licht wiederverwenden an, gespeichert", [] {
+        return ke::editor().bau.visWieder && ke::editor().bau.lichtWieder && g_app->settings.karte["BhedVisReuse"] == "1" &&
+               g_app->settings.karte["BhedLightReuse"] == "1";
+    }));
+    add(bauMenuepunkt("Test Teilbau"));
+    add(warteSek("erster Bau fertig", [] { return !ke::bauLaeuft(); }, 300));
+    add(pruefe("erster Bau: -bhedvisreuse und -bhedlightcache in den Befehlen, Caches geschrieben", [] {
+        const std::string k = konsoleText();
+        return k.find("-vis -threads 1 -bhedvisreuse \"") != std::string::npos && k.find("-light -fast -bhedlightcache \"") != std::string::npos &&
+               istDatei(edStamm() + ".bhedvis") && istDatei(edStamm() + ".bhedlight");
+    }));
+    add(tu("ein Licht verschieben (256 0 96 -> 256 64 96), speichern, Konsole leeren", [] {
+        karte::Karte& k = ke::editor().karte;
+        k.undo.start();   // mit Rueckgaengig: die Karte gilt als geaendert und wird gespeichert
+        for (const auto& en : k.entitaeten()) {
+            if (en->klassenname() == "light" && en->wert("origin") == "256 0 96") { en->setzen("origin", "256 64 96"); }
+        }
+        k.undo.finish("Stufe 8 test: move light");
+        (void)ke::karteSpeichern();
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Test Teilbau"));
+    add(warteSek("zweiter Bau fertig", [] { return !ke::bauLaeuft(); }, 300));
+    add(pruefe("nach einer Entity-Aenderung: Sichtbarkeit wiederverwendet, ein Teil der Lightmaps aus dem Cache", [] {
+        const std::string k = konsoleText();
+        const std::size_t p = k.find("light cache: ");
+        diag::detail("Knopftest: Stufe 8/5 " + (p == std::string::npos ? std::string("-") : k.substr(p, 120)));
+        int aus = -1;
+        int alle = -1;
+        if (p != std::string::npos) { (void)std::sscanf(k.c_str() + p, "light cache: %d of %d", &aus, &alle); }
+        return k.find("visibility reused") != std::string::npos && aus > 0 && aus < alle;
+    }));
+    add(tu("Konsole leeren", [] { ke::konsoleLeeren(); }));
+    add(bauMenuepunkt("Test Teilbau Licht"));
+    add(warteSek("nur -light mit -gamma 0.8 fertig", [] { return !ke::bauLaeuft(); }, 300));
+    add(pruefe("nur die Nachbearbeitung geaendert (-gamma 0.8): alle Lightmaps und das Gitter aus dem Cache", [] {
+        const std::string k = konsoleText();
+        const std::size_t p = k.find("light cache: ");
+        int aus = -1;
+        int alle = -2;
+        if (p != std::string::npos) { (void)std::sscanf(k.c_str() + p, "light cache: %d of %d", &aus, &alle); }
+        return aus == alle && k.find("grid from the cache") != std::string::npos;
+    }));
+    // c) Zur fertigen Karte hinzufuegen
+    auto ebene = std::make_shared<int>(-1);
+    add(tu("Zur fertigen Karte hinzufuegen: Ebene \"Neu\" mit einer Saeule (32 -160 0 .. 96 -96 128), Vorlage = die gebaute Testkarte", [ebene] {
+        ke::Editor& e = ke::editor();
+        karte::Karte& k = e.karte;
+        const std::size_t vorher = k.aktuelleSchicht;
+        (void)karte::ebeneNeu(k, -1, "Neu", ebene.get());
+        k.aktuelleSchicht = vorher;
+        karte::TexturProjektion proj;
+        karte::texdefStandard(karte::TexdefArt::Quake, proj);
+        auto p = std::make_shared<karte::Pinsel>();
+        p->quaderBauen(karte::Kasten(karte::Vektor3f(64, -128, 64), karte::Vektor3f(32, 32, 64)), "textures/yavin/temple_stone2", proj, k.kontext);
+        p->schicht = *ebene;
+        k.weltHolenOderAnlegen()->kindEinfuegen(p);
+        ke::zusammenDialogOeffnen();
+        ke::zusammenVorlageWaehlenDatei(edStamm() + ".bsp");
+        ke::editor().kamera.ursprung = karte::Vektor3f(-300, -300, 200);
+        ke::editor().kamera.winkel = karte::Vektor3f(-20.0F, 45.0F, 0.0F);
+        ++e.sichtStand;
+    }));
+    add(pause(1.0));
+    add(pruefe("Vorlage geladen: aktiv, Kanten fuer 2D", [] { return ke::vorlageAktiv() && !ke::vorlageLinien().empty(); }));
+    add(foto("karteneditor_s8_zusammen_vorlage"));
+    add(tu("Bauen und hinzufuegen", [ebene] {
+        ke::konsoleLeeren();
+        ke::zusammenStarten(*ebene);
+    }));
+    add(warteSek("zusammengefuehrt", [] { return ke::zusammenStand().stand == 2 || ke::zusammenStand().stand == 3; }, 300));
+    add(pruefe("zusammengefuehrt: <karte>_merged.bsp, laedt im CM-Port, die Saeule stoppt den Spieler, keine Grenze ueber, keine Fehler", [] {
+        const ke::ZusammenStand& z = ke::zusammenStand();
+        std::string b;
+        for (const std::string& x : z.befunde) { b += " | " + x; }
+        diag::detail("Knopftest: Stufe 8/5c Stand " + std::to_string(z.stand) + ", Kollision " + std::to_string(z.kollisionStoppen) + "/" +
+                     std::to_string(z.kollisionGesamt) + ", Grenzen ueber " + std::to_string(z.grenzenUeber) + ", " + z.ergebnis + b);
+        return z.stand == 2 && istDatei(z.ergebnis) && z.kollisionGeladen && z.kollisionGesamt >= 1 && z.kollisionStoppen == z.kollisionGesamt &&
+               z.grenzenUeber == 0 && z.fehler == 0;
+    }));
+    add(foto("karteneditor_s8_zusammen_fertig"));
+    add(tu("Vorlage entfernen, Optionen zurueck, Eintraege weg", [] {
+        ke::vorlageEntfernen();
+        ke::Editor& e = ke::editor();
+        e.bau = ke::Editor::BauEinstellungen{};
+        ke::einstellungenSpeichern();
+        auto& v = e.bauProjekt.eintraege;
+        v.erase(std::remove_if(v.begin(), v.end(), [](const karte::BauEintrag& b) { return b.name.rfind("Test Teilbau", 0) == 0; }), v.end());
+    }));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     const char* nur = std::getenv("BHED_STUFE8_NUR");
@@ -524,6 +654,7 @@ std::vector<Schritt> schritte() {
     if (teil("editordaten")) { dazu(editordaten()); }
     if (teil("modelle")) { dazu(modelle()); }
     if (teil("lichter")) { dazu(lichter()); }
+    if (teil("teilbau")) { dazu(teilbau()); }
     return s;
 }
 

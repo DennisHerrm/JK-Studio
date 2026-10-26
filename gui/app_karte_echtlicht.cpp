@@ -43,6 +43,7 @@
 #include <memory>
 #include <mutex>
 #include <sstream>
+#include <set>
 #include <thread>
 
 namespace bhed::gui::karteneditor {
@@ -366,12 +367,8 @@ void schnellBauStarten(std::size_t kartenStand) {
     });
 }
 
-void ergebnisUebernehmen() {
-    std::unique_ptr<Ergebnis> r;
-    {
-        std::lock_guard<std::mutex> l(g_backen.mutex);
-        r = std::move(g_backen.ergebnis);
-    }
+// Ein gebautes Netz auf die Grafikkarte (Schnell-Backen, Stufe 8a: die Vorlage)
+void netzUebernehmen(Gebacken& g_gebacken, std::unique_ptr<Ergebnis> r) {
     if (!r) { return; }
     g_gebacken.leeren();
     std::vector<kartegpu::GebackenPunkt> punkte;
@@ -398,6 +395,22 @@ void ergebnisUebernehmen() {
     }
     g_gebacken.geraet = kartegpu::geraetStand();
 }
+
+void ergebnisUebernehmen() {
+    std::unique_ptr<Ergebnis> r;
+    {
+        std::lock_guard<std::mutex> l(g_backen.mutex);
+        r = std::move(g_backen.ergebnis);
+    }
+    netzUebernehmen(g_gebacken, std::move(r));
+}
+
+// Stufe 8a Punkt 5c: die Vorlage - eine fertige .bsp, gezeichnet und nicht bearbeitbar
+Gebacken& g_vorlage = *new Gebacken;
+std::unique_ptr<Ergebnis> g_vorlageWartet;          // gelesen, noch nicht auf der Grafikkarte
+std::vector<karte::Linie> g_vorlageLinien;          // Kanten fuer die 2D-Ansichten
+std::size_t g_vorlageStand = 0;
+std::string g_vorlagePfad;
 
 }  // namespace
 
@@ -560,6 +573,70 @@ void echtLichtSchritt(std::size_t kartenStand) {
 
 void echtLichtBeenden() {
     fadenAbwarten();   // die Grafik-Teile bleiben (das Geraet kann schon weg sein)
+}
+
+bool vorlageLaden(const std::string& bytes, const std::string& pfad, std::string* fehlerText) {
+    auto r = std::make_unique<Ergebnis>();
+    std::string f;
+    if (!readBspGeometry(bytes, r->geo, &f)) {
+        if (fehlerText != nullptr) { *fehlerText = f; }
+        return false;
+    }
+    r->netz = buildMesh(r->geo, 4, true);
+    // Kanten (je Dreieck drei, doppelte einmal) fuer die 2D-Ansichten
+    g_vorlageLinien.clear();
+    std::set<std::pair<std::uint32_t, std::uint32_t>> schon;
+    const karte::Farbe grau = 0xFF707070U;
+    for (std::size_t i = 0; i + 2 < r->netz.indexes.size(); i += 3) {
+        for (int k = 0; k < 3; ++k) {
+            const std::uint32_t a = r->netz.indexes[i + static_cast<std::size_t>(k)];
+            const std::uint32_t b = r->netz.indexes[i + static_cast<std::size_t>((k + 1) % 3)];
+            if (a >= r->netz.verts.size() || b >= r->netz.verts.size() || !schon.insert({std::min(a, b), std::max(a, b)}).second) { continue; }
+            const BspVertex& va = r->netz.verts[a];
+            const BspVertex& vb = r->netz.verts[b];
+            g_vorlageLinien.push_back({Vektor3f(va.xyz[0], va.xyz[1], va.xyz[2]), Vektor3f(vb.xyz[0], vb.xyz[1], vb.xyz[2]), grau});
+        }
+    }
+    g_vorlageWartet = std::move(r);
+    g_vorlagePfad = pfad;
+    ++g_vorlageStand;
+    ++ed().sichtStand;
+    return true;
+}
+
+void vorlageEntfernen() {
+    g_vorlage.leeren();
+    g_vorlageWartet.reset();
+    g_vorlageLinien.clear();
+    g_vorlagePfad.clear();
+    ++g_vorlageStand;
+    ++ed().sichtStand;
+}
+
+bool vorlageAktiv() { return !g_vorlagePfad.empty(); }
+const std::string& vorlagePfad() { return g_vorlagePfad; }
+const std::vector<karte::Linie>& vorlageLinien() { return g_vorlageLinien; }
+std::size_t vorlageStand() { return g_vorlageStand; }
+
+bool vorlageZeichnen(const float* matrix) {
+    if (g_vorlageWartet) { netzUebernehmen(g_vorlage, std::move(g_vorlageWartet)); }
+    if (!vorlageAktiv() || !g_vorlage.netz.gueltig()) { return false; }
+    for (const Gebacken::Teil& t : g_vorlage.teile) {
+        kartegpu::Zustand3 z;
+        z.matrix = matrix;
+        z.wegschneiden = true;
+        float rgb[3] = {1, 1, 1};
+        void* bild = kameraTexturBild(t.shader);
+        if (bild == nullptr && kameraTexturFarbe(t.shader, rgb)) {
+            z.farbe[0] = rgb[0];
+            z.farbe[1] = rgb[1];
+            z.farbe[2] = rgb[2];
+        }
+        z.bild = bild;
+        void* lm = (t.lightmap >= 0 && static_cast<std::size_t>(t.lightmap) < g_vorlage.lightmaps.size()) ? g_vorlage.lightmaps[static_cast<std::size_t>(t.lightmap)] : nullptr;
+        kartegpu::gebackenZeichnen(g_vorlage.netz, t.erster, t.anzahl, lm, z);
+    }
+    return true;
 }
 
 bool gebackenZeichnen(const float* matrix) {

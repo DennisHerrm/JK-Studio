@@ -320,6 +320,13 @@ void bauMenueEintraegeZeichnen() {
         ed.bau.lichtWieder = !ed.bau.lichtWieder;
         einstellungenSpeichern();
     }
+    // Stufe 8a Punkt 5c (Abweichung, eigene Funktion): Zur fertigen Karte hinzufuegen (-mergebsp)
+    const std::string zf = std::string(trK(Str::KeZfMenue)) + "##bauzusammen";
+    QtPunkt zp;
+    zp.id = zf.c_str();
+    zp.aktiv = !bauLaeuft();
+    zp.tooltip = trK(Str::KeZfMenueTip);
+    if (qtPunkt(zp)) { zusammenDialogOeffnen(); }
     // Stufe 8a Punkt 1 (Abweichung, eigene Funktion): melden, wenn ein Bau fertig ist
     const std::string melden = std::string(trK(Str::KeFsMelden)) + "##baumelden";
     QtPunkt m;

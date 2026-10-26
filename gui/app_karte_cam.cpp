@@ -1241,6 +1241,7 @@ void kameraZeichnen() {
             }
         }
         if (gebacken && fuellen) { (void)gebackenZeichnen(&vp[0]); }
+        if (fuellen) { (void)vorlageZeichnen(&vp[0]); }   // Stufe 8a Punkt 5c: die fertige Karte als Vorlage
         // Stufe 3 Punkt 5: CPointfile ($POINTFILE, eSortFullbright: Tiefe testen und schreiben)
         punktdateiKameraZeichnen(&vp[0]);
         pluginKameraVoll(&vp[0], fuellen);   // Stufe 4 Punkt 3: DBobView (eSortFullbright)
