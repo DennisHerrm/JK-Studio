@@ -34,6 +34,7 @@
 #include <functional>
 #include <list>
 #include <map>
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -48,6 +49,11 @@ public:
 class Rueckgaengig;
 
 // Undoable
+// Stufe 7: wie viele Rueckgaengigbar-Objekte (Entitaeten, Primitive, ...) bisher
+// zerstoert wurden. Mit jedem laeuft ein weak_ptr ab - die Auswahl erneuert ihren
+// Zwischenspeicher, wenn sich die Zahl geaendert hat (Auswahl::gewaehlt).
+[[nodiscard]] std::uint64_t objekteZerstoert();
+
 class Rueckgaengigbar : public std::enable_shared_from_this<Rueckgaengigbar> {
 public:
     virtual ~Rueckgaengigbar();

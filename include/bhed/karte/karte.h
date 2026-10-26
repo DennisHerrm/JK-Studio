@@ -40,6 +40,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <unordered_map>
 #include <vector>
 
 namespace bhed::karte {
@@ -149,6 +150,26 @@ public:
 private:
     std::vector<AuswahlElement> m_elemente;
     std::vector<FlaechenWahl> m_flaechen;
+    // Stufe 7: gewaehlt() war eine Suche durch alle Elemente mit weak_ptr::lock -
+    // die Ansichten fragen jedes Primitiv, also quadratisch bei grossen Auswahlen.
+    // Der Zwischenspeicher haelt je (lock(entitaet), lock(primitiv)) die Zahl der
+    // Elemente, also genau das, was die Suche vergleicht. Er gilt, solange sich
+    // die Elemente nicht geaendert haben (m_speicherGueltig) und kein Objekt
+    // zerstoert wurde (objekteZerstoert(): sonst kann ein lock() leer geworden sein).
+    struct SpeicherSchluessel {
+        const void* e;
+        const void* p;
+        bool operator==(const SpeicherSchluessel& o) const { return e == o.e && p == o.p; }
+    };
+    struct SpeicherStreuung {
+        std::size_t operator()(const SpeicherSchluessel& s) const {
+            return std::hash<const void*>{}(s.e) * 31U ^ std::hash<const void*>{}(s.p);
+        }
+    };
+    mutable std::unordered_map<SpeicherSchluessel, int, SpeicherStreuung> m_speicher;
+    mutable bool m_speicherGueltig = false;
+    mutable std::uint64_t m_speicherStand = 0;
+    void speicherUngueltig() { m_speicherGueltig = false; }
 };
 
 // Die Liste der Entitaeten (Wurzelknoten der Karte, TraversableNodeSet).

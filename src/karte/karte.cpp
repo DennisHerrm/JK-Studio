@@ -185,9 +185,13 @@ void EntitaetenListe::anmeldenMitAllem(Rueckgaengig* u) {
 void Auswahl::waehlen(const std::shared_ptr<Entitaet>& e, const std::shared_ptr<Primitiv>& p) {
     if (gewaehlt(e.get(), p.get())) { return; }
     m_elemente.push_back(AuswahlElement{e, p});
+    // der Zwischenspeicher ist nach gewaehlt() aktuell: das neue Element dazuzaehlen
+    // (lock() ergibt e und p, beide leben) - Schleifen von waehlen() bleiben linear
+    ++m_speicher[SpeicherSchluessel{e.get(), p.get()}];
 }
 
 void Auswahl::abwaehlen(const std::shared_ptr<Entitaet>& e, const std::shared_ptr<Primitiv>& p) {
+    speicherUngueltig();
     m_elemente.erase(std::remove_if(m_elemente.begin(), m_elemente.end(),
                                     [&](const AuswahlElement& a) {
                                         return a.entitaet.lock() == e && a.primitiv.lock() == p;
@@ -204,6 +208,7 @@ void Auswahl::umschalten(const std::shared_ptr<Entitaet>& e, const std::shared_p
 }
 
 void Auswahl::umschaltenAlle(const std::vector<std::pair<std::shared_ptr<Entitaet>, std::shared_ptr<Primitiv>>>& paare) {
+    speicherUngueltig();
     // umschalten() je Paar: gewaehlt (ein Element mit lock() == Paar) -> alle solchen
     // Elemente entfernen, sonst hinten anfuegen. Die Paare der Liste sind verschieden,
     // also sieht kein Paar ein Element, das ein anderes angefuegt hat - es zaehlt nur,
@@ -246,9 +251,14 @@ void Auswahl::umschaltenAlle(const std::vector<std::pair<std::shared_ptr<Entitae
 }
 
 bool Auswahl::gewaehlt(const Entitaet* e, const Primitiv* p) const {
-    return std::any_of(m_elemente.begin(), m_elemente.end(), [&](const AuswahlElement& a) {
-        return a.entitaet.lock().get() == e && a.primitiv.lock().get() == p;
-    });
+    // = any_of( m_elemente, lock(entitaet) == e && lock(primitiv) == p ), siehe karte.h
+    if (!m_speicherGueltig || m_speicherStand != objekteZerstoert()) {
+        m_speicher.clear();
+        for (const AuswahlElement& a : m_elemente) { ++m_speicher[SpeicherSchluessel{a.entitaet.lock().get(), a.primitiv.lock().get()}]; }
+        m_speicherGueltig = true;
+        m_speicherStand = objekteZerstoert();
+    }
+    return m_speicher.count(SpeicherSchluessel{e, p}) != 0;
 }
 
 void Auswahl::flaecheWaehlen(const std::shared_ptr<Pinsel>& pinsel, const std::shared_ptr<Flaeche>& f) {
@@ -267,6 +277,7 @@ bool Auswahl::flaecheGewaehlt(const Flaeche* f) const {
 }
 
 void Auswahl::leeren() {
+    speicherUngueltig();
     m_elemente.clear();
     m_flaechen.clear();
 }
@@ -274,6 +285,7 @@ void Auswahl::leeren() {
 void Auswahl::flaechenLeeren() { m_flaechen.clear(); }
 
 void Auswahl::entfernenWenn(const std::function<bool(const AuswahlElement&)>& weg) {
+    speicherUngueltig();
     m_elemente.erase(std::remove_if(m_elemente.begin(), m_elemente.end(), weg), m_elemente.end());
 }
 
@@ -309,6 +321,7 @@ void Karte::auswahlBereinigen() {
 }
 
 void Auswahl::aufraeumen() {
+    speicherUngueltig();
     // ein weak_ptr, der nie gesetzt war, hat keinen Besitzer
     auto gesetzt = [](const std::weak_ptr<Primitiv>& w) {
         return w.owner_before(std::weak_ptr<Primitiv>{}) || std::weak_ptr<Primitiv>{}.owner_before(w);

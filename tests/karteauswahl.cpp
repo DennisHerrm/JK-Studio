@@ -235,11 +235,52 @@ void umschaltenAlleGleich() {
     pruefe(runden == 40, "umschaltenAlle = umschalten je Paar (" + std::to_string(runden) + " von 40 Runden gleich)");
 }
 
+// Stufe 7: gewaehlt() mit Zwischenspeicher = die Suche durch alle Elemente (lock()),
+// auch nachdem gewaehlte Objekte zerstoert wurden (ohne Aenderung der Auswahl).
+void gewaehltGleichSuche() {
+    Karte k;
+    std::vector<std::shared_ptr<Pinsel>> pinsel;
+    for (int i = 0; i < 20; ++i) { pinsel.push_back(wuerfel(k, Vektor3f(float(i) * 40.0F, 0, 0), 8)); }
+    const auto welt = k.welt();
+    const auto suche = [&k](const Entitaet* e, const Primitiv* p) {
+        for (const AuswahlElement& a : k.auswahl.elemente()) {
+            if (a.entitaet.lock().get() == e && a.primitiv.lock().get() == p) { return true; }
+        }
+        return false;
+    };
+    int fehler = 0;
+    const auto vergleiche = [&](const char* wann) {
+        for (const auto& p : pinsel) {
+            if (k.auswahl.gewaehlt(welt.get(), p.get()) != suche(welt.get(), p.get())) { ++fehler; }
+        }
+        if (k.auswahl.gewaehlt(welt.get()) != suche(welt.get(), nullptr)) {
+            ++fehler;
+            std::printf("  gewaehlt(welt) anders: %s\n", wann);
+        }
+    };
+    for (int i = 0; i < 20; i += 2) { k.auswahl.waehlen(welt, pinsel[static_cast<std::size_t>(i)]); }
+    vergleiche("nach waehlen");
+    auto weg = std::make_shared<Pinsel>();
+    k.auswahl.waehlen(welt, weg);
+    vergleiche("mit einem freien Pinsel");
+    weg.reset();   // zerstoert: lock() leer -> das Element zaehlt als (welt, nullptr)
+    vergleiche("nach dem Zerstoeren");
+    k.auswahl.abwaehlen(welt, pinsel[2]);
+    k.auswahl.umschalten(welt, pinsel[3]);
+    vergleiche("nach abwaehlen/umschalten");
+    k.auswahl.aufraeumen();
+    vergleiche("nach aufraeumen");
+    k.auswahl.leeren();
+    vergleiche("nach leeren");
+    pruefe(fehler == 0, "gewaehlt mit Zwischenspeicher = Suche (" + std::to_string(fehler) + " Abweichungen)");
+}
+
 int main() {
     grundlagen();
     tunnel3d();
     tunnel2d();
     umschaltenAlleGleich();
+    gewaehltGleichSuche();
     std::printf("karteauswahl: %d Fehlschlaege\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

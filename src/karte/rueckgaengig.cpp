@@ -16,9 +16,20 @@
 //   Public License for more details (LICENSE).
 #include "bhed/karte/rueckgaengig.h"
 
+#include <atomic>
+
 namespace bhed::karte {
 
-Rueckgaengigbar::~Rueckgaengigbar() { abmelden(); }
+namespace {
+std::atomic<std::uint64_t> g_zerstoert{0};
+}
+
+std::uint64_t objekteZerstoert() { return g_zerstoert.load(std::memory_order_relaxed); }
+
+Rueckgaengigbar::~Rueckgaengigbar() {
+    abmelden();
+    g_zerstoert.fetch_add(1, std::memory_order_relaxed);
+}
 
 void Rueckgaengigbar::anmelden(Rueckgaengig* undo) {
     if (m_undo == undo) { return; }
