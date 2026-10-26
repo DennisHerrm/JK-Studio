@@ -31,6 +31,17 @@
 /* dependencies */
 #include "q3map2.h"
 
+/* BehavEd stage 6 (UBSan out-of-bounds, -light on mp__duel1, mp__duel5, t2_trip, kor1, hoth2):
+   the subdivision functions collapsed their rows in place with
+   memmove( expand[0] + width * i, expand[i], ... ) - expand[0] + width * i points past row 0
+   of the 2D array. Copy the rows into the mesh instead: the same vertices in the same order. */
+static mesh_t bhed_mesh_from_rows( const bspDrawVert_t ( *expand )[ MAX_EXPANDED_AXIS ], int width, int height ){
+	mesh_t out( width, height );
+	for ( int i = 0; i < height; ++i )
+		std::copy_n( expand[ i ], width, out[ i ] );
+	return out;
+}
+
 
 
 /*
@@ -375,13 +386,9 @@ mesh_t SubdivideMesh( const mesh_view_t in, float maxError, float minLength ){
 		j -= 2;
 	}
 
-	// collapse the verts
+	// collapse the verts (BehavEd stage 6: bhed_mesh_from_rows, see there)
 
-	for ( int i = 1; i < height; ++i ) {
-		memmove( expand[0] + width * i, expand[i], width * sizeof( bspDrawVert_t ) );
-	}
-
-	return mesh_t( width, height, expand[0] );
+	return bhed_mesh_from_rows( expand, width, height );
 }
 
 
@@ -470,12 +477,8 @@ mesh_t SubdivideMesh2( const mesh_view_t in, int iterations ){
 		}
 	}
 
-	/* collapse the verts */
-	for ( int i = 1; i < height; ++i )
-		memmove( expand[0] + width * i, expand[ i ], width * sizeof( bspDrawVert_t ) );
-
-	/* return to sender */
-	return mesh_t( width, height, expand[0] );
+	/* collapse the verts and return to sender (BehavEd stage 6: bhed_mesh_from_rows, see there) */
+	return bhed_mesh_from_rows( expand, width, height );
 }
 
 
@@ -540,12 +543,8 @@ mesh_t RemoveLinearMeshColumnsRows( const mesh_t& in ) {
 			j--;
 		}
 	}
-	// collapse the verts
-	for ( int i = 1; i < height; ++i ) {
-		memmove( expand[0] + width * i, expand[i], width * sizeof( bspDrawVert_t ) );
-	}
-
-	return mesh_t( width, height, expand[0] );
+	// collapse the verts (BehavEd stage 6: bhed_mesh_from_rows, see there)
+	return bhed_mesh_from_rows( expand, width, height );
 }
 
 
@@ -641,10 +640,6 @@ static mesh_t SubdivideMeshQuads( const mesh_view_t in, float minLength, int max
 		}
 	}
 
-	// collapse the verts
-	for ( i = 1; i < height; ++i ) {
-		memmove( expand[0] + width * i, expand[i], width * sizeof( bspDrawVert_t ) );
-	}
-
-	return mesh_t( width, height, expand[0] );
+	// collapse the verts (BehavEd stage 6: bhed_mesh_from_rows, see there)
+	return bhed_mesh_from_rows( expand, width, height );
 }

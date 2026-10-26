@@ -194,7 +194,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         Grenze g = neu("bsp.lichtgitterfeld", GrenzArt::BspLump, Str::KeGrBspLichtgitterfeld, "MAX_MAP_LIGHTGRID_ARRAY", 0x100000);
         g.hart = false;
         g.stellen.push_back(st(b, b.qcommon, "qfiles.h", z.lightgridArray, "MAX_MAP_LIGHTGRID_ARRAY", 0x100000));
-        g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 208, "MAX_MAP_LIGHTGRID", 0x100000));
+        g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 209, "MAX_MAP_LIGHTGRID", 0x100000));
         g.pruefstelle = "the engine reads any size (" + rd + "tr_bsp.cpp R_LoadLightGridArray); q3map2 light.cpp:1784 "
                         "raises gridsize until the array fits";
         g.rechnung = "grid cells (gridBounds[0] * [1] * [2])";
@@ -204,7 +204,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         Grenze g = neu("bsp.areas", GrenzArt::BspLump, Str::KeGrBspAreas, "MAX_MAP_AREAS", 0x100);
         g.stellen.push_back(st(b, b.qcommon, "qfiles.h", z.areas, "MAX_MAP_AREAS", 0x100));
         g.stellen.push_back(st(b, b.qcommon, "q_shared.h", z.areaBytes, "MAX_MAP_AREA_BYTES", 32));
-        g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 201, "MAX_MAP_AREAS", 0x100));
+        g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 202, "MAX_MAP_AREAS", 0x100));
         g.pruefstelle = qc + "cm_test.cpp CM_WriteAreaBits: bit field of MAX_MAP_AREA_BYTES (32 bytes = 256 areas)";
         g.rechnung = "MAX_MAP_AREA_BYTES * 8";
         t.push_back(std::move(g));
@@ -245,7 +245,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         Grenze g = neu("renderer.nebel", GrenzArt::Renderer, Str::KeGrRenNebel, "QSORT_FOGNUM_SHIFT", 30);
         g.stellen.push_back(st(b, b.renderer, "tr_local.h", z.fognumShift, "QSORT_FOGNUM_SHIFT", 2));
         g.stellen.push_back(st(b, b.renderer, "tr_local.h", z.refentShift, "QSORT_REFENTITYNUM_SHIFT", 7));
-        g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 204, "MAX_RBSP_FOGS", 30));
+        g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 205, "MAX_RBSP_FOGS", 30));
         g.pruefstelle = rd + "tr_main.cpp R_AddDrawSurf: the fog sits in bits 2..6 of the sort key; "
                              "q3map2 writebsp.cpp:460 warns";
         g.rechnung = "5 bits (7 - 2) = 31 fog indexes; index = fog + 1, plus the night vision slot (tr_bsp.cpp R_LoadFogs): 30";
@@ -257,7 +257,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.vanilla = 31;
         g.erlaubt = 31;
         g.stellen.push_back(st(b, b.renderer, "tr_local.h", z.patchSize, "MAX_PATCH_SIZE", 32));
-        g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 124, "MAX_PATCH_SIZE", 31));
+        g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 125, "MAX_PATCH_SIZE", 31));
         g.pruefstelle = "q3map2 fog.cpp:128 Error \"MAX_PATCH_SIZE after split\"; NRC patchmodule.cpp:58 (31)";
         g.rechnung = "control points per direction; q3map2 allows 31";
         g.vanillaQuelle = "q3map2.h:124 (stricter than the renderer)";
@@ -462,16 +462,16 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
     // --- Compiler (q3map2) -------------------------------------------------------
     {
         Grenze g = neu("compiler.lichtschalter", GrenzArt::Compiler, Str::KeGrCoLichtschalter, "MAX_SWITCHED_LIGHTS", 32);
-        g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 191, "MAX_SWITCHED_LIGHTS", 32));
+        g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 192, "MAX_SWITCHED_LIGHTS", 32));
         g.pruefstelle = "q3map2 writebsp.cpp:282 Error \"MAX_SWITCHED_LIGHTS (32) exceeded\" (SetLightStyles)";
         g.rechnung = "distinct pairs (targetname, style) of light entities with a targetname";
         t.push_back(std::move(g));
     }
     {
         Grenze g = neu("compiler.sicht", GrenzArt::Compiler, Str::KeGrCoSicht, "MAX_MAP_VISIBILITY", 8 + 0x4000LL * 0x800LL);
-        g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 145, "VIS_HEADER_SIZE", 8));
-        g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 209, "MAX_MAP_VISCLUSTERS", 0x4000));
-        g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 210, "MAX_MAP_VISIBILITY", 8 + 0x4000LL * 0x800LL));
+        g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 146, "VIS_HEADER_SIZE", 8));
+        g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 210, "MAX_MAP_VISCLUSTERS", 0x4000));
+        g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 211, "MAX_MAP_VISIBILITY", 8 + 0x4000LL * 0x800LL));
         g.pruefstelle = "q3map2 vis.cpp:733 Error \"MAX_MAP_VISIBILITY exceeded\"";
         g.rechnung = "bytes of visibility data";
         t.push_back(std::move(g));

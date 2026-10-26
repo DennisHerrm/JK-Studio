@@ -73,6 +73,7 @@
 
 #include <cstddef>
 #include <cstdlib>
+#include <limits> // BehavEd stage 6: bhed_to_int
 
 #include "maxworld.h"
 #include "games.h"
@@ -1971,6 +1972,14 @@ inline void bhed_set_map_extension( char *path, const char *extension ){
 		path_set_extension( path, extension );
 	else
 		strcat( path, extension );
+}
+
+/* BehavEd stage 6 (UBSan float-cast-overflow, kartefuzz maps with huge coordinates): a float
+   outside the int range (or NaN) converted to int is undefined behaviour. x86 (cvttss2si /
+   cvttsd2si, also in NRC's builds) gives INT_MIN for those - return exactly that, so the
+   output stays byte for byte as before. */
+inline int bhed_to_int( double x ){
+	return ( x >= -2147483648.0 && x < 2147483648.0 )? int( x ) : std::numeric_limits<int>::min();
 }
 
 inline bool shaderInfo_less( const shaderInfo_t *a, const shaderInfo_t *b ){

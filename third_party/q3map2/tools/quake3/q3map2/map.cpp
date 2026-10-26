@@ -85,7 +85,7 @@ bool PlaneEqual( const plane_t& p, const Plane3f& plane ){
  */
 
 inline void AddPlaneToHash( plane_t& p ){
-	const int hash = ( PLANE_HASHES - 1 ) & (int) std::fabs( p.dist() );
+	const int hash = ( PLANE_HASHES - 1 ) & bhed_to_int( std::fabs( p.dist() ) ); // BehavEd stage 6 (UBSan): was (int) std::fabs( p.dist() )
 
 	p.hash_chain = planehash[hash];
 	planehash[hash] = &p - mapplanes.data() + 1;
@@ -349,7 +349,7 @@ int FindFloatPlane___( const Plane3f& inplane, const Span<const BasicVector3<T>>
 	SnapPlane( plane );
 #endif
 	/* hash the plane */
-	const int hash = ( PLANE_HASHES - 1 ) & (int) std::fabs( plane.dist() );
+	const int hash = ( PLANE_HASHES - 1 ) & bhed_to_int( std::fabs( plane.dist() ) ); // BehavEd stage 6 (UBSan, kartefuzz): was (int) std::fabs( plane.dist() )
 
 	/* search the border bins as well */
 	for ( int i = -1; i <= 1; ++i )
@@ -1535,7 +1535,8 @@ static bool ParseMapEntity( bool onlyLights, bool noCollapseGroups, int mapEntit
 	if ( !strEqual( token, "{" ) ) {
 		Sys_Warning( "ParseEntity: { not found, found %s on line %d - last entity was at: <%4.2f, %4.2f, %4.2f>...\n"
 		             "Continuing to process map, but resulting BSP may be invalid.\n",
-		             token, scriptline, entities.back().origin[ 0 ], entities.back().origin[ 1 ], entities.back().origin[ 2 ] );
+		             token, scriptline, ( entities.empty()? 0.f : entities.back().origin[ 0 ] ), ( entities.empty()? 0.f : entities.back().origin[ 1 ] ),
+		             ( entities.empty()? 0.f : entities.back().origin[ 2 ] ) ); /* BehavEd stage 6 (kartefuzz, MSVC ASan): no last entity before the first one - entities.back() on the empty list read the address -1 */
 		return false;
 	}
 
@@ -1710,6 +1711,12 @@ void LoadMapFile( const char *filename, bool onlyLights, bool noCollapseGroups )
 	}
 	else
 	{
+		/* BehavEd stage 6 (kartefuzz, MSVC ASan access-violation / UBSan): a map file without any
+		   entity crashed below - entities[ 0 ] on the empty vector. Say so instead. */
+		if ( entities.empty() ) {
+			Error( "No entity in map file %s (worldspawn missing)", filename );
+		}
+
 		/* set map bounds */
 		g_mapMinmax.clear();
 		for ( const brush_t& brush : entities[ 0 ].brushes )

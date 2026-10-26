@@ -239,7 +239,7 @@ skipspace:
 	if ( *script.it == '"' ) {
 		// quoted token
 		script.it++;
-		while ( *script.it != '"' )
+		while ( script.it != script.end && *script.it != '"' ) /* BehavEd stage 6 (kartefuzz, MSVC ASan heap-buffer-overflow): a '"' as the last character of the file - *script.it was read at script.end */
 		{
 			*token_p++ = *script.it++;
 			if ( script.it == script.end ) {
@@ -249,7 +249,8 @@ skipspace:
 				Error( "Token too large on line %i\nFile location be: %s\n", scriptline, g_loadedScriptLocation.c_str() );
 			}
 		}
-		script.it++;
+		if ( script.it != script.end ) /* BehavEd stage 6: not past the end of an unclosed quote */
+			script.it++;
 	}
 	else{   // regular token
 		while ( *script.it > 32 && *script.it != ';' )

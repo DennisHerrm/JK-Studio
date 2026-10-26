@@ -1372,8 +1372,12 @@ static int AddMetaTriangleToSurface( mapDrawSurface_t& ds, const metaTriangle_t&
 		}
 		else{
 			const Vector2 wh( ds.shaderInfo->shaderWidth, ds.shaderInfo->shaderHeight );
-			BasicVector2<int> oldTexRange( ( texMinMax.maxs - texMinMax.mins ).vec2() * wh );
-			BasicVector2<int> newTexRange( ( newTexMinMax.maxs - newTexMinMax.mins ).vec2() * wh );
+			/* BehavEd stage 6 (UBSan float-cast-overflow, kartefuzz): huge texture ranges; was
+			   BasicVector2<int> oldTexRange( ( texMinMax.maxs - texMinMax.mins ).vec2() * wh ), same for new */
+			const Vector2 oldTexRangeF( ( texMinMax.maxs - texMinMax.mins ).vec2() * wh );
+			const Vector2 newTexRangeF( ( newTexMinMax.maxs - newTexMinMax.mins ).vec2() * wh );
+			BasicVector2<int> oldTexRange( bhed_to_int( oldTexRangeF[ 0 ] ), bhed_to_int( oldTexRangeF[ 1 ] ) );
+			BasicVector2<int> newTexRange( bhed_to_int( newTexRangeF[ 0 ] ), bhed_to_int( newTexRangeF[ 1 ] ) );
 			/* score texture range */
 			if ( newTexRange[ 0 ] <= oldTexRange[ 0 ] ) {
 				score += ST_SCORE2;
