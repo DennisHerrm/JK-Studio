@@ -109,10 +109,10 @@ KARTE_TEMPO = {
         ("table", _KOPF, tempo7.Q3MAP2),
         ("table", _EDITOR_KOPF, tempo7.EDITOR),
         ("note", T(
-            "Times in seconds on the test laptop (8 threads), median of three runs; \"-\" = not measured. Your computer will give other numbers, the ratio stays similar.",
-            "Zeiten in Sekunden auf dem Test-Laptop (8 Threads), Median aus drei Läufen; \"-\" = nicht gemessen. Dein Rechner liefert andere Zahlen, das Verhältnis bleibt ähnlich.",
-            "时间单位为秒,测试笔记本(8 线程),三次运行的中位数;\"-\" = 未测量。你的电脑会得到不同的数字,但比例相近。",
-            "時間はテスト用ノート PC(8 スレッド)での秒数で、3 回の中央値です。\"-\" は未計測です。お使いのコンピューターでは数値は異なりますが、比率は同程度です。")),
+            "Times on the test laptop (32 threads), median of three runs; \"-\" = not measured. Your computer will give other numbers, the ratio stays similar.",
+            "Zeiten auf dem Test-Laptop (32 Threads), Median aus drei Läufen; \"-\" = nicht gemessen. Dein Rechner liefert andere Zahlen, das Verhältnis bleibt ähnlich.",
+            "测试笔记本(32 线程)上的时间,三次运行的中位数;\"-\" = 未测量。你的电脑会得到不同的数字,但比例相近。",
+            "時間はテスト用ノート PC(32 スレッド)での値で、3 回の中央値です。\"-\" は未計測です。お使いのコンピューターでは数値は異なりますが、比率は同程度です。")),
     ],
 }
 

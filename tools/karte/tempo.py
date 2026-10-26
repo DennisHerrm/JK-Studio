@@ -292,6 +292,83 @@ def tabelle(a):
         print(f'| {k} | {fmt(vor[k])} | {fmt(n)} | {g} |')
     return 0
 
+# --- Handbuch (tools/handbuch/tempo7.py) ------------------------------------------
+
+# Editor-Messungen fuer das Handbuch: Anfang des Schluessels -> (en, de, zh, ja)
+_EDITOR_HB = [
+    ('Alles auswaehlen (', ('Invert Selection (select all)', 'Auswahl umkehren (alles wählen)', '反选(全选)', '選択の反転(すべて選択)')),
+    ('.bsp oeffnen, dekompilieren (', ('Open .bsp (decompile)', '.bsp öffnen (dekompilieren)', '打开 .bsp(反编译)', '.bsp を開く(逆コンパイル)')),
+    ('.map laden (', ('Load .map', '.map laden', '加载 .map', '.map の読み込み')),
+    ('Texturen bis fertig (', ('Textures loaded', 'Texturen geladen', '纹理加载完成', 'テクスチャの読み込み')),
+    ('.map speichern (', ('Save .map', '.map speichern', '保存 .map', '.map の保存')),
+    ('Auswahl verschieben, alles (', ('Move everything', 'Alles verschieben', '移动全部', 'すべて移動')),
+    ('Rueckgaengig Verschieben, alles (', ('Undo the move', 'Verschieben rückgängig', '撤销移动', '移動を元に戻す')),
+    ('Rueckgaengig CSG Subtract (', ('Undo CSG Subtract', 'CSG Subtract rückgängig', '撤销 CSG Subtract', 'CSG Subtract を元に戻す')),
+    ('Optimierer Start (', ('Optimizer start', 'Optimierer Start', '优化器启动', 'オプティマイザーの起動')),
+    ('Optimierer Pruefung (', ('Optimizer check', 'Optimierer Prüfung', '优化器检查', 'オプティマイザーのチェック')),
+    ('Moduswechsel bis Spieldaten bereit', ('Switch to the map editor until the game data is ready', 'Wechsel in den Karten-Editor bis die Spieldaten bereit sind', '切换到地图编辑器直到游戏数据就绪', 'マップエディターへの切り替え(ゲームデータの準備まで)')),
+    ('Vorschau: Szene vorbereiten', ('Preview: prepare the scene (md_am_sith)', 'Vorschau: Szene vorbereiten (md_am_sith)', '预览:准备场景(md_am_sith)', 'プレビュー:シーンの準備(md_am_sith)')),
+    ('Vorschau: Bild Szene Mittel', ('Preview: frame time, scene (mean)', 'Vorschau: Bildzeit Szene (Mittel)', '预览:场景帧时间(平均)', 'プレビュー:シーンのフレーム時間(平均)')),
+    ('Vorschau: Bild Flug Mittel', ('Preview: frame time, free flight (mean)', 'Vorschau: Bildzeit Flug (Mittel)', '预览:自由飞行帧时间(平均)', 'プレビュー:フリーフライトのフレーム時間(平均)')),
+]
+
+_STUFE_HB = {'1': ('(1 thread)', '(1 Thread)', '(1 线程)', '(1 スレッド)'),
+             '0': ('(all threads)', '(alle Threads)', '(所有线程)', '(全スレッド)')}
+
+
+def _fmt_s(ms):
+    if ms is None:
+        return '-'
+    return f'{ms / 1000:.2f} s' if ms >= 1000 else f'{ms:.1f} ms'
+
+
+def handbuch(a):
+    with open(a.q3map2, encoding='utf-8') as f:
+        q = json.load(f)
+    zeilen_q = []
+    for kname in KARTEN:
+        for th in ('0', '1'):
+            for stufe in ('bsp', 'vis', 'light'):
+                w = {}
+                for prog in ('nrc', 'alt', 'neu'):
+                    e = q.get(f'{kname}|{prog}|t{th}')
+                    w[prog] = e[stufe]['median'] if e and stufe in e and e[stufe]['median'] is not None else None
+                if all(v is None for v in w.values()):
+                    continue
+                zeilen_q.append((stufe.upper(), th, kname, w))
+    with open(a.editor_alt, encoding='utf-8') as f:
+        ea = json.load(f)['werte']
+    with open(a.editor_neu, encoding='utf-8') as f:
+        en = json.load(f)['werte']
+    for datei, ziel in ((a.vorschau_alt, ea), (a.vorschau_neu, en)):
+        if datei:
+            with open(datei, encoding='utf-8') as f:
+                ziel.update(json.load(f)['werte'])
+    zeilen_e = []
+    for anfang, namen in _EDITOR_HB:
+        for k in sorted(ea):
+            if not k.startswith(anfang) or k.endswith('Bild danach'):
+                continue
+            karte = k[len(anfang):].rstrip(')') if anfang.endswith('(') else ''
+            zeilen_e.append((namen, karte, ea[k]['median'], en.get(k, {}).get('median')))
+    out = ['"""Tempo-Tabellen der Stufe 7 (Messliste vorher/nachher, tools/karte/tempo.py).', '',
+           'Erzeugt von tools/karte/tempo.py handbuch; nicht von Hand aendern.', '"""',
+           'from inhalt_basis import T', '', '', 'def _z(text):', '    return T(text, text, text, text)', '', '', 'Q3MAP2 = [']
+    for stufe, th, kname, w in zeilen_q:
+        t = _STUFE_HB[th]
+        out.append(f'    [T({stufe + " " + t[0]!r}, {stufe + " " + t[1]!r}, {stufe + " " + t[2]!r}, {stufe + " " + t[3]!r}), _z({kname!r}), '
+                   + ', '.join(f'_z({("-" if w[p] is None else f"{w[p]:.2f} s")!r})' for p in ('nrc', 'alt', 'neu')) + '],')
+    out.append(']')
+    out.append('')
+    out.append('EDITOR = [')
+    for namen, karte, va, vn in zeilen_e:
+        out.append(f'    [T({namen[0]!r}, {namen[1]!r}, {namen[2]!r}, {namen[3]!r}), _z({(karte or "-")!r}), _z({_fmt_s(va)!r}), _z({_fmt_s(vn)!r})],')
+    out.append(']')
+    with open(a.aus, 'w', encoding='utf-8', newline='\n') as f:
+        f.write('\n'.join(out) + '\n')
+    print(f'{len(zeilen_q)} q3map2-Zeilen, {len(zeilen_e)} Editor-Zeilen -> {a.aus}')
+    return 0
+
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -321,8 +398,15 @@ def main():
     t = u.add_parser('tabelle')
     t.add_argument('vorher', nargs='+')
     t.add_argument('--nachher', nargs='*')
+    h = u.add_parser('handbuch', help='tools/handbuch/tempo7.py aus den Messungen')
+    h.add_argument('--q3map2', required=True)
+    h.add_argument('--editor-alt', required=True)
+    h.add_argument('--editor-neu', required=True)
+    h.add_argument('--vorschau-alt')
+    h.add_argument('--vorschau-neu')
+    h.add_argument('--aus', default=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'handbuch', 'tempo7.py'))
     a = p.parse_args()
-    return {'q3map2': q3map2, 'editor': editor, 'vorschau': vorschau, 'tabelle': tabelle}[a.was](a)
+    return {'q3map2': q3map2, 'editor': editor, 'vorschau': vorschau, 'tabelle': tabelle, 'handbuch': handbuch}[a.was](a)
 
 
 if __name__ == '__main__':
