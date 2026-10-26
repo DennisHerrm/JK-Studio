@@ -664,6 +664,17 @@ bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app)
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = nullptr;
+    // Stufe 7 Punkt 6d: ImGuis Warnung "Programmer error: N visible items with
+    // conflicting ID!" ist fuer Entwickler (imgui.cpp: "Set
+    // io.ConfigDebugHighlightIdConflicts=false to disable this warning in
+    // non-programmers builds") - im Release aus, fuer Programm und Map-Editor
+    // gleich. Der Selbsttest und Debug-Bauten behalten sie; der Selbsttest
+    // prueft ausserdem jedes Bild auf doppelte Kennungen (elemente::idKonflikte).
+#ifdef NDEBUG
+    io.ConfigDebugHighlightIdConflicts = std::getenv("BHED_EDITORTEST") != nullptr;
+#else
+    io.ConfigDebugHighlightIdConflicts = true;
+#endif
 
     // --- Die Klammer umschliesst den START, nicht die Sitzung ------------
     //

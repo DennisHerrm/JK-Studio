@@ -72,6 +72,7 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <set>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -37048,7 +37049,10 @@ std::vector<Schritt> karteneditorFotoSchritte() {
     // Menues im Code schliessen: ein Klick in die Statuszeile traf hohe
     // Untermenues (View > Filter reicht bis dorthin).
     auto menuesZu = [] { return tu("Menues zu", [] { karteDialogeZu(); }); };
-    add(tu("Fotos: Begriffe wie NetRadiant an", [] { ke::setzeNrcBegriffe(true); }));
+    add(tu("Fotos: Begriffe wie NetRadiant an, Menues wie NetRadiant-Custom", [] {
+        ke::setzeNrcBegriffe(true);
+        ke::menueStilSetzen(true);   // Stufe 7 Punkt 6b (Preferences > Clean der Stufe 6 setzt es zurueck)
+    }));
     add(pause(0.3));
     add(pruefe("Fotos: Anordnung Regular wie die NRC-Fotos", [] {
         return ke::editor().anordnung == karte::befehle::Anordnung::Regular && ke::nrcBegriffe();
@@ -37542,7 +37546,7 @@ std::vector<Schritt> karteneditorSchritte() {
     // Stufe 7 Punkt 6b: die Menues zeichnet der Editor jetzt im Stil des Programms
     // (Vorgabe); die Masse und Fotos der Stufen 1-6 sind NRCs - der Test stellt
     // "Menus like NetRadiant-Custom" ein (stufe7::menue prueft den Programmstil).
-    add(tu("Testeinstellung: Menus like NetRadiant-Custom", [] { ke::editor().menueNrcStil = true; }));
+    add(tu("Testeinstellung: Menus like NetRadiant-Custom (gespeichert)", [] { ke::menueStilSetzen(true); }));
     add(tu("Testeinstellung: New map Brush Type = Axial Projection", [] {
         ke::editor().pinselTyp = 0;
         if (ke::editor().karte.entitaeten().empty()) { ke::editor().karte.kontext.format = karte::PinselFormat::Quake3; }
@@ -42998,6 +43002,27 @@ void selbsttest() {
     static const bool nurTon = std::strcmp(modus, "ton") == 0;
     ImGuiContext& g = *ImGui::GetCurrentContext();
     g.TestEngineHookItems = true;
+    // Stufe 7 Punkt 6d: doppelte Kennungen in diesem Bild - im Map-Editor ein
+    // FEHLER (je Fenster und Kennung einmal), sonst ein Hinweis im Protokoll.
+    elemente::idPruefungAn(true);
+    {
+        static std::set<std::pair<std::string, ImGuiID>> gemeldet;
+        for (const elemente::IdKonflikt& k : elemente::idKonflikte()) {
+            if (!gemeldet.insert({k.fenster, k.id}).second) { continue; }
+            std::string label;
+            for (const elemente::Element& el : elemente::alle()) {
+                if (el.id == k.id && !el.label.empty()) { label = el.label; }
+            }
+            char z[160];
+            std::snprintf(z, sizeof(z), "Kennung 0x%08X bei %.0f %.0f", k.id, static_cast<double>(k.rect.Min.x), static_cast<double>(k.rect.Min.y));
+            const std::string text = "ID-Konflikt in \"" + k.fenster + "\": " + z + (label.empty() ? std::string() : " (\"" + label + "\")");
+            if (g_app != nullptr && g_app->leftMode == 3) {
+                meldeFehler(text);
+            } else {
+                diag::detail("Knopftest: Hinweis " + text);
+            }
+        }
+    }
     // rc601 tour: fuer das naechste Bild anmelden (elemente::bildEnde setzt danach
     // TestEngineHookItems nach der Stufe).
     if (g_registerFilter.empty()) {

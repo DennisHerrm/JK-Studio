@@ -66,6 +66,21 @@ void wunschLabels(const std::vector<std::string>& praefixe);
 // das naechste Bild setzen (GImGui->TestEngineHookItems).
 void bildEnde();
 
+// Stufe 7 Punkt 6d (Tester: "Programmer error: 4 visible items with conflicting
+// ID!" im Texturbrowser): jede Kennung, die in einem Bild zweimal in ItemAdd
+// kommt (ausser mit ImGuiItemFlags_AllowDuplicateId). ImGui selbst sieht
+// Konflikte nur am Element unter der Maus; der Selbsttest schaltet diese
+// Pruefung an und meldet jeden Konflikt (gui/selbsttest.cpp).
+struct IdKonflikt {
+    std::string fenster;   // Name des Fensters, in dem das Element steht
+    ImGuiID id = 0;
+    ImRect rect;           // das zweite Element
+};
+void idPruefungAn(bool an);
+// Die Konflikte des laufenden Bildes (bildEnde leert sie).
+const std::vector<IdKonflikt>& idKonflikte();
+void merkeId(ImGuiContext* ctx, ImGuiID id, const ImRect& bb, const ImGuiLastItemData* daten);
+
 // Die Haken (ImGuiTestEngineHook_ItemAdd/ItemInfo, gui/elemente.cpp).
 void merkeElement(ImGuiContext* ctx, ImGuiID id, const ImRect& bb);
 void merkeText(ImGuiContext* ctx, ImGuiID id, const char* label, ImGuiItemStatusFlags flags);

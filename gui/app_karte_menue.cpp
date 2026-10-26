@@ -686,6 +686,11 @@ void knopf(const Knopf& k, int x, int y) {
 // (QMainWindow::createPopupMenu).
 void leistenMenue() {
     Editor& ed = e();
+    // Stufe 7 Punkt 6d: obere und rechte Leisten rufen es beide - ein Popup, einmal je Bild
+    // (sonst kamen alle Eintraege zweimal mit derselben Kennung).
+    static int bild = -1;
+    if (bild == ImGui::GetFrameCount()) { return; }
+    bild = ImGui::GetFrameCount();
     if (!qtPopupAnfang("##leistenmenue")) { return; }
     // toggleViewAction der Leisten (pruefbar)
     for (auto [text, an] : {std::pair<const char*, bool*>{tr(Str::KeMainToolbar), &ed.hauptleiste},

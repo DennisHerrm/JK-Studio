@@ -115,6 +115,13 @@ void rechnung() {
                && baum[2].kinder.size() == 2 && baum[2].kinder[1].name == "gfx_b" && baum[3].name == "kor_x" && baum[3].kinder.empty()
                && baum[4].name == "nar" && baum[5].name == "nar_shaddar",
            "TextureGroups_constructTreeModel: gfx_a/gfx_b unter gfx, kor_x allein, nar und nar_shaddar getrennt");
+    // Stufe 7 Punkt 6d: Ordner, die sich nur in der Schreibweise unterscheiden (Tester:
+    // mehrfach "Asjc"). NRC ordnet ohne Gross/Klein (TextureGroups_compare), vergleicht
+    // den Anfang aber mit Gross/Klein (string_equal_start) - zwei Wurzeln "Asjc".
+    const auto fall = texturGruppenBaum({"Asjc_a", "Asjc_b", "asjc_coruscant", "Asjc_d", "Asjc_e", "asjc_homestead"});
+    pruefe(fall.size() == 4 && fall[0].name == "Asjc" && fall[0].pfad.empty() && fall[0].kinder.size() == 2 && fall[1].name == "asjc_coruscant" &&
+               fall[2].name == "Asjc" && fall[2].kinder.size() == 2 && fall[2].kinder[0].pfad == "Asjc_d" && fall[3].name == "asjc_homestead",
+           "TextureGroups_constructTreeModel: Asjc_/asjc_ getrennt wie NRC (zwei Wurzeln Asjc)");
 }
 
 // --- TexManipulator (surfacedialog.cpp) ----------------------------------------------

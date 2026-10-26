@@ -8,6 +8,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <unordered_set>
 #include <utility>
 
 namespace bhed::gui::elemente {
@@ -27,6 +28,10 @@ struct Roh {
     ImGuiWindow* fenster = nullptr;
 };
 std::vector<Roh> g_roh;
+// Stufe 7 Punkt 6d: Kennungen dieses Bildes und die doppelten
+bool g_idPruefung = false;
+std::unordered_set<ImGuiID> g_ids;
+std::vector<IdKonflikt> g_idKonflikte;
 std::vector<std::string> g_filter;          // gilt in diesem Bild
 
 // Die Anmeldungen fuer das naechste Bild.
@@ -106,7 +111,26 @@ void wunschLabels(const std::vector<std::string>& praefixe) {
     }
 }
 
+void idPruefungAn(bool an) { g_idPruefung = an; }
+
+const std::vector<IdKonflikt>& idKonflikte() { return g_idKonflikte; }
+
+void merkeId(ImGuiContext* ctx, ImGuiID id, const ImRect& bb, const ImGuiLastItemData* daten) {
+    if (!g_idPruefung || id == 0 || ctx->CurrentWindow == nullptr) { return; }
+    if (daten != nullptr && (daten->ItemFlags & ImGuiItemFlags_AllowDuplicateId) != 0) { return; }
+    if (g_ids.insert(id).second) { return; }
+    // EndChild meldet das Kindfenster mit seiner ChildId als Element des Elternfensters -
+    // bei InputTextMultiline ist das die Kennung des Feldes selbst (imgui_widgets.cpp
+    // InputTextEx: ItemAdd, dann BeginChildEx(label, id)): ImGuis eigene Doppelung, kein Konflikt.
+    for (const ImGuiWindow* kind : ctx->CurrentWindow->DC.ChildWindows) {
+        if (kind != nullptr && kind->ChildId == id) { return; }
+    }
+    g_idKonflikte.push_back(IdKonflikt{ctx->CurrentWindow->Name, id, bb});
+}
+
 void bildEnde() {
+    g_ids.clear();
+    g_idKonflikte.clear();
     g_liste.clear();
     g_wartend.clear();
     g_roh.clear();
@@ -235,7 +259,8 @@ bool ganzImBild(const Element& e) {
 // deklariert sie imgui_internal.h. Bis rc600 am Ende von selbsttest.cpp.
 
 void ImGuiTestEngineHook_ItemAdd(ImGuiContext* ctx, ImGuiID id, const ImRect& bb,
-                                 const ImGuiLastItemData* /*item_data*/) {
+                                 const ImGuiLastItemData* item_data) {
+    bhed::gui::elemente::merkeId(ctx, id, bb, item_data);
     bhed::gui::elemente::merkeElement(ctx, id, bb);
 }
 

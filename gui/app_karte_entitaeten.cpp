@@ -1441,7 +1441,9 @@ void entitaetenMenueZeichnen() {
         for (const karte::EntitaetMenuePunkt& p : g_menue) {
             if (p.kinder.empty()) {
                 menueEintrag(p.name);
-            } else if (qtMenueAnfang(p.name.c_str(), true, p.name.c_str(), false)) {
+            } else if (qtMenueAnfang((p.name + "##gruppe").c_str(), true, p.name.c_str(), false)) {
+                // Stufe 7 Punkt 6d: "waypoint" ist bei NRC Gruppe und Klasse zugleich (Qt braucht
+                // keine Kennung) - die Gruppe bekommt eine eigene ImGui-Kennung
                 for (const std::string& k : p.kinder) { menueEintrag(k); }
                 qtMenueEnde();
             }

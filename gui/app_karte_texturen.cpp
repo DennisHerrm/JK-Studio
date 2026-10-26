@@ -300,8 +300,15 @@ struct BaumZeile {
 std::vector<BaumZeile> baumZeilen() {
     Zustand& s = z();
     std::vector<BaumZeile> v;
-    for (const auto& g : s.baum) {
-        const std::string k = g.pfad.empty() ? "#" + g.name : g.pfad;
+    // Stufe 7 Punkt 6d: NRC (texwindow.cpp:93-104 TextureGroups_compare, 1108-1138
+    // TextureGroups_constructTreeModel) ordnet ohne Gross/Klein, vergleicht den
+    // Anfang aber mit string_equal_start (mit Gross/Klein) - "Asjc_a", "asjc_b",
+    // "Asjc_c" ergeben zwei Wurzeln "Asjc" (in NRC genauso, Qt braucht keine
+    // Kennung). Der Schluessel einer Wurzel traegt darum ihre Lage: sonst zwei
+    // Zeilen mit derselben ImGui-Kennung, und Auf-/Zuklappen galt fuer beide.
+    for (std::size_t wi = 0; wi < s.baum.size(); ++wi) {
+        const karte::TexturGruppe& g = s.baum[wi];
+        const std::string k = g.pfad.empty() ? "#" + std::to_string(wi) + "#" + g.name : g.pfad;
         v.push_back({&g, 0, k});
         if (!g.kinder.empty() && s.baumOffen.count(k) != 0U) {
             for (const auto& c : g.kinder) { v.push_back({&c, 1, c.pfad}); }
