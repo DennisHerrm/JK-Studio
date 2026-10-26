@@ -12,8 +12,8 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 | Einstellungsfelder | 79 | 78 | 1 | 0 | 0 |
 | Plugins | 67 | 67 | 0 | 0 | 0 |
 | Mausbelegung | 62 | 62 | 0 | 0 | 0 |
-| Eigene Eintraege | 8 | 8 | 0 | 0 | 0 |
-| **Summe** | 944 | 940 | 4 | 0 | 0 |
+| Eigene Eintraege | 15 | 15 | 0 | 0 | 0 |
+| **Summe** | 951 | 947 | 4 | 0 | 0 |
 
 ## Begruendete Ausnahmen
 
@@ -1010,3 +1010,10 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 | `Eigen \| Karten-Editor-Modus` | OK | Kuerzel gelten nur im Karten-Editor: Raster bleibt 16 |
 | `Eigen \| Begriffe wie NetRadiant` | OK | Begriffe wie NetRadiant: Menue "File", "Edit" trotz Deutsch |
 | `Eigen \| Help > About BehavEd` | OK | Help > About BehavEd: der About-Dialog des Programms |
+| `Eigen \| Build progress` | OK | erster Bau: Fenster "Build progress" offen, Stufe LIGHT, keine Restzeit aus einem Verlauf; zweiter Bau: Restzeit aus dem letzten Bau dieser Karte; Abbrechen im Fortschrittsfenster: q3map2 beendet, Zeile in der Konsole, Fenster zu, nichts gemeldet |
+| `Eigen \| Build > Notify when a build is done` | OK | Build > Melden: aus, als BhedBuildNotify 0 gespeichert |
+| `Eigen \| Build > Keep editor data` | OK | Build > Editor-Daten behalten: an, als BhedKeepEditorData 1 gespeichert; Byte-Vergleich: Lumps 1..17 (Geometrie, Lightmaps, Lichtgitter, Sicht) gleich, nur der Entity-Lump anders - mit allen 3 Lichtern; Open .bsp mit Begleitdatei: genaue Quelle - 3 Lichter, misc_model mit Schluesseln, func_group mit 2 Pinseln, 8 Pinsel |
+| `Eigen \| Open .bsp > Recover misc_model` | OK | misc_model zurueck: pillar.md3 mit origin 128 128 0, angle 45, modelscale 1.5; Konsole; Update entities only moeglich |
+| `Eigen \| Open .bsp > Estimate lights` | OK | geschaetzte Lichter: Ebene "Geschaetzte Lichter", _bhed_geschaetzt 1, eines nahe an 0 0 96; das schaltbare nicht doppelt |
+| `Eigen \| Build > Partial compile: reuse VIS / reuse light` | OK | Build > Teil-Kompilierung: VIS und Licht wiederverwenden an, gespeichert; nach einer Entity-Aenderung: Sichtbarkeit wiederverwendet, ein Teil der Lightmaps aus dem Cache; nur die Nachbearbeitung geaendert (-gamma 0.8): alle Lightmaps und das Gitter aus dem Cache |
+| `Eigen \| Build > Add to compiled map...` | OK | zusammengefuehrt: <karte>_merged.bsp, laedt im CM-Port, die Saeule stoppt den Spieler, keine Grenze ueber, keine Fehler |

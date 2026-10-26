@@ -2948,3 +2948,26 @@ Knopftest OK: Grosse Karte: Auswahlwechsel bauen nur den Rest neu, die Geometrie
 Knopftest OK: Grosse Karte: Kamera-Szene nach dem Hochladen nicht mehr im Speicher
 Knopftest OK: Grosse Karte: Messwerte
 Knopftest OK: Grosse Karte: Stufe-2-Zeiten (CSG Subtract, Clip, Ecken-Modus)
+Knopftest OK: Abbrechen im Fortschrittsfenster: q3map2 beendet, Zeile in der Konsole, Fenster zu, nichts gemeldet
+Knopftest OK: Build > Editor-Daten behalten: an, als BhedKeepEditorData 1 gespeichert
+Knopftest OK: Build > Melden: aus, als BhedBuildNotify 0 gespeichert
+Knopftest OK: Build > Teil-Kompilierung: VIS und Licht wiederverwenden an, gespeichert
+Knopftest OK: Byte-Vergleich: Lumps 1..17 (Geometrie, Lightmaps, Lichtgitter, Sicht) gleich, nur der Entity-Lump anders - mit allen 3 Lichtern
+Knopftest OK: Open .bsp mit Begleitdatei: genaue Quelle - 3 Lichter, misc_model mit Schluesseln, func_group mit 2 Pinseln, 8 Pinsel
+Knopftest OK: Open .bsp ohne Begleitdatei: die 3 Lichter kommen aus dem Entity-Lump zurueck (misc_model und func_group nicht - eingebacken)
+Knopftest OK: Rueckgaengig nimmt das misc_model wieder weg (ein Schritt)
+Knopftest OK: Vorlage geladen: aktiv, Kanten fuer 2D
+Knopftest OK: die geoeffnete Karte gespeichert: Byte fuer Byte die Quelle
+Knopftest OK: erster Bau: -bhedvisreuse und -bhedlightcache in den Befehlen, Caches geschrieben
+Knopftest OK: erster Bau: Fenster "Build progress" offen, Stufe LIGHT, keine Restzeit aus einem Verlauf
+Knopftest OK: erster Bau: Zeit je Schritt in der Konsole (BSP, VIS, LIGHT) ohne Vergleich, Bauzeiten gespeichert, gemeldet (nur gezaehlt), Fenster zu
+Knopftest OK: geschaetzte Lichter: Ebene "Geschaetzte Lichter", _bhed_geschaetzt 1, eines nahe an 0 0 96; das schaltbare nicht doppelt
+Knopftest OK: misc_model zurueck: pillar.md3 mit origin 128 128 0, angle 45, modelscale 1.5; Konsole; Update entities only moeglich
+Knopftest OK: mit Option: -keeplights nur fuer -meta, <karte>.bhed geschrieben (Kopf + die Quelle Byte fuer Byte)
+Knopftest OK: nach einer Entity-Aenderung: Sichtbarkeit wiederverwendet, ein Teil der Lightmaps aus dem Cache
+Knopftest OK: nur die Nachbearbeitung geaendert (-gamma 0.8): alle Lightmaps und das Gitter aus dem Cache
+Knopftest OK: ohne Option: .bsp ohne .bhed, keine -keeplights, im Entity-Lump nur das schaltbare Licht
+Knopftest OK: ohne die Option: keine Rueckgewinnung, kein misc_model
+Knopftest OK: zusammengefuehrt: <karte>_merged.bsp, laedt im CM-Port, die Saeule stoppt den Spieler, keine Grenze ueber, keine Fehler
+Knopftest OK: zweiter Bau: Restzeit aus dem letzten Bau dieser Karte
+Knopftest OK: zweiter Bau: Zeit je Schritt gegen den letzten Bau (3 Vergleiche); Schaetzung gegen die echte Dauer

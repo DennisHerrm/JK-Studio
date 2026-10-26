@@ -187,6 +187,20 @@ EIGENE = [
     ('Eigen|Karten-Editor-Modus', 'der Reiter Karten-Editor (leftMode 3)', [re.escape('Kuerzel gelten nur im Karten-Editor')]),
     ('Eigen|Begriffe wie NetRadiant', 'Umschalter der Begriffe (Seite Interface)', [re.escape('Begriffe wie NetRadiant: Menue "File", "Edit" trotz Deutsch')]),
     ('Eigen|Help > About BehavEd', 'Hilfe des Programms', [re.escape('Help > About BehavEd: der About-Dialog des Programms')]),
+    # Stufe 8a (gui/selbsttest_karte8.inc)
+    ('Eigen|Build progress', 'Baufortschritt mit Restzeit (Stufe 8a/1)',
+     [re.escape('erster Bau: Fenster "Build progress" offen'), re.escape('zweiter Bau: Restzeit aus dem letzten Bau dieser Karte'),
+      re.escape('Abbrechen im Fortschrittsfenster')]),
+    ('Eigen|Build > Notify when a build is done', 'Taskleiste blinkt (Stufe 8a/1)', [re.escape('Build > Melden: aus, als BhedBuildNotify 0 gespeichert')]),
+    ('Eigen|Build > Keep editor data', 'Editor-Daten behalten (Stufe 8a/2)',
+     [re.escape('Build > Editor-Daten behalten: an, als BhedKeepEditorData 1 gespeichert'), re.escape('Byte-Vergleich: Lumps 1..17'),
+      re.escape('Open .bsp mit Begleitdatei: genaue Quelle')]),
+    ('Eigen|Open .bsp > Recover misc_model', 'misc_model aus der Geometrie (Stufe 8a/3)', [re.escape('misc_model zurueck: pillar.md3')]),
+    ('Eigen|Open .bsp > Estimate lights', 'Lichter schaetzen, experimentell (Stufe 8a/4)', [re.escape('geschaetzte Lichter: Ebene')]),
+    ('Eigen|Build > Partial compile: reuse VIS / reuse light', 'Teil-Kompilierungen (Stufe 8a/5a, 5b, 5d)',
+     [re.escape('Build > Teil-Kompilierung: VIS und Licht wiederverwenden an, gespeichert'), re.escape('nach einer Entity-Aenderung: Sichtbarkeit wiederverwendet'),
+      re.escape('nur die Nachbearbeitung geaendert')]),
+    ('Eigen|Build > Add to compiled map...', 'Zur fertigen Karte hinzufuegen (Stufe 8a/5c)', [re.escape('zusammengefuehrt: <karte>_merged.bsp')]),
 ]
 
 
