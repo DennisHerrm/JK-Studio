@@ -372,6 +372,72 @@ std::vector<Schritt> editordaten() {
     return s;
 }
 
+
+// --- Punkt 3: misc_model aus der Geometrie zurueckgewinnen ------------------------------
+//
+// Wirkung: die Testkarte aus Punkt 2 (misc_model pillar.md3 bei 128 128 0, angle 45,
+// modelscale 1.5) ohne Editor-Daten bauen und als .bsp oeffnen - im Hintergrund kommt
+// das misc_model mit denselben Schluesseln zurueck (ein Rueckgaengig-Schritt), "Update
+// entities only" bleibt moeglich; ohne die Option kommt keins.
+std::vector<Schritt> modelle() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("Stufe 8/3: Testkarte (misc_model pillar.md3, angle 45, modelscale 1.5) ohne Editor-Daten bauen", [] {
+        karteDialogeZu();
+        q3map2Bereitstellen();
+        ke::bauMenueSicherstellen();
+        ke::Editor& e = ke::editor();
+        e.bau.editorDaten = false;
+        e.bspRueck = ke::Editor::BspRueckEinstellungen{};
+        ke::einstellungenSpeichern();
+        edKarteSchreiben();
+        (void)ke::karteOeffnen(edKarte());
+        std::error_code ec;
+        for (const char* x : {".bsp", ".prt", ".srf", ".bhed"}) { std::filesystem::remove(std::filesystem::path(edStamm() + x), ec); }
+        e.bauProjekt.eintraege.push_back(karte::BauEintrag{"Test Modelle", {"[q3map2] -meta \"[MapFile]\"", "[q3map2] -vis -fast \"[MapFile]\"", "[q3map2] -light -fast \"[MapFile]\""}});
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Test Modelle"));
+    add(warteSek("Bau fertig", [] { return !ke::bauLaeuft(); }, 300));
+    add(tu("File > Open .bsp (ohne .bhed): Dekompilat, dann die Rueckgewinnung im Hintergrund", [] {
+        ke::konsoleLeeren();
+        ke::editor().bspRueckLetzt = ke::Editor::BspRueckLetzt{};
+        (void)ke::bspOeffnenDatei(edStamm() + ".bsp");
+    }));
+    add(warteSek("Rueckgewinnung laeuft (Fenster)", [] { return ke::bspRueckStand().stand == 1 || ke::bspRueckStand().stand == 2 || ke::editor().bspRueckLetzt.sekunden > 0; }, 30));
+    add(foto("karteneditor_s8_modelle_laeuft"));
+    add(warteSek("Rueckgewinnung fertig", [] { return ke::bspRueckStand().stand == 0 && ke::editor().bspRueckLetzt.sekunden > 0; }, 180));
+    add(pruefe("misc_model zurueck: pillar.md3 mit origin 128 128 0, angle 45, modelscale 1.5; Konsole; Update entities only moeglich", [] {
+        const EdZahl z = edZaehlen();
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Stufe 8/3 " + edZahlText(z) + ", Treffer " + std::to_string(e.bspRueckLetzt.treffer) + ", Fehler " +
+                     std::to_string(e.bspRueckLetzt.maxFehler) + ", " + std::to_string(e.bspRueckLetzt.sekunden) + " s");
+        return z.modelle == 1 && z.modellSchluessel == "models/map_objects/bounty/pillar.md3|45|1.5|128 128 0" && e.bspRueckLetzt.treffer == 1 &&
+               e.bspRueckLetzt.maxFehler < 0.01 && konsoleText().find(vorlageAnfang(Str::KeRkFertig)) != std::string::npos && ke::bspNurEntitaetenMoeglich() &&
+               !ke::bspGeometrieGeaendert();
+    }));
+    add(foto("karteneditor_s8_modelle"));
+    add(tu("Rueckgaengig", [] { (void)ke::editor().karte.undo.undo(); }));
+    add(pruefe("Rueckgaengig nimmt das misc_model wieder weg (ein Schritt)", [] { return edZaehlen().modelle == 0; }));
+    add(tu("Option aus, noch einmal oeffnen", [] {
+        ke::editor().bspRueck.modelle = false;
+        ke::editor().bspRueckLetzt = ke::Editor::BspRueckLetzt{};
+        (void)ke::bspOeffnenDatei(edStamm() + ".bsp");
+    }));
+    add(pause(1.0));
+    add(pruefe("ohne die Option: keine Rueckgewinnung, kein misc_model", [] {
+        return ke::bspRueckStand().stand == 0 && ke::editor().bspRueckLetzt.sekunden == 0 && edZaehlen().modelle == 0;
+    }));
+    add(tu("Option wieder an, Eintrag weg", [] {
+        ke::Editor& e = ke::editor();
+        e.bspRueck = ke::Editor::BspRueckEinstellungen{};
+        ke::einstellungenSpeichern();
+        auto& v = e.bauProjekt.eintraege;
+        v.erase(std::remove_if(v.begin(), v.end(), [](const karte::BauEintrag& b) { return b.name == "Test Modelle"; }), v.end());
+    }));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     const char* nur = std::getenv("BHED_STUFE8_NUR");
@@ -381,6 +447,7 @@ std::vector<Schritt> schritte() {
     };
     if (teil("fortschritt")) { dazu(fortschritt()); }
     if (teil("editordaten")) { dazu(editordaten()); }
+    if (teil("modelle")) { dazu(modelle()); }
     return s;
 }
 

@@ -34,12 +34,16 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <functional>
 #include <string>
 #include <utility>
 #include <vector>
 
 namespace bhed::karte {
+
+class Pinsel;
+struct Kontext;
 
 // Ein Netz, wie InsertModel es sieht (aus bhed_q3map2 -bhedmodels).
 struct ModellNetz {
@@ -127,6 +131,11 @@ struct ModellVieleck {
 [[nodiscard]] RueckErgebnis modelleZurueckgewinnen(const std::string& bspDaten, const std::vector<ModellDatei>& modelle, const RueckOptionen& o);
 
 [[nodiscard]] std::vector<ModellVieleck> unerkannteVielecke(const std::vector<RueckErgebnisDreieck>& dreiecke);
+// Ein duenner Pinsel aus einem Vieleck: vorn der Shader mit den Texturkoordinaten der
+// .bsp (texdefAusSt, Brush Primitives genau, Quake wie NRC angenaehert), hinten und an
+// den Seiten rueckShader (nicht fest, unsichtbar), detail. dicke in Einheiten.
+// nullptr, wenn das Vieleck entartet ist.
+[[nodiscard]] std::shared_ptr<Pinsel> vieleckPinsel(const ModellVieleck& v, double dicke, const std::string& rueckShader, const Kontext& k);
 
 }  // namespace bhed::karte
 

@@ -220,6 +220,8 @@ bool bspOeffnenAus(const std::string& anzeige, const std::string& daten, const s
     }
     zuletztEintragen(karteDatei);   // MRU_AddFile vor dem Laden (map.cpp:1848)
     const bool ok = karteOeffnen(karteDatei);
+    // Stufe 8a Punkt 3: ohne Editor-Daten die misc_model aus der Geometrie (im Hintergrund)
+    if (ok && quelle.empty()) { bspRueckStarten(daten, ordner, stamm, karteDatei); }
     ed.bspHerkunft = BspHerkunft{};
     if (ok) {
         ed.bspHerkunft.aktiv = true;
@@ -325,7 +327,7 @@ void zeichneBspDialog() {
     ImGui::PopStyleVar();
     // Liste: Karte | Aus
     const int listeY = 11 + 22 + 6;
-    const int listeH = kH - listeY - 6 - 30 - 6 - 22 - 11;
+    const int listeH = kH - listeY - 6 - 30 - 6 - 22 - 11 - 2 * 22;
     merkeFeld("BspOeffnen:Liste", 11, listeY, kB - 22, listeH);
     ImGui::SetCursorScreenPos(bp(11, static_cast<float>(listeY)));
     ImGui::BeginChild("##bspliste", ImVec2{px(static_cast<float>(kB - 22)), px(static_cast<float>(listeH))}, ImGuiChildFlags_Borders);
@@ -355,8 +357,23 @@ void zeichneBspDialog() {
     if (sichtbare == 0) { ImGui::TextDisabled("%s", trK(Str::KeBspKeine)); }
     ImGui::EndChild();
     if (doppelt) { ergebnis = 1; }
+    // Stufe 8a (eigene Funktion, nicht in NRC): was beim Oeffnen zurueckgewonnen wird
+    {
+        Editor& ed = e();
+        const int hakenY = listeY + listeH + 6;
+        merkeFeld("BspOeffnen:Modelle", 11, hakenY, kB - 22, 22);
+        ImGui::SetCursorScreenPos(bp(11, static_cast<float>(hakenY)));
+        if (ImGui::Checkbox((std::string(trK(Str::KeRkModelle)) + "##bsprueckmodelle").c_str(), &ed.bspRueck.modelle)) { einstellungenSpeichern(); }
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", trK(Str::KeRkModelleTip)); }
+        merkeFeld("BspOeffnen:Flaechen", 11, hakenY + 22, kB - 22, 22);
+        ImGui::SetCursorScreenPos(bp(11, static_cast<float>(hakenY + 22)));
+        if (!ed.bspRueck.modelle) { ImGui::BeginDisabled(); }
+        if (ImGui::Checkbox((std::string(trK(Str::KeRkFlaechenOpt)) + "##bsprueckflaechen").c_str(), &ed.bspRueck.flaechen)) { einstellungenSpeichern(); }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", trK(Str::KeRkFlaechenOptTip)); }
+        if (!ed.bspRueck.modelle) { ImGui::EndDisabled(); }
+    }
     // Hinweis
-    const int hinweisY = listeY + listeH + 6;
+    const int hinweisY = listeY + listeH + 6 + 2 * 22;
     ImGui::SetCursorScreenPos(bp(11, static_cast<float>(hinweisY)));
     ImGui::PushTextWrapPos(bp(static_cast<float>(kB - 11), 0).x);
     ImGui::TextDisabled("%s", trK(Str::KeBspHinweis));

@@ -98,6 +98,14 @@ std::string onlyentsBefehl(const Q3map2Aufruf& a, const std::string& map, bool l
     return gemeinsamerAnfang(a) + " -bsp -onlyents " + (lichterBehalten ? "-keeplights " : "") + inAnfuehrung(map);
 }
 
+std::string bhedModelleBefehl(const Q3map2Aufruf& a, const std::vector<std::string>& pakPfade, const std::string& liste, const std::string& aus) {
+    std::string s = gemeinsamerAnfang(a);
+    for (const std::string& p : pakPfade) {
+        if (!p.empty()) { s += " -fs_pakpath " + inAnfuehrung(p); }
+    }
+    return s + " -bhedmodels " + inAnfuehrung(liste) + " " + inAnfuehrung(aus);
+}
+
 bool eingebackeneEntitaet(const std::string& klassenname) {
     // UnparseEntities (writebsp.cpp): striEqual( classname, "misc_model" / "_decal" / "_skybox" )
     const std::string k = klein(klassenname);

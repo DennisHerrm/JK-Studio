@@ -355,6 +355,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_leck.cpp
     gui/app_karte_portale.cpp
     gui/app_karte_bsp.cpp
+    gui/app_karte_rueck.cpp
     gui/app_karte_optimierer.cpp
     gui/app_karte_echtlicht.cpp
     gui/app_karte_plugins.cpp

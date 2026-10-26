@@ -10,6 +10,7 @@
 // zaehlt die Treffer und vergleicht sie mit den misc_model der Quelle: Lage-,
 // Dreh- und Skalierungsfehler (aus M = A * A_quelle^-1), Fehlzuordnungen.
 #include "bhed/karte/modellrueck.h"
+#include "bhed/karte/pinsel.h"
 
 #include <algorithm>
 #include <cmath>
@@ -188,6 +189,50 @@ void selbstPruefung() {
                    m[0].netze[0].punkte[1][0] == 1.0F && m[0].netze[0].dreiecke[0][2] == 2,
                "Dump: ein Modell, ein Netz mit drei Ecken");
         pruefe(!modellDumpLesen(d.substr(0, d.size() - 2), m), "Dump abgeschnitten: abgelehnt");
+    }
+    {
+        // Zwei Dreiecke eines Quadrats (q3map2-Reihenfolge: im Uhrzeigersinn von vorn, vorn = +z)
+        // -> ein Vieleck mit 4 Ecken -> ein Pinsel mit 6 Seiten, vorn die Flaeche auf z = 8
+        RueckErgebnisDreieck a;
+        RueckErgebnisDreieck b;
+        const double q[4][3] = {{0, 0, 8}, {64, 0, 8}, {64, 64, 8}, {0, 64, 8}};
+        const int ia[3] = {0, 2, 1};
+        const int ib[3] = {0, 3, 2};
+        for (int k = 0; k < 3; ++k) {
+            for (int c = 0; c < 3; ++c) {
+                a.p[k][c] = q[ia[k]][c];
+                b.p[k][c] = q[ib[k]][c];
+            }
+            a.st[k][0] = q[ia[k]][0] / 64.0;
+            a.st[k][1] = q[ia[k]][1] / 64.0;
+            b.st[k][0] = q[ib[k]][0] / 64.0;
+            b.st[k][1] = q[ib[k]][1] / 64.0;
+        }
+        a.shader = b.shader = "textures/test/x";
+        a.flaeche = b.flaeche = 7;
+        const std::vector<ModellVieleck> v = unerkannteVielecke({a, b});
+        pruefe(v.size() == 1 && v[0].punkte.size() == 4 && std::fabs(v[0].normale[2] - 1.0) < 1e-9 && std::fabs(v[0].stS[0] - 1.0 / 64.0) < 1e-9 &&
+                   std::fabs(v[0].stS[3]) < 1e-9,
+               "zwei Dreiecke eines Quadrats: ein Vieleck mit 4 Ecken, Normale +z, s = x / 64");
+        Kontext kx;
+        kx.format = PinselFormat::Quake3BP;
+        const std::shared_ptr<Pinsel> p = v.empty() ? nullptr : vieleckPinsel(v[0], 2.0, "textures/system/nodraw", kx);
+        int tragen = 0;
+        double zmin = 1e9;
+        double zmax = -1e9;
+        if (p) {
+            (void)p->entartet(kx);   // baut die Wicklungen (bRep)
+            for (std::size_t i = 0; i < p->anzahl(); ++i) {
+                tragen += (*p)[i].traegtBei() ? 1 : 0;
+                for (std::size_t k = 0; k < (*p)[i].wicklung().numpoints; ++k) {
+                    zmin = std::min(zmin, (*p)[i].wicklung()[k].vertex.z());
+                    zmax = std::max(zmax, (*p)[i].wicklung()[k].vertex.z());
+                }
+            }
+        }
+        pruefe(p != nullptr && p->anzahl() == 6 && tragen == 6 && std::fabs(zmax - 8.0) < 1e-6 && std::fabs(zmin - 6.0) < 1e-6 && p->istDetail() &&
+                   (*p)[0].shader() == "textures/test/x" && (*p)[1].shader() == "textures/system/nodraw",
+               "Vieleck-Pinsel: 6 Seiten mit Flaeche, z 6..8, vorn der Shader, sonst nodraw, detail");
     }
 }
 

@@ -1245,6 +1245,9 @@ void einstellungenLaden() {
         b.zielOrdner = ziel != k.end() ? ziel->second : std::string();
         b.melden = zahl("BhedBuildNotify", 1) != 0.0F;   // Stufe 8a (eigene Einstellung)
         b.editorDaten = zahl("BhedKeepEditorData", 0) != 0.0F;
+        ed.bspRueck.modelle = zahl("BhedBspRecoverModels", 1) != 0.0F;
+        ed.bspRueck.flaechen = zahl("BhedBspUnknownFaces", 1) != 0.0F;
+        ed.bspRueck.lichter = zahl("BhedBspEstimateLights", 0) != 0.0F;
     }
     // Kamera (Camera_registerPreferencesPage, CamWnd_Construct: camwindow.cpp:2543-2563)
     karte::KameraEinstellungen& c = ed.kameraE;
@@ -1363,6 +1366,9 @@ void einstellungenSpeichern() {
     k["BuildTargetFolder"] = ed.bau.zielOrdner;
     k["BhedBuildNotify"] = ed.bau.melden ? "1" : "0";
     k["BhedKeepEditorData"] = ed.bau.editorDaten ? "1" : "0";
+    k["BhedBspRecoverModels"] = ed.bspRueck.modelle ? "1" : "0";
+    k["BhedBspUnknownFaces"] = ed.bspRueck.flaechen ? "1" : "0";
+    k["BhedBspEstimateLights"] = ed.bspRueck.lichter ? "1" : "0";
     k["BuildEngineExecutable"] = ed.bau.engine.text;   // DefaultableString::Export: ohne Vorgabe
     k["BuildEngineExecutableMP"] = ed.bau.engineMp.text;
     k["BuildEngineArgs"] = ed.bau.argumente.text;

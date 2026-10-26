@@ -895,6 +895,20 @@ struct Editor {
         bool melden = true;                // Stufe 8a: Taskleiste blinkt, wenn ein Bau fertig ist ("BhedBuildNotify")
         bool editorDaten = false;          // Stufe 8a: -keeplights und <karte>.bhed ("BhedKeepEditorData"), Vorgabe aus wie NRC
     } bau;
+    // Stufe 8a Punkt 3/4: was "Open .bsp" zurueckgewinnt (eigene Funktion, nicht in NRC)
+    struct BspRueckEinstellungen {
+        bool modelle = true;     // misc_model aus der Geometrie ("BhedBspRecoverModels")
+        bool flaechen = true;    // nicht erkannte Flaechen als Pinsel in einer eigenen Ebene ("BhedBspUnknownFaces")
+        bool lichter = false;    // Lichter schaetzen, experimentell ("BhedBspEstimateLights")
+    } bspRueck;
+    struct BspRueckLetzt {       // das letzte Ergebnis (Anzeige, Selbsttest)
+        std::size_t treffer = 0;
+        std::size_t forceMeta = 0;
+        std::size_t pinsel = 0;
+        std::size_t dreiecke = 0;
+        double maxFehler = 0;
+        double sekunden = 0;
+    } bspRueckLetzt;
     // Stufe 8a Punkt 1: Fortschrittsfenster (zu bis zum naechsten Bau), Restzeit-Text, Meldungen im Selbsttest
     bool bauFortschrittZu = false;
     std::string bauFortschrittText;
@@ -1448,7 +1462,18 @@ bool bspImportieren(const std::string& pfad);    // File > Import... mit .bsp (t
 [[nodiscard]] std::vector<karte::BspEintrag> bspDialogListe();
 [[nodiscard]] bool bspNurEntitaetenMoeglich();   // eine .bsp ist offen
 [[nodiscard]] bool bspGeometrieGeaendert();      // Fingerabdruck anders als beim Oeffnen
-void bspNurEntitaeten();                 // Build > Update entities only
+void bspNurEntitaeten();
+// Stufe 8a Punkt 3: misc_model aus der Geometrie zurueckgewinnen (im Hintergrund nach Open .bsp)
+struct BspRueckStand {
+    int stand = 0;          // 0 frei, 1 Modelle laden, 2 suchen, 3 fertig (wird uebernommen), 4 Fehler, 5 abgebrochen
+    double anteil = 0;
+    std::size_t kandidaten = 0;
+};
+[[nodiscard]] BspRueckStand bspRueckStand();
+void bspRueckStarten(const std::string& bspDaten, const std::string& ordner, const std::string& stamm, const std::string& karteDatei);
+void bspRueckAbbrechen();
+void bspRueckBeenden();
+void bspRueckSchritt();   // jedes Bild: Ergebnis uebernehmen, Fortschritt zeigen                 // Build > Update entities only
 void bauSchritt();                     // CWatchBSP::RoutineProcessing (jedes Bild, auch ausserhalb des Editors)
 [[nodiscard]] bool bauLaeuft();        // ein Bauen laeuft (Bilder weiter zeichnen)
 void bauAbbrechen();                   // Abweichung: Bauen abbrechen

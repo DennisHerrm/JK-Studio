@@ -13,6 +13,8 @@
 #include "bhed/karte/modellrueck.h"
 
 #include "bhed/karte/bspoeffnen.h"
+#include "bhed/karte/pinsel.h"
+#include "bhed/karte/texdef.h"
 
 #include <algorithm>
 #include <cctype>
@@ -1543,6 +1545,52 @@ std::vector<ModellVieleck> unerkannteVielecke(const std::vector<RueckErgebnisDre
         }
     }
     return out;
+}
+
+std::shared_ptr<Pinsel> vieleckPinsel(const ModellVieleck& v, double dicke, const std::string& rueckShader, const Kontext& k) {
+    const std::size_t m = v.punkte.size();
+    if (m < 3) { return nullptr; }
+    const Vektor3d n(v.normale[0], v.normale[1], v.normale[2]);
+    const auto P = [&v](std::size_t i) { return Vektor3d(v.punkte[i][0], v.punkte[i][1], v.punkte[i][2]); };
+    auto pinsel = std::make_shared<Pinsel>();
+    // Eine Flaeche mit der Aussennormale N durch Q: p0 = Q, p1 = Q + U, p2 = Q + U x N
+    // (Brush_ConstructCuboid: aussen = (p2 - p0) x (p1 - p0)).
+    const auto ebene = [&](const Vektor3d& Q, Vektor3d U, const Vektor3d& N, const std::string& shader, bool vorn) {
+        const double lu = std::sqrt(U.x() * U.x() + U.y() * U.y() + U.z() * U.z());
+        if (lu < 1e-9) { return false; }
+        U = Vektor3d(U.x() / lu, U.y() / lu, U.z() / lu);
+        const Vektor3d W(U.y() * N.z() - U.z() * N.y(), U.z() * N.x() - U.x() * N.z(), U.x() * N.y() - U.y() * N.x());
+        const EbenenPunkte p{Q, Vektor3d(Q.x() + U.x() * 64.0, Q.y() + U.y() * 64.0, Q.z() + U.z() * 64.0),
+                             Vektor3d(Q.x() + W.x() * 64.0, Q.y() + W.y() * 64.0, Q.z() + W.z() * 64.0)};
+        TexturProjektion proj;
+        texdefStandard(k.art(), proj);
+        if (vorn) {
+            Vektor3d st[3];
+            for (int i = 0; i < 3; ++i) {
+                st[i] = Vektor3d(v.stS[0] * p[i].x() + v.stS[1] * p[i].y() + v.stS[2] * p[i].z() + v.stS[3],
+                                 v.stT[0] * p[i].x() + v.stT[1] * p[i].y() + v.stT[2] * p[i].z() + v.stT[3], 0.0);
+            }
+            const auto [w, h] = k.groesse(shader);
+            texdefAusSt(k.art(), proj, p, st, w, h);
+        }
+        return pinsel->ebeneHinzufuegen(p[0], p[1], p[2], shader, proj, k) != nullptr;
+    };
+    bool ok = ebene(P(0), Vektor3d(P(1).x() - P(0).x(), P(1).y() - P(0).y(), P(1).z() - P(0).z()), n, v.shader, true);
+    const Vektor3d Pb(P(0).x() - n.x() * dicke, P(0).y() - n.y() * dicke, P(0).z() - n.z() * dicke);
+    ok = ok && ebene(Pb, Vektor3d(P(1).x() - P(0).x(), P(1).y() - P(0).y(), P(1).z() - P(0).z()), Vektor3d(-n.x(), -n.y(), -n.z()), rueckShader, false);
+    for (std::size_t i = 0; ok && i < m; ++i) {
+        const Vektor3d a = P(i);
+        const Vektor3d b = P((i + 1) % m);
+        const Vektor3d e(b.x() - a.x(), b.y() - a.y(), b.z() - a.z());
+        Vektor3d aussen(e.y() * n.z() - e.z() * n.y(), e.z() * n.x() - e.x() * n.z(), e.x() * n.y() - e.y() * n.x());
+        const double la = std::sqrt(aussen.x() * aussen.x() + aussen.y() * aussen.y() + aussen.z() * aussen.z());
+        if (la < 1e-9) { continue; }
+        aussen = Vektor3d(aussen.x() / la, aussen.y() / la, aussen.z() / la);
+        ok = ebene(a, e, aussen, rueckShader, false);
+    }
+    if (!ok) { return nullptr; }
+    pinsel->setzeDetail(true);
+    return pinsel;
 }
 
 }  // namespace bhed::karte

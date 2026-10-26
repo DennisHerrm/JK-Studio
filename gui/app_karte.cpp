@@ -1466,6 +1466,7 @@ void zeichne(float hoehe) {
     bauDialogZeichnen();   // Stufe 3: "Build Menu" (DoBuildMenu)
     bauRueckmeldungenZeichnen();   // Stufe 3: "Q3Map debug window"
     bauFortschrittZeichnen();      // Stufe 8a: Baufortschritt mit Restzeit
+    bspRueckSchritt();             // Stufe 8a: misc_model aus der .bsp zurueckgewinnen
     portalDialogeZeichnen();       // Stufe 3 Punkt 5: prtview ("Load .prt", "Portal Viewer Configuration")
     // PreferencesDialog_showDialog (preferences.cpp:783-797): nach OK die Liste der
     // Einstellungen, die einen Neustart brauchen

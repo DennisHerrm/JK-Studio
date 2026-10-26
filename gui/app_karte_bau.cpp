@@ -1660,6 +1660,7 @@ void bauAbbrechen() {
 void bauBeimBeenden() {   // ~CWatchBSP; dazu: kein q3map2 ohne Editor
     optimiererBeenden();   // Stufe 5: den Faden des Optimierers abwarten
     echtLichtBeenden();    // Stufe 7: einen laufenden Schnell-Bau abbrechen
+    bspRueckBeenden();     // Stufe 8a: die Rueckgewinnung nach Open .bsp
     g_lauf.prozess.beenden();
     g_lauf.prozess.loslassen();
     ueberwachungZuruecksetzen();

@@ -66,6 +66,10 @@ struct Q3map2Aufruf {
 // (writebsp.cpp:222-260) entfernt sonst jedes light ohne targetname - Ravens
 // Jedi-Outcast-Karten haben ihre Lichter aber im Entity-Lump.
 [[nodiscard]] std::string onlyentsBefehl(const Q3map2Aufruf& a, const std::string& map, bool lichterBehalten = false);
+// Stufe 8a Punkt 3: bhed_q3map2 -bhedmodels <liste> <aus> (Modelle wie InsertModel sie
+// laedt, fuer die Rueckgewinnung der misc_model); pakPfade als -fs_pakpath.
+[[nodiscard]] std::string bhedModelleBefehl(const Q3map2Aufruf& a, const std::vector<std::string>& pakPfade, const std::string& liste,
+                                            const std::string& aus);
 
 // Entitaeten, deren Inhalt q3map2 in die Geometrie einbackt und aus dem
 // Entity-Lump entfernt (UnparseEntities: misc_model, _decal, _skybox).
