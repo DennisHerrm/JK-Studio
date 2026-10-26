@@ -1155,10 +1155,47 @@ std::vector<std::string> shaderWoerter(const std::string& t) {
     return w;
 }
 
-ShaderSkript shaderSkriptLesen(const std::string& text, const std::string& name) {
+namespace {
+// Der Block eines Shaders ab seinem Namen w[i] (w[i + 1] == "{"):
+// shaders.cpp ParseShaderFile, nur die oberste Ebene des Blocks
+ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
     ShaderSkript r;
-    const std::vector<std::string> w = shaderWoerter(text);
-    const std::string gesucht = klein(name);
+    r.gefunden = true;
+    int t = 0;
+    for (std::size_t j = i + 1; j < w.size(); ++j) {
+        if (w[j] == "{") {
+            ++t;
+            continue;
+        }
+        if (w[j] == "}") {
+            if (--t == 0) { break; }
+            continue;
+        }
+        if (t != 1) { continue; }
+        const std::string k = klein(w[j]);
+        if (k == "q3map_surfacelight" && j + 1 < w.size()) {   // shaders.cpp: si.value = atof( token )
+            r.flaechenlicht = std::atof(w[j + 1].c_str());
+        } else if (k == "q3map_backsplash" && j + 2 < w.size()) {   // shaders.cpp:1248-1252
+            r.backsplashAnteil = std::atof(w[j + 1].c_str()) * 0.01;
+            r.backsplashWeite = std::atof(w[j + 2].c_str());
+        } else if (k == "q3map_lightmapsize" && j + 2 < w.size()) {   // shaders.cpp: lmCustomWidth/Height (Stufe 6)
+            r.lightmapBreite = std::atoi(w[j + 1].c_str());
+            r.lightmapHoehe = std::atoi(w[j + 2].c_str());
+        } else if (k == "surfaceparm" && j + 1 < w.size()) {
+            const std::string parm = klein(w[j + 1]);
+            if (parm == "sky") { r.himmel = true; }
+            if (parm == "origin") { r.ursprung = true; }
+        }
+    }
+    return r;
+}
+}  // namespace
+
+// Je Name zaehlt der erste Block auf oberster Ebene (wie die Suche je Name)
+ShaderDatei shaderDateiZerlegen(const std::string& text) {
+    ShaderDatei d;
+    d.woerter = shaderWoerter(text);
+    const std::vector<std::string>& w = d.woerter;
     int tiefe = 0;
     for (std::size_t i = 0; i < w.size(); ++i) {
         if (w[i] == "{") {
@@ -1169,39 +1206,18 @@ ShaderSkript shaderSkriptLesen(const std::string& text, const std::string& name)
             tiefe = std::max(0, tiefe - 1);
             continue;
         }
-        if (tiefe != 0 || klein(w[i]) != gesucht || i + 1 >= w.size() || w[i + 1] != "{") { continue; }
-        // der Block dieses Shaders (shaders.cpp ParseShaderFile: nur die oberste Ebene)
-        r.gefunden = true;
-        int t = 0;
-        for (std::size_t j = i + 1; j < w.size(); ++j) {
-            if (w[j] == "{") {
-                ++t;
-                continue;
-            }
-            if (w[j] == "}") {
-                if (--t == 0) { break; }
-                continue;
-            }
-            if (t != 1) { continue; }
-            const std::string k = klein(w[j]);
-            if (k == "q3map_surfacelight" && j + 1 < w.size()) {   // shaders.cpp: si.value = atof( token )
-                r.flaechenlicht = std::atof(w[j + 1].c_str());
-            } else if (k == "q3map_backsplash" && j + 2 < w.size()) {   // shaders.cpp:1248-1252
-                r.backsplashAnteil = std::atof(w[j + 1].c_str()) * 0.01;
-                r.backsplashWeite = std::atof(w[j + 2].c_str());
-            } else if (k == "q3map_lightmapsize" && j + 2 < w.size()) {   // shaders.cpp: lmCustomWidth/Height (Stufe 6)
-                r.lightmapBreite = std::atoi(w[j + 1].c_str());
-                r.lightmapHoehe = std::atoi(w[j + 2].c_str());
-            } else if (k == "surfaceparm" && j + 1 < w.size()) {
-                const std::string parm = klein(w[j + 1]);
-                if (parm == "sky") { r.himmel = true; }
-                if (parm == "origin") { r.ursprung = true; }
-            }
-        }
-        return r;
+        if (tiefe != 0 || i + 1 >= w.size() || w[i + 1] != "{") { continue; }
+        d.anfang.emplace(klein(w[i]), i);   // emplace: ein spaeterer gleicher Name ersetzt den ersten nicht
     }
-    return r;
+    return d;
 }
+
+ShaderSkript shaderSkriptLesen(const ShaderDatei& datei, const std::string& name) {
+    const auto it = datei.anfang.find(klein(name));
+    return it == datei.anfang.end() ? ShaderSkript{} : skriptBlock(datei.woerter, it->second);
+}
+
+ShaderSkript shaderSkriptLesen(const std::string& text, const std::string& name) { return shaderSkriptLesen(shaderDateiZerlegen(text), name); }
 
 namespace {
 bool lichtMitStil(const std::string& klasse, const std::string& stil1, const std::string& stil2, const std::string& name) {

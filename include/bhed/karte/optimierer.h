@@ -40,6 +40,7 @@
 #include <functional>
 #include <map>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -247,6 +248,17 @@ struct ShaderSkript {
     int lightmapHoehe = 0;
 };
 [[nodiscard]] ShaderSkript shaderSkriptLesen(const std::string& text, const std::string& name);
+// Eine .shader-Datei einmal zerlegt (Stufe 6, schnellerer Start des
+// Optimierers): die Woerter und je Shader-Name (klein) das Wort, mit dem sein
+// erster Block auf oberster Ebene beginnt. shaderSkriptLesen(datei, name)
+// ergibt dasselbe wie shaderSkriptLesen(text, name), ohne die Datei je Name
+// neu zu zerlegen.
+struct ShaderDatei {
+    std::vector<std::string> woerter;
+    std::unordered_map<std::string, std::size_t> anfang;
+};
+[[nodiscard]] ShaderDatei shaderDateiZerlegen(const std::string& text);
+[[nodiscard]] ShaderSkript shaderSkriptLesen(const ShaderDatei& datei, const std::string& name);
 
 // Lichtstile in der Karte: Lichter mit "style"/"_style" (q3map2 light.cpp:433)
 // oder mit targetname (schaltbar: q3map2 gibt ihnen in RBSP einen Stil, light.cpp:337).

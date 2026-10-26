@@ -36212,9 +36212,10 @@ Schritt optimiererGemessen(const std::string& was, std::shared_ptr<int> laeufe, 
 }
 
 std::string laufText(const OptLauf& m) {
-    char z[256];
-    std::snprintf(z, sizeof(z), "Start %.0f ms (Momentaufnahme), Pruefung %.0f ms, %zu Bilder dabei, groesstes %.0f ms, Mittel %.1f ms", m.startMs,
-                  ke::optimiererBlick().ms, m.bilder.size(), m.groesstes(), m.mittel());
+    char z[320];
+    const ke::OptimiererBlick b = ke::optimiererBlick();
+    std::snprintf(z, sizeof(z), "Start %.0f ms (optimiererStarten %.0f ms: Momentaufnahme %.0f ms, Shader %.0f ms), Pruefung %.0f ms, %zu Bilder dabei, groesstes %.0f ms, Mittel %.1f ms",
+                  m.startMs, b.startGesamtMs, b.startAbbildMs, b.startShaderMs, b.ms, m.bilder.size(), m.groesstes(), m.mittel());
     return z;
 }
 
@@ -36629,6 +36630,33 @@ std::vector<Schritt> gross() {
     add(tu("Reiter Pruefungen", [] { ke::optimiererReiter(1); }));
     add(pause(0.3));
     add(foto("karteneditor_s5_gross"));
+    // Stufe 6: die groesste Karte in allen vier Sprachen (Grenzen und Pruefungen)
+    {
+        auto sprache = std::make_shared<i18n::Language>(i18n::Language::English);
+        add(tu("Stufe 6: Sprache merken, Begriffe aus", [sprache] {
+            *sprache = i18n::currentLanguage();
+            ke::setzeNrcBegriffe(false);
+        }));
+        const std::pair<i18n::Language, const char*> sprachen[] = {
+            {i18n::Language::English, "en"}, {i18n::Language::German, "de"}, {i18n::Language::ChineseSimplified, "zh"}, {i18n::Language::Japanese, "ja"}};
+        for (const auto& [l, kurz] : sprachen) {
+            const i18n::Language lang = l;
+            const std::string k = kurz;
+            add(tu("Stufe 6: grosse Karte, Sprache " + k + ", Reiter Grenzen", [lang] {
+                i18n::setLanguage(lang);
+                ke::optimiererReiter(0);
+            }));
+            add(pause(0.4));
+            add(pruefe("Stufe 6: grosse Karte, Sprache " + k + ": Ergebnis noch da", [lang] {
+                return i18n::currentLanguage() == lang && ke::optimiererBlick().hatErgebnis;
+            }));
+            add(foto("karteneditor_s6_gross_grenzen_" + k));
+            add(tu("Stufe 6: Reiter Pruefungen (" + k + ")", [] { ke::optimiererReiter(1); }));
+            add(pause(0.3));
+            add(foto("karteneditor_s6_gross_pruefungen_" + k));
+        }
+        add(tu("Stufe 6: Sprache zurueck", [sprache] { i18n::setLanguage(*sprache); }));
+    }
     add(tu("Regelwerk wieder automatisch, Fenster zu", [] {
         ke::editor().optimierer = ke::Editor::OptimiererEinstellungen{};
         ke::optimiererSchliessen();

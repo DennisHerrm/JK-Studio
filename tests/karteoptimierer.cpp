@@ -21,6 +21,8 @@
 #include "bhed/pk3.h"
 #include "bhed/i18n.h"
 
+#include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -1019,6 +1021,63 @@ void testeBekannteFehler(const std::string& q3dir) {
         const ShaderSkript ursprung = shaderSkriptLesen(text, "textures/system/origin");
         pruefe(ursprung.gefunden && ursprung.ursprung, "Shader-Skript: surfaceparm origin (der Block im /* */-Kommentar zaehlt nicht)");
         pruefe(!shaderSkriptLesen(text, "textures/fehlt").gefunden, "Shader-Skript: unbekannter Name nicht gefunden");
+    }
+    // Stufe 6: die einmal zerlegte Datei (ShaderDatei) ergibt fuer jeden Namen
+    // dasselbe wie die alte Suche je Name (hier als Referenz nachgebaut)
+    {
+        auto alteSuche = [](const std::string& t, const std::string& name) {
+            ShaderSkript r;
+            const std::vector<std::string> w = shaderDateiZerlegen(t).woerter;   // die Woerter selbst sind nicht Gegenstand
+            std::string gesucht = name;
+            for (char& c : gesucht) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            auto kl = [](std::string x) {
+                for (char& c : x) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+                return x;
+            };
+            int tiefe = 0;
+            for (std::size_t i = 0; i < w.size(); ++i) {
+                if (w[i] == "{") {
+                    ++tiefe;
+                    continue;
+                }
+                if (w[i] == "}") {
+                    tiefe = std::max(0, tiefe - 1);
+                    continue;
+                }
+                if (tiefe != 0 || kl(w[i]) != gesucht || i + 1 >= w.size() || w[i + 1] != "{") { continue; }
+                ShaderDatei einzeln;
+                einzeln.woerter = w;
+                einzeln.anfang.emplace(gesucht, i);
+                return shaderSkriptLesen(einzeln, name);
+            }
+            return r;
+        };
+        const std::string text =
+            "textures/d/a { q3map_surfacelight 5 }\n"
+            "textures/D/A { q3map_surfacelight 7 surfaceparm sky }\n"          // zweiter gleicher Name: der erste zaehlt
+            "textures/d/b surfaceparm\n{ q3map_backsplash 50 8 }\n"            // Name ohne { dahinter
+            "textures/d/b { { textures/d/c { q3map_surfacelight 9 } } surfaceparm origin }\n"   // verschachtelt: kein Name
+            "} } textures/d/c { q3map_lightmapSize 256 64 }\n"                 // ueberzaehlige }
+            "/* textures/d/e { surfaceparm sky } */ \"textures/d/e\" { q3map_surfacelight 3 }\n"
+            "textures/d/f {";                                                  // offener Block am Ende
+        const ShaderDatei d = shaderDateiZerlegen(text);
+        bool gleich = true;
+        int gefunden = 0;
+        for (const char* n : {"textures/d/a", "TEXTURES/D/A", "textures/d/b", "textures/d/c", "textures/d/e", "textures/d/f", "surfaceparm", "{", "}", "textures/fehlt"}) {
+            const ShaderSkript x = shaderSkriptLesen(d, n);
+            const ShaderSkript y = alteSuche(text, n);
+            const ShaderSkript z = shaderSkriptLesen(text, n);
+            for (const ShaderSkript* v : {&x, &z}) {
+                gleich = gleich && v->gefunden == y.gefunden && v->flaechenlicht == y.flaechenlicht && v->backsplashAnteil == y.backsplashAnteil &&
+                         v->backsplashWeite == y.backsplashWeite && v->himmel == y.himmel && v->ursprung == y.ursprung && v->lightmapBreite == y.lightmapBreite &&
+                         v->lightmapHoehe == y.lightmapHoehe;
+            }
+            gefunden += x.gefunden ? 1 : 0;
+        }
+        const ShaderSkript a = shaderSkriptLesen(d, "textures/d/a");
+        const ShaderSkript b = shaderSkriptLesen(d, "textures/d/b");
+        pruefe(gleich && gefunden == 7 && a.flaechenlicht == 5.0 && !a.himmel && b.ursprung && b.backsplashWeite == 23.0,
+               "Shader-Datei einmal zerlegt: fuer jeden Namen dasselbe wie die Suche je Name (erster Block, ohne Gross/klein, nur oberste Ebene)");
     }
     // Lichtstile (style, _style, targetname) und Schalter im Build-Menue
     {

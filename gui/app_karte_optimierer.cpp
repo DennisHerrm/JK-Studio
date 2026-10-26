@@ -51,7 +51,9 @@
 #include <mutex>
 #include <set>
 #include <sstream>
+#include <string_view>
 #include <thread>
+#include <unordered_set>
 
 namespace bhed::gui::karteneditor {
 
@@ -228,6 +230,9 @@ struct Zustand {
     bool vorschau = false;           // "Beheben..." gedrueckt: Vorschau mit Anwenden
     int laeufe = 0;
     std::string meldung;             // letzte Meldung (Behebung)
+    double startAbbildMs = 0;        // letzter Start (Hauptfaden): kartenAbbild
+    double startShaderMs = 0;        //   ... shaderArten
+    double startGesamtMs = 0;        //   ... alles in optimiererStarten
 };
 Zustand g_z;
 
@@ -267,14 +272,18 @@ std::string nebenDatei(const std::string& bsp, const char* endung) {
 void shaderArten(const karte::KartenAbbild& a, karte::PruefOptionen& o) {
     const auto& spiel = e().karteSpiel;
     if (!spiel) { return; }
-    std::set<std::string> namen;
+    // Stufe 6 (schnellerer Start): erst die Namen so, wie sie in der Karte
+    // stehen (wenige verschiedene bei vielen Flaechen), dann klein
+    std::unordered_set<std::string_view> roh;
     for (const auto& en : a.ents) {
         for (const auto& p : en.prims) {
-            if (p.patch) { namen.insert(klein(p.shader)); }
-            for (const auto& f : p.flaechen) { namen.insert(klein(f.shader)); }
+            if (p.patch) { roh.insert(p.shader); }
+            for (const auto& f : p.flaechen) { roh.insert(f.shader); }
         }
     }
-    std::map<std::string, std::string> dateien;   // Shaderdatei -> Text (fuer Flaechenlicht, Backsplash, origin)
+    std::set<std::string> namen;
+    for (const std::string_view r : roh) { namen.insert(klein(std::string(r))); }
+    std::map<std::string, karte::ShaderDatei> dateien;   // Shaderdatei -> zerlegt (fuer Flaechenlicht, Backsplash, origin), je Datei einmal
     for (const std::string& n : namen) {
         karte::ShaderArt art = karte::shaderArtNachName(n);
         const karte::ShaderEintrag* s = spiel->inventar.shaderFinden(n);
@@ -284,7 +293,7 @@ void shaderArten(const karte::KartenAbbild& a, karte::PruefOptionen& o) {
             if (text == dateien.end()) {
                 std::string t;
                 (void)spiel->fs.textLesen(s->datei, t);
-                text = dateien.emplace(s->datei, std::move(t)).first;
+                text = dateien.emplace(s->datei, shaderDateiZerlegen(t)).first;
             }
             const ShaderSkript sk = shaderSkriptLesen(text->second, n);
             if (sk.gefunden) {
@@ -317,6 +326,8 @@ void shaderArten(const karte::KartenAbbild& a, karte::PruefOptionen& o) {
 void npcModelleSicherstellen() {
     if (g_npcGelesen || g_app == nullptr) { return; }
     g_npcGelesen = true;
+    const auto t0 = std::chrono::steady_clock::now();
+    const bool schonGelesen = g_app->npcMapRead;
     NpcMap m;
     if (g_app->npcMapRead) {
         m = g_app->npcMap;
@@ -327,6 +338,10 @@ void npcModelleSicherstellen() {
         const std::string modell = !def.playerModel.empty() ? def.playerModel : def.legsModel;
         if (!modell.empty()) { g_npcModelle[klein(typ)] = klein(modell); }
     }
+    // einmal je Sitzung (Stufe 6: der Rest des Optimierer-Starts neben Momentaufnahme und Shadern)
+    char z[160];
+    std::snprintf(z, sizeof(z), "Optimizer: NPC models %s in %.0f ms (%zu types)", schonGelesen ? "copied" : "read", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(), g_npcModelle.size());
+    diag::detail(z);
 }
 
 void fadenAbwarten() {
@@ -458,11 +473,14 @@ void zeichneAmpelPunkt(ImDrawList* dl, ImVec2 p, float r, Ampel a) {
 // --- Starten, Abholen ---------------------------------------------------------------
 
 void optimiererStarten(bool nachBau) {
+    const auto tStart = std::chrono::steady_clock::now();
     abholen();
     if (g_z.laeuft) { return; }   // eine Pruefung zur Zeit
     fadenAbwarten();
     Editor& ed = e();
+    const auto tAbbild = std::chrono::steady_clock::now();
     auto abbild = std::make_shared<karte::KartenAbbild>(karte::kartenAbbild(ed.karte));
+    g_z.startAbbildMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tAbbild).count();
     const GrenzSpiel spiel = spielWahl();
     npcModelleSicherstellen();
     karte::ZaehlOptionen zo;
@@ -477,7 +495,9 @@ void optimiererStarten(bool nachBau) {
     po.knappAb = std::clamp(ed.optimierer.knappProzent, 1, 100) / 100.0;
     po.portalSchwelle = ed.optimierer.portalSchwelle;
     po.dreieckSchwelle = ed.optimierer.dreieckSchwelle;
+    const auto tShader = std::chrono::steady_clock::now();
     shaderArten(*abbild, po);
+    g_z.startShaderMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tShader).count();
     for (const auto& b : ed.bauProjekt.eintraege) {   // die Schalter des Build-Menues (Pruefung "baubefehl")
         for (const std::string& befehl : b.befehle) { po.bauBefehle.emplace_back(b.name, befehl); }
     }
@@ -529,6 +549,7 @@ void optimiererStarten(bool nachBau) {
         }
         g_z.fertig = true;
     });
+    g_z.startGesamtMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tStart).count();
 }
 
 void optimiererOeffnen() {
@@ -619,6 +640,9 @@ OptimiererBlick optimiererBlick() {
     OptimiererBlick b;
     b.laeufe = g_z.laeufe;
     b.meldung = g_z.meldung;
+    b.startAbbildMs = g_z.startAbbildMs;
+    b.startShaderMs = g_z.startShaderMs;
+    b.startGesamtMs = g_z.startGesamtMs;
     if (!g_z.e) { return b; }
     b.hatErgebnis = true;
     b.veraltet = veraltet();

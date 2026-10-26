@@ -1352,6 +1352,9 @@ struct OptimiererBlick {
     std::vector<std::string> grenzenIds; // Grenzen, die nicht "ok" sind
     int laeufe = 0;                      // abgeschlossene Pruefungen
     std::string meldung;                 // die Zeile ueber den Knoepfen (letzte Behebung)
+    double startAbbildMs = 0;            // letzter Start auf dem Hauptfaden: Momentaufnahme (Stufe 6)
+    double startShaderMs = 0;            //   ... und Shader im Texturinventar nachsehen
+    double startGesamtMs = 0;            //   ... der ganze Start (optimiererStarten)
 };
 [[nodiscard]] OptimiererBlick optimiererBlick();
 void optimiererReiter(int reiter);       // 0 Grenzen, 1 Pruefungen
