@@ -19,6 +19,8 @@
 //   Public License for more details (LICENSE).
 #include "bhed/karte/karte.h"
 
+#include <unordered_map>
+
 #include <algorithm>
 
 namespace bhed::karte {
@@ -199,6 +201,48 @@ void Auswahl::umschalten(const std::shared_ptr<Entitaet>& e, const std::shared_p
     } else {
         waehlen(e, p);
     }
+}
+
+void Auswahl::umschaltenAlle(const std::vector<std::pair<std::shared_ptr<Entitaet>, std::shared_ptr<Primitiv>>>& paare) {
+    // umschalten() je Paar: gewaehlt (ein Element mit lock() == Paar) -> alle solchen
+    // Elemente entfernen, sonst hinten anfuegen. Die Paare der Liste sind verschieden,
+    // also sieht kein Paar ein Element, das ein anderes angefuegt hat - es zaehlt nur,
+    // was vorher gewaehlt war. Ergebnis: die verbliebenen alten Elemente in ihrer
+    // Reihenfolge, dahinter die neuen in der Reihenfolge der Liste - wie nacheinander.
+    struct Schluessel {
+        const Entitaet* e;
+        const Primitiv* p;
+        bool operator==(const Schluessel& o) const { return e == o.e && p == o.p; }
+    };
+    struct Streuung {
+        std::size_t operator()(const Schluessel& s) const {
+            return std::hash<const void*>{}(s.e) * 31U ^ std::hash<const void*>{}(s.p);
+        }
+    };
+    std::vector<Schluessel> alt;
+    alt.reserve(m_elemente.size());
+    std::unordered_map<Schluessel, int, Streuung> vorher;
+    for (const AuswahlElement& a : m_elemente) {
+        alt.push_back({a.entitaet.lock().get(), a.primitiv.lock().get()});
+        ++vorher[alt.back()];
+    }
+    std::unordered_map<Schluessel, int, Streuung> weg;
+    std::vector<AuswahlElement> neu;
+    for (const auto& [e, p] : paare) {
+        const Schluessel s{e.get(), p.get()};
+        if (vorher.count(s) != 0) {
+            weg[s] = 1;
+        } else {
+            neu.push_back(AuswahlElement{e, p});
+        }
+    }
+    std::vector<AuswahlElement> ergebnis;
+    ergebnis.reserve(m_elemente.size() + neu.size());
+    for (std::size_t i = 0; i < m_elemente.size(); ++i) {
+        if (weg.count(alt[i]) == 0) { ergebnis.push_back(m_elemente[i]); }
+    }
+    for (AuswahlElement& a : neu) { ergebnis.push_back(std::move(a)); }
+    m_elemente = std::move(ergebnis);
 }
 
 bool Auswahl::gewaehlt(const Entitaet* e, const Primitiv* p) const {

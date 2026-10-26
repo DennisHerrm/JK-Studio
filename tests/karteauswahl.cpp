@@ -18,6 +18,7 @@
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <vector>
 
 using namespace bhed::karte;
 
@@ -186,10 +187,59 @@ void tunnel2d() {
 
 }  // namespace
 
+// Stufe 7: Auswahl::umschaltenAlle (Invert Selection) = umschalten() je Paar nacheinander,
+// auch mit Eintraegen, deren Objekt schon geloescht ist (weak_ptr abgelaufen).
+void umschaltenAlleGleich() {
+    unsigned zufall = 12345U;
+    const auto naechste = [&zufall] {
+        zufall = zufall * 1103515245U + 12345U;
+        return (zufall >> 16U) & 0x7FFFU;
+    };
+    int runden = 0;
+    for (int r = 0; r < 40; ++r) {
+        Karte k;
+        std::vector<std::shared_ptr<Pinsel>> pinsel;
+        for (int i = 0; i < 30; ++i) { pinsel.push_back(wuerfel(k, Vektor3f(float(i) * 40.0F, 0, 0), 8)); }
+        auto ent = k.neueEntitaet("light", false);
+        k.entitaetEinfuegen(ent);
+        const auto welt = k.welt();
+        // Anfangsauswahl: zufaellig, dazu Pinsel, die danach geloescht werden
+        std::vector<std::shared_ptr<Pinsel>> geloescht;
+        for (int i = 0; i < 8; ++i) {
+            auto p = std::make_shared<Pinsel>();
+            k.auswahl.waehlen(welt, p);
+            geloescht.push_back(p);
+        }
+        for (const auto& p : pinsel) {
+            if (naechste() % 3 == 0) { k.auswahl.waehlen(welt, p); }
+        }
+        if (naechste() % 2 == 0) { k.auswahl.waehlen(ent); }
+        geloescht.erase(geloescht.begin(), geloescht.begin() + 4);   // 4 laufen ab
+        std::vector<std::pair<std::shared_ptr<Entitaet>, std::shared_ptr<Primitiv>>> paare;
+        for (const auto& p : pinsel) {
+            if (naechste() % 4 != 0) { paare.emplace_back(welt, p); }
+        }
+        paare.emplace_back(ent, nullptr);
+        Auswahl a = k.auswahl;
+        Auswahl b = k.auswahl;
+        for (const auto& [e, p] : paare) { a.umschalten(e, p); }
+        b.umschaltenAlle(paare);
+        bool gleich = a.anzahl() == b.anzahl();
+        for (std::size_t i = 0; gleich && i < a.anzahl(); ++i) {
+            gleich = a.elemente()[i].entitaet.lock() == b.elemente()[i].entitaet.lock() &&
+                     a.elemente()[i].primitiv.lock() == b.elemente()[i].primitiv.lock() &&
+                     a.elemente()[i].primitiv.expired() == b.elemente()[i].primitiv.expired();
+        }
+        runden += gleich ? 1 : 0;
+    }
+    pruefe(runden == 40, "umschaltenAlle = umschalten je Paar (" + std::to_string(runden) + " von 40 Runden gleich)");
+}
+
 int main() {
     grundlagen();
     tunnel3d();
     tunnel2d();
+    umschaltenAlleGleich();
     std::printf("karteauswahl: %d Fehlschlaege\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

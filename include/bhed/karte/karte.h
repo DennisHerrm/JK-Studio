@@ -125,6 +125,10 @@ public:
     void waehlen(const std::shared_ptr<Entitaet>& e, const std::shared_ptr<Primitiv>& p = nullptr);
     void abwaehlen(const std::shared_ptr<Entitaet>& e, const std::shared_ptr<Primitiv>& p = nullptr);
     void umschalten(const std::shared_ptr<Entitaet>& e, const std::shared_ptr<Primitiv>& p = nullptr);
+    // Stufe 7: dasselbe wie umschalten() fuer jedes Paar der Liste nacheinander (jedes
+    // Paar hoechstens einmal), ohne fuer jedes die ganze Auswahl zu durchsuchen
+    // (Invert Selection auf duel_mos_espa: 26,8 s mit umschalten() je Objekt).
+    void umschaltenAlle(const std::vector<std::pair<std::shared_ptr<Entitaet>, std::shared_ptr<Primitiv>>>& paare);
     [[nodiscard]] bool gewaehlt(const Entitaet* e, const Primitiv* p = nullptr) const;
     void flaecheWaehlen(const std::shared_ptr<Pinsel>& pinsel, const std::shared_ptr<Flaeche>& f);
     void flaecheAbwaehlen(const Flaeche* f);

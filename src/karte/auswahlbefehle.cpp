@@ -194,24 +194,28 @@ void auswahlUmkehren(Karte& k, const AuswahlEinstellung& e) {   // InvertSelecti
         komponentenUmkehren(k, e.komponente);
         return;
     }
+    // Stufe 7: erst die Paare sammeln, dann alle auf einmal umschalten (umschaltenAlle:
+    // dasselbe Ergebnis wie umschalten() je Paar, ohne quadratische Suche)
+    std::vector<std::pair<std::shared_ptr<Entitaet>, std::shared_ptr<Primitiv>>> paare;
     const auto liste = k.entitaeten();
     for (const auto& ent : liste) {
         if (!sichtbar(*ent)) { continue; }
         if (e.modus == AuswahlModus::Entitaet) {
             // die Entitaet wechselt bei ihrem ersten Kind (oder selbst ohne Kinder);
             // ein verstecktes erstes Kind setzt m_selectable = 0
-            if (ent->kinder().empty() || sichtbar(*ent->kinder().front())) { k.auswahl.umschalten(ent); }
+            if (ent->kinder().empty() || sichtbar(*ent->kinder().front())) { paare.emplace_back(ent, nullptr); }
             continue;
         }
         // ePrimitive: hat die Entitaet Kinder, wechseln nur die sichtbaren Kinder
         if (ent->kinder().empty()) {
-            k.auswahl.umschalten(ent);
+            paare.emplace_back(ent, nullptr);
             continue;
         }
         for (const auto& p : ent->kinder()) {
-            if (sichtbar(*p)) { k.auswahl.umschalten(ent, p); }
+            if (sichtbar(*p)) { paare.emplace_back(ent, p); }
         }
     }
+    k.auswahl.umschaltenAlle(paare);
 }
 
 void alleVomTyp(Karte& k, const AuswahlEinstellung& e, const std::string& browserShader) {   // Select_AllOfType
