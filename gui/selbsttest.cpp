@@ -34610,6 +34610,30 @@ std::vector<Schritt> licht() {
         (void)ke::ausfuehren("Undo");
     }));
     add(pruefe("Rueckgaengig: Fingerabdruck wieder gleich", [] { return !ke::bspGeometrieGeaendert(); }));
+    // Stufe 6 (JKHub, Lichtstile nach Entity-Aenderung): ein neues schaltbares Licht verschoebe
+    // die Stile, die in den Lightmaps stecken - Update entities only verweigert, q3map2 laeuft nicht
+    add(tu("Stufe 6: ein Licht mit targetname dazu", [] {
+        ke::Editor& e = ke::editor();
+        {
+            karte::Befehl b(e.karte.undo, "Stufe 6 Test");
+            auto l = e.karte.neueEntitaet("light", false);
+            l->setzen("origin", "0 0 64");
+            l->setzen("targetname", "s6schalter");
+            e.karte.entitaetEinfuegen(l);
+        }
+        e.bspNurEntitaetenFertig.clear();
+        ke::konsoleLeeren();
+    }));
+    add(tu("Build > Update entities only", [] { ke::bspNurEntitaeten(); }));
+    add(pause(0.3));
+    add(pruefe("Stufe 6: schaltbares Licht dazu - Hinweis (Lichtstile), q3map2 nicht gestartet", [] {
+        const ke::Editor& e = ke::editor();
+        return e.meldung.offen && e.meldung.text == ke::trK(Str::KeBmSchaltlichter) && !ke::bauLaeuft() && e.bspNurEntitaetenFertig.empty();
+    }));
+    add(tu("Kasten zu, Rueckgaengig", [] {
+        ke::editor().meldung.offen = false;
+        (void)ke::ausfuehren("Undo");
+    }));
     add(tu("Eine andere Karte oeffnen: die Herkunft ist weg", [] { (void)ke::karteOeffnen(karteTestPfad("karte_kopie.map")); }));
     add(pruefe("Ohne geoeffnete .bsp: Update entities only gesperrt", [] { return !ke::bspNurEntitaetenMoeglich(); }));
     return s;

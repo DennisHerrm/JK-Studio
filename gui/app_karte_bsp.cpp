@@ -394,6 +394,14 @@ void bspNurEntitaeten() {
     }
     karte::BspDatei b;
     const bool lichter = karte::bspLesen(original, b) && karte::bspHatLichter(karte::bspEntitaetenText(b));
+    // Stufe 6 (JKHub, Lichtstile): die schaltbaren Lichter muessen dieselben sein wie in der
+    // Original-.bsp, in derselben Reihenfolge - ihr Licht steckt je Stil in den Lightmaps, und
+    // -onlyents vergibt die Stile nach der Reihenfolge neu (SetLightStyles).
+    if (karte::schaltlichter(karte::bspEntitaetenText(b), true) != karte::schaltlichter(karte::karteSchreiben(ed.karte), false)) {
+        warnung(trK(Str::KeBmSchaltlichter));
+        qtMeldung(trK(Str::KeBmGeometrieTitel), trK(Str::KeBmSchaltlichter), MeldungArt::Warnung, false, nullptr);
+        return;
+    }
     g_nurEntitaetenBsp = bsp;
     bauEigeneBefehle(karte::ohneMnemonik(trK(Str::KeBmNurEntities)), {karte::onlyentsBefehl(q3map2Aufruf(), karteDatei, lichter)},
                      [](int art) {

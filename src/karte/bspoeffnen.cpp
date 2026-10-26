@@ -171,6 +171,62 @@ bool bspHatLichter(const std::string& text) {
     return false;
 }
 
+std::vector<std::pair<std::string, int>> schaltlichter(const std::string& text, bool ausBsp) {
+    // Entity_parseTokens vereinfacht: { "schluessel" "wert" ... { Pinsel } }; Pinsel werden uebersprungen
+    std::vector<std::pair<std::string, int>> out;
+    std::size_t i = 0;
+    const std::size_t n = text.size();
+    const auto wort = [&](std::string& w) -> bool {
+        while (true) {   // Leerraum und // Kommentare
+            while (i < n && std::isspace(static_cast<unsigned char>(text[i])) != 0) { ++i; }
+            if (i < n && text[i] == '/' && i + 1 < n && text[i + 1] == '/') {
+                while (i < n && text[i] != '\n') { ++i; }
+                continue;
+            }
+            break;
+        }
+        if (i >= n) { return false; }
+        if (text[i] == '"') {
+            const std::size_t e = text.find('"', i + 1);
+            w = text.substr(i + 1, (e == std::string::npos ? n : e) - i - 1);
+            i = e == std::string::npos ? n : e + 1;
+            return true;
+        }
+        const std::size_t a = i;
+        while (i < n && std::isspace(static_cast<unsigned char>(text[i])) == 0) { ++i; }
+        w = text.substr(a, i - a);
+        return true;
+    };
+    std::string w;
+    int tiefe = 0;
+    std::map<std::string, std::string> ent;
+    while (wort(w)) {
+        if (w == "{") {
+            if (++tiefe == 1) { ent.clear(); }
+            continue;
+        }
+        if (w == "}") {
+            if (--tiefe == 0) {
+                const std::string klasse = klein(ent["classname"]);
+                const std::string t = ent["targetname"];
+                if (klasse.rfind("light", 0) == 0 && !t.empty()) {
+                    const int stil = std::atoi((ausBsp ? ent["switch_style"] : ent["style"]).c_str());
+                    const auto paar = std::make_pair(t, stil);
+                    if (std::find(out.begin(), out.end(), paar) == out.end()) { out.push_back(paar); }
+                }
+            }
+            tiefe = std::max(tiefe, 0);
+            continue;
+        }
+        if (tiefe == 1) {
+            std::string wert;
+            if (!wort(wert)) { break; }
+            ent[w] = wert;
+        }
+    }
+    return out;
+}
+
 std::string bspEntitaetenEinsetzen(const std::string& original, const std::string& neu) {
     BspDatei a;
     BspDatei b;

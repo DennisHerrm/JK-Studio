@@ -143,6 +143,28 @@ std::string spielBasis(std::string arg) {
 }  // namespace
 
 int main(int argc, char** argv) {
+    // --- Stufe 6: schaltbare Lichter (SetLightStyles: Stil 32+j in der Reihenfolge) ---
+    {
+        const std::string bsp =
+            "{\n\"classname\" \"worldspawn\"\n}\n{\n\"classname\" \"light\"\n\"targetname\" \"a\"\n\"style\" \"32\"\n\"switch_style\" \"5\"\n}\n"
+            "{\n\"classname\" \"light\"\n\"targetname\" \"b\"\n\"style\" \"33\"\n}\n{\n\"classname\" \"light\"\n\"targetname\" \"a\"\n\"style\" \"32\"\n\"switch_style\" \"5\"\n}\n"
+            "{\n\"classname\" \"func_door\"\n\"targetname\" \"t\"\n}\n";
+        const std::string karte =
+            "// entity 0\n{\n\"classname\" \"worldspawn\"\n// brush 0\n{\n( 0 0 0 ) ( 1 0 0 ) ( 0 1 0 ) a/b 0 0 0 0.5 0.5 0 0 0\n}\n}\n"
+            "{\n\"classname\" \"light\"\n\"targetname\" \"a\"\n\"style\" \"5\"\n}\n{\n\"classname\" \"light\"\n\"targetname\" \"b\"\n}\n";
+        const auto sb = schaltlichter(bsp, true);
+        const auto sk = schaltlichter(karte, false);
+        pruefe(sb.size() == 2 && sb[0] == std::make_pair(std::string("a"), 5) && sb[1] == std::make_pair(std::string("b"), 0),
+               "schaltlichter (BSP): a/5 und b/0, doppeltes a einmal, func_door nicht");
+        pruefe(sb == sk, "schaltlichter: .bsp (switch_style) und .map (style) gleich");
+        const std::string vertauscht = "{\n\"classname\" \"worldspawn\"\n}\n{\n\"classname\" \"light\"\n\"targetname\" \"b\"\n}\n"
+                                       "{\n\"classname\" \"light\"\n\"targetname\" \"a\"\n\"style\" \"5\"\n}\n";
+        pruefe(schaltlichter(vertauscht, false) != sb, "schaltlichter: vertauschte Reihenfolge ist anders (Stile wuerden sich verschieben)");
+        const std::string mehr = karte + "{\n\"classname\" \"light_spot\"\n\"targetname\" \"c\"\n}\n";
+        pruefe(schaltlichter(mehr, false) != sb, "schaltlichter: ein neues schaltbares Licht ist anders");
+        const std::string ohne = karte + "{\n\"classname\" \"light\"\n\"light\" \"300\"\n}\n";
+        pruefe(schaltlichter(ohne, false) == sb, "schaltlichter: ein Licht ohne targetname zaehlt nicht");
+    }
     // --- Entity-Lump einsetzen: Lumps des Originals bleiben, Reihenfolge wie dort
     {
         // RBSP mit 18 Lumps, Lump 0 (Entitaeten) liegt in der Datei hinten

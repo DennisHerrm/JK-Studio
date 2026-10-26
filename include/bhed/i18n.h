@@ -2178,6 +2178,7 @@ enum class Str {
     KeOptD32,
     KeOptPrLightmapExtern,
     KeOptPrLightmapExternE,
+    KeBmSchaltlichter,
     Count,
 };
 

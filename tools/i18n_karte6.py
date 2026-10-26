@@ -78,4 +78,10 @@ KARTE6 = [
      "Ein Shader mit q3map_lightmapSize ungleich 128 bekommt eine externe Lightmap. In Jedi Academy und Movie Duels verlieren Lichtstile auf diesen Flächen dann ihre Lightmap-Stufen (NRC#48, eine Grenze von q3map2 bei RBSP); Jedi Outcast kann externe Lightmaps überhaupt nicht laden (NRC#98). q3map_lightmapSize aus dem Shader nehmen oder bei diesen Flächen keine Lichtstile (schaltbare oder flackernde Lichter) verwenden.",
      "q3map_lightmapSize 不为 128 的着色器会得到外部光照贴图。在 Jedi Academy 和 Movie Duels 中,这些面上的光照样式会因此失去光照贴图阶段(NRC#48,q3map2 在 RBSP 下的限制);Jedi Outcast 则完全无法加载外部光照贴图(NRC#98)。请从着色器中去掉 q3map_lightmapSize,或者不要在这些面附近使用光照样式(可开关或闪烁的灯光)。",
      "q3map_lightmapSize が 128 以外のシェーダーには外部ライトマップが割り当てられます。Jedi Academy と Movie Duels では、これらの面でライトスタイルのライトマップ段階が失われます(NRC#48、RBSP における q3map2 の制限)。Jedi Outcast は外部ライトマップをまったく読み込めません(NRC#98)。シェーダーから q3map_lightmapSize を外すか、これらの面の近くではライトスタイル(切り替え式や点滅するライト)を使わないでください。"),
+    # --- JKHub: Lichtstile nach Entity-Aenderung (Update entities only) ---
+    ("KeBmSchaltlichter",
+     "The switchable lights (lights with a targetname) are not the same as in the original map. Their light is baked into the lightmaps per light style, and the styles are assigned in the order of these lights - updating only the entities would switch the wrong light or none. Build and light the map completely instead.",
+     "Die schaltbaren Lichter (Lichter mit targetname) sind nicht mehr dieselben wie in der Originalkarte. Ihr Licht steckt je Lichtstil in den Lightmaps, und die Stile werden in der Reihenfolge dieser Lichter vergeben - nur die Entities zu erneuern schaltete das falsche oder gar kein Licht. Die Karte stattdessen vollständig bauen und belichten.",
+     "可开关的灯光(带 targetname 的灯光)与原始地图中的不再相同。它们的光照按光照样式烘焙在光照贴图中,而样式是按这些灯光的顺序分配的——只更新实体会开关错误的灯光或根本没有灯光。请改为完整编译并计算光照。",
+     "切り替え可能なライト(targetname を持つライト)がオリジナルのマップと同じではありません。その光はライトスタイルごとにライトマップへ焼き込まれ、スタイルはこれらのライトの順に割り当てられます。エンティティだけを更新すると、違うライトが切り替わるか、まったく切り替わりません。代わりにマップを完全にビルドしてライティングしてください。"),
 ]

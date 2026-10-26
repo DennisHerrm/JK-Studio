@@ -91,6 +91,13 @@ struct BspDatei {
 [[nodiscard]] std::string bspEntitaetenText(const BspDatei& b);
 // Hat der Entity-Lump ein light (classname "light...")? Dann -keeplights.
 [[nodiscard]] bool bspHatLichter(const std::string& entitaetenText);
+// Stufe 6 (JKHub, Lichtstile nach Entity-Aenderung): die schaltbaren Lichter in der Reihenfolge,
+// in der q3map2 SetLightStyles (writebsp.cpp) ihnen die Stile 32, 33, ... gibt - je
+// (targetname, urspruenglicher Stil) beim ersten Auftreten. ausBsp: der Entity-Lump einer
+// gebauten .bsp (Stil steht dort in "switch_style", "style" ist 32+j); sonst eine .map
+// (UnSetLightStyles hat "style" zurueckgesetzt). Aendert sich diese Liste, passen die in die
+// Lightmaps gebackenen Stile nicht mehr zu den Lichtern - -onlyents darf dann nicht laufen.
+[[nodiscard]] std::vector<std::pair<std::string, int>> schaltlichter(const std::string& entitaetenText, bool ausBsp);
 // Die Datei "original" mit dem Entity-Lump aus "neu" (beide IBSP/RBSP
 // derselben Art): alle anderen Lumps Byte fuer Byte aus dem Original, in
 // dessen Reihenfolge, je auf 4 Bytes aufgefuellt (AddLump). Abweichung von
