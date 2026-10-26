@@ -15046,6 +15046,11 @@ std::vector<Schritt> kartenPruefungSchritte() {
                                  da = true;
                              }
                          }
+                         // Stufe 6 (OpenJK#1358): Pruefpunkt im Festen - auch das Spiel zeichnet es nie
+                         if (!da && miscModelStaticImFesten(e)) {
+                             ++wartet[c + " (OpenJK#1358)"];
+                             da = true;
+                         }
                          // rc604: misc_atst_drivable steht als Kartenfigur da (AT-ST).
                          if (c.rfind("NPC_", 0) == 0 || c == "misc_atst_drivable") {
                              const auto f = figurEnt.find(static_cast<int>(i));

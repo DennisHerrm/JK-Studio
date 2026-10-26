@@ -2523,6 +2523,9 @@ bool gegenstandInstanz(std::size_t entity, float ort[3], std::string* modell, bo
 // Steht der Gegenstand im Spiel NICHT (wartet auf use, Schwierigkeit/
 // notsingle, ITMSF_INVISIBLE, im Festen entfernt)? Dann mit Grund.
 bool gegenstandNichtImSpiel(std::size_t entity, std::string* grund);
+// Stufe 6 (OpenJK#1358): ein misc_model_static, dessen Pruefpunkt origin + (0 0 zoffset+1)
+// im Festen liegt - das Spiel zeichnet es nie (Vorschau und Kartenpruefung).
+bool miscModelStaticImFesten(const MapEntity& e);
 // Selbsttest: einen Gegenstand verstecken (Vergleich mit/ohne).
 void gegenstandVerstecken(std::size_t entity, bool aus);
 // Die Bytes einer Karte ueber ihre Kennung: aus den Archiven, sonst ueber
