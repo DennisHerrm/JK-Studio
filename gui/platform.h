@@ -164,6 +164,12 @@ bool vollbildUmschalten();
 [[nodiscard]] bool istVollbild();
 // Fuer den Selbsttest: das Rechteck des Hauptfensters und des Bildschirms.
 bool hauptfensterRechteck(int& x, int& y, int& b, int& h);
+
+// Stufe 8a Punkt 1 (Bau fertig): ist das Hauptfenster vorne (GetForegroundWindow)?
+// Und den Knopf in der Taskleiste blinken lassen, bis das Fenster vorne ist
+// (FlashWindowEx FLASHW_TRAY | FLASHW_TIMERNOFG) - ohne Ton, ohne Dialog.
+[[nodiscard]] bool hauptfensterVorne();
+void taskleisteBlinken();
 bool bildschirmRechteck(int& x, int& y, int& b, int& h);
 
 // QFontDatabase::families() unter Windows (EnumFontFamiliesEx, DEFAULT_CHARSET,

@@ -23,10 +23,12 @@
 //
 // Aufruf: kartebau <data/karte> [<tests/karte/q3map2>]
 #include "bhed/karte/bau.h"
+#include "bhed/karte/baufortschritt.h"
 #include "bhed/karte/baumonitor.h"
 #include "bhed/karte/xmlstrom.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <fstream>
 #include <sstream>
@@ -101,6 +103,192 @@ std::string ereignisse(const std::string& xml, std::size_t stueck) {
     x.schliessen();
     spuelen();
     return aus;
+}
+
+
+// --- Stufe 8a Punkt 1 ---------------------------------------------------------------
+//
+// Ein aufgenommener Rueckkanal (bhed_q3map2 -connect, SP/s8/strom_aufnehmen.py) und
+// dazu je Empfang "Byte-Ende Sekunden" (.zeit): die Nachrichten mit ihrer Zeit, der
+// Text (alle Stufen) wie ihn BauMonitor an Sys_Print gibt.
+struct Gespielt {
+    std::vector<std::pair<double, std::string>> text;   // Zeit, Text
+    double ende = 0.0;
+};
+
+Gespielt abspielen(const std::string& bin, const std::string& zeit) {
+    Gespielt g;
+    const std::string roh = lies(bin);
+    std::vector<std::pair<std::size_t, double>> zeiten;
+    if (!zeit.empty()) {
+        std::istringstream z(lies(zeit));
+        std::size_t b = 0;
+        double t = 0.0;
+        while (z >> b >> t) { zeiten.emplace_back(b, t); }
+    }
+    BauNetzRahmen rahmen;
+    BauMonitor m;
+    double jetzt = 0.0;
+    m.drucken = [&](int, const std::string& t) { g.text.emplace_back(jetzt, t); };
+    m.verbunden();
+    std::size_t von = 0;
+    for (const auto& [bis, t] : zeiten) {
+        if (bis > roh.size() || bis < von) { break; }
+        jetzt = t;
+        rahmen.einspeisen(roh.data() + von, bis - von);
+        von = bis;
+        std::string n;
+        while (rahmen.naechste(n)) { m.einspeisen(n); }
+        g.ende = t;
+    }
+    if (zeiten.empty()) {   // ohne Zeiten: alles bei 0
+        rahmen.einspeisen(roh.data(), roh.size());
+        std::string n;
+        while (rahmen.naechste(n)) { m.einspeisen(n); }
+    }
+    return g;
+}
+
+BauSchrittBeobachter beobachten(const Gespielt& g, std::size_t stueck = 1U << 20) {
+    BauSchrittBeobachter b;
+    for (const auto& [t, text] : g.text) {
+        for (std::size_t i = 0; i < text.size(); i += stueck) { b.text(text.substr(i, stueck), t); }
+    }
+    return b;
+}
+
+bool hatMarke(const BauSchrittBeobachter& b, const std::string& k) {
+    return std::any_of(b.marken().begin(), b.marken().end(), [&k](const BauPhasenMarke& m) { return m.schluessel == k; });
+}
+
+void fortschrittPruefen(const std::string& q3) {
+    // Stufen der Befehle aus dem Build-Menue
+    const std::string q = "\"C:/x/bhed_q3map2.exe\" -v -connect 127.0.0.1:39000 -game ja -fs_basepath \"C:/Spiel/GameData\" ";
+    pruefe(bauStufeName(q + "-meta \"C:/m/a.map\"") == "BSP" && bauStufeName(q + "-vis -saveprt \"C:/m/a.map\"") == "VIS" &&
+               bauStufeName(q + "-light -fast -bounce 8 \"C:/m/a.map\"") == "LIGHT" && bauStufeName(q + "-onlyents \"C:/m/a.bsp\"") == "BSP" &&
+               bauStufeName(q + "-convert -format ase \"C:/m/a.bsp\"") == "convert" && bauStufeName(q + "-mergebsp -world a b") == "mergebsp" &&
+               bauStufeName("\"C:/-light/x.exe\" -meta \"C:/-vis/a.map\"") == "BSP",
+           "Stufe aus dem Befehl: BSP/VIS/LIGHT, andere Hauptschalter, Pfade mit -light/-vis zaehlen nicht");
+    pruefe(bauBounceAusBefehl(q + "-light -fast -bounce 8 x") == 8 && bauBounceAusBefehl(q + "-light x") == 0, "-bounce N gelesen");
+    std::string name;
+    pruefe(bauPhasenKopf("--- Radiosity (bounce 1 of 2) ---", &name) && name == "Radiosity (bounce 1 of 2)" &&
+               bauPhasenKopf("----- FogDrawSurfs -----", &name) && name == "FogDrawSurfs" &&
+               bauPhasenKopf("############### model 0 ###############", &name) && name == "model 0" && !bauPhasenKopf("-----", &name) &&
+               !bauPhasenKopf("0...1...2", &name) && bauPhasenGrundname("BasePortalVis (20)") == "BasePortalVis" &&
+               bauPhasenGrundname("model 12") == "model",
+           "Kopfzeilen von q3map2 erkannt, Grundname ohne Klammern und Nummer");
+
+    // Echte Stroeme: BSP, VIS, LIGHT (raum.map, [Final] Fast mit -bounce 2)
+    const BauSchrittBeobachter bsp = beobachten(abspielen(q3 + "/fortschritt_meta.bin", ""));
+    pruefe(hatMarke(bsp, "BSP#1") && hatMarke(bsp, "FaceBSP#2") && hatMarke(bsp, "model#1") && hatMarke(bsp, "MergeMetaTriangles#1") &&
+               hatMarke(bsp, "FogDrawSurfs#1") && bsp.pacifier() < 0.0,
+           "BSP-Strom: Phasen (FaceBSP zweimal, model, MergeMetaTriangles, FogDrawSurfs), am Ende ohne Pacifier (" +
+               std::to_string(bsp.marken().size()) + " Phasen)");
+    const BauSchrittBeobachter vis = beobachten(abspielen(q3 + "/fortschritt_vis.bin", ""));
+    pruefe(hatMarke(vis, "BasePortalVis#1") && hatMarke(vis, "PassagePortalFlow#1") && vis.phase() == "PassagePortalFlow" && vis.pacifier() == 1.0,
+           "VIS-Strom: BasePortalVis, PassagePortalFlow, dessen Pacifier fertig");
+    const BauSchrittBeobachter licht = beobachten(abspielen(q3 + "/fortschritt_licht.bin", ""));
+    pruefe(hatMarke(licht, "TraceGrid#1") && hatMarke(licht, "IlluminateRawLightmap#3") && hatMarke(licht, "Radiosity#2") && licht.bounce() == 2 &&
+               licht.bounceVon() == 2,
+           "LIGHT-Strom: TraceGrid, IlluminateRawLightmap dreimal (Licht + 2 Bounces), Bounce 2 von 2");
+    // Zeichen fuer Zeichen gefuettert: dieselben Phasen
+    const BauSchrittBeobachter licht1 = beobachten(abspielen(q3 + "/fortschritt_licht.bin", ""), 1);
+    bool gleich = licht1.marken().size() == licht.marken().size();
+    for (std::size_t i = 0; gleich && i < licht.marken().size(); ++i) { gleich = licht1.marken()[i].schluessel == licht.marken()[i].schluessel; }
+    pruefe(gleich && licht1.pacifier() == licht.pacifier(), "LIGHT-Strom Zeichen fuer Zeichen: dieselben " + std::to_string(licht.marken().size()) + " Phasen");
+
+    // Pacifier Zeichen fuer Zeichen: 0 = 0/40, je Punkt/Ziffer 1/40, " (" = fertig
+    {
+        BauSchrittBeobachter b;
+        b.text("--- IlluminateRawLightmap ---\n", 0.0);
+        const bool vorher = b.pacifier() < 0.0 && b.phase() == "IlluminateRawLightmap";
+        b.text("0", 0.0);
+        const double p0 = b.pacifier();
+        b.text("...1...2...3...4", 10.0);
+        const double p20 = b.pacifier();
+        const std::vector<std::string> befehle{q + "-light x"};
+        const BauSchaetzung s = bauSchaetzen(nullptr, befehle, 0, b, 10.0, {});
+        b.text("...5...6...7...8...9... (12)\n", 12.0);
+        pruefe(vorher && p0 == 0.0 && std::fabs(p20 - 0.4) < 1e-9 && b.pacifier() == 1.0, "Pacifier: 0 -> 0, ...4 -> 0,4 (Ziffer = Zehntel), \" (12)\" -> fertig");
+        pruefe(!s.ausVerlauf && std::fabs(s.rest - 15.0) < 1e-6 && s.gesamtAnteil == 0.0,
+               "erster Bau: Restzeit aus dem Fortschritt der Phase (0,4 nach 10 s -> noch 15 s), Gesamt in ganzen Schritten");
+        b.text("--- MakeEntityDecals ---\n (0)\n        0 decal surfaces\n", 13.0);
+        pruefe(b.pacifier() < 0.0 && b.phase() == "MakeEntityDecals", "Phase ohne Arbeit (\" (0)\"): kein Pacifier");
+    }
+
+    // Restzeit aus dem letzten Bau: Lauf A als Verlauf, Lauf B eingespielt (beide
+    // -light -super 4 -samples 4 -filter -bounce 4 auf raum.map, je ~1,4 s)
+    const Gespielt a = abspielen(q3 + "/fortschritt_lichtA.bin", q3 + "/fortschritt_lichtA.zeit");
+    const Gespielt bb = abspielen(q3 + "/fortschritt_lichtB.bin", q3 + "/fortschritt_lichtB.zeit");
+    const std::string befehl = q + "-light -super 4 -samples 4 -filter -bounce 4 \"C:/m/raum.map\"";
+    BauLaufZeiten verlauf;
+    {
+        const BauSchrittBeobachter ba = beobachten(a);
+        verlauf.schritte.push_back({befehl, a.ende, ba.marken()});
+    }
+    pruefe(a.ende > 0.5 && bb.ende > 0.5 && verlauf.schritte[0].phasen.size() > 20,
+           "Laeufe A/B mit Zeiten: " + std::to_string(a.ende) + " s / " + std::to_string(bb.ende) + " s, " +
+               std::to_string(verlauf.schritte[0].phasen.size()) + " Phasen");
+    {
+        BauSchrittBeobachter b;
+        double schlimmste = 0.0;
+        int messungen = 0;
+        double letzterAnteil = -1.0;
+        bool steigend = true;
+        for (const auto& [t, text] : bb.text) {
+            b.text(text, t);
+            const BauSchaetzung s = bauSchaetzen(&verlauf, {befehl}, 0, b, t, {});
+            if (!s.ausVerlauf || s.rest < 0.0) { continue; }
+            if (s.gesamtAnteil + 0.15 < letzterAnteil) { steigend = false; }
+            letzterAnteil = std::max(letzterAnteil, s.gesamtAnteil);
+            if (t < bb.ende * 0.2 || t > bb.ende * 0.9) { continue; }
+            schlimmste = std::max(schlimmste, std::fabs(t + s.rest - bb.ende) / bb.ende);
+            ++messungen;
+        }
+        char z[160];
+        std::snprintf(z, sizeof(z), "Restzeit aus Lauf A fuer Lauf B: groesster Fehler der Gesamtdauer %.0f %% (%d Messungen zwischen 20 und 90 %%)",
+                      schlimmste * 100.0, messungen);
+        std::printf("INFO  %s\n", z);
+        pruefe(messungen >= 5 && schlimmste < 0.25 && steigend, z);
+    }
+    // Mehrere Schritte: die spaeteren Schritte zaehlen mit ihrer Dauer aus dem Verlauf
+    {
+        BauLaufZeiten drei;
+        drei.schritte.push_back({q + "-meta x", 2.0, {}});
+        drei.schritte.push_back({q + "-vis x", 3.0, {}});
+        drei.schritte.push_back({befehl, a.ende, verlauf.schritte[0].phasen});
+        BauSchrittBeobachter b;
+        const BauSchaetzung s = bauSchaetzen(&drei, {q + "-meta x", q + "-vis x", befehl}, 1, b, 1.0, {2.2});
+        pruefe(s.ausVerlauf && std::fabs(s.rest - (2.0 + a.ende)) < 1e-6 && std::fabs(s.gesamtAnteil - 3.2 / (3.2 + 2.0 + a.ende)) < 1e-9,
+               "drei Schritte, im zweiten nach 1 s: Rest = 2 s VIS + LIGHT des Verlaufs, Gesamtanteil aus den echten Zeiten");
+        const BauSchaetzung anders = bauSchaetzen(&drei, {q + "-meta x", q + "-light x"}, 1, b, 1.0, {2.2});
+        pruefe(!anders.ausVerlauf, "anderer Eintrag (andere Stufen): kein Verlauf");
+    }
+    // Speicher: lesen/schreiben, Schluessel ohne Gross/Klein und mit '/', LRU
+    {
+        BauZeitenSpeicher sp;
+        sp.setzen("C:\\Maps\\Raum.map", "[Final] Fast", verlauf);
+        BauZeitenSpeicher sp2;
+        const bool ok = sp2.lesen(sp.schreiben());
+        const BauLaufZeiten* l = sp2.finden("c:/maps/raum.map", "[Final] Fast");
+        pruefe(ok && l != nullptr && l->schritte.size() == 1 && l->schritte[0].phasen.size() == verlauf.schritte[0].phasen.size() &&
+                   l->schritte[0].phasen[3].schluessel == verlauf.schritte[0].phasen[3].schluessel &&
+                   std::fabs(l->schritte[0].dauer - verlauf.schritte[0].dauer) < 0.001 && sp2.finden("c:/maps/raum.map", "[Final] Extreme") == nullptr,
+               "Bauzeiten: JSON hin und zurueck, je Karte (ohne Gross/Klein, / und \\ gleich) und Eintrag");
+        for (int i = 0; i < 70; ++i) { sp2.setzen("k" + std::to_string(i) + ".map", "e", verlauf); }
+        pruefe(sp2.anzahl() == kBauZeitenMax && sp2.finden("k69.map", "e") != nullptr && sp2.finden("c:/maps/raum.map", "[Final] Fast") == nullptr,
+               "Bauzeiten: hoechstens 64 Laeufe, der aelteste faellt weg");
+        BauLaufZeiten jetzt;
+        jetzt.schritte.push_back({q + "-meta x", 3.0, {}});
+        jetzt.schritte.push_back({q + "-vis x", 1.0, {}});
+        BauLaufZeiten alt;
+        alt.schritte.push_back({q + "-meta x", 4.0, {}});
+        alt.schritte.push_back({q + "-vis x", 0.02, {}});
+        const std::vector<std::string> v = bauZeitenVergleich(jetzt, &alt, "%d %s: %s s", " (last build %s s, %s)");
+        pruefe(v.size() == 2 && v[0] == "1 BSP: 3.0 s (last build 4.0 s, -25 %)" && v[1] == "2 VIS: 1.0 s (last build 0.0 s, +1.0 s)",
+               "Zeiten je Schritt gegen den letzten Lauf: " + (v.empty() ? std::string() : v[0]));
+        pruefe(bauZeitText(65.4) == "1:05" && bauZeitText(7) == "0:07" && bauZeitText(3723) == "1:02:03", "Zeittext m:ss / h:mm:ss");
+    }
 }
 
 }  // namespace
@@ -364,6 +552,9 @@ int main(int argc, char** argv) {
     } else {
         pruefe(false, "Aufruf ohne tests/karte/q3map2");
     }
+
+    // --- 10. Stufe 8a Punkt 1: Fortschritt mit Restzeit aus eingespielten Stroemen
+    if (argc >= 3) { fortschrittPruefen(argv[2]); }
 
     std::printf("kartebau: %d Pruefungen, %d Fehlschlaege\n", g_pruefungen, g_fehler);
     return g_fehler == 0 ? 0 : 1;

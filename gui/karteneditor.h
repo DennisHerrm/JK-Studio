@@ -22,6 +22,7 @@
 
 #include "bhed/i18n.h"
 #include "bhed/karte/bau.h"
+#include "bhed/karte/baufortschritt.h"
 #include "bhed/karte/bobtoolz.h"
 #include "bhed/karte/brushexport.h"
 #include "bhed/karte/kleineplugins.h"
@@ -891,7 +892,12 @@ struct Editor {
         karte::VorgabeText argumente;      // g_engineArgs
         karte::VorgabeText argumenteMp;    // g_engineArgsMP
         std::string zielOrdner;            // Abweichung: Ziel-Ordner ("BuildTargetFolder"), leer = neben der .map
+        bool melden = true;                // Stufe 8a: Taskleiste blinkt, wenn ein Bau fertig ist ("BhedBuildNotify")
     } bau;
+    // Stufe 8a Punkt 1: Fortschrittsfenster (zu bis zum naechsten Bau), Restzeit-Text, Meldungen im Selbsttest
+    bool bauFortschrittZu = false;
+    std::string bauFortschrittText;
+    int bauMeldungenTest = 0;
     // Stufe 5: der Optimierer (eigene Funktion, nicht in NRC; Einstellungsseite "Optimizer")
     struct OptimiererEinstellungen {
         int knappProzent = 90;             // ab diesem Anteil "knapp" ("OptimizerNear")
@@ -1446,7 +1452,22 @@ void bauSchritt();                     // CWatchBSP::RoutineProcessing (jedes Bi
 [[nodiscard]] bool bauLaeuft();        // ein Bauen laeuft (Bilder weiter zeichnen)
 void bauAbbrechen();                   // Abweichung: Bauen abbrechen
 void bauBeimBeenden();                 // ~CWatchBSP: kein q3map2 ohne Editor
-void bauRueckmeldungenZeichnen();      // "Q3Map debug window" (CDbgDlg)
+void bauRueckmeldungenZeichnen();
+// Stufe 8a Punkt 1: Fortschritt des laufenden Baus (eigene Funktion, nicht in NRC)
+struct BauFortschrittStand {
+    bool laeuft = false;
+    std::size_t schritt = 0;
+    std::size_t schritte = 0;
+    std::string stufe;      // BSP / VIS / LIGHT / ...
+    std::string phase;      // Phase von q3map2 ("IlluminateRawLightmap")
+    double pacifier = -1;   // 0..1, -1 ohne
+    int bounce = 0;
+    int bounceVon = 0;
+    karte::BauSchaetzung schaetzung;
+    double vergangen = 0;
+};
+[[nodiscard]] BauFortschrittStand bauFortschrittStand();
+void bauFortschrittZeichnen();      // "Q3Map debug window" (CDbgDlg)
 void bauRueckmeldungWaehlen(int zeile);   // feedback_selection_changed
 // Abweichung (Auftrag): der Ordner, in dem gebaut wird ("" = neben der Karte;
 // nie im Spielordner - dann der Arbeitsordner), hinweis = warum.

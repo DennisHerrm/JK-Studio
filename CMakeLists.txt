@@ -848,6 +848,7 @@ target_sources(bhed_core PRIVATE
   src/karte/xmlstrom.cpp
   src/karte/bau.cpp
   src/karte/baumonitor.cpp
+  src/karte/baufortschritt.cpp
   # Stufe 3 Punkt 5: der Portal Viewer (contrib/prtview) ohne Oberflaeche
   src/karte/portale.cpp
   # Stufe 4 Punkte 1/2: fertige Karten oeffnen, Originallicht (-onlyents)

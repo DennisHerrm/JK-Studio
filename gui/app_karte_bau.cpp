@@ -38,6 +38,7 @@
 #include "bhed/karte/auswahlbefehle.h"
 #include "bhed/karte/auswahlsystem.h"
 #include "bhed/karte/bau.h"
+#include "bhed/karte/baufortschritt.h"
 #include "bhed/karte/baumonitor.h"
 #include "bhed/karte/kartendatei.h"
 #include "bhed/karte/kartenformat.h"
@@ -285,6 +286,17 @@ void bauMenueEintraegeZeichnen() {
     b.haken = ed.echtLicht.backen;
     b.tooltip = trK(Str::KeBackenMenueTip);
     if (qtPunkt(b)) { ed.echtLicht.backen = !ed.echtLicht.backen; }
+    // Stufe 8a Punkt 1 (Abweichung, eigene Funktion): melden, wenn ein Bau fertig ist
+    const std::string melden = std::string(trK(Str::KeFsMelden)) + "##baumelden";
+    QtPunkt m;
+    m.id = melden.c_str();
+    m.art = QtArt::Pruefbar;
+    m.haken = ed.bau.melden;
+    m.tooltip = trK(Str::KeFsMeldenTip);
+    if (qtPunkt(m)) {
+        ed.bau.melden = !ed.bau.melden;
+        einstellungenSpeichern();
+    }
 }
 
 // Build_runRecentExecutedBuild (build.cpp:1311-1314): der zuletzt gebaute
@@ -1037,11 +1049,51 @@ struct BauLauf {
     std::string logPfad;                           // Stapel mit "Dump non Monitored Builds Log": junk.txt
     std::vector<std::pair<std::size_t, int>> rueckgaben;   // Schritt und Rueckgabe von q3map2 (Abweichung: in der Zeile am Ende)
     std::function<void(int)> danach;               // Stufe 4: bauEigeneBefehle
+    // Stufe 8a Punkt 1 (Abweichung, eigene Funktion): Fortschritt und Restzeit
+    std::string kartenPfad;                        // Schluessel der Bauzeiten (die Karte des Editors)
+    karte::BauSchrittBeobachter beob;              // Phase und Pacifier des laufenden Schritts
+    karte::BauLaufZeiten jetzt;                    // Zeiten dieses Laufs
+    std::vector<double> fertig;                    // Dauern der fertigen Schritte
+    bool hatVerlauf = false;
+    karte::BauLaufZeiten verlauf;                  // der letzte Bau dieser Karte mit diesem Eintrag
 };
 BauLauf g_lauf;
 
 double sekundenSeit(std::chrono::steady_clock::time_point t) {
     return std::chrono::duration<double>(std::chrono::steady_clock::now() - t).count();
+}
+
+// Die Bauzeiten aller Karten (karte_bauzeiten.json im Einstellungsordner)
+std::string bauZeitenPfad() { return platform::settingsDirectory() + "\\karte_bauzeiten.json"; }
+
+karte::BauZeitenSpeicher bauZeitenLesen() {
+    karte::BauZeitenSpeicher sp;
+    std::string text;
+    if (dateiLesen(bauZeitenPfad(), text)) { (void)sp.lesen(text); }
+    return sp;
+}
+
+// Ein Schritt ist zu Ende: seine Dauer und Phasen merken
+void schrittZeitMerken() {
+    BauLauf& l = g_lauf;
+    if (l.schritt >= l.befehle.size() || l.jetzt.schritte.size() != l.schritt) { return; }
+    const double d = sekundenSeit(l.schrittStart);
+    l.jetzt.schritte.push_back({l.befehle[l.schritt], d, l.beob.marken()});
+    l.fertig.push_back(d);
+}
+
+void schrittBeobachten(const std::string& text) { g_lauf.beob.text(text, sekundenSeit(g_lauf.schrittStart)); }
+
+// Bau fertig: ist das Fenster nicht vorne, blinkt der Knopf in der Taskleiste (ohne
+// Ton). Im Selbsttest nie - dort zaehlt nur, ob gemeldet wuerde.
+void bauFertigMelden() {
+    Editor& ed = e();
+    if (!ed.bau.melden) { return; }
+    if (std::getenv("BHED_EDITORTEST") != nullptr) {
+        ++ed.bauMeldungenTest;
+        return;
+    }
+    if (!platform::hauptfensterVorne()) { platform::taskleisteBlinken(); }
 }
 
 std::string zeitText(double s) {
@@ -1080,6 +1132,23 @@ void zusammenfassung(int art, const std::string& grund) {   // 0 fertig, 1 gesto
             text += " (" + std::to_string(schritt + 1) + ": exit " + c + ")";
         }
         konsoleSchreiben(KonsolenZeile::Art::Ausgabe, text + "\n");
+        // Stufe 8a Punkt 1: die Zeit je Schritt gegen den letzten Bau, dann merken
+        if (l.jetzt.schritte.size() == l.befehle.size() && !l.befehle.empty()) {
+            std::string zeiten = std::string(trK(Str::KeFsZeitenKopf)) + "\n";
+            for (const std::string& z2 : karte::bauZeitenVergleich(l.jetzt, l.hatVerlauf ? &l.verlauf : nullptr, trK(Str::KeFsZeitJetzt),
+                                                                    trK(Str::KeFsZeitVergleich))) {
+                zeiten += z2 + "\n";
+            }
+            konsoleSchreiben(KonsolenZeile::Art::Ausgabe, zeiten);
+            if (!l.kartenPfad.empty()) {
+                karte::BauZeitenSpeicher sp = bauZeitenLesen();
+                sp.setzen(l.kartenPfad, l.eintrag, l.jetzt);
+                std::ofstream f(pfadAus(bauZeitenPfad()), std::ios::binary | std::ios::trunc);
+                const std::string j = sp.schreiben();
+                if (f) { f.write(j.data(), static_cast<std::streamsize>(j.size())); }
+            }
+        }
+        bauFertigMelden();
         // Stufe 5: nach einem Bau des Build-Menues (nicht nach eigenen
         // Auftraegen wie AutoCaulk) auf Wunsch der Optimierer im Hintergrund
         if (!danach.f && e().optimierer.nachBau) { optimiererStarten(true); }
@@ -1164,6 +1233,7 @@ void stapelZeile(const std::string& zeile) {
 void stapelAusgabe(const std::string& stueck) {
     BauLauf& l = g_lauf;
     if (stueck.empty()) { return; }
+    schrittBeobachten(stueck);   // Stufe 8a Punkt 1
     if (!l.logPfad.empty()) {
         std::ofstream f(pfadAus(l.logPfad), std::ios::binary | std::ios::app);
         f.write(stueck.data(), static_cast<std::streamsize>(stueck.size()));
@@ -1191,6 +1261,7 @@ bool stapelBefehlStarten() {
         return false;
     }
     l.schrittStart = std::chrono::steady_clock::now();
+    l.beob = karte::BauSchrittBeobachter{};
     return true;
 }
 
@@ -1242,6 +1313,7 @@ void schrittBeginnen() {
     }
     ausgabe("Listening...");
     l.schrittStart = std::chrono::steady_clock::now();   // m_timeout_timer.start()
+    l.beob = karte::BauSchrittBeobachter{};
     ausgabe("=== running build command ===");
     ausgabe(l.befehle[l.schritt]);
     if (!l.prozess.starten(l.befehle[l.schritt], std::string(), false, grund)) {
@@ -1282,9 +1354,21 @@ void bauAusfuehren(const std::vector<std::string>& befehle) {
     l.leckGemeldet = false;
     l.zeilenRest.clear();
     l.rueckgaben.clear();
+    l.jetzt = karte::BauLaufZeiten{};
+    l.fertig.clear();
+    l.beob = karte::BauSchrittBeobachter{};
+    l.hatVerlauf = false;
+    if (!l.kartenPfad.empty()) {
+        const karte::BauZeitenSpeicher sp = bauZeitenLesen();
+        if (const karte::BauLaufZeiten* v = sp.finden(l.kartenPfad, l.eintrag)) {
+            l.verlauf = *v;
+            l.hatVerlauf = true;
+        }
+    }
     l.monitor = karte::BauMonitor{};
     l.monitor.leckStopp = ed.bau.leckStopp;
     l.monitor.drucken = [](int stufe, const std::string& text) {   // Sys_Print( msg_level, ... )
+        schrittBeobachten(text);   // Stufe 8a Punkt 1
         konsoleSchreiben(stufe == karte::kBauStufeErr   ? KonsolenZeile::Art::Fehler
                          : stufe == karte::kBauStufeWrn ? KonsolenZeile::Art::Warnung
                                                         : KonsolenZeile::Art::Ausgabe,
@@ -1369,6 +1453,7 @@ void bauSchritt() {
             // q3map2 schliesst den Socket beim Beenden - einen Augenblick warten, bis es
             // ganz zu Ende ist, fuer die Rueckgabe (ein Absturz zeigt sich sonst nicht)
             if (l.prozess.warten(1000)) { l.rueckgaben.emplace_back(l.schritt, l.prozess.rueckgabe()); }
+            schrittZeitMerken();   // Stufe 8a Punkt 1
             ++l.schritt;   // move to next step or finish
             schrittBeginnen();
         }
@@ -1387,6 +1472,7 @@ void bauSchritt() {
         std::error_code ec;
         const std::string karte = bauKartenPfad();
         if (fs::exists(pfadAus(karte.substr(0, karte.rfind('.')) + ".lin"), ec)) { leckHinweis(); }
+        schrittZeitMerken();   // Stufe 8a Punkt 1
         ++l.schritt;
         if (l.schritt < l.befehle.size()) {
             if (!stapelBefehlStarten()) {
@@ -1443,6 +1529,85 @@ void bauRueckmeldungenZeichnen() {
     }
     ImGui::End();
     if (!offen) { ed.bauRueckmeldungOffen = false; }
+}
+
+// Stufe 8a Punkt 1 (Abweichung, eigene Funktion - nicht in NRC): der Fortschritt
+// des laufenden Baus in einem kleinen Fenster - Eintrag, Schritt und Stufe, die
+// Phase von q3map2 mit ihrem Pacifier (bzw. "Bounce x von y"), ein Balken ueber
+// alle Schritte mit der Restzeit, Abbrechen.
+BauFortschrittStand bauFortschrittStand() {
+    const BauLauf& l = g_lauf;
+    BauFortschrittStand st;
+    st.laeuft = l.aktiv;
+    if (!l.aktiv) { return st; }
+    st.schritt = std::min(l.schritt, l.befehle.empty() ? 0U : l.befehle.size() - 1);
+    st.schritte = l.befehle.size();
+    st.stufe = st.schritt < l.befehle.size() ? karte::bauStufeName(l.befehle[st.schritt]) : std::string();
+    st.phase = l.beob.phase();
+    st.pacifier = l.beob.pacifier();
+    st.bounce = l.beob.bounce();
+    st.bounceVon = l.beob.bounceVon();
+    const double t = sekundenSeit(l.schrittStart);
+    st.schaetzung = karte::bauSchaetzen(l.hatVerlauf ? &l.verlauf : nullptr, l.befehle, l.schritt, l.beob, t, l.fertig);
+    st.vergangen = sekundenSeit(l.start);
+    return st;
+}
+
+void bauFortschrittZeichnen() {
+    Editor& ed = e();
+    const BauFortschrittStand st = bauFortschrittStand();
+    if (!st.laeuft) {
+        ed.bauFortschrittZu = false;   // beim naechsten Bau wieder zeigen
+        return;
+    }
+    if (ed.bauFortschrittZu) { return; }
+    const float s = massstab();
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2{vp->WorkPos.x + vp->WorkSize.x - 16.0F * s, vp->WorkPos.y + vp->WorkSize.y - 48.0F * s}, ImGuiCond_FirstUseEver,
+                            ImVec2{1.0F, 1.0F});
+    ImGui::SetNextWindowSize(ImVec2{std::round(420.0F * s), 0.0F}, ImGuiCond_FirstUseEver);
+    const std::string titel = std::string(trK(Str::KeFsTitel)) + "###kartebaufortschritt";
+    bool offen = true;
+    if (ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+        char z[512];
+        std::snprintf(z, sizeof(z), trK(Str::KeFsSchritt), g_lauf.eintrag.c_str(), static_cast<int>(st.schritt + 1), static_cast<int>(st.schritte),
+                      st.stufe.c_str());
+        ImGui::TextUnformatted(z);
+        // Balken 1: die Phase von q3map2 (Pacifier 0...9); ohne Pacifier wandernd
+        std::string phase = st.phase.empty() ? std::string(trK(Str::KeFsWarten)) : st.phase;
+        if (st.bounceVon > 0 && st.bounce > 0) {
+            std::snprintf(z, sizeof(z), trK(Str::KeFsBounce), st.bounce, st.bounceVon);
+            phase += " - " + std::string(z);
+        }
+        const float breite = ImGui::GetContentRegionAvail().x;
+        if (st.pacifier >= 0.0) {
+            std::snprintf(z, sizeof(z), "%s  %d %%", phase.c_str(), static_cast<int>(std::lround(st.pacifier * 100.0)));
+            ImGui::ProgressBar(static_cast<float>(st.pacifier), ImVec2{breite, 0.0F}, z);
+        } else {
+            ImGui::ProgressBar(-1.0F * static_cast<float>(ImGui::GetTime()), ImVec2{breite, 0.0F}, phase.c_str());
+        }
+        // Balken 2: alle Schritte des Eintrags, mit Restzeit
+        ImGui::TextUnformatted(trK(Str::KeFsGesamt));
+        std::snprintf(z, sizeof(z), "%d %%", static_cast<int>(std::lround(st.schaetzung.gesamtAnteil * 100.0)));
+        ImGui::ProgressBar(static_cast<float>(st.schaetzung.gesamtAnteil), ImVec2{breite, 0.0F}, z);
+        std::string rest;
+        if (st.schaetzung.rest >= 0.0) {
+            std::snprintf(z, sizeof(z), trK(st.schaetzung.ausVerlauf ? Str::KeFsRestVerlauf : Str::KeFsRestGeschaetzt),
+                          karte::bauZeitText(st.schaetzung.rest).c_str());
+            rest = z;
+        } else {
+            rest = trK(Str::KeFsRestUnbekannt);
+        }
+        std::snprintf(z, sizeof(z), trK(Str::KeFsVergangen), karte::bauZeitText(st.vergangen).c_str());
+        ImGui::TextUnformatted((std::string(z) + " - " + rest).c_str());
+        ed.bauFortschrittText = rest;
+        if (ImGui::Button((std::string(trK(Str::KeBmAbbrechen)) + "##fortschrittabbrechen").c_str())) { bauAbbrechen(); }
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::TextWrapped("%s", trK(Str::KeFsHinweis));
+        ImGui::PopStyleColor();
+    }
+    ImGui::End();
+    if (!offen) { ed.bauFortschrittZu = true; }
 }
 
 // Abweichung (Auftrag): Bauen abbrechen - q3map2 beenden, Ueberwachung zu
@@ -1596,6 +1761,7 @@ void bauStarten(std::size_t index) {
     }
     g_lauf.eintrag = name;
     g_lauf.bspName = std::string(stamm.begin(), stamm.end());
+    g_lauf.kartenPfad = ed.name;
     bauAusfuehren(befehle);
 }
 
@@ -1603,6 +1769,7 @@ void bauEigeneBefehle(const std::string& eintrag, const std::vector<std::string>
     if (bauLaeuft()) { bauAusfuehren(std::vector<std::string>{}); }
     g_lauf.eintrag = eintrag;
     g_lauf.bspName.clear();
+    g_lauf.kartenPfad = e().name;
     bauAusfuehren(befehle);
     g_lauf.danach = std::move(danach);   // nach bauAusfuehren: ein abgebrochener alter Auftrag ruft ihn nicht
 }

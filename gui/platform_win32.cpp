@@ -678,6 +678,23 @@ bool hauptfensterRechteck(int& x, int& y, int& b, int& h) {
     return true;
 }
 
+bool hauptfensterVorne() {
+    HWND f = hauptfenster();
+    return f != nullptr && GetForegroundWindow() == f;
+}
+
+void taskleisteBlinken() {
+    HWND f = hauptfenster();
+    if (f == nullptr) { return; }
+    FLASHWINFO fi{};
+    fi.cbSize = sizeof(fi);
+    fi.hwnd = f;
+    fi.dwFlags = FLASHW_TRAY | FLASHW_TIMERNOFG;
+    fi.uCount = 0;
+    fi.dwTimeout = 0;
+    FlashWindowEx(&fi);
+}
+
 bool bildschirmRechteck(int& x, int& y, int& b, int& h) {
     HWND f = hauptfenster();
     MONITORINFO mi{};
