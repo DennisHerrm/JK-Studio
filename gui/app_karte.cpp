@@ -1331,6 +1331,7 @@ void zeichne(float hoehe) {
     e.gezeichnet = true;
     bildBeginnen();
     spielPruefen();
+    npcModelleVorab();   // Stufe 7: die NPC-Dateien des Optimierers im Faden, nicht beim ersten Oeffnen
     if (!e.belegungGeladen) { einstellungenLaden(); }
     letzteKarteBeimStart();
     enginePfadPruefen();   // EnginePath_verify (MainFrame_Construct)

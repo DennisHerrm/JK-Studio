@@ -1336,6 +1336,7 @@ void zeichneOptimierer();                // das Fenster (jedes Bild) und das Abh
 [[nodiscard]] bool optimiererOffen();
 void optimiererSchliessen();
 void optimiererBeenden();                // beim Beenden: den Faden abwarten
+void npcModelleVorab();                  // Stufe 7: NPC-Dateien fuer den Optimierer im Faden lesen (einmal)
 [[nodiscard]] std::string optimiererBericht();                  // der Textbericht (Programmsprache)
 bool optimiererBerichtSchreiben(const std::string& pfad);
 // Fuer den Selbsttest

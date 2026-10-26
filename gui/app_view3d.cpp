@@ -9847,38 +9847,73 @@ void kinoSkeletteAbgleichen() {
 // Jedi Outcast: ext_data/NPCs.cfg, danach ext_data/*.npc (nur dieser Ordner,
 // gi.FS_GetFileList("ext_data", ".npc"), codeJK2/game/NPC_stats.cpp:2226-2249),
 // der erste Eintrag gewinnt (parseNpcFile mit jk2). Rueckgabe: gelesene Dateien.
-int npcDateienLesen(NpcMap& m) {
-    int dateien = 0;
-    if (regelwerkJediOutcast()) {
-        std::string text;
-        if (readFromArchives("ext_data/NPCs.cfg", text)) {
-            parseNpcFile(text, m, true);
-            ++dateien;
-        } else {
-            diag::info("Jedi Outcast: ext_data/NPCs.cfg nicht gefunden");
+namespace {
+// Die Archive, in denen readFromArchives "name" suchen wuerde, in seiner
+// Reihenfolge (rueckwaerts durch Spielordner und Archive).
+std::vector<std::pair<std::string, Pk3Entry>> npcArchive(const std::string& name) {
+    std::vector<std::pair<std::string, Pk3Entry>> liste;
+    for (auto gp = g_app->gamePaths.rbegin(); gp != g_app->gamePaths.rend(); ++gp) {
+        for (auto a = gp->archives.rbegin(); a != gp->archives.rend(); ++a) {
+            if (const Pk3Entry* e = a->find(name)) { liste.emplace_back(a->path, *e); }
         }
+    }
+    return liste;
+}
+}  // namespace
+
+NpcLeseAuftrag npcLeseAuftrag() {
+    NpcLeseAuftrag auftrag;
+    if (regelwerkJediOutcast()) {
+        auftrag.jk2 = true;
+        auftrag.dateien.push_back({"ext_data/NPCs.cfg", true, npcArchive("ext_data/NPCs.cfg")});
         for (const GamePath& gp : g_app->gamePaths) {
             for (const FoundFile& f : findByExtension(gp, {".npc"})) {
                 std::string n = f.name;
                 for (char& c : n) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
                 if (n.rfind("ext_data/", 0) != 0 || n.find('/', 9) != std::string::npos) { continue; }
-                std::string t;
-                if (readFromArchives(f.name, t)) {
-                    parseNpcFile(t, m, true);
-                    ++dateien;
-                }
+                auftrag.dateien.push_back({f.name, true, npcArchive(f.name)});
             }
         }
-        return dateien;
+        return auftrag;
     }
     for (const GamePath& gp : g_app->gamePaths) {
-        for (const FoundFile& f : findByExtension(gp, {".npc"})) {
-            std::string text;
-            if (readFromArchives(f.name, text)) {
-                parseNpcFile(text, m);
-                ++dateien;
+        for (const FoundFile& f : findByExtension(gp, {".npc"})) { auftrag.dateien.push_back({f.name, false, npcArchive(f.name)}); }
+    }
+    return auftrag;
+}
+
+int npcAuftragLesen(const NpcLeseAuftrag& auftrag, NpcMap& m, std::vector<std::string>& meldungen) {
+    int dateien = 0;
+    for (std::size_t i = 0; i < auftrag.dateien.size(); ++i) {
+        const NpcLeseAuftrag::Datei& d = auftrag.dateien[i];
+        // readFromArchives: das erste lesbare Archiv gilt
+        std::string text;
+        bool gelesen = false;
+        for (const auto& [pfad, eintrag] : d.archive) {
+            Pk3 archiv;
+            archiv.path = pfad;
+            std::string err;
+            if (readPk3File(archiv, eintrag, text, &err)) {
+                gelesen = true;
+                break;
             }
+            meldungen.push_back("Auspacken fehlgeschlagen: " + d.name + " - " + err);
         }
+        if (gelesen) {
+            parseNpcFile(text, m, d.jk2);
+            ++dateien;
+        } else if (auftrag.jk2 && i == 0) {
+            meldungen.push_back("Jedi Outcast: ext_data/NPCs.cfg nicht gefunden");
+        }
+    }
+    return dateien;
+}
+
+int npcDateienLesen(NpcMap& m) {
+    std::vector<std::string> meldungen;
+    const int dateien = npcAuftragLesen(npcLeseAuftrag(), m, meldungen);
+    for (const std::string& z : meldungen) {
+        if (z.rfind("Auspacken", 0) == 0) { diag::warn(z); } else { diag::info(z); }
     }
     return dateien;
 }

@@ -3033,6 +3033,22 @@ void addGamePathDirectory(const std::string& dir);
 // rc604 jk2: die NPC-Beschreibungen des Spiels nach dem Regelwerk lesen
 // (Jedi Outcast: ext_data/NPCs.cfg). Rueckgabe: gelesene Dateien.
 int npcDateienLesen(NpcMap& m);
+// Stufe 7: dasselbe in zwei Teilen. npcLeseAuftrag (Hauptfaden) bestimmt die
+// Dateien und je Datei die Archive in der Reihenfolge von readFromArchives;
+// npcAuftragLesen liest und zerlegt sie - ohne g_app und ohne diag, also in
+// jedem Faden. npcDateienLesen ist beides nacheinander (dasselbe Ergebnis).
+struct NpcLeseAuftrag {
+    struct Datei {
+        std::string name;
+        bool jk2 = false;   // parseNpcFile( ..., jk2 )
+        std::vector<std::pair<std::string, Pk3Entry>> archive;   // Pfad, Eintrag; das erste lesbare gilt
+    };
+    std::vector<Datei> dateien;
+    bool jk2 = false;            // Jedi Outcast: dateien[0] ist ext_data/NPCs.cfg
+};
+[[nodiscard]] NpcLeseAuftrag npcLeseAuftrag();
+// Rueckgabe: gelesene Dateien; meldungen: was npcDateienLesen ins Protokoll schreibt
+int npcAuftragLesen(const NpcLeseAuftrag& auftrag, NpcMap& m, std::vector<std::string>& meldungen);
 // rc603: die Spielordner, die gerade gelten - die dieser Sitzung
 // (sitzungsSpielordner), sonst die eingerichteten.
 const std::vector<std::string>& aktiveSpielordner();

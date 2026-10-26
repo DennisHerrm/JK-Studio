@@ -46,6 +46,7 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <future>
 #include <fstream>
 #include <memory>
 #include <mutex>
@@ -323,6 +324,30 @@ void shaderArten(const karte::KartenAbbild& a, karte::PruefOptionen& o) {
     o.shaderBekanntGeprueft = true;
 }
 
+// Stufe 7: die NPC-Dateien liest ein Faden, sobald der Karten-Editor sichtbar ist
+// (npcModelleVorab) - nicht mehr der Hauptfaden beim ersten Oeffnen des
+// Optimierers (54 ms auf Movie Duels). npcLeseAuftrag (Hauptfaden) legt Dateien
+// und Archive fest, npcAuftragLesen liest sie im Faden: dasselbe Ergebnis wie
+// npcDateienLesen.
+struct NpcVorab {
+    std::vector<std::string> meldungen;
+    NpcMap m;
+};
+std::future<std::shared_ptr<NpcVorab>> g_npcVorab;
+
+}  // namespace
+
+void npcModelleVorab() {
+    if (g_npcGelesen || g_npcVorab.valid() || g_app == nullptr || g_app->npcMapRead || g_app->gamePaths.empty()) { return; }
+    g_npcVorab = std::async(std::launch::async, [auftrag = npcLeseAuftrag()] {
+        auto v = std::make_shared<NpcVorab>();
+        (void)npcAuftragLesen(auftrag, v->m, v->meldungen);
+        return v;
+    });
+}
+
+namespace {
+
 void npcModelleSicherstellen() {
     if (g_npcGelesen || g_app == nullptr) { return; }
     g_npcGelesen = true;
@@ -331,6 +356,13 @@ void npcModelleSicherstellen() {
     NpcMap m;
     if (g_app->npcMapRead) {
         m = g_app->npcMap;
+        if (g_npcVorab.valid()) { (void)g_npcVorab.get(); }
+    } else if (g_npcVorab.valid()) {
+        const std::shared_ptr<NpcVorab> v = g_npcVorab.get();   // meist laengst fertig
+        for (const std::string& z : v->meldungen) {
+            if (z.rfind("Auspacken", 0) == 0) { diag::warn(z); } else { diag::info(z); }
+        }
+        m = std::move(v->m);
     } else {
         (void)npcDateienLesen(m);
     }

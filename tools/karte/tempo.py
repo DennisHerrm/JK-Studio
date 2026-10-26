@@ -209,7 +209,7 @@ def editor(a):
     env = {'BHED_KARTE_NUR': 'tempo', 'BHED_TEMPO_DEKOMP': a.dekomp, 'BHED_TEMPO_KARTEN': a.karten}
     for i in range(a.laeufe):
         s, rc, sp, text = _behaved_lauf(a, f'tempo_editor_{i}', 'karteneditor', env, a.zeitgrenze)
-        fehler = [z for z in text.splitlines() if 'FEHLER' in z and 'Knopftest' in z]
+        fehler = [z for z in text.splitlines() if 'Knopftest FEHLER' in z]
         fertig = [z for z in text.splitlines() if 'Knopftest fertig' in z]
         info.append({'lauf': i, 'sekunden': s, 'rc': rc, 'spitze_mb': sp // (1024 * 1024),
                      'fertig': fertig[-1] if fertig else None, 'fehler': fehler[:20]})
@@ -236,11 +236,11 @@ def vorschau(a):
         if vor:
             werte.setdefault('Vorschau: Szene vorbereiten (md_am_sith)', []).append(vor[0])
         for z in text.splitlines():
-            m = re.search(r'Szenenlauf: (md_am/intro2_sith \[|Flug).*?Bild mittel ([0-9.]+) ms.*?max ([0-9.]+) ms', z)
+            m = re.search(r'Szenenlauf: (md_am/intro2_sith \[|Flug).*?Bild max ([0-9.]+) ms, Mittel ([0-9.]+) ms', z)
             if m:
                 art = 'Szene' if m.group(1).startswith('md_am') else 'Flug'
-                werte.setdefault(f'Vorschau: Bild {art} Mittel', []).append(float(m.group(2)))
-                werte.setdefault(f'Vorschau: Bild {art} max', []).append(float(m.group(3)))
+                werte.setdefault(f'Vorschau: Bild {art} max', []).append(float(m.group(2)))
+                werte.setdefault(f'Vorschau: Bild {art} Mittel', []).append(float(m.group(3)))
         for k, v in TEMPO.findall(text):
             werte.setdefault(k, []).append(float(v))
         info.append({'lauf': i, 'sekunden': s, 'rc': rc, 'spitze_mb': sp // (1024 * 1024)})

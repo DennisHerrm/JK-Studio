@@ -332,6 +332,30 @@ std::vector<Schritt> schritte() {
              return b > 3900;
          }});
     add(pruefe("Tempo: Karten-Editor aktiv, Spiel bereit", [] { return g_app->leftMode == 3 && ke::aktiv() && ke::spielBereit(); }));
+    // Stufe 7 Punkt 4: die NPC-Dateien liest jetzt ein Faden (npcLeseAuftrag + npcAuftragLesen).
+    // Gleichheit mit dem alten Weg (readFromArchives je .npc-Datei auf dem Hauptfaden).
+    add(pruefe("Tempo: NPC-Dateien im Faden = alter Weg (readFromArchives, gleiche Typen und Modelle)", [] {
+        NpcMap alt;
+        int altDateien = 0;
+        for (const GamePath& gp : g_app->gamePaths) {
+            for (const FoundFile& f : findByExtension(gp, {".npc"})) {
+                std::string text;
+                if (readFromArchives(f.name, text)) {
+                    parseNpcFile(text, alt);
+                    ++altDateien;
+                }
+            }
+        }
+        NpcMap neu;
+        std::vector<std::string> meldungen;
+        const int neuDateien = npcAuftragLesen(npcLeseAuftrag(), neu, meldungen);
+        bool gleich = alt.size() == neu.size() && altDateien == neuDateien;
+        for (auto a = alt.begin(), b = neu.begin(); gleich && a != alt.end(); ++a, ++b) {
+            gleich = a->first == b->first && a->second.playerModel == b->second.playerModel && a->second.legsModel == b->second.legsModel;
+        }
+        diag::detail("Knopftest: Tempo - NPC " + std::to_string(altDateien) + " Dateien, " + std::to_string(alt.size()) + " Typen");
+        return gleich && altDateien > 0;
+    }));
     add(tu("Tempo: Axial Projection (wie der Selbsttest)", [] { ke::editor().pinselTyp = 0; }));
     std::string spiel = "ja";
     for (const Karte& k : karten()) {
