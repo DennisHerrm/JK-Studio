@@ -148,6 +148,33 @@ _Q3MAP2 = [
              "Behoben (geprüft mit AddressSanitizer und UBSan über die Regressionskarten und alle dekompilierten Karten der drei Spiele); die Ausgabe bleibt gleich.",
              "已修复(用 AddressSanitizer 和 UBSan 检查了回归地图以及三款游戏的全部反编译地图);输出不变。",
              "修正済み(AddressSanitizer と UBSan で回帰テスト用マップと 3 つのゲームのすべての逆コンパイルマップを確認)。出力は変わりません。")),
+    _zeile("PR #316",
+           T("Thin brush parts under one cubic unit are discarded; a crossing face narrower than 0.2 units vanishes; faces almost on another face's plane are not drawn; brushes with a small cross-section are not split, so part of them has no collision.",
+             "Dünne Pinselteile unter einer Kubikeinheit werden verworfen; eine kreuzende Fläche schmaler als 0,2 Einheiten verschwindet; Flächen fast in der Ebene einer anderen Fläche werden nicht gezeichnet; Pinsel mit kleinem Querschnitt werden nicht geteilt, ein Teil von ihnen hat dann keine Kollision.",
+             "小于一个立方单位的薄笔刷部分会被丢弃;窄于 0.2 单位的交叉面会消失;几乎位于另一个面所在平面上的面不会被绘制;截面很小的笔刷不会被切分,其中一部分因此没有碰撞。",
+             "1 立方ユニット未満の薄いブラシ部分が捨てられ、0.2 ユニットより狭い交差面が消え、別の面の平面にほぼ重なる面が描画されず、断面の小さいブラシが分割されないため一部に衝突判定がなくなります。"),
+           T("The five fixes of the pull request for this are taken over - each checked alone on the original maps of Jedi Academy and Jedi Outcast: no map got worse. Left out: dropping portals only when degenerate - with it 42 of 106 original maps leak (narrow gaps that NetRadiant-Custom closes).",
+             "Die fünf Fixes des Pull-Requests dafür sind übernommen - jeder einzeln an den Originalkarten von Jedi Academy und Jedi Outcast geprüft: keine Karte wurde schlechter. Nicht übernommen: Portale nur noch verwerfen, wenn sie entartet sind - damit lecken 42 von 106 Originalkarten (schmale Spalten, die NetRadiant-Custom schließt).",
+             "采用了该拉取请求中的五项修复——每项都单独在 Jedi Academy 和 Jedi Outcast 的原版地图上检查过:没有地图变差。未采用:仅在入口退化时才丢弃入口——这样 106 张原版地图中有 42 张会泄漏(NetRadiant-Custom 会封闭的窄缝)。",
+             "このプルリクエストの 5 つの修正を取り込みました。いずれも Jedi Academy と Jedi Outcast のオリジナルマップで個別に確認し、悪化したマップはありません。取り込まなかったもの:縮退したポータルだけを捨てる変更。これを入れると 106 枚中 42 枚のオリジナルマップがリークします(NetRadiant-Custom が閉じる細い隙間)。")),
+    _zeile("ASan, UBSan",
+           T("Crashes or undefined behaviour with broken map files (no entity at all, a quote as the last character, huge numbers) and when patches are subdivided for the lightmaps.",
+             "Abstürze oder undefiniertes Verhalten bei kaputten Kartendateien (gar keine Entity, ein Anführungszeichen als letztes Zeichen, riesige Zahlen) und beim Unterteilen von Patches für die Lightmaps.",
+             "处理损坏的地图文件(完全没有实体、最后一个字符是引号、极大的数字)以及为光照贴图细分曲面片时会崩溃或出现未定义行为。",
+             "壊れたマップファイル(エンティティがまったくない、最後の文字が引用符、巨大な数値)や、ライトマップ用にパッチを分割するときに、クラッシュや未定義動作が起きます。"),
+           T("Found by running bhed_q3map2 under AddressSanitizer and UBSan over 300 deliberately broken maps and the original maps; fixed. A map without entities now gets a clear error. The output of valid maps stays byte for byte the same.",
+             "Gefunden, indem bhed_q3map2 unter AddressSanitizer und UBSan über 300 absichtlich kaputte Karten und die Originalkarten lief; behoben. Eine Karte ohne Entities bekommt jetzt eine klare Fehlermeldung. Die Ausgabe gültiger Karten bleibt Byte für Byte gleich.",
+             "通过在 AddressSanitizer 和 UBSan 下对 300 张故意损坏的地图和原版地图运行 bhed_q3map2 发现,已修复。没有实体的地图现在会得到明确的错误信息。有效地图的输出逐字节不变。",
+             "AddressSanitizer と UBSan のもとで、わざと壊した 300 枚のマップとオリジナルマップに bhed_q3map2 を実行して見つけ、修正しました。エンティティのないマップには明確なエラーが表示されます。正しいマップの出力はバイト単位で変わりません。")),
+    _zeile("Decimal",
+           T("(editor) Numbers from about 1e10 are cut when a map is saved; 1e20 becomes 1.",
+             "(Editor) Zahlen ab etwa 1e10 werden beim Speichern abgeschnitten; aus 1e20 wird 1.",
+             "(编辑器)保存地图时约 1e10 以上的数字会被截断;1e20 会变成 1。",
+             "(エディター)保存時に約 1e10 以上の数値が切り詰められ、1e20 が 1 になります。"),
+           T("The value is kept (found with the new fuzzer for broken map files); ordinary coordinates are written exactly as before.",
+             "Der Wert bleibt erhalten (gefunden mit dem neuen Fuzzer für kaputte Kartendateien); gewöhnliche Koordinaten werden genau wie vorher geschrieben.",
+             "数值会被保留(由针对损坏地图文件的新模糊测试发现);普通坐标的写法与以前完全相同。",
+             "値が保たれます(壊れたマップファイル用の新しいファザーで発見)。通常の座標は以前とまったく同じに書き出されます。")),
 ]
 
 _SPIEL = [
@@ -161,6 +188,17 @@ _SPIEL = [
              "\"如游戏中\"预览同样不会显示它,优化器会提供使其重新出现的 zoffset([[karte_optimierer]])。",
              "「ゲームと同じ」プレビューでも表示されず、最適化ツールが表示を戻す zoffset を提案します([[karte_optimierer]])。")),
 ]
+
+_SPIEL.append(
+    _zeile("JKHub",
+           T("(game) Light styles: after entity edits, switchable lights (with a targetname) turn the wrong lights on and off - -onlyents numbers the styles anew, the lightmaps keep the old ones.",
+             "(Spiel) Lichtstile: nach Änderungen an Entities schalten schaltbare Lichter (mit targetname) die falschen Lichter - -onlyents nummeriert die Stile neu, die Lightmaps behalten die alten.",
+             "(游戏)光照样式:修改实体后,可开关的灯光(带 targetname)会开关错误的灯光——-onlyents 会重新编号样式,而光照贴图保留旧的编号。",
+             "(ゲーム)ライトスタイル:エンティティを変更した後、切り替え可能なライト(targetname 付き)が別のライトを点滅させます。-onlyents はスタイルを付け直しますが、ライトマップは古い番号のままです。"),
+           T("**{{KeBmNurEntities}}** refuses when the switchable lights differ from the original .bsp and asks for a full build ([[karte_oeffnen]]).",
+             "**{{KeBmNurEntities}}** verweigert, wenn die schaltbaren Lichter von der Original-.bsp abweichen, und verlangt einen vollen Bau ([[karte_oeffnen]]).",
+             "当可开关的灯光与原始 .bsp 不同时,**{{KeBmNurEntities}}** 会拒绝执行,并要求完整编译([[karte_oeffnen]])。",
+             "切り替え可能なライトが元の .bsp と異なる場合、**{{KeBmNurEntities}}** は実行せず、完全なビルドを求めます([[karte_oeffnen]])。")))
 
 _ABSICHT = [
     T("**NRC#281**: Ctrl+K to several targets gives them the same targetname - as in NRC.",
