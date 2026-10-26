@@ -757,6 +757,8 @@ struct Editor {
         bool neu = true;
     };
     std::vector<Abriss> abrisse;
+    // Stufe 7 Punkt 6f: fruehere Spiele der offenen Karte (die Klassen ihrer Entities), bis zur Freigabe
+    std::vector<std::shared_ptr<Spielkontext>> karteSpielAlt;
     std::string shaderEditorBefehl;       // g_TextEditor_editorCommand ("CustomShaderEditorCommand")
     std::string glSchriftName = "Myriad Pro";   // g_OpenGLFont ("OpenGLFont")
     int glSchriftGroesse = 8;             // g_OpenGLFontSize ("OpenGLFontSize")
@@ -1135,6 +1137,9 @@ void dialogSchriftAus();
 // nullptr solange es laedt), fertige Bilder hochladen, alles neu laden
 // (RefreshShaders).
 [[nodiscard]] void* texturBild(const std::string& shader);
+// Fuer den Selbsttest (Stufe 7 Punkt 6f): zeigt die Kamera fuer den Shader das
+// Ersatzbild (notex / shadernotex, "SHADER NOT FOUND")? -1 noch nicht geladen.
+[[nodiscard]] int kameraBildErsatz(const std::string& shader);
 void texturBilderAbholen();
 // Der Zustand eines Shaders wie in der Kamera (Textured): Bild, Alphatest,
 // Durchsicht; false, solange das Bild noch geladen wird (app_karte_cam.cpp).
@@ -1301,6 +1306,9 @@ void tagsReiterZeichnen(ImVec2 a, ImVec2 c, float sc);
 void tagsListeZeichnen(ImVec2 a, ImVec2 c, float sc);
 // Einstellungen des Editors lesen/schreiben (Settings::karte).
 void einstellungenLaden();
+// Stufe 7 Punkt 6f: der Fenstertitel im Map-Editor wie NRC (Sys_SetTitle, qe3.cpp:262-270):
+// der Name der Karte, " *" bei Aenderung.
+[[nodiscard]] std::string fensterTitel();
 // Stufe 7 Punkt 6b: Knopfgroesse (0 klein, 1 normal, 2 gross) und Menuestil
 // (true: wie NRC) setzen und gleich speichern.
 void knopfGroesseSetzen(int stufe);

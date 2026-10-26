@@ -37516,6 +37516,12 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =letzte1/letzte2/letzte3: die letzte Karte beim Start (Stufe 7 Punkt 6f, zwei Laeufe, ein Einstellungsordner)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strncmp(nur, "letzte", 6) == 0) {
+        const std::string n = nur;
+        for (Schritt& x : (n == "letzte1" ? stufe7::letzte1() : stufe7::letzte2(n == "letzte2"))) { add(std::move(x)); }
+        return s;
+    }
     add(tu("Karten-Editor: Spielordner, Modus Events", [] {
         if (g_app->gamePaths.empty()) { rescanGamePaths(); }
         g_app->leftMode = 0;

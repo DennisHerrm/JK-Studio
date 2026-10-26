@@ -14530,6 +14530,9 @@ bool confirmQuit() {
 // Aenderungen, dann der Programmname. Der Dateiname zuerst, weil die
 // Taskleiste von links abschneidet.
 std::string windowTitle() {
+    // Stufe 7 Punkt 6f: im Map-Editor der Titel von NRC (Kartenname, " *"),
+    // nicht der des Skripts; in den Skript-Modi wie bisher.
+    if (karteneditor::aktiv()) { return karteneditor::fensterTitel(); }
     std::string t;
     if (!g_app->path.empty()) {
         t = fileName(g_app->path);

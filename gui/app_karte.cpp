@@ -121,11 +121,21 @@ void spielUebernehmen(std::shared_ptr<Spielkontext> k) {
         std::snprintf(z, sizeof(z), tr(Str::KeGameNoFolders), s.name.c_str());
         warnung(z);
     }
-    // Die leere Karte des Starts bekommt das Spiel, sobald es da ist.
-    if (!g().karteSpiel && !geaendert()) {
-        g().karteSpiel = g().spiel;
-        g().karte.klassen = &g().karteSpiel->klassen;
-        g().karte.kontext.texturen = &g().karteSpiel->inventar;
+    // Die leere Karte des Starts bekommt das Spiel, sobald es da ist - und
+    // jede offene Karte das neu geladene (Stufe 7 Punkt 6f, Tester: nach dem
+    // Start "SHADER NOT FOUND" auf allen Flaechen, auch auf neuem caulk, bis
+    // eine Karte von Hand geoeffnet wurde). NRC: EnginePath_Realise /
+    // gamemode_set bauen VFS und Shader neu, und die Flaechen der offenen
+    // Karte holen ihre Shader beim Realise neu (Shader_Realise ueber die
+    // Namen). Hier zeigen Karte und Flaechen danach auf das neue Spiel; die
+    // Klassen der vorhandenen Entities bleiben gueltig (das alte Spiel lebt in
+    // karteSpielAlt weiter, bis die Karte freigegeben wird).
+    Editor& e = g();
+    if (e.karteSpiel != e.spiel) {
+        if (e.karteSpiel) { e.karteSpielAlt.push_back(e.karteSpiel); }
+        e.karteSpiel = e.spiel;
+        e.karte.klassen = &e.karteSpiel->klassen;
+        e.karte.kontext.texturen = &e.karteSpiel->inventar;
     }
 }
 
@@ -156,6 +166,7 @@ void karteFreigeben() {
     e.karte.leeren();
     e.karte.undo.clear();
     e.karteSpiel = spielWarten();
+    e.karteSpielAlt.clear();   // keine Entity zeigt mehr auf ein frueheres Spiel
     e.karte.klassen = e.karteSpiel ? &e.karteSpiel->klassen : nullptr;
     e.karte.kontext.texturen = e.karteSpiel ? &e.karteSpiel->inventar : nullptr;
     // Map_Free: Brush_unlatchPreferences -> Brush_toggleFormat( g_brushTypes[g_brushType] )
@@ -348,6 +359,8 @@ void setzeNrcBegriffe(bool an) { g_app->settings.karte["nrcBegriffe"] = an ? "1"
 const char* trK(i18n::Str id) { return nrcBegriffe() ? i18n::trIn(i18n::Language::English, id) : tr(id); }
 
 bool geaendert() { return !g().karte.undo.gespeichert(); }
+
+std::string fensterTitel() { return g().name + (geaendert() ? " *" : ""); }   // Map_UpdateTitle -> Sys_SetTitle
 
 
 void spielPruefen() {
@@ -1346,10 +1359,15 @@ void zeichne(float hoehe) {
     kartegpu::aufraeumen();   // Bilder, die ein frueheres Bild freigab
     e.gezeichnet = true;
     bildBeginnen();
+    // Stufe 7 Punkt 6f: erst die Einstellungen (gamefile, GameMode, EnginePath,
+    // ExtraResourcePath), dann das Spiel - wie NRC (Preferences vor
+    // Radiant_Initialise und dem VFS, main.cpp). Vorher lud das erste Bild das
+    // Spiel mit den Vorgaben, die letzte bzw. leere Karte bekam dieses, und das
+    // naechste Bild lud es mit den gespeicherten Ordnern noch einmal.
+    if (!e.belegungGeladen) { einstellungenLaden(); }
     spielPruefen();
     npcModelleVorab();   // Stufe 7: die NPC-Dateien des Optimierers im Faden, nicht beim ersten Oeffnen
     echtLichtSchritt(geometrieStand());   // Stufe 7 Punkt 5b: Schnell-Backen nach einer Pause ohne Aenderung
-    if (!e.belegungGeladen) { einstellungenLaden(); }
     letzteKarteBeimStart();
     enginePfadPruefen();   // EnginePath_verify (MainFrame_Construct)
     if (!e.spielFrageGezeigt) {   // CGameDialog::Init: mit m_bGamePrompt die "Global Preferences" beim Start

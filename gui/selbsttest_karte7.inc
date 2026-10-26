@@ -1396,6 +1396,180 @@ std::vector<Schritt> kamera6e() {
     return s;
 }
 
+// --- Punkt 6f: die letzte Karte beim Start (Tester: nach dem Neustart "big
+// shader problems", alle Flaechen "SHADER NOT FOUND", von Hand geoeffnet gut).
+// Zwei Laeufe mit demselben Einstellungsordner (SP\s7\idle_weiter.sh):
+//   BHED_KARTE_NUR=letzte1  Karte mit Spieldaten oeffnen, Programm beenden
+//   BHED_KARTE_NUR=letzte2  Map-Editor: die Karte kommt von selbst (LastMap);
+//                           Flaechen ohne Bild zaehlen, dann von Hand oeffnen
+//                           und vergleichen; Titel; "Load last map at startup"
+//   BHED_KARTE_NUR=letzte3  wie letzte2, aber die Einstellung aus: keine Karte
+
+// Flaechen der offenen Karte, deren Shader kein Bild hat (Ersatzbild "notfound")
+int flaechenOhneBild() {
+    const ke::Editor& e = ke::editor();
+    // was die Kamera zeigt (das Bildlager der offenen Karte); -1 solange etwas laedt
+    if (!e.karteSpiel) { return -1; }
+    int n = 0;
+    bool offen = false;
+    for (const auto& ent : e.karte.entitaeten()) {
+        for (const auto& kind : ent->kinder()) {
+            const auto p = std::dynamic_pointer_cast<karte::Pinsel>(kind);
+            if (!p) { continue; }
+            for (const auto& f : p->flaechen()) {
+                const int r = ke::kameraBildErsatz(f->shader());
+                if (r < 0) { offen = true; }
+                if (r > 0) { ++n; }
+            }
+        }
+    }
+    return offen ? -1 : n;
+}
+
+Schritt bilderGeladen6f(const std::string& was) {
+    return warteBis("Stufe 7/6f: Bilder der Flaechen geladen (" + was + ")", [] { return flaechenOhneBild() >= 0; }, 3000);
+}
+
+// Wie beim Tester: der Map-Editor erscheint, bevor die Spielordner feststehen
+// (erster Start: die Ordner kommen erst nach der Suche bzw. dem Engine-Path-
+// Dialog). Die Spielordner werden darum erst nach dem ersten Laden des Spiels
+// (ohne Ordner, 0 Shader) eingesetzt - EnginePath_Realise bei NRC.
+std::vector<std::string>& spielordnerSicher6f() {
+    static std::vector<std::string> v;
+    return v;
+}
+
+std::vector<Schritt> modusKarte6f() {
+    std::vector<Schritt> s;
+    s.push_back(tu("Stufe 7/6f: Modus Events, Spielordner noch nicht da", [] {
+        if (g_app->gamePaths.empty()) { rescanGamePaths(); }
+        spielordnerSicher6f() = g_app->settings.gamePaths;   // die eingerichteten Spielordner (Einstellungen)
+        g_app->settings.gamePaths.clear();
+        g_app->leftMode = 0;
+    }));
+    s.push_back(pause(0.3));
+    s.push_back(klick(tr(Str::ViewMapEditor), "###main"));   // wie der Tester: in den Map-Editor wechseln
+    s.push_back(warteBis("Stufe 7/6f: Spiel ohne Ordner geladen", [] {
+        ke::spielPruefen();
+        return ke::spielBereit();
+    }, 20000));
+    s.push_back(pause(0.3));
+    s.push_back(tu("Stufe 7/6f: die Spielordner kommen (Suche / Engine-Path-Dialog fertig)", [] {
+        g_app->settings.gamePaths = spielordnerSicher6f();
+        ke::editor().enginePfadDialogOffen = false;   // der Engine-Path-Dialog des ersten Starts (EnginePath_verify)
+    }));
+    s.push_back(warteBis("Stufe 7/6f: Spiel mit den Ordnern neu geladen (Realise)", [] {
+        ke::spielPruefen();
+        return ke::spielBereit() && !ke::editor().spiel->inventar.shader().empty();
+    }, 20000));
+    s.push_back(pause(0.5));
+    return s;
+}
+
+// Fall (a): in der leeren Karte des Starts ein Pinsel mit system/caulk - kein Ersatzbild
+std::vector<Schritt> caulkPinsel6f(const std::string& lauf) {
+    auto pinsel = std::make_shared<std::shared_ptr<karte::Pinsel>>();
+    std::vector<Schritt> s;
+    s.push_back(tu("Stufe 7/6f: " + lauf + " - in der leeren Karte ein neuer Pinsel", [pinsel] {
+        ke::Editor& e = ke::editor();
+        auto welt = e.karte.weltHolenOderAnlegen();
+        karte::TexturProjektion proj;
+        karte::texdefStandard(karte::TexdefArt::Quake, proj);
+        *pinsel = std::make_shared<karte::Pinsel>();
+        // eine Textur, die es in den Spieldaten gibt (system/caulk hat in Jedi Academy kein Bild,
+        // auch nicht bei NRC: der ja.game-Gamepack bringt keins mit)
+        (*pinsel)->quaderBauen(karte::Kasten(karte::Vektor3f(0, 0, 0), karte::Vektor3f(64, 64, 64)), "textures/yavin/temple_stone2", proj, e.karte.kontext);
+        welt->kindEinfuegen(*pinsel);
+    }));
+    s.push_back(bilderGeladen6f(lauf + ", neuer Pinsel"));
+    s.push_back(pruefe("Stufe 7/6f: " + lauf + " - leere Karte, der neue Pinsel hat sein Bild (kein notfound)", [lauf, pinsel] {
+        ke::Editor& e = ke::editor();
+        const int n = flaechenOhneBild();
+        diag::detail("Knopftest: Stufe 7/6f - " + lauf + ": Karte " + e.name + ", neuer Pinsel, Flaechen ohne Bild " + std::to_string(n));
+        if (*pinsel) { (void)e.karte.weltHolenOderAnlegen()->kindEntfernen(pinsel->get()); }
+        e.karte.undo.alsGespeichertMarkieren();
+        return n == 0;
+    }));
+    return s;
+}
+
+std::vector<Schritt> letzte1() {
+    std::vector<Schritt> s = modusKarte6f();
+    for (Schritt& x : caulkPinsel6f("Lauf 1 (erster Start)")) { s.push_back(std::move(x)); }
+    s.push_back(tu("Stufe 7/6f: Testkarte mit Spieltextur schreiben und oeffnen, Load last map at startup an", [] {
+        lichtKarteSchreiben(false);
+        (void)ke::karteOeffnen(lichtKarte());
+        ke::editor().letzteKarteLaden = true;
+        ke::einstellungenSpeichern();
+    }));
+    s.push_back(bilderGeladen6f("Lauf 1"));
+    s.push_back(pruefe("Stufe 7/6f: Lauf 1 - Karte offen, alle Flaechen mit Bild", [] {
+        const int n = flaechenOhneBild();
+        diag::detail("Knopftest: Stufe 7/6f - Lauf 1: " + ke::editor().name + ", Flaechen ohne Bild " + std::to_string(n));
+        return n == 0 && ke::editor().name == lichtKarte();
+    }));
+    return s;   // im Map-Editor beenden (beimBeenden merkt LastMap)
+}
+
+std::vector<Schritt> letzte2(bool laden) {
+    std::vector<Schritt> s = modusKarte6f();
+    auto auto_ = std::make_shared<int>(-1);
+    if (!laden) {
+        for (Schritt& x : caulkPinsel6f("Lauf 3 (gespeicherte Einstellungen, ohne letzte Karte)")) { s.push_back(std::move(x)); }
+    }
+    if (laden) { s.push_back(bilderGeladen6f("Neustart")); }
+    s.push_back(pruefe(laden ? "Stufe 7/6f: Neustart - die letzte Karte ist von selbst offen, alle Flaechen mit Bild (wie von Hand)"
+                             : "Stufe 7/6f: Neustart mit \"Load last map at startup\" aus - keine Karte geladen (unnamed.map)",
+                       [auto_, laden] {
+                           const ke::Editor& e = ke::editor();
+                           *auto_ = flaechenOhneBild();
+                           diag::detail("Knopftest: Stufe 7/6f - Neustart: " + e.name + " (LastMap " + e.letzteKarte + ", Laden " +
+                                        (e.letzteKarteLaden ? "an" : "aus") + "), Flaechen ohne Bild " + std::to_string(*auto_));
+                           if (!laden) { return e.name == "unnamed.map" && !e.letzteKarteLaden; }
+                           return e.name == e.letzteKarte && !e.letzteKarte.empty() && *auto_ == 0;
+                       }));
+    if (laden) {
+        s.push_back(foto("karte7_letzte_automatisch"));
+        s.push_back(pruefe("Stufe 7/6f: Fenstertitel im Map-Editor wie NRC (Sys_SetTitle: Kartenname, \" *\" bei Aenderung)", [] {
+            const std::string t = windowTitle();
+            diag::detail("Knopftest: Stufe 7/6f - Titel \"" + t + "\"");
+            return t == ke::editor().name;
+        }));
+        s.push_back(tu("Stufe 7/6f: Karte aendern (einen Pinsel waehlen, klonen)", [] {
+            ke::Editor& e = ke::editor();
+            const auto welt = e.karte.welt();
+            if (welt && !welt->kinder().empty()) { e.karte.auswahl.waehlen(welt, welt->kinder().front()); }
+            (void)ke::ausfuehren("CloneSelection");
+        }));
+        s.push_back(pause(0.2));
+        s.push_back(pruefe("Stufe 7/6f: Fenstertitel mit Aenderungsstern", [] {
+            const std::string t = windowTitle();
+            diag::detail("Knopftest: Stufe 7/6f - Titel \"" + t + "\"");
+            return t == ke::editor().name + " *";
+        }));
+        s.push_back(tu("Stufe 7/6f: dieselbe Karte von Hand oeffnen", [] {
+            ke::editor().karte.undo.alsGespeichertMarkieren();
+            (void)ke::karteOeffnen(ke::editor().letzteKarte);
+        }));
+        s.push_back(bilderGeladen6f("von Hand"));
+        s.push_back(foto("karte7_letzte_vonhand"));
+        s.push_back(pruefe("Stufe 7/6f: von Hand geoeffnet - dieselben Flaechen ohne Bild (0) wie beim Start", [auto_] {
+            const int n = flaechenOhneBild();
+            diag::detail("Knopftest: Stufe 7/6f - von Hand: Flaechen ohne Bild " + std::to_string(n) + ", beim Start " + std::to_string(*auto_));
+            return n == 0 && *auto_ == n;
+        }));
+        s.push_back(tu("Stufe 7/6f: Load last map at startup aus (fuer Lauf 3)", [] {
+            ke::editor().letzteKarteLaden = false;
+            ke::einstellungenSpeichern();
+        }));
+        s.push_back(pruefe("Stufe 7/6f: Load last map at startup gespeichert (LoadLastMap 0)", [] {
+            const auto it = g_app->settings.karte.find("LoadLastMap");
+            return it != g_app->settings.karte.end() && it->second == "0";
+        }));
+    }
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     const char* nur = std::getenv("BHED_STUFE7_NUR");

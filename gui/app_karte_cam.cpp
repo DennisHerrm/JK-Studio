@@ -75,6 +75,7 @@ struct Bild {
     void* srv = nullptr;        // texture_number
     void* himmel = nullptr;     // m_textureSkyBox (0 = nicht geladen)
     std::array<float, 3> farbe{1, 1, 1};   // qtexture_t::color
+    bool ersatz = false;        // notex.png / shadernotex.png statt des Bildes (Selbsttest, Stufe 7 Punkt 6f)
 };
 
 struct Auftrag {
@@ -92,6 +93,7 @@ struct Ergebnis {
     std::array<float, 3> farbe{1, 1, 1};
     int himmelGroesse = 0;
     std::array<std::vector<unsigned char>, 6> seiten;
+    bool ersatz = false;
 };
 
 // R_ResampleTexture (texmanip.cpp:39-214), 4 Bytes je Punkt.
@@ -237,6 +239,7 @@ public:
             if (it == m_bilder.end()) { continue; }
             Bild& b = it->second;
             b.farbe = r.farbe;
+            b.ersatz = r.ersatz;
             if (r.bild.ok) {   // LoadTextureRGBA: Gamma der Einstellung, GL_TEXTURE_BASE_LEVEL
                 const Editor& ed = e();
                 if (ed.texQual.gamma != 1.0F) {
@@ -335,6 +338,7 @@ private:
                 if (!r.bild.ok || r.bild.width <= 0 || r.bild.height <= 0) {
                     // shaders.cpp:953-962: notex.png ohne Definition, sonst shadernotex.png
                     r.bild = dateiLaden(ersatz + (a.standard ? "notex.png" : "shadernotex.png"));
+                    r.ersatz = true;
                 }
                 if (r.bild.ok) {
                     // LoadTextureRGBA: Durchschnitt vor der Gamma-Korrektur
@@ -902,6 +906,12 @@ void* texturBild(const std::string& shader) {
 }
 
 void texturBilderAbholen() { lager().abholen(); }
+
+int kameraBildErsatz(const std::string& shader) {
+    const Bild* b = lager().holen(shader);
+    if (b == nullptr || !b->fertig) { return -1; }
+    return b->ersatz ? 1 : 0;
+}
 
 bool shaderZustand(const std::string& shader, kartegpu::Zustand3& z, bool& durchsichtig) {   // OpenGLShader::construct (Textured)
     const Bild* b = lager().holen(shader);

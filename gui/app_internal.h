@@ -2347,6 +2347,8 @@ bool readFromArchives(const std::string& name, std::string& out,
 void rescanGamePaths();
 void refreshPk3List();
 void rebuildTree();
+// Der Fenstertitel (app.cpp; im Map-Editor wie NRCs Sys_SetTitle, Stufe 7 Punkt 6f)
+std::string windowTitle();
 void setStatus(const char* fmt, int a, int b);
 // Steht das Skript schon in einem Reiter? -1 = nein (gui/app.cpp).
 int reiterMitPfad(const std::string& p);
