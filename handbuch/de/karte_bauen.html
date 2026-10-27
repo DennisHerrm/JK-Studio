@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Karten-Editor: Karte bauen - BehavEd-Remake</title>
+<title>Karten-Editor: Karte bauen - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>Handbuch</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Handbuch</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="Im Handbuch suchen ...  (/)" autocomplete="off" aria-label="Im Handbuch suchen ...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -33,7 +33,7 @@
     <p class="einleitung">Mach aus der Karte mit q3map2 aus dem Menü <span class="ui">Kompilieren</span> eine spielbare .bsp: es läuft im Hintergrund mit seiner Ausgabe in der Konsole, zeigt Lecks als rote Linie und auf Wunsch die Portale und schreibt nie in den Spielordner.</p>
     <h2 id="menue">Das Menü ⟦Kompilieren⟧<a class="anker" href="#menue">#</a></h2>
 <figure class="bild"><a href="../bilder/de/h_kartebauen_menue.webp" class="zoom"><img src="../bilder/de/h_kartebauen_menue.webp" alt="Das Menü Kompilieren: die Einträge des Build-Menüs von NetRadiant-Custom für Jedi Academy, unten Bauen abbrechen." loading="lazy"></a><figcaption>Das Menü <span class="ui">Kompilieren</span>: die Einträge des Build-Menüs von NetRadiant-Custom für Jedi Academy, unten <span class="ui">Bauen abbrechen</span>.</figcaption></figure>
-<p>Jeder Eintrag führt einen oder mehrere q3map2-Befehle auf der Karte aus. Der Kartencompiler <code>bhed_q3map2.exe</code> ist q3map2 aus NetRadiant-Custom, mit dem Programm gebaut und neben <code>behaved.exe</code> ausgeliefert; er liefert dieselben Ergebnisse. <strong><span class="ui">Letzten Build ausführen</span></strong> (<kbd>F5</kbd>) wiederholt den letzten Eintrag. <strong><span class="ui">Anpassen</span></strong> öffnet den Dialog <strong><span class="ui">Build-Menü</span></strong>: Einträge und ihre Befehle lassen sich anlegen (Doppelklick auf <code>+</code>), umbenennen, durch Ziehen umordnen (mit <kbd>Strg</kbd> kopieren) und löschen; <strong><span class="ui">Build-Variablen</span></strong> zeigt die Variablen wie <code>[MapFile]</code> und <code>[q3map2]</code>. Das Menü wird beim Schließen des Karten-Editors gespeichert.</p>
+<p>Jeder Eintrag führt einen oder mehrere q3map2-Befehle auf der Karte aus. Der Kartencompiler <code>bhed_q3map2.exe</code> ist q3map2 aus NetRadiant-Custom, mit dem Programm gebaut und neben <code>jkstudio.exe</code> ausgeliefert; er liefert dieselben Ergebnisse. <strong><span class="ui">Letzten Build ausführen</span></strong> (<kbd>F5</kbd>) wiederholt den letzten Eintrag. <strong><span class="ui">Anpassen</span></strong> öffnet den Dialog <strong><span class="ui">Build-Menü</span></strong>: Einträge und ihre Befehle lassen sich anlegen (Doppelklick auf <code>+</code>), umbenennen, durch Ziehen umordnen (mit <kbd>Strg</kbd> kopieren) und löschen; <strong><span class="ui">Build-Variablen</span></strong> zeigt die Variablen wie <code>[MapFile]</code> und <code>[q3map2]</code>. Das Menü wird beim Schließen des Karten-Editors gespeichert.</p>
 <figure class="bild"><a href="../bilder/de/h_kartebauen_customize.webp" class="zoom"><img src="../bilder/de/h_kartebauen_customize.webp" alt="Kompilieren &gt; Anpassen: der Eintrag [Final] Fast mit seinen drei Befehlen." loading="lazy"></a><figcaption><span class="ui">Kompilieren</span> &gt; <span class="ui">Anpassen</span>: der Eintrag [Final] Fast mit seinen drei Befehlen.</figcaption></figure>
 <h2 id="stufen">Die drei Stufen<a class="anker" href="#stufen">#</a></h2>
 <table class="liste"><thead><tr><th>Stufe</th><th>Was sie tut</th></tr></thead><tbody><tr><td>BSP (<code>-meta</code>)</td><td>Macht aus Brushes und Patches den BSP-Baum und die Flächen, schreibt <code>.bsp</code>, <code>.prt</code> und <code>.srf</code>. Ist die Karte nicht dicht, hält sie mit einem Leck an.</td></tr><tr><td>VIS (<code>-vis</code>)</td><td>Berechnet, welche Bereiche einander sehen können, damit das Spiel weniger zeichnet. Braucht die Portaldatei der BSP-Stufe.</td></tr><tr><td>LIGHT (<code>-light</code>)</td><td>Brennt das Licht der Lichtentities und des Himmels in Lightmaps und das Lichtgitter.</td></tr></tbody></table>
@@ -62,7 +62,7 @@
 <p><strong><span class="ui">Brush</span> &gt; <span class="ui">Auswahl automatisch caulken</span></strong> (<kbd>F4</kbd>) gibt jeder Fläche der gewählten Brushes, die von innen nicht zu sehen ist, die Caulk-Textur - weniger Flächen, eine schnellere Karte. Stell die Kamera in die Auswahl; q3map2 entscheidet, welche Flächen verdeckt sind. Ein Rückgängig-Schritt nimmt es zurück.</p>
     <nav class="blaettern"><a class="vor" href="karteneditor_bauen.html"><span>Zurück</span>Karten-Editor: Bauwerkzeuge</a><a class="nach" href="karte_oeffnen.html"><span>Weiter</span>Karten-Editor: fertige Karten öffnen und ändern</a></nav>
   </article>
-  <footer>Handbuch zu BehavEd-Remake. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf.</footer>
+  <footer>Handbuch zu JK Studio - Mod-Werkzeuge für Jedi Knight: Jedi Academy und Jedi Outcast. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf. Nicht verbunden mit Lucasfilm, Disney oder Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

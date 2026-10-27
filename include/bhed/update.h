@@ -25,8 +25,17 @@ namespace bhed::update {
 // Das Repository, aus dem die Updates kommen - seit rc573 das (jetzt
 // oeffentliche) Hauptrepository selbst. Bis rc572 war es ein eigenes
 // Download-Repository (DennisHerrm/BehavEd-Remake-Releases, archiviert), weil
-// der Quelltext privat war.
-inline constexpr const char* kRepo = "DennisHerrm/BehavEd-Remake";
+// der Quelltext privat war. Stufe 8c: das Projekt heisst JK Studio, das
+// Repository DennisHerrm/JK-Studio (umbenannt; GitHub leitet den alten Namen
+// DennisHerrm/BehavEd-Remake mit 301 weiter, darum finden auch die alten
+// Fassungen mit dem alten Namen das neue Release). Nur HIER aendern.
+inline constexpr const char* kRepo = "DennisHerrm/JK-Studio";
+// Die Programmdatei: seit Stufe 8c jkstudio.exe. Jedes Paket enthaelt dazu
+// behaved.exe (dieselbe Datei): die Updater bis rc605 setzen genau einen
+// Eintrag "behaved.exe" ganz oben an die Stelle der laufenden .exe und starten
+// ihn neu - so kommen alte Installationen, auch eigenstaendige .exe, zu JK Studio.
+inline constexpr const char* kProgramm = "jkstudio.exe";
+inline constexpr const char* kAltesProgramm = "behaved.exe";
 
 struct Asset {
     std::string name;          // "BehavEd-Remake-rc568.zip"
@@ -70,8 +79,8 @@ struct Release {
 // --- rc601 release: was das Update mit einem Eintrag tut ------------------
 //
 // `rel` ist zielImOrdner(...) eines Archiveintrags, `laufenderName` der
-// Dateiname der laufenden .exe ("behaved.exe" oder
-// "BehavEd-Remake-rc601-windows-x64.exe"). `nurProgramm`: neben der .exe
+// Dateiname der laufenden .exe ("jkstudio.exe", "behaved.exe" oder
+// "JK-Studio-rc606-windows-x64.exe"). `nurProgramm`: neben der .exe
 // liegt kein data\base - das Programm laeuft eigenstaendig mit seinen
 // eingebauten Daten (bhed/eingebaut.h).
 //
@@ -79,6 +88,11 @@ struct Release {
 //                  umbenannt, ueberschreiben laesst sie sich nicht)
 //   Datei          neben die .exe, an ihren Platz im Programmordner
 //   Ueberspringen  gar nicht
+//
+// Stufe 8c: genau EIN Eintrag wird Programm - der mit dem Namen der laufenden
+// .exe, sonst jkstudio.exe (eigenstaendige .exe mit eigenem Namen). Die zweite
+// Programmdatei (behaved.exe neben jkstudio.exe oder umgekehrt) wird eine
+// gewoehnliche Datei; bei einer eigenstaendigen .exe entfaellt sie.
 enum class Einspielen { Ueberspringen, Programm, Datei };
 [[nodiscard]] Einspielen einspielenAls(const std::string& rel, const std::string& laufenderName,
                                        bool nurProgramm);

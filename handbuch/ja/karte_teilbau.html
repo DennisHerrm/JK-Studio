@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>マップエディター:ビルドの進行状況と部分コンパイル - BehavEd-Remake</title>
+<title>マップエディター:ビルドの進行状況と部分コンパイル - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -33,7 +33,7 @@
     <p class="einleitung">ビルドがどこまで進み、あとどれくらいかかるかを確認し、変わった部分だけを再ビルドし(結果はフルビルドと同じ)、マップを再コンパイルせずにコンパイル済みマップへ新しい部分を追加します。</p>
     <h2 id="fortschritt">ビルドの進行状況<a class="anker" href="#fortschritt">#</a></h2>
 <figure class="bild"><a href="../bilder/ja/h_karte8_fortschritt.webp" class="zoom"><img src="../bilder/ja/h_karte8_fortschritt.webp" alt="マップ 2 回目のビルド中の ビルドの進行状況 ウィンドウ:ステップ 3(LIGHT)、バウンス 3/16、全ステップ 43 %、このマップの前回のビルドから求めた残り時間。" loading="lazy"></a><figcaption>マップ 2 回目のビルド中の <strong><span class="ui">ビルドの進行状況</span></strong> ウィンドウ:ステップ 3(LIGHT)、バウンス 3/16、全ステップ 43 %、このマップの前回のビルドから求めた残り時間。</figcaption></figure>
-<ul><li><span class="ui">ビルド</span> メニューのビルドの実行中、<strong><span class="ui">ビルドの進行状況</span></strong> ウィンドウにはエントリー、ステップとその段階(BSP、VIS、LIGHT)、q3map2 が今いるフェーズとその進み具合(q3map2 が出力する点と数字、またはバウンス)、全ステップのバー、そして時間が表示されます。</li><li><strong>残り時間</strong>:あるエントリーでマップを初めてビルドするときは、実行中のフェーズから見積もって「少なくとも」と表示します。2 回目以降は、このマップをこのエントリーで前回ビルドしたときの時間から求めます。ステップごとの時間は設定フォルダーの <code>karte_bauzeiten.json</code> に保存されます。</li><li>ビルドが終わると、コンソールに各ステップの時間が前回のビルドとの比較つきで表示されます:<code>1 BSP: 0.4 s(前回のビルド 0.5 秒、-20 %)</code>。</li><li>ウィンドウの <strong><span class="ui">ビルドを中止</span></strong> は、<span class="ui">ビルド</span> &gt; <span class="ui">ビルドを中止</span> と同じく q3map2 を停止します。</li><li><strong><span class="ui">ビルド</span> &gt; <span class="ui">ビルド完了時に通知</span></strong>(既定でオン):ビルドが終わったときに BehavEd が前面のウィンドウでなければ、タスクバーのボタンが点滅します。音もダイアログもありません。</li></ul>
+<ul><li><span class="ui">ビルド</span> メニューのビルドの実行中、<strong><span class="ui">ビルドの進行状況</span></strong> ウィンドウにはエントリー、ステップとその段階(BSP、VIS、LIGHT)、q3map2 が今いるフェーズとその進み具合(q3map2 が出力する点と数字、またはバウンス)、全ステップのバー、そして時間が表示されます。</li><li><strong>残り時間</strong>:あるエントリーでマップを初めてビルドするときは、実行中のフェーズから見積もって「少なくとも」と表示します。2 回目以降は、このマップをこのエントリーで前回ビルドしたときの時間から求めます。ステップごとの時間は設定フォルダーの <code>karte_bauzeiten.json</code> に保存されます。</li><li>ビルドが終わると、コンソールに各ステップの時間が前回のビルドとの比較つきで表示されます:<code>1 BSP: 0.4 s(前回のビルド 0.5 秒、-20 %)</code>。</li><li>ウィンドウの <strong><span class="ui">ビルドを中止</span></strong> は、<span class="ui">ビルド</span> &gt; <span class="ui">ビルドを中止</span> と同じく q3map2 を停止します。</li><li><strong><span class="ui">ビルド</span> &gt; <span class="ui">ビルド完了時に通知</span></strong>(既定でオン):ビルドが終わったときに JK Studio が前面のウィンドウでなければ、タスクバーのボタンが点滅します。音もダイアログもありません。</li></ul>
 <div class="hinweis">進行状況は q3map2 自身の出力から得ています。ライトマップの多いフェーズや長いバウンスは飛び飛びに進みます。残り時間の精度は前回のビルドとどれだけ比べられるかで決まり、別のエントリー・別のスイッチ・コンピューターの負荷で変わります。</div>
 <h2 id="teilbau">部分コンパイル<a class="anker" href="#teilbau">#</a></h2>
 <figure class="bild"><a href="../bilder/ja/h_karte8_menue.webp" class="zoom"><img src="../bilder/ja/h_karte8_menue.webp" alt="ビルド:エディターデータを保持、部分コンパイル:VIS を再利用、部分コンパイル:ライトを再利用 をオンにした状態。その下に コンパイル済みマップに追加 と ビルド完了時に通知(NetRadiant-Custom にはありません)。" loading="lazy"></a><figcaption><span class="ui">ビルド</span>:<span class="ui">エディターデータを保持</span>、<span class="ui">部分コンパイル:VIS を再利用</span>、<span class="ui">部分コンパイル:ライトを再利用</span> をオンにした状態。その下に <span class="ui">コンパイル済みマップに追加</span> と <span class="ui">ビルド完了時に通知</span>(NetRadiant-Custom にはありません)。</figcaption></figure>
@@ -50,7 +50,7 @@
 <div class="hinweis">JKHub の天候ブラシのスレッドにある天候のルール:1 つのマップで inside と outside のブラシを混ぜないこと。天候ゾーンがある場合、ブラシはゾーンの中でだけ働くこと。ゲームはマップの読み込み時に <code>.weather</code> キャッシュファイルを作り直すので、古いファイルを消す必要はないこと。</div>
     <nav class="blaettern"><a class="vor" href="karte_tempo.html"><span>前へ</span>マップエディター:速度とリアルタイムライト</a><a class="nach" href="karte_werkzeuge8b.html"><span>次へ</span>マップエディター:地形・プレイ・ロジック・ミラーなど</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

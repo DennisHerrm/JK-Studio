@@ -1,4 +1,4 @@
-// Jedi Academy, Mehrspieler: Entitaetsklassen fuer den Karten-Editor von BehavEd-Remake.
+// Jedi Academy, Mehrspieler: Entitaetsklassen fuer den Karten-Editor von JK Studio.
 // Erzeugt von tools/gen_karten_def.py aus OpenJK codemp/game (Commit 260c59c),
 // den /*QUAKED*/-Bloecken des Spielcodes - nicht von Hand aendern.
 // Herkunft: https://github.com/JACoders/OpenJK, GNU GPL v2.

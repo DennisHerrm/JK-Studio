@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Camera - BehavEd-Remake</title>
+<title>Camera - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>Guide</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Guide</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="Search the guide...  (/)" autocomplete="off" aria-label="Search the guide...  (/)">
     <div id="treffer" class="treffer" hidden></div>
   </div>
-  <nav class="kapitel"><details class="gruppe" ><summary><span class="pfeil"></span>Start here</summary><ul><li class=""><a href="index.html">Welcome</a></li><li class=""><a href="funktionen.html">What BehavEd can do</a></li><li class=""><a href="erste-schritte.html">Getting started</a></li><li class=""><a href="fenster.html">The window</a></li></ul></details>
+  <nav class="kapitel"><details class="gruppe" ><summary><span class="pfeil"></span>Start here</summary><ul><li class=""><a href="index.html">Welcome</a></li><li class=""><a href="funktionen.html">What JK Studio can do</a></li><li class=""><a href="erste-schritte.html">Getting started</a></li><li class=""><a href="fenster.html">The window</a></li></ul></details>
 <details class="gruppe" ><summary><span class="pfeil"></span>Scripts</summary><ul><li class=""><a href="skripte.html">Writing scripts</a></li><li class=""><a href="skriptfluss.html">Script Flow: Classic, Graph, Tracks</a></li><li class=""><a href="speichern.html">Saving, compiling, checks</a></li></ul></details>
 <details class="gruppe" open><summary><span class="pfeil"></span>Map and scene</summary><ul><li class=""><a href="karte.html">The map</a></li><li class=""><a href="entities.html">Entities</a></li><li class="aktiv"><a href="kamera.html">Camera</a><ul class="unter"><li><a href="#einstellungen">Shots</a></li><li><a href="#gizmo">Moving and turning a shot</a></li><li><a href="#bahnen">Camera paths</a></li><li><a href="#steuern">Fly a shot yourself (Pilot)</a></li><li><a href="#vorschau">Preview and looking through</a></li></ul></li><li class=""><a href="zeitleiste.html">Timeline</a></li><li class=""><a href="figuren.html">Figures and paths</a></li><li class=""><a href="animation.html">Animating movers and ROFF files</a></li><li class=""><a href="wegpunkte.html">NPC waypoints</a></li><li class=""><a href="karteneditor.html">The map editor</a></li><li class=""><a href="karteneditor_bauen.html">Map editor: building tools</a></li><li class=""><a href="karte_bauen.html">Map editor: compiling the map</a></li><li class=""><a href="karte_oeffnen.html">Map editor: opening and changing finished maps</a></li><li class=""><a href="karte_plugins.html">Map editor: plugins</a></li><li class=""><a href="karte_optimierer.html">Map editor: optimizer and limits</a></li><li class=""><a href="karte_unterschiede.html">Map editor: differences to NetRadiant-Custom</a></li><li class=""><a href="karte_tempo.html">Map editor: speed and real-time light</a></li><li class=""><a href="karte_teilbau.html">Map editor: build progress and partial compiles</a></li><li class=""><a href="karte_werkzeuge8b.html">Map editor: terrain, playing, logic, mirror and more</a></li></ul></details>
 <details class="gruppe" ><summary><span class="pfeil"></span>Missions</summary><ul><li class=""><a href="missionen.html">Missions</a></li><li class=""><a href="modell.html">Model view and characters</a></li></ul></details>
@@ -33,7 +33,7 @@
     <p class="einleitung">Every camera MOVE and PAN of the script is a shot you can see, grab and fly - the script is rewritten as you drag.</p>
     <figure class="bild breit"><a href="../bilder/en/h_kamera.webp" class="zoom"><img src="../bilder/en/h_kamera.webp" alt="A selected camera: its path on the map, the gizmo, the toolbar on top and the list of shots on the left." loading="lazy"></a><figcaption>A selected camera: its path on the map, the gizmo, the toolbar on top and the list of shots on the left.</figcaption></figure>
 <h2 id="einstellungen">Shots<a class="anker" href="#einstellungen">#</a></h2>
-<p>In ICARUS a shot is <code>camera ( MOVE, &lt;position&gt;, &lt;time&gt; )</code> followed by <code>camera ( PAN, &lt;angles&gt;, &lt;time&gt; )</code>. BehavEd-Remake reads them in order and draws each as a camera symbol on the map. Click the camera symbol to select the camera; the list <strong><span class="ui">Shots</span></strong> on the left shows every shot with its time and travel time (<code>moves 6.0 s</code>). Click a line to jump there.</p>
+<p>In ICARUS a shot is <code>camera ( MOVE, &lt;position&gt;, &lt;time&gt; )</code> followed by <code>camera ( PAN, &lt;angles&gt;, &lt;time&gt; )</code>. JK Studio reads them in order and draws each as a camera symbol on the map. Click the camera symbol to select the camera; the list <strong><span class="ui">Shots</span></strong> on the left shows every shot with its time and travel time (<code>moves 6.0 s</code>). Click a line to jump there.</p>
 <ul><li><strong><span class="ui">Previous shot</span> / <span class="ui">Next shot</span></strong> step through the shots; <strong><span class="ui">Fly to shot</span></strong> puts your view exactly where the selected shot stands and looks.</li><li><strong><span class="ui">New camera shot here</span></strong> adds a MOVE and a PAN at your current view, after the selected shot. <strong><span class="ui">Set to view</span></strong> moves the selected shot to where you are looking.</li><li><strong><span class="ui">Delete shot</span></strong> removes it. Under <strong><span class="ui">Selected shot</span></strong> you type exact values: <span class="ui">Position</span>, <span class="ui">Direction</span> and <span class="ui">Travel time</span> (0 = a cut).</li></ul>
 <h2 id="gizmo">Moving and turning a shot<a class="anker" href="#gizmo">#</a></h2>
 <p>The toolbar above the view switches the gizmo: <strong><span class="ui">Move</span></strong> shows three arrows and a box in the middle - drag an arrow to move along one axis, the box to move in the view plane. <strong><span class="ui">Rotate</span></strong> shows three rings for pitch, yaw and roll. <strong><span class="ui">World</span> / <span class="ui">Local</span></strong> decides whether the arrows follow the map or the camera. Letting go writes the new values into the script - one undo step.</p>
@@ -50,7 +50,7 @@
 <div class="hinweis">Some shots stand on a <code>ref_tag</code> or look at one. Then the panel says so, and moving the shot moves that ref_tag in the map - the script itself only names it.</div>
     <nav class="blaettern"><a class="vor" href="entities.html"><span>Previous</span>Entities</a><a class="nach" href="zeitleiste.html"><span>Next</span>Timeline</a></nav>
   </article>
-  <footer>BehavEd-Remake guide. The pictures show the program itself; they are made by its self-test.</footer>
+  <footer>JK Studio guide - mod tools for Jedi Knight: Jedi Academy and Jedi Outcast. The pictures show the program itself; they are made by its self-test. Not affiliated with Lucasfilm, Disney or Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

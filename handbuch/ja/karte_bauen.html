@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>マップエディター:マップのビルド - BehavEd-Remake</title>
+<title>マップエディター:マップのビルド - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -33,7 +33,7 @@
     <p class="einleitung"><span class="ui">ビルド</span> メニューから q3map2 でマップを遊べる .bsp にします。q3map2 はバックグラウンドで動き、出力はコンソールに表示されます。リークは赤い線で、ポータルは必要に応じて表示され、ゲームフォルダーには書き込みません。</p>
     <h2 id="menue">⟦ビルド⟧ メニュー<a class="anker" href="#menue">#</a></h2>
 <figure class="bild"><a href="../bilder/ja/h_kartebauen_menue.webp" class="zoom"><img src="../bilder/ja/h_kartebauen_menue.webp" alt="ビルド メニュー:NetRadiant-Custom の Jedi Academy 用ビルドメニューの項目と、一番下の ビルドを中止。" loading="lazy"></a><figcaption><span class="ui">ビルド</span> メニュー:NetRadiant-Custom の Jedi Academy 用ビルドメニューの項目と、一番下の <span class="ui">ビルドを中止</span>。</figcaption></figure>
-<p>各項目はマップに対して q3map2 のコマンドを 1 つ以上実行します。マップコンパイラー <code>bhed_q3map2.exe</code> は NetRadiant-Custom の q3map2 で、プログラムと一緒にビルドされ <code>behaved.exe</code> の隣にあります。結果も同じです。<strong><span class="ui">前回のビルドを実行</span></strong>(<kbd>F5</kbd>)で最後の項目を繰り返します。<strong><span class="ui">カスタマイズ</span></strong> で <strong><span class="ui">ビルドメニュー</span></strong> ダイアログが開きます。項目とコマンドを追加(<code>+</code> をダブルクリック)、名前変更、ドラッグで並べ替え(<kbd>Ctrl</kbd> でコピー)、削除できます。<strong><span class="ui">ビルド変数</span></strong> には <code>[MapFile]</code> や <code>[q3map2]</code> などの変数が表示されます。メニューはマップエディターを閉じるときに保存されます。</p>
+<p>各項目はマップに対して q3map2 のコマンドを 1 つ以上実行します。マップコンパイラー <code>bhed_q3map2.exe</code> は NetRadiant-Custom の q3map2 で、プログラムと一緒にビルドされ <code>jkstudio.exe</code> の隣にあります。結果も同じです。<strong><span class="ui">前回のビルドを実行</span></strong>(<kbd>F5</kbd>)で最後の項目を繰り返します。<strong><span class="ui">カスタマイズ</span></strong> で <strong><span class="ui">ビルドメニュー</span></strong> ダイアログが開きます。項目とコマンドを追加(<code>+</code> をダブルクリック)、名前変更、ドラッグで並べ替え(<kbd>Ctrl</kbd> でコピー)、削除できます。<strong><span class="ui">ビルド変数</span></strong> には <code>[MapFile]</code> や <code>[q3map2]</code> などの変数が表示されます。メニューはマップエディターを閉じるときに保存されます。</p>
 <figure class="bild"><a href="../bilder/ja/h_kartebauen_customize.webp" class="zoom"><img src="../bilder/ja/h_kartebauen_customize.webp" alt="ビルド &gt; カスタマイズ:項目 [Final] Fast と 3 つのコマンド。" loading="lazy"></a><figcaption><span class="ui">ビルド</span> &gt; <span class="ui">カスタマイズ</span>:項目 [Final] Fast と 3 つのコマンド。</figcaption></figure>
 <h2 id="stufen">3 つの段階<a class="anker" href="#stufen">#</a></h2>
 <table class="liste"><thead><tr><th>段階</th><th>内容</th></tr></thead><tbody><tr><td>BSP(<code>-meta</code>)</td><td>ブラシとパッチから BSP ツリーとサーフェスを作り、<code>.bsp</code>、<code>.prt</code>、<code>.srf</code> を書き出します。マップが閉じていなければリークで止まります。</td></tr><tr><td>VIS(<code>-vis</code>)</td><td>どの領域どうしが見えるかを計算し、ゲームの描画を減らします。BSP 段階のポータルファイルが必要です。</td></tr><tr><td>LIGHT(<code>-light</code>)</td><td>ライトエンティティと空の光をライトマップとライトグリッドに焼き込みます。</td></tr></tbody></table>
@@ -62,7 +62,7 @@
 <p><strong><span class="ui">ブラシ</span> &gt; <span class="ui">選択を自動コーク</span></strong>(<kbd>F4</kbd>)は、選択したブラシのうち内側から見えない面すべてに caulk テクスチャを付けます。サーフェスが減り、マップが軽くなります。カメラを選択範囲の中に置いてください。どの面が隠れているかは q3map2 が判断します。元に戻すは 1 回で済みます。</p>
     <nav class="blaettern"><a class="vor" href="karteneditor_bauen.html"><span>前へ</span>マップエディター:作成ツール</a><a class="nach" href="karte_oeffnen.html"><span>次へ</span>マップエディター:完成したマップを開いて変更する</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

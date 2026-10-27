@@ -2,6 +2,7 @@
 #include "wache.h"
 
 #include "bhed/diag.h"
+#include "bhed/umzug.h"
 
 #include <cstdlib>
 
@@ -14,6 +15,7 @@
 #include <shlobj.h>
 
 #include <algorithm>
+#include <filesystem>
 #include <cctype>
 #include <cwchar>
 #include <string>
@@ -263,14 +265,46 @@ std::string settingsDirectory() {
         CreateDirectoryW(eigen, nullptr);
         return toUtf8(eigen);
     }
-    wchar_t* appdata = nullptr;
-    std::string dir;
-    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &appdata))) {
-        dir = toUtf8(appdata) + "\\behaved";
-        CoTaskMemFree(appdata);
-        CreateDirectoryW(toWide(dir).c_str(), nullptr);
+    // Stufe 8c (Umbenennung in JK Studio): %APPDATA%\jkstudio statt %APPDATA%\behaved.
+    // Beim ersten Start wird der alte Ordner kopiert (bhed/umzug.h), das Original
+    // bleibt. BHED_APPDATA ersetzt im Test den Ordner %APPDATA% (der echte des
+    // Anwenders wird dann nicht angefasst).
+    std::string basis;
+    if (const wchar_t* test = _wgetenv(L"BHED_APPDATA"); test != nullptr && test[0] != L'\0') {
+        basis = toUtf8(test);
+    } else {
+        wchar_t* appdata = nullptr;
+        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &appdata))) {
+            basis = toUtf8(appdata);
+            CoTaskMemFree(appdata);
+        }
     }
+    if (basis.empty()) { return {}; }
+    const std::string dir = basis + "\\" + umzug::kNeuerOrdner;
+    static bool versucht = false;
+    if (!versucht) {
+        versucht = true;
+        const auto pfad = [](const std::string& s) { return std::filesystem::path(std::u8string(reinterpret_cast<const char8_t*>(s.data()), s.size())); };
+        const umzug::Ergebnis e = umzug::uebernehmen(pfad(basis + "\\" + umzug::kAlterOrdner), pfad(dir));
+        if (e.uebernommen || !e.fehler.empty()) {
+            diag::detail("Einstellungen: " + std::string(umzug::kAlterOrdner) + " -> " + umzug::kNeuerOrdner + ": " +
+                         (e.uebernommen ? std::to_string(e.dateien) + " Dateien kopiert, " + std::to_string(e.ausgelassen) + " ausgelassen (das Original bleibt)"
+                                        : "Fehler: " + e.fehler));
+        }
+    }
+    CreateDirectoryW(toWide(dir).c_str(), nullptr);
     return dir;
+}
+
+
+std::string ressource(const wchar_t* name) {
+    HRSRC r = FindResourceW(nullptr, name, MAKEINTRESOURCEW(10));   // RT_RCDATA
+    if (r == nullptr) { return {}; }
+    HGLOBAL g = LoadResource(nullptr, r);
+    const DWORD n = SizeofResource(nullptr, r);
+    const void* p = g != nullptr ? LockResource(g) : nullptr;
+    if (p == nullptr || n == 0) { return {}; }
+    return std::string(static_cast<const char*>(p), n);
 }
 
 

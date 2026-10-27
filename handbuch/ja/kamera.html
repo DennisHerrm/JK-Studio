@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>カメラ - BehavEd-Remake</title>
+<title>カメラ - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -33,7 +33,7 @@
     <p class="einleitung">スクリプトの camera MOVE と PAN はすべて、見て・つかんで・飛ばせるショットです。ドラッグするとスクリプトが書き換わります。</p>
     <figure class="bild breit"><a href="../bilder/ja/h_kamera.webp" class="zoom"><img src="../bilder/ja/h_kamera.webp" alt="選択したカメラ。マップ上のパス、ギズモ、上部のツールバー、左側のショット一覧。" loading="lazy"></a><figcaption>選択したカメラ。マップ上のパス、ギズモ、上部のツールバー、左側のショット一覧。</figcaption></figure>
 <h2 id="einstellungen">ショット<a class="anker" href="#einstellungen">#</a></h2>
-<p>ICARUS ではショットは <code>camera ( MOVE, &lt;位置&gt;, &lt;時間&gt; )</code> と、それに続く <code>camera ( PAN, &lt;角度&gt;, &lt;時間&gt; )</code> です。BehavEd-Remake はそれを順に読み、マップ上にカメラ記号として描きます。記号をクリックするとカメラが選択され、左の <strong><span class="ui">ショット</span></strong> 一覧に各ショットの時刻と移動時間(<code>移動 6.0 秒</code>)が表示されます。行をクリックするとそこへ移動します。</p>
+<p>ICARUS ではショットは <code>camera ( MOVE, &lt;位置&gt;, &lt;時間&gt; )</code> と、それに続く <code>camera ( PAN, &lt;角度&gt;, &lt;時間&gt; )</code> です。JK Studio はそれを順に読み、マップ上にカメラ記号として描きます。記号をクリックするとカメラが選択され、左の <strong><span class="ui">ショット</span></strong> 一覧に各ショットの時刻と移動時間(<code>移動 6.0 秒</code>)が表示されます。行をクリックするとそこへ移動します。</p>
 <ul><li><strong><span class="ui">前のショット</span> / <span class="ui">次のショット</span></strong> でショットを順に切り替え、<strong><span class="ui">ショットへ移動</span></strong> で視点を選択中のショットの位置と向きにぴったり合わせます。</li><li><strong><span class="ui">ここに新しいショット</span></strong> は現在の視点に MOVE と PAN を、選択中のショットの後ろに追加します。<strong><span class="ui">ビューに合わせる</span></strong> は選択中のショットを今見ている位置に移します。</li><li><strong><span class="ui">ショットを削除</span></strong> で削除します。<strong><span class="ui">選択中のショット</span></strong> では <span class="ui">位置</span>・<span class="ui">向き</span>・<span class="ui">移動時間</span>(0 = カット)を正確に入力できます。</li></ul>
 <h2 id="gizmo">ショットの移動と回転<a class="anker" href="#gizmo">#</a></h2>
 <p>ビュー上部のツールバーでギズモを切り替えます。<strong><span class="ui">移動</span></strong> は 3 本の矢印と中央の箱を表示し、矢印のドラッグで 1 軸に沿って、箱のドラッグで画面の平面内を移動します。<strong><span class="ui">回転</span></strong> はピッチ・ヨー・ロールの 3 つのリングを表示します。<strong><span class="ui">ワールド</span> / <span class="ui">ローカル</span></strong> で矢印がマップとカメラのどちらに従うかを決めます。離すと新しい値がスクリプトに書かれます(1 回の元に戻す)。</p>
@@ -50,7 +50,7 @@
 <div class="hinweis"><code>ref_tag</code> の上に置かれたショットや、それを注視するショットもあります。その場合はパネルに表示され、ショットを動かすとマップ上の ref_tag が動きます。スクリプトは名前を参照しているだけです。</div>
     <nav class="blaettern"><a class="vor" href="entities.html"><span>前へ</span>エンティティ</a><a class="nach" href="zeitleiste.html"><span>次へ</span>タイムライン</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

@@ -296,7 +296,7 @@
  "0 to 16.": "0 到 16。",
  "camera SHAKE - shake the picture": "camera SHAKE——震动画面",
  "Shakes the camera for a while.": "让摄像机震动一段时间。",
- "A recorded camera flight - made in an editor or with **Animate** - is played as the camera's movement. The path starts where the camera is; BehavEd-Remake plays it like the game, including the notes `cut`, `fov`, `fovzoom` and `fovaccel`. A `MOVE` ends the path.": "录制好的摄像机飞行——在编辑器中或用**动画**制作——会作为摄像机的运动播放。路径从摄像机当前所在的位置开始;BehavEd-Remake 会像游戏一样播放它,包括 `cut`、`fov`、`fovzoom` 和 `fovaccel` 标注。`MOVE` 会结束该路径。",
+ "A recorded camera flight - made in an editor or with **Animate** - is played as the camera's movement. The path starts where the camera is; JK Studio plays it like the game, including the notes `cut`, `fov`, `fovzoom` and `fovaccel`. A `MOVE` ends the path.": "录制好的摄像机飞行——在编辑器中或用**动画**制作——会作为摄像机的运动播放。路径从摄像机当前所在的位置开始;JK Studio 会像游戏一样播放它,包括 `cut`、`fov`、`fovzoom` 和 `fovaccel` 标注。`MOVE` 会结束该路径。",
  "The event editor for `camera ( PATH )`.": "`camera ( PATH )` 的事件编辑器。",
  "The first field chooses what the camera does - here `PATH`. Changing it changes the fields below.": "第一个字段选择摄像机做什么——这里是 `PATH`。更改它会改变下面的字段。",
  "The ROFF file below `scripts/`, without `.rof`.": "`scripts/` 下的 ROFF 文件,不带 `.rof`。",

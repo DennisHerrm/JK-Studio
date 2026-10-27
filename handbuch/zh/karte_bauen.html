@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>地图编辑器:编译地图 - BehavEd-Remake</title>
+<title>地图编辑器:编译地图 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>手册</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>手册</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="搜索手册...  (/)" autocomplete="off" aria-label="搜索手册...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -33,7 +33,7 @@
     <p class="einleitung">在 <span class="ui">编译</span> 菜单中用 q3map2 把地图编译成可游玩的 .bsp:它在后台运行,输出显示在控制台中;泄漏显示为红线,也可以显示门户;它从不写入游戏文件夹。</p>
     <h2 id="menue">⟦编译⟧ 菜单<a class="anker" href="#menue">#</a></h2>
 <figure class="bild"><a href="../bilder/zh/h_kartebauen_menue.webp" class="zoom"><img src="../bilder/zh/h_kartebauen_menue.webp" alt="编译 菜单:NetRadiant-Custom 为 Jedi Academy 提供的编译菜单项,最下面是 取消编译。" loading="lazy"></a><figcaption><span class="ui">编译</span> 菜单:NetRadiant-Custom 为 Jedi Academy 提供的编译菜单项,最下面是 <span class="ui">取消编译</span>。</figcaption></figure>
-<p>每个菜单项对地图执行一条或多条 q3map2 命令。地图编译器 <code>bhed_q3map2.exe</code> 就是 NetRadiant-Custom 的 q3map2,随程序一起编译,放在 <code>behaved.exe</code> 旁边,结果完全相同。<strong><span class="ui">运行上次编译</span></strong>(<kbd>F5</kbd>)重复上一项。<strong><span class="ui">自定义</span></strong> 打开 <strong><span class="ui">编译菜单</span></strong> 对话框:可以添加菜单项和命令(双击 <code>+</code>)、改名、拖动排序(按住 <kbd>Ctrl</kbd> 复制)和删除;<strong><span class="ui">编译变量</span></strong> 显示 <code>[MapFile]</code>、<code>[q3map2]</code> 等变量。关闭地图编辑器时保存菜单。</p>
+<p>每个菜单项对地图执行一条或多条 q3map2 命令。地图编译器 <code>bhed_q3map2.exe</code> 就是 NetRadiant-Custom 的 q3map2,随程序一起编译,放在 <code>jkstudio.exe</code> 旁边,结果完全相同。<strong><span class="ui">运行上次编译</span></strong>(<kbd>F5</kbd>)重复上一项。<strong><span class="ui">自定义</span></strong> 打开 <strong><span class="ui">编译菜单</span></strong> 对话框:可以添加菜单项和命令(双击 <code>+</code>)、改名、拖动排序(按住 <kbd>Ctrl</kbd> 复制)和删除;<strong><span class="ui">编译变量</span></strong> 显示 <code>[MapFile]</code>、<code>[q3map2]</code> 等变量。关闭地图编辑器时保存菜单。</p>
 <figure class="bild"><a href="../bilder/zh/h_kartebauen_customize.webp" class="zoom"><img src="../bilder/zh/h_kartebauen_customize.webp" alt="编译 &gt; 自定义:菜单项 [Final] Fast 及其三条命令。" loading="lazy"></a><figcaption><span class="ui">编译</span> &gt; <span class="ui">自定义</span>:菜单项 [Final] Fast 及其三条命令。</figcaption></figure>
 <h2 id="stufen">三个阶段<a class="anker" href="#stufen">#</a></h2>
 <table class="liste"><thead><tr><th>阶段</th><th>作用</th></tr></thead><tbody><tr><td>BSP(<code>-meta</code>)</td><td>把笔刷和曲面片变成 BSP 树和表面,写出 <code>.bsp</code>、<code>.prt</code> 和 <code>.srf</code>。如果地图不封闭,会因泄漏而停止。</td></tr><tr><td>VIS(<code>-vis</code>)</td><td>计算哪些区域彼此可见,让游戏少绘制一些。需要 BSP 阶段生成的门户文件。</td></tr><tr><td>LIGHT(<code>-light</code>)</td><td>把光源实体和天空的光照烘焙到光照贴图和光照网格中。</td></tr></tbody></table>
@@ -62,7 +62,7 @@
 <p><strong><span class="ui">画刷</span> &gt; <span class="ui">自动填缝所选</span></strong>(<kbd>F4</kbd>)给所选笔刷中从内部看不到的每个面赋予 caulk 纹理——表面更少,地图更快。把摄像机放在所选范围内;由 q3map2 判断哪些面被遮住。一次撤销即可恢复。</p>
     <nav class="blaettern"><a class="vor" href="karteneditor_bauen.html"><span>上一页</span>地图编辑器:建造工具</a><a class="nach" href="karte_oeffnen.html"><span>下一页</span>地图编辑器:打开并修改已完成的地图</a></nav>
   </article>
-  <footer>BehavEd-Remake 手册。图片展示的是程序本身,由其自检功能截取。</footer>
+  <footer>JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

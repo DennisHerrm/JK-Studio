@@ -30,7 +30,7 @@ UEBERSICHT = {
     "meta": T("Eight parts · base game · about 30 minutes"),
     "bloecke": [
         ("anim", "a_kamera", T("The finished cutscene, seen through its camera.")),
-        ("p", T("This tutorial uses only the base game: the map `taspir1` - the landing pad at the start of the Taspir III mission - with Kyle's ship, the Raven's Claw, and the characters Kyle and Rosh. You need nothing but Jedi Academy and BehavEd. Every picture on the following pages was taken while exactly this mission was built, step by step.")),
+        ("p", T("This tutorial uses only the base game: the map `taspir1` - the landing pad at the start of the Taspir III mission - with Kyle's ship, the Raven's Claw, and the characters Kyle and Rosh. You need nothing but Jedi Academy and JK Studio. Every picture on the following pages was taken while exactly this mission was built, step by step.")),
         ("fluss", T("The mission in eight parts"),
          [T("Create the mission"), T("Place the characters"), T("Let them walk"), T("The camera"),
           T("The ship takes off"), T("Cut, shake, fade"), T("A second script"), T("Save and play")],

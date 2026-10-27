@@ -21,6 +21,7 @@
 #include "bhed/messpunkt.h"
 #include "bhed/changelog.h"
 #include "bhed/fassung.h"
+#include "bhed/image.h"   // Stufe 8c: das Logo von JK Studio (PNG-Ressource)
 #include "update.h"
 #include "app_internal.h"
 #include "gpumap.h"
@@ -184,6 +185,7 @@ void handleTreeKeys();
 // Die Symboltexturen stehen weiter unten, werden aber schon vom
 // Ueber-Dialog gebraucht.
 void* logoTextureId();
+void* jkLogoTextureId(int& b, int& h);
 extern const char* kScriptFilter;
 void loadPath(const std::string& p);
 int reiterMitPfadI(const std::string& p);
@@ -3922,15 +3924,28 @@ void drawAbout() {
                                 ImGuiWindowFlags_AlwaysAutoResize)) {
         return;
     }
-    // Das Logo aus BITMAP 133 des Originals, in der Groesse der Schrift
-    // mitwachsend.
+    // Stufe 8c: das Logo von JK Studio (shanks Entwurf), in der Groesse der
+    // Schrift mitwachsend; darunter Name, Fassung, Untertitel und die Bereiche.
+    {
+        int lb = 0;
+        int lh = 0;
+        if (void* jk = jkLogoTextureId(lb, lh); jk != nullptr && lh > 0) {
+            const float h = ImGui::GetFontSize() * 10.0F;
+            ImGui::Image(reinterpret_cast<ImTextureID>(jk), ImVec2{h * static_cast<float>(lb) / static_cast<float>(lh), h});
+        }
+    }
+    ImGui::Text("%s 1.0.0-%s", tr(Str::AppTitle), kFassung);
+    ImGui::TextUnformatted(tr(Str::AboutSubtitle));
+    ImGui::TextUnformatted(tr(Str::AboutModules));
+    ImGui::Separator();
+    // Das Logo aus BITMAP 133 des Originals (der Bereich BehavEd ist sein Nachbau),
+    // in der Groesse der Schrift mitwachsend.
     if (void* logo = logoTextureId(); logo != nullptr) {
         const float scale = ImGui::GetFontSize() / 16.0F;
         ImGui::Image(reinterpret_cast<ImTextureID>(logo),
                      ImVec2{static_cast<float>(icons::kLogoWidth) * scale,
                             static_cast<float>(icons::kLogoHeight) * scale});
     }
-    ImGui::Text("%s 1.0.0-%s", tr(Str::AppTitle), kFassung);
     ImGui::TextUnformatted(tr(Str::AboutOriginal));
     ImGui::Separator();
 
@@ -3947,6 +3962,7 @@ void drawAbout() {
     ImGui::BulletText("%s", tr(Str::AboutIcarus));
 
     ImGui::Separator();
+    ImGui::TextDisabled("%s", tr(Str::AboutNotAffiliated));
     if (ImGui::Button(tr(Str::AboutClose), ImVec2{ImGui::GetFontSize() * 6.0F, 0.0F})) {
         g_app->aboutOpen = false;
         ImGui::CloseCurrentPopup();
@@ -6197,11 +6213,35 @@ IconTexture g_logoTex;
 
 void* logoTextureId() { return g_logoTex.id; }
 
+// Stufe 8c: das Logo von JK Studio (Ressource JKLOGO, PNG) - fuer den Ueber-Dialog.
+IconTexture g_jkLogoTex;
+int g_jkLogoB = 0;
+int g_jkLogoH = 0;
+void* jkLogoTextureId(int& b, int& h) {
+    if (!g_jkLogoTex.tried) {
+        g_jkLogoTex.tried = true;
+        const std::string png = platform::ressource(L"JKLOGO");
+        if (!png.empty()) {
+            const image::Image im = image::decodePng(reinterpret_cast<const unsigned char*>(png.data()), png.size());
+            if (im.width > 0 && im.height > 0 && im.rgba.size() == static_cast<std::size_t>(im.width) * static_cast<std::size_t>(im.height) * 4U) {
+                g_jkLogoTex.id = render::createTexture(im.rgba.data(), im.width, im.height);
+                g_jkLogoB = im.width;
+                g_jkLogoH = im.height;
+            }
+        }
+    }
+    b = g_jkLogoB;
+    h = g_jkLogoH;
+    return g_jkLogoTex.id;
+}
+
 void resetIcons() {
     g_iconTex.id = nullptr;
     g_iconTex.tried = false;
     g_logoTex.id = nullptr;
     g_logoTex.tried = false;
+    g_jkLogoTex.id = nullptr;
+    g_jkLogoTex.tried = false;
 }
 
 void ensureIcons() {
@@ -14544,7 +14584,7 @@ std::string windowTitle() {
     if (g_app->doc.dirty()) {
         t += " *";
     }
-    t += " - BehavEd";
+    t += std::string(" - ") + tr(Str::AppTitle);
     return t;
 }
 
@@ -16741,5 +16781,8 @@ bool neuAblegenAn(const ImGuiPayload* pl, const Path& p, bool davor) {
     g_app->camTrackValid = false;
     return true;
 }
+
+// Stufe 8c: das Logo von JK Studio fuer den Selbsttest (app_internal.h)
+void* jkLogoTextur(int& b, int& h) { return jkLogoTextureId(b, h); }
 
 }  // namespace bhed::gui

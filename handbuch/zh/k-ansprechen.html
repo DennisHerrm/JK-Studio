@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>玩家与角色对话 - BehavEd-Remake</title>
+<title>玩家与角色对话 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>手册</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>手册</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="搜索手册...  (/)" autocomplete="off" aria-label="搜索手册...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>使其可用。</strong> 在角色的生成脚本中插入 <code>set ( SET_PLAYER_USABLE, true )</code>——否则使用键不起作用。</p><figure class="bild"><a href="../bilder/zh/k_use_baum.webp" class="zoom"><img src="../bilder/zh/k_use_baum.webp" alt="生成脚本中的 SET_PLAYER_USABLE。" loading="lazy"></a><figcaption>生成脚本中的 SET_PLAYER_USABLE。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>对话脚本。</strong> 给角色添加键 <code>usescript</code>(或在 <strong><span class="ui">图表</span></strong> 视图中以 <code>usescript</code> 连接),然后按 <strong><span class="ui">打开</span></strong>。</p><figure class="bild"><a href="../bilder/zh/k_tod_insp.webp" class="zoom"><img src="../bilder/zh/k_tod_insp.webp" alt="角色的脚本键。" loading="lazy"></a><figcaption>角色的脚本键。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>编写对话。</strong> 在 <code>CHAN_VOICE</code> 上播放声音,用 <code>SET_LOOK_TARGET</code> 看向玩家,也许再加一段简短的摄像机。玩家每次按下使用键,角色都会说出它的台词。</p><figure class="bild"><a href="../bilder/zh/s_wert_datei.webp" class="zoom"><img src="../bilder/zh/s_wert_datei.webp" alt="一句台词。" loading="lazy"></a><figcaption>一句台词。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>只要一次?</strong> 在 usescript 末尾把 <code>SET_PLAYER_USABLE</code> 设为 <code>false</code>——或者使用变量(<a href="k-variablen.html">只在第一次:变量与 if</a>)。</p><figure class="bild"><a href="../bilder/zh/a_einmal.webp" class="zoom"><img src="../bilder/zh/a_einmal.webp" alt="末尾的 SET_PLAYER_USABLE false。" loading="lazy"></a><figcaption>末尾的 SET_PLAYER_USABLE false。</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="k-tod.html"><span>上一页</span>敌人死亡时,门就会打开</a><a class="nach" href="k-zusammenspiel.html"><span>下一页</span>让多个脚本协同工作</a></nav>
   </article>
-  <footer>BehavEd-Remake 手册。图片展示的是程序本身,由其自检功能截取。</footer>
+  <footer>JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

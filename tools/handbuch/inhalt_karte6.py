@@ -13,7 +13,7 @@ def _zeile(quelle, nrc, hier):
 
 _KOPF = [T("Report", "Meldung", "报告", "報告"),
          T("NetRadiant-Custom", "NetRadiant-Custom", "NetRadiant-Custom", "NetRadiant-Custom"),
-         T("BehavEd", "BehavEd", "BehavEd", "BehavEd")]
+         T("JK Studio", "JK Studio", "JK Studio", "JK Studio")]
 
 _EDITOR = [
     _zeile("NRC#65",
@@ -218,10 +218,10 @@ _ABSICHT = [
       "**NRC#281**: Strg+K zu mehreren Zielen vergibt denselben targetname - wie in NRC.",
       "**NRC#281**:对多个目标按 Ctrl+K 会赋予相同的 targetname——与 NRC 相同。",
       "**NRC#281**:複数の対象に Ctrl+K を使うと同じ targetname になります(NRC と同じ)。"),
-    T("**NRC#132**: a region build leaks when the region has no entities and the camera is inside a brush - as in NRC; BehavEd warns before such a build.",
-      "**NRC#132**: Ein Region-Bau leckt, wenn die Region keine Entities hat und die Kamera in einem Pinsel steht - wie in NRC; BehavEd warnt vor so einem Bau.",
-      "**NRC#132**:区域中没有实体且摄像机位于笔刷内部时,区域编译会泄漏——与 NRC 相同;BehavEd 会在这种编译前发出警告。",
-      "**NRC#132**:リージョンにエンティティがなく、カメラがブラシ内にあるとリージョンビルドはリークします(NRC と同じ)。BehavEd はこの場合ビルド前に警告します。"),
+    T("**NRC#132**: a region build leaks when the region has no entities and the camera is inside a brush - as in NRC; JK Studio warns before such a build.",
+      "**NRC#132**: Ein Region-Bau leckt, wenn die Region keine Entities hat und die Kamera in einem Pinsel steht - wie in NRC; JK Studio warnt vor so einem Bau.",
+      "**NRC#132**:区域中没有实体且摄像机位于笔刷内部时,区域编译会泄漏——与 NRC 相同;JK Studio 会在这种编译前发出警告。",
+      "**NRC#132**:リージョンにエンティティがなく、カメラがブラシ内にあるとリージョンビルドはリークします(NRC と同じ)。JK Studio はこの場合ビルド前に警告します。"),
     T("**NRC#48**: external lightmaps together with light styles do not work in RBSP (Jedi Academy, Jedi Outcast) - a limit of the format; the build menu and the optimizer refuse the combination and explain the way around it.",
       "**NRC#48**: Externe Lightmaps zusammen mit Lichtstilen gehen in RBSP (Jedi Academy, Jedi Outcast) nicht - eine Grenze des Formats; Build-Menü und Optimierer verweigern die Kombination und nennen den Ausweg.",
       "**NRC#48**:在 RBSP(Jedi Academy、Jedi Outcast)中,外部光照贴图无法与光照样式同时使用——这是格式本身的限制;编译菜单和优化器会拒绝这种组合并说明替代办法。",
@@ -235,10 +235,10 @@ _ABSICHT = [
 # Stufe 7 Punkt 6b: eigene Bedienung (Wunsch shank: Einstellungen des Programms im
 # Map-Editor, Menues wie im Programm, kleinere Knoepfe)
 _BEDIENUNG = [
-    T("**Menus in the style of BehavEd.** The menu bar and all menus of the map editor look like the menus of the rest of the program. Entries, order, submenus, checks, shortcuts, the mnemonic keys and what each entry does are those of NetRadiant-Custom. **Preferences > Interface > {{KeMenueNrc}}** brings back the look of NetRadiant-Custom.",
-      "**Menüs im Stil von BehavEd.** Die Menüleiste und alle Menüs des Karten-Editors sehen aus wie die Menüs im übrigen Programm. Einträge, Reihenfolge, Untermenüs, Haken, Tastenkürzel, die Mnemonik-Tasten und die Wirkung jedes Eintrags sind die von NetRadiant-Custom. **Preferences > Interface > {{KeMenueNrc}}** holt das Aussehen von NetRadiant-Custom zurück.",
-      "**BehavEd 风格的菜单。**地图编辑器的菜单栏和所有菜单与程序其他部分的菜单外观相同。条目、顺序、子菜单、勾选、快捷键、助记键以及每个条目的功能都与 NetRadiant-Custom 相同。**Preferences > Interface > {{KeMenueNrc}}** 可恢复 NetRadiant-Custom 的外观。",
-      "**BehavEd 風のメニュー。**マップエディターのメニューバーとすべてのメニューは、プログラムのほかの部分のメニューと同じ見た目です。項目、順序、サブメニュー、チェック、ショートカット、ニーモニックキー、各項目の動作は NetRadiant-Custom と同じです。**Preferences > Interface > {{KeMenueNrc}}** で NetRadiant-Custom の見た目に戻せます。"),
+    T("**Menus in the style of JK Studio.** The menu bar and all menus of the map editor look like the menus of the rest of the program. Entries, order, submenus, checks, shortcuts, the mnemonic keys and what each entry does are those of NetRadiant-Custom. **Preferences > Interface > {{KeMenueNrc}}** brings back the look of NetRadiant-Custom.",
+      "**Menüs im Stil von JK Studio.** Die Menüleiste und alle Menüs des Karten-Editors sehen aus wie die Menüs im übrigen Programm. Einträge, Reihenfolge, Untermenüs, Haken, Tastenkürzel, die Mnemonik-Tasten und die Wirkung jedes Eintrags sind die von NetRadiant-Custom. **Preferences > Interface > {{KeMenueNrc}}** holt das Aussehen von NetRadiant-Custom zurück.",
+      "**JK Studio 风格的菜单。**地图编辑器的菜单栏和所有菜单与程序其他部分的菜单外观相同。条目、顺序、子菜单、勾选、快捷键、助记键以及每个条目的功能都与 NetRadiant-Custom 相同。**Preferences > Interface > {{KeMenueNrc}}** 可恢复 NetRadiant-Custom 的外观。",
+      "**JK Studio 風のメニュー。**マップエディターのメニューバーとすべてのメニューは、プログラムのほかの部分のメニューと同じ見た目です。項目、順序、サブメニュー、チェック、ショートカット、ニーモニックキー、各項目の動作は NetRadiant-Custom と同じです。**Preferences > Interface > {{KeMenueNrc}}** で NetRadiant-Custom の見た目に戻せます。"),
     T("**Program settings in View.** At the end of **{{KeLView}}**: {{ViewTarget}}, {{ViewTheme}}, {{ViewLanguage}}, {{ViewDpiScale}} and {{KeKnopfGroesse}} - with the same effect as in the program's View menu. Language, theme and scaling also stay at the end of **{{KeLMisc}}**.",
       "**Programm-Einstellungen in View.** Am Ende von **{{KeLView}}**: {{ViewTarget}}, {{ViewTheme}}, {{ViewLanguage}}, {{ViewDpiScale}} und {{KeKnopfGroesse}} - mit derselben Wirkung wie im View-Menü des Programms. Sprache, Farbschema und Skalierung bleiben auch am Ende von **{{KeLMisc}}**.",
       "**View 中的程序设置。**在 **{{KeLView}}** 的末尾:{{ViewTarget}}、{{ViewTheme}}、{{ViewLanguage}}、{{ViewDpiScale}} 和 {{KeKnopfGroesse}}——作用与程序 View 菜单中的相同。语言、配色和缩放也仍保留在 **{{KeLMisc}}** 的末尾。",
@@ -272,18 +272,18 @@ UNTERSCHIEDE = {
     "titel": T("Map editor: differences to NetRadiant-Custom", "Karten-Editor: Unterschiede zu NetRadiant-Custom",
                "地图编辑器:与 NetRadiant-Custom 的区别", "マップエディター:NetRadiant-Custom との違い"),
     "kurz": T(
-        "The map editor follows NetRadiant-Custom 20260114 in look and handling. Known bugs of NetRadiant-Custom, Xonotic NetRadiant, GtkRadiant and q3map2 were checked one by one: what BehavEd does differently, and what stays as in NetRadiant-Custom on purpose.",
-        "Der Karten-Editor folgt NetRadiant-Custom 20260114 in Aussehen und Bedienung. Bekannte Fehler von NetRadiant-Custom, Xonotic NetRadiant, GtkRadiant und q3map2 wurden einzeln geprüft: was BehavEd anders macht und was absichtlich bleibt wie in NetRadiant-Custom.",
-        "地图编辑器在外观和操作上遵循 NetRadiant-Custom 20260114。NetRadiant-Custom、Xonotic NetRadiant、GtkRadiant 和 q3map2 的已知错误都逐一检查过:BehavEd 有哪些不同之处,以及哪些地方有意与 NetRadiant-Custom 保持一致。",
-        "マップエディターは外観と操作で NetRadiant-Custom 20260114 に従っています。NetRadiant-Custom、Xonotic NetRadiant、GtkRadiant、q3map2 の既知の不具合を一つずつ確認しました。BehavEd が異なる点と、意図的に NetRadiant-Custom と同じにしている点をまとめます。"),
+        "The map editor follows NetRadiant-Custom 20260114 in look and handling. Known bugs of NetRadiant-Custom, Xonotic NetRadiant, GtkRadiant and q3map2 were checked one by one: what JK Studio does differently, and what stays as in NetRadiant-Custom on purpose.",
+        "Der Karten-Editor folgt NetRadiant-Custom 20260114 in Aussehen und Bedienung. Bekannte Fehler von NetRadiant-Custom, Xonotic NetRadiant, GtkRadiant und q3map2 wurden einzeln geprüft: was JK Studio anders macht und was absichtlich bleibt wie in NetRadiant-Custom.",
+        "地图编辑器在外观和操作上遵循 NetRadiant-Custom 20260114。NetRadiant-Custom、Xonotic NetRadiant、GtkRadiant 和 q3map2 的已知错误都逐一检查过:JK Studio 有哪些不同之处,以及哪些地方有意与 NetRadiant-Custom 保持一致。",
+        "マップエディターは外観と操作で NetRadiant-Custom 20260114 に従っています。NetRadiant-Custom、Xonotic NetRadiant、GtkRadiant、q3map2 の既知の不具合を一つずつ確認しました。JK Studio が異なる点と、意図的に NetRadiant-Custom と同じにしている点をまとめます。"),
     "bloecke": [
         ("h2", "bedienung", T("Own handling (not in NetRadiant-Custom)", "Eigene Bedienung (nicht in NetRadiant-Custom)",
                               "自有操作(NetRadiant-Custom 中没有)", "独自の操作(NetRadiant-Custom にはありません)")),
         ("list", _BEDIENUNG),
-        ("imgs", [("h_karte7_view", T("{{KeLView}}: the program settings at the end, menus in the style of BehavEd.",
-                                       "{{KeLView}}: die Programm-Einstellungen am Ende, Menüs im Stil von BehavEd.",
-                                       "{{KeLView}}:末尾是程序设置,菜单为 BehavEd 风格。",
-                                       "{{KeLView}}:最後にプログラム設定、BehavEd 風のメニュー。")),
+        ("imgs", [("h_karte7_view", T("{{KeLView}}: the program settings at the end, menus in the style of JK Studio.",
+                                       "{{KeLView}}: die Programm-Einstellungen am Ende, Menüs im Stil von JK Studio.",
+                                       "{{KeLView}}:末尾是程序设置,菜单为 JK Studio 风格。",
+                                       "{{KeLView}}:最後にプログラム設定、JK Studio 風のメニュー。")),
                   ("h_karte7_interface", T("Preferences > Interface: {{KeMenueNrc}} and {{KeKnopfGroesse}}.",
                                            "Preferences > Interface: {{KeMenueNrc}} und {{KeKnopfGroesse}}.",
                                            "Preferences > Interface:{{KeMenueNrc}} 和 {{KeKnopfGroesse}}。",

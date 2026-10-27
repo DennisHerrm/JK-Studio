@@ -625,13 +625,13 @@ VORLAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{titel} - BehavEd-Remake</title>
+<title>{titel} - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}}catch(e){{}}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>{guide}</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>{guide}</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="{suchen}" autocomplete="off" aria-label="{suchen}">
     <div id="treffer" class="treffer" hidden></div>
@@ -691,7 +691,7 @@ def main():
         # rc601 tour: die Tutorials im Programm (gelesen von bhed/tour.h).
         schreibe(os.path.join(ZIEL, sp, "touren.json"), touren_json(sp))
     # Einstieg: in die Sprache des Browsers.
-    schreibe(os.path.join(ZIEL, "index.html"), """<!doctype html><html><head><meta charset="utf-8"><title>BehavEd-Remake</title>
+    schreibe(os.path.join(ZIEL, "index.html"), """<!doctype html><html><head><meta charset="utf-8"><title>JK Studio</title>
 <script>var l=(navigator.language||'en').slice(0,2);if(['en','de','zh','ja'].indexOf(l)<0)l='en';location.replace(l+'/index.html');</script>
 </head><body><a href="en/index.html">English</a> <a href="de/index.html">Deutsch</a> <a href="zh/index.html">中文</a> <a href="ja/index.html">日本語</a></body></html>
 """)

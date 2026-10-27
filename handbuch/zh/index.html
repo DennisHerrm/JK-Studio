@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>欢迎 - BehavEd-Remake</title>
+<title>欢迎 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>手册</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>手册</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="搜索手册...  (/)" autocomplete="off" aria-label="搜索手册...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -30,9 +30,11 @@
   <article>
     <div class="ueber">入门</div>
     <h1>欢迎</h1>
-    <p class="einleitung">BehavEd-Remake 用于编写在《绝地学院》和 Movie Duels 中驱动过场动画与任务的脚本,并在你编写时把它们显示在地图上。</p>
-    <figure class="bild breit"><a href="../bilder/zh/h_willkommen.webp" class="zoom"><img src="../bilder/zh/h_willkommen.webp" alt="在 BehavEd-Remake 中打开的 taspir1 自制任务:右侧是脚本,中间是地图,下方是时间轴。各部分的说明见 。" loading="lazy"></a><figcaption>在 BehavEd-Remake 中打开的 taspir1 自制任务:右侧是脚本,中间是地图,下方是时间轴。各部分的说明见 <a href="fenster.html">窗口</a>。</figcaption></figure>
-<p>游戏使用 <strong>ICARUS</strong> 脚本来运行场景:一系列命令,例如“走到这个位置”、“播放这个声音”、“把摄像机移到那里”。Raven 原版 BehavEd 让你用按钮搭建这些命令。BehavEd-Remake 做同样的事,文件完全兼容,并加入了原版没有的功能:三维地图、沿路径行走的角色、按镜头飞行的摄像机,以及能把这一切播放出来的时间轴——在你启动游戏之前就能看到。</p>
+    <p class="einleitung">JK Studio——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。其中 BehavEd 用于编写驱动过场动画与任务的脚本,预览会在你编写时把它们显示在地图上,地图编辑器则用来制作地图。</p>
+    <figure class="bild breit"><a href="../bilder/zh/h_willkommen.webp" class="zoom"><img src="../bilder/zh/h_willkommen.webp" alt="在 JK Studio 中打开的 taspir1 自制任务:右侧是脚本,中间是地图,下方是时间轴。各部分的说明见 。" loading="lazy"></a><figcaption>在 JK Studio 中打开的 taspir1 自制任务:右侧是脚本,中间是地图,下方是时间轴。各部分的说明见 <a href="fenster.html">窗口</a>。</figcaption></figure>
+<figure class="bild"><a href="../bilder/zh/h_ueber.webp" class="zoom"><img src="../bilder/zh/h_ueber.webp" alt="帮助 → 关于 JK Studio:名称和版本、三个部分 BehavEd(脚本)、预览和地图编辑器,以及 BehavEd 部分的验证依据。" loading="lazy"></a><figcaption><strong><span class="ui">帮助</span> → <span class="ui">关于 JK Studio</span></strong>:名称和版本、三个部分 BehavEd(脚本)、预览和地图编辑器,以及 BehavEd 部分的验证依据。</figcaption></figure>
+<div class="hinweis">JK Studio 是一个免费的爱好者项目,与 Lucasfilm、Disney 或 Raven Software 无关联。在 rc605 之前它名为 BehavEd-Remake;它会自行更新并保留你的设置。</div>
+<p>游戏使用 <strong>ICARUS</strong> 脚本来运行场景:一系列命令,例如“走到这个位置”、“播放这个声音”、“把摄像机移到那里”。Raven 原版 BehavEd 让你用按钮搭建这些命令。JK Studio 做同样的事,文件完全兼容,并加入了原版没有的功能:三维地图、沿路径行走的角色、按镜头飞行的摄像机,以及能把这一切播放出来的时间轴——在你启动游戏之前就能看到。</p>
 <h2 id="wege">从哪里开始<a class="anker" href="#wege">#</a></h2>
 <ul><li>第一次使用?先阅读 <a href="erste-schritte.html">快速上手</a> 和 <a href="fenster.html">窗口</a>——十分钟后,其余页面都会变得容易理解。</li><li>想马上动手?选择下面的一个教程。</li><li>在找某个功能?在左上角的搜索框中输入——它会搜索所有页面并跳转到对应位置。</li></ul>
 <h2 id="tutorials">教程<a class="anker" href="#tutorials">#</a></h2>
@@ -55,7 +57,7 @@
 <div class="hinweis"><strong>不会丢失任何内容。</strong> 每次修改都可以用 <kbd>Ctrl</kbd>+<kbd>Z</kbd> 撤销,只有保存时才会写入文件。游戏本身的文件永远不会被修改:新内容会放在你的脚本旁边或你自己的 .pk3 中。</div>
     <nav class="blaettern"><span></span><a class="nach" href="funktionen.html"><span>下一页</span>BehavEd 能做什么</a></nav>
   </article>
-  <footer>BehavEd-Remake 手册。图片展示的是程序本身,由其自检功能截取。</footer>
+  <footer>JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

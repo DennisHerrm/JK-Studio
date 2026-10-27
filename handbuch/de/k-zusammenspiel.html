@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mehrere Skripte zusammenarbeiten lassen - BehavEd-Remake</title>
+<title>Mehrere Skripte zusammenarbeiten lassen - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>Handbuch</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Handbuch</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="Im Handbuch suchen ...  (/)" autocomplete="off" aria-label="Im Handbuch suchen ...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>Die Arbeit teilen.</strong> Lange Szenen sind in Teilen leichter: das Intro startet den nächsten Teil mit <code>run ( &quot;taspir_tut/talk&quot; )</code> - der Name wie unter <code>scripts/</code>, ohne Endung.</p><figure class="bild"><a href="../bilder/de/k_zusammen.webp" class="zoom"><img src="../bilder/de/k_zusammen.webp" alt="run und waitsignal im Intro, signal in talk." loading="lazy"></a><figcaption>run und waitsignal im Intro, signal in talk.</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>Übergib.</strong> Wo das Intro auf den anderen Teil warten muss, füge <code>waitsignal ( &quot;talk_done&quot; )</code> ein; am Ende des anderen Skripts <code>signal ( &quot;talk_done&quot; )</code> - siehe <a href="k-signale.html">Zwei Skripte aufeinander warten lassen</a>.</p><figure class="bild"><a href="../bilder/de/s_sig_beide.webp" class="zoom"><img src="../bilder/de/s_sig_beide.webp" alt="Derselbe Signalname auf beiden Seiten." loading="lazy"></a><figcaption>Derselbe Signalname auf beiden Seiten.</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>Beide sehen.</strong> <strong><span class="ui">Datei</span> → <span class="ui">Geteilte Ansicht</span> → 2</strong> zeigt die beiden Skripte nebeneinander; Zeilen hinüberziehen kopiert sie.</p><figure class="bild"><a href="../bilder/de/k_zusammen.webp" class="zoom"><img src="../bilder/de/k_zusammen.webp" alt="Zwei Skripte nebeneinander." loading="lazy"></a><figcaption>Zwei Skripte nebeneinander.</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>Den Überblick behalten.</strong> Die Ansicht <strong><span class="ui">Graph</span></strong> zeichnet <code>run</code>-Verbindungen zwischen den Skripten der Mission.</p><figure class="bild"><a href="../bilder/de/h_graph.webp" class="zoom"><img src="../bilder/de/h_graph.webp" alt="Die Graph-Ansicht." loading="lazy"></a><figcaption>Die Graph-Ansicht.</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="k-ansprechen.html"><span>Zurück</span>Der Spieler spricht mit einer Figur</a><a class="nach" href="k-pruefen.html"><span>Weiter</span>Beheben, was Mission speichern meldet</a></nav>
   </article>
-  <footer>Handbuch zu BehavEd-Remake. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf.</footer>
+  <footer>Handbuch zu JK Studio - Mod-Werkzeuge für Jedi Knight: Jedi Academy und Jedi Outcast. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf. Nicht verbunden mit Lucasfilm, Disney oder Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

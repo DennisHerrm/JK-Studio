@@ -11,7 +11,13 @@
 // --- Symbol ----------------------------------------------------------
 // Die erste ICON-Anweisung im Skript bestimmt, was der Explorer an der
 // Datei zeigt. Deshalb steht sie ganz oben.
-1 ICON "behaved.ico"
+1 ICON "jkstudio.ico"
+
+// Stufe 8c: das Logo von JK Studio (shanks Entwurf, res/jkstudio_logo.svg; die
+// Schriftzuege aus Cinzel und Michroma, SIL OFL 1.1, licenses/) fuer den
+// Ueber-Dialog - als PNG, das Programm entpackt es selbst (bhed/image.h).
+// 10 = RT_RCDATA (siehe BHED_RT_MANIFEST unten: die Zahl verstehen alle Werkzeuge).
+JKLOGO 10 "jkstudio_logo.png"
 
 // --- Manifest ---------------------------------------------------------
 // Zwei Dinge stehen darin, und beide sind wichtiger, als sie aussehen:
@@ -57,28 +63,28 @@ BEGIN
         // 040704b0 = Deutsch (Deutschland), Unicode
         BLOCK "040704b0"
         BEGIN
-            VALUE "FileDescription", "behaved - Editor fuer ICARUS-Skripte"
+            VALUE "FileDescription", "JK Studio - Mod-Werkzeuge fuer Jedi Knight: Jedi Academy und Jedi Outcast"
             VALUE "FileVersion",     "1.0.0.0"
-            VALUE "InternalName",    "behaved"
-            VALUE "OriginalFilename","behaved.exe"
-            VALUE "ProductName",     "behaved"
+            VALUE "InternalName",    "jkstudio"
+            VALUE "OriginalFilename","jkstudio.exe"
+            VALUE "ProductName",     "JK Studio"
             VALUE "ProductVersion",  "1.0.0.0"
             VALUE "Comments",
-                  "Nachbau von BehavEd 2.0 (Raven Software, 1999). "
-                  "Freie Software, keine Gewaehr."
+                  "BehavEd (Skripte, Nachbau von BehavEd 2.0, Raven Software 1999), Vorschau, Karten-Editor. "
+                  "Nicht verbunden mit Lucasfilm, Disney oder Raven Software. Freie Software, keine Gewaehr."
         END
         // 040904b0 = Englisch (USA), Unicode
         BLOCK "040904b0"
         BEGIN
-            VALUE "FileDescription", "behaved - ICARUS script editor"
+            VALUE "FileDescription", "JK Studio - mod tools for Jedi Knight: Jedi Academy and Jedi Outcast"
             VALUE "FileVersion",     "1.0.0.0"
-            VALUE "InternalName",    "behaved"
-            VALUE "OriginalFilename","behaved.exe"
-            VALUE "ProductName",     "behaved"
+            VALUE "InternalName",    "jkstudio"
+            VALUE "OriginalFilename","jkstudio.exe"
+            VALUE "ProductName",     "JK Studio"
             VALUE "ProductVersion",  "1.0.0.0"
             VALUE "Comments",
-                  "Reconstruction of BehavEd 2.0 (Raven Software, 1999). "
-                  "Free software, no warranty."
+                  "BehavEd (scripts, reconstruction of BehavEd 2.0, Raven Software 1999), preview, map editor. "
+                  "Not affiliated with Lucasfilm, Disney or Raven Software. Free software, no warranty."
         END
     END
     BLOCK "VarFileInfo"

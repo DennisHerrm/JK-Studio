@@ -86,7 +86,7 @@ def main():
                 teile.append(b + "\n\n")
                 anzahl += 1
         kopf = (
-            "// %s: Entitaetsklassen fuer den Karten-Editor von BehavEd-Remake.\n"
+            "// %s: Entitaetsklassen fuer den Karten-Editor von JK Studio.\n"
             "// Erzeugt von tools/gen_karten_def.py aus OpenJK %s (Commit %s),\n"
             "// den /*QUAKED*/-Bloecken des Spielcodes - nicht von Hand aendern.\n"
             "// Herkunft: https://github.com/JACoders/OpenJK, GNU GPL v2.\n"

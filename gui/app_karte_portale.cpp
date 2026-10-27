@@ -506,7 +506,7 @@ void portalBefehl(const std::string& befehl) {
     if (befehl == "About Portal Viewer") {   // DoAboutDlg
         qtMeldung("About Portal Viewer",
                   "Version 1.000\n\nGtk port by Leonardo Zide\nleo@lokigames.com\n\nWritten by Geoffrey DeWan\ngdewan@prairienet.org\n\n"
-                  "Built against NetRadiant 1.6.0n-git-68ecbed\n(BehavEd-Remake, " __DATE__ ")",
+                  "Built against NetRadiant 1.6.0n-git-68ecbed\n(JK Studio, " __DATE__ ")",
                   MeldungArt::Info, false, nullptr);
     } else if (befehl == "Load .prt file") {   // DoLoadPortalFileDialog
         ed.portalDatei = ohneEndung(bauKartenPfad()) + ".prt";   // PathExtensionless( getMapName() ) + ".prt"

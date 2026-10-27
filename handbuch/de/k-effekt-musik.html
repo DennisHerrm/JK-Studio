@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Einen Effekt hinzufügen und die Musik wechseln - BehavEd-Remake</title>
+<title>Einen Effekt hinzufügen und die Musik wechseln - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>Handbuch</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Handbuch</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="Im Handbuch suchen ...  (/)" autocomplete="off" aria-label="Im Handbuch suchen ...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>Ein Effekt.</strong> Klick auf die Kachel <strong><span class="ui">Effekt (fx_runner)</span></strong> und dann dorthin, wo er erscheinen soll.</p><figure class="bild"><a href="../bilder/de/e_kachel_fx.webp" class="zoom"><img src="../bilder/de/e_kachel_fx.webp" alt="Die Kachel für einen Effekt." loading="lazy"></a><figcaption>Die Kachel für einen Effekt.</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>Richte ihn ein.</strong> Setze im Inspektor <code>fxFile</code> auf einen Effekt des Spiels (einen Pfad unter <code>effects/</code>, zum Beispiel <code>env/fire</code>), gib ihm einen Namen und hake <code>STARTOFF</code> an, damit er wartet.</p><figure class="bild"><a href="../bilder/de/k_effekt.webp" class="zoom"><img src="../bilder/de/k_effekt.webp" alt="Ein Feuer auf der Landeplattform." loading="lazy"></a><figcaption>Ein Feuer auf der Landeplattform.</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>Starte ihn.</strong> Im Skript: <code>use ( &quot;fire1&quot; )</code> im richtigen Moment.</p><figure class="bild"><a href="../bilder/de/e_use_fx.webp" class="zoom"><img src="../bilder/de/e_use_fx.webp" alt="use startet den Effekt." loading="lazy"></a><figcaption>use startet den Effekt.</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>Musik.</strong> <strong><span class="ui">+ Entity</span></strong> → <strong><span class="ui">Musik (target_play_music)</span></strong>, <code>music</code> auf eine Musikdatei setzen und einen Namen geben; mit <code>use</code> aus dem Skript wechselt die Musik.</p><figure class="bild"><a href="../bilder/de/e_neu_musik.webp" class="zoom"><img src="../bilder/de/e_neu_musik.webp" alt="Musik im Menü + Entity." loading="lazy"></a><figcaption>Musik im Menü + Entity.</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">5</span><div><p><strong>Dynamische Musik.</strong> <code>set ( SET_MUSIC_STATE, ... )</code> schaltet die eigene Musik des Spiels zwischen ihren Zuständen um, zum Beispiel auf Action.</p><figure class="bild"><a href="../bilder/de/e_musik_baum.webp" class="zoom"><img src="../bilder/de/e_musik_baum.webp" alt="SET_MUSIC_STATE." loading="lazy"></a><figcaption>SET_MUSIC_STATE.</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="k-levelwechsel.html"><span>Zurück</span>Am Ende zur nächsten Karte wechseln</a><a class="nach" href="k-szene-aendern.html"><span>Weiter</span>Eine Zwischensequenz des Spiels ändern</a></nav>
   </article>
-  <footer>Handbuch zu BehavEd-Remake. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf.</footer>
+  <footer>Handbuch zu JK Studio - Mod-Werkzeuge für Jedi Knight: Jedi Academy und Jedi Outcast. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf. Nicht verbunden mit Lucasfilm, Disney oder Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

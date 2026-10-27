@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>任务 - BehavEd-Remake</title>
+<title>任务 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>手册</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>手册</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="搜索手册...  (/)" autocomplete="off" aria-label="搜索手册...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -34,13 +34,13 @@
     <h2 id="laden">打开任务<a class="anker" href="#laden">#</a></h2>
 <p><strong><span class="ui">加载任务…</span></strong>(<span class="ui">文件</span> 菜单或地图工具栏)选择一个 <code>.pk3</code>,并列出<strong>该游戏的全部任务</strong>——游戏目录中所有压缩包里带脚本的地图,与游戏查找它们的方式完全相同(同名文件以胜出的压缩包为准)。选择该游戏的哪个压缩包都无所谓:原版 Jedi Academy 的 <code>assets1.pk3</code> 与 <code>assets0.pk3</code> 一样会列出 <code>t1_sour</code>、<code>kor1</code>、<code>yavin1</code>……所选压缩包中的任务排在最上方,其余任务读取完毕后列在下面(地图在后台读取——列表上方的一行显示进度)。筛选框可按名称缩小列表。选择一个,一切就绪:地图、包含任务角色的 <code>.ent</code>,以及<strong>任务的每个脚本各占一个标签页</strong>。所有标签页共享地图和摄像机。</p>
 <figure class="bild"><a href="../bilder/zh/h_mission_wahl.webp" class="zoom"><img src="../bilder/zh/h_mission_wahl.webp" alt="该游戏的任务(此处已用筛选框缩小)——所选压缩包的任务在前,游戏其他压缩包的任务在下方。" loading="lazy"></a><figcaption>该游戏的任务(此处已用筛选框缩小)——所选压缩包的任务在前,游戏其他压缩包的任务在下方。</figcaption></figure>
-<p>标签页按<strong>游戏启动脚本的顺序</strong>打开。为此 BehavEd-Remake 像引擎一样从地图加载的那一刻起运行地图:实体的 spawnscript、<code>worldspawn</code> 的 spawnscript、<code>trigger_always</code>、没有 <code>targetname</code> 的 NPC 生成器、玩家进入游戏时出生点的目标——以及由此经 <code>run</code>、<code>use</code>、中继、计数器、生成器和带 deathscript 的 <code>kill</code> 引发的一切。第一个脚本的标签页在最前。只有玩家才会触发的脚本(走进的触发器、战斗)排在最后,按实体的顺序。</p>
-<p>使用哪些游戏目录由压缩包决定:如果它位于你的某个游戏目录中(<span class="ui">编辑</span> → <span class="ui">游戏目录</span>),就使用这些目录。如果它属于另一个安装——该安装的 <code>base</code>,或 <code>base</code> 旁边的模组目录——BehavEd-Remake <strong>仅在本次会话中</strong>按引擎的顺序(先 <code>base</code>,再模组)使用该安装的目录,不会混入你配置的目录。其他任意目录中的 <code>.pk3</code> 会排在你的游戏目录之后,同样仅限本次会话。不会保存任何内容:游戏目录窗口会显示本次会话的目录,并提供返回你自己目录的按钮(<span class="ui">使用已配置的游戏目录</span>)。每个任务标签页都保留其游戏的目录:一个标签页中是 Jedi Outcast 任务、另一个中是 Jedi Academy 任务时,切换标签页也会随之切换游戏目录和规则集。</p>
+<p>标签页按<strong>游戏启动脚本的顺序</strong>打开。为此 JK Studio 像引擎一样从地图加载的那一刻起运行地图:实体的 spawnscript、<code>worldspawn</code> 的 spawnscript、<code>trigger_always</code>、没有 <code>targetname</code> 的 NPC 生成器、玩家进入游戏时出生点的目标——以及由此经 <code>run</code>、<code>use</code>、中继、计数器、生成器和带 deathscript 的 <code>kill</code> 引发的一切。第一个脚本的标签页在最前。只有玩家才会触发的脚本(走进的触发器、战斗)排在最后,按实体的顺序。</p>
+<p>使用哪些游戏目录由压缩包决定:如果它位于你的某个游戏目录中(<span class="ui">编辑</span> → <span class="ui">游戏目录</span>),就使用这些目录。如果它属于另一个安装——该安装的 <code>base</code>,或 <code>base</code> 旁边的模组目录——JK Studio <strong>仅在本次会话中</strong>按引擎的顺序(先 <code>base</code>,再模组)使用该安装的目录,不会混入你配置的目录。其他任意目录中的 <code>.pk3</code> 会排在你的游戏目录之后,同样仅限本次会话。不会保存任何内容:游戏目录窗口会显示本次会话的目录,并提供返回你自己目录的按钮(<span class="ui">使用已配置的游戏目录</span>)。每个任务标签页都保留其游戏的目录:一个标签页中是 Jedi Outcast 任务、另一个中是 Jedi Academy 任务时,切换标签页也会随之切换游戏目录和规则集。</p>
 <h2 id="zuletzt">最近的任务<a class="anker" href="#zuletzt">#</a></h2>
 <p><strong><span class="ui">文件</span> → <span class="ui">最近的任务</span></strong> 和起始页面列出最近打开的任务——无论来自压缩包还是任务文件夹。单击即可重新打开整个项目:地图、实体和所有脚本。文件已不存在的条目会从列表中移除。</p>
 <figure class="bild"><a href="../bilder/zh/h_menue_missionen.webp" class="zoom"><img src="../bilder/zh/h_menue_missionen.webp" alt="文件 → 最近的任务。" loading="lazy"></a><figcaption><span class="ui">文件</span> → <span class="ui">最近的任务</span>。</figcaption></figure>
 <h2 id="neu">新建任务<a class="anker" href="#neu">#</a></h2>
-<p><strong><span class="ui">新建任务</span></strong> 可在任意地图上开始一个任务。选择地图,为任务命名(字母、数字和 <code>_</code>;游戏以 <code>maps/&lt;名称&gt;.bsp</code> 加载,即 <code>devmap &lt;名称&gt;</code>),并指定脚本文件夹。BehavEd-Remake 会创建玩家出生点、脚本启动器、开场脚本,以及位于 <code>文档\behaved\missions</code> 下的任务文件夹。玩家出生时开场脚本开始运行。</p>
+<p><strong><span class="ui">新建任务</span></strong> 可在任意地图上开始一个任务。选择地图,为任务命名(字母、数字和 <code>_</code>;游戏以 <code>maps/&lt;名称&gt;.bsp</code> 加载,即 <code>devmap &lt;名称&gt;</code>),并指定脚本文件夹。JK Studio 会创建玩家出生点、脚本启动器、开场脚本,以及位于 <code>文档\behaved\missions</code> 下的任务文件夹。玩家出生时开场脚本开始运行。</p>
 <figure class="bild"><a href="../bilder/zh/h_mission_neu.webp" class="zoom"><img src="../bilder/zh/h_mission_neu.webp" alt="新建任务 对话框。" loading="lazy"></a><figcaption><span class="ui">新建任务</span> 对话框。</figcaption></figure>
 <p>从未打包的任务保存在其文件夹中;重启后可用 <strong><span class="ui">打开任务文件夹</span></strong> 继续。</p>
 <h2 id="speichern">保存任务<a class="anker" href="#speichern">#</a></h2>
@@ -51,7 +51,7 @@
 <div class="hinweis">归档文件会放入优先级最高的游戏文件夹——<strong><span class="ui">编辑</span> → <span class="ui">游戏目录</span></strong> 中最下面的那个——文件名为 <code>zz_&lt;name&gt;.pk3</code>,从而优先于较旧的文件。启动游戏,在控制台输入 <code>devmap &lt;name&gt;</code> 即可试玩。</div>
     <nav class="blaettern"><a class="vor" href="karte_werkzeuge8b.html"><span>上一页</span>地图编辑器:地形、试玩、逻辑、镜像及更多</a><a class="nach" href="modell.html"><span>下一页</span>模型视图与角色</a></nav>
   </article>
-  <footer>BehavEd-Remake 手册。图片展示的是程序本身,由其自检功能截取。</footer>
+  <footer>JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

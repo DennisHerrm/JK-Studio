@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Eine Figur, die auf Stichwort erscheint - BehavEd-Remake</title>
+<title>Eine Figur, die auf Stichwort erscheint - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>Handbuch</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Handbuch</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="Im Handbuch suchen ...  (/)" autocomplete="off" aria-label="Im Handbuch suchen ...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>Zwei Namen.</strong> Ein Figuren-Spawner hat seinen <strong><span class="ui">Name</span></strong> - den <code>NPC_targetname</code>, den Namen der Figur, den <code>affect</code> verwendet - und kann einen <code>targetname</code> haben, den Namen des Spawners selbst.</p><figure class="bild"><a href="../bilder/de/e_rosh_namen.webp" class="zoom"><img src="../bilder/de/e_rosh_namen.webp" alt="Name und NPC_type eines Spawners." loading="lazy"></a><figcaption>Name und NPC_type eines Spawners.</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>Auf das Stichwort warten.</strong> Gib dem Spawner einen <code>targetname</code>, zum Beispiel <code>rosh_spawner</code>. Im Spiel erzeugt er seine Figur dann erst, wenn er benutzt wird.</p><figure class="bild"><a href="../bilder/de/k_spawnflags.webp" class="zoom"><img src="../bilder/de/k_spawnflags.webp" alt="Die Keys und Spawnflags eines Spawners." loading="lazy"></a><figcaption>Die Keys und Spawnflags eines Spawners.</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>Rufen.</strong> Im Skript: <code>use ( &quot;rosh_spawner&quot; )</code> - von da an gibt es die Figur, und <code>affect ( &quot;rosh&quot; )</code> erreicht sie. (Die Vorschau zeigt die Figur von Anfang an.)</p><figure class="bild"><a href="../bilder/de/e_use_spawner.webp" class="zoom"><img src="../bilder/de/e_use_spawner.webp" alt="use ruft den Spawner auf." loading="lazy"></a><figcaption>use ruft den Spawner auf.</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>Spawnflags.</strong> Die Kästchen unter <strong><span class="ui">Spawnflags</span></strong> setzen die Optionen der Klasse; fahr mit der Maus über eines, um zu sehen, was es tut.</p><figure class="bild"><a href="../bilder/de/k_spawnflags.webp" class="zoom"><img src="../bilder/de/k_spawnflags.webp" alt="Die Spawnflags." loading="lazy"></a><figcaption>Die Spawnflags.</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="k-blickpunkte.html"><span>Zurück</span>Blickpunkte und Kamerabahnen merken</a><a class="nach" href="k-ent.html"><span>Weiter</span>Eine separate .ent-Datei laden</a></nav>
   </article>
-  <footer>Handbuch zu BehavEd-Remake. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf.</footer>
+  <footer>Handbuch zu JK Studio - Mod-Werkzeuge für Jedi Knight: Jedi Academy und Jedi Outcast. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf. Nicht verbunden mit Lucasfilm, Disney oder Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

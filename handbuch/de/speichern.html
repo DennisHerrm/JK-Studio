@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Speichern, Übersetzen, Prüfen - BehavEd-Remake</title>
+<title>Speichern, Übersetzen, Prüfen - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>Handbuch</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Handbuch</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="Im Handbuch suchen ...  (/)" autocomplete="off" aria-label="Im Handbuch suchen ...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -32,14 +32,14 @@
     <h1>Speichern, Übersetzen, Prüfen</h1>
     <p class="einleitung">Das Spiel führt <code>.ibi</code>-Dateien aus. Du schreibst <code>.txt</code>; <strong>Compile!</strong> macht daraus die <code>.ibi</code> - Byte für Byte wie Ravens IBIZE.</p>
     <h2 id="speichern">Speichern<a class="anker" href="#speichern">#</a></h2>
-<ul><li><strong><span class="ui">Speichern</span></strong> (<kbd>Strg</kbd>+<kbd>S</kbd>) schreibt immer die <code>.txt</code>-Quelle - auch wenn du eine <code>.ibi</code> geöffnet hast (sie landet daneben).</li><li><strong><span class="ui">Alle sichern</span></strong> (<kbd>Strg</kbd>+<kbd>Umschalt</kbd>+<kbd>S</kbd>) speichert jeden geänderten Reiter; Reiter aus einem Archiv haben keine Datei zum Zurückschreiben und werden übersprungen.</li><li>Jedes Speichern und Übersetzen behält eine Kopie - <code>backup1.txt</code> (neueste) bis <code>backup10.txt</code> - im Ordner <code>backup</code> neben <code>behaved.exe</code>, je Skript ein Unterordner; <strong><span class="ui">Datei</span> → <span class="ui">Sicherungsordner öffnen</span></strong> zeigt sie. <strong><span class="ui">Sicherung</span></strong> / <strong><span class="ui">Wiederherstellen</span></strong> halten von Hand eine zusätzliche Kopie fest (<code>&lt;Skript&gt;.bak</code> neben dem Skript) und holen sie zurück.</li><li>Eigene ROFF-Bahnen werden zusammen mit dem Skript als <code>.rof</code>-Dateien geschrieben - siehe <a href="animation.html#roff">Wie ROFF-Dateien funktionieren</a>.</li></ul>
+<ul><li><strong><span class="ui">Speichern</span></strong> (<kbd>Strg</kbd>+<kbd>S</kbd>) schreibt immer die <code>.txt</code>-Quelle - auch wenn du eine <code>.ibi</code> geöffnet hast (sie landet daneben).</li><li><strong><span class="ui">Alle sichern</span></strong> (<kbd>Strg</kbd>+<kbd>Umschalt</kbd>+<kbd>S</kbd>) speichert jeden geänderten Reiter; Reiter aus einem Archiv haben keine Datei zum Zurückschreiben und werden übersprungen.</li><li>Jedes Speichern und Übersetzen behält eine Kopie - <code>backup1.txt</code> (neueste) bis <code>backup10.txt</code> - im Ordner <code>backup</code> neben <code>jkstudio.exe</code>, je Skript ein Unterordner; <strong><span class="ui">Datei</span> → <span class="ui">Sicherungsordner öffnen</span></strong> zeigt sie. <strong><span class="ui">Sicherung</span></strong> / <strong><span class="ui">Wiederherstellen</span></strong> halten von Hand eine zusätzliche Kopie fest (<code>&lt;Skript&gt;.bak</code> neben dem Skript) und holen sie zurück.</li><li>Eigene ROFF-Bahnen werden zusammen mit dem Skript als <code>.rof</code>-Dateien geschrieben - siehe <a href="animation.html#roff">Wie ROFF-Dateien funktionieren</a>.</li></ul>
 <h2 id="uebersetzen">Übersetzen<a class="anker" href="#uebersetzen">#</a></h2>
 <p><strong><span class="ui">Übersetzen!</span></strong> in der Aktionsspalte schreibt <code>&lt;Skript&gt;.ibi</code> neben die <code>.txt</code> (und speichert die <code>.txt</code>). Der Knopf leuchtet grün mit <strong><span class="ui">Übersetzt</span></strong> oder rot mit <strong><span class="ui">Fehler</span></strong> - dann ist die erste fehlerhafte Zeile gewählt und die Statuszeile sagt, warum. Der Übersetzer ist eingebaut und wurde Byte für Byte an 1011 <code>.ibi</code>-Dateien aus Ravens IBIZE geprüft.</p>
 <h2 id="pruefen">Hinweise und Fehler<a class="anker" href="#pruefen">#</a></h2>
 <p>Während du schreibst, prüft das Programm jede Zeile: unbekannte Befehle, Werte außerhalb ihrer Liste, ein Textfeld ohne Anführungszeichen, ein vertipptes Feld (&quot;meintest du ...?&quot;). Die Zähler in der Statuszeile zeigen, wie viele es sind - anklicken zeigt die Liste, ein Klick auf eine Meldung springt zu ihrer Zeile. <strong><span class="ui">Ansicht</span> → <span class="ui">Zielspiel</span></strong> ergänzt Hinweise, was auf einem Multiplayer-Server nicht geht.</p>
     <nav class="blaettern"><a class="vor" href="skriptfluss.html"><span>Zurück</span>Script Flow: Classic, Graph, Spuren</a><a class="nach" href="karte.html"><span>Weiter</span>Die Karte</a></nav>
   </article>
-  <footer>Handbuch zu BehavEd-Remake. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf.</footer>
+  <footer>Handbuch zu JK Studio - Mod-Werkzeuge für Jedi Knight: Jedi Academy und Jedi Outcast. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf. Nicht verbunden mit Lucasfilm, Disney oder Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

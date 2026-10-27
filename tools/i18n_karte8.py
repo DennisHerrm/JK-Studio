@@ -30,10 +30,10 @@ KARTE8 = [
     ("KeFsZeitVergleich", " (last build %s s, %s)", " (letzter Bau %s s, %s)", "(上次编译 %s 秒,%s)", "(前回のビルド %s 秒、%s)"),
     ("KeFsMelden", "Notify when a build is done", "Melden, wenn der Bau fertig ist", "编译完成时通知", "ビルド完了時に通知"),
     ("KeFsMeldenTip",
-     "When a build ends while BehavEd is not the front window, its taskbar button flashes until you switch to it - no sound, no dialog (not in NetRadiant-Custom)",
-     "Endet ein Bau, während BehavEd nicht das vordere Fenster ist, blinkt sein Knopf in der Taskleiste, bis du dorthin wechselst - ohne Ton, ohne Dialog (nicht in NetRadiant-Custom)",
-     "编译结束时如果 BehavEd 不是前台窗口,它在任务栏上的按钮会闪烁,直到你切换过去——没有声音,没有对话框(NetRadiant-Custom 中没有)",
-     "ビルドが終わったときに BehavEd が前面のウィンドウでなければ、切り替えるまでタスクバーのボタンが点滅します。音もダイアログもありません(NetRadiant-Custom にはありません)"),
+     "When a build ends while JK Studio is not the front window, its taskbar button flashes until you switch to it - no sound, no dialog (not in NetRadiant-Custom)",
+     "Endet ein Bau, während JK Studio nicht das vordere Fenster ist, blinkt sein Knopf in der Taskleiste, bis du dorthin wechselst - ohne Ton, ohne Dialog (nicht in NetRadiant-Custom)",
+     "编译结束时如果 JK Studio 不是前台窗口,它在任务栏上的按钮会闪烁,直到你切换过去——没有声音,没有对话框(NetRadiant-Custom 中没有)",
+     "ビルドが終わったときに JK Studio が前面のウィンドウでなければ、切り替えるまでタスクバーのボタンが点滅します。音もダイアログもありません(NetRadiant-Custom にはありません)"),
 ]
 
 # Punkt 2: Editor-Daten behalten

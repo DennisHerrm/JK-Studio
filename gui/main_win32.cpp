@@ -51,6 +51,8 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 #include <filesystem>
 #include <functional>
 #include <vector>
+#include <algorithm>
+#include <iterator>
 #include <string>
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
@@ -138,7 +140,7 @@ bool einzelAktiv() {
 
 std::wstring einzelName() {
     if (const wchar_t* t = _wgetenv(L"BHED_EINZEL")) {
-        return std::wstring(L"BehavEd-Remake-Test-") + t;
+        return std::wstring(L"JK-Studio-Test-") + t;
     }
     wchar_t pfad[MAX_PATH] = {};
     GetModuleFileNameW(nullptr, pfad, MAX_PATH);
@@ -150,7 +152,7 @@ std::wstring einzelName() {
     for (wchar_t& c : ordner) {
         c = static_cast<wchar_t>(towlower(c));
     }
-    return L"BehavEd-Remake-" + std::to_wstring(std::hash<std::wstring>{}(ordner));
+    return L"JK-Studio-" + std::to_wstring(std::hash<std::wstring>{}(ordner));
 }
 
 struct EinzelSuche {
@@ -427,7 +429,12 @@ int pruefeDatenAufruf() {
         (void)bhed::loadCommandDb(ordner + "/supplement.bhc", ordner, db, meldungen);
     }
     const bool ok = geladen && !db.commands.empty();
-    schreibeAusgabe(std::string("behaved 1.0.0-") + bhed::kFassung + " --pruefe-daten\r\n" + "Daten: " + ordner +
+    // Stufe 8c: mit dem Dateinamen der laufenden .exe (die Pruefung des Uebergangs
+    // behaved.exe -> jkstudio.exe liest ihn, tools/karte/updater_uebergang.py)
+    wchar_t eigen[MAX_PATH * 2] = {};
+    const DWORD n = GetModuleFileNameW(nullptr, eigen, static_cast<DWORD>(std::size(eigen)));
+    const std::string programm = n > 0 ? toUtf8(std::filesystem::path(eigen).filename().wstring()) : std::string("?");
+    schreibeAusgabe(std::string("JK Studio 1.0.0-") + bhed::kFassung + " --pruefe-daten\r\n" + "Programm: " + programm + "\r\n" + "Daten: " + ordner +
                     " (" + bericht + ")\r\n" + "Befehlsmodell: " + std::to_string(db.commands.size()) +
                     " Befehle, " + std::to_string(db.typesets.size()) + " Typmengen, " +
                     std::to_string(db.macros.size()) + " Makros, " + std::to_string(meldungen.size()) +
@@ -775,9 +782,9 @@ bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app)
             } else if (++neuaufbauFehler >= 3) {
                 bhed::diag::error("Grafik: nach dem Geraeteverlust kein neues Geraet - Ende");
                 bhed::gui::wache::modalBeginn();
-                MessageBoxW(hwnd, L"Die Grafikkarte ist nicht mehr erreichbar. BehavEd wird beendet; "
+                MessageBoxW(hwnd, L"Die Grafikkarte ist nicht mehr erreichbar. JK Studio wird beendet; "
                                   L"das Skript wurde nicht veraendert.",
-                            L"BehavEd", MB_ICONERROR);
+                            L"JK Studio", MB_ICONERROR);
                 bhed::gui::wache::modalEnde();
                 break;
             } else {
@@ -984,9 +991,64 @@ std::string windowsVersion() {
     return text;
 }
 
+// --- Stufe 8c: Uebergang behaved.exe -> jkstudio.exe ----------------------
+//
+// Seit der Umbenennung in JK Studio heisst die Programmdatei jkstudio.exe. Jedes
+// Paket enthaelt behaved.exe als dieselbe Datei: die Updater bis rc605 setzen
+// den Eintrag "behaved.exe" an die Stelle der laufenden .exe und starten ihn
+// neu (src/update.cpp, einspielenAls). Startet diese Datei unter dem Namen
+// behaved.exe und liegt jkstudio.exe daneben, reicht sie an jkstudio.exe weiter
+// (dieselben Argumente, auch --nach-update=<pid>) und geht: es laeuft das
+// Programm mit dem neuen Namen, Verknuepfungen auf behaved.exe bleiben gueltig.
+// Eine eigenstaendige .exe mit eigenem Namen (ohne jkstudio.exe daneben) laeuft
+// einfach weiter. Mit --pruefe-daten wartet sie auf jkstudio.exe und gibt deren
+// Rueckgabe weiter (CI, Pruefung des Uebergangs). -1: nicht weitergereicht.
+int uebergangsStart() {
+    wchar_t eigen[MAX_PATH * 2] = {};
+    const DWORD n = GetModuleFileNameW(nullptr, eigen, static_cast<DWORD>(std::size(eigen)));
+    if (n == 0 || n >= std::size(eigen)) { return -1; }
+    const std::filesystem::path exe(eigen);
+    std::wstring name = exe.filename().wstring();
+    std::transform(name.begin(), name.end(), name.begin(), [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
+    if (name != L"behaved.exe") { return -1; }
+    const std::filesystem::path neu = exe.parent_path() / L"jkstudio.exe";
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(neu, ec)) { return -1; }
+    // Die Argumente unveraendert: alles hinter dem Programmnamen der Befehlszeile.
+    const wchar_t* zeile = GetCommandLineW();
+    const wchar_t* rest = zeile;
+    if (*rest == L'"') {
+        ++rest;
+        while (*rest != 0 && *rest != L'"') { ++rest; }
+        if (*rest == L'"') { ++rest; }
+    } else {
+        while (*rest != 0 && *rest != L' ' && *rest != L'\t') { ++rest; }
+    }
+    std::wstring neueZeile = L"\"" + neu.wstring() + L"\"" + rest;
+    const bool warten = std::wcsstr(rest, L"--pruefe-daten") != nullptr;
+    STARTUPINFOW si{};
+    si.cb = sizeof(si);
+    PROCESS_INFORMATION pi{};
+    if (!CreateProcessW(neu.c_str(), neueZeile.data(), nullptr, nullptr, TRUE, 0, nullptr, nullptr, &si, &pi)) {
+        return -1;   // dann eben selbst laufen
+    }
+    DWORD code = 0;
+    if (warten) {
+        WaitForSingleObject(pi.hProcess, INFINITE);
+        GetExitCodeProcess(pi.hProcess, &code);
+    }
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return static_cast<int>(code);
+}
+
 }  // namespace
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
+    // Stufe 8c: behaved.exe neben jkstudio.exe reicht weiter (siehe uebergangsStart)
+    if (const int code = uebergangsStart(); code >= 0) {
+        return code;
+    }
     // rc601 release: --pruefe-daten vor allem anderen - kein Fenster, keine
     // Einzelinstanz-Weitergabe (sonst ginge das Argument als "Datei" an ein
     // laufendes behaved), kein Protokoll.
@@ -1159,11 +1221,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     h = static_cast<int>(static_cast<float>(h) * dpiScale) + 60;
 
     bhed::diag::info("Fenster erstellen");
-    const HWND hwnd = CreateWindowW(wc.lpszClassName, L"BehavEd", WS_OVERLAPPEDWINDOW,
+    const HWND hwnd = CreateWindowW(wc.lpszClassName, L"JK Studio", WS_OVERLAPPEDWINDOW,
                                     CW_USEDEFAULT, CW_USEDEFAULT, w, h, nullptr, nullptr,
                                     instance, nullptr);
     if (hwnd == nullptr) {
-        MessageBoxW(nullptr, L"Fenster konnte nicht erstellt werden.", L"BehavEd",
+        MessageBoxW(nullptr, L"Fenster konnte nicht erstellt werden.", L"JK Studio",
                     MB_ICONERROR);
         return 1;
     }
@@ -1211,7 +1273,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         if (keinMeldungsfenster()) {
             return 2;
         }
-        MessageBoxW(hwnd, breitAusUtf8(error).c_str(), L"BehavEd", MB_ICONERROR);
+        MessageBoxW(hwnd, breitAusUtf8(error).c_str(), L"JK Studio", MB_ICONERROR);
         return 2;
     }
     // Sprache aus den Regionseinstellungen; der Nutzer kann sie im Menue
@@ -1328,7 +1390,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         if (!runSession(bhed::render::Backend::OpenGL3, hwnd, app)) {
             MessageBoxW(hwnd,
                         L"Weder Direct3D 11 noch OpenGL 3.3 stehen zur Verfuegung.",
-                        L"BehavEd", MB_ICONERROR);
+                        L"JK Studio", MB_ICONERROR);
             bhed::gui::destroyApp(app);
             DestroyWindow(hwnd);
             UnregisterClassW(wc.lpszClassName, instance);

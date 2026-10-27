@@ -3257,5 +3257,8 @@ void saberVergessen();
 void saberObergrenze(std::size_t bilder);
 extern int g_saberSpurenGezeichnet;
 
+// Stufe 8c: das Logo von JK Studio (PNG-Ressource JKLOGO) als Textur, b x h Bildpunkte (gui/app.cpp)
+void* jkLogoTextur(int& b, int& h);
+
 }  // namespace bhed::gui
 #endif

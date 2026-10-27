@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>敌人死亡时,门就会打开 - BehavEd-Remake</title>
+<title>敌人死亡时,门就会打开 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>手册</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>手册</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="搜索手册...  (/)" autocomplete="off" aria-label="搜索手册...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>给角色设置 deathscript。</strong> 选中敌人。在检查器中添加键 <code>deathscript</code>,值为你任务中的某个脚本名,例如 <code>taspir_tut/rosh_dies</code>——或在 <strong><span class="ui">图表</span></strong> 视图中以 <code>deathscript</code> 连接。</p><figure class="bild"><a href="../bilder/zh/k_tod_insp.webp" class="zoom"><img src="../bilder/zh/k_tod_insp.webp" alt="检查器中敌人的 deathscript。" loading="lazy"></a><figcaption>检查器中敌人的 deathscript。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>创建脚本。</strong> 按键旁的 <strong><span class="ui">打开</span></strong>:脚本会在任务文件夹中创建,并在一个标签页中打开。</p><figure class="bild"><a href="../bilder/zh/k_tod_insp.webp" class="zoom"><img src="../bilder/zh/k_tod_insp.webp" alt="deathscript 旁的“打开”。" loading="lazy"></a><figcaption>deathscript 旁的“打开”。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>打开门。</strong> 在其中插入带有门名称的 <code>use</code>——在实体列表中右键单击门 → <strong><span class="ui">插入 use</span></strong> 即可替你完成。在它之前加一个 <code>wait</code>,给这一刻留出余韵。</p><figure class="bild"><a href="../bilder/zh/k_tod_baum.webp" class="zoom"><img src="../bilder/zh/k_tod_baum.webp" alt="deathscript:短暂的 wait,然后开门。" loading="lazy"></a><figcaption>deathscript:短暂的 wait,然后开门。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>其他时机。</strong> <code>painscript</code>(受击)、<code>awakescript</code>(发现玩家)、<code>angerscript</code>(开始战斗)、<code>fleescript</code> 和 <code>spawnscript</code> 也同样适用——它们都列在检查器中。</p><figure class="bild"><a href="../bilder/zh/k_tod_insp.webp" class="zoom"><img src="../bilder/zh/k_tod_insp.webp" alt="角色的脚本键。" loading="lazy"></a><figcaption>角色的脚本键。</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="k-oberflaeche.html"><span>上一页</span>按你的习惯设置程序</a><a class="nach" href="k-ansprechen.html"><span>下一页</span>玩家与角色对话</a></nav>
   </article>
-  <footer>BehavEd-Remake 手册。图片展示的是程序本身,由其自检功能截取。</footer>
+  <footer>JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>添加特效并更换音乐 - BehavEd-Remake</title>
+<title>添加特效并更换音乐 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>手册</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>手册</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="搜索手册...  (/)" autocomplete="off" aria-label="搜索手册...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>一个特效。</strong> 单击图块 <strong><span class="ui">特效 (fx_runner)</span></strong>,再单击特效应出现的位置。</p><figure class="bild"><a href="../bilder/zh/e_kachel_fx.webp" class="zoom"><img src="../bilder/zh/e_kachel_fx.webp" alt="特效的图块。" loading="lazy"></a><figcaption>特效的图块。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>设置它。</strong> 在检查器中把 <code>fxFile</code> 设为游戏中的某个特效(<code>effects/</code> 下的路径,例如 <code>env/fire</code>),给它起个名称,并勾选 <code>STARTOFF</code>,让它先等待。</p><figure class="bild"><a href="../bilder/zh/k_effekt.webp" class="zoom"><img src="../bilder/zh/k_effekt.webp" alt="着陆平台上的一团火。" loading="lazy"></a><figcaption>着陆平台上的一团火。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>启动它。</strong> 在脚本中:在合适的时刻写 <code>use ( &quot;fire1&quot; )</code>。</p><figure class="bild"><a href="../bilder/zh/e_use_fx.webp" class="zoom"><img src="../bilder/zh/e_use_fx.webp" alt="use 启动特效。" loading="lazy"></a><figcaption>use 启动特效。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>音乐。</strong> <strong><span class="ui">+ 实体</span></strong> → <strong><span class="ui">音乐 (target_play_music)</span></strong>,把 <code>music</code> 设为一个音乐文件并给它一个名称;在脚本中 <code>use</code> 它即可切换音乐。</p><figure class="bild"><a href="../bilder/zh/e_neu_musik.webp" class="zoom"><img src="../bilder/zh/e_neu_musik.webp" alt="“+ 实体”菜单中的“音乐”。" loading="lazy"></a><figcaption>“+ 实体”菜单中的“音乐”。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">5</span><div><p><strong>动态音乐。</strong> <code>set ( SET_MUSIC_STATE, ... )</code> 在游戏自带音乐的各状态之间切换,例如切换到战斗状态。</p><figure class="bild"><a href="../bilder/zh/e_musik_baum.webp" class="zoom"><img src="../bilder/zh/e_musik_baum.webp" alt="SET_MUSIC_STATE。" loading="lazy"></a><figcaption>SET_MUSIC_STATE。</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="k-levelwechsel.html"><span>上一页</span>结束时切换到下一张地图</a><a class="nach" href="k-szene-aendern.html"><span>下一页</span>修改游戏中的过场动画</a></nav>
   </article>
-  <footer>BehavEd-Remake 手册。图片展示的是程序本身,由其自检功能截取。</footer>
+  <footer>JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

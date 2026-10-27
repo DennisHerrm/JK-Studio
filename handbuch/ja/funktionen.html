@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BehavEd でできること - BehavEd-Remake</title>
+<title>BehavEd でできること - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -31,7 +31,7 @@
     <div class="ueber">はじめに</div>
     <h1>BehavEd でできること</h1>
     <p class="einleitung">プログラム全体のツアー。スクリプトの作成、マップ上での確認、カメラ、キャラクター、アニメーション、ミッション、そして周辺のツールを紹介します。</p>
-    <p>BehavEd-Remake は ICARUS スクリプトを書きます。Jedi Academy とその MOD のあらゆるカットシーン、あらゆるスクリプト演出の裏にあるスクリプトです。Raven のオリジナル BehavEd とファイル単位でまったく同じように書き出し、そのうえで何が起こるかを見せてくれます。マップ上で、3D で、時間に沿って。以下の各セクションから、その内容を練習するチュートリアルへ移動できます。</p>
+    <p>JK Studio は ICARUS スクリプトを書きます。Jedi Academy とその MOD のあらゆるカットシーン、あらゆるスクリプト演出の裏にあるスクリプトです。Raven のオリジナル BehavEd とファイル単位でまったく同じように書き出し、そのうえで何が起こるかを見せてくれます。マップ上で、3D で、時間に沿って。以下の各セクションから、その内容を練習するチュートリアルへ移動できます。</p>
 <figure class="fluss"><svg viewBox="0 0 1044 236" role="img" aria-label="アイデアからゲームへ"><text x="522" y="24" text-anchor="middle" class="fluss-titel">アイデアからゲームへ</text><path d="M6 76 H1028" class="fluss-linie"/><path d="M1040 76 l-14 -9 v18 z" class="fluss-spitze"/><rect x="22" y="44" width="176" height="64" rx="10" class="fluss-kasten"/><text x="110" y="83" text-anchor="middle" class="fluss-text"><tspan x="110" dy="0">スクリプトを書く</tspan></text><path d="M110 108 V138" class="fluss-linie"/><path d="M110 146 l-8 -12 h16 z" class="fluss-spitze"/><rect x="22" y="148" width="176" height="64" rx="10" class="fluss-unter"/><text x="110" y="187" text-anchor="middle" class="fluss-text"><tspan x="110" dy="0">コマンド・値・ブロック</tspan></text><rect x="228" y="44" width="176" height="64" rx="10" class="fluss-kasten"/><text x="316" y="83" text-anchor="middle" class="fluss-text"><tspan x="316" dy="0">マップで確認する</tspan></text><path d="M316 108 V138" class="fluss-linie"/><path d="M316 146 l-8 -12 h16 z" class="fluss-spitze"/><rect x="228" y="148" width="176" height="64" rx="10" class="fluss-unter"/><text x="316" y="187" text-anchor="middle" class="fluss-text"><tspan x="316" dy="0">キャラクター・カメラ・船</tspan></text><rect x="434" y="44" width="176" height="64" rx="10" class="fluss-kasten"/><text x="522" y="83" text-anchor="middle" class="fluss-text"><tspan x="522" dy="0">タイミングを合わせる</tspan></text><path d="M522 108 V138" class="fluss-linie"/><path d="M522 146 l-8 -12 h16 z" class="fluss-spitze"/><rect x="434" y="148" width="176" height="64" rx="10" class="fluss-unter"/><text x="522" y="187" text-anchor="middle" class="fluss-text"><tspan x="522" dy="0">タイムライン・トラック</tspan></text><rect x="640" y="44" width="176" height="64" rx="10" class="fluss-kasten"/><text x="728" y="83" text-anchor="middle" class="fluss-text"><tspan x="728" dy="0">ミッションを保存</tspan></text><path d="M728 108 V138" class="fluss-linie"/><path d="M728 146 l-8 -12 h16 z" class="fluss-spitze"/><rect x="640" y="148" width="176" height="64" rx="10" class="fluss-unter"/><text x="728" y="187" text-anchor="middle" class="fluss-text"><tspan x="728" dy="0">チェック・コンパイル・.pk3</tspan></text><rect x="846" y="44" width="176" height="64" rx="10" class="fluss-kasten"/><text x="934" y="83" text-anchor="middle" class="fluss-text"><tspan x="934" dy="0">プレイする</tspan></text><path d="M934 108 V138" class="fluss-linie"/><path d="M934 146 l-8 -12 h16 z" class="fluss-spitze"/><rect x="846" y="148" width="176" height="64" rx="10" class="fluss-unter"/><text x="934" y="176" text-anchor="middle" class="fluss-text"><tspan x="934" dy="0">devmap</tspan><tspan x="934" dy="22">&lt;名前&gt;</tspan></text></svg></figure>
 <h2 id="skripte">オリジナルと同じようにスクリプトを書く<a class="anker" href="#skripte">#</a></h2>
 <figure class="bild breit"><a href="../bilder/ja/h_skriptbaum.webp" class="zoom"><img src="../bilder/ja/h_skriptbaum.webp" alt="コマンド一覧、スクリプトツリー、操作列。" loading="lazy"></a><figcaption>コマンド一覧、スクリプトツリー、操作列。</figcaption></figure>
@@ -64,7 +64,7 @@
 <ul><li>1 つのスクリプト、または開いているすべてのスクリプトで検索と置換。<a href="k-suchen-ersetzen.html">開いているすべてのスクリプトで検索・置換</a></li><li>タブ、ブックマーク、分割ビューで、スクリプトを比較したりスクリプト間でコピーしたりできます。<a href="k-lesezeichen.html">ブックマークと分割表示</a></li><li>保存のたびにバックアップ、バックアップフォルダー、どのコマンドも元の状態に戻せます。<a href="speichern.html">保存・コンパイル・チェック</a></li><li>4 つの言語、6 つのテーマ、自由なインターフェースサイズ、すべてのショートカットを割り当て直し可能。<a href="einstellungen.html">設定とアップデート</a>、<a href="tasten.html">キーボードショートカット</a></li><li>アップデートを確認してインストールします。<a href="einstellungen.html#updates">アップデートと変更履歴</a></li></ul>
     <nav class="blaettern"><a class="vor" href="index.html"><span>前へ</span>ようこそ</a><a class="nach" href="erste-schritte.html"><span>次へ</span>最初の一歩</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

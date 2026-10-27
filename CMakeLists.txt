@@ -35,6 +35,8 @@ endif()
 add_library(bhed_core STATIC
   src/script.cpp
   src/update.cpp
+  # Stufe 8c: die Einstellungen aus %APPDATA%\behaved nach %APPDATA%\jkstudio uebernehmen
+  src/umzug.cpp
   # rc601 tour: JSON lesen und schreiben (der Leser stammt aus update.cpp).
   src/json.cpp
   # rc601 tour: Tutorials im Programm - Daten, Zielangaben, Pruefungen,
@@ -413,6 +415,9 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     # Symbol, Versionsangaben und Manifest. Ohne das zeigt der Explorer das
     # Standardsymbol, und Rechtsklick -> Details bleibt leer.
     res/behaved.rc)
+  # Stufe 8c: das Programm heisst JK Studio, die Datei jkstudio.exe (das Ziel heisst
+  # intern weiter "behaved"; $<TARGET_FILE:behaved> in den ctests folgt dem Namen).
+  set_target_properties(behaved PROPERTIES OUTPUT_NAME jkstudio)
   # IM_ASSERT wird ueber gui/imgui_config.h umgeleitet (IMGUI_USER_CONFIG am
   # Ziel imgui), damit eine ImGui-Zusicherung im Protokoll landet und nicht
   # nur im Meldungskasten der Laufzeitbibliothek.
@@ -585,6 +590,20 @@ if(BEHAVED_TESTS)
   add_executable(updatetest tests/updatetest.cpp)
   target_link_libraries(updatetest PRIVATE bhed_core)
   add_test(NAME update COMMAND updatetest)
+  # Stufe 8c: Umbenennung - der Einstellungsordner zieht von behaved nach jkstudio um (Kopie)
+  add_executable(umzugtest tests/umzugtest.cpp)
+  target_link_libraries(umzugtest PRIVATE bhed_core)
+  add_test(NAME umzug COMMAND umzugtest)
+  # Stufe 8c: der Updater von rc604 (aus git 8cc7bd1e) gegen einen lokalen Testserver -
+  # das Programm; den Server, das Paket und den Start danach macht tools/karte/updater_uebergang.py
+  # (ctest updater_uebergang, unten bei den q3map2-Tests: braucht jkstudio.exe und bhed_q3map2.exe)
+  if(WIN32)
+    add_executable(uebergangtest tests/uebergangtest.cpp)
+    target_include_directories(uebergangtest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/gui ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+    target_link_libraries(uebergangtest PRIVATE bhed_core winhttp)
+    # der Code von rc604 ruft std::filesystem::u8path (C++20: veraltet) - so wie er war
+    target_compile_definitions(uebergangtest PRIVATE _SILENCE_CXX20_U8PATH_DEPRECATION_WARNING)
+  endif()
   # rc601 tour: die Tutorials im Programm ohne Oberflaeche - Kennung <-> Text,
   # JSON, Tourdaten, Zielangaben, Schrittfolge, Fortschritt, Suche. Das
   # Argument ist der Handbuchordner: sind handbuch/<sprache>/touren.json
@@ -776,6 +795,15 @@ if(BEHAVED_TESTS)
                COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_gpubake.py
                        $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe)
       set_tests_properties(q3map2_gpubake PROPERTIES TIMEOUT 1800)
+      # Stufe 8c Punkt 3e: der Updater von rc604 (uebergangtest, Code aus git 8cc7bd1e) holt das
+      # JK-Studio-Paket ueber den alten Repository-Namen (301) von einem lokalen Testserver -
+      # Ordner-Installation und eigenstaendige .exe, danach startet die eingespielte .exe
+      if(TARGET uebergangtest)
+        add_test(NAME updater_uebergang
+                 COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/updater_uebergang.py
+                         $<TARGET_FILE:behaved> $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe $<TARGET_FILE:uebergangtest>)
+        set_tests_properties(updater_uebergang PROPERTIES TIMEOUT 900)
+      endif()
       # Stufe 6: die Regressionsfaelle aus NRC-PR #316 (regression_tests/auto-pigeon des Forks
       # auto-pigeon/q3map2, nicht im Repo) - mit -DBEHAVED_Q3MAP2_PR316=<Ordner mit cases.json>
       set(BEHAVED_Q3MAP2_PR316 "" CACHE PATH "Ordner regression_tests/auto-pigeon aus NRC-PR #316 (optional)")

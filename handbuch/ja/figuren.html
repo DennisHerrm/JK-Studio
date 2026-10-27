@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>キャラクターと道 - BehavEd-Remake</title>
+<title>キャラクターと道 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -39,7 +39,7 @@
 <h2 id="gangart">歩く/走る、共有目標<a class="anker" href="#gangart">#</a></h2>
 <p>歩行の終点ハンドル(またはタイムラインの帯)を右クリックするとメニューが開きます。</p>
 <ul><li><strong><span class="ui">歩く(この移動から)</span></strong> / <strong><span class="ui">走る(この移動から)</span></strong> - ナビゴールの前に <code>SET_WALKING</code> または <code>SET_RUNNING</code> を書きます。</li><li><strong><span class="ui">歩きながら見る</span></strong> - 歩きながら別のキャラクターの方を向き続けます(<code>SET_WATCHTARGET</code>)。</li><li><strong><span class="ui">後ろ向きに歩く(後ろを見たまま)</span></strong> - 始点の後ろに視線マークを置いて後ろ向きに歩かせます。<strong><span class="ui">進行方向を向く</span></strong> で解除します。</li></ul>
-<p>複数のキャラクターが 1 つのナビゴールを共有している場合、動かすと全員が動いてしまいます。BehavEd-Remake はそれを検知し、先にこの歩行専用の目標のコピーを作ります。どれを作ったかはステータス行に表示されます。</p>
+<p>複数のキャラクターが 1 つのナビゴールを共有している場合、動かすと全員が動いてしまいます。JK Studio はそれを検知し、先にこの歩行専用の目標のコピーを作ります。どれを作ったかはステータス行に表示されます。</p>
 <div class="hinweis">既存のスクリプトの後ろ歩きも認識されます。キャラクターが向きと逆に動くと、ゲームと同じく <code>BOTH_WALKBACK1</code> または <code>BOTH_RUNBACK1</code> が再生されます。</div>
 <h2 id="wieimspiel">キャラクターの動き方 - ゲームと同じ<a class="anker" href="#wieimspiel">#</a></h2>
 <p>プレビューはゲーム自身のルールで NPC をフレームごとに動かします。操舵、移動の物理、経路です。見えているとおりにゲームはスクリプトを実行します。</p>
@@ -49,7 +49,7 @@
 <p>2 人のキャラクターの刃がぶつかるのは、ゲームが許す場合だけです。<strong>Movie Duels:</strong> 両方の NPC が <code>BS_CINEMATIC</code> にあり(<code>set ( SET_BEHAVIOR_STATE, BS_CINEMATIC )</code>、または CINEMATIC スポーンフラグ付きのスポナー)、攻撃側に <code>set ( SET_SABERCOLLISIONS, true )</code> が必要です。<code>false</code> で再びオフにします。<strong>OpenJK</strong> には <code>SET_SABERCOLLISIONS</code> がなく、<code>BS_CINEMATIC</code> のキャラクターがアニメーション <code>BOTH_CIN_16</code> と <code>BOTH_CIN_17</code> を再生しているときだけ刃がぶつかります(Movie Duels でもこの 2 つは有効です)。当たるとブロックの火花、そのゲームのぶつかる音の 1 つ、クラッシュの閃光が出ます。AI が自分で戦う戦闘(<code>SET_ENEMY</code>、<code>BS_DEFAULT</code>)は再現されず、スクリプトがアニメーションさせるものだけです。Movie Duels では、速い型のセーバーは点火も 2 倍速くなります。ルールは <a href="einstellungen.html#prefs">設定</a> で選びます。</p>
     <nav class="blaettern"><a class="vor" href="zeitleiste.html"><span>前へ</span>タイムライン</a><a class="nach" href="animation.html"><span>次へ</span>可動物のアニメーションと ROFF ファイル</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

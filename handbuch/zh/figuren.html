@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>角色与路径 - BehavEd-Remake</title>
+<title>角色与路径 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>手册</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>手册</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="搜索手册...  (/)" autocomplete="off" aria-label="搜索手册...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -39,7 +39,7 @@
 <h2 id="gangart">步行或奔跑、共享目标<a class="anker" href="#gangart">#</a></h2>
 <p>右键单击行走路径的终点控制柄(或时间轴中的条带)打开菜单:</p>
 <ul><li><strong><span class="ui">行走(从此段起)</span></strong> / <strong><span class="ui">奔跑(从此段起)</span></strong>——在导航点前写入 <code>SET_WALKING</code> 或 <code>SET_RUNNING</code>。</li><li><strong><span class="ui">行走时注视</span></strong>——角色行走时持续转向另一个角色(<code>SET_WATCHTARGET</code>)。</li><li><strong><span class="ui">倒退行走(保持向后看)</span></strong>——在起点后方放置注视标记使其倒退行走;<strong><span class="ui">面向行走方向</span></strong> 取消。</li></ul>
-<p>多个角色共用一个导航点时,移动它会影响所有角色。BehavEd-Remake 会察觉这一点,先为这段行走复制一个独立目标——状态栏会告诉你新建了哪个。</p>
+<p>多个角色共用一个导航点时,移动它会影响所有角色。JK Studio 会察觉这一点,先为这段行走复制一个独立目标——状态栏会告诉你新建了哪个。</p>
 <div class="hinweis">已有脚本中的倒退行走也会被识别:角色朝与面向相反的方向移动时,场景会像游戏一样播放 <code>BOTH_WALKBACK1</code> 或 <code>BOTH_RUNBACK1</code>。</div>
 <h2 id="wieimspiel">角色如何移动——与游戏一致<a class="anker" href="#wieimspiel">#</a></h2>
 <p>预览按游戏自身的规则逐帧移动 NPC:转向、移动物理和路径。你看到的就是游戏对你的脚本所做的:</p>
@@ -49,7 +49,7 @@
 <p>两名角色的剑刃只在游戏允许的情况下相撞。<strong>Movie Duels:</strong> 两个 NPC 都必须处于 <code>BS_CINEMATIC</code>(<code>set ( SET_BEHAVIOR_STATE, BS_CINEMATIC )</code>,或带 CINEMATIC 生成标志的生成器),且攻击方需要 <code>set ( SET_SABERCOLLISIONS, true )</code>;用 <code>false</code> 再关闭。<strong>OpenJK</strong> 没有 <code>SET_SABERCOLLISIONS</code>:那里只有处于 <code>BS_CINEMATIC</code> 的角色在播放 <code>BOTH_CIN_16</code> 和 <code>BOTH_CIN_17</code> 动画时剑刃才会相撞(Movie Duels 也允许这两个动画)。命中时会播放格挡火花、该游戏的一种碰撞音效和碰撞闪光。AI 自己会进行的战斗(<code>SET_ENEMY</code>、<code>BS_DEFAULT</code>)不会被模拟——只模拟脚本驱动的动画。在 Movie Duels 中,快速剑式点燃剑刃的速度也会快一倍。规则在 <a href="einstellungen.html#prefs">首选项</a> 中选择。</p>
     <nav class="blaettern"><a class="vor" href="zeitleiste.html"><span>上一页</span>时间轴</a><a class="nach" href="animation.html"><span>下一页</span>移动物体动画与 ROFF 文件</a></nav>
   </article>
-  <footer>BehavEd-Remake 手册。图片展示的是程序本身,由其自检功能截取。</footer>
+  <footer>JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

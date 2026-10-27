@@ -95,10 +95,10 @@ _UI = {
     "ansicht": T("View:", "Ansicht:", "视图:", "ビュー:"),
     "keine_treffer": T("Nothing found.", "Nichts gefunden.", "未找到结果。", "見つかりませんでした。"),
     "treffer_auf": T("on", "auf", "位于", "ページ:"),
-    "fuss": T("BehavEd-Remake guide. The pictures show the program itself; they are made by its self-test.",
-              "Handbuch zu BehavEd-Remake. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf.",
-              "BehavEd-Remake 手册。图片展示的是程序本身,由其自检功能截取。",
-              "BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。"),
+    "fuss": T("JK Studio guide - mod tools for Jedi Knight: Jedi Academy and Jedi Outcast. The pictures show the program itself; they are made by its self-test. Not affiliated with Lucasfilm, Disney or Raven Software.",
+              "Handbuch zu JK Studio - Mod-Werkzeuge für Jedi Knight: Jedi Academy und Jedi Outcast. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf. Nicht verbunden mit Lucasfilm, Disney oder Raven Software.",
+              "JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。",
+              "JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。"),
 }
 
 

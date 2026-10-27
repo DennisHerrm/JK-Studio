@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>摄像机 - BehavEd-Remake</title>
+<title>摄像机 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>手册</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>手册</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="搜索手册...  (/)" autocomplete="off" aria-label="搜索手册...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -33,7 +33,7 @@
     <p class="einleitung">脚本中的每个 camera MOVE 和 PAN 都是一个可以看到、抓取和驾驶的镜头——拖动时脚本会随之改写。</p>
     <figure class="bild breit"><a href="../bilder/zh/h_kamera.webp" class="zoom"><img src="../bilder/zh/h_kamera.webp" alt="选中的摄像机:地图上的路径、操纵器、顶部工具栏以及左侧的镜头列表。" loading="lazy"></a><figcaption>选中的摄像机:地图上的路径、操纵器、顶部工具栏以及左侧的镜头列表。</figcaption></figure>
 <h2 id="einstellungen">镜头<a class="anker" href="#einstellungen">#</a></h2>
-<p>在 ICARUS 中,一个镜头就是 <code>camera ( MOVE, &lt;位置&gt;, &lt;时间&gt; )</code> 后接 <code>camera ( PAN, &lt;角度&gt;, &lt;时间&gt; )</code>。BehavEd-Remake 按顺序读取它们,并在地图上把每个镜头画成摄像机图标。单击图标选择摄像机;左侧的 <strong><span class="ui">镜头</span></strong> 列表显示每个镜头的时间和移动时间(<code>移动 6.0 秒</code>)。单击某行即可跳转。</p>
+<p>在 ICARUS 中,一个镜头就是 <code>camera ( MOVE, &lt;位置&gt;, &lt;时间&gt; )</code> 后接 <code>camera ( PAN, &lt;角度&gt;, &lt;时间&gt; )</code>。JK Studio 按顺序读取它们,并在地图上把每个镜头画成摄像机图标。单击图标选择摄像机;左侧的 <strong><span class="ui">镜头</span></strong> 列表显示每个镜头的时间和移动时间(<code>移动 6.0 秒</code>)。单击某行即可跳转。</p>
 <ul><li><strong><span class="ui">上一个镜头</span> / <span class="ui">下一个镜头</span></strong> 在镜头间切换;<strong><span class="ui">飞到镜头</span></strong> 把你的视角精确移到所选镜头的位置和朝向。</li><li><strong><span class="ui">在此新建镜头</span></strong> 在当前视角、所选镜头之后添加 MOVE 和 PAN。<strong><span class="ui">设为当前视角</span></strong> 把所选镜头移到你当前注视的位置。</li><li><strong><span class="ui">删除镜头</span></strong> 删除镜头。在 <strong><span class="ui">所选镜头</span></strong> 下可输入精确数值:<span class="ui">位置</span>、<span class="ui">方向</span> 和 <span class="ui">移动时间</span>(0 = 硬切)。</li></ul>
 <h2 id="gizmo">移动和旋转镜头<a class="anker" href="#gizmo">#</a></h2>
 <p>视图上方的工具栏用于切换操纵器:<strong><span class="ui">移动</span></strong> 显示三个箭头和中间的方块——拖动箭头沿某一轴移动,拖动方块在视平面内移动。<strong><span class="ui">旋转</span></strong> 显示俯仰、偏航和翻滚三个圆环。<strong><span class="ui">世界</span> / <span class="ui">本地</span></strong> 决定箭头跟随地图还是摄像机。松开鼠标时新数值写入脚本——可一步撤销。</p>
@@ -50,7 +50,7 @@
 <div class="hinweis">有些镜头位于某个 <code>ref_tag</code> 上或注视某个 <code>ref_tag</code>。此时面板会提示,移动镜头就会移动地图中的该 ref_tag——脚本只引用它的名字。</div>
     <nav class="blaettern"><a class="vor" href="entities.html"><span>上一页</span>实体</a><a class="nach" href="zeitleiste.html"><span>下一页</span>时间轴</a></nav>
   </article>
-  <footer>BehavEd-Remake 手册。图片展示的是程序本身,由其自检功能截取。</footer>
+  <footer>JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

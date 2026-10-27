@@ -1106,7 +1106,7 @@ void zeichneUeber() {
         ImDrawList* dl = ImGui::GetWindowDrawList();
         sonnenLogo(dl, bp(static_cast<float>(kRand), static_cast<float>(kRand)), px(128.0F));
         // RADIANT_VERSION, __DATE__, RADIANT_ABOUTMSG, GPL
-        const std::string text = std::string("NetRadiant-Custom 20260114\n") + __DATE__ + "\n\nbehaved " + std::string(bhed::kFassung) +
+        const std::string text = std::string("NetRadiant-Custom 20260114\n") + __DATE__ + "\n\nJK Studio " + std::string(bhed::kFassung) +
                                  "\n\nThis program is free software\nlicensed under the GNU GPL.\n";
         const float textH = ImGui::CalcTextSize(text.c_str()).y;
         dl->AddText(ImVec2{bp(145.0F, 0.0F).x, std::round(bp(0.0F, static_cast<float>(kRand)).y + (px(128.0F) - textH) * 0.5F)},

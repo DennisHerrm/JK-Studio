@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>合図で現れるキャラクター - BehavEd-Remake</title>
+<title>合図で現れるキャラクター - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>2 つの名前。</strong> キャラクターのスポナーには <strong><span class="ui">名前</span></strong>(<code>NPC_targetname</code>。<code>affect</code> が使うキャラクターの名前)があり、さらに <code>targetname</code>(スポナー自体の名前)を持つこともあります。</p><figure class="bild"><a href="../bilder/ja/e_rosh_namen.webp" class="zoom"><img src="../bilder/ja/e_rosh_namen.webp" alt="スポナーの名前と NPC_type。" loading="lazy"></a><figcaption>スポナーの名前と NPC_type。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>合図を待つ。</strong> スポナーに <code>targetname</code> を付けます。例えば <code>rosh_spawner</code>。するとゲームでは、使われたときに初めてキャラクターを出現させます。</p><figure class="bild"><a href="../bilder/ja/k_spawnflags.webp" class="zoom"><img src="../bilder/ja/k_spawnflags.webp" alt="スポナーのキーとスポーンフラグ。" loading="lazy"></a><figcaption>スポナーのキーとスポーンフラグ。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>呼び出す。</strong> スクリプトで <code>use ( &quot;rosh_spawner&quot; )</code>。それ以降キャラクターが存在し、<code>affect ( &quot;rosh&quot; )</code> が届きます。(プレビューでは最初からキャラクターが表示されます。)</p><figure class="bild"><a href="../bilder/ja/e_use_spawner.webp" class="zoom"><img src="../bilder/ja/e_use_spawner.webp" alt="use がスポナーを呼び出します。" loading="lazy"></a><figcaption>use がスポナーを呼び出します。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>スポーンフラグ。</strong> <strong><span class="ui">スポーンフラグ</span></strong> の下のチェックボックスでクラスのオプションを設定します。マウスを乗せると、その働きが表示されます。</p><figure class="bild"><a href="../bilder/ja/k_spawnflags.webp" class="zoom"><img src="../bilder/ja/k_spawnflags.webp" alt="スポーンフラグ。" loading="lazy"></a><figcaption>スポーンフラグ。</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="k-blickpunkte.html"><span>前へ</span>視点とカメラパスを記憶する</a><a class="nach" href="k-ent.html"><span>次へ</span>別の .ent ファイルを読み込む</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

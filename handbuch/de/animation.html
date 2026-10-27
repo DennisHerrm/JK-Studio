@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mover animieren und ROFF-Dateien - BehavEd-Remake</title>
+<title>Mover animieren und ROFF-Dateien - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>Handbuch</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Handbuch</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="Im Handbuch suchen ...  (/)" autocomplete="off" aria-label="Im Handbuch suchen ...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -40,7 +40,7 @@
 <table class="liste"><thead><tr><th></th><th><span class="ui">Skript (move)</span></th><th><span class="ui">ROFF-Datei</span></th></tr></thead><tbody><tr><td>Gespeichert als</td><td>ein <code>affect</code>-Block mit <code>move</code> und <code>wait</code> am Anfang des Skripts</td><td><code>scripts/&lt;Name&gt;.rof</code>, abgespielt mit <code>play ( &quot;PLAY_ROFF&quot;, ... )</code></td></tr><tr><td>Zwischen den Schlüsseln</td><td>jede Fahrt beginnt schnell und läuft langsam aus wie die Mover des Spiels (oder gleichmäßig mit <span class="ui">Gleichmäßig</span>)</td><td>ein weicher Bogen durch alle Schlüssel (<span class="ui">Weich</span>) oder gerade Stücke</td></tr><tr><td>Gut für</td><td>Türen, Aufzüge, ein Schiff, das durchs Bild fliegt</td><td>lange freie Flüge mit vielen Kurven, Effekte auf genaue Bilder</td></tr></tbody></table>
 <p>Umschalten mit <strong><span class="ui">Skript (move)</span></strong> / <strong><span class="ui">ROFF-Datei</span></strong> oben im Fenster - die Schlüssel werden umgewandelt, nichts geht verloren. Im ROFF-Modus nennt das Feld <strong><span class="ui">Datei</span></strong> die Datei (zum Beispiel <code>md_am/roffs/sta2</code>); darunter steht, wie viele Bilder und Sekunden sie hat.</p>
 <h2 id="roff">Wie ROFF-Dateien funktionieren<a class="anker" href="#roff">#</a></h2>
-<p>Eine ROFF-Datei (<code>.rof</code>, &quot;Rotation and Origin File Format&quot;) speichert je Spielbild einen kleinen Schritt: wie weit sich die Entity in den nächsten 50 ms bewegt und dreht. Das Spiel addiert diese Schritte zu dem Ort, an dem die Entity steht, wenn <code>PLAY_ROFF</code> läuft - eine ROFF-Bahn ist also <strong>relativ</strong>: verschiebst du die Entity, wandert die ganze Bahn mit. Alle 108 Dateien des Spiels und von Movie Duels sind Fassung 2, alle bis auf eine mit 50 ms je Bild - und so schreibt BehavEd-Remake sie auch.</p>
+<p>Eine ROFF-Datei (<code>.rof</code>, &quot;Rotation and Origin File Format&quot;) speichert je Spielbild einen kleinen Schritt: wie weit sich die Entity in den nächsten 50 ms bewegt und dreht. Das Spiel addiert diese Schritte zu dem Ort, an dem die Entity steht, wenn <code>PLAY_ROFF</code> läuft - eine ROFF-Bahn ist also <strong>relativ</strong>: verschiebst du die Entity, wandert die ganze Bahn mit. Alle 108 Dateien des Spiels und von Movie Duels sind Fassung 2, alle bis auf eine mit 50 ms je Bild - und so schreibt JK Studio sie auch.</p>
 <p>Die Schlüssel, die du bearbeitest, stehen als Kommentarzeile im Skript direkt vor dem <code>play</code>; die <code>.rof</code> wird aus ihnen gebaut. Deshalb wirken Rückgängig, Kopieren und Einfügen auf ROFF-Bahnen wie auf jeden Befehl. Beim <strong>Speichern des Skripts</strong> wird die Datei als <code>scripts/&lt;Name&gt;.rof</code> in denselben scripts-Ordner geschrieben; <strong><span class="ui">Mission speichern</span></strong> packt sie ins <code>.pk3</code> der Mission.</p>
 <h2 id="bearbeiten">Eine ROFF-Datei des Spiels bearbeiten<a class="anker" href="#bearbeiten">#</a></h2>
 <p>Spielt ein Skript eine fertige ROFF auf der Entity ab, nennt das Fenster sie unter <strong><span class="ui">ROFF-Bahnen dieser Entity im Skript:</span></strong>. <strong><span class="ui">Bearbeiten</span></strong> zerlegt sie in Schlüssel - entweder gerade Stücke oder einen weichen Bogen, je nachdem, was mit weniger Schlüsseln auskommt -, bis auf eine halbe Einheit genau. Die Datei des Spiels wird nie überschrieben: du bearbeitest eine Kopie (<code>…_2</code>), und der <code>play</code>-Befehl zeigt auf sie.</p>
@@ -48,7 +48,7 @@
 <div class="hinweis">In der Zeitleiste ist ein ROFF-Flug ein Band unter <strong><span class="ui">Bewegung</span></strong>; ziehen startet den Flug früher oder später.</div>
     <nav class="blaettern"><a class="vor" href="figuren.html"><span>Zurück</span>Figuren und Wege</a><a class="nach" href="wegpunkte.html"><span>Weiter</span>NPC-Wegpunkte</a></nav>
   </article>
-  <footer>Handbuch zu BehavEd-Remake. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf.</footer>
+  <footer>Handbuch zu JK Studio - Mod-Werkzeuge für Jedi Knight: Jedi Academy und Jedi Outcast. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf. Nicht verbunden mit Lucasfilm, Disney oder Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

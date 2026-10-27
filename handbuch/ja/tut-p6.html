@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>6 · カット・揺れ・追従・フェード - BehavEd-Remake</title>
+<title>6 · カット・揺れ・追従・フェード - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>カット。</strong> 2 つ目のカメラ移動の後に 5 秒の <code>wait</code> を挿入し、続いてパッドの外から船を見る新しいショットを <strong><span class="ui">移動時間</span></strong> <code>0</code> で作ります。これがカットです。</p><figure class="bild"><a href="../bilder/ja/p6_schnitt.webp" class="zoom"><img src="../bilder/ja/p6_schnitt.webp" alt="カメラパネルで選択した 3 つ目のショット。移動時間は一覧の下に表示されます。" loading="lazy"></a><figcaption>カメラパネルで選択した 3 つ目のショット。移動時間は一覧の下に表示されます。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>揺れ。</strong> <code>camera</code> を挿入して <code>SHAKE</code> を選びます。強さ <code>4</code>、<code>2000</code> ミリ秒。エンジンが始動します。</p><figure class="bild"><a href="../bilder/ja/c_ed_shake.webp" class="zoom"><img src="../bilder/ja/c_ed_shake.webp" alt="camera ( SHAKE ):強さと継続時間。" loading="lazy"></a><figcaption>camera ( SHAKE ):強さと継続時間。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>船を追う。</strong> 時間を指定した 2 つの <code>camera ( PAN )</code> コマンドで、上昇する船を追ってカメラを上へ向けます。それぞれの後の <code>wait</code> で動きを最後まで終わらせます。</p><figure class="bild"><a href="../bilder/ja/p6_pan.webp" class="zoom"><img src="../bilder/ja/p6_pan.webp" alt="船を追う 2 つの PAN コマンド。" loading="lazy"></a><figcaption>船を追う 2 つの PAN コマンド。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>フェードアウト。</strong> <code>camera</code> の <code>FADE</code> で、<code>0 0 0</code> と <code>0</code> から <code>0 0 0</code> と <code>1</code> へ <code>1500</code> ミリ秒かけて変化させます。画面は真っ黒になります。その後 <code>camera ( DISABLE )</code> で操作をプレイヤーに戻します。</p><figure class="bild"><a href="../bilder/ja/c_ed_fade.webp" class="zoom"><img src="../bilder/ja/c_ed_fade.webp" alt="camera ( FADE ):透明から黒へ。" loading="lazy"></a><figcaption>camera ( FADE ):透明から黒へ。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">5</span><div><p><strong>タイミングを整える。</strong> 再生して確認します。タイムラインでブロックをドラッグすると、その後ろのものがすべて一緒に動きます。右端をドラッグすると長さが変わります。</p><figure class="bild"><a href="../bilder/ja/a_k_timen.webp" class="zoom"><img src="../bilder/ja/a_k_timen.webp" alt="タイムラインでブロックをドラッグ。後ろのものもすべて一緒に動きます。" loading="lazy"></a><figcaption>タイムラインでブロックをドラッグ。後ろのものもすべて一緒に動きます。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">6</span><div><p><strong>シーン全体。</strong> <strong><span class="ui">カメラ視点</span></strong> をオンにして、最初から再生します。</p><figure class="bild"><a href="../bilder/en/a_kamera.webp" class="zoom"><img src="../bilder/en/a_kamera.webp" alt="完成したカットシーンをカメラ視点で。" loading="lazy"></a><figcaption>完成したカットシーンをカメラ視点で。</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="tut-p5.html"><span>前へ</span>5 · 船が離陸する</a><a class="nach" href="tut-p7.html"><span>次へ</span>7 · 2 つ目のスクリプト</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

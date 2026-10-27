@@ -358,7 +358,7 @@ SEITEN_KAMERA = [
             "`camera ( SHAKE, 4, 2000 )`.",
             _KAM_SPUR, []),
     _kamera("cam_path", "PATH", "fly a recorded path", "Plays a ROFF file as the camera's path.",
-            "A recorded camera flight - made in an editor or with **Animate** - is played as the camera's movement. The path starts where the camera is; BehavEd-Remake plays it like the game, including the notes `cut`, `fov`, `fovzoom` and `fovaccel`. A `MOVE` ends the path.",
+            "A recorded camera flight - made in an editor or with **Animate** - is played as the camera's movement. The path starts where the camera is; JK Studio plays it like the game, including the notes `cut`, `fov`, `fovzoom` and `fovaccel`. A `MOVE` ends the path.",
             [("File", "The ROFF file below `scripts/`, without `.rof`.")],
             "`camera ( PATH, \"taspir_tut/roffs/campath\" )`.",
             _KAM_SPUR, []),

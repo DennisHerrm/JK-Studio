@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>複数のスクリプトを連携させる - BehavEd-Remake</title>
+<title>複数のスクリプトを連携させる - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>作業を分ける。</strong> 長いシーンは分けたほうが扱いやすくなります。イントロは <code>run ( &quot;taspir_tut/talk&quot; )</code> で次の部分を開始します。名前は <code>scripts/</code> 以下のとおりで、拡張子は付けません。</p><figure class="bild"><a href="../bilder/ja/k_zusammen.webp" class="zoom"><img src="../bilder/ja/k_zusammen.webp" alt="イントロの run と waitsignal、talk の signal。" loading="lazy"></a><figcaption>イントロの run と waitsignal、talk の signal。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>引き継ぎます。</strong> イントロがもう一方の部分を待つ必要がある場所に <code>waitsignal ( &quot;talk_done&quot; )</code> を挿入し、もう一方のスクリプトの最後に <code>signal ( &quot;talk_done&quot; )</code> を置きます。<a href="k-signale.html">2 つのスクリプトを互いに待たせる</a> を参照してください。</p><figure class="bild"><a href="../bilder/ja/s_sig_beide.webp" class="zoom"><img src="../bilder/ja/s_sig_beide.webp" alt="両側で同じシグナル名。" loading="lazy"></a><figcaption>両側で同じシグナル名。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>両方を見る。</strong> <strong><span class="ui">ファイル</span> → <span class="ui">分割表示</span> → 2</strong> で 2 つのスクリプトを並べて表示します。行を反対側へドラッグするとコピーされます。</p><figure class="bild"><a href="../bilder/ja/k_zusammen.webp" class="zoom"><img src="../bilder/ja/k_zusammen.webp" alt="並べて表示した 2 つのスクリプト。" loading="lazy"></a><figcaption>並べて表示した 2 つのスクリプト。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>全体を把握する。</strong> <strong><span class="ui">グラフ</span></strong> ビューは、ミッションのスクリプト間の <code>run</code> のつながりを描きます。</p><figure class="bild"><a href="../bilder/ja/h_graph.webp" class="zoom"><img src="../bilder/ja/h_graph.webp" alt="グラフ表示。" loading="lazy"></a><figcaption>グラフ表示。</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="k-ansprechen.html"><span>前へ</span>プレイヤーがキャラクターと話す</a><a class="nach" href="k-pruefen.html"><span>次へ</span>ミッションの保存で報告された問題を直す</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

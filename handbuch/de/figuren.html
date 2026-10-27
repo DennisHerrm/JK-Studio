@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Figuren und Wege - BehavEd-Remake</title>
+<title>Figuren und Wege - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>Handbuch</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Handbuch</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="Im Handbuch suchen ...  (/)" autocomplete="off" aria-label="Im Handbuch suchen ...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -39,7 +39,7 @@
 <h2 id="gangart">Gehen oder rennen, geteilte Ziele<a class="anker" href="#gangart">#</a></h2>
 <p>Ein Rechtsklick auf den Endgriff eines Laufs (oder sein Band in der Zeitleiste) öffnet sein Menü:</p>
 <ul><li><strong><span class="ui">Gehen (ab diesem Lauf)</span></strong> / <strong><span class="ui">Rennen (ab diesem Lauf)</span></strong> - schreibt <code>SET_WALKING</code> bzw. <code>SET_RUNNING</code> vor den Navgoal.</li><li><strong><span class="ui">Dabei ansehen</span></strong> - die Figur dreht sich beim Laufen weiter zu einer anderen Figur (<code>SET_WATCHTARGET</code>).</li><li><strong><span class="ui">Rückwärts laufen (schaut zurück)</span></strong> - eine Blickmarke hinter dem Start lässt sie rückwärts laufen; <strong><span class="ui">In Laufrichtung schauen</span></strong> beendet das.</li></ul>
-<p>Teilen sich mehrere Figuren einen Navgoal, würde das Verschieben alle verschieben. BehavEd-Remake merkt das und gibt diesem Lauf zuerst eine eigene Kopie des Ziels - die Statuszeile sagt, welche es angelegt hat.</p>
+<p>Teilen sich mehrere Figuren einen Navgoal, würde das Verschieben alle verschieben. JK Studio merkt das und gibt diesem Lauf zuerst eine eigene Kopie des Ziels - die Statuszeile sagt, welche es angelegt hat.</p>
 <div class="hinweis">Rückwärtslaufen wird auch in vorhandenen Skripten erkannt: bewegt sich eine Figur entgegen ihrer Blickrichtung, spielt die Szene wie das Spiel <code>BOTH_WALKBACK1</code> oder <code>BOTH_RUNBACK1</code>.</div>
 <h2 id="wieimspiel">Wie Figuren sich bewegen - wie im Spiel<a class="anker" href="#wieimspiel">#</a></h2>
 <p>Die Vorschau bewegt NPCs nach den Regeln des Spiels, Bild für Bild: Steuerung, Bewegungsphysik und Wege. Was du siehst, macht das Spiel mit deinem Skript:</p>
@@ -49,7 +49,7 @@
 <p>Klingen zweier Figuren klirren nur, wo das Spiel es zulässt. <strong>Movie Duels:</strong> beide NPCs müssen in <code>BS_CINEMATIC</code> stehen (<code>set ( SET_BEHAVIOR_STATE, BS_CINEMATIC )</code> oder ein Spawner mit dem CINEMATIC-Spawnflag), und der Angreifer braucht <code>set ( SET_SABERCOLLISIONS, true )</code>; mit <code>false</code> wieder aus. <strong>OpenJK</strong> kennt kein <code>SET_SABERCOLLISIONS</code>: dort klirren Klingen nur in den Animationen <code>BOTH_CIN_16</code> und <code>BOTH_CIN_17</code> von Figuren in <code>BS_CINEMATIC</code> (Movie Duels erlaubt diese beiden auch). Ein Treffer spielt den Blockfunken, einen der Klirrklänge dieses Spiels und den Klirrblitz. Kämpfe, die die KI selbst führen würde (<code>SET_ENEMY</code>, <code>BS_DEFAULT</code>), werden nicht nachgespielt - nur, was das Skript animiert. In Movie Duels zündet der schnelle Kampfstil die Klinge außerdem doppelt so schnell. Die Regeln wählst du in <a href="einstellungen.html#prefs">Einstellungen</a>.</p>
     <nav class="blaettern"><a class="vor" href="zeitleiste.html"><span>Zurück</span>Zeitleiste</a><a class="nach" href="animation.html"><span>Weiter</span>Mover animieren und ROFF-Dateien</a></nav>
   </article>
-  <footer>Handbuch zu BehavEd-Remake. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf.</footer>
+  <footer>Handbuch zu JK Studio - Mod-Werkzeuge für Jedi Knight: Jedi Academy und Jedi Outcast. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf. Nicht verbunden mit Lucasfilm, Disney oder Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

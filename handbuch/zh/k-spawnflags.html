@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>按时机出现的角色 - BehavEd-Remake</title>
+<title>按时机出现的角色 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>手册</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>手册</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="搜索手册...  (/)" autocomplete="off" aria-label="搜索手册...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>两个名称。</strong> 角色生成器有它的 <strong><span class="ui">名称</span></strong>——即 <code>NPC_targetname</code>,也就是 <code>affect</code> 使用的角色名称——还可以有一个 <code>targetname</code>,即生成器本身的名称。</p><figure class="bild"><a href="../bilder/zh/e_rosh_namen.webp" class="zoom"><img src="../bilder/zh/e_rosh_namen.webp" alt="生成器的名称和 NPC_type。" loading="lazy"></a><figcaption>生成器的名称和 NPC_type。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>等待时机。</strong> 给生成器一个 <code>targetname</code>,例如 <code>rosh_spawner</code>。这样在游戏中,它只有在被使用时才会生成角色。</p><figure class="bild"><a href="../bilder/zh/k_spawnflags.webp" class="zoom"><img src="../bilder/zh/k_spawnflags.webp" alt="生成器的键和生成标志。" loading="lazy"></a><figcaption>生成器的键和生成标志。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>召唤。</strong> 在脚本中:<code>use ( &quot;rosh_spawner&quot; )</code>——从此角色就存在了,<code>affect ( &quot;rosh&quot; )</code> 也能作用到它。(预览从一开始就显示该角色。)</p><figure class="bild"><a href="../bilder/zh/e_use_spawner.webp" class="zoom"><img src="../bilder/zh/e_use_spawner.webp" alt="use 调用生成器。" loading="lazy"></a><figcaption>use 调用生成器。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>生成标志。</strong> <strong><span class="ui">生成标志</span></strong> 下的复选框设置该类别的选项;把鼠标悬停在某个复选框上即可查看其作用。</p><figure class="bild"><a href="../bilder/zh/k_spawnflags.webp" class="zoom"><img src="../bilder/zh/k_spawnflags.webp" alt="生成标志。" loading="lazy"></a><figcaption>生成标志。</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="k-blickpunkte.html"><span>上一页</span>记住视角和摄像机路径</a><a class="nach" href="k-ent.html"><span>下一页</span>加载单独的 .ent 文件</a></nav>
   </article>
-  <footer>BehavEd-Remake 手册。图片展示的是程序本身,由其自检功能截取。</footer>
+  <footer>JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

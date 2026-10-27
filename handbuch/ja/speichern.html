@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>保存・コンパイル・チェック - BehavEd-Remake</title>
+<title>保存・コンパイル・チェック - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -32,14 +32,14 @@
     <h1>保存・コンパイル・チェック</h1>
     <p class="einleitung">ゲームが実行するのは <code>.ibi</code> ファイルです。<code>.txt</code> を書き、<strong>Compile!</strong> で <code>.ibi</code> を作ります。Raven の IBIZE とバイト単位で同じです。</p>
     <h2 id="speichern">保存<a class="anker" href="#speichern">#</a></h2>
-<ul><li><strong><span class="ui">保存</span></strong>(<kbd>Ctrl</kbd>+<kbd>S</kbd>)は常に <code>.txt</code> のソースを書きます。<code>.ibi</code> を開いた場合も、その隣に保存されます。</li><li><strong><span class="ui">すべて保存</span></strong>(<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>)は変更のあるタブをすべて保存します。アーカイブから開いたタブは書き戻し先がないため飛ばされます。</li><li>保存とコンパイルのたびにコピー(最新の <code>backup1.txt</code> から <code>backup10.txt</code> まで)が <code>behaved.exe</code> の隣の <code>backup</code> フォルダーに、スクリプトごとのサブフォルダーで残ります。<strong><span class="ui">ファイル</span> → <span class="ui">バックアップフォルダーを開く</span></strong> で確認できます。<strong><span class="ui">バックアップ</span></strong> / <strong><span class="ui">復元</span></strong> は手動で追加のコピー(スクリプトの隣の <code>&lt;スクリプト&gt;.bak</code>)を保存・復元します。</li><li>自作の ROFF パスはスクリプトと一緒に <code>.rof</code> ファイルとして書き出されます。<a href="animation.html#roff">ROFF ファイルの仕組み</a> を参照。</li></ul>
+<ul><li><strong><span class="ui">保存</span></strong>(<kbd>Ctrl</kbd>+<kbd>S</kbd>)は常に <code>.txt</code> のソースを書きます。<code>.ibi</code> を開いた場合も、その隣に保存されます。</li><li><strong><span class="ui">すべて保存</span></strong>(<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>)は変更のあるタブをすべて保存します。アーカイブから開いたタブは書き戻し先がないため飛ばされます。</li><li>保存とコンパイルのたびにコピー(最新の <code>backup1.txt</code> から <code>backup10.txt</code> まで)が <code>jkstudio.exe</code> の隣の <code>backup</code> フォルダーに、スクリプトごとのサブフォルダーで残ります。<strong><span class="ui">ファイル</span> → <span class="ui">バックアップフォルダーを開く</span></strong> で確認できます。<strong><span class="ui">バックアップ</span></strong> / <strong><span class="ui">復元</span></strong> は手動で追加のコピー(スクリプトの隣の <code>&lt;スクリプト&gt;.bak</code>)を保存・復元します。</li><li>自作の ROFF パスはスクリプトと一緒に <code>.rof</code> ファイルとして書き出されます。<a href="animation.html#roff">ROFF ファイルの仕組み</a> を参照。</li></ul>
 <h2 id="uebersetzen">コンパイル<a class="anker" href="#uebersetzen">#</a></h2>
 <p>操作列の <strong><span class="ui">コンパイル！</span></strong> は <code>.txt</code> の隣に <code>&lt;スクリプト&gt;.ibi</code> を書き出します(<code>.txt</code> も保存します)。ボタンが緑で <strong><span class="ui">コンパイル済み</span></strong>、または赤で <strong><span class="ui">失敗</span></strong> と光ります。失敗時は最初の問題行が選択され、ステータス行に理由が表示されます。コンパイラーは内蔵で、Raven の IBIZE が作った 1011 個の <code>.ibi</code> とバイト単位で照合済みです。</p>
 <h2 id="pruefen">注意とエラー<a class="anker" href="#pruefen">#</a></h2>
 <p>書いている間、プログラムは各行をチェックします。未知のコマンド、リストにない値、引用符のないテキスト欄、綴りを間違えた欄(「もしかして…?」)。ステータス行の件数をクリックすると一覧が開き、メッセージをクリックするとその行へ移動します。<strong><span class="ui">表示</span> → <span class="ui">対象ゲーム</span></strong> を使うと、マルチプレイサーバーで動かない内容の注意も表示されます。</p>
     <nav class="blaettern"><a class="vor" href="skriptfluss.html"><span>前へ</span>スクリプトの流れ:クラシック・グラフ・トラック</a><a class="nach" href="karte.html"><span>次へ</span>マップ</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

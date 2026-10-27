@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ミッション - BehavEd-Remake</title>
+<title>ミッション - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -34,13 +34,13 @@
     <h2 id="laden">ミッションを開く<a class="anker" href="#laden">#</a></h2>
 <p><strong><span class="ui">ミッションを読み込む…</span></strong>(<span class="ui">ファイル</span> メニューまたはマップのツールバー)で <code>.pk3</code> を選ぶと、<strong>そのゲームのすべてのミッション</strong>が一覧表示されます。ゲームフォルダーのすべてのアーカイブにある、スクリプト付きのマップで、ゲームが見つけるのとまったく同じように探します(同じ名前なら優先されるアーカイブのものが使われます)。ゲームのどのアーカイブを選んでもかまいません。素の Jedi Academy の <code>assets1.pk3</code> でも、<code>assets0.pk3</code> と同じく <code>t1_sour</code>、<code>kor1</code>、<code>yavin1</code> … が表示されます。選んだアーカイブのミッションが上に並び、残りは読み込みが終わると下に続きます(マップはバックグラウンドで読み込まれ、一覧の上の行に進み具合が表示されます)。フィルター欄で名前による絞り込みができます。選ぶとすべてが準備されます。マップ、ミッションのキャラクターを含む <code>.ent</code>、そして<strong>ミッションのすべてのスクリプトがそれぞれのタブで</strong>開きます。タブはすべてマップとカメラを共有します。</p>
 <figure class="bild"><a href="../bilder/ja/h_mission_wahl.webp" class="zoom"><img src="../bilder/ja/h_mission_wahl.webp" alt="ゲームのミッション(ここではフィルター欄で絞り込んでいます)。選んだアーカイブのものが先頭に、ゲームのほかのアーカイブのものがその下に並びます。" loading="lazy"></a><figcaption>ゲームのミッション(ここではフィルター欄で絞り込んでいます)。選んだアーカイブのものが先頭に、ゲームのほかのアーカイブのものがその下に並びます。</figcaption></figure>
-<p>タブは<strong>ゲームがスクリプトを開始する順番</strong>で開きます。そのために BehavEd-Remake はエンジンと同じようにマップを読み込みの時点から動かします。エンティティの spawnscript、<code>worldspawn</code> の spawnscript、<code>trigger_always</code>、<code>targetname</code> のない NPC スポナー、プレイヤーがゲームに入ったときのスタート位置のターゲット、そしてそこから <code>run</code>、<code>use</code>、リレー、カウンター、スポナー、deathscript 付きの <code>kill</code> を通じて起きるすべてです。最初のスクリプトのタブが前面になります。プレイヤーが引き起こすまで始まらないスクリプト(踏み込むトリガー、戦闘)は、エンティティの順で最後に並びます。</p>
-<p>どのゲームフォルダーを使うかはアーカイブで決まります。設定したゲームフォルダー(<span class="ui">編集</span> → <span class="ui">ゲームフォルダー</span>)のどれかにあれば、それらが使われます。別のインストールのもの(その <code>base</code>、または <code>base</code> の隣の Mod フォルダー)なら、BehavEd-Remake は<strong>このセッションに限り</strong>、エンジンの順番(<code>base</code>、次に Mod)でそのインストールのフォルダーを使い、設定済みのフォルダーは混ぜません。それ以外のフォルダーにある <code>.pk3</code> は、同じくこのセッションに限り、ゲームフォルダーの後ろに加わります。何も保存されません。ゲームフォルダーのウィンドウにはセッションのフォルダーと、自分のフォルダーに戻すボタン(<span class="ui">設定済みのゲームフォルダーを使う</span>)が表示されます。ミッションのタブはそれぞれ自分のゲームのフォルダーを保ちます。あるタブに Jedi Outcast のミッション、別のタブに Jedi Academy のミッションがある場合、タブを切り替えるとゲームフォルダーとルールセットも一緒に切り替わります。</p>
+<p>タブは<strong>ゲームがスクリプトを開始する順番</strong>で開きます。そのために JK Studio はエンジンと同じようにマップを読み込みの時点から動かします。エンティティの spawnscript、<code>worldspawn</code> の spawnscript、<code>trigger_always</code>、<code>targetname</code> のない NPC スポナー、プレイヤーがゲームに入ったときのスタート位置のターゲット、そしてそこから <code>run</code>、<code>use</code>、リレー、カウンター、スポナー、deathscript 付きの <code>kill</code> を通じて起きるすべてです。最初のスクリプトのタブが前面になります。プレイヤーが引き起こすまで始まらないスクリプト(踏み込むトリガー、戦闘)は、エンティティの順で最後に並びます。</p>
+<p>どのゲームフォルダーを使うかはアーカイブで決まります。設定したゲームフォルダー(<span class="ui">編集</span> → <span class="ui">ゲームフォルダー</span>)のどれかにあれば、それらが使われます。別のインストールのもの(その <code>base</code>、または <code>base</code> の隣の Mod フォルダー)なら、JK Studio は<strong>このセッションに限り</strong>、エンジンの順番(<code>base</code>、次に Mod)でそのインストールのフォルダーを使い、設定済みのフォルダーは混ぜません。それ以外のフォルダーにある <code>.pk3</code> は、同じくこのセッションに限り、ゲームフォルダーの後ろに加わります。何も保存されません。ゲームフォルダーのウィンドウにはセッションのフォルダーと、自分のフォルダーに戻すボタン(<span class="ui">設定済みのゲームフォルダーを使う</span>)が表示されます。ミッションのタブはそれぞれ自分のゲームのフォルダーを保ちます。あるタブに Jedi Outcast のミッション、別のタブに Jedi Academy のミッションがある場合、タブを切り替えるとゲームフォルダーとルールセットも一緒に切り替わります。</p>
 <h2 id="zuletzt">最近のミッション<a class="anker" href="#zuletzt">#</a></h2>
 <p><strong><span class="ui">ファイル</span> → <span class="ui">最近のミッション</span></strong> とスタート画面に、最近開いたミッション(アーカイブまたはミッションフォルダー)が表示されます。クリック 1 つでプロジェクト全体(マップ、エンティティ、すべてのスクリプト)が開き直されます。ファイルがなくなった項目は一覧から外れます。</p>
 <figure class="bild"><a href="../bilder/ja/h_menue_missionen.webp" class="zoom"><img src="../bilder/ja/h_menue_missionen.webp" alt="ファイル → 最近のミッション。" loading="lazy"></a><figcaption><span class="ui">ファイル</span> → <span class="ui">最近のミッション</span>。</figcaption></figure>
 <h2 id="neu">新しいミッション<a class="anker" href="#neu">#</a></h2>
-<p><strong><span class="ui">新規ミッション</span></strong> で任意のマップにミッションを始めます。マップを選び、ミッション名(英数字と <code>_</code>。ゲームは <code>maps/&lt;名前&gt;.bsp</code> として読み込むので <code>devmap &lt;名前&gt;</code>)とスクリプトフォルダーを指定します。BehavEd-Remake はプレイヤースタート、スクリプトランナー、イントロスクリプト、<code>ドキュメント\behaved\missions</code> 内のミッションフォルダーを作ります。イントロはプレイヤーの出現時に実行されます。</p>
+<p><strong><span class="ui">新規ミッション</span></strong> で任意のマップにミッションを始めます。マップを選び、ミッション名(英数字と <code>_</code>。ゲームは <code>maps/&lt;名前&gt;.bsp</code> として読み込むので <code>devmap &lt;名前&gt;</code>)とスクリプトフォルダーを指定します。JK Studio はプレイヤースタート、スクリプトランナー、イントロスクリプト、<code>ドキュメント\behaved\missions</code> 内のミッションフォルダーを作ります。イントロはプレイヤーの出現時に実行されます。</p>
 <figure class="bild"><a href="../bilder/ja/h_mission_neu.webp" class="zoom"><img src="../bilder/ja/h_mission_neu.webp" alt="新規ミッション ダイアログ。" loading="lazy"></a><figcaption><span class="ui">新規ミッション</span> ダイアログ。</figcaption></figure>
 <p>一度もパックしていないミッションはフォルダーにあり、再起動後は <strong><span class="ui">ミッションフォルダーを開く</span></strong> で続けられます。</p>
 <h2 id="speichern">ミッションの保存<a class="anker" href="#speichern">#</a></h2>
@@ -51,7 +51,7 @@
 <div class="hinweis">アーカイブは優先されるゲームフォルダー(<strong><span class="ui">編集</span> → <span class="ui">ゲームフォルダー</span></strong> の一番下のもの)に <code>zz_&lt;name&gt;.pk3</code> として置かれ、古いファイルより優先されます。ゲームを起動し、コンソールで <code>devmap &lt;name&gt;</code> と入力すればプレイできます。</div>
     <nav class="blaettern"><a class="vor" href="karte_werkzeuge8b.html"><span>前へ</span>マップエディター:地形・プレイ・ロジック・ミラーなど</a><a class="nach" href="modell.html"><span>次へ</span>モデルビューとキャラクター</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

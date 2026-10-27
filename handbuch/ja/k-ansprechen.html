@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>プレイヤーがキャラクターと話す - BehavEd-Remake</title>
+<title>プレイヤーがキャラクターと話す - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>使えるようにする。</strong> キャラクターのスポーンスクリプトに <code>set ( SET_PLAYER_USABLE, true )</code> を挿入します。そうしないと使用キーは何もしません。</p><figure class="bild"><a href="../bilder/ja/k_use_baum.webp" class="zoom"><img src="../bilder/ja/k_use_baum.webp" alt="スポーンスクリプト内の SET_PLAYER_USABLE。" loading="lazy"></a><figcaption>スポーンスクリプト内の SET_PLAYER_USABLE。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>会話のスクリプト。</strong> キャラクターにキー <code>usescript</code> を追加し(または <strong><span class="ui">グラフ</span></strong> ビューで <code>usescript</code> として接続し)、<strong><span class="ui">開く</span></strong> を押します。</p><figure class="bild"><a href="../bilder/ja/k_tod_insp.webp" class="zoom"><img src="../bilder/ja/k_tod_insp.webp" alt="キャラクターのスクリプトキー。" loading="lazy"></a><figcaption>キャラクターのスクリプトキー。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>会話を書く。</strong> <code>CHAN_VOICE</code> で音を鳴らし、<code>SET_LOOK_TARGET</code> でプレイヤーを見させ、短いカメラを入れてもよいでしょう。プレイヤーが使用キーを押すたびに、キャラクターはセリフを話します。</p><figure class="bild"><a href="../bilder/ja/s_wert_datei.webp" class="zoom"><img src="../bilder/ja/s_wert_datei.webp" alt="セリフの 1 行。" loading="lazy"></a><figcaption>セリフの 1 行。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>1 回だけ?</strong> usescript の最後で <code>SET_PLAYER_USABLE</code> を <code>false</code> にします。または変数を使います(<a href="k-variablen.html">最初の 1 回だけ:変数と if</a>)。</p><figure class="bild"><a href="../bilder/ja/a_einmal.webp" class="zoom"><img src="../bilder/ja/a_einmal.webp" alt="最後の SET_PLAYER_USABLE false。" loading="lazy"></a><figcaption>最後の SET_PLAYER_USABLE false。</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="k-tod.html"><span>前へ</span>敵が倒れたらドアが開く</a><a class="nach" href="k-zusammenspiel.html"><span>次へ</span>複数のスクリプトを連携させる</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

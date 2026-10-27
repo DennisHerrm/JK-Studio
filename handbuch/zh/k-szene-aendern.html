@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>修改游戏中的过场动画 - BehavEd-Remake</title>
+<title>修改游戏中的过场动画 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>手册</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>手册</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="搜索手册...  (/)" autocomplete="off" aria-label="搜索手册...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>打开。</strong> <strong><span class="ui">文件</span> → <span class="ui">加载任务…</span></strong>,在游戏的 <code>base</code> 文件夹中选择 <code>assets0.pk3</code>,然后选择一张地图,例如 <code>taspir1</code>。地图及其所有脚本会在标签页中打开。</p><figure class="bild"><a href="../bilder/zh/h_mission_wahl.webp" class="zoom"><img src="../bilder/zh/h_mission_wahl.webp" alt="一个归档中的任务。" loading="lazy"></a><figcaption>一个归档中的任务。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>找到场景。</strong> 在 <strong><span class="ui">任务</span></strong> 标签页中,地图工具栏上的 <strong>脚本 (N)</strong> 列出该地图使用的脚本——选择开场脚本。时间轴会显示它的摄像机。</p><figure class="bild"><a href="../bilder/zh/e_skripte.webp" class="zoom"><img src="../bilder/zh/e_skripte.webp" alt="地图的脚本。" loading="lazy"></a><figcaption>地图的脚本。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>修改镜头。</strong> 在 <strong><span class="ui">镜头</span></strong> 中选中一个镜头,飞到更好的视角并按 <strong><span class="ui">设为当前视角</span></strong>——或在时间轴中修改某个时间。</p><figure class="bild"><a href="../bilder/zh/c_aufansicht.webp" class="zoom"><img src="../bilder/zh/c_aufansicht.webp" alt="设为当前视角。" loading="lazy"></a><figcaption>设为当前视角。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>打包。</strong> <strong><span class="ui">保存任务</span></strong> 把修改过的脚本连同地图写入 <code>zz_&lt;map&gt;.pk3</code>。归档按字母顺序加载,所以 <code>zz_</code> 会覆盖游戏自身的文件。</p><figure class="bild"><a href="../bilder/zh/h_mission_speichern.webp" class="zoom"><img src="../bilder/zh/h_mission_speichern.webp" alt="保存任务。" loading="lazy"></a><figcaption>保存任务。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">5</span><div><p><strong>撤回修改。</strong> 从游戏文件夹中删除 <code>zz_</code> 文件(保存后的消息中有 <strong><span class="ui">在资源管理器中显示</span></strong>),游戏就会重新播放原版——游戏文件从不会被改动。</p><figure class="bild"><a href="../bilder/zh/t4_5.webp" class="zoom"><img src="../bilder/zh/t4_5.webp" alt="“在资源管理器中显示”会打开该文件夹。" loading="lazy"></a><figcaption>“在资源管理器中显示”会打开该文件夹。</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="k-effekt-musik.html"><span>上一页</span>添加特效并更换音乐</a><a class="nach" href="k-multiplayer.html"><span>下一页</span>检查脚本的多人模式兼容性</a></nav>
   </article>
-  <footer>BehavEd-Remake 手册。图片展示的是程序本身,由其自检功能截取。</footer>
+  <footer>JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

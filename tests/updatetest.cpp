@@ -120,10 +120,15 @@ int main() {
            einspielenAls("behaved.exe", "behaved.exe", false) == Einspielen::Programm);
     expect("einspielenAls: Gross-/Kleinschreibung egal",
            einspielenAls("behaved.exe", "BehavEd.EXE", false) == Einspielen::Programm);
-    expect("einspielenAls: behaved.exe -> die laufende eigenstaendige .exe, wie immer sie heisst",
-           einspielenAls("behaved.exe", eigen, true) == Einspielen::Programm);
-    expect("einspielenAls: ... auch wenn neben ihr data\\base liegt",
-           einspielenAls("behaved.exe", eigen, false) == Einspielen::Programm);
+    // Stufe 8c: das Programm heisst jkstudio.exe; eine eigenstaendige .exe mit eigenem
+    // Namen bekommt jkstudio.exe, behaved.exe (die Uebergangs-Kopie fuer die alten
+    // Updater) entfaellt dort.
+    expect("einspielenAls: eigenstaendige .exe -> jkstudio.exe an ihre Stelle",
+           einspielenAls("jkstudio.exe", eigen, true) == Einspielen::Programm &&
+               einspielenAls("JKStudio.EXE", eigen, false) == Einspielen::Programm);
+    expect("einspielenAls: eigenstaendige .exe -> behaved.exe nicht (genau ein Programm)",
+           einspielenAls("behaved.exe", eigen, true) == Einspielen::Ueberspringen &&
+               einspielenAls("behaved.exe", eigen, false) == Einspielen::Ueberspringen);
     expect("einspielenAls: ein Eintrag mit dem Namen der laufenden .exe bleibt das Programm",
            einspielenAls(eigen, eigen, true) == Einspielen::Programm);
     expect("einspielenAls: eigenstaendig -> data/ und handbuch/ NICHT neben die .exe",
@@ -135,6 +140,24 @@ int main() {
     expect("einspielenAls: eine behaved.exe in einem Unterordner ist nicht das Programm",
            einspielenAls("tools/behaved.exe", "behaved.exe", false) == Einspielen::Datei);
     expect("einspielenAls: leer -> ueberspringen", einspielenAls("", "behaved.exe", false) == Einspielen::Ueberspringen);
+
+    // --- Stufe 8c: Umbenennung in JK Studio ---------------------------------
+    expect("kRepo: das umbenannte Repository DennisHerrm/JK-Studio", std::string(kRepo) == "DennisHerrm/JK-Studio");
+    expect("jkstudio.exe laeuft (Ordner): jkstudio.exe ist das Programm, behaved.exe eine Datei daneben",
+           einspielenAls("jkstudio.exe", "jkstudio.exe", false) == Einspielen::Programm &&
+               einspielenAls("behaved.exe", "jkstudio.exe", false) == Einspielen::Datei);
+    expect("behaved.exe laeuft (Ordner, nach dem Uebergang): behaved.exe ist das Programm, jkstudio.exe eine Datei daneben",
+           einspielenAls("behaved.exe", "behaved.exe", false) == Einspielen::Programm &&
+               einspielenAls("jkstudio.exe", "behaved.exe", false) == Einspielen::Datei);
+    expect("jkstudio.exe eigenstaendig unter ihrem Namen: Programm, nichts daneben",
+           einspielenAls("jkstudio.exe", "jkstudio.exe", true) == Einspielen::Programm &&
+               einspielenAls("behaved.exe", "jkstudio.exe", true) == Einspielen::Ueberspringen &&
+               einspielenAls("data/base/behaved.bhc", "jkstudio.exe", true) == Einspielen::Ueberspringen);
+    expect("ein Paket-Ordner JK-Studio/ wird abgestreift",
+           gemeinsamerOrdner({"JK-Studio/jkstudio.exe", "JK-Studio/behaved.exe", "JK-Studio/data/base/behaved.bhc"}) == "JK-Studio/" &&
+               zielImOrdner("JK-Studio/behaved.exe", "JK-Studio/") == "behaved.exe");
+    expect("Marke v1.0.0-rc606 ist neuer als rc605 (die alten Updater vergleichen nur die rc-Nummer)",
+           istNeuer("v1.0.0-rc606", "rc605") && istNeuer("v1.0.0-rc606", "rc604"));
 
     std::printf(fehler == 0 ? "\nalle Updateproben bestanden\n" : "\nFEHLGESCHLAGEN (%d)\n", fehler);
     return fehler == 0 ? 0 : 1;

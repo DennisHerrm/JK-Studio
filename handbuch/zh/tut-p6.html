@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>6 · 切换、震动、跟随、淡出 - BehavEd-Remake</title>
+<title>6 · 切换、震动、跟随、淡出 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>手册</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>手册</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="搜索手册...  (/)" autocomplete="off" aria-label="搜索手册...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>切换。</strong> 在第二段摄像机移动之后插入一个 5 秒的 <code>wait</code>,然后从平台外新建一个看向飞船的镜头,<strong><span class="ui">移动时间</span></strong> 设为 <code>0</code>——这就是硬切。</p><figure class="bild"><a href="../bilder/zh/p6_schnitt.webp" class="zoom"><img src="../bilder/zh/p6_schnitt.webp" alt="在摄像机面板中选中的第三个镜头——它的移动时间显示在列表下方。" loading="lazy"></a><figcaption>在摄像机面板中选中的第三个镜头——它的移动时间显示在列表下方。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>震动。</strong> 插入 <code>camera</code> 并选择 <code>SHAKE</code>:强度 <code>4</code>,<code>2000</code> 毫秒——引擎启动了。</p><figure class="bild"><a href="../bilder/zh/c_ed_shake.webp" class="zoom"><img src="../bilder/zh/c_ed_shake.webp" alt="camera ( SHAKE ):强度和持续时间。" loading="lazy"></a><figcaption>camera ( SHAKE ):强度和持续时间。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>跟随飞船。</strong> 两条带持续时间的 <code>camera ( PAN )</code> 命令让摄像机在飞船爬升时向上转动跟随;每条之后的 <code>wait</code> 让它们执行完毕。</p><figure class="bild"><a href="../bilder/zh/p6_pan.webp" class="zoom"><img src="../bilder/zh/p6_pan.webp" alt="跟随飞船的两条 PAN 命令。" loading="lazy"></a><figcaption>跟随飞船的两条 PAN 命令。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>淡出。</strong> <code>camera</code> 使用 <code>FADE</code>:在 <code>1500</code> 毫秒内从 <code>0 0 0</code> 和 <code>0</code> 变为 <code>0 0 0</code> 和 <code>1</code>——画面全黑。然后 <code>camera ( DISABLE )</code> 把控制权交还给玩家。</p><figure class="bild"><a href="../bilder/zh/c_ed_fade.webp" class="zoom"><img src="../bilder/zh/c_ed_fade.webp" alt="camera ( FADE ):从透明到黑色。" loading="lazy"></a><figcaption>camera ( FADE ):从透明到黑色。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">5</span><div><p><strong>调整节奏。</strong> 播放并观看。在时间轴上拖动块:其后的所有内容随之移动。拖动右边缘可以改变持续时间。</p><figure class="bild"><a href="../bilder/zh/a_k_timen.webp" class="zoom"><img src="../bilder/zh/a_k_timen.webp" alt="在时间轴中拖动块:其后的一切随之移动。" loading="lazy"></a><figcaption>在时间轴中拖动块:其后的一切随之移动。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">6</span><div><p><strong>完整场景。</strong> 打开 <strong><span class="ui">通过摄像机</span></strong>,从头播放。</p><figure class="bild"><a href="../bilder/en/a_kamera.webp" class="zoom"><img src="../bilder/en/a_kamera.webp" alt="透过摄像机观看完成的过场动画。" loading="lazy"></a><figcaption>透过摄像机观看完成的过场动画。</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="tut-p5.html"><span>上一页</span>5 · 飞船起飞</a><a class="nach" href="tut-p7.html"><span>下一页</span>7 · 第二个脚本</a></nav>
   </article>
-  <footer>BehavEd-Remake 手册。图片展示的是程序本身,由其自检功能截取。</footer>
+  <footer>JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

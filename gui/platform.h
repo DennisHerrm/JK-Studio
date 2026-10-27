@@ -35,8 +35,12 @@ void openWithDefaultApp(const std::string& path);
 // der Ereigniseditor der alten bleibt unberuehrt.
 bool startBehavedWith(const std::string& datei);
 
-// Ordner fuer die Einstellungsdatei (%APPDATA%\behaved), wird angelegt.
+// Ordner fuer die Einstellungsdatei (%APPDATA%\jkstudio, Stufe 8c; bis rc605
+// %APPDATA%\behaved - beim ersten Start uebernommen, bhed/umzug.h), wird angelegt.
 [[nodiscard]] std::string settingsDirectory();
+
+// Stufe 8c: eine RCDATA-Ressource der .exe (res/behaved.rc), leer wenn es sie nicht gibt.
+[[nodiscard]] std::string ressource(const wchar_t* name);
 
 // Der Ordner, in dem das Programm selbst liegt.
 //

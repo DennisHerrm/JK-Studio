@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>敵が倒れたらドアが開く - BehavEd-Remake</title>
+<title>敵が倒れたらドアが開く - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>キャラクターに deathscript を付けます。</strong> 敵を選択します。インスペクターでキー <code>deathscript</code> を追加し、ミッションのスクリプト名(たとえば <code>taspir_tut/rosh_dies</code>)を入れます。または <strong><span class="ui">グラフ</span></strong> 表示で <code>deathscript</code> として接続します。</p><figure class="bild"><a href="../bilder/ja/k_tod_insp.webp" class="zoom"><img src="../bilder/ja/k_tod_insp.webp" alt="インスペクターの敵の deathscript。" loading="lazy"></a><figcaption>インスペクターの敵の deathscript。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>スクリプトを作ります。</strong> キーの横の <strong><span class="ui">開く</span></strong> を押すと、ミッションフォルダーにスクリプトが作られ、タブで開きます。</p><figure class="bild"><a href="../bilder/ja/k_tod_insp.webp" class="zoom"><img src="../bilder/ja/k_tod_insp.webp" alt="deathscript の横の「開く」。" loading="lazy"></a><figcaption>deathscript の横の「開く」。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>ドアを開ける。</strong> その中にドアの名前を指定した <code>use</code> を挿入します。エンティティ一覧でドアを右クリック → <strong><span class="ui">use を挿入</span></strong> で自動的に入ります。前に <code>wait</code> を入れると、その瞬間に間が生まれます。</p><figure class="bild"><a href="../bilder/ja/k_tod_baum.webp" class="zoom"><img src="../bilder/ja/k_tod_baum.webp" alt="deathscript:短い wait の後にドア。" loading="lazy"></a><figcaption>deathscript:短い wait の後にドア。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>ほかのタイミング。</strong> <code>painscript</code>(被弾)、<code>awakescript</code>(プレイヤーに気付く)、<code>angerscript</code>(戦闘開始)、<code>fleescript</code>、<code>spawnscript</code> でも同じように使えます。どれもインスペクターに並んでいます。</p><figure class="bild"><a href="../bilder/ja/k_tod_insp.webp" class="zoom"><img src="../bilder/ja/k_tod_insp.webp" alt="キャラクターのスクリプトキー。" loading="lazy"></a><figcaption>キャラクターのスクリプトキー。</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="k-oberflaeche.html"><span>前へ</span>プログラムを自分好みに設定する</a><a class="nach" href="k-ansprechen.html"><span>次へ</span>プレイヤーがキャラクターと話す</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

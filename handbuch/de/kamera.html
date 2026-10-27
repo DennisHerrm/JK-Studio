@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kamera - BehavEd-Remake</title>
+<title>Kamera - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>Handbuch</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Handbuch</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="Im Handbuch suchen ...  (/)" autocomplete="off" aria-label="Im Handbuch suchen ...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -33,7 +33,7 @@
     <p class="einleitung">Jedes camera MOVE und PAN des Skripts ist eine Einstellung, die du siehst, greifst und fliegst - das Skript wird beim Ziehen neu geschrieben.</p>
     <figure class="bild breit"><a href="../bilder/de/h_kamera.webp" class="zoom"><img src="../bilder/de/h_kamera.webp" alt="Eine gewählte Kamera: ihre Bahn auf der Karte, das Gizmo, die Leiste oben und links die Liste der Einstellungen." loading="lazy"></a><figcaption>Eine gewählte Kamera: ihre Bahn auf der Karte, das Gizmo, die Leiste oben und links die Liste der Einstellungen.</figcaption></figure>
 <h2 id="einstellungen">Einstellungen<a class="anker" href="#einstellungen">#</a></h2>
-<p>In ICARUS ist eine Einstellung <code>camera ( MOVE, &lt;Ort&gt;, &lt;Zeit&gt; )</code> gefolgt von <code>camera ( PAN, &lt;Winkel&gt;, &lt;Zeit&gt; )</code>. BehavEd-Remake liest sie der Reihe nach und zeichnet jede als Kamerasymbol auf die Karte. Ein Klick auf das Symbol wählt die Kamera; die Liste <strong><span class="ui">Einstellungen</span></strong> links zeigt jede Einstellung mit ihrer Zeit und Fahrzeit (<code>fährt 6,0 s</code>). Ein Klick auf eine Zeile springt dorthin.</p>
+<p>In ICARUS ist eine Einstellung <code>camera ( MOVE, &lt;Ort&gt;, &lt;Zeit&gt; )</code> gefolgt von <code>camera ( PAN, &lt;Winkel&gt;, &lt;Zeit&gt; )</code>. JK Studio liest sie der Reihe nach und zeichnet jede als Kamerasymbol auf die Karte. Ein Klick auf das Symbol wählt die Kamera; die Liste <strong><span class="ui">Einstellungen</span></strong> links zeigt jede Einstellung mit ihrer Zeit und Fahrzeit (<code>fährt 6,0 s</code>). Ein Klick auf eine Zeile springt dorthin.</p>
 <ul><li><strong><span class="ui">Vorige Einstellung</span> / <span class="ui">Nächste Einstellung</span></strong> blättern durch die Einstellungen; <strong><span class="ui">Zur Einstellung fliegen</span></strong> stellt deine Ansicht genau dorthin, wo die gewählte Einstellung steht und hinschaut.</li><li><strong><span class="ui">Neue Kameraeinstellung hier</span></strong> fügt an deiner jetzigen Ansicht ein MOVE und ein PAN hinter der gewählten Einstellung ein. <strong><span class="ui">Auf Ansicht setzen</span></strong> setzt die gewählte Einstellung dorthin, wohin du gerade schaust.</li><li><strong><span class="ui">Einstellung löschen</span></strong> entfernt sie. Unter <strong><span class="ui">Gewählte Einstellung</span></strong> tippst du genaue Werte: <span class="ui">Ort</span>, <span class="ui">Blickrichtung</span> und <span class="ui">Fahrzeit</span> (0 = Schnitt).</li></ul>
 <h2 id="gizmo">Eine Einstellung verschieben und drehen<a class="anker" href="#gizmo">#</a></h2>
 <p>Die Leiste über der Ansicht schaltet das Gizmo um: <strong><span class="ui">Verschieben</span></strong> zeigt drei Pfeile und ein Kästchen in der Mitte - einen Pfeil ziehen verschiebt entlang einer Achse, das Kästchen in der Bildebene. <strong><span class="ui">Drehen</span></strong> zeigt drei Ringe für Nicken, Gieren und Rollen. <strong><span class="ui">Welt</span> / <span class="ui">Lokal</span></strong> entscheidet, ob die Pfeile der Karte oder der Kamera folgen. Beim Loslassen stehen die neuen Werte im Skript - ein Rückgängig-Schritt.</p>
@@ -50,7 +50,7 @@
 <div class="hinweis">Manche Einstellungen stehen auf einem <code>ref_tag</code> oder schauen auf einen. Dann sagt es das Feld, und das Verschieben der Einstellung verschiebt diesen ref_tag in der Karte - das Skript nennt ihn nur.</div>
     <nav class="blaettern"><a class="vor" href="entities.html"><span>Zurück</span>Entities</a><a class="nach" href="zeitleiste.html"><span>Weiter</span>Zeitleiste</a></nav>
   </article>
-  <footer>Handbuch zu BehavEd-Remake. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf.</footer>
+  <footer>Handbuch zu JK Studio - Mod-Werkzeuge für Jedi Knight: Jedi Academy und Jedi Outcast. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf. Nicht verbunden mit Lucasfilm, Disney oder Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

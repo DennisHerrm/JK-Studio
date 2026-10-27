@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>可動物のアニメーションと ROFF ファイル - BehavEd-Remake</title>
+<title>可動物のアニメーションと ROFF ファイル - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -40,7 +40,7 @@
 <table class="liste"><thead><tr><th></th><th><span class="ui">スクリプト (move)</span></th><th><span class="ui">ROFF ファイル</span></th></tr></thead><tbody><tr><td>保存形式</td><td>スクリプト先頭の <code>move</code> と <code>wait</code> を含む <code>affect</code> ブロック</td><td><code>scripts/&lt;名前&gt;.rof</code>(<code>play ( &quot;PLAY_ROFF&quot;, ... )</code> で再生)</td></tr><tr><td>キーの間</td><td>各移動はゲームの可動物と同じく速く始まり最後に減速します(<span class="ui">リニア</span> で等速)</td><td>すべてのキーを通るなめらかな曲線(<span class="ui">スムーズ</span>)または直線</td></tr><tr><td>向いている用途</td><td>扉、エレベーター、画面を横切る船</td><td>多くの曲がりを含む長い自由飛行、正確なフレームでのエフェクト</td></tr></tbody></table>
 <p>ウィンドウ上部の <strong><span class="ui">スクリプト (move)</span></strong> / <strong><span class="ui">ROFF ファイル</span></strong> で切り替えます。キーは変換され、失われません。ROFF モードでは <strong><span class="ui">ファイル</span></strong> 欄がファイル名(例 <code>md_am/roffs/sta2</code>)を指定し、その下にフレーム数と秒数が表示されます。</p>
 <h2 id="roff">ROFF ファイルの仕組み<a class="anker" href="#roff">#</a></h2>
-<p>ROFF ファイル(<code>.rof</code>、&quot;Rotation and Origin File Format&quot;)は、ゲームの 1 フレームごとに小さな 1 歩、つまり次の 50 ms でエンティティがどれだけ動き回転するかを保存します。ゲームは <code>PLAY_ROFF</code> が実行された時点のエンティティの位置にこれを足していくので、ROFF のパスは<strong>相対的</strong>です。エンティティを動かせばパス全体も一緒に動きます。ゲームと Movie Duels の 108 ファイルはすべてバージョン 2 で、1 つを除き 1 フレーム 50 ms です。BehavEd-Remake もその形式で書き出します。</p>
+<p>ROFF ファイル(<code>.rof</code>、&quot;Rotation and Origin File Format&quot;)は、ゲームの 1 フレームごとに小さな 1 歩、つまり次の 50 ms でエンティティがどれだけ動き回転するかを保存します。ゲームは <code>PLAY_ROFF</code> が実行された時点のエンティティの位置にこれを足していくので、ROFF のパスは<strong>相対的</strong>です。エンティティを動かせばパス全体も一緒に動きます。ゲームと Movie Duels の 108 ファイルはすべてバージョン 2 で、1 つを除き 1 フレーム 50 ms です。JK Studio もその形式で書き出します。</p>
 <p>編集するキーは、スクリプト内の <code>play</code> の直前にコメント行として保持され、<code>.rof</code> はそこから作られます。そのため元に戻す・コピー・貼り付けは ROFF パスにも通常のコマンドと同じように効きます。<strong>スクリプトを保存</strong>すると、ファイルは同じ scripts フォルダーの <code>scripts/&lt;名前&gt;.rof</code> に書き出され、<strong><span class="ui">ミッションを保存</span></strong> でミッションの <code>.pk3</code> に入ります。</p>
 <h2 id="bearbeiten">ゲームの ROFF ファイルを編集する<a class="anker" href="#bearbeiten">#</a></h2>
 <p>スクリプトがこのエンティティで既製の ROFF を再生している場合、ウィンドウの <strong><span class="ui">スクリプト内のこのエンティティの ROFF パス:</span></strong> に表示されます。<strong><span class="ui">編集</span></strong> でそれをキーに分解します。直線か 1 本のなめらかな曲線のうち、キーが少なくて済む方を選び、元との差は 0.5 ユニット以内です。ゲームのファイルは上書きされず、コピー(<code>…_2</code>)を編集し、<code>play</code> コマンドはそのコピーを指すようになります。</p>
@@ -48,7 +48,7 @@
 <div class="hinweis">タイムラインでは ROFF の飛行は <strong><span class="ui">移動</span></strong> の帯になり、ドラッグすると飛行の開始を早めたり遅らせたりできます。</div>
     <nav class="blaettern"><a class="vor" href="figuren.html"><span>前へ</span>キャラクターと道</a><a class="nach" href="wegpunkte.html"><span>次へ</span>NPC ウェイポイント</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

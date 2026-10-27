@@ -12,9 +12,9 @@ what to trust and what to poke at.
 ## Getting started
 
 1. From the release page, under **Assets**, take
-   `BehavEd-Remake-rcNNN-windows-x64.zip` (not "Source code" – that has no
+   `JK-Studio-rcNNN-windows-x64.zip` (not "Source code" – that has no
    program in it). Unzip anywhere. Keep `behaved.exe` and the `data` folder
-   together. Or take `BehavEd-Remake-rcNNN-windows-x64.exe` alone: it runs
+   together. Or take `JK-Studio-rcNNN-windows-x64.exe` alone: it runs
    without the zip and unpacks its data to `%APPDATA%\behaved\data\base`
    (the guide is only in the zip).
 2. Run `behaved.exe`.
@@ -278,8 +278,8 @@ checks data/base/behaved.bhc <jka>/code/game data/base/supplement.bhc
 Since rc601 every release is built by GitHub Actions
 (`.github/workflows/release.yml`) when a tag `v1.0.0-rcNNN` is pushed. The run
 builds with the static C++ runtime, runs all unit tests, packs
-`BehavEd-Remake-rcNNN-windows-x64.zip` with `tools/release_paket.py`, checks it,
-starts the standalone `BehavEd-Remake-rcNNN-windows-x64.exe` alone in an empty
+`JK-Studio-rcNNN-windows-x64.zip` with `tools/release_paket.py`, checks it,
+starts the standalone `JK-Studio-rcNNN-windows-x64.exe` alone in an empty
 folder with `--pruefe-daten`, and creates a **draft** release with exactly
 these three files: the zip, the standalone exe and `SHA256SUMS.txt`. The draft
 is published by hand after the GUI self-test has passed on that very exe.
@@ -293,8 +293,8 @@ How to make a release:
    tagged commit must contain the workflow.
 3. Wait for the run. It creates the **draft** with the zip, the standalone exe
    and `SHA256SUMS.txt`; the PDB is kept as the artifact
-   `BehavEd-Remake-rcNNN-debug-symbols` for 90 days. Download the artifact
-   (`gh run download <run-id> -n BehavEd-Remake-rcNNN`) into a scratch folder
+   `JK-Studio-rcNNN-debug-symbols` for 90 days. Download the artifact
+   (`gh run download <run-id> -n JK-Studio-rcNNN`) into a scratch folder
    and run the GUI self-test (mode 1) on exactly that exe.
 4. Publish: `gh release edit v1.0.0-rcNNN --draft=false --latest`.
 5. Then run self-test mode `update` (`BHED_UPDATE_LOKAL=rc500`) from a copy

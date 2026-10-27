@@ -18701,6 +18701,56 @@ std::vector<Schritt> effektOhneSkriptSchritte() {
 }
 
 // rc605 (Rest): alle Proben dieses Auftrags; BHED_REST=<teil> waehlt eine.
+// Stufe 8c (Umbenennung in JK Studio): der Einstellungsordner zog von
+// <APPDATA>\behaved nach <APPDATA>\jkstudio um. Der Lauf startet mit
+// BHED_APPDATA=<Testordner> (nie der echte Ordner des Anwenders) und ohne
+// BHED_EINSTELLUNGEN; im alten Ordner liegt eine behaved.cfg mit Sprache ja,
+// Thema midnight und einer letzten Karte (BHED_UMZUG_KARTE). Danach muss alles
+// davon da sein, der alte Ordner unveraendert.
+std::vector<Schritt> umzugSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    const auto umgebung = [](const char* n) {
+        const char* v = std::getenv(n);
+        return std::string(v != nullptr ? v : "");
+    };
+    add(pruefe("Umzug: der Einstellungsordner ist <BHED_APPDATA>\\jkstudio, ohne BHED_EINSTELLUNGEN", [umgebung] {
+        const std::string soll = umgebung("BHED_APPDATA") + "\\jkstudio";
+        diag::detail("Knopftest: Umzug - Ordner " + platform::settingsDirectory() + ", soll " + soll);
+        return !umgebung("BHED_APPDATA").empty() && umgebung("BHED_EINSTELLUNGEN").empty() && platform::settingsDirectory() == soll;
+    }));
+    add(pruefe("Umzug: die alte Einstellungsdatei ist im neuen Ordner (behaved.cfg)", [] {
+        return std::filesystem::exists(std::filesystem::u8path(platform::settingsDirectory() + "\\behaved.cfg"));
+    }));
+    add(pruefe("Umzug: Sprache Japanisch aus den alten Einstellungen", [] {
+        diag::detail("Knopftest: Umzug - Sprache " + g_app->settings.language);
+        return g_app->settings.language == "ja" && i18n::currentLanguage() == i18n::Language::Japanese;
+    }));
+    add(pruefe("Umzug: Thema midnight aus den alten Einstellungen", [] {
+        diag::detail("Knopftest: Umzug - Thema " + g_app->settings.theme);
+        return g_app->settings.theme == "midnight";
+    }));
+    add(pruefe("Umzug: die letzte Karte des Karten-Editors (LastMap) und die Liste der zuletzt geoeffneten", [umgebung] {
+        const auto it = g_app->settings.karte.find("LastMap");
+        const std::string karte = it != g_app->settings.karte.end() ? it->second : std::string();
+        diag::detail("Knopftest: Umzug - LastMap " + karte);
+        const auto& z = g_app->settings.karteZuletzt;
+        return !umgebung("BHED_UMZUG_KARTE").empty() && karte == umgebung("BHED_UMZUG_KARTE") &&
+               std::find(z.begin(), z.end(), umgebung("BHED_UMZUG_KARTE")) != z.end();
+    }));
+    add(pruefe("Umzug: der alte Ordner bleibt (behaved.cfg und der Shader-Zwischenspeicher dort), die Zwischenspeicher wurden nicht kopiert", [umgebung] {
+        namespace fs = std::filesystem;
+        const fs::path alt = fs::u8path(umgebung("BHED_APPDATA") + "\\behaved");
+        const fs::path neu = fs::u8path(umgebung("BHED_APPDATA") + "\\jkstudio");
+        std::ifstream f(alt / "behaved.cfg", std::ios::binary);
+        std::ostringstream o;
+        o << f.rdbuf();
+        return o.str().find("language=ja") != std::string::npos && fs::exists(alt / "shader" / "alt.cso") && !fs::exists(neu / "shader" / "alt.cso") &&
+               !fs::exists(neu / "karte_modellindex_1.txt") && fs::exists(neu / "tour_stand.txt");
+    }));
+    return s;
+}
+
 std::vector<Schritt> rest605Schritte() {
     const char* t = std::getenv("BHED_REST");
     const std::string teil = t != nullptr ? t : "";
@@ -39267,6 +39317,39 @@ std::vector<Schritt> handbuchSchritte() {
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte8b") == 0) {
         return karte8bHandbuchSchritte();
     }
+    // Stufe 8c (Umbenennung): nur das Bild o_hilfe (Menue Hilfe mit "About JK Studio...") -
+    // derselbe Ausschnitt und dieselbe Marke wie im grossen Bildlauf (menuR, knopf).
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "hilfe") == 0) {
+        std::vector<Schritt> t;
+        t.push_back(tu("Handbuch Hilfe: Skript-Ansicht", [] { g_app->leftMode = 0; }));
+        t.push_back(pause(0.5));
+        t.push_back(klick(tr(Str::MenuHelp), "###main"));
+        t.push_back(pause(0.5));
+        t.push_back(hb::fotoTeil("o_hilfe", [] {
+            ImRect r{0.0F, 0.0F, 0.0F, 0.0F};
+            for (ImGuiWindow* w : GImGui->Windows) {
+                if (w->WasActive && !w->Hidden && std::strstr(w->Name, "##Menu") != nullptr) { r = hb::vereint(r, w->Rect()); }
+            }
+            r.Expand(ImGui::GetFontSize() * 0.6F);
+            r.Min.x = std::max(0.0F, r.Min.x - ImGui::GetFontSize() * 2.0F);
+            r.Min.y = 0.0F;
+            return r;
+        }, [] { return std::vector<hb::Marke>{hb::knopf(tr(Str::HelpGuide), "##Menu")}; }));
+        t.push_back(klickAn("daneben", [] { return ImVec2{12.0F, ImGui::GetIO().DisplaySize.y - 6.0F}; }));
+        t.push_back(pause(0.3));
+        // das Ueber-Fenster mit dem Logo von JK Studio, Untertitel, Bereichen und dem Hinweis zur Marke
+        t.push_back(tu("Handbuch Hilfe: About", [] { g_app->aboutOpen = true; }));
+        t.push_back(pause(0.8));
+        t.push_back(pruefe("About: offen, das Logo von JK Studio geladen (Ressource JKLOGO)", [] {
+            int b = 0;
+            int h = 0;
+            return g_app->aboutOpen && jkLogoTextur(b, h) != nullptr && b == 480 && h == 320;
+        }));
+        t.push_back(hb::fotoTeil("h_ueber", [] { return hb::fensterRect(tr(Str::AboutTitle)); }));
+        t.push_back(tu("Handbuch Hilfe: About zu", [] { g_app->aboutOpen = false; }));
+        t.push_back(pause(0.3));
+        return t;
+    }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "tutorial") == 0) {   // Stufe 8c: Erste eigene Karte
         std::vector<Schritt> t;
         t.push_back(tu("Handbuch Tutorial: Karten-Editor", [] { g_app->leftMode = 0; }));
@@ -43542,6 +43625,7 @@ void selbsttest() {
     static const bool nurEffektGrund = std::strcmp(modus, "effektgrund") == 0;   // rc604: Grundstufe der Effektshader
     static const bool nurFigurDeform = std::strcmp(modus, "figurdeform") == 0;   // rc604: deformVertexes an Figuren
     static const bool nurRest605 = std::strcmp(modus, "rest605") == 0;   // rc605: die Restpunkte (BHED_REST)
+    static const bool nurUmzug = std::strcmp(modus, "umzug") == 0;   // Stufe 8c: Einstellungen aus %APPDATA%\behaved uebernommen
     static const bool nurAblauf = std::strcmp(modus, "ablauf") == 0;
     static const bool nurZeitleiste = std::strcmp(modus, "zeitleiste") == 0;
     static const bool nurFenster = std::strcmp(modus, "fenster") == 0;
@@ -43732,6 +43816,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurRest605) {
                 a.schritte = rest605Schritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurUmzug) {
+                a.schritte = umzugSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurFigurDeform) {

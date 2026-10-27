@@ -296,7 +296,7 @@
  "0 to 16.": "0 bis 16.",
  "camera SHAKE - shake the picture": "camera SHAKE - das Bild wackeln lassen",
  "Shakes the camera for a while.": "Lässt die Kamera eine Weile wackeln.",
- "A recorded camera flight - made in an editor or with **Animate** - is played as the camera's movement. The path starts where the camera is; BehavEd-Remake plays it like the game, including the notes `cut`, `fov`, `fovzoom` and `fovaccel`. A `MOVE` ends the path.": "Ein aufgezeichneter Kameraflug - in einem Editor oder mit **Animieren** erstellt - wird als Bewegung der Kamera abgespielt. Die Bahn beginnt dort, wo die Kamera steht; BehavEd-Remake spielt sie wie das Spiel ab, einschließlich der Notizen `cut`, `fov`, `fovzoom` und `fovaccel`. Ein `MOVE` beendet die Bahn.",
+ "A recorded camera flight - made in an editor or with **Animate** - is played as the camera's movement. The path starts where the camera is; JK Studio plays it like the game, including the notes `cut`, `fov`, `fovzoom` and `fovaccel`. A `MOVE` ends the path.": "Ein aufgezeichneter Kameraflug - in einem Editor oder mit **Animieren** erstellt - wird als Bewegung der Kamera abgespielt. Die Bahn beginnt dort, wo die Kamera steht; JK Studio spielt sie wie das Spiel ab, einschließlich der Notizen `cut`, `fov`, `fovzoom` und `fovaccel`. Ein `MOVE` beendet die Bahn.",
  "The event editor for `camera ( PATH )`.": "Der Ereignis-Editor für `camera ( PATH )`.",
  "The first field chooses what the camera does - here `PATH`. Changing it changes the fields below.": "Das erste Feld wählt, was die Kamera tut - hier `PATH`. Änderst du es, ändern sich die Felder darunter.",
  "The ROFF file below `scripts/`, without `.rof`.": "Die ROFF-Datei unter `scripts/`, ohne `.rof`.",

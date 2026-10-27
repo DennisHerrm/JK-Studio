@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>最初の一歩 - BehavEd-Remake</title>
+<title>最初の一歩 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -32,8 +32,8 @@
     <h1>最初の一歩</h1>
     <p class="einleitung">展開して、ゲームの場所を教え、ミッションを開く。準備はそれだけです。</p>
     <h2 id="installieren">インストール<a class="anker" href="#installieren">#</a></h2>
-<ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p>リリースページから最新の <code>BehavEd-Remake-…-windows-x64.zip</code> をダウンロードし(<strong>Assets</strong> の下にあります。「Source code」にはプログラムが入っていません)、好きなフォルダー(例えばゲームの隣)に展開します。Windows には何もインストールされません。</p></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><code>behaved.exe</code> を起動します。起動時に GitHub で新しいバージョンを確認して案内します。確認なしにダウンロードすることはありません(切り替えは <strong><span class="ui">ヘルプ</span></strong> にあります)。</p></div></div></li></ol>
-<div class="hinweis"><strong>プログラムだけでよい場合:</strong> 同じリリースの <code>BehavEd-Remake-…-windows-x64.exe</code> は単体で動きます。初回起動時にデータを <code>%APPDATA%\behaved\data\base</code> に置きます。ガイドは zip にだけ入っています。プログラムにコード署名がないため、初回起動時に Windows SmartScreen が警告することがあります:<strong>詳細情報 → 実行</strong> をクリックしてください。</div>
+<ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p>リリースページから最新の <code>JK Studio-…-windows-x64.zip</code> をダウンロードし(<strong>Assets</strong> の下にあります。「Source code」にはプログラムが入っていません)、好きなフォルダー(例えばゲームの隣)に展開します。Windows には何もインストールされません。</p></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><code>jkstudio.exe</code> を起動します。起動時に GitHub で新しいバージョンを確認して案内します。確認なしにダウンロードすることはありません(切り替えは <strong><span class="ui">ヘルプ</span></strong> にあります)。</p></div></div></li></ol>
+<div class="hinweis"><strong>プログラムだけでよい場合:</strong> 同じリリースの <code>JK Studio-…-windows-x64.exe</code> は単体で動きます。初回起動時にデータを <code>%APPDATA%\behaved\data\base</code> に置きます。ガイドは zip にだけ入っています。プログラムにコード署名がないため、初回起動時に Windows SmartScreen が警告することがあります:<strong>詳細情報 → 実行</strong> をクリックしてください。</div>
 <h2 id="spielordner">ゲームフォルダーを指定する<a class="anker" href="#spielordner">#</a></h2>
 <p>マップ、モデル、サウンド、ゲームのスクリプトはゲームの <code>.pk3</code> アーカイブに入っています。<strong><span class="ui">編集</span> → <span class="ui">ゲームフォルダー</span></strong> を開き、<strong><span class="ui">ゲームフォルダーを追加…</span></strong> でゲームフォルダーを追加します。まず <code>base</code>、次に Movie Duels(<code>MD</code>)などの MOD。ゲームで <code>fs_game</code> が <code>base</code> を上書きするのと同じく、一番下のフォルダーが優先されます。</p>
 <figure class="bild"><a href="../bilder/ja/h_spielordner.webp" class="zoom"><img src="../bilder/ja/h_spielordner.webp" alt="ゲームフォルダー:最初に base、その下に MOD。一番下が優先されます。" loading="lazy"></a><figcaption>ゲームフォルダー:最初に base、その下に MOD。一番下が優先されます。</figcaption></figure>
@@ -43,10 +43,10 @@
 <figure class="bild"><a href="../bilder/ja/h_start.webp" class="zoom"><img src="../bilder/ja/h_start.webp" alt="マップが開かれていない間、「ミッション」タブにスタート画面が表示されます。" loading="lazy"></a><figcaption>マップが開かれていない間、「ミッション」タブにスタート画面が表示されます。</figcaption></figure>
 <h2 id="sprache">言語<a class="anker" href="#sprache">#</a></h2>
 <p>プログラムは英語・ドイツ語・中国語・日本語に対応しています。起動時は Windows の言語になり、<strong><span class="ui">表示</span> → <span class="ui">言語</span></strong> で変更できます。コマンド名と値はゲームの表記のまま(<code>affect</code>、<code>SET_NAVGOAL</code>)です。ファイルにはそのまま書かれるからです。</p>
-<div class="hinweis">このガイドは <kbd>F1</kbd>、<strong><span class="ui">ヘルプ</span> → <span class="ui">ガイドとチュートリアル</span></strong>、スタート画面の <strong><span class="ui">はじめに</span></strong> と <strong><span class="ui">チュートリアル</span></strong> から、または <span class="ui">BehavEd について</span> の <strong><span class="ui">ガイド</span></strong> ボタンから開きます。<code>behaved.exe</code> の隣の <code>handbuch</code> フォルダーにあり、インターネットなしで使えます。<strong><span class="ui">ヘルプ</span> → <span class="ui">インタラクティブ チュートリアル</span></strong> では、最初の手順をプログラムの中で、クリックごとに強調表示しながら案内します。</div>
+<div class="hinweis">このガイドは <kbd>F1</kbd>、<strong><span class="ui">ヘルプ</span> → <span class="ui">ガイドとチュートリアル</span></strong>、スタート画面の <strong><span class="ui">はじめに</span></strong> と <strong><span class="ui">チュートリアル</span></strong> から、または <span class="ui">JK Studio について</span> の <strong><span class="ui">ガイド</span></strong> ボタンから開きます。<code>jkstudio.exe</code> の隣の <code>handbuch</code> フォルダーにあり、インターネットなしで使えます。<strong><span class="ui">ヘルプ</span> → <span class="ui">インタラクティブ チュートリアル</span></strong> では、最初の手順をプログラムの中で、クリックごとに強調表示しながら案内します。</div>
     <nav class="blaettern"><a class="vor" href="funktionen.html"><span>前へ</span>BehavEd でできること</a><a class="nach" href="fenster.html"><span>次へ</span>ウィンドウ</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

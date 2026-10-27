@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ミッションの保存で報告された問題を直す - BehavEd-Remake</title>
+<title>ミッションの保存で報告された問題を直す - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>チェックを開く。</strong> <strong><span class="ui">ミッションを保存</span></strong> はパックするファイルをすべて一覧表示し、その下に見つかった問題を表示します。赤のエラーは直すまでパックを止めます。オレンジの警告があってもパックはできますが、必ず読んでください。</p><figure class="bild"><a href="../bilder/ja/k_pruefen.webp" class="zoom"><img src="../bilder/ja/k_pruefen.webp" alt="ミッションの保存:見つからないスクリプトが 2 つと、元のマップの target が 1 つ。" loading="lazy"></a><figcaption>ミッションの保存:見つからないスクリプトが 2 つと、元のマップの target が 1 つ。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>S001(警告)- スクリプトがありません。</strong> あるエンティティが、まだ存在しないスクリプトを指定しています。エンティティを選択し、キーの横の <strong><span class="ui">開く</span></strong> を押すと、スクリプトが作られます。</p><figure class="bild"><a href="../bilder/ja/k_tod_insp.webp" class="zoom"><img src="../bilder/ja/k_tod_insp.webp" alt="スクリプトキーの横の「開く」。" loading="lazy"></a><figcaption>スクリプトキーの横の「開く」。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>S002(エラー):スクリプトがコンパイルできない。</strong> スクリプトを開いて <strong><span class="ui">コンパイル！</span></strong> を押すと、誤りのある行が選択されます(<a href="k-uebersetzen.html">コンパイルとエラーの修正</a>)。</p><figure class="bild"><a href="../bilder/ja/s_comp_fehler.webp" class="zoom"><img src="../bilder/ja/s_comp_fehler.webp" alt="コンパイルで誤った行が示されます。" loading="lazy"></a><figcaption>コンパイルで誤った行が示されます。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>S003(警告):プレイヤースタートがない。</strong> ミッションを開始できません。<strong><span class="ui">プレイヤー開始位置 (info_player_start)</span></strong> タイルで 1 つ置きます。</p><figure class="bild"><a href="../bilder/ja/e_kachel_start.webp" class="zoom"><img src="../bilder/ja/e_kachel_start.webp" alt="プレイヤースタートのタイル。" loading="lazy"></a><figcaption>プレイヤースタートのタイル。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">5</span><div><p><strong>S005(警告)- target の指す先がありません。</strong> <code>target</code> が存在しないエンティティを指定しています。最初の画像のように、元のマップの名残であることがよくあります。</p><figure class="bild"><a href="../bilder/ja/k_pruefen.webp" class="zoom"><img src="../bilder/ja/k_pruefen.webp" alt="一覧の一番下にある S005。" loading="lazy"></a><figcaption>一覧の一番下にある S005。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">6</span><div><p><strong>S004 と S006。</strong> 足りない <code>ENDMARKER</code> は自動で追加されます(警告)。無効なミッション名はエラーです。使えるのは英字、数字、<code>_</code> だけです。</p><figure class="bild"><a href="../bilder/ja/h_mission_neu.webp" class="zoom"><img src="../bilder/ja/h_mission_neu.webp" alt="ミッション名はミッションを作るときに決めます。" loading="lazy"></a><figcaption>ミッション名はミッションを作るときに決めます。</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="k-zusammenspiel.html"><span>前へ</span>複数のスクリプトを連携させる</a><a class="nach" href="k-ibi.html"><span>次へ</span>ゲームのコンパイル済みスクリプトを開く</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

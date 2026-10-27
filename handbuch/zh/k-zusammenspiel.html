@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>让多个脚本协同工作 - BehavEd-Remake</title>
+<title>让多个脚本协同工作 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>手册</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>手册</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="搜索手册...  (/)" autocomplete="off" aria-label="搜索手册...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>拆分工作。</strong> 长场景分成几部分更容易处理:开场用 <code>run ( &quot;taspir_tut/talk&quot; )</code> 启动下一部分——名称按 <code>scripts/</code> 下的写法,不带扩展名。</p><figure class="bild"><a href="../bilder/zh/k_zusammen.webp" class="zoom"><img src="../bilder/zh/k_zusammen.webp" alt="开场中的 run 和 waitsignal,talk 中的 signal。" loading="lazy"></a><figcaption>开场中的 run 和 waitsignal,talk 中的 signal。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>交接。</strong> 在开场需要等待另一部分的地方插入 <code>waitsignal ( &quot;talk_done&quot; )</code>;在另一个脚本的末尾插入 <code>signal ( &quot;talk_done&quot; )</code>——参见 <a href="k-signale.html">让两个脚本互相等待</a>。</p><figure class="bild"><a href="../bilder/zh/s_sig_beide.webp" class="zoom"><img src="../bilder/zh/s_sig_beide.webp" alt="两边是同一个信号名。" loading="lazy"></a><figcaption>两边是同一个信号名。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>同时查看。</strong> <strong><span class="ui">文件</span> → <span class="ui">分屏</span> → 2</strong> 并排显示两个脚本;把行拖到另一边即可复制。</p><figure class="bild"><a href="../bilder/zh/k_zusammen.webp" class="zoom"><img src="../bilder/zh/k_zusammen.webp" alt="并排显示的两个脚本。" loading="lazy"></a><figcaption>并排显示的两个脚本。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>保持全局视图。</strong> <strong><span class="ui">图表</span></strong> 视图会绘制任务中各脚本之间的 <code>run</code> 连接。</p><figure class="bild"><a href="../bilder/zh/h_graph.webp" class="zoom"><img src="../bilder/zh/h_graph.webp" alt="关系图视图。" loading="lazy"></a><figcaption>关系图视图。</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="k-ansprechen.html"><span>上一页</span>玩家与角色对话</a><a class="nach" href="k-pruefen.html"><span>下一页</span>修复“保存任务”报告的问题</a></nav>
   </article>
-  <footer>BehavEd-Remake 手册。图片展示的是程序本身,由其自检功能截取。</footer>
+  <footer>JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

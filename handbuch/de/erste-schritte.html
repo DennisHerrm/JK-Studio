@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Erste Schritte - BehavEd-Remake</title>
+<title>Erste Schritte - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>Handbuch</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Handbuch</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="Im Handbuch suchen ...  (/)" autocomplete="off" aria-label="Im Handbuch suchen ...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -32,8 +32,8 @@
     <h1>Erste Schritte</h1>
     <p class="einleitung">Auspacken, dem Programm sagen, wo das Spiel liegt, eine Mission öffnen. Mehr Einrichtung gibt es nicht.</p>
     <h2 id="installieren">Installieren<a class="anker" href="#installieren">#</a></h2>
-<ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p>Lade die neueste <code>BehavEd-Remake-…-windows-x64.zip</code> von der Release-Seite - unter <strong>Assets</strong>, nicht „Source code“, darin ist kein Programm - und pack sie in einen Ordner deiner Wahl aus, etwa neben dein Spiel. In Windows wird nichts installiert.</p></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p>Starte <code>behaved.exe</code>. Beim Start sieht das Programm auf GitHub nach einer neueren Fassung und bietet sie an; ohne Nachfrage wird nichts geladen (der Schalter steht unter <strong><span class="ui">Hilfe</span></strong>).</p></div></div></li></ol>
-<div class="hinweis"><strong>Nur das Programm?</strong> <code>BehavEd-Remake-…-windows-x64.exe</code> aus demselben Release läuft auch allein: beim ersten Start legt sie ihre Daten nach <code>%APPDATA%\behaved\data\base</code>. Das Handbuch gibt es nur im Zip. Windows SmartScreen warnt beim ersten Start womöglich, weil das Programm nicht signiert ist: <strong>Weitere Informationen → Trotzdem ausführen</strong>.</div>
+<ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p>Lade die neueste <code>JK Studio-…-windows-x64.zip</code> von der Release-Seite - unter <strong>Assets</strong>, nicht „Source code“, darin ist kein Programm - und pack sie in einen Ordner deiner Wahl aus, etwa neben dein Spiel. In Windows wird nichts installiert.</p></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p>Starte <code>jkstudio.exe</code>. Beim Start sieht das Programm auf GitHub nach einer neueren Fassung und bietet sie an; ohne Nachfrage wird nichts geladen (der Schalter steht unter <strong><span class="ui">Hilfe</span></strong>).</p></div></div></li></ol>
+<div class="hinweis"><strong>Nur das Programm?</strong> <code>JK Studio-…-windows-x64.exe</code> aus demselben Release läuft auch allein: beim ersten Start legt sie ihre Daten nach <code>%APPDATA%\behaved\data\base</code>. Das Handbuch gibt es nur im Zip. Windows SmartScreen warnt beim ersten Start womöglich, weil das Programm nicht signiert ist: <strong>Weitere Informationen → Trotzdem ausführen</strong>.</div>
 <h2 id="spielordner">Den Spielordner angeben<a class="anker" href="#spielordner">#</a></h2>
 <p>Karten, Modelle, Klänge und die Skripte des Spiels liegen in seinen <code>.pk3</code>-Archiven. Öffne <strong><span class="ui">Bearbeiten</span> → <span class="ui">Spielordner</span></strong> und trage die Spielordner mit <strong><span class="ui">Spielordner hinzufügen</span></strong> ein: zuerst <code>base</code>, dann einen Mod wie Movie Duels (<code>MD</code>). Der unterste Ordner gewinnt, genau wie <code>fs_game</code> im Spiel <code>base</code> überschreibt.</p>
 <figure class="bild"><a href="../bilder/de/h_spielordner.webp" class="zoom"><img src="../bilder/de/h_spielordner.webp" alt="Die Spielordner: zuerst base, darunter der Mod - der unterste gewinnt." loading="lazy"></a><figcaption>Die Spielordner: zuerst base, darunter der Mod - der unterste gewinnt.</figcaption></figure>
@@ -43,10 +43,10 @@
 <figure class="bild"><a href="../bilder/de/h_start.webp" class="zoom"><img src="../bilder/de/h_start.webp" alt="Die Startfläche erscheint im Mission-Tab, solange keine Karte offen ist." loading="lazy"></a><figcaption>Die Startfläche erscheint im Mission-Tab, solange keine Karte offen ist.</figcaption></figure>
 <h2 id="sprache">Sprache<a class="anker" href="#sprache">#</a></h2>
 <p>Das Programm spricht Englisch, Deutsch, Chinesisch und Japanisch. Es startet in der Sprache von Windows; umstellen lässt es sich unter <strong><span class="ui">Ansicht</span> → <span class="ui">Sprache</span></strong>. Befehlsnamen und Werte bleiben so, wie das Spiel sie schreibt (<code>affect</code>, <code>SET_NAVGOAL</code>), denn so stehen sie in der Datei.</p>
-<div class="hinweis">Dieses Handbuch öffnet sich mit <kbd>F1</kbd>, über <strong><span class="ui">Hilfe</span> → <span class="ui">Handbuch und Tutorials</span></strong>, über <strong><span class="ui">Erste Schritte</span></strong> und <strong><span class="ui">Tutorials</span></strong> auf der Startfläche und über den Knopf <strong><span class="ui">Handbuch</span></strong> in <span class="ui">Ueber BehavEd</span>. Es liegt im Ordner <code>handbuch</code> neben <code>behaved.exe</code> und braucht kein Internet. <strong><span class="ui">Hilfe</span> → <span class="ui">Interaktive Tutorials</span></strong> zeigt die ersten Schritte direkt im Programm, Klick für Klick hervorgehoben.</div>
+<div class="hinweis">Dieses Handbuch öffnet sich mit <kbd>F1</kbd>, über <strong><span class="ui">Hilfe</span> → <span class="ui">Handbuch und Tutorials</span></strong>, über <strong><span class="ui">Erste Schritte</span></strong> und <strong><span class="ui">Tutorials</span></strong> auf der Startfläche und über den Knopf <strong><span class="ui">Handbuch</span></strong> in <span class="ui">Über JK Studio</span>. Es liegt im Ordner <code>handbuch</code> neben <code>jkstudio.exe</code> und braucht kein Internet. <strong><span class="ui">Hilfe</span> → <span class="ui">Interaktive Tutorials</span></strong> zeigt die ersten Schritte direkt im Programm, Klick für Klick hervorgehoben.</div>
     <nav class="blaettern"><a class="vor" href="funktionen.html"><span>Zurück</span>Was BehavEd kann</a><a class="nach" href="fenster.html"><span>Weiter</span>Das Fenster</a></nav>
   </article>
-  <footer>Handbuch zu BehavEd-Remake. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf.</footer>
+  <footer>Handbuch zu JK Studio - Mod-Werkzeuge für Jedi Knight: Jedi Academy und Jedi Outcast. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf. Nicht verbunden mit Lucasfilm, Disney oder Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

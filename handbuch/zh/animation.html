@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>移动物体动画与 ROFF 文件 - BehavEd-Remake</title>
+<title>移动物体动画与 ROFF 文件 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>手册</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>手册</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="搜索手册...  (/)" autocomplete="off" aria-label="搜索手册...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -40,7 +40,7 @@
 <table class="liste"><thead><tr><th></th><th><span class="ui">脚本 (move)</span></th><th><span class="ui">ROFF 文件</span></th></tr></thead><tbody><tr><td>保存为</td><td>脚本开头带 <code>move</code> 和 <code>wait</code> 的 <code>affect</code> 块</td><td><code>scripts/&lt;名称&gt;.rof</code>,由 <code>play ( &quot;PLAY_ROFF&quot;, ... )</code> 播放</td></tr><tr><td>关键帧之间</td><td>每段移动开始快、结尾减速,与游戏的移动物体相同(或用 <span class="ui">线性</span> 匀速)</td><td>穿过所有关键帧的平滑曲线(<span class="ui">平滑</span>)或直线段</td></tr><tr><td>适合</td><td>门、升降机、穿过画面的飞船</td><td>多转弯的长距离自由飞行、精确到帧的特效</td></tr></tbody></table>
 <p>用窗口顶部的 <strong><span class="ui">脚本 (move)</span></strong> / <strong><span class="ui">ROFF 文件</span></strong> 切换——关键帧会被转换,不会丢失。ROFF 模式下 <strong><span class="ui">文件</span></strong> 字段指定文件名(例如 <code>md_am/roffs/sta2</code>);下方显示其帧数和秒数。</p>
 <h2 id="roff">ROFF 文件的原理<a class="anker" href="#roff">#</a></h2>
-<p>ROFF 文件(<code>.rof</code>,“Rotation and Origin File Format”)为每个游戏帧保存一小步:实体在接下来 50 毫秒内移动和旋转多少。游戏在 <code>PLAY_ROFF</code> 执行时,把这些步长累加到实体当时所在的位置——因此 ROFF 路径是<strong>相对的</strong>:移动实体,整条路径也随之移动。游戏和 Movie Duels 中的全部 108 个文件都是版本 2,除一个外均为每帧 50 毫秒——BehavEd-Remake 也按此格式写入。</p>
+<p>ROFF 文件(<code>.rof</code>,“Rotation and Origin File Format”)为每个游戏帧保存一小步:实体在接下来 50 毫秒内移动和旋转多少。游戏在 <code>PLAY_ROFF</code> 执行时,把这些步长累加到实体当时所在的位置——因此 ROFF 路径是<strong>相对的</strong>:移动实体,整条路径也随之移动。游戏和 Movie Duels 中的全部 108 个文件都是版本 2,除一个外均为每帧 50 毫秒——JK Studio 也按此格式写入。</p>
 <p>你编辑的关键帧作为注释行保存在脚本中 <code>play</code> 的正前方;<code>.rof</code> 由它们生成。因此撤销、复制和粘贴对 ROFF 路径与普通命令一样有效。<strong>保存脚本</strong>时,文件写入同一 scripts 文件夹下的 <code>scripts/&lt;名称&gt;.rof</code>;<strong><span class="ui">保存任务</span></strong> 会把它打包进任务的 <code>.pk3</code>。</p>
 <h2 id="bearbeiten">编辑游戏中的 ROFF 文件<a class="anker" href="#bearbeiten">#</a></h2>
 <p>当脚本在该实体上播放现成的 ROFF 时,窗口会在 <strong><span class="ui">此实体在脚本中的 ROFF 路径:</span></strong> 下列出。<strong><span class="ui">编辑</span></strong> 把它分解为关键帧——直线段或一条平滑曲线,取所需关键帧较少的一种——与原文件误差在半个单位以内。游戏文件永远不会被覆盖:你编辑的是副本(<code>…_2</code>),<code>play</code> 命令会指向该副本。</p>
@@ -48,7 +48,7 @@
 <div class="hinweis">在时间轴中,ROFF 飞行显示为 <strong><span class="ui">移动</span></strong> 下的条带;拖动可让飞行提前或推迟开始。</div>
     <nav class="blaettern"><a class="vor" href="figuren.html"><span>上一页</span>角色与路径</a><a class="nach" href="wegpunkte.html"><span>下一页</span>NPC 路径点</a></nav>
   </article>
-  <footer>BehavEd-Remake 手册。图片展示的是程序本身,由其自检功能截取。</footer>
+  <footer>JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>歩く、走る、後ろ向きに歩く - BehavEd-Remake</title>
+<title>歩く、走る、後ろ向きに歩く - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>パスを表示する。</strong> マップ上のキャラクターか、タイムラインのその名前をクリックします。パスが現れます。再生位置より先は灰色、歩き終えた部分は黄色です。</p><figure class="bild"><a href="../bilder/ja/h_figur_bahn.webp" class="zoom"><img src="../bilder/ja/h_figur_bahn.webp" alt="Kyle とそのパス。" loading="lazy"></a><figcaption>Kyle とそのパス。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>パスの終点にある歩行目標を右クリックします。</strong> メニューに <strong><span class="ui">歩く(この移動から)</span></strong>、<strong><span class="ui">走る(この移動から)</span></strong>、<strong><span class="ui">後ろ向きに歩く(後ろを見たまま)</span></strong> が表示されます。</p><figure class="bild"><a href="../bilder/ja/k_gangart.webp" class="zoom"><img src="../bilder/ja/k_gangart.webp" alt="歩行目標のメニュー。" loading="lazy"></a><figcaption>歩行目標のメニュー。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>1 つ選びます。</strong> behaved はこの移動の前に <code>SET_WALKING</code> / <code>SET_RUNNING</code> を書き込みます。ここでは <strong><span class="ui">走る(この移動から)</span></strong> が <code>set ( SET_RUNNING, true )</code> を追加しました。この移動から先に適用されます。</p><figure class="bild"><a href="../bilder/ja/g_gang_baum.webp" class="zoom"><img src="../bilder/ja/g_gang_baum.webp" alt="新しい SET_RUNNING の行。" loading="lazy"></a><figcaption>新しい SET_RUNNING の行。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>見てみます。</strong> タイムラインを再生すると、キャラクターが走り、移動ブロックが短くなっています。</p><figure class="bild"><a href="../bilder/ja/g_gang_zeit.webp" class="zoom"><img src="../bilder/ja/g_gang_zeit.webp" alt="タイムライン上の短くなった移動。" loading="lazy"></a><figcaption>タイムライン上の短くなった移動。</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="k-ansichten.html"><span>前へ</span>作業中にカメラ視点で見る</a><a class="nach" href="k-ansehen.html"><span>次へ</span>キャラクターに誰かを見させる</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

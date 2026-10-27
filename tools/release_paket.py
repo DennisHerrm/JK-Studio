@@ -21,13 +21,14 @@ Aufrufe
       kFassung ausgeben. Mit --marke: Abbruch, wenn die Marke nicht
       v1.0.0-<kFassung> heisst - sonst boete der Updater das Release ewig neu
       an (istNeuer vergleicht die rc-Nummer der Marke mit kFassung).
-  release_paket.py zip <behaved.exe> <ziel.zip> [--q3map2 <bhed_q3map2.exe>]
-      BehavEd-Remake/behaved.exe, BehavEd-Remake/data/base/* und jede Datei,
+  release_paket.py zip <jkstudio.exe> <ziel.zip> [--q3map2 <bhed_q3map2.exe>]
+      JK-Studio/jkstudio.exe, JK-Studio/behaved.exe (dieselbe Datei, fuer den
+      Uebergang der alten Updater, Stufe 8c), JK-Studio/data/base/* und jede Datei,
       die git unter handbuch/ fuehrt (git ls-files: Seiten, die nur im
       Arbeitsordner liegen, bleiben draussen). Deflate, '/' als Trenner,
       sortiert, keine Ordnereintraege - die Form von rc600.
-      Stufe 3: mit --q3map2 dazu BehavEd-Remake/bhed_q3map2.exe (Karten bauen)
-      und BehavEd-Remake/licenses/ (GPL v2 und die Lizenztexte der
+      Stufe 3: mit --q3map2 dazu JK-Studio/bhed_q3map2.exe (Karten bauen)
+      und JK-Studio/licenses/ (GPL v2 und die Lizenztexte der
       Bibliotheken in bhed_q3map2.exe, siehe LIZENZEN).
   release_paket.py pruefe <zip> --fassung rcNNN [--exe <eigenstaendige.exe>] [--q3map2]
       alles, was Updater und Anwender vom Zip erwarten (siehe pruefe()); mit
@@ -66,7 +67,14 @@ import zipfile
 
 HIER = os.path.dirname(os.path.abspath(__file__))
 WURZEL = os.path.dirname(HIER)
-OBER = "BehavEd-Remake"
+# Stufe 8c: das Programm heisst JK Studio. Ordner im Zip und Namen der Dateien
+# des Releases; die Programmdatei jkstudio.exe und - fuer die Updater bis rc605,
+# die genau einen Eintrag "behaved.exe" ganz oben an die Stelle der laufenden .exe
+# setzen und neu starten (src/update.cpp) - behaved.exe als dieselbe Datei.
+OBER = "JK-Studio"
+NAME = "JK-Studio"
+PROGRAMM = "jkstudio.exe"
+UEBERGANG = "behaved.exe"
 SPRACHEN = ("en", "de", "zh", "ja")
 # Die Grenzen des Lesers, mit dem der Updater das Zip oeffnet (src/pk3.cpp):
 # die Eintragszahl steht dort als u16, Groessen und Versatz als u32 (kein
@@ -149,6 +157,9 @@ def daten_ordner(wurzel):
 # eigene Datei vorliegt.
 LIZENZEN = [
     ("GPL-2.0.txt", "LICENSE", None),
+    # Stufe 8c: die Schriftzuege des Logos (res/jkstudio_logo.png, jkstudio.ico) aus Cinzel und Michroma
+    ("OFL-Cinzel.txt", "licenses/OFL-Cinzel.txt", None),
+    ("OFL-Michroma.txt", "licenses/OFL-Michroma.txt", None),
     ("q3map2-README.md", "third_party/q3map2/README.md", None),
     ("zlib.txt", "third_party/zlib/LICENSE", None),
     ("libpng.txt", "third_party/libpng/LICENSE", None),
@@ -179,7 +190,7 @@ LIZENZEN = [
 
 
 def lizenz_eintraege(wurzel):
-    """[(Name im Zip, Bytes)] fuer BehavEd-Remake/licenses/."""
+    """[(Name im Zip, Bytes)] fuer JK-Studio/licenses/."""
     aus = []
     for name, rel, block in LIZENZEN:
         pfad = os.path.join(wurzel, *rel.split("/"))
@@ -203,9 +214,9 @@ def lizenz_eintraege(wurzel):
 
 
 def zip_bauen(exe, ziel, wurzel, handbuch=None, q3map2=None):
-    eintraege = [(OBER + "/behaved.exe", exe)]
+    eintraege = [(OBER + "/" + PROGRAMM, exe), (OBER + "/" + UEBERGANG, exe)]
     if q3map2 is not None:
-        # Stufe 3: das Programm fuer Build-Menue (Karten bauen) neben behaved.exe,
+        # Stufe 3: das Programm fuer Build-Menue (Karten bauen) neben jkstudio.exe,
         # dazu die Lizenztexte (Bytes statt Pfad)
         eintraege.append((OBER + "/bhed_q3map2.exe", q3map2))
         eintraege += lizenz_eintraege(wurzel)
@@ -228,13 +239,16 @@ def zip_bauen(exe, ziel, wurzel, handbuch=None, q3map2=None):
         if not os.path.isfile(quelle):
             raise Fehler("%s steht in git, fehlt aber im Arbeitsordner" % rel)
         eintraege.append((OBER + "/" + rel, quelle))
-    # Sortiert, aber behaved.exe ZULETZT: der Updater spielt die Eintraege der
+    # Sortiert, aber die Programme ZULETZT: der Updater spielt die Eintraege der
     # Reihe nach ein und bricht beim ersten Fehler ab. Scheitert er vor der
     # .exe, laeuft weiter die alte Fassung - und bietet das Update beim
     # naechsten Start wieder an. Stuende die .exe vorn, meldete sich nach
     # einem halben Update schon die neue Fassung, und data/ oder handbuch/
-    # blieben halb alt.
-    eintraege.sort(key=lambda e: (e[0] == OBER + "/behaved.exe", e[0]))
+    # blieben halb alt. Stufe 8c: jkstudio.exe vorletzt, behaved.exe zuletzt -
+    # fuer die alten Updater ist behaved.exe das Programm, fuer die neuen
+    # jkstudio.exe (behaved.exe ist dann eine Datei daneben).
+    rang = {OBER + "/" + PROGRAMM: 1, OBER + "/" + UEBERGANG: 2}
+    eintraege.sort(key=lambda e: (rang.get(e[0], 0), e[0]))
     ordner = os.path.dirname(os.path.abspath(ziel))
     os.makedirs(ordner, exist_ok=True)
     fest = _zeitstempel()
@@ -255,8 +269,8 @@ def zip_bauen(exe, ziel, wurzel, handbuch=None, q3map2=None):
 
 # --- Die Pruefung -------------------------------------------------------------
 
-def _pe_maengel(exe, daten, imp, name="behaved.exe"):
-    """Was an der behaved.exe (oder bhed_q3map2.exe) im Zip nicht stimmt (Liste von Saetzen)."""
+def _pe_maengel(exe, daten, imp, name=PROGRAMM):
+    """Was an der jkstudio.exe (oder bhed_q3map2.exe) im Zip nicht stimmt (Liste von Saetzen)."""
     maengel = []
     if len(exe) < 0x40 or exe[:2] != b"MZ":
         return ["%s ist keine Windows-exe (MZ fehlt)" % name]
@@ -282,8 +296,8 @@ def _pe_maengel(exe, daten, imp, name="behaved.exe"):
                            "(VC-Laufzeit? CMAKE_MSVC_RUNTIME_LIBRARY)" % (name, dll))
     fehlend = [n for n, b in daten if b and b not in exe]
     if fehlend:
-        maengel.append("behaved.exe enthaelt die eingebauten Daten nicht (%s) - allein liefe "
-                       "sie nicht (bhed/eingebaut.h)" % ", ".join(fehlend))
+        maengel.append("%s enthaelt die eingebauten Daten nicht (%s) - allein liefe "
+                       "sie nicht (bhed/eingebaut.h)" % (name, ", ".join(fehlend)))
     return maengel
 
 
@@ -301,7 +315,7 @@ def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print, q3map2=False):
     if not re.fullmatch(r"rc\d+", rc or ""):
         melde("Fassung %r hat nicht die Form rcNNN" % rc)
         return maengel
-    soll = "BehavEd-Remake-%s-windows-x64.zip" % rc
+    soll = "%s-%s-windows-x64.zip" % (NAME, rc)
     name = os.path.basename(zip_pfad)
     if name == soll:
         gut("Name " + name)
@@ -373,14 +387,23 @@ def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print, q3map2=False):
                 melde("%s nicht lesbar: %s" % (rel, e))
                 return None
 
-        exe = lies("behaved.exe")
+        exe = lies(PROGRAMM)
+        uebergang = lies(UEBERGANG)
         if exe is None:
-            melde("behaved.exe fehlt")
-        elif roh[-1] != OBER + "/behaved.exe":
-            melde("behaved.exe ist nicht der letzte Eintrag - scheitert das Update danach, meldet sich "
-                  "schon die neue Fassung, und der Rest bleibt halb alt (zip_bauen legt sie zuletzt)")
-        else:
-            gut("behaved.exe ist der letzte Eintrag (ein abgebrochenes Update laesst die alte Fassung)")
+            melde("%s fehlt" % PROGRAMM)
+        if uebergang is None:
+            melde("%s fehlt - die Updater bis rc605 setzen genau diesen Eintrag an die Stelle der "
+                  "laufenden .exe; ohne ihn bleiben alte Installationen auf der alten Fassung" % UEBERGANG)
+        elif exe is not None and uebergang != exe:
+            melde("%s weicht von %s ab - beide muessen dieselbe Datei sein" % (UEBERGANG, PROGRAMM))
+        if exe is not None and uebergang is not None:
+            if roh[-2:] != [OBER + "/" + PROGRAMM, OBER + "/" + UEBERGANG]:
+                melde("%s und %s sind nicht die letzten Eintraege (in dieser Reihenfolge) - scheitert das "
+                      "Update danach, meldet sich schon die neue Fassung, und der Rest bleibt halb alt "
+                      "(zip_bauen legt sie zuletzt)" % (PROGRAMM, UEBERGANG))
+            else:
+                gut("%s und %s (dieselbe Datei) sind die letzten Eintraege (ein abgebrochenes Update "
+                    "laesst die alte Fassung)" % (PROGRAMM, UEBERGANG))
         # Alle Datenordner fuer die Pruefung, dass ihre Bytes in der .exe
         # stecken (vorher nur die des letzten Ordners der Schleife).
         alle_daten = []
@@ -418,7 +441,7 @@ def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print, q3map2=False):
             for t in m:
                 melde(t)
             if not m:
-                gut("behaved.exe: x64, nur Windows-DLLs fest gebunden, Daten eingebaut")
+                gut("%s: x64, nur Windows-DLLs fest gebunden, Daten eingebaut" % PROGRAMM)
         # Stufe 3: bhed_q3map2.exe (Karten bauen) mit den Lizenztexten
         q3 = lies("bhed_q3map2.exe")
         if q3 is None:
@@ -442,7 +465,7 @@ def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print, q3map2=False):
             elif soll_liz:
                 gut("licenses/: %d Lizenztexte zu bhed_q3map2.exe" % len(soll_liz))
         if exe_pfad is not None:
-            soll_exe = "BehavEd-Remake-%s-windows-x64.exe" % rc
+            soll_exe = "%s-%s-windows-x64.exe" % (NAME, rc)
             if os.path.basename(exe_pfad) != soll_exe:
                 melde("eigenstaendige exe heisst %s - erwartet %s" % (os.path.basename(exe_pfad), soll_exe))
             try:
@@ -453,9 +476,9 @@ def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print, q3map2=False):
                 melde("eigenstaendige exe nicht lesbar: %s" % e)
             if allein is not None and exe is not None:
                 if allein == exe:
-                    gut("eigenstaendige exe gleicht behaved.exe im Zip")
+                    gut("eigenstaendige exe gleicht %s im Zip" % PROGRAMM)
                 else:
-                    melde("eigenstaendige exe weicht von behaved.exe im Zip ab")
+                    melde("eigenstaendige exe weicht von %s im Zip ab" % PROGRAMM)
     ausgabe("Paketpruefung: " + ("ok" if not maengel else "%d Beanstandung(en)" % len(maengel)))
     return maengel
 
@@ -467,14 +490,16 @@ def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print, q3map2=False):
 # auch ohne Markdown gut lesbar sein. Gedankenstrich, Pfeil und Auslassung als
 # \u-Folgen, damit diese Datei reines ASCII bleibt.
 KOPF = (
-    "**Download:** `BehavEd-Remake-{rc}-windows-x64.zip` (under **Assets** below) \u2013 "
-    "Windows 10/11, 64-bit.\n"
+    "**Download:** `JK-Studio-{rc}-windows-x64.zip` (under **Assets** below) \u2013 "
+    "Windows 10/11, 64-bit. JK Studio \u2013 mod tools for Jedi Knight: Jedi Academy and Jedi Outcast "
+    "(BehavEd scripts, cutscene preview, map editor). Not affiliated with Lucasfilm, Disney or Raven Software.\n"
     "\n"
-    "- Unzip it (right-click \u2192 Extract All\u2026), open the `BehavEd-Remake` folder and "
-    "start `behaved.exe`. Nothing is installed; keep `behaved.exe` next to its `data` folder.\n"
-    "- Just the program: `BehavEd-Remake-{rc}-windows-x64.exe` also runs on its own "
+    "- Unzip it (right-click \u2192 Extract All\u2026), open the `JK-Studio` folder and "
+    "start `jkstudio.exe`. Nothing is installed; keep `jkstudio.exe` next to its `data` folder.\n"
+    "- Just the program: `JK-Studio-{rc}-windows-x64.exe` also runs on its own "
     "(the offline guide and the map compiler `bhed_q3map2.exe` are only in the zip).\n"
-    "- Already using BehavEd-Remake? It updates itself (Help \u2192 Check for updates\u2026).\n"
+    "- Already using BehavEd-Remake? It updates itself to JK Studio (Help \u2192 Check for updates\u2026) "
+    "and keeps your settings; `behaved.exe` stays as a starter for old shortcuts.\n"
     "- \"Source code (zip)\" and \"Source code (tar.gz)\" are for developers \u2013 they "
     "contain no program.\n"
     "- Windows SmartScreen may warn because the program is not code-signed: "
@@ -654,7 +679,7 @@ def selbsttest():
                 main(["fassung", "--marke", "v1.0.0-rc901", "--wurzel", wurzel], still) == 1)
 
         # --- Das Zip bauen
-        gut_zip = os.path.join(tmp, "BehavEd-Remake-rc900-windows-x64.zip")
+        gut_zip = os.path.join(tmp, "JK-Studio-rc900-windows-x64.zip")
         git = shutil.which("git")
         if git is not None:
             subprocess.run([git, "init", "-q", wurzel], check=True, capture_output=True)
@@ -666,17 +691,19 @@ def selbsttest():
         with zipfile.ZipFile(gut_zip) as z:
             namen = z.namelist()
             verfahren = {i.compress_type for i in z.infolist()}
-        erwarte("zip: %d Eintraege, sortiert, behaved.exe zuletzt, Deflate, ohne Ordnereintraege" % n,
-                n == 1 + len(daten) + len(handbuch) and namen[:-1] == sorted(namen[:-1])
-                and namen[-1] == OBER + "/behaved.exe" and verfahren == {8}
+        erwarte("zip: %d Eintraege, sortiert, jkstudio.exe und behaved.exe zuletzt, Deflate, ohne Ordnereintraege" % n,
+                n == 2 + len(daten) + len(handbuch) and namen[:-2] == sorted(namen[:-2])
+                and namen[-2:] == [OBER + "/" + PROGRAMM, OBER + "/" + UEBERGANG] and verfahren == {8}
                 and not any(x.endswith("/") for x in namen))
-        erwarte("zip: alles unter BehavEd-Remake/, behaved.exe dabei",
-                all(x.startswith(OBER + "/") for x in namen) and OBER + "/behaved.exe" in namen)
+        with zipfile.ZipFile(gut_zip) as z:
+            gleich = z.read(OBER + "/" + PROGRAMM) == z.read(OBER + "/" + UEBERGANG)
+        erwarte("zip: alles unter JK-Studio/, jkstudio.exe und behaved.exe dieselbe Datei",
+                all(x.startswith(OBER + "/") for x in namen) and gleich)
         erwarte("zip: eine Seite, die git nicht kennt, bleibt draussen",
                 OBER + "/handbuch/en/entwurf.html" not in namen)
         m = pruefe(gut_zip, rc, wurzel, ausgabe=still)
         erwarte("pruefe: das gebaute Zip besteht", not m, m)
-        allein = os.path.join(tmp, "BehavEd-Remake-rc900-windows-x64.exe")
+        allein = os.path.join(tmp, "JK-Studio-rc900-windows-x64.exe")
         shutil.copyfile(exe, allein)
         m = pruefe(gut_zip, rc, wurzel, exe_pfad=allein, ausgabe=still)
         erwarte("pruefe --exe: die eigenstaendige exe gleicht der im Zip", not m, m)
@@ -684,14 +711,14 @@ def selbsttest():
         # --- Stufe 3: Zip mit bhed_q3map2.exe und Lizenztexten
         q3 = os.path.join(tmp, "bhed_q3map2.exe")
         schreibe(q3, _probe_exe(["KERNEL32.dll", "WS2_32.dll", "bcrypt.dll"]))
-        q3_zip = os.path.join(tmp, "q3", "BehavEd-Remake-rc900-windows-x64.zip")
+        q3_zip = os.path.join(tmp, "q3", "JK-Studio-rc900-windows-x64.zip")
         n3 = zip_bauen(exe, q3_zip, wurzel, handbuch=handbuch, q3map2=q3)
         with zipfile.ZipFile(q3_zip) as z:
             namen3 = z.namelist()
             ddslib = z.read(OBER + "/licenses/ddslib.txt").decode("utf-8")
-        erwarte("zip --q3map2: bhed_q3map2.exe und %d Lizenztexte dabei, behaved.exe weiter zuletzt" % len(LIZENZEN),
+        erwarte("zip --q3map2: bhed_q3map2.exe und %d Lizenztexte dabei, die Programme weiter zuletzt" % len(LIZENZEN),
                 n3 == n + 1 + len(LIZENZEN) and OBER + "/bhed_q3map2.exe" in namen3
-                and namen3[-1] == OBER + "/behaved.exe" and OBER + "/licenses/GPL-2.0.txt" in namen3)
+                and namen3[-1] == OBER + "/" + UEBERGANG and OBER + "/licenses/GPL-2.0.txt" in namen3)
         erwarte("zip --q3map2: aus einem Quelltextkopf nur der Lizenzblock, ohne Kommentarzeichen",
                 "Mitte" in ddslib and "Kopf" not in ddslib and "Rest" not in ddslib and "//" not in ddslib)
         m = pruefe(q3_zip, rc, wurzel, ausgabe=still, q3map2=True)
@@ -703,7 +730,7 @@ def selbsttest():
         with zipfile.ZipFile(gut_zip) as z:
             grund = [(i.filename, z.read(i)) for i in z.infolist()]
 
-        def kaputt(was, eintraege, stichwort, name="BehavEd-Remake-rc900-windows-x64.zip",
+        def kaputt(was, eintraege, stichwort, name="JK-Studio-rc900-windows-x64.zip",
                    nachher=None, exe_pfad=None):
             ordner = tempfile.mkdtemp(dir=tmp)
             pfad = os.path.join(ordner, name)
@@ -717,8 +744,8 @@ def selbsttest():
         def ersetze(name, inhalt):
             return [(n, inhalt if n == name else b) for n, b in grund]
 
-        kaputt("Name ohne -windows-x64 (wie rc600)", grund, "erwartet BehavEd-Remake-rc900-windows-x64.zip",
-               name="BehavEd-Remake-rc900.zip")
+        kaputt("Name ohne -windows-x64 (wie rc600)", grund, "erwartet JK-Studio-rc900-windows-x64.zip",
+               name="JK-Studio-rc900.zip")
         kaputt("zwei oberste Ordner", grund + [("Anderes/liesmich.txt", b"x")], "obersten Ordner")
         kaputt("eine Datei ganz oben", grund + [("liesmich.txt", b"x")], "obersten Ordner")
         kaputt("Rueckstrich im Namen", grund + [(OBER + "/handbuch/a#b.html", b"x")], "Rueckstrich",
@@ -731,41 +758,44 @@ def selbsttest():
                nachher=lambda p: _packverfahren_setzen(p, OBER + "/handbuch/gross.bin", 9))
         kaputt("Ordnereintrag", grund + [(OBER + "/data/", b"")], "Ordnereintrag")
         kaputt("doppelter Eintrag", grund + [(OBER + "/handbuch/index.html", b"zwei")], "doppelter Eintrag")
-        kaputt("behaved.exe vorn statt zuletzt (wie sortiert)",
-               [e for e in grund if e[0].endswith("behaved.exe")] + [e for e in grund if not e[0].endswith("behaved.exe")],
-               "nicht der letzte Eintrag")
-        kaputt("behaved.exe fehlt", [(n, b) for n, b in grund if not n.endswith("behaved.exe")],
+        kaputt("die Programme vorn statt zuletzt (wie sortiert)",
+               [e for e in grund if e[0].endswith(".exe")] + [e for e in grund if not e[0].endswith(".exe")],
+               "nicht die letzten Eintraege")
+        kaputt("jkstudio.exe fehlt", [(n, b) for n, b in grund if not n.endswith(PROGRAMM)], "jkstudio.exe fehlt")
+        kaputt("behaved.exe (Uebergang fuer die alten Updater) fehlt", [(n, b) for n, b in grund if not n.endswith(UEBERGANG)],
                "behaved.exe fehlt")
+        kaputt("behaved.exe ist nicht dieselbe Datei wie jkstudio.exe", ersetze(OBER + "/" + UEBERGANG, b"MZ anders"),
+               "weicht von jkstudio.exe ab")
         kaputt("Handbuch ohne Japanisch", [(n, b) for n, b in grund if "/ja/" not in n], "handbuch/ja/index.html")
         kaputt("data/base weicht ab", ersetze(OBER + "/data/base/anims.h", b"anders"), "weicht vom Repo ab")
         kaputt("data/base unvollstaendig", [(n, b) for n, b in grund if not n.endswith("supplement.bhc")],
                "data/base/supplement.bhc fehlt")
         kaputt("exe mit VC-Laufzeit (wie rc600)",
-               ersetze(OBER + "/behaved.exe",
+               ersetze(OBER + "/" + PROGRAMM,
                        _probe_exe(["KERNEL32.dll", "MSVCP140.dll", "VCRUNTIME140.dll"], anhang=alle_daten)),
                "MSVCP140.dll")
         kaputt("exe mit fest gebundenem d3d11.dll",
-               ersetze(OBER + "/behaved.exe", _probe_exe(["KERNEL32.dll", "d3d11.dll"], anhang=alle_daten)),
+               ersetze(OBER + "/" + PROGRAMM, _probe_exe(["KERNEL32.dll", "d3d11.dll"], anhang=alle_daten)),
                "d3d11.dll")
         kaputt("32-Bit-exe",
-               ersetze(OBER + "/behaved.exe", _probe_exe(["KERNEL32.dll"], maschine=0x14C, anhang=alle_daten)),
+               ersetze(OBER + "/" + PROGRAMM, _probe_exe(["KERNEL32.dll"], maschine=0x14C, anhang=alle_daten)),
                "keine 64-Bit-exe")
         kaputt("exe ohne eingebaute Daten (wie rc600)",
-               ersetze(OBER + "/behaved.exe", _probe_exe(["KERNEL32.dll"])), "eingebauten Daten")
-        kaputt("keine exe", ersetze(OBER + "/behaved.exe", b"kein Programm"), "keine Windows-exe")
-        fremd = os.path.join(tmp, "anders", "BehavEd-Remake-rc900-windows-x64.exe")
+               ersetze(OBER + "/" + PROGRAMM, _probe_exe(["KERNEL32.dll"])), "eingebauten Daten")
+        kaputt("keine exe", ersetze(OBER + "/" + PROGRAMM, b"kein Programm"), "keine Windows-exe")
+        fremd = os.path.join(tmp, "anders", "JK-Studio-rc900-windows-x64.exe")
         schreibe(fremd, _probe_exe(["KERNEL32.dll"], anhang=alle_daten + b"!"))
-        kaputt("eigenstaendige exe weicht ab", grund, "weicht von behaved.exe im Zip ab", exe_pfad=fremd)
+        kaputt("eigenstaendige exe weicht ab", grund, "weicht von jkstudio.exe im Zip ab", exe_pfad=fremd)
         falsch = os.path.join(tmp, "behaved-rc900.exe")
         shutil.copyfile(exe, falsch)
-        kaputt("eigenstaendige exe falsch benannt", grund, "erwartet BehavEd-Remake-rc900-windows-x64.exe",
+        kaputt("eigenstaendige exe falsch benannt", grund, "erwartet JK-Studio-rc900-windows-x64.exe",
                exe_pfad=falsch)
         m = pruefe(os.path.join(tmp, "behaved.exe"), rc, wurzel, ausgabe=still)
         erwarte("pruefe weist ab: gar kein Zip", any("kein lesbares Zip" in t for t in m), m)
 
         def kaputt3(was, eintraege, stichwort):
             ordner = tempfile.mkdtemp(dir=tmp)
-            pfad = os.path.join(ordner, "BehavEd-Remake-rc900-windows-x64.zip")
+            pfad = os.path.join(ordner, "JK-Studio-rc900-windows-x64.zip")
             _zip_aus(pfad, eintraege)
             m = pruefe(pfad, rc, wurzel, ausgabe=still, q3map2=True)
             treffer = [t for t in m if stichwort in t]
@@ -784,9 +814,9 @@ def selbsttest():
         text = notizen(rc, ziel, wurzel)
         erste = text.splitlines()[0]
         erwarte("notizen: die erste Zeile ist die Download-Zeile mit dem Zip",
-                erste.startswith("**Download:** `BehavEd-Remake-rc900-windows-x64.zip`"))
+                erste.startswith("**Download:** `JK-Studio-rc900-windows-x64.zip`"))
         erwarte("notizen: nennen die eigenstaendige exe, 'Source code' und SmartScreen",
-                "BehavEd-Remake-rc900-windows-x64.exe" in text and "Source code" in text
+                "JK-Studio-rc900-windows-x64.exe" in text and "Source code" in text and "Not affiliated" in text
                 and "SmartScreen" in text)
         erwarte("notizen: der [en]-Block von rc900, nicht [de] und nicht rc899",
                 "- New: a thing." in text and "- Fixed: another one." in text and "Neu: etwas" not in text
@@ -831,7 +861,7 @@ def selbsttest():
 # --- Aufruf -----------------------------------------------------------------------
 
 def main(argv=None, ausgabe=print):
-    p = argparse.ArgumentParser(description="Release-Paket von BehavEd-Remake bauen und pruefen")
+    p = argparse.ArgumentParser(description="Release-Paket von JK Studio bauen und pruefen")
     p.add_argument("--wurzel", default=WURZEL, help="Repo-Ordner (Vorgabe: der dieses Werkzeugs)")
     unter = p.add_subparsers(dest="befehl", required=True)
     f = unter.add_parser("fassung")

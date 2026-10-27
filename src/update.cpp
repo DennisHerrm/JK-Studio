@@ -145,7 +145,15 @@ Einspielen einspielenAls(const std::string& rel, const std::string& laufenderNam
     if (rel.empty()) { return Einspielen::Ueberspringen; }
     const bool obenAuf = rel.find('/') == std::string::npos;
     const std::string k = klein(rel);
-    if (obenAuf && (k == "behaved.exe" || k == klein(laufenderName))) { return Einspielen::Programm; }
+    const std::string lauf = klein(laufenderName);
+    const std::string neu = kProgramm;
+    const std::string alt = kAltesProgramm;
+    if (obenAuf && k == lauf) { return Einspielen::Programm; }
+    // Stufe 8c: eine eigenstaendige .exe mit eigenem Namen bekommt jkstudio.exe;
+    // die zweite Programmdatei ist dort nicht noetig.
+    const bool eigenerName = lauf != neu && lauf != alt;
+    if (obenAuf && k == neu && eigenerName) { return Einspielen::Programm; }
+    if (obenAuf && k == alt && eigenerName) { return Einspielen::Ueberspringen; }
     return nurProgramm ? Einspielen::Ueberspringen : Einspielen::Datei;
 }
 

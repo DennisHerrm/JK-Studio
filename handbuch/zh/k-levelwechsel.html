@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>结束时切换到下一张地图 - BehavEd-Remake</title>
+<title>结束时切换到下一张地图 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>手册</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>手册</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="搜索手册...  (/)" autocomplete="off" aria-label="搜索手册...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>放置它。</strong> 实体列表上方的 <strong><span class="ui">+ 实体</span></strong> → <strong><span class="ui">切换关卡 (target_level_change)</span></strong>。</p><figure class="bild"><a href="../bilder/zh/e_neu_level.webp" class="zoom"><img src="../bilder/zh/e_neu_level.webp" alt="“+ 实体”菜单中的“关卡切换”。" loading="lazy"></a><figcaption>“+ 实体”菜单中的“关卡切换”。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>设置它。</strong> 在检查器中把 <code>mapname</code> 设为下一张地图(例如 <code>taspir2</code>),并给它一个 <strong><span class="ui">名称</span></strong>,如 <code>next_map</code>。</p><figure class="bild"><a href="../bilder/zh/k_level.webp" class="zoom"><img src="../bilder/zh/k_level.webp" alt="带有 mapname 和名称的关卡切换实体。" loading="lazy"></a><figcaption>带有 mapname 和名称的关卡切换实体。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>使用它。</strong> 在脚本末尾:<code>use ( &quot;next_map&quot; )</code>——右键单击该实体 → <strong><span class="ui">插入 use</span></strong> 即可写入。</p><figure class="bild"><a href="../bilder/zh/e_use_level.webp" class="zoom"><img src="../bilder/zh/e_use_level.webp" alt="use ( &quot;next_map&quot; )。" loading="lazy"></a><figcaption>use ( &quot;next_map&quot; )。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>检查。</strong> 当某个 target 指向不存在的对象时,<strong><span class="ui">保存任务</span></strong> 会发出警告;运行任务即可看到加载画面。</p><figure class="bild"><a href="../bilder/zh/k_pruefen.webp" class="zoom"><img src="../bilder/zh/k_pruefen.webp" alt="“保存任务”的检查项。" loading="lazy"></a><figcaption>“保存任务”的检查项。</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="k-tuer-use.html"><span>上一页</span>用脚本打开门</a><a class="nach" href="k-effekt-musik.html"><span>下一页</span>添加特效并更换音乐</a></nav>
   </article>
-  <footer>BehavEd-Remake 手册。图片展示的是程序本身,由其自检功能截取。</footer>
+  <footer>JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

@@ -9,10 +9,10 @@ from inhalt_basis import T
 SEITE = {
     "id": "funktionen",
     "gruppe": "start",
-    "titel": T("What BehavEd can do"),
+    "titel": T("What JK Studio can do"),
     "kurz": T("A tour of the whole program: writing scripts, seeing them on the map, cameras, figures, animation, missions and the tools around them."),
     "bloecke": [
-        ("p", T("BehavEd-Remake writes ICARUS scripts - the scripts behind every cutscene and every scripted moment of Jedi Academy and its mods. It writes them exactly like Raven's original BehavEd, file for file, and then shows you what they do: on the map, in 3D, over time. Each section below links to the tutorials that practise it.")),
+        ("p", T("JK Studio writes ICARUS scripts - the scripts behind every cutscene and every scripted moment of Jedi Academy and its mods. It writes them exactly like Raven's original BehavEd, file for file, and then shows you what they do: on the map, in 3D, over time. Each section below links to the tutorials that practise it.")),
 
         ("fluss", T("From an idea to the game"),
          [T("Write the script"), T("See it on the map"), T("Time it"), T("Save mission"), T("Play it")],

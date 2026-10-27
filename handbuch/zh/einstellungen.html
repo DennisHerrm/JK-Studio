@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>设置与更新 - BehavEd-Remake</title>
+<title>设置与更新 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>手册</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>手册</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="搜索手册...  (/)" autocomplete="off" aria-label="搜索手册...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <p><strong><span class="ui">编辑</span> → <span class="ui">游戏目录</span></strong> 列出程序读取其 <code>.pk3</code> 的文件夹,每个都有 <strong><span class="ui">上移</span></strong>、<strong><span class="ui">下移</span></strong>、<strong><span class="ui">移除</span></strong> 和 <strong><span class="ui">打开</span></strong>。最下面的优先于上面所有文件夹,正如引擎中 <code>fs_game</code> 覆盖 <code>base</code>。没有压缩包的文件夹会给出提示——说明路径不对。</p>
 <figure class="bild"><a href="../bilder/zh/h_spielordner.webp" class="zoom"><img src="../bilder/zh/h_spielordner.webp" alt="游戏文件夹。" loading="lazy"></a><figcaption>游戏文件夹。</figcaption></figure>
 <h2 id="jedioutcast">Jedi Outcast(JK2)<a class="anker" href="#jedioutcast">#</a></h2>
-<p>BehavEd-Remake 也可以用于原版 Jedi Outcast。它的编译脚本(<code>.ibi</code>,1.57 版)和地图与 Jedi Academy 格式相同,ICARUS 的命令也相同。在 <strong><span class="ui">首选项</span></strong> → <strong><span class="ui">游戏规则</span></strong> 中,<strong><span class="ui">Jedi Outcast(JK2)</span></strong> 是 OpenJK 和 Movie Duels 之外的第三套规则;依据是 OpenJK 中的 JK2 游戏代码(<code>codeJK2</code>)。</p>
+<p>JK Studio 也可以用于原版 Jedi Outcast。它的编译脚本(<code>.ibi</code>,1.57 版)和地图与 Jedi Academy 格式相同,ICARUS 的命令也相同。在 <strong><span class="ui">首选项</span></strong> → <strong><span class="ui">游戏规则</span></strong> 中,<strong><span class="ui">Jedi Outcast(JK2)</span></strong> 是 OpenJK 和 Movie Duels 之外的第三套规则;依据是 OpenJK 中的 JK2 游戏代码(<code>codeJK2</code>)。</p>
 <ul><li><strong>命令集</strong>:在 Jedi Outcast 规则下,动画、任务目标、行为状态和 SET_ 字段的列表来自 JK2(<code>data/jk2</code>)。Jedi Outcast 的 <code>assets0.pk3</code> 中的 1356 个脚本里,有 1352 个可以逐字节相同地重新编译;检查后剩下 326 条提示,都是 Raven 脚本中真实存在的错误。首选项中自己指定的命令文件始终优先。</li><li><strong>游戏文件夹</strong>:Jedi Outcast 在 <strong><span class="ui">编辑</span> → <span class="ui">游戏目录</span></strong> 中有自己的列表(<strong><span class="ui">Jedi Outcast 游戏文件夹 (.pk3)</span></strong>)。两个游戏有同名但内容不同的文件,因此两个列表从不混用;使用当前规则的列表。<strong><span class="ui">添加游戏目录…</span></strong> 会自动把 Jedi Outcast 文件夹放进它的列表。</li><li><strong>自动</strong>:只设置了 Jedi Outcast 文件夹,或用 <strong><span class="ui">加载任务…</span></strong> 打开 Jedi Outcast 任务时(文件夹旁有 <code>jk2sp.exe</code>,或含有 <code>kejim_post</code> 等 JK2 地图),使用 Jedi Outcast。有 Movie Duels 文件夹时总是 Movie Duels;不确定时使用 OpenJK。</li><li><strong>角色</strong>:NPC 来自 <code>ext_data/NPCs.cfg</code>,玩家是 <code>kyle</code>(脚本中也是),人形角色使用 JK2 的 72 根骨骼的骨架,JK2 的 NPC 类别会选用 JK2 的角色。光剑不需要 <code>.sab</code> 文件:剑柄和剑刃长度取决于 NPC 类别(Desann 48、Reborn 32、其他 40),颜色取自 NPCs.cfg 中的 <code>saberColor</code>。</li><li><strong>行走与镜头</strong>:NPC 使用 JK2 的导航走向路点:路径畅通时直线行走,否则沿 <code>maps/&lt;地图&gt;.nav</code> 中的路点网络行走(文件缺失或与地图不符时由路点生成;此时地图开始时被封锁的连接会像游戏中一样每 1.5 秒重新检查一次),速度规则与 JK2 相同——奔跑立即达到全速,步行逐步加速,接近目标时 NPC 会减速;绕不过另一个 NPC 时,NPC 会让对方让开——包括没有目标、站着不动的 NPC,但绝不会推开玩家——两个互相阻挡的 NPC 会继续前进;被上锁的门、可破坏物或其他 NPC 挡住的连接会对所有 NPC 标记为失败,它们会改走别的路线,直到连接重新畅通,与游戏中一样。武器来自 JK2 的 NPC 表,NPC Kyle 使用玩家的武器(脚本在镜头之外更换玩家武器时也会跟着换,直到 Kyle 得到自己的武器),光剑刃像 JK2 一样闪烁。镜头的 FOLLOW 和抖动晚一帧显示,镜头 ROFF 忽略注释,<code>yavin_swamp</code> 的沼泽水不是实体,雨和雪按 JK2 处理。对找不到目标的 SET_NAVGOAL 使用 <code>dowait</code> 会像游戏中一样永远等待。</li></ul>
 <div class="hinweis">尚未与 Jedi Outcast 完全一致:被其他 NPC 挡住的 NPC 不会把对方推开,场景中不会记住被阻挡的路点和连接,也不显示字幕。</div>
 <h2 id="prefs">首选项<a class="anker" href="#prefs">#</a></h2>
@@ -48,7 +48,7 @@
 <p><strong><span class="ui">帮助</span> → <span class="ui">检查更新</span></strong> 会向 GitHub 查询新版本并显示更新内容;<strong><span class="ui">下载并安装</span></strong> 会替换程序文件(使用单独的 <code>.exe</code> 时只替换程序,无论文件名是什么)并提示重启。旁边的开关决定是否在启动时检查。<strong><span class="ui">帮助</span> → <span class="ui">更新日志</span></strong> 按版本以你的语言显示修复和新增的内容——更新后会自动打开一次。</p>
     <nav class="blaettern"><a class="vor" href="k-skins.html"><span>上一页</span>模型的皮肤和骨架</a><a class="nach" href="tasten.html"><span>下一页</span>键盘快捷键</a></nav>
   </article>
-  <footer>BehavEd-Remake 手册。图片展示的是程序本身,由其自检功能截取。</footer>
+  <footer>JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

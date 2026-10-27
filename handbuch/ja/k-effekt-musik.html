@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>エフェクトを追加して音楽を変える - BehavEd-Remake</title>
+<title>エフェクトを追加して音楽を変える - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -35,7 +35,7 @@
 <ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>エフェクト。</strong> タイル <strong><span class="ui">エフェクト (fx_runner)</span></strong> をクリックし、表示させたい場所をクリックします。</p><figure class="bild"><a href="../bilder/ja/e_kachel_fx.webp" class="zoom"><img src="../bilder/ja/e_kachel_fx.webp" alt="エフェクトのタイル。" loading="lazy"></a><figcaption>エフェクトのタイル。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>設定します。</strong> インスペクターで <code>fxFile</code> をゲームのエフェクト(<code>effects/</code> 以下のパス、たとえば <code>env/fire</code>)にし、名前を付けて、待機させるために <code>STARTOFF</code> にチェックを入れます。</p><figure class="bild"><a href="../bilder/ja/k_effekt.webp" class="zoom"><img src="../bilder/ja/k_effekt.webp" alt="発着場の炎。" loading="lazy"></a><figcaption>発着場の炎。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>開始します。</strong> スクリプトの適切な時点に <code>use ( &quot;fire1&quot; )</code> を置きます。</p><figure class="bild"><a href="../bilder/ja/e_use_fx.webp" class="zoom"><img src="../bilder/ja/e_use_fx.webp" alt="use でエフェクトが始まります。" loading="lazy"></a><figcaption>use でエフェクトが始まります。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">4</span><div><p><strong>音楽。</strong> <strong><span class="ui">+ エンティティ</span></strong> → <strong><span class="ui">音楽 (target_play_music)</span></strong> で、<code>music</code> に音楽ファイルを設定して名前を付けます。スクリプトから <code>use</code> すると音楽が切り替わります。</p><figure class="bild"><a href="../bilder/ja/e_neu_musik.webp" class="zoom"><img src="../bilder/ja/e_neu_musik.webp" alt="「+ エンティティ」メニューの音楽。" loading="lazy"></a><figcaption>「+ エンティティ」メニューの音楽。</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">5</span><div><p><strong>ダイナミックミュージック。</strong> <code>set ( SET_MUSIC_STATE, ... )</code> は、ゲーム本来の音楽をその状態の間で切り替えます。例えばアクションへ。</p><figure class="bild"><a href="../bilder/ja/e_musik_baum.webp" class="zoom"><img src="../bilder/ja/e_musik_baum.webp" alt="SET_MUSIC_STATE。" loading="lazy"></a><figcaption>SET_MUSIC_STATE。</figcaption></figure></div></div></li></ol>
     <nav class="blaettern"><a class="vor" href="k-levelwechsel.html"><span>前へ</span>最後に次のマップへ進む</a><a class="nach" href="k-szene-aendern.html"><span>次へ</span>ゲームのカットシーンを変更する</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

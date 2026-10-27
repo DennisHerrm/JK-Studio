@@ -13,7 +13,7 @@ KARTE3 = [
     ("KeLColorScheme", "Color Scheme", "Farbschema", "配色方案", "配色"),
     ("KeLScaling", "Scaling", "Skalierung", "缩放", "拡大縮小"),
     ("KeLManual", "Manual", "Handbuch", "手册", "マニュアル"),
-    ("KeLAboutBehavEd", "About BehavEd", "Über BehavEd", "关于 BehavEd", "BehavEd について"),
+    ("KeLAboutBehavEd", "About JK Studio", "Über JK Studio", "关于 JK Studio", "JK Studio について"),
     # --- Punkt 3: Dialog "Build Menu" (build.cpp BuildMenuDialog_construct) ---
     ("KeBmTitel", "Build Menu", "Build-Menü", "编译菜单", "ビルドメニュー"),
     ("KeBmGruppe", "Build menu", "Build-Menü", "编译菜单", "ビルドメニュー"),

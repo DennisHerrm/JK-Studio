@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!--
-BehavEd-Remake (Stufe 3): q3map2 is built from NetRadiant-Custom 20260114 as
-bhed_q3map2.exe next to behaved.exe, so [RadiantPath]q3map2 became
+JK Studio (Stufe 3): q3map2 is built from NetRadiant-Custom 20260114 as
+bhed_q3map2.exe next to jkstudio.exe, so [RadiantPath]q3map2 became
 [RadiantPath]bhed_q3map2. To use another q3map2, edit the variable in
 Build > Customize... > Build Variables.
 -->

@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BehavEd 能做什么 - BehavEd-Remake</title>
+<title>BehavEd 能做什么 - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>手册</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>手册</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="搜索手册...  (/)" autocomplete="off" aria-label="搜索手册...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -31,7 +31,7 @@
     <div class="ueber">入门</div>
     <h1>BehavEd 能做什么</h1>
     <p class="einleitung">全程导览:编写脚本、在地图上查看脚本、摄像机、角色、动画、任务以及周边工具。</p>
-    <p>BehavEd-Remake 编写 ICARUS 脚本——Jedi Academy 及其模组中每段过场动画和每个脚本化时刻背后的脚本。它写出的脚本与 Raven 原版 BehavEd 完全一致,逐个文件相同,然后向你展示它们的效果:在地图上、在三维中、随时间推进。下面每一节都链接到练习该内容的教程。</p>
+    <p>JK Studio 编写 ICARUS 脚本——Jedi Academy 及其模组中每段过场动画和每个脚本化时刻背后的脚本。它写出的脚本与 Raven 原版 BehavEd 完全一致,逐个文件相同,然后向你展示它们的效果:在地图上、在三维中、随时间推进。下面每一节都链接到练习该内容的教程。</p>
 <figure class="fluss"><svg viewBox="0 0 1044 236" role="img" aria-label="从构想到游戏"><text x="522" y="24" text-anchor="middle" class="fluss-titel">从构想到游戏</text><path d="M6 76 H1028" class="fluss-linie"/><path d="M1040 76 l-14 -9 v18 z" class="fluss-spitze"/><rect x="22" y="44" width="176" height="64" rx="10" class="fluss-kasten"/><text x="110" y="83" text-anchor="middle" class="fluss-text"><tspan x="110" dy="0">编写脚本</tspan></text><path d="M110 108 V138" class="fluss-linie"/><path d="M110 146 l-8 -12 h16 z" class="fluss-spitze"/><rect x="22" y="148" width="176" height="64" rx="10" class="fluss-unter"/><text x="110" y="187" text-anchor="middle" class="fluss-text"><tspan x="110" dy="0">命令、值、块</tspan></text><rect x="228" y="44" width="176" height="64" rx="10" class="fluss-kasten"/><text x="316" y="83" text-anchor="middle" class="fluss-text"><tspan x="316" dy="0">在地图上查看</tspan></text><path d="M316 108 V138" class="fluss-linie"/><path d="M316 146 l-8 -12 h16 z" class="fluss-spitze"/><rect x="228" y="148" width="176" height="64" rx="10" class="fluss-unter"/><text x="316" y="187" text-anchor="middle" class="fluss-text"><tspan x="316" dy="0">角色、摄像机、飞船</tspan></text><rect x="434" y="44" width="176" height="64" rx="10" class="fluss-kasten"/><text x="522" y="83" text-anchor="middle" class="fluss-text"><tspan x="522" dy="0">调整时间</tspan></text><path d="M522 108 V138" class="fluss-linie"/><path d="M522 146 l-8 -12 h16 z" class="fluss-spitze"/><rect x="434" y="148" width="176" height="64" rx="10" class="fluss-unter"/><text x="522" y="187" text-anchor="middle" class="fluss-text"><tspan x="522" dy="0">时间轴、轨道</tspan></text><rect x="640" y="44" width="176" height="64" rx="10" class="fluss-kasten"/><text x="728" y="83" text-anchor="middle" class="fluss-text"><tspan x="728" dy="0">保存任务</tspan></text><path d="M728 108 V138" class="fluss-linie"/><path d="M728 146 l-8 -12 h16 z" class="fluss-spitze"/><rect x="640" y="148" width="176" height="64" rx="10" class="fluss-unter"/><text x="728" y="187" text-anchor="middle" class="fluss-text"><tspan x="728" dy="0">检查、编译、.pk3</tspan></text><rect x="846" y="44" width="176" height="64" rx="10" class="fluss-kasten"/><text x="934" y="83" text-anchor="middle" class="fluss-text"><tspan x="934" dy="0">进游戏试玩</tspan></text><path d="M934 108 V138" class="fluss-linie"/><path d="M934 146 l-8 -12 h16 z" class="fluss-spitze"/><rect x="846" y="148" width="176" height="64" rx="10" class="fluss-unter"/><text x="934" y="176" text-anchor="middle" class="fluss-text"><tspan x="934" dy="0">devmap</tspan><tspan x="934" dy="22">&lt;名称&gt;</tspan></text></svg></figure>
 <h2 id="skripte">像原版一样编写脚本<a class="anker" href="#skripte">#</a></h2>
 <figure class="bild breit"><a href="../bilder/zh/h_skriptbaum.webp" class="zoom"><img src="../bilder/zh/h_skriptbaum.webp" alt="命令列表、脚本树和操作栏。" loading="lazy"></a><figcaption>命令列表、脚本树和操作栏。</figcaption></figure>
@@ -64,7 +64,7 @@
 <ul><li>在一个脚本或所有打开的脚本中查找和替换。<a href="k-suchen-ersetzen.html">在所有打开的脚本中查找和替换</a></li><li>标签页、书签和分屏视图,用于比较脚本和跨脚本复制。<a href="k-lesezeichen.html">书签与分屏</a></li><li>每次保存都会备份,有备份文件夹,任意命令都可恢复到原来的样子。<a href="speichern.html">保存、编译与检查</a></li><li>四种语言、六种主题、任意界面大小,每个快捷键都可重新绑定。<a href="einstellungen.html">设置与更新</a>、<a href="tasten.html">键盘快捷键</a></li><li>检查并安装更新。<a href="einstellungen.html#updates">更新与更新日志</a></li></ul>
     <nav class="blaettern"><a class="vor" href="index.html"><span>上一页</span>欢迎</a><a class="nach" href="erste-schritte.html"><span>下一页</span>快速上手</a></nav>
   </article>
-  <footer>BehavEd-Remake 手册。图片展示的是程序本身,由其自检功能截取。</footer>
+  <footer>JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

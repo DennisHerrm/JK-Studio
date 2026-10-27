@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Begriffe - BehavEd-Remake</title>
+<title>Begriffe - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>Handbuch</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Handbuch</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="Im Handbuch suchen ...  (/)" autocomplete="off" aria-label="Im Handbuch suchen ...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -34,7 +34,7 @@
     <table class="liste"><thead><tr><th>Begriff</th><th>Bedeutung</th></tr></thead><tbody><tr><td>ICARUS</td><td>Das Skriptsystem des Spiels. Skripte sind Text (<code>.txt</code>) und laufen übersetzt (<code>.ibi</code>).</td></tr><tr><td><code>.ibi</code></td><td>Ein übersetztes Skript - das, was das Spiel wirklich ausführt. <strong><span class="ui">Übersetzen!</span></strong> erzeugt es.</td></tr><tr><td><code>.bhc</code></td><td>Die Befehlsbeschreibung: jeder Befehl, seine Felder und deren Auswahl.</td></tr><tr><td><code>affect</code></td><td>Ein Block, dessen Befehle an eine benannte Figur oder Entity gehen.</td></tr><tr><td><code>task</code> / <code>do</code> / <code>dowait</code></td><td>Eine benannte Gruppe von Befehlen; <code>do</code> startet sie nebenher, <code>dowait</code> wartet, bis sie fertig ist.</td></tr><tr><td><code>wait</code></td><td>Eine Pause in Millisekunden. Im Spiel endet sie ein Bild (50 ms) später als geschrieben.</td></tr><tr><td><code>SET_NAVGOAL</code></td><td>Schickt eine Figur zu einem <code>waypoint_navgoal</code> - gerade, wenn es nah ist, sonst über das Wegnetz. Siehe <a href="figuren.html#wieimspiel">Wie Figuren sich bewegen - wie im Spiel</a>.</td></tr><tr><td><code>SET_YAWSPEED</code></td><td>Wie schnell ein NPC sich dreht: 60 + 3 × Wert Grad je Sekunde.</td></tr><tr><td><code>SET_SABERCOLLISIONS</code></td><td>Nur Movie Duels: lässt die Klingen von NPCs in <code>BS_CINEMATIC</code> klirren. Siehe <a href="figuren.html#schwerter">Lichtschwerter: Wände und Klirren</a>.</td></tr><tr><td><code>NPC_spawner</code></td><td>Die Entity, die eine Figur erscheinen lässt; <code>NPC_type</code> sagt welche, <code>NPC_targetname</code> benennt sie für Skripte.</td></tr><tr><td><code>ref_tag</code></td><td>Eine benannte Marke in der Karte - für Kamerapositionen und Blickziele.</td></tr><tr><td><code>target_scriptrunner</code></td><td>Startet ein Skript, wenn es benutzt wird (von einem Auslöser, einer anderen Entity oder einem Skript).</td></tr><tr><td><code>func_static</code></td><td>Ein Brush-Modell der Karte, das Skripte bewegen können - Schiffe, Türen, Plattformen.</td></tr><tr><td>ROFF (<code>.rof</code>)</td><td>Eine aufgezeichnete Bewegung: je Spielbild ein kleiner Schritt in Ort und Winkel. Siehe <a href="animation.html#roff">Wie ROFF-Dateien funktionieren</a>.</td></tr><tr><td><code>.pk3</code></td><td>Ein Zip-Archiv, aus dem das Spiel seine Dateien liest. Eine Mission wird in eines gepackt.</td></tr><tr><td><code>.ent</code></td><td>Die Entities einer Karte in einer eigenen Datei; Movie Duels lässt die Karte und legt eigene Entities daneben.</td></tr><tr><td>Movie Duels</td><td>Ein großer Jedi-Academy-Mod mit Zwischensequenz-Missionen. Sein Spielcode weicht stellenweise von OpenJK ab; die Vorschau folgt wahlweise dem einen oder dem anderen - <a href="einstellungen.html#prefs">Einstellungen</a>.</td></tr></tbody></table>
     <nav class="blaettern"><a class="vor" href="tasten.html"><span>Zurück</span>Tastenkürzel</a><a class="nach" href="knoepfe.html"><span>Weiter</span>Jeder Knopf</a></nav>
   </article>
-  <footer>Handbuch zu BehavEd-Remake. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf.</footer>
+  <footer>Handbuch zu JK Studio - Mod-Werkzeuge für Jedi Knight: Jedi Academy und Jedi Outcast. Die Bilder zeigen das Programm selbst; sein Selbsttest nimmt sie auf. Nicht verbunden mit Lucasfilm, Disney oder Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

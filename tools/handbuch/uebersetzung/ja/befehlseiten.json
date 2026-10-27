@@ -296,7 +296,7 @@
  "0 to 16.": "0〜16。",
  "camera SHAKE - shake the picture": "camera SHAKE - 画面を揺らす",
  "Shakes the camera for a while.": "カメラをしばらく揺らします。",
- "A recorded camera flight - made in an editor or with **Animate** - is played as the camera's movement. The path starts where the camera is; BehavEd-Remake plays it like the game, including the notes `cut`, `fov`, `fovzoom` and `fovaccel`. A `MOVE` ends the path.": "記録したカメラの飛行(エディターや**アニメート**で作成)を、カメラの動きとして再生します。パスはカメラの現在位置から始まります。BehavEd-Remake はゲームと同じように、`cut`・`fov`・`fovzoom`・`fovaccel` の注記も含めて再生します。`MOVE` でパスは終わります。",
+ "A recorded camera flight - made in an editor or with **Animate** - is played as the camera's movement. The path starts where the camera is; JK Studio plays it like the game, including the notes `cut`, `fov`, `fovzoom` and `fovaccel`. A `MOVE` ends the path.": "記録したカメラの飛行(エディターや**アニメート**で作成)を、カメラの動きとして再生します。パスはカメラの現在位置から始まります。JK Studio はゲームと同じように、`cut`・`fov`・`fovzoom`・`fovaccel` の注記も含めて再生します。`MOVE` でパスは終わります。",
  "The event editor for `camera ( PATH )`.": "`camera ( PATH )` のイベントエディター。",
  "The first field chooses what the camera does - here `PATH`. Changing it changes the fields below.": "最初の欄でカメラの動作を選びます。ここでは `PATH` です。変えると下の欄が変わります。",
  "The ROFF file below `scripts/`, without `.rof`.": "`scripts/` 以下の ROFF ファイル。`.rof` は付けません。",

@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>マップ - BehavEd-Remake</title>
+<title>マップ - JK Studio</title>
 <link rel="stylesheet" href="../assets/stil.css">
 <script>try{var t=localStorage.getItem('bhed-thema');if(t)document.documentElement.dataset.theme=t;var m=new URLSearchParams(location.search).get('modus')||localStorage.getItem('bhed-modus');if(m)document.documentElement.dataset.modus=m;}catch(e){}</script>
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>BehavEd-Remake</b><small>ガイド</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>ガイド</small></span></a>
   <div class="suche">
     <input id="suchfeld" type="search" placeholder="ガイドを検索...  (/)" autocomplete="off" aria-label="ガイドを検索...  (/)">
     <div id="treffer" class="treffer" hidden></div>
@@ -42,7 +42,7 @@
 <div class="hinweis">画面はゲームと同じに見えるように作られています。シェーダー、ライトマップ、グロー(<code>r_DynamicGlow</code> 相当。マップ、ブラシエンティティやモデル、ドロイドの目などキャラクターの発光部分、炎や火花などのエフェクト、ライトセーバーの刃の周り)、霧(<code>r_drawfog</code>)、動的ライト、レンズフレア、地面の草・茂み・雨の跳ね(<code>surfaceSprites</code>。ゲームと同じ場所に一本ずつ、風に揺れ、距離で薄れる。使用されて初めて現れる壁などのブラシエンティティ上にも表示され、雨の跳ねは雨が降っている間だけ)、天候(Movie Duels では fx_lava の溶岩も)、セイバーの軌跡・火花・焼け跡(<a href="figuren.html#schwerter">ライトセーバー:壁とぶつかり合い</a>)。武器、メディパック、シールド、弾薬はゲームが落とす位置に置かれ(<code>targetname</code> のあるアイテムは使われたときに現れます)、充電ステーション、セキュリティパネル、壁のカメラ、タレット、据え置き砲、E-Web、セントリーガン、イオン砲はゲームが与えるモデルで表示されます(プレイヤーがいないので照準も射撃もしません。セントリーガンはマップ開始またはオンにされてから 1 秒後に展開し、そのあとゲームで標的がないときと同じくゆっくり左右に旋回し、イオン砲は自動で、または use の後に、発射炎と反動つきで発射します。ゲームと同じくモデルは 2 倍の大きさです)。レーザートリップマインは壁に付き、オンのときはビームを出してハム音を鳴らします(起動時には警告音)。スクリプトやトリガーでオン・オフでき、ビームはドアなどの動く部分のその時点の位置、ほかのレーザートリップマイン、固体の壊せるモデルで止まり、キャラクター(手に持った武器だけでも)がビームに入るとマインが爆発して消えます。ゲームの爆発ダメージと同じく近くのキャラクターを傷つけ(近いほど大きく、壁越しには届きません)、体力がなくなったキャラクターは致命的な領域と同じく死にます(<a href="figuren.html">キャラクターと道</a>)。ゲームと同じく、マインはそのターゲットを使うので、その先のドアや壁、カウンターが切り替わり、その先のスクリプト(カウンターの usescript やスクリプトランナー)も実行されます。カウントはスクリプトと可動部で共通です。爆発したマインは近くのオンになっているマインも誘爆させます(近くに並べたマインは一緒に爆発します)。キャラクターはシェーダーのすべてのステージを表示します(光沢、クローム(手に持った武器やセーバーの柄にも。ゲームと同じくキャラクターと一緒に回ります)、バトル・ドロイドの塗装のような色付きの部分、クローン・トルーパーの黒いバイザー、点滅やアニメーションのステージ、皇帝のホログラムのゆらめきのように動くテクスチャステージ(tcMod)、シャドウ・ヨーダ(md_yoda_shadow)の周りの煙のようにシェーダーが <code>deformVertexes</code> の wave・bulge・move で動かす面)。エフェクトもシェーダーのすべてのステージで描かれ、爆発はゲームと同じく 2 つのアニメーションステージをクロスフェードします。最初のステージを含む各ステージは、シェーダーが求める場合(<code>rgbGen vertex</code>、<code>alphaGen vertex</code>)だけパーティクルの色とフェードを使い、それ以外はゲームと同じく画像をそのまま表示します。シェーダースクリプトのないエフェクト画像は、ゲームの組み込みシェーダーと同じく、アルファで合成され、パーティクルの色とフェードを使い、壁越しにも見えるように描画されます。エフェクトが持つモデル(<code>useModel</code>、たとえば duel_exegol の霧)も描画され、シェーダーが <code>deformVertexes autosprite</code> を指定している場合はカメラの方を向きます。fx_target_beam のビームはゲームと同じくターゲットに向けて発射されます。スクリプトやトリガーでオン・オフしたときも同様です(単発のビームは使用ごとに 1 回発射)。各発射はその時点のターゲットの位置を狙い(走行中の列車へのビームは列車を追います)、途中のドア、動く部分、キャラクターで止まります。再びオンにされたビームはゲームと同じく間隔(<code>wait</code>)が過ぎるまで待ちます。おかしく見えるときは <strong><span class="ui">統計</span></strong> でフレームレート、テクスチャ、グラフィックカードの値を確認できます。</div>
     <nav class="blaettern"><a class="vor" href="speichern.html"><span>前へ</span>保存・コンパイル・チェック</a><a class="nach" href="entities.html"><span>次へ</span>エンティティ</a></nav>
   </article>
-  <footer>BehavEd-Remake ガイド。画像はプログラム自身の画面で、セルフテストが撮影しています。</footer>
+  <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

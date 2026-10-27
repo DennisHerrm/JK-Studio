@@ -186,7 +186,7 @@ Antwort holen(const std::wstring& url, const std::vector<std::wstring>& kopf, bo
         a.fehler = text(Str::UpdErrUrl);
         return a;
     }
-    const std::wstring agent = L"BehavEd-Remake/" + breit(bhed::kFassung);
+    const std::wstring agent = L"JK-Studio/" + breit(bhed::kFassung);
     HINTERNET sitzung = WinHttpOpen(agent.c_str(), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME,
                                     WINHTTP_NO_PROXY_BYPASS, 0);
     if (sitzung == nullptr) {
@@ -494,6 +494,10 @@ void beimStart() {
     // Reste eines frueheren Updates: die alte .exe und das geladene .zip.
     std::wstring alt = exePfad() + L".alt";
     DeleteFileW(alt.c_str());
+    // Stufe 8c: der Updater bis rc605 hat die laufende behaved.exe in behaved.exe.alt
+    // umbenannt; laeuft jetzt jkstudio.exe daneben, raeumt sie den Rest weg.
+    const std::wstring altesProgramm = (fs::path(exePfad()).parent_path() / (breit(bhed::update::kAltesProgramm) + L".alt")).wstring();
+    if (altesProgramm != alt) { DeleteFileW(altesProgramm.c_str()); }
     wchar_t temp[MAX_PATH] = {};
     GetTempPathW(MAX_PATH, temp);
     std::error_code ec;
@@ -548,7 +552,7 @@ void neustartWennVorgemerkt() {
     } else {
         const std::string m = text(Str::UpdErrRestart, {}, static_cast<long long>(GetLastError()));
         diag::detail("Update: " + m);
-        platform::showError(m, "BehavEd");
+        platform::showError(m, tr(Str::AppTitle));
     }
 }
 

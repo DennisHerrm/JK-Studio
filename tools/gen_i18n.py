@@ -15,7 +15,7 @@ damit der Nachbau erkennbar bleibt.
 
 # (Kennung, English, Deutsch, 中文, 日本語)
 S = [
-    ("AppTitle", "BehavEd", "BehavEd", "BehavEd", "BehavEd"),
+    ("AppTitle", "JK Studio", "JK Studio", "JK Studio", "JK Studio"),
 
     # --- Gruppen des Hauptfensters (Beschriftungen aus der Ressource) ---
     ("GroupEvents", "Events", "Ereignisse", "事件", "イベント"),
@@ -112,7 +112,7 @@ S = [
     ("MenuEdit", "Edit", "Bearbeiten", "编辑", "編集"),
     ("MenuView", "View", "Ansicht", "视图", "表示"),
     ("MenuHelp", "Help", "Hilfe", "帮助", "ヘルプ"),
-    ("HelpAbout", "About BehavEd...", "Ueber BehavEd...", "关于 BehavEd...", "BehavEd について..."),
+    ("HelpAbout", "About JK Studio...", "Über JK Studio...", "关于 JK Studio...", "JK Studio について..."),
     ("EditUndo", "Undo", "Rückgängig", "撤销", "元に戻す"),
     ("EditRedo", "Redo", "Wiederholen", "やり直し", "やり直し"),
     ("ViewTheme", "Theme", "Farbgebung", "主题", "テーマ"),
@@ -461,12 +461,12 @@ S = [
      "Zuletzt bearbeitete Datei laden: \"%s\"?",
      "自动加载最近的文件：\"%s\"？", "最近のファイルを自動で開きますか: \"%s\""),
     ("AskCrashReopen",
-     "It appears you didn't exit BehavEd legally last time (crash?)\n"
+     "It appears you didn't exit JK Studio legally last time (crash?)\n"
      "Should I still try and open your last file \"%s\"?",
-     "BehavEd wurde beim letzten Mal nicht sauber beendet (Absturz?).\n"
+     "JK Studio wurde beim letzten Mal nicht sauber beendet (Absturz?).\n"
      "Soll die zuletzt bearbeitete Datei \"%s\" trotzdem geöffnet werden?",
-     "上次似乎没有正常退出 BehavEd（崩溃？）\n仍要尝试打开上次的文件 \"%s\" 吗？",
-     "前回 BehavEd が正常に終了しなかったようです（クラッシュ？）\n"
+     "上次似乎没有正常退出 JK Studio（崩溃？）\n仍要尝试打开上次的文件 \"%s\" 吗？",
+     "前回 JK Studio が正常に終了しなかったようです（クラッシュ？）\n"
      "それでも前回のファイル \"%s\" を開きますか？"),
     ("AskUnprotect",
      "The file \"%s\" is write-protected.\n"
@@ -722,10 +722,10 @@ S = [
     ("StepSelectiveUndo", "undo of one step", "einzelner Schritt zurückgenommen", "撤销单个步骤", "単一手順の取り消し"),
     ("FileBackupFolder", "Open backup folder", "Sicherungsordner öffnen", "打开备份文件夹", "バックアップフォルダーを開く"),
     ("FileBackupFolderHint",
-     "Every save and compile keeps a copy: backup1.txt (newest) to backup10.txt, next to behaved.exe",
-     "Jedes Speichern und Kompilieren legt eine Kopie ab: backup1.txt (neueste) bis backup10.txt, neben behaved.exe",
-     "每次保存和编译都会保留副本：backup1.txt（最新）到 backup10.txt，位于 behaved.exe 旁",
-     "保存とコンパイルのたびにコピーを残します: backup1.txt（最新）〜 backup10.txt、behaved.exe の隣"),
+     "Every save and compile keeps a copy: backup1.txt (newest) to backup10.txt, next to jkstudio.exe",
+     "Jedes Speichern und Kompilieren legt eine Kopie ab: backup1.txt (neueste) bis backup10.txt, neben jkstudio.exe",
+     "每次保存和编译都会保留副本：backup1.txt（最新）到 backup10.txt，位于 jkstudio.exe 旁",
+     "保存とコンパイルのたびにコピーを残します: backup1.txt（最新）〜 backup10.txt、jkstudio.exe の隣"),
     ("UndoSteps", "Undo: %d steps", "Rückgängig: %d Schritte", "撤销：%d 步", "元に戻す: %d 手順"),
     ("RedoSteps", "Redo: %d steps", "Wiederholen: %d Schritte", "重做：%d 步", "やり直し: %d 手順"),
     ("UndoListTitle", "Undo history - newest at the top", "Rückgängig-Liste - neuester oben",
@@ -740,15 +740,28 @@ S = [
 
     ("MoveUp", "Move up", "Nach oben", "上移", "上へ"),
     ("MoveDown", "Move down", "Nach unten", "下移", "下へ"),
-    ("AboutTitle", "About BehavEd", "Über BehavEd", "关于 BehavEd",
-     "BehavEd について"),
+    ("AboutTitle", "About JK Studio", "Über JK Studio", "关于 JK Studio",
+     "JK Studio について"),
+    # Stufe 8c (Umbenennung): Untertitel, Bereiche, Hinweis zur Marke
+    ("AboutSubtitle", "Mod tools for Jedi Knight: Jedi Academy and Jedi Outcast",
+     "Mod-Werkzeuge für Jedi Knight: Jedi Academy und Jedi Outcast",
+     "Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具",
+     "Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール"),
+    ("AboutModules", "Modules: BehavEd (scripts), Preview, Map Editor",
+     "Bereiche: BehavEd (Skripte), Vorschau, Karten-Editor",
+     "模块:BehavEd(脚本)、预览、地图编辑器",
+     "モジュール:BehavEd(スクリプト)、プレビュー、マップエディター"),
+    ("AboutNotAffiliated", "Not affiliated with Lucasfilm, Disney or Raven Software.",
+     "Nicht verbunden mit Lucasfilm, Disney oder Raven Software.",
+     "与 Lucasfilm、Disney 或 Raven Software 无关联。",
+     "Lucasfilm、Disney、Raven Software とは関係ありません。"),
     ("AboutOriginal",
-     "Reconstruction of BehavEd 2.0 by Raven Software (1999), written by "
+     "BehavEd: reconstruction of BehavEd 2.0 by Raven Software (1999), written by "
      "Josh Weier and Ste Cork.",
-     "Nachbau von BehavEd 2.0 von Raven Software (1999), geschrieben von "
+     "BehavEd: Nachbau von BehavEd 2.0 von Raven Software (1999), geschrieben von "
      "Josh Weier und Ste Cork.",
-     "Raven Software 的 BehavEd 2.0（1999）的重建版，原作者 Josh Weier 与 Ste Cork。",
-     "Raven Software の BehavEd 2.0（1999）の再構築版。原作者は Josh Weier と Ste Cork。"),
+     "BehavEd:Raven Software 的 BehavEd 2.0（1999）的重建版，原作者 Josh Weier 与 Ste Cork。",
+     "BehavEd:Raven Software の BehavEd 2.0（1999）の再構築版。原作者は Josh Weier と Ste Cork。"),
     ("AboutVerified", "Verified against", "Geprüft gegen", "验证依据", "検証対象"),
     ("AboutResources", "Resources of BehavEd.exe: dialogs, accelerators, bitmaps",
      "Ressourcen von BehavEd.exe: Dialoge, Tastentabelle, Bitmaps",
@@ -1414,7 +1427,7 @@ S = [
     ("AboutGuide", "Guide", "Handbuch", "手册", "ガイド"),
     ("HelpGuide", "Guide and tutorials", "Handbuch und Tutorials", "手册与教程", "ガイドとチュートリアル"),
     ("GuideHint", "Opens the guide in your browser: every function with pictures, tutorials and a search. Works without internet.", "Öffnet das Handbuch im Browser: jede Funktion mit Bildern, Tutorials und eine Suche. Geht ohne Internet.", "在浏览器中打开手册:每项功能都配有图片,另有教程和搜索。无需联网。", "ブラウザーでガイドを開きます。すべての機能を画像付きで説明し、チュートリアルと検索もあります。インターネット不要です。"),
-    ("GuideMissing", "The guide was not found (folder handbuch next to behaved.exe): %s", "Das Handbuch wurde nicht gefunden (Ordner handbuch neben behaved.exe): %s", "未找到手册(behaved.exe 旁的 handbuch 文件夹):%s", "ガイドが見つかりません(behaved.exe の隣の handbuch フォルダー):%s"),
+    ("GuideMissing", "The guide was not found (folder handbuch next to jkstudio.exe): %s", "Das Handbuch wurde nicht gefunden (Ordner handbuch neben jkstudio.exe): %s", "未找到手册(jkstudio.exe 旁的 handbuch 文件夹):%s", "ガイドが見つかりません(jkstudio.exe の隣の handbuch フォルダー):%s"),
     ("MapFlares", "Lens flares", "Lens-Flares", "镜头光晕", "レンズフレア"),
     ("MapWeather", "Weather particles", "Wetterteilchen", "天气粒子", "天候パーティクル"),
     ("MapNotMission", "Map in this tab: %s\nThe mission \"%s\" uses another map - Save mission still saves it.", "Karte in diesem Reiter: %s\nDie Mission \"%s\" benutzt eine andere Karte - Mission speichern sichert sie trotzdem.", "此标签页中的地图: %s\n任务 \"%s\" 使用另一张地图 - 保存任务仍会保存它。", "このタブのマップ: %s\nミッション \"%s\" は別のマップを使用しています - ミッションの保存は引き続き保存します。"),
@@ -1835,20 +1848,20 @@ S = [
     # meist hatte jemand nur die .exe aus dem Zip gezogen. %s ist der Ordner,
     # in dem gesucht wurde.
     ("DataMissing",
-     "BehavEd cannot find its data: behaved.bhc is missing in\n%s\n\n"
+     "JK Studio cannot find its data: behaved.bhc is missing in\n%s\n\n"
      "Please unpack the whole zip file (right-click → Extract All…) and start "
-     "behaved.exe from the unpacked BehavEd-Remake folder. behaved.exe needs "
+     "jkstudio.exe from the unpacked JK-Studio folder. jkstudio.exe needs "
      "its data folder next to it.",
-     "BehavEd findet seine Daten nicht: behaved.bhc fehlt in\n%s\n\n"
+     "JK Studio findet seine Daten nicht: behaved.bhc fehlt in\n%s\n\n"
      "Bitte das ganze Zip-Archiv entpacken (Rechtsklick → Alle extrahieren…) "
-     "und behaved.exe aus dem entpackten Ordner BehavEd-Remake starten. "
-     "behaved.exe braucht den Ordner data neben sich.",
-     "BehavEd 找不到它的数据：以下位置缺少 behaved.bhc\n%s\n\n"
-     "请解压整个 zip 文件（右键 → 全部解压缩…），然后从解压出的 BehavEd-Remake "
-     "文件夹启动 behaved.exe。behaved.exe 旁边必须有 data 文件夹。",
-     "BehavEd のデータが見つかりません。次の場所に behaved.bhc がありません:\n%s\n\n"
-     "zip ファイル全体を展開し(右クリック → すべて展開…)、展開した BehavEd-Remake "
-     "フォルダーから behaved.exe を起動してください。behaved.exe の隣には data "
+     "und jkstudio.exe aus dem entpackten Ordner JK-Studio starten. "
+     "jkstudio.exe braucht den Ordner data neben sich.",
+     "JK Studio 找不到它的数据：以下位置缺少 behaved.bhc\n%s\n\n"
+     "请解压整个 zip 文件（右键 → 全部解压缩…），然后从解压出的 JK-Studio "
+     "文件夹启动 jkstudio.exe。jkstudio.exe 旁边必须有 data 文件夹。",
+     "JK Studio のデータが見つかりません。次の場所に behaved.bhc がありません:\n%s\n\n"
+     "zip ファイル全体を展開し(右クリック → すべて展開…)、展開した JK-Studio "
+     "フォルダーから jkstudio.exe を起動してください。jkstudio.exe の隣には data "
      "フォルダーが必要です。"),
     # rc601 release (Durchsicht): die zweite Zeile derselben Meldung, wenn die
     # eingebauten Daten sich nicht auspacken liessen (Platte voll,
