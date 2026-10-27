@@ -14,9 +14,9 @@
 // einem Byte-Vergleich der Eingaben; jede Abweichung schaltet fuer diesen
 // Block auf die CPU zurueck.
 //
-// Direct3D 11 wird zur Laufzeit geladen (LoadLibrary d3d11.dll und
-// d3dcompiler_47.dll, beide Teil von Windows 10/11): bhed_q3map2.exe bindet
-// keine neue DLL fest (ctest q3map2_importe). Ohne GPU: die CPU wie immer.
+// Direct3D 11 wird zur Laufzeit geladen (LoadLibrary d3d11.dll, Teil von Windows
+// 10/11): bhed_q3map2.exe bindet keine neue DLL fest (ctest q3map2_importe). Der
+// Shader ist seit Stufe 8g im Bau vorab uebersetzt (bhed_gpuschatten.hlsl, fxc). Ohne GPU: die CPU wie immer.
 //
 //   Copyright (C) 1999-2007 id Software, Inc. and contributors (TraceLine,
 //   TraceTriangle aus q3map2/light_trace.cpp, als HLSL nachgebaut).

@@ -234,7 +234,57 @@ bhed_q3_kopie(${Q3M} tjunction.cpp Q3_TJUNCTION)
 bhed_q3_kopie(${Q3M} vis.cpp Q3_VIS)
 bhed_q3_kopie(${Q3C} vfs.cpp Q3_VFS)
 
+# --- Stufe 8g Punkt 1: die Compute-Shader des GPU-Backens vorab uebersetzen ------------
+#
+# fxc aus dem Windows SDK (neueste installierte Fassung) uebersetzt bhed_gpubacken.hlsl
+# (-bhedgpubake) in jede noetige Variante und bhed_gpuschatten.hlsl (-bhedgpu); der Bytecode (DXBC, cs_5_0) landet als Header in der exe.
+# Zur Laufzeit wird nichts uebersetzt (vorher 2,6-3,8 s D3DCompile beim Start), und
+# d3dcompiler_47.dll wird nicht mehr geladen. Schalter wie zuvor zur Laufzeit:
+# /O3 (OPTIMIZATION_LEVEL3), /Gis (IEEE_STRICTNESS).
+set(BHED_KITS_ROOT "")
+get_filename_component(BHED_KITS_ROOT "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows Kits\\Installed Roots;KitsRoot10]" ABSOLUTE)
+set(BHED_SDK_BIN "")
+if(BHED_KITS_ROOT AND IS_DIRECTORY "${BHED_KITS_ROOT}/bin")
+  file(GLOB BHED_SDK_VERSIONEN LIST_DIRECTORIES true "${BHED_KITS_ROOT}/bin/10.*")
+  list(SORT BHED_SDK_VERSIONEN COMPARE NATURAL ORDER DESCENDING)
+  foreach(v ${BHED_SDK_VERSIONEN})
+    list(APPEND BHED_SDK_BIN "${v}/x64")
+  endforeach()
+endif()
+find_program(BHED_FXC fxc PATHS ${BHED_SDK_BIN} NO_DEFAULT_PATH)
+find_program(BHED_FXC fxc)
+if(NOT BHED_FXC)
+  message(FATAL_ERROR "bhed_q3map2: fxc.exe (Windows SDK) nicht gefunden - noetig fuer die vorab uebersetzten GPU-Shader")
+endif()
+set(BHED_HLSL_AUS ${CMAKE_CURRENT_BINARY_DIR}/hlsl)
+set(BHED_HLSL_HEADER "")
+# bhed_fxc(<Name> <Quelle.hlsl> <Einstieg> <Makros...>): ${BHED_HLSL_AUS}/<Name>.h mit const BYTE <Name>[]
+function(bhed_fxc name quelle einstieg)
+  set(makros "")
+  foreach(m ${ARGN})
+    list(APPEND makros /D ${m})
+  endforeach()
+  set(aus ${BHED_HLSL_AUS}/${name}.h)
+  add_custom_command(OUTPUT ${aus}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${BHED_HLSL_AUS}
+    COMMAND ${BHED_FXC} /nologo /T cs_5_0 /E ${einstieg} /O3 /Gis /Qstrip_reflect /Qstrip_debug ${makros}
+            /Vn ${name} /Fh ${aus} ${CMAKE_CURRENT_SOURCE_DIR}/${quelle}
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${quelle}
+    COMMENT "fxc ${name}"
+    VERBATIM)
+  set(BHED_HLSL_HEADER ${BHED_HLSL_HEADER} ${aus} PARENT_SCOPE)
+endfunction()
+foreach(d 0 1)
+  foreach(m 0 1 2)
+    bhed_fxc(g_bake_d${d}_m${m} bhed_gpubacken.hlsl main DOPPELT=${d} MESS=${m} DIAG=0)
+  endforeach()
+endforeach()
+bhed_fxc(g_bake_d1_diag bhed_gpubacken.hlsl main DOPPELT=1 MESS=0 DIAG=1)
+bhed_fxc(g_schatten bhed_gpuschatten.hlsl main)
+message(STATUS "q3map2: GPU-Shader mit ${BHED_FXC}")
+
 add_executable(bhed_q3map2
+  ${BHED_HLSL_HEADER}
   ${Q3C}/cmdlib.cpp ${Q3C}/qimagelib.cpp ${Q3C}/inout.cpp ${Q3C}/jpeg.cpp ${Q3C}/md4.cpp ${Q3C}/mutex.cpp
   ${Q3C}/polylib.cpp ${Q3C}/scriplib.cpp ${Q3C}/threads.cpp ${Q3C}/unzip.cpp ${Q3_VFS} ${Q3C}/miniz.cpp
   ${Q3M}/autopk3.cpp ${Q3M}/brush.cpp ${Q3M}/bspfile_abstract.cpp ${Q3M}/bspfile_ibsp.cpp ${Q3M}/bspfile_rbsp.cpp
@@ -261,7 +311,8 @@ add_executable(bhed_q3map2
   # Stufe 6 (NRC#130): UTF-8 als Codepage - Pfade ausserhalb von ASCII
   q3map2.manifest)
 # kompat zuerst: glib.h und etclib.h von hier
-target_include_directories(bhed_q3map2 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/kompat ${Q3M} ${Q3C} ${Q3}/libs ${Q3}/include ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(bhed_q3map2 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/kompat ${Q3M} ${Q3C} ${Q3}/libs ${Q3}/include ${CMAKE_CURRENT_SOURCE_DIR}
+  ${BHED_HLSL_AUS})
 target_compile_definitions(bhed_q3map2 PRIVATE
   WIN32 _WIN32 NDEBUG _inline=inline
   # Nr. 3: windows.h ohne die Makros min/max (inout.cpp ruft std::min/std::max)

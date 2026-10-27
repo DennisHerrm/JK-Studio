@@ -23,8 +23,9 @@
 // die CPU nach; getrennt gezaehlt werden andere Treffer-Entscheidungen
 // (verdeckt/frei) und Abweichungen in der Rechnung.
 //
-// Direct3D 11 wird zur Laufzeit geladen (d3d11.dll, dxgi.dll, d3dcompiler_47.dll,
-// Teil von Windows 10/11): bhed_q3map2.exe bindet keine neue DLL fest. Kurze
+// Direct3D 11 wird zur Laufzeit geladen (d3d11.dll, dxgi.dll, Teil von Windows
+// 10/11): bhed_q3map2.exe bindet keine neue DLL fest. Die Shader sind seit Stufe 8g
+// im Bau vorab uebersetzt (bhed_gpubacken.hlsl, fxc) - kein d3dcompiler_47.dll. Kurze
 // Dispatches (TDR), Geraeteverlust oder Speichermangel: der Rest rechnet die CPU.
 //
 //   Copyright (C) 1999-2007 id Software, Inc. and contributors (TraceLine,

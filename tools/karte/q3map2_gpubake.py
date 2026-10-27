@@ -17,6 +17,8 @@ Patch), dazu ein Spot und Bounce-Runden (Flaechenlichter): gebaut (-bsp -meta,
                                  Rest auf der CPU, die Lumps gleich der CPU
   5. GPU ohne double           - BHED_GPUBAKE_OHNE_DOUBLE: float-Naeherungen, nur die
                                  Obergrenze (>= 75 % gleich, keine nicht endlichen Werte)
+  0. Shader vorab uebersetzt  - (Stufe 8g) die exe nennt weder d3dcompiler_47.dll noch
+                                 dxcompiler.dll noch D3DCompile
   6. Himmel mit Sonne          - ein Hof unter einem Himmels-Shader mit q3map_sunExt (eigener
                                  Spielordner im Test): CPU und GPU, Treffer 0, mit double
                                  Byte-gleich. Rot vor der Behebung: der skyIndex eines Shaders
@@ -104,6 +106,12 @@ def main():
         nonlocal fehler
         print(('ok    ' if gut else 'FEHL  ') + text)
         fehler += 0 if gut else 1
+
+    # Stufe 8g Punkt 1: die Shader sind im Bau vorab uebersetzt - die exe laedt keinen
+    # Shader-Uebersetzer (weder d3dcompiler_47.dll noch dxcompiler.dll) und ruft D3DCompile nicht
+    roh = open(exe, 'rb').read().lower()
+    melde(b'd3dcompiler' not in roh and b'dxcompiler' not in roh and b'd3dcompile\0' not in roh,
+          'Shader vorab uebersetzt: kein d3dcompiler_47.dll/dxcompiler.dll/D3DCompile in der exe')
 
     with tempfile.TemporaryDirectory(prefix='bhed_gpubake_') as t:
         vis = os.path.join(t, 'vis')
