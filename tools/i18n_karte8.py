@@ -189,3 +189,11 @@ KARTE8 += [
      "テンプレートがありません:先にコンパイル済みマップを読み込んでください"),
     ("KeZfLeereEbene", "The layer has no brushes or patches", "Die Ebene hat keine Brushes oder Patches", "该图层没有笔刷或曲面片", "このレイヤーにはブラシもパッチもありません"),
 ]
+
+# Punkt 3: die Geometrie hat sich waehrend der Rueckgewinnung geaendert
+KARTE8 += [
+    ("KeRkGeaendert", "Recover misc_model: the geometry was changed meanwhile, the result is dropped - open the .bsp again to recover",
+     "misc_model zurückgewinnen: die Geometrie wurde inzwischen geändert, das Ergebnis wird verworfen - zum Zurückgewinnen die .bsp noch einmal öffnen",
+     "恢复 misc_model:几何体在此期间已被修改,结果已丢弃——如需恢复,请重新打开 .bsp",
+     "misc_model の復元:その間にジオメトリが変更されたため、結果を破棄しました。復元するには .bsp をもう一度開いてください"),
+]

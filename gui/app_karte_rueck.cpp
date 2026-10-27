@@ -227,6 +227,13 @@ void ergebnisAnwenden() {
         warnung(trK(Str::KeRkAndereKarte));
         return;
     }
+    // Hat sich die Geometrie seit dem Oeffnen geaendert (File > Import, ein verschobener Pinsel),
+    // waere der neue Fingerabdruck unten falsch: "Update entities only" naehme die Aenderung als
+    // Teil der .bsp. Das Ergebnis verwerfen - Entity-Aenderungen stoeren nicht.
+    if (ed.bspHerkunft.aktiv && karte::geometrieFingerabdruck(ed.karte) != ed.bspHerkunft.fingerabdruck) {
+        warnung(trK(Str::KeRkGeaendert));
+        return;
+    }
     karte::Karte& k = ed.karte;
     std::size_t forceMeta = 0;
     double maxFehler = 0;

@@ -34459,8 +34459,10 @@ std::vector<Schritt> oeffnen() {
     std::vector<Schritt> s;
     auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
     add(stufe2::grundzustand("Stufe 4/1: Grundzustand"));
-    add(tu("bhed_q3map2.exe neben behaved.exe, alter Arbeitsordner weg", [] {
+    add(tu("bhed_q3map2.exe neben behaved.exe, alter Arbeitsordner weg, ohne die Rueckgewinnung der Stufe 8a", [] {
         stufe3::q3map2Bereitstellen();
+        ke::editor().bspRueck.modelle = false;   // Stufe 8a: ohne Rueckgewinnung (hier zaehlt das Dekompilat)
+        ke::editor().bspRueck.lichter = false;
         std::error_code ec;
         std::filesystem::remove_all(std::filesystem::path(bspArbeitsOrdner()), ec);
         ke::konsoleLeeren();
@@ -36558,6 +36560,7 @@ std::vector<Schritt> original() {
         stufe3::q3map2Bereitstellen();
         ke::optimiererSchliessen();
         ke::editor().optimierer = ke::Editor::OptimiererEinstellungen{};
+        ke::editor().bspRueck.modelle = false;   // Stufe 8a: ohne Rueckgewinnung (hier zaehlt das Dekompilat)
         (void)ke::bspOeffnenSpiel("maps/mp/duel1.bsp");
     }));
     add(warteBis("duel1 geladen", [] { return ke::editor().bspHerkunft.aktiv; }, 6000));
@@ -37086,7 +37089,10 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         // + "Update entities only" 24 (Stufe 4 Punkt 2, Abweichung) + "Optimizer..." 24 (Stufe 5 Punkt 5, Abweichung)
         // + "Real-time light" 24 + "Quick bake" 24 (Stufe 7 Punkt 5, Abweichung; pruefbar: Qt
         // reserviert dann fuer alle Eintraege die Spalte des Hakens, 193 -> 215)
-        {"Build", {"Build"}, 215, 405 + 7 + 24 + 24 + 24 + 24 + 24},
+        // + "Keep editor data", "Partial compile: reuse VIS", "Partial compile: reuse light",
+        // "Add to compiled map...", "Notify when a build is done" je 24 (Stufe 8a, Abweichung;
+        // der laengste Text "Partial compile: reuse light" mit Hakenspalte: 215 -> 241)
+        {"Build", {"Build"}, 241, 405 + 7 + 24 + 24 + 24 + 24 + 24 + 5 * 24},
         {"Grid", {"Grid"}, 163, 346},
         // Misc und Help: NRC + die Programm-Eintraege (Stufe 3 Punkt 0b, Abweichung):
         // Misc + Trenner 7 + drei Untermenues je 24, Help + Manual und About BehavEd.

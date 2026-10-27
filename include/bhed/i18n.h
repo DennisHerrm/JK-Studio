@@ -2263,6 +2263,7 @@ enum class Str {
     KeZfNichtGeladen,
     KeZfKeineVorlage,
     KeZfLeereEbene,
+    KeRkGeaendert,
     Count,
 };
 

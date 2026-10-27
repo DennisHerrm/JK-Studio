@@ -293,6 +293,7 @@ std::vector<Schritt> karteMessen(const Karte& k) {
     add(tu("Tempo: " + n + " .bsp oeffnen", [quelleBsp, ordner, n] {
         std::error_code ec;
         if (!std::filesystem::exists(std::filesystem::path(quelleBsp), ec)) { return; }
+        ke::editor().bspRueck.modelle = false;   // Stufe 8a: ohne Rueckgewinnung (hier zaehlt das Dekompilat)
         const auto t = std::chrono::steady_clock::now();
         const bool ok = ke::bspOeffnenDatei(quelleBsp);
         zeit(".bsp oeffnen, dekompilieren (" + n + ")", msSeit(t));
@@ -1285,7 +1286,10 @@ std::vector<Schritt> bsp6e() {
         bsp6eKarteSchreiben();
         (void)bsp6eBauen(bsp6eKarte());
     }));
-    add(tu("Stufe 7/6e: File > Open .bsp", [] { (void)ke::bspOeffnenDatei(karteTestPfad("s7e_hint.bsp")); }));
+    add(tu("Stufe 7/6e: File > Open .bsp", [] {
+        ke::editor().bspRueck.modelle = false;   // Stufe 8a: ohne Rueckgewinnung (hier zaehlt das Dekompilat)
+        (void)ke::bspOeffnenDatei(karteTestPfad("s7e_hint.bsp"));
+    }));
     add({"Stufe 7/6e: .bsp geoeffnet", [](int b) { return b > 30; }});
     add(pruefe("Stufe 7/6e: die .bsp enthaelt hint, areaportal und skip - alle structural (wie in der Quelle)", [] {
         const auto z = systemPinselZaehlen();
@@ -1296,7 +1300,10 @@ std::vector<Schritt> bsp6e() {
     }));
     if (const char* echt = std::getenv("BHED_S7E_BSP"); echt != nullptr && echt[0] != 0) {
         const std::string pfad = echt;
-        add(tu("Stufe 7/6e: echte Karte des Testers oeffnen (" + pfad + ")", [pfad] { (void)ke::bspOeffnenDatei(pfad); }));
+        add(tu("Stufe 7/6e: echte Karte des Testers oeffnen (" + pfad + ")", [pfad] {
+            ke::editor().bspRueck.modelle = false;   // Stufe 8a: ohne Rueckgewinnung (hier zaehlt das Dekompilat)
+            (void)ke::bspOeffnenDatei(pfad);
+        }));
         add({"Stufe 7/6e: echte Karte geoeffnet", [](int b) { return b > 30; }});
         add(pruefe("Stufe 7/6e: echte Karte - hint 81, areaportal 15, skip 359 Flaechen wie in der Quelle, keine davon detail", [] {
             const auto z = systemPinselZaehlen();

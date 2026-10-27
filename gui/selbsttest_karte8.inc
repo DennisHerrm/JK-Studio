@@ -350,7 +350,9 @@ std::vector<Schritt> editordaten() {
         (void)ke::karteSpeichernUnter(p);
         return dateiInhalt(p) == *quelle;
     }));
-    add(tu("Begleitdatei weg, Open .bsp noch einmal", [] {
+    add(tu("Begleitdatei weg, Open .bsp noch einmal (ohne die Rueckgewinnung aus Punkt 3: hier zaehlt der Entity-Lump)", [] {
+        ke::editor().bspRueck.modelle = false;
+        ke::editor().bspRueck.lichter = false;
         std::error_code ec;
         std::filesystem::remove(std::filesystem::path(edStamm() + ".bhed"), ec);
         ke::konsoleLeeren();
@@ -362,9 +364,10 @@ std::vector<Schritt> editordaten() {
         diag::detail("Knopftest: Stufe 8/2 ohne .bhed: " + edZahlText(z));
         return konsoleText().find(vorlageAnfang(Str::KeEdGefunden)) == std::string::npos && z.lichter == 3 && z.modelle == 0 && z.gruppen == 0;
     }));
-    add(tu("Option aus, Eintrag weg", [] {
+    add(tu("Option aus, Rueckgewinnung wieder wie vorgegeben, Eintrag weg", [] {
         ke::Editor& e = ke::editor();
         e.bau.editorDaten = false;
+        e.bspRueck = ke::Editor::BspRueckEinstellungen{};
         ke::einstellungenSpeichern();
         auto& v = e.bauProjekt.eintraege;
         v.erase(std::remove_if(v.begin(), v.end(), [](const karte::BauEintrag& b) { return b.name == "Test Editordaten"; }), v.end());
@@ -428,13 +431,43 @@ std::vector<Schritt> modelle() {
     add(pruefe("ohne die Option: keine Rueckgewinnung, kein misc_model", [] {
         return ke::bspRueckStand().stand == 0 && ke::editor().bspRueckLetzt.sekunden == 0 && edZaehlen().modelle == 0;
     }));
-    add(tu("Option wieder an, Eintrag weg", [] {
+    // Die Geometrie aendert sich, waehrend die Rueckgewinnung laeuft (etwa File > Import oder ein
+    // verschobener Pinsel): das Ergebnis darf den Fingerabdruck nicht neu setzen - sonst gaebe
+    // "Update entities only" eine geaenderte Geometrie als unveraendert aus. Es wird verworfen.
+    auto liefNoch = std::make_shared<bool>(false);
+    add(tu("Option wieder an, noch einmal oeffnen", [] {
+        ke::editor().bspRueck = ke::Editor::BspRueckEinstellungen{};
+        ke::editor().bspRueckLetzt = ke::Editor::BspRueckLetzt{};
+        ke::konsoleLeeren();
+        (void)ke::bspOeffnenDatei(edStamm() + ".bsp");
+    }));
+    add(tu("waehrend der Rueckgewinnung einen Pinsel verschieben (SelectNudgeUp)", [liefNoch] {
+        *liefNoch = ke::bspRueckStand().stand == 1 || ke::bspRueckStand().stand == 2;
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.karte.auswahl.waehlen(e.karte.welt(), e.karte.welt()->kinder().front());
+        ke::auswahlGeaendert();
+        (void)ke::ausfuehren("SelectNudgeUp");
+        e.karte.auswahl.leeren();
+        ke::auswahlGeaendert();
+    }));
+    add(warteSek("Rueckgewinnung beendet", [] { return ke::bspRueckStand().stand == 0; }, 180));
+    add(pause(0.3));
+    add(pruefe("Geometrie waehrend der Rueckgewinnung geaendert: Ergebnis verworfen (Konsole), kein misc_model, Fingerabdruck bleibt anders", [liefNoch] {
+        const EdZahl z = edZaehlen();
+        diag::detail("Knopftest: Stufe 8/3 Geometrie geaendert - lief noch " + std::to_string(*liefNoch) + ", " + edZahlText(z) + ", geaendert " +
+                     std::to_string(ke::bspGeometrieGeaendert()));
+        return *liefNoch && z.modelle == 0 && ke::bspGeometrieGeaendert() && konsoleText().find(ke::trK(Str::KeRkGeaendert)) != std::string::npos;
+    }));
+    add(tu("Rueckgaengig (der Pinsel), Option wie vorgegeben, Eintrag weg", [] {
+        (void)ke::ausfuehren("Undo");
         ke::Editor& e = ke::editor();
         e.bspRueck = ke::Editor::BspRueckEinstellungen{};
         ke::einstellungenSpeichern();
         auto& v = e.bauProjekt.eintraege;
         v.erase(std::remove_if(v.begin(), v.end(), [](const karte::BauEintrag& b) { return b.name == "Test Modelle"; }), v.end());
     }));
+    add(pruefe("Rueckgaengig: Geometrie wie die .bsp, Update entities only wieder moeglich", [] { return !ke::bspGeometrieGeaendert(); }));
     return s;
 }
 
