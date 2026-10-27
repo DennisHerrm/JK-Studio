@@ -223,7 +223,12 @@ bhed_q3_kopie(${Q3M} convert_map.cpp Q3_CONVERT_MAP)
 # und brush_t::original ins Leere zeigen lassen (kompat/gcc_vektor.h).
 bhed_q3_kopie(${Q3M} map.cpp Q3_MAP
               "entity_t& mapEnt = entities.emplace_back();" "entity_t& mapEnt = bhed_gcc::emplace_back( entities );")
-bhed_q3_kopie(${Q3M} lightmaps_ydnar.cpp Q3_LIGHTMAPS)
+# Stufe 8c (Gesamttest, ASan auf duel_training -light): FindOutLightmaps liest bei einer
+# "solid" Lightmap den Luxel (0,0), auch wenn sie 0 Luxel hat (bspLuxels mit malloc(0)) -
+# heap-buffer-overflow. Der Wert wird bei solid nie gebraucht: erst solid pruefen, dann lesen
+# (gleiches Ergebnis, kein Lesen ausserhalb).
+bhed_q3_kopie(${Q3M} lightmaps_ydnar.cpp Q3_LIGHTMAPS
+              "if ( luxel[ 0 ] < 0 && !lm->solid[ lightmapNum ] ) {" "if ( !lm->solid[ lightmapNum ] && luxel[ 0 ] < 0 ) {")
 bhed_q3_kopie(${Q3M} surface_meta.cpp Q3_SURFACE_META)
 bhed_q3_kopie(${Q3M} tjunction.cpp Q3_TJUNCTION)
 bhed_q3_kopie(${Q3M} vis.cpp Q3_VIS)
