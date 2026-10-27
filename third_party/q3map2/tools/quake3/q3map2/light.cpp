@@ -1825,7 +1825,11 @@ static void BhedTraceGridAlle(){
 			bhed_par::pool( numthreads ).fuerAlle( int( nrs.size() ), [&]( int k ){
 				const int num = nrs[ k ];
 				const BhedBakeGitterPunkt& p = punkte[ k ];
-				if ( p.flag != 0 ) {
+				bool endlich = std::isfinite( p.dir[ 0 ] ) && std::isfinite( p.dir[ 1 ] ) && std::isfinite( p.dir[ 2 ] );
+				for ( int j = 0; j < 12 && endlich; ++j ) {
+					endlich = std::isfinite( p.ambient[ j ] ) && std::isfinite( p.directed[ j ] );
+				}
+				if ( p.flag != 0 || !endlich ) { /* not exact on the GPU, or not finite (driver fault): the CPU */
 					++cpu;
 					TraceGrid( num );
 					return;
@@ -2478,6 +2482,9 @@ int LightMain( Args& args ){
 	}
 	while ( args.takeArg( "-bhedgpubakecheck" ) ) { /* BehavEd stage 8g: every N-th lightmap computed on the CPU too (0: none) */
 		g_bhedBakePruefen = std::max( 0, atoi( args.takeNext() ) );
+	}
+	if ( bhedBakeWunsch ) {
+		BhedBakeGeraetVorab( bhedBakeAdapter ); /* BehavEd stage 8g: device and shaders while the map loads */
 	}
 	const auto argsToInject = args.getVector();
 	{

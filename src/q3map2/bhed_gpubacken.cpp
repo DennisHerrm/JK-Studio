@@ -37,8 +37,11 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstdarg>
 #include <cstring>
+#include <limits>
 #include <string>
+#include <thread>
 
 // Hybrid-Notebooks: die schnelle GPU fuer diese exe (wie jkstudio.exe, gui/main_win32.cpp).
 // Die Exporte muessen in der exe stehen, nicht in einer DLL.
@@ -157,12 +160,14 @@ struct Gpu
 	bool bereit = false;
 	std::string name;
 	unsigned long long eigenerSpeicher = 0, geteilterSpeicher = 0;
+	D3D_FEATURE_LEVEL stufe{};
 	std::size_t budget = 0;
 	BhedBakeZahlen zahlen;
 	long long verlustNach = -1;   // Test: nach so vielen Dispatches einen Geraeteverlust vortaeuschen
 	bool zeiten = false;          // BHED_GPUBAKE_ZEITEN: jeden Kern bis zum Ende messen
 	size_t lichterAnzahl = 0;
 	int gitterTeil = 64;          // Lichter je Gitter-Dispatch (passt sich an)
+	bool nanTest = false, nanGitterTest = false;   // BHED_GPUBAKE_NAN: nicht endliche Werte vortaeuschen
 	UINT stueck[ kKerne ] = { 1u << 18, 1u << 18, 1u << 18, 4096, 1u << 18, 4096 };   // Faeden je Dispatch (passt sich an)
 };
 Gpu g;
@@ -307,6 +312,18 @@ void ausfall( const char *grund ){
 	allesFrei();
 }
 
+// Meldungen des Geraetestarts: er laeuft in einem eigenen Faden neben dem Laden der Karte
+// (BhedBakeGeraetVorab), die Ausgabe folgt danach in BhedBakeStart
+std::vector<std::string> g_meldungen;
+void melden( const char *format, ... ){
+	char z[ 1024 ];
+	va_list args;
+	va_start( args, format );
+	std::vsnprintf( z, sizeof( z ), format, args );
+	va_end( args );
+	g_meldungen.emplace_back( z );
+}
+
 std::string utf8( const wchar_t *w ){
 	char z[ 512 ] = {};
 	WideCharToMultiByte( CP_UTF8, 0, w, -1, z, sizeof( z ) - 1, nullptr, nullptr );
@@ -381,7 +398,7 @@ IDXGIAdapter1 *adapterWaehlen( const std::string& wahl ){
 			}
 		}
 		if ( gewaehlt == nullptr ) {
-			Sys_Printf( "BehavEd GPU bake: no adapter \"%s\" - the fastest one\n", wahl.c_str() );
+			melden( "BehavEd GPU bake: no adapter \"%s\" - the fastest one\n", wahl.c_str() );
 		}
 	}
 	if ( gewaehlt == nullptr && !echt.empty() ) {
@@ -390,7 +407,7 @@ IDXGIAdapter1 *adapterWaehlen( const std::string& wahl ){
 	for ( size_t i = 0; i < echt.size(); ++i ) {
 		DXGI_ADAPTER_DESC1 d{};
 		echt[ i ]->GetDesc1( &d );
-		Sys_Printf( "BehavEd GPU bake: adapter %zu: %s (%llu MB)%s\n", i, utf8( d.Description ).c_str(),
+		melden( "BehavEd GPU bake: adapter %zu: %s (%llu MB)%s\n", i, utf8( d.Description ).c_str(),
 		             static_cast<unsigned long long>( d.DedicatedVideoMemory >> 20 ), echt[ i ] == gewaehlt ? " - chosen" : "" );
 		if ( echt[ i ] != gewaehlt ) {
 			echt[ i ]->Release();
@@ -535,16 +552,14 @@ void verloren(){
 
 } // namespace
 
-bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector<int>& items, const std::vector<BhedBakeDreieck>& dreiecke,
-                    const std::vector<BhedBakeInfo>& infos, const int *flaechen, int anzahlFlaechen, int kopfKnoten,
-                    const unsigned char *vis, std::size_t visBytes, const BhedBakeBsp& bsp, const std::string& adapterWahl ){
-	if ( const char *v = std::getenv( "BHED_GPUBAKE_VERLUST" ) ) {
-		g.verlustNach = std::atoll( v );
-	}
-	g.zeiten = std::getenv( "BHED_GPUBAKE_ZEITEN" ) != nullptr;
+namespace
+{
+
+// Geraet, Faehigkeiten und Shader (ohne die Szene); false: keine GPU (die Meldung steht in g_meldungen)
+bool geraetStarten( const std::string& adapterWahl ){
 	g.d3d = LoadLibraryW( L"d3d11.dll" );
 	if ( g.d3d == nullptr ) {
-		Sys_Printf( "BehavEd GPU bake: d3d11.dll missing - CPU\n" );
+		melden( "BehavEd GPU bake: d3d11.dll missing - CPU\n" );
 		return false;
 	}
 	const auto erzeugen = reinterpret_cast<PFN_D3D11_CREATE_DEVICE>( reinterpret_cast<void *>( GetProcAddress( g.d3d, "D3D11CreateDevice" ) ) );
@@ -553,9 +568,8 @@ bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector
 	}
 	IDXGIAdapter1 *adapter = adapterWaehlen( adapterWahl );
 	const D3D_FEATURE_LEVEL stufen[] = { D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0 };
-	D3D_FEATURE_LEVEL stufe{};
 	const HRESULT erzeugt = erzeugen( adapter, adapter != nullptr ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, stufen, 2, D3D11_SDK_VERSION,
-	                                  &g.geraet, &stufe, &g.ktx );
+	                                  &g.geraet, &g.stufe, &g.ktx );
 	if ( adapter != nullptr ) {
 		DXGI_ADAPTER_DESC1 d{};
 		adapter->GetDesc1( &d );
@@ -565,7 +579,7 @@ bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector
 		adapter->Release();
 	}
 	if ( FAILED( erzeugt ) ) {
-		Sys_Printf( "BehavEd GPU bake: no Direct3D 11 hardware device - CPU\n" );
+		melden( "BehavEd GPU bake: no Direct3D 11 hardware device - CPU\n" );
 		return false;
 	}
 	D3D11_FEATURE_DATA_DOUBLES dd{};
@@ -577,11 +591,51 @@ bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector
 	for ( int k = 0; k < kKerne; ++k ) {
 		const Bytecode code = shaderWahl( Kern( k ), g.doppelt, mess != nullptr ? std::atoi( mess ) : 0 );
 		if ( FAILED( g.geraet->CreateComputeShader( code.daten, code.groesse, nullptr, &g.cs[ k ] ) ) ) {
-			Sys_Printf( "BehavEd GPU bake: the device does not take the shader - CPU\n" );
+			melden( "BehavEd GPU bake: the device does not take the shader - CPU\n" );
 			allesFrei();
 			return false;
 		}
 	}
+	return true;
+}
+
+std::thread g_startFaden;
+bool g_startOk = false;
+std::string g_startWahl;
+
+} // namespace
+
+void BhedBakeGeraetVorab( const std::string& adapterWahl ){
+	if ( g_startFaden.joinable() ) {
+		return;
+	}
+	g_startWahl = adapterWahl;
+	g_startFaden = std::thread( [](){
+		g_startOk = geraetStarten( g_startWahl );
+	} );
+}
+
+bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector<int>& items, const std::vector<BhedBakeDreieck>& dreiecke,
+                    const std::vector<BhedBakeInfo>& infos, const int *flaechen, int anzahlFlaechen, int kopfKnoten,
+                    const unsigned char *vis, std::size_t visBytes, const BhedBakeBsp& bsp, const std::string& adapterWahl ){
+	if ( const char *v = std::getenv( "BHED_GPUBAKE_VERLUST" ) ) {
+		g.verlustNach = std::atoll( v );
+	}
+	g.zeiten = std::getenv( "BHED_GPUBAKE_ZEITEN" ) != nullptr;
+	g.nanTest = g.nanGitterTest = std::getenv( "BHED_GPUBAKE_NAN" ) != nullptr;
+	if ( !g_startFaden.joinable() ) {
+		BhedBakeGeraetVorab( adapterWahl );
+	}
+	g_startFaden.join();
+	for ( const std::string& z : g_meldungen ) {
+		Sys_Printf( "%s", z.c_str() );
+	}
+	g_meldungen.clear();
+	if ( !g_startOk ) {
+		allesFrei();
+		return false;
+	}
+	const D3D_FEATURE_LEVEL stufe = g.stufe;
 	// Speicherbedarf der Szene (BVH-Ersatz: Knoten, Dreiecke; BSP) gegen den Grafikspeicher
 	const size_t bedarf = knoten.size() * sizeof( BhedBakeKnoten ) + items.size() * 4 + dreiecke.size() * sizeof( BhedBakeDreieck ) +
 	                      infos.size() * sizeof( BhedBakeInfo ) + visBytes + bsp.knoten.size() * 16 + bsp.ebenen.size() * 16 + bsp.blaetter.size() * 16 +
@@ -717,6 +771,10 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 	ok = ok && lauf( kFiltern, UINT( b.luxel.size() ), 4, kopf );
 	loesen();
 	ok = ok && lesen( uR, luxelAus.data(), luxelAus.size() * 4 ) && lesen( uLmFlag, flags.data(), flags.size() * 4 );
+	if ( g.nanTest && !luxelAus.empty() ) {   // Test: ein Treiberfehler (nicht endlicher Wert) im ersten Block
+		g.nanTest = false;
+		luxelAus[ 0 ] = std::numeric_limits<float>::quiet_NaN();
+	}
 	g.zahlen.gpuMikros += mikros( t0 );
 	if ( !ok ) {
 		verloren();
@@ -785,6 +843,10 @@ bool BhedBakeGitter( std::vector<BhedBakeGitterPunkt>& punkte, const BhedBakeGit
 		loesen();
 		stand.resize( m * 12 );
 		ok = ok && lesen( uGitter, punkte.data() + a, m * sizeof( BhedBakeGitterPunkt ) ) && lesen( uZustand, stand.data(), m * 48 );
+		if ( g.nanGitterTest && m > 0 ) {   // Test: ein nicht endlicher Wert im Gitter
+			g.nanGitterTest = false;
+			punkte[ a ].ambient[ 0 ] = std::numeric_limits<float>::infinity();
+		}
 		// alle Beitraege der ersten Phase auch in der zweiten gefunden (sonst die CPU)
 		for ( size_t k = 0; ok && k < m; ++k ) {
 			if ( stand[ k * 12 + 2 ] != stand[ k * 12 + 0 ] ) {

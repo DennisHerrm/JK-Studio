@@ -23,6 +23,10 @@ alle Luxel (der Bericht zaehlt sie).
                                  den vorigen); Lumps gleich der CPU
   7. -samples 4                - die Unterabtastung mit Rekursion (drei Ebenen): CPU und GPU
                                  Byte-gleich
+  7b. nicht endlich            - BHED_GPUBAKE_NAN: ein nicht endlicher Wert in einer Lightmap und
+                                 einem Gitterpunkt (Treiberfehler vorgetaeuscht) - beide rechnet
+                                 die CPU neu, Lumps gleich
+  7c. Adapterwahl              - -bhedgpuadapter 0 und ein unbekannter Name (Meldung, die schnellste)
   8. Himmel mit Sonne          - ein Hof unter einem Himmels-Shader mit q3map_sunExt (eigener
                                  Spielordner im Test): CPU und GPU, mit double Byte-gleich.
                                  Rot vor der Behebung in 8c: der skyIndex eines Shaders
@@ -94,12 +98,12 @@ def bericht(aus):
     k = re.search(r'BehavEd GPU bake: .*?, (\d+) rounds, (\d+) lightmaps on the GPU \(\d+ without light, (\d+) in parts\), (\d+) on the CPU \((\d+) alpha shadow/unsafe, '
                   r'(\d+) not finite, (\d+) too big\)', aus)
     m = re.search(r'BehavEd GPU bake report: (\d+) luxels in (\d+) lightmaps checked on the CPU, ([0-9.]+) % identical; (\d+) lightmaps with a '
-                  r'difference \((\d+) in styles\), mean \|diff\| ([0-9.]+), max \|diff\| ([0-9.]+)', aus)
+                  r'difference \((\d+) in styles\), mean \|diff\| ([0-9.]+), max \|diff\| ([0-9.]+); light grid: (\d+) points on the GPU, (\d+) on the CPU', aus)
     if not k or not m:
         return None
     return {'runden': int(k.group(1)), 'gpu': int(k.group(2)), 'teile': int(k.group(3)), 'cpu': int(k.group(4)), 'alpha': int(k.group(5)),
             'nichtendlich': int(k.group(6)), 'zugross': int(k.group(7)), 'luxel': int(m.group(1)), 'lms': int(m.group(2)), 'gleich': float(m.group(3)), 'anders': int(m.group(4)),
-            'stile': int(m.group(5)), 'mittel': float(m.group(6)), 'max': float(m.group(7))}
+            'stile': int(m.group(5)), 'mittel': float(m.group(6)), 'max': float(m.group(7)), 'gitter': int(m.group(8)), 'gittercpu': int(m.group(9))}
 
 
 def main():
@@ -139,7 +143,10 @@ def main():
                                    ('verlust', licht + gpu, {'BHED_GPUBAKE_VERLUST': '2'}),
                                    ('float', licht + gpu, {'BHED_GPUBAKE_OHNE_DOUBLE': '1'}),
                                    ('klein', licht + gpu, {'BHED_GPUBAKE_BUDGET_MB': '1'}),
-                                   ('cpu4', licht4, None), ('gpu4', licht4 + gpu, None)):
+                                   ('cpu4', licht4, None), ('gpu4', licht4 + gpu, None),
+                                   ('nan', licht + gpu, {'BHED_GPUBAKE_NAN': '1'}),
+                                   ('adapter0', licht + gpu + ['-bhedgpuadapter', '0'], None),
+                                   ('adapterx', licht + gpu + ['-bhedgpuadapter', 'keine-solche-gpu'], None)):
             d = os.path.join(t, art)
             os.makedirs(d)
             for e in ('.map', '.bsp', '.srf'):
@@ -168,6 +175,8 @@ def main():
               '-bhedgpubake auf %s (%s): %s Lightmaps auf der GPU, %s auf der CPU, %s Luxel in %s Lightmaps nachgerechnet, %.4f %% gleich, max %s' %
               (name.group(1) if name else '?', 'double' if doppelt else 'float', b and b['gpu'], b and b['cpu'], b and b['luxel'], b and b['lms'],
                b['gleich'] if b else 0, b and b['max']))
+        melde(b is not None and b['gitter'] > 0 and b['gittercpu'] == 0,
+              'Lichtgitter auf der GPU: %s Punkte, %s auf der CPU' % (b and b['gitter'], b and b['gittercpu']))
         g = ergebnis['gpu'][0]
         if doppelt:
             anders = [i for i in range(18) if g[i] != cpu[i]]
@@ -186,6 +195,15 @@ def main():
               (not doppelt or ergebnis['klein'][0] == cpu),
               'kleine Bloecke (1 MB): %s Bloecke, %s Lightmaps ueber dem Budget in Teilen der Lichtliste, %s zu gross (CPU), %s auf der GPU, Lumps gleich der CPU' %
               (bl.group(1) if bl else '?', bk and bk['teile'], bk and bk['zugross'], bk and bk['gpu']))
+        bn = bericht(ergebnis['nan'][1])
+        melde(bn is not None and bn['nichtendlich'] >= 1 and bn['gittercpu'] >= 1 and ergebnis['nan'][0][14] == cpu[14] and ergebnis['nan'][0][15] == cpu[15],
+              'nicht endliche Werte (vorgetaeuscht: eine Lightmap, ein Gitterpunkt): %s Lightmaps und %s Gitterpunkte neu auf der CPU, Lightmaps und Gitter gleich der CPU' %
+              (bn and bn['nichtendlich'], bn and bn['gittercpu']))
+        a0 = ergebnis['adapter0'][1]
+        ax = ergebnis['adapterx'][1]
+        melde(re.search(r'BehavEd GPU bake: adapter 0: .* - chosen', a0) is not None and 'no adapter "keine-solche-gpu" - the fastest one' in ax and
+              re.search(r'BehavEd GPU bake: adapter \d+: .* - chosen', ax) is not None and ergebnis['adapterx'][0][14] == cpu[14],
+              'Adapterwahl: -bhedgpuadapter 0 nimmt Adapter 0, ein unbekannter Name nimmt die schnellste GPU (mit Meldung), Lightmaps gleich der CPU')
         b4 = bericht(ergebnis['gpu4'][1])
         if doppelt:
             anders = [i for i in range(18) if ergebnis['gpu4'][0][i] != ergebnis['cpu4'][0][i]]

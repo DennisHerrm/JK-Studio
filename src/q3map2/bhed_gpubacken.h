@@ -143,6 +143,9 @@ struct BhedBakeBlock {
 	std::uint32_t paare = 0, zeilen = 0, aus = 0;
 };
 
+// Geraet und Shader schon beim Einlesen der Schalter in einem eigenen Faden anlegen (laeuft neben dem
+// Laden der Karte; BhedBakeStart wartet darauf)
+void BhedBakeGeraetVorab( const std::string& adapterWahl );
 // Szene einmal hochladen (nach SetupTraceNodes); false: keine GPU.
 bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector<int>& items, const std::vector<BhedBakeDreieck>& dreiecke,
                     const std::vector<BhedBakeInfo>& infos, const int *flaechen, int anzahlFlaechen, int kopfKnoten,
