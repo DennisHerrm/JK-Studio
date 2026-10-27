@@ -91,4 +91,13 @@ KARTE8B = [
      "未指定纹理。\n\n请输入纹理路径,或使用“选取”按钮\n从纹理浏览器中选择。",
      "テクスチャが指定されていません。\n\nテクスチャのパスを入力するか、「選ぶ」ボタンで\nテクスチャブラウザーから選んでください。"),
     ("KeTgAboutTitel", "About Terrain Generator", "Über den Terrain-Generator", "关于地形生成器", "地形ジェネレーターについて"),
+    # --- Punkt 2: Split-Fenster frei belegen (Preferences > Layout) -----------
+    ("KeSfSchalter", "Free split windows", "Split-Fenster frei belegen", "自由分配分割窗口", "分割ウィンドウを自由に割り当てる"),
+    ("KeSfSchalterTip",
+     "Split layout: choose Camera, XY, XZ or YZ for each of the four windows (small menu at the top right of each window; Ctrl+Tab changes the active 2D window). The assignment, the 2D view types (also in Regular) and the split sizes stay after a restart. Off: as in NetRadiant-Custom (not in NetRadiant-Custom)",
+     "Split-Layout: je Fenster Kamera, XY, XZ oder YZ wählen (kleines Menü oben rechts in jedem Fenster; Strg+Tab wechselt das aktive 2D-Fenster). Belegung, die 2D-Ansichtstypen (auch bei Regular) und die Split-Größen bleiben nach dem Neustart. Aus: wie in NetRadiant-Custom (nicht in NetRadiant-Custom)",
+     "分割布局:为四个窗口分别选择摄像机、XY、XZ 或 YZ(每个窗口右上角的小菜单;Ctrl+Tab 切换当前 2D 窗口)。分配、2D 视图类型(Regular 中也是)和分割尺寸在重启后保留。关闭:与 NetRadiant-Custom 相同(NetRadiant-Custom 中没有)",
+     "分割レイアウト:4 つのウィンドウそれぞれにカメラ・XY・XZ・YZ を選べます(各ウィンドウ右上の小さなメニュー。Ctrl+Tab でアクティブな 2D ウィンドウを切り替え)。割り当て、2D ビューの種類(Regular でも)、分割サイズは再起動後も残ります。オフ:NetRadiant-Custom と同じ(NetRadiant-Custom にはありません)"),
+    ("KeSfMenueTip", "Show in this window (not in NetRadiant-Custom)", "In diesem Fenster zeigen (nicht in NetRadiant-Custom)",
+     "在此窗口中显示(NetRadiant-Custom 中没有)", "このウィンドウに表示(NetRadiant-Custom にはありません)"),
 ]

@@ -3076,3 +3076,13 @@ Knopftest OK: Robust terrainGenerator::About: leere Auswahl, leere Karte, Pinsel
 Knopftest OK: Robust terrainGenerator::GenerateTerrain: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck
 Knopftest OK: Menue Plugins > TerrainGenerator > Generate Terrain = terrainGenerator::GenerateTerrain: Dialog (Pinsel)
 Knopftest OK: Menue Plugins > TerrainGenerator > About = terrainGenerator::About: Dialog (leer)
+Knopftest OK: Split ohne Schalter wie NRC: Kamera oben links, YZ unten links, XY oben rechts, XZ unten rechts, kein Platzmenue, gleich geteilt
+Knopftest OK: Strg+Tab im Split ohne Schalter: XY bleibt XY (XY_SetViewType zentriert nur, wie NRC)
+Knopftest OK: Preferences > Layout > Free split windows: an, als BhedSplitFree 1 gespeichert, vier Platzmenues
+Knopftest OK: Split > Platzmenue > Camera unten rechts: die Kamera ist dort, XZ ging nach oben links
+Knopftest OK: Split > Platzmenue > XY oben links: das Fenster dort zeigt XY - zwei XY-Fenster
+Knopftest OK: Split > Strg+Tab mit Schalter: das aktive Fenster wechselt den Typ (XY -> XZ wie XY_NextView), gespeichert
+Knopftest OK: Split > Teiler ziehen: die linke Spalte ist schmaler, die Groessen gespeichert (BhedSplitH)
+Knopftest OK: Split > nach dem simulierten Neustart: Belegung, 2D-Typen und Split-Groesse wie vorher
+Knopftest OK: Regular > 2D-Ansichtstyp nach dem simulierten Neustart: XZ (mit Schalter)
+Knopftest OK: Free split windows aus: sofort wieder NRC (Lage, Typen XY/XZ/YZ, kein Platzmenue), nichts mehr gemerkt

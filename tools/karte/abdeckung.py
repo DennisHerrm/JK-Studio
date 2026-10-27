@@ -214,6 +214,11 @@ EIGENE = [
     ('Eigen|Terrain Generator > Pick', 'Texturseite zeigen (Stufe 8b/1)', [re.escape('Terrain Generator > Pick: ')]),
     ('Eigen|Terrain Generator > Reset to Default', 'Vorgaben (Stufe 8b/1)', [re.escape('Terrain Generator > Reset to Default: ')]),
     ('Eigen|Terrain Generator > Close', 'Werte bleiben (Stufe 8b/1)', [re.escape('Terrain Generator > Close: ')]),
+    # Punkt 2: Split-Fenster frei belegen (der echte Neustart: BHED_KARTE_NUR=split1/2/3)
+    ('Eigen|Preferences > Layout > Free split windows', 'Schalter, Platzmenue, Strg+Tab, Teiler, Neustart (Stufe 8b/2)',
+     [re.escape('Preferences > Layout > Free split windows: '), re.escape('Split > Platzmenue > Camera'), re.escape('Split > Platzmenue > XY'),
+      re.escape('Split > Strg+Tab mit Schalter: '), re.escape('Split > Teiler ziehen: '), re.escape('Split > nach dem simulierten Neustart: '),
+      re.escape('Regular > 2D-Ansichtstyp nach dem simulierten Neustart: '), re.escape('Free split windows aus: ')]),
 ]
 
 

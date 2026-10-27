@@ -102,6 +102,7 @@ struct Entwurf {
     int seite = 0;   // PreferencesDialog: beim ersten Oeffnen die erste Seite (Global)
     int anordnung = 0;
     bool eingebaut = false;
+    bool splitFrei = false;   // Stufe 8b Punkt 2
     bool abtrennbar = true;
     bool nrc = false;
     bool menueNrc = false;          // Stufe 7 Punkt 6b: Editor::menueNrcStil
@@ -407,6 +408,9 @@ void layoutSeite() {
     // Detachable Menus (g_Layout_enableDetachableMenus): Abreisskante und QTornOffMenu
     (void)haken(Str::Count, (std::string(trK(Str::KePrDetachableMenus)) + "##abreissbar").c_str(), g_entwurf.abtrennbar);
     (void)haken(Str::Count, trK(Str::KePrBuiltInGroupDialog), g_entwurf.eingebaut);
+    // Stufe 8b Punkt 2: eigener Schalter (nicht in NetRadiant-Custom), Vorgabe aus
+    (void)haken(Str::Count, (std::string(trK(Str::KeSfSchalter)) + "##splitfrei").c_str(), g_entwurf.splitFrei);
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s", trK(Str::KeSfSchalterTip)); }
 }
 
 // Camera_constructPreferences (camwindow.cpp:2398-2460): appendSpinner,
@@ -1484,6 +1488,7 @@ void zeichneEinstellungen() {
         g_entwurf.offen = true;
         g_entwurf.anordnung = static_cast<int>(ed.anordnung);
         g_entwurf.eingebaut = ed.gruppenDialogEingebaut;
+        g_entwurf.splitFrei = ed.splitFrei;
         g_entwurf.nrc = nrcBegriffe();
         g_entwurf.menueNrc = ed.menueNrcStil;
         g_entwurf.knopfStufe = mass::knopfStufe;
@@ -1697,6 +1702,15 @@ void zeichneEinstellungen() {
         if (ImGui::Button(trK(Str::KePrefOk), ImVec2{knopfB, knopfH})) {
             ed.anordnung = static_cast<befehle::Anordnung>(g_entwurf.anordnung);
             ed.gruppenDialogEingebaut = g_entwurf.eingebaut;
+            if (g_entwurf.splitFrei != ed.splitFrei) {   // Stufe 8b Punkt 2: aus = sofort wieder NRC
+                ed.splitFrei = g_entwurf.splitFrei;
+                if (!ed.splitFrei) {
+                    ed.splitBelegung = {3, 2, 0, 1};
+                    ed.xy[0].ansicht.typ = karte::Sicht::XY;
+                    ed.xy[1].ansicht.typ = karte::Sicht::XZ;
+                    ed.xy[2].ansicht.typ = karte::Sicht::YZ;
+                }
+            }
             setzeNrcBegriffe(g_entwurf.nrc);
             ed.menueNrcStil = g_entwurf.menueNrc;     // Stufe 7 Punkt 6b (gespeichert unten mit einstellungenSpeichern)
             mass::knopfStufe = g_entwurf.knopfStufe;

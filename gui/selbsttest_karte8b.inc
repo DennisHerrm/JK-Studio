@@ -310,6 +310,298 @@ std::vector<Schritt> terrain() {
     return s;
 }
 
+// --- Punkt 2: Split-Fenster frei belegen --------------------------------------------
+//
+// Wirkung: ohne Schalter wie NRC (Kamera oben links, YZ unten links, XY oben
+// rechts, XZ unten rechts, kein Platzmenue, Strg+Tab aendert im Split nichts am
+// Typ, gleich geteilt); Preferences > Layout > "Free split windows" an; das
+// kleine Menue: Kamera nach unten rechts (tauscht mit XZ), XY im Platz oben
+// links (zwei XY-Fenster); Strg+Tab im aktiven Fenster wechselt den Typ; den
+// Teiler ziehen merkt die Groessen; ein simulierter Neustart (Speichern, Zustand
+// verwerfen, Laden) stellt Belegung, Typen, Groessen und den Regular-Typ her;
+// Schalter aus = sofort wieder NRC. Der echte Neustart: BHED_KARTE_NUR=split1/2/3.
+
+const ke::Editor::Rechteck* feldVon(const char* name) { return stufe3::bauFeld(name); }
+
+int platzMenues() {
+    int n = 0;
+    for (ImGuiWindow* w : GImGui->Windows) {
+        if (w->WasActive && !w->Hidden && std::strstr(w->Name, "##platzknopf") != nullptr) { ++n; }
+    }
+    return n;
+}
+
+// Bildschirmlage eines Punktes in logischen Punkten des Arbeitsbereichs
+ImVec2 bildLage(float x, float y) {
+    const ImVec2 vp = ImGui::GetMainViewport()->Pos;
+    const float s = ke::massstab();
+    return ImVec2{vp.x + x * s, vp.y + y * s};
+}
+
+// Die Feldnamen je Platz (0 oben links, 1 unten links, 2 oben rechts, 3 unten rechts)
+std::string platzFeld(int platz) {
+    static const char* const namen[4] = {"XY", "XZ", "YZ", "Kamera"};
+    return namen[ke::editor().splitBelegung[static_cast<std::size_t>(platz)]];
+}
+
+std::string typenText() {
+    const ke::Editor& e = ke::editor();
+    return std::to_string(static_cast<int>(e.xy[0].ansicht.typ)) + std::to_string(static_cast<int>(e.xy[1].ansicht.typ)) +
+           std::to_string(static_cast<int>(e.xy[2].ansicht.typ)) + " aktiv " + std::to_string(e.aktivXy);
+}
+
+bool lageWieNrc() {
+    const auto* k = feldVon("Kamera");
+    const auto* xy = feldVon("XY");
+    const auto* xz = feldVon("XZ");
+    const auto* yz = feldVon("YZ");
+    return k && xy && xz && yz && k->x < xy->x && k->y < yz->y && k->x == yz->x && xy->x == xz->x && xy->y < xz->y;
+}
+
+void splitZurueck() {
+    ke::Editor& e = ke::editor();
+    e.splitFrei = false;
+    e.splitBelegung = {3, 2, 0, 1};
+    e.splitHGroessen.clear();
+    e.splitVGroessen.clear();
+    e.splitV2Groessen.clear();
+    e.xy[0].ansicht.typ = karte::Sicht::XY;
+    e.xy[1].ansicht.typ = karte::Sicht::XZ;
+    e.xy[2].ansicht.typ = karte::Sicht::YZ;
+    e.anordnung = karte::befehle::Anordnung::Regular;
+    e.teilerFuer = -1;
+    ke::einstellungenSpeichern();
+}
+
+// Mitte des kleinen Menueknopfs eines Platzes (merkeFeld "Platzmenue<n>")
+ImVec2 platzKnopf(int platz) {
+    const auto* f = feldVon(("Platzmenue" + std::to_string(platz)).c_str());
+    return f ? bildLage(static_cast<float>(f->x) + 8.0F, static_cast<float>(f->y) + 8.0F) : ImVec2{0, 0};
+}
+
+// Mitte des Griffs zwischen den Spalten (hSplit, Griff vor Kind 1)
+ImVec2 spaltenGriff() {
+    const Element* el = finde("##griffh1", "", 0, true);
+    return el != nullptr ? el->rect.GetCenter() : ImVec2{0, 0};
+}
+
+std::vector<Schritt> split() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    add(stufe2::grundzustand("Stufe 8b/2: Grundzustand"));
+    add(tu("Split-Layout, Schalter aus (NRC)", [] {
+        splitZurueck();
+        ke::Editor& e = ke::editor();
+        e.anordnung = karte::befehle::Anordnung::Split;
+        e.teilerFuer = -1;
+        e.aktivXy = 0;
+    }));
+    add(pause(0.4));
+    add(pruefe("Split ohne Schalter wie NRC: Kamera oben links, YZ unten links, XY oben rechts, XZ unten rechts, kein Platzmenue, gleich geteilt", [] {
+        const auto* k = feldVon("Kamera");
+        const auto* xy = feldVon("XY");
+        return lageWieNrc() && platzMenues() == 0 && k && xy && std::abs(k->b - xy->b) <= 1;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Tab, "Strg+Tab"));
+    add(pause(0.2));
+    add(pruefe("Strg+Tab im Split ohne Schalter: XY bleibt XY (XY_SetViewType zentriert nur, wie NRC)", [] {
+        diag::detail("Knopftest: Stufe 8b/2 nach Strg+Tab Typen " + typenText());
+        return ke::editor().xy[0].ansicht.typ == karte::Sicht::XY && lageWieNrc();
+    }));
+    // Schalter ueber Preferences > Layout
+    add(tu("Preferences, Seite Layout", [] {
+        ke::editor().einstellungenOffen = true;
+        ke::einstellungsSeiteZeigen(5);
+    }));
+    add(pause(0.4));
+    add(klick(std::string(ke::trK(Str::KeSfSchalter)) + "##splitfrei", "###karteeinstellungen", 0, true));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KePrefOk), "###karteeinstellungen"));
+    add(pause(0.4));
+    add(pruefe("Preferences > Layout > Free split windows: an, als BhedSplitFree 1 gespeichert, vier Platzmenues", [] {
+        const auto it = g_app->settings.karte.find("BhedSplitFree");
+        diag::detail("Knopftest: Stufe 8b/2 nach OK Typen " + typenText());
+        return ke::editor().splitFrei && it != g_app->settings.karte.end() && it->second == "1" && platzMenues() == 4;
+    }));
+    add(foto("karteneditor_s8b_split_menue"));
+    // Platzmenue unten rechts: Kamera
+    add(klickAn("Platzmenue unten rechts", [] { return platzKnopf(3); }, 0));
+    add(pause(0.3));
+    add(foto("karteneditor_s8b_split_popup"));
+    add(klick(std::string(ke::trK(Str::KeViewCamera)) + "##platzwahl0", "", 0, true));
+    add(pause(0.3));
+    add(pruefe("Split > Platzmenue > Camera unten rechts: die Kamera ist dort, XZ ging nach oben links", [] {
+        const auto* k = feldVon("Kamera");
+        const auto* xz = feldVon("XZ");
+        const auto* xy = feldVon("XY");
+        diag::detail("Knopftest: Stufe 8b/2 nach Camera Typen " + typenText());
+        return platzFeld(3) == "Kamera" && platzFeld(0) == "XZ" && k && xz && xy && k->x == xy->x && k->y > xy->y && xz->x < xy->x && xz->y == xy->y;
+    }));
+    add(klickAn("Platzmenue oben links", [] { return platzKnopf(0); }, 0));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeViewXY)) + "##platzwahl1", "", 0, true));
+    add(pause(0.3));
+    add(pruefe("Split > Platzmenue > XY oben links: das Fenster dort zeigt XY - zwei XY-Fenster", [] {
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Stufe 8b/2 Belegung " + std::to_string(e.splitBelegung[0]) + std::to_string(e.splitBelegung[1]) +
+                     std::to_string(e.splitBelegung[2]) + std::to_string(e.splitBelegung[3]) + ", Typen " +
+                     std::to_string(static_cast<int>(e.xy[0].ansicht.typ)) + std::to_string(static_cast<int>(e.xy[1].ansicht.typ)) +
+                     std::to_string(static_cast<int>(e.xy[2].ansicht.typ)) + ", aktiv " + std::to_string(e.aktivXy));
+        return e.xy[1].ansicht.typ == karte::Sicht::XY && e.xy[0].ansicht.typ == karte::Sicht::XY && e.aktivXy == 1;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Tab, "Strg+Tab"));
+    add(pause(0.2));
+    add(pruefe("Split > Strg+Tab mit Schalter: das aktive Fenster wechselt den Typ (XY -> XZ wie XY_NextView), gespeichert", [] {
+        const auto it = g_app->settings.karte.find("BhedViewTypes");
+        diag::detail("Knopftest: Stufe 8b/2 nach Strg+Tab mit Schalter " + typenText() + ", gespeichert " +
+                     (it != g_app->settings.karte.end() ? it->second : std::string("-")));
+        return ke::editor().xy[1].ansicht.typ == karte::Sicht::XZ && it != g_app->settings.karte.end() && it->second == "2,1,0";
+    }));
+    // Teiler zwischen den Spalten 100 Punkte nach links ziehen
+    auto vorherB = std::make_shared<int>(0);
+    add(tu("Breite der linken Spalte merken", [vorherB] {
+        const auto* f = feldVon(platzFeld(0).c_str());
+        *vorherB = f ? f->b : 0;
+    }));
+    add(ziehenAn("Teiler der Spalten 100 nach links", [] { return spaltenGriff(); }, -100.0F * ke::massstab(), 0.0F, 0));
+    add(pause(0.3));
+    add(pruefe("Split > Teiler ziehen: die linke Spalte ist schmaler, die Groessen gespeichert (BhedSplitH)", [vorherB] {
+        const auto* f = feldVon(platzFeld(0).c_str());
+        const auto it = g_app->settings.karte.find("BhedSplitH");
+        diag::detail("Knopftest: Stufe 8b/2 linke Spalte " + std::to_string(*vorherB) + " -> " + std::to_string(f ? f->b : -1));
+        return f && f->b < *vorherB - 50 && it != g_app->settings.karte.end() && !ke::editor().splitHGroessen.empty();
+    }));
+    // simulierter Neustart
+    auto stand = std::make_shared<std::string>();
+    add(tu("simulierter Neustart: speichern, Zustand verwerfen, laden", [stand] {
+        ke::Editor& e = ke::editor();
+        ke::einstellungenSpeichern();
+        *stand = std::to_string(e.splitBelegung[0]) + std::to_string(e.splitBelegung[3]) + "/" + std::to_string(static_cast<int>(e.xy[1].ansicht.typ)) +
+                 "/" + std::to_string(e.splitHGroessen.empty() ? -1 : e.splitHGroessen[0]);
+        e.splitBelegung = {3, 2, 0, 1};
+        e.xy[1].ansicht.typ = karte::Sicht::XZ;
+        e.splitHGroessen.clear();
+        ke::einstellungenLaden();
+        e.teilerFuer = -1;
+    }));
+    add(pause(0.4));
+    add(pruefe("Split > nach dem simulierten Neustart: Belegung, 2D-Typen und Split-Groesse wie vorher", [stand] {
+        const ke::Editor& e = ke::editor();
+        const std::string jetzt = std::to_string(e.splitBelegung[0]) + std::to_string(e.splitBelegung[3]) + "/" +
+                                  std::to_string(static_cast<int>(e.xy[1].ansicht.typ)) + "/" +
+                                  std::to_string(e.splitHGroessen.empty() ? -1 : e.splitHGroessen[0]);
+        const auto g = e.hSplit.groessen();
+        diag::detail("Knopftest: Stufe 8b/2 vorher " + *stand + ", nachher " + jetzt);
+        return jetzt == *stand && !g.empty() && !e.splitHGroessen.empty() && g[0] == e.splitHGroessen[0];
+    }));
+    // Regular: der 2D-Typ bleibt mit dem Schalter
+    add(tu("Regular-Layout, NextView (XY -> XZ), simulierter Neustart", [] {
+        ke::Editor& e = ke::editor();
+        e.anordnung = karte::befehle::Anordnung::Regular;
+        e.teilerFuer = -1;
+        e.aktivXy = 0;
+        (void)ke::ausfuehren("NextView");   // XY -> XZ
+        e.xy[0].ansicht.typ = karte::Sicht::XY;   // verwerfen ...
+        ke::einstellungenLaden();                 // ... und laden
+    }));
+    add(pause(0.3));
+    add(pruefe("Regular > 2D-Ansichtstyp nach dem simulierten Neustart: XZ (mit Schalter)", [] {
+        return ke::editor().xy[0].ansicht.typ == karte::Sicht::XZ;
+    }));
+    // Schalter aus: sofort NRC
+    add(tu("Split; Preferences > Layout", [] {
+        ke::Editor& e = ke::editor();
+        e.anordnung = karte::befehle::Anordnung::Split;
+        e.teilerFuer = -1;
+        e.einstellungenOffen = true;
+        ke::einstellungsSeiteZeigen(5);
+    }));
+    add(pause(0.4));
+    add(klick(std::string(ke::trK(Str::KeSfSchalter)) + "##splitfrei", "###karteeinstellungen", 0, true));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KePrefOk), "###karteeinstellungen"));
+    add(pause(0.4));
+    add(pruefe("Free split windows aus: sofort wieder NRC (Lage, Typen XY/XZ/YZ, kein Platzmenue), nichts mehr gemerkt", [] {
+        const ke::Editor& e = ke::editor();
+        const auto& k = g_app->settings.karte;
+        return !e.splitFrei && lageWieNrc() && platzMenues() == 0 && e.xy[0].ansicht.typ == karte::Sicht::XY &&
+               e.xy[1].ansicht.typ == karte::Sicht::XZ && e.xy[2].ansicht.typ == karte::Sicht::YZ && k.find("BhedSplitSlots") == k.end();
+    }));
+    add(tu("Regular, alles zurueck", [] { splitZurueck(); }));
+    return s;
+}
+
+// Der echte Neustart (drei Laeufe mit einem Einstellungsordner, SP/s8b/split_neustart.sh)
+std::vector<Schritt> splitEintritt() {
+    std::vector<Schritt> s;
+    s.push_back(tu("Stufe 8b/2: Spielordner, Modus Events", [] {
+        if (g_app->gamePaths.empty()) { rescanGamePaths(); }
+        g_app->leftMode = 0;
+    }));
+    s.push_back(pause(0.3));
+    s.push_back(klick(tr(Str::ViewMapEditor), "###main"));
+    s.push_back(pause(0.6));
+    return s;
+}
+
+std::vector<Schritt> splitNeustart(int lauf) {
+    std::vector<Schritt> s = splitEintritt();
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    if (lauf == 1) {
+        add(tu("Lauf 1: Split, Schalter an, Kamera unten rechts, XZ-Fenster oben links als YZ, Teiler", [] {
+            ke::Editor& e = ke::editor();
+            e.anordnung = karte::befehle::Anordnung::Split;
+            e.splitFrei = true;
+            e.teilerFuer = -1;
+            ke::einstellungenSpeichern();
+            ke::splitPlatzWaehlen(3, 0);
+            ke::splitPlatzWaehlen(0, 3);
+        }));
+        add(pause(0.4));
+        add(ziehenAn("Lauf 1: Teiler der Spalten 120 nach links", [] { return spaltenGriff(); }, -120.0F * ke::massstab(), 0.0F, 0));
+        add(pause(0.3));
+        add(pruefe("Split > Neustart Lauf 1: Belegung XZ(YZ)/YZ/XY/Kamera, Groessen gespeichert", [] {
+            const ke::Editor& e = ke::editor();
+            const auto& k = g_app->settings.karte;
+            const auto it = k.find("BhedSplitH");
+            diag::detail("Knopftest: Stufe 8b/2 Lauf 1 " + (it != k.end() ? it->second : std::string("-")) + ", Slots " +
+                         (k.count("BhedSplitSlots") ? k.at("BhedSplitSlots") : std::string("-")));
+            return e.splitBelegung[3] == 3 && e.splitBelegung[0] == 1 && e.xy[1].ansicht.typ == karte::Sicht::YZ && it != k.end();
+        }));
+        return s;
+    }
+    if (lauf == 2) {
+        add(pruefe("Split > Neustart Lauf 2: nach dem echten Neustart Belegung, Typ und Groessen wie in Lauf 1", [] {
+            const ke::Editor& e = ke::editor();
+            const auto& k = g_app->settings.karte;
+            const auto g = e.hSplit.groessen();
+            const auto* kam = feldVon("Kamera");
+            const auto* xz = feldVon("XZ");
+            const auto* xy = feldVon("XY");
+            diag::detail("Knopftest: Stufe 8b/2 Lauf 2 Slots " + (k.count("BhedSplitSlots") ? k.at("BhedSplitSlots") : std::string("-")) + ", h " +
+                         (g.empty() ? std::string("-") : std::to_string(g[0]) + "," + std::to_string(g.size() > 1 ? g[1] : -1)));
+            return e.anordnung == karte::befehle::Anordnung::Split && e.splitFrei && e.splitBelegung[3] == 3 && e.splitBelegung[0] == 1 &&
+                   e.xy[1].ansicht.typ == karte::Sicht::YZ && !e.splitHGroessen.empty() && !g.empty() && g[0] == e.splitHGroessen[0] && kam &&
+                   xz && xy && kam->y > xy->y && xz->x < xy->x;
+        }));
+        add(tu("Lauf 2: Schalter aus (wie Preferences OK)", [] {
+            ke::Editor& e = ke::editor();
+            e.splitFrei = false;
+            ke::einstellungenSpeichern();
+        }));
+        return s;
+    }
+    add(pruefe("Split > Neustart Lauf 3 (Schalter aus): wie NRC - Kamera oben links, Typen XY/XZ/YZ, gleich geteilt", [] {
+        const ke::Editor& e = ke::editor();
+        const auto* k = feldVon("Kamera");
+        const auto* xy = feldVon("XY");
+        return e.anordnung == karte::befehle::Anordnung::Split && !e.splitFrei && lageWieNrc() && e.xy[1].ansicht.typ == karte::Sicht::XZ && k && xy &&
+               std::abs(k->b - xy->b) <= 1;
+    }));
+    add(tu("Lauf 3: Regular", [] { splitZurueck(); }));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     const char* nur = std::getenv("BHED_STUFE8B_NUR");
@@ -318,6 +610,7 @@ std::vector<Schritt> schritte() {
         for (Schritt& y : x) { s.push_back(std::move(y)); }
     };
     if (teil("terrain")) { dazu(terrain()); }
+    if (teil("split")) { dazu(split()); }
     return s;
 }
 

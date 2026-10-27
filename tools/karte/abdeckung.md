@@ -12,8 +12,8 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 | Einstellungsfelder | 79 | 78 | 1 | 0 | 0 |
 | Plugins | 69 | 69 | 0 | 0 | 0 |
 | Mausbelegung | 62 | 62 | 0 | 0 | 0 |
-| Eigene Eintraege | 25 | 25 | 0 | 0 | 0 |
-| **Summe** | 965 | 961 | 4 | 0 | 0 |
+| Eigene Eintraege | 26 | 26 | 0 | 0 | 0 |
+| **Summe** | 966 | 962 | 4 | 0 | 0 |
 
 ## Begruendete Ausnahmen
 
@@ -1031,3 +1031,4 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 | `Eigen \| Terrain Generator > Pick` | OK | Terrain Generator > Pick: im Split-Layout zeigt es die Seite Textures des Gruppendialogs |
 | `Eigen \| Terrain Generator > Reset to Default` | OK | Terrain Generator > Reset to Default: alle Werte auf die Vorgabe, Target bleibt Manual Size, Textur "textures/" |
 | `Eigen \| Terrain Generator > Close` | OK | Terrain Generator > Close: der Dialog zu, die Werte gemerkt (static) |
+| `Eigen \| Preferences > Layout > Free split windows` | OK | Preferences > Layout > Free split windows: an, als BhedSplitFree 1 gespeichert, vier Platzmenues; Split > Platzmenue > Camera unten rechts: die Kamera ist dort, XZ ging nach oben links; Split > Platzmenue > XY oben links: das Fenster dort zeigt XY - zwei XY-Fenster; Split > Strg+Tab mit Schalter: das aktive Fenster wechselt den Typ (XY -> XZ wie XY_NextView), gespeichert; Split > Teiler ziehen: die linke Spalte ist schmaler, die Groessen gespeichert (BhedSplitH); Split > nach dem simulierten Neustart: Belegung, 2D-Typen und Split-Groesse wie vorher; Regular > 2D-Ansichtstyp nach dem simulierten Neustart: XZ (mit Schalter); Free split windows aus: sofort wieder NRC (Lage, Typen XY/XZ/YZ, kein Platzmenue), nichts mehr gemerkt |

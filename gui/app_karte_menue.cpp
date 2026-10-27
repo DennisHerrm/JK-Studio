@@ -1119,6 +1119,36 @@ void einstellungenLaden() {
     ed.hGroessen = groessen("hSplit");
     ed.vGroessen = groessen("vSplit");
     ed.v2Groessen = groessen("vSplit2");
+    // Stufe 8b Punkt 2: Split-Fenster frei belegen (nicht in NRC). Ohne den
+    // Schalter wie NRC: Belegung Kamera/YZ/XY/XZ, beim Start XY, Split gleich geteilt.
+    ed.splitFrei = zahl("BhedSplitFree", 0) != 0.0F;
+    ed.splitBelegung = {3, 2, 0, 1};
+    ed.splitHGroessen.clear();
+    ed.splitVGroessen.clear();
+    ed.splitV2Groessen.clear();
+    if (ed.splitFrei) {
+        const std::vector<int> b = groessen("BhedSplitSlots");
+        std::array<int, 4> neu{};
+        bool gut = b.size() == 4;
+        int maske = 0;
+        for (std::size_t i = 0; gut && i < 4; ++i) {
+            gut = b[i] >= 0 && b[i] <= 3 && (maske & (1 << b[i])) == 0;
+            if (gut) {
+                maske |= 1 << b[i];
+                neu[i] = b[i];
+            }
+        }
+        if (gut) { ed.splitBelegung = neu; }
+        const std::vector<int> t = groessen("BhedViewTypes");
+        if (t.size() == 3) {
+            for (std::size_t i = 0; i < 3; ++i) {
+                if (t[i] >= 0 && t[i] <= 2) { ed.xy[i].ansicht.typ = static_cast<karte::Sicht>(t[i]); }
+            }
+        }
+        ed.splitHGroessen = groessen("BhedSplitH");
+        ed.splitVGroessen = groessen("BhedSplitV");
+        ed.splitV2Groessen = groessen("BhedSplitV2");
+    }
     ed.texGroessen = groessen("TextureBrowserSplitter");   // "TextureBrowser/splitter"
     // Entitaeten (Entity_Construct, EntityList_Construct, entity plugin: registerPreference)
     {
@@ -1397,6 +1427,17 @@ void einstellungenSpeichern() {
         for (const int i : v) { s += (s.empty() ? "" : ",") + std::to_string(i); }
         return s;
     };
+    // Stufe 8b Punkt 2: Split-Fenster frei belegen (nur mit dem Schalter gemerkt)
+    k["BhedSplitFree"] = ed.splitFrei ? "1" : "0";
+    if (ed.splitFrei) {
+        k["BhedSplitSlots"] = liste(std::vector<int>(ed.splitBelegung.begin(), ed.splitBelegung.end()));
+        k["BhedViewTypes"] = liste({static_cast<int>(ed.xy[0].ansicht.typ), static_cast<int>(ed.xy[1].ansicht.typ), static_cast<int>(ed.xy[2].ansicht.typ)});
+        if (!ed.splitHGroessen.empty()) { k["BhedSplitH"] = liste(ed.splitHGroessen); }
+        if (!ed.splitVGroessen.empty()) { k["BhedSplitV"] = liste(ed.splitVGroessen); }
+        if (!ed.splitV2Groessen.empty()) { k["BhedSplitV2"] = liste(ed.splitV2Groessen); }
+    } else {
+        for (const char* n : {"BhedSplitSlots", "BhedViewTypes", "BhedSplitH", "BhedSplitV", "BhedSplitV2"}) { k.erase(n); }
+    }
     if (!ed.hGroessen.empty()) { k["hSplit"] = liste(ed.hGroessen); }
     if (!ed.vGroessen.empty()) { k["vSplit"] = liste(ed.vGroessen); }
     if (!ed.v2Groessen.empty()) { k["vSplit2"] = liste(ed.v2Groessen); }

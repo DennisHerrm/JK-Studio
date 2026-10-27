@@ -1113,18 +1113,22 @@ int xyAbtastungen(int index) { return kartegpu::abtastungen(100 + index); }
 
 // --- Befehle der 2D-Ansichten (xywindow.cpp:1938-2003, 2096-2177) ------------
 
+Vektor3f xyMittelpunkt() { return mittelKasten().origin; }
+
 void xyBefehl(const std::string& name) {
     Editor& ed = e();
     XyFenster& aktiv = ed.xy[static_cast<std::size_t>(ed.aktivXy)];
     if (name == "NextView" || name == "ViewTop" || name == "ViewFront" || name == "ViewSide") {
-        // XY_SetViewType: im 4er-Layout nur zentrieren
-        if (ed.anordnung != befehle::Anordnung::Split) {
+        // XY_SetViewType: im 4er-Layout nur zentrieren - ausser mit "Split-Fenster
+        // frei belegen" (Stufe 8b Punkt 2, nicht in NRC): dann wie ausserhalb von Split
+        if (ed.anordnung != befehle::Anordnung::Split || ed.splitFrei) {
             const Sicht neu = name == "NextView"  ? karte::naechsteSicht(aktiv.ansicht.typ)
                               : name == "ViewTop" ? Sicht::XY
                               : name == "ViewFront" ? Sicht::XZ
                                                     : Sicht::YZ;
             aktiv.ansicht.typ = neu;
             aktiv.ansicht.setzeUrsprung(mittelKasten().origin);   // XYWnd_Centralize
+            if (ed.splitFrei) { einstellungenSpeichern(); }        // Stufe 8b Punkt 2: der Typ bleibt nach dem Neustart
         } else {
             const Vektor3f p = mittelKasten().origin;
             for (const int i : xyFenster()) { ed.xy[static_cast<std::size_t>(i)].ansicht.setzeUrsprung(p); }

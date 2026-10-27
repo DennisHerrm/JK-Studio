@@ -594,6 +594,15 @@ struct Editor {
     std::vector<int> hGroessen;
     std::vector<int> vGroessen;
     std::vector<int> v2Groessen;
+    // Stufe 8b Punkt 2: Split-Fenster frei belegen (Preferences > Layout, nicht
+    // in NetRadiant-Custom; Vorgabe aus = NRC). Je Platz (oben links, unten
+    // links, oben rechts, unten rechts) der Inhalt: 0..2 die 2D-Fenster xy[i],
+    // 3 die Kamera - jedes erscheint genau einmal (NRC: Kamera, YZ, XY, XZ).
+    // Mit dem Schalter bleiben Belegung, die 2D-Typen und die Split-Groessen
+    // nach dem Neustart.
+    bool splitFrei = false;
+    std::array<int, 4> splitBelegung{3, 2, 0, 1};
+    std::vector<int> splitHGroessen, splitVGroessen, splitV2Groessen;
     // MaximizeView (mainframe.cpp:1550-1595): Groessen vor dem Maximieren.
     bool maximiert = false;
     std::vector<int> maxH;
@@ -1051,6 +1060,9 @@ void xyZeichnen(int index);
 // NextView, ViewTop/Front/Side, ZoomIn/Out, Zoom100, CenterXYView,
 // XYFocusOnSelected (xywindow.cpp:2266-2278).
 void xyBefehl(const std::string& name);
+// Stufe 8b Punkt 2: Split-Fenster frei belegen (wahl 0 Kamera, 1 XY, 2 XZ, 3 YZ)
+void splitPlatzWaehlen(int platz, int wahl);
+[[nodiscard]] karte::Vektor3f xyMittelpunkt();   // XYWnd_Centralize: Mitte der Auswahl bzw. der Karte
 // Map_StartPosition / FocusViews (map.cpp:456-485): Kamera auf den Start,
 // alle 2D-Ansichten dorthin.
 void startPosition();

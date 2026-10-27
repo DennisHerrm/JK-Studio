@@ -890,6 +890,49 @@ void feldRahmen(Feld f) {
     ed.rahmenImBild.push_back({feldKurz(f), a.x, a.y, b.x, b.y, farbe, aktiv});
 }
 
+// Stufe 8b Punkt 2: der Platz im Split-Layout, der gerade gezeichnet wird (-1: keiner)
+int g_platz = -1;
+
+// Das kleine Menue oben rechts in jedem Platz (nur mit "Split-Fenster frei
+// belegen"): ein eigenes Kindfenster, damit ein Klick darauf nicht die Ansicht
+// darunter erreicht (die Ansichten fragen IsWindowHovered ohne Kinder).
+void platzMenue(int platz) {
+    Editor& ed = editor();
+    const float k = std::round(16.0F * g_s);
+    const ImVec2 fensterPos = ImGui::GetWindowPos();
+    const ImVec2 fensterGr = ImGui::GetWindowSize();
+    ImGui::SetCursorScreenPos(ImVec2{fensterPos.x + fensterGr.x - k - std::round(3.0F * g_s), fensterPos.y + std::round(3.0F * g_s)});
+    ImGui::PushID(platz);
+    ImGui::BeginChild("##platzknopf", ImVec2{k, k}, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    const ImVec2 a = ImGui::GetCursorScreenPos();
+    const bool gedrueckt =
+        ImGui::InvisibleButton("##platzwahlknopf", ImVec2{k, k}, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(a, ImVec2{a.x + k, a.y + k}, ImGui::GetColorU32(ImGui::IsItemHovered() ? ImGuiCol_ButtonHovered : ImGuiCol_Button));
+    const float m = a.x + k * 0.5F;
+    const float my = a.y + k * 0.5F;
+    const float d = k * 0.22F;
+    dl->AddTriangleFilled(ImVec2{m - d, my - d * 0.5F}, ImVec2{m + d, my - d * 0.5F}, ImVec2{m, my + d * 0.6F}, ImGui::GetColorU32(ImGuiCol_Text));
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s", trK(Str::KeSfMenueTip)); }
+    if (gedrueckt) { ImGui::OpenPopup("##platzwahl"); }
+    merkeFeld("Platzmenue" + std::to_string(platz), static_cast<int>(std::lround((a.x - ImGui::GetMainViewport()->Pos.x) / g_s)),
+              static_cast<int>(std::lround((a.y - ImGui::GetMainViewport()->Pos.y) / g_s)), 16, 16);
+    if (ImGui::BeginPopup("##platzwahl")) {
+        const int inhalt = ed.splitBelegung[static_cast<std::size_t>(platz)];
+        const karte::Sicht st = inhalt == 3 ? karte::Sicht::XY : ed.xy[static_cast<std::size_t>(inhalt)].ansicht.typ;
+        const int jetzt = inhalt == 3 ? 0 : (st == karte::Sicht::XY ? 1 : st == karte::Sicht::XZ ? 2 : 3);
+        static const Str namen[4] = {Str::KeViewCamera, Str::KeViewXY, Str::KeViewXZ, Str::KeViewYZ};
+        for (int w = 0; w < 4; ++w) {
+            if (ImGui::MenuItem((std::string(trK(namen[w])) + "##platzwahl" + std::to_string(w)).c_str(), nullptr, w == jetzt)) {
+                splitPlatzWaehlen(platz, w);
+            }
+        }
+        ImGui::EndPopup();
+    }
+    ImGui::EndChild();
+    ImGui::PopID();
+}
+
 // Ein Feld an seiner Stelle (logische Punkte).
 void feld(Feld f, int x, int y, int b, int h) {
     merkeFeld(feldKurz(f), x, y, b, h);
@@ -901,6 +944,7 @@ void feld(Feld f, int x, int y, int b, int h) {
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     feldInhalt(f);
     feldRahmen(f);
+    if (g_platz >= 0 && editor().splitFrei && editor().anordnung == befehle::Anordnung::Split) { platzMenue(g_platz); }
     ImGui::EndChild();
 }
 
@@ -958,6 +1002,11 @@ void teilerZeichnen(const char* id, karte::Teiler& t, bool senkrecht, int x, int
                     ed.hGroessen = ed.hSplit.groessen();
                     ed.vGroessen = ed.vSplit.groessen();
                     ed.v2Groessen = ed.vSplit2.groessen();
+                    einstellungenSpeichern();
+                } else if (ed.anordnung == befehle::Anordnung::Split && ed.splitFrei) {   // Stufe 8b Punkt 2 (nicht in NRC)
+                    ed.splitHGroessen = ed.hSplit.groessen();
+                    ed.splitVGroessen = ed.vSplit.groessen();
+                    ed.splitV2Groessen = ed.vSplit2.groessen();
                     einstellungenSpeichern();
                 }
             }
@@ -1050,7 +1099,55 @@ void teilerAufbauen() {
         ed.hSplit.setzeGroessen(ed.hGroessen.empty() ? std::vector<int>{384, 576} : ed.hGroessen);
         ed.vSplit.setzeGroessen(ed.vGroessen.empty() ? std::vector<int>{377, 20} : ed.vGroessen);
         ed.vSplit2.setzeGroessen(ed.v2Groessen.empty() ? std::vector<int>{250, 150} : ed.v2Groessen);
+    } else if (ed.splitFrei) {
+        // Stufe 8b Punkt 2: mit "Split-Fenster frei belegen" die gemerkten
+        // Split-Groessen (NRC setzt im Split-Layout keine: gleich geteilt)
+        if (!ed.splitHGroessen.empty()) { ed.hSplit.setzeGroessen(ed.splitHGroessen); }
+        if (!ed.splitVGroessen.empty()) { ed.vSplit.setzeGroessen(ed.splitVGroessen); }
+        if (!ed.splitV2Groessen.empty()) { ed.vSplit2.setzeGroessen(ed.splitV2Groessen); }
     }
+}
+
+// Stufe 8b Punkt 2: einen Platz im Split-Layout belegen (wahl 0 Kamera, 1 XY,
+// 2 XZ, 3 YZ). Die Kamera tauscht den Platz mit dem, der sie hatte; ein
+// 2D-Fenster bekommt den Typ (auch doppelt erlaubt) und wird zentriert wie
+// XY_SetViewType ausserhalb von Split; auf dem Platz der Kamera kommt das
+// 2D-Fenster dieses Typs (sonst das aktive) dorthin.
+void splitPlatzWaehlen(int platz, int wahl) {
+    Editor& ed = editor();
+    if (platz < 0 || platz > 3 || wahl < 0 || wahl > 3) { return; }
+    auto& b = ed.splitBelegung;
+    const auto stelle = [&b](int inhalt) {
+        for (int i = 0; i < 4; ++i) {
+            if (b[static_cast<std::size_t>(i)] == inhalt) { return i; }
+        }
+        return 0;
+    };
+    const int inhalt = b[static_cast<std::size_t>(platz)];
+    if (wahl == 0) {
+        if (inhalt != 3) { std::swap(b[static_cast<std::size_t>(platz)], b[static_cast<std::size_t>(stelle(3))]); }
+    } else {
+        const karte::Sicht typ = wahl == 1 ? karte::Sicht::XY : wahl == 2 ? karte::Sicht::XZ : karte::Sicht::YZ;
+        int fenster = inhalt;
+        if (inhalt == 3) {
+            fenster = std::clamp(ed.aktivXy, 0, 2);
+            for (int i = 0; i < 3; ++i) {
+                if (ed.xy[static_cast<std::size_t>(i)].ansicht.typ == typ) {
+                    fenster = i;
+                    break;
+                }
+            }
+            std::swap(b[static_cast<std::size_t>(platz)], b[static_cast<std::size_t>(stelle(fenster))]);
+        }
+        XyFenster& x = ed.xy[static_cast<std::size_t>(fenster)];
+        if (x.ansicht.typ != typ) {
+            x.ansicht.typ = typ;
+            x.ansicht.setzeUrsprung(xyMittelpunkt());   // XYWnd_Centralize
+        }
+        ed.aktivXy = fenster;
+    }
+    ++ed.sichtStand;
+    if (ed.splitFrei) { einstellungenSpeichern(); }
 }
 
 namespace {
@@ -1089,9 +1186,25 @@ void anordnungZeichnen(int x, int y, int b, int h) {
         }
         teilerZeichnen("h", ed.hSplit, false, x, y, b, h, kinder);
     } else if (ed.anordnung == Anordnung::Split) {
-        // 4 way (mainframe.cpp:1829-1855): links Kamera ueber YZ, rechts XY ueber XZ
-        std::vector<Inhalt> kinder{spalte(ed.vSplit, "v", {Feld::Kamera, Feld::YZ}),
-                                   spalte(ed.vSplit2, "v2", {Feld::XY, Feld::XZ})};
+        // 4 way (mainframe.cpp:1829-1855): links Kamera ueber YZ, rechts XY ueber XZ.
+        // Stufe 8b Punkt 2: mit "Split-Fenster frei belegen" je Platz der gewaehlte Inhalt.
+        static const std::array<int, 4> kNrc{3, 2, 0, 1};
+        static const Feld kInhalt[4] = {Feld::XY, Feld::XZ, Feld::YZ, Feld::Kamera};
+        const std::array<int, 4> bel = ed.splitFrei ? ed.splitBelegung : kNrc;
+        const auto platzSpalte = [bel](karte::Teiler& t, const char* id, int p0) -> Inhalt {
+            return [&t, id, p0, bel](int x2, int y2, int b2, int h2) {
+                std::vector<Inhalt> kinder;
+                for (const int p : {p0, p0 + 1}) {
+                    kinder.emplace_back([p, bel](int x3, int y3, int b3, int h3) {
+                        g_platz = p;
+                        feld(kInhalt[std::clamp(bel[static_cast<std::size_t>(p)], 0, 3)], x3, y3, b3, h3);
+                        g_platz = -1;
+                    });
+                }
+                teilerZeichnen(id, t, true, x2, y2, b2, h2, kinder);
+            };
+        };
+        std::vector<Inhalt> kinder{platzSpalte(ed.vSplit, "v", 0), platzSpalte(ed.vSplit2, "v2", 2)};
         if (ed.gruppenDialogEingebaut) {
             kinder.push_back(gruppe);
             ed.hSplit.kinder.back().versteckt = !ed.gruppenDialogOffen;

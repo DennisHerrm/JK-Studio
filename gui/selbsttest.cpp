@@ -37525,6 +37525,11 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =split1/2/3: Split-Fenster frei belegen ueber echte Neustarts (Stufe 8b Punkt 2, ein Einstellungsordner)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strncmp(nur, "split", 5) == 0 && nur[5] >= '1' && nur[5] <= '3') {
+        for (Schritt& x : stufe8b::splitNeustart(nur[5] - '0')) { add(std::move(x)); }
+        return s;
+    }
     // =letzte1/letzte2/letzte3: die letzte Karte beim Start (Stufe 7 Punkt 6f, zwei Laeufe, ein Einstellungsordner)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strncmp(nur, "letzte", 6) == 0) {
         const std::string n = nur;

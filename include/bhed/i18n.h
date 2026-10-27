@@ -2322,6 +2322,9 @@ enum class Str {
     KeTgNoTexTitel,
     KeTgNoTex,
     KeTgAboutTitel,
+    KeSfSchalter,
+    KeSfSchalterTip,
+    KeSfMenueTip,
     Count,
 };
 
