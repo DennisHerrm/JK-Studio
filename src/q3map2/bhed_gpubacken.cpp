@@ -333,6 +333,10 @@ int strahlTesten(Strahl r, Lm lm, bool testAll, int lichtSky, out bool himmel, o
     himmel = false;
     skyOk = false;
     if (lm.recv == 0 || testOcclusion == 0 || r.dist <= 0.00001f) { return 0; }
+#if MESS == 2
+    himmel = true;
+    return 0;
+#endif
     int nTest = 0;
     int stK[64];
     float3 stO[64];
@@ -351,7 +355,7 @@ int strahlTesten(Strahl r, Lm lm, bool testAll, int lichtSky, out bool himmel, o
             if (n.anzahl > 0 && nTest < 256)
             {
                 nTest += 1;
-                if (noSurfaces == 0)
+                if (noSurfaces == 0 && MESS == 0)
                 {
                     const int b = blattTesten(k, r, lm, lichtSky, himmel, skyOk);
                     if (b != 0) { return b; }
@@ -922,7 +926,8 @@ bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector
 	const bool d1 = SUCCEEDED( g.geraet->CheckFeatureSupport( D3D11_FEATURE_DOUBLES, &dd, sizeof( dd ) ) ) && dd.DoublePrecisionFloatShaderOps;
 	const bool d2 = SUCCEEDED( g.geraet->CheckFeatureSupport( D3D11_FEATURE_D3D11_OPTIONS, &op, sizeof( op ) ) ) && op.ExtendedDoublesShaderInstructions;
 	g.doppelt = d1 && d2 && std::getenv( "BHED_GPUBAKE_OHNE_DOUBLE" ) == nullptr;
-	const D3D_SHADER_MACRO makros[] = { { "DOPPELT", g.doppelt ? "1" : "0" }, { "DIAG", std::getenv( "BHED_GPUBAKE_DIAG" ) != nullptr ? "1" : "0" }, { nullptr, nullptr } };
+	const D3D_SHADER_MACRO makros[] = { { "DOPPELT", g.doppelt ? "1" : "0" }, { "DIAG", std::getenv( "BHED_GPUBAKE_DIAG" ) != nullptr ? "1" : "0" },
+	                                    { "MESS", std::getenv( "BHED_GPUBAKE_MESS" ) != nullptr ? std::getenv( "BHED_GPUBAKE_MESS" ) : "0" }, { nullptr, nullptr } };
 	ID3DBlob *code = nullptr;
 	ID3DBlob *fehler = nullptr;
 	const UINT flags = D3DCOMPILE_IEEE_STRICTNESS | D3DCOMPILE_OPTIMIZATION_LEVEL3;
