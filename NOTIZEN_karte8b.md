@@ -22,8 +22,9 @@ Byte-Vergleich im Test.
 | 7 | a7bf37fb | Undo-Verlauf als Liste |
 | 8 | 1be28c24 | misc_model-Kandidaten aus allen Modellordnern (Modell-Index mit Zwischenspeicher) |
 | 9 | 45926d6c | q3map2 -light -bhedgpu: bitgleiche Schattentests auf der GPU - kein Gewinn, darum aus |
-| 10 | (Handbuch-Commit) | Handbuch: neue Seite "Terrain, Spielen, Logik, Spiegel und mehr", Unterschiede-Seite, alle Kartenbilder in vier Sprachen |
-| 11/12 | (Commit dieser Notizen) | Schlussrunde, Notizen, Changelog |
+| 10 | f1c0cb91 | Handbuch: neue Seite "Terrain, Spielen, Logik, Spiegel und mehr", Unterschiede-Seite, alle Kartenbilder in vier Sprachen (der Entwurf dieser Notizen ging versehentlich mit) |
+| 11 | a0e1c8d4 | Behebungen der Schlussrunde: Dialog "Add to compiled map" zwischen den Tests schließen, Menügrößen mit den Einträgen der Stufe 8b, Abdeckung aus dem Schlusslauf |
+| 12 | (Commit dieser Notizen) | Notizen, Changelog |
 
 ## Punkt 1: Terrain Generator
 
@@ -210,3 +211,134 @@ Byte-Vergleich im Test.
   (karte8, karte7, karteneditor, kartebauen, karte4, karte5) in vier Sprachen
   neu (View- und Plugins-Menü und die Einstellungen haben neue Einträge).
 - `gen_handbuch.py` und `--pruefen` ohne Fehler.
+
+## Abweichungen von NRC (neu in Stufe 8b)
+
+- Alles außer dem Terrain Generator ist eigene Funktion mit eigenem
+  Menüeintrag/Schalter und dem Hinweis "nicht in NetRadiant-Custom"; Vorgabe
+  aus (Split frei, Spiegel, Ansichtsmodi), Spielen/Logik/Undo-Liste nur auf
+  Aufruf.
+- Terrain Generator: aus NRC master (nicht im Release 20260114, Hinweis im
+  Dialog); fester Startwert zusätzlich.
+- Ansichtsmodus Lightmap-Dichte: je Fläche statt je Roh-Lightmap.
+- Spiegel-Modus: kopierte Entities behalten targetname/target; Objekte
+  symmetrisch auf der Ebene bekommen kein Gegenstück.
+- bhed_q3map2 `-bhedgpu`: neuer Schalter, aus, nicht im Build-Menü; nimmt in
+  der Wiedergabe für Verdeckt-Ergebnisse die Lage des getroffenen Dreiecks
+  (hit) des GPU-Wegs, `compileFlags` werden in diesem Weg nicht gesammelt -
+  beides liest der einzige Nutzer (erste Abtastung von IlluminateRawLightmap,
+  testAll = false) nicht; die Lumps sind byte-gleich.
+
+## Schlussrunde
+
+Vorlage `SP/s8/ende_s8.sh` -> `SP/s8b/ende_s8b.sh` (Idle, 8-GB-Wächter, ein
+Prozess zur Zeit), Summe `SP/s8b/ende_summe.txt`. Erster Durchgang auf
+f1c0cb91 (Handbuch-Commit):
+
+| Schritt | Ergebnis |
+|---|---|
+| Bau | ok |
+| ctest | 131/131 (171 s) |
+| karteneditor voll (mit duel_mos_espa + MD-BSP) | 3068 OK, 165 FEHLER (898 s, Spitze 1129 MB): das Fenster "Add to compiled map" der Stufe 8 blieb offen und lag über der XY-Ansicht; der Zieh-Test des Spiegel-Modus klickte hinein, danach kam kein Klick mehr an (Folgefehler in 8b und in den Menüfotos) -> `karteDialogeZu` schließt jetzt auch diesen Dialog, die Logik-Ansicht und den Undo-Verlauf |
+| Modus 1 | 2645 OK, 0 FEHLER (437 s) |
+| karte, kartenfunde, fix604b, laserfalle, geschuetzanim, zielstrahl, effektgrund, figurdeform, jk2, tuerlauf, kamera, missionsbau, szenen, ton, npcklasse, gluehen, gras, spulen, figurstufen, missionsliste, rest605, modellimfesten | alle 0 FEHLER (227, 53, 32, 8, 3, 2, 1, 1, 15, 13, 95, 95, 26, 34, 12, 8, 13, 13, 8, 11, 6, 1 OK) |
+| Leistung gegen rc605 (md_am_sith, je 2 Läufe) | Vorbereitung rc605 6279/6246 ms, Stufe 8b 6310/6440 ms; Bild Mittel 13/13 gegen 14/14 ms, Flug 8,1/8,7 gegen 8,6/8,6 ms, dritte Szene 10/10 gegen 10/9 ms, max. 207/186 gegen 199/195 ms - gleich im Rahmen der Streuung (die Szenen-Vorschau berührt Stufe 8b nicht) |
+| Kartenprüfung (278 MD-Karten, gegen Stufe 8a) | alle Summen gleich (0 Abstürze, 0 nicht geladen, 0 D3D-Meldungen, 1 -> 1 nicht gezeichnete Entity) |
+| sauberer Neubau | 0 Fehler, 130 Warnungen (467 s; Stufe 8a: 130) |
+
+Nach der Behebung: karteneditor voll 3111 OK, 2 FEHLER (897 s) - die
+Größenprüfung der Menüs View (292 x 611 mit den sechs neuen Einträgen der
+Stufe 8b) und Plugins (162 x 202 mit TerrainGenerator) nannte noch die alten
+Maße -> Erwartung mit Begründung angepasst, gezielt BHED_KARTE_NUR=fotos
+78 OK, 0 FEHLER; danach der ganze Lauf: **3113 OK, 0 FEHLER** (924 s, Spitze
+1033 MB). Abdeckung aus diesem Lauf: 980 Einträge, 976 mit Wirkungsprüfung,
+4 begründete Ausnahmen, 0 ohne.
+
+## Offene Punkte
+
+- GPU-Schattentests: bitgleich, aber ohne Gewinn. Ein Gewinn bräuchte mehr
+  als die erste Abtastung: die großen Lightmaps (Pool-Weg, Stufe 7), die
+  Sonnen-/Himmelsstrahlen (testAll mit Himmelsflags und skyIndices), das
+  Lichtgitter, das Supersampling und Bounce - und den Vorlauf ohne doppelte
+  LightContributionToSample-Rechnung. Erst danach lohnt sich ein neuer Versuch.
+- Spiegel-Modus: nur achsparallele Ebenen; keine Dreh-Symmetrie; Namen der
+  kopierten Entities bleiben gleich.
+- Im Editor spielen: nur der Spieler (keine Türen, Mover, Trigger, NPCs,
+  Waffen).
+- Logik-Ansicht: zeigt und wählt, bearbeitet die Verknüpfungen aber nicht.
+- Freie Split-Fenster nur im Layout Split.
+- misc_model-Index: forcemeta-Modelle mit _remap findet auch der Index nicht
+  (ihr Shader steht nicht in der .bsp); das erste Öffnen baut den Index
+  (bei der MD-Installation etwa 30 s) ohne eigene Fortschrittszeile.
+- Ansichtsmodi: Sichtbarkeit und Dreieckslast brauchen die gebaute .bsp;
+  Dichte je Fläche (siehe Abweichungen).
+
+## Was Stufe 8c braucht
+
+- Tutorial "Erste eigene Karte" (Schritt für Schritt im Programm, wie die
+  Tutorials des Skript-Teils), dazu ein großer Gesamttest über alle
+  Karten-Werkzeuge.
+- Zusammenführung mit dem Hauptprojekt vorbereiten: Zweig `karte1` gegen
+  `main`, Konflikte (selbsttest.cpp, CMakeLists.txt, i18n), der Bau mit
+  `-DBEHAVED_Q3MAP2_LLVM` (clang-cl) im Release-Weg, Handbuch und
+  Changelogs zusammen.
+- Umbenennen in "JK Studio": Programmname, Updater (Kanal, alte Fassungen
+  erkennen), Einstellungsordner (Übernahme der alten Einstellungen),
+  exe-Name, Handbuch und Texte in vier Sprachen.
+- GPU-Plan Schritt 2: das ganze Licht-Backen auf der GPU (nicht nur die
+  Schattentests) mit einem Abweichungsbericht gegen die CPU (welche Luxel um
+  wie viel), dazu die GPU-Vorschau mit Bounce im Editor.
+
+## Changelog
+
+## English
+
+- Map editor: Plugins > TerrainGenerator > Generate Terrain - the terrain generator from the current NetRadiant-Custom source, the same terrain for the same values; an optional fixed seed gives the same terrain again.
+- Map editor: free split windows (Preferences > Interface > Layout, split layout) - every window can show the camera, XY, XZ or YZ, also twice; Ctrl+Tab and the splitter positions are kept.
+- Map editor: View > Play in editor (F6) - walk through the open map without compiling, with the game's movement and collision straight from the brushes and patches; start at the camera or at info_player_start, Esc ends.
+- Map editor: View > Logic view - every link between the entities as a graph (targets, NPC targets, door targets, script keys); click selects and centers, double-click opens the ICARUS script.
+- Map editor: View > Camera view modes - lightmap density as q3map2 computes it, collision by contents, visibility (PVS) and triangle load from the compiled .bsp.
+- Map editor: View > Mirror mode - every change to the selection is mirrored live onto its counterpart across an X, Y or Z plane (brushes, patches, entities with origin, angle and angles), in the same undo step.
+- Map editor: View > Undo history - all undo and redo steps with their command names; a click jumps to that state.
+- Map editor: File > Open .bsp finds misc_model from all model folders of the game with a cached model index (t2_trip: 0 -> 13 models, jeditemple_garden still 265 of 265).
+- bhed_q3map2: `-light -bhedgpu` runs the shadow tests on the graphics card with byte-identical results; it is off and not in the Build menu because it was not faster on the measured computer.
+- Guide: new page "Map editor: terrain, playing, logic, mirror and more"; all map pictures updated in four languages.
+
+## Deutsch
+
+- Karten-Editor: Plugins > TerrainGenerator > Generate Terrain - der Terrain-Generator aus dem aktuellen Quelltext von NetRadiant-Custom, bei gleichen Werten dasselbe Terrain; ein wahlweise fester Startwert gibt dasselbe Terrain wieder.
+- Karten-Editor: freie Split-Fenster (Preferences > Interface > Layout, Layout Split) - jedes Fenster kann Kamera, XY, XZ oder YZ zeigen, auch doppelt; Strg+Tab und die Lage der Teiler bleiben.
+- Karten-Editor: View > Im Editor spielen (F6) - ohne Kompilieren durch die offene Karte laufen, mit der Bewegung des Spiels und der Kollision direkt aus Brushes und Patches; Start an der Kamera oder an info_player_start, Esc beendet.
+- Karten-Editor: View > Logik-Ansicht - jede Verknüpfung zwischen den Entities als Graph (Ziele, NPC-Ziele, Türziele, Skript-Schlüssel); Klick wählt und zentriert, Doppelklick öffnet das ICARUS-Skript.
+- Karten-Editor: View > Ansichtsmodi der Kamera - Lightmap-Dichte wie q3map2 sie rechnet, Kollision nach Inhalt, Sichtbarkeit (PVS) und Dreieckslast aus der gebauten .bsp.
+- Karten-Editor: View > Spiegel-Modus - jede Änderung an der Auswahl wird live auf das Gegenstück jenseits einer X-, Y- oder Z-Ebene gespiegelt (Brushes, Patches, Entities mit origin, angle und angles), im selben Rückgängig-Schritt.
+- Karten-Editor: View > Undo-Verlauf - alle Rückgängig- und Wiederholen-Schritte mit ihren Befehlsnamen; ein Klick springt zu diesem Stand.
+- Karten-Editor: File > Open .bsp findet misc_model aus allen Modellordnern des Spiels mit einem zwischengespeicherten Modell-Index (t2_trip: 0 -> 13 Modelle, jeditemple_garden weiter 265 von 265).
+- bhed_q3map2: `-light -bhedgpu` rechnet die Schattentests auf der Grafikkarte mit Byte-gleichem Ergebnis; der Schalter ist aus und steht nicht im Build-Menü, weil er auf dem gemessenen Rechner nicht schneller war.
+- Handbuch: neue Seite „Karten-Editor: Terrain, Spielen, Logik, Spiegel und mehr“; alle Kartenbilder in vier Sprachen erneuert.
+
+## 中文
+
+- 地图编辑器:Plugins > TerrainGenerator > Generate Terrain——来自 NetRadiant-Custom 当前源代码的地形生成器,相同数值得到相同地形;可选的固定种子可再次得到同一地形。
+- 地图编辑器:自由分屏窗口(Preferences > Interface > Layout,Split 布局)——每个窗口都可以显示摄像机、XY、XZ 或 YZ,也可重复;Ctrl+Tab 和分隔条位置会保留。
+- 地图编辑器:View > 在编辑器中试玩(F6)——无需编译即可在打开的地图中行走,使用游戏的移动方式,碰撞直接来自画刷和面片;从摄像机或 info_player_start 开始,Esc 结束。
+- 地图编辑器:View > 逻辑视图——以图的形式显示实体之间的每个连接(目标、NPC 目标、门的目标、脚本键);单击选中并居中,双击打开 ICARUS 脚本。
+- 地图编辑器:View > 摄像机视图模式——按 q3map2 的计算显示光照贴图密度、按内容显示碰撞,以及根据已编译的 .bsp 显示可见性(PVS)和三角形负载。
+- 地图编辑器:View > 镜像模式——对选择的每次修改都会实时镜像到 X、Y 或 Z 平面另一侧的对应物上(画刷、面片、实体及其 origin、angle 和 angles),在同一个撤销步骤中。
+- 地图编辑器:View > 撤销历史——列出所有撤销和重做步骤及其命令名称;单击即可跳到该状态。
+- 地图编辑器:File > Open .bsp 借助缓存的模型索引从游戏的所有模型文件夹中查找 misc_model(t2_trip:0 -> 13 个模型,jeditemple_garden 仍为 265/265)。
+- bhed_q3map2:`-light -bhedgpu` 在显卡上进行阴影测试,结果逐字节相同;由于在测量所用的电脑上没有更快,该开关保持关闭,也不在 Build 菜单中。
+- 手册:新增页面“地图编辑器:地形、试玩、逻辑、镜像及更多”;所有地图图片以四种语言更新。
+
+## 日本語
+
+- マップエディター:Plugins > TerrainGenerator > Generate Terrain - NetRadiant-Custom の現在のソースにある地形ジェネレーター。同じ値なら同じ地形になり、固定シードを選べば同じ地形をもう一度作れます。
+- マップエディター:自由な分割ウィンドウ(Preferences > Interface > Layout、Split レイアウト)- 各ウィンドウにカメラ・XY・XZ・YZ を表示でき、重複も可能。Ctrl+Tab と仕切りの位置は保たれます。
+- マップエディター:View > エディター内でプレイ(F6)- コンパイルせずに開いているマップの中を歩けます。動きはゲームと同じで、衝突はブラシとパッチから直接作られます。カメラか info_player_start から始まり、Esc で終了します。
+- マップエディター:View > ロジックビュー - エンティティ同士のつながりをすべてグラフで表示(ターゲット、NPC ターゲット、ドアのターゲット、スクリプトキー)。クリックで選択して中央に、ダブルクリックで ICARUS スクリプトを開きます。
+- マップエディター:View > カメラの表示モード - q3map2 の計算どおりのライトマップ密度、内容ごとの衝突、コンパイル済み .bsp からの可視性(PVS)と三角形の負荷。
+- マップエディター:View > ミラーモード - 選択への変更を X・Y・Z 平面の反対側にある対のオブジェクトへリアルタイムにミラーします(ブラシ、パッチ、origin・angle・angles を含むエンティティ)。元に戻すは 1 ステップです。
+- マップエディター:View > 元に戻す履歴 - 元に戻す/やり直しのステップをコマンド名つきですべて表示し、クリックでその状態に移ります。
+- マップエディター:File > Open .bsp がキャッシュしたモデルインデックスでゲームのすべてのモデルフォルダーから misc_model を見つけます(t2_trip:0 -> 13 モデル、jeditemple_garden は引き続き 265/265)。
+- bhed_q3map2:`-light -bhedgpu` は影のテストをグラフィックカードで行い、結果はバイト単位で同じです。測定したコンピューターでは速くならなかったため、スイッチはオフで Build メニューにもありません。
+- ガイド:新しいページ「マップエディター:地形・プレイ・ロジック・ミラーなど」。すべてのマップ画像を 4 言語で更新しました。
