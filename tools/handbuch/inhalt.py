@@ -17,6 +17,7 @@ import inhalt_karte5
 import inhalt_karte6
 import inhalt_karte7
 import inhalt_karte8
+import inhalt_karte8b
 import inhalt_mission
 import inhalt_tutorials
 import inhalt_kurz
@@ -38,7 +39,7 @@ GRUPPEN = [
     ("befehle", T("Commands", "Befehle", "命令", "コマンド")),
 ]
 
-SEITEN = (inhalt_start.SEITEN[:1] + inhalt_funktionen.SEITEN + inhalt_start.SEITEN[1:] + [inhalt_skript.FENSTER] + inhalt_skript.SEITEN + inhalt_karte.SEITEN + inhalt_karteneditor.SEITEN + inhalt_karteneditor2.SEITEN + inhalt_kartebauen.SEITEN + inhalt_karte4.SEITEN + inhalt_karte5.SEITEN + inhalt_karte6.SEITEN + inhalt_karte7.SEITEN + inhalt_karte8.SEITEN +
+SEITEN = (inhalt_start.SEITEN[:1] + inhalt_funktionen.SEITEN + inhalt_start.SEITEN[1:] + [inhalt_skript.FENSTER] + inhalt_skript.SEITEN + inhalt_karte.SEITEN + inhalt_karteneditor.SEITEN + inhalt_karteneditor2.SEITEN + inhalt_kartebauen.SEITEN + inhalt_karte4.SEITEN + inhalt_karte5.SEITEN + inhalt_karte6.SEITEN + inhalt_karte7.SEITEN + inhalt_karte8.SEITEN + inhalt_karte8b.SEITEN +
           inhalt_mission.SEITEN + inhalt_tutorials.SEITEN + inhalt_kurz.SEITEN + inhalt_kurz2.SEITEN + inhalt_kurz3.SEITEN + inhalt_referenz.SEITEN + inhalt_knoepfe.SEITEN + inhalt_befehle.SEITEN + inhalt_befehlseiten.SEITEN)
 
 import inhalt_schritte

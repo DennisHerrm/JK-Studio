@@ -39018,6 +39018,207 @@ std::vector<Schritt> karte8HandbuchSchritte() {
     return s;
 }
 
+// BHED_EDITORTEST=handbuch mit BHED_HB_NUR=karte8b: Stufe 8b - das View-Menue mit den
+// neuen Eintraegen, Terrain Generator, Logik-Ansicht, Ansichtsmodi, Spiegel-Modus,
+// Undo-Verlauf, Im Editor spielen.
+std::vector<Schritt> karte8bHandbuchSchritte() {
+    namespace ke = karteneditor;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto menueBild = [] {
+        const ImGuiWindow* haupt = ImGui::FindWindowByName("###main");
+        ImRect m;
+        const ImGuiContext& g = *GImGui;
+        for (int i = 0; i < g.OpenPopupStack.Size; ++i) {
+            if (const ImGuiWindow* w = g.OpenPopupStack[i].Window) {
+                if (i == 0) {
+                    m = w->Rect();
+                } else {
+                    m.Add(w->Rect());
+                }
+            }
+        }
+        if (haupt == nullptr) { return m; }
+        return ImRect{haupt->Pos.x, haupt->Pos.y, m.Max.x + 40.0F, m.Max.y + 20.0F};
+    };
+    const auto editor = [] {
+        ImGuiWindow* w = karteFenster();
+        const ImGuiWindow* haupt = ImGui::FindWindowByName("###main");
+        if (w == nullptr) { return ImRect{}; }
+        const float oben = haupt != nullptr ? haupt->Pos.y : w->Pos.y;
+        const float links = haupt != nullptr ? haupt->Pos.x : w->Pos.x;
+        return ImRect{links, oben, w->Rect().Max.x, w->Rect().Max.y};
+    };
+    const auto kamera = [] { return hb::fensterRect("##feldKamera"); };
+    const auto ansichten = [](karte::Vektor3f ort, karte::Vektor3f winkel, float massstab) {
+        ke::Editor& e = ke::editor();
+        e.kamera.setzeUrsprung(ort);
+        e.kamera.setzeWinkel(winkel);
+        e.xy[0].ansicht.typ = karte::Sicht::XY;
+        e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        e.xy[0].ansicht.setzeMassstab(massstab);
+        ++e.sichtStand;
+    };
+    add(tu("Handbuch Stufe 8b: Spielordner, Begriffe aus", [] {
+        if (g_app->gamePaths.empty()) { rescanGamePaths(); }
+        g_app->leftMode = 0;
+        ke::setzeNrcBegriffe(false);
+    }));
+    add(pause(0.3));
+    add(klick(tr(Str::ViewMapEditor), "###main"));
+    add(pause(0.3));
+    add(warteBis("Handbuch Stufe 8b: Spieldaten geladen", [] {
+        ke::spielPruefen();
+        return ke::spielBereit();
+    }, 20000));
+    // Testkarte: ein Hof mit Saeulen, Ausloeser -> Relais -> Tuer, ein NPC_spawner mit Skripten
+    add(tu("Handbuch Stufe 8b: Testkarte schreiben und oeffnen", [ansichten] {
+        karteDialogeZu();
+        using stufe4::kastenText;
+        std::string w;
+        w += kastenText(-512, -512, -16, 512, 512, 0, "yavin/temple_stone2");
+        w += kastenText(-528, -512, 0, -512, 512, 256, "yavin/temple_stone2");
+        w += kastenText(512, -512, 0, 528, 512, 256, "yavin/temple_stone2");
+        w += kastenText(-512, -528, 0, 512, -512, 256, "yavin/temple_stone2");
+        w += kastenText(-512, 512, 0, 512, 528, 256, "yavin/temple_stone2");
+        w += kastenText(160, -96, 0, 224, -32, 192, "yavin/temple_stone2");    // Saeule (Spiegel)
+        w += kastenText(-480, 0, 0, -32, 448, 16, "yavin/temple_stone2");      // Platte (Terrain)
+        w += kastenText(-512, -512, 256, 512, 512, 272, "skies/normallight");
+        std::string t = stufe4::weltText(w);
+        t += "{\n\"classname\" \"trigger_multiple\"\n\"target\" \"relais\"\n" + kastenText(-64, -400, 0, 64, -300, 96, "system/trigger") + "}\n";
+        t += "{\n\"classname\" \"target_relay\"\n\"targetname\" \"relais\"\n\"target\" \"tor\"\n\"target2\" \"wache\"\n\"origin\" \"0 -250 32\"\n}\n";
+        t += "{\n\"classname\" \"func_door\"\n\"targetname\" \"tor\"\n\"angle\" \"-1\"\n" + kastenText(-48, 480, 0, 48, 496, 128, "yavin/temple_stone2") + "}\n";
+        t += "{\n\"classname\" \"NPC_spawner\"\n\"NPC_type\" \"stormtrooper\"\n\"NPC_targetname\" \"wache\"\n\"spawnscript\" \"handbuch/wache_da\"\n\"deathscript\" \"handbuch/wache_tot\"\n\"origin\" \"0 300 24\"\n\"angle\" \"270\"\n}\n";
+        t += "{\n\"classname\" \"light\"\n\"origin\" \"0 0 200\"\n\"light\" \"400\"\n}\n";
+        t += "{\n\"classname\" \"info_player_start\"\n\"origin\" \"-300 -300 24\"\n\"angle\" \"45\"\n}\n";
+        const std::string pfad = karteTestPfad("hb8b\\hof.map");
+        std::filesystem::create_directories(std::filesystem::path(pfad).parent_path());
+        {
+            std::ofstream f(std::filesystem::path(pfad), std::ios::binary | std::ios::trunc);
+            f << t;
+        }
+        (void)ke::karteOeffnen(pfad);
+        ke::Editor& e = ke::editor();
+        e.spiegel = karte::SpiegelModus{};
+        e.ansichtsmodi = ke::AnsichtsModiZustand{};
+        ke::konsoleLeeren();
+        ansichten(karte::Vektor3f(-420.0F, -420.0F, 220.0F), karte::Vektor3f(-22.0F, 45.0F, 0.0F), 0.45F);
+    }));
+    add(warteBis("Handbuch Stufe 8b: Texturen geladen", [] { return ke::kameraBilderFertig(); }, 6000));
+    // 1. das View-Menue
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.6));
+    add(hb::fotoTeil("h_karte8b_menue", menueBild));
+    add(tu("Menue zu", [] { karteDialogeZu(); }));
+    add(pause(0.3));
+    // 2. Logik-Ansicht
+    add(tu("Handbuch Stufe 8b: Logic view", [] { ke::logikZeigen(); }));
+    add(pause(0.8));
+    add(hb::fotoTeil("h_karte8b_logik", [] { return fensterRahmen("###kartelogik"); }));
+    add(tu("Logik zu", [] { ke::editor().logik.offen = false; }));
+    // 3. Ansichtsmodi
+    add(tu("Handbuch Stufe 8b: Lightmap-Dichte", [ansichten] {
+        ke::editor().ansichtsmodi.dichte = true;
+        ansichten(karte::Vektor3f(-420.0F, -420.0F, 220.0F), karte::Vektor3f(-22.0F, 45.0F, 0.0F), 0.45F);
+    }));
+    add(pause(0.8));
+    add(hb::fotoTeil("h_karte8b_dichte", kamera));
+    add(tu("Handbuch Stufe 8b: Kollision", [] {
+        ke::Editor& e = ke::editor();
+        e.ansichtsmodi = ke::AnsichtsModiZustand{};
+        e.ansichtsmodi.kollision = true;
+        ++e.sichtStand;
+    }));
+    add(pause(0.8));
+    add(hb::fotoTeil("h_karte8b_kollision", kamera));
+    add(tu("Ansichtsmodi aus", [] {
+        ke::editor().ansichtsmodi = ke::AnsichtsModiZustand{};
+        ++ke::editor().sichtStand;
+    }));
+    // 4. Spiegel-Modus: Saeule waehlen, Ebene X durch den Ursprung, um 64 verschieben
+    add(tu("Handbuch Stufe 8b: Spiegel-Modus X, Saeule verschieben", [] {
+        stufe4::weltWaehlen({5});
+        ke::spiegelSetzen(0);
+        ke::Editor& e = ke::editor();
+        {
+            karte::Befehl b(e.karte.undo, "translateTool -xyz 64 0 0");
+            e.bearbeitung.verschiebeAuswahl(karte::Vektor3f(64, 0, 0));
+        }
+        e.kamera.setzeUrsprung(karte::Vektor3f(0.0F, -460.0F, 260.0F));
+        e.kamera.setzeWinkel(karte::Vektor3f(-28.0F, 90.0F, 0.0F));
+        e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, -64, 0));
+        e.xy[0].ansicht.setzeMassstab(0.9F);
+        ++e.sichtStand;
+    }));
+    add(pause(0.8));
+    add(hb::fotoTeil("h_karte8b_spiegel", editor));
+    add(tu("Spiegel aus", [] {
+        ke::spiegelSetzen(-1);
+        ke::editor().karte.auswahl.leeren();
+        ke::auswahlGeaendert();
+    }));
+    // 5. Undo-Verlauf: noch zwei Befehle, dann die Liste
+    add(tu("Handbuch Stufe 8b: zwei Befehle, Undo history", [] {
+        ke::Editor& e = ke::editor();
+        for (const auto& ent : e.karte.entitaeten()) {
+            if (ent->klassenname() == "light") {
+                karte::Befehl b(e.karte.undo, "entitySetKeyValue -key \"light\" -value \"600\"");
+                ent->setzen("light", "600");
+            }
+        }
+        stufe4::weltWaehlen({6});
+        {
+            karte::Befehl b(e.karte.undo, "translateTool -xyz 0 -32 0");
+            e.bearbeitung.verschiebeAuswahl(karte::Vektor3f(0, -32, 0));
+        }
+        ke::undoListeZeigen();
+    }));
+    add(pause(0.8));
+    add(hb::fotoTeil("h_karte8b_undo", [] { return fensterRahmen("###undoverlauf"); }));
+    add(tu("Undo-Liste zu", [] { ke::editor().undoListeOffen = false; }));
+    // 6. Terrain Generator: die Platte waehlen, Dialog, Hill erzeugen
+    add(tu("Handbuch Stufe 8b: Platte waehlen, Generate Terrain", [] {
+        stufe4::weltWaehlen({6});
+        ke::Editor& e = ke::editor();
+        e.texBro.shader = "textures/yavin/temple_stone2";
+        e.terrain.gespeichert = karte::terraingen::Werte{};
+        e.terrain.gespeichert.form = 1;            // Hill
+        e.terrain.gespeichert.formHoehe = 160;
+        e.terrain.gespeichert.quadratIndex = 2;    // 32
+        e.terrain.gespeichert.varianz = 16;
+        e.terrain.gespeichert.startwertFest = true;
+        e.terrain.gespeichert.startwert = 7;
+        (void)ke::ausfuehren("terrainGenerator::GenerateTerrain");
+    }));
+    add(pause(0.8));
+    add(hb::fotoTeil("h_karte8b_terrain_dialog", [] { return fensterRahmen("###terraingenerator"); }));
+    add(tu("Handbuch Stufe 8b: erzeugen, Dialog zu", [ansichten] {
+        ke::terrainErzeugenKnopf();
+        ke::terrainSchliessen();
+        ke::editor().karte.auswahl.leeren();
+        ke::auswahlGeaendert();
+        ansichten(karte::Vektor3f(300.0F, -300.0F, 230.0F), karte::Vektor3f(-22.0F, 135.0F, 0.0F), 0.45F);
+    }));
+    add(pause(1.0));
+    add(hb::fotoTeil("h_karte8b_terrain", kamera));
+    // 7. Im Editor spielen: an der Kamera starten
+    add(tu("Handbuch Stufe 8b: Im Editor spielen", [ansichten] {
+        ansichten(karte::Vektor3f(380.0F, -380.0F, 64.0F), karte::Vektor3f(0.0F, 135.0F, 0.0F), 0.45F);
+        ke::Editor& e = ke::editor();
+        e.spielen.startAnSpawn = false;
+        ke::spielenStarten();
+    }));
+    add(pause(1.2));
+    add(hb::fotoTeil("h_karte8b_spielen", kamera));
+    add(tu("Handbuch Stufe 8b: Ende", [] {
+        ke::spielenBeenden();
+        karteDialogeZu();
+        g_app->leftMode = 0;
+    }));
+    add(pause(0.3));
+    return s;
+}
+
 std::vector<Schritt> handbuchSchritte() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
     // (tr) beim Aufbau der Liste - vorher suchten sie auf Deutsch "Cancel".
@@ -39041,6 +39242,9 @@ std::vector<Schritt> handbuchSchritte() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte8") == 0) {
         return karte8HandbuchSchritte();
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte8b") == 0) {
+        return karte8bHandbuchSchritte();
     }
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };

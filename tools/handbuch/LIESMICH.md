@@ -70,7 +70,8 @@ Seiten „Fertige Karten öffnen und ändern“ und „Plugins“ (`h_karte4_*`)
 Seite „Optimierer und Grenzen“ (`h_karte5_*`) `BHED_HB_NUR=karte5` (ebenfalls
 mp/duel1), die der Seite „Bau-Fortschritt und Teil-Kompilierungen“ und der
 Stufe-8a-Abschnitte von „Fertige Karten öffnen und ändern“ (`h_karte8_*`)
-`BHED_HB_NUR=karte8` (baut die Testkarten mit `bhed_q3map2.exe`). Die Tabellen der Grenzen auf dieser Seite kommen aus
+`BHED_HB_NUR=karte8` (baut die Testkarten mit `bhed_q3map2.exe`). Die Bilder der Seite „Terrain, Spielen, Logik, Spiegel und mehr“ (`h_karte8b_*`) nimmt
+`BHED_HB_NUR=karte8b` auf (eine eigene Testkarte mit Hof, Säule, Auslöser, Tür und NPC_spawner). Die Tabellen der Grenzen auf dieser Seite kommen aus
 `grenzen.json`, die `kartegrenzen --json tools/handbuch/grenzen.json` aus
 der Tabelle im Code schreibt (der ctest `karte_grenzen` vergleicht). Chinesisch:
 `BHED_SPRACHE=zh-Hans`, aber `bilder.py … zh`.
