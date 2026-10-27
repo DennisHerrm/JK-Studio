@@ -430,6 +430,125 @@ std::vector<std::string> modellKandidaten(const std::vector<std::string>& pfade,
     return out;
 }
 
+ModellIndexEintrag modellIndexEintrag(const ModellDatei& m, const std::string& schluessel) {
+    ModellIndexEintrag e;
+    e.pfad = m.pfad;
+    e.schluessel = schluessel;
+    e.geladen = m.geladen;
+    for (const ModellNetz& n : m.netze) {
+        ModellIndexNetz x;
+        x.punkte = static_cast<std::uint32_t>(n.punkte.size());
+        x.signatur = n.dreiecke.empty() ? 0 : dreiecksSignatur(n.dreiecke);
+        x.shader = klein(ohneEndung(n.shader));
+        e.netze.push_back(std::move(x));
+    }
+    return e;
+}
+
+// Text, je Modell eine Zeile "M\t<pfad>\t<schluessel>\t<geladen>\t<netze>", je Netz
+// "N\t<punkte>\t<signatur hex>\t<shader>".
+std::string modellIndexSchreiben(const std::vector<ModellIndexEintrag>& index) {
+    std::string s = "BHMI\t1\n";
+    char z[64];
+    for (const ModellIndexEintrag& e : index) {
+        s += "M\t" + e.pfad + "\t" + e.schluessel + "\t" + (e.geladen ? "1" : "0") + "\t" + std::to_string(e.netze.size()) + "\n";
+        for (const ModellIndexNetz& n : e.netze) {
+            std::snprintf(z, sizeof(z), "N\t%u\t%016llx\t", n.punkte, static_cast<unsigned long long>(n.signatur));
+            s += z + n.shader + "\n";
+        }
+    }
+    return s;
+}
+
+bool modellIndexLesen(const std::string& text, std::vector<ModellIndexEintrag>& index) {
+    index.clear();
+    std::size_t pos = 0;
+    const auto zeile = [&](std::vector<std::string>& teile) {
+        teile.clear();
+        if (pos >= text.size()) { return false; }
+        std::size_t ende = text.find('\n', pos);
+        if (ende == std::string::npos) { ende = text.size(); }
+        std::size_t a = pos;
+        while (true) {
+            const std::size_t t = text.find('\t', a);
+            if (t == std::string::npos || t > ende) {
+                teile.push_back(text.substr(a, ende - a));
+                break;
+            }
+            teile.push_back(text.substr(a, t - a));
+            a = t + 1;
+        }
+        pos = ende + 1;
+        return true;
+    };
+    std::vector<std::string> t;
+    if (!zeile(t) || t.size() != 2 || t[0] != "BHMI" || t[1] != "1") { return false; }
+    while (zeile(t)) {
+        if (t.size() == 1 && t[0].empty()) { continue; }
+        if (t.size() != 5 || t[0] != "M") { return false; }
+        ModellIndexEintrag e;
+        e.pfad = t[1];
+        e.schluessel = t[2];
+        e.geladen = t[3] == "1";
+        const unsigned long anzahl = std::strtoul(t[4].c_str(), nullptr, 10);
+        for (unsigned long k = 0; k < anzahl; ++k) {
+            if (!zeile(t) || t.size() != 4 || t[0] != "N") { return false; }
+            ModellIndexNetz n;
+            n.punkte = static_cast<std::uint32_t>(std::strtoul(t[1].c_str(), nullptr, 10));
+            n.signatur = std::strtoull(t[2].c_str(), nullptr, 16);
+            n.shader = t[3];
+            e.netze.push_back(std::move(n));
+        }
+        index.push_back(std::move(e));
+    }
+    return true;
+}
+
+BspSuchmerkmale bspSuchmerkmale(const std::string& bspDaten) {
+    BspSuchmerkmale m;
+    Raw r;
+    if (!rawLesen(bspDaten, r)) { return m; }
+    for (const std::string& s : r.shader) { m.shader.push_back(klein(s)); }
+    std::sort(m.shader.begin(), m.shader.end());
+    m.shader.erase(std::unique(m.shader.begin(), m.shader.end()), m.shader.end());
+    for (const Raw::Flaeche& fl : r.flaechen) {
+        if (fl.typ != 3 || fl.fv < 0 || fl.fi < 0 || fl.ni % 3 != 0 || fl.fi + fl.ni > static_cast<int>(r.idx.size())) { continue; }
+        std::vector<std::array<std::uint32_t, 3>> dr;
+        for (int i = 0; i < fl.ni; i += 3) {
+            dr.push_back({static_cast<std::uint32_t>(r.idx[static_cast<std::size_t>(fl.fi + i)]), static_cast<std::uint32_t>(r.idx[static_cast<std::size_t>(fl.fi + i + 1)]),
+                          static_cast<std::uint32_t>(r.idx[static_cast<std::size_t>(fl.fi + i + 2)])});
+        }
+        m.suppen.emplace_back(static_cast<std::uint32_t>(fl.nv), dreiecksSignatur(dr));
+    }
+    std::sort(m.suppen.begin(), m.suppen.end());
+    m.suppen.erase(std::unique(m.suppen.begin(), m.suppen.end()), m.suppen.end());
+    return m;
+}
+
+std::vector<std::string> modellKandidatenMitIndex(const std::vector<std::string>& pfade, const BspSuchmerkmale& bsp,
+                                                  const std::vector<ModellIndexEintrag>& index) {
+    std::vector<std::string> out = modellKandidaten(pfade, bsp.shader);
+    std::set<std::string> schon;
+    for (const std::string& p : out) { schon.insert(klein(p)); }
+    for (const ModellIndexEintrag& e : index) {
+        if (!e.geladen || schon.count(klein(e.pfad)) != 0) { continue; }
+        bool passt = false;
+        for (const ModellIndexNetz& n : e.netze) {
+            if (std::binary_search(bsp.suppen.begin(), bsp.suppen.end(), std::make_pair(n.punkte, n.signatur)) ||
+                std::binary_search(bsp.shader.begin(), bsp.shader.end(), n.shader)) {
+                passt = true;
+                break;
+            }
+        }
+        if (passt) {
+            schon.insert(klein(e.pfad));
+            out.push_back(e.pfad);
+        }
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
 void lageMatrix(const ModellLage& l, double m[3][3]) {
     // ModelGetTransform: angles_pyr2rpy, matrix4_rotation_for_euler_xyz_degrees (Spalten = Achsen)
     const double sx = std::sin(l.winkel[2] / kGrad);

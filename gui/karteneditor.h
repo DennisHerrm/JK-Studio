@@ -997,6 +997,11 @@ struct Editor {
         double maxFehler = 0;
         double sekunden = 0;
         std::size_t lichter = 0;   // Punkt 4: geschaetzte Lichter
+        // Stufe 8b Punkt 8: Modell-Index
+        std::size_t indexModelle = 0;
+        std::size_t indexNeu = 0;
+        std::size_t kandidatenOrdner = 0;
+        std::size_t kandidaten = 0;
     } bspRueckLetzt;
     // Stufe 8a Punkt 1: Fortschrittsfenster (zu bis zum naechsten Bau), Restzeit-Text, Meldungen im Selbsttest
     bool bauFortschrittZu = false;
@@ -1576,6 +1581,7 @@ struct BspRueckStand {
     std::size_t kandidaten = 0;
 };
 [[nodiscard]] BspRueckStand bspRueckStand();
+[[nodiscard]] std::string modellIndexPfad();   // Stufe 8b Punkt 8: der Modell-Index im Einstellungsordner
 void bspRueckStarten(const std::string& bspDaten, const std::string& ordner, const std::string& stamm, const std::string& karteDatei);
 void bspRueckAbbrechen();
 void bspRueckBeenden();

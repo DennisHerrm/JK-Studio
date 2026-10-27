@@ -2373,6 +2373,7 @@ enum class Str {
     KeUlKopf,
     KeUlAnfang,
     KeUlZeileTip,
+    KeRkIndex,
     Count,
 };
 

@@ -69,6 +69,39 @@ struct ModellDatei {
 // (Vorauswahl) Ordner, aus denen die .bsp Shader hat. pfade: alle Dateien des VFS.
 [[nodiscard]] std::vector<std::string> modellKandidaten(const std::vector<std::string>& pfade, const std::vector<std::string>& bspShader);
 
+// Stufe 8b Punkt 8: der Modell-Index ueber ALLE Modelle des Spiels (nicht nur die
+// Ordner der BSP-Shader). Je Modell und Netz: Eckenzahl, Signatur der
+// Dreiecksmenge (wie der erste Durchgang sie vergleicht) und der Shader (wie der
+// zweite, forcemeta, ihn sucht). schluessel: woran der Editor erkennt, ob der
+// Eintrag noch gilt (Archiv, Groesse, Zeit) - der Index wird zwischengespeichert.
+struct ModellIndexNetz {
+    std::uint32_t punkte = 0;
+    std::uint64_t signatur = 0;
+    std::string shader;   // klein, ohne Endung
+};
+struct ModellIndexEintrag {
+    std::string pfad;
+    std::string schluessel;
+    bool geladen = false;
+    std::vector<ModellIndexNetz> netze;
+};
+[[nodiscard]] ModellIndexEintrag modellIndexEintrag(const ModellDatei& m, const std::string& schluessel);
+[[nodiscard]] std::string modellIndexSchreiben(const std::vector<ModellIndexEintrag>& index);
+[[nodiscard]] bool modellIndexLesen(const std::string& text, std::vector<ModellIndexEintrag>& index);
+// Die Dreiecksflaechen der .bsp als (Eckenzahl, Signatur) und ihre Shader (klein).
+struct BspSuchmerkmale {
+    std::vector<std::pair<std::uint32_t, std::uint64_t>> suppen;   // sortiert
+    std::vector<std::string> shader;
+};
+[[nodiscard]] BspSuchmerkmale bspSuchmerkmale(const std::string& bspDaten);
+// Kandidaten mit dem Index: die Ordnerregel (modellKandidaten) und dazu jedes
+// geladene Modell des Index mit einem Netz, dessen (Eckenzahl, Signatur) eine
+// Dreiecksflaeche der .bsp hat (Durchgang 1) oder dessen Shader die .bsp nutzt
+// (Durchgang 2, forcemeta). Genau die Modelle, die die Suche finden kann - ausser
+// forcemeta-Modellen mit _remap (deren Shader traegt die .bsp nicht).
+[[nodiscard]] std::vector<std::string> modellKandidatenMitIndex(const std::vector<std::string>& pfade, const BspSuchmerkmale& bsp,
+                                                                const std::vector<ModellIndexEintrag>& index);
+
 // Eine Transformation wie ModelGetTransform: p' = origin + R(winkel) * (skala * p).
 struct ModellLage {
     double origin[3]{0, 0, 0};

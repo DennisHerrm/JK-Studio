@@ -13,6 +13,8 @@
 #include "bhed/karte/pinsel.h"
 
 #include <algorithm>
+#include <chrono>
+#include <set>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -189,6 +191,39 @@ void selbstPruefung() {
                    m[0].netze[0].punkte[1][0] == 1.0F && m[0].netze[0].dreiecke[0][2] == 2,
                "Dump: ein Modell, ein Netz mit drei Ecken");
         pruefe(!modellDumpLesen(d.substr(0, d.size() - 2), m), "Dump abgeschnitten: abgelehnt");
+        // Stufe 8b Punkt 8: der Index
+        pruefe(modellDumpLesen(d, m) && m.size() == 1, "Dump erneut gelesen (fuer den Index)");
+        const ModellIndexEintrag ie = modellIndexEintrag(m[0], "pak0.pk3|123|456");
+        std::vector<ModellIndexEintrag> idx{ie};
+        ModellDatei andere;
+        andere.pfad = "models/x/y.md3";
+        andere.geladen = true;
+        ModellNetz an;
+        an.shader = "models/x/Haut.tga";
+        an.punkte = {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {1, 1, 0}};
+        an.dreiecke = {{0, 1, 2}, {1, 3, 2}};
+        andere.netze.push_back(an);
+        idx.push_back(modellIndexEintrag(andere, "x"));
+        ModellDatei kaputt;
+        kaputt.pfad = "models/z/kaputt.md3";
+        idx.push_back(modellIndexEintrag(kaputt, "z"));
+        std::vector<ModellIndexEintrag> zurueck;
+        pruefe(modellIndexLesen(modellIndexSchreiben(idx), zurueck) && zurueck.size() == 3 && zurueck[0].schluessel == "pak0.pk3|123|456" &&
+                   zurueck[0].netze.size() == 1 && zurueck[0].netze[0].punkte == 3 && zurueck[0].netze[0].signatur == ie.netze[0].signatur &&
+                   zurueck[1].netze[0].shader == "models/x/haut" && !zurueck[2].geladen,
+               "Index: schreiben und lesen gibt dieselben Eintraege (Shader klein, ohne Endung)");
+        pruefe(!modellIndexLesen("BHMI\t1\nM\tmodels/a.md3\tk\t1\t2\nN\t3\t0\ta\n", zurueck), "Index abgeschnitten: abgelehnt");
+        BspSuchmerkmale b;
+        b.shader = {"textures/system/caulk"};
+        std::vector<std::string> alle{"models/a.md3", "models/x/y.md3", "models/z/kaputt.md3"};
+        pruefe(modellKandidatenMitIndex(alle, b, idx).empty(), "Index: weder Signatur noch Shader - kein Kandidat");
+        b.suppen = {{3, ie.netze[0].signatur}};
+        auto k1 = modellKandidatenMitIndex(alle, b, idx);
+        pruefe(k1.size() == 1 && k1[0] == "models/a.md3", "Index: gleiche Eckenzahl und Dreiecksmenge wie eine Dreiecksflaeche - Kandidat (Durchgang 1)");
+        b.suppen.clear();
+        b.shader = {"models/x/haut", "textures/system/caulk"};
+        auto k2 = modellKandidatenMitIndex(alle, b, idx);
+        pruefe(k2.size() == 1 && k2[0] == "models/x/y.md3", "Index: Shader eines Netzes in der .bsp - Kandidat (Durchgang 2, forcemeta), Ordner x zusaetzlich nach der Ordnerregel");
     }
     {
         // Zwei Dreiecke eines Quadrats (q3map2-Reihenfolge: im Uhrzeigersinn von vorn, vorn = +z)
@@ -239,6 +274,14 @@ void selbstPruefung() {
 }  // namespace
 
 int main(int argc, char** argv) {
+    // Stufe 8b Punkt 8: kartemodellrueck --alle <karte.bsp> <alle.bhmd> [<quelle.map>] - der
+    // Dump enthaelt ALLE Modelle des Spiels; daraus der Index, die Kandidaten wie im Editor
+    // (Ordnerregel + Index) und nur mit ihnen die Suche.
+    const bool alleModelle = argc >= 2 && std::strcmp(argv[1], "--alle") == 0;
+    if (alleModelle) {
+        --argc;
+        ++argv;
+    }
     if (argc < 3) {
         selbstPruefung();
         std::printf("kartemodellrueck: %d Pruefungen, %d Fehlschlaege\n", g_pruefungen, g_fehler);
@@ -250,10 +293,39 @@ int main(int argc, char** argv) {
         return 2;
     }
     const std::string bsp = lies(argv[1]);
+    if (alleModelle) {
+        using Uhr = std::chrono::steady_clock;
+        const auto t0 = Uhr::now();
+        std::vector<ModellIndexEintrag> index;
+        for (const ModellDatei& m : modelle) { index.push_back(modellIndexEintrag(m, "-")); }
+        const std::string text = modellIndexSchreiben(index);
+        const auto t1 = Uhr::now();
+        std::vector<ModellIndexEintrag> gelesen;
+        const bool ok = modellIndexLesen(text, gelesen);
+        const auto t2 = Uhr::now();
+        const BspSuchmerkmale mk = bspSuchmerkmale(bsp);
+        std::vector<std::string> pfade;
+        for (const ModellDatei& m : modelle) { pfade.push_back(m.pfad); }
+        const std::vector<std::string> ordner = modellKandidaten(pfade, mk.shader);
+        const std::vector<std::string> kand = modellKandidatenMitIndex(pfade, mk, gelesen);
+        const auto t3 = Uhr::now();
+        std::set<std::string> k(kand.begin(), kand.end());
+        std::vector<ModellDatei> auswahl;
+        std::size_t geladen = 0;
+        for (const ModellDatei& m : modelle) {
+            geladen += m.geladen ? 1U : 0U;
+            if (k.count(m.pfad) != 0) { auswahl.push_back(m); }
+        }
+        const auto ms = [](Uhr::duration d) { return std::chrono::duration<double, std::milli>(d).count(); };
+        std::printf("Alle Modelle: %zu (geladen %zu), Index %zu Byte, bauen %.1f ms, lesen %.1f ms (%s), Kandidaten Ordnerregel %zu, mit Index %zu (%.1f ms)\n",
+                    modelle.size(), geladen, text.size(), ms(t1 - t0), ms(t2 - t1), ok ? "ok" : "FEHLER", ordner.size(), kand.size(), ms(t3 - t2));
+        modelle = std::move(auswahl);
+    }
+    const auto suchStart = std::chrono::steady_clock::now();
     RueckOptionen o;
     const RueckErgebnis e = modelleZurueckgewinnen(bsp, modelle, o);
-    std::printf("Modelle im Dump: %zu, Dreiecksflaechen: %zu, Treffer: %zu, nicht erkannte Flaechen: %zu\n", modelle.size(), e.dreiecksflaechen, e.treffer.size(),
-                e.unerkannt.size());
+    std::printf("Modelle im Dump: %zu, Dreiecksflaechen: %zu, Treffer: %zu, nicht erkannte Flaechen: %zu, Suche %.2f s\n", modelle.size(), e.dreiecksflaechen,
+                e.treffer.size(), e.unerkannt.size(), std::chrono::duration<double>(std::chrono::steady_clock::now() - suchStart).count());
     double maxRest = 0;
     for (const ModellTreffer& t : e.treffer) { maxRest = std::max(maxRest, t.maxFehler); }
     std::printf("groesster Eckenfehler eines Treffers: %.5f\n", maxRest);

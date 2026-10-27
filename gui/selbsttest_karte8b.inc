@@ -1438,6 +1438,63 @@ std::vector<Schritt> undoliste() {
     return s;
 }
 
+// --- Punkt 8: misc_model aus allen Modellordnern (Modell-Index) ------------------------
+//
+// Wirkung: t2_trip (Originalkarte, die Modelle liegen nicht in den Ordnern der
+// BSP-Shader - bisher 0 Kandidaten): Open .bsp ohne Index baut den Index ueber
+// alle Modelle des Spiels, die Ordnerregel liefert 0 Kandidaten, der Index die
+// passenden; misc_model kommen zurueck (vorher keine). Zweites Oeffnen: der Index
+// kommt aus dem Einstellungsordner (nichts neu), dasselbe Ergebnis, schneller.
+std::string miKarte() { return karteTestPfad("s8bmi\\t2_trip.bsp"); }
+
+std::vector<Schritt> modellindex() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    add(stufe2::grundzustand("Stufe 8b/8: Grundzustand"));
+    auto erster = std::make_shared<ke::Editor::BspRueckLetzt>();
+    add(tu("t2_trip.bsp bereitstellen, Modell-Index loeschen, File > Open .bsp mit Rueckgewinnung", [] {
+        karteDialogeZu();
+        q3map2Bereitstellen();
+        std::filesystem::create_directories(std::filesystem::path(miKarte()).parent_path());
+        std::error_code ec;
+        std::filesystem::copy_file(std::filesystem::path("Y:/karte/laeufe/s8garden/robust/t2_trip.bsp"), std::filesystem::path(miKarte()),
+                                   std::filesystem::copy_options::overwrite_existing, ec);
+        std::filesystem::remove(std::filesystem::path(ke::modellIndexPfad()), ec);
+        ke::Editor& e = ke::editor();
+        e.bspRueck = ke::Editor::BspRueckEinstellungen{};
+        e.bspRueck.flaechen = false;
+        e.bspRueckLetzt = ke::Editor::BspRueckLetzt{};
+        (void)ke::bspOeffnenDatei(miKarte());
+    }));
+    add(stufe8::warteSek("Rueckgewinnung mit Index-Aufbau fertig", [] { return ke::bspRueckStand().stand == 0 && ke::editor().bspRueckLetzt.sekunden > 0; }, 900));
+    add(pruefe("misc_model aus allen Modellordnern: t2_trip ohne Index - Index ueber alle Modelle gebaut und gespeichert, Ordnerregel 0 Kandidaten, mit Index Treffer", [erster] {
+        const ke::Editor& e = ke::editor();
+        const auto& l = e.bspRueckLetzt;
+        *erster = l;
+        diag::detail("Knopftest: Stufe 8b/8 erster Lauf: Index " + std::to_string(l.indexModelle) + " (neu " + std::to_string(l.indexNeu) + "), Kandidaten Ordner " +
+                     std::to_string(l.kandidatenOrdner) + ", mit Index " + std::to_string(l.kandidaten) + ", Treffer " + std::to_string(l.treffer) + " (forcemeta " +
+                     std::to_string(l.forceMeta) + "), Fehler " + std::to_string(l.maxFehler) + ", " + std::to_string(l.sekunden) + " s");
+        return l.indexModelle > 500 && l.indexNeu == l.indexModelle && l.kandidatenOrdner == 0 && l.kandidaten > 0 && l.treffer >= 13 && l.maxFehler < 0.01 &&
+               std::filesystem::exists(std::filesystem::path(ke::modellIndexPfad())) && konsoleText().find(stufe8::vorlageAnfang(Str::KeRkIndex)) != std::string::npos;
+    }));
+    add(foto("karteneditor_s8b_modellindex"));
+    add(tu("File > Open .bsp noch einmal (Index aus dem Einstellungsordner)", [] {
+        ke::Editor& e = ke::editor();
+        e.bspRueckLetzt = ke::Editor::BspRueckLetzt{};
+        (void)ke::bspOeffnenDatei(miKarte());
+    }));
+    add(stufe8::warteSek("Rueckgewinnung fertig", [] { return ke::bspRueckStand().stand == 0 && ke::editor().bspRueckLetzt.sekunden > 0; }, 600));
+    add(pruefe("misc_model aus allen Modellordnern: zweites Oeffnen - Index aus dem Zwischenspeicher (nichts neu), dasselbe Ergebnis, schneller", [erster] {
+        const auto& l = ke::editor().bspRueckLetzt;
+        diag::detail("Knopftest: Stufe 8b/8 zweiter Lauf: neu " + std::to_string(l.indexNeu) + ", Kandidaten " + std::to_string(l.kandidaten) + ", Treffer " +
+                     std::to_string(l.treffer) + ", " + std::to_string(l.sekunden) + " s (vorher " + std::to_string(erster->sekunden) + " s)");
+        return l.indexNeu == 0 && l.indexModelle == erster->indexModelle && l.kandidaten == erster->kandidaten && l.treffer == erster->treffer &&
+               l.sekunden < erster->sekunden;
+    }));
+    add(tu("Rueckgewinnung zuruecksetzen", [] { ke::editor().bspRueck = ke::Editor::BspRueckEinstellungen{}; }));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     const char* nur = std::getenv("BHED_STUFE8B_NUR");
@@ -1452,6 +1509,7 @@ std::vector<Schritt> schritte() {
     if (teil("ansichten")) { dazu(ansichten()); }
     if (teil("spiegel")) { dazu(spiegel()); }
     if (teil("undoliste")) { dazu(undoliste()); }
+    if (teil("modellindex")) { dazu(modellindex()); }
     return s;
 }
 

@@ -215,4 +215,9 @@ KARTE8B = [
     ("KeUlAnfang", "(start - before the first step)", "(Anfang - vor dem ersten Schritt)", "(开始——第一步之前)", "(開始 - 最初のステップの前)"),
     ("KeUlZeileTip", "Click: jump to the state after this step (grey: redo steps)", "Klick: zum Stand nach diesem Schritt springen (grau: Wiederholen-Schritte)",
      "单击:跳到此步骤之后的状态(灰色:重做步骤)", "クリック:このステップの後の状態に移る(灰色:やり直しステップ)"),
+    # Stufe 8b Punkt 8: Modell-Index
+    ("KeRkIndex", "Model index: %d models (%d newly indexed, %.1f s); candidates from the shader folders %d, with the index from all model folders %d",
+     "Modell-Index: %d Modelle (%d neu aufgenommen, %.1f s); Kandidaten aus den Shader-Ordnern %d, mit dem Index aus allen Modellordnern %d",
+     "模型索引:%d 个模型(新收录 %d 个,%.1f 秒);来自着色器文件夹的候选 %d 个,借助索引来自所有模型文件夹的候选 %d 个",
+     "モデルインデックス:%d モデル(新規 %d、%.1f 秒)。シェーダーのフォルダーからの候補 %d、インデックスですべてのモデルフォルダーからの候補 %d"),
 ]
