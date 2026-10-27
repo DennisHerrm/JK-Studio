@@ -2187,6 +2187,8 @@ from i18n_karte8 import KARTE8  # noqa: E402  (Stufe 8a: Fortschritt, BSP-Import
 S += KARTE8
 from i18n_karte8b import KARTE8B  # noqa: E402  (Stufe 8b: neue Editor-Werkzeuge)
 S += KARTE8B
+from i18n_karte8c import KARTE8C  # noqa: E402  (Stufe 8c: Tutorial, Karte als .pk3)
+S += KARTE8C
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

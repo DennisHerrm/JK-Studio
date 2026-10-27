@@ -2374,6 +2374,12 @@ enum class Str {
     KeUlAnfang,
     KeUlZeileTip,
     KeRkIndex,
+    KePkMenue,
+    KePkMenueTip,
+    KePkFertig,
+    KePkKeineBsp,
+    KePkSpielordner,
+    KePkFehler,
     Count,
 };
 

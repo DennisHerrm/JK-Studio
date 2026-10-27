@@ -1635,6 +1635,9 @@ void bauRueckmeldungWaehlen(int zeile);   // feedback_selection_changed
 // Abweichung (Auftrag): der Ordner, in dem gebaut wird ("" = neben der Karte;
 // nie im Spielordner - dann der Arbeitsordner), hinweis = warum.
 [[nodiscard]] std::string bauOrdnerVorschau(std::string* hinweis = nullptr);
+// Stufe 8c (eigene Funktion): Build > Pack map as .pk3 - das Archiv neben der gebauten .bsp
+// (Pfad), "" bei einem Fehler (in der Konsole). Nie im Spielordner.
+std::string karteAlsPk3();
 void bauDialogZeichnen();              // BuildMenuDialog_construct (jedes Bild)
 void autoCaulkAuswahl();               // map_autocaulk_selected ("AutoCaulkSelected", F4)
 // --- Stufe 3 Punkt 5: Leck-Linie (points.cpp), Rueckmeldungen in 2D

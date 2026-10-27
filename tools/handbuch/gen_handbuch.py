@@ -98,6 +98,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in KARTE8})
             from i18n_karte8b import KARTE8B   # Stufe 8b: Terrain, Split, Spielen, Logik, Ansichtsmodi, Spiegel, Undo-Verlauf
             texte.update({e[0]: e[1:] for e in KARTE8B})
+            from i18n_karte8c import KARTE8C   # Stufe 8c: Tutorial, Karte als .pk3
+            texte.update({e[0]: e[1:] for e in KARTE8C})
             return texte
     raise SystemExit("gen_i18n.py: Liste S nicht gefunden")
 

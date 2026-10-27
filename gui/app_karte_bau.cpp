@@ -47,6 +47,7 @@
 #include "bhed/karte/optimierer.h"
 #include "bhed/karte/region.h"
 #include "bhed/karte/zuletzt.h"
+#include "bhed/pk3.h"
 #include "bhed/regelwerk.h"
 
 #include <algorithm>
@@ -327,6 +328,13 @@ void bauMenueEintraegeZeichnen() {
     zp.aktiv = !bauLaeuft();
     zp.tooltip = trK(Str::KeZfMenueTip);
     if (qtPunkt(zp)) { zusammenDialogOeffnen(); }
+    // Stufe 8c (Abweichung, eigene Funktion): die gebaute Karte als .pk3 neben die .bsp
+    const std::string pk = std::string(trK(Str::KePkMenue)) + "##baupk3";
+    QtPunkt pp;
+    pp.id = pk.c_str();
+    pp.aktiv = !bauLaeuft();
+    pp.tooltip = trK(Str::KePkMenueTip);
+    if (qtPunkt(pp)) { (void)karteAlsPk3(); }
     // Stufe 8a Punkt 1 (Abweichung, eigene Funktion): melden, wenn ein Bau fertig ist
     const std::string melden = std::string(trK(Str::KeFsMelden)) + "##baumelden";
     QtPunkt m;
@@ -1739,6 +1747,82 @@ std::string bauOrdnerVorschau(std::string* hinweis) {
         return arbeit;
     }
     return std::string();
+}
+
+// Stufe 8c (Abweichung, eigene Funktion - nicht in NRC): die gebaute Karte als
+// .pk3 neben die .bsp packen, mit maps/<Karte>.bsp und, falls da, maps/<Karte>.bhed
+// (Editor-Daten der Stufe 8a). Die .bsp liegt nach bauOrdnerVorschau nie im
+// Spielordner; die Pruefung unten ist nur die zweite Sicherung. Ins Spiel
+// kopiert der Anwender das Archiv selbst.
+std::string karteAlsPk3() {
+    Editor& ed = e();
+    if (ed.name.empty() || ed.name == "unnamed.map") {
+        char z[1024];
+        std::snprintf(z, sizeof(z), trK(Str::KePkKeineBsp), "unnamed.bsp");
+        fehler(z);
+        return std::string();
+    }
+    const std::string ordner = bauOrdnerVorschau();
+    const fs::path karte = pfadAus(ed.name);
+    const fs::path basis = ordner.empty() ? karte.parent_path() : pfadAus(ordner);
+    const std::u8string stammU = karte.stem().u8string();
+    const std::string stamm(stammU.begin(), stammU.end());
+    const fs::path bsp = basis / (karte.stem().u8string() + u8".bsp");
+    const fs::path ziel = basis / (karte.stem().u8string() + u8".pk3");
+    const auto text = [](const fs::path& p) {
+        const std::u8string u = p.u8string();
+        return mitSchraegstrich(std::string(u.begin(), u.end()));
+    };
+    std::error_code ec;
+    if (!fs::is_regular_file(bsp, ec)) {
+        char z[1024];
+        std::snprintf(z, sizeof(z), trK(Str::KePkKeineBsp), text(bsp).c_str());
+        fehler(z);
+        return std::string();
+    }
+    if (imSpielordner(text(ziel))) {
+        char z[1024];
+        std::snprintf(z, sizeof(z), trK(Str::KePkSpielordner), text(ziel).c_str());
+        fehler(z);
+        return std::string();
+    }
+    const auto lesen = [](const fs::path& p, std::string& aus) {
+        std::ifstream f(p, std::ios::binary);
+        if (!f) { return false; }
+        std::ostringstream o;
+        o << f.rdbuf();
+        aus = o.str();
+        return true;
+    };
+    std::vector<Pk3Datei> dateien(1);
+    dateien[0].name = "maps/" + stamm + ".bsp";
+    if (!lesen(bsp, dateien[0].inhalt)) {
+        char z[1024];
+        std::snprintf(z, sizeof(z), trK(Str::KePkKeineBsp), text(bsp).c_str());
+        fehler(z);
+        return std::string();
+    }
+    const fs::path bhed = basis / (karte.stem().u8string() + u8".bhed");
+    if (fs::is_regular_file(bhed, ec)) {
+        Pk3Datei d;
+        d.name = "maps/" + stamm + ".bhed";
+        if (lesen(bhed, d.inhalt)) { dateien.push_back(std::move(d)); }
+    }
+    std::string err;
+    if (!writePk3(text(ziel), dateien, &err)) {
+        char z[1400];
+        std::snprintf(z, sizeof(z), trK(Str::KePkFehler), text(ziel).c_str(), err.c_str());
+        fehler(z);
+        return std::string();
+    }
+    std::size_t groesse = 0;
+    for (const Pk3Datei& d : dateien) { groesse += d.inhalt.size(); }
+    char g[32];
+    std::snprintf(g, sizeof(g), "%.0f KB", static_cast<double>(groesse) / 1024.0);
+    char z[1400];
+    std::snprintf(z, sizeof(z), trK(Str::KePkFertig), text(ziel).c_str(), g, stamm.c_str());
+    ausgabe(z);
+    return text(ziel);
 }
 
 namespace {

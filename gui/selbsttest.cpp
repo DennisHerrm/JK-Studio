@@ -37523,6 +37523,10 @@ std::vector<Schritt> karteneditorGrossSchritte() {
     return s;
 }
 
+namespace stufe8c {
+std::vector<Schritt> schritte();   // selbsttest_karte8c.inc: Tutorial "Erste eigene Karte"
+}  // namespace stufe8c
+
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
     std::vector<Schritt> s;
@@ -37718,6 +37722,12 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =stufe8c: nur die Stufe 8c (Tutorial "Erste eigene Karte")
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe8c") == 0) {
+        for (Schritt& x : stufe8c::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =stufe2: nur die Wirkungspruefungen der Stufe 2 (Bauwerkzeuge)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe2") == 0) {
         for (Schritt& x : karteneditorStufe2Schritte()) { add(std::move(x)); }
@@ -37742,6 +37752,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : stufe7::schritte()) { add(std::move(x)); }   // Stufe 7: Echtzeit-Licht, Schnell-Backen (gross nur mit BHED_KARTE_GROSS)
     for (Schritt& x : stufe8::schritte()) { add(std::move(x)); }   // Stufe 8a: Fortschritt, BSP-Import, Teil-Kompilierungen
     for (Schritt& x : stufe8b::schritte()) { add(std::move(x)); }   // Stufe 8b: neue Editor-Werkzeuge
+    for (Schritt& x : stufe8c::schritte()) { add(std::move(x)); }   // Stufe 8c: Tutorial "Erste eigene Karte"
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
@@ -38015,6 +38026,8 @@ void skriptNeu() {
 }
 
 }  // namespace hb
+
+#include "selbsttest_karte8c.inc"
 
 // --- Stufe 3 Punkt 8: Bilder der Seite "Karte bauen" ------------------------------
 //
@@ -39253,6 +39266,16 @@ std::vector<Schritt> handbuchSchritte() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte8b") == 0) {
         return karte8bHandbuchSchritte();
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "tutorial") == 0) {   // Stufe 8c: Erste eigene Karte
+        std::vector<Schritt> t;
+        t.push_back(tu("Handbuch Tutorial: Karten-Editor", [] { g_app->leftMode = 0; }));
+        t.push_back(pause(0.3));
+        t.push_back(klick(tr(Str::ViewMapEditor), "###main"));
+        t.push_back(pause(0.3));
+        for (Schritt& x : stufe8c::tutorial()) { t.push_back(std::move(x)); }
+        t.push_back(tu("Handbuch Tutorial: zurueck", [] { g_app->leftMode = 0; }));
+        return t;
     }
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
