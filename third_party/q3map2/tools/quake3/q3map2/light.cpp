@@ -2408,6 +2408,9 @@ int LightMain( Args& args ){
 	while ( args.takeArg( "-bhedgpuadapter" ) ) { /* BehavEd stage 8c: GPU by number or part of its name */
 		bhedBakeAdapter = args.takeNext();
 	}
+	while ( args.takeArg( "-bhedgpubakecheck" ) ) { /* BehavEd stage 8g: every N-th lightmap computed on the CPU too (0: none) */
+		g_bhedBakePruefen = std::max( 0, atoi( args.takeNext() ) );
+	}
 	const auto argsToInject = args.getVector();
 	{
 		/* lightsource scaling */

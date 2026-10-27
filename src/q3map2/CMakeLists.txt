@@ -274,12 +274,19 @@ function(bhed_fxc name quelle einstieg)
     VERBATIM)
   set(BHED_HLSL_HEADER ${BHED_HLSL_HEADER} ${aus} PARENT_SCOPE)
 endfunction()
-foreach(d 0 1)
-  foreach(m 0 1 2)
-    bhed_fxc(g_bake_d${d}_m${m} bhed_gpubacken.hlsl main DOPPELT=${d} MESS=${m} DIAG=0)
+# Stufe 8g: fuenf Einstiege (Erstabtastung, Vorhersage, Unterabtastung, Stempellauf,
+# Filtern), je mit und ohne double; die Messschalter (MESS 1/2) nur fuer die Kerne mit
+# Strahlen und nur mit double.
+foreach(k erst kandidaten unter stempellauf filtern)
+  foreach(d 0 1)
+    bhed_fxc(g_bake_${k}_d${d}_m0 bhed_gpubacken.hlsl ${k} DOPPELT=${d} MESS=0)
   endforeach()
 endforeach()
-bhed_fxc(g_bake_d1_diag bhed_gpubacken.hlsl main DOPPELT=1 MESS=0 DIAG=1)
+foreach(k erst unter stempellauf)
+  foreach(m 1 2)
+    bhed_fxc(g_bake_${k}_d1_m${m} bhed_gpubacken.hlsl ${k} DOPPELT=1 MESS=${m})
+  endforeach()
+endforeach()
 bhed_fxc(g_schatten bhed_gpuschatten.hlsl main)
 message(STATUS "q3map2: GPU-Shader mit ${BHED_FXC}")
 

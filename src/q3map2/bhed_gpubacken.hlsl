@@ -5,8 +5,12 @@
 //
 // LightContributionToSample, SetupTrace, TraceLine/TraceLine_r/TraceTriangle und
 // PointToPolygonFormFactor aus q3map2 (light.cpp, light_trace.cpp), Zeile fuer Zeile
-// (siehe bhed_gpubacken.cpp). Makros: DOPPELT (die GPU rechnet double), MESS
-// (Messschalter BHED_GPUBAKE_MESS), DIAG (BHED_GPUBAKE_DIAG).
+// (siehe bhed_gpubacken.cpp), seit Stufe 8g dazu SubsampleRawLuxel_r, SubmapRawLuxel,
+// ClusterForPointExtFilter und der Rest der Lichtschleife von IlluminateRawLightmap
+// (light_ydnar.cpp): Erstabtastung, Vorhersage und Unterabtastung, der genaue Stempellauf,
+// Filtern und Aufsummieren in Lichtreihenfolge. Einstiege: erst, kandidaten, unter,
+// stempellauf, filtern. Makros: DOPPELT (die GPU rechnet double), MESS (Messschalter
+// BHED_GPUBAKE_MESS), DIAG (BHED_GPUBAKE_DIAG).
 //
 //   Copyright (C) 1999-2007 id Software, Inc. and contributors.
 //   fdlibm e_acos.c: Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
@@ -35,15 +39,32 @@ struct Info { int cast; int skipGrid; int flaeche; int flags; int skyIndex; int 
 struct Licht { int typ; int flags; int cluster; int windErste; float ox; float oy; float oz; float nx; float ny; float nz; float dist; float photons;
                float cr; float cg; float cb; float radiusByDist; float fade; float angleScale; float extraDist; float add; float envelope; float falloffTol;
                int skyIndex; int windAnzahl; };
-struct Luxel { float ox; float oy; float oz; float nx; float ny; float nz; int cluster; int lm; };
-struct Lm { int recv; int sErste; int sAnzahl; int twoSided; };
-struct Paar { int luxel; int licht; };
-struct Ergebnis { float r; float g; float b; int code; };
+// Ein abgebildeter Luxel (Cluster >= 0) einer Roh-Lightmap im Block: Super-Ursprung, -Normale, Cluster
+struct Luxel { float ox; float oy; float oz; float nx; float ny; float nz; int cluster; int lm; int x; int y; };
+// Eine Roh-Lightmap im Block (BhedBakeLm in bhed_gpubacken.h)
+struct Lm
+{
+    int recv; int sErste; int sAnzahl; int twoSided;
+    int sw; int sh; int m; int luxelBase;
+    int idxBase; int lichtBase; int nLichter; int paarBase;
+    int clusterBase; int nClusters; int aktivBase; int nAktiv;
+    float ar; float ag; float ab; int zeilenBase;
+    int aus0; int aus1; int aus2; int aus3;
+};
+// Ein Licht der Lightmap, das die Stil-Pruefung bestanden und etwas beleuchtet hat (in Lichtreihenfolge)
+struct Aktiv { int j; int slot; int radius; int negativ; };
+// BSP fuer ClusterForPointExt (Unterabtastung): Knoten, Ebenen, Blaetter, Brushes
+struct BspKnoten { int ebene; int k0; int k1; int pad; };
+struct Ebene { float nx; float ny; float nz; float dist; };
+struct Blatt { int cluster; int ersterBrush; int anzahlBrushes; int pad; };
+struct Brush { int ersteSeite; int anzahlSeiten; int opak; int pad; };
 cbuffer Kopf : register(b0)
 {
     uint anzahl; uint basis; int kopfKnoten; int faster;
     int lightAngleHL; int bouncing; int testOcclusion; int oneSky;
     int noSurfaces; float linearScale; uint visBytes; int leafBytes;
+    int nLms; int lightSamples; float suchBox; int maxOpaqueBrush;
+    int nAktivGesamt; int nLuxel; int nZeilen; int kpad;
 };
 StructuredBuffer<Knoten> knoten : register(t0);
 StructuredBuffer<int> items : register(t1);
@@ -55,8 +76,23 @@ StructuredBuffer<Licht> lichter : register(t6);
 StructuredBuffer<float> windungen : register(t7);
 StructuredBuffer<Luxel> luxel : register(t8);
 StructuredBuffer<Lm> lms : register(t9);
-StructuredBuffer<Paar> paare : register(t10);
-RWStructuredBuffer<Ergebnis> aus : register(u0);
+StructuredBuffer<int> idx : register(t10);
+StructuredBuffer<int> lichtListe : register(t11);
+StructuredBuffer<int> lmCluster : register(t12);
+StructuredBuffer<Aktiv> aktiv : register(t13);
+StructuredBuffer<int> aktivNr : register(t14);
+StructuredBuffer<BspKnoten> bspKnoten : register(t15);
+StructuredBuffer<Ebene> ebenen : register(t16);
+StructuredBuffer<Blatt> blaetter : register(t17);
+StructuredBuffer<int> blattBrushes : register(t18);
+StructuredBuffer<Brush> brushes : register(t19);
+StructuredBuffer<int> seiten : register(t20);
+RWStructuredBuffer<float4> P : register(u0);       // je Paar: Farbe der Erstabtastung (danach nachabgetastet)
+RWStructuredBuffer<uint> F : register(u1);         // je Paar: 1 FORCE_SUBSAMPLING, 2 ALREADY_SUBSAMPLED, 4 Kandidat
+RWStructuredBuffer<float4> S : register(u2);       // je Paar: vorab nachabgetastete Farbe der Kandidaten
+RWStructuredBuffer<uint> zaehler : register(u3);   // je Licht der Lightmap: beleuchtete Luxel (totalLighted)
+RWStructuredBuffer<uint> lmFlag : register(u4);    // je Lightmap: 1 = die CPU rechnet sie (Alpha-Schatten, unsicher)
+RWStructuredBuffer<float4> R : register(u5);       // fertige Luxel je benutztem Stil
 
 static bool g_unsicher;
 
@@ -102,6 +138,132 @@ float3 kreuz(float3 a, float3 b)
     return float3(x, y, z);
 }
 
+// ---------------------------------------------------------------------------------------
+// Stufe 8g: float-float-Rechnung (Dekker/Knuth, nur float-Addition und -Multiplikation, die
+// D3D11 genau rundet; "precise" verhindert mad). Damit entscheiden Wurzel und Normalisieren
+// ihr genau gerundetes Ergebnis fast immer ohne double-Befehle (die auf Verbraucher-GPUs
+// sehr langsam sind); nur wenn der Wert sehr nah an einer float-Mitte liegt, rechnet der
+// genaue double-Weg (ohne double: die CPU).
+// ---------------------------------------------------------------------------------------
+
+// a * b = p + e genau (Dekker, Teilung mit 4097), |a|, |b| < 2^60
+void zweiProd(float a, float b, out float p, out float e)
+{
+    precise float ca = a * 4097.0f;
+    precise float ahi = ca - (ca - a);
+    precise float alo = a - ahi;
+    precise float cb = b * 4097.0f;
+    precise float bhi = cb - (cb - b);
+    precise float blo = b - bhi;
+    precise float pp = a * b;
+    precise float t1 = ahi * bhi - pp;
+    precise float t2 = t1 + ahi * blo;
+    precise float t3 = t2 + alo * bhi;
+    precise float ee = t3 + alo * blo;
+    p = pp;
+    e = ee;
+}
+// a + b = s + e genau (Knuth)
+void zweiSumme(float a, float b, out float s, out float e)
+{
+    precise float ss = a + b;
+    precise float bb = ss - a;
+    precise float ee = (a - (ss - bb)) + (b - bb);
+    s = ss;
+    e = ee;
+}
+// halbe ulp von f zur Seite des Rests d hin (unterhalb einer Zweierpotenz die Haelfte); 0: zu klein/gross
+float halbeUlp(float f, float d)
+{
+    const uint u = asuint(f);
+    const uint e = (u >> 23) & 0xffu;
+    if (e <= 25u || e >= 254u) { return 0.0f; }
+    float h = asfloat((e - 24u) << 23);   // ulp / 2
+    if ((u & 0x7fffffu) == 0u && ((d < 0.0f) == (f > 0.0f))) { h = h * 0.5f; }
+    return h;
+}
+// der Wert hi + lo (relativer Fehler unter 2^-43 gegen den Wert der CPU) als float: false, wenn
+// er naeher als 2^-38 * |Wert| an einer float-Mitte liegt (dann der genaue Weg)
+bool ffNachFloat(float hi, float lo, out float f)
+{
+    precise float ff = hi + lo;
+    f = ff;
+    precise float d0 = hi - ff;      // genau (Sterbenz)
+    precise float d = d0 + lo;
+    const float h = halbeUlp(ff, d);
+    if (h == 0.0f) { return false; }
+    precise float rest = h - abs(d);
+    precise float schranke = abs(ff) * 3.637979e-12f;   // 2^-38
+    return rest > schranke;
+}
+// genau gerundete float-Wurzel ohne double, wenn eindeutig: x > 0; false: knapp (der genaue Weg)
+bool fwurzelSchnell(float x, out float s)
+{
+    s = sqrt(x);
+    if (!(x > 1e-20f && x < 1e30f)) { return false; }
+    [unroll] for (int k = 0; k < 3; ++k)
+    {
+        float ph; float pl;
+        zweiProd(s, s, ph, pl);
+        precise float r1 = x - ph;   // genau (Sterbenz)
+        precise float r = r1 - pl;   // x - s*s mit einer Rundung
+        const uint e = (asuint(s) >> 23) & 0xffu;
+        const float u = asfloat((e - 23u) << 23);
+        const float uUnten = (asuint(s) & 0x7fffffu) == 0u ? u * 0.5f : u;
+        precise float oben = s * u;            // genau
+        precise float unten = s * uUnten;      // genau
+        precise float tol = abs(r) * 2.3841858e-7f + u * u;   // 2^-22
+        if (r < oben - tol && r > -unten + tol) { return true; }
+        if (r > oben + tol) { s = asfloat(asuint(s) + 1u); continue; }
+        if (r < -unten - tol) { s = asfloat(asuint(s) - 1u); continue; }
+        return false;
+    }
+    return false;
+}
+// x / (q + ql) als float, wenn eindeutig (normalisierenSchnell)
+bool komponente(float x, float q, float ql, out float f)
+{
+    f = x;
+    if (x == 0.0f) { return true; }
+    const float t = x / q;
+    float p; float pe;
+    zweiProd(t, q, p, pe);
+    precise float rx = ((x - p) - pe) - t * ql;
+    precise float t2 = rx / q;
+    return ffNachFloat(t, t2, f);
+}
+// VectorNormalize ohne double, wenn eindeutig: v != 0; false: knapp (der genaue Weg)
+bool normalisierenSchnell(float3 v, out float3 n, out float laenge)
+{
+    n = v;
+    laenge = 0.0f;
+    const float m = max(abs(v.x), max(abs(v.y), abs(v.z)));
+    if (!(m > 1e-10f && m < 1e15f)) { return false; }
+    float a; float ae; float b; float be; float c; float ce;
+    zweiProd(v.x, v.x, a, ae);
+    zweiProd(v.y, v.y, b, be);
+    zweiProd(v.z, v.z, c, ce);
+    float s1; float e1; float s2; float e2;
+    zweiSumme(a, b, s1, e1);
+    zweiSumme(s1, c, s2, e2);
+    precise float fehler = ((e1 + e2) + (ae + be)) + ce;
+    float h; float l;
+    zweiSumme(s2, fehler, h, l);                 // l2 = h + l
+    const float q = sqrt(h);
+    float qq; float qe;
+    zweiProd(q, q, qq, qe);
+    precise float rest = ((h - qq) - qe) + l;
+    precise float ql = rest / (2.0f * q);        // sqrt(l2) = q + ql
+    float fl;
+    if (!ffNachFloat(q, ql, fl)) { return false; }
+    float fa; float fb; float fc;
+    if (!komponente(v.x, q, ql, fa) || !komponente(v.y, q, ql, fb) || !komponente(v.z, q, ql, fc)) { return false; }
+    const float3 erg = float3(fa, fb, fc);
+    n = erg;
+    laenge = fl;
+    return true;
+}
+
 #if DOPPELT
 double dk(uint lo, uint hi) { return asdouble(lo, hi); }
 double naechster(double x, int richtung)   // x > 0
@@ -112,12 +274,38 @@ double naechster(double x, int richtung)   // x > 0
     else { if (lo == 0u) { hi -= 1u; } lo -= 1u; }
     return asdouble(lo, hi);
 }
+// Stufe 8g: dieselben genau gerundeten Ergebnisse wie zuvor, aber ohne double-Division
+// (die kostet auf Verbraucher-GPUs ein Vielfaches): Startwerte aus float, Verfeinern mit
+// double-fma, am Ende der Test nach Tuckerman bzw. ein Mitten-Test, der nur in den sehr
+// seltenen knappen Faellen auf den langsamen genauen Weg geht.
+
+// Naeherung von sqrt(x) und 1/sqrt(x) in double (relativer Fehler um 2^-50), 1e-30 < x < 1e30
+void wurzelNah(double x, out double l, out double r)
+{
+    const float lf = sqrt((float)x);
+    const float rf = 1.0f / lf;
+    precise double s = (double)lf;
+    precise double q = (double)rf;
+    const double halb = dk(0u, 0x3fe00000u);
+    const double eins = dk(0u, 0x3ff00000u);
+    [unroll] for (int k = 0; k < 2; ++k)
+    {
+        precise double d = fma(-s, s, x);
+        precise double hq = halb * q;
+        s = fma(hq, d, s);
+        precise double e = fma(-s, q, eins);
+        q = fma(q, e, q);
+    }
+    l = s;
+    r = q;
+}
 // genau gerundete double-Wurzel, x > 0 normal
 double dwurzel(double x)
 {
-    precise double s = (double)sqrt((float)x);
-    s = dk(0u, 0x3fe00000u) * (s + x / s);
-    s = dk(0u, 0x3fe00000u) * (s + x / s);
+    if (!(x > dk(0u, 0x39b4484bu) && x < dk(0u, 0x46293e59u))) { g_unsicher = true; return 1.0; }   // 1e-30 .. 1e30
+    precise double s;
+    precise double r;
+    wurzelNah(x, s, r);
     [unroll] for (int k = 0; k < 3; ++k)
     {
         precise double sm = naechster(s, -1);
@@ -127,14 +315,45 @@ double dwurzel(double x)
     }
     return s;
 }
+float naechsterF(float s, int richtung)   // s > 0 normal
+{
+    return asfloat(asuint(s) + (richtung > 0 ? 1u : 0xffffffffu));
+}
+// genau gerundete float-Wurzel: erst ohne double (fwurzelSchnell), in knappen Faellen mit den
+// Mitten zu den Nachbarn in double (deren Quadrat ist in double genau: 25 Bit * 25 Bit)
 float fwurzel(float x)
 {
     if (x <= 0.0f) { return 0.0f; }
-    return (float)dwurzel((double)x);
+    float s;
+    if (fwurzelSchnell(x, s)) { return s; }
+    if (!(x > 1e-30f && x < 1e30f)) { g_unsicher = true; return 1.0f; }
+    s = sqrt(x);
+    const double dx = (double)x;
+    const double halb = dk(0u, 0x3fe00000u);
+    [unroll] for (int k = 0; k < 3; ++k)
+    {
+        precise double oben = ((double)s + (double)naechsterF(s, 1)) * halb;
+        precise double unten = ((double)s + (double)naechsterF(s, -1)) * halb;
+        precise double o2 = oben * oben;
+        precise double u2 = unten * unten;
+        if (o2 < dx) { s = naechsterF(s, 1); }
+        else if (u2 > dx) { s = naechsterF(s, -1); }
+    }
+    precise double o = ((double)s + (double)naechsterF(s, 1)) * halb;
+    precise double u = ((double)s + (double)naechsterF(s, -1)) * halb;
+    precise double oo = o * o;
+    precise double uu = u * u;
+    if (oo < dx || uu > dx) { g_unsicher = true; }
+    return s;
 }
-// VectorNormalize (common/qmath.h): in double; die Laenge als float
+// VectorNormalize (common/qmath.h): in double; die Laenge als float. Erst ohne double
+// (normalisierenSchnell), in knappen Faellen genau in double.
 float normalisieren(inout float3 v)
 {
+    if (v.x == 0.0f && v.y == 0.0f && v.z == 0.0f) { v = float3(0.0f, 0.0f, 0.0f); return 0.0f; }
+    float3 n;
+    float laenge;
+    if (normalisierenSchnell(v, n, laenge)) { v = n; return laenge; }
     precise double x = (double)v.x;
     precise double y = (double)v.y;
     precise double z = (double)v.z;
@@ -212,9 +431,13 @@ double dacos(double x)
     return two * (df + w);
 }
 #else
-float fwurzel(float x) { if (x <= 0.0f) { return 0.0f; } return sqrt(x); }
+float fwurzel(float x) { if (x <= 0.0f) { return 0.0f; } float s; fwurzelSchnell(x, s); return s; }
 float normalisieren(inout float3 v)
 {
+    if (v.x == 0.0f && v.y == 0.0f && v.z == 0.0f) { v = float3(0.0f, 0.0f, 0.0f); return 0.0f; }
+    float3 n;
+    float laenge;
+    if (normalisierenSchnell(v, n, laenge)) { v = n; return laenge; }
     precise float l2 = v.x * v.x + v.y * v.y + v.z * v.z;
     if (l2 == 0.0f) { v = float3(0.0f, 0.0f, 0.0f); return 0.0f; }
     precise float l = sqrt(l2);
@@ -432,11 +655,9 @@ float formFaktor(float3 punkt, float3 normale, Licht L)
 }
 
 // LightContributionToSample (light.cpp, ohne Deluxemap)
-int beitrag(Luxel lx, Lm lm, Licht L, out float3 farbe)
+int beitrag(float3 o, float3 nrm, int luxelCluster, Lm lm, Licht L, out float3 farbe)
 {
     farbe = float3(0.0f, 0.0f, 0.0f);
-    const float3 o = float3(lx.ox, lx.oy, lx.oz);
-    const float3 nrm = float3(lx.nx, lx.ny, lx.nz);
     const float3 lo = float3(L.ox, L.oy, L.oz);
     const float3 ln = float3(L.nx, L.ny, L.nz);
     const bool zweiseitig = lm.twoSided != 0;
@@ -447,7 +668,7 @@ int beitrag(Luxel lx, Lm lm, Licht L, out float3 farbe)
         {
             if (punkt3(lo, nrm) < punkt3(o, nrm)) { return 0; }
         }
-        if (!clusterSichtbar(lx.cluster, L.cluster)) { return 0; }
+        if (!clusterSichtbar(luxelCluster, L.cluster)) { return 0; }
     }
     Strahl r = (Strahl)0;
     precise float add = 0.0f;
@@ -592,20 +813,449 @@ int beitrag(Luxel lx, Lm lm, Licht L, out float3 farbe)
     return 1;
 }
 
-[numthreads(64, 1, 1)]
-void main(uint3 id : SV_DispatchThreadID)
+// ---------------------------------------------------------------------------------------
+// Stufe 8g Punkt 2: die ganze Lichtschleife von IlluminateRawLightmap auf der GPU.
+// Die Paare (Licht j der Lightmap, abgebildeter Luxel k) eines Blocks liegen in P/F/S an
+// paarBase + j * m + k; nichts davon geht zurueck an die CPU, nur die fertigen Luxel (R).
+// ---------------------------------------------------------------------------------------
+
+static const uint F_FORCE = 1u;    // FLAG_FORCE_SUBSAMPLING (auf der GPU nie: Alpha-Schatten rechnet die CPU)
+static const uint F_SCHON = 2u;    // FLAG_ALREADY_SUBSAMPLED
+static const uint F_KAND = 4u;     // vorab nachabgetastet (Vorhersage mit den Werten der Erstabtastung)
+
+#define MAXTIEFE 6                  // -samples bis 7 auf der GPU (Stapel der Unterabtastung)
+
+int lmZuPaar(uint p)
 {
-    const uint i = id.x + basis;
+    int lo = 0;
+    int hi = nLms - 1;
+    [loop] while (lo < hi) { const int mid = (lo + hi + 1) >> 1; if ((uint)lms[mid].paarBase <= p) { lo = mid; } else { hi = mid - 1; } }
+    return lo;
+}
+int lmZuZeile(uint z)
+{
+    int lo = 0;
+    int hi = nLms - 1;
+    [loop] while (lo < hi) { const int mid = (lo + hi + 1) >> 1; if ((uint)lms[mid].zeilenBase <= z) { lo = mid; } else { hi = mid - 1; } }
+    return lo;
+}
+int lmZuAktiv(uint a)
+{
+    int lo = 0;
+    int hi = nLms - 1;
+    [loop] while (lo < hi) { const int mid = (lo + hi + 1) >> 1; if ((uint)lms[mid].aktivBase <= a) { lo = mid; } else { hi = mid - 1; } }
+    return lo;
+}
+
+int idxAt(Lm lm, int x, int y) { return idx[lm.idxBase + y * lm.sw + x]; }
+float3 luxelUrsprung(Lm lm, int k) { const Luxel l = luxel[lm.luxelBase + k]; return float3(l.ox, l.oy, l.oz); }
+
+// plane3_distance_to_point: (double)(float-dot) - (double)dist
+#if DOPPELT
+double abstand(Ebene e, float3 p) { precise double d = (double)punkt3(p, float3(e.nx, e.ny, e.nz)) - (double)e.dist; return d; }
+#else
+float abstand(Ebene e, float3 p) { precise float d = punkt3(p, float3(e.nx, e.ny, e.nz)) - e.dist; return d; }
+#endif
+
+// PointInLeafNum_r (light_ydnar.cpp): innerhalb 0,1 einer Ebene erst vorn, und wenn das Blatt
+// dort undurchsichtig ist, hinten weiter - mit einem Stapel statt Rekursion
+int punktBlatt(float3 p)
+{
+    int stapel[32];
+    int sp = 0;
+    int n = 0;
+#if DOPPELT
+    const double grenze = dk(0x9999999au, 0x3fb99999u);   // 0.1 in double
+#else
+    const float grenze = 0.1f;
+#endif
+    [loop] while (true)
+    {
+        [loop] while (n >= 0)
+        {
+            const BspKnoten k = bspKnoten[n];
+#if DOPPELT
+            const double d = abstand(ebenen[k.ebene], p);
+#else
+            const float d = abstand(ebenen[k.ebene], p);
+#endif
+            if (d > grenze) { n = k.k0; }
+            else if (d < -grenze) { n = k.k1; }
+            else
+            {
+                if (sp >= 32) { g_unsicher = true; return 0; }
+                stapel[sp] = k.k1;
+                sp += 1;
+                n = k.k0;
+            }
+        }
+        const int blatt = -n - 1;
+        if (blaetter[blatt].cluster != -1 || sp == 0) { return blatt; }
+        sp -= 1;
+        n = stapel[sp];
+    }
+    return 0;
+}
+
+// ClusterForPointExt
+int clusterExt(float3 p, float eps)
+{
+    const int blatt = punktBlatt(p);
+    const Blatt bl = blaetter[blatt];
+    if (bl.cluster <= -1) { return -1; }
+    [loop] for (int i = 0; i < bl.anzahlBrushes; ++i)
+    {
+        const int b = blattBrushes[bl.ersterBrush + i];
+        if (b > maxOpaqueBrush) { continue; }
+        const Brush br = brushes[b];
+        if (br.opak == 0) { continue; }
+        bool innen = true;
+        [loop] for (int s = 0; s < br.anzahlSeiten; ++s)
+        {
+#if DOPPELT
+            if (abstand(ebenen[seiten[br.ersteSeite + s]], p) > (double)eps) { innen = false; break; }
+#else
+            if (abstand(ebenen[seiten[br.ersteSeite + s]], p) > eps) { innen = false; break; }
+#endif
+        }
+        if (innen) { return -1 - b; }
+    }
+    return bl.cluster;
+}
+
+// ClusterForPointExtFilter
+int clusterFilter(float3 p, float eps, Lm lm)
+{
+    const int c = clusterExt(p, eps);
+    if (c <= -1 || lm.nClusters <= 0) { return c; }
+    [loop] for (int i = 0; i < lm.nClusters; ++i)
+    {
+        const int cc = lmCluster[lm.clusterBase + i];
+        if (c == cc || clusterSichtbar(c, cc)) { return c; }
+    }
+    return -1;
+}
+
+// SubmapRawLuxel: o ist der Ursprung der Abtastung und wird verschoben; Rueckgabe der Cluster
+// (<= -1: keiner). Wie q3map2 prueft auch der T-Vektor bx (nicht by).
+int submap(Lm lm, int x, int y, float bx, float by, inout float3 o)
+{
+    const int k0 = idxAt(lm, x, y);
+    const float3 oxy = luxelUrsprung(lm, k0);
+    float3 a;
+    float3 b;
+    if ((x < lm.sw - 1 && bx >= 0.0f) || (x == 0 && bx <= 0.0f))
+    {
+        a = oxy;
+        const int k = idxAt(lm, x + 1, y);
+        b = k < 0 ? oxy : luxelUrsprung(lm, k);
+    }
+    else
+    {
+        const int k = idxAt(lm, x - 1, y);
+        a = k < 0 ? oxy : luxelUrsprung(lm, k);
+        b = oxy;
+    }
+    precise float3 v0 = b - a;
+    if ((y < lm.sh - 1 && bx >= 0.0f) || (y == 0 && bx <= 0.0f))
+    {
+        a = oxy;
+        const int k = idxAt(lm, x, y + 1);
+        b = k < 0 ? oxy : luxelUrsprung(lm, k);
+    }
+    else
+    {
+        const int k = idxAt(lm, x, y - 1);
+        a = k < 0 ? oxy : luxelUrsprung(lm, k);
+        b = oxy;
+    }
+    precise float3 v1 = b - a;
+    precise float3 s0 = v0 * bx;
+    precise float3 s1 = v1 * by;
+    precise float3 s = s0 + s1;
+    precise float3 neu = o + s;
+    o = neu;
+    return clusterFilter(neu, 0.25f, lm);   // LUXEL_EPSILON * 2
+}
+
+// SubsampleRawLuxel_r fuer den Luxel (x, y) mit dem Wert v0 der Erstabtastung (count 1), ohne
+// Rekursion: Stapel von hoechstens MAXTIEFE Ebenen, je Ebene die vier Unterabtastungen.
+float3 unterabtasten(Lm lm, int li, int x, int y, float3 o0, float3 nrm, float3 v0)
+{
+    if (lightSamples <= 1) { return v0; }
+    if (lightSamples > MAXTIEFE + 1) { g_unsicher = true; return v0; }
+    const Licht L = lichter[li];
+    float3 fo[MAXTIEFE * 4];
+    float3 fv[MAXTIEFE * 4];
+    int fc[MAXTIEFE * 4];
+    float3 selbst[MAXTIEFE];
+    float3 urs[MAXTIEFE];
+    float fb[MAXTIEFE];
+    int fz[MAXTIEFE];
+    int fn[MAXTIEFE];
+    bool fr[MAXTIEFE];
+    int d = 0;
+    selbst[0] = v0;
+    urs[0] = o0;
+    fb[0] = suchBox;
+    fz[0] = 1;
+    bool neu = true;
+    [loop] while (true)
+    {
+        if (neu)
+        {
+            neu = false;
+            int mapped = 0;
+            int lighted = 0;
+            precise float3 total = float3(0.0f, 0.0f, 0.0f);
+            int c0 = -1;
+            [loop] for (int b = 0; b < 4; ++b)
+            {
+                const float dx = (b & 1) != 0 ? 1.0f : -1.0f;
+                const float dy = (b & 2) != 0 ? 1.0f : -1.0f;
+                precise float bx = fb[d] * dx;
+                precise float by = fb[d] * dy;
+                float3 o = urs[d];
+                const int c = submap(lm, x, y, bx, by, o);
+                if (c <= -1)
+                {
+                    fc[d * 4 + b] = -1;
+                    if (b == 0) { c0 = -1; }
+                    continue;
+                }
+                if (b == 0) { c0 = c; }
+                fc[d * 4 + b] = c;
+                fo[d * 4 + b] = o;
+                mapped += 1;
+                float3 farbe;
+                const int code = beitrag(o, nrm, c0, lm, L, farbe);   // q3map2: trace->cluster = *cluster (cluster[0])
+                if (code == 9) { g_unsicher = true; }
+                fv[d * 4 + b] = farbe;
+                total = total + farbe;
+                precise float summe = farbe.x + farbe.y + farbe.z;
+                if (summe > 0.0f) { lighted += 1; }
+            }
+            fr[d] = (fz[d] + 1) < lightSamples && (total.x > 4.0f || total.y > 4.0f || total.z > 4.0f) && lighted != 0 && lighted != mapped;
+            fn[d] = 0;
+        }
+        if (fr[d] && fn[d] < 4)
+        {
+            const int b = fn[d];
+            fn[d] = b + 1;
+            if (fc[d * 4 + b] < 0) { continue; }
+            selbst[d + 1] = fv[d * 4 + b];
+            urs[d + 1] = fo[d * 4 + b];
+            precise float halb = fb[d] * 0.5f;
+            fb[d + 1] = halb;
+            fz[d + 1] = fz[d] + 1;
+            d += 1;
+            neu = true;
+            continue;
+        }
+        precise float3 farbe = selbst[d];
+        int samples = 1;
+        [unroll] for (int b2 = 0; b2 < 4; ++b2)
+        {
+            if (fc[d * 4 + b2] >= 0) { farbe = farbe + fv[d * 4 + b2]; samples += 1; }
+        }
+        const float fs = (float)samples;
+        const float3 erg = float3(teilen(farbe.x, fs), teilen(farbe.y, fs), teilen(farbe.z, fs));
+        if (d == 0) { return erg; }
+        d -= 1;
+        fv[d * 4 + fn[d] - 1] = erg;
+    }
+    return v0;
+}
+
+// der 2x2-Stempeltest des zweiten Durchgangs (pb: erstes Paar dieses Lichts)
+bool stempel(Lm lm, uint pb, int x, int y)
+{
+    int mapped = 0;
+    int lighted = 0;
+    precise float3 total = float3(0.0f, 0.0f, 0.0f);
+    [unroll] for (int t = 0; t < 4; ++t)
+    {
+        const int k = idxAt(lm, x + (t & 1), y + (t >> 1));
+        if (k < 0) { continue; }
+        mapped += 1;
+        if ((F[pb + (uint)k] & F_FORCE) != 0u) { lighted += 1; mapped += 2; }
+        const float3 v = P[pb + (uint)k].xyz;
+        total = total + v;
+        precise float summe = v.x + v.y + v.z;
+        if (summe > 0.0f) { lighted += 1; }
+    }
+    return !(total.x <= 4.0f && total.y <= 4.0f && total.z <= 4.0f) && lighted != 0 && lighted != mapped;
+}
+
+// 1. Erstabtastung: ein Faden je Paar
+[numthreads(64, 1, 1)]
+void erst(uint3 id : SV_DispatchThreadID)
+{
     if (id.x >= anzahl) { return; }
+    const uint p = id.x + basis;
     g_unsicher = false;
-    const Paar p = paare[i];
-    const Luxel lx = luxel[p.luxel];
-    const Lm lm = lms[lx.lm];
-    const Licht L = lichter[p.licht];
+    const int li = lmZuPaar(p);
+    const Lm lm = lms[li];
+    const uint rel = p - (uint)lm.paarBase;
+    const uint j = rel / (uint)lm.m;
+    const uint k = rel - j * (uint)lm.m;
+    const Luxel lx = luxel[lm.luxelBase + (int)k];
     float3 farbe;
-    int code = beitrag(lx, lm, L, farbe);
-    if (g_unsicher) { code = 9; }
-    Ergebnis e;
-    e.r = farbe.x; e.g = farbe.y; e.b = farbe.z; e.code = code;
-    aus[i] = e;
+    const int code = beitrag(float3(lx.ox, lx.oy, lx.oz), float3(lx.nx, lx.ny, lx.nz), lx.cluster, lm, lichter[lichtListe[lm.lichtBase + (int)j]], farbe);
+    if (g_unsicher || code == 9)
+    {
+        InterlockedOr(lmFlag[li], 1u);
+        farbe = float3(0.0f, 0.0f, 0.0f);
+    }
+    P[p] = float4(farbe, 0.0f);
+    F[p] = 0u;
+    if (farbe.x != 0.0f || farbe.y != 0.0f || farbe.z != 0.0f) { InterlockedAdd(zaehler[lm.lichtBase + (int)j], 1u); }
+}
+
+// 2. Vorhersage der Unterabtastung: ein Faden je (aktives Licht, Stempelzeile); markiert die
+//    Luxel der Stempel, die mit den Werten der Erstabtastung nachabgetastet wuerden
+[numthreads(64, 1, 1)]
+void kandidaten(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= anzahl) { return; }
+    const uint z = id.x + basis;
+    const int li = lmZuZeile(z);
+    const Lm lm = lms[li];
+    const uint rel = z - (uint)lm.zeilenBase;
+    const uint a = rel / (uint)(lm.sh - 1);
+    const int y = (int)(rel - a * (uint)(lm.sh - 1));
+    const Aktiv A = aktiv[lm.aktivBase + (int)a];
+    const uint pb = (uint)lm.paarBase + (uint)A.j * (uint)lm.m;
+    [loop] for (int x = 0; x < lm.sw - 1; ++x)
+    {
+        if (!stempel(lm, pb, x, y)) { continue; }
+        [unroll] for (int t = 0; t < 4; ++t)
+        {
+            const int k = idxAt(lm, x + (t & 1), y + (t >> 1));
+            if (k >= 0) { InterlockedOr(F[pb + (uint)k], F_KAND); }
+        }
+    }
+}
+
+// 3. Unterabtastung der vorhergesagten Luxel: ein Faden je Paar
+[numthreads(64, 1, 1)]
+void unter(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= anzahl) { return; }
+    const uint p = id.x + basis;
+    const int li = lmZuPaar(p);
+    const Lm lm = lms[li];
+    const uint rel = p - (uint)lm.paarBase;
+    const uint j = rel / (uint)lm.m;
+    const uint k = rel - j * (uint)lm.m;
+    if (aktivNr[lm.lichtBase + (int)j] < 0) { return; }
+    if ((F[p] & F_KAND) == 0u) { return; }
+    g_unsicher = false;
+    const Luxel lx = luxel[lm.luxelBase + (int)k];
+    const float3 v = unterabtasten(lm, lichtListe[lm.lichtBase + (int)j], lx.x, lx.y, float3(lx.ox, lx.oy, lx.oz), float3(lx.nx, lx.ny, lx.nz), P[p].xyz);
+    if (g_unsicher) { InterlockedOr(lmFlag[li], 1u); }
+    S[p] = float4(v, 0.0f);
+}
+
+// 4. Der genaue Stempellauf in Zeilenfolge: ein Faden je aktives Licht. Vorhergesagte Luxel
+//    nehmen das Ergebnis aus S, andere werden hier nachabgetastet (wie Stufe 7).
+[numthreads(64, 1, 1)]
+void stempellauf(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= anzahl) { return; }
+    const uint g = id.x + basis;
+    g_unsicher = false;
+    const int li = lmZuAktiv(g);
+    const Lm lm = lms[li];
+    const Aktiv A = aktiv[g];
+    const uint pb = (uint)lm.paarBase + (uint)A.j * (uint)lm.m;
+    const int licht = lichtListe[lm.lichtBase + A.j];
+    [loop] for (int y = 0; y < lm.sh - 1; ++y)
+    {
+        [loop] for (int x = 0; x < lm.sw - 1; ++x)
+        {
+            if (!stempel(lm, pb, x, y)) { continue; }
+            [loop] for (int t = 0; t < 4; ++t)
+            {
+                const int sx = x + (t & 1);
+                const int sy = y + (t >> 1);
+                const int k = idxAt(lm, sx, sy);
+                if (k < 0) { continue; }
+                const uint q = pb + (uint)k;
+                const uint f = F[q];
+                if ((f & F_SCHON) != 0u) { continue; }
+                if ((f & F_KAND) != 0u) { P[q] = S[q]; }
+                else
+                {
+                    const Luxel lx = luxel[lm.luxelBase + k];
+                    P[q] = float4(unterabtasten(lm, licht, sx, sy, float3(lx.ox, lx.oy, lx.oz), float3(lx.nx, lx.ny, lx.nz), P[q].xyz), 0.0f);
+                }
+                F[q] = f | F_SCHON;
+            }
+        }
+    }
+    if (g_unsicher) { InterlockedOr(lmFlag[li], 1u); }
+}
+
+// 5. Filtern und Aufsummieren je Luxel, die Lichter in ihrer Reihenfolge (dritter Durchgang):
+//    ein Faden je abgebildeter Luxel; Stil 0 beginnt mit dem Umgebungslicht, die anderen mit 0
+[numthreads(64, 1, 1)]
+void filtern(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= anzahl) { return; }
+    const int g = (int)(id.x + basis);
+    g_unsicher = false;
+    const Luxel lx = luxel[g];
+    const int li = lx.lm;
+    const Lm lm = lms[li];
+    const int k = g - lm.luxelBase;
+    const int x = lx.x;
+    const int y = lx.y;
+    float3 wert[4];
+    wert[0] = float3(lm.ar, lm.ag, lm.ab);
+    wert[1] = float3(0.0f, 0.0f, 0.0f);
+    wert[2] = float3(0.0f, 0.0f, 0.0f);
+    wert[3] = float3(0.0f, 0.0f, 0.0f);
+    [loop] for (int a = 0; a < lm.nAktiv; ++a)
+    {
+        const Aktiv A = aktiv[lm.aktivBase + a];
+        const uint pb = (uint)lm.paarBase + (uint)A.j * (uint)lm.m;
+        const int r = A.radius;
+        float3 b;
+        if (r != 0)
+        {
+            precise float3 summe = float3(0.0f, 0.0f, 0.0f);
+            precise float samples = 0.0f;
+            [loop] for (int sy = y - r; sy <= y + r; ++sy)
+            {
+                if (sy < 0 || sy >= lm.sh) { continue; }
+                [loop] for (int sx = x - r; sx <= x + r; ++sx)
+                {
+                    if (sx < 0 || sx >= lm.sw) { continue; }
+                    const int kk = idxAt(lm, sx, sy);
+                    if (kk < 0) { continue; }
+                    precise float w = abs(sx - x) == r ? 0.5f : 1.0f;
+                    w = w * (abs(sy - y) == r ? 0.5f : 1.0f);
+                    precise float3 v = P[pb + (uint)kk].xyz * w;
+                    summe = summe + v;
+                    samples = samples + w;
+                }
+            }
+            if (samples <= 0.0f) { continue; }
+            b = float3(teilen(summe.x, samples), teilen(summe.y, samples), teilen(summe.z, samples));
+        }
+        else
+        {
+            b = P[pb + (uint)k].xyz;
+        }
+        precise float3 neu;
+        if (A.negativ != 0) { neu = wert[A.slot] - b; }
+        else { neu = wert[A.slot] + b; }
+        wert[A.slot] = neu;
+    }
+    if (g_unsicher) { InterlockedOr(lmFlag[li], 1u); }
+    if (lm.aus0 >= 0) { R[lm.aus0 + k] = float4(wert[0], 1.0f); }
+    if (lm.aus1 >= 0) { R[lm.aus1 + k] = float4(wert[1], 1.0f); }
+    if (lm.aus2 >= 0) { R[lm.aus2 + k] = float4(wert[2], 1.0f); }
+    if (lm.aus3 >= 0) { R[lm.aus3 + k] = float4(wert[3], 1.0f); }
 }

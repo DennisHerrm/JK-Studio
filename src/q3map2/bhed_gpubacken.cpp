@@ -1,7 +1,9 @@
-// bhed_gpubacken.cpp - BehavEd Stufe 8c Punkt 2: GPU-Backen fuer q3map2 -light
-// (siehe bhed_gpubacken.h). Der Compute-Shader ist LightContributionToSample,
-// SetupTrace, TraceLine/TraceLine_r/TraceTriangle und PointToPolygonFormFactor
-// aus q3map2 (light.cpp, light_trace.cpp), Zeile fuer Zeile:
+// bhed_gpubacken.cpp - BehavEd Stufe 8c/8g: GPU-Backen fuer q3map2 -light
+// (siehe bhed_gpubacken.h). Die Compute-Shader (bhed_gpubacken.hlsl) sind
+// LightContributionToSample, SetupTrace, TraceLine/TraceLine_r/TraceTriangle,
+// PointToPolygonFormFactor, SubsampleRawLuxel_r, SubmapRawLuxel, ClusterForPointExt und
+// die Lichtschleife von IlluminateRawLightmap aus q3map2 (light.cpp, light_trace.cpp,
+// light_ydnar.cpp), Zeile fuer Zeile:
 //
 //   - float-Rechnungen "precise" in der Reihenfolge von MSVC /fp:precise (dot und
 //     cross wie libs/math/vector.h von links nach rechts, keine mad-Zusammenfassung);
@@ -45,18 +47,33 @@ __declspec( dllexport ) DWORD NvOptimusEnablement = 1;
 __declspec( dllexport ) int AmdPowerXpressRequestHighPerformance = 1;
 }
 
+static_assert( sizeof( BhedBakeLuxel ) == 40, "Luxel im Shader" );
+static_assert( sizeof( BhedBakeLm ) == 96, "Lm im Shader" );
+static_assert( sizeof( BhedBakeAktiv ) == 16, "Aktiv im Shader" );
+static_assert( sizeof( BhedBakeBsp::Knoten ) == 16 && sizeof( BhedBakeBsp::Ebene ) == 16 && sizeof( BhedBakeBsp::Blatt ) == 16 &&
+               sizeof( BhedBakeBsp::Brush ) == 16, "BSP im Shader" );
+
 namespace
 {
 
 // Stufe 8g Punkt 1: die Shader (bhed_gpubacken.hlsl) sind im Bau mit fxc vorab uebersetzt
 // (src/q3map2/CMakeLists.txt) - DXBC als Header, zur Laufzeit wird nichts uebersetzt.
-#include "g_bake_d0_m0.h"
-#include "g_bake_d0_m1.h"
-#include "g_bake_d0_m2.h"
-#include "g_bake_d1_m0.h"
-#include "g_bake_d1_m1.h"
-#include "g_bake_d1_m2.h"
-#include "g_bake_d1_diag.h"
+#include "g_bake_erst_d0_m0.h"
+#include "g_bake_erst_d1_m0.h"
+#include "g_bake_erst_d1_m1.h"
+#include "g_bake_erst_d1_m2.h"
+#include "g_bake_kandidaten_d0_m0.h"
+#include "g_bake_kandidaten_d1_m0.h"
+#include "g_bake_unter_d0_m0.h"
+#include "g_bake_unter_d1_m0.h"
+#include "g_bake_unter_d1_m1.h"
+#include "g_bake_unter_d1_m2.h"
+#include "g_bake_stempellauf_d0_m0.h"
+#include "g_bake_stempellauf_d1_m0.h"
+#include "g_bake_stempellauf_d1_m1.h"
+#include "g_bake_stempellauf_d1_m2.h"
+#include "g_bake_filtern_d0_m0.h"
+#include "g_bake_filtern_d1_m0.h"
 
 struct Bytecode
 {
@@ -68,40 +85,71 @@ constexpr Bytecode bc( const BYTE ( &b )[ N ] ){
 	return Bytecode{ b, N };
 }
 
-// die Variante zu double/Messschalter/Diagnose
-Bytecode shaderWahl( bool doppelt, int mess, bool diag ){
-	if ( doppelt && diag && mess == 0 ) {
-		return bc( g_bake_d1_diag );
+enum Kern { kErst, kKandidaten, kUnter, kStempellauf, kFiltern, kKerne };
+
+// die Variante zu double/Messschalter (die Messschalter nur mit double: sie messen die NVIDIA-GPU)
+Bytecode shaderWahl( Kern k, bool doppelt, int mess ){
+	const int m = doppelt ? std::clamp( mess, 0, 2 ) : 0;
+	switch ( k ) {
+	case kErst: {
+		static const Bytecode t[ 4 ] = { bc( g_bake_erst_d0_m0 ), bc( g_bake_erst_d1_m0 ), bc( g_bake_erst_d1_m1 ), bc( g_bake_erst_d1_m2 ) };
+		return t[ doppelt ? 1 + m : 0 ];
 	}
-	static const Bytecode tafel[ 2 ][ 3 ] = { { bc( g_bake_d0_m0 ), bc( g_bake_d0_m1 ), bc( g_bake_d0_m2 ) },
-	                                         { bc( g_bake_d1_m0 ), bc( g_bake_d1_m1 ), bc( g_bake_d1_m2 ) } };
-	return tafel[ doppelt ? 1 : 0 ][ std::clamp( mess, 0, 2 ) ];
+	case kKandidaten:
+		return doppelt ? bc( g_bake_kandidaten_d1_m0 ) : bc( g_bake_kandidaten_d0_m0 );
+	case kUnter: {
+		static const Bytecode t[ 4 ] = { bc( g_bake_unter_d0_m0 ), bc( g_bake_unter_d1_m0 ), bc( g_bake_unter_d1_m1 ), bc( g_bake_unter_d1_m2 ) };
+		return t[ doppelt ? 1 + m : 0 ];
+	}
+	case kStempellauf: {
+		static const Bytecode t[ 4 ] = { bc( g_bake_stempellauf_d0_m0 ), bc( g_bake_stempellauf_d1_m0 ), bc( g_bake_stempellauf_d1_m1 ),
+		                                 bc( g_bake_stempellauf_d1_m2 ) };
+		return t[ doppelt ? 1 + m : 0 ];
+	}
+	default:
+		return doppelt ? bc( g_bake_filtern_d1_m0 ) : bc( g_bake_filtern_d0_m0 );
+	}
 }
+
+// ein Puffer mit UAV, der mitwaechst (und eine Kopie zum Lesen auf der CPU)
+struct RwPuffer
+{
+	ID3D11Buffer *buf = nullptr;
+	ID3D11UnorderedAccessView *uav = nullptr;
+	ID3D11Buffer *lesen = nullptr;
+	UINT kapazitaet = 0;
+};
+
+// Register t0..t20 (siehe bhed_gpubacken.hlsl)
+enum Srv { sKnoten, sItems, sDreiecke, sInfos, sFlaechen, sVis, sLichter, sWindungen, sLuxel, sLms, sIdx, sLichtListe, sLmCluster, sAktiv, sAktivNr,
+           sBspKnoten, sEbenen, sBlaetter, sBlattBrushes, sBrushes, sSeiten, sAnzahl };
+// Register u0..u5
+enum Uav { uP, uF, uS, uZaehler, uLmFlag, uR, uAnzahl };
 
 struct Gpu
 {
 	HMODULE d3d = nullptr, dxgi = nullptr;
 	ID3D11Device *geraet = nullptr;
 	ID3D11DeviceContext *ktx = nullptr;
-	ID3D11ComputeShader *cs = nullptr;
-	ID3D11Buffer *szene[ 6 ] = {};
-	ID3D11ShaderResourceView *szeneSrv[ 6 ] = {};
-	ID3D11Buffer *licht[ 2 ] = {};
-	ID3D11ShaderResourceView *lichtSrv[ 2 ] = {};
-	ID3D11Buffer *block[ 3 ] = {};
-	ID3D11ShaderResourceView *blockSrv[ 3 ] = {};
-	ID3D11Buffer *erg = nullptr, *lesen = nullptr, *kopf = nullptr;
-	ID3D11UnorderedAccessView *ergUav = nullptr;
-	UINT ergKapazitaet = 0;
+	ID3D11ComputeShader *cs[ kKerne ] = {};
+	ID3D11Buffer *buf[ sAnzahl ] = {};
+	ID3D11ShaderResourceView *srv[ sAnzahl ] = {};
+	RwPuffer rw[ uAnzahl ];
+	ID3D11Buffer *kopf = nullptr;
 	int kopfKnoten = 0;
 	UINT visBytes = 0;
 	int leafBytes = 0;
+	int maxOpaqueBrush = -1;
 	BhedBakeSchalter schalter{};
 	bool doppelt = false;
 	bool bereit = false;
 	std::string name;
+	unsigned long long eigenerSpeicher = 0, geteilterSpeicher = 0;
+	std::size_t budget = 0;
 	BhedBakeZahlen zahlen;
 	long long verlustNach = -1;   // Test: nach so vielen Dispatches einen Geraeteverlust vortaeuschen
+	bool zeiten = false;          // BHED_GPUBAKE_ZEITEN: jeden Kern bis zum Ende messen
+	UINT stueck[ kKerne ] = { 1u << 18, 1u << 18, 1u << 18, 4096, 1u << 18 };   // Faeden je Dispatch (passt sich an)
 };
 Gpu g;
 
@@ -113,11 +161,13 @@ void frei( T *&p ){
 	}
 }
 
-bool puffer( const void *daten, UINT stride, UINT anzahl, ID3D11Buffer *&buf, ID3D11ShaderResourceView *&srv, bool roh = false ){
-	frei( srv );
-	frei( buf );
+// unveraenderlicher Puffer mit SRV (strukturiert oder roh)
+bool puffer( const void *daten, UINT stride, UINT anzahl, Srv nr, bool roh = false ){
+	frei( g.srv[ nr ] );
+	frei( g.buf[ nr ] );
 	if ( anzahl == 0 ) {
 		anzahl = 1;
+		daten = nullptr;
 	}
 	std::vector<unsigned char> leer;
 	if ( daten == nullptr ) {
@@ -132,7 +182,7 @@ bool puffer( const void *daten, UINT stride, UINT anzahl, ID3D11Buffer *&buf, ID
 	bd.StructureByteStride = roh ? 0 : stride;
 	D3D11_SUBRESOURCE_DATA sd{};
 	sd.pSysMem = daten;
-	if ( FAILED( g.geraet->CreateBuffer( &bd, &sd, &buf ) ) ) {
+	if ( FAILED( g.geraet->CreateBuffer( &bd, &sd, &g.buf[ nr ] ) ) ) {
 		return false;
 	}
 	D3D11_SHADER_RESOURCE_VIEW_DESC vd{};
@@ -147,69 +197,90 @@ bool puffer( const void *daten, UINT stride, UINT anzahl, ID3D11Buffer *&buf, ID
 		vd.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
 		vd.Buffer.NumElements = anzahl;
 	}
-	return SUCCEEDED( g.geraet->CreateShaderResourceView( buf, &vd, &srv ) );
+	return SUCCEEDED( g.geraet->CreateShaderResourceView( g.buf[ nr ], &vd, &g.srv[ nr ] ) );
+}
+template<typename T>
+bool puffer( const std::vector<T>& v, Srv nr ){
+	return puffer( v.empty() ? nullptr : v.data(), UINT( sizeof( T ) ), UINT( v.size() ), nr );
 }
 
-bool ergebnisPlatz( UINT n ){
-	if ( n <= g.ergKapazitaet ) {
+// UAV-Puffer mit mindestens n Elementen zu stride Byte; lesbar: dazu ein Staging-Puffer
+bool platz( Uav nr, UINT n, UINT stride, bool lesbar ){
+	RwPuffer& p = g.rw[ nr ];
+	if ( n <= p.kapazitaet ) {
 		return true;
 	}
-	frei( g.ergUav );
-	frei( g.erg );
-	frei( g.lesen );
-	g.ergKapazitaet = 0;
-	UINT k = 65536;
+	frei( p.uav );
+	frei( p.buf );
+	frei( p.lesen );
+	p.kapazitaet = 0;
+	UINT k = 1024;
 	while ( k < n ) {
-		k *= 2;
+		k = k > 0x40000000u ? n : k * 2;
 	}
 	D3D11_BUFFER_DESC bd{};
-	bd.ByteWidth = UINT( sizeof( BhedBakeErg ) ) * k;
+	bd.ByteWidth = stride * k;
 	bd.Usage = D3D11_USAGE_DEFAULT;
 	bd.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
 	bd.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-	bd.StructureByteStride = sizeof( BhedBakeErg );
-	if ( FAILED( g.geraet->CreateBuffer( &bd, nullptr, &g.erg ) ) ) {
+	bd.StructureByteStride = stride;
+	if ( FAILED( g.geraet->CreateBuffer( &bd, nullptr, &p.buf ) ) ) {
 		return false;
 	}
 	D3D11_UNORDERED_ACCESS_VIEW_DESC ud{};
 	ud.Format = DXGI_FORMAT_UNKNOWN;
 	ud.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
 	ud.Buffer.NumElements = k;
-	if ( FAILED( g.geraet->CreateUnorderedAccessView( g.erg, &ud, &g.ergUav ) ) ) {
+	if ( FAILED( g.geraet->CreateUnorderedAccessView( p.buf, &ud, &p.uav ) ) ) {
 		return false;
 	}
-	bd.Usage = D3D11_USAGE_STAGING;
-	bd.BindFlags = 0;
-	bd.MiscFlags = 0;
-	bd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-	if ( FAILED( g.geraet->CreateBuffer( &bd, nullptr, &g.lesen ) ) ) {
-		return false;
+	if ( lesbar ) {
+		bd.Usage = D3D11_USAGE_STAGING;
+		bd.BindFlags = 0;
+		bd.MiscFlags = 0;
+		bd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+		if ( FAILED( g.geraet->CreateBuffer( &bd, nullptr, &p.lesen ) ) ) {
+			return false;
+		}
 	}
-	g.ergKapazitaet = k;
+	p.kapazitaet = k;
 	return true;
 }
 
+// die ersten bytes eines UAV-Puffers auf die CPU
+bool lesen( Uav nr, void *ziel, std::size_t bytes ){
+	if ( bytes == 0 ) {
+		return true;
+	}
+	RwPuffer& p = g.rw[ nr ];
+	D3D11_BOX box{ 0, 0, 0, UINT( bytes ), 1, 1 };
+	g.ktx->CopySubresourceRegion( p.lesen, 0, 0, 0, 0, p.buf, 0, &box );
+	D3D11_MAPPED_SUBRESOURCE m{};
+	if ( FAILED( g.ktx->Map( p.lesen, 0, D3D11_MAP_READ, 0, &m ) ) ) {
+		return false;
+	}
+	std::memcpy( ziel, m.pData, bytes );
+	g.ktx->Unmap( p.lesen, 0 );
+	return g.geraet->GetDeviceRemovedReason() == S_OK;
+}
+
 void allesFrei(){
-	for ( int i = 0; i < 6; ++i ) {
-		frei( g.szeneSrv[ i ] );
-		frei( g.szene[ i ] );
+	for ( int i = 0; i < sAnzahl; ++i ) {
+		frei( g.srv[ i ] );
+		frei( g.buf[ i ] );
 	}
-	for ( int i = 0; i < 2; ++i ) {
-		frei( g.lichtSrv[ i ] );
-		frei( g.licht[ i ] );
+	for ( RwPuffer& p : g.rw ) {
+		frei( p.uav );
+		frei( p.buf );
+		frei( p.lesen );
+		p.kapazitaet = 0;
 	}
-	for ( int i = 0; i < 3; ++i ) {
-		frei( g.blockSrv[ i ] );
-		frei( g.block[ i ] );
-	}
-	frei( g.ergUav );
-	frei( g.erg );
-	frei( g.lesen );
 	frei( g.kopf );
-	frei( g.cs );
+	for ( ID3D11ComputeShader *&c : g.cs ) {
+		frei( c );
+	}
 	frei( g.ktx );
 	frei( g.geraet );
-	g.ergKapazitaet = 0;
 	g.bereit = false;
 }
 
@@ -314,33 +385,122 @@ IDXGIAdapter1 *adapterWaehlen( const std::string& wahl ){
 	return gewaehlt;
 }
 
-bool dispatchen( UINT basis, UINT anzahl ){
-	struct Kopf
-	{
-		UINT anzahl, basis;
-		int kopfKnoten, faster, lightAngleHL, bouncing, testOcclusion, oneSky, noSurfaces;
-		float linearScale;
-		UINT visBytes;
-		int leafBytes;
-	} kopf{ anzahl, basis, g.kopfKnoten, g.schalter.faster, g.schalter.lightAngleHL, g.schalter.bouncing, g.schalter.testOcclusion, g.schalter.oneSky,
-	        g.schalter.noSurfaces, g.schalter.linearScale, g.visBytes, g.leafBytes };
-	g.ktx->UpdateSubresource( g.kopf, 0, nullptr, &kopf, 0, 0 );
-	g.ktx->Dispatch( ( anzahl + 63 ) / 64, 1, 1 );
-	++g.zahlen.dispatches;
-	if ( g.verlustNach >= 0 && g.zahlen.dispatches > g.verlustNach ) {
-		return false;   // Test: Geraeteverlust vorgetaeuscht (BHED_GPUBAKE_VERLUST)
+long long mikros( std::chrono::steady_clock::time_point t0 ){
+	return std::chrono::duration_cast<std::chrono::microseconds>( std::chrono::steady_clock::now() - t0 ).count();
+}
+
+// der Konstantenpuffer (cbuffer Kopf im Shader)
+struct Kopf
+{
+	UINT anzahl, basis;
+	int kopfKnoten, faster, lightAngleHL, bouncing, testOcclusion, oneSky, noSurfaces;
+	float linearScale;
+	UINT visBytes;
+	int leafBytes;
+	int nLms, lightSamples;
+	float suchBox;
+	int maxOpaqueBrush;
+	int nAktivGesamt, nLuxel, nZeilen, kpad;
+};
+static_assert( sizeof( Kopf ) == 80, "cbuffer Kopf" );
+
+Kopf kopfFuer( const BhedBakeBlock& b ){
+	const BhedBakeSchalter& s = g.schalter;
+	return Kopf{ 0, 0, g.kopfKnoten, s.faster, s.lightAngleHL, s.bouncing, s.testOcclusion, s.oneSky, s.noSurfaces, s.linearScale, g.visBytes, g.leafBytes,
+	             int( b.lms.size() ), s.lightSamples, s.suchBox, g.maxOpaqueBrush, int( b.aktiv.size() ), int( b.luxel.size() ), int( b.zeilen ), 0 };
+}
+
+// n Faeden des Kerns k in kurzen Dispatches (Windows-Zeitlimit TDR 2 s, die Oberflaeche nutzt
+// dieselbe GPU): je Dispatch g.stueck[k] Faeden, nach je warten Dispatches ein Flush mit Warten auf
+// die GPU. Die Dispatch-Groesse passt sich an: dauert eine Wartegruppe ueber 0,25 s, halbiert sie
+// sich, unter 0,03 s verdoppelt sie sich (64 bis 4 M Faeden). false: Geraeteverlust (echt oder
+// im Test vorgetaeuscht).
+bool lauf( Kern k, UINT n, int warten, Kopf kopf ){
+	if ( n == 0 ) {
+		return true;
 	}
-	return g.geraet->GetDeviceRemovedReason() == S_OK;
+	const auto t0 = std::chrono::steady_clock::now();
+	g.ktx->CSSetShader( g.cs[ k ], nullptr, 0 );
+	ID3D11Query *ende = nullptr;
+	D3D11_QUERY_DESC qd{ D3D11_QUERY_EVENT, 0 };
+	(void)g.geraet->CreateQuery( &qd, &ende );
+	bool ok = true;
+	int seitWarten = 0;
+	auto tGruppe = std::chrono::steady_clock::now();
+	const auto warte = [&](){
+		g.ktx->End( ende );
+		BOOL fertig = FALSE;
+		while ( g.ktx->GetData( ende, &fertig, sizeof( fertig ), 0 ) == S_FALSE ) {
+			if ( g.geraet->GetDeviceRemovedReason() != S_OK ) {
+				return false;
+			}
+			SwitchToThread();
+		}
+		return true;
+	};
+	for ( UINT basis = 0; basis < n && ok; ) {
+		const UINT stueck = g.stueck[ k ];
+		kopf.anzahl = std::min( stueck, n - basis );
+		kopf.basis = basis;
+		basis += kopf.anzahl;
+		g.ktx->UpdateSubresource( g.kopf, 0, nullptr, &kopf, 0, 0 );
+		g.ktx->Dispatch( ( kopf.anzahl + 63 ) / 64, 1, 1 );
+		++g.zahlen.dispatches;
+		if ( g.verlustNach >= 0 && g.zahlen.dispatches > g.verlustNach ) {
+			ok = false;   // Test: Geraeteverlust vorgetaeuscht (BHED_GPUBAKE_VERLUST)
+			break;
+		}
+		if ( ++seitWarten >= warten && ende != nullptr ) {
+			seitWarten = 0;
+			ok = warte();
+			const double dauer = std::chrono::duration<double>( std::chrono::steady_clock::now() - tGruppe ).count();
+			tGruppe = std::chrono::steady_clock::now();
+			if ( dauer > 0.25 && g.stueck[ k ] > 64 ) {
+				g.stueck[ k ] /= 2;
+			}
+			else if ( dauer < 0.03 && kopf.anzahl == stueck && g.stueck[ k ] < ( 1u << 22 ) ) {
+				g.stueck[ k ] *= 2;
+			}
+		}
+	}
+	if ( ok && g.zeiten && ende != nullptr ) {   // Messung: auf das Ende warten
+		ok = warte();
+		g.zahlen.kernMikros[ k ] += mikros( t0 );
+	}
+	frei( ende );
+	return ok && g.geraet->GetDeviceRemovedReason() == S_OK;
+}
+
+void binden(){
+	g.ktx->CSSetShaderResources( 0, sAnzahl, g.srv );
+	ID3D11UnorderedAccessView *u[ uAnzahl ];
+	for ( int i = 0; i < uAnzahl; ++i ) {
+		u[ i ] = g.rw[ i ].uav;
+	}
+	g.ktx->CSSetUnorderedAccessViews( 0, uAnzahl, u, nullptr );
+	g.ktx->CSSetConstantBuffers( 0, 1, &g.kopf );
+}
+
+void loesen(){
+	ID3D11UnorderedAccessView *u[ uAnzahl ] = {};
+	g.ktx->CSSetUnorderedAccessViews( 0, uAnzahl, u, nullptr );
+}
+
+void verloren(){
+	char z[ 160 ];
+	std::snprintf( z, sizeof( z ), "the graphics device was lost (%s)", g.verlustNach >= 0 ? "simulated for the test" : "TDR or driver reset" );
+	ausfall( z );
 }
 
 } // namespace
 
 bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector<int>& items, const std::vector<BhedBakeDreieck>& dreiecke,
                     const std::vector<BhedBakeInfo>& infos, const int *flaechen, int anzahlFlaechen, int kopfKnoten,
-                    const unsigned char *vis, std::size_t visBytes, const std::string& adapterWahl ){
+                    const unsigned char *vis, std::size_t visBytes, const BhedBakeBsp& bsp, const std::string& adapterWahl ){
 	if ( const char *v = std::getenv( "BHED_GPUBAKE_VERLUST" ) ) {
 		g.verlustNach = std::atoll( v );
 	}
+	g.zeiten = std::getenv( "BHED_GPUBAKE_ZEITEN" ) != nullptr;
 	g.d3d = LoadLibraryW( L"d3d11.dll" );
 	if ( g.d3d == nullptr ) {
 		Sys_Printf( "BehavEd GPU bake: d3d11.dll missing - CPU\n" );
@@ -359,6 +519,8 @@ bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector
 		DXGI_ADAPTER_DESC1 d{};
 		adapter->GetDesc1( &d );
 		g.name = utf8( d.Description );
+		g.eigenerSpeicher = d.DedicatedVideoMemory;
+		g.geteilterSpeicher = d.SharedSystemMemory;
 		adapter->Release();
 	}
 	if ( FAILED( erzeugt ) ) {
@@ -371,32 +533,34 @@ bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector
 	const bool d2 = SUCCEEDED( g.geraet->CheckFeatureSupport( D3D11_FEATURE_D3D11_OPTIONS, &op, sizeof( op ) ) ) && op.ExtendedDoublesShaderInstructions;
 	g.doppelt = d1 && d2 && std::getenv( "BHED_GPUBAKE_OHNE_DOUBLE" ) == nullptr;
 	const char *mess = std::getenv( "BHED_GPUBAKE_MESS" );
-	const Bytecode code = shaderWahl( g.doppelt, mess != nullptr ? std::atoi( mess ) : 0, std::getenv( "BHED_GPUBAKE_DIAG" ) != nullptr );
-	if ( FAILED( g.geraet->CreateComputeShader( code.daten, code.groesse, nullptr, &g.cs ) ) ) {
-		Sys_Printf( "BehavEd GPU bake: the device does not take the shader - CPU\n" );
-		allesFrei();
-		return false;
+	for ( int k = 0; k < kKerne; ++k ) {
+		const Bytecode code = shaderWahl( Kern( k ), g.doppelt, mess != nullptr ? std::atoi( mess ) : 0 );
+		if ( FAILED( g.geraet->CreateComputeShader( code.daten, code.groesse, nullptr, &g.cs[ k ] ) ) ) {
+			Sys_Printf( "BehavEd GPU bake: the device does not take the shader - CPU\n" );
+			allesFrei();
+			return false;
+		}
 	}
-	// Speicherbedarf der Szene (BVH-Ersatz: Knoten, Dreiecke) gegen den Grafikspeicher
+	// Speicherbedarf der Szene (BVH-Ersatz: Knoten, Dreiecke; BSP) gegen den Grafikspeicher
 	const size_t bedarf = knoten.size() * sizeof( BhedBakeKnoten ) + items.size() * 4 + dreiecke.size() * sizeof( BhedBakeDreieck ) +
-	                      infos.size() * sizeof( BhedBakeInfo ) + visBytes;
+	                      infos.size() * sizeof( BhedBakeInfo ) + visBytes + bsp.knoten.size() * 16 + bsp.ebenen.size() * 16 + bsp.blaetter.size() * 16 +
+	                      bsp.blattBrushes.size() * 4 + bsp.brushes.size() * 16 + bsp.seiten.size() * 4;
 	std::vector<unsigned char> visKopie( vis != nullptr ? vis : reinterpret_cast<const unsigned char *>( "" ), vis != nullptr ? vis + visBytes : reinterpret_cast<const unsigned char *>( "" ) );
 	visKopie.resize( ( visKopie.size() + 3 ) & ~size_t( 3 ), 0 );
 	if ( visKopie.empty() ) {
 		visKopie.assign( 4, 0 );
 	}
-	bool ok = puffer( knoten.data(), sizeof( BhedBakeKnoten ), UINT( knoten.size() ), g.szene[ 0 ], g.szeneSrv[ 0 ] ) &&
-	          puffer( items.data(), sizeof( int ), UINT( items.size() ), g.szene[ 1 ], g.szeneSrv[ 1 ] ) &&
-	          puffer( dreiecke.data(), sizeof( BhedBakeDreieck ), UINT( dreiecke.size() ), g.szene[ 2 ], g.szeneSrv[ 2 ] ) &&
-	          puffer( infos.data(), sizeof( BhedBakeInfo ), UINT( infos.size() ), g.szene[ 3 ], g.szeneSrv[ 3 ] ) &&
-	          puffer( anzahlFlaechen > 0 ? flaechen : nullptr, sizeof( int ), UINT( anzahlFlaechen ), g.szene[ 4 ], g.szeneSrv[ 4 ] ) &&
-	          puffer( visKopie.data(), 4, UINT( visKopie.size() / 4 ), g.szene[ 5 ], g.szeneSrv[ 5 ], true );
+	bool ok = puffer( knoten, sKnoten ) && puffer( items, sItems ) && puffer( dreiecke, sDreiecke ) && puffer( infos, sInfos ) &&
+	          puffer( anzahlFlaechen > 0 ? flaechen : nullptr, UINT( sizeof( int ) ), UINT( anzahlFlaechen ), sFlaechen ) &&
+	          puffer( visKopie.data(), 4, UINT( visKopie.size() / 4 ), sVis, true ) &&
+	          puffer( bsp.knoten, sBspKnoten ) && puffer( bsp.ebenen, sEbenen ) && puffer( bsp.blaetter, sBlaetter ) &&
+	          puffer( bsp.blattBrushes, sBlattBrushes ) && puffer( bsp.brushes, sBrushes ) && puffer( bsp.seiten, sSeiten );
 	if ( ok ) {
 		D3D11_BUFFER_DESC bd{};
-		bd.ByteWidth = 48;
+		bd.ByteWidth = sizeof( Kopf );
 		bd.Usage = D3D11_USAGE_DEFAULT;
 		bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-		ok = SUCCEEDED( g.geraet->CreateBuffer( &bd, nullptr, &g.kopf ) ) && ergebnisPlatz( 1u << 20 );
+		ok = SUCCEEDED( g.geraet->CreateBuffer( &bd, nullptr, &g.kopf ) );
 	}
 	if ( !ok ) {
 		Sys_Printf( "BehavEd GPU bake: not enough graphics memory for the scene (%zu MB) - CPU\n", bedarf >> 20 );
@@ -406,9 +570,24 @@ bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector
 	g.kopfKnoten = kopfKnoten;
 	g.visBytes = UINT( visBytes );
 	g.leafBytes = visBytes > 8 ? reinterpret_cast<const int *>( vis )[ 1 ] : 0;
+	g.maxOpaqueBrush = bsp.maxOpaqueBrush;
+	// Grafikspeicher vorab schaetzen: ein Block darf ein Viertel des eigenen Grafikspeichers
+	// belegen (64 MB bis 1,5 GB; GPUs mit wenig eigenem Speicher: die Haelfte des geteilten),
+	// je Paar 36 Byte (Farbe, Merker, Unterabtastung)
+	unsigned long long vram = g.eigenerSpeicher;
+	if ( vram < ( 512ull << 20 ) ) {
+		vram = std::max( vram, g.geteilterSpeicher / 2 );
+	}
+	unsigned long long bytes = std::clamp<unsigned long long>( vram / 4, 64ull << 20, 1536ull << 20 );
+	if ( const char *b = std::getenv( "BHED_GPUBAKE_BUDGET_MB" ) ) {   // Test: kleine Bloecke erzwingen
+		bytes = std::max<unsigned long long>( 1, std::strtoull( b, nullptr, 10 ) ) << 20;
+	}
+	g.budget = std::size_t( bytes / 36 );
+	g.zahlen.budget = static_cast<long long>( g.budget );
 	g.bereit = true;
-	Sys_Printf( "BehavEd GPU bake: %s (feature level %x, %s), %zu nodes, %zu triangles, scene %zu KB\n", g.name.c_str(), unsigned( stufe ),
-	             g.doppelt ? "double precision" : "no double precision - float approximations", knoten.size(), dreiecke.size(), bedarf >> 10 );
+	Sys_Printf( "BehavEd GPU bake: %s (feature level %x, %s), %zu nodes, %zu triangles, scene %zu KB, blocks up to %zu pairs (%llu MB)\n", g.name.c_str(),
+	             unsigned( stufe ), g.doppelt ? "double precision" : "no double precision - float approximations", knoten.size(), dreiecke.size(), bedarf >> 10,
+	             g.budget, bytes >> 20 );
 	return true;
 }
 
@@ -418,104 +597,79 @@ bool BhedBakeLichter( const std::vector<BhedBakeLicht>& lichter, const std::vect
 		return false;
 	}
 	g.schalter = s;
-	if ( !puffer( infos.data(), sizeof( BhedBakeInfo ), UINT( infos.size() ), g.szene[ 3 ], g.szeneSrv[ 3 ] ) ||
-	     !puffer( lichter.data(), sizeof( BhedBakeLicht ), UINT( lichter.size() ), g.licht[ 0 ], g.lichtSrv[ 0 ] ) ||
-	     !puffer( windungen.data(), sizeof( float ), UINT( windungen.size() ), g.licht[ 1 ], g.lichtSrv[ 1 ] ) ) {
+	if ( !puffer( infos, sInfos ) || !puffer( lichter, sLichter ) || !puffer( windungen, sWindungen ) ) {
 		ausfall( "not enough graphics memory for the lights" );
 		return false;
 	}
 	return true;
 }
 
-bool BhedBakeRechnen( const std::vector<BhedBakeLuxel>& luxel, const std::vector<BhedBakeLm>& lms, const std::vector<BhedBakePaar>& paare,
-                      std::vector<BhedBakeErg>& erg ){
-	const size_t n = paare.size();
-	erg.resize( n );
-	const auto alleCpu = [&](){
-		for ( BhedBakeErg& e : erg ) {
-			e = BhedBakeErg{ { 0, 0, 0 }, 9 };
-		}
-		g.zahlen.cpuPaare += static_cast<long long>( n );
-	};
+std::size_t BhedBakeBudgetPaare(){
+	return g.budget;
+}
+
+bool BhedBakeErst( const BhedBakeBlock& b, std::vector<std::uint32_t>& zaehler, std::vector<std::uint32_t>& flags ){
+	zaehler.assign( b.lichtListe.size(), 0 );
+	flags.assign( b.lms.size(), 1 );
 	if ( !g.bereit ) {
-		alleCpu();
 		return false;
-	}
-	if ( n == 0 ) {
-		return true;
 	}
 	const auto t0 = std::chrono::steady_clock::now();
-	if ( !puffer( luxel.data(), sizeof( BhedBakeLuxel ), UINT( luxel.size() ), g.block[ 0 ], g.blockSrv[ 0 ] ) ||
-	     !puffer( lms.data(), sizeof( BhedBakeLm ), UINT( lms.size() ), g.block[ 1 ], g.blockSrv[ 1 ] ) ||
-	     !puffer( paare.data(), sizeof( BhedBakePaar ), UINT( n ), g.block[ 2 ], g.blockSrv[ 2 ] ) || !ergebnisPlatz( UINT( n ) ) ) {
+	const std::vector<BhedBakeAktiv> keinAktiv;
+	const std::vector<int> keineNr;
+	const UINT n = std::max<UINT>( b.paare, 1 );
+	if ( !puffer( b.luxel, sLuxel ) || !puffer( b.lms, sLms ) || !puffer( b.idx, sIdx ) || !puffer( b.lichtListe, sLichtListe ) ||
+	     !puffer( b.lmCluster, sLmCluster ) || !puffer( keinAktiv, sAktiv ) || !puffer( keineNr, sAktivNr ) ||
+	     !platz( uP, n, 16, false ) || !platz( uF, n, 4, false ) || !platz( uS, g.schalter.lightSamples > 1 ? n : 1, 16, false ) ||
+	     !platz( uZaehler, UINT( std::max<size_t>( b.lichtListe.size(), 1 ) ), 4, true ) || !platz( uLmFlag, UINT( std::max<size_t>( b.lms.size(), 1 ) ), 4, true ) ||
+	     !platz( uR, 1, 16, true ) ) {
 		ausfall( "not enough graphics memory for a block" );
-		alleCpu();
 		return false;
 	}
-	ID3D11ShaderResourceView *srv[ 11 ] = { g.szeneSrv[ 0 ], g.szeneSrv[ 1 ], g.szeneSrv[ 2 ], g.szeneSrv[ 3 ], g.szeneSrv[ 4 ], g.szeneSrv[ 5 ],
-	                                        g.lichtSrv[ 0 ], g.lichtSrv[ 1 ], g.blockSrv[ 0 ], g.blockSrv[ 1 ], g.blockSrv[ 2 ] };
-	g.ktx->CSSetShader( g.cs, nullptr, 0 );
-	g.ktx->CSSetShaderResources( 0, 11, srv );
-	g.ktx->CSSetUnorderedAccessViews( 0, 1, &g.ergUav, nullptr );
-	g.ktx->CSSetConstantBuffers( 0, 1, &g.kopf );
-	// Kurze Dispatches (Windows-Zeitlimit TDR 2 s, die Oberflaeche nutzt dieselbe GPU):
-	// je 32768 Paare, nach je 16 ein Flush mit Warten auf die GPU.
-	constexpr UINT kStueck = 32768;
-	bool ok = true;
-	ID3D11Query *ende = nullptr;
-	D3D11_QUERY_DESC qd{ D3D11_QUERY_EVENT, 0 };
-	(void)g.geraet->CreateQuery( &qd, &ende );
-	int seitWarten = 0;
-	for ( UINT basis = 0; basis < UINT( n ) && ok; basis += kStueck ) {
-		ok = dispatchen( basis, std::min<UINT>( kStueck, UINT( n ) - basis ) );
-		if ( ok && ++seitWarten >= 16 && ende != nullptr ) {
-			seitWarten = 0;
-			g.ktx->End( ende );
-			BOOL fertig = FALSE;
-			while ( g.ktx->GetData( ende, &fertig, sizeof( fertig ), 0 ) == S_FALSE ) {
-				if ( g.geraet->GetDeviceRemovedReason() != S_OK ) {
-					ok = false;
-					break;
-				}
-				SwitchToThread();
-			}
-		}
-	}
-	frei( ende );
-	if ( ok ) {
-		ID3D11UnorderedAccessView *keine = nullptr;
-		g.ktx->CSSetUnorderedAccessViews( 0, 1, &keine, nullptr );
-		D3D11_BOX box{ 0, 0, 0, UINT( n * sizeof( BhedBakeErg ) ), 1, 1 };
-		g.ktx->CopySubresourceRegion( g.lesen, 0, 0, 0, 0, g.erg, 0, &box );
-		D3D11_MAPPED_SUBRESOURCE m{};
-		if ( SUCCEEDED( g.ktx->Map( g.lesen, 0, D3D11_MAP_READ, 0, &m ) ) ) {
-			std::memcpy( erg.data(), m.pData, n * sizeof( BhedBakeErg ) );
-			g.ktx->Unmap( g.lesen, 0 );
-		}
-		else {
-			ok = false;
-		}
-	}
-	g.zahlen.gpuMikros += std::chrono::duration_cast<std::chrono::microseconds>( std::chrono::steady_clock::now() - t0 ).count();
-	++g.zahlen.bloecke;
+	const UINT null[ 4 ] = {};
+	g.ktx->ClearUnorderedAccessViewUint( g.rw[ uZaehler ].uav, null );
+	g.ktx->ClearUnorderedAccessViewUint( g.rw[ uLmFlag ].uav, null );
+	binden();
+	bool ok = lauf( kErst, b.paare, 4, kopfFuer( b ) );
+	loesen();
+	ok = ok && lesen( uZaehler, zaehler.data(), zaehler.size() * 4 ) && lesen( uLmFlag, flags.data(), flags.size() * 4 );
+	g.zahlen.gpuMikros += mikros( t0 );
 	if ( !ok ) {
-		char z[ 160 ];
-		std::snprintf( z, sizeof( z ), "the graphics device was lost (%s)", g.verlustNach >= 0 ? "simulated for the test" : "TDR or driver reset" );
-		ausfall( z );
-		alleCpu();
+		verloren();
+		flags.assign( b.lms.size(), 1 );
 		return false;
 	}
-	// Treiberfehler: nicht endliche Werte rechnet die CPU nach
-	for ( BhedBakeErg& e : erg ) {
-		if ( e.code != 9 && !( std::isfinite( e.c[ 0 ] ) && std::isfinite( e.c[ 1 ] ) && std::isfinite( e.c[ 2 ] ) ) ) {
-			e.code = 9;
-			++g.zahlen.nichtEndlich;
-		}
-		if ( e.code == 9 ) {
-			++g.zahlen.cpuPaare;
-		}
+	g.zahlen.paare += b.paare;
+	++g.zahlen.bloecke;
+	return true;
+}
+
+bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::vector<std::uint32_t>& flags ){
+	luxelAus.assign( size_t( b.aus ) * 4, 0.0f );
+	flags.assign( b.lms.size(), 1 );
+	if ( !g.bereit ) {
+		return false;
 	}
-	g.zahlen.paare += static_cast<long long>( n );
+	const auto t0 = std::chrono::steady_clock::now();
+	if ( !puffer( b.lms, sLms ) || !puffer( b.aktiv, sAktiv ) || !puffer( b.aktivNr, sAktivNr ) || !platz( uR, std::max<UINT>( b.aus, 1 ), 16, true ) ) {
+		ausfall( "not enough graphics memory for a block" );
+		return false;
+	}
+	binden();
+	const Kopf kopf = kopfFuer( b );
+	bool ok = true;
+	if ( g.schalter.lightSamples > 1 ) {
+		ok = lauf( kKandidaten, b.zeilen, 4, kopf ) && lauf( kUnter, b.paare, 4, kopf ) && lauf( kStempellauf, UINT( b.aktiv.size() ), 4, kopf );
+	}
+	ok = ok && lauf( kFiltern, UINT( b.luxel.size() ), 4, kopf );
+	loesen();
+	ok = ok && lesen( uR, luxelAus.data(), luxelAus.size() * 4 ) && lesen( uLmFlag, flags.data(), flags.size() * 4 );
+	g.zahlen.gpuMikros += mikros( t0 );
+	if ( !ok ) {
+		verloren();
+		flags.assign( b.lms.size(), 1 );
+		return false;
+	}
 	return true;
 }
 

@@ -1635,8 +1635,30 @@ bool BhedBakeVorbereiten( const std::string& adapter ){
 		}
 		dreiecke[ i ].info = t.infoNum;
 	}
+	/* BehavEd stage 8g: the BSP for ClusterForPointExt (subsampling on the GPU) */
+	if ( bspNodes.empty() ) {
+		return false;
+	}
+	BhedBakeBsp bsp;
+	for ( const bspNode_t& n : bspNodes ) {
+		bsp.knoten.push_back( { n.planeNum, n.children[ 0 ], n.children[ 1 ], 0 } );
+	}
+	for ( const bspPlane_t& e : bspPlanes ) {
+		bsp.ebenen.push_back( { { e.normal()[ 0 ], e.normal()[ 1 ], e.normal()[ 2 ] }, e.dist() } );
+	}
+	for ( const bspLeaf_t& l : bspLeafs ) {
+		bsp.blaetter.push_back( { l.cluster, l.firstBSPLeafBrush, l.numBSPLeafBrushes, 0 } );
+	}
+	bsp.blattBrushes = bspLeafBrushes;
+	for ( size_t b = 0; b < bspBrushes.size(); ++b ) {
+		bsp.brushes.push_back( { bspBrushes[ b ].firstSide, bspBrushes[ b ].numSides, b < opaqueBrushes.size() && opaqueBrushes[ b ] ? 1 : 0, 0 } );
+	}
+	for ( const bspBrushSide_t& side : bspBrushSides ) {
+		bsp.seiten.push_back( side.planeNum );
+	}
+	bsp.maxOpaqueBrush = maxOpaqueBrush;
 	return BhedBakeStart( knoten, items, dreiecke, BhedBakeInfos(), lightSurfaces, numLightSurfaces, headNodeNum,
-	                      bspVisBytes.data(), bspVisBytes.size(), adapter );
+	                      bspVisBytes.data(), bspVisBytes.size(), bsp, adapter );
 }
 
 /* the trace infos for the GPU - again for every round: the sky index of a shader (skyIndex) is only

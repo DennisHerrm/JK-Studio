@@ -1,29 +1,31 @@
 #!/usr/bin/env python3
-"""Stufe 8c Punkt 2: q3map2 -light -bhedgpubake (Lichtbeitraege der ersten
-Abtastung auf der GPU) gegen die CPU.
+"""Stufe 8c/8g: q3map2 -light -bhedgpubake (die Lichtschleife auf der GPU) gegen die CPU.
 
 Dieselbe Testkarte wie q3map2_gpu.py (Raum, Saeulen, Durchgang, drei Lichter, ein
 Patch), dazu ein Spot und Bounce-Runden (Flaechenlichter): gebaut (-bsp -meta,
--vis), dann beleuchtet mit -samples 2 -filter -patchshadows -bounce 2:
+-vis), dann beleuchtet mit -samples 2 -filter -patchshadows -bounce 2. Jeder GPU-Lauf
+mit -bhedgpubakecheck 1: die CPU rechnet jede Lightmap ein zweites Mal und vergleicht
+alle Luxel (der Bericht zaehlt sie).
 
+  0. Shader vorab uebersetzt  - (Stufe 8g) die exe nennt weder d3dcompiler_47.dll noch
+                                 dxcompiler.dll noch D3DCompile
   1. CPU                       - die Vorlage
-  2. GPU                       - feste Obergrenze der Abweichung: der Bericht
-                                 ("samples checked") >= 99,9 % gleich, keine andere
-                                 Treffer-Entscheidung; mit double-GPU zusaetzlich alle
-                                 18 Lumps Byte-gleich mit der CPU
+  2. GPU                       - Lightmaps auf der GPU gerechnet; mit double: 100 % der
+                                 Luxel gleich und alle 18 Lumps Byte-gleich mit der CPU
   3. GPU noch einmal           - dasselbe Ergebnis wie 2 (wiederholtes Backen)
   4. GPU mit Geraeteverlust    - BHED_GPUBAKE_VERLUST=2 taeuscht nach zwei Dispatches
      mitten im Backen          einen Verlust vor: kein Absturz, Meldung "lost", der
                                  Rest auf der CPU, die Lumps gleich der CPU
   5. GPU ohne double           - BHED_GPUBAKE_OHNE_DOUBLE: float-Naeherungen, nur die
-                                 Obergrenze (>= 75 % gleich, keine nicht endlichen Werte)
-  0. Shader vorab uebersetzt  - (Stufe 8g) die exe nennt weder d3dcompiler_47.dll noch
-                                 dxcompiler.dll noch D3DCompile
-  6. Himmel mit Sonne          - ein Hof unter einem Himmels-Shader mit q3map_sunExt (eigener
-                                 Spielordner im Test): CPU und GPU, Treffer 0, mit double
-                                 Byte-gleich. Rot vor der Behebung: der skyIndex eines Shaders
-                                 entsteht erst in LightWorld und war fuer die GPU immer -1 -
-                                 auf md_ch_ben nur 21 % gleich, 32807 andere Treffer-Entscheidungen.
+                                 Obergrenze (>= 25 % der Luxel gleich)
+  6. kleine Bloecke            - BHED_GPUBAKE_BUDGET_MB=1: viele Bloecke, Lightmaps ueber dem
+                                 Speicherbudget rechnet die CPU; Lumps gleich der CPU
+  7. -samples 4                - die Unterabtastung mit Rekursion (drei Ebenen): CPU und GPU
+                                 Byte-gleich
+  8. Himmel mit Sonne          - ein Hof unter einem Himmels-Shader mit q3map_sunExt (eigener
+                                 Spielordner im Test): CPU und GPU, mit double Byte-gleich.
+                                 Rot vor der Behebung in 8c: der skyIndex eines Shaders
+                                 entsteht erst in LightWorld und war fuer die GPU immer -1.
 
 Ohne Direct-3D-11-GPU meldet q3map2 "no usable GPU" und rechnet auf der CPU - die
 Lumps muessen dann gleich sein, die GPU-Pruefungen entfallen (ok mit Hinweis).
@@ -87,12 +89,16 @@ def lauf(exe, args, ordner, env=None):
 
 
 def bericht(aus):
-    m = re.search(r'BehavEd GPU bake report: (\d+) samples checked on the CPU, ([0-9.]+) % identical; different: (\d+) hit decision \(shadow\), '
-                  r'(\d+) boundary \(cull/envelope\), (\d+) arithmetic; mean \|diff\| ([0-9.]+), max \|diff\| ([0-9.]+)', aus)
-    if not m:
+    """Die zwei Zeilen des GPU-Backens: Kopf (Lightmaps GPU/CPU) und Abweichungsbericht."""
+    k = re.search(r'BehavEd GPU bake: .*?, (\d+) rounds, (\d+) lightmaps on the GPU, (\d+) on the CPU \((\d+) alpha shadow/unsafe, '
+                  r'(\d+) not finite, (\d+) too big\)', aus)
+    m = re.search(r'BehavEd GPU bake report: (\d+) luxels in (\d+) lightmaps checked on the CPU, ([0-9.]+) % identical; (\d+) lightmaps with a '
+                  r'difference \((\d+) in styles\), mean \|diff\| ([0-9.]+), max \|diff\| ([0-9.]+)', aus)
+    if not k or not m:
         return None
-    return {'proben': int(m.group(1)), 'gleich': float(m.group(2)), 'treffer': int(m.group(3)), 'grenze': int(m.group(4)),
-            'rechnung': int(m.group(5)), 'mittel': float(m.group(6)), 'max': float(m.group(7))}
+    return {'runden': int(k.group(1)), 'gpu': int(k.group(2)), 'cpu': int(k.group(3)), 'alpha': int(k.group(4)), 'nichtendlich': int(k.group(5)),
+            'zugross': int(k.group(6)), 'luxel': int(m.group(1)), 'lms': int(m.group(2)), 'gleich': float(m.group(3)), 'anders': int(m.group(4)),
+            'stile': int(m.group(5)), 'mittel': float(m.group(6)), 'max': float(m.group(7))}
 
 
 def main():
@@ -107,8 +113,8 @@ def main():
         print(('ok    ' if gut else 'FEHL  ') + text)
         fehler += 0 if gut else 1
 
-    # Stufe 8g Punkt 1: die Shader sind im Bau vorab uebersetzt - die exe laedt keinen
-    # Shader-Uebersetzer (weder d3dcompiler_47.dll noch dxcompiler.dll) und ruft D3DCompile nicht
+    # 0. die Shader sind im Bau vorab uebersetzt - die exe laedt keinen Shader-Uebersetzer
+    #    (weder d3dcompiler_47.dll noch dxcompiler.dll) und ruft D3DCompile nicht
     roh = open(exe, 'rb').read().lower()
     melde(b'd3dcompiler' not in roh and b'dxcompiler' not in roh and b'd3dcompile\0' not in roh,
           'Shader vorab uebersetzt: kein d3dcompiler_47.dll/dxcompiler.dll/D3DCompile in der exe')
@@ -125,15 +131,19 @@ def main():
                 print('FEHL  %s: Rueckgabe %d' % (args[0], rc))
                 return 1
         licht = ['-game', 'ja', '-light', '-fast', '-patchshadows', '-samples', '2', '-filter', '-bounce', '2']
+        licht4 = ['-game', 'ja', '-light', '-fast', '-patchshadows', '-samples', '4', '-filter', '-bounce', '1']
+        gpu = ['-bhedgpubake', '-bhedgpubakecheck', '1']
         ergebnis = {}
-        for art, extra, env in (('cpu', [], None), ('gpu', ['-bhedgpubake'], None), ('gpu2', ['-bhedgpubake'], None),
-                                ('verlust', ['-bhedgpubake'], {'BHED_GPUBAKE_VERLUST': '2'}),
-                                ('float', ['-bhedgpubake'], {'BHED_GPUBAKE_OHNE_DOUBLE': '1'})):
+        for art, schalter, env in (('cpu', licht, None), ('gpu', licht + gpu, None), ('gpu2', licht + gpu, None),
+                                   ('verlust', licht + gpu, {'BHED_GPUBAKE_VERLUST': '2'}),
+                                   ('float', licht + gpu, {'BHED_GPUBAKE_OHNE_DOUBLE': '1'}),
+                                   ('klein', licht + gpu, {'BHED_GPUBAKE_BUDGET_MB': '1'}),
+                                   ('cpu4', licht4, None), ('gpu4', licht4 + gpu, None)):
             d = os.path.join(t, art)
             os.makedirs(d)
             for e in ('.map', '.bsp', '.srf'):
                 shutil.copy(os.path.join(vis, 'bake' + e), os.path.join(d, 'bake' + e))
-            rc, aus = lauf(exe, licht + extra + [os.path.join(d, 'bake.map')], d, env)
+            rc, aus = lauf(exe, schalter + [os.path.join(d, 'bake.map')], d, env)
             if rc != 0:
                 print('FEHL  -light %s: Rueckgabe %d' % (art, rc))
                 return 1
@@ -153,25 +163,35 @@ def main():
         doppelt = ', double,' in aus
         name = re.search(r'BehavEd GPU bake: (.*?) \(feature level', aus)
         b = bericht(aus)
-        melde(b is not None and b['proben'] > 0 and b['gleich'] >= 99.9 and b['treffer'] == 0,
-              '-bhedgpubake auf %s (%s): %s Proben, %.4f %% gleich, Treffer %s, Grenze %s, Rechnung %s, max %s - Obergrenze >= 99,9 %%, Treffer 0' %
-              (name.group(1) if name else '?', 'double' if doppelt else 'float', b and b['proben'], b['gleich'] if b else 0, b and b['treffer'],
-               b and b['grenze'], b and b['rechnung'], b and b['max']))
-        gpu = ergebnis['gpu'][0]
+        melde(b is not None and b['gpu'] > 0 and b['lms'] >= b['gpu'] and b['luxel'] > 0 and (b['gleich'] == 100.0 or not doppelt),
+              '-bhedgpubake auf %s (%s): %s Lightmaps auf der GPU, %s auf der CPU, %s Luxel in %s Lightmaps nachgerechnet, %.4f %% gleich, max %s' %
+              (name.group(1) if name else '?', 'double' if doppelt else 'float', b and b['gpu'], b and b['cpu'], b and b['luxel'], b and b['lms'],
+               b['gleich'] if b else 0, b and b['max']))
+        g = ergebnis['gpu'][0]
         if doppelt:
-            anders = [i for i in range(18) if gpu[i] != cpu[i]]
+            anders = [i for i in range(18) if g[i] != cpu[i]]
             melde(not anders and len(cpu[14]) > 0, 'GPU mit double: alle 18 Lumps Byte-gleich mit der CPU%s' % ('' if not anders else ' - anders: %s' % anders))
-        melde(ergebnis['gpu2'][0] == gpu, 'zweites GPU-Backen: dasselbe Ergebnis wie das erste (alle Lumps)')
+        melde(ergebnis['gpu2'][0] == g, 'zweites GPU-Backen: dasselbe Ergebnis wie das erste (alle Lumps)')
         av = ergebnis['verlust'][1]
-        melde('graphics device was lost' in av and ergebnis['verlust'][0][14] == cpu[14] and ergebnis['verlust'][0][15] == cpu[15] and
-              'pairs on the GPU' in av,
+        melde('graphics device was lost' in av and ergebnis['verlust'][0][14] == cpu[14] and ergebnis['verlust'][0][15] == cpu[15],
               'Geraeteverlust mitten im Backen (vorgetaeuscht nach 2 Dispatches): Meldung, kein Absturz, Lightmaps und Gitter gleich der CPU')
         bf = bericht(ergebnis['float'][1])
-        nf = re.search(r'\((\d+) not finite\)', ergebnis['float'][1])
-        melde(bf is not None and bf["gleich"] >= 75.0 and nf is not None and int(nf.group(1)) == 0 and 'float only' in ergebnis['float'][1],
-              'GPU ohne double (float-Naeherungen): %.4f %% gleich (Obergrenze >= 75 %%), Treffer %s, nicht endlich %s' %
-              (bf['gleich'] if bf else 0, bf and bf['treffer'], nf.group(1) if nf else '?'))
-        # 6. Himmel mit Sonne (eigener Spielordner mit dem Himmels-Shader)
+        melde(bf is not None and bf["gleich"] >= 25.0 and 'float only' in ergebnis['float'][1],
+              'GPU ohne double (float-Naeherungen): %.4f %% der Luxel gleich (Obergrenze >= 25 %%), %s Lightmaps auf der GPU' %
+              (bf['gleich'] if bf else 0, bf and bf['gpu']))
+        bk = bericht(ergebnis['klein'][1])
+        bl = re.search(r'BehavEd GPU bake: .*?(\d+) blocks', ergebnis['klein'][1])
+        melde(bk is not None and bk['zugross'] > 0 and bk['gpu'] > 0 and bl is not None and int(bl.group(1)) > 2 and
+              (not doppelt or ergebnis['klein'][0] == cpu),
+              'kleine Bloecke (1 MB): %s Bloecke, %s Lightmaps zu gross fuer einen Block (CPU), %s auf der GPU, Lumps gleich der CPU' %
+              (bl.group(1) if bl else '?', bk and bk['zugross'], bk and bk['gpu']))
+        b4 = bericht(ergebnis['gpu4'][1])
+        if doppelt:
+            anders = [i for i in range(18) if ergebnis['gpu4'][0][i] != ergebnis['cpu4'][0][i]]
+            melde(not anders and b4 is not None and b4['gleich'] == 100.0 and b4['gpu'] > 0,
+                  '-samples 4 (Unterabtastung in drei Ebenen): %s Lightmaps auf der GPU, %.4f %% gleich, alle 18 Lumps Byte-gleich%s' %
+                  (b4 and b4['gpu'], b4['gleich'] if b4 else 0, '' if not anders else ' - anders: %s' % anders))
+        # 8. Himmel mit Sonne (eigener Spielordner mit dem Himmels-Shader)
         spiel = os.path.join(t, 'spiel')
         os.makedirs(os.path.join(spiel, 'base', 'shaders'))
         with open(os.path.join(spiel, 'base', 'shaders', 'test.shader'), 'w', encoding='ascii', newline=NL) as f:
@@ -188,7 +208,7 @@ def main():
                 print('FEHL  Hof %s: Rueckgabe %d' % (args[0], rc))
                 return 1
         hof = {}
-        for art, extra in (('hcpu', []), ('hgpu', ['-bhedgpubake'])):
+        for art, extra in (('hcpu', []), ('hgpu', gpu)):
             d = os.path.join(t, art)
             os.makedirs(d)
             for e in ('.map', '.bsp', '.srf'):
@@ -200,9 +220,9 @@ def main():
             hof[art] = (lumps(os.path.join(d, 'hof.bsp')), aus)
         hs = re.search(r'(\d+) sun/sky lights', hof['hcpu'][1])
         bh = bericht(hof['hgpu'][1])
-        melde(hs is not None and int(hs.group(1)) > 0 and bh is not None and bh['proben'] > 0 and bh['treffer'] == 0 and bh['gleich'] >= 99.9,
-              'Hof unter Himmel: %s Sonnen-/Himmelslichter, %s Proben, %.4f %% gleich, Treffer %s (Obergrenze >= 99,9 %%, Treffer 0)' %
-              (hs.group(1) if hs else '?', bh and bh['proben'], bh['gleich'] if bh else 0, bh and bh['treffer']))
+        melde(hs is not None and int(hs.group(1)) > 0 and bh is not None and bh['gpu'] > 0 and (bh['gleich'] == 100.0 or not doppelt),
+              'Hof unter Himmel: %s Sonnen-/Himmelslichter, %s Lightmaps auf der GPU, %.4f %% der Luxel gleich' %
+              (hs.group(1) if hs else '?', bh and bh['gpu'], bh['gleich'] if bh else 0))
         if doppelt:
             anders = [i for i in range(18) if hof['hgpu'][0][i] != hof['hcpu'][0][i]]
             melde(not anders, 'Hof unter Himmel mit double: alle 18 Lumps Byte-gleich mit der CPU%s' % ('' if not anders else ' - anders: %s' % anders))
