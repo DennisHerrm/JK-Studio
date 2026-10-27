@@ -5241,6 +5241,12 @@ std::vector<Schritt> eigenstaendigSchritte() {
         const std::string o = platform::executableDirectory();
         return fs::path(std::u8string(reinterpret_cast<const char8_t*>(o.data()), o.size()));
     };
+    // Stufe 8c: die laufende Programmdatei (jkstudio.exe; aeltere Laufordner: behaved.exe)
+    const auto programmDatei = [programmOrdner] {
+        std::error_code ec;
+        const fs::path neu = programmOrdner() / "jkstudio.exe";
+        return fs::exists(neu, ec) ? neu : programmOrdner() / "behaved.exe";
+    };
     auto basis = std::make_shared<fs::path>();
     auto kopie = std::make_shared<fs::path>();
     auto griff = std::make_shared<std::uintptr_t>(0);
@@ -5253,8 +5259,8 @@ std::vector<Schritt> eigenstaendigSchritte() {
         fs::remove_all(*basis, ec);
         fs::create_directories(*basis / "prog", ec);
         fs::create_directories(*basis / "einst", ec);
-        *kopie = *basis / "prog" / "BehavEd-Remake-selbsttest-windows-x64.exe";
-        fs::copy_file(hier / "behaved.exe", *kopie, fs::copy_options::overwrite_existing, ec);
+        *kopie = *basis / "prog" / "JK-Studio-selbsttest-windows-x64.exe";
+        fs::copy_file(programmDatei(), *kopie, fs::copy_options::overwrite_existing, ec);
         diag::detail("Knopftest: Eigenstaendig - Kopie " + u8(*kopie) + (ec ? " FEHLT: " + ec.message() : ""));
     }));
     add(pruefe("Eigenstaendig: die Kopie liegt allein im Ordner (kein data daneben)", [=] {
@@ -5359,8 +5365,8 @@ std::vector<Schritt> eigenstaendigSchritte() {
         std::error_code ec;
         fs::create_directories(*basis2 / "prog", ec);
         fs::create_directories(*basis2 / "einst", ec);
-        *kopie2 = *basis2 / "prog" / "BehavEd-Remake-selbsttest-windows-x64.exe";
-        fs::copy_file(programmOrdner() / "behaved.exe", *kopie2, fs::copy_options::overwrite_existing, ec);
+        *kopie2 = *basis2 / "prog" / "JK-Studio-selbsttest-windows-x64.exe";
+        fs::copy_file(programmDatei(), *kopie2, fs::copy_options::overwrite_existing, ec);
         {
             std::ofstream sperre(*basis2 / "einst" / "data", std::ios::binary);
             sperre << "eine Datei, kein Ordner\n";
@@ -18720,7 +18726,8 @@ std::vector<Schritt> umzugSchritte() {
         return !umgebung("BHED_APPDATA").empty() && umgebung("BHED_EINSTELLUNGEN").empty() && platform::settingsDirectory() == soll;
     }));
     add(pruefe("Umzug: die alte Einstellungsdatei ist im neuen Ordner (behaved.cfg)", [] {
-        return std::filesystem::exists(std::filesystem::u8path(platform::settingsDirectory() + "\\behaved.cfg"));
+        const std::string d = platform::settingsDirectory() + "\\behaved.cfg";
+        return std::filesystem::exists(std::filesystem::path(std::u8string(reinterpret_cast<const char8_t*>(d.data()), d.size())));
     }));
     add(pruefe("Umzug: Sprache Japanisch aus den alten Einstellungen", [] {
         diag::detail("Knopftest: Umzug - Sprache " + g_app->settings.language);
@@ -18740,8 +18747,9 @@ std::vector<Schritt> umzugSchritte() {
     }));
     add(pruefe("Umzug: der alte Ordner bleibt (behaved.cfg und der Shader-Zwischenspeicher dort), die Zwischenspeicher wurden nicht kopiert", [umgebung] {
         namespace fs = std::filesystem;
-        const fs::path alt = fs::u8path(umgebung("BHED_APPDATA") + "\\behaved");
-        const fs::path neu = fs::u8path(umgebung("BHED_APPDATA") + "\\jkstudio");
+        const auto pfad = [](const std::string& t) { return fs::path(std::u8string(reinterpret_cast<const char8_t*>(t.data()), t.size())); };
+        const fs::path alt = pfad(umgebung("BHED_APPDATA") + "\\behaved");
+        const fs::path neu = pfad(umgebung("BHED_APPDATA") + "\\jkstudio");
         std::ifstream f(alt / "behaved.cfg", std::ios::binary);
         std::ostringstream o;
         o << f.rdbuf();
@@ -37150,7 +37158,8 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         // + "Keep editor data", "Partial compile: reuse VIS", "Partial compile: reuse light",
         // "Add to compiled map...", "Notify when a build is done" je 24 (Stufe 8a, Abweichung;
         // der laengste Text "Partial compile: reuse light" mit Hakenspalte: 215 -> 241)
-        {"Build", {"Build"}, 241, 405 + 7 + 24 + 24 + 24 + 24 + 24 + 5 * 24},
+        // + "Pack map as .pk3" 24 (Stufe 8c, Abweichung; kuerzer als 241)
+        {"Build", {"Build"}, 241, 405 + 7 + 24 + 24 + 24 + 24 + 24 + 5 * 24 + 24},
         {"Grid", {"Grid"}, 163, 346},
         // Misc und Help: NRC + die Programm-Eintraege (Stufe 3 Punkt 0b, Abweichung):
         // Misc + Trenner 7 + drei Untermenues je 24, Help + Manual und About BehavEd.

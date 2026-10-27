@@ -261,6 +261,9 @@ std::vector<Schritt> tutorial() {
         ke::bauMenueSicherstellen();
         e.spielen.startAnSpawn = false;
         e.echtLicht.an = false;
+        // wie nach einem frischen Start: die Arbeitszone (Hoehe eines neu gezogenen Brushes,
+        // Select_getWorkZone) wie beim Programmstart - im vollen Lauf lag sie vom vorigen Teil auf 0..64
+        e.workzone = karte::Kasten{karte::Vektor3f(0, 0, 0), karte::Vektor3f(64, 64, 64)};
         std::error_code ec;
         std::filesystem::remove_all(std::filesystem::path(stufe3::laufOrdner("tutorial")), ec);
         std::filesystem::create_directories(std::filesystem::path(stamm()).parent_path(), ec);
