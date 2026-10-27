@@ -405,6 +405,7 @@ void listeZeichnen(const std::string& name) {
             p.tooltip = trK(Str::KeLgMenueTip);
             if (qtPunkt(p)) { logikZeigen(); }
         }
+        spiegelMenue();   // Stufe 8b Punkt 6
         qtTrenner();
         if (qtMenueAnfang((std::string(trK(Str::ViewTarget)) + "###progziel").c_str())) {
             QtPunkt sp;

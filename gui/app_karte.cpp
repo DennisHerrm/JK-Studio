@@ -339,6 +339,11 @@ Editor& editor() {
         // Die Konsole bekommt die Undo-Meldungen (undo.cpp:292-333).
         e.karte.undo.ausgabe = [](const std::string& s) { ausgabe(s); };
         e.karte.undo.alsGespeichertMarkieren();
+        // Stufe 8b Punkt 6: der Spiegel-Modus schreibt die Gegenstuecke im selben Befehl.
+        e.karte.undo.vorAbschluss = [] {
+            Editor& x = editor();
+            x.spiegel.abgleichen(x.karte, true);
+        };
         // MainFrame::Create: m_pXYWnd XY, m_pXZWnd XZ, m_pYZWnd YZ
         e.xy[0].ansicht.typ = karte::Sicht::XY;
         e.xy[1].ansicht.typ = karte::Sicht::XZ;
@@ -1539,6 +1544,7 @@ void zeichne(float hoehe) {
     const ImVec2 maus = ImGui::GetIO().MousePos;
     e.mausX = static_cast<int>(std::floor((maus.x - bildpunkt(0, y).x) / g_s));
     e.mausY = static_cast<int>(std::floor((maus.y - bildpunkt(0, y).y) / g_s));
+    spiegelTick();   // Stufe 8b Punkt 6: live beim Ziehen, vor dem Zeichnen
     const auto ansichtenStart = std::chrono::steady_clock::now();
     anordnungZeichnen(0, y, mitteB, mitteH);
     e.ansichtenMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ansichtenStart).count();

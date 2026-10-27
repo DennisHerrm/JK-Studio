@@ -366,6 +366,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_spielen.cpp
     gui/app_karte_logik.cpp
     gui/app_karte_ansichtsmodi.cpp
+    gui/app_karte_spiegel.cpp
     gui/app_karte_meshtex.cpp
     gui/karte_qtdialog.cpp
     gui/app_karte_menue.cpp
@@ -890,6 +891,7 @@ target_sources(bhed_core PRIVATE
   src/karte/spielkollision.cpp
   # Stufe 8b Punkt 4: Logik-Ansicht (Verknuepfungen der Entities)
   src/karte/logik.cpp
+  src/karte/spiegel.cpp
   # Stufe 5 Punkt 1: die Grenzen von JKA / MP / Movie Duels / JK2 als Daten
   src/karte/grenzen.cpp
   # Stufe 5 Punkt 2: der Optimierer zaehlt (cm_patch.cpp fuer die Patch-Kollision)
@@ -1114,6 +1116,10 @@ if(BEHAVED_TESTS)
   add_executable(kartelogik tests/kartelogik.cpp)
   target_link_libraries(kartelogik PRIVATE bhed_core)
   add_test(NAME karte_logik COMMAND kartelogik)
+  # Stufe 8b Punkt 6: der Spiegel-Modus
+  add_executable(kartespiegel tests/kartespiegel.cpp)
+  target_link_libraries(kartespiegel PRIVATE bhed_core)
+  add_test(NAME karte_spiegel COMMAND kartespiegel)
   # Stufe 4 Punkt 3: brushexport2 - .obj / .mtl wie export.cpp
   add_executable(kartebrushexport tests/kartebrushexport.cpp)
   target_link_libraries(kartebrushexport PRIVATE bhed_core)

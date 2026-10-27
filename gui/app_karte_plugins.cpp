@@ -960,6 +960,7 @@ bool pluginXyDruck(int fenster, int knopf, const karte::Vektor3f& welt) {
 std::vector<PluginLinien> pluginLinien2d() {
     const BobToolzZustand& b = e().bob;
     std::vector<PluginLinien> v;
+    spiegelLinien(v);   // Stufe 8b Punkt 6: die Spiegelebene
     // DBobView::renderWireframe -> renderSolid: $bobtoolz/bobview/line (rot, 2) und
     // mit "Show Bounding Lines" viermal versetzt in $bobtoolz/bobview/box (0.25 0.75 0.75, 1)
     if (b.bahn.aktiv && b.bahn.punkte.size() >= 2) {

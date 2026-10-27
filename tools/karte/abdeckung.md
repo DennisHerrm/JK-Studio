@@ -12,8 +12,8 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 | Einstellungsfelder | 79 | 78 | 1 | 0 | 0 |
 | Plugins | 69 | 69 | 0 | 0 | 0 |
 | Mausbelegung | 62 | 62 | 0 | 0 | 0 |
-| Eigene Eintraege | 33 | 33 | 0 | 0 | 0 |
-| **Summe** | 973 | 969 | 4 | 0 | 0 |
+| Eigene Eintraege | 39 | 39 | 0 | 0 | 0 |
+| **Summe** | 979 | 975 | 4 | 0 | 0 |
 
 ## Begruendete Ausnahmen
 
@@ -1039,3 +1039,9 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 | `Eigen \| View > Camera view modes > Lightmap density` | OK | Camera view modes > Lightmap density: Luxel wie q3map2 - Boden 16, func_group mit _lightmapscale 2 = 32, 4096er Platte vergroessert auf 33 |
 | `Eigen \| View > Camera view modes > Visibility (PVS)` | OK | Camera view modes > Visibility (PVS): aus der .bsp; die Zahl der sichtbaren Cluster gleich den Bits im Vis-Lump, weniger als alle |
 | `Eigen \| View > Camera view modes > Triangle load` | OK | Camera view modes > Triangle load: Last am Ort gleich den Dreiecken der sichtbaren Flaechen, hoechste Last >= diese |
+| `Eigen \| View > Mirror mode > Mirror plane X` | OK | View > Mirror mode > Mirror plane X: an, Ebene X = 0, Meldung in der Konsole, magenta Linie in den 2D-Ansichten; Ziehen: schon waehrend des Ziehens (Befehl offen) ist das Gegenstueck gespiegelt; danach genau das Spiegelbild wie Flip, ein Rueckgaengig-Schritt; Mirror mode: Strg+Z stellt beide Seiten byte-gleich her (das Gegenstueck ist weg); Mirror mode: Strg+Y stellt den Stand nach dem Ziehen byte-gleich her; Mirror mode: Punktentitaet gezogen - Gegenstueck mit gespiegeltem origin (-x) und angle 30 -> 150 |
+| `Eigen \| View > Mirror mode > Mirror plane Y` | OK | View > Mirror mode > Mirror plane Y: Achse Y, die Paare der X-Ebene vergessen |
+| `Eigen \| View > Mirror mode > Mirror plane Z` | OK | View > Mirror mode > Mirror plane Z: Achse Z |
+| `Eigen \| View > Mirror mode > Plane through selection center (on grid)` | OK | View > Mirror mode > Plane through selection center (on grid): Ebene Y = Mitte der Auswahl auf dem Raster |
+| `Eigen \| View > Mirror mode > Plane through origin` | OK | View > Mirror mode > Plane through origin: Ebene = 0 |
+| `Eigen \| View > Mirror mode > Off` | OK | View > Mirror mode > Off: aus, keine Paare, keine Linie |

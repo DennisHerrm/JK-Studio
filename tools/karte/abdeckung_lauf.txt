@@ -3106,3 +3106,47 @@ Knopftest OK: View > Camera view modes > Collision: playerclip farbig, die sicht
 Knopftest OK: Camera view modes > Lightmap density: Luxel wie q3map2 - Boden 16, func_group mit _lightmapscale 2 = 32, 4096er Platte vergroessert auf 33
 Knopftest OK: Camera view modes > Visibility (PVS): aus der .bsp; die Zahl der sichtbaren Cluster gleich den Bits im Vis-Lump, weniger als alle
 Knopftest OK: Camera view modes > Triangle load: Last am Ort gleich den Dreiecken der sichtbaren Flaechen, hoechste Last >= diese
+Knopftest OK: Modusleiste: Karten-Editor ist der Arbeitsbereich
+
+Knopftest OK: Spiel: Entity-Klassen aus data/karte, worldspawn und info_player_start bekannt
+
+Knopftest OK: Standard-Texturskalierung 0.25 (default_scale aus ja.game/jk2.game)
+
+Knopftest OK: Vorgabe "New map Brush Type": Brush Primitives (Index 1, wie NRC)
+
+Knopftest OK: Geoeffnet: Name, 2 Entities, 1 Pinsel, nicht geaendert
+
+Knopftest OK: Gespeichert: Datei bytegleich zur Quelle (NRC-Format), oben in der zuletzt-Liste
+
+Knopftest OK: Geaendert (Map_Modified)
+
+Knopftest OK: New Map bei geaenderter Karte: Rueckfrage offen
+
+Knopftest OK: Cancel: Karte bleibt (Name, Aenderung)
+
+Knopftest OK: Discard: neue, leere Karte "unnamed.map"
+
+Knopftest OK: Zuletzt geoeffnet: die Kopie ist offen
+
+Knopftest OK: Konsole: Ladezeilen wie NRC (Loading map from, primitives, entities)
+
+Knopftest OK: View > Mirror mode > Mirror plane X: an, Ebene X = 0, Meldung in der Konsole, magenta Linie in den 2D-Ansichten
+
+Knopftest OK: Ziehen: schon waehrend des Ziehens (Befehl offen) ist das Gegenstueck gespiegelt; danach genau das Spiegelbild wie Flip, ein Rueckgaengig-Schritt
+
+Knopftest OK: Mirror mode: Strg+Z stellt beide Seiten byte-gleich her (das Gegenstueck ist weg)
+
+Knopftest OK: Mirror mode: Strg+Y stellt den Stand nach dem Ziehen byte-gleich her
+
+Knopftest OK: Mirror mode: Punktentitaet gezogen - Gegenstueck mit gespiegeltem origin (-x) und angle 30 -> 150
+
+Knopftest OK: View > Mirror mode > Mirror plane Y: Achse Y, die Paare der X-Ebene vergessen
+
+Knopftest OK: View > Mirror mode > Plane through selection center (on grid): Ebene Y = Mitte der Auswahl auf dem Raster
+
+Knopftest OK: View > Mirror mode > Plane through origin: Ebene = 0
+
+Knopftest OK: View > Mirror mode > Mirror plane Z: Achse Z
+
+Knopftest OK: View > Mirror mode > Off: aus, keine Paare, keine Linie
+

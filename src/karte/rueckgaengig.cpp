@@ -164,10 +164,13 @@ void Rueckgaengig::start() {
     }
     startUndo();
     m_anstehend = Anstehend::Befehl;   // trackersBegin
+    m_befehlOffen = true;
 }
 
 // finish (undo.cpp:292-301)
 void Rueckgaengig::finish(const std::string& name) {
+    if (m_befehlOffen && vorAbschluss) { vorAbschluss(); }
+    m_befehlOffen = false;
     ++m_abschluesse;
     if (finishUndo(name) && ausgabe) { ausgabe(name); }
 }
@@ -214,6 +217,7 @@ bool Rueckgaengig::redo() {
 
 // clear (undo.cpp:334-339)
 void Rueckgaengig::clear() {
+    m_befehlOffen = false;
     markieren(nullptr);
     m_undoStapel.leeren();
     m_redoStapel.leeren();

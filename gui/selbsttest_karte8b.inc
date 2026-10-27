@@ -1159,6 +1159,192 @@ std::vector<Schritt> ansichten() {
     return s;
 }
 
+// --- Punkt 6: Spiegel-Modus ----------------------------------------------------------
+//
+// Wirkung: View > Mirror mode > Mirror plane X schaltet ein (Meldung, magenta
+// Linie in 2D); ein Pinsel wird in der XY-Ansicht mit der Maus gezogen - schon
+// waehrend des Ziehens steht das Gegenstueck gespiegelt da, nach dem Loslassen
+// genau das Spiegelbild (wie Flip); ein Rueckgaengig-Schritt; Strg+Z stellt die
+// Karte byte-gleich her (Gegenstueck weg), Strg+Y wieder den Stand danach;
+// eine Punktentitaet gezogen: origin und angle gespiegelt; Off schaltet aus.
+std::string spKarte() { return karteTestPfad("s8bsp\\spiegel.map"); }
+
+bool spGespiegelt(const std::shared_ptr<karte::Primitiv>& a, const std::shared_ptr<karte::Primitiv>& b) {
+    const ke::Editor& e = ke::editor();
+    if (!a || !b) { return false; }
+    return karte::primitivText(*b, e.karte.kontext) == karte::primitivText(*karte::primitivGespiegelt(*a, 0, 0, e.karte.kontext), e.karte.kontext);
+}
+
+// Ziehen in der XY-Ansicht mit M1; im Bild "mitte" laeuft "pruef" (live).
+Schritt spZiehen(const std::string& was, ImVec2 von, ImVec2 nach, std::function<void()> pruef) {
+    return Schritt{was, [=](int b) {
+                       ImGuiIO& io = ImGui::GetIO();
+                       const ImVec2 a = stufe2::weltXy(von.x, von.y);
+                       const ImVec2 z = stufe2::weltXy(nach.x, nach.y);
+                       if (b == 0) {
+                           setzeMaus(a);
+                           return false;
+                       }
+                       if (b == 1) {
+                           io.AddMouseButtonEvent(0, true);
+                           return false;
+                       }
+                       if (b >= 2 && b <= 11) {
+                           const float t = static_cast<float>(b - 1) / 10.0F;
+                           setzeMaus(ImVec2{a.x + (z.x - a.x) * t, a.y + (z.y - a.y) * t});
+                           return false;
+                       }
+                       if (b == 12) {
+                           pruef();   // Maus noch unten, Befehl offen
+                           io.AddMouseButtonEvent(0, false);
+                           return false;
+                       }
+                       return b >= 15;
+                   }};
+}
+
+std::vector<Schritt> spiegel() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    add(stufe2::grundzustand("Stufe 8b/6: Grundzustand"));
+    add(tu("Testkarte (Pinsel 32..96 x 0..64, info_player_start 100 50 8 angle 30) schreiben und oeffnen, XY-Ansicht auf den Ursprung", [] {
+        karteDialogeZu();
+        std::string t = weltText(kastenText(32, 0, 0, 96, 64, 64, "test/a"));
+        t += "{\n\"classname\" \"info_player_start\"\n\"origin\" \"100 50 8\"\n\"angle\" \"30\"\n}\n";
+        std::filesystem::create_directories(std::filesystem::path(spKarte()).parent_path());
+        {
+            std::ofstream f(std::filesystem::path(spKarte()), std::ios::binary | std::ios::trunc);
+            f << t;
+        }
+        (void)ke::karteOeffnen(spKarte());
+        ke::Editor& e = ke::editor();
+        e.spiegel = karte::SpiegelModus{};
+        e.xy[0].ansicht.setzeMassstab(1);
+        e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 0));
+        ++e.sichtStand;
+    }));
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeSgMenue)) + "###spiegel", "", 0, true));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeSgX)) + "###spiegelx", "", 0, true));
+    add(pause(0.3));
+    add(pruefe("View > Mirror mode > Mirror plane X: an, Ebene X = 0, Meldung in der Konsole, magenta Linie in den 2D-Ansichten", [] {
+        const ke::Editor& e = ke::editor();
+        char z[160];
+        std::snprintf(z, sizeof(z), ke::trK(Str::KeSgMeldung), 'X', 0.0);
+        bool linie = false;
+        for (const ke::PluginLinien& l : ke::pluginLinien2d()) {
+            for (const karte::Linie& x : l.linien) { linie = linie || (x.a[0] == 0 && x.b[0] == 0 && x.a[1] != x.b[1]); }
+        }
+        return e.spiegel.an && e.spiegel.achse == 0 && e.spiegel.ebene == 0 && konsoleText().find(z) != std::string::npos && linie;
+    }));
+    auto vorher = std::make_shared<std::string>();
+    auto nachher = std::make_shared<std::string>();
+    auto live = std::make_shared<int>(0);
+    auto stufen = std::make_shared<std::size_t>(0);
+    add(tu("Pinsel waehlen, Kartentext merken", [vorher, stufen] {
+        weltWaehlen({0});
+        *vorher = kartenText();
+        *stufen = ke::editor().karte.undo.undoAnzahl();
+    }));
+    add(pause(0.2));
+    add(spZiehen("Pinsel in XY von (64 32) nach (128 64) ziehen", ImVec2{64, 32}, ImVec2{128, 64}, [live] {
+        const ke::Editor& e = ke::editor();
+        const auto& k = e.karte.welt()->kinder();
+        const auto b = e.spiegel.gegenstueck(k[0].get());
+        *live = !e.karte.undo.befehlOffen() ? -1 : (spGespiegelt(k[0], b) ? 1 : 0);
+    }));
+    add(pause(0.3));
+    add(pruefe("Ziehen: schon waehrend des Ziehens (Befehl offen) ist das Gegenstueck gespiegelt; danach genau das Spiegelbild wie Flip, ein Rueckgaengig-Schritt", [live, stufen, nachher] {
+        const ke::Editor& e = ke::editor();
+        const auto& k = e.karte.welt()->kinder();
+        const auto b = k.size() == 2 ? e.spiegel.gegenstueck(k[0].get()) : nullptr;
+        const auto& g = static_cast<const karte::Pinsel&>(*k[0]).grenzen(e.karte.kontext);
+        diag::detail("Knopftest: Stufe 8b/6 live " + std::to_string(*live) + ", Pinsel " + std::to_string(k.size()) + ", Mitte " +
+                     std::to_string(g.origin[0]) + " " + std::to_string(g.origin[1]) + ", Schritte " +
+                     std::to_string(e.karte.undo.undoAnzahl() - *stufen) + " (" + e.karte.undo.undoName() + ")");
+        *nachher = kartenText();
+        return *live == 1 && b != nullptr && b == k[1] && spGespiegelt(k[0], b) && g.origin[0] > 64 && e.karte.undo.undoAnzahl() == *stufen + 1;
+    }));
+    add(foto("karteneditor_s8b_spiegel"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.3));
+    add(pruefe("Mirror mode: Strg+Z stellt beide Seiten byte-gleich her (das Gegenstueck ist weg)", [vorher] {
+        return kartenText() == *vorher && ke::editor().karte.welt()->kinder().size() == 1;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Y, "Strg+Y"));
+    add(pause(0.3));
+    add(pruefe("Mirror mode: Strg+Y stellt den Stand nach dem Ziehen byte-gleich her", [nachher] { return kartenText() == *nachher; }));
+    add(tu("info_player_start waehlen", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        for (const auto& ent : e.karte.entitaeten()) {
+            if (ent->klassenname() == "info_player_start") { e.karte.auswahl.waehlen(ent); }
+        }
+        ke::auswahlGeaendert();
+    }));
+    add(pause(0.2));
+    add(stufe2::ziehenXy("info_player_start in XY um 0 32 ziehen", 0, 0, ImVec2{100, 50}, ImVec2{100, 82}));
+    add(pause(0.3));
+    add(pruefe("Mirror mode: Punktentitaet gezogen - Gegenstueck mit gespiegeltem origin (-x) und angle 30 -> 150", [] {
+        const ke::Editor& e = ke::editor();
+        std::shared_ptr<karte::Entitaet> a;
+        for (const auto& ent : e.karte.entitaeten()) {
+            if (ent->klassenname() == "info_player_start" && e.karte.auswahl.gewaehlt(ent.get())) { a = ent; }
+        }
+        const auto b = a ? e.spiegel.gegenstueck(a.get()) : nullptr;
+        diag::detail("Knopftest: Stufe 8b/6 Entity " + (a ? a->wert("origin") + " / " + a->wert("angle") : std::string("-")) + " -> " +
+                     (b ? b->wert("origin") + " / " + b->wert("angle") : std::string("-")));
+        if (!a || !b) { return false; }
+        double va[3];
+        double vb[3];
+        return std::sscanf(a->wert("origin").c_str(), "%lf %lf %lf", &va[0], &va[1], &va[2]) == 3 &&
+               std::sscanf(b->wert("origin").c_str(), "%lf %lf %lf", &vb[0], &vb[1], &vb[2]) == 3 && vb[0] == -va[0] && vb[1] == va[1] && vb[2] == va[2] &&
+               va[1] > 50 && b->wert("angle") == "150";
+    }));
+    // Achse Y, Ebene an der Auswahl, Ebene durch den Ursprung, Achse Z
+    const auto menuePunkt = [&add](Str text, const char* id) {
+        add(klick(ke::trK(Str::KeLView), "###main"));
+        add(pause(0.2));
+        add(klick(std::string(ke::trK(Str::KeSgMenue)) + "###spiegel", "", 0, true));
+        add(pause(0.2));
+        add(klick(std::string(ke::trK(text)) + id, "", 0, true));
+        add(pause(0.3));
+    };
+    add(tu("Pinsel waehlen (Mitte y 48 nach dem Ziehen)", [] { weltWaehlen({0}); }));
+    menuePunkt(Str::KeSgY, "###spiegely");
+    add(pruefe("View > Mirror mode > Mirror plane Y: Achse Y, die Paare der X-Ebene vergessen", [] {
+        const ke::Editor& e = ke::editor();
+        return e.spiegel.an && e.spiegel.achse == 1 && e.spiegel.paarAnzahl() == 0;
+    }));
+    menuePunkt(Str::KeSgMitte, "###spiegelmitte");
+    add(pruefe("View > Mirror mode > Plane through selection center (on grid): Ebene Y = Mitte der Auswahl auf dem Raster", [] {
+        const ke::Editor& e = ke::editor();
+        const karte::Kasten b = karte::auswahlGrenzenPivot(e.karte);
+        const double r = e.raster.groesse();
+        diag::detail("Knopftest: Stufe 8b/6 Ebene " + std::to_string(e.spiegel.ebene) + " (Mitte " + std::to_string(b.origin[1]) + ", Raster " + std::to_string(r) + ")");
+        return e.spiegel.ebene == std::round(b.origin[1] / r) * r && e.spiegel.ebene != 0;
+    }));
+    menuePunkt(Str::KeSgNull, "###spiegelnull");
+    add(pruefe("View > Mirror mode > Plane through origin: Ebene = 0", [] { return ke::editor().spiegel.ebene == 0; }));
+    menuePunkt(Str::KeSgZ, "###spiegelz");
+    add(pruefe("View > Mirror mode > Mirror plane Z: Achse Z", [] { return ke::editor().spiegel.an && ke::editor().spiegel.achse == 2; }));
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeSgMenue)) + "###spiegel", "", 0, true));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeSgAus)) + "###spiegelaus", "", 0, true));
+    add(pause(0.3));
+    add(pruefe("View > Mirror mode > Off: aus, keine Paare, keine Linie", [] {
+        const ke::Editor& e = ke::editor();
+        bool linie = false;
+        for (const ke::PluginLinien& l : ke::pluginLinien2d()) { linie = linie || !l.linien.empty(); }
+        return !e.spiegel.an && e.spiegel.paarAnzahl() == 0 && !linie;
+    }));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     const char* nur = std::getenv("BHED_STUFE8B_NUR");
@@ -1171,6 +1357,7 @@ std::vector<Schritt> schritte() {
     if (teil("spielen")) { dazu(spielen()); }
     if (teil("logik")) { dazu(logik()); }
     if (teil("ansichten")) { dazu(ansichten()); }
+    if (teil("spiegel")) { dazu(spiegel()); }
     return s;
 }
 

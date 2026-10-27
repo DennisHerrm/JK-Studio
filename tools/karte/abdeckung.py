@@ -234,6 +234,17 @@ EIGENE = [
     ('Eigen|View > Camera view modes > Lightmap density', 'Luxel wie q3map2 (Stufe 8b/5)', [re.escape('Camera view modes > Lightmap density: ')]),
     ('Eigen|View > Camera view modes > Visibility (PVS)', 'PVS aus der .bsp (Stufe 8b/5)', [re.escape('Camera view modes > Visibility (PVS): ')]),
     ('Eigen|View > Camera view modes > Triangle load', 'Waermekarte aus der .bsp (Stufe 8b/5)', [re.escape('Camera view modes > Triangle load: ')]),
+    # Punkt 6: Spiegel-Modus
+    ('Eigen|View > Mirror mode > Mirror plane X', 'an, Linie, Ziehen live gespiegelt, Undo/Redo byte-gleich, Entity (Stufe 8b/6)',
+     [re.escape('View > Mirror mode > Mirror plane X: '), re.escape('Ziehen: schon waehrend des Ziehens (Befehl offen) ist das Gegenstueck gespiegelt'),
+      re.escape('Mirror mode: Strg+Z stellt beide Seiten byte-gleich her'), re.escape('Mirror mode: Strg+Y stellt den Stand nach dem Ziehen byte-gleich her'),
+      re.escape('Mirror mode: Punktentitaet gezogen')]),
+    ('Eigen|View > Mirror mode > Mirror plane Y', 'Achse Y (Stufe 8b/6)', [re.escape('View > Mirror mode > Mirror plane Y: ')]),
+    ('Eigen|View > Mirror mode > Mirror plane Z', 'Achse Z (Stufe 8b/6)', [re.escape('View > Mirror mode > Mirror plane Z: ')]),
+    ('Eigen|View > Mirror mode > Plane through selection center (on grid)', 'Ebene an der Auswahl (Stufe 8b/6)',
+     [re.escape('View > Mirror mode > Plane through selection center (on grid): ')]),
+    ('Eigen|View > Mirror mode > Plane through origin', 'Ebene 0 (Stufe 8b/6)', [re.escape('View > Mirror mode > Plane through origin: ')]),
+    ('Eigen|View > Mirror mode > Off', 'aus (Stufe 8b/6)', [re.escape('View > Mirror mode > Off: ')]),
 ]
 
 

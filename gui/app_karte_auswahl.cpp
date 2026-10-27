@@ -256,7 +256,10 @@ void beobachterBewegung(int fenster, float x, float y) {   // onMouseMotion
     if (b.mausUnten && b.ziel != FensterBeobachter::Ziel::Keins) {
         b.manipBewegtGedrueckt = b.mausBewegtGedrueckt = bewegtEps(b, x, y, b.bewegStart, b.bewegtGedrueckt);
         if (b.ziel == FensterBeobachter::Ziel::Manipulator) {
-            if (b.manipBewegtGedrueckt) { ed.bearbeitung.auswahlBewegen(blick(fenster), pos); }   // Manipulator_::mouseMoved
+            if (b.manipBewegtGedrueckt) {
+                ed.bearbeitung.auswahlBewegen(blick(fenster), pos);   // Manipulator_::mouseMoved
+                spiegelTick();   // Stufe 8b Punkt 6: das Gegenstueck im selben Bild
+            }
         } else if (b.ziel == FensterBeobachter::Ziel::Textur) {
             texturBewegung(fenster, pos);
         } else {

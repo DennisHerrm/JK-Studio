@@ -2355,6 +2355,18 @@ enum class Str {
     KeAmSichtHud,
     KeAmLastHud,
     KeAmKeineBsp,
+    KeSgMenue,
+    KeSgAus,
+    KeSgX,
+    KeSgY,
+    KeSgZ,
+    KeSgTip,
+    KeSgMitte,
+    KeSgMitteTip,
+    KeSgNull,
+    KeSgNullTip,
+    KeSgMeldung,
+    KeSgAusMeldung,
     Count,
 };
 

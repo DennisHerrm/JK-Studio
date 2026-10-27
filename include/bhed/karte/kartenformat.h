@@ -64,6 +64,12 @@ std::string karteSchreiben(const Karte& karte, const std::function<bool(const En
 // den sechs Kastenpinseln, "}", ein info_player_start am spawn ("%g") und die
 // gewaehlten Punktentitaeten ueber writeGraph (Ebenen, "// entity N"); am Ende
 // das ausstehende '\n' des ersten TokenWriter (writer.release()).
+// Stufe 8b: ein Objekt allein, genau wie es in der Karte steht (Spiegel-Modus:
+// der Vergleich, ob sich etwas geaendert hat). primitivText: der Pinsel bzw.
+// Patch ab "{"; entitaetText: die Schluessel und alle Kinder, ohne Kommentare.
+std::string primitivText(const Primitiv& p, const Kontext& k);
+std::string entitaetText(const Entitaet& e, const Kontext& k);
+
 std::string autocaulkKarteSchreiben(const Karte& karte, const std::vector<const Pinsel*>& pinsel, const std::array<const Pinsel*, 6>& kasten,
                                     const Vektor3f& spawn, const std::function<bool(const Entitaet&)>& punktEntitaet);
 

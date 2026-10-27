@@ -892,6 +892,35 @@ std::string karteSchreiben(const Karte& karte, const std::function<bool(const En
     return w.text;
 }
 
+std::string primitivText(const Primitiv& p, const Kontext& k) {
+    Schreiber w;
+    if (p.art() == Primitiv::Art::Pinsel) {
+        pinselSchreiben(w, static_cast<const Pinsel&>(p), k, nullptr);
+    } else {
+        patchSchreibenTeil(w, static_cast<const Patch&>(p), false);
+    }
+    w.ende();
+    return w.text;
+}
+
+std::string entitaetText(const Entitaet& e, const Kontext& k) {
+    Schreiber w;
+    for (const auto& [s, v] : e.schluessel()) {
+        w.zeichenkette(s);
+        w.zeichenkette(v);
+        w.nextLine();
+    }
+    for (const auto& p : e.kinder()) {
+        if (p->art() == Primitiv::Art::Pinsel) {
+            pinselSchreiben(w, static_cast<const Pinsel&>(*p), k, nullptr);
+        } else {
+            patchSchreibenTeil(w, static_cast<const Patch&>(*p), false);
+        }
+    }
+    w.ende();
+    return w.text;
+}
+
 std::string autocaulkKarteSchreiben(const Karte& karte, const std::vector<const Pinsel*>& pinsel, const std::array<const Pinsel*, 6>& kasten,
                                     const Vektor3f& spawn, const std::function<bool(const Entitaet&)>& punktEntitaet) {
     // all brushes to the worldspawn

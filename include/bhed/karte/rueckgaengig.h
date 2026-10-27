@@ -123,7 +123,15 @@ public:
     // "Redo: ..." (undo.cpp:292-333) - fuer die Konsole.
     std::function<void(const std::string&)> ausgabe;
 
+    // Stufe 8b (nicht in NRC): laeuft zu Beginn von finish(), solange der
+    // Befehl noch offen ist - der Spiegel-Modus schreibt dort die Gegenstuecke,
+    // damit sie im selben Rueckgaengig-Schritt landen.
+    std::function<void()> vorAbschluss;
+    // Zwischen start() und finish() (z. B. waehrend eines Ziehens).
+    [[nodiscard]] bool befehlOffen() const { return m_befehlOffen; }
+
 private:
+    bool m_befehlOffen = false;
     friend class Rueckgaengigbar;
 
     struct Zustand {   // Snapshot::StateApplicator

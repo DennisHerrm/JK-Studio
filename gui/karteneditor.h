@@ -49,6 +49,7 @@
 #include "bhed/karte/karte.h"
 #include "bhed/karte/kartenformat.h"
 #include "bhed/karte/raster.h"
+#include "bhed/karte/spiegel.h"
 #include "bhed/karte/teiler.h"
 #include "bhed/karte/texturbrowser.h"
 #include "bhed/karte/texturkopie.h"
@@ -608,6 +609,7 @@ struct Editor {
     SpielenZustand spielen;   // Stufe 8b Punkt 3
     LogikZustand logik;       // Stufe 8b Punkt 4
     AnsichtsModiZustand ansichtsmodi;   // Stufe 8b Punkt 5
+    karte::SpiegelModus spiegel;        // Stufe 8b Punkt 6
     karte::plugins::UfoaiZustand ufoai;
     karte::ZuletztListe zuletzt;
     bool zuletztGeladen = false;
@@ -1687,6 +1689,13 @@ struct PluginLinien {
     float breite = 1.0F;
 };
 [[nodiscard]] std::vector<PluginLinien> pluginLinien2d();
+// Stufe 8b Punkt 6: Spiegel-Modus (app_karte_spiegel.cpp)
+void spiegelTick();                    // jeden Frame vor den Ansichten
+void spiegelSetzen(int achse);         // -1 aus, 0 X, 1 Y, 2 Z
+void spiegelEbeneAnAuswahl();          // Ebene durch die Mitte der Auswahl (aufs Raster)
+void spiegelEbeneNull();               // Ebene durch den Ursprung
+void spiegelMenue();                   // View > Mirror mode
+void spiegelLinien(std::vector<PluginLinien>& v);   // die Ebene in den 2D-Ansichten
 // ... und in der Kamera: eSortFullbright (DBobView) bzw. eSortOverlayFirst
 // (DTrainDrawer, DVisDrawer); fuellen = Darstellung mit Flaechen (eFullMaterials)
 void pluginKameraVoll(const float* matrix, bool fuellen);
