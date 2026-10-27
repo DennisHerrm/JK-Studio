@@ -49,6 +49,7 @@ __declspec( dllexport ) int AmdPowerXpressRequestHighPerformance = 1;
 namespace
 {
 
+// MSVC: ein Zeichenkettenliteral hoechstens 16380 Zeichen (C2026) - der Shader in Stuecken
 const char *const g_shader = R"HLSL(
 struct Knoten { int typ; float nx; float ny; float nz; float dist; int k0; int k1; int anzahl; int erstes; int pad; };
 struct Dreieck { float v0x; float v0y; float v0z; float e1x; float e1y; float e1z; float e2x; float e2y; float e2z; int info; };
@@ -327,7 +328,8 @@ int blattTesten(int knr, Strahl r, Lm lm, int lichtSky, inout bool himmel, inout
     return 0;
 }
 
-// TraceLine: 0 frei, 1 undurchsichtig (Dreieck oder festes Blatt bei !testAll), 3 die CPU
+)HLSL"
+R"HLSL(// TraceLine: 0 frei, 1 undurchsichtig (Dreieck oder festes Blatt bei !testAll), 3 die CPU
 int strahlTesten(Strahl r, Lm lm, bool testAll, int lichtSky, out bool himmel, out bool skyOk)
 {
     himmel = false;
