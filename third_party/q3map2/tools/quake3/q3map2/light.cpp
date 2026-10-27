@@ -1789,6 +1789,74 @@ static void TraceGrid( int num ){
 	BhedGitterSpeichern( num ); /* BehavEd stage 8a: the store part on its own (unchanged) */
 }
 
+/* BehavEd stage 8g: -bhedgpubake - TraceGrid of all valid grid points on the GPU (the same light
+   contributions, directions and style split; floodlight and -sunonly stay on the CPU); a point the GPU
+   cannot do exactly (alpha shadow, unsafe) and everything after a lost device runs TraceGrid on the CPU.
+   The store part (BhedGitterSpeichern) runs on the CPU as always. */
+static void BhedTraceGridAlle(){
+	if ( g_bhedBakeAn && BhedBakeBereit() && !floodlighty && !sunOnly && !rawGridPoints.empty() && BhedBakeLichtTafel( nullptr, nullptr ) ) {
+		std::vector<int> nrs;
+		std::vector<BhedBakeGitterPunkt> punkte;
+		for ( size_t i = 0; i < rawGridPoints.size(); ++i )
+		{
+			if ( !g_bhedGridValid[ i ] ) {
+				continue; /* TraceGrid returns at once */
+			}
+			const rawGridPoint_t& gp = rawGridPoints[ i ];
+			BhedBakeGitterPunkt p{};
+			for ( int j = 0; j < 3; ++j ) {
+				p.o[ j ] = g_bhedGridOrigin[ i ][ j ];
+				p.dir[ j ] = gp.dir[ j ];
+				for ( int k = 0; k < MAX_LIGHTMAPS; ++k ) {
+					p.ambient[ k * 3 + j ] = gp.ambient[ k ][ j ];
+					p.directed[ k * 3 + j ] = gp.directed[ k ][ j ];
+				}
+			}
+			p.cluster = g_bhedGridCluster[ i ];
+			p.stile = std::uint32_t( gp.styles[ 0 ] ) | ( std::uint32_t( gp.styles[ 1 ] ) << 8 ) | ( std::uint32_t( gp.styles[ 2 ] ) << 16 ) |
+			          ( std::uint32_t( gp.styles[ 3 ] ) << 24 );
+			nrs.push_back( int( i ) );
+			punkte.push_back( p );
+		}
+		const BhedBakeGitterSchalter schalter{ gridSize[ vector3_max_abs_component_index( gridSize ) ] * 0.5f, gridAmbientDirectionality, gridDirectionality,
+		                                       cheapgrid ? 1 : 0 };
+		if ( BhedBakeGitter( punkte, schalter ) ) {
+			std::atomic<long long> cpu{ 0 };
+			bhed_par::pool( numthreads ).fuerAlle( int( nrs.size() ), [&]( int k ){
+				const int num = nrs[ k ];
+				const BhedBakeGitterPunkt& p = punkte[ k ];
+				if ( p.flag != 0 ) {
+					++cpu;
+					TraceGrid( num );
+					return;
+				}
+				rawGridPoint_t& gp = rawGridPoints[ num ];
+				bspGridPoint_t& bgp = bspGridPoints[ num ];
+				for ( int j = 0; j < 3; ++j ) {
+					gp.dir[ j ] = p.dir[ j ];
+					for ( int s = 0; s < MAX_LIGHTMAPS; ++s ) {
+						gp.ambient[ s ][ j ] = p.ambient[ s * 3 + j ];
+						gp.directed[ s ][ j ] = p.directed[ s * 3 + j ];
+					}
+				}
+				for ( int s = 0; s < MAX_LIGHTMAPS; ++s ) {
+					gp.styles[ s ] = byte( p.stile >> ( 8 * s ) );
+					if ( p.neu & ( 1u << s ) ) {
+						bgp.styles[ s ] = gp.styles[ s ];
+					}
+				}
+				BhedGitterSpeichern( num );
+			} );
+			BhedBakeGitterZaehlen( static_cast<long long>( nrs.size() ) - cpu.load(), cpu.load() );
+			return;
+		}
+	}
+	if ( g_bhedBakeAn ) {
+		BhedBakeGitterZaehlen( 0, static_cast<long long>( rawGridPoints.size() ) );
+	}
+	RunThreadsOnIndividual( rawGridPoints.size(), true, TraceGrid );
+}
+
 /* BehavEd stage 8a: the end of TraceGrid - minimum light, gridscale, ColorToBytes, direction -
    separated, so that -bhedlightcache can store restored raw grid points with new post-processing values */
 static void BhedGitterSpeichern( int num ){
@@ -2128,7 +2196,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 		if ( BhedGitterAusCache() )
 			RunThreadsOnIndividual( rawGridPoints.size(), true, BhedGitterSpeichernGueltig );
 		else
-			RunThreadsOnIndividual( rawGridPoints.size(), true, TraceGrid );
+			BhedTraceGridAlle(); /* BehavEd stage 8g: was RunThreadsOnIndividual( rawGridPoints.size(), true, TraceGrid ) */
 		inGrid = false;
 		Sys_Printf( "%d x %d x %d = %zu grid\n",
 		            gridBounds[ 0 ], gridBounds[ 1 ], gridBounds[ 2 ], bspGridPoints.size() );
@@ -2244,7 +2312,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 			inGrid = true;
 			BhedPrepareGridOrigins(); // BehavEd stage 6: see there
 			BhedZeit( "Bounce: Gitter-Vorlauf" );
-			RunThreadsOnIndividual( rawGridPoints.size(), true, TraceGrid );
+			BhedTraceGridAlle(); /* BehavEd stage 8g: was RunThreadsOnIndividual( rawGridPoints.size(), true, TraceGrid ) */
 			inGrid = false;
 			Sys_FPrintf( SYS_VRB, "%9d grid points envelope culled\n", gridEnvelopeCulled );
 			Sys_FPrintf( SYS_VRB, "%9d grid points bounds culled\n", gridBoundsCulled );

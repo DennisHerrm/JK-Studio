@@ -48,8 +48,10 @@ __declspec( dllexport ) int AmdPowerXpressRequestHighPerformance = 1;
 }
 
 static_assert( sizeof( BhedBakeLuxel ) == 40, "Luxel im Shader" );
-static_assert( sizeof( BhedBakeLm ) == 96, "Lm im Shader" );
+static_assert( sizeof( BhedBakeLm ) == 112, "Lm im Shader" );
 static_assert( sizeof( BhedBakeAktiv ) == 16, "Aktiv im Shader" );
+static_assert( sizeof( BhedBakeLicht ) == 128, "Licht im Shader" );
+static_assert( sizeof( BhedBakeGitterPunkt ) == 144, "GitterPunkt im Shader" );
 static_assert( sizeof( BhedBakeBsp::Knoten ) == 16 && sizeof( BhedBakeBsp::Ebene ) == 16 && sizeof( BhedBakeBsp::Blatt ) == 16 &&
                sizeof( BhedBakeBsp::Brush ) == 16, "BSP im Shader" );
 
@@ -74,6 +76,10 @@ namespace
 #include "g_bake_stempellauf_d1_m2.h"
 #include "g_bake_filtern_d0_m0.h"
 #include "g_bake_filtern_d1_m0.h"
+#include "g_bake_gitterKern_d0_m0.h"
+#include "g_bake_gitterKern_d1_m0.h"
+#include "g_bake_gitterKern_d1_m1.h"
+#include "g_bake_gitterKern_d1_m2.h"
 
 struct Bytecode
 {
@@ -85,7 +91,7 @@ constexpr Bytecode bc( const BYTE ( &b )[ N ] ){
 	return Bytecode{ b, N };
 }
 
-enum Kern { kErst, kKandidaten, kUnter, kStempellauf, kFiltern, kKerne };
+enum Kern { kErst, kKandidaten, kUnter, kStempellauf, kFiltern, kGitter, kKerne };
 
 // die Variante zu double/Messschalter (die Messschalter nur mit double: sie messen die NVIDIA-GPU)
 Bytecode shaderWahl( Kern k, bool doppelt, int mess ){
@@ -106,6 +112,11 @@ Bytecode shaderWahl( Kern k, bool doppelt, int mess ){
 		                                 bc( g_bake_stempellauf_d1_m2 ) };
 		return t[ doppelt ? 1 + m : 0 ];
 	}
+	case kGitter: {
+		static const Bytecode t[ 4 ] = { bc( g_bake_gitterKern_d0_m0 ), bc( g_bake_gitterKern_d1_m0 ), bc( g_bake_gitterKern_d1_m1 ),
+		                                 bc( g_bake_gitterKern_d1_m2 ) };
+		return t[ doppelt ? 1 + m : 0 ];
+	}
 	default:
 		return doppelt ? bc( g_bake_filtern_d1_m0 ) : bc( g_bake_filtern_d0_m0 );
 	}
@@ -120,11 +131,12 @@ struct RwPuffer
 	UINT kapazitaet = 0;
 };
 
-// Register t0..t20 (siehe bhed_gpubacken.hlsl)
+// Register t0..t21 (siehe bhed_gpubacken.hlsl)
 enum Srv { sKnoten, sItems, sDreiecke, sInfos, sFlaechen, sVis, sLichter, sWindungen, sLuxel, sLms, sIdx, sLichtListe, sLmCluster, sAktiv, sAktivNr,
-           sBspKnoten, sEbenen, sBlaetter, sBlattBrushes, sBrushes, sSeiten, sAnzahl };
-// Register u0..u5
-enum Uav { uP, uF, uS, uZaehler, uLmFlag, uR, uAnzahl };
+           sBspKnoten, sEbenen, sBlaetter, sBlattBrushes, sBrushes, sSeiten, sStartWert, sAnzahl };
+// Register u0..u7
+enum Uav { uP, uF, uS, uZaehler, uLmFlag, uR, uGitter, uZustand, uKand, uHilfe, uAnzahl };
+constexpr int kUavSlots = 8;   // u6/u7: Gitter/Zustand im Gitterkern, Kandidaten/Hilfe in den Lightmap-Kernen
 
 struct Gpu
 {
@@ -149,7 +161,9 @@ struct Gpu
 	BhedBakeZahlen zahlen;
 	long long verlustNach = -1;   // Test: nach so vielen Dispatches einen Geraeteverlust vortaeuschen
 	bool zeiten = false;          // BHED_GPUBAKE_ZEITEN: jeden Kern bis zum Ende messen
-	UINT stueck[ kKerne ] = { 1u << 18, 1u << 18, 1u << 18, 4096, 1u << 18 };   // Faeden je Dispatch (passt sich an)
+	size_t lichterAnzahl = 0;
+	int gitterTeil = 64;          // Lichter je Gitter-Dispatch (passt sich an)
+	UINT stueck[ kKerne ] = { 1u << 18, 1u << 18, 1u << 18, 4096, 1u << 18, 4096 };   // Faeden je Dispatch (passt sich an)
 };
 Gpu g;
 
@@ -389,6 +403,27 @@ long long mikros( std::chrono::steady_clock::time_point t0 ){
 	return std::chrono::duration_cast<std::chrono::microseconds>( std::chrono::steady_clock::now() - t0 ).count();
 }
 
+// auf die GPU warten; false: Geraeteverlust
+bool warten(){
+	ID3D11Query *ende = nullptr;
+	D3D11_QUERY_DESC qd{ D3D11_QUERY_EVENT, 0 };
+	if ( FAILED( g.geraet->CreateQuery( &qd, &ende ) ) ) {
+		return false;
+	}
+	g.ktx->End( ende );
+	BOOL fertig = FALSE;
+	bool ok = true;
+	while ( g.ktx->GetData( ende, &fertig, sizeof( fertig ), 0 ) == S_FALSE ) {
+		if ( g.geraet->GetDeviceRemovedReason() != S_OK ) {
+			ok = false;
+			break;
+		}
+		SwitchToThread();
+	}
+	frei( ende );
+	return ok && g.geraet->GetDeviceRemovedReason() == S_OK;
+}
+
 // der Konstantenpuffer (cbuffer Kopf im Shader)
 struct Kopf
 {
@@ -400,14 +435,18 @@ struct Kopf
 	int nLms, lightSamples;
 	float suchBox;
 	int maxOpaqueBrush;
-	int nAktivGesamt, nLuxel, nZeilen, kpad;
+	int nAktivGesamt, nLuxel, nZeilen;
+	float inhibitGitter, gridAmbientDirectionality, gridDirectionality;
+	int cheapgrid, nGitterLichter;
+	int gitterPhase, lichtVon, lichtBis, kpad2;
 };
-static_assert( sizeof( Kopf ) == 80, "cbuffer Kopf" );
+static_assert( sizeof( Kopf ) == 112, "cbuffer Kopf" );
 
 Kopf kopfFuer( const BhedBakeBlock& b ){
 	const BhedBakeSchalter& s = g.schalter;
 	return Kopf{ 0, 0, g.kopfKnoten, s.faster, s.lightAngleHL, s.bouncing, s.testOcclusion, s.oneSky, s.noSurfaces, s.linearScale, g.visBytes, g.leafBytes,
-	             int( b.lms.size() ), s.lightSamples, s.suchBox, g.maxOpaqueBrush, int( b.aktiv.size() ), int( b.luxel.size() ), int( b.zeilen ), 0 };
+	             int( b.lms.size() ), s.lightSamples, s.suchBox, g.maxOpaqueBrush, int( b.aktiv.size() ), int( b.luxel.size() ), int( b.zeilen ), 0.0f, 0.0f,
+	             0.0f, 0, 0, 0, 0, 0, 0 };
 }
 
 // n Faeden des Kerns k in kurzen Dispatches (Windows-Zeitlimit TDR 2 s, die Oberflaeche nutzt
@@ -471,19 +510,21 @@ bool lauf( Kern k, UINT n, int warten, Kopf kopf ){
 	return ok && g.geraet->GetDeviceRemovedReason() == S_OK;
 }
 
-void binden(){
+void binden( bool gitter = false ){
 	g.ktx->CSSetShaderResources( 0, sAnzahl, g.srv );
-	ID3D11UnorderedAccessView *u[ uAnzahl ];
-	for ( int i = 0; i < uAnzahl; ++i ) {
+	ID3D11UnorderedAccessView *u[ kUavSlots ];
+	for ( int i = 0; i < 6; ++i ) {
 		u[ i ] = g.rw[ i ].uav;
 	}
-	g.ktx->CSSetUnorderedAccessViews( 0, uAnzahl, u, nullptr );
+	u[ 6 ] = g.rw[ gitter ? uGitter : uKand ].uav;
+	u[ 7 ] = g.rw[ gitter ? uZustand : uHilfe ].uav;
+	g.ktx->CSSetUnorderedAccessViews( 0, kUavSlots, u, nullptr );
 	g.ktx->CSSetConstantBuffers( 0, 1, &g.kopf );
 }
 
 void loesen(){
-	ID3D11UnorderedAccessView *u[ uAnzahl ] = {};
-	g.ktx->CSSetUnorderedAccessViews( 0, uAnzahl, u, nullptr );
+	ID3D11UnorderedAccessView *u[ kUavSlots ] = {};
+	g.ktx->CSSetUnorderedAccessViews( 0, kUavSlots, u, nullptr );
 }
 
 void verloren(){
@@ -573,7 +614,7 @@ bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector
 	g.maxOpaqueBrush = bsp.maxOpaqueBrush;
 	// Grafikspeicher vorab schaetzen: ein Block darf ein Viertel des eigenen Grafikspeichers
 	// belegen (64 MB bis 1,5 GB; GPUs mit wenig eigenem Speicher: die Haelfte des geteilten),
-	// je Paar 36 Byte (Farbe, Merker, Unterabtastung)
+	// je Paar 40 Byte (Farbe, Merker, Unterabtastung, Kandidatenliste)
 	unsigned long long vram = g.eigenerSpeicher;
 	if ( vram < ( 512ull << 20 ) ) {
 		vram = std::max( vram, g.geteilterSpeicher / 2 );
@@ -582,7 +623,7 @@ bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector
 	if ( const char *b = std::getenv( "BHED_GPUBAKE_BUDGET_MB" ) ) {   // Test: kleine Bloecke erzwingen
 		bytes = std::max<unsigned long long>( 1, std::strtoull( b, nullptr, 10 ) ) << 20;
 	}
-	g.budget = std::size_t( bytes / 36 );
+	g.budget = std::size_t( bytes / 40 );
 	g.zahlen.budget = static_cast<long long>( g.budget );
 	g.bereit = true;
 	Sys_Printf( "BehavEd GPU bake: %s (feature level %x, %s), %zu nodes, %zu triangles, scene %zu KB, blocks up to %zu pairs (%llu MB)\n", g.name.c_str(),
@@ -597,6 +638,7 @@ bool BhedBakeLichter( const std::vector<BhedBakeLicht>& lichter, const std::vect
 		return false;
 	}
 	g.schalter = s;
+	g.lichterAnzahl = lichter.size();
 	if ( !puffer( infos, sInfos ) || !puffer( lichter, sLichter ) || !puffer( windungen, sWindungen ) ) {
 		ausfall( "not enough graphics memory for the lights" );
 		return false;
@@ -619,10 +661,10 @@ bool BhedBakeErst( const BhedBakeBlock& b, std::vector<std::uint32_t>& zaehler, 
 	const std::vector<int> keineNr;
 	const UINT n = std::max<UINT>( b.paare, 1 );
 	if ( !puffer( b.luxel, sLuxel ) || !puffer( b.lms, sLms ) || !puffer( b.idx, sIdx ) || !puffer( b.lichtListe, sLichtListe ) ||
-	     !puffer( b.lmCluster, sLmCluster ) || !puffer( keinAktiv, sAktiv ) || !puffer( keineNr, sAktivNr ) ||
+	     !puffer( b.lmCluster, sLmCluster ) || !puffer( keinAktiv, sAktiv ) || !puffer( keineNr, sAktivNr ) || !puffer( b.startWert.empty() ? nullptr : b.startWert.data(), 16, UINT( b.startWert.size() / 4 ), sStartWert ) ||
 	     !platz( uP, n, 16, false ) || !platz( uF, n, 4, false ) || !platz( uS, g.schalter.lightSamples > 1 ? n : 1, 16, false ) ||
 	     !platz( uZaehler, UINT( std::max<size_t>( b.lichtListe.size(), 1 ) ), 4, true ) || !platz( uLmFlag, UINT( std::max<size_t>( b.lms.size(), 1 ) ), 4, true ) ||
-	     !platz( uR, 1, 16, true ) ) {
+	     !platz( uR, 1, 16, true ) || !platz( uKand, g.schalter.lightSamples > 1 ? n : 1, 4, false ) || !platz( uHilfe, 1, 4, true ) ) {
 		ausfall( "not enough graphics memory for a block" );
 		return false;
 	}
@@ -651,7 +693,9 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 		return false;
 	}
 	const auto t0 = std::chrono::steady_clock::now();
-	if ( !puffer( b.lms, sLms ) || !puffer( b.aktiv, sAktiv ) || !puffer( b.aktivNr, sAktivNr ) || !platz( uR, std::max<UINT>( b.aus, 1 ), 16, true ) ) {
+	if ( !puffer( b.lms, sLms ) || !puffer( b.aktiv, sAktiv ) || !puffer( b.aktivNr, sAktivNr ) ||
+	     !puffer( b.startWert.empty() ? nullptr : b.startWert.data(), 16, UINT( b.startWert.size() / 4 ), sStartWert ) || !platz( uR, std::max<UINT>( b.aus, 1 ), 16, true ) ||
+	     !platz( uHilfe, UINT( b.aktiv.size() + 1 ), 4, true ) ) {
 		ausfall( "not enough graphics memory for a block" );
 		return false;
 	}
@@ -659,7 +703,16 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 	const Kopf kopf = kopfFuer( b );
 	bool ok = true;
 	if ( g.schalter.lightSamples > 1 ) {
-		ok = lauf( kKandidaten, b.zeilen, 4, kopf ) && lauf( kUnter, b.paare, 4, kopf ) && lauf( kStempellauf, UINT( b.aktiv.size() ), 4, kopf );
+		// Vorhersage: die Kandidaten kommen in eine Liste (hilfe[0] zaehlt ab 0xffffffff), dazu je aktivem Licht
+		// der erste vorhergesagte Stempel; dann nur die Kandidaten unterabtasten
+		const UINT voll[ 4 ] = { 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu };
+		g.ktx->ClearUnorderedAccessViewUint( g.rw[ uHilfe ].uav, voll );
+		ok = lauf( kKandidaten, b.zeilen, 4, kopf );
+		std::uint32_t zahl = 0;
+		loesen();
+		ok = ok && lesen( uHilfe, &zahl, 4 );
+		binden();
+		ok = ok && lauf( kUnter, zahl + 1u, 4, kopf ) && lauf( kStempellauf, UINT( b.aktiv.size() ), 4, kopf );
 	}
 	ok = ok && lauf( kFiltern, UINT( b.luxel.size() ), 4, kopf );
 	loesen();
@@ -668,6 +721,80 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 	if ( !ok ) {
 		verloren();
 		flags.assign( b.lms.size(), 1 );
+		return false;
+	}
+	return true;
+}
+
+bool BhedBakeGitter( std::vector<BhedBakeGitterPunkt>& punkte, const BhedBakeGitterSchalter& s ){
+	if ( !g.bereit ) {
+		return false;
+	}
+	const auto t0 = std::chrono::steady_clock::now();
+	// Bloecke von Punkten im Speicherbudget (144 + 48 Byte je Punkt), hoechstens 4 M Faeden je Dispatch
+	const size_t jeBlock = std::clamp<size_t>( g.budget * 40 / ( sizeof( BhedBakeGitterPunkt ) + 48 ), 4096, size_t( 65535 ) * 64 );
+	const BhedBakeBlock leer;
+	Kopf kopf = kopfFuer( leer );
+	kopf.inhibitGitter = s.inhibit;
+	kopf.gridAmbientDirectionality = s.ambientDirectionality;
+	kopf.gridDirectionality = s.directionality;
+	kopf.cheapgrid = s.cheapgrid;
+	kopf.nGitterLichter = int( g.lichterAnzahl );
+	const int n = int( g.lichterAnzahl );
+	bool ok = true;
+	std::vector<int> stand;
+	for ( size_t a = 0; a < punkte.size() && ok; a += jeBlock ) {
+		const size_t m = std::min( jeBlock, punkte.size() - a );
+		if ( !platz( uGitter, UINT( m ), sizeof( BhedBakeGitterPunkt ), true ) || !platz( uZustand, UINT( m ), 48, true ) ) {
+			ausfall( "not enough graphics memory for the light grid" );
+			return false;
+		}
+		D3D11_BOX box{ 0, 0, 0, UINT( m * sizeof( BhedBakeGitterPunkt ) ), 1, 1 };
+		g.ktx->UpdateSubresource( g.rw[ uGitter ].buf, 0, &box, punkte.data() + a, 0, 0 );
+		binden( true );
+		g.ktx->CSSetShader( g.cs[ kGitter ], nullptr, 0 );
+		kopf.anzahl = UINT( m );
+		kopf.basis = 0;
+		// alle Punkte je Dispatch, die Lichter in Teilen; die Teilgroesse passt sich an (0,02 bis 0,15 s je Dispatch)
+		for ( int phase = 0; phase < 2 && ok; ++phase ) {
+			kopf.gitterPhase = phase;
+			for ( int von = 0; von < n && ok; ) {
+				const int bis = std::min( n, von + g.gitterTeil );
+				kopf.lichtVon = von;
+				kopf.lichtBis = bis;
+				const auto tz = std::chrono::steady_clock::now();
+				g.ktx->UpdateSubresource( g.kopf, 0, nullptr, &kopf, 0, 0 );
+				g.ktx->Dispatch( UINT( ( m + 63 ) / 64 ), 1, 1 );
+				++g.zahlen.dispatches;
+				if ( g.verlustNach >= 0 && g.zahlen.dispatches > g.verlustNach ) {
+					ok = false;
+					break;
+				}
+				ok = warten();
+				const double dauer = std::chrono::duration<double>( std::chrono::steady_clock::now() - tz ).count();
+				if ( dauer > 0.15 && g.gitterTeil > 1 ) {
+					g.gitterTeil /= 2;
+				}
+				else if ( dauer < 0.02 && bis - von == g.gitterTeil && g.gitterTeil < ( 1 << 20 ) ) {
+					g.gitterTeil *= 2;
+				}
+				von = bis;
+			}
+		}
+		g.zahlen.kernMikros[ kGitter ] += mikros( t0 );
+		loesen();
+		stand.resize( m * 12 );
+		ok = ok && lesen( uGitter, punkte.data() + a, m * sizeof( BhedBakeGitterPunkt ) ) && lesen( uZustand, stand.data(), m * 48 );
+		// alle Beitraege der ersten Phase auch in der zweiten gefunden (sonst die CPU)
+		for ( size_t k = 0; ok && k < m; ++k ) {
+			if ( stand[ k * 12 + 2 ] != stand[ k * 12 + 0 ] ) {
+				punkte[ a + k ].flag = 1;
+			}
+		}
+	}
+	g.zahlen.gpuMikros += mikros( t0 );
+	if ( !ok ) {
+		verloren();
 		return false;
 	}
 	return true;

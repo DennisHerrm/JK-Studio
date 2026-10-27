@@ -9,7 +9,7 @@
 // ClusterForPointExtFilter und der Rest der Lichtschleife von IlluminateRawLightmap
 // (light_ydnar.cpp): Erstabtastung, Vorhersage und Unterabtastung, der genaue Stempellauf,
 // Filtern und Aufsummieren in Lichtreihenfolge. Einstiege: erst, kandidaten, unter,
-// stempellauf, filtern. Makros: DOPPELT (die GPU rechnet double), MESS (Messschalter
+// stempellauf, filtern, gitterKern (TraceGrid). Makros: DOPPELT (die GPU rechnet double), MESS (Messschalter
 // BHED_GPUBAKE_MESS), DIAG (BHED_GPUBAKE_DIAG).
 //
 //   Copyright (C) 1999-2007 id Software, Inc. and contributors.
@@ -24,6 +24,8 @@
 //   any later version (LICENSE).
 // X4714: nur ein Leistungshinweis zum Stapel der Traversierung (64 Eintraege je Faden)
 #pragma warning(disable : 4714)
+// X3557: im Gitter hat die Spur keine eigenen Flaechen (Schleife ueber 0 Flaechen faellt weg)
+#pragma warning(disable : 3557)
 #ifndef DOPPELT
 #define DOPPELT 1
 #endif
@@ -38,7 +40,8 @@ struct Dreieck { float v0x; float v0y; float v0z; float e1x; float e1y; float e1
 struct Info { int cast; int skipGrid; int flaeche; int flags; int skyIndex; int p0; int p1; int p2; };
 struct Licht { int typ; int flags; int cluster; int windErste; float ox; float oy; float oz; float nx; float ny; float nz; float dist; float photons;
                float cr; float cg; float cb; float radiusByDist; float fade; float angleScale; float extraDist; float add; float envelope; float falloffTol;
-               int skyIndex; int windAnzahl; };
+               int skyIndex; int windAnzahl;
+               float minx; float miny; float minz; float maxx; float maxy; float maxz; int style; int lpad; };
 // Ein abgebildeter Luxel (Cluster >= 0) einer Roh-Lightmap im Block: Super-Ursprung, -Normale, Cluster
 struct Luxel { float ox; float oy; float oz; float nx; float ny; float nz; int cluster; int lm; int x; int y; };
 // Eine Roh-Lightmap im Block (BhedBakeLm in bhed_gpubacken.h)
@@ -50,6 +53,7 @@ struct Lm
     int clusterBase; int nClusters; int aktivBase; int nAktiv;
     float ar; float ag; float ab; int zeilenBase;
     int aus0; int aus1; int aus2; int aus3;
+    int start; int lpad0; int lpad1; int lpad2;   // start: Stilplaetze ab startWert (Teil einer grossen Lightmap)
 };
 // Ein Licht der Lightmap, das die Stil-Pruefung bestanden und etwas beleuchtet hat (in Lichtreihenfolge)
 struct Aktiv { int j; int slot; int radius; int negativ; };
@@ -58,13 +62,32 @@ struct BspKnoten { int ebene; int k0; int k1; int pad; };
 struct Ebene { float nx; float ny; float nz; float dist; };
 struct Blatt { int cluster; int ersterBrush; int anzahlBrushes; int pad; };
 struct Brush { int ersteSeite; int anzahlSeiten; int opak; int pad; };
+// ein Punkt des Lichtgitters (rawGridPoint_t): Ursprung und Cluster aus dem Vorlauf, dir, ambient,
+// directed, styles (4 Byte); zurueck dazu neu (in diesem Lauf vergebene Stile) und flag (1: die CPU)
+struct GitterPunkt
+{
+    float ox; float oy; float oz; int cluster;
+    float dx; float dy; float dz; uint stile;
+    float a0; float a1; float a2; float a3; float a4; float a5; float a6; float a7; float a8; float a9; float a10; float a11;
+    float g0; float g1; float g2; float g3; float g4; float g5; float g6; float g7; float g8; float g9; float g10; float g11;
+    uint neu; int flag; int gpad0; int gpad1;
+};
+// der Stand eines Gitterpunkts zwischen den Dispatches (je einer fuer einen Teil der Lichter)
+struct GitterZustand
+{
+    int numCon; int abbruch; int gezaehlt; int numStyles;
+    float bx; float by; float bz; float tx;
+    float ty; float tz; int zpad0; int zpad1;
+};
 cbuffer Kopf : register(b0)
 {
     uint anzahl; uint basis; int kopfKnoten; int faster;
     int lightAngleHL; int bouncing; int testOcclusion; int oneSky;
     int noSurfaces; float linearScale; uint visBytes; int leafBytes;
     int nLms; int lightSamples; float suchBox; int maxOpaqueBrush;
-    int nAktivGesamt; int nLuxel; int nZeilen; int kpad;
+    int nAktivGesamt; int nLuxel; int nZeilen; float inhibitGitter;
+    float gridAmbientDirectionality; float gridDirectionality; int cheapgrid; int nGitterLichter;
+    int gitterPhase; int lichtVon; int lichtBis; int kpad2;
 };
 StructuredBuffer<Knoten> knoten : register(t0);
 StructuredBuffer<int> items : register(t1);
@@ -87,14 +110,22 @@ StructuredBuffer<Blatt> blaetter : register(t17);
 StructuredBuffer<int> blattBrushes : register(t18);
 StructuredBuffer<Brush> brushes : register(t19);
 StructuredBuffer<int> seiten : register(t20);
+StructuredBuffer<float4> startWert : register(t21);
 RWStructuredBuffer<float4> P : register(u0);       // je Paar: Farbe der Erstabtastung (danach nachabgetastet)
 RWStructuredBuffer<uint> F : register(u1);         // je Paar: 1 FORCE_SUBSAMPLING, 2 ALREADY_SUBSAMPLED, 4 Kandidat
 RWStructuredBuffer<float4> S : register(u2);       // je Paar: vorab nachabgetastete Farbe der Kandidaten
 RWStructuredBuffer<uint> zaehler : register(u3);   // je Licht der Lightmap: beleuchtete Luxel (totalLighted)
 RWStructuredBuffer<uint> lmFlag : register(u4);    // je Lightmap: 1 = die CPU rechnet sie (Alpha-Schatten, unsicher)
 RWStructuredBuffer<float4> R : register(u5);       // fertige Luxel je benutztem Stil
+RWStructuredBuffer<GitterPunkt> gitter : register(u6);   // Lichtgitter
+RWStructuredBuffer<GitterZustand> zustand : register(u7); // Stand je Gitterpunkt
+// dieselben Register in den Lightmap-Kernen (die Gitter-Puffer brauchen sie nicht; D3D11.0 hat 8 UAVs):
+RWStructuredBuffer<uint> kandListe : register(u6);   // die vorhergesagten Paare (Unterabtastung)
+RWStructuredBuffer<uint> hilfe : register(u7);       // [0] Zahl der Kandidaten - 1, [1 + a] erster vorhergesagter Stempel je aktivem Licht
 
 static bool g_unsicher;
+static float g_inhibit = 1.5f;     // trace->inhibitRadius (Lightmaps 1,5; Gitter die halbe Gitterweite)
+static bool g_imGitter = false;    // inGrid: Patches (skipGrid) werfen keinen Schatten aufs Gitter
 
 static const float BARY_EPS = 0.01f;
 static const float BARY_EINS = 1.01f;
@@ -486,6 +517,7 @@ int blattTesten(int knr, Strahl r, Lm lm, int lichtSky, inout bool himmel, inout
         if (lm.recv == 1) { if (f.cast <= 0) { continue; } }
         else if (lm.recv > 1) { if (f.cast != 1 && abs(f.cast) != abs(lm.recv)) { continue; } }
         else { if (abs(f.cast) != abs(lm.recv)) { continue; } }
+        if (g_imGitter && f.skipGrid != 0) { continue; }
         const float3 v0 = float3(d.v0x, d.v0y, d.v0z);
         const float3 e1 = float3(d.e1x, d.e1y, d.e1z);
         const float3 e2 = float3(d.e2x, d.e2y, d.e2z);
@@ -510,11 +542,11 @@ int blattTesten(int knr, Strahl r, Lm lm, int lichtSky, inout bool himmel, inout
         if (v < -BARY_EPS || uv > BARY_EINS) { continue; }
         precise float tt = punkt3(e2, qvec);
         precise float tiefe = tt * invDet;
-        if (tiefe <= INHIBIT || tiefe >= r.dist) { continue; }
+        if (tiefe <= g_inhibit || tiefe >= r.dist) { continue; }
         if (tiefe <= SELBST)
         {
             bool eigen = false;
-            [loop] for (int s = 0; s < lm.sAnzahl; ++s) { if (flaechen[lm.sErste + s] == f.flaeche) { eigen = true; break; } }
+            for (int s = 0; s < lm.sAnzahl && !eigen; ++s) { eigen = flaechen[lm.sErste + s] == f.flaeche; }
             if (eigen) { continue; }
         }
         if (istHimmel)
@@ -549,9 +581,9 @@ int strahlTesten(Strahl r, Lm lm, bool testAll, int lichtSky, out bool himmel, o
     precise float3 en = r.e;
     [loop] while (true)
     {
-        if (k < 0) { return testAll ? 0 : 1; }
+        if (k < 0) { return testAll ? 0 : 2; }
         const Knoten n = knoten[k];
-        if (n.typ == -2) { return testAll ? 0 : 1; }
+        if (n.typ == -2) { return testAll ? 0 : 2; }
         if (n.typ < 0)
         {
             if (n.anzahl > 0 && nTest < 256)
@@ -805,7 +837,7 @@ int beitrag(float3 o, float3 nrm, int luxelCluster, Lm lm, Licht L, out float3 f
     bool himmel2; bool skyOk2;
     const int t2 = strahlTesten(r, lm, false, L.skyIndex, himmel2, skyOk2);
     if (t2 == 3) { return 9; }
-    if (t2 == 1)
+    if (t2 == 1 || t2 == 2)
     {
         farbe = float3(0.0f, 0.0f, 0.0f);
         return -1;
@@ -1126,30 +1158,44 @@ void kandidaten(uint3 id : SV_DispatchThreadID)
     const int y = (int)(rel - a * (uint)(lm.sh - 1));
     const Aktiv A = aktiv[lm.aktivBase + (int)a];
     const uint pb = (uint)lm.paarBase + (uint)A.j * (uint)lm.m;
+    bool erster = true;
     [loop] for (int x = 0; x < lm.sw - 1; ++x)
     {
         if (!stempel(lm, pb, x, y)) { continue; }
+        if (erster)
+        {
+            erster = false;
+            InterlockedMin(hilfe[1u + (uint)lm.aktivBase + a], (uint)(y * (lm.sw - 1) + x));
+        }
         [unroll] for (int t = 0; t < 4; ++t)
         {
             const int k = idxAt(lm, x + (t & 1), y + (t >> 1));
-            if (k >= 0) { InterlockedOr(F[pb + (uint)k], F_KAND); }
+            if (k >= 0)
+            {
+                uint alt;
+                InterlockedOr(F[pb + (uint)k], F_KAND, alt);
+                if ((alt & F_KAND) == 0u)
+                {
+                    uint platz;
+                    InterlockedAdd(hilfe[0], 1u, platz);
+                    kandListe[platz + 1u] = pb + (uint)k;   // hilfe[0] beginnt bei 0xffffffff
+                }
+            }
         }
     }
 }
 
-// 3. Unterabtastung der vorhergesagten Luxel: ein Faden je Paar
+// 3. Unterabtastung der vorhergesagten Luxel: ein Faden je Kandidat (kandListe)
 [numthreads(64, 1, 1)]
 void unter(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= anzahl) { return; }
-    const uint p = id.x + basis;
+    const uint p = kandListe[id.x + basis];
     const int li = lmZuPaar(p);
     const Lm lm = lms[li];
     const uint rel = p - (uint)lm.paarBase;
     const uint j = rel / (uint)lm.m;
     const uint k = rel - j * (uint)lm.m;
-    if (aktivNr[lm.lichtBase + (int)j] < 0) { return; }
-    if ((F[p] & F_KAND) == 0u) { return; }
     g_unsicher = false;
     const Luxel lx = luxel[lm.luxelBase + (int)k];
     const float3 v = unterabtasten(lm, lichtListe[lm.lichtBase + (int)j], lx.x, lx.y, float3(lx.ox, lx.oy, lx.oz), float3(lx.nx, lx.ny, lx.nz), P[p].xyz);
@@ -1170,9 +1216,15 @@ void stempellauf(uint3 id : SV_DispatchThreadID)
     const Aktiv A = aktiv[g];
     const uint pb = (uint)lm.paarBase + (uint)A.j * (uint)lm.m;
     const int licht = lichtListe[lm.lichtBase + A.j];
-    [loop] for (int y = 0; y < lm.sh - 1; ++y)
+    // Vor dem ersten vorhergesagten Stempel sieht der Lauf nur Werte der Erstabtastung (nachabgetastet wird
+    // erst dort) - wie die Vorhersage: kein Stempel davor schlaegt an. Ohne Vorhersage gar keiner.
+    const uint start = hilfe[1u + g];
+    if (start == 0xffffffffu) { return; }
+    const int y0 = (int)(start / (uint)(lm.sw - 1));
+    const int x0 = (int)(start - (uint)y0 * (uint)(lm.sw - 1));
+    [loop] for (int y = y0; y < lm.sh - 1; ++y)
     {
-        [loop] for (int x = 0; x < lm.sw - 1; ++x)
+        [loop] for (int x = (y == y0 ? x0 : 0); x < lm.sw - 1; ++x)
         {
             if (!stempel(lm, pb, x, y)) { continue; }
             [loop] for (int t = 0; t < 4; ++t)
@@ -1216,6 +1268,13 @@ void filtern(uint3 id : SV_DispatchThreadID)
     wert[1] = float3(0.0f, 0.0f, 0.0f);
     wert[2] = float3(0.0f, 0.0f, 0.0f);
     wert[3] = float3(0.0f, 0.0f, 0.0f);
+    if (lm.start != 0)
+    {
+        if (lm.aus0 >= 0) { wert[0] = startWert[lm.aus0 + k].xyz; }
+        if (lm.aus1 >= 0) { wert[1] = startWert[lm.aus1 + k].xyz; }
+        if (lm.aus2 >= 0) { wert[2] = startWert[lm.aus2 + k].xyz; }
+        if (lm.aus3 >= 0) { wert[3] = startWert[lm.aus3 + k].xyz; }
+    }
     [loop] for (int a = 0; a < lm.nAktiv; ++a)
     {
         const Aktiv A = aktiv[lm.aktivBase + a];
@@ -1258,4 +1317,247 @@ void filtern(uint3 id : SV_DispatchThreadID)
     if (lm.aus1 >= 0) { R[lm.aus1 + k] = float4(wert[1], 1.0f); }
     if (lm.aus2 >= 0) { R[lm.aus2 + k] = float4(wert[2], 1.0f); }
     if (lm.aus3 >= 0) { R[lm.aus3 + k] = float4(wert[3], 1.0f); }
+}
+
+// ---------------------------------------------------------------------------------------
+// Stufe 8g: das Lichtgitter (TraceGrid, light.cpp) - ein Faden je Gitterpunkt, alle Lichter
+// in ihrer Reihenfolge. Erster Durchlauf: LightContributionToPoint, Richtung (gp.dir) und
+// Zahl der Beitraege; zweiter Durchlauf rechnet dieselben Beitraege noch einmal und teilt sie
+// wie q3map2 in gerichtetes und Umgebungslicht je Stil.
+// ---------------------------------------------------------------------------------------
+
+// LightContributionToPoint: 0 kein Beitrag, 1 Beitrag (farbe, richtung), 9 die CPU
+int punktBeitrag(float3 o, int cluster, Licht L, out float3 farbe, out float3 richtung)
+{
+    farbe = float3(0.0f, 0.0f, 0.0f);
+    richtung = float3(0.0f, 0.0f, 0.0f);
+    if ((L.flags & 16) == 0 || L.envelope <= 0.0f) { return 0; }
+    if (L.typ != 3)
+    {
+        if (!clusterSichtbar(cluster, L.cluster)) { return 0; }
+    }
+    if (!(o.x >= L.minx && o.y >= L.miny && o.z >= L.minz && o.x <= L.maxx && o.y <= L.maxy && o.z <= L.maxz)) { return 0; }
+    const float3 lo = float3(L.ox, L.oy, L.oz);
+    const float3 ln = float3(L.nx, L.ny, L.nz);
+    precise float3 ende = lo;
+    if (L.typ == 3) { ende = o + lo; }
+    Strahl r = (Strahl)0;
+    precise float dist = strahlSetzen(o, ende, r);
+    richtung = r.d;
+    if (dist > L.envelope) { return 0; }
+    precise float add = 0.0f;
+    if (L.typ == 1 && faster != 0)
+    {
+        precise float q = dist * dist + L.extraDist * L.extraDist;
+        dist = max(16.0f, fwurzel(q));
+        add = teilen(L.photons, dist * dist);
+    }
+    else if (L.typ == 1)
+    {
+        precise float d = punkt3(o, ln) - L.dist;
+        if ((L.flags & 8) == 0 && d < -1.0f) { return 0; }
+        precise float3 schub = o;
+        if (d > -8.0f && d < 8.0f) { precise float f8 = 8.0f - d; schub = o + ln * f8; }
+        precise float faktor = formFaktor(schub, r.d, L);
+        if (faktor == 0.0f) { return 0; }
+        else if (faktor < 0.0f)
+        {
+            if ((L.flags & 8) != 0) { faktor = -faktor; }
+            else { return 0; }
+        }
+        add = faktor * L.add;
+    }
+    else if (L.typ == 0 || L.typ == 2)
+    {
+        precise float q = dist * dist + L.extraDist * L.extraDist;
+        dist = max(16.0f, fwurzel(q));
+        if ((L.flags & 1) != 0)
+        {
+            precise float a1 = L.photons * linearScale;
+            precise float a2 = dist * L.fade;
+            add = max(0.0f, a1 - a2);
+        }
+        else
+        {
+            add = teilen(L.photons, dist * dist);
+        }
+        if (L.typ == 2)
+        {
+            precise float distByNormal = -punkt3(r.disp, ln);
+            if (distByNormal < 0.0f) { return 0; }
+            precise float3 pointAtDist = lo + ln * distByNormal;
+            precise float radiusAtDist = L.radiusByDist * distByNormal;
+            precise float3 distToSample = o - pointAtDist;
+            precise float sampleRadius = fwurzel(punkt3(distToSample, distToSample));
+            if (sampleRadius >= radiusAtDist) { return 0; }
+            if (sampleRadius > (radiusAtDist - 32.0f))
+            {
+                precise float t = teilen(radiusAtDist - sampleRadius, 32.0f);
+                add = add * t;
+            }
+        }
+    }
+    else if (L.typ == 3)
+    {
+        add = L.photons;
+        if (add <= 0.0f) { return 0; }
+        farbe = float3(L.cr, L.cg, L.cb) * add;
+        if (testOcclusion != 0)
+        {
+            Lm lm = (Lm)0;
+            lm.recv = 1;
+            bool himmel; bool skyOk;
+            const int t = strahlTesten(r, lm, true, L.skyIndex, himmel, skyOk);
+            if (t == 3) { return 9; }
+            if (!himmel || t == 1 || (oneSky == 0 && L.skyIndex != -1 && !skyOk))
+            {
+                farbe = float3(0.0f, 0.0f, 0.0f);
+                return 0;
+            }
+        }
+        return 1;
+    }
+    else { return 0; }
+    if (add <= 0.0f || (add <= L.falloffTol && (L.flags & (128 | 256)) != 0)) { return 0; }
+    farbe = float3(L.cr, L.cg, L.cb) * add;
+    Lm lm2 = (Lm)0;
+    lm2.recv = 1;
+    bool himmel2; bool skyOk2;
+    const int t2 = strahlTesten(r, lm2, false, L.skyIndex, himmel2, skyOk2);
+    if (t2 == 3) { return 9; }
+    if (t2 == 2) { farbe = float3(0.0f, 0.0f, 0.0f); return 0; }   // passSolid: kein Beitrag
+    if (t2 == 1) { farbe = float3(0.0f, 0.0f, 0.0f); }             // Dreieck: TraceTriangle setzt die Farbe 0, der Beitrag zaehlt
+    return 1;
+}
+
+// der Beitrag des Lichts li mit Vorzeichen (negative Lichter); false: keiner
+bool gitterBeitrag(GitterPunkt gp, int li, out float3 farbe, out float3 richtung, out int code)
+{
+    const Licht L = lichter[li];
+    code = punktBeitrag(float3(gp.ox, gp.oy, gp.oz), gp.cluster, L, farbe, richtung);
+    if (code != 1) { return false; }
+    if ((L.flags & 512) != 0) { farbe = -farbe; }
+    return true;
+}
+
+// Ein Faden je Gitterpunkt, die Lichter lichtVon..lichtBis (eine Runde vieler Dispatches, damit
+// jeder kurz bleibt und alle Punkte gleichzeitig laufen); der Stand je Punkt liegt in zustand.
+// Phase 0: Richtung und Zahl der Beitraege; Phase 1: dieselben Beitraege nach Stilen aufteilen.
+[numthreads(64, 1, 1)]
+void gitterKern(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= anzahl) { return; }
+    const uint nr = id.x + basis;
+    g_unsicher = false;
+    g_inhibit = inhibitGitter;
+    g_imGitter = true;
+    GitterPunkt gp = gitter[nr];
+    if (gp.flag != 0) { return; }
+    GitterZustand z = zustand[nr];
+    if (gitterPhase == 0)
+    {
+        if (lichtVon == 0) { z = (GitterZustand)0; }
+        if (z.abbruch != 0) { return; }
+        precise float3 dir = float3(gp.dx, gp.dy, gp.dz);
+        precise float3 billig = float3(z.bx, z.by, z.bz);
+        [loop] for (int li = lichtVon; li < lichtBis; ++li)
+        {
+            float3 farbe; float3 richtung; int code;
+            if (!gitterBeitrag(gp, li, farbe, richtung, code))
+            {
+                if (code == 9 || g_unsicher) { gp.flag = 1; gitter[nr] = gp; return; }
+                continue;
+            }
+            z.numCon += 1;
+            const float addSize = fwurzel(punkt3(farbe, farbe));
+            precise float3 schub = richtung * addSize;
+            dir = dir + schub;
+            if (z.numCon >= 32767) { z.abbruch = 1; break; }   // MAX_CONTRIBUTIONS - 1
+            billig = billig + farbe;
+            if (cheapgrid != 0 && billig.x >= 255.0f && billig.y >= 255.0f && billig.z >= 255.0f) { z.abbruch = 1; break; }
+        }
+        if (g_unsicher) { gp.flag = 1; gitter[nr] = gp; return; }
+        gp.dx = dir.x; gp.dy = dir.y; gp.dz = dir.z;
+        z.bx = billig.x; z.by = billig.y; z.bz = billig.z;
+        gitter[nr] = gp;
+        zustand[nr] = z;
+        return;
+    }
+    if (lichtVon == 0)
+    {
+        float3 t = float3(gp.dx, gp.dy, gp.dz);
+        normalisieren(t);
+        if (g_unsicher) { gp.flag = 1; gitter[nr] = gp; return; }
+        z.tx = t.x; z.ty = t.y; z.tz = t.z;
+        z.gezaehlt = 0;
+        z.numStyles = 1;
+    }
+    if (z.gezaehlt >= z.numCon) { zustand[nr] = z; return; }
+    const float3 thisdir = float3(z.tx, z.ty, z.tz);
+    float3 amb[4];
+    float3 gerichtet[4];
+    amb[0] = float3(gp.a0, gp.a1, gp.a2);
+    amb[1] = float3(gp.a3, gp.a4, gp.a5);
+    amb[2] = float3(gp.a6, gp.a7, gp.a8);
+    amb[3] = float3(gp.a9, gp.a10, gp.a11);
+    gerichtet[0] = float3(gp.g0, gp.g1, gp.g2);
+    gerichtet[1] = float3(gp.g3, gp.g4, gp.g5);
+    gerichtet[2] = float3(gp.g6, gp.g7, gp.g8);
+    gerichtet[3] = float3(gp.g9, gp.g10, gp.g11);
+    uint stile = gp.stile;
+    uint neu = gp.neu;
+    int numStyles = z.numStyles;
+    int gezaehlt = z.gezaehlt;
+    [loop] for (int li2 = lichtVon; li2 < lichtBis && gezaehlt < z.numCon; ++li2)
+    {
+        float3 farbe; float3 richtung; int code;
+        if (!gitterBeitrag(gp, li2, farbe, richtung, code)) { continue; }
+        gezaehlt += 1;
+        const int stil = lichter[li2].style;
+        precise float d = punkt3(richtung, thisdir);
+        precise float spanne = gridDirectionality - gridAmbientDirectionality;
+        precise float dd = d * spanne;
+        precise float dv = gridAmbientDirectionality + dd;
+        d = max(0.0f, dv);
+        int j;
+        for (j = 0; j < numStyles; ++j)
+        {
+            if ((int)((stile >> (8u * (uint)j)) & 0xffu) == stil) { break; }
+        }
+        if (j >= numStyles)
+        {
+            if (numStyles < 4)
+            {
+                const uint sh = 8u * (uint)numStyles;
+                stile = (stile & ~(0xffu << sh)) | (((uint)stil & 0xffu) << sh);
+                neu |= 1u << (uint)numStyles;
+                numStyles += 1;
+            }
+            else { j = 0; }
+        }
+        precise float3 gd = farbe * d;
+        precise float3 gneu = gerichtet[j] + gd;
+        gerichtet[j] = gneu;
+        precise float d2 = 0.25f * (1.0f - d);
+        precise float3 ad = farbe * d2;
+        precise float3 aneu = amb[j] + ad;
+        // + contributions[ i ].ambient (0): aus -0 wird +0 wie auf der CPU (bitweise, das faltet fxc nicht weg)
+        const uint3 bits = asuint(aneu);
+        amb[j] = asfloat(uint3(bits.x == 0x80000000u ? 0u : bits.x, bits.y == 0x80000000u ? 0u : bits.y, bits.z == 0x80000000u ? 0u : bits.z));
+    }
+    if (g_unsicher) { gp.flag = 1; gitter[nr] = gp; return; }
+    gp.a0 = amb[0].x; gp.a1 = amb[0].y; gp.a2 = amb[0].z;
+    gp.a3 = amb[1].x; gp.a4 = amb[1].y; gp.a5 = amb[1].z;
+    gp.a6 = amb[2].x; gp.a7 = amb[2].y; gp.a8 = amb[2].z;
+    gp.a9 = amb[3].x; gp.a10 = amb[3].y; gp.a11 = amb[3].z;
+    gp.g0 = gerichtet[0].x; gp.g1 = gerichtet[0].y; gp.g2 = gerichtet[0].z;
+    gp.g3 = gerichtet[1].x; gp.g4 = gerichtet[1].y; gp.g5 = gerichtet[1].z;
+    gp.g6 = gerichtet[2].x; gp.g7 = gerichtet[2].y; gp.g8 = gerichtet[2].z;
+    gp.g9 = gerichtet[3].x; gp.g10 = gerichtet[3].y; gp.g11 = gerichtet[3].z;
+    gp.stile = stile;
+    gp.neu = neu;
+    z.numStyles = numStyles;
+    z.gezaehlt = gezaehlt;
+    gitter[nr] = gp;
+    zustand[nr] = z;
 }

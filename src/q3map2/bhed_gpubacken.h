@@ -83,6 +83,8 @@ struct BhedBakeLicht {
 	float radiusByDist, fade, angleScale, extraDist, add;
 	float envelope, falloffTol;
 	int skyIndex, windAnzahl;
+	float mins[ 3 ], maxs[ 3 ];   // light->minmax (Lichtgitter)
+	int style, pad;
 };
 // BSP fuer ClusterForPointExt (Unterabtastung)
 struct BhedBakeBsp {
@@ -115,6 +117,8 @@ struct BhedBakeLm {
 	float ambient[ 3 ];
 	int zeilenBase;
 	int aus[ 4 ];           // erster Eintrag in R je Stilplatz, -1: kein Licht in diesem Stil
+	int start;              // 1: die Stilplaetze beginnen mit startWert (Teil einer grossen Lightmap) statt Umgebung/0
+	int pad[ 3 ];
 };
 // ein Licht der Lightmap nach der Stil-Pruefung, das etwas beleuchtet
 struct BhedBakeAktiv {
@@ -135,6 +139,7 @@ struct BhedBakeBlock {
 	std::vector<int> lmCluster;     // je Lightmap lightClusters
 	std::vector<BhedBakeAktiv> aktiv;
 	std::vector<int> aktivNr;       // je Licht der Lightmap: Eintrag in aktiv oder -1
+	std::vector<float> startWert;   // Lightmaps mit start: 4 float je Luxel und Stilplatz (wie die Ausgabe)
 	std::uint32_t paare = 0, zeilen = 0, aus = 0;
 };
 
@@ -145,6 +150,23 @@ bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector
 // Lichter einer Runde (alle Lichter der Liste, Windungen der Flaechenlichter).
 bool BhedBakeLichter( const std::vector<BhedBakeLicht>& lichter, const std::vector<float>& windungen, const BhedBakeSchalter& s,
                       const std::vector<BhedBakeInfo>& infos );
+// ein Punkt des Lichtgitters (GitterPunkt im Shader)
+struct BhedBakeGitterPunkt {
+	float o[ 3 ];
+	int cluster;
+	float dir[ 3 ];
+	std::uint32_t stile;    // gp.styles, 4 Byte
+	float ambient[ 12 ];
+	float directed[ 12 ];
+	std::uint32_t neu;      // zurueck: in diesem Lauf vergebene Stilplaetze (Bit 1..3)
+	int flag;               // zurueck: 1 = die CPU rechnet diesen Punkt
+	int pad[ 2 ];
+};
+struct BhedBakeGitterSchalter {
+	float inhibit;          // trace.inhibitRadius: die halbe groesste Gitterweite
+	float ambientDirectionality, directionality;
+	int cheapgrid;
+};
 // Paare, die ein Block hoechstens haben darf (Grafikspeicher vorab geschaetzt)
 std::size_t BhedBakeBudgetPaare();
 // Schritt 1: Erstabtastung; zaehler je Licht der Lightmaps, flags je Lightmap (1: die CPU rechnet sie).
@@ -152,6 +174,8 @@ std::size_t BhedBakeBudgetPaare();
 bool BhedBakeErst( const BhedBakeBlock& b, std::vector<std::uint32_t>& zaehler, std::vector<std::uint32_t>& flags );
 // Schritt 3 und 4 mit den aktiven Lichtern (b.lms mit aktivBase/nAktiv/zeilenBase/aus): die fertigen Luxel.
 bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::vector<std::uint32_t>& flags );
+// TraceGrid fuer die Punkte (in place); false: die GPU ist ausgefallen (die CPU rechnet alle Punkte)
+bool BhedBakeGitter( std::vector<BhedBakeGitterPunkt>& punkte, const BhedBakeGitterSchalter& s );
 bool BhedBakeBereit();
 void BhedBakeEnde();
 std::string BhedBakeAdapter();
@@ -159,7 +183,8 @@ bool BhedBakeDoppelt();     // die GPU rechnet double (genau gerundete Wurzel, a
 // Zaehler fuer den Bericht
 struct BhedBakeZahlen {
 	long long paare = 0, gpuMikros = 0, dispatches = 0, bloecke = 0, budget = 0;
-	long long kernMikros[ 5 ] = {};   // BHED_GPUBAKE_ZEITEN: je Kern (erst, kandidaten, unter, stempellauf, filtern), mit Warten gemessen
+	long long kernMikros[ 6 ] = {};   // BHED_GPUBAKE_ZEITEN: je Kern (erst, kandidaten, unter, stempellauf, filtern, gitter), mit Warten gemessen
+	long long gitterPunkte = 0, gitterCpu = 0;
 	bool ausgefallen = false;
 	std::string grund;
 };
@@ -171,3 +196,6 @@ inline int g_bhedBakePruefen = 16;                          // -bhedgpubakecheck
 bool BhedBakeVorbereiten( const std::string& adapter );    // light_trace.cpp: nach SetupTraceNodes
 std::vector<BhedBakeInfo> BhedBakeInfos();                 // light_trace.cpp: die Infos (skyIndex entsteht erst in LightWorld)
 void BhedBakeBericht( const char *quelle );                // light_ydnar.cpp: nach LightWorld
+// light_ydnar.cpp: die Lichttafel dieser Runde hochladen (nr/zeiger: Nummer je Licht und umgekehrt, duerfen null sein)
+bool BhedBakeLichtTafel( void *nr, void *zeiger );
+void BhedBakeGitterZaehlen( long long gpu, long long cpu ); // light.cpp: Punkte des Lichtgitters auf GPU/CPU

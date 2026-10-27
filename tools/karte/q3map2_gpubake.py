@@ -19,7 +19,8 @@ alle Luxel (der Bericht zaehlt sie).
   5. GPU ohne double           - BHED_GPUBAKE_OHNE_DOUBLE: float-Naeherungen, nur die
                                  Obergrenze (>= 25 % der Luxel gleich)
   6. kleine Bloecke            - BHED_GPUBAKE_BUDGET_MB=1: viele Bloecke, Lightmaps ueber dem
-                                 Speicherbudget rechnet die CPU; Lumps gleich der CPU
+                                 Speicherbudget in Teilen ihrer Lichtliste (jeder Teil addiert auf
+                                 den vorigen); Lumps gleich der CPU
   7. -samples 4                - die Unterabtastung mit Rekursion (drei Ebenen): CPU und GPU
                                  Byte-gleich
   8. Himmel mit Sonne          - ein Hof unter einem Himmels-Shader mit q3map_sunExt (eigener
@@ -90,14 +91,14 @@ def lauf(exe, args, ordner, env=None):
 
 def bericht(aus):
     """Die zwei Zeilen des GPU-Backens: Kopf (Lightmaps GPU/CPU) und Abweichungsbericht."""
-    k = re.search(r'BehavEd GPU bake: .*?, (\d+) rounds, (\d+) lightmaps on the GPU, (\d+) on the CPU \((\d+) alpha shadow/unsafe, '
+    k = re.search(r'BehavEd GPU bake: .*?, (\d+) rounds, (\d+) lightmaps on the GPU \(\d+ without light, (\d+) in parts\), (\d+) on the CPU \((\d+) alpha shadow/unsafe, '
                   r'(\d+) not finite, (\d+) too big\)', aus)
     m = re.search(r'BehavEd GPU bake report: (\d+) luxels in (\d+) lightmaps checked on the CPU, ([0-9.]+) % identical; (\d+) lightmaps with a '
                   r'difference \((\d+) in styles\), mean \|diff\| ([0-9.]+), max \|diff\| ([0-9.]+)', aus)
     if not k or not m:
         return None
-    return {'runden': int(k.group(1)), 'gpu': int(k.group(2)), 'cpu': int(k.group(3)), 'alpha': int(k.group(4)), 'nichtendlich': int(k.group(5)),
-            'zugross': int(k.group(6)), 'luxel': int(m.group(1)), 'lms': int(m.group(2)), 'gleich': float(m.group(3)), 'anders': int(m.group(4)),
+    return {'runden': int(k.group(1)), 'gpu': int(k.group(2)), 'teile': int(k.group(3)), 'cpu': int(k.group(4)), 'alpha': int(k.group(5)),
+            'nichtendlich': int(k.group(6)), 'zugross': int(k.group(7)), 'luxel': int(m.group(1)), 'lms': int(m.group(2)), 'gleich': float(m.group(3)), 'anders': int(m.group(4)),
             'stile': int(m.group(5)), 'mittel': float(m.group(6)), 'max': float(m.group(7))}
 
 
@@ -181,10 +182,10 @@ def main():
               (bf['gleich'] if bf else 0, bf and bf['gpu']))
         bk = bericht(ergebnis['klein'][1])
         bl = re.search(r'BehavEd GPU bake: .*?(\d+) blocks', ergebnis['klein'][1])
-        melde(bk is not None and bk['zugross'] > 0 and bk['gpu'] > 0 and bl is not None and int(bl.group(1)) > 2 and
+        melde(bk is not None and bk['teile'] > 0 and bk['gpu'] > 0 and bl is not None and int(bl.group(1)) > 2 and
               (not doppelt or ergebnis['klein'][0] == cpu),
-              'kleine Bloecke (1 MB): %s Bloecke, %s Lightmaps zu gross fuer einen Block (CPU), %s auf der GPU, Lumps gleich der CPU' %
-              (bl.group(1) if bl else '?', bk and bk['zugross'], bk and bk['gpu']))
+              'kleine Bloecke (1 MB): %s Bloecke, %s Lightmaps ueber dem Budget in Teilen der Lichtliste, %s zu gross (CPU), %s auf der GPU, Lumps gleich der CPU' %
+              (bl.group(1) if bl else '?', bk and bk['teile'], bk and bk['zugross'], bk and bk['gpu']))
         b4 = bericht(ergebnis['gpu4'][1])
         if doppelt:
             anders = [i for i in range(18) if ergebnis['gpu4'][0][i] != ergebnis['cpu4'][0][i]]

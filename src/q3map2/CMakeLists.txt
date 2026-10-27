@@ -274,15 +274,15 @@ function(bhed_fxc name quelle einstieg)
     VERBATIM)
   set(BHED_HLSL_HEADER ${BHED_HLSL_HEADER} ${aus} PARENT_SCOPE)
 endfunction()
-# Stufe 8g: fuenf Einstiege (Erstabtastung, Vorhersage, Unterabtastung, Stempellauf,
-# Filtern), je mit und ohne double; die Messschalter (MESS 1/2) nur fuer die Kerne mit
+# Stufe 8g: sechs Einstiege (Erstabtastung, Vorhersage, Unterabtastung, Stempellauf,
+# Filtern, Lichtgitter), je mit und ohne double; die Messschalter (MESS 1/2) nur fuer die Kerne mit
 # Strahlen und nur mit double.
-foreach(k erst kandidaten unter stempellauf filtern)
+foreach(k erst kandidaten unter stempellauf filtern gitterKern)
   foreach(d 0 1)
     bhed_fxc(g_bake_${k}_d${d}_m0 bhed_gpubacken.hlsl ${k} DOPPELT=${d} MESS=0)
   endforeach()
 endforeach()
-foreach(k erst unter stempellauf)
+foreach(k erst unter stempellauf gitterKern)
   foreach(m 1 2)
     bhed_fxc(g_bake_${k}_d1_m${m} bhed_gpubacken.hlsl ${k} DOPPELT=1 MESS=${m})
   endforeach()

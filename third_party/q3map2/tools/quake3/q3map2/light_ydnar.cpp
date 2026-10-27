@@ -38,6 +38,8 @@
 #include "timer.h"
 #include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, parallel rows of big lightmaps */
 #include <mutex> /* BehavEd stage 8g */
+#include <array> /* BehavEd stage 8g */
+#include <limits> /* BehavEd stage 8g */
 #include <chrono> /* BehavEd stage 8g */
 
 
@@ -2518,7 +2520,7 @@ struct BhedBakeFertig
 static std::vector<BhedBakeFertig> g_bhedBakeFertig;
 /* the deviation report: every N-th lightmap (-bhedgpubakecheck) is computed a second time on the CPU */
 static std::atomic<long long> g_bbProbenLm{ 0 }, g_bbProbenLuxel{ 0 }, g_bbGleichLuxel{ 0 }, g_bbLmAnders{ 0 }, g_bbStileAnders{ 0 }, g_bbRunden{ 0 };
-static std::atomic<long long> g_bbGpuLm{ 0 }, g_bbCpuLm{ 0 }, g_bbAlphaLm{ 0 }, g_bbNichtEndlichLm{ 0 }, g_bbZuGrossLm{ 0 };
+static std::atomic<long long> g_bbGpuLm{ 0 }, g_bbCpuLm{ 0 }, g_bbAlphaLm{ 0 }, g_bbNichtEndlichLm{ 0 }, g_bbZuGrossLm{ 0 }, g_bbLeerLm{ 0 }, g_bbGeteiltLm{ 0 };
 static std::atomic<long long> g_bbSummeMikro{ 0 };   /* sum of |difference| in 1e-6 units */
 static std::mutex g_bbMaxMutex;
 static float g_bbMaxAbw = 0;
@@ -2710,25 +2712,11 @@ static void BhedBakeFertigstellen( int r ){
 	}
 }
 
-/* BehavEd stage 8g: -bhedgpubake - the whole light loop of IlluminateRawLightmap on the GPU, in blocks of
-   raw lightmaps (as many pairs of light and luxel as the graphics memory takes, see BhedBakeBudgetPaare):
-   initial pass, the style check in light order here on the CPU (with the lit counts from the GPU),
-   adaptive supersampling and filtering/adding on the GPU; the finished luxels come back and the rest of
-   IlluminateRawLightmap runs on all threads as always. A lightmap the GPU cannot do exactly (alpha shadow,
-   light filter, a division it cannot round, not finite) or that does not fit, and everything after a lost
-   device, is computed on the CPU as always. */
-static void BhedIlluminateGpu(){
-	bhed_par::Pool& pool = BhedPool();
-	++g_bbRunden;
-	double t = BhedJetzt();
-	const auto zeit = [&]( int i ){
-		const double jetzt = BhedJetzt();
-		g_bbZeit[ i ] += jetzt - t;
-		t = jetzt;
-	};
-	/* the lights of this round */
-	std::unordered_map<const light_t*, int> nr;
-	std::vector<const light_t*> zeiger;
+/* BehavEd stage 8g: the light table of this round for the GPU (lightmaps and light grid): all lights in
+   list order, with the switches; nr/zeiger (optional): number of every light and back */
+bool BhedBakeLichtTafel( void *nrZeiger, void *zeigerZeiger ){
+	auto *nr = static_cast<std::unordered_map<const light_t*, int>*>( nrZeiger );
+	auto *zeiger = static_cast<std::vector<const light_t*>*>( zeigerZeiger );
 	std::vector<BhedBakeLicht> tafel;
 	std::vector<float> windungen;
 	for ( const light_t& l : lights )
@@ -2748,6 +2736,8 @@ static void BhedIlluminateGpu(){
 			b.o[ j ] = l.origin[ j ];
 			b.n[ j ] = l.normal[ j ];
 			b.c[ j ] = l.color[ j ];
+			b.mins[ j ] = l.minmax.mins[ j ];
+			b.maxs[ j ] = l.minmax.maxs[ j ];
 		}
 		b.dist = l.dist;
 		b.photons = l.photons;
@@ -2759,19 +2749,389 @@ static void BhedIlluminateGpu(){
 		b.envelope = l.envelope;
 		b.falloffTol = l.falloffTolerance;
 		b.skyIndex = l.skyIndex;
-		nr.emplace( &l, int( tafel.size() ) );
-		zeiger.push_back( &l );
+		b.style = l.style;
+		if ( nr != nullptr ) {
+			nr->emplace( &l, int( tafel.size() ) );
+		}
+		if ( zeiger != nullptr ) {
+			zeiger->push_back( &l );
+		}
 		tafel.push_back( b );
 	}
 	const BhedBakeSchalter schalter{ faster ? 1 : 0, lightAngleHL ? 1 : 0, bouncing ? 1 : 0, noTrace ? 0 : 1, g_oneSky ? 1 : 0, noSurfaces ? 1 : 0, linearScale,
 	                                 lightSamples, 0.25f * lightSamplesSearchBoxSize };
+	return BhedBakeLichter( tafel, windungen, schalter, BhedBakeInfos() );
+}
+
+static long long g_bbGitterGpu = 0, g_bbGitterCpu = 0;
+void BhedBakeGitterZaehlen( long long gpu, long long cpu ){
+	g_bbGitterGpu += gpu;
+	g_bbGitterCpu += cpu;
+}
+
+/* BehavEd stage 8g: -bhedgpubake - the culled light list of CreateTraceLightsForBounds for every raw
+   lightmap, faster: a bounding volume tree over the light spheres finds the lights whose sphere can reach
+   the lightmap's sphere (with a margin, so never fewer), then exactly the tests of CreateTraceLightsForBounds
+   run on these candidates in list order - the same list. On md_am_sith (up to 63000 lights, 127000
+   lightmaps per round) the plain loop took 9 of 29 seconds. */
+struct BhedLichtBaum
+{
+	struct Knoten
+	{
+		float mins[ 3 ], maxs[ 3 ];
+		int links = -1, rechts = -1;   /* inner node: children; leaf: links = -1, erstes/anzahl */
+		int erstes = 0, anzahl = 0;
+	};
+	std::vector<Knoten> knoten;
+	std::vector<int> nr;               /* light numbers in leaf order */
+	std::vector<int> immer;            /* suns: no sphere test */
+	std::vector<std::array<float, 6>> kasten;   /* per light: sphere box with margin */
+
+	void bauen( const std::vector<const light_t*>& zeiger ){
+		knoten.clear();
+		nr.clear();
+		immer.clear();
+		kasten.assign( zeiger.size(), {} );
+		for ( size_t i = 0; i < zeiger.size(); ++i )
+		{
+			const light_t& l = *zeiger[ i ];
+			if ( l.envelope <= 0 || !( l.flags & LightFlags::Surfaces ) ) {
+				continue;   /* CreateTraceLightsForBounds never takes these */
+			}
+			if ( l.type == ELightType::Sun ) {
+				immer.push_back( int( i ) );
+				continue;
+			}
+			const float r = l.envelope * 1.001f + 1.0f;   /* margin: the test runs exactly in double later */
+			kasten[ i ] = { l.origin[ 0 ] - r, l.origin[ 1 ] - r, l.origin[ 2 ] - r, l.origin[ 0 ] + r, l.origin[ 1 ] + r, l.origin[ 2 ] + r };
+			nr.push_back( int( i ) );
+		}
+		if ( !nr.empty() ) {
+			knoten.reserve( nr.size() * 2 / 4 + 2 );
+			teilen( 0, int( nr.size() ) );
+		}
+	}
+	int teilen( int von, int bis ){
+		const int k = int( knoten.size() );
+		knoten.emplace_back();
+		Knoten kn;
+		for ( int j = 0; j < 3; ++j ) {
+			kn.mins[ j ] = std::numeric_limits<float>::max();
+			kn.maxs[ j ] = -std::numeric_limits<float>::max();
+		}
+		for ( int i = von; i < bis; ++i )
+		{
+			const auto& b = kasten[ nr[ i ] ];
+			for ( int j = 0; j < 3; ++j ) {
+				kn.mins[ j ] = std::min( kn.mins[ j ], b[ j ] );
+				kn.maxs[ j ] = std::max( kn.maxs[ j ], b[ 3 + j ] );
+			}
+		}
+		if ( bis - von <= 4 ) {
+			kn.erstes = von;
+			kn.anzahl = bis - von;
+			knoten[ k ] = kn;
+			return k;
+		}
+		int achse = 0;
+		float weite = -1;
+		for ( int j = 0; j < 3; ++j ) {
+			if ( kn.maxs[ j ] - kn.mins[ j ] > weite ) {
+				weite = kn.maxs[ j ] - kn.mins[ j ];
+				achse = j;
+			}
+		}
+		const int mitte = ( von + bis ) / 2;
+		std::nth_element( nr.begin() + von, nr.begin() + mitte, nr.begin() + bis, [&]( int a, int b ){
+			const float ma = kasten[ a ][ achse ] + kasten[ a ][ 3 + achse ];
+			const float mb = kasten[ b ][ achse ] + kasten[ b ][ 3 + achse ];
+			return ma < mb || ( ma == mb && a < b );
+		} );
+		kn.links = teilen( von, mitte );
+		kn.rechts = teilen( mitte, bis );
+		knoten[ k ] = kn;
+		return k;
+	}
+	/* the lights whose box overlaps mins..maxs, plus the suns; ascending */
+	void suchen( const float mins[ 3 ], const float maxs[ 3 ], std::vector<int>& aus ) const {
+		aus = immer;
+		if ( knoten.empty() ) {
+			return;
+		}
+		int stapel[ 128 ];
+		int sp = 0;
+		stapel[ sp++ ] = 0;
+		while ( sp > 0 )
+		{
+			const Knoten& kn = knoten[ stapel[ --sp ] ];
+			if ( kn.mins[ 0 ] > maxs[ 0 ] || kn.mins[ 1 ] > maxs[ 1 ] || kn.mins[ 2 ] > maxs[ 2 ] ||
+			     kn.maxs[ 0 ] < mins[ 0 ] || kn.maxs[ 1 ] < mins[ 1 ] || kn.maxs[ 2 ] < mins[ 2 ] ) {
+				continue;
+			}
+			if ( kn.links < 0 ) {
+				for ( int i = kn.erstes; i < kn.erstes + kn.anzahl; ++i )
+				{
+					const auto& b = kasten[ nr[ i ] ];
+					if ( b[ 0 ] <= maxs[ 0 ] && b[ 1 ] <= maxs[ 1 ] && b[ 2 ] <= maxs[ 2 ] && b[ 3 ] >= mins[ 0 ] && b[ 4 ] >= mins[ 1 ] && b[ 5 ] >= mins[ 2 ] ) {
+						aus.push_back( nr[ i ] );
+					}
+				}
+				continue;
+			}
+			if ( sp + 2 > 128 ) {   /* deeper than ever needed: take everything (still exact) */
+				aus.assign( immer.begin(), immer.end() );
+				aus.insert( aus.end(), nr.begin(), nr.end() );
+				break;
+			}
+			stapel[ sp++ ] = kn.links;
+			stapel[ sp++ ] = kn.rechts;
+		}
+		std::sort( aus.begin(), aus.end() );
+	}
+};
+
+/* CreateTraceLightsForBounds( lm->minmax, plane normal, lm clusters, LightFlags::Surfaces ) on the candidates */
+static void BhedLichtListe( const rawLightmap_t *lm, bool twoSided, const BhedLichtBaum& baum, const std::vector<const light_t*>& zeiger,
+                            std::vector<int>& kandidaten, std::vector<int>& liste ){
+	const MinMax& minmax = lm->minmax;
+	const Vector3 *normal = lm->plane == nullptr ? nullptr : &lm->plane->normal();
+	const int numClusters = lm->numLightClusters;
+	const int *clusters = lm->lightClusters;
+	const Vector3 origin = minmax.origin();
+	const float radius = vector3_length( minmax.maxs - origin );
+	float length;
+	if ( normal != nullptr ) {
+		length = vector3_length( *normal );
+	}
+	else{
+		normal = &g_vector3_identity;
+		length = 0;
+	}
+	const float r = radius * 1.001f + 1.0f;
+	const float mins[ 3 ] = { origin[ 0 ] - r, origin[ 1 ] - r, origin[ 2 ] - r };
+	const float maxs[ 3 ] = { origin[ 0 ] + r, origin[ 1 ] + r, origin[ 2 ] + r };
+	baum.suchen( mins, maxs, kandidaten );
+	liste.clear();
+	for ( const int k : kandidaten )
+	{
+		const light_t& light = *zeiger[ k ];
+		if ( light.envelope <= 0 ) {
+			continue;
+		}
+		if ( !( light.flags & LightFlags::Surfaces ) ) {
+			continue;
+		}
+		if ( light.type != ELightType::Sun ) {
+			if ( sunOnly ) {
+				continue;
+			}
+			if ( numClusters > 0 && clusters != nullptr ) {
+				int i;
+				for ( i = 0; i < numClusters; ++i )
+				{
+					if ( ClusterVisible( light.cluster, clusters[ i ] ) ) {
+						break;
+					}
+				}
+				if ( i == numClusters ) {
+					continue;
+				}
+			}
+			if ( vector3_length( light.origin - origin ) - light.envelope - radius > 0 ) {
+				continue;
+			}
+		}
+		if ( length > 0 && !twoSided ) {
+			if ( !( light.flags & LightFlags::Twosided ) && vector3_dot( light.normal, *normal ) > 0.999f ) {
+				continue;
+			}
+			if ( vector3_dot( light.origin, *normal ) - vector3_dot( origin, *normal ) < -1 ) {
+				continue;
+			}
+		}
+		liste.push_back( k );
+	}
+}
+
+/* BehavEd stage 8g: one raw lightmap (or a part of its light list) into a GPU block */
+static void BhedBlockLm( BhedBakeBlock& b, int r, const BhedBakeLm& info, int m, const int *lichter, int nLichter, size_t paarBase ){
+	const rawLightmap_t *lm = &rawLightmaps[ r ];
+	BhedBakeLm L = info;
+	L.sw = lm->sw;
+	L.sh = lm->sh;
+	L.m = m;
+	L.luxelBase = int( b.luxel.size() );
+	L.idxBase = int( b.idx.size() );
+	L.lichtBase = int( b.lichtListe.size() );
+	L.nLichter = nLichter;
+	L.paarBase = int( paarBase );
+	L.clusterBase = int( b.lmCluster.size() );
+	L.nClusters = lm->lightClusters != nullptr ? lm->numLightClusters : 0;
+	for ( int j = 0; j < 3; ++j ) {
+		L.ambient[ j ] = lm->ambientColor[ j ];
+	}
+	for ( int& a : L.aus ) {
+		a = -1;
+	}
+	L.start = 0;
+	const int li = int( b.lms.size() );
+	int k = 0;
+	for ( int y = 0; y < lm->sh; ++y )
+	{
+		for ( int x = 0; x < lm->sw; ++x )
+		{
+			const int cluster = lm->getSuperCluster( x, y );
+			if ( cluster < CLUSTER_NORMAL ) {
+				b.idx.push_back( -1 );
+				continue;
+			}
+			b.idx.push_back( k++ );
+			BhedBakeLuxel l{};
+			const Vector3& o = lm->getSuperOrigin( x, y );
+			const Vector3& n = lm->getSuperNormal( x, y );
+			for ( int j = 0; j < 3; ++j ) {
+				l.o[ j ] = o[ j ];
+				l.n[ j ] = n[ j ];
+			}
+			l.cluster = cluster;
+			l.lm = li;
+			l.x = x;
+			l.y = y;
+			b.luxel.push_back( l );
+		}
+	}
+	b.lichtListe.insert( b.lichtListe.end(), lichter, lichter + nLichter );
+	if ( L.nClusters > 0 ) {
+		b.lmCluster.insert( b.lmCluster.end(), lm->lightClusters, lm->lightClusters + L.nClusters );
+	}
+	b.lms.push_back( L );
+}
+
+/* the style check of the light loop in light order (style slot, "nothing lit", set style) for the lights of
+   lightmap li of the block, starting with the given styles */
+struct BhedStil
+{
+	std::vector<BhedBakeAktiv> aktiv;
+	Array4<byte> styles{};
+	int warnungen = 0;
+};
+static void BhedStilPruefen( const rawLightmap_t *lm, const BhedBakeBlock& b, int li, const std::vector<std::uint32_t>& zaehler,
+                             const std::vector<const light_t*>& zeiger, BhedStil& s ){
+	const BhedBakeLm& L = b.lms[ li ];
+	for ( int j = 0; j < L.nLichter; ++j )
+	{
+		const light_t *light = zeiger[ b.lichtListe[ L.lichtBase + j ] ];
+		int lightmapNum;
+		for ( lightmapNum = 0; lightmapNum < MAX_LIGHTMAPS; ++lightmapNum )
+		{
+			if ( s.styles[ lightmapNum ] == light->style ||
+			     s.styles[ lightmapNum ] == LS_NONE ) {
+				break;
+			}
+		}
+		if ( lightmapNum >= MAX_LIGHTMAPS ) {
+			++s.warnungen;
+			continue;
+		}
+		const float filterRadius = std::max( { 0.f, lm->filterRadius, light->filterRadius } );
+		int luxelFilterRadius = lm->sampleSize != 0 ? superSample * filterRadius / lm->sampleSize : 0;
+		if ( luxelFilterRadius == 0 && ( filterRadius > 0 || filter ) ) {
+			luxelFilterRadius = 1;
+		}
+		if ( zaehler[ L.lichtBase + j ] == 0 ) {
+			continue;
+		}
+		if ( lightmapNum > 0 ) {
+			s.styles[ lightmapNum ] = light->style;
+		}
+		s.aktiv.push_back( { j, lightmapNum, luxelFilterRadius, ( light->flags & LightFlags::Negative ) ? 1 : 0 } );
+	}
+}
+
+/* the active lights of every lightmap of the block into the block (aktiv, rows of the stamp scan, output slots);
+   flags[ li ] != 0: the CPU does that lightmap, nothing on the GPU */
+static void BhedAktivSetzen( BhedBakeBlock& b, const std::vector<BhedStil>& stil, const std::vector<std::uint32_t>& flags ){
+	b.aktivNr.assign( b.lichtListe.size(), -1 );
+	b.aktiv.clear();
+	std::uint32_t zeilen = 0, ausAnzahl = 0;
+	for ( size_t li = 0; li < b.lms.size(); ++li )
+	{
+		BhedBakeLm& L = b.lms[ li ];
+		L.aktivBase = int( b.aktiv.size() );
+		L.zeilenBase = int( zeilen );
+		L.nAktiv = 0;
+		if ( flags[ li ] != 0 ) {
+			continue;
+		}
+		bool benutzt[ MAX_LIGHTMAPS ] = {};
+		for ( const BhedBakeAktiv& a : stil[ li ].aktiv )
+		{
+			b.aktivNr[ L.lichtBase + a.j ] = int( b.aktiv.size() );
+			b.aktiv.push_back( a );
+			benutzt[ a.slot ] = true;
+		}
+		L.nAktiv = int( stil[ li ].aktiv.size() );
+		if ( lightSamples > 1 && L.sw > 1 && L.sh > 1 ) {
+			zeilen += std::uint32_t( L.nAktiv ) * std::uint32_t( L.sh - 1 );
+		}
+		for ( int s = 0; s < MAX_LIGHTMAPS; ++s )
+		{
+			if ( benutzt[ s ] ) {
+				L.aus[ s ] = int( ausAnzahl );
+				ausAnzahl += std::uint32_t( L.m );
+			}
+		}
+	}
+	b.zeilen = zeilen;
+	b.aus = ausAnzahl;
+}
+
+/* are all output luxels of lightmap li finite? */
+static bool BhedEndlich( const BhedBakeLm& L, const std::vector<float>& aus ){
+	for ( int s = 0; s < MAX_LIGHTMAPS; ++s )
+	{
+		if ( L.aus[ s ] < 0 ) {
+			continue;
+		}
+		for ( size_t q = size_t( L.aus[ s ] ) * 4; q < ( size_t( L.aus[ s ] ) + L.m ) * 4; ++q ) {
+			if ( !std::isfinite( aus[ q ] ) ) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+/* BehavEd stage 8g: -bhedgpubake - the whole light loop of IlluminateRawLightmap on the GPU, in blocks of
+   raw lightmaps (as many pairs of light and luxel as the graphics memory takes, see BhedBakeBudgetPaare):
+   initial pass, the style check in light order here on the CPU (with the lit counts from the GPU),
+   adaptive supersampling and filtering/adding on the GPU; the finished luxels come back and the rest of
+   IlluminateRawLightmap runs on all threads as always. A lightmap the GPU cannot do exactly (alpha shadow,
+   light filter, a division it cannot round, not finite) or that does not fit, and everything after a lost
+   device, is computed on the CPU as always. */
+static void BhedIlluminateGpu(){
+	bhed_par::Pool& pool = BhedPool();
+	++g_bbRunden;
+	double t = BhedJetzt();
+	const auto zeit = [&]( int i ){
+		const double jetzt = BhedJetzt();
+		g_bbZeit[ i ] += jetzt - t;
+		t = jetzt;
+	};
+	/* the lights of this round */
+	std::unordered_map<const light_t*, int> nr;
+	std::vector<const light_t*> zeiger;
 	/* -samples deeper than the subsampling stack of the GPU (MAXTIEFE + 1 in bhed_gpubacken.hlsl): the CPU */
-	const bool gpu = lightSamples <= 7 && BhedBakeLichter( tafel, windungen, schalter, BhedBakeInfos() );
+	const bool gpu = lightSamples <= 7 && BhedBakeLichtTafel( &nr, &zeiger );
 	/* the culled light list of every raw lightmap (as IlluminateRawLightmap builds it) */
 	std::vector<std::vector<int>> liste( numRawLightmaps );
 	std::vector<BhedBakeLm> lmInfo( numRawLightmaps );
 	std::vector<int> abgebildet( numRawLightmaps, 0 );
+	BhedLichtBaum baum;
+	std::atomic<long long> listenAnders{ 0 };
+	const bool listenPruefen = getenv( "BHED_GPUBAKE_LISTENPRUEFEN" ) != nullptr;   /* test: the list against CreateTraceLightsForBounds */
 	if ( gpu ) {
+		baum.bauen( zeiger );
 		pool.fuerAlle( numRawLightmaps, [&]( int r ){
 			rawLightmap_t *lm = &rawLightmaps[ r ];
 			trace_t trace{};
@@ -2786,12 +3146,19 @@ static void BhedIlluminateGpu(){
 					break;
 				}
 			}
-			CreateTraceLightsForBounds( lm->minmax, ( lm->plane == nullptr? nullptr : &lm->plane->normal() ), lm->numLightClusters, lm->lightClusters, LightFlags::Surfaces, &trace );
-			liste[ r ].reserve( trace.numLights );
-			for ( int i = 0; i < trace.numLights; ++i ) {
-				liste[ r ].push_back( nr.at( trace.lights[ i ] ) );
+			std::vector<int> kandidaten;
+			BhedLichtListe( lm, trace.twoSided, baum, zeiger, kandidaten, liste[ r ] );
+			if ( listenPruefen ) {
+				CreateTraceLightsForBounds( lm->minmax, ( lm->plane == nullptr? nullptr : &lm->plane->normal() ), lm->numLightClusters, lm->lightClusters, LightFlags::Surfaces, &trace );
+				std::vector<int> alt;
+				for ( int i = 0; i < trace.numLights; ++i ) {
+					alt.push_back( nr.at( trace.lights[ i ] ) );
+				}
+				FreeTraceLights( &trace );
+				if ( alt != liste[ r ] ) {
+					++listenAnders;
+				}
 			}
-			FreeTraceLights( &trace );
 			BhedBakeLm& L = lmInfo[ r ];
 			L = BhedBakeLm{};
 			L.recv = lm->recvShadows;
@@ -2805,25 +3172,58 @@ static void BhedIlluminateGpu(){
 			abgebildet[ r ] = m;
 		} );
 	}
+	if ( listenPruefen ) {
+		Sys_Printf( "BHED-GPU-Listen: %lld of %d lists different\n", listenAnders.load(), numRawLightmaps );
+	}
 	zeit( 0 );
 	g_bhedBakeFertig.assign( numRawLightmaps, BhedBakeFertig{} );
 	std::vector<char> cpu( numRawLightmaps, 0 );
-	std::vector<int> gpuListe;
+	std::vector<int> gpuListe, leer, gross;
 	const size_t budget = BhedBakeBudgetPaare();
 	for ( int r = 0; r < numRawLightmaps; ++r )
 	{
 		const size_t bedarf = size_t( abgebildet[ r ] ) * liste[ r ].size();
-		if ( !gpu || bedarf == 0 ) {
-			cpu[ r ] = 1;   /* no GPU, or nothing to light (ambient and the passes after the light loop only) */
+		if ( !gpu ) {
+			cpu[ r ] = 1;
+		}
+		else if ( bedarf == 0 ) {
+			leer.push_back( r );   /* no light or no mapped luxel: nothing to light, see below */
+		}
+		else if ( bedarf > budget && size_t( abgebildet[ r ] ) > budget ) {
+			cpu[ r ] = 1;   /* not even one light fits into a block */
+			++g_bbZuGrossLm;
 		}
 		else if ( bedarf > budget ) {
-			cpu[ r ] = 1;
-			++g_bbZuGrossLm;
+			gross.push_back( r );   /* the light list in parts, see below */
 		}
 		else{
 			gpuListe.push_back( r );
 		}
 	}
+	/* nothing to light: the light loop only checks the styles (warnings), the list is known - no second
+	   CreateTraceLightsForBounds; the rest of IlluminateRawLightmap as always */
+	pool.fuerAlle( int( leer.size() ), [&]( int i ){
+		const int r = leer[ i ];
+		const rawLightmap_t *lm = &rawLightmaps[ r ];
+		BhedBakeFertig& f = g_bhedBakeFertig[ r ];
+		f.da = true;
+		f.numLights = int( liste[ r ].size() );
+		f.styles = lm->styles;
+		for ( int t : liste[ r ] )
+		{
+			int lightmapNum;
+			for ( lightmapNum = 0; lightmapNum < MAX_LIGHTMAPS; ++lightmapNum )
+			{
+				if ( lm->styles[ lightmapNum ] == zeiger[ t ]->style || lm->styles[ lightmapNum ] == LS_NONE ) {
+					break;
+				}
+			}
+			f.warnungen += lightmapNum >= MAX_LIGHTMAPS ? 1 : 0;
+		}
+		BhedBakeFertigstellen( r );
+		g_bhedBakeFertig[ r ] = BhedBakeFertig{};
+	} );
+	g_bbLeerLm += static_cast<long long>( leer.size() );
 	size_t pos = 0;
 	std::vector<std::uint32_t> zaehler, flags, flags2;
 	std::vector<float> aus;
@@ -2840,55 +3240,7 @@ static void BhedIlluminateGpu(){
 			if ( !nrs.empty() && paare + bedarf > budget ) {
 				break;
 			}
-			rawLightmap_t *lm = &rawLightmaps[ r ];
-			BhedBakeLm L = lmInfo[ r ];
-			L.sw = lm->sw;
-			L.sh = lm->sh;
-			L.m = abgebildet[ r ];
-			L.luxelBase = int( b.luxel.size() );
-			L.idxBase = int( b.idx.size() );
-			L.lichtBase = int( b.lichtListe.size() );
-			L.nLichter = int( liste[ r ].size() );
-			L.paarBase = int( paare );
-			L.clusterBase = int( b.lmCluster.size() );
-			L.nClusters = lm->lightClusters != nullptr ? lm->numLightClusters : 0;
-			for ( int j = 0; j < 3; ++j ) {
-				L.ambient[ j ] = lm->ambientColor[ j ];
-			}
-			for ( int& a : L.aus ) {
-				a = -1;
-			}
-			const int li = int( b.lms.size() );
-			int k = 0;
-			for ( int y = 0; y < lm->sh; ++y )
-			{
-				for ( int x = 0; x < lm->sw; ++x )
-				{
-					const int cluster = lm->getSuperCluster( x, y );
-					if ( cluster < CLUSTER_NORMAL ) {
-						b.idx.push_back( -1 );
-						continue;
-					}
-					b.idx.push_back( k++ );
-					BhedBakeLuxel l{};
-					const Vector3& o = lm->getSuperOrigin( x, y );
-					const Vector3& n = lm->getSuperNormal( x, y );
-					for ( int j = 0; j < 3; ++j ) {
-						l.o[ j ] = o[ j ];
-						l.n[ j ] = n[ j ];
-					}
-					l.cluster = cluster;
-					l.lm = li;
-					l.x = x;
-					l.y = y;
-					b.luxel.push_back( l );
-				}
-			}
-			b.lichtListe.insert( b.lichtListe.end(), liste[ r ].begin(), liste[ r ].end() );
-			if ( L.nClusters > 0 ) {
-				b.lmCluster.insert( b.lmCluster.end(), lm->lightClusters, lm->lightClusters + L.nClusters );
-			}
-			b.lms.push_back( L );
+			BhedBlockLm( b, r, lmInfo[ r ], abgebildet[ r ], liste[ r ].data(), int( liste[ r ].size() ), paare );
 			nrs.push_back( r );
 			paare += bedarf;
 			++pos;
@@ -2902,82 +3254,16 @@ static void BhedIlluminateGpu(){
 		}
 		zeit( 2 );
 		/* 2. the style check in light order (IlluminateRawLightmap: style slot, "nothing lit", set style) */
-		struct Stil
-		{
-			std::vector<BhedBakeAktiv> aktiv;
-			Array4<byte> styles{};
-			int warnungen = 0;
-		};
-		std::vector<Stil> stil( nrs.size() );
+		std::vector<BhedStil> stil( nrs.size() );
 		pool.fuerAlle( int( nrs.size() ), [&]( int li ){
 			if ( flags[ li ] != 0 ) {
 				return;
 			}
 			const rawLightmap_t *lm = &rawLightmaps[ nrs[ li ] ];
-			const BhedBakeLm& L = b.lms[ li ];
-			Stil& s = stil[ li ];
-			s.styles = lm->styles;
-			for ( int j = 0; j < L.nLichter; ++j )
-			{
-				const light_t *light = zeiger[ b.lichtListe[ L.lichtBase + j ] ];
-				int lightmapNum;
-				for ( lightmapNum = 0; lightmapNum < MAX_LIGHTMAPS; ++lightmapNum )
-				{
-					if ( s.styles[ lightmapNum ] == light->style ||
-					     s.styles[ lightmapNum ] == LS_NONE ) {
-						break;
-					}
-				}
-				if ( lightmapNum >= MAX_LIGHTMAPS ) {
-					++s.warnungen;
-					continue;
-				}
-				const float filterRadius = std::max( { 0.f, lm->filterRadius, light->filterRadius } );
-				int luxelFilterRadius = lm->sampleSize != 0 ? superSample * filterRadius / lm->sampleSize : 0;
-				if ( luxelFilterRadius == 0 && ( filterRadius > 0 || filter ) ) {
-					luxelFilterRadius = 1;
-				}
-				if ( zaehler[ L.lichtBase + j ] == 0 ) {
-					continue;
-				}
-				if ( lightmapNum > 0 ) {
-					s.styles[ lightmapNum ] = light->style;
-				}
-				s.aktiv.push_back( { j, lightmapNum, luxelFilterRadius, ( light->flags & LightFlags::Negative ) ? 1 : 0 } );
-			}
+			stil[ li ].styles = lm->styles;
+			BhedStilPruefen( lm, b, li, zaehler, zeiger, stil[ li ] );
 		} );
-		b.aktivNr.assign( b.lichtListe.size(), -1 );
-		std::uint32_t zeilen = 0, ausAnzahl = 0;
-		for ( size_t li = 0; li < nrs.size(); ++li )
-		{
-			BhedBakeLm& L = b.lms[ li ];
-			L.aktivBase = int( b.aktiv.size() );
-			L.zeilenBase = int( zeilen );
-			L.nAktiv = 0;
-			if ( flags[ li ] != 0 ) {
-				continue;
-			}
-			bool benutzt[ MAX_LIGHTMAPS ] = {};
-			for ( const BhedBakeAktiv& a : stil[ li ].aktiv )
-			{
-				b.aktivNr[ L.lichtBase + a.j ] = int( b.aktiv.size() );
-				b.aktiv.push_back( a );
-				benutzt[ a.slot ] = true;
-			}
-			L.nAktiv = int( stil[ li ].aktiv.size() );
-			if ( lightSamples > 1 && L.sw > 1 && L.sh > 1 ) {
-				zeilen += std::uint32_t( L.nAktiv ) * std::uint32_t( L.sh - 1 );
-			}
-			for ( int s = 0; s < MAX_LIGHTMAPS; ++s )
-			{
-				if ( benutzt[ s ] ) {
-					L.aus[ s ] = int( ausAnzahl );
-					ausAnzahl += std::uint32_t( L.m );
-				}
-			}
-		}
-		b.zeilen = zeilen;
-		b.aus = ausAnzahl;
+		BhedAktivSetzen( b, stil, flags );
 		zeit( 3 );
 		/* 3. and 4. supersampling, filtering and adding on the GPU; the finished luxels back */
 		if ( !BhedBakeRest( b, aus, flags2 ) ) {
@@ -2994,20 +3280,7 @@ static void BhedIlluminateGpu(){
 				++g_bbAlphaLm;
 				continue;
 			}
-			bool endlich = true;
-			for ( int s = 0; s < MAX_LIGHTMAPS && endlich; ++s )
-			{
-				if ( L.aus[ s ] < 0 ) {
-					continue;
-				}
-				for ( size_t q = size_t( L.aus[ s ] ) * 4; q < ( size_t( L.aus[ s ] ) + L.m ) * 4; ++q ) {
-					if ( !std::isfinite( aus[ q ] ) ) {
-						endlich = false;
-						break;
-					}
-				}
-			}
-			if ( !endlich ) {
+			if ( !BhedEndlich( L, aus ) ) {
 				cpu[ r ] = 1;
 				++g_bbNichtEndlichLm;
 				continue;
@@ -3038,6 +3311,86 @@ static void BhedIlluminateGpu(){
 	for ( ; pos < gpuListe.size(); ++pos ) {
 		cpu[ gpuListe[ pos ] ] = 1;
 	}
+	/* lightmaps above the block budget: the light list in parts, each part a block of its own - the style
+	   check goes on from part to part, and every part adds onto the luxels of the part before (start values),
+	   so every luxel gets the same additions in the same order */
+	for ( const int r : gross )
+	{
+		const rawLightmap_t *lm = &rawLightmaps[ r ];
+		const int m = abgebildet[ r ];
+		const int n = int( liste[ r ].size() );
+		const int teil = int( std::max<size_t>( 1, budget / size_t( m ) ) );
+		BhedStil stand;
+		stand.styles = lm->styles;
+		std::vector<float> summe( size_t( MAX_LIGHTMAPS ) * size_t( m ) * 4, 0.0f );
+		bool slotDa[ MAX_LIGHTMAPS ] = {};
+		bool ok = BhedBakeBereit();
+		bool alpha = false;
+		for ( int j0 = 0; j0 < n && ok; j0 += teil )
+		{
+			const int j1 = std::min( n, j0 + teil );
+			BhedBakeBlock b;
+			BhedBlockLm( b, r, lmInfo[ r ], m, liste[ r ].data() + j0, j1 - j0, 0 );
+			b.paare = std::uint32_t( size_t( m ) * size_t( j1 - j0 ) );
+			if ( !BhedBakeErst( b, zaehler, flags ) || flags[ 0 ] != 0 ) {
+				alpha = BhedBakeBereit();
+				ok = false;
+				break;
+			}
+			std::vector<BhedStil> stil( 1 );
+			stil[ 0 ].styles = stand.styles;
+			BhedStilPruefen( lm, b, 0, zaehler, zeiger, stil[ 0 ] );
+			stand.warnungen += stil[ 0 ].warnungen;
+			stand.styles = stil[ 0 ].styles;
+			BhedAktivSetzen( b, stil, flags );
+			BhedBakeLm& L = b.lms[ 0 ];
+			L.start = 1;
+			b.startWert.assign( size_t( b.aus ) * 4, 0.0f );
+			for ( int s = 0; s < MAX_LIGHTMAPS; ++s )
+			{
+				if ( L.aus[ s ] < 0 ) {
+					continue;
+				}
+				for ( int k = 0; k < m; ++k ) {
+					for ( int c = 0; c < 3; ++c ) {
+						b.startWert[ ( size_t( L.aus[ s ] ) + k ) * 4 + c ] = slotDa[ s ] ? summe[ ( size_t( s ) * m + k ) * 4 + c ] : ( s == 0 ? lm->ambientColor[ c ] : 0.0f );
+					}
+				}
+			}
+			if ( !BhedBakeRest( b, aus, flags2 ) || flags2[ 0 ] != 0 || !BhedEndlich( L, aus ) ) {
+				alpha = BhedBakeBereit();
+				ok = false;
+				break;
+			}
+			for ( int s = 0; s < MAX_LIGHTMAPS; ++s )
+			{
+				if ( L.aus[ s ] >= 0 ) {
+					std::copy( aus.begin() + size_t( L.aus[ s ] ) * 4, aus.begin() + ( size_t( L.aus[ s ] ) + m ) * 4, summe.begin() + size_t( s ) * m * 4 );
+					slotDa[ s ] = true;
+				}
+			}
+		}
+		if ( !ok ) {
+			cpu[ r ] = 1;
+			g_bbAlphaLm += alpha ? 1 : 0;
+			continue;
+		}
+		BhedBakeFertig& f = g_bhedBakeFertig[ r ];
+		f.da = true;
+		f.luxel = summe.data();
+		for ( int s = 0; s < MAX_LIGHTMAPS; ++s ) {
+			f.aus[ s ] = slotDa[ s ] ? s * m : -1;
+		}
+		f.numLights = n;
+		f.paare = size_t( m ) * size_t( n );
+		f.warnungen = stand.warnungen;
+		f.styles = stand.styles;
+		++g_bbGpuLm;
+		++g_bbGeteiltLm;
+		BhedBakeFertigstellen( r );
+		g_bhedBakeFertig[ r ] = BhedBakeFertig{};
+	}
+	zeit( 5 );
 	g_bhedBakeFertig.clear();
 	/* the CPU as always: big lightmaps with all threads (stage 7), the others in parallel */
 	std::vector<int> rest;
@@ -3074,19 +3427,20 @@ void BhedBakeBericht( const char *quelle ){
 	const long long gleich = g_bbGleichLuxel.load();
 	const long long anders = proben - gleich;
 	const double mittel = anders > 0 ? double( g_bbSummeMikro.load() ) / 1e6 / double( proben ) : 0.0;
-	Sys_Printf( "BehavEd GPU bake: %s, %s, %lld rounds, %lld lightmaps on the GPU, %lld on the CPU (%lld alpha shadow/unsafe, %lld not finite, %lld too big), "
+	Sys_Printf( "BehavEd GPU bake: %s, %s, %lld rounds, %lld lightmaps on the GPU (%lld without light, %lld in parts), %lld on the CPU (%lld alpha shadow/unsafe, %lld not finite, %lld too big), "
 	            "%lld pairs on the GPU, %lld blocks, %lld dispatches, GPU %.2f s%s%s\n",
-	            BhedBakeAdapter().c_str(), BhedBakeDoppelt() ? "double" : "float only", g_bbRunden.load(), g_bbGpuLm.load(), g_bbCpuLm.load(),
+	            BhedBakeAdapter().c_str(), BhedBakeDoppelt() ? "double" : "float only", g_bbRunden.load(), g_bbGpuLm.load() + g_bbLeerLm.load(), g_bbLeerLm.load(), g_bbGeteiltLm.load(), g_bbCpuLm.load(),
 	            g_bbAlphaLm.load(), g_bbNichtEndlichLm.load(), g_bbZuGrossLm.load(), z.paare, z.bloecke, z.dispatches, double( z.gpuMikros ) / 1e6,
 	            z.ausgefallen ? " - failed: " : "", z.ausgefallen ? z.grund.c_str() : "" );
 	Sys_Printf( "BehavEd GPU bake report: %lld luxels in %lld lightmaps checked on the CPU, %.4f %% identical; %lld lightmaps with a difference "
-	            "(%lld in styles), mean |diff| %.6f, max |diff| %.6f; light grid: CPU (exact)\n",
+	            "(%lld in styles), mean |diff| %.6f, max |diff| %.6f; light grid: %lld points on the GPU, %lld on the CPU\n",
 	            proben, g_bbProbenLm.load(), proben > 0 ? 100.0 * double( gleich ) / double( proben ) : 100.0, g_bbLmAnders.load(), g_bbStileAnders.load(),
-	            mittel, g_bbMaxAbw );
+	            mittel, g_bbMaxAbw, g_bbGitterGpu, g_bbGitterCpu );
 	if ( getenv( "BHED_GPUBAKE_ZEITEN" ) != nullptr ) {
-		Sys_Printf( "BHED-GPU-Zeiten: Listen %.3f, Bloecke %.3f, Erst %.3f, Stil %.3f, Rest %.3f, Fertig %.3f, CPU %.3f; Kerne erst %.3f kandidaten %.3f unter %.3f stempellauf %.3f filtern %.3f\n",
+		Sys_Printf( "BHED-GPU-Zeiten: Listen %.3f, Bloecke %.3f, Erst %.3f, Stil %.3f, Rest %.3f, Fertig %.3f, CPU %.3f; Kerne erst %.3f kandidaten %.3f unter %.3f stempellauf %.3f filtern %.3f gitter %.3f\n",
 		            g_bbZeit[ 0 ], g_bbZeit[ 1 ], g_bbZeit[ 2 ], g_bbZeit[ 3 ], g_bbZeit[ 4 ], g_bbZeit[ 5 ], g_bbZeit[ 6 ], double( z.kernMikros[ 0 ] ) / 1e6,
-		            double( z.kernMikros[ 1 ] ) / 1e6, double( z.kernMikros[ 2 ] ) / 1e6, double( z.kernMikros[ 3 ] ) / 1e6, double( z.kernMikros[ 4 ] ) / 1e6 );
+		            double( z.kernMikros[ 1 ] ) / 1e6, double( z.kernMikros[ 2 ] ) / 1e6, double( z.kernMikros[ 3 ] ) / 1e6, double( z.kernMikros[ 4 ] ) / 1e6,
+		            double( z.kernMikros[ 5 ] ) / 1e6 );
 	}
 	if ( quelle == nullptr ) {
 		return;
@@ -3095,10 +3449,10 @@ void BhedBakeBericht( const char *quelle ){
 	if ( FILE *f = fopen( pfad, "wb" ) ) {
 		fprintf( f, "adapter\t%s\ndouble\t%d\nrounds\t%lld\ngpu_lightmaps\t%lld\ncpu_lightmaps\t%lld\nalpha\t%lld\nnot_finite\t%lld\ntoo_big\t%lld\n"
 		            "pairs\t%lld\nblocks\t%lld\ndispatches\t%lld\ngpu_seconds\t%.3f\nchecked_lightmaps\t%lld\nchecked_luxels\t%lld\nidentical\t%lld\n"
-		            "different_lightmaps\t%lld\nmean\t%.9g\nmax\t%.9g\nfailed\t%s\n",
+		            "different_lightmaps\t%lld\nmean\t%.9g\nmax\t%.9g\ngrid_gpu\t%lld\ngrid_cpu\t%lld\nfailed\t%s\n",
 		         BhedBakeAdapter().c_str(), BhedBakeDoppelt() ? 1 : 0, g_bbRunden.load(), g_bbGpuLm.load(), g_bbCpuLm.load(), g_bbAlphaLm.load(),
 		         g_bbNichtEndlichLm.load(), g_bbZuGrossLm.load(), z.paare, z.bloecke, z.dispatches, double( z.gpuMikros ) / 1e6, g_bbProbenLm.load(), proben,
-		         gleich, g_bbLmAnders.load(), mittel, g_bbMaxAbw, z.ausgefallen ? z.grund.c_str() : "-" );
+		         gleich, g_bbLmAnders.load(), mittel, g_bbMaxAbw, g_bbGitterGpu, g_bbGitterCpu, z.ausgefallen ? z.grund.c_str() : "-" );
 		std::sort( g_bbAndersListe.begin(), g_bbAndersListe.end() );
 		for ( const auto& [ lm, n ] : g_bbAndersListe ) {
 			fprintf( f, "lm\t%d\t%lld\n", lm, n );
@@ -3199,6 +3553,13 @@ static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool ){
 	}
 
 	/* create a culled light list for this raw lightmap */
+	/* BehavEd stage 8g: -bhedgpubake - the list was made for the GPU already, and the light loop ran there:
+	   only its length is needed (not with -bhedlightcache, which hashes the list) */
+	if ( pool == nullptr && rawLightmapNum < int( g_bhedBakeFertig.size() ) && g_bhedBakeFertig[ rawLightmapNum ].da && !BhedLichtCacheAn() ) {
+		trace.lights = nullptr;
+		trace.numLights = g_bhedBakeFertig[ rawLightmapNum ].numLights;
+	}
+	else
 	CreateTraceLightsForBounds( lm->minmax, ( lm->plane == nullptr? nullptr : &lm->plane->normal() ), lm->numLightClusters, lm->lightClusters, LightFlags::Surfaces, &trace );
 
 	/* BehavEd stage 8a: the same culled lights as in the cached run - the raw luxels are the same */
