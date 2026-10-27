@@ -3155,3 +3155,8 @@ Knopftest OK: Undo history > Klick auf Schritt 1: Karte byte-gleich mit dem Stan
 Knopftest OK: Undo history > Klick auf Schritt 4 (grau): wieder am Ende, byte-gleich
 Knopftest OK: Undo history > Klick auf den Anfang: byte-gleich mit der geladenen Karte
 Knopftest OK: Undo history > hin und zurueck: byte-gleich mit dem Stand vor dem Springen
+Knopftest OK: Alle Befehle: 356 ausgefuehrt (ohne Exit, OpenMap, SaveMapAs)
+Knopftest OK: misc_model aus allen Modellordnern: t2_trip ohne Index - Index ueber alle Modelle gebaut und gespeichert, Ordnerregel 0 Kandidaten, mit Index Treffer
+Knopftest OK: misc_model aus allen Modellordnern: zweites Oeffnen - Index aus dem Zwischenspeicher (nichts neu), dasselbe Ergebnis, schneller
+Knopftest OK: Menue View: 292 x 611 wie NRC
+Knopftest OK: Menue Plugins: 162 x 202 wie NRC

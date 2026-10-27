@@ -251,6 +251,8 @@ void zusammenDialogOeffnen() {
     if (e().karteSpiel) { g_d.liste = karte::bspListe(e().karteSpiel->fs); }
 }
 
+void zusammenDialogSchliessen() { g_d.offen = false; }
+
 void zusammenVorlageWaehlenDatei(const std::string& pfad) {
     std::string d;
     if (!lesen(pfad, d)) {

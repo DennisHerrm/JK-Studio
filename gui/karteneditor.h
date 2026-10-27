@@ -1596,6 +1596,7 @@ void vorlageEntfernen();
 bool vorlageZeichnen(const float* matrix);
 // Stufe 8a Punkt 5c: der Dialog "Zur fertigen Karte hinzufuegen"
 void zusammenDialogOeffnen();
+void zusammenDialogSchliessen();   // Stufe 8b: fuer karteDialogeZu im Selbsttest
 void zusammenDialogZeichnen();
 struct ZusammenStand {
     int stand = 0;           // 0 nichts, 1 baut, 2 fertig, 3 Fehler

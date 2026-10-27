@@ -28386,6 +28386,9 @@ void karteDialogeZu() {
     e.portalLadenOffen = false;       // Stufe 3 Punkt 5: prtview
     e.portalKonfigOffen = false;
     ke::terrainSchliessen();          // Stufe 8b Punkt 1: Terrain Generator
+    ke::zusammenDialogSchliessen();   // Stufe 8a: Add to compiled map (lag sonst ueber der XY-Ansicht der Tests danach)
+    e.logik.offen = false;            // Stufe 8b: Logik-Ansicht
+    e.undoListeOffen = false;         // Stufe 8b: Undo-Verlauf
     ke::bauAbbrechen();               // Stufe 3 Punkt 4: kein q3map2 in den naechsten Schritt
     e.bauRueckmeldungOffen = false;   // Q3Map debug window
     e.meldung.offen = false;          // qtMeldung (sonst offen, aber ohne Popup)
@@ -37075,7 +37078,10 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         {"File", {"File"}, 212, 285 + 24},
         {"Edit", {"Edit"}, 356, 549},
         // View: NRC + die Programm-Eintraege (Stufe 7 Punkt 6b, Abweichung): Trenner 7 + fuenf Untermenues je 24
-        {"View", {"View"}, 262, 333 + 7 + 5 * 24},
+        // + Stufe 8b (Abweichung): Trenner 7 + "Play in editor", "Play: start at info_player_start",
+        // "Camera view modes", "Logic view...", "Mirror mode", "Undo history..." je 24 (der laengste
+        // Text "Play: start at info_player_start" mit Hakenspalte: 262 -> 292)
+        {"View", {"View"}, 292, 333 + 7 + 5 * 24 + 7 + 6 * 24},
         {"View__Camera", {"View", "Camera"}, 255, 216},
         {"View__Orthographic", {"View", "Orthographic"}, 307, 240},
         {"View__Show", {"View", "Show"}, 253, 401},
@@ -37109,7 +37115,9 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         {"Curve__Insert_Delete", {"Curve", "Insert/Delete"}, 316, 223},
         {"Curve__Matrix", {"Curve", "Matrix"}, 255, 168},
         {"Curve__Texture", {"Curve", "Texture"}, 225, 106},
-        {"Plugins", {"Plugins"}, 144, 178},
+        // Plugins: NRC 20260114 + "TerrainGenerator" 24 (Stufe 8b Punkt 1, aus NRC master; der Name
+        // ist laenger als "brushexport2": 144 -> 162)
+        {"Plugins", {"Plugins"}, 162, 178 + 24},
         {"Plugins__MeshTex", {"Plugins", "MeshTex"}, 159, 429},
         {"Plugins__ShaderPlug", {"Plugins", "ShaderPlug"}, 135, 58},
         {"Plugins__SunPlug", {"Plugins", "SunPlug"}, 166, 58},
