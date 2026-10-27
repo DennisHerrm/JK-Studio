@@ -414,9 +414,42 @@ Release-Notizen, Versionsangaben der .exe.
   kommen nicht mehr an; (5) ein Release mit zwei .zip oder als Vorab-Release
   bräche den Weg der alten Updater.
 
-## Punkt 5: Großer Gesamttest
+## Punkt 5: Großer Gesamttest (Schlussrunde)
 
-(siehe Abschnitt Schlussrunde unten)
+Vorlage `SP/s8b/ende_s8b.sh` → `SP/s8c/ende_s8c.sh` (Idle, 8-GB-Wächter, ein
+Prozess zur Zeit; Selbsttests über `SP/s8c/idle_jk.sh`, das jkstudio.exe nimmt),
+Summe `SP/s8c/ende_summe.txt`.
+
+### Vor der Pause (erster Durchgang auf 6d3653c1, alle Schritte)
+
+| Schritt | Ergebnis |
+|---|---|
+| Bau | ok |
+| ctest (Arbeitsbau) | 134/134 (156 s) |
+| ctest frisches Build-Verzeichnis (`build-frisch`, MSVC-q3map2, ohne Sonderpfade) | zuerst **Baufehler C2026** (Shader-Literal zu lang für MSVC, 12 ctests rot) → behoben (6d3653c1) → **125/125** (100 s) |
+| karteneditor voll (mit duel_mos_espa + MD-BSP) | 3126 OK, **12 FEHLER** (909 s, Spitze 1034 MB): 11 im Tutorial – die Arbeitszone stand vom vorigen Teil auf 0..64, der neue Brush lag 64 tiefer, alles danach folgte –, 1 Maß des Build-Menüs (ein Eintrag mehr) |
+| Modus 1 | 2640 OK, **5 FEHLER** (433 s): der Teil „eigenständig“ kopierte fest `behaved.exe` (gibt es nach der Umbenennung nicht mehr) |
+| karte, kartenfunde, fix604b, laserfalle, geschuetzanim, zielstrahl, effektgrund, figurdeform, jk2, tuerlauf, kamera, missionsbau, szenen, ton, npcklasse, gluehen, gras, spulen, figurstufen, missionsliste, rest605, modellimfesten | alle **0 FEHLER** (227, 53, 32, 8, 3, 2, 1, 1, 15, 13, 95, 95, 26, 34, 12, 8, 13, 13, 8, 11, 6, 1 OK) |
+| Leistung gegen rc605 (md_am_sith, je 2 Läufe) | Vorbereitung rc605 5983/6448 ms, 8c 6244/6151 ms; Bild Mittel 13/14 gegen 13/13 ms, Flug 8,3/8,1 gegen 9,1/8,6 ms, dritte Szene 9/9 gegen 10/9 ms, max. 209/162 gegen 155/178 ms – gleich im Rahmen der Streuung |
+| Kartenprüfung (278 MD-Karten, gegen Stufe 8b) | alle Summen gleich (0 Abstürze, 0 nicht geladen, 0 D3D-Meldungen, 1 → 1 nicht gezeichnete Entity) |
+| 672 dekompilierte Karten: lesen, schreiben, Rundlauf byte-gleich (`kartemassenlast`) | 672 Karten, 2 565 422 Brushes, **0 Fehlschläge** (482 s, 772 MB) |
+| 672 dekompilierte Karten: `-bsp -meta` | **672/672** Rückgabe 0, kein Absturz (1358 s) |
+| vier Sprachen mit Fotos (alle Kartenbildläufe des Handbuchs, Tutorial, Hilfe/About) | 36 Läufe, alle 0 FEHLER; Bilder geprüft (Menüs, Dialoge, About in en/de/zh/ja): nichts abgeschnitten |
+| sauberer Neubau | 0 Fehler, 133 Warnungen (388 s; 8b: 130) – die 3 neuen aus `std::filesystem::u8path` im neuen Selbsttest-Modus umzug → behoben |
+
+Behebungen danach: dc7f0fd3 (Arbeitszone im Tutorial, Build-Menü-Maß, Modus 1
+nimmt die laufende Programmdatei, u8path), c79cf5f4 (im vollen Lauf hat ein
+früherer Teil „Don't show this dialog until restart“ der Lichtstärke angehakt –
+das Tutorial stellt die Frage wieder her; im ersten Wiederholungslauf 2 FEHLER).
+
+### Nach der Pause (Wiederholung der betroffenen Läufe, Stand c79cf5f4)
+
+| Schritt | Ergebnis |
+|---|---|
+| Bau | ok (die 3 neuen Warnungen weg) |
+| karteneditor voll (mit duel_mos_espa + MD-BSP) | erster Wiederholungslauf 3135 OK, 2 FEHLER (Lichtstärke-Frage, siehe oben); nach c79cf5f4: **3136 OK, 0 FEHLER** (915 s, Spitze 1128 MB) |
+| Modus 1 | **2645 OK, 0 FEHLER** (441 s) |
+| übrige Modi, Leistung, Kartenprüfung, 672 Karten, Neubau | nicht wiederholt: die Behebungen berühren nur Selbsttest-Code des Karten-Editors und von Modus 1 |
 
 ## Offene Punkte
 
