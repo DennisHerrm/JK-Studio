@@ -18,7 +18,7 @@ im selben Test bestätigt; exakt heißt Byte-Vergleich; Texte über
 | 2b | cc25ab8a | Messschalter `BHED_GPUBAKE_MESS` (ohne Dreieckstests / ohne Strahl) – die obere Grenze für jeden schnelleren Strahltest, also auch DXR |
 | 3 | 767f62ae | Umbenennung in JK Studio: Name, Symbol, Logo, jkstudio.exe, Umzug der Einstellungen, Updater-Übergang von rc604 |
 | 4 | bed5bd76 | ctest `q3map2_uebersetzer` prüft zusätzlich die LLVM-Fassung 23.1.4 |
-| 5 | (siehe Gesamttest) | Behebungen aus dem Gesamttest |
+| 5 | dc7f0fd3, c79cf5f4, 87c89c47 | Behebungen aus dem Gesamttest: Selbsttest-Fixes, Handbuchbilder; FindOutLightmaps liest kein Luxel einer leeren soliden Lightmap mehr (ASan) |
 | 6 | (Commit dieser Notizen) | Notizen, Changelog |
 
 ## Punkt 1: Tutorial „Erste eigene Karte“
@@ -450,6 +450,11 @@ das Tutorial stellt die Frage wieder her; im ersten Wiederholungslauf 2 FEHLER).
 | karteneditor voll (mit duel_mos_espa + MD-BSP) | erster Wiederholungslauf 3135 OK, 2 FEHLER (Lichtstärke-Frage, siehe oben); nach c79cf5f4: **3136 OK, 0 FEHLER** (915 s, Spitze 1128 MB) |
 | Modus 1 | **2645 OK, 0 FEHLER** (441 s) |
 | übrige Modi, Leistung, Kartenprüfung, 672 Karten, Neubau | nicht wiederholt: die Behebungen berühren nur Selbsttest-Code des Karten-Editors und von Modus 1 |
+| ASan bhed_q3map2, 40 Karten (jede 17. der 672) `-bsp/-vis/-light` | 110 von 115 Stufen OK (12 944 s). 1 echter Befund: **heap-buffer-overflow in FindOutLightmaps** (duel_training, JO) – bei einer leeren soliden Lightmap wurde Luxel (0,0) gelesen, bevor `solid` geprüft war → behoben (87c89c47, Bedingung umgestellt; Release-Lumps vorher/nachher byte-gleich, q3map2-ctests 11/11, ASan-Wiederholung duel_training bsp/vis/light OK). md_toaj_jedi vis: ASan ohne Speicher (8-GB-Grenze der ASan-Größenklasse), kein Fehler im Code. 3 × Zeitgrenze 1800 s unter ASan (duel_tfu_tie_hangar vis, mb2_manaan light, md_lod_jedi light) |
+| ASan bhed_q3map2 `-bhedgpubake` (ctest-Skript q3map2_gpubake) | 0 Fehler, 0 ASan-Meldungen (26 s) |
+| ASan bhed_q3map2, 300 Fuzz-Karten `-bsp` | **300/300 OK**, 0 Befunde (252 s; Stand 87c89c47) |
+| ASan jkstudio karteneditor stufe8c / stufe8b | 35 OK / 80 OK, je **0 FEHLER**, keine ASan-Meldung |
+| Fuzzer `karte_fuzz` (ctest, Release) | grün in ctest 134/134 |
 
 ## Offene Punkte
 
