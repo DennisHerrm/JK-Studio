@@ -20,6 +20,11 @@
 // lesen den Schluessel nicht (q3map2 nur bekannte Schluessel, das Spiel gibt
 // Lichter ohne targetname beim Spawnen frei).
 //
+// Portiert aus q3map2 (NetRadiant-Custom 20260114: light.cpp TraceGrid - die
+// Kodierung der Gitterpunkte, LightContributionToPoint - die Staerke eines Punktlichts
+// 7500 / d^2).
+//
+//   Copyright (C) 1999-2006 Id Software, Inc. and contributors.
 //   Copyright (C) 2026 BehavEd-Remake contributors.
 //
 //   This program is free software; you can redistribute it and/or modify it

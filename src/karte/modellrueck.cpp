@@ -1,6 +1,11 @@
 // modellrueck.cpp - Karten-Editor Stufe 8a Punkt 3: misc_model aus der Geometrie
 // einer fertigen .bsp zurueckgewinnen (siehe modellrueck.h).
 //
+// Portiert aus q3map2 (NetRadiant-Custom 20260114: model.cpp InsertModel,
+// ModelGetTransform - Lage, Winkel und Skalierung eines misc_model;
+// surface_meta.cpp - wie forcemeta-Modelle in Meta-Flaechen aufgehen).
+//
+//   Copyright (C) 1999-2006 Id Software, Inc. and contributors.
 //   Copyright (C) 2026 BehavEd-Remake contributors.
 //
 //   This program is free software; you can redistribute it and/or modify it

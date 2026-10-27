@@ -20,6 +20,11 @@
 // MergeMetaTriangles), Modelle, deren Datei im Spiel fehlt. Solche Dreiecke werden
 // gemeldet (Flaechen, die nicht auf einer Pinselseite liegen).
 //
+// Portiert aus q3map2 (NetRadiant-Custom 20260114: model.cpp InsertModel,
+// ModelGetTransform - Lage, Winkel und Skalierung eines misc_model;
+// surface_meta.cpp - wie forcemeta-Modelle in Meta-Flaechen aufgehen).
+//
+//   Copyright (C) 1999-2006 Id Software, Inc. and contributors.
 //   Copyright (C) 2026 BehavEd-Remake contributors.
 //
 //   This program is free software; you can redistribute it and/or modify it

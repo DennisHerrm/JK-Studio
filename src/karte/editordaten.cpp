@@ -1,6 +1,16 @@
 // editordaten.cpp - Karten-Editor Stufe 8a Punkt 2: "Editor-Daten behalten"
 // (siehe editordaten.h).
 //
+// Portiert aus q3map2 (NetRadiant-Custom 20260114: bspfile_abstract.cpp
+// UnparseEntities - welche Entities in den Lump kommen; writebsp.cpp SetLightStyles
+// und -keeplights) und aus OpenJK (code/game/g_misc.cpp SP_light, g_utils.cpp
+// G_Spawn - was das Spiel mit behaltenen Lichtern macht).
+//
+//   Copyright (C) 1999-2006 Id Software, Inc. and contributors.
+//   Copyright (C) 1999 - 2005, Id Software, Inc.
+//   Copyright (C) 2000 - 2013, Raven Software, Inc.
+//   Copyright (C) 2001 - 2013, Activision, Inc.
+//   Copyright (C) 2013 - 2015, OpenJK contributors
 //   Copyright (C) 2026 BehavEd-Remake contributors.
 //
 //   This program is free software; you can redistribute it and/or modify it

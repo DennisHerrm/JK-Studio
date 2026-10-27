@@ -2877,11 +2877,100 @@ Knopftest OK: NRC#130: .bsp mit Licht neben der Karte im Ordner (bhed_q3map2 mit
 Knopftest OK: NRC#130: die Leck-Linie aus dem Ordner gelesen (.lin neben der Karte, Punkte sichtbar)
 Knopftest OK: NRC#130: AutoCaulk im Ordner: _ac.map und _ac.caulk, Rueckgaengig "AutoCaulk N faces" mit N > 0
 Knopftest OK: NRC#130: der Suchpfad ist gespeichert und das Spiel findet maps/s6pfad.txt darin
+Knopftest OK: Stufe 7: Echtzeit-Licht aktiv, ein Licht gezeichnet, Schattenwuerfel gerendert
+Knopftest OK: Stufe 7: Licht verschieben aendert die Helligkeit in die richtige Richtung (naeher heller, weiter dunkler)
+Knopftest OK: Stufe 7: die Wand wirft Schatten (die Messstelle wird dunkler)
+Knopftest OK: Stufe 7: ohne Echtzeit-Licht wieder das Licht aus Blickrichtung (anderes Bild)
+Knopftest OK: Stufe 7: gebacken - der Boden neben dem Licht ist hell (echte Lightmap)
+Knopftest OK: Stufe 7: gebacken - die Kamera zeigt die echten Lightmaps, die Karte des Anwenders und eine .bsp neben ihr bleiben unberuehrt
+Knopftest OK: Stufe 7: Schnell-Backen = Kommandozeile mit denselben Schaltern (Lightmaps, Lichtgitter, Sichtbarkeit)
+Knopftest OK: Stufe 7: eine Aenderung bricht den laufenden Bau ab, danach wird der neue Stand gebacken
+Knopftest OK: Stufe 7: aus - keine gebackene Ansicht mehr
+Knopftest OK: Stufe 7: grosse Karte - keine Ruckler: 99. Perzentil des Bildabstands unter 50 ms
+Knopftest OK: Stufe 7/6b: Vorgabe - Menues im Stil des Programms, Knopfgroesse Normal (Knopf 31 wie NRC)
+Knopftest OK: Stufe 7/6b: Menueleiste im Stil des Programms - Schrift und Hoehe des Programms, Editor direkt darunter
+Knopftest OK: Stufe 7/6b: View endet mit Target game, Theme, Language, Interface Scale, Toolbar Button Size
+Knopftest OK: Stufe 7/6b: kein Hinweis auf Strg + Mausrad im Karten-Editor
+Knopftest OK: Stufe 7/6b: Farbgebung Light gilt (activeTheme, angewendet)
+Knopftest OK: Stufe 7/6b: Sprache Deutsch gilt (die Menues des Editors deutsch)
+Knopftest OK: Stufe 7/6b: View > Interface Scale > 125 %: uiScale 1,25
+Knopftest OK: Stufe 7/6b: View > Target game > Multiplayer: settings.mpZiel
+Knopftest OK: Stufe 7/6b: Knopfgroesse Small - Knopf 23, Leiste 31, Ansichten darunter, gespeichert
+Knopftest OK: Stufe 7/6b: Knopfgroesse Large - Knopf 39, Leiste 47, Ansichten darunter, gespeichert
+Knopftest OK: Stufe 7/6b: Knopfgroesse Normal (like NetRadiant-Custom) - Knopf 31, Leiste 39, Ansichten darunter, gespeichert
+Knopftest OK: Stufe 7/6b: Preferences > Interface > Menus like NetRadiant-Custom: an und gespeichert, Leiste wieder 21 hoch (Segoe UI)
+Knopftest OK: Stufe 7/6b: menueStilSetzen(false) gespeichert
+Knopftest OK: Stufe 7/6b: Strg + Rad im Karten-Editor - Skalierung bleibt, die XY-Ansicht zoomt (wie NRC)
+Knopftest OK: Stufe 7/6c: erster Start - die Kamera vor dem Laden (KameraEinstellungen{}) = nach dem Laden ohne Datei = NRC
+Knopftest OK: Stufe 7/6c: erster Start - die gespeicherten Vorgaben wie NRC 20260114 (Kamera, 2D)
+Knopftest OK: Stufe 7/6c: jede Einstellung - erster Start gespeichert, wieder geladen und gespeichert: dieselben Werte
+Knopftest OK: Stufe 7/6c: Freelook an (30 fps, Windows 100 %, dark)
+Knopftest OK: Stufe 7/6c: 30 fps, Windows 100 %, dark - Drehung = 300 / Qt-Massstab x 0,0333333 x Sensitivity 3 (wie NRC)
+Knopftest OK: Stufe 7/6c: Freelook aus (30 fps, Windows 100 %, dark)
+Knopftest OK: Stufe 7/6c: Freelook an (144 fps, Windows 100 %, dark)
+Knopftest OK: Stufe 7/6c: 144 fps, Windows 100 %, dark - Drehung = 300 / Qt-Massstab x 0,0333333 x Sensitivity 3 (wie NRC)
+Knopftest OK: Stufe 7/6c: Freelook aus (144 fps, Windows 100 %, dark)
+Knopftest OK: Stufe 7/6c: Freelook an (500 fps, Windows 100 %, dark)
+Knopftest OK: Stufe 7/6c: 500 fps, Windows 100 %, dark - Drehung = 300 / Qt-Massstab x 0,0333333 x Sensitivity 3 (wie NRC)
+Knopftest OK: Stufe 7/6c: Freelook aus (500 fps, Windows 100 %, dark)
+Knopftest OK: Stufe 7/6c: Freelook an (30 fps, Windows 100 %, light)
+Knopftest OK: Stufe 7/6c: 30 fps, Windows 100 %, light - Drehung = 300 / Qt-Massstab x 0,0333333 x Sensitivity 3 (wie NRC)
+Knopftest OK: Stufe 7/6c: Freelook aus (30 fps, Windows 100 %, light)
+Knopftest OK: Stufe 7/6c: Freelook an (144 fps, Windows 100 %, light)
+Knopftest OK: Stufe 7/6c: 144 fps, Windows 100 %, light - Drehung = 300 / Qt-Massstab x 0,0333333 x Sensitivity 3 (wie NRC)
+Knopftest OK: Stufe 7/6c: Freelook aus (144 fps, Windows 100 %, light)
+Knopftest OK: Stufe 7/6c: Freelook an (500 fps, Windows 100 %, light)
+Knopftest OK: Stufe 7/6c: 500 fps, Windows 100 %, light - Drehung = 300 / Qt-Massstab x 0,0333333 x Sensitivity 3 (wie NRC)
+Knopftest OK: Stufe 7/6c: Freelook aus (500 fps, Windows 100 %, light)
+Knopftest OK: Stufe 7/6c: Freelook an (144 fps, Windows 125 %, light)
+Knopftest OK: Stufe 7/6c: 144 fps, Windows 125 %, light - Drehung = 300 / Qt-Massstab x 0,0333333 x Sensitivity 3 (wie NRC)
+Knopftest OK: Stufe 7/6c: Freelook aus (144 fps, Windows 125 %, light)
+Knopftest OK: Stufe 7/6c: Freelook an (500 fps, Windows 125 %, light)
+Knopftest OK: Stufe 7/6c: 500 fps, Windows 125 %, light - Drehung = 300 / Qt-Massstab x 0,0333333 x Sensitivity 3 (wie NRC)
+Knopftest OK: Stufe 7/6c: Freelook aus (500 fps, Windows 125 %, light)
+Knopftest OK: Stufe 7/6c: Freelook an (30 fps, Windows 150 %, light)
+Knopftest OK: Stufe 7/6c: 30 fps, Windows 150 %, light - Drehung = 300 / Qt-Massstab x 0,0333333 x Sensitivity 3 (wie NRC)
+Knopftest OK: Stufe 7/6c: Freelook aus (30 fps, Windows 150 %, light)
+Knopftest OK: Stufe 7/6c: Freelook an (500 fps, Windows 150 %, light)
+Knopftest OK: Stufe 7/6c: 500 fps, Windows 150 %, light - Drehung = 300 / Qt-Massstab x 0,0333333 x Sensitivity 3 (wie NRC)
+Knopftest OK: Stufe 7/6c: Freelook aus (500 fps, Windows 150 %, light)
+Knopftest OK: Stufe 7/6c: XY verschieben 30 fps - um 300 / Massstab nach links (wie NRC)
+Knopftest OK: Stufe 7/6c: XY verschieben 500 fps - um 300 / Massstab nach links (wie NRC)
+Knopftest OK: Stufe 7/6e: die .bsp enthaelt hint, areaportal und skip - alle structural (wie in der Quelle)
+Knopftest OK: Stufe 7/6e: durchsichtige Shader des Spiels gefunden (qer_trans ohne cull, qer_trans mit cull twosided/none/disable)
+Knopftest OK: Stufe 7/6e: Kamera innen, Fall 0 - Rueckseiten nur bei cull twosided/none/disable (wie NRC)
+Knopftest OK: Stufe 7/6e: Kamera innen, Fall 1 - Rueckseiten nur bei cull twosided/none/disable (wie NRC)
+Knopftest OK: Stufe 7/6e: Kamera innen, Fall 2 - Rueckseiten nur bei cull twosided/none/disable (wie NRC)
+Knopftest OK: erster Bau: Fenster "Build progress" offen, Stufe LIGHT, keine Restzeit aus einem Verlauf
+Knopftest OK: erster Bau: Zeit je Schritt in der Konsole (BSP, VIS, LIGHT) ohne Vergleich, Bauzeiten gespeichert, gemeldet (nur gezaehlt), Fenster zu
+Knopftest OK: zweiter Bau: Restzeit aus dem letzten Bau dieser Karte
+Knopftest OK: zweiter Bau: Zeit je Schritt gegen den letzten Bau (3 Vergleiche); Schaetzung gegen die echte Dauer
+Knopftest OK: Abbrechen im Fortschrittsfenster: q3map2 beendet, Zeile in der Konsole, Fenster zu, nichts gemeldet
+Knopftest OK: Build > Melden: aus, als BhedBuildNotify 0 gespeichert
+Knopftest OK: ohne Option: .bsp ohne .bhed, keine -keeplights, im Entity-Lump nur das schaltbare Licht
+Knopftest OK: Build > Editor-Daten behalten: an, als BhedKeepEditorData 1 gespeichert
+Knopftest OK: mit Option: -keeplights nur fuer -meta, <karte>.bhed geschrieben (Kopf + die Quelle Byte fuer Byte)
+Knopftest OK: Byte-Vergleich: Lumps 1..17 (Geometrie, Lightmaps, Lichtgitter, Sicht) gleich, nur der Entity-Lump anders - mit allen 3 Lichtern
+Knopftest OK: Open .bsp mit Begleitdatei: genaue Quelle - 3 Lichter, misc_model mit Schluesseln, func_group mit 2 Pinseln, 8 Pinsel
+Knopftest OK: die geoeffnete Karte gespeichert: Byte fuer Byte die Quelle
+Knopftest OK: Open .bsp ohne Begleitdatei: die 3 Lichter kommen aus dem Entity-Lump zurueck (misc_model und func_group nicht - eingebacken)
+Knopftest OK: misc_model zurueck: pillar.md3 mit origin 128 128 0, angle 45, modelscale 1.5; Konsole; Update entities only moeglich
+Knopftest OK: Rueckgaengig nimmt das misc_model wieder weg (ein Schritt)
+Knopftest OK: ohne die Option: keine Rueckgewinnung, kein misc_model
+Knopftest OK: Geometrie waehrend der Rueckgewinnung geaendert: Ergebnis verworfen (Konsole), kein misc_model, Fingerabdruck bleibt anders
+Knopftest OK: Rueckgaengig: Geometrie wie die .bsp, Update entities only wieder moeglich
+Knopftest OK: geschaetzte Lichter: Ebene "Geschaetzte Lichter", _bhed_geschaetzt 1, eines nahe an 0 0 96; das schaltbare nicht doppelt
+Knopftest OK: Build > Teil-Kompilierung: VIS und Licht wiederverwenden an, gespeichert
+Knopftest OK: erster Bau: -bhedvisreuse und -bhedlightcache in den Befehlen, Caches geschrieben
+Knopftest OK: nach einer Entity-Aenderung: Sichtbarkeit wiederverwendet, ein Teil der Lightmaps aus dem Cache
+Knopftest OK: nur die Nachbearbeitung geaendert (-gamma 0.8): alle Lightmaps und das Gitter aus dem Cache
+Knopftest OK: Vorlage geladen: aktiv, Kanten fuer 2D
+Knopftest OK: zusammengefuehrt: <karte>_merged.bsp, laedt im CM-Port, die Saeule stoppt den Spieler, keine Grenze ueber, keine Fehler
 Knopftest OK: Fotos: Anordnung Regular wie die NRC-Fotos
 Knopftest OK: Fotos: 38 Menues wie SP\nrc_fotos\menues
 Knopftest OK: Menue File: 212 x 309 wie NRC
 Knopftest OK: Menue Edit: 356 x 549 wie NRC
-Knopftest OK: Menue View: 262 x 333 wie NRC
+Knopftest OK: Menue View: 262 x 460 wie NRC
 Knopftest OK: Menue View__Camera: 255 x 216 wie NRC
 Knopftest OK: Menue View__Orthographic: 307 x 240 wie NRC
 Knopftest OK: Menue View__Show: 253 x 401 wie NRC
@@ -2893,7 +2982,7 @@ Knopftest OK: Menue Modify__Nudge: 218 x 161 wie NRC
 Knopftest OK: Menue Modify__Rotate: 206 x 137 wie NRC
 Knopftest OK: Menue Modify__Flip: 183 x 137 wie NRC
 Knopftest OK: Menue Modify__Repeat: 225 x 154 wie NRC
-Knopftest OK: Menue Build: 193 x 484 wie NRC
+Knopftest OK: Menue Build: 241 x 652 wie NRC
 Knopftest OK: Menue Grid: 163 x 346 wie NRC
 Knopftest OK: Menue Misc: 262 x 257 wie NRC
 Knopftest OK: Menue Misc__Theming: 263 x 497 wie NRC
@@ -2948,26 +3037,3 @@ Knopftest OK: Grosse Karte: Auswahlwechsel bauen nur den Rest neu, die Geometrie
 Knopftest OK: Grosse Karte: Kamera-Szene nach dem Hochladen nicht mehr im Speicher
 Knopftest OK: Grosse Karte: Messwerte
 Knopftest OK: Grosse Karte: Stufe-2-Zeiten (CSG Subtract, Clip, Ecken-Modus)
-Knopftest OK: Abbrechen im Fortschrittsfenster: q3map2 beendet, Zeile in der Konsole, Fenster zu, nichts gemeldet
-Knopftest OK: Build > Editor-Daten behalten: an, als BhedKeepEditorData 1 gespeichert
-Knopftest OK: Build > Melden: aus, als BhedBuildNotify 0 gespeichert
-Knopftest OK: Build > Teil-Kompilierung: VIS und Licht wiederverwenden an, gespeichert
-Knopftest OK: Byte-Vergleich: Lumps 1..17 (Geometrie, Lightmaps, Lichtgitter, Sicht) gleich, nur der Entity-Lump anders - mit allen 3 Lichtern
-Knopftest OK: Open .bsp mit Begleitdatei: genaue Quelle - 3 Lichter, misc_model mit Schluesseln, func_group mit 2 Pinseln, 8 Pinsel
-Knopftest OK: Open .bsp ohne Begleitdatei: die 3 Lichter kommen aus dem Entity-Lump zurueck (misc_model und func_group nicht - eingebacken)
-Knopftest OK: Rueckgaengig nimmt das misc_model wieder weg (ein Schritt)
-Knopftest OK: Vorlage geladen: aktiv, Kanten fuer 2D
-Knopftest OK: die geoeffnete Karte gespeichert: Byte fuer Byte die Quelle
-Knopftest OK: erster Bau: -bhedvisreuse und -bhedlightcache in den Befehlen, Caches geschrieben
-Knopftest OK: erster Bau: Fenster "Build progress" offen, Stufe LIGHT, keine Restzeit aus einem Verlauf
-Knopftest OK: erster Bau: Zeit je Schritt in der Konsole (BSP, VIS, LIGHT) ohne Vergleich, Bauzeiten gespeichert, gemeldet (nur gezaehlt), Fenster zu
-Knopftest OK: geschaetzte Lichter: Ebene "Geschaetzte Lichter", _bhed_geschaetzt 1, eines nahe an 0 0 96; das schaltbare nicht doppelt
-Knopftest OK: misc_model zurueck: pillar.md3 mit origin 128 128 0, angle 45, modelscale 1.5; Konsole; Update entities only moeglich
-Knopftest OK: mit Option: -keeplights nur fuer -meta, <karte>.bhed geschrieben (Kopf + die Quelle Byte fuer Byte)
-Knopftest OK: nach einer Entity-Aenderung: Sichtbarkeit wiederverwendet, ein Teil der Lightmaps aus dem Cache
-Knopftest OK: nur die Nachbearbeitung geaendert (-gamma 0.8): alle Lightmaps und das Gitter aus dem Cache
-Knopftest OK: ohne Option: .bsp ohne .bhed, keine -keeplights, im Entity-Lump nur das schaltbare Licht
-Knopftest OK: ohne die Option: keine Rueckgewinnung, kein misc_model
-Knopftest OK: zusammengefuehrt: <karte>_merged.bsp, laedt im CM-Port, die Saeule stoppt den Spieler, keine Grenze ueber, keine Fehler
-Knopftest OK: zweiter Bau: Restzeit aus dem letzten Bau dieser Karte
-Knopftest OK: zweiter Bau: Zeit je Schritt gegen den letzten Bau (3 Vergleiche); Schaetzung gegen die echte Dauer

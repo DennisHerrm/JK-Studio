@@ -1,6 +1,11 @@
 // lichtschaetzung.cpp - Karten-Editor Stufe 8a Punkt 4: Lichter einer fertigen .bsp
 // schaetzen (siehe lichtschaetzung.h; experimentell).
 //
+// Portiert aus q3map2 (NetRadiant-Custom 20260114: light.cpp TraceGrid - die
+// Kodierung der Gitterpunkte, LightContributionToPoint - die Staerke eines Punktlichts
+// 7500 / d^2).
+//
+//   Copyright (C) 1999-2006 Id Software, Inc. and contributors.
 //   Copyright (C) 2026 BehavEd-Remake contributors.
 //
 //   This program is free software; you can redistribute it and/or modify it

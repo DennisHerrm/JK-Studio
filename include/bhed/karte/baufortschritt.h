@@ -17,6 +17,11 @@
 // beim ersten Bau wird sie aus dem Fortschritt der laufenden Phase geschaetzt
 // (dann als Untergrenze: spaetere Phasen und Schritte sind unbekannt).
 //
+// Portiert aus q3map2 (NetRadiant-Custom 20260114): das Format seiner Ausgabe -
+// threads.cpp GetThreadWork (der Pacifier, 40 Schritte, Ziffer = Zehntel), die
+// Phasenkoepfe von bsp.cpp, vis.cpp, light.cpp, light_bounce.cpp und model.cpp.
+//
+//   Copyright (C) 1999-2006 Id Software, Inc. and contributors.
 //   Copyright (C) 2026 BehavEd-Remake contributors.
 //
 //   This program is free software; you can redistribute it and/or modify it

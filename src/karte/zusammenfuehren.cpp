@@ -1,6 +1,16 @@
 // zusammenfuehren.cpp - Karten-Editor Stufe 8a Punkt 5c: "Zur fertigen Karte
 // hinzufuegen" (siehe zusammenfuehren.h).
 //
+// Portiert aus q3map2 (NetRadiant-Custom 20260114: main.cpp MergeBSPMain -
+// -mergebsp -world -fixnames, der Name <karte>_merged.bsp; light.cpp TraceGrid - die
+// Gitterpunkte) und aus OpenJK (code/qcommon/cm_trace.cpp CM_BoxTrace ueber den
+// CM-Port, bg_public.h MASK_PLAYERSOLID, bg_pmove.cpp der Spielerkasten).
+//
+//   Copyright (C) 1999-2006 Id Software, Inc. and contributors.
+//   Copyright (C) 1999 - 2005, Id Software, Inc.
+//   Copyright (C) 2000 - 2013, Raven Software, Inc.
+//   Copyright (C) 2001 - 2013, Activision, Inc.
+//   Copyright (C) 2013 - 2015, OpenJK contributors
 //   Copyright (C) 2026 BehavEd-Remake contributors.
 //
 //   This program is free software; you can redistribute it and/or modify it
