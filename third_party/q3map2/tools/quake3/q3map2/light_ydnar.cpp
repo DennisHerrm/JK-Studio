@@ -30,6 +30,7 @@
 
 /* dependencies */
 #include "q3map2.h"
+#include "bhed_gpuschatten.h" /* BehavEd stage 8b: -bhedgpu */
 #include "bhed_lichtcache.h" /* BehavEd stage 8a: -bhedlightcache */
 #include "timer.h"
 #include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, parallel rows of big lightmaps */
@@ -2535,6 +2536,55 @@ void BhedIlluminateRawLightmaps(){
 	g_bhedVorab.clear();
 }
 
+/* BehavEd stage 8b: -bhedgpu - record the rays of the initial passes of the lights i0.. (the same
+   style check and luxel walk as the light loop below, TraceLine only notes its inputs) until the
+   block is full, trace them on the GPU; returns the first light not in the block */
+static int BhedGpuAufnehmen( rawLightmap_t *lm, const trace_t& vorlage, int i0, BhedGpuSitzung& s ){
+	constexpr size_t block = size_t( 1 ) << 16;
+	s.strahlen.clear();
+	s.geeignet.clear();
+	s.erg.clear();
+	s.pos = 0;
+	s.kaputt = false;
+	trace_t trace = vorlage;
+	s.modus = 1;
+	g_bhedGpuSitzung = &s;
+	int i = i0;
+	for ( ; i < trace.numLights && ( i == i0 || s.strahlen.size() < block ); ++i )
+	{
+		trace.light = trace.lights[ i ];
+		int lightmapNum;
+		for ( lightmapNum = 0; lightmapNum < MAX_LIGHTMAPS; ++lightmapNum )
+		{
+			if ( lm->styles[ lightmapNum ] == trace.light->style ||
+			     lm->styles[ lightmapNum ] == LS_NONE ) {
+				break;
+			}
+		}
+		if ( lightmapNum >= MAX_LIGHTMAPS ) {
+			continue;
+		}
+		for ( int y = 0; y < lm->sh; ++y )
+		{
+			for ( int x = 0; x < lm->sw; ++x )
+			{
+				const int cluster = lm->getSuperCluster( x, y );
+				if ( cluster < CLUSTER_NORMAL ) {
+					continue;
+				}
+				trace.cluster = cluster;
+				trace.origin = lm->getSuperOrigin( x, y );
+				trace.normal = lm->getSuperNormal( x, y );
+				LightContributionToSample( &trace );
+			}
+		}
+	}
+	g_bhedGpuSitzung = nullptr;
+	s.modus = 0;
+	BhedGpuRechnen( s );
+	return i;
+}
+
 static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool ){
 	int t, x, y, sx, sy, size, luxelFilterRadius, lightmapNum;
 	int                 mapped, lighted, totalLighted;
@@ -2710,6 +2760,11 @@ static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool ){
 		//%	if( trace.numLights <= 0 )
 		//%		Sys_Printf( "Lightmap %9d: 0 lights, axis: %.2f, %.2f, %.2f\n", rawLightmapNum, lm->axis[ 0 ], lm->axis[ 1 ], lm->axis[ 2 ] );
 
+		/* BehavEd stage 8b: -bhedgpu - the rays of the initial pass are recorded in blocks of lights,
+		   traced on the GPU and taken by TraceLine during the normal pass (inputs compared) */
+		BhedGpuSitzung bhedGpu;
+		int bhedGpuBis = 0;
+
 		/* walk light list */
 		if ( pool != nullptr ) { /* BehavEd stage 7: the same light loop, rows and lights in blocks on all threads */
 			BhedLichterParallel( lm, trace, *pool );
@@ -2758,6 +2813,26 @@ static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool ){
 					lm->superFlags = safe_malloc( size );
 				}
 				memset( lm->superFlags, 0, size );
+			}
+
+			/* BehavEd stage 8b: -bhedgpu */
+			if ( g_bhedGpu ) {
+				if ( i >= bhedGpuBis ) {
+					if ( BhedGpuFrei() ) {
+						bhedGpuBis = BhedGpuAufnehmen( lm, trace, i, bhedGpu );
+					}
+					else{ /* the GPU is busy: this light on the CPU */
+						BhedGpuBelegt();
+						bhedGpu.strahlen.clear();
+						bhedGpu.geeignet.clear();
+						bhedGpu.erg.clear();
+						bhedGpu.pos = 0;
+						bhedGpu.kaputt = true;
+						bhedGpuBis = i + 1;
+					}
+				}
+				bhedGpu.modus = 2;
+				g_bhedGpuSitzung = &bhedGpu;
 			}
 
 			/* initial pass, one sample per luxel */
@@ -2813,6 +2888,8 @@ static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool ){
 					}
 				}
 			}
+
+			g_bhedGpuSitzung = nullptr; /* BehavEd stage 8b: only the initial pass */
 
 			/* don't even bother with everything else if nothing was lit */
 			if ( totalLighted == 0 ) {

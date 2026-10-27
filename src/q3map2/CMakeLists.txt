@@ -248,6 +248,8 @@ add_executable(bhed_q3map2
   kompat/etclib.c
   # Stufe 8a: -light -bhedlightcache (Teil-Kompilierung, Nachbearbeitung ohne neu zu tracen)
   bhed_lichtcache.cpp
+  # Stufe 8b: -light -bhedgpu (Schattentests auf der GPU, Direct3D 11 zur Laufzeit geladen)
+  bhed_gpuschatten.cpp
   ${Q3M}/q3map2.rc
   # Stufe 6 (NRC#130): UTF-8 als Codepage - Pfade ausserhalb von ASCII
   q3map2.manifest)

@@ -31,6 +31,7 @@
 /* dependencies */
 #include "q3map2.h"
 #include "bhed_lichtcache.h" /* BehavEd stage 8a: -bhedlightcache */
+#include "bhed_gpuschatten.h" /* BehavEd stage 8b: -bhedgpu */
 #include "bspfile_rbsp.h"
 #include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, grid pre-pass in parallel */
 #include <set>
@@ -2400,6 +2401,7 @@ int LightMain( Args& args ){
 	/* process commandline arguments */
 	const char *fileName = args.takeBack();
 	const bool bhedLichtCache = args.takeArg( "-bhedlightcache" ); /* BehavEd stage 8a: before argsToInject (not in the worldspawn command line) */
+	const bool bhedGpuWunsch = args.takeArg( "-bhedgpu" ); /* BehavEd stage 8b: shadow tests on the GPU, same reason */
 	const auto argsToInject = args.getVector();
 	{
 		/* lightsource scaling */
@@ -3131,10 +3133,16 @@ int LightMain( Args& args ){
 	/* initialize the surface facet tracing */
 	SetupTraceNodes();
 	BhedZeit( "light: SetupTraceNodes" );
+	if ( bhedGpuWunsch ) {
+		BhedGpuVorbereiten(); /* BehavEd stage 8b: -bhedgpu */
+	}
 
 	/* light the world */
 	LightWorld( fastAllocate, bounceStore );
 	BhedZeit( "light: nach LightWorld" );
+	if ( bhedGpuWunsch ) {
+		BhedGpuEnde();
+	}
 
 	/* ydnar: export lightmaps */
 	if ( exportLightmaps && !externalLightmaps ) {

@@ -30,6 +30,7 @@
 
 /* dependencies */
 #include "q3map2.h"
+#include "bhed_gpuschatten.h" /* BehavEd stage 8b: -bhedgpu, shadow tests on the GPU */
 
 
 #define MAX_NODE_ITEMS          5
@@ -1491,6 +1492,114 @@ static bool TraceLine_r( int nodeNum, const Vector3& origin, const Vector3& end,
    rewrote this function a bit :)
  */
 
+/* BehavEd stage 8b: -bhedgpu - record the inputs (first pass of IlluminateRawLightmap) or take
+   the GPU result after comparing the inputs byte for byte; false: the CPU traces as always */
+static bool BhedGpuTrace( trace_t *trace ){
+	BhedGpuSitzung& s = *g_bhedGpuSitzung;
+	BhedGpuStrahl r{};
+	const bool geeignet = trace->recvShadows != 0 && trace->testOcclusion && !( trace->distance <= 0.00001f ) && !trace->testAll &&
+	                      ( trace->numSurfaces == 0 || ( trace->surfaces != nullptr && trace->numSurfaces > 0 ) );
+	for ( int k = 0; k < 3; ++k ) {
+		r.o[ k ] = trace->origin[ k ];
+		r.e[ k ] = trace->end[ k ];
+		r.d[ k ] = trace->direction[ k ];
+	}
+	r.dist = trace->distance;
+	r.inhibit = trace->inhibitRadius;
+	r.recv = trace->recvShadows;
+	r.sErste = trace->numSurfaces > 0 && trace->surfaces != nullptr ? int( trace->surfaces - lightSurfaces ) : 0;
+	r.sAnzahl = trace->numSurfaces;
+	r.flags = ( inGrid ? 1 : 0 ) | ( noSurfaces ? 2 : 0 );
+	r.rest = geeignet ? 0 : 1; /* not suitable: the GPU answers "CPU" */
+	if ( s.modus == 1 ) {
+		s.strahlen.push_back( r );
+		s.geeignet.push_back( geeignet ? 1 : 0 );
+		return true; /* the outputs stay "nothing hit"; the recording pass throws them away */
+	}
+	if ( s.kaputt || s.pos >= s.strahlen.size() ) {
+		if ( !s.kaputt ) {
+			BhedGpuZaehlen( 3, true );
+		}
+		s.kaputt = true;
+		return false;
+	}
+	const size_t k = s.pos++;
+	if ( memcmp( &r, &s.strahlen[ k ], sizeof( r ) ) != 0 || ( s.geeignet[ k ] != 0 ) != geeignet ) {
+		BhedGpuZaehlen( 3, true );
+		s.kaputt = true;
+		return false;
+	}
+	if ( !geeignet ) {
+		return false;
+	}
+	const BhedGpuErgebnis& e = s.erg[ k ];
+	BhedGpuZaehlen( e.status, false );
+	switch ( e.status )
+	{
+	case 0: /* nothing opaque and no alpha surface on the way: color stays */
+		return true;
+	case 1: /* TraceTriangle: opaque surface */
+		trace->hit = trace->origin + trace->direction * e.tiefe;
+		trace->color.set( 0 );
+		trace->opaque = true;
+		return true;
+	case 2: /* TraceLine_r: solid leaf */
+		trace->hit = Vector3( e.h[ 0 ], e.h[ 1 ], e.h[ 2 ] );
+		trace->passSolid = true;
+		trace->opaque = true;
+		return true;
+	default:
+		return false;
+	}
+}
+
+/* BehavEd stage 8b: the trace nodes, triangles and infos for the GPU (after SetupTraceNodes) */
+void BhedGpuVorbereiten(){
+	std::vector<BhedGpuKnoten> knoten( numTraceNodes );
+	std::vector<int> items;
+	for ( int i = 0; i < numTraceNodes; ++i )
+	{
+		const traceNode_t& n = traceNodes[ i ];
+		BhedGpuKnoten& k = knoten[ i ];
+		k.typ = n.type;
+		for ( int j = 0; j < 3; ++j ) {
+			k.n[ j ] = n.plane.normal()[ j ];
+		}
+		k.dist = n.plane.dist();
+		k.kind[ 0 ] = n.children[ 0 ];
+		k.kind[ 1 ] = n.children[ 1 ];
+		k.anzahl = n.type < 0 ? n.numItems : 0; /* only leaves are tested */
+		k.erstes = int( items.size() );
+		if ( n.type < 0 ) {
+			items.insert( items.end(), n.items, n.items + n.numItems );
+		}
+	}
+	std::vector<BhedGpuDreieck> dreiecke( numTraceTriangles );
+	for ( int i = 0; i < numTraceTriangles; ++i )
+	{
+		const traceTriangle_t& t = traceTriangles[ i ];
+		for ( int j = 0; j < 3; ++j ) {
+			dreiecke[ i ].v0[ j ] = t.v[ 0 ].xyz[ j ];
+			dreiecke[ i ].e1[ j ] = t.edge1[ j ];
+			dreiecke[ i ].e2[ j ] = t.edge2[ j ];
+		}
+		dreiecke[ i ].info = t.infoNum;
+	}
+	std::vector<BhedGpuInfo> infos( numTraceInfos );
+	for ( int i = 0; i < numTraceInfos; ++i )
+	{
+		const traceInfo_t& ti = traceInfos[ i ];
+		infos[ i ].cast = ti.castShadows;
+		infos[ i ].skipGrid = ti.skipGrid ? 1 : 0;
+		infos[ i ].flaeche = ti.surfaceNum;
+		const shaderInfo_t *si = ti.si;
+		infos[ i ].flags = ( ( si->compileFlags & C_SKY ) ? 1 : 0 ) |
+		                   ( ( ( si->compileFlags & ( C_ALPHASHADOW | C_LIGHTFILTER ) ) && si->lightImage != nullptr && si->lightImage->pixels != nullptr ) ? 2 : 0 );
+	}
+	const float konstanten[ 5 ] = { BARY_EPSILON, 1.0f + BARY_EPSILON, COPLANAR_EPSILON, SELF_SHADOW_EPSILON, TRACE_ON_EPSILON };
+	g_bhedGpu = BhedGpuStart( knoten, items, dreiecke, infos, lightSurfaces, numLightSurfaces, headNodeNum, konstanten );
+}
+
 void TraceLine( trace_t *trace ){
 	/* setup output (note: this code assumes the input data is completely filled out) */
 	trace->passSolid = false;
@@ -1498,6 +1607,11 @@ void TraceLine( trace_t *trace ){
 	trace->compileFlags = 0;
 	memset( trace->skyIndices, 0, sizeof( trace->skyIndices ) );
 	trace->numTestNodes = 0;
+
+	/* BehavEd stage 8b: -bhedgpu */
+	if ( g_bhedGpuSitzung != nullptr && g_bhedGpuSitzung->modus != 0 && BhedGpuTrace( trace ) ) {
+		return;
+	}
 
 	/* early outs */
 	if ( !trace->recvShadows || !trace->testOcclusion || trace->distance <= 0.00001f ) {
