@@ -219,6 +219,12 @@ EIGENE = [
      [re.escape('Preferences > Layout > Free split windows: '), re.escape('Split > Platzmenue > Camera'), re.escape('Split > Platzmenue > XY'),
       re.escape('Split > Strg+Tab mit Schalter: '), re.escape('Split > Teiler ziehen: '), re.escape('Split > nach dem simulierten Neustart: '),
       re.escape('Regular > 2D-Ansichtstyp nach dem simulierten Neustart: '), re.escape('Free split windows aus: ')]),
+    # Punkt 3: Im Editor spielen
+    ('Eigen|View > Play in editor (F6)', 'Start, Wand, Treppe, playerclip, Sprung, Noclip, Esc (Stufe 8b/3)',
+     [re.escape('View > Play in editor (F6): '), re.escape('Spielen > Wand: '), re.escape('Spielen > Treppe: '),
+      re.escape('Spielen > Stufe 24 '), re.escape('Spielen > playerclip '), re.escape('Spielen > Sprung: '),
+      re.escape('Spielen > N (echte Taste): '), re.escape('Spielen > Esc (echte Taste): '), re.escape('View > Play in editor (Menue) mit Spawn: ')]),
+    ('Eigen|View > Play: start at info_player_start', 'Start am Spawn (Stufe 8b/3)', [re.escape('View > Play: start at info_player_start: ')]),
 ]
 
 

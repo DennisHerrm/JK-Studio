@@ -344,6 +344,28 @@ void listeZeichnen(const std::string& name) {
             qtMenueEnde();
         }
     } else if (name == "ProgrammView") {
+        // Stufe 8b: eigene Werkzeuge (nicht in NRC) vor den Programm-Einstellungen
+        qtTrenner();
+        {
+            const std::string id = std::string(trK(Str::KeSpMenue)) + "###spielen";
+            QtPunkt p;
+            p.id = id.c_str();
+            p.taste = "F6";
+            p.tooltip = trK(Str::KeSpMenueTip);
+            if (qtPunkt(p)) { spielenStarten(); }
+        }
+        {
+            const std::string id = std::string(trK(Str::KeSpSpawn)) + "###spielenspawn";
+            QtPunkt p;
+            p.id = id.c_str();
+            p.art = QtArt::Pruefbar;
+            p.haken = e().spielen.startAnSpawn;
+            p.tooltip = trK(Str::KeSpSpawnTip);
+            if (qtPunkt(p)) {
+                e().spielen.startAnSpawn = !e().spielen.startAnSpawn;
+                einstellungenSpeichern();
+            }
+        }
         // Stufe 7 Punkt 6b (shank: "settings in den Map editor auch einbauen das
         // man theme und language aendern kann"): die Einstellungen des Programms
         // als eigener Abschnitt am Ende von NRCs View-Menue (nicht in NRC;
@@ -1122,6 +1144,7 @@ void einstellungenLaden() {
     // Stufe 8b Punkt 2: Split-Fenster frei belegen (nicht in NRC). Ohne den
     // Schalter wie NRC: Belegung Kamera/YZ/XY/XZ, beim Start XY, Split gleich geteilt.
     ed.splitFrei = zahl("BhedSplitFree", 0) != 0.0F;
+    ed.spielen.startAnSpawn = zahl("BhedPlayAtSpawn", 0) != 0.0F;   // Stufe 8b Punkt 3
     ed.splitBelegung = {3, 2, 0, 1};
     ed.splitHGroessen.clear();
     ed.splitVGroessen.clear();
@@ -1427,6 +1450,7 @@ void einstellungenSpeichern() {
         for (const int i : v) { s += (s.empty() ? "" : ",") + std::to_string(i); }
         return s;
     };
+    k["BhedPlayAtSpawn"] = ed.spielen.startAnSpawn ? "1" : "0";   // Stufe 8b Punkt 3
     // Stufe 8b Punkt 2: Split-Fenster frei belegen (nur mit dem Schalter gemerkt)
     k["BhedSplitFree"] = ed.splitFrei ? "1" : "0";
     if (ed.splitFrei) {

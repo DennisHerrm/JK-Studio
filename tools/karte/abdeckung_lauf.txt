@@ -3086,3 +3086,14 @@ Knopftest OK: Split > Teiler ziehen: die linke Spalte ist schmaler, die Groessen
 Knopftest OK: Split > nach dem simulierten Neustart: Belegung, 2D-Typen und Split-Groesse wie vorher
 Knopftest OK: Regular > 2D-Ansichtstyp nach dem simulierten Neustart: XZ (mit Schalter)
 Knopftest OK: Free split windows aus: sofort wieder NRC (Lage, Typen XY/XZ/YZ, kein Platzmenue), nichts mehr gemerkt
+Knopftest OK: View > Play in editor (F6): aktiv, Kollision aus 5 Brushes, Start an der Kamera (Augen 36 ueber dem Kasten)
+Knopftest OK: Spielen > Fallen: steht auf dem Boden (z 24,125), die Kamera auf Augenhoehe 60,125
+Knopftest OK: Spielen > Wand: das Laufen gegen die Wand haelt bei x 512 - 16 an
+Knopftest OK: Spielen > Treppe: die Stufe 16 wird gestiegen (z 40,125)
+Knopftest OK: Spielen > Stufe 24 haelt den Spieler an
+Knopftest OK: Spielen > playerclip haelt den Spieler an (y -384 + 16)
+Knopftest OK: Spielen > Sprung: 31,62 ueber dem Boden - gleich dem Port mit der gebauten .bsp (ctest karte_spielen)
+Knopftest OK: Spielen > N (echte Taste): Noclip an, durch die Wand
+Knopftest OK: Spielen > Esc (echte Taste): beendet, die Kamera genau wie vorher
+Knopftest OK: View > Play: start at info_player_start: an, als BhedPlayAtSpawn 1 gespeichert
+Knopftest OK: View > Play in editor (Menue) mit Spawn: Start bei info_player_start (-320 320 24 + 9), Blick 90

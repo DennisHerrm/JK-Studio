@@ -12,8 +12,8 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 | Einstellungsfelder | 79 | 78 | 1 | 0 | 0 |
 | Plugins | 69 | 69 | 0 | 0 | 0 |
 | Mausbelegung | 62 | 62 | 0 | 0 | 0 |
-| Eigene Eintraege | 26 | 26 | 0 | 0 | 0 |
-| **Summe** | 966 | 962 | 4 | 0 | 0 |
+| Eigene Eintraege | 28 | 28 | 0 | 0 | 0 |
+| **Summe** | 968 | 964 | 4 | 0 | 0 |
 
 ## Begruendete Ausnahmen
 
@@ -1032,3 +1032,5 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 | `Eigen \| Terrain Generator > Reset to Default` | OK | Terrain Generator > Reset to Default: alle Werte auf die Vorgabe, Target bleibt Manual Size, Textur "textures/" |
 | `Eigen \| Terrain Generator > Close` | OK | Terrain Generator > Close: der Dialog zu, die Werte gemerkt (static) |
 | `Eigen \| Preferences > Layout > Free split windows` | OK | Preferences > Layout > Free split windows: an, als BhedSplitFree 1 gespeichert, vier Platzmenues; Split > Platzmenue > Camera unten rechts: die Kamera ist dort, XZ ging nach oben links; Split > Platzmenue > XY oben links: das Fenster dort zeigt XY - zwei XY-Fenster; Split > Strg+Tab mit Schalter: das aktive Fenster wechselt den Typ (XY -> XZ wie XY_NextView), gespeichert; Split > Teiler ziehen: die linke Spalte ist schmaler, die Groessen gespeichert (BhedSplitH); Split > nach dem simulierten Neustart: Belegung, 2D-Typen und Split-Groesse wie vorher; Regular > 2D-Ansichtstyp nach dem simulierten Neustart: XZ (mit Schalter); Free split windows aus: sofort wieder NRC (Lage, Typen XY/XZ/YZ, kein Platzmenue), nichts mehr gemerkt |
+| `Eigen \| View > Play in editor (F6)` | OK | View > Play in editor (F6): aktiv, Kollision aus 5 Brushes, Start an der Kamera (Augen 36 ueber dem Kasten); Spielen > Wand: das Laufen gegen die Wand haelt bei x 512 - 16 an; Spielen > Treppe: die Stufe 16 wird gestiegen (z 40,125); Spielen > Stufe 24 haelt den Spieler an; Spielen > playerclip haelt den Spieler an (y -384 + 16); Spielen > Sprung: 31,62 ueber dem Boden - gleich dem Port mit der gebauten .bsp (ctest karte_spielen); Spielen > N (echte Taste): Noclip an, durch die Wand; Spielen > Esc (echte Taste): beendet, die Kamera genau wie vorher; View > Play in editor (Menue) mit Spawn: Start bei info_player_start (-320 320 24 + 9), Blick 90 |
+| `Eigen \| View > Play: start at info_player_start` | OK | View > Play: start at info_player_start: an, als BhedPlayAtSpawn 1 gespeichert |

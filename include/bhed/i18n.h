@@ -2325,6 +2325,14 @@ enum class Str {
     KeSfSchalter,
     KeSfSchalterTip,
     KeSfMenueTip,
+    KeSpMenue,
+    KeSpMenueTip,
+    KeSpSpawn,
+    KeSpSpawnTip,
+    KeSpGestartet,
+    KeSpBeendet,
+    KeSpHud,
+    KeSpHilfe,
     Count,
 };
 

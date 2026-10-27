@@ -1693,6 +1693,11 @@ void kameraZeichnen() {
     ImGui::PopFont();
     f.zeichenMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - beginn).count();
 
+    // Stufe 8b Punkt 3: Im Editor spielen - Eingabe, Pmove und Anzeige statt der Kamerasteuerung
+    if (spielenAktiv()) {
+        spielenBild(o, groesse);
+        return;
+    }
     // --- Maus (CamGLWidget: mousePressEvent / mouseMoveEvent / mouseReleaseEvent / wheelEvent)
     const ImGuiIO& io = ImGui::GetIO();
     const bool ueber = ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) &&

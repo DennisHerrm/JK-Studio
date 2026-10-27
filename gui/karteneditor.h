@@ -28,6 +28,8 @@
 #include "bhed/karte/kleineplugins.h"
 #include "bhed/karte/meshtex.h"
 #include "bhed/karte/terraingen.h"
+#include "bhed/karte/spielkollision.h"
+#include "bhed/navlauf.h"
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/baumonitor.h"
 #include "bhed/karte/portale.h"
@@ -216,6 +218,22 @@ struct TerrainZustand {
     std::string letzteTexturAbfrage;        // last_polled_shader
     int erzeugt = 0;                        // Selbsttest: erfolgreiche Generate
     karte::terraingen::Ergebnis letztes;    // Selbsttest
+};
+
+// Stufe 8b Punkt 3: Im Editor spielen (eigene Funktion, nicht in NRC)
+struct SpielenZustand {
+    bool aktiv = false;
+    bool startAnSpawn = false;            // BhedPlayAtSpawn: an info_player_start statt an der Kamera
+    bool amSpawn = false;                 // dieser Lauf begann an info_player_start
+    std::shared_ptr<KollisionsKarte> kollision;
+    karte::SpielKollisionsBericht bericht;
+    NavSpieler s;
+    NavSpielerEingabe eingabe;
+    karte::Vektor3f kameraUrsprung{0, 0, 0};
+    karte::Vektor3f kameraWinkel{0, 0, 0};
+    double restMs = 0.0;
+    int bilder = 0;                       // PmoveSingle-Aufrufe
+    bool testEingabe = false;             // Selbsttest: Eingaben eingespielt, keine Tastatur/Maus, keine Bildzeit
 };
 
 struct Spielkontext {
@@ -549,6 +567,7 @@ struct Editor {
     SunplugZustand sunplug;
     MeshTexZustand meshtex;
     TerrainZustand terrain;   // Stufe 8b Punkt 1
+    SpielenZustand spielen;   // Stufe 8b Punkt 3
     karte::plugins::UfoaiZustand ufoai;
     karte::ZuletztListe zuletzt;
     bool zuletztGeladen = false;
@@ -1062,6 +1081,12 @@ void xyZeichnen(int index);
 void xyBefehl(const std::string& name);
 // Stufe 8b Punkt 2: Split-Fenster frei belegen (wahl 0 Kamera, 1 XY, 2 XZ, 3 YZ)
 void splitPlatzWaehlen(int platz, int wahl);
+// Stufe 8b Punkt 3: Im Editor spielen (app_karte_spielen.cpp)
+[[nodiscard]] bool spielenAktiv();
+void spielenStarten();
+void spielenBeenden();
+void spielenSchritt(int msec);                              // Pmove mit spielen.eingabe
+void spielenBild(const ImVec2& o, const ImVec2& groesse);   // aus kameraZeichnen: Eingabe, Zeit, Anzeige
 [[nodiscard]] karte::Vektor3f xyMittelpunkt();   // XYWnd_Centralize: Mitte der Auswahl bzw. der Karte
 // Map_StartPosition / FocusViews (map.cpp:456-485): Kamera auf den Start,
 // alle 2D-Ansichten dorthin.

@@ -339,6 +339,11 @@ void tastenVerarbeiten() {
         kameraTastenLoslassen();   // GlobalPressedKeys_releaseAll (Fokuswechsel)
         return;
     }
+    // Stufe 8b Punkt 3: waehrend "Im Editor spielen" gehoert die Tastatur dem Spieler
+    if (spielenAktiv()) {
+        kameraTastenLoslassen();
+        return;
+    }
     // Tippen in ein Feld, ein offenes Menue/Klappfenster und das Aufnehmen
     // einer neuen Taste haben Vorrang.
     if (io.WantTextInput || !ed.tastenDialogBearbeitet.empty() || ed.tasteVerbrauchtBild == ImGui::GetFrameCount() ||
@@ -381,6 +386,10 @@ void tastenVerarbeiten() {
             // QAction::event: "Ambiguous shortcut overload" - nichts wird ausgeloest.
             warnung("QAction::event: Ambiguous shortcut overload: " +
                     befehle::tasteAlsText(befehle::moeglicheTasten(kb, mods, erweitert).front()));
+        } else if (mods == 0 && key == ImGuiKey_F6) {
+            // Stufe 8b Punkt 3: eigene Taste ohne NRC-Belegung (nur, solange kein
+            // NRC-Befehl darauf liegt - die Belegung oben hat Vorrang)
+            spielenStarten();
         } else if (mods == befehle::kAlt) {
             // QMenuBar: die Mnemoniken der Titel sind Alt-Kuerzel derselben
             // Kuerzeltabelle (QKeySequence::mnemonic) - ohne Befehl auf der Taste.

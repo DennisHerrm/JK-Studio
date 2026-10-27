@@ -602,6 +602,177 @@ std::vector<Schritt> splitNeustart(int lauf) {
     return s;
 }
 
+// --- Punkt 3: Im Editor spielen ------------------------------------------------------
+//
+// Wirkung: F6 (echte Taste) startet an der Kamera; eingespielte Eingaben (keine
+// echte Maus): Fallen auf den Boden (z 24,125), gegen die Wand (haelt bei
+// 512 - 16), Stufe 16 gestiegen, Stufe 24 haelt, playerclip (Shader des Spiels
+// mit surfaceparm playerclip) haelt, Sprung 31,62 hoch (wie der ctest
+// karte_spielen mit der .bsp), N (echte Taste) Noclip durch die Wand, Esc (echte
+// Taste) beendet und stellt die Kamera genau her; View > "Play: start at
+// info_player_start" beginnt an origin + 9 mit dem Winkel.
+
+std::string playerclipShader() {
+    const ke::Editor& e = ke::editor();
+    if (!e.spiel) { return {}; }
+    for (const karte::ShaderEintrag* s : e.spiel->inventar.shader()) {
+        if (s->name.rfind("textures/system/", 0) != 0) { continue; }
+        bool clip = false;
+        bool fest = true;
+        for (const std::string& p : s->surfaceparms) {
+            clip = clip || p == "playerclip";
+            fest = fest && p != "monsterclip";
+        }
+        if (clip && fest) { return s->name; }
+    }
+    return {};
+}
+
+std::string spielKarte(const std::string& clip) {
+    using stufe4::kastenText;
+    std::string t;
+    t += kastenText(-1024, -1024, -16, 1024, 1024, 0, "test/boden");
+    t += kastenText(512, -1024, 0, 544, 1024, 256, "test/wand");
+    t += kastenText(128, -64, 0, 192, 64, 16, "test/stufe");
+    t += kastenText(-192, -64, 0, -128, 64, 24, "test/stufe");
+    t += kastenText(-64, -448, 0, 64, -384, 128, clip.substr(clip.find('/') + 1).c_str());
+    return stufe4::weltText(t) + "{\n\"classname\" \"info_player_start\"\n\"origin\" \"-320 320 24\"\n\"angle\" \"90\"\n}\n";
+}
+
+// n Schritte zu 16 ms mit der Eingabe (vor, seit, hoch) und dem Blick gier
+void spielLauf(int bilder, signed char vor, signed char hoch, float gier, float* zMax = nullptr) {
+    ke::SpielenZustand& z = ke::editor().spielen;
+    z.s.gier = gier;
+    for (int i = 0; i < bilder; ++i) {
+        z.eingabe = NavSpielerEingabe{vor, 0, i == 0 ? hoch : static_cast<signed char>(0)};
+        ke::spielenSchritt(16);
+        if (zMax != nullptr) { *zMax = std::max(*zMax, z.s.ort[2]); }
+    }
+    z.eingabe = NavSpielerEingabe{};
+}
+
+std::vector<Schritt> spielen() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    add(stufe2::grundzustand("Stufe 8b/3: Grundzustand"));
+    auto clip = std::make_shared<std::string>();
+    auto kamera = std::make_shared<std::pair<karte::Vektor3f, karte::Vektor3f>>();
+    add(tu("Karte: Boden, Ostwand, Stufen 16/24, playerclip-Brush mit dem Shader des Spiels, info_player_start; Kamera bei (0 -200 100)", [clip, kamera] {
+        *clip = playerclipShader();
+        stufe4::bobKarte(spielKarte(clip->empty() ? std::string("textures/system/clip") : *clip));
+        ke::Editor& e = ke::editor();
+        e.kamera.setzeUrsprung(karte::Vektor3f(0, -200, 100));
+        e.kamera.setzeWinkel(karte::Vektor3f(-10, 90, 0));
+        *kamera = {e.kamera.ursprung, e.kamera.winkel};
+        e.spielen.testEingabe = true;
+        e.spielen.startAnSpawn = false;
+        diag::detail("Knopftest: Stufe 8b/3 playerclip-Shader " + *clip);
+    }));
+    add(pause(0.3));
+    add(tasteKombi(ImGuiKey_F6, "F6"));
+    add(pause(0.3));
+    add(pruefe("View > Play in editor (F6): aktiv, Kollision aus 5 Brushes, Start an der Kamera (Augen 36 ueber dem Kasten)", [clip] {
+        const ke::SpielenZustand& z = ke::editor().spielen;
+        diag::detail("Knopftest: Stufe 8b/3 Brushes " + std::to_string(z.bericht.pinsel) + ", Seiten " + std::to_string(z.bericht.seiten) + ", Start " +
+                     std::to_string(z.s.ort[2]));
+        return z.aktiv && z.bericht.pinsel == 5 && std::fabs(z.s.ort[2] - 64.0F) < 0.01F && !clip->empty() &&
+               konsoleText().find(ke::trK(Str::KeSpBeendet)) == std::string::npos;
+    }));
+    add(tu("eingespielt: 1 s ohne Eingabe (Fallen)", [] { spielLauf(62, 0, 0, 90); }));
+    add(pruefe("Spielen > Fallen: steht auf dem Boden (z 24,125), die Kamera auf Augenhoehe 60,125", [] {
+        const ke::Editor& e = ke::editor();
+        return e.spielen.s.amBoden && std::fabs(e.spielen.s.ort[2] - 24.125F) < 0.01F && std::fabs(e.kamera.ursprung[2] - 60.125F) < 0.01F;
+    }));
+    add(foto("karteneditor_s8b_spielen"));
+    add(tu("eingespielt: von (300 0) 2 s nach +x", [] {
+        ke::editor().spielen.s.ort = {300, 0, 24.125F};
+        spielLauf(125, 127, 0, 0);
+    }));
+    add(pruefe("Spielen > Wand: das Laufen gegen die Wand haelt bei x 512 - 16 an", [] {
+        const auto& s = ke::editor().spielen.s;
+        diag::detail("Knopftest: Stufe 8b/3 Wand x " + std::to_string(s.ort[0]));
+        return s.ort[0] > 495.5F && s.ort[0] < 496.0F;
+    }));
+    auto zMax = std::make_shared<float>(0.0F);
+    add(tu("eingespielt: von (0 0) 0,8 s nach +x ueber die Stufe 16", [zMax] {
+        ke::editor().spielen.s.ort = {0, 0, 24.125F};
+        *zMax = 0;
+        spielLauf(50, 127, 0, 0, zMax.get());
+    }));
+    add(pruefe("Spielen > Treppe: die Stufe 16 wird gestiegen (z 40,125)", [zMax] {
+        return std::fabs(*zMax - 40.125F) < 0.01F && ke::editor().spielen.s.ort[0] > 150.0F;
+    }));
+    add(tu("eingespielt: von (0 0) 1,5 s nach -x gegen die Stufe 24", [] {
+        ke::editor().spielen.s.ort = {0, 0, 24.125F};
+        spielLauf(94, 127, 0, 180);
+    }));
+    add(pruefe("Spielen > Stufe 24 haelt den Spieler an", [] {
+        const auto& s = ke::editor().spielen.s;
+        return s.ort[0] < -110.0F && s.ort[0] > -112.5F && s.ort[2] < 24.2F;
+    }));
+    add(tu("eingespielt: von (0 -300) 1,5 s nach -y gegen den playerclip-Brush", [] {
+        ke::editor().spielen.s.ort = {0, -300, 24.125F};
+        spielLauf(94, 127, 0, 270);
+    }));
+    add(pruefe("Spielen > playerclip haelt den Spieler an (y -384 + 16)", [] {
+        const auto& s = ke::editor().spielen.s;
+        diag::detail("Knopftest: Stufe 8b/3 playerclip y " + std::to_string(s.ort[1]));
+        return s.ort[1] > -368.5F && s.ort[1] < -366.0F;
+    }));
+    add(tu("eingespielt: Sprung aus dem Stand bei (0 -200)", [zMax] {
+        ke::editor().spielen.s.ort = {0, -200, 24.125F};
+        ke::editor().spielen.s.tempo = {0, 0, 0};
+        spielLauf(5, 0, 0, 0);
+        *zMax = 0;
+        spielLauf(70, 0, 127, 0, zMax.get());
+    }));
+    add(pruefe("Spielen > Sprung: 31,62 ueber dem Boden - gleich dem Port mit der gebauten .bsp (ctest karte_spielen)", [zMax] {
+        diag::detail("Knopftest: Stufe 8b/3 Sprung " + std::to_string(*zMax - 24.125F));
+        return std::fabs((*zMax - 24.125F) - 31.6224F) < 0.001F;
+    }));
+    add(tasteKombi(ImGuiKey_N, "N"));
+    add(tu("Noclip: von (300 0 60) 2 s nach +x", [] {
+        ke::editor().spielen.s.ort = {300, 0, 60};
+        spielLauf(125, 127, 0, 0);
+    }));
+    add(pruefe("Spielen > N (echte Taste): Noclip an, durch die Wand", [] {
+        const auto& s = ke::editor().spielen.s;
+        return s.noclip && s.ort[0] > 600.0F;
+    }));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(pause(0.2));
+    add(pruefe("Spielen > Esc (echte Taste): beendet, die Kamera genau wie vorher", [kamera] {
+        const ke::Editor& e = ke::editor();
+        return !e.spielen.aktiv && e.kamera.ursprung == kamera->first && e.kamera.winkel == kamera->second &&
+               konsoleText().find(ke::trK(Str::KeSpBeendet)) != std::string::npos;
+    }));
+    // Start an info_player_start (ueber das Menue)
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeSpSpawn)) + "###spielenspawn", "", 0, true));
+    add(pause(0.2));
+    add(pruefe("View > Play: start at info_player_start: an, als BhedPlayAtSpawn 1 gespeichert", [] {
+        const auto it = g_app->settings.karte.find("BhedPlayAtSpawn");
+        return ke::editor().spielen.startAnSpawn && it != g_app->settings.karte.end() && it->second == "1";
+    }));
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeSpMenue)) + "###spielen", "", 0, true));
+    add(pause(0.3));
+    add(pruefe("View > Play in editor (Menue) mit Spawn: Start bei info_player_start (-320 320 24 + 9), Blick 90", [] {
+        const ke::SpielenZustand& z = ke::editor().spielen;
+        return z.aktiv && z.amSpawn && z.s.ort[0] == -320.0F && z.s.ort[1] == 320.0F && z.s.ort[2] == 33.0F && z.s.gier == 90.0F;
+    }));
+    add(tu("beenden, Einstellungen zurueck", [] {
+        ke::spielenBeenden();
+        ke::Editor& e = ke::editor();
+        e.spielen.startAnSpawn = false;
+        e.spielen.testEingabe = false;
+        ke::einstellungenSpeichern();
+    }));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     const char* nur = std::getenv("BHED_STUFE8B_NUR");
@@ -611,6 +782,7 @@ std::vector<Schritt> schritte() {
     };
     if (teil("terrain")) { dazu(terrain()); }
     if (teil("split")) { dazu(split()); }
+    if (teil("spielen")) { dazu(spielen()); }
     return s;
 }
 
