@@ -84,6 +84,8 @@ inline constexpr std::uint32_t kNavBody = 0x00000100U;
 inline constexpr std::uint32_t kNavTerrain = 0x00001000U;
 inline constexpr std::uint32_t kNavMaskNpcSolid = kNavSolid | kNavMonsterClip | kNavBody | kNavTerrain;
 inline constexpr std::uint32_t kNavMaskDeadSolid = kNavSolid | kNavPlayerClip | kNavTerrain;
+// MASK_PLAYERSOLID (bg_public.h:716 OpenJK)
+inline constexpr std::uint32_t kNavMaskPlayerSolid = kNavSolid | kNavPlayerClip | kNavBody | kNavTerrain;
 
 // --- Das Wegnetz (g_navigator.cpp: CWayNode, CWayEdge, TGraph) ---------------
 //
@@ -1005,4 +1007,48 @@ struct NavKoerperErgebnis {
 [[nodiscard]] bool navAStar(const NavNetz& netz, int a, int b, std::vector<int>* pfad = nullptr, bool springen = false);
 
 }  // namespace bhed
+namespace bhed {
+
+// --- Stufe 8b Punkt 3 (Karten-Editor, "Im Editor spielen"): ein Spieler ------
+//
+// Derselbe Pmove-Port wie fuer die NPCs (Lauf::pmove: PM_GroundTrace,
+// PM_WalkMove, PM_AirMove, PM_SlideMove, PM_StepSlideMove, PM_Friction,
+// PM_Accelerate, PM_CrashLand), mit den Stellen, an denen der Spieler
+// (clientNum < MAX_CLIENTS) anders rechnet (OpenJK code/game bg_pmove.cpp,
+// bg_slidemove.cpp; Movie Duels gleich): pm->tracemask MASK_PLAYERSOLID, kein
+// CONTENTS_BOTCLIP, wishvel aus ucmd und pml.forward/right, PM_CmdScale mit
+// upmove, pm_duckScale, PM_ClipVelocity und PM_StepSlideMove mit
+// g_stepSlideFix 1 (Steilhang), PM_CheckJump (der Grundsprung JUMP_VELOCITY
+// 225 - ohne Machtkraefte: forcePowerLevel[FP_LEVITATION] 0), PM_CheckDuck
+// (CROUCH_MAXS_2 16) und PM_NoclipMove. ps.speed = g_speed 250 (g_main.cpp),
+// ps.gravity 800, STEPSIZE 18, Kasten -16..16 x -24..40.
+// Nicht dabei: Wasser (PM_WaterMove), Leitern, Fallschaden, Mover.
+struct NavSpieler {
+    NavVec ort{};                 // ps.origin
+    NavVec tempo{};               // ps.velocity
+    float gier = 0.0F;            // ps.viewangles[YAW]
+    float nick = 0.0F;            // ps.viewangles[PITCH] (nur Noclip)
+    bool amBoden = false;         // groundEntityNum != ENTITYNUM_NONE
+    int pmZeit = 0;               // ps.pm_time
+    bool sprungGehalten = false;  // PMF_JUMP_HELD
+    bool springt = false;         // PMF_JUMPING
+    bool geduckt = false;         // PMF_DUCKED
+    bool noclip = false;
+    bool jk2 = false;             // Regelwerk Jedi Outcast (codeJK2)
+    int geschwindigkeit = 250;    // ps.speed
+    float schwerkraft = 800.0F;   // ps.gravity
+};
+struct NavSpielerEingabe {
+    signed char vor = 0;          // ucmd.forwardmove (-127..127, gehen 64)
+    signed char seit = 0;         // ucmd.rightmove
+    signed char hoch = 0;         // ucmd.upmove (Sprung > 0, ducken < 0)
+};
+// Ein PmoveSingle von msec Millisekunden (Pmove teilt laengere Bilder in
+// Stuecke von hoechstens 66 ms - das tut der Aufrufer).
+void navSpielerPmove(NavSpieler& s, const NavSpurFn& spur, const NavSpielerEingabe& e, int msec);
+// ps.viewheight: maxs[2] + STANDARD_VIEWHEIGHT_OFFSET (-4) - 36 bzw. geduckt 12
+[[nodiscard]] float navSpielerAugenhoehe(const NavSpieler& s);
+
+}  // namespace bhed
+
 #endif

@@ -110,6 +110,11 @@ struct KollisionsKarte {
 // Die Brushes aus den Bytes einer .bsp (RBSP/IBSP). false: nicht lesbar.
 [[nodiscard]] bool leseKollision(const std::string& bsp, KollisionsKarte& aus);
 
+// Stufe 8b Punkt 3 (Karten-Editor, Im Editor spielen): CM_GeneratePatchCollide
+// fuer ein Kontrollgitter von width x height Punkten (zeilenweise, wie die
+// Drawverts einer MST_PATCH-Flaeche). false: das Gitter ist nicht gueltig.
+[[nodiscard]] bool kollisionPatchErzeugen(int width, int height, const std::vector<std::array<float, 3>>& punkte, KollisionsKarte::Patch& aus);
+
 struct KollisionsSpur {
     bool allsolid = false;
     bool startsolid = false;

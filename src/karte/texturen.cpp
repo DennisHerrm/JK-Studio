@@ -160,6 +160,7 @@ bool quake3Parsen(Tokenizer& t, ShaderEintrag& s) {
                 return false;
             }
             const std::string a = klein(p);
+            s.surfaceparms.push_back(a);   // Stufe 8b Punkt 3
             if (a == "fog") {
                 s.flags |= QER_FOG;
                 s.flags |= QER_TRANS;

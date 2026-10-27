@@ -117,6 +117,9 @@ struct ShaderEintrag {
     float alphaRef = 0.0f;
     int cull = 0;              // IShader::ECull (eCullNone = 0, eCullBack = 1)
     std::string himmel;        // m_skyBox
+    // Stufe 8b Punkt 3: die surfaceparm-Namen (klein) in der Reihenfolge der
+    // Datei - fuer die Inhalte wie q3map2 (ApplySurfaceParm, Im Editor spielen)
+    std::vector<std::string> surfaceparms;
     [[nodiscard]] bool istStandard() const { return datei.empty(); }   // IsDefault
 };
 

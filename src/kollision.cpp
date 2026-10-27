@@ -1512,6 +1512,11 @@ bool leseKollision(const std::string& b, KollisionsKarte& aus) {
     return !aus.knoten.empty();
 }
 
+bool kollisionPatchErzeugen(int width, int height, const std::vector<std::array<float, 3>>& punkte, KollisionsKarte::Patch& aus) {
+    if (width <= 0 || height <= 0 || width * height > kMaxPatchVerts || static_cast<int>(punkte.size()) < width * height) { return false; }
+    return erzeugePatch(width, height, punkte, aus);
+}
+
 KollisionsSpur kollisionsSpur(const KollisionsKarte& k, const float start[3], const float mins[3], const float maxs[3],
                               const float ende[3], std::uint32_t maske, int modell, const float ursprung[3],
                               const float winkel[3]) {

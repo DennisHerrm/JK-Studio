@@ -3422,6 +3422,39 @@ struct Lauf {
     signed char ucmdVor = 0;      // ucmd.forwardmove aus STEER::DeActivate
     signed char ucmdSeit = 0;     // ucmd.rightmove
     bool jk2Pm = false;           // rc604 fix604: PM_WalkMove von JK2 (ohne moveDir aus ucmd)
+    // Stufe 8b Punkt 3: ein Spieler statt eines NPC (navSpielerPmove)
+    bool spieler = false;
+    bool spielerGeduckt = false;  // PMF_DUCKED
+    signed char ucmdHoch = 0;     // ucmd.upmove
+    bool* spielerSprungGehalten = nullptr;   // PMF_JUMP_HELD
+    bool* spielerSpringt = nullptr;          // PMF_JUMPING
+    // PM_ClipVelocity (bg_pmove.cpp OpenJK): beim Spieler mit g_stepSlideFix 1
+    // an einem zu steilen Hang am Boden kein Hinaufgleiten (out[2] = oldInZ).
+    void abgleitenSp(NavVec& v, const NavVec& n, float overbounce) const {
+        const float altZ = v[2];
+        abgleiten(v, n, overbounce);
+        if (spieler && !jk2Pm && n[2] < kMinWalkNormal && z.amBoden) { v[2] = altZ; }
+    }
+    // PM_CheckJump (bg_pmove.cpp:1062-1477 OpenJK) fuer einen Spieler ohne
+    // Machtsprung: upmove < 10 -> nein; PMF_JUMP_HELD -> upmove = 0, nein; am
+    // Boden JUMP_VELOCITY, forceJumpZStart, PMF_JUMPING; dann groundPlane,
+    // walking aus, PMF_JUMP_HELD, groundEntityNum NONE.
+    bool spielerSprung() {
+        if (ucmdHoch < 10) { return false; }
+        if (spielerSprungGehalten != nullptr && *spielerSprungGehalten) {
+            ucmdHoch = 0;   // "clear upmove so cmdscale doesn't lower running speed"
+            return false;
+        }
+        if (!z.amBoden) { return false; }
+        z.tempoVek[2] = 225.0F;   // JUMP_VELOCITY
+        z.sprung.zStart = z.ort[2];
+        if (spielerSpringt != nullptr) { *spielerSpringt = true; }
+        bodenFlaeche = false;
+        gehend = false;
+        if (spielerSprungGehalten != nullptr) { *spielerSprungGehalten = true; }
+        z.amBoden = false;
+        return true;
+    }
     [[nodiscard]] NavSpur kastenSpur(const NavVec& a, const NavVec& b, std::uint32_t maske) const {
         return spurDurch(spurF, a, mins, maxs, b, kNavKeineEntity, maske);
     }
@@ -3436,6 +3469,7 @@ struct Lauf {
     // OpenJK; G_CheckInSolid ebenso, g_utils.cpp:1645 MD) - ohne CONTENTS_BODY
     // nach SET_SOLID false oder mit SFB_NOTSOLID (NavWelt::pmOhneKoerper).
     [[nodiscard]] std::uint32_t pmMaske() const {
+        if (spieler) { return kNavMaskPlayerSolid; }   // Stufe 8b Punkt 3: pm->tracemask des Spielers
         return welt.pmOhneKoerper ? (kNavMaskNpcSolid & ~kNavBody) : kNavMaskNpcSolid;
     }
     // PM_GroundTrace (bg_pmove.cpp:7385-7560 MD) fuer einen NPC zu Fuss (kein
@@ -3511,7 +3545,7 @@ struct Lauf {
         // rc604 fix604 (JK2): PM_SlideMove von Jedi Outcast spurt nur mit
         // pm->tracemask - kein CONTENTS_BOTCLIP fuer gehende NPCs
         // (codeJK2/game/bg_slidemove.cpp:47-90 gegen code/game/bg_slidemove.cpp:54-100).
-        std::uint32_t inhalt = pmMaske() | ((gehend && !jk2Pm) ? kNavBotClip : 0U);
+        std::uint32_t inhalt = pmMaske() | ((gehend && !jk2Pm && !spieler) ? kNavBotClip : 0U);
         constexpr int kMaxEbenen = 5;   // MAX_CLIP_PLANES
         NavVec ebenen[kMaxEbenen]{};
         NavVec primal = vel;
@@ -3520,7 +3554,7 @@ struct Lauf {
             endTempo[2] -= schwer * frameZeit * gravMod;
             vel[2] = (vel[2] + endTempo[2]) * 0.5F;
             primal[2] = endTempo[2];
-            if (bodenFlaeche) { abgleiten(vel, bodenNormale, kOverclip); }   // PM_GroundSlideOkay: ja
+            if (bodenFlaeche) { abgleitenSp(vel, bodenNormale, kOverclip); }   // PM_GroundSlideOkay: ja
         }
         float zeitRest = frameZeit;
         int zahl = 0;
@@ -3574,14 +3608,14 @@ struct Lauf {
                 if (punkt(vel, ebenen[i]) >= 0.1F) { continue; }
                 NavVec clip = vel;
                 NavVec endClip = endTempo;
-                abgleiten(clip, ebenen[i], kOverclip);
-                abgleiten(endClip, ebenen[i], kOverclip);
+                abgleitenSp(clip, ebenen[i], kOverclip);
+                abgleitenSp(endClip, ebenen[i], kOverclip);
                 bool tot = false;
                 for (int j = 0; j < zahl && !tot; ++j) {
                     if (j == i) { continue; }
                     if (punkt(clip, ebenen[j]) >= 0.1F) { continue; }
-                    abgleiten(clip, ebenen[j], kOverclip);
-                    abgleiten(endClip, ebenen[j], kOverclip);
+                    abgleitenSp(clip, ebenen[j], kOverclip);
+                    abgleitenSp(endClip, ebenen[j], kOverclip);
                     if (punkt(clip, ebenen[i]) >= 0.0F) { continue; }
                     // "slide the original velocity along the crease"
                     const NavVec& a = ebenen[i];
@@ -3648,9 +3682,17 @@ struct Lauf {
             if (tr.fraction < 1.0F) { abgleiten(vel, tr.normal, kOverclip); }
             return;
         }
-        if (!tr.allsolid) {
+        // Stufe 8b Punkt 3: g_stepSlideFix beim Spieler - "normal players cannot
+        // step up slopes that are too steep to walk on!" (bg_slidemove.cpp OpenJK)
+        bool stufeAuslassen = false;
+        if (spieler && tr.normal[2] < kMinWalkNormal) {
+            NavVec stufenVek = minus(tr.endpos, untenO);
+            (void)vektorNorm(stufenVek);
+            if (stufenVek[2] > (1.0F - kMinWalkNormal)) { stufeAuslassen = true; }
+        }
+        if (!tr.allsolid && !stufeAuslassen) {
             z.ort = tr.endpos;
-            if (tr.fraction < 1.0F) { abgleiten(vel, tr.normal, kOverclip); }
+            if (tr.fraction < 1.0F) { abgleitenSp(vel, tr.normal, kOverclip); }
         } else {
             z.ort = untenO;
             vel = untenV;
@@ -3692,7 +3734,7 @@ struct Lauf {
     // pml.forward/right (flach, auf die Bodenebene geklippt, normiert),
     // wishspeed * PM_CmdScale (:382-406).
     void jk2Beschleunigen(const NavVec& normale) {
-        if (!jk2Pm || !istNull(zBewegung)) {
+        if ((!jk2Pm && !spieler) || !istNull(zBewegung)) {
             beschleunigen(zBewegung, static_cast<float>(z.tempo), kPmAccelerate);
             return;
         }
@@ -3709,24 +3751,34 @@ struct Lauf {
         const auto sm = static_cast<float>(ucmdSeit);
         int maxm = std::abs(static_cast<int>(ucmdVor));
         if (std::abs(static_cast<int>(ucmdSeit)) > maxm) { maxm = std::abs(static_cast<int>(ucmdSeit)); }
+        // Stufe 8b Punkt 3: PM_CmdScale des Spielers zaehlt upmove mit
+        const int hoch = spieler ? static_cast<int>(ucmdHoch) : 0;
+        if (std::abs(hoch) > maxm) { maxm = std::abs(hoch); }
         float scale = 0.0F;
         if (maxm != 0) {
-            const auto total = static_cast<float>(std::sqrt(static_cast<double>(ucmdVor * ucmdVor + ucmdSeit * ucmdSeit)));
+            const auto total = static_cast<float>(std::sqrt(static_cast<double>(ucmdVor * ucmdVor + ucmdSeit * ucmdSeit + hoch * hoch)));
             scale = static_cast<float>(z.tempo) * static_cast<float>(maxm) / (127.0F * total);
         }
         NavVec wishdir{vorn[0] * fm + rechts[0] * sm, vorn[1] * fm + rechts[1] * sm, vorn[2] * fm + rechts[2] * sm};
         float wishspeed = vektorNorm(wishdir);
         wishspeed *= scale;
+        // pm_duckScale (PM_WalkMove): geduckt hoechstens die Haelfte
+        if (spieler && spielerGeduckt && wishspeed > static_cast<float>(z.tempo) * 0.5F) { wishspeed = static_cast<float>(z.tempo) * 0.5F; }
         beschleunigen(wishdir, wishspeed, kPmAccelerate);
     }
     // PM_WalkMove (bg_pmove.cpp:4251-4530 MD) fuer NPCs mit moveDir.
     void gehBewegung() {
         NavVec& vel = z.tempoVek;
+        // Stufe 8b Punkt 3: "if ( PM_CheckJump () ) { jumped away ... PM_AirMove(); return; }"
+        if (spieler && spielerSprung()) {
+            luftBewegung();
+            return;
+        }
         reibung(true);
         jk2Beschleunigen(bodenNormale);
         // PM_ClipVelocity auf den Boden, Laenge behalten (4515-4522)
         const float l = laenge(vel);
-        abgleiten(vel, bodenNormale, kOverclip);
+        abgleitenSp(vel, bodenNormale, kOverclip);
         const float l2 = laenge(vel);
         if (l2 > 0.0F) { vel = mal(vel, l / l2); }
         if (vel[0] == 0.0F && vel[1] == 0.0F) { return; }   // "don't do anything if standing still"
@@ -3739,9 +3791,11 @@ struct Lauf {
         reibung(false);
         int maxm = std::abs(static_cast<int>(ucmdVor));
         if (std::abs(static_cast<int>(ucmdSeit)) > maxm) { maxm = std::abs(static_cast<int>(ucmdSeit)); }
+        const int hoch = spieler ? static_cast<int>(ucmdHoch) : 0;   // Stufe 8b Punkt 3: PM_CmdScale mit upmove
+        if (std::abs(hoch) > maxm) { maxm = std::abs(hoch); }
         float scale = 0.0F;
         if (maxm != 0) {
-            const float total = std::sqrt(static_cast<float>(ucmdVor * ucmdVor + ucmdSeit * ucmdSeit));
+            const float total = std::sqrt(static_cast<float>(ucmdVor * ucmdVor + ucmdSeit * ucmdSeit + hoch * hoch));
             scale = static_cast<float>(z.tempo) * static_cast<float>(maxm) / (127.0F * total);
         }
         NavVec vorn{};
@@ -3760,7 +3814,7 @@ struct Lauf {
         wishspeed *= scale;
         if (punkt(z.tempoVek, wishdir) < 0.0F) { wishspeed *= 1.35F; }   // pm_airDecelRate
         beschleunigen(wishdir, wishspeed, 4.0F);                          // pm_airaccelerate
-        if (bodenFlaeche) { abgleiten(z.tempoVek, bodenNormale, kOverclip); }
+        if (bodenFlaeche) { abgleitenSp(z.tempoVek, bodenNormale, kOverclip); }
         stufenSchieben(1.0F);
     }
 
@@ -4807,6 +4861,122 @@ int navNaechsterKnoten(const NavWelt& welt, const NavVec& pos, int vorher, int z
     LaufZustand z;
     Lauf l(welt, w, z);
     return l.naechster(pos, vorher, ziel);
+}
+
+// --- Stufe 8b Punkt 3: ein Spieler (siehe navlauf.h) ----------------------------
+
+namespace {
+// AngleVectors (q_math.c) mit Nick, ohne Rollen
+void winkelAchsen(float nick, float gier, NavVec& vorn, NavVec& rechts, NavVec& oben) {
+    const float g = gier * (3.14159265358979323846F * 2.0F / 360.0F);
+    const float n = nick * (3.14159265358979323846F * 2.0F / 360.0F);
+    const float sy = std::sin(g);
+    const float cy = std::cos(g);
+    const float sp = std::sin(n);
+    const float cp = std::cos(n);
+    vorn = {cp * cy, cp * sy, -sp};
+    rechts = {sy, -cy, 0.0F};   // -1*sr*sp*cy + -1*cr*-sy mit sr = 0, cr = 1
+    oben = {sp * cy, sp * sy, cp};
+}
+}  // namespace
+
+float navSpielerAugenhoehe(const NavSpieler& s) { return (s.geduckt ? 16.0F : 40.0F) - 4.0F; }
+
+void navSpielerPmove(NavSpieler& s, const NavSpurFn& spur, const NavSpielerEingabe& e, int msec) {
+    if (msec < 1) { return; }
+    if (msec > 200) { msec = 200; }   // PmoveSingle: "if ( pml.msec > 200 ) pml.msec = 200"
+    const float dt = static_cast<float>(msec) * 0.001F;
+    // PmoveSingle: "if ( pm->cmd.upmove < 10 ) pm->ps->pm_flags &= ~PMF_JUMP_HELD"
+    if (e.hoch < 10) { s.sprungGehalten = false; }
+    if (s.noclip) {
+        // PM_NoclipMove (bg_pmove.cpp:3374-3486 OpenJK)
+        s.geduckt = false;
+        s.amBoden = false;
+        const float speed = std::sqrt(s.tempo[0] * s.tempo[0] + s.tempo[1] * s.tempo[1] + s.tempo[2] * s.tempo[2]);
+        if (speed < 1.0F) {
+            s.tempo = {0.0F, 0.0F, 0.0F};
+        } else {
+            const float friction = kNpcFriction * 1.5F;   // pm_friction * 1.5 "extra friction"
+            const float control = speed < kPmStopSpeed ? kPmStopSpeed : speed;
+            const float drop = control * friction * dt;
+            float neu = speed - drop;
+            if (neu < 0.0F) { neu = 0.0F; }
+            neu /= speed;
+            s.tempo = {s.tempo[0] * neu, s.tempo[1] * neu, s.tempo[2] * neu};
+        }
+        // PM_CmdScale
+        int maxm = std::abs(static_cast<int>(e.vor));
+        maxm = std::max(maxm, std::abs(static_cast<int>(e.seit)));
+        maxm = std::max(maxm, std::abs(static_cast<int>(e.hoch)));
+        float scale = 0.0F;
+        if (maxm != 0) {
+            const float total = std::sqrt(static_cast<float>(e.vor * e.vor + e.seit * e.seit + e.hoch * e.hoch));
+            scale = static_cast<float>(s.geschwindigkeit) * static_cast<float>(maxm) / (127.0F * total);
+        }
+        NavVec vorn{};
+        NavVec rechts{};
+        NavVec oben{};
+        winkelAchsen(s.nick, s.gier, vorn, rechts, oben);
+        const auto fm = static_cast<float>(e.vor);
+        const auto sm = static_cast<float>(e.seit);
+        NavVec wishvel{vorn[0] * fm + rechts[0] * sm, vorn[1] * fm + rechts[1] * sm, vorn[2] * fm + rechts[2] * sm};
+        wishvel[2] += static_cast<float>(e.hoch);
+        NavVec wishdir = wishvel;
+        float wishspeed = Lauf::vektorNorm(wishdir);
+        wishspeed *= scale;
+        // PM_Accelerate (pm_accelerate)
+        const float aktuell = punkt(s.tempo, wishdir);
+        const float dazu = wishspeed - aktuell;
+        if (dazu > 0.0F) {
+            float acc = kPmAccelerate * dt * wishspeed;
+            if (acc > dazu) { acc = dazu; }
+            s.tempo = plus(s.tempo, mal(wishdir, acc));
+        }
+        s.ort = plus(s.ort, mal(s.tempo, dt));   // "move"
+        return;
+    }
+    NavWelt welt;
+    welt.spur = spur;
+    welt.boden = [](float, float, float, float, float&) { return false; };   // nur fuer "mit Spuren": Lauf::pmove fragt welt.boden nicht
+    LaufWerte w;
+    w.halbBreite = 16.0F;   // DEFAULT_MINS_0 -16 (g_client.cpp)
+    w.hoeheOben = 40.0F;    // DEFAULT_MAXS_2
+    w.stufe = 18.0F;        // STEPSIZE
+    w.schwerkraft = s.schwerkraft;
+    w.fallen = true;
+    LaufZustand z;
+    z.ort = s.ort;
+    z.tempoVek = s.tempo;
+    z.tempo = s.geschwindigkeit;
+    z.gier = s.gier;
+    z.amBoden = s.amBoden;
+    z.pmZeit = s.pmZeit;
+    Lauf l(welt, w, z);
+    l.spieler = true;
+    l.jk2Pm = s.jk2;
+    l.ucmdVor = e.vor;
+    l.ucmdSeit = e.seit;
+    l.ucmdHoch = e.hoch;
+    l.spielerSprungGehalten = &s.sprungGehalten;
+    l.spielerSpringt = &s.springt;
+    // PM_CheckDuck (bg_pmove.cpp:5684 OpenJK): upmove < 0 duckt; sonst aufstehen,
+    // wenn der Kasten in voller Hoehe frei ist
+    if (e.hoch < 0) {
+        s.geduckt = true;
+    } else if (s.geduckt) {
+        NavVec hoch = l.maxs;
+        hoch[2] = 40.0F;
+        const NavSpur tr = spurDurch(spur, s.ort, l.mins, hoch, s.ort, kNavKeineEntity, kNavMaskPlayerSolid);
+        if (!tr.allsolid) { s.geduckt = false; }
+    }
+    if (s.geduckt) { l.maxs[2] = 16.0F; }   // CROUCH_MAXS_2
+    l.spielerGeduckt = s.geduckt;
+    l.pmove(dt, msec);
+    s.ort = z.ort;
+    s.tempo = z.tempoVek;
+    s.amBoden = z.amBoden;
+    s.pmZeit = z.pmZeit;
+    if (s.amBoden) { s.springt = false; }   // "on ground": PMF_JUMPING weg
 }
 
 namespace {
