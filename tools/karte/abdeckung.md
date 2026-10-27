@@ -12,8 +12,8 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 | Einstellungsfelder | 79 | 78 | 1 | 0 | 0 |
 | Plugins | 69 | 69 | 0 | 0 | 0 |
 | Mausbelegung | 62 | 62 | 0 | 0 | 0 |
-| Eigene Eintraege | 39 | 39 | 0 | 0 | 0 |
-| **Summe** | 979 | 975 | 4 | 0 | 0 |
+| Eigene Eintraege | 40 | 40 | 0 | 0 | 0 |
+| **Summe** | 980 | 976 | 4 | 0 | 0 |
 
 ## Begruendete Ausnahmen
 
@@ -1045,3 +1045,4 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 | `Eigen \| View > Mirror mode > Plane through selection center (on grid)` | OK | View > Mirror mode > Plane through selection center (on grid): Ebene Y = Mitte der Auswahl auf dem Raster |
 | `Eigen \| View > Mirror mode > Plane through origin` | OK | View > Mirror mode > Plane through origin: Ebene = 0 |
 | `Eigen \| View > Mirror mode > Off` | OK | View > Mirror mode > Off: aus, keine Paare, keine Linie |
+| `Eigen \| View > Undo history...` | OK | View > Undo history...: Fenster offen, Anfang und vier Schritte mit NRC-Namen, keine weitere Zeile; Undo history > Klick auf Schritt 1: Karte byte-gleich mit dem Stand nach Schritt 1, drei Wiederholen-Schritte; Undo history > Klick auf Schritt 4 (grau): wieder am Ende, byte-gleich; Undo history > Klick auf den Anfang: byte-gleich mit der geladenen Karte; Undo history > hin und zurueck: byte-gleich mit dem Stand vor dem Springen |

@@ -225,6 +225,31 @@ void Rueckgaengig::clear() {
     ++m_abschluesse;
 }
 
+std::vector<std::string> Rueckgaengig::Stapel::namen() const {
+    std::vector<std::string> r;
+    r.reserve(m_stapel.size());
+    for (const auto& v : m_stapel) { r.push_back(v->befehl); }
+    return r;
+}
+
+std::vector<std::string> Rueckgaengig::undoNamen() const { return m_undoStapel.namen(); }
+
+std::vector<std::string> Rueckgaengig::redoNamen() const {
+    std::vector<std::string> r = m_redoStapel.namen();
+    return {r.rbegin(), r.rend()};
+}
+
+bool Rueckgaengig::springen(std::size_t ziel) {
+    if (ziel > undoAnzahl() + redoAnzahl()) { return false; }
+    while (undoAnzahl() > ziel) {
+        if (!undo()) { return false; }
+    }
+    while (undoAnzahl() < ziel) {
+        if (!redo()) { return false; }
+    }
+    return true;
+}
+
 std::string Rueckgaengig::undoName() const { return m_undoStapel.leer() ? std::string() : m_undoStapel.hinten().befehl; }
 std::string Rueckgaengig::redoName() const { return m_redoStapel.leer() ? std::string() : m_redoStapel.hinten().befehl; }
 

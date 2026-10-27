@@ -406,6 +406,13 @@ void listeZeichnen(const std::string& name) {
             if (qtPunkt(p)) { logikZeigen(); }
         }
         spiegelMenue();   // Stufe 8b Punkt 6
+        {
+            const std::string id = std::string(trK(Str::KeUlMenue)) + "###undoverlaufmenue";
+            QtPunkt p;
+            p.id = id.c_str();
+            p.tooltip = trK(Str::KeUlMenueTip);
+            if (qtPunkt(p)) { undoListeZeigen(); }
+        }
         qtTrenner();
         if (qtMenueAnfang((std::string(trK(Str::ViewTarget)) + "###progziel").c_str())) {
             QtPunkt sp;

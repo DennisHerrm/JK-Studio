@@ -202,4 +202,17 @@ KARTE8B = [
      "将镜像平面放在 0 0 0(NetRadiant-Custom 中没有)", "ミラー平面を 0 0 0 に置きます(NetRadiant-Custom にはありません)"),
     ("KeSgMeldung", "Mirror mode: plane %c = %g", "Spiegel-Modus: Ebene %c = %g", "镜像模式:平面 %c = %g", "ミラーモード:平面 %c = %g"),
     ("KeSgAusMeldung", "Mirror mode off", "Spiegel-Modus aus", "镜像模式关闭", "ミラーモード オフ"),
+    # Stufe 8b Punkt 7: Undo-Verlauf
+    ("KeUlMenue", "Undo history...", "Undo-Verlauf...", "撤销历史...", "元に戻す履歴..."),
+    ("KeUlMenueTip",
+     "All undo and redo steps as a list with the command names NetRadiant-Custom uses; a click jumps to that state with as many Undo/Redo as needed (not in NetRadiant-Custom)",
+     "Alle Rückgängig- und Wiederholen-Schritte als Liste mit den Befehlsnamen von NetRadiant-Custom; ein Klick springt mit so vielen Undo/Redo wie nötig zu diesem Stand (nicht in NetRadiant-Custom)",
+     "以列表显示所有撤销和重做步骤,使用 NetRadiant-Custom 的命令名称;单击会通过所需次数的撤销/重做跳到该状态(NetRadiant-Custom 中没有)",
+     "元に戻す/やり直しの全ステップを NetRadiant-Custom のコマンド名で一覧表示します。クリックすると必要な回数だけ元に戻す/やり直しを行ってその状態に移ります(NetRadiant-Custom にはありません)"),
+    ("KeUlTitel", "Undo history", "Undo-Verlauf", "撤销历史", "元に戻す履歴"),
+    ("KeUlKopf", "Undo: %zu, Redo: %zu (at most %zu steps)", "Rückgängig: %zu, Wiederholen: %zu (höchstens %zu Schritte)",
+     "撤销:%zu,重做:%zu(最多 %zu 步)", "元に戻す:%zu、やり直し:%zu(最大 %zu ステップ)"),
+    ("KeUlAnfang", "(start - before the first step)", "(Anfang - vor dem ersten Schritt)", "(开始——第一步之前)", "(開始 - 最初のステップの前)"),
+    ("KeUlZeileTip", "Click: jump to the state after this step (grey: redo steps)", "Klick: zum Stand nach diesem Schritt springen (grau: Wiederholen-Schritte)",
+     "单击:跳到此步骤之后的状态(灰色:重做步骤)", "クリック:このステップの後の状態に移る(灰色:やり直しステップ)"),
 ]

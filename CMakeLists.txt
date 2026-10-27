@@ -367,6 +367,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_logik.cpp
     gui/app_karte_ansichtsmodi.cpp
     gui/app_karte_spiegel.cpp
+    gui/app_karte_undoliste.cpp
     gui/app_karte_meshtex.cpp
     gui/karte_qtdialog.cpp
     gui/app_karte_menue.cpp
@@ -1120,6 +1121,10 @@ if(BEHAVED_TESTS)
   add_executable(kartespiegel tests/kartespiegel.cpp)
   target_link_libraries(kartespiegel PRIVATE bhed_core)
   add_test(NAME karte_spiegel COMMAND kartespiegel)
+  # Stufe 8b Punkt 7: der Undo-Verlauf als Liste
+  add_executable(karteundoliste tests/karteundoliste.cpp)
+  target_link_libraries(karteundoliste PRIVATE bhed_core)
+  add_test(NAME karte_undoliste COMMAND karteundoliste)
   # Stufe 4 Punkt 3: brushexport2 - .obj / .mtl wie export.cpp
   add_executable(kartebrushexport tests/kartebrushexport.cpp)
   target_link_libraries(kartebrushexport PRIVATE bhed_core)

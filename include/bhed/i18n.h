@@ -2367,6 +2367,12 @@ enum class Str {
     KeSgNullTip,
     KeSgMeldung,
     KeSgAusMeldung,
+    KeUlMenue,
+    KeUlMenueTip,
+    KeUlTitel,
+    KeUlKopf,
+    KeUlAnfang,
+    KeUlZeileTip,
     Count,
 };
 

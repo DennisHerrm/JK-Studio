@@ -1578,6 +1578,7 @@ void zeichne(float hoehe) {
     zeichneOptimierer();  // Stufe 5: Build > Optimizer...
     pluginDialogeZeichnen();   // Stufe 4 Punkt 3: die Plugins
     logikZeichnen();           // Stufe 8b Punkt 4: Logic view
+    undoListeZeichnen();       // Stufe 8b Punkt 7: Undo history
     zeichneGlobaleEinstellungen();
     zeichneAbrisse();
     zeichneUeber();

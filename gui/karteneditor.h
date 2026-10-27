@@ -610,6 +610,9 @@ struct Editor {
     LogikZustand logik;       // Stufe 8b Punkt 4
     AnsichtsModiZustand ansichtsmodi;   // Stufe 8b Punkt 5
     karte::SpiegelModus spiegel;        // Stufe 8b Punkt 6
+    bool undoListeOffen = false;        // Stufe 8b Punkt 7: Undo-Verlauf
+    bool undoListeRollen = true;
+    std::size_t undoListeStand = 0;
     karte::plugins::UfoaiZustand ufoai;
     karte::ZuletztListe zuletzt;
     bool zuletztGeladen = false;
@@ -1696,6 +1699,11 @@ void spiegelEbeneAnAuswahl();          // Ebene durch die Mitte der Auswahl (auf
 void spiegelEbeneNull();               // Ebene durch den Ursprung
 void spiegelMenue();                   // View > Mirror mode
 void spiegelLinien(std::vector<PluginLinien>& v);   // die Ebene in den 2D-Ansichten
+// Stufe 8b Punkt 7: Undo-Verlauf als Liste (app_karte_undoliste.cpp)
+void undoListeZeigen();
+void undoListeZeichnen();
+void undoListeSpringen(std::size_t ziel);              // zum Stand nach "ziel" Schritten (0 = Anfang)
+[[nodiscard]] std::string undoListeBeschriftung(std::size_t i);   // die Zeile i (Text###uv<i>)
 // ... und in der Kamera: eSortFullbright (DBobView) bzw. eSortOverlayFirst
 // (DTrainDrawer, DVisDrawer); fuellen = Darstellung mit Flaechen (eFullMaterials)
 void pluginKameraVoll(const float* matrix, bool fuellen);

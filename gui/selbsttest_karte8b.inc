@@ -1345,6 +1345,99 @@ std::vector<Schritt> spiegel() {
     return s;
 }
 
+// --- Punkt 7: Undo-Verlauf als Liste ----------------------------------------------------
+//
+// Wirkung: vier Befehle; View > Undo history... zeigt den Anfang und die vier
+// Schritte mit NRC-Namen, der letzte hervorgehoben; Klick auf Schritt 1 springt
+// dorthin (Karte byte-gleich mit dem Stand nach Schritt 1, drei Redo grau), Klick
+// auf Schritt 4 zurueck (byte-gleich), Klick auf den Anfang (byte-gleich mit der
+// geladenen Karte), wieder ans Ende.
+std::vector<Schritt> undoliste() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    add(stufe2::grundzustand("Stufe 8b/7: Grundzustand"));
+    auto staende = std::make_shared<std::vector<std::string>>();
+    add(tu("Testkarte oeffnen, vier Befehle (entitySetKeyValue, translate) ausfuehren, Staende merken", [staende] {
+        karteDialogeZu();
+        std::string t = weltText(kastenText(32, 0, 0, 96, 64, 64, "test/a"));
+        t += "{\n\"classname\" \"info_player_start\"\n\"origin\" \"100 50 8\"\n}\n";
+        const std::string pfad = karteTestPfad("s8bul\\undo.map");
+        std::filesystem::create_directories(std::filesystem::path(pfad).parent_path());
+        {
+            std::ofstream f(std::filesystem::path(pfad), std::ios::binary | std::ios::trunc);
+            f << t;
+        }
+        (void)ke::karteOeffnen(pfad);
+        ke::Editor& e = ke::editor();
+        e.spiegel = karte::SpiegelModus{};
+        staende->clear();
+        staende->push_back(kartenText());
+        std::shared_ptr<karte::Entitaet> ent;
+        for (const auto& x : e.karte.entitaeten()) {
+            if (x->klassenname() == "info_player_start") { ent = x; }
+        }
+        const char* namen[3] = {"entitySetKeyValue -key \"angle\" -value \"90\"", "entitySetKeyValue -key \"targetname\" -value \"start\"",
+                                "entitySetKeyValue -key \"angle\" -value \"180\""};
+        const char* werte[3][2] = {{"angle", "90"}, {"targetname", "start"}, {"angle", "180"}};
+        for (int i = 0; i < 3; ++i) {
+            {
+                karte::Befehl b(e.karte.undo, namen[i]);
+                ent->setzen(werte[i][0], werte[i][1]);
+            }
+            staende->push_back(kartenText());
+        }
+        weltWaehlen({0});
+        {
+            karte::Befehl b(e.karte.undo, "translateTool -xyz 16 0 0");
+            e.bearbeitung.verschiebeAuswahl(karte::Vektor3f(16, 0, 0));
+        }
+        staende->push_back(kartenText());
+    }));
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeUlMenue)) + "###undoverlaufmenue", "", 0, true));
+    add(pause(0.4));
+    add(pruefe("View > Undo history...: Fenster offen, Anfang und vier Schritte mit NRC-Namen, keine weitere Zeile", [] {
+        const ke::Editor& e = ke::editor();
+        const auto n = e.karte.undo.undoNamen();
+        bool zeilen = true;
+        for (std::size_t i = 0; i <= 4; ++i) { zeilen = zeilen && finde(ke::undoListeBeschriftung(i), "###undoverlauf", 0, false) != nullptr; }
+        diag::detail("Knopftest: Stufe 8b/7 Schritte " + std::to_string(n.size()) + (n.empty() ? std::string() : ", letzter \"" + n.back() + "\""));
+        return e.undoListeOffen && n.size() == 4 && n[0] == "entitySetKeyValue -key \"angle\" -value \"90\"" && n[3] == "translateTool -xyz 16 0 0" && zeilen &&
+               finde(ke::undoListeBeschriftung(5), "###undoverlauf", 0, false) == nullptr;
+    }));
+    add(foto("karteneditor_s8b_undoliste"));
+    // Die Beschriftung haengt vom Stand ab - der Klick rechnet sie im Schritt selbst
+    const auto klickZeile = [&add](std::size_t i) {
+        auto k = std::make_shared<Schritt>();
+        add(Schritt{"Klick Undo-Verlauf Zeile " + std::to_string(i), [i, k](int b) {
+                        if (b == 0) { *k = klick(ke::undoListeBeschriftung(i), "###undoverlauf"); }
+                        return k->tun(b);
+                    }});
+        add(pause(0.3));
+    };
+    klickZeile(1);
+    add(pruefe("Undo history > Klick auf Schritt 1: Karte byte-gleich mit dem Stand nach Schritt 1, drei Wiederholen-Schritte", [staende] {
+        const ke::Editor& e = ke::editor();
+        return kartenText() == (*staende)[1] && e.karte.undo.undoAnzahl() == 1 && e.karte.undo.redoAnzahl() == 3;
+    }));
+    add(foto("karteneditor_s8b_undoliste_sprung"));
+    klickZeile(4);
+    add(pruefe("Undo history > Klick auf Schritt 4 (grau): wieder am Ende, byte-gleich", [staende] {
+        return kartenText() == (*staende)[4] && ke::editor().karte.undo.redoAnzahl() == 0;
+    }));
+    klickZeile(0);
+    add(pruefe("Undo history > Klick auf den Anfang: byte-gleich mit der geladenen Karte", [staende] {
+        return kartenText() == (*staende)[0] && ke::editor().karte.undo.undoAnzahl() == 0;
+    }));
+    klickZeile(4);
+    add(pruefe("Undo history > hin und zurueck: byte-gleich mit dem Stand vor dem Springen", [staende] {
+        return kartenText() == (*staende)[4] && ke::editor().karte.undo.undoAnzahl() == 4;
+    }));
+    add(tu("Undo-Verlauf schliessen", [] { ke::editor().undoListeOffen = false; }));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     const char* nur = std::getenv("BHED_STUFE8B_NUR");
@@ -1358,6 +1451,7 @@ std::vector<Schritt> schritte() {
     if (teil("logik")) { dazu(logik()); }
     if (teil("ansichten")) { dazu(ansichten()); }
     if (teil("spiegel")) { dazu(spiegel()); }
+    if (teil("undoliste")) { dazu(undoliste()); }
     return s;
 }
 

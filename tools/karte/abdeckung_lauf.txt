@@ -3150,3 +3150,8 @@ Knopftest OK: View > Mirror mode > Mirror plane Z: Achse Z
 
 Knopftest OK: View > Mirror mode > Off: aus, keine Paare, keine Linie
 
+Knopftest OK: View > Undo history...: Fenster offen, Anfang und vier Schritte mit NRC-Namen, keine weitere Zeile
+Knopftest OK: Undo history > Klick auf Schritt 1: Karte byte-gleich mit dem Stand nach Schritt 1, drei Wiederholen-Schritte
+Knopftest OK: Undo history > Klick auf Schritt 4 (grau): wieder am Ende, byte-gleich
+Knopftest OK: Undo history > Klick auf den Anfang: byte-gleich mit der geladenen Karte
+Knopftest OK: Undo history > hin und zurueck: byte-gleich mit dem Stand vor dem Springen

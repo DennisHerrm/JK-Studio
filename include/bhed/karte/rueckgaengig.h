@@ -37,6 +37,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace bhed::karte {
 
@@ -103,6 +104,14 @@ public:
     [[nodiscard]] std::size_t redoAnzahl() const { return m_redoStapel.groesse(); }
     [[nodiscard]] std::string undoName() const;   // Name des naechsten Rueckgaengig-Schritts
     [[nodiscard]] std::string redoName() const;
+    // Stufe 8b Punkt 7 (Undo-Verlauf, nicht in NRC): die Namen aller Schritte.
+    // undoNamen: aeltester zuerst, der letzte ist der aktuelle Stand;
+    // redoNamen: der naechste Wiederholen-Schritt zuerst.
+    [[nodiscard]] std::vector<std::string> undoNamen() const;
+    [[nodiscard]] std::vector<std::string> redoNamen() const;
+    // Zum Stand nach "ziel" Undo-Schritten springen (0 = vor dem ersten):
+    // so oft undo() bzw. redo(), wie noetig. false: ziel ausserhalb.
+    bool springen(std::size_t ziel);
 
     // Aenderungszaehler (NRC: MapFile::changed). Steigt bei jeder Sicherung.
     [[nodiscard]] std::size_t aenderungen() const { return m_aenderungen; }
@@ -154,6 +163,7 @@ private:
         void beginnen(const std::string& befehl);
         bool beenden(const std::string& befehl);
         void sichern(Rueckgaengigbar* objekt);
+        [[nodiscard]] std::vector<std::string> namen() const;   // vorn zuerst
     private:
         std::list<std::unique_ptr<Vorgang>> m_stapel;
         std::unique_ptr<Vorgang> m_offen;

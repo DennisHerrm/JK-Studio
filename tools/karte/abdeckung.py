@@ -245,6 +245,10 @@ EIGENE = [
      [re.escape('View > Mirror mode > Plane through selection center (on grid): ')]),
     ('Eigen|View > Mirror mode > Plane through origin', 'Ebene 0 (Stufe 8b/6)', [re.escape('View > Mirror mode > Plane through origin: ')]),
     ('Eigen|View > Mirror mode > Off', 'aus (Stufe 8b/6)', [re.escape('View > Mirror mode > Off: ')]),
+    # Punkt 7: Undo-Verlauf
+    ('Eigen|View > Undo history...', 'Liste mit NRC-Namen, Klick springt, hin und zurueck byte-gleich (Stufe 8b/7)',
+     [re.escape('View > Undo history...: '), re.escape('Undo history > Klick auf Schritt 1: '), re.escape('Undo history > Klick auf Schritt 4 (grau): '),
+      re.escape('Undo history > Klick auf den Anfang: '), re.escape('Undo history > hin und zurueck: ')]),
 ]
 
 
