@@ -89,6 +89,10 @@ bool ganzFeld(const std::string& beschriftung, const std::string& id, int& wert,
 bool zeileFeld(const std::string& id, std::string& wert, float x, float b, float y, int maxLaenge = 255, bool aktiv = true);
 // editierbare QComboBox
 bool kombiFeld(const std::string& id, std::string& wert, const std::vector<std::string>& liste, float x, float b, float y);
+// Stufe 8b: nicht editierbare QComboBox (ComboBox des Terrain Generators): wert = Index
+bool wahlFeld(const std::string& id, int& wert, const std::vector<std::string>& liste, float x, float b, float y, bool aktiv = true);
+// ein einzelner QPushButton in der Breite b (Terrain Generator: "Pick", "Reset to Default")
+bool knopf(const std::string& text, const std::string& id, float x, float b, float y, const char* tip = nullptr);
 // QDialogButtonBox rechtsbuendig bis "rechts": der Index des gedrueckten Knopfs
 // oder -1. Enter (ausser beim Schreiben) = standard, Escape = abbrechen (-2: keiner).
 int knoepfe(const std::vector<std::string>& texte, const std::string& id, float rechts, float y, int standard, int abbrechen);

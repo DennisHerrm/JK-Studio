@@ -362,6 +362,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_plugins.cpp
     gui/app_karte_brushexport.cpp
     gui/app_karte_kleineplugins.cpp
+    gui/app_karte_terrain.cpp
     gui/app_karte_meshtex.cpp
     gui/karte_qtdialog.cpp
     gui/app_karte_menue.cpp
@@ -880,6 +881,8 @@ target_sources(bhed_core PRIVATE
   src/karte/kleineplugins.cpp
   # Stufe 4 Punkt 3: MeshTex (contrib/meshtex/MeshEntity.cpp)
   src/karte/meshtex.cpp
+  # Stufe 8b Punkt 1: Terrain Generator (NRC master, contrib/terrain_generator)
+  src/karte/terraingen.cpp
   # Stufe 5 Punkt 1: die Grenzen von JKA / MP / Movie Duels / JK2 als Daten
   src/karte/grenzen.cpp
   # Stufe 5 Punkt 2: der Optimierer zaehlt (cm_patch.cpp fuer die Patch-Kollision)
@@ -1088,6 +1091,14 @@ if(BEHAVED_TESTS)
   add_executable(kartebobtoolz tests/kartebobtoolz.cpp)
   target_link_libraries(kartebobtoolz PRIVATE bhed_core)
   add_test(NAME karte_bobtoolz COMMAND kartebobtoolz ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
+  # Stufe 8b Punkt 1: Terrain Generator gegen NRCs eigenen Code (tests/karte/terrain_nrc,
+  # NRC master unveraendert, Radiant-Schnittstellen ueber shim/nrc_shim.h)
+  add_executable(karteterrain tests/karteterrain.cpp tests/karte/terrain_nrc/noise.cpp tests/karte/terrain_nrc/terrain_engine.cpp
+                 tests/karte/terrain_nrc/brush_builder.cpp)
+  target_include_directories(karteterrain PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/terrain_nrc/shim
+                             ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/terrain_nrc)
+  target_link_libraries(karteterrain PRIVATE bhed_core)
+  add_test(NAME karte_terrain COMMAND karteterrain)
   # Stufe 4 Punkt 3: brushexport2 - .obj / .mtl wie export.cpp
   add_executable(kartebrushexport tests/kartebrushexport.cpp)
   target_link_libraries(kartebrushexport PRIVATE bhed_core)

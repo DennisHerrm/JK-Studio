@@ -480,6 +480,9 @@ const PluginEintrag kPluginEintraege[] = {
     // SunPlug (contrib/sunplug/sunplug.cpp:80)
     {"SunPlug", "ET-MapCoordinator", "sunPlug::ET-MapCoordinator"},
     {"SunPlug", "About...", "sunPlug::About"},
+    // TerrainGenerator (contrib/terrain_generator/terrain_generator.cpp:57)
+    {"TerrainGenerator", "Generate Terrain", "terrainGenerator::GenerateTerrain"},
+    {"TerrainGenerator", "About", "terrainGenerator::About"},
     // UFO:AI (contrib/ufoaiplug/ufoai.cpp:69)
     {"UFO:AI", "NoDraw", "uFO:AI::NoDraw"},
     {"UFO:AI", "WeaponClip", "uFO:AI::WeaponClip"},

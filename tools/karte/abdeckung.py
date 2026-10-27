@@ -201,6 +201,19 @@ EIGENE = [
      [re.escape('Build > Teil-Kompilierung: VIS und Licht wiederverwenden an, gespeichert'), re.escape('nach einer Entity-Aenderung: Sichtbarkeit wiederverwendet'),
       re.escape('nur die Nachbearbeitung geaendert')]),
     ('Eigen|Build > Add to compiled map...', 'Zur fertigen Karte hinzufuegen (Stufe 8a/5c)', [re.escape('zusammengefuehrt: <karte>_merged.bsp')]),
+    # Stufe 8b (gui/selbsttest_karte8b.inc). Punkt 1: die Knoepfe und Felder des Terrain Generators (NRC master)
+    ('Eigen|Terrain Generator > About', 'Kasten About (Stufe 8b/1)', [re.escape('Terrain Generator > About: ')]),
+    ('Eigen|Terrain Generator > Target', 'Use Selection / Manual Size (Stufe 8b/1)', [re.escape('Terrain Generator > Target: ')]),
+    ('Eigen|Terrain Generator > Base Shape', 'Form, Beschriftung der Formhoehe (Stufe 8b/1)', [re.escape('Terrain Generator > Base Shape: ')]),
+    ('Eigen|Terrain Generator > Irregular Grid', 'Vertex-Jitter (Stufe 8b/1)', [re.escape('Terrain Generator > Irregular Grid: ')]),
+    ('Eigen|Terrain Generator > Generate', 'Erzeugen, Undo byte-gleich, Tunnel (Stufe 8b/1)',
+     [re.escape('Terrain Generator > Generate: '), re.escape('Terrain Generator > Generate, Rueckgaengig: '),
+      re.escape('Terrain Generator > Generate (Tunnel): ')]),
+    ('Eigen|Terrain Generator > Seed', 'fester Startwert, nicht in NRC (Stufe 8b/1)', [re.escape('Terrain Generator > Seed: ')]),
+    ('Eigen|Terrain Generator > Texture', 'Feld folgt dem Texturbrowser (Stufe 8b/1)', [re.escape('Terrain Generator > Texture: ')]),
+    ('Eigen|Terrain Generator > Pick', 'Texturseite zeigen (Stufe 8b/1)', [re.escape('Terrain Generator > Pick: ')]),
+    ('Eigen|Terrain Generator > Reset to Default', 'Vorgaben (Stufe 8b/1)', [re.escape('Terrain Generator > Reset to Default: ')]),
+    ('Eigen|Terrain Generator > Close', 'Werte bleiben (Stufe 8b/1)', [re.escape('Terrain Generator > Close: ')]),
 ]
 
 

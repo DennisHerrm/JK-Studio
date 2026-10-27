@@ -6,14 +6,14 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 |---|---|---|---|---|---|
 | Menues | 237 | 236 | 1 | 0 | 0 |
 | Werkzeugleisten | 54 | 54 | 0 | 0 | 0 |
-| Registrierte Befehle | 396 | 395 | 1 | 0 | 0 |
+| Registrierte Befehle | 398 | 397 | 1 | 0 | 0 |
 | Dialoge und Fenster | 24 | 23 | 1 | 0 | 0 |
 | Einstellungsseiten | 17 | 17 | 0 | 0 | 0 |
 | Einstellungsfelder | 79 | 78 | 1 | 0 | 0 |
-| Plugins | 67 | 67 | 0 | 0 | 0 |
+| Plugins | 69 | 69 | 0 | 0 | 0 |
 | Mausbelegung | 62 | 62 | 0 | 0 | 0 |
-| Eigene Eintraege | 15 | 15 | 0 | 0 | 0 |
-| **Summe** | 951 | 947 | 4 | 0 | 0 |
+| Eigene Eintraege | 25 | 25 | 0 | 0 | 0 |
+| **Summe** | 965 | 961 | 4 | 0 | 0 |
 
 ## Begruendete Ausnahmen
 
@@ -661,6 +661,8 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 | `Befehl \| TagSearch \| Commands` | OK | Wirkung TagSearch: Texturen (Tag markiert); Robust TagSearch: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck |
 | `Befehl \| TagSearchUntagged \| Commands` | OK | Wirkung TagSearchUntagged: Dialog (leer); Robust TagSearchUntagged: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck |
 | `Befehl \| TagsToggleGui \| Toggles` | OK | Wirkung TagsToggleGui: Haken+Einstellung (leer); Robust TagsToggleGui: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck |
+| `Befehl \| terrainGenerator::About \| Commands` | OK | Wirkung terrainGenerator::About: Dialog (leer); Robust terrainGenerator::About: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck |
+| `Befehl \| terrainGenerator::GenerateTerrain \| Commands` | OK | Wirkung terrainGenerator::GenerateTerrain: Dialog (Pinsel); Robust terrainGenerator::GenerateTerrain: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck |
 | `Befehl \| TexRotateClock \| Commands` | OK | Wirkung TexRotateClock: Karte (Pinsel); Robust TexRotateClock: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck; Taste Shift+PgDown = TexRotateClock: Karte (Pinsel) |
 | `Befehl \| TexRotateCounter \| Commands` | OK | Wirkung TexRotateCounter: Karte (Pinsel); Robust TexRotateCounter: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck; Taste Shift+PgUp = TexRotateCounter: Karte (Pinsel) |
 | `Befehl \| TexScaleDown \| Commands` | OK | Wirkung TexScaleDown: Karte (Pinsel); Robust TexScaleDown: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck; Taste Ctrl+Down = TexScaleDown: Karte (Pinsel) |
@@ -883,6 +885,8 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 | `Plugin \| shaderPlug::About` | OK | Wirkung shaderPlug::About: Dialog (leer); Menue Plugins > ShaderPlug > About = shaderPlug::About: Dialog (leer) |
 | `Plugin \| sunPlug::ET-MapCoordinator` | OK | Wirkung sunPlug::ET-MapCoordinator: Dialog (leer); Menue Plugins > SunPlug > ET-MapCoordinator = sunPlug::ET-MapCoordinator: Dialog (leer) |
 | `Plugin \| sunPlug::About` | OK | Wirkung sunPlug::About: Dialog (leer); Menue Plugins > SunPlug > About... = sunPlug::About: Dialog (leer) |
+| `Plugin \| terrainGenerator::GenerateTerrain` | OK | Wirkung terrainGenerator::GenerateTerrain: Dialog (Pinsel); Menue Plugins > TerrainGenerator > Generate Terrain = terrainGenerator::GenerateTerrain: Dialog (Pinsel) |
+| `Plugin \| terrainGenerator::About` | OK | Wirkung terrainGenerator::About: Dialog (leer); Menue Plugins > TerrainGenerator > About = terrainGenerator::About: Dialog (leer) |
 | `Plugin \| uFO:AI::NoDraw` | OK | Wirkung uFO:AI::NoDraw: Filter+Sicht (leer); Menue Plugins > UFO:AI > NoDraw = uFO:AI::NoDraw: Filter+Sicht (leer) |
 | `Plugin \| uFO:AI::WeaponClip` | OK | Wirkung uFO:AI::WeaponClip: Filter+Sicht (leer); Menue Plugins > UFO:AI > WeaponClip = uFO:AI::WeaponClip: Filter+Sicht (leer) |
 | `Plugin \| uFO:AI::ActorClip` | OK | Wirkung uFO:AI::ActorClip: Filter+Sicht (leer); Menue Plugins > UFO:AI > ActorClip = uFO:AI::ActorClip: Filter+Sicht (leer) |
@@ -1017,3 +1021,13 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 | `Eigen \| Open .bsp > Estimate lights` | OK | geschaetzte Lichter: Ebene "Geschaetzte Lichter", _bhed_geschaetzt 1, eines nahe an 0 0 96; das schaltbare nicht doppelt |
 | `Eigen \| Build > Partial compile: reuse VIS / reuse light` | OK | Build > Teil-Kompilierung: VIS und Licht wiederverwenden an, gespeichert; nach einer Entity-Aenderung: Sichtbarkeit wiederverwendet, ein Teil der Lightmaps aus dem Cache; nur die Nachbearbeitung geaendert (-gamma 0.8): alle Lightmaps und das Gitter aus dem Cache |
 | `Eigen \| Build > Add to compiled map...` | OK | zusammengefuehrt: <karte>_merged.bsp, laedt im CM-Port, die Saeule stoppt den Spieler, keine Grenze ueber, keine Fehler |
+| `Eigen \| Terrain Generator > About` | OK | Terrain Generator > About: Kasten mit "Developed by vallz and vld" |
+| `Eigen \| Terrain Generator > Target` | OK | Terrain Generator > Target: Manual Size, die SpinBox-Zeilen 1024 / 1024 / 64 |
+| `Eigen \| Terrain Generator > Base Shape` | OK | Terrain Generator > Base Shape: Hill gewaehlt, die Zeile "Peak Height:" erscheint |
+| `Eigen \| Terrain Generator > Irregular Grid` | OK | Terrain Generator > Irregular Grid: an, innere Ecken nicht mehr auf dem 64er-Raster (Vielfache von 8) |
+| `Eigen \| Terrain Generator > Generate` | OK | Terrain Generator > Generate: Auswahl-Pinsel weg, 1 func_group mit 64 detail-Pinseln, _terraingen_size "512 256 64", gewaehlt, Konsole; Terrain Generator > Generate, Rueckgaengig: ein Schritt stellt die Karte Byte fuer Byte her (der Pinsel ist zurueck); Terrain Generator > Generate (Tunnel): vier neue func_group (Boden, Decke, zwei Waende) |
+| `Eigen \| Terrain Generator > Seed` | OK | Terrain Generator > Seed: gleicher Startwert = dieselbe Karte Byte fuer Byte |
+| `Eigen \| Terrain Generator > Texture` | OK | Terrain Generator > Texture: der Texturbrowser fuellt das Feld (pick_timer) |
+| `Eigen \| Terrain Generator > Pick` | OK | Terrain Generator > Pick: im Split-Layout zeigt es die Seite Textures des Gruppendialogs |
+| `Eigen \| Terrain Generator > Reset to Default` | OK | Terrain Generator > Reset to Default: alle Werte auf die Vorgabe, Target bleibt Manual Size, Textur "textures/" |
+| `Eigen \| Terrain Generator > Close` | OK | Terrain Generator > Close: der Dialog zu, die Werte gemerkt (static) |

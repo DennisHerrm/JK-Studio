@@ -4,7 +4,7 @@ Erzeugt von `tools/karte/nrc_inventar.py` aus dem NRC-Quelltext (Tag 20260114 = 
 
 Stand: `[x]` nachgebaut und getestet, `[~]` sichtbar und ausgegraut (Notiz: Stufe), `[ ]` offen.
 
-Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 396, Dialoge: 24, Einstellungsseiten: 17, Einstellungsfelder: 79, Plugin-Eintraege: 67
+Menuepunkte: 237, Werkzeugknoepfe: 54, registrierte Befehle: 398, Dialoge: 24, Einstellungsseiten: 17, Einstellungsfelder: 79, Plugin-Eintraege: 69
 
 
 ## Menues
@@ -848,6 +848,8 @@ Name | Art | Standardtaste | Quelle
 - [x] `TagSearch` | Commands | - | (radiant/texwindow.cpp:2094) -- Stufe 2 Punkt 7
 - [x] `TagSearchUntagged` | Commands | - | (radiant/texwindow.cpp:2093) -- Stufe 2 Punkt 7
 - [x] `TagsToggleGui` | Toggles | - | (radiant/texwindow.cpp:2110) -- Stufe 2 Punkt 7
+- [x] `terrainGenerator::About` | Commands | - | (contrib/terrain_generator/terrain_generator.cpp:57) -- Stufe 8b Punkt 1 (NRC master, nicht im Release 20260114)
+- [x] `terrainGenerator::GenerateTerrain` | Commands | - | (contrib/terrain_generator/terrain_generator.cpp:57) -- Stufe 8b Punkt 1 (NRC master, nicht im Release 20260114)
 - [x] `TexRotateClock` | Commands | Shift+PgDown | (radiant/select.cpp:1890) -- Stufe 2 Punkt 7
 - [x] `TexRotateCounter` | Commands | Shift+PgUp | (radiant/select.cpp:1891) -- Stufe 2 Punkt 7
 - [x] `TexScaleDown` | Commands | Ctrl+Down | (radiant/select.cpp:1893) -- Stufe 2 Punkt 7
@@ -1076,6 +1078,11 @@ Name | Art | Standardtaste | Quelle
 
 - [x] SunPlug: ET-MapCoordinator -> `sunPlug::ET-MapCoordinator`  (contrib/sunplug/sunplug.cpp:80) -- Stufe 4 Punkt 3
 - [x] SunPlug: About... -> `sunPlug::About`  (contrib/sunplug/sunplug.cpp:80) -- Stufe 4 Punkt 3
+
+### TerrainGenerator (contrib/terrain_generator/terrain_generator.cpp:57)
+
+- [x] TerrainGenerator: Generate Terrain -> `terrainGenerator::GenerateTerrain`  (contrib/terrain_generator/terrain_generator.cpp:57) -- Stufe 8b Punkt 1 (NRC master, nicht im Release 20260114)
+- [x] TerrainGenerator: About -> `terrainGenerator::About`  (contrib/terrain_generator/terrain_generator.cpp:57) -- Stufe 8b Punkt 1 (NRC master, nicht im Release 20260114)
 
 ### UFO:AI (contrib/ufoaiplug/ufoai.cpp:69)
 

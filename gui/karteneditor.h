@@ -27,6 +27,7 @@
 #include "bhed/karte/brushexport.h"
 #include "bhed/karte/kleineplugins.h"
 #include "bhed/karte/meshtex.h"
+#include "bhed/karte/terraingen.h"
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/baumonitor.h"
 #include "bhed/karte/portale.h"
@@ -204,6 +205,17 @@ struct MeshTexZustand {
     MeshTexSchnitt gfNullSpalte, gfNullZeile;
     MeshTexReferenz gfRefZeile, gfRefSpalte;
     std::string letzterBefehl;        // Selbsttest
+};
+
+// Stufe 8b Punkt 1: der Terrain Generator (NRC master, contrib/terrain_generator) -
+// ein nicht modaler Dialog; die Werte bleiben die Sitzung lang (static in NRC).
+struct TerrainZustand {
+    bool offen = false, oeffnen = false;
+    karte::terraingen::Werte gespeichert;   // die static-Variablen (beim Schliessen uebernommen)
+    karte::terraingen::Werte w;             // die Felder des offenen Dialogs
+    std::string letzteTexturAbfrage;        // last_polled_shader
+    int erzeugt = 0;                        // Selbsttest: erfolgreiche Generate
+    karte::terraingen::Ergebnis letztes;    // Selbsttest
 };
 
 struct Spielkontext {
@@ -536,6 +548,7 @@ struct Editor {
     BrushExportZustand brushExport;
     SunplugZustand sunplug;
     MeshTexZustand meshtex;
+    TerrainZustand terrain;   // Stufe 8b Punkt 1
     karte::plugins::UfoaiZustand ufoai;
     karte::ZuletztListe zuletzt;
     bool zuletztGeladen = false;
@@ -1571,6 +1584,11 @@ void kleinePluginDialogeZeichnen();
 // MeshTex (app_karte_meshtex.cpp)
 [[nodiscard]] std::vector<PluginUmsetzung> meshTexUmsetzungen();
 void meshTexDialogeZeichnen();
+// Stufe 8b Punkt 1: Terrain Generator (app_karte_terrain.cpp)
+[[nodiscard]] std::vector<PluginUmsetzung> terrainUmsetzungen();
+void terrainDialogZeichnen();
+void terrainErzeugenKnopf();   // "Generate" (auch fuer den Selbsttest)
+void terrainSchliessen();      // "Close" / Schliessknopf: Werte uebernehmen
 // Tags des Texturbrowsers: die Datei (LocalRcPath + SHADERTAG_FILE) und neu laden
 [[nodiscard]] std::string tagDatei();
 void tagsNeuLaden();

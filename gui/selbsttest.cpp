@@ -28385,6 +28385,7 @@ void karteDialogeZu() {
     e.bauDialogOffen = false;
     e.portalLadenOffen = false;       // Stufe 3 Punkt 5: prtview
     e.portalKonfigOffen = false;
+    ke::terrainSchliessen();          // Stufe 8b Punkt 1: Terrain Generator
     ke::bauAbbrechen();               // Stufe 3 Punkt 4: kein q3map2 in den naechsten Schritt
     e.bauRueckmeldungOffen = false;   // Q3Map debug window
     e.meldung.offen = false;          // qtMeldung (sonst offen, aber ohne Popup)
@@ -36685,6 +36686,7 @@ std::vector<Schritt> gross() {
 #include "selbsttest_karte6.inc"
 #include "selbsttest_karte7.inc"
 #include "selbsttest_karte8.inc"
+#include "selbsttest_karte8b.inc"
 
 std::vector<Schritt> karteneditorStufe5Schritte() {
     std::vector<Schritt> s;
@@ -37697,6 +37699,12 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =stufe8b: nur die Stufe 8b (neue Editor-Werkzeuge; BHED_STUFE8B_NUR=<Teil>)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe8b") == 0) {
+        for (Schritt& x : stufe8b::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =stufe2: nur die Wirkungspruefungen der Stufe 2 (Bauwerkzeuge)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe2") == 0) {
         for (Schritt& x : karteneditorStufe2Schritte()) { add(std::move(x)); }
@@ -37720,6 +37728,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : karteneditorStufe6Schritte()) { add(std::move(x)); }
     for (Schritt& x : stufe7::schritte()) { add(std::move(x)); }   // Stufe 7: Echtzeit-Licht, Schnell-Backen (gross nur mit BHED_KARTE_GROSS)
     for (Schritt& x : stufe8::schritte()) { add(std::move(x)); }   // Stufe 8a: Fortschritt, BSP-Import, Teil-Kompilierungen
+    for (Schritt& x : stufe8b::schritte()) { add(std::move(x)); }   // Stufe 8b: neue Editor-Werkzeuge
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));

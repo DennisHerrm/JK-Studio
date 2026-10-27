@@ -188,6 +188,10 @@ PLUGINS = [
         ('GetInfo', 'Get Info...'), ('SetScale', 'Set S/T Scale...'))),
     ('ShaderPlug', 'contrib/shaderplug/shaderplug.cpp:71', _p('About', 'Create tag file')),
     ('SunPlug', 'contrib/sunplug/sunplug.cpp:80', _p('About...', 'ET-MapCoordinator')),
+    # Stufe 8b Punkt 1: aus NRC master (origin/master 8216133, Commits 506ce1a ..
+    # 801018f), NICHT im Release 20260114 - getCommandList "About;Generate Terrain",
+    # getCommandTitleList leer, Modulname "TerrainGenerator" (zwischen SunPlug und UFO:AI)
+    ('TerrainGenerator', 'contrib/terrain_generator/terrain_generator.cpp:57', _p('About', 'Generate Terrain')),
     ('UFO:AI', 'contrib/ufoaiplug/ufoai.cpp:69', _p(
         'About', '-', 'Worldspawn reset', 'Worldspawn', 'Perform check', '-', 'Level 1', 'Level 2', 'Level 3',
         'Level 4', 'Level 5', 'Level 6', 'Level 7', 'Level 8', '-', 'StepOn', 'ActorClip', 'WeaponClip', 'NoDraw')),

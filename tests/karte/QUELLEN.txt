@@ -12,3 +12,10 @@ nrc_tiny_structural_brush.map
   maps/tiny_structural_brush.map. Lizenz: GNU GPL v2 (wie NetRadiant-Custom).
   Geschrieben von einem aelteren NetRadiant unter Windows (CR LF, ohne Ebenen),
   Brush Primitives. Unveraendert, CR LF (siehe .gitattributes: -text).
+
+terrain_nrc/ (noise.cpp/.h, terrain_engine.cpp/.h, terrain_math.h, brush_builder.cpp/.h)
+  Herkunft: NetRadiant-Custom master (origin/master 8216133, Commits 506ce1a ..
+  801018f), contrib/terrain_generator - nicht im Release 20260114. Lizenz: GNU
+  GPL v2 (wie NetRadiant-Custom; "Developed by vallz and vld"). Unveraendert;
+  shim/ ersetzt fuer den ctest karte_terrain die Radiant-Schnittstellen, die
+  brush_builder.cpp benutzt (eigener Code).

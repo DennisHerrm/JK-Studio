@@ -3037,3 +3037,42 @@ Knopftest OK: Grosse Karte: Auswahlwechsel bauen nur den Rest neu, die Geometrie
 Knopftest OK: Grosse Karte: Kamera-Szene nach dem Hochladen nicht mehr im Speicher
 Knopftest OK: Grosse Karte: Messwerte
 Knopftest OK: Grosse Karte: Stufe-2-Zeiten (CSG Subtract, Clip, Ecken-Modus)
+Knopftest OK: Modusleiste: Karten-Editor ist der Arbeitsbereich
+Knopftest OK: Spiel: Entity-Klassen aus data/karte, worldspawn und info_player_start bekannt
+Knopftest OK: Standard-Texturskalierung 0.25 (default_scale aus ja.game/jk2.game)
+Knopftest OK: Vorgabe "New map Brush Type": Brush Primitives (Index 1, wie NRC)
+Knopftest OK: Geoeffnet: Name, 2 Entities, 1 Pinsel, nicht geaendert
+Knopftest OK: Gespeichert: Datei bytegleich zur Quelle (NRC-Format), oben in der zuletzt-Liste
+Knopftest OK: Geaendert (Map_Modified)
+Knopftest OK: New Map bei geaenderter Karte: Rueckfrage offen
+Knopftest OK: Cancel: Karte bleibt (Name, Aenderung)
+Knopftest OK: Discard: neue, leere Karte "unnamed.map"
+Knopftest OK: Zuletzt geoeffnet: die Kopie ist offen
+Knopftest OK: Konsole: Ladezeilen wie NRC (Loading map from, primitives, entities)
+Knopftest OK: Terrain Generator: Menue Plugins > TerrainGenerator mit Generate Terrain und About (nachgebaut), zwischen SunPlug und UFO:AI
+Knopftest OK: Terrain Generator > About: Kasten mit "Developed by vallz and vld"
+Knopftest OK: Generate Terrain: der Dialog offen, Use Selection 512 / 256 / 64, Textur aus dem Texturbrowser, Vorgaben wie NRC (64, Flat, Perlin, 32, 0.005)
+Knopftest OK: Terrain Generator > Base Shape: Hill gewaehlt, die Zeile "Peak Height:" erscheint
+Knopftest OK: Terrain Generator > Generate: Auswahl-Pinsel weg, 1 func_group mit 64 detail-Pinseln, _terraingen_size "512 256 64", gewaehlt, Konsole
+Knopftest OK: Generate: die erste Dreiecksflaeche genau wie generate_height_map mit Startwert 1234 (Hill 128, Perlin 32/0.005)
+Knopftest OK: Terrain Generator > Generate, Rueckgaengig: ein Schritt stellt die Karte Byte fuer Byte her (der Pinsel ist zurueck)
+Knopftest OK: Wiederholen: das Terrain Byte fuer Byte
+Knopftest OK: Terrain Generator > Seed: gleicher Startwert = dieselbe Karte Byte fuer Byte
+Knopftest OK: ohne festen Startwert: zwei Laeufe verschieden (die Zufallsfolge der C-Laufzeit laeuft weiter wie in NRC)
+Knopftest OK: Generate ohne Auswahl: Kasten "Terrain Generator - No Selection", Karte unveraendert
+Knopftest OK: Terrain Generator > Target: Manual Size, die SpinBox-Zeilen 1024 / 1024 / 64
+Knopftest OK: Generate mit Manual Size: eine zweite func_group 1024 x 1024 um den Ursprung (256 Pinsel), ohne _terraingen_size
+Knopftest OK: Tunnel: Axis-Zeile da, Irregular Grid und Terrace ausgeblendet
+Knopftest OK: Terrain Generator > Generate (Tunnel): vier neue func_group (Boden, Decke, zwei Waende)
+Knopftest OK: Terrain Generator > Irregular Grid: an, innere Ecken nicht mehr auf dem 64er-Raster (Vielfache von 8)
+Knopftest OK: Terrain Generator > Texture: der Texturbrowser fuellt das Feld (pick_timer)
+Knopftest OK: Terrain Generator > Pick: im Split-Layout zeigt es die Seite Textures des Gruppendialogs
+Knopftest OK: Terrain Generator > Reset to Default: alle Werte auf die Vorgabe, Target bleibt Manual Size, Textur "textures/"
+Knopftest OK: Terrain Generator > Close: der Dialog zu, die Werte gemerkt (static)
+Knopftest OK: wieder geoeffnet: Valley und Width 2048 sind noch da, Valley Depth statt Peak Height, nur ein Dialog
+Knopftest OK: Wirkung terrainGenerator::About: Dialog (leer)
+Knopftest OK: Wirkung terrainGenerator::GenerateTerrain: Dialog (Pinsel)
+Knopftest OK: Robust terrainGenerator::About: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck
+Knopftest OK: Robust terrainGenerator::GenerateTerrain: leere Auswahl, leere Karte, Pinsel+Patch+Licht - Karte unveraendert oder per Rueckgaengig zurueck
+Knopftest OK: Menue Plugins > TerrainGenerator > Generate Terrain = terrainGenerator::GenerateTerrain: Dialog (Pinsel)
+Knopftest OK: Menue Plugins > TerrainGenerator > About = terrainGenerator::About: Dialog (leer)

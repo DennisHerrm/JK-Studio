@@ -336,6 +336,54 @@ bool kombiFeld(const std::string& id, std::string& wert, const std::vector<std::
     return r;
 }
 
+bool wahlFeld(const std::string& id, int& wert, const std::vector<std::string>& liste, float x, float b, float y, bool aktiv) {
+    const float feldH = px(22.0F);
+    const ImVec2 a = bp(x, y);
+    const ImVec2 c{a.x + px(b), a.y + feldH};
+    ImGui::SetCursorScreenPos(a);
+    const std::string popup = "##" + id + "liste";
+    ImGui::BeginDisabled(!aktiv);
+    if (ImGui::InvisibleButton(("##" + id).c_str(), ImVec2{px(b), feldH})) { ImGui::OpenPopup(popup.c_str()); }
+    const bool schwebt = ImGui::IsItemHovered();
+    ImGui::EndDisabled();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(a, c, ImGui::GetColorU32(schwebt && aktiv ? ImGuiCol_ButtonHovered : ImGuiCol_Button));
+    dl->AddRect(a, c, ImGui::GetColorU32(ImGuiCol_Border));
+    const int n = static_cast<int>(liste.size());
+    const std::string t = (wert >= 0 && wert < n) ? liste[static_cast<std::size_t>(wert)] : std::string();
+    const ImU32 farbe = ImGui::GetColorU32(aktiv ? ImGuiCol_Text : ImGuiCol_TextDisabled);
+    dl->AddText(ImVec2{a.x + px(4.0F), a.y + (feldH - ImGui::GetTextLineHeight()) * 0.5F}, farbe, t.c_str());
+    const float m = c.x - px(10.0F);
+    const float h = std::max(2.0F, px(3.0F));
+    const float my = (a.y + c.y) * 0.5F;
+    dl->AddTriangleFilled(ImVec2{m - h * 1.3F, my - h * 0.6F}, ImVec2{m, my + h * 0.7F}, ImVec2{m + h * 1.3F, my - h * 0.6F}, farbe);
+    bool r = false;
+    ImGui::SetNextWindowPos(ImVec2{a.x, c.y});
+    ImGui::SetNextWindowSizeConstraints(ImVec2{px(b), 0.0F}, ImVec2{px(b), feldH * 12.0F});
+    if (ImGui::BeginPopup(popup.c_str())) {
+        for (int i = 0; i < n; ++i) {
+            if (ImGui::Selectable((liste[static_cast<std::size_t>(i)] + "##" + id + std::to_string(i)).c_str(), i == wert)) {
+                r = i != wert;
+                wert = i;
+            }
+        }
+        ImGui::EndPopup();
+    }
+    merke(id, x, y, b, 22.0F);
+    return r;
+}
+
+bool knopf(const std::string& text, const std::string& id, float x, float b, float y, const char* tip) {
+    const float feldH = px(22.0F);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{0.0F, std::max(0.0F, (feldH - ImGui::GetTextLineHeight()) * 0.5F)});
+    ImGui::SetCursorScreenPos(bp(x, y));
+    const bool r = ImGui::Button((text + "##" + id).c_str(), ImVec2{px(b), feldH});
+    if (tip != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s", tip); }
+    ImGui::PopStyleVar();
+    merke(id, x, y, b, 22.0F);
+    return r;
+}
+
 int knoepfe(const std::vector<std::string>& texte, const std::string& id, float rechts, float y, int standard, int abbrechen) {
     Editor& ed = editor();
     const float feldH = px(22.0F);

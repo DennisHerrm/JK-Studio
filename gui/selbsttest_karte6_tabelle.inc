@@ -292,6 +292,8 @@
 {"TagSearch", Vor::Tags, "T", false, ""},
 {"TagSearchUntagged", Vor::Leer, "D", false, ""},
 {"TagsToggleGui", Vor::Leer, "HE", false, ""},
+{"terrainGenerator::About", Vor::Leer, "D", false, ""},          // Stufe 8b Punkt 1 (NRC master)
+{"terrainGenerator::GenerateTerrain", Vor::Pinsel, "D", false, ""},
 {"TexRotateClock", Vor::Pinsel, "K", false, ""},
 {"TexRotateCounter", Vor::Pinsel, "K", false, ""},
 {"TexScaleDown", Vor::Pinsel, "K", false, ""},

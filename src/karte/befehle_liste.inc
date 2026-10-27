@@ -304,6 +304,8 @@
 {"TagSearch", 1, "", "radiant/texwindow.cpp:2094", 1},
 {"TagSearchUntagged", 1, "", "radiant/texwindow.cpp:2093", 1},
 {"TagsToggleGui", 2, "", "radiant/texwindow.cpp:2110", 1},
+{"terrainGenerator::About", 1, "", "contrib/terrain_generator/terrain_generator.cpp:57", 4},
+{"terrainGenerator::GenerateTerrain", 1, "", "contrib/terrain_generator/terrain_generator.cpp:57", 4},
 {"TexRotateClock", 1, "Shift+PgDown", "radiant/select.cpp:1890", 1},
 {"TexRotateCounter", 1, "Shift+PgUp", "radiant/select.cpp:1891", 1},
 {"TexScaleDown", 1, "Ctrl+Down", "radiant/select.cpp:1893", 1},

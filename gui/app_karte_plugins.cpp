@@ -895,6 +895,7 @@ std::vector<PluginUmsetzung> pluginUmsetzungen() {
     v.push_back({"brushexport2::Export.obj", [] { brushExportZeigen(); }, nullptr});
     for (PluginUmsetzung& p : kleinePluginUmsetzungen()) { v.push_back(std::move(p)); }
     for (PluginUmsetzung& p : meshTexUmsetzungen()) { v.push_back(std::move(p)); }
+    for (PluginUmsetzung& p : terrainUmsetzungen()) { v.push_back(std::move(p)); }   // Stufe 8b: NRC master
     return v;
 }
 
@@ -907,6 +908,7 @@ void pluginDialogeZeichnen() {
     brushExportZeichnen();
     kleinePluginDialogeZeichnen();
     meshTexDialogeZeichnen();
+    terrainDialogZeichnen();   // Stufe 8b Punkt 1
     if (b.dialog == 0) { return; }
     bool fertig = false;
     bool ok = false;

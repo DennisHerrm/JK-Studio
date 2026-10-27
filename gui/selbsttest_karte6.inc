@@ -403,6 +403,7 @@ void grundzustand() {
     e.bob.dialog = 0;
     e.bob.oeffnen = e.bob.visOeffnen = false;
     e.meshtex.getInfoOffen = e.meshtex.setScaleOffen = e.meshtex.genFuncOffen = false;
+    e.terrain.offen = false;   // Stufe 8b Punkt 1
     for (int i = 0; i < 3; ++i) { ke::hintergrundBildFrei(i); }
     (void)textSchreiben(fixturePfad(), dateiInhalt(vorlagePfad()));
     (void)textSchreiben(karteTestPfad("s6_wirkung.lin"), "0 0 32\n200 0 32\n200 200 32\n");

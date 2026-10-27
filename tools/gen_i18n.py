@@ -2185,6 +2185,8 @@ from i18n_karte7 import KARTE7  # noqa: E402  (Stufe 7: Tempo und Echtzeit-Licht
 S += KARTE7
 from i18n_karte8 import KARTE8  # noqa: E402  (Stufe 8a: Fortschritt, BSP-Import, Teil-Kompilierungen)
 S += KARTE8
+from i18n_karte8b import KARTE8B  # noqa: E402  (Stufe 8b: neue Editor-Werkzeuge)
+S += KARTE8B
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #
