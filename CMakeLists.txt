@@ -364,6 +364,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_kleineplugins.cpp
     gui/app_karte_terrain.cpp
     gui/app_karte_spielen.cpp
+    gui/app_karte_logik.cpp
     gui/app_karte_meshtex.cpp
     gui/karte_qtdialog.cpp
     gui/app_karte_menue.cpp
@@ -886,6 +887,8 @@ target_sources(bhed_core PRIVATE
   src/karte/terraingen.cpp
   # Stufe 8b Punkt 3: Im Editor spielen - Kollision aus den Brushes (q3map2 + CM_LoadMap)
   src/karte/spielkollision.cpp
+  # Stufe 8b Punkt 4: Logik-Ansicht (Verknuepfungen der Entities)
+  src/karte/logik.cpp
   # Stufe 5 Punkt 1: die Grenzen von JKA / MP / Movie Duels / JK2 als Daten
   src/karte/grenzen.cpp
   # Stufe 5 Punkt 2: der Optimierer zaehlt (cm_patch.cpp fuer die Patch-Kollision)
@@ -1106,6 +1109,10 @@ if(BEHAVED_TESTS)
   add_executable(kartespielen tests/kartespielen.cpp)
   target_link_libraries(kartespielen PRIVATE bhed_core)
   add_test(NAME karte_spielen COMMAND kartespielen ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
+  # Stufe 8b Punkt 4: der Graph der Logik-Ansicht
+  add_executable(kartelogik tests/kartelogik.cpp)
+  target_link_libraries(kartelogik PRIVATE bhed_core)
+  add_test(NAME karte_logik COMMAND kartelogik)
   # Stufe 4 Punkt 3: brushexport2 - .obj / .mtl wie export.cpp
   add_executable(kartebrushexport tests/kartebrushexport.cpp)
   target_link_libraries(kartebrushexport PRIVATE bhed_core)

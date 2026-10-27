@@ -3097,3 +3097,8 @@ Knopftest OK: Spielen > N (echte Taste): Noclip an, durch die Wand
 Knopftest OK: Spielen > Esc (echte Taste): beendet, die Kamera genau wie vorher
 Knopftest OK: View > Play: start at info_player_start: an, als BhedPlayAtSpawn 1 gespeichert
 Knopftest OK: View > Play in editor (Menue) mit Spawn: Start bei info_player_start (-320 320 24 + 9), Blick 90
+Knopftest OK: View > Logic view...: das Fenster mit 10 Knoten, 8 Kanten, 1 ohne Ziel
+Knopftest OK: Logic view > Klick: relais gewaehlt, 2D-Ansicht und Kamera darauf zentriert
+Knopftest OK: Logic view > Doppelklick auf ein fehlendes Skript: Kasten mit scripts/gibtsnicht/skript
+Knopftest OK: Logic view > Doppelklick auf ein Skript des Spiels: im Skript-Editor des Programms offen
+Knopftest OK: Logic view (Testerkarte, falls da): jede Verknuepfung ist eine Kante oder ein fehlendes Ziel

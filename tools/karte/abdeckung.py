@@ -225,6 +225,10 @@ EIGENE = [
       re.escape('Spielen > Stufe 24 '), re.escape('Spielen > playerclip '), re.escape('Spielen > Sprung: '),
       re.escape('Spielen > N (echte Taste): '), re.escape('Spielen > Esc (echte Taste): '), re.escape('View > Play in editor (Menue) mit Spawn: ')]),
     ('Eigen|View > Play: start at info_player_start', 'Start am Spawn (Stufe 8b/3)', [re.escape('View > Play: start at info_player_start: ')]),
+    # Punkt 4: Logik-Ansicht
+    ('Eigen|View > Logic view...', 'Graph, Klick waehlt/zentriert, Doppelklick oeffnet das Skript (Stufe 8b/4)',
+     [re.escape('View > Logic view...: '), re.escape('Logic view > Klick: '), re.escape('Logic view > Doppelklick auf ein fehlendes Skript: '),
+      re.escape('Logic view > Doppelklick auf ein Skript des Spiels: '), re.escape('Logic view (Testerkarte')]),
 ]
 
 

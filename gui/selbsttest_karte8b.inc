@@ -773,6 +773,182 @@ std::vector<Schritt> spielen() {
     return s;
 }
 
+// --- Punkt 4: Logik-Ansicht ---------------------------------------------------------
+//
+// Wirkung: View > Logic view... oeffnet das Fenster mit dem Graphen (10 Knoten,
+// 8 Kanten, 1 fehlendes Ziel); Klick auf den Kasten "relais" waehlt die Entity
+// und zentriert die 2D-Ansicht und die Kamera darauf; Doppelklick auf ein
+// fehlendes Skript: Kasten mit dem Pfad; Doppelklick auf ein Skript, das es im
+// Spiel gibt: der Skript-Editor des Programms hat es offen. Mit der Testerkarte
+// (BHED_KARTE_TESTER, sonst laeufe/s8garden/jeditemple_garden.map, falls da):
+// jede Verknuepfung ist eine Kante oder ein fehlendes Ziel, Zeit gemessen.
+
+std::string logikKarte(const std::string& skript) {
+    const auto ent = [](const std::string& klasse, const std::string& rest) { return "{\n\"classname\" \"" + klasse + "\"\n" + rest + "}\n"; };
+    std::string t = "{\n\"classname\" \"worldspawn\"\n}\n";
+    t += ent("trigger_once", "\"targetname\" \"start\"\n\"target\" \"relais\"\n\"target2\" \"gibtsnicht\"\n\"origin\" \"0 0 0\"\n");
+    t += ent("target_relay", "\"targetname\" \"relais\"\n\"target\" \"tuer\"\n\"origin\" \"256 128 32\"\n");
+    t += ent("func_door", "\"targetname\" \"tuer\"\n\"opentarget\" \"licht\"\n\"origin\" \"128 0 0\"\n");
+    t += ent("light", "\"targetname\" \"licht\"\n\"origin\" \"192 0 0\"\n");
+    t += ent("NPC_spawner", "\"NPC_targetname\" \"wache\"\n\"deathscript\" \"" + skript + "\"\n\"spawnscript\" \"gibtsnicht/skript\"\n\"origin\" \"0 64 0\"\n");
+    t += ent("trigger_multiple", "\"targetname\" \"aufruf\"\n\"target\" \"wache\"\n\"origin\" \"0 128 0\"\n");
+    t += ent("target_relay", "\"targetname\" \"a\"\n\"target\" \"b\"\n\"origin\" \"0 192 0\"\n");
+    t += ent("target_relay", "\"targetname\" \"b\"\n\"target\" \"a\"\n\"origin\" \"64 192 0\"\n");
+    t += ent("target_relay", "\"targetname\" \"fuenf\"\n\"target3\" \"licht\"\n\"origin\" \"0 256 0\"\n");
+    t += ent("info_null", "\"origin\" \"0 320 0\"\n");
+    return t;
+}
+
+int logikKnoten(const std::string& name) {
+    const auto& g = ke::editor().logik.graf;
+    for (std::size_t i = 0; i < g.knoten.size(); ++i) {
+        if (g.knoten[i].name == name) { return static_cast<int>(i); }
+    }
+    return -1;
+}
+
+ImVec2 logikZeile(int knoten, int zeile) {
+    const auto& l = ke::editor().logik.lagen;
+    if (knoten < 0 || knoten >= static_cast<int>(l.size())) { return ImVec2{0, 0}; }
+    const auto& r = l[static_cast<std::size_t>(knoten)];
+    const float zoom = ke::editor().logik.mass;
+    return ImVec2{r[0] + 40.0F * zoom, r[1] + (2.0F + 18.0F * static_cast<float>(zeile) + 8.0F) * zoom};
+}
+
+std::vector<Schritt> logik() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    add(stufe2::grundzustand("Stufe 8b/4: Grundzustand"));
+    auto skript = std::make_shared<std::string>();
+    add(tu("Karte mit Ausloesern, Relais, Tuer, Licht, NPC_spawner (deathscript eines Skripts des Spiels, spawnscript fehlt), Kreis", [skript] {
+        ke::Editor& e = ke::editor();
+        skript->clear();
+        if (e.spiel) {
+            for (const char* endung : {"txt", "ibi"}) {   // Endung ohne Punkt, Ergebnis relativ zu scripts/
+                const std::vector<std::string> d = e.spiel->fs.dateien("scripts/", endung, 8);
+                if (!d.empty()) {
+                    std::string p = d.front();
+                    if (p.rfind("scripts/", 0) == 0) { p = p.substr(8); }
+                    *skript = p.substr(0, p.rfind('.'));
+                    break;
+                }
+            }
+        }
+        diag::detail("Knopftest: Stufe 8b/4 Skript des Spiels " + *skript);
+        stufe4::bobKarte(logikKarte(skript->empty() ? std::string("kein/skript") : *skript));
+        e.logik.lagenMerken = true;
+        e.logik.nurPruefen = false;
+    }));
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeLgMenue)) + "###logikansicht", "", 0, true));
+    add(pause(0.4));
+    add(pruefe("View > Logic view...: das Fenster mit 10 Knoten, 8 Kanten, 1 ohne Ziel", [skript] {
+        const ke::LogikZustand& z = ke::editor().logik;
+        diag::detail("Knopftest: Stufe 8b/4 Zoom " + std::to_string(z.zoom));
+        return z.offen && z.graf.knoten.size() == 10 && z.graf.kanten.size() == 8 && z.graf.fehlend == 1 && !skript->empty() &&
+               stufe8::fensterSichtbar("###kartelogik");
+    }));
+    add(foto("karteneditor_s8b_logik"));
+    add(klickAn("Kasten relais", [] { return logikZeile(logikKnoten("relais"), 0); }, 0));
+    add(pause(0.3));
+    add(pruefe("Logic view > Klick: relais gewaehlt, 2D-Ansicht und Kamera darauf zentriert", [] {
+        const ke::Editor& e = ke::editor();
+        const auto& a = e.karte.auswahl.elemente();
+        const auto ent = a.empty() ? nullptr : a.front().entitaet.lock();
+        const karte::Vektor3f u = e.xy[static_cast<std::size_t>(e.aktivXy)].ansicht.ursprung;
+        diag::detail("Knopftest: Stufe 8b/4 2D-Mitte " + std::to_string(u[0]) + " " + std::to_string(u[1]) + ", Kamera " +
+                     std::to_string(e.kamera.ursprung[0]) + " " + std::to_string(e.kamera.ursprung[1]));
+        return a.size() == 1 && ent && ent->wert("targetname") == "relais" && std::fabs(u[0] - 256.0F) < 1.0F && std::fabs(u[1] - 128.0F) < 1.0F;
+    }));
+    add(tu("Fenster nach vorn (die Kamera ist dahinter)", [] { ImGui::SetWindowFocus("###kartelogik"); }));
+    add(pause(0.2));
+    add(klickAn("Doppelklick spawnscript gibtsnicht/skript", [] { return logikZeile(logikKnoten("wache"), 3); }, 0, true));
+    add(pause(0.3));
+    add(pruefe("Logic view > Doppelklick auf ein fehlendes Skript: Kasten mit scripts/gibtsnicht/skript", [] {
+        const ke::Editor& e = ke::editor();
+        return e.meldung.offen && e.meldung.titel == ke::trK(Str::KeLgTitel) && e.meldung.text.find("gibtsnicht/skript") != std::string::npos &&
+               e.logik.letztesSkript.empty();
+    }));
+    add(tu("Kasten zu", [] { ke::editor().meldung.offen = false; }));
+    add(pause(0.2));
+    add(klickAn("Doppelklick deathscript", [] { return logikZeile(logikKnoten("wache"), 2); }, 0, true));
+    add(pause(0.6));
+    add(pruefe("Logic view > Doppelklick auf ein Skript des Spiels: im Skript-Editor des Programms offen", [skript] {
+        const std::string& p = ke::editor().logik.letztesSkript;
+        diag::detail("Knopftest: Stufe 8b/4 geoeffnet " + p + ", Modus " + std::to_string(g_app->leftMode));
+        return !p.empty() && g_app->leftMode == 0 && reiterMitSkript(p) >= 0;
+    }));
+    add(tu("zurueck in den Karten-Editor", [] { g_app->leftMode = 3; }));
+    add(pause(0.4));
+    // Testerkarte
+    add(tu("Testerkarte oeffnen, falls vorhanden", [] {
+        const char* p = std::getenv("BHED_KARTE_TESTER");
+        const std::string pfad = p != nullptr ? std::string(p) : std::string("Y:\\karte\\laeufe\\s8garden\\jeditemple_garden.map");
+        ke::Editor& e = ke::editor();
+        e.logik.lagenMerken = false;
+        if (std::filesystem::exists(std::filesystem::path(pfad))) {
+            (void)ke::karteOeffnen(pfad);
+            const auto t0 = std::chrono::steady_clock::now();
+            ke::logikZeigen();
+            const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+            diag::detail("Knopftest: Stufe 8b/4 Testerkarte " + pfad + ": " + std::to_string(e.logik.graf.knoten.size()) + " Knoten, " +
+                         std::to_string(e.logik.graf.kanten.size()) + " Kanten, " + std::to_string(e.logik.graf.fehlend) + " ohne Ziel, " +
+                         std::to_string(ms) + " ms");
+        } else {
+            diag::detail("Knopftest: Stufe 8b/4 Testerkarte nicht da: " + pfad);
+        }
+    }));
+    add(pause(0.5));
+    add(pruefe("Logic view (Testerkarte, falls da): jede Verknuepfung ist eine Kante oder ein fehlendes Ziel", [] {
+        const ke::Editor& e = ke::editor();
+        if (e.name.find("jeditemple_garden") == std::string::npos) { return true; }
+        const auto& g = e.logik.graf;
+        // Gegenrechnung: je Verknuepfungswert die Zahl der Entities mit dem Namen
+        std::map<std::string, int> namen;
+        for (const auto& ent : e.karte.entitaeten()) {
+            for (const char* n : {"targetname", "NPC_targetname", "script_targetname"}) {
+                const std::string w = ent->wert(n);
+                if (!w.empty()) {
+                    std::string kl = w;
+                    for (char& c : kl) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+                    ++namen[kl];
+                }
+            }
+        }
+        std::size_t kanten = 0;
+        int fehlend = 0;
+        for (const auto& ent : e.karte.entitaeten()) {
+            if (ent->klassenname() == "worldspawn") { continue; }
+            for (const auto& [k, w] : ent->schluessel()) {
+                std::string kk = k;
+                for (char& c : kk) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+                if (w.empty() || kk.find("target") == std::string::npos || kk == "targetname" || kk == "npc_targetname" || kk == "script_targetname") {
+                    continue;
+                }
+                std::string kl = w;
+                for (char& c : kl) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+                const auto it = namen.find(kl);
+                if (it == namen.end()) {
+                    ++fehlend;
+                    ++kanten;
+                } else {
+                    kanten += static_cast<std::size_t>(it->second);
+                }
+            }
+        }
+        diag::detail("Knopftest: Stufe 8b/4 Gegenrechnung " + std::to_string(kanten) + " Kanten, " + std::to_string(fehlend) + " ohne Ziel");
+        return g.kanten.size() == kanten && g.fehlend == fehlend && kanten >= 300;
+    }));
+    add(foto("karteneditor_s8b_logik_tester"));
+    add(tu("Logic view zu", [] {
+        ke::Editor& e = ke::editor();
+        e.logik.offen = false;
+        e.logik.lagenMerken = false;
+    }));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     const char* nur = std::getenv("BHED_STUFE8B_NUR");
@@ -783,6 +959,7 @@ std::vector<Schritt> schritte() {
     if (teil("terrain")) { dazu(terrain()); }
     if (teil("split")) { dazu(split()); }
     if (teil("spielen")) { dazu(spielen()); }
+    if (teil("logik")) { dazu(logik()); }
     return s;
 }
 

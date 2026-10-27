@@ -1571,6 +1571,7 @@ void zeichne(float hoehe) {
     zeichneBspDialog();   // Stufe 4: File > Open .bsp...
     zeichneOptimierer();  // Stufe 5: Build > Optimizer...
     pluginDialogeZeichnen();   // Stufe 4 Punkt 3: die Plugins
+    logikZeichnen();           // Stufe 8b Punkt 4: Logic view
     zeichneGlobaleEinstellungen();
     zeichneAbrisse();
     zeichneUeber();

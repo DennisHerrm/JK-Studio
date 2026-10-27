@@ -374,6 +374,13 @@ void listeZeichnen(const std::string& name) {
         // die Knopfgroesse der Werkzeugleisten. Der Hinweis "Strg + Mausrad"
         // fehlt mit Absicht: im Karten-Editor gehoert das Rad den Ansichten
         // (NRC: XYWnd zoomt, CamWnd faehrt, der Texturbrowser rollt - auch mit Strg).
+        {
+            const std::string id = std::string(trK(Str::KeLgMenue)) + "###logikansicht";
+            QtPunkt p;
+            p.id = id.c_str();
+            p.tooltip = trK(Str::KeLgMenueTip);
+            if (qtPunkt(p)) { logikZeigen(); }
+        }
         qtTrenner();
         if (qtMenueAnfang((std::string(trK(Str::ViewTarget)) + "###progziel").c_str())) {
             QtPunkt sp;

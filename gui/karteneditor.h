@@ -29,6 +29,7 @@
 #include "bhed/karte/meshtex.h"
 #include "bhed/karte/terraingen.h"
 #include "bhed/karte/spielkollision.h"
+#include "bhed/karte/logik.h"
 #include "bhed/navlauf.h"
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/baumonitor.h"
@@ -234,6 +235,23 @@ struct SpielenZustand {
     double restMs = 0.0;
     int bilder = 0;                       // PmoveSingle-Aufrufe
     bool testEingabe = false;             // Selbsttest: Eingaben eingespielt, keine Tastatur/Maus, keine Bildzeit
+};
+
+// Stufe 8b Punkt 4: das Fenster "Logic view" (eigene Funktion, nicht in NRC)
+struct LogikZustand {
+    bool offen = false;
+    karte::LogikGraph graf;
+    std::size_t stand = static_cast<std::size_t>(-1);   // undo.abschluesse() beim Bau
+    std::size_t ladeStand = static_cast<std::size_t>(-1);
+    float verschiebung[2] = {20.0F, 20.0F};
+    float zoom = 1.0F;
+    float mass = 1.0F;           // Bildpunkte je Graph-Punkt (zoom x Schriftmassstab)
+    bool einpassen = false;      // beim naechsten Bild den Graphen ins Fenster
+    int gewaehlt = -1;
+    std::string letztesSkript;   // Selbsttest: der zuletzt gefundene Pfad ("" = fehlte)
+    bool nurPruefen = false;     // Selbsttest: nicht in den Skript-Editor wechseln
+    bool lagenMerken = false;    // Selbsttest: die Kaesten in Bildpunkten
+    std::vector<std::array<float, 4>> lagen;
 };
 
 struct Spielkontext {
@@ -568,6 +586,7 @@ struct Editor {
     MeshTexZustand meshtex;
     TerrainZustand terrain;   // Stufe 8b Punkt 1
     SpielenZustand spielen;   // Stufe 8b Punkt 3
+    LogikZustand logik;       // Stufe 8b Punkt 4
     karte::plugins::UfoaiZustand ufoai;
     karte::ZuletztListe zuletzt;
     bool zuletztGeladen = false;
@@ -1087,6 +1106,11 @@ void spielenStarten();
 void spielenBeenden();
 void spielenSchritt(int msec);                              // Pmove mit spielen.eingabe
 void spielenBild(const ImVec2& o, const ImVec2& groesse);   // aus kameraZeichnen: Eingabe, Zeit, Anzeige
+// Stufe 8b Punkt 4: Logik-Ansicht (app_karte_logik.cpp)
+void logikZeigen();
+void logikZeichnen();
+void logikKnotenWaehlen(int nr);                  // Klick: waehlen und die Ansichten zentrieren
+bool logikSkriptOeffnen(const std::string& wert); // Doppelklick: das ICARUS-Skript oeffnen (false: fehlt, Meldung)
 [[nodiscard]] karte::Vektor3f xyMittelpunkt();   // XYWnd_Centralize: Mitte der Auswahl bzw. der Karte
 // Map_StartPosition / FocusViews (map.cpp:456-485): Kamera auf den Start,
 // alle 2D-Ansichten dorthin.

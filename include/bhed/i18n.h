@@ -2333,6 +2333,14 @@ enum class Str {
     KeSpBeendet,
     KeSpHud,
     KeSpHilfe,
+    KeLgMenue,
+    KeLgMenueTip,
+    KeLgTitel,
+    KeLgKopf,
+    KeLgNichtNrc,
+    KeLgSkriptFehlt,
+    KeLgDoppelklick,
+    KeLgFehlt,
     Count,
 };
 
