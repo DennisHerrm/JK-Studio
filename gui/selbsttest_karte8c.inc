@@ -264,6 +264,8 @@ std::vector<Schritt> tutorial() {
         // wie nach einem frischen Start: die Arbeitszone (Hoehe eines neu gezogenen Brushes,
         // Select_getWorkZone) wie beim Programmstart - im vollen Lauf lag sie vom vorigen Teil auf 0..64
         e.workzone = karte::Kasten{karte::Vektor3f(0, 0, 0), karte::Vektor3f(64, 64, 64)};
+        // ebenso die Frage nach der Lichtstaerke (ein frueherer Teil hakt "Don't show ... until restart" an)
+        e.ent.lichtNichtZeigen = false;
         std::error_code ec;
         std::filesystem::remove_all(std::filesystem::path(stufe3::laufOrdner("tutorial")), ec);
         std::filesystem::create_directories(std::filesystem::path(stamm()).parent_path(), ec);
