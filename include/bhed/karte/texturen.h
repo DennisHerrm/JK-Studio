@@ -120,6 +120,7 @@ struct ShaderEintrag {
     // Stufe 8b Punkt 3: die surfaceparm-Namen (klein) in der Reihenfolge der
     // Datei - fuer die Inhalte wie q3map2 (ApplySurfaceParm, Im Editor spielen)
     std::vector<std::string> surfaceparms;
+    int lightmapAbtastung = 0;   // Stufe 8b Punkt 5: q3map_lightmapSampleSize (0 = keine Angabe)
     [[nodiscard]] bool istStandard() const { return datei.empty(); }   // IsDefault
 };
 

@@ -48,6 +48,17 @@ struct Q3ShaderFlags {
 // game_sof2 (JK2) bzw. game_ja (dazu "inside", "forcesight").
 [[nodiscard]] Q3ShaderFlags q3map2ShaderFlags(const std::vector<std::string>& surfaceparms, bool ja);
 
+// SetBrushContents (map.cpp:455-503): welche Seite den Inhalt des Brushes
+// bestimmt (contentShader), die vereinigten compileFlags, und ob es ein
+// Ursprungs-Brush ist (C_ORIGIN: q3map2 entfernt ihn).
+struct PinselInhalt {
+    int seite = 0;                 // Index der Seite des contentShader
+    Q3ShaderFlags flags;           // dessen Flags = der Inhalt des Brushes in der .bsp
+    std::uint32_t compile = 0;     // compileFlags aller Seiten
+    bool ursprung = false;
+};
+[[nodiscard]] PinselInhalt pinselInhalt(const std::vector<Q3ShaderFlags>& seiten);
+
 // Liefert die surfaceparms eines Shaders (leer: nicht in den Skripten = "default").
 using SurfaceparmFn = std::function<std::vector<std::string>(const std::string& shader)>;
 

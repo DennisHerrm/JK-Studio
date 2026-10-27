@@ -374,6 +374,30 @@ void listeZeichnen(const std::string& name) {
         // die Knopfgroesse der Werkzeugleisten. Der Hinweis "Strg + Mausrad"
         // fehlt mit Absicht: im Karten-Editor gehoert das Rad den Ansichten
         // (NRC: XYWnd zoomt, CamWnd faehrt, der Texturbrowser rollt - auch mit Strg).
+        if (qtMenueAnfang((std::string(trK(Str::KeAmMenue)) + "###ansichtsmodi").c_str())) {
+            AnsichtsModiZustand& am = e().ansichtsmodi;
+            const struct {
+                Str text, tip;
+                bool* wert;
+                const char* id;
+            } modi[4] = {{Str::KeAmDichte, Str::KeAmDichteTip, &am.dichte, "###amdichte"},
+                         {Str::KeAmKollision, Str::KeAmKollisionTip, &am.kollision, "###amkollision"},
+                         {Str::KeAmSicht, Str::KeAmSichtTip, &am.sichtbarkeit, "###amsicht"},
+                         {Str::KeAmLast, Str::KeAmLastTip, &am.last, "###amlast"}};
+            for (const auto& m : modi) {
+                const std::string id = std::string(trK(m.text)) + m.id;
+                QtPunkt p;
+                p.id = id.c_str();
+                p.art = QtArt::Pruefbar;
+                p.haken = *m.wert;
+                p.tooltip = trK(m.tip);
+                if (qtPunkt(p)) {
+                    *m.wert = !*m.wert;
+                    ++e().sichtStand;
+                }
+            }
+            qtMenueEnde();
+        }
         {
             const std::string id = std::string(trK(Str::KeLgMenue)) + "###logikansicht";
             QtPunkt p;

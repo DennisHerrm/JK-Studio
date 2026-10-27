@@ -229,6 +229,11 @@ EIGENE = [
     ('Eigen|View > Logic view...', 'Graph, Klick waehlt/zentriert, Doppelklick oeffnet das Skript (Stufe 8b/4)',
      [re.escape('View > Logic view...: '), re.escape('Logic view > Klick: '), re.escape('Logic view > Doppelklick auf ein fehlendes Skript: '),
       re.escape('Logic view > Doppelklick auf ein Skript des Spiels: '), re.escape('Logic view (Testerkarte')]),
+    # Punkt 5: Ansichtsmodi der Kamera
+    ('Eigen|View > Camera view modes > Collision', 'Kollision farbig (Stufe 8b/5)', [re.escape('View > Camera view modes > Collision: ')]),
+    ('Eigen|View > Camera view modes > Lightmap density', 'Luxel wie q3map2 (Stufe 8b/5)', [re.escape('Camera view modes > Lightmap density: ')]),
+    ('Eigen|View > Camera view modes > Visibility (PVS)', 'PVS aus der .bsp (Stufe 8b/5)', [re.escape('Camera view modes > Visibility (PVS): ')]),
+    ('Eigen|View > Camera view modes > Triangle load', 'Waermekarte aus der .bsp (Stufe 8b/5)', [re.escape('Camera view modes > Triangle load: ')]),
 ]
 
 

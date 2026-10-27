@@ -136,6 +136,20 @@ bool quake3Parsen(Tokenizer& t, ShaderEintrag& s) {
             s.alphaFunc = a == "equal" ? 1 : a == "greater" ? 3 : a == "less" ? 2 : a == "gequal" ? 5 : a == "lequal" ? 4 : 0;
             s.flags |= QER_ALPHATEST;
             if (!floatHolen(t, s.alphaRef)) { return false; }
+        } else if (k == "q3map_lightmapsamplesize") {
+            // Stufe 8b Punkt 5 (Ansicht Lightmap-Dichte): q3map2 shaders.cpp
+            // "q3map_lightmapSampleSize N" - NRC liest es nicht; ohne Zahl
+            // dahinter bleibt der Strom unveraendert (ungetToken).
+            const char* n = t.getToken();
+            if (n != nullptr) {
+                char* ende = nullptr;
+                const long v = std::strtol(n, &ende, 10);
+                if (ende != nullptr && ende != n && *ende == '\0') {
+                    s.lightmapAbtastung = static_cast<int>(v);
+                } else {
+                    t.ungetToken();
+                }
+            }
         } else if (k == "skyparms") {
             const char* h = t.getToken();
             if (h == nullptr) {

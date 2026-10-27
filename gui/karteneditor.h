@@ -254,6 +254,26 @@ struct LogikZustand {
     std::vector<std::array<float, 4>> lagen;
 };
 
+// Stufe 8b Punkt 5: Ansichtsmodi der Kamera (eigene Funktion, nicht in NRC)
+struct AnsichtsModiZustand {
+    bool dichte = false;          // Lightmap density
+    bool kollision = false;       // Collision
+    bool sichtbarkeit = false;    // Visibility (PVS) aus der .bsp
+    bool last = false;            // Triangle load aus der .bsp
+    // Messwerte (Anzeige, Selbsttest)
+    int dichteFlaechen = 0;       // Flaechen mit Lightmap
+    int kollisionFarbig = 0;      // farbige Brushes (clip, Wasser, Trigger ...)
+    int ohneKollision = 0;        // sichtbare Brushes/Patches ohne Kollision fuer den Spieler
+    bool bspDa = false;
+    int kameraCluster = -1;
+    int clusterZahl = 0;
+    int sichtbareCluster = 0;
+    std::uint64_t sichtbareDreiecke = 0;
+    std::uint64_t kameraLast = 0;
+    std::uint64_t lastMax = 0;
+    std::map<std::string, int> luxelJeShader;   // Selbsttest: groesste Luxelgroesse je Shader (0: ohne Lightmap)
+};
+
 struct Spielkontext {
     int spiel = 0;                  // kRegelwerkOpenJK / MovieDuels / JediOutcast
     std::string modus = "sp";       // gamemode_get beim Laden (Mapping mode)
@@ -587,6 +607,7 @@ struct Editor {
     TerrainZustand terrain;   // Stufe 8b Punkt 1
     SpielenZustand spielen;   // Stufe 8b Punkt 3
     LogikZustand logik;       // Stufe 8b Punkt 4
+    AnsichtsModiZustand ansichtsmodi;   // Stufe 8b Punkt 5
     karte::plugins::UfoaiZustand ufoai;
     karte::ZuletztListe zuletzt;
     bool zuletztGeladen = false;
@@ -1107,6 +1128,9 @@ void spielenBeenden();
 void spielenSchritt(int msec);                              // Pmove mit spielen.eingabe
 void spielenBild(const ImVec2& o, const ImVec2& groesse);   // aus kameraZeichnen: Eingabe, Zeit, Anzeige
 // Stufe 8b Punkt 4: Logik-Ansicht (app_karte_logik.cpp)
+// Stufe 8b Punkt 5: Ansichtsmodi der Kamera (app_karte_ansichtsmodi.cpp)
+void ansichtsmodiZeichnen(const float* matrix, const float auge[3]);   // in die Kamera, nach der Szene
+void ansichtsmodiAnzeige(void* drawList, float x, float y);            // die Zeilen oben links
 void logikZeigen();
 void logikZeichnen();
 void logikKnotenWaehlen(int nr);                  // Klick: waehlen und die Ansichten zentrieren

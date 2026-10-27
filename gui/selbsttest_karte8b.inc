@@ -14,6 +14,8 @@ using stufe4::bobKarte;
 using stufe4::kastenText;
 using stufe4::weltText;
 using stufe4::weltWaehlen;
+using stufe3::bauMenuepunkt;
+using stufe3::q3map2Bereitstellen;
 
 // Klick auf ein Element des Dialogs "###terraingenerator" (Text##id)
 Schritt tgKlick(const std::string& text, const char* id) { return klick(text + "##" + id, "###terraingenerator", 0, true); }
@@ -949,6 +951,214 @@ std::vector<Schritt> logik() {
     return s;
 }
 
+// --- Punkt 5: Ansichtsmodi der Kamera ----------------------------------------------
+//
+// Testkarte: ein geschlossener Raum mit zwei versetzten Zwischenwaenden (die
+// westliche Kammer sieht die oestliche nicht), ein playerclip-Brush (Shader des
+// Spiels), eine sichtbare nonsolid-Wand (Shader des Spiels), eine func_group mit
+// _lightmapscale 2, eine 4096 lange Bodenplatte; gebaut mit -meta und -vis.
+// Mess-Stellen: Luxelgroessen wie q3map2 (16, 32, 33 nach der Vergroesserung),
+// Kollision (Brushes farbig, nonsolid-Wand rot, Bildpunkt aendert sich), PVS
+// gegen die eigene Auswertung der Bits im Vis-Lump der .bsp, Dreieckslast gegen
+// die Summe der sichtbaren Flaechen; je Modus ein Foto.
+
+std::string amKarte() { return karteTestPfad("s8bam\\am.map"); }
+
+std::string amShader(const char* parm, bool ohneNodraw) {
+    const ke::Editor& e = ke::editor();
+    if (!e.spiel) { return {}; }
+    for (const karte::ShaderEintrag* s : e.spiel->inventar.shader()) {
+        if (s->name.rfind("textures/", 0) != 0) { continue; }
+        bool hat = false;
+        bool nodraw = false;
+        bool anderes = false;
+        for (const std::string& p : s->surfaceparms) {
+            hat = hat || p == parm;
+            nodraw = nodraw || p == "nodraw";
+            anderes = anderes || p == "monsterclip" || p == "trigger" || p == "water" || p == "fog" || p == "lava" || p == "slime";
+        }
+        if (hat && !anderes && (!ohneNodraw || !nodraw)) { return s->name.substr(9); }
+    }
+    return {};
+}
+
+void amKarteSchreiben(const std::string& clip, const std::string& nonsolid) {
+    using stufe4::kastenText;
+    std::string w;
+    w += kastenText(-576, -576, -16, 576, 576, 0, "test/boden");
+    w += kastenText(-576, -576, 256, 576, 576, 272, "test/decke");
+    w += kastenText(-576, -576, 0, -560, 576, 256, "test/wand");
+    w += kastenText(560, -576, 0, 576, 576, 256, "test/wand");
+    w += kastenText(-576, -576, 0, 576, -560, 256, "test/wand");
+    w += kastenText(-576, 560, 0, 576, 576, 256, "test/wand");
+    w += kastenText(-192, -560, 0, -160, 384, 256, "test/wand");    // Zwischenwand 1 (Luecke im Norden)
+    w += kastenText(160, -384, 0, 192, 560, 256, "test/wand");      // Zwischenwand 2 (Luecke im Sueden)
+    w += kastenText(-2048, 400, 0, 2048, 416, 8, "test/platte");   // 4096 lang (ragt in die Wand, schadet nicht)
+    w += kastenText(-96, -96, 0, -32, -32, 128, clip.c_str());
+    w += kastenText(32, 32, 0, 96, 96, 128, nonsolid.c_str());
+    std::string t = stufe4::weltText(w);
+    t += "{\n\"classname\" \"func_group\"\n\"_lightmapscale\" \"2\"\n" + kastenText(-480, -480, 0, -416, -416, 64, "test/dicht") + "}\n";
+    t += "{\n\"classname\" \"info_player_start\"\n\"origin\" \"-400 -300 24\"\n}\n";
+    std::filesystem::create_directories(std::filesystem::path(amKarte()).parent_path());
+    std::ofstream f(std::filesystem::path(amKarte()), std::ios::binary | std::ios::trunc);
+    f << t;
+}
+
+// Die Bits im Vis-Lump (Lump 16: numClusters, clusterBytes, Tabelle) - unabhaengig von BspGeometry
+int pvsBits(const std::string& bsp, int cluster, int* clusterZahl) {
+    const std::string d = dateiInhalt(bsp);
+    if (d.size() < 8 + 18 * 8) { return -1; }
+    std::int32_t ofs = 0;
+    std::int32_t len = 0;
+    std::memcpy(&ofs, d.data() + 8 + 16 * 8, 4);
+    std::memcpy(&len, d.data() + 8 + 16 * 8 + 4, 4);
+    if (len < 8 || cluster < 0) { return -1; }
+    std::int32_t n = 0;
+    std::int32_t bytes = 0;
+    std::memcpy(&n, d.data() + ofs, 4);
+    std::memcpy(&bytes, d.data() + ofs + 4, 4);
+    *clusterZahl = n;
+    int sichtbar = 0;
+    for (int c = 0; c < n; ++c) {
+        const auto b = static_cast<unsigned char>(d[static_cast<std::size_t>(ofs + 8 + cluster * bytes + (c >> 3))]);
+        sichtbar += (b & (1U << (c & 7))) != 0U ? 1 : 0;
+    }
+    return sichtbar;
+}
+
+std::array<unsigned char, 4> kameraPixel() {
+    const ke::KameraFenster& f = ke::editor().kamFenster;
+    std::array<unsigned char, 4> p{};
+    (void)kartegpu::pixel(200, f.breite / 2, f.hoehe / 2, p.data());
+    return p;
+}
+int pixelAbstand(const std::array<unsigned char, 4>& a, const std::array<unsigned char, 4>& b) {
+    return std::abs(a[0] - b[0]) + std::abs(a[1] - b[1]) + std::abs(a[2] - b[2]);
+}
+
+std::vector<Schritt> ansichten() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    add(stufe2::grundzustand("Stufe 8b/5: Grundzustand"));
+    const char* kEintrag = "Test Ansichtsmodi";
+    auto namen = std::make_shared<std::pair<std::string, std::string>>();
+    add(tu("Testkarte (zwei versetzte Zwischenwaende, playerclip, nonsolid-Wand, func_group _lightmapscale 2, 4096er Platte) schreiben, oeffnen, Eintrag -meta/-vis", [kEintrag, namen] {
+        karteDialogeZu();
+        q3map2Bereitstellen();
+        ke::bauMenueSicherstellen();
+        *namen = {amShader("playerclip", false), amShader("nonsolid", true)};
+        diag::detail("Knopftest: Stufe 8b/5 Shader playerclip " + namen->first + ", nonsolid " + namen->second);
+        amKarteSchreiben(namen->first.empty() ? "system/clip" : namen->first, namen->second.empty() ? "test/nonsolid" : namen->second);
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::path(karteTestPfad("s8bam\\am.bsp")), ec);
+        (void)ke::karteOeffnen(amKarte());
+        ke::Editor& e = ke::editor();
+        e.bauProjekt.eintraege.push_back(karte::BauEintrag{kEintrag, {"[q3map2] -meta \"[MapFile]\"", "[q3map2] -vis -threads 1 \"[MapFile]\""}});
+        e.kamera.setzeUrsprung(karte::Vektor3f(-400, -300, 64));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 45, 0));
+        ++e.sichtStand;
+    }));
+    add(bauMenuepunkt(kEintrag));
+    add(stufe8::warteSek("Bau mit VIS fertig", [] { return !ke::bauLaeuft(); }, 300));
+    auto ohne = std::make_shared<std::array<unsigned char, 4>>();
+    add(tu("Kamera auf die nonsolid-Wand (64 64), Bildpunkt ohne Modus merken", [ohne] {
+        ke::Editor& e = ke::editor();
+        e.kamera.setzeUrsprung(karte::Vektor3f(-60, -60, 64));
+        e.kamera.setzeWinkel(karte::Vektor3f(0, 45, 0));
+        ++e.sichtStand;
+    }));
+    add(pause(0.3));
+    add(tu("Bildpunkt merken", [ohne] { *ohne = kameraPixel(); }));
+    // Kollision ueber das Menue
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeAmMenue)) + "###ansichtsmodi", "", 0, true));
+    add(pause(0.2));
+    add(klick(std::string(ke::trK(Str::KeAmKollision)) + "###amkollision", "", 0, true));
+    add(pause(0.4));
+    add(pruefe("View > Camera view modes > Collision: playerclip farbig, die sichtbare nonsolid-Wand rot, der Bildpunkt auf ihr aendert sich", [ohne, namen] {
+        const ke::AnsichtsModiZustand& m = ke::editor().ansichtsmodi;
+        const auto mit = kameraPixel();
+        diag::detail("Knopftest: Stufe 8b/5 Kollision farbig " + std::to_string(m.kollisionFarbig) + ", ohne Kollision " + std::to_string(m.ohneKollision) +
+                     ", Bildpunkt " + std::to_string(mit[0]) + "/" + std::to_string(mit[1]) + "/" + std::to_string(mit[2]) + " vorher " +
+                     std::to_string((*ohne)[0]) + "/" + std::to_string((*ohne)[1]) + "/" + std::to_string((*ohne)[2]));
+        return m.kollision && m.kollisionFarbig >= 1 && m.ohneKollision >= 1 && !namen->first.empty() && !namen->second.empty() &&
+               pixelAbstand(mit, *ohne) > 30 && mit[0] > mit[1];
+    }));
+    add(foto("karteneditor_s8b_modus_kollision"));
+    add(tu("Kollision aus, Lightmap-Dichte an; Kamera vor die func_group", [] {
+        ke::Editor& e = ke::editor();
+        e.ansichtsmodi.kollision = false;
+        e.ansichtsmodi.dichte = true;
+        e.kamera.setzeUrsprung(karte::Vektor3f(-450, -300, 40));
+        e.kamera.setzeWinkel(karte::Vektor3f(-20, 270, 0));
+        ++e.sichtStand;
+    }));
+    add(pause(0.4));
+    add(pruefe("Camera view modes > Lightmap density: Luxel wie q3map2 - Boden 16, func_group mit _lightmapscale 2 = 32, 4096er Platte vergroessert auf 33", [] {
+        const auto& l = ke::editor().ansichtsmodi.luxelJeShader;
+        const auto w = [&l](const char* n) {
+            const auto it = l.find(std::string("textures/") + n);
+            return it != l.end() ? it->second : -1;
+        };
+        diag::detail("Knopftest: Stufe 8b/5 Luxel boden " + std::to_string(w("test/boden")) + ", dicht " + std::to_string(w("test/dicht")) + ", platte " +
+                     std::to_string(w("test/platte")) + ", Flaechen " + std::to_string(ke::editor().ansichtsmodi.dichteFlaechen));
+        return w("test/boden") == 16 && w("test/dicht") == 32 && w("test/platte") == 33 && ke::editor().ansichtsmodi.dichteFlaechen > 20;
+    }));
+    add(foto("karteneditor_s8b_modus_dichte"));
+    // Sichtbarkeit
+    add(tu("Dichte aus, Sichtbarkeit an; Kamera in der westlichen Kammer", [] {
+        ke::Editor& e = ke::editor();
+        e.ansichtsmodi.dichte = false;
+        e.ansichtsmodi.sichtbarkeit = true;
+        e.kamera.setzeUrsprung(karte::Vektor3f(-400, -300, 64));
+        e.kamera.setzeWinkel(karte::Vektor3f(-10, 0, 0));
+        ++e.sichtStand;
+    }));
+    add(pause(0.5));
+    add(pruefe("Camera view modes > Visibility (PVS): aus der .bsp; die Zahl der sichtbaren Cluster gleich den Bits im Vis-Lump, weniger als alle", [] {
+        const ke::AnsichtsModiZustand& m = ke::editor().ansichtsmodi;
+        int n = 0;
+        const int bits = pvsBits(karteTestPfad("s8bam\\am.bsp"), m.kameraCluster, &n);
+        diag::detail("Knopftest: Stufe 8b/5 PVS Cluster " + std::to_string(m.kameraCluster) + " sieht " + std::to_string(m.sichtbareCluster) + " von " +
+                     std::to_string(m.clusterZahl) + " (Bits " + std::to_string(bits) + " von " + std::to_string(n) + "), Dreiecke " +
+                     std::to_string(m.sichtbareDreiecke));
+        return m.bspDa && m.kameraCluster >= 0 && m.sichtbareCluster == bits && n == m.clusterZahl && bits < n && m.sichtbareDreiecke > 0;
+    }));
+    add(foto("karteneditor_s8b_modus_sicht"));
+    // Dreieckslast
+    add(tu("Sichtbarkeit aus, Dreieckslast an", [] {
+        ke::Editor& e = ke::editor();
+        e.ansichtsmodi.sichtbarkeit = false;
+        e.ansichtsmodi.last = true;
+        ++e.sichtStand;
+    }));
+    add(pause(0.5));
+    add(pruefe("Camera view modes > Triangle load: Last am Ort gleich den Dreiecken der sichtbaren Flaechen, hoechste Last >= diese", [] {
+        const ke::AnsichtsModiZustand& m = ke::editor().ansichtsmodi;
+        // Gegenrechnung mit der .bsp
+        BspGeometry g;
+        if (!readBspGeometry(dateiInhalt(karteTestPfad("s8bam\\am.bsp")), g)) { return false; }
+        const BspMesh netz = buildModelMesh(g, 0, 6);
+        std::uint64_t summe = 0;
+        for (const BspMesh::Run& r : netz.runs) {
+            if (g.surfaceVisible(r.surface, m.kameraCluster)) { summe += r.numIndexes / 3; }
+        }
+        diag::detail("Knopftest: Stufe 8b/5 Last " + std::to_string(m.kameraLast) + " (Gegenrechnung " + std::to_string(summe) + "), hoechste " +
+                     std::to_string(m.lastMax));
+        return m.last && m.kameraLast == summe && m.lastMax >= m.kameraLast && summe > 0;
+    }));
+    add(foto("karteneditor_s8b_modus_last"));
+    add(tu("Modi aus, Eintrag weg", [kEintrag] {
+        ke::Editor& e = ke::editor();
+        e.ansichtsmodi = ke::AnsichtsModiZustand{};
+        auto& v = e.bauProjekt.eintraege;
+        v.erase(std::remove_if(v.begin(), v.end(), [kEintrag](const karte::BauEintrag& b) { return b.name == kEintrag; }), v.end());
+        ++e.sichtStand;
+    }));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     const char* nur = std::getenv("BHED_STUFE8B_NUR");
@@ -960,6 +1170,7 @@ std::vector<Schritt> schritte() {
     if (teil("split")) { dazu(split()); }
     if (teil("spielen")) { dazu(spielen()); }
     if (teil("logik")) { dazu(logik()); }
+    if (teil("ansichten")) { dazu(ansichten()); }
     return s;
 }
 

@@ -1303,6 +1303,7 @@ void kameraZeichnen() {
         // Stufe 3 Punkt 5: prtview (solid_outline, solid; eSortOverlayFirst)
         portaleKameraZeichnen(&vp[0], vp, fuellen);
         pluginKameraUeber(&vp[0], fuellen);   // Stufe 4 Punkt 3: DTrainDrawer, DVisDrawer (eSortOverlayFirst)
+        ansichtsmodiZeichnen(&vp[0], k.ursprung.data());   // Stufe 8b Punkt 5: Ansichtsmodi (nicht in NRC)
         // eSortOverlayFirst: verdeckte Kanten gestrichelt grau
         {
             kartegpu::Zustand3 z = basis;
@@ -1680,6 +1681,7 @@ void kameraZeichnen() {
         const float breiteText = ImGui::CalcTextSize(hinweis.c_str()).x;
         dl->AddText(ImVec2{o.x + groesse.x - breiteText - 6, o.y + 4}, IM_COL32(255, 220, 120, 255), hinweis.c_str());
     }
+    ansichtsmodiAnzeige(dl, o.x + 6, o.y + 6);   // Stufe 8b Punkt 5
     // ShowStats: unten links
     if (c.zeigeStatistik) {
         const double f2f = f.letzteStatistik >= 0.0 ? (jetzt - f.letzteStatistik) * 1000.0 : 0.0;

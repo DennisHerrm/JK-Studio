@@ -371,6 +371,45 @@ Q3ShaderFlags q3map2ShaderFlags(const std::vector<std::string>& surfaceparms, bo
     return f;
 }
 
+PinselInhalt pinselInhalt(const std::vector<Q3ShaderFlags>& seiten) {
+    PinselInhalt r;
+    if (seiten.empty()) { return r; }
+    Q3ShaderFlags contentShader = seiten[0];
+    int nr = 0;
+    std::uint32_t compileFlags = seiten[0].compile;
+    for (std::size_t i = 1; i < seiten.size(); ++i) {
+        const Q3ShaderFlags& sf = seiten[i];
+        compileFlags |= sf.compile;
+        bool nehmen = false;
+        if ((contentShader.compile & C_LIQUID) != 0U) {
+            continue;
+        } else if ((sf.compile & C_LIQUID) != 0U) {
+            nehmen = true;
+        } else if ((contentShader.compile & C_FOG) != 0U) {
+            continue;
+        } else if ((sf.compile & C_FOG) != 0U) {
+            nehmen = true;
+        } else if ((contentShader.inhalt & S_CONT_PLAYERCLIP) != 0U) {
+            continue;
+        } else if ((sf.inhalt & S_CONT_PLAYERCLIP) != 0U) {
+            nehmen = true;
+        } else if ((contentShader.compile & C_SOLID) == 0U) {
+            continue;
+        } else if ((sf.compile & C_SOLID) == 0U) {
+            nehmen = true;
+        }
+        if (nehmen) {
+            contentShader = sf;
+            nr = static_cast<int>(i);
+        }
+    }
+    r.seite = nr;
+    r.flags = contentShader;
+    r.compile = compileFlags;
+    r.ursprung = (compileFlags & C_ORIGIN) != 0U;
+    return r;
+}
+
 SpielKollisionsBericht kollisionAusKarte(const Karte& k, const SurfaceparmFn& parms, bool ja, KollisionsKarte& aus) {
     aus = KollisionsKarte{};
     SpielKollisionsBericht bericht;
@@ -452,36 +491,12 @@ SpielKollisionsBericht kollisionAusKarte(const Karte& k, const SurfaceparmFn& pa
                     continue;
                 }
                 // SetBrushContents (map.cpp:455-503)
-                Q3ShaderFlags contentShader = sides[0].flags;
-                int contentShaderNr = sides[0].shader;
-                std::uint32_t compileFlags = sides[0].flags.compile;
-                for (std::size_t i = 1; i < sides.size(); ++i) {
-                    const Q3ShaderFlags& sf = sides[i].flags;
-                    compileFlags |= sf.compile;
-                    bool nehmen = false;
-                    if ((contentShader.compile & C_LIQUID) != 0U) {
-                        continue;
-                    } else if ((sf.compile & C_LIQUID) != 0U) {
-                        nehmen = true;
-                    } else if ((contentShader.compile & C_FOG) != 0U) {
-                        continue;
-                    } else if ((sf.compile & C_FOG) != 0U) {
-                        nehmen = true;
-                    } else if ((contentShader.inhalt & S_CONT_PLAYERCLIP) != 0U) {
-                        continue;
-                    } else if ((sf.inhalt & S_CONT_PLAYERCLIP) != 0U) {
-                        nehmen = true;
-                    } else if ((contentShader.compile & C_SOLID) == 0U) {
-                        continue;
-                    } else if ((sf.compile & C_SOLID) == 0U) {
-                        nehmen = true;
-                    }
-                    if (nehmen) {
-                        contentShader = sf;
-                        contentShaderNr = sides[i].shader;
-                    }
-                }
-                if ((compileFlags & C_ORIGIN) != 0U) {   // Ursprungs-Brush: setzt den Ursprung der Entitaet, wird entfernt
+                std::vector<Q3ShaderFlags> seitenFlags;
+                for (const Seite& s : sides) { seitenFlags.push_back(s.flags); }
+                const PinselInhalt pi = pinselInhalt(seitenFlags);
+                const Q3ShaderFlags contentShader = pi.flags;
+                const int contentShaderNr = sides[static_cast<std::size_t>(pi.seite)].shader;
+                if (pi.ursprung) {   // Ursprungs-Brush: setzt den Ursprung der Entitaet, wird entfernt
                     ++bericht.ausgelassen;
                     continue;
                 }

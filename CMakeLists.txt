@@ -365,6 +365,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_terrain.cpp
     gui/app_karte_spielen.cpp
     gui/app_karte_logik.cpp
+    gui/app_karte_ansichtsmodi.cpp
     gui/app_karte_meshtex.cpp
     gui/karte_qtdialog.cpp
     gui/app_karte_menue.cpp

@@ -12,8 +12,8 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 | Einstellungsfelder | 79 | 78 | 1 | 0 | 0 |
 | Plugins | 69 | 69 | 0 | 0 | 0 |
 | Mausbelegung | 62 | 62 | 0 | 0 | 0 |
-| Eigene Eintraege | 29 | 29 | 0 | 0 | 0 |
-| **Summe** | 969 | 965 | 4 | 0 | 0 |
+| Eigene Eintraege | 33 | 33 | 0 | 0 | 0 |
+| **Summe** | 973 | 969 | 4 | 0 | 0 |
 
 ## Begruendete Ausnahmen
 
@@ -1035,3 +1035,7 @@ Erzeugt von `tools/karte/nrc_inventar.py abdeckung` aus `tools/karte/nrc_inventa
 | `Eigen \| View > Play in editor (F6)` | OK | View > Play in editor (F6): aktiv, Kollision aus 5 Brushes, Start an der Kamera (Augen 36 ueber dem Kasten); Spielen > Wand: das Laufen gegen die Wand haelt bei x 512 - 16 an; Spielen > Treppe: die Stufe 16 wird gestiegen (z 40,125); Spielen > Stufe 24 haelt den Spieler an; Spielen > playerclip haelt den Spieler an (y -384 + 16); Spielen > Sprung: 31,62 ueber dem Boden - gleich dem Port mit der gebauten .bsp (ctest karte_spielen); Spielen > N (echte Taste): Noclip an, durch die Wand; Spielen > Esc (echte Taste): beendet, die Kamera genau wie vorher; View > Play in editor (Menue) mit Spawn: Start bei info_player_start (-320 320 24 + 9), Blick 90 |
 | `Eigen \| View > Play: start at info_player_start` | OK | View > Play: start at info_player_start: an, als BhedPlayAtSpawn 1 gespeichert |
 | `Eigen \| View > Logic view...` | OK | View > Logic view...: das Fenster mit 10 Knoten, 8 Kanten, 1 ohne Ziel; Logic view > Klick: relais gewaehlt, 2D-Ansicht und Kamera darauf zentriert; Logic view > Doppelklick auf ein fehlendes Skript: Kasten mit scripts/gibtsnicht/skript; Logic view > Doppelklick auf ein Skript des Spiels: im Skript-Editor des Programms offen; Logic view (Testerkarte, falls da): jede Verknuepfung ist eine Kante oder ein fehlendes Ziel |
+| `Eigen \| View > Camera view modes > Collision` | OK | View > Camera view modes > Collision: playerclip farbig, die sichtbare nonsolid-Wand rot, der Bildpunkt auf ihr aendert sich |
+| `Eigen \| View > Camera view modes > Lightmap density` | OK | Camera view modes > Lightmap density: Luxel wie q3map2 - Boden 16, func_group mit _lightmapscale 2 = 32, 4096er Platte vergroessert auf 33 |
+| `Eigen \| View > Camera view modes > Visibility (PVS)` | OK | Camera view modes > Visibility (PVS): aus der .bsp; die Zahl der sichtbaren Cluster gleich den Bits im Vis-Lump, weniger als alle |
+| `Eigen \| View > Camera view modes > Triangle load` | OK | Camera view modes > Triangle load: Last am Ort gleich den Dreiecken der sichtbaren Flaechen, hoechste Last >= diese |

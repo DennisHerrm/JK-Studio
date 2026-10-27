@@ -3102,3 +3102,7 @@ Knopftest OK: Logic view > Klick: relais gewaehlt, 2D-Ansicht und Kamera darauf 
 Knopftest OK: Logic view > Doppelklick auf ein fehlendes Skript: Kasten mit scripts/gibtsnicht/skript
 Knopftest OK: Logic view > Doppelklick auf ein Skript des Spiels: im Skript-Editor des Programms offen
 Knopftest OK: Logic view (Testerkarte, falls da): jede Verknuepfung ist eine Kante oder ein fehlendes Ziel
+Knopftest OK: View > Camera view modes > Collision: playerclip farbig, die sichtbare nonsolid-Wand rot, der Bildpunkt auf ihr aendert sich
+Knopftest OK: Camera view modes > Lightmap density: Luxel wie q3map2 - Boden 16, func_group mit _lightmapscale 2 = 32, 4096er Platte vergroessert auf 33
+Knopftest OK: Camera view modes > Visibility (PVS): aus der .bsp; die Zahl der sichtbaren Cluster gleich den Bits im Vis-Lump, weniger als alle
+Knopftest OK: Camera view modes > Triangle load: Last am Ort gleich den Dreiecken der sichtbaren Flaechen, hoechste Last >= diese
