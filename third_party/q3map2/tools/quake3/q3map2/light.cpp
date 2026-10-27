@@ -32,6 +32,7 @@
 #include "q3map2.h"
 #include "bhed_lichtcache.h" /* BehavEd stage 8a: -bhedlightcache */
 #include "bhed_gpuschatten.h" /* BehavEd stage 8b: -bhedgpu */
+#include "bhed_gpubacken.h" /* BehavEd stage 8c: -bhedgpubake */
 #include "bspfile_rbsp.h"
 #include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, grid pre-pass in parallel */
 #include <set>
@@ -2402,6 +2403,11 @@ int LightMain( Args& args ){
 	const char *fileName = args.takeBack();
 	const bool bhedLichtCache = args.takeArg( "-bhedlightcache" ); /* BehavEd stage 8a: before argsToInject (not in the worldspawn command line) */
 	const bool bhedGpuWunsch = args.takeArg( "-bhedgpu" ); /* BehavEd stage 8b: shadow tests on the GPU, same reason */
+	const bool bhedBakeWunsch = args.takeArg( "-bhedgpubake" ); /* BehavEd stage 8c: light contributions on the GPU, same reason */
+	std::string bhedBakeAdapter;
+	while ( args.takeArg( "-bhedgpuadapter" ) ) { /* BehavEd stage 8c: GPU by number or part of its name */
+		bhedBakeAdapter = args.takeNext();
+	}
 	const auto argsToInject = args.getVector();
 	{
 		/* lightsource scaling */
@@ -3136,12 +3142,23 @@ int LightMain( Args& args ){
 	if ( bhedGpuWunsch ) {
 		BhedGpuVorbereiten(); /* BehavEd stage 8b: -bhedgpu */
 	}
+	if ( bhedBakeWunsch ) { /* BehavEd stage 8c: -bhedgpubake */
+		g_bhedBakeAn = BhedBakeVorbereiten( bhedBakeAdapter );
+		if ( !g_bhedBakeAn ) {
+			Sys_Printf( "BehavEd GPU bake: no usable GPU - the CPU computes everything\n" );
+		}
+	}
 
 	/* light the world */
 	LightWorld( fastAllocate, bounceStore );
 	BhedZeit( "light: nach LightWorld" );
 	if ( bhedGpuWunsch ) {
 		BhedGpuEnde();
+	}
+	if ( g_bhedBakeAn ) { /* BehavEd stage 8c */
+		BhedBakeBericht( source );
+		BhedBakeEnde();
+		g_bhedBakeAn = false;
 	}
 
 	/* ydnar: export lightmaps */

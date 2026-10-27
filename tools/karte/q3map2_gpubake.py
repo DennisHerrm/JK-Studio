@@ -1,0 +1,206 @@
+#!/usr/bin/env python3
+"""Stufe 8c Punkt 2: q3map2 -light -bhedgpubake (Lichtbeitraege der ersten
+Abtastung auf der GPU) gegen die CPU.
+
+Dieselbe Testkarte wie q3map2_gpu.py (Raum, Saeulen, Durchgang, drei Lichter, ein
+Patch), dazu ein Spot und Bounce-Runden (Flaechenlichter): gebaut (-bsp -meta,
+-vis), dann beleuchtet mit -samples 2 -filter -patchshadows -bounce 2:
+
+  1. CPU                       - die Vorlage
+  2. GPU                       - feste Obergrenze der Abweichung: der Bericht
+                                 ("samples checked") >= 99,9 % gleich, keine andere
+                                 Treffer-Entscheidung; mit double-GPU zusaetzlich alle
+                                 18 Lumps Byte-gleich mit der CPU
+  3. GPU noch einmal           - dasselbe Ergebnis wie 2 (wiederholtes Backen)
+  4. GPU mit Geraeteverlust    - BHED_GPUBAKE_VERLUST=2 taeuscht nach zwei Dispatches
+     mitten im Backen          einen Verlust vor: kein Absturz, Meldung "lost", der
+                                 Rest auf der CPU, die Lumps gleich der CPU
+  5. GPU ohne double           - BHED_GPUBAKE_OHNE_DOUBLE: float-Naeherungen, nur die
+                                 Obergrenze (>= 75 % gleich, keine nicht endlichen Werte)
+  6. Himmel mit Sonne          - ein Hof unter einem Himmels-Shader mit q3map_sunExt (eigener
+                                 Spielordner im Test): CPU und GPU, Treffer 0, mit double
+                                 Byte-gleich. Rot vor der Behebung: der skyIndex eines Shaders
+                                 entsteht erst in LightWorld und war fuer die GPU immer -1 -
+                                 auf md_ch_ben nur 21 % gleich, 32807 andere Treffer-Entscheidungen.
+
+Ohne Direct-3D-11-GPU meldet q3map2 "no usable GPU" und rechnet auf der CPU - die
+Lumps muessen dann gleich sein, die GPU-Pruefungen entfallen (ok mit Hinweis).
+
+Aufruf: q3map2_gpubake.py <bhed_q3map2.exe>   (nur die Standardbibliothek)
+"""
+import os
+import re
+import shutil
+import struct
+import subprocess
+import sys
+import tempfile
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from q3map2_pfade import kasten  # noqa: E402
+from q3map2_gpu import karte as grundkarte  # noqa: E402
+
+NL = '\n'
+
+
+def karte():
+    t = grundkarte()
+    t += ('{' + NL + '"classname" "light"' + NL + '"origin" "-300 -300 200"' + NL + '"light" "500"' + NL +
+          '"target" "spotziel"' + NL + '}' + NL)
+    t += '{' + NL + '"classname" "info_null"' + NL + '"targetname" "spotziel"' + NL + '"origin" "-300 -300 0"' + NL + '}' + NL
+    return t
+
+
+HIMMEL_SHADER = ('textures/test/himmel' + NL + '{' + NL + '\tqer_editorimage textures/test/himmel' + NL +
+                 '\tsurfaceparm sky' + NL + '\tsurfaceparm noimpact' + NL + '\tsurfaceparm nolightmap' + NL +
+                 '\tq3map_sunExt 1 0.9 0.8 350 45 60 2 8' + NL + '\tq3map_skylight 60 3' + NL + '}' + NL)
+
+
+def hofkarte():
+    w = '{' + NL + '"classname" "worldspawn"' + NL
+    w += kasten(-512, -512, -16, 512, 512, 0, 'base/floor')
+    w += kasten(-528, -512, 0, -512, 512, 320, 'base/wall')
+    w += kasten(512, -512, 0, 528, 512, 320, 'base/wall')
+    w += kasten(-512, -528, 0, 512, -512, 320, 'base/wall')
+    w += kasten(-512, 512, 0, 512, 528, 320, 'base/wall')
+    w += kasten(-512, -512, 320, 512, 512, 336, 'test/himmel')
+    for x, y in ((-300, -300), (200, -100), (0, 250)):
+        w += kasten(x, y, 0, x + 64, y + 64, 200, 'base/wall')
+    w += kasten(-200, 0, 120, 100, 80, 136, 'base/wall')
+    w += '}' + NL
+    w += '{' + NL + '"classname" "info_player_start"' + NL + '"origin" "-400 0 24"' + NL + '}' + NL
+    return w
+
+
+def lumps(bsp):
+    d = open(bsp, 'rb').read()
+    return [d[o:o + n] for o, n in (struct.unpack_from('<ii', d, 8 + 8 * i) for i in range(18))]
+
+
+def lauf(exe, args, ordner, env=None):
+    e = dict(os.environ)
+    e.update(env or {})
+    r = subprocess.run([exe] + args, capture_output=True, timeout=1800, cwd=ordner, env=e)
+    return r.returncode, r.stdout.decode('utf-8', 'replace')
+
+
+def bericht(aus):
+    m = re.search(r'BehavEd GPU bake report: (\d+) samples checked on the CPU, ([0-9.]+) % identical; different: (\d+) hit decision \(shadow\), '
+                  r'(\d+) boundary \(cull/envelope\), (\d+) arithmetic; mean \|diff\| ([0-9.]+), max \|diff\| ([0-9.]+)', aus)
+    if not m:
+        return None
+    return {'proben': int(m.group(1)), 'gleich': float(m.group(2)), 'treffer': int(m.group(3)), 'grenze': int(m.group(4)),
+            'rechnung': int(m.group(5)), 'mittel': float(m.group(6)), 'max': float(m.group(7))}
+
+
+def main():
+    if len(sys.argv) != 2 or not os.path.isfile(sys.argv[1]):
+        print('Aufruf: q3map2_gpubake.py <bhed_q3map2.exe>')
+        return 2
+    exe = os.path.abspath(sys.argv[1])
+    fehler = 0
+
+    def melde(gut, text):
+        nonlocal fehler
+        print(('ok    ' if gut else 'FEHL  ') + text)
+        fehler += 0 if gut else 1
+
+    with tempfile.TemporaryDirectory(prefix='bhed_gpubake_') as t:
+        vis = os.path.join(t, 'vis')
+        os.makedirs(vis)
+        m = os.path.join(vis, 'bake.map')
+        with open(m, 'w', encoding='utf-8', newline=NL) as f:
+            f.write(karte())
+        for args in (['-bsp', '-meta'], ['-vis']):
+            rc, aus = lauf(exe, ['-game', 'ja'] + args + [m], vis)
+            if rc != 0:
+                print('FEHL  %s: Rueckgabe %d' % (args[0], rc))
+                return 1
+        licht = ['-game', 'ja', '-light', '-fast', '-patchshadows', '-samples', '2', '-filter', '-bounce', '2']
+        ergebnis = {}
+        for art, extra, env in (('cpu', [], None), ('gpu', ['-bhedgpubake'], None), ('gpu2', ['-bhedgpubake'], None),
+                                ('verlust', ['-bhedgpubake'], {'BHED_GPUBAKE_VERLUST': '2'}),
+                                ('float', ['-bhedgpubake'], {'BHED_GPUBAKE_OHNE_DOUBLE': '1'})):
+            d = os.path.join(t, art)
+            os.makedirs(d)
+            for e in ('.map', '.bsp', '.srf'):
+                shutil.copy(os.path.join(vis, 'bake' + e), os.path.join(d, 'bake' + e))
+            rc, aus = lauf(exe, licht + extra + [os.path.join(d, 'bake.map')], d, env)
+            if rc != 0:
+                print('FEHL  -light %s: Rueckgabe %d' % (art, rc))
+                return 1
+            ergebnis[art] = (lumps(os.path.join(d, 'bake.bsp')), aus)
+        cpu = ergebnis['cpu'][0]
+        aus = ergebnis['gpu'][1]
+        if 'BehavEd GPU bake' not in aus:
+            melde(False, '-bhedgpubake: keine Meldung von q3map2 - der Schalter fehlt in dieser bhed_q3map2.exe')
+            print('q3map2_gpubake: %d Fehler' % fehler)
+            return 1
+        if 'no usable GPU' in aus or 'BehavEd GPU bake report' not in aus:
+            gleich = ergebnis['gpu'][0] == cpu
+            melde(gleich, '-bhedgpubake ohne Direct-3D-11-GPU: die CPU hat gerechnet, Lumps gleich (%s)' %
+                  next((x for x in aus.splitlines() if 'BehavEd GPU bake' in x), 'ohne Meldung'))
+            print('q3map2_gpubake: %d Fehler' % fehler)
+            return 1 if fehler else 0
+        doppelt = ', double,' in aus
+        name = re.search(r'BehavEd GPU bake: (.*?) \(feature level', aus)
+        b = bericht(aus)
+        melde(b is not None and b['proben'] > 0 and b['gleich'] >= 99.9 and b['treffer'] == 0,
+              '-bhedgpubake auf %s (%s): %s Proben, %.4f %% gleich, Treffer %s, Grenze %s, Rechnung %s, max %s - Obergrenze >= 99,9 %%, Treffer 0' %
+              (name.group(1) if name else '?', 'double' if doppelt else 'float', b and b['proben'], b['gleich'] if b else 0, b and b['treffer'],
+               b and b['grenze'], b and b['rechnung'], b and b['max']))
+        gpu = ergebnis['gpu'][0]
+        if doppelt:
+            anders = [i for i in range(18) if gpu[i] != cpu[i]]
+            melde(not anders and len(cpu[14]) > 0, 'GPU mit double: alle 18 Lumps Byte-gleich mit der CPU%s' % ('' if not anders else ' - anders: %s' % anders))
+        melde(ergebnis['gpu2'][0] == gpu, 'zweites GPU-Backen: dasselbe Ergebnis wie das erste (alle Lumps)')
+        av = ergebnis['verlust'][1]
+        melde('graphics device was lost' in av and ergebnis['verlust'][0][14] == cpu[14] and ergebnis['verlust'][0][15] == cpu[15] and
+              'pairs on the GPU' in av,
+              'Geraeteverlust mitten im Backen (vorgetaeuscht nach 2 Dispatches): Meldung, kein Absturz, Lightmaps und Gitter gleich der CPU')
+        bf = bericht(ergebnis['float'][1])
+        nf = re.search(r'\((\d+) not finite\)', ergebnis['float'][1])
+        melde(bf is not None and bf["gleich"] >= 75.0 and nf is not None and int(nf.group(1)) == 0 and 'float only' in ergebnis['float'][1],
+              'GPU ohne double (float-Naeherungen): %.4f %% gleich (Obergrenze >= 75 %%), Treffer %s, nicht endlich %s' %
+              (bf['gleich'] if bf else 0, bf and bf['treffer'], nf.group(1) if nf else '?'))
+        # 6. Himmel mit Sonne (eigener Spielordner mit dem Himmels-Shader)
+        spiel = os.path.join(t, 'spiel')
+        os.makedirs(os.path.join(spiel, 'base', 'shaders'))
+        with open(os.path.join(spiel, 'base', 'shaders', 'test.shader'), 'w', encoding='ascii', newline=NL) as f:
+            f.write(HIMMEL_SHADER)
+        hv = os.path.join(t, 'hof')
+        os.makedirs(hv)
+        hm = os.path.join(hv, 'hof.map')
+        with open(hm, 'w', encoding='utf-8', newline=NL) as f:
+            f.write(hofkarte())
+        grund = ['-game', 'ja', '-fs_basepath', spiel]
+        for args in (['-bsp', '-meta'], ['-vis']):
+            rc, _ = lauf(exe, grund + args + [hm], hv)
+            if rc != 0:
+                print('FEHL  Hof %s: Rueckgabe %d' % (args[0], rc))
+                return 1
+        hof = {}
+        for art, extra in (('hcpu', []), ('hgpu', ['-bhedgpubake'])):
+            d = os.path.join(t, art)
+            os.makedirs(d)
+            for e in ('.map', '.bsp', '.srf'):
+                shutil.copy(os.path.join(hv, 'hof' + e), os.path.join(d, 'hof' + e))
+            rc, aus = lauf(exe, grund + ['-light', '-fast', '-samples', '2', '-filter', '-bounce', '1', '-threads', '4'] + extra + [os.path.join(d, 'hof.map')], d)
+            if rc != 0:
+                print('FEHL  Hof -light %s: Rueckgabe %d' % (art, rc))
+                return 1
+            hof[art] = (lumps(os.path.join(d, 'hof.bsp')), aus)
+        hs = re.search(r'(\d+) sun/sky lights', hof['hcpu'][1])
+        bh = bericht(hof['hgpu'][1])
+        melde(hs is not None and int(hs.group(1)) > 0 and bh is not None and bh['proben'] > 0 and bh['treffer'] == 0 and bh['gleich'] >= 99.9,
+              'Hof unter Himmel: %s Sonnen-/Himmelslichter, %s Proben, %.4f %% gleich, Treffer %s (Obergrenze >= 99,9 %%, Treffer 0)' %
+              (hs.group(1) if hs else '?', bh and bh['proben'], bh['gleich'] if bh else 0, bh and bh['treffer']))
+        if doppelt:
+            anders = [i for i in range(18) if hof['hgpu'][0][i] != hof['hcpu'][0][i]]
+            melde(not anders, 'Hof unter Himmel mit double: alle 18 Lumps Byte-gleich mit der CPU%s' % ('' if not anders else ' - anders: %s' % anders))
+    print('q3map2_gpubake: %d Fehler' % fehler)
+    return 1 if fehler else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

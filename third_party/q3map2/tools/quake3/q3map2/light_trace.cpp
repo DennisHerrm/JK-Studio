@@ -31,6 +31,7 @@
 /* dependencies */
 #include "q3map2.h"
 #include "bhed_gpuschatten.h" /* BehavEd stage 8b: -bhedgpu, shadow tests on the GPU */
+#include "bhed_gpubacken.h" /* BehavEd stage 8c: -bhedgpubake, light contributions on the GPU */
 
 
 #define MAX_NODE_ITEMS          5
@@ -1598,6 +1599,64 @@ void BhedGpuVorbereiten(){
 	}
 	const float konstanten[ 5 ] = { BARY_EPSILON, 1.0f + BARY_EPSILON, COPLANAR_EPSILON, SELF_SHADOW_EPSILON, TRACE_ON_EPSILON };
 	g_bhedGpu = BhedGpuStart( knoten, items, dreiecke, infos, lightSurfaces, numLightSurfaces, headNodeNum, konstanten );
+}
+
+/* BehavEd stage 8c: -bhedgpubake - the trace nodes (numItems also for inner nodes: testAll skips
+   empty branches), triangles, infos with the sky index, the surface lists and the PVS for the GPU */
+bool BhedBakeVorbereiten( const std::string& adapter ){
+	std::vector<BhedBakeKnoten> knoten( numTraceNodes );
+	std::vector<int> items;
+	for ( int i = 0; i < numTraceNodes; ++i )
+	{
+		const traceNode_t& n = traceNodes[ i ];
+		BhedBakeKnoten& k = knoten[ i ];
+		k.typ = n.type;
+		for ( int j = 0; j < 3; ++j ) {
+			k.n[ j ] = n.plane.normal()[ j ];
+		}
+		k.dist = n.plane.dist();
+		k.kind[ 0 ] = n.children[ 0 ];
+		k.kind[ 1 ] = n.children[ 1 ];
+		k.anzahl = n.numItems;
+		k.erstes = int( items.size() );
+		k.pad = 0;
+		if ( n.type < 0 ) {
+			items.insert( items.end(), n.items, n.items + n.numItems );
+		}
+	}
+	std::vector<BhedBakeDreieck> dreiecke( numTraceTriangles );
+	for ( int i = 0; i < numTraceTriangles; ++i )
+	{
+		const traceTriangle_t& t = traceTriangles[ i ];
+		for ( int j = 0; j < 3; ++j ) {
+			dreiecke[ i ].v0[ j ] = t.v[ 0 ].xyz[ j ];
+			dreiecke[ i ].e1[ j ] = t.edge1[ j ];
+			dreiecke[ i ].e2[ j ] = t.edge2[ j ];
+		}
+		dreiecke[ i ].info = t.infoNum;
+	}
+	return BhedBakeStart( knoten, items, dreiecke, BhedBakeInfos(), lightSurfaces, numLightSurfaces, headNodeNum,
+	                      bspVisBytes.data(), bspVisBytes.size(), adapter );
+}
+
+/* the trace infos for the GPU - again for every round: the sky index of a shader (skyIndex) is only
+   set in LightWorld (sun/sky light setup) */
+std::vector<BhedBakeInfo> BhedBakeInfos(){
+	std::vector<BhedBakeInfo> infos( numTraceInfos );
+	for ( int i = 0; i < numTraceInfos; ++i )
+	{
+		const traceInfo_t& ti = traceInfos[ i ];
+		BhedBakeInfo& f = infos[ i ];
+		f = BhedBakeInfo{};
+		f.cast = ti.castShadows;
+		f.skipGrid = ti.skipGrid ? 1 : 0;
+		f.flaeche = ti.surfaceNum;
+		const shaderInfo_t *si = ti.si;
+		f.flags = ( ( si->compileFlags & C_SKY ) ? 1 : 0 ) |
+		          ( ( ( si->compileFlags & ( C_ALPHASHADOW | C_LIGHTFILTER ) ) && si->lightImage != nullptr && si->lightImage->pixels != nullptr ) ? 2 : 0 );
+		f.skyIndex = si->skyIndex;
+	}
+	return infos;
 }
 
 void TraceLine( trace_t *trace ){

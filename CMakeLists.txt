@@ -769,6 +769,13 @@ if(BEHAVED_TESTS)
                COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_gpu.py
                        $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe)
       set_tests_properties(q3map2_gpu PROPERTIES TIMEOUT 1800)
+      # Stufe 8c Punkt 2: -light -bhedgpubake (Lichtbeitraege auf der GPU) gegen die CPU: feste
+      # Obergrenze der Abweichung, mit double Byte-gleich, wiederholtes Backen gleich,
+      # vorgetaeuschter Geraeteverlust mitten im Backen, float-Weg ohne double
+      add_test(NAME q3map2_gpubake
+               COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_gpubake.py
+                       $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe)
+      set_tests_properties(q3map2_gpubake PROPERTIES TIMEOUT 1800)
       # Stufe 6: die Regressionsfaelle aus NRC-PR #316 (regression_tests/auto-pigeon des Forks
       # auto-pigeon/q3map2, nicht im Repo) - mit -DBEHAVED_Q3MAP2_PR316=<Ordner mit cases.json>
       set(BEHAVED_Q3MAP2_PR316 "" CACHE PATH "Ordner regression_tests/auto-pigeon aus NRC-PR #316 (optional)")
