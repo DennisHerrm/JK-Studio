@@ -195,7 +195,7 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.hart = false;
         g.stellen.push_back(st(b, b.qcommon, "qfiles.h", z.lightgridArray, "MAX_MAP_LIGHTGRID_ARRAY", 0x100000));
         g.stellen.push_back(q3("tools/quake3/q3map2/q3map2.h", 210, "MAX_MAP_LIGHTGRID", 0x100000));
-        g.pruefstelle = "the engine reads any size (" + rd + "tr_bsp.cpp R_LoadLightGridArray); q3map2 light.cpp:1877 "
+        g.pruefstelle = "the engine reads any size (" + rd + "tr_bsp.cpp R_LoadLightGridArray); q3map2 light.cpp:1878 "
                         "raises gridsize until the array fits";
         g.rechnung = "grid cells (gridBounds[0] * [1] * [2])";
         t.push_back(std::move(g));
