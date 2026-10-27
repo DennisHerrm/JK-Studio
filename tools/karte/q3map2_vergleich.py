@@ -297,8 +297,10 @@ def erwartung_schreiben(nrc, uns, daten, laeufe):
     return 0
 
 
-def uebersetzer(exe, soll):
-    """Mit welchem Linker bhed_q3map2.exe gebaut ist: 'msvc' (link.exe, mit Rich-Kopf) oder 'clang' (lld-link, ohne)."""
+def uebersetzer(exe, soll, clang=None, fassung=None):
+    """Mit welchem Linker bhed_q3map2.exe gebaut ist: 'msvc' (link.exe, mit Rich-Kopf) oder 'clang' (lld-link, ohne).
+    Stufe 8c: mit clang-cl und Fassung zusaetzlich, dass genau die verglichene LLVM-Fassung gebaut hat
+    (clang-cl --version enthaelt "clang version <fassung>"; release.yml laedt dieselbe)."""
     with open(exe, 'rb') as f:
         kopf = f.read(4096)
     if kopf[:2] != b'MZ':
@@ -311,12 +313,26 @@ def uebersetzer(exe, soll):
     ist = 'msvc' if kopf.find(b'Rich', 0x40, pe) >= 0 else 'clang'
     linker = '%d.%d' % (kopf[pe + 26], kopf[pe + 27])
     print('q3map2_uebersetzer: %s gebaut mit %s (Linker-Fassung %s), erwartet %s' % (exe, ist, linker, soll))
-    return 0 if ist == soll else 1
+    if ist != soll:
+        return 1
+    if clang is not None:
+        try:
+            v = subprocess.run([clang, '--version'], capture_output=True, timeout=60).stdout.decode('utf-8', 'replace')
+        except OSError as e:
+            print('q3map2_uebersetzer: %s laesst sich nicht starten: %s' % (clang, e))
+            return 1
+        erste = v.splitlines()[0] if v else ''
+        gut = ('clang version %s' % fassung) in v
+        print('q3map2_uebersetzer: %s meldet "%s", erwartet "clang version %s"' % (clang, erste, fassung))
+        return 0 if gut else 1
+    return 0
 
 
 def main(argv):
     if len(argv) >= 3 and argv[0] == 'pruefen':
         return pruefen(argv[1], argv[2])
+    if len(argv) >= 5 and argv[0] == 'uebersetzer' and argv[2] == 'clang':
+        return uebersetzer(argv[1], argv[2], argv[3], argv[4])
     if len(argv) >= 3 and argv[0] == 'uebersetzer' and argv[2] in ('clang', 'msvc'):
         return uebersetzer(argv[1], argv[2])
     if len(argv) >= 4 and argv[0] == 'erwartung':
