@@ -37159,7 +37159,8 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         // "Add to compiled map...", "Notify when a build is done" je 24 (Stufe 8a, Abweichung;
         // der laengste Text "Partial compile: reuse light" mit Hakenspalte: 215 -> 241)
         // + "Pack map as .pk3" 24 (Stufe 8c, Abweichung; kuerzer als 241)
-        {"Build", {"Build"}, 241, 405 + 7 + 24 + 24 + 24 + 24 + 24 + 5 * 24 + 24},
+        // + "GPU bake" 24 (Stufe 8g, Abweichung; kuerzer als 241)
+        {"Build", {"Build"}, 241, 405 + 7 + 24 + 24 + 24 + 24 + 24 + 5 * 24 + 24 + 24},
         {"Grid", {"Grid"}, 163, 346},
         // Misc und Help: NRC + die Programm-Eintraege (Stufe 3 Punkt 0b, Abweichung):
         // Misc + Trenner 7 + drei Untermenues je 24, Help + Manual und About BehavEd.
