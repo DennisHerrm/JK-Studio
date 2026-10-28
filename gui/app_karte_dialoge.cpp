@@ -1816,9 +1816,9 @@ void zeichneEinstellungen() {
             if (!ed.menueAbreissbar) { ed.abrisse.clear(); }
             ed.shaderEditorBefehl = g_entwurf.shaderEditor;
             {   // GameFileImport: LatchedValue - wirkt erst nach dem Neustart
-                const std::string neu = karte::spielBeschreibungen()[static_cast<std::size_t>(g_entwurf.spielWahl)].datei;
-                if (neu != kartenSpiel().datei || !ed.spielDateiNeu.empty()) {
-                    ed.spielDateiNeu = neu == kartenSpiel().datei ? std::string() : neu;
+                const std::string neuDatei = karte::spielBeschreibungen()[static_cast<std::size_t>(g_entwurf.spielWahl)].datei;
+                if (neuDatei != kartenSpiel().datei || !ed.spielDateiNeu.empty()) {
+                    ed.spielDateiNeu = neuDatei == kartenSpiel().datei ? std::string() : neuDatei;
                     if (!ed.spielDateiNeu.empty()) { ed.neustartFragen.emplace_back("Selected Game"); }   // m_sGameFile( "", "Selected Game" ): restartRequired
                 }
             }

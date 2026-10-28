@@ -44,6 +44,7 @@
 #include <thread>
 #include <string>
 #include <vector>
+#include "bhed/utf8pfad.h"
 
 namespace bhed::gui {
 
@@ -854,7 +855,7 @@ std::vector<std::string> dateiBasen(const DateiFilter& d) {
 
 bool dateiDa(const std::string& p) {
     std::error_code ec;
-    return !p.empty() && std::filesystem::exists(std::filesystem::u8path(p), ec);
+    return !p.empty() && std::filesystem::exists(::bhed::utf8Pfad(p), ec);
 }
 
 // "..." - Datei waehlen und RELATIV eintragen.
@@ -3903,7 +3904,7 @@ void handbuchOeffnen(const char* seite) {
     for (const std::string& basis : {exe, exe + "\\.."}) {
         const std::string datei = basis + "\\handbuch\\" + code + "\\" + seite;
         std::error_code ec;
-        if (std::filesystem::exists(std::filesystem::u8path(datei), ec)) {
+        if (std::filesystem::exists(::bhed::utf8Pfad(datei), ec)) {
             platform::openWithDefaultApp(datei);
             return;
         }
@@ -4101,11 +4102,11 @@ std::string sicherungsOrdner(const std::string& quelle) {
     for (int n = 1; n <= 99; ++n) {
         const std::string ordner = n == 1 ? basis : basis + "~" + std::to_string(n);
         std::error_code ec;
-        if (!std::filesystem::exists(std::filesystem::u8path(ordner), ec)) {
+        if (!std::filesystem::exists(::bhed::utf8Pfad(ordner), ec)) {
             return ordner;
         }
         const std::string marke = ordner + kSicherungsMarke;
-        if (!std::filesystem::exists(std::filesystem::u8path(marke), ec)) {
+        if (!std::filesystem::exists(::bhed::utf8Pfad(marke), ec)) {
             return ordner;
         }
         if (pfadSchluessel(slurp(marke)) == schluessel) {
@@ -4120,18 +4121,18 @@ void sicherungAnlegen(const std::string& quelle, const std::string& inhalt) {
     constexpr int kAnzahl = 10;
     std::error_code ec;
     const std::string ordner = sicherungsOrdner(quelle);
-    fs::create_directories(fs::u8path(ordner), ec);
-    if (!fs::exists(fs::u8path(ordner + kSicherungsMarke), ec)) {
+    fs::create_directories(::bhed::utf8Pfad(ordner), ec);
+    if (!fs::exists(::bhed::utf8Pfad(ordner + kSicherungsMarke), ec)) {
         (void)spew(ordner + kSicherungsMarke, quelle);
     }
     const auto datei = [&](int n) { return ordner + "/backup" + std::to_string(n) + ".txt"; };
-    if (fs::exists(fs::u8path(datei(1)), ec) && slurp(datei(1)) == inhalt) {
+    if (fs::exists(::bhed::utf8Pfad(datei(1)), ec) && slurp(datei(1)) == inhalt) {
         return;
     }
-    fs::remove(fs::u8path(datei(kAnzahl)), ec);
+    fs::remove(::bhed::utf8Pfad(datei(kAnzahl)), ec);
     for (int n = kAnzahl - 1; n >= 1; --n) {
-        if (fs::exists(fs::u8path(datei(n)), ec)) {
-            fs::rename(fs::u8path(datei(n)), fs::u8path(datei(n + 1)), ec);
+        if (fs::exists(::bhed::utf8Pfad(datei(n)), ec)) {
+            fs::rename(::bhed::utf8Pfad(datei(n)), ::bhed::utf8Pfad(datei(n + 1)), ec);
         }
     }
     if (!spew(datei(1), inhalt)) {
@@ -4145,7 +4146,7 @@ void sicherungsOrdnerOeffnen() {
     const std::string o = g_app->path.empty() ? platform::executableDirectory() + "/backup"
                                               : sicherungsOrdner(g_app->path);
     std::error_code ec;
-    std::filesystem::create_directories(std::filesystem::u8path(o), ec);
+    std::filesystem::create_directories(::bhed::utf8Pfad(o), ec);
     platform::openInExplorer(o);
 }
 
@@ -4162,7 +4163,7 @@ bool doSave() {
     // save)". behaved meldete nur einen Fehler.
     {
         std::error_code ec;
-        const std::filesystem::path fp = std::filesystem::u8path(quelle);
+        const std::filesystem::path fp = ::bhed::utf8Pfad(quelle);
         if (std::filesystem::exists(fp, ec) &&
             (std::filesystem::status(fp, ec).permissions() &
              std::filesystem::perms::owner_write) == std::filesystem::perms::none) {
@@ -4780,7 +4781,7 @@ namespace {
 std::string pfadSchluessel(const std::string& p) {
     std::error_code ec;
     const std::filesystem::path c =
-        std::filesystem::weakly_canonical(std::filesystem::u8path(p), ec);
+        std::filesystem::weakly_canonical(::bhed::utf8Pfad(p), ec);
     std::string s = p;
     if (!ec) {
         const auto u = c.u8string();
@@ -9785,7 +9786,7 @@ void drawStatus(const Layout& l) {
             }
             ibi += ".ibi";
             std::error_code ec;
-            const auto wann = std::filesystem::last_write_time(std::filesystem::u8path(ibi), ec);
+            const auto wann = std::filesystem::last_write_time(::bhed::utf8Pfad(ibi), ec);
             if (!ec) {
                 const auto sys = std::chrono::clock_cast<std::chrono::system_clock>(wann);
                 const std::time_t tt = std::chrono::system_clock::to_time_t(sys);

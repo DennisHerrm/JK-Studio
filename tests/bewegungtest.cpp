@@ -2086,8 +2086,8 @@ void echteKarte(const char* datei) {
         ++laeufe;
         if (pl.ankunftMs >= 0.0) { ++an; }
         if (pl.nie) { ++nie; }
-        for (const LaufTakt& k : pl.takte) {
-            const NavSpur r = spur(k.ort, {-16, -16, -24 + 18}, {16, 16, 40}, k.ort, -1, kNavSolid);
+        for (const LaufTakt& kTakt : pl.takte) {
+            const NavSpur r = spur(kTakt.ort, {-16, -16, -24 + 18}, {16, 16, 40}, kTakt.ort, -1, kNavSolid);
             if (r.startsolid || r.allsolid) {
                 ++steckt;
                 break;
@@ -4674,10 +4674,10 @@ void spruenge605() {
                 ok = k0.beinAnim == kSaJump1 && nah(k0.beinAnimAb, 2100.0, 0.1) && k0.torsoAnim == kSaSprung &&
                      nah(k0.torsoAnimAb, 2100.0, 0.1) && nah(k0.torsoGesetztAb, 2100.0, 0.1);
                 for (std::size_t i = ab; ok && i < land; ++i) {
-                    const LaufTakt& k = kp.takte[i];
-                    const bool torsoFrei = k.t >= 2450.0 - 0.1;
-                    ok = k.beinAnim == kSaJump1 && nah(k.beinAnimAb, 2100.0, 0.1) &&
-                         (torsoFrei ? k.torsoAnim == kSaKeine : k.torsoAnim == kSaSprung);
+                    const LaufTakt& kTakt1 = kp.takte[i];
+                    const bool torsoFrei = kTakt1.t >= 2450.0 - 0.1;
+                    ok = kTakt1.beinAnim == kSaJump1 && nah(kTakt1.beinAnimAb, 2100.0, 0.1) &&
+                         (torsoFrei ? kTakt1.torsoAnim == kSaKeine : kTakt1.torsoAnim == kSaSprung);
                 }
                 const LaufTakt& kl = kp.takte[land];
                 const double tl = kl.t;
@@ -4688,8 +4688,8 @@ void spruenge605() {
                 ok = ok && kl.beinAnim == kSaLand1 && nah(kl.beinAnimAb, tl, 0.1) && kl.torsoAnim == kSaKeine &&
                      nah(kp.zustaende[land - 1].tempoVek[0], 200.0, 0.5) && vxLand <= 100.0F;
                 for (std::size_t i = land; ok && i < kp.takte.size(); ++i) {
-                    const LaufTakt& k = kp.takte[i];
-                    ok = k.t < tl + 300.0 - 0.1 ? (k.beinAnim == kSaLand1 && nah(k.beinAnimAb, tl, 0.1)) : k.beinAnim == kSaKeine;
+                    const LaufTakt& kTakt2 = kp.takte[i];
+                    ok = kTakt2.t < tl + 300.0 - 0.1 ? (kTakt2.beinAnim == kSaLand1 && nah(kTakt2.beinAnimAb, tl, 0.1)) : kTakt2.beinAnim == kSaKeine;
                 }
                 ok = ok && kp.takte.back().t >= tl + 300.0 - 0.1;
             }

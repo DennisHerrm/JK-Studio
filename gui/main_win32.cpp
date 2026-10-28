@@ -54,6 +54,7 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 #include <algorithm>
 #include <iterator>
 #include <string>
+#include "bhed/utf8pfad.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
 
@@ -1075,7 +1076,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         }
         if (neustart) {
             const std::filesystem::path marke =
-                std::filesystem::u8path(bhed::platform::executableDirectory()) / "neustart_angekommen.txt";
+                ::bhed::utf8Pfad(bhed::platform::executableDirectory()) / "neustart_angekommen.txt";
             if (FILE* f = _wfopen(marke.c_str(), L"wb")) {
                 std::fputs("ja\n", f);
                 std::fclose(f);
@@ -1143,7 +1144,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     // des laufenden Tests weg.
     if (std::getenv("BHED_EINZEL") != nullptr && std::getenv("BHED_EDITORTEST") == nullptr) {
         logDir += "\\zweite";
-        CreateDirectoryW(std::filesystem::u8path(logDir).wstring().c_str(), nullptr);
+        CreateDirectoryW(::bhed::utf8Pfad(logDir).wstring().c_str(), nullptr);
     }
     bool logging = !logDir.empty() &&
                    bhed::diag::open(logDir + "\\behaved.log");

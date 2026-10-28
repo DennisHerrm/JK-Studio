@@ -1751,22 +1751,22 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
             // rc605 (Ende): blockiert? Dann steht das Team, und Blocked_Door (g_mover.cpp:
             // 1193-1239 MD) schadet der Figur und kehrt um - ein CRUSHER (4) nicht.
             if (team.lage == Lage::AufDemWeg || team.lage == Lage::ZurueckDemWeg) {
-                int figur = -1;
+                int figurHier = -1;
                 std::size_t teil = 0;
-                for (std::size_t di = 0; di < team.tueren.size() && figur < 0; ++di) {
-                    figur = blockiertVon(team.tueren[di].mover, t);
+                for (std::size_t di = 0; di < team.tueren.size() && figurHier < 0; ++di) {
+                    figurHier = blockiertVon(team.tueren[di].mover, t);
                     teil = di;
                 }
-                if (figur >= 0) {
+                if (figurHier >= 0) {
                     for (const Tuer& d : team.tueren) { anhalten(d.mover, t); }
                     team.bahnAb += kTakt;
                     const Mover& mt = mover_[team.tueren[teil].mover];
                     // G_TryPushingEntity: pusher->damage
-                    quetsch_.push_back(Quetschung{t, mt.modell, mt.entity, figur, team.tueren[teil].schaden, false});
+                    quetsch_.push_back(Quetschung{t, mt.modell, mt.entity, figurHier, team.tueren[teil].schaden, false});
                     // Blocked_Door: ent->damage (der Meister), dann Use_BinaryMover
                     const Mover& mm = mover_[team.tueren.front().mover];
                     const bool kehrt = (team.flags & 4) == 0;
-                    quetsch_.push_back(Quetschung{t, mm.modell, mm.entity, figur, team.tueren.front().schaden, kehrt});
+                    quetsch_.push_back(Quetschung{t, mm.modell, mm.entity, figurHier, team.tueren.front().schaden, kehrt});
                     if (kehrt) { tuerUse(ti, t, 0); }
                     continue;
                 }
@@ -1819,12 +1819,12 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
             // rc605 (Ende): blockiert - der Zug steht (kein Blocked-Funktion fuer
             // func_train), G_TryPushingEntity schadet der Figur mit damage.
             if (z.faehrt) {
-                const int figur = blockiertVon(z.mover, t);
-                if (figur >= 0) {
+                const int figurBlock = blockiertVon(z.mover, t);
+                if (figurBlock >= 0) {
                     anhalten(z.mover, t);
                     z.trTime += kTakt;
                     const Mover& mz = mover_[z.mover];
-                    quetsch_.push_back(Quetschung{t, mz.modell, mz.entity, figur, z.schaden, false});
+                    quetsch_.push_back(Quetschung{t, mz.modell, mz.entity, figurBlock, z.schaden, false});
                     continue;
                 }
             }

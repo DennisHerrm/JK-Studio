@@ -148,6 +148,10 @@ def cstr(t):
         elif c == '"':
             aus.append('\\"')
         elif 32 <= b < 127:
+            # Stufe 8d: eine Ziffer direkt nach einem Oktal-Escape ist gueltig, aber MSVC warnt
+            # (C4125) - die Zeichenkette dort trennen ("\\343" "1"), die Bytes bleiben gleich.
+            if c.isdigit() and aus and len(aus[-1]) == 4 and aus[-1][0] == '\\' and aus[-1][1:].isdigit():
+                aus.append('" "')
             aus.append(c)
         else:
             aus.append('\\%03o' % b)

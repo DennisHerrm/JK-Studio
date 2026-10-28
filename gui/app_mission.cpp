@@ -44,6 +44,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "bhed/utf8pfad.h"
 
 namespace bhed::gui {
 namespace {
@@ -404,7 +405,7 @@ std::string pfadVerbinden(const std::string& a, const std::string& b) {
 
 bool schreibe(const std::string& pfad, const std::string& inhalt) {
     std::error_code ec;
-    const std::filesystem::path p = std::filesystem::u8path(pfad);
+    const std::filesystem::path p = ::bhed::utf8Pfad(pfad);
     std::filesystem::create_directories(p.parent_path(), ec);
     std::ofstream f(p, std::ios::binary | std::ios::trunc);
     if (!f) { return false; }
@@ -414,7 +415,7 @@ bool schreibe(const std::string& pfad, const std::string& inhalt) {
 
 bool gibtEs(const std::string& pfad) {
     std::error_code ec;
-    return !pfad.empty() && std::filesystem::exists(std::filesystem::u8path(pfad), ec);
+    return !pfad.empty() && std::filesystem::exists(::bhed::utf8Pfad(pfad), ec);
 }
 
 }  // namespace
@@ -2465,19 +2466,19 @@ void bahnGriffeMaus() {
         // ersten Stuecks (Start) bzw. das Ende dieses Stuecks und der Anfang
         // des naechsten (Ziel). Die Dauern rechnet erst das Loslassen neu.
         if (z.figur >= 0 && static_cast<std::size_t>(z.figur) < g_app->scene.actors.size() && !z.stepsVorher.empty()) {
-            Actor& a = g_app->scene.actors[static_cast<std::size_t>(z.figur)];
-            a.steps = z.stepsVorher;
+            Actor& aFigur = g_app->scene.actors[static_cast<std::size_t>(z.figur)];
+            aFigur.steps = z.stepsVorher;
             // rc601 (bewegung): die eingerechnete Schwerkraft gilt fuer die alte
             // Bahn - waehrend der Vorschau kommt Z wieder aus den Schritten, das
             // Loslassen baut die Szene neu und rechnet sie wieder ein.
-            a.hoehe.clear();
-            for (ActorStep& st : a.steps) { st.lauf.reset(); }   // rc601 (bewegung, Wege): linear in der Vorschau
+            aFigur.hoehe.clear();
+            for (ActorStep& st : aFigur.steps) { st.lauf.reset(); }   // rc601 (bewegung, Wege): linear in der Vorschau
             const auto gleich = [](const float* p, const float* q) {
                 return std::fabs(p[0] - q[0]) + std::fabs(p[1] - q[1]) + std::fabs(p[2] - q[2]) < 1.0F;
             };
             if (z.art == 0) {
-                for (int k = 0; k < 3; ++k) { a.start[k] = z.ort[k]; }
-                for (ActorStep& st : a.steps) {
+                for (int k = 0; k < 3; ++k) { aFigur.start[k] = z.ort[k]; }
+                for (ActorStep& st : aFigur.steps) {
                     // Ein Teleport auf den Spawnort (beim Erscheinen) geht mit.
                     if (st.kind == ActorStep::Kind::Teleport && gleich(st.to, z.startVorher)) {
                         for (int k = 0; k < 3; ++k) { st.to[k] = z.ort[k]; }
@@ -2492,7 +2493,7 @@ void bahnGriffeMaus() {
                 }
             } else {
                 bool danach = false;
-                for (ActorStep& st : a.steps) {
+                for (ActorStep& st : aFigur.steps) {
                     const bool bewegung = st.kind == ActorStep::Kind::WalkTo || st.kind == ActorStep::Kind::Glide;
                     if (!bewegung) { continue; }
                     if (danach) {
@@ -3597,7 +3598,7 @@ Zusammenstellung zusammenstellen() {
     std::set<std::string> schon;
     if (gibtEs(mp.projektOrdner)) {
         std::error_code ec;
-        const std::filesystem::path wurzel = std::filesystem::u8path(mp.projektOrdner);
+        const std::filesystem::path wurzel = ::bhed::utf8Pfad(mp.projektOrdner);
         for (auto it = std::filesystem::recursive_directory_iterator(wurzel, ec);
              !ec && it != std::filesystem::recursive_directory_iterator(); it.increment(ec)) {
             if (!it->is_regular_file(ec)) { continue; }
@@ -3704,7 +3705,7 @@ bool missionSpeichernNach(const std::string& pk3, std::string* fehler) {
         // Ein Skript, das schon woanders auf der Platte liegt, bleibt dort -
         // es wird nur gesichert. Eines ohne Datei bekommt die im Ordner.
         std::error_code ec;
-        std::filesystem::create_directories(std::filesystem::u8path(ziel).parent_path(), ec);
+        std::filesystem::create_directories(::bhed::utf8Pfad(ziel).parent_path(), ec);
         if (!reiterSpeichernUnter(r, jetzt.empty() ? ziel : std::string())) {
             return nein(ziel);
         }
@@ -3756,10 +3757,10 @@ std::vector<std::pair<std::string, std::string>> letzteMissionen() {
     std::vector<std::tuple<std::filesystem::file_time_type, std::string, std::string>> gefunden;
     const std::string wurzel = missionenWurzel();
     std::error_code ec;
-    if (wurzel.empty() || !std::filesystem::is_directory(std::filesystem::u8path(wurzel), ec)) {
+    if (wurzel.empty() || !std::filesystem::is_directory(::bhed::utf8Pfad(wurzel), ec)) {
         return {};
     }
-    for (const auto& d : std::filesystem::directory_iterator(std::filesystem::u8path(wurzel), ec)) {
+    for (const auto& d : std::filesystem::directory_iterator(::bhed::utf8Pfad(wurzel), ec)) {
         if (!d.is_directory(ec)) { continue; }
         const std::filesystem::path m = d.path() / "mission.txt";
         if (!std::filesystem::exists(m, ec)) { continue; }
@@ -3842,7 +3843,7 @@ bool missionAusOrdnerLaden(const std::string& ordner, std::string* fehler) {
     // Die Skripte des Ordners, das Intro zuerst.
     std::vector<std::string> skripte;
     std::error_code ec;
-    const std::filesystem::path sw = std::filesystem::u8path(pfadVerbinden(ordner, "scripts"));
+    const std::filesystem::path sw = ::bhed::utf8Pfad(pfadVerbinden(ordner, "scripts"));
     for (auto it = std::filesystem::recursive_directory_iterator(sw, ec);
          !ec && it != std::filesystem::recursive_directory_iterator(); it.increment(ec)) {
         if (it->is_regular_file(ec) && endetAuf(utf8(it->path()), ".txt")) { skripte.push_back(utf8(it->path())); }

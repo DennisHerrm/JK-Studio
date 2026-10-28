@@ -1532,10 +1532,10 @@ ActorState Actor::at(double ms) const {
         }
         const bool wegDanach = wegNr >= 0 && steps[static_cast<std::size_t>(wegNr)].startMs > (f != nullptr ? f->t : 0.0);
         if (f != nullptr && !wegDanach && (beineNr < 0 || beineAbMs < f->t)) {
-            const char* name = sprungAnimName(f->code);
-            const double halten = f->code == kSaInAir1 ? kNie : dauer(name != nullptr ? name : "");
-            if (name != nullptr && ms < f->t + halten) {
-                st.animation = name;
+            const char* animName = sprungAnimName(f->code);
+            const double halten = f->code == kSaInAir1 ? kNie : dauer(animName != nullptr ? animName : "");
+            if (animName != nullptr && ms < f->t + halten) {
+                st.animation = animName;
                 st.animStartMs = f->t;
                 st.animSpeed = 1.0F;
                 st.prevAnimation.clear();

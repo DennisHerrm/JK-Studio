@@ -185,7 +185,7 @@ std::string vorlagePfad() { return karteTestPfad("s6_vorlage.map"); }
 std::string zweitePfad() { return karteTestPfad("s6_zweite.map"); }
 
 bool textSchreiben(const std::string& pfad, const std::string& text) {
-    std::ofstream f(std::filesystem::u8path(pfad), std::ios::binary | std::ios::trunc);
+    std::ofstream f(::bhed::utf8Pfad(pfad), std::ios::binary | std::ios::trunc);
     f.write(text.data(), static_cast<std::streamsize>(text.size()));
     return static_cast<bool>(f);
 }
@@ -621,7 +621,7 @@ void vorbereiten(Vor v) {
         break;
     case Vor::OhneTagDatei: {
         std::error_code ec;
-        std::filesystem::remove(std::filesystem::u8path(ke::tagDatei()), ec);
+        std::filesystem::remove(::bhed::utf8Pfad(ke::tagDatei()), ec);
         break;
     }
     case Vor::TexturSeite:
@@ -746,7 +746,7 @@ std::string dateienImTestordner() {
             eintrag(d.path());
         }
     }
-    eintrag(std::filesystem::u8path(ke::tagDatei()));
+    eintrag(::bhed::utf8Pfad(ke::tagDatei()));
     std::sort(v.begin(), v.end());
     std::string s;
     for (const std::string& x : v) { s += x + "|"; }

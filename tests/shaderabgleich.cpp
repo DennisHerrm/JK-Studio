@@ -27,6 +27,7 @@
 #include <set>
 #include <string>
 #include <vector>
+#include "bhed/utf8pfad.h"
 
 namespace fs = std::filesystem;
 
@@ -110,7 +111,7 @@ int main(int argc, char** argv) {
 
     for (int a = 1; a < argc; ++a) {
         std::error_code ec;
-        for (const auto& e : fs::directory_iterator(fs::u8path(argv[a]), ec)) {
+        for (const auto& e : fs::directory_iterator(::bhed::utf8Pfad(argv[a]), ec)) {
             if (klein(e.path().extension().string()) != ".pk3") { continue; }
             bhed::Pk3 arc;
             if (!bhed::readPk3Directory(e.path().string(), arc)) { continue; }

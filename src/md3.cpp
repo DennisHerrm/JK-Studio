@@ -358,7 +358,7 @@ BspMesh md3ToMesh(const Md3Model& m, int frame, int shaderBase) {
 }
 
 
-const Md3Tag* Md3Model::tag(const std::string& name, int frame) const {
+const Md3Tag* Md3Model::tag(const std::string& tagName, int frame) const {
     if (numTags <= 0 || tags.empty()) {
         return nullptr;
     }
@@ -370,7 +370,7 @@ const Md3Tag* Md3Model::tag(const std::string& name, int frame) const {
                         static_cast<std::size_t>(numTags);
     for (int i = 0; i < numTags; ++i) {
         const std::size_t at = beginn + static_cast<std::size_t>(i);
-        if (at < tags.size() && tags[at].name == name) {
+        if (at < tags.size() && tags[at].name == tagName) {
             return &tags[at];
         }
     }

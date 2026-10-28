@@ -10,6 +10,7 @@
 #include <thread>
 
 #include "bhed/diag.h"
+#include "bhed/utf8pfad.h"
 
 namespace bhed::gui::wache {
 namespace {
@@ -102,7 +103,7 @@ void starten(const std::string& ordner) {
     if (g_gestartet.exchange(true)) {
         return;
     }
-    g_ordner = std::filesystem::u8path(ordner).wstring();
+    g_ordner = ::bhed::utf8Pfad(ordner).wstring();
     g_auftrag = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     g_fertig = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     if (g_auftrag != nullptr && g_fertig != nullptr) {

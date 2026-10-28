@@ -34,6 +34,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include "bhed/utf8pfad.h"
 
 namespace bhed::gui {
 namespace {
@@ -541,7 +542,7 @@ int roffDateienSchreiben(const std::string& skriptDatei, const Script& s) {
     for (const RoffMarkeFund& m : marken) {
         if (!gueltigerRoffName(m.anim.datei)) { continue; }
         const std::string daten = schreibeRoff(roffAusAnim(m.anim));
-        const std::filesystem::path ziel = std::filesystem::u8path(wurzel + "/" + m.anim.datei + ".rof");
+        const std::filesystem::path ziel = ::bhed::utf8Pfad(wurzel + "/" + m.anim.datei + ".rof");
         std::error_code ec;
         if (std::filesystem::exists(ziel, ec)) {
             std::ifstream f(ziel, std::ios::binary);

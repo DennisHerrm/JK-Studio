@@ -1891,11 +1891,11 @@ int main(int argc, char** argv) {
 
         // killOnImpact endet beim ERSTEN Treffer, genau dort.
         {
-            const auto weg = bhed::efx::sim::flugbahn(
+            const auto wegFlug = bhed::efx::sim::flugbahn(
                 start, ruhe, keine, -800.0F, 2.0F, 0.9F, true, boden);
-            expect("killOnImpact endet am Aufschlag", weg.gestorben);
+            expect("killOnImpact endet am Aufschlag", wegFlug.gestorben);
             expect("genau auf der Ebene",
-                   near(weg.position.z, 0.0F, 0.01F));
+                   near(wegFlug.position.z, 0.0F, 0.01F));
         }
 
         // Und der Fall, der leicht uebersehen wird: OHNE Aufprall muss die
@@ -1903,10 +1903,10 @@ int main(int argc, char** argv) {
         // ein Partikel je nach Flag eine andere Flugbahn.
         {
             const bhed::efx::camera::Vec3 hoch{0.0F, 0.0F, 1000.0F};
-            const bhed::efx::camera::Vec3 v{100.0F, 0.0F, 0.0F};
+            const bhed::efx::camera::Vec3 vStart{100.0F, 0.0F, 0.0F};
             const auto schritt = bhed::efx::sim::flugbahn(
-                hoch, v, keine, -800.0F, 0.5F, 0.5F, false, boden);
-            const auto zu = bhed::efx::sim::positionAt(hoch, v, keine,
+                hoch, vStart, keine, -800.0F, 0.5F, 0.5F, false, boden);
+            const auto zu = bhed::efx::sim::positionAt(hoch, vStart, keine,
                                                        -800.0F, 0.5F);
             // Schrittweise gegen geschlossen: nicht bitgleich, aber nah -
             // der Unterschied ist der Integrationsfehler von Euler.
@@ -2004,11 +2004,11 @@ int main(int argc, char** argv) {
             "\t\ttest/tot\n"
             "\t]\n"
             "}\n";
-        const auto r = bhed::efx::read(text);
-        expect("die Probendatei ist lesbar", !r.effect.primitives.empty());
-        if (!r.effect.primitives.empty()) {
+        const auto rLesen1 = bhed::efx::read(text);
+        expect("die Probendatei ist lesbar", !rLesen1.effect.primitives.empty());
+        if (!rLesen1.effect.primitives.empty()) {
             bhed::EffectInstance in;
-            in.effect = &r.effect;
+            in.effect = &rLesen1.effect;
             in.startMs = 0.0;
             in.seed = 7U;
 
@@ -2066,9 +2066,9 @@ int main(int argc, char** argv) {
         mit.max = 400.0F;
         mit.set = true;
         mit.ranged = true;
-        const float v = rnd.pick(mit);
+        const float vWert = rnd.pick(mit);
         expect("mit `set` liegt der Wert im Bereich",
-               v >= 300.0F && v <= 400.0F);
+               vWert >= 300.0F && vWert <= 400.0F);
 
         // Der Sonderfall: gesetzt, aber nicht `ranged` - dann gilt `min`.
         bhed::efx::Range fest;
@@ -2119,13 +2119,13 @@ int main(int argc, char** argv) {
         };
         for (int i = 0; i < 2; ++i) {
             const bool mitFlag = (i == 1);
-            const auto r = bhed::efx::read(bau(mitFlag));
-            if (r.effect.primitives.empty()) {
+            const auto rLesen2 = bhed::efx::read(bau(mitFlag));
+            if (rLesen2.effect.primitives.empty()) {
                 expect("die Probendatei ist lesbar", false);
                 continue;
             }
             bhed::EffectInstance in;
-            in.effect = &r.effect;
+            in.effect = &rLesen2.effect;
             in.startMs = 0.0;
             in.seed = 3U;
             const float rechts[3] = {0.0F, 1.0F, 0.0F};
@@ -2137,19 +2137,19 @@ int main(int argc, char** argv) {
                 expect("es entsteht ueberhaupt ein Viereck", false);
                 continue;
             }
-            const auto& v = m.verts[0];
+            const auto& vEcke1 = m.verts[0];
             std::printf("     %s: Farbe %d, Alpha %d\n",
                         mitFlag ? "mit useAlpha " : "ohne useAlpha",
-                        (int)v.colour[0], (int)v.colour[3]);
+                        (int)vEcke1.colour[0], (int)vEcke1.colour[3]);
             if (mitFlag) {
                 expect("mit useAlpha bleibt die Farbe voll",
-                       v.colour[0] > 240);
+                       vEcke1.colour[0] > 240);
                 expect("und die Blende steht im Alphakanal",
-                       v.colour[3] > 100 && v.colour[3] < 160);
+                       vEcke1.colour[3] > 100 && vEcke1.colour[3] < 160);
             } else {
                 expect("ohne useAlpha wird die Farbe halbiert",
-                       v.colour[0] > 100 && v.colour[0] < 160);
-                expect("und der Alphakanal bleibt voll", v.colour[3] > 240);
+                       vEcke1.colour[0] > 100 && vEcke1.colour[0] < 160);
+                expect("und der Alphakanal bleibt voll", vEcke1.colour[3] > 240);
             }
         }
     }
@@ -2183,13 +2183,13 @@ int main(int argc, char** argv) {
         };
         for (int i = 0; i < 2; ++i) {
             const bool mitFlag = (i == 1);
-            const auto r = bhed::efx::read(bau(mitFlag));
-            if (r.effect.primitives.empty()) {
+            const auto rLesen3 = bhed::efx::read(bau(mitFlag));
+            if (rLesen3.effect.primitives.empty()) {
                 expect("die Probendatei ist lesbar", false);
                 continue;
             }
             bhed::EffectInstance in;
-            in.effect = &r.effect;
+            in.effect = &rLesen3.effect;
             in.startMs = 0.0;
             in.seed = 5U;
             const float rechts[3] = {0.0F, 1.0F, 0.0F};
@@ -2234,11 +2234,11 @@ int main(int argc, char** argv) {
             "\trgb\n\t{\n\t\tstart 1 1 1\n\t\tend 1 1 1\n\t}\n"
             "\tsize\n\t{\n\t\tstart 10\n\t\tend 10\n\t}\n"
             "}\n";
-        const auto r = bhed::efx::read(text);
-        expect("die Decal-Datei ist lesbar", !r.effect.primitives.empty());
-        if (!r.effect.primitives.empty()) {
+        const auto rLesen4 = bhed::efx::read(text);
+        expect("die Decal-Datei ist lesbar", !rLesen4.effect.primitives.empty());
+        if (!rLesen4.effect.primitives.empty()) {
             bhed::EffectInstance in;
-            in.effect = &r.effect;
+            in.effect = &rLesen4.effect;
             in.startMs = 0.0;
             in.seed = 11U;
             // Eine WAND: Normale zeigt nach +x.
@@ -2255,8 +2255,8 @@ int main(int argc, char** argv) {
                 // zwar zwei Einheiten VOR der Wand (der Versatz gegen das
                 // Flimmern, wie beim Aufpralleffekt in rc287).
                 bool inEbene = true;
-                for (const auto& v : m.verts) {
-                    if (!near(v.xyz[0], 2.0F, 0.01F)) {
+                for (const auto& vEcke2 : m.verts) {
+                    if (!near(vEcke2.xyz[0], 2.0F, 0.01F)) {
                         inEbene = false;
                     }
                 }
@@ -2264,9 +2264,9 @@ int main(int argc, char** argv) {
                 // Und sie spannen die volle Kante auf: 2*size = 20.
                 float minY = 1e9F;
                 float maxY = -1e9F;
-                for (const auto& v : m.verts) {
-                    minY = std::min(minY, v.xyz[1]);
-                    maxY = std::max(maxY, v.xyz[1]);
+                for (const auto& vEcke3 : m.verts) {
+                    minY = std::min(minY, vEcke3.xyz[1]);
+                    maxY = std::max(maxY, vEcke3.xyz[1]);
                 }
                 expect("die Kante ist doppelt so lang wie size",
                        near(maxY - minY, 20.0F, 0.1F));
@@ -2300,11 +2300,11 @@ int main(int argc, char** argv) {
             "\t\ttest/rauch\n"
             "\t]\n"
             "}\n";
-        const auto r = bhed::efx::read(text);
-        expect("die FxRunner-Datei ist lesbar", !r.effect.primitives.empty());
-        if (!r.effect.primitives.empty()) {
+        const auto rLesen5 = bhed::efx::read(text);
+        expect("die FxRunner-Datei ist lesbar", !rLesen5.effect.primitives.empty());
+        if (!rLesen5.effect.primitives.empty()) {
             bhed::EffectInstance in;
-            in.effect = &r.effect;
+            in.effect = &rLesen5.effect;
             in.startMs = 250.0;
             in.seed = 13U;
             in.origin[0] = 100.0F;

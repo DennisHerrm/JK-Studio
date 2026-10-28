@@ -773,9 +773,9 @@ void drawGraphAnsicht() {
             for (const ImVec2& u : umlenk) { pkt.push_back(welt(u.x, u.y)); }
             pkt.push_back(welt(w3.x, w3.y));
             for (std::size_t i = 0; i + 1 < pkt.size(); ++i) {
-                std::vector<ImVec2> st = kurve(pkt[i], pkt[i + 1], zs);
-                tr.abschnitte.push_back(st);
-                linie.insert(linie.end(), st.begin() + (i == 0 ? 0 : 1), st.end());
+                std::vector<ImVec2> stKurve = kurve(pkt[i], pkt[i + 1], zs);
+                tr.abschnitte.push_back(stKurve);
+                linie.insert(linie.end(), stKurve.begin() + (i == 0 ? 0 : 1), stKurve.end());
             }
         }
         const bool hervor = (!z.auswahl.empty() && (a.schluessel == z.auswahl || b.schluessel == z.auswahl));

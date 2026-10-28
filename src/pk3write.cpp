@@ -9,6 +9,7 @@
 #include <string>
 #include <system_error>
 #include <vector>
+#include "bhed/utf8pfad.h"
 
 namespace bhed {
 namespace {
@@ -110,7 +111,7 @@ bool writePk3(const std::string& path, const std::vector<Pk3Datei>& files, std::
     u32(ende, static_cast<std::uint32_t>(lokal.size()));
     u16(ende, 0);
 
-    const std::filesystem::path ziel = std::filesystem::u8path(path);
+    const std::filesystem::path ziel = ::bhed::utf8Pfad(path);
     std::filesystem::path tmp = ziel;
     tmp += ".tmp";
     {

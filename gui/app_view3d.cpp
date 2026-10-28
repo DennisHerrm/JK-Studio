@@ -44,6 +44,7 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+#include "bhed/utf8pfad.h"
 
 namespace bhed::gui {
 
@@ -2423,8 +2424,8 @@ ModelTextures texturesFor(const GlmModel& model) {
             continue;
         }
 
-        for (const std::string& name : tries) {
-            if (!readFromArchives(name, data)) {
+        for (const std::string& kandidat : tries) {
+            if (!readFromArchives(kandidat, data)) {
                 continue;
             }
             const image::Image im = image::decode(
@@ -2461,8 +2462,8 @@ ModelTextures texturesFor(const GlmModel& model) {
                 if (it == shaderMap.end()) {
                     continue;
                 }
-                for (const std::string& name : textureCandidates(it->second.image)) {
-                    if (!readFromArchives(name, data)) {
+                for (const std::string& kandidat : textureCandidates(it->second.image)) {
+                    if (!readFromArchives(kandidat, data)) {
                         continue;
                     }
                     const image::Image im = image::decode(
@@ -5043,7 +5044,7 @@ std::shared_ptr<const Roff> roffFuer(const std::string& name) {
         }
         if (!gefunden && !gp->directory.empty()) {
             std::error_code ec;
-            const std::filesystem::path lose = std::filesystem::u8path(gp->directory + "/" + pfad);
+            const std::filesystem::path lose = ::bhed::utf8Pfad(gp->directory + "/" + pfad);
             if (std::filesystem::is_regular_file(lose, ec)) {
                 data = slurp(gp->directory + "/" + pfad);
                 gefunden = !data.empty();
@@ -8785,7 +8786,7 @@ void loadMapEffects() {
         // Getrennt zaehlen. Beides zu melden ist der Punkt: eine Liste
         // allein sagt nie, ob sie die gebauten oder die fehlenden meint.
         std::map<std::string, int> gebaut;
-        std::map<std::string, int> fehlt;
+        std::map<std::string, int> fehltZahl;
         std::map<std::string, int> ohne;
         for (const auto& [pfad, ef] : g_app->effects) {
             (void)pfad;
@@ -8793,7 +8794,7 @@ void loadMapEffects() {
                 for (const Merkmal& m : merkmale) {
                     if ((pr.flags & m.bit) != 0U) {
                         auto& wohin = (m.stand == Stand::Gebaut) ? gebaut
-                                      : (m.stand == Stand::Fehlt) ? fehlt
+                                      : (m.stand == Stand::Fehlt) ? fehltZahl
                                                                   : ohne;
                         ++wohin[std::string(m.name) + " - " + m.folge];
                     }
@@ -8847,11 +8848,11 @@ void loadMapEffects() {
                 diag::info("   " + std::to_string(n) + "x " + was);
             }
         }
-        if (fehlt.empty()) {
+        if (fehltZahl.empty()) {
             diag::info("Flags: kein unbeachtetes kommt in dieser Mission vor");
         } else {
             diag::info("Flags, die behaved NICHT auswertet:");
-            for (const auto& [was, n] : fehlt) {
+            for (const auto& [was, n] : fehltZahl) {
                 diag::info("   " + std::to_string(n) + "x " + was);
             }
         }
@@ -10890,7 +10891,7 @@ namespace {
 // rc603: die Zeit der letzten Aenderung eines Archivs (fuer den Schluessel).
 std::string archivStand(const std::string& pfad) {
     std::error_code ec;
-    const auto t = std::filesystem::last_write_time(std::filesystem::u8path(pfad), ec);
+    const auto t = std::filesystem::last_write_time(::bhed::utf8Pfad(pfad), ec);
     return ec ? std::string("?") : std::to_string(static_cast<long long>(t.time_since_epoch().count()));
 }
 
@@ -11006,7 +11007,7 @@ void missionenAusArchiv(const std::string& p, const std::string& wunsch) {
     const SpielordnerWahl wahl =
         spielordnerFuerArchiv(p, eingerichtet, g_app->sitzungsSpielordner, [](const std::string& o) {
             std::error_code ec;
-            for (const auto& e : std::filesystem::directory_iterator(std::filesystem::u8path(o), ec)) {
+            for (const auto& e : std::filesystem::directory_iterator(::bhed::utf8Pfad(o), ec)) {
                 std::string ext = e.path().extension().string();
                 for (char& c : ext) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
                 if (ext == ".pk3") {
@@ -16925,10 +16926,10 @@ void drawMapView() {
                     if (!g_app->imSpiegelDurchgang && !figurSchatten.empty()) {
                         gpu::setzeSchritt("Figurenschatten");
                         std::string fs2;
-                        const int ns = gpu::zeichneFigurSchatten(figurSchatten,
+                        const int nsFigur = gpu::zeichneFigurSchatten(figurSchatten,
                                                                  g_app->schattenArt, vp, &fs2);
-                        g_app->gpuAufrufe += ns;
-                        g_app->gpuFiguren2 += ns;
+                        g_app->gpuAufrufe += nsFigur;
+                        g_app->gpuFiguren2 += nsFigur;
                         if (f.empty()) { f = fs2; }
                     }
                     g_app->lichtAufrufe = static_cast<int>(weltLichter.size());
@@ -17193,16 +17194,16 @@ void drawMapView() {
             // zweiten Versuch der Fall. Ein Wort, das "fertig" sagt, ist
             // eine Auskunft; ein leeres ist keine.
             gpu::setzeSchritt("Bild fertig, ausserhalb des GPU-Wegs");
-            const float ms = static_cast<float>(
+            const float msStufe = static_cast<float>(
                 std::chrono::duration<double, std::milli>(
                     std::chrono::steady_clock::now() - tGpu0).count());
             // Die Anzeige "N fps" kommt aus mapFrameMs, und das setzt sonst
             // nur der Rasterer - beim GPU-Weg staende dort die Zahl des
             // letzten Rasterbildes.
             g_app->mapFrameMs = (g_app->mapFrameMs <= 0.0F)
-                                    ? ms
-                                    : g_app->mapFrameMs * 0.9F + ms * 0.1F;
-            g_app->frameCost.rawMap = ms;
+                                    ? msStufe
+                                    : g_app->mapFrameMs * 0.9F + msStufe * 0.1F;
+            g_app->frameCost.rawMap = msStufe;
         }
         // rc603 fix603: die Pruefsumme dieses Bildes (App::bildSumme), nach dem
         // Zeichnen (die Klingen meldet erst der Zeichenweg). Nicht

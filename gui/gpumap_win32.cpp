@@ -63,6 +63,7 @@
 #include "bhed/gpushader.h"
 #include "bhed/gpucam.h"
 #include "bhed/gpuskin.h"
+#include "bhed/utf8pfad.h"
 
 namespace bhed::gpu {
 
@@ -523,7 +524,7 @@ std::string shaderOrdner() {
             return std::string();
         }
         o += "\\shader";
-        CreateDirectoryW(std::filesystem::u8path(o).wstring().c_str(), nullptr);
+        CreateDirectoryW(::bhed::utf8Pfad(o).wstring().c_str(), nullptr);
         return o;
     }();
     return ordner;
@@ -533,7 +534,7 @@ constexpr std::uint32_t kSpeicherMarke = 0x43534842U;   // "BHSC"
 
 ID3DBlob* ausSpeicher(const std::string& pfad) {
     FILE* f = nullptr;
-    if (_wfopen_s(&f, std::filesystem::u8path(pfad).wstring().c_str(), L"rb") != 0 || f == nullptr) {
+    if (_wfopen_s(&f, ::bhed::utf8Pfad(pfad).wstring().c_str(), L"rb") != 0 || f == nullptr) {
         return nullptr;
     }
     std::uint32_t kopf[2] = {0, 0};
@@ -555,7 +556,7 @@ ID3DBlob* ausSpeicher(const std::string& pfad) {
 void inSpeicher(const std::string& pfad, ID3DBlob* blob) {
     const std::string vorlaeufig = pfad + ".neu";
     FILE* f = nullptr;
-    if (_wfopen_s(&f, std::filesystem::u8path(vorlaeufig).wstring().c_str(), L"wb") != 0 || f == nullptr) {
+    if (_wfopen_s(&f, ::bhed::utf8Pfad(vorlaeufig).wstring().c_str(), L"wb") != 0 || f == nullptr) {
         return;
     }
     const std::uint32_t kopf[2] = {kSpeicherMarke, static_cast<std::uint32_t>(blob->GetBufferSize())};
@@ -563,8 +564,8 @@ void inSpeicher(const std::string& pfad, ID3DBlob* blob) {
     const bool ok = std::fwrite(kopf, sizeof(kopf), 1, f) == 1 && std::fwrite(&pruef, sizeof(pruef), 1, f) == 1 &&
                     std::fwrite(blob->GetBufferPointer(), 1, blob->GetBufferSize(), f) == blob->GetBufferSize();
     std::fclose(f);
-    const std::wstring w = std::filesystem::u8path(vorlaeufig).wstring();
-    if (!ok || MoveFileExW(w.c_str(), std::filesystem::u8path(pfad).wstring().c_str(), MOVEFILE_REPLACE_EXISTING) == 0) {
+    const std::wstring w = ::bhed::utf8Pfad(vorlaeufig).wstring();
+    if (!ok || MoveFileExW(w.c_str(), ::bhed::utf8Pfad(pfad).wstring().c_str(), MOVEFILE_REPLACE_EXISTING) == 0) {
         DeleteFileW(w.c_str());
     }
 }

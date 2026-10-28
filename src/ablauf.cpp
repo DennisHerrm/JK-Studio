@@ -543,11 +543,11 @@ private:
         // rc604: was G_SpawnGEntityFromSpawnVars wegen "notsingle" oder der
         // Schwierigkeit freigibt (code/game/g_spawn.cpp:1064-1075 OpenJK), gibt
         // es nicht - weder den Spawner noch einen NPC mit seinem Namen.
-        const auto gespawnt = [this](const MapEntity& e) {
+        const auto wirdGespawnt = [this](const MapEntity& e) {
             return welt_.spielstufe < 0 || e.classname == "worldspawn" || spawntBeiSchwierigkeit(e, welt_.spielstufe);
         };
         for (const MapEntity& e : welt_.karte->entities) {
-            if (!istNpcSpawner(e) || !gespawnt(e)) {
+            if (!istNpcSpawner(e) || !wirdGespawnt(e)) {
                 continue;
             }
             const std::string* t = schluessel(e, "NPC_targetname");
@@ -557,7 +557,7 @@ private:
             }
         }
         for (const MapEntity& e : welt_.karte->entities) {
-            if (!istNpcSpawner(e) && gespawnt(e) && gleich(icarusName(e), name)) {
+            if (!istNpcSpawner(e) && wirdGespawnt(e) && gleich(icarusName(e), name)) {
                 return &e;
             }
         }

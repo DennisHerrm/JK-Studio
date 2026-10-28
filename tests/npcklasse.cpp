@@ -226,11 +226,11 @@ int main() {
             "Desann\n{\n\tplayerModel\tdesann\n\tsaberColor\tred\n\tclass\tdesann\n\tplayerTeam\tenemy\n}\n"
             "Reborn\n{\n\tplayerModel\treborn\n\tclass\treborn\n\tplayerTeam\tenemy\n}\n"
             "Kyle\n{\n\tplayerModel\tzweiter\n}\n";
-        NpcMap m;
-        parseNpcFile(cfg, m, true);
-        pruefe(m.count("kyle") == 1 && m["kyle"].playerModel == "kyle",
+        NpcMap mapNpc;
+        parseNpcFile(cfg, mapNpc, true);
+        pruefe(mapNpc.count("kyle") == 1 && mapNpc["kyle"].playerModel == "kyle",
                "JK2 NPCs.cfg: der erste Eintrag gewinnt (NPC_ParseParms sucht von vorn)");
-        pruefe(m["kyle"].klasse == "CLASS_KYLE" && m["kyle"].team == "TEAM_PLAYER" && m["desann"].team == "TEAM_ENEMY",
+        pruefe(mapNpc["kyle"].klasse == "CLASS_KYLE" && mapNpc["kyle"].team == "TEAM_PLAYER" && mapNpc["desann"].team == "TEAM_ENEMY",
                "JK2 NPCs.cfg: class kyle -> CLASS_KYLE, playerTeam player -> TEAM_PLAYER (TranslateClassName/TeamName)");
         pruefe(jk2KlassenName("galak_mech") == "CLASS_GALAKMECH" && jk2KlassenName("quatsch") == "CLASS_NONE",
                "JK2: ClassNames in der Reihenfolge von class_t, Unbekanntes CLASS_NONE");
@@ -238,7 +238,7 @@ int main() {
             Actor a;
             a.name = typ;
             a.npcType = typ;
-            const int art = saberArtJk2(a, &m[typ]);
+            const int art = saberArtJk2(a, &mapNpc[typ]);
             const SaberArt& s = a.saberArten[static_cast<std::size_t>(art)];
             return a.modelle[static_cast<std::size_t>(s.modell)] + "|" + std::to_string(static_cast<int>(s.klinge[0].max)) +
                    "|" + s.klinge[0].farbe;

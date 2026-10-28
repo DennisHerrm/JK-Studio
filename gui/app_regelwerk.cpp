@@ -33,6 +33,7 @@
 #include <string>
 #include <system_error>
 #include <vector>
+#include "bhed/utf8pfad.h"
 
 namespace bhed::gui {
 
@@ -72,7 +73,7 @@ bool jediOutcastOrdner(const std::string& verzeichnis) {
     std::vector<std::string> dateien;
     bool jk2Karte = false;
     std::error_code ec;
-    const fs::path ordner = fs::u8path(verzeichnis);
+    const fs::path ordner = ::bhed::utf8Pfad(verzeichnis);
     for (const fs::path& o : {ordner, ordner.parent_path()}) {
         for (const auto& e : fs::directory_iterator(o, ec)) {
             std::string n = e.path().filename().string();
@@ -135,7 +136,7 @@ void befehlssatzFuerRegelwerk() {
         // data/jk2 liegt neben data/base (auch ausgepackt, eingebaut.cpp).
         const std::string jk2Ordner = directoryOf(g_app->dataDir) + "/jk2";
         std::error_code ec;
-        if (std::filesystem::is_regular_file(std::filesystem::u8path(jk2Ordner + "/behaved.bhc"), ec)) {
+        if (std::filesystem::is_regular_file(::bhed::utf8Pfad(jk2Ordner + "/behaved.bhc"), ec)) {
             ordner = jk2Ordner;
         } else {
             diag::warn("Befehlssatz Jedi Outcast fehlt (" + jk2Ordner + "), nehme den von Jedi Academy");

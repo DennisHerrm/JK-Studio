@@ -160,6 +160,13 @@ target_include_directories(bhed_core SYSTEM PUBLIC
 
 if(MSVC)
   target_compile_options(bhed_core PUBLIC /W4 /permissive- /utf-8 /Zc:__cplusplus)
+  # Stufe 8d Punkt 3: der eigene Code hat 0 Warnungen (bis 8g 130) - und behaelt sie: /WX fuer
+  # alles, was bhed_core bindet (Programm, Tests, Werkzeuge). third_party und imgui sind eigene
+  # Ziele bzw. SYSTEM-Includes und bleiben ausgenommen; ebenso bhed_q3map2 (Flags von q3map2).
+  option(BEHAVED_WARNUNGEN_FEHLER "Warnungen im eigenen Code als Fehler (/WX)" ON)
+  if(BEHAVED_WARNUNGEN_FEHLER)
+    target_compile_options(bhed_core PUBLIC /WX)
+  endif()
   target_compile_definitions(bhed_core PUBLIC _CRT_SECURE_NO_WARNINGS NOMINMAX)
 
   # Ausweg fuer einen INTERNEN COMPILERFEHLER.

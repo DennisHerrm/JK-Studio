@@ -989,13 +989,13 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
             }
             if (key == "alphafunc" && depth >= 2) {
                 const std::string w = lower(secondWord(line));
-                AlphaTest at = AlphaTest::None;
-                if (w == "gt0") { at = AlphaTest::Gt0; }
-                else if (w == "lt128") { at = AlphaTest::Lt128; }
-                else if (w == "ge128") { at = AlphaTest::Ge128; }
-                else if (w == "ge192") { at = AlphaTest::Ge192; }
-                if (at != AlphaTest::None) {
-                    stageAlpha = at;
+                AlphaTest atTest = AlphaTest::None;
+                if (w == "gt0") { atTest = AlphaTest::Gt0; }
+                else if (w == "lt128") { atTest = AlphaTest::Lt128; }
+                else if (w == "ge128") { atTest = AlphaTest::Ge128; }
+                else if (w == "ge192") { atTest = AlphaTest::Ge192; }
+                if (atTest != AlphaTest::None) {
+                    stageAlpha = atTest;
                 }
                 continue;
             }
