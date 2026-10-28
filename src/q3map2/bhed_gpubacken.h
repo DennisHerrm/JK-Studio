@@ -26,7 +26,7 @@
 // nicht genau kann (Alpha-Schatten, Lichtfilter, unsichere Division, nicht endliche
 // Werte), rechnet fuer die ganze Lightmap die CPU.
 //
-// Abweichungsbericht: jede N-te Lightmap (Vorgabe 16, -bhedgpubakecheck N) rechnet die CPU
+// Abweichungsbericht: jede N-te Lightmap (Vorgabe 64, bis 1 M Paare; -bhedgpubakecheck N) rechnet die CPU
 // ein zweites Mal und vergleicht alle Luxel Byte fuer Byte; das Ergebnis der GPU bleibt.
 //
 // Direct3D 11 wird zur Laufzeit geladen (d3d11.dll, dxgi.dll, Teil von Windows
@@ -123,6 +123,8 @@ struct BhedBakeLm {
 // ein Licht der Lightmap nach der Stil-Pruefung, das etwas beleuchtet
 struct BhedBakeAktiv {
 	int j, slot, radius, negativ;
+	int maske;              // erstes Bit der Stempelmaske dieses Lichts (Vorhersage der Unterabtastung)
+	int pad[ 3 ];
 };
 struct BhedBakeSchalter {
 	int faster, lightAngleHL, bouncing, testOcclusion, oneSky, noSurfaces;
@@ -140,7 +142,7 @@ struct BhedBakeBlock {
 	std::vector<BhedBakeAktiv> aktiv;
 	std::vector<int> aktivNr;       // je Licht der Lightmap: Eintrag in aktiv oder -1
 	std::vector<float> startWert;   // Lightmaps mit start: 4 float je Luxel und Stilplatz (wie die Ausgabe)
-	std::uint32_t paare = 0, zeilen = 0, aus = 0;
+	std::uint32_t paare = 0, zeilen = 0, aus = 0, maskeBits = 0;
 };
 
 // Geraet und Shader schon beim Einlesen der Schalter in einem eigenen Faden anlegen (laeuft neben dem
@@ -195,7 +197,7 @@ BhedBakeZahlen BhedBakeStatistik();
 
 // q3map2-Seite
 inline bool g_bhedBakeAn = false;                           // -bhedgpubake und die GPU ist bereit
-inline int g_bhedBakePruefen = 16;                          // -bhedgpubakecheck N: jede N-te Lightmap rechnet die CPU nach (0: keine)
+inline int g_bhedBakePruefen = 64;                          // -bhedgpubakecheck N: jede N-te Lightmap rechnet die CPU nach (0: keine)
 bool BhedBakeVorbereiten( const std::string& adapter );    // light_trace.cpp: nach SetupTraceNodes
 std::vector<BhedBakeInfo> BhedBakeInfos();                 // light_trace.cpp: die Infos (skyIndex entsteht erst in LightWorld)
 void BhedBakeBericht( const char *quelle );                // light_ydnar.cpp: nach LightWorld

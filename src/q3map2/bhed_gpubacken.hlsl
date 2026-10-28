@@ -56,7 +56,7 @@ struct Lm
     int start; int lpad0; int lpad1; int lpad2;   // start: Stilplaetze ab startWert (Teil einer grossen Lightmap)
 };
 // Ein Licht der Lightmap, das die Stil-Pruefung bestanden und etwas beleuchtet hat (in Lichtreihenfolge)
-struct Aktiv { int j; int slot; int radius; int negativ; };
+struct Aktiv { int j; int slot; int radius; int negativ; int maske; int apad0; int apad1; int apad2; };   // maske: erstes Bit der Stempelmaske
 // BSP fuer ClusterForPointExt (Unterabtastung): Knoten, Ebenen, Blaetter, Brushes
 struct BspKnoten { int ebene; int k0; int k1; int pad; };
 struct Ebene { float nx; float ny; float nz; float dist; };
@@ -87,7 +87,7 @@ cbuffer Kopf : register(b0)
     int nLms; int lightSamples; float suchBox; int maxOpaqueBrush;
     int nAktivGesamt; int nLuxel; int nZeilen; float inhibitGitter;
     float gridAmbientDirectionality; float gridDirectionality; int cheapgrid; int nGitterLichter;
-    int gitterPhase; int lichtVon; int lichtBis; int kpad2;
+    int gitterPhase; int lichtVon; int lichtBis; uint kandVon;   // kandVon: erster Eintrag der Kandidatenliste dieser Runde (unter)
 };
 StructuredBuffer<Knoten> knoten : register(t0);
 StructuredBuffer<int> items : register(t1);
@@ -121,7 +121,8 @@ RWStructuredBuffer<GitterPunkt> gitter : register(u6);   // Lichtgitter
 RWStructuredBuffer<GitterZustand> zustand : register(u7); // Stand je Gitterpunkt
 // dieselben Register in den Lightmap-Kernen (die Gitter-Puffer brauchen sie nicht; D3D11.0 hat 8 UAVs):
 RWStructuredBuffer<uint> kandListe : register(u6);   // die vorhergesagten Paare (Unterabtastung)
-RWStructuredBuffer<uint> hilfe : register(u7);       // [0] Zahl der Kandidaten - 1, [1 + a] erster vorhergesagter Stempel je aktivem Licht
+RWStructuredBuffer<uint> hilfe : register(u7);       // [0] Zahl der Kandidaten - 1, [1 + a] erster vorhergesagter Stempel je aktivem Licht,
+                                                      // danach die Stempelmasken (Bit 0 = vorhergesagt, beginnt mit lauter Einsen)
 
 static bool g_unsicher;
 static float g_inhibit = 1.5f;     // trace->inhibitRadius (Lightmaps 1,5; Gitter die halbe Gitterweite)
@@ -854,8 +855,10 @@ int beitrag(float3 o, float3 nrm, int luxelCluster, Lm lm, Licht L, out float3 f
 static const uint F_FORCE = 1u;    // FLAG_FORCE_SUBSAMPLING (auf der GPU nie: Alpha-Schatten rechnet die CPU)
 static const uint F_SCHON = 2u;    // FLAG_ALREADY_SUBSAMPLED
 static const uint F_KAND = 4u;     // vorab nachabgetastet (Vorhersage mit den Werten der Erstabtastung)
+static const uint F_SBEREIT = 8u;  // das Ergebnis in S liegt vor (weitere Vorhersage-Runden lesen nur diese)
 
 #define MAXTIEFE 6                  // -samples bis 7 auf der GPU (Stapel der Unterabtastung)
+#define MAXZEILE 16                 // Stempel je Zeile im Stempellauf mit Maske (16 * 32), breitere: voller Lauf
 
 int lmZuPaar(uint p)
 {
@@ -1100,7 +1103,10 @@ float3 unterabtasten(Lm lm, int li, int x, int y, float3 o0, float3 nrm, float3 
 }
 
 // der 2x2-Stempeltest des zweiten Durchgangs (pb: erstes Paar dieses Lichts)
-bool stempel(Lm lm, uint pb, int x, int y)
+bool stempelMit(Lm lm, uint pb, int x, int y, bool mitS);
+bool stempel(Lm lm, uint pb, int x, int y) { return stempelMit(lm, pb, x, y, false); }
+// mitS: die schon vorab nachabgetasteten Luxel mit ihrem Ergebnis (weitere Vorhersage-Runden)
+bool stempelMit(Lm lm, uint pb, int x, int y, bool mitS)
 {
     int mapped = 0;
     int lighted = 0;
@@ -1110,8 +1116,9 @@ bool stempel(Lm lm, uint pb, int x, int y)
         const int k = idxAt(lm, x + (t & 1), y + (t >> 1));
         if (k < 0) { continue; }
         mapped += 1;
-        if ((F[pb + (uint)k] & F_FORCE) != 0u) { lighted += 1; mapped += 2; }
-        const float3 v = P[pb + (uint)k].xyz;
+        const uint f = F[pb + (uint)k];
+        if ((f & F_FORCE) != 0u) { lighted += 1; mapped += 2; }
+        const float3 v = (mitS && (f & F_SBEREIT) != 0u) ? S[pb + (uint)k].xyz : P[pb + (uint)k].xyz;
         total = total + v;
         precise float summe = v.x + v.y + v.z;
         if (summe > 0.0f) { lighted += 1; }
@@ -1159,13 +1166,19 @@ void kandidaten(uint3 id : SV_DispatchThreadID)
     const Aktiv A = aktiv[lm.aktivBase + (int)a];
     const uint pb = (uint)lm.paarBase + (uint)A.j * (uint)lm.m;
     bool erster = true;
+    const bool runde0 = gitterPhase == 0;   // weitere Runden (gitterPhase > 0): mit den Ergebnissen der vorigen
     [loop] for (int x = 0; x < lm.sw - 1; ++x)
     {
-        if (!stempel(lm, pb, x, y)) { continue; }
-        if (erster)
+        if (!stempelMit(lm, pb, x, y, !runde0)) { continue; }
+        if (runde0 && erster)
         {
             erster = false;
             InterlockedMin(hilfe[1u + (uint)lm.aktivBase + a], (uint)(y * (lm.sw - 1) + x));
+        }
+        if (runde0)
+        {
+            const uint bit = (uint)A.maske + (uint)(y * (lm.sw - 1) + x);
+            InterlockedAnd(hilfe[1u + (uint)nAktivGesamt + (bit >> 5)], ~(1u << (bit & 31u)));
         }
         [unroll] for (int t = 0; t < 4; ++t)
         {
@@ -1190,7 +1203,7 @@ void kandidaten(uint3 id : SV_DispatchThreadID)
 void unter(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= anzahl) { return; }
-    const uint p = kandListe[id.x + basis];
+    const uint p = kandListe[kandVon + id.x + basis];
     const int li = lmZuPaar(p);
     const Lm lm = lms[li];
     const uint rel = p - (uint)lm.paarBase;
@@ -1201,15 +1214,13 @@ void unter(uint3 id : SV_DispatchThreadID)
     const float3 v = unterabtasten(lm, lichtListe[lm.lichtBase + (int)j], lx.x, lx.y, float3(lx.ox, lx.oy, lx.oz), float3(lx.nx, lx.ny, lx.nz), P[p].xyz);
     if (g_unsicher) { InterlockedOr(lmFlag[li], 1u); }
     S[p] = float4(v, 0.0f);
+    F[p] = F[p] | F_SBEREIT;
 }
 
 // 4. Der genaue Stempellauf in Zeilenfolge: ein Faden je aktives Licht. Vorhergesagte Luxel
 //    nehmen das Ergebnis aus S, andere werden hier nachabgetastet (wie Stufe 7).
-[numthreads(64, 1, 1)]
-void stempellauf(uint3 id : SV_DispatchThreadID)
+void stempellaufVoll(uint g)
 {
-    if (id.x >= anzahl) { return; }
-    const uint g = id.x + basis;
     g_unsicher = false;
     const int li = lmZuAktiv(g);
     const Lm lm = lms[li];
@@ -1244,6 +1255,89 @@ void stempellauf(uint3 id : SV_DispatchThreadID)
                 }
                 F[q] = f | F_SCHON;
             }
+        }
+    }
+    if (g_unsicher) { InterlockedOr(lmFlag[li], 1u); }
+}
+
+
+[numthreads(64, 1, 1)]
+void stempellauf(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= anzahl) { return; }
+    const uint g = id.x + basis;
+    g_unsicher = false;
+    const int li = lmZuAktiv(g);
+    const Lm lm = lms[li];
+    const Aktiv A = aktiv[g];
+    const uint pb = (uint)lm.paarBase + (uint)A.j * (uint)lm.m;
+    const int licht = lichtListe[lm.lichtBase + A.j];
+    // Vor dem ersten vorhergesagten Stempel sieht der Lauf nur Werte der Erstabtastung (nachabgetastet wird
+    // erst dort) - wie die Vorhersage: kein Stempel davor schlaegt an. Ohne Vorhersage gar keiner.
+    const uint start = hilfe[1u + g];
+    if (start == 0xffffffffu) { return; }
+    const int breite = lm.sw - 1;
+    if (breite > MAXZEILE * 32) { stempellaufVoll(g); return; }
+    const int y0 = (int)(start / (uint)breite);
+    const int x0 = (int)(start - (uint)y0 * (uint)breite);
+    // Geprueft werden nur die vorhergesagten Stempel (Maske aus "kandidaten") und die, von denen ein Luxel
+    // in diesem Lauf gerade nachabgetastet wurde ("schmutzig": der naechste Stempel der Zeile, drei in der
+    // naechsten Zeile). Jeder andere Stempel hat nur Werte der Erstabtastung und schlaegt wie in der
+    // Vorhersage nicht an - der Lauf gibt genau das Ergebnis des vollen Laufs in Zeilenfolge.
+    uint jetzt[MAXZEILE];
+    uint naechste[MAXZEILE];
+    [unroll] for (int w0 = 0; w0 < MAXZEILE; ++w0) { jetzt[w0] = 0u; naechste[w0] = 0u; }
+    const uint maskeBasis = 1u + (uint)nAktivGesamt;
+    [loop] for (int y = y0; y < lm.sh - 1; ++y)
+    {
+        [unroll] for (int w1 = 0; w1 < MAXZEILE; ++w1) { jetzt[w1] = naechste[w1]; naechste[w1] = 0u; }
+        int x = y == y0 ? x0 : 0;
+        [loop] while (x < breite)
+        {
+            // der naechste vorhergesagte oder schmutzige Stempel ab x
+            const uint bit = (uint)A.maske + (uint)(y * breite + x);
+            const uint wort = maskeBasis + (bit >> 5);
+            const uint sh = bit & 31u;
+            uint vorher = ~hilfe[wort] >> sh;   // Bit 0 = vorhergesagt (die Maske beginnt mit lauter Einsen)
+            if (sh != 0u) { vorher |= ~hilfe[wort + 1u] << (32u - sh); }
+            const int rest = breite - x;
+            if (rest < 32) { vorher &= (1u << (uint)rest) - 1u; }
+            uint schmutz = jetzt[x >> 5] >> (uint)(x & 31);
+            if ((x & 31) != 0 && (x >> 5) + 1 < MAXZEILE) { schmutz |= jetzt[(x >> 5) + 1] << (32u - (uint)(x & 31)); }
+            if (rest < 32) { schmutz &= (1u << (uint)rest) - 1u; }
+            const uint alle = vorher | schmutz;
+            if (alle == 0u) { x += 32; continue; }
+            x += (int)firstbitlow(alle);
+            if (stempel(lm, pb, x, y))
+            {
+                [loop] for (int t = 0; t < 4; ++t)
+                {
+                    const int sx = x + (t & 1);
+                    const int sy = y + (t >> 1);
+                    const int k = idxAt(lm, sx, sy);
+                    if (k < 0) { continue; }
+                    const uint q = pb + (uint)k;
+                    const uint f = F[q];
+                    if ((f & F_SCHON) != 0u) { continue; }
+                    if ((f & F_KAND) != 0u) { P[q] = S[q]; }
+                    else
+                    {
+                        const Luxel lx = luxel[lm.luxelBase + k];
+                        P[q] = float4(unterabtasten(lm, licht, sx, sy, float3(lx.ox, lx.oy, lx.oz), float3(lx.nx, lx.ny, lx.nz), P[q].xyz), 0.0f);
+                    }
+                    F[q] = f | F_SCHON;
+                    // die spaeteren Stempel mit diesem Luxel: (sx-1|sx, sy-1|sy)
+                    [unroll] for (int u = 0; u < 4; ++u)
+                    {
+                        const int ux = sx - 1 + (u & 1);
+                        const int uy = sy - 1 + (u >> 1);
+                        if (ux < 0 || ux >= breite || uy >= lm.sh - 1) { continue; }
+                        if (uy == y && ux > x) { jetzt[ux >> 5] |= 1u << (uint)(ux & 31); }
+                        else if (uy == y + 1) { naechste[ux >> 5] |= 1u << (uint)(ux & 31); }
+                    }
+                }
+            }
+            x += 1;
         }
     }
     if (g_unsicher) { InterlockedOr(lmFlag[li], 1u); }

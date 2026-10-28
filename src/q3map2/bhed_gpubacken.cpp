@@ -52,7 +52,7 @@ __declspec( dllexport ) int AmdPowerXpressRequestHighPerformance = 1;
 
 static_assert( sizeof( BhedBakeLuxel ) == 40, "Luxel im Shader" );
 static_assert( sizeof( BhedBakeLm ) == 112, "Lm im Shader" );
-static_assert( sizeof( BhedBakeAktiv ) == 16, "Aktiv im Shader" );
+static_assert( sizeof( BhedBakeAktiv ) == 32, "Aktiv im Shader" );
 static_assert( sizeof( BhedBakeLicht ) == 128, "Licht im Shader" );
 static_assert( sizeof( BhedBakeGitterPunkt ) == 144, "GitterPunkt im Shader" );
 static_assert( sizeof( BhedBakeBsp::Knoten ) == 16 && sizeof( BhedBakeBsp::Ebene ) == 16 && sizeof( BhedBakeBsp::Blatt ) == 16 &&
@@ -455,7 +455,8 @@ struct Kopf
 	int nAktivGesamt, nLuxel, nZeilen;
 	float inhibitGitter, gridAmbientDirectionality, gridDirectionality;
 	int cheapgrid, nGitterLichter;
-	int gitterPhase, lichtVon, lichtBis, kpad2;
+	int gitterPhase, lichtVon, lichtBis;
+	UINT kandVon;
 };
 static_assert( sizeof( Kopf ) == 112, "cbuffer Kopf" );
 
@@ -749,7 +750,7 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 	const auto t0 = std::chrono::steady_clock::now();
 	if ( !puffer( b.lms, sLms ) || !puffer( b.aktiv, sAktiv ) || !puffer( b.aktivNr, sAktivNr ) ||
 	     !puffer( b.startWert.empty() ? nullptr : b.startWert.data(), 16, UINT( b.startWert.size() / 4 ), sStartWert ) || !platz( uR, std::max<UINT>( b.aus, 1 ), 16, true ) ||
-	     !platz( uHilfe, UINT( b.aktiv.size() + 1 ), 4, true ) ) {
+	     !platz( uHilfe, UINT( b.aktiv.size() + 3 + b.maskeBits / 32 ), 4, true ) ) {
 		ausfall( "not enough graphics memory for a block" );
 		return false;
 	}
@@ -761,12 +762,29 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 		// der erste vorhergesagte Stempel; dann nur die Kandidaten unterabtasten
 		const UINT voll[ 4 ] = { 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu };
 		g.ktx->ClearUnorderedAccessViewUint( g.rw[ uHilfe ].uav, voll );
-		ok = lauf( kKandidaten, b.zeilen, 4, kopf );
-		std::uint32_t zahl = 0;
-		loesen();
-		ok = ok && lesen( uHilfe, &zahl, 4 );
-		binden();
-		ok = ok && lauf( kUnter, zahl + 1u, 4, kopf ) && lauf( kStempellauf, UINT( b.aktiv.size() ), 4, kopf );
+		// Runde 0 mit den Werten der Erstabtastung, dann bis zu drei weitere Runden mit den Ergebnissen der
+		// vorigen (ein nachabgetasteter Luxel aendert die Stempel um ihn) - so muss der serielle Lauf kaum
+		// noch selbst nachabtasten. Jedes vorab berechnete Ergebnis ist gueltig (es haengt nur vom Wert der
+		// Erstabtastung ab); nicht gebrauchte bleiben ungenutzt.
+		Kopf k = kopf;
+		UINT bisher = 0;
+		for ( int runde = 0; runde < 4 && ok; ++runde ) {
+			k.gitterPhase = runde;
+			k.kandVon = 0;
+			ok = lauf( kKandidaten, b.zeilen, 4, k );
+			std::uint32_t zahl = 0;
+			loesen();
+			ok = ok && lesen( uHilfe, &zahl, 4 );
+			binden();
+			const UINT neu = zahl + 1u;
+			if ( !ok || neu == bisher ) {
+				break;
+			}
+			k.kandVon = bisher;
+			ok = lauf( kUnter, neu - bisher, 4, k );
+			bisher = neu;
+		}
+		ok = ok && lauf( kStempellauf, UINT( b.aktiv.size() ), 4, kopf );
 	}
 	ok = ok && lauf( kFiltern, UINT( b.luxel.size() ), 4, kopf );
 	loesen();

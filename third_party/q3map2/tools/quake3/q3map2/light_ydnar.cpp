@@ -2527,7 +2527,7 @@ static float g_bbMaxAbw = 0;
 static std::vector<std::pair<int, long long>> g_bbAndersListe;   /* lightmap, different luxels (for <map>.bhedgpu.txt) */
 /* BHED_GPUBAKE_ZEITEN: where the time of BhedIlluminateGpu goes (seconds): lists, blocks, initial pass,
    style check, rest on the GPU, finishing on the CPU, lightmaps on the CPU */
-static double g_bbZeit[ 7 ] = {};
+static double g_bbZeit[ 8 ] = {};
 static double BhedJetzt(){
 	return std::chrono::duration<double>( std::chrono::steady_clock::now().time_since_epoch() ).count();
 }
@@ -3044,7 +3044,7 @@ static void BhedStilPruefen( const rawLightmap_t *lm, const BhedBakeBlock& b, in
 		if ( lightmapNum > 0 ) {
 			s.styles[ lightmapNum ] = light->style;
 		}
-		s.aktiv.push_back( { j, lightmapNum, luxelFilterRadius, ( light->flags & LightFlags::Negative ) ? 1 : 0 } );
+		s.aktiv.push_back( { j, lightmapNum, luxelFilterRadius, ( light->flags & LightFlags::Negative ) ? 1 : 0, 0, {} } );
 	}
 }
 
@@ -3053,7 +3053,7 @@ static void BhedStilPruefen( const rawLightmap_t *lm, const BhedBakeBlock& b, in
 static void BhedAktivSetzen( BhedBakeBlock& b, const std::vector<BhedStil>& stil, const std::vector<std::uint32_t>& flags ){
 	b.aktivNr.assign( b.lichtListe.size(), -1 );
 	b.aktiv.clear();
-	std::uint32_t zeilen = 0, ausAnzahl = 0;
+	std::uint32_t zeilen = 0, ausAnzahl = 0, maske = 0;
 	for ( size_t li = 0; li < b.lms.size(); ++li )
 	{
 		BhedBakeLm& L = b.lms[ li ];
@@ -3064,14 +3064,19 @@ static void BhedAktivSetzen( BhedBakeBlock& b, const std::vector<BhedStil>& stil
 			continue;
 		}
 		bool benutzt[ MAX_LIGHTMAPS ] = {};
-		for ( const BhedBakeAktiv& a : stil[ li ].aktiv )
+		const bool proben = lightSamples > 1 && L.sw > 1 && L.sh > 1;
+		for ( BhedBakeAktiv a : stil[ li ].aktiv )
 		{
 			b.aktivNr[ L.lichtBase + a.j ] = int( b.aktiv.size() );
+			a.maske = int( maske );
+			if ( proben ) {
+				maske += std::uint32_t( L.sw - 1 ) * std::uint32_t( L.sh - 1 );
+			}
 			b.aktiv.push_back( a );
 			benutzt[ a.slot ] = true;
 		}
 		L.nAktiv = int( stil[ li ].aktiv.size() );
-		if ( lightSamples > 1 && L.sw > 1 && L.sh > 1 ) {
+		if ( proben ) {
 			zeilen += std::uint32_t( L.nAktiv ) * std::uint32_t( L.sh - 1 );
 		}
 		for ( int s = 0; s < MAX_LIGHTMAPS; ++s )
@@ -3084,6 +3089,7 @@ static void BhedAktivSetzen( BhedBakeBlock& b, const std::vector<BhedStil>& stil
 	}
 	b.zeilen = zeilen;
 	b.aus = ausAnzahl;
+	b.maskeBits = maske;
 }
 
 /* are all output luxels of lightmap li finite? */
@@ -3390,7 +3396,7 @@ static void BhedIlluminateGpu(){
 		BhedBakeFertigstellen( r );
 		g_bhedBakeFertig[ r ] = BhedBakeFertig{};
 	}
-	zeit( 5 );
+	zeit( 7 );
 	g_bhedBakeFertig.clear();
 	/* the CPU as always: big lightmaps with all threads (stage 7), the others in parallel */
 	std::vector<int> rest;
@@ -3437,8 +3443,8 @@ void BhedBakeBericht( const char *quelle ){
 	            proben, g_bbProbenLm.load(), proben > 0 ? 100.0 * double( gleich ) / double( proben ) : 100.0, g_bbLmAnders.load(), g_bbStileAnders.load(),
 	            mittel, g_bbMaxAbw, g_bbGitterGpu, g_bbGitterCpu );
 	if ( getenv( "BHED_GPUBAKE_ZEITEN" ) != nullptr ) {
-		Sys_Printf( "BHED-GPU-Zeiten: Listen %.3f, Bloecke %.3f, Erst %.3f, Stil %.3f, Rest %.3f, Fertig %.3f, CPU %.3f; Kerne erst %.3f kandidaten %.3f unter %.3f stempellauf %.3f filtern %.3f gitter %.3f\n",
-		            g_bbZeit[ 0 ], g_bbZeit[ 1 ], g_bbZeit[ 2 ], g_bbZeit[ 3 ], g_bbZeit[ 4 ], g_bbZeit[ 5 ], g_bbZeit[ 6 ], double( z.kernMikros[ 0 ] ) / 1e6,
+		Sys_Printf( "BHED-GPU-Zeiten: Listen %.3f, Bloecke %.3f, Erst %.3f, Stil %.3f, Rest %.3f, Fertig %.3f, CPU %.3f, Teile %.3f; Kerne erst %.3f kandidaten %.3f unter %.3f stempellauf %.3f filtern %.3f gitter %.3f\n",
+		            g_bbZeit[ 0 ], g_bbZeit[ 1 ], g_bbZeit[ 2 ], g_bbZeit[ 3 ], g_bbZeit[ 4 ], g_bbZeit[ 5 ], g_bbZeit[ 6 ], g_bbZeit[ 7 ], double( z.kernMikros[ 0 ] ) / 1e6,
 		            double( z.kernMikros[ 1 ] ) / 1e6, double( z.kernMikros[ 2 ] ) / 1e6, double( z.kernMikros[ 3 ] ) / 1e6, double( z.kernMikros[ 4 ] ) / 1e6,
 		            double( z.kernMikros[ 5 ] ) / 1e6 );
 	}
