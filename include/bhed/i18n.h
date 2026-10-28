@@ -2509,6 +2509,9 @@ enum class Str {
     KeWhFrage,
     KeWhFertig,
     KeGiModellDatei,
+    KeLeisteGriffTipp,
+    KePatchSchatten,
+    KePatchSchattenTip,
     Count,
 };
 

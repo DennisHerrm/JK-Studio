@@ -712,6 +712,11 @@ struct Editor {
     bool hauptleiste = true;
     bool filterleiste = true;
     bool pluginleiste = true;
+    // Stufe 9c: Rand und Reihenfolge der Haupt-, Filter- und Plugin-Leiste (wie NRCs
+    // QToolBars per Griff verschiebbar; Vorgabe wie NRC: oben, rechts, rechts darunter)
+    std::array<karte::LeistenPlatz, 3> leistenPlaetze{
+        {{karte::LeistenRand::Oben, 0, true, 0, 0}, {karte::LeistenRand::Rechts, 0, true, 0, 0}, {karte::LeistenRand::Rechts, 1, true, 0, 0}}};
+    int leisteZiehen = -1;   // die Leiste, deren Griff gerade gezogen wird
     std::set<std::string> versteckteKnoepfe;   // g_toolbarHiddenButtons
     // Alt + Mnemonik: dieses Menue der Leiste im naechsten Bild oeffnen
     // (Lage in befehle::menues(), -1 = keins).
@@ -1174,6 +1179,11 @@ bool tastenBelegung(int imguiKey, befehle::TastenBelegung& out, bool& ziffernblo
 void zeichneMenueleiste();
 void zeichneHauptleiste(int y, int breite);
 void zeichneRechteLeisten(int x, int y, int hoehe);   // Filter- und Plugin-Leiste
+// Stufe 9c: die drei Leisten an ihren Raendern zeichnen; bereich = der Platz zwischen
+// Menue- und Statuszeile (fuer das Ziehen an einen anderen Rand)
+void zeichneLeisten(const karte::LeistenAnordnung& an, int bereichX, int bereichY, int bereichB, int bereichH);
+// {minimumSize, sizeHint} der Leiste i (0 Haupt, 1 Filter, 2 Plugin) entlang ihrer Richtung
+[[nodiscard]] std::pair<int, int> leistenMasse(int i);
 void zeichneStatuszeile(int y, int breite);
 // --- 2D-Ansichten (app_karte_xy.cpp) ---
 // Die 2D-Ansicht index (0 XY, 1 XZ, 2 YZ) im aktuellen Kindfenster zeichnen

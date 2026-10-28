@@ -2225,6 +2225,8 @@ from i18n_karte8d import KARTE8D  # noqa: E402  (Stufe 8d: GPU bake Auto)
 S += KARTE8D
 from i18n_karte9 import KARTE9  # noqa: E402  (Stufe 9: restliche Karten-Werkzeuge)
 S += KARTE9
+from i18n_karte9c import KARTE9C  # noqa: E402  (Stufe 9c: Werkzeugleisten, Echtzeit-Licht wie im Spiel)
+S += KARTE9C
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #
