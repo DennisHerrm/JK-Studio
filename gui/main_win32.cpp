@@ -29,6 +29,7 @@
 #include "imgui_impl_win32.h"
 
 #include <windows.h>
+#include <shellapi.h>
 
 #include "platform.h"
 #include "wache.h"
@@ -83,6 +84,8 @@ void changelogZeigen();
 // Eine Datei, die eine zweite Instanz weitergereicht hat (Doppelklick im
 // Explorer, waehrend behaved schon laeuft). Leer = nur nach vorn holen.
 void dateiVonAussen(const std::string& pfad);
+// Stufe 9 Punkt 3: eine Datei aus dem Explorer aufs Fenster gezogen (x, y: Fensterpunkte)
+void dateiAbgelegt(const std::string& pfad, float x, float y);
 void defaultWindowSize(int* w, int* h);
 // Lage und Zustand des Programmfensters, als "showCmd l t r b".
 //
@@ -222,6 +225,24 @@ LRESULT WINAPI wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         return 1;
     }
     switch (msg) {
+        case WM_DROPFILES: {   // Stufe 9 Punkt 3: Modelle in den Karten-Editor ziehen
+            HDROP d = reinterpret_cast<HDROP>(wParam);
+            POINT pt{};
+            DragQueryPoint(d, &pt);
+            const UINT n = DragQueryFileW(d, 0xFFFFFFFF, nullptr, 0);
+            for (UINT i = 0; i < n; ++i) {
+                const UINT len = DragQueryFileW(d, i, nullptr, 0);
+                std::wstring w(len + 1, L'\0');
+                DragQueryFileW(d, i, w.data(), len + 1);
+                w.resize(len);
+                const int m = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()), nullptr, 0, nullptr, nullptr);
+                std::string u(static_cast<std::size_t>(m > 0 ? m : 0), '\0');
+                if (m > 0) { WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()), u.data(), m, nullptr, nullptr); }
+                bhed::gui::dateiAbgelegt(u, static_cast<float>(pt.x), static_cast<float>(pt.y));
+            }
+            DragFinish(d);
+            return 0;
+        }
         case WM_COPYDATA: {
             // Von einer zweiten Instanz: die Datei hier oeffnen.
             const auto* cds = reinterpret_cast<const COPYDATASTRUCT*>(lParam);
@@ -1377,6 +1398,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     } else {
         ShowWindow(hwnd, SW_SHOWDEFAULT);
     }
+    DragAcceptFiles(hwnd, TRUE);   // Stufe 9 Punkt 3
     UpdateWindow(hwnd);
 
     // Erst Direct3D 11, dann OpenGL. Auf Rechnern ohne Hardware-Direct3D

@@ -5191,6 +5191,7 @@ void draw() {
     if (g_app == nullptr) { return; }
     // Einmal: Reste eines Updates wegraeumen, und im Hintergrund nachsehen.
     dateienVonAussenOeffnen();
+    abgelegteDateienVerarbeiten();   // Stufe 9 Punkt 3
     static bool updateGestartet = false;
     if (!updateGestartet) {
         updateGestartet = true;

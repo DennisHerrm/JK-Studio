@@ -2412,6 +2412,22 @@ void spielTestMitBsp(const std::string& exe, const std::string& bsp, bool modErl
         fehler(z);
         return;
     }
+    // Stufe 9 Punkt 3: der Import-Ordner mit (Modelle, Shader, Texturen) - die .bsp nennt sie
+    if (const std::string imp = importOrdner(); !imp.empty()) {
+        std::error_code ei;
+        const fs::path wurzel = pfadAus(imp);
+        for (fs::recursive_directory_iterator it(wurzel, ei), ende; !ei && it != ende; it.increment(ei)) {
+            if (!it->is_regular_file(ei)) { continue; }
+            Pk3Datei d;
+            const std::u8string rel = fs::relative(it->path(), wurzel, ei).generic_u8string();
+            d.name.assign(rel.begin(), rel.end());
+            std::ifstream f(it->path(), std::ios::binary);
+            std::ostringstream o;
+            o << f.rdbuf();
+            d.inhalt = o.str();
+            if (!d.name.empty()) { dateien.push_back(std::move(d)); }
+        }
+    }
     std::error_code ec;
     fs::create_directories(pfadAus(plan.pk3).parent_path(), ec);
     std::string err;

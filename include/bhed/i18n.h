@@ -2447,6 +2447,7 @@ enum class Str {
     KeGiAbbrechen,
     KeGiFertig,
     KeGiFehler,
+    KeMiFertig,
     KeGiModellDatei,
     Count,
 };

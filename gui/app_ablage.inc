@@ -35,6 +35,33 @@ void dateiVonAussen(const std::string& pfad) {
     dateienVonAussen().push_back(pfad);
     diag::info("Von einer zweiten Instanz: " + (pfad.empty() ? std::string("(nur nach vorn)") : pfad));
 }
+// Stufe 9 Punkt 3: aufs Fenster gezogene Dateien - im Karten-Editor werden Modelle
+// (.obj/.fbx/.glb/.gltf) eingesetzt, alles andere geht wie eine Datei von aussen auf.
+struct AbgelegteDatei {
+    std::string pfad;
+    float x = 0;
+    float y = 0;
+};
+std::vector<AbgelegteDatei>& abgelegteDateien() {
+    static std::vector<AbgelegteDatei> liste;
+    return liste;
+}
+void dateiAbgelegt(const std::string& pfad, float x, float y) {
+    abgelegteDateien().push_back({pfad, x, y});
+    diag::info("Abgelegt: " + pfad);
+}
+void abgelegteDateienVerarbeiten() {
+    if (g_app == nullptr || abgelegteDateien().empty()) { return; }
+    const std::vector<AbgelegteDatei> liste = std::move(abgelegteDateien());
+    abgelegteDateien().clear();
+    for (const AbgelegteDatei& a : liste) {
+        if (g_app->leftMode == 3 && karteneditor::istModellDatei(a.pfad)) {
+            karteneditor::modellAbgelegt(a.pfad, ImVec2(a.x, a.y));
+        } else {
+            dateiVonAussen(a.pfad);
+        }
+    }
+}
 void dateienVonAussenOeffnen() {
     if (g_app == nullptr || dateienVonAussen().empty()) {
         return;

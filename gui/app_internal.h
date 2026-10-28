@@ -2996,6 +2996,8 @@ void uebersetzen();
 void alleSpeichern();
 bool speichernUnterPfad(const std::string& p);
 void dateiVonAussen(const std::string& pfad);
+void dateiAbgelegt(const std::string& pfad, float x, float y);   // Stufe 9 Punkt 3
+void abgelegteDateienVerarbeiten();
 // Wie "Open" nach dem Dateidialog.
 void ladeSkriptDatei(const std::string& pfad);
 void selbsttestMerkeElement(ImGuiContext* ctx, ImGuiID id, const ImRect& bb);

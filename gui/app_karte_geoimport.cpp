@@ -13,6 +13,9 @@
 #include "app_internal.h"
 #include "platform.h"
 
+#include "bhed/karte/karte.h"
+#include "bhed/karte/modellimport.h"
+#include "bhed/karte/rueckgaengig.h"
 #include "bhed/karte/spielbeschreibung.h"
 
 #include <algorithm>
@@ -148,6 +151,83 @@ void geoImportEinfuegen() {
     ausgabe(t);
     z.offen = false;
     if (z.optimierer) { optimiererOeffnen(); }
+}
+
+bool istModellDatei(const std::string& pfad) {
+    const std::string x = endungVon(pfad);
+    return x == "obj" || x == "fbx" || x == "glb" || x == "gltf";
+}
+
+bool modellAbgelegt(const std::string& pfad, ImVec2 punkt) {
+    Editor& ed = e();
+    karte::NetzOptionen no;
+    no.yOben = ed.geoImport.yOben;
+    no.skala = static_cast<double>(ed.geoImport.skala);
+    karte::ImportNetz netz;
+    std::string grund;
+    char t[1400];
+    if (!karte::netzLesenDatei(pfad, no, netz, &grund)) {
+        std::snprintf(t, sizeof(t), trK(Str::KeGiFehler), pfad.c_str(), grund.c_str());
+        fehler(t);
+        return false;
+    }
+    const karte::Md3Paket paket = karte::md3Paket(netz, stammVon(pfad));
+    if (!paket.fehler.empty()) {
+        std::snprintf(t, sizeof(t), trK(Str::KeGiFehler), pfad.c_str(), paket.fehler.c_str());
+        fehler(t);
+        return false;
+    }
+    // in den Import-Ordner (eigener Suchordner, nie der Spielordner)
+    const fs::path wurzel = pfadVon(platform::settingsDirectory() + "\\import");
+    for (const karte::Md3Paket::Datei& d : paket.dateien) {
+        const fs::path ziel = wurzel / pfadVon(d.pfad);
+        std::error_code ec;
+        fs::create_directories(ziel.parent_path(), ec);
+        std::ofstream f(ziel, std::ios::binary);
+        f.write(d.inhalt.data(), static_cast<std::streamsize>(d.inhalt.size()));
+        if (!f) {
+            std::snprintf(t, sizeof(t), trK(Str::KeGiFehler), pfad.c_str(), "write");
+            fehler(t);
+            return false;
+        }
+    }
+    // Ort: unter dem Zeiger in einer 2D-Ansicht (XYWnd_MouseToPoint, dritte Achse = Mitte der
+    // Workzone), sonst 128 vor der Kamera; auf das Raster
+    karte::Vektor3f ort = ed.kamera.ursprung + (karte::Vektor3f(0, 0, 0) - ed.kamera.vpn) * 128.0F;
+    karte::einrasten(ort, ed.raster.einrastGroesse());
+    for (std::size_t i = 0; i < ed.xy.size(); ++i) {
+        XyFenster& f = ed.xy[i];
+        const float bx = punkt.x - f.bildX;
+        const float by = punkt.y - f.bildY;
+        if (bx < 0 || by < 0 || bx >= static_cast<float>(f.ansicht.breite) || by >= static_cast<float>(f.ansicht.hoehe)) { continue; }
+        ort = f.ansicht.zuPunkt(static_cast<int>(bx), static_cast<int>(by), ed.raster.einrastGroesse());
+        const auto achse = static_cast<std::size_t>(karte::blickachse(f.ansicht.typ));
+        const karte::Kasten& wz = ed.workzone;
+        ort[achse] = karte::zahlEingerastet(karte::zahlMitte(wz.origin[achse] - wz.extents[achse], wz.origin[achse] + wz.extents[achse]), ed.raster.groesse());
+        break;
+    }
+    {
+        karte::Befehl undo(ed.karte.undo, "entityCreate -class misc_model");
+        ed.karte.auswahl.leeren();
+        auto ent = ed.karte.neueEntitaet("misc_model", false);
+        char o[96];
+        std::snprintf(o, sizeof(o), "%g %g %g", static_cast<double>(ort.x()), static_cast<double>(ort.y()), static_cast<double>(ort.z()));
+        ent->setzen("origin", o);
+        ent->setzen("model", paket.modellPfad);
+        if (paket.modelscale != 1.0) {
+            std::snprintf(o, sizeof(o), "%g", paket.modelscale);
+            ent->setzen("modelscale", o);
+        }
+        ed.karte.entitaetEinfuegen(ent);
+        ed.karte.auswahl.waehlen(ent);
+    }
+    ed.spielKennung.clear();   // den Suchpfad neu lesen: die neuen Dateien (EnginePath_Realise)
+    ++ed.sichtStand;
+    auswahlGeaendert();
+    std::snprintf(t, sizeof(t), trK(Str::KeMiFertig), pfad.c_str(), paket.modellPfad.c_str(), static_cast<int>(paket.flaechen),
+                  static_cast<int>(paket.dreiecke));
+    ausgabe(t);
+    return true;
 }
 
 void geoImportDialogZeichnen() {

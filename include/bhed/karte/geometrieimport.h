@@ -48,6 +48,11 @@ struct ImportTeil {
     std::vector<std::array<double, 2>> uv;           // je Punkt (st: s nach rechts, t nach unten)
     std::vector<std::array<std::uint32_t, 3>> dreiecke;
     bool hatUv = false;
+    // Stufe 9 Punkt 3: die Textur des Materials (diffuse) - Name wie in der Datei, die Bytes
+    // (eingebettet in .glb/.fbx, oder neben der Datei gelesen: netzLesenDatei) und die Endung
+    std::string textur;
+    std::string texturDaten;
+    std::string texturEndung;
 };
 
 struct ImportNetz {
@@ -113,6 +118,10 @@ EinfuegeErgebnis importEinfuegen(Karte& k, const std::vector<TeilErgebnis>& teil
 // Die Modell+Clip-Teile als .obj (Q3-Koordinaten, usemtl = Shader, vt = s, 1 - t) - so liest
 // q3map2 (assimp) das misc_model und nimmt die Shader der Brushes.
 [[nodiscard]] std::string modellObj(const std::vector<const ImportTeil*>& teile, const ZerlegOptionen& o);
+
+// Stufe 9 Punkt 3: aus einer Datei lesen - wie netzLesen, dazu die Texturen neben der Datei
+// (.mtl einer .obj, externe Bilder einer .fbx/.gltf) in texturDaten.
+[[nodiscard]] bool netzLesenDatei(const std::string& pfad, const NetzOptionen& o, ImportNetz& out, std::string* fehler = nullptr);
 
 // Der Shadername eines Materials: Vorsatz + Name ohne Pfad und Endung, klein, nur [a-z0-9_/-].
 [[nodiscard]] std::string materialShader(const std::string& material, const ZerlegOptionen& o);

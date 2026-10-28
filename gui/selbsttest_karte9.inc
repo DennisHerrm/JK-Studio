@@ -137,6 +137,80 @@ std::vector<Schritt> schritte() {
         for (const auto& en : ed.karte.entitaeten()) { modell = modell || en->wert("classname") == "misc_model"; }
         return ed.karte.welt()->kinder().size() == *vorher && !modell;
     }));
+    // --- Punkt 3: Modell per Ziehen -------------------------------------------------------
+    // Ein Wuerfel als .obj mit .mtl und Bild wird (wie WM_DROPFILES) auf die Mitte der aktiven
+    // 2D-Ansicht abgelegt: MD3, Bild und Shader liegen im Import-Ordner, das misc_model steht
+    // unter dem Zeiger und ist gewaehlt, readMd3 liest das Modell, "Im Spiel testen" packt den
+    // Import-Ordner mit ins Archiv. Undo nimmt das misc_model zurueck.
+    auto ziel = std::make_shared<karte::Vektor3f>();
+    add(tu("Modell ziehen: Wuerfel.obj + .mtl + Bild schreiben, auf die 2D-Ansicht ablegen", [ziel] {
+        karteDialogeZu();
+        ke::konsoleLeeren();
+        const std::string o = platform::settingsDirectory() + "\\ablage\\";
+        std::error_code ec;
+        std::filesystem::create_directories(std::filesystem::path(o), ec);
+        std::ofstream(std::filesystem::path(o + "Geo Wuerfel.obj"), std::ios::binary)
+            << "mtllib wuerfel.mtl\no Wuerfel\nv -32 -32 0\nv 32 -32 0\nv 32 32 0\nv -32 32 0\nv -32 -32 64\nv 32 -32 64\nv 32 32 64\nv -32 32 64\n"
+               "vt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\nusemtl Stein\nf 1/1 4/4 3/3 2/2\nf 5/1 6/2 7/3 8/4\nf 1/1 2/2 6/3 5/4\nf 2/1 3/2 7/3 6/4\nf 3/1 4/2 8/3 7/4\nf 4/1 1/2 5/3 8/4\n";
+        std::ofstream(std::filesystem::path(o + "wuerfel.mtl"), std::ios::binary) << "newmtl Stein\nmap_Kd stein.png\n";
+        std::ofstream(std::filesystem::path(o + "stein.png"), std::ios::binary) << std::string("\x89PNG\r\n\x1a\nbild", 12);
+        ke::Editor& ed = ke::editor();
+        ed.geoImport.yOben = false;
+        const ke::XyFenster& f = ed.xy[static_cast<std::size_t>(ed.aktivXy)];
+        const int mx = f.ansicht.breite / 2, my = f.ansicht.hoehe / 2;
+        *ziel = f.ansicht.zuPunkt(mx, my, ed.raster.einrastGroesse());
+        dateiAbgelegt(o + "Geo Wuerfel.obj", f.bildX + static_cast<float>(mx), f.bildY + static_cast<float>(my));
+    }));
+    add(pause(0.5));
+    add(pruefe("Modell ziehen: misc_model models/import/geo_wuerfel/geo_wuerfel.md3 unter dem Zeiger, gewaehlt; MD3 lesbar, Bild und Shader im Import-Ordner", [ziel] {
+        const ke::Editor& ed = ke::editor();
+        const std::string w = platform::settingsDirectory() + "\\import\\";
+        bool modell = false;
+        for (const auto& en : ed.karte.entitaeten()) {
+            if (en->wert("classname") != "misc_model" || en->wert("model") != "models/import/geo_wuerfel/geo_wuerfel.md3") { continue; }
+            float o[3] = {0, 0, 0};
+            modell = std::sscanf(en->wert("origin").c_str(), "%f %f %f", &o[0], &o[1], &o[2]) == 3;
+            const auto achse = static_cast<std::size_t>(karte::blickachse(ed.xy[static_cast<std::size_t>(ed.aktivXy)].ansicht.typ));
+            for (std::size_t i = 0; i < 3; ++i) {
+                if (i != achse) { modell = modell && std::fabs(o[i] - (*ziel)[i]) < 0.5F; }
+            }
+        }
+        Md3Model m;
+        std::string err;
+        const bool md3 = readMd3(dateiInhalt(w + "models\\import\\geo_wuerfel\\geo_wuerfel.md3"), m, &err) && m.surfaces.size() == 1 &&
+                         m.surfaces[0].shader == "models/import/geo_wuerfel/stein";
+        const bool bild = dateiInhalt(w + "models\\import\\geo_wuerfel\\stein.png").size() == 12;
+        const bool shader = dateiInhalt(w + "scripts\\geo_wuerfel.shader").find("map models/import/geo_wuerfel/stein.png") != std::string::npos;
+        diag::detail("Knopftest: Modell ziehen - Entitaet " + std::to_string(modell ? 1 : 0) + ", md3 " + std::to_string(md3 ? 1 : 0) + ", Bild " +
+                     std::to_string(bild ? 1 : 0) + ", Shader " + std::to_string(shader ? 1 : 0) + ", Auswahl " + std::to_string(ed.karte.auswahl.anzahl()));
+        return modell && md3 && bild && shader && ed.karte.auswahl.anzahl() == 1 && konsoleText().find("geo_wuerfel.md3") != std::string::npos;
+    }));
+    add(tu("Modell ziehen: Im Spiel testen (nur Befehl) - das Archiv nimmt den Import-Ordner mit", [] {
+        ke::editor().bau.testPk3.clear();
+        ke::imSpielTesten("");
+    }));
+    add(stufe8::warteSek("Modell ziehen: Bau fertig (die Karte ist geaendert)", [] { return !ke::bauLaeuft(); }, 300));
+    add(pause(0.5));
+    add(pruefe("Modell ziehen: zzz_jkstudio_test.pk3 enthaelt maps/meinekarte.bsp, die .md3, das Bild und das Shader-Skript", [] {
+        Pk3 a;
+        const std::string& p = ke::editor().bau.testPk3;
+        const bool ok = !p.empty() && readPk3Directory(p, a) && a.find("maps/meinekarte.bsp") != nullptr &&
+                        a.find("models/import/geo_wuerfel/geo_wuerfel.md3") != nullptr && a.find("models/import/geo_wuerfel/stein.png") != nullptr &&
+                        a.find("scripts/geo_wuerfel.shader") != nullptr;
+        diag::detail("Knopftest: Modell ziehen - Archiv " + p + " ok " + std::to_string(ok ? 1 : 0));
+        return ok;
+    }));
+    add(tu("Modell ziehen: Undo", [] {
+        karteDialogeZu();
+        (void)ke::ausfuehren("Undo");
+    }));
+    add(pause(0.3));
+    add(pruefe("Modell ziehen: Undo nimmt das misc_model zurueck", [] {
+        for (const auto& en : ke::editor().karte.entitaeten()) {
+            if (en->wert("classname") == "misc_model") { return false; }
+        }
+        return true;
+    }));
     add(tu("Geometrie: Ende - Import-Ordner weg (spaetere Befehlsvergleiche ohne -fs_pakpath)", [] {
         karteDialogeZu();
         ke::konsoleLeeren();

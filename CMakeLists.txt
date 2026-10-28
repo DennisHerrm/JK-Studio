@@ -978,6 +978,8 @@ target_sources(bhed_core PRIVATE
   src/karte/spieltest.cpp
   # Stufe 9 Punkt 2: Geometrie zu Brushes (obj/fbx/glb ueber assimp)
   src/karte/geometrieimport.cpp
+  # Stufe 9 Punkt 3: Modell-Import (MD3 samt Shader und Texturen)
+  src/karte/modellimport.cpp
   # Stufe 1b: Texturbrowser (texwindow.cpp, aktive Shader)
   src/karte/texturbrowser.cpp
   # Stufe 1b: Texturen mit M3 kopieren und auftragen (TexManipulator, surfacedialog.cpp)
@@ -1196,6 +1198,10 @@ if(BEHAVED_TESTS)
   add_executable(kartegeoimport tests/kartegeoimport.cpp)
   target_link_libraries(kartegeoimport PRIVATE bhed_core)
   add_test(NAME karte_geoimport COMMAND kartegeoimport)
+  # Stufe 9 Punkt 3: Modell-Import - MD3 schreiben und mit readMd3 zurueck lesen, Shader, Texturen
+  add_executable(kartemd3import tests/kartemd3import.cpp)
+  target_link_libraries(kartemd3import PRIVATE bhed_core)
+  add_test(NAME karte_md3import COMMAND kartemd3import)
   # Stufe 8d Punkt 4: alle Datei-Leser mit 300 Mutanten je Leser (unter ASan/UBSan in eigenen Bauordnern)
   add_executable(leserfuzz tests/leserfuzz.cpp)
   target_link_libraries(leserfuzz PRIVATE bhed_core)

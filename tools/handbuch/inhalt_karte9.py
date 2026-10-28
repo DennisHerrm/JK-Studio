@@ -68,6 +68,17 @@ KARTE_WERKZEUGE9 = {
               "**{{KeGiSkala}}** 和 **{{KeGiYOben}}**:Blender 和 glTF 以 Y 轴为上,游戏以 Z 轴为上;不缩放时一个 Blender 米等于一个单位。其他 id Tech 3 游戏(Quake III、Elite Force、Return to Castle Wolfenstein、Enemy Territory、Warsow)的 **.bsp** 会像 **{{KeLOpenBsp}}** 一样用该游戏的读取器打开。",
               "**{{KeGiSkala}}** と **{{KeGiYOben}}**:Blender と glTF は Y が上、ゲームは Z が上です。スケールしなければ Blender の 1 メートルが 1 ユニットです。ほかの id Tech 3 ゲーム(Quake III、Elite Force、Return to Castle Wolfenstein、Enemy Territory、Warsow)の **.bsp** は **{{KeLOpenBsp}}** と同じように、そのゲームの読み込みで開きます。"),
         ]),
+        ("h2", "ziehen", T("Drag a model into the map", "Ein Modell in die Karte ziehen", "把模型拖入地图", "モデルをマップにドラッグする")),
+        ("p", T(
+            "Drag an .obj, .fbx, .glb or .gltf file from the Explorer onto the map editor. The program converts it to an MD3 with its own shader and copies the textures (embedded in the file or next to it); all of it goes into the import folder next to the settings, never into the game. A misc_model appears under the mouse pointer in the 2D view (or in front of the camera) and is selected; one undo removes it. Models larger than 511 units are scaled down in the MD3 and get `modelscale`.",
+            "Ziehe eine .obj-, .fbx-, .glb- oder .gltf-Datei aus dem Explorer auf den Karten-Editor. Das Programm macht daraus ein MD3 mit eigenem Shader und kopiert die Texturen (in der Datei eingebettet oder daneben); alles kommt in den Import-Ordner neben den Einstellungen, nie ins Spiel. Ein misc_model erscheint unter dem Mauszeiger in der 2D-Ansicht (sonst vor der Kamera) und ist gewählt; ein Undo nimmt es zurück. Modelle über 511 Einheiten werden im MD3 verkleinert und bekommen `modelscale`.",
+            "把 .obj、.fbx、.glb 或 .gltf 文件从资源管理器拖到地图编辑器上。程序会把它转换为带自己着色器的 MD3,并复制纹理(嵌入在文件中或位于文件旁);所有内容都放入设置旁的导入文件夹,绝不写入游戏。一个 misc_model 会出现在二维视图中的鼠标指针下(否则在摄像机前方)并被选中;撤销一次即可移除。超过 511 单位的模型会在 MD3 中缩小并获得 `modelscale`。",
+            ".obj・.fbx・.glb・.gltf ファイルをエクスプローラーからマップエディターへドラッグします。プログラムが独自のシェーダー付きの MD3 に変換し、テクスチャ(ファイルに埋め込まれたもの、または隣にあるもの)をコピーします。すべて設定の隣のインポートフォルダーに入り、ゲームには書き込みません。2D ビューのマウスポインターの下(それ以外ではカメラの前)に misc_model が現れて選択されます。元に戻す 1 回で消えます。511 ユニットを超えるモデルは MD3 内で縮小され、`modelscale` が付きます。")),
+        ("note", T(
+            "**{{KeStMenue}}** packs the import folder into the test archive, so the game finds the models, shaders and textures. For a release, copy the folder `models/import` and the `scripts` of the import folder into your mod or pk3.",
+            "**{{KeStMenue}}** packt den Import-Ordner ins Testarchiv, damit das Spiel Modelle, Shader und Texturen findet. Für eine Veröffentlichung kopiere den Ordner `models/import` und die `scripts` des Import-Ordners in deine Mod oder .pk3.",
+            "**{{KeStMenue}}** 会把导入文件夹打包进测试存档,使游戏能找到模型、着色器和纹理。发布时,请把导入文件夹中的 `models/import` 文件夹和 `scripts` 复制到你的模组或 pk3 中。",
+            "**{{KeStMenue}}** はインポートフォルダーをテスト用アーカイブに入れるので、ゲームがモデル・シェーダー・テクスチャを見つけられます。公開するときは、インポートフォルダーの `models/import` フォルダーと `scripts` を MOD または pk3 にコピーしてください。")),
     ],
 }
 

@@ -26,6 +26,8 @@
 #if defined(_MSC_VER)
 #pragma warning(push, 0)
 #endif
+#include <assimp/DefaultIOSystem.h>
+#include <assimp/IOStream.hpp>
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
@@ -597,6 +599,13 @@ void knotenSammeln(const aiScene* sc, const aiNode* k, const aiMatrix4x4& eltern
             const aiMaterial* mat = sc->mMaterials[me->mMaterialIndex];
             if (mat->GetTexture(aiTextureType_DIFFUSE, 0, &n) == AI_SUCCESS && n.length > 0) {
                 t.material = n.C_Str();
+                t.textur = n.C_Str();
+                // eingebettet (glb: "*0", fbx: der Name): die Bytes des komprimierten Bildes
+                if (const aiTexture* tex = sc->GetEmbeddedTexture(n.C_Str()); tex != nullptr && tex->mHeight == 0 && tex->pcData != nullptr) {
+                    t.texturDaten.assign(reinterpret_cast<const char*>(tex->pcData), tex->mWidth);
+                    t.texturEndung = tex->achFormatHint[0] != '\0' ? std::string(tex->achFormatHint) : std::string("png");
+                    if (t.texturEndung == "jpeg") { t.texturEndung = "jpg"; }
+                }
             } else if (mat->Get(AI_MATKEY_NAME, n) == AI_SUCCESS) {
                 t.material = n.C_Str();
             }
@@ -631,6 +640,51 @@ void knotenSammeln(const aiScene* sc, const aiNode* k, const aiMatrix4x4& eltern
 }
 
 }  // namespace
+
+bool netzLesenDatei(const std::string& pfad, const NetzOptionen& o, ImportNetz& out, std::string* fehler) {
+    out.teile.clear();
+    std::string e = pfad.substr(pfad.find_last_of('.') == std::string::npos ? pfad.size() : pfad.find_last_of('.') + 1);
+    e = klein(e);
+    if (e != "obj" && e != "fbx" && e != "glb" && e != "gltf") {
+        if (fehler != nullptr) { *fehler = "unsupported format ." + e; }
+        return false;
+    }
+    Assimp::Importer imp;
+    const aiScene* sc = imp.ReadFile(pfad, aiProcess_Triangulate | aiProcess_SortByPType);   // UTF-8-Pfad (DefaultIOSystem)
+    if (sc == nullptr || sc->mRootNode == nullptr) {
+        if (fehler != nullptr) { *fehler = imp.GetErrorString(); }
+        return false;
+    }
+    knotenSammeln(sc, sc->mRootNode, aiMatrix4x4(), o, out);
+    if (out.teile.empty()) {
+        if (fehler != nullptr) { *fehler = "no triangles"; }
+        return false;
+    }
+    // externe Texturen neben der Datei (relativ zu ihr; sonst nur der Dateiname)
+    const std::size_t sl = pfad.find_last_of("/\\");
+    const std::string ordner = sl == std::string::npos ? std::string() : pfad.substr(0, sl + 1);
+    for (ImportTeil& t : out.teile) {
+        if (t.textur.empty() || !t.texturDaten.empty() || t.textur[0] == '*') { continue; }
+        std::string rel = t.textur;
+        for (char& c : rel) {
+            if (c == '\\') { c = '/'; }
+        }
+        const std::size_t ts = rel.find_last_of('/');
+        for (const std::string& kandidat : {ordner + rel, ordner + (ts == std::string::npos ? rel : rel.substr(ts + 1)), rel}) {
+            Assimp::DefaultIOSystem io;
+            if (!io.Exists(kandidat.c_str())) { continue; }
+            Assimp::IOStream* s = io.Open(kandidat.c_str(), "rb");
+            if (s == nullptr) { continue; }
+            t.texturDaten.resize(s->FileSize());
+            if (!t.texturDaten.empty()) { (void)s->Read(t.texturDaten.data(), 1, t.texturDaten.size()); }
+            io.Close(s);
+            const std::size_t pk = kandidat.find_last_of('.');
+            t.texturEndung = pk == std::string::npos ? std::string("png") : klein(kandidat.substr(pk + 1));
+            break;
+        }
+    }
+    return true;
+}
 
 bool netzLesen(const std::string& bytes, const std::string& endung, const NetzOptionen& o, ImportNetz& out, std::string* fehler) {
     out.teile.clear();
