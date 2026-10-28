@@ -18,7 +18,7 @@ Import-Ordner mit“. Offen: **11** (Asset-Browser) und der Rest von 9 (unten).
 | 9 | d74a6a3f | Gelände formen auf Patches (heben, senken, glätten, ebnen) |
 | 10 | 92ecf53d | Für Blender exportieren (.glb neu, .obj aus brushexport) und zurück |
 | 12 | 1ec12647 | Nach einem Absturz das Autosave anbieten |
-| – | (dieser) | Notizen, Schlussrunde |
+| – | 761b49a0, (dieser) | Schlussrunde: ein Untermenü „Map tools“, Sitzungsdatei je Prozess, Machtstufe-Vorgabe; Notizen |
 
 ## Punkt 4: Machtsprung, Sprungweite und Platz
 
@@ -35,7 +35,7 @@ Import-Ordner mit“. Offen: **11** (Asset-Browser) und der Rest von 9 (unten).
   die Tabellen mit `FP_TableLevel` (höchstens 3) – das Feld ist 0..3.
 - Die Kraftleiste (forcePower) gilt als voll; der Verbrauch je Sprung wird nicht gerechnet.
 
-**View > Check jumps and space** (`sprungpruefung`): im Raster fällt der geduckte Kasten;
+**View > Map tools > Check jumps and space** (`sprungpruefung`): im Raster fällt der geduckte Kasten;
 begehbare Böden (Normale z ≥ 0,7) sind Stehplätze (voller Kasten frei) oder „nur geduckt“;
 Kanten = ein Nachbar ohne Boden in Stufenhöhe; von höchstens 160 Kanten läuft der Spieler mit
 250 in 8 Richtungen an und springt mit gehaltener Taste – ohne und mit Machtsprung der gewählten
@@ -109,7 +109,31 @@ Ja lädt es unter dem Namen der Karte, als geändert.
 
 ## Schlussrunde
 
-(folgt)
+Skript `SP/s9b/ende_s9b.sh` (aus `SP/s9/ende_s9.sh`), Summe `SP/s9b/ende_summe.txt`.
+
+| Schritt | Ergebnis |
+|---|---|
+| Bau | ok |
+| ctest gesamt | **146/146** (270 s; neu: karte_sprung, karte_npcwege, karte_verbund, karte_kurven, karte_streuen, karte_formen, karte_wiederherstellen) |
+| karteneditor voll (mit großer Karte) | 3129 OK, **87 FEHLER** → Befund 1 → 3144 OK, 58 FEHLER → Befund 2 → 3172 OK, 1 FEHLER (Menübreite File) → **3173 OK, 0 FEHLER** (989 s, Spitze 1034 MB) |
+| Modus 1 | **2645 OK, 0 FEHLER** (434 s) |
+| übrige 22 Modi | alle **0 FEHLER**, dieselben Zahlen wie Teil 1 |
+| Leistung gegen rc605 (md_am_sith, je 2 Läufe) | Vorbereitung rc605 6254/7185 ms, Stufe 9b 6788/6529 ms; Bild Mittel 15/9,5/10 und 15/7,9/11 gegen 15/8,4/12 und 13/8,6/13 ms – im Rauschen gleich |
+| Kartenprüfung (278 MD-Karten, gegen Teil 1) | alle Summen gleich (0 Abstürze, 0 nicht geladen, 0 D3D-Meldungen, 1 → 1 nicht gezeichnete Entity) |
+| sauberer Neubau | **0 Fehler, 0 Warnungen** (558 s) |
+
+Befund 1: die sechs eigenen Untermenüs machten **View** höher als das Fenster des Selbsttests;
+das Menü blieb offen, die folgenden Klicks kamen nicht an (87 Folgefehler). Jetzt ein Untermenü
+**View > Map tools (JK Studio)** mit den sechs Werkzeugen; Menügrößen-Tabelle, Selbsttest und
+Handbuch nachgezogen. Außerdem spielte „Im Editor spielen“ mit der Vorgabe-Machtstufe 2 höher als
+erwartet – die Vorgabe ist jetzt „ohne“.
+
+Befund 2: der Selbsttest startet den Editor im selben Prozess neu (LastMap); die Sitzungsdatei
+stand noch da, und die neue Absturzprüfung stellte ihre Frage. Die Sitzungsdatei trägt jetzt die
+Prozessnummer; derselbe Prozess zählt nie als Absturz (ctest `karte_wiederherstellen` prüft es).
+
+Die Änderungen nach dem Neubau (Prozessnummer, Menübreite) betreffen die Oberfläche, eine kleine
+Kerndatei und den Selbsttest; sie sind warnungsfrei gebaut, und der letzte Volllauf hat 0 Fehler.
 
 ## Offene Punkte
 
@@ -125,3 +149,57 @@ Ja lädt es unter dem Namen der Karte, als geändert.
 - Verknüpfte Kopien: keine Drehung; die Menüs „View“ sind dadurch höher (Menügrößen-Tabelle
   nachgezogen).
 - Handtests im Spiel für Punkt 1 (siehe Teil 1) stehen weiter aus.
+
+## Changelog
+
+## English
+
+- Map editor, **View > Map tools (JK Studio)**:
+  - **Check jumps and space**: shows where the player can stand or only crouch, and which edges a running jump or a force jump (level 1-3) reaches - with the game's real movement. Play in editor (F6) now knows the force jump too: hold the space bar to jump higher.
+  - **NPC paths**: shows the waypoint network the game builds, and lets an NPC walk from one selected entity to another with the game's path finding.
+  - **Linked copies**: change one copy of a group and all others follow in the same step; one undo takes it back.
+  - **Curve tool**: a smooth curve through selected point entities becomes a path, pipe, railing or bridge of patches, or a chain of path_corner or waypoints.
+  - **Scatter models**: puts copies of a misc_model_static on the walkable surfaces of an area, with random angle and scale, within the game's limit of 2000 (now also counted by the optimizer).
+  - **Terrain sculpt**: raise, lower, smooth and flatten terrain patches with the mouse in the camera.
+- Map editor: **File > Export selection for Blender** writes .glb or .obj; Import geometry as brushes brings it back to the same place.
+- Map editor: after a crash, the editor offers to load the newer autosave of the map at the next start.
+- **Pack map as .pk3** now includes the models, shaders and textures from the import folder.
+
+## Deutsch
+
+- Karten-Editor, **View > Map tools (JK Studio)**:
+  - **Sprünge und Platz prüfen**: zeigt, wo der Spieler stehen oder nur geduckt passt und welche Kanten ein Sprung mit Anlauf bzw. ein Machtsprung (Stufe 1-3) erreicht - mit der echten Bewegung des Spiels. Im Editor spielen (F6) kennt den Machtsprung jetzt auch: Leertaste halten springt höher.
+  - **NPC-Wege**: zeigt das Wegenetz, das das Spiel baut, und lässt einen NPC mit der Wegfindung des Spiels von einem gewählten Entity zum anderen laufen.
+  - **Verknüpfte Kopien**: eine Kopie einer Gruppe ändern, und alle anderen folgen im selben Schritt; ein Undo nimmt es zurück.
+  - **Kurven-Werkzeug**: eine glatte Kurve durch gewählte Punkt-Entities wird ein Weg, ein Rohr, ein Geländer oder eine Brücke aus Patches, oder eine Kette path_corner bzw. Wegpunkte.
+  - **Modelle verteilen**: setzt Kopien eines misc_model_static auf die begehbaren Flächen eines Bereichs, mit zufälligem Winkel und Maßstab, innerhalb der Grenze des Spiels von 2000 (die jetzt auch der Optimierer zählt).
+  - **Gelände formen**: Terrain-Patches mit der Maus in der Kamera heben, senken, glätten und ebnen.
+- Karten-Editor: **File > Auswahl für Blender exportieren** schreibt .glb oder .obj; Geometrie als Brushes importieren holt es an denselben Ort zurück.
+- Karten-Editor: nach einem Absturz bietet der Editor beim nächsten Start das neuere Autosave der Karte an.
+- **Karte als .pk3 packen** nimmt jetzt die Modelle, Shader und Texturen aus dem Import-Ordner mit.
+
+## 中文
+
+- 地图编辑器,**View > Map tools (JK Studio)**:
+  - **检查跳跃与空间**:显示玩家可以站立或只能蹲下的位置,以及助跑跳跃或原力跳跃(等级 1-3)能到达的边缘——使用游戏的真实移动。“在编辑器中游玩”(F6)现在也支持原力跳跃:按住空格键可以跳得更高。
+  - **NPC 路径**:显示游戏构建的路点网络,并让 NPC 使用游戏的寻路从一个选中的实体走到另一个。
+  - **链接副本**:修改组的一个副本,其他副本会在同一步中跟随;撤销一次即可还原。
+  - **曲线工具**:穿过所选点实体的平滑曲线可以生成由面片构成的道路、管道、栏杆或桥,或者 path_corner 链或路点链。
+  - **散布模型**:把 misc_model_static 的副本放到区域内可行走的表面上,角度和缩放随机,并遵守游戏 2000 个的上限(优化器现在也会统计)。
+  - **地形塑形**:在摄像机中用鼠标抬高、降低、平滑和整平地形面片。
+- 地图编辑器:**File > 为 Blender 导出所选内容** 写出 .glb 或 .obj;用“将几何体导入为画刷”可放回原位置。
+- 地图编辑器:崩溃后,编辑器会在下次启动时提供加载地图较新的自动保存。
+- **将地图打包为 .pk3** 现在会包含导入文件夹中的模型、着色器和纹理。
+
+## 日本語
+
+- マップエディター、**View > Map tools (JK Studio)**:
+  - **ジャンプと空間を確認**:プレイヤーが立てる場所としゃがんでだけ入れる場所、助走ジャンプやフォースジャンプ(レベル 1〜3)で届く縁を、ゲームの本当の動きで表示します。「エディターで遊ぶ」(F6)もフォースジャンプに対応しました。スペースキーを押し続けると高く跳びます。
+  - **NPC の経路**:ゲームが作るウェイポイント網を表示し、ゲームの経路探索で NPC を選んだエンティティから別のエンティティへ歩かせます。
+  - **リンクされたコピー**:グループのコピーを 1 つ変えると、ほかのすべてが同じ手順で追従し、元に戻す 1 回で戻ります。
+  - **カーブツール**:選んだポイントエンティティを通る滑らかなカーブから、パッチの道・パイプ・手すり・橋、または path_corner やウェイポイントの列を作ります。
+  - **モデルを散らす**:misc_model_static のコピーを範囲内の歩ける面に、ランダムな角度とスケールで置きます。ゲームの上限 2000 を守ります(最適化でも数えるようになりました)。
+  - **地形の造形**:カメラ内でマウスを使い、地形パッチを上げる・下げる・なめらかにする・平らにすることができます。
+- マップエディター:**File > 選択範囲を Blender 用に書き出す** で .glb か .obj を書き出し、「ジオメトリをブラシとして読み込む」で同じ場所に戻せます。
+- マップエディター:クラッシュの後、次回の起動時にマップのより新しい自動保存を読み込むか尋ねます。
+- **マップを .pk3 にまとめる** は、インポートフォルダーのモデル・シェーダー・テクスチャも含めるようになりました。
