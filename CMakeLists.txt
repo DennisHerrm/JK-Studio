@@ -1028,6 +1028,14 @@ target_sources(bhed_core PRIVATE
   src/karte/optimierer_beheben.cpp
   # Stufe 7 Punkt 5: Echtzeit-Licht (die Lichter der Karte wie q3map2 -light)
   src/karte/echtlicht.cpp)
+# Menue-Editor M1: .menu lesen wie die Engine (SP COM_ParseExt, MP botlib),
+# Modell mit Quelltext-Spannen, @MENUS-Texte, Spieldaten.
+target_sources(bhed_core PRIVATE
+  src/menue/lexer.cpp
+  src/menue/parser.cpp
+  src/menue/bearbeiten.cpp
+  src/menue/texte.cpp
+  src/menue/spieldaten.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -1073,6 +1081,14 @@ if(BEHAVED_TESTS)
   set(BEHAVED_KARTE_JA "" CACHE PATH "Jedi Academy base (nur lesen)")
   set(BEHAVED_KARTE_JK2 "" CACHE PATH "Jedi Outcast base (nur lesen)")
   set(BEHAVED_KARTE_MD "" CACHE STRING "Movie Duels base;MD (nur lesen)")
+  # Menue-Editor M1 Punkt 1: Parser, Modell, Spannen-Aenderungen, Texte;
+  # mit den Spielordnern zusaetzlich alle Originalmenues (Rundlauf).
+  add_executable(menuetest tests/menuetest.cpp)
+  target_link_libraries(menuetest PRIVATE bhed_core)
+  add_test(NAME menue_parser COMMAND menuetest)
+  add_executable(menuerundlauf tests/menuerundlauf.cpp)
+  target_link_libraries(menuerundlauf PRIVATE bhed_core)
+  add_test(NAME menue_rundlauf COMMAND menuerundlauf "${BEHAVED_KARTE_JA}" "${BEHAVED_KARTE_JK2}" ${BEHAVED_KARTE_MD})
   add_executable(kartetexturen tests/kartetexturen.cpp)
   target_link_libraries(kartetexturen PRIVATE bhed_core)
   add_test(NAME karte_texturen COMMAND kartetexturen "${BEHAVED_KARTE_JA}" "${BEHAVED_KARTE_JK2}" ${BEHAVED_KARTE_MD})

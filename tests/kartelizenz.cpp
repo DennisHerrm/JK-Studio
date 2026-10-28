@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
 
     // 3. Jede portierte Datei traegt den Herkunftskopf.
     std::vector<std::filesystem::path> dateien;
-    for (const char* ordner : {"src/karte", "include/bhed/karte"}) {
+    for (const char* ordner : {"src/karte", "include/bhed/karte", "src/menue", "include/bhed/menue"}) {
         const auto o = wurzel / ordner;
         std::error_code ec;
         if (!std::filesystem::is_directory(o, ec)) { continue; }
@@ -94,6 +94,9 @@ int main(int argc, char** argv) {
         const std::string text = lies(d);
         const std::string kopf = text.substr(0, 4000);
         const std::string name = d.filename().string();
+        // Menue-Editor: eigene Dateien (ohne Engine-Vorlage) sagen das im Kopf.
+        const bool menue = d.parent_path().filename() == "menue";
+        if (menue && enthaelt(kopf.substr(0, 600), "Eigener Code")) { continue; }
         pruefe(enthaelt(kopf, "Portiert aus NetRadiant-Custom") || enthaelt(kopf, "Portiert aus OpenJK")
                || enthaelt(kopf, "Portiert aus q3map2"),
                name + ": Kopf nennt die Herkunft");
