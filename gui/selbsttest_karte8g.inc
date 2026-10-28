@@ -44,9 +44,9 @@ std::vector<Schritt> schritte() {
         }
         meldeFehler("GPU-Backen: Eintrag [Final] Fast fehlt");
     }));
-    add(warteBis("GPU-Backen: Fortschrittsfenster", [] {
+    add(warteBis("GPU-Backen: Fortschrittsfenster mit der GPU", [] {
         const ke::BauFortschrittStand st = ke::bauFortschrittStand();
-        return !st.laeuft || st.schritt >= 2;
+        return !st.laeuft || (st.schritt >= 2 && !ke::editor().bau.gpuAdapter.empty());
     }, 3000));
     add(hb::fotoTeil("h_karte_gpubacken_fortschritt", [] { return fensterRahmen("###kartebaufortschritt"); }));
     add(stufe8::warteSek("GPU-Backen: Bau fertig", [] { return !ke::bauLaeuft(); }, 300));

@@ -2516,6 +2516,7 @@ struct BhedBakeFertig
 	int warnungen = 0;              /* "Hit per-surface style limit" of the style check */
 	Array4<byte> styles{};
 	size_t paare = 0;               /* lights * mapped luxels: the default check takes only small lightmaps */
+	bool pruefen = false;           /* the first lightmap of a round is always checked (small maps get a report too) */
 };
 static std::vector<BhedBakeFertig> g_bhedBakeFertig;
 /* the deviation report: every N-th lightmap (-bhedgpubakecheck) is computed a second time on the CPU */
@@ -2650,10 +2651,11 @@ static void BhedStandSetzen( rawLightmap_t *lm, const BhedLmStand& s ){
 
 /* finish one raw lightmap with the GPU result; every N-th one is computed on the CPU too and compared
    luxel by luxel (the GPU result stays) - with N > 1 only lightmaps up to 1 M pairs of light and luxel,
-   so that the check costs a few percent (one thread per lightmap); -bhedgpubakecheck 1 checks all */
+   so that the check costs a few percent (one thread per lightmap), and the first small one of every round;
+   -bhedgpubakecheck 1 checks all, 0 none */
 static void BhedBakeFertigstellen( int r ){
 	const int n = g_bhedBakePruefen;
-	if ( n <= 0 || ( r + int( g_bbRunden.load() ) ) % n != 0 || ( n > 1 && g_bhedBakeFertig[ r ].paare > ( size_t( 1 ) << 20 ) ) ) {
+	if ( n <= 0 || ( !g_bhedBakeFertig[ r ].pruefen && ( ( r + int( g_bbRunden.load() ) ) % n != 0 || ( n > 1 && g_bhedBakeFertig[ r ].paare > ( size_t( 1 ) << 20 ) ) ) ) ) {
 		IlluminateRawLightmap_( r, nullptr );
 		return;
 	}
@@ -3231,6 +3233,7 @@ static void BhedIlluminateGpu(){
 	} );
 	g_bbLeerLm += static_cast<long long>( leer.size() );
 	size_t pos = 0;
+	bool ersteGeprueft = false;
 	std::vector<std::uint32_t> zaehler, flags, flags2;
 	std::vector<float> aus;
 	while ( pos < gpuListe.size() && BhedBakeBereit() )
@@ -3301,6 +3304,8 @@ static void BhedIlluminateGpu(){
 			f.paare = size_t( L.m ) * size_t( L.nLichter );
 			f.warnungen = stil[ li ].warnungen;
 			f.styles = stil[ li ].styles;
+			f.pruefen = !ersteGeprueft && f.paare <= ( size_t( 1 ) << 20 );
+			ersteGeprueft = ersteGeprueft || f.pruefen;
 			++g_bbGpuLm;
 		}
 		/* the rest of IlluminateRawLightmap on all threads */

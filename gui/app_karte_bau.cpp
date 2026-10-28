@@ -1490,6 +1490,7 @@ void bauAusfuehren(const std::vector<std::string>& befehle) {
     l.hatVerlauf = false;
     l.gpu = karte::GpuBackBericht{};
     l.gpuRest.clear();
+    ed.bau.gpuAdapter.clear();   // Stufe 8g: die GPU dieses Baus (aus seiner Ausgabe)
     if (!l.kartenPfad.empty()) {
         const karte::BauZeitenSpeicher sp = bauZeitenLesen();
         if (const karte::BauLaufZeiten* v = sp.finden(l.kartenPfad, l.eintrag)) {
