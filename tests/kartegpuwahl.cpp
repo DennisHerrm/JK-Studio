@@ -1,6 +1,6 @@
 // kartegpuwahl.cpp - Stufe 8d Punkt 1b: "GPU bake: Auto" ohne GPU (ctest karte_gpuwahl)
 //
-// Die Entscheidungstabelle (bhed/karte/gpuwahl.h) mit den gemessenen Karten aus
+// Die Entscheidungstabelle (bhed/gpuwahl.h) mit den gemessenen Karten aus
 // NOTIZEN_karte8g.md, der Befehl (-bhedgpubakeauto -bhedgpubakezeiten), der Schluessel der
 // gemerkten Zeiten, ihr Speicher und das Lesen der Zeile "BehavEd GPU bake auto: ...".
 // Die Bitgleichheit bei Auto prueft ctest q3map2_gpubake (Punkt 7d).
@@ -8,7 +8,7 @@
 #include <string>
 
 #include "bhed/karte/editordaten.h"
-#include "bhed/karte/gpuwahl.h"
+#include "bhed/gpuwahl.h"
 
 namespace {
 int fehler = 0;

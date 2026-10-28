@@ -149,7 +149,7 @@ def main():
                                    ('nan', licht + gpu, {'BHED_GPUBAKE_NAN': '1'}),
                                    ('adapter0', licht + gpu + ['-bhedgpuadapter', '0'], None),
                                    ('adapterx', licht + gpu + ['-bhedgpuadapter', 'keine-solche-gpu'], None),
-                                   # Stufe 8d: -bhedgpubakeauto (bhed/karte/gpuwahl.h)
+                                   # Stufe 8d: -bhedgpubakeauto (bhed/gpuwahl.h)
                                    ('auto', licht + ['-bhedgpubakeauto'], None),
                                    ('autogpu', licht + ['-bhedgpubakeauto', '-bhedgpubakezeiten', '9000', '1'], None),
                                    ('autocpu', licht + ['-bhedgpubakeauto', '-bhedgpubakezeiten', '1', '9000'], None),

@@ -33,7 +33,7 @@
 #include "bhed_lichtcache.h" /* BehavEd stage 8a: -bhedlightcache */
 #include "bhed_gpuschatten.h" /* BehavEd stage 8b: -bhedgpu */
 #include "bhed_gpubacken.h" /* BehavEd stage 8c: -bhedgpubake */
-#include "bhed/karte/gpuwahl.h" /* BehavEd stage 8d: -bhedgpubakeauto */
+#include "bhed/gpuwahl.h" /* BehavEd stage 8d: -bhedgpubakeauto */
 #include "bhed_dxr.h" /* BehavEd stage 8g: -bhedgpudxr */
 #include "bspfile_rbsp.h"
 #include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, grid pre-pass in parallel */
@@ -2479,7 +2479,7 @@ int LightMain( Args& args ){
 	const bool bhedGpuWunsch = args.takeArg( "-bhedgpu" ); /* BehavEd stage 8b: shadow tests on the GPU, same reason */
 	g_bhedDxrWunsch = args.takeArg( "-bhedgpudxr" ); /* BehavEd stage 8g: DXR pre-test with -bhedgpu (measurement only) */
 	bool bhedBakeWunsch = args.takeArg( "-bhedgpubake" ); /* BehavEd stage 8c: light contributions on the GPU, same reason */
-	const bool bhedBakeAuto = args.takeArg( "-bhedgpubakeauto" ); /* BehavEd stage 8d: CPU or GPU, whichever is faster (bhed/karte/gpuwahl.h) */
+	const bool bhedBakeAuto = args.takeArg( "-bhedgpubakeauto" ); /* BehavEd stage 8d: CPU or GPU, whichever is faster (bhed/gpuwahl.h) */
 	long long bhedBakeZeitCpu = 0, bhedBakeZeitGpu = 0;
 	while ( args.takeArg( "-bhedgpubakezeiten" ) ) { /* BehavEd stage 8d: the editor's measured times of the last CPU/GPU light run (ms) */
 		bhedBakeZeitCpu = atoll( args.takeNext() );

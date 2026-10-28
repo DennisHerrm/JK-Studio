@@ -3,7 +3,7 @@
 
 Build > "GPU bake" ist ein Untermenue mit Auto / Ein / Aus (Vorgabe Auto,
 kGpuBackenVorgabe in include/bhed/karte/editordaten.h). Auto: bhed_q3map2 waehlt mit
--bhedgpubakeauto die schnellere Variante, die GPU nur bitgleich (bhed/karte/gpuwahl.h).
+-bhedgpubakeauto die schnellere Variante, die GPU nur bitgleich (bhed/gpuwahl.h).
 Die Gruende kommen als Kurzname aus der Ausgabezeile ("BehavEd GPU bake auto: ...").
 """
 

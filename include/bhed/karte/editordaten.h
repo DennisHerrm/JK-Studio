@@ -89,7 +89,7 @@ enum class EditorDatenStand { Passt, AndereBsp, Kaputt };
 
 // Stufe 8g: GPU-Backen. Stufe 8d (shank: "Das Backen soll automatisch die schnellere Variante
 // nehmen, CPU oder GPU"): Build > "GPU bake" hat drei Werte, Vorgabe Auto - bhed_q3map2 waehlt mit
-// -bhedgpubakeauto die schnellere Variante (bhed/karte/gpuwahl.h), die GPU nur, wenn sie double kann
+// -bhedgpubakeauto die schnellere Variante (bhed/gpuwahl.h), die GPU nur, wenn sie double kann
 // (bitgleich). Die Entscheidung, was ohne gespeicherte Einstellung gilt, ist nur diese Konstante.
 enum class GpuBacken { Aus, Ein, Auto };
 inline constexpr GpuBacken kGpuBackenVorgabe = GpuBacken::Auto;
