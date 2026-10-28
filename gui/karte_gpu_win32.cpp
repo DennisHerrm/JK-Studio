@@ -1371,7 +1371,7 @@ float beitrag(LichtD L, float3 p, float3 n) {
     return add;
 }
 // Schattenwuerfel: 5 Proben, Versatz entlang der Normale um gut einen Texel
-float wuerfelSicht(LichtD L, float3 p, float3 n) {
+float wuerfelSicht(LichtD L, float3 p, float3 n, bool weich) {
     float slot = L.mehr.x;
     if (slot < 0.0) { return 1.0; }
     bool gross = slot < 31.5;
@@ -1385,6 +1385,10 @@ float wuerfelSicht(LichtD L, float3 p, float3 n) {
     float3 t2 = cross(dn, t1);
     float r = 1.5 * 2.0 / groesse;
     float bias = 1.0 + ab * 0.003;
+    if (!weich) {   // schwache Lichter: eine Probe reicht (die Kante faellt kaum auf)
+        float g1 = gross ? schattenG.SampleLevel(punktAbtaster, float4(dn, slot), 0).r : schattenK.SampleLevel(punktAbtaster, float4(dn, slot - 32.0), 0).r;
+        return (ab - bias <= g1 * L.mehr.y) ? 1.0 : 0.0;
+    }
     float summe = 0.0;
     const float2 versatz5[5] = {float2(0, 0), float2(1, 0.3), float2(-1, -0.3), float2(-0.3, 1), float2(0.3, -1)};
     [unroll] for (int k = 0; k < 5; ++k) {
@@ -1444,7 +1448,7 @@ float3 lichtVon(uint k, float3 p, float3 n) {
     if ((int)L.farbe.a == 2) {
         s = L.mehr.x < -2.5 ? sonnenSicht(p, n, L.richtung.xyz) : (L.mehr.x >= 0.0 ? himmelSicht(L, p, n) : 1.0);
     } else {
-        s = wuerfelSicht(L, p, n);
+        s = wuerfelSicht(L, p, n, add > 8.0);
     }
     return L.farbe.rgb * add * s * (L.zusatz.x > 0.5 ? -1.0 : 1.0);
 }

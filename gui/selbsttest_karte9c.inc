@@ -684,10 +684,40 @@ std::vector<Schritt> himmel() {
     return s;
 }
 
+// Durchsichtige Shader wie im Spiel: die erste Stufe der Spiel-Shader (alphaFunc, blendFunc)
+// kommt in der Darstellung an; caulk (nodraw) ist unsichtbar.
+std::vector<Schritt> durchsichtig() {
+    std::vector<Schritt> s;
+    s.push_back(pruefe("Stufe 9c/2: Spiel-Shader mit alphaFunc und blendFunc werden wie im Spiel gezeichnet (erste Stufe gelesen)", [] {
+        const auto& sp = ke::editor().spiel;
+        if (!sp) { return false; }
+        int alpha = 0;
+        int mischen = 0;
+        std::string beispiel;
+        for (const karte::ShaderEintrag* e : sp->inventar.shader()) {
+            if (e->name.rfind("textures/", 0) != 0 || e->istStandard()) { continue; }
+            const ke::SpielDarstellung d = ke::spielDarstellung(e->name);
+            if (d.alphaFunktion != 0) {
+                if (alpha == 0) { beispiel += e->name + " (alphaFunc) "; }
+                ++alpha;
+            }
+            if (d.mischQuelle != 0) {
+                if (mischen == 0) { beispiel += e->name + " (blendFunc)"; }
+                ++mischen;
+            }
+            if (alpha > 0 && mischen > 0) { break; }
+        }
+        diag::detail("Knopftest: Stufe 9c/2 - " + beispiel);
+        return alpha > 0 && mischen > 0 && !ke::spielDarstellung("textures/yavin/temple_stone2").unsichtbar;
+    }));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     for (Schritt& x : leisten()) { s.push_back(std::move(x)); }
     for (Schritt& x : himmel()) { s.push_back(std::move(x)); }
+    for (Schritt& x : durchsichtig()) { s.push_back(std::move(x)); }
     // Lichtmessung auf Karten nur mit BHED_LICHT_KARTEN (lang)
     if (const char* k = std::getenv("BHED_LICHT_KARTEN"); k != nullptr && k[0] != '\0') {
         for (Schritt& x : messung()) { s.push_back(std::move(x)); }
