@@ -47,6 +47,11 @@ void fuegeEin(int typ);
 int suche(const std::string& muster, bool regex);
 int ersetzeAlle(const std::string& muster, const std::string& ersatz, bool regex);
 void springeZuItem(int item);
+// Items der Auswahl: duplizieren (Strg+D), loeschen (Entf), kopieren (Strg+C), einfuegen (Strg+V)
+void dupliziereAuswahl();
+void loescheAuswahl();
+std::string kopiereAuswahl();
+void fuegeItemsEin(const std::string& text);
 bool speichereUnter(const std::string& pfad);
 bool exportierePk3(const std::string& pfad);
 

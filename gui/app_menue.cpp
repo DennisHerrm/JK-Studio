@@ -171,6 +171,9 @@ Dokument* doc() {
                                                                               : nullptr;
 }
 
+std::string anzeige(std::string_view s);    // Latin-1 -> UTF-8 (unten)
+std::string utf8ZuLatin1(const char* s);    // UTF-8 -> Latin-1 (unten)
+
 // --- Spieldaten, Texte, Schriften, Shader ------------------------------------
 
 void datenPruefen() {
@@ -824,6 +827,16 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) { dy = -schritt; }
         if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) { dy = schritt; }
         if (dx != 0 || dy != 0) { verschiebeAuswahl(dx, dy); }
+        const bool strg = ImGui::GetIO().KeyCtrl;
+        if (ImGui::IsKeyPressed(ImGuiKey_Delete)) { loescheAuswahl(); }
+        if (strg && ImGui::IsKeyPressed(ImGuiKey_D)) { dupliziereAuswahl(); }
+        if (strg && ImGui::IsKeyPressed(ImGuiKey_C)) { ImGui::SetClipboardText(anzeige(kopiereAuswahl()).c_str()); }
+        if (strg && ImGui::IsKeyPressed(ImGuiKey_Z)) { rueckgaengig(); }
+        if (strg && ImGui::IsKeyPressed(ImGuiKey_Y)) { wiederholen(); }
+    }
+    if (ImGui::IsWindowFocused() && !z.codeFokus && !ImGui::GetIO().WantTextInput && ImGui::GetIO().KeyCtrl &&
+        ImGui::IsKeyPressed(ImGuiKey_V)) {
+        if (const char* c = ImGui::GetClipboardText()) { fuegeItemsEin(utf8ZuLatin1(c)); }
     }
 }
 
@@ -1647,6 +1660,13 @@ void zeichneEigenschaften(Dokument& d) {
             d.auswahl.assign(1, i - 1);
         }
     }
+    if (ImGui::Button(tr(Str::ActClone))) { dupliziereAuswahl(); }
+    ImGui::SameLine();
+    if (ImGui::Button(tr(Str::ActDelete))) {
+        loescheAuswahl();
+        ImGui::PopID();
+        return;
+    }
     if (!it.action.empty()) { ImGui::TextWrapped("action: %s", anzeige(it.action).c_str()); }
     (void)z;
     ImGui::PopID();
@@ -2090,6 +2110,78 @@ int ersetzeAlle(const std::string& muster, const std::string& ersatz, bool regex
 }
 
 void springeZuItem(int item) { waehle(item, false); }
+
+std::string kopiereAuswahl() {
+    Dokument* d = doc();
+    if (d == nullptr) { return {}; }
+    const int mi = menuDerSeite(*d);
+    std::vector<int> a = d->auswahl;
+    std::sort(a.begin(), a.end());
+    std::string t;
+    for (const int i : a) { t += itemText(d->datei, mi, i); }
+    return t;
+}
+
+// Einen oder mehrere itemDef-Bloecke ans Ende des Menues; jedes bekommt einen freien Namen.
+void fuegeItemsEin(const std::string& text) {
+    Dokument* d = doc();
+    if (d == nullptr || text.find("itemDef") == std::string::npos) { return; }
+    const int mi = menuDerSeite(*d);
+    if (mi < 0) { return; }
+    Menu namen = d->datei.menus[static_cast<std::size_t>(mi)];   // fuer freie Namen
+    std::string alles;
+    std::size_t p = 0;
+    int neu = 0;
+    while (true) {
+        const std::size_t a = text.find("itemDef", p);
+        if (a == std::string::npos) { break; }
+        std::size_t b = text.find("itemDef", a + 7);
+        // Zeilenanfang des naechsten Blocks
+        if (b != std::string::npos) {
+            while (b > a && text[b - 1] != '\n') { --b; }
+        }
+        std::size_t s = a;
+        while (s > p && text[s - 1] != '\n') { --s; }
+        const std::string block = text.substr(s, (b == std::string::npos ? text.size() : b) - s);
+        Item basis;
+        LeseOptionen o;
+        o.dialekt = d->datei.dialekt;
+        o.spiel = d->datei.spiel;
+        const Datei probe = lies("ui/kopie.menu", "{ menuDef { " + block + " } }", o);
+        std::string alt = (!probe.menus.empty() && !probe.menus[0].items.empty()) ? probe.menus[0].items[0].window.name : "item";
+        const std::string frei = freierName(namen, alt);
+        basis.window.name = frei;
+        namen.items.push_back(basis);
+        alles += umbenennen(block, frei, d->datei.dialekt);
+        if (!alles.empty() && alles.back() != '\n') { alles += d->puffer.zeilenUmbruch(); }
+        ++neu;
+        if (b == std::string::npos) { break; }
+        p = b;
+    }
+    std::vector<Ersetzung> e;
+    if (neu > 0 && itemEinfuegen(d->datei, mi, alles, e)) {
+        aendere(std::move(e));
+        const int n = static_cast<int>(d->datei.menus[static_cast<std::size_t>(mi)].items.size());
+        d->auswahl.clear();
+        for (int i = n - neu; i < n; ++i) { d->auswahl.push_back(i); }
+    }
+}
+
+void dupliziereAuswahl() { fuegeItemsEin(kopiereAuswahl()); }
+
+void loescheAuswahl() {
+    Dokument* d = doc();
+    if (d == nullptr || d->auswahl.empty()) { return; }
+    const int mi = menuDerSeite(*d);
+    std::vector<Ersetzung> e;
+    for (const int i : d->auswahl) {
+        if (d->gesperrt.count(i) != 0) { continue; }
+        (void)itemLoeschen(d->datei, mi, i, e);
+    }
+    d->auswahl.clear();
+    d->gesperrt.clear();   // die Nummern verschieben sich
+    aendere(std::move(e));
+}
 
 bool speichereUnter(const std::string& pfad) {
     Dokument* d = doc();

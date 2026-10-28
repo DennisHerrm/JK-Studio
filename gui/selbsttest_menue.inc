@@ -135,6 +135,16 @@ std::vector<Schritt> schritte() {
         return x.items == 5 && x.text.find("ITEM_TYPE_BUTTON") != std::string::npos && x.auswahl.size() == 1 && x.auswahl[0] == 4;
     }));
     add(foto("menue_palette"));
+    add(tu("Duplizieren (Strg+D)", [] { me::dupliziereAuswahl(); }));
+    add(pruefe("Duplizieren: 6 Items, button_3 neu und gewaehlt", [st] {
+        const auto x = st();
+        return x.items == 6 && x.text.find("button_3") != std::string::npos && x.auswahl.size() == 1 && x.auswahl[0] == 5;
+    }));
+    add(tu("Loeschen (Entf)", [] { me::loescheAuswahl(); }));
+    add(pruefe("Loeschen: wieder 5 Items, button_3 weg", [st] {
+        const auto x = st();
+        return x.items == 5 && x.text.find("button_3") == std::string::npos;
+    }));
     // Suchen und Ersetzen
     add(pruefe("Suchen: rect 6x", [] { return me::suche("rect", false) == 6; }));
     add(pruefe("Suchen Regex: ui_\\w+ 4x", [] { return me::suche("ui_\\w+", true) == 4; }));
