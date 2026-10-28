@@ -304,6 +304,48 @@ if(MSVC AND BEHAVED_Q3MAP2)
   endif()
 endif()
 
+# Stufe 9 Punkt 2: assimp 6.0.2 (BSD-3, GPL-vertraeglich) fuer den Geometrie-Import im Editor
+# (obj/fbx/glb). Mit dem MSVC-q3map2 (add_subdirectory(src/q3map2)) gibt es das Ziel schon;
+# sonst (q3map2 mit clang-cl als eigener Bau) hier eines nur mit den drei Lesern.
+if(NOT TARGET assimp)
+  set(BHED_TP9 ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+  if(NOT TARGET bhed_zlib)
+    add_library(bhed_zlib STATIC
+      ${BHED_TP9}/zlib/adler32.c ${BHED_TP9}/zlib/compress.c ${BHED_TP9}/zlib/crc32.c ${BHED_TP9}/zlib/deflate.c
+      ${BHED_TP9}/zlib/gzclose.c ${BHED_TP9}/zlib/gzlib.c ${BHED_TP9}/zlib/gzread.c ${BHED_TP9}/zlib/gzwrite.c
+      ${BHED_TP9}/zlib/infback.c ${BHED_TP9}/zlib/inffast.c ${BHED_TP9}/zlib/inflate.c ${BHED_TP9}/zlib/inftrees.c
+      ${BHED_TP9}/zlib/trees.c ${BHED_TP9}/zlib/uncompr.c ${BHED_TP9}/zlib/zutil.c)
+    target_include_directories(bhed_zlib PUBLIC ${BHED_TP9}/zlib)
+    target_compile_definitions(bhed_zlib PRIVATE _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE)
+    if(MSVC)
+      target_compile_options(bhed_zlib PRIVATE /W0 /utf-8)
+    endif()
+  endif()
+  set(ZLIB_FOUND TRUE CACHE INTERNAL "")
+  set(ZLIB_INCLUDE_DIR ${BHED_TP9}/zlib CACHE INTERNAL "")
+  set(ZLIB_INCLUDE_DIRS ${BHED_TP9}/zlib CACHE INTERNAL "")
+  set(ZLIB_LIBRARIES bhed_zlib CACHE INTERNAL "")
+  set(ZLIB_LIBRARY bhed_zlib CACHE INTERNAL "")
+  if(NOT TARGET ZLIB::ZLIB)
+    add_library(ZLIB::ZLIB ALIAS bhed_zlib)
+  endif()
+  set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+  set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
+  foreach(i OBJ FBX GLTF)
+    set(ASSIMP_BUILD_${i}_IMPORTER ON CACHE BOOL "" FORCE)
+  endforeach()
+  foreach(o ZLIB TESTS SAMPLES ASSIMP_TOOLS DRACO USE_CCACHE)
+    set(ASSIMP_BUILD_${o} OFF CACHE BOOL "" FORCE)
+  endforeach()
+  set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+  set(ASSIMP_NO_EXPORT ON CACHE BOOL "" FORCE)
+  set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
+  set(ASSIMP_INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
+  set(ASSIMP_IGNORE_GIT_HASH ON CACHE BOOL "" FORCE)
+  add_subdirectory(${BHED_TP9}/assimp ${CMAKE_BINARY_DIR}/assimp_editor EXCLUDE_FROM_ALL)
+endif()
+target_link_libraries(bhed_core PRIVATE assimp)
+
 # --- Oberflaeche -------------------------------------------------------
 #
 # Dear ImGui 1.92 oder neuer wird erwartet. Nicht mitgeliefert:
@@ -933,6 +975,8 @@ target_sources(bhed_core PRIVATE
   src/karte/spielbeschreibung.cpp
   # Stufe 9 Punkt 1: Im Spiel testen (Suchpfad, Archiv, Befehlszeile)
   src/karte/spieltest.cpp
+  # Stufe 9 Punkt 2: Geometrie zu Brushes (obj/fbx/glb ueber assimp)
+  src/karte/geometrieimport.cpp
   # Stufe 1b: Texturbrowser (texwindow.cpp, aktive Shader)
   src/karte/texturbrowser.cpp
   # Stufe 1b: Texturen mit M3 kopieren und auftragen (TexManipulator, surfacedialog.cpp)
@@ -1147,6 +1191,10 @@ if(BEHAVED_TESTS)
   add_executable(kartespieltest tests/kartespieltest.cpp)
   target_link_libraries(kartespieltest PRIVATE bhed_core)
   add_test(NAME karte_spieltest COMMAND kartespieltest)
+  # Stufe 9 Punkt 2: Geometrie zu Brushes (obj/gltf lesen, Zerlegung, UV, caulk, detail)
+  add_executable(kartegeoimport tests/kartegeoimport.cpp)
+  target_link_libraries(kartegeoimport PRIVATE bhed_core)
+  add_test(NAME karte_geoimport COMMAND kartegeoimport)
   # Stufe 8d Punkt 4: alle Datei-Leser mit 300 Mutanten je Leser (unter ASan/UBSan in eigenen Bauordnern)
   add_executable(leserfuzz tests/leserfuzz.cpp)
   target_link_libraries(leserfuzz PRIVATE bhed_core)
