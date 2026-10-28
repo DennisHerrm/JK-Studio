@@ -22,6 +22,7 @@
 
 #include "bhed/i18n.h"
 #include "bhed/karte/prefabverbund.h"
+#include "bhed/karte/gelaende.h"
 #include "bhed/karte/kurven.h"
 #include "bhed/karte/npcwege.h"
 #include "bhed/karte/sprungpruefung.h"
@@ -967,6 +968,14 @@ struct Editor {
     std::shared_ptr<NavWelt> npcWelt;
     std::size_t npcWeltStand = static_cast<std::size_t>(-1);
     std::shared_ptr<LaufPlan> npcLauf;
+    // Stufe 9 Punkt 9: Gelaende formen (View > Terrain sculpt; M1 in der Kamera)
+    struct FormenZustand {
+        bool an = false;
+        bool strich = false;      // ein Befehl laeuft (M1 gedrueckt)
+        int art = 0;              // karte::FormArt
+        float radius = 128.0F;
+        float ebeneZ = 0.0F;      // Ebnen: die Hoehe beim Druck
+    } formen;
     double npcLaufStart = 0.0;
     std::string zwischenablage;            // Copy/Paste (NRC: QClipboard "RadiantClippings")
     bool nachKlonenSchubsen = false;       // g_bNudgeAfterClone ("Nudge selected after duplication")
@@ -1782,6 +1791,10 @@ bool verbundLoesenBefehl();
 bool kurveBefehl(karte::KurvenArt art);
 // Stufe 9 Punkt 8 (app_karte_sprung.cpp): Modelle verteilen
 bool streuBefehl(int anzahl);
+// Stufe 9 Punkt 9 (app_karte_sprung.cpp): Gelaende formen
+void gelaendeFormenMaus(float x, float y, bool unten, float dt);   // aus der Kamera, jedes Bild
+std::size_t gelaendeFormenAn(const karte::Vektor3f& punkt, float dt);   // eine Anwendung im laufenden Strich
+void gelaendeFormenEnde();
 // Stufe 8b Punkt 6: Spiegel-Modus (app_karte_spiegel.cpp)
 void spiegelTick();                    // jeden Frame vor den Ansichten
 void spiegelSetzen(int achse);         // -1 aus, 0 X, 1 Y, 2 Z

@@ -510,6 +510,52 @@ std::vector<Schritt> schritte() {
     }));
     add(pause(0.3));
     add(pruefe("Verteilen: die Karte wie vorher", [vtVorher] { return ke::editor().karte.entitaeten().size() == *vtVorher; }));
+
+    // --- Punkt 9: Gelaende formen -------------------------------------------------------------
+    // Ein Terrain-Patch auf dem Boden; View > Terrain sculpt: an, Heben, Radius 128 (Klicks);
+    // ein Strich in der Mitte (wie M1 in der Kamera: gelaendeFormenAn je Bild) hebt die Mitte, der
+    // Rand bleibt; ein Undo nimmt den Strich zurueck; aus; Undo (Patch).
+    auto foPatch = std::make_shared<std::shared_ptr<karte::Patch>>();
+    add(tu("Formen: ein ebener Terrain-Patch 9 x 9 auf dem Boden", [foPatch] {
+        karteDialogeZu();
+        ke::konsoleLeeren();
+        ke::Editor& ed = ke::editor();
+        auto p = std::make_shared<karte::Patch>();
+        karte::Kasten b;
+        b.origin = karte::Vektor3f(0, 0, -60);
+        b.extents = karte::Vektor3f(192, 192, 0);
+        p->ebeneBauen(b, 2, 9, 9);
+        p->setzeShader("textures/system/caulk");
+        karte::Befehl c(ed.karte.undo, "patchCreate");
+        ed.karte.welt()->kindEinfuegen(p);
+        *foPatch = p;
+        ed.formen = ke::Editor::FormenZustand{};
+    }));
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeFoMenue)) + "###formen"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeFoAn)) + "###formenan"));
+    add(pause(0.3));
+    add(tu("Formen: ein Strich in der Mitte (10 Bilder je 1/60 s)", [] {
+        for (int i = 0; i < 10; ++i) { (void)ke::gelaendeFormenAn(karte::Vektor3f(0, 0, -60), 1.0F / 60.0F); }
+        ke::gelaendeFormenEnde();
+    }));
+    add(pruefe("Formen: an, Mitte gehoben (16 = 10 x 96/60), Rand unveraendert", [foPatch] {
+        const auto& p = **foPatch;
+        const float mitte = p.punkt(4, 4).vertex[2] + 60.0F, rand = p.punkt(0, 0).vertex[2] + 60.0F;
+        diag::detail("Knopftest: Formen - Mitte " + std::to_string(mitte) + ", Rand " + std::to_string(rand));
+        return ke::editor().formen.an && std::fabs(mitte - 16.0F) < 0.01F && rand == 0.0F && !ke::editor().formen.strich;
+    }));
+    add(tu("Formen: Undo", [] { (void)ke::ausfuehren("Undo"); }));
+    add(pause(0.3));
+    add(pruefe("Formen: ein Undo nimmt den Strich zurueck", [foPatch] { return (**foPatch).punkt(4, 4).vertex[2] == -60.0F; }));
+    add(tu("Formen: aus, Undo (Patch)", [foPatch] {
+        ke::editor().formen.an = false;
+        (void)ke::ausfuehren("Undo");
+        foPatch->reset();
+    }));
+    add(pause(0.2));
     add(tu("Geometrie: Ende - Import-Ordner weg (spaetere Befehlsvergleiche ohne -fs_pakpath)", [] {
         karteDialogeZu();
         ke::konsoleLeeren();

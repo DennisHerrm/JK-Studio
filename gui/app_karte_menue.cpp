@@ -490,6 +490,41 @@ void listeZeichnen(const std::string& name) {
                 qtMenueEnde();
             }
         }
+        // Stufe 9 Punkt 9 (eigene Funktion): Gelaende formen
+        {
+            const std::string id = std::string(trK(Str::KeFoMenue)) + "###formen";
+            if (qtMenueAnfang(id.c_str())) {
+                const std::string an = std::string(trK(Str::KeFoAn)) + "###formenan";
+                QtPunkt p;
+                p.id = an.c_str();
+                p.art = QtArt::Pruefbar;
+                p.haken = e().formen.an;
+                p.tooltip = trK(Str::KeFoTip);
+                if (qtPunkt(p)) { e().formen.an = !e().formen.an; }
+                qtTrenner();
+                const Str arten[4] = {Str::KeFoHeben, Str::KeFoSenken, Str::KeFoGlaetten, Str::KeFoEbnen};
+                for (int i = 0; i < 4; ++i) {
+                    const std::string t = std::string(trK(arten[i])) + "###formenart" + std::to_string(i);
+                    QtPunkt a;
+                    a.id = t.c_str();
+                    a.art = QtArt::Exklusiv;
+                    a.haken = e().formen.art == i;
+                    if (qtPunkt(a)) { e().formen.art = i; }
+                }
+                qtTrenner();
+                for (const int r : {64, 128, 256}) {
+                    char z[96];
+                    std::snprintf(z, sizeof(z), trK(Str::KeFoRadius), r);
+                    std::snprintf(z + std::strlen(z), sizeof(z) - std::strlen(z), "###formenradius%d", r);
+                    QtPunkt a;
+                    a.id = z;
+                    a.art = QtArt::Exklusiv;
+                    a.haken = static_cast<int>(e().formen.radius) == r;
+                    if (qtPunkt(a)) { e().formen.radius = static_cast<float>(r); }
+                }
+                qtMenueEnde();
+            }
+        }
         // Stufe 7 Punkt 6b (shank: "settings in den Map editor auch einbauen das
         // man theme und language aendern kann"): die Einstellungen des Programms
         // als eigener Abschnitt am Ende von NRCs View-Menue (nicht in NRC;

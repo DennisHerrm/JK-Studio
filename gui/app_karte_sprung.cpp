@@ -19,6 +19,8 @@
 #include "bhed/karte/pinsel.h"
 #include "bhed/karte/sprungpruefung.h"
 #include "bhed/karte/streuen.h"
+#include "bhed/karte/auswahlsystem.h"
+#include "bhed/karte/kamera.h"
 #include "bhed/karte/grenzen.h"
 
 #include <cmath>
@@ -435,6 +437,45 @@ bool streuBefehl(int anzahl) {
         warnung(t);
     }
     return n > 0;
+}
+
+// --- Stufe 9 Punkt 9: Gelaende formen ------------------------------------------------------
+
+std::size_t gelaendeFormenAn(const karte::Vektor3f& punkt, float dt) {
+    Editor& ed = e();
+    auto& z = ed.formen;
+    if (!z.strich) {   // der Strich ist ein Befehl
+        ed.karte.undo.start();
+        z.strich = true;
+        z.ebeneZ = punkt[2];
+    }
+    karte::FormPinsel f;
+    f.radius = z.radius;
+    f.art = static_cast<karte::FormArt>(std::clamp(z.art, 0, 3));
+    f.staerke = (f.art == karte::FormArt::Heben || f.art == karte::FormArt::Senken) ? 96.0F * dt : 48.0F * dt;   // je Sekunde
+    const std::size_t n = karte::formenAufKarte(ed.karte, punkt, f, z.ebeneZ);
+    if (n > 0) { ++ed.sichtStand; }
+    return n;
+}
+
+void gelaendeFormenEnde() {
+    Editor& ed = e();
+    if (!ed.formen.strich) { return; }
+    ed.formen.strich = false;
+    ed.karte.undo.finish("terrainSculpt");
+    ++ed.sichtStand;
+}
+
+void gelaendeFormenMaus(float x, float y, bool unten, float dt) {
+    Editor& ed = e();
+    if (!unten) {
+        gelaendeFormenEnde();
+        return;
+    }
+    karte::Kamera& k = ed.kamera;
+    const karte::Vektor2f p = k.geraetePunkt(x, y);
+    const karte::GeraeteVektor eps(8.F / static_cast<float>(k.breite), 8.F / static_cast<float>(k.hoehe));
+    (void)gelaendeFormenAn(karte::szeneSchnitt(ed.karte, ed.blicke[3], p, eps), dt);   // Scene_Intersect unter dem Zeiger
 }
 
 }  // namespace bhed::gui::karteneditor

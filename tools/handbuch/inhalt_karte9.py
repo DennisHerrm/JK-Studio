@@ -129,6 +129,17 @@ KARTE_WERKZEUGE9 = {
             "Jedes misc_model_static wird ein statisches Objekt des Spiels, und Jedi Academy und Movie Duels brechen nach 2000 (MAX_MISC_ENTS) mit einem Fehler ab. Das Verteilen hält an dieser Grenze an, und der Optimierer zählt misc_model_static dagegen. Jedi Outcast kennt kein misc_model_static; dort werden die Kopien misc_model.",
             "每个 misc_model_static 都会成为游戏中的静态对象,Jedi Academy 和 Movie Duels 在超过 2000 个(MAX_MISC_ENTS)后会报错停止。散布会在该上限处停止,优化器也会按此上限统计 misc_model_static。Jedi Outcast 没有 misc_model_static,在那里副本为 misc_model。",
             "misc_model_static はそれぞれゲームの静的オブジェクトになり、Jedi Academy と Movie Duels は 2000 個(MAX_MISC_ENTS)を超えるとエラーで止まります。散らす処理はこの上限で止まり、最適化も misc_model_static をこの上限で数えます。Jedi Outcast には misc_model_static がないので、そこではコピーは misc_model になります。")),
+        ("h2", "formen", T("Terrain sculpt", "Gelände formen", "地形塑形", "地形の造形")),
+        ("p", T(
+            "Make a terrain of patches (for example a big patch with many rows, or the patches of the terrain generator). **{{KeLView}} > {{KeFoMenue}} > {{KeFoAn}}**: now the left mouse button in the camera shapes the patches under the pointer instead of selecting - hold it and move. Choose **{{KeFoHeben}}**, **{{KeFoSenken}}**, **{{KeFoGlaetten}}** or **{{KeFoEbnen}}** (to the height where you pressed) and a radius of 64, 128 or 256; the effect fades towards the edge of the circle. One stroke is one undo step.",
+            "Baue ein Gelände aus Patches (etwa einen großen Patch mit vielen Zeilen oder die Patches des Terrain-Generators). **{{KeLView}} > {{KeFoMenue}} > {{KeFoAn}}**: jetzt formt die linke Maustaste in der Kamera die Patches unter dem Zeiger, statt zu wählen - halten und bewegen. Wähle **{{KeFoHeben}}**, **{{KeFoSenken}}**, **{{KeFoGlaetten}}** oder **{{KeFoEbnen}}** (auf die Höhe, wo du gedrückt hast) und einen Radius von 64, 128 oder 256; die Wirkung läuft zum Rand des Kreises aus. Ein Strich ist ein Undo-Schritt.",
+            "用面片构建地形(例如一个有很多行的大面片,或地形生成器的面片)。**{{KeLView}} > {{KeFoMenue}} > {{KeFoAn}}**:此时摄像机中的鼠标左键会塑造指针下方的面片,而不是选择——按住并移动。选择 **{{KeFoHeben}}**、**{{KeFoSenken}}**、**{{KeFoGlaetten}}** 或 **{{KeFoEbnen}}**(到按下位置的高度),以及 64、128 或 256 的半径;效果向圆的边缘逐渐减弱。一笔为一步撤销。",
+            "パッチで地形を作ります(たとえば行の多い大きなパッチや、地形ジェネレーターのパッチ)。**{{KeLView}} > {{KeFoMenue}} > {{KeFoAn}}** をオンにすると、カメラでの左ボタンは選択の代わりにポインターの下のパッチを形づくります。押したまま動かします。**{{KeFoHeben}}**・**{{KeFoSenken}}**・**{{KeFoGlaetten}}**・**{{KeFoEbnen}}**(押した所の高さへ)と、半径 64・128・256 を選びます。効果は円の縁に向かって弱まります。1 ストロークが元に戻す 1 回分です。")),
+        ("note", T(
+            "Only patches are shaped; terrain brushes keep their shape. Blending textures on the terrain (alpha maps) is not part of this version yet.",
+            "Geformt werden nur Patches; Terrain-Brushes behalten ihre Form. Texturen auf dem Gelände überblenden (Alpha-Maps) gehört noch nicht zu dieser Fassung.",
+            "只会塑造面片;地形画刷保持原样。地形上的纹理混合(alpha 贴图)尚未包含在此版本中。",
+            "形づくるのはパッチだけで、地形のブラシは形を変えません。地形上でのテクスチャのブレンド(アルファマップ)は、この版にはまだありません。")),
     ],
 }
 

@@ -1716,9 +1716,13 @@ void kameraZeichnen() {
     zusatz.shift = io.KeyShift;
     zusatz.strg = io.KeyCtrl;
     zusatz.alt = io.KeyAlt;
+    // Stufe 9 Punkt 9 (eigene Funktion): Gelaende formen - M1 formt statt zu waehlen
+    const bool formen = ed.formen.an && !f.frei;
+    if (formen || ed.formen.strich) { gelaendeFormenMaus(mausX, mausY, formen && ImGui::IsMouseDown(0) && (ueber || ed.formen.strich), io.DeltaTime); }
     {
         const ImGuiMouseButton knoepfe[3] = {ImGuiMouseButton_Left, ImGuiMouseButton_Right, ImGuiMouseButton_Middle};
         for (int b = 0; b < 3; ++b) {
+            if (formen && b == 0) { continue; }
             // selection_button_press (ORBIT_EVENT: Alt+M2 nicht)
             if (ImGui::IsMouseClicked(knoepfe[b]) && (ueber || f.frei) && !(b == 1 && nurAlt)) {
                 beobachterDruck(3, mausX, mausY, b, zusatz);
