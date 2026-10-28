@@ -58,7 +58,7 @@ struct Schrift {
     short pointSize = 0, height = 0, ascender = 0, descender = 0;
     bool ok = false;
 };
-// CFontInfo::CFontInfo: die Datei muss genau sizeof(dfontdat_t) = 7178 Bytes haben.
+// CFontInfo::CFontInfo: die Datei muss genau sizeof(dfontdat_t) = 7180 Bytes haben.
 [[nodiscard]] bool ladeFontdat(const std::string& name, const std::string& daten, Schrift& out);
 // RE_Font_StrLenPixels (JA): ^0-^9 zaehlen nicht, Zeilenumbruch beginnt neu, ceilf.
 [[nodiscard]] int schriftBreite(const Schrift& f, const std::string& text, float scale);

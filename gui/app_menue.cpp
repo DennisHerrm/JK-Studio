@@ -99,7 +99,7 @@ struct Zustand {
     Seitenverhaeltnis seitenv = Seitenverhaeltnis::Strecken;
     int aufloesung = 0;   // 0 = Fenster, sonst Voreinstellung
     bool interaktion = false;
-    bool alleItems = true;
+    bool alleItems = false;   // wie im Spiel; an: verborgene gedimmt
     bool raster = false;
     bool anRaster = false;
     bool anKanten = true;

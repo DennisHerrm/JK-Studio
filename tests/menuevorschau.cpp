@@ -38,13 +38,14 @@ std::string fontdat() {
     }
     const short ps = 20, hh = 20, asc = 16, desc = 4, kor = 0;
     put(&ps, 2); put(&hh, 2); put(&asc, 2); put(&desc, 2); put(&kor, 2);
+    d.append(2, '\0');   // sizeof(dfontdat_t) = 7180
     return d;
 }
 }  // namespace
 
 int main() {
     Schrift f;
-    pruefe(ladeFontdat("probe", fontdat(), f), "fontdat 7178 Bytes gelesen");
+    pruefe(ladeFontdat("probe", fontdat(), f), "fontdat 7180 Bytes gelesen");
     Schrift falsch;
     pruefe(!ladeFontdat("probe", fontdat() + "x", falsch), "fontdat mit falscher Groesse abgelehnt (wie CFontInfo)");
     pruefe(f.shader == "fonts/probe" && f.pointSize == 20, "Schrift: Shader und pointSize");

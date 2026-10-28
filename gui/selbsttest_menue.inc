@@ -111,8 +111,10 @@ std::vector<Schritt> schritte() {
     // Suchen und Ersetzen
     add(pruefe("Suchen: rect 6x", [] { return me::suche("rect", false) == 6; }));
     add(pruefe("Suchen Regex: ui_\\w+ 4x", [] { return me::suche("ui_\\w+", true) == 4; }));
-    add(pruefe("Ersetzen Regex: Probe -> Test", [st] {
-        return me::ersetzeAlle("\"Probe\"", "\"Test\"", true) == 1 && st().text.find("\"Test\"") != std::string::npos;
+    auto ersetzt = std::make_shared<int>(-1);
+    add(tu("Ersetzen Regex: Probe -> Test", [ersetzt] { *ersetzt = me::ersetzeAlle("\"Probe\"", "\"Test\"", true); }));
+    add(pruefe("Ersetzen Regex (Gross/Klein egal): name \"probe\" und text \"Probe\" ersetzt", [st, ersetzt] {
+        return *ersetzt == 2 && st().text.find("\"Test\"") != std::string::npos && st().text.find("\"Probe\"") == std::string::npos;
     }));
     add(foto("menue_suchen"));
     // Seiten (ui_tab) und Cvars
@@ -143,14 +145,17 @@ std::vector<Schritt> schritte() {
     add(pruefe("MP: rect aus einem Makro bleibt unberuehrt", [st] { return st().text.find("rect LINKS 40 100 20") != std::string::npos; }));
     // Original aus dem Spiel (nur mit Spielordnern)
     add(tu("Original aus dem Spiel oeffnen (wenn vorhanden)", [] {
-        if (!me::oeffneAusSpiel("ui/main.menu")) { (void)me::oeffneAusSpiel("ui/jamp/main.menu"); }
+        if (!me::oeffneAusSpiel("ui/jamp/main.menu")) { (void)me::oeffneAusSpiel("ui/main.menu"); }
     }));
     add(pause(1.0));
     add(foto("menue_original"));
     add(pruefe("Original: gelesen und gezeichnet (ohne Spielordner uebersprungen)", [st] {
         if (g_app->gamePaths.empty()) { return true; }
         const auto x = st();
-        return x.menus > 0 && x.prims > 0;
+        diag::info("Menue-Editor Original: " + std::to_string(x.menus) + " Menues, " + std::to_string(x.items) + " Items, " +
+                   std::to_string(x.prims) + " Zeichenbefehle, " + std::to_string(x.bilderGeladen) + " Texturen, " +
+                   std::to_string(x.meldungen) + " Meldungen");
+        return x.menus > 0 && x.prims > 0 && x.bilderGeladen > 0;
     }));
     // Export nie in Spielordner, sonst in den Einstellungsordner
     add(pruefe("Export .pk3 in den Einstellungsordner", [] {

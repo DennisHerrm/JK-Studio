@@ -36,7 +36,7 @@ namespace bhed::menue {
 namespace {
 
 constexpr int kGlyphs = 256;
-constexpr std::size_t kFontdatGroesse = 256 * 28 + 5 * 2;   // sizeof(dfontdat_t) = 7178
+constexpr std::size_t kFontdatGroesse = 256 * 28 + 5 * 2 + 2;   // sizeof(dfontdat_t) = 7180 (auf 4 aufgefuellt)
 constexpr float kPulseDivisor = 75.0F;                        // PULSE_DIVISOR
 constexpr int kBlinkDivisor = 200;                            // BLINK_DIVISOR
 constexpr int ITEM_TEXTSTYLE_BLINK = 1;
