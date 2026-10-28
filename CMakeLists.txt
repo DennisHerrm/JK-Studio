@@ -985,8 +985,6 @@ target_sources(bhed_core PRIVATE
   src/karte/sprungpruefung.cpp
   # Stufe 9 Punkt 5: NPC-Wege
   src/karte/npcwege.cpp
-  # Stufe 9 Punkt 5: NPC-Wege
-  src/karte/npcwege.cpp
   # Stufe 1b: Texturbrowser (texwindow.cpp, aktive Shader)
   src/karte/texturbrowser.cpp
   # Stufe 1b: Texturen mit M3 kopieren und auftragen (TexManipulator, surfacedialog.cpp)
@@ -1213,10 +1211,6 @@ if(BEHAVED_TESTS)
   add_executable(kartesprung tests/kartesprung.cpp)
   target_link_libraries(kartesprung PRIVATE bhed_core)
   add_test(NAME karte_sprung COMMAND kartesprung)
-  # Stufe 9 Punkt 5: NPC-Wege - Netz aus den Entities der Karte, Testlauf
-  add_executable(kartenpcwege tests/kartenpcwege.cpp)
-  target_link_libraries(kartenpcwege PRIVATE bhed_core)
-  add_test(NAME karte_npcwege COMMAND kartenpcwege)
   # Stufe 9 Punkt 5: NPC-Wege - Netz aus den Entities der Karte, Testlauf
   add_executable(kartenpcwege tests/kartenpcwege.cpp)
   target_link_libraries(kartenpcwege PRIVATE bhed_core)
