@@ -1780,6 +1780,8 @@ bool verbundKopieBefehl();
 bool verbundLoesenBefehl();
 // Stufe 9 Punkt 7 (app_karte_sprung.cpp): Kurve durch die gewaehlten Punkt-Entities
 bool kurveBefehl(karte::KurvenArt art);
+// Stufe 9 Punkt 8 (app_karte_sprung.cpp): Modelle verteilen
+bool streuBefehl(int anzahl);
 // Stufe 8b Punkt 6: Spiegel-Modus (app_karte_spiegel.cpp)
 void spiegelTick();                    // jeden Frame vor den Ansichten
 void spiegelSetzen(int achse);         // -1 aus, 0 X, 1 Y, 2 Z

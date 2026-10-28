@@ -15,13 +15,18 @@
 #include "bhed/kollision.h"
 #include "bhed/karte/spielkollision.h"
 #include "bhed/karte/npcwege.h"
+#include "bhed/karte/patch.h"
+#include "bhed/karte/pinsel.h"
 #include "bhed/karte/sprungpruefung.h"
+#include "bhed/karte/streuen.h"
+#include "bhed/karte/grenzen.h"
 
 #include <cmath>
 #include <set>
 
 #include <atomic>
 #include <cstdio>
+#include <cstring>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -361,6 +366,74 @@ bool kurveBefehl(karte::KurvenArt art) {
     char t[300];
     std::snprintf(t, sizeof(t), trK(Str::KeKuFertig), static_cast<int>(kp.size()), static_cast<int>(n));
     ausgabe(t);
+    return n > 0;
+}
+
+// --- Stufe 9 Punkt 8: Modelle verteilen ----------------------------------------------------
+
+bool streuBefehl(int anzahl) {
+    Editor& ed = e();
+    std::string modell;
+    std::string klasse;
+    karte::Vektor3f vorlageOrt;
+    karte::Vektor3f mn(1e30F, 1e30F, 1e30F), mx(-1e30F, -1e30F, -1e30F);
+    bool flaeche = false;
+    for (const auto& a : ed.karte.auswahl.elemente()) {
+        const auto ent = a.entitaet.lock();
+        if (!ent) { continue; }
+        const std::string k = ent->wert("classname");
+        if (a.primitiv.expired() && (k == "misc_model" || k == "misc_model_static") && !ent->wert("model").empty() && modell.empty()) {
+            modell = ent->wert("model");
+            klasse = k;
+            vorlageOrt = karte::entitaetUrsprung(*ent);
+            continue;
+        }
+        const auto p = a.primitiv.lock();
+        if (!p) { continue; }
+        const karte::Kasten b = p->art() == karte::Primitiv::Art::Pinsel ? static_cast<const karte::Pinsel&>(*p).grenzen(ed.karte.kontext)
+                                                                          : static_cast<const karte::Patch&>(*p).grenzen();
+        for (std::size_t i = 0; i < 3; ++i) {
+            mn[i] = std::min(mn[i], b.origin[i] - b.extents[i]);
+            mx[i] = std::max(mx[i], b.origin[i] + b.extents[i]);
+        }
+        flaeche = true;
+    }
+    if (modell.empty()) {
+        fehler(trK(Str::KeVtVorlage));
+        return false;
+    }
+    if (!flaeche) {   // ohne gewaehlte Flaeche: 256 um die Vorlage
+        mn = vorlageOrt - karte::Vektor3f(256, 256, 256);
+        mx = vorlageOrt + karte::Vektor3f(256, 256, 256);
+    }
+    const auto& sp = ed.karteSpiel ? ed.karteSpiel : ed.spiel;
+    const bool jk2 = sp && sp->spiel == kRegelwerkJediOutcast;
+    if (klasse == "misc_model_static" && jk2) { klasse = "misc_model"; }   // Jedi Outcast kennt misc_model_static nicht
+    auto k = std::make_shared<KollisionsKarte>();
+    (void)karte::kollisionAusKarte(ed.karte, parmsVon, !jk2, *k);
+    karte::StreuOptionen o;
+    o.anzahl = anzahl;
+    o.startwert = static_cast<unsigned>(ed.karte.undo.aenderungen() * 2654435761U + 17U);
+    int erlaubt = anzahl;
+    long long grenze = 0;
+    if (klasse == "misc_model_static") {
+        const karte::GrenzSpiel gs = karte::grenzSpielFuerRegelwerk(kartenSpielNummer());
+        if (const karte::Grenze* g = karte::grenzeSuchen(gs, "laufzeit.miscents")) {
+            grenze = g->erlaubt;
+            erlaubt = static_cast<int>(std::max<long long>(0, g->erlaubt - karte::miscModelStaticZahl(ed.karte)));
+        }
+    }
+    const karte::StreuErgebnis r = karte::streuOrte(*k, mn, mx, o, erlaubt);
+    const std::size_t n = karte::streuEinfuegen(ed.karte, r, klasse, modell);
+    ++ed.sichtStand;
+    auswahlGeaendert();
+    char t[400];
+    std::snprintf(t, sizeof(t), trK(Str::KeVtFertig), static_cast<int>(n), klasse.c_str(), modell.c_str());
+    ausgabe(t);
+    if (r.begrenzt) {
+        std::snprintf(t, sizeof(t), trK(Str::KeVtGrenze), static_cast<int>(grenze));
+        warnung(t);
+    }
     return n > 0;
 }
 

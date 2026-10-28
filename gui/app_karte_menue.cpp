@@ -474,6 +474,22 @@ void listeZeichnen(const std::string& name) {
                 qtMenueEnde();
             }
         }
+        // Stufe 9 Punkt 8 (eigene Funktion): Modelle verteilen
+        {
+            const std::string id = std::string(trK(Str::KeVtMenue)) + "###verteilen";
+            if (qtMenueAnfang(id.c_str())) {
+                for (const int n : {10, 25, 50}) {
+                    char z[160];
+                    std::snprintf(z, sizeof(z), trK(Str::KeVtAnzahl), n);
+                    std::snprintf(z + std::strlen(z), sizeof(z) - std::strlen(z), "###verteilen%d", n);
+                    QtPunkt p;
+                    p.id = z;
+                    p.tooltip = trK(Str::KeVtTip);
+                    if (qtPunkt(p)) { (void)streuBefehl(n); }
+                }
+                qtMenueEnde();
+            }
+        }
         // Stufe 7 Punkt 6b (shank: "settings in den Map editor auch einbauen das
         // man theme und language aendern kann"): die Einstellungen des Programms
         // als eigener Abschnitt am Ende von NRCs View-Menue (nicht in NRC;

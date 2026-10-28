@@ -5616,7 +5616,8 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         // Stufe 9 Punkt 5: dazu das Untermenue "NPC paths" (eigene Funktion)
         // Stufe 9 Punkt 6: dazu das Untermenue "Linked copies" (eigene Funktion)
         // Stufe 9 Punkt 7: dazu das Untermenue "Curve tool" (eigene Funktion)
-        {"View", {"View"}, 292, 333 + 7 + 5 * 24 + 7 + 6 * 24 + 24 + 24 + 24 + 24},
+        // Stufe 9 Punkt 8: dazu das Untermenue "Scatter models" (eigene Funktion)
+        {"View", {"View"}, 292, 333 + 7 + 5 * 24 + 7 + 6 * 24 + 24 + 24 + 24 + 24 + 24},
         {"View__Camera", {"View", "Camera"}, 255, 216},
         {"View__Orthographic", {"View", "Orthographic"}, 307, 240},
         {"View__Show", {"View", "Show"}, 253, 401},

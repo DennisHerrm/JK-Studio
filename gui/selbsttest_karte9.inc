@@ -449,6 +449,67 @@ std::vector<Schritt> schritte() {
     add(pruefe("Kurve: die Karte wie vorher", [kuVorher, kuPatches] {
         return ke::editor().karte.entitaeten().size() == *kuVorher && ke::editor().karte.welt()->kinder().size() == *kuPatches;
     }));
+
+    // --- Punkt 8: Modelle verteilen -----------------------------------------------------------
+    // Eine misc_model_static-Vorlage und der Boden-Brush des Raums gewaehlt: View > Scatter models
+    // > 10 -> zehn Kopien auf dem Boden (Oberkante des Bodens), gewaehlt; Undo; Undo (Vorlage).
+    auto vtVorher = std::make_shared<std::size_t>(0);
+    auto vtBoden = std::make_shared<float>(0.0F);
+    add(tu("Verteilen: Vorlage misc_model_static und der Boden des Raums gewaehlt", [vtVorher, vtBoden] {
+        karteDialogeZu();
+        ke::konsoleLeeren();
+        ke::Editor& ed = ke::editor();
+        *vtVorher = ed.karte.entitaeten().size();
+        std::shared_ptr<karte::Primitiv> boden;
+        float tief = 1e30F;
+        for (const auto& p : ed.karte.welt()->kinder()) {
+            if (!p || p->art() != karte::Primitiv::Art::Pinsel) { continue; }
+            const karte::Kasten b = static_cast<const karte::Pinsel&>(*p).grenzen(ed.karte.kontext);
+            if (b.origin[2] + b.extents[2] < tief) {
+                tief = b.origin[2] + b.extents[2];
+                boden = p;
+            }
+        }
+        *vtBoden = tief;
+        karte::Befehl b(ed.karte.undo, "entityCreate -class misc_model_static");
+        auto en = ed.karte.neueEntitaet("misc_model_static", false);
+        en->setzen("origin", "0 0 -40");
+        en->setzen("model", "models/map_objects/imperial/crate_banded.md3");
+        ed.karte.entitaetEinfuegen(en);
+        ed.karte.auswahl.leeren();
+        ed.karte.auswahl.waehlen(en);
+        if (boden) { ed.karte.auswahl.waehlen(ed.karte.welt(), boden); }
+    }));
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeVtMenue)) + "###verteilen"));
+    add(pause(0.3));
+    {
+        char z[160];
+        std::snprintf(z, sizeof(z), ke::trK(Str::KeVtAnzahl), 10);
+        add(klick(std::string(z) + "###verteilen10"));
+    }
+    add(pause(0.4));
+    add(pruefe("Verteilen: zehn neue misc_model_static auf dem Boden, gewaehlt, Konsole", [vtVorher, vtBoden] {
+        const ke::Editor& ed = ke::editor();
+        int n = 0;
+        bool aufBoden = true;
+        for (const auto& en : ed.karte.entitaeten()) {
+            if (en->wert("classname") != "misc_model_static" || en->wert("origin") == "0 0 -40") { continue; }
+            ++n;
+            aufBoden = aufBoden && std::fabs(karte::entitaetUrsprung(*en)[2] - *vtBoden) < 0.5F;
+        }
+        diag::detail("Knopftest: Verteilen - " + std::to_string(n) + " Kopien, Boden " + std::to_string(*vtBoden));
+        return n == 10 && aufBoden && ed.karte.auswahl.anzahl() == 10 && ed.karte.entitaeten().size() == *vtVorher + 11 &&
+               konsoleText().find("Scatter models: 10 x misc_model_static") != std::string::npos;
+    }));
+    add(tu("Verteilen: zwei Undo", [] {
+        karteDialogeZu();
+        (void)ke::ausfuehren("Undo");
+        (void)ke::ausfuehren("Undo");
+    }));
+    add(pause(0.3));
+    add(pruefe("Verteilen: die Karte wie vorher", [vtVorher] { return ke::editor().karte.entitaeten().size() == *vtVorher; }));
     add(tu("Geometrie: Ende - Import-Ordner weg (spaetere Befehlsvergleiche ohne -fs_pakpath)", [] {
         karteDialogeZu();
         ke::konsoleLeeren();

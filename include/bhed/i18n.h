@@ -2486,6 +2486,12 @@ enum class Str {
     KeKuZweiWaehlen,
     KeKuFertig,
     KeGrLzMiscEnts,
+    KeVtMenue,
+    KeVtAnzahl,
+    KeVtTip,
+    KeVtVorlage,
+    KeVtFertig,
+    KeVtGrenze,
     KeGiModellDatei,
     Count,
 };
