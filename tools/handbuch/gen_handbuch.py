@@ -102,6 +102,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in KARTE8C})
             from i18n_karte8g import KARTE8G   # Stufe 8g: GPU-Backen
             texte.update({e[0]: e[1:] for e in KARTE8G})
+            from i18n_karte8d import KARTE8D   # Stufe 8d: GPU bake Auto
+            texte.update({e[0]: e[1:] for e in KARTE8D})
             return texte
     raise SystemExit("gen_i18n.py: Liste S nicht gefunden")
 

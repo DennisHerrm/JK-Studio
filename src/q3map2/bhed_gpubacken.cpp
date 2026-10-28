@@ -606,6 +606,8 @@ std::thread g_startFaden;
 bool g_startOk = false;
 std::string g_startWahl;
 
+bool g_startGewartet = false;   // Stufe 8d: der Start ist abgewartet (BhedBakeGeraetArt oder BhedBakeStart)
+
 } // namespace
 
 void BhedBakeGeraetVorab( const std::string& adapterWahl ){
@@ -618,6 +620,24 @@ void BhedBakeGeraetVorab( const std::string& adapterWahl ){
 	} );
 }
 
+namespace {
+void geraetAbwarten( const std::string& adapterWahl ){
+	if ( g_startGewartet ) {
+		return;
+	}
+	if ( !g_startFaden.joinable() ) {
+		BhedBakeGeraetVorab( adapterWahl );
+	}
+	g_startFaden.join();
+	g_startGewartet = true;
+}
+} // namespace
+
+int BhedBakeGeraetArt( const std::string& adapterWahl ){
+	geraetAbwarten( adapterWahl );
+	return !g_startOk ? 0 : ( g.doppelt ? 2 : 1 );
+}
+
 bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector<int>& items, const std::vector<BhedBakeDreieck>& dreiecke,
                     const std::vector<BhedBakeInfo>& infos, const int *flaechen, int anzahlFlaechen, int kopfKnoten,
                     const unsigned char *vis, std::size_t visBytes, const BhedBakeBsp& bsp, const std::string& adapterWahl ){
@@ -626,10 +646,7 @@ bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector
 	}
 	g.zeiten = std::getenv( "BHED_GPUBAKE_ZEITEN" ) != nullptr;
 	g.nanTest = g.nanGitterTest = std::getenv( "BHED_GPUBAKE_NAN" ) != nullptr;
-	if ( !g_startFaden.joinable() ) {
-		BhedBakeGeraetVorab( adapterWahl );
-	}
-	g_startFaden.join();
+	geraetAbwarten( adapterWahl );
 	for ( const std::string& z : g_meldungen ) {
 		Sys_Printf( "%s", z.c_str() );
 	}

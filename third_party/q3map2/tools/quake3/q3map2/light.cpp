@@ -33,6 +33,7 @@
 #include "bhed_lichtcache.h" /* BehavEd stage 8a: -bhedlightcache */
 #include "bhed_gpuschatten.h" /* BehavEd stage 8b: -bhedgpu */
 #include "bhed_gpubacken.h" /* BehavEd stage 8c: -bhedgpubake */
+#include "bhed/karte/gpuwahl.h" /* BehavEd stage 8d: -bhedgpubakeauto */
 #include "bhed_dxr.h" /* BehavEd stage 8g: -bhedgpudxr */
 #include "bspfile_rbsp.h"
 #include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, grid pre-pass in parallel */
@@ -2477,7 +2478,13 @@ int LightMain( Args& args ){
 	const bool bhedLichtCache = args.takeArg( "-bhedlightcache" ); /* BehavEd stage 8a: before argsToInject (not in the worldspawn command line) */
 	const bool bhedGpuWunsch = args.takeArg( "-bhedgpu" ); /* BehavEd stage 8b: shadow tests on the GPU, same reason */
 	g_bhedDxrWunsch = args.takeArg( "-bhedgpudxr" ); /* BehavEd stage 8g: DXR pre-test with -bhedgpu (measurement only) */
-	const bool bhedBakeWunsch = args.takeArg( "-bhedgpubake" ); /* BehavEd stage 8c: light contributions on the GPU, same reason */
+	bool bhedBakeWunsch = args.takeArg( "-bhedgpubake" ); /* BehavEd stage 8c: light contributions on the GPU, same reason */
+	const bool bhedBakeAuto = args.takeArg( "-bhedgpubakeauto" ); /* BehavEd stage 8d: CPU or GPU, whichever is faster (bhed/karte/gpuwahl.h) */
+	long long bhedBakeZeitCpu = 0, bhedBakeZeitGpu = 0;
+	while ( args.takeArg( "-bhedgpubakezeiten" ) ) { /* BehavEd stage 8d: the editor's measured times of the last CPU/GPU light run (ms) */
+		bhedBakeZeitCpu = atoll( args.takeNext() );
+		bhedBakeZeitGpu = atoll( args.takeNext() );
+	}
 	std::string bhedBakeAdapter;
 	while ( args.takeArg( "-bhedgpuadapter" ) ) { /* BehavEd stage 8c: GPU by number or part of its name */
 		bhedBakeAdapter = args.takeNext();
@@ -2485,7 +2492,7 @@ int LightMain( Args& args ){
 	while ( args.takeArg( "-bhedgpubakecheck" ) ) { /* BehavEd stage 8g: every N-th lightmap computed on the CPU too (0: none) */
 		g_bhedBakePruefen = std::max( 0, atoi( args.takeNext() ) );
 	}
-	if ( bhedBakeWunsch ) {
+	if ( bhedBakeWunsch || bhedBakeAuto ) {
 		BhedBakeGeraetVorab( bhedBakeAdapter ); /* BehavEd stage 8g: device and shaders while the map loads */
 	}
 	const auto argsToInject = args.getVector();
@@ -3221,6 +3228,26 @@ int LightMain( Args& args ){
 	BhedZeit( "light: SetupTraceNodes" );
 	if ( bhedGpuWunsch ) {
 		BhedGpuVorbereiten(); /* BehavEd stage 8b: -bhedgpu */
+	}
+	if ( bhedBakeAuto && !bhedBakeWunsch ) { /* BehavEd stage 8d: -bhedgpubakeauto */
+		bhed::karte::GpuWahlEingabe e;
+		const int art = BhedBakeGeraetArt( bhedBakeAdapter );
+		e.geraet = art == 2 ? bhed::karte::GpuGeraet::MitDouble : art == 1 ? bhed::karte::GpuGeraet::OhneDouble : bhed::karte::GpuGeraet::Keins;
+		for ( int i = 0; i < numRawLightmaps; ++i ) {
+			e.superLuxel += static_cast<long long>( rawLightmaps[ i ].sw ) * rawLightmaps[ i ].sh;
+		}
+		e.bounce = bounce;
+		e.samples = lightSamples;
+		e.cpuMs = bhedBakeZeitCpu;
+		e.gpuMs = bhedBakeZeitGpu;
+		const bhed::karte::GpuWahl w = bhed::karte::gpuWahl( e );
+		Sys_Printf( "BehavEd GPU bake auto: %s (%s) - %lld super luxels, bounce %d, samples %d, adapter %s, last CPU %lld ms, last GPU %lld ms\n",
+		            w.gpu ? "GPU" : "CPU", bhed::karte::gpuGrundName( w.grund ), e.superLuxel, e.bounce, e.samples,
+		            art == 2 ? "with double" : art == 1 ? "without double" : "none", e.cpuMs, e.gpuMs );
+		bhedBakeWunsch = w.gpu;
+		if ( !w.gpu ) {
+			BhedBakeEnde(); /* the device that was started while the map loaded */
+		}
 	}
 	if ( bhedBakeWunsch ) { /* BehavEd stage 8c: -bhedgpubake */
 		g_bhedBakeAn = BhedBakeVorbereiten( bhedBakeAdapter );

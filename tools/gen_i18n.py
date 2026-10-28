@@ -2221,6 +2221,8 @@ from i18n_karte8c import KARTE8C  # noqa: E402  (Stufe 8c: Tutorial, Karte als .
 S += KARTE8C
 from i18n_karte8g import KARTE8G  # noqa: E402  (Stufe 8g: GPU-Backen)
 S += KARTE8G
+from i18n_karte8d import KARTE8D  # noqa: E402  (Stufe 8d: GPU bake Auto)
+S += KARTE8D
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

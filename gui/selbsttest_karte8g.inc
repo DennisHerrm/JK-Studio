@@ -5,6 +5,10 @@
 // war), alle Lumps der .bsp sind Byte fuer Byte die des CPU-Baus davor, die Einstellung ist gespeichert und
 // am Ende wieder aus.
 //
+// Stufe 8d Punkt 1b: "GPU bake" ist ein Untermenue Auto / Ein / Aus, Vorgabe Auto. Erst Ein (der
+// Bau oben), dann Auto: der -light-Befehl hat -bhedgpubakeauto mit den gemerkten Zeiten, die Konsole
+// nennt Wahl und Grund, die Lumps sind wieder die des CPU-Baus, die Zeit ist gemerkt; am Ende Auto.
+//
 // Eingebunden in gui/selbsttest.cpp nach selbsttest_karte8c.inc. Modus karteneditor
 // (BHED_KARTE_NUR=stufe8g: Tutorial und dieser Teil) und Bildlauf BHED_HB_NUR=gpubacken.
 namespace stufe8g {
@@ -22,16 +26,18 @@ std::vector<Schritt> schritte() {
         ke::konsoleLeeren();
         karteDialogeZu();
     }));
-    add(pruefe("GPU-Backen: Vorgabe aus (kGpuBackenVorgabe), die CPU-.bsp ist da", [cpuBsp] {
-        return !ke::editor().bau.gpuBacken && !cpuBsp->empty();
+    add(pruefe("GPU-Backen: Vorgabe Auto (kGpuBackenVorgabe), die CPU-.bsp ist da", [cpuBsp] {
+        return ke::editor().bau.gpuBacken == karte::GpuBacken::Auto && !cpuBsp->empty();
     }));
     add(klick(ke::trK(Str::KeLBuild), "###main"));
     add(pause(0.3));
-    add(hb::fotoTeil("h_karte_gpubacken_menue", stufe8c::menueRahmen));
     add(klick(std::string(ke::trK(Str::KeGpuMenue)) + "##baugpubacken"));
     add(pause(0.3));
-    add(pruefe("GPU-Backen: Build > GPU bake ist an und gespeichert (BhedGpuBake=1)", [] {
-        return ke::editor().bau.gpuBacken && g_app->settings.karte["BhedGpuBake"] == "1";
+    add(hb::fotoTeil("h_karte_gpubacken_menue", stufe8c::menueRahmen));
+    add(klick(std::string(ke::trK(Str::KeGpuEin)) + "##baugpuein"));
+    add(pause(0.3));
+    add(pruefe("GPU-Backen: Build > GPU bake > On ist gewaehlt und gespeichert (BhedGpuBakeMode=on)", [] {
+        return ke::editor().bau.gpuBacken == karte::GpuBacken::Ein && g_app->settings.karte["BhedGpuBakeMode"] == "on";
     }));
     add(tu("GPU-Backen: Build > [Final] Fast", [] {
         karteDialogeZu();
@@ -84,12 +90,57 @@ std::vector<Schritt> schritte() {
         return !g.empty() && g.size() == cpuBsp->size() && lumps.empty() && !stufe3::konsoleArtMit(ke::KonsolenZeile::Art::Fehler, "");
     }));
     add(hb::fotoTeil("h_karte_gpubacken_bericht", stufe8c::editorRahmen));
+    // Stufe 8d: Auto
     add(klick(ke::trK(Str::KeLBuild), "###main"));
     add(pause(0.3));
     add(klick(std::string(ke::trK(Str::KeGpuMenue)) + "##baugpubacken"));
     add(pause(0.3));
-    add(pruefe("GPU-Backen: wieder aus und gespeichert (BhedGpuBake=0)", [] {
-        return !ke::editor().bau.gpuBacken && g_app->settings.karte["BhedGpuBake"] == "0";
+    add(klick(std::string(ke::trK(Str::KeGpuAuto)) + "##baugpuauto"));
+    add(pause(0.3));
+    add(pruefe("GPU-Backen: wieder Auto und gespeichert (BhedGpuBakeMode=auto)", [] {
+        return ke::editor().bau.gpuBacken == karte::GpuBacken::Auto && g_app->settings.karte["BhedGpuBakeMode"] == "auto";
+    }));
+    add(tu("GPU-Backen Auto: Konsole leeren, Build > [Final] Fast", [] {
+        karteDialogeZu();
+        ke::konsoleLeeren();
+        ke::editor().bau.gpuWahlText.clear();
+        const auto& v = ke::editor().bauProjekt.eintraege;
+        for (std::size_t i = 0; i < v.size(); ++i) {
+            if (v[i].name == "[Final] Fast") {
+                ke::bauStarten(i);
+                return;
+            }
+        }
+        meldeFehler("GPU-Backen Auto: Eintrag [Final] Fast fehlt");
+    }));
+    add(stufe8::warteSek("GPU-Backen Auto: Bau fertig", [] { return !ke::bauLaeuft(); }, 300));
+    add(pause(0.3));
+    add(pruefe("GPU-Backen Auto: -bhedgpubakeauto mit den gemerkten Zeiten, Wahl und Grund in der Konsole, Lumps gleich dem CPU-Bau, Zeit gemerkt",
+               [cpuBsp] {
+        const std::string k = konsoleText();
+        const std::string& w = ke::editor().bau.gpuWahlText;
+        const bool schalter = k.find("-bhedgpubakeauto -bhedgpubakezeiten ") != std::string::npos;
+        const bool text = !w.empty() && k.find(w) != std::string::npos;
+        const std::string g = dateiInhalt(stufe8c::stamm() + ".bsp");
+        bool lumpsGleich = g.size() == cpuBsp->size() && g.size() >= 152;
+        for (int i = 0; i < 18 && lumpsGleich; ++i) {
+            std::uint32_t oa = 0, la = 0, ob = 0, lb = 0;
+            std::memcpy(&oa, g.data() + 8 + 8 * i, 4);
+            std::memcpy(&la, g.data() + 12 + 8 * i, 4);
+            std::memcpy(&ob, cpuBsp->data() + 8 + 8 * i, 4);
+            std::memcpy(&lb, cpuBsp->data() + 12 + 8 * i, 4);
+            lumpsGleich = la == lb && oa + la <= g.size() && ob + lb <= cpuBsp->size() && std::memcmp(g.data() + oa, cpuBsp->data() + ob, la) == 0;
+        }
+        bool gemerkt = false;
+        for (std::size_t pos = k.find("-light"); pos != std::string::npos && !gemerkt; pos = k.find("-light", pos + 1)) {
+            const std::size_t ende = k.find('\n', pos);
+            const std::string zeile = "q " + k.substr(pos, ende == std::string::npos ? std::string::npos : ende - pos);
+            const karte::GpuZeiten z = ke::gpuZeitenHolen(ke::editor().name, karte::lichtSchalter(zeile));
+            gemerkt = z.cpuMs > 0 || z.gpuMs > 0;
+        }
+        diag::detail("Knopftest: GPU-Backen Auto - Schalter " + std::to_string(schalter ? 1 : 0) + ", Wahl \"" + w + "\", Lumps gleich " +
+                     std::to_string(lumpsGleich ? 1 : 0) + ", gemerkt " + std::to_string(gemerkt ? 1 : 0));
+        return schalter && text && lumpsGleich && gemerkt;
     }));
     add(tu("GPU-Backen: Ende - Dialoge zu", [] {
         karteDialogeZu();

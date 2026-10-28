@@ -983,7 +983,8 @@ struct Editor {
         bool editorDaten = false;          // Stufe 8a: -keeplights und <karte>.bhed ("BhedKeepEditorData"), Vorgabe aus wie NRC
         bool visWieder = false;            // Stufe 8a Punkt 5a: -bhedvisreuse fuer -vis ("BhedVisReuse")
         bool lichtWieder = false;          // Stufe 8a Punkt 5b/5d: -bhedlightcache fuer -light ("BhedLightReuse")
-        bool gpuBacken = karte::kGpuBackenVorgabe;   // Stufe 8g: -bhedgpubake fuer -light und das Schnell-Backen ("BhedGpuBake")
+        karte::GpuBacken gpuBacken = karte::kGpuBackenVorgabe;   // Stufe 8g/8d: Aus/Ein/Auto fuer -light und das Schnell-Backen ("BhedGpuBakeMode")
+        std::string gpuWahlText;     // Stufe 8d: was Auto zuletzt gewaehlt hat und warum (Konsole, Statuszeile, Tooltip)
         std::string gpuBericht;            // Stufe 8g: der Abweichungsbericht des letzten GPU-Backens (eine Zeile, uebersetzt)
         std::string gpuAdapter;            // Stufe 8g: die GPU des laufenden bzw. letzten GPU-Backens
     } bau;
@@ -1617,6 +1618,11 @@ void zusammenVorlageWaehlenDatei(const std::string& pfad);   // fuer den Selbstt
 void zusammenStarten(int ebene);                 // Build > Update entities only
 void bauSchritt();                     // CWatchBSP::RoutineProcessing (jedes Bild, auch ausserhalb des Editors)
 [[nodiscard]] bool bauLaeuft();        // ein Bauen laeuft (Bilder weiter zeichnen)
+// Stufe 8d Punkt 1b (GPU bake Auto): die gemerkten -light-Zeiten (Datei karte_gpuzeiten.txt im
+// Einstellungsordner) und der Text "was Auto gewaehlt hat und warum" (app_karte_bau.cpp)
+[[nodiscard]] karte::GpuZeiten gpuZeitenHolen(const std::string& karte, const std::string& schalter);
+void gpuZeitMerken(const std::string& karte, const std::string& schalter, bool gpu, double sekunden);
+[[nodiscard]] std::string gpuWahlText(const karte::GpuBackBericht& b, long long cpuMs, long long gpuMs);
 void bauAbbrechen();                   // Abweichung: Bauen abbrechen
 void bauBeimBeenden();                 // ~CWatchBSP: kein q3map2 ohne Editor
 void bauRueckmeldungenZeichnen();

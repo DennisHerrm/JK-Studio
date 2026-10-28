@@ -27,6 +27,8 @@ alle Luxel (der Bericht zaehlt sie).
                                  einem Gitterpunkt (Treiberfehler vorgetaeuscht) - beide rechnet
                                  die CPU neu, Lumps gleich
   7c. Adapterwahl              - -bhedgpuadapter 0 und ein unbekannter Name (Meldung, die schnellste)
+  7d. Auto (Stufe 8d)          - -bhedgpubakeauto: kleine Karte -> CPU; gemerkt GPU schneller -> GPU,
+                                 bitgleich; gemerkt CPU schneller -> CPU; ohne double -> CPU
   8. Himmel mit Sonne          - ein Hof unter einem Himmels-Shader mit q3map_sunExt (eigener
                                  Spielordner im Test): CPU und GPU, mit double Byte-gleich.
                                  Rot vor der Behebung in 8c: der skyIndex eines Shaders
@@ -146,7 +148,12 @@ def main():
                                    ('cpu4', licht4, None), ('gpu4', licht4 + gpu, None),
                                    ('nan', licht + gpu, {'BHED_GPUBAKE_NAN': '1'}),
                                    ('adapter0', licht + gpu + ['-bhedgpuadapter', '0'], None),
-                                   ('adapterx', licht + gpu + ['-bhedgpuadapter', 'keine-solche-gpu'], None)):
+                                   ('adapterx', licht + gpu + ['-bhedgpuadapter', 'keine-solche-gpu'], None),
+                                   # Stufe 8d: -bhedgpubakeauto (bhed/karte/gpuwahl.h)
+                                   ('auto', licht + ['-bhedgpubakeauto'], None),
+                                   ('autogpu', licht + ['-bhedgpubakeauto', '-bhedgpubakezeiten', '9000', '1'], None),
+                                   ('autocpu', licht + ['-bhedgpubakeauto', '-bhedgpubakezeiten', '1', '9000'], None),
+                                   ('autofloat', licht + ['-bhedgpubakeauto', '-bhedgpubakezeiten', '9000', '1'], {'BHED_GPUBAKE_OHNE_DOUBLE': '1'})):
             d = os.path.join(t, art)
             os.makedirs(d)
             for e in ('.map', '.bsp', '.srf'):
@@ -158,6 +165,26 @@ def main():
             ergebnis[art] = (lumps(os.path.join(d, 'bake.bsp')), aus)
         cpu = ergebnis['cpu'][0]
         aus = ergebnis['gpu'][1]
+
+        # Stufe 8d: Auto - die Wahl steht in der Ausgabe, das Ergebnis ist immer das der CPU
+        def wahl(art):
+            w = re.search(r'BehavEd GPU bake auto: (GPU|CPU) \((\w+)\) - (\d+) super luxels', ergebnis[art][1])
+            return (w.group(1), w.group(2), int(w.group(3))) if w else (None, None, 0)
+        keine_gpu = 'no usable GPU' in aus or 'BehavEd GPU bake report' not in aus
+        wa, wg, wc, wf = wahl('auto'), wahl('autogpu'), wahl('autocpu'), wahl('autofloat')
+        if keine_gpu:
+            melde(all(w[:2] == ('CPU', 'nogpu') for w in (wa, wg, wc)) and all(ergebnis[k][0] == cpu for k in ('auto', 'autogpu', 'autocpu')),
+                  'Auto ohne GPU: CPU (nogpu), Lumps gleich der CPU')
+        else:
+            melde(wa[:2] == ('CPU', 'small') and 0 < wa[2] < 400000 and ergebnis['auto'][0] == cpu,
+                  'Auto, kleine Testkarte (%d Super-Luxel x 3): CPU (small), Lumps gleich der CPU' % wa[2])
+            gpu_lief = 'lightmaps on the GPU' in ergebnis['autogpu'][1]
+            melde(wg[:2] == ('GPU', 'learnedgpu') and gpu_lief and ergebnis['autogpu'][0] == cpu,
+                  'Auto, gemerkt GPU schneller: GPU gerechnet, alle 18 Lumps bitgleich mit der CPU')
+            melde(wc[:2] == ('CPU', 'learnedcpu') and 'lightmaps on the GPU' not in ergebnis['autocpu'][1] and ergebnis['autocpu'][0] == cpu,
+                  'Auto, gemerkt CPU schneller: CPU, Lumps gleich')
+            melde(wf[:2] == ('CPU', 'nodouble') and 'lightmaps on the GPU' not in ergebnis['autofloat'][1] and ergebnis['autofloat'][0] == cpu,
+                  'Auto, Adapter ohne double (gemerkt GPU schneller): trotzdem CPU (nodouble), Lumps gleich')
         if 'BehavEd GPU bake' not in aus:
             melde(False, '-bhedgpubake: keine Meldung von q3map2 - der Schalter fehlt in dieser bhed_q3map2.exe')
             print('q3map2_gpubake: %d Fehler' % fehler)

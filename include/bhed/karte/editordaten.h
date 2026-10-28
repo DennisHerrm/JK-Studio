@@ -55,6 +55,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace bhed::karte {
 
@@ -86,10 +87,42 @@ enum class EditorDatenStand { Passt, AndereBsp, Kaputt };
 // Vertexlicht und Lichtgitter aus <karte>.bhedlight, wo sie sich nicht aendern koennen)
 [[nodiscard]] std::string befehlMitLichtWiederverwendung(const std::string& befehl);
 
-// Stufe 8g: GPU-Backen. Ob Build > "GPU bake" ohne gespeicherte Einstellung an ist - die
-// Entscheidung, ob das GPU-Backen Standard wird, ist nur diese eine Konstante (der Schalter
-// faellt ohne passende GPU von selbst auf die CPU zurueck).
-inline constexpr bool kGpuBackenVorgabe = false;
+// Stufe 8g: GPU-Backen. Stufe 8d (shank: "Das Backen soll automatisch die schnellere Variante
+// nehmen, CPU oder GPU"): Build > "GPU bake" hat drei Werte, Vorgabe Auto - bhed_q3map2 waehlt mit
+// -bhedgpubakeauto die schnellere Variante (bhed/karte/gpuwahl.h), die GPU nur, wenn sie double kann
+// (bitgleich). Die Entscheidung, was ohne gespeicherte Einstellung gilt, ist nur diese Konstante.
+enum class GpuBacken { Aus, Ein, Auto };
+inline constexpr GpuBacken kGpuBackenVorgabe = GpuBacken::Auto;
+// Einstellung "BhedGpuBakeMode": "off" / "on" / "auto" (bis Stufe 8g "BhedGpuBake" 0/1)
+[[nodiscard]] const char* gpuBackenName(GpuBacken g);
+[[nodiscard]] GpuBacken gpuBackenAusName(const std::string& s, GpuBacken sonst);
+// ein -light-Befehl bekommt -bhedgpubakeauto -bhedgpubakezeiten <cpuMs> <gpuMs> (die gemerkten
+// Zeiten des letzten CPU- und GPU-Laufs dieser Karte mit diesen Schaltern, 0 = unbekannt)
+[[nodiscard]] std::string befehlMitGpuBackenAuto(const std::string& befehl, long long cpuMs, long long gpuMs);
+// Schluessel der gemerkten Zeiten: die Schalter eines -light-Befehls ab "-light" ohne die Karte
+// und ohne die Schalter der GPU-Wahl (-bhedgpubake*, -bhedgpuadapter); leer ohne -light
+[[nodiscard]] std::string lichtSchalter(const std::string& befehl);
+// Die gemerkten Zeiten (Datei gpuzeiten.txt im Einstellungsordner): je Karte und Licht-Schaltern
+// die Dauer des letzten -light-Laufs auf der CPU und auf der GPU in ms
+struct GpuZeiten {
+    long long cpuMs = 0, gpuMs = 0;
+};
+class GpuZeitenSpeicher {
+public:
+    bool lesen(const std::string& text);
+    [[nodiscard]] std::string schreiben() const;
+    [[nodiscard]] GpuZeiten holen(const std::string& karte, const std::string& schalter) const;
+    void merken(const std::string& karte, const std::string& schalter, bool gpu, long long ms);
+    [[nodiscard]] std::size_t groesse() const { return eintraege_.size(); }
+
+private:
+    struct Eintrag {
+        std::string karte, schalter;
+        GpuZeiten z;
+    };
+    std::vector<Eintrag> eintraege_;   // zuletzt benutzt am Ende; hoechstens kMax
+    static constexpr std::size_t kMax = 500;
+};
 // ein -light-Befehl bekommt -bhedgpubake (bhed_q3map2: die ganze Lichtrechnung auf der GPU,
 // Byte-gleich mit der CPU)
 [[nodiscard]] std::string befehlMitGpuBacken(const std::string& befehl);
@@ -103,6 +136,10 @@ struct GpuBackBericht {
     bool bericht = false;            // Zeile "BehavEd GPU bake report: ..." gesehen
     long long luxel = 0, lms = 0, lmsAnders = 0, gitterGpu = 0, gitterCpu = 0;
     std::string gleich;              // Anteil gleicher Luxel in %, wie ausgegeben ("100.0000")
+    // Stufe 8d: "BehavEd GPU bake auto: GPU (large) - 1286512 super luxels, ..."
+    bool autoGesehen = false, autoGpu = false;
+    std::string autoGrund;           // Kurzname (gpuGrundName): nogpu, nodouble, learnedgpu, ...
+    long long autoLuxel = 0;
 };
 // eine Ausgabezeile von bhed_q3map2 auswerten; true: sie gehoerte zum GPU-Backen
 bool gpuBackZeile(const std::string& zeile, GpuBackBericht& b);

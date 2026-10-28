@@ -200,6 +200,8 @@ BhedBakeZahlen BhedBakeStatistik();
 inline bool g_bhedBakeAn = false;                           // -bhedgpubake und die GPU ist bereit
 inline int g_bhedBakePruefen = 64;                          // -bhedgpubakecheck N: jede N-te Lightmap rechnet die CPU nach (0: keine)
 bool BhedBakeVorbereiten( const std::string& adapter );    // light_trace.cpp: nach SetupTraceNodes
+// Stufe 8d (-bhedgpubakeauto): wartet auf den Geraetestart; 0 keine GPU, 1 GPU ohne double, 2 mit double
+int BhedBakeGeraetArt( const std::string& adapter );
 std::vector<BhedBakeInfo> BhedBakeInfos();                 // light_trace.cpp: die Infos (skyIndex entsteht erst in LightWorld)
 void BhedBakeBericht( const char *quelle );                // light_ydnar.cpp: nach LightWorld
 // light_ydnar.cpp: die Lichttafel dieser Runde hochladen (nr/zeiger: Nummer je Licht und umgekehrt, duerfen null sein)

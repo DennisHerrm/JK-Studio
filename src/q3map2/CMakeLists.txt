@@ -339,7 +339,7 @@ add_executable(bhed_q3map2
   q3map2.manifest)
 # kompat zuerst: glib.h und etclib.h von hier
 target_include_directories(bhed_q3map2 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/kompat ${Q3M} ${Q3C} ${Q3}/libs ${Q3}/include ${CMAKE_CURRENT_SOURCE_DIR}
-  ${BHED_HLSL_AUS})
+  ${BHED_HLSL_AUS} ${CMAKE_SOURCE_DIR}/include)   # Stufe 8d: bhed/karte/gpuwahl.h (nur Kopfdatei)
 target_compile_definitions(bhed_q3map2 PRIVATE
   WIN32 _WIN32 NDEBUG _inline=inline
   # Nr. 3: windows.h ohne die Makros min/max (inout.cpp ruft std::min/std::max)

@@ -25,6 +25,8 @@
 #include "bhed/karte/baufortschritt.h"
 #include "bhed/karte/bspoeffnen.h"
 
+#include <algorithm>
+#include <vector>
 #include <cctype>
 #include <cinttypes>
 #include <cstdio>
@@ -138,6 +140,141 @@ std::string befehlMitLichtWiederverwendung(const std::string& befehl) { return m
 
 std::string befehlMitGpuBacken(const std::string& befehl) { return mitSchalter(befehl, BauStufe::Licht, "-bhedgpubake"); }
 
+// --- Stufe 8d Punkt 1b: GPU bake Auto ----------------------------------------
+const char* gpuBackenName(GpuBacken g) {
+    switch (g) {
+    case GpuBacken::Aus: return "off";
+    case GpuBacken::Ein: return "on";
+    case GpuBacken::Auto: return "auto";
+    }
+    return "auto";
+}
+
+GpuBacken gpuBackenAusName(const std::string& s, GpuBacken sonst) {
+    if (s == "off") { return GpuBacken::Aus; }
+    if (s == "on") { return GpuBacken::Ein; }
+    if (s == "auto") { return GpuBacken::Auto; }
+    return sonst;
+}
+
+namespace {
+std::vector<std::string> woerter(const std::string& befehl) {
+    std::vector<std::string> w;
+    std::string akt;
+    bool inQuote = false;
+    bool imWort = false;
+    for (const char c : befehl) {
+        if (c == '"') {
+            inQuote = !inQuote;
+            imWort = true;
+            akt.push_back(c);
+            continue;
+        }
+        if (!inQuote && std::isspace(static_cast<unsigned char>(c)) != 0) {
+            if (imWort) { w.push_back(akt); }
+            akt.clear();
+            imWort = false;
+            continue;
+        }
+        akt.push_back(c);
+        imWort = true;
+    }
+    if (imWort) { w.push_back(akt); }
+    return w;
+}
+}  // namespace
+
+std::string befehlMitGpuBackenAuto(const std::string& befehl, long long cpuMs, long long gpuMs) {
+    if (bauStufeAusBefehl(befehl) != BauStufe::Licht) { return befehl; }
+    for (const std::string& w : woerter(befehl)) {
+        if (w == "-bhedgpubakeauto") { return befehl; }   // schon da (mit seinen Zeiten)
+    }
+    const std::string b = mitSchalter(befehl, BauStufe::Licht, "-bhedgpubakeauto");
+    return mitSchalter(b, BauStufe::Licht, "-bhedgpubakezeiten " + std::to_string(std::max(0LL, cpuMs)) + " " +
+                                               std::to_string(std::max(0LL, gpuMs)));
+}
+
+
+std::string lichtSchalter(const std::string& befehl) {
+    const std::vector<std::string> w = woerter(befehl);
+    std::size_t i = 0;
+    while (i < w.size() && w[i] != "-light") { ++i; }
+    if (i >= w.size()) { return {}; }
+    std::string s = "-light";
+    for (std::size_t k = i + 1; k + 1 < w.size(); ++k) {   // ohne das letzte Wort (die Karte)
+        const std::string& x = w[k];
+        if (x == "-bhedgpubake" || x == "-bhedgpubakeauto") { continue; }
+        if (x == "-bhedgpubakezeiten") {
+            k += 2;
+            continue;
+        }
+        if (x == "-bhedgpubakecheck" || x == "-bhedgpuadapter") {
+            ++k;
+            continue;
+        }
+        s += " " + x;
+    }
+    return s;
+}
+
+bool GpuZeitenSpeicher::lesen(const std::string& text) {
+    eintraege_.clear();
+    std::size_t a = 0;
+    while (a < text.size()) {
+        std::size_t b = text.find('\n', a);
+        if (b == std::string::npos) { b = text.size(); }
+        std::string z = text.substr(a, b - a);
+        a = b + 1;
+        if (!z.empty() && z.back() == '\r') { z.pop_back(); }
+        // "<cpuMs>\t<gpuMs>\t<karte>\t<schalter>"
+        const std::size_t t1 = z.find('\t');
+        const std::size_t t2 = t1 == std::string::npos ? t1 : z.find('\t', t1 + 1);
+        const std::size_t t3 = t2 == std::string::npos ? t2 : z.find('\t', t2 + 1);
+        if (t3 == std::string::npos) { continue; }
+        Eintrag e;
+        e.z.cpuMs = std::max(0LL, std::atoll(z.substr(0, t1).c_str()));
+        e.z.gpuMs = std::max(0LL, std::atoll(z.substr(t1 + 1, t2 - t1 - 1).c_str()));
+        e.karte = z.substr(t2 + 1, t3 - t2 - 1);
+        e.schalter = z.substr(t3 + 1);
+        eintraege_.push_back(std::move(e));
+    }
+    while (eintraege_.size() > kMax) { eintraege_.erase(eintraege_.begin()); }
+    return true;
+}
+
+std::string GpuZeitenSpeicher::schreiben() const {
+    std::string s;
+    for (const Eintrag& e : eintraege_) {
+        s += std::to_string(e.z.cpuMs) + "\t" + std::to_string(e.z.gpuMs) + "\t" + e.karte + "\t" + e.schalter + "\n";
+    }
+    return s;
+}
+
+GpuZeiten GpuZeitenSpeicher::holen(const std::string& karte, const std::string& schalter) const {
+    for (const Eintrag& e : eintraege_) {
+        if (e.karte == karte && e.schalter == schalter) { return e.z; }
+    }
+    return {};
+}
+
+void GpuZeitenSpeicher::merken(const std::string& karte, const std::string& schalter, bool gpu, long long ms) {
+    if (karte.empty() || schalter.empty() || ms <= 0 || karte.find_first_of("\t\n") != std::string::npos ||
+        schalter.find_first_of("\t\n") != std::string::npos) {
+        return;
+    }
+    Eintrag neu{karte, schalter, {}};
+    for (auto it = eintraege_.begin(); it != eintraege_.end(); ++it) {
+        if (it->karte == karte && it->schalter == schalter) {
+            neu = *it;
+            eintraege_.erase(it);
+            break;
+        }
+    }
+    (gpu ? neu.z.gpuMs : neu.z.cpuMs) = ms;
+    eintraege_.push_back(std::move(neu));
+    while (eintraege_.size() > kMax) { eintraege_.erase(eintraege_.begin()); }
+}
+
 bool gpuBackZeile(const std::string& zeile, GpuBackBericht& b) {
     static const std::string kGpu = "BehavEd GPU bake: ";
     static const std::string kBericht = "BehavEd GPU bake report: ";
@@ -168,6 +305,16 @@ bool gpuBackZeile(const std::string& zeile, GpuBackBericht& b) {
             while (a > 0 && (std::isdigit(static_cast<unsigned char>(z[a - 1])) != 0 || z[a - 1] == '.')) { --a; }
             b.gleich = z.substr(a, g - a);
         }
+        return true;
+    }
+    static const std::string kAuto = "BehavEd GPU bake auto: ";
+    if (z.rfind(kAuto, 0) == 0) {   // Stufe 8d: "BehavEd GPU bake auto: GPU (large) - 1286512 super luxels, ..."
+        b.autoGesehen = true;
+        b.autoGpu = z.compare(kAuto.size(), 3, "GPU") == 0;
+        const std::size_t k1 = z.find('(', kAuto.size());
+        const std::size_t k2 = k1 == std::string::npos ? k1 : z.find(')', k1);
+        if (k2 != std::string::npos) { b.autoGrund = z.substr(k1 + 1, k2 - k1 - 1); }
+        (void)zahlVor("super luxels", b.autoLuxel);
         return true;
     }
     if (z.rfind(kGpu, 0) != 0) { return true; }

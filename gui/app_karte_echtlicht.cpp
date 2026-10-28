@@ -237,6 +237,7 @@ struct Backen {
     std::string fehler;
     double sekunden = 0;
     std::size_t kartenStand = 0;       // der gebaute Stand
+    std::string wahl;                  // Stufe 8d: was GPU bake Auto gewaehlt hat und warum
 };
 Backen g_backen;
 std::size_t g_letzterStand = static_cast<std::size_t>(-1);
@@ -309,15 +310,22 @@ void schnellBauStarten(std::size_t kartenStand) {
     const std::string bsp = karte.substr(0, karte.size() - 4) + ".bsp";
     // -vis nur mit einer .prt (eine Karte, die leckt, hat keine - waehrend des Bauens
     // oft der Fall; -light geht auch ohne Sichtbarkeit)
-    // Stufe 8g: mit Build > GPU bake rechnet die GPU das Licht (ohne die Nachpruefung: schnell)
-    const std::string gpu = e.bau.gpuBacken ? "-bhedgpubake -bhedgpubakecheck 0 " : "";
+    // Stufe 8g: mit Build > GPU bake rechnet die GPU das Licht (ohne die Nachpruefung: schnell).
+    // Stufe 8d: Auto - bhed_q3map2 waehlt mit den gemerkten Zeiten des Schnell-Backens dieser Karte
+    const karte::GpuBacken modus = e.bau.gpuBacken;
+    const karte::GpuZeiten zeiten = modus == karte::GpuBacken::Auto ? gpuZeitenHolen(e.name, "-light -fast") : karte::GpuZeiten{};
+    const std::string gpu = modus == karte::GpuBacken::Ein    ? "-bhedgpubake -bhedgpubakecheck 0 "
+                            : modus == karte::GpuBacken::Auto ? "-bhedgpubakeauto -bhedgpubakezeiten " + std::to_string(zeiten.cpuMs) + " " +
+                                                                    std::to_string(zeiten.gpuMs) + " -bhedgpubakecheck 0 "
+                                                              : std::string();
     const std::vector<std::string> befehle = {grund + "-meta \"" + karte + "\"", grund + "-vis -fast \"" + bsp + "\"",
                                               grund + "-light -fast " + gpu + "\"" + bsp + "\""};
+    const std::string kartenName = e.name;
     g_backen.abbrechen = false;
     g_backen.stand = 2;
     g_backen.kartenStand = kartenStand;
     e.echtLicht.bauStand = 2;
-    g_backen.faden = std::thread([befehle, bsp] {
+    g_backen.faden = std::thread([befehle, bsp, modus, zeiten, kartenName] {
         const auto t0 = std::chrono::steady_clock::now();
         for (std::size_t schritt = 0; schritt < befehle.size(); ++schritt) {
             const std::string& b = befehle[schritt];
@@ -326,18 +334,43 @@ void schnellBauStarten(std::size_t kartenStand) {
             bauplattform::Prozess p;
             p.niedrigePrioritaet(true);
             std::string grund;
-            if (!p.starten(b, std::string(), false, grund)) {
+            // Stufe 8d: beim -light-Schritt die Ausgabe lesen (die Auto-Wahl) und die Dauer messen
+            const bool licht = schritt == 2;
+            const auto lichtStart = std::chrono::steady_clock::now();
+            std::string ausgabe;
+            if (!p.starten(b, std::string(), licht, grund)) {
                 std::lock_guard<std::mutex> l(g_backen.mutex);
                 g_backen.fehler = "bhed_q3map2: " + grund;
                 g_backen.stand = 5;
                 return;
             }
             while (!p.warten(30)) {
+                if (licht) { ausgabe += p.lesen(); }
                 if (g_backen.abbrechen) {
                     p.beenden();
                     g_backen.stand = 4;
                     return;
                 }
+            }
+            if (licht) {
+                ausgabe += p.lesen();
+                karte::GpuBackBericht bericht;
+                std::size_t a = 0;
+                while (a < ausgabe.size()) {
+                    std::size_t z = ausgabe.find('\n', a);
+                    if (z == std::string::npos) { z = ausgabe.size(); }
+                    std::string zeile = ausgabe.substr(a, z - a);
+                    if (!zeile.empty() && zeile.back() == '\r') { zeile.pop_back(); }
+                    (void)karte::gpuBackZeile(zeile, bericht);
+                    a = z + 1;
+                }
+                const double sek = std::chrono::duration<double>(std::chrono::steady_clock::now() - lichtStart).count();
+                if (p.rueckgabe() == 0 && modus != karte::GpuBacken::Aus) {
+                    const bool gpuLief = !bericht.keineGpu && (modus == karte::GpuBacken::Ein || bericht.autoGpu);
+                    gpuZeitMerken(kartenName, "-light -fast", gpuLief, sek);
+                }
+                std::lock_guard<std::mutex> l(g_backen.mutex);
+                g_backen.wahl = gpuWahlText(bericht, zeiten.cpuMs, zeiten.gpuMs);
             }
             if (p.rueckgabe() != 0) {
                 std::lock_guard<std::mutex> l(g_backen.mutex);
@@ -536,6 +569,13 @@ void echtLichtSchritt(std::size_t kartenStand) {
         g_gebackenStand = g_backen.kartenStand;
         e.echtLicht.bauSekunden = g_backen.sekunden;
         e.echtLicht.bauStand = 3;
+        {   // Stufe 8d: die Wahl von Auto in der Konsole - nur wenn sie sich aendert
+            std::lock_guard<std::mutex> l(g_backen.mutex);
+            if (!g_backen.wahl.empty() && g_backen.wahl != e.bau.gpuWahlText) {
+                e.bau.gpuWahlText = g_backen.wahl;
+                konsoleSchreiben(KonsolenZeile::Art::Ausgabe, g_backen.wahl + "\n");
+            }
+        }
         g_backen.stand = 0;
     } else if (st == 4 || st == 5) {
         if (g_backen.faden.joinable()) { g_backen.faden.join(); }
