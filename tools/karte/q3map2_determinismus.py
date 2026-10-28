@@ -112,11 +112,14 @@ def ctest(exe, daten):
             f.write(text)
         rc = 0
         for karte, game in ((os.path.join(daten, 'raum.map'), 'ja'), (stil, 'ja'), (stil, 'quake3')):
-            rc |= main([exe, karte, '--game', game, '--laeufe', '3', '--arbeit', os.path.join(arbeit, game + '_' + os.path.basename(karte)[:-4])])
+            # feste 32 Threads: der parallele Weg fuer grosse Lightmaps haengt am Anteil je
+            # Thread und lief auf CI-Rechnern mit 4 Kernen sonst nie (Release rc605)
+            rc |= main([exe, karte, '--game', game, '--laeufe', '3', '--threads', '32',
+                        '--arbeit', os.path.join(arbeit, game + '_' + os.path.basename(karte)[:-4])])
         print('q3map2_determinismus: %s' % ('alle Stufen deterministisch, gleich -threads 1' if rc == 0 else 'NICHT deterministisch'))
         # Stufe 7: die grossen Lightmaps rechnen mit mehreren Threads zeilenweise parallel
         # (BhedIlluminateRawLightmaps) - der Vergleich oben deckt den Weg nur ab, wenn er lief.
-        if (os.cpu_count() or 1) >= 4:
+        if True:
             n = max(PARALLEL, default=0)
             print('q3map2_determinismus: zeilenweise parallel gerechnete Lightmaps je Lauf bis %d' % n)
             if n == 0:
