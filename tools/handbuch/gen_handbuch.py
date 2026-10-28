@@ -106,6 +106,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in KARTE8D})
             from i18n_karte9 import KARTE9     # Stufe 9: restliche Karten-Werkzeuge
             texte.update({e[0]: e[1:] for e in KARTE9})
+            from i18n_karte9c import KARTE9C   # Stufe 9c: Werkzeugleisten, Echtzeit-Licht wie im Spiel
+            texte.update({e[0]: e[1:] for e in KARTE9C})
             return texte
     raise SystemExit("gen_i18n.py: Liste S nicht gefunden")
 
