@@ -44,4 +44,5 @@ report them to their authors.
 - The program is **not code-signed**; Windows SmartScreen may warn on first start. The README
   explains why and how to check the download instead.
 - The source is analysed with clang-tidy and MSVC `/analyze` (`tools/analyse/`), and every file
-  reader is fuzzed with AddressSanitizer (`tools/fuzzziel.cpp`, see `TESTING.md`).
+  reader is fuzzed under AddressSanitizer and UndefinedBehaviorSanitizer (`tests/leserfuzz.cpp`,
+  `tests/kartefuzz.cpp`, see `TESTING.md`).

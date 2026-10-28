@@ -300,6 +300,15 @@ How to make a release:
 5. Then run self-test mode `update` (`BHED_UPDATE_LOKAL=rc500`) from a copy
    of the program folder.
 
+Since Stufe 8d the built-in updater **refuses a release without
+`SHA256SUMS.txt`** (or whose line for the zip does not match) before it changes a
+single file, so never delete or edit that asset. When the repository secret
+`RELEASE_SIGNING_KEY` is set, the run also attaches `SHA256SUMS.txt.sig` (ECDSA
+P-256 over `SHA256SUMS.txt`); once `kSignaturSchluessel` in `include/bhed/update.h`
+holds the public key, every later release **must** be signed (the run fails if the
+key is in the code but the secret is missing). Setting up the key is described in
+`docs/intern/NOTIZEN_karte8d.md`.
+
 Never upload a hand-made zip to a release (no `gh release create` with a
 local zip, no extra `.zip` asset): older built-in updaters install the
 **first** `.zip` of the release, so a second zip can end up on users' PCs
@@ -391,3 +400,17 @@ with `/analyze`, `third_party` excluded) and runs clang-tidy (the LLVM of Visual
 own `.cpp`. Findings listed with a reason in `tools/analyse/unterdrueckt.txt` are accepted; any
 other finding makes it return 1 (report in `build-analyse/analyse/neu.txt`). As a ctest:
 configure with `-DBEHAVED_ANALYSE_CTEST=ON`, then `ctest -R statische_analyse` (about 30 min).
+
+## Fuzzing the file readers (Stufe 8d)
+
+`ctest -R leser_fuzz` runs `tests/leserfuzz.cpp`: 300 mutants per reader (pk3/zip, md3, glm,
+gla, skin, shader scripts, ICARUS `.txt`/`.ibi`, roff, NPC/saber/weapons.dat/items.dat,
+animation.cfg, efx, images, sound, inflate, the preview's BSP lumps) from the seeds in
+`data/fixtures` and `tests/karte/q3map2`. With `--spiel "<Jedi Academy>/base"` it adds up to 12
+real files per kind from the game's `assets*.pk3`; `--nur <reader>` and `--datei <file>`
+reproduce a single case; inputs slower than 10 s are saved as `leserfuzz_haenger_*.bin`.
+Run it (and `kartefuzz`) in an AddressSanitizer build (`-DCMAKE_CXX_FLAGS=/fsanitize=address`,
+MSVC) and in a clang-cl UBSan build (`-fsanitize=undefined -fsanitize-trap=undefined
+-fno-sanitize=vptr,function,object-size`; `object-size` gives false alarms with the MSVC STL).
+A trap prints `ABSTURZ ... Programm+0x...` (`tests/absturz_melden.h`); link with `/MAP` to find
+the function.
