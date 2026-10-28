@@ -30,6 +30,8 @@
 #include <string>
 #include <vector>
 
+#include "absturz_melden.h"   // Stufe 8d: Absturzadresse (UBSan-Falle)
+
 namespace fs = std::filesystem;
 using namespace bhed::karte;
 
@@ -176,6 +178,7 @@ void kartePruefen(const std::string& text, const std::string& woher) {
 }  // namespace
 
 int main(int argc, char** argv) {
+    absturz::einrichten();
     if (argc < 2) {
         std::fprintf(stderr, "Aufruf: kartefuzz <tests/karte> [runden]\n");
         return 2;
@@ -240,10 +243,12 @@ int main(int argc, char** argv) {
             std::ofstream(fs::path(argv[4]) / ("fuzz_" + std::to_string(r) + ".map"), std::ios::binary) << m;
             continue;
         }
+        absturz::station() = "karteLesen/Schreiben";
         kartePruefen(m, "Runde " + std::to_string(r));
         if (r % 4 == 0) {
             BspDatei b;
             const std::string d = bspMutieren(bsps[static_cast<std::size_t>(r) % bsps.size()], z);
+            absturz::station() = "bspLesen";
             if (bspLesen(d, b)) {
                 const std::string ents = bspEntitaetenText(b);
                 (void)bspHatLichter(ents);
@@ -253,8 +258,10 @@ int main(int argc, char** argv) {
             bool hint = false;
             PortalZufall zufall;
             const std::string p = mutieren(prts[static_cast<std::size_t>(r) % prts.size()], z);
+            absturz::station() = "portaleLaden";
             (void)portaleLaden("fuzz.prt", &p, portale, hint, zufall);
             std::string meldung;
+            absturz::station() = "punktdateiLesen";
             (void)punktdateiLesen(mutieren("1 2 3\n4 5 6\n-7.5 8 9\n", z), &meldung);
         }
     }

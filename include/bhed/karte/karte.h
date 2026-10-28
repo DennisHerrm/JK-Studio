@@ -222,6 +222,8 @@ public:
 
     // Klasse fuer einen Namen (Eclass_ForName ueber "klassen" oder eigener Vorrat).
     EntitaetsKlasse* klasseFuer(const std::string& name, bool hatPinsel);
+    // Stufe 8d: der Vorrat, aus dem klasseFuer schoepft ("klassen" oder der eigene)
+    EntitaetsKlassen& klassenVorrat() { return klassen != nullptr ? *klassen : m_eigeneKlassen; }
 
 private:
     std::shared_ptr<EntitaetenListe> m_wurzel;

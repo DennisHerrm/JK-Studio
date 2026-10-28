@@ -371,6 +371,12 @@ bool Patch::gueltig() const {
     if (!m_width || !m_height) {
         return false;
     }
+    // Stufe 8d (kartefuzz unter UBSan): in NRC haben die Kontrollpunkte immer width*height Eintraege;
+    // hier koennen Groesse und Punkte getrennt gesetzt werden - passen sie nicht, liefe kurvenBauen
+    // ueber das Feld hinaus (bei leerem Feld ueber einen Nullzeiger).
+    if (m_ctrl.size() != static_cast<std::size_t>(m_width) * static_cast<std::size_t>(m_height)) {
+        return false;
+    }
     for (const auto& c : m_ctrl) {
         if (!(c.vertex.x() == c.vertex.x()) || !(c.vertex.y() == c.vertex.y()) || !(c.vertex.z() == c.vertex.z())
             || !(c.texcoord.x() == c.texcoord.x()) || !(c.texcoord.y() == c.texcoord.y())) {
@@ -441,8 +447,6 @@ void Patch::kurvenBauen(bool zeilen, int schwellwert) {
             const PatchPunkt* p1 = m_ctrl.data() + (i * 2 * strideU);
             std::forward_list<Bezierkurve> liste;
             for (std::size_t j = 0; j < quer; j += 2) {
-                const PatchPunkt* p2 = p1 + strideV;
-                const PatchPunkt* p3 = p2 + strideV;
                 {   // direkt aus einer Zeile Kontrollpunkte
                     Bezierkurve& k = liste.emplace_front();
                     k.crd = (p1 + strideU)->vertex;
@@ -452,6 +456,10 @@ void Patch::kurvenBauen(bool zeilen, int schwellwert) {
                 if (j + 2 >= quer) {
                     break;
                 }
+                // Stufe 8d (kartefuzz unter UBSan): p2/p3 erst hier - in der letzten Zeile zeigten sie
+                // zwei Zeilen hinter das Feld (undefiniert, auch ohne Zugriff). NRC rechnet sie vorher.
+                const PatchPunkt* p2 = p1 + strideV;
+                const PatchPunkt* p3 = p2 + strideV;
                 {   // aus drei Spalten interpoliert
                     Bezierkurve& k = liste.emplace_front();
                     k.crd = mitte((p1 + strideU)->vertex, (p3 + strideU)->vertex);

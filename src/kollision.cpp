@@ -427,6 +427,13 @@ void spaltenTeilen(Gitter& g) {   // CM_SubdivideGridColumns
             i++;
             continue;
         }
+        // Stufe 8d (leserfuzz, ASan): eine kaputte Karte (riesige Koordinaten) teilt immer weiter -
+        // OpenJK schriebe dann ueber points[MAX_GRID_SIZE][...] hinaus. Hier endet das Teilen dieser
+        // Spalte am Rand des Gitters; jede gueltige Karte bleibt weit darunter.
+        if (g.breite + 2 > kMaxGrid) {
+            i++;
+            continue;
+        }
         for (j = 0; j < g.hoehe; ++j) {
             const V3 prev = g.at(i, j);
             const V3 mid = g.at(i + 1, j);
@@ -1351,6 +1358,11 @@ KollisionsSpur kastenSpur(const KollisionsKarte& k, const float start[3], const 
 
 }  // namespace
 
+// Stufe 8d: erster + anzahl in 64 Bit gegen die Feldgroesse (int + int lief nahe 2^31 ueber)
+static bool bereichZuGross(int erster, int anzahl, std::size_t groesse) {
+    return static_cast<long long>(erster) + static_cast<long long>(anzahl) > static_cast<long long>(groesse);
+}
+
 bool leseKollision(const std::string& b, KollisionsKarte& aus) {
     aus = KollisionsKarte{};
     if (b.size() < 8 + 18 * 8) { return false; }
@@ -1376,6 +1388,9 @@ bool leseKollision(const std::string& b, KollisionsKarte& aus) {
         e.vorzeichen = bits;
         aus.ebenen.push_back(e);
     }
+    // Stufe 8d (leserfuzz, ASan): ohne Ebenen zeigte "Ebene 0" der Seiten und Knoten ins Leere -
+    // eine solche Datei ist keine Karte.
+    if (aus.ebenen.empty()) { return false; }
     const Lump bs = lump(b, kLumpBrushSides);
     for (std::size_t at = bs.ofs; at + seitenGroesse <= bs.ofs + bs.len; at += seitenGroesse) {
         KollisionsKarte::Seite s;
@@ -1390,7 +1405,7 @@ bool leseKollision(const std::string& b, KollisionsKarte& aus) {
         p.ersteSeite = i32(b, at);
         p.seiten = i32(b, at + 4);
         p.shader = i32(b, at + 8);
-        if (p.ersteSeite < 0 || p.seiten < 0 || p.ersteSeite + p.seiten > static_cast<int>(aus.seiten.size()) ||
+        if (p.ersteSeite < 0 || p.seiten < 0 || bereichZuGross(p.ersteSeite, p.seiten, aus.seiten.size()) ||
             p.shader < 0 || p.shader >= static_cast<int>(aus.shaderInhalt.size())) {
             p.seiten = 0;
         } else {
@@ -1441,7 +1456,7 @@ bool leseKollision(const std::string& b, KollisionsKarte& aus) {
     const Lump lb = lump(b, kLumpLeafBrushes);
     for (std::size_t at = lb.ofs; at + 4 <= lb.ofs + lb.len; at += 4) { aus.blattPinsel.push_back(i32(b, at)); }
     for (KollisionsKarte::Blatt& l : aus.blaetter) {
-        if (l.erstePinsel < 0 || l.pinsel < 0 || l.erstePinsel + l.pinsel > static_cast<int>(aus.blattPinsel.size())) {
+        if (l.erstePinsel < 0 || l.pinsel < 0 || bereichZuGross(l.erstePinsel, l.pinsel, aus.blattPinsel.size())) {
             l.pinsel = 0;
         }
     }
@@ -1456,6 +1471,8 @@ bool leseKollision(const std::string& b, KollisionsKarte& aus) {
         m.zahl = i32(b, at + 36);
         m.ersteFlaeche = i32(b, at + 24);   // rc601 (bewegung, teil 3)
         m.flaechenZahl = i32(b, at + 28);
+        // Stufe 8d: ein Bereich ausserhalb der Brushes - sonst lief modellBlatt bis zu 2^31 Runden
+        if (m.erster < 0 || m.zahl < 0 || bereichZuGross(m.erster, m.zahl, aus.pinsel.size())) { m.zahl = 0; }
         aus.modelle.push_back(m);
     }
     // rc601 (bewegung, teil 3): CMod_LoadLeafSurfaces und CMod_LoadPatches
@@ -1465,7 +1482,7 @@ bool leseKollision(const std::string& b, KollisionsKarte& aus) {
         const Lump ls = lump(b, kLumpLeafSurfaces);
         for (std::size_t at = ls.ofs; at + 4 <= ls.ofs + ls.len; at += 4) { aus.blattFlaechen.push_back(i32(b, at)); }
         for (KollisionsKarte::Blatt& l : aus.blaetter) {
-            if (l.ersteFlaeche < 0 || l.flaechen < 0 || l.ersteFlaeche + l.flaechen > static_cast<int>(aus.blattFlaechen.size())) {
+            if (l.ersteFlaeche < 0 || l.flaechen < 0 || bereichZuGross(l.ersteFlaeche, l.flaechen, aus.blattFlaechen.size())) {
                 l.flaechen = 0;
             }
         }
@@ -1483,8 +1500,10 @@ bool leseKollision(const std::string& b, KollisionsKarte& aus) {
             const int height = i32(b, at + breiteAb + 4);
             const int erster = i32(b, at + 12);
             const int shader = i32(b, at);
+            // Stufe 8d (leserfuzz, UBSan): width * height und erster + c liefen in int ueber
+            if (width <= 0 || height <= 0 || static_cast<long long>(width) * height > kMaxPatchVerts) { continue; }
             const int c = width * height;
-            if (c <= 0 || c > kMaxPatchVerts || erster < 0 || static_cast<std::size_t>(erster + c) > punkte || shader < 0 ||
+            if (erster < 0 || static_cast<long long>(erster) + c > static_cast<long long>(punkte) || shader < 0 ||
                 shader >= static_cast<int>(aus.shaderInhalt.size())) {
                 continue;
             }
@@ -1513,7 +1532,10 @@ bool leseKollision(const std::string& b, KollisionsKarte& aus) {
 }
 
 bool kollisionPatchErzeugen(int width, int height, const std::vector<std::array<float, 3>>& punkte, KollisionsKarte::Patch& aus) {
-    if (width <= 0 || height <= 0 || width * height > kMaxPatchVerts || static_cast<int>(punkte.size()) < width * height) { return false; }
+    if (width <= 0 || height <= 0 || static_cast<long long>(width) * height > kMaxPatchVerts ||
+        static_cast<long long>(punkte.size()) < static_cast<long long>(width) * height) {
+        return false;
+    }
     return erzeugePatch(width, height, punkte, aus);
 }
 

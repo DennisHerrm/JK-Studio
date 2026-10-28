@@ -413,6 +413,7 @@ bool readBspGeometry(const std::string& b, BspGeometry& out, std::string* error)
         if (error != nullptr) { *error = "Flaechen-Lump liegt ausserhalb der Datei"; }
         return false;
     }
+    std::uint64_t eckenSumme = 0;   // Stufe 8d: Summe der numVerts (siehe unten)
     for (std::size_t i = 0; i + kSurfaceSize <= su.length; i += kSurfaceSize) {
         const std::size_t at = su.offset + i;
         BspSurface s;
@@ -499,6 +500,18 @@ bool readBspGeometry(const std::string& b, BspGeometry& out, std::string* error)
              s.patchWidth * s.patchHeight > s.numVerts)) {
             s.type = BspSurface::Type::Bad;
         }
+        // Stufe 8d (leserfuzz): in einer gueltigen Karte hat jede Flaeche ihre eigenen Ecken, die
+        // Summe aller numVerts bleibt bei der Eckenzahl. Verschobene oder kaputte Lumps lassen
+        // tausende Flaechen dieselben zehntausend Ecken nennen - dann kosteten Kasten und Stil-Ecken
+        // Sekunden und Gigabytes. Was weit darueber geht, wird eine leere Bad-Flaeche (Nummern bleiben).
+        eckenSumme += static_cast<std::uint64_t>(std::max(s.numVerts, 0));
+        if (eckenSumme > 4U * static_cast<std::uint64_t>(nv) + 65536U) {
+            BspSurface leer;
+            leer.type = BspSurface::Type::Bad;
+            leer.shader = 0;
+            out.surfaces.push_back(leer);
+            continue;
+        }
         // Die Lichtstufen 1..3 der Ecken (rc592) - siehe BspSurface::stilEcken.
         bool zusatz = false;
         for (int k = 1; k < 4; ++k) {
@@ -564,7 +577,14 @@ bool readBspGeometry(const std::string& b, BspGeometry& out, std::string* error)
             if (lf.cluster < 0) {
                 continue;
             }
-            for (int i = 0; i < lf.numSurfaces; ++i) {
+            // Stufe 8d (leserfuzz): numSurfaces kommt aus der Datei - bis 2^31 Runden, die alle
+            // "ausserhalb" uebersprungen haetten. Nur der Teil innerhalb von leafSurfaces zaehlt.
+            if (lf.firstSurface < 0 || lf.numSurfaces <= 0) {
+                continue;
+            }
+            const long long bis = std::min<long long>(static_cast<long long>(lf.firstSurface) + lf.numSurfaces,
+                                                      static_cast<long long>(out.leafSurfaces.size()));
+            for (long long i = 0; i < bis - lf.firstSurface; ++i) {
                 const auto at = static_cast<std::size_t>(lf.firstSurface) +
                                 static_cast<std::size_t>(i);
                 if (at >= out.leafSurfaces.size()) {

@@ -520,7 +520,10 @@ void einfuegen(Karte& k, const std::string& text, bool befehl) {   // Paste -> M
         k.auswahl.leeren();   // setSelectedAll( false )
     }
     Karte neu;
-    neu.klassen = k.klassen;
+    // Stufe 8d (kartefuzz unter ASan): ohne "klassen" legte die Hilfskarte unbekannte Klassen in
+    // ihrem eigenen Vorrat an - nach dem Einfuegen zeigten die Entities in freigegebenen Speicher.
+    // Wie NRC (ein Klassenbestand fuer alles): der Vorrat der Zielkarte.
+    neu.klassen = &k.klassenVorrat();
     neu.kontext = k.kontext;
     (void)karteLesen(text, neu);
     if (neu.kontext.format != k.kontext.format) {   // Convert_Brushes
