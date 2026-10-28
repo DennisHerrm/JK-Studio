@@ -1035,7 +1035,9 @@ target_sources(bhed_core PRIVATE
   src/menue/parser.cpp
   src/menue/bearbeiten.cpp
   src/menue/texte.cpp
-  src/menue/spieldaten.cpp)
+  src/menue/spieldaten.cpp
+  # Punkt 2: Vorschau wie Menu_Paint/Item_Paint/RE_Font_DrawString
+  src/menue/vorschau.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -1086,6 +1088,10 @@ if(BEHAVED_TESTS)
   add_executable(menuetest tests/menuetest.cpp)
   target_link_libraries(menuetest PRIVATE bhed_core)
   add_test(NAME menue_parser COMMAND menuetest)
+  # Punkt 2: Layout-Rechnungen der Vorschau (Schrift, Text, Rahmen, Slider, Cvars)
+  add_executable(menuevorschau tests/menuevorschau.cpp)
+  target_link_libraries(menuevorschau PRIVATE bhed_core)
+  add_test(NAME menue_vorschau COMMAND menuevorschau)
   add_executable(menuerundlauf tests/menuerundlauf.cpp)
   target_link_libraries(menuerundlauf PRIVATE bhed_core)
   add_test(NAME menue_rundlauf COMMAND menuerundlauf "${BEHAVED_KARTE_JA}" "${BEHAVED_KARTE_JK2}" ${BEHAVED_KARTE_MD})
