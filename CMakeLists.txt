@@ -931,6 +931,8 @@ target_sources(bhed_core PRIVATE
   src/karte/modell.cpp
   src/karte/modellbrowser.cpp
   src/karte/spielbeschreibung.cpp
+  # Stufe 9 Punkt 1: Im Spiel testen (Suchpfad, Archiv, Befehlszeile)
+  src/karte/spieltest.cpp
   # Stufe 1b: Texturbrowser (texwindow.cpp, aktive Shader)
   src/karte/texturbrowser.cpp
   # Stufe 1b: Texturen mit M3 kopieren und auftragen (TexManipulator, surfacedialog.cpp)
@@ -1141,6 +1143,10 @@ if(BEHAVED_TESTS)
   add_executable(kartegpuwahl tests/kartegpuwahl.cpp)
   target_link_libraries(kartegpuwahl PRIVATE bhed_core)
   add_test(NAME karte_gpuwahl COMMAND kartegpuwahl)
+  # Stufe 9 Punkt 1: Im Spiel testen - Plan und Befehlszeile je Engine (nie gestartet)
+  add_executable(kartespieltest tests/kartespieltest.cpp)
+  target_link_libraries(kartespieltest PRIVATE bhed_core)
+  add_test(NAME karte_spieltest COMMAND kartespieltest)
   # Stufe 8d Punkt 4: alle Datei-Leser mit 300 Mutanten je Leser (unter ASan/UBSan in eigenen Bauordnern)
   add_executable(leserfuzz tests/leserfuzz.cpp)
   target_link_libraries(leserfuzz PRIVATE bhed_core)

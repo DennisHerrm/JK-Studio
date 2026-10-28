@@ -291,6 +291,19 @@ std::string tempOrdner() {
     return t.string();
 }
 
+}  // namespace
+
+std::string schnellBspFuer(std::size_t kartenStand) {
+    if (!ed().echtLicht.backen || g_gebackenStand != kartenStand || g_backen.stand.load() == 2) { return std::string(); }
+    const fs::path p = fs::path(tempOrdner()) / "maps" / "schnell.bsp";
+    std::error_code ec;
+    if (!fs::is_regular_file(p, ec)) { return std::string(); }
+    const std::u8string u = p.u8string();
+    return std::string(u.begin(), u.end());
+}
+
+namespace {
+
 void schnellBauStarten(std::size_t kartenStand) {
     fadenAbwarten();
     Editor& e = ed();

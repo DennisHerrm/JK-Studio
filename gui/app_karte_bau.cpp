@@ -46,11 +46,13 @@
 #include "bhed/karte/kartenformat.h"
 #include "bhed/karte/optimierer.h"
 #include "bhed/karte/region.h"
+#include "bhed/karte/spieltest.h"
 #include "bhed/karte/zuletzt.h"
 #include "bhed/pk3.h"
 #include "bhed/regelwerk.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cfloat>
 #include <chrono>
 #include <cmath>
@@ -367,6 +369,31 @@ void bauMenueEintraegeZeichnen() {
     pp.aktiv = !bauLaeuft();
     pp.tooltip = trK(Str::KePkMenueTip);
     if (qtPunkt(pp)) { (void)karteAlsPk3(); }
+    // Stufe 9 Punkt 1 (Abweichung, eigene Funktion): Im Spiel testen - die Engine aus den
+    // Einstellungen und jedes bekannte Spielprogramm im Engine-Ordner
+    const std::string st = std::string(trK(Str::KeStMenue)) + "##bauimspiel";
+    if (qtMenueAnfang(st.c_str())) {
+        const bool jk2 = kartenSpielNummer() == kRegelwerkJediOutcast;
+        const std::string engine = enginePfadAnzeige();
+        char z[512];
+        std::snprintf(z, sizeof(z), trK(Str::KeStEngineStandard), standardTestExe().c_str());
+        std::vector<std::pair<std::string, std::string>> wahl = {{std::string(), std::string(z) + "##bauimspiel_std"}};
+        for (const karte::TestEngine& t : karte::testEngines()) {
+            std::error_code ec;
+            if (t.jk2 != jk2 || !fs::is_regular_file(pfadAus(engine + t.exe), ec)) { continue; }
+            wahl.emplace_back(t.exe, std::string(t.name) + " (" + t.exe + ")##bauimspiel_" + t.exe);
+        }
+        for (const auto& [exe, text] : wahl) {
+            QtPunkt tp;
+            tp.id = text.c_str();
+            tp.art = QtArt::Exklusiv;
+            tp.haken = ed.bau.testExe == exe;
+            tp.aktiv = !bauLaeuft();
+            tp.tooltip = trK(Str::KeStMenueTip);
+            if (qtPunkt(tp)) { imSpielTesten(exe); }
+        }
+        qtMenueEnde();
+    }
     // Stufe 8a Punkt 1 (Abweichung, eigene Funktion): melden, wenn ein Bau fertig ist
     const std::string melden = std::string(trK(Str::KeFsMelden)) + "##baumelden";
     QtPunkt m;
@@ -2274,6 +2301,193 @@ void autoCaulkAuswahl() {
         return !ed.karteSpiel || ed.karteSpiel->inventar.shaderFinden(shader) != nullptr;
     });
     ++ed.sichtStand;
+}
+
+
+// --- Stufe 9 Punkt 1: Im Spiel testen (eigene Funktion, nicht in NetRadiant-Custom) ---------
+//
+// Build > Test in game > <Programm>: die .bsp (Schnell-Backen des aktuellen Stands, eine
+// aktuelle .bsp oder ein Bau mit dem ersten Test-Eintrag des Build-Menues) kommt als
+// zzz_jkstudio_test.pk3 in <Einstellungen>/spieltest, das Spiel bekommt den Ordner ueber
+// fs_cdpath bzw. fs_homepath (karte::spielTestPlanen). In den Spielordner nur nach Frage.
+// Gestartet wird nur auf Knopfdruck; im Selbsttest nur die Befehlszeile gemerkt.
+
+std::string spielTestOrdner() { return platform::settingsDirectory() + "\\spieltest"; }
+
+std::string standardTestExe() {
+    Editor& ed = e();
+    const karte::SpielBeschreibung& sb = kartenSpiel();
+    if (ed.spielModus == "mp") {
+        const std::string mp = ed.bau.engineMp.wert(sb.mpEngine);
+        if (!mp.empty()) { return mp; }
+    }
+    return ed.bau.engine.wert(sb.engine);
+}
+
+namespace {
+
+// Der Eintrag fuer den Bau: der erste "[Test]"/"(test)" des Build-Menues, sonst der zuletzt gebaute, sonst 0
+std::size_t testBauIndex() {
+    Editor& ed = e();
+    const std::vector<karte::BauEintrag>& l = ed.bauProjekt.eintraege;
+    for (std::size_t i = 0; i < l.size(); ++i) {
+        if (karte::bauIstTrenner(l[i])) { continue; }
+        std::string n = l[i].name;
+        std::transform(n.begin(), n.end(), n.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (n.find("[test]") != std::string::npos || n.find("(test)") != std::string::npos) { return i; }
+    }
+    if (ed.bauZuletzt >= 0 && static_cast<std::size_t>(ed.bauZuletzt) < l.size()) { return static_cast<std::size_t>(ed.bauZuletzt); }
+    return 0;
+}
+
+std::string pfadText(const fs::path& p) {
+    const std::u8string u = p.u8string();
+    return std::string(u.begin(), u.end());
+}
+
+std::string kartenStamm() { return pfadText(pfadAus(e().name).stem()); }
+
+void spielTestMitBsp(const std::string& exe, const std::string& bsp, bool modErlaubt) {
+    Editor& ed = e();
+    const std::string engine = enginePfadAnzeige();
+    char z[2048];
+    std::string bytes;
+    {
+        std::ifstream f(pfadAus(engine + exe), std::ios::binary);
+        if (f) {
+            std::ostringstream o;
+            o << f.rdbuf();
+            bytes = o.str();
+        }
+    }
+    if (bytes.empty()) {
+        std::snprintf(z, sizeof(z), trK(Str::KeStKeinProgramm), mitSchraegstrich(engine + exe).c_str());
+        fehler(z);
+        return;
+    }
+    const std::string stamm = kartenStamm();
+    karte::SpielTestEingabe in;
+    in.enginePfad = engine;
+    in.exe = exe;
+    in.fsGame = bauSpielName();
+    in.basisSpiel = kartenSpiel().basisSpiel;
+    in.testOrdner = spielTestOrdner();
+    in.kartenName = stamm;
+    in.faehigkeit = karte::engineFaehigkeit(bytes);
+    in.namensKonflikt = ed.karteSpiel != nullptr && !ed.karteSpiel->fs.finden("maps/" + stamm + ".bsp").empty();
+    in.modOrdnerErlaubt = modErlaubt;
+    const karte::SpielTestPlan plan = karte::spielTestPlanen(in);
+    if (plan.weg == karte::SpielTestWeg::Keiner) {
+        std::snprintf(z, sizeof(z), trK(Str::KeStGrund), plan.grund.c_str());
+        fehler(z);
+        return;
+    }
+    if (plan.bestaetigungNoetig) {
+        const bool mod = !in.fsGame.empty() && in.fsGame != in.basisSpiel;
+        const std::string ziel = mitSchraegstrich(engine) + (mod ? in.fsGame : std::string(karte::kSpielTestMod)) + "/" + karte::kSpielTestPk3;
+        std::snprintf(z, sizeof(z), trK(Str::KeStModFrage), exe.c_str(), ziel.c_str());
+        qtMeldung(trK(Str::KeStMenue), z, MeldungArt::Frage, true, [exe, bsp](bool ja) {
+            if (ja) { spielTestMitBsp(exe, bsp, true); }
+        });
+        return;
+    }
+    // zweite Sicherung: ohne Bestaetigung nie in einen Spielordner
+    if (plan.weg != karte::SpielTestWeg::ModOrdner && imSpielordner(plan.pk3)) {
+        std::snprintf(z, sizeof(z), trK(Str::KePkSpielordner), plan.pk3.c_str());
+        fehler(z);
+        return;
+    }
+    std::vector<Pk3Datei> dateien(1);
+    dateien[0].name = "maps/" + stamm + ".bsp";
+    {
+        std::ifstream f(pfadAus(bsp), std::ios::binary);
+        std::ostringstream o;
+        o << f.rdbuf();
+        dateien[0].inhalt = o.str();
+    }
+    if (dateien[0].inhalt.empty()) {
+        std::snprintf(z, sizeof(z), trK(Str::KeStKeinBsp), mitSchraegstrich(bsp).c_str());
+        fehler(z);
+        return;
+    }
+    std::error_code ec;
+    fs::create_directories(pfadAus(plan.pk3).parent_path(), ec);
+    std::string err;
+    if (!writePk3(plan.pk3, dateien, &err)) {
+        std::snprintf(z, sizeof(z), trK(Str::KeStArchivFehler), plan.pk3.c_str(), err.c_str());
+        fehler(z);
+        return;
+    }
+    ed.bau.testPk3 = plan.pk3;
+    ed.bau.testBefehl = plan.befehl;
+    const Str weg = plan.weg == karte::SpielTestWeg::CdPfad     ? Str::KeStWegCd
+                    : plan.weg == karte::SpielTestWeg::HomePfad ? Str::KeStWegHome
+                                                                : Str::KeStWegMod;
+    std::snprintf(z, sizeof(z), trK(weg), plan.pk3.c_str());
+    ausgabe(z);
+    ausgabe(plan.befehl);
+    // Im Selbsttest (BHED_EDITORTEST) nur gemerkt: nie ein Spiel starten
+    const bool ok = (ed.befehlStarten || std::getenv("BHED_EDITORTEST") != nullptr) ? kartenBefehlStarten(plan.befehl)
+                                                                                     : bauplattform::losgeloestStarten(plan.befehl, engine);
+    if (!ok) {
+        const std::string msg = "Failed to execute the following command: " + plan.befehl + "\n";
+        konsoleSchreiben(KonsolenZeile::Art::Ausgabe, msg);
+        meldungsKasten(msg);
+    }
+}
+
+}  // namespace
+
+void imSpielTesten(const std::string& exeWahl) {
+    Editor& ed = e();
+    if (ed.bau.testExe != exeWahl) {
+        ed.bau.testExe = exeWahl;
+        einstellungenSpeichern();
+    }
+    const std::string exe = exeWahl.empty() ? standardTestExe() : exeWahl;
+    char z[1024];
+    if (bauLaeuft()) {
+        fehler(trK(Str::KeStLaeuft));
+        return;
+    }
+    if (ed.name != "unnamed.map" && !ed.region.aktiv) {
+        // 1. das Schnell-Backen des aktuellen Stands
+        const std::string schnell = schnellBspFuer(geometrieStand());
+        if (!schnell.empty()) {
+            ausgabe(trK(Str::KeStSchnell));
+            spielTestMitBsp(exe, schnell, false);
+            return;
+        }
+        // 2. eine .bsp, die neuer ist als die gespeicherte, unveraenderte Karte
+        if (!geaendert()) {
+            const std::string karte = bauKartenPfad();
+            const fs::path bsp = pfadAus(karte.substr(0, karte.rfind('.')) + ".bsp");
+            std::error_code ec1;
+            std::error_code ec2;
+            const auto tb = fs::last_write_time(bsp, ec1);
+            const auto tk = fs::last_write_time(pfadAus(ed.name), ec2);
+            if (!ec1 && !ec2 && tb >= tk) {
+                std::snprintf(z, sizeof(z), trK(Str::KeStAktuell), mitSchraegstrich(pfadText(bsp)).c_str());
+                ausgabe(z);
+                spielTestMitBsp(exe, pfadText(bsp), false);
+                return;
+            }
+        }
+    }
+    // 3. bauen, danach weiter
+    bauMenueSicherstellen();
+    const std::size_t index = testBauIndex();
+    if (index < ed.bauProjekt.eintraege.size()) {
+        std::snprintf(z, sizeof(z), trK(Str::KeStBauen), karte::ohneMnemonik(ed.bauProjekt.eintraege[index].name).c_str());
+        ausgabe(z);
+    }
+    bauStarten(index);
+    if (!bauLaeuft()) { return; }   // nicht gespeichert, gesperrt usw. - die Meldung kam schon
+    g_lauf.danach = [exe](int art) {
+        if (art != 0) { return; }
+        const std::string karte = bauKartenPfad();
+        spielTestMitBsp(exe, karte.substr(0, karte.rfind('.')) + ".bsp", false);
+    };
 }
 
 }  // namespace bhed::gui::karteneditor

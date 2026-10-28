@@ -987,6 +987,9 @@ struct Editor {
         std::string gpuWahlText;     // Stufe 8d: was Auto zuletzt gewaehlt hat und warum (Konsole, Statuszeile, Tooltip)
         std::string gpuBericht;            // Stufe 8g: der Abweichungsbericht des letzten GPU-Backens (eine Zeile, uebersetzt)
         std::string gpuAdapter;            // Stufe 8g: die GPU des laufenden bzw. letzten GPU-Backens
+        std::string testExe;               // Stufe 9 Punkt 1: das Programm fuer "Im Spiel testen" ("BhedTestGameExe", leer = Engine)
+        std::string testBefehl;            // Stufe 9 Punkt 1: die zuletzt erzeugte Befehlszeile (Selbsttest)
+        std::string testPk3;               // Stufe 9 Punkt 1: das zuletzt geschriebene Archiv (Selbsttest)
     } bau;
     // Stufe 8a Punkt 3/4: was "Open .bsp" zurueckgewinnt (eigene Funktion, nicht in NRC)
     struct BspRueckEinstellungen {
@@ -1530,6 +1533,11 @@ void bauMenueNeuLaden();               // Reset: build_commands_clear + LoadBuil
 void bauMenueEintraegeZeichnen();      // Build_constructMenu
 void bauStarten(std::size_t index);    // RunBSP
 void bauZuletztStarten();              // Build_runRecentExecutedBuild
+// Stufe 9 Punkt 1 (eigene Funktion, nicht in NRC): Build > Test in game - bauen bzw. das
+// Schnell-Backen nehmen, die .bsp in den eigenen Testordner, das Spiel mit +devmap starten
+void imSpielTesten(const std::string& exe);
+[[nodiscard]] std::string spielTestOrdner();
+[[nodiscard]] std::string standardTestExe();   // die Engine aus den Einstellungen (SP bzw. MP)
 void bauAusfuehren(const std::vector<std::string>& befehle);   // BuildMonitor_Run
 // Stufe 4: eigene Befehle im Hintergrund wie ein Build-Eintrag (Konsole,
 // Statuszeile, Schlusszeile); danach(art) mit 0 fertig, 1 gestoppt, 2 abgebrochen.

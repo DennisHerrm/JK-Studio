@@ -28,6 +28,8 @@ void echtLichtBildVorbereiten(const karte::Vektor3f& auge, std::size_t szeneStan
 // starten, abbrechen, Ergebnis abholen.
 void echtLichtSchritt(std::size_t kartenStand);
 void echtLichtBeenden();   // beim Beenden: einen laufenden Bau abbrechen
+// Stufe 9 Punkt 1: die .bsp des Schnell-Backens, wenn sie zum Stand passt (sonst leer)
+[[nodiscard]] std::string schnellBspFuer(std::size_t kartenStand);
 // Die gebackenen Flaechen zeichnen (statt der Pinsel und Patches); false: nichts gebacken/aktuell.
 bool gebackenZeichnen(const float* matrix);
 

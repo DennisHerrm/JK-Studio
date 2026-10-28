@@ -1336,6 +1336,8 @@ void einstellungenLaden() {
         const auto ziel = k.find("BuildTargetFolder");   // Abweichung: Ziel-Ordner
         b.zielOrdner = ziel != k.end() ? ziel->second : std::string();
         b.melden = zahl("BhedBuildNotify", 1) != 0.0F;   // Stufe 8a (eigene Einstellung)
+        const auto test = k.find("BhedTestGameExe");   // Stufe 9 Punkt 1: Im Spiel testen
+        b.testExe = test != k.end() ? test->second : std::string();
         b.editorDaten = zahl("BhedKeepEditorData", 0) != 0.0F;
         b.visWieder = zahl("BhedVisReuse", 0) != 0.0F;
         b.lichtWieder = zahl("BhedLightReuse", 0) != 0.0F;
@@ -1468,6 +1470,7 @@ void einstellungenSpeichern() {
     k["BuildDumpLog"] = ed.bau.logAusgeben ? "1" : "0";
     k["BuildTargetFolder"] = ed.bau.zielOrdner;
     k["BhedBuildNotify"] = ed.bau.melden ? "1" : "0";
+    k["BhedTestGameExe"] = ed.bau.testExe;
     k["BhedKeepEditorData"] = ed.bau.editorDaten ? "1" : "0";
     k["BhedVisReuse"] = ed.bau.visWieder ? "1" : "0";
     k["BhedLightReuse"] = ed.bau.lichtWieder ? "1" : "0";

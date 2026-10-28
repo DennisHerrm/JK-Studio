@@ -292,6 +292,9 @@ std::vector<Schritt> schritte();   // selbsttest_karte8c.inc: Tutorial "Erste ei
 namespace stufe8g {
 std::vector<Schritt> schritte();   // selbsttest_karte8g.inc: Build > GPU bake (nach dem Tutorial)
 }  // namespace stufe8g
+namespace stufe9 {
+std::vector<Schritt> schritte();   // selbsttest_karte9.inc: Stufe 9 (nach dem GPU-Backen)
+}  // namespace stufe9
 
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
@@ -501,6 +504,14 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =stufe9: das Tutorial der Stufe 8c, Build > GPU bake und die Stufe 9
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe9") == 0) {
+        for (Schritt& x : stufe8c::schritte()) { add(std::move(x)); }
+        for (Schritt& x : stufe8g::schritte()) { add(std::move(x)); }
+        for (Schritt& x : stufe9::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =stufe2: nur die Wirkungspruefungen der Stufe 2 (Bauwerkzeuge)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe2") == 0) {
         for (Schritt& x : karteneditorStufe2Schritte()) { add(std::move(x)); }
@@ -527,6 +538,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : stufe8b::schritte()) { add(std::move(x)); }   // Stufe 8b: neue Editor-Werkzeuge
     for (Schritt& x : stufe8c::schritte()) { add(std::move(x)); }   // Stufe 8c: Tutorial "Erste eigene Karte"
     for (Schritt& x : stufe8g::schritte()) { add(std::move(x)); }   // Stufe 8g: Build > GPU bake (nach dem Tutorial)
+    for (Schritt& x : stufe9::schritte()) { add(std::move(x)); }    // Stufe 9: restliche Karten-Werkzeuge (nach 8g)
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
@@ -803,6 +815,7 @@ void skriptNeu() {
 
 #include "selbsttest_karte8c.inc"
 #include "selbsttest_karte8g.inc"
+#include "selbsttest_karte9.inc"
 
 // --- Stufe 3 Punkt 8: Bilder der Seite "Karte bauen" ------------------------------
 //
