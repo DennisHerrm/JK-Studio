@@ -41,9 +41,14 @@
 //     editor[:<befehl>]        der Ereigniseditor ist offen (fuer <befehl>)
 //     editorzu                 der Ereigniseditor ist zu
 //     fenster:<name>           messages, find
-//     modus:<n>                Modusleiste: 0 Events, 1 Map, 2 Model
+//     modus:<n>                Modusleiste: 0 Events, 1 Map, 2 Model, 3 Karten-Editor
 //     ansicht:<n>              Skriptansicht: 0 Classic, 1 Graph, 2 Tracks
 //     gespeichert              aktives Skript hat einen Pfad und ist gesichert
+//     zahl:<name>[+|~]         H1: ein Messwert aus einem Bereich des Programms
+//                              (Kontext::werte, z. B. karte.pinsel): ohne
+//                              Zusatz "nicht 0", "+" groesser, "~" anders als
+//                              beim Beginn des Schritts
+//     offen:<teil>             H1: ein Fenster, dessen Name <teil> enthaelt, ist offen
 //     schwebt                  die Maus steht eine Weile auf dem Ziel
 //     geklickt                 das Ziel wurde gerade angeklickt
 //     manuell                  nur der Knopf "Weiter" schaltet weiter
@@ -69,6 +74,13 @@ namespace bhed::tour {
 
 // --- Daten ----------------------------------------------------------------
 
+// H1: ein freundlicher Hinweis, wenn statt des Schritts etwas anderes
+// passiert ("Du hast X gewaehlt - probier Y").
+struct Hinweis {
+    std::string wenn;   // Pruefung wie `fertig`
+    std::string text;   // roh wie Schritt::text
+};
+
 struct Schritt {
     std::string text;        // roh: **fett**, `code`, <kbd>..</kbd>, {{Kennung}}
     std::string bild;        // Bildname im Handbuch
@@ -82,6 +94,7 @@ struct Schritt {
     // naechste Schritt braucht. Leer: `einrichten` ohne die Aktionen, die das
     // Skript aendern (befehl, wert) - siehe ueberspringAktionen().
     std::string ueberspringen;
+    std::vector<Hinweis> falsch;   // H1
 };
 
 struct Tour {
@@ -150,6 +163,10 @@ struct Kontext {
     int ansicht = 0;
     bool schwebt = false;
     bool geklickt = false;
+    // H1: Messwerte aus allen Bereichen ("karte.pinsel", "karte.ent.light",
+    // "vorschau.laeuft") und die Namen aller offenen Fenster.
+    std::map<std::string, double> werte;
+    std::vector<std::string> offen;
     // Nachschlagen im lebenden Skript (nur fuer den aktuellen Stand).
     std::function<bool(const std::string& block, const std::string& befehl)> hatKind;
     std::function<std::string(const std::string& befehl, int nte, int feld)> argument;
@@ -243,6 +260,9 @@ public:
     // "Mach es": die Aktionen des Schritts, wenn er sicher ist (sonst "").
     // Der Schritt erledigt sich danach ueber seine Pruefung.
     [[nodiscard]] std::string machEs() const;
+    // H1: der Text des ersten Hinweises, dessen Pruefung gerade gilt, solange
+    // der Schritt nicht erfuellt ist ("" = keiner).
+    [[nodiscard]] std::string hinweis(const Kontext& k) const;
 
 private:
     void betrete(int i, bool rueckwaerts);

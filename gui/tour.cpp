@@ -31,6 +31,7 @@
 
 #include "app_internal.h"
 #include "elemente.h"
+#include "karteneditor.h"
 #include "bhed/tour.h"
 
 #include <algorithm>
@@ -109,6 +110,10 @@ struct Zustand {
     std::string indexSprache;
     bool indexVersucht = false;
     std::vector<tour::Treffer> treffer;
+    // H1: "Zeig es mir" des Helfers - eine Tour aus einem Schritt
+    tour::Tour ort;
+    // H1: der Hinweis, wenn statt des Schritts etwas anderes passiert ist
+    std::string hinweis;
 };
 
 Zustand& z() {
@@ -158,7 +163,11 @@ std::string handbuchOrdner() {
 
 std::string kennungText(const std::string& name) {
     i18n::Str s{};
-    return i18n::strVonName(name, &s) ? std::string(tr(s)) : name;
+    if (!i18n::strVonName(name, &s)) { return name; }
+    // H1: die Beschriftungen des Karten-Editors (Ke...) wie dort - mit
+    // "Begriffe wie NetRadiant" englisch (karteneditor::trK).
+    if (name.size() > 2 && name.compare(0, 2, "Ke") == 0) { return karteneditor::trK(s); }
+    return tr(s);
 }
 
 // --- Laden ------------------------------------------------------------------------
@@ -302,6 +311,17 @@ tour::Kontext kontextBauen() {
     if (g_app->findOpen) { k.fenster.emplace_back("find"); }
     k.modus = g_app->leftMode;
     k.ansicht = g_app->settings.flussAnsicht;
+    // H1: alle offenen Fenster (offen:<teil>) und die Messwerte der Bereiche
+    // (zahl:<name>); die des Karten-Editors nur, wenn der Schritt sie braucht.
+    for (const ImGuiWindow* w : GImGui->Windows) {
+        if (w->WasActive && !w->Hidden) { k.offen.emplace_back(w->Name); }
+    }
+    bool karte = false;
+    if (const tour::Schritt* st = s.ablauf.aktuell(); st != nullptr) {
+        karte = st->fertig.find("karte.") != std::string::npos || st->voraus.find("karte.") != std::string::npos;
+        for (const tour::Hinweis& h : st->falsch) { karte = karte || h.wenn.find("karte.") != std::string::npos; }
+    }
+    tourMesswerte(k.werte, karte, ImGui::GetTime());
     k.hatKind = [](const std::string& block, const std::string& befehl) {
         return hatKindIn(g_app->doc.script().nodes, block, befehl);
     };
@@ -869,6 +889,15 @@ void schrittZeichnen(float breite) {
     const tour::Schritt* st = a.aktuell();
     if (st == nullptr) { return; }
     zeichneSchrittText(st->text, breite);
+    // H1: freundlich auffangen, was stattdessen passiert ist.
+    if (!s.hinweis.empty() && !a.erfuellt()) {
+        const ImVec2 q = ImGui::GetCursorScreenPos();
+        uiIcon(ImGui::GetWindowDrawList(), UiIcon::Warnung, ImVec2{std::floor(q.x), std::floor(q.y)}, ImGui::GetFontSize(),
+               ImGui::GetColorU32(kKennungFarbe));
+        ImGui::Dummy(ImVec2{ImGui::GetFontSize(), ImGui::GetFontSize()});
+        ImGui::SameLine();
+        zeichneSchrittText(s.hinweis, breite - ImGui::GetFontSize() * 1.5F);
+    }
     if (s.zeigtOeffner) {
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + breite);
         ImGui::TextColored(kKennungFarbe, "%s", tr(Str::TourFirst));
@@ -1147,7 +1176,8 @@ bool tourStarten(const std::string& id, int ab) {
         diag::detail(std::string("Tour: ") + m);
         return false;
     }
-    if (!gibtAnsicht && g_app->settings.flussAnsicht != 0) {
+    // H1: nur die Skript-Touren brauchen den Skriptbaum (die erste Karte nicht).
+    if (!gibtAnsicht && g_app->settings.flussAnsicht != 0 && t->gruppe == "tut_skript") {
         // Die vorige Ansicht merken (eine schon laufende Tour hat sie
         // vielleicht schon gemerkt - dann gilt die).
         if (s.ansichtVorher < 0) { s.ansichtVorher = g_app->settings.flussAnsicht; }
@@ -1161,6 +1191,62 @@ bool tourStarten(const std::string& id, int ab) {
     s.warFertig = false;
     diag::detail("Tour: Start " + id + " ab Schritt " + std::to_string(ab + 1) + " (" + ansicht + ")");
     speichereStand();
+    return true;
+}
+
+// H1: die Daten fuer den Helfer (gui/hilfe.cpp).
+const tour::Touren& tourDaten() {
+    laden();
+    return z().touren;
+}
+
+const std::vector<tour::Abschnitt>& tourHandbuch() {
+    Zustand& s = z();
+    const std::string sp = sprachCode();
+    if (!s.indexVersucht || s.indexSprache != sp) {
+        laden();
+        s.indexVersucht = true;
+        s.indexSprache = sp;
+        s.index.clear();
+        s.letzteAnfrage = "\x01";
+        const std::string ordner = s.ordner.empty() ? handbuchOrdner() : s.ordner;
+        if (!ordner.empty()) {
+            std::string f;
+            std::string js = leseDatei(ordner + "\\" + sp + "\\suche.js");
+            if (js.empty()) { js = leseDatei(ordner + "\\en\\suche.js"); }
+            if (!tour::ladeSuchindex(js, s.index, &f)) { diag::detail("Tour: Suchindex - " + f); }
+        }
+    }
+    return s.index;
+}
+
+bool tourZeigeOrt(const std::string& titel, const std::string& text, const std::string& ziel, const std::string& voraus) {
+    Zustand& s = z();
+    laden();
+    std::vector<tour::Ziel> zs;
+    std::string f;
+    if (!tour::parseZiele(ziel, zs, &f) || zs.empty()) {
+        diag::detail("Helfer: Zielangabe " + ziel + " - " + f);
+        return false;
+    }
+    s.ort = tour::Tour{};
+    s.ort.id = "ort";
+    s.ort.titel = titel;
+    tour::Schritt st;
+    st.text = text;
+    st.ziel = ziel;
+    st.voraus = voraus;
+    st.fertig = "manuell";
+    s.ort.ansichten.emplace_back("classic", std::vector<tour::Schritt>{st});
+    if (!s.ablauf.starte(s.ort, "classic", 0)) { return false; }
+    s.laufendeId.clear();   // kein Fortschritt in den Einstellungen
+    s.fensterOffen = true;
+    s.fensterNeuSetzen = true;
+    s.letzterSchritt = -1;
+    s.warFertig = false;
+    s.geistStart = ImGui::GetTime();
+    s.geistVon = ImGui::GetMousePos();
+    diag::detail("Helfer: zeige " + ziel);
     return true;
 }
 
@@ -1202,6 +1288,7 @@ TourSicht tourSicht() {
     v.touren = static_cast<int>(s.touren.liste.size());
     v.fehler = s.ladeFehler;
     v.ordner = s.ordner;
+    v.hinweis = s.hinweis;
     return v;
 }
 
@@ -1279,6 +1366,7 @@ void tourBild() {
         if (!frage && s.ablauf.bild(k, jetzt)) {
             diag::detail("Tour: Schritt " + std::to_string(s.ablauf.schritt() + 1) + " erledigt");
         }
+        s.hinweis = s.ablauf.hinweis(k);
         for (const std::string& t : tour::kennungenImText(st->text)) { labels.push_back(kennungText(t)); }
     }
     // Schrittwechsel: Rahmen pulsieren lassen, Fortschritt merken.

@@ -27,6 +27,7 @@
 #include "gpumap.h"
 #include "elemente.h"   // rc601 tour: das Element-Register (auch ohne Selbsttest)
 #include "tour.h"       // rc601 tour: Tutorials im Programm
+#include "hilfe.h"      // H1: der Helfer (F1)
 #include "karteneditor.h"   // Stufe 1b: der Arbeitsbereich Karten-Editor
 
 #include <atomic>
@@ -2659,7 +2660,7 @@ Str labelFor(keys::Action a) {
         case keys::Action::SaveAll:      return Str::ActSaveAll;
         case keys::Action::Backup:       return Str::ActBackup;
         case keys::Action::Restore:      return Str::ActRestore;
-        case keys::Action::Guide:        return Str::HelpGuide;
+        case keys::Action::Guide:        return Str::HlfMenu;   // H1
         default:                         return Str::ActDelete;
     }
 }
@@ -2971,7 +2972,7 @@ void handleShortcuts() {
             // Selbsttest, der jede Belegung aendert und ausprobiert.
             case keys::Action::Backup: doBackup(); break;
             case keys::Action::Restore: doRestore(); break;
-            case keys::Action::Guide: handbuchOeffnen(); break;
+            case keys::Action::Guide: hilfeOeffnen(); break;   // H1: F1 = der Helfer
             default: break;
         }
     }
@@ -6650,6 +6651,7 @@ void draw() {
     // rc601 tour: Tutorial-Fenster, Hervorhebung und Schrittpruefung - VOR
     // selbsttest(), damit der Test die Knoepfe des Fensters im selben Bild
     // findet (das Register wird erst danach geleert).
+    hilfeBild();   // H1: der Helfer (F1), Erste Schritte, KI-Anbindung
     tourBild();
     selbsttest();   // nur mit BHED_EDITORTEST, siehe selbsttest.cpp
     // rc601 tour: das Element-Register leeren und die Stufe fuer das naechste

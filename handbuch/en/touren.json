@@ -353,6 +353,218 @@
      }
     ]
    }
+  },
+  {
+   "id": "tut-karte",
+   "gruppe": "tut",
+   "titel": "Your first map: a room to walk in",
+   "kurz": "From an empty map to a room you can walk through in the game: brushes, textures, caulk, a light, the player start, the optimizer, building with the progress window, walking through it in the editor - and the .pk3 for the game.",
+   "seite": "tut-karte.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Set up the game.** Switch the mode bar to **{{ViewMapEditor}}**. The editor uses the game the program is set up for; its folders come from the program settings. **{{KeLEdit}} > {{KeLPreferences}}**, page **{{KePgGame}}**, shows the game, page **{{KePgPaths}}** the engine path (empty: taken from the program's game folders).",
+      "bild": "h_tut_karte_pfade",
+      "unter": "{{KeLPreferences}}, page {{KePgPaths}}.",
+      "ziel": "menue:KeLEdit>KeLPreferences",
+      "fertig": "zahl:karte.spiel",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**New map.** **{{KeLFile}} > {{KeLNewMap}}** starts an empty map - only the worldspawn. Zoom the 2D view out a little with the mouse wheel.",
+      "bild": "h_tut_karte_neu",
+      "unter": "The {{KeLFile}} menu.",
+      "ziel": "menue:KeLFile>KeLNewMap",
+      "fertig": "zahl:karte.leer",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Draw a brush.** In the 2D top view, drag with the left mouse button from one corner to the other - here from -256 -256 to 256 256, a box 512 units wide. Its height comes from the work zone (at first -64 to 64).",
+      "bild": "h_tut_karte_brush",
+      "unter": "The new brush, selected (red).",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.ent+",
+        "text": "That made an entity. Press Ctrl+Z, then drag with the LEFT mouse button in the 2D view."
+       }
+      ]
+     },
+     {
+      "text": "**Make it taller.** <kbd>Num 1</kbd> switches the 2D view to the front view (XZ). Grab just above the top edge and drag up: the top face follows on the grid. Here to 192 - the room is now 256 high. <kbd>Num 7</kbd> goes back to the top view.",
+      "bild": "h_tut_karte_hoehe",
+      "unter": "The front view: the brush is now 256 high.",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.hoehe+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.pinsel+",
+        "text": "That drew a second brush. Press Ctrl+Z and start the drag just above the top edge of the first one."
+       }
+      ]
+     },
+     {
+      "text": "**Texture.** Double-click a folder in the tree of the texture browser and click a texture with the left mouse button: every face of the selected brush gets it. Pick something without transparency for the walls.",
+      "bild": "h_tut_karte_textur",
+      "unter": "The wall texture on all six faces.",
+      "ziel": "fenster:##feldTexturen",
+      "fertig": "zahl:karte.texturen~",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.keineauswahl",
+        "text": "Nothing is selected yet. Click the brush in a 2D view first, then the texture."
+       }
+      ]
+     },
+     {
+      "text": "**Hollow it out.** The toolbar button **{{KeCsgTitle}}** opens the CSG tool. Leave the thickness at 16 and switch the caulk button off for now (AutoCaulk does that later), then press **{{KeCsgTipPull}}**: six walls 16 thick grow outwards around the room, and the inside stays exactly the box you drew. The toolbar button **Room** (Make Room) does the same with the grid size as thickness.",
+      "bild": "h_tut_karte_csg",
+      "unter": "{{KeCsgTitle}} with the caulk button off.",
+      "ziel": "knopfN:##knopfCSGTool",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**A floor texture.** In the front view, <kbd>Shift</kbd> + left click on the floor selects only the floor brush; click a floor texture in the browser. <kbd>Esc</kbd> clears the selection.",
+      "bild": "h_tut_karte_hohl",
+      "unter": "The hollow room: six wall brushes.",
+      "ziel": "fenster:##feldTexturen",
+      "fertig": "zahl:karte.texturen~",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.keineauswahl",
+        "text": "Nothing is selected yet. Click the brush in a 2D view first, then the texture."
+       }
+      ]
+     },
+     {
+      "text": "**A light.** Right-click inside the room in the 2D view: the entity menu opens. **light** asks for the intensity (300 is a good start) - **OK** places it where you clicked.",
+      "bild": "h_tut_karte_licht",
+      "unter": "{{KeLiTitle}}.",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.light+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.pinsel+",
+        "text": "That drew a brush. Press Ctrl+Z and click with the RIGHT mouse button."
+       }
+      ]
+     },
+     {
+      "text": "**Where the player starts.** Right-click near the floor: **info > info_player_start**. Without it the game does not know where to put the player. Its box stands on the floor.",
+      "bild": "h_tut_karte_spawn",
+      "unter": "The entity menu, submenu info.",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.info_player_start",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.ent.light+",
+        "text": "That was another light. Right-click again and choose info > info_player_start."
+       }
+      ]
+     },
+     {
+      "text": "**Save.** **{{KeLFile}} > {{KeLSaveAs}}** - for example `meinekarte.map` in a folder `maps` of your own, outside the game folders. The name of the file becomes the name of the map in the game.",
+      "bild": "h_tut_karte_gespeichert",
+      "unter": "The saved room in the editor.",
+      "ziel": "menue:KeLFile>KeLSaveAs",
+      "fertig": "zahl:karte.gespeichert+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Caulk the outside.** Faces nobody can see still cost lightmap space and drawing time. Fly the camera into the room, drag a rectangle around the whole room with <kbd>Shift</kbd> + right mouse button in the top view and press <kbd>F4</kbd> (**{{KeLBrush}} > {{KeLAutoCaulkSelected}}**): every face that cannot be seen from inside becomes caulk. Building in caulk from the start works too: give new brushes the caulk texture and texture only the faces you see.",
+      "bild": "h_tut_karte_caulk",
+      "unter": "After AutoCaulk: the camera inside the room.",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.caulk+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Check it.** **{{KeLBuild}} > {{KeOptMenue}}** counts the game's limits and looks for build problems before you compile. A green room has nothing to fix.",
+      "bild": "h_tut_karte_optimierer",
+      "unter": "The optimizer for the tutorial room.",
+      "ziel": "menue:KeLBuild>KeOptMenue",
+      "fertig": "offen:karteoptimierer",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Build.** **{{KeLBuild}} > [Final] Fast** runs q3map2 three times - BSP, VIS and the light with bounce. The progress window shows the stage, the progress and the time left. If the map leaked, the console says so in red and a line in the 2D view shows the way out - see Map editor: compiling the map.",
+      "bild": "h_tut_karte_fortschritt",
+      "unter": "The progress window during the build.",
+      "ziel": "menue:KeLBuild",
+      "fertig": "zahl:karte.gebaut+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Walk through it.** **{{KeLView}} > {{KeSpSpawn}}** and then **{{KeSpMenue}}** (<kbd>F6</kbd>): you stand at the info_player_start and walk with <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>, jump with <kbd>Space</kbd>; <kbd>Esc</kbd> ends. This works even without compiling - the collision comes straight from the brushes (see Play in the editor).",
+      "bild": "h_tut_karte_spielen",
+      "unter": "Walking through the room in the editor.",
+      "ziel": "menue:KeLView>KeSpMenue",
+      "fertig": "zahl:karte.spielen",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Into the game.** **{{KeLBuild}} > {{KePkMenue}}** packs `maps/meinekarte.bsp` into `meinekarte.pk3` next to the .bsp. The program never writes into the game folders - copy the .pk3 yourself into `GameData/base` (Jedi Academy, Jedi Outcast) or into the folder of your mod (for example Movie Duels). Start the game, open the console with <kbd>Shift</kbd>+<kbd>~</kbd> and type `devmap meinekarte`.",
+      "bild": "h_tut_karte_pk3menue",
+      "unter": "{{KeLBuild}} with **{{KePkMenue}}** (not in NetRadiant-Custom).",
+      "ziel": "menue:KeLBuild>KePkMenue",
+      "fertig": "zahl:karte.pk3+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }

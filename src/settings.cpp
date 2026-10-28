@@ -93,6 +93,12 @@ std::string writeSettings(const Settings& s) {
     for (const auto& kv : s.tourStand) {
         put(o, ("tour." + kv.first).c_str(), kv.second);
     }
+    put(o, "ersteSchritteGezeigt", s.ersteSchritteGezeigt);   // H1
+    put(o, "kiChat", s.kiChat);
+    put(o, "kiModell", s.kiModell);
+    put(o, "kiOhneNachfrage", s.kiOhneNachfrage);
+    put(o, "mcpHttp", s.mcpHttp);
+    put(o, "mcpPort", std::to_string(s.mcpPort));
     put(o, "changeHistory", s.changeHistory);
     put(o, "updateCheck", s.updateCheck);
     put(o, "highlightSame", s.highlightSame);
@@ -224,6 +230,18 @@ bool readSettings(const std::string& text, Settings& out) {
         }
         else if (key.rfind("tour.", 0) == 0) {   // rc601 tour
             out.tourStand[key.substr(5)] = value;
+        }
+        else if (key == "ersteSchritteGezeigt") { out.ersteSchritteGezeigt = toBool(value); }   // H1
+        else if (key == "kiChat") { out.kiChat = toBool(value); }
+        else if (key == "kiModell") {
+            // nur bekannte Modelle (die Datei ist kein Weg, etwas anderes anzusprechen)
+            if (value == "claude-sonnet-5-5" || value == "claude-haiku-5-5" || value == "claude-opus-5-5") { out.kiModell = value; }
+        }
+        else if (key == "kiOhneNachfrage") { out.kiOhneNachfrage = toBool(value); }
+        else if (key == "mcpHttp") { out.mcpHttp = toBool(value); }
+        else if (key == "mcpPort") {
+            const int p = std::atoi(value.c_str());
+            if (p >= 1024 && p <= 65535) { out.mcpPort = p; }
         }
         else if (key == "changeHistory") { out.changeHistory = toBool(value); }
         else if (key == "updateCheck") { out.updateCheck = toBool(value); }

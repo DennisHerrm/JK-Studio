@@ -42,6 +42,8 @@ add_library(bhed_core STATIC
   # rc601 tour: Tutorials im Programm - Daten, Zielangaben, Pruefungen,
   # Ablauf, Fortschritt, Suche im Handbuch (die Oberflaeche: gui/tour.cpp).
   src/tour.cpp
+  # H1: der Helfer - Index ueber Touren, Handbuch, Menues und Einstellungen.
+  src/hilfe.cpp
   src/bhc.cpp
   src/validate.cpp
   src/tree.cpp
@@ -466,6 +468,11 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/elemente.cpp
     # rc601 tour: Tutorials im Programm - Fenster, Hervorhebung, Auswertung.
     gui/tour.cpp
+    # H1: Messwerte aller Bereiche fuer die Tutorials (zahl:<name>).
+    gui/tour_messwerte.cpp
+    # H1: der Helfer (F1) und die freiwillige KI-Anbindung (MCP, Chat).
+    gui/hilfe.cpp
+    gui/ki.cpp
     gui/update_win32.cpp
     gui/vektoricons.cpp
     gui/wache_win32.cpp
@@ -688,6 +695,10 @@ if(BEHAVED_TESTS)
   add_executable(tourtest tests/tourtest.cpp)
   target_link_libraries(tourtest PRIVATE bhed_core)
   add_test(NAME tour COMMAND tourtest ${CMAKE_CURRENT_SOURCE_DIR}/handbuch)
+  # H1: der Helfer - Woerter, Ortskatalog, Trefferquote (Top 3, vier Sprachen).
+  add_executable(hilfetest tests/hilfetest.cpp)
+  target_link_libraries(hilfetest PRIVATE bhed_core)
+  add_test(NAME hilfe COMMAND hilfetest ${CMAKE_CURRENT_SOURCE_DIR}/handbuch)
   # Gegenproben zur Code-Pruefung vom 03.10.2026 (Skriptkern, Kartenleser,
   # Einstellungen, Modell- und Archivleser).
   add_executable(pruefung tests/pruefung.cpp)

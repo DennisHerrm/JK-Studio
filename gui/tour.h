@@ -11,7 +11,9 @@
 
 #include "imgui.h"
 #include "imgui_internal.h"
+#include "bhed/tour.h"
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -38,6 +40,18 @@ void tourSchliessen();
 // ruhen (darfRuhen in app.cpp), sonst ruckelt sie.
 bool tourAnimiert();
 
+// H1: die Tutorials und der Suchindex des Handbuchs in der eingestellten
+// Sprache (fuer den Helfer, gui/hilfe.cpp).
+const bhed::tour::Touren& tourDaten();
+const std::vector<bhed::tour::Abschnitt>& tourHandbuch();
+// H1: "Zeig es mir" des Helfers - hebt ein Bedienelement hervor (eine Tour aus
+// einem Schritt, Weiter schliesst sie). `voraus` wie in bhed/tour.h.
+bool tourZeigeOrt(const std::string& titel, const std::string& text, const std::string& ziel, const std::string& voraus);
+
+// H1: Messwerte aus allen Bereichen fuer "zahl:<name>" (gui/tour_messwerte.cpp).
+// `karte`: auch die des Karten-Editors (nur wenn ein Schritt sie braucht).
+void tourMesswerte(std::map<std::string, double>& werte, bool karte, double jetzt);
+
 // Fuer den Selbsttest: was die Tour gerade zeigt.
 struct TourSicht {
     bool fensterOffen = false;
@@ -58,6 +72,7 @@ struct TourSicht {
     int touren = 0;                 // geladene Tutorials
     std::string fehler;             // Laden fehlgeschlagen
     std::string ordner;             // wo touren.json gefunden wurde
+    std::string hinweis;            // H1: der freundliche Hinweis, der gerade steht
 };
 TourSicht tourSicht();
 

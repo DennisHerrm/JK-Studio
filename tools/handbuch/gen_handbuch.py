@@ -616,6 +616,10 @@ def touren_json(sp):
                 inhalt_touren.pruefe(sid, ansicht, nr, a, lambda k: k in UI_TEXTE)
                 eintrag = {"text": tour_text(t, sp), "bild": bild or "", "unter": tour_text(unter, sp) if unter else ""}
                 eintrag.update(a)
+                # H1: die Hinweise in der Sprache der Datei
+                eintrag["falsch"] = [{"wenn": p, "text": tour_text(t, sp)} for p, t in a.get("falsch", [])]
+                if not eintrag["falsch"]:
+                    del eintrag["falsch"]
                 schritte.append(eintrag)
             if not schritte:
                 raise SystemExit("%s/%s: keine Schritte" % (sid, ansicht))
