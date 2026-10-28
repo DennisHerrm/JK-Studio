@@ -141,13 +141,17 @@ void fensterZeichnen() {
     Zustand& s = z();
     if (!s.offen) { return; }
     const float fs = ImGui::GetFontSize();
+    const hilfe::Index& ix = index();
+    if (s.letzte != s.frage) {
+        s.letzte = s.frage;
+        s.treffer = ix.frage(s.frage, 5);
+    }
     ImGui::SetNextWindowSize(ImVec2{fs * 30.0F, fs * 30.0F}, ImGuiCond_FirstUseEver);
     const std::string titel = std::string(tr(Str::HlfTitle)) + "###hilfe";
     if (!ImGui::Begin(titel.c_str(), &s.offen, ImGuiWindowFlags_NoCollapse)) {
         ImGui::End();
         return;
     }
-    const hilfe::Index& ix = index();
     const float breite = ImGui::GetContentRegionAvail().x;
     ImGui::TextUnformatted(tr(Str::HlfAsk));
     if (s.fokus) {
@@ -155,8 +159,7 @@ void fensterZeichnen() {
         s.fokus = false;
     }
     ImGui::SetNextItemWidth(breite);
-    ImGui::InputTextWithHint("##hilfefrage", tr(Str::HlfExample), s.frage, sizeof(s.frage));
-    if (s.letzte != s.frage) {
+    if (ImGui::InputTextWithHint("##hilfefrage", tr(Str::HlfExample), s.frage, sizeof(s.frage))) {
         s.letzte = s.frage;
         s.treffer = ix.frage(s.frage, 5);
     }
@@ -241,12 +244,15 @@ void hilfeOeffnen(const std::string& frage) {
     s.offen = true;
     s.fokus = true;
     if (!frage.empty()) {
+        ImGui::ClearActiveID();
         std::snprintf(s.frage, sizeof(s.frage), "%s", frage.c_str());
     }
     ImGui::SetWindowFocus("###hilfe");
 }
 
 bool hilfeOffen() { return z().offen; }
+
+void hilfeSchliessen() { z().offen = false; }
 
 bool hilfeZeige(const std::string& id) {
     const hilfe::Index& ix = index();
@@ -268,6 +274,16 @@ std::vector<HilfeTreffer> hilfeFrage(const std::string& frage, std::size_t hoech
     return aus;
 }
 
+std::vector<HilfeTreffer> hilfeOrte(const std::string& bereich) {
+    const hilfe::Index& ix = index();
+    std::vector<HilfeTreffer> aus;
+    for (const hilfe::Eintrag& e : ix.eintraege()) {
+        if (e.art != hilfe::Art::Ort || (!bereich.empty() && e.bereich != bereich)) { continue; }
+        aus.push_back(HilfeTreffer{e.id, "ort", e.titel, ersterSatz(e.text), e.pfad, e.seite});
+    }
+    return aus;
+}
+
 HilfeSicht hilfeSicht() {
     const Zustand& s = z();
     HilfeSicht v;
@@ -284,7 +300,12 @@ HilfeSicht hilfeSicht() {
 void hilfeFrageSetzen(const std::string& frage) {
     Zustand& s = z();
     s.offen = true;
+    // Ein aktives Eingabefeld behielte seinen eigenen Text und schriebe ihn
+    // zurueck - also loslassen.
+    ImGui::ClearActiveID();
     std::snprintf(s.frage, sizeof(s.frage), "%s", frage.c_str());
+    s.letzte = s.frage;
+    s.treffer = index().frage(s.frage, 5);
 }
 
 void hilfeErsteSchritte(bool zeigen) {

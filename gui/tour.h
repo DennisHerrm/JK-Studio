@@ -48,6 +48,10 @@ const std::vector<bhed::tour::Abschnitt>& tourHandbuch();
 // einem Schritt, Weiter schliesst sie). `voraus` wie in bhed/tour.h.
 bool tourZeigeOrt(const std::string& titel, const std::string& text, const std::string& ziel, const std::string& voraus);
 
+// H1: Tour-Aktionen ausfuehren (einrichten-Grammatik, bhed/tour.h) - fuer
+// die KI-Befehle "script:<aktion>".
+void tourAktionen(const std::string& aktionen);
+
 // H1: Messwerte aus allen Bereichen fuer "zahl:<name>" (gui/tour_messwerte.cpp).
 // `karte`: auch die des Karten-Editors (nur wenn ein Schritt sie braucht).
 void tourMesswerte(std::map<std::string, double>& werte, bool karte, double jetzt);

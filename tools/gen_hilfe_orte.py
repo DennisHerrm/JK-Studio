@@ -29,6 +29,11 @@ BEREICH = {
 }
 
 
+# Das Hauptmenue steht nicht im Karten-Editor (dort dessen eigene Menues):
+# dann zeigt "Zeig es mir" zuerst auf den Knopf Events der Modusleiste.
+HAUPTMENUE = "zahl:programm.hauptmenue < knopf:ViewEvents@modebar"
+
+
 def lies(p):
     with open(os.path.join(WURZEL, p), encoding="utf-8") as f:
         return f.read().split("\n")
@@ -60,7 +65,7 @@ def hauptmenue(zeilen):
         if m:
             stapel.append(m.group(1))
             # das Untermenue selbst ist auch ein Ort ("View > Language")
-            aus.append([bereich_von(stapel), "menue:" + ">".join(stapel), ">".join(stapel), "", ""])
+            aus.append([bereich_von(stapel), "menue:" + ">".join(stapel), ">".join(stapel), "", HAUPTMENUE])
             letzter = None
             continue
         if "ImGui::EndMenu()" in z:
@@ -71,7 +76,7 @@ def hauptmenue(zeilen):
         m = re.search(r"ImGui::MenuItem\(tr\(Str::(\w+)\)", z)
         if m and stapel:
             kette = stapel + [m.group(1)]
-            letzter = [bereich_von(kette), "menue:" + ">".join(kette), ">".join(kette), "", ""]
+            letzter = [bereich_von(kette), "menue:" + ">".join(kette), ">".join(kette), "", HAUPTMENUE]
             aus.append(letzter)
             continue
         m = re.search(r"SetTooltip\(\"%s\", tr\(Str::(\w+)\)\)", z)

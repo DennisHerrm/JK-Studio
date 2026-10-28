@@ -1194,6 +1194,8 @@ bool tourStarten(const std::string& id, int ab) {
     return true;
 }
 
+void tourAktionen(const std::string& aktionen) { aktionenAusfuehren(aktionen); }
+
 // H1: die Daten fuer den Helfer (gui/hilfe.cpp).
 const tour::Touren& tourDaten() {
     laden();
@@ -1276,6 +1278,7 @@ TourSicht tourSicht() {
     v.aktiv = s.ablauf.aktiv();
     v.fertig = s.ablauf.fertig();
     v.id = s.laufendeId;
+    if (v.id.empty() && s.ablauf.tour() != nullptr) { v.id = s.ablauf.tour()->id; }   // H1: "ort" (Zeig es mir)
     v.schritt = s.ablauf.aktiv() ? s.ablauf.schritt() : -1;
     v.anzahl = s.ablauf.anzahl();
     v.erfuellt = s.ablauf.erfuellt();

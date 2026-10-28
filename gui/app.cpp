@@ -3061,7 +3061,9 @@ void drawPrefs() {
             "IBIZE (IBIZE.EXE)|IBIZE.EXE;*.exe|All files (*.*)|*.*");
 
     ImGui::TextDisabled("%s", tr(Str::PrefsNote));
-    if (ImGui::Button(tr(Str::PrefsReload))) {
+    const bool neuLaden = ImGui::Button(tr(Str::PrefsReload));
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::PrefsReloadHint)); }   // H1
+    if (neuLaden) {
         CommandDb fresh;
         std::vector<LoadDiag> ld;
         // rc604: ohne eigene .bhc der Befehlssatz des Regelwerks (data/jk2 bei
@@ -3086,11 +3088,20 @@ void drawPrefs() {
     }
 
     ImGui::SeparatorText(tr(Str::GroupApplication));
+    // H1: Erklaerungen zu den Beschriftungen aus BehavEd (die bleiben wie im Original).
+    const auto erklaerung = [](Str s) {
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(s)); }
+    };
     ImGui::Checkbox(tr(Str::PrefsReopen), &st.reopenLastFile);
+    erklaerung(Str::PrefsReopenHint);
     ImGui::Checkbox(tr(Str::PrefsAlphaSort), &st.alphaSortPulldowns);
+    erklaerung(Str::PrefsAlphaSortHint);
     ImGui::Checkbox(tr(Str::PrefsAltIcons), &st.alternativeIcons);
+    erklaerung(Str::PrefsAltIconsHint);
     ImGui::Checkbox(tr(Str::PrefsQuery), &st.queryOnDiscard);
+    erklaerung(Str::PrefsQueryHint);
     ImGui::Checkbox(tr(Str::PrefsLastDir), &st.dialogUsesLastDir);
+    erklaerung(Str::PrefsLastDirHint);
 
     // --- rc601 ton: die Mischpegel der Vorschau ---------------------------
     //

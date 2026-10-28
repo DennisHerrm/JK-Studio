@@ -2574,6 +2574,16 @@ enum class Str {
     McpRunning,
     McpFailed,
     KiSafety,
+    HelpAboutHint,
+    ChangelogMenuHint,
+    UpdMenuHint,
+    UpdAutoCheckHint,
+    PrefsReopenHint,
+    PrefsAlphaSortHint,
+    PrefsAltIconsHint,
+    PrefsQueryHint,
+    PrefsLastDirHint,
+    PrefsReloadHint,
     Count,
 };
 

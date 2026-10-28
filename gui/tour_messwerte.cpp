@@ -129,6 +129,10 @@ void karteMesswerte(std::map<std::string, double>& w, double jetzt) {
 void tourMesswerte(std::map<std::string, double>& werte, bool karte, double jetzt) {
     if (g_app == nullptr) { return; }
     werte["programm.modus"] = g_app->leftMode;
+    // Das Hauptmenue (File, Edit, View ...) steht in den Modi 0-2; im
+    // Karten-Editor (3) stehen dessen eigene Menues.
+    werte["programm.hauptmenue"] = g_app->leftMode != 3 ? 1.0 : 0.0;
+    werte["programm.einstellungen"] = g_app->prefsOpen ? 1.0 : 0.0;
     if (karte) { karteMesswerte(werte, jetzt); }
 }
 

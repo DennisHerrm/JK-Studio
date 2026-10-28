@@ -21,6 +21,7 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
@@ -513,6 +514,56 @@ void serverProben() {
     expect("nach halte(): keine Verbindung mehr", mcpPost(port, h, "", tok, rpc("ping", "")).empty());
 }
 
+// MCP ueber stdio: Zeilen hinein, Antworten heraus (Pipes statt Konsole).
+void stdioProben() {
+    std::printf("MCP ueber stdio\n");
+    HANDLE inR = nullptr;
+    HANDLE inW = nullptr;
+    HANDLE outR = nullptr;
+    HANDLE outW = nullptr;
+    CreatePipe(&inR, &inW, nullptr, 0);
+    CreatePipe(&outR, &outW, nullptr, 0);
+    const HANDLE altIn = GetStdHandle(STD_INPUT_HANDLE);
+    const HANDLE altOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    SetStdHandle(STD_INPUT_HANDLE, inR);
+    SetStdHandle(STD_OUTPUT_HANDLE, outW);
+    FakeGastgeber g;
+    bhed::ki::McpSitzung sitzung;
+    bhed::ki::StdioServer srv;
+    const bool an = srv.starte([&](const std::string& m) {
+        return bhed::ki::mcpBearbeite(m, sitzung, [&g](const std::string& n, const bhed::json::Wert& e) { return g(n, e); });
+    });
+    SetStdHandle(STD_INPUT_HANDLE, altIn);
+    SetStdHandle(STD_OUTPUT_HANDLE, altOut);
+    expect("stdio-Server laeuft", an && srv.laeuft());
+    const std::string zeilen = rpc("initialize", R"({"protocolVersion":"2025-06-18"})") + "\n" +
+                               R"({"jsonrpc":"2.0","method":"notifications/initialized"})" + "\n" + rpc("tools/list", "", 2) + "\r\n" + "kaputt\n";
+    DWORD n = 0;
+    WriteFile(inW, zeilen.data(), static_cast<DWORD>(zeilen.size()), &n, nullptr);
+    std::string aus;
+    for (int i = 0; i < 200 && std::count(aus.begin(), aus.end(), '\n') < 3; ++i) {
+        DWORD da = 0;
+        if (PeekNamedPipe(outR, nullptr, 0, nullptr, &da, nullptr) != FALSE && da > 0) {
+            std::string b(da, ' ');
+            DWORD gelesen = 0;
+            ReadFile(outR, b.data(), da, &gelesen, nullptr);
+            aus.append(b.data(), gelesen);
+        } else {
+            Sleep(10);
+        }
+    }
+    expect("stdio: drei Antworten (initialize, tools/list, Parse-Fehler), keine fuer die Benachrichtigung",
+           std::count(aus.begin(), aus.end(), '\n') == 3 && aus.find("\"protocolVersion\":\"2025-06-18\"") != std::string::npos &&
+               aus.find("\"tools\"") != std::string::npos && aus.find("-32700") != std::string::npos);
+    CloseHandle(inW);   // Client weg -> Server endet
+    for (int i = 0; i < 100 && srv.laeuft(); ++i) { Sleep(10); }
+    expect("stdio: Ende der Eingabe beendet den Server", !srv.laeuft());
+    srv.halte();
+    CloseHandle(inR);
+    CloseHandle(outR);
+    CloseHandle(outW);
+}
+
 void windowsProben() {
     std::printf("DPAPI, Token, PNG\n");
     std::string blob;
@@ -545,6 +596,7 @@ int main() {
     injektionProben();
     chatProben();
     serverProben();
+    stdioProben();
     windowsProben();
     WSACleanup();
     std::printf(fehler == 0 ? "\nalle KI-Proben bestanden\n" : "\nFEHLGESCHLAGEN (%d)\n", fehler);

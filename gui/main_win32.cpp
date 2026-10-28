@@ -135,8 +135,24 @@ bool g_fontsDirty = true;
 constexpr ULONG_PTR kEinzelKennung = 0x42454844UL;   // 'BEHD'
 constexpr const wchar_t* kEinzelEigenschaft = L"BehavEdEinzel";
 
+// H1: mit --mcp startet eine MCP-App (Claude Desktop, Cursor ...) das
+// Programm und spricht ueber stdin/stdout mit ihm (gui/ki.cpp). Diese Instanz
+// muss selbst laufen - sie gibt nichts an eine schon laufende ab.
+bool mitMcp() {
+    int argc = 0;
+    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    bool ja = false;
+    for (int i = 1; argv != nullptr && i < argc; ++i) {
+        ja = ja || std::wcscmp(argv[i], L"--mcp") == 0;
+    }
+    if (argv != nullptr) {
+        LocalFree(argv);
+    }
+    return ja;
+}
+
 bool einzelAktiv() {
-    if (std::getenv("BHED_EINZEL_AUS") != nullptr) {
+    if (std::getenv("BHED_EINZEL_AUS") != nullptr || mitMcp()) {
         return false;
     }
     return std::getenv("BHED_EDITORTEST") == nullptr || std::getenv("BHED_EINZEL") != nullptr;
@@ -1308,7 +1324,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         int argc = 0;
         LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
         if (argv != nullptr) {
-            if (argc > 1) {
+            if (argc > 1 && std::wcscmp(argv[1], L"--mcp") != 0) {   // H1: --mcp ist keine Datei
                 kommandozeile = toUtf8(argv[1]);
                 // Neustart nach einem Update: auf die alte Instanz warten -
                 // das ist keine Datei zum Oeffnen.

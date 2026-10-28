@@ -22,6 +22,17 @@ void kiStart(bool mcpStdio);
 // Beim Beenden: Server und Faeden anhalten.
 void kiEnde();
 
+// Fuer den Selbsttest.
+struct KiSicht {
+    bool httpLaeuft = false;
+    bool stdioLaeuft = false;
+    int fragen = 0;       // wartende Rueckfragen
+    int protokoll = 0;    // Eintraege im KI-Protokoll
+};
+[[nodiscard]] KiSicht kiSicht();
+// Das MCP-Token (nur der Selbsttest; erscheint nie im Protokoll).
+[[nodiscard]] std::string kiTestToken();
+
 }  // namespace bhed::gui
 
 #endif

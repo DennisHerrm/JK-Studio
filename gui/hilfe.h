@@ -9,6 +9,7 @@
 #ifndef BHED_GUI_HILFE_H
 #define BHED_GUI_HILFE_H
 
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -18,6 +19,8 @@ namespace bhed::gui {
 void hilfeBild();
 // Das Fenster oeffnen (F1, Help-Menue), optional mit einer Frage.
 void hilfeOeffnen(const std::string& frage = "");
+// Das Fenster schliessen.
+void hilfeSchliessen();
 // Ist das Fenster offen (darf das Programm ruhen? Nein, solange getippt wird)?
 [[nodiscard]] bool hilfeOffen();
 
@@ -36,6 +39,8 @@ struct HilfeTreffer {
     std::string seite;
 };
 [[nodiscard]] std::vector<HilfeTreffer> hilfeFrage(const std::string& frage, std::size_t hoechstens = 5);
+// Alle Orte (Menuepunkte, Modusleiste, Einstellungen) eines Bereichs ("" = alle).
+[[nodiscard]] std::vector<HilfeTreffer> hilfeOrte(const std::string& bereich);
 
 struct HilfeSicht {
     bool offen = false;
