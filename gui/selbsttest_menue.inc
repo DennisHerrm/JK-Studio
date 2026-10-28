@@ -105,6 +105,28 @@ std::vector<Schritt> schritte() {
     add(pruefe("Rueckgaengig: wieder wie geladen", [st] { return st().text == kSp; }));
     add(tu("Wiederholen", [] { (void)me::wiederholen(); }));
     add(pruefe("Wiederholen: 112", [st] { return st().text.find("rect\t\t112 100 200 30") != std::string::npos; }));
+    // Echte Eingabe in den Code-Editor: Klick in die Flaeche, Zeichen, Strg+Z
+    add(klick("##codeflaeche"));
+    add({"Code: XYZ tippen", [](int b) {
+             if (b == 1) { ImGui::GetIO().AddInputCharactersUTF8("XYZ"); }
+             return b >= 4;
+         }});
+    add(pruefe("Code: getippt (echte Tastatureingabe)", [st] { return st().text.find("XYZ") != std::string::npos; }));
+    add({"Code: Strg+Z", [](int b) {
+             ImGuiIO& io = ImGui::GetIO();
+             if (b == 1) {
+                 io.AddKeyEvent(ImGuiMod_Ctrl, true);
+                 io.AddKeyEvent(ImGuiKey_Z, true);
+             }
+             if (b == 2) {
+                 io.AddKeyEvent(ImGuiKey_Z, false);
+                 io.AddKeyEvent(ImGuiMod_Ctrl, false);
+             }
+             return b >= 5;
+         }});
+    add(pruefe("Code: Strg+Z nimmt das Tippen zurueck", [st] {
+        return st().text.find("XYZ") == std::string::npos && st().text.find("rect\t\t112 100 200 30") != std::string::npos;
+    }));
     // Palette
     add(tu("Palette: Knopf einfuegen", [] { me::fuegeEin(bhed::menue::ITEM_TYPE_BUTTON); }));
     add(pause(0.2));
