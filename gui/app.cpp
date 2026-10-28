@@ -28,6 +28,7 @@
 #include "elemente.h"   // rc601 tour: das Element-Register (auch ohne Selbsttest)
 #include "tour.h"       // rc601 tour: Tutorials im Programm
 #include "karteneditor.h"   // Stufe 1b: der Arbeitsbereich Karten-Editor
+#include "menueeditor.h"    // Menue-Editor M1: der Arbeitsbereich Menu Editor
 
 #include <atomic>
 #include <algorithm>
@@ -2361,7 +2362,8 @@ void zeigeAbweisung() {
 
 void handleTreeKeys() {
     // Stufe 1b: im Karten-Editor gelten NRCs Tasten, nicht die des Baums.
-    if (karteneditor::aktiv()) {
+    // Menue-Editor M1: dort gelten die Tasten des Code-Editors.
+    if (karteneditor::aktiv() || menueeditor::aktiv()) {
         return;
     }
     // Nur wenn kein Dialog offen ist und nichts getippt wird - sonst
@@ -2727,7 +2729,7 @@ void handleShortcuts() {
     // Stufe 1b: im Karten-Editor gelten NRCs Tastenkuerzel (Befehlstabelle des
     // Arbeitsbereichs) und nicht die von BehavEd - "Kuerzel gelten nur,
     // solange der Karten-Tab den Fokus hat", und umgekehrt.
-    if (karteneditor::aktiv()) {
+    if (karteneditor::aktiv() || menueeditor::aktiv()) {
         return;
     }
     // Zwei Dinge auf einmal:
@@ -5255,7 +5257,8 @@ void draw() {
     // Punkt 6b): dort gehoert das Rad mit und ohne Strg den Ansichten wie bei
     // NRC (XYWnd zoomt, CamWnd faehrt, der Texturbrowser rollt).
     if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().MouseWheel != 0.0F &&
-        !ImGui::GetIO().WantTextInput && !g_app->tlUnterMaus && g_app->leftMode != 3) {
+        !ImGui::GetIO().WantTextInput && !g_app->tlUnterMaus && g_app->leftMode != 3 &&
+        g_app->leftMode != 4) {
         g_app->uiScale = std::clamp(
             g_app->uiScale + ImGui::GetIO().MouseWheel * 0.1F, 0.5F, 3.0F);
     }
@@ -5326,7 +5329,7 @@ void draw() {
     //
     // Im Karten-Editor gibt es keine Skript-Reiter (Stufe 3 Punkt 0b): der
     // Editor beginnt direkt unter der Menueleiste.
-    if (!g_app->tabs.empty() && !kartenLeiste) {
+    if (!g_app->tabs.empty() && !kartenLeiste && g_app->leftMode != 4) {
         // KEIN ImGuiTabBarFlags_AutoSelectNewTabs: das Programm waehlt einen
         // neuen Reiter selbst (addTab setzt homeTab), und die Nachfuehrung
         // unten bringt ImGui dorthin. Mit der Fahne hielt die Leiste einen
@@ -5772,6 +5775,8 @@ void draw() {
     // links, rechts daneben das ganze NRC-Fenster (drawKartenEditorBereich).
     if (g_app->leftMode == 3) {
         drawKartenEditorBereich(l);
+    } else if (g_app->leftMode == 4) {
+        drawMenueEditorBereich(l);
     } else {
         const bool mitKnoepfen = (g_app->leftMode != 1);
         const int spalten = mitKnoepfen ? 3 : 2;
@@ -6431,7 +6436,7 @@ void draw() {
     }
 
     // Die Bedienleiste UNTER allen drei Spalten, ueber die volle Breite.
-    if (l.toolH > 0.0F && g_app->leftMode != 3) {
+    if (l.toolH > 0.0F && g_app->leftMode != 3 && g_app->leftMode != 4) {
         // OHNE eigenen Hintergrund: ein Kasten mit eigener Farbe sieht wie
         // ein zusaetzlicher dunkler Balken aus. Die Bedienung soll auf der
         // Flaeche stehen, die ohnehin da ist.

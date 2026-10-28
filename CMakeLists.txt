@@ -403,6 +403,8 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_bewegung.cpp
     # rc601 integ: der zentrale Schalter OpenJK / Movie Duels
     gui/app_regelwerk.cpp
+    # Menue-Editor M1: der Arbeitsbereich Menu Editor (.menu als Text und Vorschau)
+    gui/app_menue.cpp
     # Stufe 1b: der Arbeitsbereich Karten-Editor (NetRadiant-Custom)
     gui/app_karte.cpp
     gui/app_karte_befehle.cpp
