@@ -126,6 +126,15 @@ def main():
     melde(b'd3dcompiler' not in roh and b'dxcompiler' not in roh and b'd3dcompile\0' not in roh,
           'Shader vorab uebersetzt: kein d3dcompiler_47.dll/dxcompiler.dll/D3DCompile in der exe')
 
+    # Stufe 8d (Schlussrunde, Karten-Editor "Single: light stage" ohne .bsp): mit -bhedgpubake bzw.
+    # -bhedgpubakeauto endete der Fehlerweg (Error -> exit) mit std::terminate - Absturz 0xC0000409,
+    # keine Ausgabe. Erwartet wie ohne Schalter: Rueckgabe 1 und die ERROR-Zeile.
+    with tempfile.TemporaryDirectory(prefix='bhed_gpubake_leer_') as leer:
+        for schalter in (['-bhedgpubake'], ['-bhedgpubakeauto']):
+            rc, aus = lauf(exe, ['-game', 'ja', '-light', '-fast'] + schalter + [os.path.join(leer, 'fehlt.map')], leer)
+            melde(rc == 1 and '************ ERROR ************' in aus,
+                  '-light %s ohne .bsp: Rueckgabe 1 mit ERROR-Zeile (war: Absturz ohne Ausgabe) - Rueckgabe %d' % (schalter[0], rc))
+
     with tempfile.TemporaryDirectory(prefix='bhed_gpubake_') as t:
         vis = os.path.join(t, 'vis')
         os.makedirs(vis)

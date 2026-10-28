@@ -592,7 +592,7 @@ std::vector<Schritt> teilbau() {
     add(warteSek("erster Bau fertig", [] { return !ke::bauLaeuft(); }, 300));
     add(pruefe("erster Bau: -bhedvisreuse und -bhedlightcache in den Befehlen, Caches geschrieben", [] {
         const std::string k = konsoleText();
-        return k.find("-vis -threads 1 -bhedvisreuse \"") != std::string::npos && k.find("-light -fast -bhedlightcache \"") != std::string::npos &&
+        return k.find("-vis -threads 1 -bhedvisreuse \"") != std::string::npos && k.find("-light -fast -bhedlightcache -bhedgpubakeauto ") != std::string::npos &&
                istDatei(edStamm() + ".bhedvis") && istDatei(edStamm() + ".bhedlight");
     }));
     add(tu("ein Licht verschieben (256 0 96 -> 256 64 96), speichern, Konsole leeren", [] {

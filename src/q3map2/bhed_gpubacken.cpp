@@ -615,6 +615,14 @@ void BhedBakeGeraetVorab( const std::string& adapterWahl ){
 		return;
 	}
 	g_startWahl = adapterWahl;
+	// Stufe 8d: Error() endet mit exit(); dann muss der Faden fertig sein, bevor sein std::thread
+	// zerstoert wird (sonst std::terminate: Absturz 0xC0000409 und die Ausgabe ginge verloren).
+	static const bool abmelden = ( std::atexit( [](){
+		if ( g_startFaden.joinable() ) {
+			g_startFaden.join();
+		}
+	} ), true );
+	(void)abmelden;
 	g_startFaden = std::thread( [](){
 		g_startOk = geraetStarten( g_startWahl );
 	} );
