@@ -887,6 +887,7 @@ bool kameraBilderFertig() {
 }
 
 bool kameraPixel(int x, int y, unsigned char rgba[4]) { return kartegpu::pixel(200, x, y, rgba); }
+bool kameraBild(std::vector<unsigned char>& rgba, int& breite, int& hoehe) { return kartegpu::bildLesen(200, rgba, breite, hoehe); }
 
 // QERApp_LoadImage ueber das Dateisystem des Spiels (jpg, png, tga)
 bool kartenBildRgba(const std::string& name, std::vector<unsigned char>& rgba, int& breite, int& hoehe) {

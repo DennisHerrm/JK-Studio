@@ -224,6 +224,8 @@ void gebackenZeichnen(const GebackenNetz& netz, std::uint32_t erster, std::uint3
 
 // Fuer den Selbsttest: ein Bildpunkt des aufgeloesten Renderziels.
 bool pixel(int kennung, int x, int y, unsigned char rgba[4]);
+// Stufe 9c: das ganze Bild (RGBA, Zeilen von oben) fuer die Lichtmessung.
+bool bildLesen(int kennung, std::vector<unsigned char>& rgba, int& breite, int& hoehe);
 // Fuer den Selbsttest: die Abtastungen (MSAA) des Renderziels, 0 ohne Ziel.
 [[nodiscard]] int abtastungen(int kennung);
 

@@ -295,6 +295,10 @@ std::vector<Schritt> schritte();   // selbsttest_karte8g.inc: Build > GPU bake (
 namespace stufe9 {
 std::vector<Schritt> schritte();   // selbsttest_karte9.inc: Stufe 9 (nach dem GPU-Backen)
 }  // namespace stufe9
+namespace stufe9c {
+std::vector<Schritt> schritte();   // selbsttest_karte9c.inc: Stufe 9c (Werkzeugleisten, Echtzeit-Licht)
+std::vector<Schritt> messung();    // selbsttest_karte9c.inc: Lichtmessung (BHED_KARTE_NUR=licht9c)
+}  // namespace stufe9c
 
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
@@ -512,6 +516,18 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =stufe9c: Werkzeugleisten und Echtzeit-Licht der Stufe 9c
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe9c") == 0) {
+        for (Schritt& x : stufe9c::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // =licht9c: die Lichtmessung der Stufe 9c (BHED_LICHT_KARTEN, BHED_LICHT_BILDZEIT)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "licht9c") == 0) {
+        for (Schritt& x : stufe9c::messung()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =stufe2: nur die Wirkungspruefungen der Stufe 2 (Bauwerkzeuge)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe2") == 0) {
         for (Schritt& x : karteneditorStufe2Schritte()) { add(std::move(x)); }
@@ -539,6 +555,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : stufe8c::schritte()) { add(std::move(x)); }   // Stufe 8c: Tutorial "Erste eigene Karte"
     for (Schritt& x : stufe8g::schritte()) { add(std::move(x)); }   // Stufe 8g: Build > GPU bake (nach dem Tutorial)
     for (Schritt& x : stufe9::schritte()) { add(std::move(x)); }    // Stufe 9: restliche Karten-Werkzeuge (nach 8g)
+    for (Schritt& x : stufe9c::schritte()) { add(std::move(x)); }   // Stufe 9c: Werkzeugleisten, Echtzeit-Licht wie im Spiel
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
@@ -816,6 +833,7 @@ void skriptNeu() {
 #include "selbsttest_karte8c.inc"
 #include "selbsttest_karte8g.inc"
 #include "selbsttest_karte9.inc"
+#include "selbsttest_karte9c.inc"
 
 // --- Stufe 3 Punkt 8: Bilder der Seite "Karte bauen" ------------------------------
 //

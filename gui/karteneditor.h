@@ -1354,6 +1354,7 @@ void freelookBeenden();
 // Fuer den Selbsttest: ein Bildpunkt der Kamera (Geraetepunkte im Fenster)
 // und die Durchschnittsfarbe eines geladenen Shaders (qtexture_t::color).
 bool kameraPixel(int x, int y, unsigned char rgba[4]);
+bool kameraBild(std::vector<unsigned char>& rgba, int& breite, int& hoehe);   // Stufe 9c: Lichtmessung
 bool xyPixel(int index, int x, int y, unsigned char rgba[4]);   // Selbsttest: ein Bildpunkt der 2D-Ansicht
 bool kartenBildRgba(const std::string& name, std::vector<unsigned char>& rgba, int& breite, int& hoehe);   // QERApp_LoadImage
 [[nodiscard]] int xyAbtastungen(int index);                      // Selbsttest: MSAA des Renderziels

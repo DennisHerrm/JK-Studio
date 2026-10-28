@@ -1871,4 +1871,35 @@ bool pixel(int kennung, int x, int y, unsigned char rgba[4]) {
     return ok;
 }
 
+// Stufe 9c: das ganze aufgeloeste Renderziel (RGBA, zeilenweise von oben) fuer die Lichtmessung
+bool bildLesen(int kennung, std::vector<unsigned char>& rgba, int& breite, int& hoehe) {
+    const auto it = g.ziele.find(kennung);
+    if (it == g.ziele.end() || g.stand != render::texturStand() || it->second.aufgeloest == nullptr) { return false; }
+    const Ziel& z = it->second;
+    D3D11_TEXTURE2D_DESC td{};
+    z.aufgeloest->GetDesc(&td);
+    td.BindFlags = 0;
+    td.MiscFlags = 0;
+    td.Usage = D3D11_USAGE_STAGING;
+    td.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    if (td.Format != DXGI_FORMAT_R8G8B8A8_UNORM) { return false; }
+    ID3D11Texture2D* tex = nullptr;
+    if (FAILED(geraet()->CreateTexture2D(&td, nullptr, &tex))) { return false; }
+    kontext()->CopyResource(tex, z.aufgeloest);
+    D3D11_MAPPED_SUBRESOURCE m{};
+    const bool ok = SUCCEEDED(kontext()->Map(tex, 0, D3D11_MAP_READ, 0, &m));
+    if (ok) {
+        breite = static_cast<int>(td.Width);
+        hoehe = static_cast<int>(td.Height);
+        rgba.resize(static_cast<std::size_t>(breite) * static_cast<std::size_t>(hoehe) * 4U);
+        for (int y = 0; y < hoehe; ++y) {
+            std::memcpy(rgba.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(breite) * 4U,
+                        static_cast<const unsigned char*>(m.pData) + static_cast<std::size_t>(y) * m.RowPitch, static_cast<std::size_t>(breite) * 4U);
+        }
+        kontext()->Unmap(tex, 0);
+    }
+    tex->Release();
+    return ok;
+}
+
 }  // namespace bhed::gui::kartegpu
