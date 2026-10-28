@@ -348,12 +348,11 @@ std::vector<Schritt> einrichten() {
 std::vector<Schritt> messung() {
     std::vector<Schritt> s = einrichten();
     const char* liste = std::getenv("BHED_LICHT_KARTEN");
-    if (liste == nullptr || liste[0] == '\0') { return s; }
     auto summen = std::make_shared<std::vector<std::string>>();
     std::vector<std::string> eintraege;
-    std::istringstream in(liste);
+    std::istringstream in(liste != nullptr ? liste : "");
     for (std::string x; std::getline(in, x, ';');) {
-        if (!x.empty()) { eintraege.push_back(x); }
+        if (x.find_first_not_of(' ') != std::string::npos) { eintraege.push_back(x); }
     }
     for (const std::string& e : eintraege) {
         for (Schritt& x : karteMessen(e, summen)) { s.push_back(std::move(x)); }
@@ -373,8 +372,302 @@ std::vector<Schritt> messung() {
     return s;
 }
 
+// --- Punkt 1: Werkzeugleisten wie NRCs QToolBars ---------------------------------------
+//
+// Save/Open/Undo/Redo/Select Touching sind wie in NRC (gtkmisc.cpp:147
+// g_toolbarHiddenButtons) ab Werk versteckt und ueber das Kontextmenue der
+// Leiste einblendbar; der Griff traegt den Hinweis darauf. Neu: der Griff
+// verschiebt eine Leiste an einen anderen Rand, Rand und Reihenfolge bleiben
+// ueber einen Neustart (BhedToolbarDock).
+
+ImVec2 griffMitte(const char* id) {
+    const auto* r = karteFeld(std::string("Griff:") + id);
+    if (r == nullptr) { return ImVec2{0, 0}; }
+    return ke::bildpunkt(r->x + r->b / 2, r->y + r->h / 2);
+}
+
+// Den Griff einer Leiste an eine Stelle ziehen (Ziel erst beim Start bestimmt)
+Schritt griffZiehen(const std::string& was, const char* id, std::function<ImVec2()> ziel) {
+    auto von = std::make_shared<ImVec2>();
+    auto nach = std::make_shared<ImVec2>();
+    return {"Ziehe " + was, [=](int b) {
+                ImGuiIO& io = ImGui::GetIO();
+                if (b == 0) {
+                    *von = griffMitte(id);
+                    *nach = ziel();
+                    setzeMaus(*von);
+                    return false;
+                }
+                if (b == 2) {
+                    io.AddMouseButtonEvent(0, true);
+                    return false;
+                }
+                if (b >= 3 && b <= 14) {
+                    const float f = static_cast<float>(b - 2) / 12.0F;
+                    setzeMaus(ImVec2{von->x + (nach->x - von->x) * f, von->y + (nach->y - von->y) * f});
+                    return false;
+                }
+                if (b == 15) {
+                    io.AddMouseButtonEvent(0, false);
+                    return false;
+                }
+                return b >= 20;
+            }};
+}
+
+// eine Stelle nahe einem Rand des Leistenbereichs (zwischen Menue- und Statuszeile)
+ImVec2 randStelle(int rand) {
+    const auto* f = karteFeld("Bereich");
+    if (f == nullptr) { return ImVec2{0, 0}; }
+    const int oben = ke::mass::kMenueH;
+    const int unten = f->h - ke::mass::kStatusH;
+    const int mx = f->b / 2;
+    const int my = (oben + unten) / 2;
+    switch (rand) {
+    case 0: return ke::bildpunkt(mx, oben + 4);
+    case 1: return ke::bildpunkt(4, my);
+    case 2: return ke::bildpunkt(f->b - 4, my);
+    default: return ke::bildpunkt(mx, unten - 4);
+    }
+}
+
+void leistenVorgabe() {
+    ke::Editor& e = ke::editor();
+    e.leistenPlaetze[0] = {karte::LeistenRand::Oben, 0, true, 0, 0};
+    e.leistenPlaetze[1] = {karte::LeistenRand::Rechts, 0, true, 0, 0};
+    e.leistenPlaetze[2] = {karte::LeistenRand::Rechts, 1, true, 0, 0};
+    e.hauptleiste = e.filterleiste = e.pluginleiste = true;
+}
+
+bool leisteAm(const char* feld, int rand) {
+    const auto* r = karteFeld(feld);
+    const auto* f = karteFeld("Bereich");
+    if (r == nullptr || f == nullptr) { return false; }
+    const int d = ke::mass::leisteH();
+    switch (rand) {
+    case 0: return r->y == ke::mass::kMenueH && r->h == d && r->b > d;
+    case 1: return r->x == 0 && r->b == d && r->h > d;
+    case 2: return r->x + r->b == f->b && r->b == d && r->h > d;
+    default: return r->y + r->h == f->h - ke::mass::kStatusH && r->h == d && r->b > d;
+    }
+}
+
+std::vector<Schritt> leisten() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("Stufe 9c/1: Leisten wie NRC (oben, rechts, rechts)", [] {
+        karteDialogeZu();
+        leistenVorgabe();
+        ke::einstellungenSpeichern();
+    }));
+    add(pause(0.3));
+    add(pruefe("Stufe 9c/1: Vorgabe wie NRC - Hauptleiste oben, Filterleiste rechts; Open/Save/Undo/Redo/Select Touching versteckt", [] {
+        const auto& v = ke::editor().versteckteKnoepfe;
+        return leisteAm("Werkzeugleiste", 0) && leisteAm("Filterleiste", 2) && v.count("OpenMap") == 1 && v.count("SaveMap") == 1 &&
+               v.count("Undo") == 1 && v.count("Redo") == 1 && v.count("SelectTouching") == 1;
+    }));
+    add(pruefe("Stufe 9c/1: der Griff sagt, wie man die versteckten Knoepfe einblendet (vier Sprachen)", [] {
+        bool alle = true;
+        for (int sp = 0; sp < 4; ++sp) {
+            const std::string t = i18n::trIn(static_cast<i18n::Language>(sp), Str::KeLeisteGriffTipp);
+            alle = alle && t.size() > 40;
+        }
+        return alle && karteFeld("Griff:haupt") != nullptr && karteFeld("Griff:filter") != nullptr;
+    }));
+    add(griffZiehen("Hauptleiste am Griff an den linken Rand", "haupt", [] { return randStelle(1); }));
+    add(pause(0.3));
+    add(pruefe("Stufe 9c/1: Hauptleiste links (senkrecht), die Ansichten rechts daneben, gespeichert", [] {
+        const ke::Editor& e = ke::editor();
+        const auto it = g_app->settings.karte.find("BhedToolbarDock");
+        const auto* xy = karteFeld("XY");
+        diag::detail("Knopftest: Stufe 9c/1 - " + (it != g_app->settings.karte.end() ? it->second : std::string("-")));
+        return e.leistenPlaetze[0].rand == karte::LeistenRand::Links && leisteAm("Werkzeugleiste", 1) && xy != nullptr &&
+               xy->x >= ke::mass::leisteH() && it != g_app->settings.karte.end() && it->second.find("haupt=links") != std::string::npos;
+    }));
+    add(griffZiehen("Plugin-Leiste am Griff an den unteren Rand", "plugin", [] { return randStelle(3); }));
+    add(pause(0.3));
+    add(pruefe("Stufe 9c/1: Plugin-Leiste unten (waagerecht), Filterleiste bleibt rechts", [] {
+        return ke::editor().leistenPlaetze[2].rand == karte::LeistenRand::Unten && leisteAm("Filterleiste", 2);
+    }));
+    add(tu("Stufe 9c/1: wie nach einem Neustart - Leisten auf Vorgabe, Einstellungen neu lesen", [] {
+        ke::einstellungenSpeichern();
+        leistenVorgabe();
+        ke::einstellungenLaden();
+    }));
+    add(pause(0.3));
+    add(pruefe("Stufe 9c/1: nach dem Lesen wieder links und unten", [] {
+        const ke::Editor& e = ke::editor();
+        return e.leistenPlaetze[0].rand == karte::LeistenRand::Links && e.leistenPlaetze[2].rand == karte::LeistenRand::Unten && leisteAm("Werkzeugleiste", 1);
+    }));
+    add(griffZiehen("Hauptleiste zurueck an den oberen Rand", "haupt", [] { return randStelle(0); }));
+    add(pause(0.2));
+    add(griffZiehen("Plugin-Leiste zurueck an den rechten Rand (unter die Filterleiste)", "plugin", [] {
+        const auto* f = karteFeld("Bereich");
+        return f != nullptr ? ke::bildpunkt(f->b - 4, f->h - ke::mass::kStatusH - 40) : ImVec2{0, 0};
+    }));
+    add(pause(0.3));
+    add(pruefe("Stufe 9c/1: zurueck wie NRC (oben, rechts, rechts darunter)", [] {
+        const ke::Editor& e = ke::editor();
+        return leisteAm("Werkzeugleiste", 0) && leisteAm("Filterleiste", 2) && e.leistenPlaetze[2].rand == karte::LeistenRand::Rechts &&
+               e.leistenPlaetze[2].reihenfolge > e.leistenPlaetze[1].reihenfolge;
+    }));
+    add(tu("Stufe 9c/1: Leisten auf Vorgabe", [] {
+        leistenVorgabe();
+        ke::einstellungenSpeichern();
+    }));
+    return s;
+}
+
+// Zwei echte Laeufe mit einem Einstellungsordner (BHED_KARTE_NUR=leisten1 / leisten2)
+std::vector<Schritt> leistenNeustart(int lauf) {
+    std::vector<Schritt> s = einrichten();
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    add(pause(0.5));
+    if (lauf == 1) {
+        add(tu("Lauf 1: Leisten auf Vorgabe", [] {
+            leistenVorgabe();
+            ke::einstellungenSpeichern();
+        }));
+        add(pause(0.3));
+        add(griffZiehen("Lauf 1: Hauptleiste an den linken Rand", "haupt", [] { return randStelle(1); }));
+        add(pause(0.2));
+        add(griffZiehen("Lauf 1: Filterleiste an den unteren Rand", "filter", [] { return randStelle(3); }));
+        add(pause(0.3));
+        add(pruefe("Leisten > Neustart Lauf 1: links und unten, gespeichert", [] {
+            const ke::Editor& e = ke::editor();
+            return e.leistenPlaetze[0].rand == karte::LeistenRand::Links && e.leistenPlaetze[1].rand == karte::LeistenRand::Unten &&
+                   leisteAm("Werkzeugleiste", 1) && leisteAm("Filterleiste", 3);
+        }));
+        return s;
+    }
+    add(pruefe("Leisten > Neustart Lauf 2: nach dem echten Neustart links und unten wie in Lauf 1", [] {
+        const ke::Editor& e = ke::editor();
+        const auto it = g_app->settings.karte.find("BhedToolbarDock");
+        diag::detail("Knopftest: Stufe 9c/1 Lauf 2 - " + (it != g_app->settings.karte.end() ? it->second : std::string("-")));
+        return e.leistenPlaetze[0].rand == karte::LeistenRand::Links && e.leistenPlaetze[1].rand == karte::LeistenRand::Unten &&
+               leisteAm("Werkzeugleiste", 1) && leisteAm("Filterleiste", 3);
+    }));
+    add(tu("Lauf 2: zurueck auf die Vorgabe", [] {
+        leistenVorgabe();
+        ke::einstellungenSpeichern();
+    }));
+    return s;
+}
+
+// --- Punkt 2: Himmel und Sonne wie q3map2 ---------------------------------------------
+//
+// Ein Raum mit einem Himmelspinsel als Decke (unten textures/fur/sky mit q3map_sun und
+// q3map_surfacelight, sonst caulk - wie Mapper es bauen) und einem caulk-Deckel
+// darueber. q3map2 (TraceLine mit testAll) laesst den Strahl zur Sonne am Himmel
+// enden: der Boden ist sonnig. Rot vorher (gemeldet vom Tester): der Himmelspinsel
+// warf selbst Schatten (Vorher-Messung md_eitd_jedi: Boden schwarz, Block-Mittel 95).
+std::string himmelKarte() { return karteTestPfad("s9c_himmel.map"); }
+
+void himmelKarteSchreiben() {
+    karte::Karte k;
+    k.klassen = &ke::editor().spiel->klassen;
+    auto welt = k.weltHolenOderAnlegen();
+    karte::TexturProjektion proj;
+    karte::texdefStandard(karte::TexdefArt::Quake, proj);
+    const auto quader = [&](const karte::Vektor3f& mitte, const karte::Vektor3f& halb, const char* shader) {
+        auto p = std::make_shared<karte::Pinsel>();
+        p->quaderBauen(karte::Kasten(mitte, halb), shader, proj, k.kontext);
+        welt->kindEinfuegen(p);
+        return p;
+    };
+    const char* stein = "textures/yavin/temple_stone2";
+    quader(karte::Vektor3f(0, 0, -8), karte::Vektor3f(512, 512, 8), stein);
+    quader(karte::Vektor3f(-520, 0, 256), karte::Vektor3f(8, 528, 272), stein);
+    quader(karte::Vektor3f(520, 0, 256), karte::Vektor3f(8, 528, 272), stein);
+    quader(karte::Vektor3f(0, -520, 256), karte::Vektor3f(512, 8, 272), stein);
+    quader(karte::Vektor3f(0, 520, 256), karte::Vektor3f(512, 8, 272), stein);
+    // Himmelspinsel: alle Seiten caulk, die untere Himmel
+    auto himmel = quader(karte::Vektor3f(0, 0, 528), karte::Vektor3f(528, 528, 16), "textures/system/caulk");
+    for (const auto& fl : himmel->flaechen()) {
+        if (fl->ebene().normal()[2] < -0.5) { fl->setzeShader("textures/fur/sky", k.kontext); }
+    }
+    quader(karte::Vektor3f(0, 0, 560), karte::Vektor3f(528, 528, 16), "textures/system/caulk");   // Deckel darueber
+    // ein Startpunkt im Raum (ohne Entity darin fuellt q3map2 nichts und behaelt keine Flaeche)
+    auto start = k.neueEntitaet("info_player_start", false);
+    start->setzen("origin", "-400 -400 24");
+    k.entitaetEinfuegen(start);
+    (void)karte::karteSpeichern(himmelKarte(), k, false);
+}
+
+int mittelHelligkeit() {
+    std::vector<unsigned char> b;
+    int w = 0;
+    int h = 0;
+    if (!ke::kameraBild(b, w, h) || w < 32 || h < 32) { return -1; }
+    long summe = 0;
+    int n = 0;
+    for (int y = h / 2 - 8; y < h / 2 + 8; ++y) {
+        for (int x = w / 2 - 8; x < w / 2 + 8; ++x) {
+            const std::size_t i = (static_cast<std::size_t>(y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)) * 4U;
+            summe += b[i] + b[i + 1] + b[i + 2];
+            ++n;
+        }
+    }
+    return static_cast<int>(summe / n);
+}
+
+std::vector<Schritt> himmel() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    auto werte = std::make_shared<std::array<int, 2>>();
+    add(tu("Stufe 9c/2: Raum mit Himmelspinsel (caulk ausser unten) und caulk-Deckel, Echtzeit-Licht", [] {
+        karteDialogeZu();
+        himmelKarteSchreiben();
+        (void)ke::karteOeffnen(himmelKarte());
+        ke::Editor& e = ke::editor();
+        e.kameraE.modus = karte::KameraModus::Textur;
+        e.echtLicht.an = true;
+        e.echtLicht.backen = false;
+        e.kamera.ursprung = karte::Vektor3f(0, 0, 300);
+        e.kamera.winkel = karte::Vektor3f(-89.0F, 0.0F, 0.0F);
+    }));
+    add(warteBis("Stufe 9c/2: Texturen", [] { return ke::kameraBilderFertig(); }, 3000));
+    add(pause(1.0));
+    add(tu("Stufe 9c/2: Helligkeit des Bodens (Echtzeit)", [werte] { (*werte)[0] = mittelHelligkeit(); }));
+    add(foto("karteneditor_s9c_himmel_echt"));
+    add(pruefe("Stufe 9c/2: wie im Spiel - caulk unsichtbar, die Sonne des Himmels da", [] {
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: Stufe 9c/2 - Lichter " + std::to_string(e.echtLicht.lichter) + ", gezeichnet " + std::to_string(e.echtLicht.gezeichnet));
+        return ke::spielDarstellung("textures/system/caulk").unsichtbar && e.echtLicht.gezeichnet >= 2;
+    }));
+    add(tu("Stufe 9c/2: Schnell-Backen", [] {
+        ke::Editor& e = ke::editor();
+        e.echtLicht.pauseSekunden = 0.2;
+        e.echtLicht.backen = true;
+    }));
+    add(langeWarten("Stufe 9c/2: gebacken", [] { return ke::editor().echtLicht.gebackenZeigen || ke::editor().echtLicht.bauStand == 5; }, 30000));
+    add(pause(0.3));
+    add(tu("Stufe 9c/2: Helligkeit des Bodens (gebacken)", [werte] { (*werte)[1] = mittelHelligkeit(); }));
+    add(foto("karteneditor_s9c_himmel_gebacken"));
+    add(pruefe("Stufe 9c/2: der Himmelspinsel wirft keinen Schatten - Boden sonnig wie gebacken (hoechstens 20 % Abweichung)", [werte] {
+        const int echt = (*werte)[0];
+        const int geb = (*werte)[1];
+        diag::detail("Knopftest: Stufe 9c/2 - Boden echt " + std::to_string(echt) + ", gebacken " + std::to_string(geb));
+        return geb > 90 && echt > 0 && std::abs(echt - geb) * 100 <= geb * 20;
+    }));
+    add(tu("Stufe 9c/2: Echtzeit-Licht und Backen aus", [] {
+        ke::Editor& e = ke::editor();
+        e.echtLicht.backen = false;
+        e.echtLicht.an = false;
+        e.echtLicht.pauseSekunden = 2.0;
+    }));
+    add(pause(0.3));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
+    for (Schritt& x : leisten()) { s.push_back(std::move(x)); }
+    for (Schritt& x : himmel()) { s.push_back(std::move(x)); }
+    // Lichtmessung auf Karten nur mit BHED_LICHT_KARTEN (lang)
+    if (const char* k = std::getenv("BHED_LICHT_KARTEN"); k != nullptr && k[0] != '\0') {
+        for (Schritt& x : messung()) { s.push_back(std::move(x)); }
+    }
     return s;
 }
 

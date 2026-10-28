@@ -298,6 +298,8 @@ std::vector<Schritt> schritte();   // selbsttest_karte9.inc: Stufe 9 (nach dem G
 namespace stufe9c {
 std::vector<Schritt> schritte();   // selbsttest_karte9c.inc: Stufe 9c (Werkzeugleisten, Echtzeit-Licht)
 std::vector<Schritt> messung();    // selbsttest_karte9c.inc: Lichtmessung (BHED_KARTE_NUR=licht9c)
+std::vector<Schritt> leistenNeustart(int lauf);   // BHED_KARTE_NUR=leisten1 / leisten2 (echter Neustart)
+std::vector<Schritt> einrichten();   // in den Karten-Editor, Spieldaten bereit
 }  // namespace stufe9c
 
 std::vector<Schritt> karteneditorSchritte() {
@@ -518,7 +520,14 @@ std::vector<Schritt> karteneditorSchritte() {
     }
     // =stufe9c: Werkzeugleisten und Echtzeit-Licht der Stufe 9c
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe9c") == 0) {
+        for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
         for (Schritt& x : stufe9c::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // =leisten1/leisten2: Leisten verschieben ueber einen echten Neustart (ein Einstellungsordner)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strncmp(nur, "leisten", 7) == 0 && (nur[7] == '1' || nur[7] == '2')) {
+        for (Schritt& x : stufe9c::leistenNeustart(nur[7] - '0')) { add(std::move(x)); }
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
