@@ -115,6 +115,7 @@ struct Zustand {
     Laufzeit lauf;
     int laufDatei = -1;
     int laufVersion = -1;
+    int laufGeparst = -1;
     Datei laufKopie;
     std::map<std::string, std::string> vorschauCvars;   // Editor-Modus
     // Code-Editor
@@ -177,7 +178,6 @@ void datenPruefen() {
     z.daten.ordner = g_app->gamePaths;   // nur lesen
     z.texteGeladen = z.shaderGeladen = z.schriftNamenGeladen = false;
     z.schriften.clear();
-    for (auto& [k, t] : z.texturen) { (void)k; t = Textur{}; }
     z.texturen.clear();
 }
 
@@ -571,7 +571,8 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     Umgebung u = umgebung(d);
     const Datei* quelle = &d.datei;
     if (z.interaktion) {
-        if (z.laufDatei != z.aktiv || z.lauf.d != &d.datei || z.laufVersion < 0) {
+        if (z.laufDatei != z.aktiv || z.lauf.d != &d.datei || z.laufVersion < 0 || z.laufGeparst != d.geparst) {
+            z.laufGeparst = d.geparst;
             z.lauf.start(d.datei);
             z.lauf.basis = u;
             z.lauf.oeffne(d.datei.menus[static_cast<std::size_t>(mi)].window.name);
@@ -662,13 +663,11 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         einzel = m.items[static_cast<std::size_t>(d.auswahl[0])].window.rect;
         const float gx[3] = {einzel.x, einzel.x + einzel.w * 0.5F, einzel.x + einzel.w};
         const float gy[3] = {einzel.y, einzel.y + einzel.h * 0.5F, einzel.y + einzel.h};
-        int n = 0;
         for (int yy = 0; yy < 3; ++yy) {
             for (int xx = 0; xx < 3; ++xx) {
                 if (xx == 1 && yy == 1) { continue; }
                 const ImVec2 c{o.x + ab.x(gx[xx]), o.y + ab.y(gy[yy])};
                 if (std::fabs(maus.x - c.x) <= hs + 1 && std::fabs(maus.y - c.y) <= hs + 1) { griffUnter = yy * 3 + xx; }
-                ++n;
             }
         }
     }
@@ -1999,7 +1998,8 @@ void klickVorschau(float x, float y) {
     Dokument* d = doc();
     if (d == nullptr || !z.interaktion) { return; }
     const int mi = menuDerSeite(*d);
-    if (z.laufDatei != z.aktiv || z.lauf.d != &d->datei) {
+    if (z.laufDatei != z.aktiv || z.lauf.d != &d->datei || z.laufGeparst != d->geparst) {
+        z.laufGeparst = d->geparst;
         z.lauf.start(d->datei);
         z.lauf.basis = umgebung(*d);
         if (mi >= 0) { z.lauf.oeffne(d->datei.menus[static_cast<std::size_t>(mi)].window.name); }

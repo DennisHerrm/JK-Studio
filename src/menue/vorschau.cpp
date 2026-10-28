@@ -697,15 +697,15 @@ void zeichneMenu(const Datei& d, int menu, const Umgebung& u, std::vector<Prim>&
 }
 
 Rechteck textRechteck(const Item& it, const std::string& text, const Umgebung& u) {
-    static const Datei leer;
-    static const Menu leerM;
+    static const Datei leer{};
+    static const Menu leerM{};
     std::vector<Prim> dummy;
     return Maler(leer, leerM, u, dummy).textRect(it, text);
 }
 
 float sliderDaumen(const Item& it, const Umgebung& u) {
-    static const Datei leer;
-    static const Menu leerM;
+    static const Datei leer{};
+    static const Menu leerM{};
     std::vector<Prim> dummy;
     return Maler(leer, leerM, u, dummy).daumen(it);
 }
