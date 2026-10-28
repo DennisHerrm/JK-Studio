@@ -128,6 +128,8 @@ public:
     [[nodiscard]] bool gespeichert() const { return m_gespeichertStand == m_stand; }   // saved
     [[nodiscard]] std::size_t stand() const { return m_stand; }                         // changes() (QE_CheckAutoSave)
     void alsGespeichertMarkieren() { m_gespeichertStand = m_stand; }                  // save
+    // Stufe 9 Punkt 12: ein wiederhergestelltes Autosave gilt als geaendert (noch nicht gespeichert)
+    void alsGeaendertMarkieren() { m_gespeichertStand = kMaxAenderungen; }
     // globalOutputStream: "<befehl>" nach jedem Befehl, "Undo: ..." und
     // "Redo: ..." (undo.cpp:292-333) - fuer die Konsole.
     std::function<void(const std::string&)> ausgabe;

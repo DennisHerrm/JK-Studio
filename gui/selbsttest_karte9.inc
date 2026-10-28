@@ -601,6 +601,56 @@ std::vector<Schritt> schritte() {
     }));
     add(pause(0.3));
     add(pruefe("Blender: die Karte wie vorher", [blVorher] { return ke::editor().karte.welt()->kinder().size() == *blVorher; }));
+
+    // --- Punkt 12: nach einem Absturz wiederherstellen ----------------------------------------
+    // Die Sitzungsdatei nennt die offene Karte (nach einer Sekunde Editor); ein Autosave, neuer
+    // als die Karte, mit einem info_null mehr wird angelegt; absturzPruefen (wie beim Start) fragt,
+    // "Ja" laedt es unter dem Namen der Karte, als geaendert; danach die Karte neu laden.
+    auto whName = std::make_shared<std::string>();
+    add(stufe8::warteSek("Wiederherstellen: die Sitzungsdatei nennt die Karte", [] {
+        return dateiInhalt(ke::sitzungsPfad()).rfind(ke::editor().name + "\n", 0) == 0;
+    }, 10));
+    add(tu("Wiederherstellen: ein neueres Autosave mit info_null st9wieder, absturzPruefen", [whName] {
+        karteDialogeZu();
+        ke::konsoleLeeren();
+        ke::Editor& ed = ke::editor();
+        *whName = ed.name;
+        std::string text = karte::karteSchreiben(ed.karte);
+        text += "{\n\"classname\" \"info_null\"\n\"targetname\" \"st9wieder\"\n\"origin\" \"0 0 0\"\n}\n";
+        const std::string auto1 = karte::autosavePfad(ed.name);
+        std::ofstream(std::filesystem::path(std::u8string(auto1.begin(), auto1.end())), std::ios::binary) << text;
+        std::error_code ec;
+        const std::filesystem::path kp(std::u8string(ed.name.begin(), ed.name.end()));
+        std::filesystem::last_write_time(kp, std::filesystem::file_time_type::clock::now() - std::chrono::minutes(5), ec);
+        if (!ke::absturzPruefen()) { meldeFehler("Wiederherstellen: keine Frage"); }
+    }));
+    add(pause(0.3));
+    add(pruefe("Wiederherstellen: die Frage ist offen", [] { return ke::editor().meldung.offen && ke::editor().meldung.jaNein; }));
+    add(tu("Wiederherstellen: Ja", [] {
+        ke::Editor& ed = ke::editor();
+        auto danach = ed.meldung.danach;
+        ed.meldung.offen = false;
+        if (danach) { danach(true); }
+    }));
+    add(pause(0.5));
+    add(pruefe("Wiederherstellen: das Autosave ist geladen (info_null st9wieder), Name der Karte, geaendert", [whName] {
+        const ke::Editor& ed = ke::editor();
+        bool da = false;
+        for (const auto& en : ed.karte.entitaeten()) { da = da || en->wert("targetname") == "st9wieder"; }
+        return da && ed.name == *whName && ke::geaendert() && konsoleText().find("Restored from") != std::string::npos;
+    }));
+    add(tu("Wiederherstellen: die Karte neu laden, Autosave weg", [whName] {
+        const std::string auto1 = karte::autosavePfad(*whName);
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::path(std::u8string(auto1.begin(), auto1.end())), ec);
+        (void)ke::karteOeffnen(*whName);
+    }));
+    add(pause(0.5));
+    add(pruefe("Wiederherstellen: wieder die gespeicherte Karte", [whName] {
+        bool da = false;
+        for (const auto& en : ke::editor().karte.entitaeten()) { da = da || en->wert("targetname") == "st9wieder"; }
+        return !da && ke::editor().name == *whName && !ke::geaendert();
+    }));
     add(tu("Geometrie: Ende - Import-Ordner weg (spaetere Befehlsvergleiche ohne -fs_pakpath)", [] {
         karteDialogeZu();
         ke::konsoleLeeren();

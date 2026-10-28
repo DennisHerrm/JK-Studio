@@ -983,6 +983,7 @@ struct Editor {
     bool letzteKarteLaden = true;          // g_bLoadLastMap ("LoadLastMap", map.cpp:2426)
     std::string letzteKarte;               // g_strLastMap ("LastMap")
     bool letzteKarteGeprueft = false;      // main.cpp:462: nur beim Start
+    std::string sitzungKarte;              // Stufe 9 Punkt 12: der Name in der Sitzungsdatei
     int rasterStandard = karte::Raster::kStandard;   // g_grid_default ("GridDefault")
     int rasterMaxPotenz = 4;               // g_maxGridCoordPower ("GridMaxCoordPower")
     int pinselTyp = 1;                     // g_brushType ("BrushType"): quake3 -> Brush_Construct( eBrushTypeQuake3BP )
@@ -1504,6 +1505,9 @@ void einstellungenSpeichern();
 // NewMap (map.cpp:1813): mit Rueckfrage, wenn geaendert.
 void neueKarte();
 void letzteKarteBeimStart();   // main.cpp:462 (g_bLoadLastMap)
+// Stufe 9 Punkt 12: Sitzungsdatei pruefen - true, wenn die Frage nach dem Wiederherstellen offen ist
+bool absturzPruefen();
+[[nodiscard]] std::string sitzungsPfad();
 void zuletztEintragen(const std::string& pfad);   // MRU_AddFile
 [[nodiscard]] std::string einstellungsFeld(const std::string& id);   // Selbsttest: Text eines Feldes der Einstellungen
 [[nodiscard]] int einstellungsSeitenAnzahl();     // Selbsttest: Seiten der Einstellungen

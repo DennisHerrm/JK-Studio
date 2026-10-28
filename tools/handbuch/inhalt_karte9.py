@@ -146,6 +146,12 @@ KARTE_WERKZEUGE9 = {
             "Wähle Brushes und nimm **{{KeLFile}} > {{KeBlMenue}}**: sie werden als .glb (oder .obj) mit Y oben geschrieben, wie Blender es erwartet, ein Objekt je Brush, die Shadernamen als Materialien. Bearbeite den Teil in Blender und exportiere ihn wieder als .glb oder .obj mit den Vorgaben. **{{KeLFile}} > {{KeGiMenue}}** mit eingeschaltetem **{{KeGiYOben}}** (Vorgabe) holt ihn an denselben Ort der Karte zurück.",
             "选择画刷并选择 **{{KeLFile}} > {{KeBlMenue}}**:它们会以 Y 轴向上的 .glb(或 .obj)写出,符合 Blender 的习惯,每个画刷一个对象,材质名为着色器名。在 Blender 中编辑该部分后,用默认设置再次导出为 .glb 或 .obj。开启 **{{KeGiYOben}}**(默认)使用 **{{KeLFile}} > {{KeGiMenue}}** 即可把它放回地图中的原位置。",
             "ブラシを選んで **{{KeLFile}} > {{KeBlMenue}}** を選ぶと、Blender が期待するとおり Y 上の .glb(または .obj)として、ブラシごとに 1 オブジェクト、シェーダー名を素材名にして書き出します。Blender で編集し、既定の設定で .glb か .obj として書き出し直します。**{{KeGiYOben}}**(既定でオン)のまま **{{KeLFile}} > {{KeGiMenue}}** を使うと、マップの同じ場所に戻ります。")),
+        ("h2", "wiederherstellen", T("Restore after a crash", "Nach einem Absturz wiederherstellen", "崩溃后恢复", "クラッシュ後の復元")),
+        ("p", T(
+            "The map editor saves automatically like NetRadiant-Custom (preferences, page Autosave: `<map>.autosave.map` next to the map). If the program did not close properly - a crash, a power cut - the editor notices it at the next start and asks whether to load the autosave, when it is newer than the map. The restored map keeps its name and counts as changed: save it to keep it. Answer no, and the last map opens as usual.",
+            "Der Karten-Editor speichert automatisch wie NetRadiant-Custom (Einstellungen, Seite Autosave: `<Karte>.autosave.map` neben der Karte). Wurde das Programm nicht sauber beendet - ein Absturz, ein Stromausfall -, merkt der Editor das beim nächsten Start und fragt, ob er das Autosave laden soll, wenn es neuer ist als die Karte. Die wiederhergestellte Karte behält ihren Namen und gilt als geändert: speichere sie, um sie zu behalten. Antwortest du mit Nein, öffnet sich wie gewohnt die letzte Karte.",
+            "地图编辑器会像 NetRadiant-Custom 一样自动保存(首选项,Autosave 页:地图旁的 `<地图>.autosave.map`)。如果程序没有正常关闭——崩溃或断电——编辑器会在下次启动时发现,并在自动保存比地图更新时询问是否加载。恢复的地图保留原名称并视为已更改:请保存以保留。回答“否”则像往常一样打开上一张地图。",
+            "マップエディターは NetRadiant-Custom と同じように自動保存します(設定の Autosave ページ:マップの隣の `<マップ>.autosave.map`)。プログラムが正しく終了しなかった場合(クラッシュや停電)、次回の起動時にエディターがそれに気づき、自動保存がマップより新しければ読み込むかどうかを尋ねます。復元したマップは名前をそのまま保ち、変更ありとして扱われます。残すには保存してください。いいえと答えると、いつもどおり最後のマップが開きます。")),
     ],
 }
 

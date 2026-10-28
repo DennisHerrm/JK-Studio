@@ -2504,6 +2504,9 @@ enum class Str {
     KeBlTip,
     KeBlNichts,
     KeBlFertig,
+    KeWhTitel,
+    KeWhFrage,
+    KeWhFertig,
     KeGiModellDatei,
     Count,
 };

@@ -24,6 +24,7 @@
 #include "app_internal.h"
 #include "bhed/theme.h"
 #include "karte_gpu.h"
+#include "bhed/karte/wiederherstellen.h"
 #include "bhed/karte/texdef.h"
 
 #include <algorithm>
@@ -622,12 +623,39 @@ void letzteKarteBeimStart() {
     Editor& e = g();
     if (e.letzteKarteGeprueft) { return; }
     e.letzteKarteGeprueft = true;
+    if (absturzPruefen()) { return; }   // Stufe 9 Punkt 12: erst die Frage
     if (e.letzteKarteLaden && !e.letzteKarte.empty()) { (void)karteOeffnen(e.letzteKarte); }
+}
+
+// Stufe 9 Punkt 12 (eigene Funktion, nicht in NRC): nach einem Absturz das Autosave anbieten
+std::string sitzungsPfad() { return platform::settingsDirectory() + "\\" + karte::kSitzungsDatei; }
+
+bool absturzPruefen() {
+    const karte::Wiederherstellung w = karte::wiederherstellungPruefen(sitzungsPfad(), kartenBenutzerOrdner() + "autosave.map");
+    karte::sitzungLoeschen(sitzungsPfad());
+    g().sitzungKarte.clear();
+    if (!w.anbieten) { return false; }
+    char t[1400];
+    std::snprintf(t, sizeof(t), trK(Str::KeWhFrage), w.karte.c_str(), w.autosave.c_str());
+    qtMeldung(trK(Str::KeWhTitel), t, MeldungArt::Frage, true, [w](bool ja) {
+        Editor& e = g();
+        if (ja && karteOeffnen(w.autosave)) {
+            e.name = w.karte;                           // gespeichert wird wieder unter dem alten Namen
+            e.karte.undo.alsGeaendertMarkieren();
+            char z[1400];
+            std::snprintf(z, sizeof(z), trK(Str::KeWhFertig), w.autosave.c_str());
+            ausgabe(z);
+        } else if (e.letzteKarteLaden && !e.letzteKarte.empty()) {
+            (void)karteOeffnen(e.letzteKarte);
+        }
+    });
+    return true;
 }
 
 // main.cpp:476-478: beim Beenden der Name der Karte, wenn sie einen hat.
 void beimBeenden() {
     Editor& e = g();
+    karte::sitzungLoeschen(sitzungsPfad());   // Stufe 9 Punkt 12: sauber beendet
     if (!e.belegungGeladen) { return; }   // der Editor lief nicht: "LastMap" bleibt
     if (e.name != "unnamed.map") { e.letzteKarte = e.name; }   // !Map_Unnamed( g_map )
     g_app->settings.karte["LastMap"] = e.letzteKarte;

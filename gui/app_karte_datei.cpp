@@ -41,6 +41,7 @@
 #include "app_internal.h"
 #include "platform.h"
 
+#include "bhed/karte/wiederherstellen.h"
 #include "bhed/karte/auswahlbefehle.h"
 #include "bhed/karte/kartenformat.h"
 #include "bhed/karte/teiler.h"
@@ -493,6 +494,11 @@ void zeichneKartenInfo() {
 void autosaveJedeSekunde() {   // EverySecondTimer -> QE_CheckAutoSave
     Editor& ed = e();
     if (!ed.gezeichnet) { return; }   // Map_Valid: der Editor hat eine Karte
+    // Stufe 9 Punkt 12: der Name der offenen Karte in der Sitzungsdatei (beim Beenden geloescht)
+    if (ed.sitzungKarte != ed.name) {
+        karte::sitzungSchreiben(sitzungsPfad(), ed.name);
+        ed.sitzungKarte = ed.name;
+    }
     const double jetzt = ImGui::GetTime();
     if (jetzt - ed.autosaveTakt < 1.0) { return; }
     ed.autosaveTakt = jetzt;
