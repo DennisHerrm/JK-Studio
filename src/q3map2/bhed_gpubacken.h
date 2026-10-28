@@ -190,6 +190,7 @@ struct BhedBakeZahlen {
 	long long paare = 0, gpuMikros = 0, dispatches = 0, bloecke = 0, budget = 0;
 	long long kernMikros[ 6 ] = {};   // BHED_GPUBAKE_ZEITEN: je Kern (erst, kandidaten, unter, stempellauf, filtern, gitter), mit Warten gemessen
 	long long gitterPunkte = 0, gitterCpu = 0;
+	long long kandidaten[ 4 ] = {};   // BHED_GPUBAKE_ZEITEN: neue Kandidaten je Vorhersage-Runde
 	bool ausgefallen = false;
 	std::string grund;
 };

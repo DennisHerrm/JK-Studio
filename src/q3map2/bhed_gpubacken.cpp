@@ -469,8 +469,9 @@ Kopf kopfFuer( const BhedBakeBlock& b ){
 
 // n Faeden des Kerns k in kurzen Dispatches (Windows-Zeitlimit TDR 2 s, die Oberflaeche nutzt
 // dieselbe GPU): je Dispatch g.stueck[k] Faeden, nach je warten Dispatches ein Flush mit Warten auf
-// die GPU. Die Dispatch-Groesse passt sich an: dauert eine Wartegruppe ueber 0,25 s, halbiert sie
-// sich, unter 0,03 s verdoppelt sie sich (64 bis 4 M Faeden). false: Geraeteverlust (echt oder
+// die GPU. Die Dispatch-Groesse passt sich an: dauert eine Wartegruppe ueber 0,5 s, halbiert sie
+// sich, unter 0,03 s verdoppelt sie sich (4096 bis 4 M Faeden - nie kleiner: bei teuren Faeden,
+// etwa -samples 4, liefe sonst kaum noch etwas gleichzeitig). false: Geraeteverlust (echt oder
 // im Test vorgetaeuscht).
 bool lauf( Kern k, UINT n, int warten, Kopf kopf ){
 	if ( n == 0 ) {
@@ -512,7 +513,7 @@ bool lauf( Kern k, UINT n, int warten, Kopf kopf ){
 			ok = warte();
 			const double dauer = std::chrono::duration<double>( std::chrono::steady_clock::now() - tGruppe ).count();
 			tGruppe = std::chrono::steady_clock::now();
-			if ( dauer > 0.25 && g.stueck[ k ] > 64 ) {
+			if ( dauer > 0.5 && g.stueck[ k ] > 4096 ) {
 				g.stueck[ k ] /= 2;
 			}
 			else if ( dauer < 0.03 && kopf.anzahl == stueck && g.stueck[ k ] < ( 1u << 22 ) ) {
@@ -768,7 +769,8 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 		// Erstabtastung ab); nicht gebrauchte bleiben ungenutzt.
 		Kopf k = kopf;
 		UINT bisher = 0;
-		for ( int runde = 0; runde < 4 && ok; ++runde ) {
+		static const int runden = std::getenv( "BHED_GPUBAKE_RUNDEN" ) != nullptr ? std::max( 1, std::atoi( std::getenv( "BHED_GPUBAKE_RUNDEN" ) ) ) : 4;   // Messung
+		for ( int runde = 0; runde < runden && ok; ++runde ) {
 			k.gitterPhase = runde;
 			k.kandVon = 0;
 			ok = lauf( kKandidaten, b.zeilen, 4, k );
@@ -777,14 +779,17 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 			ok = ok && lesen( uHilfe, &zahl, 4 );
 			binden();
 			const UINT neu = zahl + 1u;
+			if ( g.zeiten ) {
+				g.zahlen.kandidaten[ std::min( runde, 3 ) ] += neu - bisher;
+			}
 			if ( !ok || neu == bisher ) {
 				break;
 			}
 			k.kandVon = bisher;
-			ok = lauf( kUnter, neu - bisher, 4, k );
+			ok = lauf( kUnter, neu - bisher, 1, k );
 			bisher = neu;
 		}
-		ok = ok && lauf( kStempellauf, UINT( b.aktiv.size() ), 4, kopf );
+		ok = ok && lauf( kStempellauf, UINT( b.aktiv.size() ), 1, kopf );
 	}
 	ok = ok && lauf( kFiltern, UINT( b.luxel.size() ), 4, kopf );
 	loesen();

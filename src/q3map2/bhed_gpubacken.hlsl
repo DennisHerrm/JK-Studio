@@ -885,12 +885,28 @@ int lmZuAktiv(uint a)
 int idxAt(Lm lm, int x, int y) { return idx[lm.idxBase + y * lm.sw + x]; }
 float3 luxelUrsprung(Lm lm, int k) { const Luxel l = luxel[lm.luxelBase + k]; return float3(l.ox, l.oy, l.oz); }
 
-// plane3_distance_to_point: (double)(float-dot) - (double)dist
+// plane3_distance_to_point: (double)(float-dot) - (double)dist, verglichen mit einer Grenze c.
+// Schnell in float: der float-Wert s von a - b liegt hoechstens max(|a|,|b|) * 2^-24 neben dem
+// genauen; nur wenn s naeher als die Toleranz an c liegt, rechnet double (ohne double: float).
 #if DOPPELT
-double abstand(Ebene e, float3 p) { precise double d = (double)punkt3(p, float3(e.nx, e.ny, e.nz)) - (double)e.dist; return d; }
+#define GRENZTYP double
 #else
-float abstand(Ebene e, float3 p) { precise float d = punkt3(p, float3(e.nx, e.ny, e.nz)) - e.dist; return d; }
+#define GRENZTYP float
 #endif
+bool groesser(float a, float b, float cf, GRENZTYP cd)   // (double)a - (double)b > c
+{
+    precise float s = a - b;
+    precise float tol = (max(abs(a), abs(b)) + abs(cf)) * 2.3841858e-7f + 1e-7f;   // 2^-22
+    if (s > cf + tol) { return true; }
+    if (s < cf - tol) { return false; }
+#if DOPPELT
+    precise double d = (double)a - (double)b;
+    return d > cd;
+#else
+    return s > cf;
+#endif
+}
+float ebenenPunkt(Ebene e, float3 p) { return punkt3(p, float3(e.nx, e.ny, e.nz)); }
 
 // PointInLeafNum_r (light_ydnar.cpp): innerhalb 0,1 einer Ebene erst vorn, und wenn das Blatt
 // dort undurchsichtig ist, hinten weiter - mit einem Stapel statt Rekursion
@@ -909,13 +925,10 @@ int punktBlatt(float3 p)
         [loop] while (n >= 0)
         {
             const BspKnoten k = bspKnoten[n];
-#if DOPPELT
-            const double d = abstand(ebenen[k.ebene], p);
-#else
-            const float d = abstand(ebenen[k.ebene], p);
-#endif
-            if (d > grenze) { n = k.k0; }
-            else if (d < -grenze) { n = k.k1; }
+            const Ebene e = ebenen[k.ebene];
+            const float a = ebenenPunkt(e, p);
+            if (groesser(a, e.dist, 0.1f, grenze)) { n = k.k0; }            // d > 0.1
+            else if (groesser(e.dist, a, 0.1f, grenze)) { n = k.k1; }       // d < -0.1
             else
             {
                 if (sp >= 32) { g_unsicher = true; return 0; }
@@ -947,11 +960,8 @@ int clusterExt(float3 p, float eps)
         bool innen = true;
         [loop] for (int s = 0; s < br.anzahlSeiten; ++s)
         {
-#if DOPPELT
-            if (abstand(ebenen[seiten[br.ersteSeite + s]], p) > (double)eps) { innen = false; break; }
-#else
-            if (abstand(ebenen[seiten[br.ersteSeite + s]], p) > eps) { innen = false; break; }
-#endif
+            const Ebene e = ebenen[seiten[br.ersteSeite + s]];
+            if (groesser(ebenenPunkt(e, p), e.dist, eps, (GRENZTYP)eps)) { innen = false; break; }
         }
         if (innen) { return -1 - b; }
     }

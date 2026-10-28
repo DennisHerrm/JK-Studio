@@ -3447,6 +3447,7 @@ void BhedBakeBericht( const char *quelle ){
 		            g_bbZeit[ 0 ], g_bbZeit[ 1 ], g_bbZeit[ 2 ], g_bbZeit[ 3 ], g_bbZeit[ 4 ], g_bbZeit[ 5 ], g_bbZeit[ 6 ], g_bbZeit[ 7 ], double( z.kernMikros[ 0 ] ) / 1e6,
 		            double( z.kernMikros[ 1 ] ) / 1e6, double( z.kernMikros[ 2 ] ) / 1e6, double( z.kernMikros[ 3 ] ) / 1e6, double( z.kernMikros[ 4 ] ) / 1e6,
 		            double( z.kernMikros[ 5 ] ) / 1e6 );
+		Sys_Printf( "BHED-GPU-Kandidaten: %lld %lld %lld %lld\n", z.kandidaten[ 0 ], z.kandidaten[ 1 ], z.kandidaten[ 2 ], z.kandidaten[ 3 ] );
 	}
 	if ( quelle == nullptr ) {
 		return;
