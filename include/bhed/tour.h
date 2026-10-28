@@ -28,6 +28,7 @@
 //   fenster:<teil>                    ein ganzes Fenster ("###editor")
 //   baum                              der Skriptbaum (Classic)
 //   meldungen                         die Zaehler unten in der Statuszeile
+//   karte3d                           H1: die 3D-Ansicht der Karte (Vorschau)
 //
 // --- Pruefungen (wann ein Schritt erledigt ist), mit "|" Alternativen -------
 //   Zaehler, mit "+" = "mehr als beim Beginn des Schritts":
@@ -126,7 +127,7 @@ struct Touren {
 // --- Zielangaben --------------------------------------------------------------
 
 struct Ziel {
-    enum class Art { Keins, Knopf, KnopfN, Menue, Gruppe, Eintrag, Zeile, Reiter, Fenster, Baum, Meldungen };
+    enum class Art { Keins, Knopf, KnopfN, Menue, Gruppe, Eintrag, Zeile, Reiter, Fenster, Baum, Meldungen, Karte3d };
     Art art = Art::Keins;
     std::vector<std::string> teile;   // Kennungen (Knopf, Menue, Gruppe) oder woertlich
     std::string fenster;              // "@..."

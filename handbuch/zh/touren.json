@@ -565,6 +565,87 @@
      }
     ]
    }
+  },
+  {
+   "id": "k-kamera-ansicht",
+   "gruppe": "tut_kamera",
+   "titel": "把镜头放到你注视的位置",
+   "kurz": "环顾四周直到画面合适,然后把某个镜头——或新镜头——精确移到那里。",
+   "seite": "k-kamera-ansicht.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**飞到想要的视角。** 在地图中按住鼠标右键,用 <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> 飞行,直到画面合适为止。",
+      "bild": "c_frei",
+      "unter": "你自己的地图视角。",
+      "ziel": "karte3d",
+      "fertig": "zahl:vorschau.blick~",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "还没有打开地图。请先加载一张:{{MenuFile}} > {{MapLoad}},或打开一个任务。"
+       }
+      ]
+     },
+     {
+      "text": "**在此新建镜头。** 选中摄像机并按 **{{CamNewShot}}**:会在所选镜头之后添加位于你当前视角的 `camera ( MOVE )` 和 `camera ( PAN )`。",
+      "bild": "h_kamera",
+      "unter": "摄像机面板中的“在此新建镜头”。",
+      "ziel": "knopf:CamNewShot",
+      "fertig": "zahl:vorschau.einstellungen+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "还没有打开地图。请先加载一张:{{MenuFile}} > {{MapLoad}},或打开一个任务。"
+       },
+       {
+        "wenn": "zahl:vorschau.ohnekamera",
+        "text": "这个脚本还没有镜头。请先插入一个 camera 命令({{GroupEvents}} 列表中双击 camera),或打开一个带过场动画的任务。"
+       },
+       {
+        "wenn": "zahl:vorschau.nichtgewaehlt",
+        "text": "请先选中镜头:点击地图上的某个镜头,或时间轴中的镜头行。左侧会出现它的按钮。"
+       }
+      ]
+     },
+     {
+      "text": "**或者移动已有镜头。** 在 **{{CamShots}}** 中选中一个镜头并按 **{{CamSetToView}}**:它的位置和方向会被你的视角取代——可一步撤销。",
+      "bild": "c_aufansicht",
+      "unter": "设为当前视角。",
+      "ziel": "knopf:CamSetToView",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.nichtgewaehlt",
+        "text": "请先选中镜头:点击地图上的某个镜头,或时间轴中的镜头行。左侧会出现它的按钮。"
+       }
+      ]
+     },
+     {
+      "text": "**检查。** 地图工具栏上的 **{{MapThroughCam}}** 显示所选镜头看到的画面,包括其缩放和电影黑边。",
+      "bild": "c_durch",
+      "unter": "工具栏上的“通过摄像机”。",
+      "ziel": "knopf:MapThroughCam",
+      "fertig": "zahl:vorschau.durchkamera",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }

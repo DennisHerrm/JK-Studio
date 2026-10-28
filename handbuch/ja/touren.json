@@ -565,6 +565,87 @@
      }
     ]
    }
+  },
+  {
+   "id": "k-kamera-ansicht",
+   "gruppe": "tut_kamera",
+   "titel": "見ている場所にショットを置く",
+   "kurz": "画が決まるまで見回してから、ショット(または新しいショット)をぴったりそこへ移します。",
+   "seite": "k-kamera-ansicht.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**欲しい視点まで飛びます。** マップ上で右ボタンを押したまま、<kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> で画面が決まるまで飛びます。",
+      "bild": "c_frei",
+      "unter": "自分で決めたマップの視点。",
+      "ziel": "karte3d",
+      "fertig": "zahl:vorschau.blick~",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "まだマップが開いていません。先に読み込んでください:{{MenuFile}} > {{MapLoad}}、またはミッションを開きます。"
+       }
+      ]
+     },
+     {
+      "text": "**ここに新しいショット。** カメラを選択して **{{CamNewShot}}** を押すと、現在の視点の `camera ( MOVE )` と `camera ( PAN )` が、選択中のショットの後ろに追加されます。",
+      "bild": "h_kamera",
+      "unter": "カメラパネルの「ここに新しいショット」。",
+      "ziel": "knopf:CamNewShot",
+      "fertig": "zahl:vorschau.einstellungen+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "まだマップが開いていません。先に読み込んでください:{{MenuFile}} > {{MapLoad}}、またはミッションを開きます。"
+       },
+       {
+        "wenn": "zahl:vorschau.ohnekamera",
+        "text": "このスクリプトにはまだカメラがありません。先に camera コマンドを挿入するか({{GroupEvents}} 一覧で camera をダブルクリック)、カットシーンのあるミッションを開いてください。"
+       },
+       {
+        "wenn": "zahl:vorschau.nichtgewaehlt",
+        "text": "まずカメラを選んでください:マップ上のカメラ ショットか、タイムラインのカメラ行をクリックします。左側にボタンが表示されます。"
+       }
+      ]
+     },
+     {
+      "text": "**または既存のショットを動かします。** **{{CamShots}}** でショットを選び、**{{CamSetToView}}** を押します。位置と向きが現在の視点に置き換わります(元に戻すは 1 回)。",
+      "bild": "c_aufansicht",
+      "unter": "ビューに合わせる。",
+      "ziel": "knopf:CamSetToView",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.nichtgewaehlt",
+        "text": "まずカメラを選んでください:マップ上のカメラ ショットか、タイムラインのカメラ行をクリックします。左側にボタンが表示されます。"
+       }
+      ]
+     },
+     {
+      "text": "**確認する。** マップのツールバーの **{{MapThroughCam}}** で、選択中のショットが映すものを、そのズームと黒いシネマバー付きで表示します。",
+      "bild": "c_durch",
+      "unter": "ツールバーの「カメラ視点」。",
+      "ziel": "knopf:MapThroughCam",
+      "fertig": "zahl:vorschau.durchkamera",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }

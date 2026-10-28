@@ -66,13 +66,24 @@ entschlüsseln (Grenze von DPAPI). Wer der KI „ohne Nachfrage“ erlaubt, läs
 - `tut-karte` (15 Schritte) interaktiv: Raum, Höhe, Textur, Aushöhlen, Boden, Licht, Spielerstart,
   Speichern, Caulk, Optimierer, Bauen, im Editor spielen, .pk3. Deckt „erste Karte“, „Textur
   anwenden“, „Optimizer“, „als .pk3 packen“ ab; der Helfer startet sie ab dem passenden Schritt.
+- `k-kamera-ansicht` (4 Schritte, Vorschau): umsehen (Prüfung: Blick der freien Kamera hat sich
+  geändert), neue Einstellung (`zahl:vorschau.einstellungen+`, ein einzelner camera-Befehl zählt nicht), auf die Ansicht setzen (`aenderung+`), durch die
+  Kamera (`zahl:vorschau.durchkamera`); Hinweise: ohne Karte „Lade zuerst eine Karte“, ohne
+  camera-Befehl „Füge zuerst einen camera-Befehl ein“, Kamera nicht gewählt „Wähl zuerst die
+  Kamera“ (die Knöpfe stehen nur im Kamera-Inspektor, der erst mit gewählter Kamera erscheint;
+  die Kamerazeile der Zeitleiste ist selbst gezeichnet und daher kein hervorhebbares Ziel – H2).
+  Neue Zielart `karte3d` (die 3D-Ansicht der Vorschau).
 - Skript-Touren (5) wie bisher; „Erste Schritte“ beim allerersten Start (Skript, Karte,
   Zwischensequenz, Modell, umsehen).
 - Selbsttest `BHED_EDITORTEST=karteneditor BHED_KARTE_NUR=hilfe1`: das Tutorial der Stufe 8c läuft
   mit echten Aktionen; nach jedem Schritt muss die Tour selbst weitergeschaltet haben, das Ziel ist
   hervorgehoben, ein falsches Licht zeigt den Hinweis, Strg+Z nimmt ihn weg.
-- Noch nicht interaktiv (H2): Kamerafahrt, NPC laufen lassen, Skript in der Vorschau abspielen –
-  der Helfer führt dort zu den Handbuchseiten (k-kamera-ansicht, tut-p4, k-gangart, k-wegpunkte).
+- Selbsttest auch für `k-kamera-ansicht`: taspir1 laden, Tour starten, mit der rechten Maustaste
+  umsehen, Hinweis ohne Kamera prüfen, camera-Befehl einfügen, Hinweis „Kamera wählen“ prüfen,
+  Kamera wählen (im Test direkt gesetzt statt Klick auf die Kamerazeile), „Neue Einstellung“,
+  umsehen, „Auf Ansicht setzen“, „Durch die Kamera“ – jeder Schritt erledigt sich selbst.
+- Noch nicht interaktiv (H2): NPC laufen lassen, Skript in der Vorschau abspielen – der Helfer
+  führt dort zu den Handbuchseiten (tut-p3, tut-p4, k-gangart, k-wegpunkte).
 
 ### Punkt 3 – der Helfer
 - Offline-Index (`include/bhed/hilfe.h`): jede Tour und jeder Schritt, jede Handbuchseite und jeder
@@ -83,7 +94,9 @@ entschlüsseln (Grenze von DPAPI). Wer der KI „ohne Nachfrage“ erlaubt, läs
 - **Trefferquote (hilfetest, Top 3): 99 Fragen, 99 = 100 %** (de 26, en 25, zh 24, ja 24).
   Ehrlich: 83 Fragen standen beim Schreiben der Wortlisten fest (100 %); die 16 frei formulierten
   („Mein Raum ist viel zu dunkel“, „部屋が暗すぎる“ …) trafen zuerst 13/16, nach dem Ergänzen
-  dreier Begriffsgruppen (dunkel→Licht, Design, sagen→Dialog) 16/16. Die Liste ist also nicht
+  dreier Begriffsgruppen (dunkel→Licht, Design, sagen→Dialog) 16/16. Mit der Kamera-Tour fiel
+  „Wo finde ich die Einstellungen?“ auf die Kamera-„Einstellung“ (Doppelsinn im Deutschen) –
+  behoben mit genauen Begriffswörtern (`=einstellungen` zählt nur ungestutzt). Die Liste ist also nicht
   ganz unabhängig; eine neue, unbekannte Liste wäre die nächste Messung (H2).
 - F1 öffnet den Helfer (vorher das Handbuch; „Handbuch“ steht weiter im Help-Menü). Im
   Karten-Editor bleibt F1 wie in NetRadiant „OpenManual“; dort steht der Helfer im Help-Menü

@@ -387,9 +387,9 @@ bool parseZiel(const std::string& s0, Ziel& out, std::string* fehler) {
         setzeFehler(fehler, "Ziel \"" + s + "\": " + warum);
         return false;
     };
-    if (art == "baum" || art == "meldungen") {
+    if (art == "baum" || art == "meldungen" || art == "karte3d") {
         if (!arg.empty()) { return falsch("ohne Argument"); }
-        out.art = art == "baum" ? Ziel::Art::Baum : Ziel::Art::Meldungen;
+        out.art = art == "baum" ? Ziel::Art::Baum : art == "meldungen" ? Ziel::Art::Meldungen : Ziel::Art::Karte3d;
         return true;
     }
     if (d == std::string::npos || trim(arg).empty()) { return falsch("Argument fehlt"); }

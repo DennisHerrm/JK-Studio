@@ -6,7 +6,8 @@
 //
 // BEGRIFFE: ein Begriff (@name) und seine Woerter in vier Sprachen. Ein Wort
 // aus mehreren Teilen ("camera path") zaehlt, wenn alle Teile vorkommen; CJK
-// zaehlt, wenn die Zeichenfolge im Text steht. Lateinische Woerter werden wie
+// zaehlt, wenn die Zeichenfolge im Text steht. "=wort" zaehlt nur genau so
+// (ungestutzt): "Einstellungen" (Programm) ist nicht die Kamera-"Einstellung". Lateinische Woerter werden wie
 // im Index gestutzt (src/hilfe.cpp, stutze), "Kamerafahrt" traegt damit
 // @kamera und @fahrt - Woerter ab vier Buchstaben passen auch als Teil eines
 // zusammengesetzten Worts.
@@ -47,7 +48,7 @@ const BegriffRoh kBegriffe[] = {
     {"neu", "neu|new|erstellen|create|anlegen|machen|make|新建|创建|制作|新規|作成|作る"},
     {"rueckgaengig", "rueckgaengig|undo|zuruecknehmen|wiederherstellen|redo|撤销|重做|元に戻|やり直"},
     {"suchen", "suchen|finden|find|search|ersetzen|replace|查找|搜索|替换|検索|置換|探"},
-    {"einstellungen", "einstellungen|settings|preferences|optionen|options|prefs|konfigurieren|设置|选项|設定|オプション"},
+    {"einstellungen", "=einstellungen|settings|preferences|optionen|options|prefs|konfigurieren|设置|选项|設定|オプション"},
     {"sprache", "sprache|language|deutsch|german|englisch|english|chinesisch|chinese|japanisch|japanese|语言|中文|言語|日本語"},
     {"thema", "thema|theme|design|dark mode|dunkles design|farbschema|colors|aussehen|主题|深色|颜色|テーマ|ダーク"},
     {"update", "update|aktualisieren|neue version|new version|upgrade|aktualisierung|更新|升级|アップデート"},
@@ -118,7 +119,7 @@ const ZielRoh kZiele[] = {
     {"seite:k-rueckgaengig.html", "skript", "rueckgaengig machen fehler zuruecknehmen undo a mistake 撤销 元に戻す"},
     {"seite:k-pruefen.html", "skript", "skript pruefen fehler finden check script for errors 检查脚本错误 スクリプトのエラーを確認"},
     // --- Vorschau, Zwischensequenzen -----------------------------------------------
-    {"seite:k-kamera-ansicht.html", "vorschau",
+    {"tour:k-kamera-ansicht", "vorschau",
      "kamerafahrt erstellen kamera setzen kamera einstellung camera shot camera path make a camera move "
      "镜头运动 设置镜头 创建镜头 カメラワーク カメラを置く カメラの移動"},
     {"seite:tut-projekt.html", "vorschau",

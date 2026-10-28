@@ -19,6 +19,14 @@
 //   karte.gebaut         ... der .bsp              Datei selbst zeigt, dass
 //   karte.pk3            ... der .pk3              gespeichert/gebaut/gepackt wurde)
 //   karte.spielen        1, solange "Im Editor spielen" laeuft
+//   vorschau.bereit      1 im Modus Map (Vorschau)
+//   vorschau.karte       1, wenn dort eine Karte geladen ist (vorschau.ohnekarte: nicht)
+//   vorschau.blick       Pruefsumme von Ort und Winkel der freien Kamera ("~" = umgesehen)
+//   vorschau.durchkamera 1, solange "Durch die Kamera" an ist
+//   vorschau.kameragewaehlt  1, wenn die Kamera gewaehlt ist (ihr Inspektor steht links)
+//   vorschau.ohnekamera      1 in der Vorschau, wenn das Skript keinen camera-Befehl hat
+//   vorschau.nichtgewaehlt   1 in der Vorschau, wenn es Kameras gibt, aber keine gewaehlt ist
+//   vorschau.einstellungen   Kameraeinstellungen im Skript (ein einzelner camera-Befehl ist noch keine)
 //
 // Die Dateizeiten liest es hoechstens zweimal je Sekunde; alles andere nur,
 // wenn der laufende Schritt einen karte.-Wert braucht (tourMesswerte, Argument).
@@ -27,12 +35,14 @@
 #include "karteneditor.h"
 
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <map>
 #include <memory>
 #include <string>
 #include <system_error>
+#include <vector>
 
 namespace bhed::gui {
 namespace {
@@ -53,6 +63,12 @@ struct Zeiten {
     double bsp = 0.0;
     double pk3 = 0.0;
 };
+
+int befehlZahl(const std::vector<Node>& ns, const std::string& name) {
+    int n = 0;
+    for (const Node& k : ns) { n += (k.name == name ? 1 : 0) + befehlZahl(k.children, name); }
+    return n;
+}
 
 std::uint32_t fnv(std::uint32_t h, const std::string& s) {
     for (const char c : s) {
@@ -133,6 +149,25 @@ void tourMesswerte(std::map<std::string, double>& werte, bool karte, double jetz
     // Karten-Editor (3) stehen dessen eigene Menues.
     werte["programm.hauptmenue"] = g_app->leftMode != 3 ? 1.0 : 0.0;
     werte["programm.einstellungen"] = g_app->prefsOpen ? 1.0 : 0.0;
+    // Die Vorschau (Modus 1): Karte da, Blick der freien Kamera, durch die Kamera.
+    const bool karteDa = g_app->mapBereit && !g_app->map.empty();
+    werte["vorschau.bereit"] = g_app->leftMode == 1 ? 1.0 : 0.0;
+    werte["vorschau.karte"] = karteDa ? 1.0 : 0.0;
+    werte["vorschau.ohnekarte"] = (g_app->leftMode == 1 && !karteDa) ? 1.0 : 0.0;
+    double blick = 0.0;
+    for (int i = 0; i < 3; ++i) {
+        blick = blick * 1000.0 + std::floor(static_cast<double>(g_app->cam.pos[i]) / 8.0);
+        blick = blick * 1000.0 + std::floor(static_cast<double>(g_app->cam.angles[i]));
+    }
+    werte["vorschau.blick"] = blick;
+    werte["vorschau.durchkamera"] = g_app->throughCamera ? 1.0 : 0.0;
+    const bool kameraGewaehlt = g_app->cameraSelected && g_app->pickedEntity < 0 && g_app->selectedActor < 0;
+    werte["vorschau.kameragewaehlt"] = kameraGewaehlt ? 1.0 : 0.0;
+    const int kameras = befehlZahl(g_app->doc.script().nodes, "camera");
+    werte["vorschau.ohnekamera"] = (g_app->leftMode == 1 && kameras == 0) ? 1.0 : 0.0;
+    werte["vorschau.nichtgewaehlt"] = (g_app->leftMode == 1 && kameras > 0 && !kameraGewaehlt) ? 1.0 : 0.0;
+    // Kameraeinstellungen (MOVE+PAN-Paare) - nur in der Vorschau gerechnet.
+    werte["vorschau.einstellungen"] = g_app->leftMode == 1 ? static_cast<double>(kameraSchluessel(g_app->doc.script()).size()) : 0.0;
     if (karte) { karteMesswerte(werte, jetzt); }
 }
 

@@ -445,6 +445,12 @@ Gefunden loese(const tour::Ziel& zl) {
             g.da = g.r.GetWidth() > 1.0F;
             return g;
         }
+        case A::Karte3d: {   // H1: die 3D-Ansicht der Vorschau
+            Gefunden g;
+            g.r = ImRect{g_app->kartenAnsicht[0], g_app->kartenAnsicht[1], g_app->kartenAnsicht[2], g_app->kartenAnsicht[3]};
+            g.da = g_app->leftMode == 1 && g.r.GetWidth() > 1.0F && g.r.GetHeight() > 1.0F;
+            return g;
+        }
         case A::Meldungen: {
             const std::string f = std::string(" ") + tr(Str::StatusErrors);
             const std::string w = std::string(" ") + tr(Str::StatusWarnings);

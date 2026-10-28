@@ -8,6 +8,9 @@
 //      jedem Schritt muss die Tour selbst weitergeschaltet haben (Wirkung
 //      geprueft am Programmzustand), das Ziel ist hervorgehoben, und ein
 //      falscher Klick (Licht statt Spielerstart) zeigt den freundlichen Hinweis
+//   4. Tour "Eine Einstellung, wo du hinschaust" (k-kamera-ansicht) in der
+//      Vorschau auf taspir1: umsehen, neue Einstellung, auf die Ansicht setzen,
+//      durch die Kamera - jeder Schritt erledigt sich selbst
 //   3. KI ueber MCP-HTTP im laufenden Programm: Zustand lesen, ein aendernder
 //      Auftrag zeigt die Rueckfrage - Ablehnen aendert nichts, Ausfuehren
 //      laeuft als ein Rueckgaengig-Schritt; falsches Token wird abgewiesen
@@ -26,6 +29,13 @@ int tutorialNummer(const std::string& t) {
         ++i;
     }
     return (i < t.size() && t[i] == ':') ? n : 0;
+}
+
+// Wie oft steht der Befehl im aktiven Skript (alle Ebenen)?
+int befehlZahl(const std::vector<Node>& ns, const std::string& name) {
+    int n = 0;
+    for (const Node& k : ns) { n += (k.name == name ? 1 : 0) + befehlZahl(k.children, name); }
+    return n;
 }
 
 // Eine MCP-Anfrage an den lokalen Server des Programms (im eigenen Faden,
@@ -214,9 +224,92 @@ std::vector<Schritt> ki() {
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z (den ganzen Auftrag zurueck)"));
     add(pause(0.3));
     add(pruefe("H1 KI: Strg+Z nimmt den ganzen Auftrag zurueck", [] { return ke::editor().karte.undo.undoAnzahl() == undoVorher; }));
+    // Ein Skript-Auftrag (zwei Befehle) ist ebenfalls EIN Rueckgaengig-Schritt.
+    static std::size_t skriptVorher = 0;
+    static int waitsVorher = 0;
+    add(tu("H1 KI: Skript-Auftrag (zweimal wait einfuegen)", [] {
+        skriptVorher = g_app->doc.undoDepth();
+        waitsVorher = befehlZahl(g_app->doc.script().nodes, "wait");
+        ruf = mcpRuf(kiTestToken(),
+                     R"({"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"run_commands","arguments":{"summary":"two waits","commands":["script:befehl:wait","script:befehl:wait"]}}})");
+    }));
+    add(warteBis("H1 KI: Rueckfrage fuer den Skript-Auftrag", [] { return finde(tr(Str::KiRun), "###kifrage", 0, false) != nullptr; }, 600));
+    add(klick(tr(Str::KiRun), "###kifrage"));
+    add(warteBis("H1 KI: zwei wait im Skript, genau EIN Rueckgaengig-Schritt", [] {
+        const int w = befehlZahl(g_app->doc.script().nodes, "wait");
+        return ruf->fertig && w >= waitsVorher + 2 && g_app->doc.undoDepth() == skriptVorher + 1;
+    }, 600));
+    add(tu("H1 KI: Skript-Auftrag rueckgaengig", [] { (void)g_app->doc.undo(); }));
+    add(pruefe("H1 KI: ein Rueckgaengig nimmt beide wait zurueck", [] {
+        const int w = befehlZahl(g_app->doc.script().nodes, "wait");
+        return w == waitsVorher && g_app->doc.undoDepth() == skriptVorher;
+    }));
     add(klick(tr(Str::KiDisconnect), ""));
     add(pause(0.3));
     add(pruefe("H1 KI: Verbindung getrennt, Server aus, Einstellung aus", [] { return !kiSicht().httpLaeuft && !g_app->settings.mcpHttp; }));
+    return s;
+}
+
+std::vector<Schritt> kamera() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto mitte = [] {
+        return ImVec2{(g_app->kartenAnsicht[0] + g_app->kartenAnsicht[2]) * 0.5F, (g_app->kartenAnsicht[1] + g_app->kartenAnsicht[3]) * 0.5F};
+    };
+    const auto fertig = [&](int n) {
+        add(warteBis("H1 Kamera: Schritt " + std::to_string(n) + " hat sich selbst erledigt", [n] {
+            const TourSicht t = tourSicht();
+            return t.id == "k-kamera-ansicht" && (t.fertig || t.schritt >= n);
+        }, 600));
+        add(pause(0.2));
+    };
+    add(tu("H1 Kamera: Vorschau (Map), neues leeres Skript", [] {
+        g_app->leftMode = 1;
+        tourAktionen("neuerReiter");
+    }));
+    add(tu("H1 Kamera: Karte taspir1 laden", [] { (void)loadMapFromArchive("maps/taspir1.bsp"); }));
+    add(warteBis("H1 Kamera: Karte bereit", [] { return g_app->mapBereit; }, 4000));
+    add(pause(0.5));
+    add(tu("H1 Kamera: Tour k-kamera-ansicht starten", [] { (void)tourStarten("k-kamera-ansicht", 0); }));
+    add(pause(0.4));
+    add(pruefe("H1 Kamera: Tour laeuft (4 Schritte), die 3D-Ansicht ist hervorgehoben", [] {
+        const TourSicht t = tourSicht();
+        return t.aktiv && t.id == "k-kamera-ansicht" && t.anzahl == 4 && !t.ziele.empty() && !t.zeigtOeffner;
+    }));
+    add(ziehenAn("H1 Kamera: mit der rechten Maustaste umsehen", mitte, 90.0F, 0.0F, 1));
+    fertig(1);
+    add(pruefe("H1 Kamera: ohne Kamera im Skript steht der Hinweis (Kamera einfuegen)", [] {
+        return tourSicht().hinweis.find("no camera") != std::string::npos;   // Selbsttest auf Englisch
+    }));
+    add(tu("H1 Kamera: einen camera-Befehl einfuegen (wie ein Doppelklick in der Befehlsliste)", [] { tourAktionen("befehl:camera"); }));
+    add(pause(0.4));
+    add(pruefe("H1 Kamera: Kamera noch nicht gewaehlt -> Hinweis \"Waehl zuerst die Kamera\"", [] {
+        diag::detail("Knopftest: H1 Kamera - Hinweis: " + tourSicht().hinweis);
+        return tourSicht().hinweis.find("Select the camera") != std::string::npos;
+    }));
+    add(tu("H1 Kamera: Kamera waehlen (wie ein Klick auf die Kamerazeile)", [] {
+        g_app->cameraSelected = true;
+        g_app->selectedActor = -1;
+        g_app->pickedEntity = -1;
+        g_app->selectedKey = 0;
+    }));
+    add(pause(0.4));
+    add(pruefe("H1 Kamera: der Knopf \"Neue Einstellung\" ist hervorgehoben", [] { return !tourSicht().ziele.empty() && tourSicht().hinweis.empty(); }));
+    add(klick(tr(Str::CamNewShot)));
+    fertig(2);
+    add(pruefe("H1 Kamera: camera ( MOVE ) und camera ( PAN ) im Skript", [] {
+        return befehlZahl(g_app->doc.script().nodes, "camera") >= 2;
+    }));
+    add(ziehenAn("H1 Kamera: noch einmal umsehen", mitte, -60.0F, 0.0F, 1));
+    add(klick(tr(Str::CamSetToView)));
+    fertig(3);
+    add(klick(tr(Str::MapThroughCam)));
+    fertig(4);
+    add(pruefe("H1 Kamera: Tour ganz durch, durch die Kamera an", [] { return tourSicht().fertig && g_app->throughCamera; }));
+    add(tu("H1 Kamera: aufraeumen", [] {
+        tourSchliessen();
+        g_app->throughCamera = false;
+    }));
     return s;
 }
 
@@ -225,6 +318,7 @@ std::vector<Schritt> schritte() {
     for (Schritt& x : helfer()) { s.push_back(std::move(x)); }
     for (Schritt& x : tour()) { s.push_back(std::move(x)); }
     for (Schritt& x : ki()) { s.push_back(std::move(x)); }
+    for (Schritt& x : kamera()) { s.push_back(std::move(x)); }
     return s;
 }
 

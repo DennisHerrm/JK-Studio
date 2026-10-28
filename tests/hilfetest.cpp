@@ -112,7 +112,7 @@ const Frage kFragen[] = {
     {"de", "Erstes Skript schreiben", "tour:k-neues-skript"},
     {"de", "Skript in eine ibi übersetzen", "tour:k-uebersetzen|seite:k-ibi"},
     {"de", "Befehl einfügen", "tour:k-befehl-einfuegen"},
-    {"de", "Kamerafahrt für eine Zwischensequenz", "seite:k-kamera|seite:kamera|seite:cmd-cam|seite:tut-p4|seite:tut-projekt"},
+    {"de", "Kamerafahrt für eine Zwischensequenz", "tour:k-kamera-ansicht@|seite:k-kamera|seite:kamera|seite:cmd-cam|seite:tut-p4|seite:tut-projekt"},
     {"de", "NPC zu einem Wegpunkt laufen lassen", "seite:k-gangart|seite:k-wegpunkte|seite:k-patrouille|seite:wegpunkte"},
     {"de", "Wo finde ich die Einstellungen?", "ort:menue:MenuEdit>AppPrefs|seite:einstellungen"},
     {"de", "Sprache auf Englisch umstellen", "ort:menue:MenuView>ViewLanguage"},
@@ -135,7 +135,7 @@ const Frage kFragen[] = {
     {"en", "write my first script", "tour:k-neues-skript"},
     {"en", "compile a script to ibi", "tour:k-uebersetzen|seite:k-ibi"},
     {"en", "insert a command", "tour:k-befehl-einfuegen"},
-    {"en", "make a camera move for a cutscene", "seite:k-kamera|seite:kamera|seite:cmd-cam|seite:tut-p4|seite:tut-projekt"},
+    {"en", "make a camera move for a cutscene", "tour:k-kamera-ansicht@|seite:k-kamera|seite:kamera|seite:cmd-cam|seite:tut-p4|seite:tut-projekt"},
     {"en", "make an NPC walk to a waypoint", "seite:k-gangart|seite:k-wegpunkte|seite:k-patrouille|seite:wegpunkte"},
     {"en", "open the settings", "ort:menue:MenuEdit>AppPrefs|seite:einstellungen"},
     {"en", "change the language", "ort:menue:MenuView>ViewLanguage"},
@@ -157,7 +157,7 @@ const Frage kFragen[] = {
     {"zh", "写第一个脚本", "tour:k-neues-skript"},
     {"zh", "编译脚本", "tour:k-uebersetzen|seite:k-ibi"},
     {"zh", "插入命令", "tour:k-befehl-einfuegen"},
-    {"zh", "制作过场动画的镜头运动", "seite:k-kamera|seite:kamera|seite:cmd-cam|seite:tut-p4|seite:tut-projekt"},
+    {"zh", "制作过场动画的镜头运动", "tour:k-kamera-ansicht@|seite:k-kamera|seite:kamera|seite:cmd-cam|seite:tut-p4|seite:tut-projekt"},
     {"zh", "让NPC走到路径点", "seite:k-gangart|seite:k-wegpunkte|seite:k-patrouille|seite:wegpunkte"},
     {"zh", "打开设置", "ort:menue:MenuEdit>AppPrefs|seite:einstellungen"},
     {"zh", "更改语言", "ort:menue:MenuView>ViewLanguage"},
@@ -178,7 +178,7 @@ const Frage kFragen[] = {
     {"ja", "最初のスクリプトを書く", "tour:k-neues-skript"},
     {"ja", "スクリプトをコンパイル", "tour:k-uebersetzen|seite:k-ibi"},
     {"ja", "コマンドを挿入する", "tour:k-befehl-einfuegen"},
-    {"ja", "カットシーンのカメラワークを作る", "seite:k-kamera|seite:kamera|seite:cmd-cam|seite:tut-p4|seite:tut-projekt"},
+    {"ja", "カットシーンのカメラワークを作る", "tour:k-kamera-ansicht@|seite:k-kamera|seite:kamera|seite:cmd-cam|seite:tut-p4|seite:tut-projekt"},
     {"ja", "NPCをウェイポイントまで歩かせる", "seite:k-gangart|seite:k-wegpunkte|seite:k-patrouille|seite:wegpunkte"},
     {"ja", "設定を開く", "ort:menue:MenuEdit>AppPrefs|seite:einstellungen"},
     {"ja", "言語を変更する", "ort:menue:MenuView>ViewLanguage"},
@@ -219,8 +219,11 @@ bool passt(const std::string& id, const std::string& erwartet) {
         std::size_t e = erwartet.find('|', a);
         if (e == std::string::npos) { e = erwartet.size(); }
         const std::string v = erwartet.substr(a, e - a);
-        // "tour:tut-karte" passt nur auf die Tour selbst oder "@0", nicht auf jeden Schritt
-        if (v.find('@') == std::string::npos && v.rfind("tour:", 0) == 0) {
+        // "tour:tut-karte" passt nur auf die Tour selbst oder "@0", nicht auf jeden
+        // Schritt; "tour:x@" (mit @ am Ende) auf jeden Schritt der Tour.
+        if (!v.empty() && v.back() == '@') {
+            if (id == v.substr(0, v.size() - 1) || id.compare(0, v.size(), v) == 0) { return true; }
+        } else if (v.find('@') == std::string::npos && v.rfind("tour:", 0) == 0) {
             if (id == v || id == v + "@0") { return true; }
         } else if (id.compare(0, v.size(), v) == 0 && (id.size() == v.size() || v.find('@') == std::string::npos || id[v.size()] < '0' || id[v.size()] > '9')) {
             return true;

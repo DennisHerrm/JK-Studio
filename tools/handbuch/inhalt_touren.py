@@ -44,7 +44,9 @@ def A(ziel="", fertig="manuell", voraus="", einrichten="", sicher=False, ueber="
 # Die Touren dieser Fassung (Handbuchseiten) und ihre Ansichten.
 TOUREN = ["k-neues-skript", "k-befehl-einfuegen", "k-werte-bearbeiten", "k-zeilen-ordnen", "k-uebersetzen",
           # H1: die erste Karte im Karten-Editor (inhalt_karte8c.py)
-          "tut-karte"]
+          "tut-karte",
+          # H1: eine Kameraeinstellung fuer die Zwischensequenz (inhalt_kurz.py)
+          "k-kamera-ansicht"]
 ANSICHTEN = ["classic"]
 
 # Die Ereignisliste gibt es nur im Modus Events - sonst zeigt die Tour auf
@@ -168,13 +170,37 @@ NACH_BILD.update({
 })
 
 
+# --- H1: k-kamera-ansicht - eine Kameraeinstellung, wo du hinschaust ----------
+VORSCHAU = "zahl:vorschau.bereit < knopf:ViewMap@modebar"
+_OHNE_KARTE = ("zahl:vorschau.ohnekarte", T(
+    "No map is open yet. Load one first: {{MenuFile}} > {{MapLoad}} - or open a mission.",
+    "Noch ist keine Karte offen. Lade zuerst eine: {{MenuFile}} > {{MapLoad}} - oder öffne eine Mission.",
+    "还没有打开地图。请先加载一张:{{MenuFile}} > {{MapLoad}},或打开一个任务。",
+    "まだマップが開いていません。先に読み込んでください:{{MenuFile}} > {{MapLoad}}、またはミッションを開きます。"))
+_OHNE_KAMERA = ("zahl:vorschau.ohnekamera", T(
+    "This script has no camera yet. Insert a camera command first ({{GroupEvents}} list: double-click camera) - or open a mission with a cutscene.",
+    "Dieses Skript hat noch keine Kamera. Füge zuerst einen camera-Befehl ein (Liste {{GroupEvents}}: camera doppelklicken) - oder öffne eine Mission mit Zwischensequenz.",
+    "这个脚本还没有镜头。请先插入一个 camera 命令({{GroupEvents}} 列表中双击 camera),或打开一个带过场动画的任务。",
+    "このスクリプトにはまだカメラがありません。先に camera コマンドを挿入するか({{GroupEvents}} 一覧で camera をダブルクリック)、カットシーンのあるミッションを開いてください。"))
+_KAMERA_WAEHLEN = ("zahl:vorschau.nichtgewaehlt", T(
+    "Select the camera first: click a camera shot on the map or the camera row in the timeline. Its buttons appear on the left.",
+    "Wähl zuerst die Kamera: Klick auf eine Kameraeinstellung in der Karte oder auf die Kamerazeile der Zeitleiste. Links erscheinen dann ihre Knöpfe.",
+    "请先选中镜头:点击地图上的某个镜头,或时间轴中的镜头行。左侧会出现它的按钮。",
+    "まずカメラを選んでください:マップ上のカメラ ショットか、タイムラインのカメラ行をクリックします。左側にボタンが表示されます。"))
+NACH_SCHRITT.update({
+    ("k-kamera-ansicht", "classic", 1): A("karte3d", "zahl:vorschau.blick~", voraus=VORSCHAU, falsch=[_OHNE_KARTE]),
+    ("k-kamera-ansicht", "classic", 2): A("knopf:CamNewShot", "zahl:vorschau.einstellungen+", voraus=VORSCHAU, falsch=[_OHNE_KARTE, _OHNE_KAMERA, _KAMERA_WAEHLEN]),
+    ("k-kamera-ansicht", "classic", 3): A("knopf:CamSetToView", "aenderung+", voraus=VORSCHAU, falsch=[_KAMERA_WAEHLEN]),
+    ("k-kamera-ansicht", "classic", 4): A("knopf:MapThroughCam", "zahl:vorschau.durchkamera", voraus=VORSCHAU),
+})
+
 def angaben(seite, ansicht, nr, bild):
     """Die Angaben eines Schritts oder None."""
     return NACH_SCHRITT.get((seite, ansicht, nr)) or (NACH_BILD.get(bild) if bild else None)
 
 
 # --- Was das Programm kennt (include/bhed/tour.h) - der Bau prueft dagegen ---
-ZIELARTEN = {"knopf", "knopfN", "menue", "gruppe", "eintrag", "zeile", "reiter", "fenster", "baum", "meldungen"}
+ZIELARTEN = {"knopf", "knopfN", "menue", "gruppe", "eintrag", "zeile", "reiter", "fenster", "baum", "meldungen", "karte3d"}
 PRUEFUNGEN = {"reiter", "knoten", "aenderung", "rem", "uebersetzt", "gespeichert", "befehl", "leer", "kind", "wert",
               "auswahl", "editor", "editorzu", "fenster", "modus", "ansicht", "schwebt", "geklickt", "manuell",
               "zahl", "offen"}

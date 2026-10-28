@@ -565,6 +565,87 @@
      }
     ]
    }
+  },
+  {
+   "id": "k-kamera-ansicht",
+   "gruppe": "tut_kamera",
+   "titel": "Put a shot where you are looking",
+   "kurz": "Look around until the picture is right, then move a shot - or a new one - exactly there.",
+   "seite": "k-kamera-ansicht.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Fly to the view you want.** Hold the right mouse button in the map and fly with <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> until the picture is right.",
+      "bild": "c_frei",
+      "unter": "Your own view of the map.",
+      "ziel": "karte3d",
+      "fertig": "zahl:vorschau.blick~",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "No map is open yet. Load one first: {{MenuFile}} > {{MapLoad}} - or open a mission."
+       }
+      ]
+     },
+     {
+      "text": "**A new shot here.** Select the camera and press **{{CamNewShot}}**: a `camera ( MOVE )` and `camera ( PAN )` at your view are added after the selected shot.",
+      "bild": "h_kamera",
+      "unter": "New camera shot here in the camera panel.",
+      "ziel": "knopf:CamNewShot",
+      "fertig": "zahl:vorschau.einstellungen+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "No map is open yet. Load one first: {{MenuFile}} > {{MapLoad}} - or open a mission."
+       },
+       {
+        "wenn": "zahl:vorschau.ohnekamera",
+        "text": "This script has no camera yet. Insert a camera command first ({{GroupEvents}} list: double-click camera) - or open a mission with a cutscene."
+       },
+       {
+        "wenn": "zahl:vorschau.nichtgewaehlt",
+        "text": "Select the camera first: click a camera shot on the map or the camera row in the timeline. Its buttons appear on the left."
+       }
+      ]
+     },
+     {
+      "text": "**Or move an existing one.** Select a shot in **{{CamShots}}** and press **{{CamSetToView}}**: its position and direction are replaced by your view - one undo step.",
+      "bild": "c_aufansicht",
+      "unter": "Set to view.",
+      "ziel": "knopf:CamSetToView",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.nichtgewaehlt",
+        "text": "Select the camera first: click a camera shot on the map or the camera row in the timeline. Its buttons appear on the left."
+       }
+      ]
+     },
+     {
+      "text": "**Check.** **{{MapThroughCam}}** on the map toolbar shows what the selected shot sees, with its zoom and the black cinema bars.",
+      "bild": "c_durch",
+      "unter": "Through camera on the toolbar.",
+      "ziel": "knopf:MapThroughCam",
+      "fertig": "zahl:vorschau.durchkamera",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }

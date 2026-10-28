@@ -565,6 +565,87 @@
      }
     ]
    }
+  },
+  {
+   "id": "k-kamera-ansicht",
+   "gruppe": "tut_kamera",
+   "titel": "Eine Einstellung dorthin setzen, wohin du schaust",
+   "kurz": "Schau dich um, bis das Bild stimmt, dann setz eine Einstellung - oder eine neue - genau dorthin.",
+   "seite": "k-kamera-ansicht.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Flieg zur gewünschten Ansicht.** Halte die rechte Maustaste in der Karte gedrückt und flieg mit <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>, bis das Bild stimmt.",
+      "bild": "c_frei",
+      "unter": "Deine eigene Ansicht der Karte.",
+      "ziel": "karte3d",
+      "fertig": "zahl:vorschau.blick~",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "Noch ist keine Karte offen. Lade zuerst eine: {{MenuFile}} > {{MapLoad}} - oder öffne eine Mission."
+       }
+      ]
+     },
+     {
+      "text": "**Eine neue Einstellung hier.** Wähle die Kamera und drück **{{CamNewShot}}**: ein `camera ( MOVE )` und ein `camera ( PAN )` an deiner Ansicht werden nach der gewählten Einstellung eingefügt.",
+      "bild": "h_kamera",
+      "unter": "Neue Kameraeinstellung hier im Kamerafeld.",
+      "ziel": "knopf:CamNewShot",
+      "fertig": "zahl:vorschau.einstellungen+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "Noch ist keine Karte offen. Lade zuerst eine: {{MenuFile}} > {{MapLoad}} - oder öffne eine Mission."
+       },
+       {
+        "wenn": "zahl:vorschau.ohnekamera",
+        "text": "Dieses Skript hat noch keine Kamera. Füge zuerst einen camera-Befehl ein (Liste {{GroupEvents}}: camera doppelklicken) - oder öffne eine Mission mit Zwischensequenz."
+       },
+       {
+        "wenn": "zahl:vorschau.nichtgewaehlt",
+        "text": "Wähl zuerst die Kamera: Klick auf eine Kameraeinstellung in der Karte oder auf die Kamerazeile der Zeitleiste. Links erscheinen dann ihre Knöpfe."
+       }
+      ]
+     },
+     {
+      "text": "**Oder verschieb eine vorhandene.** Wähle eine Einstellung in **{{CamShots}}** und drück **{{CamSetToView}}**: ihr Ort und ihre Richtung werden durch deine Ansicht ersetzt - ein Rückgängig-Schritt.",
+      "bild": "c_aufansicht",
+      "unter": "Auf Ansicht setzen.",
+      "ziel": "knopf:CamSetToView",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.nichtgewaehlt",
+        "text": "Wähl zuerst die Kamera: Klick auf eine Kameraeinstellung in der Karte oder auf die Kamerazeile der Zeitleiste. Links erscheinen dann ihre Knöpfe."
+       }
+      ]
+     },
+     {
+      "text": "**Prüfen.** **{{MapThroughCam}}** in der Kartenleiste zeigt, was die gewählte Einstellung sieht, mit ihrem Zoom und den schwarzen Kinobalken.",
+      "bild": "c_durch",
+      "unter": "Durch die Kamera in der Kartenleiste.",
+      "ziel": "knopf:MapThroughCam",
+      "fertig": "zahl:vorschau.durchkamera",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }

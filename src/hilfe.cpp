@@ -115,6 +115,7 @@ std::string stutze(std::string w) {
 // Lateinische Woerter (klein, Umlaute gefaltet, gestutzt) und CJK-Laeufe.
 struct Zerlegt {
     std::vector<std::string> latein;
+    std::vector<std::string> roh;   // dieselben Woerter ungestutzt (Begriffe mit "=")
     std::vector<std::string> cjk;   // je ein Lauf
     std::string klein;              // der ganze Text klein (fuer CJK-Begriffe)
 };
@@ -126,7 +127,10 @@ Zerlegt zerlegeText(std::string_view s) {
     std::string lauf;
     const auto wortEnde = [&] {
         if (!wort.empty()) {
-            if (stoppwoerter().count(wort) == 0U) { z.latein.push_back(stutze(wort)); }
+            if (stoppwoerter().count(wort) == 0U) {
+                z.roh.push_back(wort);
+                z.latein.push_back(stutze(wort));
+            }
             wort.clear();
         }
     };
@@ -200,6 +204,7 @@ void cjkWoerter(const std::string& lauf, std::vector<std::string>& aus) {
 
 struct Begriff {
     std::string name;   // "@kamera"
+    std::vector<std::string> genau;   // "=wort": nur genau dieses Wort (ungestutzt)
     std::vector<std::vector<std::string>> latein;   // je Variante ihre Woerter
     std::vector<std::string> cjk;
 };
@@ -214,8 +219,10 @@ const std::vector<Begriff>& begriffe() {
             while (!w.empty()) {
                 const std::size_t p = w.find('|');
                 const std::string_view teil = w.substr(0, p);
-                const Zerlegt z = zerlegeText(teil);
-                if (!z.cjk.empty()) {
+                const Zerlegt z = zerlegeText(!teil.empty() && teil[0] == '=' ? teil.substr(1) : teil);
+                if (!teil.empty() && teil[0] == '=') {
+                    for (const std::string& wort : z.roh) { g.genau.push_back(wort); }
+                } else if (!z.cjk.empty()) {
                     for (const std::string& c : z.cjk) { g.cjk.push_back(c); }
                 } else if (!z.latein.empty()) {
                     g.latein.push_back(z.latein);
@@ -233,9 +240,11 @@ const std::vector<Begriff>& begriffe() {
 // Die Begriffe eines zerlegten Texts.
 void begriffeIn(const Zerlegt& z, std::vector<std::string>& aus) {
     std::unordered_set<std::string> menge(z.latein.begin(), z.latein.end());
+    std::unordered_set<std::string> roh(z.roh.begin(), z.roh.end());
     for (const Begriff& b : begriffe()) {
-        bool da = false;
+        bool da = std::any_of(b.genau.begin(), b.genau.end(), [&](const std::string& w) { return roh.count(w) != 0U; });
         for (const auto& variante : b.latein) {
+            if (da) { break; }
             if (variante.size() == 1) {
                 const std::string& w = variante[0];
                 if (menge.count(w) != 0U) {
@@ -555,7 +564,9 @@ Index baue(const tour::Touren& touren, const std::vector<tour::Abschnitt>& handb
     Index ix;
     // Tutorials: die Tour und jeder Schritt einzeln.
     for (const tour::Tour& t : touren.liste) {
-        const std::string bereich = t.id.rfind("tut-karte", 0) == 0 ? "karte" : "skript";
+        const std::string bereich = t.id.rfind("tut-karte", 0) == 0                       ? "karte"
+                                    : (t.gruppe == "tut_kamera" || t.gruppe == "tut_figur") ? "vorschau"
+                                                                                              : "skript";
         Eintrag e;
         e.art = Art::Tour;
         e.id = "tour:" + t.id;
