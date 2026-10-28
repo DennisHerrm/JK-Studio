@@ -1,0 +1,57 @@
+# Stufe 8d Punkt 2: die Pruefliste der wiederholbaren statischen Analyse
+# (tools/analyse/statische_analyse.py). Bewusst schmaler als die Wurzel-.clang-tidy
+# (die auch Lesbarkeit und Core Guidelines prueft): hier nur, was Fehler und
+# Sicherheitsluecken findet - bugprone, cert, performance und ausgewaehlte modernize.
+#
+# Aus, mit Begruendung:
+#   bugprone-easily-swappable-parameters   Geschmack; (x, y, z)-Parameter sind hier die Regel
+#   bugprone-narrowing-conversions         tausendfach float<->int in Format-Code, jede Stelle
+#                                          ist durch die Dateiformate begrenzt (siehe /W4 C4244)
+#   bugprone-implicit-widening-of-multiplication-result
+#                                          int*int fuer Index-Rechnungen in kleinen Bereichen
+#   bugprone-branch-clone                  gleiche Zweige sind oft Absicht (Tabellen, Faelle)
+#   bugprone-switch-missing-default-case   Aufzaehlungen werden ohne default vollstaendig behandelt
+#                                          (dann warnt der Uebersetzer bei neuen Werten)
+#   bugprone-easily-*, bugprone-reserved-identifier/cert-dcl37-c/cert-dcl51-cpp
+#                                          q3map2/OpenJK-Namen wie _Tracy... stammen aus den Vorlagen
+#   cert-err58-cpp                         static const std::string kann beim Start werfen - nur bei
+#                                          Speichermangel, dann startet das Programm ohnehin nicht
+#   cert-err33-c                           unbeachtete Rueckgabe von printf/fclose/... - Absicht
+#   cert-dcl50-cpp                         C-Variadics: snprintf mit tr()-Formaten ist die i18n-Form
+#   bugprone-unchecked-optional-access     braucht Datenflussanalyse, langsam, keine Treffer im Vorlauf
+#   performance-enum-size                  enum class mit int als Basis: Speicher spielt bei einzelnen
+#                                          Werten keine Rolle, und die Basis ist Teil von Dateiformaten
+#   cert-err34-c                           atoi/atof sind Absicht: die Spiele (OpenJK, q3map2) lesen
+#                                          Zahlen genauso nachsichtig ("12abc" -> 12, Unsinn -> 0)
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  performance-*,
+  modernize-use-nullptr,
+  modernize-use-override,
+  modernize-deprecated-headers,
+  modernize-make-unique,
+  modernize-make-shared,
+  modernize-redundant-void-arg,
+  modernize-use-bool-literals,
+  modernize-use-equals-delete,
+  modernize-use-emplace,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-branch-clone,
+  -bugprone-switch-missing-default-case,
+  -bugprone-reserved-identifier,
+  -bugprone-unchecked-optional-access,
+  -cert-dcl37-c,
+  -cert-dcl51-cpp,
+  -cert-err58-cpp,
+  -cert-err33-c,
+  -cert-dcl50-cpp,
+  -performance-enum-size,
+  -cert-err34-c
+WarningsAsErrors: ''
+HeaderFilterRegex: '.*[\\/](src|gui|include|tests)[\\/].*'
+ExcludeHeaderFilterRegex: '.*[\\/](third_party|imgui|build[^\\/]*)[\\/].*'
+FormatStyle: none

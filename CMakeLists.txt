@@ -244,7 +244,7 @@ add_custom_command(TARGET bhed POST_BUILD
 option(BEHAVED_Q3MAP2 "q3map2 (Karten bauen) mitbauen" ${MSVC})
 # Stufe 5 Punkt 6: q3map2 mit clang-cl statt MSVC - dieselben Ergebnisse
 # (q3map2_vergleich, der Byte-Vergleich wie Stufe 3), -light 14-21 % und -vis
-# bis 25 % schneller (NOTIZEN_karte5.md). BEHAVED_Q3MAP2_LLVM = Ordner mit
+# bis 25 % schneller (docs/intern/NOTIZEN_karte5.md). BEHAVED_Q3MAP2_LLVM = Ordner mit
 # clang-cl.exe, lld-link.exe, llvm-lib.exe und llvm-rc.exe (LLVM 23.1.4, mit
 # dieser Fassung ist verglichen); leer = MSVC wie bisher. q3map2 wird dann als
 # eigenes Projekt mit Ninja und clang-cl gebaut (tools/karte/q3map2_clang.cmake,
@@ -531,6 +531,26 @@ if(BEHAVED_FUZZ AND MSVC)
 endif()
 
 # --- Pruefstaende ------------------------------------------------------
+# Stufe 8d Punkt 2: statische Analyse. MSVC /analyze fuer den eigenen Code (bhed_core und das
+# Programm, third_party ausgenommen: /analyze:external- und SYSTEM-Includes). Nur im eigenen
+# Bauordner von tools/analyse/statische_analyse.py (Ninja, compile_commands.json fuer clang-tidy).
+option(BEHAVED_ANALYSE "MSVC /analyze fuer den eigenen Code (tools/analyse)" OFF)
+if(BEHAVED_ANALYSE AND MSVC)
+  target_compile_options(bhed_core PRIVATE /analyze /analyze:external- /analyze:WX-)
+  if(TARGET behaved)
+    target_compile_options(behaved PRIVATE /analyze /analyze:external- /analyze:WX-)
+  endif()
+endif()
+# Die Analyse als ctest (dauert mit eigenem Bauordner etwa 30 Minuten, darum nur auf Wunsch):
+# cmake -DBEHAVED_ANALYSE_CTEST=ON, dann ctest -R statische_analyse.
+option(BEHAVED_ANALYSE_CTEST "ctest statische_analyse (clang-tidy und /analyze, lang)" OFF)
+if(BEHAVED_ANALYSE_CTEST)
+  find_package(Python3 COMPONENTS Interpreter)
+  if(Python3_FOUND)
+    add_test(NAME statische_analyse COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/analyse/statische_analyse.py)
+    set_tests_properties(statische_analyse PROPERTIES TIMEOUT 7200)
+  endif()
+endif()
 option(BEHAVED_TESTS "Pruefstaende bauen" ON)
 if(BEHAVED_TESTS)
   enable_testing()

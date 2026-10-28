@@ -13,11 +13,11 @@ what to trust and what to poke at.
 
 1. From the release page, under **Assets**, take
    `JK-Studio-rcNNN-windows-x64.zip` (not "Source code" – that has no
-   program in it). Unzip anywhere. Keep `behaved.exe` and the `data` folder
+   program in it). Unzip anywhere. Keep `jkstudio.exe` and the `data` folder
    together. Or take `JK-Studio-rcNNN-windows-x64.exe` alone: it runs
    without the zip and unpacks its data to `%APPDATA%\behaved\data\base`
    (the guide is only in the zip).
-2. Run `behaved.exe`.
+2. Run `jkstudio.exe`.
 3. **Add a game folder first:** `Datei → In .pk3 blättern → Spielordner
    hinzufügen`, then pick any `.pk3` inside your `GameData/base`. Do the same
    for your mod folder. Without this, sounds cannot be found and you cannot
@@ -226,7 +226,7 @@ Press `Win+R`, paste `%APPDATA%\behaved`, Enter.
 
 The **last line names the step that was running** when it died. Every line is
 flushed immediately, so nothing is lost even on a hard crash. The previous
-run is kept as `behaved.log.vorher` — but only the previous one, so if you
+run is kept as `jkstudio.log.vorher` — but only the previous one, so if you
 restart twice the evidence is gone.
 
 **Please send both files.** With them, a crash usually takes minutes to find
@@ -332,11 +332,11 @@ standalone exe does not contain the map compiler.
   tests/karte/q3map2`); why not every byte can be compared is explained at
   the top of that script and in `docs/intern/NOTIZEN_karte3.md`, Punkt 2.
 - `q3map2_uebersetzer` – with `-DBEHAVED_Q3MAP2_LLVM` (Stufe 5, BAUEN.md)
-  the `bhed_q3map2.exe` next to `behaved.exe` must be the one built by
+  the `bhed_q3map2.exe` next to `jkstudio.exe` must be the one built by
   clang-cl/lld-link (no Rich header), without it the one built by MSVC.
 - GUI self-test mode `karteneditor` builds from the editor (Stufe 3,
   `BHED_KARTE_NUR=stufe3 BHED_STUFE3_NUR=bau` for only the Build menu and
-  building). It looks for the working copy above the tested `behaved.exe`
+  building). It looks for the working copy above the tested `jkstudio.exe`
   (the folder with `tests\karte\q3map2`), copies `build-test` (or `build`)
   `\bin\Release\bhed_q3map2.exe` next to it and compares with
   `tests\karte\q3map2\raum.nrc.bsp`; `BHED_Q3MAP2` and `BHED_Q3MAP2_DATEN` set
@@ -369,12 +369,12 @@ standalone exe does not contain the map compiler.
   `BHED_KARTE_GROSS` (a .map) and optionally `BHED_KARTE_GROSS_BSP` (its .bsp)
   and measures the frame times while the optimizer runs.
 
-- `exe_importe` – `behaved.exe` binds only Windows DLLs (no VC++ runtime:
+- `exe_importe` – `jkstudio.exe` binds only Windows DLLs (no VC++ runtime:
   rc600 needed `MSVCP140.dll` and friends, which no zip contained).
 - `eingebaute_daten` – `data/base` is inside the program byte for byte, and
   the unpacked copy gives the same command model; if unpacking fails, the
   target folder and the reason end up in the translated message.
-- GUI self-test mode `eigenstaendig` – a copy of `behaved.exe`, renamed like the
+- GUI self-test mode `eigenstaendig` – a copy of `jkstudio.exe`, renamed like the
   release asset, alone in a folder: `--pruefe-daten` must end with 0 and unpack
   the data into its own settings folder; a missing data folder gives a
   translated message. A second copy whose settings folder cannot take
@@ -382,3 +382,12 @@ standalone exe does not contain the map compiler.
   the reason. The copies get `BHED_KEIN_MELDUNGSFENSTER=1`: instead of a
   message box (with the Windows error sound) they only log the start message
   and end at once, so a regression fails quietly.
+
+## Static analysis (Stufe 8d)
+
+`python tools/analyse/statische_analyse.py` builds the own code in `build-analyse` (Ninja, MSVC
+with `/analyze`, `third_party` excluded) and runs clang-tidy (the LLVM of Visual Studio) with
+`tools/analyse/clang-tidy-8d.yaml` (bugprone, cert, performance, selected modernize) over every
+own `.cpp`. Findings listed with a reason in `tools/analyse/unterdrueckt.txt` are accepted; any
+other finding makes it return 1 (report in `build-analyse/analyse/neu.txt`). As a ctest:
+configure with `-DBEHAVED_ANALYSE_CTEST=ON`, then `ctest -R statische_analyse` (about 30 min).

@@ -703,7 +703,7 @@ Spielordner nicht.
 ## q3map2 für das Build-Menü (Karten-Editor, Stufe 3)
 
 `bhed_q3map2.exe` ist q3map2 aus NetRadiant-Custom 20260114, als eigenes
-Programm neben `behaved.exe` (Ziel `bhed_q3map2`, `src/q3map2/CMakeLists.txt`).
+Programm neben `jkstudio.exe` (Ziel `bhed_q3map2`, `src/q3map2/CMakeLists.txt`).
 Der Editor startet es wie NRC sein `q3map2.exe`.
 
 * Die Quellen liegen **unverändert** unter `third_party/`: `q3map2/` (q3map2,
@@ -734,7 +734,7 @@ clang-cl und lld-link gebaut (LLVM 23.1.4, das Paket
 `llvm-lib.exe`, `llvm-rc.exe` und `lib/clang/23`). behaved selbst bleibt bei
 MSVC. CMake baut q3map2 dann als eigenes Projekt mit Ninja
 (`tools/karte/q3map2_clang.cmake`, Ordner `q3map2_clang` im Bauordner) und legt die .exe wie
-bisher neben `behaved.exe`; clang-cl und lld-link finden Visual Studio und das
+bisher neben `jkstudio.exe`; clang-cl und lld-link finden Visual Studio und das
 Windows SDK selbst, ein Entwickler-Prompt ist nicht nötig.
 
 ```
@@ -751,7 +751,7 @@ cmake -S . -B build -DBEHAVED_Q3MAP2_LLVM=C:/llvm-23.1.4/bin
   `docs/intern/NOTIZEN_karte5.md`, Punkt 6). `-O3` und ThinLTO bringen nichts dazu.
 * Fehlt eines der Werkzeuge oder `ninja.exe` (Visual Studio: „C++-CMake-Tools“),
   warnt CMake und baut q3map2 mit MSVC wie bisher.
-* `q3map2_uebersetzer` prüft, welche q3map2 neben `behaved.exe` liegt: ohne
+* `q3map2_uebersetzer` prüft, welche q3map2 neben `jkstudio.exe` liegt: ohne
   Rich-Kopf (lld-link) mit `BEHAVED_Q3MAP2_LLVM`, mit Rich-Kopf (link.exe) ohne.
 * Die Release-Pipeline (`.github/workflows/release.yml`) installiert LLVM
   23.1.4 und baut damit; klappt das Laden nicht, baut sie mit MSVC und warnt.
@@ -2277,7 +2277,7 @@ Stürzt das Programm ab, liegt dort, was zuletzt lief. Vier Regeln, aus efxed
    zusammenfasst.
 3. **Ein Schritt vermerkt seinen Beginn**, bevor er anfängt — nicht sein Ende,
    wenn er fertig ist. Ein Schritt ohne Abschlusszeile ist der Schuldige.
-4. **Das vorige Protokoll wird als `behaved.log.vorher` beiseitegelegt**, nicht
+4. **Das vorige Protokoll wird als `jkstudio.log.vorher` beiseitegelegt**, nicht
    überschrieben. Sonst löscht der Neustartversuch nach dem Absturz gerade den
    Beweis.
 

@@ -1,0 +1,88 @@
+# Stufe 8d Punkt 2: begruendet hingenommene Funde der statischen Analyse
+# (tools/analyse/statische_analyse.py). Zeile: <pruefung>|<dateiende oder *>|<textteil oder *>.
+# Jede Gruppe mit dem Grund; durchgesehen am Lauf vom 28.10.2026 (570 Funde, davon im
+# Programmcode kein echter Fehler; behoben: die ungenutzte Variable in tests/kartebefehle.cpp).
+
+# Implizit noexcept (Move-Konstruktoren, Destruktoren, Lambdas, main): "kann werfen" heisst hier
+# std::bad_alloc aus std::string/std::vector. Bei Speichermangel endet das Programm ohnehin;
+# die RAII-Klammern (~Befehl = NRCs UndoableCommand, ~MakroWache, ~Step) sind 1:1 die Vorlage.
+bugprone-exception-escape|*|*
+
+# Index-Rechnung int + int, dann size_t: die Werte stammen aus Dateiformaten (int32) und werden
+# beim Lesen gegen die Feldgroessen geprueft; ein Ueberlauf ist Sache der Leser - die Fuzzer
+# (Stufe 8d Punkt 4, ASan/UBSan) pruefen genau das.
+bugprone-misplaced-widening-cast|*|*
+
+# Gleitkomma-Schleifenzaehler: 1:1 aus NetRadiant-Custom (terrain, xywindow) und OpenJK
+# portiert; dieselben Schritte wie die Vorlage sind gewollt (Gleichheit mit dem Original).
+cert-flp30-c|*|*
+
+# Absichtlich bitweise Vergleiche (memcmp): gleichBits (Determinismus der Vorschau, NaN- und
+# -0-genau), die Texturprojektion (Aenderung erkennen), Tests auf Byte-Gleichheit.
+bugprone-suspicious-memory-comparison|*|*
+cert-exp42-c|*|*
+cert-flp37-c|*|*
+
+# Ganzzahl-Division wie in der Vorlage: NRC rechnet m_nWidth / 2 als int (xywindow.cpp,
+# camwindow.cpp, selection), die Bildzahl einer .rof ist ganzzahlig.
+bugprone-integer-division|*|*
+
+# rand()/srand() und feste Startwerte: NRCs Terrain/Grundformen/Patch-Rauschen nutzen rand()
+# genauso; Tests und Fuzzer brauchen feste Startwerte (wiederholbar).
+cert-msc50-cpp|*|*
+cert-msc30-c|*|*
+cert-msc51-cpp|*|*
+cert-msc32-c|*|*
+
+# Leistungshinweise ohne Fehler (kalte Pfade: Menues, Dialoge, Tests); die heissen Pfade sind
+# gemessen (Leistung gegen rc605 in jeder Schlussrunde).
+performance-inefficient-string-concatenation|*|*
+performance-inefficient-vector-operation|*|*
+performance-unnecessary-value-param|*|*
+performance-unnecessary-copy-initialization|*|*
+performance-no-automatic-move|*|*
+modernize-use-emplace|*|*
+
+# COM_Parse von NRC liest mit signed char (Bytes >= 0x80 gelten als Leerraum) - so liest NRC
+# die .def/.ent-Dateien; gewollt gleich.
+bugprone-signed-char-misuse|src/karte/eklasse_lesen.cpp|*
+cert-str34-c|src/karte/eklasse_lesen.cpp|*
+bugprone-inc-dec-in-conditions|src/karte/eklasse_lesen.cpp|*
+bugprone-inc-dec-in-conditions|src/karte/portale.cpp|*
+
+# (int)(x + 0.5) wie in der Vorlage (NRC Texturen/Patch, Statusbalken) - lround rundet -0.5
+# anders und waere nicht mehr gleich.
+bugprone-incorrect-roundings|*|*
+
+# Zuweisung in der Bedingung: die Form der Vorlage (bobtoolz, q3map2-Leser, Szenen-Leser),
+# jeweils mit Klammern und Vergleich gegen nullptr.
+bugprone-assignment-in-if-condition|*|*
+
+# std::stof auf Benutzertext: unlesbar heisst "Vorgabe behalten" (OpenJK: atof -> 0 wird
+# ebenfalls nicht gemeldet); der Test prueft ein Werfen absichtlich.
+bugprone-empty-catch|src/scene.cpp|*
+bugprone-empty-catch|tests/timelinetest.cpp|*
+
+# GetProcAddress -> Funktionszeiger: der uebliche Weg fuer DWrite (zur Laufzeit geladen).
+bugprone-casting-through-void|gui/qttext_win32.cpp|*
+# SpurHilfeHalter: Kopieren heisst "Hilfsdaten vergessen" - auch bei Selbstzuweisung richtig.
+cert-oop54-cpp|include/bhed/bspgeo.h|*
+# QuickHull von NRC wird als eine Uebersetzungseinheit eingebunden (wie in NRC).
+bugprone-suspicious-include|src/karte/quickhull.cpp|*
+# Ein Test ruft system() fuer ein Hilfsprogramm des Tests auf.
+cert-env33-c|tests/kartebspoeffnen.cpp|*
+
+# MSVC /analyze
+# C6262: bobtoolz-Funktionen mit Punktfeldern auf dem Stapel (41 KB, wie die Vorlage); Stapel 1 MB.
+msvc-C6262|*|*
+# C6011/C28182: Zeiger, die nach FindPointsForPlane (== 3) bzw. per Aufbau (jede Entity eines
+# Plans hat einen Stand: nachEntity) gesetzt sind - die Analyse sieht die Invariante nicht.
+msvc-C6011|src/karte/bobtoolz.cpp|*
+msvc-C28182|src/navlauf.cpp|*
+# C28020: Index aus einer Schleife mit fester Grenze (CRC-Tafel 256, efx-Wortfeld 22).
+msvc-C28020|src/pk3write.cpp|*
+msvc-C28020|src/efxdraw.cpp|*
+# C6031: rename() beim Umschichten der Protokolle - scheitert es, wird das alte ueberschrieben.
+msvc-C6031|src/diag.cpp|*
+# C6246 (Verdeckung) behebt Punkt 3 (Warnungen auf 0); bis dahin hier.
+msvc-C6246|*|*

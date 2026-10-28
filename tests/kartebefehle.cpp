@@ -46,7 +46,6 @@ void pruefe(bool ok, const std::string& was) {
 
 std::string qtAusdruck(const std::string& a) {
     // "+Qt::SHIFT + Qt::Key_Plus + Qt::KeypadModifier" -> "Shift+Num++"
-    std::string mods;
     std::string taste;
     std::stringstream s(a);
     std::string teil;
