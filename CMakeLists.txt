@@ -995,6 +995,8 @@ target_sources(bhed_core PRIVATE
   src/karte/gelaende.cpp
   # Stufe 9 Punkt 12: nach einem Absturz wiederherstellen
   src/karte/wiederherstellen.cpp
+  # Stufe 9 Punkt 11: Asset-Browser
+  src/karte/assets.cpp
   # Stufe 1b: Texturbrowser (texwindow.cpp, aktive Shader)
   src/karte/texturbrowser.cpp
   # Stufe 1b: Texturen mit M3 kopieren und auftragen (TexManipulator, surfacedialog.cpp)
@@ -1245,6 +1247,10 @@ if(BEHAVED_TESTS)
   add_executable(kartewiederherstellen tests/kartewiederherstellen.cpp)
   target_link_libraries(kartewiederherstellen PRIVATE bhed_core)
   add_test(NAME karte_wiederherstellen COMMAND kartewiederherstellen)
+  # Stufe 9 Punkt 11: Asset-Browser
+  add_executable(karteassets tests/karteassets.cpp)
+  target_link_libraries(karteassets PRIVATE bhed_core)
+  add_test(NAME karte_assets COMMAND karteassets)
   # Stufe 8d Punkt 4: alle Datei-Leser mit 300 Mutanten je Leser (unter ASan/UBSan in eigenen Bauordnern)
   add_executable(leserfuzz tests/leserfuzz.cpp)
   target_link_libraries(leserfuzz PRIVATE bhed_core)
