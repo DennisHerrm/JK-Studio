@@ -244,6 +244,75 @@ std::vector<Schritt> schritte() {
     add(pruefe("Sprung: geleert, die Einstellung gespeichert (BhedJumpCheckForce 2)", [] {
         return ke::editor().sprungBericht == nullptr && g_app->settings.karte["BhedJumpCheckForce"] == "2";
     }));
+
+    // --- Punkt 5: NPC-Wege --------------------------------------------------------------------
+    // Vier Wegpunkte in einer Reihe am Spielerstart (eine Undo-Stufe), den ersten und letzten
+    // waehlen; View > NPC paths: das Netz hat 4 Punkte und Verbindungen, der Testlauf kommt an,
+    // die Bahn ist in der 2D-Ansicht; Undo nimmt die Wegpunkte zurueck.
+    auto npcVorher = std::make_shared<std::size_t>(0);
+    add(tu("NPC-Wege: vier Wegpunkte am Spielerstart, erster und letzter gewaehlt", [npcVorher] {
+        karteDialogeZu();
+        ke::konsoleLeeren();
+        ke::Editor& ed = ke::editor();
+        *npcVorher = ed.karte.entitaeten().size();
+        karte::Vektor3f s(0, 0, 32);
+        for (const auto& en : ed.karte.entitaeten()) {
+            if (en->wert("classname") == "info_player_start") { s = karte::entitaetUrsprung(*en); }
+        }
+        karte::Befehl undo(ed.karte.undo, "entityCreate -class waypoint");
+        ed.karte.auswahl.leeren();
+        std::vector<std::shared_ptr<karte::Entitaet>> wp;
+        for (int i = 0; i < 4; ++i) {
+            auto en = ed.karte.neueEntitaet("waypoint", false);
+            char o[96];
+            std::snprintf(o, sizeof(o), "%g %g %g", -120.0 + 80.0 * i, 0.0, static_cast<double>(s[2]) + 8.0);
+            en->setzen("origin", o);
+            en->setzen("targetname", "st9wp" + std::to_string(i));
+            if (i < 3) { en->setzen("target", "st9wp" + std::to_string(i + 1)); }
+            ed.karte.entitaetEinfuegen(en);
+            wp.push_back(en);
+        }
+        ed.karte.auswahl.waehlen(wp.front());
+        ed.karte.auswahl.waehlen(wp.back());
+        ed.npcNetzZeigen = false;
+    }));
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeNwMenue)) + "###npcwege"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeNwNetz)) + "###npcnetz"));
+    add(pause(0.5));
+    add(pruefe("NPC-Wege: Netz an, 4 Punkte, mindestens 3 Verbindungen, Konsole", [] {
+        const ke::Editor& ed = ke::editor();
+        const int kanten = ed.npcWelt && ed.npcWelt->netz ? ed.npcWelt->netz->zahlKanten() : -1;
+        const std::size_t punkte = ed.npcWelt && ed.npcWelt->netz ? ed.npcWelt->netz->knoten.size() - 1 : 0;
+        diag::detail("Knopftest: NPC-Wege - Punkte " + std::to_string(punkte) + ", Kanten " + std::to_string(kanten));
+        return ed.npcNetzZeigen && punkte == 4 && kanten >= 3 && konsoleText().find("Waypoint network: 4 points") != std::string::npos;
+    }));
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeNwMenue)) + "###npcwege"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeNwLauf)) + "###npclauf"));
+    add(pause(0.5));
+    add(pruefe("NPC-Wege: Testlauf kommt an, Bahn und Kasten in der 2D-Ansicht", [] {
+        const ke::Editor& ed = ke::editor();
+        if (!ed.npcLauf) { return false; }
+        std::size_t linien = 0;
+        for (const auto& pl : ke::pluginLinien2d()) { linien += pl.linien.size(); }
+        diag::detail("Knopftest: NPC-Wege - Ankunft " + std::to_string(ed.npcLauf->ankunftMs) + " ms, Linien " + std::to_string(linien));
+        return ed.npcLauf->ankunftMs > 0 && !ed.npcLauf->nie && linien > 12 && konsoleText().find("Test walk: arrives") != std::string::npos;
+    }));
+    add(tu("NPC-Wege: aus, Testlauf leeren, Undo", [] {
+        karteDialogeZu();
+        ke::npcTestlaufLeeren();
+        ke::npcNetzUmschalten();
+        (void)ke::ausfuehren("Undo");
+    }));
+    add(pause(0.3));
+    add(pruefe("NPC-Wege: Undo nimmt die Wegpunkte zurueck", [npcVorher] {
+        return ke::editor().karte.entitaeten().size() == *npcVorher && !ke::editor().npcNetzZeigen;
+    }));
     add(tu("Geometrie: Ende - Import-Ordner weg (spaetere Befehlsvergleiche ohne -fs_pakpath)", [] {
         karteDialogeZu();
         ke::konsoleLeeren();

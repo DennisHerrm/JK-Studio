@@ -963,6 +963,7 @@ std::vector<PluginLinien> pluginLinien2d() {
     std::vector<PluginLinien> v;
     spiegelLinien(v);   // Stufe 8b Punkt 6: die Spiegelebene
     sprungLinien(v);    // Stufe 9 Punkt 4: Sprungweite und Platz
+    npcLinien(v);       // Stufe 9 Punkt 5: NPC-Wege
     // DBobView::renderWireframe -> renderSolid: $bobtoolz/bobview/line (rot, 2) und
     // mit "Show Bounding Lines" viermal versetzt in $bobtoolz/bobview/box (0.25 0.75 0.75, 1)
     if (b.bahn.aktiv && b.bahn.punkte.size() >= 2) {
@@ -1012,6 +1013,7 @@ void pluginKameraVoll(const float* matrix, bool fuellen) {
     {   // Stufe 9 Punkt 4: Sprungweite und Platz (Tiefe testen, Farbe je Linie)
         std::vector<PluginLinien> sl;
         sprungLinien(sl);
+        npcLinien(sl);
         for (const PluginLinien& pl : sl) {
             std::vector<kartegpu::LinienPunkt> p;
             for (const karte::Linie& li : pl.linien) {

@@ -21,6 +21,7 @@
 #define BHED_GUI_KARTENEDITOR_H
 
 #include "bhed/i18n.h"
+#include "bhed/karte/npcwege.h"
 #include "bhed/karte/sprungpruefung.h"
 #include "bhed/karte/geometrieimport.h"
 #include "bhed/karte/bau.h"
@@ -957,6 +958,13 @@ struct Editor {
     int sprungMacht = 2;                   // Machtstufe fuer die Pruefung und "Im Editor spielen" ("BhedJumpCheckForce")
     bool sprungLaeuft = false;
     std::shared_ptr<karte::SprungBericht> sprungBericht;
+    // Stufe 9 Punkt 5: NPC-Wege (View > NPC paths)
+    bool npcNetzZeigen = false;
+    bool npcRennen = true;
+    std::shared_ptr<NavWelt> npcWelt;
+    std::size_t npcWeltStand = static_cast<std::size_t>(-1);
+    std::shared_ptr<LaufPlan> npcLauf;
+    double npcLaufStart = 0.0;
     std::string zwischenablage;            // Copy/Paste (NRC: QClipboard "RadiantClippings")
     bool nachKlonenSchubsen = false;       // g_bNudgeAfterClone ("Nudge selected after duplication")
     // --- Einstellungsseiten der Stufe 2, Punkt 11 ---
@@ -1759,6 +1767,11 @@ void sprungPruefungSchritt();     // jedes Bild: ein fertiges Ergebnis uebernehm
 void sprungPruefungBeenden();
 [[nodiscard]] int sprungPruefungFortschritt();
 void sprungLinien(std::vector<PluginLinien>& v);
+// Stufe 9 Punkt 5 (app_karte_sprung.cpp)
+void npcNetzUmschalten();
+bool npcTestlaufStarten();
+void npcTestlaufLeeren();
+void npcLinien(std::vector<PluginLinien>& v);
 // Stufe 8b Punkt 6: Spiegel-Modus (app_karte_spiegel.cpp)
 void spiegelTick();                    // jeden Frame vor den Ansichten
 void spiegelSetzen(int achse);         // -1 aus, 0 X, 1 Y, 2 Z

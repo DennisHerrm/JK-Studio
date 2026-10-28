@@ -404,6 +404,36 @@ void listeZeichnen(const std::string& name) {
                 qtMenueEnde();
             }
         }
+        // Stufe 9 Punkt 5 (eigene Funktion): NPC-Wege
+        {
+            const std::string id = std::string(trK(Str::KeNwMenue)) + "###npcwege";
+            if (qtMenueAnfang(id.c_str())) {
+                const std::string ne = std::string(trK(Str::KeNwNetz)) + "###npcnetz";
+                QtPunkt p;
+                p.id = ne.c_str();
+                p.art = QtArt::Pruefbar;
+                p.haken = e().npcNetzZeigen;
+                p.tooltip = trK(Str::KeNwNetzTip);
+                if (qtPunkt(p)) { npcNetzUmschalten(); }
+                const std::string la = std::string(trK(Str::KeNwLauf)) + "###npclauf";
+                QtPunkt l;
+                l.id = la.c_str();
+                l.tooltip = trK(Str::KeNwLaufTip);
+                if (qtPunkt(l)) { (void)npcTestlaufStarten(); }
+                const std::string re = std::string(trK(Str::KeNwRennen)) + "###npcrennen";
+                QtPunkt r;
+                r.id = re.c_str();
+                r.art = QtArt::Pruefbar;
+                r.haken = e().npcRennen;
+                if (qtPunkt(r)) { e().npcRennen = !e().npcRennen; }
+                const std::string le = std::string(trK(Str::KeNwLeeren)) + "###npcleeren";
+                QtPunkt c;
+                c.id = le.c_str();
+                c.aktiv = static_cast<bool>(e().npcLauf);
+                if (qtPunkt(c)) { npcTestlaufLeeren(); }
+                qtMenueEnde();
+            }
+        }
         // Stufe 7 Punkt 6b (shank: "settings in den Map editor auch einbauen das
         // man theme und language aendern kann"): die Einstellungen des Programms
         // als eigener Abschnitt am Ende von NRCs View-Menue (nicht in NRC;

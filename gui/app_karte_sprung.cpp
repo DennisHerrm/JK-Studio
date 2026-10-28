@@ -14,7 +14,10 @@
 
 #include "bhed/kollision.h"
 #include "bhed/karte/spielkollision.h"
+#include "bhed/karte/npcwege.h"
 #include "bhed/karte/sprungpruefung.h"
+
+#include <cmath>
 
 #include <atomic>
 #include <cstdio>
@@ -165,6 +168,136 @@ void sprungLinien(std::vector<PluginLinien>& v) {
         }
     }
     v.push_back(std::move(bahnen));
+}
+
+// --- Stufe 9 Punkt 5: NPC-Wege ------------------------------------------------------------
+//
+// View > NPC paths: das Wegnetz der Wegpunkte (baueNavNetz wie beim Laden der Karte im Spiel;
+// tuerkis, Sprungkanten orange) und ein Testlauf vom ersten zum letzten gewaehlten Entity
+// (planeLauf: NAV::GoTo, STEER, Pmove gegen die Kollision der Brushes) - gelb, mit einem
+// Kasten, der in Echtzeit die Bahn entlang laeuft.
+
+namespace {
+
+std::shared_ptr<NavWelt> npcWeltHolen() {
+    Editor& ed = e();
+    if (!ed.npcWelt || ed.npcWeltStand != geometrieStand()) {
+        const auto& sp = ed.karteSpiel ? ed.karteSpiel : ed.spiel;
+        const bool jk2 = sp && sp->spiel == kRegelwerkJediOutcast;
+        auto k = std::make_shared<KollisionsKarte>();
+        (void)karte::kollisionAusKarte(ed.karte, parmsVon, !jk2, *k);
+        ed.npcWelt = karte::npcWelt(ed.karte, k);
+        ed.npcWeltStand = geometrieStand();
+    }
+    return ed.npcWelt;
+}
+
+}  // namespace
+
+void npcNetzUmschalten() {
+    Editor& ed = e();
+    ed.npcNetzZeigen = !ed.npcNetzZeigen;
+    ++ed.sichtStand;
+    if (!ed.npcNetzZeigen) { return; }
+    const auto w = npcWeltHolen();
+    int punkte = 0;
+    for (const auto& en : ed.karte.entitaeten()) {
+        const std::string k = en->wert("classname");
+        punkte += (k == "waypoint" || k == "waypoint_small" || k == "waypoint_navgoal" || k == "point_combat") ? 1 : 0;
+    }
+    char t[300];
+    const int kanten = w && w->netz ? w->netz->zahlKanten() : 0;
+    if (punkte <= 3) {
+        std::snprintf(t, sizeof(t), trK(Str::KeNwKeinNetz), punkte);
+    } else {
+        std::snprintf(t, sizeof(t), trK(Str::KeNwNetzInfo), w && w->netz ? static_cast<int>(w->netz->knoten.size()) - 1 : 0, kanten);
+    }
+    ausgabe(t);
+}
+
+bool npcTestlaufStarten() {
+    Editor& ed = e();
+    std::vector<NavVec> orte;
+    for (const auto& a : ed.karte.auswahl.elemente()) {
+        const auto ent = a.entitaet.lock();
+        if (!ent || !a.primitiv.expired() || ent->wert("classname") == "worldspawn") { continue; }
+        const karte::Vektor3f o = karte::entitaetUrsprung(*ent);
+        orte.push_back({o[0], o[1], o[2]});
+    }
+    if (orte.size() < 2) {
+        fehler(trK(Str::KeNwZweiWaehlen));
+        return false;
+    }
+    const auto w = npcWeltHolen();
+    ed.npcLauf = std::make_shared<LaufPlan>(karte::npcTestlauf(*w, orte.front(), orte.back(), ed.npcRennen));
+    ed.npcLaufStart = ImGui::GetTime();
+    ++ed.sichtStand;
+    char t[300];
+    const LaufPlan& p = *ed.npcLauf;
+    if (p.ankunftMs > 0.0 && !p.nie) {
+        std::snprintf(t, sizeof(t), trK(Str::KeNwAn), p.ankunftMs / 1000.0);
+        ausgabe(t);
+    } else {
+        const NavVec o = p.zustaende.empty() ? orte.front() : p.zustaende.back().ort;
+        const double ms = p.zustaende.empty() ? 0.0 : static_cast<double>(p.zustaende.size()) * 50.0;
+        std::snprintf(t, sizeof(t), trK(Str::KeNwNichtAn), static_cast<double>(o[0]), static_cast<double>(o[1]), static_cast<double>(o[2]), ms / 1000.0);
+        warnung(t);
+    }
+    return true;
+}
+
+void npcTestlaufLeeren() {
+    e().npcLauf.reset();
+    ++e().sichtStand;
+}
+
+void npcLinien(std::vector<PluginLinien>& v) {
+    Editor& ed = e();
+    const auto vek = [](const NavVec& p, float dz) { return karte::Vektor3f(p[0], p[1], p[2] + dz); };
+    if (ed.npcNetzZeigen && ed.npcWelt && ed.npcWelt->netz) {
+        const NavNetz& n = *ed.npcWelt->netz;
+        PluginLinien netz;
+        netz.breite = 2.0F;
+        const karte::Farbe tuerkis = karte::farbeAus(0.1F, 0.9F, 0.9F);
+        const karte::Farbe orange = karte::farbeAus(1.0F, 0.55F, 0.1F);
+        for (std::size_t i = 1; i < n.kanten.size() && i < n.kanteBenutzt.size(); ++i) {
+            if (!n.kanteBenutzt[i]) { continue; }
+            const NavKante& k = n.kanten[i];
+            if (k.a <= 0 || k.b <= 0 || static_cast<std::size_t>(k.a) >= n.knoten.size() || static_cast<std::size_t>(k.b) >= n.knoten.size()) { continue; }
+            netz.linien.push_back({vek(n.knoten[static_cast<std::size_t>(k.a)].punkt, 0), vek(n.knoten[static_cast<std::size_t>(k.b)].punkt, 0),
+                                   k.hat(NavKante::Springen) ? orange : tuerkis});
+        }
+        for (std::size_t i = 1; i < n.knoten.size(); ++i) {
+            const karte::Vektor3f m = vek(n.knoten[i].punkt, 0);
+            netz.linien.push_back({m + karte::Vektor3f(-6, 0, 0), m + karte::Vektor3f(6, 0, 0), tuerkis});
+            netz.linien.push_back({m + karte::Vektor3f(0, -6, 0), m + karte::Vektor3f(0, 6, 0), tuerkis});
+        }
+        v.push_back(std::move(netz));
+    }
+    if (ed.npcLauf && !ed.npcLauf->zustaende.empty()) {
+        const LaufPlan& p = *ed.npcLauf;
+        PluginLinien bahn;
+        bahn.breite = 2.0F;
+        const karte::Farbe gelb = karte::farbeAus(1.0F, 0.95F, 0.2F);
+        NavVec vorher = p.anfang.ort;
+        for (const LaufZustand& z : p.zustaende) {
+            bahn.linien.push_back({vek(vorher, -20), vek(z.ort, -20), gelb});
+            vorher = z.ort;
+        }
+        // der Kasten der Figur, in Echtzeit entlang der Bahn (danach eine Sekunde Pause)
+        const double ende = static_cast<double>(p.zustaende.size()) * 50.0 + 1000.0;
+        const double t = std::fmod((ImGui::GetTime() - ed.npcLaufStart) * 1000.0, ende);
+        const NavVec o = ortBei(p, t);
+        const karte::Vektor3f lo(o[0] - 16, o[1] - 16, o[2] - 24), hi(o[0] + 16, o[1] + 16, o[2] + 40);
+        const karte::Vektor3f ecken[8] = {{lo[0], lo[1], lo[2]}, {hi[0], lo[1], lo[2]}, {hi[0], hi[1], lo[2]}, {lo[0], hi[1], lo[2]},
+                                          {lo[0], lo[1], hi[2]}, {hi[0], lo[1], hi[2]}, {hi[0], hi[1], hi[2]}, {lo[0], hi[1], hi[2]}};
+        for (int i = 0; i < 4; ++i) {
+            bahn.linien.push_back({ecken[i], ecken[(i + 1) % 4], gelb});
+            bahn.linien.push_back({ecken[i + 4], ecken[(i + 1) % 4 + 4], gelb});
+            bahn.linien.push_back({ecken[i], ecken[i + 4], gelb});
+        }
+        v.push_back(std::move(bahn));
+    }
 }
 
 }  // namespace bhed::gui::karteneditor

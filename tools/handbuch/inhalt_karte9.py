@@ -95,6 +95,12 @@ KARTE_WERKZEUGE9 = {
               "所选的原力跳跃等级也适用于 **{{KeSpMenue}}**(F6):按住空格键可以跳得更高。",
               "選んだフォースジャンプのレベルは **{{KeSpMenue}}**(F6)にも使われます。スペースキーを押し続けると高く跳びます。"),
         ]),
+        ("h2", "npcwege", T("NPC paths", "NPC-Wege", "NPC 路径", "NPC の経路")),
+        ("p", T(
+            "**{{KeLView}} > {{KeNwMenue}} > {{KeNwNetz}}** shows the network the game builds from the waypoints when it loads the map - connections turquoise, jump connections orange. The game builds a network only from more than three waypoints; the console says so. **{{KeNwLauf}}**: select two entities (for example two waypoints, or an info_player_start and a waypoint) - an NPC walks from the first to the last one with the game's path finding and movement; the path is yellow and a box walks along it in real time. The console says after how many seconds it arrives, or where it gets stuck. **{{KeNwRennen}}** switches between running and walking.",
+            "**{{KeLView}} > {{KeNwMenue}} > {{KeNwNetz}}** zeigt das Netz, das das Spiel beim Laden der Karte aus den Wegpunkten baut - Verbindungen türkis, Sprungverbindungen orange. Das Spiel baut erst ab mehr als drei Wegpunkten ein Netz; die Konsole sagt es. **{{KeNwLauf}}**: wähle zwei Entities (etwa zwei Wegpunkte, oder ein info_player_start und einen Wegpunkt) - ein NPC läuft mit der Wegfindung und Bewegung des Spiels vom ersten zum letzten; die Bahn ist gelb, und ein Kasten läuft sie in Echtzeit ab. Die Konsole sagt, nach wie vielen Sekunden er ankommt oder wo er hängen bleibt. **{{KeNwRennen}}** schaltet zwischen Rennen und Gehen.",
+            "**{{KeLView}} > {{KeNwMenue}} > {{KeNwNetz}}** 显示游戏加载地图时由路点构建的网络——连接为青色,跳跃连接为橙色。游戏只有在超过三个路点时才构建网络;控制台会提示。**{{KeNwLauf}}**:选择两个实体(例如两个路点,或一个 info_player_start 和一个路点)——一个 NPC 使用游戏的寻路和移动从第一个走到最后一个;路径为黄色,一个方框实时沿路径移动。控制台会显示几秒后到达,或在哪里卡住。**{{KeNwRennen}}** 在奔跑和行走之间切换。",
+            "**{{KeLView}} > {{KeNwMenue}} > {{KeNwNetz}}** は、ゲームがマップを読み込むときにウェイポイントから作る網を表示します。つながりは水色、ジャンプのつながりはオレンジです。ゲームはウェイポイントが 3 つより多いときだけ網を作り、コンソールにそう表示されます。**{{KeNwLauf}}**:エンティティを 2 つ選ぶと(たとえばウェイポイント 2 つ、または info_player_start とウェイポイント)、NPC がゲームの経路探索と動きで最初のものから最後のものへ歩きます。経路は黄色で、箱がリアルタイムでたどります。何秒で着くか、どこで止まるかはコンソールに表示されます。**{{KeNwRennen}}** で走る・歩くを切り替えます。")),
     ],
 }
 
