@@ -99,7 +99,9 @@ struct Eintrag {
          '#include "bhed/changelog.h"', '', '#include <cstddef>', '', 'namespace bhed::changelog {', '', 'namespace {',
          'const Eintrag kEintraege[] = {']
     for e in eintraege:
-        teile = ['"%s"' % esc('\n'.join(e['text'][s])) for s in SPRACHEN]
+        # je Zeile ein eigenes Literal: MSVC bricht ab 16380 Zeichen je Literal ab (C2026)
+        teile = [' '.join('"%s"' % esc(z + ('\n' if i < len(e['text'][s]) - 1 else ''))
+                          for i, z in enumerate(e['text'][s])) for s in SPRACHEN]
         c.append('    {"%s", "%s", {%s}},' % (e['fassung'], e['datum'], ',\n      '.join(teile)))
     c += ['};', '}  // namespace', '',
           'const Eintrag* eintraege() { return kEintraege; }',
