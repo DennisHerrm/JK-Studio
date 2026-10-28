@@ -980,6 +980,8 @@ target_sources(bhed_core PRIVATE
   src/karte/geometrieimport.cpp
   # Stufe 9 Punkt 3: Modell-Import (MD3 samt Shader und Texturen)
   src/karte/modellimport.cpp
+  # Stufe 9 Punkt 4: Sprungweite und Platz pruefen
+  src/karte/sprungpruefung.cpp
   # Stufe 1b: Texturbrowser (texwindow.cpp, aktive Shader)
   src/karte/texturbrowser.cpp
   # Stufe 1b: Texturen mit M3 kopieren und auftragen (TexManipulator, surfacedialog.cpp)
@@ -1202,6 +1204,10 @@ if(BEHAVED_TESTS)
   add_executable(kartemd3import tests/kartemd3import.cpp)
   target_link_libraries(kartemd3import PRIVATE bhed_core)
   add_test(NAME karte_md3import COMMAND kartemd3import)
+  # Stufe 9 Punkt 4: Machtsprung im Spieler-Pmove, Sprungweite und Platz
+  add_executable(kartesprung tests/kartesprung.cpp)
+  target_link_libraries(kartesprung PRIVATE bhed_core)
+  add_test(NAME karte_sprung COMMAND kartesprung)
   # Stufe 8d Punkt 4: alle Datei-Leser mit 300 Mutanten je Leser (unter ASan/UBSan in eigenen Bauordnern)
   add_executable(leserfuzz tests/leserfuzz.cpp)
   target_link_libraries(leserfuzz PRIVATE bhed_core)

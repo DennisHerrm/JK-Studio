@@ -1019,7 +1019,7 @@ namespace bhed {
 // CONTENTS_BOTCLIP, wishvel aus ucmd und pml.forward/right, PM_CmdScale mit
 // upmove, pm_duckScale, PM_ClipVelocity und PM_StepSlideMove mit
 // g_stepSlideFix 1 (Steilhang), PM_CheckJump (der Grundsprung JUMP_VELOCITY
-// 225 - ohne Machtkraefte: forcePowerLevel[FP_LEVITATION] 0), PM_CheckDuck
+// 225; seit Stufe 9 mit dem Machtsprung: METROID_JUMP und die Kappe in PM_AirMove), PM_CheckDuck
 // (CROUCH_MAXS_2 16) und PM_NoclipMove. ps.speed = g_speed 250 (g_main.cpp),
 // ps.gravity 800, STEPSIZE 18, Kasten -16..16 x -24..40.
 // Nicht dabei: Wasser (PM_WaterMove), Leitern, Fallschaden, Mover.
@@ -1037,6 +1037,10 @@ struct NavSpieler {
     bool jk2 = false;             // Regelwerk Jedi Outcast (codeJK2)
     int geschwindigkeit = 250;    // ps.speed
     float schwerkraft = 800.0F;   // ps.gravity
+    // Stufe 9 Punkt 4: Machtsprung (PM_CheckJump METROID_JUMP, PM_AirMove-Kappe)
+    int machtStufe = 0;           // forcePowerLevel[FP_LEVITATION] 0..3 (MD: FP_TableLevel)
+    bool levitation = false;      // forcePowersActive & (1 << FP_LEVITATION)
+    float machtStart = 0.0F;      // forceJumpZStart
 };
 struct NavSpielerEingabe {
     signed char vor = 0;          // ucmd.forwardmove (-127..127, gehen 64)

@@ -3428,6 +3428,47 @@ struct Lauf {
     signed char ucmdHoch = 0;     // ucmd.upmove
     bool* spielerSprungGehalten = nullptr;   // PMF_JUMP_HELD
     bool* spielerSpringt = nullptr;          // PMF_JUMPING
+    // Stufe 9 Punkt 4: der Machtsprung des Spielers (forcePowerLevel[FP_LEVITATION],
+    // forcePowersActive & FP_LEVITATION, forceJumpZStart)
+    int spielerMachtStufe = 0;
+    bool* spielerLevitation = nullptr;
+    float* spielerMachtStart = nullptr;
+    // forceJumpHeight / forceJumpStrength (wp_saber.cpp:217-231 OpenJK, codeJK2 142-156, MD 442
+    // gleich); MD liest mit FP_TableLevel (hoechstens Stufe 3), OpenJK/JK2 kennen nur 0..3
+    static constexpr float kMachtHoehe[4] = {32.0F, 96.0F, 192.0F, 384.0F};
+    static constexpr float kMachtStaerke[4] = {225.0F, 420.0F, 590.0F, 840.0F};
+    // PM_CheckJump, Teil METROID_JUMP (bg_pmove.cpp:1090-1416 OpenJK, codeJK2 620-795 gleich):
+    // am Anfang von PM_AirMove. PM_ForceJumpingUp: in der Luft, PMF_JUMPING und velocity[2] > 0,
+    // FP_LEVITATION > 0 (forceJumpCharge 0, keine Sonder-/Rad-/Schmetterlingssprung-Animation,
+    // keine Zwischensequenz); dazu PMF_JUMP_HELD. Kraft (forcePower) ist da (volle Leiste).
+    void spielerMachtsprung() {
+        if (spielerMachtStart == nullptr || schwer <= 0.0F || spielerMachtStufe <= 0) { return; }   // gravity > 0
+        if (z.amBoden || spielerSpringt == nullptr || !*spielerSpringt || z.tempoVek[2] <= 0.0F) { return; }
+        if (spielerSprungGehalten == nullptr || !*spielerSprungGehalten) { return; }
+        const int l = std::clamp(spielerMachtStufe, 0, 3);
+        const float hoehe = z.ort[2] - *spielerMachtStart;   // curHeight
+        float& vz = z.tempoVek[2];
+        if ((hoehe <= kMachtHoehe[0] || ucmdHoch >= 10) && hoehe < kMachtHoehe[l]) {
+            // "passed normal jump height": FP_LEVITATION an (Ton, Salto - hier ohne Animation)
+            if (hoehe > kMachtHoehe[0] && spielerLevitation != nullptr) { *spielerLevitation = true; }
+            vz = (kMachtHoehe[l] - hoehe) / kMachtHoehe[l] * kMachtStaerke[l];
+            vz /= 10.0F;
+            vz += 225.0F;   // JUMP_VELOCITY
+            *spielerSprungGehalten = true;
+        } else if (hoehe > kMachtHoehe[0] && hoehe < kMachtHoehe[l] - kMachtHoehe[0]) {
+            if (vz > 225.0F) { vz = 225.0F; }   // "still have some headroom, don't totally stop it"
+        } else {
+            vz = 0.0F;
+        }
+        ucmdHoch = 0;
+    }
+    // PM_AirMove vor PM_StepSlideMove (bg_pmove.cpp:2998-3008 OpenJK, codeJK2 1811-1829): "I am
+    // force jumping and I'm not holding the button anymore" - oben angekommen: velocity[2] = 0
+    void spielerMachtKappe() {
+        if (spielerMachtStart == nullptr || spielerMachtStufe <= 0 || *spielerMachtStart == 0.0F || z.tempoVek[2] <= 0.0F) { return; }
+        const float hoehe = z.ort[2] - *spielerMachtStart + z.tempoVek[2] * frameZeit;
+        if (hoehe >= kMachtHoehe[std::clamp(spielerMachtStufe, 0, 3)]) { z.tempoVek[2] = 0.0F; }
+    }
     // PM_ClipVelocity (bg_pmove.cpp OpenJK): beim Spieler mit g_stepSlideFix 1
     // an einem zu steilen Hang am Boden kein Hinaufgleiten (out[2] = oldInZ).
     void abgleitenSp(NavVec& v, const NavVec& n, float overbounce) const {
@@ -3448,6 +3489,7 @@ struct Lauf {
         if (!z.amBoden) { return false; }
         z.tempoVek[2] = 225.0F;   // JUMP_VELOCITY
         z.sprung.zStart = z.ort[2];
+        if (spielerMachtStart != nullptr) { *spielerMachtStart = z.ort[2]; }   // forceJumpZStart
         if (spielerSpringt != nullptr) { *spielerSpringt = true; }
         bodenFlaeche = false;
         gehend = false;
@@ -3788,6 +3830,7 @@ struct Lauf {
     // PM_CmdScale (ps.speed), pml.forward/right flach, pm_airaccelerate,
     // pm_airDecelRate gegen die Richtung, dann PM_StepSlideMove(1).
     void luftBewegung() {
+        if (spieler) { spielerMachtsprung(); }   // Stufe 9 Punkt 4: METROID_JUMP
         reibung(false);
         int maxm = std::abs(static_cast<int>(ucmdVor));
         if (std::abs(static_cast<int>(ucmdSeit)) > maxm) { maxm = std::abs(static_cast<int>(ucmdSeit)); }
@@ -3815,6 +3858,7 @@ struct Lauf {
         if (punkt(z.tempoVek, wishdir) < 0.0F) { wishspeed *= 1.35F; }   // pm_airDecelRate
         beschleunigen(wishdir, wishspeed, 4.0F);                          // pm_airaccelerate
         if (bodenFlaeche) { abgleitenSp(z.tempoVek, bodenNormale, kOverclip); }
+        if (spieler) { spielerMachtKappe(); }   // Stufe 9 Punkt 4
         stufenSchieben(1.0F);
     }
 
@@ -4959,6 +5003,9 @@ void navSpielerPmove(NavSpieler& s, const NavSpurFn& spur, const NavSpielerEinga
     l.ucmdHoch = e.hoch;
     l.spielerSprungGehalten = &s.sprungGehalten;
     l.spielerSpringt = &s.springt;
+    l.spielerMachtStufe = s.machtStufe;   // Stufe 9 Punkt 4
+    l.spielerLevitation = &s.levitation;
+    l.spielerMachtStart = &s.machtStart;
     // PM_CheckDuck (bg_pmove.cpp:5684 OpenJK): upmove < 0 duckt; sonst aufstehen,
     // wenn der Kasten in voller Hoehe frei ist
     if (e.hoch < 0) {
@@ -4976,7 +5023,11 @@ void navSpielerPmove(NavSpieler& s, const NavSpurFn& spur, const NavSpielerEinga
     s.tempo = z.tempoVek;
     s.amBoden = z.amBoden;
     s.pmZeit = z.pmZeit;
-    if (s.amBoden) { s.springt = false; }   // "on ground": PMF_JUMPING weg
+    if (s.amBoden) {   // "on ground": forceJumpZStart 0, PMF_JUMPING weg; FP_LEVITATION endet (WP_ForcePowerStop)
+        s.springt = false;
+        s.machtStart = 0.0F;
+        s.levitation = false;
+    }
 }
 
 namespace {
