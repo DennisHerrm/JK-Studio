@@ -987,6 +987,8 @@ target_sources(bhed_core PRIVATE
   src/karte/npcwege.cpp
   # Stufe 9 Punkt 6: verknuepfte Prefabs
   src/karte/prefabverbund.cpp
+  # Stufe 9 Punkt 7: Kurven-Werkzeug
+  src/karte/kurven.cpp
   # Stufe 1b: Texturbrowser (texwindow.cpp, aktive Shader)
   src/karte/texturbrowser.cpp
   # Stufe 1b: Texturen mit M3 kopieren und auftragen (TexManipulator, surfacedialog.cpp)
@@ -1221,6 +1223,10 @@ if(BEHAVED_TESTS)
   add_executable(karteverbund tests/karteverbund.cpp)
   target_link_libraries(karteverbund PRIVATE bhed_core)
   add_test(NAME karte_verbund COMMAND karteverbund)
+  # Stufe 9 Punkt 7: Kurven-Werkzeug
+  add_executable(kartekurven tests/kartekurven.cpp)
+  target_link_libraries(kartekurven PRIVATE bhed_core)
+  add_test(NAME karte_kurven COMMAND kartekurven)
   # Stufe 8d Punkt 4: alle Datei-Leser mit 300 Mutanten je Leser (unter ASan/UBSan in eigenen Bauordnern)
   add_executable(leserfuzz tests/leserfuzz.cpp)
   target_link_libraries(leserfuzz PRIVATE bhed_core)

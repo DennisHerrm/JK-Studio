@@ -450,6 +450,30 @@ void listeZeichnen(const std::string& name) {
                 qtMenueEnde();
             }
         }
+        // Stufe 9 Punkt 7 (eigene Funktion): Kurven-Werkzeug
+        {
+            const std::string id = std::string(trK(Str::KeKuMenue)) + "###kurve";
+            if (qtMenueAnfang(id.c_str())) {
+                const struct {
+                    karte::KurvenArt art;
+                    Str text;
+                    const char* kennung;
+                } arten[] = {{karte::KurvenArt::Weg, Str::KeKuWeg, "###kurveweg"},
+                             {karte::KurvenArt::Rohr, Str::KeKuRohr, "###kurverohr"},
+                             {karte::KurvenArt::Gelaender, Str::KeKuGelaender, "###kurvegelaender"},
+                             {karte::KurvenArt::Bruecke, Str::KeKuBruecke, "###kurvebruecke"},
+                             {karte::KurvenArt::PfadEcken, Str::KeKuPfad, "###kurvepfad"},
+                             {karte::KurvenArt::Wegpunkte, Str::KeKuWegpunkte, "###kurvewegpunkte"}};
+                for (const auto& a : arten) {
+                    const std::string t = std::string(trK(a.text)) + a.kennung;
+                    QtPunkt p;
+                    p.id = t.c_str();
+                    p.tooltip = trK(Str::KeKuTip);
+                    if (qtPunkt(p)) { (void)kurveBefehl(a.art); }
+                }
+                qtMenueEnde();
+            }
+        }
         // Stufe 7 Punkt 6b (shank: "settings in den Map editor auch einbauen das
         // man theme und language aendern kann"): die Einstellungen des Programms
         // als eigener Abschnitt am Ende von NRCs View-Menue (nicht in NRC;

@@ -386,6 +386,69 @@ std::vector<Schritt> schritte() {
     add(pruefe("Verbund: die Karte wie vorher", [vbVorher, vbGruppe] {
         return ke::editor().karte.entitaeten().size() == *vbVorher && !vbGruppe(0);
     }));
+
+    // --- Punkt 7: Kurven-Werkzeug -------------------------------------------------------------
+    // Drei info_null im Raum (in dieser Reihenfolge gewaehlt): View > Curve tool > Path -> ein
+    // Patch im worldspawn; Undo; Path corners -> eine path_corner-Kette; Undo; Undo (info_null).
+    auto kuVorher = std::make_shared<std::size_t>(0);
+    auto kuPatches = std::make_shared<std::size_t>(0);
+    add(tu("Kurve: drei info_null, der Reihe nach gewaehlt", [kuVorher, kuPatches] {
+        karteDialogeZu();
+        ke::konsoleLeeren();
+        ke::Editor& ed = ke::editor();
+        *kuVorher = ed.karte.entitaeten().size();
+        *kuPatches = ed.karte.welt()->kinder().size();
+        karte::Befehl b(ed.karte.undo, "entityCreate -class info_null");
+        ed.karte.auswahl.leeren();
+        const char* orte[3] = {"-150 -100 -40", "0 100 -40", "150 -100 -40"};
+        for (const char* o : orte) {
+            auto en = ed.karte.neueEntitaet("info_null", false);
+            en->setzen("origin", o);
+            ed.karte.entitaetEinfuegen(en);
+            ed.karte.auswahl.waehlen(en);
+        }
+    }));
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeKuMenue)) + "###kurve"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeKuWeg)) + "###kurveweg"));
+    add(pause(0.4));
+    add(pruefe("Kurve: ein Weg-Patch im worldspawn (3 Spalten), Konsole", [kuPatches] {
+        const auto& kinder = ke::editor().karte.welt()->kinder();
+        if (kinder.size() != *kuPatches + 1 || !kinder.back() || kinder.back()->art() != karte::Primitiv::Art::Patch) { return false; }
+        const auto& p = static_cast<const karte::Patch&>(*kinder.back());
+        return p.breite() == 3 && p.hoehe() >= 5 && konsoleText().find("Curve tool: curve through 3 points - 1 new") != std::string::npos;
+    }));
+    add(tu("Kurve: Undo, dann die Auswahl der drei info_null zurueck und path_corner", [] {
+        (void)ke::ausfuehren("Undo");
+        ke::Editor& ed = ke::editor();
+        ed.karte.auswahl.leeren();
+        for (const auto& en : ed.karte.entitaeten()) {
+            if (en->wert("classname") == "info_null") { ed.karte.auswahl.waehlen(en); }
+        }
+        (void)ke::kurveBefehl(karte::KurvenArt::PfadEcken);
+    }));
+    add(pause(0.3));
+    add(pruefe("Kurve: path_corner-Kette kurve1_1 -> kurve1_2 ...", [] {
+        int n = 0;
+        bool erster = false;
+        for (const auto& en : ke::editor().karte.entitaeten()) {
+            if (en->wert("classname") != "path_corner") { continue; }
+            ++n;
+            if (en->wert("targetname") == "kurve1_1") { erster = en->wert("target") == "kurve1_2"; }
+        }
+        diag::detail("Knopftest: Kurve - path_corner " + std::to_string(n));
+        return n >= 5 && n % 2 == 1 && erster;
+    }));
+    add(tu("Kurve: zwei Undo (Kette, info_null)", [] {
+        (void)ke::ausfuehren("Undo");
+        (void)ke::ausfuehren("Undo");
+    }));
+    add(pause(0.3));
+    add(pruefe("Kurve: die Karte wie vorher", [kuVorher, kuPatches] {
+        return ke::editor().karte.entitaeten().size() == *kuVorher && ke::editor().karte.welt()->kinder().size() == *kuPatches;
+    }));
     add(tu("Geometrie: Ende - Import-Ordner weg (spaetere Befehlsvergleiche ohne -fs_pakpath)", [] {
         karteDialogeZu();
         ke::konsoleLeeren();

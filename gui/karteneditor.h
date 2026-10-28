@@ -22,6 +22,7 @@
 
 #include "bhed/i18n.h"
 #include "bhed/karte/prefabverbund.h"
+#include "bhed/karte/kurven.h"
 #include "bhed/karte/npcwege.h"
 #include "bhed/karte/sprungpruefung.h"
 #include "bhed/karte/geometrieimport.h"
@@ -1777,6 +1778,8 @@ void npcLinien(std::vector<PluginLinien>& v);
 // Stufe 9 Punkt 6 (app_karte_sprung.cpp)
 bool verbundKopieBefehl();
 bool verbundLoesenBefehl();
+// Stufe 9 Punkt 7 (app_karte_sprung.cpp): Kurve durch die gewaehlten Punkt-Entities
+bool kurveBefehl(karte::KurvenArt art);
 // Stufe 8b Punkt 6: Spiegel-Modus (app_karte_spiegel.cpp)
 void spiegelTick();                    // jeden Frame vor den Ansichten
 void spiegelSetzen(int achse);         // -1 aus, 0 X, 1 Y, 2 Z

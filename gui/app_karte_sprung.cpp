@@ -332,4 +332,36 @@ bool verbundLoesenBefehl() {
     return ok;
 }
 
+// --- Stufe 9 Punkt 7: Kurven-Werkzeug ------------------------------------------------------
+
+bool kurveBefehl(karte::KurvenArt art) {
+    Editor& ed = e();
+    std::vector<karte::Vektor3f> kp;
+    for (const auto& a : ed.karte.auswahl.elemente()) {
+        const auto ent = a.entitaet.lock();
+        if (!ent || !a.primitiv.expired() || ent->wert("classname") == "worldspawn") { continue; }
+        kp.push_back(karte::entitaetUrsprung(*ent));
+    }
+    if (kp.size() < 2) {
+        fehler(trK(Str::KeKuZweiWaehlen));
+        return false;
+    }
+    karte::KurvenOptionen o;
+    if (!ed.texBro.shader.empty()) { o.shader = ed.texBro.shader; }
+    o.schritt = std::max(16.0F, ed.raster.groesse() * 8.0F);
+    std::set<std::string> namen;
+    for (const auto& en : ed.karte.entitaeten()) { namen.insert(en->wert("targetname")); }
+    std::string praefix;
+    for (int i = 1; praefix.empty() || namen.count(praefix + "1") != 0; ++i) {
+        praefix = (art == karte::KurvenArt::Wegpunkte ? "kurvenwp" : "kurve") + std::to_string(i) + "_";
+    }
+    const std::size_t n = karte::kurveEinfuegen(ed.karte, kp, art, o, praefix);
+    ++ed.sichtStand;
+    auswahlGeaendert();
+    char t[300];
+    std::snprintf(t, sizeof(t), trK(Str::KeKuFertig), static_cast<int>(kp.size()), static_cast<int>(n));
+    ausgabe(t);
+    return n > 0;
+}
+
 }  // namespace bhed::gui::karteneditor
