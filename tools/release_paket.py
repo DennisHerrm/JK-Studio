@@ -160,6 +160,9 @@ LIZENZEN = [
     # Stufe 8c: die Schriftzuege des Logos (res/jkstudio_logo.png, jkstudio.ico) aus Cinzel und Michroma
     ("OFL-Cinzel.txt", "licenses/OFL-Cinzel.txt", None),
     ("OFL-Michroma.txt", "licenses/OFL-Michroma.txt", None),
+    # Stufe 8d: was in jkstudio.exe selbst steckt (Dear ImGui, MIT; minimp3, CC0) - THIRD-PARTY.md
+    ("imgui.txt", "licenses/imgui-MIT.txt", None),
+    ("minimp3.txt", "third_party/minimp3.h", ("https://github.com/lieff/minimp3", "publicdomain/zero/1.0/>.")),
     ("q3map2-README.md", "third_party/q3map2/README.md", None),
     ("zlib.txt", "third_party/zlib/LICENSE", None),
     ("libpng.txt", "third_party/libpng/LICENSE", None),
@@ -208,7 +211,7 @@ def lizenz_eintraege(wurzel):
             zeilen = text[a:e + len(block[1])].replace("\r\n", "\n").split("\n")
             # Kommentarzeichen am Zeilenanfang weg ("// ", " * ", "   ")
             sauber = [re.sub(r"^\s*(//|\*)? ?", "", z).rstrip() for z in zeilen]
-            inhalt = ("From %s (part of bhed_q3map2.exe):\n\n" % rel + "\n".join(sauber) + "\n").encode("utf-8")
+            inhalt = ("From %s (part of JK Studio):\n\n" % rel + "\n".join(sauber) + "\n").encode("utf-8")
         aus.append((OBER + "/licenses/" + name, inhalt))
     return aus
 

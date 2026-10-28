@@ -14947,7 +14947,7 @@ Bild verändert, wäre keine Umstellung, sondern eine Änderung.
 
 ### Was als Nächstes drankommt
 
-Die sechzehn Merkmale in der Reihenfolge aus `UMBAU-GPU.md`. Der nächste
+Die sechzehn Merkmale in der Reihenfolge aus `docs/intern/UMBAU-GPU.md`. Der nächste
 abnehmbare Schritt ist, `batchStateFor` so weit zu füllen, dass ein
 Verbraucher OHNE Zugriff auf `TextureSet::Tex` auskommt — dann ist die
 Schnittstelle vollständig, und erst dann lohnt ein zweiter Rasterer.
@@ -15792,7 +15792,7 @@ Glühen gegen den Bau davor    0 Bytes anders
 
 ## rc374 — Teilchen in halber Auflösung, Faktor 3,6
 
-Stufe 1 aus `UMBAU-GPU.md`, eingehängt und abgenommen.
+Stufe 1 aus `docs/intern/UMBAU-GPU.md`, eingehängt und abgenommen.
 
 ### Die Zahlen
 
@@ -15935,7 +15935,7 @@ also im Vulkanschacht von 1839 ms auf etwa 470. **Viel und trotzdem nicht
 genug.** Wer davon 60 Bilder je Sekunde erwartet, wird enttäuscht — das
 gehört gesagt, bevor die Arbeit gemacht wird.
 
-`UMBAU-GPU.md` ist entsprechend berichtigt; die alten Zahlen dort waren die
+`docs/intern/UMBAU-GPU.md` ist entsprechend berichtigt; die alten Zahlen dort waren die
 falschen aus rc371.
 
 ### Prüflauf
@@ -16026,7 +16026,7 @@ zwei Ausreisser, --punkte 1: durchgefallen
 zwei Ausreisser, --punkte 2: bestanden
 ```
 
-### `UMBAU-GPU.md`
+### `docs/intern/UMBAU-GPU.md`
 
 Die Landkarte für den Rest. Kurz:
 
@@ -25668,7 +25668,7 @@ check_gui.sh gruen.
 
 ## Uebergabe
 
-`HANDOUT-behaved-rc199.md` liegt im Paket: Arbeitsweise, alle Aenderungen
+`docs/intern/HANDOUT-behaved-rc199.md` liegt im Paket: Arbeitsweise, alle Aenderungen
 dieser Sitzung, was nachgeschlagen wurde, die offenen Punkte - und die
 Fallstricke, die diese Sitzung gekostet haben.
 

@@ -190,7 +190,7 @@ python3 tools/lint_gapp.py
 python3 tools/lint_gapp.py --gegentest
 python3 tools/lint_portability.py
 # Das Vergleichswerkzeug fuer den GPU-Umbau prueft sich selbst - siehe
-# UMBAU-GPU.md. Ein Vergleicher, der nicht geprueft ist, sagt "innerhalb der
+# docs/intern/UMBAU-GPU.md. Ein Vergleicher, der nicht geprueft ist, sagt "innerhalb der
 # Toleranz" und niemand sieht nach.
 python3 tools/lint_bildvergleich.py
 # Jede Einstellung muss geschrieben UND gelesen werden - sonst geht sie bei

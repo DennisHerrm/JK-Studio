@@ -122,7 +122,7 @@ def main() -> int:
         # UEBERSPRUNGEN heisst NICHT bestanden.
         #
         # Bis rc429 stand hier nur "uebersprungen", und der Pruefzettel in
-        # UEBERGABE.md meldete "13 Linter, 0 Beanstandungen". Als
+        # docs/intern/UEBERGABE.md meldete "13 Linter, 0 Beanstandungen". Als
         # clang-tidy zum ersten Mal wirklich lief, waren es 36. Der
         # Zettel war neun Runden lang falsch, ohne dass jemand log.
         #

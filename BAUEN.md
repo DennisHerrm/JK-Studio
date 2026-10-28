@@ -714,7 +714,7 @@ Der Editor startet es wie NRC sein `q3map2.exe`.
 * Was MSVC anders braucht als MinGW, steht außerhalb: `src/q3map2/kompat/`
   (per `/FI` vor jede Quelle) und angepasste **Kopien** einzelner Dateien im
   Bauordner (`bhed_q3_kopie`: Ersetzungen, die abbrechen, wenn sich die Stelle
-  ändert). Die Liste mit Begründung: `NOTIZEN_karte3.md`, Punkt 1 und 2.
+  ändert). Die Liste mit Begründung: `docs/intern/NOTIZEN_karte3.md`, Punkt 1 und 2.
   Zwei davon ändern das Ergebnis, nicht nur den Bau: `std::sort` mit der
   Reihenfolge von libstdc++ (`kompat/gcc_sort.h`) und das Wachsen der
   Entity-Liste ohne Kopieren (`kompat/gcc_vektor.h`, sonst zeigen
@@ -748,7 +748,7 @@ cmake -S . -B build -DBEHAVED_Q3MAP2_LLVM=C:/llvm-23.1.4/bin
   Thread gleich, -light im Rahmen dessen, was NRC gegen NRC schwankt.
   `/fp:precise` und SSE2 gelten für clang-cl genauso (keine FMA).
 * **Schneller:** -light 14–21 %, -vis bis 25 % (Messwerte in
-  `NOTIZEN_karte5.md`, Punkt 6). `-O3` und ThinLTO bringen nichts dazu.
+  `docs/intern/NOTIZEN_karte5.md`, Punkt 6). `-O3` und ThinLTO bringen nichts dazu.
 * Fehlt eines der Werkzeuge oder `ninja.exe` (Visual Studio: „C++-CMake-Tools“),
   warnt CMake und baut q3map2 mit MSVC wie bisher.
 * `q3map2_uebersetzer` prüft, welche q3map2 neben `behaved.exe` liegt: ohne

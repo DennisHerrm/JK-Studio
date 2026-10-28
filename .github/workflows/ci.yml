@@ -1,0 +1,63 @@
+# CI: bauen und die Unit-Tests ohne Spieldaten bei jedem Push und Pull Request (Stufe 8d Punkt 7).
+#
+# Wie der Bau in release.yml (Visual Studio 2026, imgui als Submodul), aber ohne LLVM fuer die
+# q3map2 (MSVC baut bhed_q3map2.exe genauso, nur langsamer im Ergebnis), ohne Paket und Release.
+# Tests, die Spieldaten, eine GPU oder Ton brauchen, ueberspringen sich selbst. Der grosse
+# Selbsttest des Programms laeuft weiter von Hand (TESTING.md).
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    tags-ignore: ["v*"]   # Marken baut release.yml
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  build-test:
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - name: Line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Lint
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          python tools/lint_fassung.py
+          python tools/lint_sources.py
+
+      - name: Configure
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $imgui = "$env:GITHUB_WORKSPACE/imgui" -replace '\\', '/'
+          cmake -S . -B build -G "Visual Studio 18 2026" -A x64 "-DIMGUI_DIR=$imgui"
+
+      - name: Build
+        run: |
+          cmake --build build --config Release --parallel
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::warning::build failed - second try with BEHAVED_MSVC_SAFE_CODEGEN=ON (/Ob1)"
+            cmake -S . -B build -DBEHAVED_MSVC_SAFE_CODEGEN=ON
+            cmake --build build --config Release --parallel
+          }
+          exit $LASTEXITCODE
+
+      - name: Unit tests (no game data, no GPU, no sound)
+        run: ctest --test-dir build -C Release --output-on-failure --timeout 900

@@ -9,7 +9,7 @@ Aufruf
       [--dekomp <karte_dekomp>] --json <datei>
       BSP/VIS/LIGHT je Programm, Karte und Thread-Zahl (0 = Vorgabe: alle Kerne).
       Jede Stufe nimmt die Ausgabe der eigenen Stufe davor (wie ein Bau aus
-      dem Build-Menue). Schalter wie das Build-Menue (NOTIZEN_karte3.md).
+      dem Build-Menue). Schalter wie das Build-Menue (docs/intern/NOTIZEN_karte3.md).
 
   tempo.py editor --exe <behaved.exe> --cfg <behaved.cfg> [--laeufe 3]
       [--dekomp <karte_dekomp>] [--karten a,b] [--arbeit <ordner>] --json <datei>

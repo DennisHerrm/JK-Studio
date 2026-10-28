@@ -43,9 +43,30 @@ updates…*). Your settings move along: on the first start JK Studio copies
 `%APPDATA%\behaved` to `%APPDATA%\jkstudio` (the old folder stays). The zip
 still contains `behaved.exe` – the same program – so old shortcuts keep working.
 
-The program is not code-signed, so Windows SmartScreen may warn the first time
-("Windows protected your PC"): click **More info → Run anyway**.
-`SHA256SUMS.txt` in the same release lists the checksums of both downloads.
+### Windows SmartScreen
+
+JK Studio is **not code-signed** (a signing certificate costs several hundred
+euros a year, which a free hobby project does not spend). Windows SmartScreen
+therefore does not know the file yet and may warn the first time
+("Windows protected your PC"). Click **More info → Run anyway** – but only for a
+file you downloaded from the release page above and checked as described below.
+The warning disappears by itself once enough people have started the same file.
+
+### Verifying a download
+
+Every release lists `SHA256SUMS.txt` with the checksums of the zip and the
+`.exe`. In PowerShell, in the folder with the download:
+
+```
+Get-FileHash .\JK-Studio-rcNNN-windows-x64.zip -Algorithm SHA256
+```
+
+The printed hash must equal the line for that file in `SHA256SUMS.txt`
+(upper/lower case does not matter). The built-in updater does the same check
+before it changes a single file, and refuses a download whose checksum does not
+match; when a release also carries `SHA256SUMS.txt.sig`, the updater checks that
+signature with the key built into the program. The releases are built from the
+tagged source by GitHub Actions (`.github/workflows/release.yml`).
 
 Add your Jedi Academy / Movie Duels / Jedi Outcast game folders under
 **Edit → Game folders**. The program updates itself from here
@@ -70,7 +91,13 @@ Details and known pitfalls are in [BAUEN.md](BAUEN.md), the tests in
 [TESTING.md](TESTING.md), the change log in [AENDERUNGEN.md](AENDERUNGEN.md)
 (the developer documentation and code comments are in German).
 
+Contributions: see [CONTRIBUTING.md](CONTRIBUTING.md). Security problems:
+please report them privately as described in [SECURITY.md](SECURITY.md).
+
 ## Third-party content
+
+The complete list with versions, licences and which program contains what is in
+[THIRD-PARTY.md](THIRD-PARTY.md); the licence texts ship in `licenses/` of the zip.
 
 - `imgui/` – [Dear ImGui](https://github.com/ocornut/imgui) (MIT), as a submodule.
 - `third_party/minimp3.h` – minimp3 (CC0).

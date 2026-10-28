@@ -5,7 +5,7 @@
 Warum ein eigener Pruefer
 -------------------------
 `bildvergleich.py` ist das Werkzeug, mit dem der GPU-Umbau abgenommen werden
-soll (siehe UMBAU-GPU.md). Ein Vergleichswerkzeug, das selbst nicht geprueft
+soll (siehe docs/intern/UMBAU-GPU.md). Ein Vergleichswerkzeug, das selbst nicht geprueft
 ist, ist schlimmer als keines: es sagt "innerhalb der Toleranz" und niemand
 sieht nach.
 

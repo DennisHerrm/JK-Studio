@@ -10,7 +10,7 @@
 # und include/, dazu zlib 1.3.1, libpng 1.6.53, libjpeg-turbo 3.1.3 (ohne SIMD),
 # libxml2 2.15.1 und assimp 6.0.2 - die Fassungen, die NRCs q3map2.exe mitbringt.
 # Was fuer MSVC anders sein muss, steht hier und in src/q3map2/kompat und ist in
-# NOTIZEN_karte3.md aufgezaehlt.
+# docs/intern/NOTIZEN_karte3.md aufgezaehlt.
 #
 #   Copyright (C) 2026 BehavEd-Remake contributors. GPL v2 (LICENSE).
 
@@ -34,7 +34,7 @@ endif()
 # BUILD=release): SSE2, keine FMA-Befehle, keine umgeordneten Rechnungen.
 # /fp:precise ist MSVCs Vorgabe und haelt dieselben Regeln (keine Kontraktion zu
 # FMA, Reihenfolge der Ausdruecke). /arch bleibt bei der x64-Vorgabe SSE2.
-# Das Ergebnis des Vergleichs mit NRCs q3map2.exe steht in NOTIZEN_karte3.md.
+# Das Ergebnis des Vergleichs mit NRCs q3map2.exe steht in docs/intern/NOTIZEN_karte3.md.
 set(BHED_Q3_FP /fp:precise)
 if(BHED_Q3MAP2_FP)
   set(BHED_Q3_FP ${BHED_Q3MAP2_FP})

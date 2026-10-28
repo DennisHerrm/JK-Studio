@@ -20,7 +20,7 @@ Aufruf
 -vis laeuft dabei immer mit -threads 1: mit mehreren Threads haengt NRCs Ergebnis von der
 Reihenfolge der Threads ab (ein Portal schneidet mit portalvis der Portale, die gerade fertig
 sind - auch mitten im Lauf). Jede Regel, die das unabhaengig von der Thread-Zahl macht, war auf
-kejim_post mehr als doppelt so langsam wie NRC (NOTIZEN_karte6.md, offen fuer Stufe 7);
+kejim_post mehr als doppelt so langsam wie NRC (docs/intern/NOTIZEN_karte6.md, offen fuer Stufe 7);
 -bsp und -light sind mit beliebig vielen Threads deterministisch.
 
 Ohne --basepath ist -fs_basepath ein leerer Ordner (alle Shader implizit).

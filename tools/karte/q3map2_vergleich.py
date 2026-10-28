@@ -13,7 +13,7 @@ in erwartung.json stammen aus NRCs q3map2.exe (Aufruf "erwartung", siehe unten).
 Warum nicht einfach "alle Bytes gleich"
 ---------------------------------------
 NRCs q3map2.exe schreibt selbst nicht zweimal dieselbe .bsp, sobald eine Karte
-mehr als einen Shader hat (NOTIZEN_karte3.md, Punkt 2):
+mehr als einen Shader hat (docs/intern/NOTIZEN_karte3.md, Punkt 2):
   - surface_meta.cpp:144 sortiert Meta-Dreiecke zuerst nach dem ZEIGER auf
     shaderInfo_t; die Shader liegen in einem std::multiset, die Adressen kommen
     vom Heap. Reihenfolge und Zusammenfassung der Flaechen (Lumps surfaces,
