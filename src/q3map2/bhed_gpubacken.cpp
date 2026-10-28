@@ -166,7 +166,8 @@ struct Gpu
 	long long verlustNach = -1;   // Test: nach so vielen Dispatches einen Geraeteverlust vortaeuschen
 	bool zeiten = false;          // BHED_GPUBAKE_ZEITEN: jeden Kern bis zum Ende messen
 	size_t lichterAnzahl = 0;
-	int gitterTeil = 64;          // Lichter je Gitter-Dispatch (passt sich an)
+	int gitterTeil = 8;           // Lichter je Gitter-Dispatch (passt sich an)
+	UINT gitterPunkte = 262144;   // Punkte je Gitter-Dispatch (passt sich an; langsame GPUs: TDR)
 	bool nanTest = false, nanGitterTest = false;   // BHED_GPUBAKE_NAN: nicht endliche Werte vortaeuschen
 	UINT stueck[ kKerne ] = { 1u << 18, 1u << 18, 1u << 18, 4096, 1u << 18, 4096 };   // Faeden je Dispatch (passt sich an)
 };
@@ -834,30 +835,47 @@ bool BhedBakeGitter( std::vector<BhedBakeGitterPunkt>& punkte, const BhedBakeGit
 		g.ktx->UpdateSubresource( g.rw[ uGitter ].buf, 0, &box, punkte.data() + a, 0, 0 );
 		binden( true );
 		g.ktx->CSSetShader( g.cs[ kGitter ], nullptr, 0 );
-		kopf.anzahl = UINT( m );
-		kopf.basis = 0;
-		// alle Punkte je Dispatch, die Lichter in Teilen; die Teilgroesse passt sich an (0,02 bis 0,15 s je Dispatch)
+		// Punkte und Lichter in Teilen; die Teilgroessen passen sich an (0,02 bis 0,15 s je Dispatch, TDR)
 		for ( int phase = 0; phase < 2 && ok; ++phase ) {
 			kopf.gitterPhase = phase;
 			for ( int von = 0; von < n && ok; ) {
 				const int bis = std::min( n, von + g.gitterTeil );
 				kopf.lichtVon = von;
 				kopf.lichtBis = bis;
-				const auto tz = std::chrono::steady_clock::now();
-				g.ktx->UpdateSubresource( g.kopf, 0, nullptr, &kopf, 0, 0 );
-				g.ktx->Dispatch( UINT( ( m + 63 ) / 64 ), 1, 1 );
-				++g.zahlen.dispatches;
-				if ( g.verlustNach >= 0 && g.zahlen.dispatches > g.verlustNach ) {
-					ok = false;
-					break;
-				}
-				ok = warten();
-				const double dauer = std::chrono::duration<double>( std::chrono::steady_clock::now() - tz ).count();
-				if ( dauer > 0.15 && g.gitterTeil > 1 ) {
-					g.gitterTeil /= 2;
-				}
-				else if ( dauer < 0.02 && bis - von == g.gitterTeil && g.gitterTeil < ( 1 << 20 ) ) {
-					g.gitterTeil *= 2;
+				for ( size_t p0 = 0; p0 < m && ok; ) {
+					const UINT stueck = UINT( std::min<size_t>( g.gitterPunkte, m - p0 ) );
+					kopf.basis = UINT( p0 );
+					kopf.anzahl = stueck;
+					const auto tz = std::chrono::steady_clock::now();
+					g.ktx->UpdateSubresource( g.kopf, 0, nullptr, &kopf, 0, 0 );
+					g.ktx->Dispatch( ( stueck + 63 ) / 64, 1, 1 );
+					++g.zahlen.dispatches;
+					if ( g.verlustNach >= 0 && g.zahlen.dispatches > g.verlustNach ) {
+						ok = false;
+						break;
+					}
+					ok = warten();
+					const double dauer = std::chrono::duration<double>( std::chrono::steady_clock::now() - tz ).count();
+					if ( dauer > 0.15 ) {   // erst weniger Lichter, dann weniger Punkte je Dispatch
+						if ( g.gitterTeil > 1 ) {
+							g.gitterTeil /= 2;
+						}
+						else if ( g.gitterPunkte > 4096 ) {
+							g.gitterPunkte /= 2;
+						}
+					}
+					else if ( dauer < 0.05 && stueck == g.gitterPunkte ) {
+						if ( g.gitterPunkte < ( 1u << 22 ) ) {
+							g.gitterPunkte *= 2;
+						}
+						else if ( bis - von == g.gitterTeil && g.gitterTeil < ( 1 << 20 ) ) {
+							g.gitterTeil *= 2;
+						}
+					}
+					else if ( dauer < 0.02 && bis - von == g.gitterTeil && g.gitterTeil < ( 1 << 20 ) ) {
+						g.gitterTeil *= 2;
+					}
+					p0 += stueck;
 				}
 				von = bis;
 			}
