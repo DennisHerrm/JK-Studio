@@ -1,5 +1,137 @@
 # Änderungen seit rc94
 
+## rc605 — JK Studio: Karten-Editor nach NetRadiant-Custom, eigenes q3map2, Optimierer, Echtzeit-Licht
+
+Gewünscht: ein eigener Reiter zum Bauen von Karten wie in Radiant, mit allen Knöpfen, den Grenzen von JKA und JKO und so schnell wie möglich; Umbenennung in JK Studio.
+
+- Aus BehavEd-Remake wird **JK Studio**: Neben Skript-Editor und Zwischensequenz-Vorschau gibt es jetzt einen vollständigen Karten-Editor nach dem Vorbild von NetRadiant-Custom, mit eigenem q3map2 (schneller, gleiches Ergebnis, optional GPU-Backen), einem Optimierer für die Grenzen von Jedi Academy, Jedi Outcast und Movie Duels, Echtzeit-Licht, verlustfreiem .bsp-Import und Teil-Kompilierungen.
+- Skripte, die eine Entity startet, lesen deren parm-Schlüssel: `affect ( $get( STRING, "SET_PARM1" )$ )` und `move ( $tag( get( STRING, "SET_PARM1" ), ORIGIN )$, ... )` bewegen die dort genannte Entity zum genannten Tag, wie im Spiel (der erste Aufzug in vjun3 fährt jetzt hoch; die Kraftfelder in md_dotf fahren zu ihren Tags); `move` nimmt auch ein Tag als Ziel.
+- Benutzt ein Skript einen `target_level_change`, endet die Vorschau dort wie im Spiel: Zeitleiste, Kamera und Figuren hören in diesem Moment auf, und die Statusliste nennt die nächste Karte.
+- Ein `target_level_change`, dessen Kartenname mit `+` beginnt (OpenJK und Movie Duels, etwa `+saberMenu` in academy oder `+creditsingame`), öffnet wie im Spiel nur dieses Menü und lädt keine Karte: die Vorschau läuft weiter, und die Statusliste nennt das Menü; solange der Spieler tot ist (nach `SET_MISSIONFAILED`), wechselt keine Karte.
+- `SET_MISSIONFAILED` wirkt wie im Spiel: der Spieler spielt seine Schuld-Animation, und alle Skripte halten an, sobald keine Kamera läuft (nach dem `camera ( DISABLE )` einer Zwischensequenz); Figuren, die schon gehen, gehen ihren Weg zu Ende, und die Statusliste nennt beide Zeiten.
+- `SET_HEALTH 0` auf den Spieler hält wie im Spiel sofort alle Skripte an.
+- Figuren auf einem fahrenden Aufzug oder einer Plattform fahren mit, auch während sie gehen (vjun3: die Soldaten auf dem ersten Aufzug).
+- Türen, Aufzüge und Züge halten an, wenn ihnen eine Figur im Weg ist, wie im Spiel: eine Tür kehrt um (ein Crusher drückt weiter), ein Zug wartet, und die Figur nimmt ihren Schaden; eine Figur auf einem Aufzug, die gegen etwas gedrückt würde, bleibt zurück oder hält den Aufzug auf.
+- NPCs, die von einer Kante fallen, mit einem zu flachen Sprung über die Kante gehen oder in der Luft gespawnt werden, spielen die Luft- und Landeanimationen des Spiels (eine harte Landung bremst sie wie im Spiel); eine Skriptanimation auf dem Oberkörper, die vor einem Sprung begann, kommt danach nicht mehr wieder.
+- Figuren, die in einen `trigger_hurt` laufen oder fallen, nehmen dessen Schaden wie im Spiel und sterben, wenn ihre Lebenspunkte aufgebraucht sind - sie spielen ihren Tod, und ihr `deathscript` läuft (md_gd: Anakin stürzt in die Grube).
+- trigger_hurt: Rüstung fängt ihren Teil ab (nicht beim Sturz), Figuren berühren die Bereiche in der Reihenfolge des Spiels, und mit `SET_UNDYING` läuft das deathscript bei jedem tödlichen Treffer erneut; eine per `SET_ORIGIN` versetzte Figur berührt einen Bereich erst ab dem nächsten Bild.
+- Eine explodierende Laserfalle verletzt die Figuren in ihrer Nähe wie der Explosionsschaden des Spiels (mit dem Abstand weniger, nicht durch Wände) und sprengt die Fallen in ihrer Nähe mit - dicht beieinander hängende Fallen gehen zusammen hoch (t3_byss); eine Figur, deren Lebenspunkte aufgebraucht sind, stirbt, und ihr deathscript läuft.
+- Rüstung (`SET_ARMOR`, Attentäterdroiden, Droidekas) fängt ihren Teil des Schadens von Laserfallen und trigger_hurt ab, und ein Rancor nimmt je Treffer höchstens 10, wie im Spiel.
+- Strahlen von Laserfallen (und Schüsse von fx_target_beam) enden an anderen Laserfallen und an festen zerbrechlichen Modellen, und auch die Waffe in der Hand einer Figur löst eine Falle aus - wie im Spiel.
+- NPCs mit einer Schusswaffe halten sie wie im Spiel mit dem Oberkörper, solange dort keine Skriptanimation läuft (Gewehr im Anschlag, Pistole vor sich; unter Movie Duels ein gesenktes Gewehr, nach `SET_WALKING` getragen); das gilt unter OpenJK, Movie Duels und Jedi Outcast.
+- Weltshader mit `tcGen vector` (das Gelände von duel_jedi_battleground, die Sternwand in duel_tower) sind texturiert wie im Spiel; `tcMod entityTranslate` (Förderbänder) ändert auch im Spiel nichts - geprüft.
+- Gras und Regenspritzer (`surfaceSprites`) wachsen auch auf Brush-Entities, bewegen sich mit ihnen und nur, solange sie gezeigt werden - etwa auf einer Wand, die beim Benutzen erscheint; ein Shader, dessen erste Stufe surfaceSprites trägt, zeigt diese Stufe wie im Spiel nicht mehr als flache Schicht.
+- Modelle, die Effekte mitführen (`useModel`, etwa die Nebelschwaden in duel_exegol), werden wieder gezeichnet, und Flächen mit `deformVertexes autosprite`/`autosprite2` an Modellen drehen sich wie im Spiel zur Kamera; die 377 Nebelmodelle von duel_exegol kosten rund 0,1 ms je Bild.
+- Effektbilder ohne Shaderskript zeichnet die Vorschau wie den eingebauten Shader des Spiels: nach ihrem Alpha gemischt, mit Farbe und Ausblenden des Teilchens und durch Wände sichtbar (vorher: eine geschätzte Mischart).
+- Ein NPC, der an einem anderen NPC nicht vorbeikommt, schiebt ihn beiseite - auch einen, der ohne Ziel steht oder schon angekommen ist, nie den Spieler -, und zwei NPCs, die sich gegenseitig blockieren, gehen weiter, wie im Spiel.
+- Eine Verbindung, die eine verschlossene Tür, etwas Zerbrechliches oder ein anderer NPC sperrt, gilt für alle NPCs als gescheitert, sie gehen außen herum, bis sie wieder frei ist; gesperrte Verbindungen werden wie im Spiel alle 1,5 s neu geprüft (zuerst 0,75 s nach dem Skriptanfang) und bleiben offen, sobald eine Prüfung sie frei findet.
+- Ein Kyle-NPC übernimmt die Waffe des Spielers, wenn ein Skript sie außerhalb der Kamera wechselt, bis ein Skript Kyle eine eigene Waffe gibt - wie im Spiel.
+- Die Weg-Übersicht nennt Szenenende oder Kampf hinter nie angekommenen Figuren (entfernt, Kartenwechsel, `SET_ENEMY`) und zählt Lande- und Luftanimationen ohne Sprung.
+- Die Kartenprüfung zählt `tcGen vector` und `tcMod entityTranslate` nicht mehr als Weltshader-Lücken.
+- Das Handbuch beschreibt das neue Verhalten in allen vier Sprachen.
+- Das Projekt steht jetzt unter der GNU GPL v2 (ausgenommen die Spieldaten von Raven/Activision unter `data/`); der aus NetRadiant-Custom, GtkRadiant, q3map2 und OpenJK übernommene Code steht in der README.
+- Neuer Kern für den Karten-Editor, noch ohne Oberfläche: Brushes, Texturprojektion (Quake 3, Brush Primitives, Valve 220), Patches, Entities, Ebenen, Auswahl und Rückgängig arbeiten wie in NetRadiant-Custom, und .map-Dateien werden Byte für Byte wie von NetRadiant-Custom gelesen und geschrieben.
+- Entity-Definitionen für Jedi Academy (Einzel- und Mehrspieler), Jedi Outcast und Movie Duels, erzeugt aus OpenJK, und ein Textur- und Shader-Verzeichnis für alle drei Spiele.
+- Karten-Editor: Felder, Werkzeugleisten und Statuszeile haben genau die
+- Karten-Editor: Werkzeugsymbole im modernen Stil des Programms.
+- Karten-Editor: Auswaehlen, Verschieben, Drehen, Skalieren, Verzerren und
+- Karten-Editor: Texturbrowser wie in NetRadiant-Custom - Ordnerbaum, Filter,
+- Karten-Editor: Mittelklick kopiert die Textur unter dem Zeiger, mit
+- Karten-Editor: Entities wie in NetRadiant-Custom - der Entity Inspector
+- Karten-Editor: die Konsole liest sich wie bei NetRadiant-Custom - Laden
+- Karten-Editor: die Menues sehen aus und messen wie bei NetRadiant-Custom
+- Karten-Editor: grosse Karten bleiben fluessig - ein Auswahlwechsel auf der
+- Handbuch: neues Kapitel "Der Karten-Editor" in allen vier Sprachen -
+- Karten-Editor: Ecken, Kanten und Flaechen lassen sich wie in
+- Karten-Editor: der Clipper (X) - bis zu drei Punkte in einer 2D-Ansicht
+- Karten-Editor: CSG Subtract, Merge, Wrap Merge, Intersect, Make Room,
+- Karten-Editor: Brush-Formen (Prisma, Kegel, Kugel, Fels, Ikosaeder, 3 bis
+- Karten-Editor: das ganze Curve-Menue - alle Patch-Formen, Zeilen und
+- Karten-Editor: Surface Inspector (S) und die Texturtasten (verschieben,
+- Karten-Editor: Select Inside / Touching, Regionen, Save Selected, Save
+- Karten-Editor: Filter im Menue View und in der Filterleiste, mit den
+- Karten-Editor: Ebenen (Ebenen-Browser, in Ebene verschieben, aus- und
+- Karten-Editor: alle Einstellungsseiten wirken, auch Game (Jedi Academy
+- Karten-Editor: abreissbare Menues, Vollbild (F11), eine Schrift fuer die
+- Karten-Editor: der Selbsttest loest jeden neuen Befehl aus und prueft seine
+- Handbuch: neue Seite "Karten-Editor: Bauwerkzeuge" in allen vier Sprachen.
+- Karten-Editor: Karten bauen. q3map2 aus NetRadiant-Custom 20260114 wird mit dem Programm als `bhed_q3map2.exe` gebaut (im Zip neben `behaved.exe`) und liefert dieselben Ergebnisse wie das q3map2 von NetRadiant-Custom.
+- Karten-Editor: das Build-Menü von NetRadiant-Custom (Menü „Kompilieren“) mit allen Einträgen für Jedi Academy und Jedi Outcast, „Letzten Build ausführen“ (F5) und dem Dialog „Anpassen“ zum Anlegen, Umbenennen, Umordnen und Kopieren von Einträgen und Befehlen.
+- Karten-Editor: Bauen läuft im Hintergrund - die Karte wird vorher gespeichert, die Ausgabe von q3map2 steht live in der Konsole (Warnungen gelb, Fehler rot), die Statuszeile zeigt Schritt und Zeit, „Bauen abbrechen“ hält es an, und eine Schlusszeile nennt Zeit und Ergebnis. Währenddessen kannst du weiterarbeiten.
+- Karten-Editor: gebaute Dateien kommen nie in den Spielordner - neben die Karte, in einen Ziel-Ordner deiner Wahl (Seite „Kompilieren“ der Einstellungen) oder in einen Arbeitsordner.
+- Karten-Editor: Lecks erscheinen als rote Linie in den 2D-Ansichten und der Kamera; „Nächste / Vorige Leckstelle“ (Strg+Umschalt+K / L) gehen an ihr entlang, „Datei > Pointfile (Leck-Linie)“ schaltet sie, das Q3Map-Debugfenster wählt die Entity, aus der es leckt.
+- Karten-Editor: der Portal Viewer (Plugins > prtview) zeigt die Portale der Karte als Linien in 2D und farbige Polygone in 3D, mit seinem Einstellungsdialog.
+- Karten-Editor: AutoCaulk Selected (F4) gibt verdeckten Flächen die Caulk-Textur.
+- Karten-Editor: „Nach dem Bauen das Spiel starten“ startet Movie Duels mit `+set fs_game MD`.
+- Karten-Editor: eine Menüleiste, die zwischen Programm und Karten-Editor umschaltet; die Felder haben einen Rahmen, das aktive einen Akzent.
+- Karten-Editor: Dialoge und Menüs messen Text wie Qt, ihre Größen stimmen mit NetRadiant-Custom überein; jede Mausbelegung, die Teiler und „Ansicht maximieren“ wurden damit verglichen.
+- Handbuch: neue Seite „Karten-Editor: Karte bauen“ in vier Sprachen.
+- Karten-Editor: fertige Karten öffnen. „Datei > .bsp öffnen...“ listet jede gebaute Karte der Spielordner, auch in den .pk3 des Spiels, und macht sie mit q3map2 in einem Arbeitsordner wieder zu einer bearbeitbaren Karte - nie im Spielordner. „Datei > Importieren...“ nimmt auch eine .bsp.
+- Karten-Editor: das Originallicht behalten. „Kompilieren > Nur Entities aktualisieren“ schreibt geänderte Entities in die geöffnete Karte zurück; Geometrie, Lightmaps und Lichtgitter bleiben Byte für Byte, wie sie waren. Wurden Brushes oder Patches geändert, sagt es das, statt zu bauen.
+- Karten-Editor: alle Plugins von NetRadiant-Custom mit ihren Menüs und Dialogen - bobToolz (23 Befehle und seine Werkzeugleiste: Treppen, Türen, Blendentüren, Polygone, Path Plotter, Tree Planter, Splines, Vis Viewer, Patch-Werkzeuge und mehr), brushexport2 (die Auswahl als Wavefront-.obj mit .mtl exportieren), MeshTex (Texturmaßstab und -ausrichtung auf Patches), ShaderPlug, SunPlug und UFO:AI.
+- Karten-Editor: „Datei > Beenden“ fragt bei einer geänderten Karte erst, ob gespeichert werden soll, wie NetRadiant-Custom.
+- Karten-Editor: Beschriftungen auf den Einstellungsseiten und in den Plugin-Dialogen werden auf Deutsch, Chinesisch und Japanisch nicht mehr abgeschnitten; der Surface Inspector hat die Breite von NetRadiant-Custom.
+- Karten-Editor: ein möglicher Absturz in der Kameraansicht von Karten mit mehreren Modellen behoben.
+- Handbuch: neue Seiten „Karten-Editor: fertige Karten öffnen und ändern“ und „Karten-Editor: Plugins“ in vier Sprachen.
+- Karten-Editor: neuer Optimierer („Kompilieren > Optimierer...“). Er zählt, was die Karte verbraucht, gegen jede Grenze von Jedi Academy (Einzel- und Mehrspieler), Movie Duels und Jedi Outcast - jede Grenze aus dem Quelltext der Engine, mit Datei und Zeile - und zeigt je Grenze eine Ampel; Formatgrenzen, die das Spiel nicht prüft, werden nur als Hinweis genannt.
+- Karten-Editor: der Optimierer findet Bauprobleme - Lecks und Detail-Pinsel an der Leck-Linie, nicht gecaulkte verdeckte Flächen, entartete, Mikro- und Pinsel neben dem Raster, überlappende Pinsel, T-Verbindungen, Patches mit zu vielen Kollisionsebenen, fehlende Texturen, Brush-Entities ohne Pinsel, ein volles Lichtgitter, zu viele Lightmaps, teures VIS, Spawnpunkte im Festen und mehr - und behebt viele davon auf Knopfdruck, jeweils als ein Rückgängig-Schritt; „Alles Sichere beheben“ nimmt nur die harmlosen.
+- Karten-Editor: der Optimierer kennt auch Fehler der Werkzeuge und des Spiels: ein misc_model_static, das das Spiel nie zeichnet (ein Klick setzt zoffset), common/origin-Pinsel, die die Entity bei 0 0 0 landen lassen (ein Klick: system/origin), Flächenlicht, das durch einen Boden scheint (Backsplash), und riesige Pinsel; das Build-Menü verweigert externe Lightmaps, die Jedi Outcast oder Lichtstile nicht können.
+- Karten-Editor: der Optimierer läuft im Hintergrund, auch bei den größten Karten, und auf Wunsch nach jedem Bau von selbst (neue Einstellungsseite „Optimierer“).
+- Karten-Editor: der Karten-Compiler bhed_q3map2.exe wird mit clang-cl gebaut: dieselben Karten, Licht 14-21 % und VIS bis 25 % schneller.
+- Handbuch: neue Seite „Karten-Editor: Optimierer und Grenzen“ in vier Sprachen, mit den Grenzen jedes Spiels und ihren Quellen.
+- Karten-Editor: jeder Menüeintrag, Werkzeugknopf, jede Taste, Mausaktion, jedes Einstellungsfeld und jeder Dialogknopf wurde im Selbsttest auf seine Wirkung geprüft (940 von 944 Einträgen der Checkliste, 4 begründet); jeder Befehl, der die Karte ändert, lässt sich Byte für Byte rückgängig machen und wiederholen.
+- Karten-Editor: aus NetRadiant-Custom bekannte Fehler behoben - Fasen- und Endkappen gehen in jeder Ausrichtung des Patches, Ecken und Kanten werden beim Verlassen ihres Modus abgewählt, Pfade mit Umlauten oder chinesischen und japanischen Zeichen gehen, relative Engine-Pfade werden absolut, AutoCaulk nennt den Grund eines Fehlschlags und nimmt die Systemshader von Jedi Academy und Jedi Outcast (Wasser wird nicht mehr gecaulkt, durchsichtige feste Pinsel bleiben fest), der Surface Inspector zeigt Verschiebungen aus anderen Editoren richtig.
+- Karten-Editor: eigene Funde behoben - der Texturbrowser setzt die Textur neuer Pinsel jetzt wirklich, der Knopf Clean der Einstellungen wirkt, sehr große Koordinaten behalten beim Speichern ihren Wert, AutoCaulk wendet nicht mehr das Ergebnis eines früheren Laufs an, wenn q3map2 scheitert.
+- Karten-Editor: wo NetRadiant-Custom sein Verhalten absichtlich behält, erklärt BehavEd es - welche Patch-Größe eine Kappe braucht (in der Programmsprache) und ein Hinweis vor einem Region-Bau, der lecken wird.
+- Karten-Editor: „Nur Entities erneuern“ verweigert, wenn sich die schaltbaren Lichter geändert haben - ihr Licht steckt je Lichtstil in den Lightmaps.
+- Karten-Compiler: BSP- und Lichtstufe ergeben jedes Mal dasselbe, mit beliebig vielen Threads; Dirtmapping dunkelt Flächen neben dem Himmel nicht mehr ab; Kartennamen mit Punkt gehen; Speicherfehler und undefiniertes Verhalten bei kaputten Karten und beim Unterteilen von Patches behoben (geprüft mit AddressSanitizer und UBSan über alle Karten), eine Karte ganz ohne Entity bekommt eine klare Fehlermeldung; fünf Geometrie-Fixes aus dem Pull-Request #316 von NetRadiant-Custom (dünne Pinselteile, kreuzende Flächen, Flächen fast in einer anderen Ebene, kleine Querschnitte).
+- Optimierer: die Angaben jedes Befunds sind übersetzt; neue Prüfung auf externe Lightmaps durch Shader (q3map_lightmapSize) neben Lichtstilen oder in Jedi Outcast.
+- Vorschau wie im Spiel: ein misc_model_static, das das Spiel nie zeichnet (sein Prüfpunkt liegt im Festen), wird nicht mehr gezeigt.
+- Handbuch: neue Seite „Karten-Editor: Unterschiede zu NetRadiant-Custom“ in vier Sprachen.
+- Karten-Editor: Echtzeit-Licht (Build-Menü) beleuchtet die Kamera auf der Grafikkarte mit den Formeln von q3map2 - Punktlichter, Spotlichter, die Sonne und Flächenlicht, mit Schatten. Es ist als Vorschau beschriftet und wird nie gespeichert.
+- Karten-Editor: Schnell-Backen (Build-Menü) baut die Karte nach einer kurzen Pause im Hintergrund mit niedriger Priorität und zeigt die echten Lightmaps von bhed_q3map2; jede Änderung bricht es ab.
+- Karten-Compiler: -light nutzt alle Kerne (Lightmaps und Lichtgitter), -bsp behebt T-Junctions auf allen Threads - mit byte-gleichem Ergebnis wie ein Bau mit einem Thread.
+- Karten-Editor: Auswahl umkehren dauert auf großen Karten Millisekunden statt Sekunden; der Optimierer liest seine NPC-Dateien im Hintergrund.
+- Karten-Editor: die Menüs sehen aus wie im übrigen Programm (das Aussehen von NetRadiant-Custom ist eine Einstellung), das View-Menü hat Zielspiel, Farbschema, Sprache, Skalierung und Knopfgröße (klein, normal, groß); Strg + Mausrad skaliert im Karten-Editor nicht mehr das Programm.
+- Karten-Editor: Umsehen mit der Maus in der Kamera und Verschieben in 2D drehen und bewegen so weit wie in NetRadiant-Custom, bei jeder Bildrate (vorher ging etwa die Hälfte des Mauswegs verloren).
+- Karten-Editor: keine Meldung "conflicting ID" mehr; Texturbaum, Leistenmenü und Entity-Menü haben eindeutige Einträge.
+- Karten-Editor: File > Open .bsp bringt hint-, areaportal- und skip-Brushes structural zurück.
+- Karten-Editor: nach einem Neustart zeigen die letzte Karte und neue Brushes ihre Texturen; der Fenstertitel zeigt den Kartennamen wie in NetRadiant-Custom.
+- Handbuch: neue Seite „Karten-Editor: Tempo und Echtzeit-Licht“, was eine .bsp nicht mehr enthält, eigene Bedienung auf der Seite der Unterschiede, alle Kartenbilder in vier Sprachen erneuert.
+- Karten-Editor: das Fenster „Baufortschritt“ zeigt den Schritt, den eigenen Fortschritt von q3map2 (Phase, Punkte, Bounce), einen Balken über alle Schritte und die Restzeit - ab dem zweiten Bau einer Karte aus deren letztem Bau; die Konsole nennt die Zeit jedes Schritts gegen den letzten Bau; der Knopf in der Taskleiste blinkt, wenn ein Bau fertig ist (Option, ohne Ton).
+- Karten-Editor: Build > Editor-Daten behalten - alle Lichter bleiben in der .bsp, und `<Karte>.bhed` daneben enthält die genaue Quellkarte; File > Open .bsp bringt dann misc_model, func_group, Texturausrichtung, Detail und Ebenen zurück. Lightmaps, Lichtgitter und Geometrie bleiben Byte für Byte gleich.
+- Karten-Editor: File > Open .bsp gewinnt misc_model aus der gebauten Geometrie zurück (nur genaue Treffer, auch forcemeta-Modelle) und kann nicht erkannte Modellflächen als dünne Brushes in einer eigenen Ebene behalten; läuft im Hintergrund.
+- Karten-Editor: File > Open .bsp kann Lichter aus dem Lichtgitter schätzen (experimentell, eigene Ebene, markiert mit `_bhed_geschaetzt`).
+- Karten-Editor: Teil-Kompilierungen - VIS wiederverwenden, wenn die Portale gleich sind, und nur die Lightmaps neu beleuchten, die eine Änderung erreicht; nur gamma, exposure und Ähnliches geändert: kein einziger Strahl. Die .bsp ist Byte für Byte die eines vollen Baus.
+- Karten-Editor: Build > Zur fertigen Karte hinzufügen - eine Ebene bauen und mit q3map2 -mergebsp in eine fertige .bsp einfügen, mit Prüfungen für Wetter-Brushes, Zonen, Namen, Grenzen und Kollision; das Licht des Teils ist angenähert.
+- Karten-Optimierer: neue Prüfung „Entity-Lump und seine Grenzen“ (Schlüssel oder Werte über 1023 Zeichen, Entity-Text nahe der Grenze der Engine).
+- Handbuch: neue Seite „Karten-Editor: Bau-Fortschritt und Teil-Kompilierungen“, die Seite zu fertigen Karten erklärt Editor-Daten, die Rückgewinnung von misc_model und geschätzte Lichter; alle Kartenbilder in vier Sprachen erneuert.
+- Karten-Editor: Plugins > TerrainGenerator > Generate Terrain - der Terrain-Generator aus dem aktuellen Quelltext von NetRadiant-Custom, bei gleichen Werten dasselbe Terrain; ein wahlweise fester Startwert gibt dasselbe Terrain wieder.
+- Karten-Editor: freie Split-Fenster (Preferences > Interface > Layout, Layout Split) - jedes Fenster kann Kamera, XY, XZ oder YZ zeigen, auch doppelt; Strg+Tab und die Lage der Teiler bleiben.
+- Karten-Editor: View > Im Editor spielen (F6) - ohne Kompilieren durch die offene Karte laufen, mit der Bewegung des Spiels und der Kollision direkt aus Brushes und Patches; Start an der Kamera oder an info_player_start, Esc beendet.
+- Karten-Editor: View > Logik-Ansicht - jede Verknüpfung zwischen den Entities als Graph (Ziele, NPC-Ziele, Türziele, Skript-Schlüssel); Klick wählt und zentriert, Doppelklick öffnet das ICARUS-Skript.
+- Karten-Editor: View > Ansichtsmodi der Kamera - Lightmap-Dichte wie q3map2 sie rechnet, Kollision nach Inhalt, Sichtbarkeit (PVS) und Dreieckslast aus der gebauten .bsp.
+- Karten-Editor: View > Spiegel-Modus - jede Änderung an der Auswahl wird live auf das Gegenstück jenseits einer X-, Y- oder Z-Ebene gespiegelt (Brushes, Patches, Entities mit origin, angle und angles), im selben Rückgängig-Schritt.
+- Karten-Editor: View > Undo-Verlauf - alle Rückgängig- und Wiederholen-Schritte mit ihren Befehlsnamen; ein Klick springt zu diesem Stand.
+- Karten-Editor: File > Open .bsp findet misc_model aus allen Modellordnern des Spiels mit einem zwischengespeicherten Modell-Index (t2_trip: 0 -> 13 Modelle, jeditemple_garden weiter 265 von 265).
+- bhed_q3map2: `-light -bhedgpu` rechnet die Schattentests auf der Grafikkarte mit Byte-gleichem Ergebnis; der Schalter ist aus und steht nicht im Build-Menü, weil er auf dem gemessenen Rechner nicht schneller war.
+- Handbuch: neue Seite „Karten-Editor: Terrain, Spielen, Logik, Spiegel und mehr“; alle Kartenbilder in vier Sprachen erneuert.
+- Das Programm heißt jetzt **JK Studio** – Mod-Werkzeuge für Jedi Knight: Jedi Academy und Jedi Outcast, mit den Bereichen BehavEd (Skripte), Vorschau und Karten-Editor. Neues Symbol und Logo; das About-Fenster zeigt die Bereiche und den Hinweis „Nicht verbunden mit Lucasfilm, Disney oder Raven Software“.
+- Die Programmdatei heißt `jkstudio.exe`; `behaved.exe` im selben Ordner startet sie, alte Verknüpfungen funktionieren weiter. Die Downloads heißen `JK-Studio-…-windows-x64.zip` / `.exe` und kommen aus DennisHerrm/JK-Studio.
+- Das Update von BehavEd-Remake geht von selbst (Hilfe → Nach Updates suchen); Ordner-Installationen und die eigenständige .exe werden beide zu JK Studio.
+- Die Einstellungen ziehen mit: beim ersten Start kopiert JK Studio `%APPDATA%\behaved` nach `%APPDATA%\jkstudio`; der alte Ordner bleibt unverändert.
+- Karten-Editor: neues Tutorial „Deine erste Karte“ im Handbuch – ein Raum aus Brushes, Texturen, Caulk, ein Licht, der Spielerstart, der Optimierer, Bauen, im Editor hindurchlaufen und die .pk3 fürs Spiel; jedes Bild stammt aus einem Selbsttest-Lauf, der das Ergebnis prüft.
+- Karten-Editor: Build → Karte als .pk3 packen – legt die gebaute Karte als .pk3 neben die .bsp; nach GameData/base oder in den Mod-Ordner kopierst du sie selbst (das Programm schreibt nie in Spielordner).
+- bhed_q3map2: das experimentelle `-light -bhedgpubake` rechnet die Lichtbeiträge auf der Grafikkarte mit Abweichungsbericht; auf der gemessenen NVIDIA-Karte ist das Ergebnis Byte-gleich mit der CPU, aber langsamer als 32 CPU-Threads – darum aus und nicht im Build-Menü.
+- Karten-Editor: **Build → GPU-Backen** rechnet das ganze Licht einer Karte auf der Grafikkarte – Lightmaps mit Supersampling und Filter, jede Bounce-Runde und das Lichtgitter – mit denselben Rechnungen in derselben Reihenfolge wie der Prozessor; die gebaute Karte ist also Byte für Byte dieselbe. Auf großen Karten bis zu 2,7-mal schneller als 32 Prozessor-Threads, kleine Karten gewinnen wenig. Zu Beginn aus; nach dem Bau zeigt die Konsole einen Abweichungsbericht (auf dem Prozessor nachgerechnete Lightmaps). Ohne passende Grafikkarte rechnet der Prozessor wie immer.
+- bhed_q3map2: `-bhedgpubake` braucht kein d3dcompiler_47.dll mehr (die Shader sind im Programm) und startet die Grafikkarte, während die Karte lädt.
+- Der eingebaute Updater prüft jeden Download, bevor er etwas ändert: das Zip muss zur SHA256SUMS.txt des Releases passen (und, sobald eingeschaltet, zu einer Signatur darüber); er entpackt erst in einen Zwischenordner und tauscht dann – geht etwas schief, bleiben alle alten Dateien oder kommen zurück.
+- Karten-Editor: **Build → GPU-Backen** hat jetzt **Auto** (neue Vorgabe), Ein und Aus. Auto nimmt die Grafikkarte nur, wenn ihr Ergebnis bitgleich ist und sie voraussichtlich schneller ist, merkt sich je Karte, wie lange Prozessor und Grafikkarte gebraucht haben, und nimmt danach das Schnellere; die Konsole sagt, was gewählt wurde und warum.
+- Viele Absicherungen gegen kaputte oder bösartige Dateien, gefunden durch Fuzzing aller Datei-Leser: Kollision der Karte, gebogene Patches, Kartengeometrie (eine kaputte Karte konnte Sekunden und Gigabytes kosten) und Einfügen in eine Karte ohne Entity-Definitionen.
+- Die Protokolle heißen jetzt `jkstudio.log` und `jkstudio-detail.log`; die Startfläche der Vorschau zeigt das Logo von JK Studio.
+- Neu: SECURITY.md (Meldeweg für Sicherheitslücken), CONTRIBUTING.md und eine vollständige Liste der Fremdbestandteile; das README erklärt die SmartScreen-Warnung und die Prüfung eines Downloads mit SHA256SUMS.txt.
+- Unter der Haube: null Compiler-Warnungen (jetzt als Fehler behandelt), statische Analyse mit clang-tidy und MSVC /analyze und eine Bauprüfung auf GitHub für jede Änderung.
+
 ## rc604 — Jedi Outcast als drittes Regelwerk, Laufen und Springen wie im Spiel, Gras, Geschütze, Fallen, Speicher
 
 Gewünscht: „ist JKO supported?“ (echtes Jedi Outcast), „das mit dem Laufen soll genauso gehen wie ingame“, „nicht jede Figur muss für jedes Script gleichzeitig laufen“, „er soll einfach alle Karten öffnen und checken, ob alles da ist“ – und: „mach weiter mit den offenen Punkten, bis alles fertig ist“.
