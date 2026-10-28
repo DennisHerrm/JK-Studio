@@ -75,10 +75,10 @@ KARTE_WERKZEUGE9 = {
             "把 .obj、.fbx、.glb 或 .gltf 文件从资源管理器拖到地图编辑器上。程序会把它转换为带自己着色器的 MD3,并复制纹理(嵌入在文件中或位于文件旁);所有内容都放入设置旁的导入文件夹,绝不写入游戏。一个 misc_model 会出现在二维视图中的鼠标指针下(否则在摄像机前方)并被选中;撤销一次即可移除。超过 511 单位的模型会在 MD3 中缩小并获得 `modelscale`。",
             ".obj・.fbx・.glb・.gltf ファイルをエクスプローラーからマップエディターへドラッグします。プログラムが独自のシェーダー付きの MD3 に変換し、テクスチャ(ファイルに埋め込まれたもの、または隣にあるもの)をコピーします。すべて設定の隣のインポートフォルダーに入り、ゲームには書き込みません。2D ビューのマウスポインターの下(それ以外ではカメラの前)に misc_model が現れて選択されます。元に戻す 1 回で消えます。511 ユニットを超えるモデルは MD3 内で縮小され、`modelscale` が付きます。")),
         ("note", T(
-            "**{{KeStMenue}}** packs the import folder into the test archive, so the game finds the models, shaders and textures. For a release, copy the folder `models/import` and the `scripts` of the import folder into your mod or pk3.",
-            "**{{KeStMenue}}** packt den Import-Ordner ins Testarchiv, damit das Spiel Modelle, Shader und Texturen findet. Für eine Veröffentlichung kopiere den Ordner `models/import` und die `scripts` des Import-Ordners in deine Mod oder .pk3.",
-            "**{{KeStMenue}}** 会把导入文件夹打包进测试存档,使游戏能找到模型、着色器和纹理。发布时,请把导入文件夹中的 `models/import` 文件夹和 `scripts` 复制到你的模组或 pk3 中。",
-            "**{{KeStMenue}}** はインポートフォルダーをテスト用アーカイブに入れるので、ゲームがモデル・シェーダー・テクスチャを見つけられます。公開するときは、インポートフォルダーの `models/import` フォルダーと `scripts` を MOD または pk3 にコピーしてください。")),
+            "**{{KeStMenue}}** and **{{KePkMenue}}** pack the import folder into their archive, so the game finds the models, shaders and textures.",
+            "**{{KeStMenue}}** und **{{KePkMenue}}** packen den Import-Ordner mit ins Archiv, damit das Spiel Modelle, Shader und Texturen findet.",
+            "**{{KeStMenue}}** 和 **{{KePkMenue}}** 会把导入文件夹一并打包进存档,使游戏能找到模型、着色器和纹理。",
+            "**{{KeStMenue}}** と **{{KePkMenue}}** はインポートフォルダーもアーカイブに入れるので、ゲームがモデル・シェーダー・テクスチャを見つけられます。")),
         ("h2", "sprung", T("Check jumps and space", "Sprünge und Platz prüfen", "检查跳跃与空间", "ジャンプと空間を確認")),
         ("p", T(
             "**{{KeLView}} > {{KeSjMenue}} > {{KeSjPruefen}}** checks the selection (or 512 units around the camera) with the movement of the game: where the player can stand (green crosses) or fits only crouched (yellow), and from which edges a running jump lands on another floor - blue for a normal jump, purple where only the force jump of the chosen level gets there. It runs in the background; **{{KeSjLeeren}}** removes the display.",

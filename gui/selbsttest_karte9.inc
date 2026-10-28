@@ -200,6 +200,13 @@ std::vector<Schritt> schritte() {
         diag::detail("Knopftest: Modell ziehen - Archiv " + p + " ok " + std::to_string(ok ? 1 : 0));
         return ok;
     }));
+    add(pruefe("Pack map as .pk3 nimmt den Import-Ordner mit (MD3, Bild, Shader)", [] {
+        const std::string p = ke::karteAlsPk3();
+        Pk3 a;
+        return !p.empty() && readPk3Directory(p, a) && a.find("maps/meinekarte.bsp") != nullptr &&
+               a.find("models/import/geo_wuerfel/geo_wuerfel.md3") != nullptr && a.find("models/import/geo_wuerfel/stein.png") != nullptr &&
+               a.find("scripts/geo_wuerfel.shader") != nullptr;
+    }));
     add(tu("Modell ziehen: Undo", [] {
         karteDialogeZu();
         (void)ke::ausfuehren("Undo");

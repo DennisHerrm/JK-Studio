@@ -1994,6 +1994,19 @@ std::string karteAlsPk3() {
         d.name = "maps/" + stamm + ".bhed";
         if (lesen(bhed, d.inhalt)) { dateien.push_back(std::move(d)); }
     }
+    // Stufe 9: der Import-Ordner mit (Modelle, Shader, Texturen aus "Geometrie als Brushes" und
+    // dem Ziehen von Modellen) - die .bsp nennt sie, ohne sie fehlen sie im Spiel
+    if (const std::string imp = importOrdner(); !imp.empty()) {
+        const fs::path wurzel = pfadAus(imp);
+        for (fs::recursive_directory_iterator it(wurzel, ec), ende; !ec && it != ende; it.increment(ec)) {
+            if (!it->is_regular_file(ec)) { continue; }
+            Pk3Datei d;
+            const std::u8string rel = fs::relative(it->path(), wurzel, ec).generic_u8string();
+            d.name.assign(rel.begin(), rel.end());
+            if (!d.name.empty() && lesen(it->path(), d.inhalt)) { dateien.push_back(std::move(d)); }
+        }
+        ec.clear();
+    }
     std::string err;
     if (!writePk3(text(ziel), dateien, &err)) {
         char z[1400];
