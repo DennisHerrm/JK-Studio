@@ -86,6 +86,27 @@ enum class EditorDatenStand { Passt, AndereBsp, Kaputt };
 // Vertexlicht und Lichtgitter aus <karte>.bhedlight, wo sie sich nicht aendern koennen)
 [[nodiscard]] std::string befehlMitLichtWiederverwendung(const std::string& befehl);
 
+// Stufe 8g: GPU-Backen. Ob Build > "GPU bake" ohne gespeicherte Einstellung an ist - die
+// Entscheidung, ob das GPU-Backen Standard wird, ist nur diese eine Konstante (der Schalter
+// faellt ohne passende GPU von selbst auf die CPU zurueck).
+inline constexpr bool kGpuBackenVorgabe = false;
+// ein -light-Befehl bekommt -bhedgpubake (bhed_q3map2: die ganze Lichtrechnung auf der GPU,
+// Byte-gleich mit der CPU)
+[[nodiscard]] std::string befehlMitGpuBacken(const std::string& befehl);
+// Was bhed_q3map2 -bhedgpubake ueber sich ausgibt (die Zeilen "BehavEd GPU bake: ..."):
+// die GPU und der Abweichungsbericht
+struct GpuBackBericht {
+    std::string adapter;             // "BehavEd GPU bake: <adapter> (feature level ..."
+    bool keineGpu = false;           // "no usable GPU - the CPU computes everything"
+    bool kopf = false;               // Zeile "... rounds, N lightmaps on the GPU ..." gesehen
+    long long gpuLm = 0, cpuLm = 0;
+    bool bericht = false;            // Zeile "BehavEd GPU bake report: ..." gesehen
+    long long luxel = 0, lms = 0, lmsAnders = 0, gitterGpu = 0, gitterCpu = 0;
+    std::string gleich;              // Anteil gleicher Luxel in %, wie ausgegeben ("100.0000")
+};
+// eine Ausgabezeile von bhed_q3map2 auswerten; true: sie gehoerte zum GPU-Backen
+bool gpuBackZeile(const std::string& zeile, GpuBackBericht& b);
+
 }  // namespace bhed::karte
 
 #endif

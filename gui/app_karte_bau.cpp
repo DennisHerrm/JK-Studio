@@ -321,6 +321,23 @@ void bauMenueEintraegeZeichnen() {
         ed.bau.lichtWieder = !ed.bau.lichtWieder;
         einstellungenSpeichern();
     }
+    // Stufe 8g (Abweichung, eigene Funktion): die ganze Lichtrechnung auf der GPU (-bhedgpubake)
+    const std::string gpu = std::string(trK(Str::KeGpuMenue)) + "##baugpubacken";
+    std::string gpuTip = trK(Str::KeGpuMenueTip);
+    if (!ed.bau.gpuBericht.empty()) {
+        char z[1024];
+        std::snprintf(z, sizeof(z), trK(Str::KeGpuMenueTipBericht), ed.bau.gpuBericht.c_str());
+        gpuTip += std::string("\n\n") + z;
+    }
+    QtPunkt gp;
+    gp.id = gpu.c_str();
+    gp.art = QtArt::Pruefbar;
+    gp.haken = ed.bau.gpuBacken;
+    gp.tooltip = gpuTip.c_str();
+    if (qtPunkt(gp)) {
+        ed.bau.gpuBacken = !ed.bau.gpuBacken;
+        einstellungenSpeichern();
+    }
     // Stufe 8a Punkt 5c (Abweichung, eigene Funktion): Zur fertigen Karte hinzufuegen (-mergebsp)
     const std::string zf = std::string(trK(Str::KeZfMenue)) + "##bauzusammen";
     QtPunkt zp;
@@ -1104,6 +1121,8 @@ struct BauLauf {
     karte::BauLaufZeiten jetzt;                    // Zeiten dieses Laufs
     std::vector<double> fertig;                    // Dauern der fertigen Schritte
     bool hatVerlauf = false;
+    karte::GpuBackBericht gpu;                     // Stufe 8g: was bhed_q3map2 -bhedgpubake ausgibt
+    std::string gpuRest;                           // angefangene Zeile dazu
     karte::BauLaufZeiten verlauf;                  // der letzte Bau dieser Karte mit diesem Eintrag
     // Stufe 8a Punkt 2: nach dem Bau <karte>.bhed schreiben (Quelle, .bsp)
     std::string editorDatenQuelle;
@@ -1134,7 +1153,43 @@ void schrittZeitMerken() {
     l.fertig.push_back(d);
 }
 
-void schrittBeobachten(const std::string& text) { g_lauf.beob.text(text, sekundenSeit(g_lauf.schrittStart)); }
+// Stufe 8g: die Zeilen des GPU-Backens (GPU, Abweichungsbericht) aus der Ausgabe
+void gpuBeobachten(const std::string& text) {
+    BauLauf& l = g_lauf;
+    l.gpuRest += text;
+    std::size_t p = 0;
+    for (std::size_t q; (q = l.gpuRest.find('\n', p)) != std::string::npos; p = q + 1) {
+        std::string z = l.gpuRest.substr(p, q - p);
+        if (!z.empty() && z.back() == '\r') { z.pop_back(); }
+        if (karte::gpuBackZeile(z, l.gpu) && !l.gpu.adapter.empty()) { e().bau.gpuAdapter = l.gpu.adapter; }
+    }
+    l.gpuRest.erase(0, p);
+    if (l.gpuRest.size() > 4096) { l.gpuRest.clear(); }
+}
+
+void schrittBeobachten(const std::string& text) {
+    g_lauf.beob.text(text, sekundenSeit(g_lauf.schrittStart));
+    gpuBeobachten(text);
+}
+
+// Stufe 8g: nach dem Bau der Abweichungsbericht des GPU-Backens in der Konsole (und im Tooltip von
+// Build > GPU bake)
+void gpuBerichtAusgeben() {
+    BauLauf& l = g_lauf;
+    gpuBeobachten("\n");
+    if (l.gpu.keineGpu) {
+        konsoleSchreiben(KonsolenZeile::Art::Warnung, std::string(trK(Str::KeGpuKeineGpu)) + "\n");
+        e().bau.gpuBericht = trK(Str::KeGpuKeineGpu);
+        return;
+    }
+    if (!l.gpu.bericht) { return; }
+    char z[1024];
+    std::snprintf(z, sizeof(z), trK(Str::KeGpuBericht), l.gpu.adapter.c_str(), l.gpu.gleich.c_str(), std::to_string(l.gpu.luxel).c_str(),
+                  std::to_string(l.gpu.lms).c_str(), std::to_string(l.gpu.lmsAnders).c_str(), std::to_string(l.gpu.gpuLm).c_str(),
+                  std::to_string(l.gpu.cpuLm).c_str(), std::to_string(l.gpu.gitterGpu).c_str());
+    konsoleSchreiben(l.gpu.lmsAnders == 0 ? KonsolenZeile::Art::Ausgabe : KonsolenZeile::Art::Warnung, std::string(z) + "\n");
+    e().bau.gpuBericht = z;
+}
 
 // Stufe 8a Punkt 2: nach einem Bau mit BSP-Stufe die Quelle als <karte>.bhed neben die .bsp
 void editorDatenSchreiben() {
@@ -1222,6 +1277,7 @@ void zusammenfassung(int art, const std::string& grund) {   // 0 fertig, 1 gesto
             }
         }
         editorDatenSchreiben();
+        gpuBerichtAusgeben();   // Stufe 8g
         bauFertigMelden();
         // Stufe 5: nach einem Bau des Build-Menues (nicht nach eigenen
         // Auftraegen wie AutoCaulk) auf Wunsch der Optimierer im Hintergrund
@@ -1432,6 +1488,8 @@ void bauAusfuehren(const std::vector<std::string>& befehle) {
     l.fertig.clear();
     l.beob = karte::BauSchrittBeobachter{};
     l.hatVerlauf = false;
+    l.gpu = karte::GpuBackBericht{};
+    l.gpuRest.clear();
     if (!l.kartenPfad.empty()) {
         const karte::BauZeitenSpeicher sp = bauZeitenLesen();
         if (const karte::BauLaufZeiten* v = sp.finden(l.kartenPfad, l.eintrag)) {
@@ -1478,6 +1536,11 @@ void bauSchritt() {
         std::snprintf(z, sizeof(z), trK(Str::KeBmStatus), l.eintrag.c_str(), static_cast<int>(std::min(l.schritt + 1, l.befehle.size())),
                       static_cast<int>(l.befehle.size()), zeit);
         ed.statusBefehl = z;
+        if (!l.gpu.adapter.empty()) {   // Stufe 8g: die GPU des GPU-Backens
+            char g[256];
+            std::snprintf(g, sizeof(g), trK(Str::KeGpuStatus), l.gpu.adapter.c_str());
+            ed.statusBefehl += std::string(" - ") + g;
+        }
     }
     switch (l.zustand) {
     case BauZustand::Schrittbeginn:
@@ -1647,6 +1710,10 @@ void bauFortschrittZeichnen() {
         std::snprintf(z, sizeof(z), trK(Str::KeFsSchritt), g_lauf.eintrag.c_str(), static_cast<int>(st.schritt + 1), static_cast<int>(st.schritte),
                       st.stufe.c_str());
         ImGui::TextUnformatted(z);
+        if (!g_lauf.gpu.adapter.empty()) {   // Stufe 8g: die GPU des GPU-Backens
+            std::snprintf(z, sizeof(z), trK(Str::KeGpuFsAdapter), g_lauf.gpu.adapter.c_str());
+            ImGui::TextUnformatted(z);
+        }
         // Balken 1: die Phase von q3map2 (Pacifier 0...9); ohne Pacifier wandernd
         std::string phase = st.phase.empty() ? std::string(trK(Str::KeFsWarten)) : st.phase;
         if (st.bounceVon > 0 && st.bounce > 0) {
@@ -1933,6 +2000,10 @@ void bauStarten(std::size_t index) {
     // Stufe 8a Punkt 5b/5d (Abweichung): Licht nur fuer betroffene Lightmaps, Nachbearbeitung ohne neu zu tracen
     if (ed.bau.lichtWieder) {
         for (std::string& b : befehle) { b = karte::befehlMitLichtWiederverwendung(b); }
+    }
+    // Stufe 8g (Abweichung): die Lichtrechnung auf der GPU, Byte-gleich mit der CPU
+    if (ed.bau.gpuBacken) {
+        for (std::string& b : befehle) { b = karte::befehlMitGpuBacken(b); }
     }
     // bspname: PathFilename( Map_Name( g_map ) ) fuer die Engine
     const std::u8string stamm = pfadAus(ed.name).stem().u8string();

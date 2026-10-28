@@ -2383,6 +2383,13 @@ enum class Str {
     KePkKeineBsp,
     KePkSpielordner,
     KePkFehler,
+    KeGpuMenue,
+    KeGpuMenueTip,
+    KeGpuMenueTipBericht,
+    KeGpuStatus,
+    KeGpuFsAdapter,
+    KeGpuBericht,
+    KeGpuKeineGpu,
     Count,
 };
 

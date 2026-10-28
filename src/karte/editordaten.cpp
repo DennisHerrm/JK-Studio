@@ -136,4 +136,61 @@ std::string befehlMitVisWiederverwendung(const std::string& befehl) { return mit
 
 std::string befehlMitLichtWiederverwendung(const std::string& befehl) { return mitSchalter(befehl, BauStufe::Licht, "-bhedlightcache"); }
 
+std::string befehlMitGpuBacken(const std::string& befehl) { return mitSchalter(befehl, BauStufe::Licht, "-bhedgpubake"); }
+
+bool gpuBackZeile(const std::string& zeile, GpuBackBericht& b) {
+    static const std::string kGpu = "BehavEd GPU bake: ";
+    static const std::string kBericht = "BehavEd GPU bake report: ";
+    const std::size_t p = zeile.find("BehavEd GPU bake");
+    if (p == std::string::npos) { return false; }
+    const std::string z = zeile.substr(p);
+    const auto zahlVor = [&z](const std::string& wort, long long& wert) {   // die Zahl vor " <wort>"
+        const std::size_t q = z.find(" " + wort);
+        if (q == std::string::npos) { return false; }
+        std::size_t a = q;
+        while (a > 0 && std::isdigit(static_cast<unsigned char>(z[a - 1])) != 0) { --a; }
+        if (a == q) { return false; }
+        wert = std::stoll(z.substr(a, q - a));
+        return true;
+    };
+    if (z.rfind(kBericht, 0) == 0) {
+        b.bericht = zahlVor("luxels in", b.luxel) && zahlVor("lightmaps checked", b.lms);
+        (void)zahlVor("lightmaps with a difference", b.lmsAnders);
+        (void)zahlVor("points on the GPU", b.gitterGpu);
+        const std::size_t gitter = z.find("light grid: ");
+        if (gitter != std::string::npos) {   // "light grid: N points on the GPU, M on the CPU"
+            const std::size_t komma = z.find(", ", gitter);
+            if (komma != std::string::npos) { b.gitterCpu = std::atoll(z.c_str() + komma + 2); }
+        }
+        const std::size_t g = z.find(" % identical");
+        if (g != std::string::npos) {
+            std::size_t a = g;
+            while (a > 0 && (std::isdigit(static_cast<unsigned char>(z[a - 1])) != 0 || z[a - 1] == '.')) { --a; }
+            b.gleich = z.substr(a, g - a);
+        }
+        return true;
+    }
+    if (z.rfind(kGpu, 0) != 0) { return true; }
+    if (z.find("no usable GPU") != std::string::npos) {
+        b.keineGpu = true;
+        return true;
+    }
+    const std::size_t fl = z.find(" (feature level");
+    if (fl != std::string::npos && b.adapter.empty()) {
+        b.adapter = z.substr(kGpu.size(), fl - kGpu.size());
+        return true;
+    }
+    if (z.find(" rounds, ") != std::string::npos) {
+        b.kopf = zahlVor("lightmaps on the GPU", b.gpuLm);
+        const std::size_t c = z.find("), ");
+        if (c != std::string::npos) {
+            const std::string rest = z.substr(c + 3);
+            std::size_t e = 0;
+            while (e < rest.size() && std::isdigit(static_cast<unsigned char>(rest[e])) != 0) { ++e; }
+            if (e > 0 && rest.compare(e, 11, " on the CPU") == 0) { b.cpuLm = std::stoll(rest.substr(0, e)); }
+        }
+    }
+    return true;
+}
+
 }  // namespace bhed::karte

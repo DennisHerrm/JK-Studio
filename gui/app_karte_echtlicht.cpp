@@ -309,8 +309,10 @@ void schnellBauStarten(std::size_t kartenStand) {
     const std::string bsp = karte.substr(0, karte.size() - 4) + ".bsp";
     // -vis nur mit einer .prt (eine Karte, die leckt, hat keine - waehrend des Bauens
     // oft der Fall; -light geht auch ohne Sichtbarkeit)
+    // Stufe 8g: mit Build > GPU bake rechnet die GPU das Licht (ohne die Nachpruefung: schnell)
+    const std::string gpu = e.bau.gpuBacken ? "-bhedgpubake -bhedgpubakecheck 0 " : "";
     const std::vector<std::string> befehle = {grund + "-meta \"" + karte + "\"", grund + "-vis -fast \"" + bsp + "\"",
-                                              grund + "-light -fast \"" + bsp + "\""};
+                                              grund + "-light -fast " + gpu + "\"" + bsp + "\""};
     g_backen.abbrechen = false;
     g_backen.stand = 2;
     g_backen.kartenStand = kartenStand;

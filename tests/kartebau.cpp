@@ -310,6 +310,28 @@ void editorDatenPruefen(const std::string& q3) {
     pruefe(befehlMitLichtWiederverwendung(q + "-light -fast -samples 2 \"C:/m/a.map\"") == q + "-light -fast -samples 2 -bhedlightcache \"C:/m/a.map\"" &&
                befehlMitLichtWiederverwendung(q + "-vis \"C:/m/a.map\"") == q + "-vis \"C:/m/a.map\"",
            "Stufe 8a/5b: -bhedlightcache nur fuer -light, vor der Karte");
+    // Stufe 8g: Build > GPU bake - -bhedgpubake nur fuer -light; die Ausgabe von bhed_q3map2 -bhedgpubake
+    pruefe(befehlMitGpuBacken(q + "-light -fast -samples 2 \"C:/m/a.map\"") == q + "-light -fast -samples 2 -bhedgpubake \"C:/m/a.map\"" &&
+               befehlMitGpuBacken(q + "-meta \"C:/m/a.map\"") == q + "-meta \"C:/m/a.map\"" &&
+               befehlMitGpuBacken(q + "-light -bhedgpubake \"C:/m/a.map\"") == q + "-light -bhedgpubake \"C:/m/a.map\"",
+           "Stufe 8g: -bhedgpubake nur fuer -light, vor der Karte, nicht doppelt");
+    {
+        GpuBackBericht b;
+        const bool z1 = gpuBackZeile("BehavEd GPU bake: adapter 0: NVIDIA GeForce RTX 4070 Laptop GPU (8188 MB) - chosen", b);
+        const bool z2 = gpuBackZeile("BehavEd GPU bake: NVIDIA GeForce RTX 4070 Laptop GPU (feature level b100, double precision), 19180 nodes, 67625 triangles, "
+                                     "scene 3782 KB, blocks up to 38347922 pairs (1536 MB)", b);
+        const bool z3 = gpuBackZeile("BehavEd GPU bake: NVIDIA GeForce RTX 4070 Laptop GPU, double, 5 rounds, 240 lightmaps on the GPU (14 without light, 1 in parts), "
+                                     "3 on the CPU (0 alpha shadow/unsafe, 0 not finite, 0 too big), 60688668 pairs on the GPU, 7 blocks, 116 dispatches, GPU 0.24 s", b);
+        const bool z4 = gpuBackZeile("BehavEd GPU bake report: 20846 luxels in 14 lightmaps checked on the CPU, 99.5000 % identical; 2 lightmaps with a difference "
+                                     "(0 in styles), mean |diff| 0.000000, max |diff| 0.000000; light grid: 512148 points on the GPU, 7 on the CPU", b);
+        const bool z5 = gpuBackZeile("--- LightWorld ---", b);
+        pruefe(z1 && z2 && z3 && z4 && !z5 && b.adapter == "NVIDIA GeForce RTX 4070 Laptop GPU" && b.kopf && b.gpuLm == 240 && b.cpuLm == 3 && b.bericht &&
+                   b.luxel == 20846 && b.lms == 14 && b.lmsAnders == 2 && b.gleich == "99.5000" && b.gitterGpu == 512148 && b.gitterCpu == 7 && !b.keineGpu,
+               "Stufe 8g: GPU und Abweichungsbericht aus der Ausgabe von -bhedgpubake (" + b.adapter + ", " + b.gleich + " %)");
+        GpuBackBericht k;
+        (void)gpuBackZeile("BehavEd GPU bake: no usable GPU - the CPU computes everything", k);
+        pruefe(k.keineGpu && !k.bericht && k.adapter.empty(), "Stufe 8g: ohne nutzbare GPU erkannt");
+    }
     pruefe(editorDatenPfad("C:/maps/a.b/raum.bsp") == "C:/maps/a.b/raum.bhed" && editorDatenPfad("maps/x") == "maps/x.bhed", "Pfad der Begleitdatei");
     const std::string bsp = lies(q3 + "/raum.nrc.bsp");
     const std::string map = lies(q3 + "/raum.map");

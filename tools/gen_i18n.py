@@ -2202,6 +2202,8 @@ from i18n_karte8b import KARTE8B  # noqa: E402  (Stufe 8b: neue Editor-Werkzeuge
 S += KARTE8B
 from i18n_karte8c import KARTE8C  # noqa: E402  (Stufe 8c: Tutorial, Karte als .pk3)
 S += KARTE8C
+from i18n_karte8g import KARTE8G  # noqa: E402  (Stufe 8g: GPU-Backen)
+S += KARTE8G
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

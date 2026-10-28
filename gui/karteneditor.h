@@ -32,6 +32,7 @@
 #include "bhed/karte/logik.h"
 #include "bhed/navlauf.h"
 #include "bhed/karte/bspoeffnen.h"
+#include "bhed/karte/editordaten.h"
 #include "bhed/karte/baumonitor.h"
 #include "bhed/karte/portale.h"
 #include "bhed/karte/bearbeitung.h"
@@ -982,6 +983,9 @@ struct Editor {
         bool editorDaten = false;          // Stufe 8a: -keeplights und <karte>.bhed ("BhedKeepEditorData"), Vorgabe aus wie NRC
         bool visWieder = false;            // Stufe 8a Punkt 5a: -bhedvisreuse fuer -vis ("BhedVisReuse")
         bool lichtWieder = false;          // Stufe 8a Punkt 5b/5d: -bhedlightcache fuer -light ("BhedLightReuse")
+        bool gpuBacken = karte::kGpuBackenVorgabe;   // Stufe 8g: -bhedgpubake fuer -light und das Schnell-Backen ("BhedGpuBake")
+        std::string gpuBericht;            // Stufe 8g: der Abweichungsbericht des letzten GPU-Backens (eine Zeile, uebersetzt)
+        std::string gpuAdapter;            // Stufe 8g: die GPU des laufenden bzw. letzten GPU-Backens
     } bau;
     // Stufe 8a Punkt 3/4: was "Open .bsp" zurueckgewinnt (eigene Funktion, nicht in NRC)
     struct BspRueckEinstellungen {
