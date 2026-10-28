@@ -246,8 +246,70 @@ void echtFlaechenLichter(const std::vector<Vektor3f>& wicklung, const Vektor3f& 
     unterteilen(wicklung, normale, n, u, aus, 0);
 }
 
-void echtHimmelsLichter(const EchtSonne::Himmelslicht& h, const Vektor3f& farbe, std::vector<EchtLicht>& aus) {
+std::vector<EchtSonne::Probe> echtHimmelsProben(const std::vector<unsigned char>* const rgba[6], const int* breite, const int* hoehe) {
+    std::vector<EchtSonne::Probe> r;
+    for (int i = 0; i < 6; ++i) {
+        if (rgba[i] == nullptr || breite[i] <= 0 || hoehe[i] <= 0 ||
+            rgba[i]->size() < static_cast<std::size_t>(breite[i]) * static_cast<std::size_t>(hoehe[i]) * 4U) {
+            return r;
+        }
+    }
+    constexpr int res = 64;
+    r.reserve(6 * res * res);
+    for (int i = 0; i < 6; ++i) {
+        const int bw = breite[i];
+        const int bh = hoehe[i];
+        for (int u = 0; u < res; ++u) {
+            for (int v = 0; v < res; ++v) {
+                Vektor3f n(1.0F, 1.0F - static_cast<float>(u) * 2.0F / res, 1.0F - static_cast<float>(v) * 2.0F / res);
+                n = n / std::sqrt(punkt3(n, n));
+                const int w0 = bw * u / res;
+                const int w1 = std::max(w0 + 1, bw * (u + 1) / res);
+                const int h0 = bh * v / res;
+                const int h1 = std::max(h0 + 1, bh * (v + 1) / res);
+                Vektor3f c(0, 0, 0);
+                for (int x = w0; x < w1; ++x) {
+                    for (int y = h0; y < h1; ++y) {
+                        const std::size_t k = (static_cast<std::size_t>(y) * static_cast<std::size_t>(bw) + static_cast<std::size_t>(x)) * 4U;
+                        c = c + Vektor3f((*rgba[i])[k], (*rgba[i])[k + 1], (*rgba[i])[k + 2]);
+                    }
+                }
+                c = c / static_cast<float>((w1 - w0) * (h1 - h0));
+                c = c * n[0];   // color *= dot( normal, g_vector3_axis_x )
+                // postrotate everything from _rt (+x): lf (-1,-1,1), rt, ft z -90, bk z +90, up y -90, dn y +90
+                Vektor3f d = n;
+                switch (i) {
+                case 0: d = Vektor3f(-n[0], -n[1], n[2]); break;
+                case 1: break;
+                case 2: d = Vektor3f(n[1], -n[0], n[2]); break;
+                case 3: d = Vektor3f(-n[1], n[0], n[2]); break;
+                case 4: d = Vektor3f(-n[2], n[1], n[0]); break;
+                default: d = Vektor3f(n[2], n[1], -n[0]); break;
+                }
+                r.push_back({c / 255.0F, d});
+            }
+        }
+    }
+    return r;
+}
+
+void echtHimmelsLichter(const EchtSonne::Himmelslicht& h, const Vektor3f& farbe, std::vector<EchtLicht>& aus, const std::vector<EchtSonne::Probe>* proben) {
     if (h.wert <= 0 || h.schritte < 2 || h.horizontMin > h.horizontMax) { return; }
+    const bool mitProben = proben != nullptr && !proben->empty() && h.farbeAusHimmel;
+    const Vektor3f grenze = h.horizontMin >= 0 ? Vektor3f(0, 0, 1) : h.horizontMax <= 0 ? Vektor3f(0, 0, -1) : Vektor3f(0, 0, 0);
+    const auto probeFarbe = [&](const Vektor3f& richtung) {   // SkyProbes::sampleColour
+        Vektor3f c(0, 0, 0);
+        double gewicht = 0;
+        for (const EchtSonne::Probe& p : *proben) {
+            const double d = punkt3(p.normale, richtung);
+            if (d > 0 && punkt3(p.normale, grenze) >= 0) {
+                c = c + p.farbe * static_cast<float>(d);
+                gewicht += d;
+            }
+        }
+        return gewicht != 0 ? c / static_cast<float>(gewicht) : c;
+    };
+    const std::size_t erste = aus.size();
     const bool unten = h.horizontMin == -90;
     const bool oben = h.horizontMax == 90;
     const int winkelSchritte = (h.schritte - 1) * 4;
@@ -264,7 +326,7 @@ void echtHimmelsLichter(const EchtSonne::Himmelslicht& h, const Vektor3f& farbe,
     const auto sonne = [&](const Vektor3f& richtung) {
         EchtLicht l;
         l.art = EchtLicht::Art::Sonne;
-        l.farbe = farbe;
+        l.farbe = mitProben ? probeFarbe(richtung) : farbe;
         l.photonen = photonen;
         l.sonnenRichtung = richtung;
         l.winkel = true;
@@ -284,6 +346,13 @@ void echtHimmelsLichter(const EchtSonne::Himmelslicht& h, const Vektor3f& farbe,
     }
     if (unten) { sonne(Vektor3f(0, 0, -1)); }
     if (oben) { sonne(Vektor3f(0, 0, 1)); }
+    if (mitProben) {   // auf das Groesste aller Sonnen normieren
+        float mx = 0;
+        for (std::size_t i = erste; i < aus.size(); ++i) { mx = std::max({mx, aus[i].farbe[0], aus[i].farbe[1], aus[i].farbe[2]}); }
+        if (mx != 0) {
+            for (std::size_t i = erste; i < aus.size(); ++i) { aus[i].farbe = aus[i].farbe / mx; }
+        }
+    }
 }
 
 EchtLichtWelt echtLichterSammeln(const Karte& k, const std::function<EchtFlaechenShader(const std::string&)>& flaechenShader,
@@ -393,7 +462,7 @@ EchtLichtWelt echtLichterSammeln(const Karte& k, const std::function<EchtFlaeche
                         huelleSetzen(l);
                         w.lichter.push_back(l);
                     }
-                    for (const EchtSonne::Himmelslicht& h : s.himmel) { echtHimmelsLichter(h, normiert(s.shaderFarbe), w.lichter); }
+                    for (const EchtSonne::Himmelslicht& h : s.himmel) { echtHimmelsLichter(h, normiert(s.shaderFarbe), w.lichter, &s.proben); }
                 }
                 if (!flaechenShader) { continue; }
                 const EchtFlaechenShader fs = flaechenShader(sh);

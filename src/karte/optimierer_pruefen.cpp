@@ -1297,12 +1297,17 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
             };
             if (zahl(j + 3)) {
                 h.horizontMin = std::clamp(std::atoi(w[j + 3].c_str()), -90, 90);
-                if (zahl(j + 4)) { h.horizontMax = std::clamp(std::atoi(w[j + 4].c_str()), -90, 90); }
+                if (zahl(j + 4)) {
+                    h.horizontMax = std::clamp(std::atoi(w[j + 4].c_str()), -90, 90);
+                    if (zahl(j + 5)) { h.farbeAusHimmel = std::atoi(w[j + 5].c_str()) != 0; }
+                }
             }
             r.himmelsLichter.push_back(h);
             r.himmel = true;
         } else if (k == "q3map_lightsubdivide" && j + 1 < w.size()) {   // shaders.cpp:1241-1246
             r.lichtUnterteilung = std::atof(w[j + 1].c_str());
+        } else if (k == "skyparms" && j + 1 < w.size()) {   // shaders.cpp: si.skyParmsImageBase ("-" = keine)
+            r.himmelsBild = w[j + 1] == "-" ? std::string() : w[j + 1];
         } else if (k == "q3map_lightimage" && j + 1 < w.size()) {   // shaders.cpp:1020
             r.lichtBild = w[j + 1];
         } else if (k == "cull" && j + 1 < w.size()) {   // shaders.cpp: "cull none/twosided/disable" -> si.twoSided

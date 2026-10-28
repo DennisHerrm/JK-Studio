@@ -275,8 +275,10 @@ struct ShaderSkript {
         int schritte = 2;
         int horizontMin = 0;
         int horizontMax = 90;
+        bool farbeAusHimmel = true;   // sample_color
     };
     std::vector<Himmelslicht> himmelsLichter;
+    std::string himmelsBild;        // skyParms <farbox> (si.skyParmsImageBase)
     double lichtUnterteilung = 0;   // q3map_lightSubdivide
     std::string lichtBild;          // q3map_lightImage
     bool durchscheinend = false;    // C_TRANSLUCENT

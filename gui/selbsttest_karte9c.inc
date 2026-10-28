@@ -183,7 +183,9 @@ std::string dateiName(const std::string& pfad) {
 }
 
 // Eine Karte messen: Echtzeit-Bilder an allen Punkten, dann Schnell-Backen, gebackene Bilder.
-std::vector<Schritt> karteMessen(const std::string& eintrag, const std::shared_ptr<std::vector<std::string>>& summen) {
+// grenzeMittel/grenzeMax > 0: der Grenzwert der Abweichung je Punkt (Pruefschritt)
+std::vector<Schritt> karteMessen(const std::string& eintrag, const std::shared_ptr<std::vector<std::string>>& summen, double grenzeMittel = 0,
+                                 double grenzeMax = 0) {
     std::vector<Schritt> s;
     auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
     auto lauf = std::make_shared<Lauf>();
@@ -286,6 +288,16 @@ std::vector<Schritt> karteMessen(const std::string& eintrag, const std::shared_p
         ke::editor().echtLicht.an = false;
         ke::editor().echtLicht.pauseSekunden = 2.0;
     }));
+    if (grenzeMittel > 0) {
+        char t[200];
+        std::snprintf(t, sizeof(t), "Licht 9c: %s - je Punkt Abweichung Mittel <= %.1f und Max <= %.1f (Echtzeit gegen gebacken)", lauf->name.c_str(),
+                      grenzeMittel, grenzeMax);
+        add(pruefe(t, [lauf, grenzeMittel, grenzeMax] {
+            bool gut = !lauf->ergebnis.empty();
+            for (const Abweichung& a : lauf->ergebnis) { gut = gut && a.gueltig && a.mittel <= grenzeMittel && a.max <= grenzeMax; }
+            return gut;
+        }));
+    }
     return s;
 }
 
@@ -355,7 +367,7 @@ std::vector<Schritt> messung() {
         if (x.find_first_not_of(' ') != std::string::npos) { eintraege.push_back(x); }
     }
     for (const std::string& e : eintraege) {
-        for (Schritt& x : karteMessen(e, summen)) { s.push_back(std::move(x)); }
+        for (Schritt& x : karteMessen(e, summen, 15.0, 200.0)) { s.push_back(std::move(x)); }
     }
     if (const char* zeit = std::getenv("BHED_LICHT_BILDZEIT"); zeit != nullptr && zeit[0] != '\0') {
         std::istringstream z(zeit);
@@ -657,6 +669,18 @@ std::vector<Schritt> himmel() {
         e.echtLicht.pauseSekunden = 2.0;
     }));
     add(pause(0.3));
+    // Grenzwerte der Messung (Bloecke 16 x 16, vom Startpunkt aus): Himmel mit Sonne und
+    // Flaechenlicht, derselbe Raum mit Steindecke und einem Punktlicht 300
+    auto summen = std::make_shared<std::vector<std::string>>();
+    for (Schritt& x : karteMessen(himmelKarte(), summen, 4.0, 16.0)) { add(std::move(x)); }
+    add(tu("Stufe 9c/2: Raum mit Steindecke und Punktlicht schreiben", [] {
+        std::string t = dateiInhalt(himmelKarte());
+        for (std::size_t p = t.find("fur/sky"); p != std::string::npos; p = t.find("fur/sky")) { t.replace(p, 7, "yavin/temple_stone2"); }
+        t += "{\n\"classname\" \"light\"\n\"origin\" \"0 0 128\"\n\"light\" \"300\"\n}\n";
+        std::ofstream f(bhed::utf8Pfad(karteTestPfad("s9c_punkt.map")), std::ios::binary);
+        f << t;
+    }));
+    for (Schritt& x : karteMessen(karteTestPfad("s9c_punkt.map"), summen, 1.0, 4.0)) { add(std::move(x)); }
     return s;
 }
 

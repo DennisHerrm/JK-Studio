@@ -97,21 +97,37 @@ Vektor3f shaderFarbe(const std::string& sh) {
         std::vector<unsigned char> rgba;
         int b = 0;
         int h = 0;
-        Vektor3f f(1, 1, 1);
         if (kartenBildRgba(s.lichtBild, rgba, b, h) && b > 0 && h > 0) {
             double c[3] = {0, 0, 0};
             const std::size_t n = static_cast<std::size_t>(b) * static_cast<std::size_t>(h);
             for (std::size_t i = 0; i < n; ++i) {
                 for (int k = 0; k < 3; ++k) { c[k] += rgba[i * 4 + static_cast<std::size_t>(k)]; }
             }
-            f = Vektor3f(static_cast<float>(c[0] / n), static_cast<float>(c[1] / n), static_cast<float>(c[2] / n));
+            const Vektor3f f(static_cast<float>(c[0] / n), static_cast<float>(c[1] / n), static_cast<float>(c[2] / n));
+            g_lichtBildFarben.emplace(s.lichtBild, f);
+            return f;
         }
-        g_lichtBildFarben.emplace(s.lichtBild, f);
-        return f;
+        // "if no light image, use shader image" (shaders.cpp LoadShaderImages)
     }
     float rgb[3] = {1, 1, 1};
-    if (kameraTexturFarbe(sh, rgb)) { return Vektor3f(rgb[0], rgb[1], rgb[2]); }
+    if (kameraLichtFarbe(sh, rgb)) { return Vektor3f(rgb[0], rgb[1], rgb[2]); }
     return Vektor3f(1, 1, 1);
+}
+
+// SkyProbes: die sechs Bilder der skyParms (je Name einmal)
+std::map<std::string, std::vector<karte::EchtSonne::Probe>> g_himmelsProben;
+const std::vector<karte::EchtSonne::Probe>& himmelsProben(const std::string& basis) {
+    const auto it = g_himmelsProben.find(basis);
+    if (it != g_himmelsProben.end()) { return it->second; }
+    static const char* const endungen[6] = {"_lf", "_rt", "_ft", "_bk", "_up", "_dn"};
+    std::vector<unsigned char> bilder[6];
+    int b[6] = {0, 0, 0, 0, 0, 0};
+    int h[6] = {0, 0, 0, 0, 0, 0};
+    const std::vector<unsigned char>* zeiger[6] = {};
+    for (int i = 0; i < 6; ++i) {
+        if (kartenBildRgba(basis + endungen[i], bilder[i], b[i], h[i])) { zeiger[i] = &bilder[i]; }
+    }
+    return g_himmelsProben.emplace(basis, karte::echtHimmelsProben(zeiger, b, h)).first->second;
 }
 
 struct LichtWelt {
@@ -180,7 +196,10 @@ void weltAktualisieren(std::size_t geoStand) {
                 for (const karte::ShaderSkript::Himmelslicht& h : s.himmelsLichter) {
                     r.himmel.push_back({static_cast<float>(h.wert), h.schritte, h.horizontMin, h.horizontMax});
                 }
-                if (!r.himmel.empty()) { r.shaderFarbe = shaderFarbe(sh); }
+                if (!r.himmel.empty()) {
+                    r.shaderFarbe = shaderFarbe(sh);
+                    if (!s.himmelsBild.empty()) { r.proben = himmelsProben(s.himmelsBild); }
+                }
                 return r;
             });
         w.flaechen.clear();

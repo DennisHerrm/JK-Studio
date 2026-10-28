@@ -103,9 +103,16 @@ struct EchtSonne {
         int schritte = 2;
         int horizontMin = 0;
         int horizontMax = 90;
+        bool farbeAusHimmel = true;   // sample_color (Vorgabe): die Farbe je Richtung aus den skyParms-Bildern
     };
     std::vector<Himmelslicht> himmel;
     Vektor3f shaderFarbe{1, 1, 1};   // si.color (Farbe der Himmelslichter ohne Himmelsbilder)
+    // SkyProbes (light.cpp): je Bildblock der sechs Himmelsbilder Farbe und Richtung
+    struct Probe {
+        Vektor3f farbe{0, 0, 0};
+        Vektor3f normale{0, 0, 1};
+    };
+    std::vector<Probe> proben;
 };
 
 struct EchtLichtWelt {
@@ -132,8 +139,14 @@ struct EchtLichtWelt {
 void echtFlaechenLichter(const std::vector<Vektor3f>& wicklung, const Vektor3f& normale, const EchtFlaechenShader& s,
                          std::vector<EchtLicht>& aus);
 
-// CreateSkyLights (light.cpp:228) ohne Himmelsbilder: die Sonnen eines q3map_skyLight
-void echtHimmelsLichter(const EchtSonne::Himmelslicht& h, const Vektor3f& farbe, std::vector<EchtLicht>& aus);
+// CreateSkyLights (light.cpp:228): die Sonnen eines q3map_skyLight; mit proben (SkyProbes,
+// sample_color) die Farbe je Richtung, auf das Groesste aller Sonnen normiert.
+void echtHimmelsLichter(const EchtSonne::Himmelslicht& h, const Vektor3f& farbe, std::vector<EchtLicht>& aus,
+                        const std::vector<EchtSonne::Probe>* proben = nullptr);
+
+// SkyProbes (light.cpp): die sechs Bilder _lf _rt _ft _bk _up _dn (RGBA, Zeilen von oben)
+// in 64 x 64 Bloecken je Seite; leer, wenn ein Bild fehlt.
+[[nodiscard]] std::vector<EchtSonne::Probe> echtHimmelsProben(const std::vector<unsigned char>* const rgba[6], const int* breite, const int* hoehe);
 
 // Der Luxel-Wert ohne Schatten: Umgebung + Summe der Beitraege, mindestens das
 // Minimum (SetupGrid/minLight).

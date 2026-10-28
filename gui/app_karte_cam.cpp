@@ -957,6 +957,15 @@ bool kameraTexturFarbe(const std::string& shader, float rgb[3]) {
     return true;
 }
 
+// Stufe 9c: die Farbe, die q3map2 einem Flaechenlicht gibt (si.color aus dem Shaderbild);
+// fehlt das Bild (notex/shadernotex), nimmt q3map2 "*default" - weiss (image.cpp:255).
+bool kameraLichtFarbe(const std::string& shader, float rgb[3]) {
+    const Bild* b = lager().holen(shader);
+    if (b == nullptr || !b->fertig) { return false; }
+    for (int i = 0; i < 3; ++i) { rgb[i] = b->ersatz ? 1.0F : b->farbe[static_cast<std::size_t>(i)]; }
+    return true;
+}
+
 // --- Befehle --------------------------------------------------------------------
 
 void kameraBefehl(const std::string& name) {

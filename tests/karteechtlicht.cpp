@@ -173,6 +173,18 @@ void himmel() {
     float summe = 0;
     for (const EchtLicht& x : l) { summe += x.photonen; }
     pruefe(l.size() == 17 && nah(summe, 100.0F, 0.01F) && l.back().sonnenRichtung[2] == 1.0F, "q3map_skyLight 100 3: 17 Sonnen, Summe 100 (" + std::to_string(l.size()) + ")");
+    // SkyProbes: nur _up hell - die senkrechte Sonne bekommt die volle Farbe, die flachen kaum etwas
+    {
+        std::vector<unsigned char> dunkel(4 * 4 * 4, 0);
+        std::vector<unsigned char> hell(4 * 4 * 4, 255);
+        const std::vector<unsigned char>* bilder[6] = {&dunkel, &dunkel, &dunkel, &dunkel, &hell, &dunkel};
+        const int b[6] = {4, 4, 4, 4, 4, 4};
+        const std::vector<EchtSonne::Probe> proben = echtHimmelsProben(bilder, b, b);
+        std::vector<EchtLicht> m;
+        echtHimmelsLichter(h, Vektor3f(1, 1, 1), m, &proben);
+        pruefe(proben.size() == 6U * 64U * 64U && m.size() == 17 && nah(m.back().farbe[0], 1.0F, 1e-4F) && m.front().farbe[0] < 0.8F,
+               "SkyProbes: Farbe je Richtung aus den Himmelsbildern, auf das Groesste normiert (flach " + std::to_string(m.front().farbe[0]) + ")");
+    }
     // Shader-Skript: "sun" wie SOF2, zwei Sonnen, q3map_skyLight, q3map_lightSubdivide
     const std::string text = R"(textures/test/himmel
 {
@@ -204,7 +216,7 @@ textures/test/glas
 )";
     const ShaderSkript a = shaderSkriptLesen(text, "textures/test/himmel");
     pruefe(a.sonnen.size() == 2 && a.sonne && a.sonneStaerke == 170 && a.himmelsLichter.size() == 1 && a.himmelsLichter[0].schritte == 4 &&
-               a.lichtUnterteilung == 1024 && a.himmel,
+               a.lichtUnterteilung == 1024 && a.himmel && a.himmelsBild == "textures/skies/x",
            "Shader: sun (SOF2) und q3map_sunExt, q3map_skyLight, q3map_lightSubdivide");
     const ShaderSkript b = shaderSkriptLesen(text, "textures/test/gitter");
     pruefe(b.alphaSchatten && b.durchscheinend && b.zweiseitig && b.stufeAlpha == 3, "Shader: alphashadow, cull none, alphaFunc GE128");

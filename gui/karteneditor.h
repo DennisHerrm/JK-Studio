@@ -1370,6 +1370,7 @@ bool xyPixel(int index, int x, int y, unsigned char rgba[4]);   // Selbsttest: e
 bool kartenBildRgba(const std::string& name, std::vector<unsigned char>& rgba, int& breite, int& hoehe);   // QERApp_LoadImage
 [[nodiscard]] int xyAbtastungen(int index);                      // Selbsttest: MSAA des Renderziels
 bool kameraTexturFarbe(const std::string& shader, float rgb[3]);
+bool kameraLichtFarbe(const std::string& shader, float rgb[3]);   // Stufe 9c: wie q3map2 si.color (fehlendes Bild: weiss)
 void* kameraTexturBild(const std::string& shader);   // Stufe 7: SRV des Shaderbilds (nullptr: noch nicht da)
 
 // Ein QSplitter im aktuellen Kindfenster (Lagen ab dessen Ecke): ordnet an,
