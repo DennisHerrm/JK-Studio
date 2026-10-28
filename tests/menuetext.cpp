@@ -34,9 +34,15 @@ int main() {
     p.tippe("X");
     p.tippe("Y");
     pruefe(p.zeile(5) == "\t\tXYname knopf" && p.zeile(2) == "\tXYname \"a{b\" // }", "zwei Cursor tippen");
-    pruefe(p.rueckgaengig() && p.text() == t0, "Tippen ist EIN Rueckgaengig-Schritt");
-    pruefe(p.wiederholen() && p.zeile(2) == "\tXYname \"a{b\" // }", "Wiederholen");
+    pruefe(p.rueckgaengig() && p.rueckgaengig() && p.text() == t0, "Rueckgaengig mit zwei Cursorn");
+    pruefe(p.wiederholen() && p.wiederholen() && p.zeile(2) == "	XYname \"a{b\" // }", "Wiederholen");
     p.rueckgaengig();
+    p.rueckgaengig();
+    p.einCursor(p.off(Pos{5, 2}));
+    p.tippe("a");
+    p.tippe("b");
+    p.tippe("c");
+    pruefe(p.rueckgaengig() && p.text() == t0 && !p.kannRueckgaengig(), "Tippen ist EIN Rueckgaengig-Schritt");
 
     // Ruecktaste an einem Zeilenanfang nimmt \r\n zusammen weg
     p.einCursor(p.zeilenAnfang(1));
