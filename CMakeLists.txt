@@ -862,6 +862,10 @@ if(BEHAVED_TESTS)
     # einer Sprache (Bilder nur, wenn handbuch/bilder vorhanden ist).
     add_test(NAME handbuch_sprachen
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/handbuch/gen_handbuch.py --pruefen)
+    # H1: der Ortskatalog des Helfers (src/hilfe_orte.inc) passt zu den Menues und
+    # Einstellungen - sonst fand "Zeig es mir" einen umbenannten Menuepunkt nicht mehr.
+    add_test(NAME hilfe_orte
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_hilfe_orte.py --check)
     # Stufe 3 Punkt 1/2: bhed_q3map2.exe bindet nur Windows-DLLs fest (statische
     # Laufzeit wie behaved.exe), und jede Stufe (-bsp, -vis, -light) schreibt,
     # was NRCs q3map2.exe unter denselben Bedingungen schreibt

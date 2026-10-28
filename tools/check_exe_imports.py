@@ -31,6 +31,10 @@ ERLAUBT |= {'winhttp.dll'}
 # (third_party/libxml2/dict.c, xmlInitRandom). bcrypt.dll gehoert seit Vista zu
 # Windows; NRCs libxml2-2.dll neben q3map2.exe bindet sie genauso.
 ERLAUBT |= {'bcrypt.dll'}
+# Stufe H1 (KI-Anbindung): crypt32.dll fuer DPAPI (CryptProtectData) - der
+# API-Schluessel und das MCP-Token liegen verschluesselt im Einstellungsordner.
+# Gehoert seit Windows 2000 zum System.
+ERLAUBT |= {'crypt32.dll'}
 
 
 def imports(path):

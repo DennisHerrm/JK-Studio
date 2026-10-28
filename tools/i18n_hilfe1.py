@@ -35,8 +35,6 @@ HILFE1 = [
     ("HlfFromStep", "starts at step %d", "beginnt bei Schritt %d", "从第 %d 步开始", "手順 %d から"),
     ("HlfWhere", "Where: %s", "Wo: %s", "位置:%s", "場所:%s"),
     ("HlfHere", "**%s** - here it is.", "**%s** - hier ist es.", "**%s** - 就在这里。", "**%s** - ここにあります。"),
-    ("HlfHereFirst", "Open it first - the highlighted button gets you there.", "Öffne es zuerst - der hervorgehobene Knopf bringt dich hin.",
-     "请先打开它——点击高亮的按钮即可到达。", "まず開いてください。強調表示されたボタンから行けます。"),
     ("HlfAllTutorials", "All tutorials", "Alle Tutorials", "所有教程", "すべてのチュートリアル"),
     # --- Erste Schritte ---------------------------------------------------------------------
     ("EsTitle", "Welcome! What do you want to do first?", "Willkommen! Was willst du zuerst tun?", "欢迎!你想先做什么?", "ようこそ!まず何をしますか?"),
@@ -100,7 +98,6 @@ HILFE1 = [
     ("KiLogEmpty", "The AI has not done anything yet.", "Die KI hat noch nichts getan.", "AI 尚未执行任何操作。", "AI はまだ何もしていません。"),
     ("KiConnected", "AI connected", "KI verbunden", "AI 已连接", "AI 接続中"),
     ("KiDisconnect", "Disconnect", "Verbindung trennen", "断开连接", "接続を切る"),
-    ("KiRejected", "Rejected by you.", "Von dir abgelehnt.", "已被你拒绝。", "あなたが拒否しました。"),
     # --- MCP (eigene KI-App anschliessen) -----------------------------------------------------
     ("McpSection", "Connect your own AI app (MCP, off)", "Eigene KI-App anschließen (MCP, aus)", "连接你自己的 AI 应用(MCP,默认关闭)", "自分の AI アプリを接続(MCP・オフ)"),
     ("McpExplain",

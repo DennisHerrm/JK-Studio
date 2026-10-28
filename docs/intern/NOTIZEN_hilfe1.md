@@ -125,6 +125,17 @@ Neue Seite `helfer` („Der Helfer und die Touren“, Gruppe Einstieg) in 4 Spra
 Erste Schritte, Claude fragen, MCP einrichten, **Ist das sicher?** Tutorials-Übersicht nennt
 tut-karte und F1. (Bilder für die neue Seite: offen, H2.)
 
+## 3b. Schlussrunde
+
+| Prüfung | Ergebnis |
+|---|---|
+| Bau Release (alle Ziele, /W4 /WX) | 0 Warnungen |
+| ctest gesamt | 148/149 im ersten Lauf: `exe_importe` meldete das neue `CRYPT32.dll` (DPAPI) – in die Liste der Windows-DLLs aufgenommen; neuer ctest `hilfe_orte` (Ortskatalog aktuell); Endstand siehe unten |
+| tourtest / hilfetest / kitest | grün (Trefferquote 99/99) |
+| Selbsttest `karteneditor` + `BHED_KARTE_NUR=hilfe1` | 56 OK, 0 FEHLER (Helfer, tut-karte mit echten Aktionen, KI über MCP-HTTP, k-kamera-ansicht) |
+| Selbsttest `kuerzel` (Tastentest, F1 = Helfer) | 199 OK, 0 FEHLER |
+| Selbsttest `1` | 2645 OK, 0 FEHLER |
+
 ## 4. Offen / Ideen für H2
 - Weitere interaktive Touren (häufigste Ziele je Bereich): Kamerafahrt (k-kamera-ansicht),
   NPC laufen lassen (k-gangart/k-wegpunkte), Skript in der Vorschau abspielen, Mission anlegen
