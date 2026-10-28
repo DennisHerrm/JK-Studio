@@ -179,6 +179,8 @@ KARTE9 = [
      "Kurven-Werkzeug: Kurve durch %d Punkte - %d neue Objekte (ein Undo-Schritt).",
      "曲线工具:穿过 %d 个点的曲线——%d 个新对象(一步撤销)。",
      "カーブツール:%d 点を通るカーブ - 新しいオブジェクト %d 個(元に戻すは 1 回)。"),
+    # Punkt 8: Modelle verteilen
+    ("KeGrLzMiscEnts", "misc_model_static (cgame misc ents)", "misc_model_static (cgame-Objekte)", "misc_model_static(cgame 对象)", "misc_model_static(cgame のオブジェクト)"),
     ("KeGiModellDatei", "The model + clip parts are in %s - a search folder of the editor and of q3map2 (-fs_pakpath).",
      "Die Teile Modell + Clip liegen in %s - einem Suchordner des Editors und von q3map2 (-fs_pakpath).",
      "模型 + 碰撞部件位于 %s——这是编辑器和 q3map2 的搜索文件夹(-fs_pakpath)。",

@@ -464,6 +464,23 @@ void zaehleEntitaeten(const std::vector<EntEingabe>& ents, const ZaehlOptionen& 
                  " (each spawned NPC adds one more at runtime)";
     ze.schaetzung = spiel == GrenzSpiel::Jk2 || spiel == GrenzSpiel::JkaMp;
     out.push_back(ze);
+    // Stufe 9 Punkt 8: laufzeit.miscents - jedes misc_model_static (JA SP, Movie Duels)
+    if (spiel != GrenzSpiel::Jk2 && spiel != GrenzSpiel::JkaMp) {
+        Zaehlung zm = neueZaehlung("laufzeit.miscents", q, 0);
+        bool erster = true;
+        for (const EntEingabe& ee : ents) {
+            if (wertVon(ee.schluessel, "classname") != "misc_model_static") { continue; }
+            ++zm.wert;
+            if (erster) {
+                ObjektRef r = ee.ref;
+                r.text = "misc_model_static";
+                zm.beitraege.push_back({r, 0});
+                erster = false;
+            }
+        }
+        if (!zm.beitraege.empty()) { zm.beitraege.front().wert = zm.wert; }
+        out.push_back(zm);
+    }
 
     beitraegeOrdnen(svB);
     beitraegeOrdnen(szB);

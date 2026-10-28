@@ -2485,6 +2485,7 @@ enum class Str {
     KeKuWegpunkte,
     KeKuZweiWaehlen,
     KeKuFertig,
+    KeGrLzMiscEnts,
     KeGiModellDatei,
     Count,
 };

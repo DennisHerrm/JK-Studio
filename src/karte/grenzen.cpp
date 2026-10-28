@@ -361,6 +361,17 @@ std::vector<Grenze> baue(GrenzSpiel spiel) {
         g.rechnung = "MAX_GENTITIES - ENTITYNUM_WORLD/NONE (2) - MAX_CLIENTS; counted is what remains after spawning";
         t.push_back(std::move(g));
     }
+    // Stufe 9 Punkt 8: misc_model_static (Jedi Academy SP, Movie Duels) - SP_misc_model_static gibt das
+    // Entity frei und legt einen cgame-"misc ent" an (CG_CreateMiscEntFromGent); Jedi Outcast hat
+    // die Klasse nicht, MP baut sie nicht so.
+    if (sp && !jk2) {
+        Grenze g = neu("laufzeit.miscents", GrenzArt::Laufzeit, Str::KeGrLzMiscEnts, "MAX_MISC_ENTS", 2000);
+        g.stellen.push_back(st(b, "code/cgame/", "cg_main.cpp", md ? 3147 : 1949, "MAX_MISC_ENTS", 2000));
+        g.pruefstelle = md ? std::string("code/cgame/cg_main.cpp:3166 CG_CreateMiscEntFromGent: Com_Error \"Maximum misc_model_static reached\"")
+                           : std::string("code/cgame/cg_main.cpp:1967 CG_CreateMiscEntFromGent: Com_Error \"Maximum misc_model_static reached\"");
+        g.rechnung = "misc_model_static entities (each one becomes a cgame misc ent at spawn)";
+        t.push_back(std::move(g));
+    }
     const std::string cfgStelle = gm + (md ? "g_utils.cpp:107 (message only, then writes into the next range)"
                                            : (mp ? "g_utils.c:110 Error" : (jk2 ? "g_utils.cpp:78 G_Error" : "g_utils.cpp:76 G_Error"))) +
                                   " \"G_FindConfigstringIndex: overflow\"";
