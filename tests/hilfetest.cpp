@@ -206,6 +206,35 @@ const Frage kFragen[] = {
     {"ja", "キャラにセリフを言わせる", "seite:k-dialog"},
 };
 
+// Unabhaengige Fragen: nach dem Abstimmen der Wortlisten geschrieben und NICHT
+// daran angepasst - die ehrliche Messung (wird gezeigt, ist keine Schranke).
+const Frage kUnabhaengig[] = {
+    {"de", "Wie stelle ich ein, dass die Figur rennt statt geht?", "seite:k-gangart"},
+    {"de", "Ich will dass eine Tür aufgeht wenn der Spieler kommt", "seite:k-tuer|seite:k-trigger|seite:k-tuer-use"},
+    {"de", "Kann man das Programm auf Japanisch stellen?", "ort:menue:MenuView>ViewLanguage"},
+    {"de", "Meine Karte hat ein Loch nach draußen (Leak)", "seite:karteneditor_bauen|seite:karte_bauen|tour:tut-karte@12|seite:karte_optimierer"},
+    {"de", "Wie schalte ich die KI wieder aus?", "seite:helfer"},
+    {"de", "Musik in der Szene abspielen", "seite:k-effekt-musik|seite:cmd-play|seite:cmd-sound"},
+    {"en", "how do I make the character run instead of walk", "seite:k-gangart"},
+    {"en", "open a door when the player gets close", "seite:k-tuer|seite:k-trigger|seite:k-tuer-use"},
+    {"en", "switch the program to Japanese", "ort:menue:MenuView>ViewLanguage"},
+    {"en", "my map leaks into the void", "seite:karteneditor_bauen|seite:karte_bauen|tour:tut-karte@12|seite:karte_optimierer"},
+    {"en", "how do I turn the AI off again", "seite:helfer"},
+    {"en", "play music during the scene", "seite:k-effekt-musik|seite:cmd-play|seite:cmd-sound"},
+    {"zh", "怎么让角色跑而不是走", "seite:k-gangart"},
+    {"zh", "玩家靠近时让门打开", "seite:k-tuer|seite:k-trigger|seite:k-tuer-use"},
+    {"zh", "把程序切换成日语", "ort:menue:MenuView>ViewLanguage"},
+    {"zh", "我的地图有泄漏", "seite:karteneditor_bauen|seite:karte_bauen|tour:tut-karte@12|seite:karte_optimierer"},
+    {"zh", "怎么再关闭 AI", "seite:helfer"},
+    {"zh", "在场景中播放音乐", "seite:k-effekt-musik|seite:cmd-play|seite:cmd-sound"},
+    {"ja", "キャラを歩きではなく走らせたい", "seite:k-gangart"},
+    {"ja", "プレイヤーが近づいたらドアを開ける", "seite:k-tuer|seite:k-trigger|seite:k-tuer-use"},
+    {"ja", "プログラムを日本語にする", "ort:menue:MenuView>ViewLanguage"},
+    {"ja", "マップがリークしている", "seite:karteneditor_bauen|seite:karte_bauen|tour:tut-karte@12|seite:karte_optimierer"},
+    {"ja", "AI をもう一度オフにするには", "seite:helfer"},
+    {"ja", "シーンで音楽を流す", "seite:k-effekt-musik|seite:cmd-play|seite:cmd-sound"},
+};
+
 bhed::i18n::Language spracheVon(const std::string& s) {
     if (s == "de") { return bhed::i18n::Language::German; }
     if (s == "zh") { return bhed::i18n::Language::ChineseSimplified; }
@@ -237,6 +266,8 @@ void trefferProben(const std::string& ordner) {
     std::printf("Trefferquote (Top 3)\n");
     int gesamt = 0;
     int gut = 0;
+    int unGesamt = 0;
+    int unGut = 0;
     for (const char* sp : {"de", "en", "zh", "ja"}) {
         bhed::tour::Touren t;
         std::vector<bhed::tour::Abschnitt> hb;
@@ -275,9 +306,31 @@ void trefferProben(const std::string& ordner) {
         std::printf("    %s: %d von %d\n", sp, g, n);
         gesamt += n;
         gut += g;
+        int un = 0;
+        int ug = 0;
+        for (const Frage& q : kUnabhaengig) {
+            if (std::string(q.sprache) != sp) { continue; }
+            ++un;
+            bool ok = false;
+            std::string liste;
+            for (const bhed::hilfe::Treffer& x : ix.frage(q.text, 3)) {
+                const std::string& id = ix.eintraege()[x.eintrag].id;
+                ok = ok || passt(id, q.erwartet);
+                liste += " " + id;
+            }
+            if (ok) {
+                ++ug;
+            } else {
+                std::printf("    unabhaengig daneben (%s) \"%s\":%s\n", sp, q.text, liste.c_str());
+            }
+        }
+        std::printf("    %s unabhaengig: %d von %d\n", sp, ug, un);
+        unGesamt += un;
+        unGut += ug;
     }
     const double quote = gesamt > 0 ? 100.0 * gut / gesamt : 0.0;
     std::printf("    gesamt: %d von %d = %.1f %%\n", gut, gesamt, quote);
+    std::printf("    unabhaengig gesamt: %d von %d = %.1f %%\n", unGut, unGesamt, unGesamt > 0 ? 100.0 * unGut / unGesamt : 0.0);
     expect("mindestens 60 Fragen", gesamt >= 60);
     expect("Top-3-Trefferquote >= 85 %", quote >= 85.0);
 }

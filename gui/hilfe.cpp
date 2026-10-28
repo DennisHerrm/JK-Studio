@@ -124,7 +124,8 @@ void trefferZeichnen(const hilfe::Index& ix, float breite) {
         if (e.art != hilfe::Art::Seite) {
             if (ImGui::Button(tr(Str::HlfShowMe))) {
                 diag::detail("Helfer: Zeig es mir " + e.id);
-                (void)zeige(e);
+                // Das Fenster geht zu, damit es nichts verdeckt (F1 holt es zurueck).
+                if (zeige(e)) { s.offen = false; }
             }
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::HlfShowMeTip)); }
             ImGui::SameLine();

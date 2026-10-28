@@ -96,7 +96,15 @@ entschlüsseln (Grenze von DPAPI). Wer der KI „ohne Nachfrage“ erlaubt, läs
   („Mein Raum ist viel zu dunkel“, „部屋が暗すぎる“ …) trafen zuerst 13/16, nach dem Ergänzen
   dreier Begriffsgruppen (dunkel→Licht, Design, sagen→Dialog) 16/16. Mit der Kamera-Tour fiel
   „Wo finde ich die Einstellungen?“ auf die Kamera-„Einstellung“ (Doppelsinn im Deutschen) –
-  behoben mit genauen Begriffswörtern (`=einstellungen` zählt nur ungestutzt). Die Liste ist also nicht
+  behoben mit genauen Begriffswörtern (`=einstellungen` zählt nur ungestutzt).
+- **Unabhängige Messung** (24 Fragen, 6 je Sprache, nach dem Abstimmen geschrieben und nicht
+  angepasst; hilfetest zeigt sie, ohne Schranke): **18/24 = 75 %** (de 5/6, en 4/6, zh 4/6,
+  ja 5/6). Daneben: „Programm auf Japanisch stellen“ (3×: Treffer ist die Handbuchseite
+  erste-schritte#sprache, die den Weg erklärt, nicht der Menüpunkt selbst), „Musik in der Szene“
+  (2×: Lautstärke Musik statt k-effekt-musik), „Figur rennt statt geht“ (Beugung „rennt“).
+  Das 85-%-Ziel erfüllt die Hauptliste; für Fragen außerhalb der Wortlisten liegt die
+  Trefferquote eher bei drei Vierteln – Verbesserungen in H2 (Beugungen, Untermenü-Inhalte als
+  Suchwörter, Kontext des aktuellen Modus). Die Liste ist also nicht
   ganz unabhängig; eine neue, unbekannte Liste wäre die nächste Messung (H2).
 - F1 öffnet den Helfer (vorher das Handbuch; „Handbuch“ steht weiter im Help-Menü). Im
   Karten-Editor bleibt F1 wie in NetRadiant „OpenManual“; dort steht der Helfer im Help-Menü
@@ -130,8 +138,8 @@ tut-karte und F1. (Bilder für die neue Seite: offen, H2.)
 | Prüfung | Ergebnis |
 |---|---|
 | Bau Release (alle Ziele, /W4 /WX) | 0 Warnungen |
-| ctest gesamt | 148/149 im ersten Lauf: `exe_importe` meldete das neue `CRYPT32.dll` (DPAPI) – in die Liste der Windows-DLLs aufgenommen; neuer ctest `hilfe_orte` (Ortskatalog aktuell); Endstand siehe unten |
-| tourtest / hilfetest / kitest | grün (Trefferquote 99/99) |
+| ctest gesamt | erster Lauf 148/149: `exe_importe` meldete das neue `CRYPT32.dll` (DPAPI) – in die Liste der Windows-DLLs aufgenommen; neuer ctest `hilfe_orte`. Nach sauberem Neubau (`--clean-first`, 0 Warnungen): **150/150** (229 s) |
+| tourtest / hilfetest / kitest | grün (Trefferquote 99/99, unabhängig 18/24) |
 | Selbsttest `karteneditor` + `BHED_KARTE_NUR=hilfe1` | 56 OK, 0 FEHLER (Helfer, tut-karte mit echten Aktionen, KI über MCP-HTTP, k-kamera-ansicht) |
 | Selbsttest `kuerzel` (Tastentest, F1 = Helfer) | 199 OK, 0 FEHLER |
 | Selbsttest `1` | 2645 OK, 0 FEHLER |
@@ -148,6 +156,15 @@ tut-karte und F1. (Bilder für die neue Seite: offen, H2.)
   Tastenkürzel als eigene Einträge; Treffer-Messung mit einer unabhängigen Frageliste.
 - KI: Streaming der Antwort, Verlauf (mehrere Fragen), Bilder im Chat, MCP-Ressourcen (Handbuch).
 - Bilder der neuen Handbuchseite über den Selbsttest.
+- Vorbedingungen verketten: eine Einstellung im Hauptprogramm, gesucht aus dem Karten-Editor,
+  zeigt heute nur „gerade nicht zu sehen“ (Öffner ist das Hauptmenü, das dort fehlt).
+- Ortskatalog erweitern: Seiten der Einstellungen des Karten-Editors, Knöpfe der Leisten
+  (Karte, Kamera, Zeitleiste, Modell, Mission) und Tastenkürzel als eigene Einträge.
+- Fuzz-Ziel `tools/fuzzziel.cpp` hat die drei KI-Leser; gebaut und gelaufen ist es in H1 nicht
+  (eigener Bauordner mit `/fsanitize=fuzzer`), dafür 4000 Mutationen im ctest `ki`.
+- Kamerazeile der Zeitleiste als Ziel (sie ist selbst gezeichnet; Rechteck merken).
+- Rest-Risiko Schlüssel im Speicher: die Kopfzeilen der Anfrage (std::string) werden nicht
+  genullt; ein Absturzabbild während einer Chat-Anfrage könnte den Schlüssel enthalten.
 
 ## 5. Changelog
 
