@@ -1041,7 +1041,9 @@ target_sources(bhed_core PRIVATE
   # Punkt 3: Textpuffer des Code-Editors
   src/menue/textpuffer.cpp
   # Punkt 6: Bedienung wie im Spiel (Skripte, Fokus, Cvars nur in der Vorschau)
-  src/menue/skript.cpp)
+  src/menue/skript.cpp
+  # Punkt 4: Werkzeuge der Arbeitsflaeche (Einrasten, Ausrichten, Items ueber Spannen)
+  src/menue/werkzeuge.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -1104,6 +1106,10 @@ if(BEHAVED_TESTS)
   add_executable(menueskript tests/menueskript.cpp)
   target_link_libraries(menueskript PRIVATE bhed_core)
   add_test(NAME menue_skript COMMAND menueskript)
+  # Punkt 4: Einrasten, Ausrichten, Verteilen, Einfuegen/Kopieren/Loeschen/Ebenen
+  add_executable(menuewerkzeug tests/menuewerkzeug.cpp)
+  target_link_libraries(menuewerkzeug PRIVATE bhed_core)
+  add_test(NAME menue_werkzeug COMMAND menuewerkzeug)
   add_executable(menuerundlauf tests/menuerundlauf.cpp)
   target_link_libraries(menuerundlauf PRIVATE bhed_core)
   add_test(NAME menue_rundlauf COMMAND menuerundlauf "${BEHAVED_KARTE_JA}" "${BEHAVED_KARTE_JK2}" ${BEHAVED_KARTE_MD})
