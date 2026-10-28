@@ -36,6 +36,9 @@ void melden() {
 void spiegelTick() {
     Editor& ed = e();
     ed.spiegel.abgleichen(ed.karte, ed.karte.undo.befehlOffen());
+    // Stufe 9 Punkt 6: ausserhalb eines Befehls (Rueckgaengig, Laden) nur den Stand merken -
+    // waehrend eines Befehls (Ziehen) nicht: dann bliebe der Stand davor nicht erhalten
+    if (!ed.karte.undo.befehlOffen()) { ed.verbund.abgleichen(ed.karte, false); }
 }
 
 void spiegelSetzen(int achse) {

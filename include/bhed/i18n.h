@@ -2469,6 +2469,12 @@ enum class Str {
     KeNwZweiWaehlen,
     KeNwAn,
     KeNwNichtAn,
+    KeVbMenue,
+    KeVbKopie,
+    KeVbKopieTip,
+    KeVbLoesen,
+    KeVbFertig,
+    KeVbNichts,
     KeGiModellDatei,
     Count,
 };

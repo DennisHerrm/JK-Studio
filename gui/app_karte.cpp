@@ -343,6 +343,7 @@ Editor& editor() {
         e.karte.undo.vorAbschluss = [] {
             Editor& x = editor();
             x.spiegel.abgleichen(x.karte, true);
+            x.verbund.abgleichen(x.karte, true);   // Stufe 9 Punkt 6: verknuepfte Prefabs im selben Befehl
         };
         // MainFrame::Create: m_pXYWnd XY, m_pXZWnd XZ, m_pYZWnd YZ
         e.xy[0].ansicht.typ = karte::Sicht::XY;

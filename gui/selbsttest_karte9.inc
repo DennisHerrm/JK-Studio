@@ -320,6 +320,72 @@ std::vector<Schritt> schritte() {
     add(pruefe("NPC-Wege: Undo nimmt die Wegpunkte zurueck", [npcVorher] {
         return ke::editor().karte.entitaeten().size() == *npcVorher && !ke::editor().npcNetzZeigen;
     }));
+
+    // --- Punkt 6: verknuepfte Prefabs ---------------------------------------------------------
+    // Ein Brush (gewaehlt), View > Linked copies > Make linked copy: zwei Gruppen; ein Brush
+    // dazu in der ersten (ein Befehl, wie der Anwender) erscheint auch in der Kopie; ein Undo
+    // nimmt beides zurueck; drei weitere Undo stellen die Karte wieder her.
+    auto vbVorher = std::make_shared<std::size_t>(0);
+    const auto vbGruppe = [](int nr) -> std::shared_ptr<karte::Entitaet> {
+        int i = 0;
+        for (const auto& en : ke::editor().karte.entitaeten()) {
+            if (en->wert(karte::kVerbundName).empty()) { continue; }
+            if (i++ == nr) { return en; }
+        }
+        return nullptr;
+    };
+    const auto vbQuader = [](float x, float z) {
+        auto p = std::make_shared<karte::Pinsel>();
+        karte::Kasten b;
+        b.origin = karte::Vektor3f(x, 0, z);
+        b.extents = karte::Vektor3f(16, 16, 16);
+        karte::TexturProjektion t;
+        karte::texdefStandard(ke::editor().karte.kontext.art(), t);
+        p->quaderBauen(b, "textures/system/caulk", t, ke::editor().karte.kontext);
+        return p;
+    };
+    add(tu("Verbund: ein Brush im Raum, gewaehlt", [vbVorher, vbQuader] {
+        karteDialogeZu();
+        ke::konsoleLeeren();
+        ke::Editor& ed = ke::editor();
+        *vbVorher = ed.karte.entitaeten().size();
+        karte::Befehl b(ed.karte.undo, "brushCreate");
+        auto p = vbQuader(-100, 0);
+        ed.karte.welt()->kindEinfuegen(p);
+        ed.karte.auswahl.leeren();
+        ed.karte.auswahl.waehlen(ed.karte.welt(), p);
+    }));
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeVbMenue)) + "###verbund"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeVbKopie)) + "###verbundkopie"));
+    add(pause(0.4));
+    add(pruefe("Verbund: zwei verknuepfte Gruppen mit je einem Brush, Konsole", [vbGruppe] {
+        const auto a = vbGruppe(0);
+        const auto c = vbGruppe(1);
+        return a && c && a->kinder().size() == 1 && c->kinder().size() == 1 && a->wert(karte::kVerbundName) == c->wert(karte::kVerbundName) &&
+               konsoleText().find("Linked copy 'link1'") != std::string::npos;
+    }));
+    add(tu("Verbund: ein zweiter Brush in der ersten Gruppe (ein Befehl)", [vbGruppe, vbQuader] {
+        karte::Befehl b(ke::editor().karte.undo, "brushCreate");
+        vbGruppe(0)->kindEinfuegen(vbQuader(-100, 64));
+    }));
+    add(pause(0.3));
+    add(pruefe("Verbund: die Kopie folgt (zwei Brushes)", [vbGruppe] { return vbGruppe(1) && vbGruppe(1)->kinder().size() == 2; }));
+    add(tu("Verbund: Undo", [] { (void)ke::ausfuehren("Undo"); }));
+    add(pause(0.3));
+    add(pruefe("Verbund: ein Undo nimmt beides zurueck", [vbGruppe] {
+        return vbGruppe(0) && vbGruppe(0)->kinder().size() == 1 && vbGruppe(1)->kinder().size() == 1;
+    }));
+    add(tu("Verbund: noch zwei Undo (Kopie, Brush)", [] {
+        (void)ke::ausfuehren("Undo");
+        (void)ke::ausfuehren("Undo");
+    }));
+    add(pause(0.3));
+    add(pruefe("Verbund: die Karte wie vorher", [vbVorher, vbGruppe] {
+        return ke::editor().karte.entitaeten().size() == *vbVorher && !vbGruppe(0);
+    }));
     add(tu("Geometrie: Ende - Import-Ordner weg (spaetere Befehlsvergleiche ohne -fs_pakpath)", [] {
         karteDialogeZu();
         ke::konsoleLeeren();

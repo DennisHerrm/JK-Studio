@@ -434,6 +434,22 @@ void listeZeichnen(const std::string& name) {
                 qtMenueEnde();
             }
         }
+        // Stufe 9 Punkt 6 (eigene Funktion): verknuepfte Prefabs
+        {
+            const std::string id = std::string(trK(Str::KeVbMenue)) + "###verbund";
+            if (qtMenueAnfang(id.c_str())) {
+                const std::string ko = std::string(trK(Str::KeVbKopie)) + "###verbundkopie";
+                QtPunkt p;
+                p.id = ko.c_str();
+                p.tooltip = trK(Str::KeVbKopieTip);
+                if (qtPunkt(p)) { (void)verbundKopieBefehl(); }
+                const std::string lo = std::string(trK(Str::KeVbLoesen)) + "###verbundloesen";
+                QtPunkt l;
+                l.id = lo.c_str();
+                if (qtPunkt(l)) { (void)verbundLoesenBefehl(); }
+                qtMenueEnde();
+            }
+        }
         // Stufe 7 Punkt 6b (shank: "settings in den Map editor auch einbauen das
         // man theme und language aendern kann"): die Einstellungen des Programms
         // als eigener Abschnitt am Ende von NRCs View-Menue (nicht in NRC;

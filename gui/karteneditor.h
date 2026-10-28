@@ -21,6 +21,7 @@
 #define BHED_GUI_KARTENEDITOR_H
 
 #include "bhed/i18n.h"
+#include "bhed/karte/prefabverbund.h"
 #include "bhed/karte/npcwege.h"
 #include "bhed/karte/sprungpruefung.h"
 #include "bhed/karte/geometrieimport.h"
@@ -630,6 +631,7 @@ struct Editor {
     LogikZustand logik;       // Stufe 8b Punkt 4
     AnsichtsModiZustand ansichtsmodi;   // Stufe 8b Punkt 5
     karte::SpiegelModus spiegel;        // Stufe 8b Punkt 6
+    karte::PrefabVerbund verbund;       // Stufe 9 Punkt 6: verknuepfte Prefabs
     bool undoListeOffen = false;        // Stufe 8b Punkt 7: Undo-Verlauf
     bool undoListeRollen = true;
     std::size_t undoListeStand = 0;
@@ -1772,6 +1774,9 @@ void npcNetzUmschalten();
 bool npcTestlaufStarten();
 void npcTestlaufLeeren();
 void npcLinien(std::vector<PluginLinien>& v);
+// Stufe 9 Punkt 6 (app_karte_sprung.cpp)
+bool verbundKopieBefehl();
+bool verbundLoesenBefehl();
 // Stufe 8b Punkt 6: Spiegel-Modus (app_karte_spiegel.cpp)
 void spiegelTick();                    // jeden Frame vor den Ansichten
 void spiegelSetzen(int achse);         // -1 aus, 0 X, 1 Y, 2 Z

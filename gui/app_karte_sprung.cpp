@@ -18,6 +18,7 @@
 #include "bhed/karte/sprungpruefung.h"
 
 #include <cmath>
+#include <set>
 
 #include <atomic>
 #include <cstdio>
@@ -298,6 +299,37 @@ void npcLinien(std::vector<PluginLinien>& v) {
         }
         v.push_back(std::move(bahn));
     }
+}
+
+// --- Stufe 9 Punkt 6: verknuepfte Prefabs --------------------------------------------------
+
+bool verbundKopieBefehl() {
+    Editor& ed = e();
+    std::set<std::string> namen;
+    for (const auto& en : ed.karte.entitaeten()) {
+        if (!en->wert(karte::kVerbundName).empty()) { namen.insert(en->wert(karte::kVerbundName)); }
+    }
+    std::string name;
+    for (int i = 1; name.empty() || namen.count(name) != 0; ++i) { name = "link" + std::to_string(i); }
+    // eine schon gewaehlte Verbund-Gruppe behaelt ihren Namen (verbundKopieAnlegen nimmt ihn)
+    const float schritt = ed.raster.groesse() * 16.0F;
+    const auto kopie = karte::verbundKopieAnlegen(ed.karte, name, karte::Vektor3f(schritt, 0, 0), ed.raster.groesse());
+    if (!kopie) {
+        fehler(trK(Str::KeVbNichts));
+        return false;
+    }
+    ++ed.sichtStand;
+    auswahlGeaendert();
+    char t[300];
+    std::snprintf(t, sizeof(t), trK(Str::KeVbFertig), kopie->wert(karte::kVerbundName).c_str(), static_cast<double>(schritt));
+    ausgabe(t);
+    return true;
+}
+
+bool verbundLoesenBefehl() {
+    const bool ok = karte::verbundLoesen(e().karte);
+    if (!ok) { fehler(trK(Str::KeVbNichts)); }
+    return ok;
 }
 
 }  // namespace bhed::gui::karteneditor
