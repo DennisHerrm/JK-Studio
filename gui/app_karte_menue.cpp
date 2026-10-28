@@ -366,162 +366,170 @@ void listeZeichnen(const std::string& name) {
                 einstellungenSpeichern();
             }
         }
-        // Stufe 9 Punkt 4 (eigene Funktion): Sprungweite und Platz pruefen
+        // Stufe 9 (eigene Funktionen, nicht in NRC): ein Untermenue fuer die Werkzeuge der Stufe 9 -
+        // sechs eigene Untermenues direkt in View machten es hoeher als das Fenster
         {
-            const std::string id = std::string(trK(Str::KeSjMenue)) + "###sprungpruefung";
-            if (qtMenueAnfang(id.c_str())) {
-                const std::string pr = std::string(trK(Str::KeSjPruefen)) + "###sprungpruefen";
-                QtPunkt p;
-                p.id = pr.c_str();
-                p.aktiv = !e().sprungLaeuft;
-                p.tooltip = trK(Str::KeSjMenueTip);
-                if (qtPunkt(p)) { sprungPruefungStarten(); }
-                qtTrenner();
-                for (int st = 0; st <= 3; ++st) {
-                    char z[160];
-                    if (st == 0) {
-                        std::snprintf(z, sizeof(z), "%s###sprungmacht0", trK(Str::KeSjOhneMacht));
-                    } else {
-                        std::snprintf(z, sizeof(z), trK(Str::KeSjMacht), st);
-                        std::snprintf(z + std::strlen(z), sizeof(z) - std::strlen(z), "###sprungmacht%d", st);
-                    }
-                    QtPunkt m;
-                    m.id = z;
-                    m.art = QtArt::Exklusiv;
-                    m.haken = e().sprungMacht == st;
-                    m.tooltip = trK(Str::KeSjMachtTip);
-                    if (qtPunkt(m)) {
-                        e().sprungMacht = st;
-                        einstellungenSpeichern();
-                    }
-                }
-                qtTrenner();
-                const std::string le = std::string(trK(Str::KeSjLeeren)) + "###sprungleeren";
-                QtPunkt l;
-                l.id = le.c_str();
-                l.aktiv = static_cast<bool>(e().sprungBericht) || e().sprungLaeuft;
-                if (qtPunkt(l)) { sprungPruefungLeeren(); }
-                qtMenueEnde();
-            }
-        }
-        // Stufe 9 Punkt 5 (eigene Funktion): NPC-Wege
-        {
-            const std::string id = std::string(trK(Str::KeNwMenue)) + "###npcwege";
-            if (qtMenueAnfang(id.c_str())) {
-                const std::string ne = std::string(trK(Str::KeNwNetz)) + "###npcnetz";
-                QtPunkt p;
-                p.id = ne.c_str();
-                p.art = QtArt::Pruefbar;
-                p.haken = e().npcNetzZeigen;
-                p.tooltip = trK(Str::KeNwNetzTip);
-                if (qtPunkt(p)) { npcNetzUmschalten(); }
-                const std::string la = std::string(trK(Str::KeNwLauf)) + "###npclauf";
-                QtPunkt l;
-                l.id = la.c_str();
-                l.tooltip = trK(Str::KeNwLaufTip);
-                if (qtPunkt(l)) { (void)npcTestlaufStarten(); }
-                const std::string re = std::string(trK(Str::KeNwRennen)) + "###npcrennen";
-                QtPunkt r;
-                r.id = re.c_str();
-                r.art = QtArt::Pruefbar;
-                r.haken = e().npcRennen;
-                if (qtPunkt(r)) { e().npcRennen = !e().npcRennen; }
-                const std::string le = std::string(trK(Str::KeNwLeeren)) + "###npcleeren";
-                QtPunkt c;
-                c.id = le.c_str();
-                c.aktiv = static_cast<bool>(e().npcLauf);
-                if (qtPunkt(c)) { npcTestlaufLeeren(); }
-                qtMenueEnde();
-            }
-        }
-        // Stufe 9 Punkt 6 (eigene Funktion): verknuepfte Prefabs
-        {
-            const std::string id = std::string(trK(Str::KeVbMenue)) + "###verbund";
-            if (qtMenueAnfang(id.c_str())) {
-                const std::string ko = std::string(trK(Str::KeVbKopie)) + "###verbundkopie";
-                QtPunkt p;
-                p.id = ko.c_str();
-                p.tooltip = trK(Str::KeVbKopieTip);
-                if (qtPunkt(p)) { (void)verbundKopieBefehl(); }
-                const std::string lo = std::string(trK(Str::KeVbLoesen)) + "###verbundloesen";
-                QtPunkt l;
-                l.id = lo.c_str();
-                if (qtPunkt(l)) { (void)verbundLoesenBefehl(); }
-                qtMenueEnde();
-            }
-        }
-        // Stufe 9 Punkt 7 (eigene Funktion): Kurven-Werkzeug
-        {
-            const std::string id = std::string(trK(Str::KeKuMenue)) + "###kurve";
-            if (qtMenueAnfang(id.c_str())) {
-                const struct {
-                    karte::KurvenArt art;
-                    Str text;
-                    const char* kennung;
-                } arten[] = {{karte::KurvenArt::Weg, Str::KeKuWeg, "###kurveweg"},
-                             {karte::KurvenArt::Rohr, Str::KeKuRohr, "###kurverohr"},
-                             {karte::KurvenArt::Gelaender, Str::KeKuGelaender, "###kurvegelaender"},
-                             {karte::KurvenArt::Bruecke, Str::KeKuBruecke, "###kurvebruecke"},
-                             {karte::KurvenArt::PfadEcken, Str::KeKuPfad, "###kurvepfad"},
-                             {karte::KurvenArt::Wegpunkte, Str::KeKuWegpunkte, "###kurvewegpunkte"}};
-                for (const auto& a : arten) {
-                    const std::string t = std::string(trK(a.text)) + a.kennung;
+            const std::string wz = std::string(trK(Str::KeWzMenue)) + "###werkzeuge9";
+            if (qtMenueAnfang(wz.c_str())) {
+            // Stufe 9 Punkt 4 (eigene Funktion): Sprungweite und Platz pruefen
+            {
+                const std::string id = std::string(trK(Str::KeSjMenue)) + "###sprungpruefung";
+                if (qtMenueAnfang(id.c_str())) {
+                    const std::string pr = std::string(trK(Str::KeSjPruefen)) + "###sprungpruefen";
                     QtPunkt p;
-                    p.id = t.c_str();
-                    p.tooltip = trK(Str::KeKuTip);
-                    if (qtPunkt(p)) { (void)kurveBefehl(a.art); }
+                    p.id = pr.c_str();
+                    p.aktiv = !e().sprungLaeuft;
+                    p.tooltip = trK(Str::KeSjMenueTip);
+                    if (qtPunkt(p)) { sprungPruefungStarten(); }
+                    qtTrenner();
+                    for (int st = 0; st <= 3; ++st) {
+                        char z[160];
+                        if (st == 0) {
+                            std::snprintf(z, sizeof(z), "%s###sprungmacht0", trK(Str::KeSjOhneMacht));
+                        } else {
+                            std::snprintf(z, sizeof(z), trK(Str::KeSjMacht), st);
+                            std::snprintf(z + std::strlen(z), sizeof(z) - std::strlen(z), "###sprungmacht%d", st);
+                        }
+                        QtPunkt m;
+                        m.id = z;
+                        m.art = QtArt::Exklusiv;
+                        m.haken = e().sprungMacht == st;
+                        m.tooltip = trK(Str::KeSjMachtTip);
+                        if (qtPunkt(m)) {
+                            e().sprungMacht = st;
+                            einstellungenSpeichern();
+                        }
+                    }
+                    qtTrenner();
+                    const std::string le = std::string(trK(Str::KeSjLeeren)) + "###sprungleeren";
+                    QtPunkt l;
+                    l.id = le.c_str();
+                    l.aktiv = static_cast<bool>(e().sprungBericht) || e().sprungLaeuft;
+                    if (qtPunkt(l)) { sprungPruefungLeeren(); }
+                    qtMenueEnde();
                 }
-                qtMenueEnde();
             }
-        }
-        // Stufe 9 Punkt 8 (eigene Funktion): Modelle verteilen
-        {
-            const std::string id = std::string(trK(Str::KeVtMenue)) + "###verteilen";
-            if (qtMenueAnfang(id.c_str())) {
-                for (const int n : {10, 25, 50}) {
-                    char z[160];
-                    std::snprintf(z, sizeof(z), trK(Str::KeVtAnzahl), n);
-                    std::snprintf(z + std::strlen(z), sizeof(z) - std::strlen(z), "###verteilen%d", n);
+            // Stufe 9 Punkt 5 (eigene Funktion): NPC-Wege
+            {
+                const std::string id = std::string(trK(Str::KeNwMenue)) + "###npcwege";
+                if (qtMenueAnfang(id.c_str())) {
+                    const std::string ne = std::string(trK(Str::KeNwNetz)) + "###npcnetz";
                     QtPunkt p;
-                    p.id = z;
-                    p.tooltip = trK(Str::KeVtTip);
-                    if (qtPunkt(p)) { (void)streuBefehl(n); }
+                    p.id = ne.c_str();
+                    p.art = QtArt::Pruefbar;
+                    p.haken = e().npcNetzZeigen;
+                    p.tooltip = trK(Str::KeNwNetzTip);
+                    if (qtPunkt(p)) { npcNetzUmschalten(); }
+                    const std::string la = std::string(trK(Str::KeNwLauf)) + "###npclauf";
+                    QtPunkt l;
+                    l.id = la.c_str();
+                    l.tooltip = trK(Str::KeNwLaufTip);
+                    if (qtPunkt(l)) { (void)npcTestlaufStarten(); }
+                    const std::string re = std::string(trK(Str::KeNwRennen)) + "###npcrennen";
+                    QtPunkt r;
+                    r.id = re.c_str();
+                    r.art = QtArt::Pruefbar;
+                    r.haken = e().npcRennen;
+                    if (qtPunkt(r)) { e().npcRennen = !e().npcRennen; }
+                    const std::string le = std::string(trK(Str::KeNwLeeren)) + "###npcleeren";
+                    QtPunkt c;
+                    c.id = le.c_str();
+                    c.aktiv = static_cast<bool>(e().npcLauf);
+                    if (qtPunkt(c)) { npcTestlaufLeeren(); }
+                    qtMenueEnde();
                 }
-                qtMenueEnde();
             }
-        }
-        // Stufe 9 Punkt 9 (eigene Funktion): Gelaende formen
-        {
-            const std::string id = std::string(trK(Str::KeFoMenue)) + "###formen";
-            if (qtMenueAnfang(id.c_str())) {
-                const std::string an = std::string(trK(Str::KeFoAn)) + "###formenan";
-                QtPunkt p;
-                p.id = an.c_str();
-                p.art = QtArt::Pruefbar;
-                p.haken = e().formen.an;
-                p.tooltip = trK(Str::KeFoTip);
-                if (qtPunkt(p)) { e().formen.an = !e().formen.an; }
-                qtTrenner();
-                const Str arten[4] = {Str::KeFoHeben, Str::KeFoSenken, Str::KeFoGlaetten, Str::KeFoEbnen};
-                for (int i = 0; i < 4; ++i) {
-                    const std::string t = std::string(trK(arten[i])) + "###formenart" + std::to_string(i);
-                    QtPunkt a;
-                    a.id = t.c_str();
-                    a.art = QtArt::Exklusiv;
-                    a.haken = e().formen.art == i;
-                    if (qtPunkt(a)) { e().formen.art = i; }
+            // Stufe 9 Punkt 6 (eigene Funktion): verknuepfte Prefabs
+            {
+                const std::string id = std::string(trK(Str::KeVbMenue)) + "###verbund";
+                if (qtMenueAnfang(id.c_str())) {
+                    const std::string ko = std::string(trK(Str::KeVbKopie)) + "###verbundkopie";
+                    QtPunkt p;
+                    p.id = ko.c_str();
+                    p.tooltip = trK(Str::KeVbKopieTip);
+                    if (qtPunkt(p)) { (void)verbundKopieBefehl(); }
+                    const std::string lo = std::string(trK(Str::KeVbLoesen)) + "###verbundloesen";
+                    QtPunkt l;
+                    l.id = lo.c_str();
+                    if (qtPunkt(l)) { (void)verbundLoesenBefehl(); }
+                    qtMenueEnde();
                 }
-                qtTrenner();
-                for (const int r : {64, 128, 256}) {
-                    char z[96];
-                    std::snprintf(z, sizeof(z), trK(Str::KeFoRadius), r);
-                    std::snprintf(z + std::strlen(z), sizeof(z) - std::strlen(z), "###formenradius%d", r);
-                    QtPunkt a;
-                    a.id = z;
-                    a.art = QtArt::Exklusiv;
-                    a.haken = static_cast<int>(e().formen.radius) == r;
-                    if (qtPunkt(a)) { e().formen.radius = static_cast<float>(r); }
+            }
+            // Stufe 9 Punkt 7 (eigene Funktion): Kurven-Werkzeug
+            {
+                const std::string id = std::string(trK(Str::KeKuMenue)) + "###kurve";
+                if (qtMenueAnfang(id.c_str())) {
+                    const struct {
+                        karte::KurvenArt art;
+                        Str text;
+                        const char* kennung;
+                    } arten[] = {{karte::KurvenArt::Weg, Str::KeKuWeg, "###kurveweg"},
+                                 {karte::KurvenArt::Rohr, Str::KeKuRohr, "###kurverohr"},
+                                 {karte::KurvenArt::Gelaender, Str::KeKuGelaender, "###kurvegelaender"},
+                                 {karte::KurvenArt::Bruecke, Str::KeKuBruecke, "###kurvebruecke"},
+                                 {karte::KurvenArt::PfadEcken, Str::KeKuPfad, "###kurvepfad"},
+                                 {karte::KurvenArt::Wegpunkte, Str::KeKuWegpunkte, "###kurvewegpunkte"}};
+                    for (const auto& a : arten) {
+                        const std::string t = std::string(trK(a.text)) + a.kennung;
+                        QtPunkt p;
+                        p.id = t.c_str();
+                        p.tooltip = trK(Str::KeKuTip);
+                        if (qtPunkt(p)) { (void)kurveBefehl(a.art); }
+                    }
+                    qtMenueEnde();
                 }
+            }
+            // Stufe 9 Punkt 8 (eigene Funktion): Modelle verteilen
+            {
+                const std::string id = std::string(trK(Str::KeVtMenue)) + "###verteilen";
+                if (qtMenueAnfang(id.c_str())) {
+                    for (const int n : {10, 25, 50}) {
+                        char z[160];
+                        std::snprintf(z, sizeof(z), trK(Str::KeVtAnzahl), n);
+                        std::snprintf(z + std::strlen(z), sizeof(z) - std::strlen(z), "###verteilen%d", n);
+                        QtPunkt p;
+                        p.id = z;
+                        p.tooltip = trK(Str::KeVtTip);
+                        if (qtPunkt(p)) { (void)streuBefehl(n); }
+                    }
+                    qtMenueEnde();
+                }
+            }
+            // Stufe 9 Punkt 9 (eigene Funktion): Gelaende formen
+            {
+                const std::string id = std::string(trK(Str::KeFoMenue)) + "###formen";
+                if (qtMenueAnfang(id.c_str())) {
+                    const std::string an = std::string(trK(Str::KeFoAn)) + "###formenan";
+                    QtPunkt p;
+                    p.id = an.c_str();
+                    p.art = QtArt::Pruefbar;
+                    p.haken = e().formen.an;
+                    p.tooltip = trK(Str::KeFoTip);
+                    if (qtPunkt(p)) { e().formen.an = !e().formen.an; }
+                    qtTrenner();
+                    const Str arten[4] = {Str::KeFoHeben, Str::KeFoSenken, Str::KeFoGlaetten, Str::KeFoEbnen};
+                    for (int i = 0; i < 4; ++i) {
+                        const std::string t = std::string(trK(arten[i])) + "###formenart" + std::to_string(i);
+                        QtPunkt a;
+                        a.id = t.c_str();
+                        a.art = QtArt::Exklusiv;
+                        a.haken = e().formen.art == i;
+                        if (qtPunkt(a)) { e().formen.art = i; }
+                    }
+                    qtTrenner();
+                    for (const int r : {64, 128, 256}) {
+                        char z[96];
+                        std::snprintf(z, sizeof(z), trK(Str::KeFoRadius), r);
+                        std::snprintf(z + std::strlen(z), sizeof(z) - std::strlen(z), "###formenradius%d", r);
+                        QtPunkt a;
+                        a.id = z;
+                        a.art = QtArt::Exklusiv;
+                        a.haken = static_cast<int>(e().formen.radius) == r;
+                        if (qtPunkt(a)) { e().formen.radius = static_cast<float>(r); }
+                    }
+                    qtMenueEnde();
+                }
+            }
                 qtMenueEnde();
             }
         }
@@ -1507,7 +1515,7 @@ void einstellungenLaden() {
         const auto ziel = k.find("BuildTargetFolder");   // Abweichung: Ziel-Ordner
         b.zielOrdner = ziel != k.end() ? ziel->second : std::string();
         b.melden = zahl("BhedBuildNotify", 1) != 0.0F;   // Stufe 8a (eigene Einstellung)
-        ed.sprungMacht = std::clamp(static_cast<int>(zahl("BhedJumpCheckForce", 2)), 0, 3);   // Stufe 9 Punkt 4
+        ed.sprungMacht = std::clamp(static_cast<int>(zahl("BhedJumpCheckForce", 0)), 0, 3);   // Stufe 9 Punkt 4
         const auto test = k.find("BhedTestGameExe");   // Stufe 9 Punkt 1: Im Spiel testen
         b.testExe = test != k.end() ? test->second : std::string();
         b.editorDaten = zahl("BhedKeepEditorData", 0) != 0.0F;

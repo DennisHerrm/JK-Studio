@@ -5612,13 +5612,7 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         // + Stufe 8b (Abweichung): Trenner 7 + "Play in editor", "Play: start at info_player_start",
         // "Camera view modes", "Logic view...", "Mirror mode", "Undo history..." je 24 (der laengste
         // Text "Play: start at info_player_start" mit Hakenspalte: 262 -> 292)
-        // Stufe 9 Punkt 4: dazu das Untermenue "Check jumps and space" (eigene Funktion)
-        // Stufe 9 Punkt 5: dazu das Untermenue "NPC paths" (eigene Funktion)
-        // Stufe 9 Punkt 6: dazu das Untermenue "Linked copies" (eigene Funktion)
-        // Stufe 9 Punkt 7: dazu das Untermenue "Curve tool" (eigene Funktion)
-        // Stufe 9 Punkt 8: dazu das Untermenue "Scatter models" (eigene Funktion)
-        // Stufe 9 Punkt 9: dazu das Untermenue "Terrain sculpt" (eigene Funktion)
-        {"View", {"View"}, 292, 333 + 7 + 5 * 24 + 7 + 6 * 24 + 24 + 24 + 24 + 24 + 24 + 24},
+        {"View", {"View"}, 292, 333 + 7 + 5 * 24 + 7 + 6 * 24 + 24},   // Stufe 9 Punkte 4-9: ein Untermenue "Map tools"
         {"View__Camera", {"View", "Camera"}, 255, 216},
         {"View__Orthographic", {"View", "Orthographic"}, 307, 240},
         {"View__Show", {"View", "Show"}, 253, 401},

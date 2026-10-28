@@ -30,8 +30,10 @@ struct Wiederherstellung {
 };
 
 // unbenanntAutosave: die Autosave-Datei einer Karte ohne Namen (maps/autosave.map im Benutzerordner).
-[[nodiscard]] Wiederherstellung wiederherstellungPruefen(const std::string& sitzungsPfad, const std::string& unbenanntAutosave);
-void sitzungSchreiben(const std::string& sitzungsPfad, const std::string& karte);
+// prozess: die Nummer des laufenden Prozesses - eine Sitzungsdatei desselben Prozesses ist kein
+// Absturz (der Editor prueft beim Start; ein zweiter Aufruf im selben Lauf zaehlt nicht).
+[[nodiscard]] Wiederherstellung wiederherstellungPruefen(const std::string& sitzungsPfad, const std::string& unbenanntAutosave, unsigned long prozess);
+void sitzungSchreiben(const std::string& sitzungsPfad, const std::string& karte, unsigned long prozess);
 void sitzungLoeschen(const std::string& sitzungsPfad);
 
 }  // namespace bhed::karte

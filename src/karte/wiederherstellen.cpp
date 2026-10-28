@@ -22,14 +22,16 @@ namespace {
 std::filesystem::path pfadVon(const std::string& s) { return std::filesystem::path(std::u8string(s.begin(), s.end())); }
 }  // namespace
 
-Wiederherstellung wiederherstellungPruefen(const std::string& sitzungsPfad, const std::string& unbenanntAutosave) {
+Wiederherstellung wiederherstellungPruefen(const std::string& sitzungsPfad, const std::string& unbenanntAutosave, unsigned long prozess) {
     Wiederherstellung w;
     std::ifstream f(pfadVon(sitzungsPfad), std::ios::binary);
     if (!f) { return w; }
     std::string karte;
+    std::string nummer;
     std::getline(f, karte);
+    std::getline(f, nummer);
     while (!karte.empty() && (karte.back() == '\r' || karte.back() == '\n')) { karte.pop_back(); }
-    if (karte.empty()) { return w; }
+    if (karte.empty() || nummer == std::to_string(prozess)) { return w; }   // dieser Prozess: kein Absturz
     w.karte = karte;
     w.autosave = karte == "unnamed.map" ? unbenanntAutosave : autosavePfad(karte);
     std::error_code e1, e2;
@@ -40,9 +42,9 @@ Wiederherstellung wiederherstellungPruefen(const std::string& sitzungsPfad, cons
     return w;
 }
 
-void sitzungSchreiben(const std::string& sitzungsPfad, const std::string& karte) {
+void sitzungSchreiben(const std::string& sitzungsPfad, const std::string& karte, unsigned long prozess) {
     std::ofstream f(pfadVon(sitzungsPfad), std::ios::binary | std::ios::trunc);
-    f << karte << "\n";
+    f << karte << "\n" << prozess << "\n";
 }
 
 void sitzungLoeschen(const std::string& sitzungsPfad) {

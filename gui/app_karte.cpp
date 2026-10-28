@@ -31,6 +31,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <process.h>
 #include <filesystem>
 #include <cstdlib>
 #include <fstream>
@@ -631,7 +632,8 @@ void letzteKarteBeimStart() {
 std::string sitzungsPfad() { return platform::settingsDirectory() + "\\" + karte::kSitzungsDatei; }
 
 bool absturzPruefen() {
-    const karte::Wiederherstellung w = karte::wiederherstellungPruefen(sitzungsPfad(), kartenBenutzerOrdner() + "autosave.map");
+    const karte::Wiederherstellung w =
+        karte::wiederherstellungPruefen(sitzungsPfad(), kartenBenutzerOrdner() + "autosave.map", static_cast<unsigned long>(_getpid()));
     karte::sitzungLoeschen(sitzungsPfad());
     g().sitzungKarte.clear();
     if (!w.anbieten) { return false; }

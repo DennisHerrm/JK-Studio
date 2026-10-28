@@ -228,6 +228,8 @@ std::vector<Schritt> schritte() {
     }));
     add(klick(ke::trK(Str::KeLView), "###main"));
     add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeWzMenue)) + "###werkzeuge9"));
+    add(pause(0.3));
     add(klick(std::string(ke::trK(Str::KeSjMenue)) + "###sprungpruefung"));
     add(pause(0.3));
     add(klick(std::string(ke::trK(Str::KeSjPruefen)) + "###sprungpruefen"));
@@ -285,6 +287,8 @@ std::vector<Schritt> schritte() {
     }));
     add(klick(ke::trK(Str::KeLView), "###main"));
     add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeWzMenue)) + "###werkzeuge9"));
+    add(pause(0.3));
     add(klick(std::string(ke::trK(Str::KeNwMenue)) + "###npcwege"));
     add(pause(0.3));
     add(klick(std::string(ke::trK(Str::KeNwNetz)) + "###npcnetz"));
@@ -297,6 +301,8 @@ std::vector<Schritt> schritte() {
         return ed.npcNetzZeigen && punkte == 4 && kanten >= 3 && konsoleText().find("Waypoint network: 4 points") != std::string::npos;
     }));
     add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeWzMenue)) + "###werkzeuge9"));
     add(pause(0.3));
     add(klick(std::string(ke::trK(Str::KeNwMenue)) + "###npcwege"));
     add(pause(0.3));
@@ -357,6 +363,8 @@ std::vector<Schritt> schritte() {
     }));
     add(klick(ke::trK(Str::KeLView), "###main"));
     add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeWzMenue)) + "###werkzeuge9"));
+    add(pause(0.3));
     add(klick(std::string(ke::trK(Str::KeVbMenue)) + "###verbund"));
     add(pause(0.3));
     add(klick(std::string(ke::trK(Str::KeVbKopie)) + "###verbundkopie"));
@@ -409,6 +417,8 @@ std::vector<Schritt> schritte() {
         }
     }));
     add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeWzMenue)) + "###werkzeuge9"));
     add(pause(0.3));
     add(klick(std::string(ke::trK(Str::KeKuMenue)) + "###kurve"));
     add(pause(0.3));
@@ -482,6 +492,8 @@ std::vector<Schritt> schritte() {
     }));
     add(klick(ke::trK(Str::KeLView), "###main"));
     add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeWzMenue)) + "###werkzeuge9"));
+    add(pause(0.3));
     add(klick(std::string(ke::trK(Str::KeVtMenue)) + "###verteilen"));
     add(pause(0.3));
     {
@@ -532,6 +544,8 @@ std::vector<Schritt> schritte() {
         ed.formen = ke::Editor::FormenZustand{};
     }));
     add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeWzMenue)) + "###werkzeuge9"));
     add(pause(0.3));
     add(klick(std::string(ke::trK(Str::KeFoMenue)) + "###formen"));
     add(pause(0.3));
@@ -622,6 +636,7 @@ std::vector<Schritt> schritte() {
         std::error_code ec;
         const std::filesystem::path kp(std::u8string(ed.name.begin(), ed.name.end()));
         std::filesystem::last_write_time(kp, std::filesystem::file_time_type::clock::now() - std::chrono::minutes(5), ec);
+        karte::sitzungSchreiben(ke::sitzungsPfad(), ed.name, 1);   // wie von einem frueheren, abgestuerzten Lauf
         if (!ke::absturzPruefen()) { meldeFehler("Wiederherstellen: keine Frage"); }
     }));
     add(pause(0.3));

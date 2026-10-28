@@ -52,6 +52,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
+#include <process.h>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -496,7 +497,7 @@ void autosaveJedeSekunde() {   // EverySecondTimer -> QE_CheckAutoSave
     if (!ed.gezeichnet) { return; }   // Map_Valid: der Editor hat eine Karte
     // Stufe 9 Punkt 12: der Name der offenen Karte in der Sitzungsdatei (beim Beenden geloescht)
     if (ed.sitzungKarte != ed.name) {
-        karte::sitzungSchreiben(sitzungsPfad(), ed.name);
+        karte::sitzungSchreiben(sitzungsPfad(), ed.name, static_cast<unsigned long>(_getpid()));
         ed.sitzungKarte = ed.name;
     }
     const double jetzt = ImGui::GetTime();

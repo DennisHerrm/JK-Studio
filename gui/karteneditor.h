@@ -22,6 +22,7 @@
 
 #include "bhed/i18n.h"
 #include "bhed/karte/prefabverbund.h"
+#include "bhed/karte/wiederherstellen.h"
 #include "bhed/karte/gelaende.h"
 #include "bhed/karte/kurven.h"
 #include "bhed/karte/npcwege.h"
@@ -959,7 +960,7 @@ struct Editor {
     bool knotenVersteckt = false;          // g_nodes_be_hidden (HideSelected)
     std::size_t sichtStand = 0;            // Verstecken/Zeigen (nicht im Undo) fuer szeneStand
     // Stufe 9 Punkt 4: Sprungweite und Platz (View > Check jumps and space)
-    int sprungMacht = 2;                   // Machtstufe fuer die Pruefung und "Im Editor spielen" ("BhedJumpCheckForce")
+    int sprungMacht = 0;                   // Machtstufe fuer die Pruefung und "Im Editor spielen" ("BhedJumpCheckForce", Vorgabe ohne)
     bool sprungLaeuft = false;
     std::shared_ptr<karte::SprungBericht> sprungBericht;
     // Stufe 9 Punkt 5: NPC-Wege (View > NPC paths)

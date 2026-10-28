@@ -93,6 +93,7 @@ KARTE9 = [
      "Modell %s als misc_model %s eingesetzt (%d Flächen, %d Dreiecke; MD3, Shader und Texturen im Import-Ordner).",
      "模型 %s 已作为 misc_model %s 插入(%d 个面,%d 个三角形;MD3、着色器和纹理位于导入文件夹)。",
      "モデル %s を misc_model %s として挿入しました(サーフェス %d 個、三角形 %d 個。MD3・シェーダー・テクスチャはインポートフォルダーにあります)。"),
+    ("KeWzMenue", "Map tools (JK Studio)", "Karten-Werkzeuge (JK Studio)", "地图工具(JK Studio)", "マップツール(JK Studio)"),
     # Punkt 4: Sprungweite und Platz
     ("KeSjMenue", "Check jumps and space", "Sprünge und Platz prüfen", "检查跳跃与空间", "ジャンプと空間を確認"),
     ("KeSjMenueTip",

@@ -2448,6 +2448,7 @@ enum class Str {
     KeGiFertig,
     KeGiFehler,
     KeMiFertig,
+    KeWzMenue,
     KeSjMenue,
     KeSjMenueTip,
     KeSjPruefen,
