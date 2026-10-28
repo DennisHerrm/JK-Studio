@@ -1,5 +1,5 @@
-// npcwege.cpp - Karten-Editor, Stufe 9 Punkt 5: NPC-Wege (siehe npcwege.h). Portiert aus
-// OpenJK / Movie Duels / Jedi Outcast ueber baueNavNetz und planeLauf.
+// npcwege.cpp - Karten-Editor, Stufe 9 Punkt 5: NPC-Wege (siehe npcwege.h).
+// Portiert aus OpenJK / Movie Duels / Jedi Outcast ueber baueNavNetz und planeLauf.
 //
 //   Copyright (C) 1999-2005 Id Software, Inc.; 2000-2013 Raven Software; 2013-2026 OpenJK contributors.
 //   This program is free software; you can redistribute it and/or modify it under
