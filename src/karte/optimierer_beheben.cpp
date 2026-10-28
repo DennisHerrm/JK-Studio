@@ -28,6 +28,7 @@
 #include "bhed/karte/karte.h"
 #include "bobtoolz_d.h"
 
+#include <cmath>
 #include <algorithm>
 #include <cctype>
 #include <map>
@@ -42,7 +43,9 @@ std::string klein(std::string s) {
     return s;
 }
 
-constexpr const char* kCaulk = "textures/common/caulk";
+// Jedi Academy, Jedi Outcast und Movie Duels: textures/system/caulk (system.shader; textures/common/caulk
+// steht in JKA nur als Verweis mit qer_editorimage textures/system/caulk daneben)
+constexpr const char* kCaulk = "textures/system/caulk";
 
 struct Aufgeloest {
     std::shared_ptr<Entitaet> ent;
@@ -108,13 +111,50 @@ BehebungsErgebnis anwenden(Karte& k, const Befund& b, const std::vector<Aufgeloe
     }
     case Behebung::Einrasten: {
         long long kaputt = 0;
+        long long zurueck = 0;
+        // Die Ecken eines Pinsels (Windungen)
+        const auto ecken = [&k](const Pinsel& q) {
+            std::vector<Vektor3d> v;
+            q.bRep(k.kontext);
+            for (std::size_t i = 0; i < q.anzahl(); ++i) {
+                const Wicklung& w = q[i].wicklung();
+                for (std::size_t j = 0; j < w.numpoints; ++j) { v.push_back(w[j].vertex); }
+            }
+            return v;
+        };
         for (const Aufgeloest& a : objekte) {
             if (!a.prim || a.prim->art() != Primitiv::Art::Pinsel) { continue; }
             auto& p = static_cast<Pinsel&>(*a.prim);
-            p.eckenEinrasten(1.0F, k.kontext);   // Snap to Grid (Raster 1)
+            // Fund md_rev_TarisUpper2: Einrasten baute die Flaechen aus der Huelle neu und verschob dabei
+            // Kanten und Texturen. Jetzt mit Texture Vertex Lock, und zurueck, wenn eine Flaeche wegfaellt,
+            // der Pinsel entartet oder - bei "sicher" - eine Ecke weiter als 0,05 wandert: "sicher" aendert
+            // nichts Sichtbares (der Anwender waehlt das Einrasten mit groesseren Abstaenden selbst).
+            const std::vector<Vektor3d> alt = ecken(p);
+            const std::size_t flaechenAlt = p.anzahl();
+            const auto sicherung = p.zustandSichern();
+            p.eckenEinrasten(1.0F, k.kontext, true);   // Snap to Grid (Raster 1), Texture Vertex Lock
+            bool gut = !p.entartet(k.kontext) && p.anzahl() == flaechenAlt;
+            if (gut && b.sicher) {
+                const std::vector<Vektor3d> neu = ecken(p);
+                for (const Vektor3d& v : alt) {
+                    double best = 1e30;
+                    for (const Vektor3d& w : neu) {
+                        best = std::min(best, std::max({std::fabs(v[0] - w[0]), std::fabs(v[1] - w[1]), std::fabs(v[2] - w[2])}));
+                    }
+                    if (best > 0.051) {
+                        gut = false;
+                        break;
+                    }
+                }
+            }
+            if (!gut) {
+                p.zustandLaden(*sicherung);
+                ++zurueck;
+                continue;
+            }
             ++e.geaendert;
-            if (p.entartet(k.kontext)) { ++kaputt; }
         }
+        if (zurueck > 0) { e.meldung = std::to_string(zurueck) + " brushes kept as they were (snapping would change their shape)"; }
         e.undoName = "Optimizer: snap " + mehrzahl(e.geaendert, "brush", "brushes") + " to the grid";
         if (kaputt > 0) { e.meldung = std::to_string(kaputt) + " brushes became degenerate - undo and fix by hand"; }
         break;
@@ -122,6 +162,9 @@ BehebungsErgebnis anwenden(Karte& k, const Befund& b, const std::vector<Aufgeloe
     case Behebung::PinselEntfernen:
         for (const Aufgeloest& a : objekte) {
             if (!a.prim || !a.ent) { continue; }
+            // "entartet" ist sicher, weil der Pinsel nichts zeichnet - nur loeschen, wenn auch der Editor
+            // (Kamera, Windungen) ihn fuer entartet haelt
+            if (b.pruefung == "entartet" && a.prim->art() == Primitiv::Art::Pinsel && !static_cast<const Pinsel&>(*a.prim).entartet(k.kontext)) { continue; }
             k.auswahl.abwaehlen(a.ent, a.prim);
             if (a.ent->kindEntfernen(a.prim.get())) { ++e.geaendert; }
         }

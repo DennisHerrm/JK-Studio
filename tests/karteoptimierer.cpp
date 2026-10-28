@@ -877,9 +877,9 @@ void testeBeheben() {
         long long caulk = 0;
         for (const auto& p : f.k.entitaeten().front()->kinder()) {
             const auto& pin = static_cast<const Pinsel&>(*p);
-            for (std::size_t i = 0; i < pin.anzahl(); ++i) { caulk += pin[i].shader() == "textures/common/caulk" ? 1 : 0; }
+            for (std::size_t i = 0; i < pin.anzahl(); ++i) { caulk += pin[i].shader() == "textures/system/caulk" ? 1 : 0; }
         }
-        pruefe(caulk == 2, "Caulk: genau die zwei verdeckten Flaechen tragen common/caulk (" + std::to_string(caulk) + ")");
+        pruefe(caulk == 2, "Caulk: genau die zwei verdeckten Flaechen tragen system/caulk (der Caulk von JKA, JK2, Movie Duels) (" + std::to_string(caulk) + ")");
     }
     {   // Make Detail fuer Deko
         Fall f(entText("worldspawn", "", kastenText(0, 0, 0, 512, 512, 16, "test/boden") + kastenText(0, 0, 16, 32, 32, 48, "test/kiste")));

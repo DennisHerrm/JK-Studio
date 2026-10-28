@@ -293,6 +293,9 @@ struct ShaderSkript {
     int mischQuelle = 0;            // blendFunc: 0 keine; sonst GL_-Faktoren (1 ONE, 2 ZERO, 3 SRC_ALPHA, 4 ONE_MINUS_SRC_ALPHA, 5 DST_COLOR, 6 ONE_MINUS_DST_COLOR, 7 SRC_COLOR, 8 ONE_MINUS_SRC_COLOR, 9 DST_ALPHA, 10 ONE_MINUS_DST_ALPHA)
     int mischZiel = 0;
     bool stufeGefunden = false;
+    // Fund md_rev_TarisUpper2: Glas ohne "surfaceparm trans" (nur blendFunc) galt als deckend. Die erste
+    // Stufe mischt (blendFunc ausser GL_ONE GL_ZERO) oder hat alphaFunc: man sieht hindurch.
+    bool durchsichtig = false;
 };
 [[nodiscard]] ShaderSkript shaderSkriptLesen(const std::string& text, const std::string& name);
 // Eine .shader-Datei einmal zerlegt (Stufe 6, schnellerer Start des
