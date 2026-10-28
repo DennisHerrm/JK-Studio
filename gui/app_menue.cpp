@@ -30,6 +30,7 @@
 #include "bhed/pk3.h"
 #include "bhed/regelwerk.h"
 #include "bhed/shaderscript.h"
+#include "bhed/utf8pfad.h"
 
 #include <algorithm>
 #include <cmath>
@@ -151,6 +152,11 @@ int waechst(ImGuiInputTextCallbackData* d) {
 }
 bool eingabe(const char* id, std::string* s, ImGuiInputTextFlags f = 0) {
     return ImGui::InputText(id, s->data(), s->capacity() + 1, f | ImGuiInputTextFlags_CallbackResize, waechst, s);
+}
+
+std::string u8(const fs::path& p) {
+    const std::u8string t = p.u8string();
+    return std::string(t.begin(), t.end());
 }
 
 Zustand* z_ = nullptr;
@@ -349,7 +355,7 @@ bool schreibeDatei(const std::string& pfad, const std::string& inhalt) {
         Z().meldung = tr(Str::MeNieSpielordner);
         return false;
     }
-    std::ofstream f(fs::u8path(pfad), std::ios::binary);
+    std::ofstream f(utf8Pfad(pfad), std::ios::binary);
     if (!f) { return false; }
     f.write(inhalt.data(), static_cast<std::streamsize>(inhalt.size()));
     return static_cast<bool>(f);
@@ -1151,7 +1157,7 @@ void zeichneCode(Dokument& d, ImVec2 groesse) {
     char nr[16];
     std::snprintf(nr, sizeof(nr), "%d", n);
     const float nummernB = font->CalcTextSizeA(fs, 1e9F, 0.0F, nr).x + fs * 0.6F;
-    const float rinne = rinnenBreite();
+    const float rinne = randBreiteSkript();
     const float falteB = fs;
     const float textX = o.x + nummernB + rinne + falteB + 4.0F;
     const float miniB = std::floor(fs * 5.0F);
@@ -1298,7 +1304,7 @@ void zeichneCode(Dokument& d, ImVec2 groesse) {
         const bool seitL = static_cast<std::size_t>(zl) < seitLaden.geaendert.size() && seitLaden.geaendert[static_cast<std::size_t>(zl)] != 0;
         if (seitS) { marke = seitL ? kMarkeGeaendert : kMarkeZurueck; }
         else if (seitL) { marke = kMarkeGespeichert; }
-        zeichneRinne(dl, o.x + nummernB, rinne, y, zh, marke, d.lesezeichen.count(zl) != 0);
+        randZeichnenSkript(dl, o.x + nummernB, rinne, y, zh, marke, d.lesezeichen.count(zl) != 0);
         if (fehlerZeilen.count(zl) != 0) {
             dl->AddRectFilled(ImVec2{textX, y}, ImVec2{textX + textB, y + zh}, IM_COL32(255, 40, 40, 40));
             dl->AddCircleFilled(ImVec2{o.x + nummernB - fs * 0.15F, y + zh * 0.5F}, fs * 0.18F, IM_COL32(240, 70, 70, 255));
@@ -1449,12 +1455,12 @@ void zeichnePalette(Dokument& d) {
     if (ImGui::Button(tr(Str::MeBildDazu), ImVec2{-1, 0})) {
         const std::string pfad = platform::openFileDialog(tr(Str::MeBildDazu), "Images (*.png;*.jpg;*.tga)|*.png;*.jpg;*.jpeg;*.tga|", "");
         if (!pfad.empty()) {
-            std::ifstream f(fs::u8path(pfad), std::ios::binary);
+            std::ifstream f(utf8Pfad(pfad), std::ios::binary);
             std::ostringstream s;
             s << f.rdbuf();
-            std::string base = fs::u8path(pfad).stem().u8string();
+            std::string base = u8(utf8Pfad(pfad).stem());
             for (char& c : base) { c = (std::isalnum(static_cast<unsigned char>(c)) != 0 || c == '_') ? static_cast<char>(std::tolower(static_cast<unsigned char>(c))) : '_'; }
-            const std::string ext = kleinPfad(fs::u8path(pfad).extension().u8string());
+            const std::string ext = kleinPfad(u8(utf8Pfad(pfad).extension()));
             const std::string spiel = "gfx/menus/" + base + (ext == ".jpeg" ? std::string(".jpg") : ext);
             d.bilder[spiel] = s.str();
             Z().texturen.erase("gfx/menus/" + base);
@@ -1465,7 +1471,7 @@ void zeichnePalette(Dokument& d) {
                             {inAnf("gfx/menus/" + base)});
             }
             char b[400];
-            std::snprintf(b, sizeof(b), tr(Str::MeBildHinzu), fs::u8path(pfad).filename().u8string().c_str(), spiel.c_str());
+            std::snprintf(b, sizeof(b), tr(Str::MeBildHinzu), u8(utf8Pfad(pfad).filename()).c_str(), spiel.c_str());
             Z().meldung = b;
         }
     }
@@ -1919,7 +1925,7 @@ bool oeffneDatei(const std::string& platte) {
     const std::string k = kleinPfad(platte);
     if (k.size() < 5 || (k.compare(k.size() - 5, 5, ".menu") != 0 && k.compare(k.size() - 4, 4, ".txt") != 0)) { return false; }
     datenPruefen();
-    std::ifstream f(fs::u8path(platte), std::ios::binary);
+    std::ifstream f(utf8Pfad(platte), std::ios::binary);
     if (!f) { return false; }
     std::ostringstream s;
     s << f.rdbuf();

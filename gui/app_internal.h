@@ -2954,8 +2954,9 @@ bool einzelnenSchrittZuruecknehmen(std::size_t i, std::string* bericht);
 enum : std::uint8_t { kMarkeKeine = 0, kMarkeGeaendert = 1, kMarkeGespeichert = 2, kMarkeZurueck = 3 };
 // Der Rand des Skript-Editors (app_anordnung.inc) - auch im Code-Editor des
 // Menue-Editors: Lesezeichenpunkt links, Aenderungsstreifen rechts.
-[[nodiscard]] float rinnenBreite();
-void zeichneRinne(ImDrawList* dl, float x0, float breite, float y, float hoehe, std::uint8_t marke, bool lesezeichen);
+// (Die beiden stehen dort im anonymen Namensraum; diese reichen sie durch.)
+[[nodiscard]] float randBreiteSkript();
+void randZeichnenSkript(ImDrawList* dl, float x0, float breite, float y, float hoehe, std::uint8_t marke, bool lesezeichen);
 void aenderungsStandNeu();         // aktiver Reiter: Originalstand = jetzt
 // "Revert to original": die inhaltlich geaenderten unter `wege`, mit ihrem Original.
 std::vector<std::pair<Path, Node>> zuruecksetzbar(const std::vector<Path>& wege);

@@ -5146,6 +5146,13 @@ void doAppend() {
 
 #include "app_anordnung.inc"   // Stufe 8d: pk3, Undo-Liste, Klaenge, Karte, Symbole, Anordnung, Compile-Knopf
 }  // namespace
+
+// Menue-Editor M1: der Rand des Skript-Editors (rinnenBreite/zeichneRinne aus
+// app_anordnung.inc) fuer den Code-Editor des Menue-Editors.
+float randBreiteSkript() { return rinnenBreite(); }
+void randZeichnenSkript(ImDrawList* dl, float x0, float breite, float y, float hoehe, std::uint8_t marke, bool lesezeichen) {
+    zeichneRinne(dl, x0, breite, y, hoehe, marke, lesezeichen);
+}
 #include "app_ablage.inc"   // Stufe 8d: Zwischenablage, Dateigrenzen, Berichte, Himmelsshader
 namespace {
 // --- Mausrad ueber der Reiterleiste (rc601) ----------------------------------
