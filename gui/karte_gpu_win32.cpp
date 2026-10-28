@@ -1310,6 +1310,19 @@ float beitrag(LichtD L, float3 p, float3 n) {
     if (art == 3 && L.flaeche.w > 2.5) {
         float d = dot(p, L.richtung.xyz) - dot(L.pos.xyz, L.richtung.xyz);
         bool zwei = L.flaeche.y > 0.5;
+        // Fernfeld (Abstand ueber dem Vierfachen des Stuecks): der Grenzwert von
+        // PointToPolygonFormFactor, A cos1 cos2 / (pi d^2) - spart die Winkel je Ecke
+        float3 zum = L.pos.xyz - p;
+        float dd = length(zum);
+        if (dd > 4.0 * L.zusatz.z && d >= 8.0) {
+            if (dd >= L.werte.w) { return 0.0; }
+            float3 dir = zum / dd;
+            float c1 = dot(n, dir);
+            float c2 = -dot(L.richtung.xyz, dir);
+            if (c1 <= 0.0 || c2 <= 0.0) { return 0.0; }
+            float addF = L.zusatz.y * c1 * c2 / (3.14159265 * dd * dd) * L.flaeche.x;
+            return addF <= 1.0 ? 0.0 : addF;
+        }
         if (d < 3.0) {
             if (!zwei && d < -1.0) { return 0.0; }
             if (d > -3.0 && dot(n, L.richtung.xyz) > 0.9) { return 0.0; }
@@ -1420,6 +1433,10 @@ float himmelSicht(LichtD L, float3 p, float3 n) {
     return sonnenProben(himO, himS, (float)s, uv, -dot(q, L.richtung.xyz), 1.0 / 1024.0, texel * 2.0 + 1.0);
 }
 float3 lichtVon(uint k, float3 p, float3 n) {
+    // erst Ort und Huelle (2 von 7 Werten): die meisten Lichter enden hier
+    float4 pos = lichtB[k * 7u];
+    float4 werte = lichtB[k * 7u + 3u];
+    if (length(pos.xyz - p) >= werte.w) { return float3(0, 0, 0); }
     LichtD L = lichtLesen(k);
     float add = beitrag(L, p, n);
     if (add <= 0.0) { return float3(0, 0, 0); }
@@ -1739,6 +1756,23 @@ struct RtSicherung {
     RtSicherung& operator=(const RtSicherung&) = delete;
 };
 
+std::size_t g_schattenDreiecke = 0;   // gezeichnete Dreiecke aller Schattenkarten (Budget je Bild)
+
+// Wuerfelseite (Achse, Vorzeichen) vom Licht aus: der Kasten liegt (teilweise) im 90-Grad-Stumpf
+bool seiteTrifft(const SchattenTeil& t, const float* seite) {
+    if (seite == nullptr) { return true; }
+    const int a = static_cast<int>(seite[3]);
+    const float vz = seite[4];
+    const float vorn = vz > 0 ? t.mx[a] - seite[a] : seite[a] - t.mn[a];
+    if (vorn <= 0) { return false; }
+    for (int i = 0; i < 3; ++i) {
+        if (i == a) { continue; }
+        const float m = seite[i] < t.mn[i] ? t.mn[i] - seite[i] : seite[i] > t.mx[i] ? seite[i] - t.mx[i] : 0.0F;
+        if (m > vorn) { return false; }
+    }
+    return true;
+}
+
 bool kugelTrifft(const SchattenTeil& t, const float* kugel) {
     if (kugel == nullptr) { return true; }
     float d2 = 0;
@@ -1751,7 +1785,7 @@ bool kugelTrifft(const SchattenTeil& t, const float* kugel) {
 
 // Die Teile der Arten in maske (Bit je Art) zeichnen; ps fuer deckende, psA fuer alphashadow.
 void schattenZiehen(const KonstantenSchatten& k, ID3D11PixelShader* ps, ID3D11PixelShader* psA, unsigned maske, const std::vector<SchattenTeil>& teile,
-                    const float* kugel, ID3D11DepthStencilState* tiefe, ID3D11ShaderResourceView* srvS) {
+                    const float* kugel, ID3D11DepthStencilState* tiefe, ID3D11ShaderResourceView* srvS, const float* seite = nullptr) {
     ID3D11DeviceContext* c = kontext();
     D3D11_MAPPED_SUBRESOURCE m{};
     if (FAILED(c->Map(g.cbSchatten, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) { return; }
@@ -1772,7 +1806,7 @@ void schattenZiehen(const KonstantenSchatten& k, ID3D11PixelShader* ps, ID3D11Pi
     c->RSSetState(g.rsSchatten);
     ID3D11PixelShader* aktuell = nullptr;
     for (const SchattenTeil& t : teile) {
-        if (t.puffer == nullptr || t.anzahl == 0 || ((1U << t.art) & maske) == 0U || !kugelTrifft(t, kugel)) { continue; }
+        if (t.puffer == nullptr || t.anzahl == 0 || ((1U << t.art) & maske) == 0U || !kugelTrifft(t, kugel) || !seiteTrifft(t, seite)) { continue; }
         ID3D11Buffer* vb = Zugriff3::vb(*t.puffer);
         if (vb == nullptr) { continue; }
         ID3D11PixelShader* soll = t.art == 3 ? psA : ps;
@@ -1788,6 +1822,7 @@ void schattenZiehen(const KonstantenSchatten& k, ID3D11PixelShader* ps, ID3D11Pi
         const UINT versatz = 0;
         c->IASetVertexBuffers(0, 1, &vb, &schritt, &versatz);
         c->Draw(static_cast<UINT>(t.anzahl), static_cast<UINT>(t.erstes));
+        g_schattenDreiecke += t.anzahl / 3;
     }
     ID3D11ShaderResourceView* leer[2] = {nullptr, nullptr};
     c->PSSetShaderResources(0, 2, leer);
@@ -1933,8 +1968,10 @@ bool schattenWuerfel(int slot, const float* pos, float weite, const std::vector<
         blickLH(pos, vorn[s], oben[s], blick);
         mal(blick, proj, ks.vp);
         // Punkt-, Spot- und Flaechenlichter: TraceLine ohne testAll - auch feste Blaetter halten auf
-        schattenZiehen(ks, g.psSchatten, g.psSchattenA, (1U << 0) | (1U << 1) | (1U << 3), teile, kugel, tiefenZustand(TiefenTest::Kleiner, true),
-                       nullptr);
+        // die Himmelspinsel sind feste Blaetter (Art 2 und 4) - fuer Punktlichter halten sie auf
+        const float seite[5] = {pos[0], pos[1], pos[2], static_cast<float>(s / 2), (s % 2) == 0 ? 1.0F : -1.0F};
+        schattenZiehen(ks, g.psSchatten, g.psSchattenA, (1U << 0) | (1U << 1) | (1U << 2) | (1U << 3) | (1U << 4), teile, kugel,
+                       tiefenZustand(TiefenTest::Kleiner, true), nullptr, seite);
     }
     return true;
 }
@@ -1973,6 +2010,8 @@ bool himmelsSonne(int schicht, const float* richtung, const float* mitte, float 
     g.himmelTexel = 2.0F * halb / 1024.0F;
     return true;
 }
+
+std::size_t schattenDreiecke() { return g_schattenDreiecke; }
 
 void sonnenSchattenAus() {
     g.kaskadeAn[0] = false;

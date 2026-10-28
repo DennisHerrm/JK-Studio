@@ -191,7 +191,7 @@ struct LichtGpu {
     float werte[4];      // x linear, y Winkel, z fade, w Huelle
     float mehr[4];       // x Schatten: Wuerfel >= 0, Sonne: Himmelskarte >= 0 oder -3 Kaskaden; -1 ohne; y Weite; z angleScale; w extraDist
     float flaeche[4];    // x add, y zweiseitig, z erste Ecke, w Eckenzahl (0: Naeherung ohne Ecken)
-    float zusatz[4];     // x 1 negativ, yzw frei
+    float zusatz[4];     // x 1 negativ, y Flaeche (Flaechenlicht), z Radius des Stuecks, w frei
 };
 // Ein Teil der Schattengeometrie (Punkt3-Ecken): art 0 deckende Dreiecke
 // (Strahlen aller Lichter), 1 nur Volumen (strukturelle deckende Pinsel, die
@@ -220,6 +220,8 @@ bool sonnenKaskade(int stufe, const float* richtung, const float* mitte, float h
 // Die Karte einer Sonne aus q3map_skyLight (Schicht < kHimmelSonnenMax), ganze Karte.
 bool himmelsSonne(int schicht, const float* richtung, const float* mitte, float halb, float tiefe, const std::vector<SchattenTeil>& teile);
 void sonnenSchattenAus();
+// Gezeichnete Dreiecke aller Schattenkarten bisher (das Budget je Bild).
+[[nodiscard]] std::size_t schattenDreiecke();
 
 // Schnell-Backen (Stufe 7 Punkt 5b): die gebauten Flaechen einer .bsp mit ihren
 // echten Lightmaps. Ecke wie bhed::BspVertex (xyz, st, Lightmap-st, Normale, Farbe).

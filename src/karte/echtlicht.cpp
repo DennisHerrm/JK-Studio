@@ -70,16 +70,29 @@ void huelleSetzen(EchtLicht& l) {
     }
     if (l.art == EchtLicht::Art::Flaeche && !l.wicklung.empty()) {
         // exactPointToPolygon mit FastActual (light_ydnar.cpp:4851-4868): "ugly hack"
+        // radius = 100, 110, ... bis f * add <= falloffTolerance. Entlang der Normale
+        // faellt der Formfaktor stetig: dieselbe erste Stufe per Halbierung statt
+        // bis zu 52000 Schritten (sonst kostete jede Aenderung grosser Karten Zeit).
         l.huelle = 65536.0F * 8.0F;   // MAX_WORLD_COORD * 8
         const Vektor3f dir(-l.normale[0], -l.normale[1], -l.normale[2]);
-        for (float radius = 100.0F; radius < 65536.0F * 8.0F; radius += 10.0F) {
+        const auto unter = [&l, &dir](int k) {
+            const float radius = 100.0F + 10.0F * static_cast<float>(k);
             const Vektor3f o = l.ursprung + l.normale * radius;
-            const float f = std::fabs(echtFormFaktor(o, dir, l.wicklung));
-            if (f * l.add <= kEchtAbfallGrenze) {
-                l.huelle = radius;
-                break;
+            return std::fabs(echtFormFaktor(o, dir, l.wicklung)) * l.add <= kEchtAbfallGrenze;
+        };
+        const int n = static_cast<int>((65536.0F * 8.0F - 100.0F) / 10.0F);
+        if (!unter(n - 1)) { return; }
+        int lo = 0;
+        int hi = n - 1;   // unter(hi) gilt
+        while (lo < hi) {
+            const int m = lo + (hi - lo) / 2;
+            if (unter(m)) {
+                hi = m;
+            } else {
+                lo = m + 1;
             }
         }
+        l.huelle = 100.0F + 10.0F * static_cast<float>(lo);
         return;
     }
     if (l.linear) {

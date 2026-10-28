@@ -271,11 +271,23 @@ kartegpu::LichtGpu gpuLicht(const EchtLicht& l, std::vector<float>& ecken) {
         g.flaeche[1] = l.zweiseitig ? 1.0F : 0.0F;
         g.flaeche[2] = static_cast<float>(ecken.size() / 3);
         g.flaeche[3] = static_cast<float>(l.wicklung.size());
+        float radius = 0;
         for (const Vektor3f& v : l.wicklung) {
             ecken.push_back(v[0]);
             ecken.push_back(v[1]);
             ecken.push_back(v[2]);
+            const Vektor3f d = v - l.ursprung;
+            radius = std::max(radius, std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]));
         }
+        float flaeche = 0;
+        for (std::size_t i = 2; i < l.wicklung.size(); ++i) {
+            const Vektor3f a = l.wicklung[i - 1] - l.wicklung[0];
+            const Vektor3f b = l.wicklung[i] - l.wicklung[0];
+            const Vektor3f x(a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]);
+            flaeche += 0.5F * std::sqrt(x[0] * x[0] + x[1] * x[1] + x[2] * x[2]);
+        }
+        g.zusatz[1] = flaeche;
+        g.zusatz[2] = radius;
     }
     g.zusatz[0] = l.negativ ? 1.0F : 0.0F;
     return g;
@@ -316,7 +328,7 @@ void schattenGeoBauen(std::size_t geoStand, bool patches) {
     std::map<std::tuple<int, int, int, int, std::string>, std::vector<kartegpu::Punkt3>> eimer;
     const auto dreieck = [&eimer](int art, const std::string& sh, const Vektor3f* p, const Vektor3f& n, const karte::Vektor2f* st) {
         const Vektor3f m = (p[0] + p[1] + p[2]) / 3.0F;
-        const auto zelle = [](float v) { return static_cast<int>(std::floor(v / 1024.0F)); };
+        const auto zelle = [](float v) { return static_cast<int>(std::floor(v / 512.0F)); };
         auto& v = eimer[{art, zelle(m[0]), zelle(m[1]), zelle(m[2]), art == 3 ? sh : std::string()}];
         for (int i = 0; i < 3; ++i) {
             kartegpu::Punkt3 q{};
@@ -534,7 +546,7 @@ void schnellBauStarten(std::size_t kartenStand) {
                                                                     std::to_string(zeiten.gpuMs) + " -bhedgpubakecheck 0 "
                                                               : std::string();
     const std::vector<std::string> befehle = {grund + "-meta \"" + karte + "\"", grund + "-vis -fast \"" + bsp + "\"",
-                                              grund + "-light -fast " + gpu + "\"" + bsp + "\""};
+                                              grund + "-light -fast " + std::string(e.echtLicht.patchSchatten ? "-patchshadows " : "") + gpu + "\"" + bsp + "\""};
     const std::string kartenName = e.name;
     g_backen.abbrechen = false;
     g_backen.stand = 2;
@@ -737,6 +749,8 @@ bool kugelImBild(const float* vp, int breite, int hoehe, const Vektor3f& c, floa
     return true;
 }
 
+std::size_t g_dreieckeBild = 0;   // kartegpu::schattenDreiecke() am Anfang des Bilds
+
 // Ein Platz fuer den Schattenwuerfel eines Lichts: vorhanden, neu (Budget) oder -1
 int wuerfelPlatz(const EchtLicht& l, std::size_t geoStand, bool gross, int& budget) {
     const float weite = std::min(l.huelle, 65536.0F);
@@ -744,7 +758,7 @@ int wuerfelPlatz(const EchtLicht& l, std::size_t geoStand, bool gross, int& budg
         const Platz& p = g_plaetze[s];
         if (p.gueltig && p.geoStand == geoStand && gleicherOrt(p.pos, l.ursprung) && p.huelle == weite) { return static_cast<int>(s); }
     }
-    if (budget <= 0) { return -1; }
+    if (budget <= 0 || kartegpu::schattenDreiecke() - g_dreieckeBild > 4000000U) { return -1; }   // hoechstens 8 Wuerfel und 4 Mio. Dreiecke je Bild
     const std::size_t von = gross ? 0 : static_cast<std::size_t>(kartegpu::kSchattenGross);
     const std::size_t bis = gross ? static_cast<std::size_t>(kartegpu::kSchattenGross) : g_plaetze.size();
     std::size_t best = von;
@@ -770,6 +784,7 @@ void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite,
     Editor& e = ed();
     const auto t0 = std::chrono::steady_clock::now();
     ++g_bild;
+    g_dreieckeBild = kartegpu::schattenDreiecke();
     weltAktualisieren(geoStand);
     if (g_schatten.geoStand != geoStand || g_schatten.patches != e.echtLicht.patchSchatten || g_schatten.geraet != kartegpu::geraetStand()) {
         schattenGeoBauen(geoStand, e.echtLicht.patchSchatten);
