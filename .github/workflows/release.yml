@@ -46,6 +46,11 @@ jobs:
     # 2026). Fest statt windows-latest: -latest wandert.
     runs-on: windows-2025
     timeout-minutes: 90
+    env:
+      # Stufe 8d: die Release-Signatur. Das Geheimnis RELEASE_SIGNING_KEY (PEM des privaten
+      # ECDSA-P-256-Schluessels) legt der Koordinator einmalig an (docs/intern/NOTIZEN_karte8d.md);
+      # Geheimnisse sind in "if:" nicht lesbar, darum hier nur, ob es gesetzt ist.
+      SIGNING_KEY_SET: ${{ secrets.RELEASE_SIGNING_KEY != '' }}
     steps:
       - name: Line endings as committed
         # data/base/*.h und behaved.bhc sind mit CRLF eingecheckt, der Rest mit
@@ -175,6 +180,36 @@ jobs:
           if ($zips.Count -ne 1) { throw "exactly one .zip per release (the updater installs the first .zip), found $($zips.Count)" }
           Get-ChildItem dist | Format-Table Name, Length -AutoSize
 
+      - name: Sign checksums (SHA256SUMS.txt.sig)
+        # Stufe 8d: der Updater (src/update_einspielen.cpp) prueft das .zip gegen
+        # SHA256SUMS.txt; steht in include/bhed/update.h ein kSignaturSchluessel, verlangt er
+        # dazu SHA256SUMS.txt.sig (ECDSA P-256 ueber SHA256SUMS.txt, DER wie openssl).
+        # Ohne Geheimnis wird nicht signiert - dann darf auch kein Schluessel im Programm
+        # stehen, sonst lehnte jeder Updater dieses Release ab.
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $eingebaut = Select-String -Path include/bhed/update.h -Pattern 'kSignaturSchluessel = "([0-9a-fA-F]*)"' | ForEach-Object { $_.Matches[0].Groups[1].Value }
+          if ($env:SIGNING_KEY_SET -ne 'true') {
+            if ("$eingebaut" -ne '') { throw 'kSignaturSchluessel is set in update.h but the secret RELEASE_SIGNING_KEY is missing - the updater would reject this release' }
+            Write-Host 'no signing key: SHA256SUMS.txt only (the updater requires the checksum)'
+            exit 0
+          }
+          if ("$eingebaut" -eq '') { Write-Host 'warning: signing, but kSignaturSchluessel in update.h is empty - the signature is not checked yet' }
+          $openssl = 'C:\Program Files\Git\usr\bin\openssl.exe'
+          $key = Join-Path $env:RUNNER_TEMP 'release_key.pem'
+          $pub = Join-Path $env:RUNNER_TEMP 'release_pub.der'
+          try {
+            Set-Content -Path $key -Value $env:RELEASE_SIGNING_KEY -NoNewline
+            & $openssl dgst -sha256 -sign $key -out dist/SHA256SUMS.txt.sig dist/SHA256SUMS.txt
+            & $openssl ec -in $key -pubout -outform DER -out $pub
+          } finally {
+            Remove-Item $key -Force -ErrorAction SilentlyContinue
+          }
+          & $openssl dgst -sha256 -verify $pub -keyform DER -signature dist/SHA256SUMS.txt.sig dist/SHA256SUMS.txt
+          if ("$eingebaut" -ne '') { python tools/release_paket.py schluessel $pub --pruefe }
+
       - uses: actions/upload-artifact@v7
         with:
           name: JK-Studio-${{ steps.ver.outputs.rc }}
@@ -200,6 +235,7 @@ jobs:
           $notes = Join-Path $env:RUNNER_TEMP 'notes.md'
           python tools/release_paket.py notizen $rc $notes
           $files = @("dist/JK-Studio-$rc-windows-x64.zip", "dist/JK-Studio-$rc-windows-x64.exe", "dist/SHA256SUMS.txt")
+          if (Test-Path dist/SHA256SUMS.txt.sig) { $files += "dist/SHA256SUMS.txt.sig" }
           # NIE --prerelease: /releases/latest ueberspringt Vorab-Releases, der
           # Updater (gui/update_win32.cpp) saehe das Release nie.
           gh release create $env:GITHUB_REF_NAME @files --verify-tag --draft --title "JK Studio 1.0.0-$rc" --notes-file $notes

@@ -9,11 +9,12 @@
 // Schluessel von aussen, der NIE gespeichert wird: GH_TOKEN bzw.
 // GITHUB_TOKEN, sonst "gh auth token" (GitHub CLI, falls angemeldet).
 //
-// INSTALLATION: Die laufende .exe laesst sich unter Windows nicht
-// ueberschreiben, wohl aber umbenennen. Sie wird zu "behaved.exe.alt", die
-// neue kommt an ihren Platz; beim naechsten Start wird die alte geloescht.
-// Jede Datei wird erst als "<name>.neu" geschrieben und dann ersetzt - ein
-// abgebrochener Download hinterlaesst keine halbe Datei.
+// INSTALLATION (seit Stufe 8d in src/update_einspielen.cpp, bhed::update::einspielen):
+// erst das .zip gegen SHA256SUMS.txt pruefen (und gegen die Signatur, sobald ein
+// Schluessel im Programm steht), dann alles in einen Zwischenordner neben der .exe
+// entpacken, erst dann tauschen. Die laufende .exe laesst sich unter Windows nicht
+// ueberschreiben, wohl aber umbenennen: sie wird zu "<exe>.alt", die neue kommt an
+// ihren Platz; beim naechsten Start wird die alte geloescht.
 
 #include "update.h"
 
@@ -35,7 +36,6 @@
 
 #include "app_internal.h"
 #include "bhed/fassung.h"
-#include "bhed/pk3.h"
 
 namespace bhed::gui::updater {
 namespace {
@@ -354,7 +354,24 @@ void installAuftrag(bhed::update::Release r) {
         return;
     }
     setze([&](Zustand& z) { z.fortschritt = 1.0; });
-    // Das .zip ablegen und mit dem pk3-Leser oeffnen (dasselbe Format).
+    // Stufe 8d: SHA256SUMS.txt (Pflicht) und SHA256SUMS.txt.sig (Pflicht, sobald ein
+    // Schluessel im Programm steht) des Releases - klein, ohne Fortschritt.
+    const auto kleineDatei = [&](const char* name, std::string& inhalt) {
+        const bhed::update::Asset* d = bhed::update::assetNamens(r, name);
+        if (d == nullptr || d->downloadUrl.empty()) { return false; }
+        const Antwort k = holen(breit(d->downloadUrl), {}, true);
+        if (!k.fehler.empty() || k.status != 200) { return false; }
+        inhalt = k.body;
+        return true;
+    };
+    std::string summen;
+    std::string signatur;
+    const bool mitSummen = kleineDatei(bhed::update::kSummenDatei, summen);
+    const bool mitSignatur = kleineDatei(bhed::update::kSignaturDatei, signatur);
+    diag::detail(std::string("Update: ") + bhed::update::kSummenDatei + (mitSummen ? " geladen" : " FEHLT") + ", " +
+                 bhed::update::kSignaturDatei + (mitSignatur ? " geladen" : " fehlt"));
+    // Das .zip ablegen; einspielen (src/update_einspielen.cpp) prueft es, entpackt
+    // in den Zwischenordner und tauscht erst dann.
     std::error_code ec;
     wchar_t temp[MAX_PATH] = {};
     GetTempPathW(MAX_PATH, temp);
@@ -365,72 +382,15 @@ void installAuftrag(bhed::update::Release r) {
         std::ofstream f(zipDatei, std::ios::binary);
         f.write(a.body.data(), static_cast<std::streamsize>(a.body.size()));
     }
-    Pk3 archiv;
-    std::string fehler;
-    if (!readPk3Directory(schmal(zipDatei.wstring()), archiv, &fehler)) {
-        setze([&](Zustand& z) { z.stand = Stand::Fehler; z.meldung = text(Str::UpdErrZip, fehler); });
-        return;
-    }
-    std::vector<std::string> namen;
-    for (const Pk3Entry& e : archiv.entries) { namen.push_back(e.name); }
-    const std::string ober = bhed::update::gemeinsamerOrdner(namen);
-    const fs::path exe = exePfad();
-    const fs::path ordner = exe.parent_path();
-    int ersetzt = 0;
-    std::string problem;
-    // rc601 release: WAS mit einem Eintrag geschieht (an die Stelle der
-    // laufenden .exe, daneben, gar nicht), entscheidet einspielenAls in
-    // src/update.cpp - dort laesst es sich ohne Netz pruefen
-    // (tests/updatetest.cpp). Ohne data\base neben der .exe laeuft das
-    // Programm eigenstaendig mit seinen eingebauten Daten.
-    const bool nurProgramm = !fs::exists(ordner / L"data" / L"base" / L"behaved.bhc", ec);
-    const std::string laufenderName = schmal(exe.filename().wstring());
-    for (const Pk3Entry& e : archiv.entries) {
-        const std::string rel = bhed::update::zielImOrdner(e.name, ober);
-        const bhed::update::Einspielen art = bhed::update::einspielenAls(rel, laufenderName, nurProgramm);
-        if (art == bhed::update::Einspielen::Ueberspringen) { continue; }
-        std::string inhalt;
-        if (!readPk3File(archiv, e, inhalt, &fehler)) {
-            problem = e.name + ": " + fehler;
-            break;
-        }
-        const bool istExe = art == bhed::update::Einspielen::Programm;
-        const fs::path ziel = istExe ? exe : ordner / fs::u8path(rel);
-        fs::create_directories(ziel.parent_path(), ec);
-        fs::path neu = ziel;
-        neu += L".neu";
-        {
-            std::ofstream f(neu, std::ios::binary | std::ios::trunc);
-            f.write(inhalt.data(), static_cast<std::streamsize>(inhalt.size()));
-            if (!f) {
-                problem = text(Str::UpdErrWrite, rel);
-                break;
-            }
-        }
-        if (istExe) {
-            // Die laufende .exe nur umbenennen - ueberschreiben geht nicht.
-            fs::path alt = exe;
-            alt += L".alt";
-            DeleteFileW(alt.c_str());
-            if (!MoveFileExW(exe.c_str(), alt.c_str(), MOVEFILE_REPLACE_EXISTING) ||
-                !MoveFileExW(neu.c_str(), exe.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
-                MoveFileExW(alt.c_str(), exe.c_str(), MOVEFILE_REPLACE_EXISTING);   // zurueck
-                problem = text(Str::UpdErrReplace, rel, static_cast<long long>(GetLastError()));
-                break;
-            }
-            diag::detail("Update: neues Programm an " + schmal(exe.wstring()) + " (aus " + rel + ")");
-        } else if (!MoveFileExW(neu.c_str(), ziel.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
-            problem = text(Str::UpdErrReplace, rel, static_cast<long long>(GetLastError()));
-            break;
-        }
-        ++ersetzt;
-    }
-    diag::detail("Update: " + std::to_string(ersetzt) + " Dateien ersetzt" + (problem.empty() ? "" : " - " + problem));
+    const bhed::update::Einspielergebnis erg =
+        bhed::update::einspielen(zipDatei.wstring(), asset->name, mitSummen ? &summen : nullptr,
+                                 mitSignatur ? &signatur : nullptr, bhed::update::kSignaturSchluessel, exePfad());
+    diag::detail("Update: " + std::to_string(erg.dateien) + " Dateien ersetzt" + (erg.problem.empty() ? "" : " - " + erg.problem));
     setze([&](Zustand& z) {
-        z.dateien = ersetzt;
-        if (!problem.empty()) {
+        z.dateien = erg.dateien;
+        if (!erg.problem.empty()) {
             z.stand = Stand::Fehler;
-            z.meldung = problem;
+            z.meldung = erg.problem;
         } else {
             z.stand = Stand::Fertig;
         }
@@ -502,6 +462,8 @@ void beimStart() {
     GetTempPathW(MAX_PATH, temp);
     std::error_code ec;
     fs::remove_all(fs::path(temp) / L"behaved_update", ec);
+    // Stufe 8d: ein abgebrochener Zwischenordner neben der .exe.
+    fs::remove_all(fs::path(exePfad()).parent_path() / bhed::update::kZwischenOrdner, ec);
     // Im Selbsttest nie von selbst ins Netz.
     char* test = nullptr;
     std::size_t laenge = 0;

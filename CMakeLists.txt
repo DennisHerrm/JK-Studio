@@ -208,6 +208,12 @@ endif()
 # Dateien von data/base jetzt im Programm (bhed/eingebaut.h); fehlt der Ordner
 # neben der .exe, packt behaved sie in den Einstellungsordner aus.
 target_sources(bhed_core PRIVATE src/eingebaut.cpp)
+# Stufe 8d: Echtheit des Updates (SHA-256 und ECDSA P-256 mit BCrypt, Windows-Bordmittel)
+# und das Einspielen ueber einen Zwischenordner (src/update_einspielen.cpp, ctest update).
+if(WIN32)
+  target_sources(bhed_core PRIVATE src/update_einspielen.cpp)
+  target_link_libraries(bhed_core PUBLIC bcrypt)
+endif()
 include(${CMAKE_CURRENT_SOURCE_DIR}/tools/eingebaute_daten.cmake)
 file(GLOB BEHAVED_EINGEBAUT CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/data/base/*")
 # rc604: der Befehlssatz fuer Jedi Outcast (data/jk2, tools/gen_jk2daten.py)
@@ -587,7 +593,7 @@ if(BEHAVED_TESTS)
   target_link_libraries(waffentest PRIVATE bhed_core)
   add_test(NAME waffen COMMAND waffentest)
   # Auto-Updater ohne Netz: JSON von GitHub, Fassungen, Zielpfade im .zip.
-  add_executable(updatetest tests/updatetest.cpp)
+  add_executable(updatetest tests/updatetest.cpp tests/updatetest_echtheit.cpp)
   target_link_libraries(updatetest PRIVATE bhed_core)
   add_test(NAME update COMMAND updatetest)
   # Stufe 8c: Umbenennung - der Einstellungsordner zieht von behaved nach jkstudio um (Kopie)

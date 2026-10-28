@@ -572,6 +572,30 @@ def pruefsummen(ziel, dateien):
     return zeilen
 
 
+# --- Signatur (Stufe 8d) --------------------------------------------------------
+#
+# Der Updater prueft SHA256SUMS.txt.sig mit dem oeffentlichen Schluessel in
+# include/bhed/update.h (kSignaturSchluessel: "04" + X + Y, 130 Hex-Zeichen).
+# "schluessel <pub.der>" macht aus "openssl ec -in key.pem -pubout -outform DER"
+# genau diese Zeichenkette; mit --pruefe vergleicht es sie mit update.h.
+
+SPKI_P256 = bytes.fromhex("3059301306072a8648ce3d020106082a8648ce3d030107034200")
+
+
+def schluessel_hex(der):
+    if len(der) != len(SPKI_P256) + 65 or not der.startswith(SPKI_P256) or der[len(SPKI_P256)] != 4:
+        raise Fehler("kein oeffentlicher ECDSA-P-256-Schluessel (SubjectPublicKeyInfo, DER, unkomprimiert)")
+    return der[len(SPKI_P256):].hex()
+
+
+def eingebauter_schluessel(wurzel):
+    with open(os.path.join(wurzel, "include", "bhed", "update.h"), encoding="utf-8") as f:
+        m = re.search(r'kSignaturSchluessel\s*=\s*"([0-9a-fA-F]*)"', f.read())
+    if m is None:
+        raise Fehler("kSignaturSchluessel nicht in include/bhed/update.h gefunden")
+    return m.group(1).lower()
+
+
 # --- Selbsttest -----------------------------------------------------------------
 
 def _probe_exe(dlls, maschine=0x8664, anhang=b""):
@@ -624,6 +648,14 @@ def _packverfahren_setzen(pfad, name, verfahren):
             struct.pack_into("<H", b, p + 10, verfahren)
         p = b.find(b"PK\x01\x02", p + 46 + laenge + extra + kommentar)
     open(pfad, "wb").write(bytes(b))
+
+
+def _wirft(f):
+    try:
+        f()
+    except Fehler:
+        return True
+    return False
 
 
 def selbsttest():
@@ -851,6 +883,12 @@ def selbsttest():
                 len(zeilen) == 2 and all(re.fullmatch(r"[0-9a-f]{64}  \S+\n", z) for z in zeilen)
                 and zeilen[0].endswith("windows-x64.exe\n") and b"\r" not in roh
                 and hashlib.sha256(open(gut_zip, "rb").read()).hexdigest() in zeilen[1])
+        # Stufe 8d: der oeffentliche Schluessel aus openssl (SPKI, DER) -> kSignaturSchluessel
+        punkt = "04" + "11" * 64
+        erwarte("schluessel: SPKI-DER -> 04+X+Y, Muell abgelehnt, update.h lesbar",
+                schluessel_hex(SPKI_P256 + bytes.fromhex(punkt)) == punkt
+                and _wirft(lambda: schluessel_hex(bytes(2)))
+                and len(eingebauter_schluessel(WURZEL)) in (0, 130))
 
     falsch = ergebnisse.count(False)
     print("Selbsttest release_paket: " + ("%d von %d richtig" % (len(ergebnisse), len(ergebnisse))
@@ -881,6 +919,9 @@ def main(argv=None, ausgabe=print):
     s = unter.add_parser("pruefsummen")
     s.add_argument("ziel")
     s.add_argument("dateien", nargs="+")
+    k = unter.add_parser("schluessel")
+    k.add_argument("der")
+    k.add_argument("--pruefe", action="store_true")
     unter.add_parser("selbsttest")
     # --wurzel darf auch hinter dem Befehl stehen.
     argv = list(sys.argv[1:] if argv is None else argv)
@@ -911,6 +952,14 @@ def main(argv=None, ausgabe=print):
         if a.befehl == "pruefsummen":
             for zeile in pruefsummen(a.ziel, a.dateien):
                 ausgabe(zeile.rstrip("\n"))
+            return 0
+        if a.befehl == "schluessel":
+            with open(a.der, "rb") as f:
+                h = schluessel_hex(f.read())
+            ausgabe(h)
+            if a.pruefe and h != eingebauter_schluessel(wurzel):
+                ausgabe("passt NICHT zu kSignaturSchluessel in include/bhed/update.h")
+                return 1
             return 0
         if a.befehl == "selbsttest":
             return selbsttest()

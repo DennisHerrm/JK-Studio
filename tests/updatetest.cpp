@@ -4,6 +4,8 @@
 
 #include "bhed/update.h"
 
+void echtheitsproben(void (*expect)(const char*, bool));   // updatetest_echtheit.cpp (Stufe 8d)
+
 namespace {
 
 int fehler = 0;
@@ -158,6 +160,8 @@ int main() {
                zielImOrdner("JK-Studio/behaved.exe", "JK-Studio/") == "behaved.exe");
     expect("Marke v1.0.0-rc606 ist neuer als rc605 (die alten Updater vergleichen nur die rc-Nummer)",
            istNeuer("v1.0.0-rc606", "rc605") && istNeuer("v1.0.0-rc606", "rc604"));
+
+    echtheitsproben(expect);
 
     std::printf(fehler == 0 ? "\nalle Updateproben bestanden\n" : "\nFEHLGESCHLAGEN (%d)\n", fehler);
     return fehler == 0 ? 0 : 1;
