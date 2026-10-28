@@ -1,15 +1,18 @@
 // echtlicht.h - Karten-Editor Stufe 7 Punkt 5: Echtzeit-Licht (eigene Funktion,
 // nicht in NetRadiant-Custom).
 //
-// Die Lichter einer Karte so, wie q3map2 -light sie aus den Entities macht
-// (light.cpp CreateEntityLights, CreateSunLight, CreateSurfaceLights,
+// Die Lichter einer Karte so, wie q3map2 -light sie aus den Entities und Shadern
+// macht (light.cpp CreateEntityLights, CreateSunLight, CreateSkyLights,
+// light_bounce.cpp RadCreateDiffuseLights / RadSubdivideDiffuseLight,
 // SetupEnvelopes) und der Beitrag eines Lichts an einer Stelle nach
-// LightContributionToSample (light.cpp:777-1177) - fuer die Vorschau in der
-// Kamera, die die Grafikkarte rechnet. Die Vorschau ist KEIN Ergebnis von
+// LightContributionToSample (light.cpp:777-1177, mit -fast) - fuer die Vorschau
+// in der Kamera, die die Grafikkarte rechnet. Die Vorschau ist KEIN Ergebnis von
 // q3map2: kein Bounce (Radiosity), kein Filter, kein Supersampling, Schatten
-// ueber Schattenwuerfel statt Strahlen, Flaechenlicht als ein Punktlicht je
-// Flaeche (statt PointToPolygonFormFactor ueber unterteilte Flaechen). Das
-// echte Ergebnis kommt immer aus bhed_q3map2 (Schnell-Backen, Build-Menue).
+// ueber Schattenkarten statt Strahlen. Stufe 9c: Flaechenlicht wie q3map2 -fast
+// (Dreiecke der Flaeche, unterteilt nach q3map_lightSubdivide, je Stueck ein
+// Flaechenlicht mit PointToPolygonFormFactor und dem Rueckschein), "sun" und
+// q3map_skyLight. Das echte Ergebnis kommt immer aus bhed_q3map2
+// (Schnell-Backen, Build-Menue).
 //
 // Portiert aus q3map2 (NetRadiant-Custom 20260114: tools/quake3/q3map2/light.cpp,
 // light_ydnar.cpp, shaders.cpp).
@@ -40,6 +43,9 @@ inline constexpr float kEchtSpotSkala = 7500.0F;
 inline constexpr float kEchtFlaechenSkala = 0.25F;
 inline constexpr float kEchtLinearSkala = 1.0F / 8000.0F;
 inline constexpr float kEchtAbfallGrenze = 1.0F;
+inline constexpr float kEchtFormFaktorSkala = 3.0F;       // formFactorValueScale
+inline constexpr float kEchtUnterteilung = 999.0F;        // defaultLightSubdivide
+inline constexpr int kEchtWicklungMax = 8;                // Ecken je Flaechenlicht in der Vorschau
 
 struct EchtLicht {
     enum class Art { Punkt, Spot, Sonne, Flaeche };
@@ -59,13 +65,23 @@ struct EchtLicht {
     bool negativ = false;           // LightFlags::Negative
     int stil = 0;
     const Entitaet* quelle = nullptr;   // fuer Schatten-Zwischenspeicher und Auswahl
+    // Stufe 9c: Flaechenlicht wie q3map2 (RadSubdivideDiffuseLight)
+    float add = 0;                      // light.add = value * formFactorValueScale * areaScale
+    std::vector<Vektor3f> wicklung;     // light.w
+    bool zweiseitig = false;            // LightFlags::Twosided
+    bool himmel = false;                // Sonne aus q3map_skyLight (viele schwache Sonnen)
 };
 
 // Was eine Flaeche mit q3map_surfacelight ausstrahlt (Shader-Skript), fuer
 // echtLichterSammeln; flaechenlicht <= 0: keine.
 struct EchtFlaechenShader {
     float flaechenlicht = 0;
-    Vektor3f farbe{1, 1, 1};   // q3map_lightRGB bzw. die mittlere Bildfarbe
+    Vektor3f farbe{1, 1, 1};   // q3map_lightRGB bzw. die mittlere Farbe des Lichtbilds (si.color)
+    float unterteilung = 0;    // q3map_lightSubdivide (0: defaultLightSubdivide 999)
+    float backsplashAnteil = 0.05F;   // q3map_backsplash <percent> / 100 (DEF_BACKSPLASH_FRACTION)
+    float backsplashWeite = 23.0F;    // DEF_BACKSPLASH_DISTANCE
+    bool himmel = false;       // C_SKY: kein Rueckschein
+    bool zweiseitig = false;   // C_FOG oder si.twoSided (cull none): LightFlags::Twosided
 };
 // Sonne aus dem Himmels-Shader (q3map_sun / q3map_sunExt): Farbe, Staerke, Richtung
 struct EchtSonne {
@@ -74,6 +90,22 @@ struct EchtSonne {
     float staerke = 0;
     float grad = 0;     // Richtung in Grad (um z)
     float hoehe = 0;    // Hoehe in Grad
+    // Stufe 9c: weitere Sonnen ("sun", q3map_sun, q3map_sunExt) und q3map_skyLight
+    struct Sonne {
+        Vektor3f farbe{1, 1, 1};
+        float staerke = 0;
+        float grad = 0;
+        float hoehe = 0;
+    };
+    std::vector<Sonne> sonnen;   // leer: nur die erste aus den Feldern oben
+    struct Himmelslicht {
+        float wert = 0;
+        int schritte = 2;
+        int horizontMin = 0;
+        int horizontMax = 90;
+    };
+    std::vector<Himmelslicht> himmel;
+    Vektor3f shaderFarbe{1, 1, 1};   // si.color (Farbe der Himmelslichter ohne Himmelsbilder)
 };
 
 struct EchtLichtWelt {
@@ -91,6 +123,17 @@ struct EchtLichtWelt {
 // Der Beitrag (light.color * add) an punkt mit normale, ohne Schatten -
 // dieselben Formeln wie der Shader der Grafikkarte (und LightContributionToSample).
 [[nodiscard]] Vektor3f echtLichtBeitrag(const EchtLicht& l, const Vektor3f& punkt, const Vektor3f& normale);
+
+// PointToPolygonFormFactor (light.cpp:734)
+[[nodiscard]] float echtFormFaktor(const Vektor3f& punkt, const Vektor3f& normale, const std::vector<Vektor3f>& w);
+
+// RadSubdivideDiffuseLight (light_bounce.cpp) fuer ein Dreieck einer Flaeche:
+// haengt die Flaechenlichter (und den Rueckschein) an "aus".
+void echtFlaechenLichter(const std::vector<Vektor3f>& wicklung, const Vektor3f& normale, const EchtFlaechenShader& s,
+                         std::vector<EchtLicht>& aus);
+
+// CreateSkyLights (light.cpp:228) ohne Himmelsbilder: die Sonnen eines q3map_skyLight
+void echtHimmelsLichter(const EchtSonne::Himmelslicht& h, const Vektor3f& farbe, std::vector<EchtLicht>& aus);
 
 // Der Luxel-Wert ohne Schatten: Umgebung + Summe der Beitraege, mindestens das
 // Minimum (SetupGrid/minLight).

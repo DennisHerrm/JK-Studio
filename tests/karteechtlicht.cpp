@@ -9,10 +9,12 @@
 //   weichem Rand 32; Sonne (_sun mit target): add = photons * cos.
 #include "bhed/karte/echtlicht.h"
 #include "bhed/karte/karte.h"
+#include "bhed/karte/optimierer.h"
 
 #include <cmath>
 #include <cstdio>
 #include <memory>
+#include <vector>
 #include <string>
 
 using namespace bhed::karte;
@@ -115,9 +117,106 @@ void welt() {
     pruefe(nah(x[0], 10.0F, 1e-4F) && nah(x[2], 20.0F, 1e-4F), "Umgebung _color * _ambient, mindestens _color * _minlight");
 }
 
+// Stufe 9c: Flaechenlicht wie q3map2 -fast (PointToPolygonFormFactor, Unterteilung, Rueckschein)
+void flaeche() {
+    // 16 x 16 in 256 Abstand, gegenueber: FF ~ A / (pi d^2) = 256 / (pi 65536) = 0.001243
+    const std::vector<Vektor3f> q = {Vektor3f(-8, -8, 256), Vektor3f(8, -8, 256), Vektor3f(8, 8, 256), Vektor3f(-8, 8, 256)};
+    const float ff = echtFormFaktor(Vektor3f(0, 0, 0), Vektor3f(0, 0, 1), q);
+    pruefe(nah(std::fabs(ff), 256.0F / (3.14159265F * 65536.0F), 2e-5F), "PointToPolygonFormFactor klein und weit: A / (pi d^2) (ist " + std::to_string(ff) + ")");
+    // halbe Kugel ganz bedeckt: |FF| = 1 (ein riesiges Quadrat dicht darueber)
+    const std::vector<Vektor3f> gross = {Vektor3f(-1e5F, -1e5F, 1), Vektor3f(1e5F, -1e5F, 1), Vektor3f(1e5F, 1e5F, 1), Vektor3f(-1e5F, 1e5F, 1)};
+    pruefe(nah(std::fabs(echtFormFaktor(Vektor3f(0, 0, 0), Vektor3f(0, 0, 1), gross)), 1.0F, 0.01F), "PointToPolygonFormFactor: ganze Halbkugel = 1");
+    // 512 x 512 Decke (Normale nach unten), q3map_surfacelight 100, Unterteilung 128
+    EchtFlaechenShader s;
+    s.flaechenlicht = 100;
+    s.unterteilung = 128;
+    std::vector<EchtLicht> l;
+    // im Uhrzeigersinn von vorn (unten) wie die Dreiecke der .bsp
+    const std::vector<Vektor3f> d1 = {Vektor3f(-256, -256, 256), Vektor3f(256, 256, 256), Vektor3f(-256, 256, 256)};
+    const std::vector<Vektor3f> d2 = {Vektor3f(-256, -256, 256), Vektor3f(256, -256, 256), Vektor3f(256, 256, 256)};
+    echtFlaechenLichter(d1, Vektor3f(0, 0, -1), s, l);
+    echtFlaechenLichter(d2, Vektor3f(0, 0, -1), s, l);
+    float haupt = 0;
+    float rueck = 0;
+    std::size_t nHaupt = 0;
+    for (const EchtLicht& x : l) {
+        if (x.normale[2] < 0) {
+            haupt += x.photonen;
+            ++nHaupt;
+        } else {
+            rueck += x.photonen;
+        }
+    }
+    pruefe(nHaupt > 2 && l.size() == nHaupt * 2, "Unterteilung 128: viele Stuecke, je eines mit Rueckschein (" + std::to_string(nHaupt) + ")");
+    pruefe(nah(haupt, 100.0F * 512.0F * 512.0F * 0.25F, 100.0F * 512.0F * 512.0F * 0.25F * 0.01F), "photons = value * area * areaScale (Summe)");
+    pruefe(nah(rueck, haupt * 0.35F, haupt * 0.01F), "Rueckschein: 7 * 0.05 der Photonen, 23 hinter der Flaeche");
+    pruefe(nah(l[0].add, 100.0F * 3.0F * 0.25F, 1e-3F) && l[0].huelle > 100.0F, "add = value * formFactorValueScale * areaScale, Huelle aus dem Formfaktor");
+    // unter der Mitte, Boden (Normale nach oben): alle Hauptlichter zusammen
+    Vektor3f summe(0, 0, 0);
+    for (const EchtLicht& x : l) { summe = summe + echtLichtBeitrag(x, Vektor3f(0, 0, 0), Vektor3f(0, 0, 1)); }
+    float ganz = 0;
+    {
+        const std::vector<Vektor3f> w = {Vektor3f(-256, -256, 256), Vektor3f(-256, 256, 256), Vektor3f(256, 256, 256), Vektor3f(256, -256, 256)};
+        ganz = std::fabs(echtFormFaktor(Vektor3f(0, 0, 0), Vektor3f(0, 0, 1), w)) * 75.0F;
+    }
+    pruefe(summe[0] > ganz * 0.9F && summe[0] < ganz * 1.1F, "Summe der Stuecke wie der Formfaktor der ganzen Flaeche (" + std::to_string(summe[0]) + " / " + std::to_string(ganz) + ")");
+    pruefe(echtLichtBeitrag(l[0], Vektor3f(0, 0, 300), Vektor3f(0, 0, -1))[0] == 0, "hinter dem Flaechenlicht: nichts (nicht zweiseitig)");
+}
+
+// q3map_skyLight 100 3: (3-1)*4 = 8 Winkel, 2 Hoehen, dazu die senkrechte: 17 Sonnen, zusammen 100
+void himmel() {
+    std::vector<EchtLicht> l;
+    EchtSonne::Himmelslicht h;
+    h.wert = 100;
+    h.schritte = 3;
+    echtHimmelsLichter(h, Vektor3f(1, 1, 1), l);
+    float summe = 0;
+    for (const EchtLicht& x : l) { summe += x.photonen; }
+    pruefe(l.size() == 17 && nah(summe, 100.0F, 0.01F) && l.back().sonnenRichtung[2] == 1.0F, "q3map_skyLight 100 3: 17 Sonnen, Summe 100 (" + std::to_string(l.size()) + ")");
+    // Shader-Skript: "sun" wie SOF2, zwei Sonnen, q3map_skyLight, q3map_lightSubdivide
+    const std::string text = R"(textures/test/himmel
+{
+ q3map_surfacelight 145
+ q3map_lightsubdivide 1024
+ sun 0.8 1 0.8 170 25 80
+ q3map_sunExt 1 1 1 50 90 45 2 16
+ q3map_skyLight 60 4
+ surfaceparm sky
+ skyParms textures/skies/x 512 -
+}
+textures/test/gitter
+{
+ surfaceparm alphashadow
+ cull none
+ {
+ map textures/test/gitter.tga
+ alphaFunc GE128
+ }
+}
+textures/test/glas
+{
+ surfaceparm trans
+ {
+ map $lightmap
+ blendFunc GL_DST_COLOR GL_ZERO
+ }
+}
+)";
+    const ShaderSkript a = shaderSkriptLesen(text, "textures/test/himmel");
+    pruefe(a.sonnen.size() == 2 && a.sonne && a.sonneStaerke == 170 && a.himmelsLichter.size() == 1 && a.himmelsLichter[0].schritte == 4 &&
+               a.lichtUnterteilung == 1024 && a.himmel,
+           "Shader: sun (SOF2) und q3map_sunExt, q3map_skyLight, q3map_lightSubdivide");
+    const ShaderSkript b = shaderSkriptLesen(text, "textures/test/gitter");
+    pruefe(b.alphaSchatten && b.durchscheinend && b.zweiseitig && b.stufeAlpha == 3, "Shader: alphashadow, cull none, alphaFunc GE128");
+    const ShaderSkript c = shaderSkriptLesen(text, "textures/test/glas");
+    pruefe(c.durchscheinend && !c.alphaSchatten && c.mischQuelle == 5 && c.mischZiel == 2, "Shader: trans, blendFunc GL_DST_COLOR GL_ZERO");
+}
+
 }  // namespace
 
 int main() {
+    flaeche();
+    himmel();
     punkt();
     farbeUndLinear();
     spotUndSonne();

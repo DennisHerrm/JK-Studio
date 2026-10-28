@@ -1212,13 +1212,54 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
     ShaderSkript r;
     r.gefunden = true;
     int t = 0;
+    bool stufe = false;   // Stufe 9c: in der ersten Stufe
+    int stufen = 0;
     for (std::size_t j = i + 1; j < w.size(); ++j) {
         if (w[j] == "{") {
             ++t;
             continue;
         }
         if (w[j] == "}") {
+            if (t == 2) { stufe = false; }
             if (--t == 0) { break; }
+            continue;
+        }
+        if (t == 2 && (stufen == 0 || stufe)) {
+            // die erste Stufe (tr_shader.cpp ParseStage: alphaFunc, blendFunc)
+            if (!stufe) {
+                stufe = true;
+                ++stufen;
+                r.stufeGefunden = true;
+            }
+            const std::string k = klein(w[j]);
+            if (k == "alphafunc" && j + 1 < w.size()) {
+                const std::string f = klein(w[j + 1]);
+                r.stufeAlpha = f == "gt0" ? 1 : f == "lt128" ? 2 : f == "ge128" ? 3 : 0;
+            } else if (k == "blendfunc" && j + 1 < w.size()) {
+                const std::string a = klein(w[j + 1]);
+                if (a == "add" || a == "gl_add") {
+                    r.mischQuelle = 1;
+                    r.mischZiel = 1;
+                } else if (a == "filter") {
+                    r.mischQuelle = 5;
+                    r.mischZiel = 2;
+                } else if (a == "blend") {
+                    r.mischQuelle = 3;
+                    r.mischZiel = 4;
+                } else if (j + 2 < w.size()) {
+                    const auto faktor = [](const std::string& g) {
+                        static const char* const n[] = {"gl_one", "gl_zero", "gl_src_alpha", "gl_one_minus_src_alpha", "gl_dst_color",
+                                                        "gl_one_minus_dst_color", "gl_src_color", "gl_one_minus_src_color", "gl_dst_alpha",
+                                                        "gl_one_minus_dst_alpha"};
+                        for (int i = 0; i < 10; ++i) {
+                            if (g == n[i]) { return i + 1; }
+                        }
+                        return 0;
+                    };
+                    r.mischQuelle = faktor(a);
+                    r.mischZiel = faktor(klein(w[j + 2]));
+                }
+            }
             continue;
         }
         if (t != 1) { continue; }
@@ -1231,12 +1272,45 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
         } else if (k == "q3map_lightmapsize" && j + 2 < w.size()) {   // shaders.cpp: lmCustomWidth/Height (Stufe 6)
             r.lightmapBreite = std::atoi(w[j + 1].c_str());
             r.lightmapHoehe = std::atoi(w[j + 2].c_str());
-        } else if ((k == "q3map_sun" || k == "q3map_sunext") && j + 6 < w.size()) {   // shaders.cpp:1049-1100 (Stufe 7)
-            r.sonne = true;
-            for (int c = 0; c < 3; ++c) { r.sonneFarbe[c] = std::atof(w[j + 1 + static_cast<std::size_t>(c)].c_str()); }
-            r.sonneStaerke = std::atof(w[j + 4].c_str());
-            r.sonneGrad = std::atof(w[j + 5].c_str());
-            r.sonneHoehe = std::atof(w[j + 6].c_str());
+        } else if ((k == "sun" || k == "q3map_sun" || k == "q3map_sunext") && j + 6 < w.size()) {   // shaders.cpp:1054-1100 (Stufe 7, 9c: "sun", jede Sonne)
+            ShaderSkript::Sonne so;
+            for (int c = 0; c < 3; ++c) { so.farbe[c] = std::atof(w[j + 1 + static_cast<std::size_t>(c)].c_str()); }
+            so.staerke = std::atof(w[j + 4].c_str());
+            so.grad = std::atof(w[j + 5].c_str());
+            so.hoehe = std::atof(w[j + 6].c_str());
+            r.sonnen.push_back(so);
+            r.himmel = true;   // "apply sky surfaceparm, this is required by ELightType::Sun to work"
+            if (!r.sonne) {
+                r.sonne = true;
+                for (int c = 0; c < 3; ++c) { r.sonneFarbe[c] = so.farbe[c]; }
+                r.sonneStaerke = so.staerke;
+                r.sonneGrad = so.grad;
+                r.sonneHoehe = so.hoehe;
+            }
+        } else if (k == "q3map_skylight" && j + 2 < w.size()) {   // shaders.cpp:1181-1215
+            ShaderSkript::Himmelslicht h;
+            h.wert = std::max(std::atof(w[j + 1].c_str()), 0.0);
+            h.schritte = std::max(std::atoi(w[j + 2].c_str()), 2);
+            // optional: horizon_min horizon_max sample_color (auf derselben Zeile - hier: Zahlen)
+            const auto zahl = [&w](std::size_t i) {
+                return i < w.size() && !w[i].empty() && (std::isdigit(static_cast<unsigned char>(w[i][0])) != 0 || w[i][0] == '-');
+            };
+            if (zahl(j + 3)) {
+                h.horizontMin = std::clamp(std::atoi(w[j + 3].c_str()), -90, 90);
+                if (zahl(j + 4)) { h.horizontMax = std::clamp(std::atoi(w[j + 4].c_str()), -90, 90); }
+            }
+            r.himmelsLichter.push_back(h);
+            r.himmel = true;
+        } else if (k == "q3map_lightsubdivide" && j + 1 < w.size()) {   // shaders.cpp:1241-1246
+            r.lichtUnterteilung = std::atof(w[j + 1].c_str());
+        } else if (k == "q3map_lightimage" && j + 1 < w.size()) {   // shaders.cpp:1020
+            r.lichtBild = w[j + 1];
+        } else if (k == "cull" && j + 1 < w.size()) {   // shaders.cpp: "cull none/twosided/disable" -> si.twoSided
+            const std::string c = klein(w[j + 1]);
+            r.zweiseitig = c == "none" || c == "twosided" || c == "disable";
+        } else if (k == "deformvertexes" && j + 1 < w.size()) {
+            const std::string d = klein(w[j + 1]);
+            r.autosprite = r.autosprite || d == "autosprite" || d == "autosprite2";
         } else if (k == "q3map_lightrgb" && j + 3 < w.size()) {   // shaders.cpp: si.lightColor (Stufe 7)
             r.lichtFarbe = true;
             for (int c = 0; c < 3; ++c) { r.lichtRGB[c] = std::atof(w[j + 1 + static_cast<std::size_t>(c)].c_str()); }
@@ -1244,6 +1318,17 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
             const std::string parm = klein(w[j + 1]);
             if (parm == "sky") { r.himmel = true; }
             if (parm == "origin") { r.ursprung = true; }
+            // games.cpp game_sof2 (Jedi Academy): die Compile-Flags fuer die Schatten
+            if (parm == "trans" || parm == "nonopaque" || parm == "water" || parm == "slime" || parm == "lava" || parm == "fog" ||
+                parm == "areaportal" || parm == "trigger" || parm == "origin" || parm == "shotclip" || parm == "playerclip" ||
+                parm == "monsterclip" || parm == "nodrop" || parm == "terrain" || parm == "ladder" || parm == "abseil" ||
+                parm == "outside" || parm == "botclip" || parm == "alphashadow" || parm == "lightfilter") {
+                r.durchscheinend = true;
+            }
+            if (parm == "alphashadow") { r.alphaSchatten = true; }
+            if (parm == "lightfilter") { r.lichtFilter = true; }
+            if (parm == "nodraw") { r.nichtZeichnen = true; }
+            if (parm == "fog") { r.nebel = true; }
         }
     }
     return r;

@@ -1071,6 +1071,7 @@ struct Editor {
     struct EchtLichtZustand {
         bool an = false;                   // Vorschau in der Kamera ("RealtimeLight")
         bool backen = false;               // Schnell-Backen im Hintergrund ("QuickBake")
+        bool patchSchatten = false;        // Stufe 9c: Patches werfen Schatten (q3map2 -patchshadows; Vorschau und Schnell-Backen)
         double pauseSekunden = 2.0;        // so lange ohne Aenderung, dann backen
         // fuer den Selbsttest und die Anzeige
         std::size_t lichter = 0;           // Lichter der Karte

@@ -1115,16 +1115,8 @@ void kameraZeichnen() {
     // Schattenwuerfel den alten Stand).
     bool echtJetzt = false;
     if (echtLichtAktiv() && g_geo.gpuAktuell && g_geo.dreiecke.gueltig()) {
-        std::vector<kartegpu::SchattenTeil> teile;
-        for (const Stapel3& st : g_geo.stapel) {
-            if (st.art != karte::StapelArt::Shader || st.dreiecke.anzahl == 0) { continue; }
-            const Bild* b = lager().holen(st.shader);
-            if (b != nullptr && b->himmel != nullptr) { continue; }   // Himmel laesst die Sonne durch
-            const karte::ShaderEintrag* se = ed.karteSpiel ? ed.karteSpiel->inventar.shaderFinden(st.shader) : nullptr;
-            if (se != nullptr && (se->flags & karte::QER_TRANS) != 0U) { continue; }
-            teile.push_back({&g_geo.dreiecke, st.dreiecke.erstes, st.dreiecke.anzahl});
-        }
-        echtLichtBildVorbereiten(k.ursprung, stand, geoStand, teile);
+        // Stufe 9c: die Schattengeometrie nach den Regeln von q3map2 baut echtlicht selbst
+        echtLichtBildVorbereiten(k.ursprung, &vp[0], f.breite, f.hoehe, geoStand);
         echtJetzt = true;
     }
     const bool gebacken = ed.echtLicht.gebackenZeigen;
@@ -1161,16 +1153,22 @@ void kameraZeichnen() {
         };
         // Ein Shader-Stapel: der Zustand aus OpenGLShader::construct (Shader)
         // UND der globale Zustand der Darstellungsart.
+        // Stufe 9c: mit Echtzeit-Licht oder gebacken "wie im Spiel": nodraw-Flaechen
+        // fehlen, Alpha-Test und blendFunc kommen aus der ersten Stufe des Shaders
+        // (statt qer_trans / qer_alphafunc des Editors).
+        const bool spielBild = (echtJetzt || gebacken) && texturen && fuellen;
         const auto shaderZiehen = [&](const Szene3& q, const Stapel3& st, bool durchsichtig) {
             const Bild* b = lager().holen(st.shader);
             if (b == nullptr || !b->fertig) { return; }
             const karte::ShaderEintrag* se = ed.karteSpiel ? ed.karteSpiel->inventar.shaderFinden(st.shader) : nullptr;
             const unsigned flags = se != nullptr ? se->flags : 0U;
-            const bool trans = (flags & karte::QER_TRANS) != 0U;
+            const SpielDarstellung sd = spielBild ? spielDarstellung(st.shader) : SpielDarstellung{};
+            if (sd.unsichtbar) { return; }
+            const bool trans = spielBild ? sd.mischQuelle != 0 : (flags & karte::QER_TRANS) != 0U;
             if (trans != durchsichtig) { return; }
             kartegpu::Zustand3 z = basis;
             const bool himmel = b->himmel != nullptr;   // m_shader->getSkyBox()->texture_number != 0
-            const float alpha = trans ? se->trans : 1.0F;
+            const float alpha = (trans && !spielBild) ? se->trans : 1.0F;
             if (himmel) {
                 // RENDER_FILL | CULLFACE | TEXTURE | DEPTHTEST | DEPTHWRITE | COLOURWRITE | PROGRAM
                 z.wegschneiden = true;
@@ -1182,11 +1180,23 @@ void kameraZeichnen() {
                 z.licht = true;
                 z.echtLicht = echtJetzt && texturen;   // Stufe 7: Echtzeit-Licht statt Licht aus Blickrichtung
                 z.wegschneiden = (flags & karte::QER_CULL) == 0U || se->cull == 1;   // eCullBack
-                if ((flags & karte::QER_ALPHATEST) != 0U) {
+                if (spielBild) {
+                    z.alphaFunktion = sd.alphaFunktion;
+                    z.alphaRef = sd.alphaRef;
+                } else if ((flags & karte::QER_ALPHATEST) != 0U) {
                     z.alphaFunktion = se->alphaFunc;
                     z.alphaRef = se->alphaRef;
                 }
-                if (trans) {
+                if (trans && spielBild) {
+                    // blendFunc der ersten Stufe; ohne Lightmap wie die meisten Mischstufen im Spiel
+                    z.mischen = kartegpu::Mischen::Spiel;
+                    z.mischQuelle = sd.mischQuelle;
+                    z.mischZiel = sd.mischZiel;
+                    z.tiefe = kartegpu::TiefenTest::KleinerGleich;
+                    z.tiefeSchreiben = false;
+                    z.echtLicht = false;
+                    z.licht = false;
+                } else if (trans) {
                     z.mischen = kartegpu::Mischen::Alpha;
                     z.tiefe = kartegpu::TiefenTest::KleinerGleich;
                     z.tiefeSchreiben = false;
@@ -1235,7 +1245,11 @@ void kameraZeichnen() {
             for (const Stapel3& st : q->stapel) {
                 if (st.art == karte::StapelArt::Shader) {
                     // Stufe 7 Punkt 5b: gebacken - die gebauten Flaechen statt der Pinsel und Patches
-                    if (!(gebacken && fuellen && q == &g_geo)) { shaderZiehen(*q, st, false); }
+                    if (!(gebacken && fuellen && q == &g_geo)) {
+                        shaderZiehen(*q, st, false);
+                    } else if (const Bild* hb = lager().holen(st.shader); hb != nullptr && hb->himmel != nullptr) {
+                        shaderZiehen(*q, st, false);   // Stufe 9c: der Himmel auch gebacken (wie im Spiel)
+                    }
                 } else if (st.art == karte::StapelArt::Fuellung) {
                     farbStapelZiehen(*q, st);
                 }
