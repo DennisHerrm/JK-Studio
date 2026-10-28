@@ -35,7 +35,7 @@ int main() {
     p.tippe("Y");
     pruefe(p.zeile(5) == "\t\tXYname knopf" && p.zeile(2) == "\tXYname \"a{b\" // }", "zwei Cursor tippen");
     pruefe(p.rueckgaengig() && p.rueckgaengig() && p.text() == t0, "Rueckgaengig mit zwei Cursorn");
-    pruefe(p.wiederholen() && p.wiederholen() && p.zeile(2) == "	XYname \"a{b\" // }", "Wiederholen");
+    pruefe(p.wiederholen() && p.wiederholen() && p.zeile(2) == "\tXYname \"a{b\" // }", "Wiederholen");
     p.rueckgaengig();
     p.rueckgaengig();
     p.einCursor(p.off(Pos{5, 2}));
