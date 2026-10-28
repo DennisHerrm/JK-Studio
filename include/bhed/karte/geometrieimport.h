@@ -123,6 +123,11 @@ EinfuegeErgebnis importEinfuegen(Karte& k, const std::vector<TeilErgebnis>& teil
 // (.mtl einer .obj, externe Bilder einer .fbx/.gltf) in texturDaten.
 [[nodiscard]] bool netzLesenDatei(const std::string& pfad, const NetzOptionen& o, ImportNetz& out, std::string* fehler = nullptr);
 
+// Stufe 9 Punkt 10 (Blender hin und zurueck): ein Netz als .glb (glTF 2.0 binaer: je Teil ein
+// Knoten mit Netz, POSITION/TEXCOORD_0/Indizes, ein Material je Teil mit dem Namen) - mit yOben
+// in Y-oben-Koordinaten (Q3 x, y, z -> glTF x, z, -y), wie netzLesen es wieder umrechnet.
+[[nodiscard]] std::string glbSchreiben(const ImportNetz& n, bool yOben);
+
 // Der Shadername eines Materials: Vorsatz + Name ohne Pfad und Endung, klein, nur [a-z0-9_/-].
 [[nodiscard]] std::string materialShader(const std::string& material, const ZerlegOptionen& o);
 

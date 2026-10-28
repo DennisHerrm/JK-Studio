@@ -582,6 +582,96 @@ std::string modellObj(const std::vector<const ImportTeil*>& teile, const ZerlegO
     return s;
 }
 
+std::string glbSchreiben(const ImportNetz& n, bool yOben) {
+    std::string bin;
+    const auto f32 = [&](float v) { bin.append(reinterpret_cast<const char*>(&v), 4); };
+    const auto u32 = [&](std::uint32_t v) { bin.append(reinterpret_cast<const char*>(&v), 4); };
+    std::string views, acc, meshes, nodes, mats, szene;
+    int nv = 0, na = 0;
+    const auto view = [&](std::size_t off, std::size_t len, bool index) {
+        if (nv > 0) { views += ","; }
+        views += "{\"buffer\":0,\"byteOffset\":" + std::to_string(off) + ",\"byteLength\":" + std::to_string(len) +
+                 (index ? ",\"target\":34963}" : ",\"target\":34962}");
+        return nv++;
+    };
+    const auto zugriff = [&](int v, int typ, std::size_t anzahl, const char* art, const std::string& extra) {
+        if (na > 0) { acc += ","; }
+        acc += "{\"bufferView\":" + std::to_string(v) + ",\"componentType\":" + std::to_string(typ) + ",\"count\":" + std::to_string(anzahl) +
+               ",\"type\":\"" + art + "\"" + extra + "}";
+        return na++;
+    };
+    const auto jsonText = [](const std::string& s) {
+        std::string r = "\"";
+        for (const char c : s) {
+            if (c == '"' || c == '\\') { r += '\\'; }
+            if (static_cast<unsigned char>(c) >= 0x20) { r += c; }
+        }
+        return r + "\"";
+    };
+    for (std::size_t t = 0; t < n.teile.size(); ++t) {
+        const ImportTeil& teil = n.teile[t];
+        // Positionen (mit Grenzen, wie glTF verlangt)
+        float mn[3] = {1e30F, 1e30F, 1e30F}, mx[3] = {-1e30F, -1e30F, -1e30F};
+        const std::size_t posOff = bin.size();
+        for (const ImportPunkt& p : teil.punkte) {
+            const float v[3] = {static_cast<float>(p.x), static_cast<float>(yOben ? p.z : p.y), static_cast<float>(yOben ? -p.y : p.z)};
+            for (int i = 0; i < 3; ++i) {
+                f32(v[i]);
+                mn[i] = std::min(mn[i], v[i]);
+                mx[i] = std::max(mx[i], v[i]);
+            }
+        }
+        char g[200];
+        std::snprintf(g, sizeof(g), ",\"min\":[%.6g,%.6g,%.6g],\"max\":[%.6g,%.6g,%.6g]", static_cast<double>(mn[0]), static_cast<double>(mn[1]),
+                      static_cast<double>(mn[2]), static_cast<double>(mx[0]), static_cast<double>(mx[1]), static_cast<double>(mx[2]));
+        const int aPos = zugriff(view(posOff, bin.size() - posOff, false), 5126, teil.punkte.size(), "VEC3", g);
+        // UV: glTF t nach unten wie Q3 st (netzLesen rechnet 1 - v aus assimps v nach oben)
+        int aUv = -1;
+        if (teil.hatUv && teil.uv.size() == teil.punkte.size()) {
+            const std::size_t uvOff = bin.size();
+            for (const auto& uv : teil.uv) {
+                f32(static_cast<float>(uv[0]));
+                f32(static_cast<float>(uv[1]));
+            }
+            aUv = zugriff(view(uvOff, bin.size() - uvOff, false), 5126, teil.uv.size(), "VEC2", "");
+        }
+        const std::size_t ixOff = bin.size();
+        for (const auto& d : teil.dreiecke) {
+            for (const std::uint32_t i : d) { u32(i); }
+        }
+        const int aIx = zugriff(view(ixOff, bin.size() - ixOff, true), 5125, teil.dreiecke.size() * 3, "SCALAR", "");
+        if (t > 0) {
+            meshes += ",";
+            nodes += ",";
+            mats += ",";
+            szene += ",";
+        }
+        mats += "{\"name\":" + jsonText(teil.material.empty() ? std::string("default") : teil.material) + "}";
+        meshes += "{\"name\":" + jsonText(teil.name) + ",\"primitives\":[{\"attributes\":{\"POSITION\":" + std::to_string(aPos) +
+                  (aUv >= 0 ? ",\"TEXCOORD_0\":" + std::to_string(aUv) : std::string()) + "},\"indices\":" + std::to_string(aIx) +
+                  ",\"material\":" + std::to_string(t) + "}]}";
+        nodes += "{\"name\":" + jsonText(teil.name) + ",\"mesh\":" + std::to_string(t) + "}";
+        szene += std::to_string(t);
+    }
+    while (bin.size() % 4 != 0) { bin += '\0'; }
+    std::string js = "{\"asset\":{\"version\":\"2.0\",\"generator\":\"JK Studio\"},\"scene\":0,\"scenes\":[{\"nodes\":[" + szene +
+                     "]}],\"nodes\":[" + nodes + "],\"meshes\":[" + meshes + "],\"materials\":[" + mats + "],\"accessors\":[" + acc +
+                     "],\"bufferViews\":[" + views + "],\"buffers\":[{\"byteLength\":" + std::to_string(bin.size()) + "}]}";
+    while (js.size() % 4 != 0) { js += ' '; }
+    std::string out;
+    const auto o32 = [&](std::uint32_t v) { out.append(reinterpret_cast<const char*>(&v), 4); };
+    o32(0x46546C67U);   // "glTF"
+    o32(2);
+    o32(static_cast<std::uint32_t>(12 + 8 + js.size() + 8 + bin.size()));
+    o32(static_cast<std::uint32_t>(js.size()));
+    o32(0x4E4F534AU);   // "JSON"
+    out += js;
+    o32(static_cast<std::uint32_t>(bin.size()));
+    o32(0x004E4942U);   // "BIN\0"
+    out += bin;
+    return out;
+}
+
 // --- Lesen ueber assimp ---------------------------------------------------------------
 
 namespace {

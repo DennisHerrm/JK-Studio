@@ -656,6 +656,12 @@ void listeZeichnen(const std::string& name) {
         g.id = gi.c_str();
         g.tooltip = trK(Str::KeGiMenueTip);
         if (qtPunkt(g)) { geoImportOeffnen(); }
+        // Stufe 9 Punkt 10 (eigene Funktion): fuer Blender exportieren (zurueck mit dem Eintrag davor)
+        const std::string bl = std::string(trK(Str::KeBlMenue)) + "###progblender";
+        QtPunkt b;
+        b.id = bl.c_str();
+        b.tooltip = trK(Str::KeBlTip);
+        if (qtPunkt(b)) { (void)blenderExport(std::string()); }
     } else if (name == "ProgrammHilfeOben") {
         // "Manual" (OpenManual, F1): bei NRC registriert, der Menuepunkt aber
         // auskommentiert (mainframe.cpp:1214) - hier das Handbuch des Programms.

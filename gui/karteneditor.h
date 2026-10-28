@@ -1755,6 +1755,8 @@ void geoImportEinfuegen();
 // Stufe 9 Punkt 3: ein Modell aufs Fenster gezogen - als MD3 samt Shader und Texturen in den
 // Import-Ordner, als misc_model unter dem Mauszeiger (2D-Ansicht) bzw. vor der Kamera
 [[nodiscard]] bool istModellDatei(const std::string& pfad);
+// Stufe 9 Punkt 10: die gewaehlten Brushes fuer Blender (.obj oder .glb, Y oben); pfad leer: Dateidialog
+bool blenderExport(const std::string& pfad);
 bool modellAbgelegt(const std::string& pfad, ImVec2 punkt);
 [[nodiscard]] std::string importOrdner();   // <Einstellungen>/import: eigener Suchordner (wenn vorhanden)
 void terrainErzeugenKnopf();   // "Generate" (auch fuer den Selbsttest)

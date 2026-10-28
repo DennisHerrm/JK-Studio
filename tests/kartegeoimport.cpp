@@ -206,6 +206,26 @@ int main() {
                    q3map2TypFuerBsp("IB", "ja") == "ja");
     }
 
+    std::printf("--- Blender hin und zurueck (Punkt 10) ---\n");
+    if (!n.teile.empty()) {
+        const auto gleich = [](const ImportTeil& a, const ImportTeil& b) {
+            if (a.punkte.size() != b.punkte.size() || a.dreiecke.size() != b.dreiecke.size()) { return false; }
+            for (std::size_t i = 0; i < a.punkte.size(); ++i) {
+                if (std::fabs(a.punkte[i].x - b.punkte[i].x) + std::fabs(a.punkte[i].y - b.punkte[i].y) + std::fabs(a.punkte[i].z - b.punkte[i].z) > 1e-3) {
+                    return false;
+                }
+            }
+            return true;
+        };
+        const std::string glb = glbSchreiben(n, true);
+        ImportNetz zurueck;
+        const bool ok = netzLesen(glb, "glb", NetzOptionen{}, zurueck, &err);   // Y oben, Skala 1 (Vorgabe des Dialogs)
+        if (!ok) { std::printf("      %s\n", err.c_str()); }
+        expect(".glb (Y oben) wieder eingelesen: dieselben Punkte und Dreiecke, Material, UV",
+               ok && zurueck.teile.size() == 1 && gleich(n.teile[0], zurueck.teile[0]) && zurueck.teile[0].material == n.teile[0].material &&
+                   zurueck.teile[0].hatUv && std::fabs(zurueck.teile[0].uv[0][1] - n.teile[0].uv[0][1]) < 1e-5);
+    }
+
     std::printf("--- Abweisen ---\n");
     ImportNetz nx;
     expect("kaputte .fbx: false mit Grund", !netzLesen("Kaydara FBX Binary  \x00\x1a\x00 kaputt", "fbx", NetzOptionen{}, nx, &err) && !err.empty());

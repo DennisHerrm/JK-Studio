@@ -140,6 +140,12 @@ KARTE_WERKZEUGE9 = {
             "Geformt werden nur Patches; Terrain-Brushes behalten ihre Form. Texturen auf dem Gelände überblenden (Alpha-Maps) gehört noch nicht zu dieser Fassung.",
             "只会塑造面片;地形画刷保持原样。地形上的纹理混合(alpha 贴图)尚未包含在此版本中。",
             "形づくるのはパッチだけで、地形のブラシは形を変えません。地形上でのテクスチャのブレンド(アルファマップ)は、この版にはまだありません。")),
+        ("h2", "blender", T("To Blender and back", "Zu Blender und zurück", "导出到 Blender 再导回", "Blender へ書き出して戻す")),
+        ("p", T(
+            "Select brushes and choose **{{KeLFile}} > {{KeBlMenue}}**: they are written as .glb (or .obj) with Y up, the way Blender expects, one object per brush, the shader names as materials. Edit the part in Blender and export it again as .glb or .obj with the default settings. **{{KeLFile}} > {{KeGiMenue}}** with **{{KeGiYOben}}** switched on (the default) brings it back to the same place in the map.",
+            "Wähle Brushes und nimm **{{KeLFile}} > {{KeBlMenue}}**: sie werden als .glb (oder .obj) mit Y oben geschrieben, wie Blender es erwartet, ein Objekt je Brush, die Shadernamen als Materialien. Bearbeite den Teil in Blender und exportiere ihn wieder als .glb oder .obj mit den Vorgaben. **{{KeLFile}} > {{KeGiMenue}}** mit eingeschaltetem **{{KeGiYOben}}** (Vorgabe) holt ihn an denselben Ort der Karte zurück.",
+            "选择画刷并选择 **{{KeLFile}} > {{KeBlMenue}}**:它们会以 Y 轴向上的 .glb(或 .obj)写出,符合 Blender 的习惯,每个画刷一个对象,材质名为着色器名。在 Blender 中编辑该部分后,用默认设置再次导出为 .glb 或 .obj。开启 **{{KeGiYOben}}**(默认)使用 **{{KeLFile}} > {{KeGiMenue}}** 即可把它放回地图中的原位置。",
+            "ブラシを選んで **{{KeLFile}} > {{KeBlMenue}}** を選ぶと、Blender が期待するとおり Y 上の .glb(または .obj)として、ブラシごとに 1 オブジェクト、シェーダー名を素材名にして書き出します。Blender で編集し、既定の設定で .glb か .obj として書き出し直します。**{{KeGiYOben}}**(既定でオン)のまま **{{KeLFile}} > {{KeGiMenue}}** を使うと、マップの同じ場所に戻ります。")),
     ],
 }
 

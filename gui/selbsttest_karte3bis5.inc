@@ -5606,7 +5606,7 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         // File: NRC + "Open .bsp..." 24 (Stufe 4 Punkt 1, Abweichung)
         // Stufe 9 Punkt 2: dazu "Import geometry as brushes..." (eigene Funktion) - eine Zeile mehr, und der
         // laengste Eintrag bestimmt die Breite (QMenu: Text + Raender)
-        {"File", {"File"}, 291, 285 + 24 + 24},
+        {"File", {"File"}, 291, 285 + 24 + 24 + 24},   // Stufe 9 Punkt 10: "Export selection for Blender"
         {"Edit", {"Edit"}, 356, 549},
         // View: NRC + die Programm-Eintraege (Stufe 7 Punkt 6b, Abweichung): Trenner 7 + fuenf Untermenues je 24
         // + Stufe 8b (Abweichung): Trenner 7 + "Play in editor", "Play: start at info_player_start",

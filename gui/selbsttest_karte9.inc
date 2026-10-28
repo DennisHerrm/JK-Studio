@@ -556,6 +556,51 @@ std::vector<Schritt> schritte() {
         foPatch->reset();
     }));
     add(pause(0.2));
+
+    // --- Punkt 10: Blender hin und zurueck ----------------------------------------------------
+    // Ein Brush (gewaehlt) als .glb fuer Blender, mit Geometrie als Brushes (Y oben) zurueck: der
+    // neue Brush hat dieselben Grenzen; drei Undo (Einfuegen, Brush) - die Karte wie vorher.
+    auto blVorher = std::make_shared<std::size_t>(0);
+    auto blKasten = std::make_shared<karte::Kasten>();
+    add(tu("Blender: ein Brush, als .glb exportiert, wieder gelesen und eingefuegt", [blVorher, blKasten, vbQuader] {
+        karteDialogeZu();
+        ke::konsoleLeeren();
+        ke::Editor& ed = ke::editor();
+        *blVorher = ed.karte.welt()->kinder().size();
+        {
+            karte::Befehl b(ed.karte.undo, "brushCreate");
+            auto p = vbQuader(64, -32);
+            ed.karte.welt()->kindEinfuegen(p);
+            ed.karte.auswahl.leeren();
+            ed.karte.auswahl.waehlen(ed.karte.welt(), p);
+            *blKasten = p->grenzen(ed.karte.kontext);
+        }
+        const std::string pfad = platform::settingsDirectory() + "\\blender_test.glb";
+        if (!ke::blenderExport(pfad)) { meldeFehler("Blender: Export gescheitert"); }
+        ed.geoImport.yOben = true;
+        ed.geoImport.skala = 1.0F;
+        ed.geoImport.optimierer = false;
+        if (!ke::geoImportLaden(pfad)) { meldeFehler("Blender: .glb nicht lesbar"); }
+        ke::geoImportEinfuegen();
+        ed.geoImport.optimierer = true;
+    }));
+    add(pause(0.3));
+    add(pruefe("Blender: der zurueckgeholte Brush liegt am selben Ort (gleiche Grenzen), Konsole", [blVorher, blKasten] {
+        const ke::Editor& ed = ke::editor();
+        const auto& kinder = ed.karte.welt()->kinder();
+        if (kinder.size() != *blVorher + 2 || !kinder.back() || kinder.back()->art() != karte::Primitiv::Art::Pinsel) { return false; }
+        const karte::Kasten b = static_cast<const karte::Pinsel&>(*kinder.back()).grenzen(ed.karte.kontext);
+        float abw = 0;
+        for (std::size_t i = 0; i < 3; ++i) { abw += std::fabs(b.origin[i] - blKasten->origin[i]) + std::fabs(b.extents[i] - blKasten->extents[i]); }
+        diag::detail("Knopftest: Blender - Abweichung der Grenzen " + std::to_string(abw));
+        return abw < 0.05F && konsoleText().find("Exported for Blender") != std::string::npos;
+    }));
+    add(tu("Blender: zwei Undo", [] {
+        (void)ke::ausfuehren("Undo");
+        (void)ke::ausfuehren("Undo");
+    }));
+    add(pause(0.3));
+    add(pruefe("Blender: die Karte wie vorher", [blVorher] { return ke::editor().karte.welt()->kinder().size() == *blVorher; }));
     add(tu("Geometrie: Ende - Import-Ordner weg (spaetere Befehlsvergleiche ohne -fs_pakpath)", [] {
         karteDialogeZu();
         ke::konsoleLeeren();

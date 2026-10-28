@@ -2500,6 +2500,10 @@ enum class Str {
     KeFoGlaetten,
     KeFoEbnen,
     KeFoRadius,
+    KeBlMenue,
+    KeBlTip,
+    KeBlNichts,
+    KeBlFertig,
     KeGiModellDatei,
     Count,
 };

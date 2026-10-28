@@ -13,6 +13,7 @@
 #include "app_internal.h"
 #include "platform.h"
 
+#include "bhed/karte/brushexport.h"
 #include "bhed/karte/karte.h"
 #include "bhed/karte/modellimport.h"
 #include "bhed/karte/rueckgaengig.h"
@@ -151,6 +152,58 @@ void geoImportEinfuegen() {
     ausgabe(t);
     z.offen = false;
     if (z.optimierer) { optimiererOeffnen(); }
+}
+
+bool blenderExport(const std::string& pfadWahl) {
+    Editor& ed = e();
+    char t[1400];
+    bool pinsel = false;
+    for (const auto& a : ed.karte.auswahl.elemente()) {
+        const auto p = a.primitiv.lock();
+        pinsel = pinsel || (p && p->art() == karte::Primitiv::Art::Pinsel);
+    }
+    if (!pinsel) {
+        fehler(trK(Str::KeBlNichts));
+        return false;
+    }
+    const std::string pfad = pfadWahl.empty() ? kartenDateiDialog(false, "Export for Blender", "*.glb|*.glb|*.obj|*.obj", kartenStartOrdner(), "export.glb")
+                                              : pfadWahl;
+    if (pfad.empty()) { return false; }
+    const bool glb = endungVon(pfad) == "glb";
+    const std::string objPfad = glb ? pfad.substr(0, pfad.size() - 4) + ".obj" : pfad;
+    karte::brushexport::Optionen o;   // je Brush eine Gruppe, mit Materialien
+    const karte::brushexport::Ergebnis r = karte::brushexport::exportieren(ed.karte, o, objPfad, [](const std::string&) {
+        return std::array<float, 3>{1.0F, 1.0F, 1.0F};
+    });
+    std::string inhalt;
+    if (glb) {
+        karte::ImportNetz netz;
+        karte::NetzOptionen no;
+        no.yOben = true;   // brushexport schreibt schon Y oben (x, z, -y; brushexport.cpp wie NRC)
+        std::string grund;
+        if (!karte::netzLesen(r.obj, "obj", no, netz, &grund)) {
+            std::snprintf(t, sizeof(t), trK(Str::KeGiFehler), pfad.c_str(), grund.c_str());
+            fehler(t);
+            return false;
+        }
+        inhalt = karte::glbSchreiben(netz, true);
+    } else {
+        inhalt = r.obj;   // NRCs brushexport schreibt die .obj schon mit Y oben
+    }
+    std::ofstream f(pfadVon(pfad), std::ios::binary);
+    f.write(inhalt.data(), static_cast<std::streamsize>(inhalt.size()));
+    if (!f) {
+        std::snprintf(t, sizeof(t), trK(Str::KeGiFehler), pfad.c_str(), "write");
+        fehler(t);
+        return false;
+    }
+    if (!glb && !r.mtl.empty()) {
+        std::ofstream m(pfadVon(r.mtlPfad), std::ios::binary);
+        m << r.mtl;
+    }
+    std::snprintf(t, sizeof(t), trK(Str::KeBlFertig), pfad.c_str());
+    ausgabe(t);
+    return true;
 }
 
 bool istModellDatei(const std::string& pfad) {
