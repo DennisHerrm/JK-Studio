@@ -110,6 +110,13 @@ struct BspDatei {
 // Jedi-Outcast-Karten aendert das lightgrid und lightarray. "" bei Fehler.
 [[nodiscard]] std::string bspEntitaetenEinsetzen(const std::string& original, const std::string& neu);
 
+// Stufe 9 Punkt 2 (eigene Funktion): BSPs anderer id-Tech-3-Spiele. Der -game-Typ fuer
+// q3map2 -convert aus Kennung und Fassung (q3map2 games.cpp: die Leser je Spiel):
+// RBSP -> eigenerTyp (ja/jk2, auch Soldier of Fortune 2), IBSP 46 -> quake3 (auch Elite
+// Force, Quake Live), IBSP 47 -> wolf (RTCW; Enemy Territory liest q3map2 mit demselben
+// Leser), FBSP -> qfusion (Warsow). Unbekannt: eigenerTyp.
+[[nodiscard]] std::string q3map2TypFuerBsp(const std::string& daten, const std::string& eigenerTyp);
+
 }  // namespace bhed::karte
 
 #endif

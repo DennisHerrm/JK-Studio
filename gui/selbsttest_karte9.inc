@@ -75,6 +75,76 @@ std::vector<Schritt> schritte() {
         ke::konsoleLeeren();
     }));
     add(pause(0.2));
+
+    // --- Punkt 2: Geometrie zu Brushes ---------------------------------------------------
+    // Eine .obj mit einem L-Koerper (geschlossen, konkav) und einer Platte (offen): Auto macht
+    // aus dem L zwei Brushes und aus der Platte Modell + Clip; "Einfuegen" anklicken, dann:
+    // die Brushes sind in der Karte und gewaehlt, das misc_model zeigt auf die .obj im
+    // Import-Ordner (nicht im Spielordner), der Optimierer ist offen, Undo nimmt alles zurueck.
+    auto vorher = std::make_shared<std::size_t>(0);
+    add(tu("Geometrie: .obj schreiben und lesen (File > Import geometry as brushes)", [vorher] {
+        karteDialogeZu();
+        ke::konsoleLeeren();
+        std::string l = "o L\n";
+        const int gx[6] = {0, 128, 128, 64, 64, 0}, gy[6] = {0, 0, 64, 64, 128, 128};
+        for (int zz = 0; zz < 2; ++zz) {
+            for (int i = 0; i < 6; ++i) { l += "v " + std::to_string(gx[i] + 1024) + " " + std::to_string(gy[i]) + " " + std::to_string(zz * 32) + "\n"; }
+        }
+        l += "usemtl mauer\nf 1 6 5 4 3 2\nf 7 8 9 10 11 12\n";
+        for (int i = 0; i < 6; ++i) {
+            const int a = i + 1, b = (i + 1) % 6 + 1;
+            l += "f " + std::to_string(a) + " " + std::to_string(b) + " " + std::to_string(b + 6) + " " + std::to_string(a + 6) + "\n";
+        }
+        l += "o Platte\nv 1024 256 0\nv 1152 256 0\nv 1152 384 0\nv 1024 384 0\nusemtl holz\nf 13 14 15\nf 13 15 16\n";
+        const std::string pfad = platform::settingsDirectory() + "\\geo_test.obj";
+        std::ofstream(std::filesystem::path(pfad), std::ios::binary) << l;
+        *vorher = ke::editor().karte.welt()->kinder().size();
+        ke::editor().geoImport.yOben = false;
+        ke::editor().geoImport.skala = 1.0F;
+        if (!ke::geoImportLaden(pfad)) { meldeFehler("Geometrie: geo_test.obj nicht lesbar"); }
+    }));
+    add(pause(0.4));
+    add(pruefe("Geometrie: Dialog offen, 2 Teile; Vorschau: L geschlossen -> 2 Brushes, Platte offen -> Modell + Clip", [] {
+        const ke::GeoImportZustand& z = ke::editor().geoImport;
+        return z.offen && z.netz.teile.size() == 2 && z.vorschau.size() == 2 && z.vorschau[0].geschlossen && z.vorschau[0].art == karte::TeilArt::Pinsel &&
+               z.vorschau[0].pinsel.size() == 2 && !z.vorschau[1].geschlossen && z.vorschau[1].art == karte::TeilArt::ModellClip;
+    }));
+    add(klick(std::string(ke::trK(Str::KeGiEinfuegen)) + "##gieinfuegen", "###geoimport"));
+    add(pause(0.5));
+    add(pruefe("Geometrie: 3 Brushes eingefuegt und gewaehlt, misc_model auf models/import/geo_test.obj im Import-Ordner, Optimierer offen", [vorher] {
+        const ke::Editor& ed = ke::editor();
+        bool modell = false;
+        for (const auto& en : ed.karte.entitaeten()) {
+            modell = modell || (en->wert("classname") == "misc_model" && en->wert("model") == "models/import/geo_test.obj");
+        }
+        std::error_code ec;
+        const bool datei = std::filesystem::is_regular_file(std::filesystem::path(platform::settingsDirectory() + "\\import\\models\\import\\geo_test.obj"), ec);
+        const bool imVfs = !ke::importOrdner().empty() && ke::kartenVfsOrdner().front() == ke::importOrdner();
+        diag::detail("Knopftest: Geometrie - Brushes " + std::to_string(ed.karte.welt()->kinder().size() - *vorher) + ", Modell " + std::to_string(modell ? 1 : 0) +
+                     ", Datei " + std::to_string(datei ? 1 : 0) + ", VFS " + std::to_string(imVfs ? 1 : 0));
+        return !ed.geoImport.offen && ed.geoImport.letztes.pinsel == 3 && ed.geoImport.letztes.modelle == 1 &&
+               ed.karte.welt()->kinder().size() == *vorher + 3 && modell && datei && imVfs && ke::optimiererOffen() &&
+               konsoleText().find("geo_test.obj: 3") != std::string::npos;
+    }));
+    add(tu("Geometrie: Undo", [] {
+        karteDialogeZu();
+        (void)ke::ausfuehren("Undo");
+    }));
+    add(pause(0.3));
+    add(pruefe("Geometrie: ein Undo nimmt Brushes und misc_model zurueck", [vorher] {
+        const ke::Editor& ed = ke::editor();
+        bool modell = false;
+        for (const auto& en : ed.karte.entitaeten()) { modell = modell || en->wert("classname") == "misc_model"; }
+        return ed.karte.welt()->kinder().size() == *vorher && !modell;
+    }));
+    add(tu("Geometrie: Ende - Import-Ordner weg (spaetere Befehlsvergleiche ohne -fs_pakpath)", [] {
+        karteDialogeZu();
+        ke::konsoleLeeren();
+        std::error_code ec;
+        std::filesystem::remove_all(std::filesystem::path(platform::settingsDirectory() + "\\import"), ec);
+        std::filesystem::remove(std::filesystem::path(platform::settingsDirectory() + "\\geo_test.obj"), ec);
+    }));
+    add(pause(0.3));
     return s;
 }
 

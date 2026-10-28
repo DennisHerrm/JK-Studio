@@ -133,7 +133,10 @@ std::string umwandeln(const std::string& daten, const std::string& stamm, std::s
     }
     const std::string ziel = karte::convertZiel(bsp);
     fs::remove(pfadVon(ziel), ec);
-    const int rc = q3map2Warten(karte::convertBefehl(q3map2Aufruf(), brushPrimitives, bsp), ordner);
+    // Stufe 9 Punkt 2: BSPs anderer id-Tech-3-Spiele mit deren Leser (-game quake3/wolf/qfusion)
+    karte::Q3map2Aufruf aufruf = q3map2Aufruf();
+    aufruf.spielTyp = karte::q3map2TypFuerBsp(daten, aufruf.spielTyp);
+    const int rc = q3map2Warten(karte::convertBefehl(aufruf, brushPrimitives, bsp), ordner);
     if (rc != 0 || !fs::is_regular_file(pfadVon(ziel), ec)) {
         fehler("q3map2 -convert failed (" + std::to_string(rc) + "): " + bsp);
         return {};

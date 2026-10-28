@@ -262,4 +262,16 @@ std::string bspEntitaetenEinsetzen(const std::string& original, const std::strin
     return out;
 }
 
+
+std::string q3map2TypFuerBsp(const std::string& daten, const std::string& eigenerTyp) {
+    if (daten.size() < 8) { return eigenerTyp; }
+    const std::string ident = daten.substr(0, 4);
+    const int version = static_cast<int>(static_cast<unsigned char>(daten[4])) | (static_cast<int>(static_cast<unsigned char>(daten[5])) << 8) |
+                        (static_cast<int>(static_cast<unsigned char>(daten[6])) << 16) | (static_cast<int>(static_cast<unsigned char>(daten[7])) << 24);
+    if (ident == "IBSP" && version == 46) { return "quake3"; }
+    if (ident == "IBSP" && version == 47) { return "wolf"; }
+    if (ident == "FBSP") { return "qfusion"; }
+    return eigenerTyp;
+}
+
 }  // namespace bhed::karte

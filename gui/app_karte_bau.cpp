@@ -194,6 +194,8 @@ karte::BauVariablen bauVariablen() {
     for (const std::string& p : ed.zusatzPfade) {
         if (!p.empty()) { zusatz += " -fs_pakpath \"" + p + "\""; }   // << " -fs_pakpath " << Quoted( path )
     }
+    // Stufe 9 Punkt 2 (Abweichung): der Import-Ordner (Modelle aus "Geometrie als Brushes")
+    if (const std::string imp = importOrdner(); !imp.empty()) { zusatz += " -fs_pakpath \"" + imp + "\""; }
     v["ExtraResourcePaths"] = zusatz;
     v["MonitorAddress"] = ed.bau.ueberwachen ? kBauMonitorAdresse : "";
     v["GameName"] = bauSpielName();

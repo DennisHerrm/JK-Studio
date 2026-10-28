@@ -27,7 +27,7 @@ GPL v2; nothing is licensed under Apache 2.0 or GPL v3 only. The licence texts s
 | libpng | 1.6.53 | PNG Reference Library License v2 | `third_party/libpng/` |
 | libjpeg-turbo | 3.1.3 | IJG, BSD 3-clause, zlib | `third_party/libjpeg-turbo/` |
 | libxml2 | 2.15.1 | MIT | `third_party/libxml2/` |
-| assimp (with clipper, earcut, openddlparser, poly2tri, pugixml, rapidjson, zip, Open3DGC, stb) | 6.0.2 | BSD 3-clause; contrib MIT / Boost / BSL / Unlicense / public domain | `third_party/assimp/` |
+| assimp (with clipper, earcut, openddlparser, poly2tri, pugixml, rapidjson, zip, Open3DGC, stb) | 6.0.2 | BSD 3-clause; contrib MIT / Boost / BSL / Unlicense / public domain | `third_party/assimp/` (q3map2; since stage 9 also the editor: geometry import) |
 | fdlibm `acos` (in the GPU bake shader) | – | Sun Microsystems permission notice | `src/q3map2/bhed_gpubacken.hlsl` (notice kept in the source) |
 
 ## Only for development (not shipped)

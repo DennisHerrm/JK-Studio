@@ -21,6 +21,7 @@
 #define BHED_GUI_KARTENEDITOR_H
 
 #include "bhed/i18n.h"
+#include "bhed/karte/geometrieimport.h"
 #include "bhed/karte/bau.h"
 #include "bhed/karte/baufortschritt.h"
 #include "bhed/karte/bobtoolz.h"
@@ -214,6 +215,21 @@ struct MeshTexZustand {
 
 // Stufe 8b Punkt 1: der Terrain Generator (NRC master, contrib/terrain_generator) -
 // ein nicht modaler Dialog; die Werte bleiben die Sitzung lang (static in NRC).
+// Stufe 9 Punkt 2 (eigene Funktion, nicht in NRC): Geometrie zu Brushes
+struct GeoImportZustand {
+    bool offen = false;
+    bool neu = false;                         // Vorschau neu rechnen
+    std::string datei;                        // die gelesene Datei
+    karte::ImportNetz netz;
+    std::vector<int> wahl;                    // je Teil karte::TeilArt
+    std::vector<karte::TeilErgebnis> vorschau;
+    float skala = 1.0F;
+    bool yOben = true;
+    bool optimierer = true;
+    char vorsatz[128] = "textures/import/";
+    karte::EinfuegeErgebnis letztes;          // Selbsttest
+};
+
 struct TerrainZustand {
     bool offen = false, oeffnen = false;
     karte::terraingen::Werte gespeichert;   // die static-Variablen (beim Schliessen uebernommen)
@@ -607,6 +623,7 @@ struct Editor {
     SunplugZustand sunplug;
     MeshTexZustand meshtex;
     TerrainZustand terrain;   // Stufe 8b Punkt 1
+    GeoImportZustand geoImport;   // Stufe 9 Punkt 2
     SpielenZustand spielen;   // Stufe 8b Punkt 3
     LogikZustand logik;       // Stufe 8b Punkt 4
     AnsichtsModiZustand ansichtsmodi;   // Stufe 8b Punkt 5
@@ -1705,6 +1722,12 @@ void meshTexDialogeZeichnen();
 // Stufe 8b Punkt 1: Terrain Generator (app_karte_terrain.cpp)
 [[nodiscard]] std::vector<PluginUmsetzung> terrainUmsetzungen();
 void terrainDialogZeichnen();
+// Stufe 9 Punkt 2: File > Import geometry as brushes (obj/fbx/glb/gltf; .bsp: Open .bsp mit dem Leser des Spiels)
+void geoImportOeffnen();
+bool geoImportLaden(const std::string& pfad);
+void geoImportDialogZeichnen();
+void geoImportEinfuegen();
+[[nodiscard]] std::string importOrdner();   // <Einstellungen>/import: eigener Suchordner (wenn vorhanden)
 void terrainErzeugenKnopf();   // "Generate" (auch fuer den Selbsttest)
 void terrainSchliessen();      // "Close" / Schliessknopf: Werte uebernehmen
 // Tags des Texturbrowsers: die Datei (LocalRcPath + SHADERTAG_FILE) und neu laden

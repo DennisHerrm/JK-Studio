@@ -491,6 +491,12 @@ void listeZeichnen(const std::string& name) {
         QtPunkt p;
         p.id = id.c_str();
         if (qtPunkt(p)) { bspOeffnenDialog(); }
+        // Stufe 9 Punkt 2 (eigene Funktion): Geometrie als Brushes importieren
+        const std::string gi = std::string(trK(Str::KeGiMenue)) + "###proggeoimport";
+        QtPunkt g;
+        g.id = gi.c_str();
+        g.tooltip = trK(Str::KeGiMenueTip);
+        if (qtPunkt(g)) { geoImportOeffnen(); }
     } else if (name == "ProgrammHilfeOben") {
         // "Manual" (OpenManual, F1): bei NRC registriert, der Menuepunkt aber
         // auskommentiert (mainframe.cpp:1214) - hier das Handbuch des Programms.

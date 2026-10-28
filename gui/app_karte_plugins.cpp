@@ -909,6 +909,7 @@ void pluginDialogeZeichnen() {
     kleinePluginDialogeZeichnen();
     meshTexDialogeZeichnen();
     terrainDialogZeichnen();   // Stufe 8b Punkt 1
+    geoImportDialogZeichnen();   // Stufe 9 Punkt 2
     if (b.dialog == 0) { return; }
     bool fertig = false;
     bool ok = false;

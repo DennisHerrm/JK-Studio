@@ -12,13 +12,17 @@
 #include <string>
 #include <vector>
 
+#include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/geometrieimport.h"
+#include "bhed/karte/karte.h"
+#include "bhed/karte/kartenformat.h"
+#include "bhed/karte/pinsel.h"
 
 namespace {
-int fehler = 0;
+int g_fehler = 0;
 void expect(const char* was, bool ok) {
     std::printf("  %s  %s\n", ok ? "ok  " : "FEHL", was);
-    if (!ok) { ++fehler; }
+    if (!ok) { ++g_fehler; }
 }
 using namespace bhed::karte;
 
@@ -170,6 +174,38 @@ int main() {
         expect("glTF (0,64,0) wird mit Skala 2 zu Q3 (0,0,128)", hoch);
     }
 
+    std::printf("--- Einfuegen in eine Karte (Undo) ---\n");
+    if (!nl.teile.empty() && !np.teile.empty()) {
+        Karte k;
+        (void)karteLesen("{\n\"classname\" \"worldspawn\"\n}\n", k);
+        k.anmelden();
+        const std::string vorher = karteSchreiben(k);
+        std::vector<TeilErgebnis> teile = {teilUmwandeln(nl.teile[0], TeilArt::Pinsel, opt), teilUmwandeln(np.teile[0], TeilArt::ModellClip, opt)};
+        const EinfuegeErgebnis e = importEinfuegen(k, teile, "models/import/platte.obj");
+        const std::string nach = karteSchreiben(k);
+        expect("2 L-Brushes + 1 Clip-Brush, ein misc_model, alles gewaehlt", e.pinsel == 3 && e.modelle == 1 && k.auswahl.anzahl() == 4);
+        expect("misc_model mit dem Pfad, Clip und caulk in der Karte",
+               nach.find("\"model\" \"models/import/platte.obj\"") != std::string::npos && nach.find("system/clip") != std::string::npos &&
+                   nach.find("system/caulk") != std::string::npos);
+        (void)k.undo.undo();
+        expect("eine Undo-Stufe stellt die Karte wieder her", karteSchreiben(k) == vorher);
+        std::vector<const ImportTeil*> mt = {&np.teile[0]};
+        const std::string obj = modellObj(mt, opt);
+        ImportNetz zurueck;
+        expect("das Modell als .obj: wieder lesbar, gleiches Material (usemtl = Shader)",
+               netzLesen(obj, "obj", ohneDrehung, zurueck, &err) && zurueck.teile.size() == 1 && zurueck.teile[0].dreiecke.size() == 2 &&
+                   obj.find("usemtl textures/import/holz") != std::string::npos);
+    }
+
+    std::printf("--- BSPs anderer id-Tech-3-Spiele ---\n");
+    {
+        const auto kopf = [](const char* id, int v) { return std::string(id) + std::string(1, static_cast<char>(v)) + std::string(3, '\0') + "rest"; };
+        expect("RBSP -> eigener Typ, IBSP 46 -> quake3, IBSP 47 -> wolf, FBSP -> qfusion, kurz -> eigener",
+               q3map2TypFuerBsp(kopf("RBSP", 1), "ja") == "ja" && q3map2TypFuerBsp(kopf("IBSP", 46), "ja") == "quake3" &&
+                   q3map2TypFuerBsp(kopf("IBSP", 47), "jk2") == "wolf" && q3map2TypFuerBsp(kopf("FBSP", 1), "ja") == "qfusion" &&
+                   q3map2TypFuerBsp("IB", "ja") == "ja");
+    }
+
     std::printf("--- Abweisen ---\n");
     ImportNetz nx;
     expect("kaputte .fbx: false mit Grund", !netzLesen("Kaydara FBX Binary  \x00\x1a\x00 kaputt", "fbx", NetzOptionen{}, nx, &err) && !err.empty());
@@ -177,6 +213,6 @@ int main() {
     expect("materialShader: Pfad und Endung weg, klein, Sonderzeichen _",
            materialShader("C:\\tex\\Mauer Alt.PNG", opt) == "textures/import/mauer_alt" && materialShader("", opt) == opt.ohneMaterial);
 
-    std::printf("%s (%d Fehler)\n", fehler == 0 ? "OK" : "FEHLER", fehler);
-    return fehler == 0 ? 0 : 1;
+    std::printf("%s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
+    return g_fehler == 0 ? 0 : 1;
 }

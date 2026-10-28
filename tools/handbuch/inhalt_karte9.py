@@ -10,10 +10,10 @@ KARTE_WERKZEUGE9 = {
     "titel": T("Map editor: test in game and more tools", "Karten-Editor: im Spiel testen und weitere Werkzeuge",
                "地图编辑器:在游戏中测试及更多工具", "マップエディター:ゲーム内テストとその他のツール"),
     "kurz": T(
-        "Start the game with the current map at the press of a button - without writing into the game folder.",
-        "Das Spiel auf Knopfdruck mit der aktuellen Karte starten - ohne in den Spielordner zu schreiben.",
-        "一键用当前地图启动游戏——无需写入游戏文件夹。",
-        "ボタン一つで現在のマップを使ってゲームを起動します。ゲームのフォルダーには書き込みません。"),
+        "Start the game with the current map at the press of a button, and turn models from Blender and other games into brushes.",
+        "Das Spiel auf Knopfdruck mit der aktuellen Karte starten und Modelle aus Blender und anderen Spielen zu Brushes machen.",
+        "一键用当前地图启动游戏,并把来自 Blender 和其他游戏的模型转换为画刷。",
+        "ボタン一つで現在のマップを使ってゲームを起動し、Blender やほかのゲームのモデルをブラシにします。"),
     "bloecke": [
         ("h2", "imspiel", T("Test in game", "Im Spiel testen", "在游戏中测试", "ゲーム内でテスト")),
         ("p", T(
@@ -44,6 +44,30 @@ KARTE_WERKZEUGE9 = {
             "Nicht in NetRadiant-Custom. Das eigene **Nach dem Bauen das Spiel starten** von NetRadiant-Custom (Einstellungen, Seite Build) bleibt, wie es ist: es startet die Engine nach jedem Bau aus dem Spielordner.",
             "NetRadiant-Custom 中没有。NetRadiant-Custom 自带的 **编译后运行游戏**(首选项,Build 页)保持不变:它在每次编译后从游戏文件夹启动引擎。",
             "NetRadiant-Custom にはありません。NetRadiant-Custom 自身の **コンパイル後にゲームを起動**(設定の Build ページ)はそのままで、ビルドのたびにゲームのフォルダーからエンジンを起動します。")),
+        ("h2", "geometrie", T("Geometry to brushes", "Geometrie zu Brushes", "几何体转画刷", "ジオメトリをブラシに")),
+        ("p", T(
+            "**{{KeLFile}} > {{KeGiMenue}}** reads a model (.obj, .fbx, .glb or .gltf, for example from Blender) and turns it into brushes. A window lists the parts of the file; for each part choose **{{KeGiAuto}}**, **{{KeGiPinsel}}** or **{{KeGiModellClip}}** - the column **{{KeGiErgebnis}}** shows at once how many brushes it becomes and whether they are detail. **{{KeGiEinfuegen}}** inserts everything as one undo step and selects it; then the optimizer opens.",
+            "**{{KeLFile}} > {{KeGiMenue}}** liest ein Modell (.obj, .fbx, .glb oder .gltf, etwa aus Blender) und macht Brushes daraus. Ein Fenster listet die Teile der Datei; wähle je Teil **{{KeGiAuto}}**, **{{KeGiPinsel}}** oder **{{KeGiModellClip}}** - die Spalte **{{KeGiErgebnis}}** zeigt sofort, wie viele Brushes daraus werden und ob sie detail sind. **{{KeGiEinfuegen}}** setzt alles als einen Undo-Schritt ein und wählt es; danach öffnet sich der Optimierer.",
+            "**{{KeLFile}} > {{KeGiMenue}}** 读取模型(.obj、.fbx、.glb 或 .gltf,例如来自 Blender)并把它转换为画刷。窗口会列出文件中的部件;为每个部件选择 **{{KeGiAuto}}**、**{{KeGiPinsel}}** 或 **{{KeGiModellClip}}**——**{{KeGiErgebnis}}** 列会立即显示会生成多少个画刷以及它们是否为 detail。**{{KeGiEinfuegen}}** 以一步撤销插入全部内容并选中;之后会打开优化器。",
+            "**{{KeLFile}} > {{KeGiMenue}}** はモデル(.obj、.fbx、.glb、.gltf。たとえば Blender から)を読み込み、ブラシにします。ウィンドウにファイルの部品が並ぶので、部品ごとに **{{KeGiAuto}}**・**{{KeGiPinsel}}**・**{{KeGiModellClip}}** を選びます。**{{KeGiErgebnis}}** の列に、ブラシがいくつできるか、detail かどうかがすぐ表示されます。**{{KeGiEinfuegen}}** で全部を 1 回の「元に戻す」単位で挿入して選択し、その後で最適化が開きます。")),
+        ("list", [
+            T("**Closed parts** are split into convex brushes (a BSP over the faces of the model, like q3map2 builds one). Faces that lie in one plane become one brush side. Sides on the surface of the model get its material as shader (**{{KeGiVorsatz}}** + material name) and its UV as texture alignment; sides inside the model, which nobody sees, get caulk.",
+              "**Geschlossene Teile** werden in konvexe Brushes zerlegt (ein BSP über die Flächen des Modells, wie q3map2 eines baut). Flächen in einer Ebene werden eine Brush-Seite. Seiten auf der Oberfläche des Modells bekommen dessen Material als Shader (**{{KeGiVorsatz}}** + Materialname) und seine UV als Texturausrichtung; Seiten im Inneren, die niemand sieht, bekommen caulk.",
+              "**封闭部件**会被分解为凸画刷(对模型的面构建 BSP,与 q3map2 的做法相同)。同一平面上的面合并为一个画刷面。位于模型表面的画刷面使用其材质作为着色器(**{{KeGiVorsatz}}** + 材质名),并以其 UV 作为纹理对齐;模型内部看不到的面使用 caulk。",
+              "**閉じた部品**は凸ブラシに分解されます(q3map2 と同じように、モデルの面で BSP を作ります)。同じ平面上の面は 1 つのブラシ面になります。モデルの表面にある面にはその素材がシェーダー(**{{KeGiVorsatz}}** + 素材名)として付き、UV がテクスチャの向きになります。内側の誰にも見えない面は caulk です。"),
+            T("**Open parts** (single surfaces, decoration) become thin brushes behind each flat face; small and open parts become detail, so they do not cut the map into BSP leaves.",
+              "**Offene Teile** (einzelne Flächen, Deko) werden dünne Brushes hinter jeder ebenen Fläche; kleine und offene Teile werden detail und zerschneiden die Karte so nicht in BSP-Blätter.",
+              "**开放部件**(单个面、装饰)会在每个平面后方生成薄画刷;小部件和开放部件设为 detail,这样不会把地图切成 BSP 叶。",
+              "**開いた部品**(単独の面や装飾)は、平らな面ごとにその裏側の薄いブラシになります。小さい部品と開いた部品は detail になるので、マップを BSP の葉に切り刻みません。"),
+            T("**{{KeGiModellClip}}** keeps the part as a model: it is written as .obj into the program's import folder (next to the settings, never into the game), a misc_model points to it, and clip brushes from the same decomposition make it solid. The editor and q3map2 (`-fs_pakpath`) search this folder. **{{KeGiAuto}}** takes brushes for closed parts with at most 256 brushes, otherwise model + clip.",
+              "**{{KeGiModellClip}}** behält den Teil als Modell: er wird als .obj in den Import-Ordner des Programms geschrieben (neben den Einstellungen, nie ins Spiel), ein misc_model zeigt darauf, und Clip-Brushes aus derselben Zerlegung machen ihn fest. Editor und q3map2 (`-fs_pakpath`) durchsuchen diesen Ordner. **{{KeGiAuto}}** nimmt Brushes für geschlossene Teile mit höchstens 256 Brushes, sonst Modell + Clip.",
+              "**{{KeGiModellClip}}** 将部件保留为模型:它以 .obj 写入程序的导入文件夹(在设置旁边,绝不写入游戏),由 misc_model 引用,并用同一分解得到的 clip 画刷使其成为实体。编辑器和 q3map2(`-fs_pakpath`)都会搜索该文件夹。**{{KeGiAuto}}** 对最多 256 个画刷的封闭部件使用画刷,否则使用模型 + 碰撞。",
+              "**{{KeGiModellClip}}** は部品をモデルのまま残します。.obj としてプログラムのインポートフォルダー(設定の隣。ゲームには書き込みません)に書き出し、misc_model がそれを指し、同じ分解から作った clip ブラシで当たり判定を付けます。エディターと q3map2(`-fs_pakpath`)はこのフォルダーを検索します。**{{KeGiAuto}}** は、ブラシが 256 個以下の閉じた部品ならブラシ、それ以外はモデル + クリップを選びます。"),
+            T("**{{KeGiSkala}}** and **{{KeGiYOben}}**: Blender and glTF use Y as up, the game Z; one Blender metre is one unit unless you scale it. A **.bsp** of another id Tech 3 game (Quake III, Elite Force, Return to Castle Wolfenstein, Enemy Territory, Warsow) opens like **{{KeLOpenBsp}}**, with the reader of that game.",
+              "**{{KeGiSkala}}** und **{{KeGiYOben}}**: Blender und glTF nehmen Y als oben, das Spiel Z; ein Blender-Meter ist eine Einheit, wenn du nicht skalierst. Eine **.bsp** eines anderen id-Tech-3-Spiels (Quake III, Elite Force, Return to Castle Wolfenstein, Enemy Territory, Warsow) öffnet wie **{{KeLOpenBsp}}**, mit dem Leser dieses Spiels.",
+              "**{{KeGiSkala}}** 和 **{{KeGiYOben}}**:Blender 和 glTF 以 Y 轴为上,游戏以 Z 轴为上;不缩放时一个 Blender 米等于一个单位。其他 id Tech 3 游戏(Quake III、Elite Force、Return to Castle Wolfenstein、Enemy Territory、Warsow)的 **.bsp** 会像 **{{KeLOpenBsp}}** 一样用该游戏的读取器打开。",
+              "**{{KeGiSkala}}** と **{{KeGiYOben}}**:Blender と glTF は Y が上、ゲームは Z が上です。スケールしなければ Blender の 1 メートルが 1 ユニットです。ほかの id Tech 3 ゲーム(Quake III、Elite Force、Return to Castle Wolfenstein、Enemy Territory、Warsow)の **.bsp** は **{{KeLOpenBsp}}** と同じように、そのゲームの読み込みで開きます。"),
+        ]),
     ],
 }
 

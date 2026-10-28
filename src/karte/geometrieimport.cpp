@@ -10,9 +10,15 @@
 //   version (LICENSE).
 #include "bhed/karte/geometrieimport.h"
 
+#include "bhed/karte/karte.h"
+#include "bhed/karte/pinsel.h"
+#include "bhed/karte/rueckgaengig.h"
+#include "bhed/karte/texdef.h"
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
 #include <map>
 #include <tuple>
 #include <unordered_map>
@@ -506,6 +512,72 @@ TeilErgebnis teilUmwandeln(const ImportTeil& t, TeilArt wahl, const ZerlegOption
     r.art = art;
     for (ImportPinsel& p : r.pinsel) { p.detail = r.detail || art == TeilArt::ModellClip; }
     return r;
+}
+
+EinfuegeErgebnis importEinfuegen(Karte& k, const std::vector<TeilErgebnis>& teile, const std::string& modellPfad) {
+    EinfuegeErgebnis r;
+    Befehl undo(k.undo, "importGeometry");
+    k.auswahl.leeren();
+    const auto welt = k.welt();
+    bool modell = false;
+    const auto vek = [](const ImportPunkt& p) { return Vektor3d(p.x, p.y, p.z); };
+    for (const TeilErgebnis& t : teile) {
+        modell = modell || t.art == TeilArt::ModellClip;
+        for (const ImportPinsel& ip : t.pinsel) {
+            auto p = std::make_shared<Pinsel>();
+            for (const ImportSeite& s : ip.seiten) {
+                const EbenenPunkte pp{vek(s.p[0]), vek(s.p[1]), vek(s.p[2])};
+                TexturProjektion proj;
+                texdefStandard(k.kontext.art(), proj);
+                if (s.uvGesetzt) {
+                    Vektor3d st[3];
+                    for (std::size_t i = 0; i < 3; ++i) { st[i] = Vektor3d(s.st[i].x, s.st[i].y, 0.0); }
+                    const auto [w, h] = k.kontext.groesse(s.shader);
+                    texdefAusSt(k.kontext.art(), proj, pp, st, w, h);
+                }
+                (void)p->ebeneHinzufuegen(pp[0], pp[1], pp[2], s.shader, proj, k.kontext);
+            }
+            if (p->anzahl() < 4) { continue; }
+            if (ip.detail) { p->setzeDetail(true); }
+            p->schicht = static_cast<int>(k.aktuelleSchicht);
+            welt->kindEinfuegen(p);
+            k.auswahl.waehlen(welt, p);
+            ++r.pinsel;
+        }
+    }
+    if (modell && !modellPfad.empty()) {
+        auto ent = k.neueEntitaet("misc_model", false);
+        ent->setzen("origin", "0 0 0");
+        ent->setzen("model", modellPfad);
+        k.entitaetEinfuegen(ent);
+        k.auswahl.waehlen(ent);
+        ++r.modelle;
+    }
+    return r;
+}
+
+std::string modellObj(const std::vector<const ImportTeil*>& teile, const ZerlegOptionen& o) {
+    std::string s = "# JK Studio: Modell+Clip-Teile (Stufe 9 Punkt 2)\n";
+    std::size_t basis = 1;
+    char z[160];
+    for (const ImportTeil* t : teile) {
+        s += "o " + (t->name.empty() ? std::string("part") : t->name) + "\n";
+        for (const ImportPunkt& p : t->punkte) {
+            std::snprintf(z, sizeof(z), "v %.6f %.6f %.6f\n", p.x, p.y, p.z);
+            s += z;
+        }
+        for (const auto& uv : t->uv) {
+            std::snprintf(z, sizeof(z), "vt %.6f %.6f\n", uv[0], 1.0 - uv[1]);
+            s += z;
+        }
+        s += "usemtl " + (t->material.empty() ? o.ohneMaterial : materialShader(t->material, o)) + "\n";
+        for (const auto& d : t->dreiecke) {
+            std::snprintf(z, sizeof(z), "f %zu/%zu %zu/%zu %zu/%zu\n", basis + d[0], basis + d[0], basis + d[1], basis + d[1], basis + d[2], basis + d[2]);
+            s += z;
+        }
+        basis += t->punkte.size();
+    }
+    return s;
 }
 
 // --- Lesen ueber assimp ---------------------------------------------------------------

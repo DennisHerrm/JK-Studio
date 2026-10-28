@@ -509,6 +509,8 @@ std::vector<std::string> kartenVfsOrdner() {
     for (const std::string& p : e.zusatzPfade) {
         if (!p.empty()) { zusatz.push_back(p); }
     }
+    // Stufe 9 Punkt 2 (Abweichung): der Import-Ordner des Programms, sobald es ihn gibt
+    if (const std::string imp = importOrdner(); !imp.empty()) { zusatz.push_back(imp); }
     if (!e.enginePfad.empty()) { return karte::vfsOrdner(e.enginePfad, kartenFsGame(), sb.basisSpiel, zusatz); }
     std::vector<std::string> pfade = karte::vfsOrdner(enginePfadAnzeige(), kartenFsGame(), sb.basisSpiel, zusatz);
     if (!pfade.empty()) { pfade.pop_back(); }   // <Engine><basegame>/ - dafuer die Spielordner

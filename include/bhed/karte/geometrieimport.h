@@ -99,6 +99,21 @@ struct TeilErgebnis {
 [[nodiscard]] bool teilGeschlossen(const ImportTeil& t);
 [[nodiscard]] TeilErgebnis teilUmwandeln(const ImportTeil& t, TeilArt wahl, const ZerlegOptionen& o);
 
+class Karte;
+
+// Einfuegen (eine Undo-Stufe "importGeometry"): alle Brushes in den worldspawn (gewaehlt,
+// detail wie berechnet, Texturmatrix aus den drei st-Punkten - texdefAusSt, im Format der
+// Karte), und wenn ein Teil Modell+Clip ist, ein misc_model mit modellPfad (leer: keins).
+struct EinfuegeErgebnis {
+    std::size_t pinsel = 0;
+    std::size_t modelle = 0;
+};
+EinfuegeErgebnis importEinfuegen(Karte& k, const std::vector<TeilErgebnis>& teile, const std::string& modellPfad);
+
+// Die Modell+Clip-Teile als .obj (Q3-Koordinaten, usemtl = Shader, vt = s, 1 - t) - so liest
+// q3map2 (assimp) das misc_model und nimmt die Shader der Brushes.
+[[nodiscard]] std::string modellObj(const std::vector<const ImportTeil*>& teile, const ZerlegOptionen& o);
+
 // Der Shadername eines Materials: Vorsatz + Name ohne Pfad und Endung, klein, nur [a-z0-9_/-].
 [[nodiscard]] std::string materialShader(const std::string& material, const ZerlegOptionen& o);
 
