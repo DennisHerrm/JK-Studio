@@ -962,6 +962,7 @@ std::vector<PluginLinien> pluginLinien2d() {
     const BobToolzZustand& b = e().bob;
     std::vector<PluginLinien> v;
     spiegelLinien(v);   // Stufe 8b Punkt 6: die Spiegelebene
+    sprungLinien(v);    // Stufe 9 Punkt 4: Sprungweite und Platz
     // DBobView::renderWireframe -> renderSolid: $bobtoolz/bobview/line (rot, 2) und
     // mit "Show Bounding Lines" viermal versetzt in $bobtoolz/bobview/box (0.25 0.75 0.75, 1)
     if (b.bahn.aktiv && b.bahn.punkte.size() >= 2) {
@@ -1008,6 +1009,30 @@ std::vector<PluginLinien> pluginLinien2d() {
 
 void pluginKameraVoll(const float* matrix, bool fuellen) {
     (void)fuellen;
+    {   // Stufe 9 Punkt 4: Sprungweite und Platz (Tiefe testen, Farbe je Linie)
+        std::vector<PluginLinien> sl;
+        sprungLinien(sl);
+        for (const PluginLinien& pl : sl) {
+            std::vector<kartegpu::LinienPunkt> p;
+            for (const karte::Linie& li : pl.linien) {
+                kartegpu::LinienPunkt a = lp(li.a);
+                kartegpu::LinienPunkt c = lp(li.b);
+                a.farbe = li.farbe;
+                c.farbe = li.farbe;
+                p.push_back(a);
+                p.push_back(c);
+            }
+            if (p.empty()) { continue; }
+            kartegpu::Zustand3 z;
+            z.matrix = matrix;
+            z.farbe[0] = z.farbe[1] = z.farbe[2] = z.farbe[3] = 1;
+            z.tiefe = kartegpu::TiefenTest::Kleiner;
+            z.tiefeSchreiben = false;
+            z.wegschneiden = false;
+            z.breite = pl.breite;
+            kartegpu::linien(p, z);
+        }
+    }
     const BobToolzZustand& b = e().bob;
     if (!b.bahn.aktiv || b.bahn.punkte.size() < 2) { return; }
     // DBobView: RENDER_COLOURWRITE | RENDER_DEPTHWRITE | RENDER_DEPTHTEST, eSortFullbright

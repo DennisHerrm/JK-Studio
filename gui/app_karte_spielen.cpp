@@ -83,6 +83,7 @@ void spielenStarten() {
     z.kameraWinkel = ed.kamera.winkel;
     z.s = NavSpieler{};
     z.s.jk2 = jk2;
+    z.s.machtStufe = ed.sprungMacht;   // Stufe 9 Punkt 4: Machtsprung wie View > Check jumps and space
     z.amSpawn = false;
     if (z.startAnSpawn) {
         for (const auto& ent : ed.karte.entitaeten()) {

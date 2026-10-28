@@ -21,6 +21,7 @@
 #define BHED_GUI_KARTENEDITOR_H
 
 #include "bhed/i18n.h"
+#include "bhed/karte/sprungpruefung.h"
 #include "bhed/karte/geometrieimport.h"
 #include "bhed/karte/bau.h"
 #include "bhed/karte/baufortschritt.h"
@@ -952,6 +953,10 @@ struct Editor {
     karte::ManipModus werkzeug = karte::ManipModus::Ziehen;   // g_currentToolMode (g_defaultToolMode = DragMode)
     bool knotenVersteckt = false;          // g_nodes_be_hidden (HideSelected)
     std::size_t sichtStand = 0;            // Verstecken/Zeigen (nicht im Undo) fuer szeneStand
+    // Stufe 9 Punkt 4: Sprungweite und Platz (View > Check jumps and space)
+    int sprungMacht = 2;                   // Machtstufe fuer die Pruefung und "Im Editor spielen" ("BhedJumpCheckForce")
+    bool sprungLaeuft = false;
+    std::shared_ptr<karte::SprungBericht> sprungBericht;
     std::string zwischenablage;            // Copy/Paste (NRC: QClipboard "RadiantClippings")
     bool nachKlonenSchubsen = false;       // g_bNudgeAfterClone ("Nudge selected after duplication")
     // --- Einstellungsseiten der Stufe 2, Punkt 11 ---
@@ -1747,6 +1752,13 @@ struct PluginLinien {
     float breite = 1.0F;
 };
 [[nodiscard]] std::vector<PluginLinien> pluginLinien2d();
+// Stufe 9 Punkt 4 (app_karte_sprung.cpp)
+void sprungPruefungStarten();
+void sprungPruefungLeeren();
+void sprungPruefungSchritt();     // jedes Bild: ein fertiges Ergebnis uebernehmen
+void sprungPruefungBeenden();
+[[nodiscard]] int sprungPruefungFortschritt();
+void sprungLinien(std::vector<PluginLinien>& v);
 // Stufe 8b Punkt 6: Spiegel-Modus (app_karte_spiegel.cpp)
 void spiegelTick();                    // jeden Frame vor den Ansichten
 void spiegelSetzen(int achse);         // -1 aus, 0 X, 1 Y, 2 Z

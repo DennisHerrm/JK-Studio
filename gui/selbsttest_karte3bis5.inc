@@ -5612,7 +5612,8 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         // + Stufe 8b (Abweichung): Trenner 7 + "Play in editor", "Play: start at info_player_start",
         // "Camera view modes", "Logic view...", "Mirror mode", "Undo history..." je 24 (der laengste
         // Text "Play: start at info_player_start" mit Hakenspalte: 262 -> 292)
-        {"View", {"View"}, 292, 333 + 7 + 5 * 24 + 7 + 6 * 24},
+        // Stufe 9 Punkt 4: dazu das Untermenue "Check jumps and space" (eigene Funktion)
+        {"View", {"View"}, 292, 333 + 7 + 5 * 24 + 7 + 6 * 24 + 24},
         {"View__Camera", {"View", "Camera"}, 255, 216},
         {"View__Orthographic", {"View", "Orthographic"}, 307, 240},
         {"View__Show", {"View", "Show"}, 253, 401},

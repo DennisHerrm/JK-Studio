@@ -79,6 +79,22 @@ KARTE_WERKZEUGE9 = {
             "**{{KeStMenue}}** packt den Import-Ordner ins Testarchiv, damit das Spiel Modelle, Shader und Texturen findet. Für eine Veröffentlichung kopiere den Ordner `models/import` und die `scripts` des Import-Ordners in deine Mod oder .pk3.",
             "**{{KeStMenue}}** 会把导入文件夹打包进测试存档,使游戏能找到模型、着色器和纹理。发布时,请把导入文件夹中的 `models/import` 文件夹和 `scripts` 复制到你的模组或 pk3 中。",
             "**{{KeStMenue}}** はインポートフォルダーをテスト用アーカイブに入れるので、ゲームがモデル・シェーダー・テクスチャを見つけられます。公開するときは、インポートフォルダーの `models/import` フォルダーと `scripts` を MOD または pk3 にコピーしてください。")),
+        ("h2", "sprung", T("Check jumps and space", "Sprünge und Platz prüfen", "检查跳跃与空间", "ジャンプと空間を確認")),
+        ("p", T(
+            "**{{KeLView}} > {{KeSjMenue}} > {{KeSjPruefen}}** checks the selection (or 512 units around the camera) with the movement of the game: where the player can stand (green crosses) or fits only crouched (yellow), and from which edges a running jump lands on another floor - blue for a normal jump, purple where only the force jump of the chosen level gets there. It runs in the background; **{{KeSjLeeren}}** removes the display.",
+            "**{{KeLView}} > {{KeSjMenue}} > {{KeSjPruefen}}** prüft die Auswahl (sonst 512 Einheiten um die Kamera) mit der Bewegung des Spiels: wo der Spieler stehen kann (grüne Kreuze) oder nur geduckt passt (gelb), und von welchen Kanten ein Sprung mit Anlauf auf einem anderen Boden landet - blau ein normaler Sprung, violett, wo nur der Machtsprung der gewählten Stufe hinkommt. Sie läuft im Hintergrund; **{{KeSjLeeren}}** nimmt die Anzeige weg.",
+            "**{{KeLView}} > {{KeSjMenue}} > {{KeSjPruefen}}** 使用游戏的移动方式检查所选内容(否则为摄像机周围 512 单位):玩家可以站立的位置(绿色十字)或只能蹲下的位置(黄色),以及从哪些边缘助跑跳跃能落到另一层地面——蓝色为普通跳跃,紫色为只有所选等级的原力跳跃才能到达。它在后台运行;**{{KeSjLeeren}}** 会清除显示。",
+            "**{{KeLView}} > {{KeSjMenue}} > {{KeSjPruefen}}** は選択範囲(なければカメラの周り 512 ユニット)をゲームの動きで調べます:プレイヤーが立てる場所(緑の×)、しゃがんでだけ入れる場所(黄)、そして助走ジャンプで別の床に届く縁です。青は普通のジャンプ、紫は選んだレベルのフォースジャンプでだけ届く所です。バックグラウンドで動き、**{{KeSjLeeren}}** で表示を消します。")),
+        ("list", [
+            T("The movement is the port of the game code: running speed 250, gravity 800, jump 225, the player box 32 x 32 x 64 (crouched 40), steps up to 18 units, floors up to 45 degrees. The force jump follows the game: holding the jump key it rises up to 96, 192 or 384 units (levels 1 to 3); letting go earlier jumps lower. Jedi Outcast and Movie Duels compute it the same way.",
+              "Die Bewegung ist der Nachbau des Spielcodes: Laufen 250, Schwerkraft 800, Sprung 225, der Spielerkasten 32 x 32 x 64 (geduckt 40), Stufen bis 18 Einheiten, Böden bis 45 Grad. Der Machtsprung folgt dem Spiel: mit gehaltener Sprungtaste steigt er bis 96, 192 oder 384 Einheiten (Stufe 1 bis 3); früher losgelassen springt er niedriger. Jedi Outcast und Movie Duels rechnen ihn genauso.",
+              "移动是游戏代码的移植:奔跑速度 250、重力 800、跳跃 225、玩家盒 32 x 32 x 64(蹲下 40)、台阶最高 18 单位、地面坡度最高 45 度。原力跳跃与游戏一致:按住跳跃键时最高上升 96、192 或 384 单位(等级 1 到 3);提前松开则跳得更低。Jedi Outcast 和 Movie Duels 的计算方式相同。",
+              "動きはゲームのコードの移植です:走る速さ 250、重力 800、ジャンプ 225、プレイヤーの箱 32 x 32 x 64(しゃがみ 40)、段差は 18 ユニットまで、床は 45 度まで。フォースジャンプもゲームどおりで、ジャンプキーを押し続けると 96・192・384 ユニット(レベル 1〜3)まで上がり、早く離すと低くなります。Jedi Outcast と Movie Duels も同じ計算です。"),
+            T("The chosen force jump level also applies to **{{KeSpMenue}}** (F6): hold the space bar to jump higher.",
+              "Die gewählte Machtsprung-Stufe gilt auch für **{{KeSpMenue}}** (F6): Leertaste halten springt höher.",
+              "所选的原力跳跃等级也适用于 **{{KeSpMenue}}**(F6):按住空格键可以跳得更高。",
+              "選んだフォースジャンプのレベルは **{{KeSpMenue}}**(F6)にも使われます。スペースキーを押し続けると高く跳びます。"),
+        ]),
     ],
 }
 

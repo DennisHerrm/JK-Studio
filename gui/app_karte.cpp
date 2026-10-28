@@ -1487,6 +1487,7 @@ void zeichne(float hoehe) {
     if (!e.belegungGeladen) { einstellungenLaden(); }
     spielPruefen();
     npcModelleVorab();   // Stufe 7: die NPC-Dateien des Optimierers im Faden, nicht beim ersten Oeffnen
+    sprungPruefungSchritt();   // Stufe 9 Punkt 4
     echtLichtSchritt(geometrieStand());   // Stufe 7 Punkt 5b: Schnell-Backen nach einer Pause ohne Aenderung
     letzteKarteBeimStart();
     enginePfadPruefen();   // EnginePath_verify (MainFrame_Construct)

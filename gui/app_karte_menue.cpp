@@ -366,6 +366,44 @@ void listeZeichnen(const std::string& name) {
                 einstellungenSpeichern();
             }
         }
+        // Stufe 9 Punkt 4 (eigene Funktion): Sprungweite und Platz pruefen
+        {
+            const std::string id = std::string(trK(Str::KeSjMenue)) + "###sprungpruefung";
+            if (qtMenueAnfang(id.c_str())) {
+                const std::string pr = std::string(trK(Str::KeSjPruefen)) + "###sprungpruefen";
+                QtPunkt p;
+                p.id = pr.c_str();
+                p.aktiv = !e().sprungLaeuft;
+                p.tooltip = trK(Str::KeSjMenueTip);
+                if (qtPunkt(p)) { sprungPruefungStarten(); }
+                qtTrenner();
+                for (int st = 0; st <= 3; ++st) {
+                    char z[160];
+                    if (st == 0) {
+                        std::snprintf(z, sizeof(z), "%s###sprungmacht0", trK(Str::KeSjOhneMacht));
+                    } else {
+                        std::snprintf(z, sizeof(z), trK(Str::KeSjMacht), st);
+                        std::snprintf(z + std::strlen(z), sizeof(z) - std::strlen(z), "###sprungmacht%d", st);
+                    }
+                    QtPunkt m;
+                    m.id = z;
+                    m.art = QtArt::Exklusiv;
+                    m.haken = e().sprungMacht == st;
+                    m.tooltip = trK(Str::KeSjMachtTip);
+                    if (qtPunkt(m)) {
+                        e().sprungMacht = st;
+                        einstellungenSpeichern();
+                    }
+                }
+                qtTrenner();
+                const std::string le = std::string(trK(Str::KeSjLeeren)) + "###sprungleeren";
+                QtPunkt l;
+                l.id = le.c_str();
+                l.aktiv = static_cast<bool>(e().sprungBericht) || e().sprungLaeuft;
+                if (qtPunkt(l)) { sprungPruefungLeeren(); }
+                qtMenueEnde();
+            }
+        }
         // Stufe 7 Punkt 6b (shank: "settings in den Map editor auch einbauen das
         // man theme und language aendern kann"): die Einstellungen des Programms
         // als eigener Abschnitt am Ende von NRCs View-Menue (nicht in NRC;
@@ -1342,6 +1380,7 @@ void einstellungenLaden() {
         const auto ziel = k.find("BuildTargetFolder");   // Abweichung: Ziel-Ordner
         b.zielOrdner = ziel != k.end() ? ziel->second : std::string();
         b.melden = zahl("BhedBuildNotify", 1) != 0.0F;   // Stufe 8a (eigene Einstellung)
+        ed.sprungMacht = std::clamp(static_cast<int>(zahl("BhedJumpCheckForce", 2)), 0, 3);   // Stufe 9 Punkt 4
         const auto test = k.find("BhedTestGameExe");   // Stufe 9 Punkt 1: Im Spiel testen
         b.testExe = test != k.end() ? test->second : std::string();
         b.editorDaten = zahl("BhedKeepEditorData", 0) != 0.0F;
@@ -1476,6 +1515,7 @@ void einstellungenSpeichern() {
     k["BuildDumpLog"] = ed.bau.logAusgeben ? "1" : "0";
     k["BuildTargetFolder"] = ed.bau.zielOrdner;
     k["BhedBuildNotify"] = ed.bau.melden ? "1" : "0";
+    k["BhedJumpCheckForce"] = std::to_string(ed.sprungMacht);
     k["BhedTestGameExe"] = ed.bau.testExe;
     k["BhedKeepEditorData"] = ed.bau.editorDaten ? "1" : "0";
     k["BhedVisReuse"] = ed.bau.visWieder ? "1" : "0";

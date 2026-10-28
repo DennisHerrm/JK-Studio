@@ -421,6 +421,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_kleineplugins.cpp
     gui/app_karte_terrain.cpp
     gui/app_karte_geoimport.cpp
+    gui/app_karte_sprung.cpp
     gui/app_karte_spielen.cpp
     gui/app_karte_logik.cpp
     gui/app_karte_ansichtsmodi.cpp

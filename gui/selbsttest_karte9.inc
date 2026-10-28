@@ -211,6 +211,39 @@ std::vector<Schritt> schritte() {
         }
         return true;
     }));
+    // --- Punkt 4: Sprungweite und Platz ------------------------------------------------------
+    // View > Check jumps and space > Check (Machtstufe 2): im Raum des Tutorials gibt es
+    // Stehplaetze auf dem Boden, Kanten an den Waenden; die Anzeige hat Linien; Clear leert.
+    add(tu("Sprung: Machtstufe 2, Menue View", [] {
+        karteDialogeZu();
+        ke::konsoleLeeren();
+        ke::editor().sprungMacht = 2;
+    }));
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeSjMenue)) + "###sprungpruefung"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeSjPruefen)) + "###sprungpruefen"));
+    add(stufe8::warteSek("Sprung: Pruefung fertig", [] { return !ke::editor().sprungLaeuft && ke::editor().sprungBericht != nullptr; }, 120));
+    add(pause(0.3));
+    add(pruefe("Sprung: Stehplaetze im Raum, Kanten an den Waenden, Linien in der 2D-Ansicht, Konsole", [] {
+        const auto& b = ke::editor().sprungBericht;
+        if (!b) { return false; }
+        std::size_t stehen = 0;
+        for (const auto& p : b->punkte) { stehen += p.stehen ? 1 : 0; }
+        std::size_t linien = 0;
+        for (const auto& pl : ke::pluginLinien2d()) { linien += pl.linien.size(); }
+        diag::detail("Knopftest: Sprung - Punkte " + std::to_string(b->punkte.size()) + ", stehen " + std::to_string(stehen) + ", Kanten " +
+                     std::to_string(b->kanten) + ", Spruenge " + std::to_string(b->spruenge.size()) + ", Linien " + std::to_string(linien));
+        return stehen >= 20 && b->kanten >= 4 && linien >= 2 * stehen && konsoleText().find("Jumps and space:") != std::string::npos;
+    }));
+    add(tu("Sprung: Clear, Einstellungen speichern", [] {
+        ke::sprungPruefungLeeren();
+        ke::einstellungenSpeichern();
+    }));
+    add(pruefe("Sprung: geleert, die Einstellung gespeichert (BhedJumpCheckForce 2)", [] {
+        return ke::editor().sprungBericht == nullptr && g_app->settings.karte["BhedJumpCheckForce"] == "2";
+    }));
     add(tu("Geometrie: Ende - Import-Ordner weg (spaetere Befehlsvergleiche ohne -fs_pakpath)", [] {
         karteDialogeZu();
         ke::konsoleLeeren();
