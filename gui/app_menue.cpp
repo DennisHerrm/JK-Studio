@@ -1942,6 +1942,7 @@ Stand stand() {
     s.menus = static_cast<int>(d->datei.menus.size());
     for (const Menu& m : d->datei.menus) { s.items += static_cast<int>(m.items.size()); }
     s.seite = d->seite;
+    s.seiten = static_cast<int>(seitenImMenue(d->datei).size());
     s.auswahl = d->auswahl;
     s.text = d->puffer.text();
     s.meldungen = static_cast<int>(d->datei.meldungen.size());
@@ -2012,6 +2013,13 @@ void setzeCvar(const std::string& name, const std::string& wert) {
     Zustand& z = Z();
     if (z.interaktion) { z.lauf.setzeCvar(name, wert); }
     else { z.vorschauCvars[kleinPfad(name)] = wert; }
+}
+
+std::string cvarWert(const std::string& name) {
+    Zustand& z = Z();
+    if (z.interaktion) { return z.lauf.cvar(name); }
+    const auto it = z.vorschauCvars.find(kleinPfad(name));
+    return it == z.vorschauCvars.end() ? std::string() : it->second;
 }
 
 bool rueckgaengig() {

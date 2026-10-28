@@ -24,6 +24,7 @@ struct Stand {
     int menus = 0;
     int items = 0;
     int seite = 0;
+    int seiten = 0;          // Reiter ueber der Flaeche
     std::vector<int> auswahl;
     std::string text;
     int meldungen = 0;
@@ -39,6 +40,7 @@ void verschiebeAuswahl(float dx, float dy);
 void setzeInteraktion(bool an);
 void klickVorschau(float x, float y);   // im virtuellen Bildschirm
 void setzeCvar(const std::string& name, const std::string& wert);
+[[nodiscard]] std::string cvarWert(const std::string& name);   // Vorschau bzw. Bedienen
 bool rueckgaengig();
 bool wiederholen();
 void fuegeEin(int typ);
