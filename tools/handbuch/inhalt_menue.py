@@ -26,6 +26,10 @@ MENUE_EDITOR = {
             "**{{MeMeldungen}}** 逐字显示游戏加载该文件时会输出的内容及行号(例如 `Unknown item keyword 'foo' Line #21`)。单击跳转到该行;代码编辑器将其标为红色。",
             "**{{MeMeldungen}}** には、ゲームがファイルを読み込むときに出す内容が原文のまま行番号つきで表示されます(例:`Unknown item keyword 'foo' Line #21`)。クリックするとその行へ移動し、コードエディターで赤く表示されます。")),
         ("h2", "flaeche", T("Canvas and pages", "Fläche und Seiten", "画布与页面", "キャンバスとページ")),
+        ("img", "menue_original", T("The multiplayer main menu of Jedi Academy, read from the game files and drawn like the game.",
+                                    "Das Mehrspieler-Hauptmenü von Jedi Academy, aus den Spieldateien gelesen und gezeichnet wie im Spiel.",
+                                    "Jedi Academy 的多人主菜单,从游戏文件读取并按游戏方式绘制。",
+                                    "Jedi Academy のマルチプレイのメインメニュー。ゲームのファイルから読み込み、ゲームと同じように描画しています。"), "breit"),
         ("p", T(
             "Every `menuDef` of the file is a tab above the canvas; items that are shown by a cvar with several values (`cvarTest` + `showCvar`, like `ui_tab` pages) get a tab per value. **+** adds a new `menuDef`. The canvas is the game's virtual 640x480 screen: **{{MeStrecken}}** like the original game, **{{MeBalken}}**, and preset resolutions to check the aspect ratio.",
             "Jeder `menuDef` der Datei ist ein Reiter über der Fläche; Items, die ein Cvar mit mehreren Werten zeigt (`cvarTest` + `showCvar`, wie `ui_tab`-Seiten), bekommen je Wert einen Reiter. **+** fügt einen neuen `menuDef` an. Die Fläche ist der virtuelle 640x480-Bildschirm des Spiels: **{{MeStrecken}}** wie das Originalspiel, **{{MeBalken}}** und feste Auflösungen, um das Seitenverhältnis zu prüfen.",
@@ -50,6 +54,10 @@ MENUE_EDITOR = {
               "**{{MeEigenschaften}}** で選んだ項目を編集し、複数なら揃え・均等配置・グループ化ができます。**{{MeNachVorn}}**/**{{MeNachHinten}}** で描画順(ゲームはファイル順に描画)を変えます。**{{MeSperren}}** で項目を動かないようにします。"),
         ]),
         ("h2", "bedienen", T("Interact and cvars", "Bedienen und Cvars", "交互与 Cvar", "操作と Cvar")),
+        ("img", "menue_palette", T("A new button from the palette: selected on the canvas, its itemDef in the code below, its properties on the right.",
+                                   "Ein neuer Knopf aus der Palette: gewählt auf der Fläche, sein itemDef unten im Code, rechts seine Eigenschaften.",
+                                   "从控件面板新建的按钮:在画布上被选中,下方代码中是它的 itemDef,右侧是它的属性。",
+                                   "パレットから追加したボタン。キャンバスで選択され、下のコードにその itemDef、右にプロパティが表示されています。"), "breit"),
         ("p", T(
             "**{{MeBedienen}}** runs the menu like the game: hovering gives focus (`mouseEnter`, `onFocus`), a click runs the item's `action`, yes/no, multi choice and sliders change their cvar, and `open`, `close`, `show`, `hide`, `setfocus`, `setcvar`, `setitemtext`, `transition` ... work like in ui_shared. What needs the game (sounds, `exec`, `uiScript`) appears in **{{MeProtokoll}}**.",
             "**{{MeBedienen}}** führt das Menü wie das Spiel aus: Darüberfahren gibt den Fokus (`mouseEnter`, `onFocus`), ein Klick führt die `action` des Items aus, Ja/Nein, Mehrfachwahl und Schieber ändern ihren Cvar, und `open`, `close`, `show`, `hide`, `setfocus`, `setcvar`, `setitemtext`, `transition` ... wirken wie in ui_shared. Was das Spiel braucht (Klänge, `exec`, `uiScript`), erscheint im **{{MeProtokoll}}**.",
@@ -61,6 +69,10 @@ MENUE_EDITOR = {
             "**{{MeCvars}}** 列出菜单读取或设置的所有 cvar,控制可见性的排在前面,并附有出现的值。修改它们可查看其他状态。它们只存在于预览中——绝不会改动你的游戏配置。",
             "**{{MeCvars}}** にはメニューが読む・設定するすべての cvar が、表示を制御するものを先頭に、出てくる値とともに並びます。変えるとほかの状態を確認できます。プレビューの中だけのもので、ゲームの設定には一切触れません。")),
         ("h2", "code", T("Code editor", "Code-Editor", "代码编辑器", "コードエディター")),
+        ("img", "menue_bedienen", T("Interact: the page cvar `ui_tab` shows the red box, a click on Yes/No changes `ui_probe`.",
+                                    "Bedienen: der Seiten-Cvar `ui_tab` zeigt den roten Kasten, ein Klick auf Ja/Nein ändert `ui_probe`.",
+                                    "交互:页面 cvar `ui_tab` 显示红色方框,单击“是/否”会改变 `ui_probe`。",
+                                    "操作:ページの cvar `ui_tab` で赤い箱が表示され、はい/いいえのクリックで `ui_probe` が変わります。"), "breit"),
         ("keys", [
             ("Ctrl+F / Ctrl+H", T("find / replace (regex, case, whole word, all open menus); matches are marked in the minimap",
                                   "Suchen / Ersetzen (Regex, Groß/Klein, ganzes Wort, alle offenen Menüs); Treffer stehen in der Minimap",
@@ -90,6 +102,10 @@ MENUE_EDITOR = {
             "Der Rand arbeitet wie im Skript-Editor: orange = seit dem Speichern geändert, grün = geändert und gespeichert, blau = wieder wie beim Öffnen. `menuDef`, `itemDef` und Skriptblöcke falten mit dem +/- neben den Zeilennummern. Ein Klick auf ein Item der Fläche springt zu seinem `itemDef`, und der Cursor in einem `itemDef` wählt das Item.",
             "边栏与脚本编辑器相同:橙色 = 保存后已更改,绿色 = 已更改并已保存,蓝色 = 恢复到打开时的状态。`menuDef`、`itemDef` 和脚本块可用行号旁的 +/- 折叠。单击画布上的项会跳到其 `itemDef`,光标位于某个 `itemDef` 中时会选中该项。",
             "余白はスクリプトエディターと同じです:オレンジ = 保存後に変更、緑 = 変更して保存済み、青 = 開いたときの状態に戻った行。`menuDef`、`itemDef`、スクリプトのブロックは行番号の横の +/- で折りたためます。キャンバスの項目をクリックするとその `itemDef` へ移動し、`itemDef` 内のカーソルでその項目が選ばれます。")),
+        ("img", "menue_suchen", T("Find with a regular expression: matches in the text and in the minimap, an engine message marked red in line 49.",
+                                  "Suchen mit regulärem Ausdruck: Treffer im Text und in der Minimap, eine Meldung der Engine rot in Zeile 49.",
+                                  "使用正则表达式查找:匹配项显示在文本和小地图中,引擎消息在第 49 行以红色标出。",
+                                  "正規表現で検索:一致箇所がテキストとミニマップに表示され、49 行目のエンジンのメッセージは赤で示されます。"), "breit"),
         ("h2", "speichern", T("Save and export", "Speichern und Export", "保存与导出", "保存とエクスポート")),
         ("p", T(
             "**{{MeSpeichern}}** writes the text exactly as it is in the editor; a file opened from the game is saved elsewhere. **{{MeExportPk3}}** packs the menu under its game path plus your images into a .pk3. Neither ever writes into the game folders.",

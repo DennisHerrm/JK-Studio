@@ -63,10 +63,15 @@ const char* const kSp =
     "}\n";
 
 std::vector<Schritt> schritte() {
+    // Sprache fuer die Handbuchbilder (wie handbuchSchritte): BHED_SPRACHE = en / de / zh / ja
+    if (const char* sp = std::getenv("BHED_SPRACHE")) {
+        if (const i18n::LanguageInfo* l = i18n::findLanguage(sp)) { i18n::setLanguage(l->language); }
+    }
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     auto st = [] { return me::stand(); };
     auto orig = std::make_shared<std::string>(kSp);
+    add(pause(1.0));   // erst das Fenster in Ruhe (ja: der Knopf lag beim ersten Bild noch halb draussen)
     add(klick(tr(Str::ViewMenuEditor), "###main"));
     add(pause(0.2));
     add(pruefe("Menue-Editor: Modus 4 aktiv", [] { return g_app->leftMode == 4 && me::aktiv(); }));
