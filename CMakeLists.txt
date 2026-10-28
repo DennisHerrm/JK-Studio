@@ -1037,7 +1037,9 @@ target_sources(bhed_core PRIVATE
   src/menue/texte.cpp
   src/menue/spieldaten.cpp
   # Punkt 2: Vorschau wie Menu_Paint/Item_Paint/RE_Font_DrawString
-  src/menue/vorschau.cpp)
+  src/menue/vorschau.cpp
+  # Punkt 3: Textpuffer des Code-Editors
+  src/menue/textpuffer.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -1092,6 +1094,10 @@ if(BEHAVED_TESTS)
   add_executable(menuevorschau tests/menuevorschau.cpp)
   target_link_libraries(menuevorschau PRIVATE bhed_core)
   add_test(NAME menue_vorschau COMMAND menuevorschau)
+  # Punkt 3: Textpuffer (Mehrfachcursor, Undo, Suchen/Ersetzen, Klammern, Falten, Rand, Farben)
+  add_executable(menuetext tests/menuetext.cpp)
+  target_link_libraries(menuetext PRIVATE bhed_core)
+  add_test(NAME menue_text COMMAND menuetext)
   add_executable(menuerundlauf tests/menuerundlauf.cpp)
   target_link_libraries(menuerundlauf PRIVATE bhed_core)
   add_test(NAME menue_rundlauf COMMAND menuerundlauf "${BEHAVED_KARTE_JA}" "${BEHAVED_KARTE_JK2}" ${BEHAVED_KARTE_MD})
