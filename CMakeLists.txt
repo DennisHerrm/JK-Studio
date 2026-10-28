@@ -44,6 +44,8 @@ add_library(bhed_core STATIC
   src/tour.cpp
   # H1: der Helfer - Index ueber Touren, Handbuch, Menues und Einstellungen.
   src/hilfe.cpp
+  # H1: die freiwillige KI-Anbindung - Werkzeuge, MCP (JSON-RPC), HTTP-Pruefung, Chat.
+  src/ki.cpp
   src/bhc.cpp
   src/validate.cpp
   src/tree.cpp
@@ -222,6 +224,9 @@ target_sources(bhed_core PRIVATE src/eingebaut.cpp)
 if(WIN32)
   target_sources(bhed_core PRIVATE src/update_einspielen.cpp)
   target_link_libraries(bhed_core PUBLIC bcrypt)
+  # H1: KI-Anbindung - DPAPI, WinHTTP (TLS), lokaler MCP-Server (nur 127.0.0.1), stdio.
+  target_sources(bhed_core PRIVATE src/ki_win32.cpp)
+  target_link_libraries(bhed_core PUBLIC winhttp ws2_32 crypt32)
 endif()
 include(${CMAKE_CURRENT_SOURCE_DIR}/tools/eingebaute_daten.cmake)
 file(GLOB BEHAVED_EINGEBAUT CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/data/base/*")
@@ -699,6 +704,11 @@ if(BEHAVED_TESTS)
   add_executable(hilfetest tests/hilfetest.cpp)
   target_link_libraries(hilfetest PRIVATE bhed_core)
   add_test(NAME hilfe COMMAND hilfetest ${CMAKE_CURRENT_SOURCE_DIR}/handbuch)
+  # H1: KI-Anbindung - Pruefungen (Host, Origin, Token), JSON-RPC mit boesartigen
+  # Anfragen, Prompt-Injection, lokaler Fake-Server statt Netz, MCP-Testclient.
+  add_executable(kitest tests/kitest.cpp)
+  target_link_libraries(kitest PRIVATE bhed_core)
+  add_test(NAME ki COMMAND kitest)
   # Gegenproben zur Code-Pruefung vom 03.10.2026 (Skriptkern, Kartenleser,
   # Einstellungen, Modell- und Archivleser).
   add_executable(pruefung tests/pruefung.cpp)

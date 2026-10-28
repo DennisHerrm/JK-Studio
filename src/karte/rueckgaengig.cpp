@@ -158,6 +158,7 @@ bool Rueckgaengig::finishRedo(const std::string& befehl) {
 
 // start (undo.cpp:284-291)
 void Rueckgaengig::start() {
+    if (m_gruppe > 0) { return; }   // H1: in einer Gruppe gehoert alles zum offenen Schritt
     m_redoStapel.leeren();
     if (m_undoStapel.groesse() == m_stufen && !m_undoStapel.leer()) {
         m_undoStapel.vorneEntfernen();
@@ -169,10 +170,21 @@ void Rueckgaengig::start() {
 
 // finish (undo.cpp:292-301)
 void Rueckgaengig::finish(const std::string& name) {
+    if (m_gruppe > 0) { return; }   // H1
     if (m_befehlOffen && vorAbschluss) { vorAbschluss(); }
     m_befehlOffen = false;
     ++m_abschluesse;
     if (finishUndo(name) && ausgabe) { ausgabe(name); }
+}
+
+// H1: eine Gruppe von Befehlen als ein Schritt.
+void Rueckgaengig::gruppeBeginnen() {
+    if (m_gruppe == 0) { start(); }
+    ++m_gruppe;
+}
+void Rueckgaengig::gruppeBeenden(const std::string& name) {
+    if (m_gruppe == 0) { return; }
+    if (--m_gruppe == 0) { finish(name); }
 }
 
 // undo (undo.cpp:302-317)

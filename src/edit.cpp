@@ -1806,6 +1806,14 @@ bool Document::pasteInto(const Path& block) {
     return true;
 }
 
+void Document::fasseZusammen(std::size_t ab, const char* was) {
+    if (undo_.size() <= ab) { return; }
+    if (savedDepth_ > ab + 1 && savedDepth_ <= undo_.size()) { savedDepth_ = static_cast<std::size_t>(-1); }   // bleibt "geaendert"
+    undo_.erase(undo_.begin() + static_cast<std::ptrdiff_t>(ab) + 1, undo_.end());
+    undo_[ab].what = was;
+    ++stand_;
+}
+
 bool Document::undo() {
     if (undo_.empty()) {
         return false;
