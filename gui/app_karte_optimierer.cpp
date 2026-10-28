@@ -306,6 +306,7 @@ void shaderArten(const karte::KartenAbbild& a, karte::PruefOptionen& o) {
                 art.ursprung = sk.ursprung;
                 art.lightmapBreite = sk.lightmapBreite;   // Stufe 6 (NRC#48/#98)
                 art.lightmapHoehe = sk.lightmapHoehe;
+                if (sk.durchsichtig) { art.undurchsichtig = false; }   // Fund md_rev_TarisUpper2: Glas nur mit blendFunc
             }
             const unsigned f = s->flags;
             if ((f & (QER_TRANS | QER_NONSOLID | QER_FOG | QER_LIQUID | QER_ALPHATEST | QER_AREAPORTAL | QER_CLIP | QER_BOTCLIP)) != 0) {
