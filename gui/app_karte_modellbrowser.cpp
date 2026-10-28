@@ -191,6 +191,9 @@ void modellEinfuegen() {
 void modellZuweisen() {
     Editor& ed = e();
     Zustand& s = z();
+    // Stufe 9 (Schlussrunde): aktuell kann noch auf eine Zelle eines anderen Ordners zeigen -
+    // ohne diese Pruefung lief ein Klick in einen leeren Ordner hinter die Liste (0xC0000005)
+    if (s.aktuell < 0 || static_cast<std::size_t>(s.aktuell) >= s.dateien.size()) { return; }
     const std::string pfad = s.ordnerPfad + s.dateien[static_cast<std::size_t>(s.aktuell)];
     karte::Karte& k = ed.karte;
     k.undo.start();

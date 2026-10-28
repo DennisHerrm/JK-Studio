@@ -86,7 +86,8 @@ std::vector<Schritt> karteneditorRahmenSchritte() {
         return klickAn("in die Statuszeile (Menues zu)", [] {
             ImGuiWindow* w = karteFenster();
             if (w == nullptr) { return ImVec2{5, 5}; }
-            return ImVec2{w->Pos.x + w->Size.x * 0.25F, w->Pos.y + w->Size.y - ImGui::GetTextLineHeight() * 0.5F - 2.0F};
+            // Stufe 9: ganz links - das Build-Menue reicht mit "Test in game" bis an die Statuszeile
+            return ImVec2{w->Pos.x + 12.0F, w->Pos.y + w->Size.y - ImGui::GetTextLineHeight() * 0.5F - 2.0F};
         });
     };
     // 1. Jedes Menue oeffnen; alle Eintraege der ersten Ebene muessen da sein,

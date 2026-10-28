@@ -5604,7 +5604,9 @@ std::vector<Schritt> karteneditorFotoSchritte() {
     };
     const std::vector<MenueFoto> menues = {
         // File: NRC + "Open .bsp..." 24 (Stufe 4 Punkt 1, Abweichung)
-        {"File", {"File"}, 212, 285 + 24},
+        // Stufe 9 Punkt 2: dazu "Import geometry as brushes..." (eigene Funktion) - eine Zeile mehr, und der
+        // laengste Eintrag bestimmt die Breite (QMenu: Text + Raender)
+        {"File", {"File"}, 291, 285 + 24 + 24},
         {"Edit", {"Edit"}, 356, 549},
         // View: NRC + die Programm-Eintraege (Stufe 7 Punkt 6b, Abweichung): Trenner 7 + fuenf Untermenues je 24
         // + Stufe 8b (Abweichung): Trenner 7 + "Play in editor", "Play: start at info_player_start",
@@ -5631,7 +5633,8 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         // der laengste Text "Partial compile: reuse light" mit Hakenspalte: 215 -> 241)
         // + "Pack map as .pk3" 24 (Stufe 8c, Abweichung; kuerzer als 241)
         // + "GPU bake" 24 (Stufe 8g, Abweichung; kuerzer als 241)
-        {"Build", {"Build"}, 241, 405 + 7 + 24 + 24 + 24 + 24 + 24 + 5 * 24 + 24 + 24},
+        // Stufe 9 Punkt 1: dazu das Untermenue "Test in game" (eigene Funktion)
+        {"Build", {"Build"}, 241, 405 + 7 + 24 + 24 + 24 + 24 + 24 + 5 * 24 + 24 + 24 + 24},
         {"Grid", {"Grid"}, 163, 346},
         // Misc und Help: NRC + die Programm-Eintraege (Stufe 3 Punkt 0b, Abweichung):
         // Misc + Trenner 7 + drei Untermenues je 24, Help + Manual und About BehavEd.
