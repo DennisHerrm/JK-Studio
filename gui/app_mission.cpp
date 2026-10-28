@@ -3937,7 +3937,18 @@ void drawStartflaeche(float breite, float hoehe) {
     const ImGuiStyle& st = ImGui::GetStyle();
     const float spalte = std::min(ImGui::GetContentRegionAvail().x - fs * 2.0F, fs * 46.0F);
     const float links = std::max(fs, (ImGui::GetContentRegionAvail().x - spalte) * 0.5F);
-    ImGui::SetCursorPosY(std::max(fs, hoehe * 0.10F));
+    ImGui::SetCursorPosY(std::max(fs, hoehe * 0.06F));
+    // Stufe 8d: das Logo von JK Studio ueber dem Titel (bis 8c nur im Ueber-Dialog und im Handbuch)
+    {
+        int lb = 0;
+        int lh = 0;
+        if (void* jk = jkLogoTextur(lb, lh); jk != nullptr && lh > 0) {
+            const float h = fs * 6.0F;
+            ImGui::SetCursorPosX(links);
+            ImGui::Image(reinterpret_cast<ImTextureID>(jk), ImVec2{h * static_cast<float>(lb) / static_cast<float>(lh), h});
+            ImGui::Dummy(ImVec2{0.0F, fs * 0.3F});
+        }
+    }
     ImGui::SetCursorPosX(links);
     ImGui::PushFont(nullptr, fs * 1.6F);
     ImGui::TextUnformatted(tr(Str::StartTitle));

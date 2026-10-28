@@ -1147,11 +1147,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         CreateDirectoryW(::bhed::utf8Pfad(logDir).wstring().c_str(), nullptr);
     }
     bool logging = !logDir.empty() &&
-                   bhed::diag::open(logDir + "\\behaved.log");
+                   bhed::diag::open(logDir + "\\jkstudio.log");
     if (!logging) {
         logDir = bhed::platform::settingsDirectory();
         logging = !logDir.empty() &&
-                  bhed::diag::open(logDir + "\\behaved.log");
+                  bhed::diag::open(logDir + "\\jkstudio.log");
     }
     // Das Detailprotokoll daneben, im selben Ordner.
     //
@@ -1162,7 +1162,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     // fuenfzig Zeilen des Ablaufprotokolls gemischt waere beides
     // unbrauchbar.
     if (logging) {
-        (void)bhed::diag::openDetail(logDir + "\\behaved-detail.log");
+        (void)bhed::diag::openDetail(logDir + "\\jkstudio-detail.log");
     }
     SetUnhandledExceptionFilter(logCrash);
     if (logging) {
@@ -1176,10 +1176,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
             {"gebaut", std::string(__DATE__) + " " + __TIME__},
             {"Windows", windowsVersion()},
             {"DPI", std::to_string(windowDpi(nullptr))},
-            {"Protokoll", logging ? logDir + "\\behaved.log" : std::string("nicht schreibbar")},
+            {"Protokoll", logging ? logDir + "\\jkstudio.log" : std::string("nicht schreibbar")},
             // Damit man weiss, dass es die zweite Datei gibt.
             {"Detail", bhed::diag::detailOn()
-                            ? logDir + "\\behaved-detail.log"
+                            ? logDir + "\\jkstudio-detail.log"
                             : std::string("aus")},
             {"Gebiet", systemLocale()},
         });

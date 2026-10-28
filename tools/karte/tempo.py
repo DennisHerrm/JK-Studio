@@ -192,7 +192,9 @@ def _behaved_lauf(a, name, modus, env_extra, zeitgrenze):
     env.update({'BHED_EINSTELLUNGEN': os.path.join(d, 'einst'), 'BHED_EDITORTEST': modus, 'BHED_D3D_DEBUG': '0'})
     env.update(env_extra)
     s, rc, sp = lauf([os.path.join(d, 'behaved.exe')], cwd=d, env=env, zeitgrenze=zeitgrenze)
-    log = os.path.join(d, 'behaved-detail.log')
+    log = os.path.join(d, 'jkstudio-detail.log')   # Stufe 8d (bis 8c behaved-detail.log)
+    if not os.path.exists(log):
+        log = os.path.join(d, 'behaved-detail.log')
     text = ''
     if os.path.exists(log):
         with open(log, 'rb') as f:

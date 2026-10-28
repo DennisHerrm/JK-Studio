@@ -5401,10 +5401,10 @@ std::vector<Schritt> eigenstaendigSchritte() {
     add(pruefe("Eigenstaendig: ohne auspackbare Daten endet der Start mit 2, ohne Meldungsfenster",
                [=] { return *code2 == 2; }));
     add(pruefe("Eigenstaendig: die Meldung nennt den Ordner, in den ausgepackt werden sollte, und den Grund (Deutsch)", [=] {
-        // Die Kopie protokolliert neben sich (behaved.log), Zeilenenden egal.
+        // Die Kopie protokolliert neben sich (jkstudio.log), Zeilenenden egal.
         std::string log;
         {
-            std::ifstream f(*basis2 / "prog" / "behaved.log", std::ios::binary);
+            std::ifstream f(*basis2 / "prog" / "jkstudio.log", std::ios::binary);
             log.assign((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
         }
         const auto vereinheitlicht = [](std::string t) {
@@ -39346,6 +39346,16 @@ std::vector<Schritt> handbuchSchritte() {
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "hilfe") == 0) {
         std::vector<Schritt> t;
         t.push_back(tu("Handbuch Hilfe: Skript-Ansicht", [] { g_app->leftMode = 0; }));
+        t.push_back(pause(0.5));
+        // Stufe 8d: die Startflaeche (ohne Karte, Ansicht Vorschau) zeigt das Logo von JK Studio ueber dem Titel
+        t.push_back(tu("Handbuch Hilfe: Vorschau ohne Karte", [] { g_app->leftMode = 1; }));
+        t.push_back(warteBis("Startflaeche: sichtbar, das Logo von JK Studio geladen", [] {
+            int b = 0;
+            int h = 0;
+            return hb::fensterRect("##startflaeche").GetWidth() > 0.0F && jkLogoTextur(b, h) != nullptr && b > 0 && h > 0;
+        }, 600));
+        t.push_back(hb::fotoTeil("h_start", [] { return hb::fensterRect("##startflaeche"); }));
+        t.push_back(tu("Handbuch Hilfe: zurueck zur Skript-Ansicht", [] { g_app->leftMode = 0; }));
         t.push_back(pause(0.5));
         t.push_back(klick(tr(Str::MenuHelp), "###main"));
         t.push_back(pause(0.5));

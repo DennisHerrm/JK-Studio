@@ -129,7 +129,8 @@ def laufen(a):
             probleme.append({'karte': karte, 'nr': nr, 'grund': grund or ('abgestuerzt (Code %s)' % code)})
             # Protokolle und Abbild dieses Laufs aufheben - der Neustart
             # ueberschreibt sie sonst.
-            for name in ('behaved.log', 'behaved-detail.log', 'behaved-absturz.dmp'):
+            # Stufe 8d: die Protokolle heissen jkstudio*.log (bis 8c behaved*.log - beide fuer Vergleichslaeufe)
+            for name in ('jkstudio.log', 'jkstudio-detail.log', 'behaved.log', 'behaved-detail.log', 'behaved-absturz.dmp'):
                 q = os.path.join(ordner, name)
                 if os.path.exists(q):
                     z = os.path.join(a.aus, 'karte%d_%s' % (nr, name))
