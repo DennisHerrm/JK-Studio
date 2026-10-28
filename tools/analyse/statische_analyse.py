@@ -147,6 +147,7 @@ def passt(fund, regeln):
 
 
 def main():
+    sys.stdout.reconfigure(errors='replace')   # Meldungen von cl in der Codepage der Konsole
     a = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     a.add_argument('--bau', default=os.path.join(WURZEL, 'build-analyse'))
     a.add_argument('--jobs', type=int, default=6)

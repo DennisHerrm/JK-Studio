@@ -6730,7 +6730,6 @@ float4 main(VSOut ein) : SV_TARGET {
     return gFarbe;
 }
 )";
-    std::string f;
     ID3DBlob* b1 = nullptr;
     ID3DBlob* b2 = nullptr;
     ID3DBlob* err = nullptr;

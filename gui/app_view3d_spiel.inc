@@ -2400,7 +2400,6 @@ bool gegenstandInstanz(std::size_t entity, float ort[3], std::string* modell, bo
         if (glm != nullptr) { *glm = true; }
         return true;
     }
-    std::string dat;
     for (const App::MapModel& mm : g_app->mapModels) {
         if (mm.entity != entity || mm.anBrush != 0) { continue; }
         const MapEntity& e = g_app->map.entities[entity];

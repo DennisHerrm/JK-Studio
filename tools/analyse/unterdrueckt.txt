@@ -63,8 +63,40 @@ bugprone-assignment-in-if-condition|*|*
 bugprone-empty-catch|src/scene.cpp|*
 bugprone-empty-catch|tests/timelinetest.cpp|*
 
-# GetProcAddress -> Funktionszeiger: der uebliche Weg fuer DWrite (zur Laufzeit geladen).
-bugprone-casting-through-void|gui/qttext_win32.cpp|*
+# GetProcAddress -> Funktionszeiger: der uebliche Weg fuer zur Laufzeit geladene Windows-Funktionen
+# (DWrite, DPI, OpenGL-Erweiterungen, dbghelp, RenderDoc).
+bugprone-casting-through-void|*|*
+# Win32: Griffe, WPARAM/LPARAM und Ressourcen-IDs sind Ganzzahlen, die Windows als Zeiger will
+# (MAKEINTRESOURCE, SetWindowLongPtr) - so verlangt es die API.
+performance-no-int-to-ptr|*|*
+# LocalFree/CoTaskMemFree mit dem Feld von CommandLineToArgvW usw. (void* ist der Parametertyp).
+bugprone-multi-level-implicit-pointer-conversion|*|*
+# wWinMain ohne SAL-Anmerkungen (die Deklaration im SDK hat sie) - ohne Wirkung.
+msvc-C28251|gui/main_win32.cpp|*
+# Gemapter Konstantenpuffer: Map liefert den ganzen Puffer, /analyze kennt seine Groesse nicht.
+msvc-C6385|gui/gpumap_win32.cpp|*
+# D3DCompile: "ziel" ist an dieser Stelle nie leer (Aufrufer uebergeben vs_5_0/ps_5_0).
+msvc-C6387|gui/gpumap_win32.cpp|*
+# Index aus einer Schleife mit fester Grenze (Lichtplaetze 32, Selbsttest-Feld 3).
+msvc-C28020|gui/app_karte_echtlicht.cpp|*
+msvc-C28020|gui/selbsttest_vorschau_b.inc|*
+# Rueckgabe von sscanf in Selbsttests (der Vergleich danach prueft das Ergebnis) und von
+# GetWindowsDirectoryW (leerer Puffer = kein Fund, wie gewollt).
+msvc-C6031|gui/selbsttest_karte8c.inc|*
+msvc-C6031|gui/selbsttest_vorschau_a.inc|*
+msvc-C6031|gui/platform_win32.cpp|*
+# Einstellungen: eine unlesbare Zahl behaelt die Vorgabe (wie NRC/QSettings).
+bugprone-empty-catch|gui/app_karte.cpp|*
+bugprone-empty-catch|gui/app_karte_menue.cpp|*
+bugprone-empty-catch|gui/app_view3d.cpp|*
+# std::move auf einen const-Referenz-Parameter: ohne Wirkung, harmlos.
+performance-move-const-arg|*|*
+# Selbsttests: find("x") statt find('x') - Lesbarkeit vor Mikrosekunden.
+performance-faster-string-find|gui/selbsttest_programm.inc|*
+performance-faster-string-find|gui/selbsttest_vorschau_a.inc|*
+# Ein Zeichen der Testdatei als Byte (Selbsttest, nur ASCII).
+bugprone-signed-char-misuse|gui/selbsttest_karte6.inc|*
+cert-str34-c|gui/selbsttest_karte6.inc|*
 # SpurHilfeHalter: Kopieren heisst "Hilfsdaten vergessen" - auch bei Selbstzuweisung richtig.
 cert-oop54-cpp|include/bhed/bspgeo.h|*
 # QuickHull von NRC wird als eine Uebersetzungseinheit eingebunden (wie in NRC).

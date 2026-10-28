@@ -62,6 +62,7 @@ void kaesten(const mt::Meldungen& m) {
     if (m.empty()) { return; }
     int art = 0;
     for (const mt::Meldung& x : m) { art = std::max(art, x.art); }
+    art = std::clamp(art, 0, 2);   // Stufe 8d (/analyze C6385): titel hat drei Eintraege
     std::string text;
     for (const mt::Meldung& x : m) {
         if (x.art != art) { continue; }

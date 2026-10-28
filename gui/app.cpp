@@ -3061,7 +3061,6 @@ void drawPrefs() {
 
     ImGui::TextDisabled("%s", tr(Str::PrefsNote));
     if (ImGui::Button(tr(Str::PrefsReload))) {
-        std::string error;
         CommandDb fresh;
         std::vector<LoadDiag> ld;
         // rc604: ohne eigene .bhc der Befehlssatz des Regelwerks (data/jk2 bei
