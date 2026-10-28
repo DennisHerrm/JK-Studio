@@ -30,7 +30,8 @@
 
 /* dependencies */
 #include "q3map2.h"
-#include "bhed_gpuschatten.h" /* BehavEd stage 8b: -bhedgpu, shadow tests on the GPU */
+#include "bhed_gpuschatten.h"
+#include "bhed_dxr.h" /* BehavEd stage 8g: -bhedgpudxr */ /* BehavEd stage 8b: -bhedgpu, shadow tests on the GPU */
 #include "bhed_gpubacken.h" /* BehavEd stage 8c: -bhedgpubake, light contributions on the GPU */
 
 
@@ -1599,6 +1600,23 @@ void BhedGpuVorbereiten(){
 	}
 	const float konstanten[ 5 ] = { BARY_EPSILON, 1.0f + BARY_EPSILON, COPLANAR_EPSILON, SELF_SHADOW_EPSILON, TRACE_ON_EPSILON };
 	g_bhedGpu = BhedGpuStart( knoten, items, dreiecke, infos, lightSurfaces, numLightSurfaces, headNodeNum, konstanten );
+	/* BehavEd stage 8g: -bhedgpudxr - DXR pre-test with the triangles that can cast shadows (not sky) */
+	if ( g_bhedGpu && g_bhedDxrWunsch ) {
+		std::vector<float> ecken;
+		for ( int i = 0; i < numTraceTriangles; ++i )
+		{
+			const traceTriangle_t& t = traceTriangles[ i ];
+			if ( infos[ t.infoNum ].cast <= 0 || ( infos[ t.infoNum ].flags & 1 ) ) {
+				continue;
+			}
+			for ( int v = 0; v < 3; ++v ) {
+				for ( int j = 0; j < 3; ++j ) {
+					ecken.push_back( t.v[ v ].xyz[ j ] );
+				}
+			}
+		}
+		BhedDxrStart( ecken );
+	}
 }
 
 /* BehavEd stage 8c: -bhedgpubake - the trace nodes (numItems also for inner nodes: testAll skips

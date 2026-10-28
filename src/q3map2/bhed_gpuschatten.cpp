@@ -30,6 +30,11 @@
 #include <mutex>
 #include <string>
 
+#include "bhed_dxr.h"
+
+/* Stufe 8g Punkt 3: Zaehler des DXR-Vortests */
+static std::atomic<long long> g_dxrGleichFrei{ 0 }, g_dxrGleichVerdeckt{ 0 }, g_dxrFehlt{ 0 }, g_dxrZuviel{ 0 }, g_dxrFest{ 0 };
+
 namespace
 {
 
@@ -288,6 +293,24 @@ void BhedGpuRechnen( BhedGpuSitzung& s ){
 		}
 		g_zGpuMikros += std::chrono::duration_cast<std::chrono::microseconds>( std::chrono::steady_clock::now() - t0 ).count();
 		++g_zBloecke;
+		/* Stufe 8g Punkt 3: DXR-Vortest - dieselben Strahlen durch die Hardware, nur gemessen und verglichen */
+		if ( ok && BhedDxrBereit() ) {
+			std::vector<std::uint32_t> treffer;
+			if ( BhedDxrStrahlen( s.strahlen.data(), n, treffer ) ) {
+				for ( size_t i = 0; i < n; ++i ) {
+					const int st = s.erg[ i ].status;
+					if ( st == 0 ) {
+						++( treffer[ i ] ? g_dxrZuviel : g_dxrGleichFrei );
+					}
+					else if ( st == 1 ) {
+						++( treffer[ i ] ? g_dxrGleichVerdeckt : g_dxrFehlt );
+					}
+					else if ( st == 2 ) {
+						++g_dxrFest;
+					}
+				}
+			}
+		}
 	}
 	if ( !ok ) {
 		for ( BhedGpuErgebnis& e : s.erg ) {
@@ -319,6 +342,14 @@ void BhedGpuZaehlen( int status, bool abweichung ){
 }
 
 void BhedGpuEnde(){
+	if ( BhedDxrBereit() || g_dxrGleichFrei.load() + g_dxrFehlt.load() > 0 ) {
+		const long long n = g_dxrGleichFrei.load() + g_dxrGleichVerdeckt.load() + g_dxrFehlt.load() + g_dxrZuviel.load();
+		Sys_Printf( "BehavEd DXR pre-test: %s, %lld rays compared: free in both %lld, triangle hit in both %lld, DXR missed a hit %lld, DXR extra hit %lld, "
+		            "solid leaf (DXR cannot tell) %lld; GPU compute %.3f s, DXR %.3f s (with upload and read-back)\n",
+		            BhedDxrAdapter().c_str(), n, g_dxrGleichFrei.load(), g_dxrGleichVerdeckt.load(), g_dxrFehlt.load(), g_dxrZuviel.load(), g_dxrFest.load(),
+		            double( g_zGpuMikros.load() ) / 1e6, double( BhedDxrMikros() ) / 1e6 );
+	}
+	BhedDxrEnde();
 	if ( g_gpu.geraet != nullptr ) {
 		Sys_Printf( "BehavEd GPU: %lld rays (free %lld, blocked %lld, solid %lld, on the CPU %lld), %lld input mismatches, %lld blocks (%lld left to the CPU: GPU busy), GPU %.2f s\n",
 		            g_zStrahlen.load(), g_zFrei.load(), g_zVerdeckt.load(), g_zFest.load(), g_zCpu.load(), g_zAbweichung.load(), g_zBloecke.load(),

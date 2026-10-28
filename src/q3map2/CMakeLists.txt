@@ -288,6 +288,24 @@ foreach(k erst unter stempellauf gitterKern)
   endforeach()
 endforeach()
 bhed_fxc(g_schatten bhed_gpuschatten.hlsl main)
+# Stufe 8g Punkt 3: DXR-Vortest (Shader Model 6.5, RayQuery) als DXIL mit dxc aus dem Windows SDK
+# (signiert mit dem dxil.dll daneben). Ohne dxc entfaellt nur der Vortest.
+find_program(BHED_DXC dxc PATHS ${BHED_SDK_BIN} NO_DEFAULT_PATH)
+set(BHED_DXR_QUELLEN "")
+if(BHED_DXC)
+  set(aus ${BHED_HLSL_AUS}/g_dxr.h)
+  add_custom_command(OUTPUT ${aus}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${BHED_HLSL_AUS}
+    COMMAND ${BHED_DXC} -nologo -T cs_6_5 -E main -O3 -Vn g_dxr -Fh ${aus} ${CMAKE_CURRENT_SOURCE_DIR}/bhed_dxr.hlsl
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/bhed_dxr.hlsl
+    COMMENT "dxc g_dxr"
+    VERBATIM)
+  set(BHED_DXR_QUELLEN ${aus} bhed_dxr.cpp)
+  message(STATUS "q3map2: DXR-Vortest mit ${BHED_DXC}")
+else()
+  set(BHED_DXR_QUELLEN bhed_dxr_aus.cpp)
+  message(STATUS "q3map2: kein dxc - ohne DXR-Vortest")
+endif()
 message(STATUS "q3map2: GPU-Shader mit ${BHED_FXC}")
 
 add_executable(bhed_q3map2
@@ -314,6 +332,8 @@ add_executable(bhed_q3map2
   bhed_gpuschatten.cpp
   # Stufe 8c: -light -bhedgpubake (Lichtbeitraege auf der GPU, nicht Byte-gleich, mit Abweichungsbericht)
   bhed_gpubacken.cpp
+  # Stufe 8g: -bhedgpudxr (DXR-Vortest, Messung)
+  ${BHED_DXR_QUELLEN}
   ${Q3M}/q3map2.rc
   # Stufe 6 (NRC#130): UTF-8 als Codepage - Pfade ausserhalb von ASCII
   q3map2.manifest)

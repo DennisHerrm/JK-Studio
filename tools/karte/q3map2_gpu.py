@@ -79,12 +79,12 @@ def main():
                 print('FEHL  %s: Rueckgabe %d' % (args[0], rc))
                 return 1
         ergebnis = {}
-        for art in ('cpu', 'gpu'):
+        for art in ('cpu', 'gpu', 'dxr'):
             d = os.path.join(t, art)
             os.makedirs(d)
             for e in ('.map', '.bsp', '.srf'):
                 shutil.copy(os.path.join(vis, 'gpu' + e), os.path.join(d, 'gpu' + e))
-            extra = ['-bhedgpu'] if art == 'gpu' else []
+            extra = {'cpu': [], 'gpu': ['-bhedgpu'], 'dxr': ['-bhedgpu', '-bhedgpudxr']}[art]
             rc, aus = lauf(exe, ['-game', 'ja', '-light', '-fast', '-patchshadows', '-samples', '2', '-filter', '-threads', '1'] + extra + [os.path.join(d, 'gpu.map')], d)
             if rc != 0:
                 print('FEHL  -light %s: Rueckgabe %d' % (art, rc))
@@ -109,6 +109,15 @@ def main():
         else:
             print('ok    -bhedgpu: keine Direct-3D-11-GPU - die CPU hat gerechnet (%s)' %
                   next((x for x in aus.splitlines() if 'BehavEd GPU' in x), 'ohne Meldung'))
+        # Stufe 8g Punkt 3: der DXR-Vortest misst nur - Ergebnis gleich; mit DXR verglichene Strahlen,
+        # ohne DXR (Intel UHD) die Meldung "not used"
+        ad = ergebnis['dxr'][1]
+        dz = re.search(r'BehavEd DXR pre-test: .*?, (\d+) rays compared', ad)
+        gut = ergebnis['dxr'][0] == a and (dz is not None and int(dz.group(1)) > 0 or 'BehavEd DXR pre-test:' in ad and 'not used' in ad or
+                                           'BehavEd GPU shadow tests:' not in ad)
+        print(('ok    ' if gut else 'FEHL  ') + '-bhedgpudxr (Vortest, nur Messung): Lumps gleich der CPU, %s' %
+              (dz.group(0) if dz else next((x for x in ad.splitlines() if 'DXR' in x), 'ohne Meldung')))
+        fehler += 0 if gut else 1
     print('q3map2_gpu: %d Fehler' % fehler)
     return 1 if fehler else 0
 
