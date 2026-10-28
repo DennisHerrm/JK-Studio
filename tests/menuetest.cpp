@@ -71,8 +71,8 @@ int main() {
         "\t\titemDef\r\n"
         "\t\t{\r\n"
         "\t\t\tname\t\tschieber\r\n"
+        "\t\t\ttype\t\tITEM_TYPE_BUTTON\r\n"
         "\t\t\tcvarFloat\tvolume 0.5 0 1\r\n"
-        "\t\t\ttype\t\tITEM_TYPE_SLIDER\r\n"
         "\t\t}\r\n"
         "\t}\r\n"
         "}\r\n";
@@ -84,11 +84,11 @@ int main() {
     if (d.menus.size() == 1) {
         const Menu& m = d.menus[0];
         pruefe(m.window.name == "testMenu", "SP: name");
-        pruefe(m.fullScreen == 1 && m.window.rect.w == 640.0F && m.window.rect.x == 0.0F,
-               "SP: fullScreen setzt rect 0 0 640 480 (Menu_PostParse)");
+        pruefe(m.fullScreen == 1 && m.window.rect.x == 100.0F,
+               "SP: gescheitertes Menue: kein Menu_PostParse (das Spiel laedt es nicht)");
         pruefe(m.descAlignment == ITEM_ALIGN_CENTER, "SP: descAlignment als Name");
-        pruefe(m.onESC == "play \"sound/interface/esc.wav\" ; close \"testMenu\" ; ", "SP: onESC wie PC_Script_Parse: '" + m.onESC + "'");
-        pruefe(!m.ok, "SP: cvarFloat vor type: Item_ValidateTypeData fehlt -> Menue scheitert wie im Spiel");
+        pruefe(m.onESC == "\"play\" \"sound/interface/esc.wav\" ; \"close\" \"testMenu\" ; ", "SP: onESC wie PC_Script_Parse: '" + m.onESC + "'");
+        pruefe(!m.ok, "SP: cvarFloat nach type BUTTON: kein typeData -> Menue scheitert wie im Spiel");
         pruefe(m.items.size() == 3, "SP: drei Items gelesen (das dritte scheitert)");
         if (m.items.size() == 3) {
             const Item& a = m.items[0];
@@ -172,7 +172,7 @@ int main() {
         "    itemDef {\n"
         "      name zwei\n"
         "      rect 10 20 30 40\n"
-        "      type falsch\n"
+        "      type 0\n"
         "    }\n"
         "  }\n"
         "}\n";
@@ -191,8 +191,8 @@ int main() {
         pruefe(a.type == ITEM_TYPE_BUTTON && a.window.style == WINDOW_STYLE_FILLED, "MP: type/style ueber Defines");
         pruefe(a.textalignx == -5.0F, "MP: -5 als '-' und '5' (PC_Float_Parse)");
         pruefe(a.window.backColor.a == 0.5F, "MP: backcolor .5");
-        pruefe(a.action == "open \"setup\" ; setcvar \"ui_x\" 1 ", "MP: action wie PC_Script_Parse: '" + a.action + "'");
-        pruefe(!mm.ok, "MP: 'type falsch' bricht das Menue ab (expected integer)");
+        pruefe(a.action == "\"open\" \"setup\" ; \"setcvar\" \"ui_x\" 1 ", "MP: action wie PC_Script_Parse: '" + a.action + "'");
+        pruefe(mm.ok, "MP: Menue gelesen");
         std::vector<Ersetzung> e;
         pruefe(!setzeRect(m, 0, 0, Rechteck{1, 2, 3, 4}, e), "MP: rect aus einem Makro wird nicht ersetzt");
         e.clear();
@@ -202,7 +202,11 @@ int main() {
         pruefe(false, "MP: zwei Items");
     }
     pruefe(hatMeldung(m, "unknown menu item keyword gibtsnicht", 15), "MP: 'unknown menu item keyword' Zeile 15");
-    pruefe(hatMeldung(m, "expected integer but found falsch", 20), "MP: 'expected integer but found falsch' Zeile 20");
+    {
+        Datei f = lies("ui/jamp/x.menu", "{ menuDef { name x\n itemDef {\n type falsch } } }\n", mo);
+        pruefe(f.menus.size() == 1 && !f.menus[0].ok && hatMeldung(f, "expected integer but found falsch", 3),
+               "MP: 'type falsch' bricht das Menue ab (expected integer, Zeile 3)");
+    }
     pruefe(m.defines.count("ITEM_TYPE_BUTTON") == 1, "MP: Zahl-Defines fuer die Vervollstaendigung");
     if (g_fehler != 0) { zeigeMeldungen(m); }
     {

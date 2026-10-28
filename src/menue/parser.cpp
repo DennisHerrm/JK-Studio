@@ -228,7 +228,9 @@ const Schluessel kMenu[] = {
 };
 
 bool gilt(const Schluessel& k, Dialekt d, Spiel s) noexcept {
-    if (d == Dialekt::MP) { return (k.bits & kMP) != 0; }
+    // Movie Duels MP (ui/MD_MP) benutzt die MD-Woerter auch (cvarRotateScale) - der MP-Code von
+    // Movie Duels liegt nicht vor; angenommen wie in dessen SP-Code.
+    if (d == Dialekt::MP) { return (k.bits & kMP) != 0 || ((k.bits & kMD) != 0 && s == Spiel::MD); }
     if ((k.bits & kSP) != 0) { return true; }
     return (k.bits & kMD) != 0 && s == Spiel::MD;
 }
@@ -248,7 +250,9 @@ const char* const kTypes[] = {"ITEM_TYPE_TEXT",     "ITEM_TYPE_BUTTON",   "ITEM_
                               "ITEM_TYPE_CHECKBOX", "ITEM_TYPE_EDITFIELD", "ITEM_TYPE_COMBO",
                               "ITEM_TYPE_LISTBOX",  "ITEM_TYPE_MODEL",    "ITEM_TYPE_OWNERDRAW",
                               "ITEM_TYPE_NUMERICFIELD", "ITEM_TYPE_SLIDER", "ITEM_TYPE_YESNO",
-                              "ITEM_TYPE_MULTI",    "ITEM_TYPE_BIND",     "ITEM_TYPE_TEXTSCROLL"};
+                              "ITEM_TYPE_MULTI",    "ITEM_TYPE_BIND",     "ITEM_TYPE_TEXTSCROLL",
+                              // Movie Duels (code/ui/ui_shared.cpp types[], menudef.h 15/16)
+                              "ITEM_TYPE_SLIDER_INTEGER", "ITEM_TYPE_SLIDER_ROTATE"};
 const char* const kAlign[] = {"ITEM_ALIGN_LEFT", "ITEM_ALIGN_CENTER", "ITEM_ALIGN_RIGHT"};
 
 template <std::size_t N>
@@ -444,8 +448,12 @@ public:
 // Die Schluesselwoerter anwenden.
 // ============================================================================
 
-void typDatenPruefen(Item& it) {   // Item_ValidateTypeData
+void typDatenPruefen(Item& it, Spiel spiel) {   // Item_ValidateTypeData
     if (it.typeData) { return; }
+    if (spiel == Spiel::MD && (it.type == ITEM_TYPE_SLIDER_INTEGER || it.type == ITEM_TYPE_SLIDER_ROTATE)) {
+        it.typeData = true;
+        return;
+    }
     switch (it.type) {
         case ITEM_TYPE_LISTBOX:
         case ITEM_TYPE_TEXT:
@@ -466,11 +474,11 @@ void typDatenPruefen(Item& it) {   // Item_ValidateTypeData
 }
 
 // Liest die Argumente von k fuer ein Item. false = "couldn't parse".
-bool itemArg(Grund& g, const Schluessel& k, Dialekt d, Item& it) {
+bool itemArg(Grund& g, const Schluessel& k, Dialekt d, Spiel spiel, Item& it) {
     const std::string n = k.name;
     const Art art = (d == Dialekt::MP) ? k.mp : k.sp;
     if ((k.bits & kTD) != 0 || n == "cvar" || n == "font" || n == "notselectable" || n == "scrollhidden") {
-        typDatenPruefen(it);
+        typDatenPruefen(it, spiel);
     }
     if ((k.bits & kTD) != 0 && !it.typeData) { return false; }
     switch (art) {
@@ -531,7 +539,7 @@ bool itemArg(Grund& g, const Schluessel& k, Dialekt d, Item& it) {
             else if (n == "style") { it.window.style = v; }
             else if (n == "textalign") { it.textalignment = v; }
             else if (n == "textstyle") { it.textStyle = v; }
-            else if (n == "type") { it.type = v; typDatenPruefen(it); }
+            else if (n == "type") { it.type = v; typDatenPruefen(it, spiel); }
             else if (n == "visible") { if (v != 0) { it.window.flags |= WINDOW_VISIBLE; } }
             else if (n == "invertyesno") { it.invertYesNo = v; }
             else if (n == "xoffset") { it.xoffset = v; }
@@ -558,6 +566,20 @@ bool itemArg(Grund& g, const Schluessel& k, Dialekt d, Item& it) {
         case Art::Rect:
             return g.rechteck(it.window.rectClient);
         case Art::Color: {
+            if (n == "forecolor") {   // ItemParse_forecolor: Anteil fuer Anteil, negativ = Spielerfarbe
+                float* ziel[4] = {&it.window.foreColor.r, &it.window.foreColor.g, &it.window.foreColor.b, &it.window.foreColor.a};
+                for (float* z : ziel) {
+                    float f = 0;
+                    if (!g.komma(f)) { return false; }
+                    if (f < 0) {
+                        it.window.flags |= WINDOW_PLAYERCOLOR;
+                        return true;
+                    }
+                    *z = f;
+                    it.window.flags |= WINDOW_FORECOLORSET;
+                }
+                return true;
+            }
             Farbe c;
             if (!g.farbe(c)) { return false; }
             if (n == "backcolor") { it.window.backColor = c; it.window.flags |= WINDOW_BACKCOLORSET; }
@@ -598,10 +620,11 @@ bool itemArg(Grund& g, const Schluessel& k, Dialekt d, Item& it) {
             std::string s;
             if (!g.str(s)) { return false; }
             if (n == "type") {
-                const int i = nameIndex(kTypes, s);
+                int i = nameIndex(kTypes, s);
+                if (i >= ITEM_TYPE_SLIDER_INTEGER && spiel != Spiel::MD) { i = -1; }   // nur Movie Duels
                 if (i < 0) { g.warn("Unknown item type value '" + s + "'", false); }
                 else { it.type = i; }
-                typDatenPruefen(it);
+                typDatenPruefen(it, spiel);
             } else if (n == "style") {
                 const int i = nameIndex(kStyles, s);
                 if (i < 0) { g.warn("Unknown item style value '" + s + "'", false); }
@@ -649,10 +672,13 @@ bool itemArg(Grund& g, const Schluessel& k, Dialekt d, Item& it) {
             std::string s;
             if (!g.tok(s)) { return false; }
             if (strList && gleichOhneFall(s, "feeder")) {
-                // FEEDER_PLAYER_SPECIES (13) / FEEDER_LANGUAGES (34): Liste kommt aus dem Spiel
-                it.multiFeeder = (it.special == 13.0F) ? "FEEDER_PLAYER_SPECIES"
-                                 : (it.special == 34.0F) ? "FEEDER_LANGUAGES" : "feeder";
-                if (it.special == 13.0F || it.special == 34.0F) { return true; }
+                // FEEDER_PLAYER_SPECIES / FEEDER_LANGUAGES (menudef.h: SP 0x10/0x17, MP 0x13/0x28):
+                // die Liste kommt aus dem Spiel
+                const float arten = (d == Dialekt::MP) ? 19.0F : 16.0F;
+                const float sprachen = (d == Dialekt::MP) ? 40.0F : 23.0F;
+                it.multiFeeder = (it.special == arten) ? "FEEDER_PLAYER_SPECIES"
+                                 : (it.special == sprachen) ? "FEEDER_LANGUAGES" : "feeder";
+                if (it.special == arten || it.special == sprachen) { return true; }
             }
             if (s.empty() || s[0] != '{') { return false; }
             int pass = 0;
@@ -827,7 +853,7 @@ public:
             }
             e.kanon = k->name;
             g_.aufz = &e.args;
-            const bool ok = itemArg(g_, *k, d_.dialekt, it);
+            const bool ok = itemArg(g_, *k, d_.dialekt, d_.spiel, it);
             g_.aufz = nullptr;
             e.ok = ok;
             it.eigenschaften.push_back(e);
@@ -943,6 +969,11 @@ public:
             if (!bekannt && (gleichOhneFall(t.s, "shadowColor") || gleichOhneFall(t.s, "focuscolor"))) {
                 Farbe c;
                 ok = g_.farbe(c);
+                bekannt = true;
+            }
+            if (!bekannt && gleichOhneFall(t.s, "precacheSound")) {   // { "a.wav" "b.wav" ... }
+                std::string s;
+                ok = g_.skript(s);   // PC_Script_Parse wie Asset_Parse
                 bekannt = true;
             }
             if (!bekannt) {
@@ -1118,7 +1149,7 @@ LeseOptionen optionenFuer(const std::string& pfad, Spiel spiel, Lader lader) {
 }
 
 const char* typName(int typ) noexcept {
-    return (typ >= 0 && typ < 15) ? kTypes[typ] : "";
+    return (typ >= 0 && typ < 17) ? kTypes[typ] : "";
 }
 const char* styleName(int style) noexcept {
     return (style >= 0 && style < 6) ? kStyles[style] : "";

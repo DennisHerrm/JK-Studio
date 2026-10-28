@@ -65,7 +65,7 @@ void spiel(const char* name, Spiel s, const std::vector<std::string>& ordner) {
         }
         for (const Meldung& m : d.meldungen) {
             (m.fehler ? fehler : warnungen) += 1;
-            if (gezeigt < 12) {
+            if (gezeigt < 60) {
                 std::printf("   %s\n", meldungText(d, m).c_str());
                 ++gezeigt;
             }

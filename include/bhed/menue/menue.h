@@ -253,6 +253,8 @@ inline constexpr int ITEM_TYPE_YESNO = 11;
 inline constexpr int ITEM_TYPE_MULTI = 12;
 inline constexpr int ITEM_TYPE_BIND = 13;
 inline constexpr int ITEM_TYPE_TEXTSCROLL = 14;
+inline constexpr int ITEM_TYPE_SLIDER_INTEGER = 15;   // Movie Duels
+inline constexpr int ITEM_TYPE_SLIDER_ROTATE = 16;    // Movie Duels (zeichnet nichts)
 
 inline constexpr int ITEM_ALIGN_LEFT = 0;
 inline constexpr int ITEM_ALIGN_CENTER = 1;
@@ -296,9 +298,10 @@ inline constexpr int WINDOW_FORCED = 0x00100000;
 inline constexpr int WINDOW_POPUP = 0x00200000;
 inline constexpr int WINDOW_BACKCOLORSET = 0x00400000;
 inline constexpr int WINDOW_TIMEDVISIBLE = 0x00800000;
-inline constexpr int WINDOW_IGNORE_HUDALPHA = 0x01000000;
-inline constexpr int WINDOW_DROPSHADOW = 0x02000000;
+inline constexpr int WINDOW_PLAYERCOLOR = 0x01000000;      // forecolor -1: ui_char_color_*
+inline constexpr int WINDOW_SCRIPTWAITING = 0x02000000;
 inline constexpr int WINDOW_INTRANSITIONMODEL = 0x04000000;
+inline constexpr int WINDOW_IGNORE_ESCAPE = 0x08000000;
 
 // item->cvarFlags
 inline constexpr int CVAR_ENABLE = 0x00000001;

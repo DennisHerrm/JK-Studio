@@ -16,7 +16,7 @@ namespace {
 std::string norm(const std::string& p) {
     std::string s;
     for (const char c : p) {
-        s += (c == '\') ? '/' : static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        s += (c == '\\') ? '/' : static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     }
     while (!s.empty() && s[0] == '/') { s.erase(0, 1); }
     return s;

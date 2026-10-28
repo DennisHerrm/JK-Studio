@@ -107,13 +107,13 @@ int main() {
     pruefe(g0 != nullptr && nah(g0->x, 101) && nah(g0->y, 54) && nah(g0->w, 8) && nah(g0->h, 16) && g0->shader == "fonts/probe",
            "DrawString: erstes Zeichen bei (101, 54) 8x16, (int)x abgeschnitten");
     pruefe(g0 != nullptr && nah(g0->s0, 97.0F / 256.0F), "DrawString: Glyph-Koordinaten s des 'a'");
-    // Window_Paint: FILLED + border 1: fillRect(12, 12, 97, 47), dann drawRect
+    // Item_SetScreenCoords: border 1 -> rect 12,12; Window_Paint: fillRect(14, 14, 97, 47), dann drawRect
     int fuell = 0;
     bool innen = false;
     for (const Prim& x : p) {
         if (x.item == 1 && x.art == PrimArt::Fuellen) {
             ++fuell;
-            if (nah(x.x, 12) && nah(x.y, 12) && nah(x.w, 97) && nah(x.h, 47) && nah(x.farbe.b, 1)) { innen = true; }
+            if (nah(x.x, 14) && nah(x.y, 14) && nah(x.w, 97) && nah(x.h, 47) && nah(x.farbe.b, 1)) { innen = true; }
         }
     }
     pruefe(innen && fuell == 5, "Window_Paint: Fuellung (x+bs, y+bs, w-bs-1, h-bs-1) und vier Rahmenstreifen");

@@ -68,7 +68,7 @@ int main() {
     o.regex = true;
     std::string fehler;
     pruefe(p.suche("(", o, &fehler).empty() && !fehler.empty(), "ungueltiger Regex meldet Fehler");
-    pruefe(p.ersetzeAlle("name (\w+)", "name \"$1\"", o) == 1 && p.zeile(5) == "\t\tname \"knopf\"", "Regex-Ersetzen mit $1");
+    pruefe(p.ersetzeAlle("name (\\w+)", "name \"$1\"", o) == 1 && p.zeile(5) == "\t\tname \"knopf\"", "Regex-Ersetzen mit $1");
     p.rueckgaengig();
 
     // Klammerpaare: die { im String und die } im Kommentar zaehlen nicht

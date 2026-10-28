@@ -88,8 +88,8 @@ int main() {
     for (const int typ : {-1, ITEM_TYPE_TEXT, ITEM_TYPE_BUTTON, ITEM_TYPE_YESNO, ITEM_TYPE_MULTI, ITEM_TYPE_SLIDER, ITEM_TYPE_EDITFIELD,
                           ITEM_TYPE_LISTBOX, ITEM_TYPE_MODEL, ITEM_TYPE_BIND}) {
         x.clear();
-        const std::string v = itemVorlage(typ, Dialekt::SP, "neu", Rechteck{1, 2, 3, 4}, "\t\t", "\n");
-        pruefe(itemEinfuegen(d, 0, v, x), "Vorlage einfuegen");
+        const std::string vorlage = itemVorlage(typ, Dialekt::SP, "neu", Rechteck{1, 2, 3, 4}, "\t\t", "\n");
+        pruefe(itemEinfuegen(d, 0, vorlage, x), "Vorlage einfuegen");
         d2 = lies("ui/w.menu", anwenden(d.text, x), o);
         const bool ok = d2.menus.size() == 1 && d2.menus[0].ok && d2.menus[0].items.size() == 3 &&
                         d2.menus[0].items[2].window.name == "neu" && nah(d2.menus[0].items[2].window.rectClient.w, 3) &&

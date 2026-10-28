@@ -497,7 +497,8 @@ private:
                 text(tr_.x + tr_.w + 8, tr_.y, it.textscale, c, "???", 0, it.textStyle, it.font);
                 break;
             }
-            case ITEM_TYPE_SLIDER: {   // Item_Slider_Paint
+            case ITEM_TYPE_SLIDER:
+            case ITEM_TYPE_SLIDER_INTEGER: {   // Item_Slider_Paint (Movie Duels auch fuer SLIDER_INTEGER)
                 const Farbe c = (flags & WINDOW_HASFOCUS) != 0
                                     ? lerp(m_.focusColor, mal(m_.focusColor, 0.8F),
                                            0.5F + 0.5F * std::sin(static_cast<float>(u_.zeitMs) / kPulseDivisor))
