@@ -623,15 +623,83 @@ std::vector<Schritt> szeneSchritte(const std::string& szene, int saetze, int unt
     return s;
 }
 
+// Zeitleiste 2 Punkt 2: Jedi Outcast - Untertitel aus strip/<karte>.sp in der
+// Sprach-Zeile. kejim_post/start_level (Original-JK2): zwei der Saetze haben
+// einen Text in strip/kejim_post.sp (01JAO007 "Shhh", 01JAO008 "I think I saw
+// someone.", nachgesehen in assets2.pk3), die vier Wachen-Klaenge (misc) keinen.
+std::vector<Schritt> jk2Schritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto vorher = std::make_shared<int>(0);
+    add(tu("zeitleiste1 JK2: Regelwerk automatisch, Load mission assets0.pk3 (Jedi Outcast)", [=] {
+        const char* e = std::getenv("BHED_JK2_BASIS");
+        const std::string jk2 = e != nullptr ? e : "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Jedi Outcast\\GameData\\base";
+        *vorher = g_app->settings.regelwerk;
+        mission1::ungespeicherteEntitiesVergessen();
+        g_app->doc.markSaved();
+        g_app->settings.regelwerk = kRegelwerkAuto;
+        (void)regelwerkPruefen();
+        g_app->leftMode = 1;
+        g_app->missionPickOpen = false;
+        missionenAusArchiv(jk2 + "\\assets0.pk3");
+    }));
+    add(warteBis("zeitleiste1 JK2: kejim_post in der Auswahl", [] { return missionsliste::hat("kejim_post", true); }, 3500));
+    add(waehleInListe("kejim_post", false, 0, "##missionpick"));
+    add(warteBis("zeitleiste1 JK2: kejim_post geladen, Regelwerk Jedi Outcast", [] {
+        return g_app->map.path.find("kejim_post") != std::string::npos && regelwerkJediOutcast() && g_app->missionAktiv;
+    }, 3000));
+    add(tu("zeitleiste1 JK2: Reiter kejim_post/start_level", [] {
+        const int r = mission1::reiterMit("start_level");
+        if (r >= 0) {
+            g_app->tabRequest = r;
+            return;
+        }
+        std::string daten;
+        if (readFromArchives("scripts/kejim_post/start_level.ibi", daten)) { openScriptFromMemory(daten, "kejim_post/start_level.ibi"); }
+    }));
+    add(pause(1.0));
+    add(warteBis("zeitleiste1 JK2: Szene start_level mit Saetzen", [] {
+        return mission1::klein(g_app->shownName).find("start_level") != std::string::npos && !g_app->spuren.sprache.clips.empty();
+    }, 1500));
+    add(pause(0.5));
+    add(pruefe("zeitleiste1 JK2: Sprache - Untertitel aus strip/kejim_post.sp", [] {
+        int saetze = 0;
+        int mit = 0;
+        bool shhh = false;
+        bool jemand = false;
+        for (const spuren::Clip& c : g_app->spuren.sprache.clips) {
+            if (c.art != spuren::Art::Satz) { continue; }
+            ++saetze;
+            mit += c.untertitel.empty() ? 0 : 1;
+            shhh = shhh || (c.untertitel == "Shhh" && c.schluessel == "KEJIM_POST_01JAO007");
+            jemand = jemand || (c.untertitel == "I think I saw someone." && c.schluessel == "KEJIM_POST_01JAO008");
+            diag::detail("Knopftest: zeitleiste1 JK2 - Satz " + c.datei + " [" + c.schluessel + "] \"" + c.untertitel + "\"");
+        }
+        diag::detail("Knopftest: zeitleiste1 JK2 - " + std::to_string(saetze) + " Saetze, " + std::to_string(mit) + " mit Untertitel, Pakete " +
+                     std::to_string(g_app->zlTexteEbenen.size()));
+        return shhh && jemand && mit == 2 && saetze >= 2;
+    }));
+    add(foto("zl2_jk2_kejim_post"));
+    add(tu("zeitleiste1 JK2: Regelwerk wie vorher", [=] {
+        mission1::ungespeicherteEntitiesVergessen();
+        g_app->doc.markSaved();
+        g_app->settings.regelwerk = *vorher;
+        (void)regelwerkPruefen();
+    }));
+    return s;
+}
+
 }  // namespace zl1
 
 std::vector<Schritt> zeitleiste1Schritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    // BHED_ZL1_NUR=mini: nur die Mini-Szene, =jk2: nur Jedi Outcast (schneller Durchlauf beim Arbeiten).
+    const char* nur = std::getenv("BHED_ZL1_NUR");
+    if (nur != nullptr && std::strcmp(nur, "jk2") == 0) { return zl1::jk2Schritte(); }
     for (Schritt& x : zl1::miniSchritte()) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::fremdSchritte()) { s.push_back(std::move(x)); }
-    // BHED_ZL1_NUR=mini: nur die Mini-Szene (schneller Durchlauf beim Arbeiten).
-    if (const char* nur = std::getenv("BHED_ZL1_NUR"); nur != nullptr && std::strcmp(nur, "mini") == 0) { return s; }
+    if (nur != nullptr && std::strcmp(nur, "mini") == 0) { return s; }
     auto st = std::make_shared<zl1::Stand>();
     add(tu("zeitleiste1: Ausgangslage (reines JKA, eingerichtete Spielordner)", [=] {
         const char* e = std::getenv("BHED_JKA_BASIS");
@@ -673,5 +741,6 @@ std::vector<Schritt> zeitleiste1Schritte() {
     add(pause(0.5));
     // Export zeitleiste0: 9 Klaenge, alle mit Laenge, 5 mit Untertitel (die 4 Schiffsklaenge haben keinen).
     for (Schritt& x : zl1::szeneSchritte("md_am_sith", 9, 5)) { s.push_back(std::move(x)); }
+    for (Schritt& x : zl1::jk2Schritte()) { s.push_back(std::move(x)); }
     return s;
 }

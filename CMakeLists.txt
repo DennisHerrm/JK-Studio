@@ -71,6 +71,8 @@ add_library(bhed_core STATIC
   src/sound.cpp
   src/timeline.cpp
   src/spuren.cpp
+  # Zeitleiste 2: Untertitel wie das Spiel (Pakete, Schluessel, CG_CaptionText)
+  src/untertitel.cpp
   src/bspgeo.cpp
   src/gpucam.cpp
   src/gpuconst.cpp
@@ -751,6 +753,10 @@ if(BEHAVED_TESTS)
   add_executable(spurentest tests/spurentest.cpp)
   target_link_libraries(spurentest PRIVATE bhed_core)
   add_test(NAME spuren COMMAND spurentest)
+  # Zeitleiste 2: Untertitel (Pakete je Spiel, Schluessel, eigene Mini-Dateien .str/.sp)
+  add_executable(untertiteltest tests/untertiteltest.cpp)
+  target_link_libraries(untertiteltest PRIVATE bhed_core)
+  add_test(NAME untertitel COMMAND untertiteltest)
   # rc601 bewegung: NPCs laufen, drehen sich und fallen wie im Spiel
   # (scene.cpp, ablauf.cpp) - reine Proben, dazu die md_twj-Daten.
   add_executable(bewegungtest tests/bewegungtest.cpp)

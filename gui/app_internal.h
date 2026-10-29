@@ -2068,7 +2068,7 @@ struct App {
     // Durch Ziehen geaendert: angezeigter Knoten -> (geaenderter Knoten, sein Text davor).
     std::map<Kennung, std::pair<Kennung, std::string>> zlGeaendert;
     std::map<std::string, std::vector<float>> zlWellen;   // Wellenform je Klangdatei (Spitze je 50 ms)
-    std::string zlTexteKarte;              // Untertitel: fuer welche Karte geladen
+    std::string zlTexteKarte;              // Untertitel: fuer welche Karte und welches Spiel geladen
     std::map<std::string, std::string> zlTexte;
     std::vector<std::string> zlTexteEbenen;
     std::string zlSzene;                   // Anfangsausschnitt (30 s) je Szene

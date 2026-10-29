@@ -17,6 +17,7 @@
 #include "bhed/edit.h"
 #include "bhed/menue/menue.h"
 #include "bhed/spuren.h"
+#include "bhed/untertitel.h"
 
 #include <algorithm>
 #include <chrono>
@@ -1075,47 +1076,44 @@ int baumZeile(const std::vector<Node>& ns, const Path& p, std::size_t tiefe, int
 // --- Das Modell bauen (prepareScene) -------------------------------------------
 
 // Untertitel wie CG_CaptionText (cg_text.cpp / cg_servercmds.cpp): Schluessel
-// "<LEVEL>_<dateiname ohne Endung>" im StringEd-Paket strings/english/<level>.str
-// (stripLevelName; von den Sonderfaellen der von JKA: YAVIN1B liest YAVIN1).
+// "<PAKET>_<dateiname ohne Endung>" in den Paketen der Karte (bhed/untertitel.h).
+// Jedi Academy und Movie Duels lesen StringEd strings/english/<paket>.str,
+// Jedi Outcast StripEd strip/<paket>.sp (TEXT_LANGUAGE1, FixIllegalChars).
 std::string untertitelFuer(const std::string& klang, std::string* schluessel) {
-    std::string lv = g_app->map.path;
-    const std::size_t s = lv.find_last_of('/');
-    if (s != std::string::npos) { lv = lv.substr(s + 1); }
-    lv = lv.substr(0, lv.find('.'));
-    for (char& c : lv) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
-    if (g_app->zlTexteKarte != g_app->map.path) {
-        g_app->zlTexteKarte = g_app->map.path;
+    const untertitel::Spiel spiel = regelwerkJediOutcast()   ? untertitel::Spiel::JediOutcast
+                                    : regelwerkMovieDuels() ? untertitel::Spiel::MovieDuels
+                                                            : untertitel::Spiel::JediAcademy;
+    const std::string stand = g_app->map.path + "|" + std::to_string(static_cast<int>(spiel));
+    if (g_app->zlTexteKarte != stand) {
+        g_app->zlTexteKarte = stand;
         g_app->zlTexte.clear();
-        std::vector<std::string> ebenen{lv};
-        if (lv == "YAVIN1B") { ebenen.emplace_back("YAVIN1"); }
+        const auto lies = [](std::string pfad, std::string& inhalt) {
+            if (readFromArchives(pfad, inhalt)) { return true; }
+            for (char& c : pfad) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            return readFromArchives(pfad, inhalt);
+        };
         menue::Texte t;
-        for (const std::string& e : ebenen) {
-            std::string inhalt;
-            std::string kl = "strings/english/" + e + ".str";
-            for (char& c : kl) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
-            if (readFromArchives(kl, inhalt) || readFromArchives("strings/english/" + e + ".str", inhalt)) {
-                t.ladeStr("strings/english/" + e + ".str", inhalt, "ENGLISH");
+        if (spiel == untertitel::Spiel::JediOutcast) {
+            const auto paketDa = [&lies](const std::string& p) {
+                std::string inhalt;
+                return lies("strip/" + p + ".sp", inhalt);
+            };
+            g_app->zlTexteEbenen = untertitel::pakete(g_app->map.path, spiel, paketDa);
+            for (const std::string& p : g_app->zlTexteEbenen) {
+                std::string inhalt;
+                if (lies("strip/" + p + ".sp", inhalt)) { t.ladeSp(inhalt, 1); }
+            }
+            for (auto& [k, v] : t.werte) { v = untertitel::jk2Reinigen(v); }
+        } else {
+            g_app->zlTexteEbenen = untertitel::pakete(g_app->map.path, spiel);
+            for (const std::string& p : g_app->zlTexteEbenen) {
+                std::string inhalt;
+                if (lies("strings/english/" + p + ".str", inhalt)) { t.ladeStr("strings/english/" + p + ".str", inhalt, "ENGLISH"); }
             }
         }
         g_app->zlTexte = std::move(t.werte);
-        g_app->zlTexteEbenen = ebenen;
     }
-    std::string n = klang;
-    const std::size_t sl = n.find_last_of("/\\");
-    if (sl == std::string::npos) { return {}; }   // CG_CaptionText: ohne '/' kein Text
-    n = n.substr(sl + 1);
-    n = n.substr(0, n.rfind('.'));
-    for (char& c : n) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
-    for (const std::string& e : g_app->zlTexteEbenen) {
-        const std::string k = e + "_" + n;
-        if (schluessel != nullptr && schluessel->empty()) { *schluessel = k; }
-        const auto it = g_app->zlTexte.find(k);
-        if (it != g_app->zlTexte.end()) {
-            if (schluessel != nullptr) { *schluessel = k; }
-            return it->second;
-        }
-    }
-    return {};
+    return untertitel::text(klang, g_app->zlTexteEbenen, g_app->zlTexte, schluessel);
 }
 
 void zeitleisteModellBauen() {
