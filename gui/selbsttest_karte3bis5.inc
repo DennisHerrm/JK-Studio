@@ -2952,7 +2952,8 @@ std::vector<Schritt> reste0() {
     const std::pair<i18n::Language, const char*> sprachen[] = {{i18n::Language::English, "Englisch"},
                                                                {i18n::Language::German, "Deutsch"},
                                                                {i18n::Language::ChineseSimplified, "Chinesisch"},
-                                                               {i18n::Language::Japanese, "Japanisch"}};
+                                                               {i18n::Language::Japanese, "Japanisch"},
+                                                               {i18n::Language::Czech, "Tschechisch"}};
     for (const auto& [l, name] : sprachen) {
         const i18n::Language lang = l;
         const std::string sname = name;
@@ -4237,7 +4238,8 @@ std::vector<Schritt> beenden() {
 // Knopfspalte. Jeder Radioknopf, jedes Kaestchen, jede Beschriftung vor einem
 // Zahlenfeld und jeder Text (qtd::text: textBreite + Abstand 6) meldet seinen
 // Platz und die gezeichnete Breite ("Plugin:<id>~platz" / "~text"); in allen
-// Plugin-Dialogen und allen vier Sprachen muss das Gezeichnete hineinpassen.
+// Plugin-Dialogen und allen geprueften Sprachen (auch Tschechisch) muss das
+// Gezeichnete hineinpassen.
 bool pluginTexteGanz(std::string& bericht) {
     std::map<std::string, const ke::Editor::Rechteck*> platz;
     const std::string vor = "Plugin:";
@@ -4319,7 +4321,8 @@ std::vector<Schritt> pluginTexte() {
     const std::pair<i18n::Language, const char*> sprachen[] = {{i18n::Language::English, "Englisch"},
                                                                {i18n::Language::German, "Deutsch"},
                                                                {i18n::Language::ChineseSimplified, "Chinesisch"},
-                                                               {i18n::Language::Japanese, "Japanisch"}};
+                                                               {i18n::Language::Japanese, "Japanisch"},
+                                                               {i18n::Language::Czech, "Tschechisch"}};
     for (const auto& [l, name] : sprachen) {
         const i18n::Language lang = l;
         const std::string sname = name;

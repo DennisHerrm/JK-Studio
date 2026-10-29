@@ -147,5 +147,6 @@ const ZielRoh kZieleCs[] = {
     {"ort:menue:MenuHelp>UpdMenu", "updates", "vyhledat aktualizace nova verze"},
     {"ort:menue:MenuHelp>TourMenu", "hilfe", "vsechny tutorialy seznam navodu"},
     {"ort:menue:MenuFile>FileBackupFolder", "programm", "slozka zaloh najit zalohy"},
+    {"ort:menue:KeLEdit>KeLPreferences", "karte", "nastaveni editoru map predvolby editoru nastaveni editor map predvolby netradiant"},
     {nullptr, nullptr, nullptr},
 };

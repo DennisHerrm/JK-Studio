@@ -9,9 +9,9 @@
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Guide</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Příručka</small></span></a>
   <div class="suche">
-    <input id="suchfeld" type="search" placeholder="Search the guide...  (/)" autocomplete="off" aria-label="Search the guide...  (/)">
+    <input id="suchfeld" type="search" placeholder="Hledat v příručce...  (/)" autocomplete="off" aria-label="Hledat v příručce...  (/)">
     <div id="treffer" class="treffer" hidden></div>
   </div>
   <nav class="kapitel"><details class="gruppe" ><summary><span class="pfeil"></span>Začněte zde</summary><ul><li class=""><a href="index.html">Vítejte</a></li><li class=""><a href="helfer.html">Pomocník a tutoriály</a></li><li class=""><a href="funktionen.html">Co JK Studio umí</a></li><li class=""><a href="erste-schritte.html">Začínáme</a></li><li class=""><a href="fenster.html">Okno</a></li><li class=""><a href="menue_editor.html">Editor menu</a></li></ul></details>
@@ -25,20 +25,20 @@
 <main>
   <header class="kopf">
     <div class="sprachen"><a href="../en/skripte.html" class="" lang="en">English</a><a href="../de/skripte.html" class="" lang="de">Deutsch</a><a href="../zh/skripte.html" class="" lang="zh">中文</a><a href="../ja/skripte.html" class="" lang="ja">日本語</a><a href="../es/skripte.html" class="" lang="es">Español</a><a href="../cs/skripte.html" class="aktiv" lang="cs">Čeština</a></div>
-    <button id="thema" class="thema" title="Light or dark" aria-label="Light or dark">&#9681;</button>
+    <button id="thema" class="thema" title="Světlý nebo tmavý" aria-label="Světlý nebo tmavý">&#9681;</button>
   </header>
   <article>
     <div class="ueber">Skripty</div>
     <h1>Psaní skriptů</h1>
     <p class="einleitung">Skript ICARUS je strom příkazů. Vybírejte příkazy ze seznamu, dávejte je do správného bloku, vyplňujte jejich hodnoty.</p>
-    <figure class="bild breit"><a href="../bilder/en/h_skriptbaum.webp" class="zoom"><img src="../bilder/en/h_skriptbaum.webp" alt="Režim Události: příkazy vlevo, strom skriptu uprostřed, tlačítka akcí vpravo." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption>Režim Události: příkazy vlevo, strom skriptu uprostřed, tlačítka akcí vpravo.</figcaption></figure>
+    <figure class="bild breit"><a href="../bilder/en/h_skriptbaum.webp" class="zoom"><img src="../bilder/en/h_skriptbaum.webp" alt="Režim Události: příkazy vlevo, strom skriptu uprostřed, tlačítka akcí vpravo." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption>Režim Události: příkazy vlevo, strom skriptu uprostřed, tlačítka akcí vpravo.</figcaption></figure>
 <h2 id="grundlagen">Jak je skript postaven<a class="anker" href="#grundlagen">#</a></h2>
 <p>Příkazy běží shora dolů. <code>affect ( &quot;name&quot;, FLUSH ) { ... }</code> posílá příkazy uvnitř jedné postavě nebo entitě - tak animační sekvence hýbe svými herci. <code>task</code> deklaruje skupinu příkazů, <code>do</code> ji spustí souběžně, <code>dowait</code> na ni počká, <code>wait</code> čeká. <code>if</code>, <code>else</code>, <code>loop</code> fungují jako v jiných jazycích. Příkazy mohou obsahovat jen <code>affect</code>, <code>task</code>, <code>if</code>, <code>else</code> a <code>loop</code>.</p>
 <h2 id="einfuegen">Přidávání příkazů<a class="anker" href="#einfuegen">#</a></h2>
 <ul><li>V seznamu <strong><span class="ui">Události</span></strong> vlevo <strong>dvakrát klikněte</strong> na příkaz a vložíte ho za vybraný řádek (nebo do vybraného bloku).</li><li>Nebo ho <strong>přetáhněte</strong> do stromu: kde ho pustíte, rozhoduje, zda dopadne před řádek, dovnitř nebo za něj.</li><li>Makra na konci seznamu vloží několik příkazů najednou; <strong><span class="ui">Sbalit makra</span></strong> je ukáže jako jeden řádek.</li><li>Pravým tlačítkem na řádku získáte tytéž seznamy jako podnabídky, plus úpravy, kopírování a <strong><span class="ui">Najít podobné</span></strong>.</li></ul>
 <h2 id="editor">Editor událostí<a class="anker" href="#editor">#</a></h2>
 <p>Dvakrát klikněte na řádek (nebo stiskněte <kbd>Enter</kbd>) a otevře se <strong><span class="ui">Editor událostí</span></strong>. Nahoře stojí text nápovědy příkazu, pod ním má každá hodnota vlastní pole: seznamy pro pevné volby, číselná a textová pole, souborová pole s <strong><span class="ui"></span></strong> pro procházení a <strong><span class="ui">Spustit</span></strong> pro přehrání zvuku nebo otevření skriptu. Je-li načtena mapa, šipka vedle polí se jmény vybere jméno z mapy.</p>
-<figure class="bild"><a href="../bilder/en/h_editor.webp" class="zoom"><img src="../bilder/en/h_editor.webp" alt="Editor událostí pro příkaz kamery." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption>Editor událostí pro příkaz kamery.</figcaption></figure>
+<figure class="bild"><a href="../bilder/en/h_editor.webp" class="zoom"><img src="../bilder/en/h_editor.webp" alt="Editor událostí pro příkaz kamery." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption>Editor událostí pro příkaz kamery.</figcaption></figure>
 <ul><li><strong><span class="ui">Výraz!</span></strong> změní pole na volný výraz; <strong><span class="ui">Pomocník</span></strong> sestaví <code>get ( ... )</code>, <code>tag ( ... )</code> nebo <code>random ( ... )</code> pomocí <strong><span class="ui">Načíst</span></strong>, <strong><span class="ui">Tag</span></strong> a <strong><span class="ui">Náh</span></strong>; <strong><span class="ui">Vrátit zpět</span></strong> se vrátí.</li><li>Hodnota, která není ve svém seznamu, je povolena - mody přinášejí vlastní - ale označena jako <strong>neznámá</strong>, protože mnohem častěji jde o překlep.</li><li><strong><span class="ui">OK</span></strong> (<kbd>Enter</kbd>) zapíše hodnoty, <strong><span class="ui">Zrušit</span></strong> (<kbd>Esc</kbd>) je zahodí, <strong><span class="ui">Znovu vyhodnotit</span></strong> vrátí pole na výchozí hodnoty.</li></ul>
 <h2 id="bearbeiten">Výběr, přesun, kopírování<a class="anker" href="#bearbeiten">#</a></h2>
 <ul><li>Kliknutí vybere řádek, <kbd>Ctrl</kbd>+kliknutí přidá další, <kbd>Shift</kbd>+kliknutí vybere rozsah. Každá akce působí na vše vybrané.</li><li>Tažením řádků je přesunete. Bloky se přesouvají se vším uvnitř; blok nemůže jít sám do sebe.</li><li><strong><span class="ui">Kopírovat</span></strong>, <strong><span class="ui">Vyjmout</span></strong>, <strong><span class="ui">Vložit</span></strong> - vložení do bloku vloží příkazy přesně jednou, i když byly blok a jeho řádky zkopírovány spolu.</li><li><strong><span class="ui">Duplikovat</span></strong> vloží kopii hned pod, <strong><span class="ui">Zakomentovat</span></strong> mění řádky na komentáře a zpět, <strong><span class="ui">Odstranit</span></strong> je odebere.</li><li><strong>Zpět</strong> a <strong>Znovu</strong> si pamatují každý krok. Pravým tlačítkem na kterékoli z nich získáte celou historii - můžete dokonce vrátit jediný krok a vše po něm ponechat.</li></ul>
@@ -46,9 +46,9 @@
 <p><strong><span class="ui">Najít</span></strong> (<kbd>Ctrl</kbd>+<kbd>F</kbd>) otevře okno, které zůstane otevřené: hledejte podle názvu příkazu (<strong><span class="ui">Položka s názvem</span></strong>) nebo podle hodnoty (<strong><span class="ui">Položka obsahující</span></strong>), procházejte <kbd>F3</kbd> / <kbd>Shift</kbd>+<kbd>F3</kbd>, nahrazujte v tomto skriptu nebo ve všech otevřených. Záložky fungují jako v Notepad++: <kbd>Ctrl</kbd>+<kbd>F2</kbd> jednu nastaví, <kbd>F2</kbd> skočí na další. Pamatují se pro každý soubor.</p>
 <h2 id="rand">Okraj změn<a class="anker" href="#rand">#</a></h2>
 <p>S <strong><span class="ui">Zobrazení</span> → <span class="ui">Historie změn (okraj)</span></strong> označuje barevný okraj, co jste změnili: oranžová = změněno, neuloženo; zelená = změněno a uloženo; modrá = zpět v původním stavu. Najeďte na něj myší a uvidíte původní řádek, pravým tlačítkem na řádku → <strong>Vrátit na původní</strong> obnovíte jen tento příkaz.</p>
-    <nav class="blaettern"><a class="vor" href="fenster.html"><span>Previous</span>Okno</a><a class="nach" href="skriptfluss.html"><span>Next</span>Průběh skriptu: Klasický, Graf, Stopy</a></nav>
+    <nav class="blaettern"><a class="vor" href="fenster.html"><span>Zpět</span>Okno</a><a class="nach" href="skriptfluss.html"><span>Další</span>Průběh skriptu: Klasický, Graf, Stopy</a></nav>
   </article>
-  <footer>JK Studio guide - mod tools for Jedi Knight: Jedi Academy and Jedi Outcast. The pictures show the program itself; they are made by its self-test. Not affiliated with Lucasfilm, Disney or Raven Software.</footer>
+  <footer>Příručka k JK Studiu - nástroje pro mody do Jedi Knight: Jedi Academy a Jedi Outcast. Obrázky ukazují samotný program; pořizuje je jeho autotest. Bez spojení s Lucasfilm, Disney ani Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

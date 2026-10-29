@@ -9,9 +9,9 @@
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Guide</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Příručka</small></span></a>
   <div class="suche">
-    <input id="suchfeld" type="search" placeholder="Search the guide...  (/)" autocomplete="off" aria-label="Search the guide...  (/)">
+    <input id="suchfeld" type="search" placeholder="Hledat v příručce...  (/)" autocomplete="off" aria-label="Hledat v příručce...  (/)">
     <div id="treffer" class="treffer" hidden></div>
   </div>
   <nav class="kapitel"><details class="gruppe" ><summary><span class="pfeil"></span>Začněte zde</summary><ul><li class=""><a href="index.html">Vítejte</a></li><li class=""><a href="helfer.html">Pomocník a tutoriály</a></li><li class=""><a href="funktionen.html">Co JK Studio umí</a></li><li class=""><a href="erste-schritte.html">Začínáme</a></li><li class=""><a href="fenster.html">Okno</a></li><li class=""><a href="menue_editor.html">Editor menu</a></li></ul></details>
@@ -25,13 +25,13 @@
 <main>
   <header class="kopf">
     <div class="sprachen"><a href="../en/animation.html" class="" lang="en">English</a><a href="../de/animation.html" class="" lang="de">Deutsch</a><a href="../zh/animation.html" class="" lang="zh">中文</a><a href="../ja/animation.html" class="" lang="ja">日本語</a><a href="../es/animation.html" class="" lang="es">Español</a><a href="../cs/animation.html" class="aktiv" lang="cs">Čeština</a></div>
-    <button id="thema" class="thema" title="Light or dark" aria-label="Light or dark">&#9681;</button>
+    <button id="thema" class="thema" title="Světlý nebo tmavý" aria-label="Světlý nebo tmavý">&#9681;</button>
   </header>
   <article>
     <div class="ueber">Mapa a scéna</div>
     <h1>Animace moverů a soubory ROFF</h1>
     <p class="einleitung">Lodě, dveře a plošiny se pohybují podle klíčů v čase. Uložte je jako příkazy move ve skriptu, nebo jako soubor ROFF - a upravujte soubory ROFF hry.</p>
-    <figure class="bild breit"><a href="../bilder/en/h_animation.webp" class="zoom"><img src="../bilder/en/h_animation.webp" alt="Okno Animace v režimu ROFF a dráha lodi v mapě." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption>Okno <span class="ui">Animace</span> v režimu ROFF a dráha lodi v mapě.</figcaption></figure>
+    <figure class="bild breit"><a href="../bilder/en/h_animation.webp" class="zoom"><img src="../bilder/en/h_animation.webp" alt="Okno Animace v režimu ROFF a dráha lodi v mapě." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption>Okno <span class="ui">Animace</span> v režimu ROFF a dráha lodi v mapě.</figcaption></figure>
 <h2 id="start">Otevření okna<a class="anker" href="#start">#</a></h2>
 <p>Vyberte pohyblivou entitu - brush entity <code>func_*</code> jako lodě <code>func_static</code> a <code>func_door</code>, <code>misc_model_breakable</code>, <code>fx_runner</code> - a stiskněte v inspektoru <strong><span class="ui">Animovat</span></strong>. Pokud ještě nemá <code>script_targetname</code>, dostane ho, protože skript může pohybovat jen tím, co má název.</p>
 <h2 id="schluessel">Klíče<a class="anker" href="#schluessel">#</a></h2>
@@ -44,11 +44,11 @@
 <p>Klíče, které upravujete, se uchovávají jako řádek komentáře ve skriptu těsně před <code>play</code>; <code>.rof</code> se z nich sestaví. Proto Zpět, kopírování a vkládání fungují na dráhách ROFF jako na každém příkazu. Když <strong>uložíte skript</strong>, soubor se zapíše do <code>scripts/&lt;name&gt;.rof</code> ve stejné složce skriptů; <strong><span class="ui">Uložit misi</span></strong> ho zabalí do <code>.pk3</code> mise.</p>
 <h2 id="bearbeiten">Úprava souboru ROFF hry<a class="anker" href="#bearbeiten">#</a></h2>
 <p>Když skript na entitě přehrává hotový ROFF, okno ho vypíše pod <strong><span class="ui">Dráhy ROFF této entity ve skriptu:</span></strong>. <strong><span class="ui">Upravit</span></strong> ho převede na klíče - buď přímé úseky, nebo jednu hladkou křivku, podle toho, co potřebuje méně klíčů - s odchylkou do půl jednotky od originálu. Soubor hry se nikdy nepřepíše: upravujete kopii (<code>…_2</code>) a příkaz <code>play</code> se přesměruje na ni.</p>
-<figure class="bild breit anim"><a href="../bilder/en/a_roff.webp" class="zoom"><img src="../bilder/en/a_roff.webp" alt="Loď letící po své dráze ROFF." loading="lazy"></a><span class="englisch">Picture still in English</span><span class="abzeichen">Animace</span><button class="anhalten" type="button" data-stand="../bilder/en/a_roff_stand.webp" data-lauf="../bilder/en/a_roff.webp" aria-label="Pause">&#10074;&#10074;</button><figcaption>Loď letící po své dráze ROFF.</figcaption></figure>
+<figure class="bild breit anim"><a href="../bilder/en/a_roff.webp" class="zoom"><img src="../bilder/en/a_roff.webp" alt="Loď letící po své dráze ROFF." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><span class="abzeichen">Animace</span><button class="anhalten" type="button" data-stand="../bilder/en/a_roff_stand.webp" data-lauf="../bilder/en/a_roff.webp" aria-label="Pozastavit">&#10074;&#10074;</button><figcaption>Loď letící po své dráze ROFF.</figcaption></figure>
 <div class="hinweis">Na časové ose je let ROFF pás pod <strong><span class="ui">Pohyb</span></strong>; tažením ho let začne dřív nebo později.</div>
-    <nav class="blaettern"><a class="vor" href="figuren.html"><span>Previous</span>Postavy a dráhy</a><a class="nach" href="wegpunkte.html"><span>Next</span>Navigační body NPC</a></nav>
+    <nav class="blaettern"><a class="vor" href="figuren.html"><span>Zpět</span>Postavy a dráhy</a><a class="nach" href="wegpunkte.html"><span>Další</span>Navigační body NPC</a></nav>
   </article>
-  <footer>JK Studio guide - mod tools for Jedi Knight: Jedi Academy and Jedi Outcast. The pictures show the program itself; they are made by its self-test. Not affiliated with Lucasfilm, Disney or Raven Software.</footer>
+  <footer>Příručka k JK Studiu - nástroje pro mody do Jedi Knight: Jedi Academy a Jedi Outcast. Obrázky ukazují samotný program; pořizuje je jeho autotest. Bez spojení s Lucasfilm, Disney ani Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

@@ -9,9 +9,9 @@
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Guide</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Příručka</small></span></a>
   <div class="suche">
-    <input id="suchfeld" type="search" placeholder="Search the guide...  (/)" autocomplete="off" aria-label="Search the guide...  (/)">
+    <input id="suchfeld" type="search" placeholder="Hledat v příručce...  (/)" autocomplete="off" aria-label="Hledat v příručce...  (/)">
     <div id="treffer" class="treffer" hidden></div>
   </div>
   <nav class="kapitel"><details class="gruppe" ><summary><span class="pfeil"></span>Začněte zde</summary><ul><li class=""><a href="index.html">Vítejte</a></li><li class=""><a href="helfer.html">Pomocník a tutoriály</a></li><li class=""><a href="funktionen.html">Co JK Studio umí</a></li><li class=""><a href="erste-schritte.html">Začínáme</a></li><li class=""><a href="fenster.html">Okno</a></li><li class=""><a href="menue_editor.html">Editor menu</a></li></ul></details>
@@ -25,31 +25,31 @@
 <main>
   <header class="kopf">
     <div class="sprachen"><a href="../en/cmd-rem.html" class="" lang="en">English</a><a href="../de/cmd-rem.html" class="" lang="de">Deutsch</a><a href="../zh/cmd-rem.html" class="" lang="zh">中文</a><a href="../ja/cmd-rem.html" class="" lang="ja">日本語</a><a href="../es/cmd-rem.html" class="" lang="es">Español</a><a href="../cs/cmd-rem.html" class="aktiv" lang="cs">Čeština</a></div>
-    <button id="thema" class="thema" title="Light or dark" aria-label="Light or dark">&#9681;</button>
+    <button id="thema" class="thema" title="Světlý nebo tmavý" aria-label="Světlý nebo tmavý">&#9681;</button>
   </header>
   <article>
     <div class="ueber">Příkazy</div>
     <h1>rem - komentář</h1>
     <p class="einleitung">Poznámka ve skriptu - ve hře nic nedělá.</p>
-    <div class="moduswahl"><span>View:</span><button type="button" data-modus="classic">Klasický</button><button type="button" data-modus="graph">Graf</button><button type="button" data-modus="tracks">Stopy</button></div>
+    <div class="moduswahl"><span>Pohled:</span><button type="button" data-modus="classic">Klasický</button><button type="button" data-modus="graph">Graf</button><button type="button" data-modus="tracks">Stopy</button></div>
 <h2 id="was">Co dělá<a class="anker" href="#was">#</a></h2>
 <p><code>rem</code> uchová poznámku pro vás nebo dalšího člověka: co tato část skriptu dělá. <strong><span class="ui">Zakomentovat</span></strong> změní kterýkoli řádek na komentář a zpět.</p>
 <h2 id="felder">Kam co zadat<a class="anker" href="#felder">#</a></h2>
-<figure class="bild"><a href="../bilder/en/b_rem_ed.webp" class="zoom"><img src="../bilder/en/b_rem_ed.webp" alt="Editor událostí pro rem - čísla odpovídají tabulce níže." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption>Editor událostí pro <code>rem</code> - čísla odpovídají tabulce níže.</figcaption></figure>
-<table class="legende"><thead><tr><th>No.</th><th>Název</th><th>Co dělá</th></tr></thead><tbody><tr><td class="lnr">1</td><td>Komentář</td><td>Libovolný text.</td></tr></tbody></table>
+<figure class="bild"><a href="../bilder/en/b_rem_ed.webp" class="zoom"><img src="../bilder/en/b_rem_ed.webp" alt="Editor událostí pro rem - čísla odpovídají tabulce níže." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption>Editor událostí pro <code>rem</code> - čísla odpovídají tabulce níže.</figcaption></figure>
+<table class="legende"><thead><tr><th>Č.</th><th>Název</th><th>Co dělá</th></tr></thead><tbody><tr><td class="lnr">1</td><td>Komentář</td><td>Libovolný text.</td></tr></tbody></table>
 <h2 id="beispiel">Příklad<a class="anker" href="#beispiel">#</a></h2>
 <p><code>rem ( &quot;The ship takes off here&quot; )</code>.</p>
 <h2 id="ansichten">V Klasickém, Grafu a Stopách<a class="anker" href="#ansichten">#</a></h2>
 <p>Přepínač nahoře na stránce volí pohled. Všechny tři pracují na tomtéž skriptu - přepnutím se nic neztratí.</p>
 <div class="modusinhalt m-classic"><p><strong>V Klasickém</strong> je to jeden řádek stromu skriptu. Dvakrát na něj klikněte (nebo ho vyberte a stiskněte <kbd>Enter</kbd>) a otevře se editor; pravým tlačítkem nabídka; tažením ho přesunete.</p>
-<figure class="bild"><a href="../bilder/en/b_rem_c.webp" class="zoom"><img src="../bilder/en/b_rem_c.webp" alt="rem ve stromu skriptu." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>rem</code> ve stromu skriptu.</figcaption></figure></div>
+<figure class="bild"><a href="../bilder/en/b_rem_c.webp" class="zoom"><img src="../bilder/en/b_rem_c.webp" alt="rem ve stromu skriptu." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>rem</code> ve stromu skriptu.</figcaption></figure></div>
 <div class="modusinhalt m-graph"><p><strong>V Grafu</strong> je skript uzel; vyberte ho a jeho příkazy se vypíší vpravo pod <strong><span class="ui">Příkazy tohoto skriptu</span></strong>. Dvojklikem na řádek ho upravíte, pravým tlačítkem nabídka, puštěním příkazu ze seznamu <strong><span class="ui">Události</span></strong> na něj ho vložíte za něj.</p>
-<figure class="bild"><a href="../bilder/en/b_rem_g.webp" class="zoom"><img src="../bilder/en/b_rem_g.webp" alt="rem v seznamu vybraného uzlu skriptu." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>rem</code> v seznamu vybraného uzlu skriptu.</figcaption></figure></div>
+<figure class="bild"><a href="../bilder/en/b_rem_g.webp" class="zoom"><img src="../bilder/en/b_rem_g.webp" alt="rem v seznamu vybraného uzlu skriptu." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>rem</code> v seznamu vybraného uzlu skriptu.</figcaption></figure></div>
 <div class="modusinhalt m-tracks"><p><strong>Ve Stopách</strong> nezabere čas: je to krátká značka na řádku <strong>Skript</strong> v okamžiku, kdy proběhne. Kliknutím vyberete jeho řádek, dvojklikem ho upravíte, pravým tlačítkem nabídka. Je také v <strong><span class="ui">Seznam příkazů</span></strong> vpravo.</p>
-<figure class="bild"><a href="../bilder/en/b_rem_t.webp" class="zoom"><img src="../bilder/en/b_rem_t.webp" alt="rem ve Stopách." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>rem</code> ve Stopách.</figcaption></figure></div>
-    <nav class="blaettern"><a class="vor" href="cmd-print.html"><span>Previous</span>print - text na obrazovce</a><a class="nach" href="cmd-declare.html"><span>Next</span>declare - vytvořit proměnnou</a></nav>
+<figure class="bild"><a href="../bilder/en/b_rem_t.webp" class="zoom"><img src="../bilder/en/b_rem_t.webp" alt="rem ve Stopách." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>rem</code> ve Stopách.</figcaption></figure></div>
+    <nav class="blaettern"><a class="vor" href="cmd-print.html"><span>Zpět</span>print - text na obrazovce</a><a class="nach" href="cmd-declare.html"><span>Další</span>declare - vytvořit proměnnou</a></nav>
   </article>
-  <footer>JK Studio guide - mod tools for Jedi Knight: Jedi Academy and Jedi Outcast. The pictures show the program itself; they are made by its self-test. Not affiliated with Lucasfilm, Disney or Raven Software.</footer>
+  <footer>Příručka k JK Studiu - nástroje pro mody do Jedi Knight: Jedi Academy a Jedi Outcast. Obrázky ukazují samotný program; pořizuje je jeho autotest. Bez spojení s Lucasfilm, Disney ani Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

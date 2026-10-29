@@ -2379,7 +2379,7 @@ TEXTE = {
     "MeGespeichert": "Uloženo %s",
     "MeNichtGespeichert": "Nelze zapsat %s",
     "MeExportiert": "Exportováno %s",
-    "KeLeisteGriffTipp": "Tažením úchytu ukotvíte panel nástrojů u jiného okraje (nahoře, vlevo, vpravo, dole). Pravým tlačítkem na panel nástrojů zobrazíte nebo skryjete tlačítka: Otevřít, Uložit, Zpět, Znovu a Vybrat dotýkající se jsou ve výchozím stavu skrytá, jako v NetRadiant-Custom.",
+    "KeLeisteGriffTipp": "Tažením úchytu ukotvíte panel nástrojů u jiného okraje (nahoře, vlevo, vpravo, dole). Pravým tlačítkem na panel nástrojů zobrazíte nebo skryjete tlačítka: Open, Save, Undo, Redo a Select Touching jsou ve výchozím stavu skrytá, jako v NetRadiant-Custom.",
     "KePatchSchatten": "Stíny patchů (-patchshadows)",
     "KePatchSchattenTip": "Patche vrhají stíny ve světle v reálném čase i v rychlém zapečení (q3map2 -patchshadows). Ve výchozím stavu vypnuto, jako v q3map2.",
 }

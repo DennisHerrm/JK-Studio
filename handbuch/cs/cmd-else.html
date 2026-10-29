@@ -9,9 +9,9 @@
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Guide</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Příručka</small></span></a>
   <div class="suche">
-    <input id="suchfeld" type="search" placeholder="Search the guide...  (/)" autocomplete="off" aria-label="Search the guide...  (/)">
+    <input id="suchfeld" type="search" placeholder="Hledat v příručce...  (/)" autocomplete="off" aria-label="Hledat v příručce...  (/)">
     <div id="treffer" class="treffer" hidden></div>
   </div>
   <nav class="kapitel"><details class="gruppe" ><summary><span class="pfeil"></span>Začněte zde</summary><ul><li class=""><a href="index.html">Vítejte</a></li><li class=""><a href="helfer.html">Pomocník a tutoriály</a></li><li class=""><a href="funktionen.html">Co JK Studio umí</a></li><li class=""><a href="erste-schritte.html">Začínáme</a></li><li class=""><a href="fenster.html">Okno</a></li><li class=""><a href="menue_editor.html">Editor menu</a></li></ul></details>
@@ -25,33 +25,33 @@
 <main>
   <header class="kopf">
     <div class="sprachen"><a href="../en/cmd-else.html" class="" lang="en">English</a><a href="../de/cmd-else.html" class="" lang="de">Deutsch</a><a href="../zh/cmd-else.html" class="" lang="zh">中文</a><a href="../ja/cmd-else.html" class="" lang="ja">日本語</a><a href="../es/cmd-else.html" class="" lang="es">Español</a><a href="../cs/cmd-else.html" class="aktiv" lang="cs">Čeština</a></div>
-    <button id="thema" class="thema" title="Light or dark" aria-label="Light or dark">&#9681;</button>
+    <button id="thema" class="thema" title="Světlý nebo tmavý" aria-label="Světlý nebo tmavý">&#9681;</button>
   </header>
   <article>
     <div class="ueber">Příkazy</div>
     <h1>else - jinak</h1>
     <p class="einleitung">Spustí svůj blok, když byl <code>if</code> hned před ním nepravdivý.</p>
-    <div class="moduswahl"><span>View:</span><button type="button" data-modus="classic">Klasický</button><button type="button" data-modus="graph">Graf</button><button type="button" data-modus="tracks">Stopy</button></div>
+    <div class="moduswahl"><span>Pohled:</span><button type="button" data-modus="classic">Klasický</button><button type="button" data-modus="graph">Graf</button><button type="button" data-modus="tracks">Stopy</button></div>
 <h2 id="was">Co dělá<a class="anker" href="#was">#</a></h2>
 <p><code>else</code> patří k <code>if</code> přímo před ním. Jeho blok se spustí, když se ten <code>if</code> nespustil. Mezi koncem bloku <code>if</code> a <code>else</code> nesmí nic být.</p>
 <h2 id="felder">Kam co zadat<a class="anker" href="#felder">#</a></h2>
-<figure class="bild"><a href="../bilder/en/b_else_ed.webp" class="zoom"><img src="../bilder/en/b_else_ed.webp" alt="Editor událostí pro else - čísla odpovídají tabulce níže." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption>Editor událostí pro <code>else</code> - čísla odpovídají tabulce níže.</figcaption></figure>
+<figure class="bild"><a href="../bilder/en/b_else_ed.webp" class="zoom"><img src="../bilder/en/b_else_ed.webp" alt="Editor událostí pro else - čísla odpovídají tabulce níže." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption>Editor událostí pro <code>else</code> - čísla odpovídají tabulce níže.</figcaption></figure>
 <p>Tento příkaz nemá hodnoty - editor ukazuje jen jeho text nápovědy. Stiskněte <strong><span class="ui">OK</span></strong>.</p>
 <h2 id="beispiel">Příklad<a class="anker" href="#beispiel">#</a></h2>
 <p>Po <code>if ( get( FLOAT, &quot;seen&quot; ), =, 0 ) { ... }</code> pozdraví <code>else ( ) { print ( &quot;Welcome back&quot; ) }</code> vracejícího se hráče.</p>
 <h2 id="ansichten">V Klasickém, Grafu a Stopách<a class="anker" href="#ansichten">#</a></h2>
 <p>Přepínač nahoře na stránce volí pohled. Všechny tři pracují na tomtéž skriptu - přepnutím se nic neztratí.</p>
 <div class="modusinhalt m-classic"><p><strong>V Klasickém</strong> je to řádek s rámečkem vpředu: kliknutím na rámeček blok otevřete nebo zavřete. Příkazy uvnitř jsou odsazené. Příkaz vložený, když je blok otevřený a vybraný, jde dovnitř.</p>
-<figure class="bild"><a href="../bilder/en/b_else_c.webp" class="zoom"><img src="../bilder/en/b_else_c.webp" alt="else ve stromu skriptu." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>else</code> ve stromu skriptu.</figcaption></figure></div>
+<figure class="bild"><a href="../bilder/en/b_else_c.webp" class="zoom"><img src="../bilder/en/b_else_c.webp" alt="else ve stromu skriptu." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>else</code> ve stromu skriptu.</figcaption></figure></div>
 <div class="modusinhalt m-graph"><p><strong>V Grafu</strong> jsou blok a jeho obsah vypsány vpravo, obsah odsazený. Vyberte řádek bloku a dvakrát klikněte na příkaz v seznamu <strong><span class="ui">Události</span></strong>, aby šel dovnitř.</p>
-<figure class="bild"><a href="../bilder/en/b_else_g.webp" class="zoom"><img src="../bilder/en/b_else_g.webp" alt="else v seznamu vybraného uzlu skriptu." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>else</code> v seznamu vybraného uzlu skriptu.</figcaption></figure></div>
+<figure class="bild"><a href="../bilder/en/b_else_g.webp" class="zoom"><img src="../bilder/en/b_else_g.webp" alt="else v seznamu vybraného uzlu skriptu." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>else</code> v seznamu vybraného uzlu skriptu.</figcaption></figure></div>
 <div class="modusinhalt m-tracks"><p><strong>Ve Stopách</strong> nezabere vlastní čas, takže nemá blok - stojí v <strong><span class="ui">Seznam příkazů</span></strong> vpravo. Kliknutí, dvojklik a pravé tlačítko tam fungují jako v Grafu.</p>
-<figure class="bild"><a href="../bilder/en/b_else_t.webp" class="zoom"><img src="../bilder/en/b_else_t.webp" alt="else ve Stopách." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>else</code> ve Stopách.</figcaption></figure></div>
+<figure class="bild"><a href="../bilder/en/b_else_t.webp" class="zoom"><img src="../bilder/en/b_else_t.webp" alt="else ve Stopách." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>else</code> ve Stopách.</figcaption></figure></div>
 <h2 id="tipps">Dobré vědět<a class="anker" href="#tipps">#</a></h2>
 <ul><li><code>else</code> bez <code>if</code> hned před ním je při kompilaci chyba.</li></ul>
-    <nav class="blaettern"><a class="vor" href="cmd-if.html"><span>Previous</span>if - jen když platí podmínka</a><a class="nach" href="cmd-loop.html"><span>Next</span>loop - opakovat blok</a></nav>
+    <nav class="blaettern"><a class="vor" href="cmd-if.html"><span>Zpět</span>if - jen když platí podmínka</a><a class="nach" href="cmd-loop.html"><span>Další</span>loop - opakovat blok</a></nav>
   </article>
-  <footer>JK Studio guide - mod tools for Jedi Knight: Jedi Academy and Jedi Outcast. The pictures show the program itself; they are made by its self-test. Not affiliated with Lucasfilm, Disney or Raven Software.</footer>
+  <footer>Příručka k JK Studiu - nástroje pro mody do Jedi Knight: Jedi Academy a Jedi Outcast. Obrázky ukazují samotný program; pořizuje je jeho autotest. Bez spojení s Lucasfilm, Disney ani Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

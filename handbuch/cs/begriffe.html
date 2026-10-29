@@ -9,9 +9,9 @@
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Guide</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Příručka</small></span></a>
   <div class="suche">
-    <input id="suchfeld" type="search" placeholder="Search the guide...  (/)" autocomplete="off" aria-label="Search the guide...  (/)">
+    <input id="suchfeld" type="search" placeholder="Hledat v příručce...  (/)" autocomplete="off" aria-label="Hledat v příručce...  (/)">
     <div id="treffer" class="treffer" hidden></div>
   </div>
   <nav class="kapitel"><details class="gruppe" ><summary><span class="pfeil"></span>Začněte zde</summary><ul><li class=""><a href="index.html">Vítejte</a></li><li class=""><a href="helfer.html">Pomocník a tutoriály</a></li><li class=""><a href="funktionen.html">Co JK Studio umí</a></li><li class=""><a href="erste-schritte.html">Začínáme</a></li><li class=""><a href="fenster.html">Okno</a></li><li class=""><a href="menue_editor.html">Editor menu</a></li></ul></details>
@@ -25,16 +25,16 @@
 <main>
   <header class="kopf">
     <div class="sprachen"><a href="../en/begriffe.html" class="" lang="en">English</a><a href="../de/begriffe.html" class="" lang="de">Deutsch</a><a href="../zh/begriffe.html" class="" lang="zh">中文</a><a href="../ja/begriffe.html" class="" lang="ja">日本語</a><a href="../es/begriffe.html" class="" lang="es">Español</a><a href="../cs/begriffe.html" class="aktiv" lang="cs">Čeština</a></div>
-    <button id="thema" class="thema" title="Light or dark" aria-label="Light or dark">&#9681;</button>
+    <button id="thema" class="thema" title="Světlý nebo tmavý" aria-label="Světlý nebo tmavý">&#9681;</button>
   </header>
   <article>
     <div class="ueber">Reference</div>
     <h1>Slovníček</h1>
     <p class="einleitung">Slova skriptování Jedi Academy na jednom místě.</p>
     <table class="liste"><thead><tr><th>Pojem</th><th>Význam</th></tr></thead><tbody><tr><td>ICARUS</td><td>Skriptovací systém hry. Skripty jsou text (<code>.txt</code>) a běží zkompilované (<code>.ibi</code>).</td></tr><tr><td><code>.ibi</code></td><td>Zkompilovaný skript - to, co hra skutečně spouští. Vytvoří ho <strong><span class="ui">Kompilovat!</span></strong>.</td></tr><tr><td><code>.bhc</code></td><td>Soubor s popisem příkazů: každý příkaz, jeho pole a jejich volby.</td></tr><tr><td><code>affect</code></td><td>Blok, jehož příkazy jdou jedné pojmenované postavě nebo entitě.</td></tr><tr><td><code>task</code> / <code>do</code> / <code>dowait</code></td><td>Pojmenovaná skupina příkazů; <code>do</code> ji spustí souběžně, <code>dowait</code> počká, až skončí.</td></tr><tr><td><code>wait</code></td><td>Pauza v milisekundách. Ve hře končí o jeden snímek (50 ms) později, než je napsáno.</td></tr><tr><td><code>SET_NAVGOAL</code></td><td>Pošle postavu k <code>waypoint_navgoal</code> - rovně, když je blízko, jinak po síti navigačních bodů. Viz <a href="figuren.html#wieimspiel">Jak se postavy pohybují - jako ve hře</a>.</td></tr><tr><td><code>SET_YAWSPEED</code></td><td>Jak rychle se NPC otáčí: 60 + 3 × hodnota stupňů za sekundu.</td></tr><tr><td><code>SET_SABERCOLLISIONS</code></td><td>Jen Movie Duels: nechá čepele NPC v <code>BS_CINEMATIC</code> střetávat se. Viz <a href="figuren.html#schwerter">Světelné meče: zdi a střety</a>.</td></tr><tr><td><code>NPC_spawner</code></td><td>Entita, která nechá objevit se postavu; <code>NPC_type</code> říká kterou, <code>NPC_targetname</code> ji pojmenuje pro skripty.</td></tr><tr><td><code>ref_tag</code></td><td>Pojmenovaná značka v mapě - pro polohy kamery a cíle pohledu.</td></tr><tr><td><code>target_scriptrunner</code></td><td>Spustí skript, když je použit (triggerem, jinou entitou nebo skriptem).</td></tr><tr><td><code>func_static</code></td><td>Brush model mapy, který skripty mohou pohybovat - lodě, dveře, plošiny.</td></tr><tr><td>ROFF (<code>.rof</code>)</td><td>Zaznamenaný pohyb: jeden malý krok polohy a úhlu na herní snímek. Viz <a href="animation.html#roff">Jak fungují soubory ROFF</a>.</td></tr><tr><td><code>.pk3</code></td><td>Archiv zip, ze kterého hra čte své soubory. Mise se do jednoho zabalí.</td></tr><tr><td><code>.ent</code></td><td>Entity mapy v samostatném souboru; Movie Duels ponechá mapu a vlastní entity dá vedle ní.</td></tr><tr><td>Movie Duels</td><td>Velký mod Jedi Academy s misemi s animačními sekvencemi. Jeho kód hry se od OpenJK místy liší; náhled se řídí kterýmkoli z nich - <a href="einstellungen.html#prefs">Předvolby</a>.</td></tr></tbody></table>
-    <nav class="blaettern"><a class="vor" href="tasten.html"><span>Previous</span>Klávesové zkratky</a><a class="nach" href="knoepfe.html"><span>Next</span>Každé tlačítko</a></nav>
+    <nav class="blaettern"><a class="vor" href="tasten.html"><span>Zpět</span>Klávesové zkratky</a><a class="nach" href="knoepfe.html"><span>Další</span>Každé tlačítko</a></nav>
   </article>
-  <footer>JK Studio guide - mod tools for Jedi Knight: Jedi Academy and Jedi Outcast. The pictures show the program itself; they are made by its self-test. Not affiliated with Lucasfilm, Disney or Raven Software.</footer>
+  <footer>Příručka k JK Studiu - nástroje pro mody do Jedi Knight: Jedi Academy a Jedi Outcast. Obrázky ukazují samotný program; pořizuje je jeho autotest. Bez spojení s Lucasfilm, Disney ani Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

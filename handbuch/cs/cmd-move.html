@@ -9,9 +9,9 @@
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Guide</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Příručka</small></span></a>
   <div class="suche">
-    <input id="suchfeld" type="search" placeholder="Search the guide...  (/)" autocomplete="off" aria-label="Search the guide...  (/)">
+    <input id="suchfeld" type="search" placeholder="Hledat v příručce...  (/)" autocomplete="off" aria-label="Hledat v příručce...  (/)">
     <div id="treffer" class="treffer" hidden></div>
   </div>
   <nav class="kapitel"><details class="gruppe" ><summary><span class="pfeil"></span>Začněte zde</summary><ul><li class=""><a href="index.html">Vítejte</a></li><li class=""><a href="helfer.html">Pomocník a tutoriály</a></li><li class=""><a href="funktionen.html">Co JK Studio umí</a></li><li class=""><a href="erste-schritte.html">Začínáme</a></li><li class=""><a href="fenster.html">Okno</a></li><li class=""><a href="menue_editor.html">Editor menu</a></li></ul></details>
@@ -25,33 +25,33 @@
 <main>
   <header class="kopf">
     <div class="sprachen"><a href="../en/cmd-move.html" class="" lang="en">English</a><a href="../de/cmd-move.html" class="" lang="de">Deutsch</a><a href="../zh/cmd-move.html" class="" lang="zh">中文</a><a href="../ja/cmd-move.html" class="" lang="ja">日本語</a><a href="../es/cmd-move.html" class="" lang="es">Español</a><a href="../cs/cmd-move.html" class="aktiv" lang="cs">Čeština</a></div>
-    <button id="thema" class="thema" title="Light or dark" aria-label="Light or dark">&#9681;</button>
+    <button id="thema" class="thema" title="Světlý nebo tmavý" aria-label="Světlý nebo tmavý">&#9681;</button>
   </header>
   <article>
     <div class="ueber">Příkazy</div>
     <h1>move - posunout entitu</h1>
     <p class="einleitung">Posune dveře, plošinu nebo loď na polohu za tolik milisekund.</p>
-    <div class="moduswahl"><span>View:</span><button type="button" data-modus="classic">Klasický</button><button type="button" data-modus="graph">Graf</button><button type="button" data-modus="tracks">Stopy</button></div>
+    <div class="moduswahl"><span>Pohled:</span><button type="button" data-modus="classic">Klasický</button><button type="button" data-modus="graph">Graf</button><button type="button" data-modus="tracks">Stopy</button></div>
 <h2 id="was">Co dělá<a class="anker" href="#was">#</a></h2>
 <p><code>move</code> posune entitu aktuálního bloku <code>affect</code> na novou polohu - a je-li zadáno, na nové úhly - za zadanou dobu. Okno <strong>Animace</strong> je píše za vás z klíčů, které nastavíte v pohledu.</p>
 <h2 id="felder">Kam co zadat<a class="anker" href="#felder">#</a></h2>
-<figure class="bild"><a href="../bilder/en/b_move_ed.webp" class="zoom"><img src="../bilder/en/b_move_ed.webp" alt="Editor událostí pro move - čísla odpovídají tabulce níže." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption>Editor událostí pro <code>move</code> - čísla odpovídají tabulce níže.</figcaption></figure>
-<table class="legende"><thead><tr><th>No.</th><th>Název</th><th>Co dělá</th></tr></thead><tbody><tr><td class="lnr">1</td><td>Poloha</td><td>Kam jde: tři čísla <code>x y z</code>, relativně k místu, kde byla entita postavena v mapě.</td></tr><tr><td class="lnr">2</td><td>Úhly</td><td>Sklon, otočení a náklon na konci - <code>0 0 0</code> je ponechá.</td></tr><tr><td class="lnr">3</td><td>Čas</td><td>Milisekundy pro celý pohyb.</td></tr></tbody></table>
+<figure class="bild"><a href="../bilder/en/b_move_ed.webp" class="zoom"><img src="../bilder/en/b_move_ed.webp" alt="Editor událostí pro move - čísla odpovídají tabulce níže." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption>Editor událostí pro <code>move</code> - čísla odpovídají tabulce níže.</figcaption></figure>
+<table class="legende"><thead><tr><th>Č.</th><th>Název</th><th>Co dělá</th></tr></thead><tbody><tr><td class="lnr">1</td><td>Poloha</td><td>Kam jde: tři čísla <code>x y z</code>, relativně k místu, kde byla entita postavena v mapě.</td></tr><tr><td class="lnr">2</td><td>Úhly</td><td>Sklon, otočení a náklon na konci - <code>0 0 0</code> je ponechá.</td></tr><tr><td class="lnr">3</td><td>Čas</td><td>Milisekundy pro celý pohyb.</td></tr></tbody></table>
 <h2 id="beispiel">Příklad<a class="anker" href="#beispiel">#</a></h2>
 <p><code>move ( &lt; 0 0 128 &gt;, &lt; 0 0 0 &gt;, 2000 )</code> v bloku dveří - dveře se zvednou o 128 jednotek za dvě sekundy.</p>
 <h2 id="ansichten">V Klasickém, Grafu a Stopách<a class="anker" href="#ansichten">#</a></h2>
 <p>Přepínač nahoře na stránce volí pohled. Všechny tři pracují na tomtéž skriptu - přepnutím se nic neztratí.</p>
 <div class="modusinhalt m-classic"><p><strong>V Klasickém</strong> je to jeden řádek stromu skriptu. Dvakrát na něj klikněte (nebo ho vyberte a stiskněte <kbd>Enter</kbd>) a otevře se editor; pravým tlačítkem nabídka; tažením ho přesunete.</p>
-<figure class="bild"><a href="../bilder/en/b_move_c.webp" class="zoom"><img src="../bilder/en/b_move_c.webp" alt="move ve stromu skriptu." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>move</code> ve stromu skriptu.</figcaption></figure></div>
+<figure class="bild"><a href="../bilder/en/b_move_c.webp" class="zoom"><img src="../bilder/en/b_move_c.webp" alt="move ve stromu skriptu." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>move</code> ve stromu skriptu.</figcaption></figure></div>
 <div class="modusinhalt m-graph"><p><strong>V Grafu</strong> je skript uzel; vyberte ho a jeho příkazy se vypíší vpravo pod <strong><span class="ui">Příkazy tohoto skriptu</span></strong>. Dvojklikem na řádek ho upravíte, pravým tlačítkem nabídka, puštěním příkazu ze seznamu <strong><span class="ui">Události</span></strong> na něj ho vložíte za něj.</p>
-<figure class="bild"><a href="../bilder/en/b_move_g.webp" class="zoom"><img src="../bilder/en/b_move_g.webp" alt="move v seznamu vybraného uzlu skriptu." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>move</code> v seznamu vybraného uzlu skriptu.</figcaption></figure></div>
+<figure class="bild"><a href="../bilder/en/b_move_g.webp" class="zoom"><img src="../bilder/en/b_move_g.webp" alt="move v seznamu vybraného uzlu skriptu." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>move</code> v seznamu vybraného uzlu skriptu.</figcaption></figure></div>
 <div class="modusinhalt m-tracks"><p><strong>Ve Stopách</strong> nezabere vlastní čas, takže nemá blok - stojí v <strong><span class="ui">Seznam příkazů</span></strong> vpravo. Kliknutí, dvojklik a pravé tlačítko tam fungují jako v Grafu. Pohled pohyb přehraje, ale dveře ani plošina nemají ve Stopách vlastní řádek.</p>
-<figure class="bild"><a href="../bilder/en/b_move_t.webp" class="zoom"><img src="../bilder/en/b_move_t.webp" alt="move ve Stopách." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>move</code> ve Stopách.</figcaption></figure></div>
+<figure class="bild"><a href="../bilder/en/b_move_t.webp" class="zoom"><img src="../bilder/en/b_move_t.webp" alt="move ve Stopách." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>move</code> ve Stopách.</figcaption></figure></div>
 <h2 id="tipps">Dobré vědět<a class="anker" href="#tipps">#</a></h2>
 <ul><li>Dveře, které se otevírají: <a href="k-tuer.html">Dveře, které se otevírají</a>.</li></ul>
-    <nav class="blaettern"><a class="vor" href="cmd-sound.html"><span>Previous</span>sound - přehrát zvuk nebo repliku</a><a class="nach" href="cmd-rotate.html"><span>Next</span>rotate - otočit entitu</a></nav>
+    <nav class="blaettern"><a class="vor" href="cmd-sound.html"><span>Zpět</span>sound - přehrát zvuk nebo repliku</a><a class="nach" href="cmd-rotate.html"><span>Další</span>rotate - otočit entitu</a></nav>
   </article>
-  <footer>JK Studio guide - mod tools for Jedi Knight: Jedi Academy and Jedi Outcast. The pictures show the program itself; they are made by its self-test. Not affiliated with Lucasfilm, Disney or Raven Software.</footer>
+  <footer>Příručka k JK Studiu - nástroje pro mody do Jedi Knight: Jedi Academy a Jedi Outcast. Obrázky ukazují samotný program; pořizuje je jeho autotest. Bez spojení s Lucasfilm, Disney ani Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

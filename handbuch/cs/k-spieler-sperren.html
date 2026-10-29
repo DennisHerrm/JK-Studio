@@ -9,9 +9,9 @@
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Guide</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Příručka</small></span></a>
   <div class="suche">
-    <input id="suchfeld" type="search" placeholder="Search the guide...  (/)" autocomplete="off" aria-label="Search the guide...  (/)">
+    <input id="suchfeld" type="search" placeholder="Hledat v příručce...  (/)" autocomplete="off" aria-label="Hledat v příručce...  (/)">
     <div id="treffer" class="treffer" hidden></div>
   </div>
   <nav class="kapitel"><details class="gruppe" ><summary><span class="pfeil"></span>Začněte zde</summary><ul><li class=""><a href="index.html">Vítejte</a></li><li class=""><a href="helfer.html">Pomocník a tutoriály</a></li><li class=""><a href="funktionen.html">Co JK Studio umí</a></li><li class=""><a href="erste-schritte.html">Začínáme</a></li><li class=""><a href="fenster.html">Okno</a></li><li class=""><a href="menue_editor.html">Editor menu</a></li></ul></details>
@@ -25,19 +25,19 @@
 <main>
   <header class="kopf">
     <div class="sprachen"><a href="../en/k-spieler-sperren.html" class="" lang="en">English</a><a href="../de/k-spieler-sperren.html" class="" lang="de">Deutsch</a><a href="../zh/k-spieler-sperren.html" class="" lang="zh">中文</a><a href="../ja/k-spieler-sperren.html" class="" lang="ja">日本語</a><a href="../es/k-spieler-sperren.html" class="" lang="es">Español</a><a href="../cs/k-spieler-sperren.html" class="aktiv" lang="cs">Čeština</a></div>
-    <button id="thema" class="thema" title="Light or dark" aria-label="Light or dark">&#9681;</button>
+    <button id="thema" class="thema" title="Světlý nebo tmavý" aria-label="Světlý nebo tmavý">&#9681;</button>
   </header>
   <article>
     <div class="ueber">Tutoriály: postavy</div>
     <h1>Zadržet hráče během rozhovoru</h1>
     <p class="einleitung">Zamkněte hráče na místě - bez kamery animační sekvence - a zase ho uvolněte.</p>
     <h2 id="schritte">Kroky<a class="anker" href="#schritte">#</a></h2>
-<ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>Zamknutí.</strong> Vložte <code>affect ( &quot;player&quot;, FLUSH )</code> a v něm <code>set ( SET_PLAYER_LOCKED, true )</code>. <code>SET_LOCK_PLAYER_WEAPONS</code> zamkne i zbraň.</p><figure class="bild"><a href="../bilder/en/k_sperren_an.webp" class="zoom"><img src="../bilder/en/k_sperren_an.webp" alt="Zamknout hráče." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption>Zamknout hráče.</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>Rozhovor.</strong> Ostatní postavy mluví a pohybují se jako obvykle; hráč přihlíží ze svého pohledu.</p><figure class="bild"><a href="../bilder/en/k_folgen_blick.webp" class="zoom"><img src="../bilder/en/k_folgen_blick.webp" alt="Scéna viděná hráčem." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption>Scéna viděná hráčem.</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>Uvolnění.</strong> Na konci tentýž blok s <code>false</code> - jinak hráč zůstane zmrazený.</p><figure class="bild"><a href="../bilder/en/k_sperren_aus.webp" class="zoom"><img src="../bilder/en/k_sperren_aus.webp" alt="Znovu uvolnit hráče." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption>Znovu uvolnit hráče.</figcaption></figure></div></div></li></ol>
+<ol class="schritte"><li><div class="schritt"><span class="nr">1</span><div><p><strong>Zamknutí.</strong> Vložte <code>affect ( &quot;player&quot;, FLUSH )</code> a v něm <code>set ( SET_PLAYER_LOCKED, true )</code>. <code>SET_LOCK_PLAYER_WEAPONS</code> zamkne i zbraň.</p><figure class="bild"><a href="../bilder/en/k_sperren_an.webp" class="zoom"><img src="../bilder/en/k_sperren_an.webp" alt="Zamknout hráče." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption>Zamknout hráče.</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">2</span><div><p><strong>Rozhovor.</strong> Ostatní postavy mluví a pohybují se jako obvykle; hráč přihlíží ze svého pohledu.</p><figure class="bild"><a href="../bilder/en/k_folgen_blick.webp" class="zoom"><img src="../bilder/en/k_folgen_blick.webp" alt="Scéna viděná hráčem." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption>Scéna viděná hráčem.</figcaption></figure></div></div></li><li><div class="schritt"><span class="nr">3</span><div><p><strong>Uvolnění.</strong> Na konci tentýž blok s <code>false</code> - jinak hráč zůstane zmrazený.</p><figure class="bild"><a href="../bilder/en/k_sperren_aus.webp" class="zoom"><img src="../bilder/en/k_sperren_aus.webp" alt="Znovu uvolnit hráče." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption>Znovu uvolnit hráče.</figcaption></figure></div></div></li></ol>
 <h2 id="tipps">Dobré vědět<a class="anker" href="#tipps">#</a></h2>
 <ul><li>S <code>camera ( ENABLE )</code> hra odebere ovládání sama; zámek je pro chvíle bez kamery animační sekvence.</li></ul>
-    <nav class="blaettern"><a class="vor" href="k-kampf.html"><span>Previous</span>Začít boj po animační sekvenci</a><a class="nach" href="k-lichtschwert.html"><span>Next</span>Zapnout světelný meč ve scéně</a></nav>
+    <nav class="blaettern"><a class="vor" href="k-kampf.html"><span>Zpět</span>Začít boj po animační sekvenci</a><a class="nach" href="k-lichtschwert.html"><span>Další</span>Zapnout světelný meč ve scéně</a></nav>
   </article>
-  <footer>JK Studio guide - mod tools for Jedi Knight: Jedi Academy and Jedi Outcast. The pictures show the program itself; they are made by its self-test. Not affiliated with Lucasfilm, Disney or Raven Software.</footer>
+  <footer>Příručka k JK Studiu - nástroje pro mody do Jedi Knight: Jedi Academy a Jedi Outcast. Obrázky ukazují samotný program; pořizuje je jeho autotest. Bez spojení s Lucasfilm, Disney ani Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

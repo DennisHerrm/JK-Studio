@@ -9,9 +9,9 @@
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Guide</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Příručka</small></span></a>
   <div class="suche">
-    <input id="suchfeld" type="search" placeholder="Search the guide...  (/)" autocomplete="off" aria-label="Search the guide...  (/)">
+    <input id="suchfeld" type="search" placeholder="Hledat v příručce...  (/)" autocomplete="off" aria-label="Hledat v příručce...  (/)">
     <div id="treffer" class="treffer" hidden></div>
   </div>
   <nav class="kapitel"><details class="gruppe" ><summary><span class="pfeil"></span>Začněte zde</summary><ul><li class=""><a href="index.html">Vítejte</a></li><li class=""><a href="helfer.html">Pomocník a tutoriály</a></li><li class=""><a href="funktionen.html">Co JK Studio umí</a></li><li class=""><a href="erste-schritte.html">Začínáme</a></li><li class=""><a href="fenster.html">Okno</a></li><li class=""><a href="menue_editor.html">Editor menu</a></li></ul></details>
@@ -25,28 +25,28 @@
 <main>
   <header class="kopf">
     <div class="sprachen"><a href="../en/entities.html" class="" lang="en">English</a><a href="../de/entities.html" class="" lang="de">Deutsch</a><a href="../zh/entities.html" class="" lang="zh">中文</a><a href="../ja/entities.html" class="" lang="ja">日本語</a><a href="../es/entities.html" class="" lang="es">Español</a><a href="../cs/entities.html" class="aktiv" lang="cs">Čeština</a></div>
-    <button id="thema" class="thema" title="Light or dark" aria-label="Light or dark">&#9681;</button>
+    <button id="thema" class="thema" title="Světlý nebo tmavý" aria-label="Světlý nebo tmavý">&#9681;</button>
   </header>
   <article>
     <div class="ueber">Mapa a scéna</div>
     <h1>Entity</h1>
     <p class="einleitung">Vše v mapě, s čím skript může mluvit - postavy, cíle chůze, značky kamery, triggery, lodě - je entita. Vyberte ji, změňte ji, posuňte ji, umisťujte nové.</p>
-    <figure class="bild breit"><a href="../bilder/en/h_entity.webp" class="zoom"><img src="../bilder/en/h_entity.webp" alt="Vybraná loď: seznam vlevo, inspektor pod ním, gizmo v pohledu." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption>Vybraná loď: seznam vlevo, inspektor pod ním, gizmo v pohledu.</figcaption></figure>
+    <figure class="bild breit"><a href="../bilder/en/h_entity.webp" class="zoom"><img src="../bilder/en/h_entity.webp" alt="Vybraná loď: seznam vlevo, inspektor pod ním, gizmo v pohledu." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption>Vybraná loď: seznam vlevo, inspektor pod ním, gizmo v pohledu.</figcaption></figure>
 <h2 id="liste">Seznam entit<a class="anker" href="#liste">#</a></h2>
 <p>Levý sloupec řadí entity do skupin - značky kamery, cíle chůze, cíle pohledu, postavy, spouštěče skriptů, efekty, zvuk, pohyblivé, rozbitné, navigační body NPC. Oko skryje skupinu v pohledu (<kbd>Alt</kbd>+kliknutí: zobrazit jen tuto), vyhledávací pole filtruje podle názvu nebo třídy. Kliknutí vybírá, dvojklik tam přeletí, pravé tlačítko pro ni vloží příkaz: cíl chůze, cíl pohledu, blok affect, kamera k této značce.</p>
 <h2 id="waehlen">Výběr v pohledu<a class="anker" href="#waehlen">#</a></h2>
 <p>Kliknutím na značku, postavu nebo model ji vyberete; <kbd>Ctrl</kbd>/<kbd>Shift</kbd>+kliknutí přidá další; rámeček tažený přes prázdné místo vybere vše uvnitř. Při najetí myší se ukáže rámeček a název. Lišta přehrávání pod mapou říká, jak často se vybraná entita ve skriptu používá, s tlačítky, která skočí na tyto řádky.</p>
 <h2 id="gizmo">Posun a otočení<a class="anker" href="#gizmo">#</a></h2>
 <p>Malá lišta v rohu pohledu přepíná gizmo mezi <strong><span class="ui">Posunout</span></strong> a <strong><span class="ui">Otočit</span></strong>. V Posunout táhnete entitu po podlaze nebo podél jedné z barevných šipek; mřížka nastavená v liště přichytává, <kbd>Ctrl</kbd> ji během tažení vypne - bez mřížky přichytí <kbd>Ctrl</kbd> tažení šipkou k 8 jednotkám. V Otočit dostanete kruhy (<kbd>Ctrl</kbd>: kroky po 15 stupních): modrý otáčí doleva a doprava; lodě a modely mají i zelený (sklon) a červený (náklon); postavy mají jen modrý kruh, protože hra pro ně zná jen <code>angle</code>. <kbd>Alt</kbd>+tažení nejdřív vytvoří kopii. Několik vybraných entit se posouvá a otáčí jako skupina.</p>
-<div class="bildreihe"><figure class="bild"><a href="../bilder/en/h_gizmo_verschieben.webp" class="zoom"><img src="../bilder/en/h_gizmo_verschieben.webp" alt="Posunout: jen šipky." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><span class="ui">Posunout</span>: jen šipky.</figcaption></figure><figure class="bild"><a href="../bilder/en/h_gizmo_drehen.webp" class="zoom"><img src="../bilder/en/h_gizmo_drehen.webp" alt="Otočit: tři kruhy na lodi." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><span class="ui">Otočit</span>: tři kruhy na lodi.</figcaption></figure></div>
+<div class="bildreihe"><figure class="bild"><a href="../bilder/en/h_gizmo_verschieben.webp" class="zoom"><img src="../bilder/en/h_gizmo_verschieben.webp" alt="Posunout: jen šipky." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><span class="ui">Posunout</span>: jen šipky.</figcaption></figure><figure class="bild"><a href="../bilder/en/h_gizmo_drehen.webp" class="zoom"><img src="../bilder/en/h_gizmo_drehen.webp" alt="Otočit: tři kruhy na lodi." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><span class="ui">Otočit</span>: tři kruhy na lodi.</figcaption></figure></div>
 <div class="hinweis">Stojí-li časová osa uprostřed pohybu, gizmo nemění začátek - nastaví v tom okamžiku nový bod. Viz <a href="figuren.html#griffe">Začátek, konec a nové body</a> a <a href="animation.html#schluessel">Klíče</a>.</div>
 <h2 id="inspektor">Inspektor<a class="anker" href="#inspektor">#</a></h2>
 <p>Pod seznamem ukazuje inspektor vybranou entitu: její třídu s popisem z kódu hry, <strong><span class="ui">Název</span></strong>, <strong><span class="ui">Poloha</span></strong>, <strong><span class="ui">Podlaha</span></strong> (jak vysoko nad podlahou stojí nohy - červeně, když jsou v ní) a <strong><span class="ui">Natočení (stupně)</span></strong>, spawnflags jako zaškrtávací políčka a všechny ostatní klíče jako pole. Skriptová pole mají <strong><span class="ui">Otevřít</span></strong>, <code>NPC_type</code> má hledání přes každé NPC hry; když třída nastavuje typ sama (<code>NPC_Droid_R2D2</code> → <code>r2d2</code>), prázdné pole ho ukazuje šedě a poznámka uvádí, kdy hra volí náhodně nebo klíč ignoruje. Lišta ikon tam přeletí, položí ji <strong><span class="ui">Na podlahu</span></strong>, duplikuje, odstraní, animuje (<a href="animation.html">Animace moverů a soubory ROFF</a>) a ukáže <strong><span class="ui">Všechny klíče (surově)</span></strong>. Změny entit mají vlastní Zpět, dokud je myš nad mapou nebo seznamem.</p>
 <h2 id="setzen">Umisťování nových entit<a class="anker" href="#setzen">#</a></h2>
 <p>Dlaždice u levého okraje pohledu umisťují běžné druhy: postava, cíl chůze, značka kamery/pohledu, cíl pohledu, spouštěč skriptu, efekt, zvuk, navigační bod NPC, start hráče. Klikněte na dlaždici a pak klikněte do pohledu - nebo dlaždici přetáhněte do pohledu; <kbd>Shift</kbd> umístí několik. <strong><span class="ui">+ Entita</span></strong> nad seznamem a pravé tlačítko v pohledu (<strong><span class="ui">Nová entita zde</span></strong>) nabízejí každou třídu. Tlačítko <strong>Mřížka</strong> přichytává k 8, 16, 32 nebo 64 jednotkám.</p>
-    <nav class="blaettern"><a class="vor" href="karte.html"><span>Previous</span>Mapa</a><a class="nach" href="kamera.html"><span>Next</span>Kamera</a></nav>
+    <nav class="blaettern"><a class="vor" href="karte.html"><span>Zpět</span>Mapa</a><a class="nach" href="kamera.html"><span>Další</span>Kamera</a></nav>
   </article>
-  <footer>JK Studio guide - mod tools for Jedi Knight: Jedi Academy and Jedi Outcast. The pictures show the program itself; they are made by its self-test. Not affiliated with Lucasfilm, Disney or Raven Software.</footer>
+  <footer>Příručka k JK Studiu - nástroje pro mody do Jedi Knight: Jedi Academy a Jedi Outcast. Obrázky ukazují samotný program; pořizuje je jeho autotest. Bez spojení s Lucasfilm, Disney ani Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

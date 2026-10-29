@@ -9,9 +9,9 @@
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Guide</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Příručka</small></span></a>
   <div class="suche">
-    <input id="suchfeld" type="search" placeholder="Search the guide...  (/)" autocomplete="off" aria-label="Search the guide...  (/)">
+    <input id="suchfeld" type="search" placeholder="Hledat v příručce...  (/)" autocomplete="off" aria-label="Hledat v příručce...  (/)">
     <div id="treffer" class="treffer" hidden></div>
   </div>
   <nav class="kapitel"><details class="gruppe" ><summary><span class="pfeil"></span>Začněte zde</summary><ul><li class=""><a href="index.html">Vítejte</a></li><li class=""><a href="helfer.html">Pomocník a tutoriály</a></li><li class=""><a href="funktionen.html">Co JK Studio umí</a></li><li class=""><a href="erste-schritte.html">Začínáme</a></li><li class=""><a href="fenster.html">Okno</a></li><li class=""><a href="menue_editor.html">Editor menu</a></li></ul></details>
@@ -25,18 +25,18 @@
 <main>
   <header class="kopf">
     <div class="sprachen"><a href="../en/modell.html" class="" lang="en">English</a><a href="../de/modell.html" class="" lang="de">Deutsch</a><a href="../zh/modell.html" class="" lang="zh">中文</a><a href="../ja/modell.html" class="" lang="ja">日本語</a><a href="../es/modell.html" class="" lang="es">Español</a><a href="../cs/modell.html" class="aktiv" lang="cs">Čeština</a></div>
-    <button id="thema" class="thema" title="Light or dark" aria-label="Light or dark">&#9681;</button>
+    <button id="thema" class="thema" title="Světlý nebo tmavý" aria-label="Světlý nebo tmavý">&#9681;</button>
   </header>
   <article>
     <div class="ueber">Mise</div>
     <h1>Zobrazení modelu a postavy</h1>
     <p class="einleitung">Prohlédněte si libovolnou postavu hry s jejími skiny a animacemi a dvojklikem vložte animaci do skriptu.</p>
-    <figure class="bild breit"><a href="../bilder/en/h_modell.webp" class="zoom"><img src="../bilder/en/h_modell.webp" alt="Režim Model: seznam animací vlevo, model uprostřed, lišta přehrávání dole." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption>Režim Model: seznam animací vlevo, model uprostřed, lišta přehrávání dole.</figcaption></figure>
+    <figure class="bild breit"><a href="../bilder/en/h_modell.webp" class="zoom"><img src="../bilder/en/h_modell.webp" alt="Režim Model: seznam animací vlevo, model uprostřed, lišta přehrávání dole." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption>Režim Model: seznam animací vlevo, model uprostřed, lišta přehrávání dole.</figcaption></figure>
 <p>Přepněte na <strong><span class="ui">Model</span></strong> v liště režimů. <strong><span class="ui">NPC</span></strong> vypíše každou postavu hry (ze souborů <code>.npc</code>) - kliknutím ji načtete s modelem a skinem tak, jak ji ukazuje hra. <strong><span class="ui">Otevřít .glm</span></strong> a <strong><span class="ui">Z .pk3</span></strong> otevřou libovolný model. Levé tlačítko krouží, prostřední posouvá, kolečko přibližuje; <strong><span class="ui">Otočný stůl</span></strong>, <strong><span class="ui">Kosti</span></strong> a <strong><span class="ui">Přizpůsobit pohled</span></strong> jsou v liště nástrojů.</p>
 <p>Seznam <strong><span class="ui">Animace</span></strong> vlevo ukazuje každou animaci kostry s její délkou; filtrujte podle názvu nebo podle BOTH / TORSO / LEGS / FACE. Kliknutí ji přehraje; dvojklik (nebo <strong><span class="ui">Do skriptu</span></strong>) vloží <code>set ( SET_ANIM_BOTH, &quot;…&quot; )</code> za vybraný řádek otevřeného skriptu - <code>SET_ANIM_UPPER</code> pro animace TORSO a <code>SET_ANIM_LOWER</code> pro LEGS.</p>
-    <nav class="blaettern"><a class="vor" href="missionen.html"><span>Previous</span>Mise</a><a class="nach" href="tutorials.html"><span>Next</span>Tutoriály</a></nav>
+    <nav class="blaettern"><a class="vor" href="missionen.html"><span>Zpět</span>Mise</a><a class="nach" href="tutorials.html"><span>Další</span>Tutoriály</a></nav>
   </article>
-  <footer>JK Studio guide - mod tools for Jedi Knight: Jedi Academy and Jedi Outcast. The pictures show the program itself; they are made by its self-test. Not affiliated with Lucasfilm, Disney or Raven Software.</footer>
+  <footer>Příručka k JK Studiu - nástroje pro mody do Jedi Knight: Jedi Academy a Jedi Outcast. Obrázky ukazují samotný program; pořizuje je jeho autotest. Bez spojení s Lucasfilm, Disney ani Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

@@ -9,9 +9,9 @@
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Guide</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Příručka</small></span></a>
   <div class="suche">
-    <input id="suchfeld" type="search" placeholder="Search the guide...  (/)" autocomplete="off" aria-label="Search the guide...  (/)">
+    <input id="suchfeld" type="search" placeholder="Hledat v příručce...  (/)" autocomplete="off" aria-label="Hledat v příručce...  (/)">
     <div id="treffer" class="treffer" hidden></div>
   </div>
   <nav class="kapitel"><details class="gruppe" ><summary><span class="pfeil"></span>Začněte zde</summary><ul><li class=""><a href="index.html">Vítejte</a></li><li class=""><a href="helfer.html">Pomocník a tutoriály</a></li><li class=""><a href="funktionen.html">Co JK Studio umí</a></li><li class=""><a href="erste-schritte.html">Začínáme</a></li><li class=""><a href="fenster.html">Okno</a></li><li class=""><a href="menue_editor.html">Editor menu</a></li></ul></details>
@@ -25,7 +25,7 @@
 <main>
   <header class="kopf">
     <div class="sprachen"><a href="../en/karte_gpubacken.html" class="" lang="en">English</a><a href="../de/karte_gpubacken.html" class="" lang="de">Deutsch</a><a href="../zh/karte_gpubacken.html" class="" lang="zh">中文</a><a href="../ja/karte_gpubacken.html" class="" lang="ja">日本語</a><a href="../es/karte_gpubacken.html" class="" lang="es">Español</a><a href="../cs/karte_gpubacken.html" class="aktiv" lang="cs">Čeština</a></div>
-    <button id="thema" class="thema" title="Light or dark" aria-label="Light or dark">&#9681;</button>
+    <button id="thema" class="thema" title="Světlý nebo tmavý" aria-label="Světlý nebo tmavý">&#9681;</button>
   </header>
   <article>
     <div class="ueber">Mapa a scéna</div>
@@ -33,9 +33,9 @@
     <p class="einleitung">Spočítejte celé světlo mapy na grafické kartě - lightmapy, odrazy a mřížku světla - bajt po bajtu stejně jako na CPU a na velkých mapách mnohem rychleji.</p>
     <p><strong><span class="ui">Build</span> &gt; <span class="ui">Zapékání na GPU</span></strong> (není v NetRadiant-Custom) rozhoduje, kde bhed_q3map2 počítá světlo každého kroku <code>-light</code>: <strong><span class="ui">Auto (rychlejší, bitově shodné)</span></strong> (výchozí), <strong><span class="ui">Zap. (grafická karta)</span></strong> (přepínač <code>-bhedgpubake</code>) nebo <strong><span class="ui">Vyp. (procesor)</span></strong>. Zkompilovaná mapa je <strong>stejná, bajt po bajtu</strong> - grafická karta je jen rychlejší. Volba se pamatuje (nastavení <code>BhedGpuBakeMode</code>).</p>
 <p><strong><span class="ui">Auto (rychlejší, bitově shodné)</span></strong> vezme grafickou kartu jen tehdy, když je její výsledek bitově shodný (počítá s dvojnásobnou přesností) a očekává se, že bude rychlejší: velké mapy a kola odrazů. Malé mapy a <code>-samples 4</code> na velkých mapách zůstávají na procesoru; grafická karta bez dvojnásobné přesnosti se nikdy nezvolí. Pamatuje si také, pro každou mapu a přepínače světla, jak dlouho trval poslední běh procesoru a poslední běh grafické karty, a od té doby bere rychlejší (i pro rychlé zapečení). Konzole uvede volbu a důvod, například &quot;Zapékání na GPU (Auto): procesor - málo práce se světlem (34490 superluxelů)&quot;.</p>
-<figure class="bild"><a href="../bilder/en/h_karte_gpubacken_menue.webp" class="zoom"><img src="../bilder/en/h_karte_gpubacken_menue.webp" alt="Build: Zapékání na GPU, vedle dílčích kompilací." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><span class="ui">Build</span>: <span class="ui">Zapékání na GPU</span>, vedle dílčích kompilací.</figcaption></figure>
+<figure class="bild"><a href="../bilder/en/h_karte_gpubacken_menue.webp" class="zoom"><img src="../bilder/en/h_karte_gpubacken_menue.webp" alt="Build: Zapékání na GPU, vedle dílčích kompilací." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><span class="ui">Build</span>: <span class="ui">Zapékání na GPU</span>, vedle dílčích kompilací.</figcaption></figure>
 <p>Zatímco se mapa sestavuje, okno průběhu sestavení a stavový řádek jmenují grafickou kartu. Po sestavení ukáže konzole <strong>zprávu o odchylkách</strong>: každá 64. lightmapa se spočítá podruhé na CPU a porovná luxel po luxelu. Poslední zpráva je také v popisku <span class="ui">Zapékání na GPU</span>. Rychlé zapečení světla v reálném čase (<a href="karte_tempo.html">Editor map: rychlost a světlo v reálném čase</a>) používá grafickou kartu také, když je položka zapnutá.</p>
-<figure class="bild"><a href="../bilder/en/h_karte_gpubacken_bericht.webp" class="zoom"><img src="../bilder/en/h_karte_gpubacken_bericht.webp" alt="Po sestavení: zpráva o odchylkách v konzoli." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption>Po sestavení: zpráva o odchylkách v konzoli.</figcaption></figure>
+<figure class="bild"><a href="../bilder/en/h_karte_gpubacken_bericht.webp" class="zoom"><img src="../bilder/en/h_karte_gpubacken_bericht.webp" alt="Po sestavení: zpráva o odchylkách v konzoli." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption>Po sestavení: zpráva o odchylkách v konzoli.</figcaption></figure>
 <h2 id="was">Co běží na grafické kartě<a class="anker" href="#was">#</a></h2>
 <ul><li><strong>Lightmapy</strong>: pro každý luxel příspěvek každého světla s jeho stínovým paprskem, kontrola stylu, adaptivní supersampling z <code>-samples</code> (i několik úrovní), filtr z <code>-filter</code> a sčítání světel v jejich pořadí.</li><li><strong>Odrazy</strong> (<code>-bounce</code>): každé kolo, se světelnými povrchy, které radiozita vytvoří.</li><li><strong>Mřížka světla</strong> (světlo pro modely a hráče): každý bod mřížky se všemi světly.</li><li>Na procesoru jako vždy: načítání, seznamy světel, vrcholové světlo, vytváření světel odrazů, sešívání, ukládání a zápis .bsp - a vše, co grafická karta nedokáže spočítat přesně (viz níže).</li></ul>
 <h2 id="gleich">Proč je výsledek stejný<a class="anker" href="#gleich">#</a></h2>
@@ -50,9 +50,9 @@
 <h2 id="befehle">Pro příkazový řádek<a class="anker" href="#befehle">#</a></h2>
 <ul><li><code>-bhedgpubake</code> - světlo na grafické kartě (s <code>-light</code>).</li><li><code>-bhedgpubakeauto</code> - rychlejší z procesoru a grafické karty, grafická karta jen bitově shodně; <code>-bhedgpubakezeiten &lt;cpu ms&gt; &lt;gpu ms&gt;</code> předá změřené časy posledních běhů (0 = neznámé).</li><li><code>-bhedgpubakecheck N</code> - každá N-tá lightmapa se spočítá i na CPU (výchozí 64, až milion dvojic světla a luxelu; <code>1</code> kontroluje všechny, <code>0</code> žádné). Zpráva se zapíše také do <code>&lt;map&gt;.bhedgpu.txt</code>.</li><li><code>-bhedgpuadapter N</code> nebo část názvu - která grafická karta (jinak nejrychlejší).</li></ul>
 <div class="hinweis">Hardwarový ray tracing (DXR) byl změřen jako předběžný test (<code>-bhedgpudxr</code> s <code>-bhedgpu</code>): trasuje stínové paprsky asi dvakrát rychleji, ale bez tolerancí q3map2 mine asi 0.15 % zásahů a nevidí pevné části trasovacího stromu - a stínové paprsky jsou jen 7-8 % času zapékání na GPU. Pro zapékání se proto nepoužívá.</div>
-    <nav class="blaettern"><a class="vor" href="karte_werkzeuge8b.html"><span>Previous</span>Editor map: terén, hraní, logika, zrcadlo a další</a><a class="nach" href="karte_werkzeuge9.html"><span>Next</span>Editor map: vyzkoušení ve hře a další nástroje</a></nav>
+    <nav class="blaettern"><a class="vor" href="karte_werkzeuge8b.html"><span>Zpět</span>Editor map: terén, hraní, logika, zrcadlo a další</a><a class="nach" href="karte_werkzeuge9.html"><span>Další</span>Editor map: vyzkoušení ve hře a další nástroje</a></nav>
   </article>
-  <footer>JK Studio guide - mod tools for Jedi Knight: Jedi Academy and Jedi Outcast. The pictures show the program itself; they are made by its self-test. Not affiliated with Lucasfilm, Disney or Raven Software.</footer>
+  <footer>Příručka k JK Studiu - nástroje pro mody do Jedi Knight: Jedi Academy a Jedi Outcast. Obrázky ukazují samotný program; pořizuje je jeho autotest. Bez spojení s Lucasfilm, Disney ani Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

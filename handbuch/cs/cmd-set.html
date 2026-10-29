@@ -9,9 +9,9 @@
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Guide</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Příručka</small></span></a>
   <div class="suche">
-    <input id="suchfeld" type="search" placeholder="Search the guide...  (/)" autocomplete="off" aria-label="Search the guide...  (/)">
+    <input id="suchfeld" type="search" placeholder="Hledat v příručce...  (/)" autocomplete="off" aria-label="Hledat v příručce...  (/)">
     <div id="treffer" class="treffer" hidden></div>
   </div>
   <nav class="kapitel"><details class="gruppe" ><summary><span class="pfeil"></span>Začněte zde</summary><ul><li class=""><a href="index.html">Vítejte</a></li><li class=""><a href="helfer.html">Pomocník a tutoriály</a></li><li class=""><a href="funktionen.html">Co JK Studio umí</a></li><li class=""><a href="erste-schritte.html">Začínáme</a></li><li class=""><a href="fenster.html">Okno</a></li><li class=""><a href="menue_editor.html">Editor menu</a></li></ul></details>
@@ -25,33 +25,33 @@
 <main>
   <header class="kopf">
     <div class="sprachen"><a href="../en/cmd-set.html" class="" lang="en">English</a><a href="../de/cmd-set.html" class="" lang="de">Deutsch</a><a href="../zh/cmd-set.html" class="" lang="zh">中文</a><a href="../ja/cmd-set.html" class="" lang="ja">日本語</a><a href="../es/cmd-set.html" class="" lang="es">Español</a><a href="../cs/cmd-set.html" class="aktiv" lang="cs">Čeština</a></div>
-    <button id="thema" class="thema" title="Light or dark" aria-label="Light or dark">&#9681;</button>
+    <button id="thema" class="thema" title="Světlý nebo tmavý" aria-label="Světlý nebo tmavý">&#9681;</button>
   </header>
   <article>
     <div class="ueber">Příkazy</div>
     <h1>set - změnit pole entity</h1>
     <p class="einleitung">Mění hodnotu entity: jak chodí, kam jde, na co se dívá, její animaci, její zdraví ...</p>
-    <div class="moduswahl"><span>View:</span><button type="button" data-modus="classic">Klasický</button><button type="button" data-modus="graph">Graf</button><button type="button" data-modus="tracks">Stopy</button></div>
+    <div class="moduswahl"><span>Pohled:</span><button type="button" data-modus="classic">Klasický</button><button type="button" data-modus="graph">Graf</button><button type="button" data-modus="tracks">Stopy</button></div>
 <h2 id="was">Co dělá<a class="anker" href="#was">#</a></h2>
 <p><code>set</code> s polem <code>SET_</code> je ze všech nejpoužívanější příkaz. Uvnitř bloku <code>affect</code> mění tuto entitu: <code>SET_NAVGOAL</code> nechá postavu jít k cíli chůze, <code>SET_WALKING</code> ji nechá jít místo běhu, <code>SET_LOOK_TARGET</code> otočí její hlavu, <code>SET_ANIM_BOTH</code> přehraje animaci. Každé pole je v <a href="befehle.html#set">set ( SET_... ) - každé pole</a>.</p>
 <h2 id="felder">Kam co zadat<a class="anker" href="#felder">#</a></h2>
-<figure class="bild"><a href="../bilder/en/b_set_ed.webp" class="zoom"><img src="../bilder/en/b_set_ed.webp" alt="Editor událostí pro set - čísla odpovídají tabulce níže." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption>Editor událostí pro <code>set</code> - čísla odpovídají tabulce níže.</figcaption></figure>
-<table class="legende"><thead><tr><th>No.</th><th>Název</th><th>Co dělá</th></tr></thead><tbody><tr><td class="lnr">1</td><td>Pole</td><td>Která hodnota - název <code>SET_</code> ze seznamu. Napište jeho část a seznam se zúží.</td></tr><tr><td class="lnr">2</td><td>Hodnota</td><td>Nová hodnota. Její druh závisí na poli: <code>true</code> / <code>false</code>, číslo, název z mapy, animace.</td></tr></tbody></table>
+<figure class="bild"><a href="../bilder/en/b_set_ed.webp" class="zoom"><img src="../bilder/en/b_set_ed.webp" alt="Editor událostí pro set - čísla odpovídají tabulce níže." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption>Editor událostí pro <code>set</code> - čísla odpovídají tabulce níže.</figcaption></figure>
+<table class="legende"><thead><tr><th>Č.</th><th>Název</th><th>Co dělá</th></tr></thead><tbody><tr><td class="lnr">1</td><td>Pole</td><td>Která hodnota - název <code>SET_</code> ze seznamu. Napište jeho část a seznam se zúží.</td></tr><tr><td class="lnr">2</td><td>Hodnota</td><td>Nová hodnota. Její druh závisí na poli: <code>true</code> / <code>false</code>, číslo, název z mapy, animace.</td></tr></tbody></table>
 <h2 id="beispiel">Příklad<a class="anker" href="#beispiel">#</a></h2>
 <p><code>set ( SET_WALKING, true )</code> a <code>set ( SET_NAVGOAL, &quot;nav_kyle&quot; )</code> - Kyle jde k <code>nav_kyle</code>.</p>
 <h2 id="ansichten">V Klasickém, Grafu a Stopách<a class="anker" href="#ansichten">#</a></h2>
 <p>Přepínač nahoře na stránce volí pohled. Všechny tři pracují na tomtéž skriptu - přepnutím se nic neztratí.</p>
 <div class="modusinhalt m-classic"><p><strong>V Klasickém</strong> je to jeden řádek stromu skriptu. Dvakrát na něj klikněte (nebo ho vyberte a stiskněte <kbd>Enter</kbd>) a otevře se editor; pravým tlačítkem nabídka; tažením ho přesunete.</p>
-<figure class="bild"><a href="../bilder/en/b_set_c.webp" class="zoom"><img src="../bilder/en/b_set_c.webp" alt="set ve stromu skriptu." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>set</code> ve stromu skriptu.</figcaption></figure></div>
+<figure class="bild"><a href="../bilder/en/b_set_c.webp" class="zoom"><img src="../bilder/en/b_set_c.webp" alt="set ve stromu skriptu." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>set</code> ve stromu skriptu.</figcaption></figure></div>
 <div class="modusinhalt m-graph"><p><strong>V Grafu</strong> je skript uzel; vyberte ho a jeho příkazy se vypíší vpravo pod <strong><span class="ui">Příkazy tohoto skriptu</span></strong>. Dvojklikem na řádek ho upravíte, pravým tlačítkem nabídka, puštěním příkazu ze seznamu <strong><span class="ui">Události</span></strong> na něj ho vložíte za něj.</p>
-<figure class="bild"><a href="../bilder/en/b_set_g.webp" class="zoom"><img src="../bilder/en/b_set_g.webp" alt="set v seznamu vybraného uzlu skriptu." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>set</code> v seznamu vybraného uzlu skriptu.</figcaption></figure></div>
+<figure class="bild"><a href="../bilder/en/b_set_g.webp" class="zoom"><img src="../bilder/en/b_set_g.webp" alt="set v seznamu vybraného uzlu skriptu." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>set</code> v seznamu vybraného uzlu skriptu.</figcaption></figure></div>
 <div class="modusinhalt m-tracks"><p><strong>Ve Stopách</strong> se ukazuje v řádku postavy, ke které patří (název v jejím <code>affect</code>), tak dlouho, jak trvá. Dvojklikem na blok ho upravíte, pravým tlačítkem nabídka. Chůze (<code>SET_NAVGOAL</code>) trvá, dokud postava nedorazí; většina ostatních polí nezabere čas.</p>
-<figure class="bild"><a href="../bilder/en/b_set_t.webp" class="zoom"><img src="../bilder/en/b_set_t.webp" alt="set ve Stopách." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>set</code> ve Stopách.</figcaption></figure></div>
+<figure class="bild"><a href="../bilder/en/b_set_t.webp" class="zoom"><img src="../bilder/en/b_set_t.webp" alt="set ve Stopách." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>set</code> ve Stopách.</figcaption></figure></div>
 <h2 id="tipps">Dobré vědět<a class="anker" href="#tipps">#</a></h2>
 <ul><li>Na pole označené v textu nápovědy <code>*</code> (jako <code>SET_NAVGOAL</code>) lze čekat pomocí <code>dowait</code>.</li><li>Hodnota, která v seznamu není, je povolena (mody přinášejí vlastní), ale označena jako <strong>neznámá</strong> - zkontrolujte překlep.</li></ul>
-    <nav class="blaettern"><a class="vor" href="cmd-free.html"><span>Previous</span>free - vrátit proměnnou</a><a class="nach" href="cmd-set-var.html"><span>Next</span>set - změnit proměnnou</a></nav>
+    <nav class="blaettern"><a class="vor" href="cmd-free.html"><span>Zpět</span>free - vrátit proměnnou</a><a class="nach" href="cmd-set-var.html"><span>Další</span>set - změnit proměnnou</a></nav>
   </article>
-  <footer>JK Studio guide - mod tools for Jedi Knight: Jedi Academy and Jedi Outcast. The pictures show the program itself; they are made by its self-test. Not affiliated with Lucasfilm, Disney or Raven Software.</footer>
+  <footer>Příručka k JK Studiu - nástroje pro mody do Jedi Knight: Jedi Academy a Jedi Outcast. Obrázky ukazují samotný program; pořizuje je jeho autotest. Bez spojení s Lucasfilm, Disney ani Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

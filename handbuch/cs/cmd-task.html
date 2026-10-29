@@ -9,9 +9,9 @@
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Guide</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Příručka</small></span></a>
   <div class="suche">
-    <input id="suchfeld" type="search" placeholder="Search the guide...  (/)" autocomplete="off" aria-label="Search the guide...  (/)">
+    <input id="suchfeld" type="search" placeholder="Hledat v příručce...  (/)" autocomplete="off" aria-label="Hledat v příručce...  (/)">
     <div id="treffer" class="treffer" hidden></div>
   </div>
   <nav class="kapitel"><details class="gruppe" ><summary><span class="pfeil"></span>Začněte zde</summary><ul><li class=""><a href="index.html">Vítejte</a></li><li class=""><a href="helfer.html">Pomocník a tutoriály</a></li><li class=""><a href="funktionen.html">Co JK Studio umí</a></li><li class=""><a href="erste-schritte.html">Začínáme</a></li><li class=""><a href="fenster.html">Okno</a></li><li class=""><a href="menue_editor.html">Editor menu</a></li></ul></details>
@@ -25,33 +25,33 @@
 <main>
   <header class="kopf">
     <div class="sprachen"><a href="../en/cmd-task.html" class="" lang="en">English</a><a href="../de/cmd-task.html" class="" lang="de">Deutsch</a><a href="../zh/cmd-task.html" class="" lang="zh">中文</a><a href="../ja/cmd-task.html" class="" lang="ja">日本語</a><a href="../es/cmd-task.html" class="" lang="es">Español</a><a href="../cs/cmd-task.html" class="aktiv" lang="cs">Čeština</a></div>
-    <button id="thema" class="thema" title="Light or dark" aria-label="Light or dark">&#9681;</button>
+    <button id="thema" class="thema" title="Světlý nebo tmavý" aria-label="Světlý nebo tmavý">&#9681;</button>
   </header>
   <article>
     <div class="ueber">Příkazy</div>
     <h1>task - pojmenovaná skupina příkazů</h1>
     <p class="einleitung">Deklaruje skupinu příkazů, která poběží později, s <code>do</code> nebo <code>dowait</code>.</p>
-    <div class="moduswahl"><span>View:</span><button type="button" data-modus="classic">Klasický</button><button type="button" data-modus="graph">Graf</button><button type="button" data-modus="tracks">Stopy</button></div>
+    <div class="moduswahl"><span>Pohled:</span><button type="button" data-modus="classic">Klasický</button><button type="button" data-modus="graph">Graf</button><button type="button" data-modus="tracks">Stopy</button></div>
 <h2 id="was">Co dělá<a class="anker" href="#was">#</a></h2>
 <p><code>task</code> tam, kde stojí, nic nedělá. Dává jméno svému bloku, aby ho <code>do</code> mohlo spustit a <code>wait</code> nebo <code>dowait</code> mohly počkat, až skončí - jediný způsob, jak počkat, až postava někam skutečně dorazí.</p>
 <h2 id="felder">Kam co zadat<a class="anker" href="#felder">#</a></h2>
-<figure class="bild"><a href="../bilder/en/b_task_ed.webp" class="zoom"><img src="../bilder/en/b_task_ed.webp" alt="Editor událostí pro task - čísla odpovídají tabulce níže." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption>Editor událostí pro <code>task</code> - čísla odpovídají tabulce níže.</figcaption></figure>
-<table class="legende"><thead><tr><th>No.</th><th>Název</th><th>Co dělá</th></tr></thead><tbody><tr><td class="lnr">1</td><td>Název</td><td>Libovolný název, jedinečný v tomto bloku <code>affect</code> - například <code>walk</code>.</td></tr></tbody></table>
+<figure class="bild"><a href="../bilder/en/b_task_ed.webp" class="zoom"><img src="../bilder/en/b_task_ed.webp" alt="Editor událostí pro task - čísla odpovídají tabulce níže." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption>Editor událostí pro <code>task</code> - čísla odpovídají tabulce níže.</figcaption></figure>
+<table class="legende"><thead><tr><th>Č.</th><th>Název</th><th>Co dělá</th></tr></thead><tbody><tr><td class="lnr">1</td><td>Název</td><td>Libovolný název, jedinečný v tomto bloku <code>affect</code> - například <code>walk</code>.</td></tr></tbody></table>
 <h2 id="beispiel">Příklad<a class="anker" href="#beispiel">#</a></h2>
 <p><code>task ( &quot;walk&quot; )</code> se <code>SET_WALKING</code> a <code>SET_NAVGOAL</code> uvnitř, pak <code>dowait ( &quot;walk&quot; )</code>.</p>
 <h2 id="ansichten">V Klasickém, Grafu a Stopách<a class="anker" href="#ansichten">#</a></h2>
 <p>Přepínač nahoře na stránce volí pohled. Všechny tři pracují na tomtéž skriptu - přepnutím se nic neztratí.</p>
 <div class="modusinhalt m-classic"><p><strong>V Klasickém</strong> je to řádek s rámečkem vpředu: kliknutím na rámeček blok otevřete nebo zavřete. Příkazy uvnitř jsou odsazené. Příkaz vložený, když je blok otevřený a vybraný, jde dovnitř.</p>
-<figure class="bild"><a href="../bilder/en/b_task_c.webp" class="zoom"><img src="../bilder/en/b_task_c.webp" alt="task ve stromu skriptu." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>task</code> ve stromu skriptu.</figcaption></figure></div>
+<figure class="bild"><a href="../bilder/en/b_task_c.webp" class="zoom"><img src="../bilder/en/b_task_c.webp" alt="task ve stromu skriptu." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>task</code> ve stromu skriptu.</figcaption></figure></div>
 <div class="modusinhalt m-graph"><p><strong>V Grafu</strong> jsou blok a jeho obsah vypsány vpravo, obsah odsazený. Vyberte řádek bloku a dvakrát klikněte na příkaz v seznamu <strong><span class="ui">Události</span></strong>, aby šel dovnitř.</p>
-<figure class="bild"><a href="../bilder/en/b_task_g.webp" class="zoom"><img src="../bilder/en/b_task_g.webp" alt="task v seznamu vybraného uzlu skriptu." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>task</code> v seznamu vybraného uzlu skriptu.</figcaption></figure></div>
+<figure class="bild"><a href="../bilder/en/b_task_g.webp" class="zoom"><img src="../bilder/en/b_task_g.webp" alt="task v seznamu vybraného uzlu skriptu." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>task</code> v seznamu vybraného uzlu skriptu.</figcaption></figure></div>
 <div class="modusinhalt m-tracks"><p><strong>Ve Stopách</strong> nezabere vlastní čas, takže nemá blok - stojí v <strong><span class="ui">Seznam příkazů</span></strong> vpravo. Kliknutí, dvojklik a pravé tlačítko tam fungují jako v Grafu. Příkazy uvnitř se objeví na řádku postavy, když se úloha spustí.</p>
-<figure class="bild"><a href="../bilder/en/b_task_t.webp" class="zoom"><img src="../bilder/en/b_task_t.webp" alt="task ve Stopách." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>task</code> ve Stopách.</figcaption></figure></div>
+<figure class="bild"><a href="../bilder/en/b_task_t.webp" class="zoom"><img src="../bilder/en/b_task_t.webp" alt="task ve Stopách." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>task</code> ve Stopách.</figcaption></figure></div>
 <h2 id="tipps">Dobré vědět<a class="anker" href="#tipps">#</a></h2>
 <ul><li>Viz <a href="k-tasks.html">Počkat, až postava dorazí</a>.</li></ul>
-    <nav class="blaettern"><a class="vor" href="cmd-set-var.html"><span>Previous</span>set - změnit proměnnou</a><a class="nach" href="cmd-do.html"><span>Next</span>do - spustit úlohu</a></nav>
+    <nav class="blaettern"><a class="vor" href="cmd-set-var.html"><span>Zpět</span>set - změnit proměnnou</a><a class="nach" href="cmd-do.html"><span>Další</span>do - spustit úlohu</a></nav>
   </article>
-  <footer>JK Studio guide - mod tools for Jedi Knight: Jedi Academy and Jedi Outcast. The pictures show the program itself; they are made by its self-test. Not affiliated with Lucasfilm, Disney or Raven Software.</footer>
+  <footer>Příručka k JK Studiu - nástroje pro mody do Jedi Knight: Jedi Academy a Jedi Outcast. Obrázky ukazují samotný program; pořizuje je jeho autotest. Bez spojení s Lucasfilm, Disney ani Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>

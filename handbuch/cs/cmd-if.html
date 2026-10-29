@@ -9,9 +9,9 @@
 </head>
 <body>
 <aside class="leiste">
-  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Guide</small></span></a>
+  <a class="marke" href="index.html"><img src="../assets/logo.svg" alt=""><span><b>JK Studio</b><small>Příručka</small></span></a>
   <div class="suche">
-    <input id="suchfeld" type="search" placeholder="Search the guide...  (/)" autocomplete="off" aria-label="Search the guide...  (/)">
+    <input id="suchfeld" type="search" placeholder="Hledat v příručce...  (/)" autocomplete="off" aria-label="Hledat v příručce...  (/)">
     <div id="treffer" class="treffer" hidden></div>
   </div>
   <nav class="kapitel"><details class="gruppe" ><summary><span class="pfeil"></span>Začněte zde</summary><ul><li class=""><a href="index.html">Vítejte</a></li><li class=""><a href="helfer.html">Pomocník a tutoriály</a></li><li class=""><a href="funktionen.html">Co JK Studio umí</a></li><li class=""><a href="erste-schritte.html">Začínáme</a></li><li class=""><a href="fenster.html">Okno</a></li><li class=""><a href="menue_editor.html">Editor menu</a></li></ul></details>
@@ -25,33 +25,33 @@
 <main>
   <header class="kopf">
     <div class="sprachen"><a href="../en/cmd-if.html" class="" lang="en">English</a><a href="../de/cmd-if.html" class="" lang="de">Deutsch</a><a href="../zh/cmd-if.html" class="" lang="zh">中文</a><a href="../ja/cmd-if.html" class="" lang="ja">日本語</a><a href="../es/cmd-if.html" class="" lang="es">Español</a><a href="../cs/cmd-if.html" class="aktiv" lang="cs">Čeština</a></div>
-    <button id="thema" class="thema" title="Light or dark" aria-label="Light or dark">&#9681;</button>
+    <button id="thema" class="thema" title="Světlý nebo tmavý" aria-label="Světlý nebo tmavý">&#9681;</button>
   </header>
   <article>
     <div class="ueber">Příkazy</div>
     <h1>if - jen když platí podmínka</h1>
     <p class="einleitung">Spustí svůj blok, jen když je porovnání pravdivé.</p>
-    <div class="moduswahl"><span>View:</span><button type="button" data-modus="classic">Klasický</button><button type="button" data-modus="graph">Graf</button><button type="button" data-modus="tracks">Stopy</button></div>
+    <div class="moduswahl"><span>Pohled:</span><button type="button" data-modus="classic">Klasický</button><button type="button" data-modus="graph">Graf</button><button type="button" data-modus="tracks">Stopy</button></div>
 <h2 id="was">Co dělá<a class="anker" href="#was">#</a></h2>
 <p><code>if</code> porovná dvě hodnoty. Platí-li porovnání, příkazy v jeho bloku se spustí; jinak se přeskočí (a místo toho se spustí <code>else</code> hned za ním). Obvykle je jedna strana proměnná čtená pomocí <code>get</code> - například *viděl už hráč tuto scénu?*</p>
 <h2 id="felder">Kam co zadat<a class="anker" href="#felder">#</a></h2>
-<figure class="bild"><a href="../bilder/en/b_if_ed.webp" class="zoom"><img src="../bilder/en/b_if_ed.webp" alt="Editor událostí pro if - čísla odpovídají tabulce níže." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption>Editor událostí pro <code>if</code> - čísla odpovídají tabulce níže.</figcaption></figure>
-<table class="legende"><thead><tr><th>No.</th><th>Název</th><th>Co dělá</th></tr></thead><tbody><tr><td class="lnr">1</td><td>První hodnota</td><td>Číslo, text nebo výraz. <strong><span class="ui">Pomocník</span></strong> → <strong><span class="ui">Načíst</span></strong> čte proměnnou: <code>get ( FLOAT, &quot;seen&quot; )</code>.</td></tr><tr><td class="lnr">2</td><td>Porovnání</td><td><code>=</code> rovná se, <code>&lt;</code> menší, <code>&gt;</code> větší, <code>!</code> nerovná se.</td></tr><tr><td class="lnr">3</td><td>Druhá hodnota</td><td>S čím se první hodnota porovná - zde <code>0</code>.</td></tr></tbody></table>
+<figure class="bild"><a href="../bilder/en/b_if_ed.webp" class="zoom"><img src="../bilder/en/b_if_ed.webp" alt="Editor událostí pro if - čísla odpovídají tabulce níže." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption>Editor událostí pro <code>if</code> - čísla odpovídají tabulce níže.</figcaption></figure>
+<table class="legende"><thead><tr><th>Č.</th><th>Název</th><th>Co dělá</th></tr></thead><tbody><tr><td class="lnr">1</td><td>První hodnota</td><td>Číslo, text nebo výraz. <strong><span class="ui">Pomocník</span></strong> → <strong><span class="ui">Načíst</span></strong> čte proměnnou: <code>get ( FLOAT, &quot;seen&quot; )</code>.</td></tr><tr><td class="lnr">2</td><td>Porovnání</td><td><code>=</code> rovná se, <code>&lt;</code> menší, <code>&gt;</code> větší, <code>!</code> nerovná se.</td></tr><tr><td class="lnr">3</td><td>Druhá hodnota</td><td>S čím se první hodnota porovná - zde <code>0</code>.</td></tr></tbody></table>
 <h2 id="beispiel">Příklad<a class="anker" href="#beispiel">#</a></h2>
 <p><code>if ( get( FLOAT, &quot;seen&quot; ), =, 0 )</code> - pravdivé napoprvé, kdy je <code>seen</code> ještě 0.</p>
 <h2 id="ansichten">V Klasickém, Grafu a Stopách<a class="anker" href="#ansichten">#</a></h2>
 <p>Přepínač nahoře na stránce volí pohled. Všechny tři pracují na tomtéž skriptu - přepnutím se nic neztratí.</p>
 <div class="modusinhalt m-classic"><p><strong>V Klasickém</strong> je to řádek s rámečkem vpředu: kliknutím na rámeček blok otevřete nebo zavřete. Příkazy uvnitř jsou odsazené. Příkaz vložený, když je blok otevřený a vybraný, jde dovnitř.</p>
-<figure class="bild"><a href="../bilder/en/b_if_c.webp" class="zoom"><img src="../bilder/en/b_if_c.webp" alt="if ve stromu skriptu." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>if</code> ve stromu skriptu.</figcaption></figure></div>
+<figure class="bild"><a href="../bilder/en/b_if_c.webp" class="zoom"><img src="../bilder/en/b_if_c.webp" alt="if ve stromu skriptu." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>if</code> ve stromu skriptu.</figcaption></figure></div>
 <div class="modusinhalt m-graph"><p><strong>V Grafu</strong> jsou blok a jeho obsah vypsány vpravo, obsah odsazený. Vyberte řádek bloku a dvakrát klikněte na příkaz v seznamu <strong><span class="ui">Události</span></strong>, aby šel dovnitř.</p>
-<figure class="bild"><a href="../bilder/en/b_if_g.webp" class="zoom"><img src="../bilder/en/b_if_g.webp" alt="if v seznamu vybraného uzlu skriptu." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>if</code> v seznamu vybraného uzlu skriptu.</figcaption></figure></div>
+<figure class="bild"><a href="../bilder/en/b_if_g.webp" class="zoom"><img src="../bilder/en/b_if_g.webp" alt="if v seznamu vybraného uzlu skriptu." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>if</code> v seznamu vybraného uzlu skriptu.</figcaption></figure></div>
 <div class="modusinhalt m-tracks"><p><strong>Ve Stopách</strong> nezabere vlastní čas, takže nemá blok - stojí v <strong><span class="ui">Seznam příkazů</span></strong> vpravo. Kliknutí, dvojklik a pravé tlačítko tam fungují jako v Grafu. Časová osa přehraje příkazy uvnitř, jako by podmínka byla pravdivá - nemůže znát hodnotu ve hře.</p>
-<figure class="bild"><a href="../bilder/en/b_if_t.webp" class="zoom"><img src="../bilder/en/b_if_t.webp" alt="if ve Stopách." loading="lazy"></a><span class="englisch">Picture still in English</span><figcaption><code>if</code> ve Stopách.</figcaption></figure></div>
+<figure class="bild"><a href="../bilder/en/b_if_t.webp" class="zoom"><img src="../bilder/en/b_if_t.webp" alt="if ve Stopách." loading="lazy"></a><span class="englisch">Obrázek je zatím anglicky</span><figcaption><code>if</code> ve Stopách.</figcaption></figure></div>
 <h2 id="tipps">Dobré vědět<a class="anker" href="#tipps">#</a></h2>
 <ul><li>Nejdřív proměnnou deklarujte pomocí <code>declare</code> - viz <a href="cmd-declare.html">declare - vytvořit proměnnou</a> a <a href="k-variablen.html">Jen poprvé: proměnné a if</a>.</li><li>ICARUS zná jen <code>=</code>, <code>&lt;</code>, <code>&gt;</code> a <code>!</code> - neznámé porovnání zastaví kompilaci.</li></ul>
-    <nav class="blaettern"><a class="vor" href="cmd-flush.html"><span>Previous</span>flush - zapomenout čekající příkazy</a><a class="nach" href="cmd-else.html"><span>Next</span>else - jinak</a></nav>
+    <nav class="blaettern"><a class="vor" href="cmd-flush.html"><span>Zpět</span>flush - zapomenout čekající příkazy</a><a class="nach" href="cmd-else.html"><span>Další</span>else - jinak</a></nav>
   </article>
-  <footer>JK Studio guide - mod tools for Jedi Knight: Jedi Academy and Jedi Outcast. The pictures show the program itself; they are made by its self-test. Not affiliated with Lucasfilm, Disney or Raven Software.</footer>
+  <footer>Příručka k JK Studiu - nástroje pro mody do Jedi Knight: Jedi Academy a Jedi Outcast. Obrázky ukazují samotný program; pořizuje je jeho autotest. Bez spojení s Lucasfilm, Disney ani Raven Software.</footer>
 </main>
 <div id="gross" class="gross" hidden><img alt=""></div>
 <script src="suche.js"></script>
