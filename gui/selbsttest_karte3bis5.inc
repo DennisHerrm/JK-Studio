@@ -5600,14 +5600,12 @@ std::vector<Schritt> karteneditorFotoSchritte() {
     // Menues im Code schliessen: ein Klick in die Statuszeile traf hohe
     // Untermenues (View > Filter reicht bis dorthin).
     auto menuesZu = [] { return tu("Menues zu", [] { karteDialogeZu(); }); };
-    // Die NRC-Fotos sind englisch. Auch die eigenen Eintraege (Help > "Helper:
-    // what do you want to do?", der laengste) bestimmen die Breite - darum fuer
-    // die Fotos Englisch; danach wieder die Sprache des Laufs (auf Spanisch war
-    // Help 233 statt 247 breit).
-    auto sprache = std::make_shared<i18n::Language>(i18n::Language::English);
-    add(tu("Fotos: Begriffe wie NetRadiant an, Menues wie NetRadiant-Custom, Englisch", [sprache] {
-        *sprache = i18n::currentLanguage();
-        i18n::setLanguage(i18n::Language::English);
+    // Die NRC-Fotos sind englisch; mit "Begriffe wie NetRadiant" folgen auch die
+    // eigenen Eintraege der Menues (Help > "Helper: what do you want to do?", der
+    // laengste: trK) - so gelten die Masse in jeder Sprache des Laufs (auf
+    // Spanisch war Help 233, auf Tschechisch 227 statt 247 breit, solange der
+    // Eintrag in der Programmsprache stand).
+    add(tu("Fotos: Begriffe wie NetRadiant an, Menues wie NetRadiant-Custom", [] {
         ke::setzeNrcBegriffe(true);
         ke::menueStilSetzen(true);   // Stufe 7 Punkt 6b (Preferences > Clean der Stufe 6 setzt es zurueck)
     }));
@@ -5792,10 +5790,9 @@ std::vector<Schritt> karteneditorFotoSchritte() {
     add(tu("Fotos: View > Entity List", [] { (void)ke::ausfuehren("ToggleEntityList"); }));
     add(pause(0.3));
     add(fotoRahmen("karteneditor_dlg_View_Entity_List_0", [] { return fensterRahmen("###karteentliste"); }));
-    add(tu("Fotos: Entity List zu, Begriffe aus, Sprache zurueck", [sprache] {
+    add(tu("Fotos: Entity List zu, Begriffe aus", [] {
         karteDialogeZu();
         ke::setzeNrcBegriffe(false);
-        i18n::setLanguage(*sprache);
     }));
     add(pause(0.2));
     return s;
