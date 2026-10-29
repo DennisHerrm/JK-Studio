@@ -1608,6 +1608,57 @@ std::vector<Schritt> mission1KinoSchritte(std::shared_ptr<mission1::Zustand> z) 
     return s;
 }
 
+// --- Missionen mit Skripten einer ANDEREN Karte (academy4, academy6, vjun1) -------
+//
+// academy4 und academy6 benutzen die Skripte academy2/studentspawn*, vjun1
+// die von hoth2 und common. War die andere Mission vorher geladen, nahm
+// "Load mission" deren schon offene Reiter mit - samt deren Karte - und
+// schaltete auf den ersten: die neue Mission erschien nicht.
+std::vector<Schritt> mission1LadenSchritte(std::shared_ptr<mission1::Zustand> z) {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const std::pair<const char*, const char*> paare[] = {{"academy2", "academy4"}, {"academy2", "academy6"}, {"hoth2", "vjun1"}};
+    for (const auto& [vorher, karte] : paare) {
+        const std::string v = vorher;
+        const std::string k = karte;
+        add(tu("Laden: " + v + " (teilt Skripte mit " + k + ")", [=] {
+            mission1::ungespeicherteEntitiesVergessen();
+            g_app->missionPickOpen = false;
+            missionenAusArchiv(z->jka + "\\assets1.pk3", v);
+        }));
+        add(warteBis("Laden: " + v + " geladen", [=] { return g_app->map.path == "maps/" + v + ".bsp" && g_app->camTrackValid; }, 3000));
+        add(tu("Laden: danach " + k, [=] {
+            mission1::ungespeicherteEntitiesVergessen();
+            g_app->missionPickOpen = false;
+            missionenAusArchiv(z->jka + "\\assets1.pk3", k);
+        }));
+        add(pause(2.0));
+        add(pruefe("Laden: " + k + " nach " + v + " - die Karte von " + k + " ist geladen, ihre Skripte haben Reiter mit dieser Karte", [=] {
+            int skripte = 0;
+            int mitKarte = 0;
+            for (const Mission& mi : g_app->missions) {
+                if (mi.name != k) { continue; }
+                for (const Mission::Script& sc : mi.scripts) {
+                    ++skripte;
+                    for (std::size_t i = 0; i < g_app->tabs.size(); ++i) {
+                        const bool aktiv = static_cast<int>(i) == g_app->activeTab;
+                        const std::string r = mission1::klein(aktiv ? g_app->skriptPfad : g_app->tabs[i].skriptPfad);
+                        const std::string karteDes = aktiv ? g_app->map.path : g_app->tabs[i].mapId;
+                        if (r.find(mission1::klein(sc.ref)) != std::string::npos && karteDes == "maps/" + k + ".bsp") {
+                            ++mitKarte;
+                            break;
+                        }
+                    }
+                }
+            }
+            diag::detail("Knopftest: Laden - " + k + " nach " + v + ": Karte jetzt " + g_app->map.path + ", aktiver Reiter " + g_app->shownName +
+                         ", " + std::to_string(mitKarte) + " von " + std::to_string(skripte) + " Skripten mit Reiter dieser Karte");
+            return g_app->map.path == "maps/" + k + ".bsp" && skripte > 0 && mitKarte == skripte;
+        }));
+    }
+    return s;
+}
+
 // Laden von academy1 (md: ueber die eingerichteten Spielordner, sonst das reine
 // JKA) und die Probe der Gesichtsanimation.
 std::vector<Schritt> mission1GesichtSchritte(std::shared_ptr<mission1::Zustand> z, bool md) {
@@ -2074,7 +2125,7 @@ std::vector<Schritt> mission1Schritte() {
         g_app->missionPickOpen = false;
         diag::detail("Knopftest: Mission1 - reines JKA \"" + z->jka + "\", eingerichtet \"" + z->mdArchiv + "\"");
     }));
-    // BHED_M1_TEIL: nur einzelne Teile (md, jka, zwischen, gizmo, drehen, undo, undoa = nur academy1, kino, mini -
+    // BHED_M1_TEIL: nur einzelne Teile (md, jka, zwischen, gizmo, drehen, undo, undoa = nur academy1, kino, mini, laden -
     // durch Leerzeichen getrennt); ohne: alles. zwischen/gizmo brauchen jka.
     const std::string teile = std::getenv("BHED_M1_TEIL") != nullptr ? std::string(" ") + std::getenv("BHED_M1_TEIL") + " " : std::string();
     const auto mit = [&teile](const char* t) { return teile.empty() || teile.find(std::string(" ") + t + " ") != std::string::npos; };
@@ -2092,6 +2143,9 @@ std::vector<Schritt> mission1Schritte() {
     }
     if (mit("gizmo")) {
         for (Schritt& x : mission1GizmoSchritte("luke", "")) { s.push_back(std::move(x)); }
+    }
+    if (mit("laden")) {
+        for (Schritt& x : mission1LadenSchritte(z)) { s.push_back(std::move(x)); }
     }
     if (mit("kino")) {
         for (Schritt& x : mission1KinoSchritte(z)) { s.push_back(std::move(x)); }

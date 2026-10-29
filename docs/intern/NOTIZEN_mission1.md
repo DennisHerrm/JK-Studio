@@ -44,7 +44,7 @@ Wächter über alle 32 SP-Karten mit eigenem `_humanoid_<karte>` (jeweils der
 intro-Reiter, alle 500 ms, jede sichtbare Figur): was gezeichnet wird, gleich
 dem Bild der Animation (ungekappt). Rot: 908 falsche Proben auf 10 Karten
 (academy3/5, t1_danger, t1_inter, t1_surprise, t2_rogue, t2_trip, t3_bounty,
-t3_stamp, taspir1). Grün: 29 Karten geprüft (academy4, academy6, vjun1 lassen sich nicht als Mission laden), 0 falsche Proben, 1332 Proben mit einem Bild aus dem Kino-Anhang.
+t3_stamp, taspir1). Grün: alle 32 Karten, 0 falsche Proben (nach dem Folgeauftrag auch academy4, academy6, vjun1, siehe unten).
 
 Ausserdem gleich geblieben und als Wächter im Test: der Mundlauf liegt nur auf
 "face" (CG_G2SetHeadAnim auf faceBone), über die ganze Szene kein Körper vom
@@ -195,6 +195,24 @@ Drehen nach der letzten Fahrt, fünf Rückgängig-Fälle mit Szenenzustand und
 eine Kette. Ergebnis: 22 von 22 grün. Rot war dort nur der Kamera-Auto-Key (siehe unten);
 die übrigen Fehler waren vorher schon an academy1/md_am_sith rot.
 
+### Folgeauftrag: academy4, academy6, vjun1 ließen sich nicht laden
+
+Keine fehlenden Daten: alle drei liegen in assets0.pk3 und laden allein. Der
+Fehler lag beim Laden nach einer anderen Mission: academy4 und academy6
+benutzen die Skripte academy2/studentspawn*, vjun1 die von hoth2 und common.
+"Load mission" nahm schon offene Reiter dieser Skripte mit (Mission zum zweiten
+Mal geladen) - auch wenn sie zu einer ANDEREN Karte gehörten -, und der erste
+Reiter war so einer: das Umschalten lud die andere Karte zurück, die neue
+Mission erschien nicht. Jetzt wird ein offener Reiter nur mitgenommen, wenn er
+zu dieser Karte gehört (oder keine eigene hat).
+
+Test `laden`: academy2, dann academy4 (und academy6); hoth2, dann vjun1. Rot:
+Karte danach academy2 bzw. hoth2, nur 1 von 6 / 2 von 7 / 28 von 31 Skripten
+mit Reiter der neuen Karte. Grün: die Karte der neuen Mission ist geladen, 6/6, 7/7, 31/31 Skripte mit
+Reitern dieser Karte. Im Wächter für die Kino-Skelette jetzt alle 32 Karten,
+0 falsche Proben (academy4: 279 Proben, 87 aus dem Anhang; academy6: 2094/51;
+vjun1 hat kein intro-Skript, geprüft wurde der vordere Reiter: 2 Proben).
+
 ## Schlussrunde
 
 - Sauberer Neubau (`--clean-first`): 0 Fehler, 0 Warnungen; ctest 158/158.
@@ -227,7 +245,7 @@ Gegen den OpenJK-Quelltext (nachgelesen, Formeln/Abläufe im Programm gleich):
 - Kino-Skelett: G_ParseAnimFileSet / G_ParseAnimationFile (NPC_stats.cpp,
   zweite Datei in dieselbe Tabelle, glaIndex 1), PM_SetAnimFinal mit
   G2API_SetAnimIndex (bg_panimate.cpp): Bild der Animation gegen das
-  Gezeichnete, über 29 SP-Karten.
+  Gezeichnete, über alle 32 SP-Karten mit eigenem Kino-Skelett.
 - Zwischenpunkt: Q3_SetNavGoal (TAG zuerst, TAG_GetRadius), SP_reference_tag
   (Radius 16), SP_waypoint_navgoal/NAV::SpawnedPoint, NAV::GetNearestNode
   (previous-/goal-Strafen), NAV::FindPath - nachgelesen; die Wegsuche selbst
@@ -247,8 +265,6 @@ Wiederholen ist reine Editorfunktion ohne Spiel-Vorbild.
   Oberkörper gleichzeitig Animationen aus verschiedenen Dateien spielen.
 - Drehen einer Figur zu einer Zeit, die hinter einem waitsignal liegt, setzt
   nichts (Statuszeile "Zeit unbekannt") - unverändert.
-- Wächter Kino-Skelett: academy4, academy6 und vjun1 lassen sich über "Load
-  mission" nicht als Mission laden und sind darum nicht geprüft.
 - Rot/grün je Fehler: T-Pose (Lauf kinorot gegen den alten Stand), Zwischenpunkt
   und Undo (rot5), Hilfen beim Abspielen (rotab), Figur nach dem letzten Lauf
   (inv1), Kamera-Auto-Key (mini3); die Mini-Szene selbst lief nur mit dem
@@ -257,6 +273,7 @@ Wiederholen ist reine Editorfunktion ohne Spiel-Vorbild.
 ## Changelog
 
 ## English
+- Load mission: a mission that uses scripts of another map (academy4/academy6 use academy2's, vjun1 hoth2's) now loads even when that other mission is open - its tabs are no longer taken over together with their map.
 - Moving a figure after its last walk adds a new navgoal it walks to when it arrives, instead of moving its spawner (the start).
 - Story cutscenes: animations that exist only in the level's own skeleton (models/players/_humanoid_<map>, e.g. BOTH_CIN_1 in academy1) are drawn with their frames - figures no longer stand in T-pose; a name in both files takes the level's frames, as in the game (also FACE_TALK).
 - A point inserted in the middle of a walk is now a ref_tag: the nav network stays as it was, and the figure walks on to its old goal as in the game. If a figure finds no path from a point, a red dashed line with "No path from here to ..." leads to the goal.
@@ -265,6 +282,7 @@ Wiederholen ist reine Editorfunktion ohne Spiel-Vorbild.
 - Moving or rotating a ship after a flight (in a pause or after the last one) creates a new key instead of changing the start.
 
 ## Deutsch
+- Load mission: eine Mission, die Skripte einer anderen Karte benutzt (academy4/academy6 die von academy2, vjun1 die von hoth2), lädt jetzt auch, wenn jene Mission offen ist - deren Reiter werden nicht mehr samt ihrer Karte übernommen.
 - Eine Figur nach ihrem letzten Lauf zu verschieben legt ein neues Laufziel an, zu dem sie nach der Ankunft geht, statt ihren Spawner (den Anfang) zu verschieben.
 - Story-Zwischensequenzen: Animationen, die nur im Kino-Skelett der Karte stehen (models/players/_humanoid_<karte>, z. B. BOTH_CIN_1 in academy1), werden mit ihren Bildern gezeichnet - keine T-Pose mehr; ein Name in beiden Dateien bekommt die Bilder der Karte, wie im Spiel (auch FACE_TALK).
 - Ein mitten im Lauf eingefügter Punkt ist jetzt ein ref_tag: das Wegnetz bleibt, wie es war, und die Figur läuft wie im Spiel weiter zu ihrem alten Ziel. Findet eine Figur von einem Punkt keinen Weg, führt eine rote gestrichelte Linie mit "Kein Weg von hier zu ..." zum Ziel.
@@ -273,6 +291,7 @@ Wiederholen ist reine Editorfunktion ohne Spiel-Vorbild.
 - Ein Schiff nach einem Flug (in einer Pause oder nach dem letzten) zu verschieben oder zu drehen legt einen neuen Schlüssel an, statt den Anfang zu ändern.
 
 ## 中文
+- 加载任务:使用其他地图脚本的任务(academy4/academy6 使用 academy2 的,vjun1 使用 hoth2 的)现在即使那个任务已打开也能加载——不再连同其地图接管它的标签页。
 - 在角色最后一段行走之后移动它,会新增一个到达后走向的导航目标,而不再移动其生成点(起点)。
 - 剧情过场:只存在于关卡自带骨架(models/players/_humanoid_<地图>,例如 academy1 中的 BOTH_CIN_1)里的动画现在按其帧绘制——角色不再呈 T 字姿势;两个文件中同名的动画使用关卡的帧,与游戏一致(FACE_TALK 也是)。
 - 在行走途中插入的点现在是 ref_tag:导航网络保持不变,角色会像游戏中一样继续走向原来的目标。如果角色从某点找不到路径,一条红色虚线和“从此处无法到达 ...”会指向目标。
@@ -281,6 +300,7 @@ Wiederholen ist reine Editorfunktion ohne Spiel-Vorbild.
 - 在飞行结束后(停顿中或最后一段之后)移动或旋转飞船会新建关键帧,而不再修改起点。
 
 ## 日本語
+- ミッションの読み込み:別のマップのスクリプトを使うミッション(academy4/academy6 は academy2 の、vjun1 は hoth2 のもの)も、そのミッションが開いていても読み込めるようになりました。そのタブをマップごと引き継ぐことはなくなりました。
 - 最後の歩行の後にキャラクターを移動すると、スポナー(始点)を動かす代わりに、到着後に向かう新しいナビゴールが追加されます。
 - ストーリーのカットシーン:マップ専用の骨格(models/players/_humanoid_<マップ>、例: academy1 の BOTH_CIN_1)にだけあるアニメーションを、そのフレームで描画します。キャラクターが T ポーズになることはもうありません。両方のファイルにある名前はゲームと同じくマップ側のフレームを使います(FACE_TALK も)。
 - 歩行の途中に挿入した点は ref_tag になりました。ナビネットワークは変わらず、キャラクターはゲームと同じく元の目的地へ歩き続けます。ある点から経路が見つからない場合は、赤い破線と「ここから ... への経路がありません」が目的地へ伸びます。
