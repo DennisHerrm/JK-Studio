@@ -222,6 +222,7 @@ void Laufzeit::oeffne(const std::string& name) {   // Menus_ActivateByName + Men
     const int m = finde(name);
     if (m < 0) {
         protokoll.push_back("open " + name + ": kein menuDef mit diesem Namen in dieser Datei");
+        fremdesMenue = name;   // Menus_ActivateByName sucht in allen geladenen Menues (menus.txt)
         return;
     }
     int fokus = -1;

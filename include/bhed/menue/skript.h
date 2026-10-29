@@ -74,6 +74,9 @@ struct Laufzeit {
     std::map<std::string, std::string> cvars;       // nur die Vorschau (Schluessel klein)
     std::vector<int> stapel;                        // menuStack
     std::vector<std::string> protokoll;             // was ohne Spiel nur gemeldet wird
+    // M2 Punkt 3: "open X" fuer ein menuDef, das nicht in dieser Datei steht -
+    // die Oberflaeche sucht es in den anderen Dateien des Menuesatzes (menus.txt)
+    std::string fremdesMenue;
     int maxProtokoll = 200;
     int version = 0;                                // zaehlt jede Aenderung
     // M2: Animationen (transition, orbit, fadein/fadeout) im Takt der Engine

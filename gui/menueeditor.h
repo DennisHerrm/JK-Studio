@@ -20,6 +20,10 @@ bool oeffneAusSpiel(const std::string& spielPfad);
 bool oeffneText(const std::string& name, const std::string& text);
 // Eine .menu/.txt von der Platte (abgelegt oder ueber den Dialog).
 bool oeffneDatei(const std::string& platte);
+// M2 Punkt 3: alle Dateien eines Menuesatzes (loadMenu in menus.txt); Zahl der Dateien
+int oeffneMenuesatz(const std::string& spielPfad);
+[[nodiscard]] std::string letzterSatzWechsel();
+[[nodiscard]] std::string laufInfo();   // Selbsttest: aktives Dokument, Satz, Skriptprotokoll   // Selbsttest: Menue, in dessen Datei zuletzt gewechselt wurde
 // Zustand fuer den Selbsttest (Wirkungspruefung).
 struct Stand {
     int dokumente = 0;
@@ -65,6 +69,10 @@ bool exportierePk3(const std::string& pfad);
 void setzeCodeSchrift(ImFont* f);
 // M2 Punkt 2: Video/GIF als RoQ ins Paket (synchron, fuer Selbsttest); Spielpfad oder ""
 std::string importiereVideo(const std::string& platte, int guete, int fps, int maxSeite);
+// M2 Punkt 4: Vorlage aus der Bibliothek an (x, y) einsetzen; Auswahl als eigene Vorlage
+bool fuegeVorlageEin(const std::string& id, float x, float y);
+bool speichereAuswahlAlsVorlage(const std::string& name);
+std::vector<std::string> vorlagenIds();
 // Datei direkt ins Paket legen (Spielpfad -> Bytes)
 void legeInsPaket(const std::string& spielPfad, const std::string& bytes);
 

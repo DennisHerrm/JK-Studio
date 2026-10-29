@@ -22,6 +22,7 @@
 
 #include "bhed/i18n.h"
 #include "bhed/image.h"
+#include "bhed/menue/bauteile.h"
 #include "bhed/menue/feeder.h"
 #include "bhed/menue/menue.h"
 #include "bhed/menue/modell.h"
@@ -39,6 +40,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -76,6 +78,7 @@ struct Dokument {
     float scrollZeile = 0;
     int springeZeile = -1;
     std::map<std::string, std::string> bilder;   // eigene Grafiken: Spielpfad -> Bytes
+    int satz = -1;             // M2: gehoert zum Menuesatz Nr. (menus.txt), -1 = einzeln
 };
 
 struct Textur {
@@ -120,6 +123,9 @@ struct Zustand {
     std::map<std::string, Kino> kinos;               // M2: Name des Videos -> Spieler
     std::map<std::string, ModellAnsicht> modelle;    // M2: Modell|Haut|Animation -> Ansicht
     int kinoBilder = 0;                              // Selbsttest: gezeigte Videobilder
+    int naechsterSatz = 0;                           // M2 Punkt 3: Nummer des naechsten Menuesatzes
+    int aktivGezeigt = -1;                           // welcher Dokument-Reiter zuletzt offen war
+    std::string satzWechsel;                         // Selbsttest: zuletzt ueber Dateien geoeffnetes Menue
     // M2 Punkt 2: Video-Import (Kodieren im Hintergrund)
     bool videoOffen = false;
     std::string videoQuelle;
@@ -130,6 +136,10 @@ struct Zustand {
     std::mutex videoMutex;
     std::string videoErgebnis, videoFehler, videoName;
     bool videoDa = false;
+    // M2 Punkt 4: Bauteil-Bibliothek
+    std::vector<Vorlage> vorlagen;
+    bool vorlagenGeladen = false;
+    std::string vorlageName;
     int modellDreiecke = 0;                          // Selbsttest: gezeichnete Modell-Dreiecke
     std::map<std::string, Schrift> schriften;
     std::vector<std::string> schriftNamenSp, schriftNamenMp;
@@ -244,6 +254,14 @@ const Texte& texte() {
         z.texteGeladen = true;
     }
     return z.texte;
+}
+
+bool gleichOhneFallStr(const std::string& a, const std::string& b) {
+    if (a.size() != b.size()) { return false; }
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) { return false; }
+    }
+    return true;
 }
 
 std::string kleinPfad(std::string s) {
@@ -697,7 +715,50 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
     }
 }
 
+void zeichneBibliothek(Dokument& d);   // M2 (unten)
+void setzeVorlageEin(std::size_t nr, bool mitZiel, float zx, float zy);
+
 // --- Arbeitsflaeche --------------------------------------------------------------
+
+// M2 Punkt 3: "open X" aus einer anderen Datei des Menuesatzes - dorthin wechseln
+bool satzWechsel() {
+    // M2 Punkt 3: "open X" aus einer anderen Datei des Menuesatzes - dorthin wechseln,
+    // die Cvars nehmen wir mit (wie im Spiel: alle Menues teilen sich die Cvars)
+    Zustand& z = Z();
+    Dokument* dp = doc();
+    if (dp == nullptr) { return false; }
+    Dokument& d = *dp;
+    if (!z.lauf.fremdesMenue.empty()) {
+        const std::string ziel = z.lauf.fremdesMenue;
+        z.lauf.fremdesMenue.clear();
+        if (d.satz >= 0) {
+            for (std::size_t k = 0; k < z.docs.size(); ++k) {
+                Dokument& od = *z.docs[k];
+                if (od.satz != d.satz || &od == &d) { continue; }
+                neuParsen(od);
+                for (std::size_t q = 0; q < od.datei.menus.size(); ++q) {
+                    if (!gleichOhneFallStr(od.datei.menus[q].window.name, ziel)) { continue; }
+                    const std::map<std::string, std::string> cvars = z.lauf.cvars;
+                    z.aktiv = static_cast<int>(k);
+                    z.laufGeparst = od.geparst;
+                    z.lauf.start(od.datei);
+                    z.lauf.basis = umgebung(od);
+                    z.lauf.cvars = cvars;
+                    z.lauf.oeffne(ziel);
+                    z.laufDatei = z.aktiv;
+                    z.laufVersion = -1;
+                    const std::vector<Seite> s = seitenImMenue(od.datei);
+                    for (std::size_t w = 0; w < s.size(); ++w) {
+                        if (s[w].menu == static_cast<int>(q) && s[w].cvar.empty()) { od.seite = static_cast<int>(w); }
+                    }
+                    z.satzWechsel = ziel;
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
 
 void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     Zustand& z = Z();
@@ -723,6 +784,14 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     const ImVec2 maus = ImGui::GetIO().MousePos;
     const float vx = (maus.x - o.x - ab.ox) / ab.sx;
     const float vy = (maus.y - o.y - ab.oy) / ab.sy;
+    if (ImGui::BeginDragDropTarget()) {   // M2: Vorlage aus der Bibliothek
+        if (const ImGuiPayload* pl = ImGui::AcceptDragDropPayload("ME_VORLAGE")) {
+            int n = 0;
+            std::memcpy(&n, pl->Data, sizeof(n));
+            setzeVorlageEin(static_cast<std::size_t>(std::max(0, n)), true, vx, vy);
+        }
+        ImGui::EndDragDropTarget();
+    }
     if (mi < 0) {
         z.letztePrims = 0;
         return;
@@ -815,6 +884,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) { z.lauf.klick(mi, vx, vy); }
             if (ImGui::IsKeyPressed(ImGuiKey_Escape)) { z.lauf.escape(mi); }
         }
+        if (satzWechsel()) { return; }   // M2 Punkt 3
         // Ein Menue, das ein Skript geoeffnet hat: dessen Seite zeigen
         for (std::size_t k = 0; k < z.lauf.menuFlags.size(); ++k) {
             if ((z.lauf.menuFlags[k] & WINDOW_HASFOCUS) != 0 && static_cast<int>(k) != mi) {
@@ -1749,6 +1819,7 @@ void zeichneVideoFenster() {
 
 // --- Seitenleisten ----------------------------------------------------------------
 
+
 void zeichnePalette(Dokument& d) {
     struct W {
         int typ;
@@ -1785,6 +1856,92 @@ void zeichnePalette(Dokument& d) {
             Z().meldung = b;
         }
     }
+    zeichneBibliothek(d);
+}
+
+// --- M2 Punkt 4: Bauteil-Bibliothek --------------------------------------------------
+
+std::string vorlagenOrdner() { return u8(fs::path(utf8Pfad(platform::settingsDirectory())) / "menue_vorlagen"); }
+
+const std::vector<Vorlage>& vorlagen() {
+    Zustand& z = Z();
+    if (!z.vorlagenGeladen) {
+        Dokument* d = doc();
+        z.vorlagen = standardVorlagen(d != nullptr ? d->datei.dialekt : Dialekt::SP);
+        for (Vorlage& v : ladeEigeneVorlagen(vorlagenOrdner())) { z.vorlagen.push_back(std::move(v)); }
+        z.vorlagenGeladen = true;
+    }
+    return z.vorlagen;
+}
+
+// Eine Vorlage einsetzen; mit Ziel (virtueller Bildschirm) an diese Stelle schieben.
+void setzeVorlageEin(std::size_t nr, bool mitZiel, float zx, float zy) {
+    Dokument* d = doc();
+    const std::vector<Vorlage>& v = vorlagen();
+    if (d == nullptr || nr >= v.size()) { return; }
+    fuegeItemsEin(v[nr].text);
+    neuParsen(*d);
+    const int mi = menuDerSeite(*d);
+    if (mi < 0 || d->auswahl.empty()) { return; }
+    const Menu& m = d->datei.menus[static_cast<std::size_t>(mi)];
+    if (mitZiel) {   // linke obere Ecke der eingesetzten Items an die Stelle des Loslassens
+        float lx = 1e9F, ly = 1e9F;
+        for (const int i : d->auswahl) {
+            if (i >= 0 && static_cast<std::size_t>(i) < m.items.size()) {
+                lx = std::min(lx, m.items[static_cast<std::size_t>(i)].window.rect.x);
+                ly = std::min(ly, m.items[static_cast<std::size_t>(i)].window.rect.y);
+            }
+        }
+        if (lx < 1e8F) { verschiebeAuswahl(std::round(zx - lx), std::round(zy - ly)); }
+    }
+    // Detailbereich: onOpen oeffnet Reiter 0 / Unterreiter 0
+    if (v[nr].id == "detail") {
+        neuParsen(*d);
+        const Menu& mm = d->datei.menus[static_cast<std::size_t>(mi)];
+        const DetailOptionen o = beispielDetail();
+        if (mm.onOpen.find(o.cvarSel) == std::string::npos) {
+            std::vector<Ersetzung> e;
+            if (setzeEigenschaft(d->datei, mi, -1, "onOpen", {"{ " + mm.onOpen + detailOnOpen(o) + " }"}, e)) { aendere(std::move(e)); }
+        }
+    }
+}
+
+void zeichneBibliothek(Dokument& d) {
+    Zustand& z = Z();
+    ImGui::SeparatorText(tr(Str::MeBibliothek));
+    const std::vector<Vorlage>& v = vorlagen();
+    for (std::size_t i = 0; i < v.size(); ++i) {
+        static const Str namen[] = {Str::MeBtKnopf, Str::MeBtSchieber, Str::MeBtJaNein, Str::MeBtReiter, Str::MeBtDetail, Str::MeBtListe};
+        static const char* const ids[] = {"knopf", "schieber", "janein", "reiter", "detail", "liste"};
+        std::string anzeigeName = anzeige(v[i].name);
+        for (int k = 0; k < 6; ++k) {
+            if (!v[i].eigen && v[i].id == ids[k]) { anzeigeName = tr(namen[k]); }
+        }
+        if (v[i].eigen) { anzeigeName = "* " + anzeigeName; }
+        ImGui::PushID(static_cast<int>(i));
+        if (ImGui::Selectable(anzeigeName.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+            setzeVorlageEin(i, false, 0, 0);
+        }
+        if (ImGui::BeginDragDropSource()) {   // auf die Flaeche ziehen
+            const int n = static_cast<int>(i);
+            ImGui::SetDragDropPayload("ME_VORLAGE", &n, sizeof(n));
+            ImGui::TextUnformatted(anzeigeName.c_str());
+            ImGui::EndDragDropSource();
+        }
+        ImGui::PopID();
+    }
+    ImGui::TextDisabled("%s", tr(Str::MeBibliothekHinweis));
+    // Aus der Auswahl eine Vorlage speichern
+    ImGui::BeginDisabled(d.auswahl.empty());
+    ImGui::SetNextItemWidth(-1);
+    eingabe("##vorlagename", &z.vorlageName);
+    if (ImGui::Button(tr(Str::MeVorlageSpeichern), ImVec2{-1, 0}) && !z.vorlageName.empty()) {
+        if (speichereVorlage(vorlagenOrdner(), z.vorlageName, kopiereAuswahl())) {
+            z.vorlagenGeladen = false;
+            z.vorlageName.clear();
+        }
+    }
+    ImGui::EndDisabled();
 }
 
 void zeichneGliederung(Dokument& d) {
@@ -2045,6 +2202,18 @@ void zeichneLeiste(Dokument* d) {
     if (ImGui::Button(tr(Str::MeAusSpiel))) { z.spielListeOffen = true; }
     zeichneSpielListe();
     ImGui::SameLine();
+    if (ImGui::Button(tr(Str::MeMenuesatzOeffnen))) {   // M2 Punkt 3: UI_LoadMenus
+        int n = 0;
+        if (d != nullptr && kleinPfad(d->name).size() > 4 && kleinPfad(d->name).compare(kleinPfad(d->name).size() - 4, 4, ".txt") == 0) {
+            n = oeffneMenuesatz(d->name);
+        }
+        const bool mp = d != nullptr && d->datei.dialekt == Dialekt::MP;
+        for (const char* p : mp ? std::vector<const char*>{"ui/MovieDuels-MP-Menus.txt", "ui/jampmenus.txt", "ui/jk2mpmenus.txt"}
+                                : std::vector<const char*>{"ui/menus.txt"}) {
+            if (n == 0) { n = oeffneMenuesatz(p); }
+        }
+    }
+    ImGui::SameLine();
     if (ImGui::Button(tr(Str::MeDateiOeffnen))) {
         const std::string pfad = platform::openFileDialog(tr(Str::MeDateiOeffnen), "Menu (*.menu;*.txt)|*.menu;*.txt|", "");
         if (!pfad.empty()) { (void)oeffneDatei(pfad); }
@@ -2185,17 +2354,22 @@ void zeichne(float hoehe) {
     if (z.docs.size() > 1 || d != nullptr) {
         if (ImGui::BeginTabBar("##menuedocs", ImGuiTabBarFlags_FittingPolicyScroll | ImGuiTabBarFlags_AutoSelectNewTabs)) {
             int schliessen = -1;
+            // M2: aktiv aus dem Programm geaendert (schon offenes Dokument, Menuesatz-Wechsel):
+            // den Reiter waehlen - sonst setzte die Reiterleiste den alten zurueck
+            const int gewollt = z.aktiv != z.aktivGezeigt ? z.aktiv : -1;
             for (std::size_t k = 0; k < z.docs.size(); ++k) {
                 bool offen = true;
                 const bool geaendert = z.docs[k]->puffer.text() != z.docs[k]->gespeichert;
                 const std::string l = z.docs[k]->name + (geaendert ? " *" : "") + "##d" + std::to_string(k);
-                if (ImGui::BeginTabItem(l.c_str(), &offen)) {
-                    z.aktiv = static_cast<int>(k);
+                const ImGuiTabItemFlags f = static_cast<int>(k) == gewollt ? ImGuiTabItemFlags_SetSelected : 0;
+                if (ImGui::BeginTabItem(l.c_str(), &offen, f)) {
+                    if (gewollt < 0 || static_cast<int>(k) == gewollt) { z.aktiv = static_cast<int>(k); }
                     ImGui::EndTabItem();
                 }
                 if (!offen) { schliessen = static_cast<int>(k); }
             }
             ImGui::EndTabBar();
+            z.aktivGezeigt = z.aktiv;
             if (schliessen >= 0) {
                 z.docs.erase(z.docs.begin() + schliessen);
                 z.aktiv = std::min(z.aktiv, static_cast<int>(z.docs.size()) - 1);
@@ -2239,6 +2413,47 @@ void zeichne(float hoehe) {
     ImGui::EndChild();
     splitter("##spl3", z.codeHoehe, false, fs * 4, rest.y - fs * 8, rest.x);
     zeichneCode(*d, ImVec2{rest.x, z.codeHoehe});
+}
+
+// M2 Punkt 3: alle Dateien eines Menuesatzes oeffnen (UI_LoadMenus: loadMenu { ... })
+int oeffneMenuesatz(const std::string& spielPfad) {
+    datenPruefen();
+    Zustand& z = Z();
+    std::string t;
+    if (!z.daten.lies(spielPfad, t)) {
+        // auch ein offenes Dokument (z. B. eine eigene menus.txt)
+        bool da = false;
+        for (const auto& dd : z.docs) {
+            if (kleinPfad(dd->name) == kleinPfad(spielPfad)) {
+                t = dd->puffer.text();
+                da = true;
+            }
+        }
+        if (!da) { return 0; }
+    }
+    LeseOptionen o = optionenFuer(spielPfad, z.spiel, z.daten.lader());
+    const Datei satz = lies(spielPfad, t, o);
+    const int nr = z.naechsterSatz++;
+    int n = 0;
+    int erstes = -1;
+    for (const std::string& f : satz.loadMenus) {
+        std::string inhalt;
+        bool da = z.daten.lies(f, inhalt);
+        for (const auto& dd : z.docs) {   // schon offen (eigene Dateien): deren Text
+            if (!da && kleinPfad(dd->name) == kleinPfad(f)) {
+                inhalt = dd->puffer.text();
+                da = true;
+            }
+        }
+        if (!da) { continue; }
+        if (oeffne(f, "", inhalt)) {
+            doc()->satz = nr;
+            if (erstes < 0) { erstes = z.aktiv; }
+            ++n;
+        }
+    }
+    if (erstes >= 0) { z.aktiv = erstes; }   // die erste Datei des Satzes
+    return n;
 }
 
 bool oeffneAusSpiel(const std::string& spielPfad) {
@@ -2352,6 +2567,7 @@ void klickVorschau(float x, float y) {
     }
     z.lauf.maus(mi, x, y);
     z.lauf.klick(mi, x, y);
+    (void)satzWechsel();
 }
 
 void setzeCvar(const std::string& name, const std::string& wert) {
@@ -2530,6 +2746,40 @@ bool exportierePk3(const std::string& pfad) {
 }
 
 void setzeCodeSchrift(ImFont* f) { g_codeSchrift = f; }
+
+std::string letzterSatzWechsel() { return Z().satzWechsel; }
+
+std::string laufInfo() {
+    Zustand& z = Z();
+    Dokument* d = doc();
+    std::string s = "aktiv " + std::to_string(z.aktiv) + (d != nullptr ? " " + d->name + " satz " + std::to_string(d->satz) : std::string());
+    for (const std::string& p : z.lauf.protokoll) { s += " | " + p; }
+    return s;
+}
+
+bool fuegeVorlageEin(const std::string& id, float x, float y) {
+    const std::vector<Vorlage>& v = vorlagen();
+    for (std::size_t i = 0; i < v.size(); ++i) {
+        if (v[i].id == id) {
+            setzeVorlageEin(i, true, x, y);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool speichereAuswahlAlsVorlage(const std::string& name) {
+    Dokument* d = doc();
+    if (d == nullptr || d->auswahl.empty()) { return false; }
+    Z().vorlagenGeladen = false;
+    return speichereVorlage(vorlagenOrdner(), name, kopiereAuswahl());
+}
+
+std::vector<std::string> vorlagenIds() {
+    std::vector<std::string> r;
+    for (const Vorlage& v : vorlagen()) { r.push_back(v.id); }
+    return r;
+}
 
 std::string importiereVideo(const std::string& platte, int guete, int fps, int maxSeite) {
     std::string fehler;
