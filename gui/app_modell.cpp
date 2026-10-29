@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <set>
 #include <string>
 #include <vector>
@@ -137,48 +138,76 @@ void drawAnimListe(float hoehe) {
     }
     ImGui::Separator();
     ImGui::BeginChild("animzeilen", ImVec2{-1.0F, -1.0F}, ImGuiChildFlags_None);
-    int gezeigt = 0;
-    for (std::size_t i = 0; i < g_app->animList.size(); ++i) {
-        const AnimEntry& e = g_app->animList[i];
-        const std::string g = animGruppe(e.name);
-        if (gruppe == 1 && g != "BOTH_") { continue; }
-        if (gruppe == 2 && g != "TORSO_") { continue; }
-        if (gruppe == 3 && g != "LEGS_") { continue; }
-        if (gruppe == 4 && g != "FACE_") { continue; }
-        if (!such.empty() && klein(e.name).find(such) == std::string::npos) { continue; }
-        ++gezeigt;
-        ImGui::PushID(static_cast<int>(i));
-        const bool gewaehlt = static_cast<int>(i) == sel;
-        if (ImGui::Selectable(e.name.c_str(), gewaehlt, ImGuiSelectableFlags_AllowDoubleClick)) {
-            animWaehlen(static_cast<int>(i), true);
-            if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { animInsSkript(static_cast<int>(i)); }
+    // modell1: nur die sichtbaren Zeilen bauen (ImGuiListClipper). Vorher lief
+    // jedes Bild ueber alle Animationen (_humanoid: 1837) - Gruppe, Suche,
+    // Laenge, Selectable und das Schleifen-Icon, das auch fuer verdeckte Zeilen
+    // ins Zeichenbuch ging. Welche Zeilen Gruppe und Suche durchlassen, steht in
+    // `zeilen`; neu bestimmt nur, wenn sich Liste, Gruppe oder Suche aendern
+    // (die Liste wird nur ersetzt, nie an Ort und Stelle geaendert).
+    static std::vector<int> zeilen;
+    static const AnimEntry* zeilenListe = nullptr;
+    static std::size_t zeilenAnzahl = 0;
+    static int zeilenGruppe = -1;
+    static std::string zeilenSuche;
+    if (zeilenListe != g_app->animList.data() || zeilenAnzahl != g_app->animList.size() || zeilenGruppe != gruppe ||
+        zeilenSuche != such) {
+        zeilenListe = g_app->animList.data();
+        zeilenAnzahl = g_app->animList.size();
+        zeilenGruppe = gruppe;
+        zeilenSuche = such;
+        zeilen.clear();
+        static const char* const kPraefix[] = {"", "BOTH_", "TORSO_", "LEGS_", "FACE_"};
+        for (std::size_t i = 0; i < g_app->animList.size(); ++i) {
+            const std::string& name = g_app->animList[i].name;
+            if (gruppe > 0 && std::strcmp(animGruppe(name), kPraefix[gruppe]) != 0) { continue; }
+            if (!such.empty() && klein(name).find(such) == std::string::npos) { continue; }
+            zeilen.push_back(static_cast<int>(i));
         }
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
-            ImGui::SetTooltip(tr(Str::ModelAnimRowHint), e.numFrames,
-                              static_cast<double>(e.numFrames) / static_cast<double>(std::max(e.fps, 1)), e.fps);
-        }
-        // Rechts: Laenge und - wenn sie sich wiederholt - das Schleifen-Icon
-        char laenge[32];
-        std::snprintf(laenge, sizeof(laenge), "%.1fs",
-                      static_cast<double>(e.numFrames) / static_cast<double>(std::max(e.fps, 1)));
-        const float ih = ImGui::GetTextLineHeight();
-        const float lw = ImGui::CalcTextSize(laenge).x + ih + 4.0F;
-        ImGui::SameLine(std::max(ImGui::GetContentRegionMax().x - lw, ImGui::GetFontSize() * 6.0F));
-        ImGui::TextDisabled("%s", laenge);
-        if (e.loopFrame >= 0) {
-            ImGui::SameLine(0.0F, 4.0F);
-            const ImVec2 q = ImGui::GetCursorScreenPos();
-            uiIcon(ImGui::GetWindowDrawList(), UiIcon::Schleife, ImVec2{std::floor(q.x), std::floor(q.y)}, ih,
-                   ImGui::GetColorU32(uiIconFarbe(UiIcon::Schleife)));
-            ImGui::Dummy(ImVec2{ih, ih});
-        }
-        if (gewaehlt && g_app->animScrollen) {
-            ImGui::SetScrollHereY(0.4F);
-            g_app->animScrollen = false;
-        }
-        ImGui::PopID();
     }
-    if (gezeigt == 0) { ImGui::TextDisabled("%s", tr(Str::ModelAnimNone)); }
+    ImGuiListClipper clipper;
+    clipper.Begin(static_cast<int>(zeilen.size()));
+    if (g_app->animScrollen) {
+        // Die gewaehlte Zeile mitbauen, damit SetScrollHereY sie findet.
+        const auto it = std::find(zeilen.begin(), zeilen.end(), sel);
+        if (it != zeilen.end()) { clipper.IncludeItemByIndex(static_cast<int>(it - zeilen.begin())); }
+    }
+    while (clipper.Step()) {
+        for (int r = clipper.DisplayStart; r < clipper.DisplayEnd; ++r) {
+            const auto i = static_cast<std::size_t>(zeilen[static_cast<std::size_t>(r)]);
+            const AnimEntry& e = g_app->animList[i];
+            ImGui::PushID(static_cast<int>(i));
+            const bool gewaehlt = static_cast<int>(i) == sel;
+            if (ImGui::Selectable(e.name.c_str(), gewaehlt, ImGuiSelectableFlags_AllowDoubleClick)) {
+                animWaehlen(static_cast<int>(i), true);
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { animInsSkript(static_cast<int>(i)); }
+            }
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
+                ImGui::SetTooltip(tr(Str::ModelAnimRowHint), e.numFrames,
+                                  static_cast<double>(e.numFrames) / static_cast<double>(std::max(e.fps, 1)), e.fps);
+            }
+            // Rechts: Laenge und - wenn sie sich wiederholt - das Schleifen-Icon
+            char laenge[32];
+            std::snprintf(laenge, sizeof(laenge), "%.1fs",
+                          static_cast<double>(e.numFrames) / static_cast<double>(std::max(e.fps, 1)));
+            const float ih = ImGui::GetTextLineHeight();
+            const float lw = ImGui::CalcTextSize(laenge).x + ih + 4.0F;
+            ImGui::SameLine(std::max(ImGui::GetContentRegionMax().x - lw, ImGui::GetFontSize() * 6.0F));
+            ImGui::TextDisabled("%s", laenge);
+            if (e.loopFrame >= 0) {
+                ImGui::SameLine(0.0F, 4.0F);
+                const ImVec2 q = ImGui::GetCursorScreenPos();
+                uiIcon(ImGui::GetWindowDrawList(), UiIcon::Schleife, ImVec2{std::floor(q.x), std::floor(q.y)}, ih,
+                       ImGui::GetColorU32(uiIconFarbe(UiIcon::Schleife)));
+                ImGui::Dummy(ImVec2{ih, ih});
+            }
+            if (gewaehlt && g_app->animScrollen) {
+                ImGui::SetScrollHereY(0.4F);
+                g_app->animScrollen = false;
+            }
+            ImGui::PopID();
+        }
+    }
+    if (zeilen.empty()) { ImGui::TextDisabled("%s", tr(Str::ModelAnimNone)); }
     ImGui::EndChild();
     ImGui::EndChild();
 }
@@ -305,20 +334,47 @@ void drawNpcBrowser() {
     const auto& typen = npcTypenListe();
     ImGui::TextDisabled(tr(Str::NpcCount), static_cast<int>(typen.size()));
     ImGui::BeginChild("##npcliste", ImVec2{-1.0F, -1.0F}, ImGuiChildFlags_Borders);
-    for (const std::string& t : typen) {
-        if (!such.empty() && klein(t).find(such) == std::string::npos) {
+    // modell1: wie die Animationsliste nur die sichtbaren Zeilen (1323 Typen);
+    // die Treffer der Suche neu nur bei anderer Liste (npcTypenListe baut neu,
+    // wenn sich die Zahl der NPCs aendert) oder Suche.
+    static std::vector<const std::string*> treffer;
+    static const std::string* trefferListe = nullptr;
+    static std::size_t trefferAnzahl = 0;
+    static std::size_t trefferNpcs = 0;
+    static std::string trefferSuche;
+    if (trefferListe != typen.data() || trefferAnzahl != typen.size() || trefferNpcs != g_app->npcMap.size() ||
+        trefferSuche != such) {
+        trefferListe = typen.data();
+        trefferAnzahl = typen.size();
+        trefferNpcs = g_app->npcMap.size();
+        trefferSuche = such;
+        treffer.clear();
+        for (const std::string& t : typen) {
+            if (!such.empty() && klein(t).find(such) == std::string::npos) {
+                const auto it = g_app->npcMap.find(t);
+                if (it == g_app->npcMap.end() || klein(it->second.playerModel).find(such) == std::string::npos) {
+                    continue;
+                }
+            }
+            treffer.push_back(&t);
+        }
+    }
+    const std::string geladen = klein(g_app->npcGeladen);
+    ImGuiListClipper clipper;
+    clipper.Begin(static_cast<int>(treffer.size()));
+    while (clipper.Step()) {
+        for (int r = clipper.DisplayStart; r < clipper.DisplayEnd; ++r) {
+            const std::string& t = *treffer[static_cast<std::size_t>(r)];
             const auto it = g_app->npcMap.find(t);
-            if (it == g_app->npcMap.end() || klein(it->second.playerModel).find(such) == std::string::npos) { continue; }
+            ImGui::PushID(t.c_str());
+            if (ImGui::Selectable(t.c_str(), geladen == t)) { npcLaden(t); }
+            if (it != g_app->npcMap.end()) {
+                ImGui::SameLine(fs * 11.0F);
+                ImGui::TextDisabled("%s%s%s", it->second.playerModel.c_str(), it->second.customSkin.empty() ? "" : " / ",
+                                    it->second.customSkin.c_str());
+            }
+            ImGui::PopID();
         }
-        const auto it = g_app->npcMap.find(t);
-        ImGui::PushID(t.c_str());
-        if (ImGui::Selectable(t.c_str(), klein(g_app->npcGeladen) == t)) { npcLaden(t); }
-        if (it != g_app->npcMap.end()) {
-            ImGui::SameLine(fs * 11.0F);
-            ImGui::TextDisabled("%s%s%s", it->second.playerModel.c_str(), it->second.customSkin.empty() ? "" : " / ",
-                                it->second.customSkin.c_str());
-        }
-        ImGui::PopID();
     }
     ImGui::EndChild();
     ImGui::End();
@@ -343,8 +399,9 @@ bool modellBrauchtBilder() {
 void modellUeberlagerung(ImVec2 lo, ImVec2 groesse) {
     g_app->modellKnochenLinien = 0;
     if (!g_app->modellKnochen || g_app->anim.bones.empty() || g_app->anim.numFrames <= 0) { return; }
-    std::vector<BoneMatrix> welt;
-    g_app->anim.worldMatrices(std::clamp(g_app->animFrame, 0, g_app->anim.numFrames - 1), welt);
+    // modell1: die Haltung vom letzten Neuzeichnen (drawModelView) - dieselbe
+    // wie im Bild darunter, ohne sie jedes Bild neu zu rechnen.
+    const std::vector<BoneMatrix>& welt = g_app->modellWelt;
     const Camera& c = g_app->modelCam;
     float f[3];
     float r[3];

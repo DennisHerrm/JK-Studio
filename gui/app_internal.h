@@ -406,6 +406,10 @@ struct App {
     double modellCpuMsSumme = 0.0;
     int modellNeuGezeichnet = 0;
     int modellAufrufe = 0;
+    // modell1: die Weltmatrizen der Knochen vom letzten Neuzeichnen - die
+    // Knochenansicht zeichnet dieselbe Haltung, ohne sie jedes Bild neu zu
+    // rechnen (leer ohne Skelett).
+    std::vector<BoneMatrix> modellWelt;
     // Mover animieren (gui/app_animation.cpp, rc592)
     bool animFensterOffen = false;
     int animEntity = -1;

@@ -3878,11 +3878,11 @@ void drawModelView() {
         if (g_app->modelDirty && gpu::bereiteModellZiel(w, h)) {
             const auto neuAb = std::chrono::steady_clock::now();
             std::vector<BoneMatrix> knochen;
+            g_app->modellWelt.clear();
             if (!g_app->anim.bones.empty() && g_app->anim.numFrames > 0) {
-                std::vector<BoneMatrix> welt;
                 g_app->anim.worldMatrices(
-                    std::clamp(g_app->animFrame, 0, g_app->anim.numFrames - 1), welt);
-                gpu::baueKnochenmatrizen(welt, g_app->anim.bones, knochen);
+                    std::clamp(g_app->animFrame, 0, g_app->anim.numFrames - 1), g_app->modellWelt);
+                gpu::baueKnochenmatrizen(g_app->modellWelt, g_app->anim.bones, knochen);
             }
             float vp[16];
             gpu::baueViewProj(g_app->modelCam, w, h, 1.0F, 8192.0F, vp);
