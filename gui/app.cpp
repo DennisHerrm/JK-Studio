@@ -3883,7 +3883,7 @@ void drawChangelog() {
                 // Die neuesten zwei offen, der Rest zugeklappt.
                 ImGui::SetNextItemOpen(i < 2, ImGuiCond_Appearing);
                 if (ImGui::CollapsingHeader(titel.c_str())) {
-                    const char* t = e[i].text[(sprache >= 0 && sprache < 4) ? sprache : 0];
+                    const char* t = changelog::text(e[i], sprache);
                     ImGui::PushTextWrapPos(0.0F);
                     for (const char* a = t; *a != '\0';) {
                         const char* ende = std::strchr(a, '\n');
@@ -3916,13 +3916,7 @@ void handbuchOeffnen(const char* seite) {
         addStatus(std::string("(Selbsttest) Handbuch angefragt: ") + seite);
         return;
     }
-    const char* code = "en";
-    switch (i18n::currentLanguage()) {
-        case i18n::Language::German: code = "de"; break;
-        case i18n::Language::ChineseSimplified: code = "zh"; break;
-        case i18n::Language::Japanese: code = "ja"; break;
-        default: break;
-    }
+    const char* code = i18n::kurzCode(i18n::currentLanguage());
     const std::string exe = platform::executableDirectory();
     for (const std::string& basis : {exe, exe + "\\.."}) {
         const std::string datei = basis + "\\handbuch\\" + code + "\\" + seite;

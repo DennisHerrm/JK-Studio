@@ -376,6 +376,7 @@ std::vector<Schritt> handbuchFotos() {
             case i18n::Language::German: return std::string("Licht setzen");
             case i18n::Language::ChineseSimplified: return std::string("添加灯光");
             case i18n::Language::Japanese: return std::string("ライトを置く");
+            case i18n::Language::Spanish: return std::string("añadir una luz");
             default: return std::string("add a light");
         }
     };

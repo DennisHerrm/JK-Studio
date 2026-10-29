@@ -38,14 +38,7 @@ Zustand& z() {
     return s;
 }
 
-const char* sprachCode() {
-    switch (i18n::currentLanguage()) {
-        case i18n::Language::German: return "de";
-        case i18n::Language::ChineseSimplified: return "zh";
-        case i18n::Language::Japanese: return "ja";
-        default: return "en";
-    }
-}
+const char* sprachCode() { return i18n::kurzCode(i18n::currentLanguage()); }
 
 // Der Index in der eingestellten Sprache - neu nach einem Sprachwechsel.
 const hilfe::Index& index() {

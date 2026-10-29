@@ -869,11 +869,22 @@ if(BEHAVED_TESTS)
     # Rueckstrich, Packverfahren 9, VC-Laufzeit in der .exe, falscher Name).
     add_test(NAME release_paket
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/release_paket.py selbsttest)
-    # rc601: jede Handbuchseite in allen vier Sprachen (en, de, zh, ja) - kein
+    # rc601: jede Handbuchseite in den vier ersten Sprachen (en, de, zh, ja) - kein
     # Text faellt auf Englisch zurueck, kein Bild mit Oberflaeche fehlt in
-    # einer Sprache (Bilder nur, wenn handbuch/bilder vorhanden ist).
+    # einer Sprache (Bilder nur, wenn handbuch/bilder vorhanden ist). Die
+    # weiteren Sprachen (tools/sprachen.py) fallen auf Englisch zurueck; der
+    # Bau nennt, was ihnen fehlt.
     add_test(NAME handbuch_sprachen
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/handbuch/gen_handbuch.py --pruefen)
+    # Die Suche im Handbuch faltet Akzente ("animacion" findet das spanische
+    # Wort mit Akut, "cestina" das tschechische mit Hacek) und markiert im Original - geprueft im Browser ohne Fenster
+    # (Edge/Chrome; ohne Browser uebersprungen).
+    add_test(NAME handbuch_suche
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/handbuch/suche_pruefen.py)
+    # Changelog: neue Fassungen duerfen die weiteren Sprachen haben, alte ohne
+    # sie bleiben gueltig (gen_changelog.py ohne Abbruch).
+    add_test(NAME changelog_sprachen
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_changelog.py --selbsttest)
     # H1: der Ortskatalog des Helfers (src/hilfe_orte.inc) passt zu den Menues und
     # Einstellungen - sonst fand "Zeig es mir" einen umbenannten Menuepunkt nicht mehr.
     add_test(NAME hilfe_orte

@@ -1,11 +1,12 @@
-// Oberflaechentexte in vier Sprachen.
+// Oberflaechentexte in allen Sprachen von JK Studio (tools/sprachen.py).
 //
 // Erzeugt von tools/gen_i18n.py - nicht von Hand aendern, sondern dort.
-// Ein Aufzaehlungswert je Text, eine Tabelle mit vier Spalten, und ein
-// static_assert, das Tabellenlaenge und Aufzaehlung vergleicht.
+// Ein Aufzaehlungswert je Text, eine Tabelle mit einer Spalte je Sprache, und
+// ein static_assert, das Tabellenlaenge und Aufzaehlung vergleicht.
 //
 // Hauptsprache ist Englisch: die Sprache der JKA-Modding-Gemeinde, der
-// Dateiformate und der Engine-Meldungen.
+// Dateiformate und der Engine-Meldungen. Fehlt einer Sprache ein Text, gilt
+// der englische.
 #ifndef BHED_I18N_H
 #define BHED_I18N_H
 
@@ -15,11 +16,15 @@
 
 namespace bhed::i18n {
 
+// Neue Sprachen nur am Ende: der Changelog speichert seine Spalten in dieser
+// Reihenfolge (die Einstellungsdatei speichert den Code).
 enum class Language {
     English,
     German,
     ChineseSimplified,
     Japanese,
+    Spanish,
+    Czech,
 };
 
 enum class Str {
@@ -2850,12 +2855,15 @@ void setLanguage(Language language);
 
 struct LanguageInfo {
     Language language;
-    const char* code;        // fuer die Einstellungsdatei: en, de, zh-Hans, ja
+    const char* code;        // fuer die Einstellungsdatei und BHED_SPRACHE: en, de, zh-Hans, ja, es, cs
+    const char* kurz;        // fuer Ordner und Dateien (handbuch/<kurz>/): en, de, zh, ja, es, cs
     const char* nativeName;  // im Menue, in der eigenen Schrift
     bool needsCjkFont;       // ob eine zusaetzliche Schrift noetig ist
 };
 const std::vector<LanguageInfo>& languages();
 const LanguageInfo* findLanguage(const std::string& code);
+// Die Kurzform einer Sprache ("en" fuer einen Wert ausserhalb der Liste).
+const char* kurzCode(Language language);
 
 // Sprache aus den Windows-Regionseinstellungen ableiten. Getrennt gehalten,
 // damit die Zuordnung ohne Windows pruefbar bleibt.
@@ -2863,6 +2871,9 @@ Language fromSystemLocale(const std::string& locale);
 
 // Nur fuer Tests: ein Text in einer bestimmten Sprache.
 const char* trIn(Language language, Str id);
+// Nur fuer Tests: ob die Sprache einen eigenen Text hat (sonst zeigt trIn den
+// englischen).
+bool hatEigenenText(Language language, Str id);
 
 // rc601 tour: die Kennung als Text ("FileSave"). Das Handbuch und die
 // Tutorials im Programm nennen Oberflaechentexte ueber ihre Kennung

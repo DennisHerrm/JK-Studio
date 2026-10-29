@@ -5,7 +5,10 @@ Aufruf:  python tools/handbuch/gen_handbuch.py [ziel]
 
 Aufbau
 ------
-Eine Quelle fuer alle Sprachen: jeder Text ist ein T(en, de, zh, ja). Die
+Eine Quelle fuer alle Sprachen: jeder Text ist ein T(en, de, zh, ja); die
+weiteren Sprachen (tools/sprachen.py: es, cs) legen sich aus
+inhalt_<sprache>.py darueber und fallen, wo ihnen noch etwas fehlt, auf
+Englisch zurueck (Texte und Bilder, mit Hinweis am Bild). Die
 Seiten bestehen aus Bausteinen (Absatz, Ueberschrift, Bild, Schritte,
 Hinweis, Tastentabelle, Karten ...). Daraus entstehen je Sprache:
 
@@ -43,14 +46,18 @@ HIER = os.path.dirname(os.path.abspath(__file__))
 WURZEL = os.path.dirname(os.path.dirname(HIER))
 sys.path.insert(0, HIER)
 
-from inhalt_basis import SPRACHEN, T, ui  # noqa: E402
+from inhalt_basis import NEU, SPRACHEN, T, tasten_namen, ui  # noqa: E402
+import sprachen  # noqa: E402  (tools/sprachen.py, ueber inhalt_basis im Pfad)
 import inhalt  # noqa: E402
 import inhalt_touren  # noqa: E402  (rc601 tour: Tutorials im Programm)
 
 # rc601: --pruefen baut in einen Zwischenordner und endet mit Fehler, wenn
 # einer Seite eine Sprache fehlt (Text oder Bild) - ctest "handbuch_sprachen".
 PRUEFEN = "--pruefen" in sys.argv
-_ARGS = [a for a in sys.argv[1:] if a != "--pruefen"]
+# --pflicht=es: auch dieser weiteren Sprache darf kein Text und kein Bild fehlen
+# (am Ende ihrer Stufe; ohne die Angabe nennt der Bau nur, was fehlt).
+PFLICHT = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--pflicht=")]
+_ARGS = [a for a in sys.argv[1:] if a != "--pruefen" and not a.startswith("--pflicht=")]
 if PRUEFEN:
     import tempfile
     ZIEL = os.path.join(tempfile.mkdtemp(prefix="bhed_handbuch_"), "handbuch")
@@ -63,6 +70,7 @@ BILDER = os.path.join(WURZEL, "handbuch", "bilder") if PRUEFEN else os.path.join
 # (Icons i_*, Bildfolgen nur aus der Kartenansicht wie bilder.py NUR_KARTE).
 NEUTRALE_BILDER = {"a_kamera", "a_kamera_stand"}
 nur_englisch = set()
+englisch_neu = set()   # weitere Sprachen: Bild noch englisch (mit Hinweis)
 
 
 def _lade_ui_texte():
@@ -118,18 +126,22 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in KARTE9C})
             from i18n_karte9d import KARTE9D   # Stufe 9d: Echtzeit-Ansicht, Shader live, Patch-Bruecke
             texte.update({e[0]: e[1:] for e in KARTE9D})
+            # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
+            for kurz in NEU:
+                weitere = sprachen.texte(kurz)
+                texte = {k: v + (weitere.get(k),) for k, v in texte.items()}
             return texte
     raise SystemExit("gen_i18n.py: Liste S nicht gefunden")
 
 
 UI_TEXTE = _lade_ui_texte()
-_SPALTE = {"en": 0, "de": 1, "zh": 2, "ja": 3}
+_SPALTE = {sp: i for i, sp in enumerate(SPRACHEN)}
 
 
 def ui_text(kennung, sp):
     if kennung not in UI_TEXTE:
         raise SystemExit("unbekannter Oberflaechentext {{%s}}" % kennung)
-    t = UI_TEXTE[kennung][_SPALTE[sp]]
+    t = UI_TEXTE[kennung][_SPALTE[sp]] or UI_TEXTE[kennung][0]
     t = re.sub(r"\s*\((Enter|Esc)\)$", "", t)
     t = re.sub(r"\s*\(%[-+0-9.]*[dsf]\)", "", t)
     t = re.sub(r"%[-+0-9.]*[dsf]", "", t).strip()
@@ -210,13 +222,9 @@ def klartext(t):
     return t.replace("**", "").replace("`", "").replace("⟦", "").replace("⟧", "")
 
 
-# Tastennamen wie auf der Tastatur des Landes (nur Deutsch weicht ab).
-_TASTEN_DE = {"Ctrl": "Strg", "Shift": "Umschalt", "Space": "Leertaste", "Home": "Pos1", "End": "Ende",
-              "Delete": "Entf", "Insert": "Einfg", "Backspace": "Rücktaste", "Up": "Oben", "Down": "Unten"}
-
-
 def taste(t, sp):
-    return _TASTEN_DE.get(t, t) if sp == "de" else t
+    """Tastennamen wie auf der Tastatur des Landes (inhalt_basis.tasten_namen)."""
+    return tasten_namen(sp).get(t, t)
 
 
 def tasten_text(t, sp):
@@ -240,7 +248,7 @@ def bild_pfad(name, sp):
             p = os.path.join(BILDER, s, name + endung)
             if os.path.exists(p):
                 if s != sp and name not in NEUTRALE_BILDER:
-                    nur_englisch.add("%s/%s" % (sp, name))
+                    (englisch_neu if sp in NEU else nur_englisch).add("%s/%s" % (sp, name))
                 return "../bilder/%s/%s%s" % (s, name, endung)
     return None
 
@@ -256,6 +264,8 @@ def bild_html(name, unter, sp, breit=False, anim=False, schmal=False):
         inner = '<div class="platzhalter">%s</div>' % esc(name)
     else:
         inner = '<a href="%s" class="zoom"><img src="%s" alt="%s" loading="lazy"></a>' % (p, p, esc(klartext(text(unter, sp))))
+        if sp != "en" and p.startswith("../bilder/en/") and name not in NEUTRALE_BILDER:
+            inner += '<span class="englisch">%s</span>' % esc(ui("bild_englisch", sp))
         if anim:
             inner += '<span class="abzeichen">%s</span>' % esc(ui("animation", sp))
             stand = bild_pfad(name + "_stand", sp)
@@ -264,13 +274,9 @@ def bild_html(name, unter, sp, breit=False, anim=False, schmal=False):
     return '<figure class="%s">%s<figcaption>%s</figcaption></figure>' % (klasse, inner, inline(text(unter, sp), sp))
 
 
-_LEGENDE_KOPF = {"en": ("No.", "Name", "What it does"), "de": ("Nr.", "Name", "Was es macht"),
-                 "zh": ("编号", "名称", "作用"), "ja": ("番号", "名前", "機能")}
-
-
 def legende_html(zeilen, sp):
     """zeilen: [(T Name, T Beschreibung), ...] - nummeriert ab 1."""
-    k = _LEGENDE_KOPF[sp]
+    k = [esc(ui(n, sp)) for n in ("legende_nr", "legende_name", "legende_was")]
     rumpf = "".join('<tr><td class="lnr">%d</td><td>%s</td><td>%s</td></tr>' % (
         i, inline(text(n, sp), sp), inline(text(d, sp), sp)) for i, (n, d) in enumerate(zeilen, 1))
     return ('<table class="legende"><thead><tr><th>%s</th><th>%s</th><th>%s</th></tr></thead><tbody>%s</tbody></table>'
@@ -542,9 +548,8 @@ def seitenleiste(aktiv, sp):
 
 
 def sprachwahl(seite, sp):
-    namen = {"en": "English", "de": "Deutsch", "zh": "中文", "ja": "日本語"}
     return "".join('<a href="../%s/%s.html" class="%s" lang="%s">%s</a>' % (
-        s, seite["id"], "aktiv" if s == sp else "", s, namen[s]) for s in SPRACHEN)
+        s, seite["id"], "aktiv" if s == sp else "", s, sprachen.NAMEN[s]) for s in SPRACHEN)
 
 
 def nachbarn(seite, sp):
@@ -714,9 +719,10 @@ def main():
         schreibe(os.path.join(ZIEL, sp, "touren.json"), touren_json(sp))
     # Einstieg: in die Sprache des Browsers.
     schreibe(os.path.join(ZIEL, "index.html"), """<!doctype html><html><head><meta charset="utf-8"><title>JK Studio</title>
-<script>var l=(navigator.language||'en').slice(0,2);if(['en','de','zh','ja'].indexOf(l)<0)l='en';location.replace(l+'/index.html');</script>
-</head><body><a href="en/index.html">English</a> <a href="de/index.html">Deutsch</a> <a href="zh/index.html">中文</a> <a href="ja/index.html">日本語</a></body></html>
-""")
+<script>var l=(navigator.language||'en').slice(0,2);if([%s].indexOf(l)<0)l='en';location.replace(l+'/index.html');</script>
+</head><body>%s</body></html>
+""" % (",".join("'%s'" % sp for sp in SPRACHEN),
+       " ".join('<a href="%s/index.html">%s</a>' % (sp, sprachen.NAMEN[sp]) for sp in SPRACHEN)))
     print("Handbuch: %d Seiten x %d Sprachen -> %s" % (len(SEITEN), len(SPRACHEN), ZIEL))
     ohne = []
     for s in SEITEN:
@@ -741,6 +747,13 @@ def main():
         print("fehlende Bilder (%d): %s" % (len(fehlende_bilder), " ".join(sorted(fehlende_bilder))))
     if nur_englisch:
         print("Bilder nur englisch (%d): %s" % (len(nur_englisch), " ".join(sorted(nur_englisch)[:40])))
+    # Die weiteren Sprachen: was noch englisch ist (kein Abbruch, ausser --pflicht=<sprache>).
+    for sp in NEU:
+        bilder_sp = sorted(b for b in englisch_neu if b.startswith(sp + "/"))
+        print("%s: %d Texte noch englisch, %d Bilder noch englisch" % (sp, T.fehlend_neu.get(sp, 0), len(bilder_sp)))
+        if sp in PFLICHT:
+            for en in T.fehlende_texte_neu.get(sp, [])[:15]:
+                print("  ohne %s: %s" % (sp, en[:110].encode("ascii", "replace").decode()))
     import inhalt_basis
     unbenutzt = sum(1 for sp, t in inhalt_basis.tabelle().items() for en in t if (sp, en) not in inhalt_basis.benutzt)
     if unbenutzt:
@@ -752,6 +765,20 @@ def main():
             print("  ohne %s: %s" % ("/".join(sorted(T.fehlende_texte[en])), en[:110].encode("ascii", "replace").decode()))
     bilder_da = os.path.isdir(os.path.join(BILDER, "en"))
     fehler = bool(T.fehlend) or (bilder_da and bool(fehlende_bilder or nur_englisch))
+    for sp in PFLICHT:
+        fehler = fehler or T.fehlend_neu.get(sp, 0) > 0 or (bilder_da and any(b.startswith(sp + "/") for b in englisch_neu))
+    # Jede Sprache hat ihre Seiten, ihren Suchindex und ihre Touren, und jede
+    # Seite fuehrt im Umschalter zu allen Sprachen.
+    for sp in SPRACHEN:
+        for datei in ("index.html", "suche.js", "touren.json"):
+            if not os.path.exists(os.path.join(ZIEL, sp, datei)):
+                print("fehlt: %s/%s" % (sp, datei))
+                fehler = True
+        with open(os.path.join(ZIEL, sp, "index.html"), encoding="utf-8") as f:
+            seite = f.read()
+        if '<html lang="%s">' % sp not in seite or not all('href="../%s/index.html"' % s in seite for s in SPRACHEN):
+            print("%s/index.html: Sprache oder Umschalter falsch" % sp)
+            fehler = True
     if PRUEFEN:
         shutil.rmtree(os.path.dirname(ZIEL), ignore_errors=True)
         print("handbuch_sprachen: " + ("FEHLER" if fehler else "ok") + ("" if bilder_da else " (ohne Bilder geprueft)"))

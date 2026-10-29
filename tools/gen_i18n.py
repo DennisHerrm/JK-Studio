@@ -3,7 +3,11 @@
 Erzeugt include/bhed/i18n.h und src/i18n.cpp aus der Tabelle unten.
 
 Der Aufbau ist von efxed uebernommen: ein Aufzaehlungswert je Text, eine
-Tabelle mit vier Spalten, und ein static_assert, das beide vergleicht.
+Tabelle mit einer Spalte je Sprache, und ein static_assert, das beide
+vergleicht. Die Zeilen unten haben die vier ersten Sprachen; die weiteren
+(tools/sprachen.py: Spanisch, Tschechisch) stehen je in einer eigenen Datei
+tools/i18n_sprache_<kurz>.py. `--fehlend` schreibt nichts und nennt (JSON),
+was den weiteren Sprachen noch fehlt (fuer tools/lint_i18n.py).
 Geraten sie aus dem Tritt, faellt es beim Uebersetzen auf und nicht als
 leerer Knopf im laufenden Programm.
 
@@ -2222,6 +2226,15 @@ S += MISSION1
 from i18n_menue2 import MENUE2  # noqa: E402  (Menue-Editor M2)
 S += MENUE2
 
+# --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
+#
+# Spanisch, Tschechisch, ...: je Sprache eine eigene Datei
+# tools/i18n_sprache_<kurz>.py mit {Kennung: Text}. Fehlt ein Text, steht in
+# der Tabelle nullptr, und trIn() zeigt den englischen - nie einen leeren.
+# So bleiben neue Texte anderer Zweige Ergaenzungen in vier Sprachen.
+import sprachen as _sprachen  # noqa: E402
+NEU = {k: _sprachen.texte(k) for k in _sprachen.NEU}
+
 # --- Formatplatzhalter pruefen -------------------------------------------
 #
 # Die Meldungen werden mit snprintf zusammengesetzt, und die Formatzeichen-
@@ -2243,6 +2256,20 @@ for row in S:
         problems.append((name, kinds))
 
 names = [r[0] for r in S]
+_englisch = {r[0]: r[1] for r in S}
+for _kurz, _texte in NEU.items():
+    # Kennungen, die es nicht (mehr) gibt, brechen nicht ab - ein anderer Zweig
+    # kann eine umbenannt haben; tools/lint_i18n.py nennt sie.
+    for _k, _t in _texte.items():
+        if _k not in _englisch:
+            continue
+        if not isinstance(_t, str) or not _t.strip():
+            problems.append((_kurz, _k, "leerer Text"))
+            continue
+        _soll = tuple(m.group(1) for m in _SPEC.finditer(_englisch[_k]) if m.group(1) != '%')
+        _ist = tuple(m.group(1) for m in _SPEC.finditer(_t) if m.group(1) != '%')
+        if _soll != _ist:
+            problems.append((_kurz, _k, [_soll, _ist]))
 if len(set(names)) != len(names):
     dup = [n for n in names if names.count(n) > 1]
     problems.append(("doppelte Kennung", sorted(set(dup))))
@@ -2251,6 +2278,23 @@ if problems:
     for p in problems:
         print("FEHLER:", p, file=sys.stderr)
     sys.exit(1)
+
+
+def _ohne_woerter(t):
+    """Nur Platzhalter, Ziffern und Zeichen ("+", "%d", "%s: %s") - in jeder
+    Sprache gleich, braucht keine Uebersetzung."""
+    return not re.search(r'[A-Za-z]', _SPEC.sub('', t))
+
+
+# Je weiterer Sprache die Kennungen, denen noch ein Text fehlt (das Programm
+# zeigt dort den englischen), und die, die es nicht (mehr) gibt.
+FEHLEND = {k: [r[0] for r in S if r[0] not in NEU[k] and not _ohne_woerter(r[1])] for k in NEU}
+FREMD = {k: sorted(n for n in NEU[k] if n not in _englisch) for k in NEU}
+if "--fehlend" in sys.argv:
+    # fuer tools/lint_i18n.py - nichts schreiben
+    import json
+    print(json.dumps({"fehlend": FEHLEND, "fremd": FREMD}))
+    sys.exit(0)
 
 
 def esc(s):
@@ -2281,14 +2325,15 @@ def esc(s):
     return ''.join(out)
 
 
-h = '''// Oberflaechentexte in vier Sprachen.
+h = '''// Oberflaechentexte in allen Sprachen von JK Studio (tools/sprachen.py).
 //
 // Erzeugt von tools/gen_i18n.py - nicht von Hand aendern, sondern dort.
-// Ein Aufzaehlungswert je Text, eine Tabelle mit vier Spalten, und ein
-// static_assert, das Tabellenlaenge und Aufzaehlung vergleicht.
+// Ein Aufzaehlungswert je Text, eine Tabelle mit einer Spalte je Sprache, und
+// ein static_assert, das Tabellenlaenge und Aufzaehlung vergleicht.
 //
 // Hauptsprache ist Englisch: die Sprache der JKA-Modding-Gemeinde, der
-// Dateiformate und der Engine-Meldungen.
+// Dateiformate und der Engine-Meldungen. Fehlt einer Sprache ein Text, gilt
+// der englische.
 #ifndef BHED_I18N_H
 #define BHED_I18N_H
 
@@ -2298,12 +2343,13 @@ h = '''// Oberflaechentexte in vier Sprachen.
 
 namespace bhed::i18n {
 
+// Neue Sprachen nur am Ende: der Changelog speichert seine Spalten in dieser
+// Reihenfolge (die Einstellungsdatei speichert den Code).
 enum class Language {
-    English,
-    German,
-    ChineseSimplified,
-    Japanese,
-};
+'''
+for sp in _sprachen.SPRACHEN:
+    h += "    %s,\n" % sp[3]
+h += '''};
 
 enum class Str {
 '''
@@ -2320,12 +2366,15 @@ void setLanguage(Language language);
 
 struct LanguageInfo {
     Language language;
-    const char* code;        // fuer die Einstellungsdatei: en, de, zh-Hans, ja
+    const char* code;        // fuer die Einstellungsdatei und BHED_SPRACHE: en, de, zh-Hans, ja, es, cs
+    const char* kurz;        // fuer Ordner und Dateien (handbuch/<kurz>/): en, de, zh, ja, es, cs
     const char* nativeName;  // im Menue, in der eigenen Schrift
     bool needsCjkFont;       // ob eine zusaetzliche Schrift noetig ist
 };
 const std::vector<LanguageInfo>& languages();
 const LanguageInfo* findLanguage(const std::string& code);
+// Die Kurzform einer Sprache ("en" fuer einen Wert ausserhalb der Liste).
+const char* kurzCode(Language language);
 
 // Sprache aus den Windows-Regionseinstellungen ableiten. Getrennt gehalten,
 // damit die Zuordnung ohne Windows pruefbar bleibt.
@@ -2333,6 +2382,9 @@ Language fromSystemLocale(const std::string& locale);
 
 // Nur fuer Tests: ein Text in einer bestimmten Sprache.
 const char* trIn(Language language, Str id);
+// Nur fuer Tests: ob die Sprache einen eigenen Text hat (sonst zeigt trIn den
+// englischen).
+bool hatEigenenText(Language language, Str id);
 
 // rc601 tour: die Kennung als Text ("FileSave"). Das Handbuch und die
 // Tutorials im Programm nennen Oberflaechentexte ueber ihre Kennung
@@ -2350,6 +2402,7 @@ bool strVonName(std::string_view name, Str* out);
 # weicht vom Paketstand (LF) ab - lint_i18n_erzeugt schlug unter Windows an.
 open('include/bhed/i18n.h', 'w', encoding='utf-8', newline='\n').write(h)
 
+ANZAHL = len(_sprachen.SPRACHEN)
 c = '''// Erzeugt von tools/gen_i18n.py - nicht von Hand aendern.
 #include "bhed/i18n.h"
 
@@ -2361,18 +2414,26 @@ c = '''// Erzeugt von tools/gen_i18n.py - nicht von Hand aendern.
 namespace bhed::i18n {
 namespace {
 
+constexpr std::size_t kSprachen = %d;
+
+// Je Sprache (Reihenfolge wie Language) der Text; nullptr = noch nicht
+// uebersetzt, es gilt der englische (Spalte 0).
 struct Entry {
-    const char* en;
-    const char* de;
-    const char* zh;
-    const char* ja;
+    const char* text[kSprachen];
 };
 
 // Reihenfolge muss der Aufzaehlung Str entsprechen.
 const Entry kTable[] = {
-'''
-for (n, en, de, zh, ja) in S:
-    c += '    {"%s", "%s", "%s", "%s"},  // %s\n' % (esc(en), esc(de), esc(zh), esc(ja), n)
+''' % ANZAHL
+
+
+def _zelle(t):
+    return 'nullptr' if t is None else '"%s"' % esc(t)
+
+
+for row in S:
+    zellen = list(row[1:1 + _sprachen.ALT]) + [NEU[k].get(row[0]) for k in _sprachen.NEU]
+    c += '    {{%s}},  // %s\n' % (', '.join(_zelle(t) for t in zellen), row[0])
 c += '''};
 
 static_assert(sizeof(kTable) / sizeof(kTable[0]) == static_cast<std::size_t>(Str::Count),
@@ -2420,18 +2481,18 @@ bool strVonName(std::string_view name, Str* out) {
     return true;
 }
 
+bool hatEigenenText(Language language, Str id) {
+    const std::size_t index = static_cast<std::size_t>(id);
+    const std::size_t spalte = static_cast<std::size_t>(language);
+    return index < static_cast<std::size_t>(Str::Count) && spalte < kSprachen && kTable[index].text[spalte] != nullptr;
+}
+
 const char* trIn(Language language, Str id) {
     const std::size_t index = static_cast<std::size_t>(id);
     if (index >= static_cast<std::size_t>(Str::Count)) {
         return "";
     }
-    const Entry& e = kTable[index];
-    switch (language) {
-        case Language::German: return e.de;
-        case Language::ChineseSimplified: return e.zh;
-        case Language::Japanese: return e.ja;
-        default: return e.en;
-    }
+    return hatEigenenText(language, id) ? kTable[index].text[static_cast<std::size_t>(language)] : kTable[index].text[0];
 }
 
 const char* tr(Str id) { return trIn(g_language, id); }
@@ -2444,11 +2505,10 @@ const std::vector<LanguageInfo>& languages() {
     // mehr vorgegeben werden. needsCjkFont sagt nur noch, ob ueberhaupt eine
     // Schrift mit CJK-Zeichen gebraucht wird.
     static const std::vector<LanguageInfo> kLanguages = {
-        {Language::English, "en", "English", false},
-        {Language::German, "de", "Deutsch", false},
-        {Language::ChineseSimplified, "zh-Hans", "\\u4e2d\\u6587", true},
-        {Language::Japanese, "ja", "\\u65e5\\u672c\\u8a9e", true},
-    };
+'''
+for kurz, code, name, enum, cjk in _sprachen.SPRACHEN:
+    c += '        {Language::%s, "%s", "%s", "%s", %s},\n' % (enum, code, kurz, esc(name), "true" if cjk else "false")
+c += '''    };
     return kLanguages;
 }
 
@@ -2461,11 +2521,21 @@ const LanguageInfo* findLanguage(const std::string& code) {
     return nullptr;
 }
 
+const char* kurzCode(Language language) {
+    for (const auto& l : languages()) {
+        if (l.language == language) {
+            return l.kurz;
+        }
+    }
+    return "en";
+}
+
 Language fromSystemLocale(const std::string& locale) {
     // Nur das Praefix vergleichen: "de-DE", "de-AT" und "de" sind alle
-    // Deutsch. Chinesisch braucht mehr Sorgfalt - zh-Hant (Taiwan, Hongkong)
-    // ist nicht dasselbe wie zh-Hans, und wir haben nur Vereinfachtes. Fuer
-    // zh-Hant bleibt Englisch die bessere Wahl als falsche Zeichen.
+    // Deutsch, "es-ES", "es-MX" und "es-419" alle Spanisch. Chinesisch braucht
+    // mehr Sorgfalt - zh-Hant (Taiwan, Hongkong) ist nicht dasselbe wie
+    // zh-Hans, und wir haben nur Vereinfachtes. Fuer zh-Hant bleibt Englisch
+    // die bessere Wahl als falsche Zeichen.
     auto startsWith = [&](const char* prefix) {
         std::size_t n = 0;
         while (prefix[n] != 0) {
@@ -2476,6 +2546,8 @@ Language fromSystemLocale(const std::string& locale) {
 
     if (startsWith("de")) { return Language::German; }
     if (startsWith("ja")) { return Language::Japanese; }
+    if (startsWith("es")) { return Language::Spanish; }
+    if (startsWith("cs")) { return Language::Czech; }
     if (startsWith("zh-Hant") || startsWith("zh-TW") || startsWith("zh-HK") ||
         startsWith("zh-MO")) {
         return Language::English;
@@ -2487,4 +2559,5 @@ Language fromSystemLocale(const std::string& locale) {
 }  // namespace bhed::i18n
 '''
 open('src/i18n.cpp', 'w', encoding='utf-8', newline='\n').write(c)
-print("i18n erzeugt: %d Texte x 4 Sprachen = %d Zeichenketten" % (len(S), len(S) * 4))
+print("i18n erzeugt: %d Texte x %d Sprachen; noch nicht uebersetzt (gilt englisch): %s"
+      % (len(S), ANZAHL, ", ".join("%s %d" % (k, len(v)) for k, v in FEHLEND.items())))

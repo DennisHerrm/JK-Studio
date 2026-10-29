@@ -618,7 +618,7 @@ std::vector<Schritt> karteneditorSchritte() {
 // Bild <name>.bmp schreibt fotoTeil <name>.rect (x0 y0 x1 y1 in Bildpunkten),
 // tools/handbuch/bilder.py schneidet danach zu und macht .webp daraus.
 //   BHED_FOTOS           Zielordner
-//   BHED_SPRACHE         en / de / zh / ja
+//   BHED_SPRACHE         Kurzname aus tools/sprachen.py (en, de, zh, ja, es, cs)
 //   BHED_MISSION_ARCHIV  MD_Missions_Ep3.pk3, BHED_MISSION_NAME md_am_sith
 namespace hb {
 

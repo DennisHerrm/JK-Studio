@@ -2944,18 +2944,15 @@ std::vector<Schritt> reste0() {
         ke::setzeNrcBegriffe(*nrcVorher);
     }));
     // --- 0c: keine abgeschnittene Beschriftung, alle Seiten, alle Sprachen ----
+    // (alle aus i18n::languages() - Spanisch und Tschechisch sind laenger als Englisch)
     auto sprache = std::make_shared<i18n::Language>(i18n::Language::English);
     add(tu("Sprache merken", [sprache, nrcVorher] {
         *sprache = i18n::currentLanguage();
         *nrcVorher = ke::nrcBegriffe();
     }));
-    const std::pair<i18n::Language, const char*> sprachen[] = {{i18n::Language::English, "Englisch"},
-                                                               {i18n::Language::German, "Deutsch"},
-                                                               {i18n::Language::ChineseSimplified, "Chinesisch"},
-                                                               {i18n::Language::Japanese, "Japanisch"}};
-    for (const auto& [l, name] : sprachen) {
-        const i18n::Language lang = l;
-        const std::string sname = name;
+    for (const i18n::LanguageInfo& l : i18n::languages()) {
+        const i18n::Language lang = l.language;
+        const std::string sname = l.kurz;
         add(tu("Einstellungen auf " + sname, [lang] {
             i18n::setLanguage(lang);
             ke::setzeNrcBegriffe(false);
@@ -4237,32 +4234,53 @@ std::vector<Schritt> beenden() {
 // Knopfspalte. Jeder Radioknopf, jedes Kaestchen, jede Beschriftung vor einem
 // Zahlenfeld und jeder Text (qtd::text: textBreite + Abstand 6) meldet seinen
 // Platz und die gezeichnete Breite ("Plugin:<id>~platz" / "~text"); in allen
-// Plugin-Dialogen und allen vier Sprachen muss das Gezeichnete hineinpassen.
+// Plugin-Dialogen und allen Sprachen muss das Gezeichnete hineinpassen.
+// Spanisch: "N.º de mosaicos" (MeshTex Set S/T Scale) passte in den eigenen
+// Hinweis des Radioknopfs, lief aber in das Zahlenfeld daneben - darum darf
+// kein gezeichneter Text in ein fremdes Feld ragen, das rechts von seinem
+// Anfang beginnt (ein laengerer Text waechst nach rechts; der Dialog selbst
+// umschliesst alles und zaehlt nicht).
 bool pluginTexteGanz(std::string& bericht) {
     std::map<std::string, const ke::Editor::Rechteck*> platz;
+    std::vector<const ke::Editor::Rechteck*> felder;
     const std::string vor = "Plugin:";
     for (const auto& r : ke::editor().felderImBild) {
-        if (r.name.size() > 6 + vor.size() && r.name.compare(0, vor.size(), vor) == 0 && r.name.compare(r.name.size() - 6, 6, "~platz") == 0) {
+        if (r.name.compare(0, vor.size(), vor) != 0) { continue; }
+        if (r.name.size() > 6 + vor.size() && r.name.compare(r.name.size() - 6, 6, "~platz") == 0) {
             platz[r.name.substr(0, r.name.size() - 6)] = &r;
+        } else if (r.name.find('~') == std::string::npos) {
+            felder.push_back(&r);
         }
     }
+    const auto stamm = [](const std::string& name) { return name.substr(0, name.find('~')); };
     int n = 0;
     int raus = 0;
+    int drin = 0;
     std::string erste;
     for (const auto& r : ke::editor().felderImBild) {
         if (r.name.size() <= 5 || r.name.compare(r.name.size() - 5, 5, "~text") != 0) { continue; }
         const auto p = platz.find(r.name.substr(0, r.name.size() - 5));
         if (p == platz.end()) { continue; }
         ++n;
+        const std::string name = r.name.substr(vor.size(), r.name.size() - vor.size() - 5);
         if (r.x + r.b > p->second->x + p->second->b) {
             ++raus;
-            if (erste.empty()) {
-                erste = r.name.substr(vor.size(), r.name.size() - vor.size() - 5) + ": gezeichnet " + std::to_string(r.b) + ", Platz " + std::to_string(p->second->b);
+            if (erste.empty()) { erste = name + ": gezeichnet " + std::to_string(r.b) + ", Platz " + std::to_string(p->second->b); }
+        }
+        for (const ke::Editor::Rechteck* f : felder) {
+            if (stamm(f->name) == stamm(r.name)) { continue; }
+            const bool rechts = f->x > r.x;
+            const bool schneidet = f->x < r.x + r.b && r.y < f->y + f->h && f->y < r.y + r.h;
+            if (rechts && schneidet) {
+                ++drin;
+                if (erste.empty()) { erste = name + ": ragt in " + f->name.substr(vor.size()); }
+                break;
             }
         }
     }
-    bericht = std::to_string(n) + " Texte, " + std::to_string(raus) + " zu breit" + (erste.empty() ? "" : " - " + erste);
-    return n > 0 && raus == 0;
+    bericht = std::to_string(n) + " Texte, " + std::to_string(raus) + " zu breit, " + std::to_string(drin) + " in fremden Feldern" +
+              (erste.empty() ? "" : " - " + erste);
+    return n > 0 && raus == 0 && drin == 0;
 }
 
 std::vector<Schritt> pluginTexte() {
@@ -4316,13 +4334,9 @@ std::vector<Schritt> pluginTexte() {
              ke::editor().meshtex.genFuncOeffnen = an;
          }},
     };
-    const std::pair<i18n::Language, const char*> sprachen[] = {{i18n::Language::English, "Englisch"},
-                                                               {i18n::Language::German, "Deutsch"},
-                                                               {i18n::Language::ChineseSimplified, "Chinesisch"},
-                                                               {i18n::Language::Japanese, "Japanisch"}};
-    for (const auto& [l, name] : sprachen) {
-        const i18n::Language lang = l;
-        const std::string sname = name;
+    for (const i18n::LanguageInfo& l : i18n::languages()) {
+        const i18n::Language lang = l.language;
+        const std::string sname = l.kurz;
         add(tu("Plugin-Dialoge auf " + sname, [lang] {
             i18n::setLanguage(lang);
             ke::setzeNrcBegriffe(false);
@@ -5180,18 +5194,16 @@ std::vector<Schritt> gross() {
     add(tu("Reiter Pruefungen", [] { ke::optimiererReiter(1); }));
     add(pause(0.3));
     add(foto("karteneditor_s5_gross"));
-    // Stufe 6: die groesste Karte in allen vier Sprachen (Grenzen und Pruefungen)
+    // Stufe 6: die groesste Karte in allen Sprachen (Grenzen und Pruefungen)
     {
         auto sprache = std::make_shared<i18n::Language>(i18n::Language::English);
         add(tu("Stufe 6: Sprache merken, Begriffe aus", [sprache] {
             *sprache = i18n::currentLanguage();
             ke::setzeNrcBegriffe(false);
         }));
-        const std::pair<i18n::Language, const char*> sprachen[] = {
-            {i18n::Language::English, "en"}, {i18n::Language::German, "de"}, {i18n::Language::ChineseSimplified, "zh"}, {i18n::Language::Japanese, "ja"}};
-        for (const auto& [l, kurz] : sprachen) {
-            const i18n::Language lang = l;
-            const std::string k = kurz;
+        for (const i18n::LanguageInfo& l : i18n::languages()) {
+            const i18n::Language lang = l.language;
+            const std::string k = l.kurz;
             add(tu("Stufe 6: grosse Karte, Sprache " + k + ", Reiter Grenzen", [lang] {
                 i18n::setLanguage(lang);
                 ke::optimiererReiter(0);
@@ -5588,7 +5600,14 @@ std::vector<Schritt> karteneditorFotoSchritte() {
     // Menues im Code schliessen: ein Klick in die Statuszeile traf hohe
     // Untermenues (View > Filter reicht bis dorthin).
     auto menuesZu = [] { return tu("Menues zu", [] { karteDialogeZu(); }); };
-    add(tu("Fotos: Begriffe wie NetRadiant an, Menues wie NetRadiant-Custom", [] {
+    // Die NRC-Fotos sind englisch. Auch die eigenen Eintraege (Help > "Helper:
+    // what do you want to do?", der laengste) bestimmen die Breite - darum fuer
+    // die Fotos Englisch; danach wieder die Sprache des Laufs (auf Spanisch war
+    // Help 233 statt 247 breit).
+    auto sprache = std::make_shared<i18n::Language>(i18n::Language::English);
+    add(tu("Fotos: Begriffe wie NetRadiant an, Menues wie NetRadiant-Custom, Englisch", [sprache] {
+        *sprache = i18n::currentLanguage();
+        i18n::setLanguage(i18n::Language::English);
         ke::setzeNrcBegriffe(true);
         ke::menueStilSetzen(true);   // Stufe 7 Punkt 6b (Preferences > Clean der Stufe 6 setzt es zurueck)
     }));
@@ -5773,9 +5792,10 @@ std::vector<Schritt> karteneditorFotoSchritte() {
     add(tu("Fotos: View > Entity List", [] { (void)ke::ausfuehren("ToggleEntityList"); }));
     add(pause(0.3));
     add(fotoRahmen("karteneditor_dlg_View_Entity_List_0", [] { return fensterRahmen("###karteentliste"); }));
-    add(tu("Fotos: Entity List zu, Begriffe aus", [] {
+    add(tu("Fotos: Entity List zu, Begriffe aus, Sprache zurueck", [sprache] {
         karteDialogeZu();
         ke::setzeNrcBegriffe(false);
+        i18n::setLanguage(*sprache);
     }));
     add(pause(0.2));
     return s;

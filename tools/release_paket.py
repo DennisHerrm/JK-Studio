@@ -75,7 +75,9 @@ OBER = "JK-Studio"
 NAME = "JK-Studio"
 PROGRAMM = "jkstudio.exe"
 UEBERGANG = "behaved.exe"
-SPRACHEN = ("en", "de", "zh", "ja")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sprachen  # noqa: E402  (tools/sprachen.py)
+SPRACHEN = sprachen.KURZ
 # Die Grenzen des Lesers, mit dem der Updater das Zip oeffnet (src/pk3.cpp):
 # die Eintragszahl steht dort als u16, Groessen und Versatz als u32 (kein
 # ZIP64), und er entpackt nur "gespeichert" (0) und Deflate (8).

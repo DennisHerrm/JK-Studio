@@ -7,7 +7,7 @@ der ctest karte_grenzen prueft, dass beide gleich sind.
 import json
 import os
 
-from inhalt_basis import T
+from inhalt_basis import T, formatiere, verbinde
 
 _GRENZEN = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "grenzen.json"), encoding="utf-8"))
 
@@ -60,14 +60,12 @@ def _grenzzeile(g):
     erlaubt = T("%d" % g["erlaubt"])
     if g["vanilla"] and g["vanilla"] != g["erlaubt"] and g["vanilla"] != g["wert"]:
         v = g["vanilla"]
-        erlaubt = T("%d (vanilla %d)" % (g["erlaubt"], v), "%d (Vanilla %d)" % (g["erlaubt"], v), "%d(原版 %d)" % (g["erlaubt"], v),
-                    "%d(バニラ %d)" % (g["erlaubt"], v))
+        erlaubt = formatiere(T("%d (vanilla %d)", "%d (Vanilla %d)", "%d(原版 %d)", "%d(バニラ %d)"), g["erlaubt"], v)
     quellen = "; ".join("`%s`" % s for s in g["stellen"]) or "-"
     folge = T("{{KeOptUeber}}" if g["hart"] else "{{KeOptHinweis}}")
     zeile = [T("{{%s}}" % g["titel"]), T(name + " = %d" % g["wert"] if g["name"] else "-"), erlaubt, T("{{%s}}" % g["artTitel"]), folge, T(quellen)]
     if g["offen"]:
-        zeile[5] = T(quellen + " - " + _OFFEN.get("en"), quellen + " - " + _OFFEN.get("de"), quellen + " - " + _OFFEN.get("zh"),
-                     quellen + " - " + _OFFEN.get("ja"))
+        zeile[5] = verbinde(quellen + " - ", _OFFEN)
     return zeile
 
 

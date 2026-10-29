@@ -8,7 +8,7 @@ Selbsttest (Abschnitt 10e und folgende in selbsttest.cpp), jeder mit einem
 gelben Rahmen auf dem, was man anklickt.
 Englisch zuerst.
 """
-from inhalt_basis import T
+from inhalt_basis import T, verbinde
 
 
 def S(text, bild, unter):
@@ -228,8 +228,8 @@ def anwenden(seiten):
                 s["bloecke"][i] = ("modus", fassungen)
                 if s.get("meta"):
                     m = s["meta"]
-                    s["meta"] = T(m.get("en") + " · Classic, Graph, Tracks", m.get("de") + " · Classic, Graph, Spuren",
-                                  m.get("zh") + " · 经典、图表、轨道", m.get("ja") + " · クラシック・グラフ・トラック")
+                    s["meta"] = verbinde(m, T(" · Classic, Graph, Tracks", " · Classic, Graph, Spuren", " · 经典、图表、轨道",
+                                              " · クラシック・グラフ・トラック"))
             elif neu:
                 s["bloecke"][i] = ("steps", neu)
             else:

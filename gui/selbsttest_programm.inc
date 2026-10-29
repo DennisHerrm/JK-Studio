@@ -1696,6 +1696,67 @@ std::vector<Schritt> kopfSchritte() {
     return s;
 }
 
+// --- Schriften: die Zeichen von Spanisch und Tschechisch (Modus 1 und pruefung) ---
+//
+// Jede geladene Schrift (Programm: MS Sans Serif + Tahoma fett + CJK,
+// Karten-Editor: Segoe UI, Tahoma, Tahoma fett, OpenGL-Schrift) hat eine
+// eigene Glyphe fuer jedes Zeichen - kein Ersatzkaestchen. Die Masse des
+// Karten-Editors (DirectWrite) prueft der ctest karte_qttext.
+std::vector<Schritt> schriftSchritte() {
+    std::vector<Schritt> s;
+    s.push_back(pruefe("Schriften: Spanisch und Tschechisch in jeder Schrift ohne Ersatzkaestchen", [] {
+        static const char* const kZeichen =
+            "\xc3\xb1\xc3\xa1\xc3\xa9\xc3\xad\xc3\xb3\xc3\xba\xc3\xbc\xc2\xbf\xc2\xa1"          // ñ á é í ó ú ü ¿ ¡
+            "\xc3\x91\xc3\x81\xc3\x89\xc3\x8d\xc3\x93\xc3\x9a\xc3\x9c"                            // Ñ Á É Í Ó Ú Ü
+            "\xc4\x9b\xc5\xa1\xc4\x8d\xc5\x99\xc5\xbe\xc3\xbd\xc5\xaf\xc4\x8f\xc5\xa5\xc5\x88"  // ě š č ř ž ý ů ď ť ň
+            "\xc4\x9a\xc5\xa0\xc4\x8c\xc5\x98\xc5\xbd\xc3\x9d\xc5\xae\xc4\x8e\xc5\xa4\xc5\x87";  // Ě Š Č Ř Ž Ý Ů Ď Ť Ň
+        const ImFontAtlas* atlas = ImGui::GetIO().Fonts;
+        int fehlt = 0;
+        int geprueft = 0;
+        for (ImFont* f : atlas->Fonts) {
+            for (const char* z = kZeichen; *z != '\0';) {
+                unsigned int c = 0;
+                const int n = ImTextCharFromUtf8(&c, z, nullptr);
+                ++geprueft;
+                if (!f->IsGlyphInFont(static_cast<ImWchar>(c))) {
+                    ++fehlt;
+                    diag::detail(std::string("Knopftest: Schriften - ") + f->GetDebugName() + " hat kein " + std::string(z, static_cast<std::size_t>(n)));
+                }
+                z += n;
+            }
+        }
+        diag::detail("Knopftest: Schriften - " + std::to_string(atlas->Fonts.Size) + " Schriften, " + std::to_string(geprueft) +
+                     " Zeichen geprueft, " + std::to_string(fehlt) + " fehlen");
+        return atlas->Fonts.Size >= 4 && fehlt == 0;
+    }));
+    // Ansicht > Sprache: Spanisch und Tschechisch stehen im Menue und gelten.
+    const std::pair<const char*, i18n::Language> neue[] = {{"Espa\xc3\xb1ol", i18n::Language::Spanish},
+                                                           {"\xc4\x8c" "e\xc5\xa1tina", i18n::Language::Czech}};
+    auto vorher = std::make_shared<i18n::Language>(i18n::Language::English);
+    s.push_back(tu("Sprache merken", [vorher] { *vorher = i18n::currentLanguage(); }));
+    for (const auto& [name, sprache] : neue) {
+        const i18n::Language soll = sprache;
+        s.push_back({std::string("Ansicht > Sprache > ") + name, [](int b) {
+                         static Schritt k;
+                         if (b == 0) { k = klick(tr(Str::MenuView)); }
+                         return k.tun(b);
+                     }});
+        s.push_back(pause(0.3));
+        s.push_back({"Sprache oeffnen", [](int b) {
+                         static Schritt k;
+                         if (b == 0) { k = klick(tr(Str::ViewLanguage), "##Menu_", 0, false); }
+                         return k.tun(b);
+                     }});
+        s.push_back(pause(0.3));
+        s.push_back(klick(name, "##Menu_", 0, false));
+        s.push_back(pause(0.4));
+        s.push_back(pruefe(std::string("Ansicht > Sprache > ") + name + " gilt", [soll] { return i18n::currentLanguage() == soll; }));
+    }
+    s.push_back(tu("Sprache zurueck", [vorher] { i18n::setLanguage(*vorher); }));
+    s.push_back(pause(0.3));
+    return s;
+}
+
 // --- Nach dem Laden einer Mission steht ihr ERSTES Skript vorn --------------
 //
 // Code-Pruefung 03.10.: wurde das erste Skript in einen leeren Reiter geladen
@@ -1841,6 +1902,15 @@ std::vector<Schritt> pruefungSchritte() {
         add(tu("Changelog: auf Japanisch", [] { i18n::setLanguage(i18n::Language::Japanese); }));
         add(pause(0.5));
         add(foto("changelog_ja"));
+        // Alte Fassungen haben kein Spanisch: das Fenster zeigt sie englisch.
+        add(tu("Changelog: auf Spanisch", [] { i18n::setLanguage(i18n::Language::Spanish); }));
+        add(pause(0.5));
+        add(pruefe("Changelog: auf Spanisch zeigt eine Fassung ohne Spanisch den englischen Text", [] {
+            const changelog::Eintrag& alt = changelog::eintraege()[changelog::anzahl() - 1];
+            return alt.text[static_cast<int>(i18n::Language::Spanish)] == nullptr &&
+                   changelog::text(alt, static_cast<int>(i18n::currentLanguage())) == alt.text[0];
+        }));
+        add(foto("changelog_es"));
         add(tu("Changelog: Sprache zurueck, schliessen", [=] {
             i18n::setLanguage(*spracheVorher);
             g_app->changelogOpen = false;

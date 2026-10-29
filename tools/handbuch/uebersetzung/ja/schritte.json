@@ -320,7 +320,7 @@
  "Target game: single player.": "対象ゲーム:シングルプレイ。",
  "**Theme.** **{{MenuView}} → {{ViewTheme}}**: six themes, among them BehavEd Classic and High Contrast.": "**テーマ。** **{{MenuView}} → {{ViewTheme}}**:6 つのテーマがあり、BehavEd クラシックやハイコントラストもあります。",
  "Theme in the View menu.": "表示メニューの「テーマ」。",
- "**Language.** **{{MenuView}} → {{ViewLanguage}}**: English, Deutsch, 中文, 日本語.": "**言語。** **{{MenuView}} → {{ViewLanguage}}**:English、Deutsch、中文、日本語。",
+ "**Language.** **{{MenuView}} → {{ViewLanguage}}**: English, Deutsch, 中文, 日本語, Español, Čeština.": "**言語。** **{{MenuView}} → {{ViewLanguage}}**:English、Deutsch、中文、日本語、Español、Čeština。",
  "Language in the View menu.": "表示メニューの「言語」。",
  "Interface Scale in the View menu.": "表示メニューの「インターフェースの拡大縮小」。",
  "**Columns.** Drag the dividers between the columns; each mode keeps its own widths. **{{MenuDebug}} → {{DebugReset}}** brings them back.": "**列。** 列の間の仕切りをドラッグします。モードごとに幅が保存されます。**{{MenuDebug}} → {{DebugReset}}** で元に戻ります。",
