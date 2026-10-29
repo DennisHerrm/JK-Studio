@@ -341,6 +341,17 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
             for (std::size_t k = 0; k < ents[e].prims.size(); ++k) {
                 const AbbildPrimitiv& pr = ents[e].prims[k];
                 if (pr.patch || pr.entartet) { continue; }
+                // Fund md_rev_TarisUpper2: eine deckende Flaeche allein genuegt nicht - ist eine andere Seite
+                // desselben Pinsels durchsichtig (Glas vorn, caulk an der Wand), sieht man die "verdeckte"
+                // Flaeche durch ihn hindurch. Ebenso durch eine caulk- bzw. nodraw-Seite (im Spiel nicht
+                // gezeichnet). Also nur Pinsel, deren Seiten ALLE gezeichnet und undurchsichtig sind, mit
+                // bekannten Shadern (unbekannt: koennte Glas sein) und ohne Werkzeug-Seiten.
+                bool ganzDeckend = true;
+                for (const AbbildFlaeche& fl : pr.flaechen) {
+                    const ShaderArt& sa = artVon(o, fl.shader, vorrat);
+                    if (!sa.undurchsichtig || sa.werkzeug || !sa.sichtbar || (o.shaderBekanntGeprueft && !sa.bekannt)) { ganzDeckend = false; }
+                }
+                if (!ganzDeckend) { continue; }
                 for (std::size_t f = 0; f < pr.flaechen.size(); ++f) {
                     const AbbildFlaeche& fl = pr.flaechen[f];
                     if (fl.punkte.size() < 3 || !artVon(o, fl.shader, vorrat).undurchsichtig) { continue; }
@@ -375,12 +386,14 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
                             }
                             const AbbildFlaeche& gf = ents[static_cast<std::size_t>(g.ent)].prims[static_cast<std::size_t>(g.prim)].flaechen[static_cast<std::size_t>(g.fl)];
                             // wirklich dieselbe Ebene in Gegenrichtung?
-                            if (std::fabs(punkt(gf.ebene.normal(), fl.ebene.normal()) + 1.0) > 1e-4 || std::fabs(gf.ebene.d + fl.ebene.d) > 0.05) { continue; }
+                            if (std::fabs(punkt(gf.ebene.normal(), fl.ebene.normal()) + 1.0) > 1e-4 || std::fabs(gf.ebene.d + fl.ebene.d) > 0.01) { continue; }
                             const std::vector<P2> poly = projiziert(gf.punkte, fl.ebene.normal());
                             const double orient = flaeche2(poly) >= 0 ? 1.0 : -1.0;
                             bool alle = true;
                             for (const P2& q : mein) {
-                                if (!imPolygon(poly, orient, q, 0.05)) {
+                                // Fund md_rev_TarisUpper2: mit 0,05 Spielraum ragte F um bis zu 0,05 ueber G hinaus - ein
+                                // Streifen, den die Kamera an Kanten sieht; jetzt ganz innen (0,001: Rechenrauschen)
+                                if (!imPolygon(poly, orient, q, 0.001)) {
                                     alle = false;
                                     break;
                                 }
@@ -1212,13 +1225,25 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
     ShaderSkript r;
     r.gefunden = true;
     int t = 0;
+    int stufe = 0;   // die wievielte Stufe ({ ... } auf Ebene 2)
     for (std::size_t j = i + 1; j < w.size(); ++j) {
         if (w[j] == "{") {
             ++t;
+            if (t == 2) { ++stufe; }
             continue;
         }
         if (w[j] == "}") {
             if (--t == 0) { break; }
+            continue;
+        }
+        if (t == 2 && stufe == 1) {   // erste Stufe: mischt sie oder schneidet sie aus?
+            const std::string k = klein(w[j]);
+            if (k == "alphafunc") { r.durchsichtig = true; }
+            if (k == "blendfunc" && j + 1 < w.size()) {
+                const std::string a = klein(w[j + 1]);
+                const std::string b = j + 2 < w.size() ? klein(w[j + 2]) : std::string();
+                if (!(a == "gl_one" && b == "gl_zero")) { r.durchsichtig = true; }
+            }
             continue;
         }
         if (t != 1) { continue; }

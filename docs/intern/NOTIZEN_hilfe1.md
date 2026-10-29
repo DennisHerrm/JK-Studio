@@ -153,6 +153,11 @@ Hervorhebung, die Rückfrage „Die KI möchte …“ mit dem Symbol „KI verbu
 | Selbsttest `1` | 2645 OK, 0 FEHLER |
 | libFuzzer + ASan (`tools/fuzzziel.cpp`, eigener Bauordner, erstes Byte ≥ 0xF0 = MCP-Dispatcher, HTTP-Leser+Prüfung, Chat-Antwort; 5 Startdateien) | 10 min, 978 859 Läufe, kein Absturz, kein ASan-Fund, 919 MB Spitze |
 
+Merge `karte1` (6fe2c104: Optimierer „Fix all safe“, Selbsttest optsicher, Asset-Browser und
+Texturüberblendung): Konflikte nur in den erzeugten `handbuch/*/suche.js`; `i18n.h`/`i18n.cpp`
+und das ganze Handbuch neu erzeugt, Ortskatalog unverändert aktuell. Ergebnis nach dem Merge:
+siehe Bericht (Bau, ctest gesamt, Selbsttest hilfe1).
+
 ## 4. Offen / Ideen für H2
 - Weitere interaktive Touren (häufigste Ziele je Bereich): NPC laufen lassen
   (k-gangart/k-wegpunkte), Skript in der Vorschau abspielen, Mission anlegen (tut-p1), Skins

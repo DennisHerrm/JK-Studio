@@ -509,6 +509,7 @@ void dimensionen(Sicht s, int& d1, int& d2) {
 }  // namespace
 
 void xyZeichnen(int index) {
+    assetAblageZiel();   // Stufe 9 Punkt 11: aus dem Asset-Browser ablegen
     Editor& ed = e();
     XyFenster& f = ed.xy[static_cast<std::size_t>(index)];
     karte::XyAnsicht& v = f.ansicht;

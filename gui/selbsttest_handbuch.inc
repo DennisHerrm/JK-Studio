@@ -299,6 +299,9 @@ std::vector<Schritt> schritte();   // selbsttest_karte8g.inc: Build > GPU bake (
 namespace stufe9 {
 std::vector<Schritt> schritte();   // selbsttest_karte9.inc: Stufe 9 (nach dem GPU-Backen)
 }  // namespace stufe9
+namespace optsicher {
+std::vector<Schritt> schritte();   // selbsttest_optsicher.inc: Fix all safe aendert nichts Sichtbares
+}  // namespace optsicher
 
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
@@ -511,6 +514,12 @@ std::vector<Schritt> karteneditorSchritte() {
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe8g") == 0) {
         for (Schritt& x : stufe8c::schritte()) { add(std::move(x)); }
         for (Schritt& x : stufe8g::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // =optsicher: "Fix all safe" auf den Karten aus BHED_OPTSICHER_KARTEN (Kamera-Vergleich)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "optsicher") == 0) {
+        for (Schritt& x : optsicher::schritte()) { add(std::move(x)); }
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
@@ -827,6 +836,7 @@ void skriptNeu() {
 #include "selbsttest_hilfe1.inc"   // Stufe H1: Helfer, Touren, KI-Anbindung
 #include "selbsttest_karte8g.inc"
 #include "selbsttest_karte9.inc"
+#include "selbsttest_optsicher.inc"
 
 // --- Stufe 3 Punkt 8: Bilder der Seite "Karte bauen" ------------------------------
 //

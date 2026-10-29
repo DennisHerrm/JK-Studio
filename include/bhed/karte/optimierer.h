@@ -257,6 +257,9 @@ struct ShaderSkript {
     double sonneHoehe = 0;
     bool lichtFarbe = false;
     double lichtRGB[3] = {1, 1, 1};
+    // Fund md_rev_TarisUpper2: Glas ohne "surfaceparm trans" (nur blendFunc) galt als deckend. Die erste
+    // Stufe mischt (blendFunc ausser GL_ONE GL_ZERO) oder hat alphaFunc: man sieht hindurch.
+    bool durchsichtig = false;
 };
 [[nodiscard]] ShaderSkript shaderSkriptLesen(const std::string& text, const std::string& name);
 // Eine .shader-Datei einmal zerlegt (Stufe 6, schnellerer Start des

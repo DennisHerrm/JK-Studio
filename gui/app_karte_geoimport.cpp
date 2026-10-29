@@ -211,6 +211,34 @@ bool istModellDatei(const std::string& pfad) {
     return x == "obj" || x == "fbx" || x == "glb" || x == "gltf";
 }
 
+// Wohin etwas Abgelegtes kommt: unter dem Zeiger in einer 2D-Ansicht (XYWnd_MouseToPoint, dritte
+// Achse = Mitte der Workzone), in der Kamera auf die Flaeche unter dem Zeiger (Scene_Intersect),
+// sonst 128 vor der Kamera; auf das Raster.
+karte::Vektor3f ablageOrt(ImVec2 punkt) {
+    Editor& ed = e();
+    karte::Vektor3f ort = ed.kamera.ursprung + (karte::Vektor3f(0, 0, 0) - ed.kamera.vpn) * 128.0F;
+    for (std::size_t i = 0; i < ed.xy.size(); ++i) {
+        XyFenster& f = ed.xy[i];
+        const float bx = punkt.x - f.bildX;
+        const float by = punkt.y - f.bildY;
+        if (bx < 0 || by < 0 || bx >= static_cast<float>(f.ansicht.breite) || by >= static_cast<float>(f.ansicht.hoehe)) { continue; }
+        ort = f.ansicht.zuPunkt(static_cast<int>(bx), static_cast<int>(by), ed.raster.einrastGroesse());
+        const auto achse = static_cast<std::size_t>(karte::blickachse(f.ansicht.typ));
+        const karte::Kasten& wz = ed.workzone;
+        ort[achse] = karte::zahlEingerastet(karte::zahlMitte(wz.origin[achse] - wz.extents[achse], wz.origin[achse] + wz.extents[achse]), ed.raster.groesse());
+        return ort;
+    }
+    const KameraFenster& kf = ed.kamFenster;
+    const float kx = punkt.x - kf.bildX, ky = punkt.y - kf.bildY;
+    if (kx >= 0 && ky >= 0 && kx < static_cast<float>(kf.breite) && ky < static_cast<float>(kf.hoehe)) {
+        karte::Kamera& k = ed.kamera;
+        const karte::GeraeteVektor eps(8.F / static_cast<float>(k.breite), 8.F / static_cast<float>(k.hoehe));
+        ort = karte::szeneSchnitt(ed.karte, ed.blicke[3], k.geraetePunkt(kx, ky), eps);
+    }
+    karte::einrasten(ort, ed.raster.einrastGroesse());
+    return ort;
+}
+
 bool modellAbgelegt(const std::string& pfad, ImVec2 punkt) {
     Editor& ed = e();
     karte::NetzOptionen no;
@@ -244,21 +272,7 @@ bool modellAbgelegt(const std::string& pfad, ImVec2 punkt) {
             return false;
         }
     }
-    // Ort: unter dem Zeiger in einer 2D-Ansicht (XYWnd_MouseToPoint, dritte Achse = Mitte der
-    // Workzone), sonst 128 vor der Kamera; auf das Raster
-    karte::Vektor3f ort = ed.kamera.ursprung + (karte::Vektor3f(0, 0, 0) - ed.kamera.vpn) * 128.0F;
-    karte::einrasten(ort, ed.raster.einrastGroesse());
-    for (std::size_t i = 0; i < ed.xy.size(); ++i) {
-        XyFenster& f = ed.xy[i];
-        const float bx = punkt.x - f.bildX;
-        const float by = punkt.y - f.bildY;
-        if (bx < 0 || by < 0 || bx >= static_cast<float>(f.ansicht.breite) || by >= static_cast<float>(f.ansicht.hoehe)) { continue; }
-        ort = f.ansicht.zuPunkt(static_cast<int>(bx), static_cast<int>(by), ed.raster.einrastGroesse());
-        const auto achse = static_cast<std::size_t>(karte::blickachse(f.ansicht.typ));
-        const karte::Kasten& wz = ed.workzone;
-        ort[achse] = karte::zahlEingerastet(karte::zahlMitte(wz.origin[achse] - wz.extents[achse], wz.origin[achse] + wz.extents[achse]), ed.raster.groesse());
-        break;
-    }
+    const karte::Vektor3f ort = ablageOrt(punkt);
     {
         karte::Befehl undo(ed.karte.undo, "entityCreate -class misc_model");
         ed.karte.auswahl.leeren();

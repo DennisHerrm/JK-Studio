@@ -54,6 +54,9 @@
 #include "bhed/kartenpruefung.h"   // rc602
 #include "karteneditor.h"           // Stufe 1b: der Karten-Editor
 #include "karte_qtdialog.h"          // Stufe 4: Bausteine der Plugin-Dialoge
+#include "bhed/karte/optimierer.h"
+#include "bhed/karte/spielkollision.h"
+#include "bhed/kollision.h"
 #include "bhed/karte/ebenen.h"
 #include "bhed/karte/modell.h"
 #include "bhed/karte/modellbrowser.h"
