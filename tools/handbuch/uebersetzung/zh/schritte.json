@@ -320,7 +320,7 @@
  "Target game: single player.": "目标游戏:单人游戏。",
  "**Theme.** **{{MenuView}} → {{ViewTheme}}**: six themes, among them BehavEd Classic and High Contrast.": "**主题。** **{{MenuView}} → {{ViewTheme}}**:六种主题,其中包括 BehavEd 经典和高对比度。",
  "Theme in the View menu.": "“视图”菜单中的“主题”。",
- "**Language.** **{{MenuView}} → {{ViewLanguage}}**: English, Deutsch, 中文, 日本語.": "**语言。** **{{MenuView}} → {{ViewLanguage}}**:English、Deutsch、中文、日本語。",
+ "**Language.** **{{MenuView}} → {{ViewLanguage}}**: English, Deutsch, 中文, 日本語, Español, Čeština.": "**语言。** **{{MenuView}} → {{ViewLanguage}}**:English、Deutsch、中文、日本語、Español、Čeština。",
  "Language in the View menu.": "“视图”菜单中的“语言”。",
  "Interface Scale in the View menu.": "“视图”菜单中的“界面缩放”。",
  "**Columns.** Drag the dividers between the columns; each mode keeps its own widths. **{{MenuDebug}} → {{DebugReset}}** brings them back.": "**列。** 拖动列之间的分隔线;每种模式会保留自己的宽度。**{{MenuDebug}} → {{DebugReset}}** 可将其恢复。",

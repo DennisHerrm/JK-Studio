@@ -65,7 +65,7 @@ SEITE = {
             T("Find and replace in one script or in all open ones. [[k-suchen-ersetzen]]"),
             T("Tabs, bookmarks and a split view to compare scripts and copy across. [[k-lesezeichen]]"),
             T("Backups on every save, a backup folder, revert any command to how it was. [[speichern]]"),
-            T("Four languages, six themes, any interface size, every shortcut rebindable. [[einstellungen]], [[tasten]]"),
+            T("Six languages, six themes, any interface size, every shortcut rebindable. [[einstellungen]], [[tasten]]"),
             T("Checks for updates and installs them. [[einstellungen#updates]]"),
         ]),
     ],

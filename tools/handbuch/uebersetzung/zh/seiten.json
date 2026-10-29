@@ -55,7 +55,7 @@
  "Find and replace in one script or in all open ones. [[k-suchen-ersetzen]]": "在一个脚本或所有打开的脚本中查找和替换。[[k-suchen-ersetzen]]",
  "Tabs, bookmarks and a split view to compare scripts and copy across. [[k-lesezeichen]]": "标签页、书签和分屏视图,用于比较脚本和跨脚本复制。[[k-lesezeichen]]",
  "Backups on every save, a backup folder, revert any command to how it was. [[speichern]]": "每次保存都会备份,有备份文件夹,任意命令都可恢复到原来的样子。[[speichern]]",
- "Four languages, six themes, any interface size, every shortcut rebindable. [[einstellungen]], [[tasten]]": "四种语言、六种主题、任意界面大小,每个快捷键都可重新绑定。[[einstellungen]]、[[tasten]]",
+ "Six languages, six themes, any interface size, every shortcut rebindable. [[einstellungen]], [[tasten]]": "六种语言、六种主题、任意界面大小,每个快捷键都可重新绑定。[[einstellungen]]、[[tasten]]",
  "Checks for updates and installs them. [[einstellungen#updates]]": "检查并安装更新。[[einstellungen#updates]]",
  "Menu bar": "菜单栏",
  "File, Edit, Debug, View, Help.": "文件、编辑、调试、视图、帮助。",

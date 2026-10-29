@@ -320,7 +320,7 @@
  "Target game: single player.": "Zielspiel: Singleplayer.",
  "**Theme.** **{{MenuView}} → {{ViewTheme}}**: six themes, among them BehavEd Classic and High Contrast.": "**Farbgebung.** **{{MenuView}} → {{ViewTheme}}**: sechs Farbgebungen, darunter BehavEd klassisch und Hoher Kontrast.",
  "Theme in the View menu.": "Farbgebung im Menü Ansicht.",
- "**Language.** **{{MenuView}} → {{ViewLanguage}}**: English, Deutsch, 中文, 日本語.": "**Sprache.** **{{MenuView}} → {{ViewLanguage}}**: English, Deutsch, 中文, 日本語.",
+ "**Language.** **{{MenuView}} → {{ViewLanguage}}**: English, Deutsch, 中文, 日本語, Español, Čeština.": "**Sprache.** **{{MenuView}} → {{ViewLanguage}}**: English, Deutsch, 中文, 日本語, Español, Čeština.",
  "Language in the View menu.": "Sprache im Menü Ansicht.",
  "Interface Scale in the View menu.": "Bedienoberfläche skalieren im Menü Ansicht.",
  "**Columns.** Drag the dividers between the columns; each mode keeps its own widths. **{{MenuDebug}} → {{DebugReset}}** brings them back.": "**Spalten.** Zieh die Trenner zwischen den Spalten; jeder Modus behält seine eigenen Breiten. **{{MenuDebug}} → {{DebugReset}}** stellt sie wieder her.",

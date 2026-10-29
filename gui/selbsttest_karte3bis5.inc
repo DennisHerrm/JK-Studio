@@ -2944,18 +2944,15 @@ std::vector<Schritt> reste0() {
         ke::setzeNrcBegriffe(*nrcVorher);
     }));
     // --- 0c: keine abgeschnittene Beschriftung, alle Seiten, alle Sprachen ----
+    // (alle aus i18n::languages() - Spanisch und Tschechisch sind laenger als Englisch)
     auto sprache = std::make_shared<i18n::Language>(i18n::Language::English);
     add(tu("Sprache merken", [sprache, nrcVorher] {
         *sprache = i18n::currentLanguage();
         *nrcVorher = ke::nrcBegriffe();
     }));
-    const std::pair<i18n::Language, const char*> sprachen[] = {{i18n::Language::English, "Englisch"},
-                                                               {i18n::Language::German, "Deutsch"},
-                                                               {i18n::Language::ChineseSimplified, "Chinesisch"},
-                                                               {i18n::Language::Japanese, "Japanisch"}};
-    for (const auto& [l, name] : sprachen) {
-        const i18n::Language lang = l;
-        const std::string sname = name;
+    for (const i18n::LanguageInfo& l : i18n::languages()) {
+        const i18n::Language lang = l.language;
+        const std::string sname = l.kurz;
         add(tu("Einstellungen auf " + sname, [lang] {
             i18n::setLanguage(lang);
             ke::setzeNrcBegriffe(false);
@@ -4316,13 +4313,9 @@ std::vector<Schritt> pluginTexte() {
              ke::editor().meshtex.genFuncOeffnen = an;
          }},
     };
-    const std::pair<i18n::Language, const char*> sprachen[] = {{i18n::Language::English, "Englisch"},
-                                                               {i18n::Language::German, "Deutsch"},
-                                                               {i18n::Language::ChineseSimplified, "Chinesisch"},
-                                                               {i18n::Language::Japanese, "Japanisch"}};
-    for (const auto& [l, name] : sprachen) {
-        const i18n::Language lang = l;
-        const std::string sname = name;
+    for (const i18n::LanguageInfo& l : i18n::languages()) {
+        const i18n::Language lang = l.language;
+        const std::string sname = l.kurz;
         add(tu("Plugin-Dialoge auf " + sname, [lang] {
             i18n::setLanguage(lang);
             ke::setzeNrcBegriffe(false);

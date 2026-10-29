@@ -414,7 +414,7 @@ SCHRITTE = {
           "k_tasten", "The Keyboard shortcuts window."),
         S("**Theme.** **{{MenuView}} → {{ViewTheme}}**: six themes, among them BehavEd Classic and High Contrast.",
           "o_theme", "Theme in the View menu."),
-        S("**Language.** **{{MenuView}} → {{ViewLanguage}}**: English, Deutsch, 中文, 日本語.",
+        S("**Language.** **{{MenuView}} → {{ViewLanguage}}**: English, Deutsch, 中文, 日本語, Español, Čeština.",
           "o_sprache", "Language in the View menu."),
         S("**Size.** **{{MenuView}} → {{ViewDpiScale}}**, or <kbd>Ctrl</kbd>+mouse wheel anywhere outside the timeline.",
           "o_groesse", "Interface Scale in the View menu."),

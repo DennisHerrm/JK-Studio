@@ -5,15 +5,15 @@
   {
    "id": "k-neues-skript",
    "gruppe": "tut_skript",
-   "titel": "Write a script from scratch",
-   "kurz": "A new empty script, an affect block for one figure and a first command inside it.",
+   "titel": "Escribir un script desde cero",
+   "kurz": "Un script nuevo vacío, un bloque affect para una figura y un primer comando dentro.",
    "seite": "k-neues-skript.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Open an empty tab.** Click the **+** at the end of the tab bar (or **{{MenuFile}} → {{FileNew}}**). A new tab `unnamed.txt` opens with an empty script. The mode bar on the left must be on **{{ViewEvents}}** - then the **{{GroupEvents}}** list with every command is on the left.",
+      "text": "**Abre una pestaña vacía.** Pulsa el **+** al final de la barra de pestañas (o **{{MenuFile}} → {{FileNew}}**). Se abre una pestaña nueva `unnamed.txt` con un script vacío. La barra de modos de la izquierda debe estar en **{{ViewEvents}}**: entonces la lista **{{GroupEvents}}** con todos los comandos está a la izquierda.",
       "bild": "s_neu_plus",
-      "unter": "The + at the end of the tab bar opens an empty script.",
+      "unter": "El + al final de la barra de pestañas abre un script vacío.",
       "ziel": "reiter:+;menue:MenuFile>FileNew",
       "fertig": "reiter+|leer",
       "voraus": "",
@@ -22,9 +22,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Find affect in the list.** The **{{GroupEvents}}** list shows every command of the game with its values. `affect` is near the top. Hover over it to read what it does.",
+      "text": "**Busca affect en la lista.** La lista **{{GroupEvents}}** muestra cada comando del juego con sus valores. `affect` está cerca del principio. Pasa el ratón por encima para leer lo que hace.",
       "bild": "s_neu_affect_liste",
-      "unter": "affect in the Events list.",
+      "unter": "affect en la lista de eventos.",
       "ziel": "eintrag:affect",
       "fertig": "schwebt|befehl:affect",
       "voraus": "modus:0 < knopf:ViewEvents@modebar",
@@ -33,9 +33,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Double-click it.** `affect` appears in the script tree in the middle. It is already open (the box in front shows a minus), because a block holds other commands.",
+      "text": "**Haz doble clic.** `affect` aparece en el árbol del script del centro. Ya está abierto (el cuadro de delante muestra un menos), porque un bloque contiene otros comandos.",
       "bild": "s_neu_affect_baum",
-      "unter": "The new affect block in the tree.",
+      "unter": "El nuevo bloque affect en el árbol.",
       "ziel": "eintrag:affect",
       "fertig": "befehl:affect",
       "voraus": "modus:0 < knopf:ViewEvents@modebar",
@@ -44,9 +44,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Name the figure.** Double-click the new line (or select it and press <kbd>Enter</kbd>). The **{{EditorTitle}}** opens. Type the name of the figure into the first field - with a map loaded, the small arrow next to it lists every name of the map. Leave `FLUSH` in the second field and press **{{EditorOk}}**.",
+      "text": "**Pon nombre a la figura.** Haz doble clic en la línea nueva (o selecciónala y pulsa <kbd>Intro</kbd>). Se abre el **{{EditorTitle}}**. Escribe el nombre de la figura en el primer campo; con un mapa cargado, la flechita de al lado lista todos los nombres del mapa. Deja `FLUSH` en el segundo campo y pulsa **{{EditorOk}}**.",
       "bild": "s_neu_editor",
-      "unter": "The event editor for affect: the name field and Ok.",
+      "unter": "El editor de eventos para affect: el campo de nombre y Aceptar.",
       "ziel": "knopfN:##v@###editor#0;knopf:EditorOk@###editor",
       "fertig": "wert:affect#0:0",
       "voraus": "editor:affect < zeile:affect#0",
@@ -55,9 +55,9 @@
       "ueberspringen": "editorzu"
      },
      {
-      "text": "**Select the block, then pick the next command.** Click the `affect` line once (1). Then double-click `wait` in the list (2). Because the selected block is open, the command goes to the start of the block.",
+      "text": "**Selecciona el bloque y elige el siguiente comando.** Pulsa una vez la línea `affect` (1). Luego haz doble clic en `wait` en la lista (2). Como el bloque seleccionado está abierto, el comando va al principio del bloque.",
       "bild": "s_neu_wait_liste",
-      "unter": "1: the selected affect block. 2: wait in the list.",
+      "unter": "1: el bloque affect seleccionado. 2: wait en la lista.",
       "ziel": "zeile:affect#0;eintrag:wait",
       "fertig": "kind:affect>wait",
       "voraus": "modus:0 < knopf:ViewEvents@modebar",
@@ -66,9 +66,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Check the result.** `wait` now sits inside the block, indented under `affect`. Commands you insert after it follow it, in order, inside the same block.",
+      "text": "**Revisa el resultado.** `wait` está ahora dentro del bloque, sangrado bajo `affect`. Los comandos que insertes después lo siguen, en orden, dentro del mismo bloque.",
       "bild": "s_neu_ergebnis",
-      "unter": "wait inside the affect block.",
+      "unter": "wait dentro del bloque affect.",
       "ziel": "zeile:wait#0",
       "fertig": "manuell",
       "voraus": "",
@@ -77,9 +77,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Save.** Press **{{FileSave}}** in the action column on the right (or <kbd>Ctrl</kbd>+<kbd>S</kbd>). The first time, behaved asks for a name - script names are lower case without spaces, for example `my_first.txt`.",
+      "text": "**Guarda.** Pulsa **{{FileSave}}** en la columna de acciones de la derecha (o <kbd>Ctrl</kbd>+<kbd>S</kbd>). La primera vez, behaved pide un nombre; los nombres de script van en minúsculas y sin espacios, por ejemplo `mi_primero.txt`.",
       "bild": "s_neu_speichern",
-      "unter": "Save in the action column.",
+      "unter": "Guardar en la columna de acciones.",
       "ziel": "knopf:FileSave",
       "fertig": "gespeichert",
       "voraus": "",
@@ -93,15 +93,15 @@
   {
    "id": "k-befehl-einfuegen",
    "gruppe": "tut_skript",
-   "titel": "Three ways to add a command",
-   "kurz": "Double-click, drag and drop, or the Insert key - and how to put a command exactly where you want it.",
+   "titel": "Tres formas de añadir un comando",
+   "kurz": "Doble clic, arrastrar y soltar, o la tecla Insert, y cómo poner un comando exactamente donde quieres.",
    "seite": "k-befehl-einfuegen.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Double-click.** Select the line after which the command should come (1), then double-click the command in the **{{GroupEvents}}** list (2). The new line appears right below the selected one - here a `wait` after `camera ( MOVE )`. That is how the original BehavEd worked.",
+      "text": "**Doble clic.** Selecciona la línea tras la que debe ir el comando (1) y haz doble clic en el comando de la lista **{{GroupEvents}}** (2). La línea nueva aparece justo debajo de la seleccionada; aquí un `wait` tras `camera ( MOVE )`. Así funcionaba el BehavEd original.",
       "bild": "s_ein_doppel",
-      "unter": "1: the selected line. 2: the command in the list.",
+      "unter": "1: la línea seleccionada. 2: el comando en la lista.",
       "ziel": "baum;eintrag:wait",
       "fertig": "knoten+",
       "voraus": "modus:0 < knopf:ViewEvents@modebar",
@@ -110,9 +110,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Insert key.** Click a command in the list once - it stays highlighted (1). Select a line in the tree (2) and press <kbd>Insert</kbd>. Handy when you add the same command several times: select, <kbd>Insert</kbd>, select, <kbd>Insert</kbd> ...",
+      "text": "**Tecla Insert.** Pulsa una vez un comando de la lista: queda resaltado (1). Selecciona una línea del árbol (2) y pulsa <kbd>Insert</kbd>. Práctico cuando añades varias veces el mismo comando: seleccionar, <kbd>Insert</kbd>, seleccionar, <kbd>Insert</kbd> ...",
       "bild": "s_ein_einfg",
-      "unter": "1: the command stays selected in the list. 2: where it goes.",
+      "unter": "1: el comando sigue seleccionado en la lista. 2: adónde va.",
       "ziel": "eintrag:wait;baum",
       "fertig": "knoten+",
       "voraus": "modus:0 < knopf:ViewEvents@modebar",
@@ -121,9 +121,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Drag.** Drag a command from the list (1) onto a line of the tree (2). While you drag, a line shows where it lands: above a line, below it, or - on the middle of an open block - inside the block.",
+      "text": "**Arrastra.** Arrastra un comando de la lista (1) a una línea del árbol (2). Mientras arrastras, una línea muestra dónde caerá: encima de una línea, debajo, o (en mitad de un bloque abierto) dentro del bloque.",
       "bild": "s_ein_ziehen",
-      "unter": "Drag from the list (1) onto the tree (2).",
+      "unter": "Arrastra desde la lista (1) al árbol (2).",
       "ziel": "eintrag:wait;baum",
       "fertig": "knoten+",
       "voraus": "modus:0 < knopf:ViewEvents@modebar",
@@ -132,9 +132,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Right-click.** Right-click a line in the tree: the submenus **{{GroupEvents}}** and **Macros** list every command; the one you click is inserted after that line - or into the block, if you right-clicked an open block.",
+      "text": "**Clic derecho.** Haz clic derecho en una línea del árbol: los submenús **{{GroupEvents}}** y **Macros** listan cada comando; el que pulses se inserta tras esa línea, o dentro del bloque si hiciste clic derecho en un bloque abierto.",
       "bild": "s_ein_kontext",
-      "unter": "The context menu of a line with its Events submenu.",
+      "unter": "El menú contextual de una línea con su submenú Eventos.",
       "ziel": "baum",
       "fertig": "knoten+",
       "voraus": "",
@@ -148,15 +148,15 @@
   {
    "id": "k-werte-bearbeiten",
    "gruppe": "tut_skript",
-   "titel": "Change the values of a command",
-   "kurz": "The event editor: lists, numbers, file fields, names from the map - and expressions such as get, tag and random.",
+   "titel": "Cambiar los valores de un comando",
+   "kurz": "El editor de eventos: listas, números, campos de archivo, nombres del mapa, y expresiones como get, tag y random.",
    "seite": "k-werte-bearbeiten.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Open the editor.** Double-click a line in the tree or select it and press <kbd>Enter</kbd>. The help text of the command stands on top; below it, every value has its own field.",
+      "text": "**Abre el editor.** Haz doble clic en una línea del árbol o selecciónala y pulsa <kbd>Intro</kbd>. El texto de ayuda del comando está arriba; debajo, cada valor tiene su propio campo.",
       "bild": "h_editor",
-      "unter": "The event editor for a camera command.",
+      "unter": "El editor de eventos para un comando de cámara.",
       "ziel": "baum",
       "fertig": "editor",
       "voraus": "",
@@ -165,9 +165,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Fields for values.** Numbers, vectors and text are typed into their fields. A vector like a position has three numbers separated by spaces.",
+      "text": "**Campos para valores.** Los números, vectores y texto se escriben en sus campos. Un vector como una posición tiene tres números separados por espacios.",
       "bild": "s_wert_felder",
-      "unter": "The value fields of camera ( MOVE ): a position and a time.",
+      "unter": "Los campos de valor de camera ( MOVE ): una posición y un tiempo.",
       "ziel": "knopfN:##v@###editor#0;knopfN:##v@###editor#1",
       "fertig": "manuell",
       "voraus": "editor < baum",
@@ -176,9 +176,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Fields with fixed choices.** Fields like `SET_TYPES` or `true` / `false` are lists you can also type into - start typing to filter the list. A value that is not in the list is allowed (mods bring their own), but it is marked **unknown**: check it for a typo.",
+      "text": "**Campos con opciones fijas.** Los campos como `SET_TYPES` o `true` / `false` son listas en las que también puedes escribir: empieza a escribir para filtrar la lista. Se permite un valor que no esté en la lista (los mods traen los suyos), pero se marca como **desconocido**: revisa si hay una errata.",
       "bild": "s_wert_liste",
-      "unter": "The two list fields of set ( SET_WALKING, true ).",
+      "unter": "Los dos campos de lista de set ( SET_WALKING, true ).",
       "ziel": "knopfN:##combo@###editor#0;knopfN:##combo@###editor#1",
       "fertig": "manuell",
       "voraus": "editor < baum",
@@ -187,9 +187,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Files.** File fields have **{{EditorBrowse}}** to pick a file of the game and **{{EditorPlay}}** to play a sound or open a script. With a map loaded, an arrow next to name fields picks a name from the map.",
+      "text": "**Archivos.** Los campos de archivo tienen **{{EditorBrowse}}** para elegir un archivo del juego y **{{EditorPlay}}** para reproducir un sonido o abrir un script. Con un mapa cargado, una flecha junto a los campos de nombre elige un nombre del mapa.",
       "bild": "s_wert_datei",
-      "unter": "A sound command: browse and play.",
+      "unter": "Un comando de sonido: examinar y reproducir.",
       "ziel": "knopf:EditorBrowse@###editor;knopf:EditorPlay@###editor",
       "fertig": "manuell",
       "voraus": "editor < baum",
@@ -198,9 +198,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Expressions.** Some fields have **{{EditorHelper}}**: it builds an expression for you - **{{EditorGet}}** reads a variable (`get`), **{{EditorTag}}** the place or angles of a `ref_tag` (`tag`), **{{EditorRnd}}** a random number (`random`).",
+      "text": "**Expresiones.** Algunos campos tienen **{{EditorHelper}}**: te construye una expresión; **{{EditorGet}}** lee una variable (`get`), **{{EditorTag}}** el lugar o los ángulos de un `ref_tag` (`tag`), **{{EditorRnd}}** un número aleatorio (`random`).",
       "bild": "s_wert_helper",
-      "unter": "Helper next to a field of the camera command.",
+      "unter": "Ayuda junto a un campo del comando de cámara.",
       "ziel": "knopf:EditorHelper@###editor",
       "fertig": "manuell",
       "voraus": "editor < baum",
@@ -209,9 +209,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Free text.** Other fields have **{{EditorExpr}}**: it turns the field into free text, for anything the lists do not offer. **{{EditorRevert}}** goes back to a plain value.",
+      "text": "**Texto libre.** Otros campos tienen **{{EditorExpr}}**: convierte el campo en texto libre, para cualquier cosa que las listas no ofrezcan. **{{EditorRevert}}** vuelve a un valor simple.",
       "bild": "s_wert_expr",
-      "unter": "Expr! next to the fields of affect.",
+      "unter": "¡Expresión! junto a los campos de affect.",
       "ziel": "knopf:EditorExpr@###editor",
       "fertig": "manuell",
       "voraus": "editor < baum",
@@ -220,9 +220,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Done.** **{{EditorOk}}** (<kbd>Enter</kbd>) writes the values into the script, **{{EditorCancel}}** (<kbd>Esc</kbd>) leaves everything as it was. Under each field you see the value it had before (**{{EditorWas}}**).",
+      "text": "**Listo.** **{{EditorOk}}** (<kbd>Intro</kbd>) escribe los valores en el script, **{{EditorCancel}}** (<kbd>Esc</kbd>) lo deja todo como estaba. Bajo cada campo ves el valor que tenía antes (**{{EditorWas}}**).",
       "bild": "s_wert_ok",
-      "unter": "Ok and Cancel.",
+      "unter": "Aceptar y Cancelar.",
       "ziel": "knopf:EditorOk@###editor;knopf:EditorCancel@###editor",
       "fertig": "editorzu",
       "voraus": "",
@@ -236,15 +236,15 @@
   {
    "id": "k-zeilen-ordnen",
    "gruppe": "tut_skript",
-   "titel": "Move, copy and comment out lines",
-   "kurz": "Rearrange a script: select several lines, drag them, duplicate them, and switch lines off without deleting them.",
+   "titel": "Mover, copiar y comentar líneas",
+   "kurz": "Reordena un script: selecciona varias líneas, arrástralas, duplícalas y desactiva líneas sin borrarlas.",
    "seite": "k-zeilen-ordnen.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Select.** Click a line in the tree. <kbd>Ctrl</kbd>+click adds more lines, <kbd>Shift</kbd>+click selects everything between. Every button of the action column works on all selected lines at once.",
+      "text": "**Selecciona.** Pulsa una línea del árbol. <kbd>Ctrl</kbd>+clic añade más líneas, <kbd>Mayús</kbd>+clic selecciona todo lo que hay entre medias. Cada botón de la columna de acciones actúa a la vez sobre todas las líneas seleccionadas.",
       "bild": "s_auswahl",
-      "unter": "Two selected lines.",
+      "unter": "Dos líneas seleccionadas.",
       "ziel": "baum",
       "fertig": "auswahl",
       "voraus": "",
@@ -253,9 +253,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Move.** Drag the selection to a new place - or press **{{ActMoveUp}}** / **{{ActMoveDown}}** in the action column (<kbd>Alt</kbd>+<kbd>Up</kbd> / <kbd>Alt</kbd>+<kbd>Down</kbd>) to move it one line. It stays inside its block. A block moves with everything inside it.",
+      "text": "**Mueve.** Arrastra la selección a un sitio nuevo, o pulsa **{{ActMoveUp}}** / **{{ActMoveDown}}** en la columna de acciones (<kbd>Alt</kbd>+<kbd>Arriba</kbd> / <kbd>Alt</kbd>+<kbd>Abajo</kbd>) para moverla una línea. Se queda dentro de su bloque. Un bloque se mueve con todo lo que contiene.",
       "bild": "s_verschieben",
-      "unter": "Move up and Move down.",
+      "unter": "Subir y Bajar.",
       "ziel": "gruppe:ActMoveUp,ActMoveDown",
       "fertig": "aenderung+",
       "voraus": "auswahl < baum",
@@ -264,9 +264,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Duplicate.** **{{ActClone}}** (<kbd>Space</kbd>) inserts a copy of the selection right below - the quickest way to a second camera shot or a second walk.",
+      "text": "**Duplica.** **{{ActClone}}** (<kbd>Espacio</kbd>) inserta una copia de la selección justo debajo: la forma más rápida de tener un segundo plano de cámara o una segunda marcha.",
       "bild": "s_clone",
-      "unter": "Duplicate.",
+      "unter": "Duplicar.",
       "ziel": "knopf:ActClone",
       "fertig": "knoten+",
       "voraus": "auswahl < baum",
@@ -275,9 +275,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Copy between scripts.** **{{ActCopy}}** (<kbd>Ctrl</kbd>+<kbd>C</kbd>) copies the selection. Switch to another tab, select a line and press **{{ActPaste}}** (<kbd>Ctrl</kbd>+<kbd>V</kbd>): the commands are inserted below that line.",
+      "text": "**Copia entre scripts.** **{{ActCopy}}** (<kbd>Ctrl</kbd>+<kbd>C</kbd>) copia la selección. Cambia a otra pestaña, selecciona una línea y pulsa **{{ActPaste}}** (<kbd>Ctrl</kbd>+<kbd>V</kbd>): los comandos se insertan debajo de esa línea.",
       "bild": "s_copy",
-      "unter": "Copy and Paste.",
+      "unter": "Copiar y Pegar.",
       "ziel": "knopf:ActCopy;knopf:ActPaste",
       "fertig": "knoten+",
       "voraus": "auswahl < baum",
@@ -286,9 +286,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Switch off without deleting.** **{{ActRem}}** (<kbd>Backspace</kbd>) turns the selected lines into comments: they stay in the script, but the game skips them. Press it again (or <kbd>Ctrl</kbd>+<kbd>Backspace</kbd>) to switch them back on.",
+      "text": "**Desactiva sin borrar.** **{{ActRem}}** (<kbd>Retroceso</kbd>) convierte las líneas seleccionadas en comentarios: se quedan en el script, pero el juego se las salta. Púlsalo de nuevo (o <kbd>Ctrl</kbd>+<kbd>Retroceso</kbd>) para volver a activarlas.",
       "bild": "s_rem",
-      "unter": "REM: the two lines are now comments.",
+      "unter": "REM: las dos líneas son ahora comentarios.",
       "ziel": "knopf:ActRem",
       "fertig": "rem+",
       "voraus": "auswahl < baum",
@@ -302,15 +302,15 @@
   {
    "id": "k-uebersetzen",
    "gruppe": "tut_skript",
-   "titel": "Compile and fix errors",
-   "kurz": "Turn the script into the .ibi the game runs, read the messages and jump to the line that is wrong.",
+   "titel": "Compilar y corregir errores",
+   "kurz": "Convierte el script en el .ibi que ejecuta el juego, lee los mensajes y salta a la línea errónea.",
    "seite": "k-uebersetzen.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Compile.** Press **{{Compile}}** at the bottom of the action column. It saves the `.txt` and writes the `.ibi` the game runs next to it. When it worked, the button flashes green.",
+      "text": "**Compila.** Pulsa **{{Compile}}** abajo en la columna de acciones. Guarda el `.txt` y escribe a su lado el `.ibi` que ejecuta el juego. Cuando funciona, el botón parpadea en verde.",
       "bild": "t1_6",
-      "unter": "The Compile button.",
+      "unter": "El botón Compilar.",
       "ziel": "knopf:Compile",
       "fertig": "uebersetzt+",
       "voraus": "",
@@ -319,9 +319,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**When it fails.** The button flashes red, and the first wrong line is selected in the tree - here an `if` with the comparison `~`, which ICARUS does not know.",
+      "text": "**Si falla.** El botón parpadea en rojo y la primera línea errónea queda seleccionada en el árbol; aquí un `if` con la comparación `~`, que ICARUS no conoce.",
       "bild": "s_comp_fehler",
-      "unter": "Compile failed: the button and the selected wrong line.",
+      "unter": "Error al compilar: el botón y la línea errónea seleccionada.",
       "ziel": "knopf:Compile",
       "fertig": "manuell",
       "voraus": "",
@@ -330,9 +330,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Read the messages.** Click the counter in the status line at the bottom: the **{{MessagesTitle}}** window lists every message with its line and what is wrong.",
+      "text": "**Lee los mensajes.** Pulsa el contador de la línea de estado de abajo: la ventana **{{MessagesTitle}}** lista cada mensaje con su línea y qué está mal.",
       "bild": "s_comp_meldung",
-      "unter": "The counters in the status line open the Messages window.",
+      "unter": "Los contadores de la línea de estado abren la ventana de mensajes.",
       "ziel": "meldungen",
       "fertig": "fenster:messages",
       "voraus": "",
@@ -341,9 +341,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Fix and compile again.** Double-click the wrong line, correct the value - here the comparison: `=`, `<`, `>` or `!` - press **{{EditorOk}}** and **{{Compile}}** again.",
+      "text": "**Corrige y compila de nuevo.** Haz doble clic en la línea errónea, corrige el valor (aquí la comparación: `=`, `<`, `>` o `!`), pulsa **{{EditorOk}}** y otra vez **{{Compile}}**.",
       "bild": "s_comp_editor",
-      "unter": "The wrong value in the event editor.",
+      "unter": "El valor erróneo en el editor de eventos.",
       "ziel": "knopf:Compile",
       "fertig": "uebersetzt+",
       "voraus": "",
@@ -357,15 +357,15 @@
   {
    "id": "tut-karte",
    "gruppe": "tut",
-   "titel": "Your first map: a room to walk in",
-   "kurz": "From an empty map to a room you can walk through in the game: brushes, textures, caulk, a light, the player start, the optimizer, building with the progress window, walking through it in the editor - and the .pk3 for the game.",
+   "titel": "Tu primer mapa: una sala por la que caminar",
+   "kurz": "De un mapa vacío a una sala que puedes recorrer en el juego: brushes, texturas, caulk, una luz, el inicio del jugador, el optimizador, compilar con la ventana de progreso, recorrerla en el editor, y el .pk3 para el juego.",
    "seite": "tut-karte.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Set up the game.** Switch the mode bar to **{{ViewMapEditor}}**. The editor uses the game the program is set up for; its folders come from the program settings. **{{KeLEdit}} > {{KeLPreferences}}**, page **{{KePgGame}}**, shows the game, page **{{KePgPaths}}** the engine path (empty: taken from the program's game folders).",
+      "text": "**Configura el juego.** Cambia la barra de modos a **{{ViewMapEditor}}**. El editor usa el juego para el que está configurado el programa; sus carpetas vienen de los ajustes del programa. **{{KeLEdit}} > {{KeLPreferences}}**, página **{{KePgGame}}**, muestra el juego; la página **{{KePgPaths}}**, la ruta del motor (vacía: se toma de las carpetas del juego del programa).",
       "bild": "h_tut_karte_pfade",
-      "unter": "{{KeLPreferences}}, page {{KePgPaths}}.",
+      "unter": "{{KeLPreferences}}, página {{KePgPaths}}.",
       "ziel": "menue:KeLEdit>KeLPreferences",
       "fertig": "zahl:karte.spiel",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -374,9 +374,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**New map.** **{{KeLFile}} > {{KeLNewMap}}** starts an empty map - only the worldspawn. Zoom the 2D view out a little with the mouse wheel.",
+      "text": "**Mapa nuevo.** **{{KeLFile}} > {{KeLNewMap}}** empieza un mapa vacío, solo con el worldspawn. Aleja un poco la vista 2D con la rueda del ratón.",
       "bild": "h_tut_karte_neu",
-      "unter": "The {{KeLFile}} menu.",
+      "unter": "El menú {{KeLFile}}.",
       "ziel": "menue:KeLFile>KeLNewMap",
       "fertig": "zahl:karte.leer",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -385,9 +385,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Draw a brush.** In the 2D top view, drag with the left mouse button from one corner to the other - here from -256 -256 to 256 256, a box 512 units wide. Its height comes from the work zone (at first -64 to 64).",
+      "text": "**Dibuja un brush.** En la vista 2D superior, arrastra con el botón izquierdo de una esquina a la otra; aquí de -256 -256 a 256 256, una caja de 512 unidades de ancho. Su altura viene de la zona de trabajo (al principio de -64 a 64).",
       "bild": "h_tut_karte_brush",
-      "unter": "The new brush, selected (red).",
+      "unter": "El brush nuevo, seleccionado (en rojo).",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.pinsel+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -397,14 +397,14 @@
       "falsch": [
        {
         "wenn": "zahl:karte.ent+",
-        "text": "That made an entity. Press Ctrl+Z, then drag with the LEFT mouse button in the 2D view."
+        "text": "Eso ha creado una entidad. Pulsa Ctrl+Z y arrastra con el botón IZQUIERDO del ratón en la vista 2D."
        }
       ]
      },
      {
-      "text": "**Make it taller.** <kbd>Num 1</kbd> switches the 2D view to the front view (XZ). Grab just above the top edge and drag up: the top face follows on the grid. Here to 192 - the room is now 256 high. <kbd>Num 7</kbd> goes back to the top view.",
+      "text": "**Hazlo más alto.** <kbd>Num 1</kbd> cambia la vista 2D a la vista frontal (XZ). Agarra justo encima del borde superior y arrastra hacia arriba: la cara superior lo sigue en la rejilla. Aquí hasta 192: la sala mide ahora 256 de alto. <kbd>Num 7</kbd> vuelve a la vista superior.",
       "bild": "h_tut_karte_hoehe",
-      "unter": "The front view: the brush is now 256 high.",
+      "unter": "La vista frontal: el brush mide ahora 256 de alto.",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.hoehe+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -414,14 +414,14 @@
       "falsch": [
        {
         "wenn": "zahl:karte.pinsel+",
-        "text": "That drew a second brush. Press Ctrl+Z and start the drag just above the top edge of the first one."
+        "text": "Eso ha dibujado un segundo brush. Pulsa Ctrl+Z y empieza a arrastrar justo encima del borde superior del primero."
        }
       ]
      },
      {
-      "text": "**Texture.** Double-click a folder in the tree of the texture browser and click a texture with the left mouse button: every face of the selected brush gets it. Pick something without transparency for the walls.",
+      "text": "**Textura.** Haz doble clic en una carpeta del árbol del navegador de texturas y pulsa una textura con el botón izquierdo: cada cara del brush seleccionado la recibe. Elige algo sin transparencia para las paredes.",
       "bild": "h_tut_karte_textur",
-      "unter": "The wall texture on all six faces.",
+      "unter": "La textura de pared en las seis caras.",
       "ziel": "fenster:##feldTexturen",
       "fertig": "zahl:karte.texturen~",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -431,14 +431,14 @@
       "falsch": [
        {
         "wenn": "zahl:karte.keineauswahl",
-        "text": "Nothing is selected yet. Click the brush in a 2D view first, then the texture."
+        "text": "Aún no hay nada seleccionado. Pulsa primero el brush en una vista 2D y luego la textura."
        }
       ]
      },
      {
-      "text": "**Hollow it out.** The toolbar button **{{KeCsgTitle}}** opens the CSG tool. Leave the thickness at 16 and switch the caulk button off for now (AutoCaulk does that later), then press **{{KeCsgTipPull}}**: six walls 16 thick grow outwards around the room, and the inside stays exactly the box you drew. The toolbar button **Room** (Make Room) does the same with the grid size as thickness.",
+      "text": "**Vacíalo.** El botón **{{KeCsgTitle}}** de la barra abre la herramienta CSG. Deja el grosor en 16 y desactiva por ahora el botón de caulk (AutoCaulk lo hará después), y pulsa **{{KeCsgTipPull}}**: seis paredes de 16 de grosor crecen hacia fuera alrededor de la sala, y el interior queda exactamente como la caja que dibujaste. El botón **Room** (Make Room) de la barra hace lo mismo con el tamaño de rejilla como grosor.",
       "bild": "h_tut_karte_csg",
-      "unter": "{{KeCsgTitle}} with the caulk button off.",
+      "unter": "{{KeCsgTitle}} con el botón de caulk desactivado.",
       "ziel": "knopfN:##knopfCSGTool",
       "fertig": "zahl:karte.pinsel+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -447,9 +447,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**A floor texture.** In the front view, <kbd>Shift</kbd> + left click on the floor selects only the floor brush; click a floor texture in the browser. <kbd>Esc</kbd> clears the selection.",
+      "text": "**Una textura de suelo.** En la vista frontal, <kbd>Mayús</kbd> + clic izquierdo en el suelo selecciona solo el brush del suelo; pulsa una textura de suelo en el navegador. <kbd>Esc</kbd> quita la selección.",
       "bild": "h_tut_karte_hohl",
-      "unter": "The hollow room: six wall brushes.",
+      "unter": "La sala hueca: seis brushes de pared.",
       "ziel": "fenster:##feldTexturen",
       "fertig": "zahl:karte.texturen~",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -459,12 +459,12 @@
       "falsch": [
        {
         "wenn": "zahl:karte.keineauswahl",
-        "text": "Nothing is selected yet. Click the brush in a 2D view first, then the texture."
+        "text": "Aún no hay nada seleccionado. Pulsa primero el brush en una vista 2D y luego la textura."
        }
       ]
      },
      {
-      "text": "**A light.** Right-click inside the room in the 2D view: the entity menu opens. **light** asks for the intensity (300 is a good start) - **OK** places it where you clicked.",
+      "text": "**Una luz.** Haz clic derecho dentro de la sala en la vista 2D: se abre el menú de entidades. **light** pide la intensidad (300 es un buen comienzo); **OK** la coloca donde pulsaste.",
       "bild": "h_tut_karte_licht",
       "unter": "{{KeLiTitle}}.",
       "ziel": "fenster:##feldXY",
@@ -476,14 +476,14 @@
       "falsch": [
        {
         "wenn": "zahl:karte.pinsel+",
-        "text": "That drew a brush. Press Ctrl+Z and click with the RIGHT mouse button."
+        "text": "Eso ha dibujado un brush. Pulsa Ctrl+Z y haz clic con el botón DERECHO del ratón."
        }
       ]
      },
      {
-      "text": "**Where the player starts.** Right-click near the floor: **info > info_player_start**. Without it the game does not know where to put the player. Its box stands on the floor.",
+      "text": "**Dónde empieza el jugador.** Haz clic derecho cerca del suelo: **info > info_player_start**. Sin él, el juego no sabe dónde poner al jugador. Su caja está sobre el suelo.",
       "bild": "h_tut_karte_spawn",
-      "unter": "The entity menu, submenu info.",
+      "unter": "El menú de entidades, submenú info.",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.ent.info_player_start",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -493,14 +493,14 @@
       "falsch": [
        {
         "wenn": "zahl:karte.ent.light+",
-        "text": "That was another light. Right-click again and choose info > info_player_start."
+        "text": "Eso era otra luz. Vuelve a hacer clic derecho y elige info > info_player_start."
        }
       ]
      },
      {
-      "text": "**Save.** **{{KeLFile}} > {{KeLSaveAs}}** - for example `meinekarte.map` in a folder `maps` of your own, outside the game folders. The name of the file becomes the name of the map in the game.",
+      "text": "**Guarda.** **{{KeLFile}} > {{KeLSaveAs}}**, por ejemplo `mimapa.map` en una carpeta `maps` propia, fuera de las carpetas del juego. El nombre del archivo pasa a ser el nombre del mapa en el juego.",
       "bild": "h_tut_karte_gespeichert",
-      "unter": "The saved room in the editor.",
+      "unter": "La sala guardada en el editor.",
       "ziel": "menue:KeLFile>KeLSaveAs",
       "fertig": "zahl:karte.gespeichert+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -509,9 +509,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Caulk the outside.** Faces nobody can see still cost lightmap space and drawing time. Fly the camera into the room, drag a rectangle around the whole room with <kbd>Shift</kbd> + right mouse button in the top view and press <kbd>F4</kbd> (**{{KeLBrush}} > {{KeLAutoCaulkSelected}}**): every face that cannot be seen from inside becomes caulk. Building in caulk from the start works too: give new brushes the caulk texture and texture only the faces you see.",
+      "text": "**Pon caulk por fuera.** Las caras que nadie puede ver siguen costando espacio de lightmap y tiempo de dibujo. Vuela con la cámara dentro de la sala, arrastra un rectángulo alrededor de toda la sala con <kbd>Mayús</kbd> + botón derecho en la vista superior y pulsa <kbd>F4</kbd> (**{{KeLBrush}} > {{KeLAutoCaulkSelected}}**): cada cara que no se puede ver desde dentro pasa a ser caulk. Construir con caulk desde el principio también funciona: da a los brushes nuevos la textura caulk y texturiza solo las caras que ves.",
       "bild": "h_tut_karte_caulk",
-      "unter": "After AutoCaulk: the camera inside the room.",
+      "unter": "Tras AutoCaulk: la cámara dentro de la sala.",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.caulk+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -520,9 +520,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Check it.** **{{KeLBuild}} > {{KeOptMenue}}** counts the game's limits and looks for build problems before you compile. A green room has nothing to fix.",
+      "text": "**Compruébalo.** **{{KeLBuild}} > {{KeOptMenue}}** cuenta los límites del juego y busca problemas de compilación antes de compilar. Una sala en verde no tiene nada que corregir.",
       "bild": "h_tut_karte_optimierer",
-      "unter": "The optimizer for the tutorial room.",
+      "unter": "El optimizador para la sala del tutorial.",
       "ziel": "menue:KeLBuild>KeOptMenue",
       "fertig": "offen:karteoptimierer",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -531,9 +531,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Build.** **{{KeLBuild}} > [Final] Fast** runs q3map2 three times - BSP, VIS and the light with bounce. The progress window shows the stage, the progress and the time left. If the map leaked, the console says so in red and a line in the 2D view shows the way out - see Map editor: compiling the map.",
+      "text": "**Compila.** **{{KeLBuild}} > [Final] Fast** ejecuta q3map2 tres veces: BSP, VIS y la luz con rebote. La ventana de progreso muestra la etapa, el progreso y el tiempo restante. Si el mapa tiene una fuga, la consola lo dice en rojo y una línea en la vista 2D muestra la salida; mira Editor de mapas: compilar el mapa.",
       "bild": "h_tut_karte_fortschritt",
-      "unter": "The progress window during the build.",
+      "unter": "La ventana de progreso durante la compilación.",
       "ziel": "menue:KeLBuild",
       "fertig": "zahl:karte.gebaut+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -542,9 +542,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Walk through it.** **{{KeLView}} > {{KeSpSpawn}}** and then **{{KeSpMenue}}** (<kbd>F6</kbd>): you stand at the info_player_start and walk with <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>, jump with <kbd>Space</kbd>; <kbd>Esc</kbd> ends. This works even without compiling - the collision comes straight from the brushes (see Play in the editor).",
+      "text": "**Recórrela.** **{{KeLView}} > {{KeSpSpawn}}** y luego **{{KeSpMenue}}** (<kbd>F6</kbd>): estás en el info_player_start y caminas con <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>, saltas con <kbd>Espacio</kbd>; <kbd>Esc</kbd> termina. Funciona incluso sin compilar: la colisión sale directamente de los brushes (mira Jugar en el editor).",
       "bild": "h_tut_karte_spielen",
-      "unter": "Walking through the room in the editor.",
+      "unter": "Recorriendo la sala en el editor.",
       "ziel": "menue:KeLView>KeSpMenue",
       "fertig": "zahl:karte.spielen",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -553,9 +553,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Into the game.** **{{KeLBuild}} > {{KePkMenue}}** packs `maps/meinekarte.bsp` into `meinekarte.pk3` next to the .bsp. The program never writes into the game folders - copy the .pk3 yourself into `GameData/base` (Jedi Academy, Jedi Outcast) or into the folder of your mod (for example Movie Duels). Start the game, open the console with <kbd>Shift</kbd>+<kbd>~</kbd> and type `devmap meinekarte`.",
+      "text": "**Al juego.** **{{KeLBuild}} > {{KePkMenue}}** empaqueta `maps/mimapa.bsp` en `mimapa.pk3` junto al .bsp. El programa nunca escribe en las carpetas del juego: copia tú mismo el .pk3 en `GameData/base` (Jedi Academy, Jedi Outcast) o en la carpeta de tu mod (por ejemplo Movie Duels). Inicia el juego, abre la consola con <kbd>Mayús</kbd>+<kbd>~</kbd> y escribe `devmap mimapa`.",
       "bild": "h_tut_karte_pk3menue",
-      "unter": "{{KeLBuild}} with **{{KePkMenue}}** (not in NetRadiant-Custom).",
+      "unter": "{{KeLBuild}} con **{{KePkMenue}}** (no está en NetRadiant-Custom).",
       "ziel": "menue:KeLBuild>KePkMenue",
       "fertig": "zahl:karte.pk3+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -569,15 +569,15 @@
   {
    "id": "k-kamera-ansicht",
    "gruppe": "tut_kamera",
-   "titel": "Put a shot where you are looking",
-   "kurz": "Look around until the picture is right, then move a shot - or a new one - exactly there.",
+   "titel": "Poner un plano donde estás mirando",
+   "kurz": "Mira alrededor hasta que la imagen sea la buena y mueve ahí exactamente un plano, o uno nuevo.",
    "seite": "k-kamera-ansicht.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Fly to the view you want.** Hold the right mouse button in the map and fly with <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> until the picture is right.",
+      "text": "**Vuela hasta la vista que quieres.** Mantén el botón derecho en el mapa y vuela con <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> hasta que la imagen sea la buena.",
       "bild": "c_frei",
-      "unter": "Your own view of the map.",
+      "unter": "Tu propia vista del mapa.",
       "ziel": "karte3d",
       "fertig": "zahl:vorschau.blick~",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
@@ -587,14 +587,14 @@
       "falsch": [
        {
         "wenn": "zahl:vorschau.ohnekarte",
-        "text": "No map is open yet. Load one first: {{MenuFile}} > {{MapLoad}} - or open a mission."
+        "text": "Aún no hay ningún mapa abierto. Carga uno primero: {{MenuFile}} > {{MapLoad}}, o abre una misión."
        }
       ]
      },
      {
-      "text": "**A new shot here.** Select the camera and press **{{CamNewShot}}**: a `camera ( MOVE )` and `camera ( PAN )` at your view are added after the selected shot.",
+      "text": "**Un plano nuevo aquí.** Selecciona la cámara y pulsa **{{CamNewShot}}**: se añaden un `camera ( MOVE )` y un `camera ( PAN )` en tu vista tras el plano seleccionado.",
       "bild": "h_kamera",
-      "unter": "New camera shot here in the camera panel.",
+      "unter": "Nuevo plano de cámara aquí en el panel de la cámara.",
       "ziel": "knopf:CamNewShot",
       "fertig": "zahl:vorschau.einstellungen+",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.ohnekamera|zahl:vorschau.kameragewaehlt < gezeichnet:zeitleiste.kamera",
@@ -604,22 +604,22 @@
       "falsch": [
        {
         "wenn": "zahl:vorschau.ohnekarte",
-        "text": "No map is open yet. Load one first: {{MenuFile}} > {{MapLoad}} - or open a mission."
+        "text": "Aún no hay ningún mapa abierto. Carga uno primero: {{MenuFile}} > {{MapLoad}}, o abre una misión."
        },
        {
         "wenn": "zahl:vorschau.ohnekamera",
-        "text": "This script has no camera yet. Insert a camera command first ({{GroupEvents}} list: double-click camera) - or open a mission with a cutscene."
+        "text": "Este script aún no tiene cámara. Inserta primero un comando de cámara (lista {{GroupEvents}}: doble clic en camera), o abre una misión con una cinemática."
        },
        {
         "wenn": "zahl:vorschau.nichtgewaehlt",
-        "text": "Select the camera first: click a camera shot on the map or the camera row in the timeline. Its buttons appear on the left."
+        "text": "Selecciona primero la cámara: pulsa un plano de cámara en el mapa o la fila de la cámara en la línea de tiempo. Sus botones aparecen a la izquierda."
        }
       ]
      },
      {
-      "text": "**Or move an existing one.** Select a shot in **{{CamShots}}** and press **{{CamSetToView}}**: its position and direction are replaced by your view - one undo step.",
+      "text": "**O mueve uno existente.** Selecciona un plano en **{{CamShots}}** y pulsa **{{CamSetToView}}**: su posición y su dirección se sustituyen por tu vista, en un paso de deshacer.",
       "bild": "c_aufansicht",
-      "unter": "Set to view.",
+      "unter": "Ajustar a la vista.",
       "ziel": "knopf:CamSetToView",
       "fertig": "aenderung+",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
@@ -629,14 +629,14 @@
       "falsch": [
        {
         "wenn": "zahl:vorschau.nichtgewaehlt",
-        "text": "Select the camera first: click a camera shot on the map or the camera row in the timeline. Its buttons appear on the left."
+        "text": "Selecciona primero la cámara: pulsa un plano de cámara en el mapa o la fila de la cámara en la línea de tiempo. Sus botones aparecen a la izquierda."
        }
       ]
      },
      {
-      "text": "**Check.** **{{MapThroughCam}}** on the map toolbar shows what the selected shot sees, with its zoom and the black cinema bars.",
+      "text": "**Comprueba.** **{{MapThroughCam}}** en la barra del mapa muestra lo que ve el plano seleccionado, con su zoom y las barras negras de cine.",
       "bild": "c_durch",
-      "unter": "Through camera on the toolbar.",
+      "unter": "A través de la cámara en la barra.",
       "ziel": "knopf:MapThroughCam",
       "fertig": "zahl:vorschau.durchkamera",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
@@ -650,15 +650,15 @@
   {
    "id": "k-modell",
    "gruppe": "tut_mission",
-   "titel": "Look at a character model",
-   "kurz": "Load any character of the game, turn it, look at its skins and its skeleton.",
+   "titel": "Ver un modelo de personaje",
+   "kurz": "Carga cualquier personaje del juego, gíralo, mira sus skins y su esqueleto.",
    "seite": "k-modell.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Switch to {{ViewModel}}** in the mode bar on the left.",
+      "text": "**Cambia a {{ViewModel}}** en la barra de modos de la izquierda.",
       "bild": "m_modus",
-      "unter": "Model in the mode bar.",
+      "unter": "Modelo en la barra de modos.",
       "ziel": "knopf:ViewModel@modebar",
       "fertig": "modus:2",
       "voraus": "",
@@ -667,9 +667,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Pick a character.** **{{NpcBrowser}}** lists every character of the game - type to search, click to load it with its skin.",
+      "text": "**Elige un personaje.** **{{NpcBrowser}}** lista todos los personajes del juego: escribe para buscar, pulsa para cargarlo con su skin.",
       "bild": "m_npc",
-      "unter": "The NPC browser.",
+      "unter": "El navegador de NPC.",
       "ziel": "knopf:NpcBrowser",
       "fertig": "zahl:modell.figur~",
       "voraus": "modus:2 < knopf:ViewModel@modebar",
@@ -678,9 +678,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Look around.** Left mouse turns, middle mouse moves, the wheel zooms. **{{ModelTurntable}}** turns it by itself, **{{ModelResetView}}** brings it back to the front.",
+      "text": "**Mira alrededor.** El botón izquierdo gira, el central mueve, la rueda amplía. **{{ModelTurntable}}** lo hace girar solo, **{{ModelResetView}}** lo devuelve de frente.",
       "bild": "h_modell",
-      "unter": "The model view.",
+      "unter": "La vista de modelos.",
       "ziel": "knopf:ModelTurntable;knopf:ModelResetView",
       "fertig": "zahl:modell.blick~",
       "voraus": "modus:2 < knopf:ViewModel@modebar",
@@ -689,9 +689,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Details.** **{{ModelSkin}}** switches skins, **{{ModelBones}}** shows the skeleton, **{{ModelTextures}}** switches textures off.",
+      "text": "**Detalles.** **{{ModelSkin}}** cambia de skin, **{{ModelBones}}** muestra el esqueleto, **{{ModelTextures}}** desactiva las texturas.",
       "bild": "m_details",
-      "unter": "Skin, Bones and Textures.",
+      "unter": "Skin, Huesos y Texturas.",
       "ziel": "knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures",
       "fertig": "zahl:modell.details~",
       "voraus": "modus:2 < knopf:ViewModel@modebar",
@@ -705,15 +705,15 @@
   {
    "id": "k-gangart",
    "gruppe": "tut_figur",
-   "titel": "Walk, run or walk backwards",
-   "kurz": "Change how a figure moves - right on its path in the map.",
+   "titel": "Caminar, correr o caminar hacia atrás",
+   "kurz": "Cambia cómo se mueve una figura, directamente en su trayecto en el mapa.",
    "seite": "k-gangart.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Show the path.** Click the figure on the map or its name in the timeline. Its path appears: grey ahead of the playhead, yellow where it already walked.",
+      "text": "**Muestra el trayecto.** Pulsa la figura en el mapa o su nombre en la línea de tiempo. Aparece su trayecto: gris por delante del cabezal, amarillo por donde ya caminó.",
       "bild": "h_figur_bahn",
-      "unter": "Kyle and his path.",
+      "unter": "Kyle y su trayecto.",
       "ziel": "karte3d",
       "fertig": "zahl:vorschau.figurgewaehlt",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
@@ -723,18 +723,18 @@
       "falsch": [
        {
         "wenn": "zahl:vorschau.ohnekarte",
-        "text": "No map is open yet. Load one first: {{MenuFile}} > {{MapLoad}} - or open a mission."
+        "text": "Aún no hay ningún mapa abierto. Carga uno primero: {{MenuFile}} > {{MapLoad}}, o abre una misión."
        },
        {
         "wenn": "zahl:vorschau.ohnefigur",
-        "text": "This map has no figure yet. Open a mission with figures ({{MenuFile}} > {{LoadMission}}) or place one: the tile {{EntKindNpc}} on the left edge of the view."
+        "text": "Este mapa aún no tiene ninguna figura. Abre una misión con figuras ({{MenuFile}} > {{LoadMission}}) o coloca una: la ficha {{EntKindNpc}} en el borde izquierdo de la vista."
        }
       ]
      },
      {
-      "text": "**Right-click the walk target** at the end of the path. The menu offers **{{BahnGehen}}**, **{{BahnRennen}}** and **{{BahnRueckwaerts}}**.",
+      "text": "**Clic derecho en el destino** al final del trayecto. El menú ofrece **{{BahnGehen}}**, **{{BahnRennen}}** y **{{BahnRueckwaerts}}**.",
       "bild": "k_gangart",
-      "unter": "The menu of a walk target.",
+      "unter": "El menú de un destino.",
       "ziel": "gezeichnet:vorschau.laufziel",
       "fertig": "zahl:vorschau.gangartmenue",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.figurgewaehlt < karte3d",
@@ -744,14 +744,14 @@
       "falsch": [
        {
         "wenn": "zahl:vorschau.ohnelaufziel",
-        "text": "This figure does not walk yet - its path has no walk target. Pick a figure that walks, or let one walk first (3 · Let them walk)."
+        "text": "Esta figura aún no camina: su trayecto no tiene destino. Elige una figura que camine, o haz que una camine primero (3 · Hacerlos caminar)."
        }
       ]
      },
      {
-      "text": "**Pick one.** behaved writes `SET_WALKING` / `SET_RUNNING` before this walk - here **{{BahnRennen}}** added `set ( SET_RUNNING, true )`. It counts from this walk on.",
+      "text": "**Elige uno.** behaved escribe `SET_WALKING` / `SET_RUNNING` antes de este tramo; aquí **{{BahnRennen}}** añadió `set ( SET_RUNNING, true )`. Vale a partir de este tramo.",
       "bild": "g_gang_baum",
-      "unter": "The new SET_RUNNING line.",
+      "unter": "La nueva línea SET_RUNNING.",
       "ziel": "gezeichnet:vorschau.gangartmenue",
       "fertig": "aenderung+",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.gangartmenue < gezeichnet:vorschau.laufziel",
@@ -760,9 +760,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Watch.** Play the timeline: the figure runs, and its walk block is shorter.",
+      "text": "**Mira.** Reproduce la línea de tiempo: la figura corre y su bloque de marcha es más corto.",
       "bild": "g_gang_zeit",
-      "unter": "The shorter walk in the timeline.",
+      "unter": "La marcha más corta en la línea de tiempo.",
       "ziel": "knopf:TlPlay",
       "fertig": "zahl:vorschau.laeuft",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
@@ -776,15 +776,15 @@
   {
    "id": "k-wegpunkte",
    "gruppe": "tut_mission",
-   "titel": "Give NPCs paths to walk",
-   "kurz": "Create the NPC waypoint network automatically, check it, and add paths by hand.",
+   "titel": "Dar caminos a los NPC",
+   "kurz": "Crea automáticamente la red de waypoints de NPC, compruébala y añade caminos a mano.",
    "seite": "k-wegpunkte.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Open the window.** **{{WegTitel}}** on the map toolbar.",
+      "text": "**Abre la ventana.** **{{WegTitel}}** en la barra del mapa.",
       "bild": "e_weg_knopf",
-      "unter": "NPC waypoints on the toolbar.",
+      "unter": "Waypoints de NPC en la barra.",
       "ziel": "gezeichnet:vorschau.wegknopf",
       "fertig": "zahl:vorschau.wegfenster",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
@@ -794,14 +794,14 @@
       "falsch": [
        {
         "wenn": "zahl:vorschau.ohnekarte",
-        "text": "No map is open yet. Load one first: {{MenuFile}} > {{MapLoad}} - or open a mission."
+        "text": "Aún no hay ningún mapa abierto. Carga uno primero: {{MenuFile}} > {{MapLoad}}, o abre una misión."
        }
       ]
      },
      {
-      "text": "**Show and create.** **{{WegZeigen}}** shows the network - green by hand, blue automatic, orange jumps. **{{WegErzeugen}}** spreads waypoints over the walkable floor; the spacing slider sets how dense.",
+      "text": "**Muestra y crea.** **{{WegZeigen}}** muestra la red: verde a mano, azul automática, naranja saltos. **{{WegErzeugen}}** reparte waypoints por el suelo transitable; el deslizador de separación fija la densidad.",
       "bild": "h_wegpunkte",
-      "unter": "The NPC waypoints window.",
+      "unter": "La ventana de waypoints de NPC.",
       "ziel": "knopf:WegErzeugen@###wegpunkte",
       "fertig": "zahl:vorschau.wegpunkte+",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf",
@@ -811,14 +811,14 @@
       "falsch": [
        {
         "wenn": "zahl:vorschau.ohnekarte",
-        "text": "No map is open yet. Load one first: {{MenuFile}} > {{MapLoad}} - or open a mission."
+        "text": "Aún no hay ningún mapa abierto. Carga uno primero: {{MenuFile}} > {{MapLoad}}, o abre una misión."
        }
       ]
      },
      {
-      "text": "**Check.** **{{WegPruefen}}** finds what the game would reject - click a problem to fly there.",
+      "text": "**Comprueba.** **{{WegPruefen}}** encuentra lo que el juego rechazaría; pulsa un problema para volar hasta allí.",
       "bild": "e_weg_pruefen",
-      "unter": "Check network.",
+      "unter": "Comprobar red.",
       "ziel": "knopf:WegPruefen@###wegpunkte",
       "fertig": "zahl:vorschau.weggeprueft",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf",
@@ -827,9 +827,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**By hand.** **{{WegSetzen}}**: click the floor to place a path; **{{WegVerbinden}}** connects two points (<kbd>Ctrl</kbd>: a jump).",
+      "text": "**A mano.** **{{WegSetzen}}**: pulsa en el suelo para colocar un camino; **{{WegVerbinden}}** conecta dos puntos (<kbd>Ctrl</kbd>: un salto).",
       "bild": "e_weg_setzen",
-      "unter": "Place waypoints and Connect.",
+      "unter": "Colocar waypoints y Conectar.",
       "ziel": "knopf:WegSetzen@###wegpunkte;karte3d",
       "fertig": "zahl:vorschau.wegpunkte+",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf",
@@ -843,15 +843,15 @@
   {
    "id": "k-neu-timen",
    "gruppe": "tut_kamera",
-   "titel": "Retime a cutscene in the timeline",
-   "kurz": "Make a shot longer, start a line of dialogue later, move a whole part - by dragging blocks.",
+   "titel": "Reajustar los tiempos de una cinemática en la línea de tiempo",
+   "kurz": "Alarga un plano, empieza más tarde una frase de diálogo, mueve una parte entera, arrastrando bloques.",
    "seite": "k-neu-timen.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Play it.** Press ▶ in the timeline below the map. Switch **{{TlAudio}}** on to hear the dialogue you are matching the cuts against.",
+      "text": "**Reprodúcela.** Pulsa ▶ en la línea de tiempo bajo el mapa. Activa **{{TlAudio}}** para oír el diálogo con el que cuadras los cortes.",
       "bild": "c_tl_play",
-      "unter": "To start, play - and Sound.",
+      "unter": "Al inicio, reproducir, y Sonido.",
       "ziel": "knopf:TlPlay",
       "fertig": "zahl:vorschau.laeuft",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
@@ -861,14 +861,14 @@
       "falsch": [
        {
         "wenn": "zahl:vorschau.ohnekarte",
-        "text": "No map is open yet. Load one first: {{MenuFile}} > {{MapLoad}} - or open a mission."
+        "text": "Aún no hay ningún mapa abierto. Carga uno primero: {{MenuFile}} > {{MapLoad}}, o abre una misión."
        }
       ]
      },
      {
-      "text": "**Move a block.** Drag a block left or right. Everything after it moves along, so the rest stays in sync. Hold <kbd>Alt</kbd> to move only this block.",
+      "text": "**Mueve un bloque.** Arrastra un bloque a izquierda o derecha. Todo lo que va detrás se mueve también, así el resto sigue sincronizado. Mantén <kbd>Alt</kbd> para mover solo este bloque.",
       "bild": "a_k_timen",
-      "unter": "Dragging a block in the timeline: everything after it moves along.",
+      "unter": "Arrastrando un bloque en la línea de tiempo: todo lo que va detrás se mueve también.",
       "ziel": "gezeichnet:zeitleiste",
       "fertig": "aenderung+",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
@@ -877,9 +877,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Change a duration.** Drag the right edge of a block - a walk, a camera move, a wait - to make it shorter or longer.",
+      "text": "**Cambia una duración.** Arrastra el borde derecho de un bloque (una marcha, un movimiento de cámara, una espera) para acortarlo o alargarlo.",
       "bild": "c_tl_kante",
-      "unter": "The right edge of a block.",
+      "unter": "El borde derecho de un bloque.",
       "ziel": "gezeichnet:zeitleiste",
       "fertig": "aenderung+",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
@@ -888,9 +888,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second. The time display shows where you are; click it to switch to frames.",
+      "text": "**Avanza con precisión.** Con el ratón sobre la línea de tiempo, <kbd>Izquierda</kbd> / <kbd>Derecha</kbd> mueven el cabezal 50 ms, con <kbd>Mayús</kbd> un segundo. El indicador de tiempo muestra dónde estás; púlsalo para cambiar a fotogramas.",
       "bild": "c_tl_zeit",
-      "unter": "The time display.",
+      "unter": "El indicador de tiempo.",
       "ziel": "gezeichnet:zeitleiste",
       "fertig": "zahl:vorschau.tlschritte+",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
@@ -899,9 +899,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Check the script.** Every drag changes a value in the script (a wait, a time). Click a block: its line is selected in the script column on the right.",
+      "text": "**Revisa el script.** Cada arrastre cambia un valor del script (una espera, un tiempo). Pulsa un bloque: su línea se selecciona en la columna del script de la derecha.",
       "bild": "c_tl_klick",
-      "unter": "A clicked block and its line in the script.",
+      "unter": "Un bloque pulsado y su línea en el script.",
       "ziel": "gezeichnet:zeitleiste;baum",
       "fertig": "auswahl",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
@@ -915,15 +915,15 @@
   {
    "id": "tut-p1",
    "gruppe": "tut",
-   "titel": "1 · Create the mission",
-   "kurz": "A new mission on taspir1: map, player start, script runner and an intro script are made for you.",
+   "titel": "1 · Crear la misión",
+   "kurz": "Una misión nueva en taspir1: el mapa, el inicio del jugador, el ejecutor de scripts y un script de introducción se crean por ti.",
    "seite": "tut-p1.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Open the start page.** Switch the mode bar to **{{ViewMap}}**. Without a map, the tab shows the start page.",
+      "text": "**Abre la página de inicio.** Cambia la barra de modos a **{{ViewMap}}**. Sin mapa, la pestaña muestra la página de inicio.",
       "bild": "h_start",
-      "unter": "The start page of the Mission tab.",
+      "unter": "La página de inicio de la pestaña Misión.",
       "ziel": "knopf:ViewMap@modebar",
       "fertig": "zahl:vorschau.startseite",
       "voraus": "",
@@ -933,14 +933,14 @@
       "falsch": [
        {
         "wenn": "zahl:vorschau.karte",
-        "text": "A map is open, so the tab shows the map instead of the start page. Close it with {{MenuFile}} > {{MapClose}}."
+        "text": "Hay un mapa abierto, así que la pestaña muestra el mapa en vez de la página de inicio. Ciérralo con {{MenuFile}} > {{MapClose}}."
        }
       ]
      },
      {
-      "text": "**New mission.** Click **{{StartCardNew}}**. In the list type `taspir1` and pick it. As **{{MissionName}}** type `taspir_tut` - letters, digits and `_`. The **{{MissionFolder}}** is filled in by itself. Press **{{MissionCreate}}**.",
+      "text": "**Misión nueva.** Pulsa **{{StartCardNew}}**. En la lista escribe `taspir1` y elígelo. Como **{{MissionName}}** escribe `taspir_tut` (letras, cifras y `_`). La **{{MissionFolder}}** se rellena sola. Pulsa **{{MissionCreate}}**.",
       "bild": "h_mission_neu",
-      "unter": "The New mission window.",
+      "unter": "La ventana Nueva misión.",
       "ziel": "knopf:StartCardNew;knopf:MissionCreate",
       "fertig": "zahl:mission.name~",
       "voraus": "zahl:vorschau.startseite|offen:##neuemission < knopf:ViewMap@modebar",
@@ -949,9 +949,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Look at what you got.** The map opens on the landing pad. behaved has added a `target_scriptrunner` next to the player start: when the player spawns, the script `taspir_tut/intro` runs. It is open in a tab - a short camera shot behind the player start.",
+      "text": "**Mira lo que tienes.** El mapa se abre en la plataforma de aterrizaje. behaved ha añadido un `target_scriptrunner` junto al inicio del jugador: cuando aparece el jugador se ejecuta el script `taspir_tut/intro`. Está abierto en una pestaña: un plano de cámara corto detrás del inicio del jugador.",
       "bild": "t4_2",
-      "unter": "The new mission: the player start is selected, the intro script is open on the right.",
+      "unter": "La misión nueva: el inicio del jugador está seleccionado, el script de introducción abierto a la derecha.",
       "ziel": "karte3d",
       "fertig": "manuell",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
@@ -960,9 +960,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Switch off the original intro.** taspir1 has its own start: its player start already triggers a runner with `taspir1/preIntro`, and the same trigger now starts yours too - both would play at once. Type `t271` into the search box of the entity list - that is the runner of the original (its `usescript` is `taspir1/preIntro`) - select it and press <kbd>Delete</kbd>. The **{{FlowGraph}}** view shows such connections at a glance (Graph: what starts what).",
+      "text": "**Desactiva la introducción original.** taspir1 tiene su propio inicio: su inicio del jugador ya dispara un ejecutor con `taspir1/preIntro`, y el mismo disparador inicia ahora también el tuyo; los dos se reproducirían a la vez. Escribe `t271` en el campo de búsqueda de la lista de entidades (es el ejecutor del original, su `usescript` es `taspir1/preIntro`), selecciónalo y pulsa <kbd>Supr</kbd>. La vista **{{FlowGraph}}** muestra esas conexiones de un vistazo (Grafo: qué inicia qué).",
       "bild": "e_t271",
-      "unter": "The runner of the original, found with the search box.",
+      "unter": "El ejecutor del original, encontrado con el campo de búsqueda.",
       "ziel": "karte3d",
       "fertig": "zahl:vorschau.ents-",
       "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
@@ -976,15 +976,15 @@
   {
    "id": "k-skins",
    "gruppe": "tut_mission",
-   "titel": "Skins and skeletons of a model",
-   "kurz": "Another skin, another skeleton, and the surfaces a skin switches on or off.",
+   "titel": "Skins y esqueletos de un modelo",
+   "kurz": "Otra skin, otro esqueleto, y las superficies que una skin activa o desactiva.",
    "seite": "k-skins.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Switch skins.** In the **{{ViewModel}}** tab the **{{ModelSkin}}** list in the playback bar shows the skins that come with the model; **{{OpenSkin}}** loads another one.",
+      "text": "**Cambia de skin.** En la pestaña **{{ViewModel}}**, la lista **{{ModelSkin}}** de la barra de reproducción muestra las skins que trae el modelo; **{{OpenSkin}}** carga otra.",
       "bild": "k_modell_leiste",
-      "unter": "The playback bar with the skin list.",
+      "unter": "La barra de reproducción con la lista de skins.",
       "ziel": "knopf:ModelSkin;knopf:OpenSkin",
       "fertig": "zahl:modell.skin+",
       "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
@@ -993,9 +993,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Surfaces.** The counter next to it shows how many surfaces the skin draws; click it to list them all in the detail log.",
+      "text": "**Superficies.** El contador de al lado muestra cuántas superficies dibuja la skin; púlsalo para listarlas todas en el registro detallado.",
       "bild": "m_flaechen",
-      "unter": "The surface counter.",
+      "unter": "El contador de superficies.",
       "ziel": "gezeichnet:modell.flaechen",
       "fertig": "zahl:modell.flaechenliste+",
       "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
@@ -1004,9 +1004,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Caps.** **{{ModelCaps}}** shows the `_off` surfaces that close the holes where limbs attach.",
+      "text": "**Tapas.** **{{ModelCaps}}** muestra las superficies `_off` que cierran los huecos donde se unen las extremidades.",
       "bild": "m_caps",
-      "unter": "Show caps.",
+      "unter": "Mostrar tapas.",
       "ziel": "knopf:ModelCaps",
       "fertig": "zahl:modell.caps~",
       "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
@@ -1015,9 +1015,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Another skeleton.** **{{ModelLoadGla}}** loads a different `.gla` with its animations.",
+      "text": "**Otro esqueleto.** **{{ModelLoadGla}}** carga otro `.gla` con sus animaciones.",
       "bild": "m_gla",
-      "unter": "Load .gla.",
+      "unter": "Cargar .gla.",
       "ziel": "knopf:ModelLoadGla",
       "fertig": "zahl:modell.skelett~",
       "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
@@ -1031,13 +1031,13 @@
   {
    "id": "k-spielordner",
    "gruppe": "tut_mission",
-   "titel": "Set up the game folder and the preferences",
-   "kurz": "Tell the program where Jedi Academy is installed, check what it found, and choose the rules of the preview.",
+   "titel": "Configurar la carpeta del juego y las preferencias",
+   "kurz": "Dile al programa dónde está instalado Jedi Academy, comprueba lo que encontró y elige las reglas de la vista previa.",
    "seite": "k-spielordner.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Open the paths.** **{{MenuEdit}} → {{PathsTitle}}**. In the map editor switch to **{{ViewEvents}}** first - the menus **{{MenuFile}}**, **{{MenuEdit}}** and **{{MenuView}}** are there.",
+      "text": "**Abre las rutas.** **{{MenuEdit}} → {{PathsTitle}}**. En el editor de mapas cambia antes a **{{ViewEvents}}**: ahí están los menús **{{MenuFile}}**, **{{MenuEdit}}** y **{{MenuView}}**.",
       "bild": "",
       "unter": "",
       "ziel": "menue:MenuEdit>PathsTitle",
@@ -1048,9 +1048,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Add the game folder.** Press **{{Pk3AddPath}}** and choose the `base` folder of Jedi Academy - the one with `assets0.pk3`. For Movie Duels add its `MD` folder too.",
+      "text": "**Añade la carpeta del juego.** Pulsa **{{Pk3AddPath}}** y elige la carpeta `base` de Jedi Academy, la que tiene `assets0.pk3`. Para Movie Duels añade también su carpeta `MD`.",
       "bild": "h_tour_spielordner",
-      "unter": "The tutorial in the program: the button is highlighted.",
+      "unter": "El tutorial en el programa: el botón está resaltado.",
       "ziel": "knopf:Pk3AddPath@###paths",
       "fertig": "zahl:programm.spielordner+",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.pfade < menue:MenuEdit>PathsTitle",
@@ -1059,7 +1059,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Check the list.** Every folder shows how many archives it found. If it says none, you picked the wrong folder - remove it and try again. Then close the window.",
+      "text": "**Revisa la lista.** Cada carpeta muestra cuántos archivos .pk3 encontró. Si dice que ninguno, elegiste la carpeta equivocada: quítala y prueba de nuevo. Luego cierra la ventana.",
       "bild": "",
       "unter": "",
       "ziel": "fenster:###paths",
@@ -1070,7 +1070,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Open the preferences.** **{{MenuEdit}} → {{AppPrefs}}**: sound levels, the game rules of the preview, difficulty and how the program behaves.",
+      "text": "**Abre las preferencias.** **{{MenuEdit}} → {{AppPrefs}}**: volúmenes de sonido, las reglas del juego de la vista previa, la dificultad y cómo se comporta el programa.",
       "bild": "",
       "unter": "",
       "ziel": "menue:MenuEdit>AppPrefs",
@@ -1081,7 +1081,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Choose the rules.** **{{PrefsRegelwerk}}**: *auto* follows your game folder; OpenJK or Movie Duels make the preview behave exactly like that game - walking, doors, timing.",
+      "text": "**Elige las reglas.** **{{PrefsRegelwerk}}**: *automático* sigue a tu carpeta del juego; OpenJK o Movie Duels hacen que la vista previa se comporte exactamente como ese juego: marchas, puertas, tiempos.",
       "bild": "",
       "unter": "",
       "ziel": "knopf:PrefsRegelwerk",
@@ -1097,15 +1097,15 @@
   {
    "id": "k-update",
    "gruppe": "tut_mission",
-   "titel": "Check for updates",
-   "kurz": "Look for a new version, read what changed, and decide whether the program checks at start.",
+   "titel": "Buscar actualizaciones",
+   "kurz": "Busca una versión nueva, lee qué cambió y decide si el programa comprueba al iniciar.",
    "seite": "k-update.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Look for a new version.** **{{MenuHelp}} → {{UpdMenu}}**. The program asks GitHub for the newest release - only now, because you chose it.",
+      "text": "**Busca una versión nueva.** **{{MenuHelp}} → {{UpdMenu}}**. El programa pregunta a GitHub por la versión más reciente, solo ahora, porque tú lo has elegido.",
       "bild": "h_tour_update",
-      "unter": "The tutorial points at the Help menu.",
+      "unter": "El tutorial señala el menú Ayuda.",
       "ziel": "menue:MenuHelp>UpdMenu",
       "fertig": "zahl:update.fenster",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1114,7 +1114,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Read the answer.** The window says that you have the newest version - or shows the new one with its notes and **{{UpdInstall}}**. Without a connection it says so; **{{UpdRetry}}** tries again.",
+      "text": "**Lee la respuesta.** La ventana dice que tienes la versión más reciente, o muestra la nueva con sus notas y **{{UpdInstall}}**. Sin conexión lo dice; **{{UpdRetry}}** lo vuelve a intentar.",
       "bild": "",
       "unter": "",
       "ziel": "fenster:###update",
@@ -1125,7 +1125,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**At start or not.** **{{MenuHelp}} → {{UpdAutoCheck}}** switches the check at start on or off. Nothing else is ever sent.",
+      "text": "**Al iniciar o no.** **{{MenuHelp}} → {{UpdAutoCheck}}** activa o desactiva la comprobación al iniciar. Nunca se envía nada más.",
       "bild": "",
       "unter": "",
       "ziel": "menue:MenuHelp>UpdAutoCheck",
@@ -1136,7 +1136,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**What changed?** **{{ChangelogMenu}}** in the window (or in **{{MenuHelp}}**) lists the changes of every version.",
+      "text": "**¿Qué cambió?** **{{ChangelogMenu}}** en la ventana (o en **{{MenuHelp}}**) lista los cambios de cada versión.",
       "bild": "",
       "unter": "",
       "ziel": "knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu",
@@ -1152,13 +1152,13 @@
   {
    "id": "tut-karte-tuer",
    "gruppe": "tut",
-   "titel": "A door and a trigger in the map editor",
-   "kurz": "Turn a brush into a door, tell it which way to open, and let a trigger open it when the player walks in.",
+   "titel": "Una puerta y un trigger en el editor de mapas",
+   "kurz": "Convierte un brush en una puerta, dile hacia dónde abrirse y deja que un trigger la abra cuando entre el jugador.",
    "seite": "tut-karte-tuer.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Open the map editor.** **{{ViewMapEditor}}** in the mode bar. Open your map from Your first map: a room to walk in - or any map with a room.",
+      "text": "**Abre el editor de mapas.** **{{ViewMapEditor}}** en la barra de modos. Abre tu mapa de Tu primer mapa: una sala por la que caminar, o cualquier mapa con una sala.",
       "bild": "",
       "unter": "",
       "ziel": "knopf:ViewMapEditor@modebar",
@@ -1169,7 +1169,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Draw the door.** Drag a thin brush with the LEFT mouse button in a 2D view, where the door should be - for example 16 units thick.",
+      "text": "**Dibuja la puerta.** Arrastra un brush fino con el botón IZQUIERDO en una vista 2D, donde debe estar la puerta; por ejemplo de 16 unidades de grosor.",
       "bild": "",
       "unter": "",
       "ziel": "fenster:##feldXY",
@@ -1181,12 +1181,12 @@
       "falsch": [
        {
         "wenn": "zahl:karte.ent+",
-        "text": "That made an entity. Press Ctrl+Z, then drag with the LEFT mouse button in the 2D view."
+        "text": "Eso ha creado una entidad. Pulsa Ctrl+Z y arrastra con el botón IZQUIERDO del ratón en la vista 2D."
        }
       ]
      },
      {
-      "text": "**Make it a door.** Keep it selected, right-click in the 2D view and choose **func → func_door**. The brush is now an entity that moves.",
+      "text": "**Conviértelo en puerta.** Mantenlo seleccionado, haz clic derecho en la vista 2D y elige **func → func_door**. El brush es ahora una entidad que se mueve.",
       "bild": "",
       "unter": "",
       "ziel": "fenster:##feldXY",
@@ -1198,16 +1198,16 @@
       "falsch": [
        {
         "wenn": "zahl:karte.keineauswahl",
-        "text": "Nothing is selected. Click the door brush in a 2D view first, then right-click and choose func > func_door."
+        "text": "No hay nada seleccionado. Pulsa primero el brush de la puerta en una vista 2D, luego haz clic derecho y elige func > func_door."
        },
        {
         "wenn": "zahl:karte.ent.light+",
-        "text": "That was a light. Press Ctrl+Z, select the door brush and choose func > func_door."
+        "text": "Eso era una luz. Pulsa Ctrl+Z, selecciona el brush de la puerta y elige func > func_door."
        }
       ]
      },
      {
-      "text": "**Which way it opens.** Press <kbd>N</kbd> for the entity inspector. Set the key `angle` to `90` (it slides north; `-1` is up, `-2` down) and press <kbd>Enter</kbd>.",
+      "text": "**Hacia dónde abre.** Pulsa <kbd>N</kbd> para el inspector de entidades. Pon la clave `angle` a `90` (se desliza hacia el norte; `-1` es arriba, `-2` abajo) y pulsa <kbd>Intro</kbd>.",
       "bild": "",
       "unter": "",
       "ziel": "fenster:##feldGruppe",
@@ -1218,7 +1218,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Draw the trigger.** Draw a second brush in front of the door, right-click and choose **trigger → trigger_multiple**. Triggers are invisible in the game.",
+      "text": "**Dibuja el trigger.** Dibuja un segundo brush delante de la puerta, haz clic derecho y elige **trigger → trigger_multiple**. Los triggers son invisibles en el juego.",
       "bild": "",
       "unter": "",
       "ziel": "fenster:##feldXY",
@@ -1229,7 +1229,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Connect them.** Select the trigger first, then the door (<kbd>Shift</kbd>+click), and press <kbd>Ctrl</kbd>+<kbd>K</kbd> - **{{KeLEntity}} → {{KeLConnectEntities}}**. The trigger's `target` now names the door's `targetname`.",
+      "text": "**Conéctalos.** Selecciona primero el trigger, luego la puerta (<kbd>Mayús</kbd>+clic) y pulsa <kbd>Ctrl</kbd>+<kbd>K</kbd>: **{{KeLEntity}} → {{KeLConnectEntities}}**. El `target` del trigger nombra ahora el `targetname` de la puerta.",
       "bild": "",
       "unter": "",
       "ziel": "menue:KeLEntity>KeLConnectEntities",
@@ -1240,7 +1240,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Try it.** Build the map and walk through it as in Your first map: a room to walk in: the door opens when you step into the trigger.",
+      "text": "**Pruébalo.** Compila el mapa y recórrelo como en Tu primer mapa: una sala por la que caminar: la puerta se abre cuando entras en el trigger.",
       "bild": "",
       "unter": "",
       "ziel": "menue:KeLBuild",
@@ -1256,13 +1256,13 @@
   {
    "id": "tut-menue",
    "gruppe": "tut",
-   "titel": "Change a game menu",
-   "kurz": "Open a menu of the game, move a button, try it like in the game and pack it for your mod.",
+   "titel": "Cambiar un menú del juego",
+   "kurz": "Abre un menú del juego, mueve un botón, pruébalo como en el juego y empaquétalo para tu mod.",
    "seite": "tut-menue.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Open the menu editor.** **{{ViewMenuEditor}}** in the mode bar.",
+      "text": "**Abre el editor de menús.** **{{ViewMenuEditor}}** en la barra de modos.",
       "bild": "",
       "unter": "",
       "ziel": "knopf:ViewMenuEditor@modebar",
@@ -1273,7 +1273,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Open a menu of the game.** **{{MeAusSpiel}}** and pick one, for example `ui/jamp/main.menu`. It is read from the game files and drawn like the game - the game folder is not changed.",
+      "text": "**Abre un menú del juego.** **{{MeAusSpiel}}** y elige uno, por ejemplo `ui/jamp/main.menu`. Se lee de los archivos del juego y se dibuja como en el juego; la carpeta del juego no cambia.",
       "bild": "",
       "unter": "",
       "ziel": "knopf:MeAusSpiel",
@@ -1284,7 +1284,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Move an element.** Click a button on the canvas and drag it - or nudge it with the arrow keys. Its `rect` in the code below changes with it.",
+      "text": "**Mueve un elemento.** Pulsa un botón en el lienzo y arrástralo, o empújalo con las flechas. Su `rect` en el código de abajo cambia con él.",
       "bild": "",
       "unter": "",
       "ziel": "fenster:##mitte",
@@ -1296,14 +1296,14 @@
       "falsch": [
        {
         "wenn": "zahl:menue.bedienen",
-        "text": "You are in {{MeBedienen}} mode - clicks press buttons there. Switch to {{MeBearbeiten}} to move elements."
+        "text": "Estás en el modo {{MeBedienen}}: ahí los clics pulsan botones. Cambia a {{MeBearbeiten}} para mover elementos."
        }
       ]
      },
      {
-      "text": "**Try it like in the game.** **{{MeBedienen}}**: clicks now press buttons and change cvars - only in the preview, never in your game. **{{MeBearbeiten}}** brings you back.",
+      "text": "**Pruébalo como en el juego.** **{{MeBedienen}}**: los clics pulsan ahora botones y cambian cvars, solo en la vista previa, nunca en tu juego. **{{MeBearbeiten}}** te devuelve.",
       "bild": "h_tour_menue",
-      "unter": "Step 4 of the tutorial in the menu editor.",
+      "unter": "Paso 4 del tutorial en el editor de menús.",
       "ziel": "knopf:MeBedienen",
       "fertig": "zahl:menue.bedienen",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
@@ -1312,7 +1312,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Pack it.** **{{MeExportPk3}}** writes the changed menu into a .pk3 for your mod folder, for example `zz_menu.pk3`. The game folder itself is never written.",
+      "text": "**Empaquétalo.** **{{MeExportPk3}}** escribe el menú cambiado en un .pk3 para la carpeta de tu mod, por ejemplo `zz_menu.pk3`. Nunca se escribe en la propia carpeta del juego.",
       "bild": "",
       "unter": "",
       "ziel": "knopf:MeExportPk3",
