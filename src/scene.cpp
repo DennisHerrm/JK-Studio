@@ -7,6 +7,7 @@
 #include "bhed/num.h"
 
 #include "bhed/clock.h"
+#include "bhed/todesanim.h"
 #include <map>
 #include <set>
 #include <memory>
@@ -1581,6 +1582,7 @@ ActorState Actor::at(double ms) const {
             st.pos[2] = hoehe[i] + (hoehe[j] - hoehe[i]) * r;
         }
     }
+    st.beineTimerBisMs = beineBis;
     return st;
 }
 
@@ -1772,6 +1774,12 @@ void parseNpcFile(const std::string& text, NpcMap& out, bool jk2) {
             cur.saberLaenge[f] = {};
             cur.saberRadius[f] = {};
         };
+        // Pruefung 2: COM_ParseInt muss eine Zahl lesen, dann charNoKnockback = 1
+        // (NPC_stats.cpp:4115-4123 MD).
+        if (key == "noknockback" && !wert.empty() &&
+            (std::isdigit(static_cast<unsigned char>(wert[0])) != 0 || wert[0] == '-' || wert[0] == '+')) {
+            cur.keinRueckstoss = true;
+        }
         if (key == "saber") {
             cur.saber = wert;
             schwertNeu(0);
@@ -2232,6 +2240,132 @@ void schubSchrittDazu(Actor& a, const std::shared_ptr<const LaufPlan>& p, double
     step.value = std::clamp(static_cast<float>(vmax) / kAnimSpeedWalk, kAnimSpeedMin, kAnimSpeedMax);
     a.steps.push_back(std::move(step));
 }
+
+// --- Pruefung 2: die Lage einer Figur im Augenblick ihres Todes ----------
+namespace {
+
+// Der Plan, der zur Zeit t laeuft: das letzte WalkTo davor oder ein Vorlauf
+// (Fallen ab dem Spawn), der bis t reicht - sein Zustand nach dem letzten
+// Takt bis t (zustandBei). Ohne Plan steht die Figur: Geschwindigkeit 0, am
+// Boden.
+LaufZustand laufZustandBei(const Actor& a, double t) {
+    const LaufPlan* plan = nullptr;
+    double ab = -1.0e300;
+    for (const ActorStep& w : a.steps) {
+        if (w.kind == ActorStep::Kind::WalkTo && w.lauf && w.startMs <= t + 0.5 && w.startMs >= ab) {
+            plan = w.lauf.get();
+            ab = w.startMs;
+        }
+    }
+    for (const auto& [p, bis] : a.vorlaeufe) {
+        if (p && p->abMs <= t + 0.5 && t < bis && p->abMs >= ab) {
+            plan = p.get();
+            ab = p->abMs;
+        }
+    }
+    if (plan == nullptr) {
+        LaufZustand z;
+        z.amBoden = true;
+        return z;
+    }
+    return zustandBei(*plan, t);
+}
+
+// Was player_die von `self` liest (bhed/todesanim.h, TodLage).
+TodLage todesLage(const Actor& a, const ActorState& st, const LaufZustand& lauf, double wann, bool schonTot,
+                  const MapData& map, const SzenenHilfe* hilfe) {
+    TodLage l;
+    l.regel = regelwerkJediOutcast() ? TodRegelwerk::JediOutcast
+                                     : regelwerkMovieDuels() ? TodRegelwerk::MovieDuels : TodRegelwerk::OpenJK;
+    for (const char c : a.klasse) { l.klasse.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(c)))); }
+    l.spieler = a.echterSpieler;
+    const MapEntity* spawner = (a.kartenEntity >= 0 && static_cast<std::size_t>(a.kartenEntity) < map.entities.size())
+                                   ? &map.entities[static_cast<std::size_t>(a.kartenEntity)]
+                                   : nullptr;
+    // NPC_Spawn_Do: newent->message = ent->message (NPC_spawn.cpp:1543 OJ)
+    if (spawner != nullptr) {
+        const std::string* m = spawner->find("message");
+        l.schluessel = m != nullptr && !m->empty();
+    }
+    l.schonTot = schonTot;
+    l.beine = st.animation;
+    l.torso = st.torsoAnimation.empty() ? st.animation : st.torsoAnimation;
+    l.beineTimer = st.beineTimerBisMs < 0.0 ? 0.0 : st.beineTimerBisMs >= 1.0e300 ? -1.0 : std::max(0.0, st.beineTimerBisMs - wann);
+    l.beineSeitMs = wann - st.animStartMs;
+    l.gier = st.angles[1];
+    l.tempo = lauf.tempoVek;
+    l.amBoden = lauf.amBoden;
+    l.pmZeit = lauf.pmZeit;
+    for (std::size_t k = 0; k < 3; ++k) { l.ort[k] = st.pos[k]; }
+    l.mins = {-a.halbBreite, -a.halbBreite, -kFussTiefe};
+    l.maxs = {a.halbBreite, a.halbBreite, a.hoeheOben};
+    l.entity = a.kartenEntity;
+    // max_health = health beim Spawnen; damage = o_health (Q3_Interface.cpp:9698 OJ)
+    l.maxGesundheit = a.gesundheitStart;
+    l.schaden = a.gesundheitStart;
+    for (const auto& [t, wert] : a.gesundheitGesetzt) {
+        if (t <= wann) { l.schaden = wert; }
+    }
+    // pos1: der Ort beim Start der letzten ROFF-Bahn auf der Figur (Q3_Play,
+    // Q3_Interface.cpp:9781 OJ, nur wenn G_LoadRoff sie fand); sonst nie
+    // gesetzt - vec3_origin, G_GetHitLocation gibt dann HL_NONE.
+    for (const ActorStep& r : a.steps) {
+        if (r.kind == ActorStep::Kind::Roff && r.roffFigur && r.roff && r.roffBahn && r.startMs <= wann) {
+            const ActorState vor = a.at(r.startMs);
+            for (std::size_t k = 0; k < 3; ++k) { l.treffpunkt[k] = vor.pos[k]; }
+        }
+    }
+    if (hilfe == nullptr) { return l; }
+    // trigger_hurt: hurt_touch -> G_Damage mit MOD_TRIGGER_HURT, bei FALLING
+    // (spawnflags 32) MOD_FALLING; SHOCK (64) setzt PW_SHOCKED; pos1 =
+    // currentOrigin (g_trigger.cpp:1126-1230, g_combat.cpp:6739-6746 OJ).
+    const int ausloeser = hilfe->hurtAusloeser ? hilfe->hurtAusloeser(a.name, wann) : -1;
+    if (ausloeser >= 0 && static_cast<std::size_t>(ausloeser) < map.entities.size()) {
+        const MapEntity& e = map.entities[static_cast<std::size_t>(ausloeser)];
+        const std::string* sf = e.find("spawnflags");
+        const int flags = sf != nullptr ? std::atoi(sf->c_str()) : 0;
+        l.mittel = (flags & 32) != 0 ? TodMittel::Fallen : TodMittel::TriggerHurt;
+        l.geschockt = (flags & 64) != 0;
+        const std::string* dmg = e.find("dmg");
+        l.schaden = dmg != nullptr ? std::atoi(dmg->c_str()) : 0;
+        if (l.schaden == 0) { l.schaden = 5; }   // SP_trigger_hurt: if ( !self->damage ) self->damage = 5
+        l.treffpunkt = l.ort;
+    }
+    if (hilfe->npcs != nullptr) {
+        std::string typ = a.npcType;
+        for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        const auto it = hilfe->npcs->find(typ);
+        if (it != hilfe->npcs->end()) { l.keinRueckstoss = it->second.keinRueckstoss; }
+    }
+    const std::string figur = a.name;
+    const auto hatFn = hilfe->hatAnim;
+    const auto dauerFn = hilfe->animDauer;
+    const auto bildFn = hilfe->bildDauer;
+    l.hat = [figur, hatFn](const std::string& n) { return hatFn && hatFn(figur, n); };
+    // PM_AnimLength = numFrames * frameLerp = (numFrames - 1) * frameLerp + frameLerp
+    l.laenge = [figur, hatFn, dauerFn, bildFn](const std::string& n) {
+        if (!hatFn || !hatFn(figur, n) || !dauerFn || !bildFn) { return 0.0; }
+        return std::max(0.0, dauerFn(figur, n)) + std::max(0.0, bildFn(figur, n));
+    };
+    l.bild = [figur, bildFn](const std::string& n) { return bildFn ? std::max(0.0, bildFn(figur, n)) : 0.0; };
+    if (hilfe->rumpfWinkel) {
+        float w[3] = {0.0F, 0.0F, 0.0F};
+        if (hilfe->rumpfWinkel(a, wann, w)) { l.rumpfWinkel = {w[0], w[1], w[2]}; }
+    }
+    if (hilfe->nav) {
+        const std::shared_ptr<const NavWelt> welt = hilfe->nav;
+        if (welt->spurZeit) {
+            l.spur = [welt, wann](const NavVec& s0, const NavVec& mi, const NavVec& ma, const NavVec& e0, int ign, std::uint32_t m) {
+                return welt->spurZeit(s0, mi, ma, e0, ign, m, wann);
+            };
+        } else {
+            l.spur = welt->spur;
+        }
+    }
+    return l;
+}
+
+}  // namespace
 
 Scene buildOnce(const Script& s, const MapData& map,
                 const std::map<std::string, double>& signals,
@@ -4481,16 +4615,12 @@ Scene buildOnce(const Script& s, const MapData& map,
 
     // --- kill: die Figur STIRBT --------------------------------------------
     //
-    // CQuake3GameInterface::Kill (Q3_Interface.cpp:10591) setzt health auf 0
-    // und ruft die Sterbefunktion - bei einer Figur player_die mit
-    // G_PickDeathAnim (g_combat.cpp:3896). Die Leiche bleibt liegen; nur
-    // remove gibt die Entity frei.
-    //
-    // Welche Todesanimation, haengt im Spiel von der Trefferstelle ab
-    // (G_GetHitLocation) und ist teils zufaellig. kill hat keinen Treffer -
-    // wir nehmen wiederholbar BOTH_DEATH1 und frieren auf dem letzten Bild
-    // ein (die Engine wechselt danach auf BOTH_DEAD1, die liegende
-    // Endstellung derselben Bewegung). Eine Naeherung, als solche vermerkt.
+    // CQuake3GameInterface::Kill (Q3_Interface.cpp:9661 OpenJK) setzt health
+    // auf 0 und ruft die Sterbefunktion - bei einer Figur player_die. Welche
+    // Todesanimation, waehlt dort die Kette aus Haltung, Trefferort, Richtung,
+    // Mittel und Klasse (bhed/todesanim.h, Pruefung 2); die Animation haelt
+    // mit HOLD am letzten Bild (PM_SetLegsAnimTimer -1). Die Leiche bleibt
+    // liegen; nur remove gibt die Entity frei.
     //
     // Ein Brush-Modell (func_breakable) zerbricht statt zu sterben - das
     // Zerbrechen zeichnet MoverSim; hier verschwindet es nur.
@@ -4509,13 +4639,80 @@ Scene buildOnce(const Script& s, const MapData& map,
         std::stable_sort(a.steps.begin(), a.steps.end(),
                          [](const ActorStep& x, const ActorStep& y) { return x.startMs < y.startMs; });
     }
+    // Pruefung 2: der Zeit nach - ein zweites kill trifft eine Leiche
+    // (ps.pm_type == PM_DEAD, player_die zuckt nur noch).
+    std::stable_sort(getoetet.begin(), getoetet.end(),
+                     [](const std::pair<std::string, double>& x, const std::pair<std::string, double>& y) { return x.second < y.second; });
     for (const auto& [ziel, wann] : getoetet) {
         for (Actor& a : out.actors) {
             if (!sameName(a.name, ziel)) {
                 continue;
             }
+            const bool schonTot = a.getoetetMs >= 0.0;
             a.getoetetMs = a.getoetetMs < 0.0 ? wann : std::min(a.getoetetMs, wann);   // rc605 (Ende)
             if (a.brushModel > 0) {
+                if (!schonTot) {
+                    ActorStep weg;
+                    weg.kind = ActorStep::Kind::Gone;
+                    weg.startMs = wann;
+                    weg.endMs = wann;
+                    a.steps.push_back(std::move(weg));
+                }
+                continue;
+            }
+            // ps.velocity, groundEntityNum und pm_time aus dem Plan, der jetzt
+            // laeuft (vor dem Abschneiden unten).
+            const LaufZustand lauf = laufZustandBei(a, wann);
+            if (!schonTot) {
+                // Wo sie stirbt, bleibt sie: ein laufender Weg endet hier.
+                //
+                // rc601 (bewegung): und zwar wirklich - das WalkTo wird beim Tod
+                // abgeschnitten (vorher nur ein Sprung obendrauf, und die
+                // Laufanimation lief bis zum alten Wegende weiter).
+                // rc601 (bewegung, Wege): ein Weg kann aus mehreren Stuecken
+                // bestehen - spaetere fallen weg, das laufende endet am Ort der
+                // Bahn zu dieser Zeit.
+                a.steps.erase(std::remove_if(a.steps.begin(), a.steps.end(),
+                                             [wann](const ActorStep& w) {
+                                                 return w.kind == ActorStep::Kind::WalkTo && w.startMs >= wann;
+                                             }),
+                              a.steps.end());
+                for (ActorStep& w : a.steps) {
+                    if (w.kind != ActorStep::Kind::WalkTo || !(w.startMs < wann && w.endMs > wann)) {
+                        continue;
+                    }
+                    wegOrtBei(w, wann, w.to);
+                    w.endMs = wann;
+                    w.teilweg = true;
+                    if (w.ankunftMs > wann) { w.ankunftMs = -1.0; }
+                }
+            }
+            const ActorState st = a.at(wann);
+            const TodLage lage = todesLage(a, st, lauf, wann, schonTot, map, hilfe);
+            EngineZufall zufall(todesSaat(a.kartenEntity, wann));
+            const TodErgebnis tod = todesAnimation(lage, zufall);
+            if (!schonTot) {
+                ActorStep halt;
+                halt.kind = ActorStep::Kind::Teleport;
+                halt.startMs = wann;
+                halt.endMs = wann;
+                for (int k = 0; k < 3; ++k) {
+                    halt.to[k] = st.pos[k];
+                }
+                a.steps.push_back(halt);
+                // holdingSaber: SaberDeactivate (g_combat.cpp:4093-4099 OJ,
+                // :5150-5157 MD, JK2 :3619-3632).
+                if (st.waffe == "WP_SABER") {
+                    ActorStep aus;
+                    aus.kind = ActorStep::Kind::Saber;
+                    aus.startMs = wann;
+                    aus.endMs = wann;
+                    aus.value = 0.0F;
+                    a.steps.push_back(aus);
+                }
+            }
+            if (tod.verschwindet) {
+                // Mark1 als Leiche: EF_NODRAW, G_FreeEntity im naechsten Bild
                 ActorStep weg;
                 weg.kind = ActorStep::Kind::Gone;
                 weg.startMs = wann;
@@ -4523,53 +4720,25 @@ Scene buildOnce(const Script& s, const MapData& map,
                 a.steps.push_back(std::move(weg));
                 continue;
             }
-            // Wo sie stirbt, bleibt sie: ein laufender Weg endet hier.
-            //
-            // rc601 (bewegung): und zwar wirklich - das WalkTo wird beim Tod
-            // abgeschnitten (vorher nur ein Sprung obendrauf, und die
-            // Laufanimation lief bis zum alten Wegende weiter).
-            // rc601 (bewegung, Wege): ein Weg kann aus mehreren Stuecken
-            // bestehen - spaetere fallen weg, das laufende endet am Ort der
-            // Bahn zu dieser Zeit.
-            a.steps.erase(std::remove_if(a.steps.begin(), a.steps.end(),
-                                         [wann](const ActorStep& w) {
-                                             return w.kind == ActorStep::Kind::WalkTo && w.startMs >= wann;
-                                         }),
-                          a.steps.end());
-            for (ActorStep& w : a.steps) {
-                if (w.kind != ActorStep::Kind::WalkTo || !(w.startMs < wann && w.endMs > wann)) {
-                    continue;
-                }
-                wegOrtBei(w, wann, w.to);
-                w.endMs = wann;
-                w.teilweg = true;
-                if (w.ankunftMs > wann) { w.ankunftMs = -1.0; }
+            if (tod.anim.empty()) {
+                continue;
             }
-            const ActorState st = a.at(wann);
-            ActorStep halt;
-            halt.kind = ActorStep::Kind::Teleport;
-            halt.startMs = wann;
-            halt.endMs = wann;
-            for (int k = 0; k < 3; ++k) {
-                halt.to[k] = st.pos[k];
-            }
-            a.steps.push_back(halt);
-            ActorStep tod;
-            tod.kind = ActorStep::Kind::Anim;
-            tod.startMs = wann;
-            tod.endMs = wann;
-            tod.text = "BOTH_DEATH1";
-            tod.part = AnimPart::Both;
+            ActorStep anim;
+            anim.kind = ActorStep::Kind::Anim;
+            anim.startMs = wann;
+            anim.endMs = wann;
+            anim.text = tod.anim;
+            anim.part = AnimPart::Both;
             if (hilfe != nullptr && hilfe->animDauer) {
-                const double d = hilfe->animDauer(a.name, tod.text);
-                if (d > 0.0) { tod.endMs = wann + d; }
+                const double d = hilfe->animDauer(a.name, anim.text);
+                if (d > 0.0) { anim.endMs = wann + d; }
             }
-            a.steps.push_back(tod);
+            a.steps.push_back(anim);
             ActorStep liegen;
             liegen.kind = ActorStep::Kind::Hold;
             liegen.startMs = wann;
             liegen.endMs = wann;
-            liegen.value = -1.0F;   // einfrieren
+            liegen.value = -1.0F;   // einfrieren: HOLD am letzten Bild
             liegen.part = AnimPart::Both;
             a.steps.push_back(liegen);
         }

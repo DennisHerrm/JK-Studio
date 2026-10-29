@@ -698,12 +698,16 @@ int main(int argc, char** argv) {
         for (const bhed::Actor& a : k.actors) {
             if (a.name == "opfer") {
                 killGeprueft = true;
-                // kill ist NICHT remove: die Figur stirbt (BOTH_DEATH1,
+                // kill ist NICHT remove: die Figur stirbt (eine Todesanimation,
                 // eingefroren) und bleibt sichtbar liegen - player_die,
-                // g_combat.cpp:4490. Frueher verschwand sie hier.
+                // g_combat.cpp:4490. Frueher verschwand sie hier. Pruefung 2:
+                // welche, waehlt die Kette der Engine (bhed/todesanim.h) -
+                // ohne Animationsdaten PM_PickAnim aus BOTH_DEATH1..25, nicht
+                // mehr fest BOTH_DEATH1.
                 const bhed::ActorState danach = a.at(1500.0);
                 expect("kill: die Figur stirbt und bleibt liegen",
-                       a.at(500.0).visible && danach.visible && danach.animation == "BOTH_DEATH1");
+                       a.at(500.0).visible && danach.visible && danach.animation.rfind("BOTH_DEATH", 0) == 0 &&
+                           danach.holdAnim);
             }
         }
         expect("und die kill-Probe ist ueberhaupt gelaufen", killGeprueft);

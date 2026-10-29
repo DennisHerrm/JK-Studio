@@ -5864,6 +5864,21 @@ void prepareScene() {
             const AnimEntry* e = eintrag(f, a);
             return (e == nullptr) ? -1.0 : lerpVon(*e);
         };
+        // Pruefung 2 (Todesanimation, bhed/todesanim.h): PM_HasAnimation -
+        // animations[anim].numFrames != 0 (bg_panimate.cpp:4325 OJ).
+        hilfe.hatAnim = [eintrag](const std::string& f, const std::string& a) {
+            const AnimEntry* e = eintrag(f, a);
+            return e != nullptr && e->numFrames != 0;
+        };
+        // Die Tode durch trigger_hurt, die der Nachbau in den flachen Ablauf
+        // schrieb (AblaufWelt::hurtTode): MOD_TRIGGER_HURT/MOD_FALLING statt
+        // MOD_UNKNOWN.
+        hilfe.hurtAusloeser = [](const std::string& f, double ms) {
+            for (const AblaufWelt::HurtTod& h : g_app->hurtTode) {
+                if (!h.unsterblich && std::fabs(h.ms - ms) < 1.0 && engineNamenGleich(h.figur, f)) { return h.entity; }
+            }
+            return -1;
+        };
         // Mit den Laengen der Animationen und den Tempi der Figuren noch
         // einmal ausfuehren: dowait wartet auf beides, also verschieben
         // sich die Zeiten ALLER Spuren, auch die der Kamera.

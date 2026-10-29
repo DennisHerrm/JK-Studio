@@ -317,6 +317,10 @@ struct ActorState {
     // Ab wann die Animation laeuft. Ohne diesen Bezug beginnt jede
     // Animation bei Null der Zeitleiste statt bei ihrem Einsatz.
     double animStartMs = 0.0;
+    // Pruefung 2: wann der Timer der Beine (ps.legsAnimTimer) abgelaufen ist -
+    // -1: keine Skriptanimation (Timer 0), >= 1e300: nie (-1 in der Engine).
+    // Die Todesanimation fragt ihn ab (G_CheckSpecialDeathAnim, bhed/todesanim.h).
+    double beineTimerBisMs = -1.0;
 
     // --- Der Uebergang zur vorigen Animation -----------------------------
     //
@@ -950,6 +954,17 @@ struct SzenenHilfe {
     bool kartenFiguren = false;
     // rc604 fix604: diese Kartenfiguren nicht (Ablauf::fremdeDarsteller, klein).
     const std::set<std::string>* fremdeDarsteller = nullptr;
+    // Pruefung 2 - fuer die Todesanimation (bhed/todesanim.h):
+    // PM_HasAnimation: hat die Animationsdatei der Figur diese Animation mit
+    // Bildern (numFrames != 0)? Leer: keine.
+    std::function<bool(const std::string& figur, const std::string& anim)> hatAnim;
+    // renderInfo.torsoAngles zur Zeit ms - aus dem Bolzen chestBolt des
+    // gezeichneten Skeletts (cg_players.cpp:7516-7527 OJ). Leer oder false:
+    // VectorClear wie ohne chestBolt.
+    std::function<bool(const struct Actor& figur, double ms, float winkel[3])> rumpfWinkel;
+    // Toetete dieses kill ein trigger_hurt (AblaufWelt::hurtTode)? Der Index
+    // des Ausloesers in MapData::entities, sonst -1 (dann kill aus ICARUS).
+    std::function<int(const std::string& figur, double ms)> hurtAusloeser;
 };
 
 [[nodiscard]] Scene buildScene(const Script& s, const MapData& map,
@@ -998,6 +1013,10 @@ struct NpcDef {
     // cg_main.cpp:1255). So der Schwebedroide remote_sp.
     std::string legsModel;
     std::string saber;      // leer heisst: keines genannt
+    // Pruefung 2 (Movie Duels): "noKnockback" mit einer Zahl setzt
+    // charNoKnockback (NPC_stats.cpp:4115-4123 MD) - G_Throw stoesst dann nur
+    // mit 5 statt push (jedi_is_kick_resistant, wp_saber.cpp:1666 MD).
+    bool keinRueckstoss = false;
     // Der `weapon`-Schluessel, z.B. "WP_BLASTER". Ueber die 120
     // .npc-Dateien in assets1 gezaehlt: 63 mal WP_SABER, 31 mal WP_BLASTER,
     // 29 mal WP_NONE, 15 mal WP_MELEE, 7 mal WP_REPEATER.
