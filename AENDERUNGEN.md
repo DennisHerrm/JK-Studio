@@ -1,5 +1,42 @@
 # Änderungen seit rc94
 
+## rc606 — Kartenteil fertig, Menü-Editor, Helfer mit Touren und optionaler KI
+
+Gewünscht: den Kartenteil fertig machen (Tester-Rückmeldungen: Optimierer, Werkzeugleisten, Licht wie im Spiel), einen Menü-Editor und Tutorials für das ganze Programm mit einer KI, die im Programm zeigt und hilft – sicher angebunden.
+
+- Der Kartenteil von JK Studio ist fertig: im Spiel testen, Geometrie als Brushes importieren, Kartenwerkzeuge (Sprünge, NPC-Wege, verknüpfte Kopien, Kurven, Streuen, Gelände formen), ein Asset-Browser, Texturen überblenden, ein sichererer Optimierer, verschiebbare Werkzeugleisten und Echtzeit-Licht, das dem gebackenen Licht entspricht. Neu: ein Menü-Editor (Text und Bild) und ein Helfer im Programm mit interaktiven Touren und einer optionalen, ab Werk ausgeschalteten KI.
+- Karten-Editor: **Build → Im Spiel testen** startet Jedi Academy SP/MP, OpenJK, Movie Duels oder Jedi Outcast mit der aktuellen Karte (`+devmap`). Es nimmt das aktuelle Schnell-Backen oder eine aktuelle .bsp, sonst wird zuerst gebaut; die Karte kommt in einen Testordner außerhalb des Spiels, den das Spiel über einen Startparameter findet (`fs_cdpath`, oder `fs_homepath`, wenn das Spiel schon eine Karte mit diesem Namen hat). Nur wenn beides nicht geht, fragt es, bevor es in einen Mod-Ordner schreibt.
+- Karten-Editor: **File → Geometrie als Brushes importieren...** macht aus .obj-, .fbx- und .glb/.gltf-Modellen Brushes - planare Flächen zusammengefasst, konvex zerlegt, UV als Texturausrichtung, verdeckte Seiten caulk, Deko als detail; je Teil Brushes, Modell + Clip oder Auto, mit Vorschau, einem Undo-Schritt und danach dem Optimierer. Eine .bsp eines anderen id-Tech-3-Spiels (Quake III, RTCW, Enemy Territory, Warsow) öffnet mit dem Leser dieses Spiels.
+- Karten-Editor: eine .obj-, .fbx- oder .glb-Datei auf den Editor ziehen, und sie wird ein MD3 mit eigenem Shader und Texturen, eingesetzt als misc_model unter dem Mauszeiger.
+- Behoben: Absturz im Modellbrowser beim Klick in einen leeren Ordner.
+- Karten-Editor, **View > Map tools (JK Studio)**: **Sprünge und Platz prüfen**: zeigt, wo der Spieler stehen oder nur geduckt passt und welche Kanten ein Sprung mit Anlauf bzw. ein Machtsprung (Stufe 1-3) erreicht - mit der echten Bewegung des Spiels. Im Editor spielen (F6) kennt den Machtsprung jetzt auch: Leertaste halten springt höher.
+- Karten-Editor, **View > Map tools (JK Studio)**: **NPC-Wege**: zeigt das Wegenetz, das das Spiel baut, und lässt einen NPC mit der Wegfindung des Spiels von einem gewählten Entity zum anderen laufen.
+- Karten-Editor, **View > Map tools (JK Studio)**: **Verknüpfte Kopien**: eine Kopie einer Gruppe ändern, und alle anderen folgen im selben Schritt; ein Undo nimmt es zurück.
+- Karten-Editor, **View > Map tools (JK Studio)**: **Kurven-Werkzeug**: eine glatte Kurve durch gewählte Punkt-Entities wird ein Weg, ein Rohr, ein Geländer oder eine Brücke aus Patches, oder eine Kette path_corner bzw. Wegpunkte.
+- Karten-Editor, **View > Map tools (JK Studio)**: **Modelle verteilen**: setzt Kopien eines misc_model_static auf die begehbaren Flächen eines Bereichs, mit zufälligem Winkel und Maßstab, innerhalb der Grenze des Spiels von 2000 (die jetzt auch der Optimierer zählt).
+- Karten-Editor, **View > Map tools (JK Studio)**: **Gelände formen**: Terrain-Patches mit der Maus in der Kamera heben, senken, glätten und ebnen.
+- Karten-Editor: **File > Auswahl für Blender exportieren** schreibt .glb oder .obj; Geometrie als Brushes importieren holt es an denselben Ort zurück.
+- Karten-Editor: nach einem Absturz bietet der Editor beim nächsten Start das neuere Autosave der Karte an.
+- **Karte als .pk3 packen** nimmt jetzt die Modelle, Shader und Texturen aus dem Import-Ordner mit.
+- Karten-Editor, Optimierer: **Fix all safe** ändert nichts Sichtbares mehr. Er zählte Pinsel mit Glas-, caulk-, nodraw- oder Werkzeug-Seiten als Verdecker (im Spiel sieht man durch sie hindurch), ließ Flächen bis 0,05 Einheiten über die deckende Fläche ragen und rastete Pinsel ein, ohne die Texturen festzuhalten (gemeldet an md_rev_TarisUpper2).
+- Karten-Editor: **View > Map tools > Asset browser** – Modelle, Prefabs und Klänge mit Vorschau und Suche; eines auf eine 2D-Ansicht oder die Kamera ziehen setzt es dort ein. Die Auswahl als Prefab speichern.
+- Karten-Editor: **View > Map tools > Texture blending** – 2 bis 4 Texturen auf einer Gelände-func_group überblenden: malen, wo welche liegt; q3map2 baut die überblendeten Flächen (Index-Karte, Shader und Schlüssel legt der Editor an).
+- Karten-Editor, Werkzeugleisten: der Griff legt die Haupt-, Filter- oder Plugin-Leiste an einen anderen Rand (oben, links, rechts, unten), wie in NetRadiant-Custom; Rand und Reihenfolge bleiben nach einem Neustart. Der Tooltip des Griffs sagt, dass Öffnen, Speichern, Rückgängig, Wiederholen und Select Touching ab Werk versteckt sind (wie in NetRadiant-Custom) und über das Kontextmenü der Leiste erscheinen.
+- Echtzeit-Licht wie im Spiel (q3map2 -light -fast): Der Himmels-Brush wirft keinen Schatten mehr auf seine eigene Sonne: der Strahl zur Sonne endet am Himmel wie in q3map2.
+- Echtzeit-Licht wie im Spiel (q3map2 -light -fast): `sun`, jede `q3map_sun`/`q3map_sunExt` und `q3map_skyLight` mit den Farben der Skybox; Flächenlicht je Dreieck mit `q3map_lightSubdivide`, genauem Formfaktor und Rückschein.
+- Echtzeit-Licht wie im Spiel (q3map2 -light -fast): Licht hält nur auf, was in q3map2 Schatten wirft (Welt und func_group, kein nodraw, durchsichtig nur mit alphashadow, Patches mit dem neuen **Build > Patch shadows**).
+- Echtzeit-Licht wie im Spiel (q3map2 -light -fast): Bis zu 512 Lichter je Bild, auch in der Ferne; 128 mit weichen Schatten, die Sonne in zwei Stufen; Licht von draußen leckt nicht mehr nach innen.
+- Echtzeit-Licht wie im Spiel (q3map2 -light -fast): nodraw-Flächen wie caulk verschwinden, durchsichtige Shader nutzen alphaFunc/blendFunc - wie im Spiel.
+- Echtzeit-Licht wie im Spiel (q3map2 -light -fast): Gegen das Schnell-Backen auf vier Karten gemessen: mittlere Abweichung 0,2-2 statt 2-95 (von 255).
+- Neuer Arbeitsbereich **Menü-Editor**: Menüs von Jedi Academy, Jedi Outcast und Movie Duels (.menu) gleichzeitig als Text und auf einer 640x480-Fläche bearbeiten. Die Dateien werden genau wie im Spiel gelesen (Einzelspieler und Mehrspieler-Präprozessor mit #include/#define/Makros), mit den Warnungen des Spiels im Wortlaut; Speichern ohne Änderung ist byte-gleich, Verschieben oder Größe ändern ändert nur die rect-Zahlen.
+- Vorschau gezeichnet wie im Spiel (Schriften, Shader, Item-Typen), Seiten als Reiter samt ui_tab-Seiten, ein Bedienmodus, der die Menü-Skripte ausführt, und ein Cvar-Feld, das nur die Vorschau ändert.
+- Code-Editor mit Farben, Minimap, Falten, Mehrfachcursor, Suchen/Ersetzen mit Regex, Vervollständigung, Gehe zu Definition, Lesezeichen und dem Änderungsrand des Skript-Editors; Export als .menu oder .pk3 mit eigenen Bildern (nie in die Spielordner).
+- **Der Helfer (F1):** Schreib in eigenen Worten, was du tun willst (Deutsch, Englisch, Chinesisch, Japanisch). Der Helfer findet den Tutorial-Schritt, den Menüpunkt oder die Einstellung und zeigt dir, wo sie ist – er kennt jedes Menü des Programms und des Karten-Editors, jede Einstellung und jede Handbuchseite und arbeitet ohne Netz.
+- **Interaktive Touren warten auf deine echten Aktionen** und sagen dir freundlich, wenn etwas anderes passiert ist. Neu: „Deine erste Karte“ läuft im Karten-Editor Schritt für Schritt – Raum, Textur, Licht, Spielerstart, bauen, durchlaufen, .pk3 –, ebenso „Eine Einstellung, wo du hinschaust“ (Vorschau) und „Ein Figurenmodell ansehen“.
+- **Erster Start:** „Was willst du zuerst tun?“ mit vier Zielen.
+- **Freiwillige KI, ab Werk aus:** Claude mit eigenem Anthropic-API-Schlüssel fragen oder die eigene KI-App über MCP anschließen (Claude Desktop, Claude Code, Cursor, VS Code) – über stdio ohne Netz oder nur lokal mit Token. Die KI kann dir Dinge zeigen und nach deiner Bestätigung die Befehle des Programms benutzen; ein Auftrag ist ein Rückgängig-Schritt; Speichern und andere Datei-Befehle fragen immer, Werkzeuge für Dateien, Shell oder Netz gibt es nicht. Handbuchseite „Der Helfer und die Touren“ mit „Ist das sicher?“.
+- Verständlichere Starttexte und zehn neue Erklärungen im Help-Menü und in den Einstellungen.
+
 ## rc605 — JK Studio: Karten-Editor nach NetRadiant-Custom, eigenes q3map2, Optimierer, Echtzeit-Licht
 
 Gewünscht: ein eigener Reiter zum Bauen von Karten wie in Radiant, mit allen Knöpfen, den Grenzen von JKA und JKO und so schnell wie möglich; Umbenennung in JK Studio.
@@ -32,28 +69,28 @@ Gewünscht: ein eigener Reiter zum Bauen von Karten wie in Radiant, mit allen Kn
 - Das Projekt steht jetzt unter der GNU GPL v2 (ausgenommen die Spieldaten von Raven/Activision unter `data/`); der aus NetRadiant-Custom, GtkRadiant, q3map2 und OpenJK übernommene Code steht in der README.
 - Neuer Kern für den Karten-Editor, noch ohne Oberfläche: Brushes, Texturprojektion (Quake 3, Brush Primitives, Valve 220), Patches, Entities, Ebenen, Auswahl und Rückgängig arbeiten wie in NetRadiant-Custom, und .map-Dateien werden Byte für Byte wie von NetRadiant-Custom gelesen und geschrieben.
 - Entity-Definitionen für Jedi Academy (Einzel- und Mehrspieler), Jedi Outcast und Movie Duels, erzeugt aus OpenJK, und ein Textur- und Shader-Verzeichnis für alle drei Spiele.
-- Karten-Editor: Felder, Werkzeugleisten und Statuszeile haben genau die
+- Karten-Editor: Felder, Werkzeugleisten und Statuszeile haben genau die Groessen und Lagen von NetRadiant-Custom 20260114, samt Filter- und Plugin-Leiste mit ihren Knoepfen fuer weitere Eintraege.
 - Karten-Editor: Werkzeugsymbole im modernen Stil des Programms.
-- Karten-Editor: Auswaehlen, Verschieben, Drehen, Skalieren, Verzerren und
-- Karten-Editor: Texturbrowser wie in NetRadiant-Custom - Ordnerbaum, Filter,
-- Karten-Editor: Mittelklick kopiert die Textur unter dem Zeiger, mit
-- Karten-Editor: Entities wie in NetRadiant-Custom - der Entity Inspector
-- Karten-Editor: die Konsole liest sich wie bei NetRadiant-Custom - Laden
-- Karten-Editor: die Menues sehen aus und messen wie bei NetRadiant-Custom
-- Karten-Editor: grosse Karten bleiben fluessig - ein Auswahlwechsel auf der
-- Handbuch: neues Kapitel "Der Karten-Editor" in allen vier Sprachen -
-- Karten-Editor: Ecken, Kanten und Flaechen lassen sich wie in
-- Karten-Editor: der Clipper (X) - bis zu drei Punkte in einer 2D-Ansicht
-- Karten-Editor: CSG Subtract, Merge, Wrap Merge, Intersect, Make Room,
-- Karten-Editor: Brush-Formen (Prisma, Kegel, Kugel, Fels, Ikosaeder, 3 bis
-- Karten-Editor: das ganze Curve-Menue - alle Patch-Formen, Zeilen und
-- Karten-Editor: Surface Inspector (S) und die Texturtasten (verschieben,
-- Karten-Editor: Select Inside / Touching, Regionen, Save Selected, Save
-- Karten-Editor: Filter im Menue View und in der Filterleiste, mit den
-- Karten-Editor: Ebenen (Ebenen-Browser, in Ebene verschieben, aus- und
-- Karten-Editor: alle Einstellungsseiten wirken, auch Game (Jedi Academy
-- Karten-Editor: abreissbare Menues, Vollbild (F11), eine Schrift fuer die
-- Karten-Editor: der Selbsttest loest jeden neuen Befehl aus und prueft seine
+- Karten-Editor: Auswaehlen, Verschieben, Drehen, Skalieren, Verzerren und Groesse aendern wie in NetRadiant-Custom, mit seinen Manipulatoren in den 2D-Ansichten und der Kamera, Auswahlrechtecken, neuen Pinseln per Ziehen (auch in 3D) und den Befehlen Rueckgaengig/Wiederholen, Kopieren/Einfuegen (auch bei der Kamera), Duplizieren, Loeschen, Auswahl aufheben/umkehren, Alle dieses Typs, Ausgewaehltes verstecken/Verstecktes zeigen, Am Raster ausrichten und Schubsen; Einstellungsseite "Selection".
+- Karten-Editor: Texturbrowser wie in NetRadiant-Custom - Ordnerbaum, Filter, Vorschaubilder mit Rahmen fuer benutzte Texturen und Shader, Klick setzt die Textur, Mittelklick waehlt sie nur, Rollen mit rechts gezogener Maus, Kontextmenue (Objekte oder Flaechen mit der Textur auswaehlen, zuletzt gezeigte Ordner, Shader-Info, Shader ansehen), Textur(en) suchen / ersetzen und die Einstellungsseite "Texture Browser".
+- Karten-Editor: Mittelklick kopiert die Textur unter dem Zeiger, mit Umschalt, Strg oder Alt traegt er sie auf (Werte, nahtlos, projiziert, ohne Shader).
+- Karten-Editor: Entities wie in NetRadiant-Custom - der Entity Inspector (Klassenliste, Beschreibung, Spawnflags, Schluessel und Werte, Felder je Art wie Winkel mit "<-cam", Farbe, Modell und Sound), Rechtsklick in einer 2D-Ansicht oder doppelter Rechtsklick in der Kamera fuer das Entity-Menue (Strg+Klick erzeugt mehrere), Dialoge fuer Lichtstaerke und Farbe, Entity-Liste (Umschalt+L), Entities verbinden (Strg+K), Primitive in die Entity verschieben (Strg+M), Auswahl auf Entities erweitern, Verbundene Entities waehlen, Entity-Definitionen neu laden und die Einstellungsseite "Entities".
+- Karten-Editor: die Konsole liest sich wie bei NetRadiant-Custom - Laden des Spiels, Laden und Speichern der Karte melden dieselben Zeilen, eine Meldung und ihr Wert koennen auf einer Zeile verschiedene Farben haben, lange Zeilen brechen um, Text laesst sich mit der Maus auswaehlen und das Kontextmenue bietet Kopieren, Alles auswaehlen, Alles kopieren und Leeren.
+- Karten-Editor: die Menues sehen aus und messen wie bei NetRadiant-Custom (Zeilenhoehe, Trenner, Abreisskante, Breite, Symbol- und Hakenspalte, Tastenspalte), Mnemoniken sind unterstrichen und gehen mit Alt und Buchstaben, das Build-Menue zeigt die Build-Schritte des Spiels; die Dialoge Preferences und Mapped Commands haben NetRadiant-Customs Schriften und Masse.
+- Karten-Editor: grosse Karten bleiben fluessig - ein Auswahlwechsel auf der groessten Movie-Duels-Karte (31671 Pinsel) dauert 8 ms statt 136 ms, und die Karte braucht rund 280 MB weniger Speicher.
+- Handbuch: neues Kapitel "Der Karten-Editor" in allen vier Sprachen - Oeffnen und Speichern, Menues und Anordnungen, 2D-Ansichten und Kamera, Waehlen und Bauen, Texturen, Entities, Konsole und Tastenkuerzel, mit einem Hinweis fuer Tastaturen, auf denen [ und ] AltGr brauchen.
+- Karten-Editor: Ecken, Kanten und Flaechen lassen sich wie in NetRadiant-Custom ziehen (V, E, F), Flaechen herausziehen (Strg+Alt+Ziehen), dazu das Build-Werkzeug (B), das UV-Werkzeug (G) und Texture Lock (Umschalt+T).
+- Karten-Editor: der Clipper (X) - bis zu drei Punkte in einer 2D-Ansicht oder auf Flaechen in der Kamera, Schneiden, Teilen und Umdrehen (Enter, Umschalt+Enter, Strg+Enter), Doppelklick, Einstellungsseite "Clipper".
+- Karten-Editor: CSG Subtract, Merge, Wrap Merge, Intersect, Make Room, Detail / Structural und das CSG Tool (aushoehlen, schrumpfen, erweitern).
+- Karten-Editor: Brush-Formen (Prisma, Kegel, Kugel, Fels, Ikosaeder, 3 bis 9 Seiten mit Strg+3 ... 9), Drehen und Spiegeln, Arbitrary rotation und scale, Transformationen wiederholen und zuruecksetzen.
+- Karten-Editor: das ganze Curve-Menue - alle Patch-Formen, Zeilen und Spalten einfuegen und loeschen, umkehren, transponieren, neu verteilen, glaetten, Kappen, Dicke, Verformen und die Patch-Texturbefehle.
+- Karten-Editor: Surface Inspector (S) und die Texturtasten (verschieben, skalieren, drehen, einpassen, projizieren), Select Textured, Tags im Texturbrowser und die Einstellungsseite "Textures" (Gamma, Mipmaps, Filter, Anisotropie).
+- Karten-Editor: Select Inside / Touching, Regionen, Save Selected, Save Region, Import, Map Info, Find Brush, automatisches Sichern und Snapshots.
+- Karten-Editor: Filter im Menue View und in der Filterleiste, mit den Rechtsklick-Aktionen von NetRadiant-Custom.
+- Karten-Editor: Ebenen (Ebenen-Browser, in Ebene verschieben, aus- und einblenden, verschachteln), misc_model-Modelle (md3, ase, glm) in den 2D-Ansichten und der Kamera und der Modell-Browser.
+- Karten-Editor: alle Einstellungsseiten wirken, auch Game (Jedi Academy oder Jedi Outcast, Mod, Bearbeitungsmodus) und Paths (Spielordner und fuenf weitere Ordner) mit der Neustart-Frage, Settings, Undo, Brush, Grid, Orthographic und Build.
+- Karten-Editor: abreissbare Menues, Vollbild (F11), eine Schrift fuer die 2D- und Kamera-Ansichten, ein 2D-Hintergrundbild zum Nachzeichnen, der About-Dialog, der Link fuer Fehlerberichte und ein eigener Shader-Editor.
+- Karten-Editor: der Selbsttest loest jeden neuen Befehl aus und prueft seine Wirkung; auf der groessten Movie-Duels-Karte dauert CSG Subtract 9 ms und ein Schnitt 6 ms.
 - Handbuch: neue Seite "Karten-Editor: Bauwerkzeuge" in allen vier Sprachen.
 - Karten-Editor: Karten bauen. q3map2 aus NetRadiant-Custom 20260114 wird mit dem Programm als `bhed_q3map2.exe` gebaut (im Zip neben `behaved.exe`) und liefert dieselben Ergebnisse wie das q3map2 von NetRadiant-Custom.
 - Karten-Editor: das Build-Menü von NetRadiant-Custom (Menü „Kompilieren“) mit allen Einträgen für Jedi Academy und Jedi Outcast, „Letzten Build ausführen“ (F5) und dem Dialog „Anpassen“ zum Anlegen, Umbenennen, Umordnen und Kopieren von Einträgen und Befehlen.

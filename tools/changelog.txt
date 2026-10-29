@@ -6,6 +6,140 @@
 #   [en] ... [de] ... [zh] ... [ja] ...   (je Sprache Zeilen mit "- ")
 # Zeilen mit # am Anfang sind Kommentare. Jede Fassung braucht alle vier Sprachen.
 
+## rc606 2026-10-29
+[en]
+- The map part of JK Studio is complete: test in game, import geometry as brushes, map tools (jumps, NPC paths, linked copies, curves, scatter, terrain sculpt), an asset browser, texture blending, a safer optimizer, movable toolbars and real-time light that matches the baked light. New: a menu editor (text and visual) and an in-app helper with interactive tours and an optional, off-by-default AI.
+- Map editor: **Build → Test in game** starts Jedi Academy SP/MP, OpenJK, Movie Duels or Jedi Outcast with the current map (`+devmap`). It takes the current quick bake or an up-to-date .bsp, or builds first; the map goes into a test folder outside the game, which the game finds through a start parameter (`fs_cdpath`, or `fs_homepath` when the game already has a map of that name). Only if neither works does it ask before writing into a mod folder.
+- Map editor: **File → Import geometry as brushes...** turns .obj, .fbx and .glb/.gltf models into brushes - planar faces merged, convex decomposition, UV as texture alignment, hidden faces caulk, decoration detail; per part brushes, model + clip or Auto, with a preview, one undo step and the optimizer afterwards. A .bsp of another id Tech 3 game (Quake III, RTCW, Enemy Territory, Warsow) opens with that game's reader.
+- Map editor: drag an .obj, .fbx or .glb file onto the editor and it becomes an MD3 with its own shader and textures, inserted as misc_model under the mouse pointer.
+- Fixed a crash in the model browser when clicking into an empty folder.
+- Map editor, **View > Map tools (JK Studio)**: **Check jumps and space**: shows where the player can stand or only crouch, and which edges a running jump or a force jump (level 1-3) reaches - with the game's real movement. Play in editor (F6) now knows the force jump too: hold the space bar to jump higher.
+- Map editor, **View > Map tools (JK Studio)**: **NPC paths**: shows the waypoint network the game builds, and lets an NPC walk from one selected entity to another with the game's path finding.
+- Map editor, **View > Map tools (JK Studio)**: **Linked copies**: change one copy of a group and all others follow in the same step; one undo takes it back.
+- Map editor, **View > Map tools (JK Studio)**: **Curve tool**: a smooth curve through selected point entities becomes a path, pipe, railing or bridge of patches, or a chain of path_corner or waypoints.
+- Map editor, **View > Map tools (JK Studio)**: **Scatter models**: puts copies of a misc_model_static on the walkable surfaces of an area, with random angle and scale, within the game's limit of 2000 (now also counted by the optimizer).
+- Map editor, **View > Map tools (JK Studio)**: **Terrain sculpt**: raise, lower, smooth and flatten terrain patches with the mouse in the camera.
+- Map editor: **File > Export selection for Blender** writes .glb or .obj; Import geometry as brushes brings it back to the same place.
+- Map editor: after a crash, the editor offers to load the newer autosave of the map at the next start.
+- **Pack map as .pk3** now includes the models, shaders and textures from the import folder.
+- Map editor, optimizer: **Fix all safe** no longer changes what you see. It counted brushes with glass, caulk, nodraw or tool faces as covering (you can look through them in the game), let faces stick out of the covering face by up to 0.05 units, and snapped brushes without keeping textures in place (reported on md_rev_TarisUpper2).
+- Map editor: **View > Map tools > Asset browser** - models, prefabs and sounds with previews and search; drag one onto a 2D view or the camera to place it. Save the selection as a prefab.
+- Map editor: **View > Map tools > Texture blending** - blend 2 to 4 textures on a terrain func_group: paint where each lies, q3map2 builds the blended surfaces (index map, shaders and keys are created for you).
+- Map editor, toolbars: drag the handle of the main, filter or plugin toolbar to dock it at another edge (top, left, right, bottom), like NetRadiant-Custom's toolbars; edge and order are kept after a restart. The handle's tooltip explains that Open, Save, Undo, Redo and Select Touching are hidden by default (as in NetRadiant-Custom) and shown via the toolbar's context menu.
+- Real-time light like in the game (q3map2 -light -fast): The sky brush no longer shadows its own sun: the ray to the sun ends at the sky, as in q3map2.
+- Real-time light like in the game (q3map2 -light -fast): `sun`, every `q3map_sun`/`q3map_sunExt` and `q3map_skyLight` with the colours of the sky box; surface light per triangle with `q3map_lightSubdivide`, the exact form factor and the back splash.
+- Real-time light like in the game (q3map2 -light -fast): Only what casts shadows in q3map2 blocks light (world and func_group, no nodraw, transparent only with alphashadow, patches with the new **Build > Patch shadows**).
+- Real-time light like in the game (q3map2 -light -fast): Up to 512 lights per frame, also far away; 128 with soft shadows, the sun in two cascades; outside light no longer leaks inside.
+- Real-time light like in the game (q3map2 -light -fast): nodraw surfaces such as caulk disappear and transparent shaders use their alphaFunc/blendFunc, like in the game.
+- Real-time light like in the game (q3map2 -light -fast): Measured against the quick bake on four maps: mean difference 0.2-2 instead of 2-95 (of 255).
+- New **Menu Editor** workspace: edit Jedi Academy, Jedi Outcast and Movie Duels menus (.menu) as text and on a 640x480 canvas at the same time. Files are read exactly like the game (single player and multiplayer precompiler with #include/#define/macros), with the game's warnings word for word; saving without changes is byte-identical, and moving or resizing an item only changes its rect numbers.
+- Preview drawn like the game (fonts, shaders, item types), pages as tabs including ui_tab pages, an Interact mode that runs the menu scripts, and a cvar panel that only affects the preview.
+- Code editor with colours, minimap, folding, multi-cursor, regex find/replace, completion, go to definition, bookmarks and the change margin of the script editor; export as .menu or .pk3 with your own images (never into the game folders).
+- **The helper (F1):** write what you want to do in your own words (English, German, Chinese, Japanese). The helper finds the tutorial step, menu entry or setting and shows you where it is - it knows every menu of the program and the map editor, every setting and every page of the guide, and works offline.
+- **Interactive tutorials wait for your real actions** and tell you kindly when something else happened. New: "Your first map" runs inside the map editor, step by step - room, texture, light, player start, build, walk through, .pk3 - and so do "Put a shot where you are looking" (preview) and "Look at a character model".
+- **First start:** "What do you want to do first?" with four goals.
+- **Optional AI, off by default:** ask Claude with your own Anthropic API key, or connect your own AI app over MCP (Claude Desktop, Claude Code, Cursor, VS Code) - stdio without network, or local only with a token. The AI can show you things and, after you confirm, use the program's own commands; one job is one undo step; saving or other file commands always ask, and there are no tools for files, the shell or the network. Guide page "The helper and the tutorials" with "Is this safe?".
+- Clearer start texts and ten new explanations in the Help menu and the preferences.
+[de]
+- Der Kartenteil von JK Studio ist fertig: im Spiel testen, Geometrie als Brushes importieren, Kartenwerkzeuge (Sprünge, NPC-Wege, verknüpfte Kopien, Kurven, Streuen, Gelände formen), ein Asset-Browser, Texturen überblenden, ein sichererer Optimierer, verschiebbare Werkzeugleisten und Echtzeit-Licht, das dem gebackenen Licht entspricht. Neu: ein Menü-Editor (Text und Bild) und ein Helfer im Programm mit interaktiven Touren und einer optionalen, ab Werk ausgeschalteten KI.
+- Karten-Editor: **Build → Im Spiel testen** startet Jedi Academy SP/MP, OpenJK, Movie Duels oder Jedi Outcast mit der aktuellen Karte (`+devmap`). Es nimmt das aktuelle Schnell-Backen oder eine aktuelle .bsp, sonst wird zuerst gebaut; die Karte kommt in einen Testordner außerhalb des Spiels, den das Spiel über einen Startparameter findet (`fs_cdpath`, oder `fs_homepath`, wenn das Spiel schon eine Karte mit diesem Namen hat). Nur wenn beides nicht geht, fragt es, bevor es in einen Mod-Ordner schreibt.
+- Karten-Editor: **File → Geometrie als Brushes importieren...** macht aus .obj-, .fbx- und .glb/.gltf-Modellen Brushes - planare Flächen zusammengefasst, konvex zerlegt, UV als Texturausrichtung, verdeckte Seiten caulk, Deko als detail; je Teil Brushes, Modell + Clip oder Auto, mit Vorschau, einem Undo-Schritt und danach dem Optimierer. Eine .bsp eines anderen id-Tech-3-Spiels (Quake III, RTCW, Enemy Territory, Warsow) öffnet mit dem Leser dieses Spiels.
+- Karten-Editor: eine .obj-, .fbx- oder .glb-Datei auf den Editor ziehen, und sie wird ein MD3 mit eigenem Shader und Texturen, eingesetzt als misc_model unter dem Mauszeiger.
+- Behoben: Absturz im Modellbrowser beim Klick in einen leeren Ordner.
+- Karten-Editor, **View > Map tools (JK Studio)**: **Sprünge und Platz prüfen**: zeigt, wo der Spieler stehen oder nur geduckt passt und welche Kanten ein Sprung mit Anlauf bzw. ein Machtsprung (Stufe 1-3) erreicht - mit der echten Bewegung des Spiels. Im Editor spielen (F6) kennt den Machtsprung jetzt auch: Leertaste halten springt höher.
+- Karten-Editor, **View > Map tools (JK Studio)**: **NPC-Wege**: zeigt das Wegenetz, das das Spiel baut, und lässt einen NPC mit der Wegfindung des Spiels von einem gewählten Entity zum anderen laufen.
+- Karten-Editor, **View > Map tools (JK Studio)**: **Verknüpfte Kopien**: eine Kopie einer Gruppe ändern, und alle anderen folgen im selben Schritt; ein Undo nimmt es zurück.
+- Karten-Editor, **View > Map tools (JK Studio)**: **Kurven-Werkzeug**: eine glatte Kurve durch gewählte Punkt-Entities wird ein Weg, ein Rohr, ein Geländer oder eine Brücke aus Patches, oder eine Kette path_corner bzw. Wegpunkte.
+- Karten-Editor, **View > Map tools (JK Studio)**: **Modelle verteilen**: setzt Kopien eines misc_model_static auf die begehbaren Flächen eines Bereichs, mit zufälligem Winkel und Maßstab, innerhalb der Grenze des Spiels von 2000 (die jetzt auch der Optimierer zählt).
+- Karten-Editor, **View > Map tools (JK Studio)**: **Gelände formen**: Terrain-Patches mit der Maus in der Kamera heben, senken, glätten und ebnen.
+- Karten-Editor: **File > Auswahl für Blender exportieren** schreibt .glb oder .obj; Geometrie als Brushes importieren holt es an denselben Ort zurück.
+- Karten-Editor: nach einem Absturz bietet der Editor beim nächsten Start das neuere Autosave der Karte an.
+- **Karte als .pk3 packen** nimmt jetzt die Modelle, Shader und Texturen aus dem Import-Ordner mit.
+- Karten-Editor, Optimierer: **Fix all safe** ändert nichts Sichtbares mehr. Er zählte Pinsel mit Glas-, caulk-, nodraw- oder Werkzeug-Seiten als Verdecker (im Spiel sieht man durch sie hindurch), ließ Flächen bis 0,05 Einheiten über die deckende Fläche ragen und rastete Pinsel ein, ohne die Texturen festzuhalten (gemeldet an md_rev_TarisUpper2).
+- Karten-Editor: **View > Map tools > Asset browser** – Modelle, Prefabs und Klänge mit Vorschau und Suche; eines auf eine 2D-Ansicht oder die Kamera ziehen setzt es dort ein. Die Auswahl als Prefab speichern.
+- Karten-Editor: **View > Map tools > Texture blending** – 2 bis 4 Texturen auf einer Gelände-func_group überblenden: malen, wo welche liegt; q3map2 baut die überblendeten Flächen (Index-Karte, Shader und Schlüssel legt der Editor an).
+- Karten-Editor, Werkzeugleisten: der Griff legt die Haupt-, Filter- oder Plugin-Leiste an einen anderen Rand (oben, links, rechts, unten), wie in NetRadiant-Custom; Rand und Reihenfolge bleiben nach einem Neustart. Der Tooltip des Griffs sagt, dass Öffnen, Speichern, Rückgängig, Wiederholen und Select Touching ab Werk versteckt sind (wie in NetRadiant-Custom) und über das Kontextmenü der Leiste erscheinen.
+- Echtzeit-Licht wie im Spiel (q3map2 -light -fast): Der Himmels-Brush wirft keinen Schatten mehr auf seine eigene Sonne: der Strahl zur Sonne endet am Himmel wie in q3map2.
+- Echtzeit-Licht wie im Spiel (q3map2 -light -fast): `sun`, jede `q3map_sun`/`q3map_sunExt` und `q3map_skyLight` mit den Farben der Skybox; Flächenlicht je Dreieck mit `q3map_lightSubdivide`, genauem Formfaktor und Rückschein.
+- Echtzeit-Licht wie im Spiel (q3map2 -light -fast): Licht hält nur auf, was in q3map2 Schatten wirft (Welt und func_group, kein nodraw, durchsichtig nur mit alphashadow, Patches mit dem neuen **Build > Patch shadows**).
+- Echtzeit-Licht wie im Spiel (q3map2 -light -fast): Bis zu 512 Lichter je Bild, auch in der Ferne; 128 mit weichen Schatten, die Sonne in zwei Stufen; Licht von draußen leckt nicht mehr nach innen.
+- Echtzeit-Licht wie im Spiel (q3map2 -light -fast): nodraw-Flächen wie caulk verschwinden, durchsichtige Shader nutzen alphaFunc/blendFunc - wie im Spiel.
+- Echtzeit-Licht wie im Spiel (q3map2 -light -fast): Gegen das Schnell-Backen auf vier Karten gemessen: mittlere Abweichung 0,2-2 statt 2-95 (von 255).
+- Neuer Arbeitsbereich **Menü-Editor**: Menüs von Jedi Academy, Jedi Outcast und Movie Duels (.menu) gleichzeitig als Text und auf einer 640x480-Fläche bearbeiten. Die Dateien werden genau wie im Spiel gelesen (Einzelspieler und Mehrspieler-Präprozessor mit #include/#define/Makros), mit den Warnungen des Spiels im Wortlaut; Speichern ohne Änderung ist byte-gleich, Verschieben oder Größe ändern ändert nur die rect-Zahlen.
+- Vorschau gezeichnet wie im Spiel (Schriften, Shader, Item-Typen), Seiten als Reiter samt ui_tab-Seiten, ein Bedienmodus, der die Menü-Skripte ausführt, und ein Cvar-Feld, das nur die Vorschau ändert.
+- Code-Editor mit Farben, Minimap, Falten, Mehrfachcursor, Suchen/Ersetzen mit Regex, Vervollständigung, Gehe zu Definition, Lesezeichen und dem Änderungsrand des Skript-Editors; Export als .menu oder .pk3 mit eigenen Bildern (nie in die Spielordner).
+- **Der Helfer (F1):** Schreib in eigenen Worten, was du tun willst (Deutsch, Englisch, Chinesisch, Japanisch). Der Helfer findet den Tutorial-Schritt, den Menüpunkt oder die Einstellung und zeigt dir, wo sie ist – er kennt jedes Menü des Programms und des Karten-Editors, jede Einstellung und jede Handbuchseite und arbeitet ohne Netz.
+- **Interaktive Touren warten auf deine echten Aktionen** und sagen dir freundlich, wenn etwas anderes passiert ist. Neu: „Deine erste Karte“ läuft im Karten-Editor Schritt für Schritt – Raum, Textur, Licht, Spielerstart, bauen, durchlaufen, .pk3 –, ebenso „Eine Einstellung, wo du hinschaust“ (Vorschau) und „Ein Figurenmodell ansehen“.
+- **Erster Start:** „Was willst du zuerst tun?“ mit vier Zielen.
+- **Freiwillige KI, ab Werk aus:** Claude mit eigenem Anthropic-API-Schlüssel fragen oder die eigene KI-App über MCP anschließen (Claude Desktop, Claude Code, Cursor, VS Code) – über stdio ohne Netz oder nur lokal mit Token. Die KI kann dir Dinge zeigen und nach deiner Bestätigung die Befehle des Programms benutzen; ein Auftrag ist ein Rückgängig-Schritt; Speichern und andere Datei-Befehle fragen immer, Werkzeuge für Dateien, Shell oder Netz gibt es nicht. Handbuchseite „Der Helfer und die Touren“ mit „Ist das sicher?“.
+- Verständlichere Starttexte und zehn neue Erklärungen im Help-Menü und in den Einstellungen.
+[zh]
+- JK Studio 的地图部分已完成：在游戏中测试、将几何体导入为笔刷、地图工具（跳跃、NPC 路径、关联副本、曲线、散布、地形雕刻）、资源浏览器、纹理混合、更安全的优化器、可移动的工具栏，以及与烘焙光照一致的实时光照。新增：菜单编辑器（文本与可视化）和程序内助手，提供交互式教程以及可选、默认关闭的 AI。
+- 地图编辑器:**Build → 在游戏中测试** 用当前地图(`+devmap`)启动 Jedi Academy SP/MP、OpenJK、Movie Duels 或 Jedi Outcast。它使用当前的快速烘焙或最新的 .bsp,否则先编译;地图放入游戏之外的测试文件夹,游戏通过启动参数找到它(`fs_cdpath`;若游戏已有同名地图则用 `fs_homepath`)。只有两者都不可用时,才会在写入模组文件夹前询问。
+- 地图编辑器:**File → 将几何体导入为画刷...** 把 .obj、.fbx 和 .glb/.gltf 模型转换为画刷——合并共面面、凸分解、UV 作为纹理对齐、被遮挡的面使用 caulk、装饰设为 detail;每个部件可选画刷、模型 + 碰撞或自动,带预览、一步撤销,之后打开优化器。其他 id Tech 3 游戏(Quake III、RTCW、Enemy Territory、Warsow)的 .bsp 会用该游戏的读取器打开。
+- 地图编辑器:把 .obj、.fbx 或 .glb 文件拖到编辑器上,它会变成带自己着色器和纹理的 MD3,并作为 misc_model 插入到鼠标指针下。
+- 修复:在模型浏览器中单击空文件夹时崩溃。
+- 地图编辑器,**View > Map tools (JK Studio)**：**检查跳跃与空间**:显示玩家可以站立或只能蹲下的位置,以及助跑跳跃或原力跳跃(等级 1-3)能到达的边缘——使用游戏的真实移动。“在编辑器中游玩”(F6)现在也支持原力跳跃:按住空格键可以跳得更高。
+- 地图编辑器,**View > Map tools (JK Studio)**：**NPC 路径**:显示游戏构建的路点网络,并让 NPC 使用游戏的寻路从一个选中的实体走到另一个。
+- 地图编辑器,**View > Map tools (JK Studio)**：**链接副本**:修改组的一个副本,其他副本会在同一步中跟随;撤销一次即可还原。
+- 地图编辑器,**View > Map tools (JK Studio)**：**曲线工具**:穿过所选点实体的平滑曲线可以生成由面片构成的道路、管道、栏杆或桥,或者 path_corner 链或路点链。
+- 地图编辑器,**View > Map tools (JK Studio)**：**散布模型**:把 misc_model_static 的副本放到区域内可行走的表面上,角度和缩放随机,并遵守游戏 2000 个的上限(优化器现在也会统计)。
+- 地图编辑器,**View > Map tools (JK Studio)**：**地形塑形**:在摄像机中用鼠标抬高、降低、平滑和整平地形面片。
+- 地图编辑器:**File > 为 Blender 导出所选内容** 写出 .glb 或 .obj;用“将几何体导入为画刷”可放回原位置。
+- 地图编辑器:崩溃后,编辑器会在下次启动时提供加载地图较新的自动保存。
+- **将地图打包为 .pk3** 现在会包含导入文件夹中的模型、着色器和纹理。
+- 地图编辑器,优化器:**Fix all safe** 不再改变可见内容。它以前把带有玻璃面、caulk 面、nodraw 面或工具面的画刷当作遮挡物(在游戏中可以透过它们看到),允许面超出遮挡面最多 0.05 单位,并在对齐网格时没有锁定纹理(在 md_rev_TarisUpper2 上报告)。
+- 地图编辑器:**View > Map tools > Asset browser**——带预览和搜索的模型、预制件和声音;把一项拖到二维视图或摄像机上即可放置。可将所选内容保存为预制件。
+- 地图编辑器:**View > Map tools > Texture blending**——在地形 func_group 上混合 2 到 4 种纹理:绘制每种纹理的位置,q3map2 生成混合表面(索引图、着色器和键由编辑器创建)。
+- 地图编辑器,工具栏:拖动主工具栏、过滤工具栏或插件工具栏的把手,可将其停靠到另一边(上、左、右、下),与 NetRadiant-Custom 相同;停靠位置和顺序在重启后保持不变。把手的提示说明:打开、保存、撤销、重做和 Select Touching 默认隐藏(与 NetRadiant-Custom 相同),可通过工具栏的右键菜单显示。
+- 与游戏一致的实时光照(q3map2 -light -fast)：天空画刷不再遮挡自己的太阳:与 q3map2 一样,射向太阳的光线在天空处结束。
+- 与游戏一致的实时光照(q3map2 -light -fast)：支持 `sun`、所有 `q3map_sun`/`q3map_sunExt` 以及带天空盒颜色的 `q3map_skyLight`;面光源按三角形计算,支持 `q3map_lightSubdivide`、精确形状因子和背光。
+- 与游戏一致的实时光照(q3map2 -light -fast)：只有在 q3map2 中投射阴影的东西才会挡光(世界和 func_group,nodraw 不挡,透明的只有带 alphashadow 时,面片需开启新的 **Build > Patch shadows**)。
+- 与游戏一致的实时光照(q3map2 -light -fast)：每帧最多 512 个光源,包括远处的;其中 128 个带柔和阴影,太阳有两级阴影;室外的光不再漏进室内。
+- 与游戏一致的实时光照(q3map2 -light -fast)：caulk 等 nodraw 表面会消失,透明着色器使用其 alphaFunc/blendFunc——与游戏一致。
+- 与游戏一致的实时光照(q3map2 -light -fast)：在四张地图上与快速烘焙比较:平均偏差为 0.2-2,之前为 2-95(满值 255)。
+- 新增 **菜单编辑器** 工作区:同时以文本和 640x480 画布编辑 Jedi Academy、Jedi Outcast 和 Movie Duels 的菜单(.menu)。文件的读取方式与游戏完全一致(单人模式以及带 #include/#define/宏的多人模式预处理器),并逐字显示游戏的警告;未修改时保存的内容逐字节相同,移动或调整项的大小只改变其 rect 数字。
+- 预览按游戏方式绘制(字体、着色器、项类型),页面(包括 ui_tab 页面)显示为标签页,交互模式运行菜单脚本,cvar 面板只影响预览。
+- 代码编辑器支持配色、小地图、折叠、多光标、正则查找/替换、自动补全、跳转到定义、书签以及与脚本编辑器相同的修改边栏;可导出为 .menu 或带自定义图像的 .pk3(绝不写入游戏文件夹)。
+- **助手(F1):** 用自己的话写下你想做的事(中文、英文、德文、日文)。助手会找到对应的教程步骤、菜单项或设置并告诉你它在哪里——它了解程序和地图编辑器的每个菜单、每项设置和手册的每一页,无需联网。
+- **交互式教程会等待你真正的操作**,发生别的情况时会友好地提示你。新增:“你的第一张地图”在地图编辑器中一步一步进行——房间、纹理、灯光、玩家起点、编译、试走、.pk3;“把镜头放在你正在看的位置”(预览)和“查看角色模型”也同样如此。
+- **首次启动:** “你想先做什么?”,提供四个目标。
+- **可选 AI,默认关闭:** 用你自己的 Anthropic API 密钥询问 Claude,或通过 MCP 连接你自己的 AI 应用(Claude Desktop、Claude Code、Cursor、VS Code)——stdio 无需网络,或仅限本机并带令牌。AI 可以为你演示,并在你确认后使用程序自身的命令;一次任务就是一个撤销步骤;保存和其他文件命令始终会询问,并且没有用于文件、命令行或网络的工具。手册页面“助手与交互式教程”,含“这安全吗?”。
+- 更易懂的开始文字,帮助菜单和首选项中新增十条说明。
+[ja]
+- JK Studio のマップ部分が完成しました：ゲーム内テスト、ジオメトリのブラシ変換インポート、マップツール（ジャンプ、NPC 経路、リンクコピー、カーブ、散布、地形スカルプト）、アセットブラウザ、テクスチャブレンド、より安全なオプティマイザ、移動可能なツールバー、ベイクしたライトと一致するリアルタイムライト。新機能：メニューエディタ（テキストとビジュアル）と、インタラクティブなツアーと任意の（初期設定では無効の）AI を備えたアプリ内ヘルパー。
+- マップエディター:**Build → ゲーム内でテスト** で、現在のマップ(`+devmap`)を使って Jedi Academy SP/MP、OpenJK、Movie Duels、Jedi Outcast を起動します。現在のクイックベイクか最新の .bsp を使い、なければ先にビルドします。マップはゲーム外のテストフォルダーに置かれ、ゲームは起動パラメーターでそれを見つけます(`fs_cdpath`、同じ名前のマップがすでにある場合は `fs_homepath`)。どちらも使えない場合だけ、MOD フォルダーに書き込む前に確認します。
+- マップエディター:**File → ジオメトリをブラシとして読み込む...** で .obj・.fbx・.glb/.gltf のモデルをブラシにします。平面をまとめ、凸分解し、UV をテクスチャの向きにし、隠れた面は caulk、装飾は detail。部品ごとにブラシ・モデル + クリップ・自動を選べ、プレビュー付きで、元に戻すは 1 回、その後で最適化が開きます。ほかの id Tech 3 ゲーム(Quake III、RTCW、Enemy Territory、Warsow)の .bsp はそのゲームの読み込みで開きます。
+- マップエディター:.obj・.fbx・.glb ファイルをエディターにドラッグすると、独自のシェーダーとテクスチャ付きの MD3 になり、マウスポインターの下に misc_model として挿入されます。
+- 修正:モデルブラウザーで空のフォルダーをクリックすると落ちる問題。
+- マップエディター、**View > Map tools (JK Studio)**：**ジャンプと空間を確認**:プレイヤーが立てる場所としゃがんでだけ入れる場所、助走ジャンプやフォースジャンプ(レベル 1〜3)で届く縁を、ゲームの本当の動きで表示します。「エディターで遊ぶ」(F6)もフォースジャンプに対応しました。スペースキーを押し続けると高く跳びます。
+- マップエディター、**View > Map tools (JK Studio)**：**NPC の経路**:ゲームが作るウェイポイント網を表示し、ゲームの経路探索で NPC を選んだエンティティから別のエンティティへ歩かせます。
+- マップエディター、**View > Map tools (JK Studio)**：**リンクされたコピー**:グループのコピーを 1 つ変えると、ほかのすべてが同じ手順で追従し、元に戻す 1 回で戻ります。
+- マップエディター、**View > Map tools (JK Studio)**：**カーブツール**:選んだポイントエンティティを通る滑らかなカーブから、パッチの道・パイプ・手すり・橋、または path_corner やウェイポイントの列を作ります。
+- マップエディター、**View > Map tools (JK Studio)**：**モデルを散らす**:misc_model_static のコピーを範囲内の歩ける面に、ランダムな角度とスケールで置きます。ゲームの上限 2000 を守ります(最適化でも数えるようになりました)。
+- マップエディター、**View > Map tools (JK Studio)**：**地形の造形**:カメラ内でマウスを使い、地形パッチを上げる・下げる・なめらかにする・平らにすることができます。
+- マップエディター:**File > 選択範囲を Blender 用に書き出す** で .glb か .obj を書き出し、「ジオメトリをブラシとして読み込む」で同じ場所に戻せます。
+- マップエディター:クラッシュの後、次回の起動時にマップのより新しい自動保存を読み込むか尋ねます。
+- **マップを .pk3 にまとめる** は、インポートフォルダーのモデル・シェーダー・テクスチャも含めるようになりました。
+- マップエディター、最適化:**Fix all safe** が見た目を変えなくなりました。ガラス・caulk・nodraw・ツールの面を持つブラシを覆いとして数え(ゲームではそれらを透かして見えます)、面が覆う面から最大 0.05 ユニットはみ出すことを許し、テクスチャを固定せずにブラシをグリッドに合わせていました(md_rev_TarisUpper2 で報告)。
+- マップエディター:**View > Map tools > Asset browser** — プレビューと検索付きのモデル・プレハブ・サウンド。2D ビューかカメラにドラッグして配置します。選択範囲をプレハブとして保存できます。
+- マップエディター:**View > Map tools > Texture blending** — 地形の func_group で 2〜4 種類のテクスチャをブレンド。どこに何を置くかを塗ると、q3map2 がブレンドされた面を作ります(インデックスマップ・シェーダー・キーはエディターが作ります)。
+- マップエディター、ツールバー:メイン・フィルター・プラグインのツールバーのハンドルをドラッグすると、NetRadiant-Custom と同じように別の辺(上・左・右・下)にドッキングできます。辺と順序は再起動後も保たれます。ハンドルのツールチップには、開く・保存・元に戻す・やり直し・Select Touching が(NetRadiant-Custom と同じく)初期状態で非表示であり、ツールバーの右クリックメニューで表示できることが書かれています。
+- ゲームと同じリアルタイムライト(q3map2 -light -fast)：空のブラシが自分の太陽の影を落とさなくなりました。q3map2 と同じく、太陽への光線は空で終わります。
+- ゲームと同じリアルタイムライト(q3map2 -light -fast)：`sun`、すべての `q3map_sun`/`q3map_sunExt`、スカイボックスの色を使う `q3map_skyLight`。面光源は三角形ごとに `q3map_lightSubdivide`、正確な形態係数、バックスプラッシュで計算します。
+- ゲームと同じリアルタイムライト(q3map2 -light -fast)：光を遮るのは q3map2 で影を落とすものだけです(ワールドと func_group、nodraw は遮らず、透明なものは alphashadow があるときだけ、パッチは新しい **Build > Patch shadows** がオンのとき)。
+- ゲームと同じリアルタイムライト(q3map2 -light -fast)：1 フレームに最大 512 個のライト(遠くのものも)。そのうち 128 個は柔らかい影、太陽は 2 段階の影。外の光が中に漏れなくなりました。
+- ゲームと同じリアルタイムライト(q3map2 -light -fast)：caulk などの nodraw 面は消え、透明なシェーダーは alphaFunc/blendFunc を使います。ゲームと同じです。
+- ゲームと同じリアルタイムライト(q3map2 -light -fast)：4 つのマップでクイックベイクと比較:平均の差は 255 のうち 0.2-2(以前は 2-95)。
+- 新しい作業領域 **メニューエディター**:Jedi Academy、Jedi Outcast、Movie Duels のメニュー(.menu)をテキストと 640x480 のキャンバスで同時に編集できます。ファイルはゲームとまったく同じように読み込み(シングルプレイと、#include/#define/マクロに対応したマルチプレイのプリプロセッサー)、ゲームの警告を原文のまま表示します。変更せずに保存するとバイト単位で同じになり、項目の移動やサイズ変更では rect の数値だけが変わります。
+- プレビューはゲームと同じように描画(フォント、シェーダー、項目の種類)し、ui_tab のページを含むページをタブで表示します。操作モードではメニューのスクリプトが動き、cvar パネルはプレビューだけに影響します。
+- コードエディターは配色、ミニマップ、折りたたみ、マルチカーソル、正規表現の検索/置換、補完、定義へ移動、ブックマーク、スクリプトエディターと同じ変更マーカーに対応。自作の画像と一緒に .menu または .pk3 としてエクスポートできます(ゲームのフォルダーには書き込みません)。
+- **ヘルパー(F1):** やりたいことを自分の言葉で書いてください(日本語・英語・ドイツ語・中国語)。ヘルパーがチュートリアルの手順・メニュー項目・設定を見つけて場所を示します。プログラムとマップエディターのすべてのメニュー、すべての設定、ガイドの全ページを知っていて、オフラインで動きます。
+- **インタラクティブ チュートリアルは実際の操作を待ち**、別のことが起きたら優しく教えてくれます。新登場:「はじめてのマップ」がマップエディターの中で 1 手順ずつ進みます(部屋、テクスチャ、ライト、開始位置、ビルド、歩き回り、.pk3)。「見ている場所にショットを置く」(プレビュー)と「キャラクター モデルを見る」も同様です。
+- **初回起動:** 「まず何をしますか?」と 4 つの目標から選べます。
+- **任意の AI(既定でオフ):** 自分の Anthropic API キーで Claude に聞くか、MCP で自分の AI アプリ(Claude Desktop・Claude Code・Cursor・VS Code)を接続できます。stdio ならネットワーク不要、またはトークン付きのローカル接続のみ。AI は操作を示し、確認後にプログラムのコマンドを使えます。1 つの依頼は 1 つの元に戻す手順で、保存などのファイル操作は必ず確認し、ファイル・シェル・ネットワーク用のツールはありません。ガイドに「ヘルパーとチュートリアル」と「安全ですか?」のページ。
+- 分かりやすくなった開始時の文章と、ヘルプ メニューと設定に 10 個の新しい説明。
+
 ## rc605 2026-10-28
 [en]
 - BehavEd-Remake is now **JK Studio**: next to the script editor and the cutscene preview it brings a complete map editor modelled on NetRadiant-Custom, with its own q3map2 (faster, same result, optional GPU bake), an optimizer for the limits of Jedi Academy, Jedi Outcast and Movie Duels, real-time light, lossless .bsp import and partial compiles.
@@ -36,28 +170,28 @@
 - The project is now licensed under the GNU GPL v2 (game data from Raven/Activision under `data/` excepted); the code ported from NetRadiant-Custom, GtkRadiant, q3map2 and OpenJK is listed in the README.
 - New map editor core without a user interface yet: brushes, texture projection (Quake 3, brush primitives, Valve 220), patches, entities, layers, selection and undo work like NetRadiant-Custom, and .map files are read and written byte for byte like NetRadiant-Custom.
 - Entity definitions for Jedi Academy (single and multiplayer), Jedi Outcast and Movie Duels, generated from OpenJK, and a texture and shader inventory for all three games.
-- Map editor: panes, toolbars and the status bar have exactly the sizes and
+- Map editor: panes, toolbars and the status bar have exactly the sizes and positions of NetRadiant-Custom 20260114, including the filter and plugin toolbars with their "show more" buttons.
 - Map editor: toolbar icons drawn in the program's own modern style.
-- Map editor: select, move, rotate, scale, transform and resize like
-- Map editor: texture browser like NetRadiant-Custom - folder tree, filter,
-- Map editor: middle click copies the texture under the pointer, with Shift,
-- Map editor: entities like NetRadiant-Custom - the Entity Inspector (class
-- Map editor: the console reads like NetRadiant-Custom's - game loading,
-- Map editor: menus look and measure like NetRadiant-Custom's (row height,
-- Map editor: large maps stay smooth - changing the selection on the
-- Guide: new chapter "The map editor" in all four languages - opening and
-- Map editor: vertices, edges and faces can be dragged (V, E, F) like in
-- Map editor: the clipper (X) - up to three points in a 2D view or on
-- Map editor: CSG Subtract, Merge, Wrap Merge, Intersect, Make Room, Make
-- Map editor: brush shapes (prism, cone, sphere, rock, icosahedron, 3 to 9
-- Map editor: the whole Curve menu - every patch shape, insert and delete
-- Map editor: Surface Inspector (S) and the texture keys (shift, scale,
-- Map editor: Select Inside / Touching, regions, Save Selected, Save Region,
-- Map editor: filters in the View menu and the filter bar, with
-- Map editor: layers (Layers Browser, move to layer, hide and show,
-- Map editor: every preference page works, including Game (Jedi Academy or
-- Map editor: tear-off menus, Fullscreen (F11), a font for the 2D and camera
-- Map editor: the self-test runs every new command and checks what it does;
+- Map editor: select, move, rotate, scale, transform and resize like NetRadiant-Custom, with its manipulators in the 2D views and the camera, selection rectangles, new brushes by dragging (also in 3D), and the commands Undo/Redo, Copy/Paste (to camera), Duplicate, Delete, Clear and Invert Selection, Select All Of Type, Hide Selected/Show Hidden, Snap To Grid and Nudge; preference page "Selection".
+- Map editor: texture browser like NetRadiant-Custom - folder tree, filter, thumbnails with in-use and shader borders, click to apply, middle click to pick, right-drag scrolling, context menu (select textured objects or surfaces, recent folders, shader info, open shader), Find / Replace Texture(s) and the "Texture Browser" preference page.
+- Map editor: middle click copies the texture under the pointer, with Shift, Ctrl or Alt it paints it (values, seamless, projected, without shader).
+- Map editor: entities like NetRadiant-Custom - the Entity Inspector (class list, description, spawnflags, keys and values, typed fields such as angle with "<-cam", colour, model and sound), right-click in a 2D view or double right-click in the camera for the entity menu (Ctrl+click creates several), light intensity and colour dialogs, Entity List (Shift+L), Connect Entities (Ctrl+K), Move Primitives to Entity (Ctrl+M), Expand Selection To Entities, Select Connected Entities, Reload Entity Definitions and the "Entities" preference page.
+- Map editor: the console reads like NetRadiant-Custom's - game loading, map loading and saving report the same lines, a message and its value can have different colours on one line, long lines wrap, text can be selected with the mouse and the context menu offers Copy, Select All, Copy All and Clear.
+- Map editor: menus look and measure like NetRadiant-Custom's (row height, separators, tear-off bar, width, icon and check columns, shortcut column), mnemonics are underlined and work with Alt and letters, the Build menu lists the game's build steps; the Preferences and Mapped Commands dialogs use NetRadiant-Custom's fonts and measurements.
+- Map editor: large maps stay smooth - changing the selection on the largest Movie Duels map (31671 brushes) takes 8 ms instead of 136 ms, and the map needs about 280 MB less memory.
+- Guide: new chapter "The map editor" in all four languages - opening and saving, menus and layouts, 2D views and camera, selecting and building, textures, entities, console and shortcuts, with a note for keyboards where [ and ] need AltGr.
+- Map editor: vertices, edges and faces can be dragged (V, E, F) like in NetRadiant-Custom, faces can be extruded (Ctrl+Alt+drag), with the build tool (B), the UV tool (G) and Texture Lock (Shift+T).
+- Map editor: the clipper (X) - up to three points in a 2D view or on surfaces in the camera, clip, split and flip (Enter, Shift+Enter, Ctrl+Enter), double click, "Clipper" preference page.
+- Map editor: CSG Subtract, Merge, Wrap Merge, Intersect, Make Room, Make Detail / Structural and the CSG Tool (hollow, shrink, expand).
+- Map editor: brush shapes (prism, cone, sphere, rock, icosahedron, 3 to 9 sides with Ctrl+3 ... 9), rotate and mirror, Arbitrary rotation and scale, Repeat and Reset Transforms.
+- Map editor: the whole Curve menu - every patch shape, insert and delete rows and columns, invert, transpose, redisperse, smooth, cap, thicken, deform and the patch texture commands.
+- Map editor: Surface Inspector (S) and the texture keys (shift, scale, rotate, fit, project), Select Textured, tags in the texture browser and the "Textures" preference page (gamma, mipmaps, filtering, anisotropy).
+- Map editor: Select Inside / Touching, regions, Save Selected, Save Region, Import, Map Info, Find Brush, autosave and snapshots.
+- Map editor: filters in the View menu and the filter bar, with NetRadiant-Custom's right-click actions.
+- Map editor: layers (Layers Browser, move to layer, hide and show, nesting), misc_model models (md3, ase, glm) in the 2D views and the camera, and the Model Browser.
+- Map editor: every preference page works, including Game (Jedi Academy or Jedi Outcast, mod, mapping mode) and Paths (game folder and five extra folders) with the restart question, Settings, Undo, Brush, Grid, Orthographic and Build.
+- Map editor: tear-off menus, Fullscreen (F11), a font for the 2D and camera views, a 2D background image for tracing, the About dialog, the bug report link and a custom shader editor.
+- Map editor: the self-test runs every new command and checks what it does; on the largest Movie Duels map CSG Subtract takes 9 ms and a clip 6 ms.
 - Guide: new page "Map editor: building tools" in all four languages.
 - Map editor: compiling maps. q3map2 from NetRadiant-Custom 20260114 is built with the program as `bhed_q3map2.exe` (in the zip next to `behaved.exe`) and gives the same results as NetRadiant-Custom's q3map2.
 - Map editor: the Build menu of NetRadiant-Custom with all entries for Jedi Academy and Jedi Outcast, Run recent build (F5) and the Customize dialog to add, rename, reorder and copy entries and commands.
@@ -164,28 +298,28 @@
 - Das Projekt steht jetzt unter der GNU GPL v2 (ausgenommen die Spieldaten von Raven/Activision unter `data/`); der aus NetRadiant-Custom, GtkRadiant, q3map2 und OpenJK übernommene Code steht in der README.
 - Neuer Kern für den Karten-Editor, noch ohne Oberfläche: Brushes, Texturprojektion (Quake 3, Brush Primitives, Valve 220), Patches, Entities, Ebenen, Auswahl und Rückgängig arbeiten wie in NetRadiant-Custom, und .map-Dateien werden Byte für Byte wie von NetRadiant-Custom gelesen und geschrieben.
 - Entity-Definitionen für Jedi Academy (Einzel- und Mehrspieler), Jedi Outcast und Movie Duels, erzeugt aus OpenJK, und ein Textur- und Shader-Verzeichnis für alle drei Spiele.
-- Karten-Editor: Felder, Werkzeugleisten und Statuszeile haben genau die
+- Karten-Editor: Felder, Werkzeugleisten und Statuszeile haben genau die Groessen und Lagen von NetRadiant-Custom 20260114, samt Filter- und Plugin-Leiste mit ihren Knoepfen fuer weitere Eintraege.
 - Karten-Editor: Werkzeugsymbole im modernen Stil des Programms.
-- Karten-Editor: Auswaehlen, Verschieben, Drehen, Skalieren, Verzerren und
-- Karten-Editor: Texturbrowser wie in NetRadiant-Custom - Ordnerbaum, Filter,
-- Karten-Editor: Mittelklick kopiert die Textur unter dem Zeiger, mit
-- Karten-Editor: Entities wie in NetRadiant-Custom - der Entity Inspector
-- Karten-Editor: die Konsole liest sich wie bei NetRadiant-Custom - Laden
-- Karten-Editor: die Menues sehen aus und messen wie bei NetRadiant-Custom
-- Karten-Editor: grosse Karten bleiben fluessig - ein Auswahlwechsel auf der
-- Handbuch: neues Kapitel "Der Karten-Editor" in allen vier Sprachen -
-- Karten-Editor: Ecken, Kanten und Flaechen lassen sich wie in
-- Karten-Editor: der Clipper (X) - bis zu drei Punkte in einer 2D-Ansicht
-- Karten-Editor: CSG Subtract, Merge, Wrap Merge, Intersect, Make Room,
-- Karten-Editor: Brush-Formen (Prisma, Kegel, Kugel, Fels, Ikosaeder, 3 bis
-- Karten-Editor: das ganze Curve-Menue - alle Patch-Formen, Zeilen und
-- Karten-Editor: Surface Inspector (S) und die Texturtasten (verschieben,
-- Karten-Editor: Select Inside / Touching, Regionen, Save Selected, Save
-- Karten-Editor: Filter im Menue View und in der Filterleiste, mit den
-- Karten-Editor: Ebenen (Ebenen-Browser, in Ebene verschieben, aus- und
-- Karten-Editor: alle Einstellungsseiten wirken, auch Game (Jedi Academy
-- Karten-Editor: abreissbare Menues, Vollbild (F11), eine Schrift fuer die
-- Karten-Editor: der Selbsttest loest jeden neuen Befehl aus und prueft seine
+- Karten-Editor: Auswaehlen, Verschieben, Drehen, Skalieren, Verzerren und Groesse aendern wie in NetRadiant-Custom, mit seinen Manipulatoren in den 2D-Ansichten und der Kamera, Auswahlrechtecken, neuen Pinseln per Ziehen (auch in 3D) und den Befehlen Rueckgaengig/Wiederholen, Kopieren/Einfuegen (auch bei der Kamera), Duplizieren, Loeschen, Auswahl aufheben/umkehren, Alle dieses Typs, Ausgewaehltes verstecken/Verstecktes zeigen, Am Raster ausrichten und Schubsen; Einstellungsseite "Selection".
+- Karten-Editor: Texturbrowser wie in NetRadiant-Custom - Ordnerbaum, Filter, Vorschaubilder mit Rahmen fuer benutzte Texturen und Shader, Klick setzt die Textur, Mittelklick waehlt sie nur, Rollen mit rechts gezogener Maus, Kontextmenue (Objekte oder Flaechen mit der Textur auswaehlen, zuletzt gezeigte Ordner, Shader-Info, Shader ansehen), Textur(en) suchen / ersetzen und die Einstellungsseite "Texture Browser".
+- Karten-Editor: Mittelklick kopiert die Textur unter dem Zeiger, mit Umschalt, Strg oder Alt traegt er sie auf (Werte, nahtlos, projiziert, ohne Shader).
+- Karten-Editor: Entities wie in NetRadiant-Custom - der Entity Inspector (Klassenliste, Beschreibung, Spawnflags, Schluessel und Werte, Felder je Art wie Winkel mit "<-cam", Farbe, Modell und Sound), Rechtsklick in einer 2D-Ansicht oder doppelter Rechtsklick in der Kamera fuer das Entity-Menue (Strg+Klick erzeugt mehrere), Dialoge fuer Lichtstaerke und Farbe, Entity-Liste (Umschalt+L), Entities verbinden (Strg+K), Primitive in die Entity verschieben (Strg+M), Auswahl auf Entities erweitern, Verbundene Entities waehlen, Entity-Definitionen neu laden und die Einstellungsseite "Entities".
+- Karten-Editor: die Konsole liest sich wie bei NetRadiant-Custom - Laden des Spiels, Laden und Speichern der Karte melden dieselben Zeilen, eine Meldung und ihr Wert koennen auf einer Zeile verschiedene Farben haben, lange Zeilen brechen um, Text laesst sich mit der Maus auswaehlen und das Kontextmenue bietet Kopieren, Alles auswaehlen, Alles kopieren und Leeren.
+- Karten-Editor: die Menues sehen aus und messen wie bei NetRadiant-Custom (Zeilenhoehe, Trenner, Abreisskante, Breite, Symbol- und Hakenspalte, Tastenspalte), Mnemoniken sind unterstrichen und gehen mit Alt und Buchstaben, das Build-Menue zeigt die Build-Schritte des Spiels; die Dialoge Preferences und Mapped Commands haben NetRadiant-Customs Schriften und Masse.
+- Karten-Editor: grosse Karten bleiben fluessig - ein Auswahlwechsel auf der groessten Movie-Duels-Karte (31671 Pinsel) dauert 8 ms statt 136 ms, und die Karte braucht rund 280 MB weniger Speicher.
+- Handbuch: neues Kapitel "Der Karten-Editor" in allen vier Sprachen - Oeffnen und Speichern, Menues und Anordnungen, 2D-Ansichten und Kamera, Waehlen und Bauen, Texturen, Entities, Konsole und Tastenkuerzel, mit einem Hinweis fuer Tastaturen, auf denen [ und ] AltGr brauchen.
+- Karten-Editor: Ecken, Kanten und Flaechen lassen sich wie in NetRadiant-Custom ziehen (V, E, F), Flaechen herausziehen (Strg+Alt+Ziehen), dazu das Build-Werkzeug (B), das UV-Werkzeug (G) und Texture Lock (Umschalt+T).
+- Karten-Editor: der Clipper (X) - bis zu drei Punkte in einer 2D-Ansicht oder auf Flaechen in der Kamera, Schneiden, Teilen und Umdrehen (Enter, Umschalt+Enter, Strg+Enter), Doppelklick, Einstellungsseite "Clipper".
+- Karten-Editor: CSG Subtract, Merge, Wrap Merge, Intersect, Make Room, Detail / Structural und das CSG Tool (aushoehlen, schrumpfen, erweitern).
+- Karten-Editor: Brush-Formen (Prisma, Kegel, Kugel, Fels, Ikosaeder, 3 bis 9 Seiten mit Strg+3 ... 9), Drehen und Spiegeln, Arbitrary rotation und scale, Transformationen wiederholen und zuruecksetzen.
+- Karten-Editor: das ganze Curve-Menue - alle Patch-Formen, Zeilen und Spalten einfuegen und loeschen, umkehren, transponieren, neu verteilen, glaetten, Kappen, Dicke, Verformen und die Patch-Texturbefehle.
+- Karten-Editor: Surface Inspector (S) und die Texturtasten (verschieben, skalieren, drehen, einpassen, projizieren), Select Textured, Tags im Texturbrowser und die Einstellungsseite "Textures" (Gamma, Mipmaps, Filter, Anisotropie).
+- Karten-Editor: Select Inside / Touching, Regionen, Save Selected, Save Region, Import, Map Info, Find Brush, automatisches Sichern und Snapshots.
+- Karten-Editor: Filter im Menue View und in der Filterleiste, mit den Rechtsklick-Aktionen von NetRadiant-Custom.
+- Karten-Editor: Ebenen (Ebenen-Browser, in Ebene verschieben, aus- und einblenden, verschachteln), misc_model-Modelle (md3, ase, glm) in den 2D-Ansichten und der Kamera und der Modell-Browser.
+- Karten-Editor: alle Einstellungsseiten wirken, auch Game (Jedi Academy oder Jedi Outcast, Mod, Bearbeitungsmodus) und Paths (Spielordner und fuenf weitere Ordner) mit der Neustart-Frage, Settings, Undo, Brush, Grid, Orthographic und Build.
+- Karten-Editor: abreissbare Menues, Vollbild (F11), eine Schrift fuer die 2D- und Kamera-Ansichten, ein 2D-Hintergrundbild zum Nachzeichnen, der About-Dialog, der Link fuer Fehlerberichte und ein eigener Shader-Editor.
+- Karten-Editor: der Selbsttest loest jeden neuen Befehl aus und prueft seine Wirkung; auf der groessten Movie-Duels-Karte dauert CSG Subtract 9 ms und ein Schnitt 6 ms.
 - Handbuch: neue Seite "Karten-Editor: Bauwerkzeuge" in allen vier Sprachen.
 - Karten-Editor: Karten bauen. q3map2 aus NetRadiant-Custom 20260114 wird mit dem Programm als `bhed_q3map2.exe` gebaut (im Zip neben `behaved.exe`) und liefert dieselben Ergebnisse wie das q3map2 von NetRadiant-Custom.
 - Karten-Editor: das Build-Menü von NetRadiant-Custom (Menü „Kompilieren“) mit allen Einträgen für Jedi Academy und Jedi Outcast, „Letzten Build ausführen“ (F5) und dem Dialog „Anpassen“ zum Anlegen, Umbenennen, Umordnen und Kopieren von Einträgen und Befehlen.
