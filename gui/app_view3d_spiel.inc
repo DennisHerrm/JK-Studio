@@ -1360,7 +1360,7 @@ void loadMapEffects() {
             const std::string* ziel = e.find("target");
             const MapEntity* zielEnt = nullptr;
             for (const MapEntity& z : g_app->map.entities) {
-                if (ziel != nullptr && !ziel->empty() && z.targetname == *ziel && gespawntImSpiel(z)) {
+                if (ziel != nullptr && !ziel->empty() && engineNamenGleich(z.targetname, *ziel) && gespawntImSpiel(z)) {
                     zielEnt = &z;
                     break;
                 }

@@ -4913,6 +4913,8 @@ bool engineFindet(const MapData& map, const std::string& name, float out[3], boo
     return findeImSpiel(map, name, out, istFigur);
 }
 
+bool engineNamenGleich(const std::string& a, const std::string& b) { return sameName(a, b); }
+
 float winkel180(float a) noexcept {
     // AngleNormalize180 (q_math.c): (-180, 180].
     a = std::fmod(a, 360.0F);

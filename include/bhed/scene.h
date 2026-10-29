@@ -1425,6 +1425,9 @@ struct NavZiel {
 // istFigur: das Ziel ist ein NPC oder der Spieler.
 [[nodiscard]] bool engineFindet(const MapData& map, const std::string& name, float out[3],
                                 bool* istFigur = nullptr);
+// pruefung1: zwei Entity-Namen so vergleichen, wie die Engine sie sucht -
+// ohne Gross/klein (G_Find mit Q_stricmp, GetByName mit Q_strupr).
+[[nodiscard]] bool engineNamenGleich(const std::string& a, const std::string& b);
 
 // Das Geh- und Lauftempo, das der Ablauf (AblaufWelt::tempo) fuer eine Figur
 // nimmt, bevor das Skript es aendert: die Werte aus der .npc beim Spawnen.

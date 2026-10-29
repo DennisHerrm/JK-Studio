@@ -629,6 +629,20 @@ int main() {
         erwarte("mittel: Tuer mit Bit 256 oeffnet, die mit 512 fehlt",
                 m.at(1, 1200.0).bekannt && nah(m.at(1, 1200.0).origin[1], 56.0F) && !m.at(3, 1200.0).bekannt);
     }
+    // --- pruefung1: das Ziel des Strahls ohne Gross/klein --------------------
+    // fx_target_beam_link sucht sein target mit G_Find (Q_stricmp,
+    // g_utils.cpp) - "ZIELPUNKT" findet "zielpunkt" (eine neue Mission muss
+    // die Schreibweise nicht treffen).
+    {
+        MapData map;
+        map.entities.push_back(ent("info_null", {{"targetname", "zielpunkt"}, {"origin", "0 0 0"}}));
+        map.entities.push_back(ent("fx_target_beam", {{"target", "ZIELPUNKT"}, {"origin", "0 0 64"}}));
+        const BspGeometry g = geometrie(1);
+        MoverSim s;
+        s.baue(map, g, {}, nullptr, 2000.0);
+        erwarte("fx_target_beam findet sein Ziel ohne Gross/klein (G_Find)",
+                s.strahlStarts().size() == 1U && s.strahlStarts()[0].entity == 1U);
+    }
     // --- rc604: fx_target_beam auf use ------------------------------------
     // fx_target_beam_use (code/game/g_fx.cpp:1091-1109 OpenJK): ONE_SHOT (8)
     // feuert sofort einmal; sonst schaltet ein use think an (nextthink + 50)

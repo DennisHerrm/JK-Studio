@@ -1618,7 +1618,7 @@ const std::vector<SpiegelFlaeche>& spiegelKandidaten() {
     const auto mitName = [](const std::string& n) -> const MapEntity* {
         if (n.empty()) { return nullptr; }
         for (const MapEntity& x : g_app->map.entities) {
-            if (x.targetname == n) { return &x; }
+            if (engineNamenGleich(x.targetname, n)) { return &x; }   // locateCamera: G_Find
         }
         return nullptr;
     };
