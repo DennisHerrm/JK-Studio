@@ -638,7 +638,7 @@ std::vector<Schritt> szeneSchritte(const std::string& szene, const std::string& 
         hw.setze("zeilenGezeichnet", Wert::alsZahl(static_cast<double>(g_app->tlZeilenY.size())));
         int ruhig = 0;
         for (const TimelineTrack& tr : g_app->timeline.tracks) {
-            // wie spurIstRuhig (app_view3d_bedienung.inc): nach dem Anfang passiert nichts mehr
+            // "ruhig" wie in der alten Leiste: nach dem Anfang passiert nichts mehr
             bool still = true;
             for (const TimelineEvent& e : tr.events) { still = still && e.startMs <= 1.0 && e.endMs <= 1.0; }
             ruhig += still ? 1 : 0;

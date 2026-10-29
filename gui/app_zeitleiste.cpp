@@ -402,6 +402,7 @@ bool block(Rahmen& r, const Clip& c, const BlockArgs& a) {
         k.pfad = c.pfad;
         k.startMs = c.startMs;
         k.endMs = c.endMs;
+        g_app->zlGriffClip = c;
     } else if (a.waehlbar) {
         App::TlKandidat& k = g_app->zlKlickKand;
         k = App::TlKandidat{};
@@ -555,8 +556,10 @@ void ablaufZeile(Rahmen& r, const ImRect& f, const Zeile& z, const char* id, Zei
                 a.zeile = id;
                 a.typ = typ;
                 a.anzeige = anzeige;
-                a.text = warteText(c);
-                a.y0 = f.Min.y + 4.0F * r.k;
+                // Ueberlappt eine zweite Wartezeit (ein anderes Skript derselben
+                // Entity), liegt sie unten in der Zeile, ohne Text.
+                a.text = c.bahn == 0 ? warteText(c) : std::string();
+                a.y0 = c.bahn == 0 ? f.Min.y + 4.0F * r.k : (f.Min.y + f.Max.y) * 0.5F + 2.0F * r.k;
                 a.y1 = f.Max.y - 4.0F * r.k;
                 a.schraffiert = true;
                 (void)block(r, c, a);
@@ -1364,7 +1367,7 @@ void zeitleisteSpuren(float x0, float w, float labelW, double sichtStart, double
         g_app->zlKante = true;
         g_app->zlKantePfad = k.pfad;
         g_app->zlKanteEndMs = k.endMs;
-        g_app->zlZiehClip = g_app->zlKandidat.clip;
+        g_app->zlZiehClip = g_app->zlGriffClip;
         g_app->zlZiehMausX = ImGui::GetIO().MousePos.x;
         g_app->zlZiehMsJePx = r.msJePx();
         const Node* gn = nodeAt(g_app->doc.script(), k.pfad);
@@ -1768,7 +1771,7 @@ void erklaerungSkriptzeile(const Clip& c);
 float zeitleisteErklaerungHoehe(float verfuegbar) {
     if (!g_app->zlAuswahl.da || g_app->leftMode != 1) { return 0.0F; }
     const float inhalt = g_app->zlErklaerungInhaltH > 0.0F ? g_app->zlErklaerungInhaltH : verfuegbar * 0.42F;
-    return std::floor(std::clamp(inhalt, std::min(ImGui::GetFontSize() * 8.0F, verfuegbar * 0.65F), verfuegbar * 0.65F));
+    return std::floor(std::clamp(inhalt, std::min(ImGui::GetFontSize() * 8.0F, verfuegbar * 0.75F), verfuegbar * 0.75F));
 }
 
 void zeitleisteErklaerung(float breite, float hoehe) {

@@ -1149,6 +1149,16 @@ std::vector<Schritt> zeitleisteSchritte() {
         }
         return -1000.0F;
     };
+    // zeitleiste1: Zeilen mit Unterbahnen - der Punkt im gezeichneten Block
+    // (Anteil der Breite; 1 = rechte Kante).
+    const auto blockPunkt = [](const std::string& zeile, const Path& pfad, float anteil) {
+        for (const App::ZlBlock& b : g_app->zlBloecke) {
+            if (b.zeile == zeile && b.pfad == pfad) {
+                return ImVec2{anteil >= 1.0F ? b.r.Max.x - 2.0F : b.r.Min.x + b.r.GetWidth() * anteil, b.r.GetCenter().y};
+            }
+        }
+        return ImVec2{-1.0F, -1.0F};
+    };
     const auto argVon = [](const Path& p) {
         const Node* n = nodeAt(g_app->doc.script(), p);
         return (n != nullptr && !n->args.empty()) ? std::atof(n->args.back().text.c_str()) : -1.0;
@@ -1193,7 +1203,7 @@ std::vector<Schritt> zeitleisteSchritte() {
         return yVon("fahrt") > 0.0F && yVon("schwenk") > 0.0F && yVon("skript") > 0.0F;
     }));
     // 1. Klick auf einen MOVE-Block (der zweite, 3000-5000 ms)
-    add(klickAn("MOVE-Block bei 4 s", [=] { return ImVec2{xVon(3800.0), yVon("fahrt")}; }));
+    add(klickAn("MOVE-Block bei 4 s", [=] { return blockPunkt("fahrt", Path{6}, 0.4F); }));
     add(pause(0.2));
     add(pruefe("Zeitleiste: Klick auf einen Kamerablock springt an seinen Anfang und waehlt die Kamera", [] {
         diag::detail("Knopftest: Zeitleiste - nach Klick auf MOVE: playMs " + std::to_string(g_app->playMs) +
@@ -1233,7 +1243,7 @@ std::vector<Schritt> zeitleisteSchritte() {
     //     Mitte greifen und 100 Punkte nach rechts ziehen - das wait davor
     //     (Zeile 5) wird laenger, im 50-ms-Raster.
     add(ziehenAn("zweiten MOVE-Block um 100 Punkte nach rechts verschieben",
-                 [=] { return ImVec2{xVon(3900.0), yVon("fahrt")}; }, 100.0F, 0.0F, 0));
+                 [=] { return blockPunkt("fahrt", Path{6}, 0.4F); }, 100.0F, 0.0F, 0));
     add(pause(0.3));
     add(pruefe("Zeitleiste: Block verschieben verlaengert das wait davor (Ripple, 50-ms-Raster)", [=] {
         const double neu = argVon(Path{5});
@@ -1262,7 +1272,7 @@ std::vector<Schritt> zeitleisteSchritte() {
     add(pruefe("Zeitleiste: Pos1 springt an den Anfang", [] { return g_app->playMs < 0.5; }));
     // 4. Kante eines Kamerablocks ziehen (MOVE 0-3000 -> ueber den naechsten MOVE hinaus)
     add(ziehenAn("Kante des ersten MOVE um 120 Punkte nach rechts",
-                 [=] { return ImVec2{xVon(3000.0) - 1.0F, yVon("fahrt")}; }, 120.0F, 0.0F, 0));
+                 [=] { return blockPunkt("fahrt", Path{3}, 1.0F); }, 120.0F, 0.0F, 0));
     add(pause(0.3));
     add(pruefe("Zeitleiste: Kante eines Kamerablocks ziehen aendert seine Dauer", [=] {
         const double neu = argVon(Path{3});

@@ -289,6 +289,32 @@ int main() {
         pruefe(d->oben.clips.size() == 1, "aussagekraeftige Animation in der Uebersicht");
     }
 
+    std::printf("Schnitt in einer Fahrt\n");
+    {
+        Script sk;
+        std::vector<Diag> dg;
+        (void)readScript("camera ( ENABLE );\ncamera ( MOVE, < 0 0 100 >, 3000 );\nwait ( 500 );\n"
+                         "camera ( MOVE, < 200 0 100 >, 0 );\nwait ( 500 );\ncamera ( MOVE, < 400 0 100 >, 2000 );\n"
+                         "camera ( PAN, < 0 90 0 >, < 0 0 0 >, 2000 );\nwait ( 500 );\ncamera ( PAN, < 0 0 0 >, < 0 0 0 >, 0 );\n",
+                         sk, dg);
+        const Ablauf a2 = simuliereAblauf(sk, "", AblaufWelt{});
+        const CameraTrack k2 = buildCameraTrack(a2.flach);
+        const Timeline t2 = buildTimeline(a2.flach, db);
+        const Scene sz2 = buildScene(a2.flach, MapData{});
+        spuren::SpurenQuellen q2;
+        q2.zeitleiste = &t2;
+        q2.kamera = &k2;
+        q2.szene = &sz2;
+        q2.ablauf = &a2;
+        const spuren::Spuren s2 = spuren::baue(q2);
+        int springt = 0;
+        for (const spuren::Clip& c : s2.fahrt.clips) { springt += c.springt ? 1 : 0; }
+        for (const spuren::Clip& c : s2.schwenk.clips) { springt += c.springt ? 1 : 0; }
+        // Der Schnitt bei 550 ms bricht die Fahrt ab (CGCam_Move: info_state &= ~CAMERA_MOVING,
+        // CGCam_SetPosition) - die Fahrt danach (1100 ms) beginnt vom Schnitt aus. Ebenso PAN mit 0.
+        pruefe(springt == 0 && s2.ueberlappungen == 0, "ein Schnitt mitten in einer Fahrt springt nicht zurueck");
+    }
+
     std::printf("Hilfen\n");
     pruefe(spuren::anzeigeName("md_jedi_male", "x") == "Jedi male" && spuren::anzeigeName("", "kyle") == "kyle", "anzeigeName");
     {

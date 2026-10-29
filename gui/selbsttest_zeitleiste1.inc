@@ -126,10 +126,11 @@ const char* const kMini =
     "print ( \"Ende\" );\n"
     "camera ( /*@CAMERA_COMMANDS*/ TRACK, \"pfad1\", 100.000, 0 );\n"
     "wait ( 500.000 );\n"
+    "set ( /*@SET_TYPES*/ \"SET_PARM1\", \"fertig\" );\n"
     "camera ( /*@CAMERA_COMMANDS*/ DISABLE );\n";
 // Pfade: 0 ENABLE, 1 MOVE 0, 2 PAN, 3 FADE, 4 ZOOM, 5 affect, 6 MOVE 1000 (kein wait davor),
 // 7 wait 1000, 8 MOVE 3000, 9 wait 1000, 10 MOVE 1000 (springt), 11 waitsignal, 12 print,
-// 13 camera TRACK, 14 wait 500, 15 DISABLE.
+// 13 camera TRACK, 14 wait 500, 15 set (eine Marke genau am Ende des wait 500), 16 DISABLE.
 
 std::vector<Schritt> miniSchritte() {
     std::vector<Schritt> s;
@@ -271,6 +272,23 @@ std::vector<Schritt> miniSchritte() {
         const App::ZlBlock* b = blockMit("skript", Path{9});
         return skriptText() == *vorher && g_app->doc.undoDepth() == *tiefe && b != nullptr && !b->geaendert;
     }));
+    // --- Eine Marke genau am Ende eines wait: die Kante gewinnt, und es wird geschrieben ---
+    add(ziehenAn("Kante des wait ( 500 ) - das set liegt genau an seinem Ende", [] {
+        for (const spuren::Clip& c : g_app->spuren.skript.clips) {
+            if (c.art == spuren::Art::Warten && c.pfad == Path{14}) { return ImVec2{xVon(c.endMs) - 3.0F, yVon("skript")}; }
+        }
+        return ImVec2{-1.0F, -1.0F};
+    }, 60.0F, 0.0F, 0));
+    add(pause(0.4));
+    add(pruefe("zeitleiste1: Kante unter einer Marke - das wait wird laenger, ein Schritt", [=] {
+        const double neu = argVon(Path{14});
+        diag::detail("Knopftest: zeitleiste1 - wait ( 500 ) jetzt " + std::to_string(neu) + ", Schritte " +
+                     std::to_string(g_app->doc.undoDepth() - *tiefe));
+        return neu > 500.0 && std::fmod(neu, 50.0) == 0.0 && g_app->doc.undoDepth() == *tiefe + 1;
+    }));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.4));
+    add(pruefe("zeitleiste1: Strg+Z - bytegleich", [=] { return skriptText() == *vorher && g_app->doc.undoDepth() == *tiefe; }));
     // --- Verschieben (Ripple): das wait davor wird laenger ---
     add(ziehenAn("MOVE 3000 um 90 Punkte nach rechts", [] { return imBlock("fahrt", Path{8}, 0.2F); }, 90.0F, 0.0F, 0));
     add(pause(0.4));

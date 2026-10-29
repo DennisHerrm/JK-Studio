@@ -2298,6 +2298,8 @@ std::vector<Schritt> handbuchSchritte() {
                 if (md->empty() && std::filesystem::is_regular_file(::bhed::utf8Pfad(o + "\\assets1.pk3"), ec)) { *md = o + "\\assets1.pk3"; }
             }
             g_app->leftMode = 1;
+            g_app->settings.flussAnsicht = 0;
+            g_app->uiScale = 1.3F;   // wie im grossen Bildlauf
             missionenAusArchiv(*md);
         }));
         t.push_back(warteBis("Handbuch Zeitleiste: md_am_sith in der Auswahl", [] { return missionsliste::hat("md_am_sith", true); }, 3500));
@@ -2313,15 +2315,19 @@ std::vector<Schritt> handbuchSchritte() {
             g_app->zlProbleme = false;
             g_app->zlSuche[0] = 0;
             g_app->zlAuswahl.da = false;
-            g_app->timelineFrac = 0.48F;
+            g_app->timelineFrac = 0.40F;
             g_app->playing = false;
             g_app->playMs = 8000.0;
             g_app->mapDirty = true;
         }));
         t.push_back(pause(1.0));
+        t.push_back(tu("Handbuch Zeitleiste: Maus aus dem Bild", [] { setzeMaus(ImVec2{4.0F, ImGui::GetIO().DisplaySize.y - 4.0F}); }));
+        t.push_back(pause(0.3));
         t.push_back(hb::fotoTeil("h_zeitleiste", band));
         t.push_back(tu("Handbuch Zeitleiste: Detail", [] { g_app->zlDetail = true; }));
         t.push_back(pause(0.6));
+        t.push_back(tu("Handbuch Zeitleiste: Maus aus dem Bild", [] { setzeMaus(ImVec2{4.0F, ImGui::GetIO().DisplaySize.y - 4.0F}); }));
+        t.push_back(pause(0.3));
         t.push_back(hb::fotoTeil("h_zl_detail", band));
         t.push_back(tu("Handbuch Zeitleiste: Uebersicht", [] { g_app->zlDetail = false; }));
         t.push_back(pause(0.4));
@@ -2333,6 +2339,8 @@ std::vector<Schritt> handbuchSchritte() {
             return ImVec2{-1.0F, -1.0F};
         }));
         t.push_back(pause(0.6));
+        t.push_back(tu("Handbuch Zeitleiste: Maus aus dem Bild", [] { setzeMaus(ImVec2{4.0F, ImGui::GetIO().DisplaySize.y - 4.0F}); }));
+        t.push_back(pause(0.3));
         t.push_back(hb::fotoTeil("h_zl_erklaerung", [] {
             const ImRect b = hb::fensterRect("toolband");
             const ImRect e = g_app->zlErklaerungRect;
@@ -2343,10 +2351,25 @@ std::vector<Schritt> handbuchSchritte() {
             g_app->zlProbleme = true;
         }));
         t.push_back(pause(0.6));
+        t.push_back(tu("Handbuch Zeitleiste: Maus aus dem Bild", [] { setzeMaus(ImVec2{4.0F, ImGui::GetIO().DisplaySize.y - 4.0F}); }));
+        t.push_back(pause(0.3));
         t.push_back(hb::fotoTeil("h_zl_probleme", band));
         t.push_back(tu("Handbuch Zeitleiste: Probleme aus", [] { g_app->zlProbleme = false; }));
         t.push_back(pause(0.5));
         auto tiefe = std::make_shared<std::size_t>(0);
+        // Den Skriptablauf ins Bild rollen - dort liegt das Warten, das gezogen wird.
+        t.push_back(tu("Handbuch Zeitleiste: zum Skriptablauf rollen", [] {
+            float y = -1.0F;
+            for (const auto& [n, yy] : g_app->tlZeilenY) {
+                if (n == "skript") { y = yy; }
+            }
+            for (ImGuiWindow* w : GImGui->Windows) {
+                if (w != nullptr && y > 0.0F && std::strstr(w->Name, "/tracks_") != nullptr) {
+                    ImGui::SetScrollY(w, std::max(0.0F, w->Scroll.y + (y - w->Pos.y) - ImGui::GetFontSize() * 6.0F));
+                }
+            }
+        }));
+        t.push_back(pause(0.4));
         t.push_back(tu("Handbuch Zeitleiste: Tiefe merken", [=] { *tiefe = g_app->doc.undoDepth(); }));
         t.push_back(ziehenAn("die Kante des ersten Wartens im Skriptablauf", [] {
             for (const App::ZlBlock& b : g_app->zlBloecke) {
@@ -2358,6 +2381,8 @@ std::vector<Schritt> handbuchSchritte() {
             return ImVec2{-1.0F, -1.0F};
         }, 50.0F, 0.0F, 0));
         t.push_back(pause(0.6));
+        t.push_back(tu("Handbuch Zeitleiste: Maus aus dem Bild", [] { setzeMaus(ImVec2{4.0F, ImGui::GetIO().DisplaySize.y - 4.0F}); }));
+        t.push_back(pause(0.3));
         t.push_back(hb::fotoTeil("h_zl_ziehen", band));
         t.push_back(tu("Handbuch Zeitleiste: zuruecknehmen", [=] {
             while (g_app->doc.undoDepth() > *tiefe && g_app->doc.undo()) { rebuildTree(); }

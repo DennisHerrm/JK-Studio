@@ -526,6 +526,7 @@ private:
         }
         std::stable_sort(s_.skript.clips.begin(), s_.skript.clips.end(),
                          [](const Clip& a, const Clip& b) { return a.startMs < b.startMs; });
+        bahnenVerteilen(s_.skript, 0.0);
     }
 
     // --- Darsteller --------------------------------------------------------
@@ -557,6 +558,9 @@ private:
             bahnenVerteilen(d.animation, 0.0);
             bahnenVerteilen(d.oben, 0.0);
             bahnenVerteilen(d.laufen, 0.0);
+            // Wartezeiten aus mehreren Skripten derselben Entity koennen sich
+            // ueberlappen (run, affect aus einem zweiten Skript).
+            bahnenVerteilen(d.befehle, 0.0);
             s_.darsteller.push_back(std::move(d));
         }
         // affect-Ziele ohne Figur in der Szene (ein Ziel, das die Karte nicht

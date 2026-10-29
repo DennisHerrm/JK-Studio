@@ -534,9 +534,8 @@ struct App {
     };
     std::vector<TlBalken> tlBalken;
     int tlRollFigur = -1;            // zu dieser Figurenzeile ist die Zeitleiste schon gerollt
-    // Aufklappbare Spuren wie im Unreal Sequencer (rc597): welche Figuren
-    // aufgeklappt sind, ob die Kameragruppe offen ist, ob waits als eigene
-    // Bloecke erscheinen.
+    // Aufklappbare Darstellerzeilen (rc597, zeitleiste1): welche Figuren in
+    // der Uebersicht aufgeklappt sind (Animation und Befehle darunter).
     std::set<std::string> tlOffen;
     // Die Maus stand im letzten Bild ueber der Zeitleiste (rc599): dort
     // zoomt Strg+Rad die Zeitleiste, die Oberflaeche bleibt gleich gross.
@@ -2058,6 +2057,7 @@ struct App {
     ZlAuswahl zlAuswahl;                   // erklaert in der Seitenleiste ("Was passiert hier?")
     ZlAuswahl zlKandidat;                  // in diesem Bild angeklickt
     TlKandidat zlGriffKand;                // Kante gepackt (der zuletzt gezeichnete gewinnt)
+    spuren::Clip zlGriffClip;              // ... und ihr Block
     TlKandidat zlKlickKand;                // Block angeklickt
     bool zlKante = false;                  // eine rechte Kante wird gezogen
     Path zlKantePfad;
