@@ -10,6 +10,7 @@
 
 #include "bhed/regelwerk.h"
 
+#include <cctype>
 #include <cstdlib>
 #include <initializer_list>
 
@@ -651,6 +652,32 @@ bool kinoDarsteller(const MapEntity& e) {
     const std::string* nt = e.find("NPC_targetname");
     const std::string* sf = e.find("spawnflags");
     return nt != nullptr && !nt->empty() && sf != nullptr && (std::atoi(sf->c_str()) & 32) != 0;
+}
+
+bool kinoSkelettAnhang(const std::string& skelett, int spiel) {
+    const auto klein = [](std::string x) {
+        for (char& c : x) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        return x;
+    };
+    // Jedi Outcast: G_ParseAnimFileSet (codeJK2/game/NPC_stats.cpp:467 ff.)
+    // liest nur die eine animation.cfg - es gibt keine Kino-Datei je Karte.
+    if (spiel == kRegelwerkJediOutcast) { return false; }
+    // OpenJK: "if (Q_stricmp(skeletonName, "_humanoid")==0)" (code/game/
+    // NPC_stats.cpp:1116) - nur das Grundskelett.
+    if (spiel != kRegelwerkMovieDuels) { return klein(skelett) == "_humanoid"; }
+    // Movie Duels: "if (G_StandardHumanoid(skeletonName))" (NPC_stats.cpp:1249
+    // MD) mit der Liste humanoidExact[] (g_client.cpp:1340-1407 MD, Q_stricmp).
+    static const char* const kHumanoid[] = {
+        "_humanoid", "JK2anims", "_humanoid_ani", "_humanoid_bdroid", "_humanoid_ben", "_humanoid_cal",
+        "_humanoid_clo", "_humanoid_deka", "_humanoid_df2", "_humanoid_dooku", "_humanoid_galen",
+        "_humanoid_gon", "_humanoid_grievous", "_humanoid_jabba", "_humanoid_jango", "_humanoid_kotor",
+        "_humanoid_luke", "_humanoid_mace", "_humanoid_maul", "_humanoid_md", "_humanoid_melee",
+        "_humanoid_obi", "_humanoid_obi3", "_humanoid_pal", "_humanoid_reb", "_humanoid_ren", "_humanoid_rey",
+        "_humanoid_sbd", "_humanoid_vader", "_humanoid_yoda", "protocol", "assassin_droid", "saber_droid",
+        "hazardtrooper", "rockettrooper", "wampa", "galak_mech", "droideka", "kotor_monster"};
+    bool humanoid = false;
+    for (const char* h : kHumanoid) { humanoid = humanoid || klein(skelett) == klein(h); }
+    return humanoid;
 }
 
 }  // namespace bhed
