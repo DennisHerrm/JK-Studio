@@ -461,7 +461,13 @@ void fensterEnde() {
         dl->AddRect(ziel.Min, ziel.Max, ImGui::GetColorU32(farbe), 0.0F, 0, drin ? 3.0F : 1.0F);
         const char* text = tr(Str::DockDropHere);
         const ImVec2 tg = ImGui::CalcTextSize(text);
-        dl->AddText(ImVec2{ziel.GetCenter().x - tg.x * 0.5F, ziel.GetCenter().y - tg.y * 0.5F}, ImGui::GetColorU32(ImGuiCol_Text), text);
+        // Oben im Platz, nicht in der Mitte: dort haengt das gezogene Fenster mit
+        // seiner Titelleiste unter der Maus.
+        const ImVec2 tp{ziel.GetCenter().x - tg.x * 0.5F, ziel.Min.y + tg.y};
+        const float rand = tg.y * 0.3F;
+        dl->AddRectFilled(ImVec2{tp.x - rand, tp.y - rand}, ImVec2{tp.x + tg.x + rand, tp.y + tg.y + rand}, ImGui::GetColorU32(ImGuiCol_PopupBg),
+                          rand);
+        dl->AddText(tp, ImGui::GetColorU32(ImGuiCol_Text), text);
         s.ueberPlatz = drin ? id : std::string();
     } else if (s.ueberPlatz == id) {
         s.ueberPlatz.clear();
