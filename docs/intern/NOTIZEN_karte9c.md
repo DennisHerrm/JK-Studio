@@ -21,6 +21,8 @@ JKA-Mappers, shank: „also dass das Lighting richtig geht“. Erledigt: **1** (
 | – | 819975bb | Schlussrunde: Sollmaß Menü Build mit „Patch shadows“ (264 × 748) |
 | – | 2e87ee57 | Merge karte1 (18995492 Selbsttest optsicher) |
 | 3 | 15f744fd | Handbuchbilder (4 Sprachen): Himmel-Sonne, angedockte Leisten; Stufe-7-Bilder neu |
+| – | 9e58d0d7 | Notizen (erste Fassung) |
+| 2 | 589dfd9b | Durchsichtige Shader mit dem Bild ihrer ersten Stufe (Alpha wie im Spiel) |
 | – | (dieser) | Notizen |
 
 ## Punkt 1: Werkzeugleisten
@@ -81,8 +83,11 @@ JKA-Mappers, shank: „also dass das Lighting richtig geht“. Erledigt: **1** (
   auf Texel gerundet), Himmelssonnen je eine 1024²-Karte (höchstens 16, mehr: gleichmäßig
   ausgewählt, Energie erhalten); Rückseiten werden mitgezeichnet.
 - **Wie im Spiel gezeichnet**: mit Echtzeit-Licht und gebacken fehlen nodraw-Flächen (caulk,
-  clip …), alphaFunc und blendFunc der ersten Stufe gelten (statt qer_trans/qer_alphafunc);
-  gebacken wird der Himmel mitgezeichnet.
+  clip …), alphaFunc und blendFunc der ersten Stufe gelten (statt qer_trans/qer_alphafunc), mit
+  dem Bild dieser Stufe (map/clampMap/animMap, mit Alpha – qer_editorimage ist oft ein .jpg ohne
+  Alpha); gebacken wird der Himmel mitgezeichnet. Selbsttest: 00mj_larshomestead/lh_net_metal
+  (alphaFunc) als Gitter im Himmelsraum, Foto `karteneditor_s9c_gitter` – durch die Maschen sieht
+  man die Wand dahinter.
 - Vorschau bleibt ohne Bounce (beschriftet wie bisher).
 
 ### Messung (Echtzeit-Bild gegen Schnell-Backen, gezeichnet wie im Spiel)
@@ -170,6 +175,8 @@ Skript `SP/s9c/ende_s9c.sh` (nach `SP/s9b/ende_s9b.sh`, Pfade `Y:/licht/build-li
 | Kartenprüfung (278 MD-Karten, gegen 9b) | alle Summen gleich (0 Abstürze, 0 nicht geladen, 0 D3D-Meldungen, 1 → 1 nicht gezeichnete Entity) (549 s) |
 | sauberer Neubau | **0 Fehler, 0 Warnungen** (522 s) |
 | Leisten über echten Neustart | Lauf 1 13 OK / 0, Lauf 2 OK (1 FEHLER von Lauf 1: Brush-Typ, s. Punkt 1) |
+| nach 589dfd9b (Stufenbild) und dem zweiten Merge: Bau, ctest | ok, **148/148** (245 s) |
+| karteneditor voll (zweiter Lauf) | **3177 OK, 13 FEHLER** (980 s, Spitze 1049 MB) – nur noch die 13 aus karte1 6731aa8d (Optimierer, s. o.); Stufe 9c im Lauf 23 OK |
 
 ## Merge karte1
 
