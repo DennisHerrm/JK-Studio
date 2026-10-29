@@ -141,7 +141,7 @@
  "**Move a block.** Drag a block left or right. Everything after it moves along, so the rest stays in sync. Hold <kbd>Alt</kbd> to move only this block.": "**ブロックを動かす。** ブロックを左右にドラッグします。後ろのものもすべて一緒に動くので、残りはずれません。<kbd>Alt</kbd> を押したままだと、このブロックだけが動きます。",
  "Dragging a block in the timeline: everything after it moves along.": "タイムラインでブロックをドラッグ。後ろのものもすべて一緒に動きます。",
  "**Change a duration.** Drag the right edge of a block - a camera move, a wait - to make it shorter or longer.": "**長さを変える。** ブロック(カメラの移動、wait)の右端をドラッグして短く、または長くします。",
- "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second.": "**正確に刻む。** マウスがタイムラインの上にあるとき、<kbd>←</kbd> / <kbd>→</kbd> で再生位置が 50 ms、<kbd>Shift</kbd> 付きで 1 秒動きます。",
+ "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second, with <kbd>Ctrl</kbd> by five seconds.": "**正確に刻む。** マウスがタイムラインの上にあるとき、<kbd>←</kbd> / <kbd>→</kbd> で再生位置が 50 ms、<kbd>Shift</kbd> 付きで 1 秒、<kbd>Ctrl</kbd> 付きで 5 秒動きます。",
  "**Check the script.** Every drag changes a value in the script (a wait, a time). Click a block to see its line.": "**スクリプトを確認する。** ドラッグのたびにスクリプトの値(wait や時間)が変わります。ブロックをクリックするとその行が分かります。",
  "A warning sign on a camera block means it overlaps the next one - in the game the next move would start from where this one began, and the camera jumps.": "カメラブロックの警告マークは、次のブロックと重なっていることを示します。ゲームでは次の移動がこの移動の始点から始まり、カメラが跳びます。",
  "Look through the camera while you work": "作業中にカメラ視点で見る",

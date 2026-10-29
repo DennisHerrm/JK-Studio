@@ -150,7 +150,7 @@
  "**Play it.** Press ▶ in the timeline below the map. Switch **{{TlAudio}}** on to hear the dialogue you are matching the cuts against.": "**再生します。** マップの下のタイムラインで ▶ を押します。**{{TlAudio}}** をオンにすると、カットを合わせるセリフが聞こえます。",
  "To start, play - and Sound.": "開始:再生とサウンド。",
  "The right edge of a block.": "ブロックの右端。",
- "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second. The time display shows where you are; click it to switch to frames.": "**正確に送ります。** マウスをタイムラインの上に置くと、<kbd>←</kbd> / <kbd>→</kbd> で再生位置が 50 ms ずつ、<kbd>Shift</kbd> を押しながらだと 1 秒ずつ動きます。時刻表示で現在位置が分かり、クリックするとフレーム表示に切り替わります。",
+ "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second, with <kbd>Ctrl</kbd> by five seconds. The time display shows where you are; click it to switch to frames.": "**正確に送ります。** マウスをタイムラインの上に置くと、<kbd>←</kbd> / <kbd>→</kbd> で再生位置が 50 ms ずつ、<kbd>Shift</kbd> を押しながらだと 1 秒ずつ、<kbd>Ctrl</kbd> を押しながらだと 5 秒ずつ動きます。時刻表示で現在位置が分かり、クリックするとフレーム表示に切り替わります。",
  "The time display.": "時刻表示。",
  "**Check the script.** Every drag changes a value in the script (a wait, a time). Click a block: its line is selected in the script column on the right.": "**スクリプトを確認します。** ドラッグするたびに、スクリプトの値(wait や時間)が変わります。ブロックをクリックすると、右のスクリプト列でその行が選択されます。",
  "A clicked block and its line in the script.": "クリックしたブロックと、スクリプト内のその行。",

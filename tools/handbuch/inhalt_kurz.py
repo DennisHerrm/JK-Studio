@@ -261,7 +261,7 @@ KAMERA = [
             (T("**Move a block.** Drag a block left or right. Everything after it moves along, so the rest stays in sync. Hold <kbd>Alt</kbd> to move only this block."),
              "a_k_timen", T("Dragging a block in the timeline: everything after it moves along.")),
             T("**Change a duration.** Drag the right edge of a block - a camera move, a wait - to make it shorter or longer."),
-            T("**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second."),
+            T("**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second, with <kbd>Ctrl</kbd> by five seconds."),
             T("**Check the script.** Every drag changes a value in the script (a wait, a time). Click a block to see its line."),
         ],
         [T("A warning sign on a camera block means it overlaps the next one - in the game the next move would start from where this one began, and the camera jumps.")]),

@@ -33,7 +33,7 @@
     <p class="einleitung">时间轴播放场景并显示何时发生什么——带名称的摄像机镜头、带字幕的语音、音乐、脚本的等待以及每个角色。单击一个块，侧栏会解释它；拖动它，脚本随之改变。</p>
     <figure class="bild breit"><a href="../bilder/zh/h_zeitleiste.webp" class="zoom"><img src="../bilder/zh/h_zeitleiste.webp" alt="概览中的时间轴：摄像机位置和旋转带标记名称，语音带说话者和字幕，音乐，带等待时间的脚本流程，每个角色一行。" loading="lazy"></a><figcaption>概览中的时间轴：摄像机位置和旋转带标记名称，语音带说话者和字幕，音乐，带等待时间的脚本流程，每个角色一行。</figcaption></figure>
 <h2 id="abspielen">播放与浏览<a class="anker" href="#abspielen">#</a></h2>
-<p>地图下方的播放按钮（▶）用于开始和停止；鼠标位于时间轴上时，<kbd>空格</kbd> 作用相同。在标尺上单击或拖动可设置时间——3D 视图显示该时刻的场景。<kbd>左</kbd> / <kbd>右</kbd> 移动一个游戏帧（50 毫秒），按住 <kbd>Shift</kbd> 移动一秒，<kbd>Home</kbd> 跳到开头。速度框可放慢场景（声音仅在 1x 时播放），<strong><span class="ui">循环</span></strong> 循环播放。</p>
+<p>地图下方的播放按钮（▶）用于开始和停止；鼠标位于时间轴上时，<kbd>空格</kbd> 作用相同。在标尺上单击或拖动可设置时间——3D 视图显示该时刻的场景。<kbd>左</kbd> / <kbd>右</kbd> 移动一个游戏帧（50 毫秒，游戏逻辑的时间网格），按住 <kbd>Shift</kbd> 移动一秒，按住 <kbd>Ctrl</kbd> 移动五秒，<kbd>Home</kbd> 跳到开头。各行下方的图例列出了这些按键。速度框可放慢场景（声音仅在 1x 时播放），<strong><span class="ui">循环</span></strong> 循环播放。</p>
 <p>场景以约 30 秒的范围开始。<strong><span class="ui">全部</span></strong> 显示整个场景，− 和 + 缩小和放大，<kbd>Ctrl</kbd>+滚轮以鼠标指针为中心缩放，<kbd>Shift</kbd>+滚轮滚动。只有放大时，标尺上方才会出现一条简洁的导航栏，显示你看到的是场景的哪一部分——单击或拖动即可移动到那里。</p>
 <h2 id="ton">与游戏一致的声音<a class="anker" href="#ton">#</a></h2>
 <p>预览会像游戏一样播放场景中的声音。声音从视图所显示的摄像机处听到——播放时即脚本摄像机。每个声音每帧都会重新调整:摄像机远离时声音变小,切到别处时,那里的声音变得可闻。在听觉范围外开始的台词会静音继续播放。与游戏一样,只有摄像机可能看到的声源(其 PVS 内)才会让光剑嗡鸣、扬声器循环、门和特效发声;语音、ROFF 注记声音和破碎声总能听到。不可见的 NPC 点燃光剑时没有声音——点燃声在它出现时才响起。音量遵循游戏默认值(特效 0.5、语音 1.0、音乐 0.25),可在 <strong><span class="ui">编辑</span> → <span class="ui">首选项</span></strong> 中更改。声音只在 1x 速度下播放。</p>

@@ -2860,6 +2860,7 @@ enum class Str {
     ZlAllesHint,
     ZlNavHint,
     ZlLegende,
+    ZlTasten,
     ZlLegFahrt,
     ZlLegSchwenk,
     ZlLegSprache,

@@ -1468,7 +1468,9 @@ void zeitleisteSpuren(float x0, float w, float labelW, double sichtStart, double
     g_app->tlUeberMaus = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
     tourZielMelden("zeitleiste", ImGui::GetCurrentWindow()->Rect());
     if (g_app->tlUeberMaus && !ImGui::GetIO().WantTextInput) {
-        const double schritt = ImGui::GetIO().KeyShift ? 1000.0 : 50.0;
+        // Pfeil = ein Spielbild (50 ms, Raster der Spiellogik), Umschalt = 1 s, Strg = 5 s.
+        const ImGuiIO& io = ImGui::GetIO();
+        const double schritt = io.KeyCtrl ? 5000.0 : (io.KeyShift ? 1000.0 : 50.0);
         double ziel = g_app->playMs;
         if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, true)) { ziel += schritt; }
         if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, true)) { ziel -= schritt; }

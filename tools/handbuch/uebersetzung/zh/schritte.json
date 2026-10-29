@@ -150,7 +150,7 @@
  "**Play it.** Press ▶ in the timeline below the map. Switch **{{TlAudio}}** on to hear the dialogue you are matching the cuts against.": "**播放。** 按地图下方时间轴中的 ▶。打开 **{{TlAudio}}**,即可听到你用来对齐剪辑点的对白。",
  "To start, play - and Sound.": "开始:播放——以及声音。",
  "The right edge of a block.": "块的右边缘。",
- "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second. The time display shows where you are; click it to switch to frames.": "**精确步进。** 鼠标位于时间轴上时,<kbd>←</kbd> / <kbd>→</kbd> 把播放头移动 50 毫秒,按住 <kbd>Shift</kbd> 则移动一秒。时间显示会告诉你当前位置;单击它可切换为帧。",
+ "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second, with <kbd>Ctrl</kbd> by five seconds. The time display shows where you are; click it to switch to frames.": "**精确步进。** 鼠标位于时间轴上时,<kbd>←</kbd> / <kbd>→</kbd> 把播放头移动 50 毫秒,按住 <kbd>Shift</kbd> 则移动一秒，按住 <kbd>Ctrl</kbd> 则移动五秒。时间显示会告诉你当前位置;单击它可切换为帧。",
  "The time display.": "时间显示。",
  "**Check the script.** Every drag changes a value in the script (a wait, a time). Click a block: its line is selected in the script column on the right.": "**检查脚本。** 每次拖动都会修改脚本中的一个值(一个 wait、一个时间)。单击一个块:它对应的行会在右侧的脚本栏中被选中。",
  "A clicked block and its line in the script.": "单击的块及其在脚本中的行。",

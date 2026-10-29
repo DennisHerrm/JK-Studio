@@ -372,6 +372,21 @@ std::vector<Schritt> miniSchritte() {
     add(pruefe("zeitleiste1: Pos1 an den Anfang", [] { return g_app->playMs < 0.5; }));
     add(taste(ImGuiKey_RightArrow, "Pfeil rechts"));
     add(pruefe("zeitleiste1: Pfeil rechts - ein Spielbild (50 ms)", [] { return std::fabs(g_app->playMs - 50.0) < 0.5; }));
+    // Zeitleiste 2 Punkt 4: Pfeil 50 ms (Spielraster), Umschalt 1 s, Strg 5 s (am Ende begrenzt).
+    add(tasteMit(ImGuiMod_Shift, ImGuiKey_RightArrow, "Umschalt+Pfeil rechts"));
+    add(pruefe("zeitleiste1: Umschalt+Pfeil rechts - eine Sekunde", [] { return std::fabs(g_app->playMs - 1050.0) < 0.5; }));
+    const auto ende = [] { return std::max({g_app->timeline.practicalEndMs, g_app->camTrack.durationMs, 1.0}); };
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_RightArrow, "Strg+Pfeil rechts"));
+    add(pruefe("zeitleiste1: Strg+Pfeil rechts - fuenf Sekunden", [=] {
+        diag::detail("Knopftest: zeitleiste1 - nach Strg+Pfeil rechts " + std::to_string(g_app->playMs) + " ms (Ende " +
+                     std::to_string(ende()) + ")");
+        return ende() > 1200.0 && std::fabs(g_app->playMs - std::min(6050.0, ende())) < 0.5;
+    }));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_LeftArrow, "Strg+Pfeil links"));
+    add(pruefe("zeitleiste1: Strg+Pfeil links - fuenf Sekunden zurueck", [=] {
+        return std::fabs(g_app->playMs - std::max(0.0, std::min(6050.0, ende()) - 5000.0)) < 0.5;
+    }));
+    add(pruefe("zeitleiste1: die Legende nennt die Pfeiltasten", [] { return std::strstr(tr(Str::ZlLegende), "5 s") != nullptr; }));
     return s;
 }
 

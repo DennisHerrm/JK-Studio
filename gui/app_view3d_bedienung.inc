@@ -1594,6 +1594,7 @@ void drawTimeline() {
         const float k = fs / 14.0F;
         ImDrawList* dl = ImGui::GetWindowDrawList();
         ImVec2 q = ImGui::GetCursorScreenPos();
+        const float links = q.x;
         const float rechts = q.x + ImGui::GetContentRegionAvail().x;
         const float ym = q.y + legendeH * 0.5F;
         dl->PushClipRect(q, ImVec2{rechts, q.y + legendeH}, true);
@@ -1629,6 +1630,10 @@ void drawTimeline() {
         dl->AddText(ImVec2{q.x, ym - fs * 0.5F}, ImGui::GetColorU32(ImGuiCol_TextDisabled), tr(Str::ZlLegende));
         dl->PopClipRect();
         ImGui::Dummy(ImVec2{1.0F, legendeH});
+        // Die Legende kann abgeschnitten sein: die Tasten stehen vollstaendig im Tooltip.
+        if (ImGui::IsMouseHoveringRect(ImVec2{links, ym - legendeH * 0.5F}, ImVec2{rechts, ym + legendeH * 0.5F})) {
+            ImGui::SetTooltip("%s", tr(Str::ZlTasten));
+        }
     }
 }
 

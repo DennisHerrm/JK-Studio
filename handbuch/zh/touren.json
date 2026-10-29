@@ -888,7 +888,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**精确步进。** 鼠标位于时间轴上时,<kbd>←</kbd> / <kbd>→</kbd> 把播放头移动 50 毫秒,按住 <kbd>Shift</kbd> 则移动一秒。时间显示会告诉你当前位置;单击它可切换为帧。",
+      "text": "**精确步进。** 鼠标位于时间轴上时,<kbd>←</kbd> / <kbd>→</kbd> 把播放头移动 50 毫秒,按住 <kbd>Shift</kbd> 则移动一秒，按住 <kbd>Ctrl</kbd> 则移动五秒。时间显示会告诉你当前位置;单击它可切换为帧。",
       "bild": "c_tl_zeit",
       "unter": "时间显示。",
       "ziel": "gezeichnet:zeitleiste",

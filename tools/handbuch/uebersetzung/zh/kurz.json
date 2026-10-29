@@ -141,7 +141,7 @@
  "**Move a block.** Drag a block left or right. Everything after it moves along, so the rest stays in sync. Hold <kbd>Alt</kbd> to move only this block.": "**移动块。** 向左或向右拖动块。其后的所有内容随之移动,其余部分保持同步。按住 <kbd>Alt</kbd> 只移动这一个块。",
  "Dragging a block in the timeline: everything after it moves along.": "在时间轴中拖动块:其后的一切随之移动。",
  "**Change a duration.** Drag the right edge of a block - a camera move, a wait - to make it shorter or longer.": "**改变时长。** 拖动块的右边缘——摄像机移动、wait——使其变短或变长。",
- "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second.": "**精确步进。** 鼠标位于时间轴上方时,<kbd>←</kbd> / <kbd>→</kbd> 将播放头移动 50 毫秒,按住 <kbd>Shift</kbd> 则移动一秒。",
+ "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second, with <kbd>Ctrl</kbd> by five seconds.": "**精确步进。** 鼠标位于时间轴上方时,<kbd>←</kbd> / <kbd>→</kbd> 将播放头移动 50 毫秒,按住 <kbd>Shift</kbd> 则移动一秒，按住 <kbd>Ctrl</kbd> 则移动五秒。",
  "**Check the script.** Every drag changes a value in the script (a wait, a time). Click a block to see its line.": "**检查脚本。** 每次拖动都会修改脚本中的一个值(某个 wait、某个时间)。单击块即可看到它对应的行。",
  "A warning sign on a camera block means it overlaps the next one - in the game the next move would start from where this one began, and the camera jumps.": "摄像机块上的警告标志表示它与下一个块重叠——在游戏中,下一次移动会从这一次的起点开始,摄像机会跳动。",
  "Look through the camera while you work": "工作时透过摄像机观看",

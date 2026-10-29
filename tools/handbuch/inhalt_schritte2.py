@@ -62,7 +62,7 @@ SCHRITTE = {
           "a_k_timen", "Dragging a block in the timeline: everything after it moves along."),
         S("**Change a duration.** Drag the right edge of a camera block or a wait to make it shorter or longer. A walk keeps its length: it comes from the path finding and the speed of the figure.",
           "c_tl_kante", "The right edge of a block."),
-        S("**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second. The time display shows where you are; click it to switch to frames.",
+        S("**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second, with <kbd>Ctrl</kbd> by five seconds. The time display shows where you are; click it to switch to frames.",
           "c_tl_zeit", "The time display."),
         S("**Check the script.** Every drag changes a value in the script (a wait, a time). Click a block: its line is selected in the script column on the right.",
           "c_tl_klick", "A clicked block and its line in the script."),
