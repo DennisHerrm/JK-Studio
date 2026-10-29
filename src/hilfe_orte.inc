@@ -59,6 +59,7 @@
 {"programm", "knopf:ViewMap@modebar", "ViewMap", "ModeMapHint", ""},
 {"programm", "knopf:ViewModel@modebar", "ViewModel", "ModeModelHint", ""},
 {"programm", "knopf:ViewMapEditor@modebar", "ViewMapEditor", "ModeMapEditorHint", ""},
+{"programm", "knopf:ViewMenuEditor@modebar", "ViewMenuEditor", "ModeMenuEditorHint", ""},
 {"einstellungen", "knopf:PrefsBrowse", "MenuEdit>AppPrefs>PrefsBrowse", "", "zahl:programm.einstellungen < menue:MenuEdit>AppPrefs"},
 {"einstellungen", "knopf:PrefsReload", "MenuEdit>AppPrefs>PrefsDirectories>PrefsReload", "PrefsReloadHint", "zahl:programm.einstellungen < menue:MenuEdit>AppPrefs"},
 {"einstellungen", "knopf:PrefsReopen", "MenuEdit>AppPrefs>GroupApplication>PrefsReopen", "", "zahl:programm.einstellungen < menue:MenuEdit>AppPrefs"},

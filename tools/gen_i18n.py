@@ -2209,6 +2209,8 @@ from i18n_karte9 import KARTE9  # noqa: E402  (Stufe 9: restliche Karten-Werkzeu
 S += KARTE9
 from i18n_hilfe1 import HILFE1  # noqa: E402  (Stufe H1: der Helfer, Touren, KI-Anbindung)
 S += HILFE1
+from i18n_menue1 import MENUE1  # noqa: E402  (Menue-Editor M1)
+S += MENUE1
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

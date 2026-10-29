@@ -57,6 +57,8 @@ void abgelegteDateienVerarbeiten() {
     for (const AbgelegteDatei& a : liste) {
         if (g_app->leftMode == 3 && karteneditor::istModellDatei(a.pfad)) {
             karteneditor::modellAbgelegt(a.pfad, ImVec2(a.x, a.y));
+        } else if (g_app->leftMode == 4 && menueeditor::oeffneDatei(a.pfad)) {
+            // Menue-Editor M1: .menu/.txt auf den Editor gezogen
         } else {
             dateiVonAussen(a.pfad);
         }

@@ -1454,7 +1454,7 @@ Layout computeLayout() {
     // es hier auch sein.
     // Die Reiterleiste kostet eine Zeile - sonst laeuft alles unten hinaus.
     // Im Karten-Editor keine Reiterleiste (Stufe 3 Punkt 0b).
-    const float tabH = (g_app->tabs.empty() || g_app->leftMode == 3)
+    const float tabH = (g_app->tabs.empty() || g_app->leftMode == 3 || g_app->leftMode == 4)
                            ? 0.0F
                            : ImGui::GetFrameHeightWithSpacing();
     // --- NEGATIVE Hoehe statt Abzugsrechnung ----------------------------
@@ -1511,7 +1511,7 @@ Layout computeLayout() {
     // Also die Hoehe danach richten, was tatsaechlich darin steht.
     // Der Karten-Editor hat keine Kopfzeile: er beginnt direkt unter der
     // Menueleiste (Stufe 3 Punkt 0b).
-    l.headerH = (g_app->leftMode == 3)   ? 0.0F
+    l.headerH = (g_app->leftMode == 3 || g_app->leftMode == 4) ? 0.0F
                 : (g_app->leftMode == 0) ? ImGui::GetTextLineHeightWithSpacing()
                                          : ImGui::GetFrameHeightWithSpacing();
     // NEGATIV, und ohne die Kopfzeile.
@@ -1652,6 +1652,8 @@ float drawModeBar(float height, float headerH) {
         {2, Str::ViewModel, Str::ModeModelHint},
         // Stufe 1b: der Karten-Editor nach NetRadiant-Custom.
         {3, Str::ViewMapEditor, Str::ModeMapEditorHint},
+        // Menue-Editor M1: .menu als Text und Vorschau.
+        {4, Str::ViewMenuEditor, Str::ModeMenuEditorHint},
     };
 
     float textW = 0.0F;
@@ -1731,6 +1733,33 @@ void drawKartenEditorBereich(const Layout& l) {
     g_app->modeBarW = drawModeBar(l.frameH, l.headerH);   // headerH = 0 im Karten-Editor
     ImGui::TableNextColumn();
     karteneditor::zeichne(l.frameH);
+    ImGui::EndTable();
+}
+
+// --- Menue-Editor M1: der Arbeitsbereich Menu Editor ----------------------
+//
+// Wie der Karten-Editor: links die Modusleiste, rechts der ganze Editor
+// (gui/app_menue.cpp), ohne Skript-Reiter und Kopfzeile.
+void drawMenueEditorBereich(const Layout& l) {
+    {
+        const ImGuiWindow* w = ImGui::GetCurrentWindow();
+        ImGui::SetCursorScreenPos(ImVec2{ImGui::GetCursorScreenPos().x, w->Pos.y + w->TitleBarHeight + w->MenuBarHeight});
+    }
+    if (!ImGui::BeginTable("##spaltenMenueeditor", 2,
+                           ImGuiTableFlags_NoSavedSettings | ImGuiTableFlags_NoPadOuterX,
+                           ImVec2{0.0F, 0.0F})) {
+        return;
+    }
+    ImGui::TableSetupColumn("mode", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize,
+                            std::max(g_app->modeBarW, ImGui::GetFontSize() * 4.0F));
+    ImGui::TableSetupColumn("editor", ImGuiTableColumnFlags_WidthStretch, 1.0F);
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    g_app->modeBarW = drawModeBar(l.frameH, l.headerH);
+    ImGui::TableNextColumn();
+    ImGui::BeginChild("##menueeditor", ImVec2{0.0F, l.frameH});
+    menueeditor::zeichne(l.frameH);
+    ImGui::EndChild();
     ImGui::EndTable();
 }
 

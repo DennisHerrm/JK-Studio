@@ -410,6 +410,8 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_bewegung.cpp
     # rc601 integ: der zentrale Schalter OpenJK / Movie Duels
     gui/app_regelwerk.cpp
+    # Menue-Editor M1: der Arbeitsbereich Menu Editor (.menu als Text und Vorschau)
+    gui/app_menue.cpp
     # Stufe 1b: der Arbeitsbereich Karten-Editor (NetRadiant-Custom)
     gui/app_karte.cpp
     gui/app_karte_befehle.cpp
@@ -1080,6 +1082,22 @@ target_sources(bhed_core PRIVATE
   src/karte/optimierer_beheben.cpp
   # Stufe 7 Punkt 5: Echtzeit-Licht (die Lichter der Karte wie q3map2 -light)
   src/karte/echtlicht.cpp)
+# Menue-Editor M1: .menu lesen wie die Engine (SP COM_ParseExt, MP botlib),
+# Modell mit Quelltext-Spannen, @MENUS-Texte, Spieldaten.
+target_sources(bhed_core PRIVATE
+  src/menue/lexer.cpp
+  src/menue/parser.cpp
+  src/menue/bearbeiten.cpp
+  src/menue/texte.cpp
+  src/menue/spieldaten.cpp
+  # Punkt 2: Vorschau wie Menu_Paint/Item_Paint/RE_Font_DrawString
+  src/menue/vorschau.cpp
+  # Punkt 3: Textpuffer des Code-Editors
+  src/menue/textpuffer.cpp
+  # Punkt 6: Bedienung wie im Spiel (Skripte, Fokus, Cvars nur in der Vorschau)
+  src/menue/skript.cpp
+  # Punkt 4: Werkzeuge der Arbeitsflaeche (Einrasten, Ausrichten, Items ueber Spannen)
+  src/menue/werkzeuge.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -1125,6 +1143,30 @@ if(BEHAVED_TESTS)
   set(BEHAVED_KARTE_JA "" CACHE PATH "Jedi Academy base (nur lesen)")
   set(BEHAVED_KARTE_JK2 "" CACHE PATH "Jedi Outcast base (nur lesen)")
   set(BEHAVED_KARTE_MD "" CACHE STRING "Movie Duels base;MD (nur lesen)")
+  # Menue-Editor M1 Punkt 1: Parser, Modell, Spannen-Aenderungen, Texte;
+  # mit den Spielordnern zusaetzlich alle Originalmenues (Rundlauf).
+  add_executable(menuetest tests/menuetest.cpp)
+  target_link_libraries(menuetest PRIVATE bhed_core)
+  add_test(NAME menue_parser COMMAND menuetest)
+  # Punkt 2: Layout-Rechnungen der Vorschau (Schrift, Text, Rahmen, Slider, Cvars)
+  add_executable(menuevorschau tests/menuevorschau.cpp)
+  target_link_libraries(menuevorschau PRIVATE bhed_core)
+  add_test(NAME menue_vorschau COMMAND menuevorschau)
+  # Punkt 3: Textpuffer (Mehrfachcursor, Undo, Suchen/Ersetzen, Klammern, Falten, Rand, Farben)
+  add_executable(menuetext tests/menuetext.cpp)
+  target_link_libraries(menuetext PRIVATE bhed_core)
+  add_test(NAME menue_text COMMAND menuetext)
+  # Punkt 5/6: Seiten, gefundene Cvars, Skripte und Klicks wie im Spiel
+  add_executable(menueskript tests/menueskript.cpp)
+  target_link_libraries(menueskript PRIVATE bhed_core)
+  add_test(NAME menue_skript COMMAND menueskript)
+  # Punkt 4: Einrasten, Ausrichten, Verteilen, Einfuegen/Kopieren/Loeschen/Ebenen
+  add_executable(menuewerkzeug tests/menuewerkzeug.cpp)
+  target_link_libraries(menuewerkzeug PRIVATE bhed_core)
+  add_test(NAME menue_werkzeug COMMAND menuewerkzeug)
+  add_executable(menuerundlauf tests/menuerundlauf.cpp)
+  target_link_libraries(menuerundlauf PRIVATE bhed_core)
+  add_test(NAME menue_rundlauf COMMAND menuerundlauf "${BEHAVED_KARTE_JA}" "${BEHAVED_KARTE_JK2}" ${BEHAVED_KARTE_MD})
   add_executable(kartetexturen tests/kartetexturen.cpp)
   target_link_libraries(kartetexturen PRIVATE bhed_core)
   add_test(NAME karte_texturen COMMAND kartetexturen "${BEHAVED_KARTE_JA}" "${BEHAVED_KARTE_JK2}" ${BEHAVED_KARTE_MD})

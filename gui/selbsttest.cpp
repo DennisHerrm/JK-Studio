@@ -53,6 +53,8 @@
 #include "bhed/roffanim.h"
 #include "bhed/kartenpruefung.h"   // rc602
 #include "karteneditor.h"           // Stufe 1b: der Karten-Editor
+#include "menueeditor.h"            // Menue-Editor M1
+#include "bhed/menue/menue.h"
 #include "karte_qtdialog.h"          // Stufe 4: Bausteine der Plugin-Dialoge
 #include "bhed/karte/optimierer.h"
 #include "bhed/karte/spielkollision.h"
@@ -5463,6 +5465,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_karte1bis2.inc"   // Stufe 8d: Karten-Editor Stufe 1b und 2
 #include "selbsttest_karte3bis5.inc"   // Stufe 8d: Karten-Editor Stufe 3 bis 5 (mit karte6/karte8)
 #include "selbsttest_handbuch.inc"   // Stufe 8d: grosse Karte, Stufe 8g und die Bildlaeufe des Handbuchs
+#include "selbsttest_menue.inc"      // Menue-Editor M1: jede Funktion mit Wirkungspruefung
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {
@@ -5726,6 +5729,7 @@ void selbsttest() {
     static const bool nurModell = std::strcmp(modus, "modell") == 0;
     // Stufe 1b: der Karten-Editor (NetRadiant-Custom).
     static const bool nurKarteneditor = std::strcmp(modus, "karteneditor") == 0;
+    static const bool nurMenueeditor = std::strcmp(modus, "menueeditor") == 0;   // Menue-Editor M1
     static const bool nurAlleKarten = std::strcmp(modus, "allekarten") == 0;
     static const bool nurKartenpruefung = std::strcmp(modus, "kartenpruefung") == 0;   // rc602
     // rc602: die Funde der Kartenpruefung (Gegenstaende, Effektgluehen) - "kartenfunde".
@@ -6161,6 +6165,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurModell) {
                 a.schritte = modellSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurMenueeditor) {
+                a.schritte = menuetest::schritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurKarteneditor) {
