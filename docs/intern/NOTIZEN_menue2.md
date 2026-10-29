@@ -140,7 +140,22 @@ Spiel mit einem echten Start (nie gestartet), TTF-Schriften im Spiel.
 
 ## Tests (Schlussrunde)
 
-Siehe Abschnitt „Schlussrunde“ unten (Zahlen nach dem letzten Lauf).
+- Neubau (`--clean-first`, alle Ziele): 0 Warnungen, 0 Fehler (/W4 /WX).
+- ctest: 155/155 grün (neu: menue_pruefung, menue_diagnose, menue_zufall, menue_paket;
+  erweitert: menue_vorschau Klingen, menue_skript Klänge, menue_text .str/.sp, menue_rundlauf
+  Diagnose über alle Originalmenüs). Dabei behoben: karte_lizenz (Herkunftsköpfe),
+  exe_importe (Media Foundation verzögert gebunden, Windows N), hilfe_orte (neu erzeugt).
+- lint_sources und lint_fassung: ok; handbuch_sprachen: ok (149 Seiten x 4 Sprachen).
+- Selbsttest menueeditor: 46 OK, 0 FEHLER (en/de/zh-Hans/ja je ein Lauf für die Bilder).
+- Selbsttest karteneditor (BHED_KARTE_NUR=fotos): 78 OK, 0 FEHLER.
+- Modus 1 (mit Handbuch neben der .exe): 2644 OK, 1 FEHLER - der Zwischenablage-Schritt
+  „... und legt das ganze Skript in die Zwischenablage“; zur selben Zeit lief ein
+  jkstudio.exe eines anderen Strangs (Y:\sprache_cs\...), das dieselbe Windows-Zwischenablage
+  benutzt. M2 ändert am Kopieren nichts (gui/app.cpp nur der Abschnitt Menü-Editor in den
+  Einstellungen).
+- Spielordner (Movie Duels und Jedi Academy original) vorher/nachher: keine Änderung
+  (Liste mit Größe und Zeit, 4047 Einträge gleich). Der Absturzbericht des Spiels vom
+  ersten Start (fs_game base ohne MD-Vorgabe-cfg) liegt weiter in den Dokumenten.
 
 ## Offen
 
