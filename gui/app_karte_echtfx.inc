@@ -10,8 +10,12 @@
 // (Mitte); der erste Durchgang 600 ms nach dem Start; STARTOFF (1) und ONESHOT (2) warten auf ein
 // use und laufen hier nicht. Die Shader der Effekte wie die Engine sie registriert
 // (RE_RegisterShader): mit Skript die erste Stufe (blendFunc, sonst deckend), ohne Skript der
-// implizite 2D-Shader (Alpha, ohne Tiefentest). Grenze: der Editor hat keine .bsp - Teilchen mit
-// usePhysics prallen nicht ab (efx::sim spurt ohne Geometrie).
+// implizite 2D-Shader (Alpha, ohne Tiefentest). cullrange wie PlayEffect (FxScheduler.cpp:1174): ein
+// Primitiv entsteht nicht, wenn der Effekt weiter als cullrange vom Auge entfernt startet (hier mit dem
+// Auge des Bilds). Ausserhalb des Bilds wird ein Laeufer nicht gerechnet, wenn eine sichere Huelle
+// seines Effekts (Ursprung, Geschwindigkeit, Beschleunigung und Schwerkraft ueber die laengste
+// Lebensdauer, Groesse) ganz neben dem Sichtkegel liegt - das Bild bleibt gleich. Grenze: der Editor
+// hat keine .bsp - Teilchen mit usePhysics prallen nicht ab (efx::sim spurt ohne Geometrie).
 //
 //   Copyright (C) 2026 BehavEd-Remake contributors. GPL v2 (LICENSE).
 
@@ -24,9 +28,83 @@ struct EchtFx {
     EffectShaderSlots plaetze;                                      // Shadername (klein) -> Platz 1..
     std::vector<std::string> namen{""};                             // Platz -> Shadername
     std::vector<EffectInstance> laeufer;
+    // cullrange: je Effekt und Maske der weggelassenen Primitive eine Kopie ohne sie (feste Adressen)
+    std::map<std::pair<const efx::Effect*, std::uint64_t>, std::unique_ptr<efx::Effect>> ohne;
+    std::map<const efx::Effect*, float> huellen;   // fxHuelle je Effekt
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 };
 EchtFx g_fx;
+
+// Eine sichere Huelle eines Effekts um seinen Ursprung (Einheiten); < 0: nicht abschaetzbar (Folgeeffekte,
+// Modelle, Blitze, Licht - dann wird er immer gerechnet)
+float fxHuelle(const efx::Effect& eff) {
+    const auto laenge = [](const efx::Vec3Range& r) {
+        float l = 0;
+        for (const efx::Vec3& v : {r.min, r.max}) { l = std::max(l, std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])); }
+        return l;
+    };
+    const auto betrag = [](const efx::Range& r) { return std::max(std::fabs(r.min), std::fabs(r.max)); };
+    float huelle = 0;
+    for (const efx::Primitive& pr : eff.primitives) {
+        // Klang, Licht und Wackeln zeichnet die Echtzeit-Ansicht nicht
+        if (pr.type == efx::PrimitiveType::Sound || pr.type == efx::PrimitiveType::Light || pr.type == efx::PrimitiveType::CameraShake) { continue; }
+        const bool zeichnet = pr.type == efx::PrimitiveType::Particle || pr.type == efx::PrimitiveType::OrientedParticle ||
+                              pr.type == efx::PrimitiveType::Tail || pr.type == efx::PrimitiveType::Line || pr.type == efx::PrimitiveType::Decal ||
+                              pr.type == efx::PrimitiveType::Electricity || pr.type == efx::PrimitiveType::Cylinder;
+        if (!zeichnet || !pr.impactFx.empty() || !pr.deathFx.empty() || !pr.emitFx.empty() || !pr.playFx.empty()) { return -1.0F; }
+        const float t = betrag(pr.life) / 1000.0F;
+        const float a = laenge(pr.acceleration) + std::fabs(betrag(pr.gravity));
+        const float groesse = std::max({betrag(pr.size.start), betrag(pr.size.end), betrag(pr.size2.start), betrag(pr.size2.end)});
+        const float r = laenge(pr.origin) + laenge(pr.origin2) + betrag(pr.radius) + betrag(pr.height) + laenge(pr.velocity) * t + 0.5F * a * t * t + groesse;
+        huelle = std::max(huelle, r);
+    }
+    return huelle + 8.0F;
+}
+
+// Liegt die Kugel ganz neben dem Sichtkegel? vp spaltenweise (clip = M p), Ebenen nach Gribb/Hartmann
+bool kugelNeben(const float* vp, const float o[3], float r) {
+    const float z[4][4] = {{vp[0], vp[4], vp[8], vp[12]}, {vp[1], vp[5], vp[9], vp[13]}, {vp[2], vp[6], vp[10], vp[14]}, {vp[3], vp[7], vp[11], vp[15]}};
+    for (int i = 0; i < 2; ++i) {
+        for (const float s : {1.0F, -1.0F}) {
+            const float e[4] = {z[3][0] + s * z[i][0], z[3][1] + s * z[i][1], z[3][2] + s * z[i][2], z[3][3] + s * z[i][3]};
+            const float l = std::sqrt(e[0] * e[0] + e[1] * e[1] + e[2] * e[2]);
+            if (l > 0 && (e[0] * o[0] + e[1] * o[1] + e[2] * o[2] + e[3]) / l < -r) { return true; }
+        }
+    }
+    const float n[4] = {z[3][0] + z[2][0], z[3][1] + z[2][1], z[3][2] + z[2][2], z[3][3] + z[2][3]};   // nahe Ebene
+    const float l = std::sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+    return l > 0 && (n[0] * o[0] + n[1] * o[1] + n[2] * o[2] + n[3]) / l < -r;
+}
+
+// PlayEffect (FxScheduler.cpp:1174): "is too far away, so don't add this primitive group" - die Primitive
+// mit cullrange, deren Effekt weiter vom Auge entfernt startet; nullptr, wenn keines bleibt
+const efx::Effect* fxNachAbstand(const efx::Effect* eff, const float ort[3], const karte::Vektor3f& auge) {
+    const double dx = static_cast<double>(ort[0]) - auge[0];
+    const double dy = static_cast<double>(ort[1]) - auge[1];
+    const double dz = static_cast<double>(ort[2]) - auge[2];
+    const double ab2 = dx * dx + dy * dy + dz * dz;
+    std::uint64_t maske = 0;
+    std::size_t bleiben = 0;
+    for (std::size_t i = 0; i < eff->primitives.size(); ++i) {
+        const int r = eff->primitives[i].cullRange;   // wie gelesen; die Engine quadriert ihn beim Lesen
+        if (r != 0 && ab2 > static_cast<double>(r) * static_cast<double>(r)) {
+            if (i < 64) { maske |= std::uint64_t{1} << i; }
+        } else {
+            ++bleiben;
+        }
+    }
+    if (bleiben == 0) { return nullptr; }
+    if (maske == 0 || eff->primitives.size() > 64) { return eff; }
+    auto& kopie = g_fx.ohne[{eff, maske}];
+    if (!kopie) {
+        kopie = std::make_unique<efx::Effect>(*eff);
+        kopie->primitives.clear();
+        for (std::size_t i = 0; i < eff->primitives.size(); ++i) {
+            if ((maske & (std::uint64_t{1} << i)) == 0) { kopie->primitives.push_back(eff->primitives[i]); }
+        }
+    }
+    return kopie.get();
+}
 
 const efx::Effect* fxLaden(const std::string& pfad) {
     const auto it = g_fx.effekte.find(pfad);
@@ -112,7 +190,7 @@ void fxLaeuferBauen() {
 }  // namespace
 
 // Die Effekte dieses Bilds zeichnen (nach dem Deckenden, im durchscheinenden Teil)
-void echtEffekteZeichnen(const karte::Kamera& k, std::size_t geoStand, const kartegpu::Zustand3& basis) {
+void echtEffekteZeichnen(const karte::Kamera& k, const float* vp, std::size_t geoStand, const kartegpu::Zustand3& basis) {
     Editor& ed = e();
     const auto t0 = std::chrono::steady_clock::now();
     if (g_fx.stand != geoStand) {
@@ -130,7 +208,17 @@ void echtEffekteZeichnen(const karte::Kamera& k, std::size_t geoStand, const kar
     for (int i = 0; i < 3; ++i) { auge.viewer[i] = k.ursprung[i]; }
     auge.haveViewer = true;
     auge.sichtTabelle = false;
-    std::vector<EffectInstance> alle = g_fx.laeufer;
+    std::vector<EffectInstance> alle;
+    alle.reserve(g_fx.laeufer.size());
+    for (const EffectInstance& l : g_fx.laeufer) {
+        auto hu = g_fx.huellen.find(l.effect);
+        if (hu == g_fx.huellen.end()) { hu = g_fx.huellen.emplace(l.effect, fxHuelle(*l.effect)).first; }
+        if (hu->second >= 0 && kugelNeben(vp, l.origin, hu->second)) { continue; }
+        const efx::Effect* eff = fxNachAbstand(l.effect, l.origin, k.ursprung);
+        if (eff == nullptr) { continue; }
+        alle.push_back(l);
+        alle.back().effect = eff;
+    }
     const std::vector<EffectInstance> folge = effectFollowUpsAt(alle, jetzt, nullptr, [](const std::string& n) { return fxLaden(n); });
     alle.insert(alle.end(), folge.begin(), folge.end());
     const BspMesh netz = buildEffectMesh(alle, jetzt, rechts, oben, &g_fx.plaetze, nullptr, &auge);

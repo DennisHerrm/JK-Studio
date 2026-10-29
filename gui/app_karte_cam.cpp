@@ -1360,7 +1360,7 @@ void kameraZeichnen() {
             }
         }
         // Stufe 9d: fx_runner (Effekte) in der Echtzeit-Ansicht, abschaltbar (Build > Real-time effects)
-        if (echtJetzt && texturen && fuellen && ed.echtLicht.effekte) { echtEffekteZeichnen(k, geoStand, basis); }
+        if (echtJetzt && texturen && fuellen && ed.echtLicht.effekte) { echtEffekteZeichnen(k, &vp[0], geoStand, basis); }
         const auto& sel = ed.farben.auswahl3d;
         // gewaehlte Flaechen (Komponenten): Polygone, Kanten, Schwerpunkte
         std::vector<kartegpu::Punkt3> flaechenTint;

@@ -3,7 +3,7 @@
 //
 // Eingebunden in gui/selbsttest_handbuch.inc (nach Stufe 9c). Allein: BHED_KARTE_NUR=stufe9d.
 // Die Testkarten schreibt der Lauf selbst; der Testshader (Nebel) liegt im Import-Ordner
-// (<Einstellungen>/import/scripts/bhed9d_test.shader) - nie im Spielordner.
+// (<Einstellungen>/import/shaders/bhed9d_test.shader) - nie im Spielordner.
 namespace stufe9d {
 
 namespace ke = karteneditor;
