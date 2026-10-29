@@ -9,9 +9,9 @@ Erledigt: **Optimierer-Fund** (vom Anwender gemeldet, Vorrang), **Punkt 11** (As
 | Teil | Commit | Inhalt |
 |---|---|---|
 | 11 | 83ca36cd | Asset-Browser: Kern (sammeln, filtern, Vorschau-Daten), ctest karte_assets |
-| Fund | (siehe git log) | Optimierer: „Fix all safe“ ändert nichts Sichtbares mehr |
-| 11 | (siehe git log) | Asset-Browser: Fenster, Ziehen und Ablegen, Prefabs, Handbuch |
-| 9 | (siehe git log) | Texturen überblenden: Kern, Fenster, ctest karte_ueberblenden, q3map2_ueberblenden |
+| Fund | 6731aa8d, 18995492 | Optimierer: „Fix all safe“ ändert nichts Sichtbares mehr; Selbsttest optsicher |
+| 11, 9 | 6fe2c104 | Asset-Browser (Fenster, Ziehen und Ablegen, Prefabs) und Texturen überblenden (Kern, Fenster, Tests), Handbuch |
+| – | 3d4bd276, (dieser) | Schlussrunde: Optimizer-Testkarten, Repeat-Zustand; Notizen |
 
 ## Optimierer-Fund: md_rev_TarisUpper2 (Movie Duels)
 
