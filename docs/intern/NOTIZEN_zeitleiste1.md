@@ -213,6 +213,53 @@ TlKat*, Zoom-Menue ...); TlKamera bleibt (Ortskatalog des Helfers).
   ausgepackte Altstand fuer die Messung (`Y:\mission_alt`) ist geloescht;
   Spielordner nur gelesen.
 
+## Zeitleiste 2
+
+Auftrag `<SP>uftrag_zeitleiste2.md` (Rest von Zeitleiste 1) plus Zusatzpunkt 7
+(Untertitel im Vorschau-Bild, vom Koordinator nach dem Fund des Pruef-Agenten).
+Laeufe unter `Y:\mission_laeufe\zl2*`; Schnelllaeufe mit `BHED_ZL1_NUR=mini`,
+`=jk2`, `=untertitel`.
+
+- **Punkt 4 Pfeiltasten** (d9e3ab82): Pfeil 50 ms, Umschalt 1 s, Strg 5 s;
+  Legende nennt die Tasten, Tooltip ueber der Legende mit der ganzen Liste;
+  Handbuch (Seite zeitleiste, Tour k-neu-timen, 4 Sprachen). Rot zl2p4rot
+  (29/3), gruen zl2p4gr (32/0).
+- **Punkt 3 fremde Skripte** (25c825b2): Bloecke aus run/use/spawnscript
+  tragen `fremdPfad` (CamSegment, TimelineEvent, ActorStep, Clip); Erklaerung
+  zeigt "Skript X, Zeile N" und den Befehlstext (Modell-Rueckruf
+  fremdesSkript), "Skriptzeile oeffnen" oeffnet den Reiter
+  (reiterMitAblaufSkript, auch fuer skriptFuerAblauf) oder das Archiv und
+  waehlt die Zeile. Fund dabei: der alte Knopf fand Reiter aus dem Speicher
+  nie (reiterMitPfad vergleicht Dateipfade). Rot zl2p3rot (33/3), gruen
+  zl2p3gr (35/0); ctest spuren mit fremdem Skript.
+- **Punkt 2 JK2-Untertitel** (c0f67536): Kernmodul `bhed/untertitel.h`
+  (CG_ParseServerinfo je Spiel: JKA YAVIN1B, MD zusaetzlich die JK2-Karten
+  ohne Nachfrage, JK2 Umbenennung nur ohne eigenes Paket, Zusatzpakete nur
+  mit; Schluessel wie PlayIcarusSound/CG_CaptionText, '#'-Referenzen,
+  FixIllegalChars). Test `untertitel` mit eigener .str/.sp. Selbsttest
+  kejim_post/start_level (Original-JK2): rot zl2p2rot (6 Saetze, 0 Text),
+  gruen zl2p2gr ("Shhh", "I think I saw someone.", Pakete KEJIM_POST +
+  ARTUS_MINE). Abweichung: ladeSp schreibt Referenzen gross, JK2 vergleicht
+  den Teil nach dem Paketnamen genau - Originaldateien sind durchweg gross.
+- **Punkt 7 Untertitel im Bild** (3fd09a50): PlayIcarusSound (g_subtitles,
+  SCF_USE_SUBTITLES, in_camera, Abstand 1200/350, Rundfunk), CG_CaptionText
+  (Umbruch bei 640 mit ergoec, Buchstabenzeit = Klanglaenge/strlen),
+  CG_DrawCaptionText (je zwei Zeilen, Mitte des unteren Balkens 456, sonst
+  0.88*(480-1.5*Hoehe)), SET_CAPTIONTEXTCOLOR (colorTable), MD
+  cg_textprintscale "0.5f" mit den Aenderungen vom 2026-10-13 aus mdgit,
+  JK2 Breite mit ^n. Schalter "Untertitel" in der Transportleiste (keine /
+  in Zwischensequenzen / alle, Vorgabe wie im Spiel: JKA/MD 0, JK2 2).
+  RE_Font_DrawString als gemeinsame Funktion `menue::schriftZeichnen`.
+  Selbsttest Mini-Szene (New mission zl2unter, eigenes .str, stumme WAV):
+  rot zl2p7rot (2/4), gruen zl2p7c (6/0, Balken 84 px, Text darin).
+  Abweichungen: die Seiten wechseln genau an captionNextTextTime (das Spiel
+  im ersten Bild danach); Klanglaenge aus der Datei statt aus dem
+  22-kHz-Puffer (+-1 ms); keine _sharp-Schriftvarianten; ob die installierte
+  MD-DLL (27.10.) schon "0.5f" hat, war nicht pruefbar (die Zeichenkette
+  fehlt in der DLL) - umgesetzt ist mdgit.
+  Testfund: ein Selbsttest, der nur playMs setzt, zeichnet das Bild nicht
+  neu (Balken vom alten Stand) - die Schritte setzen jetzt mapDirty.
+
 ## Changelog
 
 ## English
