@@ -4,7 +4,10 @@
 // Eigener Code.
 #include "bhed/menue/layout.h"
 
+#include "bhed/menue/skript.h"
+
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -454,6 +457,249 @@ std::string freierLayoutName(const std::vector<Layout>& ls) {
         const std::string s = "layout" + std::to_string(n);
         if (std::none_of(ls.begin(), ls.end(), [&](const Layout& l) { return l.name == s; })) { return s; }
     }
+}
+
+namespace {
+
+bool gleichOhneFall(const std::string& a, const std::string& b) {
+    if (a.size() != b.size()) { return false; }
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) { return false; }
+    }
+    return true;
+}
+
+bool gleichesRect(const Rechteck& a, const Rechteck& b) { return a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h; }
+
+// Ein Skript des Menues mit seinem Text, wie der Parser ihn fuer Item_RunScript abgelegt hat
+struct SkriptOrt {
+    int item;
+    const Eigenschaft* e;
+    const std::string* text;
+};
+
+const std::string* skriptFeld(const Item* it, const Menu& m, const std::string& k) {
+    if (it == nullptr) {
+        const std::pair<const char*, const std::string*> felder[] = {
+            {"onOpen", &m.onOpen}, {"onClose", &m.onClose}, {"onAccept", &m.onAccept}, {"onESC", &m.onESC}};
+        for (const auto& [n, f] : felder) {
+            if (gleichOhneFall(k, n)) { return f; }
+        }
+        return nullptr;
+    }
+    const std::pair<const char*, const std::string*> felder[] = {
+        {"action", &it->action},         {"onFocus", &it->onFocus},     {"leaveFocus", &it->leaveFocus},
+        {"mouseEnter", &it->mouseEnter}, {"mouseExit", &it->mouseExit}, {"mouseEnterText", &it->mouseEnterText},
+        {"mouseExitText", &it->mouseExitText}, {"accept", &it->accept}, {"selectNext", &it->selectNext},
+        {"selectPrev", &it->selectPrev}, {"doubleClick", &it->doubleClick}};
+    for (const auto& [n, f] : felder) {
+        if (gleichOhneFall(k, n)) { return f; }
+    }
+    return nullptr;
+}
+
+std::vector<SkriptOrt> skripteDesMenues(const Menu& m) {
+    std::vector<SkriptOrt> v;
+    auto sammle = [&](int item, const Item* it, const std::vector<Eigenschaft>& es) {
+        for (const Eigenschaft& e : es) {
+            if (!e.ok || e.kopf.datei != 0 || e.kopf.ausMakro) { continue; }
+            const std::string* t = skriptFeld(it, m, e.kanon.empty() ? e.schluessel : e.kanon);
+            if (t != nullptr && !t->empty()) { v.push_back(SkriptOrt{item, &e, t}); }
+        }
+    };
+    sammle(-1, nullptr, m.eigenschaften);
+    for (std::size_t i = 0; i < m.items.size(); ++i) { sammle(static_cast<int>(i), &m.items[i], m.items[i].eigenschaften); }
+    return v;
+}
+
+// Neuer Text zwischen { und }: setitemrect auf die genannten Namen entfernen, die neuen Befehle
+// hinter den letzten uebrigen Befehl (eigene Zeilen, wenn das Skript mehrzeilig ist). Eine
+// Ersetzung fuer den ganzen Koerper; was nicht wegfaellt, bleibt Zeichen fuer Zeichen.
+bool skriptMitRects(const std::string& t, const Eigenschaft& e, const std::set<std::string>& namen, const std::vector<std::string>& befehle,
+                    Ersetzung& out) {
+    std::vector<const Token*> tok;
+    for (const Token& x : e.args) {
+        if (x.datei == 0 && !x.ausMakro) { tok.push_back(&x); }
+    }
+    std::size_t auf = tok.size(), zu = tok.size();
+    for (std::size_t i = 0; i < tok.size(); ++i) {
+        if (tok[i]->s == "{" && auf == tok.size()) { auf = i; }
+        if (tok[i]->s == "}") { zu = i; }
+    }
+    if (auf >= tok.size() || zu >= tok.size() || zu <= auf) { return false; }
+    const std::uint32_t a = tok[auf]->ende, z = tok[zu]->anfang;
+    if (z < a || z > t.size()) { return false; }
+    auto istName = [&](const std::string& n) {
+        return std::any_of(namen.begin(), namen.end(), [&](const std::string& x) { return gleichOhneFall(x, n); });
+    };
+    // Spannen (relativ zu a), die wegfallen: vom Ende des vorigen Worts bis zum Ende von "setitemrect n x y w h [;]"
+    std::vector<std::pair<std::size_t, std::size_t>> weg;
+    std::uint32_t letztesEnde = a;   // Ende des letzten Worts, das bleibt
+    bool letztesMitTrenner = true;
+    for (std::size_t i = auf + 1; i < zu;) {
+        const Token& w = *tok[i];
+        if (gleichOhneFall(w.s, "setitemrect") && i + 5 < zu && istName(tok[i + 1]->s)) {
+            std::size_t j = i + 5;
+            const bool angehaengt = !tok[j]->s.empty() && tok[j]->s.back() == ';';
+            if (!angehaengt && j + 1 < zu && tok[j + 1]->s == ";") { ++j; }
+            const std::uint32_t von = i == auf + 1 ? a : tok[i - 1]->ende;
+            weg.emplace_back(von - a, tok[j]->ende - a);
+            i = j + 1;
+            continue;
+        }
+        letztesEnde = w.ende;
+        letztesMitTrenner = w.s == ";" || (!w.s.empty() && w.s.back() == ';');
+        ++i;
+    }
+    const std::string koerper = t.substr(a, z - a);
+    const std::size_t einfuege = letztesEnde - a;
+    std::string zusatz;
+    if (!befehle.empty()) {
+        const bool mehrzeilig = koerper.find('\n') != std::string::npos;
+        std::string einr;
+        if (mehrzeilig) {   // Einrueckung der Zeile des letzten Befehls bzw. der ersten Zeile nach {
+            std::size_t za = letztesEnde > a ? t.rfind('\n', letztesEnde - 1) : t.find('\n', a);
+            za = za == std::string::npos ? 0 : za + 1;
+            std::size_t ze = za;
+            while (ze < t.size() && (t[ze] == ' ' || t[ze] == '\t')) { ++ze; }
+            einr = t.substr(za, ze - za);
+        }
+        const std::size_t nlPos = t.find('\n');
+        const std::string nl = (nlPos != std::string::npos && nlPos > 0 && t[nlPos - 1] == '\r') ? "\r\n" : "\n";
+        if (!letztesMitTrenner) { zusatz += " ;"; }
+        for (const std::string& b : befehle) { zusatz += (mehrzeilig ? nl + einr : std::string(" ")) + b + " ;"; }
+    }
+    std::string neu;
+    std::size_t p = 0;
+    bool eingefuegt = false;
+    for (const auto& [von, bis] : weg) {
+        if (!eingefuegt && einfuege <= von) {
+            neu += koerper.substr(p, einfuege - p) + zusatz;
+            p = einfuege;
+            eingefuegt = true;
+        }
+        neu += koerper.substr(p, von - p);
+        p = bis;
+    }
+    if (!eingefuegt) {
+        neu += koerper.substr(p, einfuege - p) + zusatz;
+        p = einfuege;
+    }
+    neu += koerper.substr(p);
+    if (neu == koerper) { return false; }
+    out = Ersetzung{a, z, neu};
+    return true;
+}
+
+}  // namespace
+
+LayoutZustaende layoutZustaende(const Datei& d, int menu, const std::vector<Layout>& ls, const LayoutGroessen& g, const Laufzeit& offen,
+                                bool kenntSetItemRect, const std::vector<std::string>& alteKinder) {
+    LayoutZustaende z;
+    if (menu < 0 || static_cast<std::size_t>(menu) >= d.menus.size() || static_cast<std::size_t>(menu) >= offen.items.size()) { return z; }
+    const Menu& m = d.menus[static_cast<std::size_t>(menu)];
+    const std::size_t mi = static_cast<std::size_t>(menu);
+    // alle Kinder (fuer das Erkennen und Aufraeumen), auch die eines gerade aufgeloesten Layouts
+    std::set<std::string> kinder(alteKinder.begin(), alteKinder.end());
+    for (const Layout& l : ls) {
+        for (const LayoutKind& k : l.kinder) {
+            if (!k.spacer && !k.layout) { kinder.insert(k.name); }
+        }
+    }
+    std::vector<std::size_t> kindItems;
+    for (std::size_t i = 0; i < m.items.size() && i < offen.items[mi].size(); ++i) {
+        if (kinder.count(m.items[i].window.name) != 0) { kindItems.push_back(i); }
+    }
+    if (kindItems.empty()) { return z; }
+    auto sichtbarkeit = [&](const Laufzeit& lz) {
+        std::vector<bool> v(m.items.size(), true);
+        for (std::size_t i = 0; i < v.size() && i < lz.items[mi].size(); ++i) { v[i] = (lz.items[mi][i].flags & WINDOW_VISIBLE) != 0; }
+        return v;
+    };
+    auto rechne = [&](const std::vector<bool>& sicht) {
+        LayoutGroessen gz = g;
+        gz.sichtbar = [&m, sicht](const std::string& n) {
+            for (std::size_t i = 0; i < m.items.size(); ++i) {
+                if (m.items[i].window.name == n) { return i >= sicht.size() || sicht[i]; }
+            }
+            return true;
+        };
+        return rechneLayouts(ls, gz);
+    };
+    const LayoutErgebnis grund = rechne(sichtbarkeit(offen));
+    struct Zustand {
+        SkriptOrt ort;
+        std::vector<bool> sicht;
+        LayoutErgebnis lage;
+    };
+    std::vector<Zustand> zs;
+    for (const SkriptOrt& o : skripteDesMenues(m)) {
+        // schaltet das Skript Kinder um? Einmal von "alle sichtbar", einmal von "alle versteckt" aus
+        bool schaltet = false;
+        for (const bool alleSichtbar : {true, false}) {
+            Laufzeit t = offen;
+            for (const std::size_t i : kindItems) {
+                ItemZustand& iz = t.items[mi][i];
+                iz.flags = alleSichtbar ? (iz.flags | WINDOW_VISIBLE) : (iz.flags & ~WINDOW_VISIBLE);
+                iz.gueltig = true;
+            }
+            t.fuehreAus(menu, o.item, *o.text);
+            for (const std::size_t i : kindItems) { schaltet = schaltet || (((t.items[mi][i].flags & WINDOW_VISIBLE) != 0) != alleSichtbar); }
+        }
+        if (!schaltet) { continue; }
+        Laufzeit t = offen;
+        t.fuehreAus(menu, o.item, *o.text);
+        Zustand x{o, sichtbarkeit(t), {}};
+        x.lage = rechne(x.sicht);
+        zs.push_back(std::move(x));
+    }
+    // Kinder, die in irgendeinem Zustand anders liegen als im Grundzustand
+    auto grundRect = [&](const std::string& n, Rechteck& r) {
+        const auto it = grund.rects.find(n);
+        if (it != grund.rects.end()) {
+            r = it->second;
+            return true;
+        }
+        return g.rect && g.rect(n, r);
+    };
+    std::set<std::string> bewegt;
+    for (const Zustand& x : zs) {
+        for (const auto& [n, r] : x.lage.rects) {
+            Rechteck b;
+            if (grundRect(n, b) && !gleichesRect(b, r)) { bewegt.insert(n); }
+        }
+    }
+    z.lageWechselt = !bewegt.empty();
+    for (const Zustand& x : zs) {
+        LayoutZustandSkript s;
+        s.item = x.ort.item;
+        s.schluessel = x.ort.e->schluessel;
+        for (std::size_t i = 0; i < m.items.size(); ++i) {
+            const std::string& n = m.items[i].window.name;
+            if (bewegt.count(n) == 0 || i >= x.sicht.size() || !x.sicht[i]) { continue; }
+            Rechteck r;
+            const auto it = x.lage.rects.find(n);
+            if (it != x.lage.rects.end()) { r = it->second; }
+            else if (!grundRect(n, r)) { continue; }
+            // Item_SetScreenCoords: window.rect = rectClient + Menue (+ Rand); SP setzt window.rect
+            // direkt, MP addiert menu->window.rect.x/y selbst
+            const Fenster& w = m.items[i].window;
+            float ox = w.rect.x - w.rectClient.x, oy = w.rect.y - w.rectClient.y;
+            if (d.dialekt == Dialekt::MP) {
+                ox -= m.window.rect.x;
+                oy -= m.window.rect.y;
+            }
+            const std::string name = n.find_first_of(" \t;") != std::string::npos ? "\"" + n + "\"" : n;
+            s.befehle.push_back("setitemrect " + name + " " + zahlText(r.x + ox) + " " + zahlText(r.y + oy) + " " + zahlText(r.w) + " " +
+                                zahlText(r.h));
+        }
+        if (kenntSetItemRect) {
+            Ersetzung e;
+            if (skriptMitRects(d.text, *x.ort.e, kinder, s.befehle, e)) { z.ersetzungen.push_back(e); }
+        }
+        z.skripte.push_back(std::move(s));
+    }
+    return z;
 }
 
 }  // namespace bhed::menue

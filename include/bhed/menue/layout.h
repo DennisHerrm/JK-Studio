@@ -8,6 +8,10 @@
 //   // jkstudio:layout name=leiste type=hbox frame=panel spacing=8 margins=4,4,4,4 halign=center valign=fill items=a,*,b,@innen
 // items: Item-Namen, "*" bzw. "*2" = Spacer (Dehnung 1 bzw. 2), "@name" = verschachteltes Layout.
 // Ohne Layout bleibt die Datei byte-gleich.
+//
+// M5b - show/hide je Zustand: Skripte, die Kinder eines Layouts mit hidden=skip ein- oder
+// ausblenden, bekommen "setitemrect <kind> x y w h" fuer die Lage in dem Zustand danach
+// (Script_SetItemRect gibt es in JA SP/MP und Movie Duels, nicht in Jedi Outcast SP).
 #ifndef BHED_MENUE_LAYOUT_H
 #define BHED_MENUE_LAYOUT_H
 
@@ -20,6 +24,8 @@
 #include <vector>
 
 namespace bhed::menue {
+
+struct Laufzeit;
 
 enum class LayoutArt { Waagrecht, Senkrecht, Raster, Teiler };
 enum class LayoutAusrichtung { Anfang, Mitte, Ende, Fuellen };
@@ -80,6 +86,30 @@ struct LayoutErgebnis {
 
 // Ein freier Layoutname: layout1, layout2 ...
 [[nodiscard]] std::string freierLayoutName(const std::vector<Layout>& ls);
+
+// M5b: show/hide je Zustand. Ein Zustand ist der Grundzustand (nach onOpen) plus ein Skript des
+// Menues. Ob ein Skript Layout-Kinder umschaltet, entscheidet die Laufzeit (Item_RunScript mit
+// show/hide auf Name oder group): einmal alle Kinder sichtbar, einmal alle versteckt ausgefuehrt.
+// Jedes umschaltende Skript bekommt am Ende fuer jedes Kind, das in irgendeinem Zustand anders
+// liegt als im Grundzustand und nach dem Skript sichtbar ist, "setitemrect <kind> x y w h"
+// (SP: Bildschirm wie window.rect, MP: ohne den Versatz des Menues - wie Script_SetItemRect).
+// Vorhandene setitemrect auf Layout-Kinder in diesen Skripten werden ersetzt, der uebrige Text
+// bleibt wie er ist. Kinder, die das Skript nicht nennt, gelten als im Grundzustand.
+struct LayoutZustandSkript {
+    int item = -1;                       // -1 = Skript des menuDef (onOpen ...)
+    std::string schluessel;              // wie im Text (action, mouseEnter, onOpen ...)
+    std::vector<std::string> befehle;    // die setitemrect-Befehle fuer diesen Zustand
+};
+struct LayoutZustaende {
+    std::vector<LayoutZustandSkript> skripte;   // die Skripte, die Layout-Kinder umschalten
+    std::vector<Ersetzung> ersetzungen;         // leer, wenn der Dialekt setitemrect nicht kennt
+    bool lageWechselt = false;                  // mindestens ein Zustand legt Kinder anders
+};
+// offen: Laufzeit mit geoeffnetem Menue (Grundzustand); g: rects wie nach dem Rechnen des
+// Grundzustands; alteKinder: Kinder eines gerade aufgeloesten Layouts (ihre setitemrect fallen weg).
+[[nodiscard]] LayoutZustaende layoutZustaende(const Datei& d, int menu, const std::vector<Layout>& ls, const LayoutGroessen& g,
+                                              const Laufzeit& offen, bool kenntSetItemRect,
+                                              const std::vector<std::string>& alteKinder = {});
 
 }  // namespace bhed::menue
 

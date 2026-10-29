@@ -2924,6 +2924,9 @@ enum class Str {
     MeLayoutAufloesenTip,
     MeLayoutTextBreit,
     MeLayoutFehlt,
+    MeLayoutZustaende,
+    MeLayoutZustaendeTip,
+    MeLayoutOhneSetItemRect,
     Count,
 };
 

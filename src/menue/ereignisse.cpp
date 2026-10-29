@@ -99,11 +99,16 @@ std::vector<Ereignis> ereignisseFuer(Dialekt d, Spiel s) {
 }
 
 std::vector<std::string> bausteinBefehle(Dialekt d, Spiel s) {
-    (void)s;
-    // commandList der beiden ui_shared-Fassungen (Movie Duels SP wie OpenJK SP)
+    // Jedi Outcast SP (jk2sp.exe 1.04, Steam): die commandList hat kein setitemrect, setitemtext,
+    // setitembackground, transition2 und delay (Namen im Programm gelesen; OpenJKs JK2_MODE nimmt
+    // die JA-Liste und ist darin nicht wie das Original)
+    static const std::vector<std::string> jk2 = {"show", "hide", "fadein", "fadeout", "setitemcolor", "setcolor", "setfocus", "setbackground",
+                                                 "transition", "play", "playlooped", "open", "close", "setcvar", "exec", "orbit", "uiScript"};
+    if (s == Spiel::JK2 && d == Dialekt::SP) { return jk2; }
+    // commandList der beiden ui_shared-Fassungen (Movie Duels SP wie OpenJK SP; dort ist playlooped auskommentiert)
     static const std::vector<std::string> sp = {"show", "hide", "fadein", "fadeout", "setitemcolor", "setcolor", "setfocus", "setitemrect",
                                                 "setitemtext", "setitembackground", "setbackground", "transition", "transition2",
-                                                "play", "playlooped", "open", "close", "setcvar", "exec", "orbit", "delay", "uiScript"};
+                                                "play", "open", "close", "setcvar", "exec", "orbit", "delay", "uiScript"};
     static const std::vector<std::string> mp = {"show", "hide", "fadein", "fadeout", "setitemcolor", "setcolor", "setfocus", "setitemrect",
                                                 "setitemtext", "setitembackground", "setbackground", "transition", "transition2",
                                                 "play", "playlooped", "open", "close", "setcvar", "setcvartocvar", "exec", "orbit", "uiScript"};

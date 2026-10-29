@@ -254,9 +254,9 @@ int main() {
         lk.start(k);
         lk.fokusKlangStd = "sound/std.wav";
         lk.oeffne("klang");
-        pruefe(lk.klaenge.size() == 3 && lk.klaenge[0] == "musik:music/probe.mp3" && lk.klaenge[1] == "sound/a.wav" &&
-                   lk.klaenge[2] == "musik:music/b.mp3",
-               "Klaenge: soundLoop (startBackgroundTrack), play, playlooped");
+        // M5b: playlooped ist in code/ui auskommentiert (SP spielt es nicht, siehe unten)
+        pruefe(lk.klaenge.size() == 2 && lk.klaenge[0] == "musik:music/probe.mp3" && lk.klaenge[1] == "sound/a.wav",
+               "Klaenge: soundLoop (startBackgroundTrack), play; playlooped gibt es in SP nicht");
         lk.klaenge.clear();
         lk.maus(0, 20, 20);
         lk.maus(0, 20, 70);
@@ -308,6 +308,35 @@ int main() {
             const float ox = dl == Dialekt::MP ? 100.0F : 0.0F, oy = dl == Dialekt::MP ? 50.0F : 0.0F;
             pruefe(r.x == 10 + ox && r.y == 20 + oy && r.w == 30 && r.h == 40,
                    std::string(dl == Dialekt::MP ? "MP" : "SP") + ": setitemrect wie Script_SetItemRect (Versatz des Menues nur MP)");
+        }
+        // Jedi Outcast SP hat kein setitemrect (jk2sp.exe): das Wort geht an DC->runScript, das rect bleibt
+        LeseOptionen jo;
+        jo.dialekt = Dialekt::SP;
+        jo.spiel = Spiel::JK2;
+        const Datei fj = lies("ui/r.menu", tx, jo);
+        Laufzeit lj;
+        lj.start(fj);
+        lj.oeffne("m");
+        lj.fuehreAus(0, 0, fj.menus[0].items[0].action);
+        pruefe(lj.rects[0][1].x == 160 && lj.rects[0][1].w == 50, "Jedi Outcast SP: setitemrect ist kein Befehl, das rect bleibt");
+        // playlooped: in code/ui (JA SP) und Movie Duels auskommentiert - keine Musik; MP und Jedi Outcast spielen sie
+        for (const Spiel sp : {Spiel::JA, Spiel::MD, Spiel::JK2}) {
+            for (const Dialekt dl : {Dialekt::SP, Dialekt::MP}) {
+                if (sp != Spiel::JA && dl == Dialekt::MP) { continue; }
+                LeseOptionen po;
+                po.dialekt = dl;
+                po.spiel = sp;
+                const Datei fp = lies("ui/p.menu", "{ menuDef { name m rect 0 0 640 480 visible 1 } }\n", po);
+                Laufzeit lp;
+                lp.start(fp);
+                lp.oeffne("m");
+                lp.klaenge.clear();
+                lp.fuehreAus(0, -1, "playlooped music/x.mp3");
+                const bool musik = std::find(lp.klaenge.begin(), lp.klaenge.end(), "musik:music/x.mp3") != lp.klaenge.end();
+                const bool soll = dl == Dialekt::MP || sp == Spiel::JK2;
+                pruefe(musik == soll, std::string("playlooped ") + (soll ? "spielt" : "fehlt") + " (" + (dl == Dialekt::MP ? "MP" : "SP") + " " +
+                                          (sp == Spiel::JK2 ? "JK2" : sp == Spiel::MD ? "MD" : "JA") + ")");
+            }
         }
     }
     std::printf("menueskript: %s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);

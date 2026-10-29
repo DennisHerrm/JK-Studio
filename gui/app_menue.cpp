@@ -325,6 +325,7 @@ struct Zustand {
     std::string spielFilter;
     std::map<std::string, Texte> layoutTexte;     // M5 Punkt 1: Texte je Sprache (breitester Text)
     std::vector<std::string> layoutWarnungen;     // M5 Punkt 1: letzte Rechnung
+    std::vector<std::string> layoutZustaende;     // M5b: Skripte, die nach show/hide die Lage setzen
     Farbe hoverFarbe{1, 0.8F, 0.2F, 1};           // M5 Punkt 2: Farbe der fertigen Hover-Effekte
 };
 

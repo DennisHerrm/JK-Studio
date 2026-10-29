@@ -822,6 +822,69 @@ std::vector<Schritt> schritteM5() {
     return s;
 }
 
+// M5b Punkt 1: show/hide je Zustand - knopf2 ist nach dem Oeffnen versteckt, "zeig" blendet ihn ein,
+// "weg" wieder aus. Mit "Versteckte Elemente geben ihren Platz frei" bekommen beide Skripte (und
+// onOpen) setitemrect; eine Laufzeit wie das Spiel legt die Knoepfe nach jedem Klick wie das Layout.
+const char* const kZustandProbe =
+    "{\n\tmenuDef\n\t{\n\t\tname zustandprobe\n\t\trect 0 0 640 480\n\t\tvisible 1\n\t\tonOpen { hide knopf2 }\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname panel\n\t\t\tstyle WINDOW_STYLE_FILLED\n\t\t\tbackcolor 0 0 0.4 1\n\t\t\trect 100 100 440 60\n\t\t\tvisible 1\n\t\t}\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname knopf1\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"Eins\"\n\t\t\trect 120 110 60 20\n\t\t\tvisible 1\n\t\t}\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname knopf2\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"Zwei\"\n\t\t\trect 200 130 60 20\n\t\t\tvisible 1\n\t\t}\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname knopf3\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"Drei\"\n\t\t\trect 300 125 60 20\n\t\t\tvisible 1\n\t\t}\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname zeig\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"Zeig\"\n\t\t\trect 100 300 60 20\n\t\t\tvisible 1\n"
+    "\t\t\taction\n\t\t\t{\n\t\t\t\tshow knopf2 ;\n\t\t\t}\n\t\t}\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname weg\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"Weg\"\n\t\t\trect 200 300 60 20\n\t\t\tvisible 1\n"
+    "\t\t\taction { hide knopf2 }\n\t\t}\n"
+    "\t}\n}\n";
+
+std::vector<Schritt> schritteM5b() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = [] { return me::stand(); };
+    add(tu("M5b Zustaende: Probe oeffnen, Reiter Eigenschaften", [] {
+        (void)me::oeffneText("ui/zustandprobe.menu", kZustandProbe);
+        me::setzeReiter(2);
+    }));
+    add(pause(0.3));
+    add(tu("M5b Zustaende: panel, knopf1..3 waehlen", [] {
+        for (const char* n : {"panel", "knopf1", "knopf2", "knopf3"}) { me::waehle(me::itemNummer(n), true); }
+    }));
+    add(pause(0.2));
+    add(klick(tr(Str::MeLayoutWaagrecht)));
+    add(pause(0.3));
+    add(klick(tr(Str::MeLayoutVersteckt)));
+    add(pause(0.3));
+    add(pruefe("M5b Zustaende: zeig, weg und onOpen bekommen setitemrect; nach jedem Klick liegen die Knoepfe wie im Layout", [st] {
+        const auto x = st();
+        bhed::menue::LeseOptionen o;
+        o.dialekt = bhed::menue::Dialekt::SP;
+        const bhed::menue::Datei d = bhed::menue::lies("ui/zustandprobe.menu", x.text, o);
+        if (!d.meldungen.empty() || d.menus.size() != 1 || d.menus[0].items.size() != 6) { return false; }
+        const auto& m = d.menus[0];
+        bhed::menue::Laufzeit lz;
+        lz.start(d);
+        lz.oeffne("zustandprobe");
+        auto lage = [&lz](std::size_t i) {
+            const auto& r = lz.rects[0][i];
+            return std::to_string(static_cast<int>(r.x)) + " " + std::to_string(static_cast<int>(r.y));
+        };
+        const std::string grund = lage(1) + "|" + lage(3);
+        lz.fuehreAus(0, 4, m.items[4].action);
+        const std::string mit = lage(1) + "|" + lage(2) + "|" + lage(3);
+        lz.fuehreAus(0, 5, m.items[5].action);
+        const std::string ohne = lage(3);
+        diag::info("Menue-Editor M5b Zustaende: Grund " + grund + ", nach zeig " + mit + ", nach weg knopf3 " + ohne);
+        return grund == "108 108|176 108" && mit == "108 108|176 108|244 108" && ohne == "176 108" && m.onOpen.find("setitemrect") != std::string::npos;
+    }));
+    add(foto("menue_zustaende"));
+    add(tu("M5b Zustaende: Rueckgaengig bis zum Original", [] {
+        for (int i = 0; i < 2; ++i) { (void)me::rueckgaengig(); }
+    }));
+    add(pause(0.2));
+    add(pruefe("M5b Zustaende: nach zwei Rueckgaengig byte-gleich mit dem Original", [st] { return st().text == kZustandProbe; }));
+    return s;
+}
+
 // Bildvergleich mit dem Spiel (BHED_MENUE_VERGLEICH=1): JKA-Hauptmenue SP und MP
 // in 4:3 fotografieren und die Lage der Flaeche melden (Zuschnitt in
 // tools/menue_bildvergleich.py gegen die Fotos aus dem Spiel).
@@ -944,6 +1007,12 @@ std::vector<Schritt> schritte() {
     // BHED_MENUE_NUR=m5: nur die Schritte von M5
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m5") == 0) {
         for (auto& x : schritteM5()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // BHED_MENUE_NUR=m5b: nur die Schritte von M5b
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m5b") == 0) {
+        for (auto& x : schritteM5b()) { add(std::move(x)); }
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }
@@ -1093,6 +1162,7 @@ std::vector<Schritt> schritte() {
     for (auto& x : schritteM3()) { add(std::move(x)); }
     for (auto& x : schritteM4()) { add(std::move(x)); }
     for (auto& x : schritteM5()) { add(std::move(x)); }
+    for (auto& x : schritteM5b()) { add(std::move(x)); }
     add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
     return s;
 }

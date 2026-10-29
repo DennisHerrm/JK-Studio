@@ -39,6 +39,22 @@ std::string klein(std::string s) {
 }
 bool gleich(const std::string& a, const std::string& b) { return klein(a) == klein(b); }
 
+// Befehle, die nicht jede commandList hat (c klein): code/ui (JA SP) und Movie Duels haben
+// playlooped auskommentiert; Jedi Outcast SP (jk2sp.exe 1.04, Namen im Programm gelesen) kennt
+// setitemrect, setitemtext, setitembackground, transition2/3, delay, playVoice/stopVoice,
+// setitemexec und increment-/decrementfeeder nicht. Unbekanntes geht wie im Spiel an DC->runScript.
+bool inCommandList(const std::string& c, Dialekt dl, Spiel sp) {
+    if (dl == Dialekt::SP && sp != Spiel::JK2 && c == "playlooped") { return false; }
+    if (dl == Dialekt::SP && sp == Spiel::JK2) {
+        static const char* const fehlt[] = {"setitemrect", "setitemtext", "setitembackground", "transition2", "transition3", "delay", "playvoice",
+                                            "stopvoice", "setitemexec", "incrementfeeder", "decrementfeeder"};
+        for (const char* f : fehlt) {
+            if (c == f) { return false; }
+        }
+    }
+    return true;
+}
+
 // M3: wie viele Woerter UI_RunMenuScript nach dem Namen liest (String_Parse/Int_Parse auf
 // args; OpenJK code/ui/ui_main.cpp, codemp/ui/ui_main.c, Movie Duels code/ui/ui_main.cpp).
 // Alle anderen Namen: keine - der Rest des Skripts laeuft weiter (Item_RunScript).
@@ -353,7 +369,8 @@ void Laufzeit::fuehreAus(int menu, int item, const std::string& s) {
     int schutz = 0;
     while (stringParse(s, p, cmd) && ++schutz < 1000) {
         if (cmd == ";") { continue; }
-        const std::string c = klein(cmd);
+        // nicht in der commandList dieses Spiels: leer, dann nimmt der letzte Zweig (DC->runScript) es
+        const std::string c = inCommandList(klein(cmd), d->dialekt, d->spiel) ? klein(cmd) : std::string();
         std::string a, b;
         if (c == "show" || c == "hide") {
             if (stringParse(s, p, a)) {

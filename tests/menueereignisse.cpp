@@ -61,6 +61,14 @@ int main() {
     pruefe(std::find(bef.begin(), bef.end(), "setcvartocvar") != bef.end(), "MP kennt setcvartocvar");
     const auto befSp = bausteinBefehle(Dialekt::SP, Spiel::JA);
     pruefe(std::find(befSp.begin(), befSp.end(), "setcvartocvar") == befSp.end(), "SP kennt setcvartocvar nicht (commandList)");
+    // M5b: code/ui (JA SP) und Movie Duels haben playlooped auskommentiert; Jedi Outcast SP (jk2sp.exe) hat
+    // playlooped, aber kein setitemrect/setitemtext/transition2/delay; MP hat playlooped
+    auto hat = [](const std::vector<std::string>& v, const char* b) { return std::find(v.begin(), v.end(), b) != v.end(); };
+    const auto befMd = bausteinBefehle(Dialekt::SP, Spiel::MD), befJk2 = bausteinBefehle(Dialekt::SP, Spiel::JK2);
+    pruefe(!hat(befSp, "playlooped") && !hat(befMd, "playlooped") && hat(bef, "playlooped"), "playlooped nur in MP und Jedi Outcast");
+    pruefe(hat(befJk2, "playlooped") && !hat(befJk2, "setitemrect") && !hat(befJk2, "setitemtext") && !hat(befJk2, "transition2") &&
+               !hat(befJk2, "delay") && hat(befSp, "setitemrect") && hat(befMd, "setitemrect"),
+           "Jedi Outcast SP: commandList wie jk2sp.exe");
 
     LeseOptionen o;
     o.dialekt = Dialekt::SP;

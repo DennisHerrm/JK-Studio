@@ -15,14 +15,19 @@ const Texte& texteDerSprache(const std::string& sprache) {
     return it->second;
 }
 
-// Sichtbarkeit nach onOpen (Grundzustand): eine eigene Laufzeit oeffnet das Menue wie das Spiel
-std::vector<bool> grundSichtbar(Dokument& d, int mi) {
-    const Menu& m = d.datei.menus[static_cast<std::size_t>(mi)];
-    std::vector<bool> v(m.items.size(), true);
+// Grundzustand: eine eigene Laufzeit oeffnet das Menue wie das Spiel (onOpen)
+Laufzeit offeneLaufzeit(Dokument& d, int mi) {
     Laufzeit lz;
     lz.start(d.datei);
     lz.basis = umgebung(d);
-    lz.oeffne(m.window.name);
+    lz.oeffne(d.datei.menus[static_cast<std::size_t>(mi)].window.name);
+    return lz;
+}
+
+// Sichtbarkeit nach onOpen
+std::vector<bool> grundSichtbar(Dokument& d, int mi, const Laufzeit& lz) {
+    const Menu& m = d.datei.menus[static_cast<std::size_t>(mi)];
+    std::vector<bool> v(m.items.size(), true);
     // die Flags nach onOpen stehen in der Laufzeit (anwenden uebertraegt nur rects und Texte)
     if (static_cast<std::size_t>(mi) < lz.items.size()) {
         for (std::size_t i = 0; i < v.size() && i < lz.items[static_cast<std::size_t>(mi)].size(); ++i) {
@@ -108,7 +113,9 @@ void layoutsAnwenden(Dokument& d, int mi, const Layout* geaendert, bool loeschen
         (void)layoutSchreiben(d.datei, mi, *geaendert, loeschen, e);
     }
     const std::map<std::string, LayoutBreite> breiten = layoutTextBreiten(d, mi);
-    const LayoutErgebnis r = rechneLayouts(ls, layoutGroessen(d, mi, vorab, breiten, grundSichtbar(d, mi)));
+    const Laufzeit offen = offeneLaufzeit(d, mi);
+    const std::vector<bool> sicht = grundSichtbar(d, mi, offen);
+    const LayoutErgebnis r = rechneLayouts(ls, layoutGroessen(d, mi, vorab, breiten, sicht));
     const Menu& m = d.datei.menus[static_cast<std::size_t>(mi)];
     std::map<std::string, Rechteck> ziel = vorab;
     for (const auto& [n, rr] : r.rects) { ziel[n] = rr; }
@@ -132,6 +139,27 @@ void layoutsAnwenden(Dokument& d, int mi, const Layout* geaendert, bool loeschen
     for (const std::string& n : r.fehlend) {
         char buf[300];
         std::snprintf(buf, sizeof(buf), tr(Str::MeLayoutFehlt), n.c_str());
+        z.layoutWarnungen.push_back(buf);
+    }
+    // M5b: show/hide je Zustand - die Skripte, die Kinder umschalten, setzen die Lage danach
+    std::vector<std::string> alte;   // Kinder eines gerade aufgeloesten Layouts: ihre setitemrect fallen weg
+    if (geaendert != nullptr && loeschen) {
+        for (const LayoutKind& k : geaendert->kinder) {
+            if (!k.spacer && !k.layout) { alte.push_back(k.name); }
+        }
+    }
+    const std::vector<std::string> befehle = bausteinBefehle(d.datei.dialekt, d.datei.spiel);
+    const bool kennt = std::find(befehle.begin(), befehle.end(), "setitemrect") != befehle.end();
+    const LayoutZustaende zs = layoutZustaende(d.datei, mi, ls, layoutGroessen(d, mi, ziel, breiten, sicht), offen, kennt, alte);
+    e.insert(e.end(), zs.ersetzungen.begin(), zs.ersetzungen.end());
+    z.layoutZustaende.clear();
+    for (const LayoutZustandSkript& s : zs.skripte) {
+        if (s.befehle.empty()) { continue; }
+        z.layoutZustaende.push_back((s.item < 0 ? m.window.name : m.items[static_cast<std::size_t>(s.item)].window.name) + ": " + s.schluessel);
+    }
+    if (zs.lageWechselt && !kennt) {
+        char buf[600];
+        std::snprintf(buf, sizeof(buf), tr(Str::MeLayoutOhneSetItemRect), d.datei.spiel == Spiel::JK2 ? "Jedi Outcast" : d.datei.spiel == Spiel::MD ? "Movie Duels" : "Jedi Academy");
         z.layoutWarnungen.push_back(buf);
     }
 }
@@ -234,7 +262,7 @@ void zeichneLayout(Dokument& d) {
             if (ImGui::Button(tr(Str::MeLayoutZeigMir))) {
                 // waehlt die ersten drei sichtbaren Elemente mit Namen - danach sind die Knoepfe frei
                 const Menu& m = d.datei.menus[static_cast<std::size_t>(mi)];
-                const std::vector<bool> s = grundSichtbar(d, mi);
+                const std::vector<bool> s = grundSichtbar(d, mi, offeneLaufzeit(d, mi));
                 d.auswahl.clear();
                 for (std::size_t i = 0; i < m.items.size() && d.auswahl.size() < 3; ++i) {
                     if (s[i] && !m.items[i].window.name.empty() && m.items[i].window.rectClient.w > 0) { d.auswahl.push_back(static_cast<int>(i)); }
@@ -363,6 +391,14 @@ void zeichneLayout(Dokument& d) {
     if (ImGui::Button(tr(Str::MeLayoutNeuRechnen))) { neu = true; }
     tipp(Str::MeLayoutNeuRechnenTip);
     for (const std::string& w : z.layoutWarnungen) { ImGui::TextColored(ImVec4{1, 0.75F, 0.3F, 1}, "%s", w.c_str()); }
+    if (!z.layoutZustaende.empty() && l.versteckteAuslassen) {
+        ImGui::TextWrapped(tr(Str::MeLayoutZustaende), static_cast<int>(z.layoutZustaende.size()));
+        if (ImGui::IsItemHovered()) {
+            std::string liste;
+            for (const std::string& x : z.layoutZustaende) { liste += "\n" + x; }
+            ImGui::SetTooltip("%s%s", tr(Str::MeLayoutZustaendeTip), liste.c_str());
+        }
+    }
     if (neu) { layoutAendern(d, mi, l); }
     ImGui::PopID();
 }
