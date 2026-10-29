@@ -370,4 +370,69 @@ std::string bauZeitText(double sekunden) {
     return z;
 }
 
+VisBedarf visBedarfAusPrt(const std::string& prt) {
+    VisBedarf v;
+    const char* p = prt.c_str();
+    const char* ende = p + prt.size();
+    auto zeile = [&]() {
+        while (p < ende && *p != '\n') { ++p; }
+        if (p < ende) { ++p; }
+    };
+    auto zahl = [&](long long& out) {
+        char* nach = nullptr;
+        out = std::strtoll(p, &nach, 10);
+        if (nach == p) { return false; }
+        p = nach;
+        return true;
+    };
+    if (prt.compare(0, 4, "PRT1") != 0) { return v; }
+    zeile();
+    long long flaechen = 0;
+    if (!zahl(v.cluster) || !zahl(v.portale) || !zahl(flaechen) || v.cluster <= 0 || v.portale < 0) { return v; }
+    zeile();
+    // LoadPortals: Portalseite 0 fuehrt in leafnums[1] und steht in der Liste von leafnums[0], Seite 1
+    // umgekehrt; CreatePassages geht die Liste des Ziels durch - zusammen je Cluster (Portale am Cluster)^2
+    std::vector<long long> grad(static_cast<std::size_t>(v.cluster), 0);
+    for (long long i = 0; i < v.portale; ++i) {
+        long long punkte = 0;
+        long long a = 0;
+        long long b = 0;
+        if (!zahl(punkte) || !zahl(a) || !zahl(b) || a < 0 || b < 0 || a >= v.cluster || b >= v.cluster) { return VisBedarf{}; }
+        ++grad[static_cast<std::size_t>(a)];
+        ++grad[static_cast<std::size_t>(b)];
+        zeile();
+    }
+    for (const long long g : grad) { v.passagen += g * g; }
+    const double portalbytes = static_cast<double>(((v.portale * 2 + 63) & ~63LL) >> 3);
+    const double passage = 16.0 + portalbytes;   // sizeof( passage_t ) mit 64-Bit-Zeiger, dazu cansee
+    v.speicherMB = (static_cast<double>(v.passagen) * passage + static_cast<double>(v.portale) * 2.0 * 3.0 * portalbytes) / (1024.0 * 1024.0);
+    v.ok = true;
+    return v;
+}
+
+bool bauVisVoll(const std::string& befehl) {
+    if (bauStufeAusBefehl(befehl) != BauStufe::Vis) { return false; }
+    for (const std::string& w : woerter(befehl)) {
+        if (klein(w) == "-fast") { return false; }
+    }
+    return true;
+}
+
+bool visFastInKommandozeile(const std::string& kommandozeile) {
+    std::size_t a = 0;
+    while (a <= kommandozeile.size()) {
+        const std::size_t b = std::min(kommandozeile.find(';', a), kommandozeile.size());
+        const std::vector<std::string> w = woerter(kommandozeile.substr(a, b - a));
+        bool vis = false;
+        bool schnell = false;
+        for (const std::string& x : w) {
+            vis = vis || klein(x) == "-vis";
+            schnell = schnell || klein(x) == "-fast";
+        }
+        if (vis && schnell) { return true; }
+        a = b + 1;
+    }
+    return false;
+}
+
 }  // namespace bhed::karte

@@ -1206,6 +1206,10 @@ struct BauLauf {
     // Stufe 8a Punkt 2: nach dem Bau <karte>.bhed schreiben (Quelle, .bsp)
     std::string editorDatenQuelle;
     std::string editorDatenBsp;
+    // Stufe 9d (VIS-Fund md_rev_TarisUpper2): die Portaldatei des BSP-Schritts und die Warnung vor einem
+    // langen vollen VIS (auch im Fortschrittsfenster)
+    std::string prtPfad;
+    std::string visWarnung;
 };
 BauLauf g_lauf;
 
@@ -1524,8 +1528,11 @@ void stapelAusgabe(const std::string& stueck) {
     l.zeilenRest.erase(0, p);
 }
 
+void visVorschauMelden();
+
 bool stapelBefehlStarten() {
     BauLauf& l = g_lauf;
+    visVorschauMelden();
     ausgabe("=== running build command ===");
     ausgabe(l.befehle[l.schritt]);
     std::string grund;
@@ -1542,6 +1549,41 @@ bool stapelBefehlStarten() {
 }
 
 void schrittBeginnen();
+
+// Stufe 9d (VIS-Fund md_rev_TarisUpper2, eigene Funktion): vor einem vollen -vis die Portaldatei des
+// BSP-Schritts lesen - Portale, Cluster und Arbeitsspeicher in die Konsole. Ab der Portal-Schwelle des
+// Optimierers oder wenn der Speicher knapp wird eine Warnung mit den Auswegen, auch im Fortschrittsfenster.
+// Die Dauer laesst sich aus den Portalen nicht berechnen (kejim_post: 47152 Portale, 10 min;
+// md_rev_TarisUpper2: 38042 Portale, Tage) - daher eine Groessenordnung, keine Zahl.
+void visVorschauMelden() {
+    BauLauf& l = g_lauf;
+    l.visWarnung.clear();
+    std::string prt;
+    if (!karte::bauVisVoll(l.befehle[l.schritt]) || l.prtPfad.empty() || !dateiLesen(l.prtPfad, prt)) { return; }
+    const karte::VisBedarf v = karte::visBedarfAusPrt(prt);
+    if (!v.ok) { return; }
+    const long long ram = bauplattform::arbeitsspeicherMB();
+    char z[1024];
+    std::snprintf(z, sizeof(z), trK(Str::KeVisBedarf), std::to_string(v.portale).c_str(), std::to_string(v.cluster).c_str(), v.speicherMB / 1024.0,
+                  static_cast<double>(ram) / 1024.0);
+    ausgabe(z);
+    const Editor& ed = e();
+    const bool lang = v.portale >= ed.optimierer.portalSchwelle;
+    const bool knapp = ram > 0 && v.speicherMB > 0.75 * static_cast<double>(ram);
+    if (!lang && !knapp) { return; }
+    std::string w;
+    if (knapp) { w += std::string(trK(Str::KeVisSpeicher)) + " "; }
+    if (lang) {
+        std::snprintf(z, sizeof(z), trK(Str::KeVisLang), std::to_string(ed.optimierer.portalSchwelle).c_str());
+        w += std::string(z) + " ";
+    }
+    if (const auto welt = ed.karte.welt(); welt != nullptr && karte::visFastInKommandozeile(welt->wert("_q3map2_cmdline"))) {
+        w += std::string(trK(Str::KeVisOriginalFast)) + " ";
+    }
+    w += trK(Str::KeVisAuswege);
+    konsoleSchreiben(KonsolenZeile::Art::Warnung, w + "\n");
+    l.visWarnung = w;
+}
 
 // EndMonitoringLoop mit dem Grund (Abweichung: die Zusammenfassung)
 void ueberwachungBeenden(const std::string& grund) {
@@ -1590,6 +1632,7 @@ void schrittBeginnen() {
     ausgabe("Listening...");
     l.schrittStart = std::chrono::steady_clock::now();   // m_timeout_timer.start()
     l.beob = karte::BauSchrittBeobachter{};
+    visVorschauMelden();
     ausgabe("=== running build command ===");
     ausgabe(l.befehle[l.schritt]);
     if (!l.prozess.starten(l.befehle[l.schritt], std::string(), false, grund)) {
@@ -1892,6 +1935,11 @@ void bauFortschrittZeichnen() {
         std::snprintf(z, sizeof(z), trK(Str::KeFsVergangen), karte::bauZeitText(st.vergangen).c_str());
         ImGui::TextUnformatted((std::string(z) + " - " + rest).c_str());
         ed.bauFortschrittText = rest;
+        if (!g_lauf.visWarnung.empty() && st.stufe == "VIS") {   // Stufe 9d
+            ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 127, 0, 255));   // wie Warnungen in der Konsole
+            ImGui::TextWrapped("%s", g_lauf.visWarnung.c_str());
+            ImGui::PopStyleColor();
+        }
         if (ImGui::Button((std::string(trK(Str::KeBmAbbrechen)) + "##fortschrittabbrechen").c_str())) { bauAbbrechen(); }
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
         ImGui::TextWrapped("%s", trK(Str::KeFsHinweis));
@@ -2190,6 +2238,10 @@ void bauStarten(std::size_t index) {
     g_lauf.eintrag = name;
     g_lauf.bspName = std::string(stamm.begin(), stamm.end());
     g_lauf.kartenPfad = ed.name;
+    {
+        const std::string bsp = bauVariablen().at("BspFile");
+        g_lauf.prtPfad = bsp.substr(0, bsp.size() - 4) + ".prt";
+    }
     bauAusfuehren(befehle);
     g_lauf.gpuModus = ed.bau.gpuBacken;   // Stufe 8d
     g_lauf.autoCpuMs = autoCpu;
@@ -2203,6 +2255,7 @@ void bauEigeneBefehle(const std::string& eintrag, const std::vector<std::string>
     g_lauf.eintrag = eintrag;
     g_lauf.bspName.clear();
     g_lauf.kartenPfad = e().name;
+    g_lauf.prtPfad.clear();
     bauAusfuehren(befehle);
     g_lauf.gpuModus = karte::GpuBacken::Aus;   // Stufe 8d: eigene Auftraege ohne GPU-Wahl
     g_lauf.editorDatenQuelle.clear();

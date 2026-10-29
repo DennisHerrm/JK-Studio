@@ -62,6 +62,9 @@ private:
 // Q_Exec( nullptr, cmd, ordner, false, false ): losgeloest starten (die Engine).
 bool losgeloestStarten(const std::string& befehlszeile, const std::string& ordner);
 
+// Stufe 9d: der eingebaute Arbeitsspeicher in MB (GlobalMemoryStatusEx ullTotalPhys), 0 unbekannt.
+[[nodiscard]] long long arbeitsspeicherMB();
+
 }  // namespace bhed::gui::bauplattform
 
 #endif

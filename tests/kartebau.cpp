@@ -292,6 +292,24 @@ void fortschrittPruefen(const std::string& q3) {
                "Zeiten je Schritt gegen den letzten Lauf: " + (v.empty() ? std::string() : v[0]));
         pruefe(bauZeitText(65.4) == "1:05" && bauZeitText(7) == "0:07" && bauZeitText(3723) == "1:02:03", "Zeittext m:ss / h:mm:ss");
     }
+    {   // Stufe 9d: was ein volles -vis braucht (vis.cpp LoadPortals, visflow.cpp PassageMemory)
+        // 3 Cluster, 4 Portale 0-1, 1-2, 0-2, 1-2: Portale je Cluster 2, 3, 3 -> 4 + 9 + 9 = 22 Passagen;
+        // portalbytes ((8 + 63) & ~63) >> 3 = 8; 22 * (16 + 8) + 8 Portalseiten * 3 * 8 = 720 Bytes
+        const std::string prt = "PRT1\n3\n4\n0\n4 0 1 0 (0 0 0 ) (0 0 64 ) (0 64 64 ) (0 64 0 ) \n4 1 2 0 (64 0 0 ) (64 0 64 ) (64 64 64 ) (64 64 0 ) \n"
+                                "4 0 2 1 (1 0 0 ) (1 0 64 ) (1 64 64 ) (1 64 0 ) \n4 1 2 0 (2 0 0 ) (2 0 64 ) (2 64 64 ) (2 64 0 ) \n";
+        const VisBedarf v = visBedarfAusPrt(prt);
+        pruefe(v.ok && v.cluster == 3 && v.portale == 4 && v.passagen == 22 && std::fabs(v.speicherMB * 1024.0 * 1024.0 - 720.0) < 1e-6,
+               "VIS-Bedarf: 22 Passagen, 720 Bytes (" + std::to_string(v.passagen) + ")");
+        pruefe(!visBedarfAusPrt("PRT1\n3\n1\n0\n4 0 7 0 (0 0 0 )\n").ok && !visBedarfAusPrt("GTKR\n").ok,
+               "VIS-Bedarf: Cluster ausserhalb oder kein PRT1 - nichts");
+        const VisBedarf r = visBedarfAusPrt(lies(q3 + "/raum.nrc.prt"));
+        pruefe(r.ok && r.cluster == 8 && r.portale == 10 && r.passagen == 52, "VIS-Bedarf raum.nrc.prt: 8 Cluster, 10 Portale, 52 Passagen");
+        pruefe(bauVisVoll(q + "-vis \"C:/m/a.map\"") && !bauVisVoll(q + "-vis -fast \"C:/m/a.map\"") && !bauVisVoll(q + "-meta \"C:/m/fast.map\""),
+               "volles VIS: -vis ohne -fast");
+        pruefe(visFastInKommandozeile("-bsp -meta; -vis -fast; -light -fast -patchshadows -samples 2 -filter -bounce 2") &&
+                   !visFastInKommandozeile("-bsp -meta; -vis; -light -fast") && !visFastInKommandozeile(""),
+               "_q3map2_cmdline: -vis -fast nur in der VIS-Stufe (md_rev_TarisUpper2)");
+    }
 }
 
 void editorDatenPruefen(const std::string& q3) {

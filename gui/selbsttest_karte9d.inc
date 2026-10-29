@@ -566,8 +566,78 @@ std::vector<Schritt> bruecke() {
     return s;
 }
 
+// VIS-Fund md_rev_TarisUpper2: vor einem vollen -vis Portale, Cluster und Arbeitsspeicher aus der
+// Portaldatei in der Konsole; ab der Portal-Schwelle des Optimierers die Warnung mit den Auswegen und dem
+// Hinweis auf das Original (_q3map2_cmdline mit -vis -fast); vor -vis -fast nichts davon.
+std::string quaderText(int x0, int y0, int z0, int x1, int y1, int z1) {
+    const int p[6][9] = {{x1, y1, z1, x1, y0, z1, x0, y1, z1}, {x1, y1, z1, x0, y1, z1, x1, y1, z0}, {x1, y1, z1, x1, y1, z0, x1, y0, z1},
+                         {x0, y0, z0, x1, y0, z0, x0, y1, z0}, {x0, y0, z0, x0, y0, z1, x1, y0, z0}, {x0, y0, z0, x0, y1, z0, x0, y0, z1}};
+    std::string t = "{\n";
+    for (const auto& e : p) {
+        char z[256];
+        std::snprintf(z, sizeof(z), "( %d %d %d ) ( %d %d %d ) ( %d %d %d ) yavin/temple_stone2 0 0 0 0.5 0.5 0 0 0\n", e[0], e[1], e[2], e[3], e[4], e[5],
+                      e[6], e[7], e[8]);
+        t += z;
+    }
+    return t + "}\n";
+}
+
+std::vector<Schritt> visHinweis() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    auto schwelle = std::make_shared<int>(0);
+    add(tu("Stufe 9d/VIS: Steinraum mit Zwischenwand und Tuer, _q3map2_cmdline mit -vis -fast, Portal-Schwelle 1, Eintraege VIS voll und -fast", [schwelle] {
+        karteDialogeZu();
+        stufe3::q3map2Bereitstellen();
+        ke::bauMenueSicherstellen();
+        ke::Editor& e = ke::editor();
+        e.bau = ke::Editor::BauEinstellungen{};
+        *schwelle = e.optimierer.portalSchwelle;
+        e.optimierer.portalSchwelle = 1;
+        raumSchreiben(false, false,
+                      "{\n\"classname\" \"func_group\"\n" + quaderText(-8, -512, 0, 8, -64, 512) + quaderText(-8, 64, 0, 8, 512, 512) +
+                          quaderText(-8, -64, 128, 8, 64, 512) + "}\n");
+        (void)ke::karteOeffnen(raumKarte());
+        e.karte.welt()->setzen("_q3map2_cmdline", "-bsp -meta; -vis -fast; -light -fast -patchshadows -samples 2 -filter -bounce 2");
+        e.bauProjekt.eintraege.push_back(karte::BauEintrag{"Test VIS voll", {"[q3map2] -meta \"[MapFile]\"", "[q3map2] -vis -saveprt -threads 1 \"[MapFile]\""}});
+        e.bauProjekt.eintraege.push_back(karte::BauEintrag{"Test VIS schnell", {"[q3map2] -meta \"[MapFile]\"", "[q3map2] -vis -fast -threads 1 \"[MapFile]\""}});
+        ke::konsoleLeeren();
+    }));
+    add(stufe3::bauMenuepunkt("Test VIS voll"));
+    add(stufe8::warteSek("Bau mit vollem VIS fertig", [] { return !ke::bauLaeuft(); }, 300));
+    add(pruefe("volles VIS: Portale, Cluster und Speicher aus der .prt in der Konsole, dazu die Warnung (Schwelle 1), das Original mit -vis -fast und die Auswege", [] {
+        const std::string bsp = ke::bauVariablen().at("BspFile");
+        const karte::VisBedarf v = karte::visBedarfAusPrt(dateiInhalt(bsp.substr(0, bsp.size() - 4) + ".prt"));
+        char z[1024];
+        std::snprintf(z, sizeof(z), ke::trK(Str::KeVisBedarf), std::to_string(v.portale).c_str(), std::to_string(v.cluster).c_str(), v.speicherMB / 1024.0,
+                      static_cast<double>(bauplattform::arbeitsspeicherMB()) / 1024.0);
+        char lang[512];
+        std::snprintf(lang, sizeof(lang), ke::trK(Str::KeVisLang), "1");
+        const std::string k = stufe3::konsoleText();
+        diag::detail("Knopftest: Stufe 9d/VIS - " + std::string(z) + " (" + std::to_string(v.passagen) + " Passagen)");
+        return v.ok && v.portale > 0 && v.cluster > 1 && k.find(z) != std::string::npos && k.find(lang) != std::string::npos &&
+               k.find(ke::trK(Str::KeVisOriginalFast)) != std::string::npos && k.find(ke::trK(Str::KeVisAuswege)) != std::string::npos &&
+               k.find(z) < k.find("-vis -saveprt -threads 1");
+    }));
+    add(tu("Konsole leeren", [] { ke::konsoleLeeren(); }));
+    add(stufe3::bauMenuepunkt("Test VIS schnell"));
+    add(stufe8::warteSek("Bau mit -vis -fast fertig", [] { return !ke::bauLaeuft(); }, 300));
+    add(pruefe("-vis -fast: kein Hinweis auf das volle VIS", [] {
+        const std::string k = stufe3::konsoleText();
+        const std::string kopf = std::string(ke::trK(Str::KeVisBedarf)).substr(0, std::string(ke::trK(Str::KeVisBedarf)).find('%'));
+        return k.find("-vis -fast -threads 1") != std::string::npos && k.find(kopf) == std::string::npos;
+    }));
+    add(tu("Portal-Schwelle zurueck, Eintraege weg", [schwelle] {
+        ke::Editor& e = ke::editor();
+        e.optimierer.portalSchwelle = *schwelle;
+        std::erase_if(e.bauProjekt.eintraege, [](const karte::BauEintrag& b) { return b.name == "Test VIS voll" || b.name == "Test VIS schnell"; });
+    }));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
+    for (Schritt& x : visHinweis()) { s.push_back(std::move(x)); }
     for (Schritt& x : modellSchatten()) { s.push_back(std::move(x)); }
     for (Schritt& x : nebel()) { s.push_back(std::move(x)); }
     for (Schritt& x : effekte()) { s.push_back(std::move(x)); }

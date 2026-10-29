@@ -182,10 +182,10 @@ OPTIMIERER = {
                    T("Fix", "Behebung", "修复", "修正"), T("Safe", "Sicher", "安全", "安全")],
          [_pruefzeile(*p) for p in _PRUEFUNGEN]),
         ("note", T(
-            "Hint suggestions are only shown, never applied: where a hint brush helps depends on the gameplay. A detail suggestion for decoration is an estimate too - never make brushes detail that seal the map.",
-            "Hint-Vorschläge werden nur gezeigt, nie angewendet: wo ein Hint-Pinsel hilft, hängt vom Spielablauf ab. Auch ein Detail-Vorschlag für Dekoration ist eine Schätzung - Pinsel, die die Karte abdichten, nie zu detail machen.",
-            "Hint 建议只会显示,不会自动应用:hint 笔刷在哪里有用取决于玩法。对装饰物的 detail 建议同样只是估算——绝不要把封闭地图的笔刷设为 detail。",
-            "hint の提案は表示するだけで、適用はしません。hint ブラシがどこで役立つかはゲームプレイ次第だからです。装飾に対する detail の提案も推定にすぎません。マップを密閉しているブラシは決して detail にしないでください。")),
+            "Hint suggestions are only shown, never applied: where a hint brush helps depends on the gameplay. A detail suggestion for decoration is an estimate too: after a build without a leak it leaves out every brush with a face at the void of that .bsp (in the test room a small plug in a hole of the outer wall - as detail the map leaks), but a stale .bsp or a gap the sample points miss can still fool it - never make brushes detail that seal the map.",
+            "Hint-Vorschläge werden nur gezeigt, nie angewendet: wo ein Hint-Pinsel hilft, hängt vom Spielablauf ab. Auch ein Detail-Vorschlag für Dekoration ist eine Schätzung: nach einem Bau ohne Leck lässt er jeden Pinsel mit einer Seite am Raum außerhalb dieser .bsp weg (im Testraum ein kleiner Stopfen in einem Loch der Außenwand - als detail leckt die Karte), aber eine veraltete .bsp oder eine Lücke zwischen den Probepunkten kann ihn noch täuschen - Pinsel, die die Karte abdichten, nie zu detail machen.",
+            "Hint 建议只会显示,不会自动应用:hint 笔刷在哪里有用取决于玩法。对装饰物的 detail 建议同样只是估算:在一次无泄漏的编译之后,它会排除在该 .bsp 中有面朝向地图外部的所有笔刷(测试房间里外墙孔洞中的一个小塞子——设为 detail 后地图就会泄漏),但过时的 .bsp 或采样点漏掉的缝隙仍可能让它出错——绝不要把封闭地图的笔刷设为 detail。",
+            "hint の提案は表示するだけで、適用はしません。hint ブラシがどこで役立つかはゲームプレイ次第だからです。装飾に対する detail の提案も推定にすぎません。リークのないビルドの後は、その .bsp でマップの外側に面しているブラシをすべて除きます(テスト用の部屋では外壁の穴をふさぐ小さな栓。detail にするとマップがリークします)。それでも古い .bsp や、サンプル点の間をすり抜ける隙間にはだまされることがあります。マップを密閉しているブラシは決して detail にしないでください。")),
         ("h2", "einstellungen", T("Settings", "Einstellungen", "设置", "設定")),
         ("img", "h_karte5_einstellungen", T(
             "{{KeLPreferences}}, page **{{KePgOptimizer}}** - a page of its own, NetRadiant-Custom has none.",

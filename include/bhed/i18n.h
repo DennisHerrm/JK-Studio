@@ -2691,6 +2691,12 @@ enum class Str {
     KePbMenue,
     KePbTip,
     KeImpSkripte,
+    KeOptD35,
+    KeVisBedarf,
+    KeVisSpeicher,
+    KeVisLang,
+    KeVisOriginalFast,
+    KeVisAuswege,
     Count,
 };
 
