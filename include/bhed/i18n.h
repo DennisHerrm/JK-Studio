@@ -2737,6 +2737,7 @@ enum class Str {
     KeVisLang,
     KeVisOriginalFast,
     KeVisAuswege,
+    BahnKeinWeg,
     Count,
 };
 

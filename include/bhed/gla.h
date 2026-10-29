@@ -88,6 +88,14 @@ struct GlaAnimation {
         return bones.empty() || numFrames == 0;
     }
 
+    // Alle Bilder samt Anhang - die gueltigen Bildnummern sind 0 .. bildZahl()-1.
+    // mission1: figurKnochen kappte auf numFrames - 1, ein BOTH_CIN_* aus dem
+    // Anhang wurde so zum letzten Bild des Grundskeletts (Luke stand in
+    // academy1 in T-Pose auf der Treppe).
+    [[nodiscard]] int bildZahl() const noexcept {
+        return numFrames + (anhang != nullptr ? anhang->bildZahl() : 0);
+    }
+
     // Die Stellung eines Bones in einem Bild, relativ zum Elternteil.
     [[nodiscard]] BoneMatrix localMatrix(int frame, int bone) const;
     // Dieselbe Matrix, zwischen zwei Bildern gemischt. Siehe

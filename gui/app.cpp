@@ -2849,7 +2849,7 @@ void handleShortcuts() {
             case keys::Action::Undo: {
                 // Ueber der Karte oder der Entity-Liste: die letzte
                 // Entity-Aenderung (eigener Verlauf, gui/app_mission.cpp).
-                if (entityFokus() && entityRueckgaengig()) {
+                if (entityFokus() && missionRueckgaengig()) {   // mission1: die juengste Aenderung
                     break;
                 }
                 // Erst die Gizmo-Vorschau, dann das Skript.
@@ -2885,7 +2885,7 @@ void handleShortcuts() {
                 break;
             }
             case keys::Action::Redo:
-                if (entityFokus() && entityWiederholen()) {
+                if (entityFokus() && missionWiederholen()) {   // mission1
                     break;
                 }
                 doRedo();

@@ -108,8 +108,20 @@ void schritteAusfuehren(int anzahl, bool redo) {
     const char* was = redo ? g_app->doc.redoLabel() : g_app->doc.undoLabel();
     int getan = 0;
     for (int k = 0; k < anzahl; ++k) {
+        // mission1: ein Entity-Schritt mit demselben Stempel gehoert dazu
+        // (Zwischenpunkt: Laufziel und SET_NAVGOAL) - beide zusammen.
+        const std::uint64_t stempel = redo ? g_app->doc.redoStempel() : g_app->doc.undoStempel();
         if (!(redo ? g_app->doc.redo() : g_app->doc.undo())) {
             break;
+        }
+        if (stempel != 0 && (redo ? entRedoOben() : entUndoOben()) == stempel) {
+            (void)(redo ? entityWiederholen() : entityRueckgaengig());
+        }
+        std::vector<std::uint64_t>& folge = g_app->zurueckGenommen;
+        if (!redo && stempel != 0 && (folge.empty() || folge.back() != stempel)) {
+            folge.push_back(stempel);
+        } else if (redo && !folge.empty() && folge.back() == stempel) {
+            folge.pop_back();
         }
         ++getan;
     }

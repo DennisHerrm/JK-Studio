@@ -5469,6 +5469,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_karte3bis5.inc"   // Stufe 8d: Karten-Editor Stufe 3 bis 5 (mit karte6/karte8)
 #include "selbsttest_handbuch.inc"   // Stufe 8d: grosse Karte, Stufe 8g und die Bildlaeufe des Handbuchs
 #include "selbsttest_menue.inc"      // Menue-Editor M1: jede Funktion mit Wirkungspruefung
+#include "selbsttest_mission1.inc"   // mission1: Gesicht, Gizmo beim Abspielen, Zwischenpunkt, Drehschluessel
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {
@@ -5777,6 +5778,8 @@ void selbsttest() {
     static const bool nurMissionsliste = std::strcmp(modus, "missionsliste") == 0;
     // rc604: Jedi Outcast als drittes Regelwerk (Original-JK2-Daten).
     static const bool nurJk2 = std::strcmp(modus, "jk2") == 0;
+    // mission1: die vier Fehler aus shanks Test nach rc606.
+    static const bool nurMission1 = std::strcmp(modus, "mission1") == 0;
     // Missionsbau im Map-Tab: jeder Knopf, Kombinationen, Zufall (11.10.).
     static const bool nurMissionsbau = std::strcmp(modus, "missionsbau") == 0;
     // rc601 ton: der Vorschauton wie im Spiel (Hoerer, PVS, Schleifen, Pegel).
@@ -5874,6 +5877,10 @@ void selbsttest() {
                         }
                     }
                 }
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurMission1) {
+                a.schritte = mission1Schritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurJk2) {

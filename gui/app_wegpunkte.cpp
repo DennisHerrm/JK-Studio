@@ -226,6 +226,7 @@ int wegErzeugen(float abstand, bool alteWeg, std::string* bericht) {
     // Alte erzeugte zuerst weg - im SELBEN Rueckgaengig-Schritt.
     if (alteWeg && wegGenerierteEntfernen() > 0 && !g_app->entUndo.empty()) {
         g_app->entUndo.pop_back();   // ein Schritt fuer alles (vorher steht davor)
+        if (g_app->entUndoStempel.size() > g_app->entUndo.size()) { g_app->entUndoStempel.resize(g_app->entUndo.size()); }   // mission1
     }
     // Startpunkte: Spielerstart, Figuren, Ziele, vorhandene Wegpunkte, die Kamera.
     std::vector<std::array<float, 3>> starts;

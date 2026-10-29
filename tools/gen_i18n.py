@@ -2217,6 +2217,8 @@ from i18n_karte9c import KARTE9C  # noqa: E402  (Stufe 9c: Werkzeugleisten, Echt
 S += KARTE9C
 from i18n_karte9d import KARTE9D  # noqa: E402  (Stufe 9d: Echtzeit-Ansicht, Shader live, Patch-Bruecke)
 S += KARTE9D
+from i18n_mission1 import MISSION1  # noqa: E402  (mission1: Fehler aus shanks Test nach rc606)
+S += MISSION1
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

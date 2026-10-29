@@ -246,6 +246,16 @@ struct App {
     // Rueckgaengig fuer Entities - eigener Verlauf, gilt fuer EINE Karte.
     std::vector<std::vector<MapEntity>> entUndo;
     std::vector<std::vector<MapEntity>> entRedo;
+    // mission1: die Stempel dazu (naechsterAenderungsStempel), gleich lang wie
+    // entUndo/entRedo. Gleicher Stempel wie ein Skriptschritt = EIN Schritt
+    // (ein Zwischenpunkt legt ein Laufziel an UND aendert das Skript).
+    std::vector<std::uint64_t> entUndoStempel;
+    std::vector<std::uint64_t> entRedoStempel;
+    // Die Stempel der zurueckgenommenen Schritte in der Reihenfolge des
+    // Zuruecknehmens: Strg+Y holt den zuletzt zurueckgenommenen zuerst. Ohne
+    // diese Folge waehlte die Kartenansicht nach dem kleinsten Stempel - und
+    // griff zu einem alten Wiederholen-Schritt des anderen Stapels.
+    std::vector<std::uint64_t> zurueckGenommen;
     std::string entUndoKarte;
     bool entRawAnsicht = false;         // alle Schluessel roh (wie SmartEdit aus)
     // Maus ueber der Kartenansicht / der Entity-Spalte (letztes Bild) - dann
@@ -477,6 +487,8 @@ struct App {
     // Bewegungsbalken und Ausloeser darin.
     int bahnFarbig = 0;
     int bahnGrau = 0;
+    // mission1: die Hinweise "kein Weg" an der Bahn der gewaehlten Figur (letztes Bild).
+    std::vector<std::string> bahnKeinWeg;
     std::vector<std::array<float, 3>> figurGezeichnet;
     std::string tlAuswahlZeile;
     int tlBewegungsBalken = 0;
@@ -535,6 +547,7 @@ struct App {
     // Fahrt wurde dort ein Schluessel eingefuegt (wird ohne Aenderung beim
     // Loslassen zurueckgenommen).
     bool kameraAutoKeyEingefuegt = false;
+    std::size_t kameraAutoKeyTiefe = 0;   // mission1: Rueckgaengig-Tiefe vor dem Auto-Key (ein Schritt mit den Werten)
     bool kameraGizmoZwischen = false;   // der Gizmo sitzt gerade an der laufenden Kamera (mitten in einer Fahrt)
     bool kamBahnNurAktiv = true;        // nur die Fahrt um die eingestellte Zeit zeigen (rc597, "Aktiv")
     int kamBahnFarbig = 0;              // Selbsttest: Stuecke der Kamerabahn, gelb (gefahren) / grau (voraus)
@@ -868,10 +881,11 @@ struct App {
     struct Skeleton {
         GlaAnimation anim;
         std::vector<AnimEntry> sections;   // aus der animation.cfg
-        // Die Abschnitte des Kino-Skeletts der Karte haengen HINTER den
-        // eigenen (siehe GlaAnimation::anhang). Wie viele eigene es sind und
-        // fuer welche Karte der Anhang gerade gilt.
-        std::size_t grundAbschnitte = static_cast<std::size_t>(-1);
+        // Die Abschnitte des Kino-Skeletts der Karte (Bilder hinter den eigenen,
+        // siehe GlaAnimation::anhang) ersetzen gleichnamige und kommen sonst
+        // dazu. Die eigenen gemerkt, und fuer welche Karte der Anhang gilt.
+        std::vector<AnimEntry> grundListe;
+        bool grundGemerkt = false;
         std::string kinoKarte;
     };
     // Schluessel ist der Pfad aus dem Modellkopf, ohne Endung.
@@ -2441,6 +2455,16 @@ void entityGizmoLeiste();
 // Schiff der Entity zur Zeit ms gerade (Lauf oder move), welche Figur und
 // welcher Befehl - und laesst sich dort teilen?
 bool bahnPunktMoeglich(int ei, double ms, int& figur, Path& pfad, bool& lauf);
+// mission1: gemeinsames Rueckgaengig fuer Entities und Skript (app_mission.cpp).
+std::uint64_t entUndoOben();
+std::uint64_t entRedoOben();
+void verbindeMitSkriptSchritt();
+bool missionRueckgaengig();
+bool missionWiederholen();
+bool fahrtSchluesselMoeglich(int ei, double ms, int& figur, Path& vorPfad);
+bool fahrtSchluesselSchreiben(int figur, double ms, const float kOrt[3], const float kWinkel[3]);
+bool laufZielNachLaufMoeglich(int ei, double ms, int& figur);
+bool laufZielNachLaufSchreiben(int figur, const float kOrt[3]);
 // Die Bewegung bei ms teilen, mit dem neuen Punkt K: ein Schiff faehrt bis
 // ms nach K und von dort weiter; eine Figur bekommt ein neues Laufziel bei K.
 // Die Befehle danach behalten ihre Zeit.
