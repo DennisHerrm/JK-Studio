@@ -718,6 +718,8 @@ SpielDarstellung spielDarstellung(const std::string& shader) {
     }
     d.mischQuelle = s.mischQuelle;
     d.mischZiel = s.mischZiel;
+    // das Spiel nimmt das Bild der Stufe (mit seinem Alpha), nicht qer_editorimage (oft ein .jpg)
+    if ((d.alphaFunktion != 0 || d.mischQuelle != 0) && !s.stufeBild.empty()) { d.bild = "?" + s.stufeBild; }
     return d;
 }
 

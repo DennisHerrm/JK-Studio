@@ -1241,6 +1241,14 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
             // durchsichtig (Optimierer, karte1) und alphaFunc/blendFunc (Stufe 9c, wie im Spiel zeichnen)
             r.stufeGefunden = true;
             const std::string k = klein(w[j]);
+            // das Bild der Stufe (tr_shader.cpp ParseStage: map, clampmap, animMap <freq> <bild> ...)
+            const std::size_t bi = k == "animmap" ? j + 2 : j + 1;
+            if ((k == "map" || k == "clampmap" || k == "animmap") && bi < w.size() && !w[bi].empty() && w[bi][0] != '$' && r.stufeBild.empty()) {
+                std::string b = w[bi];
+                const std::size_t punkt = b.find_last_of('.');
+                if (punkt != std::string::npos && b.find('/', punkt) == std::string::npos) { b.resize(punkt); }
+                r.stufeBild = b;
+            }
             if (k == "alphafunc") {
                 r.durchsichtig = true;
                 if (j + 1 < w.size()) {

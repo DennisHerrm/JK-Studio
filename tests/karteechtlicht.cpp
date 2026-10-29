@@ -219,7 +219,8 @@ textures/test/glas
                a.lichtUnterteilung == 1024 && a.himmel && a.himmelsBild == "textures/skies/x",
            "Shader: sun (SOF2) und q3map_sunExt, q3map_skyLight, q3map_lightSubdivide");
     const ShaderSkript b = shaderSkriptLesen(text, "textures/test/gitter");
-    pruefe(b.alphaSchatten && b.durchscheinend && b.zweiseitig && b.stufeAlpha == 3, "Shader: alphashadow, cull none, alphaFunc GE128");
+    pruefe(b.alphaSchatten && b.durchscheinend && b.zweiseitig && b.stufeAlpha == 3 && b.stufeBild == "textures/test/gitter",
+           "Shader: alphashadow, cull none, alphaFunc GE128, Bild der ersten Stufe ohne Endung");
     const ShaderSkript c = shaderSkriptLesen(text, "textures/test/glas");
     pruefe(c.durchscheinend && !c.alphaSchatten && c.mischQuelle == 5 && c.mischZiel == 2, "Shader: trans, blendFunc GL_DST_COLOR GL_ZERO");
 }

@@ -31,6 +31,7 @@ struct SpielDarstellung {
     float alphaRef = 0;
     int mischQuelle = 0;
     int mischZiel = 0;
+    std::string bild;        // mit alphaFunc/blendFunc: das Bild der ersten Stufe ("?" + Pfad fuer kameraTexturBild)
 };
 [[nodiscard]] SpielDarstellung spielDarstellung(const std::string& shader);
 // Der Hinweis in der Kamera-Ecke (Programmsprache): "Vorschau, ohne Bounce und Filter" usw.

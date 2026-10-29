@@ -199,10 +199,12 @@ public:
         const auto it = m_bilder.find(schl);
         if (it != m_bilder.end()) { return &it->second; }
         Bild& b = m_bilder[schl];
-        const karte::ShaderEintrag* s = ed.karteSpiel->inventar.shaderFinden(shader);
+        // Stufe 9c: "?" + Pfad - das Bild selbst (die erste Stufe eines Shaders), nicht der Shader
+        const bool roh = !shader.empty() && shader[0] == '?';
+        const karte::ShaderEintrag* s = roh ? nullptr : ed.karteSpiel->inventar.shaderFinden(shader);
         Auftrag a;
         a.schluessel = schl;
-        a.bildName = s != nullptr ? s->texturName : shader;
+        a.bildName = roh ? shader.substr(1) : s != nullptr ? s->texturName : shader;
         a.himmel = s != nullptr ? s->himmel : std::string();
         a.standard = s == nullptr;
         {
@@ -1212,6 +1214,10 @@ void kameraZeichnen() {
                 }
                 if (texturen) {
                     z.bild = b->srv;
+                    if (spielBild && !sd.bild.empty()) {   // Stufe 9c: das Bild der ersten Stufe (Alpha wie im Spiel)
+                        const Bild* sb = lager().holen(sd.bild);
+                        if (sb != nullptr && sb->fertig && !sb->ersatz && sb->srv != nullptr) { z.bild = sb->srv; }
+                    }
                     farbeSetzen(z, 1, 1, 1, alpha);
                 } else {
                     farbeSetzen(z, b->farbe[0], b->farbe[1], b->farbe[2], alpha);

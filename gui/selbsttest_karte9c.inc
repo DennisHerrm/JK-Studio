@@ -688,7 +688,8 @@ std::vector<Schritt> himmel() {
 // kommt in der Darstellung an; caulk (nodraw) ist unsichtbar.
 std::vector<Schritt> durchsichtig() {
     std::vector<Schritt> s;
-    s.push_back(pruefe("Stufe 9c/2: Spiel-Shader mit alphaFunc und blendFunc werden wie im Spiel gezeichnet (erste Stufe gelesen)", [] {
+    auto gitter = std::make_shared<std::string>();
+    s.push_back(pruefe("Stufe 9c/2: Spiel-Shader mit alphaFunc und blendFunc werden wie im Spiel gezeichnet (erste Stufe gelesen)", [gitter] {
         const auto& sp = ke::editor().spiel;
         if (!sp) { return false; }
         int alpha = 0;
@@ -697,8 +698,11 @@ std::vector<Schritt> durchsichtig() {
         for (const karte::ShaderEintrag* e : sp->inventar.shader()) {
             if (e->name.rfind("textures/", 0) != 0 || e->istStandard()) { continue; }
             const ke::SpielDarstellung d = ke::spielDarstellung(e->name);
-            if (d.alphaFunktion != 0) {
-                if (alpha == 0) { beispiel += e->name + " (alphaFunc) "; }
+            if (d.alphaFunktion != 0 && !d.bild.empty()) {
+                if (alpha == 0) {
+                    beispiel += e->name + " (alphaFunc, Bild " + d.bild + ") ";
+                    *gitter = e->name;
+                }
                 ++alpha;
             }
             if (d.mischQuelle != 0) {
@@ -709,6 +713,27 @@ std::vector<Schritt> durchsichtig() {
         }
         diag::detail("Knopftest: Stufe 9c/2 - " + beispiel);
         return alpha > 0 && mischen > 0 && !ke::spielDarstellung("textures/yavin/temple_stone2").unsichtbar;
+    }));
+    // zum Ansehen: ein Pinsel mit diesem Shader im Himmelsraum, Echtzeit-Licht an
+    s.push_back(tu("Stufe 9c/2: Gitter-Pinsel im Himmelsraum (Foto)", [gitter] {
+        (void)ke::karteOeffnen(himmelKarte());
+        ke::Editor& e = ke::editor();
+        karte::TexturProjektion proj;
+        karte::texdefStandard(karte::TexdefArt::Quake, proj);
+        auto p = std::make_shared<karte::Pinsel>();
+        p->quaderBauen(karte::Kasten(karte::Vektor3f(-300, -300, 96), karte::Vektor3f(4, 96, 96)), *gitter, proj, e.karte.kontext);
+        e.karte.welt()->kindEinfuegen(p);
+        e.kameraE.modus = karte::KameraModus::Textur;
+        e.echtLicht.an = true;
+        e.kamera.ursprung = karte::Vektor3f(-420.0F, -300.0F, 100.0F);
+        e.kamera.winkel = karte::Vektor3f(0.0F, 0.0F, 0.0F);
+    }));
+    s.push_back(warteBis("Stufe 9c/2: Texturen (Gitter)", [] { return ke::kameraBilderFertig(); }, 3000));
+    s.push_back(pause(1.0));
+    s.push_back(foto("karteneditor_s9c_gitter"));
+    s.push_back(tu("Stufe 9c/2: Echtzeit-Licht aus, neue Karte", [] {
+        ke::editor().echtLicht.an = false;
+        ke::neueKarte();
     }));
     return s;
 }
