@@ -967,8 +967,12 @@ std::vector<Schritt> originalSchritte() {
     }));
     add(klick(tr(Str::FileSave)));
     add(pruefe("Speichern einer schreibgeschuetzten Datei fragt nach dem Entsperren", [] {
-        return g_app->frageOffen &&
-               g_app->frageText.find("write-protected") != std::string::npos;
+        // die Frage in der Sprache des Laufs (frueher fest "write-protected" -
+        // auf Spanisch rot): alles nach dem Dateinamen
+        const std::string vorlage = tr(Str::AskUnprotect);
+        const std::size_t name = vorlage.find("%s");
+        const std::string danach = name == std::string::npos ? vorlage : vorlage.substr(name + 2);
+        return g_app->frageOffen && !danach.empty() && g_app->frageText.find(danach) != std::string::npos;
     }));
     add(klick(tr(Str::AnswerYes), "###frage"));
     add(pruefe("... \"Yes\": Schutz aufgehoben und gespeichert", [=] {

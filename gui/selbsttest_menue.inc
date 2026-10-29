@@ -63,7 +63,7 @@ const char* const kSp =
     "}\n";
 
 std::vector<Schritt> schritte() {
-    // Sprache fuer die Handbuchbilder (wie handbuchSchritte): BHED_SPRACHE = en / de / zh / ja
+    // Sprache fuer die Handbuchbilder (wie handbuchSchritte): BHED_SPRACHE = Kurzname aus tools/sprachen.py
     if (const char* sp = std::getenv("BHED_SPRACHE")) {
         if (const i18n::LanguageInfo* l = i18n::findLanguage(sp)) { i18n::setLanguage(l->language); }
     }
