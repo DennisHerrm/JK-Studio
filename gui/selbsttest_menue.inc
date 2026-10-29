@@ -776,7 +776,6 @@ std::vector<Schritt> schritteM5() {
         *ev = 2;   // Auswahl und Reiter
     }));
     add(pause(0.3));
-    add(foto("menue_ereignisse_leer"));
     add(klick(tr(Str::MeEvLeuchten)));
     add(pause(0.3));
     add(klick(tr(Str::MeEvKlickKlang)));
