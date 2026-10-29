@@ -243,6 +243,37 @@ Aus Zeit- bzw. Kontextgründen nicht angefangen; Stand und Vorarbeit:
   aus der Menüliste, seine Datei bleibt als Paketdatei im Ordner). Schließen eines Reiters fragt
   weiterhin nicht nach (vorher schon so) - die Sicherung fängt nur bis zum Schließen Geändertes.
 
+### Punkt 4 - Mod-Profile
+
+- Modul src/menue/profil.cpp: Profildatei *.jksprofile (name, game, menulist sp|mp, itemkey/menukey
+  <name> <art>, ownerdraw/feeder <nr> <NAME>, uiscript <name> <wörter>, cvar <name> <vorgabe>);
+  nicht verstandene Zeilen bleiben erhalten (Rundlauf). Eingebaute Profile Jedi Academy, Jedi
+  Outcast, Movie Duels tragen die vorher fest eingetragenen Menülisten (ui/menus.txt,
+  ui/jampmenus.txt + jampingame.txt, ui/jk2mpmenus.txt + jk2mpingame.txt,
+  ui/MovieDuels-MP-Menus.txt); Menüsatz-Knopf und Schriftnamen nehmen sie aus dem Profil
+  (Schriften bei eingebauten Profilen wie bisher Jedi Academy zuerst).
+- Parser: ein Schlüssel, den die Tabellen nicht kennen, das Profil aber, wird mit der Art aus dem
+  Profil gelesen (ohne Meldung, Eigenschaft.ausProfil); ohne Profil meldet er wie die Engine. Text
+  bleibt byte-gleich. Laufzeit: Wortzahl der uiScripts und Cvar-Vorgaben aus dem Profil. Vorschau:
+  Ownerdraws/Feeder ohne Inhalt als Platzhalter mit dem Namen aus dem Profil. Eigenschaften:
+  Abschnitt „Mod-Schlüssel (Profil …)“ mit dem Wert wie im Text.
+- Auswahl im Projekt-Menü (wird im Projekt gespeichert), eigene Profile aus
+  <Einstellungen>/menue_profile und dem Projektordner, „Profil-Vorlage anlegen“.
+- Generator tools/gen_menue_profil.py (Mod-Quellen gegen OpenJK code/ui bzw. codemp/ui). An den
+  Movie-Duels-Quellen (SP\mdgit) geprüft: findet genau die vier MD-Schlüssel des Parsers (cvarInt,
+  cvarRotateScale mit Hinweis „liest mehrere Werte“, exec, ownerdrawID), die MD-uiScripts mit den
+  Wortzahlen, die der Editor von Hand hat (mdUpdate 1, md_wheelpick 1, giveammo 3,
+  addpistolselection 7), Feeder 84-89, Ownerdraw 257, 58 Cvar-Vorgaben, Menülisten. OpenJK gegen
+  sich selbst: keine Zusätze.
+- Fund dabei: Movie Duels MenuParse_ownerdrawID hat den Rumpf auskommentiert und gibt qfalse zurück;
+  der Parser las im menuDef eine Zahl. ctest menue_profil rot, jetzt Art ImmerFalsch („Couldn't parse
+  menu keyword ownerdrawID as ownerdrawID“ wie das Spiel), grün; Menu::ownerdrawID entfernt.
+- Galactic Legacy: kein veröffentlichter Quellcode gefunden (Websuche: nur Mod-Seiten auf ModDB,
+  JKHub, GamePressure; keine Quelle/Lizenz genannt), auf dem Rechner nicht installiert. Nichts
+  heruntergeladen. Dafür die Vorlage zum Ausfüllen (profilVorlage, Knopf „Profil-Vorlage anlegen“).
+- ctest menue_profil; Selbsttest (m5b): ohne Profil Meldung, mit Profil keine und der Abschnitt
+  Mod-Schlüssel, Vorlage galactic_legacy anlegen und wählen - zusammen mit Punkt 1/3: 14 OK, 0 FEHLER.
+
 ## Changelog
 
 ## English
