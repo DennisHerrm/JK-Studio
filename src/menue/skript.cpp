@@ -442,9 +442,9 @@ void Laufzeit::fuehreAus(int menu, int item, const std::string& s) {
         } else if (c == "setitemrect") {
             std::string x, y, w, h;
             if (stringParse(s, p, a) && stringParse(s, p, x) && stringParse(s, p, y) && stringParse(s, p, w) && stringParse(s, p, h)) {
-                passend(a, [&](std::size_t i) {
-                    rects[static_cast<std::size_t>(menu)][i] = Rechteck{m.window.rect.x + zahl(x), m.window.rect.y + zahl(y), zahl(w), zahl(h)};
-                });
+                // Script_SetItemRect: codemp addiert menu->window.rect.x/y, code/ui (SP) setzt die Zahlen direkt
+                const float ox = d->dialekt == Dialekt::MP ? m.window.rect.x : 0.0F, oy = d->dialekt == Dialekt::MP ? m.window.rect.y : 0.0F;
+                passend(a, [&](std::size_t i) { rects[static_cast<std::size_t>(menu)][i] = Rechteck{ox + zahl(x), oy + zahl(y), zahl(w), zahl(h)}; });
                 ++version;
             }
         } else if (c == "transition") {

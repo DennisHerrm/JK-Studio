@@ -289,6 +289,27 @@ int main() {
                    lm.cvar("ui_char_color_red") == "40",
                "MP: getcharcvars zerlegt model <ordner>/<kopf>|<rumpf>|<beine>, Farbe aus char_color_red");
     }
+    {
+        // M5b: Script_SetItemRect - SP (code/ui) setzt window.rect ohne den Versatz des Menues,
+        // MP (codemp/ui) addiert menu->window.rect.x/y
+        const std::string tx =
+            "{ menuDef { name m rect 100 50 300 300 visible 1\n"
+            "  itemDef { name k type 1 rect 0 0 50 20 visible 1 action { setitemrect z 10 20 30 40 } }\n"
+            "  itemDef { name z rect 60 0 50 20 visible 1 } } }\n";
+        for (const Dialekt dl : {Dialekt::SP, Dialekt::MP}) {
+            LeseOptionen ro;
+            ro.dialekt = dl;
+            const Datei f = lies("ui/r.menu", tx, ro);
+            Laufzeit lr;
+            lr.start(f);
+            lr.oeffne("m");
+            lr.fuehreAus(0, 0, f.menus[0].items[0].action);
+            const Rechteck r = lr.rects[0][1];
+            const float ox = dl == Dialekt::MP ? 100.0F : 0.0F, oy = dl == Dialekt::MP ? 50.0F : 0.0F;
+            pruefe(r.x == 10 + ox && r.y == 20 + oy && r.w == 30 && r.h == 40,
+                   std::string(dl == Dialekt::MP ? "MP" : "SP") + ": setitemrect wie Script_SetItemRect (Versatz des Menues nur MP)");
+        }
+    }
     std::printf("menueskript: %s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }
