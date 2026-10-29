@@ -136,115 +136,6 @@ bool isNpcSpawner(const MapEntity& e) {
     return e.classname.starts_with("NPC_");
 }
 
-// Kein NPC_type am Spawner? Dann sagt der Klassenname ihn.
-//
-// Die eigenen SP_-Funktionen setzen ihn selbst, wenn er fehlt - etwa
-// SP_NPC_Stormtrooper mit self->NPC_type = "rockettrooper" je nach
-// spawnflags (NPC_spawn.cpp). Das im Einzelnen nachzubauen lohnt hier
-// nicht; fuer die Modellsuche genuegt der Name hinter "NPC_" in
-// Kleinbuchstaben - "NPC_Kyle" -> "kyle", "NPC_Jedi" -> "jedi". Genau so
-// heissen die Eintraege in den .npc-Dateien.
-//
-// Eine Naeherung, und sie ist als solche gekennzeichnet: findet sich der
-// Name in keiner .npc, bleibt die Figur eben ohne Modell - wie vorher, nur
-// dass es jetzt ueberhaupt einen Versuch gibt.
-// Die SP_NPC_*-Funktionen setzen NPC_type selbst (NPC_spawn.cpp:3115 ff.),
-// oft abhaengig von spawnflags. Die Vorgaben (ohne Flags) und die Regeln
-// der haeufigen Klassen, aus dem Quelltext abgeschrieben. Vorher wurde aus
-// "NPC_Droid_Remote" einfach "droid_remote" - die .npc heisst aber
-// "remote_sp", und die Schwebedroiden von md_afh blieben ohne Modell.
-std::string typeFromClassname(const std::string& classname);
-
-std::string typeFromClassname(const std::string& classname, int spawnflags) {
-    struct Regel {
-        const char* klasse;
-        const char* vorgabe;
-        int flag1;
-        const char* typ1;
-        int flag2;
-        const char* typ2;
-        int flag3;
-        const char* typ3;
-        int flag4;
-        const char* typ4;
-    };
-    static const Regel kRegeln[] = {
-        {"NPC_Stormtrooper", "StormTrooper", 8, "rockettrooper", 4, "stofficeralt", 2, "stcommander", 1, "stofficer"},
-        {"NPC_Imperial", "Imperial", 1, "ImpOfficer", 2, "ImpCommander", 0, nullptr, 0, nullptr},
-        {"NPC_Jedi", "Jedi", 2, "jedimaster", 1, "jeditrainer", 0, nullptr, 0, nullptr},
-        {"NPC_Kyle", "Kyle", 1, "Kyle_boss", 0, nullptr, 0, nullptr, 0, nullptr},
-        {"NPC_Reborn", "reborn", 1, "rebornforceuser", 2, "rebornfencer", 4, "rebornacrobat", 8, "rebornboss"},
-        {"NPC_Human_Merc", "human_merc", 1, "human_merc_key", 2, "human_merc_bow", 4, "human_merc_rep", 8, "human_merc_flc"},
-        {"NPC_Tusken", "tusken", 1, "tuskensniper", 0, nullptr, 0, nullptr, 0, nullptr},
-        {"NPC_Jawa", "jawa", 1, "jawa_armed", 0, nullptr, 0, nullptr, 0, nullptr},
-        {"NPC_Rodian", "rodian", 1, "rodian2", 0, nullptr, 0, nullptr, 0, nullptr},
-        {"NPC_Gran", "gran", 1, "granshooter", 2, "granboxer", 0, nullptr, 0, nullptr},
-        {"NPC_Alora", "alora", 1, "alora_dual", 0, nullptr, 0, nullptr, 0, nullptr},
-        {"NPC_Galak", "Galak", 1, "Galak_Mech", 0, nullptr, 0, nullptr, 0, nullptr},
-        {"NPC_Monster_Rancor", "rancor", 1, "mutant_rancor", 0, nullptr, 0, nullptr, 0, nullptr},
-        {"NPC_Monster_Sand_Creature", "sand_creature", 1, "sand_creature_fast", 0, nullptr, 0, nullptr, 0, nullptr},
-        {"NPC_Droid_R2D2", "r2d2", 1, "r2d2_imp", 0, nullptr, 0, nullptr, 0, nullptr},
-        {"NPC_Droid_R5D2", "r5d2", 1, "r5d2_imp", 0, nullptr, 0, nullptr, 0, nullptr},
-        {"NPC_Droid_Protocol", "protocol", 1, "protocol_imp", 0, nullptr, 0, nullptr, 0, nullptr},
-        {"NPC_Droid_Saber", "saber_droid", 1, "saber_droid_training", 0, nullptr, 0, nullptr, 0, nullptr},
-        {"NPC_Saboteur", "saboteur", 1, "saboteursniper", 2, "saboteurpistol", 4, "saboteurcommando", 0, nullptr},
-        {"NPC_Cultist", "cultist", 1, "cultist_grip", 2, "cultist_lightning", 4, "cultist_drain", 0, nullptr},
-        {"NPC_HazardTrooper", "hazardtrooper", 1, "hazardtrooperofficer", 2, "hazardtrooperconcussion", 0, nullptr, 0, nullptr},
-    };
-    static const std::pair<const char*, const char*> kFest[] = {
-        {"NPC_Droid_Remote", "remote_sp"}, {"NPC_Droid_Seeker", "seeker"}, {"NPC_Droid_Sentry", "sentry"},
-        {"NPC_Droid_Interrogator", "interrogator"}, {"NPC_Droid_Probe", "probe"}, {"NPC_Droid_Mark1", "mark1"},
-        {"NPC_Droid_Mark2", "mark2"}, {"NPC_Droid_ATST", "atst"}, {"NPC_Droid_Gonk", "gonk"},
-        {"NPC_Droid_Mouse", "mouse"}, {"NPC_Droid_Assassin", "assassin_droid"}, {"NPC_BobaFett", "Boba_Fett"},
-        {"NPC_Chewbacca", "Chewie"}, {"NPC_Tie_Pilot", "stormpilot"}, {"NPC_RocketTrooper", "rockettrooper2"},
-        {"NPC_Snowtrooper", "snowtrooper"}, {"NPC_Monster_Wampa", "wampa"}, {"NPC_Monster_Howler", "howler"},
-        {"NPC_Monster_Mutant_Rancor", "mutant_rancor"}, {"NPC_MineMonster", "minemonster"},
-        {"NPC_Reborn_New", "reborn_new"}, {"NPC_Rosh_Penin", "rosh_penin"}, {"NPC_Tavion_New", "tavion_new"},
-        {"NPC_Cultist_Saber", "cultist_saber"}, {"NPC_Cultist_Saber_Powers", "cultist_saber2"},
-        {"NPC_Cultist_Commando", "cultistcommando"}, {"NPC_Cultist_Destroyer", "cultist_destroyer"},
-        {"NPC_ShadowTrooper", "ShadowTrooper"}, {"NPC_SwampTrooper", "SwampTrooper"}, {"NPC_Weequay", "Weequay"},
-        {"NPC_Ugnaught", "Ugnaught"}, {"NPC_BespinCop", "BespinCop"}, {"NPC_Prisoner", "Prisoner"},
-        {"NPC_Kothos", "VKothos"}, {"NPC_Lannik_Racto", "lannik_racto"}, {"NPC_Vehicle", "swoop"},
-        {"NPC_Player", "player"}, {"NPC_Noghri", "noghri"}, {"NPC_Trandoshan", "Trandoshan"},
-        {"NPC_ImpWorker", "ImpWorker"}, {"NPC_Merchant", "merchant"}, {"NPC_Rebel", "Rebel"},
-    };
-    for (const Regel& r : kRegeln) {
-        if (classname == r.klasse) {
-            const std::pair<int, const char*> fl[] = {{r.flag1, r.typ1}, {r.flag2, r.typ2}, {r.flag3, r.typ3},
-                                                      {r.flag4, r.typ4}};
-            for (const auto& [f, typ] : fl) {
-                if (f != 0 && typ != nullptr && (spawnflags & f) != 0) {
-                    return typ;
-                }
-            }
-            return r.vorgabe;
-        }
-    }
-    for (const auto& [k, typ] : kFest) {
-        if (classname == k) {
-            return typ;
-        }
-    }
-    return typeFromClassname(classname);
-}
-
-std::string typeFromClassname(const std::string& classname) {
-    if (classname.size() <= 4) {
-        return {};
-    }
-    std::string t = classname.substr(4);
-    for (char& c : t) {
-        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    }
-    if (t == "spawner" || t == "vehicle") {
-        return {};   // sagen nichts ueber die Figur aus
-    }
-    // NPC_Player: SP_NPC_Player setzt NPC_type "Player" (NPC_spawn.cpp:3117)
-    // - eine Figur, die aussieht wie der Spieler. Die App loest "player"
-    // auf das Spielermodell auf (g_char_model).
-    return t;
-}
-
 // Namen vergleichen, wie die Engine es tut: OHNE Ruecksicht auf Gross- und
 // Kleinschreibung.
 //
@@ -4696,32 +4587,6 @@ Scene buildOnce(const Script& s, const MapData& map,
     return out;
 }
 
-double gehDauerMs(double dist, double v, double ux, double uy, double zielRadius) {
-    if (!(v > 0.0) || !(dist > 0.0)) {
-        return 0.0;
-    }
-    const double zone = 4.0 * zielRadius;
-    const double achse = std::max(std::fabs(ux), std::fabs(uy));
-    const double kasten = (achse > 1e-3) ? 15.0 / achse : 15.0;
-    const double ende = std::max(zielRadius, kasten);
-    if (dist <= ende) {
-        return 0.0;
-    }
-    double s = 0.0;
-    if (dist > zone) {
-        s += (dist - zone) / v;
-    }
-    const double inZone = std::min(dist, zone);
-    if (inZone > ende && zone > 0.0) {
-        s += zone / v * std::log(inZone / ende);
-    }
-    // Angepasst an neun Messungen im Spiel (md_dd_jedi, Tempo 55/100/200,
-    // 40-150 Einheiten, dazu obi1 aus der Intro): Anlauf 300 ms, dann das
-    // 1,5-fache des Steuermodells. Streuung um +-100 ms bis auf zwei Wege,
-    // die im Spiel offenbar um etwas herumliefen.
-    return 300.0 + 1.5 * s * 1000.0;
-}
-
 Scene buildScene(const Script& s, const MapData& map, const SzenenHilfe* hilfe) {
     // Die Signale kommen jetzt aus bhed/clock.h und werden EINMAL
     // eingesammelt - dieselbe Antwort, die auch die Kamerabahn und die
@@ -5041,14 +4906,6 @@ bool tagVektor(const MapData& map, const std::string& ausdruck, float out[3]) {
 
 bool engineFindet(const MapData& map, const std::string& name, float out[3], bool* istFigur) {
     return findeImSpiel(map, name, out, istFigur);
-}
-
-double gehDauerInFahrtMs(double dist, double v, double ux, double uy, double zielRadius) {
-    // gehDauerMs ohne seinen Anlauf von 300 ms (siehe dort). Dieselbe
-    // Rechnung in scene.cpp und ablauf.cpp, damit Weg und dowait zusammen
-    // enden.
-    const double mit = gehDauerMs(dist, v, ux, uy, zielRadius);
-    return (mit > 300.0) ? mit - 300.0 : 0.0;
 }
 
 float winkel180(float a) noexcept {

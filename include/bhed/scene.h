@@ -108,27 +108,6 @@ inline constexpr float kHeadYawClampMax = 50.0F;
 // derselben Formel um. Ohne SET_YAWSPEED gilt diese Vorgabe.
 inline constexpr float kNpcTurnDegPerSec = 60.0F + 90.0F * 3.0F;
 
-// Wie lange braucht eine Figur fuer `dist` Einheiten zu einer Marke, mit
-// Tempo `v` (Einheiten je Sekunde), Richtung (ux, uy) und Zielradius?
-//
-// Die Engine laesst NPCs nicht einfach mit v geradeaus gehen. STEER::GoTo
-// (g_navigator.cpp:4399) verfolgt das Ziel mit Seek und einer
-// Abbremszone von 4 x Radius: darin ist die Wunschgeschwindigkeit
-// v * abstand / zone (ebenda:4666). Angekommen ist die Figur, sobald sie im
-// Radius ist ODER der Zielpunkt in ihrem Kasten liegt (STEER::Reached,
-// :5361) - bei +-15 in x und y also schon deutlich vor dem Punkt.
-//
-// Das Modell allein ergibt kuerzere Zeiten, als das Spiel braucht:
-// Beschleunigung und Reibung in pmove und die Denktakte kommen dazu.
-// Anlauf 300 ms und Faktor 1.5 sind GEMESSEN (28.09., md_dd_jedi, eigene
-// Probe mit Tempo 55, 100, 200 ueber 40/80/150 Einheiten plus obi1 aus der
-// Intro, g_ICARUSDebug-Zeiten). Eine Naeherung - aber naeher am Spiel als
-// d / v, das im Mittel um den Faktor 1.8 zu frueh ankam.
-// rc601 (bewegung): nicht mehr benutzt - Laufen rechnet planeLauf
-// (bhed/navlauf.h) Denkbild fuer Denkbild wie die Engine, auch in BS_NOCLIP.
-// Bleibt nur fuer andere Pakete stehen.
-[[nodiscard]] double gehDauerMs(double dist, double v, double ux, double uy, double zielRadius = 12.0);
-
 // Dieselbe Rechnung fuer einen abweichenden yawSpeed, wie SET_YAWSPEED ihn
 // setzt (Q3_Interface.cpp:3438 schreibt den Wert ungeprueft in die Werte
 // des NPC).
@@ -1446,14 +1425,6 @@ struct NavZiel {
 // istFigur: das Ziel ist ein NPC oder der Spieler.
 [[nodiscard]] bool engineFindet(const MapData& map, const std::string& name, float out[3],
                                 bool* istFigur = nullptr);
-
-// Wie gehDauerMs, aber fuer eine Figur, die schon in voller Fahrt ist: ein
-// neues Ziel, ein anderes Tempo oder ein SET_ORIGIN mitten im Weg. Die Engine
-// lenkt dann aus der laufenden Geschwindigkeit weiter (STEER::Activate liest
-// ps.velocity, g_navigator.cpp:3977) - der Anlauf von 300 ms faellt weg.
-// rc601 (bewegung): nicht mehr benutzt (siehe gehDauerMs).
-[[nodiscard]] double gehDauerInFahrtMs(double dist, double v, double ux, double uy,
-                                       double zielRadius = 12.0);
 
 // Das Geh- und Lauftempo, das der Ablauf (AblaufWelt::tempo) fuer eine Figur
 // nimmt, bevor das Skript es aendert: die Werte aus der .npc beim Spawnen.
