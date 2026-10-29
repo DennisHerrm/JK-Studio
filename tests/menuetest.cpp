@@ -216,6 +216,39 @@ int main() {
         pruefe(g2.menus.size() == 1 && g2.menus[0].window.name == "ja", "MP: #ifdef/#else/#endif");
     }
 
+    // --- M2: assetGlobalDef so streng wie Asset_Parse ---------------------------
+    {
+        LeseOptionen so;
+        so.dialekt = Dialekt::SP;
+        // unbekannter Schluessel: die Engine liest das naechste Wort als Schluessel -
+        // ein "}" als Argument beendet assetGlobalDef, menuDef danach wird gelesen
+        Datei a = lies("ui/a.menu", "{ assetGlobalDef { foo \"}\" menuDef { name m } }\n", so);
+        pruefe(a.assets.vorhanden && a.assets.eigenschaften.size() == 1 && !a.assets.eigenschaften[0].ok,
+               "SP Asset_Parse: unbekannter Schluessel ohne Argumente");
+        pruefe(a.menus.size() == 1 && a.menus[0].window.name == "m", "SP Asset_Parse: \"}\" nach unbekanntem Schluessel beendet assets");
+        // bekannte: smallFont "x" 16 (Zahl wird gelesen)
+        Datei b = lies("ui/b.menu", "{ assetGlobalDef { smallFont \"ergoec\" 16 fadeClamp 1.0 mediumFont \"anewhope\" 20 } }\n", so);
+        pruefe(b.assets.eigenschaften.size() == 3 && b.assets.eigenschaften[2].args.size() == 2, "SP Asset_Parse: mediumFont mit 2 Argumenten");
+        // stripedFile gibt es nur in JK2 (JK2_MODE); in JA ein unbekanntes Wort
+        LeseOptionen jk = so;
+        jk.spiel = Spiel::JK2;
+        Datei c = lies("ui/c.menu", "{ assetGlobalDef { stripedFile \"menus\" } }\n", jk);
+        pruefe(c.assets.eigenschaften.size() == 1 && c.assets.eigenschaften[0].ok, "SP Asset_Parse: stripedFile in JK2");
+        Datei c2 = lies("ui/c.menu", "{ assetGlobalDef { stripedFile \"menus\" } }\n", so);
+        pruefe(c2.assets.eigenschaften.size() == 2 && !c2.assets.eigenschaften[0].ok, "SP Asset_Parse: stripedFile in JA unbekannt");
+        // Movie Duels: cursor_vader
+        LeseOptionen md = so;
+        md.spiel = Spiel::MD;
+        Datei e = lies("ui/e.menu", "{ assetGlobalDef { cursor_vader \"gfx/x\" } }\n", md);
+        pruefe(e.assets.eigenschaften.size() == 1 && e.assets.eigenschaften[0].ok, "SP Asset_Parse: cursor_vader in Movie Duels");
+        // MP: kein mediumFont - unbekannt, die Argumente sind eigene Woerter
+        LeseOptionen mo2;
+        mo2.dialekt = Dialekt::MP;
+        Datei f = lies("ui/jamp/f.menu", "{ assetGlobalDef { mediumFont \"ergoec\" 20 font \"anewhope\" 16 } }\n", mo2);
+        pruefe(f.assets.eigenschaften.size() == 4 && !f.assets.eigenschaften[0].ok && f.assets.eigenschaften[3].ok,
+               "MP Asset_Parse: mediumFont unbekannt, font bekannt");
+    }
+
     // --- Texte -----------------------------------------------------------------
     Texte t;
     t.ladeStr("strings/English/MENUS.str", "VERSION \"1\"\r\nREFERENCE QUIT\r\nLANG_ENGLISH \"Quit\\nGame\"\r\n");

@@ -164,6 +164,31 @@ int main() {
     const std::vector<std::string> sp = schriftNamen(s, Dialekt::SP);
     pruefe(sp.size() == 5 && sp[0] == "ergoec" && sp[1] == "aurabesh" && sp[2] == "ergoec" && sp[3] == "anewhope" && sp[4] == "arialnb",
            "SP: Griffe in Anmeldereihenfolge, 0 = mediumFont");
+    // M2: SP-Schriftnummern wie der Code (tr_font.cpp RE_RegisterFont, ui_atoms.cpp
+    // UI_RegisterFont mit registeredFonts, ui_shared.cpp UI_MenuFontToReal):
+    // eine fehlende Schrift belegt im Renderer trotzdem einen Griff, UI_RegisterFont
+    // nimmt dann "ergoec". OpenJK bildet die Nummer ueber registeredFonts ab,
+    // Movie Duels nimmt sie als Renderer-Griff.
+    {
+        Datei fs = lies("ui/x.menu", "assetGlobalDef { smallFont \"fehlt\" 16 mediumFont \"ergoec\" 18 bigFont \"anewhope\" 20 }", o);
+        auto gibt = [](const std::string& n) { return n != "fehlt"; };
+        const std::vector<std::string> ojk = schriftNamen(fs, Dialekt::SP, Spiel::JA, gibt);
+        pruefe(ojk.size() == 3 && ojk[0] == "ergoec" && ojk[1] == "ergoec" && ojk[2] == "anewhope",
+               "SP OpenJK: fehlende Schrift -> ergoec, registeredFonts ohne Doppelte");
+        const std::vector<std::string> md = schriftNamen(fs, Dialekt::SP, Spiel::MD, gibt);
+        pruefe(md.size() == 4 && md[0] == "ergoec" && md[1].empty() && md[2] == "ergoec" && md[3] == "anewhope",
+               "SP Movie Duels: Renderer-Griffe, fehlende Schrift belegt Griff 1 (zeichnet nichts)");
+        // OpenJK-Renderer: <name>_sharp1 .. _sharp8 belegen eigene Griffe
+        Datei v = lies("ui/x.menu", "assetGlobalDef { mediumFont \"ergoec\" 18 bigFont \"anewhope\" 20 }", o);
+        auto scharf = [](const std::string& n) { return n == "ergoec" || n == "ergoec_sharp1" || n == "anewhope"; };
+        const std::vector<std::string> sv = schriftNamen(v, Dialekt::SP, Spiel::JA, scharf);
+        pruefe(sv.size() == 3 && sv[1] == "ergoec" && sv[2] == "anewhope", "SP OpenJK: _sharp-Varianten verschieben die Nummern nicht");
+        // menuDef font meldet nur an, wenn noch keine mediumFont angemeldet ist
+        Datei m = lies("ui/x.menu", "assetGlobalDef { smallFont \"ocr_a\" 16 } menuDef { name a font \"anewhope\" }", o);
+        const std::vector<std::string> mv = schriftNamen(m, Dialekt::SP, Spiel::JA, {});
+        pruefe(mv.size() == 3 && mv[0] == "anewhope" && mv[1] == "ocr_a" && mv[2] == "anewhope",
+               "SP: menuDef font wird mediumFont (MenuParse_font, fontRegistered)");
+    }
 
     // Abbildung
     Abbildung ab = abbildung(1280, 720, Seitenverhaeltnis::Strecken);

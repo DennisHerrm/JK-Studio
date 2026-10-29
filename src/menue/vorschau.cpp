@@ -30,6 +30,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <map>
 
 namespace bhed::menue {
 
@@ -711,32 +712,111 @@ float sliderDaumen(const Item& it, const Umgebung& u) {
     return Maler(leer, leerM, u, dummy).daumen(it);
 }
 
-std::vector<std::string> schriftNamen(const Datei& assets, Dialekt d) {
-    std::vector<std::string> v(5);
-    std::vector<std::string> reihe;   // SP: Anmeldereihenfolge
-    for (const Eigenschaft& e : assets.assets.eigenschaften) {
-        if (e.args.empty()) { continue; }
-        std::string n = e.args[0].s;
-        if (n.compare(0, 6, "fonts/") == 0) { n = n.substr(6); }
-        const std::string k = e.schluessel;
-        auto ist = [&](const char* s) { return gleichOhneFall(k, s); };
-        if (d == Dialekt::MP) {
-            if (ist("smallFont")) { v[1] = n; }
-            else if (ist("font")) { v[2] = n; }
-            else if (ist("bigFont")) { v[3] = n; }
-            else if (ist("small2Font")) { v[4] = n; }
-        } else if (ist("smallFont") || ist("mediumFont") || ist("bigFont") || ist("font")) {
-            if (std::find(reihe.begin(), reihe.end(), n) == reihe.end()) { reihe.push_back(n); }
-            if (ist("mediumFont") || ist("font")) { v[0] = n; }
-        }
+namespace {
+// Der Schriftspeicher des Renderers (code/rd-common/tr_font.cpp): Griff 0 ist
+// "fehlt", jede neue Schrift belegt den naechsten Griff - auch eine, deren
+// .fontdat fehlt (CFontInfo legt sich trotzdem an, RE_RegisterFont_Real
+// liefert dann 0). Der OpenJK-Renderer meldet zu jeder gefundenen Schrift
+// <name>_sharp1 .. _sharp8 als eigene Griffe an (MAX_FONT_VARIANTS), Movie
+// Duels kennt keine Varianten.
+struct SchriftSpeicher {
+    std::vector<std::string> griffe{std::string()};   // Griff -> Name ("" = ungueltig)
+    std::map<std::string, int> index;                   // g_mapFontIndexes
+    std::vector<bool> mitVarianten{false};
+    const GibtSchrift* gibt = nullptr;
+    bool varianten = true;
+    bool da(const std::string& n) const { return gibt == nullptr || !*gibt || (*gibt)(n); }
+    int real(const std::string& n) {   // RE_RegisterFont_Real
+        const auto it = index.find(n);
+        if (it != index.end()) { return it->second; }
+        const int h = static_cast<int>(griffe.size());
+        const bool ok = da(n);
+        griffe.push_back(ok ? n : std::string());
+        mitVarianten.push_back(false);
+        index[n] = ok ? h : 0;
+        return ok ? h : 0;
     }
+    int anmelden(const std::string& n) {   // RE_RegisterFont
+        const int h = real(n);
+        if (h != 0 && varianten && !mitVarianten[static_cast<std::size_t>(h)]) {
+            for (int i = 0; i < 8; ++i) {
+                const std::string v = n + "_sharp" + std::to_string(i + 1);
+                if (gibt == nullptr || !*gibt || !(*gibt)(v)) { break; }
+                if (real(v) == 0) { break; }
+                mitVarianten[static_cast<std::size_t>(h)] = true;
+            }
+        }
+        return h;
+    }
+};
+}  // namespace
+
+std::vector<std::string> schriftNamen(const Datei& assets, Dialekt d, Spiel spiel, const GibtSchrift& gibt) {
+    auto schriftName = [](std::string n) {
+        if (n.compare(0, 6, "fonts/") == 0) { n = n.substr(6); }
+        return n;
+    };
     if (d == Dialekt::MP) {
-        v[0] = v[2];   // MenuFontToHandle: sonst qhMediumFont
+        // MenuFontToHandle: 1 smallFont, 2 font, 3 bigFont, 4 small2Font, sonst qhMediumFont (font)
+        std::vector<std::string> v(5);
+        for (const Eigenschaft& e : assets.assets.eigenschaften) {
+            if (e.args.empty() || !e.ok) { continue; }
+            const std::string n = schriftName(e.args[0].s);
+            const std::string& k = e.schluessel;
+            if (gleichOhneFall(k, "smallFont")) { v[1] = n; }
+            else if (gleichOhneFall(k, "font")) { v[2] = n; }
+            else if (gleichOhneFall(k, "bigFont")) { v[3] = n; }
+            else if (gleichOhneFall(k, "small2Font")) { v[4] = n; }
+        }
+        if (gibt) {   // trap->R_RegisterFont: fehlende Schrift = Griff 0, zeichnet nichts
+            for (std::string& n : v) {
+                if (!n.empty() && !gibt(n)) { n.clear(); }
+            }
+        }
+        v[0] = v[2];
         return v;
     }
-    std::vector<std::string> sp(1, v[0]);
-    for (const std::string& n : reihe) { sp.push_back(n); }
-    return sp;
+    // SP: UI_RegisterFont (ui_atoms.cpp) - Renderer-Griff, bei 0 "ergoec";
+    // OpenJK merkt die Griffe ohne Doppelte in registeredFonts.
+    SchriftSpeicher r;
+    r.gibt = &gibt;
+    r.varianten = spiel != Spiel::MD;
+    std::vector<int> registriert;
+    int medium = 0;
+    bool fontRegistered = false;
+    auto uiAnmelden = [&](const std::string& n) {
+        int h = r.anmelden(n);
+        if (h == 0) { h = r.anmelden("ergoec"); }
+        if (h != 0 && std::find(registriert.begin(), registriert.end(), h) == registriert.end()) { registriert.push_back(h); }
+        return h;
+    };
+    for (const Eigenschaft& e : assets.assets.eigenschaften) {
+        if (e.args.empty() || !e.ok) { continue; }
+        const std::string n = schriftName(e.args[0].s);
+        const std::string& k = e.schluessel;
+        if (gleichOhneFall(k, "smallFont") || gleichOhneFall(k, "bigFont")) { (void)uiAnmelden(n); }
+        else if (gleichOhneFall(k, "mediumFont")) {
+            medium = uiAnmelden(n);
+            fontRegistered = true;
+        }
+    }
+    // MenuParse_font: nur solange noch keine mediumFont angemeldet ist
+    for (const Menu& m : assets.menus) {
+        if (!m.font.empty() && !fontRegistered) {
+            medium = uiAnmelden(schriftName(m.font));
+            fontRegistered = true;
+        }
+    }
+    auto name = [&](int h) { return (h > 0 && static_cast<std::size_t>(h) < r.griffe.size()) ? r.griffe[static_cast<std::size_t>(h)] : std::string(); };
+    std::vector<std::string> v(1, name(medium));   // Text_Paint: Nummer 0 = qhMediumFont
+    if (spiel == Spiel::MD) {
+        // Movie Duels: ItemParse_font nimmt die Nummer als Renderer-Griff
+        for (std::size_t h = 1; h < r.griffe.size(); ++h) { v.push_back(r.griffe[h]); }
+    } else {
+        // OpenJK: UI_MenuFontToReal - Nummer n = registeredFonts[n - 1]
+        for (int h : registriert) { v.push_back(name(h)); }
+    }
+    return v;
 }
 
 Abbildung abbildung(float breite, float hoehe, Seitenverhaeltnis s) {

@@ -230,7 +230,9 @@ void schriftNamenLaden() {
             LeseOptionen o = optionenFuer(p, z.spiel, z.daten.lader());
             o.dialekt = d;
             const Datei a = lies(p, t, o);
-            if (a.assets.vorhanden) { return schriftNamen(a, d); }
+            if (a.assets.vorhanden) {
+                return schriftNamen(a, d, z.spiel, [&](const std::string& n) { return z.daten.gibt("fonts/" + n + ".fontdat"); });
+            }
         }
         return std::vector<std::string>{};
     };
@@ -458,12 +460,15 @@ Umgebung umgebung(const Dokument& d) {
     u.texte = &texte();
     u.dialekt = d.datei.dialekt;
     const std::vector<std::string>& namen = d.datei.dialekt == Dialekt::MP ? z.schriftNamenMp : z.schriftNamenSp;
-    u.schrift = [namen](int f) -> const Schrift* {
-        const std::size_t i = (f >= 0 && static_cast<std::size_t>(f) < namen.size()) ? static_cast<std::size_t>(f) : 0;
-        if (i < namen.size() && !namen[i].empty()) {
-            if (const Schrift* s = schriftNamens(namen[i])) { return s; }
-        }
-        return schriftNamens("ergoec");
+    // Nummer -> Schrift wie schriftNamen (SP: OpenJK registeredFonts bzw. Movie-Duels-Griffe).
+    // Ausserhalb der Liste: MP und OpenJK nehmen qhMediumFont, Movie Duels findet keinen
+    // Griff (GetFont = NULL, zeichnet nichts). Ohne assetGlobalDef (keine Spieldaten): ergoec.
+    const bool mdGriffe = d.datei.dialekt == Dialekt::SP && z.spiel == Spiel::MD;
+    u.schrift = [namen, mdGriffe](int f) -> const Schrift* {
+        if (namen.empty()) { return schriftNamens("ergoec"); }
+        std::size_t i = (f >= 0 && static_cast<std::size_t>(f) < namen.size()) ? static_cast<std::size_t>(f) : 0;
+        if (mdGriffe && f > 0 && static_cast<std::size_t>(f) >= namen.size()) { return nullptr; }
+        return namen[i].empty() ? nullptr : schriftNamens(namen[i]);
     };
     u.cvar = [](const std::string& n) {
         const auto& m = Z().vorschauCvars;

@@ -119,11 +119,17 @@ void zeichneMenu(const Datei& d, int menu, const Umgebung& u, std::vector<Prim>&
 // Item_Slider_ThumbPosition
 [[nodiscard]] float sliderDaumen(const Item& it, const Umgebung& u);
 
-// Welche Schrift hinter einer Nummer steckt (Namen aus assetGlobalDef):
+// Welche Schrift hinter einer Nummer steckt (Namen aus assetGlobalDef und
+// den menuDef-Schriften der Datei), Index = item->font bzw. iMenuFont:
 //   MP: MenuFontToHandle - 1 smallFont, 2 font, 3 bigFont, 4 small2Font, sonst font.
-//   SP: item->font ist der Renderer-Griff - die Schriften in der Reihenfolge,
-//       in der Asset_Parse sie anmeldet (0 = mediumFont).
-[[nodiscard]] std::vector<std::string> schriftNamen(const Datei& assets, Dialekt d);
+//   SP: wie UI_RegisterFont/RE_RegisterFont anmelden (fehlende Schrift belegt
+//       einen Griff, dann "ergoec"); 0 = qhMediumFont. OpenJK (JA, JK2):
+//       Nummer n = registeredFonts[n-1] (UI_MenuFontToReal); Movie Duels:
+//       Nummer = Renderer-Griff. "" = zeichnet nichts.
+// gibt: gibt es fonts/<name>.fontdat? (leer = alle vorhanden, keine _sharp-Varianten)
+using GibtSchrift = std::function<bool(const std::string& name)>;
+[[nodiscard]] std::vector<std::string> schriftNamen(const Datei& assets, Dialekt d, Spiel spiel = Spiel::JA,
+                                                    const GibtSchrift& gibt = {});
 
 // Abbildung des virtuellen Bildschirms auf ein Fenster.
 enum class Seitenverhaeltnis {
