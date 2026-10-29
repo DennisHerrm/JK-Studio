@@ -66,6 +66,8 @@
 #include "bhed/karte/filter.h"
 #include "bhed/karte/kartenformat.h"
 #include "bhed/karte/lichtschaetzung.h"   // Stufe 9c: Lichtmessung auf dekompilierten Karten
+#include "bhed/karte/echtlicht.h"         // Stufe 9d: Nebel, Modellflaechen
+#include "bhed/karte/patchbefehle.h"      // Stufe 9d: Patch-Bruecke
 
 #include <algorithm>
 #include <array>

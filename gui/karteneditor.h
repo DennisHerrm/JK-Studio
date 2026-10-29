@@ -1085,6 +1085,13 @@ struct Editor {
         std::size_t gezeichnet = 0;        // davon im letzten Bild
         std::size_t schattenNeu = 0;       // Schattenwuerfel neu gerendert (gesamt)
         double lichtMs = 0;                // Lichtliste + Schatten im letzten Bild (Prozessor)
+        std::size_t nebel = 0;             // Stufe 9d: Nebel der Karte (Pinsel mit fogParms, globaler Nebel)
+        bool effekte = true;               // Stufe 9d: fx_runner in der Echtzeit-Ansicht ("RealtimeEffects")
+        std::size_t effektLaeufer = 0;     // Stufe 9d: laufende fx_runner
+        std::size_t effektEcken = 0;       // Stufe 9d: Ecken des Effektnetzes im letzten Bild
+        double effektMs = 0;               // Stufe 9d: Effekte im letzten Bild (Prozessor: Teilchen, Netz, Zeichenaufrufe)
+        bool portal = false;               // Stufe 9d: der Himmel zeigte im letzten Bild ein misc_skyportal
+        std::size_t schattenModellDreiecke = 0;   // Stufe 9d: Dreiecke der misc_model in der Schattengeometrie
         // Schnell-Backen
         int bauStand = 0;                  // 0 aus, 1 wartet, 2 laeuft, 3 fertig, 4 abgebrochen, 5 Fehler
         double bauSekunden = 0;            // Dauer des letzten Baus
@@ -1280,6 +1287,17 @@ void texturDialogeZeichnen();
 // Die Befehle aus texwindow.cpp (ShowInUse, ShowAllTextures, Toggle...,
 // RefreshShaders) und findtexturedialog.cpp (FindReplaceTextures).
 void texturBefehl(const std::string& name);
+// Stufe 9d: Shader live bearbeiten (app_karte_shadereditor.cpp, eigene Funktion, nicht in NRC)
+void shaderEditorOeffnen(const std::string& shader);   // die .shader-Datei des Shaders, an seiner Zeile
+void shaderEditorZeichnen();                            // jedes Bild
+void shaderEditorSchritt();                             // jedes Bild: geaenderte .shader-Dateien -> neu laden
+bool shaderEditorSpeichern();                           // wie "Save" (nie in einen Spielordner)
+[[nodiscard]] std::string shaderEditorZiel();           // die Datei, in die gespeichert wird
+std::string& shaderEditorText();                        // Selbsttest: der Text im Fenster
+[[nodiscard]] bool shaderEditorOffen();
+void shaderEditorSchliessen();
+void shaderEditorTextGeaendert();                       // Selbsttest: nach einer Aenderung von shaderEditorText()
+[[nodiscard]] std::size_t shaderNeuGeladen();           // Neuladungen durch Speichern oder Dateiaenderung
 [[nodiscard]] bool texturBefehlAn(const std::string& name);
 // TextureBrowser_SetSelectedShader: Auswahl, Status, Fokus, Find-Dialog.
 void texturShaderWaehlen(const std::string& shader);
@@ -1656,6 +1674,11 @@ struct BspRueckStand {
     std::size_t kandidaten = 0;
 };
 [[nodiscard]] BspRueckStand bspRueckStand();
+// Stufe 9d Punkt 1: laeuft die Rueckgewinnung (stand 1/2/3)? Massenaenderungen der Geometrie (Behebungen des
+// Optimierers, File > Import, Geometrie als Brushes) warten bis zu ihrem Ende: sonst verfaellt ihr Ergebnis, oder es
+// kommt nach einem Undo als neuer Schritt und leert den Redo-Stapel.
+[[nodiscard]] bool bspRueckLaeuft();
+bool bspRueckSperre();   // laeuft sie: Hinweis (Konsole) und true - die Aenderung unterbleibt
 [[nodiscard]] std::string modellIndexPfad();   // Stufe 8b Punkt 8: der Modell-Index im Einstellungsordner
 void bspRueckStarten(const std::string& bspDaten, const std::string& ordner, const std::string& stamm, const std::string& karteDatei);
 void bspRueckAbbrechen();

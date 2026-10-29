@@ -9,9 +9,14 @@
 //   weichem Rand 32; Sonne (_sun mit target): add = photons * cos.
 #include "bhed/karte/echtlicht.h"
 #include "bhed/karte/karte.h"
+#include "bhed/karte/modell.h"
 #include "bhed/karte/optimierer.h"
+#include "bhed/karte/patch.h"
+#include "bhed/karte/pinsel.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <memory>
 #include <vector>
@@ -223,11 +228,262 @@ textures/test/glas
            "Shader: alphashadow, cull none, alphaFunc GE128, Bild der ersten Stufe ohne Endung");
     const ShaderSkript c = shaderSkriptLesen(text, "textures/test/glas");
     pruefe(c.durchscheinend && !c.alphaSchatten && c.mischQuelle == 5 && c.mischZiel == 2, "Shader: trans, blendFunc GL_DST_COLOR GL_ZERO");
+    // Stufe 9d: q3map_sunExt <r g b> <Staerke> <Grad> <Hoehe> <deviance> <samples>
+    pruefe(a.sonnen.size() == 2 && a.sonnen[0].proben == 1 && a.sonnen[1].abweichung == 2 && a.sonnen[1].proben == 16,
+           "Shader: q3map_sunExt mit Abweichung 2 und 16 Proben, sun ohne");
+}
+
+// --- Stufe 9d ------------------------------------------------------------------------------
+
+// MSVC rand() nach srand( 0 ): 38, 7719, 21238 (RAND_MAX 32767)
+void zufall() {
+    EchtZufall z;
+    const float a = z.naechste();
+    const float b = z.naechste();
+    const float c = z.naechste();
+    pruefe(nah(a, 38.0F / 32767.0F, 1e-7F) && nah(b, 7719.0F / 32767.0F, 1e-7F) && nah(c, 21238.0F / 32767.0F, 1e-7F), "Zufall wie srand( 0 ) / rand() von MSVC");
+}
+
+// CreateEntityLights mit _samples/_deviance, CreateSunLight mit numSamples
+void proben() {
+    Karte k;
+    k.weltHolenOderAnlegen();
+    auto e = licht(k, "0 0 128", "400");
+    e->setzen("_samples", "4");
+    e->setzen("_deviance", "8");
+    const EchtLichtWelt w = sammeln(k);
+    float summe = 0;
+    bool nahDran = true;
+    for (const EchtLicht& l : w.lichter) {
+        summe += l.photonen;
+        nahDran = nahDran && std::fabs(l.ursprung[0]) <= 8 && std::fabs(l.ursprung[1]) <= 8 && std::fabs(l.ursprung[2] - 128) <= 8;
+    }
+    pruefe(w.lichter.size() == 4 && nah(summe, 400.0F * 7500.0F, 1.0F) && nahDran && w.lichter[0].ursprung[2] == 128 && w.lichter[1].ursprung[2] != 128,
+           "_samples 4: vier Lichter je photons / 4, die drei Kopien um hoechstens _deviance verschoben (" + std::to_string(w.lichter.size()) + ")");
+    // erste Kopie: x = 128 + (38 / 32767 * 2 - 1) * 8 usw. (Zufall von q3map2)
+    pruefe(nah(w.lichter[1].ursprung[0], (38.0F / 32767.0F * 2.0F - 1.0F) * 8.0F, 1e-4F), "Jitter der ersten Kopie aus dem Zufall von q3map2");
+    // Sonne mit Abweichung: Shader-Sonne ueber die Rueckruf-Funktion
+    Karte k2;
+    auto welt = k2.weltHolenOderAnlegen();
+    std::vector<EchtLicht> aus;
+    EchtSonne::Sonne so;
+    so.staerke = 100;
+    so.grad = 0;
+    so.hoehe = 45;
+    so.abweichung = 5.0F * 3.14159265F / 180.0F;
+    so.proben = 8;
+    EchtSonne s;
+    s.da = true;
+    s.sonnen = {so};
+    // eine Himmelsflaeche: ein Pinsel ist hier nicht noetig - die Sonne kommt ueber eine Flaeche; stattdessen
+    // die Patch-Flaeche (himmelPruefen gilt auch fuer Patches)
+    auto patch = std::make_shared<Patch>();
+    patch->setzeGroesse(3, 3);
+    for (std::size_t r = 0; r < 3; ++r) {
+        for (std::size_t c = 0; c < 3; ++c) { patch->punkt(r, c).vertex = Vektor3f(static_cast<float>(c) * 64.0F, static_cast<float>(r) * 64.0F, 512.0F); }
+    }
+    patch->setzeShader("textures/test/himmel");
+    welt->kindEinfuegen(patch);
+    const EchtLichtWelt ws = echtLichterSammeln(k2, nullptr, [&s](const std::string&) { return s; });
+    float sumS = 0;
+    float maxWinkel = 0;
+    const Vektor3f r0 = ws.lichter.empty() ? Vektor3f(0, 0, 0) : ws.lichter[0].sonnenRichtung;
+    for (const EchtLicht& l : ws.lichter) {
+        sumS += l.photonen;
+        const float d = std::clamp(l.sonnenRichtung[0] * r0[0] + l.sonnenRichtung[1] * r0[1] + l.sonnenRichtung[2] * r0[2], -1.0F, 1.0F);
+        maxWinkel = std::max(maxWinkel, std::acos(d) * 180.0F / 3.14159265F);
+    }
+    pruefe(ws.lichter.size() == 8 && nah(sumS, 100.0F, 1e-3F) && nah(r0[2], std::sin(45.0F * 3.14159265F / 180.0F), 1e-5F) && maxWinkel > 0.1F &&
+               maxWinkel <= 5.0F * 1.4143F + 0.01F,
+           "q3map_sunExt 8 Proben: acht Sonnen, Summe 100, die erste genau, die anderen innerhalb der Abweichung (" + std::to_string(ws.lichter.size()) +
+               ", " + std::to_string(maxWinkel) + " Grad)");
+}
+
+// Patches wie in -light: Netz von TessellatedMesh, Flaechenlicht wie RadLightForPatch
+void patches() {
+    // eben (3 x 3, 128 x 128): RemoveLinearMeshColumnsRows laesst 2 x 2 uebrig
+    std::vector<Vektor3f> eben;
+    for (int r = 0; r < 3; ++r) {
+        for (int c = 0; c < 3; ++c) { eben.push_back(Vektor3f(static_cast<float>(c) * 64.0F, static_cast<float>(r) * 64.0F, 0.0F)); }
+    }
+    const EchtNetz n = echtPatchNetz(eben, 3, 3);
+    pruefe(n.breite == 2 && n.hoehe == 2 && std::fabs(std::fabs(n.normale[0][2]) - 1.0F) < 1e-5F, "ebener Patch: 2 x 2 nach RemoveLinearMeshColumnsRows, Normale senkrecht");
+    // gewoelbt: die Mitte 64 hoeher -> longestCurve > 0, Unterteilung
+    std::vector<Vektor3f> bogen = eben;
+    for (int r = 0; r < 3; ++r) { bogen[static_cast<std::size_t>(r * 3 + 1)][2] = 64.0F; }
+    const EchtNetz b = echtPatchNetz(bogen, 3, 3);
+    pruefe(b.breite > 3 && b.hoehe == 2, "gewoelbter Patch: in der Bogenrichtung unterteilt, quer gerade (" + std::to_string(b.breite) + " x " + std::to_string(b.hoehe) + ")");
+    // entartet (alle Punkte auf einer Linie): kein Netz (ParsePatch verwirft ihn)
+    std::vector<Vektor3f> linie;
+    for (int i = 0; i < 9; ++i) { linie.push_back(Vektor3f(static_cast<float>(i) * 8.0F, 0, 0)); }
+    pruefe(echtPatchNetz(linie, 3, 3).ort.empty(), "entarteter Patch: verworfen");
+    // Flaechenlicht: dieselbe Summe der Photonen wie ein gleich grosser Flaechenausschnitt
+    EchtFlaechenShader s;
+    s.flaechenlicht = 100;
+    s.backsplashAnteil = 0;
+    std::vector<EchtLicht> l;
+    echtPatchFlaechenLichter(n, s, l);
+    float summe = 0;
+    for (const EchtLicht& x : l) { summe += x.photonen; }
+    pruefe(l.size() == 1 && l[0].wicklung.size() == 4 && nah(summe, 100.0F * 128.0F * 128.0F * 0.25F, 1.0F),
+           "ebener Patch: ein Viereck, photons = value * area * areaScale (" + std::to_string(l.size()) + ")");
+    // die Normale zeigt zur Seite, auf die das Licht faellt: davor hell, dahinter nichts
+    const Vektor3f nl = l.empty() ? Vektor3f(0, 0, 1) : l[0].normale;
+    const Vektor3f vorn = Vektor3f(64, 64, 0) + nl * 64.0F;
+    const Vektor3f hinten = Vektor3f(64, 64, 0) - nl * 64.0F;
+    pruefe(!l.empty() && echtLichtBeitrag(l[0], vorn, Vektor3f(-nl[0], -nl[1], -nl[2]))[0] > 0 && echtLichtBeitrag(l[0], hinten, nl)[0] == 0,
+           "Patch-Flaechenlicht: vor der Normale hell, dahinter dunkel");
+    std::vector<EchtLicht> lb;
+    echtPatchFlaechenLichter(b, s, lb);
+    pruefe(lb.size() >= 4, "gewoelbter Patch: mehrere Flaechenlichter (" + std::to_string(lb.size()) + ")");
+}
+
+// StripFaceSurface: Viereck -> zwei Dreiecke ab der kleinsten Ecke; entartet -> Faecher um die Mitte
+void streifen() {
+    const std::vector<Vektor3f> q = {Vektor3f(64, 0, 0), Vektor3f(64, 64, 0), Vektor3f(0, 64, 0), Vektor3f(0, 0, 0)};
+    bool mitte = true;
+    const std::vector<int> i = echtFlaechenStreifen(q, &mitte);
+    // least = 3 (0 0 0); i = 3, j = 2: (3, 1, 2), (0, 1, 3)
+    pruefe(!mitte && i == std::vector<int>({3, 1, 2, 0, 1, 3}), "StripFaceSurface: Viereck ab der kleinsten Ecke");
+    const std::vector<Vektor3f> fuenf = {Vektor3f(0, 0, 0), Vektor3f(64, 0, 0), Vektor3f(128, 0, 0), Vektor3f(128, 64, 0), Vektor3f(0, 64, 0)};
+    const std::vector<int> f = echtFlaechenStreifen(fuenf, &mitte);
+    pruefe(f.size() == 9, "Fuenfeck mit einer Ecke auf der Kante: drei Dreiecke (" + std::to_string(f.size()) + ")");
+    const std::vector<Vektor3f> duenn = {Vektor3f(0, 0, 0), Vektor3f(100, 0, 0), Vektor3f(200, 0.001F, 0), Vektor3f(300, 0, 0)};
+    const std::vector<int> d = echtFlaechenStreifen(duenn, &mitte);
+    pruefe(mitte && d.size() == 12 && d[0] == 4, "entartet: FanFaceSurface um den Mittelpunkt");
+}
+
+// misc_model: Flaechen und Schatten wie AddTriangleModels / ParseEntityCompileParams
+class TestModelle final : public ModellQuelle {
+public:
+    TestModelle() {
+        auto m = std::make_shared<Modell>();
+        ModellFlaeche f;
+        f.shader = "textures/test/leuchte";
+        f.punkte = {{Vektor3f(0, 0, 0), Vektor3f(0, 0, 1), Vektor2f(0, 0)}, {Vektor3f(64, 0, 0), Vektor3f(0, 0, 1), Vektor2f(1, 0)},
+                    {Vektor3f(0, 64, 0), Vektor3f(0, 0, 1), Vektor2f(0, 1)}};
+        f.indizes = {0, 1, 2};
+        m->flaechen.push_back(f);
+        m_modell = m;
+    }
+    [[nodiscard]] ModellAnsicht ansicht(const Entitaet&) const override {
+        ModellAnsicht a;
+        a.modell = m_modell;
+        a.shader = {"textures/test/leuchte"};
+        return a;
+    }
+
+private:
+    std::shared_ptr<const Modell> m_modell;
+};
+
+void modelle() {
+    TestModelle quelle;
+    Karte k;
+    k.kontext.modelle = &quelle;
+    k.weltHolenOderAnlegen();
+    const auto mm = [&k](const char* ursprung) {
+        auto e = k.neueEntitaet("misc_model", false);
+        e->setzen("origin", ursprung);
+        e->setzen("model", "models/test.md3");
+        k.entitaetEinfuegen(e);
+        return e;
+    };
+    auto a = mm("0 0 0");
+    auto b = mm("1000 0 0");
+    b->setzen("_castShadows", "0");
+    auto c = mm("2000 0 0");
+    c->setzen("target", "gibtsnicht");   // kein Ziel: nicht in der .bsp
+    std::vector<int> wirft;
+    std::vector<float> x;
+    echtModellFlaechen(k, [&](const EchtModellFlaeche& f) {
+        wirft.push_back(f.wirft);
+        x.push_back(f.ort.empty() ? -1.0F : f.ort[0][0]);
+    });
+    pruefe(wirft == std::vector<int>({1, 0}) && x.size() == 2 && x[1] == 1000.0F,
+           "misc_model: in der Welt castShadows 1, _castShadows 0 wirft nicht, target ohne Ziel fehlt");
+    EchtFlaechenShader s;
+    s.flaechenlicht = 1000;
+    s.backsplashAnteil = 0;
+    const EchtLichtWelt w = echtLichterSammeln(k, [&s](const std::string& sh) { return sh == "textures/test/leuchte" ? s : EchtFlaechenShader{}; }, nullptr);
+    float summe = 0;
+    std::size_t flaechen = 0;
+    for (const EchtLicht& l : w.lichter) {
+        if (l.art != EchtLicht::Art::Flaeche) { continue; }
+        ++flaechen;
+        summe += l.photonen;
+    }
+    pruefe(flaechen == 2 && nah(summe, 2.0F * 1000.0F * 2048.0F * 0.25F, 1.0F) && w.lichter[0].normale[2] > 0.99F,
+           "misc_model mit q3map_surfacelight: je Dreieck ein Flaechenlicht (RadLightForTriangles), Normale aus den Ecken (" + std::to_string(flaechen) + ")");
+    const Vektor3f vorn = echtLichtBeitrag(w.lichter[0], Vektor3f(16, 16, 64), Vektor3f(0, 0, -1));
+    pruefe(vorn[0] > 0, "misc_model-Flaechenlicht: ueber dem Dreieck hell");
 }
 
 }  // namespace
 
+// Nebel: R_LoadFogs, EmitFogs (sichtbare Seite), RB_CalcFogTexCoords + R_FogFactor. Sollwert von Hand:
+// Nebel z 0..128 (Flaeche oben, ebene 0 0 -1 128), Tiefe 256 -> tcScale 1/2048, Auge 0 0 300, Blick nach
+// unten, Stelle 0 0 0: eye_t = -172 (draussen), t = 128 -> 1/32 + 30/32 * 128 / 300 = 0.43125;
+// s = 300 / 2048 = 0.146484 -> * (0.43125 - 1/32) / (30/32) = 0.0625 -> * 8 = 0.5 -> sqrt = 0.70711
+void nebel() {
+    Karte k;
+    auto welt = k.weltHolenOderAnlegen();
+    TexturProjektion proj;
+    texdefStandard(TexdefArt::Quake, proj);
+    const auto quader = [&](const Vektor3f& mitte, const Vektor3f& halb, const char* shader) {
+        auto p = std::make_shared<Pinsel>();
+        p->quaderBauen(Kasten(mitte, halb), shader, proj, k.kontext);
+        p->bRep(k.kontext);
+        welt->kindEinfuegen(p);
+        return p;
+    };
+    quader(Vektor3f(0, 0, -8), Vektor3f(512, 512, 8), "textures/test/stein");   // Boden: deckt die Unterseite des Nebels
+    quader(Vektor3f(0, 0, 64), Vektor3f(256, 256, 64), "textures/test/nebel");
+    const auto shader = [](const std::string& sh) {
+        EchtNebelShader r;
+        if (sh == "textures/test/nebel") {
+            r.nebel = true;
+            r.farbe = Vektor3f(0.1F, 0.9F, 0.1F);
+            r.tiefe = 256;
+        }
+        return r;
+    };
+    std::vector<EchtNebel> n = echtNebelSammeln(k, shader);
+    pruefe(n.size() == 1 && n[0].hatFlaeche && n[0].ebene[2] == -1.0F && n[0].ebene[3] == 128.0F && nah(n[0].tcScale, 1.0F / 2048.0F, 1e-9F),
+           "Nebelpinsel: sichtbare Seite +Z (EmitFogs: achsparallel von +Z rueckwaerts), tcScale 1 / (256 * 8)");
+    const float d = n.empty() ? 0.0F : echtNebelDichte(n[0], Vektor3f(0, 0, 0), Vektor3f(0, 0, 300), Vektor3f(0, 0, -1));
+    pruefe(nah(d, 0.70711F, 1e-4F), "RB_CalcFogTexCoords + R_FogFactor: Boden aus 300 von oben 0.70711 (ist " + std::to_string(d) + ")");
+    const float innen = n.empty() ? 0.0F : echtNebelDichte(n[0], Vektor3f(0, 0, 0), Vektor3f(0, 0, 100), Vektor3f(0, 0, -1));
+    pruefe(nah(innen, std::sqrt(100.0F / 2048.0F * 8.0F), 1e-4F), "Auge im Nebel: t = 31/32, nur der Abstand (ist " + std::to_string(innen) + ")");
+    pruefe(n.empty() || echtNebelDichte(n[0], Vektor3f(0, 0, 200), Vektor3f(0, 0, 300), Vektor3f(0, 0, -1)) == 0.0F, "ueber der Nebelflaeche: kein Nebel");
+    // q3map_fogDir erzwingt die Seite, deren Normale am meisten entgegen zeigt
+    const auto mitRichtung = [&shader](const std::string& sh) {
+        EchtNebelShader r = shader(sh);
+        if (r.nebel) { r.richtung = Vektor3f(1, 0, 0); }
+        return r;
+    };
+    n = echtNebelSammeln(k, mitRichtung);
+    pruefe(n.size() == 1 && n[0].hatFlaeche && n[0].ebene[0] == 1.0F, "q3map_fogDir 1 0 0: die Seite -X ist die Nebelflaeche");
+    // globaler Nebel (worldspawn _fog), ohne Shader: "bad shader" rot, Tiefe 250
+    welt->setzen("_fog", "textures/test/fehlt");
+    n = echtNebelSammeln(k, shader);
+    pruefe(n.size() == 2 && n[1].global && n[1].farbe[0] == 1.0F && n[1].farbe[1] == 0.0F && nah(n[1].tcScale, 1.0F / 2000.0F, 1e-9F),
+           "globaler Nebel aus worldspawn _fog; fehlt der Shader: rot, Tiefe 250 (R_LoadFogs)");
+    // Shader-Skript: fogparms mit Klammern als eigene Woerter und angeklebt, q3map_fogDir
+    const ShaderSkript a = shaderSkriptLesen("textures/n/a\n{\n fogparms ( 0.5 0.25 1 ) 300\n q3map_fogDir 0 0 -1\n}\n", "textures/n/a");
+    const ShaderSkript b = shaderSkriptLesen("textures/n/b\n{\n fogparms (0.5 0.25 1) 64\n}\n", "textures/n/b");
+    pruefe(a.nebelParms && a.nebelFarbe[1] == 0.25 && a.nebelTiefe == 300 && a.nebelRichtung[2] == -1 && b.nebelParms && b.nebelFarbe[0] == 0.5 &&
+               b.nebelTiefe == 64,
+           "Shader: fogParms ( r g b ) Tiefe, q3map_fogDir");
+}
+
 int main() {
+    nebel();
+    zufall();
+    proben();
+    patches();
+    streifen();
+    modelle();
     flaeche();
     himmel();
     punkt();

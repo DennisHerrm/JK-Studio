@@ -209,6 +209,141 @@ void patchKappen(Karte& k, const std::string& shader, PatchKappe art, Protokoll&
     }
 }
 
+namespace {
+
+// Eine Randkante: Zeile (0 oder hoehe-1) bzw. Spalte (0 oder breite-1) der Kontrollpunkte, in
+// Laufrichtung; dazu die Nachbarzeile nach innen (fuer die Seite, zu der der Patch zeigt).
+struct Randkante {
+    std::vector<std::size_t> idx;     // Kontrollpunkte (r * breite + c)
+    std::vector<std::size_t> innen;   // die Punkte eine Zeile/Spalte weiter innen
+    bool gewaehlt = false;            // enthaelt gewaehlte Kontrollpunkte
+};
+
+std::vector<Randkante> randkanten(const Patch& p) {
+    std::vector<Randkante> r;
+    const std::size_t w = p.breite();
+    const std::size_t h = p.hoehe();
+    if (w < 3 || h < 3) { return r; }
+    for (int seite = 0; seite < 4; ++seite) {
+        Randkante k;
+        if (seite < 2) {   // Zeile 0 bzw. h-1, Spalten 0..w-1
+            const std::size_t zeile = seite == 0 ? 0 : h - 1;
+            const std::size_t nach = seite == 0 ? 1 : h - 2;
+            for (std::size_t c = 0; c < w; ++c) {
+                k.idx.push_back(zeile * w + c);
+                k.innen.push_back(nach * w + c);
+            }
+        } else {           // Spalte 0 bzw. w-1, Zeilen 0..h-1
+            const std::size_t spalte = seite == 2 ? 0 : w - 1;
+            const std::size_t nach = seite == 2 ? 1 : w - 2;
+            for (std::size_t z = 0; z < h; ++z) {
+                k.idx.push_back(z * w + spalte);
+                k.innen.push_back(z * w + nach);
+            }
+        }
+        for (const std::size_t i : k.idx) { k.gewaehlt = k.gewaehlt || p.punktGewaehlt(i); }
+        r.push_back(std::move(k));
+    }
+    return r;
+}
+
+double abstand2(const Vektor3f& a, const Vektor3f& b) {
+    const double x = static_cast<double>(a[0]) - b[0];
+    const double y = static_cast<double>(a[1]) - b[1];
+    const double z = static_cast<double>(a[2]) - b[2];
+    return x * x + y * y + z * z;
+}
+
+Vektor3f kreuzF(const Vektor3f& a, const Vektor3f& b) { return Vektor3f(a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]); }
+
+}  // namespace
+
+bool patchBruecke(Karte& k, Protokoll& pr) {
+    const std::vector<PatchOrt> wahl = gewaehltePatches(k);
+    if (wahl.size() != 2) {
+        fehler(pr, "Patch bridge: select exactly two patches\n");
+        return false;
+    }
+    const Patch& a = *wahl[0].patch;
+    const Patch& b = *wahl[1].patch;
+    const std::vector<Randkante> ka = randkanten(a);
+    const std::vector<Randkante> kb = randkanten(b);
+    const bool punkteA = std::any_of(ka.begin(), ka.end(), [](const Randkante& x) { return x.gewaehlt; });
+    const bool punkteB = std::any_of(kb.begin(), kb.end(), [](const Randkante& x) { return x.gewaehlt; });
+    double bester = 1e300;
+    int ia = -1;
+    int ib = -1;
+    bool umgekehrt = false;
+    for (std::size_t i = 0; i < ka.size(); ++i) {
+        if (punkteA && !ka[i].gewaehlt) { continue; }
+        for (std::size_t j = 0; j < kb.size(); ++j) {
+            if (punkteB && !kb[j].gewaehlt) { continue; }
+            if (ka[i].idx.size() != kb[j].idx.size()) { continue; }
+            const std::size_t n = ka[i].idx.size();
+            for (const bool rueck : {false, true}) {
+                double s = 0;
+                for (std::size_t q = 0; q < n; ++q) {
+                    s += std::sqrt(abstand2(a.punkte()[ka[i].idx[q]].vertex, b.punkte()[kb[j].idx[rueck ? n - 1 - q : q]].vertex));
+                }
+                if (s < bester) {
+                    bester = s;
+                    ia = static_cast<int>(i);
+                    ib = static_cast<int>(j);
+                    umgekehrt = rueck;
+                }
+            }
+        }
+    }
+    if (ia < 0) {
+        fehler(pr, "Patch bridge: the two patches have no edges with the same number of control points\n");
+        return false;
+    }
+    const Randkante& ra = ka[static_cast<std::size_t>(ia)];
+    const Randkante& rb = kb[static_cast<std::size_t>(ib)];
+    const std::size_t n = ra.idx.size();
+    Befehl befehl(k.undo, "patchBridge");
+    auto neu = neuerPatch(k, wahl[0].entitaet);
+    neu->setzeGroesse(n, 3);
+    std::vector<PatchPunkt> pk(n * 3);
+    for (std::size_t c = 0; c < n; ++c) {
+        const PatchPunkt& pa = a.punkte()[ra.idx[c]];
+        const PatchPunkt& pb = b.punkte()[rb.idx[umgekehrt ? n - 1 - c : c]];
+        pk[c] = pa;
+        pk[2 * n + c] = pb;
+        pk[n + c].vertex = (pa.vertex + pb.vertex) * 0.5F;
+        pk[n + c].texcoord = Vektor2f((pa.texcoord[0] + pb.texcoord[0]) * 0.5F, (pa.texcoord[1] + pb.texcoord[1]) * 0.5F);
+    }
+    // zur selben Seite wie der erste Patch: die Vorderseite nach der Konvention der Kontrollpunkte
+    // ((P(r, c+1) - P(r, c)) x (P(r+1, c) - P(r, c))), an den Zellen von a an dieser Kante und an der Bruecke
+    {
+        const std::vector<PatchPunkt>& qa = a.punkte();
+        const std::size_t w = a.breite();
+        const std::size_t h = a.hoehe();
+        const auto zelle = [&qa, w](std::size_t r, std::size_t c) {
+            return kreuzF(qa[r * w + c + 1].vertex - qa[r * w + c].vertex, qa[(r + 1) * w + c].vertex - qa[r * w + c].vertex);
+        };
+        Vektor3f fa(0, 0, 0);
+        const int seite = ia;
+        if (seite < 2) {
+            const std::size_t r = seite == 0 ? 0 : h - 2;
+            for (std::size_t c = 0; c + 1 < w; ++c) { fa = fa + zelle(r, c); }
+        } else {
+            const std::size_t c = seite == 2 ? 0 : w - 2;
+            for (std::size_t r = 0; r + 1 < h; ++r) { fa = fa + zelle(r, c); }
+        }
+        Vektor3f fn(0, 0, 0);
+        for (std::size_t c = 0; c + 1 < n; ++c) { fn = fn + kreuzF(pk[c + 1].vertex - pk[c].vertex, pk[n + c].vertex - pk[c].vertex); }
+        if (fa[0] * fn[0] + fa[1] * fn[1] + fa[2] * fn[2] < 0) {
+            for (std::size_t r = 0; r < 3; ++r) { std::reverse(pk.begin() + static_cast<std::ptrdiff_t>(r * n), pk.begin() + static_cast<std::ptrdiff_t>(r * n + n)); }
+        }
+    }
+    neu->punkteSetzen(pk);
+    neu->setzeShader(a.shader());
+    neu->texturNatuerlich(k.kontext);
+    k.auswahl.waehlen(wahl[0].entitaet, neu);
+    return true;
+}
+
 void patchVerformen(Karte& k, int staerke, int achse) {
     Befehl befehl(k.undo, "patchDeform");
     for (const PatchOrt& o : gewaehltePatches(k)) {   // Patch_deform (patchmanip.cpp:150-159)

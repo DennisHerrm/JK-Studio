@@ -140,6 +140,28 @@ private:
 // Restzeit als Text "1:05" bzw. "0:07"; ab einer Stunde "1:02:03"
 [[nodiscard]] std::string bauZeitText(double sekunden);
 
+// --- Stufe 9d (VIS-Fund md_rev_TarisUpper2): was ein volles -vis braucht ------------------------
+//
+// Aus der Portaldatei (.prt), die der BSP-Schritt schreibt - vor dem VIS-Schritt. Wie q3map2 vis.cpp
+// LoadPortals und visflow.cpp PassageMemory: -vis rechnet mit 2 * portale Portalseiten; CreatePassages
+// legt je Portalseite eine Passage je Portal ihres Ziel-Clusters an (passage_t und portalbytes Bits),
+// BasePortalVis je Portalseite portalfront, portalflood und portalvis (je portalbytes). NRC druckt
+// "required passage memory" nur fuer die Haelfte der Portalseiten und in einem int (bhed_q3map2 richtig).
+struct VisBedarf {
+    bool ok = false;
+    long long cluster = 0;
+    long long portale = 0;     // Zeilen der .prt
+    long long passagen = 0;
+    double speicherMB = 0.0;   // Passagen und Bitfelder
+};
+[[nodiscard]] VisBedarf visBedarfAusPrt(const std::string& prt);
+// -vis ohne -fast: das volle VIS (CreatePassages, PassagePortalFlow)
+[[nodiscard]] bool bauVisVoll(const std::string& befehl);
+// Steht im worldspawn-Schluessel _q3map2_cmdline (q3map2 InjectCommandLine: "-bsp -meta; -vis -fast; ...",
+// bleibt nach File > Open .bsp in der Karte) ein -vis mit -fast? Dann hatte die Original-.bsp nur das
+// schnelle VIS.
+[[nodiscard]] bool visFastInKommandozeile(const std::string& kommandozeile);
+
 }  // namespace bhed::karte
 
 #endif

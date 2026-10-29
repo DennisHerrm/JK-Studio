@@ -280,8 +280,17 @@ Md3Paket md3Paket(const ImportNetz& netz, const std::string& stammRoh) {
         if (!bild.empty()) { sh += "\tqer_editorimage " + bild + "\n"; }
         sh += "\t{\n\t\tmap " + (bild.empty() ? std::string("$whiteimage") : bild) + "\n\t\trgbGen lightingDiffuse\n\t}\n}\n";
     }
-    p.dateien.push_back({"scripts/" + stamm + ".shader", sh});
+    p.dateien.push_back({std::string(kSpielShaderOrdner) + stamm + ".shader", sh});
     return p;
+}
+
+std::string importArchivName(const std::string& rel) {
+    std::string k = rel;
+    for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    if (k.rfind("scripts/", 0) == 0 && k.size() > 15 && k.compare(k.size() - 7, 7, ".shader") == 0 && k.find('/', 8) == std::string::npos) {
+        return std::string(kSpielShaderOrdner) + rel.substr(8);
+    }
+    return rel;
 }
 
 }  // namespace bhed::karte

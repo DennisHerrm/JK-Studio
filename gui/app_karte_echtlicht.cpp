@@ -159,8 +159,19 @@ std::size_t lichtSignatur() {
     return h;
 }
 
+std::size_t g_neuGeladenStand = 0;   // Stufe 9d: ed.neuGeladen beim letzten Leeren der Shader-Zwischenspeicher
+
 void weltAktualisieren(std::size_t geoStand) {
     LichtWelt& w = g_welt;
+    if (g_neuGeladenStand != ed().neuGeladen) {   // Stufe 9d: Flush & Reload Shaders - die Skripte neu lesen
+        g_neuGeladenStand = ed().neuGeladen;
+        g_dateien.clear();
+        g_skripte.clear();
+        g_lichtBildFarben.clear();
+        g_himmelsProben.clear();
+        w.geoStand = static_cast<std::size_t>(-1);
+        w.entStand = static_cast<std::size_t>(-1);
+    }
     if (w.geoStand != geoStand) {
         w.geoStand = geoStand;
         const karte::EchtLichtWelt f = karte::echtLichterSammeln(
@@ -179,6 +190,7 @@ void weltAktualisieren(std::size_t geoStand) {
                 r.backsplashWeite = static_cast<float>(s.backsplashWeite);
                 r.himmel = s.himmel;
                 r.zweiseitig = s.zweiseitig || s.nebel;
+                r.autosprite = s.autosprite;   // Stufe 9d
                 return r;
             },
             [](const std::string& sh) {
@@ -191,7 +203,8 @@ void weltAktualisieren(std::size_t geoStand) {
                 r.hoehe = static_cast<float>(s.sonneHoehe);
                 for (const karte::ShaderSkript::Sonne& so : s.sonnen) {
                     r.sonnen.push_back({Vektor3f(static_cast<float>(so.farbe[0]), static_cast<float>(so.farbe[1]), static_cast<float>(so.farbe[2])),
-                                        static_cast<float>(so.staerke), static_cast<float>(so.grad), static_cast<float>(so.hoehe)});
+                                        static_cast<float>(so.staerke), static_cast<float>(so.grad), static_cast<float>(so.hoehe),
+                                        static_cast<float>(so.abweichung * 3.14159265358979 / 180.0), so.proben});   // Stufe 9d: q3map_sunExt
                 }
                 for (const karte::ShaderSkript::Himmelslicht& h : s.himmelsLichter) {
                     r.himmel.push_back({static_cast<float>(h.wert), h.schritte, h.horizontMin, h.horizontMax});
@@ -327,6 +340,7 @@ struct SchattenGeo {
     kartegpu::Puffer3 puffer;
     std::vector<kartegpu::SchattenTeil> teile;
     std::size_t dreiecke = 0;
+    std::size_t modellDreiecke = 0;   // Stufe 9d: davon aus misc_model
 };
 SchattenGeo g_schatten;
 
@@ -343,6 +357,7 @@ void schattenGeoBauen(std::size_t geoStand, bool patches) {
     SchattenGeo& sg = g_schatten;
     sg.teile.clear();
     sg.dreiecke = 0;
+    sg.modellDreiecke = 0;
     // Eimer: Art, Zelle (1024er Raster), Shader (nur alphashadow)
     std::map<std::tuple<int, int, int, int, std::string>, std::vector<kartegpu::Punkt3>> eimer;
     const auto dreieck = [&eimer](int art, const std::string& sh, const Vektor3f* p, const Vektor3f& n, const karte::Vektor2f* st) {
@@ -425,6 +440,28 @@ void schattenGeoBauen(std::size_t geoStand, bool patches) {
             }
         }
     }
+    // Stufe 9d: misc_model werfen Schatten wie in -light - ihre Dreiecke stehen in der .bsp (AddTriangleModels,
+    // castShadows in der Welt 1, sonst die Schluessel _castShadows/_cs); ohne C_NODRAW, durchscheinende nur mit
+    // alphashadow/lightfilter, Himmel als Himmel. Gruppen (castShadows > 1) werfen auf alles mit
+    // recvShadows 1 - wie die Vorgabe.
+    karte::echtModellFlaechen(ed().karte, [&dreieck, &sg](const karte::EchtModellFlaeche& f) {
+        if (f.wirft <= 0) { return; }
+        const karte::ShaderSkript& s = skript(f.shader);
+        int art = 0;
+        if (s.himmel) {
+            art = 2;
+        } else if (s.nichtZeichnen || (s.durchscheinend && !s.alphaSchatten && !s.lichtFilter)) {
+            return;
+        } else if (s.alphaSchatten || s.lichtFilter) {
+            art = 3;
+        }
+        for (std::size_t i = 0; i + 2 < f.ort.size(); i += 3) {
+            const Vektor3f p[3] = {f.ort[i], f.ort[i + 1], f.ort[i + 2]};
+            const karte::Vektor2f st[3] = {f.st[i], f.st[i + 1], f.st[i + 2]};
+            dreieck(art, f.shader, p, f.normale[i], st);
+        }
+        sg.modellDreiecke += f.ort.size() / 3;
+    });
     std::vector<kartegpu::Punkt3> alle;
     for (auto& [schluessel, v] : eimer) {
         kartegpu::SchattenTeil teil;
@@ -448,6 +485,7 @@ void schattenGeoBauen(std::size_t geoStand, bool patches) {
         sg.teile.push_back(teil);
     }
     sg.dreiecke = alle.size() / 3;
+    ed().echtLicht.schattenModellDreiecke = sg.modellDreiecke;
     if (!alle.empty()) { (void)sg.puffer.setzen(alle.data(), alle.size() * sizeof(kartegpu::Punkt3)); }
     sg.geoStand = geoStand;
     sg.patches = patches;
@@ -720,6 +758,9 @@ SpielDarstellung spielDarstellung(const std::string& shader) {
     d.mischZiel = s.mischZiel;
     // das Spiel nimmt das Bild der Stufe (mit seinem Alpha), nicht qer_editorimage (oft ein .jpg)
     if ((d.alphaFunktion != 0 || d.mischQuelle != 0) && !s.stufeBild.empty()) { d.bild = "?" + s.stufeBild; }
+    // Stufe 9d: fogParms ohne Stufe - das Spiel zeichnet nur den Nebel darueber (RB_FogPass, FP_LE)
+    d.nebelFlaeche = s.nebelParms && !s.stufeGefunden;
+    d.himmel = s.himmel;
     return d;
 }
 
@@ -801,13 +842,79 @@ int wuerfelPlatz(const EchtLicht& l, std::size_t geoStand, bool gross, int& budg
 
 }  // namespace
 
+// --- Stufe 9d: Nebel (RB_FogPass) ---------------------------------------------------------
+struct NebelWelt {
+    std::size_t geoStand = static_cast<std::size_t>(-1);
+    std::size_t entStand = static_cast<std::size_t>(-1);
+    std::vector<karte::EchtNebel> nebel;
+};
+NebelWelt g_nebel;
+
+void nebelBildSetzen(const Vektor3f& auge, const float* vp, std::size_t geoStand) {
+    NebelWelt& w = g_nebel;
+    static std::size_t nebelNeuGeladen = 0;   // nach Flush & Reload Shaders (fogParms geaendert)
+    if (nebelNeuGeladen != ed().neuGeladen) {
+        nebelNeuGeladen = ed().neuGeladen;
+        w.geoStand = static_cast<std::size_t>(-1);
+    }
+    const std::string globalAlt = w.nebel.empty() || !w.nebel.back().global ? std::string() : w.nebel.back().shader;
+    const auto welt = ed().karte.welt();
+    std::string globalNeu = welt ? welt->wert("_fog") : std::string();
+    if (globalNeu.empty() && welt) { globalNeu = welt->wert("fog"); }
+    if (w.geoStand != geoStand || globalAlt != globalNeu) {
+        w.geoStand = geoStand;
+        w.nebel = karte::echtNebelSammeln(ed().karte, [](const std::string& sh) {
+            const karte::ShaderSkript& s = skript(sh);
+            karte::EchtNebelShader r;
+            r.nebel = s.nebelParms;
+            r.farbe = Vektor3f(static_cast<float>(s.nebelFarbe[0]), static_cast<float>(s.nebelFarbe[1]), static_cast<float>(s.nebelFarbe[2]));
+            r.tiefe = static_cast<float>(s.nebelTiefe);
+            r.richtung = Vektor3f(static_cast<float>(s.nebelRichtung[0]), static_cast<float>(s.nebelRichtung[1]), static_cast<float>(s.nebelRichtung[2]));
+            r.nichtZeichnen = s.nichtZeichnen;
+            r.deckend = !s.durchscheinend && !s.himmel;
+            return r;
+        });
+        ed().echtLicht.nebel = w.nebel.size();
+    }
+    std::vector<kartegpu::NebelEcht> gpu;
+    std::vector<float> ebenen;
+    int global = -1;
+    for (const karte::EchtNebel& n : w.nebel) {
+        if (gpu.size() >= static_cast<std::size_t>(kartegpu::kNebelMax)) { break; }
+        kartegpu::NebelEcht x{};
+        x.farbe[0] = n.farbe[0];
+        x.farbe[1] = n.farbe[1];
+        x.farbe[2] = n.farbe[2];
+        x.farbe[3] = n.tcScale;
+        std::memcpy(x.flaeche, n.ebene, sizeof(x.flaeche));
+        x.info[0] = static_cast<float>(ebenen.size() / 4);
+        x.info[1] = n.global ? 0.0F : static_cast<float>(n.ebenen.size() / 4);
+        x.info[2] = n.hatFlaeche ? 1.0F : 0.0F;
+        x.info[3] = n.hatFlaeche ? auge[0] * n.ebene[0] + auge[1] * n.ebene[1] + auge[2] * n.ebene[2] + n.ebene[3] : 1.0F;   // eye_t
+        if (n.global && global < 0) { global = static_cast<int>(gpu.size()); }
+        ebenen.insert(ebenen.end(), n.ebenen.begin(), n.ebenen.end());
+        gpu.push_back(x);
+    }
+    // Blickrichtung: die w-Zeile der Kameramatrix (Abstand vor dem Auge)
+    float vorn[4] = {vp[3], vp[7], vp[11], 0};
+    const float l = std::sqrt(vorn[0] * vorn[0] + vorn[1] * vorn[1] + vorn[2] * vorn[2]);
+    if (l > 0) {
+        for (int i = 0; i < 3; ++i) { vorn[i] /= l; }
+    }
+    vorn[3] = vorn[0] * auge[0] + vorn[1] * auge[1] + vorn[2] * auge[2];
+    kartegpu::nebelSetzen(gpu, ebenen, global, vorn);
+}
+
 void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite, int hoehe, std::size_t geoStand) {
     Editor& e = ed();
     const auto t0 = std::chrono::steady_clock::now();
     ++g_bild;
     g_dreieckeBild = kartegpu::schattenDreiecke();
     weltAktualisieren(geoStand);
-    if (g_schatten.geoStand != geoStand || g_schatten.patches != e.echtLicht.patchSchatten || g_schatten.geraet != kartegpu::geraetStand()) {
+    static std::size_t schattenNeuGeladen = 0;   // Stufe 9d: nach Flush & Reload Shaders auch die Schattengeometrie (Shader-Regeln)
+    if (g_schatten.geoStand != geoStand || g_schatten.patches != e.echtLicht.patchSchatten || g_schatten.geraet != kartegpu::geraetStand() ||
+        schattenNeuGeladen != e.neuGeladen) {
+        schattenNeuGeladen = e.neuGeladen;
         schattenGeoBauen(geoStand, e.echtLicht.patchSchatten);
         for (Platz& p : g_plaetze) { p.gueltig = false; }
         for (SonnenKarte& k : g_kaskade) { k.gueltig = false; }
@@ -854,8 +961,14 @@ void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite,
             if (!w.lichter[i].himmel && (haupt == static_cast<std::size_t>(-1) || w.lichter[i].photonen > w.lichter[haupt].photonen)) { haupt = i; }
         }
         std::vector<std::size_t> andere;
+        std::vector<std::size_t> proben;   // Stufe 9d: die anderen Proben der Hauptsonne (q3map_sunExt, _samples)
         for (const std::size_t i : sonnen) {
-            if (i != haupt) { andere.push_back(i); }
+            if (i == haupt) { continue; }
+            if (haupt != static_cast<std::size_t>(-1) && w.lichter[i].sonnenGruppe != 0 && w.lichter[i].sonnenGruppe == w.lichter[haupt].sonnenGruppe) {
+                proben.push_back(i);
+            } else {
+                andere.push_back(i);
+            }
         }
         if (haupt != static_cast<std::size_t>(-1)) {
             Wahl x;
@@ -864,6 +977,14 @@ void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite,
             x.x1 = kachelnX - 1;
             x.y1 = kachelnY - 1;
             sw.push_back(x);
+            // die Proben teilen die Kaskaden der Hauptsonne (Schatten aus ihrer Richtung, Licht aus der eigenen) -
+            // eine eigene Karte ueber die ganze Karte waere grob und liesse Licht durch
+            for (const std::size_t i : proben) {
+                Wahl y = x;
+                y.i = i;
+                y.platz = -4;
+                sw.push_back(y);
+            }
         }
         const std::size_t n = andere.size();
         const std::size_t m = std::min<std::size_t>(n, kartegpu::kHimmelSonnenMax);
@@ -945,9 +1066,9 @@ void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite,
         const EchtLicht& l = w.lichter[x.i];
         kartegpu::LichtGpu g = gpuLicht(l, ecken);
         g.pos[3] *= x.faktor;
-        const bool karte = x.platz == -3 ? g_kaskade[0].gueltig : g_himmelKarten[static_cast<std::size_t>(x.platz)].gueltig;
+        const bool karte = x.platz <= -3 ? g_kaskade[0].gueltig : g_himmelKarten[static_cast<std::size_t>(x.platz)].gueltig;
         if (!karte) { continue; }   // die Karte kommt in einem der naechsten Bilder
-        g.mehr[0] = static_cast<float>(x.platz);
+        g.mehr[0] = static_cast<float>(std::max(x.platz, -3));
         gpu.push_back(g);
         liste.push_back(&x);
     }
@@ -987,6 +1108,7 @@ void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite,
     const float umgebung[3] = {w.umgebung[0], w.umgebung[1], w.umgebung[2]};
     const float minimum[3] = {w.minimum[0], w.minimum[1], w.minimum[2]};
     kartegpu::lichtSetzen(gpu, ecken, kacheln, kachelnX, kachelnY, worte, umgebung, minimum);
+    nebelBildSetzen(auge, vp, geoStand);   // Stufe 9d
     e.echtLicht.gezeichnet = gpu.size();
     e.echtLicht.lichtMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 }

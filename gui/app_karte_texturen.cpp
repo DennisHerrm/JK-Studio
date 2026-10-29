@@ -488,6 +488,7 @@ void kontextMenue() {
     if (punkt(trK(Str::KeTexOpenShader), !standard)) { shaderAnsehen(datei, name, false); }
     if (punkt(trK(Str::KeTexOpenShaderExt), !standard)) { shaderAnsehen(datei, name, true); }
     if (punkt(trK(Str::KeTexShaderInfo), !standard)) { shaderInfo(name, datei); }
+    if (punkt(trK(Str::KeSeMenue), !standard)) { shaderEditorOeffnen(name); }   // Stufe 9d (nicht in NRC)
     qtTrenner();
     if (punkt(trK(Str::KeTexSelObjects))) {   // Scene_BrushPatchSelectByShader
         karte::waehleNachShader(ed.karte, name);
@@ -1036,6 +1037,7 @@ void texturBefehl(const std::string& name) {
         tb.neuGeladen();
         ++ed.neuGeladen;
         if (ed.karteSpiel) {
+            ed.karteSpiel->inventar.importOrdner = importOrdner();
             ed.karteSpiel->inventar.laden(ed.karteSpiel->fs);
             ed.aktiveShader.leeren();
             texturBilderNeuLaden();

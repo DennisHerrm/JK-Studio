@@ -79,6 +79,50 @@ bool imPinsel(const AbbildPrimitiv& p, const Vektor3d& v, double eps) {
     return !p.flaechen.empty();
 }
 
+// Stufe 9d: die festen Strukturpinsel der Welt in einem Gitter ueber x/y - liegt ein Punkt in einem davon?
+class FestGitter {
+public:
+    void einfuegen(const AbbildPrimitiv& p) {
+        for (long long x = zelle(p.mins[0]); x <= zelle(p.maxs[0]); ++x) {
+            for (long long y = zelle(p.mins[1]); y <= zelle(p.maxs[1]); ++y) { m_zellen[schluessel(x, y)].push_back(&p); }
+        }
+    }
+    [[nodiscard]] bool fest(const Vektor3d& v, const AbbildPrimitiv* ohne) const {
+        const auto it = m_zellen.find(schluessel(zelle(v[0]), zelle(v[1])));
+        if (it == m_zellen.end()) { return false; }
+        for (const AbbildPrimitiv* p : it->second) {
+            if (p != ohne && imPinsel(*p, v, 0.5)) { return true; }
+        }
+        return false;
+    }
+
+private:
+    static long long zelle(double v) { return static_cast<long long>(std::floor(v / 512.0)); }
+    static long long schluessel(long long x, long long y) { return (x << 32) ^ (y & 0xFFFFFFFFLL); }
+    std::unordered_map<long long, std::vector<const AbbildPrimitiv*>> m_zellen;
+};
+
+// Stufe 9d: grenzt eine Seite des Pinsels an den Raum ausserhalb der Karte? Punkte 2 Einheiten vor
+// jeder Seite (die Mitte und jede Ecke ein Viertel zur Mitte hin), die in keinem anderen festen
+// Strukturpinsel liegen: liegt einer in der .bsp in einem Blatt ohne Cluster (CM_PointLeafnum; der
+// Raum ausserhalb ist nach FillOutside undurchsichtig), dichtet der Pinsel die Karte ab.
+bool amAussenraum(const AbbildPrimitiv& pr, const std::string& bsp, const FestGitter& fest) {
+    for (const AbbildFlaeche& f : pr.flaechen) {
+        if (f.punkte.size() < 3) { continue; }
+        Vektor3d mitte{0, 0, 0};
+        for (const Vektor3d& q : f.punkte) { mitte = mitte + q; }
+        mitte = mitte * (1.0 / static_cast<double>(f.punkte.size()));
+        const Vektor3d vor = f.ebene.normal() * 2.0;
+        std::vector<Vektor3d> proben{mitte + vor};
+        for (const Vektor3d& q : f.punkte) { proben.push_back(q + (mitte - q) * 0.25 + vor); }
+        for (const Vektor3d& s : proben) {
+            if (fest.fest(s, &pr)) { continue; }
+            if (bspCluster(bsp, Vektor3f(static_cast<float>(s[0]), static_cast<float>(s[1]), static_cast<float>(s[2]))) == -1) { return true; }
+        }
+    }
+    return false;
+}
+
 // --- 2D-Polygon auf der Ebene ---
 struct P2 {
     double x;
@@ -221,7 +265,8 @@ const char* const kOptimiererDetailVorlagen[] = {
     "%s brushes or patches with q3map_lightmapSize: Jedi Outcast cannot load external lightmaps",
     "%s brushes or patches with q3map_lightmapSize next to light styles: external lightmaps lose the style stages",
     "%s keys or values longer than 1023 characters (q3map2 stops with \"Token too large\", the game cuts them off)",
-    "entity text about %s bytes of %s (%s bytes from kept lights)"
+    "entity text about %s bytes of %s (%s bytes from kept lights)",
+    "%s small, thin or angled structural brushes without a face at the void in the last build (suggestion: detail), %s more seal the map"
 };
 const std::size_t kOptimiererDetailVorlagenAnzahl = sizeof(kOptimiererDetailVorlagen) / sizeof(kOptimiererDetailVorlagen[0]);
 
@@ -505,6 +550,24 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
                        "q3map2 map.cpp (structural brushes split the BSP); tutorial r142 \"Leaf with too many portals\", RichDiesal: details as detail; NRC#109 (vis errors and black lightmap spots from many small or angled structural brushes)");
         b.behebung = Behebung::Detail;
         b.schaetzung = true;
+        // Stufe 9d (VIS-Fund md_rev_TarisUpper2): mit der .bsp des letzten Baus (ohne Leck) nur Pinsel,
+        // die nicht abdichten - keine ihrer Seiten grenzt an den Raum ausserhalb der Karte
+        const bool mitBsp = o.bspDaten != nullptr && o.linDaten.empty();
+        FestGitter fest;
+        if (mitBsp) {
+            for (const AbbildEntitaet& ent : ents) {
+                if (!weltArtig(ent)) { continue; }
+                for (const AbbildPrimitiv& pr : ent.prims) {
+                    if (pr.patch || pr.detail || pr.entartet) { continue; }
+                    bool deckt = true;
+                    for (const AbbildFlaeche& f : pr.flaechen) {
+                        if (!artVon(o, f.shader, vorrat).undurchsichtig) { deckt = false; }
+                    }
+                    if (deckt) { fest.einfuegen(pr); }
+                }
+            }
+        }
+        long long abdichtend = 0;
         for (std::size_t e = 0; e < ents.size(); ++e) {
             if (!weltArtig(ents[e])) { continue; }
             for (std::size_t k = 0; k < ents[e].prims.size(); ++k) {
@@ -529,13 +592,21 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
                 const bool winzig = gross <= 64;
                 const bool duenn = klein_ <= 8 && gross <= 256;
                 const bool verwinkelt = (pr.flaechen.size() > 6 || schraeg) && gross <= 256;
-                if (winzig || duenn || verwinkelt) {
-                    add(b, ObjektRef{static_cast<int>(e), static_cast<int>(k), -1, stelle(ents[e], static_cast<int>(e), static_cast<int>(k))});
+                if (!winzig && !duenn && !verwinkelt) { continue; }
+                if (mitBsp && amAussenraum(pr, *o.bspDaten, fest)) {
+                    ++abdichtend;
+                    continue;
                 }
+                add(b, ObjektRef{static_cast<int>(e), static_cast<int>(k), -1, stelle(ents[e], static_cast<int>(e), static_cast<int>(k))});
             }
         }
         if (b.anzahl > 0) {
-            detailSetzen(b, "%s small, thin or angled structural brushes (suggestion: detail)", {std::to_string(b.anzahl)});
+            if (mitBsp) {
+                detailSetzen(b, "%s small, thin or angled structural brushes without a face at the void in the last build (suggestion: detail), %s more seal the map",
+                             {std::to_string(b.anzahl), std::to_string(abdichtend)});
+            } else {
+                detailSetzen(b, "%s small, thin or angled structural brushes (suggestion: detail)", {std::to_string(b.anzahl)});
+            }
             out.push_back(b);
         }
     }
@@ -1292,6 +1363,21 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
         const std::string k = klein(w[j]);
         if (k == "q3map_surfacelight" && j + 1 < w.size()) {   // shaders.cpp: si.value = atof( token )
             r.flaechenlicht = std::atof(w[j + 1].c_str());
+        } else if (k == "fogparms") {   // Stufe 9d: fogParms ( r g b ) <Tiefe> - Klammern als eigene Woerter oder angeklebt
+            std::vector<double> z;
+            for (std::size_t q = j + 1; q < w.size() && z.size() < 4; ++q) {
+                std::string x = w[q];
+                x.erase(std::remove(x.begin(), x.end(), '('), x.end());
+                x.erase(std::remove(x.begin(), x.end(), ')'), x.end());
+                if (x.empty()) { continue; }
+                if (std::isdigit(static_cast<unsigned char>(x[0])) == 0 && x[0] != '-' && x[0] != '.') { break; }
+                z.push_back(std::atof(x.c_str()));
+            }
+            r.nebelParms = true;
+            for (std::size_t c = 0; c < 3 && c < z.size(); ++c) { r.nebelFarbe[c] = z[c]; }
+            if (z.size() >= 4) { r.nebelTiefe = z[3]; }
+        } else if (k == "q3map_fogdir" && j + 3 < w.size()) {   // shaders.cpp: si.fogDir
+            for (int c = 0; c < 3; ++c) { r.nebelRichtung[c] = std::atof(w[j + 1 + static_cast<std::size_t>(c)].c_str()); }
         } else if (k == "q3map_backsplash" && j + 2 < w.size()) {   // shaders.cpp:1248-1252
             r.backsplashAnteil = std::atof(w[j + 1].c_str()) * 0.01;
             r.backsplashWeite = std::atof(w[j + 2].c_str());
@@ -1304,6 +1390,14 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
             so.staerke = std::atof(w[j + 4].c_str());
             so.grad = std::atof(w[j + 5].c_str());
             so.hoehe = std::atof(w[j + 6].c_str());
+            // Stufe 9d: "ydnar: get sun angular deviance/samples" (TokenAvailable: hier zwei weitere Zahlen)
+            const auto istZahl = [&w](std::size_t i) {
+                return i < w.size() && !w[i].empty() && (std::isdigit(static_cast<unsigned char>(w[i][0])) != 0 || w[i][0] == '-' || w[i][0] == '.');
+            };
+            if (k == "q3map_sunext" && istZahl(j + 7) && istZahl(j + 8)) {
+                so.abweichung = std::atof(w[j + 7].c_str());
+                so.proben = std::atoi(w[j + 8].c_str());
+            }
             r.sonnen.push_back(so);
             r.himmel = true;   // "apply sky surfaceparm, this is required by ELightType::Sun to work"
             if (!r.sonne) {

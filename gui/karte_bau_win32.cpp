@@ -282,6 +282,13 @@ void Horcher::schliessen() {
     m->lauschen = INVALID_SOCKET;
 }
 
+long long arbeitsspeicherMB() {
+    MEMORYSTATUSEX m{};
+    m.dwLength = sizeof(m);
+    if (GlobalMemoryStatusEx(&m) == 0) { return 0; }
+    return static_cast<long long>(m.ullTotalPhys >> 20);
+}
+
 bool losgeloestStarten(const std::string& befehlszeile, const std::string& ordner) {
     STARTUPINFOW si{};
     si.cb = sizeof(si);

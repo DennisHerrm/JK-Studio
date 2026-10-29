@@ -54,11 +54,16 @@ int main() {
     bool bild = false, skript = false;
     for (const Md3Paket::Datei& d : p.dateien) {
         bild = bild || (d.pfad == "models/import/mein_wuerfel/stein_wand.png" && d.inhalt.size() == 14);
-        skript = skript || (d.pfad == "scripts/mein_wuerfel.shader" && d.inhalt.find("models/import/mein_wuerfel/stein_wand\n{") != std::string::npos &&
+        // Stufe 9d: JA, JK2 und MD lesen Shader aus shaders/ (tr_shader.cpp ScanAndLoadShaderFiles( "shaders" ))
+        skript = skript || (d.pfad == "shaders/mein_wuerfel.shader" && d.inhalt.find("models/import/mein_wuerfel/stein_wand\n{") != std::string::npos &&
                             d.inhalt.find("map models/import/mein_wuerfel/stein_wand.png") != std::string::npos &&
                             d.inhalt.find("qer_editorimage models/import/mein_wuerfel/stein_wand.png") != std::string::npos);
     }
-    expect("Textur im Paket (Name sauber), Shader-Skript mit qer_editorimage und map", bild && skript);
+    expect("Textur im Paket (Name sauber), Shader-Skript unter shaders/ mit qer_editorimage und map", bild && skript);
+    // Stufe 9d: ein frueherer Import legte scripts/<stamm>.shader ab - im Archiv fuer das Spiel steht er unter shaders/
+    expect("Archivname: scripts/x.shader -> shaders/x.shader, alles andere bleibt",
+           importArchivName("scripts/alt.shader") == "shaders/alt.shader" && importArchivName("shaders/neu.shader") == "shaders/neu.shader" &&
+               importArchivName("models/import/a/a.md3") == "models/import/a/a.md3" && importArchivName("scripts/notiz.txt") == "scripts/notiz.txt");
     Md3Model m;
     const bool gelesen = !p.dateien.empty() && readMd3(p.dateien[0].inhalt, m, &err);
     if (!gelesen) { std::printf("      %s\n", err.c_str()); }

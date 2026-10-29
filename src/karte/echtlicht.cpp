@@ -16,9 +16,12 @@
 #include "bhed/karte/echtlicht.h"
 
 #include "bhed/karte/karte.h"
+#include "bhed/karte/modell.h"
+#include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <sstream>
@@ -110,9 +113,15 @@ Vektor3f kugelRichtung(float gradA, float gradB) {   // vector3_for_spherical
 
 // RadClipWindingEpsilon (light_bounce.cpp) mit einer Achsenebene: vorn (>= dist) und hinten
 constexpr float kClipEpsilon = 0.125F;   // RADIOSITY_CLIP_EPSILON
-void wicklungTeilen(const std::vector<Vektor3f>& w, int achse, float dist, std::vector<Vektor3f>& vorn, std::vector<Vektor3f>& hinten) {
+void wicklungTeilen(const std::vector<Vektor3f>& w, int achse, float dist, std::vector<Vektor3f>& vorn, std::vector<Vektor3f>& hinten,
+                    const std::vector<Vektor3f>* nw = nullptr, std::vector<Vektor3f>* nVorn = nullptr, std::vector<Vektor3f>* nHinten = nullptr) {
     vorn.clear();
     hinten.clear();
+    const bool mitN = nw != nullptr && nVorn != nullptr && nHinten != nullptr && nw->size() == w.size();
+    if (mitN) {
+        nVorn->clear();
+        nHinten->clear();
+    }
     const std::size_t n = w.size();
     std::vector<float> d(n + 1);
     std::vector<int> seite(n + 1);
@@ -126,10 +135,12 @@ void wicklungTeilen(const std::vector<Vektor3f>& w, int achse, float dist, std::
     seite[n] = seite[0];
     if (zahl[0] == 0) {   // nichts vorn
         hinten = w;
+        if (mitN) { *nHinten = *nw; }
         return;
     }
     if (zahl[1] == 0) {
         vorn = w;
+        if (mitN) { *nVorn = *nw; }
         return;
     }
     for (std::size_t i = 0; i < n; ++i) {
@@ -137,9 +148,14 @@ void wicklungTeilen(const std::vector<Vektor3f>& w, int achse, float dist, std::
         if (seite[i] == 2) {
             vorn.push_back(p1);
             hinten.push_back(p1);
+            if (mitN) {
+                nVorn->push_back((*nw)[i]);
+                nHinten->push_back((*nw)[i]);
+            }
             continue;
         }
         (seite[i] == 0 ? vorn : hinten).push_back(p1);
+        if (mitN) { (seite[i] == 0 ? *nVorn : *nHinten).push_back((*nw)[i]); }
         if (seite[i + 1] == 2 || seite[i + 1] == seite[i]) { continue; }
         const Vektor3f& p2 = w[(i + 1) % n];
         const float dd = d[i] / (d[i] - d[i + 1]);
@@ -147,11 +163,20 @@ void wicklungTeilen(const std::vector<Vektor3f>& w, int achse, float dist, std::
         mitte[achse] = dist;   // achsenparallel: genau auf der Ebene
         vorn.push_back(mitte);
         hinten.push_back(mitte);
+        if (mitN) {   // mid.normal = v1.normal + ( v2.normal - v1.normal ) * dot; VectorNormalize
+            Vektor3f nm = (*nw)[i] + ((*nw)[(i + 1) % n] - (*nw)[i]) * dd;
+            const float l = std::sqrt(punkt3(nm, nm));
+            if (l != 0) { nm = nm / l; }
+            nVorn->push_back(nm);
+            nHinten->push_back(nm);
+        }
     }
 }
 
+// nw: eine Normale je Ecke (Stufe 9d, Modelle und Patches) - die Normale des Lichts ist ihr Mittel;
+// ohne (nullptr) gilt "normale" (Pinselflaechen: alle Ecken haben die Ebenennormale)
 void unterteilen(const std::vector<Vektor3f>& w, const Vektor3f& normale, const EchtFlaechenShader& s, float unterteilung, std::vector<EchtLicht>& aus,
-                 int tiefe) {
+                 int tiefe, const std::vector<Vektor3f>* nw = nullptr) {
     if (w.size() < 3 || tiefe > 64) { return; }
     Vektor3f mn = w[0];
     Vektor3f mx = w[0];
@@ -165,9 +190,11 @@ void unterteilen(const std::vector<Vektor3f>& w, const Vektor3f& normale, const 
         if (mx[i] - mn[i] > unterteilung) {
             std::vector<Vektor3f> vorn;
             std::vector<Vektor3f> hinten;
-            wicklungTeilen(w, i, (mx[i] + mn[i]) * 0.5F, vorn, hinten);
-            unterteilen(vorn, normale, s, unterteilung, aus, tiefe + 1);
-            unterteilen(hinten, normale, s, unterteilung, aus, tiefe + 1);
+            std::vector<Vektor3f> nVorn;
+            std::vector<Vektor3f> nHinten;
+            wicklungTeilen(w, i, (mx[i] + mn[i]) * 0.5F, vorn, hinten, nw, &nVorn, &nHinten);
+            unterteilen(vorn, normale, s, unterteilung, aus, tiefe + 1, nw != nullptr ? &nVorn : nullptr);
+            unterteilen(hinten, normale, s, unterteilung, aus, tiefe + 1, nw != nullptr ? &nHinten : nullptr);
             return;
         }
     }
@@ -179,6 +206,16 @@ void unterteilen(const std::vector<Vektor3f>& w, const Vektor3f& normale, const 
         flaeche += 0.5F * std::sqrt(punkt3(x, x));
     }
     if (flaeche < 1 || flaeche > 20000000.0F) { return; }
+    // "create an average normal" (RadSubdivideDiffuseLight)
+    Vektor3f nMittel = normale;
+    if (nw != nullptr && nw->size() == w.size()) {
+        nMittel = Vektor3f(0, 0, 0);
+        for (const Vektor3f& v : *nw) { nMittel = nMittel + v; }
+        nMittel = nMittel / static_cast<float>(nw->size());
+        const float l = std::sqrt(punkt3(nMittel, nMittel));
+        if (l == 0) { return; }
+        nMittel = nMittel / l;
+    }
     EchtLicht l;
     l.art = EchtLicht::Art::Flaeche;
     l.wicklung = w;
@@ -186,8 +223,8 @@ void unterteilen(const std::vector<Vektor3f>& w, const Vektor3f& normale, const 
     l.photonen = s.flaechenlicht * flaeche * kEchtFlaechenSkala;
     l.add = s.flaechenlicht * kEchtFormFaktorSkala * kEchtFlaechenSkala;
     l.farbe = s.farbe;
-    l.normale = normale;
-    l.ursprung = (mn + mx) * 0.5F + normale;   // minmax.origin(), "nudge it off the plane a bit"
+    l.normale = nMittel;
+    l.ursprung = (mn + mx) * 0.5F + nMittel;   // minmax.origin(), "nudge it off the plane a bit"
     l.zweiseitig = s.zweiseitig;
     l.winkel = true;
     huelleSetzen(l);
@@ -199,10 +236,10 @@ void unterteilen(const std::vector<Vektor3f>& w, const Vektor3f& normale, const 
         r.photonen = l.photonen * 7.0F * s.backsplashAnteil;
         r.add = l.add * 7.0F * s.backsplashAnteil;
         r.farbe = s.farbe;
-        for (std::size_t i = w.size(); i-- != 0;) { r.wicklung.push_back(w[i] + normale * s.backsplashWeite); }
+        for (std::size_t i = w.size(); i-- != 0;) { r.wicklung.push_back(w[i] + nMittel * s.backsplashWeite); }
         if (r.wicklung.size() > static_cast<std::size_t>(kEchtWicklungMax)) { r.wicklung.resize(static_cast<std::size_t>(kEchtWicklungMax)); }
-        r.ursprung = normale * s.backsplashWeite + l.ursprung;
-        r.normale = Vektor3f(-normale[0], -normale[1], -normale[2]);
+        r.ursprung = nMittel * s.backsplashWeite + l.ursprung;
+        r.normale = Vektor3f(-nMittel[0], -nMittel[1], -nMittel[2]);
         r.winkel = true;
         huelleSetzen(r);
         aus.push_back(r);
@@ -244,6 +281,434 @@ void echtFlaechenLichter(const std::vector<Vektor3f>& wicklung, const Vektor3f& 
     EchtFlaechenShader n = s;
     n.farbe = normiert(s.farbe);   // si.color: ColorNormalize der mittleren Farbe
     unterteilen(wicklung, normale, n, u, aus, 0);
+}
+
+void echtFlaechenLichter(const std::vector<Vektor3f>& wicklung, const std::vector<Vektor3f>& normalen, const EchtFlaechenShader& s,
+                         std::vector<EchtLicht>& aus) {
+    if (s.flaechenlicht <= 0 || normalen.size() != wicklung.size()) { return; }
+    const float u = s.unterteilung > 0 ? s.unterteilung : kEchtUnterteilung;
+    EchtFlaechenShader n = s;
+    n.farbe = normiert(s.farbe);
+    unterteilen(wicklung, Vektor3f(0, 0, 1), n, u, aus, 0, &normalen);
+}
+
+// --- Stufe 9d: Patches wie in -light ----------------------------------------------------
+
+namespace {
+
+using V3d = Vektor3<double>;
+V3d d3(const Vektor3f& v) { return V3d(v[0], v[1], v[2]); }
+double punktD(const V3d& a, const V3d& b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+V3d kreuzD(const V3d& a, const V3d& b) { return V3d(a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]); }
+V3d plusD(const V3d& a, const V3d& b) { return V3d(a[0] + b[0], a[1] + b[1], a[2] + b[2]); }
+V3d minusD(const V3d& a, const V3d& b) { return V3d(a[0] - b[0], a[1] - b[1], a[2] - b[2]); }
+V3d malD(const V3d& a, double f) { return V3d(a[0] * f, a[1] * f, a[2] * f); }
+// VectorNormalize (Laenge in double, Ergebnis wie Vector3 in float)
+float normierenF(Vektor3f& v) {
+    const double l = std::sqrt(punktD(d3(v), d3(v)));
+    if (l == 0) {
+        v = Vektor3f(0, 0, 0);
+        return 0;
+    }
+    v = Vektor3f(static_cast<float>(v[0] / l), static_cast<float>(v[1] / l), static_cast<float>(v[2] / l));
+    return static_cast<float>(l);
+}
+
+// bspDrawVert_t mit dem, was die Flaechenlichter brauchen (xyz, normal)
+struct NPunkt {
+    Vektor3f ort;
+    Vektor3f normale;
+};
+// MAX_EXPANDED_AXIS (q3map2.h)
+constexpr int kAchseMax = 128;
+struct NetzF {
+    int breite = 0;
+    int hoehe = 0;
+    std::vector<NPunkt> v;   // Zeile * breite + Spalte
+    NPunkt& at(int zeile, int spalte) { return v[static_cast<std::size_t>(zeile * breite + spalte)]; }
+    [[nodiscard]] const NPunkt& at(int zeile, int spalte) const { return v[static_cast<std::size_t>(zeile * breite + spalte)]; }
+};
+
+// LerpDrawVert (mesh.cpp): Mitte, Normale a + b normiert (bei Null die von a)
+NPunkt mitteNP(const NPunkt& a, const NPunkt& b) {
+    NPunkt o;
+    o.ort = Vektor3f((a.ort[0] + b.ort[0]) * 0.5F, (a.ort[1] + b.ort[1]) * 0.5F, (a.ort[2] + b.ort[2]) * 0.5F);
+    o.normale = a.normale + b.normale;
+    if (normierenF(o.normale) == 0) { o.normale = a.normale; }
+    return o;
+}
+
+// ExpandLongestCurve (patch.cpp)
+void laengsteKurve(float& laengste, const Vektor3f& a, const Vektor3f& b, const Vektor3f& c) {
+    Vektor3f ab = b - a;
+    if (normierenF(ab) < 0.125F) { return; }
+    Vektor3f bc = c - b;
+    if (normierenF(bc) < 0.125F) { return; }
+    Vektor3f ac = c - a;
+    if (normierenF(ac) < 0.125F) { return; }
+    if (punkt3(ab, bc) > 0.99F && punkt3(ab, ac) > 0.99F) { return; }
+    ab = b - a;
+    bc = c - b;
+    Vektor3f letzter = a;
+    float len = 0;
+    float tt = 0;
+    for (int i = 0; i < 8; ++i, tt += (1.0F / 8.0F)) {   // APPROX_SUBDIVISION
+        Vektor3f delta = ab * (1.0F - tt) + bc * tt;
+        const Vektor3f pt = a + delta;
+        delta = pt - letzter;
+        len += std::sqrt(punkt3(delta, delta));
+        letzter = pt;
+    }
+    laengste = std::max(laengste, len);
+}
+
+// IterationsForCurve (mesh.cpp)
+int iterationenFuerKurve(float len, int unterteilungen) {
+    int it = 0;
+    for (; it < 3; ++it) {
+        const int facetten = static_cast<int>(unterteilungen * 16 * std::pow(2.0, it));
+        if (static_cast<float>(facetten) >= len) { break; }
+    }
+    return it;
+}
+
+// MakeMeshNormals (mesh.cpp)
+void netzNormalen(NetzF& in) {
+    static const int nachbarn[8][2] = {{0, 1}, {1, 1}, {1, 0}, {1, -1}, {0, -1}, {-1, -1}, {-1, 0}, {-1, 1}};
+    bool wrapBreite = false;
+    {
+        int i = 0;
+        for (; i < in.hoehe; ++i) {
+            const Vektor3f d = in.at(i, 0).ort - in.at(i, in.breite - 1).ort;
+            if (std::sqrt(punktD(d3(d), d3(d))) > 1) { break; }
+        }
+        wrapBreite = i == in.hoehe;
+    }
+    bool wrapHoehe = false;
+    {
+        int i = 0;
+        for (; i < in.breite; ++i) {
+            const Vektor3f d = in.at(0, i).ort - in.at(in.hoehe - 1, i).ort;
+            if (std::sqrt(punktD(d3(d), d3(d))) > 1) { break; }
+        }
+        wrapHoehe = i == in.breite;
+    }
+    for (int i = 0; i < in.breite; ++i) {
+        for (int j = 0; j < in.hoehe; ++j) {
+            const Vektor3f basis = in.at(j, i).ort;
+            Vektor3f um[8];
+            bool gut[8];
+            for (int k = 0; k < 8; ++k) {
+                um[k] = Vektor3f(0, 0, 0);
+                gut[k] = false;
+                for (int dist = 1; dist <= 3; ++dist) {
+                    int x = i + nachbarn[k][0] * dist;
+                    int y = j + nachbarn[k][1] * dist;
+                    if (wrapBreite) {
+                        if (x < 0) {
+                            x = in.breite - 1 + x;
+                        } else if (x >= in.breite) {
+                            x = 1 + x - in.breite;
+                        }
+                    }
+                    if (wrapHoehe) {
+                        if (y < 0) {
+                            y = in.hoehe - 1 + y;
+                        } else if (y >= in.hoehe) {
+                            y = 1 + y - in.hoehe;
+                        }
+                    }
+                    if (x < 0 || x >= in.breite || y < 0 || y >= in.hoehe) { break; }   // edge of patch
+                    Vektor3f temp = in.at(y, x).ort - basis;
+                    if (normierenF(temp) == 0) { continue; }   // degenerate edge, get more dist
+                    gut[k] = true;
+                    um[k] = temp;
+                    break;
+                }
+            }
+            Vektor3f summe(0, 0, 0);
+            for (int k = 0; k < 8; ++k) {
+                if (!gut[k] || !gut[(k + 1) & 7]) { continue; }
+                const V3d a = d3(um[(k + 1) & 7]);
+                const V3d b = d3(um[k]);
+                Vektor3f n(static_cast<float>(a[1] * b[2] - a[2] * b[1]), static_cast<float>(a[2] * b[0] - a[0] * b[2]),
+                           static_cast<float>(a[0] * b[1] - a[1] * b[0]));
+                if (normierenF(n) == 0) { continue; }
+                summe = summe + n;
+            }
+            (void)normierenF(summe);   // VectorNormalized
+            in.at(j, i).normale = summe;
+        }
+    }
+}
+
+// PutMeshOnCurve (mesh.cpp)
+void aufKurve(NetzF& in) {
+    const auto lerp3 = [](const NPunkt& vor, NPunkt& mitte, const NPunkt& nach) { mitte.ort = (vor.ort + mitte.ort * 2.0F + nach.ort) * 0.25F; };
+    for (int i = 0; i < in.breite; ++i) {
+        for (int j = 1; j < in.hoehe; j += 2) { lerp3(in.at(j - 1, i), in.at(j, i), in.at(j + 1, i)); }
+    }
+    for (int j = 0; j < in.hoehe; ++j) {
+        for (int i = 1; i < in.breite; i += 2) { lerp3(in.at(j, i - 1), in.at(j, i), in.at(j, i + 1)); }
+    }
+}
+
+using Ausdehnung = std::vector<std::array<NPunkt, kAchseMax>>;
+Ausdehnung ausdehnen(const NetzF& in) {
+    Ausdehnung ex(kAchseMax);
+    for (int h = 0; h < in.hoehe; ++h) {
+        for (int w = 0; w < in.breite; ++w) { ex[static_cast<std::size_t>(h)][static_cast<std::size_t>(w)] = in.at(h, w); }
+    }
+    return ex;
+}
+NetzF zusammen(const Ausdehnung& ex, int breite, int hoehe) {   // bhed_mesh_from_rows
+    NetzF o;
+    o.breite = breite;
+    o.hoehe = hoehe;
+    o.v.resize(static_cast<std::size_t>(breite * hoehe));
+    for (int i = 0; i < hoehe; ++i) {
+        for (int w = 0; w < breite; ++w) { o.at(i, w) = ex[static_cast<std::size_t>(i)][static_cast<std::size_t>(w)]; }
+    }
+    return o;
+}
+
+// SubdivideMesh2 (mesh.cpp)
+NetzF unterteileNetz(const NetzF& in, int iterationen) {
+    Ausdehnung ex = ausdehnen(in);
+    int breite = in.breite;
+    int hoehe = in.hoehe;
+    const auto E = [&ex](int zeile, int spalte) -> NPunkt& { return ex[static_cast<std::size_t>(zeile)][static_cast<std::size_t>(spalte)]; };
+    for (; iterationen > 0; --iterationen) {
+        for (int j = 0; j + 2 < breite; j += 4) {
+            if (breite + 2 >= kAchseMax) { break; }
+            breite += 2;
+            for (int i = 0; i < hoehe; ++i) {
+                for (int k = breite - 1; k > j + 3; --k) { E(i, k) = E(i, k - 2); }
+                E(i, j + 3) = mitteNP(E(i, j + 1), E(i, j + 2));
+                E(i, j + 1) = mitteNP(E(i, j + 0), E(i, j + 1));
+                E(i, j + 2) = mitteNP(E(i, j + 1), E(i, j + 3));
+            }
+        }
+        for (int j = 0; j + 2 < hoehe; j += 4) {
+            if (hoehe + 2 >= kAchseMax) { break; }
+            hoehe += 2;
+            for (int i = 0; i < breite; ++i) {
+                for (int k = hoehe - 1; k > j + 3; --k) { E(k, i) = E(k - 2, i); }
+                E(j + 3, i) = mitteNP(E(j + 1, i), E(j + 2, i));
+                E(j + 1, i) = mitteNP(E(j + 0, i), E(j + 1, i));
+                E(j + 2, i) = mitteNP(E(j + 1, i), E(j + 3, i));
+            }
+        }
+    }
+    return zusammen(ex, breite, hoehe);
+}
+
+// ProjectPointOntoVector, RemoveLinearMeshColumnsRows (mesh.cpp)
+V3d aufStrahl(const Vektor3f& punkt, const Vektor3f& start, const Vektor3f& ende) {
+    const Vektor3f pv = punkt - start;
+    Vektor3f vec = ende - start;
+    (void)normierenF(vec);
+    return d3(start + vec * punkt3(pv, vec));
+}
+NetzF ohneGeradeZeilen(const NetzF& in) {
+    Ausdehnung ex = ausdehnen(in);
+    int breite = in.breite;
+    int hoehe = in.hoehe;
+    const auto E = [&ex](int zeile, int spalte) -> NPunkt& { return ex[static_cast<std::size_t>(zeile)][static_cast<std::size_t>(spalte)]; };
+    for (int j = 1; j < breite - 1; ++j) {
+        double maxLaenge = 0;
+        for (int i = 0; i < hoehe; ++i) {
+            const V3d d = minusD(d3(E(i, j).ort), aufStrahl(E(i, j).ort, E(i, j - 1).ort, E(i, j + 1).ort));
+            maxLaenge = std::max(maxLaenge, std::sqrt(punktD(d, d)));
+        }
+        if (maxLaenge < 0.1) {
+            --breite;
+            for (int i = 0; i < hoehe; ++i) {
+                for (int k = j; k < breite; ++k) { E(i, k) = E(i, k + 1); }
+            }
+            --j;
+        }
+    }
+    for (int j = 1; j < hoehe - 1; ++j) {
+        double maxLaenge = 0;
+        for (int i = 0; i < breite; ++i) {
+            const V3d d = minusD(d3(E(j, i).ort), aufStrahl(E(j, i).ort, E(j - 1, i).ort, E(j + 1, i).ort));
+            maxLaenge = std::max(maxLaenge, std::sqrt(punktD(d, d)));
+        }
+        if (maxLaenge < 0.1) {
+            --hoehe;
+            for (int i = 0; i < breite; ++i) {
+                for (int k = j; k < hoehe; ++k) { E(k, i) = E(k + 1, i); }
+            }
+            --j;
+        }
+    }
+    return zusammen(ex, breite, hoehe);
+}
+
+// ParsePatch: "delete and warn about degenerate patches"
+bool patchEntartet(const std::vector<Vektor3f>& m) {
+    const auto gleich = [](const Vektor3f& a, const Vektor3f& b) {   // VectorCompare (EQUAL_EPSILON 0.001)
+        return std::fabs(a[0] - b[0]) < 0.001F && std::fabs(a[1] - b[1]) < 0.001F && std::fabs(a[2] - b[2]) < 0.001F;
+    };
+    Vektor3f delta(0, 0, 0);
+    float laenge = 0;
+    for (std::size_t i = 1; i < m.size() && laenge == 0; ++i) {
+        delta = m[0] - m[i];
+        laenge = normierenF(delta);
+    }
+    if (laenge == 0) { return true; }
+    for (std::size_t i = 1; i < m.size(); ++i) {
+        Vektor3f d2 = m[0] - m[i];
+        if (normierenF(d2) != 0) {
+            const Vektor3f d3n(-d2[0], -d2[1], -d2[2]);
+            if (!gleich(delta, d2) && !gleich(delta, d3n)) { return false; }
+        }
+    }
+    return true;
+}
+
+}  // namespace
+
+EchtNetz echtPatchNetz(const std::vector<Vektor3f>& kontrolle, int breite, int hoehe, int unterteilungen) {
+    EchtNetz aus;
+    // MAX_PATCH_SIZE 32
+    if (breite < 3 || hoehe < 3 || breite > 32 || hoehe > 32 || kontrolle.size() != static_cast<std::size_t>(breite * hoehe)) { return aus; }
+    if (patchEntartet(kontrolle)) { return aus; }
+    NetzF m;
+    m.breite = breite;
+    m.hoehe = hoehe;
+    m.v.resize(kontrolle.size());
+    for (std::size_t i = 0; i < kontrolle.size(); ++i) { m.v[i].ort = kontrolle[i]; }
+    float laengste = 0;
+    for (int j = 0; j + 2 < breite; j += 2) {
+        for (int i = 0; i + 2 < hoehe; i += 2) {
+            laengsteKurve(laengste, m.at(i, j).ort, m.at(i, j + 1).ort, m.at(i, j + 2).ort);   // row
+            laengsteKurve(laengste, m.at(i, j).ort, m.at(i + 1, j).ort, m.at(i + 2, j).ort);   // col
+        }
+    }
+    // DrawSurfaceForMesh: Normalen der Kontrollpunkte
+    NetzF kopie = m;
+    netzNormalen(kopie);
+    for (std::size_t i = 0; i < m.v.size(); ++i) { m.v[i].normale = kopie.v[i].normale; }
+    aufKurve(kopie);
+    netzNormalen(kopie);
+    for (std::size_t i = 0; i < m.v.size(); ++i) {
+        if (punkt3(kopie.v[i].normale, m.v[i].normale) < 0.75F) { m.v[i].normale = kopie.v[i].normale; }
+    }
+    // TessellatedMesh( mesh, IterationsForCurve( longestCurve, patchSubdivisions ) )
+    NetzF t = unterteileNetz(m, iterationenFuerKurve(laengste, std::max(1, unterteilungen)));
+    aufKurve(t);
+    t = ohneGeradeZeilen(t);
+    aus.breite = t.breite;
+    aus.hoehe = t.hoehe;
+    for (const NPunkt& p : t.v) {
+        aus.ort.push_back(p.ort);
+        aus.normale.push_back(p.normale);
+    }
+    return aus;
+}
+
+void echtPatchFlaechenLichter(const EchtNetz& netz, const EchtFlaechenShader& s, std::vector<EchtLicht>& aus) {
+    if (s.flaechenlicht <= 0 || netz.breite < 2 || netz.hoehe < 2) { return; }
+    const auto P = [&netz](int i) { return netz.ort[static_cast<std::size_t>(i)]; };
+    const auto N = [&netz](int i) { return netz.normale[static_cast<std::size_t>(i)]; };
+    // MeshQuadIterator: Zeilen y, Spalten x, Ecken nach der Radix (x + y) & 1
+    for (int y = 0; y < netz.hoehe - 1; ++y) {
+        for (int x = 0; x < netz.breite - 1; ++x) {
+            const int pw[5] = {x + (y * netz.breite), x + ((y + 1) * netz.breite), x + 1 + ((y + 1) * netz.breite), x + 1 + (y * netz.breite),
+                               x + (y * netz.breite)};
+            const int r = (x + y) & 1;
+            const int q[4] = {pw[r + 0], pw[r + 1], pw[r + 2], pw[r + 3]};
+            // PlaneFromPoints( plane, q0, q1, q2 ) && |plane3_distance_to_point( plane, q3 )| < PLANAR_EPSILON
+            const V3d nk = kreuzD(d3(P(q[2]) - P(q[0])), d3(P(q[1]) - P(q[0])));
+            Vektor3f n(static_cast<float>(nk[0]), static_cast<float>(nk[1]), static_cast<float>(nk[2]));
+            bool eben = normierenF(n) != 0;
+            if (eben) {
+                const float dist = punkt3(P(q[0]), n);
+                eben = std::fabs(punkt3(n, P(q[3])) - dist) < 0.1F;
+            }
+            if (eben) {
+                echtFlaechenLichter({P(q[0]), P(q[1]), P(q[2]), P(q[3])}, std::vector<Vektor3f>{N(q[0]), N(q[1]), N(q[2]), N(q[3])}, s, aus);
+            } else {
+                echtFlaechenLichter({P(q[0]), P(q[1]), P(q[2])}, std::vector<Vektor3f>{N(q[0]), N(q[1]), N(q[2])}, s, aus);
+                echtFlaechenLichter({P(q[0]), P(q[2]), P(q[3])}, std::vector<Vektor3f>{N(q[0]), N(q[2]), N(q[3])}, s, aus);
+            }
+        }
+    }
+}
+
+// --- Stufe 9d: die Dreiecke von -meta (StripFaceSurface) ---------------------------------
+
+std::vector<int> echtFlaechenStreifen(const std::vector<Vektor3f>& w, bool* mitte) {
+    if (mitte != nullptr) { *mitte = false; }
+    std::vector<int> idx;
+    const int n = static_cast<int>(w.size());
+    if (n < 3) { return idx; }
+    if (n == 3) { return {0, 1, 2}; }
+    // ydnar: find smallest coordinate
+    int least = 0;
+    for (int i = 0; i < n; ++i) {
+        const Vektor3f& v1 = w[static_cast<std::size_t>(i)];
+        const Vektor3f& v2 = w[static_cast<std::size_t>(least)];
+        if (v1[0] < v2[0] || (v1[0] == v2[0] && v1[1] < v2[1]) || (v1[0] == v2[0] && v1[1] == v2[1] && v1[2] < v2[2])) { least = i; }
+    }
+    // triangle_min_angle_squared_sin, triangle_area2x (qmath.h); TINY_AREA 1.0
+    const auto minWinkel = [](const Vektor3f& a, const Vektor3f& b, const Vektor3f& c) {
+        const Vektor3f df[3] = {b - a, c - a, c - b};
+        const double l[3] = {punktD(d3(df[0]), d3(df[0])), punktD(d3(df[1]), d3(df[1])), punktD(d3(df[2]), d3(df[2]))};
+        const int mini = (l[0] < l[1]) ? ((l[0] < l[2]) ? 0 : 2) : ((l[1] < l[2]) ? 1 : 2);
+        if (l[mini] == 0) { return 0.0; }
+        const int minj = mini == 2 ? 0 : mini + 1;
+        const int mink = minj == 2 ? 0 : minj + 1;
+        const V3d x = kreuzD(d3(df[minj]), d3(df[mink]));
+        return punktD(x, x) / (l[minj] * l[mink]);
+    };
+    const auto flaeche2 = [](const Vektor3f& a, const Vektor3f& b, const Vektor3f& c) {
+        const V3d x = kreuzD(d3(b - a), d3(c - a));
+        return std::sqrt(punktD(x, x));
+    };
+    const auto wrap = [n](int i) { return i < 0 ? i + n : i < n ? i : i - n; };
+    for (int r = 0; r < n; ++r) {
+        double flaeche = 1e300;
+        double winkel = 1e300;
+        idx.clear();
+        // walk the winding in both directions (ohne T-Verbindungen: abwechselnd)
+        int i = wrap(r + least);
+        int j = wrap(i - 1);
+        int k = 0;
+        int swap = 0;
+        for (;;) {
+            swap ^= 1;
+            if (swap != 0) {
+                k = j;
+                j = wrap(j - 1);
+            } else {
+                k = i;
+                i = wrap(i + 1);
+            }
+            if (i == j) { break; }
+            const Vektor3f& a = w[static_cast<std::size_t>(i)];
+            const Vektor3f& b = w[static_cast<std::size_t>(j)];
+            const Vektor3f& c = w[static_cast<std::size_t>(k)];
+            winkel = std::min(winkel, minWinkel(a, b, c));
+            flaeche = std::min(flaeche, flaeche2(a, b, c));
+            if (!(winkel > 1e-5 && flaeche > 1.0)) { break; }
+            idx.push_back(i);
+            idx.push_back(j);
+            idx.push_back(k);
+        }
+        if (winkel > 1e-5 && flaeche > 1.0) { return idx; }
+    }
+    // FanFaceSurface: der Mittelpunkt vorn, Faecher (Mitte, prev, next)
+    if (mitte != nullptr) { *mitte = true; }
+    idx.clear();
+    for (int prev = n - 1, next = 0; next < n; prev = next++) {
+        idx.push_back(n);
+        idx.push_back(prev);
+        idx.push_back(next);
+    }
+    return idx;
 }
 
 std::vector<EchtSonne::Probe> echtHimmelsProben(const std::vector<unsigned char>* const rgba[6], const int* breite, const int* hoehe) {
@@ -355,9 +820,326 @@ void echtHimmelsLichter(const EchtSonne::Himmelslicht& h, const Vektor3f& farbe,
     }
 }
 
+namespace {
+
+// CreateSunLight (light.cpp): numSamples Sonnen, je photons / numSamples; die erste in der
+// Richtung, die weiteren mit Abweichung (Zufall von q3map2, siehe EchtZufall)
+void sonnenLichter(const EchtLicht& vorlage, const Vektor3f& richtung, float photonen, float abweichung, int proben, EchtZufall& zufall,
+                   std::vector<EchtLicht>& aus) {
+    proben = std::max(proben, 1);
+    static int gruppen = 0;   // die Proben einer Sonne (sun_t) gehoeren zusammen
+    const int gruppe = ++gruppen;
+    for (int i = 0; i < proben; ++i) {
+        Vektor3f r = richtung;
+        if (i != 0) {
+            const double d = std::sqrt(static_cast<double>(richtung[0]) * richtung[0] + static_cast<double>(richtung[1]) * richtung[1]);
+            double winkel = std::atan2(static_cast<double>(richtung[1]), static_cast<double>(richtung[0]));
+            double hoehe = std::atan2(static_cast<double>(richtung[2]), d);
+            float da = 0;
+            float de = 0;
+            do {
+                da = (zufall.naechste() * 2.0F - 1.0F) * abweichung;
+                de = (zufall.naechste() * 2.0F - 1.0F) * abweichung;
+            } while ((da * da + de * de) > (abweichung * abweichung));
+            winkel += da;
+            hoehe += de;
+            r = Vektor3f(static_cast<float>(std::cos(winkel) * std::cos(hoehe)), static_cast<float>(std::sin(winkel) * std::cos(hoehe)),
+                         static_cast<float>(std::sin(hoehe)));
+        }
+        EchtLicht l = vorlage;
+        l.art = EchtLicht::Art::Sonne;
+        l.sonnenRichtung = r;
+        l.photonen = photonen / static_cast<float>(proben);
+        l.winkel = true;
+        l.sonnenGruppe = gruppe;
+        l.sonnenProbe = i;
+        huelleSetzen(l);
+        aus.push_back(l);
+    }
+}
+
+// Mitte der Grenzen (info.minmax.origin())
+Vektor3f grenzenMitte(const std::vector<Vektor3f>& p) {
+    Vektor3f mn = p.front();
+    Vektor3f mx = p.front();
+    for (const Vektor3f& v : p) {
+        for (int i = 0; i < 3; ++i) {
+            mn[i] = std::min(mn[i], v[i]);
+            mx[i] = std::max(mx[i], v[i]);
+        }
+    }
+    return (mn + mx) * 0.5F;
+}
+
+// CreateSurfaceLights: "autosprite shaders become point lights"
+void autospriteLicht(const EchtFlaechenShader& s, const std::vector<Vektor3f>& punkte, const Entitaet* quelle, std::vector<EchtLicht>& aus) {
+    if (punkte.empty()) { return; }
+    EchtLicht l;
+    l.art = EchtLicht::Art::Punkt;
+    l.photonen = s.flaechenlicht * kEchtPunktSkala;
+    l.fade = 1;
+    l.ursprung = grenzenMitte(punkte);
+    l.farbe = normiert(s.farbe);
+    l.winkel = true;
+    l.quelle = quelle;
+    huelleSetzen(l);
+    aus.push_back(l);
+}
+
+// GetEntityShadowFlags: "_castShadows", "_cs" (atoi); nicht da: vorgabe
+int wirftSchatten(const Entitaet& e, int vorgabe) {
+    for (const char* k : {"_castShadows", "_cs"}) {
+        const std::string v = e.wert(k);
+        if (!v.empty()) { return std::atoi(v.c_str()); }
+    }
+    return vorgabe;
+}
+
+}  // namespace
+
+void echtModellFlaechen(const Karte& k, const std::function<void(const EchtModellFlaeche&)>& je) {
+    if (k.kontext.modelle == nullptr || !je) { return; }
+    const auto welt = k.welt();
+    for (const auto& ep : k.entitaeten()) {
+        const Entitaet& e = *ep;
+        if (e.wert("classname") != "misc_model") { continue; }
+        // AddTriangleModels: ohne "_target"/"target" in der Welt, sonst in der Pinsel-Entitaet mit diesem
+        // "_targetname"/"targetname" (gibt es keine, kommt das Modell nirgends hin)
+        std::string ziel = e.wert("_target");
+        if (ziel.empty()) { ziel = e.wert("target"); }
+        const Entitaet* eltern = nullptr;
+        if (!ziel.empty()) {
+            for (const auto& b : k.entitaeten()) {
+                if (b == welt || b.get() == &e || b->kinder().empty()) { continue; }
+                std::string tn = b->wert("_targetname");
+                if (tn.empty()) { tn = b->wert("targetname"); }
+                if (tn == ziel) {
+                    eltern = b.get();
+                    break;
+                }
+            }
+            if (eltern == nullptr) { continue; }
+        }
+        if (e.wert("model").empty()) { continue; }
+        const ModellAnsicht a = k.kontext.modelle->ansicht(e);
+        if (!a.modell || a.modell->null || a.modell->flaechen.empty()) { continue; }
+        // ParseEntityCompileParams: in der Welt castShadows 1 (WORLDSPAWN_CAST_SHADOWS), sonst 0; die Schluessel
+        // des Modells, dann die der Eltern. -light nimmt Flaechen einer Pinsel-Entitaet nur, wenn diese selbst
+        // _castShadows hat (PopulateTraceNodes, ENTITY_CAST_SHADOWS 0).
+        int wirft = 0;
+        if (eltern == nullptr) {
+            wirft = wirftSchatten(e, welt ? wirftSchatten(*welt, 1) : 1);
+        } else if (wirftSchatten(*eltern, 0) > 0) {
+            wirft = wirftSchatten(e, wirftSchatten(*eltern, 0));
+        }
+        const Matrix4 m = miscModellMatrix(e);
+        EchtModellFlaeche f;
+        f.quelle = &e;
+        f.wirft = wirft;
+        for (std::size_t i = 0; i < a.modell->flaechen.size() && i < a.shader.size(); ++i) {
+            if (a.shader[i].empty()) { continue; }   // die Skin bildet die Flaeche nicht ab
+            const ModellFlaeche& mf = a.modell->flaechen[i];
+            f.shader = a.shader[i];
+            f.ort.clear();
+            f.normale.clear();
+            f.st.clear();
+            for (std::size_t j = 0; j + 2 < mf.indizes.size(); j += 3) {
+                for (std::size_t c = 0; c < 3; ++c) {
+                    const std::uint32_t ix = mf.indizes[j + c];
+                    if (ix >= mf.punkte.size()) { break; }
+                    const ModellPunkt& p = mf.punkte[ix];
+                    f.ort.push_back(transformierterPunkt(m, p.ort));
+                    f.normale.push_back(transformierteNormale(m, p.normale));
+                    f.st.push_back(p.st);
+                }
+                while (f.ort.size() % 3 != 0) {   // ungueltiger Index: das Dreieck weg
+                    f.ort.pop_back();
+                    f.normale.pop_back();
+                    f.st.pop_back();
+                }
+            }
+            if (!f.ort.empty()) { je(f); }
+        }
+    }
+}
+
+// --- Stufe 9d: Nebel ---------------------------------------------------------------------
+
+std::vector<EchtNebel> echtNebelSammeln(const Karte& k, const std::function<EchtNebelShader(const std::string&)>& shader) {
+    std::vector<EchtNebel> aus;
+    if (!shader) { return aus; }
+    // die Pinsel, die Blaetter fuellen (visibleHull: was davon im Freien liegt, ist sichtbar)
+    std::vector<const Pinsel*> deckende;
+    for (const auto& ep : k.entitaeten()) {
+        for (const auto& prim : ep->kinder()) {
+            if (prim->art() != Primitiv::Art::Pinsel) { continue; }
+            const auto& p = static_cast<const Pinsel&>(*prim);
+            bool deckend = !p.flaechen().empty();
+            for (const auto& fl : p.flaechen()) {
+                const EchtNebelShader s = shader(fl->shader());
+                if (s.nebel || !s.deckend) {
+                    deckend = false;
+                    break;
+                }
+            }
+            if (deckend) { deckende.push_back(&p); }
+        }
+    }
+    const auto inPinsel = [](const Pinsel& p, const Vektor3f& q) {
+        for (const auto& fl : p.flaechen()) {
+            const Vektor3d& n = fl->ebene().normal();
+            if (n[0] * q[0] + n[1] * q[1] + n[2] * q[2] - fl->ebene().dist() > -0.01) { return false; }
+        }
+        return true;
+    };
+    for (const auto& ep : k.entitaeten()) {
+        for (const auto& prim : ep->kinder()) {
+            if (prim->art() != Primitiv::Art::Pinsel) { continue; }
+            const auto& p = static_cast<const Pinsel&>(*prim);
+            std::string nebelShader;
+            EchtNebelShader ns;
+            for (const auto& fl : p.flaechen()) {
+                const EchtNebelShader s = shader(fl->shader());
+                if (s.nebel) {
+                    nebelShader = fl->shader();
+                    ns = s;
+                    break;
+                }
+            }
+            if (nebelShader.empty()) { continue; }
+            EchtNebel n;
+            n.shader = nebelShader;
+            n.quelle = ep.get();
+            n.farbe = ns.farbe;
+            n.tcScale = 1.0F / (std::max(ns.tiefe, 1.0F) * 8.0F);
+            std::vector<const Flaeche*> seiten;
+            for (const auto& fl : p.flaechen()) {
+                if (!fl->traegtBei()) { continue; }
+                const Vektor3d& nn = fl->ebene().normal();
+                n.ebenen.push_back(static_cast<float>(nn[0]));
+                n.ebenen.push_back(static_cast<float>(nn[1]));
+                n.ebenen.push_back(static_cast<float>(nn[2]));
+                n.ebenen.push_back(static_cast<float>(fl->ebene().dist()));
+                seiten.push_back(fl.get());
+            }
+            if (seiten.size() < 4) { continue; }
+            // sichtbar (visibleHull nicht leer): ein Teil der Seite liegt nicht in einem deckenden Pinsel -
+            // geprueft an der Mitte und den zur Mitte gerueckten Ecken, je 1 Einheit vor der Seite
+            const auto sichtbar = [&](const Flaeche& fl) {
+                const Wicklung& wk = fl.wicklung();
+                if (wk.numpoints < 3) { return false; }
+                if (shader(fl.shader()).nichtZeichnen) { return false; }
+                Vektor3f mitte(0, 0, 0);
+                for (std::size_t i = 0; i < wk.numpoints; ++i) { mitte = mitte + Vektor3f(wk[i].vertex); }
+                mitte = mitte / static_cast<float>(wk.numpoints);
+                const Vektor3d& nd = fl.ebene().normal();
+                const Vektor3f nf(static_cast<float>(nd[0]), static_cast<float>(nd[1]), static_cast<float>(nd[2]));
+                std::vector<Vektor3f> proben = {mitte};
+                for (std::size_t i = 0; i < wk.numpoints; ++i) { proben.push_back(mitte + (Vektor3f(wk[i].vertex) - mitte) * 0.9F); }
+                for (const Vektor3f& q0 : proben) {
+                    const Vektor3f q = q0 + nf;
+                    bool zu = false;
+                    for (const Pinsel* d : deckende) {
+                        if (d != &p && inPinsel(*d, q)) {
+                            zu = true;
+                            break;
+                        }
+                    }
+                    if (!zu) { return true; }
+                }
+                return false;
+            };
+            int sicht = -1;
+            const Vektor3f fd = ns.richtung;
+            if (fd[0] != 0 || fd[1] != 0 || fd[2] != 0) {   // "if shader specifies an explicit direction"
+                double besterDot = 0;
+                for (std::size_t j = 0; j < seiten.size(); ++j) {
+                    const Vektor3d& nn = seiten[j]->ebene().normal();
+                    const double d = fd[0] * nn[0] + fd[1] * nn[1] + fd[2] * nn[2];
+                    if (d < besterDot) {
+                        besterDot = d;
+                        sicht = static_cast<int>(j);
+                    }
+                }
+            }
+            if (sicht < 0) {
+                // EmitFogs: die achsparallelen Seiten in der Reihenfolge von q3map2 (-X +X -Y +Y -Z +Z), rueckwaerts
+                std::vector<bool> achsig(seiten.size(), false);
+                for (int j = 5; j >= 0 && sicht < 0; --j) {
+                    const int achse = j / 2;
+                    const double richtung = (j % 2) != 0 ? 1.0 : -1.0;
+                    for (std::size_t s = 0; s < seiten.size(); ++s) {
+                        const Vektor3d& nn = seiten[s]->ebene().normal();
+                        if (std::fabs(nn[static_cast<std::size_t>(achse)] - richtung) > 1e-6) { continue; }
+                        achsig[s] = true;
+                        if (sichtbar(*seiten[s])) { sicht = static_cast<int>(s); }
+                        break;
+                    }
+                }
+                for (std::size_t s = 0; s < seiten.size() && sicht < 0; ++s) {   // "try other sides"
+                    if (!achsig[s] && sichtbar(*seiten[s])) { sicht = static_cast<int>(s); }
+                }
+            }
+            if (sicht >= 0) {
+                const Vektor3d& nn = seiten[static_cast<std::size_t>(sicht)]->ebene().normal();
+                n.hatFlaeche = true;
+                n.ebene[0] = static_cast<float>(-nn[0]);
+                n.ebene[1] = static_cast<float>(-nn[1]);
+                n.ebene[2] = static_cast<float>(-nn[2]);
+                n.ebene[3] = static_cast<float>(seiten[static_cast<std::size_t>(sicht)]->ebene().dist());
+            }
+            aus.push_back(std::move(n));
+        }
+    }
+    // ydnar: global fog (worldspawn "_fog" / "fog")
+    if (const auto welt = k.welt()) {
+        std::string g = welt->wert("_fog");
+        if (g.empty()) { g = welt->wert("fog"); }
+        if (!g.empty()) {
+            const EchtNebelShader s = shader(g);
+            EchtNebel n;
+            n.shader = g;
+            n.global = true;
+            n.quelle = welt.get();
+            if (s.nebel) {
+                n.farbe = s.farbe;
+                n.tcScale = 1.0F / (std::max(s.tiefe, 1.0F) * 8.0F);
+            } else {   // R_LoadFogs: "bad shader" - Rot, Tiefe 250
+                n.farbe = Vektor3f(1, 0, 0);
+                n.tcScale = 1.0F / (250.0F * 8.0F);
+            }
+            aus.push_back(std::move(n));
+        }
+    }
+    return aus;
+}
+
+float echtNebelDichte(const EchtNebel& n, const Vektor3f& punkt, const Vektor3f& auge, const Vektor3f& vorn) {
+    // RB_CalcFogTexCoords: s = (Abstand entlang der Blickrichtung) * tcScale + 1/512
+    float s = (punkt3(punkt, vorn) - punkt3(auge, vorn)) * n.tcScale + 1.0F / 512.0F;
+    float t = 1.0F;
+    float augeT = 1.0F;
+    if (n.hatFlaeche) {
+        t = punkt[0] * n.ebene[0] + punkt[1] * n.ebene[1] + punkt[2] * n.ebene[2] + n.ebene[3];
+        augeT = auge[0] * n.ebene[0] + auge[1] * n.ebene[1] + auge[2] * n.ebene[2] + n.ebene[3];
+    }
+    if (augeT < 0) {   // eye_outside
+        t = t < 1.0F ? 1.0F / 32.0F : 1.0F / 32.0F + 30.0F / 32.0F * t / (t - augeT);
+    } else {
+        t = t < 0 ? 1.0F / 32.0F : 31.0F / 32.0F;
+    }
+    // R_FogFactor mit tr.fogTable (sqrt)
+    s -= 1.0F / 512.0F;
+    if (s < 0 || t < 1.0F / 32.0F) { return 0; }
+    if (t < 31.0F / 32.0F) { s *= (t - 1.0F / 32.0F) / (30.0F / 32.0F); }
+    s = std::min(s * 8.0F, 1.0F);
+    return std::sqrt(s);   // tr.fogTable: pow( i / 255, 0.5 ) - wie die Kartenvorschau ohne Tabellenstufen
+}
+
 EchtLichtWelt echtLichterSammeln(const Karte& k, const std::function<EchtFlaechenShader(const std::string&)>& flaechenShader,
                                  const std::function<EchtSonne(const std::string&)>& sonne) {
     EchtLichtWelt w;
+    EchtZufall zufall;   // Stufe 9d: srand( 0 ) - erst die Jitter-Kopien der Lichter, dann die Sonnen
     const auto welt = k.welt();
     if (welt) {
         // LightWorld (light.cpp): _color, _ambient, _minlight
@@ -395,8 +1177,12 @@ EchtLichtWelt echtLichterSammeln(const Karte& k, const std::function<EchtFlaeche
         float staerke = zahl(e, "_light", "light", 300.0F);
         if (staerke == 0) { staerke = 300.0F; }
         if (const float s = zahl(e, "scale"); s != 0) { staerke *= s; }
-        const int proben = std::max(1, static_cast<int>(zahl(e, "_samples")));
-        staerke /= static_cast<float>(proben);   // die Jitter-Kopien fehlen in der Vorschau
+        // ydnar: get deviance and samples (Stufe 9d: mit den Jitter-Kopien wie q3map2)
+        float abweichung = zahl(e, "_deviance", "_deviation");
+        if (e.wert("_deviance").empty() && e.wert("_deviation").empty()) { abweichung = zahl(e, "_jitter"); }
+        abweichung = std::max(0.0F, abweichung);
+        const int proben = std::max(1, std::atoi(e.wert("_samples").c_str()));
+        staerke /= static_cast<float>(proben);
         float f[3];
         if (zahlen(e.wert("_color"), f, 3)) {
             l.farbe = (flags & 32) != 0 ? Vektor3f(f[0], f[1], f[2]) : normiert(Vektor3f(f[0], f[1], f[2]));
@@ -425,9 +1211,10 @@ EchtLichtWelt echtLichterSammeln(const Karte& k, const std::function<EchtFlaeche
             l.winkel = true;
             l.fade = 1;
             if (zahl(e, "_sun") != 0) {
-                l.art = EchtLicht::Art::Sonne;   // CreateSunLight: Richtung = -normal
-                l.sonnenRichtung = Vektor3f(-n[0], -n[1], -n[2]);
-                l.photonen = staerke;
+                // CreateSunLight: Richtung = -normal, photons = intensity (schon durch numSamples), numSamples Sonnen
+                // mit deviance in Grad
+                sonnenLichter(l, Vektor3f(-n[0], -n[1], -n[2]), staerke, abweichung * 3.14159265358979F / 180.0F, proben, zufall, w.lichter);
+                continue;
             } else {
                 l.photonen *= kEchtSpotSkala;
             }
@@ -436,58 +1223,127 @@ EchtLichtWelt echtLichterSammeln(const Karte& k, const std::function<EchtFlaeche
         }
         huelleSetzen(l);
         w.lichter.push_back(l);
+        // jitter the light (CreateEntityLights)
+        for (int j = 1; j < proben; ++j) {
+            EchtLicht l2 = l;
+            l2.ursprung[0] = l.ursprung[0] + (zufall.naechste() * 2.0F - 1.0F) * abweichung;
+            l2.ursprung[1] = l.ursprung[1] + (zufall.naechste() * 2.0F - 1.0F) * abweichung;
+            l2.ursprung[2] = l.ursprung[2] + (zufall.naechste() * 2.0F - 1.0F) * abweichung;
+            w.lichter.push_back(l2);
+        }
     }
     // Himmel (q3map_sun) und Flaechenlicht (q3map_surfacelight) aus den Pinselflaechen
     std::vector<std::string> sonnen;
+    const auto himmelPruefen = [&](const std::string& sh) {
+        if (!sonne || std::find(sonnen.begin(), sonnen.end(), sh) != sonnen.end()) { return; }
+        const EchtSonne s = sonne(sh);
+        if (s.da || !s.himmel.empty()) { sonnen.push_back(sh); }
+        std::vector<EchtSonne::Sonne> liste = s.sonnen;
+        if (s.da && liste.empty()) { liste.push_back({s.farbe, s.staerke, s.grad, s.hoehe, 0.0F, 1}); }
+        for (const EchtSonne::Sonne& so : liste) {
+            // CreateSunLight mit q3map_sunExt <deviance> <samples> (Stufe 9d)
+            EchtLicht l;
+            l.farbe = normiert(so.farbe);
+            sonnenLichter(l, kugelRichtung(so.grad, so.hoehe), so.staerke, so.abweichung, so.proben, zufall, w.lichter);
+        }
+        for (const EchtSonne::Himmelslicht& h : s.himmel) { echtHimmelsLichter(h, normiert(s.shaderFarbe), w.lichter, &s.proben); }
+    };
+    // die Dreiecke der .bsp laufen im Uhrzeigersinn von vorn (die Rechte-Hand-Normale zeigt nach
+    // hinten) - sonst wird PointToPolygonFormFactor vor der Flaeche negativ
+    const auto vonVorn = [](std::vector<Vektor3f>& d, const Vektor3f& n, std::vector<Vektor3f>* nd = nullptr) {
+        const Vektor3f u = d[1] - d[0];
+        const Vektor3f v = d[2] - d[0];
+        const Vektor3f rh(u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]);
+        if (punkt3(rh, n) > 0) {
+            std::swap(d[1], d[2]);
+            if (nd != nullptr) { std::swap((*nd)[1], (*nd)[2]); }
+        }
+    };
     for (const auto& ep : k.entitaeten()) {
         for (const auto& prim : ep->kinder()) {
+            if (prim->art() == Primitiv::Art::Patch) {
+                // Stufe 9d: RadLightForPatch mit dem Netz von TessellatedMesh
+                const auto& patch = static_cast<const Patch&>(*prim);
+                himmelPruefen(patch.shader());
+                if (!flaechenShader) { continue; }
+                const EchtFlaechenShader fs = flaechenShader(patch.shader());
+                if (fs.flaechenlicht <= 0) { continue; }
+                std::vector<Vektor3f> kontrolle;
+                for (const PatchPunkt& pp : patch.punkte()) { kontrolle.push_back(pp.vertex); }
+                const std::size_t vorher = w.lichter.size();
+                if (fs.autosprite) {
+                    autospriteLicht(fs, kontrolle, ep.get(), w.lichter);
+                } else {
+                    echtPatchFlaechenLichter(echtPatchNetz(kontrolle, static_cast<int>(patch.breite()), static_cast<int>(patch.hoehe())), fs, w.lichter);
+                }
+                for (std::size_t i = vorher; i < w.lichter.size(); ++i) { w.lichter[i].quelle = ep.get(); }
+                continue;
+            }
             if (prim->art() != Primitiv::Art::Pinsel) { continue; }
             const auto& pinsel = static_cast<const Pinsel&>(*prim);
             for (const auto& fl : pinsel.flaechen()) {
                 if (!fl->traegtBei()) { continue; }
                 const std::string& sh = fl->shader();
-                if (sonne && std::find(sonnen.begin(), sonnen.end(), sh) == sonnen.end()) {
-                    const EchtSonne s = sonne(sh);
-                    if (s.da || !s.himmel.empty()) { sonnen.push_back(sh); }
-                    std::vector<EchtSonne::Sonne> liste = s.sonnen;
-                    if (s.da && liste.empty()) { liste.push_back({s.farbe, s.staerke, s.grad, s.hoehe}); }
-                    for (const EchtSonne::Sonne& so : liste) {
-                        // CreateSunLight (numSamples 1: die Jitter-Kopien fehlen in der Vorschau)
-                        EchtLicht l;
-                        l.art = EchtLicht::Art::Sonne;
-                        l.farbe = normiert(so.farbe);
-                        l.photonen = so.staerke;
-                        l.sonnenRichtung = kugelRichtung(so.grad, so.hoehe);
-                        l.winkel = true;
-                        huelleSetzen(l);
-                        w.lichter.push_back(l);
-                    }
-                    for (const EchtSonne::Himmelslicht& h : s.himmel) { echtHimmelsLichter(h, normiert(s.shaderFarbe), w.lichter, &s.proben); }
-                }
+                himmelPruefen(sh);
                 if (!flaechenShader) { continue; }
                 const EchtFlaechenShader fs = flaechenShader(sh);
                 if (fs.flaechenlicht <= 0) { continue; }
-                // RadLightForTriangles: jedes Dreieck der Flaeche (Faecher statt der
-                // Streifen von -meta) unterteilt nach q3map_lightSubdivide
                 const Wicklung& wk = fl->wicklung();
                 if (wk.numpoints < 3) { continue; }
                 const Vektor3d& nd = fl->ebene().normal();
                 const Vektor3f n(static_cast<float>(nd[0]), static_cast<float>(nd[1]), static_cast<float>(nd[2]));
                 const std::size_t vorher = w.lichter.size();
-                for (std::size_t i = 2; i < wk.numpoints; ++i) {
-                    std::vector<Vektor3f> dreieck = {Vektor3f(wk[0].vertex), Vektor3f(wk[i - 1].vertex), Vektor3f(wk[i].vertex)};
-                    // die Dreiecke der .bsp laufen im Uhrzeigersinn von vorn (die
-                    // Rechte-Hand-Normale zeigt nach hinten) - sonst wird
-                    // PointToPolygonFormFactor vor der Flaeche negativ
-                    const Vektor3f u = dreieck[1] - dreieck[0];
-                    const Vektor3f v = dreieck[2] - dreieck[0];
-                    const Vektor3f rh(u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]);
-                    if (punkt3(rh, n) > 0) { std::swap(dreieck[1], dreieck[2]); }
-                    echtFlaechenLichter(dreieck, n, fs, w.lichter);
+                std::vector<Vektor3f> ecken;
+                for (std::size_t i = 0; i < wk.numpoints; ++i) { ecken.push_back(Vektor3f(wk[i].vertex)); }
+                if (fs.autosprite) {
+                    autospriteLicht(fs, ecken, ep.get(), w.lichter);
+                } else {
+                    // RadLightForTriangles: die Dreiecke von -meta (Stufe 9d: StripFaceSurface statt Faecher),
+                    // jedes unterteilt nach q3map_lightSubdivide
+                    bool mitte = false;
+                    const std::vector<int> idx = echtFlaechenStreifen(ecken, &mitte);
+                    if (mitte) {   // FanFaceSurface: der Mittelpunkt (Mittel der Ecken in double)
+                        double c[3] = {0, 0, 0};
+                        for (const Vektor3f& v : ecken) {
+                            for (int a = 0; a < 3; ++a) { c[a] += v[static_cast<std::size_t>(a)]; }
+                        }
+                        const double iv = 1.0 / static_cast<double>(ecken.size());
+                        ecken.push_back(Vektor3f(static_cast<float>(c[0] * iv), static_cast<float>(c[1] * iv), static_cast<float>(c[2] * iv)));
+                    }
+                    for (std::size_t i = 0; i + 2 < idx.size(); i += 3) {
+                        std::vector<Vektor3f> dreieck = {ecken[static_cast<std::size_t>(idx[i])], ecken[static_cast<std::size_t>(idx[i + 1])],
+                                                         ecken[static_cast<std::size_t>(idx[i + 2])]};
+                        vonVorn(dreieck, n);
+                        echtFlaechenLichter(dreieck, n, fs, w.lichter);
+                    }
                 }
                 for (std::size_t i = vorher; i < w.lichter.size(); ++i) { w.lichter[i].quelle = ep.get(); }
             }
         }
+    }
+    // Stufe 9d: die Flaechen der misc_model (RadLightForTriangles ueber ihre Dreiecke, Normale je Ecke)
+    if (sonne || flaechenShader) {
+        echtModellFlaechen(k, [&](const EchtModellFlaeche& f) {
+            himmelPruefen(f.shader);
+            if (!flaechenShader) { return; }
+            const EchtFlaechenShader fs = flaechenShader(f.shader);
+            if (fs.flaechenlicht <= 0) { return; }
+            const std::size_t vorher = w.lichter.size();
+            if (fs.autosprite) {
+                autospriteLicht(fs, f.ort, f.quelle, w.lichter);
+            } else {
+                for (std::size_t i = 0; i + 2 < f.ort.size(); i += 3) {
+                    std::vector<Vektor3f> d = {f.ort[i], f.ort[i + 1], f.ort[i + 2]};
+                    std::vector<Vektor3f> nd = {f.normale[i], f.normale[i + 1], f.normale[i + 2]};
+                    Vektor3f nm = nd[0] + nd[1] + nd[2];
+                    const float l = std::sqrt(punkt3(nm, nm));
+                    if (l == 0) { continue; }
+                    vonVorn(d, nm / l, &nd);
+                    echtFlaechenLichter(d, nd, fs, w.lichter);
+                }
+            }
+            for (std::size_t i = vorher; i < w.lichter.size(); ++i) { w.lichter[i].quelle = f.quelle; }
+        });
     }
     return w;
 }

@@ -17,6 +17,8 @@
 //   Public License for more details (LICENSE).
 #include "bhed/karte/texturen.h"
 
+#include "bhed/karte/spielbeschreibung.h"
+
 #include "bhed/image.h"
 #include "bhed/karte/kartenformat.h"
 #include "tokenizer.h"
@@ -516,6 +518,22 @@ void Texturinventar::laden(const Dateisystem& fs, const std::string& standardSha
             m_meldungen.push_back("Unable to read shaderfile " + pfad + datei);
             gemeldet = m_meldungen.size();
             warnung(protokoll, "Unable to read shaderfile " + pfad + datei + "\n");
+        }
+    }
+    // Stufe 9d: fruehere Modell-Importe unter scripts/ im Import-Ordner (siehe importOrdner)
+    m_importSkripte = 0;
+    if (!importOrdner.empty()) {
+        const std::string imp = ordnerBereinigt(importOrdner);
+        for (const auto& datei : fs.dateien("scripts/", "shader", 1)) {
+            bool ordner = false;
+            const std::string wurzel = fs.finden("scripts/" + datei, &ordner);
+            if (!ordner || ordnerBereinigt(wurzel) != imp) { continue; }
+            if (std::any_of(m_shaderDateien.begin(), m_shaderDateien.end(), [&datei](const std::string& s) { return gleichOhneFall(s, datei); })) { continue; }
+            std::string text;
+            if (!fs.textLesen("scripts/" + datei, text)) { continue; }
+            ausgabe(protokoll, "Parsing shaderfile scripts/" + datei + "\n");
+            shaderDateiParsen(text, "scripts/" + datei);
+            ++m_importSkripte;
         }
     }
 }

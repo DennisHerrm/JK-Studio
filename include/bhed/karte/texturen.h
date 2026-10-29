@@ -130,6 +130,11 @@ public:
     // Shaders_Load: shaderlist.txt aus allen Archiven (umgekehrt), sonst die
     // standardShaderliste (wie von NRC installiert), sonst alle shaders/*.shader.
     void laden(const Dateisystem& fs, const std::string& standardShaderliste = std::string());
+    // Stufe 9d: der Import-Ordner des Programms. Fruehere Modell-Importe legten ihre .shader unter
+    // scripts/ ab (JA liest shaders/); laden liest sie von dort mit, wenn es unter shaders/ keine Datei
+    // dieses Namens gibt, und zaehlt sie (importSkripte) - verschoben wird nichts.
+    std::string importOrdner;
+    [[nodiscard]] std::size_t importSkripte() const { return m_importSkripte; }
 
     [[nodiscard]] const std::vector<std::string>& shaderDateien() const { return m_shaderDateien; }   // l_shaderfiles
     [[nodiscard]] std::vector<std::string> meldungen() const { return m_meldungen; }
@@ -162,6 +167,7 @@ public:
     [[nodiscard]] BildMass bildMass(const std::string& shader) const;
 
 private:
+    std::size_t m_importSkripte = 0;
     void shaderDateiParsen(const std::string& text, const std::string& datei);
     bool bildGroesse(const std::string& texturName, std::size_t& w, std::size_t& h) const;
 

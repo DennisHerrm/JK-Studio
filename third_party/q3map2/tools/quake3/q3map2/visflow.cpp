@@ -1332,9 +1332,13 @@ void CreatePassages( int portalnum ){
 }
 
 void PassageMemory(){
-	int totalmem = 0, totalportals = 0;
+	/* BehavEd stage 9d: NRC counted only the first numportals of the numportals * 2 sorted
+	   portals (CreatePassages runs for all of them) and summed into an int - for
+	   md_rev_TarisUpper2 (76084 portals) it printed 268 MB, CreatePassages took about 9 GB.
+	   All portals, size_t, and the total with the bit vectors of BasePortalVis. */
+	size_t totalmem = 0, totalportals = 0;
 
-	for ( const vportal_t *portal : Span( sorted_portals, numportals ) )
+	for ( const vportal_t *portal : Span( sorted_portals, numportals * 2 ) )
 	{
 		if ( portal->removed ) {
 			continue;
@@ -1348,8 +1352,10 @@ void PassageMemory(){
 			totalportals++;
 		}
 	}
-	Sys_Printf( "%7i average number of passages per leaf\n", totalportals / numportals );
-	Sys_Printf( "%7i MB required passage memory\n", totalmem >> 10 >> 10 );
+	Sys_Printf( "%7zu average number of passages per leaf\n", totalportals / ( numportals * 2 ) );
+	Sys_Printf( "%7zu MB required passage memory\n", totalmem >> 10 >> 10 );
+	const size_t vectors = size_t( numportals ) * 2 * 3 * portalbytes;   // portalfront, portalflood, portalvis
+	Sys_Printf( "BehavEd: vis memory %zu MB\n", ( totalmem + vectors ) >> 10 >> 10 );
 }
 
 /*

@@ -138,6 +138,11 @@ struct Zustand3 {
     // 7 SRC_COLOR, 8 ONE_MINUS_SRC_COLOR, 9 DST_ALPHA, 10 ONE_MINUS_DST_ALPHA)
     int mischQuelle = 0;
     int mischZiel = 0;
+    // Stufe 9d: eine Nebelflaeche (Shader mit fogParms ohne Stufe): nur RB_FogPass mit FP_LE - die
+    // Farbe des Nebels, an dessen Rand die Stelle liegt, mit seiner Dichte (nur mit echtLicht)
+    bool nebelNur = false;
+    // Stufe 9d: misc_skyportal - eine Himmelsflaeche zeigt dieses Bild an derselben Bildstelle
+    void* himmelPortal = nullptr;
 };
 // Punkte wie punkte(), aber mit Tiefentest gegen die Tiefe der Kamera (fuer
 // $DEEPPOINT: erst die verdeckten mit GL_GREATER, dann die sichtbaren).
@@ -220,6 +225,19 @@ bool sonnenKaskade(int stufe, const float* richtung, const float* mitte, float h
 // Die Karte einer Sonne aus q3map_skyLight (Schicht < kHimmelSonnenMax), ganze Karte.
 bool himmelsSonne(int schicht, const float* richtung, const float* mitte, float halb, float tiefe, const std::vector<SchattenTeil>& teile);
 void sonnenSchattenAus();
+// Stufe 9d: Nebel wie im Spiel (RB_FogPass, RB_CalcFogTexCoords, R_FogFactor) in der Echtzeit-Ansicht:
+// je Bildpunkt der erste Nebel, dessen Pinsel die Stelle enthaelt (q3map2 schneidet die Flaechen an
+// den Seiten des Nebelpinsels), sonst der globale. Je Nebel: farbe rgb + w tcScale, flaeche (t =
+// dot(p, xyz) + w), info x erste Ebene, y Zahl der Ebenen (0 global), z mit Flaeche, w eye_t.
+inline constexpr int kNebelMax = 16;
+inline constexpr int kNebelEbenenMax = 128;
+struct NebelEcht {
+    float farbe[4];
+    float flaeche[4];
+    float info[4];
+};
+// vorn: xyz Blickrichtung, w dot(Auge, vorn); ebenen je vier (Normale nach aussen, Abstand)
+void nebelSetzen(const std::vector<NebelEcht>& nebel, const std::vector<float>& ebenen, int global, const float* vorn);
 // Gezeichnete Dreiecke aller Schattenkarten bisher (das Budget je Bild).
 [[nodiscard]] std::size_t schattenDreiecke();
 

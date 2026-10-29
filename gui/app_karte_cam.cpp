@@ -50,6 +50,7 @@
 #include <deque>
 #include <map>
 #include <mutex>
+#include <set>
 #include <thread>
 
 namespace bhed::gui::karteneditor {
@@ -401,6 +402,12 @@ Bildlager& lager() {
     static Bildlager l;
     return l;
 }
+
+}  // namespace
+
+#include "app_karte_echtfx.inc"   // Stufe 9d: fx_runner in der Echtzeit-Ansicht
+
+namespace {
 
 // --- Szene auf der Grafikkarte ----------------------------------------------------
 
@@ -1169,6 +1176,7 @@ void kameraZeichnen() {
         // fehlen, Alpha-Test und blendFunc kommen aus der ersten Stufe des Shaders
         // (statt qer_trans / qer_alphafunc des Editors).
         const bool spielBild = (echtJetzt || gebacken) && texturen && fuellen;
+        void* portalBild = nullptr;   // Stufe 9d: misc_skyportal (Zielbild 201)
         const auto shaderZiehen = [&](const Szene3& q, const Stapel3& st, bool durchsichtig) {
             const Bild* b = lager().holen(st.shader);
             if (b == nullptr || !b->fertig) { return; }
@@ -1176,10 +1184,27 @@ void kameraZeichnen() {
             const unsigned flags = se != nullptr ? se->flags : 0U;
             const SpielDarstellung sd = spielBild ? spielDarstellung(st.shader) : SpielDarstellung{};
             if (sd.unsichtbar) { return; }
+            if (sd.nebelFlaeche) {
+                // Stufe 9d: fogParms ohne Stufe - das Spiel zeichnet nur den Nebel (RB_FogPass, FP_LE, gemischt);
+                // gebacken (ohne Nebel) bleibt die Flaeche unsichtbar
+                if (!durchsichtig || !echtJetzt) { return; }
+                kartegpu::Zustand3 z = basis;
+                z.echtLicht = true;
+                z.nebelNur = true;
+                z.licht = true;
+                z.mischen = kartegpu::Mischen::Alpha;
+                z.tiefe = kartegpu::TiefenTest::KleinerGleich;
+                z.tiefeSchreiben = false;
+                z.wegschneiden = (flags & karte::QER_CULL) == 0U || se->cull == 1;
+                zaehlen(st.objekte, st.transforms);
+                kartegpu::dreiecke(q.dreiecke, st.dreiecke.erstes, st.dreiecke.anzahl, z);
+                return;
+            }
             const bool trans = spielBild ? sd.mischQuelle != 0 : (flags & karte::QER_TRANS) != 0U;
             if (trans != durchsichtig) { return; }
             kartegpu::Zustand3 z = basis;
-            const bool himmel = b->himmel != nullptr;   // m_shader->getSkyBox()->texture_number != 0
+            // m_shader->getSkyBox()->texture_number != 0; Stufe 9d: mit misc_skyportal jede Himmelsflaeche (RDF_SKYBOXPORTAL)
+            const bool himmel = b->himmel != nullptr || (spielBild && portalBild != nullptr && sd.himmel);
             const float alpha = (trans && !spielBild) ? se->trans : 1.0F;
             if (himmel) {
                 // RENDER_FILL | CULLFACE | TEXTURE | DEPTHTEST | DEPTHWRITE | COLOURWRITE | PROGRAM
@@ -1188,6 +1213,8 @@ void kameraZeichnen() {
                 z.tiefeSchreiben = true;
                 farbeSetzen(z, b->farbe[0], b->farbe[1], b->farbe[2], 1.0F);
                 if (texturen) { z.himmel = b->himmel; }
+                // Stufe 9d: misc_skyportal - der Himmel zeigt das Bild aus dem Portalraum (CG_DrawSkyBoxPortal)
+                if (texturen && portalBild != nullptr) { z.himmelPortal = portalBild; }
             } else {
                 z.licht = true;
                 z.echtLicht = echtJetzt && texturen;   // Stufe 7: Echtzeit-Licht statt Licht aus Blickrichtung
@@ -1256,6 +1283,51 @@ void kameraZeichnen() {
             zaehlen(st.objekte, st.transforms);
         };
         const Szene3* const teile[2] = {&g_geo, &g_szene};
+        // Stufe 9d: misc_skyportal wie im Spiel (CG_DrawSkyBoxPortal, cg_view.cpp): erst die Szene vom Ort des
+        // Portals aus - derselbe Blick, derselbe Bildwinkel, samt Himmelsbox -, dann die Hauptszene, deren
+        // Himmel das Portalbild zeigt (RDF_SKYBOXPORTAL). Mit Echtzeit-Licht (Licht und Schatten fuer den
+        // Portalblick eigens vorbereitet).
+        ed.echtLicht.portal = false;
+        if (echtJetzt && texturen && fuellen) {
+            Vektor3f portalOrt(0, 0, 0);
+            bool portal = false;
+            for (const auto& en : ed.karte.entitaeten()) {
+                if (en->klassenname() != "misc_skyportal") { continue; }
+                portal = std::sscanf(en->wert("origin").c_str(), "%f %f %f", &portalOrt[0], &portalOrt[1], &portalOrt[2]) == 3;
+                break;
+            }
+            if (portal) {
+                kartegpu::beenden();
+                karte::Kamera kp = k;
+                kp.ursprung = portalOrt;
+                kp.modelviewAktualisieren();
+                const karte::Matrix4 vpPortal = kp.sicht();
+                echtLichtBildVorbereiten(portalOrt, &vpPortal[0], f.breite, f.hoehe, geoStand);
+                if (kartegpu::beginnen(201, f.breite, f.hoehe, c.msaa, hinten, true)) {
+                    const kartegpu::Zustand3 merk = basis;
+                    basis.matrix = &vpPortal[0];
+                    basis.auge[0] = portalOrt[0];
+                    basis.auge[1] = portalOrt[1];
+                    basis.auge[2] = portalOrt[2];
+                    for (const Szene3* q : teile) {
+                        for (const Stapel3& st : q->stapel) {
+                            if (st.art == karte::StapelArt::Shader) { shaderZiehen(*q, st, false); }
+                        }
+                    }
+                    for (const Szene3* q : teile) {
+                        for (const Stapel3& st : q->stapel) {
+                            if (st.art == karte::StapelArt::Shader) { shaderZiehen(*q, st, true); }
+                        }
+                    }
+                    basis = merk;
+                    kartegpu::beenden();
+                    portalBild = kartegpu::textur(201);
+                    ed.echtLicht.portal = portalBild != nullptr;
+                }
+                echtLichtBildVorbereiten(k.ursprung, &vp[0], f.breite, f.hoehe, geoStand);
+                (void)kartegpu::beginnen(200, f.breite, f.hoehe, c.msaa, hinten, true);
+            }
+        }
         // eSortFullbright: deckende Shader, Himmel, Fuellungen
         for (const Szene3* q : teile) {
             for (const Stapel3& st : q->stapel) {
@@ -1287,6 +1359,8 @@ void kameraZeichnen() {
                 if (st.art == karte::StapelArt::Shader && !(gebacken && fuellen && q == &g_geo)) { shaderZiehen(*q, st, true); }
             }
         }
+        // Stufe 9d: fx_runner (Effekte) in der Echtzeit-Ansicht, abschaltbar (Build > Real-time effects)
+        if (echtJetzt && texturen && fuellen && ed.echtLicht.effekte) { echtEffekteZeichnen(k, &vp[0], geoStand, basis); }
         const auto& sel = ed.farben.auswahl3d;
         // gewaehlte Flaechen (Komponenten): Polygone, Kanten, Schwerpunkte
         std::vector<kartegpu::Punkt3> flaechenTint;

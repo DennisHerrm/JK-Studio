@@ -133,6 +133,17 @@ BspRueckStand bspRueckStand() {
     return s;
 }
 
+bool bspRueckLaeuft() {
+    const int st = g_r.stand.load();
+    return st == 1 || st == 2 || st == 3;
+}
+
+bool bspRueckSperre() {
+    if (!bspRueckLaeuft()) { return false; }
+    warnung(trK(Str::KeRkWarten));
+    return true;
+}
+
 void bspRueckStarten(const std::string& bspDaten, const std::string& ordner, const std::string& stamm, const std::string& karteDatei) {
     Editor& ed = e();
     if ((!ed.bspRueck.modelle && !ed.bspRueck.lichter) || !ed.karteSpiel) { return; }

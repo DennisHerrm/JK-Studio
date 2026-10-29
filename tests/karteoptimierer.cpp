@@ -792,6 +792,34 @@ void testePruefungen(const std::string& q3dir) {
             if (i != std::string::npos) { draussen.replace(i, 13, "\"2000 0 24\""); }
             pruefe(befund(pruefeKarte(abbildAus(draussen), p), "spawnimfesten") != nullptr, "Spawnpunkt nach 2000 0 24 verschoben: im Festen");
         }
+        // Stufe 9d: Deko-Pinsel nur, wenn sie nicht abdichten. raum_deko.map: Ostwand mit Loch, darin ein
+        // Stopfen 16 x 32 x 32 und darunter ein Wandstueck 16 x 32 x 64 (beide klein, beide am Raum
+        // ausserhalb), eine Kiste 32 x 32 x 32 im Raum. Als detail leckt der Stopfen (NRCs q3map2:
+        // "leaked") - ohne .bsp schlug die Pruefung alle drei vor.
+        const std::string dekoBsp = lies(std::filesystem::path(q3dir) / "raum_deko.nrc.bsp");
+        const std::string deko = lies(std::filesystem::path(q3dir) / "raum_deko.map");
+        if (!dekoBsp.empty() && !deko.empty()) {
+            const KartenAbbild a = abbildAus(deko);
+            PruefOptionen ohne = pruefOpt();
+            const std::vector<Befund> ohneBsp = pruefeKarte(a, ohne);
+            const Befund* d0 = befund(ohneBsp, "deko");
+            pruefe(d0 != nullptr && d0->anzahl == 3, "raum_deko ohne .bsp: Stopfen, Wandstueck und Kiste vorgeschlagen (" + std::to_string(d0 ? d0->anzahl : 0) + ")");
+            PruefOptionen mit = pruefOpt();
+            mit.bspDaten = &dekoBsp;
+            const std::vector<Befund> mitBsp = pruefeKarte(a, mit);
+            const Befund* d1 = befund(mitBsp, "deko");
+            bool kiste = false;
+            if (d1 != nullptr && d1->objekte.size() == 1) {
+                const AbbildPrimitiv& pr = a.ents[static_cast<std::size_t>(d1->objekte[0].entitaet)].prims[static_cast<std::size_t>(d1->objekte[0].primitiv)];
+                kiste = pr.mins[0] == -416 && pr.mins[1] == -144 && pr.maxs[2] == 32;
+            }
+            pruefe(d1 != nullptr && d1->anzahl == 1 && kiste && d1->detailWerte.size() == 2 && d1->detailWerte[1] == "2",
+                   "raum_deko mit .bsp: nur die Kiste, Stopfen und Wandstueck dichten ab (" + (d1 ? d1->detail : std::string("-")) + ")");
+            mit.linDaten = "0 0 0\n600 0 80\n";
+            const std::vector<Befund> mitLeck = pruefeKarte(a, mit);
+            const Befund* d2 = befund(mitLeck, "deko");
+            pruefe(d2 != nullptr && d2->anzahl == 3, "raum_deko mit .bsp, aber Leck: die .bsp sagt nichts ueber das Abdichten - wie ohne .bsp");
+        }
     }
     // 11. Brush-Modelle zusammenlegen
     {
@@ -1249,7 +1277,7 @@ void testeBekannteFehler(const std::string& q3dir) {
 
 int main(int argc, char** argv) {
     {   // Stufe 6 (Punkt 5): Vorlagen der Befund-Angaben und ihre Uebersetzung (KeOptD01..)
-        bool gleich = bhed::karte::kOptimiererDetailVorlagenAnzahl == 34;   // Stufe 8a: 33, 34 (enttext)
+        bool gleich = bhed::karte::kOptimiererDetailVorlagenAnzahl == 35;   // Stufe 8a: 33, 34 (enttext); Stufe 9d: 35 (deko mit .bsp)
         for (std::size_t i = 0; i < bhed::karte::kOptimiererDetailVorlagenAnzahl; ++i) {
             char name[16];
             std::snprintf(name, sizeof(name), "KeOptD%02zu", i + 1);

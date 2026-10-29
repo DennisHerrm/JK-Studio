@@ -64,6 +64,15 @@ void patchKappen(Karte& k, const std::string& shader, PatchKappe art, Protokoll&
 void patchVerformen(Karte& k, int staerke, int achse);
 // Scene_PatchThicken (patchmanip.cpp:233-241): "patchThicken"; achse 3 = Normalen
 void patchVerdicken(Karte& k, int dicke, bool waende, int achse);
+// Stufe 9d: Patch-Bruecke (eigene Funktion, nicht in NetRadiant-Custom und nicht in bobToolz - dort gibt
+// es nur "Merge Patches" fuer Patches mit gemeinsamer Kante). Zwei gewaehlte Patches: je eine Randkante
+// (erste/letzte Zeile oder Spalte der Kontrollpunkte) - mit gewaehlten Kontrollpunkten die Kante, die sie
+// enthaelt, sonst das naechste Paar gleich langer Kanten. Der neue Patch (n x 3) hat in seiner ersten
+// und letzten Zeile GENAU die Kontrollpunkte dieser Kanten (passgenau, keine Naht), dazwischen die Mitte;
+// er zeigt zur selben Seite wie der erste Patch, Shader des ersten, Textur natuerlich (NaturalTexture).
+// Ein Rueckgaengig-Schritt "patchBridge". false (mit Meldung in p): nicht genau zwei Patches, keine
+// gleich langen Kanten.
+bool patchBruecke(Karte& k, Protokoll& p);
 
 // Einfache Befehle an jedem sichtbaren gewaehlten Patch mit dem NRC-Namen:
 // "patchInsertFirstColumns" ... "patchDeleteLastRows", "patchInvert",

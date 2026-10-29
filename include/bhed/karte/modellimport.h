@@ -44,6 +44,13 @@ struct Md3Paket {
 
 // stamm: Dateiname ohne Endung (klein, nur [a-z0-9_-]); Ordner models/import/<stamm>.
 [[nodiscard]] Md3Paket md3Paket(const ImportNetz& netz, const std::string& stamm);
+// Stufe 9d: JA, JK2 und MD lesen Shader aus shaders/ (tr_shader.cpp ScanAndLoadShaderFiles( "shaders" ),
+// shaderpath in ja.game/jk2.game) - md3Paket legt das Skript dort ab (bis Stufe 9d: scripts/, das liest
+// keines dieser Spiele).
+inline constexpr const char* kSpielShaderOrdner = "shaders/";
+// Der Name einer Datei des Import-Ordners im .pk3 fuer das Spiel (rel mit '/'): ein frueherer Import
+// unter scripts/<x>.shader steht dort unter shaders/<x>.shader; die Datei auf der Platte bleibt.
+[[nodiscard]] std::string importArchivName(const std::string& rel);
 
 // Die Normalen-Kodierung von MD3 (lat = Azimut im hohen Byte, lng = Polarwinkel im niedrigen)
 // und ihre Umkehrung wie R_LoadMD3 / tr.sinTable.

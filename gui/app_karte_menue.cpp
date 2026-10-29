@@ -25,6 +25,7 @@
 #include "karteneditor.h"
 
 #include "app_internal.h"
+#include "bhed/karte/patchbefehle.h"   // Stufe 9d: Patch-Bruecke
 
 #include <algorithm>
 #include <cctype>
@@ -670,6 +671,18 @@ void listeZeichnen(const std::string& name) {
                 if (qtPunkt(p)) { knopfGroesseSetzen(stufe); }
             }
             qtMenueEnde();
+        }
+    } else if (name == "ProgrammCurve") {
+        // Stufe 9d (eigene Funktion, nicht in NetRadiant-Custom): Patch-Bruecke zwischen zwei Patch-Kanten
+        const std::string id = std::string(trK(Str::KePbMenue)) + "###progpatchbruecke";
+        QtPunkt p;
+        p.id = id.c_str();
+        p.tooltip = trK(Str::KePbTip);
+        if (qtPunkt(p)) {
+            karte::Protokoll pr;
+            (void)karte::patchBruecke(e().karte, pr);
+            konsoleProtokoll(pr);
+            auswahlGeaendert();
         }
     } else if (name == "ProgrammDatei") {
         // Stufe 4 Punkt 1: File > Open .bsp... (nach Import...)
@@ -1678,6 +1691,7 @@ void einstellungenLaden() {
         if (d != k.end()) { (void)karte::leistenLesen(d->second, l); }
         for (std::size_t i = 0; i < 3; ++i) { ed.leistenPlaetze[i] = l[i].second; }
         ed.echtLicht.patchSchatten = zahl("BhedPatchShadows", 0) != 0.0F;
+        ed.echtLicht.effekte = zahl("BhedRealtimeEffects", 1) != 0.0F;   // Stufe 9d
     }
     // ToolbarHiddenButtons: "%Name%%Name%..." (gtkmisc.cpp:147)
     ed.versteckteKnoepfe.clear();
@@ -1891,6 +1905,7 @@ void einstellungenSpeichern() {
     k["ToolbarHiddenButtons"] = versteckt;
     k["BhedToolbarDock"] = karte::leistenText({{"haupt", ed.leistenPlaetze[0]}, {"filter", ed.leistenPlaetze[1]}, {"plugin", ed.leistenPlaetze[2]}});
     k["BhedPatchShadows"] = ed.echtLicht.patchSchatten ? "1" : "0";
+    k["BhedRealtimeEffects"] = ed.echtLicht.effekte ? "1" : "0";   // Stufe 9d
     g_app->settings.karteTasten.clear();
     for (const auto& [name, taste] : ed.belegung.abweichende()) { g_app->settings.karteTasten[name] = taste; }
 }
