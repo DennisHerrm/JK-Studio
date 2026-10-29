@@ -99,6 +99,12 @@ FENSTER_ANORDNEN = {
             "Die Anordnungen von NetRadiant bleiben die Vorgabe (Einstellungen > Layout). In **Regular** lassen sich die XY-Ansicht, die Konsole, die Kamera und der Texturbrowser (oder das eingebaute Entity-Fenster) herausnehmen, in **Split** die vier Ansichten; ihr Platz geht an die Nachbarn wie beim Ausblenden einer Ansicht in NetRadiant. In **Floating** schweben die Ansichten ohnehin. Eine Ansicht in einem eigenen Fenster zeichnet dort alles, was sie im Hauptfenster zeigt; ein Klick hinein macht sie zur aktiven Ansicht, Tastenkürzel und Umschauen gelten dann in diesem Fenster - auf jedem Bildschirm.",
             "NetRadiant 的布局仍是默认值(首选项 > 布局)。在 **Regular** 中可以移出 XY 视图、控制台、摄像机和纹理浏览器(或内置实体窗口),在 **Split** 中可以移出四个视图;它们的位置让给相邻视图,就像在 NetRadiant 中隐藏视图一样。在 **Floating** 中视图本来就是浮动的。独立窗口中的视图会绘制它在主窗口中显示的全部内容;单击其中即可使其成为活动视图,快捷键和自由视角随后在该窗口中生效——在任何屏幕上都可以。",
             "NetRadiant のレイアウトが引き続き既定です(設定 > レイアウト)。**Regular** では XY ビュー、コンソール、カメラ、テクスチャブラウザー(または内蔵のエンティティウィンドウ)を、**Split** では 4 つのビューを取り出せます。その場所は NetRadiant でビューを隠したときと同じく隣に譲られます。**Floating** ではビューはもともと浮いています。独立したウィンドウのビューはメインウィンドウと同じ内容をすべて描画し、クリックするとアクティブなビューになり、ショートカットキーと自由視点はそのウィンドウで働きます(どの画面でも)。")),
+        ("h2", "menueeditor", T("Menu editor", "Menü-Editor", "菜单编辑器", "メニューエディター")),
+        ("p", T(
+            "**{{MePalette}}**, **{{DockPanelCanvas}}** and the column **{{DockPanelMenuSide}}** are panels of their own - for example the canvas large on a second screen while the text stays in the main window. This works in the layout with the tabs on the right; with the text below (preferences) the editor stays as it is.",
+            "**{{MePalette}}**, **{{DockPanelCanvas}}** und die Spalte **{{DockPanelMenuSide}}** sind eigene Panels - etwa die Fläche groß auf einem zweiten Bildschirm, während der Text im Hauptfenster bleibt. Das geht im Layout mit den Reitern rechts; mit dem Text unten (Einstellungen) bleibt der Editor, wie er ist.",
+            "**{{MePalette}}**、**{{DockPanelCanvas}}** 和 **{{DockPanelMenuSide}}** 列都是独立面板——例如把画布放大到第二个屏幕上,而文本留在主窗口中。这适用于选项卡在右侧的布局;文本在下方(首选项)时编辑器保持原样。",
+            "**{{MePalette}}**、**{{DockPanelCanvas}}**、**{{DockPanelMenuSide}}** の列はそれぞれ独立したパネルです。たとえばキャンバスを 2 台目の画面に大きく置き、テキストはメインウィンドウに残せます。右側にタブがあるレイアウトで使えます。テキストが下にある設定では、エディターはそのままです。")),
     ],
 }
 

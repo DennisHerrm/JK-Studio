@@ -147,6 +147,7 @@ struct Lauf {
     karte::Vektor3f kamPos;
     float zeitBreite = 0.0F;
     int felderTexturenH = 0;
+    int hellHeim = -1;
 };
 
 ImRect rect(const char* panel) {
@@ -663,6 +664,16 @@ std::vector<Schritt> dock1Schritte() {
         e.anordnung = karte::befehle::Anordnung::Regular;
         e.teilerFuer = -1;
     }));
+    add(warteBis("dock1: Spiel bereit (Karten-Editor)", [] { return ke::spielBereit(); }, 6000));
+    add(tu("dock1: Testkarte mit Licht, Kamera textured, Echtzeit-Licht an (wie Stufe 7)", [] {
+        stufe7::lichtKarteSchreiben(false);
+        (void)ke::karteOeffnen(stufe7::lichtKarte());
+        ke::editor().kameraE.modus = karte::KameraModus::Textur;
+        ke::editor().echtLicht.an = true;
+        ke::editor().echtLicht.backen = false;
+        stufe7::kameraUeber(128, 400);
+    }));
+    add(warteBis("dock1: Texturen der Testkarte", [] { return ke::kameraBilderFertig(); }, 3000));
     add(stabil("dock1: Map Editor", 30));
     add(tu("dock1: Hoehe des Texturbrowsers merken", [L] {
         for (const auto& f : ke::editor().felderImBild) {
@@ -689,7 +700,25 @@ std::vector<Schritt> dock1Schritte() {
         dock1::setze("karte.kamera", dock1::nebenHaupt(0.0F), ImVec2{m.WorkSize.x * 0.3F, m.WorkSize.y * 0.4F});
     }));
     add(warteBis("dock1: Kamera eigenes Windows-Fenster", [] { return dock1::eigenesOsFenster("karte.kamera"); }, 120));
-    add(dock1::bildLesen("Kamera", "karte.kamera", 2));
+    add(pause(0.5));
+    // Die Mitte der Ansicht trifft im eigenen Fenster (andere Groesse) einen
+    // anderen Texel des Steinbodens - verglichen wird deshalb wie in Stufe 7: das
+    // Licht naeher macht den Boden heller, im eigenen Fenster.
+    add(tu("dock1: Helligkeit im eigenen Fenster, dann Licht naeher (128 0 48)", [L] {
+        L->hellHeim = stufe7::helligkeit();
+        stufe7::erstesLicht()->setzen("origin", "128 0 48");
+    }));
+    add(pause(0.4));
+    add(pruefe("dock1: Echtzeit-Licht zeichnet im eigenen Fenster - ein Licht, naeher ist der Boden heller", [L] {
+        const ke::Editor& e = ke::editor();
+        const int h = stufe7::helligkeit();
+        diag::detail("Knopftest: dock1 Echtzeit-Licht im eigenen Fenster: Lichter " + std::to_string(e.echtLicht.lichter) + ", gezeichnet " +
+                     std::to_string(e.echtLicht.gezeichnet) + ", Helligkeit " + std::to_string(L->hellHeim) + " -> " + std::to_string(h) +
+                     " (Licht naeher)");
+        return ke::echtLichtAktiv() && e.echtLicht.gezeichnet == 1 && L->hellHeim > 0 && h > L->hellHeim + 10;
+    }));
+    add(tu("dock1: Licht zurueck (0 0 96)", [] { stufe7::erstesLicht()->setzen("origin", "0 0 96"); }));
+    add(dock1::bildLesen("Kamera mit Echtzeit-Licht", "karte.kamera", 40));
     add(klickAn("in die Kamera (eigenes Fenster)", [] { return dock1::rect("karte.kamera").GetCenter(); }));
     add(pruefe("dock1: Klick macht die Kamera zum aktiven Feld", [] { return ke::editor().aktivesFeld == 3; }));
     add(tu("dock1: Kamera merken, simulierter Zeiger an", [L] {
@@ -751,18 +780,104 @@ std::vector<Schritt> dock1Schritte() {
         return kameraDa && texturenH == L->felderTexturenH && dock::zuhause("karte.kamera");
     }));
 
+    // --- 8b. Jedes Panel einmal heraus und zurueck ------------------------------
+    add(tu("dock1: ein Menue im Menue-Editor (fuer seine Panels)", [] {
+        (void)menueeditor::oeffneText("dock1.menu",
+                                      "menuDef\n{\n  name \"dock1\"\n  rect 0 0 640 480\n  itemDef\n  {\n    name \"knopf\"\n"
+                                      "    rect 100 100 200 40\n    type ITEM_TYPE_BUTTON\n    text \"Hallo\"\n    visible 1\n  }\n}\n");
+    }));
+    for (const dock::Panel& p : dock::panels()) {
+        if (p.bereich == 3) { continue; }
+        const std::string id = p.id;
+        const int bereich = p.bereich;
+        add(tu("dock1: " + id + " in eigenem Fenster", [id, bereich] {
+            g_app->leftMode = bereich;
+            dock::herausnehmen(id.c_str());
+        }));
+        add(warteBis("dock1: " + id + " gezeichnet", [id] { return dock1::aktiv(id.c_str()); }, 120));
+        add(pause(0.2));
+        add(pruefe("dock1: " + id + " zeichnet im eigenen Fenster (Elemente oder Dreiecke)", [id] {
+            int elemente = 0;
+            for (const Element& e : g_elemente) {
+                if (e.fenster.find("###dock." + id) != std::string::npos) { ++elemente; }
+            }
+            int ecken = 0;
+            for (const ImGuiWindow* w : GImGui->Windows) {
+                if (w->WasActive && std::string(w->Name).find("###dock." + id) != std::string::npos) { ecken += w->DrawList->VtxBuffer.Size; }
+            }
+            diag::detail("Knopftest: dock1 " + id + ": " + std::to_string(elemente) + " Elemente, " + std::to_string(ecken) + " Ecken");
+            return elemente > 0 || ecken > 200;
+        }));
+        add(tu("dock1: " + id + " zurueck", [id] { dock::andocken(id.c_str()); }));
+        add(warteBis("dock1: " + id + " wieder im Hauptfenster", [id] { return dock::zuhause(id.c_str()) && !dock1::aktiv(id.c_str()); }, 60));
+    }
+    add(tu("dock1: Map Editor, Anordnung Split", [] {
+        g_app->leftMode = 3;
+        ke::Editor& e = ke::editor();
+        e.anordnung = karte::befehle::Anordnung::Split;
+        e.teilerFuer = -1;
+    }));
+    add(stabil("dock1: Split", 20));
+    for (const char* f : {"karte.kamera", "karte.xy", "karte.xz", "karte.yz"}) {
+        const std::string id = f;
+        const std::string kurz = id == "karte.kamera" ? "Kamera" : id == "karte.xy" ? "XY" : id == "karte.xz" ? "XZ" : "YZ";
+        add(tu("dock1: Split - " + id + " in eigenem Fenster", [id] { dock::herausnehmen(id.c_str()); }));
+        add(warteBis("dock1: Split - " + id + " gezeichnet", [id] { return dock1::aktiv(id.c_str()); }, 120));
+        add(pause(0.2));
+        add(pruefe("dock1: Split - " + id + " im eigenen Fenster, nicht mehr im Hauptfenster", [kurz] {
+            bool heim = false;
+            bool draussen = false;
+            for (const auto& r : ke::editor().felderImBild) {
+                if (r.name == kurz && r.b > 0 && r.h > 0) { heim = true; }
+                if (r.name == "Dock:" + kurz && r.b > 0 && r.h > 0) { draussen = true; }
+            }
+            return !heim && draussen;
+        }));
+        add(tu("dock1: Split - " + id + " zurueck", [id] { dock::andocken(id.c_str()); }));
+        add(warteBis("dock1: Split - " + id + " wieder im Hauptfenster", [id] { return dock::zuhause(id.c_str()) && !dock1::aktiv(id.c_str()); }, 60));
+    }
+    add(tu("dock1: Map Editor, Anordnung Regular", [] {
+        ke::Editor& e = ke::editor();
+        e.anordnung = karte::befehle::Anordnung::Regular;
+        e.teilerFuer = -1;
+        e.echtLicht.an = false;
+    }));
+    for (const char* f : {"karte.xy", "karte.konsole", "karte.texturen"}) {
+        const std::string id = f;
+        add(tu("dock1: Regular - " + id + " in eigenem Fenster", [id] { dock::herausnehmen(id.c_str()); }));
+        add(warteBis("dock1: Regular - " + id + " gezeichnet", [id] { return dock1::aktiv(id.c_str()); }, 120));
+        add(tu("dock1: Regular - " + id + " zurueck", [id] { dock::andocken(id.c_str()); }));
+        add(warteBis("dock1: Regular - " + id + " wieder im Hauptfenster", [id] { return dock::zuhause(id.c_str()); }, 60));
+    }
+
     // --- 9. Menu Editor und Events ------------------------------------------------
     add(tu("dock1: Menu Editor", [] { g_app->leftMode = 4; }));
     add(stabil("dock1: Menu Editor", 20));
-    menueKlick(fensterEintrag(Str::ViewMenuEditor, "menue.editor"));
-    add(warteBis("dock1: Menu Editor in eigenem Fenster", [] { return dock1::aktiv("menue.editor"); }, 60));
-    add(tu("dock1: Menu-Editor-Fenster neben das Hauptfenster (es lag ueber seinem Platz)", [] {
-        const ImGuiPlatformMonitor& m = dock1::hauptMonitor();
-        dock1::setze("menue.editor", dock1::nebenHaupt(0.0F), ImVec2{m.WorkSize.x * 0.3F, m.WorkSize.y * 0.5F});
+    auto reiterB = std::make_shared<float>(0.0F);
+    add(tu("dock1: Breite der Reiter-Spalte merken", [reiterB] {
+        ImVec2 a;
+        ImVec2 z;
+        dock::zielPlatz("menue.reiter", a, z);
+        *reiterB = z.x - a.x;
     }));
-    add(stabil("dock1: Menu Editor daneben", 10));
-    add(klick(std::string(tr(Str::DockBack)) + "##dockzurueck.menue.editor", "###main"));
-    add(warteBis("dock1: Menu Editor ueber den Knopf zurueck", [] { return dock::zuhause("menue.editor"); }, 60));
+    menueKlick(fensterEintrag(Str::DockPanelCanvas, "menue.flaeche"));
+    add(warteBis("dock1: Flaeche des Menue-Editors in eigenem Fenster", [] { return dock1::aktiv("menue.flaeche"); }, 60));
+    add(tu("dock1: Flaeche neben das Hauptfenster (eigenes Windows-Fenster)", [] {
+        const ImGuiPlatformMonitor& m = dock1::hauptMonitor();
+        dock1::setze("menue.flaeche", dock1::nebenHaupt(0.0F), ImVec2{m.WorkSize.x * 0.3F, m.WorkSize.y * 0.5F});
+    }));
+    add(warteBis("dock1: Flaeche eigenes Windows-Fenster", [] { return dock1::eigenesOsFenster("menue.flaeche"); }, 120));
+    add(dock1::bildLesen("Flaeche des Menue-Editors", "menue.flaeche", 4));
+    add(pruefe("dock1: ohne die Flaeche nimmt die Reiter-Spalte den Platz (breiter als vorher)", [reiterB] {
+        ImVec2 a;
+        ImVec2 z;
+        dock::zielPlatz("menue.reiter", a, z);
+        diag::detail("Knopftest: dock1 Reiter-Spalte " + std::to_string(static_cast<int>(*reiterB)) + " -> " +
+                     std::to_string(static_cast<int>(z.x - a.x)));
+        return dock::draussen("menue.flaeche") && z.x - a.x > *reiterB + 100.0F;
+    }));
+    add(dock1::schliessknopf("menue.flaeche"));
+    add(warteBis("dock1: Schliessknopf - Flaeche wieder im Hauptfenster", [] { return dock::zuhause("menue.flaeche"); }, 60));
     add(tu("dock1: Events", [] { g_app->leftMode = 0; }));
     add(stabil("dock1: Events", 20));
     menueKlick(zeigenEintrag(Str::GroupActions, "ereignisse.aktionen"));
@@ -804,13 +919,27 @@ std::vector<Schritt> dock1Schritte() {
         dock1::setze("mission.zeitleiste", ImVec2{m.WorkPos.x + 200.0F, m.WorkPos.y + 150.0F}, ImVec2{700.0F, 260.0F});
     }));
     add(stabil("dock1: Zeitleiste fuer den Neustart", 20));
+    add(tu("dock1: Script Flow dazu", [] { dock::herausnehmen("mission.fluss"); }));
+    add(warteBis("dock1: Script Flow fuer den Neustart draussen", [] { return dock1::aktiv("mission.fluss"); }, 60));
+    add(tu("dock1: Script Flow neben die Zeitleiste", [] {
+        const ImGuiPlatformMonitor& m = dock1::hauptMonitor();
+        dock1::setze("mission.fluss", ImVec2{m.WorkPos.x + 1000.0F, m.WorkPos.y + 150.0F}, ImVec2{400.0F, 300.0F});
+    }));
+    add(stabil("dock1: Script Flow daneben", 10));
+    add(dock1::ziehenUndHalten("dock1: Script Flow auf die Zeitleiste (fuer den Neustart)", [] { return dock1::titel("mission.fluss"); },
+                               [] { return dock1::rect("mission.zeitleiste").GetCenter(); }));
+    add(dock1::loslassen("dock1: loslassen"));
+    add(stabil("dock1: zusammengesetzt fuer den Neustart", 20));
     add(tu("dock1: Erwartung fuer dock1neustart schreiben", [] {
         dock::jetztMerken();
         const ImRect r = dock1::rect("mission.zeitleiste");
-        std::ofstream f(::bhed::utf8Pfad(platform::executableDirectory() + "\\dock1_erwartet.txt"));
-        f << static_cast<int>(r.Min.x) << " " << static_cast<int>(r.Min.y) << " " << static_cast<int>(r.GetWidth()) << " "
-          << static_cast<int>(r.GetHeight()) << "\n";
-        diag::detail("Knopftest: dock1 fuer den Neustart: Zeitleiste " + dock1::rechteck(r));
+        const ImGuiWindow* f = dock1::panelFenster("mission.fluss");
+        const ImGuiWindow* z = dock1::panelFenster("mission.zeitleiste");
+        const int zusammen = f != nullptr && z != nullptr && f->DockNode != nullptr && f->RootWindowDockTree == z->RootWindowDockTree ? 1 : 0;
+        std::ofstream o(::bhed::utf8Pfad(platform::executableDirectory() + "\\dock1_erwartet.txt"));
+        o << static_cast<int>(r.Min.x) << " " << static_cast<int>(r.Min.y) << " " << static_cast<int>(r.GetWidth()) << " "
+          << static_cast<int>(r.GetHeight()) << " " << zusammen << "\n";
+        diag::detail("Knopftest: dock1 fuer den Neustart: Zeitleiste " + dock1::rechteck(r) + (zusammen != 0 ? ", mit Script Flow zusammengesetzt" : ""));
     }));
     return s;
 }
@@ -821,19 +950,29 @@ std::vector<Schritt> dock1NeustartSchritte() {
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     add(tu("dock1neustart: Mission", [] { g_app->leftMode = 1; }));
     add(stabil("dock1neustart: Mission", 30));
-    add(pruefe("dock1neustart: Anordnung aus den Einstellungen - Zeitleiste draussen, an der gespeicherten Stelle", [] {
+    add(pruefe("dock1neustart: Anordnung aus den Einstellungen - Zeitleiste und Script Flow draussen, zusammengesetzt, an der gespeicherten Stelle",
+               [] {
         std::ifstream f(::bhed::utf8Pfad(platform::executableDirectory() + "\\dock1_erwartet.txt"));
-        int x = 0, y = 0, b = 0, h = 0;
-        if (!(f >> x >> y >> b >> h)) { return false; }
+        int x = 0, y = 0, b = 0, h = 0, zusammen = 0;
+        if (!(f >> x >> y >> b >> h >> zusammen)) { return false; }
         const ImRect r = dock1::rect("mission.zeitleiste");
+        const ImGuiWindow* fw = dock1::panelFenster("mission.fluss");
+        const ImGuiWindow* zw = dock1::panelFenster("mission.zeitleiste");
+        const bool jetztZusammen = fw != nullptr && zw != nullptr && fw->DockNode != nullptr && fw->RootWindowDockTree == zw->RootWindowDockTree;
         diag::detail("Knopftest: dock1neustart: erwartet " + std::to_string(x) + "," + std::to_string(y) + " " + std::to_string(b) + "x" +
-                     std::to_string(h) + ", gefunden " + dock1::rechteck(r));
-        return dock::draussen("mission.zeitleiste") && dock1::aktiv("mission.zeitleiste") && std::abs(static_cast<int>(r.Min.x) - x) <= 1 &&
-               std::abs(static_cast<int>(r.Min.y) - y) <= 1 && std::abs(static_cast<int>(r.GetWidth()) - b) <= 1 &&
-               std::abs(static_cast<int>(r.GetHeight()) - h) <= 1 && g_app->lastLayoutLog.toolH == 0;
+                     std::to_string(h) + (zusammen != 0 ? " zusammengesetzt" : "") + ", gefunden " + dock1::rechteck(r) +
+                     (jetztZusammen ? " zusammengesetzt" : ""));
+        return zusammen == 1 && jetztZusammen && dock::draussen("mission.zeitleiste") && dock::draussen("mission.fluss") &&
+               std::abs(static_cast<int>(r.Min.x) - x) <= 1 && std::abs(static_cast<int>(r.Min.y) - y) <= 1 &&
+               std::abs(static_cast<int>(r.GetWidth()) - b) <= 1 && std::abs(static_cast<int>(r.GetHeight()) - h) <= 1 &&
+               g_app->lastLayoutLog.toolH == 0;
     }));
     add(pruefe("dock1neustart: gespeicherte Anordnung \"Zwei Bildschirme\" noch da",
                [] { return dock::gespeicherte(1) == std::vector<std::string>{"Zwei Bildschirme"}; }));
     add(tu("dock1neustart: zuruecksetzen", [] { dock::zuruecksetzen(1); }));
+    add(stabil("dock1neustart: zurueckgesetzt", 20));
+    add(pruefe("dock1neustart: zurueckgesetzt - Band wieder da, keine Panelfenster", [] {
+        return g_app->lastLayoutLog.toolH > 0 && !dock1::aktiv("mission.zeitleiste") && !dock1::aktiv("mission.fluss");
+    }));
     return s;
 }

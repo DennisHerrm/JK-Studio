@@ -58,14 +58,16 @@ bool laden(int bereich, const std::string& name);
 bool loeschen(int bereich, const std::string& name);
 [[nodiscard]] std::vector<std::string> gespeicherte(int bereich);
 
-// Zu Beginn jedes Bildes, vor dem ersten Fenster: die gespeicherte Anordnung
-// beim Start uebernehmen, ImGuis Fensterlagen in die Einstellungen schreiben
-// und Fenster von fehlenden oder zu kleinen Bildschirmen zurueckholen.
+// Zu Beginn jedes Bildes, vor dem ersten Fenster: ImGuis Fensterlagen in die
+// Einstellungen schreiben und Fenster von fehlenden oder zu kleinen
+// Bildschirmen zurueckholen.
 void bildAnfang();
 // Die Fensterlagen jetzt in die Einstellungen schreiben (sonst geschieht es
 // spaetestens eine Sekunde nach einer Aenderung, io.IniSavingRate).
 void jetztMerken();
-// Vor ImGui::NewFrame (main_win32.cpp): eine geladene Anordnung uebernehmen.
+// Vor ImGui::NewFrame (main_win32.cpp): die gespeicherte Anordnung beim Start
+// und eine geladene Anordnung uebernehmen - zwischen zwei Bildern, wie ImGui es
+// fuer LoadIniSettingsFromMemory vorsieht.
 void vorBild();
 
 // Das eigene Fenster eines herausgenommenen Panels; nur zeichnen, wenn
@@ -79,10 +81,6 @@ void heimPlatz(const char* id, const ImVec2& a, const ImVec2& b);
 // Wohin das Panel beim Zurueckziehen muss: sein zuletzt gemeldeter Platz, sonst
 // die Mitte des Hauptfensters (Bildschirmpunkte).
 void zielPlatz(const char* id, ImVec2& a, ImVec2& b);
-
-// An seinem Platz, solange ein Panel ohne Nachbarn (Menu Editor) in einem
-// eigenen Fenster steht oder ausgeblendet ist: ein Hinweis und "Andocken".
-void platzhalter(const char* id);
 
 // Der Inhalt des Menues "Fenster" fuer den Bereich und das Menue selbst.
 void menueInhalt(int bereich);

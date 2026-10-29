@@ -2866,8 +2866,8 @@ enum class Str {
     DockPanelModelView,
     DockPanelTimeline,
     DockPanelModelBar,
-    DockOutside,
-    DockBack,
+    DockPanelCanvas,
+    DockPanelMenuSide,
     Count,
 };
 

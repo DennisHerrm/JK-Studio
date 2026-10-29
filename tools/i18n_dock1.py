@@ -45,7 +45,6 @@ DOCK1 = [
     ("DockPanelModelView", "Model view", "Modellansicht", "模型视图", "モデルビュー"),
     ("DockPanelTimeline", "Timeline", "Zeitleiste", "时间轴", "タイムライン"),
     ("DockPanelModelBar", "Playback bar", "Abspielleiste", "播放栏", "再生バー"),
-    ("DockOutside", "%s is in its own window.", "%s steht in einem eigenen Fenster.", "%s 位于独立窗口中。",
-     "%s は独立したウィンドウにあります。"),
-    ("DockBack", "Dock back", "Andocken", "重新停靠", "ドッキングし直す"),
+    ("DockPanelCanvas", "Canvas", "Fläche", "画布", "キャンバス"),
+    ("DockPanelMenuSide", "Hierarchy, text, properties", "Hierarchie, Text, Eigenschaften", "层级、文本、属性", "階層・テキスト・プロパティ"),
 ]

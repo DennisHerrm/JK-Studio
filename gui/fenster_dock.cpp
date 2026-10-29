@@ -206,7 +206,9 @@ const std::vector<Panel>& panels() {
         {"karte.konsole", 3, Str::KePageConsole},
         {"karte.texturen", 3, Str::KePageTextures},
         {"karte.gruppe", 3, Str::KePageEntities},
-        {"menue.editor", 4, Str::ViewMenuEditor},
+        {"menue.bausteine", 4, Str::MePalette},
+        {"menue.flaeche", 4, Str::DockPanelCanvas},
+        {"menue.reiter", 4, Str::DockPanelMenuSide},
     };
     return p;
 }
@@ -326,10 +328,6 @@ std::vector<std::string> gespeicherte(int bereich) {
 void bildAnfang() {
     if (g_app == nullptr) { return; }
     Zustand& s = z();
-    if (!s.geladen) {
-        s.geladen = true;
-        ausEinstellungenLaden();
-    }
     einsammeln();
     if (s.merken || ImGui::GetIO().WantSaveIniSettings) {
         s.merken = false;
@@ -342,7 +340,12 @@ void jetztMerken() { merkenLaufend(); }
 
 void vorBild() {
     Zustand& s = z();
-    if (s.iniLaden.empty() || ImGui::GetCurrentContext() == nullptr) { return; }
+    if (g_app == nullptr || ImGui::GetCurrentContext() == nullptr) { return; }
+    if (!s.geladen) {   // beim Start, vor dem ersten Bild
+        s.geladen = true;
+        ausEinstellungenLaden();
+    }
+    if (s.iniLaden.empty()) { return; }
     // Zwischen zwei Bildern, wie ImGui es fuer LoadIniSettingsFromMemory
     // vorsieht: mitten im Bild geladen zerfiel der Dock-Baum (Selbsttest dock1 -
     // nach dem Laden standen die Panels wieder einzeln). Panels und Fensterlagen
@@ -409,11 +412,21 @@ bool fensterBeginnen(const char* id) {
     // auch mit ImGuiCond_FirstUseEver, solange ImGui die Bedingung fuer das
     // Fenster noch zulaesst (Selbsttest dock1: geladene Anordnung zerfiel).
     const std::string name = fensterName(*p);
+    // Ganz im Hauptfenster: ein Fenster, das darueber hinausragt, wird ein eigenes
+    // Windows-Fenster und laege ueber den Menues des Hauptfensters (Selbsttest
+    // dock1: der Klick auf "Reset layout" traf die Ereignisliste).
     if (ImGui::FindWindowByName(name.c_str()) == nullptr) {
         const ImRect r = zielRechteck(id);
         const float fs = ImGui::GetFontSize();
-        ImGui::SetNextWindowPos(ImVec2{r.Min.x + fs * 2.0F, r.Min.y + fs * 2.0F}, ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2{std::max(r.GetWidth(), fs * 16.0F), std::max(r.GetHeight(), fs * 10.0F)}, ImGuiCond_FirstUseEver);
+        const ImGuiViewport* vp = ImGui::GetMainViewport();
+        const ImVec2 lo{vp->WorkPos.x + fs, vp->WorkPos.y + fs};
+        const ImVec2 hi{vp->WorkPos.x + vp->WorkSize.x - fs, vp->WorkPos.y + vp->WorkSize.y - fs};
+        const ImVec2 gr{std::min(std::max(r.GetWidth(), fs * 16.0F), std::max(fs * 8.0F, hi.x - lo.x)),
+                        std::min(std::max(r.GetHeight(), fs * 10.0F), std::max(fs * 6.0F, hi.y - lo.y))};
+        const ImVec2 pos{std::clamp(r.Min.x + fs * 2.0F, lo.x, std::max(lo.x, hi.x - gr.x)),
+                         std::clamp(r.Min.y + fs * 2.0F, lo.y, std::max(lo.y, hi.y - gr.y))};
+        ImGui::SetNextWindowPos(pos, ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(gr, ImGuiCond_FirstUseEver);
     }
     bool offen = true;
     const bool sichtbar = ImGui::Begin(name.c_str(), &offen, ImGuiWindowFlags_NoCollapse);
@@ -454,19 +467,6 @@ void fensterEnde() {
         s.ueberPlatz.clear();
         if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) { andocken(id.c_str()); }
     }
-}
-
-void platzhalter(const char* id) {
-    const Panel* p = panel(id);
-    if (p == nullptr) { return; }
-    const float fs = ImGui::GetFontSize();
-    ImGui::Dummy(ImVec2{0.0F, fs});
-    ImGui::Indent(fs);
-    char t[200];
-    std::snprintf(t, sizeof(t), tr(Str::DockOutside), tr(p->titel));
-    ImGui::TextDisabled("%s", t);
-    if (ImGui::Button((std::string(tr(Str::DockBack)) + "##dockzurueck." + id).c_str())) { andocken(id); }
-    ImGui::Unindent(fs);
 }
 
 void menueInhalt(int bereich) {

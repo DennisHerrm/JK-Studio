@@ -63,6 +63,10 @@ void drawSpaltenFrei(const Layout& l) {
 void drawDockFenster(const Layout& l) {
     const int bereich = g_app->leftMode;
     if (bereich == 3) { return; }
+    if (bereich == 4) {
+        menueeditor::dockFenster();
+        return;
+    }
     for (const dock::Panel& p : dock::panels()) {
         if (p.bereich != bereich || !dock::draussen(p.id)) { continue; }
         if (dock::fensterBeginnen(p.id)) {
@@ -88,11 +92,6 @@ void drawDockFenster(const Layout& l) {
                 drawTimeline();
             } else if (id == "modell.leiste") {
                 drawModelPanel();
-            } else if (id == "menue.editor") {
-                const float h = ImGui::GetContentRegionAvail().y;
-                ImGui::BeginChild("##menueeditor", ImVec2{0.0F, h});
-                menueeditor::zeichne(h);
-                ImGui::EndChild();
             }
         }
         dock::fensterEnde();

@@ -20,6 +20,7 @@
 
 #include "app_internal.h"
 #include "tour.h"   // H2: leerer Zustand mit Tutorial
+#include "fenster_dock.h"   // dock1: die Panels als eigene Fenster
 #include "backend.h"
 #include "gpumap.h"
 #include "platform.h"
@@ -4240,24 +4241,72 @@ void zeichneInnen(float hoehe) {
         return;
     }
     // links die Bausteine, in der Mitte die Flaeche in voller Hoehe, rechts die Reiter
+    // dock1: jedes der drei Panels kann in einem eigenen Fenster stehen (fenster_dock.h,
+    // menueeditor::dockFenster) - dann fehlen seine Spalte und sein Teiler, die Flaeche
+    // nimmt den Platz.
+    const bool links = dock::zuhause("menue.bausteine");
+    const bool mitte = dock::zuhause("menue.flaeche");
+    const bool rechts = dock::zuhause("menue.reiter");
     const float h = rest.y;
-    ImGui::BeginChild("##links", ImVec2{z.linksBreite, h}, ImGuiChildFlags_Borders);
-    panelBausteine(*d);
-    ImGui::EndChild();
-    ImGui::SameLine(0, 0);
-    splitter("##spl1", z.linksBreite, true, fs * 6, rest.x * 0.4F, h);
-    ImGui::SameLine(0, 0);
-    const float mitteB = std::max(fs * 10, rest.x - z.linksBreite - z.rechtsBreite - 14);
-    ImGui::BeginChild("##mitte", ImVec2{mitteB, h}, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    panelFlaeche(*d);
-    ImGui::EndChild();
-    ImGui::SameLine(0, 0);
-    splitter("##spl2", z.rechtsBreite, true, fs * 12, rest.x * 0.6F, h, true);
-    st.menueRechtsBreite = std::floor(z.rechtsBreite / fs * 100.0F) / 100.0F;
-    ImGui::SameLine(0, 0);
-    ImGui::BeginChild("##rechts", ImVec2{0, h}, ImGuiChildFlags_Borders);
-    panelReiter(*d);
-    ImGui::EndChild();
+    if (links) {
+        ImGui::BeginChild("##links", ImVec2{mitte || rechts ? z.linksBreite : 0.0F, h}, ImGuiChildFlags_Borders);
+        panelBausteine(*d);
+        ImGui::EndChild();
+        dock::heimPlatz("menue.bausteine", ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+        if (mitte || rechts) {
+            ImGui::SameLine(0, 0);
+            splitter("##spl1", z.linksBreite, true, fs * 6, rest.x * 0.4F, h);
+            ImGui::SameLine(0, 0);
+        }
+    }
+    if (mitte) {
+        const float mitteB = std::max(fs * 10, rest.x - (links ? z.linksBreite + 7 : 0.0F) - (rechts ? z.rechtsBreite + 7 : 0.0F));
+        ImGui::BeginChild("##mitte", ImVec2{rechts ? mitteB : 0.0F, h}, ImGuiChildFlags_Borders,
+                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        panelFlaeche(*d);
+        ImGui::EndChild();
+        dock::heimPlatz("menue.flaeche", ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+        if (rechts) {
+            ImGui::SameLine(0, 0);
+            splitter("##spl2", z.rechtsBreite, true, fs * 12, rest.x * 0.6F, h, true);
+            st.menueRechtsBreite = std::floor(z.rechtsBreite / fs * 100.0F) / 100.0F;
+            ImGui::SameLine(0, 0);
+        }
+    }
+    if (rechts) {
+        ImGui::BeginChild("##rechts", ImVec2{0, h}, ImGuiChildFlags_Borders);
+        panelReiter(*d);
+        ImGui::EndChild();
+        dock::heimPlatz("menue.reiter", ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+    }
+}
+
+// dock1: die Panels des Menue-Editors in eigenen Fenstern. Nur im Layout mit den
+// Reitern rechts - "Text unten" (Einstellungen) bleibt, wie es ist.
+namespace {
+bool panelVerfuegbar(const char*) { return g_app != nullptr && !g_app->settings.menueTextUnten; }
+}  // namespace
+
+void dockFenster() {
+    dock::setzeVerfuegbar(4, panelVerfuegbar);
+    if (!panelVerfuegbar(nullptr)) { return; }
+    struct P {
+        const char* id;
+        void (*f)(Dokument&);
+    };
+    static const P liste[] = {{"menue.bausteine", panelBausteine}, {"menue.flaeche", panelFlaeche}, {"menue.reiter", panelReiter}};
+    for (const P& p : liste) {
+        if (!dock::draussen(p.id)) { continue; }
+        if (dock::fensterBeginnen(p.id)) {
+            Dokument* d = doc();
+            if (d != nullptr) {
+                p.f(*d);
+            } else {
+                ImGui::TextDisabled("%s", tr(Str::MeKeinMenue));
+            }
+        }
+        dock::fensterEnde();
+    }
 }
 
 // M2 Punkt 3: alle Dateien eines Menuesatzes oeffnen (UI_LoadMenus: loadMenu { ... })

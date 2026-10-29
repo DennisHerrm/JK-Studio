@@ -1771,13 +1771,8 @@ void drawMenueEditorBereich(const Layout& l) {
     g_app->modeBarW = drawModeBar(l.frameH, l.headerH);
     ImGui::TableNextColumn();
     ImGui::BeginChild("##menueeditor", ImVec2{0.0F, l.frameH});
-    if (dock::zuhause("menue.editor")) {
-        menueeditor::zeichne(l.frameH);
-    } else {
-        dock::platzhalter("menue.editor");   // dock1
-    }
+    menueeditor::zeichne(l.frameH);
     ImGui::EndChild();
-    dock::heimPlatz("menue.editor", ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
     ImGui::EndTable();
 }
 
