@@ -9,10 +9,6 @@ je Satz, "du", Fachbegriffe beim ersten Mal erklaert.
 HILFE2 = [
     # --- Helfer: "Hast du gemeint ...?" -----------------------------------------------
     ("HlfMeant", "Did you mean: %s", "Meintest du: %s", "你是不是要找:%s", "もしかして:%s"),
-    ("HlfModeHint", "Results from the area you are working in come first.",
-     "Treffer aus dem Bereich, in dem du gerade arbeitest, stehen oben.",
-     "你当前所在区域的结果排在前面。",
-     "今作業している領域の結果が上に来ます。"),
     # --- Ortskatalog: Erklaerungen (auch als Tooltip) ---------------------------------------
     ("PathsTitleHint", "Tell the program where Jedi Academy (or Movie Duels, Jedi Outcast) is installed - it reads the game files from there.",
      "Sag dem Programm, wo Jedi Academy (oder Movie Duels, Jedi Outcast) installiert ist - es liest die Spieldateien von dort.",

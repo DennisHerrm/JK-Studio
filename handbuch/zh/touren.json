@@ -1049,8 +1049,8 @@
      },
      {
       "text": "**添加游戏文件夹。** 按 **{{Pk3AddPath}}**,选择 Jedi Academy 的 `base` 文件夹,也就是包含 `assets0.pk3` 的那个。使用 Movie Duels 时再添加它的 `MD` 文件夹。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tour_spielordner",
+      "unter": "程序中的教程:按钮被高亮显示。",
       "ziel": "knopf:Pk3AddPath@###paths",
       "fertig": "zahl:programm.spielordner+",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.pfade < menue:MenuEdit>PathsTitle",
@@ -1104,8 +1104,8 @@
     "classic": [
      {
       "text": "**查找新版本。** **{{MenuHelp}} → {{UpdMenu}}**。程序会向 GitHub 查询最新版本——只在你选择时才这样做。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tour_update",
+      "unter": "教程指向“帮助”菜单。",
       "ziel": "menue:MenuHelp>UpdMenu",
       "fertig": "zahl:update.fenster",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1302,8 +1302,8 @@
      },
      {
       "text": "**像在游戏中一样试用。** **{{MeBedienen}}**:现在点击会按下按钮并更改 cvar,只在预览中,绝不会影响你的游戏。**{{MeBearbeiten}}** 返回编辑。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tour_menue",
+      "unter": "菜单编辑器中教程的第 4 步。",
       "ziel": "knopf:MeBedienen",
       "fertig": "zahl:menue.bedienen",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",

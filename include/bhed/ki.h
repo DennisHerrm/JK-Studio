@@ -159,16 +159,13 @@ struct ChatAntwort {
     std::vector<Aufruf> aufrufe;
     json::Wert inhalt;   // die ganze content-Liste (zum Zurueckschicken, mit thinking)
 };
-// H2: `strom` = als Server-Sent Events ("stream": true; die eigenen Werkzeuge mit
-// eager_input_streaming - ihre Eingaben prueft pruefeEingabe ohnehin streng).
-[[nodiscard]] std::string chatKoerper(const std::string& modell, const std::string& system, const std::vector<json::Wert>& nachrichten,
-                                      bool strom = false);
+// Der Koerper einer Anfrage. H2: immer gestreamt (Server-Sent Events, "stream":
+// true; die eigenen Werkzeuge mit eager_input_streaming - ihre Eingaben prueft
+// pruefeEingabe ohnehin streng).
+[[nodiscard]] std::string chatKoerper(const std::string& modell, const std::string& system, const std::vector<json::Wert>& nachrichten);
 // Die Kopfzeilen der Anfrage (der Schluessel kommt als x-api-key dazu).
 [[nodiscard]] std::vector<std::pair<std::string, std::string>> chatKopf(const std::string& modell, const std::string& schluessel);
 [[nodiscard]] bool leseChatAntwort(const std::string& json, ChatAntwort& out, std::string* fehler);
-// Der feste Systemtext mit Handbuch-Ausschnitten als markierte Daten.
-[[nodiscard]] std::string systemText(const std::string& auszuegeJson);
-
 // H2: der feste Systemtext fuer ein Gespraech mit Verlauf. Er bleibt ueber alle
 // Fragen gleich (sonst gelten die thinking-Bloecke frueherer Antworten nicht mehr
 // und der Zwischenspeicher der API greift nicht); die Handbuch-Ausschnitte jeder
@@ -212,8 +209,6 @@ private:
     bool kaputtDaten_ = false;
 };
 
-// Senden: Koerper hin, Status und Antwort zurueck.
-using Senden = std::function<bool(const std::string& koerper, int& status, std::string& antwort, std::string& fehler)>;
 struct ChatErgebnis {
     std::string text;
     std::vector<std::string> werkzeuge;   // was die KI aufgerufen hat
@@ -237,11 +232,6 @@ using SendenStrom = std::function<bool(const std::string& koerper, int& status, 
 // H2: hoechstens so viele Nachrichten im Verlauf - danach beginnt ein neues
 // Gespraech (kuerzen hiesse die Geschichte bearbeiten).
 constexpr std::size_t kMaxVerlauf = 60;
-
-// Frage -> Antwort, Werkzeuge -> Ergebnisse -> ... (hoechstens `runden`).
-// `abbrechen` wird vor jeder Runde gefragt (Not-Aus).
-[[nodiscard]] ChatErgebnis chat(const std::string& modell, const std::string& system, const std::string& frage, const Senden& senden,
-                                const Ausfuehren& tu, const std::function<bool()>& abbrechen, int runden = 6);
 
 // --- Windows (src/ki_win32.cpp) --------------------------------------------------------
 

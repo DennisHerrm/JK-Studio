@@ -1812,8 +1812,10 @@ void zeichneLeiste(Dokument* d) {
     { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::MeRasterHint)); } }   // H2
     ImGui::SameLine();
     ImGui::Checkbox(tr(Str::MeAnRaster), &z.anRaster);
+    { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::MeAnRasterHint)); } }   // H2
     ImGui::SameLine();
     ImGui::Checkbox(tr(Str::MeAnKanten), &z.anKanten);
+    { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::MeAnKantenHint)); } }   // H2
     if (!z.meldung.empty()) {
         ImGui::SameLine();
         ImGui::TextDisabled("%s", z.meldung.c_str());

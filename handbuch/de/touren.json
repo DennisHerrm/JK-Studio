@@ -1049,8 +1049,8 @@
      },
      {
       "text": "**Füge den Spielordner hinzu.** Drück **{{Pk3AddPath}}** und wähl den Ordner `base` von Jedi Academy - den mit `assets0.pk3`. Für Movie Duels nimm auch dessen Ordner `MD` dazu.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tour_spielordner",
+      "unter": "Das Tutorial im Programm: der Knopf ist hervorgehoben.",
       "ziel": "knopf:Pk3AddPath@###paths",
       "fertig": "zahl:programm.spielordner+",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.pfade < menue:MenuEdit>PathsTitle",
@@ -1104,8 +1104,8 @@
     "classic": [
      {
       "text": "**Such nach einer neuen Fassung.** **{{MenuHelp}} → {{UpdMenu}}**. Das Programm fragt GitHub nach der neuesten Fassung - nur jetzt, weil du es gewählt hast.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tour_update",
+      "unter": "Das Tutorial zeigt auf das Menü Hilfe.",
       "ziel": "menue:MenuHelp>UpdMenu",
       "fertig": "zahl:update.fenster",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1302,8 +1302,8 @@
      },
      {
       "text": "**Probier es wie im Spiel.** **{{MeBedienen}}**: Klicks drücken jetzt Knöpfe und ändern Cvars - nur in der Vorschau, nie in deinem Spiel. **{{MeBearbeiten}}** bringt dich zurück.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tour_menue",
+      "unter": "Schritt 4 des Tutorials im Menü-Editor.",
       "ziel": "knopf:MeBedienen",
       "fertig": "zahl:menue.bedienen",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",

@@ -10,7 +10,7 @@
 // Bedienelement hervorheben (Zielangabe wie in bhed/tour.h) oder eine
 // Handbuchseite oeffnen.
 //
-// H2: Beugungen (rennt -> renn(en), läuft -> lauf(en), entities -> entity,
+// H2: Beugungen (rennt -> renn(en), laeuft -> lauf(en), entities -> entity,
 // making -> make), Tippfehler (Damerau-Levenshtein 1, ab 9 Buchstaben 2),
 // die Inhalte von Untermenues und Dialogen als Suchwoerter und der aktuelle
 // Modus als Gewicht (frage(..., modus)).

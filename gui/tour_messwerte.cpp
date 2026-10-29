@@ -33,7 +33,6 @@
 //
 // H2 (mehr interaktive Touren):
 //   vorschau.laeuft      1, solange die Zeitleiste abspielt
-//   vorschau.zeit        Stelle des Abspielkopfs in ms ("~" = verschoben)
 //   vorschau.startseite  1 im Modus Map ohne Karte (die Startseite steht)
 //   vorschau.ents        Entities der Karte in der Vorschau ("-" = eine geloescht)
 //   vorschau.figurgewaehlt   1, wenn eine Figur gewaehlt ist (ihr Weg steht)
@@ -41,9 +40,8 @@
 //   vorschau.ohnelaufziel    1, wenn die gewaehlte Figur kein Laufziel zeigt
 //   vorschau.tlschritte      Bildschritte mit den Pfeiltasten in der Zeitleiste
 //   vorschau.gangartmenue    1, solange das Menue eines Laufziels offen ist
-//   vorschau.wegfenster / .wegzeigen / .wegpunkte / .weggeprueft / .wegwerkzeug
-//                        das Fenster NPC-Wegpunkte, das Netz zeigen, Zahl der
-//                        Wegpunkte, gepruefte Befunde, Werkzeug (1 setzen, 2 verbinden)
+//   vorschau.wegfenster / .wegpunkte / .weggeprueft
+//                        das Fenster NPC-Wegpunkte, Zahl der Wegpunkte, gepruefte Befunde
 //   mission.name         Pruefsumme von Name und Ordner der Mission ("~" = angelegt/geoeffnet)
 //   modell.da            1, wenn ein Modell geladen ist
 //   modell.skin          die gewaehlte Haut ("~" = gewechselt)
@@ -61,7 +59,6 @@
 //   karte.einstellungen  1, solange die Einstellungen des Karten-Editors offen sind
 //   menue.dokumente      offene Menues im Menue-Editor ("+" = eins geoeffnet)
 //   menue.text           Pruefsumme des Menuetexts ("~" = etwas verschoben/geaendert)
-//   menue.auswahl        gewaehlte Elemente
 //   menue.bedienen       1 im Bedienmodus
 //   menue.exporte        erfolgreiche .pk3-Exporte ("+" = einer dazu)
 //
@@ -240,7 +237,6 @@ void tourMesswerte(std::map<std::string, double>& werte, bool karte, double jetz
     werte["vorschau.einstellungen"] = g_app->leftMode == 1 ? static_cast<double>(kameraSchluessel(g_app->doc.script()).size()) : 0.0;
     // H2: Abspielen, Startseite, Figuren, Wegpunkte, Mission.
     werte["vorschau.laeuft"] = g_app->playing ? 1.0 : 0.0;
-    werte["vorschau.zeit"] = std::floor(g_app->playMs);
     werte["vorschau.startseite"] = (g_app->leftMode == 1 && !karteDa) ? 1.0 : 0.0;
     werte["vorschau.ents"] = static_cast<double>(g_app->map.entities.size());
     werte["vorschau.figurgewaehlt"] = (g_app->leftMode == 1 && g_app->selectedActor >= 0) ? 1.0 : 0.0;
@@ -250,12 +246,10 @@ void tourMesswerte(std::map<std::string, double>& werte, bool karte, double jetz
         (g_app->leftMode == 1 && g_app->selectedActor >= 0 && !tourGemeldet("vorschau.laufziel")) ? 1.0 : 0.0;
     werte["vorschau.tlschritte"] = g_app->tlSchritte;
     werte["vorschau.wegfenster"] = g_app->wegFensterOffen ? 1.0 : 0.0;
-    werte["vorschau.wegzeigen"] = g_app->zeigeWegnetz ? 1.0 : 0.0;
     int wegpunkte = 0;
     for (const MapEntity& me : g_app->map.entities) { wegpunkte += me.classname.rfind("waypoint", 0) == 0 ? 1 : 0; }
     werte["vorschau.wegpunkte"] = wegpunkte;
     werte["vorschau.weggeprueft"] = g_app->wegGeprueft ? 1.0 : 0.0;
-    werte["vorschau.wegwerkzeug"] = g_app->wegWerkzeug;
     werte["mission.name"] = static_cast<double>(fnv(fnv(2166136261U, g_app->mission.name), g_app->mission.projektOrdner));
     // Modell: Haut, Kappen, Flaechenliste, Skelett.
     werte["modell.da"] = g_app->model.empty() ? 0.0 : 1.0;
@@ -281,7 +275,6 @@ void tourMesswerte(std::map<std::string, double>& werte, bool karte, double jetz
         const menueeditor::Stand ms = menueeditor::stand();
         werte["menue.dokumente"] = ms.dokumente;
         werte["menue.text"] = static_cast<double>(fnv(2166136261U, ms.text));
-        werte["menue.auswahl"] = static_cast<double>(ms.auswahl.size());
         werte["menue.bedienen"] = ms.interaktion ? 1.0 : 0.0;
         werte["menue.exporte"] = ms.exporte;
     }

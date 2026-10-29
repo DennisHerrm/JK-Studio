@@ -38,6 +38,19 @@ Schritt erledigt(const std::string& id, int n, int bilder = 900) {
     }, bilder);
 }
 
+// Gegenprobe: ohne die Wirkung bleibt die Tour stehen (Schritt n, nicht erfuellt).
+Schritt wartetNoch(const std::string& id, int n) {
+    auto bilder = std::make_shared<int>(0);
+    return warteBis("H2 " + id + ": Schritt " + std::to_string(n + 1) + " bleibt offen, solange die Wirkung fehlt", [id, n, bilder] {
+        const TourSicht t = tourSicht();
+        if (t.id != id || t.schritt != n || t.erfuellt || t.fertig) {
+            *bilder = 0;
+            return false;
+        }
+        return ++*bilder >= 30;   // eine halbe Sekunde lang
+    }, 120);
+}
+
 // Die Mitte des ersten hervorgehobenen Ziels.
 ImVec2 zielMitte() {
     const TourSicht t = tourSicht();
@@ -120,6 +133,7 @@ std::vector<Schritt> mission() {
     add(zielDa("Mission: die Karte \"Neue Mission\" der Startseite ist hervorgehoben"));
     add(klick(tr(Str::StartCardNew)));
     add(warteBis("H2 Mission: Fenster \"Neue Mission\" offen", [] { return hb::fensterRect("##neuemission").GetWidth() > 0.0F; }, 300));
+    add(wartetNoch("tut-p1", 1));
     add(klick("##kartensuche", "##neuemission"));
     add(tippe("taspir1"));
     add(pause(0.3));
@@ -147,6 +161,7 @@ std::vector<Schritt> mission() {
     add(keineEinblendung());
     add(klick(tr(Str::TourNext), "###tour"));
     add(erledigt("tut-p1", 3));
+    add(wartetNoch("tut-p1", 3));
     add(klick("##entsuche"));
     add(tippe("t271"));
     add(pause(0.5));
@@ -222,6 +237,7 @@ std::vector<Schritt> gangart() {
         const TourSicht t = tourSicht();
         return t.aktiv && t.id == "k-gangart" && t.anzahl == 4 && !t.ziele.empty() && !t.zeigtOeffner;
     }));
+    add(wartetNoch("k-gangart", 0));
     add(tu("H2 Gangart: Kyle waehlen (wie ein Klick auf seinen Namen in der Zeitleiste)", [] {
         for (std::size_t i = 0; i < g_app->scene.actors.size(); ++i) {
             if (g_app->scene.actors[i].name == "kyle") { g_app->selectedActor = static_cast<int>(i); }
@@ -238,6 +254,7 @@ std::vector<Schritt> gangart() {
         const TourSicht t = tourSicht();
         return !t.ziele.empty() && t.ziele[0].GetWidth() < ImGui::GetFontSize() * 2.0F;
     }));
+    add(wartetNoch("k-gangart", 1));
     add(klickAn("H2 Gangart: Rechtsklick auf das Laufziel", zielMitte, 1));
     add(erledigt("k-gangart", 2));
     add(pruefe("H2 Gangart: das Menue des Laufziels ist hervorgehoben", [] { return !tourSicht().ziele.empty() && tourGemeldet("vorschau.gangartmenue"); }));
@@ -274,22 +291,11 @@ std::vector<Schritt> kameraZeile() {
         const TourSicht t = tourSicht();
         return t.aktiv && t.zeigtOeffner && !t.ziele.empty() && tourGemeldet("zeitleiste.kamera");
     }, 600));
-    add(tu("H2 Kamerazeile: wo sie ist", [] {
-        const TourSicht t = tourSicht();
-        if (t.ziele.empty()) { return; }
-        diag::detail("Knopftest: H2 Kamerazeile - Ziel " + std::to_string(t.ziele[0].Min.x) + "/" + std::to_string(t.ziele[0].Min.y) + " - " +
-                     std::to_string(t.ziele[0].Max.x) + "/" + std::to_string(t.ziele[0].Max.y));
-    }));
+    add(wartetNoch("k-kamera-ansicht", 1));
     add(klickAn("H2 Kamerazeile: Klick auf die hervorgehobene Kamerazeile", [] {
         const TourSicht t = tourSicht();
         if (t.ziele.empty()) { return ImVec2{-1.0F, -1.0F}; }
         return ImVec2{t.ziele[0].Min.x + t.ziele[0].GetWidth() * 0.7F, t.ziele[0].GetCenter().y};
-    }));
-    add(tu("H2 Kamerazeile: nach dem Klick", [] {
-        diag::detail("Knopftest: H2 Kamerazeile - gewaehlt " + std::to_string(g_app->cameraSelected) + ", Figur " +
-                     std::to_string(g_app->selectedActor) + ", Entity " + std::to_string(g_app->pickedEntity) + ", Maus " +
-                     std::to_string(ImGui::GetIO().MousePos.x) + "/" + std::to_string(ImGui::GetIO().MousePos.y) + ", ueber " +
-                     (GImGui->HoveredWindow != nullptr ? std::string(GImGui->HoveredWindow->Name) : std::string("-")));
     }));
     add(warteBis("H2 Kamerazeile: Kamera gewaehlt, jetzt ist \"Neue Einstellung\" hervorgehoben", [] {
         const TourSicht t = tourSicht();
@@ -318,6 +324,7 @@ std::vector<Schritt> neuTimen() {
     add(klick(tr(Str::TlPlay), "###main"));
     add(erledigt("k-neu-timen", 1));
     add(klick(tr(Str::TlStop), "###main"));
+    add(wartetNoch("k-neu-timen", 1));
     add(pruefe("H2 Timen: die Zeitleiste (selbst gezeichnet) ist hervorgehoben", [] { return !tourSicht().ziele.empty() && tourGemeldet("zeitleiste"); }));
     add(tu("H2 Timen: den wait laenger machen (wie das Ziehen seines Blocks)", [] { tourAktionen("wert:wait#0:0=7000.000"); }));
     add(erledigt("k-neu-timen", 2));
@@ -350,6 +357,7 @@ std::vector<Schritt> wegpunkte() {
     add(zielDa("Wege: der Knopf NPC-Wegpunkte ist hervorgehoben"));
     add(klickAn("H2 Wege: Klick auf den hervorgehobenen Knopf NPC-Wegpunkte der Kartenleiste", zielMitte));
     add(erledigt("k-wegpunkte", 1));
+    add(wartetNoch("k-wegpunkte", 1));
     add(klick(tr(Str::WegErzeugen), "###wegpunkte"));
     add(erledigt("k-wegpunkte", 2, 6000));
     add(klick(tr(Str::WegPruefen), "###wegpunkte"));
@@ -387,6 +395,7 @@ std::vector<Schritt> skins() {
     add(tu("H2 Skins: Kyle laden (wie ein Klick im NPC-Browser)", [] { (void)npcLaden("Kyle"); }));
     add(warteBis("H2 Skins: Modell mit mehreren Haeuten", [] { return !g_app->model.empty() && g_app->modelSkins.size() >= 2; }, 1200));
     add(zielDa("Skins: die Hautliste ist hervorgehoben"));
+    add(wartetNoch("k-skins", 0));
     add(tu("H2 Skins: eine andere Haut waehlen (Liste)", [] {
         applySkinByIndex(g_app->modelSkinIndex == 0 ? 1 : 0);
     }));
@@ -432,10 +441,9 @@ std::vector<Schritt> menue() {
     }));
     add(erledigt("tut-menue", 2, 1200));
     add(warteBis("H2 Menue: Menue offen, Elemente da", [] { return menueeditor::stand().items > 0; }, 600));
-    add(tu("H2 Menue: ein Element waehlen und verschieben (wie Ziehen auf der Flaeche)", [] {
-        menueeditor::waehle(0, false);
-        menueeditor::verschiebeAuswahl(8.0F, 0.0F);
-    }));
+    add(tu("H2 Menue: ein Element waehlen (Klick auf der Flaeche)", [] { menueeditor::waehle(0, false); }));
+    add(wartetNoch("tut-menue", 2));
+    add(tu("H2 Menue: das Element verschieben (wie Ziehen auf der Flaeche)", [] { menueeditor::verschiebeAuswahl(8.0F, 0.0F); }));
     add(erledigt("tut-menue", 3));
     add(klick(tr(Str::MeBedienen)));
     add(erledigt("tut-menue", 4));
@@ -521,6 +529,7 @@ std::vector<Schritt> karteTuer() {
     add(klick2d("H2 Tuer: Umschalt+Klick auf die Tuer", ImGuiMouseButton_Left, ImGuiMod_Shift, karte::Vektor3f(0, 0, 0)));
     add(pause(0.2));
     add(pruefe("H2 Tuer: zwei gewaehlt (Trigger, dann Tuer)", [] { return ke::editor().karte.auswahl.anzahl() == 2; }));
+    add(wartetNoch("tut-karte-tuer", 5));
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_K, "Strg+K (Connect Entities)"));
     add(erledigt("tut-karte-tuer", 6));
     add(pruefe("H2 Tuer: der target des Triggers nennt den targetname der Tuer", [] {
@@ -573,11 +582,12 @@ std::vector<Schritt> update() {
     add(klick(tr(Str::ChangelogMenu), "###update"));
     add(erledigt("k-update", 4));
     add(pruefe("H2 Update: Tour ganz durch, das Aenderungsfenster ist offen", [] { return tourSicht().fertig; }));
-    add(tu("H2 Update: aufraeumen (Einstellung zurueck, Fenster zu, Tour zu)", [] {
+    add(tu("H2 Update: aufraeumen (Einstellung zurueck, Aenderungen und Update-Fenster zu, Tour zu)", [] {
         g_app->settings.updateCheck = autoVorher;
+        g_app->changelogOpen = false;
         tourSchliessen();
     }));
-    add(klickSchliessen());
+    add(klick(tr(Str::UpdLater), "###update"));
     add(pause(0.2));
     return s;
 }
@@ -603,6 +613,7 @@ std::vector<Schritt> spielordner() {
         const TourSicht t = tourSicht();
         return !t.ziele.empty() && !t.zeigtOeffner && t.stufe == 2;
     }));
+    add(wartetNoch("k-spielordner", 1));
     add(tu("H2 Spielordner: einen Ordner dazu (Ordnerdialog: im Test die Funktion dahinter, ein leerer Ordner im Laufordner)", [] {
         extra = stufe3::laufOrdner("spielordner_h2");
         std::error_code ec;
@@ -678,7 +689,13 @@ std::vector<Schritt> helfer() {
         diag::detail("Knopftest: H2 Helfer - Kette: Stufe " + std::to_string(t.stufe) + ", Oeffner " + std::to_string(t.zeigtOeffner));
         return t.aktiv && t.zeigtOeffner && t.stufe == 0 && !t.ziele.empty();
     }));
-    add(klickAn("H2 Helfer: Klick auf den hervorgehobenen Knopf Events", zielMitte));
+    add(pruefe("H2 Helfer: hervorgehoben ist der Knopf Events der Modusleiste", [] {
+        const elemente::Element* e = finde(tr(Str::ViewEvents), "###main", 0, false);
+        const TourSicht t = tourSicht();
+        return e != nullptr && !t.ziele.empty() && t.ziele[0].Contains(e->rect.GetCenter());
+    }));
+    add(pause(0.5));
+    add(klick(tr(Str::ViewEvents), "###main"));
     add(warteBis("H2 Helfer: Stufe 2 - jetzt Bearbeiten > Einstellungen", [] {
         const TourSicht t = tourSicht();
         return t.zeigtOeffner && t.stufe == 1 && !t.ziele.empty();
@@ -687,12 +704,6 @@ std::vector<Schritt> helfer() {
     add(pause(0.3));
     add(klick(tr(Str::AppPrefs), "##Menu"));
     add(pause(0.4));
-    add(tu("H2 Helfer: Stand nach dem Oeffnen der Einstellungen", [] {
-        const TourSicht t = tourSicht();
-        diag::detail("Knopftest: H2 Helfer - Einstellungen offen " + std::to_string(g_app->prefsOpen) + ", Stufe " + std::to_string(t.stufe) +
-                     ", Oeffner " + std::to_string(t.zeigtOeffner) + ", Ziele " + std::to_string(t.ziele.size()) + ", Feld gefunden " +
-                     std::to_string(finde(tr(Str::PrefsRegelwerk), "", 0, false) != nullptr));
-    }));
     add(warteBis("H2 Helfer: Stufe 3 - das Feld Regelwerk im Dialog ist hervorgehoben (kein Oeffner mehr)", [] {
         const TourSicht t = tourSicht();
         return g_app->prefsOpen && !t.zeigtOeffner && t.stufe == 2 && !t.ziele.empty();
@@ -746,6 +757,50 @@ std::vector<Schritt> kiMenue() {
         g_app->leftMode = 0;
     }));
     add(pause(0.3));
+    return s;
+}
+
+// Die Bilder der neuen Tutorials (BHED_EDITORTEST=handbuch, BHED_HB_NUR=hilfe2,
+// BHED_SPRACHE, BHED_FOTOS): die Tour im Programm mit ihrer Hervorhebung.
+std::vector<Schritt> handbuchFotos() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto ganz = [] {
+        const ImVec2 d = ImGui::GetIO().DisplaySize;
+        return ImRect{0.0F, 0.0F, d.x, d.y};
+    };
+    // k-spielordner, Schritt 2: "Spielordner hinzufuegen" im Fenster Pfade.
+    add(tu("H2 Fotos: Modus Events, Pfade offen, Tour k-spielordner ab Schritt 2", [] {
+        g_app->leftMode = 0;
+        g_app->pathsOpen = true;
+        (void)tourStarten("k-spielordner", 1);
+    }));
+    add(pause(1.6));
+    add(hb::fotoTeil("h_tour_spielordner", ganz));
+    add(tu("H2 Fotos: Pfade zu; Tour k-update ab Schritt 1", [] {
+        tourSchliessen();
+        g_app->pathsOpen = false;
+        (void)tourStarten("k-update", 0);
+    }));
+    add(klick(tr(Str::MenuHelp), "###main"));
+    add(pause(1.6));
+    add(hb::fotoTeil("h_tour_update", ganz));
+    add(taste(ImGuiKey_Escape, "Esc"));
+    // tut-menue, Schritt 4: "Bedienen" im Menue-Editor mit einem Menue des Spiels.
+    add(tu("H2 Fotos: Menue-Editor mit ui/jamp/main.menu, Tour tut-menue ab Schritt 4", [] {
+        tourSchliessen();
+        g_app->leftMode = 4;
+        if (menueeditor::stand().dokumente == 0) { (void)menueeditor::oeffneAusSpiel("ui/jamp/main.menu"); }
+        menueeditor::setzeInteraktion(false);
+    }));
+    add(warteBis("H2 Fotos: Menue offen", [] { return menueeditor::stand().items > 0; }, 900));
+    add(tu("H2 Fotos: Tour tut-menue ab Schritt 4", [] { (void)tourStarten("tut-menue", 3); }));
+    add(pause(1.6));
+    add(hb::fotoTeil("h_tour_menue", ganz));
+    add(tu("H2 Fotos: aufraeumen", [] {
+        tourSchliessen();
+        g_app->leftMode = 0;
+    }));
     return s;
 }
 

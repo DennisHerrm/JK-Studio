@@ -3149,6 +3149,9 @@ void drawPrefs() {
             st.regelwerk = r;
             (void)regelwerkPruefen();
         }
+        // H2: eine Auswahlliste meldet ihre Beschriftung sonst nur aufgeklappt - der
+        // Helfer ("Zeig es mir") und die Tour k-spielordner finden sie so.
+        if (GImGui->TestEngineHookItems) { selbsttestMerkeText(GImGui, ImGui::GetItemID(), tr(Str::PrefsRegelwerk)); }
         if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::PrefsRegelNote)); }
     }
     {
@@ -3163,6 +3166,7 @@ void drawPrefs() {
         int n = std::clamp(st.schwierigkeit, -1, 3) + 1;
         ImGui::SetNextItemWidth(w * 0.5F);
         if (ImGui::Combo(tr(Str::PrefsDifficulty), &n, stufen, 5)) { schwierigkeitWaehlen(n - 1); }
+        if (GImGui->TestEngineHookItems) { selbsttestMerkeText(GImGui, ImGui::GetItemID(), tr(Str::PrefsDifficulty)); }   // H2
         if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::PrefsDifficultyNote)); }
     }
 

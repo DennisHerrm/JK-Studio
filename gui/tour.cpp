@@ -349,6 +349,12 @@ std::map<std::string, Gemeldet>& gemeldete() {
     return m;
 }
 
+// In diesem oder dem letzten Bild gemeldet? (nullptr = nein)
+const Gemeldet* gemeldet(const std::string& name) {
+    const auto it = gemeldete().find(name);
+    return (it != gemeldete().end() && it->second.bild >= ImGui::GetFrameCount() - 1) ? &it->second : nullptr;
+}
+
 // --- Ziele aufloesen ------------------------------------------------------------------
 
 struct Gefunden {
@@ -458,11 +464,10 @@ Gefunden loese(const tour::Ziel& zl) {
             g.da = g.r.GetWidth() > 1.0F;
             return g;
         }
-        case A::Gezeichnet: {   // H2: in diesem oder dem letzten Bild gemeldet
+        case A::Gezeichnet: {   // H2: selbst gezeichnet, von der Oberflaeche gemeldet
             Gefunden g;
-            const auto it = gemeldete().find(zl.teile[0]);
-            if (it != gemeldete().end() && it->second.bild >= ImGui::GetFrameCount() - 1) {
-                g.r = it->second.r;
+            if (const Gemeldet* m = gemeldet(zl.teile[0]); m != nullptr) {
+                g.r = m->r;
                 g.da = g.r.GetWidth() > 1.0F && g.r.GetHeight() > 1.0F;
             }
             return g;
@@ -1324,10 +1329,7 @@ TourSicht tourSicht() {
     return v;
 }
 
-bool tourGemeldet(const char* name) {
-    const auto it = gemeldete().find(name);
-    return it != gemeldete().end() && it->second.bild >= ImGui::GetFrameCount() - 1;
-}
+bool tourGemeldet(const char* name) { return gemeldet(name) != nullptr; }
 
 void tourZielMelden(const char* name, const ImRect& r) {
     // Nur der sichtbare Teil zaehlt: eine Zeile, die aus dem Fenster gerollt
@@ -1371,16 +1373,11 @@ void tourBild() {
         // H2: verkettete Vorbedingungen - der Oeffner der ersten Stufe, die
         // nicht gilt (erst Modus, dann Dialog, dann das Feld).
         const std::vector<tour::Voraus> kette = tour::zerlegeVorausKette(st->voraus);
-        if (const tour::Voraus* v = tour::ersteOffeneStufe(kette, k); v != nullptr) {
-            (void)tour::parseZiele(v->oeffner, oeffner, &f);
+        const tour::Voraus* offen = tour::ersteOffeneStufe(kette, k);
+        s.stufe = offen != nullptr ? static_cast<int>(offen - kette.data()) : static_cast<int>(kette.size());
+        if (offen != nullptr) {
+            (void)tour::parseZiele(offen->oeffner, oeffner, &f);
             s.zeigtOeffner = !oeffner.empty();
-        }
-        s.stufe = static_cast<int>(kette.size());
-        for (std::size_t i = 0; i < kette.size(); ++i) {
-            if (!tour::erfuellt(kette[i].pruefung, k, k)) {
-                s.stufe = static_cast<int>(i);
-                break;
-            }
         }
         wuensche(ziele, labels);
         wuensche(oeffner, labels);

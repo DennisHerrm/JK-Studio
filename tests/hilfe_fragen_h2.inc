@@ -4,7 +4,7 @@
 // Untermenue-Inhalte und das Modus-Gewicht eingebaut wurden, und danach
 // nicht mehr angepasst (die Fragen nicht und die erwarteten Antworten
 // nicht). 12 Ziele x 4 Sprachen = 48 Fragen, je Sprache frei formuliert
-// (keine woertlichen Uebersetzungen), mit je einem Tippfehler und vier
+// (keine woertlichen Uebersetzungen), mit je einem Tippfehler und fuenf
 // Fragen, die erst mit dem aktuellen Modus eindeutig werden (modus >= 0:
 // 1 Vorschau, 2 Modell, 3 Karten-Editor, 4 Menue-Editor; -1 = ohne Kontext).
 // Erwartet: Vorsilben der Kennungen wie in kFragen (passt()); "tour:x@" =

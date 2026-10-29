@@ -2617,7 +2617,6 @@ enum class Str {
     PrefsLastDirHint,
     PrefsReloadHint,
     HlfMeant,
-    HlfModeHint,
     PathsTitleHint,
     MeAusSpielHint,
     MeDateiOeffnenHint,

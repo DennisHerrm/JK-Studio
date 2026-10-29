@@ -315,6 +315,12 @@ ki::Ergebnis suchen(const std::string& frage) {
     return {false, ki::alsDaten("help index", l), {}};
 }
 
+// H2: "select:3" -> ("select", "3"); "move:16:0" -> ("move", "16:0").
+std::pair<std::string, std::string> menueTeile(const std::string& wert) {
+    const std::size_t p = wert.find(':');
+    return {wert.substr(0, p), p == std::string::npos ? std::string() : wert.substr(p + 1)};
+}
+
 // Gibt es die Befehle?
 bool befehlePruefen(const std::vector<ki::Befehl>& bs, std::string& fehler) {
     for (const ki::Befehl& b : bs) {
@@ -355,9 +361,7 @@ ki::Ergebnis befehleAusfuehren(const Auftrag& a) {
         } else if (b.art == "view") {
             g_app->settings.flussAnsicht = b.wert[0] - '0';
         } else if (b.art == "menu") {   // H2: der Menue-Editor, wie seine Knoepfe und Tasten
-            const std::size_t p = b.wert.find(':');
-            const std::string k = b.wert.substr(0, p);
-            const std::string r = p == std::string::npos ? std::string() : b.wert.substr(p + 1);
+            const auto [k, r] = menueTeile(b.wert);
             const int anzahl = menueeditor::stand().items;
             if (k == "select" || k == "add") {
                 const int n = std::atoi(r.c_str());
@@ -544,9 +548,7 @@ std::string befehlText(const ki::Befehl& b) {
         static const Str modi[] = {Str::ViewEvents, Str::ViewMap, Str::ViewModel, Str::ViewMapEditor, Str::ViewMenuEditor};
         std::snprintf(t, sizeof(t), tr(Str::KiCmdMode), tr(modi[std::min(4, std::max(0, b.wert[0] - '0'))]));
     } else if (b.art == "menu") {   // H2
-        const std::size_t p = b.wert.find(':');
-        const std::string k = b.wert.substr(0, p);
-        const std::string r = p == std::string::npos ? std::string() : b.wert.substr(p + 1);
+        const auto [k, r] = menueTeile(b.wert);
         const std::size_t q = r.find(':');
         if (k == "select" || k == "add") {
             std::snprintf(t, sizeof(t), tr(k == "add" ? Str::KiCmdMenuAdd : Str::KiCmdMenuSelect), std::atoi(r.c_str()));
@@ -927,7 +929,7 @@ void kiAbschnitt(const char* frage, float breite) {
                 if (ImGui::BeginChild("##kiverlauf", ImVec2{breite, fs * 9.0F}, ImGuiChildFlags_Borders)) {
                     ImGui::PushTextWrapPos(0.0F);
                     for (const auto& [q, a] : anzeige) {
-                        ImGui::TextDisabled("> %s", q.c_str());
+                        ImGui::TextDisabled("%s", q.c_str());
                         ImGui::TextUnformatted(a.c_str());
                         ImGui::Spacing();
                     }

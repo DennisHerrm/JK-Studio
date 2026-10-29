@@ -291,6 +291,7 @@ std::vector<Schritt> schritte();   // selbsttest_karte8c.inc: Tutorial "Erste ei
 }  // namespace stufe8c
 namespace hilfe2 {
 std::vector<Schritt> schritte();   // selbsttest_hilfe2.inc: Stufe H2 - mehr interaktive Touren, Helfer, KI
+std::vector<Schritt> handbuchFotos();   // dito: die Bilder der neuen Tutorials
 }  // namespace hilfe2
 namespace hilfe1 {
 std::vector<Schritt> schritte();   // selbsttest_hilfe1.inc: Stufe H1 - Helfer, Touren, KI
@@ -2138,6 +2139,9 @@ std::vector<Schritt> handbuchSchritte() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "helfer") == 0) {
         return hilfe1::handbuchFotos();   // Stufe H1: die Bilder der Seite "Der Helfer und die Touren"
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "hilfe2") == 0) {
+        return hilfe2::handbuchFotos();   // Stufe H2: die neuen Tutorials mit ihrer Hervorhebung
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartebauen") == 0) {
         return karteneditorHandbuchSchritte(true);
