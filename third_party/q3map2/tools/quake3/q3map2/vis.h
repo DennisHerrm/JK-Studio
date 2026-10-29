@@ -94,7 +94,7 @@ struct pstack_t
 	uint64_t            *mightsee;
 	uint16_t            *mightwords;    /* indices of the nonzero words of mightsee, ascending */
 	int nummightwords;
-	uint64_t            *mightmask;     /* [portalmaskwords]: the same words as bits */
+	uint64_t            *mightmask;     /* [portalmaskwords]: bit w set = word w is in mightwords */
 	pstack_t            *next;
 	leaf_t              *leaf;
 	vportal_t           *portal;        /* portal exiting */
