@@ -3797,6 +3797,7 @@ void loadSkeletonForModel() {
 // Ansicht auf gleicher Hoehe mit dem Skriptfenster beginnt.
 
 void drawModelView() {
+    g_app->modellAnsichtBild = ImGui::GetFrameCount();   // modell1 (darfRuhen, modellBrauchtBilder)
     // Ohne Modell nur der Hinweis - die Bedienleiste steht trotzdem, damit
     // die Anordnung nicht springt, sobald etwas geladen wird.
     const bool haveModel = !g_app->model.empty();

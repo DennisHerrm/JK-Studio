@@ -330,6 +330,16 @@ void modellDrehteller() {
     g_app->modelOrbit.turn(g_app->modelCam, -ImGui::GetIO().DeltaTime * 30.0F, 0.0F);
 }
 
+// modell1: braucht der Model-Tab Bilder, obwohl niemand etwas tut (darfRuhen)?
+// Eine laufende Animation und der Drehteller aendern das Bild aus sich heraus -
+// solange die Ansicht gezeichnet wird.
+bool modellBrauchtBilder() {
+    if (g_app->modellAnsichtBild != ImGui::GetFrameCount() || g_app->model.empty()) { return false; }
+    const bool spielt = g_app->animPlaying && !g_app->anim.empty() && g_app->animIndex >= 0 &&
+                        static_cast<std::size_t>(g_app->animIndex) < g_app->animList.size();
+    return spielt || g_app->modellDrehteller;
+}
+
 void modellUeberlagerung(ImVec2 lo, ImVec2 groesse) {
     g_app->modellKnochenLinien = 0;
     if (!g_app->modellKnochen || g_app->anim.bones.empty() || g_app->anim.numFrames <= 0) { return; }

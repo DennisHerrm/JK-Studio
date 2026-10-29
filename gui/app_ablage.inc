@@ -4114,12 +4114,20 @@ std::string windowTitle() {
 // nicht neu gezeichnet werden, kein Ton laeuft (der Mischer muss
 // nachgefuellt werden), kein Textfeld blinkt, keine Maustaste ist gedrueckt
 // - und nie im Selbsttest, der Bild fuer Bild vorgeht.
+// modell1: die Karte nur, solange ihre Ansicht gezeichnet wird (im Model-Tab
+// blieb mapDirty stehen, und er ruhte nie); dafuer der Model-Tab, solange eine
+// Animation laeuft oder der Drehteller dreht (sonst vier Bilder je Sekunde,
+// sobald die Maus stillsteht).
 bool darfRuhen() {
     if (g_app == nullptr) {
         return false;
     }
     static const bool imTest = std::getenv("BHED_EDITORTEST") != nullptr;
-    if ((imTest && !g_app->ruheImTest) || g_app->playing || g_app->mapDirty || g_app->tonVorab.valid()) {
+    const bool karteNeu = g_app->mapDirty && g_app->kartenAnsichtBild == ImGui::GetFrameCount();
+    if ((imTest && !g_app->ruheImTest) || g_app->playing || karteNeu || g_app->tonVorab.valid()) {
+        return false;
+    }
+    if (modellBrauchtBilder()) {
         return false;
     }
     if (g_app->audio.activeBuffers() > 0 || g_app->musicAudio.activeBuffers() > 0) {

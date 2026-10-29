@@ -439,6 +439,11 @@ struct App {
     // meiste Zeit still; jedes Bild neu zu rechnen kostet Strom und macht
     // den Luefter laut, ohne dass sich etwas bewegt.
     bool mapDirty = true;
+    // modell1: in welchem Bild (ImGui::GetFrameCount) die Kartenansicht und die
+    // Modellansicht zuletzt gezeichnet wurden - darfRuhen fragt danach: eine
+    // "neu zu zeichnende" Karte braucht nur Bilder, solange man sie sieht.
+    int kartenAnsichtBild = -1;
+    int modellAnsichtBild = -1;
     // rc602: der Hinweis unter NPC_type im Entity-Inspektor, wie zuletzt
     // gezeichnet (leer: keiner) - fuer den Selbsttest.
     std::string entNpcHinweis;
@@ -2679,6 +2684,7 @@ const std::vector<std::string>& npcTypenListe();
 void drawNpcBrowser();
 void modellDrehteller();
 void modellUeberlagerung(ImVec2 lo, ImVec2 groesse);
+bool modellBrauchtBilder();
 void modellFlaechenProtokoll();
 // --- Mover animieren (gui/app_animation.cpp, rc592) ---------------------------
 bool entityAnimierbar(const MapEntity& e);

@@ -2893,6 +2893,7 @@ void spielFensterEinstellungen() {
 
 void drawMapView() {
     BHED_MESS("Kartenansicht");
+    g_app->kartenAnsichtBild = ImGui::GetFrameCount();   // modell1 (darfRuhen)
     schluesselMitZeit();
     // OHNE Karte kein frueher Ausstieg mehr.
     //
