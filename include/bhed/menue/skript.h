@@ -71,6 +71,8 @@ struct Laufzeit {
     std::vector<std::vector<std::string>> texte;    // setitemtext ("" = wie gelesen)
     std::vector<std::vector<Farbe>> vorder;         // setitemcolor forecolor
     std::vector<std::vector<bool>> vorderGesetzt;
+    std::vector<std::vector<Farbe>> hinten, rand;   // M4: setitemcolor backcolor / bordercolor, Fade von backColor[3]
+    std::vector<std::vector<bool>> hintenGesetzt, randGesetzt;
     std::vector<std::string> hintergrund;           // setbackground je Menue
     std::map<std::string, std::string> cvars;       // nur die Vorschau (Schluessel klein)
     std::vector<int> stapel;                        // menuStack
@@ -120,6 +122,8 @@ struct Laufzeit {
     void maus(int menu, float x, float y);
     // Klick (Taste 1) auf (x, y): Item_HandleKey / Item_Action.
     void klick(int menu, float x, float y);
+    // M4: Mausrad (schritte > 0 = rauf) ueber einer Textscroll mit Fokus (nur Movie Duels)
+    void rad(int menu, float x, float y, int schritte);
     void escape(int menu);   // onESC
     // Umgebung fuer zeichneMenu mit den Laufzeit-Flags dieses Menues.
     void fuelle(int menu, Umgebung& u) const;

@@ -170,6 +170,61 @@ int main() {
                            : "SP: cinematic und TEAMCOLOR-Flaeche nicht gezeichnet (Window_Paint der SP-Fassung)");
         }
     }
+    // M4: ITEM_TYPE_TEXTSCROLL wie Item_TextScroll_BuildLines/Item_TextScroll_Paint (Probeschrift:
+    // Vorschub 10 je Zeichen; Breite 120 -> iBoxWidth 94: "aaa bbb cc" erreicht 100 -> Umbruch nach "bbb ")
+    {
+        const std::string tt = "{ menuDef { name ts rect 0 0 640 480 visible 1\n"
+                               " itemDef { name scroll type ITEM_TYPE_TEXTSCROLL rect 10 10 120 20 lineHeight 16 textscale 1 text \"aaa bbb ccc ddd\" forecolor 1 1 1 1 visible 1 }\n"
+                               " itemDef { name zeilen type ITEM_TYPE_TEXTSCROLL rect 10 100 120 200 lineHeight 16 textscale 1 text \"x\" cvar ui_desc forecolor 1 1 1 1 visible 1 }\n"
+                               "} }\n";
+        LeseOptionen ot;
+        ot.dialekt = Dialekt::SP;
+        const Datei dt = lies("ui/ts.menu", tt, ot);
+        Umgebung ut = u;
+        ut.dialekt = Dialekt::SP;
+        const TextScrollZeilen zt = textScrollZeilen(dt.menus[0].items[0], ut);
+        pruefe(zt.zeilen.size() == 2 && zt.zeilen[0] == "aaa bbb " && zt.zeilen[1] == "ccc ddd", "TextScroll: Umbruch nach Breite hinter dem Leerzeichen");
+        cv["ui_desc"] = "eins\nzwei";
+        const TextScrollZeilen zc = textScrollZeilen(dt.menus[0].items[1], ut);
+        pruefe(zc.zeilen.size() == 2 && zc.zeilen[0] == "eins" && zc.zeilen[1] == "zwei", "TextScroll: Text aus der cvar (ersetzt text), \\n bricht um");
+        std::vector<Prim> pt;
+        zeichneMenu(dt, 0, ut, pt);
+        bool platzhalter = false, leiste = false;
+        int glyphen = 0;
+        float x0 = 1e9F;
+        for (const Prim& x : pt) {
+            platzhalter = platzhalter || (x.item == 0 && x.art == PrimArt::Platzhalter);
+            leiste = leiste || (x.item == 0 && x.shader == "gfx/menus/scrollbar_arrow_up_a.tga");
+            if (x.item == 0 && x.shader == "fonts/probe") {
+                ++glyphen;
+                x0 = std::min(x0, x.x);
+            }
+        }
+        pruefe(!platzhalter && glyphen >= 6 && nah(x0, 16), "TextScroll: Text statt Platzhalter, x = rect.x + textalignx + 1 + 4");
+        pruefe(leiste, "TextScroll: Bildlaufleiste, wenn 2 Zeilen * 16 > Hoehe - 2");
+        pruefe(glyphen <= 8, "TextScroll: nur eine Zeile passt (Rest 18 - 16 < lineHeight)");
+        cv.erase("ui_desc");
+    }
+    // M4: SP-Ownerdraws ohne laufendes Spiel (UI_OwnerDraw): 250 zeichnet nichts, 236 menu/art/unknownmap
+    {
+        const std::string to = "{ menuDef { name od rect 0 0 640 480 visible 1\n"
+                               " itemDef { name taste type ITEM_TYPE_OWNERDRAW ownerdraw 250 rect 10 10 100 20 visible 1 }\n"
+                               " itemDef { name stand type ITEM_TYPE_OWNERDRAW ownerdraw 236 rect 200 10 160 120 visible 1 }\n"
+                               "} }\n";
+        LeseOptionen oo;
+        oo.dialekt = Dialekt::SP;
+        const Datei dd = lies("ui/od.menu", to, oo);
+        Umgebung uo = u;
+        uo.dialekt = Dialekt::SP;
+        std::vector<Prim> po;
+        zeichneMenu(dd, 0, uo, po);
+        bool taste = false, stand = false;
+        for (const Prim& x : po) {
+            taste = taste || x.item == 0;
+            stand = stand || (x.item == 1 && x.art == PrimArt::Bild && x.shader == "menu/art/unknownmap" && nah(x.w, 160));
+        }
+        pruefe(!taste && stand, "Ownerdraw SP: UI_KEYBINDSTATUS ohne wartende Taste leer, UI_ALLMAPS_SELECTION = unknownmap");
+    }
     u.alleItems = true;
     p.clear();
     zeichneMenu(d, 0, u, p);

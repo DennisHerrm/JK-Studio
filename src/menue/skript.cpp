@@ -221,6 +221,10 @@ void Laufzeit::start(const Datei& datei) {
     texte.clear();
     vorder.clear();
     vorderGesetzt.clear();
+    hinten.clear();
+    hintenGesetzt.clear();
+    rand.clear();
+    randGesetzt.clear();
     anim.clear();
     modellPfad.clear();
     modellHaut.clear();
@@ -240,6 +244,10 @@ void Laufzeit::start(const Datei& datei) {
         texte.emplace_back(m.items.size());
         vorder.emplace_back(m.items.size());
         vorderGesetzt.emplace_back(m.items.size(), false);
+        hinten.emplace_back(m.items.size());
+        hintenGesetzt.emplace_back(m.items.size(), false);
+        rand.emplace_back(m.items.size());
+        randGesetzt.emplace_back(m.items.size(), false);
         modellPfad.emplace_back(m.items.size());
         modellHaut.emplace_back(m.items.size());
         modellAnim.emplace_back(m.items.size());
@@ -395,10 +403,26 @@ void Laufzeit::fuehreAus(int menu, int item, const std::string& s) {
             std::string feld, r, g, bl, al;
             if (stringParse(s, p, a) && stringParse(s, p, feld) && stringParse(s, p, r) && stringParse(s, p, g) &&
                 stringParse(s, p, bl) && stringParse(s, p, al)) {
+                // Script_SetItemColor: backcolor, forecolor (setzt WINDOW_FORECOLORSET), bordercolor
+                const Farbe f{zahl(r), zahl(g), zahl(bl), zahl(al)};
+                const std::size_t mu = static_cast<std::size_t>(menu);
                 if (gleich(feld, "forecolor")) {
                     passend(a, [&](std::size_t i) {
-                        vorder[static_cast<std::size_t>(menu)][i] = Farbe{zahl(r), zahl(g), zahl(bl), zahl(al)};
-                        vorderGesetzt[static_cast<std::size_t>(menu)][i] = true;
+                        vorder[mu][i] = f;
+                        vorderGesetzt[mu][i] = true;
+                        items[mu][i].flags |= WINDOW_FORECOLORSET;
+                    });
+                    ++version;
+                } else if (gleich(feld, "backcolor")) {
+                    passend(a, [&](std::size_t i) {
+                        hinten[mu][i] = f;
+                        hintenGesetzt[mu][i] = true;
+                    });
+                    ++version;
+                } else if (gleich(feld, "bordercolor")) {
+                    passend(a, [&](std::size_t i) {
+                        rand[mu][i] = f;
+                        randGesetzt[mu][i] = true;
                     });
                     ++version;
                 }
@@ -557,6 +581,8 @@ void Laufzeit::anwenden(Datei& kopie) const {
             if (!modellHaut[mi][i].empty()) { m.items[i].g2skin = modellHaut[mi][i] == "-" ? std::string() : modellHaut[mi][i]; }
             if (!modellAnim[mi][i].empty()) { m.items[i].g2anim = modellAnim[mi][i]; }
             if (vorderGesetzt[mi][i]) { m.items[i].window.foreColor = vorder[mi][i]; }
+            if (hintenGesetzt[mi][i]) { m.items[i].window.backColor = hinten[mi][i]; }
+            if (randGesetzt[mi][i]) { m.items[i].window.borderColor = rand[mi][i]; }
         }
     }
 }
@@ -639,10 +665,58 @@ void Laufzeit::klick(int menu, float x, float y) {
             setzeCvar(it.cvar, zahlText(it.minVal + rel * (it.maxVal - it.minVal)));
             break;
         }
+        case ITEM_TYPE_TEXTSCROLL: {   // M4: Item_TextScroll_HandleKey(A_MOUSE1) mit Item_TextScroll_OverLB
+            Item ri = it;
+            ri.window.rect = rects[static_cast<std::size_t>(menu)][static_cast<std::size_t>(i)];
+            const int n = static_cast<int>(textScrollZeilen(ri, u).zeilen.size());
+            if (static_cast<float>(n * it.lineHeight) <= ri.window.rect.h - 2) { break; }   // keine Leiste: nichts
+            const Rechteck& r = ri.window.rect;
+            const auto in = [&](float rx, float ry, float rw, float rh) { return x > rx && x < rx + rw && y > ry && y < ry + rh; };
+            int& sp = items[static_cast<std::size_t>(menu)][static_cast<std::size_t>(i)].startPos;
+            const int max = textScrollMaxScroll(ri, n);
+            const int viewmax = it.lineHeight != 0 ? static_cast<int>(r.h / static_cast<float>(it.lineHeight)) : 0;
+            const float lx = r.x + r.w - kScrollbar;
+            const float daumen = textScrollDaumen(ri, n, sp);
+            if (in(lx, r.y, kScrollbar, kScrollbar)) {
+                sp = std::max(0, sp - 1);
+            } else if (in(lx, r.y + r.h - kScrollbar, kScrollbar, kScrollbar)) {
+                sp = std::min(max, sp + 1);
+            } else if (in(lx, daumen, kScrollbar, kScrollbar)) {
+                return;   // Daumen: die Engine faengt die Maus (Ziehen) - ein Klick allein bewegt nichts
+            } else if (in(lx, r.y + kScrollbar, kScrollbar, daumen - (r.y + kScrollbar))) {
+                sp = std::max(0, sp - viewmax);
+            } else if (in(lx, daumen + kScrollbar, kScrollbar, r.y + r.h - kScrollbar)) {
+                sp = std::min(max, sp + viewmax);
+            } else {
+                break;
+            }
+            ++version;
+            return;   // Item_HandleKey hat die Taste genommen: keine Item_Action
+        }
         default:
             break;
     }
     fuehreAus(menu, i, it.action);   // Item_Action
+}
+
+// M4: Mausrad ueber einer Textscroll mit Fokus - nur Movie Duels (Item_TextScroll_HandleKey,
+// A_MWHEELUP/DOWN "Raz: Added"); OpenJK SP/MP kennen dort kein Mausrad.
+void Laufzeit::rad(int menu, float x, float y, int schritte) {
+    if (d == nullptr || d->spiel != Spiel::MD || menu < 0 || static_cast<std::size_t>(menu) >= d->menus.size() || schritte == 0) { return; }
+    Umgebung u;
+    fuelle(menu, u);
+    const Menu& m = d->menus[static_cast<std::size_t>(menu)];
+    for (std::size_t i = 0; i < m.items.size(); ++i) {
+        ItemZustand& z = items[static_cast<std::size_t>(menu)][i];
+        if (m.items[i].type != ITEM_TYPE_TEXTSCROLL || (z.flags & WINDOW_HASFOCUS) == 0) { continue; }
+        Item ri = m.items[i];
+        ri.window.rect = rects[static_cast<std::size_t>(menu)][i];
+        const Rechteck& r = ri.window.rect;
+        if (!(x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h)) { continue; }
+        const int max = textScrollMaxScroll(ri, static_cast<int>(textScrollZeilen(ri, u).zeilen.size()));
+        z.startPos = std::clamp(z.startPos - schritte, 0, max);   // rauf = -1 Zeile
+        ++version;
+    }
 }
 
 void Laufzeit::escape(int menu) {
@@ -736,6 +810,26 @@ int Laufzeit::takt(int jetzt) {
                     schritt1(an.client.h, an.effects.h, an.effects2.h);
                     positionAus(static_cast<int>(mi), i);
                     if (done == 4) { fl &= ~WINDOW_INTRANSITION; }
+                    ++version;
+                }
+                // M4: Item_Paint -> Window_Paint: WINDOW_STYLE_FILLED mit background blendet ueber
+                // backColor[3] (Fade mit bFlags, derselbe nextTime wie danach Item_TextColor)
+                if ((fl & (WINDOW_FADINGOUT | WINDOW_FADINGIN)) != 0 && (fl & WINDOW_VISIBLE) != 0 && it.window.style == WINDOW_STYLE_FILLED &&
+                    !it.window.background.empty() && jetztMs > an.nextTime) {
+                    Farbe f = hintenGesetzt[mi][i] ? hinten[mi][i] : it.window.backColor;
+                    an.nextTime = jetztMs + fadeCycle;
+                    if ((fl & WINDOW_FADINGOUT) != 0) {
+                        f.a -= fadeAmount;
+                        if (f.a <= 0.0F) { fl &= ~(WINDOW_FADINGOUT | WINDOW_VISIBLE); }
+                    } else {
+                        f.a += fadeAmount;
+                        if (f.a >= fadeClamp) {
+                            f.a = fadeClamp;
+                            fl &= ~WINDOW_FADINGIN;
+                        }
+                    }
+                    hinten[mi][i] = f;
+                    hintenGesetzt[mi][i] = true;
                     ++version;
                 }
                 // Item_Paint: ownerDrawFlags/cvarTest/WINDOW_VISIBLE, dann Item_TextColor -> Fade

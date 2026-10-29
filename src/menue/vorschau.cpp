@@ -455,6 +455,17 @@ private:
         fenster(w, item_);
         switch (it.type) {
             case ITEM_TYPE_OWNERDRAW:
+                // M4: UI_OwnerDraw (code/ui/ui_main.cpp) fuer die Einzelspieler-Nummern, die nicht vom
+                // laufenden Spiel abhaengen; der Rest (Datapad, UI_GLINFO, MP-Ownerdraws) bleibt Platzhalter
+                if (u_.dialekt == Dialekt::SP && it.window.ownerDraw == kUiKeybindStatus) {
+                    break;   // UI_DrawKeyBindStatus: Text nur, solange eine Taste erwartet wird
+                }
+                if (u_.dialekt == Dialekt::SP && it.window.ownerDraw == kUiAllmapsSelection) {
+                    // Spielstand-Vorschau: levelshots/<karte> des gewaehlten Spielstands, ohne Spielstand
+                    // uis.menuBackShader ("menu/art/unknownmap"); der Kartenname ist dann leer
+                    bild(it.window.rect.x, it.window.rect.y, it.window.rect.w, it.window.rect.h, "menu/art/unknownmap", Farbe{1, 1, 1, 1}, item_);
+                    break;
+                }
                 platzhalter(it.window.rect, "ownerdraw " + std::to_string(it.window.ownerDraw));
                 break;
             case ITEM_TYPE_TEXT:
@@ -478,8 +489,8 @@ private:
                 aktFlags_ = flags;
                 listbox(it);
                 break;
-            case ITEM_TYPE_TEXTSCROLL:
-                platzhalter(it.window.rect, "textscroll");
+            case ITEM_TYPE_TEXTSCROLL:   // M4: Item_TextScroll_Paint
+                textscroll(it);
                 break;
             case ITEM_TYPE_MODEL:
                 platzhalter(it.window.rect, it.assetModel.empty() ? std::string("model") : it.assetModel, PrimArt::Modell);
@@ -568,6 +579,45 @@ private:
 
     // Item_ListBox_Paint (SP code/ui/ui_shared.cpp, MP codemp/ui/ui_shared.c)
     // mit startPos 0 und cursorPos aus der Laufzeit (sonst 0).
+    // M4: Item_TextScroll_Paint (OpenJK SP/MP, Movie Duels): Bildlaufleiste rechts, wenn die
+    // Zeilen nicht passen (Movie Duels: nicht fuer "char_desc", NEW_FEEDER_V2), dann ab startPos
+    // die Zeilen mit lineHeight, bis der Platz kleiner als eine Zeile ist.
+    void textscroll(const Item& it) {
+        int startPos = 0;
+        if (static_cast<std::size_t>(item_) < u_.zustand.size()) { startPos = u_.zustand[static_cast<std::size_t>(item_)].startPos; }
+        const TextScrollZeilen z = textScrollZeilen(it, u_);
+        const Rechteck& r = it.window.rect;
+        const int count = static_cast<int>(z.zeilen.size());
+        float size = r.h - 2;
+        std::string name = it.window.name;
+        for (char& c : name) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        const bool ohneLeiste = d_.spiel == Spiel::MD && name == "char_desc";   // Q_stricmp
+        const Farbe weiss{1, 1, 1, 1};
+        if (!ohneLeiste && static_cast<float>(count * it.lineHeight) > size) {
+            const float x = r.x + r.w - kScrollbar - 1;
+            float y = r.y + 1;
+            bild(x, y, kScrollbar, kScrollbar, "gfx/menus/scrollbar_arrow_up_a.tga", weiss, item_);
+            y += kScrollbar - 1;
+            size = r.h - kScrollbar * 2;
+            bild(x, y, kScrollbar, size + 1, "gfx/menus/scrollbar.tga", weiss, item_);
+            y += size - 1;
+            bild(x, y, kScrollbar, kScrollbar, "gfx/menus/scrollbar_arrow_dwn_a.tga", weiss, item_);
+            float thumb = textScrollDaumen(it, count, startPos);
+            if (thumb > y - kScrollbar - 1) { thumb = y - kScrollbar - 1; }
+            bild(x, thumb, kScrollbar, kScrollbar, "gfx/menus/scrollbar_thumb.tga", weiss, item_);
+        }
+        size = r.h - 2;
+        const float x = r.x + it.textalignx + 1;
+        float y = r.y + it.textaligny + 1;
+        for (int i = std::max(0, startPos); i < count; ++i) {
+            if (!z.da[static_cast<std::size_t>(i)]) { continue; }
+            text(x + 4, y, it.textscale, it.window.foreColor, z.zeilen[static_cast<std::size_t>(i)], 0, it.textStyle, it.font);
+            size -= static_cast<float>(it.lineHeight);
+            if (size < static_cast<float>(it.lineHeight)) { break; }
+            y += static_cast<float>(it.lineHeight);
+        }
+    }
+
     void listbox(const Item& it) {
         const Rechteck& r = it.window.rect;
         const std::vector<FeederEintrag> z = u_.feeder ? u_.feeder(it.special) : std::vector<FeederEintrag>{};
@@ -798,6 +848,110 @@ bool itemSichtbar(const Item& it, int flags, const Umgebung& u) {
     }
     if ((it.cvarFlags & (CVAR_SHOW | CVAR_HIDE)) != 0 && !itemZeigtUeberCvar(it, CVAR_SHOW, u)) { return false; }
     return (flags & WINDOW_VISIBLE) != 0;
+}
+
+// --- M4: ITEM_TYPE_TEXTSCROLL (Item_TextScroll_BuildLines, OpenJK SP/MP und Movie Duels gleich) ---
+
+namespace {
+// tr_font.cpp: *_IsTrailingPunctuation (die ersten Zeichen der Satzzeichenzeile je Kodierung)
+bool asienSatzzeichen(Kodierung k, unsigned code) {
+    switch (k) {
+        case Kodierung::Taiwanesisch: return code >= ((0xA1U << 8) | 0x40U) && code < (((0xA1U << 8) | 0x40U) + 20);
+        case Kodierung::Japanisch: return code >= ((0x81U << 8) | 0x40U) && code < (((0x81U << 8) | 0x40U) + 18);
+        case Kodierung::Chinesisch: return code > ((0xA1U << 8) | 0xA0U) && code < (((0xA1U << 8) | 0xA0U) + 14);
+        default: return false;
+    }
+}
+}  // namespace
+
+std::string textScrollText(const Item& it, const Umgebung& u) {
+    // Item_TextScroll_Paint: mit cvar ersetzt DC->getCVarString den Text; BuildLines: "@" = SE_GetString
+    std::string t = it.cvar.empty() ? it.text : (u.cvar ? u.cvar(it.cvar) : std::string());
+    if (!t.empty() && t[0] == '@' && u.texte != nullptr) { t = u.texte->aufloesen(t); }
+    return t;
+}
+
+TextScrollZeilen textScrollZeilen(const Item& it, const Umgebung& u) {
+    TextScrollZeilen z;
+    const std::string text = textScrollText(it, u);
+    const Schrift* f = u.schrift ? u.schrift(it.font) : nullptr;
+    const auto breite = [&](const std::string& s) { return f != nullptr ? schriftBreite(*f, s, it.textscale, u.kodierung, u.asienGlyphen) : 0; };
+    const int iBoxWidth = static_cast<int>(it.window.rect.w - kScrollbar - 10);
+    const bool asien = asiatisch(u.kodierung);
+    const bool leerzeichen = !(u.kodierung == Kodierung::Taiwanesisch || u.kodierung == Kodierung::Japanisch || u.kodierung == Kodierung::Chinesisch);
+    const auto* s = reinterpret_cast<const unsigned char*>(text.c_str());
+    const std::size_t n = text.size();
+    std::size_t lineStart = 0, best = 0, pos = 0;
+    while (pos < n && s[pos] != 0 && z.zeilen.size() < kMaxTextScrollZeilen) {
+        std::string zeile;
+        bool fertig = false;
+        pos = lineStart;
+        while (pos < n && s[pos] != 0) {
+            const std::size_t lastGood = pos;
+            int adv = 1;
+            unsigned letter = s[pos];
+            bool punkt = false;
+            if (asien) {   // AnyLanguage_ReadCharFromString
+                letter = zeichenLesen(u.kodierung, s + pos, n - pos, adv);
+                punkt = adv == 2 ? asienSatzzeichen(u.kodierung, letter) : false;
+            }
+            if (adv != 2) {
+                letter = s[pos];
+                adv = 1;
+                punkt = letter == '!' || letter == '?' || letter == ',' || letter == '.' || letter == ';' || letter == ':';
+            }
+            pos += static_cast<std::size_t>(adv);
+            if (letter == 32 && zeile.empty()) {   // Leerzeichen am Zeilenanfang ueberspringen
+                ++lineStart;
+                continue;
+            }
+            if (letter > 255) {
+                zeile.push_back(static_cast<char>(letter >> 8));
+                zeile.push_back(static_cast<char>(letter & 0xFF));
+            } else {
+                zeile.push_back(static_cast<char>(letter & 0xFF));
+            }
+            if (letter == '\n') {   // ausdruecklicher Zeilenumbruch
+                zeile.pop_back();
+                lineStart = pos;
+                best = pos;
+                z.zeilen.push_back(zeile);
+                z.da.push_back(true);
+                fertig = true;
+                break;
+            }
+            if (breite(zeile) >= iBoxWidth) {
+                if (!(letter > 255 && punkt && !leerzeichen)) {
+                    if (best == lineStart) { best = lastGood; }   // kein Leer- oder Satzzeichen auf der ganzen Zeile
+                    zeile.resize(best - lineStart);
+                    lineStart = pos = best;
+                    z.zeilen.push_back(zeile);
+                    z.da.push_back(true);
+                    fertig = true;
+                    break;
+                }
+            }
+            if (punkt || letter == ' ' || (letter > 255 && !leerzeichen)) { best = pos; }
+        }
+        if (!fertig) {   // letzte Zeile ohne Umbruch (leer = NULL, beim Zeichnen uebersprungen)
+            z.zeilen.push_back(zeile);
+            z.da.push_back(!zeile.empty());
+        }
+    }
+    return z;
+}
+
+int textScrollMaxScroll(const Item& it, int zeilen) {   // Item_TextScroll_MaxScroll
+    if (it.lineHeight == 0) { return 0; }
+    const int max = zeilen - static_cast<int>(it.window.rect.h / static_cast<float>(it.lineHeight)) + 1;
+    return max < 0 ? 0 : max;
+}
+
+float textScrollDaumen(const Item& it, int zeilen, int startPos) {   // Item_TextScroll_ThumbPosition
+    const float max = static_cast<float>(textScrollMaxScroll(it, zeilen));
+    const float size = it.window.rect.h - kScrollbar * 2 - 2;
+    const float pos = max > 0 ? (size - kScrollbar) / max : 0.0F;
+    return static_cast<float>(static_cast<int>(it.window.rect.y + 1 + kScrollbar + pos * static_cast<float>(startPos)));
 }
 
 void zeichneMenu(const Datei& d, int menu, const Umgebung& u, std::vector<Prim>& out) {

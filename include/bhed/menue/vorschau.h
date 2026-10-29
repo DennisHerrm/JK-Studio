@@ -41,6 +41,8 @@ namespace bhed::menue {
 inline constexpr float kSchirmBreite = 640.0F;   // SCREEN_WIDTH
 inline constexpr float kSchirmHoehe = 480.0F;    // SCREEN_HEIGHT
 inline constexpr float kScrollbar = 16.0F;       // SCROLLBAR_SIZE
+inline constexpr int kUiAllmapsSelection = 236;   // code/ui/menudef.h UI_ALLMAPS_SELECTION (Spielstand-Vorschau)
+inline constexpr int kUiKeybindStatus = 250;      // UI_KEYBINDSTATUS
 inline constexpr float kSliderBreite = 96.0F;    // SLIDER_WIDTH
 inline constexpr float kSliderHoehe = 16.0F;     // SLIDER_HEIGHT
 inline constexpr float kSliderDaumenBreite = 12.0F;
@@ -98,6 +100,7 @@ struct FeederEintrag {
 struct ItemZustand {
     int flags = 0;        // windowDef_t.flags
     bool gueltig = false; // false = die gelesenen Flags nehmen
+    int startPos = 0;     // M4: textScrollDef_t.startPos (erste gezeigte Zeile)
 };
 
 struct Umgebung {
@@ -126,6 +129,19 @@ struct Umgebung {
 
 // Menu_Paint fuer ein Menue der Datei.
 void zeichneMenu(const Datei& d, int menu, const Umgebung& u, std::vector<Prim>& out);
+
+// M4: ITEM_TYPE_TEXTSCROLL. Der Text, wie Item_TextScroll_Paint ihn nimmt (cvar ersetzt text,
+// "@" = SE_GetString), umgebrochen wie Item_TextScroll_BuildLines (Breite rect.w - 16 - 10,
+// Umbruch nach Leer- und Satzzeichen, AnyLanguage_ReadCharFromString). da[i] = false: NULL-Zeile.
+inline constexpr std::size_t kMaxTextScrollZeilen = 256;   // MAX_TEXTSCROLL_LINES
+struct TextScrollZeilen {
+    std::vector<std::string> zeilen;
+    std::vector<bool> da;
+};
+[[nodiscard]] std::string textScrollText(const Item& it, const Umgebung& u);
+[[nodiscard]] TextScrollZeilen textScrollZeilen(const Item& it, const Umgebung& u);
+[[nodiscard]] int textScrollMaxScroll(const Item& it, int zeilen);          // Item_TextScroll_MaxScroll
+[[nodiscard]] float textScrollDaumen(const Item& it, int zeilen, int startPos);   // Item_TextScroll_ThumbPosition
 
 // Item_EnableShowViaCvar
 [[nodiscard]] bool itemZeigtUeberCvar(const Item& it, int flag, const Umgebung& u);

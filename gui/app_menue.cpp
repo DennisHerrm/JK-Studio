@@ -1397,6 +1397,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         if (hover) {
             z.lauf.maus(mi, vx, vy);
             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) { z.lauf.klick(mi, vx, vy); }
+            if (ImGui::GetIO().MouseWheel != 0.0F) { z.lauf.rad(mi, vx, vy, static_cast<int>(ImGui::GetIO().MouseWheel)); }   // M4: Textscroll (Movie Duels)
             if (ImGui::IsKeyPressed(ImGuiKey_Escape)) { z.lauf.escape(mi); }
         }
         if (satzWechsel()) { return; }   // M2 Punkt 3

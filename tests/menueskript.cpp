@@ -145,6 +145,68 @@ int main() {
                "fadeout: nach 4 x 0.25 unsichtbar (Fade)");
         pruefe(la.vorderGesetzt[0][2] && la.vorder[0][2].a <= 0.0F, "fadeout: foreColor[3] auf 0");
     }
+    // M4: Window_Paint blendet WINDOW_STYLE_FILLED mit background ueber backColor[3] aus (Fade mit
+    // bFlags), setitemcolor kennt backcolor/forecolor/bordercolor (Script_SetItemColor) -
+    // Movie Duels totg_df2: "setitemcolor black2 backcolor 1 1 1 1 ; fadeout black2"
+    {
+        LeseOptionen so;
+        so.dialekt = Dialekt::SP;
+        const Datei a = lies("ui/schwarz.menu",
+                             "{ menuDef { name schwarz rect 0 0 640 480 visible 1 fadeAmount 0.05 fadeCycle 25 fadeClamp 1\n"
+                             "  onOpen { setitemcolor black2 backcolor 1 1 1 1 ; setitemcolor rand bordercolor 0 1 0 1 ; fadeout black2 }\n"
+                             "  itemDef { name black2 style WINDOW_STYLE_FILLED rect 0 0 640 480 background \"gfx/menus/main/black\" backcolor 0 0 0 1 visible 1 decoration }\n"
+                             "  itemDef { name rand rect 0 0 10 10 border 1 bordercolor 1 0 0 1 visible 1 } } }\n",
+                             so);
+        Laufzeit la;
+        la.start(a);
+        la.spielFps = 100;
+        la.oeffne("schwarz");
+        Datei k = a;
+        la.anwenden(k);
+        pruefe(k.menus[0].items[0].window.backColor.r == 1.0F && k.menus[0].items[1].window.borderColor.g == 1.0F &&
+                   k.menus[0].items[1].window.borderColor.r == 0.0F,
+               "setitemcolor: backcolor und bordercolor (Script_SetItemColor)");
+        (void)la.takt(1000);
+        (void)la.takt(1000 + 2000);   // 20 Schritte zu 0.05 je 25 ms (bei 10-ms-Bildern alle 30 ms)
+        Datei k2 = a;
+        la.anwenden(k2);
+        pruefe((la.items[0][0].flags & WINDOW_VISIBLE) == 0 && k2.menus[0].items[0].window.backColor.a <= 0.0F,
+               "fadeout: FILLED mit background ueber backColor[3] ausgeblendet (Window_Paint)");
+    }
+
+    // M4: Textscroll im Bedienmodus - Pfeile/Seiten der Leiste (Item_TextScroll_OverLB, HandleKey),
+    // Mausrad nur bei Movie Duels; der Text folgt einer cvar, die mouseEnter setzt
+    for (int md = 0; md < 2; ++md) {
+        LeseOptionen so;
+        so.dialekt = Dialekt::SP;
+        so.spiel = md != 0 ? Spiel::MD : Spiel::JA;
+        const Datei a = lies("ui/ts.menu",
+                             "{ menuDef { name ts rect 0 0 640 480 visible 1\n"
+                             "  itemDef { name knopf type ITEM_TYPE_BUTTON rect 300 300 50 20 text \"k\" mouseEnter { setcvar ui_desc MISSION } visible 1 }\n"
+                             "  itemDef { name scroll type ITEM_TYPE_TEXTSCROLL rect 10 10 120 40 lineHeight 16 cvar ui_desc visible 1 } } }\n",
+                             so);
+        Laufzeit la;
+        la.start(a);
+        la.oeffne("ts");
+        la.maus(0, 310, 305);   // mouseEnter des Knopfs setzt ui_desc
+        Umgebung ut;
+        la.fuelle(0, ut);
+        if (md == 0) { pruefe(textScrollText(a.menus[0].items[1], ut) == "MISSION", "Textscroll: Text aus der cvar, die mouseEnter setzt"); }
+        la.setzeCvar("ui_desc", "1\n2\n3\n4\n5\n6\n7\n8");   // 8 Zeilen, 2 passen
+        la.maus(0, 120, 45);
+        la.klick(0, 125, 45);   // unterer Pfeil (rect.y + h - 16 .. + h, rechts 16 breit)
+        const int nachPfeil = la.items[0][1].startPos;
+        la.klick(0, 125, 15);   // oberer Pfeil
+        const int zurueck = la.items[0][1].startPos;
+        la.rad(0, 60, 30, -1);  // Mausrad runter
+        const int nachRad = la.items[0][1].startPos;
+        if (md == 0) {
+            pruefe(nachPfeil == 1 && zurueck == 0, "Textscroll: Pfeile der Leiste eine Zeile runter/rauf");
+            pruefe(nachRad == 0, "Textscroll: OpenJK kennt kein Mausrad");
+        } else {
+            pruefe(nachRad == 1, "Textscroll: Movie Duels - Mausrad eine Zeile");
+        }
+    }
 
     // --- M2: UI_RunMenuScript fuer Figur und Saeber (Items "character"/"saber" wie in der Engine) ----
     {
