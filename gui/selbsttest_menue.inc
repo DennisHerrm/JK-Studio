@@ -665,7 +665,7 @@ std::vector<Schritt> schritteM4() {
     }));
     add(tu("M4 Oberflaeche: Leiste wieder nur Symbole, Groesse 50 % versuchen", [] {
         g_app->settings.menueLeisteText = false;
-        g_app->uiScale = 0.5F;
+        setUiScale(g_app, 0.5F);   // wie aus den Einstellungen (Laden und setUiScale begrenzen)
     }));
     add(pause(0.4));
     add(pruefe("M4 Oberflaeche: Mindestschrift - nie unter 75 % (12 px)", [] {

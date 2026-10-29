@@ -3518,7 +3518,7 @@ void loadSettings(App* a) {
         a->activeTheme = t;
         a->themePending = true;
     }
-    a->uiScale = a->settings.uiScale;
+    a->uiScale = std::clamp(a->settings.uiScale, kUiScaleMin, 3.0F);   // M4: Mindestschrift (12 px)
     a->treeOpt.showTypes = a->settings.showTypes;
     a->treeOpt.gFloats = a->settings.gFloats;
     a->treeOpt.foldMacros = a->settings.foldMacros;
@@ -3713,7 +3713,7 @@ void setThemeById(App* a, const char* id) {
 float uiScale(App* a) { return a != nullptr ? a->uiScale : 1.0F; }
 void setUiScale(App* a, float s) {
     if (a != nullptr) {
-        a->uiScale = s;
+        a->uiScale = std::clamp(s, kUiScaleMin, 3.0F);   // M4: Mindestschrift (12 px)
     }
 }
 

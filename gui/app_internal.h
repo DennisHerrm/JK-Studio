@@ -2547,6 +2547,7 @@ inline constexpr float kEntitySpalte = 18.0F;
 // M4: kleinste Oberflaechengroesse (Grundschrift 16 px -> mindestens 12 px, wie die
 // kleinste Stufe im Ansicht-Menue)
 inline constexpr float kUiScaleMin = 0.75F;
+void setUiScale(App* a, float s);   // begrenzt auf kUiScaleMin..3 (app_ablage.inc)
 
 enum class UiIcon : int {
     Neu, Oeffnen, Speichern, Mehr, Karte, Paket, Liste, Skript, Entity, Namen, Figur, Effekt,

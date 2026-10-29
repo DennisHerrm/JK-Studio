@@ -312,7 +312,7 @@ Skript aufklappen).
 - Alle Leistenknöpfe mit Hinweis (Rückgängig/Wiederholen hatten keinen); Einstellung „Leistenknöpfe
   mit Beschriftung“ (menueLeisteText) zeigt Symbol + Text.
 - Mindestschrift: Oberflächengröße nie unter 75 % (16 px * 0,75 = 12 px; vorher Strg+Rad bis 50 %
-  = 8 px), auch aus alten Einstellungen. „Window“ in der Auflösungsliste übersetzt.
+  = 8 px) - Strg+Rad, Laden der Einstellungen und setUiScale begrenzen. „Window“ in der Auflösungsliste übersetzt.
 - Selbsttest: Auge/Schloss per Klick (verborgen 1, gesperrt 1), Fotos 100 % und 150 %
   (menue_oberflaeche_100/150), mit Beschriftung (Knopf breiter als 2x hoch), Mindestschrift.
 
@@ -326,6 +326,39 @@ ergibt LOD 0; der Editor lädt nur LOD 0 - gleich. Gemessen im Bildpaar neben_sa
 (Editor/Spiel, SP\m4\skripte\profil.py). Maßstab und Sichtfeld stimmen; der Eindruck „dicker“
 kommt von der Drehphase (der Griff dreht sich mit model_rotation 20 um seine Längsachse, sein
 Querschnitt ist nicht rund) und dem Lichtglanz - kein Fehler im Maßstab.
+
+### Schlussrunde M4
+
+- Neubau (`--clean-first`, alle Ziele): 0 Warnungen, 0 Fehler. ctest 155/155 (danach nach den
+  letzten Änderungen erneut, siehe unten).
+- Selbsttest menueeditor voll: MD-Daten 70 OK / 0 FEHLER, JKA-Daten („GameData original“, nur
+  gelesen) 70 OK / 0 FEHLER - nach zwei Korrekturen am Selbsttest (im ersten Lauf 68/6 bzw. 67/9:
+  der Reiter Hierarchie war nach M2/M3 nicht vorn; mit JKA-Daten hielt die Mod-Ordner-Frage von
+  „Im Spiel testen“ (modal, aus M2/M3) die Klicks auf - der Selbsttest schließt sie jetzt).
+- karteneditor kurz (BHED_KARTE_NUR=fotos): 78 OK, 0 FEHLER.
+- Modus 1: 2640 OK, 7 FEHLER - alle in der Tour-Prüfung („Weiter“ mit offenem Ereigniseditor).
+  Ursache: die M4-Mindestschrift begrenzte uiScale in jedem Bild; ohne diese Zeile 90/0 im Modus
+  „reiter“ (enthält die Tour-Prüfung), mit ihr zweimal 85/8. Jetzt begrenzen nur Strg+Rad, das
+  Laden der Einstellungen und setUiScale (Modus reiter 90/0, Selbsttest M4 18/0). Modus 1 voll
+  nicht wiederholt (Zeit); der betroffene Teil ist grün.
+- Spielordner (Movie Duels und GameData original) vorher/nachher: 4047 Einträge gleich (Name,
+  Größe, Zeit); jampconfig.cfg/jaconfig.cfg byte-gleich mit der Sicherung (SP\m4\sicher), nichts
+  zurückzukopieren. Keine eigenen Spiel- oder Programmprozesse mehr.
+- lint_sources, lint_fassung: ok.
+
+### Offen (M4)
+
+- Original-JKA über Steam (MP/SP): nicht verglichen - shanks Regel „Kein Steam-Start“.
+- Ownerdraws: UI_GLINFO, Datapad und alle MP-/Pazaak-Ownerdraws noch Platzhalter (Liste oben).
+- twjMenu: @MD_MENU_MAIN_TWJ fehlt in den Texten - das Spiel zeigt nichts, der Editor den Schlüssel
+  (SE_GetString-Verhalten bei fehlendem Schlüssel prüfen). challengecharacterMenu: Hintergrundbild
+  aus Spielzustand fehlt.
+- JKA-Textscroll-Menüs (ingame*) und die meisten MD-ingame-Menüs nicht im Spiel vergleichbar
+  (+uimenu ohne Karte).
+- Ton-Schalter: echtes Anhalten nur über die Logik geprüft (Stimmen mit Nummer, nach „aus“ keine
+  laufende) - hörbar nicht geprüft (keine Tonausgabe in Tests).
+- Video-Codec-Meldungen für HEVC/VP9/AV1/Xvid: dieser Rechner dekodiert alle (Erweiterungen
+  installiert) - geprüft sind die Zuordnung (ctest) und die Meldung für einen unbekannten FourCC.
 
 ## Changelog
 

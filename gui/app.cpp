@@ -5289,8 +5289,6 @@ void draw() {
         g_app->uiScale = std::clamp(
             g_app->uiScale + ImGui::GetIO().MouseWheel * 0.1F, kUiScaleMin, 3.0F);
     }
-    // M4: Mindestschrift - auch aus alten Einstellungen nie unter 75 % (16 px * 0.75 = 12 px)
-    g_app->uiScale = std::clamp(g_app->uiScale, kUiScaleMin, 3.0F);
     g_app->tlUnterMaus = false;   // die Zeitleiste setzt es in diesem Bild neu
 
     const float total = g_app->dpiScale * g_app->uiScale;
