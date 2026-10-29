@@ -1185,6 +1185,7 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
                     const int jetzt = static_cast<int>(ImGui::GetTime() * 1000.0);
                     if (mv.modell.schluessel != schl) {
                         (void)ladeMenueModell(z.daten, it, cv, mv.modell);
+                        mv.modell.jk2Kamera = z.spiel == Spiel::JK2;   // M5b: Item_Model_Paint unter JK2_MODE
                         mv.texturenDa = false;
                         mv.animStart = jetzt;
                     }
@@ -1207,6 +1208,11 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
                         }
                         const MenueModellBild mb = menueModellBild(mv.modell, it, jetzt, jetzt - animStart, pw, ph, mv.welt);
                         gpu::baueKnochenmatrizen(mv.welt, mv.modell.gla.bones, mv.haut);
+                        if (mv.modell.md3) {   // M5b: .md3 starr - ein Knochen, Einheitsmatrix
+                            BoneMatrix eins;
+                            eins.m[0][0] = eins.m[1][1] = eins.m[2][2] = 1.0F;
+                            mv.haut.assign(1, eins);
+                        }
                         gpu::FigurLicht l;
                         for (int k = 0; k < 3; ++k) {
                             l.umgebung[k] = mb.umgebung[k];

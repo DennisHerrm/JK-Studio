@@ -52,6 +52,13 @@ struct MenueModell {
     GlaAnimation gla;
     std::vector<AnimEntry> anims;
     std::string fehler;
+    // M5b: ein .md3 (z. B. das Jedi-Outcast-Logo im Hauptmenue) - Bild 0 als starres Modell mit
+    // einem Knochen; mins/maxs wie R_ModelBounds (DC->modelBounds) fuer die Kamera
+    bool md3 = false;
+    float mins[3]{}, maxs[3]{};
+    // M5b: Jedi Outcast SP (Item_Model_Paint unter JK2_MODE): fov 45 x 45, Drehung realTime / 20 Grad,
+    // model_angle/model_rotation/model_fov* ohne Wirkung
+    bool jk2Kamera = false;
 };
 
 // Cvar-Lesen fuer das Item "character" (ui_char_model, ui_char_skin_*)

@@ -16,6 +16,8 @@
 //   GNU General Public License for more details (LICENSE).
 #include "bhed/menue/modell.h"
 
+#include "bhed/md3.h"
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -78,6 +80,44 @@ bool ladeMenueModell(const Spieldaten& d, const Item& it, const CvarLeser& cvar,
     out = MenueModell{};
     out.schluessel = modellSchluessel(it, cvar);
     const std::string pfad = modellPfad(it, cvar);
+    if (klein(pfad).find(".md3") != std::string::npos) {
+        // M5b: Item_Model_Paint ohne Ghoul2 (JA SP else-Zweig, Jedi Outcast): RE_RegisterModel, Bild 0
+        std::string bytes;
+        Md3Model m;
+        if (!d.lies(pfad, bytes) || !readMd3(bytes, m, &out.fehler) || m.empty()) {
+            if (out.fehler.empty()) { out.fehler = pfad + " fehlt"; }
+            return false;
+        }
+        out.md3 = true;
+        out.glm.name = pfad;
+        out.glm.numBones = 1;
+        bool erstes = true;
+        for (const Md3Surface& ms : m.surfaces) {
+            const Md3Vertex* v = ms.frame(0);
+            if (v == nullptr) { continue; }
+            GlmSurface gs;
+            gs.name = ms.name;
+            gs.shader = ms.shader;
+            for (int i = 0; i < ms.numVerts; ++i) {
+                GlmVertex gv;
+                for (int k = 0; k < 3; ++k) {
+                    gv.xyz[k] = v[i].xyz[k];
+                    gv.normal[k] = v[i].normal[k];
+                    out.mins[k] = erstes ? v[i].xyz[k] : std::min(out.mins[k], v[i].xyz[k]);
+                    out.maxs[k] = erstes ? v[i].xyz[k] : std::max(out.maxs[k], v[i].xyz[k]);
+                }
+                erstes = false;
+                gv.st[0] = v[i].st[0];
+                gv.st[1] = v[i].st[1];
+                gv.weights[0] = 1.0F;   // ein Knochen (Einheitsmatrix): starr
+                gs.verts.push_back(gv);
+            }
+            gs.indexes = ms.indexes;
+            out.glm.surfaces.push_back(std::move(gs));
+        }
+        out.ok = !out.glm.surfaces.empty();
+        return out.ok;
+    }
     if (klein(pfad).find(".glm") == std::string::npos) {
         out.fehler = "kein Ghoul2-Modell";
         return false;
@@ -115,7 +155,12 @@ MenueModellBild menueModellBild(const MenueModell& m, const Item& it, int zeitMs
     // Grenzen (ghoul2 hat keine: g2mins/g2maxs oder die Vorgabe)
     float mins[3] = {it.g2mins[0], it.g2mins[1], it.g2mins[2]};
     float maxs[3] = {it.g2maxs[0], it.g2maxs[1], it.g2maxs[2]};
-    if (mins[0] == 0 && mins[1] == 0 && mins[2] == 0 && maxs[0] == 0 && maxs[1] == 0 && maxs[2] == 0) {
+    if (m.md3) {   // DC->modelBounds( item->asset, mins, maxs )
+        for (int k = 0; k < 3; ++k) {
+            mins[k] = m.mins[k];
+            maxs[k] = m.maxs[k];
+        }
+    } else if (mins[0] == 0 && mins[1] == 0 && mins[2] == 0 && maxs[0] == 0 && maxs[1] == 0 && maxs[2] == 0) {
         mins[0] = -16;
         mins[1] = -16;
         mins[2] = -24;
@@ -129,12 +174,14 @@ MenueModellBild menueModellBild(const MenueModell& m, const Item& it, int zeitMs
     const float w = static_cast<float>(std::max(1, breite));
     const float h = static_cast<float>(std::max(1, hoehe));
     // refdef.fov_x: (int)(width / 640 * 90), fov_y aus atan2 (Bildpunkte des refdef)
-    const float fovX = it.fovx != 0 ? it.fovx : static_cast<float>(static_cast<int>(w / 640.0F * 90.0F));
-    const float fovY = it.fovy != 0 ? it.fovy : std::atan2(h, w / std::tan(fovX / 360.0F * kPi)) * (360.0F / kPi);
+    float fovX = it.fovx != 0 ? it.fovx : static_cast<float>(static_cast<int>(w / 640.0F * 90.0F));
+    float fovY = it.fovy != 0 ? it.fovy : std::atan2(h, w / std::tan(fovX / 360.0F * kPi)) * (360.0F / kPi);
+    if (m.jk2Kamera) { fovX = fovY = 45.0F; }   // JK2_MODE: refdef.fov_x = refdef.fov_y = 45
     const float len = 0.5F * (maxs[2] - mins[2]);
     origin[0] = len / 0.268F;
     float yaw = static_cast<float>(it.angle);
     if (it.rotationSpeed != 0) { yaw += static_cast<float>(zeitMs) / static_cast<float>(it.rotationSpeed); }
+    if (m.jk2Kamera) { yaw = static_cast<float>(zeitMs) / 20.0F; }   // JK2_MODE: angles (0, refdef.time / 20, 0)
     b.yawGrad = yaw;
     // "hack to put saber on it's side": ITF_ISANYSABER ohne ITF_ISCHARACTER -> (curYaw, 0, 90)
     float winkel[3] = {0, yaw, 0};

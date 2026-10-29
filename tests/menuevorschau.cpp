@@ -401,6 +401,24 @@ int main() {
         fi.itemFlags = ITF_ISSABER | ITF_ISCHARACTER;
         const MenueModellBild mf = menueModellBild(leer, fi, 0, 0, 200, 400, welt);
         pruefe(std::fabs(mf.achsen[2][2] - 1) < 1e-4F, "Saeber mit isCharacter: aufrecht (nur Gier)");
+        // M5b: .md3 (Jedi-Outcast-Logo): Grenzen des Modells (DC->modelBounds); Jedi Outcast (JK2_MODE)
+        // mit fov 45 x 45 und Drehung realTime / 20 - model_angle wirkt nicht
+        MenueModell md3;
+        md3.md3 = true;
+        md3.jk2Kamera = true;
+        md3.mins[2] = -6;
+        md3.maxs[2] = 10;
+        Item lo = mi;
+        lo.angle = 90;
+        lo.rotationSpeed = 3;
+        const MenueModellBild ml = menueModellBild(md3, lo, 1800, 0, 200, 400, welt);
+        pruefe(std::fabs(ml.yawGrad - 90.0F) < 1e-3F, "JK2: Gier = realTime / 20 (1800 ms -> 90 Grad), model_angle ohne Wirkung");
+        {
+            const float* m = ml.viewProj;
+            auto oben = [&](float z) { return (m[6] * z + m[7]) / (m[14] * z + m[15]); };
+            pruefe(std::fabs(oben(2)) < 1e-4F && std::fabs(oben(10) - 0.268F / std::tan(22.5F / 180.0F * 3.14159265F)) < 1e-3F,
+                   "JK2: Mitte der Modellgrenzen in der Bildmitte, Oberkante bei len / 0.268 mit fov 45");
+        }
         // die Kamera ohne Entity bildet ent.origin dorthin ab, wo viewProj den Modellursprung hinlegt
         auto proj = [](const float* m, float x, float y, float z, float& px, float& py) {
             const float w = m[12] * x + m[13] * y + m[14] * z + m[15];
