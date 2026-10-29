@@ -616,6 +616,266 @@ std::vector<Schritt> schritte() {
     add(pause(0.3));
     add(pruefe("Blender: die Karte wie vorher", [blVorher] { return ke::editor().karte.welt()->kinder().size() == *blVorher; }));
 
+    // --- Punkt 11: Asset-Browser ---------------------------------------------------------------
+    // Modelle und Klaenge aus dem Spiel, die Suche (Name findet, Unsinn findet nichts); ein Modell
+    // mit der Maus aus dem Browser in die XY-Ansicht gezogen wird misc_model am Ort unter dem
+    // Zeiger; Doppelklick-Weg (vor die Kamera) fuer einen Klang: target_speaker; ein Brush als
+    // Prefab gespeichert erscheint unter Prefabs und wird eingefuegt; alles per Undo zurueck.
+    struct AbZustand {
+        std::string modell, klang, prefab;
+        std::size_t modelle = 0, klaenge = 0, ents = 0, kinder = 0;
+        bool gefunden = false, leer = false;
+    };
+    auto ab = std::make_shared<AbZustand>();
+    add(tu("Assets: Dialoge zu", [] { karteDialogeZu(); }));
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeWzMenue)) + "###werkzeuge9"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeAbMenue)) + "###assetbrowser_an"));
+    add(pause(0.5));
+    add(pruefe("Assets: View > Map tools > Asset browser oeffnet das Fenster", [] { return ke::assetBrowserOffen(); }));
+    add(tu("Assets: Modelle, Klaenge, Suche", [ab] {
+        ke::konsoleLeeren();
+        ke::assetSucheSetzen("", 0);
+        const auto m = ke::assetListe(0);
+        ab->modelle = m.size();
+        for (const auto& a : m) {
+            if (a.pfad.size() > 4 && a.pfad.compare(a.pfad.size() - 4, 4, ".md3") == 0) {
+                ab->modell = a.pfad;
+                break;
+            }
+        }
+        const auto k = ke::assetListe(2);
+        ab->klaenge = k.size();
+        if (!k.empty()) { ab->klang = k.front().pfad; }
+        ke::assetSucheSetzen("zzqqxxnichtda", 0);
+        ab->leer = ke::assetListe(0).empty();
+        const std::string name = std::filesystem::path(ab->modell).stem().string();
+        ke::assetSucheSetzen(name, 0);
+        for (const auto& a : ke::assetListe(0)) { ab->gefunden = ab->gefunden || a.pfad == ab->modell; }
+        ke::assetSucheSetzen(ab->modell, 0);   // fuers Ziehen: genau dieses Modell in der ersten Zelle
+        ab->ents = ke::editor().karte.entitaeten().size();
+        ab->kinder = ke::editor().karte.welt()->kinder().size();
+        char z[400];
+        std::snprintf(z, sizeof(z), "Knopftest: Assets - %zu Modelle, %zu Klaenge, Modell %s, Klang %s", ab->modelle, ab->klaenge, ab->modell.c_str(), ab->klang.c_str());
+        diag::detail(z);
+    }));
+    add(pause(0.3));
+    add(pruefe("Assets: Modelle und Klaenge da, die Suche findet das Modell, Unsinn findet nichts", [ab] {
+        return ab->modelle > 0 && ab->klaenge > 0 && !ab->modell.empty() && ab->gefunden && ab->leer && ke::assetBrowserOffen();
+    }));
+    add(Schritt{"Assets: das Modell aus dem Browser in die XY-Ansicht ziehen (Maus)", [ab](int b) {
+                    ImGuiIO& io = ImGui::GetIO();
+                    const ImVec2 ziel = stufe2::weltXy(0, 0);
+                    if (b == 0) {   // XY-Ansicht auf 0 0, den Browser weg vom Ziel, andere Fenster (Optimizer) zu
+                        ke::optimiererSchliessen();
+                        karte::XyAnsicht& an = ke::editor().xy[0].ansicht;
+                        an.setzeUrsprung(karte::Vektor3f(0, 0, an.ursprung[2]));
+                        ++ke::editor().sichtStand;
+                        const ImVec2 z = stufe2::weltXy(0, 0);
+                        ke::assetBrowserNach(z.x > io.DisplaySize.x * 0.5F ? ImVec2(20, 90) : ImVec2(io.DisplaySize.x - 600, 90));
+                        return false;
+                    }
+                    if (b < 3) { return false; }
+                    ImVec2 zelle;
+                    if (b == 3) {
+                        if (!ke::assetZelleMitte(ke::assetIndex(ab->modell), zelle)) { meldeFehler("Assets: keine Zelle fuer das Modell"); }
+                        setzeMaus(zelle);
+                        return false;
+                    }
+                    if (b == 4) {
+                        io.AddMouseButtonEvent(0, true);
+                        return false;
+                    }
+                    if (b >= 5 && b <= 16) {
+                        (void)ke::assetZelleMitte(ke::assetIndex(ab->modell), zelle);
+                        const ImVec2 a = b == 5 ? zelle : io.MousePos;
+                        const float t = 1.0F / static_cast<float>(17 - b);
+                        setzeMaus(ImVec2(a.x + (ziel.x - a.x) * t, a.y + (ziel.y - a.y) * t));
+                        return false;
+                    }
+                    if (b == 17) {
+                        io.AddMouseButtonEvent(0, false);
+                        return false;
+                    }
+                    return b >= 20;
+                }});
+    add(pause(0.3));
+    add(pruefe("Assets: ein misc_model mit dem Modell unter dem Zeiger (XY 0 0), gewaehlt", [ab] {
+        const ke::Editor& ed = ke::editor();
+        if (ed.karte.entitaeten().size() != ab->ents + 1) { return false; }
+        const auto& en = ed.karte.entitaeten().back();
+        const karte::Vektor3f o = karte::entitaetUrsprung(*en);
+        diag::detail("Knopftest: Assets - abgelegt bei " + en->wert("origin"));
+        return en->wert("classname") == "misc_model" && en->wert("model") == ab->modell && std::fabs(o[0]) <= 8.0F && std::fabs(o[1]) <= 8.0F &&
+               konsoleText().find(" placed at ") != std::string::npos;
+    }));
+    add(tu("Assets: ein Klang (wie Doppelklick: vor die Kamera), ein Brush als Prefab st9prefab", [ab, vbQuader] {
+        ke::konsoleLeeren();
+        ke::Editor& ed = ke::editor();
+        ke::assetSucheSetzen("", 2);
+        (void)ke::assetListe(2);
+        if (!ke::assetAbgelegt(ke::assetIndex(ab->klang), ImVec2(-1, -1))) { meldeFehler("Assets: Klang nicht eingesetzt"); }
+        {
+            karte::Befehl b(ed.karte.undo, "brushCreate");
+            auto p = vbQuader(512, 512);
+            ed.karte.welt()->kindEinfuegen(p);
+            ed.karte.auswahl.leeren();
+            ed.karte.auswahl.waehlen(ed.karte.welt(), p);
+        }
+        if (!ke::prefabSpeichern("st9prefab")) { meldeFehler("Assets: Prefab nicht gespeichert"); }
+        ke::assetSucheSetzen("st9prefab", 1);
+        const auto pr = ke::assetListe(1);
+        if (pr.size() == 1) { ab->prefab = pr.front().pfad; }
+    }));
+    add(pause(0.3));
+    add(pruefe("Assets: target_speaker mit dem Klang, Prefab-Datei da und unter Prefabs gelistet", [ab] {
+        const ke::Editor& ed = ke::editor();
+        bool sp = false;
+        for (const auto& en : ed.karte.entitaeten()) { sp = sp || (en->wert("classname") == "target_speaker" && en->wert("noise") == ab->klang); }
+        std::error_code ec;
+        return sp && !ab->prefab.empty() && std::filesystem::is_regular_file(std::filesystem::path(std::u8string(ab->prefab.begin(), ab->prefab.end())), ec) &&
+               konsoleText().find("Prefab saved") != std::string::npos;
+    }));
+    add(tu("Assets: das Prefab einsetzen (wie Doppelklick)", [ab] {
+        ke::konsoleLeeren();
+        if (!ke::assetAbgelegt(ke::assetIndex(ab->prefab), ImVec2(-1, -1))) { meldeFehler("Assets: Prefab nicht eingesetzt"); }
+    }));
+    add(pause(0.3));
+    add(pruefe("Assets: ein Brush mehr (das Prefab), Konsole", [ab] {
+        return ke::editor().karte.welt()->kinder().size() == ab->kinder + 2 && konsoleText().find(" placed at ") != std::string::npos;
+    }));
+    add(tu("Assets: Undo bis zum Anfang, Browser zu", [ab] {
+        ke::Editor& ed = ke::editor();
+        for (int i = 0; i < 8 && (ed.karte.entitaeten().size() != ab->ents || ed.karte.welt()->kinder().size() != ab->kinder); ++i) { (void)ke::ausfuehren("Undo"); }
+        ke::assetSucheSetzen("", 0);
+        if (ke::assetBrowserOffen()) { ke::assetBrowserUmschalten(); }
+    }));
+    add(pause(0.3));
+    add(pruefe("Assets: die Karte wie vorher", [ab] {
+        return ke::editor().karte.entitaeten().size() == ab->ents && ke::editor().karte.welt()->kinder().size() == ab->kinder;
+    }));
+
+    // --- Punkt 9 (Rest): Texturen ueberblenden ------------------------------------------------
+    // Eine func_group aus zwei Brushes (Textur test/boden), gewaehlt; View > Map tools > Texture
+    // blending; zwei Schichten, "Set up" angeklickt: die Schluessel _indexmap/_layers/_shader, die
+    // Shader-Datei und die Index-Karte (TGA, alles Schicht 0) im Import-Ordner, die Flaechen haben
+    // den Grund-Shader; dann mit der Maus Schicht 1 in die Draufsicht gemalt: die Karte und die
+    // Datei zeigen Schicht 1; Undo bis zum Anfang.
+    struct UbZustand {
+        std::size_t ents = 0;
+        std::string shaderDatei;
+    };
+    auto ub = std::make_shared<UbZustand>();
+    add(tu("Ueberblenden: func_group aus zwei Brushes, gewaehlt", [ub] {
+        karteDialogeZu();
+        ke::optimiererSchliessen();   // verdeckt sonst die Draufsicht
+        ke::konsoleLeeren();
+        ke::Editor& ed = ke::editor();
+        ub->ents = ed.karte.entitaeten().size();
+        karte::Befehl b(ed.karte.undo, "entityCreate -class func_group");
+        auto en = ed.karte.neueEntitaet("func_group", true);
+        ed.karte.entitaetEinfuegen(en);
+        ed.karte.auswahl.leeren();
+        for (const float x : {-256.0F, 256.0F}) {
+            auto pi = std::make_shared<karte::Pinsel>();
+            karte::Kasten k;
+            k.origin = karte::Vektor3f(x, 0, -512);
+            k.extents = karte::Vektor3f(256, 512, 16);
+            karte::TexturProjektion t;
+            karte::texdefStandard(ed.karte.kontext.art(), t);
+            pi->quaderBauen(k, "textures/test/boden", t, ed.karte.kontext);
+            en->kindEinfuegen(pi);
+            ed.karte.auswahl.waehlen(en, pi);
+        }
+    }));
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeWzMenue)) + "###werkzeuge9"));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeUbMenue)) + "###ueberblenden_an"));
+    add(pause(0.5));
+    add(tu("Ueberblenden: zwei Schichten, Texturen", [] {
+        ke::ueberblendenSchichten(2);
+        ke::ueberblendenTextur(0, "textures/test/gras");
+        ke::ueberblendenTextur(1, "test/fels");   // ohne "textures/": wird ergaenzt
+    }));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeUbEinrichten)) + "##ubein", "###ueberblenden"));
+    add(pause(0.5));
+    add(pruefe("Ueberblenden: Schluessel, Shader-Datei, Index-Karte (Schicht 0), Grund-Shader auf den Flaechen", [ub] {
+        const ke::Editor& ed = ke::editor();
+        if (ed.karte.entitaeten().size() != ub->ents + 1) { return false; }
+        const auto& en = ed.karte.entitaeten().back();
+        const std::string basis = en->wert("_shader");
+        const std::string imp = platform::settingsDirectory() + "\\import\\";
+        ub->shaderDatei = imp + "shaders\\jks_blend_" + basis.substr(basis.find('/') + 1) + ".shader";
+        const std::string sh = dateiInhalt(ub->shaderDatei);
+        const karte::IndexKarte& im = ke::ueberblendenKarte();
+        bool flaechen = !en->kinder().empty();
+        for (const auto& c : en->kinder()) {
+            const auto& pi = static_cast<const karte::Pinsel&>(*c);
+            for (std::size_t i = 0; i < pi.anzahl(); ++i) { flaechen = flaechen && pi[i].shader() == "textures/" + basis; }
+        }
+        std::error_code ec;
+        const std::string datei = ke::ueberblendenDatei();   // eine Kopie: begin()/end() derselben Zeichenkette
+        diag::detail("Knopftest: Ueberblenden - " + basis + ", " + en->wert("_indexmap") + ", Datei " + datei);
+        return basis.rfind("jks_blend/", 0) == 0 && en->wert("_layers") == "2" && en->wert("_indexmap").rfind("maps/", 0) == 0 &&
+               sh.find("textures/" + basis + "_0to1") != std::string::npos && sh.find("textures/test/fels.tga") != std::string::npos &&
+               std::filesystem::is_regular_file(std::filesystem::path(std::u8string(datei.begin(), datei.end())), ec) &&
+               im.breite == 128 && im.hoehe == 128 && std::all_of(im.index.begin(), im.index.end(), [](unsigned char v) { return v == 0; }) && flaechen &&
+               konsoleText().find("Texture blending set up") != std::string::npos;
+    }));
+    add(Schritt{"Ueberblenden: Schicht 1 mit der Maus in die Draufsicht malen", [](int b) {
+                    ImGuiIO& io = ImGui::GetIO();
+                    ImVec2 mi, ma;
+                    if (!ke::ueberblendenLeinwand(mi, ma)) {
+                        meldeFehler("Ueberblenden: keine Draufsicht");
+                        return true;
+                    }
+                    const ImVec2 m((mi.x + ma.x) * 0.5F, (mi.y + ma.y) * 0.5F);
+                    if (b == 0) {
+                        ke::ueberblendenPinsel(1, 256.0F);   // Radius 256: ein Kreis um die Mitte
+                        setzeMaus(m);
+                        return false;
+                    }
+                    if (b == 1) {
+                        io.AddMouseButtonEvent(0, true);
+                        return false;
+                    }
+                    if (b >= 2 && b <= 6) {
+                        setzeMaus(ImVec2(m.x + static_cast<float>(b - 2), m.y));
+                        return false;
+                    }
+                    if (b == 7) {
+                        io.AddMouseButtonEvent(0, false);
+                        return false;
+                    }
+                    return b >= 10;
+                }});
+    add(pause(0.3));
+    add(pruefe("Ueberblenden: Mitte Schicht 1, Rand Schicht 0, Datei gleich (TGA), Konsole", [] {
+        const karte::IndexKarte& im = ke::ueberblendenKarte();
+        if (im.index.size() != 128U * 128U) { return false; }
+        const std::string d = dateiInhalt(ke::ueberblendenDatei());
+        karte::IndexKarte z;
+        const bool gelesen = karte::blendTgaLesen(std::vector<unsigned char>(d.begin(), d.end()), 2, z);
+        const auto n1 = std::count(im.index.begin(), im.index.end(), static_cast<unsigned char>(1));
+        diag::detail("Knopftest: Ueberblenden - " + std::to_string(n1) + " Punkte Schicht 1");
+        return im.index[64 * 128 + 64] == 1 && im.index[0] == 0 && n1 > 100 && gelesen && z.index == im.index &&
+               konsoleText().find("Index map saved") != std::string::npos;
+    }));
+    add(tu("Ueberblenden: Undo bis zum Anfang, Fenster zu, Shader-Datei weg", [ub] {
+        ke::Editor& ed = ke::editor();
+        for (int i = 0; i < 4 && ed.karte.entitaeten().size() != ub->ents; ++i) { (void)ke::ausfuehren("Undo"); }
+        if (ke::ueberblendenOffen()) { ke::ueberblendenUmschalten(); }
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::path(std::u8string(ub->shaderDatei.begin(), ub->shaderDatei.end())), ec);
+    }));
+    add(pause(0.3));
+    add(pruefe("Ueberblenden: die Karte wie vorher", [ub] { return ke::editor().karte.entitaeten().size() == ub->ents; }));
+
     // --- Punkt 12: nach einem Absturz wiederherstellen ----------------------------------------
     // Die Sitzungsdatei nennt die offene Karte (nach einer Sekunde Editor); ein Autosave, neuer
     // als die Karte, mit einem info_null mehr wird angelegt; absturzPruefen (wie beim Start) fragt,

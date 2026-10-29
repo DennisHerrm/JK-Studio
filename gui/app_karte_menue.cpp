@@ -371,6 +371,24 @@ void listeZeichnen(const std::string& name) {
         {
             const std::string wz = std::string(trK(Str::KeWzMenue)) + "###werkzeuge9";
             if (qtMenueAnfang(wz.c_str())) {
+                {   // Stufe 9 Punkt 11: Asset-Browser
+                    const std::string ab = std::string(trK(Str::KeAbMenue)) + "###assetbrowser_an";
+                    QtPunkt p;
+                    p.id = ab.c_str();
+                    p.art = QtArt::Pruefbar;
+                    p.haken = assetBrowserOffen();
+                    p.tooltip = trK(Str::KeAbTip);
+                    if (qtPunkt(p)) { assetBrowserUmschalten(); }
+                }
+                {   // Stufe 9 Punkt 9: Texturen ueberblenden
+                    const std::string ub = std::string(trK(Str::KeUbMenue)) + "###ueberblenden_an";
+                    QtPunkt p;
+                    p.id = ub.c_str();
+                    p.art = QtArt::Pruefbar;
+                    p.haken = ueberblendenOffen();
+                    p.tooltip = trK(Str::KeUbTip);
+                    if (qtPunkt(p)) { ueberblendenUmschalten(); }
+                }
             // Stufe 9 Punkt 4 (eigene Funktion): Sprungweite und Platz pruefen
             {
                 const std::string id = std::string(trK(Str::KeSjMenue)) + "###sprungpruefung";

@@ -25,6 +25,8 @@
 #include "bhed/karte/wiederherstellen.h"
 #include "bhed/karte/gelaende.h"
 #include "bhed/karte/kurven.h"
+#include "bhed/karte/ueberblenden.h"
+#include "bhed/karte/assets.h"
 #include "bhed/karte/npcwege.h"
 #include "bhed/karte/sprungpruefung.h"
 #include "bhed/karte/geometrieimport.h"
@@ -1763,6 +1765,32 @@ void geoImportEinfuegen();
 // Stufe 9 Punkt 10: die gewaehlten Brushes fuer Blender (.obj oder .glb, Y oben); pfad leer: Dateidialog
 bool blenderExport(const std::string& pfad);
 bool modellAbgelegt(const std::string& pfad, ImVec2 punkt);
+// Stufe 9: wohin etwas Abgelegtes kommt (2D-Ansicht unter dem Zeiger, Kamera: Flaeche unter dem Zeiger, sonst vor der Kamera)
+[[nodiscard]] karte::Vektor3f ablageOrt(ImVec2 punkt);
+// Stufe 9 Punkt 11 (app_karte_assets.cpp): Asset-Browser
+[[nodiscard]] bool assetBrowserOffen();
+void assetBrowserUmschalten();
+void assetBrowserZeichnen();
+void assetAblageZiel();   // im aktuellen ImGui-Fenster (2D-Ansicht, Kamera): Ablegen aus dem Browser annehmen
+bool assetAbgelegt(std::size_t index, ImVec2 punkt);
+[[nodiscard]] std::vector<karte::Asset> assetListe(int art);   // Selbsttest: gefiltert (Suche des Fensters)
+[[nodiscard]] std::size_t assetIndex(const std::string& pfad);
+void assetSucheSetzen(const std::string& suche, int art);   // Selbsttest
+bool assetZelleMitte(std::size_t index, ImVec2& aus);         // Selbsttest: Mitte der Zelle im letzten Bild
+void assetBrowserNach(ImVec2 ort);                             // Selbsttest: Fenster dorthin
+// Stufe 9 Punkt 9 (app_karte_ueberblenden.cpp): Texturen ueberblenden (q3map2 _indexmap)
+[[nodiscard]] bool ueberblendenOffen();
+void ueberblendenUmschalten();
+void ueberblendenZeichnen();
+bool ueberblendenEinrichten();                 // "Set up" fuer die func_group der Auswahl
+bool ueberblendenMalen(float x, float y);      // Weltpunkt, Schicht und Radius des Fensters
+void ueberblendenTextur(int schicht, const std::string& shader);   // Selbsttest
+void ueberblendenSchichten(int n);
+void ueberblendenPinsel(int schicht, float radius);
+[[nodiscard]] const karte::IndexKarte& ueberblendenKarte();
+bool ueberblendenLeinwand(ImVec2& mi, ImVec2& ma);   // die Draufsicht im letzten Bild
+[[nodiscard]] std::string ueberblendenDatei();
+bool prefabSpeichern(const std::string& name);
 [[nodiscard]] std::string importOrdner();   // <Einstellungen>/import: eigener Suchordner (wenn vorhanden)
 void terrainErzeugenKnopf();   // "Generate" (auch fuer den Selbsttest)
 void terrainSchliessen();      // "Close" / Schliessknopf: Werte uebernehmen
