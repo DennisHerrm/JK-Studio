@@ -174,3 +174,4 @@ html[data-modus="tracks"] .modusinhalt:not(.m-tracks) { display: none; }
 .karten.breit .karte { display: grid; grid-template-columns: minmax(220px, 44%) 1fr; }
 .karten.breit .karte img, .karten.breit .karte .platzhalter { height: 100%; min-height: 220px; object-fit: cover; }
 @media (max-width: 700px) { .karten.breit .karte { grid-template-columns: 1fr; } }
+.bild .englisch { display: block; font-size: .8em; color: var(--leise); margin-top: 2px; }

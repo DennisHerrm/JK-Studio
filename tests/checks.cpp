@@ -769,9 +769,8 @@ int main(int argc, char** argv) {
         bool alleVerschieden = false;
         for (int i = 0; i < static_cast<int>(Str::Count); ++i) {
             const auto id = static_cast<Str>(i);
-            for (Language l : {Language::English, Language::German,
-                               Language::ChineseSimplified, Language::Japanese}) {
-                const char* t = bhed::i18n::trIn(l, id);
+            for (const bhed::i18n::LanguageInfo& l : bhed::i18n::languages()) {
+                const char* t = bhed::i18n::trIn(l.language, id);
                 if (t == nullptr || t[0] == '\0') { alleGefuellt = false; }
             }
             // mindestens ein Text muss sich zwischen Englisch und Deutsch
@@ -781,7 +780,7 @@ int main(int argc, char** argv) {
                 alleVerschieden = true;
             }
         }
-        expect("i18n: kein leerer Text in vier Sprachen", alleGefuellt, true);
+        expect("i18n: kein leerer Text in irgendeiner Sprache", alleGefuellt, true);
         expect("i18n: Deutsch ist nicht nur kopiertes Englisch", alleVerschieden, true);
         expect("i18n: de-DE wird Deutsch",
                bhed::i18n::fromSystemLocale("de-DE") == Language::German, true);

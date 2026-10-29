@@ -151,6 +151,10 @@ struct QtTextMass {
 [[nodiscard]] int qtTextBreite(const std::string& utf8, const wchar_t* schrift, float pixel, bool fett);
 // fm.horizontalAdvance(text): Summe der Vorschuebe gerundet; -1, wenn es nicht geht.
 [[nodiscard]] int qtTextVorschub(const std::string& utf8, const wchar_t* schrift, float pixel, bool fett);
+// Die Zeichen von `utf8`, die die Schrift selbst NICHT hat (DirectWrite misst
+// sie dann mit einer Ersatzschrift oder dem Ersatzkaestchen) - leer = alle da.
+// Fuer den Selbsttest der Sprachen (Spanisch, Tschechisch).
+[[nodiscard]] std::string qtFehlendeZeichen(const std::string& utf8, const wchar_t* schrift, bool fett);
 
 // Fuer den Selbsttest (Punkt 12): belegte Bytes des Prozess-Heaps (HeapSummary),
 // also was new/malloc halten - der Rest des privaten Speichers gehoert z. B.

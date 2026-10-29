@@ -20,6 +20,32 @@ namespace {
 
 #include "hilfe_daten.inc"
 
+// Weitere Sprachen (tools/sprachen.py): Stoppwoerter, Endungen fuer stutze,
+// Begriffe und haeufige Ziele je Sprache in einer eigenen Datei - eine neue
+// Sprache ist eine Ergaenzung, keine Aenderung der vier ersten.
+#include "hilfe_sprache_es.inc"
+#include "hilfe_sprache_cs.inc"
+
+struct SprachDaten {
+    i18n::Language sprache;
+    const char* const* stopp;      // nullptr am Ende
+    const char* const* endungen;   // klein, gefaltet, laengste zuerst; nullptr am Ende
+    const BegriffRoh* begriffe;    // {nullptr, nullptr} am Ende; Name wie in kBegriffe (oder neu)
+    const ZielRoh* ziele;          // {nullptr, nullptr, nullptr} am Ende
+};
+
+const SprachDaten kSprachDaten[] = {
+    {i18n::Language::Spanish, kStoppEs, kEndungenEs, kBegriffeEs, kZieleEs},
+    {i18n::Language::Czech, kStoppCs, kEndungenCs, kBegriffeCs, kZieleCs},
+};
+
+const SprachDaten* sprachDaten(i18n::Language sp) {
+    for (const SprachDaten& d : kSprachDaten) {
+        if (d.sprache == sp) { return &d; }
+    }
+    return nullptr;
+}
+
 const Ort kOrte[] = {
 #include "hilfe_orte.inc"
 };
@@ -72,6 +98,26 @@ bool istCjk(unsigned cp) {
 // Ein Buchstabe ausserhalb von ASCII und CJK (e, n mit Akzent ...): gehoert zum Wort.
 bool istFremdBuchstabe(unsigned cp) { return cp >= 0xC0U && cp < 0x3000U && cp != 0xD7U && cp != 0xF7U; }
 
+// Lateinische Buchstaben mit Akzent (Latin-1 U+00C0..U+00FF, Latin
+// Extended-A U+0100..U+017F) auf ihren Grundbuchstaben: Spanisch (n mit
+// Tilde, a/e/i/o/u mit Akut), Tschechisch (e/u mit Ring/Hacek, c, s, r, z, d,
+// t, n mit Hacek) ... - "animacion" und "animación" sind dasselbe Wort, wie
+// im Handbuch (handbuch.js). 0 = kein einzelner Grundbuchstabe (ae, oe, ue
+// und ss faltet zerlegeText vorher; Zeichen wie x/÷ sind keine Buchstaben).
+char grundBuchstabe(unsigned cp) {
+    static constexpr char kLatein1[] = "aaaa?a?ceeeeiiiidnoooo??ouuu?y??aaaa?a?ceeeeiiiidnoooo??ouuu?y?y";
+    static constexpr char kErweitertA[] =
+        "aaaaaaccccccccddddeeeeeeeeeegggggggghhhhiiiiiiiiii??jjkkkllllllllllnnnnnnnnnoooooo??rrrrrrssssssssttttttuuuuuuuuuuuuwwyyyzzzzzzs";
+    static_assert(sizeof(kLatein1) == 0x40 + 1 && sizeof(kErweitertA) == 0x80 + 1, "Faltungstabellen: falsche Laenge");
+    char c = 0;
+    if (cp >= 0xC0U && cp <= 0xFFU) {
+        c = kLatein1[cp - 0xC0U];
+    } else if (cp >= 0x100U && cp <= 0x17FU) {
+        c = kErweitertA[cp - 0x100U];
+    }
+    return c == '?' ? '\0' : c;
+}
+
 void utf8(std::string& o, unsigned cp) {
     if (cp < 0x80U) {
         o += static_cast<char>(cp);
@@ -90,24 +136,46 @@ void utf8(std::string& o, unsigned cp) {
     }
 }
 
-const std::unordered_set<std::string>& stoppwoerter() {
-    static const std::unordered_set<std::string> s = {
+const char* const kStoppAllgemein[] = {
         "wie", "ich", "kann", "man", "ein", "eine", "einen", "einem", "einer", "der", "die", "das", "den", "dem", "des", "und",
         "oder", "mit", "im", "in", "zu", "zum", "zur", "auf", "fuer", "von", "vom", "mein", "meine", "meinen", "ist", "es",
         "wo", "was", "wann", "bitte", "mir", "mich", "dass", "nicht", "auch", "so", "da", "an", "am", "aus", "bei", "will",
         "moechte", "geht", "dies", "diese", "finde", "findet", "gibt", "the", "a", "an", "to", "how", "do", "does", "i", "can", "my", "of",
         "for", "with", "is", "what", "where", "when", "please", "me", "it", "and", "or", "on", "at", "want", "into",
         "this", "that", "there", "be", "get", "you", "your", "am", "are", "which", "should", "would", "could"};
-    return s;
-}
 
 // Grob gestutzt, damit "Kameras", "Kamera", "texture", "textures" gleich zaehlen.
-std::string stutze(std::string w) {
-    static const char* const endungen[] = {"ungen", "ung", "ern", "ing", "en", "er", "es", "ed", "e", "s"};
+const char* const kEndungenAllgemein[] = {"ungen", "ung", "ern", "ing", "en", "er", "es", "ed", "e", "s"};
+
+// Stoppwoerter und Endungen einer Sprache: die allgemeinen (Deutsch und
+// Englisch, fuer jede Sprache) und davor die der Sprache (kSprachDaten).
+struct Regeln {
+    std::unordered_set<std::string> stopp;
+    std::vector<std::string> endungen;
+};
+
+const Regeln& regeln(i18n::Language sp) {
+    static const std::vector<Regeln> alle = [] {
+        std::vector<Regeln> v(i18n::languages().size());
+        for (std::size_t i = 0; i < v.size(); ++i) {
+            Regeln& r = v[i];
+            r.stopp.insert(std::begin(kStoppAllgemein), std::end(kStoppAllgemein));
+            if (const SprachDaten* d = sprachDaten(i18n::languages()[i].language)) {
+                for (const char* const* w = d->stopp; *w != nullptr; ++w) { r.stopp.insert(*w); }
+                for (const char* const* e = d->endungen; *e != nullptr; ++e) { r.endungen.emplace_back(*e); }
+            }
+            r.endungen.insert(r.endungen.end(), std::begin(kEndungenAllgemein), std::end(kEndungenAllgemein));
+        }
+        return v;
+    }();
+    const std::size_t i = static_cast<std::size_t>(sp);
+    return alle[i < alle.size() ? i : 0];
+}
+
+std::string stutze(std::string w, const Regeln& r) {
     if (w.size() <= 4) { return w; }
-    for (const char* e : endungen) {
-        const std::size_t n = std::char_traits<char>::length(e);
-        if (w.size() >= n + 4 && w.compare(w.size() - n, n, e) == 0) { return w.substr(0, w.size() - n); }
+    for (const std::string& e : r.endungen) {
+        if (w.size() >= e.size() + 4 && w.compare(w.size() - e.size(), e.size(), e) == 0) { return w.substr(0, w.size() - e.size()); }
     }
     return w;
 }
@@ -120,16 +188,16 @@ struct Zerlegt {
     std::string klein;              // der ganze Text klein (fuer CJK-Begriffe)
 };
 
-Zerlegt zerlegeText(std::string_view s) {
+Zerlegt zerlegeText(std::string_view s, const Regeln& r) {
     Zerlegt z;
     z.klein.reserve(s.size());
     std::string wort;
     std::string lauf;
     const auto wortEnde = [&] {
         if (!wort.empty()) {
-            if (stoppwoerter().count(wort) == 0U) {
+            if (r.stopp.count(wort) == 0U) {
                 z.roh.push_back(wort);
-                z.latein.push_back(stutze(wort));
+                z.latein.push_back(stutze(wort, r));
             }
             wort.clear();
         }
@@ -168,6 +236,12 @@ Zerlegt zerlegeText(std::string_view s) {
             laufEnde();
             wort += falt;
             z.klein += falt;
+            continue;
+        }
+        if (const char g = grundBuchstabe(cp); g != '\0') {
+            laufEnde();
+            wort += g;
+            z.klein += g;
             continue;
         }
         utf8(z.klein, cp);
@@ -209,39 +283,62 @@ struct Begriff {
     std::vector<std::string> cjk;
 };
 
-const std::vector<Begriff>& begriffe() {
-    static const std::vector<Begriff> b = [] {
-        std::vector<Begriff> v;
-        for (const BegriffRoh& r : kBegriffe) {
-            Begriff g;
-            g.name = std::string("@") + r.name;
-            std::string_view w(r.woerter);
-            while (!w.empty()) {
-                const std::size_t p = w.find('|');
-                const std::string_view teil = w.substr(0, p);
-                const Zerlegt z = zerlegeText(!teil.empty() && teil[0] == '=' ? teil.substr(1) : teil);
-                if (!teil.empty() && teil[0] == '=') {
-                    for (const std::string& wort : z.roh) { g.genau.push_back(wort); }
-                } else if (!z.cjk.empty()) {
-                    for (const std::string& c : z.cjk) { g.cjk.push_back(c); }
-                } else if (!z.latein.empty()) {
-                    g.latein.push_back(z.latein);
-                }
-                if (p == std::string_view::npos) { break; }
-                w.remove_prefix(p + 1);
+// Die Woerter eines Begriffs ("|" getrennt) an g anhaengen.
+void begriffsWoerter(Begriff& g, std::string_view w, const Regeln& r) {
+    while (!w.empty()) {
+        const std::size_t p = w.find('|');
+        const std::string_view teil = w.substr(0, p);
+        const Zerlegt z = zerlegeText(!teil.empty() && teil[0] == '=' ? teil.substr(1) : teil, r);
+        if (!teil.empty() && teil[0] == '=') {
+            for (const std::string& wort : z.roh) { g.genau.push_back(wort); }
+        } else if (!z.cjk.empty()) {
+            for (const std::string& c : z.cjk) { g.cjk.push_back(c); }
+        } else if (!z.latein.empty()) {
+            g.latein.push_back(z.latein);
+        }
+        if (p == std::string_view::npos) { break; }
+        w.remove_prefix(p + 1);
+    }
+}
+
+// Die Begriffe in einer Sprache: kBegriffe (vier Sprachen) und dazu die
+// Woerter der Sprache (kSprachDaten) - gestutzt nach den Regeln der Sprache.
+const std::vector<Begriff>& begriffe(i18n::Language sp) {
+    static const std::vector<std::vector<Begriff>> alle = [] {
+        std::vector<std::vector<Begriff>> v(i18n::languages().size());
+        for (std::size_t i = 0; i < v.size(); ++i) {
+            const i18n::Language l = i18n::languages()[i].language;
+            const Regeln& r = regeln(l);
+            for (const BegriffRoh& b : kBegriffe) {
+                Begriff g;
+                g.name = std::string("@") + b.name;
+                begriffsWoerter(g, b.woerter, r);
+                v[i].push_back(std::move(g));
             }
-            v.push_back(std::move(g));
+            if (const SprachDaten* d = sprachDaten(l)) {
+                for (const BegriffRoh* b = d->begriffe; b->name != nullptr; ++b) {
+                    const std::string name = std::string("@") + b->name;
+                    auto it = std::find_if(v[i].begin(), v[i].end(), [&name](const Begriff& g) { return g.name == name; });
+                    if (it == v[i].end()) {
+                        v[i].push_back(Begriff{});
+                        v[i].back().name = name;
+                        it = v[i].end() - 1;
+                    }
+                    begriffsWoerter(*it, b->woerter, r);
+                }
+            }
         }
         return v;
     }();
-    return b;
+    const std::size_t i = static_cast<std::size_t>(sp);
+    return alle[i < alle.size() ? i : 0];
 }
 
 // Die Begriffe eines zerlegten Texts.
-void begriffeIn(const Zerlegt& z, std::vector<std::string>& aus) {
+void begriffeIn(const Zerlegt& z, i18n::Language sp, std::vector<std::string>& aus) {
     std::unordered_set<std::string> menge(z.latein.begin(), z.latein.end());
     std::unordered_set<std::string> roh(z.roh.begin(), z.roh.end());
-    for (const Begriff& b : begriffe()) {
+    for (const Begriff& b : begriffe(sp)) {
         bool da = std::any_of(b.genau.begin(), b.genau.end(), [&](const std::string& w) { return roh.count(w) != 0U; });
         for (const auto& variante : b.latein) {
             if (da) { break; }
@@ -457,13 +554,15 @@ bool bereichImModus(const std::string& bereich, int modus) {
     }
 }
 
-std::vector<std::string> woerter(const std::string& text) {
-    const Zerlegt z = zerlegeText(text);
+std::vector<std::string> woerter(const std::string& text, i18n::Language sprache) {
+    const Zerlegt z = zerlegeText(text, regeln(sprache));
     std::vector<std::string> aus = z.latein;
     for (const std::string& l : z.cjk) { cjkWoerter(l, aus); }
-    begriffeIn(z, aus);
+    begriffeIn(z, sprache, aus);
     return aus;
 }
+
+std::vector<std::string> woerter(const std::string& text) { return woerter(text, i18n::Language::English); }
 
 std::string schrittTitel(const std::string& roh) {
     const std::size_t a = roh.find("**");
@@ -511,8 +610,8 @@ void Index::fertig() {
         // H2: `laenge` (BM25-Laengennorm) - der Pfad und der Inhalt eines
         // Untermenues zaehlen kaum mit, sonst verdraengt ein langer Inhalt
         // den Ort selbst ("Einstellungen" -> der Dialog, nicht eine seiner Seiten).
-        const auto feld = [&d](const std::string& t, double gewicht, double laengenAnteil) {
-            for (const std::string& w : woerter(t)) {
+        const auto feld = [&d, sp = sprache_](const std::string& t, double gewicht, double laengenAnteil) {
+            for (const std::string& w : woerter(t, sp)) {
                 d.tf[w] += gewicht;
                 d.laenge += gewicht * laengenAnteil;
             }
@@ -542,7 +641,7 @@ void Index::ersatz(const std::string& roh, const std::string& w, std::vector<std
     if (w.size() < 3 || static_cast<unsigned char>(w[0]) >= 0x80U) { return; }
     // 1. Beugungen (H2): rennt -> renn, laeuft -> lauf, entities -> entity
     for (const std::string& k : beugungen(roh)) {
-        const std::string g = stutze(k);
+        const std::string g = stutze(k, regeln(sprache_));
         if (df_.count(g) != 0U && std::none_of(aus.begin(), aus.end(), [&g](const auto& p) { return p.first == g; })) { aus.emplace_back(g, 0.85); }
     }
     if (!aus.empty() || w.size() < 4) { return; }
@@ -584,7 +683,7 @@ void Index::ersatz(const std::string& roh, const std::string& w, std::vector<std
 }
 
 std::string Index::vorschlag(const std::string& anfrage) const {
-    const Zerlegt z = zerlegeText(anfrage);
+    const Zerlegt z = zerlegeText(anfrage, regeln(sprache_));
     std::string o;
     bool anders = false;
     for (std::size_t i = 0; i < z.latein.size(); ++i) {
@@ -608,7 +707,7 @@ std::vector<Treffer> Index::frage(const std::string& anfrage, std::size_t hoechs
     // Gewichtete Woerter der Frage: Begriffe zaehlen mehr; unbekannte
     // lateinische Woerter ueber Beugung, Vorsilbe oder Tippfehler (Index::ersatz).
     std::map<std::string, double> q;
-    Zerlegt z = zerlegeText(anfrage);
+    Zerlegt z = zerlegeText(anfrage, regeln(sprache_));
     const std::size_t lateinZahl = z.latein.size();
     for (std::size_t i = 0; i < lateinZahl; ++i) {
         const std::string w = z.latein[i];
@@ -627,7 +726,7 @@ std::vector<Treffer> Index::frage(const std::string& anfrage, std::size_t hoechs
     }
     std::vector<std::string> rest;
     for (const std::string& l : z.cjk) { cjkWoerter(l, rest); }
-    begriffeIn(z, rest);
+    begriffeIn(z, sprache_, rest);
     for (const std::string& w : rest) {
         if (df_.count(w) == 0U) { continue; }
         const double g = (!w.empty() && w[0] == '@') ? 1.5 : 1.0;
@@ -773,6 +872,7 @@ std::string seitenBereich(const std::string& seite) {
 
 Index baue(const tour::Touren& touren, const std::vector<tour::Abschnitt>& handbuch, i18n::Language sprache) {
     Index ix;
+    ix.setzeSprache(sprache);
     std::map<std::string, std::string> tourBereich;   // Seite -> Bereich der Tour
     // Tutorials: die Tour und jeder Schritt einzeln.
     for (const tour::Tour& t : touren.liste) {
@@ -883,13 +983,17 @@ Index baue(const tour::Touren& touren, const std::vector<tour::Abschnitt>& handb
     // Haeufige Ziele: Woerter, wie Leute fragen, an den Eintrag haengen.
     std::set<std::string> ids;
     for (const Eintrag& e : ix.eintraege()) { ids.insert(e.id); }
-    for (const ZielRoh& z : kZiele) {
-        if (ids.count(z.id) == 0U) { continue; }
+    const auto ziel = [&](const ZielRoh& z) {
+        if (ids.count(z.id) == 0U) { return; }
         Eintrag e;
         e.id = z.id;
         e.woerter = z.woerter;
         e.bereich = z.bereich;
         ix.hinzu(std::move(e));
+    };
+    for (const ZielRoh& z : kZiele) { ziel(z); }
+    if (const SprachDaten* d = sprachDaten(sprache)) {
+        for (const ZielRoh* z = d->ziele; z->id != nullptr; ++z) { ziel(*z); }
     }
     ix.fertig();
     return ix;

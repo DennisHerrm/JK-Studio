@@ -1,9 +1,11 @@
 /* Handbuch BehavEd-Remake: Suche, Hell/Dunkel, Bild gross, Sprung zum Treffer.
  *
  * Die Suche liest window.HANDBUCH_INDEX (suche.js der Sprache): je Abschnitt
- * Seite, Anker, Titel und Text. Gesucht wird ohne Gross/Klein, alle Woerter
- * muessen vorkommen (Chinesisch/Japanisch: als Zeichenfolge). Ein Klick
- * springt auf die Seite an den Abschnitt und markiert dort den Begriff.
+ * Seite, Anker, Titel und Text. Gesucht wird ohne Gross/Klein und ohne
+ * Akzente ("animacion" findet "animación", "cestina" findet "čeština",
+ * "uber" findet "über"), alle Woerter muessen vorkommen (Chinesisch/Japanisch:
+ * als Zeichenfolge). Ein Klick springt auf die Seite an den Abschnitt und
+ * markiert dort den Begriff.
  */
 (function () {
   "use strict";
@@ -13,8 +15,39 @@
   var liste = document.getElementById("treffer");
   var wahl = -1;
 
+  // Klein, NFKC und ohne Akzente (U+0300..U+036F nach NFD: é -> e, ñ -> n,
+  // ě -> e, ü -> u). Japanische Dakuten liegen nicht in diesem Bereich und
+  // bleiben (NFC setzt sie wieder zusammen).
   function norm(s) {
-    return (s || "").normalize("NFKC").toLowerCase();
+    return (s || "").normalize("NFKC").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").normalize("NFC");
+  }
+  // Gefaltet und je gefaltetem Zeichen die Stelle im Original - Schnipsel und
+  // Markierung schneiden das Original, auch wenn die Faltung Laengen aendert.
+  function karte(s) {
+    var t = "";
+    var pos = [];
+    for (var i = 0; i < s.length;) {
+      var c = String.fromCodePoint(s.codePointAt(i));
+      var f = norm(c);
+      for (var k = 0; k < f.length; k++) { pos.push(i); }
+      t += f;
+      i += c.length;
+    }
+    pos.push(s.length);
+    return { t: t, pos: pos };
+  }
+  // Die Stellen [von, bis) der Woerter im Original, sortiert, ohne Ueberlappung.
+  function stellen(text, ws) {
+    var k = karte(text);
+    var aus = [];
+    ws.forEach(function (w) {
+      var p = k.t.indexOf(w);
+      while (p >= 0) { aus.push([k.pos[p], k.pos[p + w.length]]); p = k.t.indexOf(w, p + w.length); }
+    });
+    aus.sort(function (a, b) { return a[0] - b[0]; });
+    var rein = [];
+    aus.forEach(function (st) { if (!rein.length || st[0] >= rein[rein.length - 1][1]) { rein.push(st); } });
+    return rein;
   }
   function woerter(q) {
     return norm(q).split(/\s+/).filter(function (w) { return w.length > 0; });
@@ -23,33 +56,35 @@
     return s.replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
   }
   function markiere(text, ws) {
-    var t = escHtml(text);
-    ws.forEach(function (w) {
-      var e = escHtml(w).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      t = t.replace(new RegExp("(" + e + ")", "gi"), "<mark>$1</mark>");
+    var t = "";
+    var pos = 0;
+    stellen(text, ws).forEach(function (st) {
+      t += escHtml(text.slice(pos, st[0])) + "<mark>" + escHtml(text.slice(st[0], st[1])) + "</mark>";
+      pos = st[1];
     });
-    return t;
+    return t + escHtml(text.slice(pos));
   }
   function schnipsel(text, ws) {
-    var n = norm(text);
-    var at = n.indexOf(ws[0]);
+    var k = karte(text);
+    var at = k.t.indexOf(ws[0]);
     if (at < 0) { return text.slice(0, 140); }
-    var von = Math.max(0, at - 60);
+    var von = Math.max(0, k.pos[at] - 60);
     return (von > 0 ? "…" : "") + text.slice(von, von + 170) + (von + 170 < text.length ? "…" : "");
   }
+  // Einmal gefaltet, nicht bei jedem Tastendruck.
+  index.forEach(function (e) { e.ns = norm(e.s); e.nt = norm(e.t); e.nx = norm(e.x); });
   function suche(q) {
     var ws = woerter(q);
     if (!ws.length) { return []; }
     var aus = [];
     index.forEach(function (e) {
-      var titel = norm(e.s + " " + e.t);
-      var alles = titel + " " + norm(e.x);
+      var alles = e.ns + " " + e.nt + " " + e.nx;
       for (var i = 0; i < ws.length; i++) { if (alles.indexOf(ws[i]) < 0) { return; } }
       var punkte = 0;
       ws.forEach(function (w) {
-        if (norm(e.s).indexOf(w) >= 0) { punkte += 10; }
-        if (norm(e.t).indexOf(w) >= 0) { punkte += 4; }
-        punkte += Math.min(5, norm(e.x).split(w).length - 1);
+        if (e.ns.indexOf(w) >= 0) { punkte += 10; }
+        if (e.nt.indexOf(w) >= 0) { punkte += 4; }
+        punkte += Math.min(5, e.nx.split(w).length - 1);
       });
       aus.push({ e: e, p: punkte });
     });
@@ -111,18 +146,11 @@
     while (gang.nextNode()) { knoten.push(gang.currentNode); }
     knoten.forEach(function (k) {
       var t = k.nodeValue;
-      var n = norm(t);
-      var stellen = [];
-      ws.forEach(function (w) {
-        var p = n.indexOf(w);
-        while (p >= 0) { stellen.push([p, p + w.length]); p = n.indexOf(w, p + w.length); }
-      });
-      if (!stellen.length || k.parentNode.closest("mark, script, style")) { return; }
-      stellen.sort(function (a, b) { return a[0] - b[0]; });
+      var st = stellen(t, ws);
+      if (!st.length || k.parentNode.closest("mark, script, style")) { return; }
       var frag = document.createDocumentFragment();
       var pos = 0;
-      stellen.forEach(function (s) {
-        if (s[0] < pos) { return; }
+      st.forEach(function (s) {
         frag.appendChild(document.createTextNode(t.slice(pos, s[0])));
         var m = document.createElement("mark");
         m.textContent = t.slice(s[0], s[1]);

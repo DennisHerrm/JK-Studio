@@ -5180,18 +5180,16 @@ std::vector<Schritt> gross() {
     add(tu("Reiter Pruefungen", [] { ke::optimiererReiter(1); }));
     add(pause(0.3));
     add(foto("karteneditor_s5_gross"));
-    // Stufe 6: die groesste Karte in allen vier Sprachen (Grenzen und Pruefungen)
+    // Stufe 6: die groesste Karte in allen Sprachen (Grenzen und Pruefungen)
     {
         auto sprache = std::make_shared<i18n::Language>(i18n::Language::English);
         add(tu("Stufe 6: Sprache merken, Begriffe aus", [sprache] {
             *sprache = i18n::currentLanguage();
             ke::setzeNrcBegriffe(false);
         }));
-        const std::pair<i18n::Language, const char*> sprachen[] = {
-            {i18n::Language::English, "en"}, {i18n::Language::German, "de"}, {i18n::Language::ChineseSimplified, "zh"}, {i18n::Language::Japanese, "ja"}};
-        for (const auto& [l, kurz] : sprachen) {
-            const i18n::Language lang = l;
-            const std::string k = kurz;
+        for (const i18n::LanguageInfo& l : i18n::languages()) {
+            const i18n::Language lang = l.language;
+            const std::string k = l.kurz;
             add(tu("Stufe 6: grosse Karte, Sprache " + k + ", Reiter Grenzen", [lang] {
                 i18n::setLanguage(lang);
                 ke::optimiererReiter(0);

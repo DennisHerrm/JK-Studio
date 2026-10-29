@@ -122,14 +122,7 @@ Zustand& z() {
     return s;
 }
 
-const char* sprachCode() {
-    switch (i18n::currentLanguage()) {
-        case i18n::Language::German: return "de";
-        case i18n::Language::ChineseSimplified: return "zh";
-        case i18n::Language::Japanese: return "ja";
-        default: return "en";
-    }
-}
+const char* sprachCode() { return i18n::kurzCode(i18n::currentLanguage()); }
 
 std::filesystem::path pfadU8(const std::string& s) {
     return std::filesystem::path(std::u8string(reinterpret_cast<const char8_t*>(s.data()), s.size()));

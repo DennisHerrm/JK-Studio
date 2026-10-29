@@ -96,5 +96,42 @@ if _unused:
     print("   (haeufig die Spur einer Bedienung, die verlorengegangen ist)")
     bad += len(_unused)
 
+# --- Weitere Sprachen (tools/sprachen.py): was noch englisch ist -------------
+#
+# Fehlt einer weiteren Sprache (Spanisch, Tschechisch) ein Text in
+# tools/i18n_sprache_<kurz>.py, zeigt das Programm den englischen - nie einen
+# leeren. Das ist erlaubt: neue Texte anderer Zweige kommen in vier Sprachen.
+# Darum hier nur eine WARNUNG (zaehlt nicht als Beanstandung). Mit
+# `--sprache <kurz>` prueft der Lauf nur diese Sprache und endet mit Fehler,
+# wenn ihr ein Text fehlt (Pflicht am Ende ihrer Stufe).
+import json  # noqa: E402
+import subprocess  # noqa: E402
+_lauf = subprocess.run([sys.executable, str(root / 'tools' / 'gen_i18n.py'), '--fehlend'],
+                       cwd=root, capture_output=True, text=True, encoding='utf-8')
+if _lauf.returncode != 0:
+    print("gen_i18n.py --fehlend scheiterte:", _lauf.stderr[:400])
+    sys.exit(1)
+_stand = json.loads(_lauf.stdout.strip().splitlines()[-1])
+_nur = sys.argv[sys.argv.index('--sprache') + 1] if '--sprache' in sys.argv else None
+for _kurz, _fehlt in _stand['fehlend'].items():
+    if _nur is not None and _kurz != _nur:
+        continue
+    _fremd = _stand['fremd'][_kurz]
+    print(f"Sprache {_kurz}: {len(_fehlt)} Text(e) noch englisch"
+          + (f", {len(_fremd)} Kennung(en) in i18n_sprache_{_kurz}.py gibt es nicht" if _fremd else ""))
+    for _k in _fehlt[:40]:
+        print(f"   fehlt ({_kurz}): {_k}")
+    if len(_fehlt) > 40:
+        print(f"   ... und {len(_fehlt) - 40} weitere")
+    for _k in _fremd:
+        print(f"   gibt es nicht ({_kurz}): {_k}")
+if _nur is not None:
+    _f = _stand['fehlend'].get(_nur)
+    if _f is None:
+        print(f"unbekannte weitere Sprache: {_nur}")
+        sys.exit(1)
+    print(f"i18n-Pruefung {_nur}:", "ok (0 fehlend)" if not _f and not _stand['fremd'][_nur] else "unvollstaendig")
+    sys.exit(1 if _f or _stand['fremd'][_nur] else 0)
+
 print("i18n-Pruefung:", "ok" if bad == 0 else f"{bad} Beanstandung(en)")
 sys.exit(1 if bad else 0)

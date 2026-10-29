@@ -77,7 +77,12 @@ def wegwerfbaum(gen_pfad=None):
                 os.path.join(ziel, "tools", "gen_i18n.py"))
     # Karten-Editor (Stufe 1b): die Texte stehen in einer eigenen Datei,
     # die gen_i18n.py einliest.
-    for name in ("i18n_karte.py", "karte_menues.py"):
+    # Alles, was gen_i18n.py einliest: die Texte der Stufen (i18n_*.py, auch
+    # die weiteren Sprachen i18n_sprache_<kurz>.py), die Menues des
+    # Karten-Editors und die Liste der Sprachen.
+    namen = [n for n in os.listdir(os.path.join(WURZEL, "tools"))
+             if n.startswith("i18n_") and n.endswith(".py")] + ["karte_menues.py", "sprachen.py"]
+    for name in namen:
         shutil.copy(os.path.join(WURZEL, "tools", name), os.path.join(ziel, "tools", name))
     return ziel
 
