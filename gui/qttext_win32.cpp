@@ -216,6 +216,31 @@ int qtTextBreite(const std::string& utf8, const wchar_t* schrift, float pixel, b
     return static_cast<int>(std::ceil(m.vorschub + m.rechts));
 }
 
+std::string qtFehlendeZeichen(const std::string& utf8, const wchar_t* schrift, bool fett) {
+    IDWriteFontFace* flaeche = schriftFlaeche(schrift, fett);
+    if (flaeche == nullptr) { return utf8; }
+    const std::wstring text = breit(utf8);
+    std::string fehlt;
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        UINT32 cp = text[i];
+        std::size_t n = 1;
+        if (cp >= 0xD800U && cp < 0xDC00U && i + 1 < text.size()) {
+            cp = 0x10000U + ((cp - 0xD800U) << 10U) + (static_cast<UINT32>(text[i + 1]) - 0xDC00U);
+            n = 2;
+        }
+        UINT16 glyphe = 0;
+        if (FAILED(flaeche->GetGlyphIndices(&cp, 1, &glyphe)) || glyphe == 0) {
+            const std::wstring z = text.substr(i, n);
+            const int laenge = WideCharToMultiByte(CP_UTF8, 0, z.c_str(), static_cast<int>(z.size()), nullptr, 0, nullptr, nullptr);
+            std::string u(static_cast<std::size_t>(laenge > 0 ? laenge : 0), '\0');
+            if (laenge > 0) { (void)WideCharToMultiByte(CP_UTF8, 0, z.c_str(), static_cast<int>(z.size()), u.data(), laenge, nullptr, nullptr); }
+            fehlt += u;
+        }
+        i += n - 1;
+    }
+    return fehlt;
+}
+
 int qtTextVorschub(const std::string& utf8, const wchar_t* schrift, float pixel, bool fett) {
     const QtTextMass m = qtTextMass(utf8, schrift, pixel, fett);
     if (!m.gueltig) { return -1; }

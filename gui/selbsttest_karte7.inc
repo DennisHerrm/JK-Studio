@@ -791,6 +791,28 @@ std::vector<Schritt> menue() {
         i18n::setLanguage(i18n::Language::English);
     }));
     add(pause(0.3));
+    // Spanisch und Tschechisch: im View-Menue des Editors waehlbar
+    const std::pair<const char*, i18n::Language> neue[] = {{"Espa\xc3\xb1ol", i18n::Language::Spanish},
+                                                           {"\xc4\x8c" "e\xc5\xa1tina", i18n::Language::Czech}};
+    for (const auto& [name, sprache] : neue) {
+        const i18n::Language soll = sprache;
+        add(klick(ke::trK(Str::KeLView), "###main"));
+        add(pause(0.3));
+        add({"View > Language", [](int b) {
+                 static Schritt k;
+                 if (b == 0) { k = klick(ke::trK(Str::ViewLanguage), "##Menu_", 0, false); }
+                 return k.tun(b);
+             }});
+        add(pause(0.3));
+        add(klick(name, "##Menu_", 0, false));
+        add(pause(0.4));
+        add(pruefe(std::string("Stufe 7/6b: Sprache ") + name + " gilt", [soll] { return i18n::currentLanguage() == soll; }));
+        add(tu("Menues zu, Englisch", [] {
+            karteDialogeZu();
+            i18n::setLanguage(i18n::Language::English);
+        }));
+        add(pause(0.3));
+    }
     // Skalierung
     add(klick(ke::trK(Str::KeLView), "###main"));
     add(pause(0.3));

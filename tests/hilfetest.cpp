@@ -60,6 +60,28 @@ void woerterProben() {
     const std::vector<std::string> e = bhed::hilfe::woerter("camera path");
     expect("camera path -> @fahrt (zwei Woerter)", hat(e, "@fahrt"));
     expect("leer -> nichts", bhed::hilfe::woerter("   ").empty());
+    // Weitere Sprachen: Akzente gefaltet (wie die Suche im Handbuch), Stoppwoerter
+    // und Endungen der Sprache (src/hilfe_sprache_<kurz>.inc).
+    using L = bhed::i18n::Language;
+    expect("Akzente: Animación = animacion (Spanisch)",
+           bhed::hilfe::woerter("Animación", L::Spanish) == bhed::hilfe::woerter("animacion", L::Spanish));
+    expect("Akzente: Čeština = cestina, Ěščřžýáíéůúďťň = escrzyaieuudtn (Tschechisch)",
+           bhed::hilfe::woerter("Čeština", L::Czech) == bhed::hilfe::woerter("cestina", L::Czech) &&
+               bhed::hilfe::woerter("Ěščřžýáíéůúďťň", L::Czech) == bhed::hilfe::woerter("escrzyaieuudtn", L::Czech));
+    expect("Akzente: ñ -> n, á é í ó ú -> a e i o u",
+           bhed::hilfe::woerter("Año cámara tránsito", L::Spanish) == bhed::hilfe::woerter("ano camara transito", L::Spanish));
+    const std::vector<std::string> es = bhed::hilfe::woerter("¿Cómo hago una animación con las texturas?", L::Spanish);
+    expect("Spanisch: Stoppwoerter fallen weg (como, hago, una, con, las)",
+           !hat(es, "como") && !hat(es, "hago") && !hat(es, "una") && !hat(es, "con") && !hat(es, "las"));
+    expect("Spanisch: animación, animaciones, animar, animado -> anim",
+           hat(es, "anim") && hat(bhed::hilfe::woerter("animaciones", L::Spanish), "anim") &&
+               hat(bhed::hilfe::woerter("animar", L::Spanish), "anim") && hat(bhed::hilfe::woerter("animado", L::Spanish), "anim"));
+    expect("Spanisch: textura, texturas -> textur (wie texture)",
+           hat(es, "textur") && hat(bhed::hilfe::woerter("textura", L::Spanish), "textur") &&
+               hat(bhed::hilfe::woerter("texture", L::Spanish), "textur"));
+    expect("die vier ersten Sprachen stutzen wie bisher (Englisch: animation bleibt)",
+           bhed::hilfe::woerter("animation", L::German) == bhed::hilfe::woerter("animation") &&
+               hat(bhed::hilfe::woerter("animation"), "animation"));
     expect("schrittTitel: der fette Anfang", bhed::hilfe::schrittTitel("**Texture.** Double-click a folder") == "Texture.");
 }
 
@@ -270,10 +292,16 @@ const Frage kUnabhaengig[] = {
 // H2: die neue unabhaengige Liste (eingefroren, siehe dort).
 #include "hilfe_fragen_h2.inc"
 
+// Weitere Sprachen (tools/sprachen.py): je Sprache eine eigene, eingefrorene
+// Liste (FrageH2, mit sprache = Kurzform; {nullptr, ...} am Ende). Hat eine
+// Sprache Fragen, braucht sie mindestens 24 und Top-3 >= 85 %.
+#include "hilfe_fragen_es.inc"
+#include "hilfe_fragen_cs.inc"
+
 bhed::i18n::Language spracheVon(const std::string& s) {
-    if (s == "de") { return bhed::i18n::Language::German; }
-    if (s == "zh") { return bhed::i18n::Language::ChineseSimplified; }
-    if (s == "ja") { return bhed::i18n::Language::Japanese; }
+    for (const bhed::i18n::LanguageInfo& l : bhed::i18n::languages()) {
+        if (s == l.kurz) { return l.language; }
+    }
     return bhed::i18n::Language::English;
 }
 
@@ -391,6 +419,38 @@ void trefferProben(const std::string& ordner) {
     std::printf("    unabhaengig gesamt: %d von %d = %.1f %%\n", unGut, unGesamt, unGesamt > 0 ? 100.0 * unGut / unGesamt : 0.0);
     const double h2Quote = h2Gesamt > 0 ? 100.0 * h2Gut / h2Gesamt : 0.0;
     std::printf("    H2-Liste gesamt: %d von %d = %.1f %%\n", h2Gut, h2Gesamt, h2Quote);
+    for (const FrageH2* liste : {kFragenEs, kFragenCs}) {
+        if (liste[0].sprache == nullptr) { continue; }
+        const std::string sp = liste[0].sprache;
+        bhed::tour::Touren t;
+        std::vector<bhed::tour::Abschnitt> hb;
+        std::string f;
+        const bool tOk = bhed::tour::ladeTouren(datei(ordner + "/" + sp + "/touren.json"), t, &f);
+        const bool hOk = bhed::tour::ladeSuchindex(datei(ordner + "/" + sp + "/suche.js"), hb, &f);
+        expect((sp + ": touren.json und suche.js gelesen").c_str(), tOk && hOk);
+        const bhed::hilfe::Index ix = bhed::hilfe::baue(t, hb, spracheVon(sp));
+        int n = 0;
+        int g = 0;
+        for (const FrageH2* q = liste; q->sprache != nullptr; ++q) {
+            ++n;
+            bool ok = false;
+            std::string ids;
+            for (const bhed::hilfe::Treffer& x : ix.frage(q->text, 3, q->modus)) {
+                const std::string& id = ix.eintraege()[x.eintrag].id;
+                ok = ok || passt(id, q->erwartet);
+                ids += " " + id;
+            }
+            if (ok) {
+                ++g;
+            } else {
+                std::printf("    daneben (%s, Modus %d) \"%s\":%s\n", sp.c_str(), q->modus, q->text, ids.c_str());
+            }
+        }
+        const double anteil = 100.0 * g / n;
+        std::printf("    %s-Liste: %d von %d = %.1f %%\n", sp.c_str(), g, n, anteil);
+        expect((sp + "-Liste: mindestens 24 Fragen").c_str(), n >= 24);
+        expect((sp + "-Liste: Top-3-Trefferquote >= 85 %").c_str(), anteil >= 85.0);
+    }
     expect("H2-Liste: mindestens 40 Fragen", h2Gesamt >= 40);
     expect("H2-Liste: Top-3-Trefferquote >= 85 %", h2Quote >= 85.0);
     expect("mindestens 60 Fragen", gesamt >= 60);

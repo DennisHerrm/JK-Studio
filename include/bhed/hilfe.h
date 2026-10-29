@@ -64,7 +64,11 @@ struct Treffer {
 };
 
 // Ein Wort-Zerleger fuer Index und Frage. Liefert die Woerter und die
-// Begriffe ("@kamera").
+// Begriffe ("@kamera"). Akzente werden gefaltet (animación -> animacion);
+// Stoppwoerter, Endungen und Begriffe haengen von der Sprache ab (die vier
+// ersten teilen sich eine Liste, die weiteren ergaenzen sie:
+// src/hilfe_sprache_<kurz>.inc). Ohne Sprache: Englisch.
+[[nodiscard]] std::vector<std::string> woerter(const std::string& text, i18n::Language sprache);
 [[nodiscard]] std::vector<std::string> woerter(const std::string& text);
 
 class Index {
@@ -81,6 +85,8 @@ public:
     // H2: ein bekanntes Wort fuer ein unbekanntes ("texure" -> "textur"); "" = keins.
     // Fuer "Hast du gemeint ...?" bei 0 Treffern.
     [[nodiscard]] std::string vorschlag(const std::string& anfrage) const;
+    // Die Sprache der Woerter (Stoppwoerter, Endungen, Begriffe) - vor hinzu() setzen.
+    void setzeSprache(i18n::Language sprache) { sprache_ = sprache; }
 
 private:
     struct Doku {
@@ -92,6 +98,7 @@ private:
     std::unordered_map<std::string, double> df_;
     std::vector<std::string> vokabel_;   // sortiert, fuer Vorsilben
     double mittel_ = 1.0;
+    i18n::Language sprache_ = i18n::Language::English;
     // H2: Beugung und Tippfehler - bekannte Woerter fuer ein unbekanntes (roh, gestutzt).
     void ersatz(const std::string& roh, const std::string& gestutzt, std::vector<std::pair<std::string, double>>& aus) const;
 };

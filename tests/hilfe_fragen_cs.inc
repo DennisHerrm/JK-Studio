@@ -1,13 +1,15 @@
-// hilfe_fragen_cs.inc - die Frageliste fuer Tschechisch (Stufe Sprachen, EINGEFROREN)
+// hilfe_fragen_cs.inc - die unabhaengige Frageliste auf Tschechisch (EINGEFROREN)
 //
-// Geschrieben, BEVOR der Helfer tschechische Begriffe kannte, und danach
-// nicht mehr angepasst (weder die Fragen noch die erwarteten Antworten).
-// 26 Fragen in 17 Zielen, frei formuliert wie ein Anwender fragt (keine
-// woertlichen Uebersetzungen der H2-Liste), mit zwei Tippfehlern und acht
-// Fragen, die erst mit dem aktuellen Modus eindeutig werden (modus >= 0:
-// 1 Vorschau, 2 Modell, 3 Karten-Editor, 4 Menue-Editor; -1 = ohne Kontext).
-// Erwartet: Vorsilben der Kennungen wie in kFragen (passt()); "tour:x@" =
-// jeder Schritt der Tour x. Gemessen wird Top-3.
+// Geschrieben, BEVOR der Helfer tschechische Begriffe kannte (Commit
+// 246de054, vor dem Merge der Grundlage), und danach nicht mehr angepasst -
+// weder die Fragen noch die erwarteten Antworten; beim Merge nur in den
+// Aufbau der Grundlage gebracht (FrageH2: Sprache, Modus, Frage, erwartete
+// Kennungen als Vorsilben, {nullptr, ...} am Ende). 26 Fragen in 18 Zielen,
+// frei formuliert wie ein Anwender fragt (keine woertlichen Uebersetzungen der
+// H2-Liste), mit zwei Tippfehlern und elf Fragen, die erst mit dem aktuellen
+// Modus eindeutig werden (1 Vorschau, 2 Modell, 3 Karten-Editor,
+// 4 Menue-Editor; -1 = ohne Kontext). "tour:x@" = jeder Schritt der Tour x.
+// Ziel Top-3 >= 85 %.
 #define CS_LAUFEN "seite:k-wegpunkte|seite:wegpunkte|seite:tut-p3|seite:k-patrouille|seite:k-gangart|seite:figuren|tour:k-wegpunkte@|tour:k-gangart@|tour:tut-p3@|tour:k-patrouille@"
 #define CS_ABSPIELEN "seite:zeitleiste|seite:k-zeitleiste-plus|seite:k-neu-timen|seite:tut-erste-szene|seite:tut-p4|seite:k-ansichten|tour:k-zeitleiste-plus@|tour:k-neu-timen@|tour:tut-erste-szene@|tour:tut-p4@"
 #define CS_MISSION "seite:tut-p1|seite:tut-mission|seite:missionen|seite:tut-projekt|tour:tut-p1@|tour:tut-mission@|ort:menue:MenuFile>MissionNew|ort:knopf:MissionNew"
@@ -27,39 +29,34 @@
 #define CS_BAUEN "tour:tut-karte@12|seite:karte_bauen|ort:menue:KeLBuild"
 #define CS_RUECK "seite:k-rueckgaengig|tour:k-rueckgaengig@|ort:menue:MenuEdit>EditUndo|ort:menue:MenuEdit>UndoListMenu|ort:knopf:ActUndo|ort:menue:KeLEdit>KeLUndo"
 
-struct FrageCs {
-    int modus;
-    const char* text;
-    const char* erwartet;
-};
-
-const FrageCs kFragenCs[] = {
-    {-1, "Jak donutím NPC chodit po trase mezi body?", CS_LAUFEN},
-    {-1, "postava má běžet místo chůze", CS_LAUFEN},
-    {1, "přehrát animační sekvenci od začátku", CS_ABSPIELEN},
-    {1, "načasovat střihy podle dialogu", CS_ABSPIELEN},
-    {-1, "založit novou misi na mapě", CS_MISSION},
-    {2, "vyměnit skin postavy", CS_SKIN},
-    {2, "jiné oblečení pro tenhle model", CS_SKIN},
-    {-1, "kde nastavím, kam je nainstalovaná hra", CS_SPIELORDNER},
-    {-1, "program nenašel složku s hrou", CS_SPIELORDNER},
-    {-1, "je k dispozici nová verze programu?", CS_UPDATE},
-    {3, "přidat dveře, které se otevírají", CS_TUER},
-    {-1, "spustit scénu, když hráč vejde do oblasti", CS_TRIGGER},
-    {-1, "upravit hlavní menu hry", CS_MENUE},
-    {-1, "změnit tlačítko v menu hry", CS_MENUE},
-    {4, "vyzkoušet menu jako ve hře, mačkat tlačítka", CS_BEDIENEN},
-    {3, "nastavení", CS_KE_EINST},
-    {-1, "dát texturu na podlahu", CS_TEXTUR},
-    {3, "nanést textru na zeď", CS_TEXTUR},
-    {-1, "umístit kameru a udělat záběr", CS_KAMERA},
-    {1, "kamera má sledovat postavu", CS_KAMERA},
-    {3, "přidat do místnosti světlo", CS_LICHT},
-    {-1, "přepnout program do češtiny", CS_SPRACHE},
-    {-1, "zkompilovat skript na ibi", CS_UEBERSETZEN},
-    {-1, "skript se nedá zkompilovt, kde je chyba", CS_UEBERSETZEN},
-    {3, "zkompilovat mapu do bsp", CS_BAUEN},
-    {-1, "vrátit poslední změnu zpět", CS_RUECK},
+const FrageH2 kFragenCs[] = {
+    {"cs", -1, "Jak donutím NPC chodit po trase mezi body?", CS_LAUFEN},
+    {"cs", -1, "postava má běžet místo chůze", CS_LAUFEN},
+    {"cs", 1, "přehrát animační sekvenci od začátku", CS_ABSPIELEN},
+    {"cs", 1, "načasovat střihy podle dialogu", CS_ABSPIELEN},
+    {"cs", -1, "založit novou misi na mapě", CS_MISSION},
+    {"cs", 2, "vyměnit skin postavy", CS_SKIN},
+    {"cs", 2, "jiné oblečení pro tenhle model", CS_SKIN},
+    {"cs", -1, "kde nastavím, kam je nainstalovaná hra", CS_SPIELORDNER},
+    {"cs", -1, "program nenašel složku s hrou", CS_SPIELORDNER},
+    {"cs", -1, "je k dispozici nová verze programu?", CS_UPDATE},
+    {"cs", 3, "přidat dveře, které se otevírají", CS_TUER},
+    {"cs", -1, "spustit scénu, když hráč vejde do oblasti", CS_TRIGGER},
+    {"cs", -1, "upravit hlavní menu hry", CS_MENUE},
+    {"cs", -1, "změnit tlačítko v menu hry", CS_MENUE},
+    {"cs", 4, "vyzkoušet menu jako ve hře, mačkat tlačítka", CS_BEDIENEN},
+    {"cs", 3, "nastavení", CS_KE_EINST},
+    {"cs", -1, "dát texturu na podlahu", CS_TEXTUR},
+    {"cs", 3, "nanést textru na zeď", CS_TEXTUR},
+    {"cs", -1, "umístit kameru a udělat záběr", CS_KAMERA},
+    {"cs", 1, "kamera má sledovat postavu", CS_KAMERA},
+    {"cs", 3, "přidat do místnosti světlo", CS_LICHT},
+    {"cs", -1, "přepnout program do češtiny", CS_SPRACHE},
+    {"cs", -1, "zkompilovat skript na ibi", CS_UEBERSETZEN},
+    {"cs", -1, "skript se nedá zkompilovt, kde je chyba", CS_UEBERSETZEN},
+    {"cs", 3, "zkompilovat mapu do bsp", CS_BAUEN},
+    {"cs", -1, "vrátit poslední změnu zpět", CS_RUECK},
+    {nullptr, -1, nullptr, nullptr},
 };
 
 #undef CS_LAUFEN

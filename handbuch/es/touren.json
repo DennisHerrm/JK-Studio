@@ -1,0 +1,1329 @@
+{
+ "fassung": 1,
+ "sprache": "es",
+ "touren": [
+  {
+   "id": "k-neues-skript",
+   "gruppe": "tut_skript",
+   "titel": "Write a script from scratch",
+   "kurz": "A new empty script, an affect block for one figure and a first command inside it.",
+   "seite": "k-neues-skript.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Open an empty tab.** Click the **+** at the end of the tab bar (or **{{MenuFile}} → {{FileNew}}**). A new tab `unnamed.txt` opens with an empty script. The mode bar on the left must be on **{{ViewEvents}}** - then the **{{GroupEvents}}** list with every command is on the left.",
+      "bild": "s_neu_plus",
+      "unter": "The + at the end of the tab bar opens an empty script.",
+      "ziel": "reiter:+;menue:MenuFile>FileNew",
+      "fertig": "reiter+|leer",
+      "voraus": "",
+      "einrichten": "neuerReiter",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Find affect in the list.** The **{{GroupEvents}}** list shows every command of the game with its values. `affect` is near the top. Hover over it to read what it does.",
+      "bild": "s_neu_affect_liste",
+      "unter": "affect in the Events list.",
+      "ziel": "eintrag:affect",
+      "fertig": "schwebt|befehl:affect",
+      "voraus": "modus:0 < knopf:ViewEvents@modebar",
+      "einrichten": "modus:0",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Double-click it.** `affect` appears in the script tree in the middle. It is already open (the box in front shows a minus), because a block holds other commands.",
+      "bild": "s_neu_affect_baum",
+      "unter": "The new affect block in the tree.",
+      "ziel": "eintrag:affect",
+      "fertig": "befehl:affect",
+      "voraus": "modus:0 < knopf:ViewEvents@modebar",
+      "einrichten": "modus:0;befehl:affect",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Name the figure.** Double-click the new line (or select it and press <kbd>Enter</kbd>). The **{{EditorTitle}}** opens. Type the name of the figure into the first field - with a map loaded, the small arrow next to it lists every name of the map. Leave `FLUSH` in the second field and press **{{EditorOk}}**.",
+      "bild": "s_neu_editor",
+      "unter": "The event editor for affect: the name field and Ok.",
+      "ziel": "knopfN:##v@###editor#0;knopf:EditorOk@###editor",
+      "fertig": "wert:affect#0:0",
+      "voraus": "editor:affect < zeile:affect#0",
+      "einrichten": "wert:affect#0:0=kyle",
+      "sicher": true,
+      "ueberspringen": "editorzu"
+     },
+     {
+      "text": "**Select the block, then pick the next command.** Click the `affect` line once (1). Then double-click `wait` in the list (2). Because the selected block is open, the command goes to the start of the block.",
+      "bild": "s_neu_wait_liste",
+      "unter": "1: the selected affect block. 2: wait in the list.",
+      "ziel": "zeile:affect#0;eintrag:wait",
+      "fertig": "kind:affect>wait",
+      "voraus": "modus:0 < knopf:ViewEvents@modebar",
+      "einrichten": "modus:0;waehle:affect#0;befehl:wait",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Check the result.** `wait` now sits inside the block, indented under `affect`. Commands you insert after it follow it, in order, inside the same block.",
+      "bild": "s_neu_ergebnis",
+      "unter": "wait inside the affect block.",
+      "ziel": "zeile:wait#0",
+      "fertig": "manuell",
+      "voraus": "",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Save.** Press **{{FileSave}}** in the action column on the right (or <kbd>Ctrl</kbd>+<kbd>S</kbd>). The first time, behaved asks for a name - script names are lower case without spaces, for example `my_first.txt`.",
+      "bild": "s_neu_speichern",
+      "unter": "Save in the action column.",
+      "ziel": "knopf:FileSave",
+      "fertig": "gespeichert",
+      "voraus": "",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-befehl-einfuegen",
+   "gruppe": "tut_skript",
+   "titel": "Three ways to add a command",
+   "kurz": "Double-click, drag and drop, or the Insert key - and how to put a command exactly where you want it.",
+   "seite": "k-befehl-einfuegen.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Double-click.** Select the line after which the command should come (1), then double-click the command in the **{{GroupEvents}}** list (2). The new line appears right below the selected one - here a `wait` after `camera ( MOVE )`. That is how the original BehavEd worked.",
+      "bild": "s_ein_doppel",
+      "unter": "1: the selected line. 2: the command in the list.",
+      "ziel": "baum;eintrag:wait",
+      "fertig": "knoten+",
+      "voraus": "modus:0 < knopf:ViewEvents@modebar",
+      "einrichten": "modus:0;befehl:wait",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Insert key.** Click a command in the list once - it stays highlighted (1). Select a line in the tree (2) and press <kbd>Insert</kbd>. Handy when you add the same command several times: select, <kbd>Insert</kbd>, select, <kbd>Insert</kbd> ...",
+      "bild": "s_ein_einfg",
+      "unter": "1: the command stays selected in the list. 2: where it goes.",
+      "ziel": "eintrag:wait;baum",
+      "fertig": "knoten+",
+      "voraus": "modus:0 < knopf:ViewEvents@modebar",
+      "einrichten": "modus:0;befehl:wait",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Drag.** Drag a command from the list (1) onto a line of the tree (2). While you drag, a line shows where it lands: above a line, below it, or - on the middle of an open block - inside the block.",
+      "bild": "s_ein_ziehen",
+      "unter": "Drag from the list (1) onto the tree (2).",
+      "ziel": "eintrag:wait;baum",
+      "fertig": "knoten+",
+      "voraus": "modus:0 < knopf:ViewEvents@modebar",
+      "einrichten": "modus:0;befehl:wait",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Right-click.** Right-click a line in the tree: the submenus **{{GroupEvents}}** and **Macros** list every command; the one you click is inserted after that line - or into the block, if you right-clicked an open block.",
+      "bild": "s_ein_kontext",
+      "unter": "The context menu of a line with its Events submenu.",
+      "ziel": "baum",
+      "fertig": "knoten+",
+      "voraus": "",
+      "einrichten": "befehl:wait",
+      "sicher": true,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-werte-bearbeiten",
+   "gruppe": "tut_skript",
+   "titel": "Change the values of a command",
+   "kurz": "The event editor: lists, numbers, file fields, names from the map - and expressions such as get, tag and random.",
+   "seite": "k-werte-bearbeiten.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Open the editor.** Double-click a line in the tree or select it and press <kbd>Enter</kbd>. The help text of the command stands on top; below it, every value has its own field.",
+      "bild": "h_editor",
+      "unter": "The event editor for a camera command.",
+      "ziel": "baum",
+      "fertig": "editor",
+      "voraus": "",
+      "einrichten": "editor",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Fields for values.** Numbers, vectors and text are typed into their fields. A vector like a position has three numbers separated by spaces.",
+      "bild": "s_wert_felder",
+      "unter": "The value fields of camera ( MOVE ): a position and a time.",
+      "ziel": "knopfN:##v@###editor#0;knopfN:##v@###editor#1",
+      "fertig": "manuell",
+      "voraus": "editor < baum",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Fields with fixed choices.** Fields like `SET_TYPES` or `true` / `false` are lists you can also type into - start typing to filter the list. A value that is not in the list is allowed (mods bring their own), but it is marked **unknown**: check it for a typo.",
+      "bild": "s_wert_liste",
+      "unter": "The two list fields of set ( SET_WALKING, true ).",
+      "ziel": "knopfN:##combo@###editor#0;knopfN:##combo@###editor#1",
+      "fertig": "manuell",
+      "voraus": "editor < baum",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Files.** File fields have **{{EditorBrowse}}** to pick a file of the game and **{{EditorPlay}}** to play a sound or open a script. With a map loaded, an arrow next to name fields picks a name from the map.",
+      "bild": "s_wert_datei",
+      "unter": "A sound command: browse and play.",
+      "ziel": "knopf:EditorBrowse@###editor;knopf:EditorPlay@###editor",
+      "fertig": "manuell",
+      "voraus": "editor < baum",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Expressions.** Some fields have **{{EditorHelper}}**: it builds an expression for you - **{{EditorGet}}** reads a variable (`get`), **{{EditorTag}}** the place or angles of a `ref_tag` (`tag`), **{{EditorRnd}}** a random number (`random`).",
+      "bild": "s_wert_helper",
+      "unter": "Helper next to a field of the camera command.",
+      "ziel": "knopf:EditorHelper@###editor",
+      "fertig": "manuell",
+      "voraus": "editor < baum",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Free text.** Other fields have **{{EditorExpr}}**: it turns the field into free text, for anything the lists do not offer. **{{EditorRevert}}** goes back to a plain value.",
+      "bild": "s_wert_expr",
+      "unter": "Expr! next to the fields of affect.",
+      "ziel": "knopf:EditorExpr@###editor",
+      "fertig": "manuell",
+      "voraus": "editor < baum",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Done.** **{{EditorOk}}** (<kbd>Enter</kbd>) writes the values into the script, **{{EditorCancel}}** (<kbd>Esc</kbd>) leaves everything as it was. Under each field you see the value it had before (**{{EditorWas}}**).",
+      "bild": "s_wert_ok",
+      "unter": "Ok and Cancel.",
+      "ziel": "knopf:EditorOk@###editor;knopf:EditorCancel@###editor",
+      "fertig": "editorzu",
+      "voraus": "",
+      "einrichten": "editorzu",
+      "sicher": true,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-zeilen-ordnen",
+   "gruppe": "tut_skript",
+   "titel": "Move, copy and comment out lines",
+   "kurz": "Rearrange a script: select several lines, drag them, duplicate them, and switch lines off without deleting them.",
+   "seite": "k-zeilen-ordnen.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Select.** Click a line in the tree. <kbd>Ctrl</kbd>+click adds more lines, <kbd>Shift</kbd>+click selects everything between. Every button of the action column works on all selected lines at once.",
+      "bild": "s_auswahl",
+      "unter": "Two selected lines.",
+      "ziel": "baum",
+      "fertig": "auswahl",
+      "voraus": "",
+      "einrichten": "waehle:*",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Move.** Drag the selection to a new place - or press **{{ActMoveUp}}** / **{{ActMoveDown}}** in the action column (<kbd>Alt</kbd>+<kbd>Up</kbd> / <kbd>Alt</kbd>+<kbd>Down</kbd>) to move it one line. It stays inside its block. A block moves with everything inside it.",
+      "bild": "s_verschieben",
+      "unter": "Move up and Move down.",
+      "ziel": "gruppe:ActMoveUp,ActMoveDown",
+      "fertig": "aenderung+",
+      "voraus": "auswahl < baum",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Duplicate.** **{{ActClone}}** (<kbd>Space</kbd>) inserts a copy of the selection right below - the quickest way to a second camera shot or a second walk.",
+      "bild": "s_clone",
+      "unter": "Duplicate.",
+      "ziel": "knopf:ActClone",
+      "fertig": "knoten+",
+      "voraus": "auswahl < baum",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Copy between scripts.** **{{ActCopy}}** (<kbd>Ctrl</kbd>+<kbd>C</kbd>) copies the selection. Switch to another tab, select a line and press **{{ActPaste}}** (<kbd>Ctrl</kbd>+<kbd>V</kbd>): the commands are inserted below that line.",
+      "bild": "s_copy",
+      "unter": "Copy and Paste.",
+      "ziel": "knopf:ActCopy;knopf:ActPaste",
+      "fertig": "knoten+",
+      "voraus": "auswahl < baum",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Switch off without deleting.** **{{ActRem}}** (<kbd>Backspace</kbd>) turns the selected lines into comments: they stay in the script, but the game skips them. Press it again (or <kbd>Ctrl</kbd>+<kbd>Backspace</kbd>) to switch them back on.",
+      "bild": "s_rem",
+      "unter": "REM: the two lines are now comments.",
+      "ziel": "knopf:ActRem",
+      "fertig": "rem+",
+      "voraus": "auswahl < baum",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-uebersetzen",
+   "gruppe": "tut_skript",
+   "titel": "Compile and fix errors",
+   "kurz": "Turn the script into the .ibi the game runs, read the messages and jump to the line that is wrong.",
+   "seite": "k-uebersetzen.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Compile.** Press **{{Compile}}** at the bottom of the action column. It saves the `.txt` and writes the `.ibi` the game runs next to it. When it worked, the button flashes green.",
+      "bild": "t1_6",
+      "unter": "The Compile button.",
+      "ziel": "knopf:Compile",
+      "fertig": "uebersetzt+",
+      "voraus": "",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**When it fails.** The button flashes red, and the first wrong line is selected in the tree - here an `if` with the comparison `~`, which ICARUS does not know.",
+      "bild": "s_comp_fehler",
+      "unter": "Compile failed: the button and the selected wrong line.",
+      "ziel": "knopf:Compile",
+      "fertig": "manuell",
+      "voraus": "",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Read the messages.** Click the counter in the status line at the bottom: the **{{MessagesTitle}}** window lists every message with its line and what is wrong.",
+      "bild": "s_comp_meldung",
+      "unter": "The counters in the status line open the Messages window.",
+      "ziel": "meldungen",
+      "fertig": "fenster:messages",
+      "voraus": "",
+      "einrichten": "fenster:messages",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Fix and compile again.** Double-click the wrong line, correct the value - here the comparison: `=`, `<`, `>` or `!` - press **{{EditorOk}}** and **{{Compile}}** again.",
+      "bild": "s_comp_editor",
+      "unter": "The wrong value in the event editor.",
+      "ziel": "knopf:Compile",
+      "fertig": "uebersetzt+",
+      "voraus": "",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-karte",
+   "gruppe": "tut",
+   "titel": "Your first map: a room to walk in",
+   "kurz": "From an empty map to a room you can walk through in the game: brushes, textures, caulk, a light, the player start, the optimizer, building with the progress window, walking through it in the editor - and the .pk3 for the game.",
+   "seite": "tut-karte.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Set up the game.** Switch the mode bar to **{{ViewMapEditor}}**. The editor uses the game the program is set up for; its folders come from the program settings. **{{KeLEdit}} > {{KeLPreferences}}**, page **{{KePgGame}}**, shows the game, page **{{KePgPaths}}** the engine path (empty: taken from the program's game folders).",
+      "bild": "h_tut_karte_pfade",
+      "unter": "{{KeLPreferences}}, page {{KePgPaths}}.",
+      "ziel": "menue:KeLEdit>KeLPreferences",
+      "fertig": "zahl:karte.spiel",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**New map.** **{{KeLFile}} > {{KeLNewMap}}** starts an empty map - only the worldspawn. Zoom the 2D view out a little with the mouse wheel.",
+      "bild": "h_tut_karte_neu",
+      "unter": "The {{KeLFile}} menu.",
+      "ziel": "menue:KeLFile>KeLNewMap",
+      "fertig": "zahl:karte.leer",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Draw a brush.** In the 2D top view, drag with the left mouse button from one corner to the other - here from -256 -256 to 256 256, a box 512 units wide. Its height comes from the work zone (at first -64 to 64).",
+      "bild": "h_tut_karte_brush",
+      "unter": "The new brush, selected (red).",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.ent+",
+        "text": "That made an entity. Press Ctrl+Z, then drag with the LEFT mouse button in the 2D view."
+       }
+      ]
+     },
+     {
+      "text": "**Make it taller.** <kbd>Num 1</kbd> switches the 2D view to the front view (XZ). Grab just above the top edge and drag up: the top face follows on the grid. Here to 192 - the room is now 256 high. <kbd>Num 7</kbd> goes back to the top view.",
+      "bild": "h_tut_karte_hoehe",
+      "unter": "The front view: the brush is now 256 high.",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.hoehe+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.pinsel+",
+        "text": "That drew a second brush. Press Ctrl+Z and start the drag just above the top edge of the first one."
+       }
+      ]
+     },
+     {
+      "text": "**Texture.** Double-click a folder in the tree of the texture browser and click a texture with the left mouse button: every face of the selected brush gets it. Pick something without transparency for the walls.",
+      "bild": "h_tut_karte_textur",
+      "unter": "The wall texture on all six faces.",
+      "ziel": "fenster:##feldTexturen",
+      "fertig": "zahl:karte.texturen~",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.keineauswahl",
+        "text": "Nothing is selected yet. Click the brush in a 2D view first, then the texture."
+       }
+      ]
+     },
+     {
+      "text": "**Hollow it out.** The toolbar button **{{KeCsgTitle}}** opens the CSG tool. Leave the thickness at 16 and switch the caulk button off for now (AutoCaulk does that later), then press **{{KeCsgTipPull}}**: six walls 16 thick grow outwards around the room, and the inside stays exactly the box you drew. The toolbar button **Room** (Make Room) does the same with the grid size as thickness.",
+      "bild": "h_tut_karte_csg",
+      "unter": "{{KeCsgTitle}} with the caulk button off.",
+      "ziel": "knopfN:##knopfCSGTool",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**A floor texture.** In the front view, <kbd>Shift</kbd> + left click on the floor selects only the floor brush; click a floor texture in the browser. <kbd>Esc</kbd> clears the selection.",
+      "bild": "h_tut_karte_hohl",
+      "unter": "The hollow room: six wall brushes.",
+      "ziel": "fenster:##feldTexturen",
+      "fertig": "zahl:karte.texturen~",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.keineauswahl",
+        "text": "Nothing is selected yet. Click the brush in a 2D view first, then the texture."
+       }
+      ]
+     },
+     {
+      "text": "**A light.** Right-click inside the room in the 2D view: the entity menu opens. **light** asks for the intensity (300 is a good start) - **OK** places it where you clicked.",
+      "bild": "h_tut_karte_licht",
+      "unter": "{{KeLiTitle}}.",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.light+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.pinsel+",
+        "text": "That drew a brush. Press Ctrl+Z and click with the RIGHT mouse button."
+       }
+      ]
+     },
+     {
+      "text": "**Where the player starts.** Right-click near the floor: **info > info_player_start**. Without it the game does not know where to put the player. Its box stands on the floor.",
+      "bild": "h_tut_karte_spawn",
+      "unter": "The entity menu, submenu info.",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.info_player_start",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.ent.light+",
+        "text": "That was another light. Right-click again and choose info > info_player_start."
+       }
+      ]
+     },
+     {
+      "text": "**Save.** **{{KeLFile}} > {{KeLSaveAs}}** - for example `meinekarte.map` in a folder `maps` of your own, outside the game folders. The name of the file becomes the name of the map in the game.",
+      "bild": "h_tut_karte_gespeichert",
+      "unter": "The saved room in the editor.",
+      "ziel": "menue:KeLFile>KeLSaveAs",
+      "fertig": "zahl:karte.gespeichert+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Caulk the outside.** Faces nobody can see still cost lightmap space and drawing time. Fly the camera into the room, drag a rectangle around the whole room with <kbd>Shift</kbd> + right mouse button in the top view and press <kbd>F4</kbd> (**{{KeLBrush}} > {{KeLAutoCaulkSelected}}**): every face that cannot be seen from inside becomes caulk. Building in caulk from the start works too: give new brushes the caulk texture and texture only the faces you see.",
+      "bild": "h_tut_karte_caulk",
+      "unter": "After AutoCaulk: the camera inside the room.",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.caulk+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Check it.** **{{KeLBuild}} > {{KeOptMenue}}** counts the game's limits and looks for build problems before you compile. A green room has nothing to fix.",
+      "bild": "h_tut_karte_optimierer",
+      "unter": "The optimizer for the tutorial room.",
+      "ziel": "menue:KeLBuild>KeOptMenue",
+      "fertig": "offen:karteoptimierer",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Build.** **{{KeLBuild}} > [Final] Fast** runs q3map2 three times - BSP, VIS and the light with bounce. The progress window shows the stage, the progress and the time left. If the map leaked, the console says so in red and a line in the 2D view shows the way out - see Map editor: compiling the map.",
+      "bild": "h_tut_karte_fortschritt",
+      "unter": "The progress window during the build.",
+      "ziel": "menue:KeLBuild",
+      "fertig": "zahl:karte.gebaut+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Walk through it.** **{{KeLView}} > {{KeSpSpawn}}** and then **{{KeSpMenue}}** (<kbd>F6</kbd>): you stand at the info_player_start and walk with <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>, jump with <kbd>Space</kbd>; <kbd>Esc</kbd> ends. This works even without compiling - the collision comes straight from the brushes (see Play in the editor).",
+      "bild": "h_tut_karte_spielen",
+      "unter": "Walking through the room in the editor.",
+      "ziel": "menue:KeLView>KeSpMenue",
+      "fertig": "zahl:karte.spielen",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Into the game.** **{{KeLBuild}} > {{KePkMenue}}** packs `maps/meinekarte.bsp` into `meinekarte.pk3` next to the .bsp. The program never writes into the game folders - copy the .pk3 yourself into `GameData/base` (Jedi Academy, Jedi Outcast) or into the folder of your mod (for example Movie Duels). Start the game, open the console with <kbd>Shift</kbd>+<kbd>~</kbd> and type `devmap meinekarte`.",
+      "bild": "h_tut_karte_pk3menue",
+      "unter": "{{KeLBuild}} with **{{KePkMenue}}** (not in NetRadiant-Custom).",
+      "ziel": "menue:KeLBuild>KePkMenue",
+      "fertig": "zahl:karte.pk3+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-kamera-ansicht",
+   "gruppe": "tut_kamera",
+   "titel": "Put a shot where you are looking",
+   "kurz": "Look around until the picture is right, then move a shot - or a new one - exactly there.",
+   "seite": "k-kamera-ansicht.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Fly to the view you want.** Hold the right mouse button in the map and fly with <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> until the picture is right.",
+      "bild": "c_frei",
+      "unter": "Your own view of the map.",
+      "ziel": "karte3d",
+      "fertig": "zahl:vorschau.blick~",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "No map is open yet. Load one first: {{MenuFile}} > {{MapLoad}} - or open a mission."
+       }
+      ]
+     },
+     {
+      "text": "**A new shot here.** Select the camera and press **{{CamNewShot}}**: a `camera ( MOVE )` and `camera ( PAN )` at your view are added after the selected shot.",
+      "bild": "h_kamera",
+      "unter": "New camera shot here in the camera panel.",
+      "ziel": "knopf:CamNewShot",
+      "fertig": "zahl:vorschau.einstellungen+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.ohnekamera|zahl:vorschau.kameragewaehlt < gezeichnet:zeitleiste.kamera",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "No map is open yet. Load one first: {{MenuFile}} > {{MapLoad}} - or open a mission."
+       },
+       {
+        "wenn": "zahl:vorschau.ohnekamera",
+        "text": "This script has no camera yet. Insert a camera command first ({{GroupEvents}} list: double-click camera) - or open a mission with a cutscene."
+       },
+       {
+        "wenn": "zahl:vorschau.nichtgewaehlt",
+        "text": "Select the camera first: click a camera shot on the map or the camera row in the timeline. Its buttons appear on the left."
+       }
+      ]
+     },
+     {
+      "text": "**Or move an existing one.** Select a shot in **{{CamShots}}** and press **{{CamSetToView}}**: its position and direction are replaced by your view - one undo step.",
+      "bild": "c_aufansicht",
+      "unter": "Set to view.",
+      "ziel": "knopf:CamSetToView",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.nichtgewaehlt",
+        "text": "Select the camera first: click a camera shot on the map or the camera row in the timeline. Its buttons appear on the left."
+       }
+      ]
+     },
+     {
+      "text": "**Check.** **{{MapThroughCam}}** on the map toolbar shows what the selected shot sees, with its zoom and the black cinema bars.",
+      "bild": "c_durch",
+      "unter": "Through camera on the toolbar.",
+      "ziel": "knopf:MapThroughCam",
+      "fertig": "zahl:vorschau.durchkamera",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-modell",
+   "gruppe": "tut_mission",
+   "titel": "Look at a character model",
+   "kurz": "Load any character of the game, turn it, look at its skins and its skeleton.",
+   "seite": "k-modell.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Switch to {{ViewModel}}** in the mode bar on the left.",
+      "bild": "m_modus",
+      "unter": "Model in the mode bar.",
+      "ziel": "knopf:ViewModel@modebar",
+      "fertig": "modus:2",
+      "voraus": "",
+      "einrichten": "modus:2",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Pick a character.** **{{NpcBrowser}}** lists every character of the game - type to search, click to load it with its skin.",
+      "bild": "m_npc",
+      "unter": "The NPC browser.",
+      "ziel": "knopf:NpcBrowser",
+      "fertig": "zahl:modell.figur~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Look around.** Left mouse turns, middle mouse moves, the wheel zooms. **{{ModelTurntable}}** turns it by itself, **{{ModelResetView}}** brings it back to the front.",
+      "bild": "h_modell",
+      "unter": "The model view.",
+      "ziel": "knopf:ModelTurntable;knopf:ModelResetView",
+      "fertig": "zahl:modell.blick~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Details.** **{{ModelSkin}}** switches skins, **{{ModelBones}}** shows the skeleton, **{{ModelTextures}}** switches textures off.",
+      "bild": "m_details",
+      "unter": "Skin, Bones and Textures.",
+      "ziel": "knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures",
+      "fertig": "zahl:modell.details~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-gangart",
+   "gruppe": "tut_figur",
+   "titel": "Walk, run or walk backwards",
+   "kurz": "Change how a figure moves - right on its path in the map.",
+   "seite": "k-gangart.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Show the path.** Click the figure on the map or its name in the timeline. Its path appears: grey ahead of the playhead, yellow where it already walked.",
+      "bild": "h_figur_bahn",
+      "unter": "Kyle and his path.",
+      "ziel": "karte3d",
+      "fertig": "zahl:vorschau.figurgewaehlt",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "No map is open yet. Load one first: {{MenuFile}} > {{MapLoad}} - or open a mission."
+       },
+       {
+        "wenn": "zahl:vorschau.ohnefigur",
+        "text": "This map has no figure yet. Open a mission with figures ({{MenuFile}} > {{LoadMission}}) or place one: the tile {{EntKindNpc}} on the left edge of the view."
+       }
+      ]
+     },
+     {
+      "text": "**Right-click the walk target** at the end of the path. The menu offers **{{BahnGehen}}**, **{{BahnRennen}}** and **{{BahnRueckwaerts}}**.",
+      "bild": "k_gangart",
+      "unter": "The menu of a walk target.",
+      "ziel": "gezeichnet:vorschau.laufziel",
+      "fertig": "zahl:vorschau.gangartmenue",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.figurgewaehlt < karte3d",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnelaufziel",
+        "text": "This figure does not walk yet - its path has no walk target. Pick a figure that walks, or let one walk first (3 · Let them walk)."
+       }
+      ]
+     },
+     {
+      "text": "**Pick one.** behaved writes `SET_WALKING` / `SET_RUNNING` before this walk - here **{{BahnRennen}}** added `set ( SET_RUNNING, true )`. It counts from this walk on.",
+      "bild": "g_gang_baum",
+      "unter": "The new SET_RUNNING line.",
+      "ziel": "gezeichnet:vorschau.gangartmenue",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.gangartmenue < gezeichnet:vorschau.laufziel",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Watch.** Play the timeline: the figure runs, and its walk block is shorter.",
+      "bild": "g_gang_zeit",
+      "unter": "The shorter walk in the timeline.",
+      "ziel": "knopf:TlPlay",
+      "fertig": "zahl:vorschau.laeuft",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-wegpunkte",
+   "gruppe": "tut_mission",
+   "titel": "Give NPCs paths to walk",
+   "kurz": "Create the NPC waypoint network automatically, check it, and add paths by hand.",
+   "seite": "k-wegpunkte.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Open the window.** **{{WegTitel}}** on the map toolbar.",
+      "bild": "e_weg_knopf",
+      "unter": "NPC waypoints on the toolbar.",
+      "ziel": "gezeichnet:vorschau.wegknopf",
+      "fertig": "zahl:vorschau.wegfenster",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "No map is open yet. Load one first: {{MenuFile}} > {{MapLoad}} - or open a mission."
+       }
+      ]
+     },
+     {
+      "text": "**Show and create.** **{{WegZeigen}}** shows the network - green by hand, blue automatic, orange jumps. **{{WegErzeugen}}** spreads waypoints over the walkable floor; the spacing slider sets how dense.",
+      "bild": "h_wegpunkte",
+      "unter": "The NPC waypoints window.",
+      "ziel": "knopf:WegErzeugen@###wegpunkte",
+      "fertig": "zahl:vorschau.wegpunkte+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "No map is open yet. Load one first: {{MenuFile}} > {{MapLoad}} - or open a mission."
+       }
+      ]
+     },
+     {
+      "text": "**Check.** **{{WegPruefen}}** finds what the game would reject - click a problem to fly there.",
+      "bild": "e_weg_pruefen",
+      "unter": "Check network.",
+      "ziel": "knopf:WegPruefen@###wegpunkte",
+      "fertig": "zahl:vorschau.weggeprueft",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**By hand.** **{{WegSetzen}}**: click the floor to place a path; **{{WegVerbinden}}** connects two points (<kbd>Ctrl</kbd>: a jump).",
+      "bild": "e_weg_setzen",
+      "unter": "Place waypoints and Connect.",
+      "ziel": "knopf:WegSetzen@###wegpunkte;karte3d",
+      "fertig": "zahl:vorschau.wegpunkte+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-neu-timen",
+   "gruppe": "tut_kamera",
+   "titel": "Retime a cutscene in the timeline",
+   "kurz": "Make a shot longer, start a line of dialogue later, move a whole part - by dragging blocks.",
+   "seite": "k-neu-timen.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Play it.** Press ▶ in the timeline below the map. Switch **{{TlAudio}}** on to hear the dialogue you are matching the cuts against.",
+      "bild": "c_tl_play",
+      "unter": "To start, play - and Sound.",
+      "ziel": "knopf:TlPlay",
+      "fertig": "zahl:vorschau.laeuft",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "No map is open yet. Load one first: {{MenuFile}} > {{MapLoad}} - or open a mission."
+       }
+      ]
+     },
+     {
+      "text": "**Move a block.** Drag a block left or right. Everything after it moves along, so the rest stays in sync. Hold <kbd>Alt</kbd> to move only this block.",
+      "bild": "a_k_timen",
+      "unter": "Dragging a block in the timeline: everything after it moves along.",
+      "ziel": "gezeichnet:zeitleiste",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Change a duration.** Drag the right edge of a block - a walk, a camera move, a wait - to make it shorter or longer.",
+      "bild": "c_tl_kante",
+      "unter": "The right edge of a block.",
+      "ziel": "gezeichnet:zeitleiste",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second. The time display shows where you are; click it to switch to frames.",
+      "bild": "c_tl_zeit",
+      "unter": "The time display.",
+      "ziel": "gezeichnet:zeitleiste",
+      "fertig": "zahl:vorschau.tlschritte+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Check the script.** Every drag changes a value in the script (a wait, a time). Click a block: its line is selected in the script column on the right.",
+      "bild": "c_tl_klick",
+      "unter": "A clicked block and its line in the script.",
+      "ziel": "gezeichnet:zeitleiste;baum",
+      "fertig": "auswahl",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-p1",
+   "gruppe": "tut",
+   "titel": "1 · Create the mission",
+   "kurz": "A new mission on taspir1: map, player start, script runner and an intro script are made for you.",
+   "seite": "tut-p1.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Open the start page.** Switch the mode bar to **{{ViewMap}}**. Without a map, the tab shows the start page.",
+      "bild": "h_start",
+      "unter": "The start page of the Mission tab.",
+      "ziel": "knopf:ViewMap@modebar",
+      "fertig": "zahl:vorschau.startseite",
+      "voraus": "",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.karte",
+        "text": "A map is open, so the tab shows the map instead of the start page. Close it with {{MenuFile}} > {{MapClose}}."
+       }
+      ]
+     },
+     {
+      "text": "**New mission.** Click **{{StartCardNew}}**. In the list type `taspir1` and pick it. As **{{MissionName}}** type `taspir_tut` - letters, digits and `_`. The **{{MissionFolder}}** is filled in by itself. Press **{{MissionCreate}}**.",
+      "bild": "h_mission_neu",
+      "unter": "The New mission window.",
+      "ziel": "knopf:StartCardNew;knopf:MissionCreate",
+      "fertig": "zahl:mission.name~",
+      "voraus": "zahl:vorschau.startseite|offen:##neuemission < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Look at what you got.** The map opens on the landing pad. behaved has added a `target_scriptrunner` next to the player start: when the player spawns, the script `taspir_tut/intro` runs. It is open in a tab - a short camera shot behind the player start.",
+      "bild": "t4_2",
+      "unter": "The new mission: the player start is selected, the intro script is open on the right.",
+      "ziel": "karte3d",
+      "fertig": "manuell",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Switch off the original intro.** taspir1 has its own start: its player start already triggers a runner with `taspir1/preIntro`, and the same trigger now starts yours too - both would play at once. Type `t271` into the search box of the entity list - that is the runner of the original (its `usescript` is `taspir1/preIntro`) - select it and press <kbd>Delete</kbd>. The **{{FlowGraph}}** view shows such connections at a glance (Graph: what starts what).",
+      "bild": "e_t271",
+      "unter": "The runner of the original, found with the search box.",
+      "ziel": "karte3d",
+      "fertig": "zahl:vorschau.ents-",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-skins",
+   "gruppe": "tut_mission",
+   "titel": "Skins and skeletons of a model",
+   "kurz": "Another skin, another skeleton, and the surfaces a skin switches on or off.",
+   "seite": "k-skins.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Switch skins.** In the **{{ViewModel}}** tab the **{{ModelSkin}}** list in the playback bar shows the skins that come with the model; **{{OpenSkin}}** loads another one.",
+      "bild": "k_modell_leiste",
+      "unter": "The playback bar with the skin list.",
+      "ziel": "knopf:ModelSkin;knopf:OpenSkin",
+      "fertig": "zahl:modell.skin+",
+      "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Surfaces.** The counter next to it shows how many surfaces the skin draws; click it to list them all in the detail log.",
+      "bild": "m_flaechen",
+      "unter": "The surface counter.",
+      "ziel": "gezeichnet:modell.flaechen",
+      "fertig": "zahl:modell.flaechenliste+",
+      "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Caps.** **{{ModelCaps}}** shows the `_off` surfaces that close the holes where limbs attach.",
+      "bild": "m_caps",
+      "unter": "Show caps.",
+      "ziel": "knopf:ModelCaps",
+      "fertig": "zahl:modell.caps~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Another skeleton.** **{{ModelLoadGla}}** loads a different `.gla` with its animations.",
+      "bild": "m_gla",
+      "unter": "Load .gla.",
+      "ziel": "knopf:ModelLoadGla",
+      "fertig": "zahl:modell.skelett~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-spielordner",
+   "gruppe": "tut_mission",
+   "titel": "Set up the game folder and the preferences",
+   "kurz": "Tell the program where Jedi Academy is installed, check what it found, and choose the rules of the preview.",
+   "seite": "k-spielordner.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Open the paths.** **{{MenuEdit}} → {{PathsTitle}}**. In the map editor switch to **{{ViewEvents}}** first - the menus **{{MenuFile}}**, **{{MenuEdit}}** and **{{MenuView}}** are there.",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:MenuEdit>PathsTitle",
+      "fertig": "zahl:programm.pfade",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Add the game folder.** Press **{{Pk3AddPath}}** and choose the `base` folder of Jedi Academy - the one with `assets0.pk3`. For Movie Duels add its `MD` folder too.",
+      "bild": "h_tour_spielordner",
+      "unter": "The tutorial in the program: the button is highlighted.",
+      "ziel": "knopf:Pk3AddPath@###paths",
+      "fertig": "zahl:programm.spielordner+",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.pfade < menue:MenuEdit>PathsTitle",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Check the list.** Every folder shows how many archives it found. If it says none, you picked the wrong folder - remove it and try again. Then close the window.",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:###paths",
+      "fertig": "manuell",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.pfade < menue:MenuEdit>PathsTitle",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Open the preferences.** **{{MenuEdit}} → {{AppPrefs}}**: sound levels, the game rules of the preview, difficulty and how the program behaves.",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:MenuEdit>AppPrefs",
+      "fertig": "zahl:programm.einstellungen",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Choose the rules.** **{{PrefsRegelwerk}}**: *auto* follows your game folder; OpenJK or Movie Duels make the preview behave exactly like that game - walking, doors, timing.",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:PrefsRegelwerk",
+      "fertig": "zahl:programm.regelwerk~",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.einstellungen < menue:MenuEdit>AppPrefs",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-update",
+   "gruppe": "tut_mission",
+   "titel": "Check for updates",
+   "kurz": "Look for a new version, read what changed, and decide whether the program checks at start.",
+   "seite": "k-update.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Look for a new version.** **{{MenuHelp}} → {{UpdMenu}}**. The program asks GitHub for the newest release - only now, because you chose it.",
+      "bild": "h_tour_update",
+      "unter": "The tutorial points at the Help menu.",
+      "ziel": "menue:MenuHelp>UpdMenu",
+      "fertig": "zahl:update.fenster",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Read the answer.** The window says that you have the newest version - or shows the new one with its notes and **{{UpdInstall}}**. Without a connection it says so; **{{UpdRetry}}** tries again.",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:###update",
+      "fertig": "zahl:update.ergebnis",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.fenster < menue:MenuHelp>UpdMenu",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**At start or not.** **{{MenuHelp}} → {{UpdAutoCheck}}** switches the check at start on or off. Nothing else is ever sent.",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:MenuHelp>UpdAutoCheck",
+      "fertig": "zahl:update.auto~",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**What changed?** **{{ChangelogMenu}}** in the window (or in **{{MenuHelp}}**) lists the changes of every version.",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu",
+      "fertig": "offen:###changelog",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-karte-tuer",
+   "gruppe": "tut",
+   "titel": "A door and a trigger in the map editor",
+   "kurz": "Turn a brush into a door, tell it which way to open, and let a trigger open it when the player walks in.",
+   "seite": "tut-karte-tuer.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Open the map editor.** **{{ViewMapEditor}}** in the mode bar. Open your map from Your first map: a room to walk in - or any map with a room.",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:ViewMapEditor@modebar",
+      "fertig": "modus:3",
+      "voraus": "",
+      "einrichten": "modus:3",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Draw the door.** Drag a thin brush with the LEFT mouse button in a 2D view, where the door should be - for example 16 units thick.",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.ent+",
+        "text": "That made an entity. Press Ctrl+Z, then drag with the LEFT mouse button in the 2D view."
+       }
+      ]
+     },
+     {
+      "text": "**Make it a door.** Keep it selected, right-click in the 2D view and choose **func → func_door**. The brush is now an entity that moves.",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.func_door+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.keineauswahl",
+        "text": "Nothing is selected. Click the door brush in a 2D view first, then right-click and choose func > func_door."
+       },
+       {
+        "wenn": "zahl:karte.ent.light+",
+        "text": "That was a light. Press Ctrl+Z, select the door brush and choose func > func_door."
+       }
+      ]
+     },
+     {
+      "text": "**Which way it opens.** Press <kbd>N</kbd> for the entity inspector. Set the key `angle` to `90` (it slides north; `-1` is up, `-2` down) and press <kbd>Enter</kbd>.",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##feldGruppe",
+      "fertig": "zahl:karte.schluessel~",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Draw the trigger.** Draw a second brush in front of the door, right-click and choose **trigger → trigger_multiple**. Triggers are invisible in the game.",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.trigger_multiple+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Connect them.** Select the trigger first, then the door (<kbd>Shift</kbd>+click), and press <kbd>Ctrl</kbd>+<kbd>K</kbd> - **{{KeLEntity}} → {{KeLConnectEntities}}**. The trigger's `target` now names the door's `targetname`.",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:KeLEntity>KeLConnectEntities",
+      "fertig": "zahl:karte.verbindungen+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Try it.** Build the map and walk through it as in Your first map: a room to walk in: the door opens when you step into the trigger.",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:KeLBuild",
+      "fertig": "zahl:karte.gebaut+|zahl:karte.spielen",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-menue",
+   "gruppe": "tut",
+   "titel": "Change a game menu",
+   "kurz": "Open a menu of the game, move a button, try it like in the game and pack it for your mod.",
+   "seite": "tut-menue.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Open the menu editor.** **{{ViewMenuEditor}}** in the mode bar.",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:ViewMenuEditor@modebar",
+      "fertig": "modus:4",
+      "voraus": "",
+      "einrichten": "modus:4",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Open a menu of the game.** **{{MeAusSpiel}}** and pick one, for example `ui/jamp/main.menu`. It is read from the game files and drawn like the game - the game folder is not changed.",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:MeAusSpiel",
+      "fertig": "zahl:menue.dokumente+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Move an element.** Click a button on the canvas and drag it - or nudge it with the arrow keys. Its `rect` in the code below changes with it.",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##mitte",
+      "fertig": "zahl:menue.text~",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:menue.bedienen",
+        "text": "You are in {{MeBedienen}} mode - clicks press buttons there. Switch to {{MeBearbeiten}} to move elements."
+       }
+      ]
+     },
+     {
+      "text": "**Try it like in the game.** **{{MeBedienen}}**: clicks now press buttons and change cvars - only in the preview, never in your game. **{{MeBearbeiten}}** brings you back.",
+      "bild": "h_tour_menue",
+      "unter": "Step 4 of the tutorial in the menu editor.",
+      "ziel": "knopf:MeBedienen",
+      "fertig": "zahl:menue.bedienen",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Pack it.** **{{MeExportPk3}}** writes the changed menu into a .pk3 for your mod folder, for example `zz_menu.pk3`. The game folder itself is never written.",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:MeExportPk3",
+      "fertig": "zahl:menue.exporte+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  }
+ ]
+}

@@ -6,7 +6,17 @@ geöffnet) entsteht vollständig aus diesem Ordner. Nichts unter `handbuch/` von
 Hand ändern – es wird überschrieben.
 
 **Regel:** Jede Änderung an einer Funktion zieht die betroffene Seite mit –
-Text in allen vier Sprachen und, wenn sich das Bild ändert, die Bilder.
+Text in den vier ersten Sprachen und, wenn sich das Bild ändert, die Bilder.
+
+**Weitere Sprachen** (Spanisch `es`, Tschechisch `cs`; Liste in
+`tools/sprachen.py`): ihre Texte stehen nicht im `T(...)`-Aufruf, sondern je
+Sprache in `inhalt_<sprache>.py` (`TEXTE = {englischer Text: Übersetzung}`,
+dazu optional `TASTEN` für Tastennamen). Fehlt dort ein Text oder ein Bild,
+zeigt die Seite das Englische (das Bild mit dem Hinweis „Bild noch auf
+Englisch“) – kein Abbruch; der Bau nennt am Ende je Sprache, was noch
+englisch ist. `--pflicht=es` macht das für eine Sprache zum Fehler (am Ende
+ihrer Stufe). Die Suche (`assets/handbuch.js`) faltet Akzente; der ctest
+`handbuch_suche` prüft sie im Browser ohne Fenster.
 
 ## Aufbau
 
@@ -55,7 +65,7 @@ Der Selbsttest `BHED_EDITORTEST=handbuch` (gui/selbsttest.cpp,
 Szene ein und fotografiert **nur das eigene Fenster**; neben jedes Foto
 schreibt er den Ausschnitt (`<name>.rect`). Umgebung:
 
-- `BHED_FOTOS` – Zielordner, `BHED_SPRACHE` – en / de / zh-Hans / ja (Kennungen wie in der Einstellungsdatei)
+- `BHED_FOTOS` – Zielordner, `BHED_SPRACHE` – en / de / zh-Hans / ja / es / cs (Kennungen wie in der Einstellungsdatei)
 - `BHED_MISSION_ARCHIV`, `BHED_MISSION_NAME`
 - `BHED_MISSIONEN`, `BHED_HB_ZIEL` – die Übungsmission und ihr Archiv. Beim
   Aufnehmen auf ein Laufwerk aus `subst` legen (z. B. `X:\missionen`), damit

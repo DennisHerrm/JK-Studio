@@ -5892,6 +5892,7 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurPruefung) {
                 a.schritte = pruefungSchritte();
+                for (Schritt& x : schriftSchritte()) { a.schritte.push_back(std::move(x)); }
                 for (Schritt& x : neustartSchritte()) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurMission) {
@@ -6213,6 +6214,7 @@ void selbsttest() {
             for (Schritt& x : zonenSchritte()) { a.schritte.push_back(std::move(x)); }
             for (Schritt& x : revertSchritte()) { a.schritte.push_back(std::move(x)); }
             for (Schritt& x : undoListeSchritte()) { a.schritte.push_back(std::move(x)); }
+            for (Schritt& x : schriftSchritte()) { a.schritte.push_back(std::move(x)); }
             for (Schritt& x : reiterSchliessenSchritte()) { a.schritte.push_back(std::move(x)); }
             for (Schritt& x : ablageSchliessenSchritte()) { a.schritte.push_back(std::move(x)); }
             for (Schritt& x : tourRegisterSchritte()) { a.schritte.push_back(std::move(x)); }   // rc601 tour
