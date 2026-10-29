@@ -422,6 +422,8 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_terrain.cpp
     gui/app_karte_geoimport.cpp
     gui/app_karte_sprung.cpp
+    gui/app_karte_assets.cpp
+    gui/app_karte_ueberblenden.cpp
     gui/app_karte_spielen.cpp
     gui/app_karte_logik.cpp
     gui/app_karte_ansichtsmodi.cpp
@@ -859,6 +861,12 @@ if(BEHAVED_TESTS)
                COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_funde.py
                        $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe)
       set_tests_properties(q3map2_funde PROPERTIES TIMEOUT 3600)
+      # Stufe 9 Punkt 9: eine func_group mit _indexmap baut die Schicht- und Uebergangs-Shader
+      if(TARGET karteueberblenden)
+        add_test(NAME q3map2_ueberblenden
+                 COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_ueberblenden.py
+                         $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe $<TARGET_FILE:karteueberblenden>)
+      endif()
       # Stufe 8b Punkt 9: -light -bhedgpu (Schattentests auf der GPU) gibt dieselben 18 Lumps wie
       # -light ohne GPU; ohne Direct-3D-11-GPU rechnet die CPU (und der Vergleich gilt trotzdem)
       add_test(NAME q3map2_gpu
@@ -997,6 +1005,8 @@ target_sources(bhed_core PRIVATE
   src/karte/wiederherstellen.cpp
   # Stufe 9 Punkt 11: Asset-Browser
   src/karte/assets.cpp
+  # Stufe 9 Punkt 9: Texturen ueberblenden (q3map2 _indexmap)
+  src/karte/ueberblenden.cpp
   # Stufe 1b: Texturbrowser (texwindow.cpp, aktive Shader)
   src/karte/texturbrowser.cpp
   # Stufe 1b: Texturen mit M3 kopieren und auftragen (TexManipulator, surfacedialog.cpp)
@@ -1255,6 +1265,10 @@ if(BEHAVED_TESTS)
   add_executable(karteoptsicher tests/karteoptsicher.cpp)
   target_link_libraries(karteoptsicher PRIVATE bhed_core)
   add_test(NAME karte_optsicher COMMAND karteoptsicher)
+  # Stufe 9 Punkt 9: Texturen ueberblenden - Index-Karte, TGA, Shader; mit bhed_q3map2 siehe q3map2_ueberblenden
+  add_executable(karteueberblenden tests/karteueberblenden.cpp)
+  target_link_libraries(karteueberblenden PRIVATE bhed_core)
+  add_test(NAME karte_ueberblenden COMMAND karteueberblenden)
   # Stufe 8d Punkt 4: alle Datei-Leser mit 300 Mutanten je Leser (unter ASan/UBSan in eigenen Bauordnern)
   add_executable(leserfuzz tests/leserfuzz.cpp)
   target_link_libraries(leserfuzz PRIVATE bhed_core)

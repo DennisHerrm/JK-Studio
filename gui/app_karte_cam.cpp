@@ -1045,6 +1045,7 @@ void kameraBefehl(const std::string& name) {
 // --- Zeichnen und Bedienen ----------------------------------------------------------
 
 void kameraZeichnen() {
+    assetAblageZiel();   // Stufe 9 Punkt 11: aus dem Asset-Browser ablegen
     Editor& ed = e();
     karte::Kamera& k = ed.kamera;
     const karte::KameraEinstellungen& c = ed.kameraE;
