@@ -291,7 +291,7 @@ Aus Zeit- bzw. Kontextgründen nicht angefangen; Stand und Vorarbeit:
   Spielordner nach Rückfrage“. Neu (alle Programme mit fs_cdpath, z. B. jasp/jk2sp): eigener Ordner
   als fs_basepath, Spieldaten über fs_cdpath (niedrigster Rang), Testpaket in <eigen>/base darüber;
   für jk2sp/jk2mp nur bis 100 Zeichen, sonst wie bisher Mod-Ordner nach Rückfrage. ctest
-  menue_paket (rot, grün). Nachweis: Selbsttest BHED_MENUE_NUR=jk2test mit JKO-Daten (SP\m5b  behaved_jk2.cfg) fügt „JK STUDIO TEST“ ins Hauptmenü ein und liefert Paket + Befehlszeile; genau
+  menue_paket (rot, grün). Nachweis: Selbsttest BHED_MENUE_NUR=jk2test mit JKO-Daten (SP\m5b\behaved_jk2.cfg) fügt „JK STUDIO TEST“ ins Hauptmenü ein und liefert Paket + Befehlszeile; genau
   diese Befehlszeile (plus Fenster/Ton/Foto) mit jk2sp.exe gestartet: das Spiel zeigt das geänderte
   Hauptmenü (SP\m5b\imspiel_jk2.png).
 - JK2-Dialekt aus dem Programm (Namen der Tabellen in jk2sp.exe gelesen, OpenJKs JK2_MODE nimmt die
@@ -302,8 +302,7 @@ Aus Zeit- bzw. Kontextgründen nicht angefangen; Stand und Vorarbeit:
   Ereignisse (kein „Enter“) und Laufzeit folgen dem (ctest menue_ereignisse/menue_skript rot, grün).
 - Rangliste JK2-SP (17 Menüs mit Spielfoto, die vier Datapad-Menüs öffnet `uimenu` ohne laufendes
   Spiel nicht) + MP-Hauptmenü, Mittel 8x6 wie M4/M5 (SP\m5bang_ergebnis_jk2sp_<lauf>.txt, Paare
-  SP\m3ergleich
-eben_jk2_*.png):
+  SP\m3\vergleich\neben_jk2_*.png):
   - Lauf 1 (Stand menue5): oben videodriverMenu 55,7 (UI_GLINFO: GL-Daten des laufenden Spiels),
     error_popmenu 53,2, videowarningMenu/ingamevideowarningMenu 42 (das Spiel zeigt das Hauptmenü
     dahinter - `uimenu` schließt es nicht, wie bei JKA in M5), die übrigen 13 im Mittel 12,1.
