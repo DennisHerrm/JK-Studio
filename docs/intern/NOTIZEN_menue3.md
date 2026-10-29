@@ -114,6 +114,21 @@ Dazu gefunden und behoben (rot -> grün):
 eben_saebel_*.png.
 - **Spielordner**: `Weitere Grenzen` oben; die Steam-Kette (Vorfall) bleibt beim Hauptstrang.
 
+## Tests (Schlussrunde)
+
+- Neubau (`--clean-first`, alle Ziele): 0 Warnungen, 0 Fehler (/W4 /WX).
+- ctest: 155/155 grün (erweitert: menue_parser Kodierung, menue_vorschau HUD/G2-Takt/Säbelarten/
+  Start-Cvars, menue_skript Skriptwörter/setfocus/music, menue_paket fs_game base).
+- Selbsttest menueeditor: 52 OK, 0 FEHLER mit Movie-Duels-Daten und 52 OK, 0 FEHLER mit den
+  Daten von „GameData original“ (nur gelesen).
+- Selbsttest karteneditor (BHED_KARTE_NUR=fotos): 78 OK, 0 FEHLER.
+- Modus 1: 2645 OK, 0 FEHLER.
+- Säbelmenü (MD, Klingenart 4 blau) nach den Start-Cvars: kein zweiter Griff mehr, mittlere
+  Abweichung 3.3 (vorher 6.1); der Griff selbst wirkt im Spiel schlanker (offen).
+- Spielordner (Movie Duels und „GameData original“) vorher/nachher: 4047 Einträge gleich
+  (Name, Größe, Zeit). Keine eigenen Spielprozesse mehr (ein hängendes MovieDuels-MP wurde
+  per eigener PID beendet und geprüft).
+
 ## Offen
 
 - MP-Menüs (JKA) gegen das Original: nicht geprüft, Grund: nur Steam-exe (jamp.exe startet
@@ -125,6 +140,13 @@ eben_saebel_*.png.
 - Haltung der Figur: Bildvergleich mit dem Spiel offen (Zeitpunkt nicht messbar).
 - HUD des MP-cgame und von Movie Duels (eigene Darstellungen) nicht nachgebildet.
 - Thai-Texte (TIS-620, tha_codes.dat) nicht nachgebildet.
+- Systematischer Vergleich aller Menüs der Menüsätze mit Rangliste (Wunsch shank/Hauptstrang)
+  und die Oberflächenpunkte (Mindestschrift, Augen-/Schloss-Symbole statt „o“/„.“, Leisten-
+  Tooltips/Beschriftung, Fotos bei 100 % und 150 %): nicht mehr geschafft. Werkzeuge liegen
+  bereit: SP\m3\spiel.py (Start mit `+wait N +uimenu`), mp_oeffne_pk3.py (MP-Menüs per
+  onOpen-`open`), bildvergleich.py, BHED_MENUE_VERGLEICH_MENUES im Selbsttest.
+- MD-Säbelmenü: Griffmodell im Spiel schlanker; Felder, die im Spiel durch den Spielzeiger
+  aufgeklappt waren, nicht vergleichbar.
 - „Im Spiel testen“ startet Movie-Duels-Programme ohne die Launcher-Umgebung
   (MOVIEDUELS_LAUNCHER); das Programm startet dann seinen Launcher - nicht geprüft (Launcher
   nie starten), die Tests setzten die Umgebung wie in M2.
