@@ -485,6 +485,8 @@ struct App {
     // Bewegungsbalken und Ausloeser darin.
     int bahnFarbig = 0;
     int bahnGrau = 0;
+    // mission1: die Hinweise "kein Weg" an der Bahn der gewaehlten Figur (letztes Bild).
+    std::vector<std::string> bahnKeinWeg;
     std::vector<std::array<float, 3>> figurGezeichnet;
     std::string tlAuswahlZeile;
     int tlBewegungsBalken = 0;
@@ -543,6 +545,7 @@ struct App {
     // Fahrt wurde dort ein Schluessel eingefuegt (wird ohne Aenderung beim
     // Loslassen zurueckgenommen).
     bool kameraAutoKeyEingefuegt = false;
+    std::size_t kameraAutoKeyTiefe = 0;   // mission1: Rueckgaengig-Tiefe vor dem Auto-Key (ein Schritt mit den Werten)
     bool kameraGizmoZwischen = false;   // der Gizmo sitzt gerade an der laufenden Kamera (mitten in einer Fahrt)
     bool kamBahnNurAktiv = true;        // nur die Fahrt um die eingestellte Zeit zeigen (rc597, "Aktiv")
     int kamBahnFarbig = 0;              // Selbsttest: Stuecke der Kamerabahn, gelb (gefahren) / grau (voraus)
@@ -875,10 +878,11 @@ struct App {
     struct Skeleton {
         GlaAnimation anim;
         std::vector<AnimEntry> sections;   // aus der animation.cfg
-        // Die Abschnitte des Kino-Skeletts der Karte haengen HINTER den
-        // eigenen (siehe GlaAnimation::anhang). Wie viele eigene es sind und
-        // fuer welche Karte der Anhang gerade gilt.
-        std::size_t grundAbschnitte = static_cast<std::size_t>(-1);
+        // Die Abschnitte des Kino-Skeletts der Karte (Bilder hinter den eigenen,
+        // siehe GlaAnimation::anhang) ersetzen gleichnamige und kommen sonst
+        // dazu. Die eigenen gemerkt, und fuer welche Karte der Anhang gilt.
+        std::vector<AnimEntry> grundListe;
+        bool grundGemerkt = false;
         std::string kinoKarte;
     };
     // Schluessel ist der Pfad aus dem Modellkopf, ohne Endung.
@@ -2456,6 +2460,8 @@ bool missionRueckgaengig();
 bool missionWiederholen();
 bool fahrtSchluesselMoeglich(int ei, double ms, int& figur, Path& vorPfad);
 bool fahrtSchluesselSchreiben(int figur, double ms, const float kOrt[3], const float kWinkel[3]);
+bool laufZielNachLaufMoeglich(int ei, double ms, int& figur);
+bool laufZielNachLaufSchreiben(int figur, const float kOrt[3]);
 // Die Bewegung bei ms teilen, mit dem neuen Punkt K: ein Schiff faehrt bis
 // ms nach K und von dort weiter; eine Figur bekommt ein neues Laufziel bei K.
 // Die Befehle danach behalten ihre Zeit.

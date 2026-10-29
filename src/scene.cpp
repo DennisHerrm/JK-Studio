@@ -4900,6 +4900,10 @@ NavZiel navZielAufloesen(const MapData& map, const std::string& name) {
             }
         }
         readVec(e.origin, z.ort);
+        // mission1: ein ref_tag hat den TAG-Radius 16 (SP_reference_tag ->
+        // ref_link -> TAG_Add(..., 16, 0), g_ref.cpp:400; Q3_SetNavGoal nimmt
+        // TAG_GetRadius) - nicht die 12 eines waypoint_navgoal ohne Radius.
+        if (reftag) { z.radius = 16.0; }
         if (navgoal) {
             // SP_waypoint_navgoal (g_nav.cpp:260-277): origin[2] += 0.125,
             // und "int radius = ent->radius ? ent->radius : 12" - der

@@ -3179,7 +3179,7 @@ void dumpActorsAtPlayhead() {
                     if (sk != nullptr && hg != nullptr && bild >= 0) {
                         std::vector<BoneMatrix> welt;
                         sk->anim.worldMatrices(
-                            std::clamp(bild, 0, sk->anim.numFrames - 1), welt);
+                            std::clamp(bild, 0, sk->anim.bildZahl() - 1), welt);
                         BoneMatrix hand{};
                         const GlmModel& figMdl = g_app->actorAssets[ai]->model;
                         const int hs = surfaceIndex(figMdl, "*r_hand");

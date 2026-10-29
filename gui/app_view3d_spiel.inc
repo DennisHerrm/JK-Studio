@@ -2901,13 +2901,14 @@ void kinoSkeletteAbgleichen() {
         if (!humanoid) {
             continue;
         }
-        if (sk.kinoKarte == karte && sk.grundAbschnitte != static_cast<std::size_t>(-1)) {
+        if (sk.kinoKarte == karte && sk.grundGemerkt) {
             continue;   // schon fuer diese Karte
         }
-        if (sk.grundAbschnitte == static_cast<std::size_t>(-1)) {
-            sk.grundAbschnitte = sk.sections.size();
+        if (!sk.grundGemerkt) {
+            sk.grundListe = sk.sections;
+            sk.grundGemerkt = true;
         }
-        sk.sections.resize(sk.grundAbschnitte);
+        sk.sections = sk.grundListe;
         sk.anim.anhang = nullptr;
         sk.kinoKarte = karte;
         if (kino == nullptr) {
@@ -2919,9 +2920,20 @@ void kinoSkeletteAbgleichen() {
             continue;
         }
         sk.anim.anhang = &kino->anim;
+        // mission1: G_ParseAnimationFile(1, skeletonMapName, fileIndex)
+        // (NPC_stats.cpp) liest die zweite Datei in DIESELBE Tabelle
+        // animations[] - ein Name, der in beiden steht (academy1: FACE_ALERT
+        // bis FACE_TALK4), bekommt die Bilder des Kino-Skeletts und glaIndex 1.
+        // Vorher kam er hinten dazu, und die Suche fand die alte Zeile zuerst.
         for (AnimEntry e : kino->sections) {
             e.firstFrame += sk.anim.numFrames;
-            sk.sections.push_back(std::move(e));
+            const auto da = std::find_if(sk.sections.begin(), sk.sections.end(),
+                                         [&e](const AnimEntry& x) { return x.name == e.name; });
+            if (da != sk.sections.end()) {
+                *da = std::move(e);
+            } else {
+                sk.sections.push_back(std::move(e));
+            }
         }
         diag::detail("Kino-Skelett " + kinoName + " an " + name + " angehaengt (" +
                      std::to_string(kino->sections.size()) + " Abschnitte)");

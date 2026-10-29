@@ -652,9 +652,9 @@ bool figurKnochen(const ActorDraw& act, std::vector<BoneMatrix>& world,
                 BoneFrameOverride o{
                     taille,
                     std::clamp(act.torsoFrame, 0,
-                               act.anim->numFrames - 1)};
+                               act.anim->bildZahl() - 1)};
                 if (act.torsoNext >= 0 && act.torsoFraction > 0.001F) {
-                    o.next = std::clamp(act.torsoNext, 0, act.anim->numFrames - 1);
+                    o.next = std::clamp(act.torsoNext, 0, act.anim->bildZahl() - 1);
                     o.fraction = act.torsoFraction;
                 }
                 vorrang.push_back(o);
@@ -672,7 +672,7 @@ bool figurKnochen(const ActorDraw& act, std::vector<BoneMatrix>& world,
                 vorrang.push_back(BoneFrameOverride{
                     gesicht,
                     std::clamp(act.faceFrame, 0,
-                               act.anim->numFrames - 1)});
+                               act.anim->bildZahl() - 1)});
             }
         }
         // --- Zwischen zwei Bildern ------------------------------------
@@ -693,13 +693,13 @@ bool figurKnochen(const ActorDraw& act, std::vector<BoneMatrix>& world,
         const bool torsoMischt = !vorrang.empty() && vorrang.front().next >= 0;
         if (koerperMischt || torsoMischt) {
             act.anim->worldMatricesLerp(
-                std::clamp(act.frame, 0, act.anim->numFrames - 1),
+                std::clamp(act.frame, 0, act.anim->bildZahl() - 1),
                 std::clamp(koerperMischt ? act.frameNext : act.frame, 0,
-                           act.anim->numFrames - 1),
+                           act.anim->bildZahl() - 1),
                 koerperMischt ? act.frameFraction : 0.0F, vorrang, world);
         } else {
             act.anim->worldMatrices(
-                std::clamp(act.frame, 0, act.anim->numFrames - 1), vorrang,
+                std::clamp(act.frame, 0, act.anim->bildZahl() - 1), vorrang,
                 world);
         }
         // --- Der Uebergang --------------------------------------------
@@ -741,11 +741,11 @@ bool figurKnochen(const ActorDraw& act, std::vector<BoneMatrix>& world,
             }
             if (torsoBlend && taille >= 0) {
                 alt.push_back(BoneFrameOverride{
-                    taille, std::clamp(act.torsoPrevFrame, 0, act.anim->numFrames - 1)});
+                    taille, std::clamp(act.torsoPrevFrame, 0, act.anim->bildZahl() - 1)});
             }
             act.anim->worldMatrices(
                 std::clamp(koerperBlend ? act.prevFrame : act.frame, 0,
-                           act.anim->numFrames - 1),
+                           act.anim->bildZahl() - 1),
                 alt, hilf);
             if (hilf.size() == world.size()) {
                 // Welche Knochen gehoeren zum Oberkoerper?

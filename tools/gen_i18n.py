@@ -2213,6 +2213,8 @@ from i18n_menue1 import MENUE1  # noqa: E402  (Menue-Editor M1)
 S += MENUE1
 from i18n_karte9c import KARTE9C  # noqa: E402  (Stufe 9c: Werkzeugleisten, Echtzeit-Licht wie im Spiel)
 S += KARTE9C
+from i18n_mission1 import MISSION1  # noqa: E402  (mission1: Fehler aus shanks Test nach rc606)
+S += MISSION1
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

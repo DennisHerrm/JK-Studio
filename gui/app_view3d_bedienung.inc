@@ -5940,6 +5940,7 @@ void drawMapView() {
                 ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
                 g_app->gizmoHover >= 0 && g_app->gizmoHover != App::kGizmoYawRing) {
                 // Mitten in einer Fahrt: erst dort einen Schluessel (rc597).
+                g_app->kameraAutoKeyTiefe = g_app->doc.undoDepth();
                 g_app->kameraAutoKeyEingefuegt =
                     g_app->kameraGizmoZwischen && kameraSchluesselEinfuegen(g_app->playMs);
 g_app->gizmoAxis = g_app->gizmoHover;
@@ -5995,6 +5996,7 @@ g_app->gizmoAxis = g_app->gizmoHover;
                     ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
                     g_app->gizmoHover >= 0 &&
                     g_app->gizmoHover < App::kGizmoFree) {
+                    g_app->kameraAutoKeyTiefe = g_app->doc.undoDepth();
                     g_app->kameraAutoKeyEingefuegt =
                         g_app->kameraGizmoZwischen && kameraSchluesselEinfuegen(g_app->playMs);
     g_app->gizmoRotating = true;
@@ -6076,6 +6078,11 @@ g_app->gizmoAxis = g_app->gizmoHover;
                                 rebuildTree();
                                 g_app->camTrackValid = false;
                                 g_app->mapDirty = true;
+                            } else if (g_app->kameraAutoKeyEingefuegt) {
+                                // mission1: neuer Schluessel und seine Werte - EIN
+                                // Rueckgaengig-Schritt (vorher zwei: Strg+Z nahm nur
+                                // die Werte zurueck, der Schluessel blieb).
+                                g_app->doc.fasseZusammen(g_app->kameraAutoKeyTiefe, g_app->doc.undoLabel());
                             }
                             g_app->kameraAutoKeyEingefuegt = false;
                         }
@@ -6136,6 +6143,11 @@ g_app->gizmoAxis = g_app->gizmoHover;
                                 rebuildTree();
                                 g_app->camTrackValid = false;
                                 g_app->mapDirty = true;
+                            } else if (g_app->kameraAutoKeyEingefuegt) {
+                                // mission1: neuer Schluessel und seine Werte - EIN
+                                // Rueckgaengig-Schritt (vorher zwei: Strg+Z nahm nur
+                                // die Werte zurueck, der Schluessel blieb).
+                                g_app->doc.fasseZusammen(g_app->kameraAutoKeyTiefe, g_app->doc.undoLabel());
                             }
                             g_app->kameraAutoKeyEingefuegt = false;
                         }
