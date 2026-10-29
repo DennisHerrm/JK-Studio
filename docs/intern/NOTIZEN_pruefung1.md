@@ -145,6 +145,23 @@ Vorschau im Selbsttest (mission1 Mini-Szene); nicht weiter untersucht.
 - Die GUI-Selbsttests mission1/kamera/missionsbau/umriss arbeiten sonst mit
   Original-Missionen (md_am_sith, md_ga_jedi ...) und brauchen die Spieldaten.
 
+## Schlussrunde
+
+- Sauberer Neubau (`--clean-first`): 0 Warnungen, 0 Fehler.
+- ctest: 158/158 gruen (darin neu `pruefmission`, erweitert `npcklasse`,
+  `mover`).
+- lint_sources, lint_fassung: ok.
+- Selbsttests (eigener Laufordner `Y:\pq_laeufe`, Idle-Prioritaet):
+  mission1 98 OK / 0 FEHLER, kamera 95/0, missionsbau 95/0, umriss 46/0,
+  Modus 1 (BHED_HANDBUCH) 2648/0.
+- Kartenpruefung (tools/kartenpruefung.py, 278 Karten, Movie Duels, gegen
+  den Bericht kpi3 nach Integration 3): alle Summen gleich - abgestuerzt/
+  haengend, nicht geladen, GPU-Fehler, D3D-Meldungen, Protokollfehler 0 -> 0,
+  nicht gezeichnete Entities 1 -> 1, NPCs ohne Modell 2 -> 2.
+- Handbuch: keine sichtbare Bedienung geaendert (nur Verhalten wie im
+  Spiel), daher keine neuen Bilder/Texte; keine neuen Programmtexte (kein
+  tools/i18n_pruefung1.py noetig).
+
 ## English
 - Names of entities are found without regard to case, as in the game: `kill`, `remove`, `affect`, `SET_LOOK_TARGET`, a moving watch target, the target of an `fx_target_beam` and the camera of a `misc_portal_surface` now find "HELD" in the map when the script writes "held" (before, a new mission with different spelling left the figure standing or the beam off).
 - Story cutscene animations of the level (`models/players/_humanoid_<map>`) follow the rule set: OpenJK attaches them only to the `_humanoid` skeleton, Movie Duels to every skeleton in its standard-humanoid list, Jedi Outcast to none. Switching the rule set takes an old attachment off again.
