@@ -132,3 +132,74 @@ Behoben (rot = Bildpaar bzw. Test vorher, grün = derselbe Test danach):
   erst beim Hover.
 - Nebenbei gefunden: Laufzeit::anwenden überträgt keine Flags - die Sichtbarkeit nach onOpen steht in
   Laufzeit::items (grundSichtbar nutzte vorher die gelesenen Flags).
+
+## Punkte 3 bis 5 und Tour - nicht begonnen (für M6)
+
+Aus Zeit- bzw. Kontextgründen nicht angefangen; Stand und Vorarbeit:
+- Punkt 3 (Projektordner + `*.jksmenu`, Autosave, pk3-Export): nichts begonnen. Vorhanden sind
+  Paket (Dokument::bilder, Texte, Schriften), Export (exportierePk3/exportiereAenderungen) und
+  Einstellungen; die Projektdatei müsste Zielspiel, Mod-Profil, Menüs, Layouts (stehen schon im
+  .menu), Vorschau-Einstellungen, offene Reiter und Export-Einstellungen aufnehmen.
+- Punkt 4 (Mod-Profile): nichts begonnen. Die Schlüsselwort-, Befehls- und Cvar-Tabellen kommen
+  heute aus festen Tabellen bzw. Generatoren (tools/gen_menue_cvarvorgaben.py, parser.cpp,
+  bausteinBefehle); ein Profil müsste diese je Mod tragen. Quellcode „Star Wars Galactic Legacy“
+  nicht gesucht.
+- Punkt 5 (JK2 echt): nicht gestartet. Hinweis des Hauptstrangs: Jedi Outcast liegt als
+  Steam-Fassung unter `Jedi Outcast\GameData` (jk2sp.exe, jk2mp.exe; base: assets0/1/2/5.pk3,
+  jk2config.cfg, jk2mpconfig.cfg(.bak), loser Ordner shaders und shaders.rar - vermutlich nicht
+  original, nicht anfassen). Steam-Ausnahme gilt auch für JKO. Weg wie bei jasp in Punkt 0:
+  `+set fs_basepath <eigener Ordner> +set fs_cdpath <GameData>` (dann schreibt das Spiel nichts in
+  den Spielordner und das Testpaket liegt im eigenen Ordner), Configs vorher sichern, Ordner vorher/
+  nachher vergleichen; SP\m5\orig.py ist dafür die Vorlage (Pfad und exe-Namen anpassen).
+- Tour „Dein erstes eigenes Menü“ (Punkt 6): nicht gebaut; die Aufgabentests im Selbsttest (Layout,
+  Ereignisse) sind die Schritte, die sie zeigen sollte.
+
+## Punkt 6 - Handbuch und Selbsttest
+
+- Handbuchseite „Menü-Editor: Layouts und Ereignisse“ (tools/handbuch/inhalt_menue5.py) in vier
+  Sprachen mit den Bildern menue_layout und menue_ereignisse aus dem Selbsttest (BHED_SPRACHE
+  en/de/zh-Hans/ja, SP\m5\hb_fotos.sh, tools/handbuch/bilder.py); gen_handbuch kennt die M5-Texte.
+- Selbsttest `menueeditor` um M5 erweitert (Layout- und Ereignis-Aufgabe, BHED_MENUE_NUR=m5).
+- Tour „Dein erstes eigenes Menü“: nicht gebaut (siehe oben).
+
+## Schlussrunde
+
+- Sauberer Neubau (`--clean-first`, alle Ziele): 0 Warnungen, 0 Fehler (/W4 /WX).
+- ctest: im ersten Lauf 156/157 - karte_lizenz rot: layout.h nannte „Eigener Code“ erst nach den
+  ersten 600 Zeichen des Kopfes; Kopf umgestellt, danach 157/157 grün.
+- Selbsttest menueeditor voll: Movie-Duels-Daten 79 OK / 0 FEHLER, JKA-Daten („GameData original“,
+  nur gelesen) 79 OK / 0 FEHLER.
+- karteneditor kurz (BHED_KARTE_NUR=fotos): 78 OK, 0 FEHLER.
+- Modus 1 komplett (in M4 nach der letzten Korrektur nicht wiederholt): 2645 OK, 0 FEHLER.
+- lint_sources, lint_fassung: ok.
+- Spielordner: `Jedi Academy\GameData` nach beiden Durchgängen wieder genau wie vorher (Liste mit
+  Typ/Größe/Zeit gleich, Spielstände per Hash gleich), „GameData original“ unverändert (Hashes der
+  Configs und Spielstände gleich). Movie Duels und Jedi Outcast in M5 nicht gestartet und nicht
+  angefasst. Keine eigenen Spiel- oder jkstudio-Prozesse mehr.
+- Gegen das Vorbild geprüft: alle 39 JKA-Menüs außerhalb des Spiels gegen die Original-exes
+  (Bildpaare, Rangliste), twjMenu gegen Movie Duels (2,6); Layouts und Ereignisse gegen den Parser
+  (liest ohne Meldung) und die Laufzeit (Hover zeigt das Glow-Element). Nicht gegen das Spiel
+  geprüft: die Ereignis-Bausteine im laufenden Spiel (Mausbewegung erreicht die Spiele ohne Fokus
+  nicht, siehe NOTIZEN_menue3), die Ownerdraws mit anderen als den Vorgabe-Cvars, ingame-Menüs.
+
+## Changelog
+
+## English
+- Menu editor: layouts like Qt - arrange the selected elements side by side, stacked, in a grid or in two columns with a divider with one click (Ctrl+Shift+1 to 4), with spacing, margins, spacers and alignment; an enclosing panel becomes the area and moving it moves the elements. The .menu only gets fixed rects; the layout is kept as a comment the game skips, menus without a layout stay byte-identical. The longest text of all languages counts, too narrow elements are named.
+- Menu editor: an Events tab per element like Unreal UMG - hover, hover ends, click, focus, focus lost and Enter as action blocks that write the script (only commands the game's engine knows), ready-made hover effects (glow, colour, border, bigger), hover and click sounds with listening; every change is one undo step and shows up in the Text tab at once.
+- Menu editor preview checked menu by menu against the original Jedi Academy (single and multiplayer): missing @ texts show nothing like the game, missing images of shader elements show the game's grey default box, the character lists follow the chosen species, the multiplayer start values (player name, model, server name, limits), the multiplayer head list in rows and columns and the multiplayer owner-draws for team slots, game type, skill, team colour and map preview.
+
+## Deutsch
+- Menü-Editor: Layouts wie in Qt - die gewählten Elemente mit einem Klick nebeneinander, untereinander, im Raster oder in zwei Spalten mit Teiler anordnen (Strg+Umschalt+1 bis 4), mit Abstand, Rändern, Spacern und Ausrichtung; ein umschließendes Panel wird zur Fläche, verschiebt man es, ziehen die Elemente mit. Ins .menu kommen nur feste rects; das Layout bleibt als Kommentar erhalten, den das Spiel überliest, Menüs ohne Layout bleiben byte-gleich. Es zählt der längste Text aller Sprachen, zu schmale Elemente werden genannt.
+- Menü-Editor: ein Reiter Ereignisse je Element wie in Unreal UMG - Hover, Hover verlassen, Klick, Fokus, Fokus verlassen und Enter als Aktions-Bausteine, die das Skript schreiben (nur Befehle, die die Engine des Spiels kennt), fertige Hover-Effekte (Leuchten, Farbe, Rahmen, Größer), Hover- und Klick-Klang mit Probehören; jede Änderung ist ein Rückgängig-Schritt und steht sofort im Text-Reiter.
+- Vorschau des Menü-Editors Menü für Menü gegen das Original-Jedi-Academy geprüft (Einzel- und Mehrspieler): fehlende @-Texte zeigen wie im Spiel nichts, fehlende Bilder von Shader-Elementen den grauen Ersatzkasten des Spiels, die Figurenlisten folgen der gewählten Spezies, dazu die Startwerte des Mehrspielers (Spielername, Modell, Servername, Grenzen), die Kopfliste des Mehrspielers in Zeilen und Spalten und die Mehrspieler-Ownerdraws für Teamplätze, Spielart, Schwierigkeit, Teamfarbe und Kartenvorschau.
+
+## 中文
+- 菜单编辑器:类似 Qt 的布局——一键将所选元素并排、上下、网格或带分隔条的两栏排列(Ctrl+Shift+1 至 4),可设置间距、边距、弹性空白和对齐;包围其他元素的面板会成为区域,移动它时元素随之移动。.menu 中只写入固定的 rect;布局以游戏会跳过的注释保留,没有布局的菜单保持逐字节相同。以所有语言中最长的文本为准,过窄的元素会被指出。
+- 菜单编辑器:类似 Unreal UMG 的每个元素的“事件”标签页——悬停、离开悬停、单击、获得焦点、失去焦点和回车,以写入脚本的操作块表示(只提供游戏引擎支持的命令),现成的悬停效果(发光、颜色、边框、放大),悬停与单击音效可试听;每次修改都是一个撤销步骤,并立即显示在文本标签页中。
+- 菜单编辑器预览已逐个菜单与原版 Jedi Academy(单人与多人)对照:缺失的 @ 文本与游戏一样不显示,着色器元素缺失的图像显示游戏的灰色默认方框,角色列表跟随所选种族,另有多人模式初始值(玩家名、模型、服务器名、限制)、多人模式头像列表的多行多列显示,以及多人模式队伍位置、游戏类型、难度、队伍颜色和地图预览的 ownerdraw。
+
+## 日本語
+- メニューエディター: Qt のようなレイアウト。選んだ要素をワンクリックで横並び・縦並び・グリッド・仕切り付き 2 列に配置できます(Ctrl+Shift+1〜4)。間隔・余白・スペーサー・配置を設定でき、ほかを囲むパネルが領域になり、動かすと要素も付いてきます。.menu には固定の rect だけが入り、レイアウトはゲームが読み飛ばすコメントとして残ります。レイアウトのないメニューはバイト単位で同じままです。全言語で最も長いテキストを基準にし、狭すぎる要素は表示されます。
+- メニューエディター: Unreal UMG のような要素ごとの「イベント」タブ。ホバー、ホバー終了、クリック、フォーカス、フォーカス喪失、Enter を、スクリプトを書く操作ブロックとして扱います(ゲームのエンジンが知っているコマンドのみ)。既製のホバー効果(光る、色、枠、大きく)、試聴付きのホバー音とクリック音もあります。変更はそれぞれ 1 回の元に戻す操作で、すぐにテキストタブにも反映されます。
+- メニューエディターのプレビューをオリジナルの Jedi Academy(シングル/マルチ)とメニューごとに照合しました: 存在しない @ テキストはゲームと同じく何も表示せず、シェーダー要素の画像がない場合はゲームの灰色の既定の箱を表示し、キャラクターリストは選んだ種族に従います。さらにマルチプレイの初期値(プレイヤー名、モデル、サーバー名、上限)、マルチプレイの頭部リストの行列表示、チーム枠・ゲームタイプ・難易度・チームカラー・マッププレビューの ownerdraw に対応しました。
