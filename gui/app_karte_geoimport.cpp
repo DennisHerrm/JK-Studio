@@ -120,6 +120,7 @@ void geoImportOeffnen() {
 }
 
 void geoImportEinfuegen() {
+    if (bspRueckSperre()) { return; }   // Stufe 9d: erst nach der Rueckgewinnung (Open .bsp)
     Editor& ed = e();
     GeoImportZustand& z = ed.geoImport;
     if (z.neu) { vorschauRechnen(); }

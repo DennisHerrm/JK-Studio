@@ -1656,6 +1656,11 @@ struct BspRueckStand {
     std::size_t kandidaten = 0;
 };
 [[nodiscard]] BspRueckStand bspRueckStand();
+// Stufe 9d Punkt 1: laeuft die Rueckgewinnung (stand 1/2/3)? Massenaenderungen der Geometrie (Behebungen des
+// Optimierers, File > Import, Geometrie als Brushes) warten bis zu ihrem Ende: sonst verfaellt ihr Ergebnis, oder es
+// kommt nach einem Undo als neuer Schritt und leert den Redo-Stapel.
+[[nodiscard]] bool bspRueckLaeuft();
+bool bspRueckSperre();   // laeuft sie: Hinweis (Konsole) und true - die Aenderung unterbleibt
 [[nodiscard]] std::string modellIndexPfad();   // Stufe 8b Punkt 8: der Modell-Index im Einstellungsordner
 void bspRueckStarten(const std::string& bspDaten, const std::string& ordner, const std::string& stamm, const std::string& karteDatei);
 void bspRueckAbbrechen();

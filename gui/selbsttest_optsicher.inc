@@ -12,6 +12,11 @@
 // rc606: vorher wird auf das Ende der misc_model-Rueckgewinnung gewartet; danach Undo und Redo des
 // Schritts im Editor - dieselben Modelle in der Kamera (Dreiecke, sichtbare misc_model und Stichproben
 // je misc_model) wie vor dem Fix bzw. nach dem Fix, der Kartentext nach dem Undo wie vorher.
+// Stufe 9d Punkt 1: BHED_OPTSICHER_ALT=1 spielt zuerst den Ablauf aus 9c nach - gleich nach dem Oeffnen
+// pruefen und "Fix all safe" druecken (dann Undo), waehrend die Rueckgewinnung noch laeuft. Erwartet: die
+// Behebung wartet mit dem Hinweis "Modelle werden noch zurueckgewonnen", die Karte bleibt, danach sind die
+// misc_model da; vorher (rc606) lief der Fix, und die Rueckgewinnung kam nach dem Undo als neuer Schritt
+// (Redo weg).
 namespace optsicher {
 namespace ke = karteneditor;
 
@@ -338,7 +343,49 @@ std::vector<Schritt> schritte() {
             const int st = ke::bspRueckStand().stand;
             return st != 1 && st != 2 && st != 3;
         };
-        add(stufe8::warteSek("Optsicher: misc_model zurueckgewonnen", [rueckFertig] { return std::getenv("BHED_OPTSICHER_ALT") != nullptr || rueckFertig(); }, 900));
+        if (std::getenv("BHED_OPTSICHER_ALT") != nullptr) {
+            struct Waehrend {
+                bool lief = false;    // lief die Rueckgewinnung beim Druck auf "Fix all safe"?
+                int behoben = 0;
+                bool undo = false;
+                std::string text, textNachFix, meldung;
+                std::size_t redoNachUndo = 0;
+            };
+            auto w = std::make_shared<Waehrend>();
+            add(tu("Optsicher: (Ablauf 9c) Optimizer pruefen, waehrend misc_model zurueckgewonnen werden", [] { ke::optimiererStarten(false); }));
+            add(stufe8::warteSek("Optsicher: (Ablauf 9c) Pruefung fertig", [] { return !ke::optimiererLaeuft(); }, 900));
+            add(tu("Optsicher: (Ablauf 9c) Fix all safe und Undo, waehrend die Rueckgewinnung laeuft", [w] {
+                ke::Editor& ed = ke::editor();
+                w->lief = ke::bspRueckLaeuft();
+                w->text = karte::karteSchreiben(ed.karte);
+                w->behoben = ke::optimiererAllesSichere();
+                w->meldung = ke::optimiererBlick().meldung;
+                w->textNachFix = karte::karteSchreiben(ed.karte);
+                if (w->behoben > 0) {   // wie der Anwender in 9c: die Behebung rueckgaengig machen
+                    w->undo = ke::ausfuehren("Undo");
+                    w->redoNachUndo = ed.karte.undo.redoAnzahl();
+                }
+            }));
+            add(stufe8::warteSek("Optsicher: (Ablauf 9c) Rueckgewinnung fertig", rueckFertig, 900));
+            add(pause(1.0));
+            add(pruefe("Optsicher: (Ablauf 9c) Fix all safe waehrend der Rueckgewinnung wartet mit Hinweis, die Karte bleibt, danach sind die misc_model da", [w] {
+                const ke::Editor& ed = ke::editor();
+                std::size_t mm = 0;
+                for (const auto& en : ed.karte.entitaeten()) { mm += en->wert("classname") == "misc_model" ? 1U : 0U; }
+                const std::string k = stufe3::konsoleText();
+                const bool hinweis = w->meldung == ke::trK(Str::KeRkWarten) && k.find(ke::trK(Str::KeRkWarten)) != std::string::npos;
+                const bool verworfen = k.find(ke::trK(Str::KeRkGeaendert)) != std::string::npos;
+                char z[400];
+                std::snprintf(z, sizeof(z),
+                              "Knopftest: Optsicher (Ablauf 9c) - Rueckgewinnung lief %s, behoben %d, Karte nach dem Druck %s, Hinweis %s, Undo %s (Redo danach %zu), "
+                              "nach der Rueckgewinnung %zu misc_model, Redo %zu, Ergebnis verworfen %s",
+                              w->lief ? "ja" : "nein", w->behoben, w->textNachFix == w->text ? "gleich" : "anders", hinweis ? "ja" : "nein", w->undo ? "ja" : "nein",
+                              w->redoNachUndo, mm, ed.karte.undo.redoAnzahl(), verworfen ? "ja" : "nein");
+                diag::detail(z);
+                return w->lief && w->behoben == 0 && w->textNachFix == w->text && hinweis && mm > 0 && !verworfen;
+            }));
+        }
+        add(stufe8::warteSek("Optsicher: misc_model zurueckgewonnen", rueckFertig, 900));
         add(pause(1.0));
         auto u = std::make_shared<UndoStand>();
         add(tu("Optsicher: Modelle in der Kamera vor Fix all safe", [u] {

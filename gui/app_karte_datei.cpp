@@ -163,6 +163,7 @@ void ansichtenAuf(const karte::Vektor3f& mitte) {
 // --- Datei --------------------------------------------------------------------------------
 
 bool karteImportierenAus(const std::string& pfad) {   // ImportMap -> Map_ImportFile
+    if (bspRueckSperre()) { return false; }   // Stufe 9d: erst nach der Rueckgewinnung (Open .bsp)
     // Map_ImportFile (map.cpp:1545-1547): eine .bsp geht gleich nach tryDecompile
     // (q3map2 -convert, Stufe 4; im Arbeitsordner statt neben der .bsp)
     if (pfad.size() > 4) {

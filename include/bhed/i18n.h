@@ -2678,6 +2678,7 @@ enum class Str {
     KeLeisteGriffTipp,
     KePatchSchatten,
     KePatchSchattenTip,
+    KeRkWarten,
     Count,
 };
 

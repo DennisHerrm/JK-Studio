@@ -737,6 +737,10 @@ bool optimiererZeileWaehlen(int reiter, const std::string& id) {
 
 bool optimiererBefundBeheben(const std::string& id) {
     abholen();
+    if (bspRueckSperre()) {   // Stufe 9d: erst nach der Rueckgewinnung (Open .bsp)
+        g_z.meldung = trK(Str::KeRkWarten);
+        return false;
+    }
     if (!g_z.e || veraltet()) { return false; }
     for (const Befund& b : g_z.e->befunde) {
         if (b.pruefung != id) { continue; }
@@ -750,6 +754,10 @@ bool optimiererBefundBeheben(const std::string& id) {
 
 int optimiererAllesSichere() {
     abholen();
+    if (bspRueckSperre()) {   // Stufe 9d: erst nach der Rueckgewinnung (Open .bsp)
+        g_z.meldung = trK(Str::KeRkWarten);
+        return 0;
+    }
     if (!g_z.e || veraltet()) { return 0; }
     const auto r = karte::allesSichereBeheben(e().karte, *g_z.e->abbild, g_z.e->befunde);
     int n = 0;
@@ -974,6 +982,14 @@ void zeichneOptimierer() {
     // --- Einzelheiten ---
     ImGui::BeginChild("##optdetail", ImVec2{0.0F, detailH}, ImGuiChildFlags_Borders);
     ImGui::PushTextWrapPos(0.0F);
+    // Stufe 9d: solange File > Open .bsp misc_model zurueckgewinnt, warten die Behebungen (Hinweis oben in den
+    // Einzelheiten, die Knoepfe sind gesperrt)
+    const bool rueck = bspRueckLaeuft();
+    if (rueck) {
+        ImGui::TextColored(ImVec4{1.0F, 0.75F, 0.3F, 1.0F}, "%s", trK(Str::KeRkWarten));
+        merke("RueckHinweis");
+        ImGui::Separator();
+    }
     if (g_z.reiter == 0) {
         if (const Bewertung* b = gewaehlteGrenze()) {
             const karte::Grenze& g = *b->grenze;
@@ -1020,7 +1036,7 @@ void zeichneOptimierer() {
     merke("Einzelheiten");
     // --- Knoepfe ---
     const Befund* bf = g_z.reiter == 1 ? gewaehlterBefund() : nullptr;
-    const bool darf = bf != nullptr && bf->behebung != Behebung::Keine && !veraltet() && !g_z.laeuft;
+    const bool darf = bf != nullptr && bf->behebung != Behebung::Keine && !veraltet() && !g_z.laeuft && !rueck;
     if (!g_z.vorschau) {
         if (!darf) { ImGui::BeginDisabled(); }
         if (ImGui::Button((std::string(trK(Str::KeOptBeheben)) + "##optbeheben").c_str(), ImVec2{px(100.0F), zeileH})) { g_z.vorschau = true; }
@@ -1038,7 +1054,7 @@ void zeichneOptimierer() {
         if (ImGui::Button((std::string(trK(Str::KeCancel)) + "##optvorschauweg").c_str(), ImVec2{px(80.0F), zeileH})) { g_z.vorschau = false; }
     }
     ImGui::SameLine();
-    const bool sichereDa = g_z.e && !veraltet() && !g_z.laeuft &&
+    const bool sichereDa = g_z.e && !veraltet() && !g_z.laeuft && !rueck &&
                            std::any_of(g_z.e->befunde.begin(), g_z.e->befunde.end(), [](const Befund& b) { return b.sicher && b.behebung != Behebung::Keine; });
     if (!sichereDa) { ImGui::BeginDisabled(); }
     if (ImGui::Button((std::string(trK(Str::KeOptAllesSichere)) + "##optsicher").c_str(), ImVec2{0.0F, zeileH})) { (void)optimiererAllesSichere(); }
