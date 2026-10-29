@@ -235,6 +235,9 @@ const Frage kUnabhaengig[] = {
     {"ja", "シーンで音楽を流す", "seite:k-effekt-musik|seite:cmd-play|seite:cmd-sound"},
 };
 
+// H2: die neue unabhaengige Liste (eingefroren, siehe dort).
+#include "hilfe_fragen_h2.inc"
+
 bhed::i18n::Language spracheVon(const std::string& s) {
     if (s == "de") { return bhed::i18n::Language::German; }
     if (s == "zh") { return bhed::i18n::Language::ChineseSimplified; }
@@ -268,6 +271,8 @@ void trefferProben(const std::string& ordner) {
     int gut = 0;
     int unGesamt = 0;
     int unGut = 0;
+    int h2Gesamt = 0;
+    int h2Gut = 0;
     for (const char* sp : {"de", "en", "zh", "ja"}) {
         bhed::tour::Touren t;
         std::vector<bhed::tour::Abschnitt> hb;
@@ -327,10 +332,34 @@ void trefferProben(const std::string& ordner) {
         std::printf("    %s unabhaengig: %d von %d\n", sp, ug, un);
         unGesamt += un;
         unGut += ug;
+        int h2 = 0;
+        int h2g = 0;
+        for (const FrageH2& q : kFragenH2) {
+            if (std::string(q.sprache) != sp) { continue; }
+            ++h2;
+            bool ok = false;
+            std::string liste;
+            for (const bhed::hilfe::Treffer& x : ix.frage(q.text, 3, q.modus)) {
+                const std::string& id = ix.eintraege()[x.eintrag].id;
+                ok = ok || passt(id, q.erwartet);
+                liste += " " + id;
+            }
+            if (ok) {
+                ++h2g;
+            } else {
+                std::printf("    H2 daneben (%s, Modus %d) \"%s\":%s\n", sp, q.modus, q.text, liste.c_str());
+            }
+        }
+        std::printf("    %s H2-Liste: %d von %d\n", sp, h2g, h2);
+        h2Gesamt += h2;
+        h2Gut += h2g;
     }
     const double quote = gesamt > 0 ? 100.0 * gut / gesamt : 0.0;
     std::printf("    gesamt: %d von %d = %.1f %%\n", gut, gesamt, quote);
     std::printf("    unabhaengig gesamt: %d von %d = %.1f %%\n", unGut, unGesamt, unGesamt > 0 ? 100.0 * unGut / unGesamt : 0.0);
+    const double h2Quote = h2Gesamt > 0 ? 100.0 * h2Gut / h2Gesamt : 0.0;
+    std::printf("    H2-Liste gesamt: %d von %d = %.1f %%\n", h2Gut, h2Gesamt, h2Quote);
+    expect("H2-Liste: mindestens 40 Fragen", h2Gesamt >= 40);
     expect("mindestens 60 Fragen", gesamt >= 60);
     expect("Top-3-Trefferquote >= 85 %", quote >= 85.0);
 }

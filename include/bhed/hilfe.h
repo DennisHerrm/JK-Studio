@@ -67,7 +67,9 @@ public:
     // Nach dem letzten hinzu(): Woerter zaehlen. Ein Eintrag mit einer
     // Kennung, die es schon gibt, ergaenzt nur dessen Suchwoerter.
     void fertig();
-    [[nodiscard]] std::vector<Treffer> frage(const std::string& anfrage, std::size_t hoechstens = 5) const;
+    // H2: `modus` = Modusleiste beim Fragen (0 Events, 1 Vorschau, 2 Modell, 3 Karten-Editor,
+    // 4 Menue-Editor; -1 = ohne Kontext) - Eintraege dieses Bereichs zaehlen mehr.
+    [[nodiscard]] std::vector<Treffer> frage(const std::string& anfrage, std::size_t hoechstens = 5, int modus = -1) const;
     [[nodiscard]] const std::vector<Eintrag>& eintraege() const { return eintraege_; }
     [[nodiscard]] const Eintrag* finde(const std::string& id) const;
 

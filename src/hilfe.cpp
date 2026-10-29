@@ -444,7 +444,8 @@ void Index::fertig() {
     std::sort(vokabel_.begin(), vokabel_.end());
 }
 
-std::vector<Treffer> Index::frage(const std::string& anfrage, std::size_t hoechstens) const {
+std::vector<Treffer> Index::frage(const std::string& anfrage, std::size_t hoechstens, int modus) const {
+    (void)modus;
     std::vector<Treffer> aus;
     if (eintraege_.empty()) { return aus; }
     // Gewichtete Woerter der Frage: Begriffe zaehlen mehr, unbekannte
