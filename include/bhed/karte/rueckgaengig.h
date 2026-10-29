@@ -95,6 +95,11 @@ public:
 
     void start();                          // UndoSystem::start - Befehl beginnt
     void finish(const std::string& name);  // UndoSystem::finish - Befehl endet
+    // H1: mehrere Befehle als EIN Schritt (ein Auftrag der KI, "KI: ...").
+    // Befehle innerhalb der Gruppe oeffnen und schliessen keinen eigenen.
+    void gruppeBeginnen();
+    void gruppeBeenden(const std::string& name);
+    [[nodiscard]] bool inGruppe() const { return m_gruppe > 0; }
     bool undo();                           // false: nichts rueckgaengig zu machen
     bool redo();                           // false: nichts zu wiederholen
     void clear();
@@ -143,6 +148,7 @@ public:
 
 private:
     bool m_befehlOffen = false;
+    int m_gruppe = 0;   // H1
     friend class Rueckgaengigbar;
 
     struct Zustand {   // Snapshot::StateApplicator

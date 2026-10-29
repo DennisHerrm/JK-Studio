@@ -11,6 +11,7 @@
 //   f) touren.json lesen; ist handbuch/<sprache>/touren.json erzeugt (Argument
 //      1 = Handbuchordner), alle vier Sprachen pruefen
 //   g) Suche im Handbuch (suche.js)
+//   h) H1: Messwerte (zahl:), offene Fenster (offen:), Hinweise (falsch)
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -754,6 +755,84 @@ void sucheProben(const std::string& ordner) {
     }
 }
 
+// H1: Messwerte aller Bereiche, offene Fenster und freundliche Hinweise.
+void messwertProben() {
+    using bhed::tour::Ablauf;
+    using bhed::tour::Kontext;
+    std::printf("Messwerte, Fenster, Hinweise (H1)\n");
+    std::string f;
+    expect("zahl:karte.pinsel+ bekannt", bhed::tour::pruefungBekannt("zahl:karte.pinsel+", &f));
+    expect("zahl:karte.texturen~ bekannt", bhed::tour::pruefungBekannt("zahl:karte.texturen~", &f));
+    expect("zahl:karte.ent.info_player_start bekannt", bhed::tour::pruefungBekannt("zahl:karte.ent.info_player_start", &f));
+    expect("zahl:Gross abgewiesen", !bhed::tour::pruefungBekannt("zahl:Karte", &f));
+    expect("zahl: ohne Namen abgewiesen", !bhed::tour::pruefungBekannt("zahl:", &f));
+    expect("befehl:x~ abgewiesen", !bhed::tour::pruefungBekannt("befehl:wait~", &f));
+    expect("offen:x+ abgewiesen", !bhed::tour::pruefungBekannt("offen:karteoptimierer+", &f));
+    expect("offen: ohne Teil abgewiesen", !bhed::tour::pruefungBekannt("offen:", &f));
+    expect("modus:3 (Karten-Editor) bekannt", bhed::tour::pruefungBekannt("modus:3", &f));
+    bhed::tour::Ziel z3;
+    expect("Ziel karte3d (die 3D-Ansicht)", bhed::tour::parseZiel("karte3d", z3, &f) && z3.art == bhed::tour::Ziel::Art::Karte3d);
+    expect("Ziel karte3d:x abgewiesen", !bhed::tour::parseZiel("karte3d:x", z3, &f));
+    expect("modus:4 abgewiesen", !bhed::tour::pruefungBekannt("modus:4", &f));
+    expect("zahl:a ist ein Zustand, zahl:a+ und zahl:a~ nicht",
+           bhed::tour::istZustand("zahl:a") && !bhed::tour::istZustand("zahl:a+") && !bhed::tour::istZustand("zahl:a~"));
+    Kontext start;
+    Kontext jetzt;
+    start.werte["karte.pinsel"] = 1;
+    jetzt.werte["karte.pinsel"] = 1;
+    expect("zahl:karte.pinsel gilt bei 1", bhed::tour::erfuellt("zahl:karte.pinsel", jetzt, start));
+    expect("zahl:karte.pinsel+ gilt nicht ohne Zuwachs", !bhed::tour::erfuellt("zahl:karte.pinsel+", jetzt, start));
+    jetzt.werte["karte.pinsel"] = 6;
+    expect("zahl:karte.pinsel+ gilt bei 1 -> 6", bhed::tour::erfuellt("zahl:karte.pinsel+", jetzt, start));
+    expect("fehlender Wert zaehlt 0", !bhed::tour::erfuellt("zahl:karte.lichter", jetzt, start));
+    start.werte["karte.texturen"] = 17;
+    jetzt.werte["karte.texturen"] = 17;
+    expect("zahl:karte.texturen~ gilt nicht ohne Wechsel", !bhed::tour::erfuellt("zahl:karte.texturen~", jetzt, start));
+    jetzt.werte["karte.texturen"] = 5;
+    expect("zahl:karte.texturen~ gilt auch beim Kleinerwerden", bhed::tour::erfuellt("zahl:karte.texturen~", jetzt, start));
+    jetzt.offen = {"Optimizer###karteoptimierer", "###main"};
+    expect("offen:karteoptimierer", bhed::tour::erfuellt("offen:karteoptimierer", jetzt, start));
+    expect("offen:kartecsgtool nicht", !bhed::tour::erfuellt("offen:kartecsgtool", jetzt, start));
+
+    // Ein Schritt mit Hinweis: Licht gesetzt statt Spielerstart.
+    bhed::tour::Tour t;
+    t.id = "h1";
+    bhed::tour::Schritt s;
+    s.text = "Spielerstart";
+    s.fertig = "zahl:karte.ent.info_player_start+";
+    s.falsch.push_back({"zahl:karte.ent.light+", "Das war ein Licht - nimm info > info_player_start."});
+    t.ansichten.emplace_back("classic", std::vector<bhed::tour::Schritt>{s});
+    Ablauf a;
+    Kontext k;
+    expect("Tour mit Hinweis startet", a.starte(t, "classic"));
+    double zeit = 0.0;
+    (void)a.bild(k, zeit);
+    expect("am Anfang kein Hinweis", a.hinweis(k).empty());
+    k.werte["karte.ent.light"] = 1;
+    zeit += 0.1;
+    (void)a.bild(k, zeit);
+    expect("Licht statt Spielerstart -> Hinweis", a.hinweis(k).find("info_player_start") != std::string::npos && !a.erfuellt());
+    k.werte["karte.ent.info_player_start"] = 1;
+    zeit += 0.1;
+    (void)a.bild(k, zeit);
+    expect("dann richtig -> erfuellt, kein Hinweis mehr", a.erfuellt() && a.hinweis(k).empty());
+
+    // touren.json mit Hinweis lesen; ein Hinweis ohne Text oder mit
+    // unbekannter Pruefung bricht ab.
+    const std::string gut =
+        R"({"fassung":1,"sprache":"de","touren":[{"id":"x","titel":"X","seite":"x.html","ansichten":{"classic":[)"
+        R"({"text":"a","fertig":"zahl:karte.pinsel+","falsch":[{"wenn":"offen:karteoptimierer","text":"Noch nicht."}]}]}}]})";
+    bhed::tour::Touren tt;
+    expect("touren.json mit falsch liest sich",
+           bhed::tour::ladeTouren(gut, tt, &f) && tt.liste.size() == 1 && tt.liste[0].ansichten[0].second[0].falsch.size() == 1);
+    std::string schlecht = gut;
+    schlecht.replace(schlecht.find("offen:karteoptimierer"), 21, "quatsch:1");
+    expect("falsch mit unbekannter Pruefung abgewiesen", !bhed::tour::ladeTouren(schlecht, tt, &f));
+    schlecht = gut;
+    schlecht.replace(schlecht.find("Noch nicht."), 11, "");
+    expect("falsch ohne Text abgewiesen", !bhed::tour::ladeTouren(schlecht, tt, &f));
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -768,6 +847,7 @@ int main(int argc, char** argv) {
     ladeProben();
     handbuchProben(handbuch);
     sucheProben(handbuch);
+    messwertProben();
     std::printf(fehler == 0 ? "\nalle Tourproben bestanden\n" : "\nFEHLGESCHLAGEN (%d)\n", fehler);
     return fehler == 0 ? 0 : 1;
 }

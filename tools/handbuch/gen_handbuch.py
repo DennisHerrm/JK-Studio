@@ -106,6 +106,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in KARTE8D})
             from i18n_karte9 import KARTE9     # Stufe 9: restliche Karten-Werkzeuge
             texte.update({e[0]: e[1:] for e in KARTE9})
+            from i18n_hilfe1 import HILFE1     # Stufe H1: der Helfer, Touren, KI-Anbindung
+            texte.update({e[0]: e[1:] for e in HILFE1})
             return texte
     raise SystemExit("gen_i18n.py: Liste S nicht gefunden")
 
@@ -616,6 +618,10 @@ def touren_json(sp):
                 inhalt_touren.pruefe(sid, ansicht, nr, a, lambda k: k in UI_TEXTE)
                 eintrag = {"text": tour_text(t, sp), "bild": bild or "", "unter": tour_text(unter, sp) if unter else ""}
                 eintrag.update(a)
+                # H1: die Hinweise in der Sprache der Datei
+                eintrag["falsch"] = [{"wenn": p, "text": tour_text(t, sp)} for p, t in a.get("falsch", [])]
+                if not eintrag["falsch"]:
+                    del eintrag["falsch"]
                 schritte.append(eintrag)
             if not schritte:
                 raise SystemExit("%s/%s: keine Schritte" % (sid, ansicht))

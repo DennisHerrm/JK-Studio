@@ -42,6 +42,10 @@ add_library(bhed_core STATIC
   # rc601 tour: Tutorials im Programm - Daten, Zielangaben, Pruefungen,
   # Ablauf, Fortschritt, Suche im Handbuch (die Oberflaeche: gui/tour.cpp).
   src/tour.cpp
+  # H1: der Helfer - Index ueber Touren, Handbuch, Menues und Einstellungen.
+  src/hilfe.cpp
+  # H1: die freiwillige KI-Anbindung - Werkzeuge, MCP (JSON-RPC), HTTP-Pruefung, Chat.
+  src/ki.cpp
   src/bhc.cpp
   src/validate.cpp
   src/tree.cpp
@@ -220,6 +224,9 @@ target_sources(bhed_core PRIVATE src/eingebaut.cpp)
 if(WIN32)
   target_sources(bhed_core PRIVATE src/update_einspielen.cpp)
   target_link_libraries(bhed_core PUBLIC bcrypt)
+  # H1: KI-Anbindung - DPAPI, WinHTTP (TLS), lokaler MCP-Server (nur 127.0.0.1), stdio.
+  target_sources(bhed_core PRIVATE src/ki_win32.cpp)
+  target_link_libraries(bhed_core PUBLIC winhttp ws2_32 crypt32)
 endif()
 include(${CMAKE_CURRENT_SOURCE_DIR}/tools/eingebaute_daten.cmake)
 file(GLOB BEHAVED_EINGEBAUT CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/data/base/*")
@@ -468,6 +475,11 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/elemente.cpp
     # rc601 tour: Tutorials im Programm - Fenster, Hervorhebung, Auswertung.
     gui/tour.cpp
+    # H1: Messwerte aller Bereiche fuer die Tutorials (zahl:<name>).
+    gui/tour_messwerte.cpp
+    # H1: der Helfer (F1) und die freiwillige KI-Anbindung (MCP, Chat).
+    gui/hilfe.cpp
+    gui/ki.cpp
     gui/update_win32.cpp
     gui/vektoricons.cpp
     gui/wache_win32.cpp
@@ -690,6 +702,15 @@ if(BEHAVED_TESTS)
   add_executable(tourtest tests/tourtest.cpp)
   target_link_libraries(tourtest PRIVATE bhed_core)
   add_test(NAME tour COMMAND tourtest ${CMAKE_CURRENT_SOURCE_DIR}/handbuch)
+  # H1: der Helfer - Woerter, Ortskatalog, Trefferquote (Top 3, vier Sprachen).
+  add_executable(hilfetest tests/hilfetest.cpp)
+  target_link_libraries(hilfetest PRIVATE bhed_core)
+  add_test(NAME hilfe COMMAND hilfetest ${CMAKE_CURRENT_SOURCE_DIR}/handbuch)
+  # H1: KI-Anbindung - Pruefungen (Host, Origin, Token), JSON-RPC mit boesartigen
+  # Anfragen, Prompt-Injection, lokaler Fake-Server statt Netz, MCP-Testclient.
+  add_executable(kitest tests/kitest.cpp)
+  target_link_libraries(kitest PRIVATE bhed_core)
+  add_test(NAME ki COMMAND kitest)
   # Gegenproben zur Code-Pruefung vom 03.10.2026 (Skriptkern, Kartenleser,
   # Einstellungen, Modell- und Archivleser).
   add_executable(pruefung tests/pruefung.cpp)
@@ -843,6 +864,10 @@ if(BEHAVED_TESTS)
     # einer Sprache (Bilder nur, wenn handbuch/bilder vorhanden ist).
     add_test(NAME handbuch_sprachen
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/handbuch/gen_handbuch.py --pruefen)
+    # H1: der Ortskatalog des Helfers (src/hilfe_orte.inc) passt zu den Menues und
+    # Einstellungen - sonst fand "Zeig es mir" einen umbenannten Menuepunkt nicht mehr.
+    add_test(NAME hilfe_orte
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_hilfe_orte.py --check)
     # Stufe 3 Punkt 1/2: bhed_q3map2.exe bindet nur Windows-DLLs fest (statische
     # Laufzeit wie behaved.exe), und jede Stufe (-bsp, -vis, -light) schreibt,
     # was NRCs q3map2.exe unter denselben Bedingungen schreibt

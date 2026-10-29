@@ -353,6 +353,354 @@
      }
     ]
    }
+  },
+  {
+   "id": "tut-karte",
+   "gruppe": "tut",
+   "titel": "你的第一张地图:一个可以走动的房间",
+   "kurz": "从一张空地图到可以在游戏中走动的房间:画刷、纹理、caulk、一盏灯、玩家起点、优化器、带进度窗口的编译、在编辑器中走一遍——以及用于游戏的 .pk3。",
+   "seite": "tut-karte.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**设置游戏。** 在模式栏切换到 **{{ViewMapEditor}}**。编辑器使用程序所设置的游戏,其文件夹来自程序设置。**{{KeLEdit}} > {{KeLPreferences}}** 的 **{{KePgGame}}** 页显示游戏,**{{KePgPaths}}** 页显示引擎路径(为空时取自程序的游戏文件夹)。",
+      "bild": "h_tut_karte_pfade",
+      "unter": "{{KeLPreferences}},{{KePgPaths}} 页。",
+      "ziel": "menue:KeLEdit>KeLPreferences",
+      "fertig": "zahl:karte.spiel",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**新地图。** **{{KeLFile}} > {{KeLNewMap}}** 新建一张空地图——只有 worldspawn。用鼠标滚轮把二维视图稍微缩小。",
+      "bild": "h_tut_karte_neu",
+      "unter": "{{KeLFile}} 菜单。",
+      "ziel": "menue:KeLFile>KeLNewMap",
+      "fertig": "zahl:karte.leer",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**画一个画刷。** 在二维俯视图中按住左键从一个角拖到另一个角——这里从 -256 -256 到 256 256,一个 512 单位宽的盒子。高度来自工作区(最初为 -64 到 64)。",
+      "bild": "h_tut_karte_brush",
+      "unter": "新画刷,已选中(红色)。",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.ent+",
+        "text": "这创建了一个实体。按 Ctrl+Z,然后在 2D 视图中用鼠标左键拖动。"
+       }
+      ]
+     },
+     {
+      "text": "**加高。** <kbd>Num 1</kbd> 把二维视图切换到前视图(XZ)。在上边缘稍上方按住并向上拖:顶面沿网格移动。这里拖到 192——房间现在高 256。<kbd>Num 7</kbd> 回到俯视图。",
+      "bild": "h_tut_karte_hoehe",
+      "unter": "前视图:画刷现在高 256。",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.hoehe+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.pinsel+",
+        "text": "这画出了第二个画刷。按 Ctrl+Z,然后从第一个画刷上边缘的正上方开始拖动。"
+       }
+      ]
+     },
+     {
+      "text": "**纹理。** 在纹理浏览器的树中双击一个文件夹,然后用左键单击一个纹理:所选画刷的每个面都会使用它。墙壁请选择不透明的纹理。",
+      "bild": "h_tut_karte_textur",
+      "unter": "六个面都贴上了墙壁纹理。",
+      "ziel": "fenster:##feldTexturen",
+      "fertig": "zahl:karte.texturen~",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.keineauswahl",
+        "text": "还没有选中任何东西。先在 2D 视图中点击画刷,再点击纹理。"
+       }
+      ]
+     },
+     {
+      "text": "**挖空。** 工具栏按钮 **{{KeCsgTitle}}** 打开 CSG 工具。厚度保持 16,先关闭 caulk 按钮(之后由 AutoCaulk 完成),然后按 **{{KeCsgTipPull}}**:六面 16 厚的墙向外长在房间周围,内部正好是你画的盒子。工具栏按钮 **Room**(Make Room)以网格大小为厚度做同样的事。",
+      "bild": "h_tut_karte_csg",
+      "unter": "关闭 caulk 按钮的 {{KeCsgTitle}}。",
+      "ziel": "knopfN:##knopfCSGTool",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**地面纹理。** 在前视图中,<kbd>Shift</kbd> + 左键单击地面只选中地面画刷;在浏览器中单击一个地面纹理。<kbd>Esc</kbd> 取消选择。",
+      "bild": "h_tut_karte_hohl",
+      "unter": "挖空的房间:六个墙画刷。",
+      "ziel": "fenster:##feldTexturen",
+      "fertig": "zahl:karte.texturen~",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.keineauswahl",
+        "text": "还没有选中任何东西。先在 2D 视图中点击画刷,再点击纹理。"
+       }
+      ]
+     },
+     {
+      "text": "**一盏灯。** 在二维视图中右键单击房间内部:实体菜单打开。**light** 会询问亮度(300 是不错的起点)——**OK** 把它放在你单击的位置。",
+      "bild": "h_tut_karte_licht",
+      "unter": "{{KeLiTitle}}。",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.light+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.pinsel+",
+        "text": "这画出了一个画刷。按 Ctrl+Z,然后用鼠标右键点击。"
+       }
+      ]
+     },
+     {
+      "text": "**玩家从哪里开始。** 在靠近地面处右键单击:**info > info_player_start**。没有它,游戏不知道把玩家放在哪里。它的方框立在地面上。",
+      "bild": "h_tut_karte_spawn",
+      "unter": "实体菜单的 info 子菜单。",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.info_player_start",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.ent.light+",
+        "text": "这又是一盏灯。再右键点击一次,选择 info > info_player_start。"
+       }
+      ]
+     },
+     {
+      "text": "**保存。** **{{KeLFile}} > {{KeLSaveAs}}**——例如保存为你自己的 `maps` 文件夹中的 `meinekarte.map`,不要放在游戏文件夹里。文件名就是游戏中地图的名称。",
+      "bild": "h_tut_karte_gespeichert",
+      "unter": "编辑器中已保存的房间。",
+      "ziel": "menue:KeLFile>KeLSaveAs",
+      "fertig": "zahl:karte.gespeichert+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**外侧使用 caulk。** 没人看得见的面仍会占用光照贴图空间和绘制时间。把摄像机飞进房间,在俯视图中按住 <kbd>Shift</kbd> + 右键拖一个矩形框住整个房间,然后按 <kbd>F4</kbd>(**{{KeLBrush}} > {{KeLAutoCaulkSelected}}**):从内部看不到的每个面都会变成 caulk。也可以从一开始就用 caulk 搭建:给新画刷 caulk 纹理,只给看得见的面上纹理。",
+      "bild": "h_tut_karte_caulk",
+      "unter": "AutoCaulk 之后:摄像机在房间内。",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.caulk+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**检查。** **{{KeLBuild}} > {{KeOptMenue}}** 在编译前统计游戏的限制并查找编译问题。绿色的房间没有需要修复的地方。",
+      "bild": "h_tut_karte_optimierer",
+      "unter": "教程房间的优化器。",
+      "ziel": "menue:KeLBuild>KeOptMenue",
+      "fertig": "offen:karteoptimierer",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**编译。** **{{KeLBuild}} > [Final] Fast** 运行三次 q3map2——BSP、VIS 以及带反弹的光照。进度窗口显示阶段、进度和剩余时间。如果地图有泄漏,控制台会用红色提示,二维视图中的一条线会显示通往外部的路径——见 地图编辑器:编译地图。",
+      "bild": "h_tut_karte_fortschritt",
+      "unter": "编译期间的进度窗口。",
+      "ziel": "menue:KeLBuild",
+      "fertig": "zahl:karte.gebaut+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**走一遍。** **{{KeLView}} > {{KeSpSpawn}}**,然后 **{{KeSpMenue}}**(<kbd>F6</kbd>):你站在 info_player_start 处,用 <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> 行走,<kbd>空格</kbd> 跳跃;<kbd>Esc</kbd> 结束。即使不编译也可以——碰撞直接来自画刷(见 在编辑器中试玩)。",
+      "bild": "h_tut_karte_spielen",
+      "unter": "在编辑器中穿过房间。",
+      "ziel": "menue:KeLView>KeSpMenue",
+      "fertig": "zahl:karte.spielen",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**放进游戏。** **{{KeLBuild}} > {{KePkMenue}}** 把 `maps/meinekarte.bsp` 打包为 .bsp 旁的 `meinekarte.pk3`。程序从不写入游戏文件夹——请自行把 .pk3 复制到 `GameData/base`(Jedi Academy、Jedi Outcast)或你的模组文件夹(例如 Movie Duels)。启动游戏,用 <kbd>Shift</kbd>+<kbd>~</kbd> 打开控制台,输入 `devmap meinekarte`。",
+      "bild": "h_tut_karte_pk3menue",
+      "unter": "带有 **{{KePkMenue}}** 的 {{KeLBuild}}(NetRadiant-Custom 中没有)。",
+      "ziel": "menue:KeLBuild>KePkMenue",
+      "fertig": "zahl:karte.pk3+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-kamera-ansicht",
+   "gruppe": "tut_kamera",
+   "titel": "把镜头放到你注视的位置",
+   "kurz": "环顾四周直到画面合适,然后把某个镜头——或新镜头——精确移到那里。",
+   "seite": "k-kamera-ansicht.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**飞到想要的视角。** 在地图中按住鼠标右键,用 <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> 飞行,直到画面合适为止。",
+      "bild": "c_frei",
+      "unter": "你自己的地图视角。",
+      "ziel": "karte3d",
+      "fertig": "zahl:vorschau.blick~",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "还没有打开地图。请先加载一张:{{MenuFile}} > {{MapLoad}},或打开一个任务。"
+       }
+      ]
+     },
+     {
+      "text": "**在此新建镜头。** 选中摄像机并按 **{{CamNewShot}}**:会在所选镜头之后添加位于你当前视角的 `camera ( MOVE )` 和 `camera ( PAN )`。",
+      "bild": "h_kamera",
+      "unter": "摄像机面板中的“在此新建镜头”。",
+      "ziel": "knopf:CamNewShot",
+      "fertig": "zahl:vorschau.einstellungen+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "还没有打开地图。请先加载一张:{{MenuFile}} > {{MapLoad}},或打开一个任务。"
+       },
+       {
+        "wenn": "zahl:vorschau.ohnekamera",
+        "text": "这个脚本还没有镜头。请先插入一个 camera 命令({{GroupEvents}} 列表中双击 camera),或打开一个带过场动画的任务。"
+       },
+       {
+        "wenn": "zahl:vorschau.nichtgewaehlt",
+        "text": "请先选中镜头:点击地图上的某个镜头,或时间轴中的镜头行。左侧会出现它的按钮。"
+       }
+      ]
+     },
+     {
+      "text": "**或者移动已有镜头。** 在 **{{CamShots}}** 中选中一个镜头并按 **{{CamSetToView}}**:它的位置和方向会被你的视角取代——可一步撤销。",
+      "bild": "c_aufansicht",
+      "unter": "设为当前视角。",
+      "ziel": "knopf:CamSetToView",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.nichtgewaehlt",
+        "text": "请先选中镜头:点击地图上的某个镜头,或时间轴中的镜头行。左侧会出现它的按钮。"
+       }
+      ]
+     },
+     {
+      "text": "**检查。** 地图工具栏上的 **{{MapThroughCam}}** 显示所选镜头看到的画面,包括其缩放和电影黑边。",
+      "bild": "c_durch",
+      "unter": "工具栏上的“通过摄像机”。",
+      "ziel": "knopf:MapThroughCam",
+      "fertig": "zahl:vorschau.durchkamera",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-modell",
+   "gruppe": "tut_mission",
+   "titel": "查看角色模型",
+   "kurz": "加载游戏中的任意角色,旋转它,查看它的皮肤和骨骼。",
+   "seite": "k-modell.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**切换到左侧模式栏中的 {{ViewModel}}。**",
+      "bild": "m_modus",
+      "unter": "模式栏中的“模型”。",
+      "ziel": "knopf:ViewModel@modebar",
+      "fertig": "modus:2",
+      "voraus": "",
+      "einrichten": "modus:2",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**选择角色。** **{{NpcBrowser}}** 列出游戏中的所有角色——输入即可搜索,单击即可连同皮肤一起加载。",
+      "bild": "m_npc",
+      "unter": "NPC 浏览器。",
+      "ziel": "knopf:NpcBrowser",
+      "fertig": "zahl:modell.figur~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**四处查看。** 鼠标左键旋转,中键平移,滚轮缩放。**{{ModelTurntable}}** 让它自动旋转,**{{ModelResetView}}** 把它转回正面。",
+      "bild": "h_modell",
+      "unter": "模型视图。",
+      "ziel": "knopf:ModelTurntable;knopf:ModelResetView",
+      "fertig": "zahl:modell.blick~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**细节。** **{{ModelSkin}}** 切换皮肤,**{{ModelBones}}** 显示骨骼,**{{ModelTextures}}** 关闭纹理。",
+      "bild": "m_details",
+      "unter": "皮肤、骨骼和纹理。",
+      "ziel": "knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures",
+      "fertig": "zahl:modell.details~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }

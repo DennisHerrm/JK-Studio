@@ -118,6 +118,16 @@ struct Settings {
     // rc601 tour: Fortschritt der Tutorials im Programm, je Tour
     // "<naechster Schritt>/<Anzahl>" oder "fertig" (bhed/tour.h, standText).
     std::map<std::string, std::string> tourStand;
+    // H1: "Was willst du zuerst tun?" kam schon (nur beim allerersten Start).
+    bool ersteSchritteGezeigt = false;
+    // H1: KI-Anbindung - alles ab Werk aus (Sicherheitskonzept in
+    // docs/intern/NOTIZEN_hilfe1.md). Der API-Schluessel und das MCP-Token
+    // stehen NICHT hier, sondern DPAPI-verschluesselt in eigenen Dateien.
+    bool kiChat = false;            // In-App-Chat mit eigenem Schluessel
+    std::string kiModell = "claude-sonnet-5-5";
+    bool kiOhneNachfrage = false;   // aendernde Auftraege ohne Rueckfrage (Speichern/Loeschen fragen immer)
+    bool mcpHttp = false;           // lokale Verbindung (nur 127.0.0.1) fuer MCP-Apps
+    int mcpPort = 8765;
     // Den Aenderungsrand (orange/gruen/blassblau) zeigen.
     bool changeHistory = true;
     // Beim Start im Hintergrund auf GitHub nach einer neueren Fassung sehen

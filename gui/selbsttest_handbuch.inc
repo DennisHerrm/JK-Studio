@@ -289,6 +289,10 @@ std::vector<Schritt> karteneditorGrossSchritte() {
 namespace stufe8c {
 std::vector<Schritt> schritte();   // selbsttest_karte8c.inc: Tutorial "Erste eigene Karte"
 }  // namespace stufe8c
+namespace hilfe1 {
+std::vector<Schritt> schritte();   // selbsttest_hilfe1.inc: Stufe H1 - Helfer, Touren, KI
+std::vector<Schritt> handbuchFotos();   // dito: die Bilder der Handbuchseite
+}  // namespace hilfe1
 namespace stufe8g {
 std::vector<Schritt> schritte();   // selbsttest_karte8g.inc: Build > GPU bake (nach dem Tutorial)
 }  // namespace stufe8g
@@ -491,6 +495,12 @@ std::vector<Schritt> karteneditorSchritte() {
     // =stufe8b: nur die Stufe 8b (neue Editor-Werkzeuge; BHED_STUFE8B_NUR=<Teil>)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe8b") == 0) {
         for (Schritt& x : stufe8b::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // =hilfe1: Stufe H1 - der Helfer, die Tour "Deine erste Karte" mit echten Aktionen, die KI-Anbindung
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "hilfe1") == 0) {
+        for (Schritt& x : hilfe1::schritte()) { add(std::move(x)); }
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
@@ -823,6 +833,7 @@ void skriptNeu() {
 }  // namespace hb
 
 #include "selbsttest_karte8c.inc"
+#include "selbsttest_hilfe1.inc"   // Stufe H1: Helfer, Touren, KI-Anbindung
 #include "selbsttest_karte8g.inc"
 #include "selbsttest_karte9.inc"
 #include "selbsttest_optsicher.inc"
@@ -2046,6 +2057,9 @@ std::vector<Schritt> handbuchSchritte() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karteneditor") == 0) {
         return karteneditorHandbuchSchritte();
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "helfer") == 0) {
+        return hilfe1::handbuchFotos();   // Stufe H1: die Bilder der Seite "Der Helfer und die Touren"
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartebauen") == 0) {
         return karteneditorHandbuchSchritte(true);

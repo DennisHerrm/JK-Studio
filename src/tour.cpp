@@ -53,6 +53,16 @@ bool istZahl(const std::string& s) {
     return true;
 }
 
+// H1: Name eines Messwerts ("karte.ent.info_player_start").
+bool istMesswert(const std::string& s) {
+    if (s.empty()) { return false; }
+    for (const char c : s) {
+        const bool ok = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '_';
+        if (!ok) { return false; }
+    }
+    return true;
+}
+
 void setzeFehler(std::string* f, const std::string& text) {
     if (f != nullptr) { *f = text; }
 }
@@ -85,6 +95,7 @@ struct Teil {
     std::string name;
     std::string arg;
     bool plus = false;
+    bool wechsel = false;   // H1: "~" = anders als beim Beginn des Schritts
 };
 
 Teil zerlegePruefung(const std::string& s0) {
@@ -92,6 +103,10 @@ Teil zerlegePruefung(const std::string& s0) {
     std::string s = trim(s0);
     if (!s.empty() && s.back() == '+') {
         t.plus = true;
+        s.pop_back();
+        s = trim(s);
+    } else if (!s.empty() && s.back() == '~') {
+        t.wechsel = true;
         s.pop_back();
         s = trim(s);
     }
@@ -143,7 +158,15 @@ bool teilBekannt(const Teil& t, std::string* fehler) {
         return t.arg.empty() ? true : falsch("ohne Argument");
     }
     if (t.name == "befehl") {
-        return istName(t.arg) ? true : falsch("braucht einen Befehlsnamen");
+        return istName(t.arg) && !t.wechsel ? true : falsch("braucht einen Befehlsnamen");
+    }
+    // H1: Messwerte aller Bereiche (Kontext::werte) - "zahl:karte.pinsel+".
+    if (t.name == "zahl") {
+        return istMesswert(t.arg) ? true : falsch("Form zahl:<name>[+|~], Name aus a-z, 0-9, '.', '_'");
+    }
+    if (t.wechsel) { return falsch("\"~\" gibt es nur an zahl:"); }
+    if (t.name == "offen") {
+        return (!t.arg.empty() && !t.plus) ? true : falsch("Form offen:<Teil des Fensternamens>");
     }
     if (t.plus) { return falsch("\"+\" gibt es nur an Zaehlern und befehl:"); }
     if (enthaelt(kZustandOhneArg, t.name)) {
@@ -168,10 +191,19 @@ bool teilBekannt(const Teil& t, std::string* fehler) {
     if (t.name == "fenster") {
         return enthaelt(kFenster, t.arg) ? true : falsch("bekannte Fenster: messages, find");
     }
-    if (t.name == "modus" || t.name == "ansicht") {
+    if (t.name == "ansicht") {
         return (t.arg == "0" || t.arg == "1" || t.arg == "2") ? true : falsch("0, 1 oder 2");
     }
+    // H1: die Modusleiste hat vier Knoepfe (3 = Karten-Editor).
+    if (t.name == "modus") {
+        return (t.arg.size() == 1 && t.arg[0] >= '0' && t.arg[0] <= '3') ? true : falsch("0 bis 3");
+    }
     return falsch("unbekannt");
+}
+
+double messwert(const Kontext& k, const std::string& name) {
+    const auto it = k.werte.find(name);
+    return it == k.werte.end() ? 0.0 : it->second;
 }
 
 int anzahlVon(const Kontext& k, const std::string& befehl) {
@@ -210,6 +242,18 @@ bool teilErfuellt(const Teil& t, const Kontext& jetzt, const Kontext& start) {
     if (t.name == "fenster") { return enthaelt(jetzt.fenster, t.arg); }
     if (t.name == "modus") { return std::to_string(jetzt.modus) == t.arg; }
     if (t.name == "ansicht") { return std::to_string(jetzt.ansicht) == t.arg; }
+    if (t.name == "zahl") {
+        const double a = messwert(jetzt, t.arg);
+        if (t.plus) { return a > messwert(start, t.arg); }
+        if (t.wechsel) { return a != messwert(start, t.arg); }
+        return a != 0.0;
+    }
+    if (t.name == "offen") {
+        for (const std::string& f : jetzt.offen) {
+            if (f.find(t.arg) != std::string::npos) { return true; }
+        }
+        return false;
+    }
     if (t.name == "schwebt") { return jetzt.schwebt; }
     if (t.name == "geklickt") { return jetzt.geklickt; }
     return false;   // manuell und Unbekanntes
@@ -297,6 +341,17 @@ bool ladeTouren(const std::string& text, Touren& out, std::string* fehler) {
                 s.sicher = sw.wahrVon("sicher", false);
                 s.ueberspringen = sw.textVon("ueberspringen");   // rc601 tour (Review); fehlt in aelteren Dateien
                 if (s.fertig.empty()) { s.fertig = "manuell"; }
+                // H1: freundliche Hinweise, wenn etwas anderes passiert ist.
+                if (const json::Wert* fl = sw.feld("falsch"); fl != nullptr && fl->art == json::Wert::Art::Liste) {
+                    for (const json::Wert& fw : fl->liste) {
+                        Hinweis h{trim(fw.textVon("wenn")), fw.textVon("text")};
+                        if (!pruefungBekannt(h.wenn, &f) || h.text.empty()) {
+                            setzeFehler(fehler, wo + "Hinweis: " + (h.text.empty() ? std::string("ohne Text") : f));
+                            return false;
+                        }
+                        s.falsch.push_back(std::move(h));
+                    }
+                }
                 std::vector<Ziel> zs;
                 std::vector<Aktion> as;
                 if (!parseZiele(s.ziel, zs, &f) || !pruefungBekannt(s.fertig, &f) || !parseAktionen(s.einrichten, as, &f) ||
@@ -332,9 +387,9 @@ bool parseZiel(const std::string& s0, Ziel& out, std::string* fehler) {
         setzeFehler(fehler, "Ziel \"" + s + "\": " + warum);
         return false;
     };
-    if (art == "baum" || art == "meldungen") {
+    if (art == "baum" || art == "meldungen" || art == "karte3d") {
         if (!arg.empty()) { return falsch("ohne Argument"); }
-        out.art = art == "baum" ? Ziel::Art::Baum : Ziel::Art::Meldungen;
+        out.art = art == "baum" ? Ziel::Art::Baum : art == "meldungen" ? Ziel::Art::Meldungen : Ziel::Art::Karte3d;
         return true;
     }
     if (d == std::string::npos || trim(arg).empty()) { return falsch("Argument fehlt"); }
@@ -405,7 +460,7 @@ const std::vector<std::string>& bekanntePruefungen() {
     static const std::vector<std::string> k = {"reiter",  "knoten",  "aenderung", "rem",     "uebersetzt", "gespeichert",
                                                "befehl",  "leer",    "kind",      "wert",    "auswahl",    "editor",
                                                "editorzu", "fenster", "modus",    "ansicht", "schwebt",    "geklickt",
-                                               "manuell"};
+                                               "manuell",  "zahl",   "offen"};
     return k;
 }
 
@@ -431,7 +486,7 @@ bool erfuellt(const std::string& pruefung, const Kontext& jetzt, const Kontext& 
 bool istZustand(const std::string& pruefung) {
     for (const std::string& alt : teile(pruefung, '|')) {
         const Teil t = zerlegePruefung(alt);
-        if (t.plus || t.name == "manuell" || enthaelt(kZaehler, t.name)) { return false; }
+        if (t.plus || t.wechsel || t.name == "manuell" || enthaelt(kZaehler, t.name)) { return false; }
     }
     return true;
 }
@@ -698,6 +753,15 @@ std::string Ablauf::ueberspringen() {
         erfuelltSeit_ = -1.0;
     }
     return aktionen;
+}
+
+std::string Ablauf::hinweis(const Kontext& k) const {
+    const Schritt* s = aktuell();
+    if (s == nullptr || !startDa_ || erfuellt() || fertig_) { return {}; }
+    for (const Hinweis& h : s->falsch) {
+        if (tour::erfuellt(h.wenn, k, start_)) { return h.text; }
+    }
+    return {};
 }
 
 std::string Ablauf::machEs() const {

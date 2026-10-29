@@ -21,6 +21,7 @@
 //   useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 //   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
 //   Public License for more details (LICENSE).
+#include "hilfe.h"   // H1: der Helfer im Help-Menue
 #include "karteneditor.h"
 
 #include "app_internal.h"
@@ -696,6 +697,12 @@ void listeZeichnen(const std::string& name) {
         p.id = id.c_str();
         p.taste = "F1";
         if (qtPunkt(p)) { (void)ausfuehren("OpenManual"); }
+        // H1: der Helfer ("Was willst du tun?") - im Hauptprogramm F1, hier
+        // bleibt F1 NetRadiants OpenManual (Abweichung: nicht in NRC).
+        const std::string hid = std::string(tr(Str::HlfMenu)) + "###proghelfer";
+        QtPunkt h;
+        h.id = hid.c_str();
+        if (qtPunkt(h)) { hilfeOeffnen(); }
     } else if (name == "ProgrammHilfeUnten") {
         // About des Programms (Abweichung: nicht in NRC)
         const std::string id = std::string(trK(Str::KeLAboutBehavEd)) + "###progueber";

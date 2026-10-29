@@ -353,6 +353,354 @@
      }
     ]
    }
+  },
+  {
+   "id": "tut-karte",
+   "gruppe": "tut",
+   "titel": "はじめてのマップ:歩き回れる部屋",
+   "kurz": "空のマップから、ゲームの中で歩ける部屋まで:ブラシ、テクスチャ、caulk、ライト、プレイヤーの開始位置、最適化、進行状況ウィンドウ付きのビルド、エディター内での試し歩き、そしてゲーム用の .pk3。",
+   "seite": "tut-karte.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**ゲームを設定する。** モードバーで **{{ViewMapEditor}}** に切り替えます。エディターはプログラムに設定されたゲームを使い、フォルダーはプログラムの設定から取ります。**{{KeLEdit}} > {{KeLPreferences}}** の **{{KePgGame}}** ページにゲーム、**{{KePgPaths}}** ページにエンジンのパス(空ならプログラムのゲームフォルダーから)が表示されます。",
+      "bild": "h_tut_karte_pfade",
+      "unter": "{{KeLPreferences}}、{{KePgPaths}} ページ。",
+      "ziel": "menue:KeLEdit>KeLPreferences",
+      "fertig": "zahl:karte.spiel",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**新しいマップ。** **{{KeLFile}} > {{KeLNewMap}}** で空のマップ(worldspawn だけ)を始めます。マウスホイールで 2D ビューを少しズームアウトします。",
+      "bild": "h_tut_karte_neu",
+      "unter": "{{KeLFile}} メニュー。",
+      "ziel": "menue:KeLFile>KeLNewMap",
+      "fertig": "zahl:karte.leer",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**ブラシを描く。** 2D の上面図で左ボタンを押したまま角から角へドラッグします。ここでは -256 -256 から 256 256 まで、幅 512 ユニットの箱です。高さはワークゾーンから取られます(最初は -64 から 64)。",
+      "bild": "h_tut_karte_brush",
+      "unter": "新しいブラシ(選択中、赤)。",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.ent+",
+        "text": "エンティティができました。Ctrl+Z を押してから、2D ビューでマウスの左ボタンでドラッグしてください。"
+       }
+      ]
+     },
+     {
+      "text": "**高くする。** <kbd>Num 1</kbd> で 2D ビューが正面図(XZ)になります。上の辺のすぐ上をつかんで上へドラッグすると、上の面がグリッドに沿って動きます。ここでは 192 まで。部屋の高さは 256 になりました。<kbd>Num 7</kbd> で上面図に戻ります。",
+      "bild": "h_tut_karte_hoehe",
+      "unter": "正面図:ブラシの高さは 256 になりました。",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.hoehe+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.pinsel+",
+        "text": "2 つ目のブラシができました。Ctrl+Z を押して、1 つ目の上端のすぐ上からドラッグを始めてください。"
+       }
+      ]
+     },
+     {
+      "text": "**テクスチャ。** テクスチャブラウザーのツリーでフォルダーをダブルクリックし、テクスチャを左クリックすると、選択したブラシのすべての面に貼られます。壁には透けないものを選びます。",
+      "bild": "h_tut_karte_textur",
+      "unter": "6 つの面すべてに壁のテクスチャ。",
+      "ziel": "fenster:##feldTexturen",
+      "fertig": "zahl:karte.texturen~",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.keineauswahl",
+        "text": "まだ何も選択されていません。先に 2D ビューでブラシをクリックしてから、テクスチャをクリックしてください。"
+       }
+      ]
+     },
+     {
+      "text": "**くり抜く。** ツールバーのボタン **{{KeCsgTitle}}** で CSG ツールが開きます。厚さは 16 のままにし、caulk のボタンはいったんオフにして(後で AutoCaulk が行います)、**{{KeCsgTipPull}}** を押します。厚さ 16 の壁が 6 枚、部屋の外側に伸び、内側は描いた箱のままです。ツールバーのボタン **Room**(Make Room)はグリッドの大きさを厚さにして同じことをします。",
+      "bild": "h_tut_karte_csg",
+      "unter": "caulk ボタンをオフにした {{KeCsgTitle}}。",
+      "ziel": "knopfN:##knopfCSGTool",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**床のテクスチャ。** 正面図で床を <kbd>Shift</kbd> + 左クリックすると床のブラシだけが選択されます。ブラウザーで床のテクスチャをクリックします。<kbd>Esc</kbd> で選択を解除します。",
+      "bild": "h_tut_karte_hohl",
+      "unter": "くり抜いた部屋:壁のブラシが 6 枚。",
+      "ziel": "fenster:##feldTexturen",
+      "fertig": "zahl:karte.texturen~",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.keineauswahl",
+        "text": "まだ何も選択されていません。先に 2D ビューでブラシをクリックしてから、テクスチャをクリックしてください。"
+       }
+      ]
+     },
+     {
+      "text": "**ライト。** 2D ビューで部屋の中を右クリックするとエンティティメニューが開きます。**light** を選ぶと明るさを尋ねられます(300 がよい出発点)。**OK** でクリックした場所に置かれます。",
+      "bild": "h_tut_karte_licht",
+      "unter": "{{KeLiTitle}}。",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.light+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.pinsel+",
+        "text": "ブラシができました。Ctrl+Z を押して、マウスの右ボタンでクリックしてください。"
+       }
+      ]
+     },
+     {
+      "text": "**プレイヤーの開始位置。** 床の近くを右クリック:**info > info_player_start**。これがないと、ゲームはプレイヤーをどこに置けばよいか分かりません。箱は床の上に立てます。",
+      "bild": "h_tut_karte_spawn",
+      "unter": "エンティティメニューのサブメニュー info。",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.info_player_start",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.ent.light+",
+        "text": "それはもう 1 つのライトです。もう一度右クリックして info > info_player_start を選んでください。"
+       }
+      ]
+     },
+     {
+      "text": "**保存する。** **{{KeLFile}} > {{KeLSaveAs}}**。たとえばゲームのフォルダーの外にある自分の `maps` フォルダーに `meinekarte.map` として保存します。ファイル名がゲームでのマップ名になります。",
+      "bild": "h_tut_karte_gespeichert",
+      "unter": "エディター内の保存した部屋。",
+      "ziel": "menue:KeLFile>KeLSaveAs",
+      "fertig": "zahl:karte.gespeichert+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**外側を caulk にする。** 誰にも見えない面でも、ライトマップの領域と描画時間を使います。カメラを部屋の中に入れ、上面図で <kbd>Shift</kbd> + 右ドラッグで部屋全体を四角で囲み、<kbd>F4</kbd>(**{{KeLBrush}} > {{KeLAutoCaulkSelected}}**)を押すと、内側から見えない面がすべて caulk になります。最初から caulk で作る方法もあります。新しいブラシに caulk テクスチャを付け、見える面だけにテクスチャを貼ります。",
+      "bild": "h_tut_karte_caulk",
+      "unter": "AutoCaulk の後:部屋の中のカメラ。",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.caulk+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**確認する。** **{{KeLBuild}} > {{KeOptMenue}}** はコンパイル前にゲームの上限を数え、ビルドの問題を探します。緑色なら直すものはありません。",
+      "bild": "h_tut_karte_optimierer",
+      "unter": "チュートリアルの部屋の最適化。",
+      "ziel": "menue:KeLBuild>KeOptMenue",
+      "fertig": "offen:karteoptimierer",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**ビルドする。** **{{KeLBuild}} > [Final] Fast** は q3map2 を 3 回実行します(BSP、VIS、バウンス付きのライト)。進行状況ウィンドウに段階、進み具合、残り時間が表示されます。マップにリークがあればコンソールに赤で表示され、2D ビューの線が外への道を示します。マップエディター:マップのビルド を参照してください。",
+      "bild": "h_tut_karte_fortschritt",
+      "unter": "ビルド中の進行状況ウィンドウ。",
+      "ziel": "menue:KeLBuild",
+      "fertig": "zahl:karte.gebaut+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**歩いてみる。** **{{KeLView}} > {{KeSpSpawn}}** に続いて **{{KeSpMenue}}**(<kbd>F6</kbd>):info_player_start に立ち、<kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> で歩き、<kbd>Space</kbd> でジャンプします。<kbd>Esc</kbd> で終了。コンパイルしなくても動きます。衝突はブラシから直接作られます(エディター内でプレイ を参照)。",
+      "bild": "h_tut_karte_spielen",
+      "unter": "エディターで部屋の中を歩く。",
+      "ziel": "menue:KeLView>KeSpMenue",
+      "fertig": "zahl:karte.spielen",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**ゲームに入れる。** **{{KeLBuild}} > {{KePkMenue}}** は `maps/meinekarte.bsp` を .bsp の隣の `meinekarte.pk3` にまとめます。プログラムがゲームのフォルダーに書き込むことはありません。.pk3 はご自分で `GameData/base`(Jedi Academy、Jedi Outcast)か MOD のフォルダー(たとえば Movie Duels)にコピーしてください。ゲームを起動し、<kbd>Shift</kbd>+<kbd>~</kbd> でコンソールを開いて `devmap meinekarte` と入力します。",
+      "bild": "h_tut_karte_pk3menue",
+      "unter": "**{{KePkMenue}}** のある {{KeLBuild}}(NetRadiant-Custom にはありません)。",
+      "ziel": "menue:KeLBuild>KePkMenue",
+      "fertig": "zahl:karte.pk3+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-kamera-ansicht",
+   "gruppe": "tut_kamera",
+   "titel": "見ている場所にショットを置く",
+   "kurz": "画が決まるまで見回してから、ショット(または新しいショット)をぴったりそこへ移します。",
+   "seite": "k-kamera-ansicht.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**欲しい視点まで飛びます。** マップ上で右ボタンを押したまま、<kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> で画面が決まるまで飛びます。",
+      "bild": "c_frei",
+      "unter": "自分で決めたマップの視点。",
+      "ziel": "karte3d",
+      "fertig": "zahl:vorschau.blick~",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "まだマップが開いていません。先に読み込んでください:{{MenuFile}} > {{MapLoad}}、またはミッションを開きます。"
+       }
+      ]
+     },
+     {
+      "text": "**ここに新しいショット。** カメラを選択して **{{CamNewShot}}** を押すと、現在の視点の `camera ( MOVE )` と `camera ( PAN )` が、選択中のショットの後ろに追加されます。",
+      "bild": "h_kamera",
+      "unter": "カメラパネルの「ここに新しいショット」。",
+      "ziel": "knopf:CamNewShot",
+      "fertig": "zahl:vorschau.einstellungen+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "まだマップが開いていません。先に読み込んでください:{{MenuFile}} > {{MapLoad}}、またはミッションを開きます。"
+       },
+       {
+        "wenn": "zahl:vorschau.ohnekamera",
+        "text": "このスクリプトにはまだカメラがありません。先に camera コマンドを挿入するか({{GroupEvents}} 一覧で camera をダブルクリック)、カットシーンのあるミッションを開いてください。"
+       },
+       {
+        "wenn": "zahl:vorschau.nichtgewaehlt",
+        "text": "まずカメラを選んでください:マップ上のカメラ ショットか、タイムラインのカメラ行をクリックします。左側にボタンが表示されます。"
+       }
+      ]
+     },
+     {
+      "text": "**または既存のショットを動かします。** **{{CamShots}}** でショットを選び、**{{CamSetToView}}** を押します。位置と向きが現在の視点に置き換わります(元に戻すは 1 回)。",
+      "bild": "c_aufansicht",
+      "unter": "ビューに合わせる。",
+      "ziel": "knopf:CamSetToView",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.nichtgewaehlt",
+        "text": "まずカメラを選んでください:マップ上のカメラ ショットか、タイムラインのカメラ行をクリックします。左側にボタンが表示されます。"
+       }
+      ]
+     },
+     {
+      "text": "**確認する。** マップのツールバーの **{{MapThroughCam}}** で、選択中のショットが映すものを、そのズームと黒いシネマバー付きで表示します。",
+      "bild": "c_durch",
+      "unter": "ツールバーの「カメラ視点」。",
+      "ziel": "knopf:MapThroughCam",
+      "fertig": "zahl:vorschau.durchkamera",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-modell",
+   "gruppe": "tut_mission",
+   "titel": "キャラクターモデルを見る",
+   "kurz": "ゲームの好きなキャラクターを読み込み、回し、スキンと骨格を見ます。",
+   "seite": "k-modell.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**左のモードバーで {{ViewModel}} に切り替えます。**",
+      "bild": "m_modus",
+      "unter": "モードバーの「モデル」。",
+      "ziel": "knopf:ViewModel@modebar",
+      "fertig": "modus:2",
+      "voraus": "",
+      "einrichten": "modus:2",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**キャラクターを選ぶ。** **{{NpcBrowser}}** にゲームのすべてのキャラクターが並びます。入力で検索し、クリックするとスキン付きで読み込まれます。",
+      "bild": "m_npc",
+      "unter": "NPC ブラウザー。",
+      "ziel": "knopf:NpcBrowser",
+      "fertig": "zahl:modell.figur~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**見回す。** 左ボタンで回転、中ボタンで移動、ホイールでズーム。**{{ModelTurntable}}** で自動的に回り、**{{ModelResetView}}** で正面に戻ります。",
+      "bild": "h_modell",
+      "unter": "モデル表示。",
+      "ziel": "knopf:ModelTurntable;knopf:ModelResetView",
+      "fertig": "zahl:modell.blick~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**詳細。** **{{ModelSkin}}** でスキンを切り替え、**{{ModelBones}}** で骨格を表示し、**{{ModelTextures}}** でテクスチャをオフにします。",
+      "bild": "m_details",
+      "unter": "スキン、ボーン、テクスチャ。",
+      "ziel": "knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures",
+      "fertig": "zahl:modell.details~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }

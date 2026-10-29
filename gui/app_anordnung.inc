@@ -5335,8 +5335,11 @@ void drawMenu() {
     // Changelog rein". Vorher standen Update und Changelog im Datei-Menue
     // und About nur als Knopf bei den Programmknoepfen (der bleibt).
     if (ImGui::BeginMenu(tr(Str::MenuHelp))) {
+        // H1: der Helfer - "Was willst du tun?" (F1).
+        if (ImGui::MenuItem(tr(Str::HlfMenu), chordName(keys::Action::Guide))) { hilfeOeffnen(); }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::HlfMenuHint)); }
         // Das Handbuch mit Tutorials (rc599).
-        if (ImGui::MenuItem(tr(Str::HelpGuide), chordName(keys::Action::Guide))) { handbuchOeffnen(); }
+        if (ImGui::MenuItem(tr(Str::HelpGuide))) { handbuchOeffnen(); }
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::GuideHint)); }
         // rc601 tour: die Tutorials im Programm - es zeigt selbst, was zu
         // klicken ist.
@@ -5346,17 +5349,21 @@ void drawMenu() {
         if (ImGui::MenuItem(tr(Str::HelpAbout))) {
             g_app->aboutOpen = true;
         }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::HelpAboutHint)); }   // H1
         if (ImGui::MenuItem(tr(Str::ChangelogMenu))) {
             g_app->changelogOpen = true;
         }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::ChangelogMenuHint)); }   // H1
         ImGui::Separator();
         // Auto-Updater: von Hand nachsehen, und ob es beim Start geschehen soll.
         if (ImGui::MenuItem(tr(Str::UpdMenu))) {
             updater::pruefen(false);
         }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::UpdMenuHint)); }   // H1
         if (ImGui::MenuItem(tr(Str::UpdAutoCheck), nullptr, g_app->settings.updateCheck)) {
             g_app->settings.updateCheck = !g_app->settings.updateCheck;
         }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::UpdAutoCheckHint)); }   // H1
         ImGui::EndMenu();
     }
     ImGui::EndMenuBar();

@@ -22,6 +22,7 @@
 #include "bhed/ibi.h"
 #include "bhed/image.h"
 #include "bhed/inflate.h"
+#include "bhed/ki.h"
 #include "bhed/md3.h"
 #include "bhed/roff.h"
 #include "bhed/script.h"
@@ -36,6 +37,28 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
     const auto* rest = reinterpret_cast<const unsigned char*>(data + 1);
     const std::size_t n = size - 1;
     const std::string text(reinterpret_cast<const char*>(rest), n);
+    // H1: erstes Byte ab 0xF0 - die KI-Anbindung (MCP/JSON-RPC, HTTP-Leser
+    // und -Pruefung, Antworten der Messages API).
+    if (leser >= 0xF0U) {
+        switch ((leser - 0xF0U) % 3U) {
+            case 0: {
+                bhed::ki::McpSitzung sitzung;
+                (void)bhed::ki::mcpBearbeite(text, sitzung, [](const std::string&, const bhed::json::Wert&) { return bhed::ki::Ergebnis{}; });
+                break;
+            }
+            case 1: {
+                bhed::ki::HttpAnfrage a;
+                if (bhed::ki::leseHttp(text, a, bhed::ki::kMaxAnfrage) == 0) { (void)bhed::ki::pruefeHttp(a, 8765, std::string(64, 'a')); }
+                break;
+            }
+            default: {
+                bhed::ki::ChatAntwort c;
+                (void)bhed::ki::leseChatAntwort(text, c, nullptr);
+                break;
+            }
+        }
+        return 0;
+    }
     switch (leser % 16U) {
         case 0: {
             bhed::MapData m;

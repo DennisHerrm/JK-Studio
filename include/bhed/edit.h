@@ -397,6 +397,9 @@ public:
     // --- Rueckgaengig -------------------------------------------------------
     bool undo();
     bool redo();
+    // H1: alle Schritte ab der Tiefe `ab` zu EINEM zusammenfassen (ein Auftrag
+    // der KI). `was` muss so lange leben wie das Programm.
+    void fasseZusammen(std::size_t ab, const char* was);
     [[nodiscard]] std::size_t undoDepth() const { return undo_.size(); }
     [[nodiscard]] std::size_t redoDepth() const { return redo_.size(); }
 

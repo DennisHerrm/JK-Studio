@@ -353,6 +353,354 @@
      }
     ]
    }
+  },
+  {
+   "id": "tut-karte",
+   "gruppe": "tut",
+   "titel": "Deine erste Karte: ein Raum zum Herumlaufen",
+   "kurz": "Von der leeren Karte zum Raum, durch den du im Spiel laufen kannst: Brushes, Texturen, Caulk, ein Licht, der Spielerstart, der Optimierer, Bauen mit dem Fortschrittsfenster, im Editor hindurchlaufen - und die .pk3 fürs Spiel.",
+   "seite": "tut-karte.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Spiel einrichten.** Schalte in der Modusleiste auf **{{ViewMapEditor}}**. Der Editor nimmt das Spiel, für das das Programm eingerichtet ist; die Ordner kommen aus den Programmeinstellungen. **{{KeLEdit}} > {{KeLPreferences}}**, Seite **{{KePgGame}}**, zeigt das Spiel, Seite **{{KePgPaths}}** den Engine-Pfad (leer: aus den Spielordnern des Programms).",
+      "bild": "h_tut_karte_pfade",
+      "unter": "{{KeLPreferences}}, Seite {{KePgPaths}}.",
+      "ziel": "menue:KeLEdit>KeLPreferences",
+      "fertig": "zahl:karte.spiel",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Neue Karte.** **{{KeLFile}} > {{KeLNewMap}}** beginnt eine leere Karte - nur der worldspawn. Zoome die 2D-Ansicht mit dem Mausrad etwas heraus.",
+      "bild": "h_tut_karte_neu",
+      "unter": "Das Menü {{KeLFile}}.",
+      "ziel": "menue:KeLFile>KeLNewMap",
+      "fertig": "zahl:karte.leer",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Einen Brush ziehen.** Ziehe in der 2D-Draufsicht mit der linken Maustaste von einer Ecke zur anderen - hier von -256 -256 bis 256 256, ein Kasten 512 Einheiten breit. Die Höhe kommt aus der Arbeitszone (zuerst -64 bis 64).",
+      "bild": "h_tut_karte_brush",
+      "unter": "Der neue Brush, gewählt (rot).",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.ent+",
+        "text": "Das hat eine Entity gesetzt. Drück Strg+Z und zieh dann mit der LINKEN Maustaste in der 2D-Ansicht."
+       }
+      ]
+     },
+     {
+      "text": "**Höher machen.** <kbd>Num 1</kbd> schaltet die 2D-Ansicht auf die Vorderansicht (XZ). Greife knapp über der Oberkante und ziehe nach oben: die obere Fläche folgt dem Raster. Hier bis 192 - der Raum ist jetzt 256 hoch. <kbd>Num 7</kbd> geht zurück zur Draufsicht.",
+      "bild": "h_tut_karte_hoehe",
+      "unter": "Die Vorderansicht: der Brush ist jetzt 256 hoch.",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.hoehe+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.pinsel+",
+        "text": "Das hat einen zweiten Brush gezogen. Drück Strg+Z und beginne knapp über der Oberkante des ersten."
+       }
+      ]
+     },
+     {
+      "text": "**Textur.** Doppelklicke im Baum des Texturbrowsers auf einen Ordner und klicke mit der linken Maustaste auf eine Textur: jede Fläche des gewählten Brushes bekommt sie. Nimm für die Wände etwas ohne Durchsicht.",
+      "bild": "h_tut_karte_textur",
+      "unter": "Die Wandtextur auf allen sechs Flächen.",
+      "ziel": "fenster:##feldTexturen",
+      "fertig": "zahl:karte.texturen~",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.keineauswahl",
+        "text": "Noch ist nichts gewählt. Klick zuerst den Brush in einer 2D-Ansicht an, dann die Textur."
+       }
+      ]
+     },
+     {
+      "text": "**Aushöhlen.** Der Knopf **{{KeCsgTitle}}** der Werkzeugleiste öffnet das CSG-Werkzeug. Lass die Dicke bei 16, schalte den Caulk-Knopf erst einmal aus (das macht später AutoCaulk) und drücke **{{KeCsgTipPull}}**: sechs Wände, 16 dick, wachsen nach außen um den Raum, innen bleibt genau der gezogene Kasten. Der Knopf **Room** (Make Room) macht dasselbe mit der Rastergröße als Dicke.",
+      "bild": "h_tut_karte_csg",
+      "unter": "{{KeCsgTitle}} mit ausgeschaltetem Caulk-Knopf.",
+      "ziel": "knopfN:##knopfCSGTool",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Eine Bodentextur.** In der Vorderansicht wählt <kbd>Umschalt</kbd> + Linksklick auf den Boden nur den Boden-Brush; klicke im Browser auf eine Bodentextur. <kbd>Esc</kbd> hebt die Auswahl auf.",
+      "bild": "h_tut_karte_hohl",
+      "unter": "Der hohle Raum: sechs Wand-Brushes.",
+      "ziel": "fenster:##feldTexturen",
+      "fertig": "zahl:karte.texturen~",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.keineauswahl",
+        "text": "Noch ist nichts gewählt. Klick zuerst den Brush in einer 2D-Ansicht an, dann die Textur."
+       }
+      ]
+     },
+     {
+      "text": "**Ein Licht.** Rechtsklick in den Raum in der 2D-Ansicht: das Entity-Menü öffnet sich. **light** fragt nach der Stärke (300 ist ein guter Anfang) - **OK** setzt es dorthin, wo du geklickt hast.",
+      "bild": "h_tut_karte_licht",
+      "unter": "{{KeLiTitle}}.",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.light+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.pinsel+",
+        "text": "Das hat einen Brush gezogen. Drück Strg+Z und klick mit der RECHTEN Maustaste."
+       }
+      ]
+     },
+     {
+      "text": "**Wo der Spieler beginnt.** Rechtsklick nahe am Boden: **info > info_player_start**. Ohne ihn weiß das Spiel nicht, wohin der Spieler kommt. Sein Kasten steht auf dem Boden.",
+      "bild": "h_tut_karte_spawn",
+      "unter": "Das Entity-Menü, Untermenü info.",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.info_player_start",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.ent.light+",
+        "text": "Das war noch ein Licht. Klick noch einmal rechts und wähle info > info_player_start."
+       }
+      ]
+     },
+     {
+      "text": "**Speichern.** **{{KeLFile}} > {{KeLSaveAs}}** - zum Beispiel `meinekarte.map` in einem eigenen Ordner `maps`, außerhalb der Spielordner. Der Dateiname wird der Name der Karte im Spiel.",
+      "bild": "h_tut_karte_gespeichert",
+      "unter": "Der gespeicherte Raum im Editor.",
+      "ziel": "menue:KeLFile>KeLSaveAs",
+      "fertig": "zahl:karte.gespeichert+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Außen Caulk.** Flächen, die niemand sieht, kosten trotzdem Lightmap-Platz und Zeichenzeit. Fliege mit der Kamera in den Raum, ziehe in der Draufsicht mit <kbd>Umschalt</kbd> + rechter Maustaste ein Rechteck um den ganzen Raum und drücke <kbd>F4</kbd> (**{{KeLBrush}} > {{KeLAutoCaulkSelected}}**): jede Fläche, die man von innen nicht sehen kann, wird Caulk. Man kann auch von Anfang an in Caulk bauen: neuen Brushes die Caulk-Textur geben und nur die sichtbaren Flächen texturieren.",
+      "bild": "h_tut_karte_caulk",
+      "unter": "Nach AutoCaulk: die Kamera im Raum.",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.caulk+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Prüfen.** **{{KeLBuild}} > {{KeOptMenue}}** zählt die Grenzen des Spiels und sucht Bauprobleme, bevor du kompilierst. Ein grüner Raum hat nichts zu beheben.",
+      "bild": "h_tut_karte_optimierer",
+      "unter": "Der Optimierer für den Tutorial-Raum.",
+      "ziel": "menue:KeLBuild>KeOptMenue",
+      "fertig": "offen:karteoptimierer",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Bauen.** **{{KeLBuild}} > [Final] Fast** startet q3map2 dreimal - BSP, VIS und das Licht mit Bounce. Das Fortschrittsfenster zeigt die Stufe, den Fortschritt und die Restzeit. Hat die Karte ein Leck, sagt es die Konsole in Rot, und eine Linie in der 2D-Ansicht zeigt den Weg nach draußen - siehe Karten-Editor: Karte bauen.",
+      "bild": "h_tut_karte_fortschritt",
+      "unter": "Das Fortschrittsfenster während des Baus.",
+      "ziel": "menue:KeLBuild",
+      "fertig": "zahl:karte.gebaut+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Hindurchlaufen.** **{{KeLView}} > {{KeSpSpawn}}** und dann **{{KeSpMenue}}** (<kbd>F6</kbd>): du stehst am info_player_start und läufst mit <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>, springst mit der <kbd>Leertaste</kbd>; <kbd>Esc</kbd> beendet. Das geht sogar ohne Kompilieren - die Kollision kommt direkt aus den Brushes (siehe Im Editor spielen).",
+      "bild": "h_tut_karte_spielen",
+      "unter": "Im Editor durch den Raum laufen.",
+      "ziel": "menue:KeLView>KeSpMenue",
+      "fertig": "zahl:karte.spielen",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Ins Spiel.** **{{KeLBuild}} > {{KePkMenue}}** packt `maps/meinekarte.bsp` in `meinekarte.pk3` neben der .bsp. Das Programm schreibt nie in die Spielordner - kopiere die .pk3 selbst nach `GameData/base` (Jedi Academy, Jedi Outcast) oder in den Ordner deiner Mod (zum Beispiel Movie Duels). Starte das Spiel, öffne die Konsole mit <kbd>Umschalt</kbd>+<kbd>~</kbd> und gib `devmap meinekarte` ein.",
+      "bild": "h_tut_karte_pk3menue",
+      "unter": "{{KeLBuild}} mit **{{KePkMenue}}** (nicht in NetRadiant-Custom).",
+      "ziel": "menue:KeLBuild>KePkMenue",
+      "fertig": "zahl:karte.pk3+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-kamera-ansicht",
+   "gruppe": "tut_kamera",
+   "titel": "Eine Einstellung dorthin setzen, wohin du schaust",
+   "kurz": "Schau dich um, bis das Bild stimmt, dann setz eine Einstellung - oder eine neue - genau dorthin.",
+   "seite": "k-kamera-ansicht.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Flieg zur gewünschten Ansicht.** Halte die rechte Maustaste in der Karte gedrückt und flieg mit <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>, bis das Bild stimmt.",
+      "bild": "c_frei",
+      "unter": "Deine eigene Ansicht der Karte.",
+      "ziel": "karte3d",
+      "fertig": "zahl:vorschau.blick~",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "Noch ist keine Karte offen. Lade zuerst eine: {{MenuFile}} > {{MapLoad}} - oder öffne eine Mission."
+       }
+      ]
+     },
+     {
+      "text": "**Eine neue Einstellung hier.** Wähle die Kamera und drück **{{CamNewShot}}**: ein `camera ( MOVE )` und ein `camera ( PAN )` an deiner Ansicht werden nach der gewählten Einstellung eingefügt.",
+      "bild": "h_kamera",
+      "unter": "Neue Kameraeinstellung hier im Kamerafeld.",
+      "ziel": "knopf:CamNewShot",
+      "fertig": "zahl:vorschau.einstellungen+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "Noch ist keine Karte offen. Lade zuerst eine: {{MenuFile}} > {{MapLoad}} - oder öffne eine Mission."
+       },
+       {
+        "wenn": "zahl:vorschau.ohnekamera",
+        "text": "Dieses Skript hat noch keine Kamera. Füge zuerst einen camera-Befehl ein (Liste {{GroupEvents}}: camera doppelklicken) - oder öffne eine Mission mit Zwischensequenz."
+       },
+       {
+        "wenn": "zahl:vorschau.nichtgewaehlt",
+        "text": "Wähl zuerst die Kamera: Klick auf eine Kameraeinstellung in der Karte oder auf die Kamerazeile der Zeitleiste. Links erscheinen dann ihre Knöpfe."
+       }
+      ]
+     },
+     {
+      "text": "**Oder verschieb eine vorhandene.** Wähle eine Einstellung in **{{CamShots}}** und drück **{{CamSetToView}}**: ihr Ort und ihre Richtung werden durch deine Ansicht ersetzt - ein Rückgängig-Schritt.",
+      "bild": "c_aufansicht",
+      "unter": "Auf Ansicht setzen.",
+      "ziel": "knopf:CamSetToView",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.nichtgewaehlt",
+        "text": "Wähl zuerst die Kamera: Klick auf eine Kameraeinstellung in der Karte oder auf die Kamerazeile der Zeitleiste. Links erscheinen dann ihre Knöpfe."
+       }
+      ]
+     },
+     {
+      "text": "**Prüfen.** **{{MapThroughCam}}** in der Kartenleiste zeigt, was die gewählte Einstellung sieht, mit ihrem Zoom und den schwarzen Kinobalken.",
+      "bild": "c_durch",
+      "unter": "Durch die Kamera in der Kartenleiste.",
+      "ziel": "knopf:MapThroughCam",
+      "fertig": "zahl:vorschau.durchkamera",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-modell",
+   "gruppe": "tut_mission",
+   "titel": "Ein Figurenmodell ansehen",
+   "kurz": "Jede Figur des Spiels laden, drehen, ihre Skins und ihr Skelett ansehen.",
+   "seite": "k-modell.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Wechsle zu {{ViewModel}}** in der Modusleiste links.",
+      "bild": "m_modus",
+      "unter": "Modell in der Modusleiste.",
+      "ziel": "knopf:ViewModel@modebar",
+      "fertig": "modus:2",
+      "voraus": "",
+      "einrichten": "modus:2",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Figur wählen.** **{{NpcBrowser}}** listet jede Figur des Spiels - tippen zum Suchen, klicken zum Laden mit ihrem Skin.",
+      "bild": "m_npc",
+      "unter": "Der NPC-Browser.",
+      "ziel": "knopf:NpcBrowser",
+      "fertig": "zahl:modell.figur~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Umsehen.** Die linke Maustaste dreht, die mittlere verschiebt, das Mausrad zoomt. **{{ModelTurntable}}** dreht die Figur von selbst, **{{ModelResetView}}** holt sie wieder nach vorn.",
+      "bild": "h_modell",
+      "unter": "Die Modellansicht.",
+      "ziel": "knopf:ModelTurntable;knopf:ModelResetView",
+      "fertig": "zahl:modell.blick~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Details.** **{{ModelSkin}}** wechselt die Skins, **{{ModelBones}}** zeigt das Skelett, **{{ModelTextures}}** schaltet die Texturen ab.",
+      "bild": "m_details",
+      "unter": "Haut, Knochen und Texturen.",
+      "ziel": "knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures",
+      "fertig": "zahl:modell.details~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }

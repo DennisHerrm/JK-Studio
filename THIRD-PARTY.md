@@ -15,8 +15,9 @@ GPL v2; nothing is licensed under Apache 2.0 or GPL v3 only. The licence texts s
 | NetRadiant-Custom prtview plugin | 20260114 | LGPL 2.1+ (used as GPL v2, LGPL 2.1 section 3) | `src/karte/portale.cpp`, `gui/app_karte_portale.cpp` | Portal Viewer |
 | Qt 5.15 layout and key code | 5.15 | LGPL v3 / GPL v2 | ported into `src/karte/teiler.cpp`, `src/karte/befehle.cpp` | QSplitter, QToolBarLayout, QKeySequence rules |
 | [OpenJK](https://github.com/JACoders/OpenJK) | master | GPL v2 | ported into `src/` (preview, ICARUS, movement) | engine behaviour of the preview |
+| WhiteoutFlakes MCP HTTP guard (Fernando Sahmkow) | 2026 | BSD 3-Clause (with LICENSE-AI.md: AI-derived code keeps the copyright and the BSD conditions) | check list followed in `src/ki.cpp` (`pruefeHttp`, `gleichesGeheimnis`), notice in `include/bhed/ki.h` | rewritten, no code copied; loopback Host/Origin, bearer token in constant time. Copyright (c) 2026, Fernando Sahmkow. Redistribution and use in source and binary forms, with or without modification, are permitted provided that the BSD 3-Clause conditions are met (retain this notice; reproduce it in documentation; no endorsement without permission). Provided "as is", without warranty. |
 | Fonts Cinzel and Michroma | – | SIL OFL 1.1 | lettering of `res/jkstudio_logo.*`, `res/jkstudio.ico` | `licenses/OFL-*.txt` |
-| Windows system libraries | – | part of Windows | `bcrypt`, `winhttp`, `d3d11` (loaded at run time) | no redistribution |
+| Windows system libraries | – | part of Windows | `bcrypt`, `winhttp`, `ws2_32`, `crypt32` (DPAPI), `d3d11` (loaded at run time) | no redistribution |
 
 ## Compiled into `bhed_q3map2.exe` (map compiler)
 
