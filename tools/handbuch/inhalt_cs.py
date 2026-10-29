@@ -1208,8 +1208,8 @@ TEXTE = {
         "Pomocník: co chcete udělat?",
     "Press <kbd>F1</kbd> - or **{{MenuHelp}} → {{HlfMenu}}**. In the map editor <kbd>F1</kbd> opens the manual as in NetRadiant; there use **{{KeLHelp}} → {{HlfMenu}}**.":
         "Stiskněte <kbd>F1</kbd> - nebo **{{MenuHelp}} → {{HlfMenu}}**. V editoru map otevře <kbd>F1</kbd> příručku jako v NetRadiantu; tam použijte **{{KeLHelp}} → {{HlfMenu}}**.",
-    "Write what you want to do, in your own words. For example \"add a light\" or \"make an NPC walk\". German, English, Chinese and Japanese all work.":
-        "Napište vlastními slovy, co chcete udělat. Například \"přidat světlo\" nebo \"nechat NPC chodit\". Funguje čeština, angličtina, němčina, čínština i japonština.",
+    "Write what you want to do, in your own words. For example \"add a light\" or \"make an NPC walk\". German, English, Chinese, Japanese, Spanish and Czech all work.":
+        "Napište vlastními slovy, co chcete udělat. Například \"přidat světlo\" nebo \"nechat NPC chodit\". Funguje čeština, angličtina, němčina, čínština, japonština i španělština.",
     "Pick a result. **{{HlfShowMe}}** starts the tutorial at the right step, or highlights the button or menu entry. Nothing is changed.":
         "Vyberte výsledek. **{{HlfShowMe}}** spustí tutoriál ve správném kroku, nebo zvýrazní tlačítko či položku nabídky. Nic se nezmění.",
     "**{{HlfGuide}}** opens the matching page of this guide.":
@@ -1492,7 +1492,7 @@ TEXTE = {
         "Karty, záložky a rozdělené zobrazení pro porovnání skriptů a kopírování napříč. [[k-lesezeichen]]",
     "Backups on every save, a backup folder, revert any command to how it was. [[speichern]]":
         "Zálohy při každém uložení, složka záloh, vrácení libovolného příkazu do původního stavu. [[speichern]]",
-    "Four languages, six themes, any interface size, every shortcut rebindable. [[einstellungen]], [[tasten]]":
+    "Six languages, six themes, any interface size, every shortcut rebindable. [[einstellungen]], [[tasten]]":
         "Šest jazyků, šest motivů, libovolná velikost rozhraní, každou zkratku lze změnit. [[einstellungen]], [[tasten]]",
     "Checks for updates and installs them. [[einstellungen#updates]]":
         "Vyhledává aktualizace a instaluje je. [[einstellungen#updates]]",
@@ -6262,7 +6262,7 @@ TEXTE = {
         "**Motiv.** **{{MenuView}} → {{ViewTheme}}**: šest motivů, mezi nimi BehavEd klasický a Vysoký kontrast.",
     "Theme in the View menu.":
         "Motiv v nabídce Zobrazení.",
-    "**Language.** **{{MenuView}} → {{ViewLanguage}}**: English, Deutsch, 中文, 日本語.":
+    "**Language.** **{{MenuView}} → {{ViewLanguage}}**: English, Deutsch, 中文, 日本語, Español, Čeština.":
         "**Jazyk.** **{{MenuView}} → {{ViewLanguage}}**: English, Deutsch, 中文, 日本語, Español, Čeština.",
     "Language in the View menu.":
         "Jazyk v nabídce Zobrazení.",

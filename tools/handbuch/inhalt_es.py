@@ -1211,8 +1211,8 @@ TEXTE = {
         "El asistente: ¿qué quieres hacer?",
     "Press <kbd>F1</kbd> - or **{{MenuHelp}} → {{HlfMenu}}**. In the map editor <kbd>F1</kbd> opens the manual as in NetRadiant; there use **{{KeLHelp}} → {{HlfMenu}}**.":
         "Pulsa <kbd>F1</kbd>, o **{{MenuHelp}} → {{HlfMenu}}**. En el editor de mapas <kbd>F1</kbd> abre el manual como en NetRadiant; ahí usa **{{KeLHelp}} → {{HlfMenu}}**.",
-    "Write what you want to do, in your own words. For example \"add a light\" or \"make an NPC walk\". German, English, Chinese, Japanese and Spanish all work.":
-        "Escribe con tus palabras lo que quieres hacer. Por ejemplo \"añadir una luz\" o \"hacer que un NPC camine\". Funcionan alemán, inglés, chino, japonés y español.",
+    "Write what you want to do, in your own words. For example \"add a light\" or \"make an NPC walk\". German, English, Chinese, Japanese, Spanish and Czech all work.":
+        "Escribe con tus palabras lo que quieres hacer. Por ejemplo \"añadir una luz\" o \"hacer que un NPC camine\". Funcionan alemán, inglés, chino, japonés, español y checo.",
     "Pick a result. **{{HlfShowMe}}** starts the tutorial at the right step, or highlights the button or menu entry. Nothing is changed.":
         "Elige un resultado. **{{HlfShowMe}}** inicia el tutorial en el paso adecuado, o resalta el botón o la entrada de menú. No se cambia nada.",
     "**{{HlfGuide}}** opens the matching page of this guide.":
