@@ -14,7 +14,7 @@ laufen und aufeinander warten muessen, und klein genug fuer einen schnellen Test
 Aufruf
 ------
   q3map2_visgleich.py ctest <bhed_q3map2.exe> <arbeitsordner>
-      -meta, dann -vis mit -threads 1 und mehrfach mit 8 und 32 Threads, dazu -vis -nopassage und
+      -meta, dann -vis mit -threads 1 und mehrfach mit 8, 32 und 100 Threads, dazu -vis -nopassage und
       -vis -passageOnly mit 1 und 8 Threads: alle Lumps gleich dem 1-Thread-Lauf, der
       Visibility-Lump gleich NRCs (ERWARTUNG).
   q3map2_visgleich.py karte <ziel.map>
@@ -131,7 +131,8 @@ def ctest(exe, arbeit):
     print('q3map2_visgleich: Testkarte %d Cluster, %d Portale' % (cluster, portale))
     fehler = 0
     for schalter in ERWARTUNG:
-        threads = [1, 8, 8, 32] if schalter == '-vis' else [1, 8]
+        # 100: mehr als die 64 Plaetze von NRCs Thread-Tafel (threads.cpp, dort ein Ueberlauf)
+        threads = [1, 8, 8, 32, 100] if schalter == '-vis' else [1, 8]
         eins = None
         for k, n in enumerate(threads):
             o = os.path.join(arbeit, 'v%d' % k)
