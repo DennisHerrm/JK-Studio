@@ -55,6 +55,7 @@
 #include "karteneditor.h"           // Stufe 1b: der Karten-Editor
 #include "menueeditor.h"            // Menue-Editor M1
 #include "bhed/menue/menue.h"
+#include "bhed/menue/skript.h"
 #include "bhed/menue/roq.h"
 #include "karte_qtdialog.h"          // Stufe 4: Bausteine der Plugin-Dialoge
 #include "bhed/karte/optimierer.h"

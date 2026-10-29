@@ -218,8 +218,12 @@ private:
             f.w -= w.borderSize + 1;
             f.h -= w.borderSize + 1;
         }
+        // M5: ein fehlendes Bild registriert die Engine als Griff 0: FILLED prueft "if (w->background)"
+        // und fuellt dann, SHADER zeichnet Griff 0 = tr.shaders[0], den "<default>"-Kasten
+        // (R_CreateDefaultImage, OpenJK SP/MP und Movie Duels gleich)
+        const bool bildOk = !w.background.empty() && (!u_.bildDa || u_.bildDa(w.background));
         if (w.style == WINDOW_STYLE_FILLED) {
-            if (!w.background.empty()) {
+            if (bildOk) {
                 bild(f.x, f.y, f.w, f.h, w.background, w.backColor, item);
             } else {
                 fuellen(f.x, f.y, f.w, f.h, w.backColor);
@@ -228,7 +232,8 @@ private:
             bild(f.x, f.y, f.w, f.h, "ui/assets/gradientbar2.tga", w.backColor, item);   // GradientBar_Paint
         } else if (w.style == WINDOW_STYLE_SHADER) {
             const Farbe c = (w.flags & WINDOW_FORECOLORSET) != 0 ? w.foreColor : Farbe{1, 1, 1, 1};
-            if (!w.background.empty()) { bild(f.x, f.y, f.w, f.h, w.background, c, item); }
+            // "<default>" hat rgbGen CGEN_BAD -> identityLight: die Farbe zaehlt dort nicht
+            bild(f.x, f.y, f.w, f.h, bildOk ? w.background : std::string(kDefaultShader), bildOk ? c : Farbe{1, 1, 1, 1}, item);
         } else if (w.style == WINDOW_STYLE_TEAMCOLOR && u_.dialekt == Dialekt::MP) {
             fuellen(f.x, f.y, f.w, f.h, Farbe{1, 0, 0, 1});   // DC->getTeamColor: ohne Spiel rot
         } else if (w.style == WINDOW_STYLE_CINEMATIC && u_.dialekt == Dialekt::MP) {

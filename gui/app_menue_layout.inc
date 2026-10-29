@@ -23,10 +23,11 @@ std::vector<bool> grundSichtbar(Dokument& d, int mi) {
     lz.start(d.datei);
     lz.basis = umgebung(d);
     lz.oeffne(m.window.name);
-    Datei k = d.datei;
-    lz.anwenden(k);
-    for (std::size_t i = 0; i < v.size() && i < k.menus[static_cast<std::size_t>(mi)].items.size(); ++i) {
-        v[i] = (k.menus[static_cast<std::size_t>(mi)].items[i].window.flags & WINDOW_VISIBLE) != 0;
+    // die Flags nach onOpen stehen in der Laufzeit (anwenden uebertraegt nur rects und Texte)
+    if (static_cast<std::size_t>(mi) < lz.items.size()) {
+        for (std::size_t i = 0; i < v.size() && i < lz.items[static_cast<std::size_t>(mi)].size(); ++i) {
+            v[i] = (lz.items[static_cast<std::size_t>(mi)][i].flags & WINDOW_VISIBLE) != 0;
+        }
     }
     return v;
 }

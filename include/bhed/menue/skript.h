@@ -42,6 +42,8 @@ struct CvarFund {
     bool sichtbarkeit = false;         // steuert Sichtbarkeit/Zustand (cvarTest)
 };
 [[nodiscard]] std::vector<CvarFund> cvarsImMenue(const Datei& d);
+// M5: Woerter, die UI_RunMenuScript fuer ein uiScript liest (nach dem Namen), je Dialekt und Spiel
+[[nodiscard]] int uiSkriptWortzahl(const std::string& name, Dialekt dl, Spiel sp);
 
 // Eine Seite fuer die Reiter ueber der Arbeitsflaeche: ein menuDef oder eine
 // ui_tab-artige Unterseite (Items mit cvarTest X und showCvar { wert }).

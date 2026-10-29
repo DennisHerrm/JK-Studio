@@ -135,6 +135,8 @@ void skriptCvars(std::vector<CvarFund>& v, const std::string& skript, const std:
 
 }  // namespace
 
+int uiSkriptWortzahl(const std::string& name, Dialekt dl, Spiel sp) { return uiSkriptWoerter(name, dl, sp); }
+
 std::vector<CvarFund> cvarsImMenue(const Datei& d) {
     std::vector<CvarFund> v;
     for (const Menu& m : d.menus) {

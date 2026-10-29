@@ -1107,6 +1107,8 @@ target_sources(bhed_core PRIVATE
   src/menue/werkzeuge.cpp
   # M5 Punkt 1: Layouts wie Qt (Kommentarzeile // jkstudio:layout)
   src/menue/layout.cpp
+  # M5 Punkt 2: Ereignisse wie Unreal UMG (Bausteine, Hover-Effekte)
+  src/menue/ereignisse.cpp
   # M2 Punkt 2: RoQ abspielen (cl_cin.cpp) und schreiben, GIF-Import
   src/menue/roq.cpp
   src/menue/roq_kodierer.cpp
@@ -1197,6 +1199,9 @@ if(BEHAVED_TESTS)
   add_executable(menuelayout tests/menuelayout.cpp)
   target_link_libraries(menuelayout PRIVATE bhed_core)
   add_test(NAME menue_layout COMMAND menuelayout)
+  add_executable(menueereignisse tests/menueereignisse.cpp)
+  target_link_libraries(menueereignisse PRIVATE bhed_core)
+  add_test(NAME menue_ereignisse COMMAND menueereignisse)
   # M2 Punkt 2: RoQ-Kodierer und -Spieler im Rundlauf (mit Spielordnern auch ein Original-Video)
   # M2 Punkt 7: Pruefungen vor dem Export
   add_executable(menuepruefung tests/menuepruefung.cpp)

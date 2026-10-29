@@ -622,6 +622,30 @@ int main() {
         const auto farben = fd.eintraege(static_cast<float>(feeder_mp::COLORCHOICES), fd.speziesIndex("jedi_tf"));
         pruefe(!farben.empty() && farben[0].bild == "farbe_jedi_tf", "Farbliste der gewaehlten Spezies");
     }
+    // M5: fehlendes Bild = Griff 0 (MD twjMenu: im Spiel der "<default>"-Kasten, im Editor schwarz):
+    // SHADER zeichnet den Kasten (weiss, ohne Itemfarbe), FILLED faellt auf die Fuellfarbe zurueck
+    {
+        LeseOptionen ob;
+        ob.dialekt = Dialekt::SP;
+        const Datei db = lies("ui/b.menu",
+                              "{ menuDef { name b rect 0 0 640 480 visible 1\n"
+                              " itemDef { name s style WINDOW_STYLE_SHADER rect 0 0 100 100 background \"gfx/fehlt\" forecolor 1 0 0 1 visible 1 }\n"
+                              " itemDef { name f style WINDOW_STYLE_FILLED rect 0 0 100 100 background \"gfx/fehlt\" backcolor 0 0 1 1 visible 1 }\n"
+                              " itemDef { name d style WINDOW_STYLE_SHADER rect 0 0 100 100 background \"gfx/da\" visible 1 } } }\n",
+                              ob);
+        Umgebung ub = u;
+        ub.dialekt = Dialekt::SP;
+        ub.bildDa = [](const std::string& s) { return s == "gfx/da"; };
+        std::vector<Prim> pb;
+        zeichneMenu(db, 0, ub, pb);
+        bool kasten = false, fuellung = false, da = false;
+        for (const Prim& x : pb) {
+            kasten = kasten || (x.item == 0 && x.shader == kDefaultShader && x.farbe.g == 1.0F);
+            fuellung = fuellung || (x.item == 1 && x.art == PrimArt::Fuellen && x.farbe.b == 1.0F);
+            da = da || (x.item == 2 && x.shader == "gfx/da");
+        }
+        pruefe(kasten && fuellung && da, "fehlendes Bild: SHADER -> <default>-Kasten, FILLED -> Fuellfarbe, vorhandenes Bild bleibt");
+    }
     // M5: MP-Ownerdraws wie UI_OwnerDraw (Original-JKA createserver/quickgame2/playerMenu zeigten Platzhalter)
     {
         FeederDaten fd;

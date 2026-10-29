@@ -41,6 +41,7 @@ namespace bhed::menue {
 inline constexpr float kSchirmBreite = 640.0F;   // SCREEN_WIDTH
 inline constexpr float kSchirmHoehe = 480.0F;    // SCREEN_HEIGHT
 inline constexpr float kScrollbar = 16.0F;       // SCROLLBAR_SIZE
+inline constexpr const char* kDefaultShader = "*default";   // M5: tr.defaultShader (Griff 0)
 inline constexpr int kUiAllmapsSelection = 236;   // code/ui/menudef.h UI_ALLMAPS_SELECTION (Spielstand-Vorschau)
 inline constexpr int kUiKeybindStatus = 250;      // UI_KEYBINDSTATUS
 inline constexpr float kSliderBreite = 96.0F;    // SLIDER_WIDTH
@@ -126,6 +127,9 @@ struct Umgebung {
     std::function<std::vector<FeederEintrag>(float feeder)> feeder;
     // M5: Inhalt der MP-Ownerdraws aus den Spieldaten (FeederDaten::ownerDraw); ohne: Platzhalter
     std::function<OwnerDrawInhalt(int ownerDraw)> ownerDraw;
+    // M5: laedt der Renderer dieses Bild/diesen Shader? (RE_RegisterShaderNoMip: fehlt es, kommt
+    // Griff 0 = "<default>"-Kasten zurueck; ohne: alles da)
+    std::function<bool(const std::string& shader)> bildDa;
     int listCursor = 0;                   // item->cursorPos
     int zeitMs = 0;                       // DC->realTime
     std::vector<ItemZustand> zustand;     // je Item (leer = gelesene Flags)

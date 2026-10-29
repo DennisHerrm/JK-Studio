@@ -31,6 +31,7 @@
 #include "bhed/image.h"
 #include "bhed/menue/bauteile.h"
 #include "bhed/menue/diagnose.h"
+#include "bhed/menue/ereignisse.h"
 #include "bhed/menue/feeder.h"
 #include "bhed/menue/hud.h"
 #include "bhed/menue/imspiel.h"
@@ -324,6 +325,7 @@ struct Zustand {
     std::string spielFilter;
     std::map<std::string, Texte> layoutTexte;     // M5 Punkt 1: Texte je Sprache (breitester Text)
     std::vector<std::string> layoutWarnungen;     // M5 Punkt 1: letzte Rechnung
+    Farbe hoverFarbe{1, 0.8F, 0.2F, 1};           // M5 Punkt 2: Farbe der fertigen Hover-Effekte
 };
 
 // InputText mit std::string (wie misc/cpp/imgui_stdlib.cpp)
@@ -484,6 +486,21 @@ const Textur* textur(const std::string& shaderName) {
     Textur& t = z.texturen[key];
     if (t.versucht) { return t.tex != nullptr ? &t : nullptr; }
     t.versucht = true;
+    if (key == kDefaultShader) {
+        // M5: R_CreateDefaultImage - 16x16, Grau 32 mit weissem Rand; der "<default>"-Shader zeichnet
+        // deckend (GLS_DEFAULT), also Alpha 255
+        std::vector<unsigned char> px(16 * 16 * 4, 32);
+        for (int y = 0; y < 16; ++y) {
+            for (int x = 0; x < 16; ++x) {
+                unsigned char* q = &px[static_cast<std::size_t>((y * 16 + x) * 4)];
+                if (x == 0 || y == 0 || x == 15 || y == 15) { q[0] = q[1] = q[2] = 255; }
+                q[3] = 255;
+            }
+        }
+        t.tex = render::createTexture(px.data(), 16, 16);
+        t.w = t.h = 16;
+        return t.tex != nullptr ? &t : nullptr;
+    }
     shaderLaden();
     std::string bild = key;
     const auto s = z.shader.find(key);
@@ -759,6 +776,15 @@ Umgebung umgebung(const Dokument& d) {
     // Kopf/Rumpf/Beine/Farben der Spezies aus ui_char_model (UI_GetCharacterCvars), nicht immer der ersten
     u.feeder = [fdp, cv = u.cvar](float f) { return fdp->eintraege(f, fdp->speziesIndex(cv("ui_char_model"))); };
     u.ownerDraw = [fdp, cv = u.cvar](int id) { return fdp->ownerDraw(id, cv); };   // M5: MP-Ownerdraws
+    // M5: fehlende Bilder wie RE_RegisterShaderNoMip (Griff 0): Bild ladbar oder Shaderskript mit Stufen
+    u.bildDa = [](const std::string& s) {
+        if (textur(s) != nullptr) { return true; }
+        std::string key = kleinPfad(s);
+        const std::size_t punkt = key.rfind('.');
+        if (punkt != std::string::npos && punkt + 5 >= key.size() && key.find('/', punkt) == std::string::npos) { key = key.substr(0, punkt); }
+        const auto it = Z().shader.find(key);
+        return it != Z().shader.end() && !it->second.stages.empty();
+    };
     u.zeitMs = static_cast<int>(ImGui::GetTime() * 1000.0);
     u.alleItems = z.alleItems && !z.interaktion;
     // M3: Schrift wie se_language; Glyphenseiten da (AsianGlyphsAvailable: Seite 0 laedt)
@@ -4651,14 +4677,23 @@ void panelText(Dokument& d) {
 void waehle(int item, bool dazu);   // unten
 
 #include "app_menue_layout.inc"
+#include "app_menue_ereignisse.inc"
 
 // Eigenschaften mit Cvars, Meldungen der Engine und Skript-Protokoll als Abschnitte
 void panelEigenschaften(Dokument& d) {
     ImGui::PushID("panelEigenschaften");
     zeichneEigenschaften(d);
     zeichneLayout(d);
+    if (g_app->settings.menueTextUnten) { zeichneEreignisse(d); }   // mit Reitern: eigener Reiter Ereignisse
     zeichneCvars(d);
     zeichneMeldungen(d);
+    ImGui::PopID();
+}
+
+// M5 Punkt 2: der Reiter Ereignisse (wie in Unreal UMG je Element)
+void panelEreignisse(Dokument& d) {
+    ImGui::PushID("panelEreignisse");
+    zeichneEreignisse(d);
     ImGui::PopID();
 }
 
@@ -4667,7 +4702,7 @@ void panelEigenschaften(Dokument& d) {
 void panelReiter(Dokument& d) {
     Zustand& z = Z();
     Settings& st = g_app->settings;
-    if (z.reiterGewollt == -2) { z.reiterGewollt = std::clamp(st.menueReiter, 0, 2); }
+    if (z.reiterGewollt == -2) { z.reiterGewollt = std::clamp(st.menueReiter, 0, 3); }
     if (ImGui::BeginTabBar("##rechtsReiter")) {
         struct R {
             Str name;
@@ -4676,7 +4711,8 @@ void panelReiter(Dokument& d) {
         };
         static const R reiter[] = {{Str::MeReiterHierarchie, panelHierarchie, true},
                                    {Str::MeReiterText, panelText, false},
-                                   {Str::MeReiterEigenschaften, panelEigenschaften, true}};
+                                   {Str::MeReiterEigenschaften, panelEigenschaften, true},
+                                   {Str::MeEreignisse, panelEreignisse, true}};
         const int gewollt = z.reiterGewollt;
         for (int i = 0; i < static_cast<int>(std::size(reiter)); ++i) {
             const std::string l = std::string(tr(reiter[i].name)) + "###reiter" + std::to_string(i);
@@ -5000,7 +5036,7 @@ void klickVorschau(float x, float y) {
     (void)satzWechsel();
 }
 
-void setzeReiter(int reiter) { Z().reiterGewollt = std::clamp(reiter, 0, 2); }
+void setzeReiter(int reiter) { Z().reiterGewollt = std::clamp(reiter, 0, 3); }
 void schliesseTestFrage() { Z().testFrageZu = true; }
 
 bool korrigiereDiagnose(int nr) {

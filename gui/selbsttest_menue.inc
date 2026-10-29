@@ -768,6 +768,58 @@ std::vector<Schritt> schritteM5() {
     }));
     add(pause(0.2));
     add(pruefe("M5 Layout: nach Rueckgaengig byte-gleich mit dem Original", [st] { return st().text == kLayoutProbe; }));
+    // M5 Punkt 2, Aufgabe: "knopf1 soll beim Hover leuchten und beim Klick klicken" - ohne Text-Reiter
+    auto ev = std::make_shared<int>(0);
+    add(tu("M5 Ereignisse Aufgabe: knopf1 waehlen, Reiter Ereignisse", [ev] {
+        me::waehle(me::itemNummer("knopf1"), false);
+        me::setzeReiter(3);
+        *ev = 2;   // Auswahl und Reiter
+    }));
+    add(pause(0.3));
+    add(foto("menue_ereignisse_leer"));
+    add(klick(tr(Str::MeEvLeuchten)));
+    add(pause(0.3));
+    add(klick(tr(Str::MeEvKlickKlang)));
+    add(tippe("sound/interface/button1.wav"));
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(tu("M5 Ereignisse Aufgabe: Schritte zaehlen (Leuchten, Feld, Tippen, Enter)", [ev] { *ev += 4; }));
+    add(pause(0.3));
+    add(pruefe("M5 Ereignisse Aufgabe: Glow-Element, Hover show/hide, Klick spielt - in 6 Schritten; das Spiel liest es ohne Meldung", [st, ev] {
+        const auto x = st();
+        bhed::menue::LeseOptionen o;
+        o.dialekt = bhed::menue::Dialekt::SP;
+        const bhed::menue::Datei d = bhed::menue::lies("ui/layoutprobe.menu", x.text, o);
+        if (!d.meldungen.empty() || d.menus.size() != 1) { return false; }
+        const auto& m = d.menus[0];
+        int glow = -1, knopf = -1;
+        for (std::size_t i = 0; i < m.items.size(); ++i) {
+            if (m.items[i].window.name == "knopf1_glow") { glow = static_cast<int>(i); }
+            if (m.items[i].window.name == "knopf1") { knopf = static_cast<int>(i); }
+        }
+        if (glow < 0 || knopf < 0 || glow > knopf) { return false; }
+        // wie im Spiel: Maus auf den Knopf -> mouseEnter zeigt das Glow-Element
+        bhed::menue::Laufzeit lz;
+        lz.start(d);
+        lz.oeffne("layoutprobe");
+        const bool vorher = (lz.items[0][static_cast<std::size_t>(glow)].flags & bhed::menue::WINDOW_VISIBLE) != 0;
+        const auto& r = m.items[static_cast<std::size_t>(knopf)].window.rect;
+        lz.maus(0, r.x + r.w / 2, r.y + r.h / 2);
+        const bool hover = (lz.items[0][static_cast<std::size_t>(glow)].flags & bhed::menue::WINDOW_VISIBLE) != 0;
+        const bool klang = m.items[static_cast<std::size_t>(knopf)].action.find("sound/interface/button1.wav") != std::string::npos;
+        char b[160];
+        std::snprintf(b, sizeof(b), "Menue-Editor M5 Aufgabe Ereignisse: %d Schritte, Glow vorher %d, beim Hover %d, Klick-Klang %d", *ev, vorher, hover,
+                      klang);
+        diag::info(b);
+        return !vorher && hover && klang && *ev <= 6;
+    }));
+    add(foto("menue_ereignisse"));
+    add(tu("M5 Ereignisse: zurueck zum Reiter Eigenschaften", [] { me::setzeReiter(2); }));
+    add(tu("M5 Ereignisse: zweimal Rueckgaengig", [] {
+        (void)me::rueckgaengig();
+        (void)me::rueckgaengig();
+    }));
+    add(pause(0.2));
+    add(pruefe("M5 Ereignisse: Rueckgaengig stellt das Original her", [st] { return st().text == kLayoutProbe; }));
     return s;
 }
 
