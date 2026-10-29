@@ -745,6 +745,12 @@ if(BEHAVED_TESTS)
   add_executable(ablauftest tests/ablauftest.cpp)
   target_link_libraries(ablauftest PRIVATE bhed_core)
   add_test(NAME ablauf COMMAND ablauftest)
+  # pruefung1: selbst gebaute Mini-Missionen je ICARUS-Befehlsgruppe, beide
+  # Regelwerke, einmal mit Namen wie in den Originalen und einmal mit frischen
+  # Namen - beide muessen dasselbe ergeben (nichts auf Originale zugeschnitten).
+  add_executable(pruefmission tests/pruefmission.cpp)
+  target_link_libraries(pruefmission PRIVATE bhed_core)
+  add_test(NAME pruefmission COMMAND pruefmission)
   # rc601 bewegung: NPCs laufen, drehen sich und fallen wie im Spiel
   # (scene.cpp, ablauf.cpp) - reine Proben, dazu die md_twj-Daten.
   add_executable(bewegungtest tests/bewegungtest.cpp)
