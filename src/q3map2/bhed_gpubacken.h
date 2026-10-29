@@ -48,6 +48,7 @@
 //   any later version (LICENSE).
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -131,6 +132,7 @@ struct BhedBakeSchalter {
 	float linearScale;
 	int lightSamples;
 	float suchBox;          // 0.25f * lightSamplesSearchBoxSize
+	int zufall;             // vis1: -randomsamples - nur Lightmaps ohne Nachprobe auf der GPU (BhedBakeRest)
 };
 // ein Block von Lightmaps fuer die GPU
 struct BhedBakeBlock {
@@ -179,8 +181,11 @@ std::size_t BhedBakeBudgetPaare();
 bool BhedBakeErst( const BhedBakeBlock& b, std::vector<std::uint32_t>& zaehler, std::vector<std::uint32_t>& flags );
 // Schritt 3 und 4 mit den aktiven Lichtern (b.lms mit aktivBase/nAktiv/zeilenBase/aus): die fertigen Luxel.
 bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::vector<std::uint32_t>& flags );
-// TraceGrid fuer die Punkte (in place); false: die GPU ist ausgefallen (die CPU rechnet alle Punkte)
-bool BhedBakeGitter( std::vector<BhedBakeGitterPunkt>& punkte, const BhedBakeGitterSchalter& s );
+// TraceGrid fuer die Punkte (in place); false: die GPU ist ausgefallen (die CPU rechnet alle Punkte).
+// vis1: halt (darf nullptr sein) wird vor jedem Dispatch gelesen - gesetzt, hoert die GPU auf, *angehalten
+// wird true und die Punkte sind nicht gerechnet (die CPU hat sie inzwischen alle genommen).
+bool BhedBakeGitter( std::vector<BhedBakeGitterPunkt>& punkte, const BhedBakeGitterSchalter& s, const std::atomic<bool> *halt = nullptr,
+                     bool *angehalten = nullptr );
 bool BhedBakeBereit();
 void BhedBakeEnde();
 std::string BhedBakeAdapter();

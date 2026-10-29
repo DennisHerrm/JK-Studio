@@ -768,6 +768,9 @@ bool BhedBakeErst( const BhedBakeBlock& b, std::vector<std::uint32_t>& zaehler, 
 	return true;
 }
 
+// vis1: -randomsamples - je aktivem Licht der erste vorhergesagte Stempel (0xffffffff: keiner), hilfe[1 + a]
+static std::vector<std::uint32_t> zufallErster;
+
 bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::vector<std::uint32_t>& flags ){
 	luxelAus.assign( size_t( b.aus ) * 4, 0.0f );
 	flags.assign( b.lms.size(), 1 );
@@ -784,7 +787,25 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 	binden();
 	const Kopf kopf = kopfFuer( b );
 	bool ok = true;
-	if ( g.schalter.lightSamples > 1 ) {
+	if ( g.schalter.zufall ) {
+		// vis1: -randomsamples. Eine nachabgetastete Lightmap zieht ihre Zufallszahlen in der Reihenfolge des
+		// seriellen Laufs (light_ydnar.cpp BhedZufallsProben) - das rechnet die CPU. Hier nur die Vorhersage mit
+		// den Werten der Erstabtastung (Runde 0): ohne vorhergesagten Stempel tastet auch der serielle Lauf
+		// nichts nach (er sieht bis zum ersten Nachabtasten dieselben Werte), die Lightmap ist mit Filtern und
+		// Aufsummieren fertig. Jede Lightmap mit einem vorhergesagten Stempel bei einem ihrer aktiven Lichter
+		// geht an die CPU (Markierung in flags).
+		const UINT voll[ 4 ] = { 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu };
+		g.ktx->ClearUnorderedAccessViewUint( g.rw[ uHilfe ].uav, voll );
+		Kopf k = kopf;
+		k.gitterPhase = 0;
+		k.kandVon = 0;
+		ok = lauf( kKandidaten, b.zeilen, 4, k );
+		zufallErster.assign( b.aktiv.size() + 1, 0xffffffffu );
+		loesen();
+		ok = ok && lesen( uHilfe, zufallErster.data(), zufallErster.size() * 4 );
+		binden();
+	}
+	else if ( g.schalter.lightSamples > 1 ) {
 		// Vorhersage: die Kandidaten kommen in eine Liste (hilfe[0] zaehlt ab 0xffffffff), dazu je aktivem Licht
 		// der erste vorhergesagte Stempel; dann nur die Kandidaten unterabtasten
 		const UINT voll[ 4 ] = { 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu };
@@ -820,6 +841,19 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 	ok = ok && lauf( kFiltern, UINT( b.luxel.size() ), 4, kopf );
 	loesen();
 	ok = ok && lesen( uR, luxelAus.data(), luxelAus.size() * 4 ) && lesen( uLmFlag, flags.data(), flags.size() * 4 );
+	if ( ok && g.schalter.zufall ) {
+		for ( size_t li = 0; li < b.lms.size(); ++li )
+		{
+			const BhedBakeLm& L = b.lms[ li ];
+			for ( int a = L.aktivBase; a < L.aktivBase + L.nAktiv; ++a )
+			{
+				if ( zufallErster[ 1 + size_t( a ) ] != 0xffffffffu ) {
+					flags[ li ] |= 2u;   // nachzutasten: die CPU
+					break;
+				}
+			}
+		}
+	}
 	if ( g.nanTest && !luxelAus.empty() ) {   // Test: ein Treiberfehler (nicht endlicher Wert) im ersten Block
 		g.nanTest = false;
 		luxelAus[ 0 ] = std::numeric_limits<float>::quiet_NaN();
@@ -833,7 +867,10 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 	return true;
 }
 
-bool BhedBakeGitter( std::vector<BhedBakeGitterPunkt>& punkte, const BhedBakeGitterSchalter& s ){
+bool BhedBakeGitter( std::vector<BhedBakeGitterPunkt>& punkte, const BhedBakeGitterSchalter& s, const std::atomic<bool> *halt, bool *angehalten ){
+	if ( angehalten != nullptr ) {
+		*angehalten = false;
+	}
 	if ( !g.bereit ) {
 		return false;
 	}
@@ -868,6 +905,14 @@ bool BhedBakeGitter( std::vector<BhedBakeGitterPunkt>& punkte, const BhedBakeGit
 				kopf.lichtVon = von;
 				kopf.lichtBis = bis;
 				for ( size_t p0 = 0; p0 < m && ok; ) {
+					if ( halt != nullptr && halt->load( std::memory_order_acquire ) ) {   // vis1: die CPU hat alle Punkte
+						loesen();
+						g.zahlen.gpuMikros += mikros( t0 );
+						if ( angehalten != nullptr ) {
+							*angehalten = true;
+						}
+						return true;
+					}
 					const UINT stueck = UINT( std::min<size_t>( g.gitterPunkte, m - p0 ) );
 					kopf.basis = UINT( p0 );
 					kopf.anzahl = stueck;

@@ -98,6 +98,10 @@ unsigned int BhedPassSeed( int work ){
 	return BhedWorkSeed( g_bhedPass, work );
 }
 
+void BhedPassBegin(){
+	++g_bhedPass;
+}
+
 void ThreadWorkerFunction( int threadnum ){
 	while ( true )
 	{

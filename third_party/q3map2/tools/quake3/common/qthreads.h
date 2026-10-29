@@ -74,3 +74,5 @@ inline unsigned int BhedRandomSkip( unsigned int state, unsigned long long n ){
 /* the seed work item `work` gets in the next RunThreadsOnIndividual, and in the running one */
 unsigned int BhedNextPassSeed( int work );
 unsigned int BhedPassSeed( int work );
+/* a pass without RunThreadsOnIndividual (the GPU bake lights the raw lightmaps): counts like one */
+void BhedPassBegin();

@@ -53,6 +53,20 @@ int main() {
     expect("-samples 4, CPU-Zeit gemerkt und lang (67 s), GPU unbekannt -> einmal die GPU messen",
            ist(w(D, mygeeto, 2, 4, 67200, 0), true, GpuGrund::Erkunden));
     expect("-samples 4, CPU-Zeit kurz (20 s) -> CPU (samples)", ist(w(D, mygeeto, 2, 4, 20000, 0), false, GpuGrund::Samples));
+    {
+        // vis1: "[Final] Extreme Quality" (-samples 4 -randomsamples): die GPU tastet nicht nach, der Prozessor
+        // rechnet die Lightmaps mit Nachproben nebenher - Regel 5 gilt nicht
+        GpuWahlEingabe e;
+        e.geraet = D;
+        e.superLuxel = sith;
+        e.bounce = 8;
+        e.samples = 256;
+        e.zufall = true;
+        GpuWahlEingabe k = e;
+        k.superLuxel = ben;
+        expect("-samples 4 -randomsamples, gross -> GPU (large); klein -> CPU (small)",
+               ist(gpuWahl(e), true, GpuGrund::Gross) && ist(gpuWahl(k), false, GpuGrund::Klein));
+    }
     expect("gelernt: duel_mygeeto -samples 4 (67 / 101 s) -> CPU (learnedcpu)",
            ist(w(D, mygeeto, 2, 4, 67200, 101300), false, GpuGrund::GelerntCpu));
     expect("gelernt: md_am_sith -samples 4 (52,9 / 28,0 s) -> GPU (learnedgpu)",

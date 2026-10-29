@@ -29,6 +29,17 @@ alle Luxel (der Bericht zaehlt sie).
   7c. Adapterwahl              - -bhedgpuadapter 0 und ein unbekannter Name (Meldung, die schnellste)
   7d. Auto (Stufe 8d)          - -bhedgpubakeauto: kleine Karte -> CPU; gemerkt GPU schneller -> GPU,
                                  bitgleich; gemerkt CPU schneller -> CPU; ohne double -> CPU
+  7e. -randomsamples (vis1)    - "[Final] Extreme Quality": -fastbounce -samples 4 -randomsamples:
+                                 Lightmaps ohne zufaellige Nachprobe auf der GPU, die anderen auf der
+                                 CPU (je Lightmap der Zufallsgenerator ihres Arbeitsschritts); alle 18
+                                 Lumps Byte-gleich mit der CPU. Rot vor der Behebung: das Lichtgitter
+                                 auf der GPU zaehlte keinen Durchgang (andere Zufallszahlen danach), und
+                                 -samples 4 wird mit -randomsamples zu 256 Proben - ueber der Grenze 7
+                                 der GPU-Unterabtastung, keine Lightmap kam auf die GPU.
+  7f. Prozessor nebenher (vis1) - ohne BHED_GPUBAKE_NUR_GPU rechnet der Prozessor gleichzeitig: seine
+                                 Lightmaps, dazu GPU-Lightmaps vom Ende der Liste, und er teilt sich die
+                                 Gitterpunkte mit der GPU; Lumps gleich der CPU. Die Laeufe, die feste
+                                 GPU-Zahlen pruefen, setzen BHED_GPUBAKE_NUR_GPU.
   8. Himmel mit Sonne          - ein Hof unter einem Himmels-Shader mit q3map_sunExt (eigener
                                  Spielordner im Test): CPU und GPU, mit double Byte-gleich.
                                  Rot vor der Behebung in 8c: der skyIndex eines Shaders
@@ -149,13 +160,16 @@ def main():
         licht = ['-game', 'ja', '-light', '-fast', '-patchshadows', '-samples', '2', '-filter', '-bounce', '2']
         licht4 = ['-game', 'ja', '-light', '-fast', '-patchshadows', '-samples', '4', '-filter', '-bounce', '1']
         gpu = ['-bhedgpubake', '-bhedgpubakecheck', '1']
+        lichtz = ['-game', 'ja', '-light', '-fastbounce', '-patchshadows', '-samples', '4', '-randomsamples', '-bounce', '1']
         ergebnis = {}
-        for art, schalter, env in (('cpu', licht, None), ('gpu', licht + gpu, None), ('gpu2', licht + gpu, None),
+        nur = {'BHED_GPUBAKE_NUR_GPU': '1'}   # vis1: ohne die Arbeit des Prozessors nebenher (feste Zahlen)
+        for art, schalter, env in (('cpu', licht, None), ('gpu', licht + gpu, nur), ('gpu2', licht + gpu, None),
                                    ('verlust', licht + gpu, {'BHED_GPUBAKE_VERLUST': '2'}),
-                                   ('float', licht + gpu, {'BHED_GPUBAKE_OHNE_DOUBLE': '1'}),
-                                   ('klein', licht + gpu, {'BHED_GPUBAKE_BUDGET_MB': '1'}),
-                                   ('cpu4', licht4, None), ('gpu4', licht4 + gpu, None),
-                                   ('nan', licht + gpu, {'BHED_GPUBAKE_NAN': '1'}),
+                                   ('float', licht + gpu, {'BHED_GPUBAKE_OHNE_DOUBLE': '1', 'BHED_GPUBAKE_NUR_GPU': '1'}),
+                                   ('klein', licht + gpu, {'BHED_GPUBAKE_BUDGET_MB': '1', 'BHED_GPUBAKE_NUR_GPU': '1'}),
+                                   ('cpu4', licht4, None), ('gpu4', licht4 + gpu, nur),
+                                   ('cpuz', lichtz, None), ('gpuz', lichtz + gpu, nur), ('gpuzneben', lichtz + gpu, None),
+                                   ('nan', licht + gpu, {'BHED_GPUBAKE_NAN': '1', 'BHED_GPUBAKE_NUR_GPU': '1'}),
                                    ('adapter0', licht + gpu + ['-bhedgpuadapter', '0'], None),
                                    ('adapterx', licht + gpu + ['-bhedgpuadapter', 'keine-solche-gpu'], None),
                                    # Stufe 8d: -bhedgpubakeauto (bhed/gpuwahl.h)
@@ -246,6 +260,23 @@ def main():
             melde(not anders and b4 is not None and b4['gleich'] == 100.0 and b4['gpu'] > 0,
                   '-samples 4 (Unterabtastung in drei Ebenen): %s Lightmaps auf der GPU, %.4f %% gleich, alle 18 Lumps Byte-gleich%s' %
                   (b4 and b4['gpu'], b4['gleich'] if b4 else 0, '' if not anders else ' - anders: %s' % anders))
+        # 7e. -randomsamples (vis1): GPU fuer die Lightmaps ohne zufaellige Nachprobe, bitgleich
+        # 7f. (vis1) Prozessor nebenher: nimmt GPU-Lightmaps vom Ende der Liste und teilt sich die
+        #     Gitterpunkte mit der GPU - dieselben Bytes
+        for art in ('gpu2', 'gpuzneben'):
+            v = 'cpuz' if art == 'gpuzneben' else 'cpu'
+            bn2 = bericht(ergebnis[art][1])
+            ue = re.search(r'(\d+) taken over while the GPU baked', ergebnis[art][1])
+            melde(ergebnis[art][0] == ergebnis[v][0] and bn2 is not None and ue is not None,
+                  'Prozessor nebenher (%s): %s Lightmaps auf der GPU, %s auf der CPU (davon %s der GPU abgenommen), Gitter %s/%s Punkte GPU/CPU, alle 18 Lumps gleich der CPU' %
+                  (art, bn2 and bn2['gpu'], bn2 and bn2['cpu'], ue.group(1) if ue else '?', bn2 and bn2['gitter'], bn2 and bn2['gittercpu']))
+        bz = bericht(ergebnis['gpuz'][1])
+        zz = re.search(r'(\d+) of them with random subsamples', ergebnis['gpuz'][1])
+        if doppelt:
+            anders = [i for i in range(18) if ergebnis['gpuz'][0][i] != ergebnis['cpuz'][0][i]]
+            melde(not anders and bz is not None and bz['gpu'] > 0 and bz['gleich'] == 100.0 and zz is not None and int(zz.group(1)) > 0,
+                  '-randomsamples -samples 4 -fastbounce: %s Lightmaps auf der GPU, %s mit zufaelligen Nachproben auf der CPU, alle 18 Lumps Byte-gleich%s' %
+                  (bz and bz['gpu'], zz.group(1) if zz else '?', '' if not anders else ' - anders: %s' % anders))
         # 8. Himmel mit Sonne (eigener Spielordner mit dem Himmels-Shader)
         spiel = os.path.join(t, 'spiel')
         os.makedirs(os.path.join(spiel, 'base', 'shaders'))
@@ -268,7 +299,8 @@ def main():
             os.makedirs(d)
             for e in ('.map', '.bsp', '.srf'):
                 shutil.copy(os.path.join(hv, 'hof' + e), os.path.join(d, 'hof' + e))
-            rc, aus = lauf(exe, grund + ['-light', '-fast', '-samples', '2', '-filter', '-bounce', '1', '-threads', '4'] + extra + [os.path.join(d, 'hof.map')], d)
+            rc, aus = lauf(exe, grund + ['-light', '-fast', '-samples', '2', '-filter', '-bounce', '1', '-threads', '4'] + extra + [os.path.join(d, 'hof.map')], d,
+                          nur if extra else None)
             if rc != 0:
                 print('FEHL  Hof -light %s: Rueckgabe %d' % (art, rc))
                 return 1

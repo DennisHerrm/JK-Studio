@@ -18,7 +18,10 @@
 //                                         -> GPU, gemessen 1,2 gegen 1,8 s)
 //   5. -samples 4 und mehr, gross     -> CPU (duel_mygeeto: GPU 101 s gegen 67 s); ist die CPU-Zeit
 //                                         gemerkt, lang und die GPU-Zeit nicht, misst Auto einmal die
-//                                         GPU (md_am_sith ist damit 1,9x schneller) - danach Regel 3
+//                                         GPU (md_am_sith ist damit 1,9x schneller) - danach Regel 3.
+//                                         Nicht mit -randomsamples (vis1): dort tastet die GPU nicht nach
+//                                         (die Lightmaps mit Nachproben rechnet der Prozessor nebenher),
+//                                         "[Final] Extreme Quality" geht nach Regel 6
 //   6. sonst                          -> GPU (kejim_post 1,2-2,4x, md_am_sith 1,9-2,6x, duel_mygeeto 1,6-1,9x)
 #ifndef BHED_KARTE_GPUWAHL_H
 #define BHED_KARTE_GPUWAHL_H
@@ -40,6 +43,7 @@ struct GpuWahlEingabe {
     long long superLuxel = 0;   // Summe sw*sh aller Roh-Lightmaps
     int bounce = 0;
     int samples = 1;            // -samples
+    bool zufall = false;        // vis1: -randomsamples
     long long cpuMs = 0;        // gemerkte Zeit des letzten CPU-Laufs (0: unbekannt)
     long long gpuMs = 0;        // gemerkte Zeit des letzten GPU-Laufs (0: unbekannt)
 };
@@ -56,7 +60,7 @@ struct GpuWahl {
         return e.gpuMs < e.cpuMs ? GpuWahl{true, GpuGrund::GelerntGpu} : GpuWahl{false, GpuGrund::GelerntCpu};
     }
     if (e.superLuxel * (1 + (e.bounce > 0 ? e.bounce : 0)) < kGpuWahlKleinLuxel) { return {false, GpuGrund::Klein}; }
-    if (e.samples >= 4) {
+    if (e.samples >= 4 && !e.zufall) {
         if (e.cpuMs >= kGpuWahlErkundenMs && e.gpuMs == 0) { return {true, GpuGrund::Erkunden}; }
         return {false, GpuGrund::Samples};
     }

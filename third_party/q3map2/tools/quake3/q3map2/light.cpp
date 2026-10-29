@@ -38,6 +38,9 @@
 #include "bspfile_rbsp.h"
 #include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, grid pre-pass in parallel */
 #include <set>
+#include <atomic> /* BehavEd vis1 */
+#include <mutex> /* BehavEd vis1 */
+#include <thread> /* BehavEd vis1 */
 
 
 
@@ -1822,40 +1825,131 @@ static void BhedTraceGridAlle(){
 		}
 		const BhedBakeGitterSchalter schalter{ gridSize[ vector3_max_abs_component_index( gridSize ) ] * 0.5f, gridAmbientDirectionality, gridDirectionality,
 		                                       cheapgrid ? 1 : 0 };
-		if ( BhedBakeGitter( punkte, schalter ) ) {
-			std::atomic<long long> cpu{ 0 };
-			bhed_par::pool( numthreads ).fuerAlle( int( nrs.size() ), [&]( int k ){
-				const int num = nrs[ k ];
-				const BhedBakeGitterPunkt& p = punkte[ k ];
-				bool endlich = std::isfinite( p.dir[ 0 ] ) && std::isfinite( p.dir[ 1 ] ) && std::isfinite( p.dir[ 2 ] );
-				for ( int j = 0; j < 12 && endlich; ++j ) {
-					endlich = std::isfinite( p.ambient[ j ] ) && std::isfinite( p.directed[ j ] );
-				}
-				if ( p.flag != 0 || !endlich ) { /* not exact on the GPU, or not finite (driver fault): the CPU */
-					++cpu;
-					TraceGrid( num );
-					return;
-				}
-				rawGridPoint_t& gp = rawGridPoints[ num ];
-				bspGridPoint_t& bgp = bspGridPoints[ num ];
-				for ( int j = 0; j < 3; ++j ) {
-					gp.dir[ j ] = p.dir[ j ];
-					for ( int s = 0; s < MAX_LIGHTMAPS; ++s ) {
-						gp.ambient[ s ][ j ] = p.ambient[ s * 3 + j ];
-						gp.directed[ s ][ j ] = p.directed[ s * 3 + j ];
-					}
-				}
+		/* BehavEd vis1: counts as the pass RunThreadsOnIndividual( TraceGrid ) would be - the passes after it
+		   (-randomsamples: the generator of every raw lightmap and vertex surface) get the same numbers */
+		BhedPassBegin();
+		const auto setzen = [&]( size_t k, const BhedBakeGitterPunkt& p ) -> bool {
+			const int num = nrs[ k ];
+			bool endlich = std::isfinite( p.dir[ 0 ] ) && std::isfinite( p.dir[ 1 ] ) && std::isfinite( p.dir[ 2 ] );
+			for ( int j = 0; j < 12 && endlich; ++j ) {
+				endlich = std::isfinite( p.ambient[ j ] ) && std::isfinite( p.directed[ j ] );
+			}
+			if ( p.flag != 0 || !endlich ) { /* not exact on the GPU, or not finite (driver fault): the CPU */
+				TraceGrid( num );
+				return false;
+			}
+			rawGridPoint_t& gp = rawGridPoints[ num ];
+			bspGridPoint_t& bgp = bspGridPoints[ num ];
+			for ( int j = 0; j < 3; ++j ) {
+				gp.dir[ j ] = p.dir[ j ];
 				for ( int s = 0; s < MAX_LIGHTMAPS; ++s ) {
-					gp.styles[ s ] = byte( p.stile >> ( 8 * s ) );
-					if ( p.neu & ( 1u << s ) ) {
-						bgp.styles[ s ] = gp.styles[ s ];
+					gp.ambient[ s ][ j ] = p.ambient[ s * 3 + j ];
+					gp.directed[ s ][ j ] = p.directed[ s * 3 + j ];
+				}
+			}
+			for ( int s = 0; s < MAX_LIGHTMAPS; ++s ) {
+				gp.styles[ s ] = byte( p.stile >> ( 8 * s ) );
+				if ( p.neu & ( 1u << s ) ) {
+					bgp.styles[ s ] = gp.styles[ s ];
+				}
+			}
+			BhedGitterSpeichern( num );
+			return true;
+		};
+		/* BehavEd vis1: the graphics card and the processor share the points. The GPU takes parts from the
+		   front, numthreads threads take single points from the end; when nothing is left, the threads take the
+		   points of the part on the GPU from its end too, and once they have all of them the GPU stops. Every
+		   point is computed by exactly one side (a claim per point), both exactly - the same grid. Before, the
+		   GPU traced every point alone: "[Final] Extreme Quality" (no -fast, every light reaches far) took
+		   353 s on md_am_sith against 75 s on 32 threads, 86 s against 3 s on duel_mos_espa.
+		   BHED_GPUBAKE_NUR_GPU: the GPU alone (the ctest checks its points). */
+		const bool nurGpu = getenv( "BHED_GPUBAKE_NUR_GPU" ) != nullptr;
+		std::vector<char> genommen( nrs.size(), 0 );
+		const auto nehmen = [&]( size_t k ){
+			return std::atomic_ref<char>( genommen[ k ] ).exchange( 1 ) == 0;
+		};
+		std::mutex teilMutex;
+		size_t vorne = 0, hinten = nrs.size();       /* not handed out yet */
+		size_t laufVon = 0, laufHinten = 0;          /* the part on the GPU, its points the threads have not taken */
+		std::atomic<bool> halt{ false };
+		std::atomic<long long> cpu{ 0 }, gpuPunkte{ 0 };
+		const size_t jeTeil = nurGpu ? nrs.size() : 16384;
+		std::thread gpuFaden( [&]{
+			std::vector<BhedBakeGitterPunkt> teil;
+			while ( true )
+			{
+				size_t a0, e0;
+				{
+					std::lock_guard<std::mutex> l( teilMutex );
+					if ( vorne >= hinten ) {
+						break;
+					}
+					a0 = vorne;
+					e0 = std::min( hinten, vorne + jeTeil );
+					vorne = e0;
+					laufVon = a0;
+					laufHinten = e0;
+				}
+				teil.assign( punkte.begin() + a0, punkte.begin() + e0 );
+				bool angehalten = false;
+				if ( !BhedBakeGitter( teil, schalter, &halt, &angehalten ) || angehalten ) {
+					break;   /* lost (the threads take the rest, this part too), or the threads took the part */
+				}
+				{
+					std::lock_guard<std::mutex> l( teilMutex );
+					laufHinten = laufVon;
+				}
+				for ( size_t k = a0; k < e0; ++k )
+				{
+					if ( nehmen( k ) ) {
+						if ( setzen( k, teil[ k - a0 ] ) ) {
+							++gpuPunkte;
+						}
+						else{
+							++cpu;
+						}
 					}
 				}
-				BhedGitterSpeichern( num );
+			}
+		} );
+		bhed_par::Pool& pool = bhed_par::pool( numthreads );
+		if ( !nurGpu ) {
+			pool.fuerAlle( std::max( 1, numthreads ), [&]( int ){
+				while ( true )
+				{
+					size_t k;
+					{
+						std::lock_guard<std::mutex> l( teilMutex );
+						if ( vorne < hinten ) {
+							k = --hinten;
+						}
+						else if ( laufHinten > laufVon ) {
+							k = --laufHinten;
+							if ( laufHinten == laufVon ) {
+								halt.store( true, std::memory_order_release );
+							}
+						}
+						else{
+							break;
+						}
+					}
+					if ( nehmen( k ) ) {
+						++cpu;
+						TraceGrid( nrs[ k ] );
+					}
+				}
 			} );
-			BhedBakeGitterZaehlen( static_cast<long long>( nrs.size() ) - cpu.load(), cpu.load() );
-			return;
 		}
+		gpuFaden.join();
+		/* after a lost device: the points nobody took */
+		pool.fuerAlle( int( nrs.size() ), [&]( int k ){
+			if ( nehmen( size_t( k ) ) ) {
+				++cpu;
+				TraceGrid( nrs[ k ] );
+			}
+		} );
+		BhedBakeGitterZaehlen( gpuPunkte.load(), cpu.load() );
+		return;
 	}
 	if ( g_bhedBakeAn ) {
 		BhedBakeGitterZaehlen( 0, static_cast<long long>( rawGridPoints.size() ) );
@@ -3238,6 +3332,7 @@ int LightMain( Args& args ){
 		}
 		e.bounce = bounce;
 		e.samples = lightSamples;
+		e.zufall = lightRandomSamples; /* BehavEd vis1 */
 		e.cpuMs = bhedBakeZeitCpu;
 		e.gpuMs = bhedBakeZeitGpu;
 		const bhed::karte::GpuWahl w = bhed::karte::gpuWahl( e );
