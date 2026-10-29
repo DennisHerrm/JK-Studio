@@ -1,5 +1,5 @@
 // schriftbau.h - Menue-Editor M2 Punkt 9: eine Schrift fuer das Spiel bauen
-// (fonts/<name>.fontdat und fonts/<name>.tga).
+// (fonts/<name>.fontdat und fonts/<name>.tga). Eigener Code.
 //
 // Das Format ist das, was RE_RegisterFont liest (OpenJK code/rd-common/tr_font.h
 // dfontdat_t, tr_font.cpp CFontInfo): 256 glyphInfo_t zu je 28 Bytes (short

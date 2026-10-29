@@ -33,6 +33,11 @@ bool leseVideoDatei(const std::string& pfad, menue::Bildfolge& out, int maxBilde
         if (fehler != nullptr) { *fehler = t; }
         return false;
     };
+    // Media Foundation fehlt in den N-Fassungen von Windows: verzoegert gebunden (CMakeLists,
+    // /DELAYLOAD) und hier vorher geprueft - sonst liesse sich das Programm dort gar nicht starten.
+    static const bool mfDa = LoadLibraryExW(L"mfplat.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32) != nullptr &&
+                             LoadLibraryExW(L"mfreadwrite.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32) != nullptr;
+    if (!mfDa) { return melde("Media Foundation nicht verfuegbar"); }
     const HRESULT co = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     if (FAILED(MFStartup(MF_VERSION, MFSTARTUP_LITE))) {
         if (SUCCEEDED(co)) { CoUninitialize(); }

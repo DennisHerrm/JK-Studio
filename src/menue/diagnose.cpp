@@ -1,4 +1,5 @@
 // diagnose.cpp - Menue-Editor M2: Live-Diagnose (siehe diagnose.h).
+// Portiert aus OpenJK (die Regeln der Skriptbefehle, code/ui/ui_shared.cpp; code/ui/menudef.h); sonst eigener Code.
 //
 // Was die Engine liest, steht in menue::lies (parser.cpp); hier wird nur
 // ausgewertet. Script-Befehle und ihre Suche nach Items: OpenJK

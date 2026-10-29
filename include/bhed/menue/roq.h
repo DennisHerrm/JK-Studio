@@ -1,4 +1,5 @@
 // roq.h - Menue-Editor M2 Punkt 2: RoQ-Videos (cinematic) abspielen wie die
+// Portiert aus OpenJK (code/client/cl_cin.cpp).
 // Engine und eigene Videos ins RoQ-Format schreiben.
 //
 // Der Spieler ist aus OpenJK portiert (code/client/cl_cin.cpp: RoQ_init,

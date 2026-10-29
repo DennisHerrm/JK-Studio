@@ -1,4 +1,5 @@
 // pruefung.h - Menue-Editor M2 Punkt 7: Pruefungen vor dem Export.
+// Portiert aus OpenJK (die Grenzen aus code/ui/ui_shared.h, codemp/ui/ui_shared.h, Movie Duels); die Pruefungen sind eigener Code.
 //
 // Was die Engine nicht kann, meldet die Pruefung, statt dass die Vorschau es
 // trotzdem zeigt:
@@ -18,7 +19,9 @@
 //   Copyright (C) 2000 - 2013, Raven Software, Inc.
 //   Copyright (C) 2001 - 2013, Activision, Inc.
 //   Copyright (C) 2013 - 2015, OpenJK contributors
-//   (GPL v2, siehe LICENSE). Die Pruefungen selbst sind eigener Code.
+//   OpenJK is free software; you can redistribute it and/or modify it under the
+//   terms of the GNU General Public License version 2 (LICENSE). Die Pruefungen
+//   selbst sind eigener Code.
 #ifndef BHED_MENUE_PRUEFUNG_H
 #define BHED_MENUE_PRUEFUNG_H
 

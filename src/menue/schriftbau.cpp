@@ -1,4 +1,5 @@
 // schriftbau.cpp - Menue-Editor M2 Punkt 9 (siehe schriftbau.h).
+// Eigener Code.
 #include "bhed/menue/schriftbau.h"
 
 #include <algorithm>

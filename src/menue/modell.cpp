@@ -1,4 +1,5 @@
 // modell.cpp - Menue-Editor M2 Punkt 1: ITEM_TYPE_MODEL - Kamera, Licht und
+// Portiert aus OpenJK (code/ui/ui_shared.cpp, code/ui/ui_saber.cpp, code/rd-vanilla/tr_light.cpp, tr_surface.cpp) und Movie Duels (ui_saber.cpp).
 // Knochen wie Item_Model_Paint. Herkunft und Lizenz siehe
 // include/bhed/menue/modell.h.
 //

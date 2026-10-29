@@ -1,4 +1,5 @@
 // imspiel.h - Menue-Editor M2 Punkt 8: "Im Spiel testen".
+// Eigener Code.
 //
 // Die Menues (geaenderte Dateien und das Paket) kommen als zzz_jkstudio_menue.pk3
 // in einen eigenen Ordner ausserhalb des Spiels. Weil sie gleichnamige Dateien

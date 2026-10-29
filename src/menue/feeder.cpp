@@ -1,4 +1,5 @@
 // feeder.cpp - Menue-Editor M2 Punkt 1: Listbox-Feeder aus den Spieldaten.
+// Portiert aus OpenJK (code/ui/ui_main.cpp, codemp/ui/ui_main.c, codemp/ui/ui_gameinfo.c).
 // Herkunft und Lizenz siehe include/bhed/menue/feeder.h (OpenJK
 // code/ui/ui_main.cpp, codemp/ui/ui_main.c, codemp/ui/ui_gameinfo.c,
 // code/qcommon/files.cpp).

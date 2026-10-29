@@ -1,4 +1,5 @@
 // imspiel.cpp - Menue-Editor M2 Punkt 8 (siehe imspiel.h).
+// Eigener Code.
 #include "bhed/menue/imspiel.h"
 
 #include <algorithm>

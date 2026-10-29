@@ -1,4 +1,5 @@
 // pruefung.cpp - Menue-Editor M2 Punkt 7: Pruefungen vor dem Export.
+// Portiert aus OpenJK (die Grenzen aus code/ui/ui_shared.h, codemp/ui/ui_shared.h, Movie Duels); die Pruefungen sind eigener Code.
 // Grenzwerte aus OpenJK/Movie Duels (siehe include/bhed/menue/pruefung.h),
 // die Pruefungen sind eigener Code.
 //

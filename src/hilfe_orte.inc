@@ -67,6 +67,8 @@
 {"einstellungen", "knopf:PrefsAltIcons", "MenuEdit>AppPrefs>GroupApplication>PrefsAltIcons", "", "zahl:programm.einstellungen < menue:MenuEdit>AppPrefs"},
 {"einstellungen", "knopf:PrefsQuery", "MenuEdit>AppPrefs>GroupApplication>PrefsQuery", "", "zahl:programm.einstellungen < menue:MenuEdit>AppPrefs"},
 {"einstellungen", "knopf:PrefsLastDir", "MenuEdit>AppPrefs>GroupApplication>PrefsLastDir", "", "zahl:programm.einstellungen < menue:MenuEdit>AppPrefs"},
+{"einstellungen", "knopf:MeEinstTextUnten", "MenuEdit>AppPrefs>MeEinstGruppe>MeEinstTextUnten", "", "zahl:programm.einstellungen < menue:MenuEdit>AppPrefs"},
+{"einstellungen", "knopf:MeEinstUmbruch", "MenuEdit>AppPrefs>MeEinstGruppe>MeEinstUmbruch", "", "zahl:programm.einstellungen < menue:MenuEdit>AppPrefs"},
 {"einstellungen", "knopf:PrefsTonEffekte", "MenuEdit>AppPrefs>PrefsTonPegel>PrefsTonEffekte", "", "zahl:programm.einstellungen < menue:MenuEdit>AppPrefs"},
 {"einstellungen", "knopf:PrefsTonStimmen", "MenuEdit>AppPrefs>PrefsTonPegel>PrefsTonStimmen", "", "zahl:programm.einstellungen < menue:MenuEdit>AppPrefs"},
 {"einstellungen", "knopf:PrefsTonMusik", "MenuEdit>AppPrefs>PrefsTonPegel>PrefsTonMusik", "", "zahl:programm.einstellungen < menue:MenuEdit>AppPrefs"},

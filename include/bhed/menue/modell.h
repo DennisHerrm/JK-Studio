@@ -1,4 +1,5 @@
 // modell.h - Menue-Editor M2 Punkt 1: 3D-Modelle in Menues (ITEM_TYPE_MODEL).
+// Portiert aus OpenJK (code/ui/ui_shared.cpp, code/ui/ui_saber.cpp, code/rd-vanilla/tr_light.cpp, tr_surface.cpp) und Movie Duels (ui_saber.cpp).
 //
 // Modell, Haut, Skelett und Animation kommen aus der vorhandenen
 // Figurendarstellung (readGlm/applySkin/readGla/parseAnimationCfg/

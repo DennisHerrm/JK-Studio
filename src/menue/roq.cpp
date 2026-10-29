@@ -1,4 +1,5 @@
 // roq.cpp - Menue-Editor M2 Punkt 2: RoQ abspielen (portiert aus OpenJK
+// Portiert aus OpenJK (code/client/cl_cin.cpp).
 // code/client/cl_cin.cpp, Herkunft und Lizenz siehe include/bhed/menue/roq.h)
 // und schreiben (eigener Code, roq_kodierer.cpp).
 //

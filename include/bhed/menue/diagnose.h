@@ -1,4 +1,5 @@
 // diagnose.h - Menue-Editor M2: Live-Diagnose wie in einem Code-Editor.
+// Eigener Code.
 //
 // Alles, was an einer .menu nicht stimmt, mit der genauen Stelle im Text:
 //   - die Meldungen des Parsers im Wortlaut der Engine (PC_ParseWarning,

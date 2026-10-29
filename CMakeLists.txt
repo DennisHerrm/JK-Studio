@@ -545,6 +545,10 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
   endif()
 
   if(MSVC)
+    # Menue-Editor M2: Media Foundation (Video-Import) fehlt in Windows N - verzoegert
+    # binden, gui/videoimport_win32.cpp prueft vor dem ersten Aufruf.
+    target_link_options(behaved PRIVATE /DELAYLOAD:mfplat.dll /DELAYLOAD:mfreadwrite.dll)
+    target_link_libraries(behaved PRIVATE delayimp)
     target_link_options(behaved PRIVATE /ENTRY:wWinMainCRTStartup)
   else()
     target_link_options(behaved PRIVATE -municode)
