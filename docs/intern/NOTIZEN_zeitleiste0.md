@@ -286,6 +286,20 @@ die "0 0 0"-Kaestchen.
 - Movie Duels: Unterschiede (Regelwerk) muessen im Modell umschaltbar
   bleiben wie im Nachbau.
 
+## Schlussrunde
+
+- Sauberer Neubau des Programms (`--clean-first`, Ziel behaved mit seinen
+  Bibliotheken): 0 Fehler, 0 Warnungen. Gesamtbau aller Ziele: 0 Warnungen.
+- ctest: 164 von 164 bestanden.
+- lint_sources, lint_fassung (rc606), lint_gapp, lint_headers,
+  lint_imgui_context: ok (lint_link braucht g++, uebersprungen).
+- Selbsttest `zeitleiste0`: 4 OK, 0 FEHLER; `karteneditor` kurz
+  (`BHED_KARTE_NUR=fotos`): 78 OK, 0 FEHLER; Modus 1 (mit `BHED_HANDBUCH`, sonst finden die Touren aus dem
+  Laufordner kein touren.json - ein erster Lauf ohne wurde deshalb
+  abgebrochen): 2645 OK, 0 FEHLER.
+- Keine Restprozesse, keine Restdateien im Worktree (Laufordner unter
+  `Y:\mission_laeufe`), Spielordner nur gelesen.
+
 ## Gegen das Spiel geprueft / nicht geprueft
 
 - Gelesen und zitiert (OpenJK/MD-Quellen): Kamera-Interpolation, Fade,
