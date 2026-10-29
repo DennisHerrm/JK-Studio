@@ -55,7 +55,13 @@ void unterschied(Lauf& l) {
     // Blicke nur aus dem freien Raum (im Festen sieht die Editor-Kamera auch Flaechen, die im Spiel nie
     // jemand sieht): Kollision aus den Brushes, ein Kasten +-8 darf nicht im Festen stecken
     KollisionsKarte koll;
-    (void)karte::kollisionAusKarte(ke::editor().karte, [](const std::string&) { return std::vector<std::string>{}; }, true, koll);
+    const auto parms = [](const std::string& shader) {   // wie das Sprung-Werkzeug: surfaceparms aus dem Shader-Vorrat
+        const ke::Editor& ed = ke::editor();
+        const auto& sp = ed.karteSpiel ? ed.karteSpiel : ed.spiel;
+        const karte::ShaderEintrag* se = sp ? sp->inventar.shaderFinden(shader) : nullptr;
+        return se != nullptr ? se->surfaceparms : std::vector<std::string>{};
+    };
+    (void)karte::kollisionAusKarte(ke::editor().karte, parms, true, koll);
     const auto frei = [&koll](const karte::Vektor3d& q) {
         const float p0[3] = {static_cast<float>(q[0]), static_cast<float>(q[1]), static_cast<float>(q[2])};
         const float mi[3] = {-8, -8, -8}, ma[3] = {8, 8, 8};
@@ -248,10 +254,11 @@ std::vector<Schritt> schritte() {
         // Bilder vorher/nachher dort an einer ruhigen Stichprobe, ist eine sichtbare Flaeche verschwunden.
         // Daneben zur Auskunft: Stichproben, die sich ohne Filter unterscheiden.
         add(pruefe("Optsicher: " + pfad + " - Fix all safe aendert nichts Sichtbares (Kamera, Eckpunkte)", [l, pfad] {
-            int anders = 0, blickeAnders = 0, unruhig = 0, sonst = 0;
+            int anders = 0, blickeAnders = 0, unruhig = 0, sonst = 0, haarrisse = 0;
             const std::size_t nb = std::min({l->vorher.size(), l->vorher2.size(), l->vorherOhne.size(), l->nachher.size(), l->nachherOhne.size()});
             for (std::size_t b = 0; b < nb; ++b) {
                 int n = 0;
+                std::vector<char> diff(l->vorher[b].size() / 3, 0);
                 for (std::size_t i = 0; i + 2 < l->vorher[b].size(); i += 3) {
                     const auto abst = [i](const std::vector<unsigned char>& x, const std::vector<unsigned char>& y) {
                         return std::abs(x[i] - y[i]) + std::abs(x[i + 1] - y[i + 1]) + std::abs(x[i + 2] - y[i + 2]);
@@ -261,7 +268,31 @@ std::vector<Schritt> schritte() {
                         continue;
                     }
                     if (abst(l->vorher[b], l->nachher[b]) > 40) { ++sonst; }
-                    if (abst(l->vorherOhne[b], l->nachherOhne[b]) > 40) { ++n; }
+                    if (abst(l->vorherOhne[b], l->nachherOhne[b]) > 40) { diff[i / 3] = 1; }
+                }
+                // Abweichungen nur eine Stichprobenspalte bzw. -zeile breit sind Haarrisse zwischen Pinseln
+                // (Teilpixel-Spalt an einer Kante, durch den die Editor-Kamera die Flaeche dahinter trifft;
+                // q3map2 schliesst solche T-Kreuzungen im Spiel) - eine wirklich verschwundene Flaeche fuellt
+                // mindestens einen 2 x 2-Block (Abstand 1/48 der Bildbreite; die Blicke auf die Flaechen gehen
+                // aus 48 bis 384 Einheiten senkrecht darauf).
+                for (int y = 0; y < 36; ++y) {
+                    for (int x = 0; x < 48; ++x) {
+                        if (diff[static_cast<std::size_t>(y * 48 + x)] == 0) { continue; }
+                        // Teil eines 2 x 2-Blocks abweichender Stichproben? (ein Haarriss ist hoechstens eine
+                        // Stichprobenspalte bzw. -zeile breit)
+                        const auto d = [&diff](int xx, int yy) { return xx >= 0 && yy >= 0 && xx < 48 && yy < 36 && diff[static_cast<std::size_t>(yy * 48 + xx)] != 0; };
+                        bool nachbar = false;
+                        for (int dy = -1; dy <= 0; ++dy) {
+                            for (int dx = -1; dx <= 0; ++dx) {
+                                if (d(x + dx, y + dy) && d(x + dx + 1, y + dy) && d(x + dx, y + dy + 1) && d(x + dx + 1, y + dy + 1)) { nachbar = true; }
+                            }
+                        }
+                        if (nachbar) {
+                            ++n;
+                        } else {
+                            ++haarrisse;
+                        }
+                    }
                 }
                 anders += n;
                 blickeAnders += n > 0 ? 1 : 0;
@@ -277,10 +308,11 @@ std::vector<Schritt> schritte() {
             int verschieden = 0;   // Gegenprobe: zeigt die Kamera die Karte?
             for (std::size_t v = 1; v < l->vorher.size(); ++v) { verschieden += l->vorher[v] != l->vorher[v - 1] ? 1 : 0; }
             char z[600];
-            std::snprintf(z, sizeof(z), "Knopftest: Optsicher - %s: %zu Blicke (%d verschieden, %d Stichproben unruhig, %d sonst anders), %d Stichproben wie im Spiel anders in %d Blicken, %lld Flaechen neu caulk, Eckpunkte bis %.3f gewandert",
-                          pfad.c_str(), l->vorher.size(), verschieden, unruhig, sonst, anders, blickeAnders, l->caulk, l->wandern);
+            std::snprintf(z, sizeof(z), "Knopftest: Optsicher - %s: %zu Blicke (%d verschieden, %d Stichproben unruhig, %d sonst anders, %d einzeln: Haarrisse), %d Stichproben wie im Spiel anders in %d Blicken, %lld Flaechen neu caulk, Eckpunkte bis %.3f gewandert",
+                          pfad.c_str(), l->vorher.size(), verschieden, unruhig, sonst, haarrisse, anders, blickeAnders, l->caulk, l->wandern);
             diag::detail(z);
-            return (l->vorher.size() <= 1 || verschieden > 0) && anders == 0 && l->wandern <= 0.051;
+            // neu gecaulkte Flaechen ohne einen einzigen Blick: nichts geprueft - das zaehlt nicht als gut
+            return (l->caulk == 0 || nb > 0) && (l->vorher.size() <= 1 || verschieden > 0) && anders == 0 && l->wandern <= 0.051;
         }));
         if (std::getenv("BHED_OPTSICHER_BILDER") != nullptr) {   // Untersuchung: die ersten 6 abweichenden Blicke als Bild
             add(tu("Optsicher: Bilder - Filter Caulk an (wie im Spiel)", [caulkFilter] { caulkFilter(true); }));
