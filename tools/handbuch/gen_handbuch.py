@@ -110,6 +110,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in HILFE1})
             from i18n_menue1 import MENUE1     # Menue-Editor M1
             texte.update({e[0]: e[1:] for e in MENUE1})
+            from i18n_menue2 import MENUE2     # Menue-Editor M2
+            texte.update({e[0]: e[1:] for e in MENUE2})
             from i18n_karte9c import KARTE9C   # Stufe 9c: Werkzeugleisten, Echtzeit-Licht wie im Spiel
             texte.update({e[0]: e[1:] for e in KARTE9C})
             return texte

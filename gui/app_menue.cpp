@@ -15,6 +15,8 @@
 // ihre Spanne im Text, jede Textaenderung liest das Menue neu.
 #include "menueeditor.h"
 #include "videoimport.h"
+#include "karte_bau_plattform.h"
+#include "schrift_ttf.h"
 
 #include "app_internal.h"
 #include "backend.h"
@@ -30,6 +32,8 @@
 #include "bhed/menue/bauteile.h"
 #include "bhed/menue/diagnose.h"
 #include "bhed/menue/feeder.h"
+#include "bhed/menue/imspiel.h"
+#include "bhed/menue/schriftbau.h"
 #include "bhed/menue/menue.h"
 #include "bhed/menue/modell.h"
 #include "bhed/menue/roq.h"
@@ -70,6 +74,12 @@ namespace {
 
 // --- Zustand ---------------------------------------------------------------
 
+// M2 Punkt 6: ein eigener Text (Schluessel ohne Paket) in den Sprachen
+struct TextZeile {
+    std::string schluessel;
+    std::map<std::string, std::string> text;   // "English", "German" ... -> Text
+};
+
 struct Dokument {
     std::string name;          // Spielpfad (ui/main.menu) - bestimmt Dialekt
     std::string platte;        // Datei auf der Platte ("" = aus dem Spiel)
@@ -98,6 +108,16 @@ struct Dokument {
     int diagVersion = -1, diagGewollt = -1, diagLaufVersion = -1;
     double diagAb = 0;
     std::future<std::vector<Diagnose>> diagLauf;
+    // M2 Punkt 6: eigene Texte (aus dem Paket gelesen, dorthin geschrieben)
+    std::string textPaket;
+    std::vector<TextZeile> eigeneTexte;
+    bool texteGelesen = false;
+    int textStand = 0;
+};
+// M2 Punkt 7: eine Zeile der Pruefung fuer das Spiel
+struct PruefZeile {
+    int dok = -1;
+    Diagnose x;
 };
 
 struct Textur {
@@ -236,6 +256,24 @@ struct Zustand {
     bool problemeFehler = true, problemeWarnungen = true, problemeHinweise = true;
     float problemeHoehe = 0;
     int diagLaeufe = 0;
+    // M2 Punkt 6: Sprache der Vorschau, eigene Texte
+    std::string sprache = "English";
+    std::vector<std::string> sprachen;
+    bool sprachenGeladen = false;
+    Texte texteMit;
+    std::string texteMitSchluessel;
+    int texteVersion = 0;
+    bool texteFensterOffen = false;
+    // M2 Punkt 7/8/9
+    bool pruefFenster = false, pruefGelaufen = false;
+    bool pruefZiel[3] = {true, true, true};
+    std::vector<PruefZeile> pruefErgebnis;
+    std::string testBefehl;
+    bool testFrage = false;
+    bool schriftFenster = false;
+    std::string schriftTtf, schriftName = "eigene";
+    int schriftGroesse = 20;
+    int letzterExport = 0;   // Dateien im zuletzt geschriebenen Paket
     bool ziehtText = false;
     std::string meldung;
     std::string ordnerAusgabe;
@@ -293,6 +331,8 @@ void datenPruefen() {
     z.daten.ordner = g_app->gamePaths;   // nur lesen
     z.texteGeladen = z.shaderGeladen = z.schriftNamenGeladen = false;
     z.feederSp.gebaut = z.feederMp.gebaut = false;
+    z.sprachenGeladen = false;
+    ++z.texteVersion;
     z.saeberGeladen = false;
     z.schriften.clear();
     z.texturen.clear();
@@ -301,7 +341,7 @@ void datenPruefen() {
 const Texte& texte() {
     Zustand& z = Z();
     if (!z.texteGeladen) {
-        z.texte = ladeTexte(z.daten, z.spiel);
+        z.texte = ladeTexte(z.daten, z.spiel, z.sprache);
         z.texteGeladen = true;
     }
     return z.texte;
@@ -327,7 +367,14 @@ const Schrift* schriftNamens(const std::string& name) {
     if (it != z.schriften.end()) { return it->second.ok ? &it->second : nullptr; }
     Schrift s;
     std::string daten;
-    if (z.daten.lies("fonts/" + name + ".fontdat", daten)) { (void)ladeFontdat(name, daten, s); }
+    bool imPaket = false;
+    if (Dokument* d = doc()) {   // M2 Punkt 9: eigene Schrift im Paket
+        const auto f = d->bilder.find("fonts/" + name + ".fontdat");
+        if (f != d->bilder.end()) {
+            imPaket = ladeFontdat(name, f->second, s);
+        }
+    }
+    if (!imPaket && z.daten.lies("fonts/" + name + ".fontdat", daten)) { (void)ladeFontdat(name, daten, s); }
     s.name = name;
     s.shader = "fonts/" + name;
     z.schriften[name] = s;
@@ -606,11 +653,13 @@ void auswahlAusCursor(Dokument& d) {
 
 // --- Vorschau ------------------------------------------------------------------
 
+const Texte& vorschauTexte(Dokument& d);   // M2 Punkt 6 (unten)
+
 Umgebung umgebung(const Dokument& d) {
     Zustand& z = Z();
     schriftNamenLaden();
     Umgebung u;
-    u.texte = &texte();
+    u.texte = &vorschauTexte(const_cast<Dokument&>(d));   // M2 Punkt 6: gewaehlte Sprache, eigene Texte darueber
     u.dialekt = d.datei.dialekt;
     const std::vector<std::string>& namen = d.datei.dialekt == Dialekt::MP ? z.schriftNamenMp : z.schriftNamenSp;
     // Nummer -> Schrift wie schriftNamen (SP: OpenJK registeredFonts bzw. Movie-Duels-Griffe).
@@ -1146,6 +1195,7 @@ bool satzWechsel() {
     return false;
 }
 
+void spieleKlaenge();                                              // M2 Punkt 5 (unten)
 ImU32 schwereFarbe(Schwere s);                                     // M2 Live-Diagnose (unten)
 void schwereSymbol(ImDrawList* dl, ImVec2 m, float r, Schwere s);
 
@@ -2014,16 +2064,16 @@ std::string fmt(Str s, const std::string& a, const std::string& b = {}, const st
 // Die Meldung in einer Zeile: Wortlaut der Engine bzw. die Beschreibung (4 Sprachen)
 std::string diagMeldung(const Diagnose& x) {
     switch (x.art) {
-        case DiagArt::Engine: return x.text;
-        case DiagArt::KlammerOffen: return fmt(Str::MeDiagKlammerOffen, x.text);
-        case DiagArt::KlammerZuViel: return fmt(Str::MeDiagKlammerZuViel, x.text);
-        case DiagArt::KlammerFalsch: return fmt(Str::MeDiagKlammerFalsch, x.text, x.wert);
-        case DiagArt::AnfuehrungOffen: return x.wert.empty() ? std::string(tr(Str::MeDiagAnfuehrungEnde)) : fmt(Str::MeDiagAnfuehrung, x.wert);
-        case DiagArt::KeineZahl: return fmt(Str::MeDiagKeineZahl, x.text, x.wert);
-        case DiagArt::NameDoppelt: return fmt(x.item >= 0 ? Str::MeDiagNameItem : Str::MeDiagNameMenue, x.text);
+        case DiagArt::Engine: return anzeige(x.text);
+        case DiagArt::KlammerOffen: return fmt(Str::MeDiagKlammerOffen, anzeige(x.text));
+        case DiagArt::KlammerZuViel: return fmt(Str::MeDiagKlammerZuViel, anzeige(x.text));
+        case DiagArt::KlammerFalsch: return fmt(Str::MeDiagKlammerFalsch, anzeige(x.text), anzeige(x.wert));
+        case DiagArt::AnfuehrungOffen: return x.wert.empty() ? std::string(tr(Str::MeDiagAnfuehrungEnde)) : fmt(Str::MeDiagAnfuehrung, anzeige(x.wert));
+        case DiagArt::KeineZahl: return fmt(Str::MeDiagKeineZahl, anzeige(x.text), anzeige(x.wert));
+        case DiagArt::NameDoppelt: return fmt(x.item >= 0 ? Str::MeDiagNameItem : Str::MeDiagNameMenue, anzeige(x.text));
         case DiagArt::ZielFehlt:
-            return fmt(x.wert == "open" || x.wert == "close" ? Str::MeDiagZielMenue : Str::MeDiagZielItem, x.wert, x.text);
-        case DiagArt::CvarAehnlich: return fmt(Str::MeDiagCvar, x.text, x.wert);
+            return fmt(x.wert == "open" || x.wert == "close" ? Str::MeDiagZielMenue : Str::MeDiagZielItem, anzeige(x.wert), anzeige(x.text));
+        case DiagArt::CvarAehnlich: return fmt(Str::MeDiagCvar, anzeige(x.text), anzeige(x.wert));
         case DiagArt::Pruefung: {
             const Befund& b = x.befund;
             char buf[512];
@@ -2035,13 +2085,13 @@ std::string diagMeldung(const Diagnose& x) {
                 case BefundArt::ZuVieleFarben:
                 case BefundArt::ZuVieleSpalten: std::snprintf(buf, sizeof(buf), tr(Str::MeDiagZuViele), b.a, b.b); return buf;
                 case BefundArt::NieSichtbar: return b.name == "rect" ? std::string(tr(Str::MeDiagNieRect)) : std::string(tr(Str::MeDiagNieVisible));
-                case BefundArt::DateiFehlt: return fmt(Str::MeDiagDateiFehlt, b.name, b.wert);
-                case BefundArt::UnbekanntIn: return fmt(Str::MeDiagUnbekanntIn, b.name, b.wert);
+                case BefundArt::DateiFehlt: return fmt(Str::MeDiagDateiFehlt, anzeige(b.name), anzeige(b.wert));
+                case BefundArt::UnbekanntIn: return fmt(Str::MeDiagUnbekanntIn, anzeige(b.name), anzeige(b.wert));
             }
             return {};
         }
     }
-    return x.text;
+    return anzeige(x.text);
 }
 
 // Die kurze Erklaerung zu einer Engine-Meldung (deren Wortlaut bleibt englisch wie im Spiel)
@@ -2058,13 +2108,13 @@ std::string diagErklaerung(const Diagnose& x) {
 std::string korrekturText(const Diagnose& x, const std::string& text) {
     if (x.korrekturen.empty()) { return {}; }
     const Korrektur& k = x.korrekturen.front();
-    if (k.text.empty()) { return fmt(Str::MeDiagFixEntfernen, text.substr(k.anfang, k.ende - k.anfang)); }
+    if (k.text.empty()) { return fmt(Str::MeDiagFixEntfernen, anzeige(text.substr(k.anfang, k.ende - k.anfang))); }
     std::string neu = k.text;
     while (!neu.empty() && (neu.back() == '\n' || neu.back() == '\r')) { neu.pop_back(); }
     std::size_t a = 0;
     while (a < neu.size() && (neu[a] == ' ' || neu[a] == '\t' || neu[a] == '\n')) { ++a; }
     neu = neu.substr(a);
-    return fmt(k.anfang == k.ende ? Str::MeDiagFixEinfuegen : Str::MeDiagFixErsetzen, neu);
+    return fmt(k.anfang == k.ende ? Str::MeDiagFixEinfuegen : Str::MeDiagFixErsetzen, anzeige(neu));
 }
 
 // Die Schnellkorrektur anwenden (rueckgaengig machbar); Stellen gelten fuer den Stand der Diagnose
@@ -2093,11 +2143,11 @@ void zeigeDiagnoseTipp(const Dokument& d, const Diagnose& x) {
     ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(schwereFarbe(x.schwere)));
     ImGui::TextUnformatted(tr(x.schwere == Schwere::Fehler ? Str::MeDiagFehler1 : x.schwere == Schwere::Warnung ? Str::MeDiagWarnung1 : Str::MeDiagHinweis1));
     ImGui::PopStyleColor();
-    ImGui::TextUnformatted(anzeige(diagMeldung(x)).c_str());
+    ImGui::TextUnformatted(diagMeldung(x).c_str());   // schon UTF-8
     const std::string e = diagErklaerung(x);
     if (!e.empty()) { ImGui::TextDisabled("%s", e.c_str()); }
     const std::string k = korrekturText(x, d.puffer.text());
-    if (!k.empty()) { ImGui::TextColored(ImVec4{0.5F, 0.85F, 0.5F, 1}, "%s", fmt(Str::MeDiagFixTaste, anzeige(k)).c_str()); }
+    if (!k.empty()) { ImGui::TextColored(ImVec4{0.5F, 0.85F, 0.5F, 1}, "%s", fmt(Str::MeDiagFixTaste, k).c_str()); }
     ImGui::PopTextWrapPos();
     ImGui::EndTooltip();
 }
@@ -2131,10 +2181,10 @@ void panelProbleme(Dokument& d) {
         ImGui::SameLine();
         char zeile[32];
         std::snprintf(zeile, sizeof(zeile), x.zeile > 0 ? "%d:" : "-", x.zeile);
-        const std::string t = std::string(zeile) + " " + anzeige(diagMeldung(x));
+        const std::string t = std::string(zeile) + " " + diagMeldung(x);
         if (!x.korrekturen.empty()) {
             if (ImGui::SmallButton(tr(Str::MeDiagBeheben))) { (void)korrigiere(d, x); }
-            if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", anzeige(korrekturText(x, d.puffer.text())).c_str()); }
+            if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", korrekturText(x, d.puffer.text()).c_str()); }
             ImGui::SameLine();
         }
         if (ImGui::Selectable(t.c_str(), false)) {
@@ -2152,6 +2202,531 @@ void panelProbleme(Dokument& d) {
     }
     ImGui::EndChild();
     ImGui::PopID();
+}
+
+// --- M2 Punkt 6: Texte in mehreren Sprachen ----------------------------------------------
+//
+// Die eigenen Texte stehen im Paket als strings/<Sprache>/<PAKET>.str (StringEd, Jedi
+// Academy und Movie Duels) bzw. strip/<paket>.sp (StripEd, Jedi Outcast); die Tabelle des
+// Fensters wird daraus gelesen und bei jeder Aenderung zurueckgeschrieben. Die Vorschau
+// zeigt die gewaehlte Sprache: die Texte des Spiels, darueber die eigenen.
+
+std::vector<std::string> sprachenListe() {
+    Zustand& z = Z();
+    if (z.sprachenGeladen) { return z.sprachen; }
+    z.sprachenGeladen = true;
+    z.sprachen.clear();
+    if (z.spiel == Spiel::JK2) {
+        z.sprachen = {"English", "French", "German"};   // StripEd TEXT_LANGUAGE1..3
+        return z.sprachen;
+    }
+    std::set<std::string> gesehen;
+    z.sprachen.push_back("English");
+    gesehen.insert("english");
+    for (const std::string& p : z.daten.liste("strings/", {".str"})) {
+        const std::size_t a = p.find('/');
+        const std::size_t b = a == std::string::npos ? std::string::npos : p.find('/', a + 1);
+        if (b == std::string::npos) { continue; }
+        const std::string s = p.substr(a + 1, b - a - 1);
+        if (gesehen.insert(kleinPfad(s)).second) { z.sprachen.push_back(s); }
+    }
+    return z.sprachen;
+}
+
+int spNummer(const std::string& sprache) {
+    const std::string s = kleinPfad(sprache);
+    return s == "french" ? 2 : s == "german" ? 3 : 1;
+}
+
+void eigeneTexteLesen(Dokument& d) {
+    if (d.texteGelesen) { return; }
+    d.texteGelesen = true;
+    Zustand& z = Z();
+    std::map<std::string, TextZeile> zeilen;
+    std::vector<std::string> reihenfolge;
+    auto merke = [&](const std::string& paket, const Texte& t, const std::string& sprache) {
+        const std::string vor = paket + "_";
+        for (const auto& [k, v] : t.werte) {
+            if (k.compare(0, vor.size(), vor) != 0) { continue; }
+            const std::string s = k.substr(vor.size());
+            if (zeilen.count(s) == 0) {
+                reihenfolge.push_back(s);
+                zeilen[s].schluessel = s;
+            }
+            zeilen[s].text[sprache] = v;
+        }
+    };
+    for (const auto& [p, b] : d.bilder) {
+        const std::string k = kleinPfad(p);
+        if (z.spiel == Spiel::JK2) {
+            if (k.compare(0, 6, "strip/") != 0 || k.size() < 10 || k.compare(k.size() - 3, 3, ".sp") != 0) { continue; }
+            std::string paket = p.substr(6, p.size() - 9);
+            for (char& c : paket) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+            d.textPaket = paket;
+            for (const std::string& s : sprachenListe()) {
+                Texte t;
+                t.ladeSp(b, spNummer(s));
+                merke(paket, t, s);
+            }
+            continue;
+        }
+        if (k.compare(0, 8, "strings/") != 0 || k.size() < 13 || k.compare(k.size() - 4, 4, ".str") != 0) { continue; }
+        const std::size_t sl = p.find('/', 8);
+        if (sl == std::string::npos) { continue; }
+        const std::string sprache = p.substr(8, sl - 8);
+        std::string paket = p.substr(sl + 1, p.size() - sl - 5);
+        for (char& c : paket) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+        d.textPaket = paket;
+        std::string gross = sprache;
+        for (char& c : gross) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+        Texte t;
+        t.ladeStr(p, b, gross);
+        merke(paket, t, kleinPfad(sprache) == "english" ? std::string("English") : sprache);
+    }
+    for (const std::string& s : reihenfolge) { d.eigeneTexte.push_back(zeilen[s]); }
+    if (d.textPaket.empty()) { d.textPaket = "MYMENU"; }
+}
+
+void eigeneTexteSchreiben(Dokument& d) {
+    Zustand& z = Z();
+    // alte Dateien dieses Pakets weg
+    for (auto it = d.bilder.begin(); it != d.bilder.end();) {
+        const std::string k = kleinPfad(it->first);
+        const bool str = k.compare(0, 8, "strings/") == 0 && k.size() > 4 && k.compare(k.size() - 4, 4, ".str") == 0;
+        const bool sp = k.compare(0, 6, "strip/") == 0 && k.size() > 3 && k.compare(k.size() - 3, 3, ".sp") == 0;
+        it = (str || sp) ? d.bilder.erase(it) : std::next(it);
+    }
+    ++d.textStand;
+    if (d.eigeneTexte.empty()) { return; }
+    const std::string paket = d.textPaket;
+    if (z.spiel == Spiel::JK2) {
+        std::vector<TextEintragSprachen> e;
+        for (const TextZeile& r : d.eigeneTexte) {
+            TextEintragSprachen x;
+            x.schluessel = r.schluessel;
+            for (const auto& [s, t] : r.text) { x.texte[spNummer(s)] = t; }
+            e.push_back(x);
+        }
+        std::string klein = paket;
+        for (char& c : klein) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        d.bilder["strip/" + klein + ".sp"] = schreibeSpSprachen(paket, e);
+        return;
+    }
+    for (const std::string& s : sprachenListe()) {
+        std::vector<TextEintrag> e;
+        bool etwas = kleinPfad(s) == "english";
+        for (const TextZeile& r : d.eigeneTexte) {
+            TextEintrag x;
+            x.schluessel = r.schluessel;
+            const auto en = r.text.find("English");
+            x.englisch = en == r.text.end() ? std::string() : en->second;
+            const auto u = r.text.find(s);
+            if (kleinPfad(s) != "english" && u != r.text.end() && !u->second.empty()) {
+                x.uebersetzung = u->second;
+                etwas = true;
+            }
+            e.push_back(x);
+        }
+        if (etwas) { d.bilder["strings/" + s + "/" + paket + ".str"] = schreibeStr(s, e); }
+    }
+}
+
+// Die Texte der Vorschau: Spiel in der gewaehlten Sprache, darueber die eigenen
+const Texte& vorschauTexte(Dokument& d) {
+    Zustand& z = Z();
+    const Texte& basis = texte();
+    eigeneTexteLesen(d);
+    if (d.eigeneTexte.empty()) { return basis; }
+    const std::string schl = d.name + "|" + std::to_string(d.textStand) + "|" + z.sprache + "|" + std::to_string(z.texteVersion);
+    if (z.texteMitSchluessel != schl) {
+        z.texteMit = basis;
+        for (const TextZeile& r : d.eigeneTexte) {
+            std::string k = d.textPaket + "_" + r.schluessel;
+            for (char& c : k) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+            const auto en = r.text.find("English");
+            const auto l = r.text.find(z.sprache);
+            z.texteMit.werte[k] = (l != r.text.end() && !l->second.empty()) ? l->second : (en != r.text.end() ? en->second : std::string());
+        }
+        z.texteMitSchluessel = schl;
+    }
+    return z.texteMit;
+}
+
+void setzeSprache(const std::string& sprache) {
+    Zustand& z = Z();
+    if (z.sprache == sprache) { return; }
+    z.sprache = sprache;
+    z.texteGeladen = false;
+    ++z.texteVersion;
+}
+
+// Die @-Schluessel, die das Menue benutzt (text, text2, descText)
+std::vector<std::string> benutzteSchluessel(const Dokument& d) {
+    std::vector<std::string> v;
+    std::set<std::string> gesehen;
+    for (const Menu& m : d.datei.menus) {
+        for (const Item& it : m.items) {
+            for (const std::string* s : {&it.text, &it.text2, &it.descText}) {
+                if (s->size() > 1 && (*s)[0] == '@' && gesehen.insert(kleinPfad(*s)).second) { v.push_back(*s); }
+            }
+        }
+    }
+    return v;
+}
+
+void zeichneTexteFenster(Dokument& d) {
+    Zustand& z = Z();
+    if (!z.texteFensterOffen) { return; }
+    eigeneTexteLesen(d);
+    ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 44, ImGui::GetFontSize() * 26}, ImGuiCond_Appearing);
+    bool offen = true;
+    if (ImGui::Begin(tr(Str::MeTexte), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+        const std::vector<std::string> sprachen = sprachenListe();
+        bool geaendert = false;
+        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 10);
+        std::string paket = d.textPaket;
+        if (eingabe("REFERENCE##paket", &paket)) {
+            for (char& c : paket) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+            if (!paket.empty()) {
+                d.textPaket = paket;
+                geaendert = true;
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(tr(Str::MeTextNeu))) {
+            TextZeile r;
+            r.schluessel = "TEXT_" + std::to_string(d.eigeneTexte.size() + 1);
+            d.eigeneTexte.push_back(r);
+            geaendert = true;
+        }
+        const int spalten = 2 + static_cast<int>(sprachen.size());
+        if (ImGui::BeginTable("##texte", spalten, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable,
+                              ImVec2{0, ImGui::GetFontSize() * 12})) {
+            ImGui::TableSetupColumn(tr(Str::MeTextSchluessel));
+            for (const std::string& s : sprachen) { ImGui::TableSetupColumn(s.c_str()); }
+            ImGui::TableSetupColumn("##x", ImGuiTableColumnFlags_WidthFixed, ImGui::GetFontSize() * 1.5F);
+            ImGui::TableHeadersRow();
+            int weg = -1;
+            for (std::size_t i = 0; i < d.eigeneTexte.size(); ++i) {
+                TextZeile& r = d.eigeneTexte[i];
+                ImGui::PushID(static_cast<int>(i));
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::SetNextItemWidth(-1);
+                std::string k = r.schluessel;
+                if (eingabe("##k", &k)) {
+                    for (char& c : k) { c = c == ' ' ? '_' : static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+                    r.schluessel = k;
+                    geaendert = true;
+                }
+                for (const std::string& s : sprachen) {
+                    ImGui::TableNextColumn();
+                    ImGui::SetNextItemWidth(-1);
+                    std::string t = anzeige(r.text[s]);   // die Dateien sind Latin-1 wie die Menues
+                    if (eingabe(("##" + s).c_str(), &t)) {
+                        r.text[s] = utf8ZuLatin1(t.c_str());
+                        geaendert = true;
+                    }
+                }
+                ImGui::TableNextColumn();
+                if (ImGui::SmallButton("x")) { weg = static_cast<int>(i); }
+                ImGui::PopID();
+            }
+            ImGui::EndTable();
+            if (weg >= 0) {
+                d.eigeneTexte.erase(d.eigeneTexte.begin() + weg);
+                geaendert = true;
+            }
+        }
+        // im Menue benutzte Schluessel: aus dem Spiel, eigene, fehlende (anlegen)
+        ImGui::SeparatorText("@");
+        const Texte& tx = vorschauTexte(d);
+        for (const std::string& s : benutzteSchluessel(d)) {
+            ImGui::PushID(s.c_str());
+            const bool da = tx.kennt(s);
+            ImGui::TextColored(da ? ImVec4{0.6F, 0.9F, 0.6F, 1} : ImVec4{1, 0.5F, 0.4F, 1}, "%s", s.c_str());
+            ImGui::SameLine();
+            if (da) {
+                ImGui::TextDisabled("%s", anzeige(tx.aufloesen(s)).c_str());
+            } else {
+                ImGui::TextDisabled("%s", tr(Str::MeTextFehlt));
+                std::string g = s.substr(1);
+                for (char& c : g) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+                const std::string vor = d.textPaket + "_";
+                if (g.compare(0, vor.size(), vor) == 0) {
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton(tr(Str::MeTextNeu))) {
+                        TextZeile r;
+                        r.schluessel = g.substr(vor.size());
+                        d.eigeneTexte.push_back(r);
+                        geaendert = true;
+                    }
+                }
+            }
+            ImGui::PopID();
+        }
+        if (geaendert) { eigeneTexteSchreiben(d); }
+        int dateien = 0;
+        std::string liste;
+        for (const auto& [p, b] : d.bilder) {
+            const std::string k = kleinPfad(p);
+            if (k.compare(0, 8, "strings/") == 0 || k.compare(0, 6, "strip/") == 0) {
+                ++dateien;
+                liste += (liste.empty() ? "" : ", ") + p;
+            }
+        }
+        char buf[1024];
+        std::snprintf(buf, sizeof(buf), tr(Str::MeTexteImPaket), static_cast<int>(d.eigeneTexte.size()), liste.c_str());
+        ImGui::TextWrapped("%s", buf);
+        (void)dateien;
+    }
+    ImGui::End();
+    if (!offen) { z.texteFensterOffen = false; }
+}
+
+// --- M2 Punkt 7: fuer das Spiel prufen, nur Aenderungen exportieren ----------------------
+
+// Die Dateien fuer ein Paket: geaenderte bzw. alle offenen Menues und ihre eigenen Dateien
+std::vector<Pk3Datei> paketDateien(bool nurAenderungen) {
+    Zustand& z = Z();
+    std::vector<Pk3Datei> v;
+    std::set<std::string> drin;
+    for (const auto& od : z.docs) {
+        std::string original;
+        const bool ausSpiel = z.daten.lies(od->name, original);
+        const bool geaendert = !ausSpiel || original != od->puffer.text();
+        if ((!nurAenderungen || geaendert) && drin.insert(kleinPfad(od->name)).second) { v.push_back(Pk3Datei{od->name, od->puffer.text()}); }
+        for (const auto& [p, b] : od->bilder) {
+            if (drin.insert(kleinPfad(p)).second) { v.push_back(Pk3Datei{p, b}); }
+        }
+    }
+    return v;
+}
+
+// Pruefung aller offenen Menues fuer die gewaehlten Fassungen (synchron, auf Knopfdruck)
+int pruefeAlleMenues() {
+    Zustand& z = Z();
+    z.pruefErgebnis.clear();
+    std::shared_ptr<const DiagDaten> dd = diagDaten();
+    int fehler = 0;
+    for (std::size_t i = 0; i < z.docs.size(); ++i) {
+        Dokument& od = *z.docs[i];
+        neuParsen(od);
+        std::set<std::string> paket;
+        for (const auto& [p, b] : od.bilder) { paket.insert(normPfad(p)); }
+        PruefKontext k;
+        k.zielSpiele.clear();
+        const Spiel spiele[3] = {Spiel::JA, Spiel::JK2, Spiel::MD};
+        for (int s = 0; s < 3; ++s) {
+            if (z.pruefZiel[s]) { k.zielSpiele.push_back(spiele[s]); }
+        }
+        k.gibt = [&](const std::string& p0) {
+            const std::string p = normPfad(p0);
+            return paket.count(p) != 0 || dd->dateien.count(p) != 0;
+        };
+        k.gibtBild = [&](const std::string& n0) {
+            std::string n = normPfad(n0);
+            const std::size_t pt = n.rfind('.');
+            const std::string ohne = (pt != std::string::npos && n.find('/', pt) == std::string::npos) ? n.substr(0, pt) : n;
+            if (dd->shader.count(n) != 0 || dd->shader.count(ohne) != 0) { return true; }
+            for (const char* e : {".tga", ".jpg", ".png"}) {
+                if (k.gibt(ohne + e)) { return true; }
+            }
+            return k.gibt(n);
+        };
+        DiagKontext dk;
+        dk.pruefung = k;
+        for (const Diagnose& x : diagnose(od.datei, dk)) {
+            if (x.art != DiagArt::Pruefung) { continue; }
+            z.pruefErgebnis.push_back(PruefZeile{static_cast<int>(i), x});
+            fehler += x.befund.fehler ? 1 : 0;
+        }
+    }
+    z.pruefGelaufen = true;
+    return fehler;
+}
+
+void zeichnePruefFenster() {
+    Zustand& z = Z();
+    if (!z.pruefFenster) { return; }
+    ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 40, ImGui::GetFontSize() * 22}, ImGuiCond_Appearing);
+    bool offen = true;
+    if (ImGui::Begin(tr(Str::MePruefen), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+        ImGui::Checkbox("Jedi Academy", &z.pruefZiel[0]);
+        ImGui::SameLine();
+        ImGui::Checkbox("Jedi Outcast", &z.pruefZiel[1]);
+        ImGui::SameLine();
+        ImGui::Checkbox("Movie Duels", &z.pruefZiel[2]);
+        ImGui::SameLine();
+        if (ImGui::Button(tr(Str::MePruefen)) || !z.pruefGelaufen) { (void)pruefeAlleMenues(); }
+        char buf[128];
+        std::snprintf(buf, sizeof(buf), tr(Str::MePruefungAnzahl), static_cast<int>(z.pruefErgebnis.size()));
+        ImGui::TextUnformatted(z.pruefErgebnis.empty() ? tr(Str::MePruefungOk) : buf);
+        ImGui::BeginChild("##pruefliste");
+        for (std::size_t i = 0; i < z.pruefErgebnis.size(); ++i) {
+            const PruefZeile& r = z.pruefErgebnis[i];
+            if (r.dok < 0 || static_cast<std::size_t>(r.dok) >= z.docs.size()) { continue; }
+            ImGui::PushID(static_cast<int>(i));
+            const ImVec2 p = ImGui::GetCursorScreenPos();
+            const float fs = ImGui::GetFontSize();
+            schwereSymbol(ImGui::GetWindowDrawList(), ImVec2{p.x + fs * 0.4F, p.y + fs * 0.55F}, fs * 0.28F, r.x.schwere);
+            ImGui::Dummy(ImVec2{fs * 0.9F, fs});
+            ImGui::SameLine();
+            const std::string t = z.docs[static_cast<std::size_t>(r.dok)]->name + ":" + std::to_string(r.x.zeile) + "  " + diagMeldung(r.x);
+            if (ImGui::Selectable(t.c_str())) {
+                z.aktiv = r.dok;
+                Dokument& od = *z.docs[static_cast<std::size_t>(r.dok)];
+                if (r.x.ende > r.x.anfang) { springe(od, r.x.anfang); }
+            }
+            ImGui::PopID();
+        }
+        ImGui::EndChild();
+    }
+    ImGui::End();
+    if (!offen) { z.pruefFenster = false; }
+}
+
+// --- M2 Punkt 8: Im Spiel testen ---------------------------------------------------------
+
+std::string menueImSpielTesten(bool modErlaubt) {
+    Zustand& z = Z();
+    Dokument* d = doc();
+    if (d == nullptr || z.daten.ordner.empty()) {
+        z.meldung = tr(Str::MeTestKeinSpiel);
+        return {};
+    }
+    // Programm: neben dem ersten Spielordner, passend zu SP/MP und Spiel
+    const fs::path basis = utf8Pfad(z.daten.ordner.front().directory);
+    const fs::path engine = basis.parent_path();
+    const bool mp = d->datei.dialekt == Dialekt::MP;
+    std::string exe;
+    for (int runde = 0; runde < 2 && exe.empty(); ++runde) {
+        for (const ::bhed::karte::TestEngine& t : ::bhed::karte::testEngines()) {
+            if (t.mp != mp || t.jk2 != (z.spiel == Spiel::JK2)) { continue; }
+            const bool md = std::string(t.exe).find("MovieDuels") != std::string::npos;
+            if (runde == 0 && md != (z.spiel == Spiel::MD)) { continue; }
+            std::error_code ec;
+            if (fs::is_regular_file(engine / t.exe, ec)) {
+                exe = t.exe;
+                break;
+            }
+        }
+    }
+    MenueTestEingabe e;
+    e.enginePfad = u8(engine);
+    std::replace(e.enginePfad.begin(), e.enginePfad.end(), '\\', '/');
+    if (!e.enginePfad.empty() && e.enginePfad.back() != '/') { e.enginePfad += '/'; }
+    e.exe = exe;
+    e.basisSpiel = u8(basis.filename());
+    if (z.daten.ordner.size() > 1) { e.fsGame = u8(utf8Pfad(z.daten.ordner.back().directory).filename()); }
+    e.testOrdner = platform::settingsDirectory() + "\\menuetest";
+    e.modOrdnerErlaubt = modErlaubt;
+    if (!exe.empty()) {
+        std::ifstream f(engine / exe, std::ios::binary);
+        std::ostringstream o;
+        o << f.rdbuf();
+        e.faehigkeit = ::bhed::karte::engineFaehigkeit(o.str());
+    }
+    const MenueTestPlan plan = menueTestPlanen(e);
+    if (plan.weg == ::bhed::karte::SpielTestWeg::Keiner) {
+        z.meldung = tr(Str::MeTestKeinSpiel);
+        return {};
+    }
+    if (plan.bestaetigungNoetig) {
+        z.testFrage = true;
+        return {};
+    }
+    if (plan.weg != ::bhed::karte::SpielTestWeg::ModOrdner && imSpielordner(plan.pk3)) {
+        z.meldung = tr(Str::MeNieSpielordner);
+        return {};
+    }
+    std::error_code ec;
+    fs::create_directories(utf8Pfad(plan.pk3).parent_path(), ec);
+    std::string fehler;
+    if (!writePk3(plan.pk3, paketDateien(true), &fehler)) {
+        z.meldung = fehler;
+        return {};
+    }
+    z.testBefehl = plan.befehl;
+    char buf[2048];
+    std::snprintf(buf, sizeof(buf), tr(Str::MeTestBereit), plan.pk3.c_str(), plan.befehl.c_str());
+    z.meldung = buf;
+    addStatus(buf);
+    // Im Selbsttest (BHED_EDITORTEST) nur die Befehlszeile: nie ein Spiel starten
+    if (std::getenv("BHED_EDITORTEST") == nullptr) { (void)bauplattform::losgeloestStarten(plan.befehl, u8(engine)); }
+    return plan.befehl;
+}
+
+void zeichneTestFrage() {
+    Zustand& z = Z();
+    if (z.testFrage) {
+        ImGui::OpenPopup("##testfrage");
+        z.testFrage = false;
+    }
+    if (ImGui::BeginPopupModal("##testfrage", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28);
+        ImGui::TextUnformatted(tr(Str::MeTestModFrage));
+        ImGui::PopTextWrapPos();
+        if (ImGui::Button(tr(Str::MeJa))) {
+            ImGui::CloseCurrentPopup();
+            (void)menueImSpielTesten(true);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(tr(Str::MeNein))) { ImGui::CloseCurrentPopup(); }
+        ImGui::EndPopup();
+    }
+}
+
+// --- M2 Punkt 9: Schrift aus TTF -----------------------------------------------------------
+
+bool schriftBauen(const std::string& ttfPfad, const std::string& name0, int groesse) {
+    Zustand& z = Z();
+    Dokument* d = doc();
+    if (d == nullptr) { return false; }
+    std::string ttf;
+    {
+        std::ifstream f(utf8Pfad(ttfPfad), std::ios::binary);
+        std::ostringstream o;
+        o << f.rdbuf();
+        ttf = o.str();
+    }
+    std::vector<GlyphBild> zeichen;
+    SchriftMasse m;
+    if (!rastereTtf(ttf, groesse, zeichen, m)) {
+        z.meldung = tr(Str::MeSchriftFehler);
+        return false;
+    }
+    std::string name;
+    for (const char c : name0) {
+        if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') { name += static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    }
+    if (name.empty()) { name = "eigene"; }
+    const SchriftDateien f = baueSchrift(zeichen, m);
+    d->bilder["fonts/" + name + ".fontdat"] = f.fontdat;
+    d->bilder["fonts/" + name + ".tga"] = f.tga;
+    z.schriften.erase(name);
+    z.texturen.erase("fonts/" + name);
+    char buf[512];
+    std::snprintf(buf, sizeof(buf), tr(Str::MeSchriftFertig), name.c_str());
+    z.meldung = buf;
+    return true;
+}
+
+void zeichneSchriftFenster() {
+    Zustand& z = Z();
+    if (!z.schriftFenster) { return; }
+    ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 24, 0}, ImGuiCond_Appearing);
+    bool offen = true;
+    if (ImGui::Begin(tr(Str::MeSchriftBauen), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+        ImGui::TextWrapped("%s", anzeige(z.schriftTtf).c_str());
+        eingabe(tr(Str::MeSchriftName), &z.schriftName);
+        ImGui::SliderInt(tr(Str::MeSchriftGroesse), &z.schriftGroesse, 8, 64);
+        if (ImGui::Button(tr(Str::MeSchriftBauen))) {
+            if (schriftBauen(z.schriftTtf, z.schriftName, z.schriftGroesse)) { offen = false; }
+        }
+    }
+    ImGui::End();
+    if (!offen) { z.schriftFenster = false; }
 }
 
 // Breite je Zeichen (Latin-1 wie anzeige()), einmal je Schriftgroesse - die Spalten der
@@ -2767,6 +3342,79 @@ void zeichneVideoFenster() {
 // --- Seitenleisten ----------------------------------------------------------------
 
 
+// M2 modernes Aussehen: ein Bauteil als Kachel mit kleinem Bild der Art und Namen
+bool bauteilKachel(const char* name, int typ, ImVec2 groesse) {
+    const bool geklickt = ImGui::InvisibleButton(name, groesse);
+    const bool ueber = ImGui::IsItemHovered();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
+    const ImGuiStyle& st = ImGui::GetStyle();
+    dl->AddRectFilled(a, b, ImGui::GetColorU32(ueber ? (ImGui::IsItemActive() ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered) : ImGuiCol_FrameBg),
+                      st.FrameRounding + 2.0F);
+    const float fs = ImGui::GetFontSize();
+    const ImU32 c = ImGui::GetColorU32(ImGuiCol_Text);
+    const ImU32 akzent = ImGui::GetColorU32(ImGuiCol_CheckMark);
+    // das Bild der Art im oberen Teil
+    const ImVec2 m{(a.x + b.x) * 0.5F, a.y + (b.y - a.y) * 0.38F};
+    const float r = std::min(groesse.x, groesse.y) * 0.22F;
+    switch (typ) {
+        case ITEM_TYPE_TEXT: dl->AddText(nullptr, fs * 1.3F, ImVec2{m.x - fs * 0.75F, m.y - fs * 0.65F}, c, "Aa"); break;
+        case ITEM_TYPE_BUTTON:
+            dl->AddRectFilled(ImVec2{m.x - r * 1.6F, m.y - r * 0.6F}, ImVec2{m.x + r * 1.6F, m.y + r * 0.6F}, akzent, r * 0.3F);
+            break;
+        case -1:   // Bild
+        case -2:   // Bild hinzufuegen
+            dl->AddRect(ImVec2{m.x - r * 1.4F, m.y - r}, ImVec2{m.x + r * 1.4F, m.y + r}, c, 2.0F);
+            dl->AddTriangleFilled(ImVec2{m.x - r * 1.2F, m.y + r * 0.8F}, ImVec2{m.x - r * 0.3F, m.y - r * 0.3F}, ImVec2{m.x + r * 0.6F, m.y + r * 0.8F}, c);
+            dl->AddCircleFilled(ImVec2{m.x + r * 0.7F, m.y - r * 0.4F}, r * 0.25F, akzent);
+            if (typ == -2) { dl->AddText(ImVec2{m.x + r * 1.2F, m.y - r * 1.6F}, akzent, "+"); }
+            break;
+        case ITEM_TYPE_YESNO:
+            dl->AddRectFilled(ImVec2{m.x - r * 1.2F, m.y - r * 0.55F}, ImVec2{m.x + r * 1.2F, m.y + r * 0.55F}, akzent, r * 0.55F);
+            dl->AddCircleFilled(ImVec2{m.x + r * 0.65F, m.y}, r * 0.42F, c);
+            break;
+        case ITEM_TYPE_MULTI: dl->AddText(ImVec2{m.x - fs * 1.1F, m.y - fs * 0.5F}, c, "< A >"); break;
+        case ITEM_TYPE_SLIDER:
+            dl->AddLine(ImVec2{m.x - r * 1.6F, m.y}, ImVec2{m.x + r * 1.6F, m.y}, c, 2.0F);
+            dl->AddRectFilled(ImVec2{m.x - r * 0.2F, m.y - r * 0.6F}, ImVec2{m.x + r * 0.2F, m.y + r * 0.6F}, akzent, 2.0F);
+            break;
+        case ITEM_TYPE_EDITFIELD:
+            dl->AddRect(ImVec2{m.x - r * 1.6F, m.y - r * 0.55F}, ImVec2{m.x + r * 1.6F, m.y + r * 0.55F}, c, 2.0F);
+            dl->AddLine(ImVec2{m.x - r * 1.1F, m.y - r * 0.35F}, ImVec2{m.x - r * 1.1F, m.y + r * 0.35F}, akzent, 2.0F);
+            break;
+        case ITEM_TYPE_LISTBOX:
+            dl->AddRect(ImVec2{m.x - r * 1.4F, m.y - r}, ImVec2{m.x + r * 1.4F, m.y + r}, c, 2.0F);
+            for (int k = 0; k < 3; ++k) {
+                const float y = m.y - r * 0.5F + static_cast<float>(k) * r * 0.5F;
+                dl->AddLine(ImVec2{m.x - r * 1.1F, y}, ImVec2{m.x + r * 0.9F, y}, k == 1 ? akzent : c, 1.5F);
+            }
+            break;
+        case ITEM_TYPE_MODEL: {
+            const float s = r * 0.8F;
+            dl->AddRect(ImVec2{m.x - s, m.y - s * 0.6F}, ImVec2{m.x + s * 0.6F, m.y + s}, c, 0.0F, 0, 1.5F);
+            dl->AddLine(ImVec2{m.x - s, m.y - s * 0.6F}, ImVec2{m.x - s * 0.6F, m.y - s}, c, 1.5F);
+            dl->AddLine(ImVec2{m.x + s * 0.6F, m.y - s * 0.6F}, ImVec2{m.x + s, m.y - s}, c, 1.5F);
+            dl->AddLine(ImVec2{m.x + s * 0.6F, m.y + s}, ImVec2{m.x + s, m.y + s * 0.6F}, c, 1.5F);
+            dl->AddLine(ImVec2{m.x - s * 0.6F, m.y - s}, ImVec2{m.x + s, m.y - s}, c, 1.5F);
+            dl->AddLine(ImVec2{m.x + s, m.y - s}, ImVec2{m.x + s, m.y + s * 0.6F}, c, 1.5F);
+            break;
+        }
+        case ITEM_TYPE_BIND:
+            dl->AddRect(ImVec2{m.x - r * 0.8F, m.y - r * 0.8F}, ImVec2{m.x + r * 0.8F, m.y + r * 0.8F}, c, r * 0.3F, 0, 1.5F);
+            dl->AddText(ImVec2{m.x - fs * 0.3F, m.y - fs * 0.5F}, akzent, "K");
+            break;
+        default: break;
+    }
+    // der Name darunter, mittig, abgeschnitten
+    const char* ende = ImGui::FindRenderedTextEnd(name);
+    const float tw = ImGui::CalcTextSize(name, ende).x;
+    dl->PushClipRect(a, b, true);
+    dl->AddText(ImVec2{std::max(a.x + 3, (a.x + b.x - tw) * 0.5F), b.y - fs * 1.35F}, c, name, ende);
+    dl->PopClipRect();
+    if (ueber) { ImGui::SetTooltip("%s", name); }
+    return geklickt;
+}
+
 void zeichnePalette(Dokument& d) {
     struct W {
         int typ;
@@ -2777,10 +3425,20 @@ void zeichnePalette(Dokument& d) {
                           {ITEM_TYPE_EDITFIELD, Str::MeWEingabe}, {ITEM_TYPE_LISTBOX, Str::MeWListe}, {ITEM_TYPE_MODEL, Str::MeWModell},
                           {ITEM_TYPE_BIND, Str::MeWTaste}};
     ImGui::SeparatorText(tr(Str::MePalette));
+    const float fs = ImGui::GetFontSize();
+    const float abstand = ImGui::GetStyle().ItemSpacing.x;
+    const float breit = ImGui::GetContentRegionAvail().x;
+    const int spalten = std::max(1, static_cast<int>((breit + abstand) / (fs * 5.2F + abstand)));
+    const ImVec2 kachel{(breit - abstand * static_cast<float>(spalten - 1)) / static_cast<float>(spalten), fs * 3.6F};
+    int nr = 0;
+    auto weiter = [&]() {
+        if (++nr % spalten != 0) { ImGui::SameLine(); }
+    };
     for (const W& x : w) {
-        if (ImGui::Button(tr(x.name), ImVec2{-1, 0})) { fuegeEin(x.typ); }
+        if (bauteilKachel(tr(x.name), x.typ, kachel)) { fuegeEin(x.typ); }
+        weiter();
     }
-    if (ImGui::Button(tr(Str::MeBildDazu), ImVec2{-1, 0})) {
+    if (bauteilKachel(tr(Str::MeBildDazu), -2, kachel)) {
         const std::string pfad = platform::openFileDialog(tr(Str::MeBildDazu), "Images (*.png;*.jpg;*.tga)|*.png;*.jpg;*.jpeg;*.tga|", "");
         if (!pfad.empty()) {
             std::ifstream f(utf8Pfad(pfad), std::ios::binary);
@@ -2992,7 +3650,7 @@ void zeichneGliederung(Dokument& d) {
 
 void zeichneEigenschaften(Dokument& d) {
     Zustand& z = Z();
-    ImGui::SeparatorText(tr(Str::MeEigenschaften));
+    if (!ImGui::CollapsingHeader(tr(Str::MeEigenschaften), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
     const int mi = menuDerSeite(d);
     if (mi < 0 || d.auswahl.empty()) {
         ImGui::TextDisabled("%s", tr(Str::MeNichtsGewaehlt));
@@ -3137,7 +3795,7 @@ void zeichneEigenschaften(Dokument& d) {
 
 void zeichneCvars(Dokument& d) {
     Zustand& z = Z();
-    ImGui::SeparatorText(tr(Str::MeCvars));
+    if (!ImGui::CollapsingHeader(tr(Str::MeCvars), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
     ImGui::TextDisabled("%s", tr(Str::MeCvarsNurVorschau));
     if (ImGui::SmallButton(tr(Str::MeCvarsZuruecksetzen))) {
         z.vorschauCvars.clear();
@@ -3167,7 +3825,7 @@ void zeichneCvars(Dokument& d) {
 
 void zeichneMeldungen(Dokument& d) {
     Zustand& z = Z();
-    ImGui::SeparatorText(tr(Str::MeMeldungen));
+    if (!ImGui::CollapsingHeader(tr(Str::MeMeldungen), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
     for (std::size_t k = 0; k < d.datei.meldungen.size(); ++k) {
         const Meldung& m = d.datei.meldungen[k];
         ImGui::PushID(static_cast<int>(k));
@@ -3177,8 +3835,7 @@ void zeichneMeldungen(Dokument& d) {
         ImGui::PopStyleColor();
         ImGui::PopID();
     }
-    if (z.interaktion) {
-        ImGui::SeparatorText(tr(Str::MeProtokoll));
+    if (z.interaktion && ImGui::CollapsingHeader(tr(Str::MeProtokoll), ImGuiTreeNodeFlags_DefaultOpen)) {
         for (const std::string& s : z.lauf.protokoll) { ImGui::TextUnformatted(s.c_str()); }
     }
 }
@@ -3206,12 +3863,25 @@ void zeichneSpielListe() {
     }
 }
 
+// Trennstrich zwischen zwei Gruppen der Leiste
+void leistenTrenner() {
+    ImGui::SameLine();
+    const ImVec2 p = ImGui::GetCursorScreenPos();
+    const float h = ImGui::GetFrameHeight();
+    ImGui::GetWindowDrawList()->AddLine(ImVec2{p.x + 3, p.y + h * 0.15F}, ImVec2{p.x + 3, p.y + h * 0.85F}, ImGui::GetColorU32(ImGuiCol_Separator), 1.0F);
+    ImGui::Dummy(ImVec2{7, h});
+    ImGui::SameLine();
+}
+
+// M2 modernes Aussehen: die Leiste in Gruppen mit Symbolen und Hinweisen (vier Sprachen):
+// Datei | Rueckgaengig | Paket (Video, Schrift, Texte, Sprache) | Pruefen, Ausgeben, im Spiel
+// testen | Bearbeiten/Bedienen | Ansicht (Seitenverhaeltnis, Aufloesung, Schalter)
 void zeichneLeiste(Dokument* d) {
     Zustand& z = Z();
-    if (ImGui::Button(tr(Str::MeAusSpiel))) { z.spielListeOffen = true; }
+    if (iconKnopf(tr(Str::MeAusSpiel), UiIcon::Liste, tr(Str::MeTipAusSpiel))) { z.spielListeOffen = true; }
     zeichneSpielListe();
     ImGui::SameLine();
-    if (ImGui::Button(tr(Str::MeMenuesatzOeffnen))) {   // M2 Punkt 3: UI_LoadMenus
+    if (iconKnopf(tr(Str::MeMenuesatzOeffnen), UiIcon::Explorer, tr(Str::MeTipMenuesatz))) {   // M2 Punkt 3: UI_LoadMenus
         int n = 0;
         if (d != nullptr && kleinPfad(d->name).size() > 4 && kleinPfad(d->name).compare(kleinPfad(d->name).size() - 4, 4, ".txt") == 0) {
             n = oeffneMenuesatz(d->name);
@@ -3223,13 +3893,13 @@ void zeichneLeiste(Dokument* d) {
         }
     }
     ImGui::SameLine();
-    if (ImGui::Button(tr(Str::MeDateiOeffnen))) {
+    if (iconKnopf(tr(Str::MeDateiOeffnen), UiIcon::Oeffnen, tr(Str::MeTipDateiOeffnen))) {
         const std::string pfad = platform::openFileDialog(tr(Str::MeDateiOeffnen), "Menu (*.menu;*.txt)|*.menu;*.txt|", "");
         if (!pfad.empty()) { (void)oeffneDatei(pfad); }
     }
     if (d != nullptr) {
         ImGui::SameLine();
-        if (ImGui::Button(tr(Str::MeSpeichern))) {
+        if (iconKnopf(tr(Str::MeSpeichern), UiIcon::Speichern, tr(Str::MeTipSpeichern))) {
             if (d->platte.empty() || imSpielordner(d->platte)) {
                 const std::string ziel = platform::saveFileDialog(tr(Str::MeSpeichern), "Menu (*.menu)|*.menu|", z.ordnerAusgabe,
                                                                   fs::path(d->name).filename().string());
@@ -3238,8 +3908,13 @@ void zeichneLeiste(Dokument* d) {
                 speichern(*d, d->platte);
             }
         }
+        leistenTrenner();
+        if (iconKnopf(tr(Str::MeRueckgaengig), UiIcon::Rueckgaengig, nullptr, false, d->puffer.kannRueckgaengig())) { rueckgaengig(); }
         ImGui::SameLine();
-        if (ImGui::Button(tr(Str::MeVideoImport))) {   // M2 Punkt 2
+        if (iconKnopf(tr(Str::MeWiederholen), UiIcon::Wiederholen, nullptr, false, d->puffer.kannWiederholen())) { wiederholen(); }
+        leistenTrenner();
+        // Paket: Video, Schrift, Texte und Sprache der Vorschau
+        if (iconKnopf(tr(Str::MeVideoImport), UiIcon::Kamera, tr(Str::MeTipVideo))) {   // M2 Punkt 2
             const std::string pfad = platform::openFileDialog(tr(Str::MeVideoImport),
                                                               "Video (*.mp4;*.webm;*.avi;*.wmv;*.mov;*.mkv;*.gif)|*.mp4;*.webm;*.avi;*.wmv;*.mov;*.mkv;*.gif|", "");
             if (!pfad.empty()) {
@@ -3249,45 +3924,78 @@ void zeichneLeiste(Dokument* d) {
         }
         zeichneVideoFenster();
         ImGui::SameLine();
-        if (ImGui::Button(tr(Str::MeExportPk3))) {
-            const std::string ziel = platform::saveFileDialog(tr(Str::MeExportPk3), "pk3 (*.pk3)|*.pk3|", z.ordnerAusgabe, "zz_menu.pk3");
-            if (!ziel.empty()) { (void)exportierePk3(ziel); }
+        if (iconKnopf(tr(Str::MeSchriftBauen), UiIcon::Zeilen, tr(Str::MeTipSchrift))) {   // M2 Punkt 9
+            const std::string pfad = platform::openFileDialog(tr(Str::MeSchriftBauen), "TrueType (*.ttf;*.otf)|*.ttf;*.otf|", "");
+            if (!pfad.empty()) {
+                z.schriftTtf = pfad;
+                z.schriftFenster = true;
+            }
+        }
+        zeichneSchriftFenster();
+        ImGui::SameLine();
+        if (iconKnopf(tr(Str::MeTexte), UiIcon::Namen, tr(Str::MeTipTexte), z.texteFensterOffen)) { z.texteFensterOffen = !z.texteFensterOffen; }   // M2 Punkt 6
+        zeichneTexteFenster(*d);
+        ImGui::SameLine();
+        {
+            const std::vector<std::string> sp = sprachenListe();
+            ImGui::SetNextItemWidth(ImGui::GetFontSize() * 6.5F);
+            if (ImGui::BeginCombo("##sprache", z.sprache.c_str())) {
+                for (const std::string& s : sp) {
+                    if (ImGui::Selectable(s.c_str(), s == z.sprache)) { setzeSprache(s); }
+                }
+                ImGui::EndCombo();
+            }
+            if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s\n%s", tr(Str::MeSprache), tr(Str::MeTipSprache)); }
+        }
+        leistenTrenner();
+        // Pruefen, Ausgeben, im Spiel testen
+        if (iconKnopf(tr(Str::MePruefen), UiIcon::Haken, tr(Str::MeTipPruefen), z.pruefFenster)) {   // M2 Punkt 7
+            z.pruefFenster = true;
+            z.pruefGelaufen = false;
+        }
+        zeichnePruefFenster();
+        ImGui::SameLine();
+        if (iconKnopf(tr(Str::MeExportPk3), UiIcon::Paket, tr(Str::MeTipExport))) { ImGui::OpenPopup("##export"); }
+        if (ImGui::BeginPopup("##export")) {
+            if (ImGui::MenuItem(tr(Str::MeExportPk3))) {
+                const std::string ziel = platform::saveFileDialog(tr(Str::MeExportPk3), "pk3 (*.pk3)|*.pk3|", z.ordnerAusgabe, "zz_menu.pk3");
+                if (!ziel.empty()) { (void)exportierePk3(ziel); }
+            }
+            if (ImGui::MenuItem(tr(Str::MeExportAenderungen))) {
+                const std::string ziel = platform::saveFileDialog(tr(Str::MeExportAenderungen), "pk3 (*.pk3)|*.pk3|", z.ordnerAusgabe, "zz_menu.pk3");
+                if (!ziel.empty()) { (void)exportiereAenderungen(ziel); }
+            }
+            ImGui::EndPopup();
         }
         ImGui::SameLine();
-        ImGui::BeginDisabled(!d->puffer.kannRueckgaengig());
-        if (ImGui::ArrowButton("##undo", ImGuiDir_Left)) { rueckgaengig(); }
-        ImGui::EndDisabled();
-        ImGui::SameLine();
-        ImGui::BeginDisabled(!d->puffer.kannWiederholen());
-        if (ImGui::ArrowButton("##redo", ImGuiDir_Right)) { wiederholen(); }
-        ImGui::EndDisabled();
+        if (iconKnopf(tr(Str::MeImSpielTesten), UiIcon::Abspielen, tr(Str::MeTipImSpiel))) { (void)menueImSpielTesten(false); }   // M2 Punkt 8
+        zeichneTestFrage();
     }
+    leistenTrenner();
+    // Bearbeiten / Bedienen
+    if (iconKnopf(tr(Str::MeBearbeiten), UiIcon::Verschieben, tr(Str::MeTipBearbeiten), !z.interaktion)) { setzeInteraktion(false); }
     ImGui::SameLine();
-    ImGui::TextUnformatted("|");
-    ImGui::SameLine();
-    bool edit = !z.interaktion;
-    if (ImGui::RadioButton(tr(Str::MeBearbeiten), edit)) { setzeInteraktion(false); }
-    ImGui::SameLine();
-    if (ImGui::RadioButton(tr(Str::MeBedienen), !edit)) { setzeInteraktion(true); }
-    ImGui::SameLine();
+    if (iconKnopf(tr(Str::MeBedienen), UiIcon::Steuern, tr(Str::MeTipBedienen), z.interaktion)) { setzeInteraktion(true); }
+    leistenTrenner();
+    // Ansicht
     int sv = z.seitenv == Seitenverhaeltnis::Strecken ? 0 : 1;
     const char* svn[] = {tr(Str::MeStrecken), tr(Str::MeBalken)};
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 9);
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 8);
     if (ImGui::Combo("##sv", &sv, svn, 2)) { z.seitenv = sv == 0 ? Seitenverhaeltnis::Strecken : Seitenverhaeltnis::Balken; }
     ImGui::SameLine();
     static const char* const aufl[] = {"Window", "640x480", "800x600", "1024x768", "1280x720", "1366x768", "1600x900", "1920x1080", "2560x1440", "3440x1440"};
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 7);
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 6);
     ImGui::Combo("##aufl", &z.aufloesung, aufl, 10);
     ImGui::SameLine();
-    ImGui::Checkbox(tr(Str::MeKlaenge), &z.klaengeAn);
+    if (iconKnopf(tr(Str::MeKlaenge), UiIcon::Ton, tr(Str::MeTipKlaenge), z.klaengeAn, true, true)) { z.klaengeAn = !z.klaengeAn; }
     ImGui::SameLine();
-    ImGui::Checkbox(tr(Str::MeAlleItems), &z.alleItems);
+    if (iconKnopf(tr(Str::MeAlleItems), UiIcon::Sichtbar, tr(Str::MeTipAlleItems), z.alleItems, true, true)) { z.alleItems = !z.alleItems; }
     ImGui::SameLine();
-    ImGui::Checkbox(tr(Str::MeRaster), &z.raster);
+    if (iconKnopf(tr(Str::MeRaster), UiIcon::Raster, tr(Str::MeTipRaster), z.raster, true, true)) { z.raster = !z.raster; }
     ImGui::SameLine();
-    ImGui::Checkbox(tr(Str::MeAnRaster), &z.anRaster);
+    if (iconKnopf(tr(Str::MeAnRaster), UiIcon::Zielen, tr(Str::MeTipAnRaster), z.anRaster, true, true)) { z.anRaster = !z.anRaster; }
     ImGui::SameLine();
-    ImGui::Checkbox(tr(Str::MeAnKanten), &z.anKanten);
+    if (iconKnopf(tr(Str::MeAnKanten), UiIcon::Einpassen, tr(Str::MeTipAnKanten), z.anKanten, true, true)) { z.anKanten = !z.anKanten; }
     if (!z.meldung.empty()) {
         ImGui::SameLine();
         ImGui::TextDisabled("%s", z.meldung.c_str());
@@ -3885,7 +4593,8 @@ bool speichereUnter(const std::string& pfad) {
     return d->platte == pfad;
 }
 
-bool exportierePk3(const std::string& pfad) {
+namespace {
+bool exportiere(const std::string& pfad, bool nurAenderungen) {
     Zustand& z = Z();
     Dokument* d = doc();
     if (d == nullptr) { return false; }
@@ -3893,16 +4602,65 @@ bool exportierePk3(const std::string& pfad) {
         z.meldung = tr(Str::MeNieSpielordner);
         return false;
     }
-    std::vector<Pk3Datei> dateien;
-    dateien.push_back(Pk3Datei{d->name, d->puffer.text()});
-    for (const auto& [p, b] : d->bilder) { dateien.push_back(Pk3Datei{p, b}); }
+    const std::vector<Pk3Datei> dateien = paketDateien(nurAenderungen);
+    if (dateien.empty()) {
+        z.meldung = tr(Str::MeExportNichts);
+        addStatus(z.meldung);
+        return false;
+    }
     std::string fehler;
     const bool ok = writePk3(pfad, dateien, &fehler);
     char b[600];
     std::snprintf(b, sizeof(b), ok ? tr(Str::MeExportiert) : tr(Str::MeNichtGespeichert), pfad.c_str());
     z.meldung = b;
-    addStatus(b);
+    // M2 Punkt 7: Warnung beim Export, wenn die Engine etwas verliert (Grenzen)
+    const int verlust = pruefeAlleMenues();
+    if (ok && verlust > 0) {
+        char w[200];
+        std::snprintf(w, sizeof(w), tr(Str::MePruefungAnzahl), verlust);
+        z.meldung += "  " + std::string(w);
+        z.pruefFenster = true;
+    }
+    z.letzterExport = static_cast<int>(dateien.size());
+    addStatus(z.meldung);
     return ok;
+}
+}  // namespace
+
+bool exportierePk3(const std::string& pfad) { return exportiere(pfad, false); }
+bool exportiereAenderungen(const std::string& pfad) { return exportiere(pfad, true); }
+int letzterExport() { return Z().letzterExport; }
+int pruefeFuerSpiel(bool ja, bool jk2, bool md) {
+    Zustand& z = Z();
+    z.pruefZiel[0] = ja;
+    z.pruefZiel[1] = jk2;
+    z.pruefZiel[2] = md;
+    (void)pruefeAlleMenues();
+    return static_cast<int>(z.pruefErgebnis.size());
+}
+std::string imSpielTesten() { return menueImSpielTesten(false); }
+bool baueSchriftAusTtf(const std::string& ttf, const std::string& name, int groesse) { return schriftBauen(ttf, name, groesse); }
+void setzeVorschauSprache(const std::string& sprache) { setzeSprache(sprache); }
+bool legeTextAn(const std::string& schluessel, const std::map<std::string, std::string>& texte) {
+    Dokument* d = doc();
+    if (d == nullptr) { return false; }
+    eigeneTexteLesen(*d);
+    TextZeile r;
+    r.schluessel = schluessel;
+    r.text = texte;
+    d->eigeneTexte.push_back(r);
+    eigeneTexteSchreiben(*d);
+    return true;
+}
+std::string loeseText(const std::string& at) {
+    Dokument* d = doc();
+    return d == nullptr ? std::string() : vorschauTexte(*d).aufloesen(at);
+}
+std::string textPaket() {
+    Dokument* d = doc();
+    if (d == nullptr) { return {}; }
+    eigeneTexteLesen(*d);
+    return d->textPaket;
 }
 
 void setzeCodeSchrift(ImFont* f) { g_codeSchrift = f; }

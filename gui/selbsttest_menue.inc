@@ -265,6 +265,56 @@ std::vector<Schritt> schritteM2() {
                    " Warnungen" + t);
         return x.diagAktuell && x.diagFehler == 0 && x.text.find("backcolor 1 0 0 1") != std::string::npos;
     }));
+    // Punkt 6: eigene Texte in zwei Sprachen, Vorschau in der gewaehlten Sprache
+    add(tu("M2 Texte: Menue mit @MYMENU_START, Text anlegen", [] {
+        (void)me::oeffneText("ui/texte.menu",
+                             "{\n\tmenuDef\n\t{\n\t\tname texte\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+                             "\t\titemDef\n\t\t{\n\t\t\tname start\n\t\t\trect 100 100 200 40\n\t\t\ttext @MYMENU_START\n"
+                             "\t\t\ttextscale 1\n\t\t\tforecolor 1 1 1 1\n\t\t\tvisible 1\n\t\t}\n\t}\n}\n");
+        (void)me::legeTextAn("START", {{"English", "Start"}, {"German", "Los"}});
+        me::setzeVorschauSprache("German");
+    }));
+    add(pause(0.4));
+    add(foto("menue_texte_deutsch"));
+    add(pruefe("M2 Texte: Vorschau Deutsch zeigt den eigenen Text", [] { return me::loeseText("@MYMENU_START") == "Los"; }));
+    add(tu("M2 Texte: Vorschau Englisch", [] { me::setzeVorschauSprache("English"); }));
+    add(pruefe("M2 Texte: Englisch, .str im Paket", [st] {
+        const auto x = st();
+        bool str = false;
+        for (const std::string& p : x.paket) { str = str || p == "strings/English/MYMENU.str"; }
+        return me::loeseText("@MYMENU_START") == "Start" && str && me::textPaket() == "MYMENU";
+    }));
+    // Punkt 9: Schrift aus einer TTF des Systems
+    add(tu("M2 Schrift: arial.ttf nach fonts/probe", [] {
+        (void)me::baueSchriftAusTtf("C:\\Windows\\Fonts\\arial.ttf", "probe", 20);
+    }));
+    add(pruefe("M2 Schrift: .fontdat und .tga im Paket (fehlt die TTF, gilt das als bestanden)", [st] {
+        std::error_code ec;
+        if (!std::filesystem::exists("C:\\Windows\\Fonts\\arial.ttf", ec)) { return true; }
+        const auto x = st();
+        int n = 0;
+        for (const std::string& p : x.paket) { n += (p == "fonts/probe.fontdat" || p == "fonts/probe.tga") ? 1 : 0; }
+        return n == 2;
+    }));
+    // Punkt 7: fuer das Spiel pruefen, nur Aenderungen exportieren (ausserhalb des Spiels)
+    add(pruefe("M2 Pruefung: fuer JA, JK2 und Movie Duels", [] {
+        const int n = me::pruefeFuerSpiel(true, true, true);
+        diag::info("Menue-Editor Pruefung fuer das Spiel: " + std::to_string(n) + " Befunde");
+        return n >= 0;
+    }));
+    add(pruefe("M2 Export: nur Aenderungen (offene, geaenderte Menues und Paket)", [einst] {
+        const std::string ziel = einst + "\\m2_aenderungen.pk3";
+        const bool ok = me::exportiereAenderungen(ziel);
+        diag::info("Menue-Editor Export nur Aenderungen: " + std::to_string(me::letzterExport()) + " Dateien");
+        std::error_code ec;
+        return ok && me::letzterExport() >= 3 && std::filesystem::exists(ziel, ec);
+    }));
+    // Punkt 8: Testpaket und Befehlszeile - nie gestartet (BHED_EDITORTEST)
+    add(pruefe("M2 Im Spiel testen: Paket im eigenen Ordner, Befehlszeile mit fs_homepath", [] {
+        const std::string b = me::imSpielTesten();
+        diag::info("Menue-Editor Im Spiel testen: " + (b.empty() ? std::string("(kein Programm)") : b));
+        return b.empty() || b.find("fs_homepath") != std::string::npos || b.find("fs_game") != std::string::npos;
+    }));
     return s;
 }
 

@@ -220,6 +220,19 @@ std::string schreibeStr(const std::string& sprache, const std::vector<TextEintra
     return s + "ENDMARKER\r\n";
 }
 
+std::string schreibeSpSprachen(const std::string& paket, const std::vector<TextEintragSprachen>& e) {
+    std::string s = "VERSION 1\r\nCONFIG W:\\bin\\striped.cfg\r\nID 255\r\nREFERENCE " + gross(paket) + "\r\nDESCRIPTION \"\"\r\nCOUNT " +
+                    std::to_string(e.size()) + "\r\n";
+    for (std::size_t i = 0; i < e.size(); ++i) {
+        s += "INDEX " + std::to_string(i) + "\r\n{\r\n   REFERENCE " + gross(e[i].schluessel) + "\r\n";
+        for (const auto& [nr, t] : e[i].texte) {
+            if (nr == 1 || !t.empty()) { s += "   TEXT_LANGUAGE" + std::to_string(nr) + " \"" + fuerDatei(t) + "\"\r\n"; }
+        }
+        s += "}\r\n";
+    }
+    return s;
+}
+
 std::string schreibeSp(const std::string& paket, int sprache, const std::vector<TextEintrag>& e) {
     std::string s = "VERSION 1\r\nCONFIG W:\\bin\\striped.cfg\r\nID 255\r\nREFERENCE " + gross(paket) + "\r\nDESCRIPTION \"\"\r\nCOUNT " +
                     std::to_string(e.size()) + "\r\n";

@@ -389,6 +389,12 @@ struct TextEintrag {
 // StripEd (.sp, Jedi Outcast): strip/<paket>.sp mit TEXT_LANGUAGE1 (Englisch) und
 // TEXT_LANGUAGE<n> der Sprache (2 Franzoesisch, 3 Deutsch).
 [[nodiscard]] std::string schreibeSp(const std::string& paket, int sprache, const std::vector<TextEintrag>& e);
+// StripEd mit allen Sprachen in einer Datei (TEXT_LANGUAGE1 Englisch, 2 Franzoesisch, 3 Deutsch)
+struct TextEintragSprachen {
+    std::string schluessel;
+    std::map<int, std::string> texte;
+};
+[[nodiscard]] std::string schreibeSpSprachen(const std::string& paket, const std::vector<TextEintragSprachen>& e);
 
 // Zahl so schreiben, wie ein Mensch sie in eine .menu schreibt (12, 0.5, .25 bleibt nicht).
 [[nodiscard]] std::string zahlText(float v);

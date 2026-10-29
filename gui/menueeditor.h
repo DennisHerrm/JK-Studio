@@ -6,6 +6,7 @@
 #ifndef BHED_GUI_MENUEEDITOR_H
 #define BHED_GUI_MENUEEDITOR_H
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -83,6 +84,19 @@ std::string kopiereAuswahl();
 void fuegeItemsEin(const std::string& text);
 bool speichereUnter(const std::string& pfad);
 bool exportierePk3(const std::string& pfad);
+// M2 Punkt 7: nur geaenderte Menues (und das Paket); Pruefung fuer die Fassungen
+bool exportiereAenderungen(const std::string& pfad);
+[[nodiscard]] int letzterExport();   // Dateien im zuletzt geschriebenen Paket
+int pruefeFuerSpiel(bool ja, bool jk2, bool md);   // Befunde aller offenen Menues
+// M2 Punkt 8: Testpaket und Befehlszeile (im Selbsttest nie gestartet); "" = nicht moeglich
+std::string imSpielTesten();
+// M2 Punkt 9: Schrift aus einer TTF ins Paket (fonts/<name>.fontdat + .tga)
+bool baueSchriftAusTtf(const std::string& ttf, const std::string& name, int groesse);
+// M2 Punkt 6: Sprache der Vorschau, eigene Texte
+void setzeVorschauSprache(const std::string& sprache);
+bool legeTextAn(const std::string& schluessel, const std::map<std::string, std::string>& texte);
+[[nodiscard]] std::string loeseText(const std::string& at);
+[[nodiscard]] std::string textPaket();
 // M2: Festbreitenschrift des Code-Editors (main_win32.cpp buildFonts)
 void setzeCodeSchrift(ImFont* f);
 void setzeBalken(bool balken);   // 4:3 mit Balken (true) oder gestreckt
