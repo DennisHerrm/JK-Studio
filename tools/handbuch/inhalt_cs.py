@@ -3473,7 +3473,7 @@ TEXTE = {
     "Restore after a crash":
         "Obnovení po pádu",
     "The map editor saves automatically like NetRadiant-Custom (preferences, page Autosave: `<map>.autosave.map` next to the map). If the program did not close properly - a crash, a power cut - the editor notices it at the next start and asks whether to load the autosave, when it is newer than the map. The restored map keeps its name and counts as changed: save it to keep it. Answer no, and the last map opens as usual.":
-        "Editor map ukládá automaticky jako NetRadiant-Custom (předvolby, stránka Automatické ukládání: `<map>.autosave.map` vedle mapy). Pokud se program neukončil správně - pád, výpadek proudu - editor si toho při dalším spuštění všimne a zeptá se, zda načíst automatické uložení, je-li novější než mapa. Obnovená mapa si ponechá svůj název a počítá se jako změněná: pro zachování ji uložte. Odpovíte-li ne, otevře se poslední mapa jako obvykle.",
+        "Editor map ukládá automaticky jako NetRadiant-Custom (předvolby, stránka Autoukládání: `<map>.autosave.map` vedle mapy). Pokud se program neukončil správně - pád, výpadek proudu - editor si toho při dalším spuštění všimne a zeptá se, zda načíst automatické uložení, je-li novější než mapa. Obnovená mapa si ponechá svůj název a počítá se jako změněná: pro zachování ji uložte. Odpovíte-li ne, otevře se poslední mapa jako obvykle.",
     "Menu editor":
         "Editor menu",
     "Edit the game's menus (.menu) as text and on a 640x480 canvas at the same time - read, drawn and operated like in the game.":
