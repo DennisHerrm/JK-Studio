@@ -170,3 +170,69 @@ und den Selbsttest, der danach 0 Fehler zeigt.
 - マップエディター:**File → ジオメトリをブラシとして読み込む...** で .obj・.fbx・.glb/.gltf のモデルをブラシにします。平面をまとめ、凸分解し、UV をテクスチャの向きにし、隠れた面は caulk、装飾は detail。部品ごとにブラシ・モデル + クリップ・自動を選べ、プレビュー付きで、元に戻すは 1 回、その後で最適化が開きます。ほかの id Tech 3 ゲーム(Quake III、RTCW、Enemy Territory、Warsow)の .bsp はそのゲームの読み込みで開きます。
 - マップエディター:.obj・.fbx・.glb ファイルをエディターにドラッグすると、独自のシェーダーとテクスチャ付きの MD3 になり、マウスポインターの下に misc_model として挿入されます。
 - 修正:モデルブラウザーで空のフォルダーをクリックすると落ちる問題。
+
+## Integration rc606
+
+Zweig `karte1` (Worktree `Y:\karte`), Ausgang cf77740f. Skript der Schlussrunde `SP/rc606/ende.sh`
+(aus `SP/s9/ende_s9.sh`; Selbsttests über `SP/s8d/idle_jk.sh`: ein Prozess zur Zeit, Idle,
+8-GB-Wächter), Summe `SP/rc606/ende_summe.txt`.
+
+| Commit | Inhalt |
+|---|---|
+| c11a589d | Merge `hilfe1` (072c2907) – **keine Konflikte** (karte1 hatte seit 6fe2c104 nur Notizen und Selbsttest). Bau 0 Warnungen, ctest 152/152 |
+| 372319e8 | Merge `menue1` (7fd2a4a5) – Konflikte in `tools/gen_i18n.py` und `tools/handbuch/gen_handbuch.py` (beide Seiten hängen ein Textmodul an: HILFE1 und MENUE1 behalten), `tools/handbuch/inhalt.py` (Seitenliste mit den Helfer-Seiten und `inhalt_menue`); erzeugte Dateien nicht gemischt: `i18n.h`/`i18n.cpp` (gen_i18n.py) und das ganze Handbuch samt `suche.js` (588 Dateien in Konflikt, gen_handbuch.py) neu erzeugt; `src/hilfe_orte.inc` war veraltet (`gen_hilfe_orte.py --check`) → neu, ein Ort mehr (Modusknopf „Menu Editor“). Bau 0 Warnungen, ctest 158/158 |
+| e57f1c3b | Undo-Fund aus 9c (unten) |
+| 60abb763 | Merge `licht9c` (d8bb392c) – Konflikte in `gen_i18n.py`/`gen_handbuch.py` (dazu KARTE9C), `i18n.*`, `handbuch/*/suche.js` neu erzeugt, Ortskatalog aktuell. Bau 0 Warnungen, ctest 158/158. Notizen der Lichtstufe: `NOTIZEN_karte9c_licht.md` |
+| 3acebea0 | Schlussrunde: Menügröße Help (Test) |
+
+### Undo nach „Fix all safe“ (offener Punkt aus 9c)
+
+Gemeldet: auf md_rev_TarisUpper2 fehlten nach „Fix all safe“ und Undo in der Editor-Kamera Modelle
+(Bäume, Felsen), bis Redo sie zurückbrachte; der Kartentext war richtig. Vermutet war ein nicht neu
+aufgebauter Modell-Cache – **das ist es nicht**.
+
+Selbsttest `karteneditor` mit `BHED_KARTE_NUR=optsicher` erweitert: nach „Fix all safe“ Undo und Redo
+im Editor; geprüft werden die Dreiecke des Kamera-Teils „Rest“ (Punkt-Entities und Modelle), die
+sichtbaren misc_model mit geladenem Modell, Stichproben (48 × 36) aus 32 Blicken je auf ein
+misc_model (vor dem Fix zweimal für unruhige Stichproben, nach dem Fix, nach Undo, nach Redo;
+2 × 2-Blöcke wie im übrigen Test) und der Kartentext nach dem Undo.
+
+- **Rot** im alten Ablauf (`BHED_OPTSICHER_ALT=1`: wie 9c 1 s nach dem Öffnen weiter): Modelle
+  vor/Fix/Undo/Redo **0/0/0/212**, Rest-Dreiecke 12/12/12/48814, Text nach Undo gleich – genau der
+  Fund. Das Protokoll zeigt die Ursache: File > Open .bsp gewinnt die misc_model im Hintergrund
+  zurück (hier 22–23 s); Fix und Undo kamen davor. Weil Undo die Geometrie wieder wie in der .bsp
+  machte (gleicher Fingerabdruck), wurde das Ergebnis danach als neuer Schritt „Recover misc_model
+  (212)“ übernommen – dabei leerte sich der Redo-Stapel („Redo: no redo available“). Die Modelle
+  kamen also nicht vom Redo, sondern von der Rückgewinnung, die während der langen Blick-Durchgänge
+  fertig wurde.
+- **Behoben (Test):** der Test wartet vor „Karte merken“ auf das Ende der Rückgewinnung (so drückt
+  der Anwender „Fix all safe“ auf der fertigen Karte); vorher waren auch die Blicke „vorher“ ohne
+  die misc_model.
+- **Grün** im selben Test (alle Blicke): Rest-Dreiecke 48814/48814/48814/48814, Modelle
+  212/212/212/212, Text nach Undo gleich, 32 Modell-Blicke (31 verschieden), nach Undo 0 und nach
+  Redo 0 Stichproben anders; dazu wie bisher 50 Blicke auf neu gecaulkte Flächen, 0 Stichproben wie
+  im Spiel anders, Eckpunkte 0,000 gewandert – 14 OK, 0 FEHLER.
+
+### Schlussrunde (Endstand 60abb763, Test-Tabelle dann 3acebea0)
+
+| Schritt | Ergebnis |
+|---|---|
+| sauberer Neubau (`--clean-first`, /W4 /WX) | **0 Fehler, 0 Warnungen** (437 s) |
+| ctest gesamt | **158/158** (208 s) |
+| karteneditor voll (mit großer Karte) | 3192 OK, **1 FEHLER** (996 s, Spitze 1029 MB): „Menue Help: 227 x 178 wie NRC“, hier 247 × 202 – der Eintrag „Helper: what do you want to do?“ aus hilfe1 (eine Zeile mehr, längster Eintrag); nur die Maßtabelle des Tests (3acebea0), Fotolauf `BHED_KARTE_NUR=fotos` danach **78 OK, 0 FEHLER** |
+| menueeditor | **25 OK, 0 FEHLER** |
+| karteneditor + `BHED_KARTE_NUR=hilfe1` | **59 OK, 0 FEHLER** |
+| Modus 1 | **2645 OK, 0 FEHLER** (433 s) |
+| kuerzel | **199 OK, 0 FEHLER** |
+| übrige 22 Modi | alle **0 FEHLER**, dieselben Zahlen wie Stufe 9 (karte 227, kartenfunde 53, fix604b 32, laserfalle 8, geschuetzanim 3, zielstrahl 2, effektgrund 1, figurdeform 1, jk2 15, tuerlauf 13, kamera 95, missionsbau 95, szenen 26, ton 34, npcklasse 12, gluehen 8, gras 13, spulen 13, figurstufen 8, missionsliste 11, rest605 6, modellimfesten 1) |
+| optsicher (md_rev_TarisUpper2, alle Blicke; auf e57f1c3b vor dem licht9c-Merge) | **14 OK, 0 FEHLER** |
+| Kartenprüfung (278 MD-Karten, gegen 8d) | alle Summen gleich (0 Abstürze, 0 nicht geladen, 0 D3D-Meldungen, 1 → 1 nicht gezeichnete Entity) |
+
+### Offen
+
+- Programmseitig unverändert (bewusstes Verhalten, Meldung KeRkGeaendert): wer während der
+  Rückgewinnung die Geometrie ändert (auch „Fix all safe“), verliert deren Ergebnis; macht er es vor
+  ihrem Ende rückgängig, kommt das Ergebnis als neuer Schritt und Redo ist weg. Vorschlag: die
+  Behebungen des Optimierers sperren (mit Hinweis), solange die Rückgewinnung läuft – braucht einen
+  neuen Text in vier Sprachen und einen Satz im Handbuch.
+- Kein Handbuchbild zeigt das Help-Menü des Karten-Editors; nichts neu aufzunehmen.
