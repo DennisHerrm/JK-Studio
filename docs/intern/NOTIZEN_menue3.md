@@ -102,6 +102,16 @@ Dazu gefunden und behoben (rot -> grün):
   die Wörter des Skripts (Tabelle aus OpenJK SP/MP und MD erzeugt), `exec` & Co. mit den Wörtern
   ihres Handlers, unbekannte Befehle wie DC->runScript. ctest menue_skript.
 - **„Im Spiel testen“ mit Movie-Duels-Programm und base-Daten** (Punkt 4).
+- **Start-Cvars**: die Vorschau kannte nur einzelne Vorgaben; jetzt alle aus UI_Init
+  (ui_atoms.cpp Cvar_Create) und der cvarTable (ui_main.cpp) je Spiel, erzeugt mit
+  tools/gen_menue_cvarvorgaben.py (src/menue/cvarvorgaben.inc). Rot: MD-Säbelmenü mit zweitem
+  Griff (g_saber_type leer -> ui_saber_type leer -> saber2 nicht versteckt). ctest menue_vorschau.
+- **setfocus**: spielt wie Script_SetFocus (OpenJK SP/MP, MD) den itemFocusSound; rot im
+  Selbsttest „M3 Klänge“ mit JKA-Daten (leere Liste statt menuroam), ctest menue_skript.
+- MD-Säbelmenü nach den Skript- und Cvar-Korrekturen: mittlere Abweichung je Klingenart von
+  6.1-11.7 auf 3.5-4.8 (Grauwerte 0-255, 8x6-Raster; 9/10 höher, weil im Spielbild durch den
+  Spielzeiger Felder aufgeklappt waren), Bildpaare SP\m3ergleich
+eben_saebel_*.png.
 - **Spielordner**: `Weitere Grenzen` oben; die Steam-Kette (Vorfall) bleibt beim Hauptstrang.
 
 ## Offen

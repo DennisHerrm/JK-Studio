@@ -979,8 +979,19 @@ std::string multiText(const Item& it, const Umgebung& u) {   // Item_Multi_Setti
 }
 
 
+namespace {
+#include "cvarvorgaben.inc"
+}  // namespace
+
 std::string spielCvarVorgabe(Dialekt d, Spiel s, const std::string& name) {
     if (d != Dialekt::SP) { return {}; }
+    // M3: die Start-Cvars der Oberflaeche (UI_Init, cvarTable) je Spiel - z. B. g_saber_type
+    // "single" (das zweite Saebelmodell bleibt versteckt), ui_char_anim, g_char_model
+    const CvarVorgabe* const anfang = s == Spiel::MD ? std::begin(kVorgabenMd) : std::begin(kVorgabenJa);
+    const CvarVorgabe* const ende = s == Spiel::MD ? std::end(kVorgabenMd) : std::end(kVorgabenJa);
+    for (const CvarVorgabe* v = anfang; v != ende; ++v) {
+        if (gleichOhneFall(name, v->name)) { return v->wert; }
+    }
     // UI_Init (code/ui/ui_atoms.cpp) legt g_char_* an, UI_GetCharacterCvars kopiert sie
     // beim Oeffnen der Figurenmenues nach ui_char_*.
     static const char* const vorgaben[][2] = {

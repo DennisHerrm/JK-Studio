@@ -341,6 +341,11 @@ int main() {
         v.clear();
         uiSaberVierecke(org, dir, 40, m4, auge, links, oben, v);
         pruefe(v.size() >= 4 && v.back().kern && v[v.size() - 2].kern && nah(v[0].ecke[0][1], -38.2F + 3.6F), "Klinge MD 4: Glanz ab laenge - Glanz / 2, Kern doppelt");
+        // M3: Start-Cvars wie UI_Init/cvarTable (saber2 mit hideCvar { single staff } bleibt versteckt)
+        pruefe(spielCvarVorgabe(Dialekt::SP, Spiel::MD, "g_saber_type") == "single" && spielCvarVorgabe(Dialekt::SP, Spiel::JA, "G_SABER_TYPE") == "single" &&
+                   spielCvarVorgabe(Dialekt::SP, Spiel::MD, "ui_char_anim") == "BOTH_MENUIDLE1" && spielCvarVorgabe(Dialekt::SP, Spiel::JA, "g_char_model") == "jedi_tf" &&
+                   spielCvarVorgabe(Dialekt::SP, Spiel::MD, "g_char_model") == "jedi_hm",
+               "Start-Cvars: UI_Init und cvarTable je Spiel (OpenJK, Movie Duels)");
         // M3 Punkt 5: HUD wie CG_DrawHUD (Striche, Zahlenfelder, Saebelstil, Fadenkreuz)
         {
             LeseOptionen ho;
