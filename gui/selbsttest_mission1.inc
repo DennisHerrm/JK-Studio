@@ -220,6 +220,14 @@ int hilfsPunkte(const FotoBild& b, const ImRect& r) {
     return n;
 }
 
+// Vor dem Laden einer anderen Mission: geaenderte Entities aus den Teilen
+// davor vergessen - sonst fragt das Laden ("The entities of ... have unsaved
+// changes") und haelt an. Die Skripte bleiben geaendert (die Frage beim Beenden).
+void ungespeicherteEntitiesVergessen() {
+    g_app->entitiesUngespeichert.clear();
+    g_app->frageOffen = false;
+}
+
 int reiterMit(const std::string& teil) {
     for (std::size_t i = 0; i < g_app->tabs.size(); ++i) {
         const bool aktiv = static_cast<int>(i) == g_app->activeTab;
@@ -303,7 +311,9 @@ Schritt ziehenMitProbe(const std::string& was, std::function<ImVec2()> ort, floa
 }  // namespace mission1
 
 // --- 3. Mitten im Lauf verschoben: ein Zwischenpunkt (academy1/intro, Rosh) ---
-std::vector<Schritt> mission1ZwischenSchritte() {
+// teil: Teil des Figurennamens; inselProbe: den Hinweis "kein Weg" mit einem
+// unverbundenen Navgoal pruefen (braucht ein Wegnetz); k: Kennung der Fotos.
+std::vector<Schritt> mission1ZwischenSchritte(const std::string& teil, bool inselProbe, const std::string& k) {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     struct LaufProbe {
@@ -333,11 +343,11 @@ std::vector<Schritt> mission1ZwischenSchritte() {
         for (int i = 0; i < bahnGriffZahl(); ++i) { n += bahnGriffArt(i) == 1 ? 1 : 0; }
         return n;
     };
-    add(tu("Zwischenpunkt: Rosh mitten in seinem Lauf suchen", [=] {
+    add(tu("Zwischenpunkt: die Figur mitten in ihrem Lauf suchen", [=] {
         *lp = LaufProbe{};
         for (std::size_t ai = 0; ai < g_app->scene.actors.size() && lp->figur < 0; ++ai) {
             const Actor& a = g_app->scene.actors[ai];
-            if (mission1::klein(a.name).find("rosh") == std::string::npos) { continue; }
+            if (mission1::klein(a.name).find(teil) == std::string::npos) { continue; }
             for (const ActorStep& st : a.steps) {
                 if (st.kind != ActorStep::Kind::WalkTo || st.path.empty() || !st.fremd.empty()) { continue; }
                 double ab = st.startMs;
@@ -377,10 +387,10 @@ std::vector<Schritt> mission1ZwischenSchritte() {
                      mission1::v3(lp->endOrt) + "), angefasst bei " + std::to_string(lp->t) + " ms, Ende der Figur " +
                      mission1::v3(lp->endPos) + ", " + std::to_string(lp->navgoals) + " SET_NAVGOAL");
     }));
-    add(pruefe("Zwischenpunkt: eine laufende Rosh-Figur mit Laufziel gefunden", [=] {
+    add(pruefe("Zwischenpunkt: eine laufende Figur mit Laufziel gefunden", [=] {
         return lp->figur >= 0 && lp->entity >= 0 && !lp->endName.empty() && mission1::entityNamens(lp->endName) >= 0;
     }));
-    add(tu("Zwischenpunkt: Kamera vor Rosh, sein Spawner gewaehlt, Verschieben", [=] {
+    add(tu("Zwischenpunkt: Kamera vor die Figur, ihr Spawner gewaehlt, Verschieben", [=] {
         FolgeZiel f;
         f.actor = lp->figur;
         f.entity = lp->entity;
@@ -392,14 +402,14 @@ std::vector<Schritt> mission1ZwischenSchritte() {
     }));
     add(pause(0.5));
     add(tu("Zwischenpunkt: Laufziel-Griffe vorher zaehlen", [=] { lp->griffe = laufGriffe(); }));
-    add(foto("m1_zwischen_vorher"));
+    add(foto("m1_zwischen_vorher" + k));
     add(ziehenAn("Zwischenpunkt: an der X-Achse des Gizmos ziehen", [] {
         ImVec2 q{-1.0F, -1.0F};
         (void)entityGizmoPunkt(1, q);
         return q;
     }, 60.0F, 0.0F, 0));
     add(pause(0.6));
-    add(foto("m1_zwischen_nachher"));
+    add(foto("m1_zwischen_nachher" + k));
     add(pruefe("Zwischenpunkt: ein neues Laufziel dazwischen, Anfang (Spawner) und Ende (altes Laufziel) bleiben", [=] {
         prepareScene();
         const std::vector<const Node*> ng = mission1::befehle("set", "SET_NAVGOAL");
@@ -448,9 +458,8 @@ std::vector<Schritt> mission1ZwischenSchritte() {
         }
         diag::detail("Knopftest: Zwischenpunkt - Laeufe danach:" + laeufe);
         // Das Ende bleibt: im Block der Figur folgt auf das neue Laufziel das
-        // alte, und sein Griff steht weiter auf der Bahn. Ob die Figur vom neuen
-        // Punkt aus weiterkommt, entscheidet die Wegsuche (NAV-Port) - berichtet,
-        // nicht verlangt.
+        // alte, sein Griff steht weiter auf der Bahn, und die Figur laeuft vom
+        // neuen Punkt aus weiter zu ihm (keine Meldung "findet keinen Weg").
         int neuVorAlt = 0;
         if (!lp->pfad.empty() && lp->pfad.front() < g_app->doc.script().nodes.size()) {
             int stelle = 0;
@@ -469,10 +478,12 @@ std::vector<Schritt> mission1ZwischenSchritte() {
             geh(g_app->doc.script().nodes[lp->pfad.front()].children);
             neuVorAlt = (neuAn >= 0 && altAn > neuAn) ? 1 : 0;
         }
+        // Weiter heisst: nach der Ankunft am neuen Punkt ein Lauf, der von dort
+        // wegfuehrt (mehr als 32 Einheiten).
         bool weiter = false;
         for (const ActorStep& st : a.steps) {
-            weiter = weiter || (st.kind == ActorStep::Kind::WalkTo && st.startMs > lp->t - 100.0 &&
-                                mission1::abstand3(st.laufZiel, endOrt) < 1.0F && st.endMs - st.startMs > 200.0);
+            weiter = weiter || (st.kind == ActorStep::Kind::WalkTo && st.startMs >= lp->t - 1000.0 && st.endMs - st.startMs > 200.0 &&
+                                mission1::abstand3(st.from, st.to) > 32.0F);
         }
         const int griffe = laufGriffe();
         lp->skriptNach = writeScript(g_app->doc.script());
@@ -481,8 +492,48 @@ std::vector<Schritt> mission1ZwischenSchritte() {
                      std::to_string(lp->griffe) + " -> " + std::to_string(griffe) + "; Vorschau: Lauf vom neuen Punkt zum alten Ziel " +
                      std::to_string(weiter) + ", Meldungen \"findet keinen Weg\" " + std::to_string(a.stehtOhneWeg.size()));
         return ng.size() == lp->navgoals + 1 && endeImSkript == 1 && ee >= 0 && mission1::abstand3(endOrt, lp->endOrt) < 0.01F &&
-               mission1::abstand3(spawn, lp->spawn) < 0.01F && neuVorAlt == 1 && griffe == lp->griffe + 1;
+               mission1::abstand3(spawn, lp->spawn) < 0.01F && neuVorAlt == 1 && griffe == lp->griffe + 1 && weiter &&
+               a.stehtOhneWeg.empty();
     }));
+    // Der Hinweis "kein Weg": den neuen Punkt zur Probe zu einer Insel des
+    // Wegnetzes machen (waypoint_navgoal mit NO_AUTO_CONNECT, wie die Kopie
+    // bis mission1) - dann findet die Figur von dort keinen Weg.
+    auto insel = std::make_shared<std::vector<MapEntity>>();
+    if (inselProbe) {
+    add(tu("Zwischenpunkt: Probe - der neue Punkt als unverbundener waypoint_navgoal", [=] {
+        *insel = g_app->map.entities;
+        for (MapEntity& e : g_app->map.entities) {
+            if (e.classname == "ref_tag" && e.targetname != lp->endName && mission1::befehle("set", "SET_NAVGOAL").size() > lp->navgoals) {
+                bool genutzt = false;
+                for (const Node* n : mission1::befehle("set", "SET_NAVGOAL")) { genutzt = genutzt || (n->args.size() >= 2 && n->args[1].text == e.targetname); }
+                if (!genutzt) { continue; }
+                setKey(e, "classname", "waypoint_navgoal");
+                e.classname = "waypoint_navgoal";
+                setKey(e, "spawnflags", "4");
+            }
+        }
+        g_app->camTrackValid = false;
+        g_app->mapDirty = true;
+    }));
+    add(pause(0.8));
+    add(foto("m1_zwischen_keinweg" + k));
+    add(pruefe("Zwischenpunkt: ohne Weg zeigt die Bahn den Hinweis \"kein Weg\" zum alten Ziel (statt es verschwinden zu lassen)", [=] {
+        const Actor& a = g_app->scene.actors[static_cast<std::size_t>(lp->figur)];
+        std::string t;
+        for (const std::string& h : g_app->bahnKeinWeg) { t += " [" + h + "]"; }
+        diag::detail("Knopftest: Zwischenpunkt - Probe Insel: Meldungen \"findet keinen Weg\" " + std::to_string(a.stehtOhneWeg.size()) +
+                     ", Hinweise an der Bahn" + (t.empty() ? std::string(" keine") : t));
+        bool zumEnde = false;
+        for (const std::string& h : g_app->bahnKeinWeg) { zumEnde = zumEnde || h.find(lp->endName) != std::string::npos; }
+        return !a.stehtOhneWeg.empty() && zumEnde;
+    }));
+    add(tu("Zwischenpunkt: Probe zurueck", [=] {
+        g_app->map.entities = *insel;
+        g_app->camTrackValid = false;
+        g_app->mapDirty = true;
+    }));
+    add(pause(0.5));
+    }
     add(tu("Zwischenpunkt: Maus ueber die Karte", [] { setzeMaus(ansichtMitte()); }));
     add(pause(0.2));
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
@@ -517,7 +568,8 @@ std::vector<Schritt> mission1ZwischenSchritte() {
 }
 
 // --- 2. Gizmo beim Abspielen ---------------------------------------------------
-std::vector<Schritt> mission1GizmoSchritte() {
+// figurTeil: Teil des Figurennamens; k: Kennung der Fotos.
+std::vector<Schritt> mission1GizmoSchritte(const std::string& figurTeil, const std::string& k) {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     struct GizmoProbe {
@@ -530,7 +582,7 @@ std::vector<Schritt> mission1GizmoSchritte() {
     };
     auto gp = std::make_shared<GizmoProbe>();
     add(tu("Gizmo: eine Figur waehlen (Verschieben), Zeit 0, freie Ansicht", [=] {
-        gp->figur = mission1::figurNamens("luke");
+        gp->figur = mission1::figurNamens(figurTeil);
         gp->entity = gp->figur >= 0 ? entityFuerFigur(gp->figur) : -1;
         FolgeZiel f;
         f.actor = gp->figur;
@@ -544,18 +596,18 @@ std::vector<Schritt> mission1GizmoSchritte() {
         g_app->mapDirty = true;
     }));
     add(pause(0.6));
-    add(foto("m1_gizmo_vorher"));
+    add(foto("m1_gizmo_vorher" + k));
     add(klick(tr(Str::TlPlay), "###main"));
     add(pause(0.8));
-    add(foto("m1_gizmo_spielt1"));
+    add(foto("m1_gizmo_spielt1" + k));
     add(pause(0.8));
-    add(foto("m1_gizmo_spielt2"));
+    add(foto("m1_gizmo_spielt2" + k));
     add(klick(tr(Str::TlStop), "###main"));
     add(pause(0.6));
-    add(foto("m1_gizmo_nachher"));
+    add(foto("m1_gizmo_nachher" + k));
     add(pruefe("Abspielen wie im Spiel (Figur gewaehlt): kein Fadenkreuz, keine Auswahl, Griffe, Marken - nach Stop wieder da", [=] {
         const ImRect r{ImVec2{g_app->kartenAnsicht[0], g_app->kartenAnsicht[1]}, ImVec2{g_app->kartenAnsicht[2], g_app->kartenAnsicht[3]}};
-        const char* namen[4] = {"m1_gizmo_vorher", "m1_gizmo_spielt1", "m1_gizmo_spielt2", "m1_gizmo_nachher"};
+        const std::string namen[4] = {"m1_gizmo_vorher" + k, "m1_gizmo_spielt1" + k, "m1_gizmo_spielt2" + k, "m1_gizmo_nachher" + k};
         float kreuz[4]{};
         int hilfe[4]{};
         for (int i = 0; i < 4; ++i) {
@@ -581,7 +633,7 @@ std::vector<Schritt> mission1GizmoSchritte() {
     add(pruefe("Gizmo: beim Abspielen nicht fett und dauerhaft im Bild, nach Stop wie vorher", [=] {
         const ImRect r{ImVec2{g_app->kartenAnsicht[0], g_app->kartenAnsicht[1]}, ImVec2{g_app->kartenAnsicht[2], g_app->kartenAnsicht[3]}};
         int* ziel[4] = {&gp->vorher, &gp->spielt1, &gp->spielt2, &gp->nachher};
-        const char* namen[4] = {"m1_gizmo_vorher", "m1_gizmo_spielt1", "m1_gizmo_spielt2", "m1_gizmo_nachher"};
+        const std::string namen[4] = {"m1_gizmo_vorher" + k, "m1_gizmo_spielt1" + k, "m1_gizmo_spielt2" + k, "m1_gizmo_nachher" + k};
         for (int i = 0; i < 4; ++i) {
             mission1::FotoBild b;
             *ziel[i] = b.lesen(namen[i]) ? mission1::gizmoPunkte(b, r) : -1;
@@ -597,6 +649,8 @@ std::vector<Schritt> mission1GizmoSchritte() {
         g_app->playing = false;
         entityAuswahlSetzen(-1);
         kameraSchluesselWaehlen(1, true);
+        // genug Zeitleiste fuer zwei Fotos beim Abspielen
+        g_app->playMs = std::min(g_app->playMs, std::max(0.0, g_app->timeline.durationMs - 3000.0));
         g_app->gizmoMode = App::GizmoMode::Move;
         g_app->throughCamera = false;
         const CameraState st = camStateAt(g_app->playMs);
@@ -610,18 +664,18 @@ std::vector<Schritt> mission1GizmoSchritte() {
                      std::to_string(g_app->selectedKey) + ", Zeit " + std::to_string(g_app->playMs));
     }));
     add(pause(0.6));
-    add(foto("m1_kgizmo_vorher"));
+    add(foto("m1_kgizmo_vorher" + k));
     add(klick(tr(Str::TlPlay), "###main"));
     add(pause(0.8));
-    add(foto("m1_kgizmo_spielt1"));
+    add(foto("m1_kgizmo_spielt1" + k));
     add(pause(0.8));
-    add(foto("m1_kgizmo_spielt2"));
+    add(foto("m1_kgizmo_spielt2" + k));
     add(klick(tr(Str::TlStop), "###main"));
     add(pause(0.6));
-    add(foto("m1_kgizmo_nachher"));
+    add(foto("m1_kgizmo_nachher" + k));
     add(pruefe("Abspielen wie im Spiel (Kamera gewaehlt): kein Fadenkreuz, keine Auswahl, Griffe, Marken - nach Stop wieder da", [=] {
         const ImRect r{ImVec2{g_app->kartenAnsicht[0], g_app->kartenAnsicht[1]}, ImVec2{g_app->kartenAnsicht[2], g_app->kartenAnsicht[3]}};
-        const char* namen[4] = {"m1_kgizmo_vorher", "m1_kgizmo_spielt1", "m1_kgizmo_spielt2", "m1_kgizmo_nachher"};
+        const std::string namen[4] = {"m1_kgizmo_vorher" + k, "m1_kgizmo_spielt1" + k, "m1_kgizmo_spielt2" + k, "m1_kgizmo_nachher" + k};
         float kreuz[4]{};
         int hilfe[4]{};
         for (int i = 0; i < 4; ++i) {
@@ -647,7 +701,7 @@ std::vector<Schritt> mission1GizmoSchritte() {
     add(pruefe("Gizmo: Kamera - beim Abspielen kein stehengebliebener Gizmo, nach Stop wie vorher", [=] {
         const ImRect r{ImVec2{g_app->kartenAnsicht[0], g_app->kartenAnsicht[1]}, ImVec2{g_app->kartenAnsicht[2], g_app->kartenAnsicht[3]}};
         int* ziel[4] = {&kp->vorher, &kp->spielt1, &kp->spielt2, &kp->nachher};
-        const char* namen[4] = {"m1_kgizmo_vorher", "m1_kgizmo_spielt1", "m1_kgizmo_spielt2", "m1_kgizmo_nachher"};
+        const std::string namen[4] = {"m1_kgizmo_vorher" + k, "m1_kgizmo_spielt1" + k, "m1_kgizmo_spielt2" + k, "m1_kgizmo_nachher" + k};
         for (int i = 0; i < 4; ++i) {
             mission1::FotoBild b;
             *ziel[i] = b.lesen(namen[i]) ? mission1::gizmoPunkte(b, r) : -1;
@@ -925,6 +979,7 @@ struct UndoZiel {
     int schluessel = 0; // Kamera: gewaehlter Schluessel
     double ms = 0.0;    // eingestellte Zeit
     std::string name;   // fuer den Bericht
+    int wann = -1;      // 0 vor dem ersten, 1 zwischen zwei, 2 nach dem letzten Punkt
 };
 
 std::string zahl3(double v) {
@@ -1030,7 +1085,87 @@ ImVec2 undoGriff(const UndoZiel& z, bool drehen) {
     return q;
 }
 
+// Der Zustand aller Figuren, Objekte und der Kamera zu einer Zeit: Ort, Winkel,
+// Animation, Sichtbarkeit; bei Objekten und Kamera dazu das Ende ihrer letzten
+// Fahrt (die Zeit des Endpunkts).
+struct Eintrag {
+    std::string name;
+    float pos[3]{};
+    float ang[3]{};
+    std::string anim;
+    bool sichtbar = true;
+    double endeMs = -1.0;
+    bool laeuft = false;   // eine Figur mit Laufziel (Ankunft im Radius, siehe unten)
+};
+std::vector<Eintrag> szenenZustand(double ms) {
+    prepareScene();
+    std::vector<Eintrag> v;
+    for (const Actor& a : g_app->scene.actors) {
+        const ActorState st = a.at(ms);
+        Eintrag e;
+        e.name = a.name;
+        for (int k = 0; k < 3; ++k) {
+            e.pos[k] = st.pos[k];
+            e.ang[k] = st.angles[k];
+        }
+        e.anim = st.animation;
+        e.sichtbar = st.visible;
+        for (const ActorStep& x : a.steps) {
+            if (x.kind == ActorStep::Kind::Glide) { e.endeMs = std::max(e.endeMs, x.endMs); }
+            e.laeuft = e.laeuft || x.kind == ActorStep::Kind::WalkTo;
+        }
+        v.push_back(e);
+    }
+    Eintrag k;
+    k.name = "Kamera";
+    const CameraState cs = camStateAt(ms);
+    for (int q = 0; q < 3; ++q) {
+        k.pos[q] = cs.pos[q];
+        k.ang[q] = cs.angles[q];
+    }
+    k.sichtbar = cs.enabled;
+    for (const CamSegment& c : g_app->camTrack.segments) {
+        if (c.kind == CamSegment::Kind::Move && c.fremd.empty()) { k.endeMs = std::max(k.endeMs, c.endMs); }
+    }
+    v.push_back(k);
+    return v;
+}
+// Wer weicht ab? Bytegleich verglichen; nur eine laufende Figur darf am Ende
+// innerhalb des Ankunftsradius abweichen (NPC_ReachedGoal: sie haelt, sobald sie
+// im Radius ist - ein anderer Weg kommt anders an), wenn `radiusFuer` sie nennt.
+// Die Zeit des Endpunkts (endeMs) zaehlt nur fuer `ziel` selbst: haengt ein
+// Ablauf an der Ankunft einer Figur (dowait), verschiebt ein anderer Weg alles
+// danach - das ist das Spiel, kein Fehler des Werkzeugs.
+std::vector<std::string> abweichungen(const std::vector<Eintrag>& vor, const std::vector<Eintrag>& nach, const std::string& radiusFuer,
+                                      const std::string& ziel, float& radiusAbstand, std::string& t) {
+    std::vector<std::string> wer;
+    for (const Eintrag& a : vor) {
+        const Eintrag* b = nullptr;
+        for (const Eintrag& x : nach) {
+            if (x.name == a.name) { b = &x; }
+        }
+        if (b == nullptr) {
+            t += " " + a.name + "(fehlt)";
+            wer.push_back(a.name);
+            continue;
+        }
+        bool gleich = a.anim == b->anim && a.sichtbar == b->sichtbar && (a.name != ziel || a.endeMs == b->endeMs);
+        for (int k = 0; k < 3; ++k) { gleich = gleich && a.pos[k] == b->pos[k] && a.ang[k] == b->ang[k]; }
+        if (gleich) { continue; }
+        if (a.name == radiusFuer && a.laeuft && a.anim == b->anim && a.sichtbar == b->sichtbar) {
+            radiusAbstand = abstand3(a.pos, b->pos);
+            if (radiusAbstand <= 16.0F) { continue; }
+        }
+        t += " " + a.name + "[" + v3(a.pos) + "/" + v3(a.ang) + " " + a.anim + " -> " + v3(b->pos) + "/" + v3(b->ang) + " " + b->anim + "]";
+        wer.push_back(a.name);
+    }
+    return wer;
+}
+
 struct UndoProbe {
+    std::vector<Eintrag> anfang;   // Zustand bei t=0 vorher
+    std::vector<Eintrag> ende;     // ... bei der Endzeit der Szene vorher
+    double endeMs = 0.0;
     UndoStand a;
     UndoStand b;
     UndoStand c;
@@ -1051,12 +1186,40 @@ void mission1UndoFall(std::vector<Schritt>& s, std::function<mission1::UndoZiel(
         mission1::undoZielWaehlen(*z, drehen);
     }));
     add(pause(0.5));
-    add(tu("Undo " + was + ": Stand vorher", [=] { p->a = mission1::undoStand(*z); }));
+    add(tu("Undo " + was + ": Stand vorher", [=] {
+        p->a = mission1::undoStand(*z);
+        p->endeMs = g_app->timeline.durationMs;
+        p->anfang = mission1::szenenZustand(0.0);
+        p->ende = mission1::szenenZustand(p->endeMs);
+    }));
     add(pause(0.2));
     add(ziehenAn("Undo " + was, [=] { return mission1::undoGriff(*z, drehen); }, drehen ? 50.0F : 60.0F, drehen ? -25.0F : -10.0F, 0));
     add(pause(0.5));
-    add(tu("Undo " + was + ": Stand nach der Aenderung, Maus ueber die Karte", [=] {
+    add(pruefe("Undo " + was + ": Anfang (t=0) und Ende der Szene bleiben, wo sie bleiben muessen", [=] {
         p->b = mission1::undoStand(*z);
+        const std::vector<mission1::Eintrag> b0 = mission1::szenenZustand(0.0);
+        // das Ende der Szene NACH der Aenderung (ein laengerer Weg verlaengert sie)
+        const std::vector<mission1::Eintrag> bE = mission1::szenenZustand(g_app->timeline.durationMs);
+        float r0 = 0.0F;
+        float rE = 0.0F;
+        std::string d0;
+        std::string dE;
+        // vor dem ersten Punkt: am Anfang darf sich nur das Ziel aendern, am Ende niemand
+        // (eine laufende Figur kommt im Radius an); zwischen zwei: weder am Anfang noch
+        // am Ende jemand; nach dem letzten: am Anfang niemand, am Ende nur das Ziel.
+        const std::vector<std::string> w0 = mission1::abweichungen(p->anfang, b0, std::string(), std::string(), r0, d0);
+        const std::vector<std::string> wE = mission1::abweichungen(p->ende, bE, z->wann == 2 ? std::string() : z->name, z->name, rE, dE);
+        const auto nurZiel = [&](const std::vector<std::string>& w) {
+            return std::all_of(w.begin(), w.end(), [&](const std::string& n) { return n == z->name; });
+        };
+        const bool ok0 = z->wann == 0 ? nurZiel(w0) : w0.empty();
+        const bool okE = z->wann == 2 ? nurZiel(wE) : wE.empty();
+        diag::detail("Knopftest: Szene " + was + " (" + z->name + ", Endzeit " + std::to_string(p->endeMs) + " ms) - bei t=0 abweichend:" +
+                     (d0.empty() ? std::string(" niemand") : d0) + "; am Ende abweichend:" + (dE.empty() ? std::string(" niemand") : dE) +
+                     (rE > 0.0F ? "; " + z->name + " kommt " + std::to_string(rE) + " Einheiten anders an (im Radius)" : std::string()));
+        return ok0 && okE;
+    }));
+    add(tu("Undo " + was + ": Maus ueber die Karte", [=] {
         setzeMaus(ImVec2{g_app->kartenAnsicht[0] + 30.0F, g_app->kartenAnsicht[3] - 30.0F});
     }));
     add(pause(0.2));
@@ -1169,6 +1332,7 @@ UndoZiel figurZiel(const std::string& teil, int wann) {
         }
     }
     if (laeufe.empty()) { return z; }
+    z.wann = wann;
     if (wann == 0) { z.ms = 0.0; }   // der Anfang: vor allem, was das Skript mit der Figur tut
     if (wann == 1) { z.ms = std::floor((laeufe.front().first + laeufe.front().second) * 0.5 / 50.0) * 50.0; }
     if (wann == 2) { z.ms = std::floor((laeufe.back().second + 800.0) / 50.0) * 50.0; }
@@ -1200,6 +1364,7 @@ UndoZiel schiffZiel(int wann) {
             if (mdl != nullptr && *mdl == "*" + std::to_string(a.brushModel)) { z.entity = static_cast<int>(i); }
         }
         z.ms = wann == 0 ? std::max(0.0, erst - 500.0) : wann == 1 ? mitte : std::floor((letzt + 1000.0) / 50.0) * 50.0;
+        z.wann = wann;
     }
     return z;
 }
@@ -1208,6 +1373,7 @@ UndoZiel kameraZiel(int wann) {
     UndoZiel z;
     z.art = ZielArt::Kamera;
     z.name = "Kamera";
+    z.wann = wann;
     const std::vector<KameraSchluessel> ks = kameraSchluessel(g_app->doc.script());
     if (ks.size() < 3U) { return z; }
     std::vector<const CamSegment*> fahrten;
@@ -1277,6 +1443,168 @@ std::vector<Schritt> mission1UndoSchritteSchiff() {
                           {[] { return mission1::schiffZiel(2); }, false},
                           {[] { return mission1::kameraZiel(1); }, false}},
                       "md_am_sith");
+    return s;
+}
+
+namespace mission1 {
+
+// Alle Bilder einer .gla samt Kino-Anhang (die gueltigen Bildnummern).
+int alleBilder(const GlaAnimation& a) {
+    int n = a.numFrames;
+    for (const GlaAnimation* x = a.anhang; x != nullptr; x = x->anhang) { n += x->numFrames; }
+    return n;
+}
+
+struct PoseBefund {
+    bool geprueft = false;   // ohne Oberkoerperlauf und Uebergang: mit der Animation verglichen
+    float abweichung = 0.0F; // groesste Abweichung eines Koerperknochens von seinem Bild
+    bool imBereich = true;   // alle benutzten Bilder innerhalb der .gla samt Anhang
+    bool kino = false;       // das Koerperbild liegt im Kino-Anhang
+};
+
+// Was gezeichnet wird (figurKnochen) gegen das, was die Animation in diesem
+// Bild sagt (worldMatrices/worldMatricesLerp ungekappt, mit dem Mundlauf).
+PoseBefund poseBefund(std::size_t ai, double ms) {
+    PoseBefund b;
+    std::vector<BoneMatrix> welt;
+    ActorDraw d;
+    if (!figurWelt(ai, ms, true, welt, d) || d.anim == nullptr) { return b; }
+    const int n = alleBilder(*d.anim);
+    for (const int f : {d.frame, d.frameNext, d.torsoFrame, d.torsoNext, d.faceFrame, d.prevFrame, d.torsoPrevFrame}) {
+        b.imBereich = b.imBereich && f < n;
+    }
+    b.kino = d.frame >= d.anim->numFrames;
+    if (d.torsoFrame >= 0 || (d.prevFrame >= 0 && d.blendLerp < 1.0F) || d.headYaw != 0.0F) { return b; }
+    std::vector<BoneFrameOverride> over;
+    const int gesicht = boneIndex(*d.anim, "face");
+    if (d.faceFrame >= 0 && gesicht >= 0) { over.push_back(BoneFrameOverride{gesicht, d.faceFrame}); }
+    std::vector<BoneMatrix> soll;
+    if (d.frameNext >= 0 && d.frameFraction > 0.001F) {
+        d.anim->worldMatricesLerp(d.frame, d.frameNext, d.frameFraction, over, soll);
+    } else {
+        d.anim->worldMatrices(d.frame, over, soll);
+    }
+    if (soll.size() != welt.size()) { return b; }
+    b.geprueft = true;
+    const std::vector<char> gt = gesichtTeil(*d.anim);
+    for (std::size_t k = 0; k < welt.size(); ++k) {
+        if (k < gt.size() && gt[k] != 0) { continue; }
+        b.abweichung = std::max(b.abweichung, matrixAbstand(welt[k], soll[k]));
+    }
+    return b;
+}
+
+}  // namespace mission1
+
+// --- Waechter: alle SP-Karten mit eigenem Kino-Skelett (_humanoid_<karte>) ---------
+//
+// Jede Figur, die eine Animation spielt, steht in dem Bild, das die Animation
+// sagt - auch wenn es im Kino-Anhang liegt (vorher gekappt: T-Pose). Je Karte
+// der Reiter, der beim Laden vorn ist, alle 500 ms.
+std::vector<Schritt> mission1KinoSchritte(std::shared_ptr<mission1::Zustand> z) {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto karten = std::make_shared<std::vector<std::string>>();
+    auto bericht = std::make_shared<std::string>();
+    auto fehler = std::make_shared<int>(0);
+    add(tu("Kino: die Karten mit _humanoid_<karte> im reinen JKA", [=] {
+        mission1::ungespeicherteEntitiesVergessen();
+        karten->clear();
+        Pk3 a1;
+        if (readPk3Directory(z->jka + "\\assets1.pk3", a1)) {
+            for (const Pk3Entry& e : a1.entries) {
+                const std::string n = mission1::klein(e.name);
+                const std::string vor = "models/players/_humanoid_";
+                if (n.rfind(vor, 0) != 0 || n.size() < 5 || n.compare(n.size() - 4, 4, ".gla") != 0) { continue; }
+                const std::string karte = n.substr(vor.size(), n.find('/', vor.size()) - vor.size());
+                if (std::find(karten->begin(), karten->end(), karte) == karten->end()) { karten->push_back(karte); }
+            }
+        }
+        // nur Karten, die es als maps/<karte>.bsp gibt (level.mapname)
+        std::set<std::string> bsps;
+        for (const char* a : {"assets0.pk3", "assets1.pk3", "assets2.pk3", "assets3.pk3"}) {
+            Pk3 pk;
+            if (!readPk3Directory(z->jka + "\\" + a, pk)) { continue; }
+            for (const Pk3Entry& e : pk.entries) { bsps.insert(mission1::klein(e.name)); }
+        }
+        karten->erase(std::remove_if(karten->begin(), karten->end(),
+                                     [&bsps](const std::string& k) { return bsps.count("maps/" + k + ".bsp") == 0; }),
+                      karten->end());
+        std::string t;
+        for (const std::string& k : *karten) { t += " " + k; }
+        diag::detail("Knopftest: Kino - " + std::to_string(karten->size()) + " Karten:" + t);
+    }));
+    for (int i = 0; i < 40; ++i) {
+        add(tu("Kino: Karte " + std::to_string(i + 1) + " laden", [=] {
+            if (static_cast<std::size_t>(i) >= karten->size()) { return; }
+            g_app->missionPickOpen = false;
+            missionenAusArchiv(z->jka + "\\assets1.pk3", (*karten)[static_cast<std::size_t>(i)]);
+        }));
+        // Warten, bis die Karte da ist; dann der intro-Reiter (sonst der vorderste).
+        const auto geladen = [=] {
+            if (static_cast<std::size_t>(i) >= karten->size()) { return true; }
+            const std::string soll = "maps/" + (*karten)[static_cast<std::size_t>(i)] + ".bsp";
+            return mission1::klein(g_app->map.path) == soll && g_app->camTrackValid;
+        };
+        Schritt warten{"Kino: Karte " + std::to_string(i + 1) + " geladen (ohne Mission ausgelassen)", [=](int b) { return geladen() || b > 8000; }};
+        warten.eigeneZeitgrenze = true;
+        add(std::move(warten));
+        add(tu("Kino: Karte " + std::to_string(i + 1) + " intro-Reiter", [=] {
+            if (static_cast<std::size_t>(i) >= karten->size() || !geladen()) { return; }
+            // der intro-Reiter DIESER Mission (die Reiter frueherer Karten bleiben offen)
+            for (const Mission& mi : g_app->missions) {
+                if (mi.name != (*karten)[static_cast<std::size_t>(i)]) { continue; }
+                for (const Mission::Script& sc : mi.scripts) {
+                    const std::string r = mission1::klein(sc.ref);
+                    if (r.size() >= 6 && r.compare(r.size() - 6, 6, "/intro") == 0 && reiterFuerSkriptRef(sc.ref) >= 0) {
+                        g_app->tabRequest = reiterFuerSkriptRef(sc.ref);
+                    }
+                }
+            }
+        }));
+        add(pause(1.0));
+        add({"Kino: Karte " + std::to_string(i + 1) + " Szene", [=](int b) { return (g_app->camTrackValid && jk2probe::figurenGeladen()) || b > 1500; }});
+        add(tu("Kino: Karte " + std::to_string(i + 1) + " pruefen", [=] {
+            if (static_cast<std::size_t>(i) >= karten->size()) { return; }
+            const std::string soll = "maps/" + (*karten)[static_cast<std::size_t>(i)] + ".bsp";
+            if (mission1::klein(g_app->map.path) != soll) {
+                *bericht += "; " + (*karten)[static_cast<std::size_t>(i)] + ": nicht geladen";
+                diag::detail("Knopftest: Kino - " + (*karten)[static_cast<std::size_t>(i)] + ": nicht geladen (keine Mission)");
+                return;
+            }
+            prepareScene();
+            const double ende = std::min(std::max(g_app->timeline.durationMs, 1000.0), 240000.0);
+            int proben = 0;
+            int kino = 0;
+            int falsch = 0;
+            std::string erste;
+            for (double ms = 0.0; ms < ende; ms += 500.0) {
+                for (std::size_t ai = 0; ai < g_app->scene.actors.size(); ++ai) {
+                    if (!g_app->scene.actors[ai].at(ms).visible) { continue; }
+                    const mission1::PoseBefund b = mission1::poseBefund(ai, ms);
+                    if (!b.geprueft && b.imBereich) { continue; }
+                    ++proben;
+                    kino += b.kino ? 1 : 0;
+                    if (!b.imBereich || b.abweichung > 0.001F) {
+                        ++falsch;
+                        if (erste.size() < 300) {
+                            erste += " " + g_app->scene.actors[ai].name + "@" + std::to_string(static_cast<int>(ms)) + "(" +
+                                     std::to_string(b.abweichung) + ")";
+                        }
+                    }
+                }
+            }
+            *fehler += falsch;
+            const std::string zeile = (*karten)[static_cast<std::size_t>(i)] + " (" + g_app->shownName + "): " + std::to_string(proben) +
+                                      " Proben, " + std::to_string(kino) + " im Kino-Anhang, " + std::to_string(falsch) + " falsch" + erste;
+            *bericht += "; " + zeile;
+            diag::detail("Knopftest: Kino - " + zeile);
+        }));
+    }
+    add(pruefe("Kino: auf allen Karten mit eigenem Kino-Skelett steht jede Figur im Bild ihrer Animation (auch aus dem Anhang)", [=] {
+        diag::detail("Knopftest: Kino - Summe " + std::to_string(karten->size()) + " Karten, " + std::to_string(*fehler) + " falsche Proben");
+        return !karten->empty() && *fehler == 0;
+    }));
     return s;
 }
 
@@ -1383,6 +1711,43 @@ std::vector<Schritt> mission1GesichtSchritte(std::shared_ptr<mission1::Zustand> 
     add(foto("m1_gesicht_nah_" + k));
     // Die ganze Szene: zu keiner Zeit steht ein Koerper in der Grundstellung,
     // und kein Mundlauf aendert einen Koerperknochen (alle Sprecher, alle Saetze).
+    // shank (mit Foto): bei 0:16.72 (Kamera lukewalk2) laeuft Luke die Treppe
+    // in T-Pose herunter.
+    add(tu("Gesicht " + k + ": Luke auf der Treppe, 16720 ms, durch die Kamera", [=] {
+        g_app->playing = false;
+        g_app->throughCamera = true;
+        g_app->playMs = 16720.0;
+        g_app->mapDirty = true;
+        if (z->luke >= 0) {
+            const Actor& a = g_app->scene.actors[static_cast<std::size_t>(z->luke)];
+            const ActorState st = a.at(16720.0);
+            std::vector<BoneMatrix> w;
+            ActorDraw d;
+            const bool ok = mission1::figurWelt(static_cast<std::size_t>(z->luke), 16720.0, true, w, d);
+            const std::string skel = g_app->actorAssets.size() > static_cast<std::size_t>(z->luke) && g_app->actorAssets[static_cast<std::size_t>(z->luke)]
+                                         ? g_app->actorAssets[static_cast<std::size_t>(z->luke)]->model.animFile : std::string("-");
+            diag::detail("Knopftest: Gesicht " + k + " - Luke bei 16720 ms: Animation \"" + st.animation + "\" (vorher \"" + st.prevAnimation +
+                         "\"), Oberkoerper \"" + st.torsoAnimation + "\", Skelett \"" + skel + "\", Bild " + std::to_string(d.frame) +
+                         ", Oberkoerperbild " + std::to_string(d.torsoFrame) + ", Mund " + std::to_string(d.faceFrame) + ", Knochen " +
+                         std::to_string(ok ? w.size() : 0));
+        }
+    }));
+    add(pause(0.6));
+    add(foto("m1_treppe_" + k));
+    add(pruefe("Gesicht " + k + ": Luke auf der Treppe spielt BOTH_CIN_1 aus dem Kino-Skelett, nicht in T-Pose", [=] {
+        if (z->luke < 0) { return false; }
+        const mission1::PoseBefund b = mission1::poseBefund(static_cast<std::size_t>(z->luke), 16720.0);
+        std::vector<BoneMatrix> w;
+        ActorDraw d;
+        (void)mission1::figurWelt(static_cast<std::size_t>(z->luke), 16720.0, true, w, d);
+        const bool kinoMund = d.anim != nullptr && d.faceFrame >= d.anim->numFrames;
+        diag::detail("Knopftest: Gesicht " + k + " - Treppe: Bild " + std::to_string(d.frame) + " von " +
+                     std::to_string(d.anim != nullptr ? mission1::alleBilder(*d.anim) : 0) + " (Grundskelett " +
+                     std::to_string(d.anim != nullptr ? d.anim->numFrames : 0) + "), im Anhang " + std::to_string(b.kino) +
+                     ", verglichen " + std::to_string(b.geprueft) + ", Abweichung vom Bild der Animation " + std::to_string(b.abweichung) +
+                     ", Mund " + std::to_string(d.faceFrame) + (kinoMund ? " (FACE_TALK aus dem Kino-Skelett)" : ""));
+        return b.geprueft && b.imBereich && b.abweichung < 0.001F;
+    }));
     add(pruefe("Gesicht " + k + ": ueber die ganze Szene (alle 250 ms) kein Koerper in Grundstellung, Mund nur im Gesicht", [=] {
         const double ende = std::min(std::max(g_app->timeline.durationMs, 1000.0), 300000.0);
         int zeiten = 0;
@@ -1423,6 +1788,275 @@ std::vector<Schritt> mission1GesichtSchritte(std::shared_ptr<mission1::Zustand> 
     return s;
 }
 
+// --- Eine selbst gebaute Mini-Szene (shank: nichts auf vorhandene Karten oder
+// Skripte zugeschnitten) ------------------------------------------------------
+//
+// Eine neue Mission "m1szene" (New mission auf der Geometrie von md_am_sith),
+// eigene Entities (Figur m1_held, Laufziel m1_ziel, Schiff m1_schiff), eigenes
+// Skript, und ein eigenes Kino-Skelett models/players/_humanoid_m1szene/ in
+// einer pk3 im Laufordner. Darin dieselben Proben: Kino-Animation, Zwischen-
+// punkt, Hilfen beim Abspielen, Drehen nach der letzten Fahrt, Rueckgaengig.
+namespace mission1 {
+struct MiniZustand {
+    float von[3]{};       // Lauf einer Figur der Grundkarte (begehbar)
+    float bis[3]{};
+    std::string typ;      // ihr NPC_type
+    std::string skelett;  // ihr Skelett (Pfad ohne Endung)
+    std::string schiffModell;   // "*N" des Schiffs der Grundkarte
+    float flug[2][3]{};   // zwei Ziele seiner Fahrten
+    bool bereit = false;
+    std::string fehler;
+};
+}  // namespace mission1
+
+std::vector<Schritt> mission1MiniSchritte(std::shared_ptr<mission1::Zustand> z) {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto m = std::make_shared<mission1::MiniZustand>();
+    add(tu("Mini: Grundkarte md_am_sith laden", [=] {
+        mission1::ungespeicherteEntitiesVergessen();
+        g_app->missionPickOpen = false;
+        missionenAusArchiv(z->mdArchiv, "md_am_sith");
+    }));
+    add(warteBis("Mini: Grundkarte geladen", [] {
+        return g_app->map.path == "maps/md_am_sith.bsp" && g_app->camTrackValid && jk2probe::figurenGeladen();
+    }, 4000));
+    add(tu("Mini: begehbare Strecke, Schiff und seine Fahrten der Grundkarte merken", [=] {
+        prepareScene();
+        for (std::size_t ai = 0; ai < g_app->scene.actors.size(); ++ai) {
+            const Actor& a = g_app->scene.actors[ai];
+            for (const ActorStep& st : a.steps) {
+                if (m->typ.empty() && st.kind == ActorStep::Kind::WalkTo && !a.npcType.empty() && mission1::abstand3(st.from, st.to) > 150.0F &&
+                    mission1::abstand3(st.from, st.to) < 380.0F && ai < g_app->actorAssets.size() && g_app->actorAssets[ai]) {
+                    for (int k = 0; k < 3; ++k) {
+                        m->von[k] = st.from[k];
+                        m->bis[k] = st.to[k];
+                    }
+                    m->typ = a.npcType;
+                    m->skelett = g_app->actorAssets[ai]->model.animFile;
+                }
+            }
+            if (a.brushModel > 0 && m->schiffModell.empty()) {
+                int n = 0;
+                for (const ActorStep& st : a.steps) {
+                    if (st.kind != ActorStep::Kind::Glide || n >= 2) { continue; }
+                    for (int k = 0; k < 3; ++k) { m->flug[n][k] = st.to[k]; }
+                    ++n;
+                }
+                if (n == 2) { m->schiffModell = "*" + std::to_string(a.brushModel); }
+            }
+        }
+        diag::detail("Knopftest: Mini - Strecke " + mission1::v3(m->von) + " -> " + mission1::v3(m->bis) + " (" + m->typ + "), Schiff " +
+                     m->schiffModell + " nach " + mission1::v3(m->flug[0]) + " / " + mission1::v3(m->flug[1]));
+    }));
+    add(tu("Mini: eigenes Kino-Skelett _humanoid_m1szene als pk3 in einen eigenen Spielordner", [=] {
+        // Die .gla des Skeletts der Figur (gleiche Knochen, sonst haengt es die
+        // Engine nicht an) und eine eigene animation.cfg mit BOTH_CIN_1 - den
+        // Bildern von BOTH_STAND1 aus der .cfg des Skeletts.
+        std::string gla;
+        std::string grundCfg;
+        const std::string ordner = m->skelett.substr(0, m->skelett.find_last_of('/'));
+        bool da = readFromArchives(m->skelett + ".gla", gla) &&
+                  (readFromArchives(m->skelett + ".cfg", grundCfg) || readFromArchives(ordner + "/animation.cfg", grundCfg));
+        std::string cfg;
+        std::istringstream zeilen(grundCfg);
+        std::string zeile;
+        while (da && std::getline(zeilen, zeile)) {
+            std::istringstream w(zeile);
+            std::string name;
+            w >> name;
+            if (name == "BOTH_STAND1") {
+                std::string rest;
+                std::getline(w, rest);
+                cfg = "BOTH_CIN_1\t" + rest + "\n";
+            }
+        }
+        da = da && !cfg.empty();
+        const std::string spiel = mb::verbinde(mb::laufOrdner(), "m1spiel");
+        std::error_code ec;
+        std::filesystem::create_directories(::bhed::utf8Pfad(spiel), ec);
+        std::string f;
+        const bool ok = da && writePk3(mb::verbinde(spiel, "zz_m1szene.pk3"),
+                                       {{"models/players/_humanoid_m1szene/_humanoid_m1szene.gla", gla},
+                                        {"models/players/_humanoid_m1szene/animation.cfg", cfg}},
+                                       &f);
+        if (ok) {
+            g_app->settings.gamePaths.push_back(spiel);
+            rescanGamePaths();
+            refreshPk3List();
+        }
+        m->fehler = ok ? std::string() : "Kino-pk3: " + f;
+        diag::detail("Knopftest: Mini - Kino-Skelett geschrieben " + std::to_string(ok) + " (" + std::to_string(gla.size()) + " Bytes .gla)");
+    }));
+    add(tu("Mini: New mission m1szene auf der Grundkarte, eigene Entities und eigenes Skript", [=] {
+        const std::string wurzel = mb::verbinde(mb::laufOrdner(), "missionen");
+        _putenv_s("BHED_MISSIONEN", wurzel.c_str());
+        std::string f;
+        if (!neueMissionAnlegen("maps/md_am_sith.bsp", "m1szene", "m1szene", &f)) {
+            m->fehler += " New mission: " + f;
+            return;
+        }
+        for (std::size_t i = 0; i < g_app->map.entities.size(); ++i) {
+            const std::string* mdl = g_app->map.entities[i].find("model");
+            if (mdl != nullptr && *mdl == m->schiffModell) { (void)entityKeySetzen(static_cast<int>(i), "script_targetname", "m1_schiff"); }
+        }
+        const int held = neueEntityAn("NPC_spawner", m->von);
+        const int ziel = neueEntityAn("waypoint_navgoal", m->bis);
+        if (held < 0 || ziel < 0) {
+            m->fehler += " Entities nicht angelegt";
+            return;
+        }
+        (void)entityKeySetzen(held, "NPC_type", m->typ);
+        (void)entityKeySetzen(held, "NPC_targetname", "m1_held");
+        (void)entityKeySetzen(ziel, "targetname", "m1_ziel");
+        // Drei Kameraschluessel entlang der Strecke (hinter und ueber ihr).
+        const auto kam = [&](const float* o, float dy) {
+            const float k[3] = {o[0] - 220.0F, o[1] + dy, o[2] + 110.0F};
+            return mission1::v3(k);
+        };
+        float mitte[3];
+        for (int q = 0; q < 3; ++q) { mitte[q] = (m->von[q] + m->bis[q]) * 0.5F; }
+        const std::string eigen = std::string(R"(//Generated by BehavEd
+
+camera ( ENABLE );
+camera ( MOVE, < )") + kam(m->von, 0.0F) + R"( >, 0.000 );
+camera ( PAN, < 15.000 0.000 0.000 >, < 0.000 0.000 0.000 >, 0.000 );
+
+affect ( "m1_held", FLUSH )
+{
+	set ( "SET_ANIM_BOTH", "BOTH_CIN_1" );
+	set ( "SET_ANIM_HOLDTIME_BOTH", 1500 );
+	wait ( 2000.000 );
+	set ( "SET_WALKING", "true" );
+	set ( "SET_NAVGOAL", "m1_ziel" );
+	wait ( 8000.000 );
+}
+
+affect ( "m1_schiff", FLUSH )
+{
+	move ( < )" + mission1::v3(m->flug[0]) + R"( >, < 0.000 0.000 0.000 >, 3000.000 );
+	wait ( 3000.000 );
+	move ( < )" + mission1::v3(m->flug[1]) + R"( >, < 0.000 90.000 0.000 >, 3000.000 );
+	wait ( 3000.000 );
+}
+
+wait ( 1000.000 );
+camera ( MOVE, < )" + kam(mitte, 80.0F) + R"( >, 4000.000 );
+camera ( PAN, < 15.000 20.000 0.000 >, < 0.000 0.000 0.000 >, 4000.000 );
+wait ( 4000.000 );
+camera ( MOVE, < )" + kam(m->bis, 0.0F) + R"( >, 4000.000 );
+camera ( PAN, < 15.000 -20.000 0.000 >, < 0.000 0.000 0.000 >, 4000.000 );
+wait ( 7000.000 );
+camera ( DISABLE );
+)";
+        Script neu;
+        std::vector<Diag> d;
+        if (!readScript(eigen, neu, d)) {
+            m->fehler += " Skript nicht lesbar";
+            return;
+        }
+        g_app->doc.ersetzeSkript(std::move(neu), "m1szene");
+        rebuildTree();
+        g_app->camTrackValid = false;
+        g_app->mapDirty = true;
+        m->bereit = true;
+    }));
+    add(warteBis("Mini: Szene von m1szene", [=] {
+        return !m->bereit || (g_app->camTrackValid && mission1::figurNamens("m1_held") >= 0 && jk2probe::figurenGeladen());
+    }, 2000));
+    add(pause(0.5));
+    add(pruefe("Mini: m1szene - eigene Figur, eigenes Schiff, eigenes Skript, eigenes Kino-Skelett angehaengt", [=] {
+        prepareScene();
+        const int held = mission1::figurNamens("m1_held");
+        int schiff = -1;
+        for (std::size_t i = 0; i < g_app->scene.actors.size(); ++i) {
+            if (g_app->scene.actors[i].brushModel > 0 && g_app->scene.actors[i].name == "m1_schiff") { schiff = static_cast<int>(i); }
+        }
+        diag::detail("Knopftest: Mini - Karte " + g_app->map.path + ", Figur " + std::to_string(held) + ", Schiff " + std::to_string(schiff) +
+                     (m->fehler.empty() ? std::string() : ", Fehler:" + m->fehler));
+        return m->bereit && m->fehler.empty() && g_app->map.path == "maps/m1szene.bsp" && held >= 0 && schiff >= 0;
+    }));
+    add(pruefe("Mini: m1_held spielt BOTH_CIN_1 aus _humanoid_m1szene im Bild der Animation (keine T-Pose)", [=] {
+        const int held = mission1::figurNamens("m1_held");
+        if (held < 0) { return false; }
+        const mission1::PoseBefund b = mission1::poseBefund(static_cast<std::size_t>(held), 800.0);
+        std::vector<BoneMatrix> w;
+        ActorDraw d;
+        (void)mission1::figurWelt(static_cast<std::size_t>(held), 800.0, true, w, d);
+        diag::detail("Knopftest: Mini - m1_held bei 800 ms: Animation \"" + g_app->scene.actors[static_cast<std::size_t>(held)].at(800.0).animation +
+                     "\", Bild " + std::to_string(d.frame) + " (Grundskelett " + std::to_string(d.anim != nullptr ? d.anim->numFrames : 0) +
+                     "), im Anhang " + std::to_string(b.kino) + ", Abweichung " + std::to_string(b.abweichung));
+        return b.geprueft && b.kino && b.abweichung < 0.001F;
+    }));
+    for (Schritt& x : mission1ZwischenSchritte("m1_held", false, "_mini")) { s.push_back(std::move(x)); }
+    for (Schritt& x : mission1GizmoSchritte("m1_held", "_mini")) { s.push_back(std::move(x)); }
+    // Drehen nach der letzten Fahrt: der Anfang bleibt, ein neuer Schluessel.
+    struct Nach {
+        mission1::UndoZiel z;
+        int moves = 0;
+        float ang0[3]{};
+        float angE[3]{};
+        double ende = 0.0;
+        std::string entWinkel;
+    };
+    auto np = std::make_shared<Nach>();
+    add(tu("Mini: m1_schiff nach der letzten Fahrt waehlen, Drehmodus", [=] {
+        np->z = mission1::schiffZiel(2);
+        if (np->z.figur < 0) { return; }
+        const Actor& a = g_app->scene.actors[static_cast<std::size_t>(np->z.figur)];
+        for (const ActorStep& st : a.steps) {
+            if (st.kind == ActorStep::Kind::Glide && !st.path.empty() && st.fremd.empty()) { np->ende = std::max(np->ende, st.endMs); }
+        }
+        const ActorState s0 = a.at(0.0);
+        const ActorState sE = a.at(np->ende);
+        for (int k = 0; k < 3; ++k) {
+            np->ang0[k] = s0.angles[k];
+            np->angE[k] = sE.angles[k];
+        }
+        const std::string* w = g_app->map.entities[static_cast<std::size_t>(np->z.entity)].find("angles");
+        np->entWinkel = w != nullptr ? *w : std::string();
+        np->moves = static_cast<int>(mission1::befehle("move", nullptr).size());
+        mission1::undoZielWaehlen(np->z, true);
+    }));
+    add(pause(0.5));
+    add(ziehenAn("Mini: am Gier-Ring des Schiffs ziehen", [=] { return mission1::undoGriff(np->z, true); }, 50.0F, -25.0F, 0));
+    add(pause(0.6));
+    add(pruefe("Mini: m1_schiff nach der letzten Fahrt gedreht - neuer Schluessel, Anfang und letzter Schluessel bleiben", [=] {
+        if (np->z.figur < 0) { return false; }
+        prepareScene();
+        const Actor& a = g_app->scene.actors[static_cast<std::size_t>(np->z.figur)];
+        const ActorState s0 = a.at(0.0);
+        const ActorState sE = a.at(np->ende);
+        const ActorState sT = a.at(np->z.ms + 1.0);
+        const std::string* w = g_app->map.entities[static_cast<std::size_t>(np->z.entity)].find("angles");
+        const std::string entJetzt = w != nullptr ? *w : std::string();
+        const int moves = static_cast<int>(mission1::befehle("move", nullptr).size());
+        const float dA = mission1::winkelAbstand3(s0.angles, np->ang0);
+        const float dE = mission1::winkelAbstand3(sE.angles, np->angE);
+        const float dT = mission1::winkelAbstand3(sT.angles, np->angE);
+        diag::detail("Knopftest: Mini - Drehen nach der letzten Fahrt (" + std::to_string(np->z.ms) + " ms): moves " + std::to_string(np->moves) +
+                     " -> " + std::to_string(moves) + ", Entity-Winkel \"" + np->entWinkel + "\" -> \"" + entJetzt + "\", Anfang " +
+                     std::to_string(dA) + ", letzter Schluessel " + std::to_string(dE) + ", zur Zeit gedreht " + std::to_string(dT));
+        return moves == np->moves + 1 && entJetzt == np->entWinkel && dA < 0.05F && dE < 0.05F && dT > 2.0F;
+    }));
+    add(tu("Mini: zuruecknehmen", [] {
+        setzeMaus(ImVec2{g_app->kartenAnsicht[0] + 30.0F, g_app->kartenAnsicht[3] - 30.0F});
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.4));
+    // Rueckgaengig/Wiederholen in der Mini-Szene
+    mission1UndoFall(s, [] { return mission1::figurZiel("m1_held", 1); }, "Mini Figur zwischen", false);
+    mission1UndoFall(s, [] { return mission1::figurZiel("m1_held", 2); }, "Mini Figur nach dem letzten", true);
+    mission1UndoFall(s, [] { return mission1::schiffZiel(1); }, "Mini Schiff zwischen", true);
+    mission1UndoFall(s, [] { return mission1::schiffZiel(2); }, "Mini Schiff nach dem letzten", false);
+    mission1UndoFall(s, [] { return mission1::kameraZiel(1); }, "Mini Kamera zwischen", false);
+    mission1UndoKette(s, {{[] { return mission1::figurZiel("m1_held", 1); }, false},
+                          {[] { return mission1::schiffZiel(2); }, true},
+                          {[] { return mission1::kameraZiel(1); }, false}},
+                      "m1szene");
+    return s;
+}
+
 std::vector<Schritt> mission1Schritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -1440,30 +2074,36 @@ std::vector<Schritt> mission1Schritte() {
         g_app->missionPickOpen = false;
         diag::detail("Knopftest: Mission1 - reines JKA \"" + z->jka + "\", eingerichtet \"" + z->mdArchiv + "\"");
     }));
-    // BHED_M1_TEIL: nur einzelne Teile (md, jka, zwischen, gizmo, drehen, undo -
+    // BHED_M1_TEIL: nur einzelne Teile (md, jka, zwischen, gizmo, drehen, undo, undoa = nur academy1, kino, mini -
     // durch Leerzeichen getrennt); ohne: alles. zwischen/gizmo brauchen jka.
     const std::string teile = std::getenv("BHED_M1_TEIL") != nullptr ? std::string(" ") + std::getenv("BHED_M1_TEIL") + " " : std::string();
     const auto mit = [&teile](const char* t) { return teile.empty() || teile.find(std::string(" ") + t + " ") != std::string::npos; };
     if (mit("md")) {
         for (Schritt& x : mission1GesichtSchritte(z, true)) { s.push_back(std::move(x)); }
     }
-    if (mit("jka") || mit("zwischen") || mit("gizmo") || mit("undo")) {
+    if (mit("jka") || mit("zwischen") || mit("gizmo") || mit("undo") || mit("undoa")) {
         for (Schritt& x : mission1GesichtSchritte(z, false)) { s.push_back(std::move(x)); }
     }
     if (mit("zwischen")) {
-        for (Schritt& x : mission1ZwischenSchritte()) { s.push_back(std::move(x)); }
+        for (Schritt& x : mission1ZwischenSchritte("rosh", true, "")) { s.push_back(std::move(x)); }
     }
-    if (mit("undo")) {
+    if (mit("undo") || mit("undoa")) {
         for (Schritt& x : mission1UndoSchritteAcademy()) { s.push_back(std::move(x)); }
     }
     if (mit("gizmo")) {
-        for (Schritt& x : mission1GizmoSchritte()) { s.push_back(std::move(x)); }
+        for (Schritt& x : mission1GizmoSchritte("luke", "")) { s.push_back(std::move(x)); }
+    }
+    if (mit("kino")) {
+        for (Schritt& x : mission1KinoSchritte(z)) { s.push_back(std::move(x)); }
     }
     if (mit("drehen") || mit("undo")) {
         for (Schritt& x : mission1DrehSchritte(z)) { s.push_back(std::move(x)); }
     }
     if (mit("undo")) {
         for (Schritt& x : mission1UndoSchritteSchiff()) { s.push_back(std::move(x)); }
+    }
+    if (mit("mini")) {
+        for (Schritt& x : mission1MiniSchritte(z)) { s.push_back(std::move(x)); }
     }
     return s;
 }
