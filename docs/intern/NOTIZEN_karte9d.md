@@ -594,3 +594,142 @@ Maschine (alle Zeiten unter Last bzw. allein, während andere Agenten liefen).
   Auswahl aber nicht – bei Gelegenheit in `inhalt_hilfe2.py`/`inhalt_touren.py` ergänzen (4 Sprachen).
 - Die drei lastempfindlichen Prüfungen (oben) sind unverändert; mit vielen parallelen Bauten können sie
   im Gesamtlauf rot werden.
+
+## Integration 3
+
+Zweig `karte1` (Worktree `Y:\karte`), Ausgang dc61305b (rc606 + H2 + 9d + mission1 + menue2). Skripte (nach
+int2): Selbsttests über `SP/int3/idle.sh` (Idle, 8-GB-Wächter, `bhed_q3map2.exe` im Laufordner, `BHED_Q3MAP2`,
+`BHED_HANDBUCH`; dazu `SPRACHE=es|cs` setzt `language=` in den Einstellungen des Laufs), Schlussrunde
+`SP/int3/ende.sh` (Modus 1 als `1 1es 1cs`, mission1 mit `BHED_FOTOS`), Wiederholungen allein `SP/int3/nach.sh`,
+es/cs-Bilder `SP/int3/bilder.sh`. Summen `SP/int3/ende_summe.txt`, `nach_summe.txt`, `bilder_summe.txt`.
+Pause 29.10. 17:00–17:27 (Rechner neu gestartet) nach dem ersten Merge.
+
+| Commit | Inhalt |
+|---|---|
+| b2be8691 | Merge `sprache_es` (b9101a67). Bau 0 Warnungen, ctest 166/166 |
+| 62cec6fe | Merge `sprache_cs` (12a2716f). Bau 0 Warnungen, ctest 166/166 |
+| 1a564aa4 | Handbuch: der Helfer versteht auch Tschechisch; drei tschechische Texte auf den Sechs-Sprachen-Wortlaut |
+| acd5c576 | Selbsttest Karten-Editor-Fotos: wieder in der Sprache des Laufs messen |
+| 3a907791 | es/cs-Handbuchbilder neu, deren englisches Bild sich seit 2406e182 geändert hat |
+| f6bf047c | Tschechisch: MeshTex „Počet dlaždic“ lief ins Zahlenfeld → „Dlaždice“; Bild `h_karte4_meshtex` (cs) neu |
+| (dieser) | Notizen |
+
+### Konflikte
+
+- **sprache_es**: `gui/selbsttest_menue.inc` (M2-Vergleichslauf `BHED_MENUE_VERGLEICH` und der ES-Kommentar
+  „Kurzname aus tools/sprachen.py“ beide), `tools/handbuch/gen_handbuch.py` (die KARTE9D-Texte und die Schleife
+  über die weiteren Sprachen beide; `tools/gen_i18n.py` mischte sich von selbst: KARTE9D, MISSION1, MENUE2 vor dem
+  Abschnitt „Weitere Sprachen“). Erzeugt: `i18n.h/.cpp` (gen_i18n.py), das Handbuch mit `suche.js`
+  (gen_handbuch.py; 4 Dateien in Konflikt, dazu `es|cs/menue_editor_m2.html` neu). `src/hilfe_orte.inc` blieb
+  gleich (179 Orte).
+- **sprache_cs**: `gui/selbsttest.cpp` (AskUnprotect) und `gui/selbsttest_vorschau_a.inc` (FindSimilarAny) –
+  ES und CS hatten dieselben zwei Englisch-Annahmen von Modus 1 behoben; eine Fassung behalten (ES: fängt auch
+  ein fehlendes `%s` ab). `gui/selbsttest_karte3bis5.inc` (3 Stellen) – die ES-Schleifen über `i18n::languages()`
+  enthalten die CS-Ergänzung (Tschechisch in den Listen der Breitenprüfungen). `gui/selbsttest_hilfe1.inc` –
+  Spanisch und Tschechisch beide. `src/i18n.cpp` und 153 tschechische Handbuchseiten neu erzeugt.
+- **Zwei Lösungen für dieselbe Sache** (kein Textkonflikt, acd5c576): ES ließ die Karten-Editor-Fotos auf
+  Englisch laufen, weil der Helfer-Eintrag Help 233 statt 247 breit machte; CS behob die Ursache (der Eintrag folgt
+  „Begriffe wie NetRadiant“, `trK` in `gui/app_karte_menue.cpp`). Beide zusammen hätten einen Rückfall des
+  CS-Fixes in jeder anderen Sprache verdeckt – die Umschaltung ist raus. `BHED_KARTE_NUR=fotos`: Spanisch
+  **78 OK / 0**, Tschechisch **78 OK / 0** (Help 247 × 202 wie NRC).
+- **Handbuchtexte** (1a564aa4): ES änderte „Four languages“ → „Six languages“ und die Sprachlisten bei „Sprache“
+  und beim Helfer; CS hatte die alten englischen Schlüssel übersetzt (schon mit sechs Sprachen) – nach dem Merge
+  fielen drei tschechische Texte auf Englisch zurück (48 statt 45). Schlüssel nachgezogen; der Satz
+  „… Chinese, Japanese and Spanish all work“ nennt jetzt auch Tschechisch (CS hat Helfer-Wörter und Frageliste),
+  in allen sechs Sprachen.
+
+### Fund: Tschechisch „Počet dlaždic“ im MeshTex-Dialog
+
+ES hatte die Platzprüfung der Plugin-Dialoge verschärft (kein Text darf in ein fremdes Feld rechts von ihm
+ragen – auf Spanisch lief „N.º de mosaicos“ ins Zahlenfeld); CS kannte diese Prüfung nicht. Zusammen rot:
+karteneditor voll und gezielt `BHED_KARTE_NUR=stufe4 BHED_STUFE4_NUR=texte` **89 OK, 1 FEHLER** („cs MeshTex
+Set S/T Scale: 22 Texte, 0 zu breit, 2 in fremden Feldern – mtskach: ragt in mtskacheln“; das alte cs-Bild
+`h_karte4_meshtex` zeigt „Počet dlaždi|1.000“). `KeMtTiles` cs → „Dlaždice“ (wie de „Kacheln“, es „Mosaicos“):
+derselbe Lauf **90 OK, 0 FEHLER**; Bild aus `BHED_HB_NUR=karte4 BHED_SPRACHE=cs` neu.
+
+### Was auf Spanisch/Tschechisch noch englisch ist
+
+Die seit 2406e182 dazugekommenen Texte gibt es nur in vier Sprachen; sie fallen auf Englisch zurück, nie leer
+(ctest `sprache`: jede Kennung in es/cs nicht leer, ohne eigenen Text genau englisch).
+
+| | es | cs |
+|---|---|---|
+| Programmtexte (`lint_i18n.py --sprache es/cs`) | **121** | **121** |
+| davon KARTE9D / MISSION1 / MENUE2 | 19 / 1 / 101 | 19 / 1 / 101 |
+| Handbuchtexte (`gen_handbuch.py --pflicht=es/cs`) | **45** | **45** |
+| Handbuchseiten mit englischen Texten | **9** | **9** |
+| Handbuchbilder englisch (mit Hinweis) | **9** | **9** |
+
+- Seiten (Texte): `menue_editor_m2` (28), `karte_tempo` (6), `figuren`, `karte_optimierer`, `karteneditor`,
+  `menue_editor` (je 2), `karte_oeffnen`, `karte_teilbau`, `karteneditor_bauen` (je 1). Unter den 45 sind je
+  Sprache 6 Texte, deren Übersetzung schon da ist, aber zum alten englischen Wortlaut gehört (9d/mission1/menue2
+  haben ihn geändert; `gen_handbuch.py`: „12 Einträge … nicht mehr gebraucht“).
+- Bilder: `h_karte9d_nebel`, `h_karte9d_shader`, `menue_detail`, `menue_diagnose`, `menue_modell`,
+  `menue_reiter_hierarchie`, `menue_reiter_text`, `menue_texte_deutsch`, `menue_video`.
+- Neu aufgenommen (3a907791), weil sie in es/cs noch das alte Programm zeigten: `h_karte7_*` (6),
+  `h_tour_menue`, `menue_bedienen`, `menue_original`, `menue_palette`, `menue_suchen` (das alte es-Bild
+  `h_tour_menue` zeigte zudem „No se encontraron los tutoriales“). Sie zeigen das Programm, wie es jetzt auf
+  Spanisch/Tschechisch aussieht – die neuen M2-/9d-Beschriftungen darin englisch. Nach der Übersetzung neu
+  aufnehmen: Sätze `karte7`, `karte9d`, `hilfe2` (`BHED_EDITORTEST=handbuch BHED_HB_NUR=…`) und
+  `BHED_EDITORTEST=menueeditor`, je mit `BHED_SPRACHE=es|cs` und `BHED_FOTOS`, dann `tools/handbuch/bilder.py`.
+- Maßtabellen (Schritt 4): die Menügrößen der Karten-Editor-Fotos (`karteneditorFotoSchritte`, 38 Menüs) und die
+  Breitenprüfungen änderten sich durch das Zusammenkommen nicht (Volllauf und `fotos` in es/cs grün).
+
+### Schlussrunde (Endstand vor dem Fix; der Fix danach gezielt, unten)
+
+| Schritt | Ergebnis |
+|---|---|
+| sauberer Neubau (`--clean-first`, /W4 /WX) | **0 Fehler, 0 Warnungen** (1166 s) |
+| ctest gesamt | **166/166** (450 s) |
+| lint_sources, lint_fassung, lint_i18n_erzeugt | ok |
+| karteneditor voll (Englisch, große Karte, Fotos) | 3278 OK, 7 FEHLER (1256 s, Spitze 1132 MB): 1 × cs-MeshTex (Fund oben), 1 × große Karte p99, 5 × Stufe 8/2 „Editor-Daten“ – behoben bzw. allein grün (unten) |
+| menueeditor | **46 OK, 0 FEHLER** (dazu in es und cs je 46/0 beim Bildlauf) |
+| mission1 (`BHED_FOTOS`) | **98 OK, 0 FEHLER** |
+| karteneditor `BHED_KARTE_NUR=hilfe1` / `hilfe2` / `stufe9d` | **59/0**, **44/0**, **25/0** |
+| optsicher (md_rev_TarisUpper2) | **14 OK, 0 FEHLER** |
+| Modus 1 Englisch | 2647 OK, 1 FEHLER (Zwischenablage) – allein **2648/0** |
+| Modus 1 Spanisch | **2648 OK, 0 FEHLER** |
+| Modus 1 Tschechisch | 2643 OK, 7 FEHLER (Tutorial k-werte-bearbeiten, unten) – allein **2648/0** |
+| kuerzel | **199 OK, 0 FEHLER** |
+| übrige 22 Modi | 0 FEHLER bis auf spulen, dieselben Zahlen wie Integration 2 (karte 227, kartenfunde 53, fix604b 32, laserfalle 8, geschuetzanim 3, zielstrahl 2, effektgrund 1, figurdeform 1, jk2 15, tuerlauf 13, kamera 95, missionsbau 95, szenen 26, ton 34, npcklasse 12, gluehen 8, gras 13, figurstufen 8, missionsliste 11, rest605 6, modellimfesten 1); spulen 11 OK, 2 FEHLER – allein **13/0** |
+| Kartenprüfung (278 MD-Karten, gegen kp606) | alle 17 Summen gleich (0 Abstürze, 0 nicht geladen, 0 GPU-/D3D-/Protokollfehler, 1 → 1 nicht gezeichnete Entity, 2 → 2 NPC ohne Modell, 27/29/139/5 fehlende efx/Klänge/Texturen/Modelle) |
+
+### Wiederholungen allein (dieselbe exe, je ein Prozess)
+
+Während der Schlussrunde liefen die Agenten in `Y:\vis`, `Y:\menue` und `Y:\mission` (Bauten, eigene jkstudio).
+
+| Prüfung | im Gesamtlauf | allein |
+|---|---|---|
+| Stufe 7: große Karte p99 < 50 ms | Mittel 25,56 ms, p99 82,03 ms | `stufe7` **78 OK, 0 FEHLER**, Mittel 14,13 ms, p99 26,07 ms |
+| Stufe 8/2: Editor-Daten (−keeplights, `.bhed`, Byte-Vergleich, Öffnen mit/ohne Begleitdatei; 5 Prüfungen) | „Failed to get a listening socket on port 39000“ – der Port der Bauüberwachung war belegt (fremder jkstudio-Bau), der Bau brach in Schritt 1 ab | `stufe8`: die 5 Prüfungen **OK** (zweimal); 3 andere FEHLER, s. Offen |
+| Modus 1: Copy → Zwischenablage | FEHLER | **2648 OK, 0 FEHLER** |
+| Modus 1 Tschechisch: Tutorial k-werte-bearbeiten mit offenem Editor | ein Klick „Další“ (Schritt 4 → 5) kam nicht an, die 6 Folgeprüfungen rot | **2648 OK, 0 FEHLER** |
+| spulen: intro2_sith, end_jedi zurück so flüssig wie vor | FEHLER | **13 OK, 0 FEHLER** (intro2_sith zurück Mittel 18,3 ms, 95 % 31,5 ms) |
+
+Nach dem Fix (nur `tools/i18n_sprache_cs.py` → `src/i18n.cpp`): Bau 0 Warnungen, `stufe4`/`texte` **90/0**,
+ctest **166/166 (405 s)**.
+
+### Gegen das Vorbild geprüft / nicht geprüft
+
+Die Integration bringt außer dem tschechischen Kurztext kein neues Verhalten. Gegen NRC geprüft: die 38
+Menügrößen der Karten-Editor-Fotos auf Englisch (Volllauf), Spanisch und Tschechisch (`fotos`), die Platzprüfung
+der nachgebauten NRC-Dialoge in allen sechs Sprachen (Stufe 4: `texte` 90/0, `reste` im Volllauf); Spiel/OpenJK
+über die Selbsttests der Zweige (alle grün) und die Kartenprüfung (gleich kp606). Nicht geprüft: Tempo auf
+ruhiger Maschine; die Selbsttests außer Modus 1, menueeditor und `fotos` nur auf Englisch; die neuen englischen
+Texte in es/cs (Übersetzung folgt).
+
+### Offen
+
+- Übersetzung der 121 Programmtexte und 45 Handbuchtexte je Sprache (`tools/i18n_sprache_es|cs.py`,
+  `tools/handbuch/inhalt_es|cs.py`), danach die Bildsätze oben neu (es/cs).
+- `BHED_KARTE_NUR=stufe8` allein: „Notify when a build is done“ nicht ganz sichtbar (Eintrag 329..858, Menü
+  330..856), der Klick kommt nicht an (unter der Maus nichts) → „Build > Melden: aus“ rot. Im Volllauf grün;
+  mit der exe von Integration 2 allein ebenso rot (34 OK / 6) – nicht aus dieser Integration, nicht behoben.
+- Parallele jkstudio-Bauten teilen den Port 39000 der Bauüberwachung (NRC `watchbsp`); ein zweiter Bau zur selben
+  Zeit bricht ab. Für den Benutzer selten (zwei Programme bauen gleichzeitig), für parallele Testläufe ein Grund
+  für rote Bauprüfungen.
+- Das Tutorial-Klicken in Modus 1 (`k-werte-bearbeiten`, Pause 0,25 s je „Weiter“) ist unter Last nicht sicher –
+  bisher nicht als lastempfindlich bekannt.
+- Aus den Sprach-Notizen unverändert: NRC-Menünamen bleiben englisch; die Auflösungsliste des Menü-Editors
+  beginnt fest mit „Window“; Pluralformen im Tschechischen; `lint_i18n.py` ohne `--sprache` meldet die bekannten
+  „nirgends benutzt“ (liest `gui/*.inc` nicht).
