@@ -17,7 +17,8 @@ NetRadiant-Custom)“. Neue Texte in `tools/i18n_karte9d.py`.
 | Fund | b2b8eab3 | Modell-Import: Shader-Skript unter `shaders/` statt `scripts/` |
 | 6 | 085e00fb | Effekte: cullrange wie PlayEffect, Läufer außerhalb des Bilds übersprungen |
 | 7 | 1f14bff9 | Menügrößen Build und Curve, Handbuch (4 Sprachen) und Bilder |
-| 7 | (dieser) | Notizen |
+| 7 | eea07670 | Notizen |
+| VIS | 0344b276 | VIS-Fund md_rev_TarisUpper2: Speicher wie CreatePassages, Hinweis vor vollem VIS, Deko-Prüfung nur nicht abdichtende Pinsel |
 
 ## Punkt 1: Optimierer während der misc_model-Rückgewinnung
 
@@ -265,6 +266,133 @@ Last – die anderen Agenten bauten und testeten gleichzeitig):
 | Neubau (`--clean-first`) | 0 Fehler, 0 Warnungen (811 s) |
 | Lints | lint_sources, lint_fassung, lint_cbuffer, lint_headers, lint_feldinit, lint_gapp, lint_imgui_context ok; lint_i18n 704 (1274434d: 705), lint_portability 191 (192), lint_settings 1, lint_fremdprogramm 1, lint_d3dbesitz 11 (gpumap_win32.cpp, unberührt) wie vorher; lint_i18n_erzeugt schlug schon auf 1274434d fehl (i18n_karte2 fehlt in der Prüfkopie) |
 
+## Nachauftrag: VIS auf md_rev_TarisUpper2 („[Final] Extreme Quality“, 12:23 h bei 45 %)
+
+Frage (Kumpel von shank): die per File > Open .bsp zurückgewonnene Karte mit „[Final] Extreme Quality“ –
+VIS seit gestern, PassagePortalFlow 45 %, laut Fenster noch mindestens 15 h. Normal oder ein Fehler bei uns?
+
+**Antwort: normal, kein Fehler der Rückgewinnung und kein langsameres VIS.** Die Original-.bsp hatte nie
+ein volles VIS: ihr worldspawn trägt `"_q3map2_cmdline" "-bsp -meta; -vis -fast; -light -fast -patchshadows
+-samples 2 -filter -bounce 2"` (NRC q3map2 2.5.17n-git-68ecbed). „[Final] Extreme Quality“ rechnet das volle
+VIS (`-vis`) – auf einer sehr offenen Karte mit 38042 Portalen; dafür braucht es etwa 11 GB Arbeitsspeicher.
+
+### 1. Struktur: Original gegen zurückgewonnen
+
+`SP/vis/bspstruktur.py` (Lumps der .bsp, Cluster aus dem Visibility-Lump), `SP/vis/mapzaehlen.py` (.map).
+Zurückgewonnen = `taris_mm` (Open .bsp mit misc_model-Rückgewinnung, vor „Fix all safe“), gebaut mit
+bhed_q3map2 `-meta`.
+
+| | Original .bsp | zurückgewonnen, `-meta` |
+|---|---|---|
+| Cluster | 9535 (Visibility-Lump) | 9598 (.prt), +0,7 % |
+| Leafs / Knoten | 18458 / 18379 | 18562 / 18483 |
+| strukturelle Weltpinsel | 6787 (nur in festen Blättern) | 6718 (ohne detail-Flag; q3map2: „6718 structural brushes“) |
+| Weltpinsel gesamt | 17682 | 97710 (92717 detail: Unerkannte Flächen, misc_model-Ersatz) |
+| Portale | stehen nicht in der .bsp | 38042 (76084 Portalseiten) |
+| sichtbare Cluster je Cluster | 6414,5 (67,3 %) | mit `-vis -fast`: 6518 (67,9 %) |
+
+- Die Struktur ist dieselbe: die Rückgewinnung (Stufe 8a) und die Dekompilierung (convert_map.cpp mit der
+  Stufe-7-Regel für structural) lassen die strukturellen Pinsel strukturell und machen alles andere detail;
+  die vielen zusätzlichen Pinsel sind detail und erzeugen keine Portale.
+- Per Cluster verglichen (`SP/vis/visvergleich.py`, 4200 über gleiche Blatt-Grenzen zugeordnete Cluster,
+  Stichprobe 400): Original 2758,9, unser `-vis -fast` 2778,4 sichtbare Cluster, 98 % gemeinsam – die
+  Sichtbarkeit des Originals ist die eines `-vis -fast`.
+- Kein Fehler, also kein Rot/Grün an der Rückgewinnung.
+
+### 2. Tempo: bhed_q3map2 gegen NRCs q3map2.exe
+
+Gleiche .prt, `-threads 32`, Idle, nacheinander (`SP/vis/q3.py`, `q3lauf.ps1`; die anderen Agenten bauten
+gleichzeitig – Werte unter Last).
+
+| Karte | Portale | bhed Wand / CPU | NRC Wand / CPU |
+|---|---|---|---|
+| ctf3 | 2755 | 1 s / 20 s | 2 s / 24 s |
+| mb2_manaan | 5051 | 17 s / 390 s | 22 s / 496 s |
+| t3_byss | 7284 | 36 s / 545 s | 44 s / 700 s |
+| duel_mos_espa | 6756 | 202 s / 2350 s | 206 s / 2950 s |
+| md_rev_TarisUpper2 (bis 8 GB) | 38042 | BasePortalVis 13 s, CreatePassages bis „6.“ in 30 s | 13 s, „6.“ in 32 s |
+
+- **Unser VIS ist nicht langsamer**: rund 20 % weniger CPU-Zeit (MSVC-Bau gegen NRCs MinGW-Bau), die Wandzeit
+  gleich oder besser. Auf Taris endet jeder Lauf mit dem 8-GB-Wächter in CreatePassages bei 65 % – beide
+  gleich schnell bis dahin; PassagePortalFlow auf Taris lässt sich hier nicht messen.
+- Threads: im Mittel 15–23 der 32 Kerne belegt (die anderen Agenten); am Ende jeder großen Karte läuft der
+  „Schwanz“: der Pacifier steht auf 9 (alle Portale verteilt), die teuersten letzten Portale rechnen auf
+  wenigen Threads weiter (duel_mos_espa: Pacifier fertig nach 115 s, danach 90 s mit etwa 2 Kernen).
+- Mit 32 Threads ist die Sichtbarkeit von Lauf zu Lauf und zwischen beiden Programmen leicht verschieden
+  (bekannt seit Stufe 6: fertige Portale kürzen spätere ab, je nach Thread-Zeitpunkt); mit `-threads 1`
+  sind beide Byte für Byte gleich – nachgeprüft auf ctf3: 145528 Bytes Sichtbarkeit gleich, bhed 16 s, NRC 22 s
+  (NRC druckt dabei 10 MB Passagen-Speicher, bhed richtig 21 MB, zusammen 32 MB).
+
+### 3. Speicher: NRC druckt einen falschen Bedarf
+
+NRCs `PassageMemory` (visflow.cpp) zählt nur `numportals` der `numportals * 2` Portalseiten und summiert in
+einem `int`: für Taris „12 average number of passages per leaf, 268 MB required passage memory“. Gemessen:
+der Prozess war bei 65 % von CreatePassages über 8 GB. Richtig (aus der .prt): 995496 Passagen à
+(16 + 9512) Bytes = 9045 MB, dazu portalfront/-flood/-vis je Portalseite 2071 MB – **11116 MB**.
+bhed_q3map2 druckt jetzt „13 … / 9045 MB required passage memory“ und „BehavEd: vis memory 11116 MB“
+(NRC-Fehler nicht übernommen). Hat der PC des Kumpels weniger freien Speicher, lagert Windows während
+PassagePortalFlow aus – das macht das VIS zusätzlich extrem langsam.
+
+### 4. Dauer: aus den Portalen nicht berechenbar
+
+Die Messreihe (`SP/vis/kal.py`, `kal2.py`, 15 Karten aus dem Spiel, die größte taspir1 mit 12342 Portalen in
+26 s) zeigt: die Dauer hängt an der Offenheit, nicht an der Portalzahl. duel_mos_espa (6756 Portale) braucht
+2350 CPU-s, taspir1 (12342) 433 CPU-s, kejim_post (47152, Stufe 7) etwa 10 min, Taris (38042) Tage. Auch die
+Momente der might-see-Zahlen nach BasePortalVis (Σm², Σm³) liegen um den Faktor 3–5 daneben (manaan Σm³ 1,1e14
+→ 402 s, t3_byss 8,4e13 → 517 s, mos_espa 1,9e14 → 2165 s; Taris 5,1e17). Deshalb keine Zahl, sondern:
+- **Hinweis vor dem vollen VIS** (eigene Funktion): vor jedem `-vis` ohne `-fast` liest der Editor die .prt
+  des BSP-Schritts (`visBedarfAusPrt`, wie LoadPortals/PassageMemory) und schreibt „Volles VIS: N Portale,
+  C Cluster – braucht etwa X GB Arbeitsspeicher (dieser PC: Y GB)“. Ab der Portal-Schwelle des Optimierers
+  (8000) oder ab 75 % des eingebauten Speichers eine Warnung, auch im Fortschrittsfenster: Stunden, auf
+  offenen Karten Tage, der Fortschritt zählt Portale und die teuren kommen zuletzt; bei einer Karte aus
+  Open .bsp mit `-vis -fast` in `_q3map2_cmdline` der Satz dazu; Auswege `-vis -fast`, detail,
+  „Teil-Kompilierung: VIS wiederverwenden“.
+- Der lineare „noch mindestens“-Wert im Fenster ist für PassagePortalFlow nur eine Untergrenze (SortPortals:
+  die Portale kommen nach steigender might-see).
+
+### 5. Optimierer: „Deko als Struktur“ nur noch Pinsel, die nicht abdichten
+
+Die Prüfung `deko` (klein ≤ 64, dünn ≤ 8 bei ≤ 256, verwinkelt) schlug bisher jeden solchen Pinsel vor – auch
+einen Stopfen in der Außenwand. Jetzt mit der .bsp des letzten Baus (ohne Leck): Punkte 2 Einheiten vor jeder
+Seite (Mitte und Ecken ein Viertel zur Mitte), die in keinem anderen festen Strukturpinsel liegen; liegt einer
+in einem Blatt ohne Cluster (FillOutside), dichtet der Pinsel ab und wird nicht vorgeschlagen.
+- **Rot/grün**: neue Testkarte `tests/karte/q3map2/raum_deko.map` mit `raum_deko.nrc.bsp` (NRCs q3map2
+  `-meta`): Stopfen 16 × 32 × 32 in einem Loch der Ostwand, Wandstück darunter, Kiste im Raum. Als detail leckt
+  der Stopfen (NRC: „leaked“). Mit abgeschalteter Abdicht-Prüfung: `karteoptimierer` 1 FEHL („3 small …“);
+  mit: 266 Prüfungen, 0 FEHL – nur die Kiste, „2 more seal the map“; mit Leck (.lin) wie ohne .bsp.
+- Auf Taris (`karteoptimierer` mit taris.map und taris.bsp, 231 ms): **3730 Vorschläge, 1995 dichten ab**.
+  Nachgebaut (`SP/vis/deko_anwenden.py`, dieselben Regeln, 3709 Pinsel als detail) und gebaut: **kein Leck**;
+  strukturelle Pinsel 6718 → 3009, Cluster 9598 → 7548, Portale 38042 → 33800, VIS-Speicher 11,1 → 9,7 GB;
+  die Karte wird aber noch offener (`-vis -fast`: 79,8 % statt 67,9 % sichtbar) – das volle VIS bleibt lang.
+
+### 6. VIS wiederverwenden (Stufe 8a) auf Taris
+
+`SP/vis/wieder.py`: `-meta`, `-vis -fast -bhedvisreuse` (rechnet, 19 s); einen Detail-Pinsel um 8 verschoben,
+`-meta`, `-vis …`: „visibility reused“ (1 s; der Cache vergleicht die ganze .prt Byte für Byte); einen
+Strukturpinsel verschoben: „visibility computed“. Die Option ist vorgegeben aus – der Hinweis nennt sie.
+
+### 7. Tests
+
+- ctest `karte_bau`: `visBedarfAusPrt` (von Hand: 3 Cluster, 4 Portale → 22 Passagen, 720 Bytes; raum.nrc.prt:
+  8 Cluster, 10 Portale, 52 Passagen; kaputte .prt), `bauVisVoll`, `visFastInKommandozeile`; für Taris gibt
+  dieselbe Rechnung 995496 Passagen und 11116 MB – genau die Zahl, die bhed_q3map2 druckt.
+- ctest `karte_optimierer`: raum_deko (siehe 5), Vorlagen 35.
+- Selbsttest `stufe9d`, Teil VIS: Steinraum mit Zwischenwand und Tür, Portal-Schwelle 1, `_q3map2_cmdline` mit
+  `-vis -fast`: nach dem Bau stehen in der Konsole vor dem VIS-Befehl die Zeile mit den Zahlen aus der .prt,
+  die Warnung, der Satz zum Original und die Auswege; mit `-vis -fast` nichts davon. Ergebnis: stufe9d 25 OK / 0 FEHLER.
+
+### 8. Empfehlung für den Kumpel
+
+1. Das laufende VIS abbrechen. Es rechnet, was das Original nie hatte; der Rest dauert sehr wahrscheinlich
+   Tage (die teuren Portale kommen zuletzt), und ohne 12 GB freien Speicher lagert Windows aus.
+2. Für dieselbe Sichtbarkeit wie das Original: `-vis -fast` – im Build-Menü „[Final] Extreme Quality“
+   kopieren (Build > Customize…) und `-vis` durch `-vis -fast` ersetzen. Das Licht von „Extreme Quality“
+   (`-samples 4 -randomsamples -bounce 8`, ohne `-fast`) braucht auf dieser Karte ebenfalls lange.
+3. Vorher **Build > Teil-Kompilierung: VIS wiederverwenden** einschalten: spätere Bauten mit unveränderten
+   Portalen (Licht, Entities, Detail-Pinsel) überspringen das VIS.
+4. Wer trotzdem das volle VIS will: nur auf einem Rechner mit 16 GB und mehr, nach dem Optimierer-Vorschlag
+   „Deko als Struktur“ (3730 Pinsel, bleibt dicht), und mit Tagen rechnen.
+
 ## Was gegen das Vorbild geprüft wurde
 
 Geprüft gegen das Vorbild:
@@ -279,6 +407,9 @@ Geprüft gegen das Vorbild:
 - Rückgewinnung: kartemodellrueck auf der Original-.bsp (Netze, `_remap`); der Keil an den BSP-Lumps.
 - Modell-Import: der Ordner gegen ScanAndLoadShaderFiles( "shaders" ); cullrange gegen
   FxScheduler.cpp:1174.
+- VIS-Fund: Struktur und Sichtbarkeit gegen die Original-.bsp (Cluster, Leafs, Knoten, je Cluster die
+  sichtbaren Cluster); VIS-Tempo gegen NRCs q3map2.exe auf vier Karten; der Speicherbedarf gegen den Prozess
+  (über 8 GB bei 65 % CreatePassages) und gegen die Formel; die Deko-Prüfung gegen NRCs Leck-Meldung.
 
 Nicht gegen das Vorbild geprüft:
 - Effekte: der Test prüft, dass ein fx_runner spielt (Läufer, Ecken, Bild anders) und abschaltbar ist –
@@ -291,6 +422,8 @@ Nicht gegen das Vorbild geprüft:
 - Shader live und Patch-Brücke: eigene Funktionen ohne Vorbild – geprüft auf ihr Ergebnis (Datei im
   Import-Ordner, Bild ändert sich ohne Neustart; Kontrollpunkte genau, ein Rückgängig-Schritt).
 - Nebel je Bildpunkt statt je Ecke; Bildzeit nur unter Last.
+- VIS-Dauer: keine Zahl (die Messreihe zeigt, dass sie aus Portalen und might-see nicht folgt); das volle
+  VIS auf Taris konnte hier wegen des 8-GB-Wächters nicht laufen.
 
 ## Offene Punkte
 
@@ -306,6 +439,8 @@ Nicht gegen das Vorbild geprüft:
 - Shader-Editor: kein Suchen/Ersetzen im Fenster (NRCs Shader-Fenster hat es).
 - Die beiden Pk3-Packer in app_karte_bau.cpp (Im Spiel testen, Karte als .pk3) tragen den Import-Ordner
   doppelt ein (vorhanden seit Stufe 9) – zusammenlegen.
+- VIS: eine Restzeit für PassagePortalFlow, die die Kosten der späten Portale kennt (der lineare Wert ist nur
+  eine Untergrenze); „VIS wiederverwenden“ vorgegeben einschalten?
 
 ## Changelog
 
@@ -320,6 +455,9 @@ Nicht gegen das Vorbild geprüft:
 - **Curve > Bridge patch edges**: a new patch joins one edge each of two patches, with exactly their control points, in one undo step.
 - Fixed: a recovered misc_model could show meshes the .bsp did not have (a huge grey wedge on md_rev_TarisUpper2) - such meshes now get a `_remap` to nodraw.
 - Fixed: dropped models (.obj/.fbx/.glb) wrote their shader script to `scripts/`, which Jedi Academy, Jedi Outcast and Movie Duels do not read - now `shaders/`; older imports are still read and packed under `shaders/`.
+- Map editor, build: before a full VIS (`-vis` without `-fast`) the console names portals, clusters and the memory it needs (from the portal file); from the optimizer's portal threshold or when memory gets short a warning follows, also in the progress window, with the ways out (`-vis -fast` for tests, detail, Partial compile: reuse VIS) - and, for a map from Open .bsp, whether the original was built with `-vis -fast`.
+- bhed_q3map2 `-vis` prints the real passage memory (NetRadiant-Custom's q3map2 counted half the portals in an int: 268 MB instead of 9 GB on md_rev_TarisUpper2) and the total.
+- Optimizer, Decoration as structural: after a build without a leak only brushes with no face at the void of that .bsp are suggested - a small plug in an outer wall is no longer proposed as detail.
 
 ## Deutsch
 
@@ -332,6 +470,9 @@ Nicht gegen das Vorbild geprüft:
 - **Curve > Patch-Brücke zwischen Kanten**: ein neuer Patch verbindet je eine Kante zweier Patches, genau mit ihren Kontrollpunkten, in einem Rückgängig-Schritt.
 - Behoben: ein zurückgewonnenes misc_model konnte Netze zeigen, die die .bsp nicht hatte (ein riesiger grauer Keil auf md_rev_TarisUpper2) - solche Netze bekommen jetzt einen `_remap` auf nodraw.
 - Behoben: gezogene Modelle (.obj/.fbx/.glb) legten ihr Shader-Skript unter `scripts/` ab, das Jedi Academy, Jedi Outcast und Movie Duels nicht lesen - jetzt `shaders/`; ältere Importe werden weiter gelesen und unter `shaders/` gepackt.
+- Karten-Editor, Bauen: vor einem vollen VIS (`-vis` ohne `-fast`) nennt die Konsole Portale, Cluster und den Speicherbedarf (aus der Portaldatei); ab der Portal-Schwelle des Optimierers oder wenn der Speicher knapp wird, folgt eine Warnung, auch im Fortschrittsfenster, mit den Auswegen (`-vis -fast` für Tests, detail, Teil-Kompilierung: VIS wiederverwenden) - und bei einer Karte aus Open .bsp, ob das Original mit `-vis -fast` gebaut wurde.
+- bhed_q3map2 `-vis` druckt den echten Passagen-Speicher (der q3map2 von NetRadiant-Custom zählte die Hälfte der Portale in einem int: 268 MB statt 9 GB auf md_rev_TarisUpper2) und die Summe.
+- Optimierer, Deko als Struktur: nach einem Bau ohne Leck werden nur Pinsel ohne Seite am Raum außerhalb dieser .bsp vorgeschlagen - ein kleiner Stopfen in einer Außenwand gilt nicht mehr als detail-Kandidat.
 
 ## 中文
 
@@ -344,6 +485,9 @@ Nicht gegen das Vorbild geprüft:
 - **Curve > 在面片边之间搭桥**:用一个新面片连接两个面片的各一条边,控制点完全相同,一步撤销。
 - 修复:恢复出的 misc_model 可能显示 .bsp 中没有的网格(md_rev_TarisUpper2 上的巨大灰色楔形)——这类网格现在会得到指向 nodraw 的 `_remap`。
 - 修复:拖入的模型(.obj/.fbx/.glb)把着色器脚本写到 `scripts/`,而 Jedi Academy、Jedi Outcast 和 Movie Duels 不读取该文件夹——现在写到 `shaders/`;旧的导入仍会被读取,并以 `shaders/` 打包。
+- 地图编辑器,编译:在完整 VIS(不带 `-fast` 的 `-vis`)之前,控制台会给出门户数、簇数和所需内存(来自门户文件);达到优化器的门户阈值或内存不足时,会出现警告(进度窗口中也会显示),并给出解决办法(测试用 `-vis -fast`、detail、部分编译:重用 VIS)——对于通过 Open .bsp 打开的地图,还会说明原始地图是否用 `-vis -fast` 编译。
+- bhed_q3map2 `-vis` 会打印真实的 passage 内存(NetRadiant-Custom 的 q3map2 只统计一半门户并用 int 累加:在 md_rev_TarisUpper2 上显示 268 MB 而不是 9 GB)以及总量。
+- 优化器,装饰为结构:在一次无泄漏的编译之后,只建议在该 .bsp 中没有面朝向地图外部的笔刷——外墙上的小塞子不再被建议设为 detail。
 
 ## 日本語
 
@@ -356,3 +500,6 @@ Nicht gegen das Vorbild geprüft:
 - **Curve > パッチの辺をブリッジ**:2 つのパッチの辺を 1 本ずつ、制御点そのままの新しいパッチでつなぎます。元に戻すは 1 回です。
 - 修正:復元した misc_model が .bsp にないメッシュを表示することがありました(md_rev_TarisUpper2 の巨大な灰色のくさび)。そのようなメッシュには nodraw への `_remap` が付きます。
 - 修正:ドラッグしたモデル(.obj/.fbx/.glb)がシェーダースクリプトを Jedi Academy・Jedi Outcast・Movie Duels が読まない `scripts/` に書いていました。今は `shaders/` です。古いインポートは引き続き読み込まれ、`shaders/` として詰められます。
+- マップエディター、ビルド:完全な VIS(`-fast` のない `-vis`)の前に、コンソールにポータル数、クラスター数、必要なメモリが表示されます(ポータルファイルから)。最適化のポータルしきい値に達するかメモリが足りなくなると、進行状況ウィンドウにも警告と対策(テストには `-vis -fast`、detail、部分コンパイル:VIS を再利用)が出ます。Open .bsp で開いたマップでは、元のマップが `-vis -fast` でビルドされたかどうかも表示されます。
+- bhed_q3map2 の `-vis` が実際の passage メモリと合計を表示します(NetRadiant-Custom の q3map2 はポータルの半分だけを int で数えていました:md_rev_TarisUpper2 で 9 GB ではなく 268 MB)。
+- 最適化、構造の装飾:リークのないビルドの後は、その .bsp でマップの外側に面していないブラシだけを提案します。外壁の小さな栓はもう detail の候補になりません。
