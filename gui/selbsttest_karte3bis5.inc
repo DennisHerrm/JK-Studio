@@ -5663,7 +5663,9 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         {"Plugins__prtview", {"Plugins", "prtview"}, 187, 175},
         // Help: seit Stufe 3 Punkt 3 ist OpenManual nachgebaut - unser Eintrag
         // Manual zeigt F1, und QMenu legt dafuer die Tastenspalte an (+ Vorschub "F1" = 12)
-        {"Help", {"Help"}, 215 + 12, 130 + 2 * 24},
+        // Stufe H1 (rc606, Merge hilfe1): dazu der eigene Eintrag "Helper: what do you want to do?" -
+        // eine Zeile mehr, und er ist der laengste Eintrag (Breite 247 gemessen)
+        {"Help", {"Help"}, 247, 130 + 3 * 24},
         {"Help__General", {"Help", "General"}, 335, 298},
         {"Help__Jedi_Knight_Jedi_Academy", {"Help", "Jedi Knight Jedi Academy"}, 286, 250},
     };
