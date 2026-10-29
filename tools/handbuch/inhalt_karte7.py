@@ -91,10 +91,10 @@ KARTE_TEMPO = {
             "天花板为天空画刷的房间(其他各面为 caulk,上方再加 caulk 盖子):天空着色器的太阳穿过天空照进房间,与烘焙后一致。",
             "天井が空のブラシ(ほかの面はすべて caulk、上に caulk のふた)の部屋:空シェーダーの太陽が空を通って部屋に差し込みます。ベイク後と同じです。")),
         ("note", T(
-            "Measured against the quick bake at fixed camera points (md_ch_ben, mp/duel1, md_eitd_jedi with sky light, a large tester map): the mean brightness difference fell from 2-95 to 0.4-11 of 255. What remains is mostly the lightmap resolution (one luxel per 16 units) and bounce light, which the preview does not have.",
-            "Gemessen gegen das Schnell-Backen an festen Kamerapunkten (md_ch_ben, mp/duel1, md_eitd_jedi mit Himmelslicht, eine große Testerkarte): die mittlere Helligkeitsabweichung sank von 2-95 auf 0,4-11 von 255. Was bleibt, ist vor allem die Auflösung der Lightmaps (ein Luxel je 16 Einheiten) und das Bounce-Licht, das die Vorschau nicht hat.",
-            "在固定摄像机位置与快速烘焙比较(md_ch_ben、mp/duel1、带天空光的 md_eitd_jedi、一张大型测试地图):平均亮度偏差从 2-95 降到 0.4-11(满值 255)。剩下的差别主要来自光照贴图的分辨率(每 16 单位一个 luxel)以及预览没有的反弹光。",
-            "固定したカメラ位置でクイックベイクと比較しました(md_ch_ben、mp/duel1、空の光のある md_eitd_jedi、大きなテスターのマップ)。明るさの平均の差は 255 のうち 2-95 から 0.4-11 に下がりました。残る差は主にライトマップの解像度(16 ユニットに 1 ルクセル)と、プレビューにないバウンス光です。")),
+            "Measured against the quick bake at fixed camera points (md_ch_ben, mp/duel1, md_eitd_jedi with sky light, a large tester map): the mean brightness difference fell from 2-95 to 0.2-2 of 255. What remains is mostly the lightmap resolution (one luxel per 16 units) and bounce light, which the preview does not have.",
+            "Gemessen gegen das Schnell-Backen an festen Kamerapunkten (md_ch_ben, mp/duel1, md_eitd_jedi mit Himmelslicht, eine große Testerkarte): die mittlere Helligkeitsabweichung sank von 2-95 auf 0,2-2 von 255. Was bleibt, ist vor allem die Auflösung der Lightmaps (ein Luxel je 16 Einheiten) und das Bounce-Licht, das die Vorschau nicht hat.",
+            "在固定摄像机位置与快速烘焙比较(md_ch_ben、mp/duel1、带天空光的 md_eitd_jedi、一张大型测试地图):平均亮度偏差从 2-95 降到 0.2-2(满值 255)。剩下的差别主要来自光照贴图的分辨率(每 16 单位一个 luxel)以及预览没有的反弹光。",
+            "固定したカメラ位置でクイックベイクと比較しました(md_ch_ben、mp/duel1、空の光のある md_eitd_jedi、大きなテスターのマップ)。明るさの平均の差は 255 のうち 2-95 から 0.2-2 に下がりました。残る差は主にライトマップの解像度(16 ユニットに 1 ルクセル)と、プレビューにないバウンス光です。")),
         ("h2", "backen", T("Quick bake", "Schnell-Backen", "快速烘焙", "クイックベイク")),
         ("steps", [
             T("Switch on **{{KeLBuild}} > {{KeBackenMenue}}**. Two seconds after the last change bhed_q3map2 builds the map in a temporary folder - `-meta`, `-vis -fast` (when the map has no leak) and `-light -fast` - at low priority, so the editor stays smooth.",
