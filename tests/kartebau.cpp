@@ -294,12 +294,14 @@ void fortschrittPruefen(const std::string& q3) {
     }
     {   // Stufe 9d: was ein volles -vis braucht (vis.cpp LoadPortals, visflow.cpp PassageMemory)
         // 3 Cluster, 4 Portale 0-1, 1-2, 0-2, 1-2: Portale je Cluster 2, 3, 3 -> 4 + 9 + 9 = 22 Passagen;
-        // portalbytes ((8 + 63) & ~63) >> 3 = 8; 22 * (16 + 8) + 8 Portalseiten * 3 * 8 = 720 Bytes
+        // portalbytes ((8 + 63) & ~63) >> 3 = 8, eine Maske; vis1: 22 * (24 + 10 + 8 / 3) + 8 Portalseiten * 2 * 8
+        // = 934,67 Bytes (die Passagen behalten nur ihre Woerter, die nicht null sind - geschaetzt ein Drittel)
         const std::string prt = "PRT1\n3\n4\n0\n4 0 1 0 (0 0 0 ) (0 0 64 ) (0 64 64 ) (0 64 0 ) \n4 1 2 0 (64 0 0 ) (64 0 64 ) (64 64 64 ) (64 64 0 ) \n"
                                 "4 0 2 1 (1 0 0 ) (1 0 64 ) (1 64 64 ) (1 64 0 ) \n4 1 2 0 (2 0 0 ) (2 0 64 ) (2 64 64 ) (2 64 0 ) \n";
         const VisBedarf v = visBedarfAusPrt(prt);
-        pruefe(v.ok && v.cluster == 3 && v.portale == 4 && v.passagen == 22 && std::fabs(v.speicherMB * 1024.0 * 1024.0 - 720.0) < 1e-6,
-               "VIS-Bedarf: 22 Passagen, 720 Bytes (" + std::to_string(v.passagen) + ")");
+        pruefe(v.ok && v.cluster == 3 && v.portale == 4 && v.passagen == 22 &&
+                   std::fabs(v.speicherMB * 1024.0 * 1024.0 - (22.0 * (24.0 + 10.0 + 8.0 / 3.0) + 128.0)) < 1e-6,
+               "VIS-Bedarf: 22 Passagen, 934,67 Bytes (" + std::to_string(v.passagen) + ", " + std::to_string(v.speicherMB * 1024.0 * 1024.0) + ")");
         pruefe(!visBedarfAusPrt("PRT1\n3\n1\n0\n4 0 7 0 (0 0 0 )\n").ok && !visBedarfAusPrt("GTKR\n").ok,
                "VIS-Bedarf: Cluster ausserhalb oder kein PRT1 - nichts");
         const VisBedarf r = visBedarfAusPrt(lies(q3 + "/raum.nrc.prt"));
