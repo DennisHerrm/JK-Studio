@@ -82,6 +82,14 @@ struct Prim {
     int item = -1;        // Index im Menue (-1 = das Menue selbst)
 };
 
+// Eine Zeile einer Listbox: DC->feederItemText je Spalte, DC->feederItemImage
+// und die optionalen Bilder je Spalte (SP optionalImage, MP optionalImage1).
+struct FeederEintrag {
+    std::vector<std::string> spalten;
+    std::string bild;
+    std::vector<std::string> spaltenBild;
+};
+
 // Laufzeitstand eines Items (die Skripte aendern ihn: show/hide/setfocus ...).
 struct ItemZustand {
     int flags = 0;        // windowDef_t.flags
@@ -97,8 +105,10 @@ struct Umgebung {
     std::function<const Schrift*(int font)> schrift;
     // DC->ownerDrawVisible; ohne: sichtbar
     std::function<bool(int flags)> ownerDrawSichtbar;
-    // Feeder: Zeilen fuer eine Listbox (ohne: Platzhalterzeilen)
-    std::function<std::vector<std::string>(float feeder)> feederZeilen;
+    // Feeder: die Zeilen einer Listbox (DC->feederCount/feederItemText/feederItemImage);
+    // ohne: beschrifteter Platzhalter
+    std::function<std::vector<FeederEintrag>(float feeder)> feeder;
+    int listCursor = 0;                   // item->cursorPos
     int zeitMs = 0;                       // DC->realTime
     std::vector<ItemZustand> zustand;     // je Item (leer = gelesene Flags)
     bool erzwingen = true;                // forcePaint: auch unsichtbare Menues

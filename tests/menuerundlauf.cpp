@@ -9,6 +9,7 @@
 //   - rect des ersten freien Items um 1 verschieben: nur diese Zahl aendert
 //     sich, neu gelesen stimmt der Wert, Anzahl der Menues/Items bleibt,
 //   - Zaehler: Menues, Items, Meldungen der Engine, @-Texte ohne Eintrag.
+#include "bhed/menue/feeder.h"
 #include "bhed/menue/menue.h"
 #include "bhed/menue/spieldaten.h"
 
@@ -103,6 +104,28 @@ void spiel(const char* name, Spiel s, const std::vector<std::string>& ordner) {
         if (n++ < 6) { std::printf("   ohne Text: %s (%d)\n", k.c_str(), v); }
     }
     pruefe(menus > 0, std::string(name) + ": Menues gelesen");
+
+    // M2: Feeder aus den Spieldaten (UI_BuildPlayerModel_List, Sprachen, Bewegungen)
+    for (const Dialekt dl : {Dialekt::SP, Dialekt::MP}) {
+        FeederDaten f;
+        f.daten = &daten;
+        f.dialekt = dl;
+        f.spiel = s;
+        f.ordner = ordner;
+        f.baue();
+        const bool sp = dl == Dialekt::SP;
+        const auto spezies = f.eintraege(static_cast<float>(sp ? feeder_sp::PLAYER_SPECIES : feeder_mp::PLAYER_SPECIES));
+        const auto koepfe = f.eintraege(static_cast<float>(sp ? feeder_sp::PLAYER_SKIN_HEAD : feeder_mp::PLAYER_SKIN_HEAD));
+        const auto titel = f.eintraege(static_cast<float>(sp ? feeder_sp::MOVES_TITLES : feeder_mp::MOVES_TITLES));
+        std::printf("%s %s: Feeder %zu Spezies (erste %s), %zu Koepfe, %zu Sprachen, %zu Karten, %zu Videos\n", name, sp ? "SP" : "MP",
+                    spezies.size(), spezies.empty() ? "-" : spezies[0].spalten[0].c_str(), koepfe.size(), f.sprachen.size(), f.karten.size(),
+                    f.filme.size());
+        if (s != Spiel::JK2) {   // JK2 kennt kein PlayerChoice.txt
+            pruefe(!spezies.empty(), std::string(name) + ": Feeder PLAYER_SPECIES aus models/players/*/PlayerChoice.txt");
+            pruefe(!koepfe.empty() && !koepfe[0].bild.empty(), std::string(name) + ": Feeder PLAYER_SKIN_HEAD mit icon_*.jpg");
+        }
+        pruefe(titel.size() == 6 && titel[0].spalten[0] == "@MENUS_ACROBATICS", std::string(name) + ": Feeder MOVES_TITLES (datapadMoveTitleData)");
+    }
 }
 
 }  // namespace

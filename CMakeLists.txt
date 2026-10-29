@@ -1101,7 +1101,9 @@ target_sources(bhed_core PRIVATE
   # M2 Punkt 2: RoQ abspielen (cl_cin.cpp) und schreiben, GIF-Import
   src/menue/roq.cpp
   src/menue/roq_kodierer.cpp
-  src/menue/roq_import.cpp)
+  src/menue/roq_import.cpp
+  # M2 Punkt 1: Listbox-Feeder aus den Spieldaten (UI_FeederItemText)
+  src/menue/feeder.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.

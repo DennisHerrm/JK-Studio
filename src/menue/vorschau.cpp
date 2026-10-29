@@ -457,6 +457,7 @@ private:
                 break;
             }
             case ITEM_TYPE_LISTBOX:
+                aktFlags_ = flags;
                 listbox(it);
                 break;
             case ITEM_TYPE_TEXTSCROLL:
@@ -560,45 +561,136 @@ private:
         }
     }
 
-    void listbox(const Item& it) {   // Item_ListBox_Paint, senkrecht
+    // Item_ListBox_Paint (SP code/ui/ui_shared.cpp, MP codemp/ui/ui_shared.c)
+    // mit startPos 0 und cursorPos aus der Laufzeit (sonst 0).
+    void listbox(const Item& it) {
         const Rechteck& r = it.window.rect;
-        std::vector<std::string> zeilen;
-        if (u_.feederZeilen) { zeilen = u_.feederZeilen(it.special); }
-        if (!zeilen.empty() && !it.scrollhidden) {
+        const std::vector<FeederEintrag> z = u_.feeder ? u_.feeder(it.special) : std::vector<FeederEintrag>{};
+        const int count = static_cast<int>(z.size());
+        const int cursorPos = std::clamp(u_.listCursor, 0, std::max(0, count - 1));
+        const bool mp = u_.dialekt == Dialekt::MP;
+        const Farbe weiss{1, 1, 1, 1};
+        const bool waagrecht = (aktFlags_ & WINDOW_HORIZONTAL) != 0;
+        auto maxScroll = [&]() {   // Item_ListBox_MaxScroll
+            const float m = waagrecht ? static_cast<float>(count) - (r.w / it.elementWidth) + 1
+                                      : static_cast<float>(count) - (r.h / it.elementHeight) + 1;
+            const int mi = static_cast<int>(m);
+            return mi < 0 ? 0 : mi;
+        };
+        auto spalte = [&](const FeederEintrag& e, std::size_t j) -> std::string {
+            return j < e.spalten.size() ? e.spalten[j] : std::string();
+        };
+        auto bildVon = [&](const FeederEintrag& e, std::size_t j) -> std::string {
+            return j < e.spaltenBild.size() ? e.spaltenBild[j] : std::string();
+        };
+        if (waagrecht) {
+            if (!it.scrollhidden) {
+                if (maxScroll() > 0) {
+                    float x = r.x + 1;
+                    const float y = r.y + r.h - kScrollbar - 1;
+                    bild(x, y, kScrollbar, kScrollbar, "gfx/menus/scrollbar_arrow_left.tga", weiss, item_);
+                    x += kScrollbar - 1;
+                    const float size = r.w - (kScrollbar * 2);
+                    bild(x, y, size + 1, kScrollbar, "gfx/menus/scrollbar.tga", weiss, item_);
+                    x += size - 1;
+                    bild(x, y, kScrollbar, kScrollbar, "gfx/menus/scrollbar_arrow_right.tga", weiss, item_);
+                    float thumb = r.x + 1 + kScrollbar;   // Item_ListBox_ThumbPosition, startPos 0
+                    if (thumb > x - kScrollbar - 1) { thumb = x - kScrollbar - 1; }
+                    bild(thumb, y, kScrollbar, kScrollbar, "gfx/menus/scrollbar_thumb.tga", weiss, item_);
+                }
+            }
+            float size = r.w - 2;
+            if (it.elementStyle == 1) {   // LISTBOX_IMAGE
+                float x = r.x + 1;
+                const float y = r.y + 1;
+                for (int i = 0; i < count; i++) {
+                    const std::string& image = z[static_cast<std::size_t>(i)].bild;
+                    if (!image.empty()) {
+                        Farbe c = weiss;
+                        if (!mp && (aktFlags_ & WINDOW_PLAYERCOLOR) != 0) {
+                            c = Farbe{cvarWert("ui_char_color_red") / 255.0F, cvarWert("ui_char_color_green") / 255.0F,
+                                      cvarWert("ui_char_color_blue") / 255.0F, 1};
+                        }
+                        bild(x + 1, y + 1, it.elementWidth - 2, it.elementHeight - 2, image, c, item_);
+                    }
+                    if (i == cursorPos) { rahmen(x, y, it.elementWidth - 1, it.elementHeight - 1, it.window.borderSize, it.window.borderColor); }
+                    size -= it.elementWidth;
+                    if (size < it.elementWidth || it.elementWidth <= 0) { break; }
+                    x += it.elementWidth;
+                }
+            }
+            return;
+        }
+        if (!it.scrollhidden) {
             const float x = r.x + r.w - kScrollbar - 1;
             float y = r.y + 1;
-            bild(x, y, kScrollbar, kScrollbar, "gfx/menus/scrollbar_arrow_up_a.tga", Farbe{1, 1, 1, 1}, item_);
+            bild(x, y, kScrollbar, kScrollbar, "gfx/menus/scrollbar_arrow_up_a.tga", weiss, item_);
             y += kScrollbar - 1;
-            const float size = r.h - kScrollbar * 2;
-            bild(x, y, kScrollbar, size + 1, "gfx/menus/scrollbar.tga", Farbe{1, 1, 1, 1}, item_);
+            const float size = r.h - (kScrollbar * 2);
+            bild(x, y, kScrollbar, size + 1, "gfx/menus/scrollbar.tga", weiss, item_);
             y += size - 1;
-            bild(x, y, kScrollbar, kScrollbar, "gfx/menus/scrollbar_arrow_dwn_a.tga", Farbe{1, 1, 1, 1}, item_);
-            float daumenY = r.y + 1 + kScrollbar;   // startPos 0
-            if (daumenY > y - kScrollbar - 1) { daumenY = y - kScrollbar - 1; }
-            bild(x, daumenY, kScrollbar, kScrollbar, "gfx/menus/scrollbar_thumb.tga", Farbe{1, 1, 1, 1}, item_);
+            bild(x, y, kScrollbar, kScrollbar, "gfx/menus/scrollbar_arrow_dwn_a.tga", weiss, item_);
+            float thumb = r.y + 1 + kScrollbar;   // startPos 0
+            if (thumb > y - kScrollbar - 1) { thumb = y - kScrollbar - 1; }
+            bild(x, thumb, kScrollbar, kScrollbar, "gfx/menus/scrollbar_thumb.tga", weiss, item_);
         }
-        if (zeilen.empty()) {
-            platzhalter(r, "feeder " + zahlText(it.special));
+        float size = r.h - 2;
+        if (it.elementStyle == 1) {   // LISTBOX_IMAGE
+            const float x = r.x + 1;
+            float y = r.y + 1;
+            for (int i = 0; i < count; i++) {
+                const std::string& image = z[static_cast<std::size_t>(i)].bild;
+                if (!image.empty()) { bild(x + 1, y + 1, it.elementWidth - 2, it.elementHeight - 2, image, weiss, item_); }
+                if (i == cursorPos) { rahmen(x, y, it.elementWidth - 1, it.elementHeight - 1, it.window.borderSize, it.window.borderColor); }
+                size -= it.elementHeight;
+                if (size < it.elementHeight || it.elementHeight <= 0) { break; }
+                y += it.elementHeight;
+            }
             return;
         }
         const float x = r.x + 1;
         float y = r.y + 1 - it.elementHeight;
-        float hoehe = r.h - 2;
-        for (std::size_t i = 0; i < zeilen.size(); ++i) {
+        for (int i = 0; i < count; i++) {
+            const FeederEintrag& e = z[static_cast<std::size_t>(i)];
             if (!it.columns.empty()) {
-                const Spalte& s = it.columns[0];
-                text(x + 4 + static_cast<float>(s.pos), y + it.elementHeight + it.textaligny, it.textscale, it.window.foreColor,
-                     se(zeilen[i]), s.maxChars, it.textStyle, it.font);
+                for (std::size_t j = 0; j < it.columns.size(); j++) {
+                    const Spalte& s = it.columns[j];
+                    std::string text = spalte(e, j);
+                    if (!text.empty() && text[0] == '@') { text = se(text); }
+                    if (!mp) {
+                        const std::string opt = bildVon(e, j);
+                        if (!opt.empty()) {
+                            bild(x + 4 + static_cast<float>(s.pos), y - 1 + it.elementHeight / 2, static_cast<float>(s.width),
+                                 static_cast<float>(s.width), opt, weiss, item_);
+                        } else {
+                            const Farbe& c = i == cursorPos ? m_.focusColor : it.window.foreColor;
+                            this->text(x + 4 + static_cast<float>(s.pos), y + it.elementHeight, it.textscale, c, text, s.maxChars, it.textStyle,
+                                       it.font);
+                        }
+                    } else {
+                        this->text(x + 4 + static_cast<float>(s.pos), y + it.elementHeight + it.textaligny, it.textscale, it.window.foreColor,
+                                   text, s.maxChars, it.textStyle, it.font);
+                    }
+                }
             } else {
-                text(x + 4, y + it.textaligny, it.textscale, it.window.foreColor, se(zeilen[i]), 0, it.textStyle, it.font);
+                const std::string text = spalte(e, 0);
+                const bool optBild = !bildVon(e, 0).empty();
+                if (!optBild && (!text.empty() || !e.spalten.empty())) {
+                    if (mp) {
+                        this->text(x + 4, y + it.textaligny, it.textscale, it.window.foreColor, text, 0, it.textStyle, it.font);
+                    } else {
+                        this->text(x + 4, y + it.elementHeight, it.textscale, it.window.foreColor, text, 0, it.textStyle, it.font);
+                    }
+                }
             }
-            if (i == 0) {   // item->cursorPos
-                fuellen(x + 2, y + it.elementHeight + 2, r.w - kScrollbar - 4, it.elementHeight, it.window.outlineColor);
+            if (i == cursorPos) {
+                fuellen(x + 2, y + it.elementHeight + 2, r.w - kScrollbar - 4, mp ? it.elementHeight : it.elementHeight + 2, it.window.outlineColor);
             }
-            hoehe -= it.elementHeight;
-            if (hoehe < it.elementHeight || it.elementHeight <= 0) { break; }
+            size -= it.elementHeight;
+            if (size < it.elementHeight || it.elementHeight <= 0) { break; }
             y += it.elementHeight;
         }
+        if (count == 0 && !u_.feeder) { platzhalter(r, "feeder " + zahlText(it.special)); }
     }
 
     const Datei& d_;
@@ -606,6 +698,7 @@ private:
     const Umgebung& u_;
     std::vector<Prim>& out_;
     int item_ = -1;
+    int aktFlags_ = 0;   // windowDef_t.flags des Items, das gerade gemalt wird
     bool dimmen_ = false;
     Rechteck tr_;
 };

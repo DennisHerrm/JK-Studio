@@ -21,6 +21,7 @@
 
 #include "bhed/i18n.h"
 #include "bhed/image.h"
+#include "bhed/menue/feeder.h"
 #include "bhed/menue/menue.h"
 #include "bhed/menue/skript.h"
 #include "bhed/menue/spieldaten.h"
@@ -95,6 +96,7 @@ struct Zustand {
     std::map<std::string, Schrift> schriften;
     std::vector<std::string> schriftNamenSp, schriftNamenMp;
     bool schriftNamenGeladen = false;
+    FeederDaten feederSp, feederMp;   // M2: Listbox-Feeder aus den Spieldaten
     // Ansicht
     Seitenverhaeltnis seitenv = Seitenverhaeltnis::Strecken;
     int aufloesung = 0;   // 0 = Fenster, sonst Voreinstellung
@@ -188,6 +190,7 @@ void datenPruefen() {
     z.datenStand = n;
     z.daten.ordner = g_app->gamePaths;   // nur lesen
     z.texteGeladen = z.shaderGeladen = z.schriftNamenGeladen = false;
+    z.feederSp.gebaut = z.feederMp.gebaut = false;
     z.schriften.clear();
     z.texturen.clear();
 }
@@ -477,7 +480,19 @@ Umgebung umgebung(const Dokument& d) {
         const auto it = m.find(kleinPfad(n));
         return it == m.end() ? std::string() : it->second;
     };
-    u.feederZeilen = [](float) { return std::vector<std::string>{"Entry 1", "Entry 2", "Entry 3", "Entry 4"}; };
+    // M2: die Listen wie das Spiel sie fuellt (feeder.cpp); einmal je Spieldatenstand gebaut
+    FeederDaten& fd = d.datei.dialekt == Dialekt::MP ? z.feederMp : z.feederSp;
+    if (!fd.gebaut) {
+        fd.daten = &z.daten;
+        fd.dialekt = d.datei.dialekt;
+        fd.spiel = z.spiel;
+        fd.ordner.clear();
+        for (const GamePath& g : z.daten.ordner) { fd.ordner.push_back(g.directory); }
+        fd.basisOrdner = z.daten.ordner.empty() ? std::string() : u8(fs::path(z.daten.ordner.front().directory).parent_path());
+        fd.baue();
+    }
+    const FeederDaten* fdp = &fd;
+    u.feeder = [fdp](float f) { return fdp->eintraege(f); };
     u.zeitMs = static_cast<int>(ImGui::GetTime() * 1000.0);
     u.alleItems = z.alleItems && !z.interaktion;
     return u;

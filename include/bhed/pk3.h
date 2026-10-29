@@ -40,6 +40,10 @@ struct Pk3 {
     // Eintraege samt einer Kleinschreibung je Eintrag - bei 5240 Eintraegen
     // rund eine halbe Millisekunde, und gesucht wird oft.
     std::map<std::string, std::size_t> index;
+    // Menue-Editor M2: die Ordnereintraege ("models/players/kyle/") in
+    // Archivreihenfolge - die Engine listet Ordner nur ueber sie
+    // (FS_ListFilteredFiles mit Endung "/"). entries enthaelt sie nicht.
+    std::vector<std::string> directories;
     [[nodiscard]] bool empty() const { return entries.empty(); }
     // Gross- und Kleinschreibung wird ignoriert: Zip unterscheidet sie, die
     // Engine nicht, und Ravens Dateien sind darin uneinheitlich.

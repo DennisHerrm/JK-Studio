@@ -190,6 +190,46 @@ int main() {
                "SP: menuDef font wird mediumFont (MenuParse_font, fontRegistered)");
     }
 
+    // M2: Item_ListBox_Paint mit Feeder-Daten (SP: Spalten, Zeile cursorPos in focusColor,
+    // optionalImage statt Text; LISTBOX_IMAGE mit feederItemImage)
+    {
+        Datei lb = lies("ui/lb.menu",
+                        "{ menuDef { name m rect 0 0 640 480 focusColor 1 0 0 1 visible 1\n"
+                        "  itemDef { name l type ITEM_TYPE_LISTBOX rect 10 10 200 100 feeder 16 elementheight 20 elementwidth 20\n"
+                        "    columns 2 0 10 20 100 10 20 forecolor 0 1 0 1 visible 1 }\n"
+                        "  itemDef { name b type ITEM_TYPE_LISTBOX rect 300 10 30 100 feeder 17 elementheight 30 elementwidth 30\n"
+                        "    elementtype 1 visible 1 } } }\n",   // SP: PC_ParseInt, keine Namen
+                        o);
+        Umgebung ul;
+        ul.dialekt = Dialekt::SP;
+        ul.schrift = [&](int) -> const Schrift* { return &f; };
+        ul.feeder = [](float fe) {
+            std::vector<FeederEintrag> v;
+            for (int i = 0; i < 3; ++i) {
+                FeederEintrag e;
+                e.spalten = {"Zeile" + std::to_string(i), "B"};
+                e.bild = fe == 17.0F ? "gfx/x" + std::to_string(i) : std::string();
+                if (i == 2) { e.spaltenBild = {"", "gfx/icon"}; }
+                v.push_back(e);
+            }
+            return v;
+        };
+        std::vector<Prim> pl;
+        zeichneMenu(lb, 0, ul, pl);
+        int texte = 0, rot = 0, icon = 0, bilder = 0;
+        for (const Prim& x : pl) {
+            if (x.item == 0 && x.art == PrimArt::Bild && x.shader == "fonts/probe") {
+                ++texte;
+                if (x.farbe.r > 0.9F && x.farbe.g < 0.1F) { ++rot; }
+            }
+            if (x.item == 0 && x.shader == "gfx/icon") { ++icon; }
+            if (x.item == 1 && x.shader.compare(0, 5, "gfx/x") == 0) { ++bilder; }
+        }
+        pruefe(texte > 0 && rot > 0, "Listbox SP: Spaltentext, Zeile cursorPos in focusColor");
+        pruefe(icon == 1, "Listbox SP: optionalImage der Spalte statt Text");
+        pruefe(bilder == 3, "Listbox LISTBOX_IMAGE: feederItemImage je Zeile");
+    }
+
     // Abbildung
     Abbildung ab = abbildung(1280, 720, Seitenverhaeltnis::Strecken);
     pruefe(nah(ab.sx, 2) && nah(ab.sy, 1.5F) && nah(ab.x(320), 640), "Strecken 1280x720");
