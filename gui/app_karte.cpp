@@ -96,6 +96,7 @@ std::shared_ptr<Spielkontext> spielLadenJetzt(int spiel, std::vector<std::string
     // Shaders_Load: shaderlist.txt aus den Archiven, sonst alle Shader
     // ("No shaderlist.txt found: loading all shaders"). NRCs
     // default_shaderlist.txt stammt aus dem Gamepack und kommt nicht mit.
+    k->inventar.importOrdner = importOrdner();   // Stufe 9d: fruehere Importe unter scripts/ mitlesen
     k->inventar.laden(k->fs);
     (void)k->klassen.ordnerLaden(defs, modus);
     if (spiel == kRegelwerkMovieDuels) { (void)k->klassen.entdefsErgaenzen(); }
@@ -121,6 +122,10 @@ void spielUebernehmen(std::shared_ptr<Spielkontext> k) {
     diag::detail(std::string("Karten-Editor: ") + z);
     if (s.ordner.empty()) {
         std::snprintf(z, sizeof(z), tr(Str::KeGameNoFolders), s.name.c_str());
+        warnung(z);
+    }
+    if (s.inventar.importSkripte() > 0) {   // Stufe 9d: fruehere Modell-Importe unter scripts/
+        std::snprintf(z, sizeof(z), trK(Str::KeImpSkripte), static_cast<int>(s.inventar.importSkripte()));
         warnung(z);
     }
     // Die leere Karte des Starts bekommt das Spiel, sobald es da ist - und

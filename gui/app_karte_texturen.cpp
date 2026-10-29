@@ -1037,6 +1037,7 @@ void texturBefehl(const std::string& name) {
         tb.neuGeladen();
         ++ed.neuGeladen;
         if (ed.karteSpiel) {
+            ed.karteSpiel->inventar.importOrdner = importOrdner();
             ed.karteSpiel->inventar.laden(ed.karteSpiel->fs);
             ed.aktiveShader.leeren();
             texturBilderNeuLaden();

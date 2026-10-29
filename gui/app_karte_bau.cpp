@@ -44,6 +44,7 @@
 #include "bhed/karte/editordaten.h"
 #include "bhed/karte/kartendatei.h"
 #include "bhed/karte/kartenformat.h"
+#include "bhed/karte/modellimport.h"
 #include "bhed/karte/optimierer.h"
 #include "bhed/karte/region.h"
 #include "bhed/karte/spieltest.h"
@@ -71,6 +72,15 @@ namespace fs = std::filesystem;
 Editor& e() { return editor(); }
 
 fs::path pfadAus(const std::string& p) { return fs::path(std::u8string(reinterpret_cast<const char8_t*>(p.data()), p.size())); }
+
+// Stufe 9d: der Name einer Datei des Import-Ordners im .pk3 (importArchivName: scripts/x.shader -> shaders/);
+// "" wenn daneben schon shaders/x.shader liegt (die gilt)
+std::string importArchivNameOhneDoppel(const fs::path& wurzel, const std::string& rel) {
+    const std::string name = karte::importArchivName(rel);
+    std::error_code ec;
+    if (name != rel && fs::exists(wurzel / fs::path(std::u8string(name.begin(), name.end())), ec)) { return std::string(); }
+    return name;
+}
 
 std::string mitSchraegstrich(std::string p) {   // Qts Dateiwahl / NRC: '/'
     std::replace(p.begin(), p.end(), '\\', '/');
@@ -2024,7 +2034,7 @@ std::string karteAlsPk3() {
             if (!it->is_regular_file(ec)) { continue; }
             Pk3Datei d;
             const std::u8string rel = fs::relative(it->path(), wurzel, ec).generic_u8string();
-            d.name.assign(rel.begin(), rel.end());
+            d.name = importArchivNameOhneDoppel(wurzel, std::string(rel.begin(), rel.end()));
             if (!d.name.empty() && lesen(it->path(), d.inhalt)) { dateien.push_back(std::move(d)); }
         }
         ec.clear();
@@ -2456,7 +2466,7 @@ void spielTestMitBsp(const std::string& exe, const std::string& bsp, bool modErl
             if (!it->is_regular_file(ei)) { continue; }
             Pk3Datei d;
             const std::u8string rel = fs::relative(it->path(), wurzel, ei).generic_u8string();
-            d.name.assign(rel.begin(), rel.end());
+            d.name = importArchivNameOhneDoppel(wurzel, std::string(rel.begin(), rel.end()));
             std::ifstream f(it->path(), std::ios::binary);
             std::ostringstream o;
             o << f.rdbuf();

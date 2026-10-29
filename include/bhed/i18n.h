@@ -2690,6 +2690,7 @@ enum class Str {
     KeSeKeinSkript,
     KePbMenue,
     KePbTip,
+    KeImpSkripte,
     Count,
 };
 
