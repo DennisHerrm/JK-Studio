@@ -3875,6 +3875,7 @@ void drawModelView() {
         ImGui::TextWrapped("%s", tr(Str::MapNeedsD3d));
     } else {
         if (g_app->modelDirty && gpu::bereiteModellZiel(w, h)) {
+            const auto neuAb = std::chrono::steady_clock::now();
             std::vector<BoneMatrix> knochen;
             if (!g_app->anim.bones.empty() && g_app->anim.numFrames > 0) {
                 std::vector<BoneMatrix> welt;
@@ -3896,6 +3897,10 @@ void drawModelView() {
             for (const std::string& m : gpu::debugMeldungen()) {
                 diag::detail("Direct3D (Modellfenster): " + m);
             }
+            g_app->modellAufrufe = n;
+            ++g_app->modellNeuGezeichnet;
+            g_app->modellCpuMsSumme +=
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - neuAb).count();
             g_app->modelDirty = false;
         }
         if (gpu::modellZielTextur() != nullptr) {

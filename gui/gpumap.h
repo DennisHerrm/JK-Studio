@@ -182,6 +182,10 @@ int zeichneKlingen(const std::vector<KlingenQuad>& quads, const float* viewProj,
 int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures,
                          const std::vector<BoneMatrix>& knochen,
                          const float* viewProj, bool kappen, std::string* fehler);
+// modell1: was das letzte fertig gemessene Neuzeichnen des Modellfensters auf
+// der Grafikkarte gekostet hat, in ms (Zeitmarken, zwei bis drei Bilder
+// spaeter); -1 ohne Messung.
+[[nodiscard]] float modellGpuMs();
 
 // Menue-Editor M2: die Figur eines Menue-Items (ITEM_TYPE_MODEL) in ein eigenes
 // Ziel je Nummer, Grund durchsichtig (Alpha 1 nur, wo die Figur steht), mit

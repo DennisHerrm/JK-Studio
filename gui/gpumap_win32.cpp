@@ -1575,8 +1575,28 @@ int g_modellH = 0;
 ID3D11VertexShader* g_modellHgVs = nullptr;
 ID3D11PixelShader* g_modellHgPs = nullptr;
 bool g_modellHgVersucht = false;
+// modell1: die Zeitmarken des Modellfensters. Es liegt ausserhalb der
+// Kartenbilder (deren Ring fuehren bildBeginnt/bildFertig), darum eigene
+// Abfragen: je Neuzeichnen ein Satz aus Takt, Anfang und Ende, vier im Ring;
+// abgeholt wird nur, was fertig ist (DONOTFLUSH, siehe holeMessung).
+struct ModellMessSatz {
+    ID3D11Query* takt = nullptr;
+    ID3D11Query* anfang = nullptr;
+    ID3D11Query* ende = nullptr;
+    bool offen = false;
+};
+std::array<ModellMessSatz, 4> g_modellMess{};
+std::size_t g_modellMessJetzt = 0;
+float g_modellGpuMs = -1.0F;
 
 void gibModellFrei() {
+    for (ModellMessSatz& m : g_modellMess) {
+        if (m.takt != nullptr) { m.takt->Release(); m.takt = nullptr; }
+        if (m.anfang != nullptr) { m.anfang->Release(); m.anfang = nullptr; }
+        if (m.ende != nullptr) { m.ende->Release(); m.ende = nullptr; }
+        m.offen = false;
+    }
+    g_modellGpuMs = -1.0F;
     if (g_modellSrv != nullptr) { g_modellSrv->Release(); g_modellSrv = nullptr; }
     if (g_modellRtv != nullptr) { g_modellRtv->Release(); g_modellRtv = nullptr; }
     if (g_modellTex != nullptr) { g_modellTex->Release(); g_modellTex = nullptr; }
@@ -5413,6 +5433,65 @@ int zeichneKlingenIn(const std::vector<KlingenQuad>& quads, const float* viewPro
 }
 
 // --- Das Modellfenster ---------------------------------------------------
+namespace {
+// modell1: fertige Zeitmarken des Modellfensters abholen (g_modellMess).
+void holeModellMessung() {
+    ID3D11DeviceContext* c = ctx();
+    if (c == nullptr) { return; }
+    for (ModellMessSatz& m : g_modellMess) {
+        if (!m.offen) { continue; }
+        D3D11_QUERY_DATA_TIMESTAMP_DISJOINT dj{};
+        if (c->GetData(m.takt, &dj, sizeof(dj), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK) { continue; }
+        UINT64 a = 0;
+        UINT64 e = 0;
+        if (c->GetData(m.anfang, &a, sizeof(a), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK ||
+            c->GetData(m.ende, &e, sizeof(e), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK) {
+            continue;
+        }
+        m.offen = false;
+        if (dj.Disjoint == 0 && dj.Frequency != 0 && e >= a) {
+            g_modellGpuMs = static_cast<float>(static_cast<double>(e - a) * 1000.0 / static_cast<double>(dj.Frequency));
+        }
+    }
+}
+
+// Den naechsten Satz beginnen; nullptr, wenn er noch aussteht oder das Geraet
+// keine Zeitmarken kennt.
+ModellMessSatz* beginneModellMessung() {
+    ID3D11Device* d = dev();
+    ID3D11DeviceContext* c = ctx();
+    if (d == nullptr || c == nullptr) { return nullptr; }
+    holeModellMessung();
+    ModellMessSatz& m = g_modellMess[g_modellMessJetzt];
+    if (m.offen) { return nullptr; }
+    if (m.takt == nullptr) {
+        D3D11_QUERY_DESC qd{};
+        qd.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
+        if (FAILED(d->CreateQuery(&qd, &m.takt))) { return nullptr; }
+        qd.Query = D3D11_QUERY_TIMESTAMP;
+        if (FAILED(d->CreateQuery(&qd, &m.anfang)) || FAILED(d->CreateQuery(&qd, &m.ende))) { return nullptr; }
+    }
+    if (m.anfang == nullptr || m.ende == nullptr) { return nullptr; }
+    g_modellMessJetzt = (g_modellMessJetzt + 1U) % g_modellMess.size();
+    c->Begin(m.takt);
+    c->End(m.anfang);
+    return &m;
+}
+
+void beendeModellMessung(ModellMessSatz* m) {
+    ID3D11DeviceContext* c = ctx();
+    if (m == nullptr || c == nullptr) { return; }
+    c->End(m->ende);
+    c->End(m->takt);
+    m->offen = true;
+}
+}  // namespace
+
+float modellGpuMs() {
+    holeModellMessung();
+    return g_modellGpuMs;
+}
+
 bool bereiteModellZiel(int breite, int hoehe) {
     ID3D11Device* d = dev();
     if (d == nullptr || breite <= 0 || hoehe <= 0) {
@@ -5503,6 +5582,7 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures,
     }
     setzeSchritt("Modellfenster");
     if (!figurGrundausstattung(d, fehler)) { return 0; }
+    ModellMessSatz* messung = beginneModellMessung();
     c->OMSetRenderTargets(1, &g_modellRtv, g_modellDsv);
     // Auch das Bild loeschen, mit Alpha 1: die Mischzustaende schreiben nur
     // RGB (sonst schien bei den Hologrammen der Fensterhintergrund durch),
@@ -5559,8 +5639,9 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures,
     c->ClearDepthStencilView(g_modellDsv, D3D11_CLEAR_DEPTH, 1.0F, 0);
     // --- Das Modell, am Ursprung ------------------------------------------
     const float einheit[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
-    return zeichneFigurIn(model, textures, knochen, einheit, viewProj, fehler, nullptr,
-                          kappen, true);
+    const int n = zeichneFigurIn(model, textures, knochen, einheit, viewProj, fehler, nullptr, kappen, true);
+    beendeModellMessung(messung);
+    return n;
 }
 
 // --- Menue-Editor M2: die Figuren eines Menues (ITEM_TYPE_MODEL) ----------------
@@ -7173,6 +7254,7 @@ int zeichneModellAnsicht(const GlmModel&, const ModelTextures*, const std::vecto
     if (fehler != nullptr) { *fehler = "ohne Direct3D gebaut"; }
     return 0;
 }
+float modellGpuMs() { return -1.0F; }
 bool bereiteZiel(int, int) { return false; }
 void* zielTextur() { return nullptr; }
 void waehleZiel(int) {}

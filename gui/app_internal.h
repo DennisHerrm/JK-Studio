@@ -400,6 +400,12 @@ struct App {
     bool modellKnochen = false;
     int modellKnochenLinien = 0;     // im letzten Bild gezeichnet (Selbsttest)
     bool animScrollen = false;       // Liste zur gewaehlten Animation rollen
+    // modell1: was das Neuzeichnen des Modellfensters kostet (Selbsttest
+    // modellleistung liest die Differenzen je Bild) - CPU-Zeit aufsummiert in
+    // ms, wie oft neu gezeichnet wurde, Zeichenaufrufe des letzten Neuzeichnens.
+    double modellCpuMsSumme = 0.0;
+    int modellNeuGezeichnet = 0;
+    int modellAufrufe = 0;
     // Mover animieren (gui/app_animation.cpp, rc592)
     bool animFensterOffen = false;
     int animEntity = -1;

@@ -5475,6 +5475,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_handbuch.inc"   // Stufe 8d: grosse Karte, Stufe 8g und die Bildlaeufe des Handbuchs
 #include "selbsttest_menue.inc"      // Menue-Editor M1: jede Funktion mit Wirkungspruefung
 #include "selbsttest_mission1.inc"   // mission1: Gesicht, Gizmo beim Abspielen, Zwischenpunkt, Drehschluessel
+#include "selbsttest_modell1.inc"    // modell1: was der Model-Tab je Bild kostet, Ruhe beim Abspielen
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {
@@ -5697,6 +5698,7 @@ Ablauf g_ablauf;
 }  // namespace
 
 void selbsttestVorBild() {
+    modell1BildAnfang();   // modell1: Bildanfang fuer die Messung
     if (karteneditor::zeigerSim().an) {   // Stufe 7 Punkt 6c: der simulierte Zeiger (wie Windows)
         karteneditor::zeigerSimVorBild();
         g_maus = ImVec2{karteneditor::zeigerSim().x, karteneditor::zeigerSim().y};
@@ -5736,6 +5738,7 @@ void selbsttest() {
     static const bool nurUmriss = std::strcmp(modus, "umriss") == 0;
     static const bool nurWeg = std::strcmp(modus, "wegpunkte") == 0;
     static const bool nurModell = std::strcmp(modus, "modell") == 0;
+    static const bool nurModellLeistung = std::strcmp(modus, "modellleistung") == 0;   // modell1
     // Stufe 1b: der Karten-Editor (NetRadiant-Custom).
     static const bool nurKarteneditor = std::strcmp(modus, "karteneditor") == 0;
     static const bool nurMenueeditor = std::strcmp(modus, "menueeditor") == 0;   // Menue-Editor M1
@@ -5813,11 +5816,14 @@ void selbsttest() {
         }
     }
     // rc601 tour: fuer das naechste Bild anmelden (elemente::bildEnde setzt danach
-    // TestEngineHookItems nach der Stufe).
-    if (g_registerFilter.empty()) {
-        elemente::wunschVoll();
-    } else {
-        elemente::wunschLabels(g_registerFilter);
+    // TestEngineHookItems nach der Stufe). modell1: waehrend einer Messung ohne
+    // Register, wie im Alltag.
+    if (!modell1OhneRegister()) {
+        if (g_registerFilter.empty()) {
+            elemente::wunschVoll();
+        } else {
+            elemente::wunschLabels(g_registerFilter);
+        }
     }
     Ablauf& a = g_ablauf;
     ++a.bild;
@@ -6181,6 +6187,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurModell) {
                 a.schritte = modellSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurModellLeistung) {
+                a.schritte = modellLeistungSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurMenueeditor) {
