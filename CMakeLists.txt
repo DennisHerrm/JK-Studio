@@ -412,6 +412,8 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_regelwerk.cpp
     # Menue-Editor M1: der Arbeitsbereich Menu Editor (.menu als Text und Vorschau)
     gui/app_menue.cpp
+    # M2 Punkt 2: Videos ueber Media Foundation lesen (fuer den RoQ-Import)
+    gui/videoimport_win32.cpp
     # Stufe 1b: der Arbeitsbereich Karten-Editor (NetRadiant-Custom)
     gui/app_karte.cpp
     gui/app_karte_befehle.cpp
@@ -1103,7 +1105,11 @@ target_sources(bhed_core PRIVATE
   src/menue/roq_kodierer.cpp
   src/menue/roq_import.cpp
   # M2 Punkt 1: Listbox-Feeder aus den Spieldaten (UI_FeederItemText)
-  src/menue/feeder.cpp)
+  src/menue/feeder.cpp
+  # M2 Punkt 1: ITEM_TYPE_MODEL (Item_Model_Paint) mit der Figurendarstellung
+  src/menue/modell.cpp
+  # M2 Punkt 3/4: Detailbereich in drei Ebenen, Bauteil-Bibliothek
+  src/menue/bauteile.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -1171,6 +1177,9 @@ if(BEHAVED_TESTS)
   target_link_libraries(menuewerkzeug PRIVATE bhed_core)
   add_test(NAME menue_werkzeug COMMAND menuewerkzeug)
   # M2 Punkt 2: RoQ-Kodierer und -Spieler im Rundlauf (mit Spielordnern auch ein Original-Video)
+  add_executable(menuebauteile tests/menuebauteile.cpp)
+  target_link_libraries(menuebauteile PRIVATE bhed_core)
+  add_test(NAME menue_bauteile COMMAND menuebauteile)
   add_executable(menueroq tests/menueroq.cpp)
   target_link_libraries(menueroq PRIVATE bhed_core)
   add_test(NAME menue_roq COMMAND menueroq ${BEHAVED_KARTE_MD})

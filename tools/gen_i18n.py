@@ -2213,6 +2213,8 @@ from i18n_menue1 import MENUE1  # noqa: E402  (Menue-Editor M1)
 S += MENUE1
 from i18n_karte9c import KARTE9C  # noqa: E402  (Stufe 9c: Werkzeugleisten, Echtzeit-Licht wie im Spiel)
 S += KARTE9C
+from i18n_menue2 import MENUE2  # noqa: E402  (Menue-Editor M2)
+S += MENUE2
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

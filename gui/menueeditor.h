@@ -35,6 +35,10 @@ struct Stand {
     bool interaktion = false;
     std::string cursorZeile; // Text der Zeile unter dem ersten Cursor
     bool codeFestbreite = false;   // M2: Code-Editor mit Festbreitenschrift
+    int kinoBilder = 0;            // M2: gezeigte Bilder aus RoQ-Videos
+    int modellDreiecke = 0;        // M2: gezeichnete Dreiecke der 3D-Modelle
+    int paketDateien = 0;          // M2: eigene Dateien im Paket (Bilder, Videos, Texte, Schriften)
+    std::vector<std::string> paket;   // ihre Spielpfade
 };
 [[nodiscard]] Stand stand();
 // Befehle wie die Knoepfe (Selbsttest)
@@ -59,6 +63,10 @@ bool speichereUnter(const std::string& pfad);
 bool exportierePk3(const std::string& pfad);
 // M2: Festbreitenschrift des Code-Editors (main_win32.cpp buildFonts)
 void setzeCodeSchrift(ImFont* f);
+// M2 Punkt 2: Video/GIF als RoQ ins Paket (synchron, fuer Selbsttest); Spielpfad oder ""
+std::string importiereVideo(const std::string& platte, int guete, int fps, int maxSeite);
+// Datei direkt ins Paket legen (Spielpfad -> Bytes)
+void legeInsPaket(const std::string& spielPfad, const std::string& bytes);
 
 }  // namespace bhed::gui::menueeditor
 

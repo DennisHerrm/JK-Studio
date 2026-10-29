@@ -14,6 +14,7 @@
 // Text und Vorschau sind dasselbe: jede Aenderung an der Flaeche ersetzt nur
 // ihre Spanne im Text, jede Textaenderung liest das Menue neu.
 #include "menueeditor.h"
+#include "videoimport.h"
 
 #include "app_internal.h"
 #include "backend.h"
@@ -23,6 +24,8 @@
 #include "bhed/image.h"
 #include "bhed/menue/feeder.h"
 #include "bhed/menue/menue.h"
+#include "bhed/menue/modell.h"
+#include "bhed/menue/roq.h"
 #include "bhed/menue/skript.h"
 #include "bhed/menue/spieldaten.h"
 #include "bhed/menue/textpuffer.h"
@@ -42,6 +45,9 @@
 #include <memory>
 #include <set>
 #include <sstream>
+#include <atomic>
+#include <mutex>
+#include <thread>
 
 namespace bhed::gui::menueeditor {
 
@@ -79,6 +85,24 @@ struct Textur {
     bool versucht = false;
 };
 
+// M2: ein laufendes RoQ (cinematic) mit seiner Textur
+struct Kino {
+    RoqSpieler spieler;
+    void* tex = nullptr;
+    int w = 0, h = 0;
+    bool fehlt = false;
+    unsigned stand = 0;
+    int bilder = 0;
+};
+// M2: ein 3D-Modell eines ITEM_TYPE_MODEL mit seiner Textur
+struct ModellAnsicht {
+    MenueModell modell;
+    void* tex = nullptr;
+    int w = 0, h = 0;
+    unsigned stand = 0;
+    std::vector<std::uint8_t> bild;
+};
+
 enum class Ziehen { Nichts, Verschieben, Groesse, Lineal };
 
 struct Zustand {
@@ -93,6 +117,20 @@ struct Zustand {
     bool shaderGeladen = false;
     std::map<std::string, Textur> texturen;
     unsigned texturStand = 0;
+    std::map<std::string, Kino> kinos;               // M2: Name des Videos -> Spieler
+    std::map<std::string, ModellAnsicht> modelle;    // M2: Modell|Haut|Animation -> Ansicht
+    int kinoBilder = 0;                              // Selbsttest: gezeigte Videobilder
+    // M2 Punkt 2: Video-Import (Kodieren im Hintergrund)
+    bool videoOffen = false;
+    std::string videoQuelle;
+    int videoGuete = 70, videoFps = 30, videoSeite = 512;
+    std::thread videoFaden;
+    std::atomic<int> videoFertig{0}, videoGesamt{0};
+    std::atomic<bool> videoLaeuft{false}, videoAbbruch{false};
+    std::mutex videoMutex;
+    std::string videoErgebnis, videoFehler, videoName;
+    bool videoDa = false;
+    int modellDreiecke = 0;                          // Selbsttest: gezeichnete Modell-Dreiecke
     std::map<std::string, Schrift> schriften;
     std::vector<std::string> schriftNamenSp, schriftNamenMp;
     bool schriftNamenGeladen = false;
@@ -510,8 +548,79 @@ Umgebung umgebung(const Dokument& d) {
     return u;
 }
 
+// M2: CIN_PlayCinematic: ohne / -> video/<name>, Endung .roq (COM_DefaultExtension)
+std::string kinoPfad(const std::string& name) {
+    std::string n = name.find('/') == std::string::npos && name.find('\\') == std::string::npos ? "video/" + name : name;
+    const std::size_t sl = n.find_last_of("/\\");
+    if (n.find('.', sl == std::string::npos ? 0 : sl) == std::string::npos) { n += ".roq"; }
+    return n;
+}
+
+Kino* kino(const std::string& name) {
+    Zustand& z = Z();
+    if (name.empty()) { return nullptr; }
+    Kino& k = z.kinos[kleinPfad(name)];
+    if (k.stand != render::texturStand()) {   // Geraeteverlust: Textur neu
+        k.tex = nullptr;
+        k.stand = render::texturStand();
+    }
+    const int jetzt = static_cast<int>(ImGui::GetTime() * 1000.0);
+    if (!k.fehlt && k.spieler.status() == RoqSpieler::Status::Eof && k.spieler.bilder() < 0) {
+        std::string daten;
+        bool da = false;
+        const std::string pfad = kinoPfad(name);
+        if (Dokument* d = doc()) {
+            for (const auto& [p, b] : d->bilder) {
+                if (kleinPfad(p) == kleinPfad(pfad)) {
+                    daten = b;
+                    da = true;
+                }
+            }
+        }
+        if (!da) { da = z.daten.lies(pfad, daten); }
+        k.fehlt = !da || !k.spieler.start(std::move(daten), jetzt, true);   // UI_PlayCinematic: CIN_loop | CIN_silent
+    }
+    if (k.fehlt) { return nullptr; }
+    (void)k.spieler.lauf(jetzt);   // DC->runCinematicFrame
+    if (k.spieler.neuesBild() && k.spieler.bild() != nullptr) {
+        if (k.tex == nullptr || k.w != k.spieler.breite() || k.h != k.spieler.hoehe()) {
+            k.w = k.spieler.breite();
+            k.h = k.spieler.hoehe();
+            k.tex = render::createTexture(k.spieler.bild(), k.w, k.h);
+        } else {
+            render::updateTexture(k.tex, k.spieler.bild(), k.w, k.h);
+        }
+        ++k.bilder;
+        ++z.kinoBilder;
+    }
+    return k.tex != nullptr ? &k : nullptr;
+}
+
+// M2: Bildpunkte eines Shaders/Bildes fuer die Modell-Haut (wie textur(), aber auf der CPU)
+bool modellBild(const std::string& name, MenueModell::Bild& out) {
+    Zustand& z = Z();
+    (void)textur(name);   // laedt die Shaderliste, falls noch nicht geschehen
+    std::string key = kleinPfad(name);
+    const std::size_t punkt = key.rfind('.');
+    if (punkt != std::string::npos && punkt + 5 >= key.size()) { key = key.substr(0, punkt); }
+    std::string bildName = key;
+    const auto s = z.shader.find(key);
+    if (s != z.shader.end() && !s->second.image.empty()) { bildName = kleinPfad(s->second.image); }
+    for (const std::string& k : textureCandidates(bildName)) {
+        std::string bytes;
+        if (!z.daten.lies(k, bytes)) { continue; }
+        const image::Image im = image::decode(reinterpret_cast<const unsigned char*>(bytes.data()), bytes.size());
+        if (!im.ok) { continue; }
+        out.w = im.width;
+        out.h = im.height;
+        out.rgba = im.rgba;
+        return true;
+    }
+    return false;
+}
+
 void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildung& ab, ImVec2 o, const std::set<int>& verschoben,
-                  float dx, float dy) {
+                  float dx, float dy, const Menu* menue = nullptr, const Umgebung* umg = nullptr) {
     for (const Prim& p : prims) {
         float x = p.x, y = p.y;
         if (p.item >= 0 && verschoben.count(p.item) != 0) {
@@ -539,9 +648,40 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
                 }
                 break;
             }
-            case PrimArt::Platzhalter:
+            case PrimArt::Kino:
+                if (const Kino* k = kino(p.shader)) {   // DC->drawCinematic (DrawStretchRaw, ohne Farbe)
+                    dl->AddImage(reinterpret_cast<ImTextureID>(k->tex), a, b);
+                    break;
+                }
+                [[fallthrough]];
             case PrimArt::Modell:
-            case PrimArt::Kino: {
+                if (p.art == PrimArt::Modell && menue != nullptr && p.item >= 0 && static_cast<std::size_t>(p.item) < menue->items.size()) {
+                    Zustand& z = Z();
+                    const Item& it = menue->items[static_cast<std::size_t>(p.item)];
+                    const CvarLeser cv = umg != nullptr && umg->cvar ? umg->cvar : CvarLeser{};
+                    const std::string schl = modellSchluessel(it, cv);
+                    ModellAnsicht& mv = z.modelle[schl];
+                    if (mv.modell.schluessel != schl) { (void)ladeMenueModell(z.daten, it, cv, modellBild, mv.modell); }
+                    if (mv.modell.ok) {
+                        const int bw = std::clamp(static_cast<int>(b.x - a.x), 8, 1024);
+                        const int bh = std::clamp(static_cast<int>(b.y - a.y), 8, 1024);
+                        z.modellDreiecke += zeichneMenueModell(mv.modell, it, static_cast<int>(ImGui::GetTime() * 1000.0), bw, bh, mv.bild);
+                        if (mv.stand != render::texturStand() || mv.tex == nullptr || mv.w != bw || mv.h != bh) {
+                            mv.tex = render::createTexture(mv.bild.data(), bw, bh);
+                            mv.w = bw;
+                            mv.h = bh;
+                            mv.stand = render::texturStand();
+                        } else {
+                            render::updateTexture(mv.tex, mv.bild.data(), bw, bh);
+                        }
+                        // refdef: x = rect.x + 1, w = rect.w - 2
+                        const float sx = (b.x - a.x) / std::max(1.0F, p.w), sy = (b.y - a.y) / std::max(1.0F, p.h);
+                        dl->AddImage(reinterpret_cast<ImTextureID>(mv.tex), ImVec2{a.x + sx, a.y + sy}, ImVec2{b.x - sx, b.y - sy});
+                        break;
+                    }
+                }
+                [[fallthrough]];
+            case PrimArt::Platzhalter: {
                 const ImU32 f = p.art == PrimArt::Modell ? IM_COL32(90, 160, 255, 200)
                                 : p.art == PrimArt::Kino ? IM_COL32(255, 170, 60, 200)
                                                          : IM_COL32(180, 180, 180, 160);
@@ -651,7 +791,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     const Menu& m = quelle->menus[static_cast<std::size_t>(mi)];
     std::set<int> sel(d.auswahl.begin(), d.auswahl.end());
     const bool verschiebt = z.ziehen == Ziehen::Verschieben;
-    zeichnePrims(dl, prims, ab, o, verschiebt ? sel : std::set<int>{}, z.zdx, z.zdy);
+    zeichnePrims(dl, prims, ab, o, verschiebt ? sel : std::set<int>{}, z.zdx, z.zdy, &m, &u);
     // Raster
     if (z.raster && !z.interaktion && z.rasterWeite >= 2) {
         for (float x = 0; x <= 640; x += z.rasterWeite) {
@@ -1496,6 +1636,117 @@ void zeichneCode(Dokument& d, ImVec2 groesse) {
     ImGui::EndChild();
 }
 
+// --- M2 Punkt 2: Video -> RoQ -------------------------------------------------------
+
+// Eine Video- oder GIF-Datei lesen und als RoQ kodieren (laeuft auch im Hintergrund).
+std::string videoKodieren(const std::string& platte, int guete, int fps, int seite, std::string& fehler,
+                          const std::function<bool(int, int)>& fortschritt) {
+    Bildfolge f;
+    std::string roh;
+    {
+        std::ifstream in(utf8Pfad(platte), std::ios::binary);
+        std::ostringstream s;
+        s << in.rdbuf();
+        roh = s.str();
+    }
+    if (!gifLesen(roh, f) && !gui::leseVideoDatei(platte, f, 60 * 60, &fehler)) {
+        if (fehler.empty()) { fehler = "?"; }
+        return {};
+    }
+    RoqOptionen o;
+    o.guete = guete;
+    o.fps = fps;
+    return kodiereRoq(f, o, seite, fortschritt);
+}
+
+// Ins Paket (video/<name>.roq) und, wenn genau ein Item gewaehlt ist, als dessen cinematic
+void videoAblegen(const std::string& name, const std::string& roq) {
+    Dokument* d = doc();
+    if (d == nullptr || roq.empty()) { return; }
+    d->bilder["video/" + name + ".roq"] = roq;
+    Z().kinos.erase(kleinPfad(name));
+    if (d->auswahl.size() == 1) {
+        eigenschaft(d->auswahl[0], "style", {konstante(d->datei, "WINDOW_STYLE_CINEMATIC", WINDOW_STYLE_CINEMATIC)});
+        eigenschaft(d->auswahl[0], "cinematic", {inAnf(name)});
+    }
+    char buf[256];
+    std::snprintf(buf, sizeof(buf), tr(Str::MeVideoFertig), ("video/" + name + ".roq").c_str());
+    Z().meldung = buf;
+}
+
+std::string videoNameAus(const std::string& platte) {
+    std::string n = fs::path(utf8Pfad(platte)).stem().string();
+    for (char& c : n) {
+        if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-') { c = '_'; }
+    }
+    return n.empty() ? std::string("video") : n;
+}
+
+void zeichneVideoFenster() {
+    Zustand& z = Z();
+    // fertig gewordenes Ergebnis aus dem Hintergrund uebernehmen
+    if (z.videoDa) {
+        std::lock_guard<std::mutex> l(z.videoMutex);
+        if (z.videoFaden.joinable()) { z.videoFaden.join(); }
+        if (!z.videoErgebnis.empty()) { videoAblegen(z.videoName, z.videoErgebnis); }
+        else if (!z.videoFehler.empty()) {
+            char buf[512];
+            std::snprintf(buf, sizeof(buf), tr(Str::MeVideoFehler), z.videoFehler.c_str());
+            z.meldung = buf;
+        }
+        z.videoErgebnis.clear();
+        z.videoDa = false;
+        z.videoOffen = false;
+    }
+    if (!z.videoOffen) { return; }
+    ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 26, 0}, ImGuiCond_Appearing);
+    bool offen = true;
+    if (ImGui::Begin(tr(Str::MeVideoTitel), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+        ImGui::TextWrapped("%s", anzeige(z.videoQuelle).c_str());
+        const bool laeuft = z.videoLaeuft.load();
+        ImGui::BeginDisabled(laeuft);
+        ImGui::SliderInt(tr(Str::MeVideoGuete), &z.videoGuete, 1, 100);
+        ImGui::SliderInt(tr(Str::MeVideoFps), &z.videoFps, 5, 30);
+        ImGui::SliderInt(tr(Str::MeVideoGroesse), &z.videoSeite, 64, 512);
+        if (ImGui::Button(tr(Str::MeVideoStart))) {
+            if (z.videoFaden.joinable()) { z.videoFaden.join(); }
+            z.videoName = videoNameAus(z.videoQuelle);
+            z.videoLaeuft = true;
+            z.videoAbbruch = false;
+            z.videoFertig = 0;
+            z.videoGesamt = 0;
+            const std::string q = z.videoQuelle;
+            const int g = z.videoGuete, fps = z.videoFps, seite = z.videoSeite;
+            z.videoFaden = std::thread([q, g, fps, seite] {
+                Zustand& zz = Z();
+                std::string fehler;
+                const std::string r = videoKodieren(q, g, fps, seite, fehler, [](int a, int b) {
+                    Z().videoFertig = a;
+                    Z().videoGesamt = b;
+                    return !Z().videoAbbruch.load();
+                });
+                std::lock_guard<std::mutex> l(zz.videoMutex);
+                zz.videoErgebnis = r;
+                zz.videoFehler = fehler;
+                zz.videoLaeuft = false;
+                zz.videoDa = true;
+            });
+        }
+        ImGui::EndDisabled();
+        if (laeuft) {
+            char buf[128];
+            std::snprintf(buf, sizeof(buf), tr(Str::MeVideoLaeuft), z.videoFertig.load(), z.videoGesamt.load());
+            const float anteil = z.videoGesamt > 0 ? static_cast<float>(z.videoFertig) / static_cast<float>(z.videoGesamt) : 0.0F;
+            ImGui::ProgressBar(anteil, ImVec2{-1, 0}, buf);
+        }
+    }
+    ImGui::End();
+    if (!offen) {
+        z.videoAbbruch = true;
+        z.videoOffen = z.videoLaeuft.load();   // bis der Faden aufhoert, offen lassen
+    }
+}
+
 // --- Seitenleisten ----------------------------------------------------------------
 
 void zeichnePalette(Dokument& d) {
@@ -1810,6 +2061,16 @@ void zeichneLeiste(Dokument* d) {
             }
         }
         ImGui::SameLine();
+        if (ImGui::Button(tr(Str::MeVideoImport))) {   // M2 Punkt 2
+            const std::string pfad = platform::openFileDialog(tr(Str::MeVideoImport),
+                                                              "Video (*.mp4;*.webm;*.avi;*.wmv;*.mov;*.mkv;*.gif)|*.mp4;*.webm;*.avi;*.wmv;*.mov;*.mkv;*.gif|", "");
+            if (!pfad.empty()) {
+                z.videoQuelle = pfad;
+                z.videoOffen = true;
+            }
+        }
+        zeichneVideoFenster();
+        ImGui::SameLine();
         if (ImGui::Button(tr(Str::MeExportPk3))) {
             const std::string ziel = platform::saveFileDialog(tr(Str::MeExportPk3), "pk3 (*.pk3)|*.pk3|", z.ordnerAusgabe, "zz_menu.pk3");
             if (!ziel.empty()) { (void)exportierePk3(ziel); }
@@ -2021,6 +2282,13 @@ Stand stand() {
     for (const auto& [k, t] : z.texturen) { (void)k; s.bilderGeladen += t.tex != nullptr ? 1 : 0; }
     s.interaktion = z.interaktion;
     s.cursorZeile = std::string(d->puffer.zeile(d->puffer.pos(d->puffer.cursor.front().pos).zeile));
+    s.kinoBilder = z.kinoBilder;
+    s.modellDreiecke = z.modellDreiecke;
+    for (const auto& [p, b] : d->bilder) {
+        (void)b;
+        s.paket.push_back(p);
+    }
+    s.paketDateien = static_cast<int>(s.paket.size());
     if (g_codeSchrift != nullptr) {   // Festbreite: i und W gleich breit
         const float wi = g_codeSchrift->CalcTextSizeA(16.0F, 1e9F, 0.0F, "iiii").x;
         const float ww = g_codeSchrift->CalcTextSizeA(16.0F, 1e9F, 0.0F, "WWWW").x;
@@ -2262,6 +2530,23 @@ bool exportierePk3(const std::string& pfad) {
 }
 
 void setzeCodeSchrift(ImFont* f) { g_codeSchrift = f; }
+
+std::string importiereVideo(const std::string& platte, int guete, int fps, int maxSeite) {
+    std::string fehler;
+    const std::string r = videoKodieren(platte, guete, fps, maxSeite, fehler, {});
+    if (r.empty()) { return {}; }
+    const std::string name = videoNameAus(platte);
+    videoAblegen(name, r);
+    return "video/" + name + ".roq";
+}
+
+void legeInsPaket(const std::string& spielPfad, const std::string& bytes) {
+    if (Dokument* d = doc()) {
+        d->bilder[spielPfad] = bytes;
+        Z().kinos.clear();
+        Z().texturen.clear();
+    }
+}
 
 }  // namespace bhed::gui::menueeditor
 
