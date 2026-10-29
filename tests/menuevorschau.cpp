@@ -144,6 +144,32 @@ int main() {
         if (x.item == 4) { zz = true; }
     }
     pruefe(!z && zz, "showCvar/hideCvar mit ui_x = 0");
+    // M4: WINDOW_STYLE_CINEMATIC zeichnet nur die MP-Fassung von Window_Paint (codemp ui_shared.c);
+    // OpenJK code/ui und Movie Duels (SP) kennen es nicht - ebenso die TEAMCOLOR-Flaeche
+    {
+        // Zahlen statt Namen (5 CINEMATIC, 4 TEAMCOLOR): MP-Menues kennen die Namen nur ueber menudef.h
+        const std::string kt = "{ menuDef { name k rect 0 0 640 480 visible 1\n"
+                               " itemDef { name kino style 5 cinematic \"probe\" rect 0 0 320 240 visible 1 }\n"
+                               " itemDef { name team style 4 rect 320 0 100 100 visible 1 }\n"
+                               "} }\n";
+        for (int mp = 0; mp < 2; ++mp) {
+            LeseOptionen ok;
+            ok.dialekt = mp != 0 ? Dialekt::MP : Dialekt::SP;
+            const Datei dk = lies("ui/kino.menu", kt, ok);
+            Umgebung uk = u;
+            uk.dialekt = ok.dialekt;
+            std::vector<Prim> pk;
+            zeichneMenu(dk, 0, uk, pk);
+            bool kino = false, team = false;
+            for (const Prim& x : pk) {
+                kino = kino || (x.item == 0 && x.art == PrimArt::Kino);
+                team = team || x.item == 1;
+            }
+            pruefe(mp != 0 ? (kino && team) : (!kino && !team),
+                   mp != 0 ? "MP: cinematic und TEAMCOLOR gezeichnet (DC->drawCinematic, getTeamColor)"
+                           : "SP: cinematic und TEAMCOLOR-Flaeche nicht gezeichnet (Window_Paint der SP-Fassung)");
+        }
+    }
     u.alleItems = true;
     p.clear();
     zeichneMenu(d, 0, u, p);

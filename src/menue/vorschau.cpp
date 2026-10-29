@@ -229,9 +229,11 @@ private:
         } else if (w.style == WINDOW_STYLE_SHADER) {
             const Farbe c = (w.flags & WINDOW_FORECOLORSET) != 0 ? w.foreColor : Farbe{1, 1, 1, 1};
             if (!w.background.empty()) { bild(f.x, f.y, f.w, f.h, w.background, c, item); }
-        } else if (w.style == WINDOW_STYLE_TEAMCOLOR) {
+        } else if (w.style == WINDOW_STYLE_TEAMCOLOR && u_.dialekt == Dialekt::MP) {
             fuellen(f.x, f.y, f.w, f.h, Farbe{1, 0, 0, 1});   // DC->getTeamColor: ohne Spiel rot
-        } else if (w.style == WINDOW_STYLE_CINEMATIC) {
+        } else if (w.style == WINDOW_STYLE_CINEMATIC && u_.dialekt == Dialekt::MP) {
+            // M4: nur MP (codemp ui_shared.c Window_Paint: DC->playCinematic/drawCinematic); die
+            // SP-Fassung (OpenJK code/ui, Movie Duels) kennt weder TEAMCOLOR-Flaeche noch CINEMATIC
             platzhalter(f, w.cinematicName, PrimArt::Kino);
         }
         if (w.border == WINDOW_BORDER_FULL) {
