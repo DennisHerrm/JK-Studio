@@ -1033,14 +1033,14 @@ void drawTimeline() {
         char gesamt[32];
         if (g_app->timelineFrames) {
             const double fps = static_cast<double>(std::max(1, g_app->timelineFps));
-            std::snprintf(jetzt, sizeof(jetzt), "%d", static_cast<int>(zeitleisteZeigerMs() / 1000.0 * fps));
+            std::snprintf(jetzt, sizeof(jetzt), "%d", static_cast<int>(g_app->playMs / 1000.0 * fps));
             std::snprintf(gesamt, sizeof(gesamt), " / %d", static_cast<int>(t.durationMs / 1000.0 * fps));
         } else {
             const auto mmss = [](char* out, std::size_t n, double ms, const char* vor) {
                 const int cs = static_cast<int>(std::max(0.0, ms) / 10.0);
                 std::snprintf(out, n, "%s%02d:%02d.%02d", vor, cs / 6000, (cs / 100) % 60, cs % 100);
             };
-            mmss(jetzt, sizeof(jetzt), zeitleisteZeigerMs(), "");
+            mmss(jetzt, sizeof(jetzt), g_app->playMs, "");
             mmss(gesamt, sizeof(gesamt), t.durationMs, " / ");
         }
         const ImVec2 t1 = ImGui::CalcTextSize(jetzt);
@@ -1503,15 +1503,15 @@ void drawTimeline() {
         // Der Zeiger im Lineal: eine Spitze oben und eine Linie, dazu das
         // Ende des Ablaufs als rote Marke.
         {
-            const auto px = rp.x + static_cast<float>((zeitleisteZeigerMs() - zStart) / zSpanne) * w;
+            const auto px = rp.x + static_cast<float>((g_app->playMs - zStart) / zSpanne) * w;
             if (px >= rp.x - 1.0F && px <= rp.x + w + 1.0F) {
                 // Der Zeiger als Marke mit der Zeit darin (rc588), wie in
                 // Unreals Sequencer - man sieht die Zeit dort, wo man hinschaut.
                 const ImU32 akz = IM_COL32(255, 160, 50, 255);
                 char zt[24];
-                const int cs = static_cast<int>(std::max(0.0, zeitleisteZeigerMs()) / 10.0);
+                const int cs = static_cast<int>(std::max(0.0, g_app->playMs) / 10.0);
                 if (g_app->timelineFrames) {
-                    std::snprintf(zt, sizeof(zt), "%d", static_cast<int>(zeitleisteZeigerMs() / 1000.0 * fps));
+                    std::snprintf(zt, sizeof(zt), "%d", static_cast<int>(g_app->playMs / 1000.0 * fps));
                 } else {
                     std::snprintf(zt, sizeof(zt), "%d:%02d.%02d", cs / 6000, (cs / 100) % 60, cs % 100);
                 }
@@ -2237,9 +2237,22 @@ void drawMapView() {
     std::vector<ActorDraw> gpuFiguren;
     bool gezeichnet = false;   // hat die Grafikkarte in diesem Bild gezeichnet?
     // zeitleiste1: dieses Bild nimmt nur ein Bild fuer den Filmstreifen auf
-    // (Skriptkamera zur Zeit des Zeigers). Die Ansicht selbst, die Vorschau
-    // und die Ueberlagerung bleiben, wie sie im letzten Bild waren.
-    const bool filmBild = g_app->zlFilmWunsch >= 0 && g_app->mapDirty;
+    // (die Skriptkamera zu seiner Zeit). Nur, wenn die Ansicht sonst nichts zu
+    // tun haette - keine Aenderung, keine Maus, kein Abspielen: dann bleiben
+    // Ansicht, Vorschau und Ueberlagerung, wie sie im letzten Bild waren.
+    // Und nur, wenn in der Ansicht nichts gewaehlt ist: mit Auswahl haengen
+    // Griffe und Bahnen am Stand des letzten Bildes (Selbsttest mission1,
+    // "Undo Figur/Kamera": mit Filmbildern dazwischen gingen Zuege an den
+    // Griffen ins Leere, ohne sie nicht).
+    const bool filmBild = g_app->zlFilmWunsch >= 0 && !g_app->mapDirty && !g_app->playing && !ImGui::IsAnyMouseDown() &&
+                          g_app->pickedEntity < 0 && g_app->selectedActor < 0 && !g_app->cameraSelected;
+    // Die Zeit des Filmbilds gilt NUR fuer das Zeichnen hier - alles andere
+    // (Zeitleiste, Inspektor, Selbsttests) sieht weiter die Zeit des Zeigers.
+    const double zeigerMs = g_app->playMs;
+    if (filmBild) {
+        g_app->playMs = g_app->zlFilmZeitMs;
+        g_app->mapDirty = true;   // den Zeichenblock einmal fuer das Filmbild
+    }
     if (g_app->mapDirty) {
         // rc603: fehlen die Modelle der Figuren (rescanGamePaths hat sie
         // geleert - neue Spielordner, etwa die einer Mission eines anderen
@@ -4638,6 +4651,10 @@ void drawMapView() {
     }
     // Das Renderziel selbst wird gezeigt - es wurde direkt bemalt und muss
     // nicht erst hochgeladen werden.
+    if (filmBild) {
+        g_app->playMs = zeigerMs;
+        g_app->zlFilmWunsch = -1;
+    }
     void* zeigeTextur = nullptr;
     if (gpu::zielTextur() != nullptr && g_app->gpuAufrufe > 0) {
         zeigeTextur = gpu::zielTextur();

@@ -2095,8 +2095,8 @@ struct App {
     std::vector<ZlText> zlBeschriftungen;
     float zlZeichenMs = 0.0F;              // was das Zeichnen der Zeilen kostet (letztes Bild)
     // Der Filmstreifen: Bilder der Skriptkamera alle 2 s. Aufgenommen in einem
-    // kurzen Durchgang (je Bild der Ansicht eines, die Ansicht selbst bleibt
-    // stehen - drawMapView, filmBild), gezeigt bis zum naechsten Durchgang.
+    // kurzen Durchgang (je Bild der Ansicht eines, die Ansicht und die Zeit des
+    // Zeigers bleiben stehen - drawMapView, filmBild), gezeigt bis zum naechsten.
     struct ZlFilmBild {
         double ms = 0.0;
         void* textur = nullptr;
@@ -2107,7 +2107,7 @@ struct App {
     std::vector<ZlFilmBild> zlFilm;
     int zlFilmWunsch = -1;                 // in diesem Bild der Ansicht: Filmbild Nummer ... aufnehmen
     int zlFilmPass = -1;                   // laufender Durchgang: naechstes Bild (-1: keiner)
-    double zlFilmVorherMs = 0.0;           // die Zeit des Zeigers vor dem Durchgang
+    double zlFilmZeitMs = 0.0;             // ... zu dieser Zeit (nur waehrend drawMapView zeichnet)
     std::uint64_t zlModellStand = 0;       // zaehlt die Modellbauten
     std::uint64_t zlFilmStand = 0;         // fuer diesen Modellbau gelten die Bilder
     int zlFilmAufnahmen = 0;               // Selbsttest: aufgenommene Bilder
@@ -2570,7 +2570,6 @@ void zeitleisteErklaerung(float breite, float hoehe);
 void zeitleisteDauerSchreiben(const spuren::Clip& c, double neuMs);
 void zeitleisteVerschieben(const spuren::Clip& c, double delta, bool nurDieser);
 void zeitleisteFilmBild(int nummer, const std::vector<std::uint8_t>& rgba, int breite, int hoehe);
-double zeitleisteZeigerMs();
 std::string untertitelFuer(const std::string& klang, std::string* schluessel);
 void openEditorForNode(const Path& p);
 std::vector<Path> selectionOrCurrent();

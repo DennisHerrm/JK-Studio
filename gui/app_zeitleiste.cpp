@@ -271,7 +271,7 @@ void zeileBeenden(Rahmen& r, const ImRect& f, std::vector<MarkenText>* texte = n
     }
     const float ex = r.xAt(r.ende);
     r.dl->AddLine(ImVec2{ex, f.Min.y}, ImVec2{ex, f.Max.y}, IM_COL32(230, 80, 80, 110), 1.0F);
-    const float px = r.xAt(zeitleisteZeigerMs());
+    const float px = r.xAt(g_app->playMs);
     r.dl->AddLine(ImVec2{px, f.Min.y}, ImVec2{px, f.Max.y}, kKopf, 2.0F);
     r.dl->PopClipRect();
     ImGui::Dummy(ImVec2{r.nameW + r.w, f.Max.y - f.Min.y});
@@ -775,29 +775,26 @@ void filmDurchgang() {
     if (g_app->zlFilmPass >= 0) {
         if (!ruhig || g_app->zlFilmStand != g_app->zlModellStand) {
             // Abbrechen; laeuft spaeter von vorn (zlFilmStand 0).
-            g_app->playMs = g_app->zlFilmVorherMs;
             g_app->zlFilmPass = -1;
             g_app->zlFilmWunsch = -1;
             g_app->zlFilmStand = 0;
-            g_app->mapDirty = true;
             return;
         }
+        // Das vorige Bild ist noch nicht aufgenommen (die Ansicht hatte zu tun) -
+        // warten; drawMapView nimmt es im naechsten ruhigen Bild.
+        if (g_app->zlFilmWunsch >= 0) { return; }
         if (static_cast<std::size_t>(g_app->zlFilmPass) < zeiten.size()) {
-            g_app->playMs = zeiten[static_cast<std::size_t>(g_app->zlFilmPass)];
+            g_app->zlFilmZeitMs = zeiten[static_cast<std::size_t>(g_app->zlFilmPass)];
             g_app->zlFilmWunsch = g_app->zlFilmPass;
             ++g_app->zlFilmPass;
         } else {
-            g_app->playMs = g_app->zlFilmVorherMs;
             g_app->zlFilmPass = -1;
-            g_app->zlFilmWunsch = -1;
             g_app->zlFilm.resize(zeiten.size());
         }
-        g_app->mapDirty = true;
         return;
     }
     if (ruhig && g_app->zlFilmStand != g_app->zlModellStand) {
         g_app->zlFilmStand = g_app->zlModellStand;
-        g_app->zlFilmVorherMs = g_app->playMs;
         g_app->zlFilmPass = 0;
         g_app->zlFilm.resize(zeiten.size());
     }
@@ -1041,13 +1038,6 @@ void darstellerZeilen(Rahmen& r, const spuren::Darsteller& d, int figIdx, int au
 
 // Setzt die Zeit und haelt den Ton an (wie ein Klick ins Lineal).
 void zeitSetzen(double ms) {
-    // Ein laufender Filmdurchgang endet - der Anwender will diese Zeit sehen
-    // (er laeuft spaeter von vorn).
-    if (g_app->zlFilmPass >= 0) {
-        g_app->zlFilmPass = -1;
-        g_app->zlFilmWunsch = -1;
-        g_app->zlFilmStand = 0;
-    }
     g_app->playMs = std::max(0.0, ms);
     g_app->playing = false;
     g_app->audioUpTo = g_app->playMs;
@@ -1195,7 +1185,7 @@ void zeitleisteNavigation(float x0, float w, double gesamt) {
     const float a = p.x + static_cast<float>(g_app->timelineViewStartMs) * sx;
     const float b = std::max(a + 8.0F * k, p.x + static_cast<float>(g_app->timelineViewStartMs + spanne) * sx);
     dl->AddRectFilled(ImVec2{a, p.y + 2.0F * k}, ImVec2{b, p.y + 14.0F * k}, ImGui::GetColorU32(ImGuiCol_ScrollbarGrab), 3.0F * k);
-    const float px = p.x + static_cast<float>(zeitleisteZeigerMs()) * sx;
+    const float px = p.x + static_cast<float>(g_app->playMs) * sx;
     dl->AddRectFilled(ImVec2{px - 1.0F, p.y}, ImVec2{px + 1.0F, p.y + h}, kKopf);
     g_app->zlNavRect = ImRect{p, ImVec2{p.x + w, p.y + h}};
     const ImVec2 vor = ImGui::GetCursorScreenPos();
@@ -1477,13 +1467,13 @@ void zeitleisteSpuren(float x0, float w, float labelW, double sichtStart, double
     tourZielMelden("zeitleiste", ImGui::GetCurrentWindow()->Rect());
     if (g_app->tlUeberMaus && !ImGui::GetIO().WantTextInput) {
         const double schritt = ImGui::GetIO().KeyShift ? 1000.0 : 50.0;
-        double ziel = zeitleisteZeigerMs();
+        double ziel = g_app->playMs;
         if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, true)) { ziel += schritt; }
         if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, true)) { ziel -= schritt; }
         if (ImGui::IsKeyPressed(ImGuiKey_Home, false)) { ziel = 0.0; }
         if (ImGui::IsKeyPressed(ImGuiKey_End, false)) { ziel = ablaufEnde; }
         ziel = std::clamp(ziel, 0.0, std::max(0.0, ablaufEnde));
-        if (ziel != zeitleisteZeigerMs()) {
+        if (ziel != g_app->playMs) {
             zeitSetzen(ziel);
             ++g_app->tlSchritte;   // H2: Tour k-neu-timen ("genau schrittweise")
         }
@@ -1533,10 +1523,6 @@ void zeitleisteFilmBild(int nummer, const std::vector<std::uint8_t>& rgba, int b
     b.ms = g_app->playMs;
     ++g_app->zlFilmAufnahmen;
 }
-
-// Wo der Zeiger fuer den Anwender steht - waehrend der Filmdurchgang die Zeit
-// fuer seine Aufnahmen verstellt, die Zeit davor.
-double zeitleisteZeigerMs() { return g_app->zlFilmPass >= 0 ? g_app->zlFilmVorherMs : g_app->playMs; }
 
 // --- Zurueckschreiben ins Skript -------------------------------------------------
 

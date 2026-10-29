@@ -2318,9 +2318,15 @@ std::vector<Schritt> handbuchSchritte() {
             g_app->timelineFrac = 0.40F;
             g_app->playing = false;
             g_app->playMs = 8000.0;
+            g_app->cameraSelected = false;
+            g_app->selectedActor = -1;
+            entityAuswahlSetzen(-1);
             g_app->mapDirty = true;
         }));
         t.push_back(pause(1.0));
+        t.push_back(warteBis("Handbuch Zeitleiste: Kamerabilder aufgenommen", [] {
+            return g_app->zlFilmPass < 0 && g_app->zlFilmStand == g_app->zlModellStand;
+        }, 1200));
         t.push_back(tu("Handbuch Zeitleiste: Maus aus dem Bild", [] { setzeMaus(ImVec2{4.0F, ImGui::GetIO().DisplaySize.y - 4.0F}); }));
         t.push_back(pause(0.3));
         t.push_back(hb::fotoTeil("h_zeitleiste", band));

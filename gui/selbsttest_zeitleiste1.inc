@@ -397,6 +397,12 @@ std::vector<Schritt> szeneSchritte(const std::string& szene, int saetze, int unt
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     // --- Filmstreifen: alle 2 s ein Bild der Skriptkamera, ohne laengere Bilder ---
+    // (aufgenommen wird, wenn in der Ansicht nichts gewaehlt ist)
+    add(tu("zeitleiste1: " + szene + " - nichts gewaehlt", [] {
+        g_app->cameraSelected = false;
+        g_app->selectedActor = -1;
+        entityAuswahlSetzen(-1);
+    }));
     add(warteBis("zeitleiste1: " + szene + " - Kamerabilder aufgenommen", [] {
         return g_app->zlFilmPass < 0 && g_app->zlFilmStand == g_app->zlModellStand && filmDa() >= filmSoll();
     }, 1200));

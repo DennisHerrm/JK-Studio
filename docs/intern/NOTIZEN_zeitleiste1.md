@@ -60,14 +60,21 @@ die Zeitleiste; die Erklaerung kommt in die rechte Seitenleiste
    ‚x‘", Sender und Zeit in der Erklaerung), Kartenwechsel-Marke.
 5. **Filmstreifen**: alle 2 s ein Bild der Skriptkamera (sichtFovX; Blende
    und Kinobalken aus CameraState darueber). Aufgenommen in einem Durchgang,
-   je Bild der Ansicht eines: drawMapView zeichnet dann nur das Filmbild
-   (224 px breit, Zielsatz 4 - kZielSaetze 4 -> 5), Ansicht (Satz 0),
-   Vorschau und Ueberlagerung bleiben wie im Bild davor, der Zeiger der Leiste
-   zeigt die Zeit davor. Laeuft nach jedem Modellbau neu, nur wenn niemand
-   etwas tut (Maus, Abspielen, Ziehen brechen ab, er laeuft spaeter von
-   vorn). Messung (unter Last): academy1 45 Bilder im Mittel 8,55 ms gegen
+   je ruhigem Bild der Ansicht eines: drawMapView zeichnet dann nur das
+   Filmbild (224 px breit, Zielsatz 4 - kZielSaetze 4 -> 5) zur Zeit des
+   Filmbilds und stellt die Zeit des Zeigers gleich danach zurueck; Ansicht,
+   Vorschau und Ueberlagerung bleiben wie im Bild davor. "Ruhig" heisst: die
+   Ansicht haette sonst nichts zu zeichnen (mapDirty aus), keine Maus, kein
+   Abspielen, und in der Ansicht ist nichts gewaehlt - jede Aenderung zeichnet
+   zuerst die Ansicht neu, der Durchgang wartet. Laeuft nach jedem Modellbau
+   neu. Messung (unter Last): academy1 45 Bilder im Mittel 8,55 ms gegen
    7,73 ms ohne Durchgang, md_am_sith 31 Bilder 30,6 gegen 30,0 ms - keine
-   laengeren Bilder.
+   laengeren Bilder. **Fund (mission1)**: in der ersten Fassung verdraengten
+   die Filmbilder normale Bilder und verstellten die Zeit des Zeigers fuer
+   alle; im Selbsttest mission1 gingen Zuege an Figur-Griffen ins Leere
+   ("Undo Figur ...", Laeufe zle_mission1, zl1m1, zl1m2 rot). Gegenprobe ohne
+   Filmdurchgang: gruen (zl1m3). Behoben wie oben beschrieben, mission1 gruen
+   (zl1m4: 98 OK, 0 FEHLER).
 6. **"Was passiert hier?"** in 4 Sprachen fuer jede Blockart (Einstellung,
    Fahrt, Schwenk, Zoom, Blende, Rollen, Wackeln, Folgen, Kamerabahn, an/aus,
    Satz/Klang, Musik, Warten auf Zeit/Signal/Aufgabe, Signal, use, set,
