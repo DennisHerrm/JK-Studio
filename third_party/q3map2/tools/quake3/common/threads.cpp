@@ -90,6 +90,14 @@ static unsigned int BhedWorkSeed( unsigned int pass, unsigned int work ){
 	return x;
 }
 
+unsigned int BhedNextPassSeed( int work ){
+	return BhedWorkSeed( g_bhedPass + 1, work );
+}
+
+unsigned int BhedPassSeed( int work ){
+	return BhedWorkSeed( g_bhedPass, work );
+}
+
 void ThreadWorkerFunction( int threadnum ){
 	while ( true )
 	{

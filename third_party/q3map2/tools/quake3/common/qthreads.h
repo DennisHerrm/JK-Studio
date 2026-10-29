@@ -45,3 +45,32 @@ inline float BhedWorkRandom(){ /* MSVC rand() LCG, 15 bits like RAND_MAX 0x7fff 
 	g_bhedRandomState = g_bhedRandomState * 214013u + 2531011u;
 	return (float)( ( g_bhedRandomState >> 16 ) & 0x7fff ) / 0x7fff;
 }
+
+/* BehavEd vis1: the same generator with its own state (BhedWorkRandom on a copy), and the state
+   after n draws without drawing them (x -> a x + c, n times: a^n x + c ( a^(n-1) + ... + 1 ),
+   by squaring). A work item split over several threads gives each part the state the serial
+   order would have reached - the same numbers in the same places. */
+struct BhedRandom
+{
+	unsigned int state;
+	float operator()(){
+		state = state * 214013u + 2531011u;
+		return (float)( ( state >> 16 ) & 0x7fff ) / 0x7fff;
+	}
+};
+inline unsigned int BhedRandomSkip( unsigned int state, unsigned long long n ){
+	unsigned int mul = 1, add = 0, a = 214013u, c = 2531011u;
+	for ( ; n != 0; n >>= 1 )
+	{
+		if ( n & 1 ) {
+			mul *= a;
+			add = add * a + c;
+		}
+		c = c * a + c;
+		a *= a;
+	}
+	return state * mul + add;
+}
+/* the seed work item `work` gets in the next RunThreadsOnIndividual, and in the running one */
+unsigned int BhedNextPassSeed( int work );
+unsigned int BhedPassSeed( int work );

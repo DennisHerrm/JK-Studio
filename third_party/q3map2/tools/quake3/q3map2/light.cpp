@@ -2255,7 +2255,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 	BhedZeit( "StitchSurfaceLightmaps" );
 
 	Sys_Printf( "--- IlluminateVertexes ---\n" );
-	RunThreadsOnIndividual( bspDrawSurfaces.size(), true, IlluminateVertexes );
+	BhedIlluminateVertexesAll(); /* BehavEd vis1: was RunThreadsOnIndividual( bspDrawSurfaces.size(), true, IlluminateVertexes ) */
 	Sys_Printf( "%9d vertexes illuminated\n", numVertsIlluminated );
 	BhedZeit( "IlluminateVertexes" );
 	BhedLichtCacheSchreiben(); /* BehavEd stage 8a: <map>.bhedlight (only without -bounce) */
@@ -2341,7 +2341,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 		BhedZeit( "Bounce: StitchSurfaceLightmaps" );
 
 		Sys_Printf( "--- IlluminateVertexes ---\n" );
-		RunThreadsOnIndividual( bspDrawSurfaces.size(), true, IlluminateVertexes );
+		BhedIlluminateVertexesAll(); /* BehavEd vis1: was RunThreadsOnIndividual( bspDrawSurfaces.size(), true, IlluminateVertexes ) */
 		Sys_Printf( "%9d vertexes illuminated\n", numVertsIlluminated );
 		BhedZeit( "Bounce: IlluminateVertexes" );
 

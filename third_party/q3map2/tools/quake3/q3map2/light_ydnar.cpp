@@ -37,6 +37,8 @@
 #include "bhed_lichtcache.h" /* BehavEd stage 8a: -bhedlightcache */
 #include "timer.h"
 #include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, parallel rows of big lightmaps */
+#include <numeric> /* BehavEd vis1 */
+#include <thread> /* BehavEd vis1 */
 #include <mutex> /* BehavEd stage 8g */
 #include <array> /* BehavEd stage 8g */
 #include <limits> /* BehavEd stage 8g */
@@ -1930,18 +1932,23 @@ static void SubsampleRawLuxel_r( rawLightmap_t *lm, trace_t *trace, const Vector
 }
 
 /* A mostly Gaussian-like bounded random distribution (sigma is expected standard deviation) */
-static void GaussLikeRandom( float sigma, float *x, float *y ){
+/* BehavEd vis1: the numbers come from `random` - Random() in the work item, or a BhedRandom with the
+   state the serial order reaches there (BhedLichterParallel) */
+template<typename RandomSource>
+static void GaussLikeRandom( RandomSource& random, float sigma, float *x, float *y ){
 	float r;
-	r = Random() * 2 * c_pi;
+	r = random() * 2 * c_pi;
 	*x = sigma * 2.73861278752581783822 * cos( r );
 	*y = sigma * 2.73861278752581783822 * sin( r );
-	r = Random();
+	r = random();
 	r = 1 - sqrt( r );
 	r = 1 - sqrt( r );
 	*x *= r;
 	*y *= r;
 }
-static void RandomSubsampleRawLuxel( rawLightmap_t *lm, trace_t *trace, const Vector3& sampleOrigin, int x, int y, float bias, SuperLuxel& lightLuxel, Vector3 *lightDeluxel ){
+/* BehavEd vis1: always lightSamples * 2 numbers (GaussLikeRandom before the mapping test) */
+template<typename RandomSource>
+static void RandomSubsampleRawLuxel( RandomSource& random, rawLightmap_t *lm, trace_t *trace, const Vector3& sampleOrigin, int x, int y, float bias, SuperLuxel& lightLuxel, Vector3 *lightDeluxel ){
 	int b, mapped = 0;
 	int cluster;
 	Vector3 origin, normal;
@@ -1952,7 +1959,7 @@ static void RandomSubsampleRawLuxel( rawLightmap_t *lm, trace_t *trace, const Ve
 	{
 		/* set origin */
 		origin = sampleOrigin;
-		GaussLikeRandom( bias, &dx, &dy );
+		GaussLikeRandom( random, bias, &dx, &dy );
 
 		/* calculate position */
 		if ( !SubmapRawLuxel( lm, x, y, dx, dy, cluster, origin, normal ) ) {
@@ -2136,6 +2143,81 @@ inline void FreeTraceLights( trace_t *trace ){
  */
 static void FloodlightIlluminateLightmap( rawLightmap_t *lm );
 
+/* BehavEd stage 7: the buffers of BhedLichterParallel, kept between calls (only the main thread comes
+   there) - fresh memory costs page faults every time */
+static struct
+{
+	std::vector<SuperLuxel> luxelPuffer;
+	std::vector<Vector3> deluxelPuffer;
+	std::vector<byte> flagPuffer;
+	std::vector<int> licht;
+	std::vector<int> kandidatSlot;
+	std::vector<std::vector<int>> kandidaten;
+	std::vector<std::vector<SuperLuxel>> ergebnisse;
+	std::vector<std::vector<Vector3>> ergebnisseDir;
+	std::vector<std::pair<int, int>> arbeit;
+} g_bhedLp;
+struct BhedAktiv
+{
+	int j;
+	int lightmapNum;
+	int luxelFilterRadius;
+	const light_t *light;
+};
+
+/* BehavEd vis1: pass 2 with -randomsamples. Every subsampled luxel draws 2 * lightSamples numbers,
+   in the serial loop from position 2 * lightSamples * k of the work item's generator, k = how many
+   luxels of this lightmap were subsampled before it (lights in order, stamps row by row). Whether a
+   stamp subsamples depends on the luxels the stamps before it subsampled, and with random samples
+   that changes the course right away (md_ch_ben: the luxels predicted from pass 1 differed from the
+   real ones after 3-4 subsamples, 99 real against 145 predicted) - so k is only known in the serial
+   scan, and this pass stays serial: the scan of the loop below, lights in order, each subsample
+   with BhedRandom from BhedRandomSkip( seed, 2 * lightSamples * k ). Pass 1 and pass 3 - nearly all
+   of the work - run on all threads as without random samples. */
+template<typename Stempel>
+static void BhedZufallsProben( rawLightmap_t *lm, const trace_t& trace, const std::vector<BhedAktiv>& aktiv, size_t n,
+                               unsigned int seed, unsigned long long& gezogen, Stempel stempel ){
+	const int sw = lm->sw;
+	const int sh = lm->sh;
+	const float tests[ 4 ][ 2 ] = { { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 } };
+	const float bias = 0.5f * lightSamplesSearchBoxSize;
+	const unsigned long long jeProbe = 2ull * lightSamples;
+	trace_t tr = trace;
+	for ( const BhedAktiv& a : aktiv )
+	{
+		tr.light = a.light;
+		SuperLuxel *luxel = g_bhedLp.luxelPuffer.data() + n * a.j;
+		Vector3 *deluxel = deluxemap ? g_bhedLp.deluxelPuffer.data() + n * a.j : nullptr;
+		byte *flags = g_bhedLp.flagPuffer.data() + n * a.j;
+		for ( int y = 0; y < sh - 1; ++y )
+		{
+			for ( int x = 0; x < sw - 1; ++x )
+			{
+				if ( !stempel( luxel, flags, x, y ) ) {
+					continue;
+				}
+				for ( int t = 0; t < 4; ++t )
+				{
+					const int sx = x + tests[ t ][ 0 ];
+					const int sy = y + tests[ t ][ 1 ];
+					if ( lm->getSuperCluster( sx, sy ) < CLUSTER_NORMAL ) {
+						continue;
+					}
+					byte& flag = flags[ sy * sw + sx ];
+					if ( flag & FLAG_ALREADY_SUBSAMPLED ) {
+						continue;
+					}
+					const int i = sy * sw + sx;
+					BhedRandom random{ BhedRandomSkip( seed, jeProbe * gezogen ) };
+					RandomSubsampleRawLuxel( random, lm, &tr, lm->getSuperOrigin( sx, sy ), sx, sy, bias, luxel[ i ], deluxemap ? &deluxel[ i ] : nullptr );
+					++gezogen;
+					flag |= FLAG_ALREADY_SUBSAMPLED;
+				}
+			}
+		}
+	}
+}
+
 /* BehavEd stage 7 (speed, same result): the light loop of IlluminateRawLightmap for one big raw
    lightmap on all threads. On mp__duel1 one lightmap took 21 % of the radiosity time, so more than
    4.8 times faster was impossible however many threads (measured 3.9 with 32). Here the luxel rows
@@ -2150,26 +2232,28 @@ static void FloodlightIlluminateLightmap( rawLightmap_t *lm );
      so row y starts stamp x only when row y-1 has finished stamps 0..x+1 - every stamp sees the
      luxels and flags of the serial row-by-row order;
    - pass 3 (filter, add to the lightmap) per row, the lights of the block in their order.
-   Not used with -randomsamples (random numbers per work item) or the debug fills. */
-static void BhedLichterParallel( rawLightmap_t *lm, trace_t& trace, bhed_par::Pool& pool ){
+   Not used with the debug fills. BehavEd vis1: also with -randomsamples - see pass 2 below; `seed`
+   is the state of the work item's generator (Random()) when IlluminateRawLightmap starts. */
+static void BhedLichterParallel( rawLightmap_t *lm, trace_t& trace, bhed_par::Pool& pool, unsigned int seed ){
 	const int sw = lm->sw;
 	const int sh = lm->sh;
 	const size_t n = size_t( sw ) * sh;
-	const bool proben = lightSamples > 1;
+	const bool proben = lightSamples > 1 || lightRandomSamples;
 	const float tests[ 4 ][ 2 ] = { { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 } };
+	unsigned long long gezogen = 0;   /* -randomsamples: luxels of this lightmap subsampled so far (BhedZufallsProben) */
 	/* at most about 64 MB of temporary luxels per block; the buffers are kept between calls
 	   (only the main thread comes here) - fresh memory costs page faults every time */
 	const size_t jeLicht = n * ( sizeof( SuperLuxel ) + ( deluxemap ? sizeof( Vector3 ) : 0 ) + 1 );
 	const int block = int( std::clamp<size_t>( ( size_t( 64 ) << 20 ) / std::max<size_t>( jeLicht, 1 ), 1, 128 ) );
-	static std::vector<SuperLuxel> luxelPuffer;
-	static std::vector<Vector3> deluxelPuffer;
-	static std::vector<byte> flagPuffer;
-	static std::vector<int> licht;
-	static std::vector<int> kandidatSlot;
-	static std::vector<std::vector<int>> kandidaten;
-	static std::vector<std::vector<SuperLuxel>> ergebnisse;
-	static std::vector<std::vector<Vector3>> ergebnisseDir;
-	static std::vector<std::pair<int, int>> arbeit;
+	std::vector<SuperLuxel>& luxelPuffer = g_bhedLp.luxelPuffer;
+	std::vector<Vector3>& deluxelPuffer = g_bhedLp.deluxelPuffer;
+	std::vector<byte>& flagPuffer = g_bhedLp.flagPuffer;
+	std::vector<int>& licht = g_bhedLp.licht;
+	std::vector<int>& kandidatSlot = g_bhedLp.kandidatSlot;
+	std::vector<std::vector<int>>& kandidaten = g_bhedLp.kandidaten;
+	std::vector<std::vector<SuperLuxel>>& ergebnisse = g_bhedLp.ergebnisse;
+	std::vector<std::vector<Vector3>>& ergebnisseDir = g_bhedLp.ergebnisseDir;
+	std::vector<std::pair<int, int>>& arbeit = g_bhedLp.arbeit;
 	if ( luxelPuffer.size() < n * block ) {
 		luxelPuffer.resize( n * block );
 	}
@@ -2182,14 +2266,7 @@ static void BhedLichterParallel( rawLightmap_t *lm, trace_t& trace, bhed_par::Po
 	if ( licht.size() < size_t( sh ) * block ) {
 		licht.resize( size_t( sh ) * block );
 	}
-	struct Aktiv
-	{
-		int j;
-		int lightmapNum;
-		int luxelFilterRadius;
-		const light_t *light;
-	};
-	std::vector<Aktiv> aktiv;
+	std::vector<BhedAktiv> aktiv;
 	for ( int basis = 0; basis < trace.numLights; basis += block )
 	{
 		const int k = std::min( block, trace.numLights - basis );
@@ -2319,115 +2396,120 @@ static void BhedLichterParallel( rawLightmap_t *lm, trace_t& trace, bhed_par::Po
 				}
 				return !( total[ 0 ] <= 4.0f && total[ 1 ] <= 4.0f && total[ 2 ] <= 4.0f ) && lighted != 0 && lighted != mapped;
 			};
-			/* prediction */
-			pool.fuerAlle( na, [&]( int ai ){
-				const int j = aktiv[ ai ].j;
-				const SuperLuxel *luxel = luxelPuffer.data() + n * j;
-				const byte *flags = flagPuffer.data() + n * j;
-				int *slot = kandidatSlot.data() + n * j;
-				std::fill( slot, slot + n, -1 );
-				std::vector<int>& liste = kandidaten[ ai ];
-				liste.clear();
-				for ( int y = 0; y < sh - 1; ++y )
-				{
-					for ( int x = 0; x < sw - 1; ++x )
+			if ( lightRandomSamples ) {
+				BhedZufallsProben( lm, trace, aktiv, n, seed, gezogen, stempel );
+			}
+			else{
+				/* prediction */
+				pool.fuerAlle( na, [&]( int ai ){
+					const int j = aktiv[ ai ].j;
+					const SuperLuxel *luxel = luxelPuffer.data() + n * j;
+					const byte *flags = flagPuffer.data() + n * j;
+					int *slot = kandidatSlot.data() + n * j;
+					std::fill( slot, slot + n, -1 );
+					std::vector<int>& liste = kandidaten[ ai ];
+					liste.clear();
+					for ( int y = 0; y < sh - 1; ++y )
 					{
-						if ( !stempel( luxel, flags, x, y ) ) {
-							continue;
-						}
-						for ( int t = 0; t < 4; ++t )
+						for ( int x = 0; x < sw - 1; ++x )
 						{
-							const int sx = x + tests[ t ][ 0 ];
-							const int sy = y + tests[ t ][ 1 ];
-							if ( lm->getSuperCluster( sx, sy ) < CLUSTER_NORMAL || slot[ sy * sw + sx ] >= 0 ) {
+							if ( !stempel( luxel, flags, x, y ) ) {
 								continue;
 							}
-							slot[ sy * sw + sx ] = int( liste.size() );
-							liste.push_back( sy * sw + sx );
-						}
-					}
-				}
-				ergebnisse[ ai ].resize( liste.size() );
-				ergebnisseDir[ ai ].resize( deluxemap ? liste.size() : 0 );
-			} );
-			/* subsample the predicted luxels, all lights, in chunks */
-			arbeit.clear();
-			for ( int ai = 0; ai < na; ++ai )
-				for ( size_t k = 0; k < kandidaten[ ai ].size(); k += 8 )
-					arbeit.push_back( { ai, int( k ) } );
-			pool.fuerAlle( int( arbeit.size() ), [&]( int w ){
-				const int ai = arbeit[ w ].first;
-				const int j = aktiv[ ai ].j;
-				trace_t tr = trace;
-				tr.light = aktiv[ ai ].light;
-				const SuperLuxel *luxel = luxelPuffer.data() + n * j;
-				const Vector3 *deluxel = deluxemap ? deluxelPuffer.data() + n * j : nullptr;
-				const std::vector<int>& liste = kandidaten[ ai ];
-				const size_t ende = std::min( liste.size(), size_t( arbeit[ w ].second ) + 8 );
-				for ( size_t k = arbeit[ w ].second; k < ende; ++k )
-				{
-					const int i = liste[ k ];
-					const int sx = i % sw;
-					const int sy = i / sw;
-					SuperLuxel& ziel = ergebnisse[ ai ][ k ];
-					ziel = luxel[ i ];
-					Vector3 *zielDir = nullptr;
-					if ( deluxemap ) {
-						ergebnisseDir[ ai ][ k ] = deluxel[ i ];
-						zielDir = &ergebnisseDir[ ai ][ k ];
-					}
-					SubsampleRawLuxel_r( lm, &tr, lm->getSuperOrigin( sx, sy ), sx, sy, 0.25f * lightSamplesSearchBoxSize, ziel, zielDir );
-				}
-			} );
-			/* the exact serial scan, one light per task */
-			pool.fuerAlle( na, [&]( int ai ){
-				const int j = aktiv[ ai ].j;
-				trace_t tr = trace;
-				tr.light = aktiv[ ai ].light;
-				SuperLuxel *luxel = luxelPuffer.data() + n * j;
-				Vector3 *deluxel = deluxemap ? deluxelPuffer.data() + n * j : nullptr;
-				byte *flags = flagPuffer.data() + n * j;
-				const int *slot = kandidatSlot.data() + n * j;
-				for ( int y = 0; y < sh - 1; ++y )
-				{
-					for ( int x = 0; x < sw - 1; ++x )
-					{
-						if ( !stempel( luxel, flags, x, y ) ) {
-							continue;
-						}
-						for ( int t = 0; t < 4; ++t )
-						{
-							const int sx = x + tests[ t ][ 0 ];
-							const int sy = y + tests[ t ][ 1 ];
-							if ( lm->getSuperCluster( sx, sy ) < CLUSTER_NORMAL ) {
-								continue;
-							}
-							byte& flag = flags[ sy * sw + sx ];
-							if ( flag & FLAG_ALREADY_SUBSAMPLED ) {
-								continue;
-							}
-							const int i = sy * sw + sx;
-							if ( slot[ i ] >= 0 ) {
-								luxel[ i ] = ergebnisse[ ai ][ slot[ i ] ];
-								if ( deluxemap ) {
-									deluxel[ i ] = ergebnisseDir[ ai ][ slot[ i ] ];
-								}
-							}
-							else
+							for ( int t = 0; t < 4; ++t )
 							{
-								Vector3 *lightDeluxel = deluxemap ? &deluxel[ i ] : nullptr;
-								SubsampleRawLuxel_r( lm, &tr, lm->getSuperOrigin( sx, sy ), sx, sy, 0.25f * lightSamplesSearchBoxSize, luxel[ i ], lightDeluxel );
+								const int sx = x + tests[ t ][ 0 ];
+								const int sy = y + tests[ t ][ 1 ];
+								if ( lm->getSuperCluster( sx, sy ) < CLUSTER_NORMAL || slot[ sy * sw + sx ] >= 0 ) {
+									continue;
+								}
+								slot[ sy * sw + sx ] = int( liste.size() );
+								liste.push_back( sy * sw + sx );
 							}
-							flag |= FLAG_ALREADY_SUBSAMPLED;
 						}
 					}
-				}
-			} );
+					ergebnisse[ ai ].resize( liste.size() );
+					ergebnisseDir[ ai ].resize( deluxemap ? liste.size() : 0 );
+				} );
+				/* subsample the predicted luxels, all lights, in chunks */
+				arbeit.clear();
+				for ( int ai = 0; ai < na; ++ai )
+					for ( size_t k = 0; k < kandidaten[ ai ].size(); k += 8 )
+						arbeit.push_back( { ai, int( k ) } );
+				pool.fuerAlle( int( arbeit.size() ), [&]( int w ){
+					const int ai = arbeit[ w ].first;
+					const int j = aktiv[ ai ].j;
+					trace_t tr = trace;
+					tr.light = aktiv[ ai ].light;
+					const SuperLuxel *luxel = luxelPuffer.data() + n * j;
+					const Vector3 *deluxel = deluxemap ? deluxelPuffer.data() + n * j : nullptr;
+					const std::vector<int>& liste = kandidaten[ ai ];
+					const size_t ende = std::min( liste.size(), size_t( arbeit[ w ].second ) + 8 );
+					for ( size_t k = arbeit[ w ].second; k < ende; ++k )
+					{
+						const int i = liste[ k ];
+						const int sx = i % sw;
+						const int sy = i / sw;
+						SuperLuxel& ziel = ergebnisse[ ai ][ k ];
+						ziel = luxel[ i ];
+						Vector3 *zielDir = nullptr;
+						if ( deluxemap ) {
+							ergebnisseDir[ ai ][ k ] = deluxel[ i ];
+							zielDir = &ergebnisseDir[ ai ][ k ];
+						}
+						SubsampleRawLuxel_r( lm, &tr, lm->getSuperOrigin( sx, sy ), sx, sy, 0.25f * lightSamplesSearchBoxSize, ziel, zielDir );
+					}
+				} );
+				/* the exact serial scan, one light per task */
+				pool.fuerAlle( na, [&]( int ai ){
+					const int j = aktiv[ ai ].j;
+					trace_t tr = trace;
+					tr.light = aktiv[ ai ].light;
+					SuperLuxel *luxel = luxelPuffer.data() + n * j;
+					Vector3 *deluxel = deluxemap ? deluxelPuffer.data() + n * j : nullptr;
+					byte *flags = flagPuffer.data() + n * j;
+					const int *slot = kandidatSlot.data() + n * j;
+					for ( int y = 0; y < sh - 1; ++y )
+					{
+						for ( int x = 0; x < sw - 1; ++x )
+						{
+							if ( !stempel( luxel, flags, x, y ) ) {
+								continue;
+							}
+							for ( int t = 0; t < 4; ++t )
+							{
+								const int sx = x + tests[ t ][ 0 ];
+								const int sy = y + tests[ t ][ 1 ];
+								if ( lm->getSuperCluster( sx, sy ) < CLUSTER_NORMAL ) {
+									continue;
+								}
+								byte& flag = flags[ sy * sw + sx ];
+								if ( flag & FLAG_ALREADY_SUBSAMPLED ) {
+									continue;
+								}
+								const int i = sy * sw + sx;
+								if ( slot[ i ] >= 0 ) {
+									luxel[ i ] = ergebnisse[ ai ][ slot[ i ] ];
+									if ( deluxemap ) {
+										deluxel[ i ] = ergebnisseDir[ ai ][ slot[ i ] ];
+									}
+								}
+								else
+								{
+									Vector3 *lightDeluxel = deluxemap ? &deluxel[ i ] : nullptr;
+									SubsampleRawLuxel_r( lm, &tr, lm->getSuperOrigin( sx, sy ), sx, sy, 0.25f * lightSamplesSearchBoxSize, luxel[ i ], lightDeluxel );
+								}
+								flag |= FLAG_ALREADY_SUBSAMPLED;
+							}
+						}
+					}
+				} );
+			}
 		}
 
 		/* pass 3 */
 		pool.fuerAlle( sh, [&]( int y ){
-			for ( const Aktiv& a : aktiv )
+			for ( const BhedAktiv& a : aktiv )
 			{
 				const SuperLuxel *luxel = luxelPuffer.data() + n * a.j;
 				const Vector3 *deluxel = deluxemap ? deluxelPuffer.data() + n * a.j : nullptr;
@@ -2501,9 +2583,10 @@ static void BhedLichterParallel( rawLightmap_t *lm, trace_t& trace, bhed_par::Po
 
 /* BehavEd stage 7 (speed, same result): the big raw lightmaps are lit in advance with
    BhedLichterParallel (BhedIlluminateRawLightmaps below); the normal threaded pass then skips
-   them. g_bhedVorab[ n ] != 0: lightmap n is already done. */
+   them. g_bhedVorab[ n ] != 0: lightmap n is already done - BehavEd vis1: or taken by the thread that
+   lights the big ones with -randomsamples (set with an atomic exchange, whoever comes first). */
 static std::vector<char> g_bhedVorab;
-static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool );
+static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool, unsigned int seed = 0 );
 
 /* BehavEd stage 8g: -bhedgpubake - the finished luxels of one raw lightmap from the GPU (the whole light
    loop of IlluminateRawLightmap ran there): 4 floats per mapped luxel (row order) and used style slot */
@@ -2569,10 +2652,39 @@ static void BhedBakeEinsetzen( rawLightmap_t *lm, const BhedBakeFertig& f ){
 static void BhedIlluminateGpu();
 
 void IlluminateRawLightmap( int rawLightmapNum ){
-	if ( rawLightmapNum < int( g_bhedVorab.size() ) && g_bhedVorab[ rawLightmapNum ] ) {
+	/* BehavEd vis1: taken - lit in advance, or by the thread for the big ones (BhedIlluminateRawLightmaps) */
+	if ( rawLightmapNum < int( g_bhedVorab.size() ) && std::atomic_ref<char>( g_bhedVorab[ rawLightmapNum ] ).exchange( 1 ) != 0 ) {
 		return;
 	}
 	IlluminateRawLightmap_( rawLightmapNum, nullptr );
+}
+
+/* BehavEd vis1: the vertex lit surfaces biggest first (vertexes), as the raw lightmaps below - each
+   surface with the generator of its own number (BhedPassSeed) */
+static std::vector<int> g_bhedFlaechenReihenfolge;
+static void IlluminateVertexesGroesste( int k ){
+	const int num = g_bhedFlaechenReihenfolge[ k ];
+	g_bhedRandomState = BhedPassSeed( num );
+	IlluminateVertexes( num );
+}
+void BhedIlluminateVertexesAll(){
+	g_bhedFlaechenReihenfolge.resize( bspDrawSurfaces.size() );
+	std::iota( g_bhedFlaechenReihenfolge.begin(), g_bhedFlaechenReihenfolge.end(), 0 );
+	std::stable_sort( g_bhedFlaechenReihenfolge.begin(), g_bhedFlaechenReihenfolge.end(), []( int a, int b ){
+		return bspDrawSurfaces[ a ].numVerts > bspDrawSurfaces[ b ].numVerts;
+	} );
+	RunThreadsOnIndividual( bspDrawSurfaces.size(), true, IlluminateVertexesGroesste );
+}
+
+/* BehavEd vis1: the threaded pass hands out the raw lightmaps biggest first (luxels), so that the
+   big ones do not start last and keep one thread busy after the others ran out of work. A lightmap
+   draws from the generator it gets as work item of its own number (BhedPassSeed) - as if handed
+   out in number order: the same numbers, and the lightmaps do not depend on each other. */
+static std::vector<int> g_bhedReihenfolge;
+static void IlluminateRawLightmapGroesste( int k ){
+	const int rawLightmapNum = g_bhedReihenfolge[ k ];
+	g_bhedRandomState = BhedPassSeed( rawLightmapNum );
+	IlluminateRawLightmap( rawLightmapNum );
 }
 
 static bhed_par::Pool& BhedPool(){
@@ -2587,7 +2699,8 @@ void BhedIlluminateRawLightmaps(){
 		return;
 	}
 	g_bhedVorab.assign( numRawLightmaps, 0 );
-	if ( numthreads > 1 && !lightRandomSamples &&
+	std::vector<std::pair<int, unsigned int>> gross;   /* the big ones, biggest first, with the seed of their work item */
+	if ( numthreads > 1 &&
 	     !( debugSurfaces || debugAxis || debugCluster || debugOrigin || dirtDebug || normalmap ) ) {
 		double total = 0;
 		for ( int i = 0; i < numRawLightmaps; ++i )
@@ -2595,20 +2708,53 @@ void BhedIlluminateRawLightmaps(){
 		/* big: more luxels than the share of one thread - such a lightmap would keep one
 		   thread busy while the others run out of work */
 		const double grenze = total / numthreads;
-		int gross = 0;
 		for ( int i = 0; i < numRawLightmaps; ++i )
 		{
 			if ( double( rawLightmaps[ i ].sw ) * rawLightmaps[ i ].sh > grenze ) {
-				IlluminateRawLightmap_( i, &BhedPool() );
-				g_bhedVorab[ i ] = 1;
-				++gross;
+				gross.emplace_back( i, BhedNextPassSeed( i ) );
 			}
 		}
+		std::stable_sort( gross.begin(), gross.end(), []( const auto& a, const auto& b ){
+			return size_t( rawLightmaps[ a.first ].sw ) * rawLightmaps[ a.first ].sh > size_t( rawLightmaps[ b.first ].sw ) * rawLightmaps[ b.first ].sh;
+		} );
 		if ( getenv( "BHED_Q3_ZEITEN" ) != nullptr ) { /* for the determinism ctest: the path really ran */
-			Sys_Printf( "BHED-Parallel: %d\n", gross );
+			Sys_Printf( "BHED-Parallel: %d\n", int( gross.size() ) );
 		}
 	}
-	RunThreadsOnIndividual( numRawLightmaps, true, IlluminateRawLightmap );
+	/* BehavEd vis1: -randomsamples - pass 2 of a big lightmap is serial there (BhedZufallsProben), so
+	   lighting them one after the other in advance left the other cores idle (duel_pit: 2.2 -> 5 s).
+	   Instead one thread lights them with the pool while the threaded pass lights the rest: it takes
+	   the biggest, then each next big one the pass has not taken yet; the pass takes the others like
+	   any lightmap. Each lightmap draws from the seed of its own work item (BhedNextPassSeed), so who
+	   lights it does not matter. Without random samples the big ones are lit in advance as before. */
+	if ( !lightRandomSamples ) {
+		for ( const auto& [i, seed] : gross )
+		{
+			IlluminateRawLightmap_( i, &BhedPool(), seed );
+			g_bhedVorab[ i ] = 1;
+		}
+		gross.clear();
+	}
+	else if ( !gross.empty() ) {
+		g_bhedVorab[ gross.front().first ] = 1;
+	}
+	std::thread grosse( [&gross]{
+		for ( size_t k = 0; k < gross.size(); ++k )
+		{
+			const int i = gross[ k ].first;
+			if ( k > 0 && std::atomic_ref<char>( g_bhedVorab[ i ] ).exchange( 1 ) != 0 ) {
+				continue;   /* the threaded pass has it */
+			}
+			IlluminateRawLightmap_( i, &BhedPool(), gross[ k ].second );
+		}
+	} );
+	g_bhedReihenfolge.resize( numRawLightmaps );
+	std::iota( g_bhedReihenfolge.begin(), g_bhedReihenfolge.end(), 0 );
+	std::stable_sort( g_bhedReihenfolge.begin(), g_bhedReihenfolge.end(), []( int a, int b ){
+		return size_t( rawLightmaps[ a ].sw ) * rawLightmaps[ a ].sh > size_t( rawLightmaps[ b ].sw ) * rawLightmaps[ b ].sh;
+	} );
+	RunThreadsOnIndividual( numRawLightmaps, true, IlluminateRawLightmapGroesste );
+	grosse.join();
 	g_bhedVorab.clear();
 }
 
@@ -3522,7 +3668,7 @@ static int BhedGpuAufnehmen( rawLightmap_t *lm, const trace_t& vorlage, int i0, 
 	return i;
 }
 
-static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool ){
+static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool, unsigned int seed ){
 	int t, x, y, sx, sy, size, luxelFilterRadius, lightmapNum;
 	int                 mapped, lighted, totalLighted;
 	rawLightmap_t       *lm;
@@ -3718,7 +3864,7 @@ static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool ){
 			BhedBakeEinsetzen( lm, *bhedFertig );
 		}
 		else if ( pool != nullptr ) { /* BehavEd stage 7: the same light loop, rows and lights in blocks on all threads */
-			BhedLichterParallel( lm, trace, *pool );
+			BhedLichterParallel( lm, trace, *pool, seed );
 		}
 		else
 		for ( int i = 0; i < trace.numLights; ++i )
@@ -3921,7 +4067,8 @@ static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool ){
 
 								/* subsample it */
 								if ( lightRandomSamples ) {
-									RandomSubsampleRawLuxel( lm, &trace, origin, sx, sy, 0.5f * lightSamplesSearchBoxSize, lightLuxel, lightDeluxel );
+									auto random = []{ return Random(); };
+									RandomSubsampleRawLuxel( random, lm, &trace, origin, sx, sy, 0.5f * lightSamplesSearchBoxSize, lightLuxel, lightDeluxel );
 								}
 								else{
 									SubsampleRawLuxel_r( lm, &trace, origin, sx, sy, 0.25f * lightSamplesSearchBoxSize, lightLuxel, lightDeluxel );
@@ -4758,10 +4905,242 @@ inline bool ChopBounds( MinMax& minmax, const Vector3& origin, const Vector3& no
 #define LIGHT_EPSILON   0.125f
 #define LIGHT_NUDGE     2.0f
 
-void SetupEnvelopes( bool forGrid, bool fastFlag ){
+/* BehavEd vis1: the envelope of one light (the loop body of SetupEnvelopes); true: culled. Every light
+   only reads the BSP and writes its own fields - SetupEnvelopes runs them on all threads (duel_mos_espa
+   with -bounce: 452184 lights against 18458 leafs, 11 s per bounce on one thread) and deletes the
+   culled ones afterwards in list order: the same lights, the same values. */
+static bool BhedLightEnvelope( light_t *light, bool forGrid, bool fastFlag ){
 	float radius, intensity;
 
+	/* handle negative lights */
+	if ( light->photons < 0 || light->add < 0 ) {
+		light->photons *= -1;
+		light->add *= -1;
+		light->flags |= LightFlags::Negative;
+	}
 
+	/* sunlight? */
+	if ( light->type == ELightType::Sun ) {
+		/* special cased */
+		light->cluster = 0;
+		light->envelope = MAX_WORLD_COORD * 8.0f;
+		light->minmax.mins.set( MIN_WORLD_COORD * 8.0f );
+		light->minmax.maxs.set( MAX_WORLD_COORD * 8.0f );
+	}
+
+	/* everything else */
+	else
+	{
+		/* get pvs cluster for light */
+		light->cluster = ClusterForPointExt( light->origin, LIGHT_EPSILON );
+
+		/* invalid cluster? */
+		if ( light->cluster <= CLUSTER_OPAQUE ) {
+			/* nudge the sample point around a bit */
+			for ( int x = 0; x < 4; ++x )
+			{
+				/* two's complement 0, 1, -1, 2, -2, etc */
+				const int x1 = ( ( x >> 1 ) ^ ( x & 1 ? -1 : 0 ) ) + ( x & 1 );
+
+				for ( int y = 0; y < 4; ++y )
+				{
+					const int y1 = ( ( y >> 1 ) ^ ( y & 1 ? -1 : 0 ) ) + ( y & 1 );
+
+					for ( int z = 0; z < 4; ++z )
+					{
+						const int z1 = ( ( z >> 1 ) ^ ( z & 1 ? -1 : 0 ) ) + ( z & 1 );
+
+						/* nudge origin */
+						const Vector3 origin = light->origin + Vector3( x1, y1, z1 ) * LIGHT_NUDGE;
+
+						/* try at nudged origin */
+						light->cluster = ClusterForPointExt( origin, LIGHT_EPSILON );
+						if ( light->cluster <= CLUSTER_OPAQUE ) {
+							continue;
+						}
+
+						/* set origin */
+						light->origin = origin;
+					}
+				}
+			}
+		}
+
+		/* only calculate for lights in pvs and outside of opaque brushes */
+		if ( light->cluster > CLUSTER_OPAQUE ) {
+			/* set light fast flag */
+			if ( fastFlag ) {
+				light->flags |= LightFlags::FastTemp;
+			}
+			else{
+				light->flags &= ~LightFlags::FastTemp;
+			}
+			if ( fastpoint && ( light->type != ELightType::Area ) ) {
+				light->flags |= LightFlags::FastTemp;
+			}
+			if ( light->si && light->si->noFast ) {
+				light->flags &= ~( LightFlags::FastActual );
+			}
+
+			/* clear light envelope */
+			light->envelope = 0;
+
+			/* handle area lights */
+			if ( exactPointToPolygon && light->type == ELightType::Area && !light->w.empty() ) {
+				light->envelope = MAX_WORLD_COORD * 8.0f;
+
+				/* check for fast mode */
+				if ( light->flags & LightFlags::FastActual ) {
+					/* ugly hack to calculate extent for area lights, but only done once */
+					const Vector3 dir = -light->normal;
+					for ( radius = 100.0f; radius < MAX_WORLD_COORD * 8.0f; radius += 10.0f )
+					{
+						const Vector3 origin = light->origin + light->normal * radius;
+						const float factor = std::abs( PointToPolygonFormFactor( origin, dir, light->w ) );
+						if ( ( factor * light->add ) <= light->falloffTolerance ) {
+							light->envelope = radius;
+							break;
+						}
+					}
+				}
+
+				intensity = light->photons; /* hopefully not used */
+			}
+			else
+			{
+				radius = 0;
+				intensity = light->photons;
+			}
+
+			/* other calcs */
+			if ( light->envelope <= 0 ) {
+				/* solve distance for non-distance lights */
+				if ( !( light->flags & LightFlags::AttenDistance ) ) {
+					light->envelope = MAX_WORLD_COORD * 8.0f;
+				}
+
+				else if ( light->flags & LightFlags::FastActual ) {
+					/* solve distance for linear lights */
+					if ( ( light->flags & LightFlags::AttenLinear ) ) {
+						light->envelope = ( ( intensity * linearScale ) - light->falloffTolerance ) / light->fade;
+					}
+
+					/*
+					   add = angle * light->photons * linearScale - (dist * light->fade);
+					   T = (light->photons * linearScale) - (dist * light->fade);
+					   T + (dist * light->fade) = (light->photons * linearScale);
+					   dist * light->fade = (light->photons * linearScale) - T;
+					   dist = ((light->photons * linearScale) - T) / light->fade;
+					 */
+
+					/* solve for inverse square falloff */
+					else{
+						light->envelope = sqrt( intensity / light->falloffTolerance ) + radius;
+					}
+
+					/*
+					   add = light->photons / (dist * dist);
+					   T = light->photons / (dist * dist);
+					   T * (dist * dist) = light->photons;
+					   dist = sqrt( light->photons / T );
+					 */
+				}
+				else
+				{
+					/* solve distance for linear lights */
+					if ( ( light->flags & LightFlags::AttenLinear ) ) {
+						light->envelope = ( intensity * linearScale ) / light->fade;
+					}
+
+					/* can't cull these */
+					else{
+						light->envelope = MAX_WORLD_COORD * 8.0f;
+					}
+				}
+			}
+
+			/* chop radius against pvs */
+			{
+				/* clear bounds */
+				MinMax minmax;
+
+				/* check all leaves */
+				for ( const bspLeaf_t& leaf : bspLeafs )
+				{
+					/* in pvs? */
+					if ( leaf.cluster <= CLUSTER_OPAQUE ) {
+						continue;
+					}
+					if ( !ClusterVisible( light->cluster, leaf.cluster ) ) { /* ydnar: thanks Arnout for exposing my stupid error (this never failed before) */
+						continue;
+					}
+
+					/* add this leafs bbox to the bounds */
+					minmax.extend( leaf.minmax );
+				}
+
+				/* test to see if bounds encompass light */
+				if ( !minmax.test( light->origin ) ) {
+					//% Sys_Warning( "Light PVS bounds (%.0f, %.0f, %.0f) -> (%.0f, %.0f, %.0f)\ndo not encompass light %d (%f, %f, %f)\n",
+					//%     minmax.mins[ 0 ], minmax.mins[ 1 ], minmax.mins[ 2 ],
+					//%     minmax.maxs[ 0 ], minmax.maxs[ 1 ], minmax.maxs[ 2 ],
+					//%     numLights, light->origin[ 0 ], light->origin[ 1 ], light->origin[ 2 ] );
+					minmax.extend( light->origin );
+				}
+
+				/* chop the bounds by a plane for area lights and spotlights */
+				if ( light->type == ELightType::Area || light->type == ELightType::Spot ) {
+					ChopBounds( minmax, light->origin, light->normal );
+				}
+
+				/* copy bounds */
+				light->minmax = minmax;
+
+				/* reflect bounds around light origin */
+				//%	VectorMA( light->origin, -1.0f, origin, origin );
+				minmax.extend( light->origin * 2 - minmax.maxs );
+				//%	VectorMA( light->origin, -1.0f, mins, origin );
+				minmax.extend( light->origin * 2 - minmax.mins );
+
+				/* calculate spherical bounds */
+				radius = vector3_length( minmax.maxs - light->origin );
+
+				/* if this radius is smaller than the envelope, then set the envelope to it */
+				//% if ( radius < light->envelope ) Sys_FPrintf( SYS_VRB, "PVS Cull (%d): culled\n", numLights );
+				//%	else Sys_FPrintf( SYS_VRB, "PVS Cull (%d): failed (%8.0f > %8.0f)\n", numLights, radius, light->envelope );
+				value_minimize( light->envelope, radius );
+			}
+
+			/* add grid/surface only check */
+			if ( forGrid ) {
+				if ( !( light->flags & LightFlags::Grid ) ) {
+					light->envelope = 0;
+				}
+			}
+			else
+			{
+				if ( !( light->flags & LightFlags::Surfaces ) ) {
+					light->envelope = 0;
+				}
+			}
+		}
+
+		/* culled? */
+		if ( light->cluster <= CLUSTER_OPAQUE || light->envelope <= 0 ) {
+			/* debug code */
+			//%	Sys_Printf( "Culling light: Cluster: %d Envelope: %f\n", light->cluster, light->envelope );
+
+			/* delete the light (SetupEnvelopes, in list order) */
+			return true;
+		}
+	}
+
+	/* square envelope */
+	light->envelope2 = ( light->envelope * light->envelope );
+	return false;
+}
+
+void SetupEnvelopes( bool forGrid, bool fastFlag ){
 	/* early out for weird cases where there are no lights */
 	if ( lights.empty() ) {
 		return;
@@ -4771,239 +5150,28 @@ void SetupEnvelopes( bool forGrid, bool fastFlag ){
 	Sys_FPrintf( SYS_VRB, "--- SetupEnvelopes%s ---\n", fastFlag ? " (fast)" : "" );
 
 	/* count lights */
+	/* BehavEd vis1: BhedLightEnvelope on all threads, then the culled ones out in list order */
+	std::vector<light_t*> alle;
+	alle.reserve( lights.size() );
+	for ( light_t& light : lights )
+		alle.push_back( &light );
+	std::vector<char> gekappt( alle.size(), 0 );
+	bhed_par::pool( numthreads ).fuerAlle( int( ( alle.size() + 63 ) / 64 ), [&]( int block ){
+		const size_t ende = std::min( alle.size(), size_t( block ) * 64 + 64 );
+		for ( size_t k = size_t( block ) * 64; k < ende; ++k )
+			gekappt[ k ] = BhedLightEnvelope( alle[ k ], forGrid, fastFlag ) ? 1 : 0;
+	} );
 	int numCulledLights = 0;
-	for( auto light = lights.begin(); light != lights.end(); )
+	size_t k = 0;
+	for ( auto light = lights.begin(); light != lights.end(); ++k )
 	{
-		/* handle negative lights */
-		if ( light->photons < 0 || light->add < 0 ) {
-			light->photons *= -1;
-			light->add *= -1;
-			light->flags |= LightFlags::Negative;
+		if ( gekappt[ k ] ) {
+			numCulledLights++;
+			light = lights.erase( light );
 		}
-
-		/* sunlight? */
-		if ( light->type == ELightType::Sun ) {
-			/* special cased */
-			light->cluster = 0;
-			light->envelope = MAX_WORLD_COORD * 8.0f;
-			light->minmax.mins.set( MIN_WORLD_COORD * 8.0f );
-			light->minmax.maxs.set( MAX_WORLD_COORD * 8.0f );
+		else{
+			++light;
 		}
-
-		/* everything else */
-		else
-		{
-			/* get pvs cluster for light */
-			light->cluster = ClusterForPointExt( light->origin, LIGHT_EPSILON );
-
-			/* invalid cluster? */
-			if ( light->cluster <= CLUSTER_OPAQUE ) {
-				/* nudge the sample point around a bit */
-				for ( int x = 0; x < 4; ++x )
-				{
-					/* two's complement 0, 1, -1, 2, -2, etc */
-					const int x1 = ( ( x >> 1 ) ^ ( x & 1 ? -1 : 0 ) ) + ( x & 1 );
-
-					for ( int y = 0; y < 4; ++y )
-					{
-						const int y1 = ( ( y >> 1 ) ^ ( y & 1 ? -1 : 0 ) ) + ( y & 1 );
-
-						for ( int z = 0; z < 4; ++z )
-						{
-							const int z1 = ( ( z >> 1 ) ^ ( z & 1 ? -1 : 0 ) ) + ( z & 1 );
-
-							/* nudge origin */
-							const Vector3 origin = light->origin + Vector3( x1, y1, z1 ) * LIGHT_NUDGE;
-
-							/* try at nudged origin */
-							light->cluster = ClusterForPointExt( origin, LIGHT_EPSILON );
-							if ( light->cluster <= CLUSTER_OPAQUE ) {
-								continue;
-							}
-
-							/* set origin */
-							light->origin = origin;
-						}
-					}
-				}
-			}
-
-			/* only calculate for lights in pvs and outside of opaque brushes */
-			if ( light->cluster > CLUSTER_OPAQUE ) {
-				/* set light fast flag */
-				if ( fastFlag ) {
-					light->flags |= LightFlags::FastTemp;
-				}
-				else{
-					light->flags &= ~LightFlags::FastTemp;
-				}
-				if ( fastpoint && ( light->type != ELightType::Area ) ) {
-					light->flags |= LightFlags::FastTemp;
-				}
-				if ( light->si && light->si->noFast ) {
-					light->flags &= ~( LightFlags::FastActual );
-				}
-
-				/* clear light envelope */
-				light->envelope = 0;
-
-				/* handle area lights */
-				if ( exactPointToPolygon && light->type == ELightType::Area && !light->w.empty() ) {
-					light->envelope = MAX_WORLD_COORD * 8.0f;
-
-					/* check for fast mode */
-					if ( light->flags & LightFlags::FastActual ) {
-						/* ugly hack to calculate extent for area lights, but only done once */
-						const Vector3 dir = -light->normal;
-						for ( radius = 100.0f; radius < MAX_WORLD_COORD * 8.0f; radius += 10.0f )
-						{
-							const Vector3 origin = light->origin + light->normal * radius;
-							const float factor = std::abs( PointToPolygonFormFactor( origin, dir, light->w ) );
-							if ( ( factor * light->add ) <= light->falloffTolerance ) {
-								light->envelope = radius;
-								break;
-							}
-						}
-					}
-
-					intensity = light->photons; /* hopefully not used */
-				}
-				else
-				{
-					radius = 0;
-					intensity = light->photons;
-				}
-
-				/* other calcs */
-				if ( light->envelope <= 0 ) {
-					/* solve distance for non-distance lights */
-					if ( !( light->flags & LightFlags::AttenDistance ) ) {
-						light->envelope = MAX_WORLD_COORD * 8.0f;
-					}
-
-					else if ( light->flags & LightFlags::FastActual ) {
-						/* solve distance for linear lights */
-						if ( ( light->flags & LightFlags::AttenLinear ) ) {
-							light->envelope = ( ( intensity * linearScale ) - light->falloffTolerance ) / light->fade;
-						}
-
-						/*
-						   add = angle * light->photons * linearScale - (dist * light->fade);
-						   T = (light->photons * linearScale) - (dist * light->fade);
-						   T + (dist * light->fade) = (light->photons * linearScale);
-						   dist * light->fade = (light->photons * linearScale) - T;
-						   dist = ((light->photons * linearScale) - T) / light->fade;
-						 */
-
-						/* solve for inverse square falloff */
-						else{
-							light->envelope = sqrt( intensity / light->falloffTolerance ) + radius;
-						}
-
-						/*
-						   add = light->photons / (dist * dist);
-						   T = light->photons / (dist * dist);
-						   T * (dist * dist) = light->photons;
-						   dist = sqrt( light->photons / T );
-						 */
-					}
-					else
-					{
-						/* solve distance for linear lights */
-						if ( ( light->flags & LightFlags::AttenLinear ) ) {
-							light->envelope = ( intensity * linearScale ) / light->fade;
-						}
-
-						/* can't cull these */
-						else{
-							light->envelope = MAX_WORLD_COORD * 8.0f;
-						}
-					}
-				}
-
-				/* chop radius against pvs */
-				{
-					/* clear bounds */
-					MinMax minmax;
-
-					/* check all leaves */
-					for ( const bspLeaf_t& leaf : bspLeafs )
-					{
-						/* in pvs? */
-						if ( leaf.cluster <= CLUSTER_OPAQUE ) {
-							continue;
-						}
-						if ( !ClusterVisible( light->cluster, leaf.cluster ) ) { /* ydnar: thanks Arnout for exposing my stupid error (this never failed before) */
-							continue;
-						}
-
-						/* add this leafs bbox to the bounds */
-						minmax.extend( leaf.minmax );
-					}
-
-					/* test to see if bounds encompass light */
-					if ( !minmax.test( light->origin ) ) {
-						//% Sys_Warning( "Light PVS bounds (%.0f, %.0f, %.0f) -> (%.0f, %.0f, %.0f)\ndo not encompass light %d (%f, %f, %f)\n",
-						//%     minmax.mins[ 0 ], minmax.mins[ 1 ], minmax.mins[ 2 ],
-						//%     minmax.maxs[ 0 ], minmax.maxs[ 1 ], minmax.maxs[ 2 ],
-						//%     numLights, light->origin[ 0 ], light->origin[ 1 ], light->origin[ 2 ] );
-						minmax.extend( light->origin );
-					}
-
-					/* chop the bounds by a plane for area lights and spotlights */
-					if ( light->type == ELightType::Area || light->type == ELightType::Spot ) {
-						ChopBounds( minmax, light->origin, light->normal );
-					}
-
-					/* copy bounds */
-					light->minmax = minmax;
-
-					/* reflect bounds around light origin */
-					//%	VectorMA( light->origin, -1.0f, origin, origin );
-					minmax.extend( light->origin * 2 - minmax.maxs );
-					//%	VectorMA( light->origin, -1.0f, mins, origin );
-					minmax.extend( light->origin * 2 - minmax.mins );
-
-					/* calculate spherical bounds */
-					radius = vector3_length( minmax.maxs - light->origin );
-
-					/* if this radius is smaller than the envelope, then set the envelope to it */
-					//% if ( radius < light->envelope ) Sys_FPrintf( SYS_VRB, "PVS Cull (%d): culled\n", numLights );
-					//%	else Sys_FPrintf( SYS_VRB, "PVS Cull (%d): failed (%8.0f > %8.0f)\n", numLights, radius, light->envelope );
-					value_minimize( light->envelope, radius );
-				}
-
-				/* add grid/surface only check */
-				if ( forGrid ) {
-					if ( !( light->flags & LightFlags::Grid ) ) {
-						light->envelope = 0;
-					}
-				}
-				else
-				{
-					if ( !( light->flags & LightFlags::Surfaces ) ) {
-						light->envelope = 0;
-					}
-				}
-			}
-
-			/* culled? */
-			if ( light->cluster <= CLUSTER_OPAQUE || light->envelope <= 0 ) {
-				/* debug code */
-				//%	Sys_Printf( "Culling light: Cluster: %d Envelope: %f\n", light->cluster, light->envelope );
-
-				/* delete the light */
-				numCulledLights++;
-				light = lights.erase( light );
-				continue;
-			}
-		}
-
-		/* square envelope */
-		light->envelope2 = ( light->envelope * light->envelope );
-
-		/* set next light */
-		++light;
 	}
 
 	/* sort lights by style */

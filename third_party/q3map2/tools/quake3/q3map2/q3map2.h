@@ -1849,6 +1849,7 @@ float                       FloodLightForSample( trace_t *trace, float floodLigh
 void                        IlluminateRawLightmap( int num );
 void                        BhedIlluminateRawLightmaps(); /* BehavEd stage 7: light_ydnar.cpp */
 void                        IlluminateVertexes( int num );
+void                        BhedIlluminateVertexesAll(); /* BehavEd vis1: light_ydnar.cpp, biggest surfaces first */
 
 void                        SetupBrushesFlags( int mask_any, int test_any, int mask_all, int test_all );
 void                        SetupBrushes();
