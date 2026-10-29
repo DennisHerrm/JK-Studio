@@ -1676,6 +1676,47 @@ std::vector<Schritt> karte7HandbuchSchritte() {
     return s;
 }
 
+// BHED_EDITORTEST=handbuch mit BHED_HB_NUR=karte9c: Stufe 9c - der Raum mit dem
+// Himmels-Brush im Echtzeit-Licht (Sonne durch den Himmel) und die verschobenen Leisten.
+std::vector<Schritt> karte9cHandbuchSchritte() {
+    namespace ke = karteneditor;
+    std::vector<Schritt> s = stufe9c::einrichten();
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto kamera = [] { return hb::fensterRect("##feldKamera"); };
+    const auto voll = [] { return ImRect{0.0F, 0.0F, ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y}; };
+    add(tu("Handbuch Stufe 9c: Raum mit Himmels-Brush, Echtzeit-Licht an", [] {
+        karteDialogeZu();
+        ke::setzeNrcBegriffe(false);
+        stufe9c::himmelKarteSchreiben();
+        (void)ke::karteOeffnen(stufe9c::himmelKarte());
+        ke::Editor& e = ke::editor();
+        e.kameraE.modus = karte::KameraModus::Textur;
+        e.echtLicht.an = true;
+        e.echtLicht.backen = false;
+        e.kamera.ursprung = karte::Vektor3f(-460.0F, -460.0F, 140.0F);
+        e.kamera.winkel = karte::Vektor3f(-14.0F, 45.0F, 0.0F);
+    }));
+    add(warteBis("Handbuch Stufe 9c: Texturen geladen", [] { return ke::kameraBilderFertig(); }, 6000));
+    add(pause(1.5));
+    add(hb::fotoTeil("h_karte9c_himmel", kamera));
+    add(tu("Handbuch Stufe 9c: Echtzeit-Licht aus, Hauptleiste links, Plugin-Leiste unten", [] {
+        ke::Editor& e = ke::editor();
+        e.echtLicht.an = false;
+        e.leistenPlaetze[0] = {karte::LeistenRand::Links, 0, true, 0, 0};
+        e.leistenPlaetze[2] = {karte::LeistenRand::Unten, 0, true, 0, 0};
+    }));
+    add(pause(0.6));
+    add(hb::fotoTeil("h_karte9c_leisten", voll));
+    add(tu("Handbuch Stufe 9c: Ende, Leisten wie NRC", [] {
+        stufe9c::leistenVorgabe();
+        ke::einstellungenSpeichern();
+        ke::neueKarte();
+        g_app->leftMode = 0;
+    }));
+    add(pause(0.3));
+    return s;
+}
+
 // BHED_EDITORTEST=handbuch mit BHED_HB_NUR=karte8: Stufe 8a - das Fortschrittsfenster
 // mit Restzeit, das Build-Menue mit den neuen Eintraegen, ein zurueckgewonnenes
 // misc_model, geschaetzte Lichter und "Zur fertigen Karte hinzufuegen".
@@ -2085,6 +2126,9 @@ std::vector<Schritt> handbuchSchritte() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte7") == 0) {
         return karte7HandbuchSchritte();
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte9c") == 0) {
+        return karte9cHandbuchSchritte();
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte8") == 0) {
         return karte8HandbuchSchritte();

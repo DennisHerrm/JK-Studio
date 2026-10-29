@@ -85,6 +85,11 @@ KARTE_TEMPO = {
               "**与游戏一致:**开启实时光照(以及显示快速烘焙结果)时,caulk 等 nodraw 表面会消失,透明着色器按其第一层的 alphaFunc 和 blendFunc 绘制。",
               "**ゲームと同じ:**リアルタイムライト(とクイックベイクの表示)では caulk などの nodraw 面が消え、透明なシェーダーは最初のステージの alphaFunc と blendFunc で描かれます。"),
         ]),
+        ("img", "h_karte9c_himmel", T(
+            "A room whose ceiling is a sky brush (caulk on all other sides, a caulk lid above): the sun of the sky shader shines through the sky into the room, as after the bake.",
+            "Ein Raum, dessen Decke ein Himmels-Brush ist (caulk auf allen anderen Seiten, ein caulk-Deckel darüber): die Sonne des Himmels-Shaders scheint durch den Himmel in den Raum, wie nach dem Backen.",
+            "天花板为天空画刷的房间(其他各面为 caulk,上方再加 caulk 盖子):天空着色器的太阳穿过天空照进房间,与烘焙后一致。",
+            "天井が空のブラシ(ほかの面はすべて caulk、上に caulk のふた)の部屋:空シェーダーの太陽が空を通って部屋に差し込みます。ベイク後と同じです。")),
         ("note", T(
             "Measured against the quick bake at fixed camera points (md_ch_ben, mp/duel1, md_eitd_jedi with sky light, a large tester map): the mean brightness difference fell from 2-95 to 0.4-11 of 255. What remains is mostly the lightmap resolution (one luxel per 16 units) and bounce light, which the preview does not have.",
             "Gemessen gegen das Schnell-Backen an festen Kamerapunkten (md_ch_ben, mp/duel1, md_eitd_jedi mit Himmelslicht, eine große Testerkarte): die mittlere Helligkeitsabweichung sank von 2-95 auf 0,4-11 von 255. Was bleibt, ist vor allem die Auflösung der Lightmaps (ein Luxel je 16 Einheiten) und das Bounce-Licht, das die Vorschau nicht hat.",
