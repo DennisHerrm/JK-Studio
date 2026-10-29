@@ -27,6 +27,9 @@ extern int numthreads;
 
 void ThreadSetDefault();
 void RunThreadsOnIndividual( int workcnt, bool showpacifier, void ( *func )( int ) );
+/* BehavEd vis1: the same on `threads` threads instead of numthreads (the deterministic vis flow
+   keeps more threads than cores, of which numthreads compute at a time) */
+void BhedRunThreadsOnIndividual( int workcnt, bool showpacifier, void ( *func )( int ), int threads );
 void ThreadLock();
 void ThreadUnlock();
 

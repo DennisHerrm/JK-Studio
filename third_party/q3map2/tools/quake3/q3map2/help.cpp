@@ -155,6 +155,7 @@ static void HelpVis()
 		{ "-passageOnly", "Just use PassageFlow vis (usually less fps)" },
 		{ "-saveprt", "Keep the Portal file after running vis (so you can run vis again)" },
 		{ "-v -v", "Extra verbose mode for cluster debug" }, // q3map2 common takes first -v
+		{ "-bhedvisexact", "BehavEd: with several threads exactly the visibility of `-threads 1` (waits where a portal needs an unfinished one - slower on open maps)" },
 	};
 	HelpOptions( "VIS Stage", 0, 80, options );
 }

@@ -35,10 +35,14 @@ struct fixedWinding_t
 };
 
 
+/* BehavEd vis1: the bit vectors are read as 64-bit words (NRC: long, 32 bits on Windows) - the same
+   bits. A passage keeps only the nonzero words of cansee (all portals that can be seen through it):
+   md_rev_TarisUpper2 needed 9 GB for the full vectors. */
 struct passage_t
 {
-	struct passage_t    *next;
-	byte cansee[ 1 ];                   /* all portals that can be seen through this passage */
+	int numwords;                       /* nonzero 64-bit words of cansee */
+	const uint16_t      *words;         /* their indices, ascending */
+	const uint64_t      *bits;          /* their bits */
 };
 
 
@@ -71,6 +75,7 @@ struct vportal_t
 	int nummightsee;                    /* bit count on portalflood for sort */
 	passage_t           *passages;      /* there are just as many passages as there */
 	                                    /* are portals in the leaf this portal leads */
+	                                    /* BehavEd vis1: an array, one per portal there that is not removed, in leaf order */
 };
 
 
@@ -84,7 +89,11 @@ struct leaf_t
 
 struct pstack_t
 {
-	byte mightsee[ MAX_PORTALS / 8 ];
+	/* BehavEd vis1: [portalwords] from a buffer per depth (NRC: byte mightsee[ MAX_PORTALS / 8 ] here),
+	   zero outside the words listed in mightwords - the flows go through these words only */
+	uint64_t            *mightsee;
+	uint16_t            *mightwords;    /* indices of the nonzero words of mightsee, ascending */
+	int nummightwords;
 	pstack_t            *next;
 	leaf_t              *leaf;
 	vportal_t           *portal;        /* portal exiting */
@@ -139,5 +148,6 @@ inline int numfaces;
 
 inline int leafbytes;
 inline int portalbytes, portallongs;
+inline int portalwords;               /* BehavEd vis1: portalbytes / 8 */
 
 extern vportal_t          *sorted_portals[ MAX_MAP_PORTALS * 2 ];

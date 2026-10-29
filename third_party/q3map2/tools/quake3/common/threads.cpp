@@ -107,6 +107,15 @@ void ThreadWorkerFunction( int threadnum ){
 
 void RunThreadsOn( void ( *func )( int ) );
 
+/* BehavEd vis1: see qthreads.h */
+static int g_bhedPoolThreads = 0;
+
+void BhedRunThreadsOnIndividual( int workcnt, bool showpacifier, void ( *func )( int ), int threads ){
+	g_bhedPoolThreads = threads;
+	RunThreadsOnIndividual( workcnt, showpacifier, func );
+	g_bhedPoolThreads = 0;
+}
+
 void RunThreadsOnIndividual( int workcnt, bool showpacifier, void ( *func )( int ) ){
 	if ( numthreads == -1 ) {
 		ThreadSetDefault();
@@ -132,6 +141,7 @@ void RunThreadsOnIndividual( int workcnt, bool showpacifier, void ( *func )( int
 
 #include <thread>
 #include <mutex>
+#include <vector>
 
 std::mutex crit;
 static bool enter;
@@ -171,20 +181,22 @@ void ThreadUnlock(){
    =============
  */
 void RunThreadsOn( void ( *func )( int ) ){
-	if ( numthreads == 1 ) { // use same thread
+	const int count = g_bhedPoolThreads > 0 ? g_bhedPoolThreads : numthreads; /* BehavEd vis1 */
+	if ( count == 1 ) { // use same thread
 		func( 0 );
 	}
 	else
 	{
 		threaded = true;
 
-		std::thread threads[MAX_THREADS];
+		/* BehavEd vis1: a vector - NRC's std::thread threads[MAX_THREADS] overflowed with -threads above 64 */
+		std::vector<std::thread> threads;
 
-		for ( int i = 0; i < numthreads; ++i )
-			threads[i] = std::thread( func, i );
+		for ( int i = 0; i < count; ++i )
+			threads.emplace_back( func, i );
 
-		for ( int i = 0; i < numthreads; ++i )
-			threads[i].join();
+		for ( std::thread& t : threads )
+			t.join();
 
 		threaded = false;
 	}
