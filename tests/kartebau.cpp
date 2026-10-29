@@ -327,6 +327,11 @@ void editorDatenPruefen(const std::string& q3) {
                befehlMitVisWiederverwendung(q + "-meta \"C:/m/a.map\"") == q + "-meta \"C:/m/a.map\"" &&
                befehlMitVisWiederverwendung(q + "-vis -bhedvisreuse \"C:/m/a.map\"") == q + "-vis -bhedvisreuse \"C:/m/a.map\"",
            "Stufe 8a/5a: -bhedvisreuse nur fuer -vis, vor der Karte, nicht doppelt");
+    pruefe(befehlMitVisExakt(q + "-vis -saveprt \"C:/m/a.map\"") == q + "-vis -saveprt -bhedvisexact \"C:/m/a.map\"" &&
+               befehlMitVisExakt(q + "-vis -fast \"C:/m/a.map\"") == q + "-vis -fast -bhedvisexact \"C:/m/a.map\"" &&
+               befehlMitVisExakt(q + "-light -fast \"C:/m/a.map\"") == q + "-light -fast \"C:/m/a.map\"" &&
+               befehlMitVisExakt(befehlMitVisExakt(q + "-vis \"C:/m/a.map\"")) == q + "-vis -bhedvisexact \"C:/m/a.map\"",
+           "vis1: -bhedvisexact nur fuer -vis, vor der Karte, nicht doppelt");
     pruefe(befehlMitLichtWiederverwendung(q + "-light -fast -samples 2 \"C:/m/a.map\"") == q + "-light -fast -samples 2 -bhedlightcache \"C:/m/a.map\"" &&
                befehlMitLichtWiederverwendung(q + "-vis \"C:/m/a.map\"") == q + "-vis \"C:/m/a.map\"",
            "Stufe 8a/5b: -bhedlightcache nur fuer -light, vor der Karte");

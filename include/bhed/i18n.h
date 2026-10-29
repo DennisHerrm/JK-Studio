@@ -2697,6 +2697,8 @@ enum class Str {
     KeVisLang,
     KeVisOriginalFast,
     KeVisAuswege,
+    KeVisExakt,
+    KeVisExaktTip,
     Count,
 };
 

@@ -1034,6 +1034,7 @@ struct Editor {
         bool editorDaten = false;          // Stufe 8a: -keeplights und <karte>.bhed ("BhedKeepEditorData"), Vorgabe aus wie NRC
         bool visWieder = false;            // Stufe 8a Punkt 5a: -bhedvisreuse fuer -vis ("BhedVisReuse")
         bool lichtWieder = false;          // Stufe 8a Punkt 5b/5d: -bhedlightcache fuer -light ("BhedLightReuse")
+        bool visExakt = false;             // vis1: -bhedvisexact fuer -vis, dasselbe VIS in jedem Bau ("BhedVisExact")
         karte::GpuBacken gpuBacken = karte::kGpuBackenVorgabe;   // Stufe 8g/8d: Aus/Ein/Auto fuer -light und das Schnell-Backen ("BhedGpuBakeMode")
         std::string gpuWahlText;     // Stufe 8d: was Auto zuletzt gewaehlt hat und warum (Konsole, Statuszeile, Tooltip)
         std::string gpuBericht;            // Stufe 8g: der Abweichungsbericht des letzten GPU-Backens (eine Zeile, uebersetzt)

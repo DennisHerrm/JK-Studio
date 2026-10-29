@@ -2215,6 +2215,8 @@ from i18n_karte9c import KARTE9C  # noqa: E402  (Stufe 9c: Werkzeugleisten, Echt
 S += KARTE9C
 from i18n_karte9d import KARTE9D  # noqa: E402  (Stufe 9d: Echtzeit-Ansicht, Shader live, Patch-Bruecke)
 S += KARTE9D
+from i18n_vis1 import VIS1  # noqa: E402  (vis1: dasselbe VIS in jedem Bau)
+S += VIS1
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

@@ -86,6 +86,9 @@ enum class EditorDatenStand { Passt, AndereBsp, Kaputt };
 // Stufe 8a Punkt 5b/5d: ein -light-Befehl bekommt -bhedlightcache (bhed_q3map2: Lightmaps,
 // Vertexlicht und Lichtgitter aus <karte>.bhedlight, wo sie sich nicht aendern koennen)
 [[nodiscard]] std::string befehlMitLichtWiederverwendung(const std::string& befehl);
+// vis1: ein -vis-Befehl bekommt -bhedvisexact (bhed_q3map2: mit mehreren Threads genau das VIS
+// von -threads 1 - dieselbe .bsp in jedem Bau)
+[[nodiscard]] std::string befehlMitVisExakt(const std::string& befehl);
 
 // Stufe 8g: GPU-Backen. Stufe 8d (shank: "Das Backen soll automatisch die schnellere Variante
 // nehmen, CPU oder GPU"): Build > "GPU bake" hat drei Werte, Vorgabe Auto - bhed_q3map2 waehlt mit

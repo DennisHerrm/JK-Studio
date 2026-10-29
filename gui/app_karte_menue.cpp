@@ -1646,6 +1646,7 @@ void einstellungenLaden() {
         b.editorDaten = zahl("BhedKeepEditorData", 0) != 0.0F;
         b.visWieder = zahl("BhedVisReuse", 0) != 0.0F;
         b.lichtWieder = zahl("BhedLightReuse", 0) != 0.0F;
+        b.visExakt = zahl("BhedVisExact", 0) != 0.0F;   // vis1
         // Stufe 8g "BhedGpuBake" 0/1, Stufe 8d "BhedGpuBakeMode" off/on/auto. Bis 8g stand die Vorgabe
         // (0) in jeder gespeicherten Einstellung - nur ein ausdrueckliches 1 wird "on", sonst Auto.
         {
@@ -1790,6 +1791,7 @@ void einstellungenSpeichern() {
     k["BhedKeepEditorData"] = ed.bau.editorDaten ? "1" : "0";
     k["BhedVisReuse"] = ed.bau.visWieder ? "1" : "0";
     k["BhedLightReuse"] = ed.bau.lichtWieder ? "1" : "0";
+    k["BhedVisExact"] = ed.bau.visExakt ? "1" : "0";   // vis1
     k["BhedGpuBakeMode"] = karte::gpuBackenName(ed.bau.gpuBacken);   // Stufe 8d (bis 8g "BhedGpuBake")
     k.erase("BhedGpuBake");
     k["BhedBspRecoverModels"] = ed.bspRueck.modelle ? "1" : "0";

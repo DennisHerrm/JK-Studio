@@ -114,6 +114,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in KARTE9C})
             from i18n_karte9d import KARTE9D   # Stufe 9d: Echtzeit-Ansicht, Shader live, Patch-Bruecke
             texte.update({e[0]: e[1:] for e in KARTE9D})
+            from i18n_vis1 import VIS1         # vis1: dasselbe VIS in jedem Bau
+            texte.update({e[0]: e[1:] for e in VIS1})
             return texte
     raise SystemExit("gen_i18n.py: Liste S nicht gefunden")
 
