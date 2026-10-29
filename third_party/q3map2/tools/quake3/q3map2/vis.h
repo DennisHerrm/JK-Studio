@@ -40,9 +40,9 @@ struct fixedWinding_t
    md_rev_TarisUpper2 needed 9 GB for the full vectors. */
 struct passage_t
 {
-	int numwords;                       /* nonzero 64-bit words of cansee */
-	const uint16_t      *words;         /* their indices, ascending */
-	const uint64_t      *bits;          /* their bits */
+	const uint64_t      *mask;          /* [portalmaskwords]: bit w set = word w of cansee is not zero */
+	const uint16_t      *rank;          /* [portalmaskwords]: nonzero words before mask word i */
+	const uint64_t      *bits;          /* the nonzero words of cansee, ascending */
 };
 
 
@@ -94,6 +94,7 @@ struct pstack_t
 	uint64_t            *mightsee;
 	uint16_t            *mightwords;    /* indices of the nonzero words of mightsee, ascending */
 	int nummightwords;
+	uint64_t            *mightmask;     /* [portalmaskwords]: the same words as bits */
 	pstack_t            *next;
 	leaf_t              *leaf;
 	vportal_t           *portal;        /* portal exiting */
@@ -149,5 +150,6 @@ inline int numfaces;
 inline int leafbytes;
 inline int portalbytes, portallongs;
 inline int portalwords;               /* BehavEd vis1: portalbytes / 8 */
+inline int portalmaskwords;           /* BehavEd vis1: ( portalwords + 63 ) / 64 */
 
 extern vportal_t          *sorted_portals[ MAX_MAP_PORTALS * 2 ];

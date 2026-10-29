@@ -76,20 +76,24 @@ int CountBits( const byte *bits, int numbits ){
 
 
 /* BehavEd vis1: the might-see vector of each recursion depth lives in a buffer per thread and depth,
-   zeroed once and kept zero outside the words a frame lists (pstack_t::mightwords). A flow step then
-   only touches the nonzero words: on duel_mos_espa a frame has 11 of 212 words nonzero on average,
-   NRC copied and combined all of them for every portal of every leaf. The bits stay the same. */
+   zeroed once and kept zero outside the words a frame lists (pstack_t::mightwords, and as a bit mask
+   mightmask). A flow step then only touches the words that are nonzero in both the previous vector
+   and the passage (the masks ANDed): on duel_mos_espa a frame has 11 of 212 words nonzero on average,
+   a passage 30; NRC copied and combined all words for every portal of every leaf. Same bits. */
 namespace
 {
 struct BhedVisFrames
 {
 	std::vector<uint64_t*> bits;
 	std::vector<uint16_t*> words;
+	std::vector<uint64_t*> masks;
 	~BhedVisFrames(){
 		for ( uint64_t *b : bits )
 			free( b );
 		for ( uint16_t *w : words )
 			free( w );
+		for ( uint64_t *m : masks )
+			free( m );
 	}
 };
 thread_local BhedVisFrames t_visFrames;
@@ -100,16 +104,45 @@ static void BhedFrameBuffers( pstack_t& stack ){
 	while ( int( f.bits.size() ) <= stack.depth ) {
 		f.bits.push_back( safe_calloc( portalwords * sizeof( uint64_t ) ) );
 		f.words.push_back( safe_malloc( portalwords * sizeof( uint16_t ) ) );
+		f.masks.push_back( safe_calloc( portalmaskwords * sizeof( uint64_t ) ) );
 	}
 	stack.mightsee = f.bits[stack.depth];
 	stack.mightwords = f.words[stack.depth];
+	stack.mightmask = f.masks[stack.depth];
 	stack.nummightwords = 0;
 }
 
 static void BhedClearMight( pstack_t& stack ){
 	for ( int k = 0; k < stack.nummightwords; ++k )
-		stack.mightsee[stack.mightwords[k]] = 0;
+	{
+		const int w = stack.mightwords[k];
+		stack.mightsee[w] = 0;
+		stack.mightmask[w >> 6] = 0;
+	}
 	stack.nummightwords = 0;
+}
+
+/* a nonzero word of the new vector */
+static void BhedSetMight( pstack_t& stack, int w, uint64_t m ){
+	stack.mightsee[w] = m;
+	stack.mightwords[stack.nummightwords++] = uint16_t( w );
+	stack.mightmask[w >> 6] |= uint64_t( 1 ) << ( w & 63 );
+}
+
+/* f( w, cansee word w ) for the words that are nonzero in both prev and the passage, ascending */
+template<typename F>
+static void BhedCommonWords( const pstack_t *prev, const passage_t *ps, F f ){
+	for ( int mw = 0; mw < portalmaskwords; ++mw )
+	{
+		const uint64_t pm = ps->mask[mw];
+		uint64_t both = prev->mightmask[mw] & pm;
+		while ( both != 0 )
+		{
+			const int b = std::countr_zero( both );
+			both &= both - 1;
+			f( mw * 64 + b, ps->bits[ps->rank[mw] + std::popcount( pm & ( ( uint64_t( 1 ) << b ) - 1 ) )] );
+		}
+	}
 }
 
 /* the head of a flow: the portal's flood vector itself (read only), with the list of its nonzero words */
@@ -118,8 +151,17 @@ static void BhedHeadFrame( pstack_t& head, const vportal_t *p ){
 	BhedFrameBuffers( head );
 	head.mightsee = reinterpret_cast<uint64_t*>( p->portalflood );
 	for ( int w = 0; w < portalwords; ++w )
-		if ( head.mightsee[w] != 0 )
+		if ( head.mightsee[w] != 0 ) {
 			head.mightwords[head.nummightwords++] = uint16_t( w );
+			head.mightmask[w >> 6] |= uint64_t( 1 ) << ( w & 63 );
+		}
+}
+
+/* after the flow: the head frame's list and mask back to zero (its bits are portalflood) */
+static void BhedHeadDone( pstack_t& head ){
+	for ( int k = 0; k < head.nummightwords; ++k )
+		head.mightmask[head.mightwords[k] >> 6] = 0;
+	head.nummightwords = 0;
 }
 
 
@@ -238,19 +280,20 @@ static const uint64_t *BhedVector( const threaddata_t *thread, const vportal_t *
 
 /* p is still running: when every bit the flow would take from portalflood (query & portalflood) is
    already in the part of portalvis that p has found so far, portalvis gives the same - no waiting.
-   Otherwise wait for p. The query words come as (index, bits) pairs from `next`. */
-template<typename Next>
-static const uint64_t *BhedResolve( const vportal_t *p, Next next ){
+   Otherwise wait for p. forEach( g ) calls g( w, query word w ) for the query. */
+template<typename ForEach>
+static const uint64_t *BhedResolve( const vportal_t *p, ForEach forEach ){
 	const uint64_t *flood = reinterpret_cast<const uint64_t*>( p->portalflood );
 	uint64_t *found = reinterpret_cast<uint64_t*>( p->portalvis );
-	int w;
-	uint64_t query;
-	while ( next( w, query ) )
-	{
-		if ( ( query & flood[w] & ~std::atomic_ref<uint64_t>( found[w] ).load( std::memory_order_relaxed ) ) != 0 ) {
-			BhedWaitDone( p );
-			return found;
+	bool missing = false;
+	forEach( [&]( int w, uint64_t query ){
+		if ( !missing && ( query & flood[w] & ~std::atomic_ref<uint64_t>( found[w] ).load( std::memory_order_relaxed ) ) != 0 ) {
+			missing = true;
 		}
+	} );
+	if ( missing ) {
+		BhedWaitDone( p );
+		return found;
 	}
 	return flood;
 }
@@ -702,14 +745,9 @@ static void RecursiveLeafFlow( int leafnum, threaddata_t *thread, pstack_t *prev
 		// if the portal can't see anything we haven't already seen, skip it
 		const uint64_t *test = BhedVector( thread, p );
 		if ( test == nullptr ) {
-			int k = 0;
-			test = BhedResolve( p, [&]( int& w, uint64_t& query ){
-				if ( k == prevstack->nummightwords ) {
-					return false;
-				}
-				w = prevstack->mightwords[k++];
-				query = prevstack->mightsee[w];
-				return true;
+			test = BhedResolve( p, [&]( auto&& g ){
+				for ( int k = 0; k < prevstack->nummightwords; ++k )
+					g( prevstack->mightwords[k], prevstack->mightsee[prevstack->mightwords[k]] );
 			} );
 		}
 
@@ -721,8 +759,7 @@ static void RecursiveLeafFlow( int leafnum, threaddata_t *thread, pstack_t *prev
 			const int w = prevstack->mightwords[k];
 			const uint64_t m = prevstack->mightsee[w] & test[w];
 			if ( m != 0 ) {
-				stack.mightsee[w] = m;
-				stack.mightwords[stack.nummightwords++] = uint16_t( w );
+				BhedSetMight( stack, w, m );
 				more |= m & ~vis[w];
 			}
 		}
@@ -897,6 +934,7 @@ void PortalFlow( int portalnum ){
 	BhedHeadFrame( data.pstack_head, p );
 
 	RecursiveLeafFlow( p->leaf, &data, &data.pstack_head );
+	BhedHeadDone( data.pstack_head );
 
 	BhedSetStatus( p, EVStatus::Done );
 
@@ -945,32 +983,22 @@ static void RecursivePassageFlow( vportal_t *portal, threaddata_t *thread, pstac
 		// mark the portal as visible
 		BhedMark( thread->base, pnum );
 
-		/* BehavEd vis1: only the nonzero words of cansee (the rest of the new vector is zero) */
+		/* BehavEd vis1: only the words nonzero in the previous vector and cansee (the rest is zero) */
 		const uint64_t *portalvis = BhedVector( thread, p );
 		if ( portalvis == nullptr ) {
-			int k = 0;
-			portalvis = BhedResolve( p, [&]( int& w, uint64_t& query ){
-				if ( k == ps->numwords ) {
-					return false;
-				}
-				w = ps->words[k];
-				query = prevstack->mightsee[w] & ps->bits[k];
-				++k;
-				return true;
+			portalvis = BhedResolve( p, [&]( auto&& g ){
+				BhedCommonWords( prevstack, ps, [&]( int w, uint64_t cansee ){ g( w, prevstack->mightsee[w] & cansee ); } );
 			} );
 		}
 		BhedClearMight( stack );
 		uint64_t more = 0;
-		for ( int k = 0; k < ps->numwords; ++k )
-		{
-			const int w = ps->words[k];
-			const uint64_t m = prevstack->mightsee[w] & ps->bits[k] & portalvis[w];
+		BhedCommonWords( prevstack, ps, [&]( int w, uint64_t cansee ){
+			const uint64_t m = prevstack->mightsee[w] & cansee & portalvis[w];
 			if ( m != 0 ) {
-				stack.mightsee[w] = m;
-				stack.mightwords[stack.nummightwords++] = uint16_t( w );
+				BhedSetMight( stack, w, m );
 				more |= m & ~vis[w];
 			}
-		}
+		} );
 
 		if ( !more ) {
 			// can't see anything new
@@ -1019,6 +1047,7 @@ void PassageFlow( int portalnum ){
 	BhedHeadFrame( data.pstack_head, p );
 
 	RecursivePassageFlow( p, &data, &data.pstack_head );
+	BhedHeadDone( data.pstack_head );
 
 	BhedSetStatus( p, EVStatus::Done );
 
@@ -1076,32 +1105,22 @@ static void RecursivePassagePortalFlow( vportal_t *portal, threaddata_t *thread,
 		if ( !bit_is_enabled( reinterpret_cast<const byte*>( prevstack->mightsee ), pnum ) ) {
 			continue;   // can't possibly see it
 		}
-		/* BehavEd vis1: only the nonzero words of cansee (the rest of the new vector is zero) */
+		/* BehavEd vis1: only the words nonzero in the previous vector and cansee (the rest is zero) */
 		const uint64_t *portalvis = BhedVector( thread, p );
 		if ( portalvis == nullptr ) {
-			int k = 0;
-			portalvis = BhedResolve( p, [&]( int& w, uint64_t& query ){
-				if ( k == ps->numwords ) {
-					return false;
-				}
-				w = ps->words[k];
-				query = prevstack->mightsee[w] & ps->bits[k];
-				++k;
-				return true;
+			portalvis = BhedResolve( p, [&]( auto&& g ){
+				BhedCommonWords( prevstack, ps, [&]( int w, uint64_t cansee ){ g( w, prevstack->mightsee[w] & cansee ); } );
 			} );
 		}
 		BhedClearMight( stack );
 		uint64_t more = 0;
-		for ( int k = 0; k < ps->numwords; ++k )
-		{
-			const int w = ps->words[k];
-			const uint64_t m = prevstack->mightsee[w] & ps->bits[k] & portalvis[w];
+		BhedCommonWords( prevstack, ps, [&]( int w, uint64_t cansee ){
+			const uint64_t m = prevstack->mightsee[w] & cansee & portalvis[w];
 			if ( m != 0 ) {
-				stack.mightsee[w] = m;
-				stack.mightwords[stack.nummightwords++] = uint16_t( w );
+				BhedSetMight( stack, w, m );
 				more |= m & ~vis[w];
 			}
-		}
+		} );
 
 		if ( !more && bit_is_enabled( thread->base->portalvis, pnum ) ) { // can't see anything new
 			continue;
@@ -1270,6 +1289,7 @@ void PassagePortalFlow( int portalnum ){
 	BhedHeadFrame( data.pstack_head, p );
 
 	RecursivePassagePortalFlow( p, &data, &data.pstack_head );
+	BhedHeadDone( data.pstack_head );
 
 	BhedSetStatus( p, EVStatus::Done );
 
@@ -1528,11 +1548,13 @@ void CreatePassages( int portalnum ){
 	/* BehavEd vis1: cansee of each passage in a full vector per thread, kept as its nonzero words;
 	   all passages of the portal in one block */
 	static thread_local std::vector<uint64_t> cansee;
-	static thread_local std::vector<uint16_t> allwords;
+	static thread_local std::vector<uint64_t> allmasks;
+	static thread_local std::vector<uint16_t> allranks;
 	static thread_local std::vector<uint64_t> allbits;
 	static thread_local std::vector<int> counts;
 	cansee.assign( portalwords, 0 );
-	allwords.clear();
+	allmasks.clear();
+	allranks.clear();
 	allbits.clear();
 	counts.clear();
 	const uint64_t *portalflood = reinterpret_cast<const uint64_t*>( portal->portalflood );
@@ -1620,8 +1642,12 @@ void CreatePassages( int portalnum ){
 		int count = 0;
 		for ( int wi = 0; wi < portalwords; ++wi )
 		{
+			if ( wi % 64 == 0 ) {
+				allmasks.push_back( 0 );
+				allranks.push_back( uint16_t( count ) );
+			}
 			if ( cansee[wi] != 0 ) {
-				allwords.push_back( uint16_t( wi ) );
+				allmasks.back() |= uint64_t( 1 ) << ( wi & 63 );
 				allbits.push_back( cansee[wi] );
 				cansee[wi] = 0;
 				++count;
@@ -1630,19 +1656,22 @@ void CreatePassages( int portalnum ){
 		counts.push_back( count );
 	}
 
-	const size_t bytes = counts.size() * sizeof( passage_t ) + allbits.size() * sizeof( uint64_t ) + allwords.size() * sizeof( uint16_t );
+	const size_t bytes = counts.size() * sizeof( passage_t ) + ( allmasks.size() + allbits.size() ) * sizeof( uint64_t ) + allranks.size() * sizeof( uint16_t );
 	byte *block = safe_malloc( std::max<size_t>( bytes, 1 ) );
 	passage_t *passages = reinterpret_cast<passage_t*>( block );
-	uint64_t *bits = reinterpret_cast<uint64_t*>( block + counts.size() * sizeof( passage_t ) );
-	uint16_t *words = reinterpret_cast<uint16_t*>( bits + allbits.size() );
+	uint64_t *masks = reinterpret_cast<uint64_t*>( block + counts.size() * sizeof( passage_t ) );
+	uint64_t *bits = masks + allmasks.size();
+	uint16_t *ranks = reinterpret_cast<uint16_t*>( bits + allbits.size() );
+	std::copy( allmasks.begin(), allmasks.end(), masks );
 	std::copy( allbits.begin(), allbits.end(), bits );
-	std::copy( allwords.begin(), allwords.end(), words );
+	std::copy( allranks.begin(), allranks.end(), ranks );
 	for ( const int count : counts )
 	{
-		passages->numwords = count;
-		passages->words = words;
+		passages->mask = masks;
+		passages->rank = ranks;
 		passages->bits = bits;
-		words += count;
+		masks += portalmaskwords;
+		ranks += portalmaskwords;
 		bits += count;
 		++passages;
 	}

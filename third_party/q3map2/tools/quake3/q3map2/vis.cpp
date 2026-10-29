@@ -727,6 +727,7 @@ static void LoadPortals( char *name ){
 	portalbytes = ( ( numportals * 2 + 63 ) & ~63 ) >> 3;
 	portallongs = portalbytes / sizeof( long );
 	portalwords = portalbytes / 8;
+	portalmaskwords = ( portalwords + 63 ) / 64;
 
 	// each file portal is split into two memory portals
 	portals = safe_calloc( 2 * numportals * sizeof( vportal_t ) );
