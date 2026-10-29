@@ -110,7 +110,7 @@ Dazu gefunden und behoben (rot -> grün):
   Selbsttest „M3 Klänge“ mit JKA-Daten (leere Liste statt menuroam), ctest menue_skript.
 - MD-Säbelmenü nach den Skript- und Cvar-Korrekturen: mittlere Abweichung je Klingenart von
   6.1-11.7 auf 3.5-4.8 (Grauwerte 0-255, 8x6-Raster; 9/10 höher, weil im Spielbild durch den
-  Spielzeiger Felder aufgeklappt waren), Bildpaare SP\m3ergleich
+  Spielzeiger Felder aufgeklappt waren), Bildpaare SP\m3\vergleich
 eben_saebel_*.png.
 - **Spielordner**: `Weitere Grenzen` oben; die Steam-Kette (Vorfall) bleibt beim Hauptstrang.
 
