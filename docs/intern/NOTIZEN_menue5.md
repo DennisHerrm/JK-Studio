@@ -274,6 +274,51 @@ Aus Zeit- bzw. Kontextgründen nicht angefangen; Stand und Vorarbeit:
 - ctest menue_profil; Selbsttest (m5b): ohne Profil Meldung, mit Profil keine und der Abschnitt
   Mod-Schlüssel, Vorlage galactic_legacy anlegen und wählen - zusammen mit Punkt 1/3: 14 OK, 0 FEHLER.
 
+### Punkt 5 - Jedi Outcast echt (Steam-Fassung)
+
+- Starts nach der Steam-Ausnahme (gilt laut shank auch für JKO): vor jedem Start steam.exe läuft und
+  ActiveUser != 0 (SP\m5b\jk2.py bricht sonst ab); Popen, Idle, SW_SHOWNOACTIVATE, Fenster 960x720,
+  s_initsound 0, in_mouse 0, SteamAppId 6030. `+set fs_basepath <eigener Ordner> +set fs_cdpath
+  <GameData>` (jk2mp zusätzlich fs_homepath): geschrieben wird nur im eigenen Ordner; gelesen werden
+  die Configs von shank aus GameData (nur lesen - darum ohne `sp_language 0` deutsch). Steam hat
+  nie neu gestartet, kein Dialog; keine eigenen jk2-Prozesse danach.
+- Fund: jk2sp.exe 1.04 stürzt mit einem langen fs_basepath ab (0xC00000FD Stapelüberlauf, ein
+  Eintrag im Ereignisprotokoll, kein Dialog): gemessen 60 und 100 Zeichen laufen, 105 hängt,
+  110/115/120/130/140 stürzen ab. Daher eigene Ordner Y:\m5b_jk2sp/_jk2mp.
+- Spielordner: Liste (Typ, Größe, Zeit, Pfad) und SHA-1 der Configs/exes vor dem ersten und nach dem
+  letzten Start gleich (SP\m5b\ordner_vorher.txt, ordner_nachher.txt, ordner_nachher2.txt).
+- „Im Spiel testen“ für JK2: jk2sp.exe hat kein fs_homepath - bisher hieß das „Mod-Ordner im
+  Spielordner nach Rückfrage“. Neu (alle Programme mit fs_cdpath, z. B. jasp/jk2sp): eigener Ordner
+  als fs_basepath, Spieldaten über fs_cdpath (niedrigster Rang), Testpaket in <eigen>/base darüber;
+  für jk2sp/jk2mp nur bis 100 Zeichen, sonst wie bisher Mod-Ordner nach Rückfrage. ctest
+  menue_paket (rot, grün). Nachweis: Selbsttest BHED_MENUE_NUR=jk2test mit JKO-Daten (SP\m5b  behaved_jk2.cfg) fügt „JK STUDIO TEST“ ins Hauptmenü ein und liefert Paket + Befehlszeile; genau
+  diese Befehlszeile (plus Fenster/Ton/Foto) mit jk2sp.exe gestartet: das Spiel zeigt das geänderte
+  Hauptmenü (SP\m5b\imspiel_jk2.png).
+- JK2-Dialekt aus dem Programm (Namen der Tabellen in jk2sp.exe gelesen, OpenJKs JK2_MODE nimmt die
+  JA-Tabellen und ist darin nicht wie das Original): commandList ohne setitemrect, setitemtext,
+  setitembackground, transition2/3, delay, playVoice/stopVoice, mit playlooped; itemDef ohne accept,
+  selectNext/Prev, isCharacter, isSaber/2, cvarSubString, model_g2*, scrollhidden, invertyesno,
+  xoffset, lineHeight; menuDef ohne descTextStyle, onAccept, ignoreescape. Parser, Bausteinliste,
+  Ereignisse (kein „Enter“) und Laufzeit folgen dem (ctest menue_ereignisse/menue_skript rot, grün).
+- Rangliste JK2-SP (17 Menüs mit Spielfoto, die vier Datapad-Menüs öffnet `uimenu` ohne laufendes
+  Spiel nicht) + MP-Hauptmenü, Mittel 8x6 wie M4/M5 (SP\m5bang_ergebnis_jk2sp_<lauf>.txt, Paare
+  SP\m3ergleich
+eben_jk2_*.png):
+  - Lauf 1 (Stand menue5): oben videodriverMenu 55,7 (UI_GLINFO: GL-Daten des laufenden Spiels),
+    error_popmenu 53,2, videowarningMenu/ingamevideowarningMenu 42 (das Spiel zeigt das Hauptmenü
+    dahinter - `uimenu` schließt es nicht, wie bei JKA in M5), die übrigen 13 im Mittel 12,1.
+  - Abweichung 1: das Logo (ITEM_TYPE_MODEL mit .md3) war nur ein Platzhalter. Neu: .md3 wird als
+    starres Modell gezeichnet (Bild 0, Grenzen wie DC->modelBounds), Kamera für Jedi Outcast wie
+    Item_Model_Paint unter JK2_MODE (fov 45 x 45, Gier realTime / 20, model_angle/model_rotation
+    ohne Wirkung) - Größe und Lage stimmen mit den Fotos (SP und MP), nur die Drehphase hängt an
+    der Zeit. ctest menue_vorschau. Lauf 4: die 13 im Mittel 9,6 (mainMenu 11,4 -> 7,7, setupMenu
+    13,7 -> 7,8, quitMenu 11,0 -> 7,0, creditsMenu 10,9 -> 6,9), MP-Hauptmenü 6,5.
+  - Rest/offen: Tastenbelegungen der Steuerungsmenüs („???“ statt der binds aus default.cfg bzw.
+    der Config), Renderer-Cvars der Setup-Menüs (Video Quality, GL Extensions, Texture Filter,
+    Detailed Shaders: die Engine legt sie selbst an, Vorgaben stehen nur in jk2sp.exe), das Logo
+    ohne Chrom-Shader (die Menü-Figuren zeichnen die Grundtextur), JK2-MP-Menüs außer dem
+    Hauptmenü nicht fotografiert.
+
 ## Changelog
 
 ## English
