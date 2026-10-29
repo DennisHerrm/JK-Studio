@@ -300,6 +300,7 @@ struct Zustand {
     std::vector<PruefZeile> pruefErgebnis;
     std::string testBefehl;
     bool testFrage = false;
+    bool testFrageZu = false;   // M4: die Frage von aussen schliessen (Selbsttest)
     bool schriftFenster = false;
     std::string schriftTtf, schriftName = "eigene";
     int schriftGroesse = 20;
@@ -2761,7 +2762,10 @@ void zeichneTestFrage() {
         ImGui::OpenPopup("##testfrage");
         z.testFrage = false;
     }
+    if (z.testFrageZu && !ImGui::IsPopupOpen("##testfrage")) { z.testFrageZu = false; }   // keine Frage offen
     if (ImGui::BeginPopupModal("##testfrage", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        if (z.testFrageZu) { ImGui::CloseCurrentPopup(); }
+        z.testFrageZu = false;
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28);
         ImGui::TextUnformatted(tr(Str::MeTestModFrage));
         ImGui::PopTextWrapPos();
@@ -4961,6 +4965,7 @@ void klickVorschau(float x, float y) {
 }
 
 void setzeReiter(int reiter) { Z().reiterGewollt = std::clamp(reiter, 0, 2); }
+void schliesseTestFrage() { Z().testFrageZu = true; }
 
 bool korrigiereDiagnose(int nr) {
     Dokument* d = doc();

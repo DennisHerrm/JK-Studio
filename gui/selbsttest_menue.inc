@@ -458,6 +458,8 @@ std::vector<Schritt> schritteM4() {
     const std::string videos = vo != nullptr ? vo : "";
     const auto datei = [videos](const char* n) { return (std::filesystem::path(videos) / n).string(); };
     const std::string einst = platform::settingsDirectory();
+    add(tu("M4: offene Frage von Im Spiel testen (M2/M3 mit JKA-Daten) schliessen", [] { me::schliesseTestFrage(); }));
+    add(pause(0.2));
     add(pruefe("M4 Video: Vorgaben 512 x 512, 30 Bilder/s, Ton aus (Menues spielen stumm)", [] {
         const me::VideoImport o;
         return o.breite == 512 && o.hoehe == 512 && o.fps == 30 && !o.ton && o.einpassen == 0;
@@ -521,7 +523,9 @@ std::vector<Schritt> schritteM4() {
         return ok;
     }));
     add(pruefe("M4 Video: Im Spiel testen - Testpaket und Befehlszeile (nicht gestartet)", [] {
-        if (std::getenv("BHED_MENUE_VIDEOS") == nullptr) { return true; }
+        // nur mit Movie-Duels-Daten: die Original-jasp.exe kennt kein fs_homepath, dort fragt
+        // ein modales Fenster nach dem Mod-Ordner (M2) - das wuerde die Klicks danach abfangen
+        if (std::getenv("BHED_MENUE_VIDEOS") == nullptr || me::stand().spiel != 2) { return true; }
         const std::string b = me::imSpielTesten();
         diag::info("Menue-Editor M4 Im Spiel testen: " + (b.empty() ? std::string("(kein Programm)") : b));
         return b.empty() || b.find("fs_homepath") != std::string::npos;
@@ -630,9 +634,10 @@ std::vector<Schritt> schritteM4() {
     // Punkt 3: Lesbarkeit - Augen-/Schloss-Symbole, Leiste mit Beschriftung, Mindestschrift,
     // Fotos bei 100 % und 150 % Oberflaechengroesse
     auto skala = std::make_shared<float>(1.0F);
-    add(tu("M4 Oberflaeche: Groesse merken, 100 %", [skala] {
+    add(tu("M4 Oberflaeche: Groesse merken, 100 %, Reiter Hierarchie", [skala] {
         *skala = g_app->uiScale;
         g_app->uiScale = 1.0F;
+        me::setzeReiter(0);   // die Ebenenliste (nach M2/M3 steht ein anderer Reiter vorn)
     }));
     add(pause(0.4));
     add(klick("##auge"));

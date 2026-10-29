@@ -76,6 +76,7 @@ void klickVorschau(float x, float y);   // im virtuellen Bildschirm
 void setzeCvar(const std::string& name, const std::string& wert);
 // Rechte Spalte: 0 Hierarchie, 1 Text, 2 Eigenschaften (gespeichert in den Einstellungen)
 void setzeReiter(int reiter);
+void schliesseTestFrage();   // M4: offene Frage von "Im Spiel testen" (Mod-Ordner) mit Nein schliessen
 // Live-Diagnose: die Schnellkorrektur der Meldung Nr. anwenden
 bool korrigiereDiagnose(int nr);
 [[nodiscard]] int reiter();
