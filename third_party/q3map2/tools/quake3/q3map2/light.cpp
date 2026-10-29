@@ -3332,7 +3332,6 @@ int LightMain( Args& args ){
 		}
 		e.bounce = bounce;
 		e.samples = lightSamples;
-		e.zufall = lightRandomSamples; /* BehavEd vis1 */
 		e.cpuMs = bhedBakeZeitCpu;
 		e.gpuMs = bhedBakeZeitGpu;
 		const bhed::karte::GpuWahl w = bhed::karte::gpuWahl( e );
