@@ -52,6 +52,16 @@ struct Seite {
 };
 [[nodiscard]] std::vector<Seite> seitenImMenue(const Datei& d);
 
+// M2: Bewegung eines Items wie windowDef_t (rectClient, rectEffects,
+// rectEffects2, offsetTime, nextTime) und die Deckkraft foreColor[3], die
+// Fade() aendert.
+struct ItemAnimation {
+    Rechteck client, effects, effects2;   // menue-bezogen wie im Spiel
+    int offsetTime = 0, nextTime = 0;
+    float alpha = 1.0F;
+    bool alphaGesetzt = false;
+};
+
 struct Laufzeit {
     const Datei* d = nullptr;
     std::vector<int> menuFlags;                     // WINDOW_VISIBLE / WINDOW_HASFOCUS je Menue
@@ -66,6 +76,19 @@ struct Laufzeit {
     std::vector<std::string> protokoll;             // was ohne Spiel nur gemeldet wird
     int maxProtokoll = 200;
     int version = 0;                                // zaehlt jede Aenderung
+    // M2: Animationen (transition, orbit, fadein/fadeout) im Takt der Engine
+    std::vector<std::vector<ItemAnimation>> anim;   // je Menue, je Item
+    int spielFps = 125;                             // com_maxfps: ein Item_Paint je Bild
+    int jetztMs = 0;                                // DC->realTime des letzten Takts
+    int letzterTakt = -1;
+    // Menu_Init: fadeClamp/fadeAmount/fadeCycle aus assetGlobalDef, wenn das Menue sie nicht setzt
+    float fadeClampStd = 1.0F, fadeAmountStd = 0.0F;
+    int fadeCycleStd = 0;
+    // Die Zeit bis jetztMs in Bildern zu 1000 / spielFps ms abarbeiten (Item_Paint:
+    // WINDOW_ORBITING, WINDOW_INTRANSITION, Item_TextColor: Fade). Gibt die Zahl der Bilder zurueck.
+    int takt(int jetzt);
+    [[nodiscard]] bool animiert() const;            // laeuft noch etwas?
+    void positionAus(int menu, std::size_t item);   // Item_UpdatePosition
     Umgebung basis;                                 // Schriften/Texte (textRechteck beim Klick)
 
     void start(const Datei& datei);

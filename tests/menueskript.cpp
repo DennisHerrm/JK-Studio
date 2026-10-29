@@ -90,6 +90,36 @@ int main() {
     l.schliesse("all");
     pruefe(l.menuFlags[0] == (d.menus[0].window.flags & ~(WINDOW_VISIBLE | WINDOW_HASFOCUS)), "close all");
 
+    // --- M2: transition, orbit, fadeout im Takt der Engine (Item_Paint, Fade) ----------
+    {
+        LeseOptionen so;
+        so.dialekt = Dialekt::SP;
+        const Datei a = lies("ui/anim.menu",
+                             "{ menuDef { name anim rect 0 0 640 480 visible 1 fadeAmount 0.25 fadeCycle 10 fadeClamp 1\n"
+                             "  onOpen { transition t 0 0 10 10 100 0 10 10 20 10 ; orbit o 110 100 100 100 5 ; fadeout f }\n"
+                             "  itemDef { name t rect 0 0 10 10 visible 1 }\n"
+                             "  itemDef { name o rect 110 100 10 10 visible 1 }\n"
+                             "  itemDef { name f text \"x\" rect 0 0 10 10 forecolor 1 1 1 1 visible 1 } } }\n",
+                             so);
+        Laufzeit la;
+        la.start(a);
+        la.spielFps = 100;   // 10 ms je Bild
+        la.oeffne("anim");
+        pruefe((la.items[0][0].flags & WINDOW_INTRANSITION) != 0, "transition: WINDOW_INTRANSITION gesetzt");
+        pruefe(la.rects[0][0].x == 0.0F, "transition: beginnt bei rectFrom");
+        (void)la.takt(1000);   // erstes Bild: rectEffects2.x = 100/10 = 10 je Schritt
+        const float x1 = la.rects[0][0].x;
+        (void)la.takt(1000 + 4 * 10);   // 4 weitere Bilder: Schritt erst bei realTime > nextTime (1030), also alle 30 ms
+        const float x2 = la.rects[0][0].x;
+        pruefe(x1 == 10.0F && x2 == 20.0F, "transition: 10 Punkte je Schritt, offsetTime 20 bei 10-ms-Bildern = alle 30 ms (" + std::to_string(x1) + ", " + std::to_string(x2) + ")");
+        (void)la.takt(1000 + 300);
+        pruefe(la.rects[0][0].x == 100.0F && (la.items[0][0].flags & WINDOW_INTRANSITION) == 0, "transition: am Ziel, Flag weg");
+        pruefe((la.items[0][1].flags & WINDOW_ORBITING) != 0 && la.rects[0][1].y != 100.0F, "orbit: dreht um (100, 100)");
+        pruefe((la.items[0][2].flags & WINDOW_VISIBLE) == 0 && (la.items[0][2].flags & WINDOW_FADINGOUT) == 0,
+               "fadeout: nach 4 x 0.25 unsichtbar (Fade)");
+        pruefe(la.vorderGesetzt[0][2] && la.vorder[0][2].a <= 0.0F, "fadeout: foreColor[3] auf 0");
+    }
+
     std::printf("menueskript: %s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

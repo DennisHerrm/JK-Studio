@@ -173,6 +173,8 @@ void Laufzeit::start(const Datei& datei) {
     texte.clear();
     vorder.clear();
     vorderGesetzt.clear();
+    anim.clear();
+    letzterTakt = -1;
     hintergrund.assign(datei.menus.size(), std::string());
     for (const Menu& m : datei.menus) {
         std::vector<ItemZustand> z;
@@ -186,6 +188,12 @@ void Laufzeit::start(const Datei& datei) {
         texte.emplace_back(m.items.size());
         vorder.emplace_back(m.items.size());
         vorderGesetzt.emplace_back(m.items.size(), false);
+        std::vector<ItemAnimation> a(m.items.size());
+        for (std::size_t i = 0; i < m.items.size(); ++i) {
+            a[i].client = m.items[i].window.rectClient;
+            a[i].alpha = m.items[i].window.foreColor.a;
+        }
+        anim.push_back(a);
     }
     for (std::size_t i = 0; i < datei.menus.size(); ++i) { menuFlags[i] = datei.menus[i].window.flags; }
     stapel.clear();
@@ -276,12 +284,27 @@ void Laufzeit::fuehreAus(int menu, int item, const std::string& s) {
         if (cmd == ";") { continue; }
         const std::string c = klein(cmd);
         std::string a, b;
-        if (c == "show" || c == "hide" || c == "fadein" || c == "fadeout") {
+        if (c == "show" || c == "hide") {
             if (stringParse(s, p, a)) {
-                const bool zeigen = (c == "show" || c == "fadein");
+                const bool zeigen = c == "show";
                 passend(a, [&](std::size_t i) {
                     if (zeigen) { z[i].flags |= WINDOW_VISIBLE; }
                     else { z[i].flags &= ~WINDOW_VISIBLE; }
+                });
+                ++version;
+            }
+        } else if (c == "fadein" || c == "fadeout") {
+            // Menu_FadeItemByName: das Ausblenden selbst macht Fade() im Takt (takt)
+            if (stringParse(s, p, a)) {
+                const bool aus = c == "fadeout";
+                passend(a, [&](std::size_t i) {
+                    if (aus) {
+                        z[i].flags |= (WINDOW_FADINGOUT | WINDOW_VISIBLE);
+                        z[i].flags &= ~WINDOW_FADINGIN;
+                    } else {
+                        z[i].flags |= (WINDOW_VISIBLE | WINDOW_FADINGIN);
+                        z[i].flags &= ~WINDOW_FADINGOUT;
+                    }
                 });
                 ++version;
             }
@@ -335,22 +358,78 @@ void Laufzeit::fuehreAus(int menu, int item, const std::string& s) {
                 });
                 ++version;
             }
-        } else if (c == "transition" || c == "transition2" || c == "transition3") {
-            // Menu_TransitionItemByName: hier sofort am Ziel (rectTo)
+        } else if (c == "transition") {
+            // Script_Transition: name rectFrom rectTo time amt -> Menu_TransitionItemByName
             std::string v[10];
             bool ok = stringParse(s, p, a);
             for (int i = 0; ok && i < 10; ++i) { ok = stringParse(s, p, v[i]); }
             if (ok) {
+                const Rechteck von{zahl(v[0]), zahl(v[1]), zahl(v[2]), zahl(v[3])};
+                const Rechteck nach{zahl(v[4]), zahl(v[5]), zahl(v[6]), zahl(v[7])};
+                const float amt = zahl(v[9]);
                 passend(a, [&](std::size_t i) {
-                    z[i].flags |= WINDOW_VISIBLE;
-                    rects[static_cast<std::size_t>(menu)][i] =
-                        Rechteck{m.window.rect.x + zahl(v[4]), m.window.rect.y + zahl(v[5]), zahl(v[6]), zahl(v[7])};
+                    ItemAnimation& an = anim[static_cast<std::size_t>(menu)][i];
+                    z[i].flags |= (WINDOW_INTRANSITION | WINDOW_VISIBLE);
+                    an.offsetTime = static_cast<int>(std::atoi(v[8].c_str()));
+                    an.client = von;
+                    an.effects = nach;
+                    an.effects2 = Rechteck{std::fabs(nach.x - von.x) / amt, std::fabs(nach.y - von.y) / amt, std::fabs(nach.w - von.w) / amt,
+                                           std::fabs(nach.h - von.h) / amt};
+                    positionAus(menu, i);   // Item_UpdatePosition
                 });
                 ++version;
             }
+        } else if (c == "transition2") {
+            // Script_Transition2: name rectTo time amt, von = window.rect des ersten passenden Items
+            std::string v[6];
+            bool ok = stringParse(s, p, a);
+            for (int i = 0; ok && i < 6; ++i) { ok = stringParse(s, p, v[i]); }
+            if (ok) {
+                const Rechteck nach{zahl(v[0]), zahl(v[1]), zahl(v[2]), zahl(v[3])};
+                const float amt = zahl(v[5]);
+                bool erstes = true;
+                Rechteck von;
+                passend(a, [&](std::size_t i) {
+                    if (erstes) {   // "they'll all use the FIRST one's FROM" - window.rect (Bildschirm)
+                        von = rects[static_cast<std::size_t>(menu)][i];
+                        erstes = false;
+                    }
+                    ItemAnimation& an = anim[static_cast<std::size_t>(menu)][i];
+                    z[i].flags |= (WINDOW_INTRANSITION | WINDOW_VISIBLE);
+                    an.offsetTime = static_cast<int>(std::atoi(v[4].c_str()));
+                    an.client = von;
+                    an.effects = nach;
+                    an.effects2 = Rechteck{std::fabs(nach.x - von.x) / amt, std::fabs(nach.y - von.y) / amt, std::fabs(nach.w - von.w) / amt,
+                                           std::fabs(nach.h - von.h) / amt};
+                    positionAus(menu, i);
+                });
+                ++version;
+            }
+        } else if (c == "orbit") {
+            // Script_Orbit: name x y cx cy time -> Menu_OrbitItemByName
+            std::string v[5];
+            bool ok = stringParse(s, p, a);
+            for (int i = 0; ok && i < 5; ++i) { ok = stringParse(s, p, v[i]); }
+            if (ok) {
+                passend(a, [&](std::size_t i) {
+                    ItemAnimation& an = anim[static_cast<std::size_t>(menu)][i];
+                    z[i].flags |= (WINDOW_ORBITING | WINDOW_VISIBLE);
+                    an.offsetTime = static_cast<int>(std::atoi(v[4].c_str()));
+                    an.effects.x = zahl(v[2]);
+                    an.effects.y = zahl(v[3]);
+                    an.client.x = zahl(v[0]);
+                    an.client.y = zahl(v[1]);
+                    positionAus(menu, i);
+                });
+                ++version;
+            }
+        } else if (c == "transition3") {
+            std::string rest = cmd;
+            while (stringParse(s, p, a) && a != ";") { rest += " " + a; }
+            melde(rest);   // Modell-Uebergang (WINDOW_INTRANSITIONMODEL): braucht die 3D-Ansicht
         } else if (c == "play" || c == "playlooped" || c == "playvoice") {
             if (stringParse(s, p, a)) { melde(cmd + " " + a); }
-        } else if (c == "exec" || c == "uiscript" || c == "setitembackground" || c == "setasset" || c == "orbit" ||
+        } else if (c == "exec" || c == "uiscript" || c == "setitembackground" || c == "setasset" ||
                    c == "setplayermodel" || c == "setteamcolor" || c == "setitemflag" || c == "defer" || c == "rundeferred" ||
                    c == "delay" || c == "activate" || c == "showmenu" || c == "opengotomenu" || c == "stopvoice" ||
                    c == "incrementfeeder" || c == "decrementfeeder" || c == "disable" || c == "scale" ||
@@ -476,6 +555,124 @@ void Laufzeit::klick(int menu, float x, float y) {
 void Laufzeit::escape(int menu) {
     if (d == nullptr || menu < 0 || static_cast<std::size_t>(menu) >= d->menus.size()) { return; }
     fuehreAus(menu, -1, d->menus[static_cast<std::size_t>(menu)].onESC);
+}
+
+// Item_UpdatePosition -> Item_SetScreenCoords: window.rect = Menue-Ursprung
+// (+ borderSize bei Rahmen) + rectClient
+void Laufzeit::positionAus(int menu, std::size_t i) {
+    const Menu& m = d->menus[static_cast<std::size_t>(menu)];
+    const Item& it = m.items[i];
+    const ItemAnimation& an = anim[static_cast<std::size_t>(menu)][i];
+    float x = m.window.rect.x, y = m.window.rect.y;
+    if (it.window.border != 0) {
+        x += it.window.borderSize;
+        y += it.window.borderSize;
+    }
+    rects[static_cast<std::size_t>(menu)][i] = Rechteck{x + an.client.x, y + an.client.y, an.client.w, an.client.h};
+}
+
+bool Laufzeit::animiert() const {
+    for (const auto& z : items) {
+        for (const ItemZustand& s : z) {
+            if ((s.flags & (WINDOW_INTRANSITION | WINDOW_ORBITING | WINDOW_FADINGIN | WINDOW_FADINGOUT)) != 0) { return true; }
+        }
+    }
+    return false;
+}
+
+int Laufzeit::takt(int jetzt) {
+    if (d == nullptr) { return 0; }
+    const int schritt = std::max(1, 1000 / std::max(1, spielFps));   // Com_Frame: min_msec = 1000 / com_maxfps
+    if (letzterTakt < 0 || jetzt < letzterTakt) { letzterTakt = jetzt - schritt; }
+    // nach einer langen Pause (Fenster verdeckt) nicht Tausende Bilder nachholen
+    if (jetzt - letzterTakt > 2000) { letzterTakt = jetzt - 2000; }
+    int bilder = 0;
+    while (letzterTakt + schritt <= jetzt) {
+        letzterTakt += schritt;
+        jetztMs = letzterTakt;
+        ++bilder;
+        for (std::size_t mi = 0; mi < d->menus.size(); ++mi) {
+            if ((menuFlags[mi] & WINDOW_VISIBLE) == 0) { continue; }   // Menu_PaintAll: nur sichtbare Menues
+            const Menu& m = d->menus[mi];
+            // Menu_Init: Werte aus assetGlobalDef, Schluessel des Menues ueberschreiben
+            const float fadeClamp = bhed::menue::finde(m, "fadeClamp") != nullptr ? m.fadeClamp : fadeClampStd;
+            const float fadeAmount = bhed::menue::finde(m, "fadeAmount") != nullptr ? m.fadeAmount : fadeAmountStd;
+            const int fadeCycle = bhed::menue::finde(m, "fadeCycle") != nullptr ? m.fadeCycle : fadeCycleStd;
+            auto& z = items[mi];
+            for (std::size_t i = 0; i < m.items.size(); ++i) {
+                ItemAnimation& an = anim[mi][i];
+                int& fl = z[i].flags;
+                const Item& it = m.items[i];
+                if ((fl & WINDOW_ORBITING) != 0 && jetztMs > an.nextTime) {
+                    an.nextTime = jetztMs + an.offsetTime;
+                    const float w = an.client.w / 2;
+                    const float h = an.client.h / 2;
+                    const float rx = an.client.x + w - an.effects.x;
+                    const float ry = an.client.y + h - an.effects.y;
+                    const float a = 3.0F * 3.14159265358979323846F / 180.0F;
+                    const float c = std::cos(a);
+                    const float s = std::sin(a);
+                    an.client.x = (rx * c - ry * s) + an.effects.x - w;
+                    an.client.y = (rx * s + ry * c) + an.effects.y - h;
+                    positionAus(static_cast<int>(mi), i);
+                    ++version;
+                }
+                if ((fl & WINDOW_INTRANSITION) != 0 && jetztMs > an.nextTime) {
+                    int done = 0;
+                    an.nextTime = jetztMs + an.offsetTime;
+                    auto schritt1 = [&](float& v, float ziel, float d2) {
+                        if (v == ziel) {
+                            done++;
+                        } else if (v < ziel) {
+                            v += d2;
+                            if (v > ziel) {
+                                v = ziel;
+                                done++;
+                            }
+                        } else {
+                            v -= d2;
+                            if (v < ziel) {
+                                v = ziel;
+                                done++;
+                            }
+                        }
+                    };
+                    schritt1(an.client.x, an.effects.x, an.effects2.x);
+                    schritt1(an.client.y, an.effects.y, an.effects2.y);
+                    schritt1(an.client.w, an.effects.w, an.effects2.w);
+                    schritt1(an.client.h, an.effects.h, an.effects2.h);
+                    positionAus(static_cast<int>(mi), i);
+                    if (done == 4) { fl &= ~WINDOW_INTRANSITION; }
+                    ++version;
+                }
+                // Item_Paint: ownerDrawFlags/cvarTest/WINDOW_VISIBLE, dann Item_TextColor -> Fade
+                if ((fl & (WINDOW_FADINGOUT | WINDOW_FADINGIN)) != 0 && (fl & WINDOW_VISIBLE) != 0 &&
+                    (!it.text.empty() || it.type == ITEM_TYPE_OWNERDRAW) && jetztMs > an.nextTime) {
+                    if (!an.alphaGesetzt) {
+                        an.alpha = vorderGesetzt[mi][i] ? vorder[mi][i].a : it.window.foreColor.a;
+                        an.alphaGesetzt = true;
+                    }
+                    an.nextTime = jetztMs + fadeCycle;
+                    if ((fl & WINDOW_FADINGOUT) != 0) {
+                        an.alpha -= fadeAmount;
+                        if (an.alpha <= 0.0F) { fl &= ~(WINDOW_FADINGOUT | WINDOW_VISIBLE); }
+                    } else {
+                        an.alpha += fadeAmount;
+                        if (an.alpha >= fadeClamp) {
+                            an.alpha = fadeClamp;
+                            fl &= ~WINDOW_FADINGIN;
+                        }
+                    }
+                    Farbe f = vorderGesetzt[mi][i] ? vorder[mi][i] : it.window.foreColor;
+                    f.a = an.alpha;
+                    vorder[mi][i] = f;
+                    vorderGesetzt[mi][i] = true;
+                    ++version;
+                }
+            }
+        }
+    }
+    return bilder;
 }
 
 }  // namespace bhed::menue

@@ -97,6 +97,10 @@ struct Zustand {
     std::vector<std::string> schriftNamenSp, schriftNamenMp;
     bool schriftNamenGeladen = false;
     FeederDaten feederSp, feederMp;   // M2: Listbox-Feeder aus den Spieldaten
+    // M2: fadeClamp/fadeAmount/fadeCycle aus assetGlobalDef je Dialekt (Menu_Init), Spieltakt
+    float fadeClamp[2] = {1.0F, 1.0F}, fadeAmount[2] = {0.0F, 0.0F};
+    int fadeCycle[2] = {0, 0};
+    int spielFps = 125;   // com_maxfps (OpenJK-Vorgabe)
     // Ansicht
     Seitenverhaeltnis seitenv = Seitenverhaeltnis::Strecken;
     int aufloesung = 0;   // 0 = Fenster, sonst Voreinstellung
@@ -236,6 +240,14 @@ void schriftNamenLaden() {
             o.dialekt = d;
             const Datei a = lies(p, t, o);
             if (a.assets.vorhanden) {
+                const int k = d == Dialekt::MP ? 1 : 0;
+                for (const Eigenschaft& e : a.assets.eigenschaften) {
+                    if (!e.ok || e.args.empty()) { continue; }
+                    const float v = static_cast<float>(std::atof(e.args[0].s.c_str()));
+                    if (e.schluessel == "fadeClamp") { z.fadeClamp[k] = v; }
+                    else if (e.schluessel == "fadeAmount") { z.fadeAmount[k] = v; }
+                    else if (e.schluessel == "fadeCycle") { z.fadeCycle[k] = static_cast<int>(v); }
+                }
                 return schriftNamen(a, d, z.spiel, [&](const std::string& n) { return z.daten.gibt("fonts/" + n + ".fontdat"); });
             }
         }
@@ -609,6 +621,15 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
             z.lauf.oeffne(d.datei.menus[static_cast<std::size_t>(mi)].window.name);
             z.laufDatei = z.aktiv;
             z.laufVersion = -1;
+        }
+        // M2: transition/orbit/fadein/fadeout im Takt der Engine (ein Item_Paint je Spielbild)
+        {
+            const int k = d.datei.dialekt == Dialekt::MP ? 1 : 0;
+            z.lauf.fadeClampStd = z.fadeClamp[k];
+            z.lauf.fadeAmountStd = z.fadeAmount[k];
+            z.lauf.fadeCycleStd = z.fadeCycle[k];
+            z.lauf.spielFps = z.spielFps;
+            (void)z.lauf.takt(static_cast<int>(ImGui::GetTime() * 1000.0));
         }
         if (z.laufVersion != z.lauf.version) {
             z.laufKopie = d.datei;
