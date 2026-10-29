@@ -497,8 +497,11 @@ std::vector<Treffer> Index::frage(const std::string& anfrage, std::size_t hoechs
         return x.wert != y.wert ? x.wert > y.wert : x.eintrag < y.eintrag;
     });
     std::set<std::string> gesehen;
+    std::map<std::string, int> jeTour;   // hoechstens zwei Schritte derselben Tour - Vielfalt
     for (const Treffer& t : alle) {
-        if (!gesehen.insert(schluessel(eintraege_[t.eintrag])).second) { continue; }
+        const Eintrag& e = eintraege_[t.eintrag];
+        if (e.art == Art::Tour && e.id.find('@') != std::string::npos && ++jeTour[e.tour] > 2) { continue; }   // die Tour selbst zaehlt nicht
+        if (!gesehen.insert(schluessel(e)).second) { continue; }
         aus.push_back(t);
         if (aus.size() >= hoechstens) { break; }
     }
@@ -583,7 +586,8 @@ Index baue(const tour::Touren& touren, const std::vector<tour::Abschnitt>& handb
             Eintrag s;
             s.art = Art::Tour;
             s.id = "tour:" + t.id + "@" + std::to_string(i);
-            s.titel = e.titel + " " + std::to_string(i + 1) + ": " + ohneMarken(schrittTitel(text));
+            // der fette Anfang aus dem ROHEN Text (klartext nimmt die ** weg)
+            s.titel = e.titel + " " + std::to_string(i + 1) + ": " + ohneMarken(klartext(schrittTitel((*ss)[i].text), sprache));
             s.text = ohneMarken(text);
             s.bereich = bereich;
             s.tour = t.id;

@@ -34,6 +34,16 @@ HELFER = {
               "**{{HlfGuide}}** 打开本手册中对应的页面。",
               "**{{HlfGuide}}** でこのガイドの該当ページを開きます。"),
         ]),
+        ("img", "h_helfer", T(
+            "The helper: a question in your own words, the best matches with \"Show me\".",
+            "Der Helfer: eine Frage in eigenen Worten, die besten Treffer mit „Zeig es mir“.",
+            "助手:用自己的话提问,最佳结果带有“演示给我看”。",
+            "ヘルパー:自分の言葉での質問と、「やって見せて」付きの最適な結果。")),
+        ("img", "h_helfer_zeig", T(
+            "Show me: the program darkens the screen and highlights the menu entry.",
+            "Zeig es mir: Das Programm dunkelt den Bildschirm ab und hebt den Menüpunkt hervor.",
+            "演示给我看:程序会调暗屏幕并高亮显示菜单项。",
+            "やって見せて:画面を暗くしてメニュー項目を強調表示します。"), "breit"),
         ("p", T(
             "The helper works without the internet. It knows every tutorial step, every page of this guide, every menu entry and every setting of the program - also of the map editor, with the names from NetRadiant.",
             "Der Helfer arbeitet ohne Internet. Er kennt jeden Schritt der Tutorials, jede Seite dieses Handbuchs, jeden Menüpunkt und jede Einstellung des Programms - auch des Karten-Editors, mit den Namen aus NetRadiant.",
@@ -92,6 +102,11 @@ HELFER = {
             "Claude kann mit den Befehlen des Programms auch etwas für dich tun, zum Beispiel einen Brush aushöhlen. Du siehst immer zuerst die Liste und entscheidest: **{{KiRun}}** oder **{{KiReject}}**. Ein Auftrag ist ein Rückgängig-Schritt - <kbd>Strg</kbd>+<kbd>Z</kbd> nimmt alles zurück.",
             "Claude 也可以用程序自身的命令替你做事,例如把画刷挖空。你总会先看到列表并自己决定:**{{KiRun}}** 或 **{{KiReject}}**。一次任务就是一个撤销步骤——<kbd>Ctrl</kbd>+<kbd>Z</kbd> 可全部撤销。",
             "Claude はプログラムのコマンドを使って代わりに作業することもできます。例えばブラシをくり抜くなど。必ず先に一覧が表示され、**{{KiRun}}** か **{{KiReject}}** を自分で決めます。1 つの依頼は 1 つの元に戻す手順で、<kbd>Ctrl</kbd>+<kbd>Z</kbd> ですべて戻せます。")),
+        ("img", "h_ki_frage", T(
+            "Before every change the AI asks: Run or Reject. Top right: AI connected, with Disconnect.",
+            "Vor jeder Änderung fragt die KI: Ausführen oder Ablehnen. Oben rechts: KI verbunden, mit Verbindung trennen.",
+            "每次更改前 AI 都会询问:执行或拒绝。右上角:AI 已连接,带有断开连接按钮。",
+            "変更のたびに AI が確認します:実行か拒否。右上:AI 接続中と「接続を切る」。")),
         ("h2", "mcp", T("Connect your own AI app (MCP)", "Eigene KI-App anschließen (MCP)", "连接你自己的 AI 应用(MCP)", "自分の AI アプリを接続(MCP)")),
         ("p", T(
             "MCP (Model Context Protocol) is a common way for AI apps to use programs. Claude Desktop, Claude Code, Cursor and VS Code can look at JK Studio, show you things and - after you confirm - run program commands.",
@@ -112,6 +127,11 @@ HELFER = {
               "把它粘贴到应用的配置中(Claude Desktop:claude_desktop_config.json,Cursor:.cursor/mcp.json,VS Code:.vscode/mcp.json;Claude Code:运行该命令),然后重启应用。",
               "アプリの設定に貼り付け(Claude Desktop:claude_desktop_config.json、Cursor:.cursor/mcp.json、VS Code:.vscode/mcp.json、Claude Code:コマンドを実行)、アプリを再起動します。"),
         ]),
+        ("img", "h_helfer_mcp", T(
+            "Connect your own AI app: ready setups to copy for Claude Desktop, Claude Code, Cursor and VS Code.",
+            "Eigene KI-App anschließen: fertige Einrichtungen zum Kopieren für Claude Desktop, Claude Code, Cursor und VS Code.",
+            "连接你自己的 AI 应用:可直接复制的 Claude Desktop、Claude Code、Cursor 和 VS Code 配置。",
+            "自分の AI アプリを接続:Claude Desktop・Claude Code・Cursor・VS Code 用のコピーできる設定。")),
         ("p", T(
             "If JK Studio is already running, you can instead tick **{{McpHttp}}**. Only programs on this PC can reach it, and only with the secret token from the copy button. **{{McpNewToken}}** makes a new token at any time.",
             "Läuft JK Studio schon, kannst du stattdessen **{{McpHttp}}** anhaken. Nur Programme auf diesem PC erreichen das, und nur mit dem geheimen Token aus dem Kopierknopf. **{{McpNewToken}}** erzeugt jederzeit ein neues Token.",

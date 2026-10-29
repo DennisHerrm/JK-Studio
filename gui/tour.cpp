@@ -884,7 +884,7 @@ void schrittZeichnen(float breite) {
             ansichtZurueck();   // rc601 tour (Review)
         }
         ImGui::SameLine();
-        if (ImGui::Button(tr(Str::TourGuide))) { handbuchOeffnen(t->seite.c_str()); }
+        if (!t->seite.empty() && ImGui::Button(tr(Str::TourGuide))) { handbuchOeffnen(t->seite.c_str()); }   // H1: "Zeig es mir" hat keine Seite
         ImGui::SameLine();
         if (ImGui::Button(tr(Str::TourClose))) { tourSchliessen(); }
         return;
@@ -956,7 +956,7 @@ void schrittZeichnen(float breite) {
         if (ImGui::Button(tr(Str::TourDoIt))) { aktionenAusfuehren(machEs); }
         knopfHinweis(Str::TourDoItHint);
     }
-    if (ImGui::Button(tr(Str::TourGuide))) { handbuchOeffnen(t->seite.c_str()); }
+    if (!t->seite.empty() && ImGui::Button(tr(Str::TourGuide))) { handbuchOeffnen(t->seite.c_str()); }   // H1: "Zeig es mir" hat keine Seite
     ImGui::SameLine();
     if (ImGui::Button(tr(Str::TourAllList))) {
         speichereStand();

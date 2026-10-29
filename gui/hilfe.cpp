@@ -101,7 +101,7 @@ bool zeige(const hilfe::Eintrag& e) {
     return false;
 }
 
-void trefferZeichnen(const hilfe::Index& ix, float breite) {
+void trefferZeichnen(const hilfe::Index& ix) {
     Zustand& s = z();
     const float fs = ImGui::GetFontSize();
     int nr = 0;
@@ -112,10 +112,10 @@ void trefferZeichnen(const hilfe::Index& ix, float breite) {
         const char* art = e.art == hilfe::Art::Tour ? tr(Str::HlfKindTour) : e.art == hilfe::Art::Seite ? tr(Str::HlfKindPage) : tr(Str::HlfKindPlace);
         ImGui::TextDisabled("%s", art);
         ImGui::SameLine();
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + breite);
+        ImGui::PushTextWrapPos(0.0F);   // am Fensterrand umbrechen
         ImGui::TextUnformatted(e.titel.c_str());
         ImGui::PopTextWrapPos();
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + breite);
+        ImGui::PushTextWrapPos(0.0F);   // am Fensterrand umbrechen
         if (e.art == hilfe::Art::Ort && !e.pfad.empty()) { ImGui::TextDisabled(tr(Str::HlfWhere), e.pfad.c_str()); }
         if (e.art == hilfe::Art::Tour && e.ab > 0) { ImGui::TextDisabled(tr(Str::HlfFromStep), e.ab + 1); }
         const std::string satz = ersterSatz(e.text);
@@ -165,7 +165,7 @@ void fensterZeichnen() {
         s.treffer = ix.frage(s.frage, 5);
     }
     if (s.frage[0] == '\0') {
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + breite);
+        ImGui::PushTextWrapPos(0.0F);   // am Fensterrand umbrechen
         ImGui::TextDisabled("%s", tr(Str::HlfMenuHint));
         ImGui::PopTextWrapPos();
         if (ImGui::Button(tr(Str::HlfAllTutorials))) { tourFensterOeffnen(); }
@@ -175,7 +175,7 @@ void fensterZeichnen() {
         ImGui::TextDisabled("%s", tr(Str::HlfNone));
         if (ImGui::Button(tr(Str::HlfGuide))) { handbuchOeffnen(); }
     } else {
-        trefferZeichnen(ix, breite);
+        trefferZeichnen(ix);
     }
     // Freiwillig: Claude fragen (ab Werk aus, gui/ki.cpp).
     ImGui::Separator();

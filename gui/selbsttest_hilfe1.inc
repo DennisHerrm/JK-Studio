@@ -313,6 +313,72 @@ std::vector<Schritt> kamera() {
     return s;
 }
 
+// Die Bilder der Handbuchseite "Der Helfer und die Touren" (BHED_EDITORTEST=handbuch,
+// BHED_HB_NUR=helfer, BHED_SPRACHE, BHED_FOTOS).
+std::vector<Schritt> handbuchFotos() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    static std::shared_ptr<McpRuf> ruf;
+    const auto frage = [] {
+        switch (i18n::currentLanguage()) {
+            case i18n::Language::German: return std::string("Licht setzen");
+            case i18n::Language::ChineseSimplified: return std::string("添加灯光");
+            case i18n::Language::Japanese: return std::string("ライトを置く");
+            default: return std::string("add a light");
+        }
+    };
+    add(tu("H1 Fotos: Modus Events, Helfer mit einer Frage", [frage] {
+        g_app->leftMode = 0;
+        hilfeOeffnen();
+        hilfeFrageSetzen(frage());
+    }));
+    add(pause(0.8));
+    add(hb::fotoTeil("h_helfer", [] { return hb::fensterRect("###hilfe"); }));
+    add(tu("H1 Fotos: Zeig es mir - Edit > Preferences", [] {
+        hilfeSchliessen();
+        (void)hilfeZeige("ort:menue:MenuEdit>AppPrefs");
+    }));
+    add(pause(1.6));
+    add(hb::fotoTeil("h_helfer_zeig", [] {
+        const ImVec2 d = ImGui::GetIO().DisplaySize;
+        return ImRect{0.0F, 0.0F, d.x, d.y};
+    }));
+    add(tu("H1 Fotos: Hervorhebung zu, KI-Abschnitte im Helfer", [] {
+        tourSchliessen();
+        hilfeOeffnen();
+        hilfeFrageSetzen("");
+    }));
+    add(pause(0.4));
+    add(klick(tr(Str::McpSection), "###hilfe"));
+    add(pause(0.6));
+    add(hb::fotoTeil("h_helfer_mcp", [] { return hb::fensterRect("###hilfe"); }));
+    add(klick(tr(Str::McpSection), "###hilfe"));
+    add(tu("H1 Fotos: lokale Verbindung, ein aendernder Auftrag", [] {
+        hilfeSchliessen();
+        g_app->settings.mcpHttp = true;
+    }));
+    add(warteBis("H1 Fotos: Server laeuft", [] { return kiSicht().httpLaeuft; }, 300));
+    add(tu("H1 Fotos: Auftrag schicken", [] {
+        ruf = mcpRuf(kiTestToken(),
+                     R"({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"run_commands","arguments":{"summary":"Insert two wait commands","commands":["script:befehl:wait","script:befehl:wait"]}}})");
+    }));
+    add(warteBis("H1 Fotos: Rueckfrage steht", [] { return finde(tr(Str::KiReject), "###kifrage", 0, false) != nullptr; }, 600));
+    add(pause(0.6));
+    add(hb::fotoTeil("h_ki_frage", [] {
+        ImRect r = hb::fensterRect("###kifrage");
+        const ImRect b = hb::fensterRect("###kiverbunden");
+        if (b.GetWidth() > 0.0F) {
+            r.Add(b);
+        }
+        return r;
+    }));
+    add(klick(tr(Str::KiReject), "###kifrage"));
+    add(warteBis("H1 Fotos: abgelehnt", [] { return ruf->fertig.load(); }, 600));
+    add(klick(tr(Str::KiDisconnect), ""));
+    add(pause(0.3));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     for (Schritt& x : helfer()) { s.push_back(std::move(x)); }

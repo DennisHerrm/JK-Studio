@@ -43,7 +43,7 @@ Der `lua_runner` von WhiteoutFlakes wurde bewusst **nicht** übernommen.
 | Token | 32 Byte BCryptGenRandom (64 Hex), DPAPI-Datei `mcp_token.bin`, „Neues Token“ macht das alte ungültig, nie im Protokoll | kitest `DPAPI, Token` |
 | API-Schlüssel | DPAPI-Datei `ki_schluessel.bin` (an Windows-Benutzer + Programm-Entropie gebunden), nur an `api.anthropic.com:443` über TLS (WinHTTP prüft das Zertifikat, keine Umleitungen), nie im Protokoll/Körper, Eingabefeld als Passwort | kitest (Schlüssel nur im Kopf, nie im Körper) |
 | Protokoll, keine Telemetrie | KI-Protokoll-Fenster (Zeit, Quelle, Werkzeug, Ergebnis); nichts wird sonst gesendet | Selbsttest `ki` |
-| Fuzzing | `tools/fuzzziel.cpp`: erstes Byte ≥ 0xF0 → MCP-Dispatcher, HTTP-Leser+Prüfung, Chat-Antwort; in kitest 4000 Zufallsmutationen | kitest |
+| Fuzzing | `tools/fuzzziel.cpp`: erstes Byte ≥ 0xF0 → MCP-Dispatcher, HTTP-Leser+Prüfung, Chat-Antwort; in kitest 4000 Zufallsmutationen | kitest; libFuzzer+ASan 10 min, 978 859 Läufe ohne Fund |
 | Handbuch „Ist das sicher?“ | `helfer.html#sicher` in 4 Sprachen, Knopf im Helfer | handbuch_sprachen |
 
 Offene Restrisiken: Ein Programm, das als derselbe Windows-Benutzer läuft, kann die DPAPI-Dateien
@@ -90,7 +90,8 @@ entschlüsseln (Grenze von DPAPI). Wer der KI „ohne Nachfrage“ erlaubt, läs
   Abschnitt, 72 Orte des Hauptprogramms (Menüs, Modusleiste, Einstellungen; erzeugt von
   `tools/gen_hilfe_orte.py`) + 211 Menüpunkte des Karten-Editors (aus der NRC-Tabelle), 48 häufige
   Ziele mit Wortlisten (JKHub-/NetRadiant-Begriffe) und 61 Begriffsgruppen über die 4 Sprachen.
-  BM25 (Titel ×3, Wörter ×2, Text ×1), Umlautfaltung, Stutzen, CJK-Einzel/Doppelzeichen, Teilwörter.
+  BM25 (Titel ×3, Wörter ×2, Text ×1), Umlautfaltung, Stutzen, CJK-Einzel/Doppelzeichen, Teilwörter;
+  höchstens zwei Schritte derselben Tour je Antwort (Vielfalt), die Tour selbst zählt extra.
 - **Trefferquote (hilfetest, Top 3): 99 Fragen, 99 = 100 %** (de 26, en 25, zh 24, ja 24).
   Ehrlich: 83 Fragen standen beim Schreiben der Wortlisten fest (100 %); die 16 frei formulierten
   („Mein Raum ist viel zu dunkel“, „部屋が暗すぎる“ …) trafen zuerst 13/16, nach dem Ergänzen
@@ -131,7 +132,9 @@ Neue Texte (Helfer, Erste Schritte, KI, MCP): `tools/i18n_hilfe1.py`.
 ### Punkt 5 – Handbuch
 Neue Seite `helfer` („Der Helfer und die Touren“, Gruppe Einstieg) in 4 Sprachen: Helfer, Touren,
 Erste Schritte, Claude fragen, MCP einrichten, **Ist das sicher?** Tutorials-Übersicht nennt
-tut-karte und F1. (Bilder für die neue Seite: offen, H2.)
+tut-karte, k-kamera-ansicht und F1. Vier Bilder je Sprache aus dem Selbsttest
+(`BHED_EDITORTEST=handbuch BHED_HB_NUR=helfer`): der Helfer mit Treffern, „Zeig es mir“ mit
+Hervorhebung, die Rückfrage „Die KI möchte …“ mit dem Symbol „KI verbunden“, der MCP-Abschnitt.
 
 ## 3b. Schlussrunde
 
@@ -143,6 +146,7 @@ tut-karte und F1. (Bilder für die neue Seite: offen, H2.)
 | Selbsttest `karteneditor` + `BHED_KARTE_NUR=hilfe1` | 56 OK, 0 FEHLER (Helfer, tut-karte mit echten Aktionen, KI über MCP-HTTP, k-kamera-ansicht) |
 | Selbsttest `kuerzel` (Tastentest, F1 = Helfer) | 199 OK, 0 FEHLER |
 | Selbsttest `1` | 2645 OK, 0 FEHLER |
+| libFuzzer + ASan (`tools/fuzzziel.cpp`, eigener Bauordner, erstes Byte ≥ 0xF0 = MCP-Dispatcher, HTTP-Leser+Prüfung, Chat-Antwort; 5 Startdateien) | 10 min, 978 859 Läufe, kein Absturz, kein ASan-Fund, 919 MB Spitze |
 
 ## 4. Offen / Ideen für H2
 - Weitere interaktive Touren (häufigste Ziele je Bereich): Kamerafahrt (k-kamera-ansicht),
@@ -152,16 +156,15 @@ tut-karte und F1. (Bilder für die neue Seite: offen, H2.)
   Lichtschwert (k-lichtschwert), Dialog (k-dialog), Zeitleiste (k-zeitleiste-plus), .pk3 einer
   Mission (k-pk3), Suchen/Ersetzen, Lesezeichen, Rückgängig-Liste.
 - Messwerte für Vorschau/Mission/Modell in `tour_messwerte.cpp` (vorschau.laeuft, mission.*, modell.*).
+- Rückfrage der KI: Befehle verständlich benennen („Skript: Befehl wait einfügen“ statt
+  `script:befehl:wait`).
 - Helfer: Kontext (aktueller Modus) in die Rangfolge; „Hast du gemeint …?“ bei 0 Treffern;
   Tastenkürzel als eigene Einträge; Treffer-Messung mit einer unabhängigen Frageliste.
 - KI: Streaming der Antwort, Verlauf (mehrere Fragen), Bilder im Chat, MCP-Ressourcen (Handbuch).
-- Bilder der neuen Handbuchseite über den Selbsttest.
 - Vorbedingungen verketten: eine Einstellung im Hauptprogramm, gesucht aus dem Karten-Editor,
   zeigt heute nur „gerade nicht zu sehen“ (Öffner ist das Hauptmenü, das dort fehlt).
 - Ortskatalog erweitern: Seiten der Einstellungen des Karten-Editors, Knöpfe der Leisten
   (Karte, Kamera, Zeitleiste, Modell, Mission) und Tastenkürzel als eigene Einträge.
-- Fuzz-Ziel `tools/fuzzziel.cpp` hat die drei KI-Leser; gebaut und gelaufen ist es in H1 nicht
-  (eigener Bauordner mit `/fsanitize=fuzzer`), dafür 4000 Mutationen im ctest `ki`.
 - Kamerazeile der Zeitleiste als Ziel (sie ist selbst gezeichnet; Rechteck merken).
 - Rest-Risiko Schlüssel im Speicher: die Kopfzeilen der Anfrage (std::string) werden nicht
   genullt; ein Absturzabbild während einer Chat-Anfrage könnte den Schlüssel enthalten.
