@@ -107,7 +107,7 @@ private:
 };
 
 enum class TiefenTest { Aus, Kleiner, KleinerGleich, Groesser };   // GL_LESS, GL_LEQUAL, GL_GREATER
-enum class Mischen { Aus, Alpha, Additiv };   // SRC_ALPHA/ONE_MINUS_SRC_ALPHA, ONE/ONE
+enum class Mischen { Aus, Alpha, Additiv, Spiel };   // SRC_ALPHA/ONE_MINUS_SRC_ALPHA, ONE/ONE; Spiel: mischQuelle/mischZiel (Stufe 9c)
 struct Zustand3 {
     const float* matrix = nullptr;      // projection * modelview (spaltenweise)
     float farbe[4]{1, 1, 1, 1};         // glColor (mal Eckenfarbe)
@@ -133,6 +133,11 @@ struct Zustand3 {
     float nebel[4]{0, 0, 0, 0};
     // Stufe 7: Echtzeit-Licht (lichtSetzen) statt des Lichts aus Blickrichtung
     bool echtLicht = false;
+    // Stufe 9c: blendFunc der ersten Stufe wie im Spiel (ShaderSkript: 1 ONE, 2 ZERO,
+    // 3 SRC_ALPHA, 4 ONE_MINUS_SRC_ALPHA, 5 DST_COLOR, 6 ONE_MINUS_DST_COLOR,
+    // 7 SRC_COLOR, 8 ONE_MINUS_SRC_COLOR, 9 DST_ALPHA, 10 ONE_MINUS_DST_ALPHA)
+    int mischQuelle = 0;
+    int mischZiel = 0;
 };
 // Punkte wie punkte(), aber mit Tiefentest gegen die Tiefe der Kamera (fuer
 // $DEEPPOINT: erst die verdeckten mit GL_GREATER, dann die sichtbaren).
@@ -162,34 +167,61 @@ void ohneMischen(void* dl);
 void bildFreigeben(void* bild);
 void aufraeumen();
 [[nodiscard]] unsigned geraetStand();
-// --- Stufe 7: Echtzeit-Licht (eigene Funktion, Vorschau) -------------------
+// --- Stufe 7/9c: Echtzeit-Licht (eigene Funktion, Vorschau) ----------------
 //
 // Die Grafikkarte rechnet das direkte Licht je Bildpunkt mit den Formeln von
-// q3map2 (bhed/karte/echtlicht.h); Schatten ueber Schattenwuerfel je Licht
-// (256 x 256 je Seite, Abstand zum Licht) und eine Schattenkarte der Sonne.
-inline constexpr int kLichtMax = 64;       // Lichter je Bild
-inline constexpr int kSchattenMax = 32;    // Schattenwuerfel
+// q3map2 (bhed/karte/echtlicht.h). Stufe 9c: bis kLichtMax Lichter je Bild in
+// einem Puffer, je Kachel (kKachel Bildpunkte) eine Bitmaske der Lichter, deren
+// Huelle die Kachel trifft; Flaechenlichter mit ihren Ecken (Formfaktor).
+// Schatten: Schattenwuerfel (zwei Groessen), die Sonne in zwei Kaskaden (ganze
+// Karte, um die Kamera) und die Sonnen von q3map_skyLight je eine Karte; der
+// Strahl zur Sonne endet am Himmel wie in q3map2 (Himmelstiefe S, darunter die
+// Verdecker O).
+inline constexpr int kLichtMax = 512;          // Lichter je Bild
+inline constexpr int kSchattenGross = 32;      // Schattenwuerfel 512 x 512 (die wichtigsten)
+inline constexpr int kSchattenKlein = 96;      // Schattenwuerfel 256 x 256
+inline constexpr int kSchattenMax = kSchattenGross + kSchattenKlein;
+inline constexpr int kHimmelSonnenMax = 16;    // Sonnen mit eigener Karte (1024 x 1024)
+inline constexpr int kKaskadeGroesse = 2048;   // Bildpunkte je Seite einer Sonnenkaskade
+inline constexpr int kKachel = 32;             // Bildpunkte je Kachel der Lichtliste
 struct LichtGpu {
     float pos[4];        // xyz Ursprung, w photons
     float farbe[4];      // rgb, a Art (0 Punkt, 1 Spot, 2 Sonne, 3 Flaeche)
     float richtung[4];   // xyz Spot-/Flaechennormale bzw. zur Sonne, w radiusByDist
     float werte[4];      // x linear, y Winkel, z fade, w Huelle
-    float mehr[4];       // x Schattenwuerfel (-1 keiner), y dessen Weite, z angleScale, w extraDist
+    float mehr[4];       // x Schatten: Wuerfel >= 0, Sonne: Himmelskarte >= 0 oder -3 Kaskaden; -1 ohne; y Weite; z angleScale; w extraDist
+    float flaeche[4];    // x add, y zweiseitig, z erste Ecke, w Eckenzahl (0: Naeherung ohne Ecken)
+    float zusatz[4];     // x 1 negativ, y Flaeche (Flaechenlicht), z Radius des Stuecks, w frei
 };
+// Ein Teil der Schattengeometrie (Punkt3-Ecken): art 0 deckende Dreiecke
+// (Strahlen aller Lichter), 1 nur Volumen (strukturelle deckende Pinsel, die
+// q3map2 als feste Blaetter sieht: Punkt- und Flaechenlichter), 2 Himmel (die
+// Himmelstiefe der Sonne), 3 alphashadow (mit Alpha-Test des Bilds).
 struct SchattenTeil {
     const Puffer3* puffer = nullptr;
     std::size_t erstes = 0;
     std::size_t anzahl = 0;
+    int art = 0;
+    void* bild = nullptr;        // art 3
+    float mn[3]{0, 0, 0};        // Grenzen (Ausschnitt je Licht)
+    float mx[3]{0, 0, 0};
 };
 [[nodiscard]] bool echtLichtVerfuegbar();
-// Lichter, Umgebung (rgb), Minimum (rgb), Faktor fuer negative Lichter in mehr.
-void lichtSetzen(const std::vector<LichtGpu>& lichter, const float* umgebung, const float* minimum);
-// Den Schattenwuerfel slot fuer ein Licht an pos (Weite = Huelle) aus den
-// Dreiecken der Teile rendern. Vor beginnen() der Kamera rufen.
+// Lichter, Ecken der Flaechenlichter (xyz je Ecke), die Kachelmasken (worte je
+// Kachel, kachelnX * kachelnY Kacheln), Umgebung und Minimum (rgb).
+void lichtSetzen(const std::vector<LichtGpu>& lichter, const std::vector<float>& ecken, const std::vector<std::uint32_t>& kacheln, int kachelnX,
+                 int kachelnY, int worte, const float* umgebung, const float* minimum);
+// Den Schattenwuerfel slot (< kSchattenGross: 512, sonst 256) fuer ein Licht an
+// pos (Weite = Huelle) aus den Teilen der Arten 0, 1, 3 rendern. Vor beginnen().
 bool schattenWuerfel(int slot, const float* pos, float weite, const std::vector<SchattenTeil>& teile);
-// Die Schattenkarte der Sonne (richtung zur Sonne) ueber den Kasten mitte +- halb.
-bool sonnenSchatten(const float* richtung, const float* mitte, float halb, const std::vector<SchattenTeil>& teile);
+// Eine Sonnenkaskade (0: ganze Karte, 1: um die Kamera): richtung zur Sonne,
+// Kasten um mitte mit halb (quer) und tiefe (laengs).
+bool sonnenKaskade(int stufe, const float* richtung, const float* mitte, float halb, float tiefe, const std::vector<SchattenTeil>& teile);
+// Die Karte einer Sonne aus q3map_skyLight (Schicht < kHimmelSonnenMax), ganze Karte.
+bool himmelsSonne(int schicht, const float* richtung, const float* mitte, float halb, float tiefe, const std::vector<SchattenTeil>& teile);
 void sonnenSchattenAus();
+// Gezeichnete Dreiecke aller Schattenkarten bisher (das Budget je Bild).
+[[nodiscard]] std::size_t schattenDreiecke();
 
 // Schnell-Backen (Stufe 7 Punkt 5b): die gebauten Flaechen einer .bsp mit ihren
 // echten Lightmaps. Ecke wie bhed::BspVertex (xyz, st, Lightmap-st, Normale, Farbe).
@@ -224,6 +256,8 @@ void gebackenZeichnen(const GebackenNetz& netz, std::uint32_t erster, std::uint3
 
 // Fuer den Selbsttest: ein Bildpunkt des aufgeloesten Renderziels.
 bool pixel(int kennung, int x, int y, unsigned char rgba[4]);
+// Stufe 9c: das ganze Bild (RGBA, Zeilen von oben) fuer die Lichtmessung.
+bool bildLesen(int kennung, std::vector<unsigned char>& rgba, int& breite, int& hoehe);
 // Fuer den Selbsttest: die Abtastungen (MSAA) des Renderziels, 0 ohne Ziel.
 [[nodiscard]] int abtastungen(int kennung);
 

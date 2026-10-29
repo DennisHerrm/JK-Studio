@@ -1564,25 +1564,28 @@ void zeichne(float hoehe) {
     const int hoeheL = static_cast<int>(std::floor(platz.y / g_s + 0.001F)) + mass::kMenueH;
     merkeFeld("Bereich", 0, 0, breite, hoeheL);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, 0.0F});
-    int y = mass::kMenueH;
-    if (e.hauptleiste) {
-        zeichneHauptleiste(y, breite);
-        y += mass::leisteH();
-    }
+    const int oben = mass::kMenueH;
     const int statusY = hoeheL - mass::kStatusH;
-    const int mitteH = std::max(0, statusY - y);
-    // Filterleiste rechts angedockt (Qt::RightToolBarArea), daneben die Mitte.
-    const int filterB = (e.filterleiste || e.pluginleiste) ? mass::leisteH() : 0;
-    const int mitteB = std::max(0, breite - filterB);
+    // Stufe 9c: die Leisten an ihren Raendern (Qt-Toolbar-Bereiche, verschiebbar), die
+    // Mitte (m_hSplit) dazwischen.
+    std::vector<karte::LeistenPlatz> plaetze(e.leistenPlaetze.begin(), e.leistenPlaetze.end());
+    const bool sichtbar[3] = {e.hauptleiste, e.filterleiste, e.pluginleiste};
+    for (int i = 0; i < 3; ++i) {
+        plaetze[static_cast<std::size_t>(i)].sichtbar = sichtbar[i];
+        const std::pair<int, int> m = leistenMasse(i);
+        plaetze[static_cast<std::size_t>(i)].minimum = m.first;
+        plaetze[static_cast<std::size_t>(i)].hinweis = m.second;
+    }
+    const karte::LeistenAnordnung an = karte::leistenAndocken(plaetze, 0, oben, breite, std::max(0, statusY - oben), mass::leisteH());
     // Lage der Maus ueber m_hSplit (fuer MaximizeView).
     const ImVec2 maus = ImGui::GetIO().MousePos;
-    e.mausX = static_cast<int>(std::floor((maus.x - bildpunkt(0, y).x) / g_s));
-    e.mausY = static_cast<int>(std::floor((maus.y - bildpunkt(0, y).y) / g_s));
+    e.mausX = static_cast<int>(std::floor((maus.x - bildpunkt(an.x, an.y).x) / g_s));
+    e.mausY = static_cast<int>(std::floor((maus.y - bildpunkt(an.x, an.y).y) / g_s));
     spiegelTick();   // Stufe 8b Punkt 6: live beim Ziehen, vor dem Zeichnen
     const auto ansichtenStart = std::chrono::steady_clock::now();
-    anordnungZeichnen(0, y, mitteB, mitteH);
+    anordnungZeichnen(an.x, an.y, an.b, an.h);
     e.ansichtenMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ansichtenStart).count();
-    zeichneRechteLeisten(mitteB, y, mitteH);
+    zeichneLeisten(an, 0, oben, breite, std::max(0, statusY - oben));
     zeichneStatuszeile(statusY, breite);
     ImGui::PopStyleVar();
     ImGui::EndChild();

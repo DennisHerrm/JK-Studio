@@ -11,6 +11,7 @@
 #include "bhed/karte/teiler.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstdint>
 
 namespace bhed::karte {
@@ -348,6 +349,93 @@ std::vector<Spanne> leistenZeile(const std::vector<std::pair<int, int>>& minHinw
         pos += v[i].groesse;
     }
     return v;
+}
+
+LeistenAnordnung leistenAndocken(const std::vector<LeistenPlatz>& leisten, int x, int y, int b, int h, int dicke) {
+    LeistenAnordnung r;
+    r.leisten.resize(leisten.size());
+    std::vector<std::size_t> rand[4];
+    for (std::size_t i = 0; i < leisten.size(); ++i) {
+        if (leisten[i].sichtbar) { rand[static_cast<int>(leisten[i].rand)].push_back(i); }
+    }
+    for (auto& v : rand) {
+        std::stable_sort(v.begin(), v.end(), [&leisten](std::size_t a, std::size_t c) { return leisten[a].reihenfolge < leisten[c].reihenfolge; });
+    }
+    const int oben = rand[0].empty() ? 0 : dicke;
+    const int unten = rand[3].empty() ? 0 : dicke;
+    const int links = rand[1].empty() ? 0 : dicke;
+    const int rechts = rand[2].empty() ? 0 : dicke;
+    const int mitteH = std::max(0, h - oben - unten);
+    const auto zeile = [&](const std::vector<std::size_t>& v, bool waagerecht, int px, int py, int laenge) {
+        std::vector<std::pair<int, int>> masse;
+        for (const std::size_t i : v) { masse.emplace_back(leisten[i].minimum, leisten[i].hinweis); }
+        const std::vector<Spanne> s = leistenZeile(masse, laenge);
+        for (std::size_t k = 0; k < v.size(); ++k) {
+            LeistenRahmen& lr = r.leisten[v[k]];
+            lr.da = true;
+            lr.waagerecht = waagerecht;
+            lr.x = waagerecht ? px + s[k].pos : px;
+            lr.y = waagerecht ? py : py + s[k].pos;
+            lr.b = waagerecht ? s[k].groesse : dicke;
+            lr.h = waagerecht ? dicke : s[k].groesse;
+        }
+    };
+    zeile(rand[0], true, x, y, b);
+    zeile(rand[3], true, x, y + h - unten, b);
+    zeile(rand[1], false, x, y + oben, mitteH);
+    zeile(rand[2], false, x + b - rechts, y + oben, mitteH);
+    r.x = x + links;
+    r.y = y + oben;
+    r.b = std::max(0, b - links - rechts);
+    r.h = mitteH;
+    return r;
+}
+
+namespace {
+const char* const kRandNamen[4] = {"oben", "links", "rechts", "unten"};
+}
+
+std::string leistenText(const std::vector<std::pair<std::string, LeistenPlatz>>& l) {
+    std::string s;
+    for (const auto& [name, p] : l) {
+        if (!s.empty()) { s += ';'; }
+        s += name + "=" + kRandNamen[static_cast<int>(p.rand)] + ":" + std::to_string(p.reihenfolge);
+    }
+    return s;
+}
+
+bool leistenLesen(const std::string& text, std::vector<std::pair<std::string, LeistenPlatz>>& l) {
+    bool alle = true;
+    std::size_t a = 0;
+    while (a <= text.size()) {
+        std::size_t e = text.find(';', a);
+        if (e == std::string::npos) { e = text.size(); }
+        const std::string teil = text.substr(a, e - a);
+        a = e + 1;
+        if (teil.empty()) { continue; }
+        const std::size_t gleich = teil.find('=');
+        const std::size_t punkt = teil.find(':');
+        if (gleich == std::string::npos || punkt == std::string::npos || punkt < gleich) {
+            alle = false;
+            continue;
+        }
+        const std::string name = teil.substr(0, gleich);
+        const std::string rn = teil.substr(gleich + 1, punkt - gleich - 1);
+        int rand = -1;
+        for (int i = 0; i < 4; ++i) {
+            if (rn == kRandNamen[i]) { rand = i; }
+        }
+        bool gefunden = false;
+        for (auto& [n, p] : l) {
+            if (n == name && rand >= 0) {
+                p.rand = static_cast<LeistenRand>(rand);
+                p.reihenfolge = std::atoi(teil.c_str() + punkt + 1);
+                gefunden = true;
+            }
+        }
+        alle = alle && gefunden;
+    }
+    return alle;
 }
 
 // --- QSplitter ---------------------------------------------------------------

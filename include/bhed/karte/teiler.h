@@ -38,6 +38,7 @@
 #define BHED_KARTE_TEILER_H
 
 #include <utility>
+#include <string>
 #include <vector>
 
 namespace bhed::karte {
@@ -109,6 +110,39 @@ struct LeistenErgebnis {
 // hinweis}; die Mindestgroessen zuerst, der Rest der Reihe nach bis zum
 // Hinweis, die letzte reicht bis zum Ende.
 [[nodiscard]] std::vector<Spanne> leistenZeile(const std::vector<std::pair<int, int>>& minHinweis, int laenge);
+
+// Stufe 9c: die Werkzeugleisten an den vier Raendern wie QMainWindows
+// Toolbar-Bereiche (Qt::Top/Left/Right/BottomToolBarArea): oben und unten ueber
+// die ganze Breite, links und rechts dazwischen; die Leisten eines Rands teilen
+// sich eine Zeile (fitLayout, leistenZeile) in ihrer Reihenfolge. Was bleibt, ist
+// die Mitte (die Ansichten mit ihren Teilern).
+enum class LeistenRand { Oben = 0, Links = 1, Rechts = 2, Unten = 3 };
+struct LeistenPlatz {
+    LeistenRand rand = LeistenRand::Oben;
+    int reihenfolge = 0;
+    bool sichtbar = true;
+    int minimum = 0;   // minimumSize entlang der Leiste
+    int hinweis = 0;   // sizeHint entlang der Leiste
+};
+struct LeistenRahmen {
+    bool da = false;
+    bool waagerecht = true;
+    int x = 0;
+    int y = 0;
+    int b = 0;
+    int h = 0;
+};
+struct LeistenAnordnung {
+    std::vector<LeistenRahmen> leisten;   // je LeistenPlatz
+    int x = 0;                            // die Mitte
+    int y = 0;
+    int b = 0;
+    int h = 0;
+};
+[[nodiscard]] LeistenAnordnung leistenAndocken(const std::vector<LeistenPlatz>& leisten, int x, int y, int b, int h, int dicke);
+// "haupt=oben:0;filter=rechts:0;plugin=rechts:1" (Einstellung BhedToolbarDock)
+[[nodiscard]] std::string leistenText(const std::vector<std::pair<std::string, LeistenPlatz>>& l);
+bool leistenLesen(const std::string& text, std::vector<std::pair<std::string, LeistenPlatz>>& l);
 
 // Ein QSplitter mit seinen Kindern, in logischen Qt-Bildpunkten.
 class Teiler {

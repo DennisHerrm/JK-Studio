@@ -257,6 +257,43 @@ struct ShaderSkript {
     double sonneHoehe = 0;
     bool lichtFarbe = false;
     double lichtRGB[3] = {1, 1, 1};
+    // Stufe 9c (Echtzeit-Licht wie im Spiel): alle Sonnen ("sun" wie SOF2, q3map_sun,
+    // q3map_sunExt), q3map_skyLight <Wert> <Schritte> [hMin hMax Farbe],
+    // q3map_lightSubdivide, q3map_lightImage, die surfaceparms, die q3map2 fuer die
+    // Schatten braucht (games.cpp game_sof2: trans, alphashadow, lightfilter, nodraw,
+    // fog, ...), cull, autosprite und die erste Stufe (alphaFunc, blendFunc) fuer die
+    // Darstellung wie im Spiel.
+    struct Sonne {
+        double farbe[3] = {1, 1, 1};
+        double staerke = 0;
+        double grad = 0;
+        double hoehe = 0;
+    };
+    std::vector<Sonne> sonnen;
+    struct Himmelslicht {
+        double wert = 0;
+        int schritte = 2;
+        int horizontMin = 0;
+        int horizontMax = 90;
+        bool farbeAusHimmel = true;   // sample_color
+    };
+    std::vector<Himmelslicht> himmelsLichter;
+    std::string himmelsBild;        // skyParms <farbox> (si.skyParmsImageBase)
+    double lichtUnterteilung = 0;   // q3map_lightSubdivide
+    std::string lichtBild;          // q3map_lightImage
+    bool durchscheinend = false;    // C_TRANSLUCENT
+    bool alphaSchatten = false;     // C_ALPHASHADOW
+    bool lichtFilter = false;       // C_LIGHTFILTER
+    bool nichtZeichnen = false;     // C_NODRAW (surfaceparm nodraw)
+    bool nebel = false;             // C_FOG
+    bool zweiseitig = false;        // cull none / twosided / disable (si.twoSided)
+    bool autosprite = false;        // deformVertexes autosprite / autosprite2
+    // erste Stufe (wie das Spiel sie zeichnet)
+    int stufeAlpha = 0;             // alphaFunc: 0 keine, 1 GT0, 2 LT128, 3 GE128
+    int mischQuelle = 0;            // blendFunc: 0 keine; sonst GL_-Faktoren (1 ONE, 2 ZERO, 3 SRC_ALPHA, 4 ONE_MINUS_SRC_ALPHA, 5 DST_COLOR, 6 ONE_MINUS_DST_COLOR, 7 SRC_COLOR, 8 ONE_MINUS_SRC_COLOR, 9 DST_ALPHA, 10 ONE_MINUS_DST_ALPHA)
+    int mischZiel = 0;
+    bool stufeGefunden = false;
+    std::string stufeBild;          // map / clampMap / animMap (erstes Bild) der ersten Stufe, ohne Endung
     // Fund md_rev_TarisUpper2: Glas ohne "surfaceparm trans" (nur blendFunc) galt als deckend. Die erste
     // Stufe mischt (blendFunc ausser GL_ONE GL_ZERO) oder hat alphaFunc: man sieht hindurch.
     bool durchsichtig = false;

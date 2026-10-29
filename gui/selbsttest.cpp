@@ -65,6 +65,7 @@
 #include "bhed/karte/region.h"
 #include "bhed/karte/filter.h"
 #include "bhed/karte/kartenformat.h"
+#include "bhed/karte/lichtschaetzung.h"   // Stufe 9c: Lichtmessung auf dekompilierten Karten
 
 #include <algorithm>
 #include <array>

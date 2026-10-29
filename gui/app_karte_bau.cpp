@@ -293,6 +293,17 @@ void bauMenueEintraegeZeichnen() {
     b.haken = ed.echtLicht.backen;
     b.tooltip = trK(Str::KeBackenMenueTip);
     if (qtPunkt(b)) { ed.echtLicht.backen = !ed.echtLicht.backen; }
+    // Stufe 9c: Patches werfen Schatten (q3map2 -patchshadows) - Vorschau und Schnell-Backen
+    const std::string ps = std::string(trK(Str::KePatchSchatten)) + "##baupatchschatten";
+    QtPunkt psp;
+    psp.id = ps.c_str();
+    psp.art = QtArt::Pruefbar;
+    psp.haken = ed.echtLicht.patchSchatten;
+    psp.tooltip = trK(Str::KePatchSchattenTip);
+    if (qtPunkt(psp)) {
+        ed.echtLicht.patchSchatten = !ed.echtLicht.patchSchatten;
+        einstellungenSpeichern();
+    }
     // Stufe 8a Punkt 2 (Abweichung, eigene Funktion): Editor-Daten behalten
     const std::string edDaten = std::string(trK(Str::KeEdMenue)) + "##baueditordaten";
     QtPunkt ed2;

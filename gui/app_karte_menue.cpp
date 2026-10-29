@@ -1112,7 +1112,9 @@ void erweiterung(const char* id, const std::vector<const Knopf*>& verdeckt, int 
 }
 
 // Eine QToolBar an (x, y) mit der Laenge laenge entlang ihrer Richtung.
-void leisteZeichnen(const char* id, const std::vector<Knopf>& liste, bool waagerecht, int x, int y, int laenge) {
+// Stufe 9c: links = an den linken Rand angedockt (Rahmenlinie rechts); nummer >= 0:
+// der Griff verschiebt die Leiste (QToolBar::setMovable, wie in NRC).
+void leisteZeichnen(const char* id, const std::vector<Knopf>& liste, bool waagerecht, int x, int y, int laenge, bool links = false, int nummer = -1) {
     const std::vector<const Knopf*> k = erzeugteKnoepfe(liste);
     const std::vector<karte::LeistenEintrag> ein = leistenEintraege(k);
     const karte::LeistenErgebnis r = karte::leisteAnordnen(ein, laenge);
@@ -1127,6 +1129,8 @@ void leisteZeichnen(const char* id, const std::vector<Knopf>& liste, bool waager
     if (waagerecht) {   // QToolBar:horizontal: border-top/bottom-color
         dl->AddRectFilled(a, ImVec2{c.x, bildpunkt(0, y + mass::kLeisteRand).y}, linie);
         dl->AddRectFilled(ImVec2{a.x, bildpunkt(0, y + h - mass::kLeisteRand).y}, c, linie);
+    } else if (links) {   // QToolBar:left: border-right-color
+        dl->AddRectFilled(ImVec2{bildpunkt(x + b - mass::kLeisteRand, 0).x, a.y}, c, linie);
     } else {   // QToolBar:right: border-left-color
         dl->AddRectFilled(a, ImVec2{bildpunkt(x + mass::kLeisteRand, 0).x, c.y}, linie);
     }
@@ -1135,6 +1139,19 @@ void leisteZeichnen(const char* id, const std::vector<Knopf>& liste, bool waager
         griff(dl, x + innen, y + innen, mass::kLeisteGriff, mass::knopf(), true);
     } else {
         griff(dl, x + innen, y + innen, mass::knopf(), mass::kLeisteGriff, false);
+    }
+    if (nummer >= 0) {
+        // Stufe 9c: der Griff (QToolBarHandle) - ziehen verschiebt die Leiste an einen anderen Rand
+        const ImVec2 g0 = bildpunkt(x + innen, y + innen);
+        const ImVec2 g1 = waagerecht ? bildpunkt(x + innen + mass::kLeisteGriff, y + innen + mass::knopf())
+                                     : bildpunkt(x + innen + mass::knopf(), y + innen + mass::kLeisteGriff);
+        merkeFeld(std::string("Griff:") + id, x + innen, y + innen, waagerecht ? mass::kLeisteGriff : mass::knopf(),
+                  waagerecht ? mass::knopf() : mass::kLeisteGriff);
+        if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) && ImGui::IsMouseHoveringRect(g0, g1)) {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+            if (e().leisteZiehen < 0) { ImGui::SetTooltip("%s", trK(Str::KeLeisteGriffTipp)); }
+            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) { e().leisteZiehen = nummer; }
+        }
     }
     for (std::size_t i = 0; i < k.size(); ++i) {
         if (r.lage[i] < 0 || k[i]->trenner) { continue; }
@@ -1165,7 +1182,77 @@ std::pair<int, int> leistenMass(const std::vector<Knopf>& liste) {
     return {r.minimum, r.hinweis};
 }
 
+const std::vector<Knopf>& leistenListe(int i) {
+    return i == 0 ? befehle::werkzeugleiste() : i == 1 ? befehle::filterleiste() : befehle::pluginleiste();
+}
+
 }  // namespace
+
+std::pair<int, int> leistenMasse(int i) { return leistenMass(leistenListe(i)); }
+
+// Stufe 9c: alle drei Leisten an ihren Raendern; der gezogene Griff zeigt das Ziel
+// (der naechste Rand des Bereichs) und legt die Leiste beim Loslassen dort ab - in
+// der Reihenfolge nach der Mauslage entlang des Rands (QMainWindowLayout::hover/drop).
+void zeichneLeisten(const karte::LeistenAnordnung& an, int bereichX, int bereichY, int bereichB, int bereichH) {
+    Editor& ed = e();
+    g_rechtsklickBehandelt = false;
+    static const char* const ids[3] = {"haupt", "filter", "plugin"};
+    for (int i = 0; i < 3; ++i) {
+        const karte::LeistenRahmen& r = an.leisten[static_cast<std::size_t>(i)];
+        if (!r.da) { continue; }
+        const bool links = ed.leistenPlaetze[static_cast<std::size_t>(i)].rand == karte::LeistenRand::Links;
+        if (i == 0) { merkeFeld("Werkzeugleiste", r.x, r.y, r.b, r.h); }
+        if (i == 1) {
+            merkeFeld("Filterleiste", r.x, r.y, r.b, r.h);
+            static bool drin = false;   // QEvent::Enter der Filterleiste: m_recentFunc = nullptr
+            const bool jetzt = ImGui::IsMouseHoveringRect(bildpunkt(r.x, r.y), bildpunkt(r.x + r.b, r.y + r.h));
+            if (jetzt && !drin) { filterleisteBetreten(); }
+            drin = jetzt;
+        }
+        leisteZeichnen(ids[i], leistenListe(i), r.waagerecht, r.x, r.y, r.waagerecht ? r.b : r.h, links, i);
+    }
+    leistenMenue();
+    if (ed.leisteZiehen < 0 || ed.leisteZiehen > 2) { return; }
+    // Ziel: der naechste Rand
+    const ImVec2 null = bildpunkt(0, 0);
+    const float s = massstab();
+    const ImVec2 m = ImGui::GetIO().MousePos;
+    const float lx = (m.x - null.x) / s;
+    const float ly = (m.y - null.y) / s;
+    const float abst[4] = {ly - static_cast<float>(bereichY), lx - static_cast<float>(bereichX), static_cast<float>(bereichX + bereichB) - lx,
+                           static_cast<float>(bereichY + bereichH) - ly};
+    int ziel = 0;
+    for (int k = 1; k < 4; ++k) {
+        if (abst[k] < abst[ziel]) { ziel = k; }
+    }
+    const int d = mass::leisteH();
+    const bool waag = ziel == 0 || ziel == 3;
+    const int zx = ziel == 2 ? bereichX + bereichB - d : bereichX;
+    const int zy = ziel == 3 ? bereichY + bereichH - d : bereichY;
+    ImDrawList* fg = ImGui::GetForegroundDrawList();
+    fg->AddRect(bildpunkt(zx, zy), bildpunkt(zx + (waag ? bereichB : d), zy + (waag ? d : bereichH)), stil(ImGuiCol_DragDropTarget), 0.0F, 0,
+                std::max(2.0F, s * 2.0F));
+    if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) { return; }
+    // ablegen: die Reihenfolge nach der Mauslage entlang des Rands
+    const int n = ed.leisteZiehen;
+    ed.leisteZiehen = -1;
+    const karte::LeistenRand rand = static_cast<karte::LeistenRand>(ziel);
+    std::vector<std::pair<float, int>> reihe;
+    for (int i = 0; i < 3; ++i) {
+        if (i == n || ed.leistenPlaetze[static_cast<std::size_t>(i)].rand != rand) { continue; }
+        const karte::LeistenRahmen& r = an.leisten[static_cast<std::size_t>(i)];
+        const float mitte = waag ? static_cast<float>(r.x) + static_cast<float>(r.b) * 0.5F : static_cast<float>(r.y) + static_cast<float>(r.h) * 0.5F;
+        reihe.emplace_back(r.da ? mitte : -1.0F, i);
+    }
+    reihe.emplace_back(waag ? lx : ly, n);
+    std::stable_sort(reihe.begin(), reihe.end());
+    for (std::size_t k = 0; k < reihe.size(); ++k) {
+        karte::LeistenPlatz& p = ed.leistenPlaetze[static_cast<std::size_t>(reihe[k].second)];
+        p.rand = rand;
+        p.reihenfolge = static_cast<int>(k);
+    }
+    einstellungenSpeichern();
+}
 
 // Obere Zeile (Qt::TopToolBarArea): nur die Hauptleiste, sie reicht bis zum
 // Ende (fitLayout: die letzte Leiste einer Zeile).
@@ -1583,6 +1670,15 @@ void einstellungenLaden() {
     c.zeigeStatistik = zahl("ShowStats", 0) != 0.0F;
     c.zeigeWorkzone = zahl("ShowWorkzone3d", 1) != 0.0F;
     c.zeigeGroesse = zahl("ShowSize3d", 1) != 0.0F;
+    // Stufe 9c: Rand und Reihenfolge der Leisten
+    {
+        std::vector<std::pair<std::string, karte::LeistenPlatz>> l = {
+            {"haupt", {karte::LeistenRand::Oben, 0, true, 0, 0}}, {"filter", {karte::LeistenRand::Rechts, 0, true, 0, 0}}, {"plugin", {karte::LeistenRand::Rechts, 1, true, 0, 0}}};
+        const auto d = k.find("BhedToolbarDock");
+        if (d != k.end()) { (void)karte::leistenLesen(d->second, l); }
+        for (std::size_t i = 0; i < 3; ++i) { ed.leistenPlaetze[i] = l[i].second; }
+        ed.echtLicht.patchSchatten = zahl("BhedPatchShadows", 0) != 0.0F;
+    }
     // ToolbarHiddenButtons: "%Name%%Name%..." (gtkmisc.cpp:147)
     ed.versteckteKnoepfe.clear();
     const auto it = k.find("ToolbarHiddenButtons");
@@ -1793,6 +1889,8 @@ void einstellungenSpeichern() {
     std::string versteckt;
     for (const std::string& n : ed.versteckteKnoepfe) { versteckt += "%" + n + "%"; }
     k["ToolbarHiddenButtons"] = versteckt;
+    k["BhedToolbarDock"] = karte::leistenText({{"haupt", ed.leistenPlaetze[0]}, {"filter", ed.leistenPlaetze[1]}, {"plugin", ed.leistenPlaetze[2]}});
+    k["BhedPatchShadows"] = ed.echtLicht.patchSchatten ? "1" : "0";
     g_app->settings.karteTasten.clear();
     for (const auto& [name, taste] : ed.belegung.abweichende()) { g_app->settings.karteTasten[name] = taste; }
 }

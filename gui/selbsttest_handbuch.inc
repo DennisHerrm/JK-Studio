@@ -299,6 +299,12 @@ std::vector<Schritt> schritte();   // selbsttest_karte8g.inc: Build > GPU bake (
 namespace stufe9 {
 std::vector<Schritt> schritte();   // selbsttest_karte9.inc: Stufe 9 (nach dem GPU-Backen)
 }  // namespace stufe9
+namespace stufe9c {
+std::vector<Schritt> schritte();   // selbsttest_karte9c.inc: Stufe 9c (Werkzeugleisten, Echtzeit-Licht)
+std::vector<Schritt> messung();    // selbsttest_karte9c.inc: Lichtmessung (BHED_KARTE_NUR=licht9c)
+std::vector<Schritt> leistenNeustart(int lauf);   // BHED_KARTE_NUR=leisten1 / leisten2 (echter Neustart)
+std::vector<Schritt> einrichten();   // in den Karten-Editor, Spieldaten bereit
+}  // namespace stufe9c
 namespace optsicher {
 std::vector<Schritt> schritte();   // selbsttest_optsicher.inc: Fix all safe aendert nichts Sichtbares
 }  // namespace optsicher
@@ -531,6 +537,25 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =stufe9c: Werkzeugleisten und Echtzeit-Licht der Stufe 9c
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe9c") == 0) {
+        for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
+        for (Schritt& x : stufe9c::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // =leisten1/leisten2: Leisten verschieben ueber einen echten Neustart (ein Einstellungsordner)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strncmp(nur, "leisten", 7) == 0 && (nur[7] == '1' || nur[7] == '2')) {
+        for (Schritt& x : stufe9c::leistenNeustart(nur[7] - '0')) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // =licht9c: die Lichtmessung der Stufe 9c (BHED_LICHT_KARTEN, BHED_LICHT_BILDZEIT)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "licht9c") == 0) {
+        for (Schritt& x : stufe9c::messung()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =stufe2: nur die Wirkungspruefungen der Stufe 2 (Bauwerkzeuge)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe2") == 0) {
         for (Schritt& x : karteneditorStufe2Schritte()) { add(std::move(x)); }
@@ -558,6 +583,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : stufe8c::schritte()) { add(std::move(x)); }   // Stufe 8c: Tutorial "Erste eigene Karte"
     for (Schritt& x : stufe8g::schritte()) { add(std::move(x)); }   // Stufe 8g: Build > GPU bake (nach dem Tutorial)
     for (Schritt& x : stufe9::schritte()) { add(std::move(x)); }    // Stufe 9: restliche Karten-Werkzeuge (nach 8g)
+    for (Schritt& x : stufe9c::schritte()) { add(std::move(x)); }   // Stufe 9c: Werkzeugleisten, Echtzeit-Licht wie im Spiel
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
@@ -836,6 +862,7 @@ void skriptNeu() {
 #include "selbsttest_hilfe1.inc"   // Stufe H1: Helfer, Touren, KI-Anbindung
 #include "selbsttest_karte8g.inc"
 #include "selbsttest_karte9.inc"
+#include "selbsttest_karte9c.inc"
 #include "selbsttest_optsicher.inc"
 
 // --- Stufe 3 Punkt 8: Bilder der Seite "Karte bauen" ------------------------------
@@ -1660,6 +1687,47 @@ std::vector<Schritt> karte7HandbuchSchritte() {
     return s;
 }
 
+// BHED_EDITORTEST=handbuch mit BHED_HB_NUR=karte9c: Stufe 9c - der Raum mit dem
+// Himmels-Brush im Echtzeit-Licht (Sonne durch den Himmel) und die verschobenen Leisten.
+std::vector<Schritt> karte9cHandbuchSchritte() {
+    namespace ke = karteneditor;
+    std::vector<Schritt> s = stufe9c::einrichten();
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto kamera = [] { return hb::fensterRect("##feldKamera"); };
+    const auto voll = [] { return ImRect{0.0F, 0.0F, ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y}; };
+    add(tu("Handbuch Stufe 9c: Raum mit Himmels-Brush, Echtzeit-Licht an", [] {
+        karteDialogeZu();
+        ke::setzeNrcBegriffe(false);
+        stufe9c::himmelKarteSchreiben();
+        (void)ke::karteOeffnen(stufe9c::himmelKarte());
+        ke::Editor& e = ke::editor();
+        e.kameraE.modus = karte::KameraModus::Textur;
+        e.echtLicht.an = true;
+        e.echtLicht.backen = false;
+        e.kamera.ursprung = karte::Vektor3f(-460.0F, -460.0F, 140.0F);
+        e.kamera.winkel = karte::Vektor3f(-14.0F, 45.0F, 0.0F);
+    }));
+    add(warteBis("Handbuch Stufe 9c: Texturen geladen", [] { return ke::kameraBilderFertig(); }, 6000));
+    add(pause(1.5));
+    add(hb::fotoTeil("h_karte9c_himmel", kamera));
+    add(tu("Handbuch Stufe 9c: Echtzeit-Licht aus, Hauptleiste links, Plugin-Leiste unten", [] {
+        ke::Editor& e = ke::editor();
+        e.echtLicht.an = false;
+        e.leistenPlaetze[0] = {karte::LeistenRand::Links, 0, true, 0, 0};
+        e.leistenPlaetze[2] = {karte::LeistenRand::Unten, 0, true, 0, 0};
+    }));
+    add(pause(0.6));
+    add(hb::fotoTeil("h_karte9c_leisten", voll));
+    add(tu("Handbuch Stufe 9c: Ende, Leisten wie NRC", [] {
+        stufe9c::leistenVorgabe();
+        ke::einstellungenSpeichern();
+        ke::neueKarte();
+        g_app->leftMode = 0;
+    }));
+    add(pause(0.3));
+    return s;
+}
+
 // BHED_EDITORTEST=handbuch mit BHED_HB_NUR=karte8: Stufe 8a - das Fortschrittsfenster
 // mit Restzeit, das Build-Menue mit den neuen Eintraegen, ein zurueckgewonnenes
 // misc_model, geschaetzte Lichter und "Zur fertigen Karte hinzufuegen".
@@ -2072,6 +2140,9 @@ std::vector<Schritt> handbuchSchritte() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte7") == 0) {
         return karte7HandbuchSchritte();
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte9c") == 0) {
+        return karte9cHandbuchSchritte();
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte8") == 0) {
         return karte8HandbuchSchritte();

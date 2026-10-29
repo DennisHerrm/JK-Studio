@@ -2211,6 +2211,8 @@ from i18n_hilfe1 import HILFE1  # noqa: E402  (Stufe H1: der Helfer, Touren, KI-
 S += HILFE1
 from i18n_menue1 import MENUE1  # noqa: E402  (Menue-Editor M1)
 S += MENUE1
+from i18n_karte9c import KARTE9C  # noqa: E402  (Stufe 9c: Werkzeugleisten, Echtzeit-Licht wie im Spiel)
+S += KARTE9C
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

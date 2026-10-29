@@ -159,9 +159,40 @@ void leisten() {
     pruefe(oben.size() == 1 && oben[0].groesse == 1280, "obere Zeile: die einzige Leiste reicht bis zum Ende");
 }
 
+// Stufe 9c: die Leisten an den Raendern (Vorgabe NRC: Hauptleiste oben, Filter- und
+// Plugin-Leiste rechts) und verschoben; Text der Einstellung hin und zurueck
+void andocken() {
+    std::vector<LeistenPlatz> l(3);
+    l[0] = {LeistenRand::Oben, 0, true, 300, 900};
+    l[1] = {LeistenRand::Rechts, 0, true, 200, 500};
+    l[2] = {LeistenRand::Rechts, 1, true, 50, 80};
+    LeistenAnordnung a = leistenAndocken(l, 0, 21, 1280, 700, 39);
+    pruefe(a.leisten[0].da && a.leisten[0].waagerecht && a.leisten[0].y == 21 && a.leisten[0].b == 1280, "Vorgabe: Hauptleiste oben ueber die ganze Breite");
+    pruefe(a.leisten[1].x == 1241 && a.leisten[1].y == 60 && !a.leisten[1].waagerecht && a.leisten[2].y == 60 + a.leisten[1].h, "Vorgabe: Filter- und Plugin-Leiste rechts untereinander");
+    pruefe(a.x == 0 && a.y == 60 && a.b == 1241 && a.h == 661, "Vorgabe: Mitte 1241 x 661 (ist " + std::to_string(a.b) + " x " + std::to_string(a.h) + ")");
+    l[0].rand = LeistenRand::Links;
+    l[2].rand = LeistenRand::Unten;
+    a = leistenAndocken(l, 0, 21, 1280, 700, 39);
+    pruefe(a.leisten[0].x == 0 && a.leisten[0].y == 21 && !a.leisten[0].waagerecht && a.leisten[0].h == 661, "Hauptleiste links, zwischen oben und unten");
+    pruefe(a.leisten[2].waagerecht && a.leisten[2].y == 21 + 700 - 39 && a.leisten[2].b == 1280, "Plugin-Leiste unten ueber die ganze Breite");
+    pruefe(a.x == 39 && a.y == 21 && a.b == 1280 - 78 && a.h == 700 - 39, "Mitte zwischen links, rechts und unten");
+    l[1].rand = LeistenRand::Links;
+    l[1].reihenfolge = -1;
+    a = leistenAndocken(l, 0, 21, 1280, 700, 39);
+    pruefe(a.leisten[1].y == 21 && a.leisten[0].y == 21 + a.leisten[1].h && a.b == 1241, "zwei Leisten links in ihrer Reihenfolge, rechts frei");
+    std::vector<std::pair<std::string, LeistenPlatz>> n = {{"haupt", l[0]}, {"filter", l[1]}, {"plugin", l[2]}};
+    const std::string s = leistenText(n);
+    std::vector<std::pair<std::string, LeistenPlatz>> m = {{"haupt", {}}, {"filter", {}}, {"plugin", {}}};
+    pruefe(s == "haupt=links:0;filter=links:-1;plugin=unten:1" && leistenLesen(s, m) && m[0].second.rand == LeistenRand::Links &&
+               m[1].second.reihenfolge == -1 && m[2].second.rand == LeistenRand::Unten,
+           "Einstellung BhedToolbarDock hin und zurueck (" + s + ")");
+    pruefe(!leistenLesen("haupt=mitte:0", m), "unbekannter Rand: nicht uebernommen");
+}
+
 }  // namespace
 
 int main() {
+    andocken();
     regular();
     split();
     ziehen();

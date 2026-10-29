@@ -2675,6 +2675,9 @@ enum class Str {
     MeGespeichert,
     MeNichtGespeichert,
     MeExportiert,
+    KeLeisteGriffTipp,
+    KePatchSchatten,
+    KePatchSchattenTip,
     Count,
 };
 

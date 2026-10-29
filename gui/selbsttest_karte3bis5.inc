@@ -5635,7 +5635,8 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         // + "Pack map as .pk3" 24 (Stufe 8c, Abweichung; kuerzer als 241)
         // + "GPU bake" 24 (Stufe 8g, Abweichung; kuerzer als 241)
         // Stufe 9 Punkt 1: dazu das Untermenue "Test in game" (eigene Funktion)
-        {"Build", {"Build"}, 241, 405 + 7 + 24 + 24 + 24 + 24 + 24 + 5 * 24 + 24 + 24 + 24},
+        // Stufe 9c: + "Patch shadows (-patchshadows)" 24 (pruefbar, der laengste Text: 241 -> 264)
+        {"Build", {"Build"}, 264, 405 + 7 + 24 + 24 + 24 + 24 + 24 + 5 * 24 + 24 + 24 + 24 + 24},
         {"Grid", {"Grid"}, 163, 346},
         // Misc und Help: NRC + die Programm-Eintraege (Stufe 3 Punkt 0b, Abweichung):
         // Misc + Trenner 7 + drei Untermenues je 24, Help + Manual und About BehavEd.
