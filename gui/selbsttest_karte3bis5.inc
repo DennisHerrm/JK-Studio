@@ -5636,7 +5636,8 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         // + "GPU bake" 24 (Stufe 8g, Abweichung; kuerzer als 241)
         // Stufe 9 Punkt 1: dazu das Untermenue "Test in game" (eigene Funktion)
         // Stufe 9c: + "Patch shadows (-patchshadows)" 24 (pruefbar, der laengste Text: 241 -> 264)
-        {"Build", {"Build"}, 264, 405 + 7 + 24 + 24 + 24 + 24 + 24 + 5 * 24 + 24 + 24 + 24 + 24},
+        // Stufe 9d: + "Real-time effects (fx_runner)" 24 (pruefbar)
+        {"Build", {"Build"}, 264, 405 + 7 + 24 + 24 + 24 + 24 + 24 + 5 * 24 + 24 + 24 + 24 + 24 + 24},
         {"Grid", {"Grid"}, 163, 346},
         // Misc und Help: NRC + die Programm-Eintraege (Stufe 3 Punkt 0b, Abweichung):
         // Misc + Trenner 7 + drei Untermenues je 24, Help + Manual und About BehavEd.
@@ -5647,7 +5648,8 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         {"Brush", {"Brush"}, 273, 350},
         {"Brush__CSG", {"Brush", "CSG"}, 288, 154},
         {"Brush__Clipper", {"Brush", "Clipper"}, 264, 82},
-        {"Curve", {"Curve"}, 277, 429},
+        // Stufe 9d: + "Bridge patch edges (not in NetRadiant-Custom)" 24 (Programm-Eintrag nach Thicken..., der laengste Text: 277 -> 390)
+        {"Curve", {"Curve"}, 390, 429 + 24},
         {"Curve__Insert_Delete", {"Curve", "Insert/Delete"}, 316, 223},
         {"Curve__Matrix", {"Curve", "Matrix"}, 255, 168},
         {"Curve__Texture", {"Curve", "Texture"}, 225, 106},

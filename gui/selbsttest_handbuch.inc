@@ -1766,6 +1766,7 @@ std::vector<Schritt> karte9dHandbuchSchritte() {
         e.echtLicht.backen = false;
         e.kamera.ursprung = karte::Vektor3f(-440.0F, -440.0F, 300.0F);
         e.kamera.winkel = karte::Vektor3f(-30.0F, 45.0F, 0.0F);
+        if (ImGuiWindow* w = karteFenster()) { setzeMaus(ImVec2{w->Pos.x + w->Size.x * 0.6F, w->Pos.y + w->Size.y - 4.0F}); }   // kein Tooltip im Bild
     }));
     add(warteBis("Handbuch Stufe 9d: Texturen geladen", [] { return ke::kameraBilderFertig(); }, 6000));
     add(pause(1.5));
