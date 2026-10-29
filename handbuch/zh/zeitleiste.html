@@ -44,7 +44,7 @@
 <p><strong><span class="ui">详细</span></strong>（或在时间轴上按 <kbd>Tab</kbd>）把摄像机分为移动、平移、缩放和淡入淡出，并把视野和淡入淡出画成线。两条命令之间它们是直线，因为游戏按线性插值——没有缓动曲线。如果一个摄像机运动在同类的上一个结束之前就开始，它会获得自己的轨道和红色提示 <strong><span class="ui">跳回</span></strong>：游戏只在运动结束时才采用位置和角度（cg_camera.cpp），所以新的运动从上一个开始的位置算起——摄像机会跳回。</p>
 <h2 id="erklaerung">这里发生了什么？<a class="anker" href="#erklaerung">#</a></h2>
 <figure class="bild breit"><a href="../bilder/zh/h_zl_erklaerung.webp" class="zoom"><img src="../bilder/zh/h_zl_erklaerung.webp" alt="被单击的块：侧栏用通俗的话解释它，并给出时间、命令和脚本行。" loading="lazy"></a><figcaption>被单击的块：侧栏用通俗的话解释它，并给出时间、命令和脚本行。</figcaption></figure>
-<p>单击任意块或标记：时间跳到那里，脚本中选中对应行，脚本栏下方的 <strong><span class="ui">这里发生了什么？</span></strong> 框用通俗的话说明它做什么——摄像机移向何处、用多久，谁说哪句话，wait 在等什么、谁发送该信号，哪个动画播放多久。<strong><span class="ui">打开脚本行</span></strong> 会在编辑器中打开该命令。来自其他脚本的命令会给出那个脚本；由模拟插入的命令没有对应行。</p>
+<p>单击任意块或标记：时间跳到那里，脚本中选中对应行，脚本栏下方的 <strong><span class="ui">这里发生了什么？</span></strong> 框用通俗的话说明它做什么——摄像机移向何处、用多久，谁说哪句话，wait 在等什么、谁发送该信号，哪个动画播放多久。<strong><span class="ui">打开脚本行</span></strong> 会在编辑器中打开该命令。来自其他脚本（run、use、spawnscript）的命令会给出那个脚本及其中的行——<strong><span class="ui">打开脚本行</span></strong> 会打开那个脚本并选中该行；由模拟插入的命令没有对应行。</p>
 <h2 id="filter">筛选与搜索<a class="anker" href="#filter">#</a></h2>
 <p><strong><span class="ui">仅活动</span></strong> 隐藏在可见范围内没有动作的角色。<strong><span class="ui">问题</span></strong> 只显示有提示的位置：会跳回的摄像机移动、预览尚未模拟的命令、切换地图。搜索框可按名称、标记、文件、字幕或命令筛选（例如 <code>luke</code>、<code>cam1b</code>、<code>SET_ANIM</code>）。</p>
 <figure class="bild"><a href="../bilder/zh/h_zl_probleme.webp" class="zoom"><img src="../bilder/zh/h_zl_probleme.webp" alt="问题：只保留有提示的行。" loading="lazy"></a><figcaption>问题：只保留有提示的行。</figcaption></figure>

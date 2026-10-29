@@ -315,6 +315,48 @@ int main() {
         pruefe(springt == 0 && s2.ueberlappungen == 0, "ein Schnitt mitten in einer Fahrt springt nicht zurueck");
     }
 
+    std::printf("Fremdes Skript\n");
+    {
+        // Zeitleiste 2 Punkt 3: ein Befehl aus einem Skript, das per run laeuft,
+        // traegt Skriptname und Zeile dort, der Text kommt aus jenem Skript.
+        Script haupt;
+        Script fremd;
+        std::vector<Diag> dg;
+        (void)readScript("camera ( ENABLE );\nrun ( \"mini/fremd\" );\nwait ( 2000 );\n", haupt, dg);
+        (void)readScript("wait ( 500 );\ncamera ( MOVE, < 200 0 100 >, 1000 );\n", fremd, dg);
+        const auto finde = [&fremd](const std::string& n) -> const Script* { return n == "mini/fremd" ? &fremd : nullptr; };
+        AblaufWelt w3;
+        w3.skript = finde;
+        const Ablauf a3 = simuliereAblauf(haupt, "", w3);
+        CameraTrack k3 = buildCameraTrack(a3.flach);
+        const Timeline t3 = buildTimeline(a3.flach, db);
+        const Scene sz3 = buildScene(a3.flach, MapData{});
+        for (CamSegment& sg : k3.segments) {   // wie pfadeAufsSkript in der Oberflaeche
+            const AblaufHerkunft* h = a3.woher(sg.path);
+            if (h != nullptr && h->skript > 0) {
+                sg.fremd = a3.skripte[static_cast<std::size_t>(h->skript)];
+                sg.fremdPfad = h->path;
+                sg.path.clear();
+            }
+        }
+        spuren::SpurenQuellen q3;
+        q3.zeitleiste = &t3;
+        q3.kamera = &k3;
+        q3.szene = &sz3;
+        q3.ablauf = &a3;
+        q3.skript = &haupt;
+        q3.fremdesSkript = finde;
+        const spuren::Spuren s3 = spuren::baue(q3);
+        bool gefunden = false;
+        for (const spuren::Clip& c : s3.fahrt.clips) {
+            std::printf("  fahrt %.0f-%.0f fremd \"%s\" Pfadlaenge %zu Befehl \"%s\"\n", c.startMs, c.endMs, c.fremd.c_str(), c.fremdPfad.size(),
+                        c.befehl.c_str());
+            gefunden = gefunden || (c.fremd == "mini/fremd" && c.fremdPfad == Path{1} && c.pfad.empty() && !c.verschiebbar &&
+                                    c.befehl.find("MOVE") != std::string::npos);
+        }
+        pruefe(gefunden, "Befehl aus einem fremden Skript: Skript, Zeile dort, Befehlstext, nicht ziehbar");
+    }
+
     std::printf("Hilfen\n");
     pruefe(spuren::anzeigeName("md_jedi_male", "x") == "Jedi male" && spuren::anzeigeName("", "kyle") == "kyle", "anzeigeName");
     {

@@ -86,6 +86,7 @@ struct Clip {
     std::string befehl;     // der Befehl, wie er im Skript steht ("" wenn unbekannt)
     Path pfad;              // Zeile im OFFENEN Skript (leer: anderes Skript oder Nachbau)
     std::string fremd;      // Skript, aus dem der Befehl kommt, wenn nicht das offene
+    Path fremdPfad;         // dann: die Zeile in jenem Skript ("Skriptzeile oeffnen")
     std::string wer;        // Darsteller (affect-Ziel), "" = Traeger des Skripts
     int bahn = 0;           // Unterbahn, wenn sich Bloecke einer Zeile ueberlappen
     // Kamera: dieser Befehl beginnt, bevor der vorige derselben Gruppe fertig
@@ -186,6 +187,9 @@ struct SpurenQuellen {
     std::function<std::string(const std::string& datei, std::string* schluessel)> untertitel;
     // Musik hinter einem use ( name ) - "" wenn das Ziel keine Musik spielt.
     std::function<std::string(const std::string& ziel)> musikVon;
+    // Ein anderes Skript (run, use, spawnscript) nach seinem Namen - fuer den
+    // Befehlstext der Bloecke, die von dort kommen (nullptr: unbekannt).
+    std::function<const Script*(const std::string& skript)> fremdesSkript;
     std::string weltMusik;  // worldspawn "music" (laeuft ab 0)
 };
 

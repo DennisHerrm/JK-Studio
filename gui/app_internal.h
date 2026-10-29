@@ -2473,6 +2473,10 @@ void spieleLautsprecher(const std::string& name, const std::string& datei);
 // ICARUS-Nachbau (app_view3d.cpp)
 std::string aktiverSkriptPfad();
 const Script* skriptFuerAblauf(const std::string& pfad);
+// Der Reiter mit dem Skript `pfad` (ICARUS-Name, z. B. "md_ga/kill_fett2"): aus dem
+// Speicher geoeffnet oder aus einer Datei unter .../scripts/. aktivLebend: beim
+// aktiven Reiter gelten die Angaben der App statt der geparkten. -1: keiner.
+int reiterMitAblaufSkript(const std::string& pfad, bool aktivLebend);
 std::shared_ptr<const Roff> roffFuer(const std::string& name);
 AblaufWelt ablaufWelt();
 void pfadeAufsSkript();

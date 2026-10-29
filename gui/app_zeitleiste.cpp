@@ -1127,6 +1127,7 @@ void zeitleisteModellBauen() {
     q.skript = &g_app->doc.script();
     q.klangMs = [](const std::string& d) { return soundLengthMs(d); };
     q.untertitel = [](const std::string& d, std::string* k) { return untertitelFuer(d, k); };
+    q.fremdesSkript = [](const std::string& sk) { return skriptFuerAblauf(sk); };
     q.musikVon = [](const std::string& ziel) {
         bool musik = false;
         const std::string d = useSoundFor(ziel, &musik);
@@ -1810,6 +1811,35 @@ void zeitleisteErklaerung(float breite, float hoehe) {
 
 namespace {
 
+// Ein Befehl aus einem anderen Skript: das Skript oeffnen (der Reiter, aus
+// dem skriptFuerAblauf es nimmt, sonst aus den Archiven), dann die Zeile
+// waehlen und ihren Bearbeiten-Dialog oeffnen.
+void fremdeZeileOeffnen(const std::string& skript, const Path& pfad) {
+    const auto zeileWaehlen = [pfad] {
+        if (nodeAt(g_app->doc.script(), pfad) == nullptr) { return; }
+        selectByPath(pfad);
+        openEditorForNode(pfad);
+        ++g_app->zlZeileGeoeffnet;
+    };
+    const int reiter = reiterMitAblaufSkript(skript, true);
+    if (reiter >= 0) {
+        activateTab(reiter);
+        zeileWaehlen();
+        return;
+    }
+    for (const char* ext : {".txt", ".icarus", ".ibi", ".IBI"}) {
+        std::string daten;
+        if (readFromArchives("scripts/" + skript + ext, daten)) {
+            const std::string name = skript + ext;
+            withUnsaved([daten, name, zeileWaehlen] {
+                oeffneSkriptAusSpeicher(daten, name);
+                zeileWaehlen();
+            });
+            return;
+        }
+    }
+}
+
 // Die Skriptzeile und der Knopf, der sie im Editor oeffnet.
 void erklaerungSkriptzeile(const Clip& c) {
     if (!c.pfad.empty() && c.fremd.empty()) {
@@ -1824,20 +1854,17 @@ void erklaerungSkriptzeile(const Clip& c) {
             ++g_app->zlZeileGeoeffnet;
         }
     } else if (!c.fremd.empty()) {
-        ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled(tr(Str::ZlAusSkript), c.fremd.c_str());
-        ImGui::PopTextWrapPos();
-        if (ImGui::Button(fmt(tr(Str::ZlSkriptOeffnen), fileName(c.fremd).c_str()).c_str())) {
-            const int reiter = reiterMitPfad(c.fremd);
-            if (reiter >= 0) {
-                g_app->tabRequest = reiter;
-            } else {
-                std::string daten;
-                if (readFromArchives("scripts/" + c.fremd + ".txt", daten) || readFromArchives(c.fremd, daten)) {
-                    const std::string name = c.fremd;
-                    withUnsaved([daten, name] { oeffneSkriptAusSpeicher(daten, name); });
-                }
-            }
+        // Aus einem anderen Skript (run, use, spawnscript): dessen Zeile, und
+        // der Knopf oeffnet jenes Skript und waehlt sie - wie bei eigenen.
+        const Script* sk = c.fremdPfad.empty() ? nullptr : skriptFuerAblauf(c.fremd);
+        if (sk != nullptr && nodeAt(*sk, c.fremdPfad) != nullptr) {
+            int z = 0;
+            ImGui::TextDisabled(tr(Str::ZlZeileVon), c.fremd.c_str(), baumZeile(sk->nodes, c.fremdPfad, 0, z));
+            if (ImGui::Button(tr(Str::ZlZeileOeffnen))) { fremdeZeileOeffnen(c.fremd, c.fremdPfad); }
+        } else {
+            ImGui::PushTextWrapPos(0.0F);
+            ImGui::TextDisabled(tr(Str::ZlAusSkript), c.fremd.c_str());
+            ImGui::PopTextWrapPos();
         }
     } else if (!istKamera(c.art) && c.art != Art::Musik) {
         ImGui::PushTextWrapPos(0.0F);

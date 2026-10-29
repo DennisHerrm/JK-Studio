@@ -144,6 +144,7 @@ public:
         ton();
         skript();
         darsteller();
+        fremdeBefehle();
         return std::move(s_);
     }
 
@@ -157,6 +158,27 @@ private:
         if (p.empty() || q_.skript == nullptr) { return nullptr; }
         const Node* n = nodeAt(*q_.skript, p);
         return (n != nullptr && n->kind == Node::Kind::Command) ? n : nullptr;
+    }
+
+    // Bloecke aus anderen Skripten: der Befehl, wie er dort steht - die
+    // Erklaerung zeigt ihn wie bei eigenen ("Skriptzeile oeffnen").
+    void fremdeBefehle() {
+        if (!q_.fremdesSkript) { return; }
+        const auto fuellen = [this](Zeile& z) {
+            for (Clip& c : z.clips) {
+                if (c.fremd.empty() || c.fremdPfad.empty() || !c.befehl.empty()) { continue; }
+                const Script* sk = q_.fremdesSkript(c.fremd);
+                const Node* n = sk != nullptr ? nodeAt(*sk, c.fremdPfad) : nullptr;
+                if (n != nullptr && n->kind == Node::Kind::Command) { c.befehl = befehlsText(*n); }
+            }
+        };
+        for (Zeile* z : {&s_.ort, &s_.drehung, &s_.fahrt, &s_.schwenk, &s_.zoom, &s_.blende, &s_.rollen, &s_.wackeln, &s_.folgen,
+                         &s_.kameraBahn, &s_.sprache, &s_.musik, &s_.skript}) {
+            fuellen(*z);
+        }
+        for (Darsteller& d : s_.darsteller) {
+            for (Zeile* z : {&d.oben, &d.laufen, &d.stehen, &d.unsichtbar, &d.animation, &d.befehle}) { fuellen(*z); }
+        }
     }
 
     std::string traegerName(const std::string& entity) const {
@@ -187,6 +209,7 @@ private:
             c.endMs = std::max(seg.endMs, seg.startMs);
             c.pfad = seg.path;
             c.fremd = seg.fremd;
+            c.fremdPfad = seg.fremdPfad;
             const Node* n = knoten(seg.path);
             if (n != nullptr) { c.befehl = befehlsText(*n); }
             std::string marke;
@@ -415,6 +438,7 @@ private:
                             std::fabs(e.startMs - b.ms) < 1.0 && c.pfad.empty() && c.fremd.empty()) {
                             c.pfad = e.path;
                             c.fremd = e.fremd;
+                            c.fremdPfad = e.fremdPfad;
                             c.befehl = e.label;
                         }
                     }
@@ -444,6 +468,7 @@ private:
         c.befehl = e.label;
         c.pfad = e.path;
         c.fremd = e.fremd;
+        c.fremdPfad = e.fremdPfad;
         c.verschiebbar = !c.pfad.empty() && c.fremd.empty();
         return c;
     }
@@ -456,6 +481,7 @@ private:
         c.endMs = std::max(e.endMs, e.startMs);
         c.pfad = e.path;
         c.fremd = e.fremd;
+        c.fremdPfad = e.fremdPfad;
         c.wer = traegerName(entity);
         const Node* n = knoten(e.path);
         c.befehl = n != nullptr ? befehlsText(*n) : e.label;
@@ -618,6 +644,7 @@ private:
             c.endMs = s.endMs;
             c.pfad = s.path;
             c.fremd = s.fremd;
+            c.fremdPfad = s.fremdPfad;
             c.wer = a.name;
             c.text = s.text;
             const Node* n = knoten(s.path);
@@ -699,6 +726,7 @@ private:
             c.teil = s.part;
             c.pfad = s.path;
             c.fremd = s.fremd;
+            c.fremdPfad = s.fremdPfad;
             c.wer = a.name;
             if (const Node* n = knoten(s.path); n != nullptr) { c.befehl = befehlsText(*n); }
             c.verschiebbar = !c.pfad.empty() && c.fremd.empty();

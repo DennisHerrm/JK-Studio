@@ -157,6 +157,7 @@ struct CamSegment {
     std::string group;       // bei Follow: der cameraGroup-Name
     Path path;               // welche Zeile im Skript
     std::string fremd;       // aus einem anderen Skript (dann path leer)
+    Path fremdPfad;          // dann: die Zeile in jenem Skript
     // Ab wann der Bruchteil zaehlt, wenn er nicht bei startMs anfaengt: ein
     // ZOOM mit Dauer 0 mitten in einem laufenden setzt nur den Ausgangswert
     // neu, der laufende Zoom geht weiter (CGCam_Zoom loescht CAMERA_ZOOMING
