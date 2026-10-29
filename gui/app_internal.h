@@ -2078,6 +2078,13 @@ struct App {
     float zlErklaerungInhaltH = 0.0F;      // so hoch war der Inhalt des Kastens im letzten Bild
     std::string zlErklaerungTitel;
     int zlZeileGeoeffnet = 0;
+    // Zeitleiste 2 Punkt 7: Untertitel im Vorschau-Bild.
+    int untertitelStufe = -1;              // g_subtitles der Vorschau (0, 1, 2); -1 = Vorgabe des Spiels
+    bool untertitelZeigen = false;         // dieses Bild zeigt die Szene zur Zeit des Zeigers
+    std::string untertitelJetzt;           // Selbsttest: die gezeichneten Zeilen, "\n" dazwischen
+    float untertitelOben = 0.0F;           // Selbsttest: Bildzeilen der Schrift (oben, unten)
+    float untertitelUnten = 0.0F;
+    float untertitelFarbe[4]{};            // Selbsttest: die Farbe der Zeilen
     struct ZlBlock {
         std::string zeile;
         ImRect r;
@@ -2566,6 +2573,12 @@ void entityMenue(std::size_t i);
 bool verschiebeImAblauf(const Path& p, double delta, bool nurDieser, Path* warte = nullptr, std::string* vorher = nullptr);
 // zeitleiste1 (gui/app_zeitleiste.cpp)
 void zeitleisteModellBauen();
+// Zeitleiste 2 Punkt 7 (app_zeitleiste.cpp): g_subtitles der Vorschau, der
+// Schalter in der Transportleiste und die Untertitel im Spielrahmen a..b
+// (nach Balken und Blende, wie CG_Draw2D).
+[[nodiscard]] int untertitelStufe();
+void untertitelSchalter();
+void untertitelZeichnen(ImDrawList* dl, ImVec2 a, ImVec2 b);
 float zeitleisteNamenBreite(float verfuegbar);
 void zeitleisteNavigation(float x0, float w, double gesamt);
 void zeitleisteSpuren(float x0, float w, float labelW, double sichtStart, double sichtSpanne, double ablaufEnde, float hoehe);

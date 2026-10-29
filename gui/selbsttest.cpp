@@ -90,6 +90,7 @@
 #include <string>
 #include <vector>
 
+#include "bhed/untertitel.h"   // Zeitleiste 2: Untertitel im Vorschau-Bild
 #include "bhed/utf8pfad.h"
 
 namespace bhed::gui {

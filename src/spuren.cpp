@@ -139,6 +139,7 @@ public:
             s_.kartenwechselKarte = q_.ablauf->kartenwechselKarte;
         }
         signaleSammeln();
+        untertitelFarben();
         kamera();
         kurven();
         ton();
@@ -470,7 +471,54 @@ private:
         c.fremd = e.fremd;
         c.fremdPfad = e.fremdPfad;
         c.verschiebbar = !c.pfad.empty() && c.fremd.empty();
+        c.untertitelImmer = untertitelImmer(entity, e.startMs);
         return c;
+    }
+
+    // Der zweite Wert eines set ( a, b ) aus dem Etikett, ohne Anfuehrungszeichen.
+    static std::string setWert(const std::string& label, std::string& feld) {
+        std::string name;
+        std::string innen;
+        ausLabel(label, name, feld, innen);
+        const std::size_t komma = innen.find(',');
+        return komma == std::string::npos ? std::string() : bloss(innen.substr(komma + 1));
+    }
+
+    // SET_USE_SUBTITLES (Q3_SetUseSubtitles): wirkt nur auf einen NPC, der
+    // letzte Wert vor dem Klang zaehlt ("true", sonst aus).
+    bool untertitelImmer(const std::string& entity, double ms) const {
+        if (entity.empty() || q_.szene == nullptr) { return false; }
+        bool npc = false;
+        for (const Actor& a : q_.szene->actors) { npc = npc || (klein(a.name) == klein(entity) && !a.echterSpieler); }
+        if (!npc) { return false; }
+        bool an = false;
+        double wann = -1.0;
+        for (const TimelineTrack& tr : q_.zeitleiste->tracks) {
+            if (klein(tr.entity) != klein(entity)) { continue; }
+            for (const TimelineEvent& e : tr.events) {
+                if (e.kind != TimelineEvent::Kind::Set || e.startMs > ms || e.startMs < wann) { continue; }
+                std::string feld;
+                const std::string wert = setWert(e.label, feld);
+                if (gross(feld) != "SET_USE_SUBTITLES") { continue; }
+                wann = e.startMs;
+                an = gross(wert) == "TRUE";
+            }
+        }
+        return an;
+    }
+
+    // SET_CAPTIONTEXTCOLOR von irgendwem: textcolor_caption gilt fuer alle.
+    void untertitelFarben() {
+        for (const TimelineTrack& tr : q_.zeitleiste->tracks) {
+            for (const TimelineEvent& e : tr.events) {
+                if (e.kind != TimelineEvent::Kind::Set) { continue; }
+                std::string feld;
+                const std::string wert = setWert(e.label, feld);
+                if (gross(feld) == "SET_CAPTIONTEXTCOLOR") { s_.untertitelFarben.emplace_back(e.startMs, wert); }
+            }
+        }
+        std::stable_sort(s_.untertitelFarben.begin(), s_.untertitelFarben.end(),
+                         [](const auto& a, const auto& b) { return a.first < b.first; });
     }
 
     // --- Ablauf ------------------------------------------------------------

@@ -295,42 +295,9 @@ private:
 
     void zeichenkette(const Schrift& f, int ox, int oy, const std::string& t, Farbe c, int maxPixel, float scale,
                       bool imSchatten) {
-        const float fox = static_cast<float>(ox);
-        float foy = static_cast<float>(oy) + static_cast<float>(f.height - (f.descender >> 1)) * scale;
-        float fx = fox;
-        bool ueberlauf = false;
-        for (std::size_t i = 0; i < t.size() && !ueberlauf; ++i) {
-            const auto ch = static_cast<unsigned char>(t[i]);
-            if (ch == 10) {
-                fx = fox;
-                foy += static_cast<float>(f.pointSize) * scale;
-            } else if (ch == 13) {
-            } else if (ch == 32) {
-                fx += static_cast<float>(f.glyph[' '].horizAdvance) * scale;
-                ueberlauf = maxPixel != -1 && (fx - fox) > static_cast<float>(maxPixel);
-            } else if (ch == '^') {
-                if (i + 1 < t.size() && t[i + 1] >= '0' && t[i + 1] <= '9') {
-                    const int idx = t[i + 1] - '0';
-                    ++i;
-                    if (!imSchatten) {
-                        const float a = c.a;
-                        c = kFarbtabelle[idx];
-                        c.a = a;
-                    }
-                }
-            } else {
-                const Glyph* g = &f.glyph[ch];
-                if (g->width == 0) { g = &f.glyph['.']; }
-                const float adv = static_cast<float>(g->horizAdvance) * scale;
-                ueberlauf = maxPixel != -1 && ((fx + adv) - fox) > static_cast<float>(maxPixel);
-                if (!ueberlauf) {
-                    const float fy = foy - static_cast<float>(g->baseline) * scale;
-                    bild(fx + static_cast<float>(g->horizOffset) * scale, fy, static_cast<float>(g->width) * scale,
-                         static_cast<float>(g->height) * scale, f.shader, c, item_, g->s, g->t, g->s2, g->t2);
-                }
-                fx += adv;
-            }
-        }
+        std::vector<Prim> glyphen;
+        schriftZeichnen(f, ox, oy, t, c, maxPixel, scale, imSchatten, glyphen);
+        for (const Prim& g : glyphen) { bild(g.x, g.y, g.w, g.h, g.shader, g.farbe, item_, g.s0, g.t0, g.s1, g.t1); }
     }
 
     // Der angezeigte Text eines Items: text, sonst der Wert von cvar.
@@ -691,6 +658,57 @@ private:
 };
 
 }  // namespace
+
+void schriftZeichnen(const Schrift& f, int ox, int oy, const std::string& t, Farbe c, int maxPixel, float scale, bool imSchatten,
+                     std::vector<Prim>& out) {
+    const float fox = static_cast<float>(ox);
+    float foy = static_cast<float>(oy) + static_cast<float>(f.height - (f.descender >> 1)) * scale;
+    float fx = fox;
+    bool ueberlauf = false;
+    for (std::size_t i = 0; i < t.size() && !ueberlauf; ++i) {
+        const auto ch = static_cast<unsigned char>(t[i]);
+        if (ch == 10) {
+            fx = fox;
+            foy += static_cast<float>(f.pointSize) * scale;
+        } else if (ch == 13) {
+        } else if (ch == 32) {
+            fx += static_cast<float>(f.glyph[' '].horizAdvance) * scale;
+            ueberlauf = maxPixel != -1 && (fx - fox) > static_cast<float>(maxPixel);
+        } else if (ch == '^') {
+            if (i + 1 < t.size() && t[i + 1] >= '0' && t[i + 1] <= '9') {
+                const int idx = t[i + 1] - '0';
+                ++i;
+                if (!imSchatten) {
+                    const float a = c.a;
+                    c = kFarbtabelle[idx];
+                    c.a = a;
+                }
+            }
+        } else {
+            const Glyph* g = &f.glyph[ch];
+            if (g->width == 0) { g = &f.glyph['.']; }
+            const float adv = static_cast<float>(g->horizAdvance) * scale;
+            ueberlauf = maxPixel != -1 && ((fx + adv) - fox) > static_cast<float>(maxPixel);
+            if (!ueberlauf) {
+                const float fy = foy - static_cast<float>(g->baseline) * scale;
+                Prim p;
+                p.art = PrimArt::Bild;
+                p.x = fx + static_cast<float>(g->horizOffset) * scale;
+                p.y = fy;
+                p.w = static_cast<float>(g->width) * scale;
+                p.h = static_cast<float>(g->height) * scale;
+                p.s0 = g->s;
+                p.t0 = g->t;
+                p.s1 = g->s2;
+                p.t1 = g->t2;
+                p.farbe = c;
+                p.shader = f.shader;
+                out.push_back(p);
+            }
+            fx += adv;
+        }
+    }
+}
 
 bool ladeFontdat(const std::string& name, const std::string& daten, Schrift& out) {
     out = Schrift{};

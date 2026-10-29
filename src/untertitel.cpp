@@ -12,7 +12,9 @@
 //   GNU General Public License for more details (LICENSE).
 #include "bhed/untertitel.h"
 
+#include <algorithm>
 #include <cctype>
+#include <cstring>
 
 namespace bhed::untertitel {
 namespace {
@@ -125,6 +127,160 @@ std::string jk2Reinigen(std::string t) {
     }
     for (std::size_t i; (i = t.find("?.")) != std::string::npos;) { t[i + 1] = ' '; }
     return t;
+}
+
+namespace {
+
+constexpr int kSchirmBreite = 640;    // SCREEN_WIDTH
+constexpr int kSchirmHoehe = 480;     // SCREEN_HEIGHT
+constexpr int kMaxZeilen = 32;        // MAX_CAPTIONTEXT
+constexpr std::size_t kZeilenPuffer = 256;   // captionText[][256]
+
+// AnyLanguage_ReadCharFromString, westliche Sprachen: ein Byte; nach diesen
+// Zeichen darf eine Zeile brechen.
+bool satzzeichenDanach(unsigned char c) { return c == '!' || c == '?' || c == ',' || c == '.' || c == ';' || c == ':'; }
+
+}  // namespace
+
+int gSubtitlesVorgabe(Spiel spiel) noexcept { return spiel == Spiel::JediOutcast ? 2 : 0; }
+
+bool wirdGesendet(const Klangfall& k) noexcept {
+    // g_skippingcin: beim Ueberspringen einer Zwischensequenz nie - die
+    // Vorschau ueberspringt nicht.
+    if (k.gSubtitles == 1 || k.npcMitUntertiteln) {
+        if (k.imKino) { return true; }
+        const double grenze = k.gedaempft ? 350.0 * 350.0 : 1200.0 * 1200.0;
+        return k.rundfunk || k.abstandQuadrat < grenze;
+    }
+    return k.gSubtitles == 2 && k.imKino;
+}
+
+std::array<float, 4> textFarbe(const std::string& name) {
+    const std::string n = gross(name);
+    if (n == "BLACK") { return {0, 0, 0, 1}; }
+    if (n == "RED") { return {1, 0, 0, 1}; }
+    if (n == "GREEN") { return {0, 1, 0, 1}; }
+    if (n == "YELLOW") { return {1, 1, 0, 1}; }
+    if (n == "BLUE") { return {0, 0, 1, 1}; }
+    if (n == "CYAN") { return {0, 1, 1, 1}; }
+    if (n == "MAGENTA") { return {1, 0, 1, 1}; }
+    return {1, 1, 1, 1};   // WHITE und alles andere
+}
+
+float mdGroesse(float cgTextprintscale) noexcept { return std::clamp(cgTextprintscale, 0.25F, 2.0F); }
+
+int breite(const menue::Schrift& f, const std::string& text, float scale, Spiel spiel) {
+    if (spiel != Spiel::JediOutcast) { return menue::schriftBreite(f, text, scale); }
+    // JK2_MODE: jedes Zeichen zaehlt, 0x0A beginnt neu, ceilf.
+    float maxW = 0.0F;
+    float diese = 0.0F;
+    for (const char ch : text) {
+        const auto c = static_cast<unsigned char>(ch);
+        if (c == 0x0A) {
+            diese = 0.0F;
+        } else {
+            diese += static_cast<float>(f.glyph[c].horizAdvance) * scale;
+            maxW = std::max(maxW, diese);
+        }
+    }
+    return static_cast<int>(std::ceil(maxW));
+}
+
+Untertitel setzen(const std::string& text, int klangMs, double startMs, bool imKino, float balkenZiel, const menue::Schrift& schrift,
+                  Spiel spiel, float mdGroesseJetzt) {
+    Untertitel u;
+    u.startMs = startMs;
+    const bool md = spiel == Spiel::MovieDuels;
+    u.schriftGroesse = md ? mdGroesse(mdGroesseJetzt) : 1.0F;
+    const int fontHeight = menue::schriftHoehe(schrift, u.schriftGroesse);   // westlich: nicht * 1.4
+    if (imKino) {
+        u.textY = static_cast<int>(static_cast<float>(kSchirmHoehe) - balkenZiel / 2.0F);
+    } else {
+        u.textY = static_cast<int>(0.88F * (static_cast<float>(kSchirmHoehe) - static_cast<float>(fontHeight) * 1.5F));
+    }
+    const int laenge = std::max(1, static_cast<int>(text.size()));   // strlen, fuer die Zeit
+    u.buchstabenMs = klangMs / laenge;
+    // Zeilen brechen - Positionen im Text wie die Zeiger s, holds,
+    // psBestLineBreakSrcPos und psLastGood_s.
+    std::vector<std::string> z(1);
+    std::size_t s = 0;
+    std::size_t holds = 0;
+    std::size_t best = 0;
+    std::size_t i = 0;
+    while (s < text.size() && (!md || i < kMaxZeilen - 1) && i < kMaxZeilen) {
+        const std::size_t letzteGute = s;
+        const auto c = static_cast<unsigned char>(text[s]);
+        const bool satzzeichen = satzzeichenDanach(c);
+        ++s;
+        if (c == ' ' && z[i].empty()) {
+            ++holds;
+            continue;   // ein Leerzeichen am Zeilenanfang faellt weg
+        }
+        if (z[i].size() < kZeilenPuffer - 1) { z[i] += static_cast<char>(c); }   // Q_strcat
+        if (c == '\n') {
+            z[i].pop_back();
+            ++i;
+            z.emplace_back();
+            holds = s;
+            best = s;
+        } else if (breite(schrift, z[i], u.schriftGroesse, spiel) >= kSchirmBreite || (md && z[i].size() >= kZeilenPuffer - 4)) {
+            if (best == holds) { best = letzteGute; }   // keine Bruchstelle: nach dem letzten Zeichen
+            // Nach einem uebersprungenen Leerzeichen kann best vor holds liegen;
+            // das Spiel schreibt dann vor die Zeile und kuerzt sie nicht.
+            if (best >= holds) { z[i].resize(std::min(z[i].size(), best - holds)); }
+            holds = best;
+            s = best;
+            ++i;
+            z.emplace_back();
+        }
+        if (satzzeichen || c == ' ') { best = s; }
+    }
+    u.zeilen = std::move(z);
+    std::size_t halten = u.zeilen[0].size();
+    if (u.zeilen.size() > 1) { halten += u.zeilen[1].size(); }
+    u.ersteSeiteBis = startMs + static_cast<double>(halten) * static_cast<double>(u.buchstabenMs);
+    return u;
+}
+
+std::vector<Zeile> zeigen(const Untertitel& u, double ms, const menue::Schrift& schrift, Spiel spiel, bool imKino, float balkenZiel) {
+    if (ms < u.startMs || u.zeilen.empty()) { return {}; }
+    const auto zeile = [&u](std::size_t n) -> const std::string& {
+        static const std::string leer;
+        return n < u.zeilen.size() ? u.zeilen[n] : leer;
+    };
+    std::size_t aktuell = 0;
+    double naechste = u.ersteSeiteBis;
+    while (naechste < ms) {   // cg.captionNextTextTime < cg.time
+        aktuell += 2;
+        if (aktuell >= u.zeilen.size()) { return {}; }
+        const std::size_t halten = zeile(aktuell).size() + zeile(aktuell + 1).size();
+        naechste += static_cast<double>(halten) * static_cast<double>(u.buchstabenMs);
+    }
+    const bool md = spiel == Spiel::MovieDuels;
+    const float groesse = u.schriftGroesse;
+    const int fontHeight = menue::schriftHoehe(schrift, groesse);
+    const bool zweiZeilen = !zeile(aktuell + 1).empty();
+    int y = static_cast<int>(static_cast<float>(u.textY) - static_cast<float>(fontHeight) * (zweiZeilen ? 1.0F : 0.5F));
+    y -= md ? static_cast<int>(4.0F * groesse) : 4;
+    int schritt = fontHeight;
+    if (md && groesse > 1.0F) {
+        // (2026-10-13): grosse Schrift bleibt im Bild und in den Balken.
+        const int zeilen = zweiZeilen ? 2 : 1;
+        if (imKino && zeilen == 2 && fontHeight * 2 > static_cast<int>(balkenZiel)) {
+            schritt = static_cast<int>(static_cast<float>(fontHeight) * 0.85F);
+        }
+        const int unten = y + (zeilen - 1) * schritt + fontHeight;
+        if (unten > kSchirmHoehe - 2) { y -= unten - (kSchirmHoehe - 2); }
+    }
+    std::vector<Zeile> aus;
+    for (std::size_t n = aktuell; n < aktuell + 2; ++n) {
+        const int w = breite(schrift, zeile(n), groesse, spiel);
+        if (w != 0) {
+            aus.push_back(Zeile{zeile(n), (kSchirmBreite - w) / 2, y});
+            y += schritt;
+        }
+    }
+    return aus;
 }
 
 }  // namespace bhed::untertitel

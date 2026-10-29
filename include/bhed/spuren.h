@@ -88,6 +88,9 @@ struct Clip {
     std::string fremd;      // Skript, aus dem der Befehl kommt, wenn nicht das offene
     Path fremdPfad;         // dann: die Zeile in jenem Skript ("Skriptzeile oeffnen")
     std::string wer;        // Darsteller (affect-Ziel), "" = Traeger des Skripts
+    // Satz: der Sprecher ist ein NPC mit SET_USE_SUBTITLES "true" (SCF_USE_SUBTITLES) -
+    // dann zeigt das Spiel den Untertitel auch ohne g_subtitles (PlayIcarusSound).
+    bool untertitelImmer = false;
     int bahn = 0;           // Unterbahn, wenn sich Bloecke einer Zeile ueberlappen
     // Kamera: dieser Befehl beginnt, bevor der vorige derselben Gruppe fertig
     // ist. CGCam_Update uebernimmt Ort/Winkel/Bildwinkel erst am ENDE eines
@@ -170,6 +173,9 @@ struct Spuren {
     std::vector<Darsteller> darsteller;
     double dauerMs = 0.0;   // bis hier reicht die Leiste
     double kartenwechselMs = -1.0;
+    // SET_CAPTIONTEXTCOLOR (Zeit, Farbname) in der Reihenfolge der Zeit - die
+    // Farbe der Untertitel ab da (textcolor_caption, fuer alle gleich).
+    std::vector<std::pair<double, std::string>> untertitelFarben;
     std::string kartenwechselKarte;
     int ueberlappungen = 0; // Kamerabefehle, die zurueckspringen
     int nichtNachgebildet = 0;

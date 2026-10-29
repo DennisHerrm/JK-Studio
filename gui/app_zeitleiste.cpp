@@ -20,6 +20,7 @@
 #include "bhed/untertitel.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cctype>
 #include <cstdarg>
@@ -1079,10 +1080,16 @@ int baumZeile(const std::vector<Node>& ns, const Path& p, std::size_t tiefe, int
 // "<PAKET>_<dateiname ohne Endung>" in den Paketen der Karte (bhed/untertitel.h).
 // Jedi Academy und Movie Duels lesen StringEd strings/english/<paket>.str,
 // Jedi Outcast StripEd strip/<paket>.sp (TEXT_LANGUAGE1, FixIllegalChars).
+namespace {
+untertitel::Spiel untertitelSpiel() {
+    return regelwerkJediOutcast()   ? untertitel::Spiel::JediOutcast
+           : regelwerkMovieDuels() ? untertitel::Spiel::MovieDuels
+                                   : untertitel::Spiel::JediAcademy;
+}
+}  // namespace
+
 std::string untertitelFuer(const std::string& klang, std::string* schluessel) {
-    const untertitel::Spiel spiel = regelwerkJediOutcast()   ? untertitel::Spiel::JediOutcast
-                                    : regelwerkMovieDuels() ? untertitel::Spiel::MovieDuels
-                                                            : untertitel::Spiel::JediAcademy;
+    const untertitel::Spiel spiel = untertitelSpiel();
     const std::string stand = g_app->map.path + "|" + std::to_string(static_cast<int>(spiel));
     if (g_app->zlTexteKarte != stand) {
         g_app->zlTexteKarte = stand;
@@ -1872,5 +1879,193 @@ void erklaerungSkriptzeile(const Clip& c) {
 }
 
 }  // namespace
+
+// --- Untertitel im Vorschau-Bild (Zeitleiste 2 Punkt 7) ------------------------
+//
+// Dieselben Saetze und Texte wie die Sprach-Zeile (spuren.sprache mit den
+// Untertiteln aus untertitelFuer); was das Spiel damit tut, steht in
+// bhed/untertitel.h: PlayIcarusSound schickt "ct" oder nicht, CG_CaptionText
+// bricht die Zeilen, CG_DrawCaptionText zeigt je zwei. Schrift qhFontMedium =
+// fonts/ergoec (cg_main.cpp), gezeichnet wie RE_Font_DrawString im
+// virtuellen Bildschirm 640x480 und auf den Spielrahmen gestreckt.
+namespace {
+
+constexpr float kBalkenZiel = 480.0F / 10.0F;   // client_camera.bar_height_dest nach CGCam_Enable
+
+struct UntertitelStand {
+    std::string schriftFuer;           // Spielordner, aus denen Schrift und Textur stammen
+    unsigned texturStand = ~0U;
+    menue::Schrift schrift;
+    void* textur = nullptr;
+    std::uint64_t modellStand = ~std::uint64_t{0};   // fuer welches Modell die Liste gilt
+    int stufe = -2;
+    untertitel::Spiel spiel = untertitel::Spiel::JediAcademy;
+    std::vector<untertitel::Untertitel> liste;   // je gesendetem "ct", nach der Zeit
+};
+UntertitelStand& untertitelStand() {
+    static UntertitelStand s;
+    return s;
+}
+
+bool untertitelSchriftDa() {
+    UntertitelStand& u = untertitelStand();
+    std::string fuer;
+    for (const GamePath& gp : g_app->gamePaths) { fuer += gp.directory + "|" + std::to_string(gp.archives.size()) + ";"; }
+    if (u.schriftFuer == fuer && u.texturStand == render::texturStand()) { return u.schrift.ok && u.textur != nullptr; }
+    u.schriftFuer = fuer;
+    u.texturStand = render::texturStand();
+    u.schrift = menue::Schrift{};
+    u.textur = nullptr;
+    u.modellStand = ~std::uint64_t{0};   // mit einer anderen Schrift brechen die Zeilen anders
+    std::string daten;
+    if (readFromArchives("fonts/ergoec.fontdat", daten)) { (void)menue::ladeFontdat("ergoec", daten, u.schrift); }
+    TextureSet::Tex t;
+    if (u.schrift.ok && loadTextureFor(u.schrift.shader, t) && !t.rgba.empty()) {
+        u.textur = render::createTexture(t.rgba.data(), t.width, t.height);
+    }
+    return u.schrift.ok && u.textur != nullptr;
+}
+
+// Wo steht die Entity zur Zeit ms - eine Figur der Szene, sonst ihr Ursprung in
+// der Karte (ent->currentOrigin); klasse: ihr classname, wenn sie in der Karte steht.
+void entityOrt(const std::string& name, double ms, float ort[3], std::string& klasse) {
+    ort[0] = ort[1] = ort[2] = 0.0F;
+    klasse.clear();
+    for (const Actor& a : g_app->scene.actors) {
+        if (!name.empty() && klein(a.name) == klein(name)) {
+            const ActorState st = a.at(ms);
+            for (int k = 0; k < 3; ++k) { ort[k] = st.pos[k]; }
+            return;
+        }
+    }
+    for (const MapEntity& e : g_app->map.entities) {
+        const std::string* skn = e.find("script_targetname");
+        if (name.empty() || (klein(e.targetname) != klein(name) && (skn == nullptr || klein(*skn) != klein(name)))) { continue; }
+        klasse = e.classname;
+        (void)std::sscanf(e.origin.c_str(), "%f %f %f", &ort[0], &ort[1], &ort[2]);
+        return;
+    }
+}
+
+// Der Spieler (g_entities[0]): die Figur "player", sonst info_player_start.
+void spielerOrt(double ms, float ort[3]) {
+    ort[0] = ort[1] = ort[2] = 0.0F;
+    for (const Actor& a : g_app->scene.actors) {
+        if (a.echterSpieler) {
+            const ActorState st = a.at(ms);
+            for (int k = 0; k < 3; ++k) { ort[k] = st.pos[k]; }
+            return;
+        }
+    }
+    for (const MapEntity& e : g_app->map.entities) {
+        if (e.classname == "info_player_start") {
+            (void)std::sscanf(e.origin.c_str(), "%f %f %f", &ort[0], &ort[1], &ort[2]);
+            return;
+        }
+    }
+}
+
+// Je Satz mit Untertitel: schickt das Spiel "ct"? Dann CG_CaptionText.
+void untertitelListeBauen() {
+    UntertitelStand& u = untertitelStand();
+    u.liste.clear();
+    for (const Clip& c : g_app->spuren.sprache.clips) {
+        if (c.art != Art::Satz || c.untertitel.empty()) { continue; }
+        untertitel::Klangfall k;
+        k.gSubtitles = u.stufe;
+        k.npcMitUntertiteln = c.untertitelImmer;
+        k.imKino = g_app->camTrack.at(c.startMs).enabled;
+        std::string kanal = c.kanal;
+        for (char& ch : kanal) { ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch))); }
+        float sprecher[3];
+        float spieler[3];
+        std::string klasse;
+        entityOrt(c.wer, c.startMs, sprecher, klasse);
+        spielerOrt(c.startMs, spieler);
+        // Der Traeger eines Skripts ohne Namen ist ein target_scriptrunner (Ablauf::traeger).
+        k.rundfunk = kanal == "CHAN_ANNOUNCER" || kanal == "CHAN_VOICE_GLOBAL" || klasse == "target_scriptrunner" || c.wer.empty();
+        k.gedaempft = kanal == "CHAN_VOICE_ATTEN";
+        for (int i = 0; i < 3; ++i) {
+            const double d = static_cast<double>(sprecher[i]) - static_cast<double>(spieler[i]);
+            k.abstandQuadrat += d * d;
+        }
+        if (!untertitel::wirdGesendet(k)) { continue; }
+        // cgi_S_GetSampleLength: Millisekunden als ganze Zahl (abgeschnitten).
+        const int klangMs = static_cast<int>(std::max(0.0, c.klangMs));
+        u.liste.push_back(untertitel::setzen(c.untertitel, klangMs, c.startMs, k.imKino, k.imKino ? kBalkenZiel : 0.0F, u.schrift, u.spiel));
+    }
+}
+
+}  // namespace
+
+int untertitelStufe() {
+    return g_app->untertitelStufe >= 0 ? g_app->untertitelStufe : untertitel::gSubtitlesVorgabe(untertitelSpiel());
+}
+
+void untertitelSchalter() {
+    const int vorgabe = untertitel::gSubtitlesVorgabe(untertitelSpiel());
+    const int jetzt = untertitelStufe();
+    const auto name = [](int st) { return tr(st == 1 ? Str::ZlUtAlle : st == 2 ? Str::ZlUtKino : Str::ZlUtKeine); };
+    const std::string anzeige = std::string(tr(Str::ZlUt)) + ": " + name(jetzt);
+    ImGui::SetNextItemWidth(ImGui::CalcTextSize(anzeige.c_str()).x + ImGui::GetFrameHeight() + ImGui::GetStyle().FramePadding.x * 2.0F);
+    if (ImGui::BeginCombo("##untertitel", anzeige.c_str())) {
+        for (const int st : {0, 2, 1}) {   // wie ui/setup.menu: keine, in Zwischensequenzen, alle
+            const std::string t = st == vorgabe ? fmt(tr(Str::ZlUtVorgabe), name(st)) : std::string(name(st));
+            if (ImGui::Selectable(t.c_str(), st == jetzt)) { g_app->untertitelStufe = st == vorgabe ? -1 : st; }
+        }
+        ImGui::EndCombo();
+    }
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::ZlUtHint)); }
+}
+
+void untertitelZeichnen(ImDrawList* dl, ImVec2 a, ImVec2 b) {
+    g_app->untertitelJetzt.clear();
+    if (!untertitelSchriftDa() || b.x <= a.x || b.y <= a.y) { return; }
+    UntertitelStand& u = untertitelStand();
+    const int stufe = untertitelStufe();
+    const untertitel::Spiel spiel = untertitelSpiel();
+    if (u.modellStand != g_app->zlModellStand || u.stufe != stufe || u.spiel != spiel) {
+        u.modellStand = g_app->zlModellStand;
+        u.stufe = stufe;
+        u.spiel = spiel;
+        untertitelListeBauen();
+    }
+    const double ms = g_app->playMs;
+    // Ein neues "ct" ersetzt den alten Untertitel (CG_CaptionText leert cg.captionText).
+    const untertitel::Untertitel* jetzt = nullptr;
+    for (const untertitel::Untertitel& x : u.liste) {
+        if (x.startMs <= ms) { jetzt = &x; }
+    }
+    if (jetzt == nullptr) { return; }
+    const CameraState cs = g_app->camTrack.at(ms);
+    const std::vector<untertitel::Zeile> zeilen = untertitel::zeigen(*jetzt, ms, u.schrift, spiel, cs.enabled, cs.enabled ? kBalkenZiel : 0.0F);
+    if (zeilen.empty()) { return; }
+    // textcolor_caption: das letzte SET_CAPTIONTEXTCOLOR bis jetzt, sonst WHITE.
+    std::array<float, 4> farbe{1.0F, 1.0F, 1.0F, 1.0F};
+    for (const auto& [wann, wie] : g_app->spuren.untertitelFarben) {
+        if (wann <= ms) { farbe = untertitel::textFarbe(wie); }
+    }
+    const float sx = (b.x - a.x) / menue::kSchirmBreite;
+    const float sy = (b.y - a.y) / menue::kSchirmHoehe;
+    float oben = b.y;
+    float unten = a.y;
+    for (const untertitel::Zeile& z : zeilen) {
+        std::vector<menue::Prim> glyphen;
+        menue::schriftZeichnen(u.schrift, z.x, z.y, z.text, menue::Farbe{farbe[0], farbe[1], farbe[2], farbe[3]}, -1, jetzt->schriftGroesse,
+                               false, glyphen);
+        for (const menue::Prim& g : glyphen) {
+            const ImVec2 p0{a.x + g.x * sx, a.y + g.y * sy};
+            const ImVec2 p1{a.x + (g.x + g.w) * sx, a.y + (g.y + g.h) * sy};
+            dl->AddImage(reinterpret_cast<ImTextureID>(u.textur), p0, p1, ImVec2{g.s0, g.t0}, ImVec2{g.s1, g.t1},
+                         ImGui::ColorConvertFloat4ToU32(ImVec4{g.farbe.r, g.farbe.g, g.farbe.b, g.farbe.a}));
+            oben = std::min(oben, p0.y);
+            unten = std::max(unten, p1.y);
+        }
+        g_app->untertitelJetzt += (g_app->untertitelJetzt.empty() ? "" : "\n") + z.text;
+    }
+    g_app->untertitelOben = oben;
+    g_app->untertitelUnten = unten;
+    for (int k = 0; k < 4; ++k) { g_app->untertitelFarbe[k] = farbe[static_cast<std::size_t>(k)]; }
+}
 
 }  // namespace bhed::gui

@@ -6,6 +6,7 @@
 #include "bhed/menue/menue.h"
 #include "bhed/untertitel.h"
 
+#include <array>
 #include <cstdio>
 #include <set>
 #include <string>
@@ -106,6 +107,86 @@ int main() {
     pruefe(untertitel::text("sound/chars/mini/brakk01.mp3", untertitel::pakete("maps/zl2_mini.bsp", Spiel::JediAcademy), str.werte) ==
                "First line\nsecond line",
            "Paket = Dateiname, \\n wird Zeilenumbruch");
+
+    std::printf("Untertitel im Bild (CG_CaptionText, CG_DrawCaptionText)\n");
+    // Eine eigene Schrift: jedes Zeichen 10 Punkte breit, Hoehe wie ergoec (20/22/5).
+    menue::Schrift f;
+    f.ok = true;
+    f.shader = "fonts/zl2";
+    f.pointSize = 20;
+    f.height = 22;
+    f.ascender = 17;
+    f.descender = 5;
+    for (menue::Glyph& g : f.glyph) {
+        g.horizAdvance = 10;
+        g.width = 8;
+        g.height = 16;
+        g.baseline = 14;
+    }
+    // 7 x "abcdefghi" mit Leerzeichen = 69 Zeichen: die Zeile erreicht 640 Punkte
+    // beim 64. Zeichen, gebrochen wird nach dem letzten Leerzeichen (Stelle 60).
+    std::string t;
+    for (int n = 0; n < 7; ++n) { t += (n == 0 ? "" : " ") + std::string("abcdefghi"); }
+    const untertitel::Untertitel u = untertitel::setzen(t, 6900, 1000.0, true, 48.0F, f, Spiel::JediAcademy);
+    std::printf("  %zu Zeilen: \"%s\" | \"%s\", %d ms je Buchstabe, Mitte %d, erste Seite bis %.0f\n", u.zeilen.size(),
+                u.zeilen[0].c_str(), u.zeilen.size() > 1 ? u.zeilen[1].c_str() : "", u.buchstabenMs, u.textY, u.ersteSeiteBis);
+    pruefe(u.zeilen.size() == 2 && u.zeilen[0].size() == 60 && u.zeilen[1] == "abcdefghi", "gebrochen nach dem letzten Leerzeichen vor 640 Punkten");
+    pruefe(u.buchstabenMs == 100 && u.ersteSeiteBis == 1000.0 + 69 * 100, "Buchstabenzeit = Klanglaenge / strlen, Seite = Zeichen der zwei Zeilen");
+    pruefe(u.textY == 456, "in der Kamera: Mitte des unteren Balkens (480 - 48/2)");
+    const std::vector<untertitel::Zeile> z = untertitel::zeigen(u, 1500.0, f, Spiel::JediAcademy, true, 48.0F);
+    pruefe(z.size() == 2 && z[0].x == 20 && z[0].y == 432 && z[1].x == 275 && z[1].y == 452,
+           "zwei Zeilen: y = Mitte - Schrifthoehe - 4, mittig (640 - Breite) / 2");
+    pruefe(untertitel::zeigen(u, 999.0, f, Spiel::JediAcademy, true, 48.0F).empty(), "vor dem Klang nichts");
+    pruefe(!untertitel::zeigen(u, 7900.0, f, Spiel::JediAcademy, true, 48.0F).empty() &&
+               untertitel::zeigen(u, 7901.0, f, Spiel::JediAcademy, true, 48.0F).empty(),
+           "nach der Buchstabenzeit beider Zeilen vorbei (captionNextTextTime < cg.time)");
+    const untertitel::Untertitel draussen = untertitel::setzen("abc\n def\nghi", 1100, 0.0, false, 0.0F, f, Spiel::JediAcademy);
+    pruefe(draussen.zeilen.size() == 3 && draussen.zeilen[1] == "def" && draussen.textY == 396,
+           "\\n bricht, Leerzeichen am Zeilenanfang faellt weg, ausserhalb: 0.88 * (480 - 1.5 * Hoehe)");
+    const std::vector<untertitel::Zeile> s1 = untertitel::zeigen(draussen, 100.0, f, Spiel::JediAcademy, false, 0.0F);
+    const std::vector<untertitel::Zeile> s2 = untertitel::zeigen(draussen, 700.0, f, Spiel::JediAcademy, false, 0.0F);
+    std::printf("  Seite 1: %zu Zeilen, Seite 2: %zu Zeile(n) \"%s\" bei y %d\n", s1.size(), s2.size(), s2.empty() ? "" : s2[0].text.c_str(),
+                s2.empty() ? 0 : s2[0].y);
+    pruefe(s1.size() == 2 && s2.size() == 1 && s2[0].text == "ghi" && s2[0].y == 396 - 10 - 4,
+           "zweite Seite: die dritte Zeile allein, y = Mitte - halbe Hoehe - 4");
+
+    std::printf("Wann das Spiel den Untertitel schickt (PlayIcarusSound)\n");
+    untertitel::Klangfall kf;
+    kf.imKino = true;
+    pruefe(!untertitel::wirdGesendet(kf), "g_subtitles 0: nicht");
+    kf.gSubtitles = 2;
+    pruefe(untertitel::wirdGesendet(kf), "g_subtitles 2 in der Kamera: ja");
+    kf.imKino = false;
+    pruefe(!untertitel::wirdGesendet(kf), "g_subtitles 2 ohne Kamera: nicht");
+    kf.gSubtitles = 0;
+    kf.npcMitUntertiteln = true;
+    kf.abstandQuadrat = 1199.0 * 1199.0;
+    pruefe(untertitel::wirdGesendet(kf), "SET_USE_SUBTITLES, ohne Kamera, naeher als 1200: ja");
+    kf.gedaempft = true;
+    pruefe(!untertitel::wirdGesendet(kf), "CHAN_VOICE_ATTEN weiter als 350: nicht");
+    kf.rundfunk = true;
+    pruefe(untertitel::wirdGesendet(kf), "Rundfunk (Ansager, VOICE_GLOBAL, scriptrunner): immer");
+    pruefe(untertitel::gSubtitlesVorgabe(Spiel::JediAcademy) == 0 && untertitel::gSubtitlesVorgabe(Spiel::MovieDuels) == 0 &&
+               untertitel::gSubtitlesVorgabe(Spiel::JediOutcast) == 2,
+           "Vorgabe g_subtitles: JKA 0, MD 0, JK2 2");
+    const std::array<float, 4> gelb = untertitel::textFarbe("yellow");
+    const std::array<float, 4> weiss = untertitel::textFarbe("PURPLE");
+    pruefe(gelb[0] == 1 && gelb[1] == 1 && gelb[2] == 0 && weiss[2] == 1 && weiss[3] == 1, "SET_CAPTIONTEXTCOLOR: YELLOW, Unbekanntes weiss");
+
+    std::printf("Movie Duels und Jedi Outcast\n");
+    pruefe(untertitel::mdGroesse(untertitel::kMdTextprintscale) == 0.5F && untertitel::mdGroesse(5.0F) == 2.0F &&
+               untertitel::mdGroesse(0.1F) == 0.25F,
+           "MD: cg_textprintscale 0.5, begrenzt auf 0.25 .. 2");
+    const untertitel::Untertitel md = untertitel::setzen(t, 6900, 0.0, true, 48.0F, f, Spiel::MovieDuels);
+    const std::vector<untertitel::Zeile> mz = untertitel::zeigen(md, 10.0, f, Spiel::MovieDuels, true, 48.0F);
+    pruefe(md.zeilen.size() == 1 && md.schriftGroesse == 0.5F && mz.size() == 1 && mz[0].y == 456 - 5 - 2 && mz[0].x == (640 - 345) / 2,
+           "MD: halbe Schrift - eine Zeile, y = Mitte - halbe Hoehe - 4 * 0.5");
+    pruefe(untertitel::breite(f, "^1ab", 1.0F, Spiel::JediAcademy) == 20 && untertitel::breite(f, "^1ab", 1.0F, Spiel::JediOutcast) == 40,
+           "Breite: JKA ueberspringt ^1, JK2 zaehlt es");
+    std::vector<menue::Prim> glyphen;
+    menue::schriftZeichnen(f, 20, 432, "ab c", menue::Farbe{1, 1, 1, 1}, -1, 1.0F, false, glyphen);
+    pruefe(glyphen.size() == 3 && glyphen[0].x == 20.0F && glyphen[0].y == 432.0F + (22 - 2) - 14 && glyphen[2].x == 50.0F,
+           "RE_Font_DrawString: je Zeichen ein Bild, Grundlinie oy + Hoehe - Unterlaenge/2");
 
     std::printf("%s (%d Fehler)\n", fehler == 0 ? "alles gut" : "FEHLER", fehler);
     return fehler == 0 ? 0 : 1;

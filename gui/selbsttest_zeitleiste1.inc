@@ -689,6 +689,216 @@ std::vector<Schritt> jk2Schritte() {
     return s;
 }
 
+// Zeitleiste 2 Punkt 7: Untertitel im Vorschau-Bild. Eine eigene Mini-Szene:
+// New mission "zl2unter" (Karte maps/zl2unter.bsp, Geometrie von md_am_sith),
+// ein eigenes StringEd-Paket strings/english/zl2unter.str und eigene Klaenge
+// (stumme WAV, 3,0 s und 1,5 s) in einem pk3 eines eigenen Spielordners.
+const char* const kUnterText1 =
+    "This is our own subtitle for the preview: it is long enough to need more than one line on the screen, so the game "
+    "breaks it into pages of two lines, each shown as long as its letters take. The letters share the length of the sound "
+    "evenly, which is why a long sentence on a short sound flips its pages quickly, while a short one stays for the whole "
+    "sound. Movie Duels draws it at half size by default.";
+const char* const kUnterText2 = "Second line, now in yellow.";
+
+std::string stummeWav(double sekunden) {
+    const auto n = static_cast<std::uint32_t>(sekunden * 22050.0) * 2U;   // 16 Bit mono
+    std::string w = "RIFF";
+    const auto u32 = [&w](std::uint32_t v) { for (int i = 0; i < 4; ++i) { w += static_cast<char>((v >> (8 * i)) & 0xFFU); } };
+    const auto u16 = [&w](std::uint16_t v) { w += static_cast<char>(v & 0xFFU); w += static_cast<char>(v >> 8); };
+    u32(36U + n);
+    w += "WAVEfmt ";
+    u32(16U);
+    u16(1);
+    u16(1);
+    u32(22050U);
+    u32(44100U);
+    u16(2);
+    u16(16);
+    w += "data";
+    u32(n);
+    w.append(n, '\0');
+    return w;
+}
+
+struct UnterStand {
+    std::string fehler;
+    menue::Schrift schrift;
+    double satz1 = -1.0;
+    double satz2 = -1.0;
+    untertitel::Untertitel erwartet;   // CG_CaptionText fuer Satz 1 mit der Schrift des Spiels
+};
+
+std::vector<Schritt> untertitelSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto u = std::make_shared<UnterStand>();
+    add(tu("zeitleiste1 Untertitel: eigenes Paket zl2unter.str und eigene Klaenge als pk3 in einen eigenen Spielordner", [=] {
+        const std::string spiel = mb::verbinde(mb::laufOrdner(), "zl2spiel");
+        std::error_code ec;
+        std::filesystem::create_directories(::bhed::utf8Pfad(spiel), ec);
+        const std::string str = std::string("VERSION \"1\"\r\nCONFIG W:\\bin\\striped.cfg\r\nFILENOTES \"\"\r\n\r\n") +
+                                "REFERENCE           ZL2SATZ01\r\nLANG_ENGLISH        \"" + kUnterText1 + "\"\r\n\r\n" +
+                                "REFERENCE           ZL2SATZ02\r\nLANG_ENGLISH        \"" + kUnterText2 + "\"\r\n\r\nENDMARKER\r\n";
+        std::string f;
+        if (!writePk3(mb::verbinde(spiel, "zz_zl2unter.pk3"),
+                      {{"strings/english/zl2unter.str", str},
+                       {"sound/chars/zl2/zl2satz01.wav", stummeWav(3.0)},
+                       {"sound/chars/zl2/zl2satz02.wav", stummeWav(1.5)}},
+                      &f)) {
+            u->fehler = "pk3: " + f;
+            return;
+        }
+        g_app->settings.gamePaths.push_back(spiel);
+        rescanGamePaths();
+        refreshPk3List();
+    }));
+    add(tu("zeitleiste1 Untertitel: New mission zl2unter, eigenes Skript", [=] {
+        const std::string wurzel = mb::verbinde(mb::laufOrdner(), "missionen");
+        _putenv_s("BHED_MISSIONEN", wurzel.c_str());
+        mission1::ungespeicherteEntitiesVergessen();
+        g_app->doc.markSaved();
+        std::string f;
+        if (!neueMissionAnlegen("maps/md_am_sith.bsp", "zl2unter", "zl2unter", &f)) {
+            u->fehler += " New mission: " + f;
+            return;
+        }
+        Script neu;
+        std::vector<Diag> d;
+        (void)readScript("camera ( /*@CAMERA_COMMANDS*/ ENABLE );\n"
+                         "camera ( /*@CAMERA_COMMANDS*/ MOVE, < 0.000 0.000 300.000 >, 0.000 );\n"
+                         "wait ( 500.000 );\n"
+                         "sound ( /*@CHANNELS*/ CHAN_VOICE, \"sound/chars/zl2/zl2satz01.wav\" );\n"
+                         "wait ( 4000.000 );\n"
+                         "set ( /*@SET_TYPES*/ \"SET_CAPTIONTEXTCOLOR\", \"YELLOW\" );\n"
+                         "sound ( /*@CHANNELS*/ CHAN_VOICE, \"sound/chars/zl2/zl2satz02.wav\" );\n"
+                         "wait ( 2000.000 );\n"
+                         "camera ( /*@CAMERA_COMMANDS*/ DISABLE );\n",
+                         neu, d);
+        g_app->doc.ersetzeSkript(std::move(neu), "zl2unter");
+        rebuildTree();
+        g_app->camTrackValid = false;
+        g_app->mapDirty = true;
+        g_app->leftMode = 1;
+        g_app->untertitelStufe = -1;
+        g_app->throughCamera = true;
+        g_app->cameraSelected = false;
+        g_app->selectedPath.clear();
+        g_app->playing = false;
+        g_app->playMs = 0.0;
+    }));
+    add(warteBis("zeitleiste1 Untertitel: Szene zl2unter mit zwei Saetzen", [=] {
+        return !u->fehler.empty() || (g_app->map.path == "maps/zl2unter.bsp" && g_app->camTrackValid && g_app->spuren.sprache.clips.size() == 2);
+    }, 2500));
+    add(pruefe("zeitleiste1 Untertitel: die Sprach-Zeile kennt den eigenen Untertitel (ZL2UNTER_ZL2SATZ01)", [=] {
+        const std::vector<spuren::Clip>& c = g_app->spuren.sprache.clips;
+        std::string daten;
+        const bool schrift = readFromArchives("fonts/ergoec.fontdat", daten) && menue::ladeFontdat("ergoec", daten, u->schrift);
+        if (c.size() == 2) {
+            u->satz1 = c[0].startMs;
+            u->satz2 = c[1].startMs;
+            u->erwartet = untertitel::setzen(c[0].untertitel, static_cast<int>(c[0].klangMs), c[0].startMs, true, 48.0F, u->schrift,
+                                             regelwerkMovieDuels() ? untertitel::Spiel::MovieDuels : untertitel::Spiel::JediAcademy);
+        }
+        diag::detail("Knopftest: zeitleiste1 Untertitel - " + u->fehler + " Saetze " + std::to_string(c.size()) + ", Satz 1 bei " +
+                     std::to_string(u->satz1) + " ms, " + (c.empty() ? std::string() : std::to_string(c[0].klangMs)) + " ms, [" +
+                     (c.empty() ? std::string() : c[0].schluessel) + "], " + std::to_string(u->erwartet.zeilen.size()) + " Zeilen");
+        return u->fehler.empty() && schrift && c.size() == 2 && c[0].untertitel == kUnterText1 && c[0].schluessel == "ZL2UNTER_ZL2SATZ01" &&
+               std::fabs(c[0].klangMs - 3000.0) < 1.0 && u->erwartet.zeilen.size() >= 3;
+    }));
+    add(tu("zeitleiste1 Untertitel: Zeit 1 s nach dem ersten Satz", [=] {
+        g_app->playMs = u->satz1 + 1000.0;
+        g_app->mapDirty = true;
+    }));
+    add(pause(0.5));
+    add(pruefe("zeitleiste1 Untertitel: Vorgabe wie im Spiel (Movie Duels g_subtitles 0) - kein Untertitel", [] {
+        diag::detail("Knopftest: zeitleiste1 Untertitel - Stufe " + std::to_string(g_app->untertitelStufe) + ", gezeigt \"" + g_app->untertitelJetzt + "\"");
+        return g_app->untertitelStufe == -1 && g_app->untertitelZeigen && g_app->untertitelJetzt.empty();
+    }));
+    add(tu("zeitleiste1 Untertitel: In Zwischensequenzen (g_subtitles 2)", [] { g_app->untertitelStufe = 2; }));
+    add(pause(0.5));
+    add(pruefe("zeitleiste1 Untertitel: die ersten zwei Zeilen im unteren Balken, wie CG_CaptionText sie bricht", [=] {
+        const float* r = g_app->blendeFlaeche;
+        const float h = r[3] - r[1];
+        diag::detail("Knopftest: zeitleiste1 Untertitel - gezeigt \"" + g_app->untertitelJetzt + "\", y " + std::to_string(g_app->untertitelOben) +
+                     " .. " + std::to_string(g_app->untertitelUnten) + ", Spielbild " + std::to_string(r[1]) + " .. " + std::to_string(r[3]) +
+                     ", Balken " + std::to_string(g_app->blendeBalken) + " / " + std::to_string(g_app->blendeBalkenPx) + " px, Kamera an " +
+                     std::to_string(g_app->camTrack.at(g_app->playMs).enabled ? 1 : 0));
+        const std::string soll = u->erwartet.zeilen.size() >= 2 ? u->erwartet.zeilen[0] + "\n" + u->erwartet.zeilen[1] : std::string("?");
+        return g_app->untertitelJetzt == soll && g_app->blendeBalkenPx > h * 0.09F && g_app->untertitelOben >= r[3] - g_app->blendeBalkenPx - 1.0F &&
+               g_app->untertitelUnten <= r[3] &&
+               g_app->untertitelFarbe[0] == 1.0F && g_app->untertitelFarbe[2] == 1.0F;
+    }));
+    add(foto("zl2_unter_mini"));
+    add(tu("zeitleiste1 Untertitel: Zeit auf die zweite Seite", [=] {
+        g_app->playMs = u->erwartet.ersteSeiteBis + 10.0;
+        g_app->mapDirty = true;
+    }));
+    add(pause(0.5));
+    add(pruefe("zeitleiste1 Untertitel: nach der Buchstabenzeit die naechste Seite", [=] {
+        const std::size_t n = u->erwartet.zeilen.size();
+        const std::string soll = n >= 4 ? u->erwartet.zeilen[2] + "\n" + u->erwartet.zeilen[3] : (n == 3 ? u->erwartet.zeilen[2] : "?");
+        diag::detail("Knopftest: zeitleiste1 Untertitel - Seite 2 bei " + std::to_string(g_app->playMs) + ": \"" + g_app->untertitelJetzt + "\"");
+        return g_app->untertitelJetzt == soll;
+    }));
+    add(tu("zeitleiste1 Untertitel: Zeit kurz vor dem zweiten Satz", [=] {
+        g_app->playMs = u->satz2 - 20.0;
+        g_app->mapDirty = true;
+    }));
+    add(pause(0.4));
+    add(pruefe("zeitleiste1 Untertitel: nach der letzten Seite nichts mehr", [] { return g_app->untertitelJetzt.empty(); }));
+    add(tu("zeitleiste1 Untertitel: Zeit im zweiten Satz", [=] {
+        g_app->playMs = u->satz2 + 300.0;
+        g_app->mapDirty = true;
+    }));
+    add(pause(0.4));
+    add(pruefe("zeitleiste1 Untertitel: SET_CAPTIONTEXTCOLOR YELLOW - der zweite Satz gelb", [] {
+        diag::detail("Knopftest: zeitleiste1 Untertitel - \"" + g_app->untertitelJetzt + "\" Farbe " + std::to_string(g_app->untertitelFarbe[0]) + " " +
+                     std::to_string(g_app->untertitelFarbe[1]) + " " + std::to_string(g_app->untertitelFarbe[2]));
+        return g_app->untertitelJetzt == kUnterText2 && g_app->untertitelFarbe[0] == 1.0F && g_app->untertitelFarbe[1] == 1.0F &&
+               g_app->untertitelFarbe[2] == 0.0F;
+    }));
+    add(foto("zl2_unter_gelb"));
+    add(tu("zeitleiste1 Untertitel: Vorgabe und Ansicht zurueck", [] {
+        g_app->untertitelStufe = -1;
+        g_app->throughCamera = false;
+        mission1::ungespeicherteEntitiesVergessen();
+        g_app->doc.markSaved();
+    }));
+    return s;
+}
+
+// Zeitleiste 2 Punkt 7: ein Foto einer echten Szene mit Untertitel (In Zwischensequenzen).
+std::vector<Schritt> untertitelFoto(const std::string& szene) {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("zeitleiste1: " + szene + " - Untertitel in Zwischensequenzen, durch die Kamera beim zweiten Satz", [] {
+        g_app->untertitelStufe = 2;
+        g_app->throughCamera = true;
+        g_app->cameraSelected = false;
+        g_app->selectedPath.clear();
+        g_app->playing = false;
+        int n = 0;
+        for (const spuren::Clip& c : g_app->spuren.sprache.clips) {
+            if (c.art == spuren::Art::Satz && !c.untertitel.empty() && ++n == 2) {
+                g_app->playMs = c.startMs + 400.0;
+                g_app->mapDirty = true;
+                break;
+            }
+        }
+    }));
+    add(pause(0.8));
+    add(pruefe("zeitleiste1: " + szene + " - der Untertitel steht im Bild", [szene] {
+        diag::detail("Knopftest: zeitleiste1 - " + szene + " Untertitel \"" + g_app->untertitelJetzt + "\" bei " + std::to_string(g_app->playMs));
+        return !g_app->untertitelJetzt.empty();
+    }));
+    add(foto("zl2_" + szene + "_untertitel"));
+    add(tu("zeitleiste1: Untertitel wie im Spiel, Ansicht zurueck", [] {
+        g_app->untertitelStufe = -1;
+        g_app->throughCamera = false;
+    }));
+    return s;
+}
+
 }  // namespace zl1
 
 std::vector<Schritt> zeitleiste1Schritte() {
@@ -697,6 +907,7 @@ std::vector<Schritt> zeitleiste1Schritte() {
     // BHED_ZL1_NUR=mini: nur die Mini-Szene, =jk2: nur Jedi Outcast (schneller Durchlauf beim Arbeiten).
     const char* nur = std::getenv("BHED_ZL1_NUR");
     if (nur != nullptr && std::strcmp(nur, "jk2") == 0) { return zl1::jk2Schritte(); }
+    if (nur != nullptr && std::strcmp(nur, "untertitel") == 0) { return zl1::untertitelSchritte(); }
     for (Schritt& x : zl1::miniSchritte()) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::fremdSchritte()) { s.push_back(std::move(x)); }
     if (nur != nullptr && std::strcmp(nur, "mini") == 0) { return s; }
@@ -727,6 +938,7 @@ std::vector<Schritt> zeitleiste1Schritte() {
     add(pause(0.5));
     // Zahlen aus dem Export zeitleiste0 (NOTIZEN_zeitleiste0.md): 15 Saetze, alle mit Laenge und Untertitel.
     for (Schritt& x : zl1::szeneSchritte("academy1_intro", 15, 15)) { s.push_back(std::move(x)); }
+    for (Schritt& x : zl1::untertitelFoto("academy1_intro")) { s.push_back(std::move(x)); }
     add(tu("zeitleiste1: Load mission (Movie Duels)", [=] {
         mission1::ungespeicherteEntitiesVergessen();
         missionenAusArchiv(st->md);
@@ -741,6 +953,7 @@ std::vector<Schritt> zeitleiste1Schritte() {
     add(pause(0.5));
     // Export zeitleiste0: 9 Klaenge, alle mit Laenge, 5 mit Untertitel (die 4 Schiffsklaenge haben keinen).
     for (Schritt& x : zl1::szeneSchritte("md_am_sith", 9, 5)) { s.push_back(std::move(x)); }
+    for (Schritt& x : zl1::untertitelSchritte()) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::jk2Schritte()) { s.push_back(std::move(x)); }
     return s;
 }

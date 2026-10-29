@@ -1119,6 +1119,8 @@ void drawTimeline() {
         g_app->followCam = !g_app->followCam;
         g_app->mapDirty = true;
     }
+    ImGui::SameLine();
+    untertitelSchalter();
     trenner();
     // --- Zoom: verkleinern, Alles, vergroessern (Entwurf zeitleiste1) ------
     //
@@ -4496,7 +4498,10 @@ void drawMapView() {
         // Jetzt zeichnet es in ein durchsichtiges Bild derselben Groesse,
         // das ueber das GPU-Bild gelegt wird. Verdeckt wird wie beim
         // Rasterer: die Tiefe kommt aus dem GPU-Tiefenpuffer zurueck.
-        if (!filmBild) { g_app->blendeZeigen = false; }
+        if (!filmBild) {
+            g_app->blendeZeigen = false;
+            g_app->untertitelZeigen = false;
+        }
         if (filmBild) {
             // zeitleiste1: Ueberlagerung und Blende bleiben wie im letzten Bild.
         } else if (gpuBereit && g_app->gpuAufrufe > 0 && blende) {
@@ -4526,6 +4531,7 @@ void drawMapView() {
                 for (int k = 0; k < 4; ++k) { vollblende[k] = cs.fadeColor[k]; }
             }
             g_app->blendeZeigen = true;
+            g_app->untertitelZeigen = zeitleiste;   // Punkt 7: die Szene zur Zeit des Zeigers
             g_app->blendeBalken = balken;
             for (int k = 0; k < 4; ++k) { g_app->blendeFarbe[k] = vollblende[k]; }
             g_app->gizmoZeigen = false;
@@ -4540,6 +4546,7 @@ void drawMapView() {
             // mission1 (shank: "beim Abspielen soll das Bild wie im Spiel
             // aussehen"): keine Bearbeitungshilfen ueber dem Bild, solange die
             // Wiedergabe laeuft - auch nicht in der freien Ansicht.
+            g_app->untertitelZeigen = true;
             g_app->gizmoZeigen = false;
             g_app->gizmoShown = false;
             g_app->gizmoBild.rgba.clear();
@@ -4695,6 +4702,17 @@ void drawMapView() {
             blendeUeberlagern(ImGui::GetWindowDrawList(), ra, rb,
                               std::max(1, static_cast<int>(std::lround(static_cast<float>(g_app->mapImage.height) *
                                                                        g_app->spielRahmen.hoehe))));
+        }
+        // Zeitleiste 2 Punkt 7: die Untertitel nach Balken und Blende
+        // (CG_Draw2D: CGCam_DrawWideScreen ... CG_DrawCaptionText), im Rahmen
+        // des Spielbilds.
+        if (g_app->untertitelZeigen) {
+            ImVec2 ua;
+            ImVec2 ub;
+            spielRahmenRechteck(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ua, ub);
+            untertitelZeichnen(ImGui::GetWindowDrawList(), ua, ub);
+        } else {
+            g_app->untertitelJetzt.clear();
         }
         // rc601 saber review 2c: der Klirrblitz NACH den Balken, wie CG_Draw2D.
         saberBlitzZeichnen2D(0, ImGui::GetWindowDrawList(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax(),

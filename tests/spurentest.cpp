@@ -357,6 +357,41 @@ int main() {
         pruefe(gefunden, "Befehl aus einem fremden Skript: Skript, Zeile dort, Befehlstext, nicht ziehbar");
     }
 
+    std::printf("Untertitel: SET_USE_SUBTITLES und SET_CAPTIONTEXTCOLOR\n");
+    {
+        // Zeitleiste 2 Punkt 7: der NPC brakk mit SET_USE_SUBTITLES "true" fuer
+        // den zweiten Satz, nicht fuer den ersten; die Farbe ab 500 ms gelb.
+        Script sk;
+        std::vector<Diag> dg;
+        (void)readScript("affect ( \"brakk\", FLUSH )\n{\n"
+                         "\tsound ( CHAN_VOICE, \"sound/chars/mini/brakk01.mp3\" );\n"
+                         "\twait ( 1000 );\n"
+                         "\tset ( \"SET_USE_SUBTITLES\", \"true\" );\n"
+                         "\tsound ( CHAN_VOICE, \"sound/chars/mini/brakk02.mp3\" );\n"
+                         "}\n"
+                         "wait ( 500 );\n"
+                         "set ( \"SET_CAPTIONTEXTCOLOR\", \"YELLOW\" );\n",
+                         sk, dg);
+        const Ablauf a4 = simuliereAblauf(sk, "", welt);
+        const CameraTrack k4 = buildCameraTrack(a4.flach);
+        const Timeline t4 = buildTimeline(a4.flach, db);
+        const Scene sz4 = buildScene(a4.flach, karte, &hilfe);
+        spuren::SpurenQuellen q4;
+        q4.zeitleiste = &t4;
+        q4.kamera = &k4;
+        q4.szene = &sz4;
+        q4.ablauf = &a4;
+        const spuren::Spuren s4 = spuren::baue(q4);
+        std::vector<bool> immer;
+        for (const spuren::Clip& c : s4.sprache.clips) {
+            std::printf("  Satz %s bei %.0f ms, immer %d\n", c.datei.c_str(), c.startMs, c.untertitelImmer ? 1 : 0);
+            immer.push_back(c.untertitelImmer);
+        }
+        pruefe(immer.size() == 2 && !immer[0] && immer[1], "SET_USE_SUBTITLES gilt ab dem set, nur fuer den NPC");
+        pruefe(s4.untertitelFarben.size() == 1 && s4.untertitelFarben[0].second == "YELLOW" && nah(s4.untertitelFarben[0].first, 550.0, 1.0),
+               "SET_CAPTIONTEXTCOLOR mit Zeit und Farbe");
+    }
+
     std::printf("Hilfen\n");
     pruefe(spuren::anzeigeName("md_jedi_male", "x") == "Jedi male" && spuren::anzeigeName("", "kyle") == "kyle", "anzeigeName");
     {
