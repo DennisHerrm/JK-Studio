@@ -3080,7 +3080,7 @@ void drawPrefs() {
             g_app->db = std::move(fresh);
             rebuildTree();
             char msg[200];
-            std::snprintf(msg, sizeof(msg), tr(Str::MsgModelLoaded),
+            std::snprintf(msg, sizeof(msg), trN(Str::MsgModelLoaded, g_app->db.commands.size(), g_app->db.typesets.size(), g_app->db.macros.size()),
                           static_cast<int>(g_app->db.commands.size()),
                           static_cast<int>(g_app->db.typesets.size()),
                           static_cast<int>(g_app->db.macros.size()));
@@ -3419,7 +3419,7 @@ void drawGamePaths() {
                     ImGui::TextColored(ImVec4{0.90F, 0.75F, 0.35F, 1.0F}, "%s",
                                        tr(Str::PrefsEmptyPath));
                 } else {
-                    ImGui::TextDisabled(tr(Str::PrefsArchives),
+                    ImGui::TextDisabled(trN(Str::PrefsArchives, gp.archives.size(), gp.fileCount),
                                         static_cast<int>(gp.archives.size()),
                                         gp.fileCount);
                 }
@@ -3750,7 +3750,7 @@ void drawPk3Browser() {
                 if (ImGui::IsItemHovered()) {
                     ImGui::BeginTooltip();
                     ImGui::TextUnformatted(a.path.c_str());
-                    ImGui::TextDisabled(tr(Str::Pk3ArchiveInfo),
+                    ImGui::TextDisabled(trN(Str::Pk3ArchiveInfo, a.entries.size()),
                                         static_cast<int>(a.entries.size()));
                     ImGui::EndTooltip();
                 }
@@ -3764,7 +3764,7 @@ void drawPk3Browser() {
     for (const GamePath& gp : g_app->gamePaths) {
         archives += static_cast<int>(gp.archives.size());
     }
-    ImGui::Text(tr(Str::Pk3Found), archives, static_cast<int>(g_app->pk3Files.size()));
+    ImGui::Text(trN(Str::Pk3Found, archives, g_app->pk3Files.size()), archives, static_cast<int>(g_app->pk3Files.size()));
     if (g_app->gamePaths.empty()) {
         ImGui::TextDisabled("%s", tr(Str::Pk3None));
     }
@@ -3971,7 +3971,7 @@ void drawAbout() {
     // Frage beantwortet, der man einem Nachbau sonst nicht ansieht:
     // stimmt er ueberhaupt?
     ImGui::TextUnformatted(tr(Str::AboutVerified));
-    ImGui::BulletText(tr(Str::AboutModel),
+    ImGui::BulletText(trN(Str::AboutModel, g_app->db.commands.size(), g_app->db.typesets.size(), g_app->db.macros.size()),
                       static_cast<int>(g_app->db.commands.size()),
                       static_cast<int>(g_app->db.typesets.size()),
                       static_cast<int>(g_app->db.macros.size()));
@@ -4975,7 +4975,7 @@ void loadPath(const std::string& p) {
     aenderungsStandNeu();
     lesezeichenLaden();
     rebuildTree();
-    setStatus(tr(Str::MsgLoaded), static_cast<int>(g_app->rows.size()), 0);
+    setStatus(trN(Str::MsgLoaded, g_app->rows.size()), static_cast<int>(g_app->rows.size()), 0);
 }
 
 void doOpenOhneFrage() {
@@ -7193,7 +7193,7 @@ int ersetzeAlle(bool alleDokumente) {
     }
     char buf[96];
     if (alleDokumente) {
-        std::snprintf(buf, sizeof(buf), tr(Str::FindReplacedDocs), zahl, dokumente);
+        std::snprintf(buf, sizeof(buf), trN(Str::FindReplacedDocs, zahl, dokumente), zahl, dokumente);
     } else {
         std::snprintf(buf, sizeof(buf), tr(Str::FindReplacedN), zahl);
     }

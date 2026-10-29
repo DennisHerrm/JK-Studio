@@ -49,7 +49,15 @@ bool fensterSichtbar(const char* teil) {
 
 // Der Anfang einer Vorlage bis zum ersten Platzhalter (fuer die Suche in der Konsole)
 std::string vorlageAnfang(Str id) {
-    const std::string v = ke::trK(id);
+    // uebersetzung1: bei Zaehltexten nur der Anfang, den alle Formen teilen
+    // (cs "Odhadnuto %d světel" / "Odhadnuta %d světla").
+    std::string v = ke::trKN(id, 5, 5, 5, 5);
+    for (const long long n : {1LL, 2LL}) {
+        const std::string f = ke::trKN(id, n, n, n, n);
+        std::size_t i = 0;
+        while (i < v.size() && i < f.size() && v[i] == f[i]) { ++i; }
+        v.resize(i);
+    }
     return v.substr(0, v.find('%'));
 }
 
@@ -311,7 +319,7 @@ std::vector<Schritt> editordaten() {
     add(pruefe("mit Option: -keeplights nur fuer -meta, <karte>.bhed geschrieben (Kopf + die Quelle Byte fuer Byte)", [quelle] {
         const std::string k = konsoleText();
         char z[256];
-        std::snprintf(z, sizeof(z), ke::trK(Str::KeEdLichter), 1);
+        std::snprintf(z, sizeof(z), ke::trKN(Str::KeEdLichter, 1), 1);
         const std::string b = dateiInhalt(edStamm() + ".bhed");
         return k.find(z) != std::string::npos && zaehle(k, " -meta -keeplights \"") == 1 && k.find("-vis -threads 1 -keeplights") == std::string::npos &&
                k.find("-bounce 2 -keeplights") == std::string::npos && k.find(vorlageAnfang(Str::KeEdGeschrieben)) != std::string::npos && !quelle->empty() && b.size() > quelle->size() &&

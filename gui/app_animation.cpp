@@ -603,7 +603,7 @@ bool roffBearbeiten(const std::string& datei) {
     g_app->animRoff = a.datei;
     g_app->animSchluessel = -1;
     char z[600];
-    std::snprintf(z, sizeof(z), tr(Str::AnimRoffCopied), datei.c_str(), a.datei.c_str(),
+    std::snprintf(z, sizeof(z), trN(Str::AnimRoffCopied, r->bilder.size(), a.schluessel.size()), datei.c_str(), a.datei.c_str(),
                   static_cast<int>(r->bilder.size()), static_cast<int>(a.schluessel.size()));
     addStatus(z);
     return true;
@@ -822,7 +822,7 @@ void roffTeil(const MapEntity& e, float fs) {
             (void)skriptErsetzen(mitRoff(g_app->doc.script(), z2, name, z.blockWait), "ROFF");
         }
         const Roff r = roffAusAnim(z.anim);
-        ImGui::TextDisabled(tr(Str::AnimRoffInfo), roffPfad(z.anim.datei).c_str(), static_cast<int>(r.bilder.size()),
+        ImGui::TextDisabled(trN(Str::AnimRoffInfo, r.bilder.size(), z.anim.notizen.size()), roffPfad(z.anim.datei).c_str(), static_cast<int>(r.bilder.size()),
                             roffLaufzeitMs(r) / 1000.0, static_cast<int>(z.anim.notizen.size()));
     } else if (roff) {
         ImGui::TextDisabled("%s", tr(Str::AnimRoffWaiting));

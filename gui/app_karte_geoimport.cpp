@@ -149,7 +149,7 @@ void geoImportEinfuegen() {
     ++ed.sichtStand;
     auswahlGeaendert();
     char t[1400];
-    std::snprintf(t, sizeof(t), trK(Str::KeGiFertig), z.datei.c_str(), static_cast<int>(z.letztes.pinsel), static_cast<int>(z.letztes.modelle));
+    std::snprintf(t, sizeof(t), trKN(Str::KeGiFertig, z.letztes.pinsel, z.letztes.modelle), z.datei.c_str(), static_cast<int>(z.letztes.pinsel), static_cast<int>(z.letztes.modelle));
     ausgabe(t);
     z.offen = false;
     if (z.optimierer) { optimiererOeffnen(); }
@@ -292,7 +292,7 @@ bool modellAbgelegt(const std::string& pfad, ImVec2 punkt) {
     ed.spielKennung.clear();   // den Suchpfad neu lesen: die neuen Dateien (EnginePath_Realise)
     ++ed.sichtStand;
     auswahlGeaendert();
-    std::snprintf(t, sizeof(t), trK(Str::KeMiFertig), pfad.c_str(), paket.modellPfad.c_str(), static_cast<int>(paket.flaechen),
+    std::snprintf(t, sizeof(t), trKN(Str::KeMiFertig, paket.flaechen, paket.dreiecke), pfad.c_str(), paket.modellPfad.c_str(), static_cast<int>(paket.flaechen),
                   static_cast<int>(paket.dreiecke));
     ausgabe(t);
     return true;
@@ -346,7 +346,7 @@ void geoImportDialogZeichnen() {
                 if (ImGui::Combo(id.c_str(), &z.wahl[i], arten, 3)) { z.neu = true; }
                 ImGui::TableNextColumn();
                 char t[256];
-                std::snprintf(t, sizeof(t), trK(Str::KeGiVorschauText), static_cast<int>(r.pinsel.size()),
+                std::snprintf(t, sizeof(t), trKN(Str::KeGiVorschauText, r.pinsel.size()), static_cast<int>(r.pinsel.size()),
                               r.detail ? trK(Str::KeGiDetail) : trK(Str::KeGiStruktur));
                 std::string text = t;
                 if (r.art == karte::TeilArt::ModellClip) { text += std::string(" + ") + trK(Str::KeGiModellClip); }

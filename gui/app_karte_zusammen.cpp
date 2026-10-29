@@ -164,7 +164,7 @@ bool teilKarteSchreiben(int ebene, const std::string& karte) {
             }
         }
         char z[200];
-        std::snprintf(z, sizeof(z), trK(Str::KeZfLicht), l.ambient, l.gitterPunkte, static_cast<int>(l.lichter.size()));
+        std::snprintf(z, sizeof(z), trKN(Str::KeZfLicht, l.gitterPunkte, l.lichter.size()), l.ambient, l.gitterPunkte, static_cast<int>(l.lichter.size()));
         notiz(z);
     }
     return schreiben(karte, karte::textmodusSchreiben(text));
@@ -230,7 +230,7 @@ void nachZusammenfuehren(int art) {
     g_st.kollisionGesamt = k.gesamt;
     g_st.kollisionStoppen = k.stoppen;
     char z[512];
-    std::snprintf(z, sizeof(z), trK(Str::KeZfKollision), k.stoppen, k.gesamt, k.nichtPruefbar);
+    std::snprintf(z, sizeof(z), trKN(Str::KeZfKollision, k.stoppen, k.gesamt, k.nichtPruefbar), k.stoppen, k.gesamt, k.nichtPruefbar);
     if (!k.geladen || k.stoppen < k.gesamt) {
         befund(k.geladen ? std::string(z) : std::string(trK(Str::KeZfNichtGeladen)), true);
     } else {

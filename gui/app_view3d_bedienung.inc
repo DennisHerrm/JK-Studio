@@ -320,7 +320,7 @@ void drawPickedEntity() {
         ImGui::TextDisabled("%s", tr(Str::PickedUnused));
         return;
     }
-    ImGui::TextDisabled(tr(Str::PickedUses), static_cast<int>(hits.size()));
+    ImGui::TextDisabled(trN(Str::PickedUses, hits.size()), static_cast<int>(hits.size()));
 
     // Anklickbar: zur Zeile im Baum springen.
     for (std::size_t k = 0; k < hits.size() && k < 6; ++k) {

@@ -1326,7 +1326,8 @@ void gpuBerichtAusgeben() {
     }
     if (!l.gpu.bericht) { return; }
     char z[1024];
-    std::snprintf(z, sizeof(z), trK(Str::KeGpuBericht), l.gpu.adapter.c_str(), l.gpu.gleich.c_str(), std::to_string(l.gpu.luxel).c_str(),
+    std::snprintf(z, sizeof(z), trKN(Str::KeGpuBericht, l.gpu.luxel, l.gpu.lms, l.gpu.lmsAnders, l.gpu.gpuLm, l.gpu.cpuLm, l.gpu.gitterGpu),
+                  l.gpu.adapter.c_str(), l.gpu.gleich.c_str(), std::to_string(l.gpu.luxel).c_str(),
                   std::to_string(l.gpu.lms).c_str(), std::to_string(l.gpu.lmsAnders).c_str(), std::to_string(l.gpu.gpuLm).c_str(),
                   std::to_string(l.gpu.cpuLm).c_str(), std::to_string(l.gpu.gitterGpu).c_str());
     konsoleSchreiben(l.gpu.lmsAnders == 0 ? KonsolenZeile::Art::Ausgabe : KonsolenZeile::Art::Warnung, std::string(z) + "\n");
@@ -1392,7 +1393,7 @@ void zusammenfassung(int art, const std::string& grund) {   // 0 fertig, 1 gesto
     } danach{std::move(l.danach), art};
     l.danach = nullptr;
     if (art == 0) {
-        std::snprintf(z, sizeof(z), trK(Str::KeBmFertig), l.eintrag.c_str(), static_cast<int>(l.befehle.size()), zeit.c_str());
+        std::snprintf(z, sizeof(z), trKN(Str::KeBmFertig, l.befehle.size()), l.eintrag.c_str(), static_cast<int>(l.befehle.size()), zeit.c_str());
         std::string text = z;
         for (const auto& [schritt, code] : l.rueckgaben) {
             if (code == 0) { continue; }
@@ -1564,7 +1565,7 @@ void visVorschauMelden() {
     if (!v.ok) { return; }
     const long long ram = bauplattform::arbeitsspeicherMB();
     char z[1024];
-    std::snprintf(z, sizeof(z), trK(Str::KeVisBedarf), std::to_string(v.portale).c_str(), std::to_string(v.cluster).c_str(), v.speicherMB / 1024.0,
+    std::snprintf(z, sizeof(z), trKN(Str::KeVisBedarf, v.portale, v.cluster), std::to_string(v.portale).c_str(), std::to_string(v.cluster).c_str(), v.speicherMB / 1024.0,
                   static_cast<double>(ram) / 1024.0);
     ausgabe(z);
     const Editor& ed = e();
@@ -2201,7 +2202,7 @@ void bauStarten(std::size_t index) {
         }
         if (n > 0) {
             char z[256];
-            std::snprintf(z, sizeof(z), trK(Str::KeEdLichter), n);
+            std::snprintf(z, sizeof(z), trKN(Str::KeEdLichter, n), n);
             ausgabe(z);
         }
     }

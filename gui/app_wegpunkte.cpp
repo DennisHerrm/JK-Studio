@@ -273,7 +273,7 @@ int wegErzeugen(float abstand, bool alteWeg, std::string* bericht) {
     const double s = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
     if (bericht != nullptr) {
         char z[200];
-        std::snprintf(z, sizeof(z), tr(Str::WegErzeugt), static_cast<int>(wp.size()), kanten, s);
+        std::snprintf(z, sizeof(z), trN(Str::WegErzeugt, wp.size(), kanten), static_cast<int>(wp.size()), kanten, s);
         *bericht = z;
     }
     return static_cast<int>(wp.size());
@@ -439,7 +439,7 @@ void drawWegFenster() {
         ziele += n.art == WegKnoten::Art::Ziel ? 1 : 0;
         kampf += n.art == WegKnoten::Art::Kampf ? 1 : 0;
     }
-    ImGui::TextDisabled(tr(Str::WegStand), wp, ziele, kampf, static_cast<int>(netz.kanten.size()));
+    ImGui::TextDisabled(trN(Str::WegStand, wp, ziele, kampf, netz.kanten.size()), wp, ziele, kampf, static_cast<int>(netz.kanten.size()));
     if (iconTextKnopf(tr(Str::WegZeigen), UiIcon::Pfad, tr(Str::WegZeigenHint))) {
         g_app->zeigeWegnetz = !g_app->zeigeWegnetz;
     }
@@ -481,7 +481,7 @@ void drawWegFenster() {
     if (iconTextKnopf(tr(Str::WegEntfernen), UiIcon::Loeschen, tr(Str::WegEntfernenHint))) {
         const int n = wegGenerierteEntfernen();
         char z[120];
-        std::snprintf(z, sizeof(z), tr(Str::WegEntfernt), n);
+        std::snprintf(z, sizeof(z), trN(Str::WegEntfernt, n), n);
         g_app->wegMeldung = z;
     }
     if (!g_app->wegMeldung.empty()) { ImGui::TextDisabled("%s", g_app->wegMeldung.c_str()); }
@@ -495,7 +495,8 @@ void drawWegFenster() {
         if (g_app->wegBefunde.empty()) {
             ImGui::TextColored(ImVec4{0.45F, 0.85F, 0.5F, 1.0F}, "%s", tr(Str::WegAllesGut));
         } else {
-            ImGui::TextColored(ImVec4{1.0F, 0.6F, 0.35F, 1.0F}, tr(Str::WegBefunde), static_cast<int>(g_app->wegBefunde.size()));
+            ImGui::TextColored(ImVec4{1.0F, 0.6F, 0.35F, 1.0F}, trN(Str::WegBefunde, g_app->wegBefunde.size()),
+                               static_cast<int>(g_app->wegBefunde.size()));
             ImGui::BeginChild("##wegbefunde", ImVec2{-1.0F, ImGui::GetTextLineHeightWithSpacing() * 8.0F},
                               ImGuiChildFlags_Borders);
             for (std::size_t i = 0; i < g_app->wegBefunde.size(); ++i) {

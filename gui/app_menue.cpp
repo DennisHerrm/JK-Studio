@@ -294,7 +294,10 @@ int waechst(ImGuiInputTextCallbackData* d) {
     }
     return 0;
 }
-bool eingabe(const char* id, std::string* s, ImGuiInputTextFlags f = 0) {
+bool eingabe(const char* id, std::string* s, ImGuiInputTextFlags f = 0, const char* hinweis = nullptr) {
+    if (hinweis != nullptr) {
+        return ImGui::InputTextWithHint(id, hinweis, s->data(), s->capacity() + 1, f | ImGuiInputTextFlags_CallbackResize, waechst, s);
+    }
     return ImGui::InputText(id, s->data(), s->capacity() + 1, f | ImGuiInputTextFlags_CallbackResize, waechst, s);
 }
 
@@ -1708,7 +1711,7 @@ void zeichneSuchleiste(Dokument& d) {
     ImGui::SameLine();
     char b[200];
     if (!fehler.empty()) { std::snprintf(b, sizeof(b), tr(Str::MeRegexFehler), fehler.c_str()); }
-    else { std::snprintf(b, sizeof(b), tr(Str::MeTreffer), gesamt); }
+    else { std::snprintf(b, sizeof(b), trN(Str::MeTreffer, gesamt), gesamt); }
     ImGui::TextUnformatted(b);
     auto naechster = [&](bool vor) {
         if (t.empty()) { return; }
@@ -2082,7 +2085,7 @@ std::string diagMeldung(const Diagnose& x) {
             switch (b.art) {
                 case BefundArt::ZuVieleItems: std::snprintf(buf, sizeof(buf), tr(Str::MeDiagZuVieleItems), b.a, b.b); return buf;
                 case BefundArt::ZuVieleMenues: std::snprintf(buf, sizeof(buf), tr(Str::MeDiagZuVieleMenues), b.a, b.b); return buf;
-                case BefundArt::SkriptZuLang: std::snprintf(buf, sizeof(buf), tr(Str::MeDiagSkriptZuLang), b.a, b.b); return buf;
+                case BefundArt::SkriptZuLang: std::snprintf(buf, sizeof(buf), trN(Str::MeDiagSkriptZuLang, b.a), b.a, b.b); return buf;
                 case BefundArt::ZuVieleWerte:
                 case BefundArt::ZuVieleFarben:
                 case BefundArt::ZuVieleSpalten: std::snprintf(buf, sizeof(buf), tr(Str::MeDiagZuViele), b.a, b.b); return buf;
@@ -2478,7 +2481,7 @@ void zeichneTexteFenster(Dokument& d) {
             }
         }
         char buf[1024];
-        std::snprintf(buf, sizeof(buf), tr(Str::MeTexteImPaket), static_cast<int>(d.eigeneTexte.size()), liste.c_str());
+        std::snprintf(buf, sizeof(buf), trN(Str::MeTexteImPaket, d.eigeneTexte.size()), static_cast<int>(d.eigeneTexte.size()), liste.c_str());
         ImGui::TextWrapped("%s", buf);
         (void)dateien;
     }
@@ -2562,7 +2565,7 @@ void zeichnePruefFenster() {
         ImGui::SameLine();
         if (ImGui::Button(tr(Str::MePruefen)) || !z.pruefGelaufen) { (void)pruefeAlleMenues(); }
         char buf[128];
-        std::snprintf(buf, sizeof(buf), tr(Str::MePruefungAnzahl), static_cast<int>(z.pruefErgebnis.size()));
+        std::snprintf(buf, sizeof(buf), trN(Str::MePruefungAnzahl, z.pruefErgebnis.size()), static_cast<int>(z.pruefErgebnis.size()));
         ImGui::TextUnformatted(z.pruefErgebnis.empty() ? tr(Str::MePruefungOk) : buf);
         ImGui::BeginChild("##pruefliste");
         for (std::size_t i = 0; i < z.pruefErgebnis.size(); ++i) {
@@ -3541,7 +3544,7 @@ void zeichneBibliothek(Dokument& d) {
     // Aus der Auswahl eine Vorlage speichern
     ImGui::BeginDisabled(d.auswahl.empty());
     ImGui::SetNextItemWidth(-1);
-    eingabe("##vorlagename", &z.vorlageName);
+    eingabe("##vorlagename", &z.vorlageName, 0, tr(Str::MeVorlageName));
     if (ImGui::Button(tr(Str::MeVorlageSpeichern), ImVec2{-1, 0}) && !z.vorlageName.empty()) {
         if (speichereVorlage(vorlagenOrdner(), z.vorlageName, kopiereAuswahl())) {
             z.vorlagenGeladen = false;
@@ -3985,7 +3988,7 @@ void zeichneLeiste(Dokument* d) {
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 8);
     if (ImGui::Combo("##sv", &sv, svn, 2)) { z.seitenv = sv == 0 ? Seitenverhaeltnis::Strecken : Seitenverhaeltnis::Balken; }
     ImGui::SameLine();
-    static const char* const aufl[] = {"Window", "640x480", "800x600", "1024x768", "1280x720", "1366x768", "1600x900", "1920x1080", "2560x1440", "3440x1440"};
+    const char* const aufl[] = {tr(Str::MeAufloesungFenster), "640x480", "800x600", "1024x768", "1280x720", "1366x768", "1600x900", "1920x1080", "2560x1440", "3440x1440"};
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 6);
     ImGui::Combo("##aufl", &z.aufloesung, aufl, 10);
     ImGui::SameLine();
@@ -4638,7 +4641,7 @@ bool exportiere(const std::string& pfad, bool nurAenderungen) {
     const int verlust = pruefeAlleMenues();
     if (ok && verlust > 0) {
         char w[200];
-        std::snprintf(w, sizeof(w), tr(Str::MePruefungAnzahl), verlust);
+        std::snprintf(w, sizeof(w), trN(Str::MePruefungAnzahl, verlust), verlust);
         z.meldung += "  " + std::string(w);
         z.pruefFenster = true;
     }

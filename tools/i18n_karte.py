@@ -84,9 +84,6 @@ KARTE = [
      "G: Rastergröße\nF: Kartenformat\nC: Sichtweite der Kamera\nL: Textur gesperrt",
      "G: 网格大小\nF: 地图格式\nC: 摄像机裁剪距离\nL: 纹理锁定",
      "G: グリッドサイズ\nF: マップ形式\nC: カメラのクリップ距離\nL: テクスチャロック"),
-    ("KeBrushCount", "Brushes", "Brushes", "画刷", "ブラシ"),
-    ("KePatchCount", "Patches", "Patches", "曲面片", "パッチ"),
-    ("KeEntityCount", "Entities", "Entities", "实体", "エンティティ"),
 
     # --- Mapped Commands (commands.cpp:332-428) --------------------------------
     ("KeMappedCommands", "Mapped Commands", "Belegte Befehle", "已映射的命令", "割り当て済みコマンド"),

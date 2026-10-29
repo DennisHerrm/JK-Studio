@@ -1196,7 +1196,7 @@ bool tourStarten(const std::string& id, int ab) {
     if (!s.ablauf.starte(*t, ansicht, ab)) {
         const std::vector<tour::Schritt>* st = t->schritte(ansicht);
         char m[400];
-        std::snprintf(m, sizeof(m), tr(Str::TourStartFailed), id.c_str(), ab + 1,
+        std::snprintf(m, sizeof(m), trN(Str::TourStartFailed, ab + 1, st != nullptr ? st->size() : 0), id.c_str(), ab + 1,
                       st != nullptr ? static_cast<int>(st->size()) : 0);
         addStatus(m);
         diag::detail(std::string("Tour: ") + m);

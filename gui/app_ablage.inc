@@ -993,7 +993,7 @@ void kopieren(bool ausschneiden) {
             frage(tr(Str::AskCopyAll), [] {
                 g_app->doc.setClipboard(g_app->doc.script().nodes);
                 ablageNachWindows();
-                setStatus(tr(Str::MsgCopied),
+                setStatus(trN(Str::MsgCopied, g_app->doc.script().nodes.size()),
                           static_cast<int>(g_app->doc.script().nodes.size()), 0);
             });
         }
@@ -1233,7 +1233,7 @@ void openScriptFromMemory(const std::string& data, const std::string& shownName)
     g_app->lesezeichen.erase(tabKennung(g_app->activeTab));
     diag::info("Skript geladen: " + shownName);
     rebuildTree();
-    setStatus(tr(Str::MsgLoaded), static_cast<int>(g_app->rows.size()), 0);
+    setStatus(trN(Str::MsgLoaded, g_app->rows.size()), static_cast<int>(g_app->rows.size()), 0);
 }
 
 
@@ -3238,7 +3238,7 @@ void loadMapFromBytes(const std::string& bytes, const std::string& shownPath) {
         }
     }
     g_app->mapDirty = true;
-    setStatus(tr(Str::MapLoaded), static_cast<int>(g_app->map.entities.size()),
+    setStatus(trN(Str::MapLoaded, g_app->map.entities.size(), g_app->map.targetNames.size()), static_cast<int>(g_app->map.entities.size()),
               static_cast<int>(g_app->map.targetNames.size()));
     // rc601 integ: welches Regelwerk die Vorschau rechnet (OpenJK / Movie Duels).
     (void)regelwerkPruefen();
@@ -3366,7 +3366,7 @@ void openEntFile() {
     g_app->hiddenEntities.clear();
     g_app->camTrackValid = false;
     char msg[200];
-    std::snprintf(msg, sizeof(msg), tr(Str::EntLoaded),
+    std::snprintf(msg, sizeof(msg), trN(Str::EntLoaded, g_app->map.entities.size()),
                   static_cast<int>(g_app->map.entities.size()));
     addStatus(msg);
 }
@@ -3770,7 +3770,7 @@ bool loadModel(App* a, const std::string& dataDir, std::string* error) {
     }
     (void)loadCommandDb(dataDir + "/supplement.bhc", kopf, a->db, ld);
     char msg[200];
-    std::snprintf(msg, sizeof(msg), tr(Str::MsgModelLoaded),
+    std::snprintf(msg, sizeof(msg), trN(Str::MsgModelLoaded, a->db.commands.size(), a->db.typesets.size(), a->db.macros.size()),
                   static_cast<int>(a->db.commands.size()),
                   static_cast<int>(a->db.typesets.size()),
                   static_cast<int>(a->db.macros.size()));

@@ -6164,7 +6164,7 @@ void prepareScene() {
                        "ein dowait auf den Lauf endet nie.");
             if (insStatus) {
                 char zeile[600];
-                std::snprintf(zeile, sizeof(zeile), tr(Str::BewNavOhneWeg), g_app->scene.actors[w.figur].name.c_str(),
+                std::snprintf(zeile, sizeof(zeile), trN(Str::BewNavOhneWeg, static_cast<int>(w.abstand)), g_app->scene.actors[w.figur].name.c_str(),
                               ziel.c_str(), static_cast<int>(w.abstand), w.ms / 1000.0);
                 addStatus(zeile);
             }
@@ -7127,11 +7127,12 @@ void drawKartenStatistik() {
         ImGui::TextDisabled(tr(Str::MapFrameMs), static_cast<double>(g_app->mapFrameMs));
     }
     if (g_app->textures.found + g_app->textures.missing != 0) {
-        ImGui::Text(tr(Str::MapTexFound), g_app->textures.found, g_app->textures.found + g_app->textures.missing);
+        ImGui::Text(trN(Str::MapTexFound, g_app->textures.found, g_app->textures.found + g_app->textures.missing), g_app->textures.found,
+                    g_app->textures.found + g_app->textures.missing);
     } else if (g_app->gamePaths.empty()) {
         ImGui::TextDisabled("%s", tr(Str::MapTexNone));
     }
-    ImGui::Text(tr(Str::MapTriangles), static_cast<int>(g_app->mesh.indexes.size() / 3),
+    ImGui::Text(trN(Str::MapTriangles, g_app->mesh.indexes.size() / 3, g_app->mesh.batches.size()), static_cast<int>(g_app->mesh.indexes.size() / 3),
                 static_cast<int>(g_app->mesh.batches.size()));
     if (g_app->showActors && !g_app->scene.actors.empty()) {
         int withModel = 0;
@@ -7142,7 +7143,7 @@ void drawKartenStatistik() {
         if (withModel == 0) {
             ImGui::TextDisabled("%s", tr(Str::ActorsNoModels));
         } else {
-            ImGui::Text(tr(Str::ActorsFound), withModel, static_cast<int>(g_app->scene.actors.size()));
+            ImGui::Text(trN(Str::ActorsFound, withModel, g_app->scene.actors.size()), withModel, static_cast<int>(g_app->scene.actors.size()));
         }
     }
     if (g_app->showGlow) { ImGui::TextDisabled("%s: %d", tr(Str::MapGlow), g_app->gpuGluehen); }

@@ -146,7 +146,7 @@ void schritteAusfuehren(int anzahl, bool redo) {
                       text.empty() ? stepName(was) : text.c_str());
         g_app->undoMeldung = kopf;
     } else {
-        std::snprintf(kopf, sizeof(kopf), tr(redo ? Str::RedoSteps : Str::UndoSteps), getan);
+        std::snprintf(kopf, sizeof(kopf), trN(redo ? Str::RedoSteps : Str::UndoSteps, getan), getan);
         g_app->undoMeldung = text.empty() ? std::string(kopf) : std::string(kopf) + " - " + text;
     }
     g_app->undoMeldungRedo = redo;
@@ -779,7 +779,7 @@ void doCompile() {
     }
     (void)doSave();
     char msg[200];
-    std::snprintf(msg, sizeof(msg), tr(Str::CompileOk),
+    std::snprintf(msg, sizeof(msg), trN(Str::CompileOk, blocks.size(), bytes.size()),
                   static_cast<int>(blocks.size()), static_cast<int>(bytes.size()));
     addStatus(msg);
     g_app->kompiliertBis = ImGui::GetTime() + 1.5;
@@ -2848,7 +2848,7 @@ void drawSplitTree(const Layout& l, int pane, float breite, float hoehe) {
                     if (const Node* nd = nodeAt(src, r.path)) {
                         g_app->doc.setClipboard({*nd});
                         ablageNachWindows();
-                        setStatus(tr(Str::MsgCopied), 1, 0);
+                        setStatus(trN(Str::MsgCopied, 1), 1, 0);
                     }
                 }
                 ImGui::EndPopup();
@@ -3683,7 +3683,7 @@ void drawTree(const Layout& l, int pane, float breite, float hoehe) {
                             const Node kopie = *nd;
                             if (g_app->doc.insertAfter(r.path, kopie)) {
                                 rebuilt = true;
-                                setStatus(tr(Str::MsgCopied), 1, 0);
+                                setStatus(trN(Str::MsgCopied, 1), 1, 0);
                             }
                         }
                     }
@@ -3915,7 +3915,7 @@ void drawTree(const Layout& l, int pane, float breite, float hoehe) {
                         if (g_app->doc.replaceMany(zurueck)) {
                             rebuilt = true;
                             char z[160];
-                            std::snprintf(z, sizeof(z), tr(Str::MsgRevertedN), static_cast<int>(zurueck.size()));
+                            std::snprintf(z, sizeof(z), trN(Str::MsgRevertedN, zurueck.size()), static_cast<int>(zurueck.size()));
                             addStatus(z);
                         }
                     }
@@ -4783,7 +4783,7 @@ void drawMessages() {
         for (const Issue& i : g_app->issues) {
             if (i.level == Issue::Level::Error) { ++errs; } else { ++warns; }
         }
-        ImGui::Text(tr(Str::MsgIssues), errs, warns);
+        ImGui::Text(trN(Str::MsgIssues, errs, warns), errs, warns);
         ImGui::Separator();
     }
     for (const std::string& line : g_app->statusLines) {
@@ -5303,11 +5303,12 @@ void drawMenu() {
                     tris += sf.indexes.size() / 3;
                 }
                 ImGui::Separator();
-                ImGui::TextDisabled(tr(Str::ModelInfo), static_cast<int>(drawn),
+                ImGui::TextDisabled(trN(Str::ModelInfo, drawn, tris, g_app->model.numBones), static_cast<int>(drawn),
                                     static_cast<int>(tris),
                                     g_app->model.numBones);
                 if (g_app->modelTextures.found + g_app->modelTextures.missing != 0) {
-                    ImGui::TextDisabled(tr(Str::ModelTexFound),
+                    ImGui::TextDisabled(trN(Str::ModelTexFound, g_app->modelTextures.found,
+                                            g_app->modelTextures.found + g_app->modelTextures.missing),
                                         g_app->modelTextures.found,
                                         g_app->modelTextures.found +
                                             g_app->modelTextures.missing);
@@ -5315,7 +5316,7 @@ void drawMenu() {
                 ImGui::TextDisabled(tr(Str::ModelSkeleton),
                                     g_app->model.animFile.c_str());
                 if (!g_app->anim.empty()) {
-                    ImGui::TextDisabled(tr(Str::ModelAnimCount),
+                    ImGui::TextDisabled(trN(Str::ModelAnimCount, g_app->animList.size(), g_app->anim.numFrames),
                                         static_cast<int>(g_app->animList.size()),
                                         g_app->anim.numFrames);
                 }

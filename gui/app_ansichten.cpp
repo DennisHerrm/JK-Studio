@@ -655,7 +655,7 @@ void drawGraphAnsicht() {
     { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::GraphRightAnglesHint)); } }   // H2
     ImGui::SameLine();
     ImGui::AlignTextToFramePadding();
-    ImGui::TextDisabled(tr(z.g.gekuerzt ? Str::GraphCountCut : Str::GraphCount), static_cast<int>(z.g.knoten.size()),
+    ImGui::TextDisabled(trN(z.g.gekuerzt ? Str::GraphCountCut : Str::GraphCount, z.g.knoten.size(), z.g.kanten.size()), static_cast<int>(z.g.knoten.size()),
                         static_cast<int>(z.g.kanten.size()));
     if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::GraphHint)); }
 

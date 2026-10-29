@@ -182,7 +182,7 @@ void drawAnimListe(float hoehe) {
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { animInsSkript(static_cast<int>(i)); }
             }
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
-                ImGui::SetTooltip(tr(Str::ModelAnimRowHint), e.numFrames,
+                ImGui::SetTooltip(trN(Str::ModelAnimRowHint, e.numFrames), e.numFrames,
                                   static_cast<double>(e.numFrames) / static_cast<double>(std::max(e.fps, 1)), e.fps);
             }
             // Rechts: Laenge und - wenn sie sich wiederholt - das Schleifen-Icon
@@ -332,7 +332,7 @@ void drawNpcBrowser() {
     ImGui::InputTextWithHint("##npcsuche", tr(Str::NpcSearch), suche, sizeof(suche));
     const std::string such = klein(suche);
     const auto& typen = npcTypenListe();
-    ImGui::TextDisabled(tr(Str::NpcCount), static_cast<int>(typen.size()));
+    ImGui::TextDisabled(trN(Str::NpcCount, typen.size()), static_cast<int>(typen.size()));
     ImGui::BeginChild("##npcliste", ImVec2{-1.0F, -1.0F}, ImGuiChildFlags_Borders);
     // modell1: wie die Animationsliste nur die sichtbaren Zeilen (1323 Typen);
     // die Treffer der Suche neu nur bei anderer Liste (npcTypenListe baut neu,
@@ -582,7 +582,7 @@ void drawModelPanel() {
             ++total;
             if (sf.isVisible(g_app->showCaps)) { ++shown; }
         }
-        ImGui::TextDisabled(tr(Str::ModelSurfaces), shown, total);
+        ImGui::TextDisabled(trN(Str::ModelSurfaces, shown, total), shown, total);
         // Klick: alle Flaechen ins Detailprotokoll (siehe Watt Tambor, rc3xx).
         if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::ModelSurfaceDump)); }
         tourZielMelden("modell.flaechen", ImRect{ImGui::GetItemRectMin(), ImGui::GetItemRectMax()});   // H2: Ziel der Tour k-skins

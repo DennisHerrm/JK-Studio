@@ -602,7 +602,7 @@ void zeichneFenster() {
                     ImGui::ProgressBar(static_cast<float>(z.fortschritt), ImVec2{-FLT_MIN, 0.0F});
                 } else if (z.stand == Stand::Fertig) {
                     char z3[200];
-                    std::snprintf(z3, sizeof(z3), tr(Str::UpdDone), z.dateien);
+                    std::snprintf(z3, sizeof(z3), trN(Str::UpdDone, z.dateien), z.dateien);
                     ImGui::TextUnformatted(z3);
                 }
                 break;

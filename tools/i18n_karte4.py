@@ -12,8 +12,6 @@ KARTE4 = [
     ("KeLOpenBsp", "Open .bsp...", ".bsp öffnen...", "打开 .bsp...", ".bsp を開く..."),
     ("KeBspTitel", "Open compiled map", "Fertige Karte öffnen", "打开已编译的地图", "コンパイル済みマップを開く"),
     ("KeBspFilter", "Filter", "Filter", "筛选", "フィルター"),
-    ("KeBspKarte", "Map", "Karte", "地图", "マップ"),
-    ("KeBspQuelle", "From", "Aus", "来源", "場所"),
     ("KeBspDatei", "From file...", "Aus Datei...", "从文件...", "ファイルから..."),
     ("KeBspOeffnen", "Open", "Öffnen", "打开", "開く"),
     ("KeBspHinweis",

@@ -125,7 +125,7 @@ void spielUebernehmen(std::shared_ptr<Spielkontext> k) {
         warnung(z);
     }
     if (s.inventar.importSkripte() > 0) {   // Stufe 9d: fruehere Modell-Importe unter scripts/
-        std::snprintf(z, sizeof(z), trK(Str::KeImpSkripte), static_cast<int>(s.inventar.importSkripte()));
+        std::snprintf(z, sizeof(z), trKN(Str::KeImpSkripte, s.inventar.importSkripte()), static_cast<int>(s.inventar.importSkripte()));
         warnung(z);
     }
     // Die leere Karte des Starts bekommt das Spiel, sobald es da ist - und

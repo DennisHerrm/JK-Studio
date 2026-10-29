@@ -609,7 +609,7 @@ std::vector<Schritt> visHinweis() {
         const std::string bsp = ke::bauVariablen().at("BspFile");
         const karte::VisBedarf v = karte::visBedarfAusPrt(dateiInhalt(bsp.substr(0, bsp.size() - 4) + ".prt"));
         char z[1024];
-        std::snprintf(z, sizeof(z), ke::trK(Str::KeVisBedarf), std::to_string(v.portale).c_str(), std::to_string(v.cluster).c_str(), v.speicherMB / 1024.0,
+        std::snprintf(z, sizeof(z), ke::trKN(Str::KeVisBedarf, v.portale, v.cluster), std::to_string(v.portale).c_str(), std::to_string(v.cluster).c_str(), v.speicherMB / 1024.0,
                       static_cast<double>(bauplattform::arbeitsspeicherMB()) / 1024.0);
         char lang[512];
         std::snprintf(lang, sizeof(lang), ke::trK(Str::KeVisLang), "1");
@@ -624,7 +624,7 @@ std::vector<Schritt> visHinweis() {
     add(stufe8::warteSek("Bau mit -vis -fast fertig", [] { return !ke::bauLaeuft(); }, 300));
     add(pruefe("-vis -fast: kein Hinweis auf das volle VIS", [] {
         const std::string k = stufe3::konsoleText();
-        const std::string kopf = std::string(ke::trK(Str::KeVisBedarf)).substr(0, std::string(ke::trK(Str::KeVisBedarf)).find('%'));
+        const std::string kopf = stufe8::vorlageAnfang(Str::KeVisBedarf);
         return k.find("-vis -fast -threads 1") != std::string::npos && k.find(kopf) == std::string::npos;
     }));
     add(tu("Portal-Schwelle zurueck, Eintraege weg", [schwelle] {

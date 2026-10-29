@@ -130,7 +130,11 @@ def _lade_ui_texte():
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)
                 texte = {k: v + (weitere.get(k),) for k, v in texte.items()}
-            return texte
+
+            # uebersetzung1: Zaehltexte ("%d {file|files}") wie tr() mit der Form "other".
+            def other(t):
+                return None if t is None else re.sub(r'\{(?:[1-9]:)?([^{}]*\|[^{}]*)\}', lambda m: m.group(1).split('|')[-1], t)
+            return {k: tuple(other(t) for t in v) for k, v in texte.items()}
     raise SystemExit("gen_i18n.py: Liste S nicht gefunden")
 
 

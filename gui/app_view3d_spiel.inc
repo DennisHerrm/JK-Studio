@@ -3664,19 +3664,19 @@ void loadActorModels() {
     // ist, sagt genau, was zu tun waere.
     char why[224];
     if (found > 0) {
-        std::snprintf(why, sizeof(why), tr(Str::ActorsFound), found,
+        std::snprintf(why, sizeof(why), trN(Str::ActorsFound, found, g_app->scene.actors.size()), found,
                       static_cast<int>(g_app->scene.actors.size()));
     } else if (g_app->npcMap.empty()) {
         std::snprintf(why, sizeof(why), "%s", tr(Str::ActorsNoNpcFiles));
     } else if (noType > 0 && noNpc == 0 && noModel == 0) {
-        std::snprintf(why, sizeof(why), tr(Str::ActorsNoType), noType);
+        std::snprintf(why, sizeof(why), trN(Str::ActorsNoType, noType), noType);
     } else if (noNpc > 0) {
-        std::snprintf(why, sizeof(why), tr(Str::ActorsNoNpcEntry), noNpc,
+        std::snprintf(why, sizeof(why), trN(Str::ActorsNoNpcEntry, noNpc, g_app->npcMap.size()), noNpc,
                       static_cast<int>(g_app->npcMap.size()));
     } else if (noModel > 0) {
-        std::snprintf(why, sizeof(why), tr(Str::ActorsNoGlm), noModel);
+        std::snprintf(why, sizeof(why), trN(Str::ActorsNoGlm, noModel), noModel);
     } else if (badModel > 0) {
-        std::snprintf(why, sizeof(why), tr(Str::ActorsBadGlm), badModel);
+        std::snprintf(why, sizeof(why), trN(Str::ActorsBadGlm, badModel), badModel);
     } else if (g_app->scene.actors.empty()) {
         // GAR KEINE Figuren - bisher der einzige Fall, der nichts sagte.
         //
@@ -3686,7 +3686,7 @@ void loadActorModels() {
     } else {
         // Alle Faelle sind oben abgedeckt; bleibt trotzdem einer uebrig,
         // soll er sichtbar werden statt still zu verschwinden.
-        std::snprintf(why, sizeof(why), tr(Str::ActorsFound), found,
+        std::snprintf(why, sizeof(why), trN(Str::ActorsFound, found, g_app->scene.actors.size()), found,
                       static_cast<int>(g_app->scene.actors.size()));
     }
     g_app->actorWhy = why;
@@ -4487,7 +4487,7 @@ void loadMission(const Mission& m) {
     g_app->missionPickOpen = false;
     missionAusGeladener(m);
     char msg[256];
-    std::snprintf(msg, sizeof(msg), tr(Str::MissionLoaded), m.name.c_str(),
+    std::snprintf(msg, sizeof(msg), trN(Str::MissionLoaded, g_app->map.entities.size(), m.scripts.size()), m.name.c_str(),
                   static_cast<int>(g_app->map.entities.size()),
                   static_cast<int>(m.scripts.size()));
     addStatus(msg);

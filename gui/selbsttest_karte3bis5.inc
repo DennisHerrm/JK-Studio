@@ -1468,7 +1468,7 @@ std::string bisZeit(const char* z) {
 
 std::string fertigZeile(const char* eintrag, int schritte) {
     char z[512];
-    std::snprintf(z, sizeof(z), ke::trK(Str::KeBmFertig), eintrag, schritte, "\x01");
+    std::snprintf(z, sizeof(z), ke::trKN(Str::KeBmFertig, schritte), eintrag, schritte, "\x01");
     return bisZeit(z);
 }
 
@@ -4379,18 +4379,28 @@ std::vector<Schritt> karteneditorStufe4Schritte() {
         for (Schritt& x : stufe4::oeffnen()) { s.push_back(std::move(x)); }
         for (Schritt& x : stufe4::licht()) { s.push_back(std::move(x)); }
     }
-    if (teil("plugins") || teil("bobtoolz")) {
-        for (Schritt& x : stufe4::bobtoolz()) { s.push_back(std::move(x)); }
-    }
-    if (teil("plugins") || teil("brushexport")) {
-        for (Schritt& x : stufe4::brushexport()) { s.push_back(std::move(x)); }
-    }
-    if (teil("plugins") || teil("klein")) {
-        for (Schritt& x : stufe4::kleineplugins()) { s.push_back(std::move(x)); }
-    }
-    if (teil("plugins") || teil("meshtex")) {
-        for (Schritt& x : stufe4::meshtex()) { s.push_back(std::move(x)); }
-    }
+    // uebersetzung1: Die Plugin-Dialoge werden mit NRCs (englischen) Fotos verglichen,
+    // in Pixeln. Mit "Begriffe wie NetRadiant" gelten die Masse in jeder Sprache des
+    // Laufs: die Schritte entstehen mit den Beschriftungen, die der Lauf dann zeigt
+    // (trK beim Aufbau), und der Lauf schaltet die Begriffe fuer diese Teile ein. Ob die
+    // Texte jeder Sprache hineinpassen, prueft pluginTexte() in allen sechs Sprachen.
+    const auto wieNrc = [&s](std::vector<Schritt> (*teilSchritte)()) {
+        const bool vorher = karteneditor::nrcBegriffe();
+        karteneditor::setzeNrcBegriffe(true);
+        std::vector<Schritt> t = teilSchritte();
+        karteneditor::setzeNrcBegriffe(vorher);
+        auto lauf = std::make_shared<bool>(false);
+        s.push_back(tu("Begriffe wie NetRadiant an (NRC-Fotos der Plugin-Dialoge)", [lauf] {
+            *lauf = karteneditor::nrcBegriffe();
+            karteneditor::setzeNrcBegriffe(true);
+        }));
+        for (Schritt& x : t) { s.push_back(std::move(x)); }
+        s.push_back(tu("Begriffe wie NetRadiant wie vorher", [lauf] { karteneditor::setzeNrcBegriffe(*lauf); }));
+    };
+    if (teil("plugins") || teil("bobtoolz")) { wieNrc(stufe4::bobtoolz); }
+    if (teil("plugins") || teil("brushexport")) { wieNrc(stufe4::brushexport); }
+    if (teil("plugins") || teil("klein")) { wieNrc(stufe4::kleineplugins); }
+    if (teil("plugins") || teil("meshtex")) { wieNrc(stufe4::meshtex); }
     if (teil("plugins") || teil("texte")) {
         for (Schritt& x : stufe4::pluginTexte()) { s.push_back(std::move(x)); }
     }
@@ -4507,7 +4517,7 @@ std::vector<Schritt> fenster() {
         return hatBefund("verdeckt", &v) && v == 2 && hatBefund("mischinhalt", &m) && m == 1 && hatBefund("offgrid", &o) && o == 1 && hatBefund("deko");
     }));
     add(pruefe("Konsole: die Zusammenfassung des Optimierers", [] {
-        const std::string vorlage = ke::trK(Str::KeOptZusammenfassung);
+        const std::string vorlage = ke::trKN(Str::KeOptZusammenfassung, 0, 0, 0, 0);
         return stufe3::konsoleText().find(vorlage.substr(0, vorlage.find("%d"))) != std::string::npos;
     }));
     // Reiter "Pruefungen", Zeile "verdeckt": waehlt die zwei Pinsel aus
