@@ -890,6 +890,20 @@ RueckErgebnis modelleZurueckgewinnen(const std::string& bspDaten, const std::vec
                 if (std::find(tr.remaps.begin(), tr.remaps.end(), paar) == tr.remaps.end()) { tr.remaps.push_back(paar); }
             }
         }
+        // Stufe 9d (Fund md_rev_TarisUpper2: gestreckte control_station, nur die Lichtleiste stand in der .bsp):
+        // ein Netz des Modells ohne Dreiecke in der .bsp hat der Compiler nicht gesetzt (oben als nodraw
+        // gewertet) - es bekommt einen _remap auf nodraw, sonst zeigten Editor und neuer Bau mehr als die
+        // .bsp. q3map2 laesst nodraw-Flaechen weg (surface.cpp: "don't emit nodraw surfaces"). Teilt es
+        // seinen Shader mit einem gefundenen Netz, geht das nicht (der _remap gilt je Shader).
+        for (std::size_t k = 0; k < m.netze.size(); ++k) {
+            if (g.netze.count(static_cast<int>(k)) != 0) { continue; }
+            const std::string von = ohneEndung(m.netze[k].shader);
+            if (von.empty()) { continue; }
+            bool geteilt = false;
+            for (const int nk : g.netze) { geteilt = geteilt || klein(ohneEndung(m.netze[static_cast<std::size_t>(nk)].shader)) == klein(von); }
+            const bool schon = std::any_of(tr.remaps.begin(), tr.remaps.end(), [&von](const auto& x) { return klein(x.first) == klein(von); });
+            if (!geteilt && !schon) { tr.remaps.emplace_back(von, "textures/system/nodraw"); }
+        }
         std::sort(tr.flaechen.begin(), tr.flaechen.end());
         // Untermodell: die Entitaet mit "model" "*N" - ihr Ursprung kommt dazu (InsertModel
         // rechnet origin - parent_origin), "target" = ihr targetname
