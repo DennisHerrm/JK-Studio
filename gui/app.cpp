@@ -4909,6 +4909,12 @@ void leseMeldungenZeigen(const std::vector<Diag>& d, const std::string& name) {
 
 void loadPath(const std::string& p) {
     diag::Step step("Skript oeffnen: " + p);
+    // Menue-Editor M5b: ein Menue-Projekt (Doppelklick, Kommandozeile) oeffnet der Menue-Editor
+    if (menueeditor::istProjekt(p)) {
+        g_app->leftMode = 4;
+        menueeditor::projektVormerken(p);
+        return;
+    }
     // Schon offen? Dann dorthin - siehe reiterMitPfad.
     if (const int offen = reiterMitPfadI(p); offen >= 0) {
         zumOffenenReiter(offen, fileName(p));

@@ -837,6 +837,113 @@ const char* const kZustandProbe =
     "\t\t\taction { hide knopf2 }\n\t\t}\n"
     "\t}\n}\n";
 
+// M5b Punkt 3: Projektordner + Projektdatei, Sicherung und Wiederherstellen nach einem "Absturz",
+// Export, Doppelklick (derselbe Weg wie eine zweite Instanz bzw. die Kommandozeile), Frage zur
+// Dateizuordnung (nur mit Nein beantwortet - der Test aendert nie die echte Windows-Zuordnung).
+std::string pfadText(const std::filesystem::path& p) {
+    const std::u8string t = p.u8string();
+    return std::string(t.begin(), t.end());
+}
+
+std::vector<Schritt> schritteM5bProjekt() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = [] { return me::stand(); };
+    namespace fs = std::filesystem;
+    const auto ordner = std::make_shared<fs::path>(bhed::utf8Pfad(platform::executableDirectory()) / "projekt_probe");
+    const auto datei = std::make_shared<std::string>();
+    const auto geaendert = std::make_shared<std::string>();
+    const auto zuordnungVorher = std::make_shared<std::string>(platform::liesBenutzerRegistry("Software\\Classes\\.jksmenu"));
+    add(tu("M5b Projekt: Menue und ein Bild oeffnen, neues Projekt anlegen", [ordner, datei] {
+        std::error_code ec;
+        fs::remove_all(*ordner, ec);
+        fs::create_directories(*ordner, ec);
+        me::schliesseAlleOhneSpeichern();
+        (void)me::oeffneText("ui/projektprobe.menu", kLayoutProbe);
+        me::legeInsPaket("gfx/menus/probe.tga", std::string("TGA-Probe"));
+        *datei = pfadText(*ordner / "probe.jksmenu");
+        (void)me::legeProjektAn(*datei);
+    }));
+    add(pause(0.3));
+    add(pruefe("M5b Projekt: Ordner wie die pk3, Menue und Bild darin, Projektdatei nennt beide", [st, ordner, datei] {
+        std::error_code ec;
+        bool ok = me::projektDatei() == *datei;
+        for (const char* u : {"ui", "gfx", "video", "shaders", "strings"}) { ok = ok && fs::is_directory(*ordner / u, ec); }
+        std::ifstream f(bhed::utf8Pfad(*datei), std::ios::binary);
+        std::ostringstream t;
+        t << f.rdbuf();
+        const std::string txt = t.str();
+        ok = ok && fs::is_regular_file(*ordner / "ui" / "projektprobe.menu", ec) && fs::is_regular_file(*ordner / "gfx" / "menus" / "probe.tga", ec);
+        diag::info("Menue-Editor M5b Projekt: " + txt.substr(0, 300));
+        return ok && txt.find("menu ui/projektprobe.menu") != std::string::npos &&
+               txt.find("asset ui/projektprobe.menu gfx/menus/probe.tga") != std::string::npos && st().dokumente == 1;
+    }));
+    // aendern, sichern, "Absturz": alles zu ohne Speichern, Projekt wieder auf -> Frage, Wiederherstellen
+    add(tu("M5b Projekt: knopf1 verschieben und sofort sichern", [geaendert] {
+        me::waehle(me::itemNummer("knopf1"), false);
+        me::verschiebeAuswahl(4, 0);
+        *geaendert = me::stand().text;
+        me::sichereJetzt();
+    }));
+    add(pruefe("M5b Projekt: Sicherung im Projektordner (.jksautosave) mit dem geaenderten Text", [ordner, geaendert] {
+        std::ifstream f(*ordner / ".jksautosave" / "1.menu", std::ios::binary);
+        std::ostringstream t;
+        t << f.rdbuf();
+        return !geaendert->empty() && *geaendert != kLayoutProbe && t.str() == *geaendert;
+    }));
+    add(tu("M5b Projekt: wie nach einem Absturz alles zu, Projekt wieder oeffnen", [datei] {
+        me::schliesseAlleOhneSpeichern();
+        (void)me::oeffneProjekt(*datei);
+    }));
+    add(pause(0.4));
+    add(pruefe("M5b Projekt: Frage nach der Sicherung erscheint", [] { return finde(tr(Str::MePrjWiederherstellen), "", 0, false, "") != nullptr; }));
+    add(foto("menue_projekt_sicherung"));
+    add(klick(tr(Str::MePrjWiederherstellen)));
+    add(pause(0.3));
+    add(pruefe("M5b Projekt: Wiederherstellen bringt den geaenderten Text (ungespeichert), Sicherung weg", [st, ordner, geaendert] {
+        std::error_code ec;
+        return st().dokumente == 1 && st().text == *geaendert && !fs::exists(*ordner / ".jksautosave", ec);
+    }));
+    add(tu("M5b Projekt: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pruefe("M5b Projekt: Rueckgaengig fuehrt zur gespeicherten Fassung", [st] { return st().text == kLayoutProbe; }));
+    add(tu("M5b Projekt: Wiederholen, Projekt speichern, als pk3 ausgeben", [] {
+        (void)me::wiederholen();
+        (void)me::speichereProjektJetzt();
+        (void)me::exportiereProjektJetzt();
+    }));
+    add(pruefe("M5b Projekt: gespeichert (Menue auf der Platte geaendert), pk3 im Projektordner mit Menue und Bild", [ordner, geaendert] {
+        std::error_code ec;
+        std::ifstream f(*ordner / "ui" / "projektprobe.menu", std::ios::binary);
+        std::ostringstream t;
+        t << f.rdbuf();
+        return t.str() == *geaendert && fs::is_regular_file(*ordner / "zz_menu.pk3", ec) && me::letzterExport() == 2;
+    }));
+    // Doppelklick: derselbe Weg wie eine zweite Instanz (WM_COPYDATA) bzw. die Kommandozeile (loadPath)
+    add(tu("M5b Projekt: alles zu, Skript-Modus, Projekt per Doppelklick-Weg", [datei] {
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 0;
+        bhed::gui::dateiVonAussen(*datei);
+    }));
+    add(pause(0.6));
+    add(pruefe("M5b Projekt: Doppelklick oeffnet den Menue-Editor mit dem Projekt", [st, datei, geaendert] {
+        return g_app->leftMode == 4 && me::projektDatei() == *datei && st().dokumente == 1 && st().text == *geaendert;
+    }));
+    // Dateizuordnung: nur nach Rueckfrage; der Test antwortet Nein
+    add(tu("M5b Projekt: Frage zur Dateizuordnung", [] { me::fragZuordnung(); }));
+    add(pause(0.3));
+    add(pruefe("M5b Projekt: Rueckfrage zeigt Ja und Nein", [] {
+        return finde(tr(Str::MePrjZuordnenJa), "", 0, false, "") != nullptr && finde(tr(Str::MePrjZuordnenNein), "", 0, false, "") != nullptr;
+    }));
+    add(klick(tr(Str::MePrjZuordnenNein)));
+    add(pause(0.2));
+    add(pruefe("M5b Projekt: nach Nein ist die Windows-Zuordnung unveraendert", [zuordnungVorher] {
+        return finde(tr(Str::MePrjZuordnenJa), "", 0, false, "") == nullptr &&
+               platform::liesBenutzerRegistry("Software\\Classes\\.jksmenu") == *zuordnungVorher;
+    }));
+    add(tu("M5b Projekt: Projekt schliessen", [] { me::schliesseAlleOhneSpeichern(); }));
+    return s;
+}
+
 std::vector<Schritt> schritteM5b() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -882,6 +989,7 @@ std::vector<Schritt> schritteM5b() {
     }));
     add(pause(0.2));
     add(pruefe("M5b Zustaende: nach zwei Rueckgaengig byte-gleich mit dem Original", [st] { return st().text == kZustandProbe; }));
+    for (auto& x : schritteM5bProjekt()) { add(std::move(x)); }
     return s;
 }
 

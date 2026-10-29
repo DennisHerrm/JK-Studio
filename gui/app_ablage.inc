@@ -3685,6 +3685,7 @@ App* createApp() {
 void destroyApp(App* a) {
     a->settings.legalExit = true;   // sauber beendet
     if (a == g_app) { karteneditor::beimBeenden(); }   // Karten-Editor: g_strLastMap (main.cpp:476)
+    if (a == g_app) { menueeditor::beimBeenden(); }    // Menue-Editor M5b: Ungespeichertes in die Sicherung
     saveSettings(a);
     delete a;
 }

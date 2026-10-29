@@ -36,6 +36,7 @@
 #include "bhed/menue/hud.h"
 #include "bhed/menue/imspiel.h"
 #include "bhed/menue/layout.h"
+#include "bhed/menue/projekt.h"
 #include "bhed/menue/schriftbau.h"
 #include "bhed/menue/menue.h"
 #include "bhed/menue/modell.h"
@@ -64,6 +65,7 @@
 #include <sstream>
 #include <atomic>
 #include <chrono>
+#include <ctime>
 #include <mutex>
 #include <thread>
 
@@ -327,6 +329,17 @@ struct Zustand {
     std::vector<std::string> layoutWarnungen;     // M5 Punkt 1: letzte Rechnung
     std::vector<std::string> layoutZustaende;     // M5b: Skripte, die nach show/hide die Lage setzen
     Farbe hoverFarbe{1, 0.8F, 0.2F, 1};           // M5 Punkt 2: Farbe der fertigen Hover-Effekte
+    // M5b Punkt 3: Projekt (*.jksmenu), Sicherung, Dateizuordnung
+    std::string projektDatei;                     // "" = kein Projekt offen
+    Projekt projekt;
+    std::string projektVorgemerkt;                // Doppelklick/Kommandozeile: im naechsten Bild oeffnen
+    double sicherungAm = 0;                       // ImGui-Zeit der letzten Sicherung
+    bool sicherungGeprueft = false;               // Sicherung ohne Projekt beim ersten Bild gesucht
+    bool sicherungFrage = false;                  // Frage "Wiederherstellen?" oeffnen
+    std::string sicherungGefunden;                // Ordner der gefundenen Sicherung
+    std::vector<SicherungsEintrag> sicherungListe;
+    std::int64_t sicherungZeitpunkt = 0;
+    bool zuordnungFrage = false;                  // Frage zur Dateizuordnung oeffnen
 };
 
 // InputText mit std::string (wie misc/cpp/imgui_stdlib.cpp)
@@ -4436,8 +4449,13 @@ void leistenTrenner() {
 // M2 modernes Aussehen: die Leiste in Gruppen mit Symbolen und Hinweisen (vier Sprachen):
 // Datei | Rueckgaengig | Paket (Video, Schrift, Texte, Sprache) | Pruefen, Ausgeben, im Spiel
 // testen | Bearbeiten/Bedienen | Ansicht (Seitenverhaeltnis, Aufloesung, Schalter)
+void zeichneProjektKnopf();   // M5b Punkt 3 (app_menue_projekt.inc)
+bool speichereProjekt();
+
 void zeichneLeiste(Dokument* d) {
     Zustand& z = Z();
+    zeichneProjektKnopf();   // M5b Punkt 3
+    ImGui::SameLine();
     if (leistenKnopf(tr(Str::MeAusSpiel), UiIcon::Liste, tr(Str::MeTipAusSpiel))) { z.spielListeOffen = true; }
     zeichneSpielListe();
     ImGui::SameLine();
@@ -4454,13 +4472,15 @@ void zeichneLeiste(Dokument* d) {
     }
     ImGui::SameLine();
     if (leistenKnopf(tr(Str::MeDateiOeffnen), UiIcon::Oeffnen, tr(Str::MeTipDateiOeffnen))) {
-        const std::string pfad = platform::openFileDialog(tr(Str::MeDateiOeffnen), "Menu (*.menu;*.txt)|*.menu;*.txt|", "");
+        const std::string pfad = platform::openFileDialog(tr(Str::MeDateiOeffnen), "Menu (*.menu;*.txt;*.jksmenu)|*.menu;*.txt;*.jksmenu|", "");
         if (!pfad.empty()) { (void)oeffneDatei(pfad); }
     }
     if (d != nullptr) {
         ImGui::SameLine();
-        if (leistenKnopf(tr(Str::MeSpeichern), UiIcon::Speichern, tr(Str::MeTipSpeichern))) {
-            if (d->platte.empty() || imSpielordner(d->platte)) {
+        if (leistenKnopf(tr(Str::MeSpeichern), UiIcon::Speichern, tr(z.projektDatei.empty() ? Str::MeTipSpeichern : Str::MePrjSpeichernTip))) {
+            if (!z.projektDatei.empty()) {   // M5b: im Projekt speichert der Knopf das ganze Projekt
+                (void)speichereProjekt();
+            } else if (d->platte.empty() || imSpielordner(d->platte)) {
                 const std::string ziel = platform::saveFileDialog(tr(Str::MeSpeichern), "Menu (*.menu)|*.menu|", z.ordnerAusgabe,
                                                                   fs::path(d->name).filename().string());
                 if (!ziel.empty()) { speichern(*d, ziel); }
@@ -4679,6 +4699,10 @@ void waehle(int item, bool dazu);   // unten
 
 #include "app_menue_layout.inc"
 #include "app_menue_ereignisse.inc"
+namespace {
+bool exportiere(const std::string& pfad, bool nurAenderungen);   // unten
+}  // namespace
+#include "app_menue_projekt.inc"
 
 // Eigenschaften mit Cvars, Meldungen der Engine und Skript-Protokoll als Abschnitte
 void panelEigenschaften(Dokument& d) {
@@ -4748,6 +4772,18 @@ void zeichne(float hoehe) {
 void zeichneInnen(float hoehe) {
     datenPruefen();
     Zustand& z = Z();
+    // M5b Punkt 3: vorgemerktes Projekt (Doppelklick), Sicherung suchen und pflegen, Fragen
+    if (!z.projektVorgemerkt.empty()) {
+        const std::string p = z.projektVorgemerkt;
+        z.projektVorgemerkt.clear();
+        (void)oeffneProjektJetzt(p);
+    }
+    if (!z.sicherungGeprueft) {
+        z.sicherungGeprueft = true;
+        if (z.projektDatei.empty()) { sicherungPruefen(sicherungsOrt()); }
+    }
+    sicherungPflegen();
+    zeichneSicherungFrage();
     Dokument* d = doc();
     if (d != nullptr) { neuParsen(*d); }
     zeichneLeiste(d);
@@ -4781,7 +4817,7 @@ void zeichneInnen(float hoehe) {
     }
     d = doc();
     if (d == nullptr) {
-        ImGui::TextDisabled("%s", tr(Str::MeKeinMenue));
+        zeichneProjektLeer();   // M5b: Neues Projekt / Projekt oeffnen
         return;
     }
     neuParsen(*d);
@@ -4887,6 +4923,7 @@ bool oeffneAusSpiel(const std::string& spielPfad) {
 }
 
 bool oeffneDatei(const std::string& platte) {
+    if (istProjektDatei(platte)) { return oeffneProjektJetzt(platte); }   // M5b
     const std::string k = kleinPfad(platte);
     if (k.size() < 5 || (k.compare(k.size() - 5, 5, ".menu") != 0 && k.compare(k.size() - 4, 4, ".txt") != 0)) { return false; }
     datenPruefen();
@@ -5194,6 +5231,29 @@ void loescheAuswahl() {
     d->auswahl.clear();
     d->gesperrt.clear();   // die Nummern verschieben sich
     aendere(std::move(e));
+}
+
+// M5b Punkt 3: Projekte
+bool oeffneProjekt(const std::string& datei) { return oeffneProjektJetzt(datei); }
+void projektVormerken(const std::string& datei) { Z().projektVorgemerkt = datei; }
+bool istProjekt(const std::string& datei) { return istProjektDatei(datei); }
+bool legeProjektAn(const std::string& datei) { return neuesProjekt(datei); }
+bool speichereProjektJetzt() { return speichereProjekt(); }
+bool exportiereProjektJetzt() { return exportiereProjekt(); }
+std::string projektDatei() { return Z().projektDatei; }
+void sichereJetzt() { sicherungJetzt(); }
+void sucheSicherung() { sicherungPruefen(sicherungsOrt()); }
+void schliesseAlleOhneSpeichern() {
+    Zustand& z = Z();
+    z.docs.clear();
+    z.aktiv = -1;
+    z.laufDatei = -1;
+    z.projektDatei.clear();
+    z.projekt = Projekt{};
+}
+void fragZuordnung() { Z().zuordnungFrage = true; }
+void beimBeenden() {   // ungespeicherte Arbeit bleibt in der Sicherung (nur, wenn der Editor in dieser Sitzung lief)
+    if (Z().sicherungGeprueft) { sicherungJetzt(); }
 }
 
 bool speichereUnter(const std::string& pfad) {

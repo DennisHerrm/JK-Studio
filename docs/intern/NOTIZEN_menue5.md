@@ -182,6 +182,36 @@ Aus Zeit- bzw. Kontextgründen nicht angefangen; Stand und Vorarbeit:
   geprüft: die Ereignis-Bausteine im laufenden Spiel (Mausbewegung erreicht die Spiele ohne Fokus
   nicht, siehe NOTIZEN_menue3), die Ownerdraws mit anderen als den Vorgabe-Cvars, ingame-Menüs.
 
+## M5b (Rest von M5, Auftrag SP/auftrag_m5b.md)
+
+### Punkt 1 - show/hide je Zustand (Rest Layouts)
+
+- layoutZustaende (src/menue/layout.cpp): ein Zustand = Grundzustand nach onOpen + ein Skript des
+  Menüs. Ob ein Skript Layout-Kinder umschaltet, entscheidet die Laufzeit (Item_RunScript, show/hide
+  auf Name oder group): einmal von „alle Kinder sichtbar“, einmal von „alle versteckt“ ausgeführt.
+  Jedes umschaltende Skript (auch onOpen, damit ein erneutes Öffnen die Lage zurücksetzt - das Spiel
+  setzt rects beim Öffnen nicht neu, Menu_UpdatePosition läuft nur nach Menu_PostParse/Ziehen)
+  bekommt am Ende `setitemrect <kind> x y w h` für jedes sichtbare Kind, das in irgendeinem Zustand
+  anders liegt als im Grundzustand. Alte setitemrect auf Layout-Kinder in diesen Skripten werden
+  ersetzt (Rundlauf: zweites Rechnen ändert nichts), beim Auflösen entfernt; der übrige Skripttext
+  bleibt Zeichen für Zeichen (eine Ersetzung je Skriptkörper, mehrzeilig mit der Einrückung des
+  letzten Befehls). Kinder, die das Skript nicht nennt, gelten als im Grundzustand.
+- Script_SetItemRect: SP (code/ui, Movie Duels) setzt window.rect direkt, MP addiert
+  menu->window.rect.x/y. Die Laufzeit addierte den Versatz auch in SP - nachgestellt (ctest
+  menue_skript rot), behoben, grün. Geschrieben wird je Dialekt so, dass window.rect = rectClient +
+  Menü (+ Rand, Item_SetScreenCoords) herauskommt.
+- Dialekte: Jedi Outcast SP (jk2sp.exe 1.04 aus Steam, nur gelesen: Namen der commandList im
+  Programm) hat kein setitemrect, setitemtext, setitembackground, transition2/3, delay,
+  playVoice/stopVoice; dafür playlooped. In JA SP (code/ui) und Movie Duels ist playlooped
+  auskommentiert - die Bausteinliste bot es an und die Laufzeit spielte die Musik (ctest
+  menue_ereignisse/menue_skript rot, behoben, grün; unbekannte Befehle gehen wie im Spiel an
+  DC->runScript). Ohne setitemrect: nichts schreiben, Warnung mit Lösung („Versteckte Elemente
+  geben ihren Platz frei“ aus oder Elemente außerhalb des Layouts).
+- Oberfläche: Zeile „N Skripte … rücken auch die anderen zurecht (setitemrect)“ mit Liste im
+  Tooltip; Tooltip des Schalters erklärt es. ctest menue_layout (SP und MP: Befehle, Laufzeit legt
+  nach Klick wie das Layout, Rundlauf, ohne setitemrect, Auflösen), Selbsttest BHED_MENUE_NUR=m5b
+  (Aufgabe mit zeig/weg-Knopf, Laufzeit, zwei Rückgängig bis byte-gleich): 2 OK, 0 FEHLER.
+
 ## Changelog
 
 ## English

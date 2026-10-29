@@ -490,6 +490,34 @@ std::string executableDirectory() {
     return toUtf8(buf.substr(0, slash));
 }
 
+std::string executablePath() {
+    const std::string ordner = executableDirectory();
+    std::wstring buf(32768, L'\0');
+    const DWORD n = GetModuleFileNameW(nullptr, buf.data(), static_cast<DWORD>(buf.size()));
+    if (n == 0 || n >= buf.size()) { return ordner; }
+    buf.resize(n);
+    return toUtf8(buf);
+}
+
+bool schreibeBenutzerRegistry(const std::vector<RegWert>& werte) {
+    bool ok = true;
+    for (const RegWert& w : werte) {
+        const std::wstring wert = toWide(w.wert);
+        const LSTATUS r = RegSetKeyValueW(HKEY_CURRENT_USER, toWide(w.schluessel).c_str(), w.name.empty() ? nullptr : toWide(w.name).c_str(), REG_SZ,
+                                          wert.c_str(), static_cast<DWORD>((wert.size() + 1) * sizeof(wchar_t)));
+        ok = ok && r == ERROR_SUCCESS;
+    }
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
+    return ok;
+}
+
+std::string liesBenutzerRegistry(const std::string& schluessel) {
+    wchar_t buf[2048] = {};
+    DWORD groesse = sizeof(buf);
+    if (RegGetValueW(HKEY_CURRENT_USER, toWide(schluessel).c_str(), nullptr, RRF_RT_REG_SZ, nullptr, buf, &groesse) != ERROR_SUCCESS) { return {}; }
+    return toUtf8(buf);
+}
+
 std::vector<std::string> listDirectory(const std::string& dir) {
     std::vector<std::string> out;
     if (dir.empty()) {

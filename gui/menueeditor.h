@@ -93,6 +93,19 @@ void loescheAuswahl();
 std::string kopiereAuswahl();
 void fuegeItemsEin(const std::string& text);
 bool speichereUnter(const std::string& pfad);
+// M5b Punkt 3: Projektordner + Projektdatei *.jksmenu (bhed/menue/projekt.h)
+bool oeffneProjekt(const std::string& datei);         // sofort (Selbsttest, Dialog)
+void projektVormerken(const std::string& datei);      // Doppelklick/Kommandozeile: im naechsten Bild
+[[nodiscard]] bool istProjekt(const std::string& datei);
+bool legeProjektAn(const std::string& datei);         // die offenen Menues kommen hinein
+bool speichereProjektJetzt();
+bool exportiereProjektJetzt();
+[[nodiscard]] std::string projektDatei();             // "" = kein Projekt
+void sichereJetzt();                                  // Sicherung sofort (sonst alle 30 Sekunden)
+void sucheSicherung();                                // Sicherung am jetzigen Ort suchen (fragt nach)
+void schliesseAlleOhneSpeichern();                    // Selbsttest: wie nach einem Absturz
+void fragZuordnung();                                 // Frage zur Dateizuordnung zeigen
+void beimBeenden();                                   // beim Beenden: Ungespeichertes sichern
 bool exportierePk3(const std::string& pfad);
 // M2 Punkt 7: nur geaenderte Menues (und das Paket); Pruefung fuer die Fassungen
 bool exportiereAenderungen(const std::string& pfad);
