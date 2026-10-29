@@ -134,6 +134,22 @@ Flächen liegen auf `_0`, `_1` und `_0to1`, Gegenprobe ohne `_indexmap`: keine);
 stufe9: Menüklick, „Set up“ angeklickt, Schlüssel/Dateien/Flächen, Schicht 1 mit der Maus in die
 Draufsicht gemalt (Karte und Datei gleich), Undo.
 
+## Schlussrunde
+
+- Bau: ok; **ctest 149 von 149** (249 s), darunter neu `karte_optsicher`, `karte_ueberblenden`,
+  `q3map2_ueberblenden`.
+- **karteneditor voll**: 3182 OK, 0 Fehler (987 s), Spitze 1027 MB.
+  Im ersten Lauf 14 Fehler, alle aus Tests, nicht aus dem Programm: die Optimizer-Testkarten der
+  Stufe 5 (opt_test.map, opt_befunde.map) hatten als Verdecker Pinsel mit unbekannten Texturen
+  (test/a, test/b) – nach der neuen Regel decken sie nicht mehr; jetzt imperial/basic und
+  imperial/ceiling aus dem Spiel, und gezählt wird `textures/system/caulk`. Dazu „Modify > Repeat“
+  9 Punkte zu breit: das Prefab-Einsetzen des Asset-Tests schiebt mit translateSelected (zählt wie
+  in NRC für Repeat); der Test setzt die Transformationen danach zurück.
+- **Modus 1**: 2645 OK, 0 Fehler (geändert außerhalb des Karten-Editors nur gui/selbsttest.cpp
+  – Includes – und die erzeugten Texte).
+- **Neubau**: 0 Fehler, 0 Warnungen (463 s).
+- Optimizer-Pflichttest siehe oben (optpflicht3: 26 OK, 0 Fehler).
+
 ## Offene Punkte
 
 - **Punkt 9, Rest:** Terrain-Brushes formen (Gelände formen wirkt nur auf Patches; Brushes formt

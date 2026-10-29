@@ -4412,11 +4412,12 @@ std::string kastenText(double x0, double y0, double z0, double x1, double y1, do
 }
 
 // Eine kleine Karte mit bekannten Befunden: zwei gestapelte Kaesten (2
-// verdeckte Flaechen), ein Hint-Pinsel als detail (Mischinhalt), ein Pinsel
+// verdeckte Flaechen; Texturen des Spiels - seit dem Fund md_rev_TarisUpper2 deckt nur ein Pinsel
+// mit lauter bekannten, gezeichneten, undurchsichtigen Seiten), ein Hint-Pinsel als detail (Mischinhalt), ein Pinsel
 // mit einer Ecke bei 428.02 (neben dem Raster, sicher), eine kleine Kiste als
 // structural (Deko-Vorschlag).
 std::string testKarte() {
-    return "{\n\"classname\" \"worldspawn\"\n" + kastenText(0, 0, 0, 64, 64, 64, "test/a") + kastenText(0, 0, 64, 64, 64, 128, "test/b") +
+    return "{\n\"classname\" \"worldspawn\"\n" + kastenText(0, 0, 0, 64, 64, 64, "imperial/basic") + kastenText(0, 0, 64, 64, 64, 128, "imperial/ceiling") +
            kastenText(200, 0, 0, 264, 64, 64, "common/hint", 1 << 27) + kastenText(300, 0, 0, 428.02, 128, 128, "test/c") +
            kastenText(500, 0, 0, 532, 32, 32, "test/kiste") + "}\n{\n\"classname\" \"info_player_start\"\n\"origin\" \"600 0 24\"\n}\n";
 }
@@ -4449,7 +4450,7 @@ int caulkFlaechen() {
         for (const auto& p : en->kinder()) {
             if (p->art() != karte::Primitiv::Art::Pinsel) { continue; }
             const auto& pin = static_cast<const karte::Pinsel&>(*p);
-            for (std::size_t i = 0; i < pin.anzahl(); ++i) { n += pin[i].shader() == "textures/common/caulk" ? 1 : 0; }
+            for (std::size_t i = 0; i < pin.anzahl(); ++i) { n += pin[i].shader() == "textures/system/caulk" ? 1 : 0; }   // "Fix all safe" setzt system/caulk
         }
     }
     return n;
@@ -4615,7 +4616,7 @@ std::string wellenPatchText(int w, int h, float hoehe, float dx, float dy) {
 // auseinander, dass sich die Faelle nicht beruehren.
 std::string befundKarte() {
     std::string w;
-    w += kastenText(0, 0, 0, 64, 64, 64, "test/a") + kastenText(0, 0, 64, 64, 64, 128, "test/b");          // verdeckt
+    w += kastenText(0, 0, 0, 64, 64, 64, "imperial/basic") + kastenText(0, 0, 64, 64, 64, 128, "imperial/ceiling");   // verdeckt (Texturen des Spiels)
     w += kastenText(0, 200, 0, 128, 328, 64, "test/a") + kastenText(0, 200, 64, 64, 328, 128, "test/b");   // tjunction
     w += kastenText(200, 0, 0, 264, 64, 0.5, "test/a");                                                    // mikro
     w += kastenText(300, 0, 0, 364.02, 64, 64, "test/c");                                                  // offgrid (sicher)

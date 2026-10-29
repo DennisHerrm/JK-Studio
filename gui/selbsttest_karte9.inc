@@ -751,6 +751,9 @@ std::vector<Schritt> schritte() {
         for (int i = 0; i < 8 && (ed.karte.entitaeten().size() != ab->ents || ed.karte.welt()->kinder().size() != ab->kinder); ++i) { (void)ke::ausfuehren("Undo"); }
         ke::assetSucheSetzen("", 0);
         if (ke::assetBrowserOffen()) { ke::assetBrowserUmschalten(); }
+        // das Prefab wurde mit translateSelected an den Ort geschoben - wie in NRC zaehlt das fuer
+        // Modify > Repeat; spaetere Tests (Menuegroessen) erwarten den Grundzustand
+        ed.bearbeitung.transformZuruecksetzen(-1);
     }));
     add(pause(0.3));
     add(pruefe("Assets: die Karte wie vorher", [ab] {
