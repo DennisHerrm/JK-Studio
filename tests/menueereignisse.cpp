@@ -114,6 +114,26 @@ int main() {
         if (passt && e == HoverEffekt::Groesser) { passt = klar(kn->mouseEnter, de) == "transition knopf 100 100 80 20 96 96 88 28 10 1"; }
         pruefe(passt, "Hover-Effekt " + std::to_string(static_cast<int>(e)) + " liest sich ohne Meldung und hat mouseEnter/mouseExit");
     }
+    // M5b: Jedi Outcast SP (jk2sp.exe 1.04) kennt die JA-Woerter accept, selectNext/Prev, isCharacter,
+    // isSaber/2, cvarSubString, model_g2*, scrollhidden, invertyesno, xoffset, lineHeight nicht
+    // (menuDef: descTextStyle, onAccept, ignoreescape) - kein Ereignis "Enter", der Parser meldet sie
+    {
+        const auto ej = ereignisseFuer(Dialekt::SP, Spiel::JK2);
+        pruefe(std::none_of(ej.begin(), ej.end(), [](const Ereignis& x) { return std::string(x.schluessel) == "accept"; }) && ej.size() == 5,
+               "Jedi Outcast SP: kein accept-Ereignis");
+        LeseOptionen oj;
+        oj.dialekt = Dialekt::SP;
+        oj.spiel = Spiel::JK2;
+        const Datei dj = lies("ui/j.menu",
+                              "{ menuDef { name m rect 0 0 640 480 ignoreescape 1 visible 1\n"
+                              "  itemDef { name k type ITEM_TYPE_BUTTON rect 0 0 50 20 accept { close m } xoffset 3 visible 1 } } }\n",
+                              oj);
+        int unbekannt = 0;
+        for (const Meldung& mj : dj.meldungen) { unbekannt += mj.text.find("Unknown") != std::string::npos ? 1 : 0; }
+        pruefe(unbekannt >= 3, "Jedi Outcast SP: accept, xoffset und ignoreescape unbekannt wie im Spiel");
+        oj.spiel = Spiel::JA;
+        pruefe(lies("ui/j.menu", "{ menuDef { name m rect 0 0 640 480 ignoreescape 1 visible 1 } }\n", oj).meldungen.empty(), "Jedi Academy SP kennt ignoreescape");
+    }
     std::printf("menueereignisse: %s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

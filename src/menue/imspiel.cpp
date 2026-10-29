@@ -24,10 +24,21 @@ MenueTestPlan menueTestPlanen(const MenueTestEingabe& e) {
     const std::string spielOrdner = mod ? e.fsGame : e.basisSpiel;
     std::string pfadArg;
     std::string fsGame = spielOrdner;
-    if (karte::alsStartwertTauglich(e.testOrdner) && e.faehigkeit.homepath) {
+    // Jedi Outcast 1.04 (jk2sp.exe, jk2mp.exe) stuerzt mit einem eigenen Pfad ab 105 Zeichen ab
+    // (M5b gemessen: 100 laeuft, 105 haengt, 110 Stapelueberlauf) - dann lieber der Mod-Ordner
+    const bool altJk2 = e.exe == "jk2sp.exe" || e.exe == "jk2mp.exe";
+    const bool tauglich = karte::alsStartwertTauglich(e.testOrdner) && !(altJk2 && mitSchraeg(e.testOrdner).size() > 100);
+    if (tauglich && e.faehigkeit.homepath) {
         p.weg = karte::SpielTestWeg::HomePfad;
         p.pk3 = mitSchraeg(e.testOrdner) + "/" + spielOrdner + "/" + kMenueTestPk3;
         pfadArg = "+set fs_homepath \"" + mitSchraeg(e.testOrdner) + "\" ";
+    } else if (tauglich && e.faehigkeit.cdpath) {
+        // M5b: ohne fs_homepath (jasp, jk2sp) der eigene Ordner als fs_basepath, die Spieldaten ueber
+        // fs_cdpath (niedrigster Rang): das Testpaket steht ueber den Menues des Spiels, geschrieben
+        // (Config, Log) wird nur im eigenen Ordner
+        p.weg = karte::SpielTestWeg::CdPfad;
+        p.pk3 = mitSchraeg(e.testOrdner) + "/" + spielOrdner + "/" + kMenueTestPk3;
+        pfadArg = "+set fs_basepath \"" + mitSchraeg(e.testOrdner) + "\" +set fs_cdpath \"" + mitSchraeg(e.enginePfad) + "\" ";
     } else {
         p.weg = karte::SpielTestWeg::ModOrdner;
         if (!e.modOrdnerErlaubt) {

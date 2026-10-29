@@ -228,10 +228,23 @@ const Schluessel kMenu[] = {
     {"ignoreescape", Art::Int, Art::Int, kSP},
 };
 
+// Jedi Outcast SP (jk2sp.exe 1.04, Steam): diese Woerter der JA-Tabellen fehlen im Programm ganz
+// (Namen der Tabellen im Programm gelesen; OpenJKs JK2_MODE nimmt die JA-Tabellen)
+bool nichtInJk2Sp(const char* n) noexcept {
+    static const char* const fehlt[] = {"accept",       "selectNext",   "selectPrev",   "isCharacter",  "isSaber",     "isSaber2",
+                                        "cvarSubString", "model_g2mins", "model_g2maxs", "model_g2skin", "model_g2anim", "scrollhidden",
+                                        "invertyesno",  "xoffset",      "lineHeight",   "descTextStyle", "onAccept",    "ignoreescape"};
+    for (const char* f : fehlt) {
+        if (std::strcmp(f, n) == 0) { return true; }
+    }
+    return false;
+}
+
 bool gilt(const Schluessel& k, Dialekt d, Spiel s) noexcept {
     // Movie Duels MP (ui/MD_MP) benutzt die MD-Woerter auch (cvarRotateScale) - der MP-Code von
     // Movie Duels liegt nicht vor; angenommen wie in dessen SP-Code.
     if (d == Dialekt::MP) { return (k.bits & kMP) != 0 || ((k.bits & kMD) != 0 && s == Spiel::MD); }
+    if (s == Spiel::JK2 && nichtInJk2Sp(k.name)) { return false; }
     if ((k.bits & kSP) != 0) { return true; }
     return (k.bits & kMD) != 0 && s == Spiel::MD;
 }

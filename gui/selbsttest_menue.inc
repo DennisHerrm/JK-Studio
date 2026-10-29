@@ -1161,6 +1161,24 @@ std::vector<Schritt> schritte() {
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // BHED_MENUE_NUR=jk2test (M5b Punkt 5, mit Spieldaten von Jedi Outcast): Hauptmenue mit einem
+    // auffaelligen Text, Testpaket und Befehlszeile von "Im Spiel testen" (gestartet wird von aussen)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "jk2test") == 0) {
+        add(tu("M5b JK2: Hauptmenue aus dem Spiel, Text JK STUDIO TEST einfuegen", [] {
+            (void)me::oeffneAusSpiel("ui/main.menu");
+            me::fuegeItemsEin("itemDef { name jkstudio_test text \"JK STUDIO TEST\" rect 200 300 240 40 textscale 1 forecolor 1 0.2 0.2 1 "
+                              "decoration visible 1 }");
+        }));
+        add(pause(0.3));
+        add(pruefe("M5b JK2: Jedi Outcast geladen, Im Spiel testen liefert Testpaket und Befehlszeile ueber fs_basepath + fs_cdpath", [] {
+            const std::string b = me::imSpielTesten();
+            diag::info("Menue-Editor M5b JK2 Befehl: " + b);
+            return me::stand().spiel == 1 && b.find("jk2sp.exe") != std::string::npos && b.find("+set fs_basepath") != std::string::npos &&
+                   b.find("+set fs_cdpath") != std::string::npos;
+        }));
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // BHED_MENUE_NUR=m5b: nur die Schritte von M5b
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m5b") == 0) {
         for (auto& x : schritteM5b()) { add(std::move(x)); }
