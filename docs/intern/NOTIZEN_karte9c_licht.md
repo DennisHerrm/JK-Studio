@@ -25,6 +25,7 @@ JKA-Mappers, shank: „also dass das Lighting richtig geht“. Erledigt: **1** (
 | 3 | 15f744fd | Handbuchbilder (4 Sprachen): Himmel-Sonne, angedockte Leisten; Stufe-7-Bilder neu |
 | – | 9e58d0d7 | Notizen (erste Fassung) |
 | 2 | 589dfd9b | Durchsichtige Shader mit dem Bild ihrer ersten Stufe (Alpha wie im Spiel) |
+| – | db3b6fc9 | Merge karte1 (6fe2c104 Asset-Browser, Texturen überblenden); danach laut Hauptstrang kein weiterer Merge |
 | – | (dieser) | Notizen |
 
 ## Punkt 1: Werkzeugleisten
@@ -179,6 +180,8 @@ Skript `SP/s9c/ende_s9c.sh` (nach `SP/s9b/ende_s9b.sh`, Pfade `Y:/licht/build-li
 | Leisten über echten Neustart | Lauf 1 13 OK / 0, Lauf 2 OK (1 FEHLER von Lauf 1: Brush-Typ, s. Punkt 1) |
 | nach 589dfd9b (Stufenbild) und dem zweiten Merge: Bau, ctest | ok, **148/148** (245 s) |
 | karteneditor voll (zweiter Lauf) | **3177 OK, 13 FEHLER** (980 s, Spitze 1049 MB) – nur noch die 13 aus karte1 6731aa8d (Optimierer, s. o.); Stufe 9c im Lauf 23 OK |
+| nach dem dritten Merge (db3b6fc9): Bau, ctest | ok (ein erster Bau scheiterte am gleichzeitigen Kopieren von `data/` – mit `-m:1` wiederholt: 0 Fehler, 0 Warnungen), **149/149** (222 s) |
+| karteneditor voll (dritter Lauf) | **3185 OK, 14 FEHLER** (1048 s, Spitze 1046 MB) – die 13 aus karte1 6731aa8d und neu „Menü Modify > Repeat 225 × 154“ (hier 234): die Liste „Transforms“ im Repeat-Menü wächst mit den neuen Stufe-9-Schritten von karte1 6fe2c104, die vor den Fotos laufen – nicht von 9c |
 
 ## Merge karte1
 
@@ -191,7 +194,7 @@ Zweimal `git merge karte1`:
   karte_optimierer, karte_teiler, handbuch… grün, dann die Schlussrunde.
 - **2e87ee57** (karte1 18995492, Selbsttest optsicher): ohne Konflikt, nur
   `gui/selbsttest_optsicher.inc`; Bau 0 Warnungen.
-- **(dritter Merge)** (karte1 6fe2c104, Asset-Browser und Texturen überblenden): Konflikte nur
+- **db3b6fc9** (karte1 6fe2c104, Asset-Browser und Texturen überblenden): Konflikte nur
   in `handbuch/*/suche.js` (neu erzeugt) und im Namen dieser Datei (s. oben); i18n neu erzeugt.
 
 ## Vorfall git stash
