@@ -12,6 +12,7 @@
 #include "bhed/karte/modell.h"
 #include "bhed/karte/optimierer.h"
 #include "bhed/karte/patch.h"
+#include "bhed/karte/pinsel.h"
 
 #include <algorithm>
 #include <cmath>
@@ -420,7 +421,64 @@ void modelle() {
 
 }  // namespace
 
+// Nebel: R_LoadFogs, EmitFogs (sichtbare Seite), RB_CalcFogTexCoords + R_FogFactor. Sollwert von Hand:
+// Nebel z 0..128 (Flaeche oben, ebene 0 0 -1 128), Tiefe 256 -> tcScale 1/2048, Auge 0 0 300, Blick nach
+// unten, Stelle 0 0 0: eye_t = -172 (draussen), t = 128 -> 1/32 + 30/32 * 128 / 300 = 0.43125;
+// s = 300 / 2048 = 0.146484 -> * (0.43125 - 1/32) / (30/32) = 0.0625 -> * 8 = 0.5 -> sqrt = 0.70711
+void nebel() {
+    Karte k;
+    auto welt = k.weltHolenOderAnlegen();
+    TexturProjektion proj;
+    texdefStandard(TexdefArt::Quake, proj);
+    const auto quader = [&](const Vektor3f& mitte, const Vektor3f& halb, const char* shader) {
+        auto p = std::make_shared<Pinsel>();
+        p->quaderBauen(Kasten(mitte, halb), shader, proj, k.kontext);
+        p->bRep(k.kontext);
+        welt->kindEinfuegen(p);
+        return p;
+    };
+    quader(Vektor3f(0, 0, -8), Vektor3f(512, 512, 8), "textures/test/stein");   // Boden: deckt die Unterseite des Nebels
+    quader(Vektor3f(0, 0, 64), Vektor3f(256, 256, 64), "textures/test/nebel");
+    const auto shader = [](const std::string& sh) {
+        EchtNebelShader r;
+        if (sh == "textures/test/nebel") {
+            r.nebel = true;
+            r.farbe = Vektor3f(0.1F, 0.9F, 0.1F);
+            r.tiefe = 256;
+        }
+        return r;
+    };
+    std::vector<EchtNebel> n = echtNebelSammeln(k, shader);
+    pruefe(n.size() == 1 && n[0].hatFlaeche && n[0].ebene[2] == -1.0F && n[0].ebene[3] == 128.0F && nah(n[0].tcScale, 1.0F / 2048.0F, 1e-9F),
+           "Nebelpinsel: sichtbare Seite +Z (EmitFogs: achsparallel von +Z rueckwaerts), tcScale 1 / (256 * 8)");
+    const float d = n.empty() ? 0.0F : echtNebelDichte(n[0], Vektor3f(0, 0, 0), Vektor3f(0, 0, 300), Vektor3f(0, 0, -1));
+    pruefe(nah(d, 0.70711F, 1e-4F), "RB_CalcFogTexCoords + R_FogFactor: Boden aus 300 von oben 0.70711 (ist " + std::to_string(d) + ")");
+    const float innen = n.empty() ? 0.0F : echtNebelDichte(n[0], Vektor3f(0, 0, 0), Vektor3f(0, 0, 100), Vektor3f(0, 0, -1));
+    pruefe(nah(innen, std::sqrt(100.0F / 2048.0F * 8.0F), 1e-4F), "Auge im Nebel: t = 31/32, nur der Abstand (ist " + std::to_string(innen) + ")");
+    pruefe(n.empty() || echtNebelDichte(n[0], Vektor3f(0, 0, 200), Vektor3f(0, 0, 300), Vektor3f(0, 0, -1)) == 0.0F, "ueber der Nebelflaeche: kein Nebel");
+    // q3map_fogDir erzwingt die Seite, deren Normale am meisten entgegen zeigt
+    const auto mitRichtung = [&shader](const std::string& sh) {
+        EchtNebelShader r = shader(sh);
+        if (r.nebel) { r.richtung = Vektor3f(1, 0, 0); }
+        return r;
+    };
+    n = echtNebelSammeln(k, mitRichtung);
+    pruefe(n.size() == 1 && n[0].hatFlaeche && n[0].ebene[0] == 1.0F, "q3map_fogDir 1 0 0: die Seite -X ist die Nebelflaeche");
+    // globaler Nebel (worldspawn _fog), ohne Shader: "bad shader" rot, Tiefe 250
+    welt->setzen("_fog", "textures/test/fehlt");
+    n = echtNebelSammeln(k, shader);
+    pruefe(n.size() == 2 && n[1].global && n[1].farbe[0] == 1.0F && n[1].farbe[1] == 0.0F && nah(n[1].tcScale, 1.0F / 2000.0F, 1e-9F),
+           "globaler Nebel aus worldspawn _fog; fehlt der Shader: rot, Tiefe 250 (R_LoadFogs)");
+    // Shader-Skript: fogparms mit Klammern als eigene Woerter und angeklebt, q3map_fogDir
+    const ShaderSkript a = shaderSkriptLesen("textures/n/a\n{\n fogparms ( 0.5 0.25 1 ) 300\n q3map_fogDir 0 0 -1\n}\n", "textures/n/a");
+    const ShaderSkript b = shaderSkriptLesen("textures/n/b\n{\n fogparms (0.5 0.25 1) 64\n}\n", "textures/n/b");
+    pruefe(a.nebelParms && a.nebelFarbe[1] == 0.25 && a.nebelTiefe == 300 && a.nebelRichtung[2] == -1 && b.nebelParms && b.nebelFarbe[0] == 0.5 &&
+               b.nebelTiefe == 64,
+           "Shader: fogParms ( r g b ) Tiefe, q3map_fogDir");
+}
+
 int main() {
+    nebel();
     zufall();
     proben();
     patches();

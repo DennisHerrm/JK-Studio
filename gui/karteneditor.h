@@ -1089,6 +1089,7 @@ struct Editor {
         bool effekte = true;               // Stufe 9d: fx_runner in der Echtzeit-Ansicht ("RealtimeEffects")
         std::size_t effektLaeufer = 0;     // Stufe 9d: laufende fx_runner
         std::size_t effektEcken = 0;       // Stufe 9d: Ecken des Effektnetzes im letzten Bild
+        double effektMs = 0;               // Stufe 9d: Effekte im letzten Bild (Prozessor: Teilchen, Netz, Zeichenaufrufe)
         bool portal = false;               // Stufe 9d: der Himmel zeigte im letzten Bild ein misc_skyportal
         std::size_t schattenModellDreiecke = 0;   // Stufe 9d: Dreiecke der misc_model in der Schattengeometrie
         // Schnell-Backen

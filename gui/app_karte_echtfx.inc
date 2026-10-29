@@ -114,11 +114,13 @@ void fxLaeuferBauen() {
 // Die Effekte dieses Bilds zeichnen (nach dem Deckenden, im durchscheinenden Teil)
 void echtEffekteZeichnen(const karte::Kamera& k, std::size_t geoStand, const kartegpu::Zustand3& basis) {
     Editor& ed = e();
+    const auto t0 = std::chrono::steady_clock::now();
     if (g_fx.stand != geoStand) {
         g_fx.stand = geoStand;
         fxLaeuferBauen();
     }
     ed.echtLicht.effektEcken = 0;
+    ed.echtLicht.effektMs = 0;
     if (g_fx.laeufer.empty()) { return; }
     const double jetzt = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - g_fx.start).count();
     // die Achsen der Kamera (RB_SurfaceSprite: viewParms.ori.axis[1], [2])
@@ -188,4 +190,5 @@ void echtEffekteZeichnen(const karte::Kamera& k, std::size_t geoStand, const kar
         d.resize(d.size() - d.size() % 3);
         if (!d.empty()) { kartegpu::dreiecke(d, z); }
     }
+    ed.echtLicht.effektMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 }

@@ -332,8 +332,9 @@ std::vector<Schritt> bildzeit(const std::string& eintrag) {
         const double mittel = v.empty() ? 0 : summe / static_cast<double>(v.size());
         const double p99 = v.empty() ? 0 : v[std::min(v.size() - 1, v.size() * 99 / 100)];
         char z[400];
-        std::snprintf(z, sizeof(z), "Licht9c-Bildzeit: %s Lichter %zu, je Bild %zu, Mittel %.2f ms, p99 %.2f ms, Lichtliste %.2f ms",
-                      dateiName(karte).c_str(), ke::editor().echtLicht.lichter, ke::editor().echtLicht.gezeichnet, mittel, p99, ke::editor().echtLicht.lichtMs);
+        std::snprintf(z, sizeof(z), "Licht9c-Bildzeit: %s Lichter %zu, je Bild %zu, Mittel %.2f ms, p99 %.2f ms, Lichtliste %.2f ms, Effekte %.2f ms (%zu Laeufer)",
+                      dateiName(karte).c_str(), ke::editor().echtLicht.lichter, ke::editor().echtLicht.gezeichnet, mittel, p99, ke::editor().echtLicht.lichtMs,
+                      ke::editor().echtLicht.effektMs, ke::editor().echtLicht.effektLaeufer);
         diag::detail(z);
         ke::editor().echtLicht.an = false;
     }));
