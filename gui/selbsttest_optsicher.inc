@@ -9,6 +9,9 @@
 // Fenster, aendert sich das Bild), dazu die Spielerstarts in vier Richtungen. Rueckgaengig ->
 // Stichproben (48 x 36, kameraPixel); Wiederholen -> dieselben Blicke. Geprueft: keine Stichprobe
 // anders (Farbabstand > 40), kein Eckpunkt um mehr als 0,05 gewandert.
+// rc606: vorher wird auf das Ende der misc_model-Rueckgewinnung gewartet; danach Undo und Redo des
+// Schritts im Editor - dieselben Modelle in der Kamera (Dreiecke, sichtbare misc_model und Stichproben
+// je misc_model) wie vor dem Fix bzw. nach dem Fix, der Kartentext nach dem Undo wie vorher.
 namespace optsicher {
 namespace ke = karteneditor;
 
@@ -44,6 +47,146 @@ std::vector<unsigned char> stichproben() {
 }
 
 constexpr int kBlicke = 900;
+
+// Undo nach "Fix all safe" (rc606, Fund aus Stufe 9c: danach fehlten in der Editor-Kamera Modelle bis
+// zum Redo, der Kartentext war richtig): Dreiecke des Kamera-Teils "Rest" (Punktentitaeten und
+// Modelle, kameraSzeneMass) und die sichtbaren misc_model-Entitaeten mit geladenem Modell
+std::size_t restDreiecke() {
+    const std::string m = ke::kameraSzeneMass();
+    const std::size_t p = m.find("Rest ");
+    return p == std::string::npos ? 0 : static_cast<std::size_t>(std::strtoull(m.c_str() + p + 5, nullptr, 10));
+}
+std::size_t sichtbareModelle() {
+    const ke::Editor& ed = ke::editor();
+    std::size_t n = 0;
+    for (const auto& en : ed.karte.entitaeten()) {
+        const karte::EntitaetsKlasse* kl = en->klasse();
+        if (en->istBehaelter() || kl == nullptr || !kl->miscmodelIs || !en->sichtbar() || ed.karte.kontext.modelle == nullptr) { continue; }
+        const karte::ModellAnsicht a = ed.karte.kontext.modelle->ansicht(*en);
+        n += a.modell && !a.modell->flaechen.empty() ? 1U : 0U;
+    }
+    return n;
+}
+struct UndoStand {
+    std::size_t dreiecke[4] = {0, 0, 0, 0};   // vor Fix, nach Fix, nach Undo, nach Redo
+    std::size_t modelle[4] = {0, 0, 0, 0};
+    std::string textNachUndo;
+    // Blicke auf misc_model (je Modell eine Kamera im Freien schraeg darueber, auf die Mitte des Modells)
+    // und ihre Stichproben: 0 vor Fix, 1 vor Fix noch einmal (unruhige Stichproben), 2 nach Fix,
+    // 3 nach Undo, 4 nach Redo
+    std::vector<Blick> blicke;
+    std::vector<std::vector<unsigned char>> bilder[5];
+};
+
+// Freiraum-Pruefung wie in unterschied(): Kollision aus den Brushes der Karte im Editor
+std::function<bool(const karte::Vektor3d&)> freiPruefer() {
+    auto koll = std::make_shared<KollisionsKarte>();
+    const auto parms = [](const std::string& shader) {
+        const ke::Editor& ed = ke::editor();
+        const auto& sp = ed.karteSpiel ? ed.karteSpiel : ed.spiel;
+        const karte::ShaderEintrag* se = sp ? sp->inventar.shaderFinden(shader) : nullptr;
+        return se != nullptr ? se->surfaceparms : std::vector<std::string>{};
+    };
+    (void)karte::kollisionAusKarte(ke::editor().karte, parms, true, *koll);
+    return [koll](const karte::Vektor3d& q) {
+        const float p0[3] = {static_cast<float>(q[0]), static_cast<float>(q[1]), static_cast<float>(q[2])};
+        const float mi[3] = {-8, -8, -8}, ma[3] = {8, 8, 8};
+        return !kollisionsSpur(*koll, p0, mi, ma, p0, 1U, 0).startsolid;
+    };
+}
+
+void modellBlicke(UndoStand& u) {
+    const ke::Editor& ed = ke::editor();
+    if (ed.karte.kontext.modelle == nullptr) { return; }
+    const auto frei = freiPruefer();
+    std::vector<Blick> alle;
+    for (const auto& en : ed.karte.entitaeten()) {
+        const karte::EntitaetsKlasse* kl = en->klasse();
+        if (en->istBehaelter() || kl == nullptr || !kl->miscmodelIs || !en->sichtbar()) { continue; }
+        const karte::ModellAnsicht a = ed.karte.kontext.modelle->ansicht(*en);
+        if (!a.modell || a.modell->flaechen.empty()) { continue; }
+        const karte::Kasten k = karte::modellWeltKasten(a, karte::miscModellMatrix(*en));
+        if (!karte::kastenGueltig(k)) { continue; }
+        const double r = std::max({static_cast<double>(k.extents[0]), static_cast<double>(k.extents[1]), static_cast<double>(k.extents[2]), 16.0});
+        const karte::Vektor3d c(k.origin[0], k.origin[1], k.origin[2]);
+        for (int richtung = 0; richtung < 4; ++richtung) {
+            const double w = richtung * 3.14159265 / 2.0 + 0.4;
+            const double d = r * 1.5 + 96.0;
+            const karte::Vektor3d q(c[0] + std::cos(w) * d, c[1] + std::sin(w) * d, c[2] + r * 0.5 + 32.0);
+            if (!frei(q)) { continue; }
+            const karte::Vektor3d v(c[0] - q[0], c[1] - q[1], c[2] - q[2]);
+            const double l = std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+            Blick bl;
+            bl.ort = karte::Vektor3f(static_cast<float>(q[0]), static_cast<float>(q[1]), static_cast<float>(q[2]));
+            bl.gier = static_cast<float>(std::atan2(v[1], v[0]) * 180.0 / 3.14159265);
+            bl.nick = static_cast<float>(std::asin(std::clamp(v[2] / l, -1.0, 1.0)) * 180.0 / 3.14159265);
+            bl.was = "misc_model " + en->wert("model");
+            alle.push_back(bl);
+            break;
+        }
+    }
+    const std::size_t m = std::min<std::size_t>(alle.size(), 32);
+    for (std::size_t i = 0; i < m; ++i) { u.blicke.push_back(alle[i * alle.size() / m]); }
+}
+
+// ein Durchgang ueber die Modell-Blicke wie die Durchgaenge unten (Texturen fertig, noch zwei Bilder)
+Schritt modellDurchgang(const std::string& name, const std::shared_ptr<UndoStand>& u, int ziel) {
+    auto z = std::make_shared<std::array<int, 3>>();
+    Schritt d{"Optsicher: Modell-Blicke " + name, [u, ziel, z](int b) {
+                  std::array<int, 3>& q = *z;
+                  if (b == 0) { q = {0, 0, -1}; }
+                  if (q[0] >= static_cast<int>(u->blicke.size())) { return true; }
+                  if (q[1] == 0) {
+                      ke::Editor& ed = ke::editor();
+                      const Blick& bl = u->blicke[static_cast<std::size_t>(q[0])];
+                      ed.kamera.ursprung = bl.ort;
+                      ed.kamera.winkel = karte::Vektor3f(bl.nick, bl.gier, 0.0F);
+                  }
+                  ++q[1];
+                  if (q[2] < 0 && q[1] >= 3 && ke::kameraBilderFertig()) { q[2] = q[1]; }
+                  if (q[1] < 400 && (q[2] < 0 || q[1] < q[2] + 3)) { return false; }
+                  u->bilder[ziel].push_back(stichproben());
+                  q = {q[0] + 1, 0, -1};
+                  return false;
+              }};
+    d.eigeneZeitgrenze = true;
+    return d;
+}
+
+// Stichproben, die sich zwischen a und b unterscheiden (Farbabstand > 40) - ohne die unruhigen (a und
+// ruhe verschieden) und nur in 2 x 2-Bloecken (wie unten: einzelne sind Haarrisse)
+int modellAnders(const UndoStand& u, int a, int ruhe, int b, std::string* liste) {
+    int anders = 0;
+    const std::size_t nb = std::min({u.bilder[a].size(), u.bilder[ruhe].size(), u.bilder[b].size()});
+    for (std::size_t v = 0; v < nb; ++v) {
+        const auto& x = u.bilder[a][v];
+        const auto& y = u.bilder[b][v];
+        const auto& r = u.bilder[ruhe][v];
+        std::vector<char> diff(x.size() / 3, 0);
+        for (std::size_t i = 0; i + 2 < x.size() && i + 2 < y.size() && i + 2 < r.size(); i += 3) {
+            const auto abst = [i](const std::vector<unsigned char>& p, const std::vector<unsigned char>& s) {
+                return std::abs(p[i] - s[i]) + std::abs(p[i + 1] - s[i + 1]) + std::abs(p[i + 2] - s[i + 2]);
+            };
+            if (abst(x, r) > 40) { continue; }
+            if (abst(x, y) > 40) { diff[i / 3] = 1; }
+        }
+        const auto d = [&diff](int xx, int yy) { return xx >= 0 && yy >= 0 && xx < 48 && yy < 36 && diff[static_cast<std::size_t>(yy * 48 + xx)] != 0; };
+        int n = 0;
+        for (int yy = 0; yy < 36; ++yy) {
+            for (int xx = 0; xx < 48; ++xx) {
+                if (!d(xx, yy)) { continue; }
+                bool block = false;
+                for (int dy = -1; dy <= 0; ++dy) {
+                    for (int dx = -1; dx <= 0; ++dx) { block = block || (d(xx + dx, yy + dy) && d(xx + dx + 1, yy + dy) && d(xx + dx, yy + dy + 1) && d(xx + dx + 1, yy + dy + 1)); }
+                }
+                n += block ? 1 : 0;
+            }
+        }
+        anders += n;
+        if (n > 0 && liste != nullptr && v < u.blicke.size()) { *liste += " [" + std::to_string(v) + ": " + std::to_string(n) + " " + u.blicke[v].was + "]"; }
+    }
+    return anders;
+}
 
 // Unterschied der Karte vorher/jetzt: neue caulk-Flaechen (mit Blick darauf) und gewanderte Eckpunkte
 void unterschied(Lauf& l) {
@@ -185,6 +328,27 @@ std::vector<Schritt> schritte() {
             ke::editor().optimierer.nachBau = false;
         }));
         add(pause(1.0));
+        // File > Open .bsp gewinnt die misc_model im Hintergrund zurueck (eigener Undo-Schritt, auf
+        // md_rev_TarisUpper2 rund 22 s): erst danach ist die Karte so, wie der Anwender "Fix all safe"
+        // drueckt. Ohne dieses Warten (Stufe 9c) liefen Fix, Undo und die Blicke "vorher" vor dem Ende der
+        // Rueckgewinnung; die kam erst danach als neuer Schritt (Undo hatte die Geometrie wieder wie in der
+        // .bsp gemacht) und leerte dabei den Redo-Stapel - das sah aus wie "nach Undo fehlen die Modelle,
+        // bis Redo sie zurueckbringt". BHED_OPTSICHER_ALT=1 (Untersuchung): der alte Ablauf ohne Warten.
+        const auto rueckFertig = [] {
+            const int st = ke::bspRueckStand().stand;
+            return st != 1 && st != 2 && st != 3;
+        };
+        add(stufe8::warteSek("Optsicher: misc_model zurueckgewonnen", [rueckFertig] { return std::getenv("BHED_OPTSICHER_ALT") != nullptr || rueckFertig(); }, 900));
+        add(pause(1.0));
+        auto u = std::make_shared<UndoStand>();
+        add(tu("Optsicher: Modelle in der Kamera vor Fix all safe", [u] {
+            u->dreiecke[0] = restDreiecke();
+            u->modelle[0] = sichtbareModelle();
+            modellBlicke(*u);
+            diag::detail("Knopftest: Optsicher - " + std::to_string(u->blicke.size()) + " Blicke auf misc_model");
+        }));
+        add(modellDurchgang("vor Fix all safe", u, 0));
+        add(modellDurchgang("vor Fix all safe (Ruhe)", u, 1));
         add(tu("Optsicher: Karte merken, Optimizer pruefen", [l] {
             l->text = karte::karteSchreiben(ke::editor().karte);
             ke::optimiererStarten(false);
@@ -198,13 +362,56 @@ std::vector<Schritt> schritte() {
             diag::detail("Knopftest: Optsicher - behoben: " + std::to_string(n) + ", " + std::to_string(l->caulk) + " Flaechen caulk, " +
                          std::to_string(l->blicke.size()) + " Blicke");
             l->behoben = n;
-            // vorher und nachher je frisch geladen (nicht Undo/Redo: nach dem Undo dieses grossen Schritts
-            // fehlten im Editor Modelle bis zum Redo - das waere ein Unterschied des Editors, nicht der Karte)
+            // vorher und nachher je frisch geladen (Undo/Redo prueft der Schritt darunter eigens; die in 9c nach
+            // dem Undo fehlenden Modelle kamen von der noch laufenden Rueckgewinnung, siehe oben)
             const std::string nach = karte::karteSchreiben(ke::editor().karte);
             for (int i = 0; i < 2; ++i) {
                 const std::string pf = platform::settingsDirectory() + (i == 0 ? "\\optsicher_vor.map" : "\\optsicher_nach.map");
                 std::ofstream(std::filesystem::path(std::u8string(pf.begin(), pf.end())), std::ios::binary) << (i == 0 ? l->text : nach);
             }
+        }));
+        // Undo/Redo dieses Schritts wie der Anwender (Edit > Undo, Edit > Redo): die Kamera zeigt nach dem
+        // Undo dieselben Modelle wie vorher, nach dem Redo dieselben wie nach dem Fix
+        add(pause(1.0));
+        add(tu("Optsicher: Modelle in der Kamera nach Fix all safe", [u] {
+            u->dreiecke[1] = restDreiecke();
+            u->modelle[1] = sichtbareModelle();
+        }));
+        add(modellDurchgang("nach Fix all safe", u, 2));
+        add(tu("Optsicher: Undo", [] { (void)ke::ausfuehren("Undo"); }));
+        add(pause(1.0));
+        add(tu("Optsicher: Modelle in der Kamera nach Undo", [u] {
+            u->dreiecke[2] = restDreiecke();
+            u->modelle[2] = sichtbareModelle();
+            u->textNachUndo = karte::karteSchreiben(ke::editor().karte);
+        }));
+        add(modellDurchgang("nach Undo", u, 3));
+        // im alten Ablauf kam die Rueckgewinnung waehrend der langen Blick-Durchgaenge nach dem Undo
+        add(stufe8::warteSek("Optsicher: Rueckgewinnung fertig (vor Redo)", rueckFertig, 900));
+        add(tu("Optsicher: Redo", [] { (void)ke::ausfuehren("Redo"); }));
+        add(pause(1.0));
+        add(modellDurchgang("nach Redo", u, 4));
+        add(pruefe("Optsicher: " + pfad + " - Undo/Redo nach Fix all safe: dieselben Modelle in der Kamera", [u, l] {
+            u->dreiecke[3] = restDreiecke();
+            u->modelle[3] = sichtbareModelle();
+            const bool text = u->textNachUndo == l->text;
+            std::string listeUndo, listeRedo;
+            const int undoAnders = modellAnders(*u, 0, 1, 3, &listeUndo);
+            const int redoAnders = modellAnders(*u, 2, 1, 4, &listeRedo);
+            int verschieden = 0;   // Gegenprobe: zeigt die Kamera die Karte?
+            for (std::size_t v = 1; v < u->bilder[0].size(); ++v) { verschieden += u->bilder[0][v] != u->bilder[0][v - 1] ? 1 : 0; }
+            char z[600];
+            std::snprintf(z, sizeof(z),
+                          "Knopftest: Optsicher - Kamera Rest-Dreiecke vor/Fix/Undo/Redo %zu/%zu/%zu/%zu, sichtbare Modelle %zu/%zu/%zu/%zu, Text nach Undo %s; "
+                          "%zu Modell-Blicke (%d verschieden): nach Undo %d, nach Redo %d Stichproben anders",
+                          u->dreiecke[0], u->dreiecke[1], u->dreiecke[2], u->dreiecke[3], u->modelle[0], u->modelle[1], u->modelle[2], u->modelle[3],
+                          text ? "gleich" : "anders", u->blicke.size(), verschieden, undoAnders, redoAnders);
+            diag::detail(z);
+            if (!listeUndo.empty()) { diag::detail("Knopftest: Optsicher - nach Undo anders:" + listeUndo.substr(0, 1500)); }
+            if (!listeRedo.empty()) { diag::detail("Knopftest: Optsicher - nach Redo anders:" + listeRedo.substr(0, 1500)); }
+            const bool alleBilder = u->bilder[3].size() == u->blicke.size() && u->bilder[4].size() == u->blicke.size();
+            return text && u->modelle[0] > 0 && !u->blicke.empty() && alleBilder && verschieden > 0 && undoAnders == 0 && redoAnders == 0 &&
+                   u->dreiecke[2] == u->dreiecke[0] && u->modelle[2] == u->modelle[0] && u->dreiecke[3] == u->dreiecke[1] && u->modelle[3] == u->modelle[1];
         }));
         add(tu("Optsicher: vorher frisch laden", [] { (void)ke::karteOeffnen(platform::settingsDirectory() + "\\optsicher_vor.map"); }));
         add(pause(1.0));
