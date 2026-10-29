@@ -68,13 +68,15 @@ float distance(const float a[3], const float b[3]) {
     return std::sqrt(sum);
 }
 
+bool sameName(const std::string& a, const std::string& b);
+
 // Den Ort eines Wegpunkts in der Karte nachschlagen.
 bool findEntity(const MapData& map, const std::string& targetname, float out[3]) {
     for (const MapEntity& e : map.entities) {
         if (e.origin.empty()) {
             continue;
         }
-        if (e.targetname == targetname) {
+        if (sameName(e.targetname, targetname)) {   // G_Find: Q_stricmp
             readVec(e.origin, out);
             return true;
         }
@@ -2628,8 +2630,9 @@ Scene buildOnce(const Script& s, const MapData& map,
 
         const std::string name = n.args[0].text;
         Actor* actor = nullptr;
+        // GetByName sucht ohne Gross/klein (Q_strupr, Q3_Interface.cpp).
         for (Actor& a : out.actors) {
-            if (a.name == name) {
+            if (sameName(a.name, name)) {
                 actor = &a;
             }
         }
@@ -3659,7 +3662,7 @@ Scene buildOnce(const Script& s, const MapData& map,
                 step.startMs = t;
                 step.endMs = t;
                 step.path = p;
-                if (*v == "NULL" || v->empty() ||
+                if (sameName(*v, "NULL") || v->empty() ||
                     !findEntity(map, *v, step.to)) {
                     step.value = 0.0F;   // Ziel loeschen
                 } else {
@@ -4461,9 +4464,11 @@ Scene buildOnce(const Script& s, const MapData& map,
     // hier NICHT angelegt. Ohne affect-Block hat sie keine Bahn, und eine
     // Figur zu erfinden, um sie im selben Atemzug verschwinden zu lassen,
     // brachte nichts als einen Eintrag in der Liste.
+    // pruefung1: G_Find vergleicht ohne Gross/klein (Q_stricmp, g_utils.cpp) -
+    // remove/kill "obi1" trifft auch die Figur "OBI1" der Karte.
     for (const auto& [ziel, wann] : entfernt) {
         for (Actor& a : out.actors) {
-            if (a.name != ziel) {
+            if (!sameName(a.name, ziel)) {
                 continue;
             }
             ActorStep step;
@@ -4506,7 +4511,7 @@ Scene buildOnce(const Script& s, const MapData& map,
     }
     for (const auto& [ziel, wann] : getoetet) {
         for (Actor& a : out.actors) {
-            if (a.name != ziel) {
+            if (!sameName(a.name, ziel)) {
                 continue;
             }
             a.getoetetMs = a.getoetetMs < 0.0 ? wann : std::min(a.getoetetMs, wann);   // rc605 (Ende)
@@ -4646,7 +4651,7 @@ Scene buildScene(const Script& s, const MapData& map, const SzenenHilfe* hilfe) 
                 if (st.kind != ActorStep::Kind::Watch || st.value < 0.5F || st.text.empty()) { continue; }
                 const Actor* ziel = nullptr;
                 for (const Actor& b : sc.actors) {
-                    if (&b != &a && b.haveStart && b.name == st.text) { ziel = &b; }
+                    if (&b != &a && b.haveStart && sameName(b.name, st.text)) { ziel = &b; }   // G_Find
                 }
                 if (ziel == nullptr) { continue; }
                 bool bewegt = false;
