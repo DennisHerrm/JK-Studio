@@ -43,6 +43,21 @@ Was der Entwurf festlegt (Merkliste fuer den Nachbau in ImGui):
 - "Was passiert hier?": Texte je Art (shot/dialog/wait/ev/lauf/anim/film/
   musik) siehe Entwurf Zeilen 293-348.
 
+## Korrektur von shank (29.10., gilt nach der Pause)
+
+Der obere Teil des Entwurfs (Kamerabild, Draufsicht, "Was passiert hier?")
+war nur zum Verstehen da und wird NICHT als eigene neue Fenster gebaut.
+Uebernommen wird die Zeitleiste selbst.
+
+- Punkt 5: nur der Filmstreifen in der Zeitleiste, kein zusaetzliches
+  Vorschaubild; die Vorschau ist die vorhandene 3D-Ansicht des Mission-Tabs,
+  die dem Abspielkopf folgt.
+- Punkt 9 (Draufsicht) entfaellt als eigenes Panel; Wege und Halte zeigt die
+  vorhandene 3D-Ansicht mit ihren Bahnen und Griffen.
+- Punkt 6: die Erklaerung beim Klick kommt in die vorhandene rechte
+  Seitenleiste des Mission-Tabs (wo heute Script Flow/Eigenschaften stehen),
+  mit "Skriptzeile oeffnen" - kein neues Fenster.
+
 ## Weitermachen
 
 1. Bestand lesen: `drawTimeline` (`gui/app_view3d_bedienung.inc` ab ~858),
