@@ -1,5 +1,6 @@
 // layout.h - Menue-Editor M5 Punkt 1: Layouts wie in Qt (nebeneinander, untereinander,
 // Raster, zwei Spalten mit Teiler), mit Abstand, Raendern, Spacern und Ausrichtung.
+// Eigener Code.
 //
 // Die Engine kennt keine Layouts: ins .menu kommen nur feste rects. Die Layout-Angaben
 // stehen als Kommentarzeile im menuDef, die das Spiel ueberliest (COM_ParseExt
@@ -7,8 +8,6 @@
 //   // jkstudio:layout name=leiste type=hbox frame=panel spacing=8 margins=4,4,4,4 halign=center valign=fill items=a,*,b,@innen
 // items: Item-Namen, "*" bzw. "*2" = Spacer (Dehnung 1 bzw. 2), "@name" = verschachteltes Layout.
 // Ohne Layout bleibt die Datei byte-gleich.
-//
-// Eigener Code.
 #ifndef BHED_MENUE_LAYOUT_H
 #define BHED_MENUE_LAYOUT_H
 
