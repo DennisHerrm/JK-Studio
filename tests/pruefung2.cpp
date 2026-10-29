@@ -334,11 +334,52 @@ void noclipHoch() {
     }
 }
 
+// 4. Ein Weg mit Knick ueber Wegpunkte, ohne Kartengeometrie (pruefung1 fand:
+//    "kein Weg"). NPC_MoveToGoal (NPC_move.cpp OpenJK): STEER::GoTo, sonst
+//    NAV::GoTo ueber das Netz. STEER::SafeToGoTo laesst direkt nur unter 400
+//    (bzw. benachbarten Knoten unter 500) zu (g_navigator.cpp:4472-4520), und
+//    NAV::LoadFromEntitiesAndSaveToFile baut mit hoechstens drei Knoten gar
+//    kein Netz ("if (mGraph.size_nodes()<=3) return true;", g_navigator.cpp:
+//    1514 OpenJK, :1471 MD). Die Probe von pruefung1 hatte genau drei Knoten:
+//    im Spiel bleibt die Figur dann stehen (Jedi Outcast mit seinem alten
+//    Netz laeuft). Mit einem vierten Knoten gibt es das Netz, und sie laeuft
+//    den Knick.
+void wegMitKnick() {
+    std::printf("--- 4. Weg mit Knick ohne Kartengeometrie ---\n");
+    for (const Spiel& sp : kSpiele) {
+        for (const bool vierter : {false, true}) {
+            Welt w;
+            w.karte = kKarte +
+                      "{\n\"classname\" \"waypoint\"\n\"targetname\" \"wa\"\n\"target\" \"wb\"\n\"origin\" \"160 0 24\"\n}\n"
+                      "{\n\"classname\" \"waypoint\"\n\"targetname\" \"wb\"\n\"target\" \"ziel\"\n\"origin\" \"320 120 24\"\n}\n"
+                      "{\n\"classname\" \"waypoint_navgoal\"\n\"targetname\" \"ziel\"\n\"origin\" \"480 120 24\"\n}\n";
+            if (vierter) { w.karte += "{\n\"classname\" \"waypoint\"\n\"targetname\" \"wc\"\n\"origin\" \"0 -200 24\"\n}\n"; }
+            w.skript = affect("\tset ( /*@SET_TYPES*/ \"SET_WALKING\", /*@BOOL_TYPES*/ \"true\" );\r\n"
+                              "\ttask ( \"lauf\" )\r\n\t{\r\n"
+                              "\t\tset ( /*@SET_TYPES*/ \"SET_NAVGOAL\", \"ziel\" );\r\n"
+                              "\t}\r\n\r\n"
+                              "\tdowait ( \"lauf\" );\r\n");
+            w.anims = {"BOTH_STAND1", "BOTH_WALK1"};
+            Lauf l;
+            fahre(w, sp.nr, l);
+            const Actor* a = l.szene.find("held");
+            const ActorState st = a != nullptr ? a->at(30000.0) : ActorState{};
+            const double rest = std::hypot(static_cast<double>(st.pos[0]) - 480.0, static_cast<double>(st.pos[1]) - 120.0);
+            const bool steht = std::hypot(static_cast<double>(st.pos[0]), static_cast<double>(st.pos[1])) < 1.0;
+            const bool soll = vierter || sp.nr == kRegelwerkJediOutcast;
+            pruefe(a != nullptr && (soll ? rest < 40.0 : steht),
+                   std::string("Weg mit Knick, ") + (vierter ? "vier Knoten: am Ziel" : soll ? "drei Knoten: am Ziel" : "drei Knoten: bleibt stehen wie im Spiel") +
+                       " (" + sp.name + ") - Ort " + std::to_string(st.pos[0]) + " " + std::to_string(st.pos[1]));
+        }
+    }
+}
+
 }  // namespace
 
 int main() {
     todesanimation();
     noclipHoch();
+    wegMitKnick();
     std::printf("%d Fehler\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }
