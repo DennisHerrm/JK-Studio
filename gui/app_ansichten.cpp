@@ -1087,80 +1087,54 @@ struct Spur {
 };
 
 std::vector<Spur> spurenBauen() {
+    // zeitleiste1: aus demselben Modell wie die Zeitleiste (bhed/spuren.h) -
+    // gleiche Dauern ueberall (ein Satz so lang wie seine Klangdatei, ein Lauf
+    // bis zur Ankunft). Vorher baute diese Ansicht ein eigenes Modell.
+    const spuren::Spuren& m = g_app->spuren;
     std::vector<Spur> aus;
-    // Kamera: Einstellungen von MOVE zu MOVE.
     {
         Spur k{tr(Str::TracksCamera), UiIcon::Kamera, {}};
-        const auto& seg = g_app->camTrack.segments;
-        std::vector<const CamSegment*> moves;
-        for (const CamSegment& c : seg) {
-            if (c.kind == CamSegment::Kind::Move) { moves.push_back(&c); }
-        }
-        double ende = g_app->timeline.practicalEndMs;
-        for (const CamSegment& c : seg) {
-            if (c.kind == CamSegment::Kind::Disable) { ende = std::min(ende, c.startMs > 0.0 ? c.startMs : ende); }
-        }
-        for (std::size_t i = 0; i < moves.size(); ++i) {
+        int nr = 0;
+        for (const spuren::Clip& c : m.ort.clips) {
+            if (c.art != spuren::Art::Einstellung) { continue; }
             SpurBlock b;
-            b.start = moves[i]->startMs;
-            b.ende = i + 1 < moves.size() ? moves[i + 1]->startMs : std::max(ende, b.start + 1.0);
+            b.start = c.startMs;
+            b.ende = std::max(c.endMs, c.startMs + 1.0);
             char t[96];
-            std::snprintf(t, sizeof(t), tr(Str::TracksShot), static_cast<int>(i) + 1);
-            b.text = t;
-            if (moves[i]->endMs > moves[i]->startMs + 1.0) { b.text += std::string(" · ") + tr(Str::TracksMoving); }
-            b.pfad = moves[i]->path;
+            std::snprintf(t, sizeof(t), tr(Str::TracksShot), ++nr);
+            b.text = std::string(t) + " · " + c.text;
+            b.pfad = c.pfad;
             k.bloecke.push_back(b);
         }
         aus.push_back(std::move(k));
     }
-    // rc601: Wie lange eine Figur an einem Befehl ist (ein Lauf bis zum Ziel,
-    // eine Animation), weiss die Szene - der Zeitleisten-Eintrag selbst hat
-    // keine Dauer, und ein Lauf war in den Spuren nur ein Strich.
-    std::map<Path, double> szenenEnde;
-    for (const Actor& ac : g_app->scene.actors) {
-        for (const ActorStep& st : ac.steps) {
-            if (!st.path.empty() && st.endMs > st.startMs + 1.0) {
-                double& e = szenenEnde[st.path];
-                e = std::max(e, st.endMs);
-            }
-        }
-    }
     Spur dialog{tr(Str::TracksDialog), UiIcon::Liste, {}};
-    std::map<std::string, Spur> figuren;
-    Spur skript{tr(Str::TracksScript), UiIcon::Skript, {}};
-    for (const TimelineTrack& tr0 : g_app->timeline.tracks) {
-        for (const TimelineEvent& ev : tr0.events) {
-            if (ev.kind == TimelineEvent::Kind::Camera) { continue; }
-            // Pausen nur auf der Skript-Spur - dort ist ihre Laenge die Zeit
-            // zwischen den Dingen, und ihre Kante laesst sich ziehen.
-            if (ev.kind == TimelineEvent::Kind::Wait && !tr0.entity.empty()) { continue; }
-            SpurBlock b;
-            b.start = ev.startMs;
-            b.ende = std::max(ev.endMs, ev.startMs);
-            b.text = ev.label;
-            b.pfad = ev.path;
-            if (ev.kind == TimelineEvent::Kind::Sound && klein(ev.kanal).rfind("chan_voice", 0) == 0) {
-                b.text = fileName(ev.sound);
-                b.ende = std::max(b.ende, b.start + 2500.0);
-                dialog.bloecke.push_back(b);
-                continue;
-            }
-            if (tr0.entity.empty()) {
-                skript.bloecke.push_back(b);
-            } else {
-                if (const auto it = szenenEnde.find(b.pfad); !b.pfad.empty() && it != szenenEnde.end()) {
-                    b.ende = std::max(b.ende, it->second);
-                }
-                Spur& f = figuren[tr0.entity];
-                f.name = tr0.entity;
-                f.icon = UiIcon::Figur;
-                f.bloecke.push_back(b);
+    for (const spuren::Clip& c : m.sprache.clips) {
+        if (klein(c.kanal).rfind("chan_voice", 0) != 0) { continue; }
+        dialog.bloecke.push_back(SpurBlock{c.startMs, std::max(c.endMs, c.startMs), fileName(c.datei), c.pfad});
+    }
+    for (const spuren::Darsteller& d : m.darsteller) {
+        Spur f{d.name, UiIcon::Figur, {}};
+        // Wie lange eine Figur an einem Befehl ist (Lauf bis zum Ziel,
+        // Animation), steht in ihren Laeufen und Animationen.
+        std::map<Path, double> ende;
+        for (const spuren::Zeile* z : {&d.laufen, &d.animation}) {
+            for (const spuren::Clip& c : z->clips) {
+                if (!c.pfad.empty()) { ende[c.pfad] = std::max(ende[c.pfad], c.endMs); }
             }
         }
+        for (const spuren::Clip& c : d.befehle.clips) {
+            if (c.art == spuren::Art::Warten || c.art == spuren::Art::Satz) { continue; }
+            SpurBlock b{c.startMs, std::max(c.endMs, c.startMs), c.befehl, c.pfad};
+            if (const auto it = ende.find(c.pfad); !c.pfad.empty() && it != ende.end()) { b.ende = std::max(b.ende, it->second); }
+            f.bloecke.push_back(b);
+        }
+        if (!f.bloecke.empty()) { aus.push_back(std::move(f)); }
     }
-    for (auto& [n, f] : figuren) {
-        (void)n;
-        aus.push_back(std::move(f));
+    Spur skript{tr(Str::TracksScript), UiIcon::Skript, {}};
+    for (const spuren::Clip& c : m.skript.clips) {
+        if (c.art == spuren::Art::Satz || c.art == spuren::Art::Kartenwechsel) { continue; }
+        skript.bloecke.push_back(SpurBlock{c.startMs, std::max(c.endMs, c.startMs), c.befehl, c.pfad});
     }
     if (!dialog.bloecke.empty()) { aus.push_back(std::move(dialog)); }
     if (!skript.bloecke.empty()) { aus.push_back(std::move(skript)); }
@@ -1186,8 +1160,7 @@ void drawSpurenAnsicht() {
     }
     const float fs = ImGui::GetFontSize();
     const ImGuiStyle& st = ImGui::GetStyle();
-    const double laenge = std::max(1000.0, g_app->timeline.practicalEndMs > 0.0 ? g_app->timeline.practicalEndMs
-                                                                                : g_app->timeline.durationMs);
+    const double laenge = std::max(1000.0, g_app->spuren.dauerMs);
     // Abspielen auch ohne Kartenansicht (dort laeuft die Zeit in drawTimeline).
     // Einmal je Bild, auch wenn zwei Felder die Spuren zeigen.
     static int letztesBild = -1;

@@ -134,7 +134,7 @@ SCHRITTE = {
           "s_sig_signal", "signal in the other script (right)."),
         S("**Check the names.** Both must be spelled exactly the same. Only one script can wait for a signal of a given name. The split view (**{{MenuFile}} → {{SplitToggle}} → 2**) shows both at once.",
           "s_sig_beide", "The same name on both sides."),
-        S("**See it in the timeline.** Switch on **{{TlWaits}}** in the timeline: waits become their own blocks. The timeline cannot know how long a `waitsignal` waits in the game - it places everything after it as if the signal came at once.",
+        S("**See it in the timeline.** The **{{ZlSkript}}** row shows every wait as a hatched block that says what it waits for, and a click on it names who sends the signal and when. If no script sends the signal, the side bar says so - in the game the script would wait forever.",
           "s_sig_zeit", "Waits as blocks in the timeline."),
     ],
     "k-makros": [

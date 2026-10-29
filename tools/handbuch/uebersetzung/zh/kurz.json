@@ -133,7 +133,6 @@
  "**Insert a camera command.** Double-click `camera` in the **{{GroupEvents}}** list, then open it with <kbd>Enter</kbd>. The first field chooses what it does.": "**插入摄像机命令。** 在 **{{GroupEvents}}** 列表中双击 `camera`,然后按 <kbd>Enter</kbd> 打开它。第一个字段选择它的作用。",
  "**Zoom.** Choose `ZOOM`: the first number is the field of view (80 is normal, smaller is closer), the second the time in milliseconds to get there.": "**缩放。** 选择 `ZOOM`:第一个数字是视野(80 为正常,越小越近),第二个是到达该值所需的毫秒数。",
  "**Fade.** Choose `FADE`: start colour and opacity, end colour and opacity (0 to 1), and the time. `0 0 0`, `0` to `0 0 0`, `1` fades to black.": "**淡入淡出。** 选择 `FADE`:起始颜色和不透明度、结束颜色和不透明度(0 到 1),以及时间。`0 0 0`、`0` 到 `0 0 0`、`1` 即淡出到黑屏。",
- "**Shake.** Choose `SHAKE`: strength 0 to 16 and the duration in milliseconds. The timeline shows zoom, fade and shake in their own rows under **{{TlKamera}}**.": "**震动。** 选择 `SHAKE`:强度 0 到 16,以及以毫秒为单位的持续时间。时间轴在 **{{TlKamera}}** 下各自的行中显示缩放、淡入淡出和震动。",
  "The camera rows of the timeline.": "时间轴的摄像机行。",
  "Retime a cutscene in the timeline": "在时间轴中重新调整过场动画的时间",
  "Make a shot longer, start a line of dialogue later, move a whole part - by dragging blocks.": "延长一个镜头、让一句台词晚点开始、移动整段内容——只需拖动块。",
@@ -300,5 +299,6 @@
  "Tutorials: figures": "教程:角色",
  "Tutorials: map and entities": "教程:地图与实体",
  "Tutorials: animation": "教程:动画",
- "Tutorials: missions and models": "教程:任务与模型"
+ "Tutorials: missions and models": "教程:任务与模型",
+ "**Shake.** Choose `SHAKE`: strength 0 to 16 and the duration in milliseconds. In the **{{ZlDetail}}** view the timeline shows zoom, fade and shake in their own rows.": "**晃动。** 选择 `SHAKE`：强度 0 到 16，时长以毫秒为单位。在 **{{ZlDetail}}** 视图中，时间轴把缩放、淡入淡出和晃动各显示为一行。"
 }

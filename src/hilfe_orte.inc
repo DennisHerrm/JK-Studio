@@ -88,8 +88,6 @@
 {"vorschau", "knopf:TlLoop", "ViewMap>TlLoop", "TlLoopHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar", ""},
 {"vorschau", "knopf:TlAudio", "ViewMap>TlAudio", "TlAudioHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar", ""},
 {"vorschau", "knopf:TlFollow", "ViewMap>TlFollow", "TlFollowHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar", ""},
-{"vorschau", "knopf:TlTracks", "ViewMap>TlTracks", "TlTracksHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar", ""},
-{"vorschau", "knopf:TlWaits", "ViewMap>TlWaits", "TlWaitsHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar", ""},
 {"vorschau", "knopf:CamPilotKey", "ViewMap>TlKamera>CamPilotKey", "CamPilotKeyHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.kameragewaehlt < gezeichnet:zeitleiste.kamera", ""},
 {"vorschau", "knopf:CamPilotApply", "ViewMap>TlKamera>CamPilotApply", "CamPilotHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.kameragewaehlt < gezeichnet:zeitleiste.kamera", ""},
 {"vorschau", "knopf:GizmoMove", "ViewMap>TlKamera>GizmoMove", "CamMoveHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.kameragewaehlt < gezeichnet:zeitleiste.kamera", ""},

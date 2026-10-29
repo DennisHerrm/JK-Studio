@@ -58,6 +58,22 @@ Uebernommen wird die Zeitleiste selbst.
   Seitenleiste des Mission-Tabs (wo heute Script Flow/Eigenschaften stehen),
   mit "Skriptzeile oeffnen" - kein neues Fenster.
 
+## Arbeitsstand (laufend)
+
+- Punkt 1: `include/bhed/spuren.h`, `src/spuren.cpp`, Kern-Test
+  `tests/spurentest.cpp` (ctest `spuren`, eigene Mini-Szene) - gruen.
+  Zeitleiste und Feldansicht "Spuren" zeichnen nur noch daraus
+  (`spurenBauen` liest das Modell, `kategorieVon` ist weg).
+- GUI: `gui/app_zeitleiste.cpp` (Zeilen, Bloecke, Marken, Navigationsleiste,
+  Ziehen, Erklaerung), Transportleiste in `drawTimeline` (Uebersicht/Detail,
+  Nur aktive, Probleme, Suche, -/Alles/+), Erklaerung unten in der
+  Script-Flow-Spalte (`drawFlowArea`). Texte `tools/i18n_zeitleiste1.py`.
+- Selbsttest `zeitleiste1` (`gui/selbsttest_zeitleiste1.inc`, mit
+  `BHED_ZL1_NUR=mini` nur die Mini-Szene); alte Tests (zeitleiste,
+  werkzeuge, handbuch, vorschau_b) auf die neuen Zeilen umgestellt.
+- Handbuch: Seite `zeitleiste` neu (inhalt_szene.py), Texte auf anderen
+  Seiten nachgezogen; Bilder ueber `BHED_HB_NUR=zeitleiste1`.
+
 ## Weitermachen
 
 1. Bestand lesen: `drawTimeline` (`gui/app_view3d_bedienung.inc` ab ~858),

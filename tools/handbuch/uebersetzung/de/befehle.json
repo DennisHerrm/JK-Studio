@@ -32,7 +32,6 @@
  "Plays a ROFF file on the entity of the current `affect` block - a recorded movement.": "Spielt eine ROFF-Datei auf der Entity des aktuellen `affect`-Blocks ab - eine aufgezeichnete Bewegung.",
  "A command marked with `*` in its help text (for example `SET_NAVGOAL`) finishes its task only when the action is done - that is what lets `dowait` wait for it.": "Ein Befehl, der in seinem Hilfetext mit `*` markiert ist (zum Beispiel `SET_NAVGOAL`), beendet seine Aufgabe erst, wenn die Handlung fertig ist - deshalb kann `dowait` auf ihn warten.",
  "camera ( ... ) - the camera commands": "camera ( ... ) - die Kamerabefehle",
- "The first value of `camera` chooses the command. behaved shows every one of them in the timeline under **{{TlKamera}}** and plays it in the view. Times are in milliseconds.": "Der erste Wert von `camera` wählt den Befehl. behaved zeigt jeden davon in der Zeitleiste unter **{{TlKamera}}** und spielt ihn in der Ansicht ab. Zeiten sind in Millisekunden.",
  "Values": "Werte",
  "What it does (help text of the game)": "Was er tut (Hilfetext des Spiels)",
  "Puts game in camera mode": "Schaltet das Spiel in den Kameramodus",
@@ -329,5 +328,6 @@
  "Instead of a fixed value, a field can hold an expression. In the editor, **{{EditorHelper}}** builds them:": "Statt eines festen Werts kann ein Feld einen Ausdruck enthalten. Im Editor baut **{{EditorHelper}}** sie:",
  "**{{EditorGet}}** - `get ( FLOAT, \"name\" )` reads a variable declared with `declare`.": "**{{EditorGet}}** - `get ( FLOAT, \"name\" )` liest eine mit `declare` angelegte Variable.",
  "**{{EditorTag}}** - `tag ( \"cam_door\", ORIGIN )` takes the position (or `ANGLES`) of a `ref_tag` on the map. That is how cameras stand on marks.": "**{{EditorTag}}** - `tag ( \"cam_door\", ORIGIN )` nimmt die Position (oder `ANGLES`) eines `ref_tag` auf der Karte. So stehen Kameras auf Markierungen.",
- "**{{EditorRnd}}** - `random ( 1000, 3000 )` a random number between two values, for example a wait.": "**{{EditorRnd}}** - `random ( 1000, 3000 )` ist eine Zufallszahl zwischen zwei Werten, zum Beispiel für ein wait."
+ "**{{EditorRnd}}** - `random ( 1000, 3000 )` a random number between two values, for example a wait.": "**{{EditorRnd}}** - `random ( 1000, 3000 )` ist eine Zufallszahl zwischen zwei Werten, zum Beispiel für ein wait.",
+ "The first value of `camera` chooses the command. behaved shows every one of them in the timeline (in the **{{ZlDetail}}** view in its own row) and plays it in the view. Times are in milliseconds.": "Der erste Wert von `camera` wählt den Befehl. behaved zeigt jeden davon in der Zeitleiste (in der Ansicht **{{ZlDetail}}** in eigener Zeile) und spielt ihn in der Ansicht ab. Zeiten stehen in Millisekunden."
 }

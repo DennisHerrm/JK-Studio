@@ -267,7 +267,8 @@ struct ZielFelder {
     int h = 0;
 };
 // Satz 3 (rc593): das Spiegelbild einer Portalflaeche.
-constexpr int kZielSaetze = 4;
+// Satz 4 (zeitleiste1): ein Bild des Filmstreifens der Zeitleiste.
+constexpr int kZielSaetze = 5;
 ZielFelder g_geparkt[kZielSaetze];
 int g_zielSatz = 0;
 // Zaehlt die Bilder der Ansicht (neuesBild) - siehe Netzpuffer::dynBild.

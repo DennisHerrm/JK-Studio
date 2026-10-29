@@ -212,9 +212,6 @@
  "Moves the view along with the camera.": "ビューをカメラに合わせて動かします。",
  "Shows more time.": "より長い時間を表示します。",
  "Shows less time, in more detail.": "より短い時間を詳しく表示します。",
- "One row per figure: when each one walks, speaks and acts.": "キャラクターごとに 1 行。それぞれがいつ歩き、話し、行動するか。",
- "Also shows rows where nothing happens.": "何も起こらない行も表示します。",
- "Shows the waits as their own blocks.": "wait を独立したブロックとして表示します。",
  "The time display switches between seconds and frames when you click it; the list next to the play button sets the speed. Drag blocks to move them in time - [[zeitleiste]].": "時間表示をクリックすると秒とフレームが切り替わり、再生ボタンの横のリストで速度を設定します。ブロックをドラッグすると時間上で移動できます。[[zeitleiste]] を参照。",
  "The model toolbar (Model mode)": "モデルのツールバー(モデルモード)",
  "The toolbar above the model.": "モデルの上のツールバー。",
@@ -238,5 +235,10 @@
  "The event editor for `%s` - the numbers match the table below.": "`%s` のイベントエディター。番号は下の表に対応しています。",
  "`%s` in the script tree.": "スクリプトツリーの `%s`。",
  "`%s` in the list of the selected script node.": "選択中のスクリプトノードの一覧にある `%s`。",
- "`%s` in Tracks.": "トラックの `%s`。"
+ "`%s` in Tracks.": "トラックの `%s`。",
+ "One row per actor and the camera shots with their names - the scene at a glance. [[zeitleiste#zeilen]]": "キャラクターごとに 1 行、カメラのショットは名前付き。シーンをひと目で。[[zeitleiste#zeilen]]",
+ "Camera move, pan, zoom and fade separately, field of view and fade as lines, every actor's animations and commands.": "カメラ移動・パン・ズーム・フェードを別々に、視野とフェードは線で、各キャラクターのアニメーションとコマンド。",
+ "Only shows actors that do something in the visible section.": "表示範囲で何かをしているキャラクターだけを表示します。",
+ "Only shows places with notes: camera moves that jump back, commands the preview does not simulate.": "注意のある箇所だけを表示します。戻るカメラ移動、プレビューが再現しないコマンド。",
+ "Shows the whole scene.": "シーン全体を表示します。"
 }

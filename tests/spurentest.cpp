@@ -238,6 +238,21 @@ int main() {
         }
     }
     pruefe(waitsMitKante == 3, "drei wait mit Zahl haben eine Kante");
+    {
+        int doppelt = 0;
+        for (std::size_t i = 0; i < s.skript.clips.size(); ++i) {
+            for (std::size_t j = i + 1; j < s.skript.clips.size(); ++j) {
+                const spuren::Clip& a = s.skript.clips[i];
+                const spuren::Clip& b = s.skript.clips[j];
+                if (a.art == spuren::Art::Warten && b.art == spuren::Art::Warten && b.startMs < a.endMs - 0.5 && a.startMs < b.endMs - 0.5) {
+                    ++doppelt;
+                    std::printf("    ueberlappende Wartezeiten: %.0f-%.0f \"%s\" / %.0f-%.0f \"%s\"\n", a.startMs, a.endMs, a.befehl.c_str(),
+                                b.startMs, b.endMs, b.befehl.c_str());
+                }
+            }
+        }
+        pruefe(doppelt == 0, "keine zwei Wartezeiten uebereinander (ein Ablauf wartet nur einmal)");
+    }
 
     std::printf("Darsteller\n");
     const spuren::Darsteller* d = nullptr;

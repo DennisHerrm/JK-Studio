@@ -32,7 +32,6 @@
  "Plays a ROFF file on the entity of the current `affect` block - a recorded movement.": "現在の `affect` ブロックのエンティティで ROFF ファイル(記録された動き)を再生します。",
  "A command marked with `*` in its help text (for example `SET_NAVGOAL`) finishes its task only when the action is done - that is what lets `dowait` wait for it.": "ヘルプに `*` の印があるコマンド(例: `SET_NAVGOAL`)は、動作が完了して初めてタスクを終えます。だから `dowait` で待てるのです。",
  "camera ( ... ) - the camera commands": "camera ( ... ):カメラコマンド",
- "The first value of `camera` chooses the command. behaved shows every one of them in the timeline under **{{TlKamera}}** and plays it in the view. Times are in milliseconds.": "`camera` の最初の値でコマンドが決まります。behaved はそのすべてをタイムラインの **{{TlKamera}}** に表示し、ビューで再生します。時間の単位はミリ秒です。",
  "Values": "値",
  "What it does (help text of the game)": "働き(ゲームのヘルプ)",
  "Puts game in camera mode": "ゲームをカメラモードにする",
@@ -329,5 +328,6 @@
  "Instead of a fixed value, a field can hold an expression. In the editor, **{{EditorHelper}}** builds them:": "フィールドには固定値の代わりに式を書けます。エディターでは **{{EditorHelper}}** で作れます。",
  "**{{EditorGet}}** - `get ( FLOAT, \"name\" )` reads a variable declared with `declare`.": "**{{EditorGet}}**: `get ( FLOAT, \"name\" )` は `declare` で宣言した変数を読みます。",
  "**{{EditorTag}}** - `tag ( \"cam_door\", ORIGIN )` takes the position (or `ANGLES`) of a `ref_tag` on the map. That is how cameras stand on marks.": "**{{EditorTag}}**: `tag ( \"cam_door\", ORIGIN )` はマップ上の `ref_tag` の位置(または `ANGLES`)を取ります。カメラはこうして目印の上に立ちます。",
- "**{{EditorRnd}}** - `random ( 1000, 3000 )` a random number between two values, for example a wait.": "**{{EditorRnd}}**: `random ( 1000, 3000 )` は 2 つの値の間の乱数です。たとえば待ち時間に使います。"
+ "**{{EditorRnd}}** - `random ( 1000, 3000 )` a random number between two values, for example a wait.": "**{{EditorRnd}}**: `random ( 1000, 3000 )` は 2 つの値の間の乱数です。たとえば待ち時間に使います。",
+ "The first value of `camera` chooses the command. behaved shows every one of them in the timeline (in the **{{ZlDetail}}** view in its own row) and plays it in the view. Times are in milliseconds.": "`camera` の最初の値でコマンドを選びます。behaved はそのすべてをタイムラインに表示し（**{{ZlDetail}}** 表示ではそれぞれの行に）、ビューで再生します。時間はミリ秒です。"
 }

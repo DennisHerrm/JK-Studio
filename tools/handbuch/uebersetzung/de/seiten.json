@@ -211,9 +211,6 @@
  "Moves the view along with the camera.": "Führt die Ansicht mit der Kamera mit.",
  "Shows more time.": "Zeigt mehr Zeit.",
  "Shows less time, in more detail.": "Zeigt weniger Zeit, dafür genauer.",
- "One row per figure: when each one walks, speaks and acts.": "Eine Zeile je Figur: wann jede geht, spricht und handelt.",
- "Also shows rows where nothing happens.": "Zeigt auch Zeilen, in denen nichts geschieht.",
- "Shows the waits as their own blocks.": "Zeigt die waits als eigene Blöcke.",
  "The time display switches between seconds and frames when you click it; the list next to the play button sets the speed. Drag blocks to move them in time - [[zeitleiste]].": "Ein Klick auf die Zeitanzeige schaltet zwischen Sekunden und Bildern um; die Liste neben dem Abspielknopf stellt das Tempo ein. Blöcke ziehen verschiebt sie in der Zeit - [[zeitleiste]].",
  "The model toolbar (Model mode)": "Die Modellleiste (Modell-Modus)",
  "The toolbar above the model.": "Die Leiste über dem Modell.",
@@ -237,5 +234,10 @@
  "The event editor for `%s` - the numbers match the table below.": "Der Ereignis-Editor für `%s` - die Nummern passen zur Tabelle unten.",
  "`%s` in the script tree.": "`%s` im Skriptbaum.",
  "`%s` in the list of the selected script node.": "`%s` in der Liste des gewählten Skriptknotens.",
- "`%s` in Tracks.": "`%s` in den Spuren."
+ "`%s` in Tracks.": "`%s` in den Spuren.",
+ "One row per actor and the camera shots with their names - the scene at a glance. [[zeitleiste#zeilen]]": "Je Darsteller eine Zeile und die Kameraeinstellungen mit Namen - die Szene auf einen Blick. [[zeitleiste#zeilen]]",
+ "Camera move, pan, zoom and fade separately, field of view and fade as lines, every actor's animations and commands.": "Kamerafahrt, Schwenk, Zoom und Blende getrennt, Sichtfeld und Blende als Linien, je Darsteller Animationen und Befehle.",
+ "Only shows actors that do something in the visible section.": "Zeigt nur Darsteller, die im sichtbaren Ausschnitt etwas tun.",
+ "Only shows places with notes: camera moves that jump back, commands the preview does not simulate.": "Zeigt nur Stellen mit Hinweisen: Kamerafahrten, die zurückspringen, Befehle, die die Vorschau nicht nachbildet.",
+ "Shows the whole scene.": "Zeigt die ganze Szene."
 }

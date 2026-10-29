@@ -2286,6 +2286,86 @@ std::vector<Schritt> handbuchSchritte() {
         t.push_back(tu("Handbuch GPU-Backen: zurueck", [] { g_app->leftMode = 0; }));
         return t;
     }
+    // zeitleiste1: nur die Bilder der Seite "Zeitleiste" (h_zeitleiste, h_zl_*) -
+    // md_am_sith aus dem eingerichteten Movie-Duels-Ordner, der Reiter mit dem Schiff.
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "zeitleiste1") == 0) {
+        std::vector<Schritt> t;
+        auto md = std::make_shared<std::string>();
+        const auto band = [] { return hb::fensterRect("toolband"); };
+        t.push_back(tu("Handbuch Zeitleiste: Movie Duels laden", [=] {
+            for (const std::string& o : g_app->settings.gamePaths) {
+                std::error_code ec;
+                if (md->empty() && std::filesystem::is_regular_file(::bhed::utf8Pfad(o + "\\assets1.pk3"), ec)) { *md = o + "\\assets1.pk3"; }
+            }
+            g_app->leftMode = 1;
+            missionenAusArchiv(*md);
+        }));
+        t.push_back(warteBis("Handbuch Zeitleiste: md_am_sith in der Auswahl", [] { return missionsliste::hat("md_am_sith", true); }, 3500));
+        t.push_back(waehleInListe("md_am_sith", false, 0, "##missionpick"));
+        t.push_back(warteBis("Handbuch Zeitleiste: geladen", [] {
+            return g_app->map.path == "maps/md_am_sith.bsp" && g_app->camTrackValid && g_app->tabs.size() > 1;
+        }, 3000));
+        t.push_back(pause(1.0));
+        t.push_back(warteBis("Handbuch Zeitleiste: Figuren", [] { return g_app->camTrackValid && jk2probe::figurenGeladen(); }, 1500));
+        t.push_back(tu("Handbuch Zeitleiste: Uebersicht, Leiste hoch, Zeit 8 s", [] {
+            g_app->zlDetail = false;
+            g_app->zlNurAktive = false;
+            g_app->zlProbleme = false;
+            g_app->zlSuche[0] = 0;
+            g_app->zlAuswahl.da = false;
+            g_app->timelineFrac = 0.48F;
+            g_app->playing = false;
+            g_app->playMs = 8000.0;
+            g_app->mapDirty = true;
+        }));
+        t.push_back(pause(1.0));
+        t.push_back(hb::fotoTeil("h_zeitleiste", band));
+        t.push_back(tu("Handbuch Zeitleiste: Detail", [] { g_app->zlDetail = true; }));
+        t.push_back(pause(0.6));
+        t.push_back(hb::fotoTeil("h_zl_detail", band));
+        t.push_back(tu("Handbuch Zeitleiste: Uebersicht", [] { g_app->zlDetail = false; }));
+        t.push_back(pause(0.4));
+        t.push_back(klickAn("die zweite Einstellung", [] {
+            int n = 0;
+            for (const App::ZlBlock& b : g_app->zlBloecke) {
+                if (b.zeile == "ort" && b.art == spuren::Art::Einstellung && ++n == 2) { return b.r.GetCenter(); }
+            }
+            return ImVec2{-1.0F, -1.0F};
+        }));
+        t.push_back(pause(0.6));
+        t.push_back(hb::fotoTeil("h_zl_erklaerung", [] {
+            const ImRect b = hb::fensterRect("toolband");
+            const ImRect e = g_app->zlErklaerungRect;
+            return ImRect{std::min(b.Min.x, e.Min.x), std::min(b.Min.y, e.Min.y), std::max(b.Max.x, e.Max.x), b.Max.y};
+        }));
+        t.push_back(tu("Handbuch Zeitleiste: Auswahl weg, Probleme", [] {
+            g_app->zlAuswahl.da = false;
+            g_app->zlProbleme = true;
+        }));
+        t.push_back(pause(0.6));
+        t.push_back(hb::fotoTeil("h_zl_probleme", band));
+        t.push_back(tu("Handbuch Zeitleiste: Probleme aus", [] { g_app->zlProbleme = false; }));
+        t.push_back(pause(0.5));
+        auto tiefe = std::make_shared<std::size_t>(0);
+        t.push_back(tu("Handbuch Zeitleiste: Tiefe merken", [=] { *tiefe = g_app->doc.undoDepth(); }));
+        t.push_back(ziehenAn("die Kante des ersten Wartens im Skriptablauf", [] {
+            for (const App::ZlBlock& b : g_app->zlBloecke) {
+                if (b.zeile == "skript" && b.art == spuren::Art::Warten && b.r.GetWidth() > ImGui::GetFontSize() * 3.0F &&
+                    b.r.Max.x < g_app->tlFeldX + g_app->tlFeldW * 0.8F) {
+                    return ImVec2{b.r.Max.x - 3.0F, b.r.GetCenter().y};
+                }
+            }
+            return ImVec2{-1.0F, -1.0F};
+        }, 50.0F, 0.0F, 0));
+        t.push_back(pause(0.6));
+        t.push_back(hb::fotoTeil("h_zl_ziehen", band));
+        t.push_back(tu("Handbuch Zeitleiste: zuruecknehmen", [=] {
+            while (g_app->doc.undoDepth() > *tiefe && g_app->doc.undo()) { rebuildTree(); }
+            g_app->camTrackValid = false;
+        }));
+        t.push_back(pause(0.4));
+        return t;
+    }
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     const std::string archiv = std::getenv("BHED_MISSION_ARCHIV") ? std::getenv("BHED_MISSION_ARCHIV") : "";
@@ -2646,7 +2726,7 @@ std::vector<Schritt> handbuchSchritte() {
         markiere("t4_4", speichernKnopf);
         markiere("k_kartenmenue", [=] { return nur(knopf(tr(Str::OpenEnt), "##Popup")); });
         markiere("k_bahnen", [=] { return nur(knopf(tr(Str::CamPathAll))); });
-        markiere("k_waits", [=] { return nur(knopf(tr(Str::TlWaits))); });
+        markiere("k_waits", [=] { return nur(knopf(tr(Str::ZlDetail))); });
         markiere("k_dateimenue", [=] { return nur(knopf(tr(Str::FileBackupFolder), "##Menu")); });
         markiere("k_pk3", [=] {
             return std::vector<hb::Marke>{hb::Marke(knopf(tr(Str::Pk3Filter))), hb::Marke(knopf("scripts/taspir1/intro.ibi"))};
@@ -2670,7 +2750,7 @@ std::vector<Schritt> handbuchSchritte() {
                 hb::Marke(gruppe({tr(Str::TlRewind), tr(Str::TlPlay), tr(Str::TlStop)}), 1),
                 hb::Marke(gruppe({tr(Str::TlLoop), tr(Str::TlAudio), tr(Str::TlFollow)}), 2),
                 hb::Marke(gruppe({tr(Str::TlZoomOut), tr(Str::TlZoomIn)}), 3),
-                hb::Marke(gruppe({tr(Str::TlTracks), tr(Str::TlWaits)}), 4),
+                hb::Marke(gruppe({tr(Str::ZlUebersicht), tr(Str::ZlDetail), tr(Str::ZlNurAktive), tr(Str::ZlProbleme)}), 4),
                 hb::Marke(gruppe({tr(Str::MapInsertCamera)}), 5)};
         });
         markiere("r_leiste_modell", [=] {
@@ -3146,7 +3226,7 @@ std::vector<Schritt> handbuchSchritte() {
 
     // --- 6. Die ganze Szene durch die Kamera ---------------------------------------------
     add(tu("Handbuch: Zeitleiste offen", [] {
-        g_app->tlKameraOffen = true;
+        g_app->zlDetail = false;
         g_app->tlOffen.clear();
         g_app->playMs = 3000.0;
         g_app->cameraSelected = true;
@@ -3190,8 +3270,7 @@ std::vector<Schritt> handbuchSchritte() {
     // Zeitleiste: Kyles Laufbalken ziehen - Bildfolge, danach zurueck.
     add(tu("Handbuch: Figurenzeilen, Zeit 2 s", [=] {
         // Die Kameragruppe zu, damit die Laufbalken der Figuren im Bild sind.
-        g_app->tlKameraOffen = false;
-        g_app->showTracks = true;
+        g_app->zlDetail = false;
         g_app->playMs = 2000.0;
         tiefe->first = g_app->doc.undoDepth();
         blick(-1620.0F, -2120.0F, 830.0F, 26.0F, 90.0F);
@@ -3239,7 +3318,6 @@ std::vector<Schritt> handbuchSchritte() {
     add(tu("Handbuch: Ziehen zuruecknehmen", [=] {
         while (g_app->doc.undoDepth() > tiefe->first && g_app->doc.undo()) {}
         hb::skriptNeu();
-        g_app->showTracks = false;
     }));
     add(pause(0.4));
 
@@ -3569,7 +3647,7 @@ std::vector<Schritt> handbuchSchritte() {
                      "camera ( /*@CAMERA_COMMANDS*/ FOLLOW, \"hero\", 100.000, 1 );\n"
                      "wait ( 6000.000 );\ncamera ( /*@CAMERA_COMMANDS*/ DISABLE );\n");
         g_app->leftMode = 1;
-        g_app->tlKameraOffen = true;
+        g_app->zlDetail = true;
         g_app->playMs = 3000.0;
         g_app->cameraSelected = false;
         g_app->selectedPath.clear();
@@ -3780,7 +3858,7 @@ std::vector<Schritt> handbuchSchritte() {
         hb::skriptNeu();
         entityAuswahlSetzen(-1);
         g_app->leftMode = 1;
-        g_app->tlKameraOffen = true;
+        g_app->zlDetail = true;
     }));
     add(pause(0.8));
 
@@ -3916,18 +3994,13 @@ std::vector<Schritt> handbuchSchritte() {
     add(tu("Kurz3: Kamera ab", [] { g_app->cameraSelected = false; }));
     // 15. Zeitleiste: Waits als Bloecke, ruhige Spuren.
     add(tu("Kurz3: Waits und ruhige Spuren", [] {
-        g_app->tlWaitsZeigen = true;
-        g_app->zeigeRuhigeSpuren = true;
-        g_app->tlKameraOffen = false;
-        g_app->showTracks = true;
+        g_app->zlDetail = false;
         g_app->playMs = 5000.0;
     }));
     add(pause(0.8));
     add(hb::fotoTeil("k_waits", zeitleiste));
     add(tu("Kurz3: Waits aus", [] {
-        g_app->tlWaitsZeigen = false;
-        g_app->zeigeRuhigeSpuren = false;
-        g_app->tlKameraOffen = true;
+        g_app->zlDetail = true;
     }));
     // 7. Der Aenderungsrand im Intro (es ist seit dem Laden geaendert).
     add(tu("Kurz3: Events-Modus, Rand an", [] {
@@ -4333,7 +4406,7 @@ std::vector<Schritt> handbuchSchritte() {
             skriptSetzen(demo);
             g_app->leftMode = 1;
             g_app->tlOffen.insert("kyle");
-            g_app->tlKameraOffen = false;
+            g_app->zlDetail = false;
             g_app->playMs = 3000.0;
             blick(-1560.0F, -2280.0F, 900.0F, 23.0F, 90.0F);
         }, 1.0);
@@ -4388,12 +4461,10 @@ std::vector<Schritt> handbuchSchritte() {
         add(pause(0.4));
         setzenSchritt("Zeitleiste mit waits", [=] {
             g_app->leftMode = 1;
-            g_app->tlWaitsZeigen = true;
             g_app->playMs = 1500.0;
         }, 1.0);
-        bildTeil("s_sig_zeit", karteMitZeitleiste, [=] { return M{knopf(tr(Str::TlWaits))}; });
+        bildTeil("s_sig_zeit", karteMitZeitleiste, [=] { return M{knopf(tr(Str::ZlDetail))}; });
         setzenSchritt("Waits aus, Events", [=] {
-            g_app->tlWaitsZeigen = false;
             g_app->leftMode = 0;
             skriptSetzen(demo);
         });
@@ -4784,9 +4855,8 @@ std::vector<Schritt> handbuchSchritte() {
             g_app->leftMode = 1;
             g_app->settings.flussAnsicht = 0;
             g_app->timelineFrac = 0.40F;
-            g_app->tlKameraOffen = true;
+            g_app->zlDetail = true;
             g_app->tlOffen.clear();
-            g_app->showTracks = true;
             entityAuswahlSetzen(-1);
             g_app->cameraSelected = false;
             g_app->playMs = 3000.0;
@@ -4806,7 +4876,7 @@ std::vector<Schritt> handbuchSchritte() {
         };
         bildTeil("c_tl_tempo", zeitR, [=] { return M{tempoFeld()}; });
         bildTeil("c_tl_zeit", zeitR, [=] { return M{zeitAnzeige()}; });
-        bildTeil("c_tl_ruhig", zeitR, [=] { return M{knopf(tr(Str::TlTracks)), knopf(tr(Str::TlWaits))}; });
+        bildTeil("c_tl_ruhig", zeitR, [=] { return M{knopf(tr(Str::ZlNurAktive)), knopf(tr(Str::ZlProbleme))}; });
         const auto kopfSpalte = [] {
             const ImRect t = hb::fensterRect("tracks");
             if (t.GetWidth() <= 0.0F) { return ImRect{}; }
@@ -4825,11 +4895,11 @@ std::vector<Schritt> handbuchSchritte() {
         add(tu("Kurz: Maus weg", weg));
         bildTeil("c_tl_klick", voll, [=] { return M{figurBalken("kyle")}; });
         // Kyle aufklappen: Bewegung und Blick
-        setzenSchritt("Kyle aufgeklappt", [=] { g_app->tlOffen.insert("kyle"); g_app->tlKameraOffen = false; entityAuswahlSetzen(-1); }, 0.8);
+        setzenSchritt("Kyle aufgeklappt", [=] { g_app->tlOffen.insert("kyle"); g_app->zlDetail = false; entityAuswahlSetzen(-1); }, 0.8);
         bildTeil("g_ansehen_zeit", karteMitZeitleiste, [=] { return M{kopfSpalte()}; });
         // Kamera und Einstellungen
         setzenSchritt("Kamera gewaehlt, Einstellung 1", [=] {
-            g_app->tlKameraOffen = true;
+            g_app->zlDetail = true;
             g_app->cameraSelected = true;
             kameraSchluesselWaehlen(0, true);
             blick(-1560.0F, -2280.0F, 900.0F, 23.0F, 90.0F);
@@ -4870,7 +4940,7 @@ std::vector<Schritt> handbuchSchritte() {
         // --- Figuren: Kyle, sein Laufziel, das Menue ---
         setzenSchritt("Kyle mitten im Lauf", [=] {
             g_app->playMs = 2500.0;
-            g_app->tlKameraOffen = false;
+            g_app->zlDetail = false;
             const int ei = waehleNamen("kyle");
             for (std::size_t ai = 0; ai < g_app->scene.actors.size(); ++ai) {
                 if (entityFuerFigur(static_cast<int>(ai)) == ei) { g_app->selectedActor = static_cast<int>(ai); }
@@ -5161,7 +5231,7 @@ std::vector<Schritt> handbuchSchritte() {
             while (g_app->doc.undoDepth() > *tiefeRest && g_app->doc.undo()) {}
             hb::skriptNeu();
             g_app->tlOffen.clear();
-            g_app->tlKameraOffen = true;
+            g_app->zlDetail = true;
             entityAuswahlSetzen(-1);
         }));
         // =====================================================================

@@ -4994,7 +4994,7 @@ struct Lauf {
     bool wiederholt = false;
     // Vorher-Stand der Oberflaeche
     int leftMode = 0;
-    bool showTracks = true;
+    bool detail = false;
     float timelineFrac = 0.22F;
     double timelineZoom = 1.0;
     double timelineStart = 0.0;
@@ -5080,7 +5080,7 @@ void probe(std::vector<Schritt>& s, const std::string& reiter, std::size_t oberg
             }
         }
         L->leftMode = g_app->leftMode;
-        L->showTracks = g_app->showTracks;
+        L->detail = g_app->zlDetail;
         L->timelineFrac = g_app->timelineFrac;
         L->timelineZoom = g_app->timelineZoom;
         L->timelineStart = g_app->timelineViewStartMs;
@@ -5090,7 +5090,7 @@ void probe(std::vector<Schritt>& s, const std::string& reiter, std::size_t oberg
     add(tu("Spulen: Szene neu, Zeitleiste zeigen, Zeiger auf 0", [=] {
         prepareScene();
         g_app->leftMode = 1;
-        g_app->showTracks = true;
+        g_app->zlDetail = false;
         g_app->timelineFrac = std::max(g_app->timelineFrac, 0.30F);
         g_app->timelineZoom = 1.0;
         g_app->timelineViewStartMs = 0.0;
@@ -5325,7 +5325,7 @@ void probe(std::vector<Schritt>& s, const std::string& reiter, std::size_t oberg
         g_app->playing = false;
         g_app->playMs = 0.0;
         g_app->leftMode = L->leftMode;
-        g_app->showTracks = L->showTracks;
+        g_app->zlDetail = L->detail;
         g_app->timelineFrac = L->timelineFrac;
         g_app->timelineZoom = L->timelineZoom;
         g_app->timelineViewStartMs = L->timelineStart;

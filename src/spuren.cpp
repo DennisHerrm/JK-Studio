@@ -206,22 +206,43 @@ private:
             }
             alle.push_back(std::move(c));
         }
-        // Zurueckspringen: ein Befehl derselben Gruppe laeuft noch, wenn
-        // dieser beginnt (CGCam_Update rechnet vom alten Anfang).
+        // Zurueckspringen: der VORIGE Befehl derselben Gruppe laeuft noch, wenn
+        // dieser beginnt. CGCam_Update uebernimmt Ort/Winkel/Bildwinkel erst am
+        // Ende eines Uebergangs (cg_camera.cpp); ein neuer Befehl ersetzt das
+        // Ziel und rechnet vom alten Anfang - die Kamera springt zurueck. War
+        // der vorige schon fertig, gilt sein Ziel, und nichts springt.
         for (std::size_t i = 0; i < alle.size(); ++i) {
             const int g = kameraGruppe(ct.segments[i]);
             if (g < 0 || alle[i].art == Art::Befehl) { continue; }
-            double vorher = -1.0;
-            for (std::size_t j = 0; j < alle.size(); ++j) {
-                if (j == i || kameraGruppe(ct.segments[j]) != g || alle[j].art == Art::Befehl) { continue; }
-                const Clip& o = alle[j];
-                if (o.startMs < alle[i].startMs - 0.5 && o.endMs > alle[i].startMs + 0.5) { vorher = std::max(vorher, o.startMs); }
+            // Ohne Dauer springt nichts zurueck: MOVE/PAN mit 0 brechen den
+            // laufenden Uebergang ab und setzen das Ziel sofort (camtrack.cpp,
+            // CGCam_SetPosition); ein ZOOM mit 0 setzt nur den Ausgangswert des
+            // laufenden Zooms neu (lerpStartMs).
+            if (ct.segments[i].endMs <= ct.segments[i].startMs + 0.5 || ct.segments[i].lerpStartMs >= 0.0) { continue; }
+            const auto vorigerVon = [&](std::size_t k) -> long {
+                long v = -1;
+                for (std::size_t j = 0; j < alle.size(); ++j) {
+                    if (j == k || kameraGruppe(ct.segments[j]) != g || alle[j].art == Art::Befehl) { continue; }
+                    if (alle[j].startMs < alle[k].startMs - 0.5 &&
+                        (v < 0 || alle[j].startMs >= alle[static_cast<std::size_t>(v)].startMs)) {
+                        v = static_cast<long>(j);
+                    }
+                }
+                return v;
+            };
+            long v = vorigerVon(i);
+            if (v < 0 || alle[static_cast<std::size_t>(v)].endMs <= alle[i].startMs + 0.5) { continue; }
+            alle[i].springt = true;
+            ++s_.ueberlappungen;
+            // Zurueck an den Anfang der Kette: solange auch der vorige in einen
+            // noch laufenden hineinbegann, gilt dessen Anfang.
+            std::size_t anfang = static_cast<std::size_t>(v);
+            for (int schutz = 0; schutz < 64; ++schutz) {
+                const long w = vorigerVon(anfang);
+                if (w < 0 || alle[static_cast<std::size_t>(w)].endMs <= alle[anfang].startMs + 0.5) { break; }
+                anfang = static_cast<std::size_t>(w);
             }
-            if (vorher >= 0.0) {
-                alle[i].springt = true;
-                alle[i].vorigerStartMs = vorher;
-                ++s_.ueberlappungen;
-            }
+            alle[i].vorigerStartMs = alle[anfang].startMs;
         }
         // Detailzeilen
         for (const Clip& c : alle) {
@@ -257,20 +278,29 @@ private:
                 if (c.art == Art::KameraAus && c.startMs > e.startMs && c.startMs < bis) { bis = c.startMs; }
             }
             e.endMs = std::max(bis, e.startMs);
+            // Ein MOVE, den im selben Augenblick der naechste ersetzt, ist
+            // keine Einstellung - im Spiel ist er nie zu sehen.
+            if (e.endMs - e.startMs < 1.0 && i + 1 < moves.size()) { continue; }
             for (const Clip& c : alle) {
                 if (c.springt && c.startMs >= e.startMs && c.startMs < bis) { e.problem = true; }
             }
             s_.ort.clips.push_back(std::move(e));
         }
         for (const Clip& c : s_.schwenk.clips) { s_.drehung.clips.push_back(c); }
+        // In der Uebersicht ist ein Schwenk mindestens 350 ms breit (ein Schnitt
+        // soll lesbar sein) - die Unterbahnen rechnen mit dieser Breite.
+        std::stable_sort(s_.drehung.clips.begin(), s_.drehung.clips.end(),
+                         [](const Clip& a, const Clip& b) { return a.startMs < b.startMs; });
+        bahnenVerteilen(s_.drehung, 350.0);
         for (Zeile* z : {&s_.ort, &s_.drehung, &s_.fahrt, &s_.schwenk, &s_.zoom, &s_.blende, &s_.rollen, &s_.wackeln,
                          &s_.folgen, &s_.kameraBahn}) {
             std::stable_sort(z->clips.begin(), z->clips.end(),
                              [](const Clip& a, const Clip& b) { return a.startMs < b.startMs; });
         }
-        for (Zeile* z : {&s_.drehung, &s_.fahrt, &s_.schwenk, &s_.zoom, &s_.blende, &s_.rollen, &s_.wackeln, &s_.folgen,
-                         &s_.kameraBahn}) {
-            bahnenVerteilen(*z, 0.0);
+        // Ein Befehl ohne Dauer belegt seine Bahn einen Augenblick - zwei
+        // Bloecke mit demselben Anfang liegen nicht uebereinander.
+        for (Zeile* z : {&s_.fahrt, &s_.schwenk, &s_.zoom, &s_.blende, &s_.rollen, &s_.wackeln, &s_.folgen, &s_.kameraBahn}) {
+            bahnenVerteilen(*z, 1.0);
         }
     }
 
@@ -526,6 +556,28 @@ private:
             }
             bahnenVerteilen(d.animation, 0.0);
             bahnenVerteilen(d.oben, 0.0);
+            bahnenVerteilen(d.laufen, 0.0);
+            s_.darsteller.push_back(std::move(d));
+        }
+        // affect-Ziele ohne Figur in der Szene (ein Ziel, das die Karte nicht
+        // kennt, ein Name, den der Nachbau nur ansprechen kann): ihre Befehle
+        // gehoeren trotzdem in die Leiste.
+        for (const TimelineTrack& tr : q_.zeitleiste->tracks) {
+            if (tr.entity.empty()) { continue; }
+            const bool bekannt = std::any_of(s_.darsteller.begin(), s_.darsteller.end(),
+                                             [&](const Darsteller& x) { return klein(x.name) == klein(tr.entity); });
+            if (bekannt) { continue; }
+            Darsteller d;
+            d.name = tr.entity;
+            d.anzeige = tr.entity;
+            for (const TimelineEvent& e : tr.events) {
+                if (e.kind == TimelineEvent::Kind::Camera) { continue; }
+                Clip c = ablaufClip(e, tr.entity);
+                if (c.art == Art::NichtNachgebildet) { ++s_.nichtNachgebildet; }
+                d.befehle.clips.push_back(std::move(c));
+            }
+            std::stable_sort(d.befehle.clips.begin(), d.befehle.clips.end(),
+                             [](const Clip& x, const Clip& y) { return x.startMs < y.startMs; });
             s_.darsteller.push_back(std::move(d));
         }
     }

@@ -608,7 +608,7 @@ std::vector<Schritt> szeneSchritte(const std::string& szene, const std::string& 
         g_app->playMs = 0.0;
         g_app->timelineZoom = 1.0;
         g_app->timelineViewStartMs = 0.0;
-        g_app->showTracks = true;
+        g_app->zlDetail = false;
         g_app->mapDirty = true;
     }));
     add(pause(1.0));

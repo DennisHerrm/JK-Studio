@@ -6582,6 +6582,9 @@ void prepareScene() {
         g_app->mapModels.push_back(std::move(item));
         g_app->modellFigur.push_back(static_cast<int>(a));
     }
+    // zeitleiste1: das Modell der Zeitleiste aus Ablauf, Kamerabahn und Szene
+    // dieses Durchgangs (bhed/spuren.h) - auch fuer Szenen ohne Figuren.
+    zeitleisteModellBauen();
     if (g_app->scene.actors.empty()) {
         return;
     }

@@ -399,6 +399,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_mission.cpp
     gui/uiicons.cpp
     gui/app_ansichten.cpp
+    gui/app_zeitleiste.cpp
     gui/app_kamera.cpp
     gui/app_wegpunkte.cpp
     gui/app_modell.cpp

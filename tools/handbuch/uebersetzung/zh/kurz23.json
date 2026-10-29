@@ -24,7 +24,6 @@
  "**Put the figure into a group.** In the figure's `affect` block insert `set ( SET_CAMERA_GROUP, \"hero\" )`.": "**把角色放进一个组。** 在角色的 `affect` 块中插入 `set ( SET_CAMERA_GROUP, \"hero\" )`。",
  "**Follow.** After the camera shot insert `camera` and choose `FOLLOW`: the group `hero`, a turning speed (for example `100`) and `1` to blend into it. The camera now keeps turning towards the figure.": "**跟随。** 在摄像机镜头之后插入 `camera` 并选择 `FOLLOW`:组 `hero`、转动速度(例如 `100`)以及用于过渡的 `1`。现在摄像机会持续转向该角色。",
  "**Keep a distance.** `camera ( DISTANCE, 200, 1 )` keeps the camera 200 units from the group, moving with it.": "**保持距离。** `camera ( DISTANCE, 200, 1 )` 让摄像机与该组保持 200 单位的距离,并随之移动。",
- "**Watch it.** Turn on **{{MapThroughCam}}** and play the timeline: the view keeps turning towards the figure. In the timeline, the **Follow** row under **{{TlKamera}}** shows how long it lasts.": "**观看效果。** 打开 **{{MapThroughCam}}** 并播放时间轴:视角会持续转向角色。在时间轴中,**{{TlKamera}}** 下的 **跟随** 行显示其持续时长。",
  "Through the camera: it keeps turning towards Kyle.": "透过摄像机:它持续转向 Kyle。",
  "`SET_CAMERA_GROUP_Z_OFS` aims higher or lower on the followed figure.": "`SET_CAMERA_GROUP_Z_OFS` 让瞄准点在被跟随的角色身上偏高或偏低。",
  "Show a video or a line of text": "播放视频或显示一行文字",
@@ -221,9 +220,7 @@
  "**Move through time.** Drag in the ruler; **{{TracksPlay}}** plays.": "**在时间中移动。** 在标尺上拖动;**{{TracksPlay}}** 开始播放。",
  "The timeline in detail": "时间轴详解",
  "Waits as blocks, quiet rows, frames instead of seconds, speed - and the warning for overlapping camera moves.": "wait 显示为块、空闲行、帧代替秒、速度——以及摄像机移动重叠时的警告。",
- "**Waits as blocks.** **{{TlWaits}}** shows every `wait` as its own block - drag it to change it directly.": "**wait 显示为块。** **{{TlWaits}}** 把每个 `wait` 显示为独立的块——拖动即可直接修改。",
  "Waits shown as blocks.": "显示为块的 wait。",
- "**Quiet rows.** **{{TlIdleTracks}}** also shows the rows where nothing happens after the start.": "**空闲行。** **{{TlIdleTracks}}** 也会显示开始后没有任何事件的行。",
  "**Frames.** Click the time display to switch between seconds and frames.": "**帧。** 单击时间显示,可在秒与帧之间切换。",
  "**Speed.** The list next to the play button plays at 0.25x to 2x; sound only at 1x.": "**速度。** 播放按钮旁的列表可以 0.25x 到 2x 的速度播放;声音只在 1x 时播放。",
  "**Overlap warning.** A warning sign on a camera block: it overlaps the next move. In the game the next one starts from where this one began, and the camera jumps - shorten one of them.": "**重叠警告。** 摄像机块上的警告标志:它与下一段移动重叠。在游戏中,下一段会从这一段开始的位置出发,摄像机会跳动——请缩短其中一段。",
@@ -233,5 +230,8 @@
  "The playback bar with the skin list.": "带有皮肤列表的播放栏。",
  "**Surfaces.** The counter of surfaces shows how many the skin draws; click it to list them all in the detail log.": "**表面。** 表面计数显示该皮肤绘制了多少个表面;单击它可在详细日志中列出全部表面。",
  "**Caps.** **{{ModelCaps}}** shows the `_off` surfaces that close the holes where limbs attach.": "**封盖。** **{{ModelCaps}}** 显示 `_off` 表面,它们封住肢体连接处的孔洞。",
- "**Another skeleton.** **{{ModelLoadGla}}** loads a different `.gla` with its animations.": "**另一套骨架。** **{{ModelLoadGla}}** 加载另一个 `.gla` 及其动画。"
+ "**Another skeleton.** **{{ModelLoadGla}}** loads a different `.gla` with its animations.": "**另一套骨架。** **{{ModelLoadGla}}** 加载另一个 `.gla` 及其动画。",
+ "**Waits as blocks.** The **{{ZlSkript}}** row shows every `wait` as a hatched block with what it waits for - drag its right edge to change it directly.": "**等待显示为块。** **{{ZlSkript}}** 行把每个 `wait` 显示为带斜线的块，并标明在等待什么——拖动其右边缘可直接修改。",
+ "**Only active.** **{{ZlNurAktive}}** hides the actors that do nothing in the visible section.": "**仅活动。** **{{ZlNurAktive}}** 隐藏在可见范围内没有动作的角色。",
+ "**Watch it.** Turn on **{{MapThroughCam}}** and play the timeline: the view keeps turning towards the figure. In the **{{ZlDetail}}** view of the timeline, the **{{TlCamFollow}}** row shows how long it lasts.": "**观看。** 打开 **{{MapThroughCam}}** 并播放时间轴：视图会持续转向角色。在时间轴的 **{{ZlDetail}}** 视图中，**{{TlCamFollow}}** 行显示它持续多久。"
 }

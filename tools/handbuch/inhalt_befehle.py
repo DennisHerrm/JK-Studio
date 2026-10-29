@@ -133,7 +133,7 @@ SEITE = {
         ("table", [T("Command"), T("What it does"), T("Example")], [_zeile(_verlinkt(b[0]), *b[1:]) for b in BEFEHLE]),
         ("note", T("A command marked with `*` in its help text (for example `SET_NAVGOAL`) finishes its task only when the action is done - that is what lets `dowait` wait for it.")),
         ("h2", "kamera", T("camera ( ... ) - the camera commands")),
-        ("p", T("The first value of `camera` chooses the command. behaved shows every one of them in the timeline under **{{TlKamera}}** and plays it in the view. Times are in milliseconds.")),
+        ("p", T("The first value of `camera` chooses the command. behaved shows every one of them in the timeline (in the **{{ZlDetail}}** view in its own row) and plays it in the view. Times are in milliseconds.")),
         ("table", [T("Command"), T("Values"), T("What it does (help text of the game)")], [_zeile("`%s`" % n, w or "-", d) for n, w, d in _kamera()]),
         ("h2", "makros", T("Macros")),
         ("p", T("At the end of the **{{GroupEvents}}** list. A macro inserts several `set` commands at once; **{{TreeFoldMacros}}** shows it as one line.")),
