@@ -380,6 +380,9 @@ Strukturpinsel verschoben: „visibility computed“. Die Option ist vorgegeben 
 - Selbsttest `stufe9d`, Teil VIS: Steinraum mit Zwischenwand und Tür, Portal-Schwelle 1, `_q3map2_cmdline` mit
   `-vis -fast`: nach dem Bau stehen in der Konsole vor dem VIS-Befehl die Zeile mit den Zahlen aus der .prt,
   die Warnung, der Satz zum Original und die Auswege; mit `-vis -fast` nichts davon. Ergebnis: stufe9d 25 OK / 0 FEHLER.
+- Selbsttest `stufe5` (Optimierer mit `deko` auf den Testkarten) 67 OK / 0 FEHLER; ctest karte_bau,
+  karte_optimierer, karte_optsicher, q3map2*, handbuch, i18n, hilfe: alle grün; Bau 0 Warnungen; lint_i18n +1
+  („KeOptD35 nirgends benutzt“ - wie KeOptD01..34, die über strVonName gesucht werden).
 
 ### 8. Empfehlung für den Kumpel
 
