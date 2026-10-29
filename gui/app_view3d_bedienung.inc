@@ -4559,6 +4559,33 @@ void drawMapView() {
                     //
                     // Einmal je Bild neu, damit der Bericht den Stand von
                     // eben zeigt und nicht den vom Laden.
+                    //
+                    // modell1: je Flaeche nur zaehlen - der Schluessel sind die
+                    // Zeichenketten der Flaeche selbst (im Bild unveraendert);
+                    // die Zeilen entstehen nach der Schleife einmal je
+                    // verschiedenem Schluessel. Vorher je Flaeche und Figur eine
+                    // zusammengesetzte Zeichenkette und ein Nachschlagen
+                    // (md_am_sith: rund 1200 je Bild, ein Fuenftel der CPU-Zeit
+                    // der Figuren). Die Liste bleibt dieselbe.
+                    struct FlaechenArt {
+                        const std::string* shader = nullptr;
+                        const std::string* skin = nullptr;
+                        const char* misch = nullptr;
+                        bool ohneShader = false;
+                        bool operator==(const FlaechenArt& o) const {
+                            return shader == o.shader && skin == o.skin && misch == o.misch &&
+                                   ohneShader == o.ohneShader;
+                        }
+                    };
+                    struct FlaechenArtHash {
+                        std::size_t operator()(const FlaechenArt& k) const {
+                            std::size_t h = std::hash<const void*>{}(k.shader);
+                            h = h * 31U + std::hash<const void*>{}(k.skin);
+                            h = h * 31U + std::hash<const void*>{}(k.misch);
+                            return h * 2U + (k.ohneShader ? 1U : 0U);
+                        }
+                    };
+                    std::unordered_map<FlaechenArt, int, FlaechenArtHash> flaechenArten;
                     g_app->figurArten.clear();
                     int figurNr = -1;   // Schluessel der Schwertspuren
                     for (const ActorDraw& a : gpuFiguren) {
@@ -4609,11 +4636,7 @@ void drawMapView() {
                                         default: break;
                                     }
                                 }
-                                const std::string zeile =
-                                    "shader=\"" + sf.shader + "\"  skin=\"" +
-                                    sf.texture + "\"  " + misch +
-                                    (ohneShader ? "  OHNE TEXTUR" : "");
-                                ++g_app->figurArten[zeile];
+                                ++flaechenArten[FlaechenArt{&sf.shader, &sf.texture, misch, ohneShader}];
                             }
                         }
                         float fw[16];
@@ -4938,6 +4961,10 @@ void drawMapView() {
                                 }
                             }
                         }
+                    }
+                    for (const auto& [k, anzahl] : flaechenArten) {
+                        g_app->figurArten["shader=\"" + *k.shader + "\"  skin=\"" + *k.skin + "\"  " + k.misch +
+                                          (k.ohneShader ? "  OHNE TEXTUR" : "")] += anzahl;
                     }
                     // rc602 kartenpruefung: die Ghoul2-Gegenstaende (Waffen am
                     // Boden), starr wie ein Griff, mit dem Licht des Gitters an
