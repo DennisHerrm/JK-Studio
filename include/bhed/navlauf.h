@@ -507,11 +507,14 @@ struct LaufZustand {
     double denkNullMs = kNavKartenSpawnMs + 150.0;
     // rc601 integ: was ein Denkbild OHNE Verhalten weiterbenutzt (OpenJK,
     // NPC.cpp:2512-2520): ps.moveDir des vorigen Denkbilds (oldMoveDir) und
-    // NPCInfo->last_ucmd (forwardmove, rightmove, BUTTON_WALKING). Nur
+    // NPCInfo->last_ucmd (forwardmove, rightmove, upmove, BUTTON_WALKING). Nur
     // gefuehrt, wenn verhaltenTaktMs > 50.
     NavVec letzteBewegung{};
     signed char letzterVor = 0;
     signed char letzterSeit = 0;
+    // Pruefung 2: auch upmove (BS_NOCLIP, NPC_BSNoClip setzt ucmd.upmove;
+    // memcpy des ganzen usercmd_t, NPC.cpp:2279 und 2518 OpenJK).
+    signed char letzterHoch = 0;
     bool letzteGehTaste = false;
     // rc604 fix604 (JK2): NPCInfo->currentSpeed (NPC_Accelerate), distToGoal,
     // consecutiveBlockedMoves. Die Wegpunkte (wegpunkt ...) zaehlen dann

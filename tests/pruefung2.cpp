@@ -300,10 +300,45 @@ void todesanimation() {
     }
 }
 
+// 2. BS_NOCLIP: OpenJK denkt das Verhalten alle 100 ms (nextBStateThink,
+//    NPC.cpp:2481-2488); im Denkbild dazwischen faehrt ClientThink mit
+//    NPCInfo->last_ucmd (NPC.cpp:2277-2283, 2512-2520) - forwardmove, rightmove
+//    UND upmove. Ein Ziel gerade nach oben muss daher genauso schnell erreicht
+//    werden wie eines gleich weit vorn (PM_NoclipMove: wishvel = forward *
+//    fmove + right * smove, wishvel[2] += upmove). Bis auf floor(127 * dot):
+//    nach vorn wird aus 0,99999994 * 127 auch in der Engine 126.
+void noclipHoch() {
+    std::printf("--- 2. BS_NOCLIP mit upmove ---\n");
+    for (const Spiel& sp : kSpiele) {
+        float weg[2] = {0.0F, 0.0F};
+        for (int oben = 0; oben < 2; ++oben) {
+            Welt w;
+            w.karte = kKarte + "{\n\"classname\" \"waypoint_navgoal\"\n\"targetname\" \"ziel\"\n\"origin\" \"" +
+                      std::string(oben != 0 ? "0 0 424" : "400 0 24") + "\"\n}\n";
+            w.skript = affect("\tset ( /*@SET_TYPES*/ \"SET_BEHAVIOR_STATE\", \"BS_NOCLIP\" );\r\n"
+                              "\tset ( /*@SET_TYPES*/ \"SET_WALKING\", /*@BOOL_TYPES*/ \"true\" );\r\n"
+                              "\tset ( /*@SET_TYPES*/ \"SET_WALKSPEED\", 90 );\r\n"
+                              "\tset ( /*@SET_TYPES*/ \"SET_NAVGOAL\", \"ziel\" );\r\n");
+            w.anims = {"BOTH_STAND1"};
+            Lauf l;
+            fahre(w, sp.nr, l);
+            const Actor* a = l.szene.find("held");
+            if (a == nullptr) { continue; }
+            const ActorState st0 = a->at(0.0);
+            const ActorState st = a->at(1500.0);
+            weg[oben] = oben != 0 ? st.pos[2] - st0.pos[2] : st.pos[0] - st0.pos[0];
+        }
+        pruefe(weg[0] > 50.0F && std::fabs(weg[0] - weg[1]) < 2.0F,
+               std::string("BS_NOCLIP: nach oben so weit wie nach vorn (") + sp.name + ") - vorn " + std::to_string(weg[0]) + ", oben " +
+                   std::to_string(weg[1]));
+    }
+}
+
 }  // namespace
 
 int main() {
     todesanimation();
+    noclipHoch();
     std::printf("%d Fehler\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

@@ -5114,7 +5114,8 @@ std::uint64_t planSchluessel(const NavWelt& welt, const LaufZustand& z, const La
         h = mische(h, static_cast<std::uint64_t>(static_cast<std::uint32_t>(w.verhaltenTaktMs)));
         h = mische(h, static_cast<std::uint64_t>(std::llround(std::max(-1.0e12, z.denkNullMs) * 16.0)));
         for (const float f : z.letzteBewegung) { h = mische(h, bits(f)); }
-        for (const int i : {static_cast<int>(z.letzterVor), static_cast<int>(z.letzterSeit), static_cast<int>(z.letzteGehTaste)}) {
+        for (const int i : {static_cast<int>(z.letzterVor), static_cast<int>(z.letzterSeit), static_cast<int>(z.letzterHoch),
+                            static_cast<int>(z.letzteGehTaste)}) {
             h = mische(h, static_cast<std::uint64_t>(static_cast<std::uint32_t>(i)));
         }
     }
@@ -5539,10 +5540,11 @@ struct LaufRechner {
             gehTaste = z.letzteGehTaste;
             if (w.ohneKoerper) {
                 // NPC_BSNoClip lief nicht: der letzte ucmd (forward/right/up)
-                // geht in PM_NoclipMove, hier nur vor/seit (upmove fuehrt der
-                // Zustand nicht - Naeherung, siehe NOTIZEN_integ).
+                // geht in PM_NoclipMove (memcpy( &ucmd, &NPCInfo->last_ucmd ),
+                // NPC.cpp:2518 OpenJK; JK2 NPC.cpp:2114).
                 vor = z.letzterVor;
                 seit = z.letzterSeit;
+                hoch = z.letzterHoch;
             }
         } else if (w.ohneKoerper) {
             // NPC_BSNoClip: mit Ziel ucmd gerade darauf, sonst "Cut
@@ -5646,6 +5648,7 @@ struct LaufRechner {
             if (verhalten) {
                 z.letzterVor = w.ohneKoerper ? vor : (jk2 ? jk2Vor : l.ucmdVor);
                 z.letzterSeit = w.ohneKoerper ? seit : (jk2 ? jk2Seit : l.ucmdSeit);
+                z.letzterHoch = w.ohneKoerper ? hoch : 0;
                 z.letzteGehTaste = jk2 ? jk2Geh : gehTaste;
             }
         }
