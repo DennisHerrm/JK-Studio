@@ -62,8 +62,10 @@ constexpr std::size_t kMaxAnfrage = 1u << 20;  // Bytes je Nachricht
 [[nodiscard]] bool pruefeEingabe(const Werkzeug& w, const json::Wert& eingabe, std::string* fehler);
 
 // Ein Befehl in run_commands: "map:<NRC-Befehl>", "script:<Tour-Aktion>",
-// "mode:<0-3>", "view:<0-2>". Prueft nur die Form; ob es den Befehl gibt,
-// prueft der Gastgeber.
+// "mode:<0-4>", "view:<0-2>", H2: "menu:<Befehl>" fuer den Menue-Editor
+// (select:<n>, add:<n>, move:<dx>:<dy>, duplicate, delete, interact:on|off,
+// insert:<typ>) - ohne Dateien (kein Oeffnen, Speichern oder Exportieren).
+// Prueft nur die Form; ob es den Befehl gibt, prueft der Gastgeber.
 struct Befehl {
     std::string art;    // map, script, mode, view
     std::string wert;
@@ -141,7 +143,9 @@ private:
 
 constexpr const char* kApiHost = "api.anthropic.com";
 constexpr const char* kApiPfad = "/v1/messages";
-constexpr const char* kApiFassung = "2023-06-01";
+// H2: API-Fassung 2026-10-21 (die Anfragen senden weder temperature/top_p/top_k
+// noch Dokumente in Antworten oder Zitate in Fragen - sonst unveraendert).
+constexpr const char* kApiFassung = "2026-10-21";
 [[nodiscard]] const std::vector<std::string>& chatModelle();   // Vorgabe zuerst
 
 struct Aufruf {
@@ -155,12 +159,58 @@ struct ChatAntwort {
     std::vector<Aufruf> aufrufe;
     json::Wert inhalt;   // die ganze content-Liste (zum Zurueckschicken, mit thinking)
 };
-[[nodiscard]] std::string chatKoerper(const std::string& modell, const std::string& system, const std::vector<json::Wert>& nachrichten);
+// H2: `strom` = als Server-Sent Events ("stream": true; die eigenen Werkzeuge mit
+// eager_input_streaming - ihre Eingaben prueft pruefeEingabe ohnehin streng).
+[[nodiscard]] std::string chatKoerper(const std::string& modell, const std::string& system, const std::vector<json::Wert>& nachrichten,
+                                      bool strom = false);
 // Die Kopfzeilen der Anfrage (der Schluessel kommt als x-api-key dazu).
 [[nodiscard]] std::vector<std::pair<std::string, std::string>> chatKopf(const std::string& modell, const std::string& schluessel);
 [[nodiscard]] bool leseChatAntwort(const std::string& json, ChatAntwort& out, std::string* fehler);
 // Der feste Systemtext mit Handbuch-Ausschnitten als markierte Daten.
 [[nodiscard]] std::string systemText(const std::string& auszuegeJson);
+
+// H2: der feste Systemtext fuer ein Gespraech mit Verlauf. Er bleibt ueber alle
+// Fragen gleich (sonst gelten die thinking-Bloecke frueherer Antworten nicht mehr
+// und der Zwischenspeicher der API greift nicht); die Handbuch-Ausschnitte jeder
+// Frage stehen als markierte Daten in ihrer Nachricht.
+[[nodiscard]] std::string systemTextFest();
+
+// H2: liest eine gestreamte Antwort (Server-Sent Events: message_start,
+// content_block_start/_delta/_stop, message_delta, message_stop, ping, error) und
+// baut daraus dieselbe ChatAntwort wie leseChatAntwort - Text, Werkzeugaufrufe
+// (input_json_delta zusammengesetzt), thinking mit Signatur unveraendert.
+class StromLeser {
+public:
+    // Bytes dazu (beliebig zerteilt). `text` bekommt jedes neue Textstueck.
+    // false nach einem error-Ereignis oder kaputten Daten.
+    bool dazu(std::string_view bytes, const std::function<void(const std::string&)>& text);
+    [[nodiscard]] bool ende() const { return ende_; }
+    [[nodiscard]] const std::string& fehler() const { return fehler_; }
+    // Nach dem Ende: die Antwort (false bei Fehler oder ohne message_stop).
+    [[nodiscard]] bool ergebnis(ChatAntwort& out, std::string* fehler) const;
+    // Werkzeugaufrufe, deren Eingabe kein gueltiges JSON war (abgeschnitten).
+    [[nodiscard]] const std::vector<std::string>& kaputteAufrufe() const { return kaputt_; }
+
+private:
+    struct Block {
+        json::Wert basis;
+        std::string text;
+        std::string thinking;
+        std::string signatur;
+        std::string teilJson;
+        bool hatSignatur = false;
+        json::Wert zitate = json::Wert::alsListe();
+    };
+    bool ereignis(const std::string& daten, const std::function<void(const std::string&)>& text);
+    std::string zeile_;
+    std::string daten_;
+    std::vector<Block> bloecke_;
+    mutable std::vector<std::string> kaputt_;   // von ergebnis() gefuellt
+    std::string stop_;
+    std::string fehler_;
+    bool ende_ = false;
+    bool kaputtDaten_ = false;
+};
 
 // Senden: Koerper hin, Status und Antwort zurueck.
 using Senden = std::function<bool(const std::string& koerper, int& status, std::string& antwort, std::string& fehler)>;
@@ -169,6 +219,25 @@ struct ChatErgebnis {
     std::vector<std::string> werkzeuge;   // was die KI aufgerufen hat
     std::string fehler;
 };
+// H2: gestreamt senden - `teil` bekommt die Bytes, sobald sie da sind; gibt es
+// false zurueck, bricht das Senden sofort ab (Knopf "Abbrechen").
+using SendenStrom = std::function<bool(const std::string& koerper, int& status, const std::function<bool(std::string_view)>& teil,
+                                       std::string& fehler)>;
+
+// H2: ein Gespraech mit Verlauf. `verlauf` (die Nachrichten bisher) waechst nur
+// hinten (append-only); misslingt oder endet eine Frage per Abbrechen, wird sie
+// samt ihrer Runden wieder hinten entfernt - davor bleibt alles Byte fuer Byte
+// gleich. `auszuegeJson` (Handbuch-Ausschnitte) kommt als markierte Daten in die
+// Frage. `text` bekommt die Antwort Stueck fuer Stueck. `abbrechen` wird vor
+// jeder Runde und waehrend des Empfangs gefragt.
+[[nodiscard]] ChatErgebnis chatStrom(const std::string& modell, std::vector<json::Wert>& verlauf, const std::string& frage,
+                                     const std::string& auszuegeJson, const SendenStrom& senden, const Ausfuehren& tu,
+                                     const std::function<bool()>& abbrechen, const std::function<void(const std::string&)>& text,
+                                     int runden = 6);
+// H2: hoechstens so viele Nachrichten im Verlauf - danach beginnt ein neues
+// Gespraech (kuerzen hiesse die Geschichte bearbeiten).
+constexpr std::size_t kMaxVerlauf = 60;
+
 // Frage -> Antwort, Werkzeuge -> Ergebnisse -> ... (hoechstens `runden`).
 // `abbrechen` wird vor jeder Runde gefragt (Not-Aus).
 [[nodiscard]] ChatErgebnis chat(const std::string& modell, const std::string& system, const std::string& frage, const Senden& senden,
@@ -176,6 +245,16 @@ struct ChatErgebnis {
 
 // --- Windows (src/ki_win32.cpp) --------------------------------------------------------
 
+// H2: Geheimnisse im Speicher nullen (SecureZeroMemory) - die Kopfzeilen mit dem
+// API-Schluessel nach jeder Anfrage (Restrisiko aus H1).
+void nullen(std::string& s);
+void nullen(std::vector<std::pair<std::string, std::string>>& kopf);
+// H2: POST wie httpPost, aber die Antwort kommt Stueck fuer Stueck an `teil`
+// (Server-Sent Events); false von `teil` bricht ab. Bei einem Status != 200 wird
+// der ganze Koerper gesammelt und einmal an `teil` gegeben.
+[[nodiscard]] bool httpPostStrom(const std::string& host, int port, bool sicher, const std::string& pfad,
+                                 const std::vector<std::pair<std::string, std::string>>& kopf, const std::string& koerper, int& status,
+                                 const std::function<bool(std::string_view)>& teil, std::string& fehler, int zeitlimitMs = 60000);
 // DPAPI (CryptProtectData, an den angemeldeten Benutzer gebunden).
 [[nodiscard]] bool schuetzen(const std::string& klar, std::string& blob);
 [[nodiscard]] bool oeffnen(const std::string& blob, std::string& klar);

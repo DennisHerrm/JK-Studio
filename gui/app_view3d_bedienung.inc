@@ -1933,6 +1933,9 @@ void drawTimeline() {
         const bool camAn = g_app->cameraSelected;
         const bool kUeber = spurKopf(kp, UiIcon::Kamera, IM_COL32(96, 170, 255, 255), tr(Str::TlKamera), camAn, 0.0F,
                                      g_app->tlKameraOffen ? 1 : 0);
+        // H2: die Kamerazeile ist selbst gezeichnet - die Touren heben sie ueber
+        // "gezeichnet:zeitleiste.kamera" hervor (der Kopf, auf den man klickt).
+        tourZielMelden("zeitleiste.kamera", ImRect{kp, ImVec2{barMin.x - 3.0F, kp.y + rowH - 1.0F}});
         if (kUeber) {
             ImGui::SetTooltip("%s\n%s", tr(Str::TlCamRowHint), tr(Str::TlAufklappen));
             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
@@ -2595,6 +2598,7 @@ void drawTimeline() {
     // und Ende an Anfang und Ende. Nur, solange die Maus ueber der Leiste
     // steht - sonst gehoeren die Pfeile dem Baum (handleTreeKeys).
     g_app->tlUeberMaus = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
+    tourZielMelden("zeitleiste", ImGui::GetCurrentWindow()->Rect());   // H2: Ziel der Tour k-neu-timen
     if (g_app->tlUeberMaus && !ImGui::GetIO().WantTextInput) {
         const double schritt = ImGui::GetIO().KeyShift ? 1000.0 : 50.0;
         double ziel = g_app->playMs;
@@ -2606,6 +2610,7 @@ void drawTimeline() {
         if (ziel != g_app->playMs) {
             g_app->playMs = ziel;
             g_app->playing = false;
+            ++g_app->tlSchritte;   // H2: Tour k-neu-timen ("genau schrittweise")
             g_app->audioUpTo = ziel;
             g_app->audio.stopAll();
             g_app->laufendeSchleifen.clear();

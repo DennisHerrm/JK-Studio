@@ -96,6 +96,7 @@ struct Teil {
     std::string arg;
     bool plus = false;
     bool wechsel = false;   // H1: "~" = anders als beim Beginn des Schritts
+    bool weniger = false;   // H2: "-" = kleiner als beim Beginn des Schritts (zahl:)
 };
 
 Teil zerlegePruefung(const std::string& s0) {
@@ -107,6 +108,10 @@ Teil zerlegePruefung(const std::string& s0) {
         s = trim(s);
     } else if (!s.empty() && s.back() == '~') {
         t.wechsel = true;
+        s.pop_back();
+        s = trim(s);
+    } else if (s.size() > 5 && s.back() == '-' && s.compare(0, 5, "zahl:") == 0) {
+        t.weniger = true;
         s.pop_back();
         s = trim(s);
     }
@@ -162,7 +167,7 @@ bool teilBekannt(const Teil& t, std::string* fehler) {
     }
     // H1: Messwerte aller Bereiche (Kontext::werte) - "zahl:karte.pinsel+".
     if (t.name == "zahl") {
-        return istMesswert(t.arg) ? true : falsch("Form zahl:<name>[+|~], Name aus a-z, 0-9, '.', '_'");
+        return istMesswert(t.arg) ? true : falsch("Form zahl:<name>[+|~|-], Name aus a-z, 0-9, '.', '_'");
     }
     if (t.wechsel) { return falsch("\"~\" gibt es nur an zahl:"); }
     if (t.name == "offen") {
@@ -194,9 +199,9 @@ bool teilBekannt(const Teil& t, std::string* fehler) {
     if (t.name == "ansicht") {
         return (t.arg == "0" || t.arg == "1" || t.arg == "2") ? true : falsch("0, 1 oder 2");
     }
-    // H1: die Modusleiste hat vier Knoepfe (3 = Karten-Editor).
+    // H1: die Modusleiste (3 = Karten-Editor); H2: 4 = Menue-Editor.
     if (t.name == "modus") {
-        return (t.arg.size() == 1 && t.arg[0] >= '0' && t.arg[0] <= '3') ? true : falsch("0 bis 3");
+        return (t.arg.size() == 1 && t.arg[0] >= '0' && t.arg[0] <= '4') ? true : falsch("0 bis 4");
     }
     return falsch("unbekannt");
 }
@@ -246,6 +251,7 @@ bool teilErfuellt(const Teil& t, const Kontext& jetzt, const Kontext& start) {
         const double a = messwert(jetzt, t.arg);
         if (t.plus) { return a > messwert(start, t.arg); }
         if (t.wechsel) { return a != messwert(start, t.arg); }
+        if (t.weniger) { return a < messwert(start, t.arg); }
         return a != 0.0;
     }
     if (t.name == "offen") {
@@ -359,8 +365,7 @@ bool ladeTouren(const std::string& text, Touren& out, std::string* fehler) {
                     setzeFehler(fehler, wo + f);
                     return false;
                 }
-                if (!s.voraus.empty()) {
-                    const Voraus v = zerlegeVoraus(s.voraus);
+                for (const Voraus& v : zerlegeVorausKette(s.voraus)) {
                     if (!pruefungBekannt(v.pruefung, &f) || !parseZiele(v.oeffner, zs, &f)) {
                         setzeFehler(fehler, wo + "Vorbedingung: " + f);
                         return false;
@@ -387,6 +392,14 @@ bool parseZiel(const std::string& s0, Ziel& out, std::string* fehler) {
         setzeFehler(fehler, "Ziel \"" + s + "\": " + warum);
         return false;
     };
+    // H2: ein selbst gezeichnetes Ziel, das die Oberflaeche jedes Bild meldet
+    // (die Kamerazeile der Zeitleiste ...).
+    if (art == "gezeichnet") {
+        if (!istMesswert(arg)) { return falsch("gezeichnet:<name>, Name aus a-z, 0-9, '.', '_'"); }
+        out.art = Ziel::Art::Gezeichnet;
+        out.teile = {arg};
+        return true;
+    }
     if (art == "baum" || art == "meldungen" || art == "karte3d") {
         if (!arg.empty()) { return falsch("ohne Argument"); }
         out.art = art == "baum" ? Ziel::Art::Baum : art == "meldungen" ? Ziel::Art::Meldungen : Ziel::Art::Karte3d;
@@ -486,7 +499,7 @@ bool erfuellt(const std::string& pruefung, const Kontext& jetzt, const Kontext& 
 bool istZustand(const std::string& pruefung) {
     for (const std::string& alt : teile(pruefung, '|')) {
         const Teil t = zerlegePruefung(alt);
-        if (t.plus || t.wechsel || t.name == "manuell" || enthaelt(kZaehler, t.name)) { return false; }
+        if (t.plus || t.wechsel || t.weniger || t.name == "manuell" || enthaelt(kZaehler, t.name)) { return false; }
     }
     return true;
 }
@@ -497,6 +510,26 @@ Voraus zerlegeVoraus(const std::string& s) {
     v.pruefung = trim(lt == std::string::npos ? s : s.substr(0, lt));
     if (lt != std::string::npos) { v.oeffner = trim(s.substr(lt + 1)); }
     return v;
+}
+
+std::vector<Voraus> zerlegeVorausKette(const std::string& s) {
+    std::vector<Voraus> v;
+    std::size_t a = 0;
+    while (a <= s.size()) {
+        std::size_t e = s.find("&&", a);
+        if (e == std::string::npos) { e = s.size(); }
+        const std::string teil = trim(s.substr(a, e - a));
+        if (!teil.empty()) { v.push_back(zerlegeVoraus(teil)); }
+        a = e + 2;
+    }
+    return v;
+}
+
+const Voraus* ersteOffeneStufe(const std::vector<Voraus>& kette, const Kontext& k) {
+    for (const Voraus& v : kette) {
+        if (!erfuellt(v.pruefung, k, k)) { return &v; }
+    }
+    return nullptr;
 }
 
 // --- Aktionen ----------------------------------------------------------------------------------
@@ -565,7 +598,10 @@ bool parseAktionen(const std::string& s, std::vector<Aktion>& out, std::string* 
             if (gl == std::string::npos || !zerlegeWert(a.arg.substr(0, gl), b, n, f)) {
                 return falsch("wert:<befehl>#<n>:<feld>=<text>");
             }
-        } else if (a.name == "modus" || a.name == "ansicht") {
+        } else if (a.name == "modus") {
+            // H2: auch der Karten-Editor (3) und der Menue-Editor (4) - nur ein Moduswechsel.
+            if (a.arg.size() != 1 || a.arg[0] < '0' || a.arg[0] > '4') { return falsch("0 bis 4"); }
+        } else if (a.name == "ansicht") {
             if (a.arg != "0" && a.arg != "1" && a.arg != "2") { return falsch("0, 1 oder 2"); }
         } else if (a.name == "fenster") {
             if (!enthaelt(kFenster, a.arg)) { return falsch("bekannte Fenster: messages, find"); }

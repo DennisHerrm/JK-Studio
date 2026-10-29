@@ -16,6 +16,7 @@
 #include "menueeditor.h"
 
 #include "app_internal.h"
+#include "tour.h"   // H2: leerer Zustand mit Tutorial
 #include "backend.h"
 #include "platform.h"
 
@@ -82,6 +83,7 @@ enum class Ziehen { Nichts, Verschieben, Groesse, Lineal };
 
 struct Zustand {
     std::vector<std::unique_ptr<Dokument>> docs;
+    int exporte = 0;   // H2: erfolgreiche .pk3-Exporte (Tour)
     int aktiv = -1;
     Spieldaten daten;
     std::size_t datenStand = static_cast<std::size_t>(-1);
@@ -1746,15 +1748,20 @@ void zeichneSpielListe() {
 void zeichneLeiste(Dokument* d) {
     Zustand& z = Z();
     if (ImGui::Button(tr(Str::MeAusSpiel))) { z.spielListeOffen = true; }
+    { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::MeAusSpielHint)); } }   // H2
     zeichneSpielListe();
     ImGui::SameLine();
-    if (ImGui::Button(tr(Str::MeDateiOeffnen))) {
+    const bool dateiOeffnen = ImGui::Button(tr(Str::MeDateiOeffnen));
+    { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::MeDateiOeffnenHint)); } }   // H2
+    if (dateiOeffnen) {
         const std::string pfad = platform::openFileDialog(tr(Str::MeDateiOeffnen), "Menu (*.menu;*.txt)|*.menu;*.txt|", "");
         if (!pfad.empty()) { (void)oeffneDatei(pfad); }
     }
     if (d != nullptr) {
         ImGui::SameLine();
-        if (ImGui::Button(tr(Str::MeSpeichern))) {
+        const bool speichernGedrueckt = ImGui::Button(tr(Str::MeSpeichern));
+        { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::MeSpeichernHint)); } }   // H2
+        if (speichernGedrueckt) {
             if (d->platte.empty() || imSpielordner(d->platte)) {
                 const std::string ziel = platform::saveFileDialog(tr(Str::MeSpeichern), "Menu (*.menu)|*.menu|", z.ordnerAusgabe,
                                                                   fs::path(d->name).filename().string());
@@ -1764,7 +1771,9 @@ void zeichneLeiste(Dokument* d) {
             }
         }
         ImGui::SameLine();
-        if (ImGui::Button(tr(Str::MeExportPk3))) {
+        const bool exportGedrueckt = ImGui::Button(tr(Str::MeExportPk3));
+        { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::MeExportPk3Hint)); } }   // H2
+        if (exportGedrueckt) {
             const std::string ziel = platform::saveFileDialog(tr(Str::MeExportPk3), "pk3 (*.pk3)|*.pk3|", z.ordnerAusgabe, "zz_menu.pk3");
             if (!ziel.empty()) { (void)exportierePk3(ziel); }
         }
@@ -1782,8 +1791,10 @@ void zeichneLeiste(Dokument* d) {
     ImGui::SameLine();
     bool edit = !z.interaktion;
     if (ImGui::RadioButton(tr(Str::MeBearbeiten), edit)) { setzeInteraktion(false); }
+    { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::MeBearbeitenHint)); } }   // H2
     ImGui::SameLine();
     if (ImGui::RadioButton(tr(Str::MeBedienen), !edit)) { setzeInteraktion(true); }
+    { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::MeBedienenHint)); } }   // H2
     ImGui::SameLine();
     int sv = z.seitenv == Seitenverhaeltnis::Strecken ? 0 : 1;
     const char* svn[] = {tr(Str::MeStrecken), tr(Str::MeBalken)};
@@ -1795,8 +1806,10 @@ void zeichneLeiste(Dokument* d) {
     ImGui::Combo("##aufl", &z.aufloesung, aufl, 10);
     ImGui::SameLine();
     ImGui::Checkbox(tr(Str::MeAlleItems), &z.alleItems);
+    { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::MeAlleItemsHint)); } }   // H2
     ImGui::SameLine();
     ImGui::Checkbox(tr(Str::MeRaster), &z.raster);
+    { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::MeRasterHint)); } }   // H2
     ImGui::SameLine();
     ImGui::Checkbox(tr(Str::MeAnRaster), &z.anRaster);
     ImGui::SameLine();
@@ -1900,6 +1913,7 @@ void zeichne(float hoehe) {
     d = doc();
     if (d == nullptr) {
         ImGui::TextDisabled("%s", tr(Str::MeKeinMenue));
+        if (ImGui::SmallButton(tr(Str::EmptyShowHow))) { (void)tourStarten("tut-menue", 1); }   // H2: der Weg als Tour
         return;
     }
     neuParsen(*d);
@@ -1975,6 +1989,7 @@ Stand stand() {
     for (const auto& [k, t] : z.texturen) { (void)k; s.bilderGeladen += t.tex != nullptr ? 1 : 0; }
     s.interaktion = z.interaktion;
     s.cursorZeile = std::string(d->puffer.zeile(d->puffer.pos(d->puffer.cursor.front().pos).zeile));
+    s.exporte = z.exporte;
     return s;
 }
 
@@ -2190,6 +2205,22 @@ bool speichereUnter(const std::string& pfad) {
     return d->platte == pfad;
 }
 
+bool zuEinemSchritt(const std::string& vorher) {
+    Dokument* d = doc();
+    if (d == nullptr) { return false; }
+    const std::string nachher = d->puffer.text();
+    if (nachher == vorher) { return true; }
+    int zurueck = 0;
+    while (zurueck < 500 && d->puffer.text() != vorher && d->puffer.rueckgaengig()) { ++zurueck; }
+    if (d->puffer.text() != vorher) {
+        // nicht erreichbar (Grenze der Liste): alles wiederherstellen, einzeln lassen
+        for (int i = 0; i < zurueck && d->puffer.wiederholen(); ++i) {}
+        return false;
+    }
+    d->puffer.ersetze(0, static_cast<std::uint32_t>(vorher.size()), nachher);
+    return d->puffer.text() == nachher;
+}
+
 bool exportierePk3(const std::string& pfad) {
     Zustand& z = Z();
     Dokument* d = doc();
@@ -2203,6 +2234,7 @@ bool exportierePk3(const std::string& pfad) {
     for (const auto& [p, b] : d->bilder) { dateien.push_back(Pk3Datei{p, b}); }
     std::string fehler;
     const bool ok = writePk3(pfad, dateien, &fehler);
+    z.exporte += ok ? 1 : 0;   // H2: fuer die Tour
     char b[600];
     std::snprintf(b, sizeof(b), ok ? tr(Str::MeExportiert) : tr(Str::MeNichtGespeichert), pfad.c_str());
     z.meldung = b;

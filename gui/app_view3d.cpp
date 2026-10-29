@@ -9,6 +9,7 @@
 // steht, braucht die Grafikschnittstelle und die Formatleser; was in
 // app.cpp bleibt, ist Baum, Dialoge und Dateiverwaltung.
 #include "app_internal.h"
+#include "tour.h"   // H2: die Kamerazeile der Zeitleiste als Ziel der Touren
 
 #include "gpumap.h"
 
@@ -7066,6 +7067,9 @@ float ansichtsSchalter(bool nurMessen) {
         if (g_app->wegFensterOffen) { g_app->zeigeWegnetz = true; }
         g_app->mapDirty = true;
     }
+    // H2: der Knopf heisst wie ein anderes Element ("NPC waypoints") - fuer Tour
+    // und Helfer eindeutig als selbst gemeldetes Ziel.
+    tourZielMelden("vorschau.wegknopf", ImRect{ImGui::GetItemRectMin(), ImGui::GetItemRectMax()});
     // Raster (rc590): fuer Ziehen und Setzen von Entities.
     ImGui::SameLine();
     {

@@ -3,6 +3,7 @@ from inhalt_basis import T, Tf
 import inhalt_kurz
 import inhalt_kurz2
 import inhalt_kurz3
+import inhalt_hilfe2  # H2: neue Tutorials mit Tour
 
 # Alle Kurz-Tutorials auf der Startseite (shank: "warum stehen in der
 # Tutorial-Section nur 5 Tutorials, wenn du mehr gemacht hast"): nach
@@ -14,7 +15,9 @@ _BEREICHE = [
     (T("Map and entities"), inhalt_kurz.KARTE + inhalt_kurz2.KARTE2 + [inhalt_kurz3.SZENE[0], inhalt_kurz3.SZENE[2], inhalt_kurz3.SZENE[3]]),
     (T("Animation"), inhalt_kurz.ANIMATION),
     (T("Missions, models and settings"), inhalt_kurz.MISSION + inhalt_kurz.MODELL + inhalt_kurz2.MISSION2 + inhalt_kurz3.LOGIK +
-     inhalt_kurz3.MODELLE + inhalt_kurz2.OBERFLAECHE),
+     inhalt_kurz3.MODELLE + inhalt_kurz2.OBERFLAECHE + inhalt_hilfe2.SEITEN[:2]),
+    (T("Map editor and menu editor", "Karten-Editor und Menü-Editor", "地图编辑器和菜单编辑器", "マップエディターとメニューエディター"),
+     inhalt_hilfe2.SEITEN[2:]),   # H2
 ]
 _ANZAHL_KURZ = sum(len(liste) for _, liste in _BEREICHE)
 _KURZ_LISTEN = []

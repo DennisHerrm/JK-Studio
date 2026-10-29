@@ -33,6 +33,8 @@ const BegriffRoh kBegriffe[] = {
     {"npc", "npc|figur|charakter|character|actor|person|gegner|enemy|角色|人物|敌人|キャラクター|キャラ|敵"},
     {"laufen", "laufen|gehen|walk|run|bewegen|move|navgoal|走路|行走|移动|走|歩く|走る|移動|歩か"},
     {"wegpunkt", "wegpunkt|waypoint|navgoal|waypoints|路径点|路点|ウェイポイント"},
+    // H2: Runde/Patrouille (k-patrouille)
+    {"patrouille", "patrouille|patrol|patrouillieren|patrolling|runde drehen|guard round|wache|wachposten|guard|巡逻|守卫|巡回|見張り|パトロール|見回り"},
     {"karte", "karte|map|level|bsp|地图|关卡|マップ|レベル"},
     {"karteneditor", "karteneditor|map editor|radiant|netradiant|gtkradiant|地图编辑器|マップエディター|マップエディタ"},
     {"pinsel", "brush|pinsel|block|wand|wall|raum|room|quader|画刷|方块|房间|墙|ブラシ|部屋|壁"},

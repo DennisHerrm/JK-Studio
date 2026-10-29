@@ -15,6 +15,7 @@
 #include "karteneditor.h"
 #include "platform.h"
 #include "tour.h"
+#include "menueeditor.h"
 #include "bhed/hilfe.h"
 #include "bhed/karte/befehle.h"
 #include "bhed/ki.h"
@@ -80,7 +81,8 @@ struct Protokoll {
 struct ChatStand {
     std::mutex mx;
     bool laeuft = false;
-    std::string antwort;
+    std::string frage;     // H2: die laufende Frage (fuer den Verlauf)
+    std::string antwort;   // H2: waechst Stueck fuer Stueck (gestreamt)
     std::string fehler;
     std::vector<std::string> werkzeuge;
     std::atomic<bool> abbrechen{false};
@@ -103,6 +105,13 @@ struct Zustand {
     bool stdioGewuenscht = false;
     std::string httpFehler;
     std::shared_ptr<ChatStand> chat = std::make_shared<ChatStand>();
+    // H2: der Verlauf des Gespraechs - lokal, mit DPAPI verschluesselt
+    // (ki_verlauf.bin), loeschbar. `verlauf` sind die Nachrichten an die API (nur
+    // hinten verlaengert), `anzeige` die Fragen und Antworten fuer das Fenster.
+    std::mutex verlaufMx;
+    std::vector<Wert> verlauf;
+    std::vector<std::pair<std::string, std::string>> anzeige;
+    bool verlaufGeladen = false;
     char schluessel[256] = "";
     bool schluesselDa = false;
     bool schluesselGeprueft = false;
@@ -187,6 +196,7 @@ void loescheGeheim(const char* name) {
 }
 
 constexpr const char* kSchluesselDatei = "ki_schluessel.bin";
+constexpr const char* kVerlaufDatei = "ki_verlauf.bin";   // H2
 constexpr const char* kTokenDatei = "mcp_token.bin";
 
 std::string mcpToken(bool neu) {
@@ -312,6 +322,10 @@ bool befehlePruefen(const std::vector<ki::Befehl>& bs, std::string& fehler) {
             fehler = "unknown map editor command: " + b.wert;
             return false;
         }
+        if (b.art == "menu" && menueeditor::stand().dokumente == 0) {   // H2
+            fehler = "no menu is open in the menu editor";
+            return false;
+        }
     }
     return true;
 }
@@ -321,8 +335,13 @@ ki::Ergebnis befehleAusfuehren(const Auftrag& a) {
     const std::size_t tiefeVorher = g_app->doc.undoDepth();
     ke::Editor& e = ke::editor();
     bool karte = false;
-    for (const ki::Befehl& b : a.befehle) { karte = karte || b.art == "map"; }
+    bool menue = false;
+    for (const ki::Befehl& b : a.befehle) {
+        karte = karte || b.art == "map";
+        menue = menue || b.art == "menu";
+    }
     if (karte) { e.karte.undo.gruppeBeginnen(); }
+    const std::string menueVorher = menue ? menueeditor::stand().text : std::string();   // H2
     int ok = 0;
     std::string fehler;
     for (const ki::Befehl& b : a.befehle) {
@@ -335,6 +354,30 @@ ki::Ergebnis befehleAusfuehren(const Auftrag& a) {
             g_app->leftMode = b.wert[0] - '0';
         } else if (b.art == "view") {
             g_app->settings.flussAnsicht = b.wert[0] - '0';
+        } else if (b.art == "menu") {   // H2: der Menue-Editor, wie seine Knoepfe und Tasten
+            const std::size_t p = b.wert.find(':');
+            const std::string k = b.wert.substr(0, p);
+            const std::string r = p == std::string::npos ? std::string() : b.wert.substr(p + 1);
+            const int anzahl = menueeditor::stand().items;
+            if (k == "select" || k == "add") {
+                const int n = std::atoi(r.c_str());
+                gut = n < anzahl;
+                if (gut) { menueeditor::waehle(n, k == "add"); }
+            } else if (k == "move") {
+                const std::size_t q = r.find(':');
+                gut = !menueeditor::stand().auswahl.empty();
+                if (gut) { menueeditor::verschiebeAuswahl(static_cast<float>(std::atoi(r.substr(0, q).c_str())), static_cast<float>(std::atoi(r.substr(q + 1).c_str()))); }
+            } else if (k == "duplicate") {
+                gut = !menueeditor::stand().auswahl.empty();
+                if (gut) { menueeditor::dupliziereAuswahl(); }
+            } else if (k == "delete") {
+                gut = !menueeditor::stand().auswahl.empty();
+                if (gut) { menueeditor::loescheAuswahl(); }
+            } else if (k == "interact") {
+                menueeditor::setzeInteraktion(r == "on");
+            } else if (k == "insert") {
+                menueeditor::fuegeEin(std::atoi(r.c_str()));
+            }
         }
         if (gut) {
             ++ok;
@@ -344,6 +387,7 @@ ki::Ergebnis befehleAusfuehren(const Auftrag& a) {
     }
     static const char* const kWas = "AI job";
     if (karte) { e.karte.undo.gruppeBeenden("AI: " + a.zusammenfassung.substr(0, 60)); }
+    if (menue) { (void)menueeditor::zuEinemSchritt(menueVorher); }   // H2: ein Auftrag = ein Schritt
     if (g_app->doc.undoDepth() > tiefeVorher + 1) { g_app->doc.fasseZusammen(tiefeVorher, kWas); }
     std::string t = std::to_string(ok) + " of " + std::to_string(a.befehle.size()) + " commands done (one undo step).";
     if (!fehler.empty()) { t += " Failed: " + fehler; }
@@ -497,8 +541,26 @@ std::string befehlText(const ki::Befehl& b) {
             }
         }
     } else if (b.art == "mode") {
-        static const Str modi[] = {Str::ViewEvents, Str::ViewMap, Str::ViewModel, Str::ViewMapEditor};
-        std::snprintf(t, sizeof(t), tr(Str::KiCmdMode), tr(modi[(b.wert[0] - '0') & 3]));
+        static const Str modi[] = {Str::ViewEvents, Str::ViewMap, Str::ViewModel, Str::ViewMapEditor, Str::ViewMenuEditor};
+        std::snprintf(t, sizeof(t), tr(Str::KiCmdMode), tr(modi[std::min(4, std::max(0, b.wert[0] - '0'))]));
+    } else if (b.art == "menu") {   // H2
+        const std::size_t p = b.wert.find(':');
+        const std::string k = b.wert.substr(0, p);
+        const std::string r = p == std::string::npos ? std::string() : b.wert.substr(p + 1);
+        const std::size_t q = r.find(':');
+        if (k == "select" || k == "add") {
+            std::snprintf(t, sizeof(t), tr(k == "add" ? Str::KiCmdMenuAdd : Str::KiCmdMenuSelect), std::atoi(r.c_str()));
+        } else if (k == "move" && q != std::string::npos) {
+            std::snprintf(t, sizeof(t), tr(Str::KiCmdMenuMove), std::atoi(r.substr(0, q).c_str()), std::atoi(r.substr(q + 1).c_str()));
+        } else if (k == "duplicate") {
+            std::snprintf(t, sizeof(t), "%s", tr(Str::KiCmdMenuDuplicate));
+        } else if (k == "delete") {
+            std::snprintf(t, sizeof(t), "%s", tr(Str::KiCmdMenuDelete));
+        } else if (k == "interact") {
+            std::snprintf(t, sizeof(t), tr(Str::KiCmdMenuMode), tr(r == "on" ? Str::MeBedienen : Str::MeBearbeiten));
+        } else if (k == "insert") {
+            std::snprintf(t, sizeof(t), tr(Str::KiCmdMenuInsert), std::atoi(r.c_str()));
+        }
     } else if (b.art == "view") {
         static const Str ansichten[] = {Str::FlowClassic, Str::FlowGraph, Str::FlowTracks};
         std::snprintf(t, sizeof(t), tr(Str::KiCmdView), tr(ansichten[std::min(2, b.wert[0] - '0')]));
@@ -535,12 +597,16 @@ void frageZeichnen() {
             }
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s:%s", b.art.c_str(), b.wert.c_str()); }
         }
-        if (ImGui::Button(tr(Str::KiRun))) {
+        const bool ausfuehren = ImGui::Button(tr(Str::KiRun));
+        { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::KiRunHint)); } }   // H2
+        if (ausfuehren) {
             erledige(a, befehleAusfuehren(*a));
             s.fragen.pop_front();
         }
         ImGui::SameLine();
-        if (ImGui::Button(tr(Str::KiReject))) {
+        const bool ablehnen = ImGui::Button(tr(Str::KiReject));
+        { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::KiRejectHint)); } }   // H2
+        if (ablehnen) {
             erledige(a, {true, "Rejected by the user.", {}});
             s.fragen.pop_front();
         }
@@ -590,6 +656,7 @@ void symbolZeichnen() {
         if (ImGui::SmallButton(tr(Str::KiLog))) { s.protokollOffen = true; }
         ImGui::SameLine();
         if (ImGui::SmallButton(tr(Str::KiDisconnect))) { trennen(); }
+        { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::KiDisconnectHint)); } }   // H2
     }
     ImGui::End();
 }
@@ -659,14 +726,77 @@ std::string einrichtung(int app, bool http) {
     }
 }
 
+// H2: der Verlauf auf der Platte - DPAPI-verschluesselt, nur dieser Windows-Benutzer.
+void verlaufLaden() {
+    Zustand& s = z();
+    if (s.verlaufGeladen) { return; }
+    s.verlaufGeladen = true;
+    std::string klar;
+    if (!leseGeheim(kVerlaufDatei, klar)) { return; }
+    Wert w;
+    if (json::lies(klar, w, nullptr) && w.art == Wert::Art::Objekt) {
+        std::lock_guard<std::mutex> l(s.verlaufMx);
+        if (const Wert* n = w.feld("messages"); n != nullptr && n->art == Wert::Art::Liste) { s.verlauf = n->liste; }
+        if (const Wert* a = w.feld("shown"); a != nullptr && a->art == Wert::Art::Liste) {
+            for (const Wert& e : a->liste) { s.anzeige.emplace_back(e.textVon("q"), e.textVon("a")); }
+        }
+    }
+    ki::nullen(klar);
+}
+
+void verlaufSpeichern() {
+    Zustand& s = z();
+    Wert w = Wert::alsObjekt();
+    {
+        std::lock_guard<std::mutex> l(s.verlaufMx);
+        Wert n = Wert::alsListe();
+        n.liste = s.verlauf;
+        w.setze("messages", std::move(n));
+        Wert a = Wert::alsListe();
+        for (const auto& [q, t] : s.anzeige) {
+            Wert e = Wert::alsObjekt();
+            e.setze("q", Wert::alsText(q));
+            e.setze("a", Wert::alsText(t));
+            a.liste.push_back(std::move(e));
+        }
+        w.setze("shown", std::move(a));
+    }
+    std::string klar = json::schreibe(w);
+    (void)schreibeGeheim(kVerlaufDatei, klar);
+    ki::nullen(klar);
+}
+
+void verlaufLoeschen() {
+    Zustand& s = z();
+    {
+        std::lock_guard<std::mutex> l(s.verlaufMx);
+        s.verlauf.clear();
+        s.anzeige.clear();
+    }
+    loescheGeheim(kVerlaufDatei);
+    protokolliere("Chat", "history", "deleted");
+}
+
 void chatStarten(const std::string& frage) {
     Zustand& s = z();
     std::string schluessel;
     if (!leseGeheim(kSchluesselDatei, schluessel) || schluessel.empty()) { return; }
+    verlaufLaden();
     auto stand = std::make_shared<ChatStand>();
     stand->laeuft = true;
+    stand->frage = frage;
     s.chat = stand;
     s.getrennt = false;
+    std::vector<Wert> verlauf;
+    {
+        std::lock_guard<std::mutex> l(s.verlaufMx);
+        // Zu lang: ein neues Gespraech beginnen (kuerzen hiesse die Geschichte bearbeiten).
+        if (s.verlauf.size() + 4 > ki::kMaxVerlauf) {
+            s.verlauf.clear();
+            s.anzeige.clear();
+        }
+        verlauf = s.verlauf;
+    }
     // Kontext: die passenden Eintraege des Offline-Index (als Daten markiert).
     Wert auszuege = Wert::alsListe();
     for (const HilfeTreffer& t : hilfeFrage(frage, 5)) {
@@ -677,20 +807,38 @@ void chatStarten(const std::string& frage) {
         if (!t.pfad.empty()) { e.setze("where", Wert::alsText(t.pfad)); }
         auszuege.liste.push_back(std::move(e));
     }
-    const std::string system = ki::systemText(json::schreibe(auszuege));
+    const std::string auszuegeJson = json::schreibe(auszuege);
     const std::string modell = g_app->settings.kiModell;
     protokolliere("Chat", "ask " + modell, frage);
-    std::thread([stand, frage, system, modell, schluessel]() mutable {
-        const ki::Senden senden = [&](const std::string& koerper, int& status, std::string& antwort, std::string& fehler) {
-            // Nur api.anthropic.com, nur TLS (WinHTTP prueft das Zertifikat).
-            return ki::httpPost(ki::kApiHost, 443, true, ki::kApiPfad, ki::chatKopf(modell, schluessel), koerper, status, antwort, fehler, 90000);
+    std::thread([stand, frage, auszuegeJson, modell, schluessel, verlauf]() mutable {
+        const ki::SendenStrom senden = [&](const std::string& koerper, int& status, const std::function<bool(std::string_view)>& teil,
+                                           std::string& fehler) {
+            // Nur api.anthropic.com, nur TLS (WinHTTP prueft das Zertifikat). H2: die
+            // Kopfzeilen mit dem Schluessel werden nach der Anfrage genullt.
+            auto kopf = ki::chatKopf(modell, schluessel);
+            const bool ok = ki::httpPostStrom(ki::kApiHost, 443, true, ki::kApiPfad, kopf, koerper, status, teil, fehler, 90000);
+            ki::nullen(kopf);
+            return ok;
         };
-        const ki::ChatErgebnis e = ki::chat(modell, system, frage, senden,
-                                            [](const std::string& n, const Wert& w) { return ausFaden("Chat", n, w); },
-                                            [stand] { return stand->abbrechen.load(); });
-        SecureZeroMemory(schluessel.data(), schluessel.size());
+        const ki::ChatErgebnis e = ki::chatStrom(
+            modell, verlauf, frage, auszuegeJson, senden, [](const std::string& n, const Wert& w) { return ausFaden("Chat", n, w); },
+            [stand] { return stand->abbrechen.load(); },
+            [stand](const std::string& stueck) {
+                std::lock_guard<std::mutex> l(stand->mx);
+                stand->antwort += stueck;
+            });
+        ki::nullen(schluessel);
+        if (e.fehler.empty()) {
+            Zustand& zs = z();
+            {
+                std::lock_guard<std::mutex> l(zs.verlaufMx);
+                zs.verlauf = std::move(verlauf);
+                zs.anzeige.emplace_back(frage, e.text);
+            }
+            verlaufSpeichern();
+        }
         std::lock_guard<std::mutex> l(stand->mx);
-        stand->antwort = e.text;
+        if (e.fehler.empty()) { stand->antwort = e.text; }
         stand->fehler = e.fehler;
         stand->werkzeuge = e.werkzeuge;
         stand->laeuft = false;
@@ -716,12 +864,15 @@ void kiAbschnitt(const char* frage, float breite) {
         ImGui::PopTextWrapPos();
         if (ImGui::SmallButton(tr(Str::KiSafety))) { handbuchOeffnen("helfer.html#sicher"); }
         ImGui::Checkbox(tr(Str::KiEnable), &g_app->settings.kiChat);
+        { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::KiEnableHint)); } }   // H2
         if (g_app->settings.kiChat) {
             ImGui::TextDisabled("%s", tr(s.schluesselDa ? Str::KiKeyStored : Str::KiKeyNone));
             ImGui::SetNextItemWidth(fs * 14.0F);
             ImGui::InputTextWithHint("##kischluessel", tr(Str::KiKey), s.schluessel, sizeof(s.schluessel), ImGuiInputTextFlags_Password);
             ImGui::SameLine();
-            if (ImGui::Button(tr(Str::KiKeySave)) && s.schluessel[0] != '\0') {
+            const bool speichern = ImGui::Button(tr(Str::KiKeySave));
+            { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::KiKeySaveHint)); } }   // H2
+            if (speichern && s.schluessel[0] != '\0') {
                 s.schluesselDa = schreibeGeheim(kSchluesselDatei, s.schluessel);
                 SecureZeroMemory(s.schluessel, sizeof(s.schluessel));
                 protokolliere("Chat", "key", s.schluesselDa ? "stored (encrypted)" : "could not store");
@@ -759,17 +910,44 @@ void kiAbschnitt(const char* frage, float breite) {
                 antwort = c.antwort;
                 fehler = c.fehler;
             }
+            // H2: der Verlauf (fruehere Fragen und Antworten dieses Gespraechs).
+            verlaufLaden();
+            std::vector<std::pair<std::string, std::string>> anzeige;
+            {
+                std::lock_guard<std::mutex> l(s.verlaufMx);
+                anzeige = s.anzeige;
+            }
+            if (!anzeige.empty()) {
+                char n[160];
+                std::snprintf(n, sizeof(n), tr(Str::KiHistoryCount), static_cast<int>(anzeige.size()));
+                ImGui::TextDisabled("%s", n);
+                ImGui::SameLine();
+                if (ImGui::SmallButton(tr(Str::KiHistoryClear)) && !laeuft) { verlaufLoeschen(); }
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::KiHistoryClearHint)); }
+                if (ImGui::BeginChild("##kiverlauf", ImVec2{breite, fs * 9.0F}, ImGuiChildFlags_Borders)) {
+                    ImGui::PushTextWrapPos(0.0F);
+                    for (const auto& [q, a] : anzeige) {
+                        ImGui::TextDisabled("> %s", q.c_str());
+                        ImGui::TextUnformatted(a.c_str());
+                        ImGui::Spacing();
+                    }
+                    ImGui::PopTextWrapPos();
+                    if (laeuft) { ImGui::SetScrollHereY(1.0F); }
+                }
+                ImGui::EndChild();
+            }
             if (laeuft) {
                 ImGui::TextDisabled("%s", tr(Str::KiThinking));
                 ImGui::SameLine();
                 if (ImGui::Button(tr(Str::KiStop))) { c.abbrechen = true; }
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::KiStopHint)); }
             } else {
                 ImGui::BeginDisabled(!s.schluesselDa || frage == nullptr || frage[0] == '\0');
-                if (ImGui::Button(tr(Str::KiAsk))) { chatStarten(frage); }
+                if (ImGui::Button(anzeige.empty() ? tr(Str::KiAsk) : tr(Str::KiAskMore))) { chatStarten(frage); }
                 ImGui::EndDisabled();
             }
             if (!fehler.empty()) { ImGui::TextColored(ImVec4{1.0F, 0.5F, 0.4F, 1.0F}, tr(Str::KiError), fehler.c_str()); }
-            if (!antwort.empty()) {
+            if (!antwort.empty() && (laeuft || !fehler.empty() || anzeige.empty() || anzeige.back().second != antwort)) {
                 ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + breite);
                 ImGui::TextUnformatted(antwort.c_str());
                 ImGui::PopTextWrapPos();
@@ -792,6 +970,7 @@ void kiAbschnitt(const char* frage, float breite) {
         }
         ImGui::Separator();
         if (ImGui::Checkbox(tr(Str::McpHttp), &g_app->settings.mcpHttp) && g_app->settings.mcpHttp) { s.getrennt = false; }
+        { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::McpHttpHint)); } }   // H2
         ImGui::SetNextItemWidth(fs * 6.0F);
         int port = g_app->settings.mcpPort;
         if (ImGui::InputInt(tr(Str::McpPort), &port, 0) && port >= 1024 && port <= 65535 && !s.http.laeuft()) { g_app->settings.mcpPort = port; }

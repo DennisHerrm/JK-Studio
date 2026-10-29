@@ -9,6 +9,7 @@
 //      (Argument 1 = Handbuchordner mit <sprache>/touren.json und suche.js)
 #include <cstddef>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -69,10 +70,31 @@ void orteProben() {
     int karte = 0;
     int einst = 0;
     int ohneText = 0;
+    int leisten = 0;      // H2: Knoepfe der Leisten (Vorschau, Kamera, Zeitleiste, Wegpunkte, Modell)
+    int keSeiten = 0;     // H2: Seiten der Einstellungen des Karten-Editors
+    int menueEd = 0;      // H2: Leiste des Menue-Editors
+    int kette2 = 0;       // H2: verkettete Vorbedingungen
+    int inhaltOhne = 0;   // H2: Kennungen im Inhalt ohne Text
+    bool prefsKette = false;
     for (const bhed::hilfe::Ort& x : o) {
         const std::string z = x.ziel;
+        const std::string b = x.bereich;
+        if (z.rfind("menue:", 0) == 0 && b == "karte") { ++karte; }
         if (z.rfind("menue:", 0) == 0) { ++menue; }
-        if (std::string(x.bereich) == "karte") { ++karte; }
+        if (z.rfind("knopf:", 0) == 0 && (b == "vorschau" || b == "modell")) { ++leisten; }
+        if (z.rfind("gezeichnet:karte.einstseite.", 0) == 0) { ++keSeiten; }
+        if (z.rfind("knopf:Me", 0) == 0 && b == "menue") { ++menueEd; }
+        if (std::string(x.voraus).find("&&") != std::string::npos) { ++kette2; }
+        if (z == "knopf:PrefsRegelwerk") {
+            prefsKette = std::string(x.voraus) == "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.einstellungen < menue:MenuEdit>AppPrefs";
+        }
+        for (std::string in = x.inhalt; !in.empty();) {
+            const std::size_t p = in.find(',');
+            bhed::i18n::Str id{};
+            if (!bhed::i18n::strVonName(in.substr(0, p), &id)) { ++inhaltOhne; }
+            if (p == std::string::npos) { break; }
+            in.erase(0, p + 1);
+        }
         if (std::string(x.bereich) == "einstellungen") { ++einst; }
         std::string k = x.kette;
         std::size_t a = 0;
@@ -89,6 +111,13 @@ void orteProben() {
     expect("mindestens 150 Menuepunkte des Karten-Editors", karte >= 150);
     expect("mindestens 10 Einstellungen", einst >= 10);
     expect("jede Kennung der Ketten hat einen Text", ohneText == 0);
+    std::printf("    H2: %d Leistenknoepfe, %d Seiten der KE-Einstellungen, %d im Menue-Editor, %d mit verketteter Vorbedingung\n", leisten, keSeiten,
+                menueEd, kette2);
+    expect("H2: mindestens 30 Leistenknoepfe (Vorschau, Kamera, Zeitleiste, Wegpunkte, Modell)", leisten >= 30);
+    expect("H2: mindestens 20 Seiten der Einstellungen des Karten-Editors", keSeiten >= 20);
+    expect("H2: mindestens 8 Orte im Menue-Editor", menueEd >= 8);
+    expect("H2: Einstellung des Hauptprogramms: erst Events, dann Bearbeiten > Einstellungen (verkettet)", prefsKette);
+    expect("H2: jede Kennung im Inhalt hat einen Text", inhaltOhne == 0);
 }
 
 struct Frage {
@@ -99,6 +128,9 @@ struct Frage {
 
 // Typische Fragen - wie Leute in Foren und JKHub-Tutorials fragen, nicht nur
 // die Wortlisten der Ziele.
+// H2: wo eine neue Tour (k-update, k-spielordner, tut-karte-tuer) oder ein neuer
+// Ort (Knopf "Modell oeffnen" der Leiste) die Antwort ist, zaehlt sie hier mit -
+// diese Liste war nie unabhaengig (die beiden unabhaengigen bleiben unveraendert).
 const Frage kFragen[] = {
     // --- Deutsch ---
     {"de", "Wie mache ich meine erste eigene Karte?", "tour:tut-karte"},
@@ -114,10 +146,10 @@ const Frage kFragen[] = {
     {"de", "Befehl einfügen", "tour:k-befehl-einfuegen"},
     {"de", "Kamerafahrt für eine Zwischensequenz", "tour:k-kamera-ansicht@|seite:k-kamera|seite:kamera|seite:cmd-cam|seite:tut-p4|seite:tut-projekt"},
     {"de", "NPC zu einem Wegpunkt laufen lassen", "seite:k-gangart|seite:k-wegpunkte|seite:k-patrouille|seite:wegpunkte"},
-    {"de", "Wo finde ich die Einstellungen?", "ort:menue:MenuEdit>AppPrefs|seite:einstellungen"},
+    {"de", "Wo finde ich die Einstellungen?", "ort:menue:MenuEdit>AppPrefs|seite:einstellungen|tour:k-spielordner@3"},
     {"de", "Sprache auf Englisch umstellen", "ort:menue:MenuView>ViewLanguage"},
     {"de", "Gibt es eine neue Version?", "ort:menue:MenuHelp>UpdMenu|ort:menue:MenuHelp>UpdAutoCheck"},
-    {"de", "Modell öffnen", "ort:menue:MenuFile>OpenGlm|ort:knopf:ViewModel@modebar|seite:modell|tour:k-modell@|seite:k-modell"},
+    {"de", "Modell öffnen", "ort:menue:MenuFile>OpenGlm|ort:knopf:OpenGlm|ort:knopf:ViewModel@modebar|seite:modell|tour:k-modell@|seite:k-modell"},
     {"de", "Mission laden", "ort:menue:MenuFile>LoadMission|seite:missionen|seite:tut-p1|seite:tut-projekt"},
     {"de", "Tastenkürzel ändern", "ort:menue:MenuEdit>KeysTitle|seite:tasten"},
     {"de", "Raum aushöhlen", "tour:tut-karte@5"},
@@ -139,8 +171,8 @@ const Frage kFragen[] = {
     {"en", "make an NPC walk to a waypoint", "seite:k-gangart|seite:k-wegpunkte|seite:k-patrouille|seite:wegpunkte"},
     {"en", "open the settings", "ort:menue:MenuEdit>AppPrefs|seite:einstellungen"},
     {"en", "change the language", "ort:menue:MenuView>ViewLanguage"},
-    {"en", "check for updates", "ort:menue:MenuHelp>UpdMenu|ort:menue:MenuHelp>UpdAutoCheck"},
-    {"en", "open a model", "ort:menue:MenuFile>OpenGlm|ort:knopf:ViewModel@modebar|seite:modell|tour:k-modell@|seite:k-modell"},
+    {"en", "check for updates", "ort:menue:MenuHelp>UpdMenu|ort:menue:MenuHelp>UpdAutoCheck|tour:k-update"},
+    {"en", "open a model", "ort:menue:MenuFile>OpenGlm|ort:knopf:OpenGlm|ort:knopf:ViewModel@modebar|seite:modell|tour:k-modell@|seite:k-modell"},
     {"en", "load a mission", "ort:menue:MenuFile>LoadMission|seite:missionen|seite:tut-p1|seite:tut-projekt"},
     {"en", "change keyboard shortcuts", "ort:menue:MenuEdit>KeysTitle|seite:tasten"},
     {"en", "hollow out a room", "tour:tut-karte@5"},
@@ -161,7 +193,7 @@ const Frage kFragen[] = {
     {"zh", "让NPC走到路径点", "seite:k-gangart|seite:k-wegpunkte|seite:k-patrouille|seite:wegpunkte"},
     {"zh", "打开设置", "ort:menue:MenuEdit>AppPrefs|seite:einstellungen"},
     {"zh", "更改语言", "ort:menue:MenuView>ViewLanguage"},
-    {"zh", "检查更新", "ort:menue:MenuHelp>UpdMenu|ort:menue:MenuHelp>UpdAutoCheck"},
+    {"zh", "检查更新", "ort:menue:MenuHelp>UpdMenu|ort:menue:MenuHelp>UpdAutoCheck|tour:k-update"},
     {"zh", "打开模型", "ort:menue:MenuFile>OpenGlm|ort:knopf:ViewModel@modebar|seite:modell|tour:k-modell@|seite:k-modell"},
     {"zh", "载入任务", "ort:menue:MenuFile>LoadMission|seite:missionen|seite:tut-p1|seite:tut-projekt"},
     {"zh", "修改快捷键", "ort:menue:MenuEdit>KeysTitle|seite:tasten"},
@@ -182,22 +214,22 @@ const Frage kFragen[] = {
     {"ja", "NPCをウェイポイントまで歩かせる", "seite:k-gangart|seite:k-wegpunkte|seite:k-patrouille|seite:wegpunkte"},
     {"ja", "設定を開く", "ort:menue:MenuEdit>AppPrefs|seite:einstellungen"},
     {"ja", "言語を変更する", "ort:menue:MenuView>ViewLanguage"},
-    {"ja", "アップデートを確認", "ort:menue:MenuHelp>UpdMenu|ort:menue:MenuHelp>UpdAutoCheck"},
+    {"ja", "アップデートを確認", "ort:menue:MenuHelp>UpdMenu|ort:menue:MenuHelp>UpdAutoCheck|tour:k-update"},
     {"ja", "モデルを開く", "ort:menue:MenuFile>OpenGlm|ort:knopf:ViewModel@modebar|seite:modell|tour:k-modell@|seite:k-modell"},
     {"ja", "ミッションを読み込む", "ort:menue:MenuFile>LoadMission|seite:missionen|seite:tut-p1|seite:tut-projekt"},
     {"ja", "ショートカットを変更", "ort:menue:MenuEdit>KeysTitle|seite:tasten"},
     {"ja", "部屋を中空にする", "tour:tut-karte@5"},
     // --- frei formuliert (keine Woerter aus den Wortlisten der Ziele) ---
     {"de", "Mein Raum ist viel zu dunkel", "tour:tut-karte@7|seite:k-hell"},
-    {"de", "Wo stelle ich den Ordner vom Spiel ein?", "ort:menue:MenuEdit>PathsTitle|ort:menue:KeLEdit>KeLPreferences|tour:tut-karte@0|seite:einstellungen"},
-    {"de", "Wie baue ich eine Tür, die aufgeht?", "seite:k-tuer"},
+    {"de", "Wo stelle ich den Ordner vom Spiel ein?", "ort:menue:MenuEdit>PathsTitle|ort:menue:KeLEdit>KeLPreferences|tour:tut-karte@0|seite:einstellungen|tour:k-spielordner@|ort:knopf:Pk3AddPath"},
+    {"de", "Wie baue ich eine Tür, die aufgeht?", "seite:k-tuer|tour:tut-karte-tuer"},
     {"de", "Eine Figur soll etwas sagen", "seite:k-dialog"},
     {"en", "my level is way too dark", "tour:tut-karte@7|seite:k-hell"},
-    {"en", "where do I set the game folder", "ort:menue:MenuEdit>PathsTitle|ort:menue:KeLEdit>KeLPreferences|tour:tut-karte@0|seite:einstellungen"},
-    {"en", "how to build a door that opens", "seite:k-tuer"},
+    {"en", "where do I set the game folder", "ort:menue:MenuEdit>PathsTitle|ort:menue:KeLEdit>KeLPreferences|tour:tut-karte@0|seite:einstellungen|tour:k-spielordner@|ort:knopf:Pk3AddPath"},
+    {"en", "how to build a door that opens", "seite:k-tuer|tour:tut-karte-tuer"},
     {"en", "a character should say a line", "seite:k-dialog"},
     {"zh", "房间太暗了", "tour:tut-karte@7|seite:k-hell"},
-    {"zh", "设置游戏文件夹", "ort:menue:MenuEdit>PathsTitle|ort:menue:KeLEdit>KeLPreferences|tour:tut-karte@0|seite:einstellungen"},
+    {"zh", "设置游戏文件夹", "ort:menue:MenuEdit>PathsTitle|ort:menue:KeLEdit>KeLPreferences|tour:tut-karte@0|seite:einstellungen|tour:k-spielordner@|ort:knopf:Pk3AddPath"},
     {"zh", "怎么做一扇会打开的门", "seite:k-tuer"},
     {"zh", "让角色说一句台词", "seite:k-dialog"},
     {"ja", "部屋が暗すぎる", "tour:tut-karte@7|seite:k-hell"},
@@ -360,6 +392,7 @@ void trefferProben(const std::string& ordner) {
     const double h2Quote = h2Gesamt > 0 ? 100.0 * h2Gut / h2Gesamt : 0.0;
     std::printf("    H2-Liste gesamt: %d von %d = %.1f %%\n", h2Gut, h2Gesamt, h2Quote);
     expect("H2-Liste: mindestens 40 Fragen", h2Gesamt >= 40);
+    expect("H2-Liste: Top-3-Trefferquote >= 85 %", h2Quote >= 85.0);
     expect("mindestens 60 Fragen", gesamt >= 60);
     expect("Top-3-Trefferquote >= 85 %", quote >= 85.0);
 }
@@ -368,6 +401,20 @@ void trefferProben(const std::string& ordner) {
 
 int main(int argc, char** argv) {
     const std::string handbuch = argc > 1 ? argv[1] : "handbuch";
+    // H2: zum Nachsehen einer einzelnen Frage: hilfetest <handbuch> --frage <sprache> <modus> "<text>"
+    if (argc > 5 && std::string(argv[2]) == "--frage") {
+        bhed::tour::Touren t;
+        std::vector<bhed::tour::Abschnitt> hb;
+        std::string f;
+        (void)bhed::tour::ladeTouren(datei(handbuch + "/" + argv[3] + "/touren.json"), t, &f);
+        (void)bhed::tour::ladeSuchindex(datei(handbuch + "/" + argv[3] + "/suche.js"), hb, &f);
+        const bhed::hilfe::Index ix = bhed::hilfe::baue(t, hb, spracheVon(argv[3]));
+        for (const bhed::hilfe::Treffer& x : ix.frage(argv[5], 8, std::atoi(argv[4]))) {
+            std::printf("%8.3f  %s\n", x.wert, ix.eintraege()[x.eintrag].id.c_str());
+        }
+        std::printf("Vorschlag: %s\n", ix.vorschlag(argv[5]).c_str());
+        return 0;
+    }
     woerterProben();
     orteProben();
     trefferProben(handbuch);

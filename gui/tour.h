@@ -52,6 +52,13 @@ bool tourZeigeOrt(const std::string& titel, const std::string& text, const std::
 // die KI-Befehle "script:<aktion>".
 void tourAktionen(const std::string& aktionen);
 
+// H2: ein selbst gezeichnetes Ziel melden (Zielart "gezeichnet:<name>" in
+// bhed/tour.h) - jedes Bild, in dem es zu sehen ist, z. B. die Kamerazeile
+// der Zeitleiste ("zeitleiste.kamera").
+void tourZielMelden(const char* name, const ImRect& r);
+// H2: wurde das Ziel in diesem oder dem letzten Bild gemeldet?
+[[nodiscard]] bool tourGemeldet(const char* name);
+
 // H1: Messwerte aus allen Bereichen fuer "zahl:<name>" (gui/tour_messwerte.cpp).
 // `karte`: auch die des Karten-Editors (nur wenn ein Schritt sie braucht).
 void tourMesswerte(std::map<std::string, double>& werte, bool karte, double jetzt);
@@ -77,6 +84,7 @@ struct TourSicht {
     std::string fehler;             // Laden fehlgeschlagen
     std::string ordner;             // wo touren.json gefunden wurde
     std::string hinweis;            // H1: der freundliche Hinweis, der gerade steht
+    int stufe = 0;                  // H2: erste nicht erfuellte Stufe der Vorbedingung (= Zahl der Stufen: alle da)
 };
 TourSicht tourSicht();
 

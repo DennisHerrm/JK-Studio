@@ -38,9 +38,17 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
     const std::size_t n = size - 1;
     const std::string text(reinterpret_cast<const char*>(rest), n);
     // H1: erstes Byte ab 0xF0 - die KI-Anbindung (MCP/JSON-RPC, HTTP-Leser
-    // und -Pruefung, Antworten der Messages API).
+    // und -Pruefung, Antworten der Messages API; H2: gestreamte Antworten).
     if (leser >= 0xF0U) {
-        switch ((leser - 0xF0U) % 3U) {
+        switch ((leser - 0xF0U) % 4U) {
+            case 3: {   // H2: gestreamte Antworten (Server-Sent Events), in zwei Teilen
+                bhed::ki::StromLeser l;
+                const std::size_t h = text.size() / 2;
+                if (l.dazu(std::string_view(text).substr(0, h), [](const std::string&) {})) { (void)l.dazu(std::string_view(text).substr(h), nullptr); }
+                bhed::ki::ChatAntwort c;
+                (void)l.ergebnis(c, nullptr);
+                break;
+            }
             case 0: {
                 bhed::ki::McpSitzung sitzung;
                 (void)bhed::ki::mcpBearbeite(text, sitzung, [](const std::string&, const bhed::json::Wert&) { return bhed::ki::Ergebnis{}; });

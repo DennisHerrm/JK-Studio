@@ -379,6 +379,7 @@ struct App {
     // gleichzeitig gezeichnet.
     std::vector<std::string> modelSkins;
     int modelSkinIndex = -1;
+    int modellFlaechenListen = 0;   // H2: Klicks auf den Flaechenzaehler (Tour k-skins)
     std::string modelDir;
     bool showModelTextures = true;
     // Model-Tab (rc591)
@@ -584,6 +585,7 @@ struct App {
     // Steht die Maus ueber der Zeitleiste? Dann gehoeren ihr die Pfeiltasten
     // (Bildschritt), nicht dem Baum. Aus dem vorigen Bild.
     bool tlUeberMaus = false;
+    int tlSchritte = 0;   // H2: Bildschritte mit den Pfeiltasten (Tour k-neu-timen)
     // Welche Dauerklaenge (Schwertsummen, Lautsprecherschleifen) gerade
     // laufen - Schluessel des Mischers. Leer nach jedem stopAll.
     std::set<std::uint64_t> laufendeSchleifen;

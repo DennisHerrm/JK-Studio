@@ -366,7 +366,96 @@ std::string schluessel(const Eintrag& e) {
     return e.id;
 }
 
+// H2: Beugungen - Kandidaten fuer ein Wort, das so nicht im Index steht
+// (roh = klein, Umlaute gefaltet, ungestutzt). Deutsch: Verbformen (rennt,
+// laeuft, gesetzt, laufende), Umlaut im Stamm (laeuft -> lauf); Englisch:
+// entities, tried, making, running, placed.
+std::vector<std::string> beugungen(const std::string& r) {
+    std::vector<std::string> v;
+    const auto endet = [&r](const char* e) {
+        const std::size_t n = std::char_traits<char>::length(e);
+        return r.size() > n + 2 && r.compare(r.size() - n, n, e) == 0;
+    };
+    const auto ohne = [&r](std::size_t n) { return r.substr(0, r.size() - n); };
+    const auto dazu = [&v](const std::string& s) {
+        if (s.size() >= 3) { v.push_back(s); }
+    };
+    // Deutsch
+    for (const char* e : {"test", "tet", "ten", "end", "st", "et", "te", "t"}) {
+        if (endet(e)) { dazu(ohne(std::char_traits<char>::length(e))); }
+    }
+    if (r.size() >= 7 && r.compare(0, 2, "ge") == 0) {
+        const std::string k = r.substr(2);
+        dazu(k);
+        for (const char* e : {"en", "et", "t"}) {
+            const std::size_t n = std::char_traits<char>::length(e);
+            if (k.size() > n + 2 && k.compare(k.size() - n, n, e) == 0) { dazu(k.substr(0, k.size() - n)); }
+        }
+    }
+    // Englisch
+    if (endet("ies") || endet("ied")) { dazu(ohne(3) + "y"); }
+    if (endet("ing")) {
+        dazu(ohne(3));
+        dazu(ohne(3) + "e");
+        if (r.size() > 6 && r[r.size() - 4] == r[r.size() - 5]) { dazu(ohne(4)); }   // running -> run
+    }
+    if (endet("ed")) {
+        dazu(ohne(2));
+        dazu(ohne(1));
+        if (r.size() > 5 && r[r.size() - 3] == r[r.size() - 4]) { dazu(ohne(3)); }   // stopped -> stop
+    }
+    if (endet("ly")) { dazu(ohne(2)); }
+    // Umlaut im Stamm (laeuft -> lauft -> lauf, Tueren -> turen): alle bisherigen
+    // Kandidaten und das Wort selbst ohne das "e" der Umlautfaltung.
+    const std::size_t bis = v.size();
+    for (std::size_t i = 0; i <= bis; ++i) {
+        std::string s = i < bis ? v[i] : r;
+        bool geaendert = false;
+        for (const char* u : {"ae", "oe", "ue"}) {
+            for (std::size_t p = s.find(u); p != std::string::npos; p = s.find(u, p + 1)) {
+                s.erase(p + 1, 1);
+                geaendert = true;
+            }
+        }
+        if (geaendert) { dazu(s); }
+    }
+    return v;
+}
+
 }  // namespace
+
+int abstand(const std::string& a, const std::string& b, int hoechstens) {
+    const std::size_t n = a.size();
+    const std::size_t m = b.size();
+    if (static_cast<int>(n > m ? n - m : m - n) > hoechstens) { return hoechstens + 1; }
+    std::vector<int> d((n + 1) * (m + 1), 0);
+    const auto at = [&](std::size_t i, std::size_t j) -> int& { return d[i * (m + 1) + j]; };
+    for (std::size_t i = 0; i <= n; ++i) { at(i, 0) = static_cast<int>(i); }
+    for (std::size_t j = 0; j <= m; ++j) { at(0, j) = static_cast<int>(j); }
+    for (std::size_t i = 1; i <= n; ++i) {
+        int zeileMin = hoechstens + 1;
+        for (std::size_t j = 1; j <= m; ++j) {
+            const int kosten = a[i - 1] == b[j - 1] ? 0 : 1;
+            int x = std::min({at(i - 1, j) + 1, at(i, j - 1) + 1, at(i - 1, j - 1) + kosten});
+            if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) { x = std::min(x, at(i - 2, j - 2) + 1); }
+            at(i, j) = x;
+            zeileMin = std::min(zeileMin, x);
+        }
+        if (zeileMin > hoechstens) { return hoechstens + 1; }
+    }
+    return at(n, m);
+}
+
+bool bereichImModus(const std::string& bereich, int modus) {
+    switch (modus) {
+        case 0: return bereich == "skript" || bereich == "programm";
+        case 1: return bereich == "vorschau" || bereich == "mission";
+        case 2: return bereich == "modell";
+        case 3: return bereich == "karte";
+        case 4: return bereich == "menue";
+        default: return false;
+    }
+}
 
 std::vector<std::string> woerter(const std::string& text) {
     const Zerlegt z = zerlegeText(text);
@@ -405,6 +494,7 @@ void Index::fertig() {
         if (it != wo.end()) {
             Eintrag& alt = neu[it->second];
             alt.woerter += " " + e.woerter;
+            if (!e.inhalt.empty()) { alt.inhalt += " " + e.inhalt; }
             if (alt.bereich.empty()) { alt.bereich = e.bereich; }
             continue;
         }
@@ -418,16 +508,20 @@ void Index::fertig() {
     for (std::size_t i = 0; i < eintraege_.size(); ++i) {
         const Eintrag& e = eintraege_[i];
         Doku& d = doku_[i];
-        const auto feld = [&d](const std::string& t, double gewicht) {
+        // H2: `laenge` (BM25-Laengennorm) - der Pfad und der Inhalt eines
+        // Untermenues zaehlen kaum mit, sonst verdraengt ein langer Inhalt
+        // den Ort selbst ("Einstellungen" -> der Dialog, nicht eine seiner Seiten).
+        const auto feld = [&d](const std::string& t, double gewicht, double laengenAnteil) {
             for (const std::string& w : woerter(t)) {
                 d.tf[w] += gewicht;
-                d.laenge += gewicht;
+                d.laenge += gewicht * laengenAnteil;
             }
         };
-        feld(e.titel, 3.0);
-        feld(e.pfad, 1.5);
-        feld(e.woerter, 2.0);
-        feld(e.text, 1.0);
+        feld(e.titel, 3.0, 1.0);
+        feld(e.pfad, 0.5, 0.2);   // H2: der Pfad nennt die Eltern - sie sollen ihren Kindern nicht unterliegen
+        feld(e.woerter, 2.0, 1.0);
+        feld(e.text, 1.0, 1.0);
+        feld(e.inhalt, 0.6, 0.1);   // H2: Untermenue/Dialog
         for (const auto& [w, n] : d.tf) {
             (void)n;
             df_[w] += 1.0;
@@ -444,33 +538,100 @@ void Index::fertig() {
     std::sort(vokabel_.begin(), vokabel_.end());
 }
 
-std::vector<Treffer> Index::frage(const std::string& anfrage, std::size_t hoechstens, int modus) const {
-    (void)modus;
-    std::vector<Treffer> aus;
-    if (eintraege_.empty()) { return aus; }
-    // Gewichtete Woerter der Frage: Begriffe zaehlen mehr, unbekannte
-    // lateinische Woerter suchen ueber ihre Vorsilbe ("kompil" -> "kompilier").
-    std::map<std::string, double> q;
-    for (const std::string& w : woerter(anfrage)) {
-        const double g = (!w.empty() && w[0] == '@') ? 1.5 : 1.0;
-        if (df_.count(w) != 0U) {
-            q[w] = std::max(q[w], g);
-            continue;
-        }
-        if (w.size() < 4 || static_cast<unsigned char>(w[0]) >= 0x80U) { continue; }
-        auto it = std::lower_bound(vokabel_.begin(), vokabel_.end(), w);
-        int n = 0;
-        for (; it != vokabel_.end() && it->compare(0, w.size(), w) == 0 && n < 6; ++it, ++n) { q[*it] = std::max(q[*it], 0.6); }
-        if (n == 0 && w.size() >= 6) {
-            // auch umgekehrt: das Wort beginnt mit einem bekannten ("pinselwerkzeug" -> "pinsel")
-            for (std::size_t l = w.size() - 1; l >= 5; --l) {
-                const std::string kurz = w.substr(0, l);
-                if (df_.count(kurz) != 0U) {
-                    q[kurz] = std::max(q[kurz], 0.5);
-                    break;
-                }
+void Index::ersatz(const std::string& roh, const std::string& w, std::vector<std::pair<std::string, double>>& aus) const {
+    if (w.size() < 3 || static_cast<unsigned char>(w[0]) >= 0x80U) { return; }
+    // 1. Beugungen (H2): rennt -> renn, laeuft -> lauf, entities -> entity
+    for (const std::string& k : beugungen(roh)) {
+        const std::string g = stutze(k);
+        if (df_.count(g) != 0U && std::none_of(aus.begin(), aus.end(), [&g](const auto& p) { return p.first == g; })) { aus.emplace_back(g, 0.85); }
+    }
+    if (!aus.empty() || w.size() < 4) { return; }
+    // 2. Vorsilbe ("kompil" -> "kompilier")
+    auto it = std::lower_bound(vokabel_.begin(), vokabel_.end(), w);
+    int n = 0;
+    for (; it != vokabel_.end() && it->compare(0, w.size(), w) == 0 && n < 6; ++it, ++n) { aus.emplace_back(*it, 0.6); }
+    if (n > 0) { return; }
+    if (w.size() >= 6) {
+        // auch umgekehrt: das Wort beginnt mit einem bekannten ("pinselwerkzeug" -> "pinsel")
+        for (std::size_t l = w.size() - 1; l >= 5; --l) {
+            const std::string kurz = w.substr(0, l);
+            if (df_.count(kurz) != 0U) {
+                aus.emplace_back(kurz, 0.5);
+                return;
             }
         }
+    }
+    // 3. Tippfehler (H2): Damerau-Levenshtein 1, ab 9 Buchstaben 2; gleicher
+    // Anfangsbuchstabe (oder die ersten zwei vertauscht). Die naechsten, bei
+    // Gleichstand die haeufigeren, hoechstens zwei.
+    if (w.size() < 5) { return; }
+    const int grenze = w.size() >= 9 ? 2 : 1;
+    int best = grenze + 1;
+    std::vector<std::pair<double, std::string>> kand;
+    for (const std::string& v : vokabel_) {
+        if (v.empty() || static_cast<unsigned char>(v[0]) >= 0x80U || v[0] == '@') { continue; }
+        if (v[0] != w[0] && !(v.size() > 1 && w.size() > 1 && v[0] == w[1] && v[1] == w[0])) { continue; }
+        const int d = abstand(w, v, std::min(best, grenze));
+        if (d > grenze || d > best) { continue; }
+        if (d < best) {
+            best = d;
+            kand.clear();
+        }
+        kand.emplace_back(df_.at(v), v);
+    }
+    std::sort(kand.begin(), kand.end(), [](const auto& a, const auto& b) { return a.first != b.first ? a.first > b.first : a.second < b.second; });
+    for (std::size_t i = 0; i < kand.size() && i < 2; ++i) { aus.emplace_back(kand[i].second, best == 1 ? 0.65 : 0.45); }
+}
+
+std::string Index::vorschlag(const std::string& anfrage) const {
+    const Zerlegt z = zerlegeText(anfrage);
+    std::string o;
+    bool anders = false;
+    for (std::size_t i = 0; i < z.latein.size(); ++i) {
+        std::string wort = z.roh[i];
+        if (df_.count(z.latein[i]) == 0U) {
+            std::vector<std::pair<std::string, double>> e;
+            ersatz(z.roh[i], z.latein[i], e);
+            if (!e.empty() && e.front().second < 0.6) {   // nur Tippfehler, nicht Beugung/Vorsilbe
+                wort = e.front().first;
+                anders = true;
+            }
+        }
+        o += (o.empty() ? "" : " ") + wort;
+    }
+    return anders ? o : std::string();
+}
+
+std::vector<Treffer> Index::frage(const std::string& anfrage, std::size_t hoechstens, int modus) const {
+    std::vector<Treffer> aus;
+    if (eintraege_.empty()) { return aus; }
+    // Gewichtete Woerter der Frage: Begriffe zaehlen mehr; unbekannte
+    // lateinische Woerter ueber Beugung, Vorsilbe oder Tippfehler (Index::ersatz).
+    std::map<std::string, double> q;
+    Zerlegt z = zerlegeText(anfrage);
+    const std::size_t lateinZahl = z.latein.size();
+    for (std::size_t i = 0; i < lateinZahl; ++i) {
+        const std::string w = z.latein[i];
+        if (df_.count(w) != 0U) {
+            q[w] = std::max(q[w], 1.0);
+            continue;
+        }
+        std::vector<std::pair<std::string, double>> e;
+        ersatz(z.roh[i], w, e);
+        for (const auto& [k, g] : e) {
+            q[k] = std::max(q[k], g);
+            // Der Ersatz zaehlt auch fuer die Begriffe ("texure" -> textur -> @textur).
+            z.latein.push_back(k);
+            z.roh.push_back(k);
+        }
+    }
+    std::vector<std::string> rest;
+    for (const std::string& l : z.cjk) { cjkWoerter(l, rest); }
+    begriffeIn(z, rest);
+    for (const std::string& w : rest) {
+        if (df_.count(w) == 0U) { continue; }
+        const double g = (!w.empty() && w[0] == '@') ? 1.5 : 1.0;
+        q[w] = std::max(q[w], g);
     }
     if (q.empty()) { return aus; }
     const double nAlle = static_cast<double>(eintraege_.size());
@@ -492,17 +653,48 @@ std::vector<Treffer> Index::frage(const std::string& anfrage, std::size_t hoechs
         const Eintrag& e = eintraege_[i];
         if (e.art == Art::Tour) { wert *= 1.15; }
         if (!e.woerter.empty() && e.art != Art::Ort) { wert *= 1.1; }
+        // H2: der aktuelle Modus - was dort steht, zaehlt mehr; Orte des Karten-
+        // bzw. Menue-Editors ausserhalb davon weniger (dort fehlt ihr Menue).
+        if (modus >= 0 && !e.bereich.empty()) {
+            if (bereichImModus(e.bereich, modus)) {
+                wert *= 1.35;
+            } else if (e.art == Art::Ort && (e.bereich == "karte" || e.bereich == "menue")) {
+                wert *= 0.8;
+            }
+        }
         alle.push_back({i, wert});
     }
     std::sort(alle.begin(), alle.end(), [](const Treffer& x, const Treffer& y) {
         return x.wert != y.wert ? x.wert > y.wert : x.eintrag < y.eintrag;
     });
-    std::set<std::string> gesehen;
-    std::map<std::string, int> jeTour;   // hoechstens zwei Schritte derselben Tour - Vielfalt
+    // H2 (Vielfalt): eine Tour und ihre Handbuchseite sind EIN Thema - davon
+    // hoechstens zwei Eintraege, und ist die Tour selbst ein Treffer, gehoert ihr
+    // der zweite Platz (ihr Anfang); der Rest bleibt fuer Orte und andere Seiten.
+    const auto thema = [](const Eintrag& e) -> std::string {
+        if (e.art == Art::Tour) { return e.tour; }
+        if (e.art == Art::Seite) { return e.seite.substr(0, e.seite.find_first_of(".#")); }
+        return std::string();
+    };
+    std::set<std::string> mitTour;
     for (const Treffer& t : alle) {
         const Eintrag& e = eintraege_[t.eintrag];
-        if (e.art == Art::Tour && e.id.find('@') != std::string::npos && ++jeTour[e.tour] > 2) { continue; }   // die Tour selbst zaehlt nicht
-        if (!gesehen.insert(schluessel(e)).second) { continue; }
+        if (e.art == Art::Tour && e.id.find('@') == std::string::npos) { mitTour.insert(e.tour); }
+    }
+    std::set<std::string> gesehen;
+    std::map<std::string, int> jeThema;
+    std::set<std::string> tourGezeigt;
+    for (const Treffer& t : alle) {
+        const Eintrag& e = eintraege_[t.eintrag];
+        if (gesehen.count(schluessel(e)) != 0U) { continue; }
+        if (const std::string th = thema(e); !th.empty()) {
+            const bool tourSelbst = e.art == Art::Tour && e.id.find('@') == std::string::npos;
+            int& n = jeThema[th];
+            if (n >= 2) { continue; }
+            if (n == 1 && mitTour.count(th) != 0U && tourGezeigt.count(th) == 0U && !tourSelbst) { continue; }
+            ++n;
+            if (tourSelbst) { tourGezeigt.insert(th); }
+        }
+        gesehen.insert(schluessel(e));
         aus.push_back(t);
         if (aus.size() >= hoechstens) { break; }
     }
@@ -555,7 +747,7 @@ const std::vector<Ort>& orte() {
             const char* k = texte.back().c_str();
             texte.push_back(hinweis);
             const char* h = texte.back().c_str();
-            o.push_back(Ort{"karte", ziel, k, h, "modus:3 < knopf:ViewMapEditor@modebar"});
+            o.push_back(Ort{"karte", ziel, k, h, "modus:3 < knopf:ViewMapEditor@modebar", ""});
         }
         return o;
     }();
@@ -564,14 +756,36 @@ const std::vector<Ort>& orte() {
 
 // --- Der ganze Index ------------------------------------------------------------------
 
+// H2: der Bereich einer Handbuchseite ohne Tour (fuer das Modus-Gewicht).
+std::string seitenBereich(const std::string& seite) {
+    const auto beginnt = [&seite](const char* v) { return seite.rfind(v, 0) == 0; };
+    if (beginnt("menue_editor") || beginnt("tut-menue")) { return "menue"; }
+    if (beginnt("karteneditor") || beginnt("karte_") || beginnt("tut-karte")) { return "karte"; }
+    if (beginnt("modell") || beginnt("animation")) { return "modell"; }
+    if (beginnt("cmd-") || beginnt("skript") || beginnt("befehle") || beginnt("funktionen")) { return "skript"; }
+    if (beginnt("karte.") || beginnt("kamera") || beginnt("zeitleiste") || beginnt("entities") || beginnt("figuren") ||
+        beginnt("wegpunkte") || beginnt("missionen") || beginnt("tut-p")) {
+        return "vorschau";
+    }
+    if (beginnt("einstellungen")) { return "einstellungen"; }
+    return "";
+}
+
 Index baue(const tour::Touren& touren, const std::vector<tour::Abschnitt>& handbuch, i18n::Language sprache) {
     Index ix;
+    std::map<std::string, std::string> tourBereich;   // Seite -> Bereich der Tour
     // Tutorials: die Tour und jeder Schritt einzeln.
     for (const tour::Tour& t : touren.liste) {
-        const std::string bereich = t.id.rfind("tut-karte", 0) == 0                       ? "karte"
-                                    : (t.gruppe == "tut_kamera" || t.gruppe == "tut_figur") ? "vorschau"
-                                    : (t.id == "k-modell" || t.id == "k-skins")            ? "modell"
-                                                                                              : "skript";
+        // H2: auch Menue-Editor, Einstellungen und die Vorschau-Touren der Missionen
+        const std::string bereich = t.id.rfind("tut-karte", 0) == 0                     ? "karte"
+                                    : t.id == "tut-menue"                                ? "menue"
+                                    : (t.id == "k-modell" || t.id == "k-skins")          ? "modell"
+                                    : (t.id == "k-spielordner" || t.id == "k-update")    ? "einstellungen"
+                                    : (t.gruppe == "tut_kamera" || t.gruppe == "tut_figur" || t.gruppe == "tut_karte" ||
+                                       t.gruppe == "tut_anim" || t.gruppe == "tut_mission" || t.id.rfind("tut-p", 0) == 0)
+                                        ? "vorschau"
+                                        : "skript";
+        tourBereich[t.seite] = bereich;
         Eintrag e;
         e.art = Art::Tour;
         e.id = "tour:" + t.id;
@@ -602,6 +816,8 @@ Index baue(const tour::Touren& touren, const std::vector<tour::Abschnitt>& handb
     std::set<std::string> seiten;
     for (const tour::Abschnitt& a : handbuch) {
         const std::string text = ohneMarken(a.text);
+        const auto tb = tourBereich.find(a.seite);
+        const std::string bereich = tb != tourBereich.end() ? tb->second : seitenBereich(a.seite);
         if (seiten.insert(a.seite).second) {
             Eintrag p;
             p.art = Art::Seite;
@@ -609,6 +825,7 @@ Index baue(const tour::Touren& touren, const std::vector<tour::Abschnitt>& handb
             p.titel = a.titel;
             p.text = text;
             p.seite = a.seite;
+            p.bereich = bereich;
             ix.hinzu(std::move(p));
         }
         if (a.anker.empty()) { continue; }
@@ -618,9 +835,25 @@ Index baue(const tour::Touren& touren, const std::vector<tour::Abschnitt>& handb
         e.titel = a.ueber.empty() ? a.titel : a.titel + " - " + a.ueber;
         e.text = text;
         e.seite = a.seite + "#" + a.anker;
+        e.bereich = bereich;
         ix.hinzu(std::move(e));
     }
     // Orte: Menuepunkte, Modusleiste, Einstellungen, Menues des Karten-Editors.
+    // H2: was in einem Untermenue oder Dialog steht, sind auch Suchwoerter des
+    // Orts, der es oeffnet ("Bearbeiten > Einstellungen" findet man mit "Lautstaerke").
+    std::map<std::string, std::string> inhalte;   // kette -> Beschriftungen darunter
+    for (const Ort& o : orte()) {
+        std::string kette = o.kette;
+        std::string pfad;
+        std::string titel;
+        std::string englisch;
+        kettenText(kette, sprache, pfad, titel, englisch);
+        const std::string woerterHier = titel + " " + englisch;
+        for (std::size_t p = kette.rfind('>'); p != std::string::npos && p > 0; p = kette.rfind('>', p - 1)) {
+            inhalte[kette.substr(0, p)] += " " + woerterHier;
+            if (p == 0) { break; }
+        }
+    }
     for (const Ort& o : orte()) {
         Eintrag e;
         e.art = Art::Ort;
@@ -633,6 +866,15 @@ Index baue(const tour::Touren& touren, const std::vector<tour::Abschnitt>& handb
             englisch += kennungLabel(o.hinweis, i18n::Language::English);
         }
         e.woerter = englisch;
+        if (const auto in = inhalte.find(o.kette); in != inhalte.end()) { e.inhalt = in->second; }
+        // H2: was im Dialog steht (Kennungen) - in der Sprache und auf Englisch
+        for (std::string_view r(o.inhalt != nullptr ? o.inhalt : ""); !r.empty();) {
+            const std::size_t p = r.find(',');
+            const std::string k(r.substr(0, p));
+            e.inhalt += " " + kennungLabel(k, sprache) + " " + kennungLabel(k, i18n::Language::English);
+            if (p == std::string_view::npos) { break; }
+            r.remove_prefix(p + 1);
+        }
         e.bereich = o.bereich;
         e.ziel = o.ziel;
         e.voraus = o.voraus;

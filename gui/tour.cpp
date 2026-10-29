@@ -114,6 +114,7 @@ struct Zustand {
     tour::Tour ort;
     // H1: der Hinweis, wenn statt des Schritts etwas anderes passiert ist
     std::string hinweis;
+    int stufe = 0;   // H2: erste nicht erfuellte Stufe der Vorbedingung
 };
 
 Zustand& z() {
@@ -336,6 +337,18 @@ tour::Kontext kontextBauen() {
     return k;
 }
 
+// --- H2: selbst gezeichnete Ziele (tourZielMelden) ---------------------------------------
+
+struct Gemeldet {
+    ImRect r;
+    int bild = -1;
+};
+
+std::map<std::string, Gemeldet>& gemeldete() {
+    static std::map<std::string, Gemeldet> m;
+    return m;
+}
+
 // --- Ziele aufloesen ------------------------------------------------------------------
 
 struct Gefunden {
@@ -443,6 +456,15 @@ Gefunden loese(const tour::Ziel& zl) {
             Gefunden g;
             g.r = fensterRect("##flowarea");
             g.da = g.r.GetWidth() > 1.0F;
+            return g;
+        }
+        case A::Gezeichnet: {   // H2: in diesem oder dem letzten Bild gemeldet
+            Gefunden g;
+            const auto it = gemeldete().find(zl.teile[0]);
+            if (it != gemeldete().end() && it->second.bild >= ImGui::GetFrameCount() - 1) {
+                g.r = it->second.r;
+                g.da = g.r.GetWidth() > 1.0F && g.r.GetHeight() > 1.0F;
+            }
             return g;
         }
         case A::Karte3d: {   // H1: die 3D-Ansicht der Vorschau
@@ -1298,7 +1320,24 @@ TourSicht tourSicht() {
     v.fehler = s.ladeFehler;
     v.ordner = s.ordner;
     v.hinweis = s.hinweis;
+    v.stufe = s.stufe;
     return v;
+}
+
+bool tourGemeldet(const char* name) {
+    const auto it = gemeldete().find(name);
+    return it != gemeldete().end() && it->second.bild >= ImGui::GetFrameCount() - 1;
+}
+
+void tourZielMelden(const char* name, const ImRect& r) {
+    // Nur der sichtbare Teil zaehlt: eine Zeile, die aus dem Fenster gerollt
+    // ist (die Kamerazeile einer niedrigen Zeitleiste), ist kein Ziel - sonst
+    // laege der Rahmen auf einem anderen Fenster (Selbsttest H2, Kamerazeile).
+    ImRect c = r;
+    if (const ImGuiWindow* w = ImGui::GetCurrentWindow(); w != nullptr) { c.ClipWithFull(w->ClipRect); }
+    Gemeldet& g = gemeldete()[name];
+    g.r = (c.GetWidth() > 1.0F && c.GetHeight() > 1.0F) ? c : ImRect{};
+    g.bild = ImGui::GetFrameCount();
 }
 
 void tourBild() {
@@ -1329,11 +1368,18 @@ void tourBild() {
         (void)tour::parseZiele(st->ziel, ziele, &f);
         s.zielErwartet = !ziele.empty();
         std::vector<tour::Ziel> oeffner;
-        if (!st->voraus.empty()) {
-            const tour::Voraus v = tour::zerlegeVoraus(st->voraus);
-            (void)tour::parseZiele(v.oeffner, oeffner, &f);
-            if (!tour::erfuellt(v.pruefung, k, k)) {
-                s.zeigtOeffner = !oeffner.empty();
+        // H2: verkettete Vorbedingungen - der Oeffner der ersten Stufe, die
+        // nicht gilt (erst Modus, dann Dialog, dann das Feld).
+        const std::vector<tour::Voraus> kette = tour::zerlegeVorausKette(st->voraus);
+        if (const tour::Voraus* v = tour::ersteOffeneStufe(kette, k); v != nullptr) {
+            (void)tour::parseZiele(v->oeffner, oeffner, &f);
+            s.zeigtOeffner = !oeffner.empty();
+        }
+        s.stufe = static_cast<int>(kette.size());
+        for (std::size_t i = 0; i < kette.size(); ++i) {
+            if (!tour::erfuellt(kette[i].pruefung, k, k)) {
+                s.stufe = static_cast<int>(i);
+                break;
             }
         }
         wuensche(ziele, labels);

@@ -642,9 +642,9 @@ void drawGraphAnsicht() {
     const int vorwahl = knotenIndex(z.auswahl);
     const bool skriptGewaehlt = vorwahl >= 0 && !z.g.knoten[static_cast<std::size_t>(vorwahl)].skript.empty();
     const float detailUntenH = detailsRechts ? 0.0F : fs * (skriptGewaehlt ? 14.0F : 7.0F);
-    const bool einpassen = iconTextKnopf(tr(Str::GraphFit), UiIcon::Hinfliegen, nullptr);
+    const bool einpassen = iconTextKnopf(tr(Str::GraphFit), UiIcon::Hinfliegen, tr(Str::GraphFitHint));   // H2: mit Erklaerung
     ImGui::SameLine();
-    if (iconTextKnopf(tr(Str::GraphRelayout), UiIcon::Verschieben, nullptr)) {
+    if (iconTextKnopf(tr(Str::GraphRelayout), UiIcon::Verschieben, tr(Str::GraphRelayoutHint))) {   // H2
         z.pos.clear();
         z.umlenk.clear();
         z.signatur.clear();
@@ -652,6 +652,7 @@ void drawGraphAnsicht() {
     }
     ImGui::SameLine();
     ImGui::Checkbox(tr(Str::GraphRightAngles), &z.rechtwinklig);
+    { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::GraphRightAnglesHint)); } }   // H2
     ImGui::SameLine();
     ImGui::AlignTextToFramePadding();
     ImGui::TextDisabled(tr(z.g.gekuerzt ? Str::GraphCountCut : Str::GraphCount), static_cast<int>(z.g.knoten.size()),
@@ -1043,7 +1044,7 @@ void drawGraphAnsicht() {
                 }
                 ImGui::EndTable();
             }
-            if (iconTextKnopf(tr(Str::GraphShowInMap), UiIcon::Hinfliegen, nullptr)) {
+            if (iconTextKnopf(tr(Str::GraphShowInMap), UiIcon::Hinfliegen, tr(Str::GraphShowInMapHint))) {   // H2
                 g_app->leftMode = 1;
                 g_app->pickedEntity = k.entity;
                 zurEntityFliegen(static_cast<std::size_t>(k.entity));

@@ -29,6 +29,10 @@
 //   baum                              der Skriptbaum (Classic)
 //   meldungen                         die Zaehler unten in der Statuszeile
 //   karte3d                           H1: die 3D-Ansicht der Karte (Vorschau)
+//   gezeichnet:<name>                 H2: ein selbst gezeichnetes Ziel, das die
+//                                     Oberflaeche jedes Bild meldet
+//                                     (gui/tour.h, tourZielMelden), z. B.
+//                                     zeitleiste.kamera
 //
 // --- Pruefungen (wann ein Schritt erledigt ist), mit "|" Alternativen -------
 //   Zaehler, mit "+" = "mehr als beim Beginn des Schritts":
@@ -42,13 +46,13 @@
 //     editor[:<befehl>]        der Ereigniseditor ist offen (fuer <befehl>)
 //     editorzu                 der Ereigniseditor ist zu
 //     fenster:<name>           messages, find
-//     modus:<n>                Modusleiste: 0 Events, 1 Map, 2 Model, 3 Karten-Editor
+//     modus:<n>                Modusleiste: 0 Events, 1 Map, 2 Model, 3 Karten-Editor, 4 Menue-Editor (H2)
 //     ansicht:<n>              Skriptansicht: 0 Classic, 1 Graph, 2 Tracks
 //     gespeichert              aktives Skript hat einen Pfad und ist gesichert
-//     zahl:<name>[+|~]         H1: ein Messwert aus einem Bereich des Programms
+//     zahl:<name>[+|~|-]       H1: ein Messwert aus einem Bereich des Programms
 //                              (Kontext::werte, z. B. karte.pinsel): ohne
 //                              Zusatz "nicht 0", "+" groesser, "~" anders als
-//                              beim Beginn des Schritts
+//                              beim Beginn des Schritts; H2: "-" kleiner
 //     offen:<teil>             H1: ein Fenster, dessen Name <teil> enthaelt, ist offen
 //     schwebt                  die Maus steht eine Weile auf dem Ziel
 //     geklickt                 das Ziel wurde gerade angeklickt
@@ -57,6 +61,9 @@
 // --- Vorbedingung: "<pruefung> < <ziel>" --------------------------------------
 //   Gilt die Pruefung nicht, zeigt die Tour auf den Oeffner (<ziel>) statt
 //   auf das eigentliche Ziel - wie Unreals TabToFocusOrOpen.
+//   H2: verkettet mit "&&" - "<p1> < <z1> && <p2> < <z2>": gezeigt wird der
+//   Oeffner der ersten Stufe, die nicht gilt (erst Modus wechseln, dann den
+//   Dialog oeffnen, dann das Feld zeigen).
 //
 // --- Einrichten (Ueberspringen / "Mach es"), mit ";" mehrere ------------------
 //   neuerReiter  befehl:<name>  waehle:<befehl>#<n>|*  wert:<befehl>#<n>:<feld>=<text>
@@ -127,7 +134,7 @@ struct Touren {
 // --- Zielangaben --------------------------------------------------------------
 
 struct Ziel {
-    enum class Art { Keins, Knopf, KnopfN, Menue, Gruppe, Eintrag, Zeile, Reiter, Fenster, Baum, Meldungen, Karte3d };
+    enum class Art { Keins, Knopf, KnopfN, Menue, Gruppe, Eintrag, Zeile, Reiter, Fenster, Baum, Meldungen, Karte3d, Gezeichnet };
     Art art = Art::Keins;
     std::vector<std::string> teile;   // Kennungen (Knopf, Menue, Gruppe) oder woertlich
     std::string fenster;              // "@..."
@@ -189,6 +196,10 @@ struct Voraus {
     std::string oeffner;   // Zielangabe, leer = keiner
 };
 [[nodiscard]] Voraus zerlegeVoraus(const std::string& s);
+// H2: eine Kette "<p1> < <z1> && <p2> < <z2> ..." (eine Stufe = zerlegeVoraus).
+[[nodiscard]] std::vector<Voraus> zerlegeVorausKette(const std::string& s);
+// H2: die erste Stufe, deren Pruefung nicht gilt (nullptr = alle erfuellt).
+[[nodiscard]] const Voraus* ersteOffeneStufe(const std::vector<Voraus>& kette, const Kontext& k);
 
 // --- Aktionen (einrichten) ------------------------------------------------------
 

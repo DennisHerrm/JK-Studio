@@ -773,7 +773,41 @@ void messwertProben() {
     bhed::tour::Ziel z3;
     expect("Ziel karte3d (die 3D-Ansicht)", bhed::tour::parseZiel("karte3d", z3, &f) && z3.art == bhed::tour::Ziel::Art::Karte3d);
     expect("Ziel karte3d:x abgewiesen", !bhed::tour::parseZiel("karte3d:x", z3, &f));
-    expect("modus:4 abgewiesen", !bhed::tour::pruefungBekannt("modus:4", &f));
+    // H2: der Menue-Editor (4), "-" an zahl:, selbst gezeichnete Ziele, verkettete Vorbedingungen
+    expect("modus:4 (Menue-Editor) bekannt", bhed::tour::pruefungBekannt("modus:4", &f));
+    expect("modus:5 abgewiesen", !bhed::tour::pruefungBekannt("modus:5", &f));
+    {
+        std::vector<bhed::tour::Aktion> as;
+        expect("Aktion modus:4 bekannt, modus:5 abgewiesen",
+               bhed::tour::parseAktionen("modus:4", as, &f) && !bhed::tour::parseAktionen("modus:5", as, &f));
+    }
+    expect("zahl:a- bekannt, ist kein Zustand", bhed::tour::pruefungBekannt("zahl:vorschau.ents-", &f) && !bhed::tour::istZustand("zahl:a-"));
+    expect("befehl:wait- abgewiesen (\"-\" nur an zahl:)", !bhed::tour::pruefungBekannt("befehl:wait-", &f));
+    {
+        Kontext a;
+        Kontext b;
+        a.werte["x"] = 5.0;
+        b.werte["x"] = 4.0;
+        expect("zahl:x- erfuellt, wenn kleiner als beim Beginn", bhed::tour::erfuellt("zahl:x-", b, a) && !bhed::tour::erfuellt("zahl:x-", a, b));
+    }
+    bhed::tour::Ziel zg;
+    expect("Ziel gezeichnet:zeitleiste.kamera", bhed::tour::parseZiel("gezeichnet:zeitleiste.kamera", zg, &f) &&
+                                                  zg.art == bhed::tour::Ziel::Art::Gezeichnet && zg.teile.size() == 1 &&
+                                                  zg.teile[0] == "zeitleiste.kamera");
+    expect("Ziel gezeichnet: ohne/mit falschem Namen abgewiesen",
+           !bhed::tour::parseZiel("gezeichnet:", zg, &f) && !bhed::tour::parseZiel("gezeichnet:Gross Name", zg, &f));
+    {
+        const std::vector<bhed::tour::Voraus> k =
+            bhed::tour::zerlegeVorausKette("zahl:a < knopf:ViewEvents@modebar && zahl:b < menue:MenuEdit>AppPrefs");
+        expect("Vorbedingung verkettet: zwei Stufen", k.size() == 2 && k[0].pruefung == "zahl:a" && k[1].oeffner == "menue:MenuEdit>AppPrefs");
+        Kontext c;
+        expect("erste offene Stufe: a fehlt -> Stufe 1", bhed::tour::ersteOffeneStufe(k, c) == &k[0]);
+        c.werte["a"] = 1.0;
+        expect("a da, b fehlt -> Stufe 2 (erst Modus, dann Dialog)", bhed::tour::ersteOffeneStufe(k, c) == &k[1]);
+        c.werte["b"] = 1.0;
+        expect("beide da -> keine", bhed::tour::ersteOffeneStufe(k, c) == nullptr);
+        expect("eine Stufe ohne && wie vorher", bhed::tour::zerlegeVorausKette("modus:0 < knopf:ViewEvents@modebar").size() == 1);
+    }
     expect("zahl:a ist ein Zustand, zahl:a+ und zahl:a~ nicht",
            bhed::tour::istZustand("zahl:a") && !bhed::tour::istZustand("zahl:a+") && !bhed::tour::istZustand("zahl:a~"));
     Kontext start;

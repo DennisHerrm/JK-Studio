@@ -619,12 +619,14 @@ void zeichneFenster() {
         ImGui::Separator();
         if (z.stand == Stand::Verfuegbar) {
             if (ImGui::Button(tr(Str::UpdInstall))) { installieren(); }
+            { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::UpdInstallHint)); } }   // H2
             ImGui::SameLine();
         } else if (z.stand == Stand::Fertig) {
             if (ImGui::Button(tr(Str::UpdRestart))) { neuStarten(); }
             ImGui::SameLine();
         } else if (z.stand == Stand::Fehler || z.stand == Stand::Aktuell) {
             if (ImGui::Button(tr(Str::UpdRetry))) { pruefen(false); }
+            { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::UpdRetryHint)); } }   // H2
             ImGui::SameLine();
         }
         if (!z.release.htmlUrl.empty() && ImGui::Button(tr(Str::UpdOpenPage))) {

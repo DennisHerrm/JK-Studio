@@ -48,7 +48,10 @@ TOUREN = ["k-neues-skript", "k-befehl-einfuegen", "k-werte-bearbeiten", "k-zeile
           # H1: eine Kameraeinstellung fuer die Zwischensequenz (inhalt_kurz.py)
           "k-kamera-ansicht",
           # H1: ein Figurenmodell ansehen (inhalt_kurz.py)
-          "k-modell"]
+          "k-modell",
+          # H2: mehr interaktive Touren mit echten Aktionen
+          "k-gangart", "k-wegpunkte", "k-neu-timen", "tut-p1", "k-skins",
+          "k-spielordner", "k-update", "tut-karte-tuer", "tut-menue"]
 ANSICHTEN = ["classic"]
 
 # Die Ereignisliste gibt es nur im Modus Events - sonst zeigt die Tour auf
@@ -205,13 +208,117 @@ NACH_SCHRITT.update({
     ("k-modell", "classic", 4): A("knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures", "zahl:modell.details~", voraus=MODELL),
 })
 
+# --- H2: mehr interaktive Touren mit echten Aktionen ---------------------------
+# Jeder Schritt ist erst erledigt, wenn das Programm die Wirkung sieht
+# (gui/tour_messwerte.cpp). Verkettete Vorbedingungen ("&&"): erst Modus,
+# dann Fenster, dann das Feld.
+HAUPTMENUE = "zahl:programm.hauptmenue < knopf:ViewEvents@modebar"
+_OHNE_FIGUR = ("zahl:vorschau.ohnefigur", T(
+    "This map has no figure yet. Open a mission with figures ({{MenuFile}} > {{LoadMission}}) or place one: the tile {{EntKindNpc}} on the left edge of the view.",
+    "Diese Karte hat noch keine Figur. Öffne eine Mission mit Figuren ({{MenuFile}} > {{LoadMission}}) oder setz eine: die Kachel {{EntKindNpc}} am linken Rand der Ansicht.",
+    "这张地图还没有角色。打开一个带角色的任务({{MenuFile}} > {{LoadMission}}),或放置一个:视图左边缘的 {{EntKindNpc}} 图块。",
+    "このマップにはまだキャラクターがいません。キャラクターのいるミッションを開くか({{MenuFile}} > {{LoadMission}})、ビュー左端の {{EntKindNpc}} タイルで置いてください。"))
+_OHNE_LAUFZIEL = ("zahl:vorschau.ohnelaufziel", T(
+    "This figure does not walk yet - its path has no walk target. Pick a figure that walks, or let one walk first ([[tut-p3]]).",
+    "Diese Figur läuft noch nicht - ihr Weg hat kein Laufziel. Wähl eine Figur, die läuft, oder lass zuerst eine laufen ([[tut-p3]]).",
+    "这个角色还没有行走——它的路线上没有行走目标。选择一个会走的角色,或先让一个角色走起来([[tut-p3]])。",
+    "このキャラクターはまだ歩きません。経路に歩く目標がありません。歩くキャラクターを選ぶか、先に歩かせてください([[tut-p3]])。"))
+_WEG = "zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf"
+NACH_SCHRITT.update({
+    # k-gangart: Figur waehlen -> Rechtsklick auf ein Laufziel -> Gangart -> abspielen
+    ("k-gangart", "classic", 1): A("karte3d", "zahl:vorschau.figurgewaehlt", voraus=VORSCHAU, falsch=[_OHNE_KARTE, _OHNE_FIGUR]),
+    ("k-gangart", "classic", 2): A("gezeichnet:vorschau.laufziel", "zahl:vorschau.gangartmenue",
+                                   voraus=VORSCHAU + " && zahl:vorschau.figurgewaehlt < karte3d", falsch=[_OHNE_LAUFZIEL]),
+    ("k-gangart", "classic", 3): A("gezeichnet:vorschau.gangartmenue", "aenderung+",
+                                   voraus=VORSCHAU + " && zahl:vorschau.gangartmenue < gezeichnet:vorschau.laufziel"),
+    ("k-gangart", "classic", 4): A("knopf:TlPlay", "zahl:vorschau.laeuft", voraus=VORSCHAU),
+    # k-wegpunkte: Fenster -> erzeugen -> pruefen -> von Hand setzen
+    ("k-wegpunkte", "classic", 1): A("gezeichnet:vorschau.wegknopf", "zahl:vorschau.wegfenster", voraus=VORSCHAU, falsch=[_OHNE_KARTE]),
+    ("k-wegpunkte", "classic", 2): A("knopf:WegErzeugen@###wegpunkte", "zahl:vorschau.wegpunkte+", voraus=VORSCHAU + " && " + _WEG,
+                                     falsch=[_OHNE_KARTE]),
+    ("k-wegpunkte", "classic", 3): A("knopf:WegPruefen@###wegpunkte", "zahl:vorschau.weggeprueft", voraus=VORSCHAU + " && " + _WEG),
+    ("k-wegpunkte", "classic", 4): A("knopf:WegSetzen@###wegpunkte;karte3d", "zahl:vorschau.wegpunkte+", voraus=VORSCHAU + " && " + _WEG),
+    # k-neu-timen: abspielen, Block ziehen, Dauer, Bildschritt, Zeile
+    ("k-neu-timen", "classic", 1): A("knopf:TlPlay", "zahl:vorschau.laeuft", voraus=VORSCHAU, falsch=[_OHNE_KARTE]),
+    ("k-neu-timen", "classic", 2): A("gezeichnet:zeitleiste", "aenderung+", voraus=VORSCHAU),
+    ("k-neu-timen", "classic", 3): A("gezeichnet:zeitleiste", "aenderung+", voraus=VORSCHAU),
+    ("k-neu-timen", "classic", 4): A("gezeichnet:zeitleiste", "zahl:vorschau.tlschritte+", voraus=VORSCHAU),
+    ("k-neu-timen", "classic", 5): A("gezeichnet:zeitleiste;baum", "auswahl", voraus=VORSCHAU),
+    # tut-p1: Startseite -> neue Mission -> ansehen -> das alte Intro loeschen
+    ("tut-p1", "classic", 1): A("knopf:ViewMap@modebar", "zahl:vorschau.startseite", falsch=[("zahl:vorschau.karte", T(
+        "A map is open, so the tab shows the map instead of the start page. Close it with {{MenuFile}} > {{MapClose}}.",
+        "Eine Karte ist offen, darum zeigt der Reiter die Karte statt der Startseite. Schließ sie mit {{MenuFile}} > {{MapClose}}.",
+        "已经打开了一张地图,所以标签页显示地图而不是开始页。用 {{MenuFile}} > {{MapClose}} 关闭它。",
+        "マップが開いているので、タブにはスタートページではなくマップが表示されています。{{MenuFile}} > {{MapClose}} で閉じてください。"))]),
+    ("tut-p1", "classic", 2): A("knopf:StartCardNew;knopf:MissionCreate", "zahl:mission.name~",
+                                voraus="zahl:vorschau.startseite|offen:##neuemission < knopf:ViewMap@modebar"),
+    ("tut-p1", "classic", 3): A("karte3d", "manuell", voraus=VORSCHAU),
+    ("tut-p1", "classic", 4): A("karte3d", "zahl:vorschau.ents-", voraus=VORSCHAU),
+    # k-skins: Haut, Flaechenliste, Kappen, Skelett
+    ("k-skins", "classic", 1): A("knopf:ModelSkin;knopf:OpenSkin", "zahl:modell.skin~", voraus=MODELL + " && zahl:modell.da < knopf:NpcBrowser"),
+    ("k-skins", "classic", 2): A("gezeichnet:modell.flaechen", "zahl:modell.flaechenliste+", voraus=MODELL + " && zahl:modell.da < knopf:NpcBrowser"),
+    ("k-skins", "classic", 3): A("knopf:ModelCaps", "zahl:modell.caps~", voraus=MODELL + " && zahl:modell.da < knopf:NpcBrowser"),
+    ("k-skins", "classic", 4): A("knopf:ModelLoadGla", "zahl:modell.skelett~", voraus=MODELL + " && zahl:modell.da < knopf:NpcBrowser"),
+    # k-spielordner: Pfade -> Spielordner dazu -> Liste -> Einstellungen -> Regelwerk
+    ("k-spielordner", "classic", 1): A("menue:MenuEdit>PathsTitle", "zahl:programm.pfade", voraus=HAUPTMENUE),
+    ("k-spielordner", "classic", 2): A("knopf:Pk3AddPath@###paths", "zahl:programm.spielordner+",
+                                       voraus=HAUPTMENUE + " && zahl:programm.pfade < menue:MenuEdit>PathsTitle"),
+    ("k-spielordner", "classic", 3): A("fenster:###paths", "manuell", voraus=HAUPTMENUE + " && zahl:programm.pfade < menue:MenuEdit>PathsTitle"),
+    ("k-spielordner", "classic", 4): A("menue:MenuEdit>AppPrefs", "zahl:programm.einstellungen", voraus=HAUPTMENUE),
+    ("k-spielordner", "classic", 5): A("knopf:PrefsRegelwerk", "zahl:programm.regelwerk~",
+                                       voraus=HAUPTMENUE + " && zahl:programm.einstellungen < menue:MenuEdit>AppPrefs"),
+    # k-update: suchen -> Antwort -> beim Start -> Aenderungen
+    ("k-update", "classic", 1): A("menue:MenuHelp>UpdMenu", "zahl:update.fenster", voraus=HAUPTMENUE),
+    ("k-update", "classic", 2): A("fenster:###update", "zahl:update.ergebnis", voraus=HAUPTMENUE + " && zahl:update.fenster < menue:MenuHelp>UpdMenu"),
+    ("k-update", "classic", 3): A("menue:MenuHelp>UpdAutoCheck", "zahl:update.auto~", voraus=HAUPTMENUE),
+    ("k-update", "classic", 4): A("knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu", "offen:###changelog", voraus=HAUPTMENUE),
+    # tut-karte-tuer (Karten-Editor): Brush -> func_door -> angle -> Trigger -> verbinden -> ausprobieren
+    ("tut-karte-tuer", "classic", 1): A("knopf:ViewMapEditor@modebar", "modus:3", einrichten="modus:3", sicher=True),
+    ("tut-karte-tuer", "classic", 2): A("fenster:##feldXY", "zahl:karte.pinsel+", voraus=KARTE, falsch=[
+        ("zahl:karte.ent+", T(
+            "That made an entity. Press Ctrl+Z, then drag with the LEFT mouse button in the 2D view.",
+            "Das hat eine Entity gesetzt. Drück Strg+Z und zieh dann mit der LINKEN Maustaste in der 2D-Ansicht.",
+            "这创建了一个实体。按 Ctrl+Z,然后在 2D 视图中用鼠标左键拖动。",
+            "エンティティができました。Ctrl+Z を押してから、2D ビューでマウスの左ボタンでドラッグしてください。"))]),
+    ("tut-karte-tuer", "classic", 3): A("fenster:##feldXY", "zahl:karte.ent.func_door+", voraus=KARTE, falsch=[
+        _NICHTS_GEWAEHLT[0:1] + (T(
+            "Nothing is selected. Click the door brush in a 2D view first, then right-click and choose func > func_door.",
+            "Nichts ist gewählt. Klick zuerst den Tür-Brush in einer 2D-Ansicht an, dann rechts klicken und func > func_door wählen.",
+            "没有选中任何东西。先在 2D 视图中点击门的画刷,然后右键点击并选择 func > func_door。",
+            "何も選択されていません。先に 2D ビューでドアのブラシをクリックし、右クリックして func > func_door を選んでください。"),),
+        ("zahl:karte.ent.light+", T(
+            "That was a light. Press Ctrl+Z, select the door brush and choose func > func_door.",
+            "Das war ein Licht. Drück Strg+Z, wähl den Tür-Brush und nimm func > func_door.",
+            "这是一盏灯。按 Ctrl+Z,选中门的画刷,然后选择 func > func_door。",
+            "それはライトです。Ctrl+Z を押し、ドアのブラシを選んで func > func_door を選んでください。"))]),
+    ("tut-karte-tuer", "classic", 4): A("fenster:##feldGruppe", "zahl:karte.schluessel~", voraus=KARTE),
+    ("tut-karte-tuer", "classic", 5): A("fenster:##feldXY", "zahl:karte.ent.trigger_multiple+", voraus=KARTE),
+    ("tut-karte-tuer", "classic", 6): A("menue:KeLEntity>KeLConnectEntities", "zahl:karte.verbindungen+", voraus=KARTE),
+    ("tut-karte-tuer", "classic", 7): A("menue:KeLBuild", "zahl:karte.gebaut+|zahl:karte.spielen", voraus=KARTE),
+    # tut-menue (Menue-Editor): Modus -> aus dem Spiel -> verschieben -> bedienen -> exportieren
+    ("tut-menue", "classic", 1): A("knopf:ViewMenuEditor@modebar", "modus:4", einrichten="modus:4", sicher=True),
+    ("tut-menue", "classic", 2): A("knopf:MeAusSpiel", "zahl:menue.dokumente+", voraus="modus:4 < knopf:ViewMenuEditor@modebar"),
+    ("tut-menue", "classic", 3): A("fenster:##mitte", "zahl:menue.text~", voraus="modus:4 < knopf:ViewMenuEditor@modebar", falsch=[
+        ("zahl:menue.bedienen", T(
+            "You are in {{MeBedienen}} mode - clicks press buttons there. Switch to {{MeBearbeiten}} to move elements.",
+            "Du bist im Modus {{MeBedienen}} - dort drücken Klicks die Knöpfe. Schalt auf {{MeBearbeiten}}, um Elemente zu verschieben.",
+            "你处于 {{MeBedienen}} 模式,点击会按下按钮。切换到 {{MeBearbeiten}} 才能移动元素。",
+            "{{MeBedienen}} モードです。クリックするとボタンが押されます。要素を動かすには {{MeBearbeiten}} に切り替えてください。"))]),
+    ("tut-menue", "classic", 4): A("knopf:MeBedienen", "zahl:menue.bedienen", voraus="modus:4 < knopf:ViewMenuEditor@modebar"),
+    ("tut-menue", "classic", 5): A("knopf:MeExportPk3", "zahl:menue.exporte+", voraus="modus:4 < knopf:ViewMenuEditor@modebar"),
+})
+# k-kamera-ansicht (H1): ist die Kamera nicht gewaehlt, zeigt Schritt 2 jetzt
+# auf die Kamerazeile der Zeitleiste (selbst gezeichnet, H2).
+NACH_SCHRITT[("k-kamera-ansicht", "classic", 2)]["voraus"] = VORSCHAU + " && zahl:vorschau.ohnekamera|zahl:vorschau.kameragewaehlt < gezeichnet:zeitleiste.kamera"
+
 def angaben(seite, ansicht, nr, bild):
     """Die Angaben eines Schritts oder None."""
     return NACH_SCHRITT.get((seite, ansicht, nr)) or (NACH_BILD.get(bild) if bild else None)
 
 
 # --- Was das Programm kennt (include/bhed/tour.h) - der Bau prueft dagegen ---
-ZIELARTEN = {"knopf", "knopfN", "menue", "gruppe", "eintrag", "zeile", "reiter", "fenster", "baum", "meldungen", "karte3d"}
+ZIELARTEN = {"knopf", "knopfN", "menue", "gruppe", "eintrag", "zeile", "reiter", "fenster", "baum", "meldungen", "karte3d",
+             "gezeichnet"}  # H2: selbst gezeichnete Ziele (gui/tour.h, tourZielMelden)
 PRUEFUNGEN = {"reiter", "knoten", "aenderung", "rem", "uebersetzt", "gespeichert", "befehl", "leer", "kind", "wert",
               "auswahl", "editor", "editorzu", "fenster", "modus", "ansicht", "schwebt", "geklickt", "manuell",
               "zahl", "offen"}
@@ -237,14 +344,14 @@ def pruefe(seite, ansicht, nr, a, kennung_bekannt):
 
     def pruefungen(text, was):
         for p in [t.strip() for t in text.split("|") if t.strip()]:
-            name = p.rstrip("+~").split(":")[0].strip()
+            name = p.rstrip("+~-").split(":")[0].strip()
             if name not in PRUEFUNGEN:
                 raise SystemExit("%s: unbekannte Pruefung in %s: %s" % (wo, was, p))
 
     ziele(a["ziel"], "ziel")
     pruefungen(a["fertig"] or "manuell", "fertig")
-    if a["voraus"]:
-        p, _, o = a["voraus"].partition("<")
+    for stufe in [t for t in a["voraus"].split("&&") if t.strip()]:   # H2: verkettet
+        p, _, o = stufe.partition("<")
         pruefungen(p, "voraus")
         ziele(o, "voraus")
     for p, _t in a.get("falsch", []):

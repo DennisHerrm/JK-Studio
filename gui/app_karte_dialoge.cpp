@@ -29,6 +29,7 @@
 
 #include "bhed/fassung.h"
 #include "tastatur.h"
+#include "tour.h"   // H2: Seiten der Einstellungen als Ziele des Helfers
 
 #include <algorithm>
 #include <cfloat>
@@ -1607,6 +1608,8 @@ void zeichneEinstellungen() {
                                   ImGuiSelectableFlags_None, ImVec2{0.0F, px(static_cast<float>(kBaumZeile))})) {
                 g_entwurf.seite = i;
             }
+            // H2: die Seite als Ziel des Helfers ("Zeig es mir" fuer eine Einstellung des Karten-Editors)
+            tourZielMelden(("karte.einstseite." + std::to_string(i)).c_str(), ImRect{ImGui::GetItemRectMin(), ImGui::GetItemRectMax()});
             ImGui::PopStyleColor();
             const float textX = static_cast<float>(kRand + 1 + kEinzug * (s.tiefe + 1) + kTextRand);
             const ImVec2 tp = bp(textX, zeileY);

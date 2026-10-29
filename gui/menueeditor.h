@@ -32,6 +32,7 @@ struct Stand {
     int bilderGeladen = 0;   // Shader mit Textur
     bool interaktion = false;
     std::string cursorZeile; // Text der Zeile unter dem ersten Cursor
+    int exporte = 0;         // H2: erfolgreiche .pk3-Exporte (Tour "Ein Menue aendern")
 };
 [[nodiscard]] Stand stand();
 // Befehle wie die Knoepfe (Selbsttest)
@@ -53,6 +54,9 @@ void loescheAuswahl();
 std::string kopiereAuswahl();
 void fuegeItemsEin(const std::string& text);
 bool speichereUnter(const std::string& pfad);
+// H2 (KI-Auftraege): die Textaenderungen seit `vorher` als EIN Rueckgaengig-Schritt.
+// false, wenn sich die Schritte nicht zusammenfassen liessen (dann bleiben sie einzeln).
+bool zuEinemSchritt(const std::string& vorher);
 bool exportierePk3(const std::string& pfad);
 
 }  // namespace bhed::gui::menueeditor

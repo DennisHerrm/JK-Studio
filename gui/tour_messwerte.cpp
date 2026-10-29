@@ -31,11 +31,47 @@
 //   modell.blick         Pruefsumme des Blicks auf das Modell (und Drehteller)
 //   modell.details       Skin, Skelett, Texturen ("~" = eins davon umgeschaltet)
 //
+// H2 (mehr interaktive Touren):
+//   vorschau.laeuft      1, solange die Zeitleiste abspielt
+//   vorschau.zeit        Stelle des Abspielkopfs in ms ("~" = verschoben)
+//   vorschau.startseite  1 im Modus Map ohne Karte (die Startseite steht)
+//   vorschau.ents        Entities der Karte in der Vorschau ("-" = eine geloescht)
+//   vorschau.figurgewaehlt   1, wenn eine Figur gewaehlt ist (ihr Weg steht)
+//   vorschau.ohnefigur       1 in der Vorschau mit Karte, aber ohne Figur in der Szene
+//   vorschau.ohnelaufziel    1, wenn die gewaehlte Figur kein Laufziel zeigt
+//   vorschau.tlschritte      Bildschritte mit den Pfeiltasten in der Zeitleiste
+//   vorschau.gangartmenue    1, solange das Menue eines Laufziels offen ist
+//   vorschau.wegfenster / .wegzeigen / .wegpunkte / .weggeprueft / .wegwerkzeug
+//                        das Fenster NPC-Wegpunkte, das Netz zeigen, Zahl der
+//                        Wegpunkte, gepruefte Befunde, Werkzeug (1 setzen, 2 verbinden)
+//   mission.name         Pruefsumme von Name und Ordner der Mission ("~" = angelegt/geoeffnet)
+//   modell.da            1, wenn ein Modell geladen ist
+//   modell.skin          die gewaehlte Haut ("~" = gewechselt)
+//   modell.caps          1, wenn die _off-Flaechen gezeigt werden
+//   modell.flaechenliste Klicks auf den Flaechenzaehler (Liste im Detailprotokoll)
+//   modell.skelett       Pruefsumme der Animationsliste ("~" = anderes Skelett)
+//   programm.pfade       1, solange Edit > Paths offen ist
+//   programm.spielordner eingerichtete Spielordner ("+" = einer dazu)
+//   programm.regelwerk   Regelwerk der Vorschau (0 auto, 1 OpenJK, 2 Movie Duels ...)
+//   update.fenster       1, solange das Update-Fenster offen ist
+//   update.ergebnis      1, wenn die Suche fertig ist (aktuell, neu da oder Fehler)
+//   update.auto          1, wenn beim Start nach Updates gesucht wird
+//   karte.schluessel     Pruefsumme aller Schluessel/Werte der Entities ("~" = geaendert)
+//   karte.verbindungen   target -> targetname-Verbindungen zwischen Entities
+//   karte.einstellungen  1, solange die Einstellungen des Karten-Editors offen sind
+//   menue.dokumente      offene Menues im Menue-Editor ("+" = eins geoeffnet)
+//   menue.text           Pruefsumme des Menuetexts ("~" = etwas verschoben/geaendert)
+//   menue.auswahl        gewaehlte Elemente
+//   menue.bedienen       1 im Bedienmodus
+//   menue.exporte        erfolgreiche .pk3-Exporte ("+" = einer dazu)
+//
 // Die Dateizeiten liest es hoechstens zweimal je Sekunde; alles andere nur,
 // wenn der laufende Schritt einen karte.-Wert braucht (tourMesswerte, Argument).
 #include "tour.h"
 #include "app_internal.h"
 #include "karteneditor.h"
+#include "menueeditor.h"
+#include "update.h"
 
 #include <chrono>
 #include <cmath>
@@ -124,6 +160,27 @@ void karteMesswerte(std::map<std::string, double>& w, double jetzt) {
         if (ok) { w["karte.ent." + k] = n; }
     }
     w["karte.spielen"] = e.spielen.aktiv ? 1.0 : 0.0;
+    // H2: Schluessel der Entities und ihre Verbindungen (target -> targetname).
+    std::uint32_t hs = 2166136261U;
+    std::map<std::string, int> namen;
+    for (const auto& ent : e.karte.entitaeten()) {
+        for (const auto& [k, v] : ent->schluessel()) {
+            hs = fnv(fnv(fnv(hs, k), "="), v);
+            if (k == "targetname" && !v.empty()) { ++namen[v]; }
+        }
+        hs = fnv(hs, ";");
+    }
+    int verbindungen = 0;
+    for (const auto& ent : e.karte.entitaeten()) {
+        for (const auto& [k, v] : ent->schluessel()) {
+            if ((k == "target" || k == "target2") && !v.empty()) {
+                const auto it = namen.find(v);
+                verbindungen += it != namen.end() ? it->second : 0;
+            }
+        }
+    }
+    w["karte.schluessel"] = static_cast<double>(hs);
+    w["karte.verbindungen"] = verbindungen;
     // Dateizeiten (Speichern, Bauen, Packen) - gedrosselt.
     static Zeiten z;
     if (z.name != e.name || jetzt - z.gelesen > 0.5) {
@@ -152,6 +209,7 @@ void tourMesswerte(std::map<std::string, double>& werte, bool karte, double jetz
     // Karten-Editor (3) stehen dessen eigene Menues.
     werte["programm.hauptmenue"] = g_app->leftMode != 3 ? 1.0 : 0.0;
     werte["programm.einstellungen"] = g_app->prefsOpen ? 1.0 : 0.0;
+    werte["karte.einstellungen"] = ke::editor().einstellungenOffen ? 1.0 : 0.0;   // H2: Einstellungen des Karten-Editors
     // Die Vorschau (Modus 1): Karte da, Blick der freien Kamera, durch die Kamera.
     const bool karteDa = g_app->mapBereit && !g_app->map.empty();
     werte["vorschau.bereit"] = g_app->leftMode == 1 ? 1.0 : 0.0;
@@ -180,6 +238,53 @@ void tourMesswerte(std::map<std::string, double>& werte, bool karte, double jetz
     werte["modell.blick"] = mblick;
     werte["modell.details"] = g_app->modelSkinIndex * 4.0 + (g_app->modellKnochen ? 2.0 : 0.0) + (g_app->showModelTextures ? 1.0 : 0.0);
     werte["vorschau.einstellungen"] = g_app->leftMode == 1 ? static_cast<double>(kameraSchluessel(g_app->doc.script()).size()) : 0.0;
+    // H2: Abspielen, Startseite, Figuren, Wegpunkte, Mission.
+    werte["vorschau.laeuft"] = g_app->playing ? 1.0 : 0.0;
+    werte["vorschau.zeit"] = std::floor(g_app->playMs);
+    werte["vorschau.startseite"] = (g_app->leftMode == 1 && !karteDa) ? 1.0 : 0.0;
+    werte["vorschau.ents"] = static_cast<double>(g_app->map.entities.size());
+    werte["vorschau.figurgewaehlt"] = (g_app->leftMode == 1 && g_app->selectedActor >= 0) ? 1.0 : 0.0;
+    werte["vorschau.gangartmenue"] = tourGemeldet("vorschau.gangartmenue") ? 1.0 : 0.0;
+    werte["vorschau.ohnefigur"] = (g_app->leftMode == 1 && karteDa && g_app->scene.actors.empty()) ? 1.0 : 0.0;
+    werte["vorschau.ohnelaufziel"] =
+        (g_app->leftMode == 1 && g_app->selectedActor >= 0 && !tourGemeldet("vorschau.laufziel")) ? 1.0 : 0.0;
+    werte["vorschau.tlschritte"] = g_app->tlSchritte;
+    werte["vorschau.wegfenster"] = g_app->wegFensterOffen ? 1.0 : 0.0;
+    werte["vorschau.wegzeigen"] = g_app->zeigeWegnetz ? 1.0 : 0.0;
+    int wegpunkte = 0;
+    for (const MapEntity& me : g_app->map.entities) { wegpunkte += me.classname.rfind("waypoint", 0) == 0 ? 1 : 0; }
+    werte["vorschau.wegpunkte"] = wegpunkte;
+    werte["vorschau.weggeprueft"] = g_app->wegGeprueft ? 1.0 : 0.0;
+    werte["vorschau.wegwerkzeug"] = g_app->wegWerkzeug;
+    werte["mission.name"] = static_cast<double>(fnv(fnv(2166136261U, g_app->mission.name), g_app->mission.projektOrdner));
+    // Modell: Haut, Kappen, Flaechenliste, Skelett.
+    werte["modell.da"] = g_app->model.empty() ? 0.0 : 1.0;
+    werte["modell.skin"] = g_app->modelSkinIndex;
+    werte["modell.caps"] = g_app->showCaps ? 1.0 : 0.0;
+    werte["modell.flaechenliste"] = g_app->modellFlaechenListen;
+    std::uint32_t ha = fnv(2166136261U, std::to_string(g_app->anim.numFrames) + "/" + std::to_string(g_app->anim.bones.size()));
+    for (const AnimEntry& a : g_app->animList) { ha = fnv(ha, a.name); }
+    werte["modell.skelett"] = static_cast<double>(ha);
+    // Programm: Spielordner, Regelwerk, Updates.
+    werte["programm.pfade"] = g_app->pathsOpen ? 1.0 : 0.0;
+    werte["programm.spielordner"] = static_cast<double>(g_app->settings.gamePaths.size() + g_app->settings.gamePathsJk2.size());
+    werte["programm.regelwerk"] = g_app->settings.regelwerk;
+    werte["update.fenster"] = updater::fensterOffen() ? 1.0 : 0.0;
+    const updater::Stand us = updater::zustand().stand;
+    werte["update.ergebnis"] = (us == updater::Stand::Aktuell || us == updater::Stand::Verfuegbar || us == updater::Stand::Fehler ||
+                                us == updater::Stand::Fertig)
+                                   ? 1.0
+                                   : 0.0;
+    werte["update.auto"] = g_app->settings.updateCheck ? 1.0 : 0.0;
+    // Menue-Editor (Modus 4).
+    if (g_app->leftMode == 4) {
+        const menueeditor::Stand ms = menueeditor::stand();
+        werte["menue.dokumente"] = ms.dokumente;
+        werte["menue.text"] = static_cast<double>(fnv(2166136261U, ms.text));
+        werte["menue.auswahl"] = static_cast<double>(ms.auswahl.size());
+        werte["menue.bedienen"] = ms.interaktion ? 1.0 : 0.0;
+        werte["menue.exporte"] = ms.exporte;
+    }
     if (karte) { karteMesswerte(werte, jetzt); }
 }
 

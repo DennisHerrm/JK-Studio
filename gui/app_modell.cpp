@@ -12,6 +12,7 @@
 //            Abspielen, Bild vor, grosse Bildanzeige, Schleife, Tempo,
 //            Haut, Flaechen, Schieberegler
 #include "app_internal.h"
+#include "tour.h"   // H2: Ziele der Tour k-skins
 
 #include <algorithm>
 #include <cmath>
@@ -89,8 +90,10 @@ void drawAnimListe(float hoehe) {
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     if (g_app->animList.empty()) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(g_app->model.empty() ? Str::ModelNone : Str::ModelNoAnim));
+        ImGui::TextDisabled("%s", tr(g_app->model.empty() ? Str::ModelNoneH2 : Str::ModelNoAnim));
         ImGui::PopTextWrapPos();
+        // H2: ohne Modell zeigt ein Knopf den Weg (Tour "Ein Figurenmodell ansehen" ab Schritt 2).
+        if (g_app->model.empty() && ImGui::SmallButton(tr(Str::EmptyShowHow))) { (void)tourStarten("k-modell", 1); }
         ImGui::EndChild();
         return;
     }
@@ -510,7 +513,11 @@ void drawModelPanel() {
         ImGui::TextDisabled(tr(Str::ModelSurfaces), shown, total);
         // Klick: alle Flaechen ins Detailprotokoll (siehe Watt Tambor, rc3xx).
         if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::ModelSurfaceDump)); }
-        if (ImGui::IsItemClicked()) { modellFlaechenProtokoll(); }
+        tourZielMelden("modell.flaechen", ImRect{ImGui::GetItemRectMin(), ImGui::GetItemRectMax()});   // H2: Ziel der Tour k-skins
+        if (ImGui::IsItemClicked()) {
+            modellFlaechenProtokoll();
+            ++g_app->modellFlaechenListen;
+        }
     }
 
     // --- Zeile 2: Schieberegler ----------------------------------------------------

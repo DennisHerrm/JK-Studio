@@ -597,7 +597,7 @@
       "unter": "Neue Kameraeinstellung hier im Kamerafeld.",
       "ziel": "knopf:CamNewShot",
       "fertig": "zahl:vorschau.einstellungen+",
-      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.ohnekamera|zahl:vorschau.kameragewaehlt < gezeichnet:zeitleiste.kamera",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": "",
@@ -695,6 +695,629 @@
       "ziel": "knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures",
       "fertig": "zahl:modell.details~",
       "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-gangart",
+   "gruppe": "tut_figur",
+   "titel": "Gehen, rennen oder rückwärts laufen",
+   "kurz": "Ändern, wie sich eine Figur bewegt - direkt an ihrer Bahn auf der Karte.",
+   "seite": "k-gangart.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Bahn zeigen.** Klicke auf die Figur auf der Karte oder auf ihren Namen in der Zeitleiste. Ihre Bahn erscheint: grau vor dem Zeiger, gelb, wo sie schon gelaufen ist.",
+      "bild": "h_figur_bahn",
+      "unter": "Kyle und seine Bahn.",
+      "ziel": "karte3d",
+      "fertig": "zahl:vorschau.figurgewaehlt",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "Noch ist keine Karte offen. Lade zuerst eine: {{MenuFile}} > {{MapLoad}} - oder öffne eine Mission."
+       },
+       {
+        "wenn": "zahl:vorschau.ohnefigur",
+        "text": "Diese Karte hat noch keine Figur. Öffne eine Mission mit Figuren ({{MenuFile}} > {{LoadMission}}) oder setz eine: die Kachel {{EntKindNpc}} am linken Rand der Ansicht."
+       }
+      ]
+     },
+     {
+      "text": "**Rechtsklick auf das Laufziel** am Ende der Bahn. Das Menü bietet **{{BahnGehen}}**, **{{BahnRennen}}** und **{{BahnRueckwaerts}}**.",
+      "bild": "k_gangart",
+      "unter": "Das Menü eines Laufziels.",
+      "ziel": "gezeichnet:vorschau.laufziel",
+      "fertig": "zahl:vorschau.gangartmenue",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.figurgewaehlt < karte3d",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnelaufziel",
+        "text": "Diese Figur läuft noch nicht - ihr Weg hat kein Laufziel. Wähl eine Figur, die läuft, oder lass zuerst eine laufen (3 · Sie laufen lassen)."
+       }
+      ]
+     },
+     {
+      "text": "**Wähle eins.** behaved schreibt `SET_WALKING` / `SET_RUNNING` vor diesen Lauf - hier hat **{{BahnRennen}}** `set ( SET_RUNNING, true )` eingefügt. Es gilt ab diesem Lauf.",
+      "bild": "g_gang_baum",
+      "unter": "Die neue Zeile SET_RUNNING.",
+      "ziel": "gezeichnet:vorschau.gangartmenue",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.gangartmenue < gezeichnet:vorschau.laufziel",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Sieh zu.** Spiel die Zeitleiste ab: die Figur rennt, und ihr Laufblock ist kürzer.",
+      "bild": "g_gang_zeit",
+      "unter": "Der kürzere Lauf in der Zeitleiste.",
+      "ziel": "knopf:TlPlay",
+      "fertig": "zahl:vorschau.laeuft",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-wegpunkte",
+   "gruppe": "tut_mission",
+   "titel": "NPCs Wege zum Laufen geben",
+   "kurz": "Das Wegpunktnetz der NPCs automatisch anlegen, prüfen und Wege von Hand ergänzen.",
+   "seite": "k-wegpunkte.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Öffne das Fenster.** **{{WegTitel}}** in der Kartenleiste.",
+      "bild": "e_weg_knopf",
+      "unter": "NPC-Wegpunkte in der Kartenleiste.",
+      "ziel": "gezeichnet:vorschau.wegknopf",
+      "fertig": "zahl:vorschau.wegfenster",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "Noch ist keine Karte offen. Lade zuerst eine: {{MenuFile}} > {{MapLoad}} - oder öffne eine Mission."
+       }
+      ]
+     },
+     {
+      "text": "**Zeig und erzeuge.** **{{WegZeigen}}** zeigt das Netz - grün von Hand, blau automatisch, orange Sprünge. **{{WegErzeugen}}** verteilt Wegpunkte über den begehbaren Boden; der Abstandsregler bestimmt, wie dicht.",
+      "bild": "h_wegpunkte",
+      "unter": "Das Fenster NPC-Wegpunkte.",
+      "ziel": "knopf:WegErzeugen@###wegpunkte",
+      "fertig": "zahl:vorschau.wegpunkte+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "Noch ist keine Karte offen. Lade zuerst eine: {{MenuFile}} > {{MapLoad}} - oder öffne eine Mission."
+       }
+      ]
+     },
+     {
+      "text": "**Prüfen.** **{{WegPruefen}}** findet, was das Spiel ablehnen würde - ein Klick auf ein Problem fliegt hin.",
+      "bild": "e_weg_pruefen",
+      "unter": "Netz prüfen.",
+      "ziel": "knopf:WegPruefen@###wegpunkte",
+      "fertig": "zahl:vorschau.weggeprueft",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Von Hand.** **{{WegSetzen}}**: Klicke auf den Boden, um einen Weg zu setzen; **{{WegVerbinden}}** verbindet zwei Punkte (<kbd>Strg</kbd>: ein Sprung).",
+      "bild": "e_weg_setzen",
+      "unter": "Wegpunkte setzen und Verbinden.",
+      "ziel": "knopf:WegSetzen@###wegpunkte;karte3d",
+      "fertig": "zahl:vorschau.wegpunkte+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-neu-timen",
+   "gruppe": "tut_kamera",
+   "titel": "Eine Zwischensequenz in der Zeitleiste neu takten",
+   "kurz": "Eine Einstellung verlängern, einen Satz später beginnen lassen, einen ganzen Teil verschieben - durch Ziehen von Blöcken.",
+   "seite": "k-neu-timen.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Spiel es ab.** Drück ▶ in der Zeitleiste unter der Karte. Schalte **{{TlAudio}}** ein, um den Dialog zu hören, an dem du die Schnitte ausrichtest.",
+      "bild": "c_tl_play",
+      "unter": "Zum Starten: Abspielen - und Klang.",
+      "ziel": "knopf:TlPlay",
+      "fertig": "zahl:vorschau.laeuft",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "Noch ist keine Karte offen. Lade zuerst eine: {{MenuFile}} > {{MapLoad}} - oder öffne eine Mission."
+       }
+      ]
+     },
+     {
+      "text": "**Block verschieben.** Zieh einen Block nach links oder rechts. Alles danach wandert mit, so bleibt der Rest im Takt. Halte <kbd>Alt</kbd>, um nur diesen Block zu verschieben.",
+      "bild": "a_k_timen",
+      "unter": "Einen Block in der Zeitleiste ziehen: Alles danach wandert mit.",
+      "ziel": "gezeichnet:zeitleiste",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Ändere eine Dauer.** Zieh die rechte Kante eines Blocks - eines Laufs, einer Kamerafahrt, eines wait -, um ihn kürzer oder länger zu machen.",
+      "bild": "c_tl_kante",
+      "unter": "Die rechte Kante eines Blocks.",
+      "ziel": "gezeichnet:zeitleiste",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Geh genau in Schritten.** Mit der Maus über der Zeitleiste verschieben <kbd>←</kbd> / <kbd>→</kbd> den Zeiger um 50 ms, mit <kbd>Umschalt</kbd> um eine Sekunde. Die Zeitanzeige zeigt, wo du bist; klick darauf, um auf Bilder umzuschalten.",
+      "bild": "c_tl_zeit",
+      "unter": "Die Zeitanzeige.",
+      "ziel": "gezeichnet:zeitleiste",
+      "fertig": "zahl:vorschau.tlschritte+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Prüf das Skript.** Jedes Ziehen ändert einen Wert im Skript (ein wait, eine Zeit). Klick auf einen Block: seine Zeile wird in der Skriptspalte rechts gewählt.",
+      "bild": "c_tl_klick",
+      "unter": "Ein angeklickter Block und seine Zeile im Skript.",
+      "ziel": "gezeichnet:zeitleiste;baum",
+      "fertig": "auswahl",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-p1",
+   "gruppe": "tut",
+   "titel": "1 · Die Mission anlegen",
+   "kurz": "Eine neue Mission auf taspir1: Karte, Spielerstart, Skriptstarter und ein Intro-Skript werden für dich angelegt.",
+   "seite": "tut-p1.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Die Startseite öffnen.** Stell die Modusleiste auf **{{ViewMap}}**. Ohne Karte zeigt der Tab die Startseite.",
+      "bild": "h_start",
+      "unter": "Die Startseite des Mission-Tabs.",
+      "ziel": "knopf:ViewMap@modebar",
+      "fertig": "zahl:vorschau.startseite",
+      "voraus": "",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.karte",
+        "text": "Eine Karte ist offen, darum zeigt der Reiter die Karte statt der Startseite. Schließ sie mit {{MenuFile}} > {{MapClose}}."
+       }
+      ]
+     },
+     {
+      "text": "**Neue Mission.** Klick auf **{{StartCardNew}}**. Tippe in der Liste `taspir1` und wähle die Karte aus. Als **{{MissionName}}** tippst du `taspir_tut` - Buchstaben, Ziffern und `_`. Der **{{MissionFolder}}** füllt sich von selbst. Drück **{{MissionCreate}}**.",
+      "bild": "h_mission_neu",
+      "unter": "Das Fenster „Neue Mission“.",
+      "ziel": "knopf:StartCardNew;knopf:MissionCreate",
+      "fertig": "zahl:mission.name~",
+      "voraus": "zahl:vorschau.startseite|offen:##neuemission < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Schau dir an, was du bekommen hast.** Die Karte öffnet sich auf der Landeplattform. behaved hat neben dem Spielerstart einen `target_scriptrunner` angelegt: Wenn der Spieler erscheint, läuft das Skript `taspir_tut/intro`. Es ist in einem Reiter offen - eine kurze Kameraeinstellung hinter dem Spielerstart.",
+      "bild": "t4_2",
+      "unter": "Die neue Mission: Der Spielerstart ist gewählt, rechts ist das Intro-Skript offen.",
+      "ziel": "karte3d",
+      "fertig": "manuell",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Das Original-Intro abschalten.** taspir1 hat einen eigenen Start: Sein Spielerstart löst schon einen Skriptstarter mit `taspir1/preIntro` aus, und derselbe Auslöser startet jetzt auch deinen - beide liefen gleichzeitig. Tippe `t271` ins Suchfeld der Entity-Liste - das ist der Skriptstarter des Originals (sein `usescript` ist `taspir1/preIntro`) -, wähle ihn und drück <kbd>Entf</kbd>. Die Ansicht **{{FlowGraph}}** zeigt solche Verbindungen auf einen Blick (Graph: was startet was).",
+      "bild": "e_t271",
+      "unter": "Der Starter des Originals, gefunden mit dem Suchfeld.",
+      "ziel": "karte3d",
+      "fertig": "zahl:vorschau.ents-",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-skins",
+   "gruppe": "tut_mission",
+   "titel": "Skins und Skelette eines Modells",
+   "kurz": "Ein anderer Skin, ein anderes Skelett und die Flächen, die ein Skin ein- oder ausschaltet.",
+   "seite": "k-skins.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Wechsle den Skin.** Im Tab **{{ViewModel}}** zeigt die Liste **{{ModelSkin}}** in der Abspielleiste die Skins, die zum Modell gehören; **{{OpenSkin}}** lädt einen anderen.",
+      "bild": "k_modell_leiste",
+      "unter": "Die Abspielleiste mit der Skin-Liste.",
+      "ziel": "knopf:ModelSkin;knopf:OpenSkin",
+      "fertig": "zahl:modell.skin~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Flächen.** Der Zähler daneben zeigt, wie viele Flächen der Skin zeichnet; klick darauf, um sie alle im Detailprotokoll aufzulisten.",
+      "bild": "m_flaechen",
+      "unter": "Der Flächenzähler.",
+      "ziel": "gezeichnet:modell.flaechen",
+      "fertig": "zahl:modell.flaechenliste+",
+      "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Kappen.** **{{ModelCaps}}** zeigt die `_off`-Flächen, die die Löcher schließen, wo Gliedmaßen ansetzen.",
+      "bild": "m_caps",
+      "unter": "Kappen zeigen.",
+      "ziel": "knopf:ModelCaps",
+      "fertig": "zahl:modell.caps~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Ein anderes Skelett.** **{{ModelLoadGla}}** lädt eine andere `.gla` mit ihren Animationen.",
+      "bild": "m_gla",
+      "unter": ".gla laden.",
+      "ziel": "knopf:ModelLoadGla",
+      "fertig": "zahl:modell.skelett~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-spielordner",
+   "gruppe": "tut_mission",
+   "titel": "Spielordner und Einstellungen einrichten",
+   "kurz": "Sag dem Programm, wo Jedi Academy installiert ist, prüf, was es gefunden hat, und wähl die Regeln der Vorschau.",
+   "seite": "k-spielordner.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Öffne die Pfade.** **{{MenuEdit}} → {{PathsTitle}}**. Im Karten-Editor wechsle zuerst zu **{{ViewEvents}}** - dort stehen die Menüs **{{MenuFile}}**, **{{MenuEdit}}** und **{{MenuView}}**.",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:MenuEdit>PathsTitle",
+      "fertig": "zahl:programm.pfade",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Füge den Spielordner hinzu.** Drück **{{Pk3AddPath}}** und wähl den Ordner `base` von Jedi Academy - den mit `assets0.pk3`. Für Movie Duels nimm auch dessen Ordner `MD` dazu.",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:Pk3AddPath@###paths",
+      "fertig": "zahl:programm.spielordner+",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.pfade < menue:MenuEdit>PathsTitle",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Prüf die Liste.** Jeder Ordner zeigt, wie viele Archive er gefunden hat. Steht dort keins, war es der falsche Ordner - entfern ihn und versuch es noch einmal. Dann schließ das Fenster.",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:###paths",
+      "fertig": "manuell",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.pfade < menue:MenuEdit>PathsTitle",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Öffne die Einstellungen.** **{{MenuEdit}} → {{AppPrefs}}**: Lautstärken, die Spielregeln der Vorschau, Schwierigkeit und wie sich das Programm verhält.",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:MenuEdit>AppPrefs",
+      "fertig": "zahl:programm.einstellungen",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Wähl die Regeln.** **{{PrefsRegelwerk}}**: *auto* richtet sich nach deinem Spielordner; OpenJK oder Movie Duels lassen die Vorschau genau wie dieses Spiel laufen - Gehen, Türen, Zeiten.",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:PrefsRegelwerk",
+      "fertig": "zahl:programm.regelwerk~",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.einstellungen < menue:MenuEdit>AppPrefs",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-update",
+   "gruppe": "tut_mission",
+   "titel": "Nach Updates suchen",
+   "kurz": "Such nach einer neuen Fassung, lies, was sich geändert hat, und entscheide, ob das Programm beim Start nachsieht.",
+   "seite": "k-update.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Such nach einer neuen Fassung.** **{{MenuHelp}} → {{UpdMenu}}**. Das Programm fragt GitHub nach der neuesten Fassung - nur jetzt, weil du es gewählt hast.",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:MenuHelp>UpdMenu",
+      "fertig": "zahl:update.fenster",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Lies die Antwort.** Das Fenster sagt, dass du die neueste Fassung hast - oder zeigt die neue mit ihren Notizen und **{{UpdInstall}}**. Ohne Verbindung sagt es das; **{{UpdRetry}}** versucht es noch einmal.",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:###update",
+      "fertig": "zahl:update.ergebnis",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.fenster < menue:MenuHelp>UpdMenu",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Beim Start oder nicht.** **{{MenuHelp}} → {{UpdAutoCheck}}** schaltet die Suche beim Start ein oder aus. Sonst wird nie etwas gesendet.",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:MenuHelp>UpdAutoCheck",
+      "fertig": "zahl:update.auto~",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Was ist neu?** **{{ChangelogMenu}}** im Fenster (oder im Menü **{{MenuHelp}}**) zeigt die Änderungen jeder Fassung.",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu",
+      "fertig": "offen:###changelog",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-karte-tuer",
+   "gruppe": "tut",
+   "titel": "Eine Tür und ein Trigger im Karten-Editor",
+   "kurz": "Mach aus einem Brush eine Tür, sag ihr, wohin sie aufgeht, und lass sie von einem Trigger öffnen, wenn der Spieler hineinläuft.",
+   "seite": "tut-karte-tuer.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Öffne den Karten-Editor.** **{{ViewMapEditor}}** in der Modusleiste. Öffne deine Karte aus Deine erste Karte: ein Raum zum Herumlaufen - oder eine andere mit einem Raum.",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:ViewMapEditor@modebar",
+      "fertig": "modus:3",
+      "voraus": "",
+      "einrichten": "modus:3",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Zieh die Tür.** Zieh mit der LINKEN Maustaste in einer 2D-Ansicht einen dünnen Brush, wo die Tür hin soll - zum Beispiel 16 Einheiten dick.",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.ent+",
+        "text": "Das hat eine Entity gesetzt. Drück Strg+Z und zieh dann mit der LINKEN Maustaste in der 2D-Ansicht."
+       }
+      ]
+     },
+     {
+      "text": "**Mach eine Tür daraus.** Lass ihn gewählt, klick rechts in die 2D-Ansicht und wähl **func → func_door**. Der Brush ist jetzt eine Entity, die sich bewegt.",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.func_door+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.keineauswahl",
+        "text": "Nichts ist gewählt. Klick zuerst den Tür-Brush in einer 2D-Ansicht an, dann rechts klicken und func > func_door wählen."
+       },
+       {
+        "wenn": "zahl:karte.ent.light+",
+        "text": "Das war ein Licht. Drück Strg+Z, wähl den Tür-Brush und nimm func > func_door."
+       }
+      ]
+     },
+     {
+      "text": "**Wohin sie aufgeht.** Drück <kbd>N</kbd> für den Entity-Inspektor. Setz den Schlüssel `angle` auf `90` (sie gleitet nach Norden; `-1` ist hoch, `-2` runter) und drück <kbd>Enter</kbd>.",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##feldGruppe",
+      "fertig": "zahl:karte.schluessel~",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Zieh den Trigger.** Zieh einen zweiten Brush vor der Tür, klick rechts und wähl **trigger → trigger_multiple**. Trigger sind im Spiel unsichtbar.",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.trigger_multiple+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Verbinde sie.** Wähl zuerst den Trigger, dann die Tür (<kbd>Umschalt</kbd>+Klick), und drück <kbd>Strg</kbd>+<kbd>K</kbd> - **{{KeLEntity}} → {{KeLConnectEntities}}**. Der `target` des Triggers nennt jetzt den `targetname` der Tür.",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:KeLEntity>KeLConnectEntities",
+      "fertig": "zahl:karte.verbindungen+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Probier es aus.** Bau die Karte und lauf durch wie in Deine erste Karte: ein Raum zum Herumlaufen: Die Tür geht auf, wenn du in den Trigger trittst.",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:KeLBuild",
+      "fertig": "zahl:karte.gebaut+|zahl:karte.spielen",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-menue",
+   "gruppe": "tut",
+   "titel": "Ein Menü des Spiels ändern",
+   "kurz": "Öffne ein Menü des Spiels, verschieb einen Knopf, probier es wie im Spiel aus und pack es für deinen Mod.",
+   "seite": "tut-menue.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Öffne den Menü-Editor.** **{{ViewMenuEditor}}** in der Modusleiste.",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:ViewMenuEditor@modebar",
+      "fertig": "modus:4",
+      "voraus": "",
+      "einrichten": "modus:4",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Öffne ein Menü des Spiels.** **{{MeAusSpiel}}** und wähl eins, zum Beispiel `ui/jamp/main.menu`. Es wird aus den Spieldateien gelesen und wie im Spiel gezeichnet - der Spielordner bleibt unverändert.",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:MeAusSpiel",
+      "fertig": "zahl:menue.dokumente+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Verschieb ein Element.** Klick einen Knopf auf der Fläche an und zieh ihn - oder schieb ihn mit den Pfeiltasten. Sein `rect` im Code darunter ändert sich mit.",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##mitte",
+      "fertig": "zahl:menue.text~",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:menue.bedienen",
+        "text": "Du bist im Modus {{MeBedienen}} - dort drücken Klicks die Knöpfe. Schalt auf {{MeBearbeiten}}, um Elemente zu verschieben."
+       }
+      ]
+     },
+     {
+      "text": "**Probier es wie im Spiel.** **{{MeBedienen}}**: Klicks drücken jetzt Knöpfe und ändern Cvars - nur in der Vorschau, nie in deinem Spiel. **{{MeBearbeiten}}** bringt dich zurück.",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:MeBedienen",
+      "fertig": "zahl:menue.bedienen",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Pack es.** **{{MeExportPk3}}** schreibt das geänderte Menü in eine .pk3 für deinen Mod-Ordner, zum Beispiel `zz_menu.pk3`. In den Spielordner selbst wird nie geschrieben.",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:MeExportPk3",
+      "fertig": "zahl:menue.exporte+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""

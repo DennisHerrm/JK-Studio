@@ -10,6 +10,11 @@
 // Bedienelement hervorheben (Zielangabe wie in bhed/tour.h) oder eine
 // Handbuchseite oeffnen.
 //
+// H2: Beugungen (rennt -> renn(en), läuft -> lauf(en), entities -> entity,
+// making -> make), Tippfehler (Damerau-Levenshtein 1, ab 9 Buchstaben 2),
+// die Inhalte von Untermenues und Dialogen als Suchwoerter und der aktuelle
+// Modus als Gewicht (frage(..., modus)).
+//
 // Rangfolge: BM25 ueber Titel (x3), Suchwoerter (x2) und Text (x1). Woerter
 // werden klein geschrieben, Umlaute gefaltet (ae, oe, ue, ss) und grob
 // gestutzt (Kameras -> kamera); CJK zaehlt als Einzel- und Doppelzeichen.
@@ -42,6 +47,7 @@ struct Eintrag {
     std::string titel;     // in der Sprache des Index
     std::string text;      // kurze Erklaerung (erster Satz)
     std::string woerter;   // weitere Suchwoerter (Englisch, Wortlisten der Ziele)
+    std::string inhalt;    // H2: was im Untermenue/Dialog steht (nur Suche, schwach gewichtet)
     std::string bereich;   // skript, mission, vorschau, modell, karte, einstellungen, updates, programm
     std::string pfad;      // Anzeige "Bearbeiten > Einstellungen" (Ort)
     // Zeig es mir
@@ -72,6 +78,9 @@ public:
     [[nodiscard]] std::vector<Treffer> frage(const std::string& anfrage, std::size_t hoechstens = 5, int modus = -1) const;
     [[nodiscard]] const std::vector<Eintrag>& eintraege() const { return eintraege_; }
     [[nodiscard]] const Eintrag* finde(const std::string& id) const;
+    // H2: ein bekanntes Wort fuer ein unbekanntes ("texure" -> "textur"); "" = keins.
+    // Fuer "Hast du gemeint ...?" bei 0 Treffern.
+    [[nodiscard]] std::string vorschlag(const std::string& anfrage) const;
 
 private:
     struct Doku {
@@ -83,7 +92,15 @@ private:
     std::unordered_map<std::string, double> df_;
     std::vector<std::string> vokabel_;   // sortiert, fuer Vorsilben
     double mittel_ = 1.0;
+    // H2: Beugung und Tippfehler - bekannte Woerter fuer ein unbekanntes (roh, gestutzt).
+    void ersatz(const std::string& roh, const std::string& gestutzt, std::vector<std::pair<std::string, double>>& aus) const;
 };
+
+// H2: die Bereiche, die zu einem Modus gehoeren (0 Events: skript/programm,
+// 1 Vorschau: vorschau/mission, 2 Modell, 3 Karten-Editor: karte, 4 Menue-Editor: menue).
+[[nodiscard]] bool bereichImModus(const std::string& bereich, int modus);
+// H2: Damerau-Levenshtein-Abstand (optimale Ausrichtung), abgebrochen ueber `hoechstens`.
+[[nodiscard]] int abstand(const std::string& a, const std::string& b, int hoechstens);
 
 // --- Ortskatalog: wo im Programm etwas steht ---------------------------------
 
@@ -92,7 +109,8 @@ struct Ort {
     const char* ziel;      // Zielangabe, z. B. "menue:MenuEdit>AppPrefs"
     const char* kette;     // Kennungen fuer die Anzeige, ">" getrennt
     const char* hinweis;   // Kennung des Hinweistexts ("" = keiner)
-    const char* voraus;    // Vorbedingung ("" = keine)
+    const char* voraus;    // Vorbedingung ("" = keine; H2: mit "&&" verkettet)
+    const char* inhalt;    // H2: Kennungen im Untermenue/Dialog, "," getrennt (nur Suchwoerter)
 };
 // Hauptmenue, Modusleiste und Einstellungen (src/hilfe_orte.inc, erzeugt von
 // tools/gen_hilfe_orte.py) und die Menues des Karten-Editors (aus

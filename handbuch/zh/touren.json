@@ -597,7 +597,7 @@
       "unter": "摄像机面板中的“在此新建镜头”。",
       "ziel": "knopf:CamNewShot",
       "fertig": "zahl:vorschau.einstellungen+",
-      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.ohnekamera|zahl:vorschau.kameragewaehlt < gezeichnet:zeitleiste.kamera",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": "",
@@ -695,6 +695,629 @@
       "ziel": "knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures",
       "fertig": "zahl:modell.details~",
       "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-gangart",
+   "gruppe": "tut_figur",
+   "titel": "行走、奔跑或倒退行走",
+   "kurz": "改变角色的移动方式——直接在地图上的路径上操作。",
+   "seite": "k-gangart.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**显示路径。** 单击地图上的角色或时间轴中它的名字。它的路径会出现:播放头之后尚未走到的部分为灰色,已经走过的部分为黄色。",
+      "bild": "h_figur_bahn",
+      "unter": "Kyle 及其路径。",
+      "ziel": "karte3d",
+      "fertig": "zahl:vorschau.figurgewaehlt",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "还没有打开地图。请先加载一张:{{MenuFile}} > {{MapLoad}},或打开一个任务。"
+       },
+       {
+        "wenn": "zahl:vorschau.ohnefigur",
+        "text": "这张地图还没有角色。打开一个带角色的任务({{MenuFile}} > {{LoadMission}}),或放置一个:视图左边缘的 {{EntKindNpc}} 图块。"
+       }
+      ]
+     },
+     {
+      "text": "**右键单击路径末端的行走目标。** 菜单提供 **{{BahnGehen}}**、**{{BahnRennen}}** 和 **{{BahnRueckwaerts}}**。",
+      "bild": "k_gangart",
+      "unter": "行走目标的菜单。",
+      "ziel": "gezeichnet:vorschau.laufziel",
+      "fertig": "zahl:vorschau.gangartmenue",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.figurgewaehlt < karte3d",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnelaufziel",
+        "text": "这个角色还没有行走——它的路线上没有行走目标。选择一个会走的角色,或先让一个角色走起来(3 · 让他们行走)。"
+       }
+      ]
+     },
+     {
+      "text": "**选择其中一项。** behaved 会在这段行走之前写入 `SET_WALKING` / `SET_RUNNING`——这里 **{{BahnRennen}}** 添加了 `set ( SET_RUNNING, true )`。它从这段行走开始生效。",
+      "bild": "g_gang_baum",
+      "unter": "新的 SET_RUNNING 行。",
+      "ziel": "gezeichnet:vorschau.gangartmenue",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.gangartmenue < gezeichnet:vorschau.laufziel",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**观看效果。** 播放时间轴:角色在奔跑,它的行走块也变短了。",
+      "bild": "g_gang_zeit",
+      "unter": "时间轴中变短的行走。",
+      "ziel": "knopf:TlPlay",
+      "fertig": "zahl:vorschau.laeuft",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-wegpunkte",
+   "gruppe": "tut_mission",
+   "titel": "为 NPC 提供行走路径",
+   "kurz": "自动创建 NPC 路径点路网,检查它,并手动添加路径。",
+   "seite": "k-wegpunkte.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**打开窗口。** 地图工具栏上的 **{{WegTitel}}**。",
+      "bild": "e_weg_knopf",
+      "unter": "工具栏上的“NPC 路径点”。",
+      "ziel": "gezeichnet:vorschau.wegknopf",
+      "fertig": "zahl:vorschau.wegfenster",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "还没有打开地图。请先加载一张:{{MenuFile}} > {{MapLoad}},或打开一个任务。"
+       }
+      ]
+     },
+     {
+      "text": "**显示与生成。** **{{WegZeigen}}** 显示路网——绿色为手动放置,蓝色为自动生成,橙色为跳跃。**{{WegErzeugen}}** 在可行走的地面上铺设路径点;间距滑块决定疏密。",
+      "bild": "h_wegpunkte",
+      "unter": "NPC 路径点窗口。",
+      "ziel": "knopf:WegErzeugen@###wegpunkte",
+      "fertig": "zahl:vorschau.wegpunkte+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "还没有打开地图。请先加载一张:{{MenuFile}} > {{MapLoad}},或打开一个任务。"
+       }
+      ]
+     },
+     {
+      "text": "**检查。** **{{WegPruefen}}** 查找游戏会拒绝的问题——单击某个问题即可飞到那里。",
+      "bild": "e_weg_pruefen",
+      "unter": "检查路网。",
+      "ziel": "knopf:WegPruefen@###wegpunkte",
+      "fertig": "zahl:vorschau.weggeprueft",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**手动。** **{{WegSetzen}}**:单击地面放置路径;**{{WegVerbinden}}** 连接两个点(<kbd>Ctrl</kbd>:跳跃)。",
+      "bild": "e_weg_setzen",
+      "unter": "放置路径点和连接。",
+      "ziel": "knopf:WegSetzen@###wegpunkte;karte3d",
+      "fertig": "zahl:vorschau.wegpunkte+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-neu-timen",
+   "gruppe": "tut_kamera",
+   "titel": "在时间轴中重新调整过场动画的时间",
+   "kurz": "延长一个镜头、让一句台词晚点开始、移动整段内容——只需拖动块。",
+   "seite": "k-neu-timen.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**播放。** 按地图下方时间轴中的 ▶。打开 **{{TlAudio}}**,即可听到你用来对齐剪辑点的对白。",
+      "bild": "c_tl_play",
+      "unter": "开始:播放——以及声音。",
+      "ziel": "knopf:TlPlay",
+      "fertig": "zahl:vorschau.laeuft",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "还没有打开地图。请先加载一张:{{MenuFile}} > {{MapLoad}},或打开一个任务。"
+       }
+      ]
+     },
+     {
+      "text": "**移动块。** 向左或向右拖动块。其后的所有内容随之移动,其余部分保持同步。按住 <kbd>Alt</kbd> 只移动这一个块。",
+      "bild": "a_k_timen",
+      "unter": "在时间轴中拖动块:其后的一切随之移动。",
+      "ziel": "gezeichnet:zeitleiste",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**修改时长。** 拖动块的右边缘——行走、摄像机移动、等待——使其变短或变长。",
+      "bild": "c_tl_kante",
+      "unter": "块的右边缘。",
+      "ziel": "gezeichnet:zeitleiste",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**精确步进。** 鼠标位于时间轴上时,<kbd>←</kbd> / <kbd>→</kbd> 把播放头移动 50 毫秒,按住 <kbd>Shift</kbd> 则移动一秒。时间显示会告诉你当前位置;单击它可切换为帧。",
+      "bild": "c_tl_zeit",
+      "unter": "时间显示。",
+      "ziel": "gezeichnet:zeitleiste",
+      "fertig": "zahl:vorschau.tlschritte+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**检查脚本。** 每次拖动都会修改脚本中的一个值(一个 wait、一个时间)。单击一个块:它对应的行会在右侧的脚本栏中被选中。",
+      "bild": "c_tl_klick",
+      "unter": "单击的块及其在脚本中的行。",
+      "ziel": "gezeichnet:zeitleiste;baum",
+      "fertig": "auswahl",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-p1",
+   "gruppe": "tut",
+   "titel": "1 · 创建任务",
+   "kurz": "在 taspir1 上新建任务:地图、玩家出生点、脚本启动器和一个开场脚本都会自动为你创建。",
+   "seite": "tut-p1.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**打开起始页。** 把模式栏切换到 **{{ViewMap}}**。没有打开地图时,该标签页显示起始页。",
+      "bild": "h_start",
+      "unter": "“任务”标签页的起始页。",
+      "ziel": "knopf:ViewMap@modebar",
+      "fertig": "zahl:vorschau.startseite",
+      "voraus": "",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.karte",
+        "text": "已经打开了一张地图,所以标签页显示地图而不是开始页。用 {{MenuFile}} > {{MapClose}} 关闭它。"
+       }
+      ]
+     },
+     {
+      "text": "**新建任务。** 单击 **{{StartCardNew}}**。在列表中输入 `taspir1` 并选中它。在 **{{MissionName}}** 中输入 `taspir_tut`——字母、数字和 `_`。**{{MissionFolder}}** 会自动填写。按 **{{MissionCreate}}**。",
+      "bild": "h_mission_neu",
+      "unter": "“新建任务”窗口。",
+      "ziel": "knopf:StartCardNew;knopf:MissionCreate",
+      "fertig": "zahl:mission.name~",
+      "voraus": "zahl:vorschau.startseite|offen:##neuemission < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**看看你得到了什么。** 地图在着陆平台处打开。behaved 在玩家出生点旁添加了一个 `target_scriptrunner`:玩家出生时,脚本 `taspir_tut/intro` 就会运行。它已在一个标签页中打开——玩家出生点后方的一个简短摄像机镜头。",
+      "bild": "t4_2",
+      "unter": "新任务:玩家出生点已选中,右侧打开了开场脚本。",
+      "ziel": "karte3d",
+      "fertig": "manuell",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**关闭原版开场。** taspir1 有自己的开场:它的玩家出生点已经会触发一个运行 `taspir1/preIntro` 的脚本启动器,而同一个触发现在也会启动你的脚本——两者会同时播放。在实体列表的搜索框中输入 `t271`——这就是原版的脚本启动器(它的 `usescript` 是 `taspir1/preIntro`)——选中它并按 <kbd>Del</kbd>。**{{FlowGraph}}** 视图能让你一眼看清这类关联(图表:谁启动谁)。",
+      "bild": "e_t271",
+      "unter": "用搜索框找到的原版启动器。",
+      "ziel": "karte3d",
+      "fertig": "zahl:vorschau.ents-",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-skins",
+   "gruppe": "tut_mission",
+   "titel": "模型的皮肤和骨架",
+   "kurz": "换一个皮肤、换一套骨架,以及皮肤打开或关闭的表面。",
+   "seite": "k-skins.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**切换皮肤。** 在 **{{ViewModel}}** 标签页中,播放栏里的 **{{ModelSkin}}** 列表显示模型自带的皮肤;**{{OpenSkin}}** 可加载其他皮肤。",
+      "bild": "k_modell_leiste",
+      "unter": "带有皮肤列表的播放栏。",
+      "ziel": "knopf:ModelSkin;knopf:OpenSkin",
+      "fertig": "zahl:modell.skin~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**表面。** 旁边的计数显示该皮肤绘制了多少个表面;单击它可在详细日志中列出所有表面。",
+      "bild": "m_flaechen",
+      "unter": "表面计数。",
+      "ziel": "gezeichnet:modell.flaechen",
+      "fertig": "zahl:modell.flaechenliste+",
+      "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**封盖。** **{{ModelCaps}}** 显示 `_off` 表面,它们封住肢体连接处的孔洞。",
+      "bild": "m_caps",
+      "unter": "显示封盖。",
+      "ziel": "knopf:ModelCaps",
+      "fertig": "zahl:modell.caps~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**另一套骨架。** **{{ModelLoadGla}}** 加载另一个 `.gla` 及其动画。",
+      "bild": "m_gla",
+      "unter": "加载 .gla。",
+      "ziel": "knopf:ModelLoadGla",
+      "fertig": "zahl:modell.skelett~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-spielordner",
+   "gruppe": "tut_mission",
+   "titel": "设置游戏文件夹和首选项",
+   "kurz": "告诉程序 Jedi Academy 安装在哪里,检查它找到了什么,并选择预览的规则。",
+   "seite": "k-spielordner.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**打开路径。** **{{MenuEdit}} → {{PathsTitle}}**。在地图编辑器中请先切换到 **{{ViewEvents}}**,**{{MenuFile}}**、**{{MenuEdit}}** 和 **{{MenuView}}** 菜单在那里。",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:MenuEdit>PathsTitle",
+      "fertig": "zahl:programm.pfade",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**添加游戏文件夹。** 按 **{{Pk3AddPath}}**,选择 Jedi Academy 的 `base` 文件夹,也就是包含 `assets0.pk3` 的那个。使用 Movie Duels 时再添加它的 `MD` 文件夹。",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:Pk3AddPath@###paths",
+      "fertig": "zahl:programm.spielordner+",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.pfade < menue:MenuEdit>PathsTitle",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**检查列表。** 每个文件夹都会显示找到了多少个压缩包。如果一个都没有,说明选错了文件夹——删除它再试一次。然后关闭窗口。",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:###paths",
+      "fertig": "manuell",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.pfade < menue:MenuEdit>PathsTitle",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**打开首选项。** **{{MenuEdit}} → {{AppPrefs}}**:音量、预览的游戏规则、难度以及程序的行为。",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:MenuEdit>AppPrefs",
+      "fertig": "zahl:programm.einstellungen",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**选择规则。** **{{PrefsRegelwerk}}**:*auto* 跟随你的游戏文件夹;选择 OpenJK 或 Movie Duels 时,预览会完全按该游戏运行——行走、门、时间。",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:PrefsRegelwerk",
+      "fertig": "zahl:programm.regelwerk~",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.einstellungen < menue:MenuEdit>AppPrefs",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-update",
+   "gruppe": "tut_mission",
+   "titel": "检查更新",
+   "kurz": "查找新版本,阅读更改内容,并决定程序是否在启动时检查。",
+   "seite": "k-update.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**查找新版本。** **{{MenuHelp}} → {{UpdMenu}}**。程序会向 GitHub 查询最新版本——只在你选择时才这样做。",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:MenuHelp>UpdMenu",
+      "fertig": "zahl:update.fenster",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**阅读答复。** 窗口会告诉你已是最新版本,或显示新版本及其说明和 **{{UpdInstall}}**。没有网络时它会说明;**{{UpdRetry}}** 会再试一次。",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:###update",
+      "fertig": "zahl:update.ergebnis",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.fenster < menue:MenuHelp>UpdMenu",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**启动时是否检查。** **{{MenuHelp}} → {{UpdAutoCheck}}** 开启或关闭启动时的检查。除此之外不会发送任何内容。",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:MenuHelp>UpdAutoCheck",
+      "fertig": "zahl:update.auto~",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**有哪些变化?** 窗口中(或 **{{MenuHelp}}** 菜单中)的 **{{ChangelogMenu}}** 列出每个版本的更改。",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu",
+      "fertig": "offen:###changelog",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-karte-tuer",
+   "gruppe": "tut",
+   "titel": "在地图编辑器中制作门和触发器",
+   "kurz": "把画刷变成门,设置它的打开方向,并让玩家走进触发器时把它打开。",
+   "seite": "tut-karte-tuer.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**打开地图编辑器。** 在模式栏中选择 **{{ViewMapEditor}}**。打开 你的第一张地图:一个可以走动的房间 中的地图,或任何有房间的地图。",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:ViewMapEditor@modebar",
+      "fertig": "modus:3",
+      "voraus": "",
+      "einrichten": "modus:3",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**画出门。** 在 2D 视图中门所在的位置,用鼠标左键拖出一个薄画刷,例如 16 个单位厚。",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.ent+",
+        "text": "这创建了一个实体。按 Ctrl+Z,然后在 2D 视图中用鼠标左键拖动。"
+       }
+      ]
+     },
+     {
+      "text": "**把它变成门。** 保持选中,在 2D 视图中右键点击,选择 **func → func_door**。这个画刷现在是会移动的实体。",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.func_door+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.keineauswahl",
+        "text": "没有选中任何东西。先在 2D 视图中点击门的画刷,然后右键点击并选择 func > func_door。"
+       },
+       {
+        "wenn": "zahl:karte.ent.light+",
+        "text": "这是一盏灯。按 Ctrl+Z,选中门的画刷,然后选择 func > func_door。"
+       }
+      ]
+     },
+     {
+      "text": "**打开的方向。** 按 <kbd>N</kbd> 打开实体检查器。把键 `angle` 设为 `90`(向北滑开;`-1` 向上,`-2` 向下),然后按 <kbd>Enter</kbd>。",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##feldGruppe",
+      "fertig": "zahl:karte.schluessel~",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**画出触发器。** 在门前画第二个画刷,右键点击并选择 **trigger → trigger_multiple**。触发器在游戏中是看不见的。",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.trigger_multiple+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**连接它们。** 先选中触发器,再选中门(<kbd>Shift</kbd>+点击),然后按 <kbd>Ctrl</kbd>+<kbd>K</kbd>,即 **{{KeLEntity}} → {{KeLConnectEntities}}**。触发器的 `target` 现在指向门的 `targetname`。",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:KeLEntity>KeLConnectEntities",
+      "fertig": "zahl:karte.verbindungen+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**试一试。** 像 你的第一张地图:一个可以走动的房间 中那样编译地图并走一遍:你走进触发器时门就会打开。",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:KeLBuild",
+      "fertig": "zahl:karte.gebaut+|zahl:karte.spielen",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-menue",
+   "gruppe": "tut",
+   "titel": "修改游戏菜单",
+   "kurz": "打开游戏中的一个菜单,移动一个按钮,像在游戏中一样试用,然后为你的模组打包。",
+   "seite": "tut-menue.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**打开菜单编辑器。** 在模式栏中选择 **{{ViewMenuEditor}}**。",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:ViewMenuEditor@modebar",
+      "fertig": "modus:4",
+      "voraus": "",
+      "einrichten": "modus:4",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**打开游戏中的菜单。** 点击 **{{MeAusSpiel}}** 并选择一个,例如 `ui/jamp/main.menu`。它从游戏文件读取并按游戏的方式绘制,游戏文件夹不会被修改。",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:MeAusSpiel",
+      "fertig": "zahl:menue.dokumente+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**移动一个元素。** 在画布上点击一个按钮并拖动它,或用方向键微调。下方代码中的 `rect` 会随之改变。",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##mitte",
+      "fertig": "zahl:menue.text~",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:menue.bedienen",
+        "text": "你处于 {{MeBedienen}} 模式,点击会按下按钮。切换到 {{MeBearbeiten}} 才能移动元素。"
+       }
+      ]
+     },
+     {
+      "text": "**像在游戏中一样试用。** **{{MeBedienen}}**:现在点击会按下按钮并更改 cvar,只在预览中,绝不会影响你的游戏。**{{MeBearbeiten}}** 返回编辑。",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:MeBedienen",
+      "fertig": "zahl:menue.bedienen",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**打包。** **{{MeExportPk3}}** 把修改后的菜单写入一个用于模组文件夹的 .pk3,例如 `zz_menu.pk3`。绝不会写入游戏文件夹本身。",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:MeExportPk3",
+      "fertig": "zahl:menue.exporte+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""

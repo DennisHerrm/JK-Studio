@@ -2547,6 +2547,7 @@ void bahnGriffeMaus() {
 
 void bahnGriffeZeichnen() {
     if (ImGui::BeginPopup("##gangart")) {
+        tourZielMelden("vorschau.gangartmenue", ImGui::GetCurrentWindow()->Rect());   // H2: Tour k-gangart
         gangartMenueInhalt();
         ImGui::EndPopup();
     }
@@ -2591,6 +2592,7 @@ void bahnGriffeZeichnen() {
             }
         }
     }
+    bool laufzielGemeldet = false;   // H2: das erste sichtbare Laufziel ist ein Ziel der Tour k-gangart
     for (std::size_t i = 0; i < griffe.size(); ++i) {
         const BahnGriff& gr = griffe[i];
         // Der gezogene Griff steht, wo die Maus ihn hinstellt.
@@ -2625,6 +2627,11 @@ void bahnGriffeZeichnen() {
         if (gezogen && gr.art != 0) {
             ImVec2 v;
             if (aufSchirm(p, gr.von, v)) { dl->AddLine(v, s, IM_COL32(255, 255, 255, 160), 1.5F * px); }
+        }
+        if (gr.art == 1 && !laufzielGemeldet) {
+            const float rz = ImGui::GetFontSize() * 0.6F;
+            tourZielMelden("vorschau.laufziel", ImRect{s.x - rz, s.y - rz, s.x + rz, s.y + rz});
+            laufzielGemeldet = true;
         }
         const ImU32 farbe = gr.art == 0 ? IM_COL32(90, 220, 120, 255)
                           : gr.art == 1 ? IM_COL32(240, 200, 60, 255)

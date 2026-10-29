@@ -145,7 +145,7 @@ void fensterZeichnen() {
     const hilfe::Index& ix = index();
     if (s.letzte != s.frage) {
         s.letzte = s.frage;
-        s.treffer = ix.frage(s.frage, 5);
+        s.treffer = ix.frage(s.frage, 5, g_app->leftMode);   // H2: der aktuelle Modus zaehlt mit
     }
     ImGui::SetNextWindowSize(ImVec2{fs * 30.0F, fs * 30.0F}, ImGuiCond_FirstUseEver);
     const std::string titel = std::string(tr(Str::HlfTitle)) + "###hilfe";
@@ -162,7 +162,7 @@ void fensterZeichnen() {
     ImGui::SetNextItemWidth(breite);
     if (ImGui::InputTextWithHint("##hilfefrage", tr(Str::HlfExample), s.frage, sizeof(s.frage))) {
         s.letzte = s.frage;
-        s.treffer = ix.frage(s.frage, 5);
+        s.treffer = ix.frage(s.frage, 5, g_app->leftMode);
     }
     if (s.frage[0] == '\0') {
         ImGui::PushTextWrapPos(0.0F);   // am Fensterrand umbrechen
@@ -173,6 +173,15 @@ void fensterZeichnen() {
         if (ImGui::Button(tr(Str::HlfGuide))) { handbuchOeffnen(); }
     } else if (s.treffer.empty()) {
         ImGui::TextDisabled("%s", tr(Str::HlfNone));
+        // H2: "Meintest du ...?" - ein bekanntes Wort fuer einen Tippfehler.
+        if (const std::string v = ix.vorschlag(s.frage); !v.empty()) {
+            char t[320];
+            std::snprintf(t, sizeof(t), tr(Str::HlfMeant), v.c_str());
+            if (ImGui::Button(t)) {
+                ImGui::ClearActiveID();
+                std::snprintf(s.frage, sizeof(s.frage), "%s", v.c_str());
+            }
+        }
         if (ImGui::Button(tr(Str::HlfGuide))) { handbuchOeffnen(); }
     } else {
         trefferZeichnen(ix);
@@ -268,7 +277,7 @@ bool hilfeZeige(const std::string& id) {
 std::vector<HilfeTreffer> hilfeFrage(const std::string& frage, std::size_t hoechstens) {
     const hilfe::Index& ix = index();
     std::vector<HilfeTreffer> aus;
-    for (const hilfe::Treffer& t : ix.frage(frage, hoechstens)) {
+    for (const hilfe::Treffer& t : ix.frage(frage, hoechstens, g_app != nullptr ? g_app->leftMode : -1)) {
         const hilfe::Eintrag& e = ix.eintraege()[t.eintrag];
         aus.push_back(HilfeTreffer{e.id, artName(e.art), e.titel, ersterSatz(e.text), e.pfad, e.seite});
     }
@@ -306,7 +315,7 @@ void hilfeFrageSetzen(const std::string& frage) {
     ImGui::ClearActiveID();
     std::snprintf(s.frage, sizeof(s.frage), "%s", frage.c_str());
     s.letzte = s.frage;
-    s.treffer = index().frage(s.frage, 5);
+    s.treffer = index().frage(s.frage, 5, g_app != nullptr ? g_app->leftMode : -1);
 }
 
 void hilfeErsteSchritte(bool zeigen) {

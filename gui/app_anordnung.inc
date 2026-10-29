@@ -3314,7 +3314,12 @@ void drawTree(const Layout& l, int pane, float breite, float hoehe) {
         // Der Wechsel ist ANGEFORDERT, nicht sofort: switchTab mitten im
         // Zeichnen zoege dem Baum darunter den Boden weg.
         if (g_app->rows.empty()) {
-            ImGui::TextDisabled("%s", tr(Str::MsgNoScript));
+            // H2: ein leerer Zustand, der sagt, wie es weitergeht - mit einem
+            // Knopf, der das passende Tutorial startet.
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + breite * 0.9F);
+            ImGui::TextDisabled("%s", tr(pane == 0 && !g_app->tabs.empty() ? Str::ScriptEmptyHint : Str::MsgNoScript));
+            ImGui::PopTextWrapPos();
+            if (pane == 0 && ImGui::SmallButton(tr(Str::EmptyShowHow))) { (void)tourStarten("k-neues-skript", 1); }
         }
         const TreeMetrics tm = treeMetrics();
         // Der Rand links fuer Lesezeichen und Aenderungsmarken (Notepad++).
@@ -5034,6 +5039,7 @@ void drawMenu() {
         if (ImGui::MenuItem(tr(Str::PathsTitle))) {
             fensterZeigen(g_app->pathsOpen, "###paths");
         }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::PathsTitleHint)); }   // H2
         if (ImGui::MenuItem(tr(Str::KeysTitle))) {
             fensterZeigen(g_app->keysOpen, "###keys");
         }

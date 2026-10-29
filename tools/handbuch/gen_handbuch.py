@@ -108,6 +108,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in KARTE9})
             from i18n_hilfe1 import HILFE1     # Stufe H1: der Helfer, Touren, KI-Anbindung
             texte.update({e[0]: e[1:] for e in HILFE1})
+            from i18n_hilfe2 import HILFE2     # Stufe H2: mehr Touren, Helfer, KI-Chat, leichter verstaendlich
+            texte.update({e[0]: e[1:] for e in HILFE2})
             from i18n_menue1 import MENUE1     # Menue-Editor M1
             texte.update({e[0]: e[1:] for e in MENUE1})
             from i18n_karte9c import KARTE9C   # Stufe 9c: Werkzeugleisten, Echtzeit-Licht wie im Spiel

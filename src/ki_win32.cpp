@@ -81,10 +81,35 @@ std::string zufallsToken() {
     return t;
 }
 
-bool httpPost(const std::string& host, int port, bool sicher, const std::string& pfad, const std::vector<std::pair<std::string, std::string>>& kopf,
-              const std::string& koerper, int& status, std::string& antwort, std::string& fehler, int zeitlimitMs) {
+void nullen(std::string& s) {
+    if (!s.empty()) { SecureZeroMemory(s.data(), s.size()); }
+}
+
+void nullen(std::vector<std::pair<std::string, std::string>>& kopf) {
+    for (auto& [n, v] : kopf) {
+        nullen(n);
+        nullen(v);
+    }
+}
+
+namespace {
+
+// H2: die Kopfzeilen (mit dem API-Schluessel) ohne Zwischenkopien bauen - der
+// Puffer ist vorher gross genug reserviert, nichts wird umkopiert - und nach dem
+// Senden genullt (Restrisiko aus H1: ein Absturzabbild waehrend einer Anfrage).
+void kopfAnhaengen(std::wstring& ziel, const std::string& s) {
+    if (s.empty()) { return; }
+    const int n = MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), nullptr, 0);
+    if (n <= 0) { return; }
+    const std::size_t alt = ziel.size();
+    ziel.resize(alt + static_cast<std::size_t>(n));
+    MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), ziel.data() + alt, n);
+}
+
+// Gemeinsam fuer httpPost und httpPostStrom: `teil` bekommt die Bytes, false bricht ab.
+bool postIntern(const std::string& host, int port, bool sicher, const std::string& pfad, const std::vector<std::pair<std::string, std::string>>& kopf,
+                const std::string& koerper, int& status, const std::function<bool(std::string_view)>& teil, std::string& fehler, int zeitlimitMs) {
     status = 0;
-    antwort.clear();
     fehler.clear();
     const bool lokal = host == "127.0.0.1" || host == "localhost";
     HINTERNET s = WinHttpOpen(L"JKStudio-Helper/1", lokal ? WINHTTP_ACCESS_TYPE_NO_PROXY : WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
@@ -113,11 +138,20 @@ bool httpPost(const std::string& host, int port, bool sicher, const std::string&
         // Keine Umleitungen (der Schluessel soll nirgendwo anders hin).
         DWORD nie = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
         WinHttpSetOption(r, WINHTTP_OPTION_REDIRECT_POLICY, &nie, sizeof(nie));
+        std::size_t platz = 1;
+        for (const auto& [n, v] : kopf) { platz += n.size() + v.size() + 4; }
         std::wstring k;
-        for (const auto& [n, v] : kopf) { k += breit(n) + L": " + breit(v) + L"\r\n"; }
-        if (WinHttpSendRequest(r, k.c_str(), static_cast<DWORD>(-1L), const_cast<char*>(koerper.data()), static_cast<DWORD>(koerper.size()),
-                               static_cast<DWORD>(koerper.size()), 0) != FALSE &&
-            WinHttpReceiveResponse(r, nullptr) != FALSE) {
+        k.reserve(platz);
+        for (const auto& [n, v] : kopf) {
+            kopfAnhaengen(k, n);
+            k += L": ";
+            kopfAnhaengen(k, v);
+            k += L"\r\n";
+        }
+        const BOOL gesendet = WinHttpSendRequest(r, k.c_str(), static_cast<DWORD>(-1L), const_cast<char*>(koerper.data()),
+                                                 static_cast<DWORD>(koerper.size()), static_cast<DWORD>(koerper.size()), 0);
+        SecureZeroMemory(k.data(), k.size() * sizeof(wchar_t));
+        if (gesendet != FALSE && WinHttpReceiveResponse(r, nullptr) != FALSE) {
             DWORD st = 0;
             DWORD groesse = sizeof(st);
             WinHttpQueryHeaders(r, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &st, &groesse,
@@ -126,12 +160,11 @@ bool httpPost(const std::string& host, int port, bool sicher, const std::string&
             for (;;) {
                 DWORD da = 0;
                 if (WinHttpQueryDataAvailable(r, &da) == FALSE || da == 0) { break; }
-                std::string teil(da, '\0');
+                std::string stueck(da, '\0');
                 DWORD gelesen = 0;
-                if (WinHttpReadData(r, teil.data(), da, &gelesen) == FALSE) { break; }
-                antwort.append(teil.data(), gelesen);
-                if (antwort.size() > (8u << 20)) {
-                    fehler = "answer too large";
+                if (WinHttpReadData(r, stueck.data(), da, &gelesen) == FALSE) { break; }
+                if (!teil(std::string_view(stueck.data(), gelesen))) {
+                    fehler = "aborted";
                     break;
                 }
             }
@@ -146,6 +179,30 @@ bool httpPost(const std::string& host, int port, bool sicher, const std::string&
     if (c != nullptr) { WinHttpCloseHandle(c); }
     WinHttpCloseHandle(s);
     return ok;
+}
+
+}  // namespace
+
+bool httpPost(const std::string& host, int port, bool sicher, const std::string& pfad, const std::vector<std::pair<std::string, std::string>>& kopf,
+              const std::string& koerper, int& status, std::string& antwort, std::string& fehler, int zeitlimitMs) {
+    antwort.clear();
+    bool zuGross = false;
+    const bool ok = postIntern(host, port, sicher, pfad, kopf, koerper, status, [&](std::string_view b) {
+        antwort.append(b.data(), b.size());
+        zuGross = antwort.size() > (8u << 20);
+        return !zuGross;
+    }, fehler, zeitlimitMs);
+    if (zuGross) { fehler = "answer too large"; }
+    return ok && !zuGross;
+}
+
+bool httpPostStrom(const std::string& host, int port, bool sicher, const std::string& pfad, const std::vector<std::pair<std::string, std::string>>& kopf,
+                   const std::string& koerper, int& status, const std::function<bool(std::string_view)>& teil, std::string& fehler, int zeitlimitMs) {
+    std::size_t summe = 0;
+    return postIntern(host, port, sicher, pfad, kopf, koerper, status, [&](std::string_view b) {
+        summe += b.size();
+        return summe <= (16u << 20) && teil(b);
+    }, fehler, zeitlimitMs);
 }
 
 // --- Lokaler MCP-Server ------------------------------------------------------------

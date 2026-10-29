@@ -464,6 +464,11 @@ void drawWegFenster() {
                                                         : tr(Str::WegWerkzeugHint));
     ImGui::PopTextWrapPos();
     ImGui::SeparatorText(tr(Str::WegErzeugenTitel));
+    if (g_app->geo.empty()) {   // H2: warum "Erzeugen" grau ist
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetFontSize() * 23.0F);
+        ImGui::TextDisabled("%s", tr(Str::WegOhneKarte));
+        ImGui::PopTextWrapPos();
+    }
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 9.0F);
     ImGui::SliderFloat("##wegabstand", &g_app->wegAbstand, 96.0F, 384.0F, tr(Str::WegAbstand));
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::WegAbstandHint)); }

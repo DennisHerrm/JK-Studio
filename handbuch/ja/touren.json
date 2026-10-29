@@ -597,7 +597,7 @@
       "unter": "カメラパネルの「ここに新しいショット」。",
       "ziel": "knopf:CamNewShot",
       "fertig": "zahl:vorschau.einstellungen+",
-      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.ohnekamera|zahl:vorschau.kameragewaehlt < gezeichnet:zeitleiste.kamera",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": "",
@@ -695,6 +695,629 @@
       "ziel": "knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures",
       "fertig": "zahl:modell.details~",
       "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-gangart",
+   "gruppe": "tut_figur",
+   "titel": "歩く、走る、後ろ向きに歩く",
+   "kurz": "キャラクターの動き方を、マップ上のパスで直接変えます。",
+   "seite": "k-gangart.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**パスを表示する。** マップ上のキャラクターか、タイムラインのその名前をクリックします。パスが現れます。再生位置より先は灰色、歩き終えた部分は黄色です。",
+      "bild": "h_figur_bahn",
+      "unter": "Kyle とそのパス。",
+      "ziel": "karte3d",
+      "fertig": "zahl:vorschau.figurgewaehlt",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "まだマップが開いていません。先に読み込んでください:{{MenuFile}} > {{MapLoad}}、またはミッションを開きます。"
+       },
+       {
+        "wenn": "zahl:vorschau.ohnefigur",
+        "text": "このマップにはまだキャラクターがいません。キャラクターのいるミッションを開くか({{MenuFile}} > {{LoadMission}})、ビュー左端の {{EntKindNpc}} タイルで置いてください。"
+       }
+      ]
+     },
+     {
+      "text": "**パスの終点にある歩行目標を右クリックします。** メニューに **{{BahnGehen}}**、**{{BahnRennen}}**、**{{BahnRueckwaerts}}** が表示されます。",
+      "bild": "k_gangart",
+      "unter": "歩行目標のメニュー。",
+      "ziel": "gezeichnet:vorschau.laufziel",
+      "fertig": "zahl:vorschau.gangartmenue",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.figurgewaehlt < karte3d",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnelaufziel",
+        "text": "このキャラクターはまだ歩きません。経路に歩く目標がありません。歩くキャラクターを選ぶか、先に歩かせてください(3 · 歩かせる)。"
+       }
+      ]
+     },
+     {
+      "text": "**1 つ選びます。** behaved はこの移動の前に `SET_WALKING` / `SET_RUNNING` を書き込みます。ここでは **{{BahnRennen}}** が `set ( SET_RUNNING, true )` を追加しました。この移動から先に適用されます。",
+      "bild": "g_gang_baum",
+      "unter": "新しい SET_RUNNING の行。",
+      "ziel": "gezeichnet:vorschau.gangartmenue",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.gangartmenue < gezeichnet:vorschau.laufziel",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**見てみます。** タイムラインを再生すると、キャラクターが走り、移動ブロックが短くなっています。",
+      "bild": "g_gang_zeit",
+      "unter": "タイムライン上の短くなった移動。",
+      "ziel": "knopf:TlPlay",
+      "fertig": "zahl:vorschau.laeuft",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-wegpunkte",
+   "gruppe": "tut_mission",
+   "titel": "NPC に歩く道を与える",
+   "kurz": "NPC のウェイポイントネットワークを自動で作り、確認し、手で道を追加します。",
+   "seite": "k-wegpunkte.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**ウィンドウを開きます。** マップツールバーの **{{WegTitel}}**。",
+      "bild": "e_weg_knopf",
+      "unter": "ツールバーの「NPC ウェイポイント」。",
+      "ziel": "gezeichnet:vorschau.wegknopf",
+      "fertig": "zahl:vorschau.wegfenster",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "まだマップが開いていません。先に読み込んでください:{{MenuFile}} > {{MapLoad}}、またはミッションを開きます。"
+       }
+      ]
+     },
+     {
+      "text": "**表示と生成。** **{{WegZeigen}}** でネットワークが表示されます。緑は手動、青は自動、オレンジはジャンプです。**{{WegErzeugen}}** は歩ける床の上にウェイポイントを配置します。間隔のスライダーで密度を決めます。",
+      "bild": "h_wegpunkte",
+      "unter": "NPC ウェイポイントのウィンドウ。",
+      "ziel": "knopf:WegErzeugen@###wegpunkte",
+      "fertig": "zahl:vorschau.wegpunkte+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "まだマップが開いていません。先に読み込んでください:{{MenuFile}} > {{MapLoad}}、またはミッションを開きます。"
+       }
+      ]
+     },
+     {
+      "text": "**確認する。** **{{WegPruefen}}** はゲームが受け付けない問題を見つけます。問題をクリックするとそこへ飛びます。",
+      "bild": "e_weg_pruefen",
+      "unter": "ネットワークをチェック。",
+      "ziel": "knopf:WegPruefen@###wegpunkte",
+      "fertig": "zahl:vorschau.weggeprueft",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**手で。** **{{WegSetzen}}** で床をクリックして道を置きます。**{{WegVerbinden}}** で 2 つの点をつなぎます(<kbd>Ctrl</kbd> でジャンプ)。",
+      "bild": "e_weg_setzen",
+      "unter": "「ウェイポイントを置く」と「接続」。",
+      "ziel": "knopf:WegSetzen@###wegpunkte;karte3d",
+      "fertig": "zahl:vorschau.wegpunkte+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-neu-timen",
+   "gruppe": "tut_kamera",
+   "titel": "タイムラインでカットシーンのタイミングを直す",
+   "kurz": "ショットを長くする、セリフを遅らせる、ある部分をまるごと動かす。ブロックをドラッグするだけです。",
+   "seite": "k-neu-timen.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**再生します。** マップの下のタイムラインで ▶ を押します。**{{TlAudio}}** をオンにすると、カットを合わせるセリフが聞こえます。",
+      "bild": "c_tl_play",
+      "unter": "開始:再生とサウンド。",
+      "ziel": "knopf:TlPlay",
+      "fertig": "zahl:vorschau.laeuft",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.ohnekarte",
+        "text": "まだマップが開いていません。先に読み込んでください:{{MenuFile}} > {{MapLoad}}、またはミッションを開きます。"
+       }
+      ]
+     },
+     {
+      "text": "**ブロックを動かす。** ブロックを左右にドラッグします。後ろのものもすべて一緒に動くので、残りはずれません。<kbd>Alt</kbd> を押したままだと、このブロックだけが動きます。",
+      "bild": "a_k_timen",
+      "unter": "タイムラインでブロックをドラッグ。後ろのものもすべて一緒に動きます。",
+      "ziel": "gezeichnet:zeitleiste",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**長さを変えます。** ブロック(移動、カメラの動き、待機)の右端をドラッグして、短くしたり長くしたりします。",
+      "bild": "c_tl_kante",
+      "unter": "ブロックの右端。",
+      "ziel": "gezeichnet:zeitleiste",
+      "fertig": "aenderung+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**正確に送ります。** マウスをタイムラインの上に置くと、<kbd>←</kbd> / <kbd>→</kbd> で再生位置が 50 ms ずつ、<kbd>Shift</kbd> を押しながらだと 1 秒ずつ動きます。時刻表示で現在位置が分かり、クリックするとフレーム表示に切り替わります。",
+      "bild": "c_tl_zeit",
+      "unter": "時刻表示。",
+      "ziel": "gezeichnet:zeitleiste",
+      "fertig": "zahl:vorschau.tlschritte+",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**スクリプトを確認します。** ドラッグするたびに、スクリプトの値(wait や時間)が変わります。ブロックをクリックすると、右のスクリプト列でその行が選択されます。",
+      "bild": "c_tl_klick",
+      "unter": "クリックしたブロックと、スクリプト内のその行。",
+      "ziel": "gezeichnet:zeitleiste;baum",
+      "fertig": "auswahl",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-p1",
+   "gruppe": "tut",
+   "titel": "1 · ミッションを作成する",
+   "kurz": "taspir1 上の新しいミッション。マップ、プレイヤースタート、スクリプトランナー、イントロスクリプトが自動で作られます。",
+   "seite": "tut-p1.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**スタートページを開く。** モードバーを **{{ViewMap}}** に切り替えます。マップが開いていなければ、このタブにはスタートページが表示されます。",
+      "bild": "h_start",
+      "unter": "「ミッション」タブのスタートページ。",
+      "ziel": "knopf:ViewMap@modebar",
+      "fertig": "zahl:vorschau.startseite",
+      "voraus": "",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:vorschau.karte",
+        "text": "マップが開いているので、タブにはスタートページではなくマップが表示されています。{{MenuFile}} > {{MapClose}} で閉じてください。"
+       }
+      ]
+     },
+     {
+      "text": "**新しいミッション。** **{{StartCardNew}}** をクリックします。一覧で `taspir1` と入力して選びます。**{{MissionName}}** には `taspir_tut` と入力します(英字、数字、`_`)。**{{MissionFolder}}** は自動で入力されます。**{{MissionCreate}}** を押します。",
+      "bild": "h_mission_neu",
+      "unter": "「新しいミッション」ウィンドウ。",
+      "ziel": "knopf:StartCardNew;knopf:MissionCreate",
+      "fertig": "zahl:mission.name~",
+      "voraus": "zahl:vorschau.startseite|offen:##neuemission < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**できたものを見てみる。** マップが着陸パッドで開きます。behaved はプレイヤースタートの隣に `target_scriptrunner` を追加しています。プレイヤーが出現すると、スクリプト `taspir_tut/intro` が実行されます。このスクリプトはタブで開いていて、プレイヤースタートの後ろからの短いカメラショットが入っています。",
+      "bild": "t4_2",
+      "unter": "新しいミッション。プレイヤースタートが選択され、右にイントロスクリプトが開いています。",
+      "ziel": "karte3d",
+      "fertig": "manuell",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**元のイントロをオフにする。** taspir1 には独自の開始処理があります。そのプレイヤースタートはすでに `taspir1/preIntro` を実行するスクリプトランナーを起動しており、同じトリガーが今はあなたのスクリプトも起動します。このままでは両方が同時に再生されます。エンティティ一覧の検索欄に `t271` と入力します。これが元のスクリプトランナーです(`usescript` は `taspir1/preIntro`)。選択して <kbd>Del</kbd> を押します。**{{FlowGraph}}** ビューなら、こうしたつながりがひと目で分かります(グラフ:何が何を起動するか)。",
+      "bild": "e_t271",
+      "unter": "検索欄で見つけたオリジナルのランナー。",
+      "ziel": "karte3d",
+      "fertig": "zahl:vorschau.ents-",
+      "voraus": "zahl:vorschau.bereit < knopf:ViewMap@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-skins",
+   "gruppe": "tut_mission",
+   "titel": "モデルのスキンとスケルトン",
+   "kurz": "別のスキン、別のスケルトン、そしてスキンがオン・オフするサーフェス。",
+   "seite": "k-skins.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**スキンを切り替えます。** **{{ViewModel}}** タブで、再生バーの **{{ModelSkin}}** リストにモデル付属のスキンが表示されます。**{{OpenSkin}}** で別のスキンを読み込みます。",
+      "bild": "k_modell_leiste",
+      "unter": "スキン一覧のある再生バー。",
+      "ziel": "knopf:ModelSkin;knopf:OpenSkin",
+      "fertig": "zahl:modell.skin~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**サーフェス。** 横の件数は、スキンが描画するサーフェスの数です。クリックすると、詳細ログにすべて一覧されます。",
+      "bild": "m_flaechen",
+      "unter": "サーフェスの件数。",
+      "ziel": "gezeichnet:modell.flaechen",
+      "fertig": "zahl:modell.flaechenliste+",
+      "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**キャップ。** **{{ModelCaps}}** は、手足の付け根の穴をふさぐ `_off` サーフェスを表示します。",
+      "bild": "m_caps",
+      "unter": "キャップを表示。",
+      "ziel": "knopf:ModelCaps",
+      "fertig": "zahl:modell.caps~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**別のスケルトン。** **{{ModelLoadGla}}** で、アニメーション付きの別の `.gla` を読み込みます。",
+      "bild": "m_gla",
+      "unter": ".gla を読み込む。",
+      "ziel": "knopf:ModelLoadGla",
+      "fertig": "zahl:modell.skelett~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-spielordner",
+   "gruppe": "tut_mission",
+   "titel": "ゲームフォルダーと設定を整える",
+   "kurz": "Jedi Academy のインストール先を教え、見つかったものを確認し、プレビューのルールを選びます。",
+   "seite": "k-spielordner.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**パスを開きます。** **{{MenuEdit}} → {{PathsTitle}}**。マップエディターでは先に **{{ViewEvents}}** に切り替えてください。**{{MenuFile}}**・**{{MenuEdit}}**・**{{MenuView}}** メニューはそこにあります。",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:MenuEdit>PathsTitle",
+      "fertig": "zahl:programm.pfade",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**ゲームフォルダーを追加します。** **{{Pk3AddPath}}** を押し、Jedi Academy の `base` フォルダー(`assets0.pk3` があるもの)を選びます。Movie Duels なら `MD` フォルダーも追加します。",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:Pk3AddPath@###paths",
+      "fertig": "zahl:programm.spielordner+",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.pfade < menue:MenuEdit>PathsTitle",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**一覧を確認します。** 各フォルダーに見つかったアーカイブの数が表示されます。0 なら別のフォルダーです。削除してやり直してください。終わったらウィンドウを閉じます。",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:###paths",
+      "fertig": "manuell",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.pfade < menue:MenuEdit>PathsTitle",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**設定を開きます。** **{{MenuEdit}} → {{AppPrefs}}**:音量、プレビューのゲームルール、難易度、プログラムの動作。",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:MenuEdit>AppPrefs",
+      "fertig": "zahl:programm.einstellungen",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**ルールを選びます。** **{{PrefsRegelwerk}}**:*auto* はゲームフォルダーに合わせます。OpenJK か Movie Duels を選ぶと、歩き方・ドア・タイミングがそのゲームとまったく同じになります。",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:PrefsRegelwerk",
+      "fertig": "zahl:programm.regelwerk~",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.einstellungen < menue:MenuEdit>AppPrefs",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-update",
+   "gruppe": "tut_mission",
+   "titel": "アップデートを確認する",
+   "kurz": "新しいバージョンを探し、変更点を読み、起動時に確認するかどうかを決めます。",
+   "seite": "k-update.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**新しいバージョンを探します。** **{{MenuHelp}} → {{UpdMenu}}**。あなたが選んだときだけ、プログラムが GitHub に最新版を問い合わせます。",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:MenuHelp>UpdMenu",
+      "fertig": "zahl:update.fenster",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**答えを読みます。** 最新版であること、または新しいバージョンとその説明と **{{UpdInstall}}** が表示されます。接続がないときはそう表示され、**{{UpdRetry}}** で再試行します。",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:###update",
+      "fertig": "zahl:update.ergebnis",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.fenster < menue:MenuHelp>UpdMenu",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**起動時に確認するか。** **{{MenuHelp}} → {{UpdAutoCheck}}** で起動時の確認をオン/オフします。それ以外に何かを送ることはありません。",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:MenuHelp>UpdAutoCheck",
+      "fertig": "zahl:update.auto~",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**何が変わった?** ウィンドウ(または **{{MenuHelp}}** メニュー)の **{{ChangelogMenu}}** に各バージョンの変更が並びます。",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu",
+      "fertig": "offen:###changelog",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-karte-tuer",
+   "gruppe": "tut",
+   "titel": "マップエディターでドアとトリガーを作る",
+   "kurz": "ブラシをドアにして開く向きを決め、プレイヤーがトリガーに入ったら開くようにします。",
+   "seite": "tut-karte-tuer.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**マップエディターを開きます。** モードバーの **{{ViewMapEditor}}**。はじめてのマップ:歩き回れる部屋 のマップか、部屋のある別のマップを開きます。",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:ViewMapEditor@modebar",
+      "fertig": "modus:3",
+      "voraus": "",
+      "einrichten": "modus:3",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**ドアを描きます。** 2D ビューのドアを置きたい場所で、マウスの左ボタンで薄いブラシをドラッグします(例えば厚さ 16 ユニット)。",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.ent+",
+        "text": "エンティティができました。Ctrl+Z を押してから、2D ビューでマウスの左ボタンでドラッグしてください。"
+       }
+      ]
+     },
+     {
+      "text": "**ドアにします。** 選択したまま 2D ビューで右クリックし、**func → func_door** を選びます。ブラシが動くエンティティになります。",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.func_door+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:karte.keineauswahl",
+        "text": "何も選択されていません。先に 2D ビューでドアのブラシをクリックし、右クリックして func > func_door を選んでください。"
+       },
+       {
+        "wenn": "zahl:karte.ent.light+",
+        "text": "それはライトです。Ctrl+Z を押し、ドアのブラシを選んで func > func_door を選んでください。"
+       }
+      ]
+     },
+     {
+      "text": "**開く向き。** <kbd>N</kbd> でエンティティインスペクターを開きます。キー `angle` を `90` にして(北へ滑ります。`-1` は上、`-2` は下)<kbd>Enter</kbd> を押します。",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##feldGruppe",
+      "fertig": "zahl:karte.schluessel~",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**トリガーを描きます。** ドアの前に 2 つ目のブラシを描き、右クリックして **trigger → trigger_multiple** を選びます。トリガーはゲーム内では見えません。",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##feldXY",
+      "fertig": "zahl:karte.ent.trigger_multiple+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**つなぎます。** 先にトリガー、次にドアを選び(<kbd>Shift</kbd>+クリック)、<kbd>Ctrl</kbd>+<kbd>K</kbd> を押します(**{{KeLEntity}} → {{KeLConnectEntities}}**)。トリガーの `target` がドアの `targetname` を指すようになります。",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:KeLEntity>KeLConnectEntities",
+      "fertig": "zahl:karte.verbindungen+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**試します。** はじめてのマップ:歩き回れる部屋 と同じようにマップをビルドして歩きます。トリガーに入るとドアが開きます。",
+      "bild": "",
+      "unter": "",
+      "ziel": "menue:KeLBuild",
+      "fertig": "zahl:karte.gebaut+|zahl:karte.spielen",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-menue",
+   "gruppe": "tut",
+   "titel": "ゲームのメニューを変える",
+   "kurz": "ゲームのメニューを開き、ボタンを動かし、ゲームと同じように試して、MOD 用にまとめます。",
+   "seite": "tut-menue.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**メニューエディターを開きます。** モードバーの **{{ViewMenuEditor}}**。",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:ViewMenuEditor@modebar",
+      "fertig": "modus:4",
+      "voraus": "",
+      "einrichten": "modus:4",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**ゲームのメニューを開きます。** **{{MeAusSpiel}}** を押して、例えば `ui/jamp/main.menu` を選びます。ゲームのファイルから読み込まれ、ゲームと同じように描かれます。ゲームフォルダーは変わりません。",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:MeAusSpiel",
+      "fertig": "zahl:menue.dokumente+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**要素を動かします。** キャンバスのボタンをクリックしてドラッグするか、矢印キーで少しずつ動かします。下のコードの `rect` も一緒に変わります。",
+      "bild": "",
+      "unter": "",
+      "ziel": "fenster:##mitte",
+      "fertig": "zahl:menue.text~",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": "",
+      "falsch": [
+       {
+        "wenn": "zahl:menue.bedienen",
+        "text": "{{MeBedienen}} モードです。クリックするとボタンが押されます。要素を動かすには {{MeBearbeiten}} に切り替えてください。"
+       }
+      ]
+     },
+     {
+      "text": "**ゲームと同じように試します。** **{{MeBedienen}}**:クリックでボタンが押され、cvar が変わります。プレビューの中だけで、ゲームには影響しません。**{{MeBearbeiten}}** で戻ります。",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:MeBedienen",
+      "fertig": "zahl:menue.bedienen",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**まとめます。** **{{MeExportPk3}}** で変更したメニューを MOD フォルダー用の .pk3(例えば `zz_menu.pk3`)に書き出します。ゲームフォルダー自体には書き込みません。",
+      "bild": "",
+      "unter": "",
+      "ziel": "knopf:MeExportPk3",
+      "fertig": "zahl:menue.exporte+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""

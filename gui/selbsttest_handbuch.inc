@@ -289,6 +289,9 @@ std::vector<Schritt> karteneditorGrossSchritte() {
 namespace stufe8c {
 std::vector<Schritt> schritte();   // selbsttest_karte8c.inc: Tutorial "Erste eigene Karte"
 }  // namespace stufe8c
+namespace hilfe2 {
+std::vector<Schritt> schritte();   // selbsttest_hilfe2.inc: Stufe H2 - mehr interaktive Touren, Helfer, KI
+}  // namespace hilfe2
 namespace hilfe1 {
 std::vector<Schritt> schritte();   // selbsttest_hilfe1.inc: Stufe H1 - Helfer, Touren, KI
 std::vector<Schritt> handbuchFotos();   // dito: die Bilder der Handbuchseite
@@ -507,6 +510,12 @@ std::vector<Schritt> karteneditorSchritte() {
     // =hilfe1: Stufe H1 - der Helfer, die Tour "Deine erste Karte" mit echten Aktionen, die KI-Anbindung
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "hilfe1") == 0) {
         for (Schritt& x : hilfe1::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // =hilfe2: Stufe H2 - mehr interaktive Touren mit echten Aktionen, Helfer, KI
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "hilfe2") == 0) {
+        for (Schritt& x : hilfe2::schritte()) { add(std::move(x)); }
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
@@ -860,6 +869,7 @@ void skriptNeu() {
 
 #include "selbsttest_karte8c.inc"
 #include "selbsttest_hilfe1.inc"   // Stufe H1: Helfer, Touren, KI-Anbindung
+#include "selbsttest_hilfe2.inc"   // Stufe H2: mehr interaktive Touren, Helfer, KI
 #include "selbsttest_karte8g.inc"
 #include "selbsttest_karte9.inc"
 #include "selbsttest_karte9c.inc"
