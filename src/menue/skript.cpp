@@ -658,7 +658,7 @@ void Laufzeit::klick(int menu, float x, float y) {
             if (it.cvar.empty()) { break; }
             float x0 = it.window.rect.x;
             if (!it.text.empty()) {
-                const Rechteck tr = textRechteck(it, u.texte != nullptr ? u.texte->aufloesen(it.text) : it.text, u);
+                const Rechteck tr = textRechteck(it, u.texte != nullptr ? u.texte->imSpiel(it.text) : it.text, u);
                 x0 = tr.x + tr.w + 8;
             }
             const float rel = std::clamp((x - x0) / kSliderBreite, 0.0F, 1.0F);
@@ -904,7 +904,24 @@ bool Laufzeit::uiSkript(int menu, const std::string& name) {
     else if (name == "char_skin") { haut(); }
     else if (name == "saber_hilt") { griff(false); }
     else if (name == "saber2_hilt") { griff(true); }
-    else if (name == "getcharcvars") {   // UI_GetCharacterCvars
+    else if (name == "getcharcvars" && d->dialekt == Dialekt::MP) {   // UI_GetCharacterCvars (codemp ui_main.c)
+        setze("ui_char_color_red", "char_color_red");
+        setze("ui_char_color_green", "char_color_green");
+        setze("ui_char_color_blue", "char_color_blue");
+        // "model" = <ordner>/<kopf>|<rumpf>|<beine> (eigene Figur) -> ui_char_*; sonst bleibt ui_char_model
+        const std::string mod = cvar("model");
+        const std::size_t st = mod.rfind('/');
+        if (st != std::string::npos && mod.find('|') != std::string::npos) {
+            const std::string teile = mod.substr(st + 1);
+            const std::size_t a = teile.find('|'), b = a == std::string::npos ? std::string::npos : teile.find('|', a + 1);
+            if (b != std::string::npos) {
+                setzeCvar("ui_char_model", mod.substr(0, st));
+                setzeCvar("ui_char_skin_head", teile.substr(0, a));
+                setzeCvar("ui_char_skin_torso", teile.substr(a + 1, b - a - 1));
+                setzeCvar("ui_char_skin_legs", teile.substr(b + 1));
+            }
+        }
+    } else if (name == "getcharcvars") {   // UI_GetCharacterCvars
         setze("ui_char_skin_head", "g_char_skin_head");
         setze("ui_char_skin_torso", "g_char_skin_torso");
         setze("ui_char_skin_legs", "g_char_skin_legs");

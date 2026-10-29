@@ -96,6 +96,15 @@ struct FeederEintrag {
     std::vector<std::string> spaltenBild;
 };
 
+// M5: was ein MP-Ownerdraw zeigt (UI_OwnerDraw in codemp/ui/ui_main.c): Text ("@" = StringEd) bzw. Bild;
+// halb = Farbe * 0,5 (UI_DrawTeamMember: geschlossener Platz). bekannt = false: Platzhalter.
+struct OwnerDrawInhalt {
+    bool bekannt = false;
+    std::string text;
+    std::string bild;
+    bool halb = false;
+};
+
 // Laufzeitstand eines Items (die Skripte aendern ihn: show/hide/setfocus ...).
 struct ItemZustand {
     int flags = 0;        // windowDef_t.flags
@@ -115,6 +124,8 @@ struct Umgebung {
     // Feeder: die Zeilen einer Listbox (DC->feederCount/feederItemText/feederItemImage);
     // ohne: beschrifteter Platzhalter
     std::function<std::vector<FeederEintrag>(float feeder)> feeder;
+    // M5: Inhalt der MP-Ownerdraws aus den Spieldaten (FeederDaten::ownerDraw); ohne: Platzhalter
+    std::function<OwnerDrawInhalt(int ownerDraw)> ownerDraw;
     int listCursor = 0;                   // item->cursorPos
     int zeitMs = 0;                       // DC->realTime
     std::vector<ItemZustand> zustand;     // je Item (leer = gelesene Flags)

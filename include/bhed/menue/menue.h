@@ -370,9 +370,12 @@ struct Texte {
     void ladeStr(const std::string& dateiname, const std::string& text, const std::string& sprache = "ENGLISH");
     // .sp: REFERENCE <Paket> am Anfang, dann REFERENCE x / TEXT_LANGUAGE<n> "..."
     void ladeSp(const std::string& text, int sprache = 1);
-    // "@MENUS_X" -> Text; ohne @ oder unbekannt: unveraendert (wie SE_GetString
-    // liefert die Engine bei unbekannten Schluesseln den Schluessel).
+    // "@MENUS_X" -> Text; ohne @ oder unbekannt: unveraendert (fuer die Anzeigen des Editors,
+    // damit ein fehlender Schluessel sichtbar bleibt).
     [[nodiscard]] std::string aufloesen(const std::string& s) const;
+    // Wie das Spiel: unbekannter Schluessel -> "" (SE_GetString in OpenJK SP/MP und Movie Duels,
+    // JK2SP_GetStringTextString in JK2; Item_Text_Paint zeichnet dann nichts).
+    [[nodiscard]] std::string imSpiel(const std::string& s) const;
     [[nodiscard]] bool kennt(const std::string& s) const;
 };
 

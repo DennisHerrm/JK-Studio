@@ -34,6 +34,7 @@
 #include "bhed/menue/feeder.h"
 #include "bhed/menue/hud.h"
 #include "bhed/menue/imspiel.h"
+#include "bhed/menue/layout.h"
 #include "bhed/menue/schriftbau.h"
 #include "bhed/menue/menue.h"
 #include "bhed/menue/modell.h"
@@ -321,6 +322,8 @@ struct Zustand {
     std::map<std::string, std::string> textFehlt;   // M3: Sprache -> nicht darstellbare Zeichen der letzten Eingabe
     bool spielListeOffen = false;
     std::string spielFilter;
+    std::map<std::string, Texte> layoutTexte;     // M5 Punkt 1: Texte je Sprache (breitester Text)
+    std::vector<std::string> layoutWarnungen;     // M5 Punkt 1: letzte Rechnung
 };
 
 // InputText mit std::string (wie misc/cpp/imgui_stdlib.cpp)
@@ -630,11 +633,33 @@ void aendere(std::vector<Ersetzung> e) {
 
 Rechteck clientRect(const Menu& m, const Item& it) { (void)m; return it.window.rectClient; }
 
+void layoutsAnwenden(Dokument& d, int mi, const Layout* geaendert, bool loeschen, const std::map<std::string, Rechteck>& vorab,
+                     std::vector<Ersetzung>& e);   // M5 Punkt 1 (app_menue_layout.inc)
+void layoutTasten(Dokument& d);   // M5 Punkt 1: Strg+Umschalt+1..4
+
 void setzeRects(const std::vector<std::pair<int, Rechteck>>& neu) {
     Dokument* d = doc();
     if (d == nullptr) { return; }
     const int mi = menuDerSeite(*d);
     std::vector<Ersetzung> e;
+    // M5: bewegt sich die Flaeche (frame) eines Layouts, rechnet das Layout die Kinder neu - eine Ersetzung
+    if (mi >= 0) {
+        const std::vector<Layout> ls = liesLayouts(d->datei, mi);
+        const Menu& m = d->datei.menus[static_cast<std::size_t>(mi)];
+        std::map<std::string, Rechteck> vorab;
+        bool rahmen = false;
+        for (const auto& [i, r] : neu) {
+            if (static_cast<std::size_t>(i) >= m.items.size()) { continue; }
+            const std::string& n = m.items[static_cast<std::size_t>(i)].window.name;
+            vorab[n] = r;
+            rahmen = rahmen || std::any_of(ls.begin(), ls.end(), [&](const Layout& l) { return !n.empty() && l.rahmenItem == n; });
+        }
+        if (rahmen && vorab.size() == neu.size()) {
+            layoutsAnwenden(*d, mi, nullptr, false, vorab, e);
+            aendere(std::move(e));
+            return;
+        }
+    }
     for (const auto& [i, r] : neu) {
         std::vector<Ersetzung> x;
         if (setzeRect(d->datei, mi, i, r, x)) { e.insert(e.end(), x.begin(), x.end()); }
@@ -731,7 +756,9 @@ Umgebung umgebung(const Dokument& d) {
         fd.baue();
     }
     const FeederDaten* fdp = &fd;
-    u.feeder = [fdp](float f) { return fdp->eintraege(f); };
+    // Kopf/Rumpf/Beine/Farben der Spezies aus ui_char_model (UI_GetCharacterCvars), nicht immer der ersten
+    u.feeder = [fdp, cv = u.cvar](float f) { return fdp->eintraege(f, fdp->speziesIndex(cv("ui_char_model"))); };
+    u.ownerDraw = [fdp, cv = u.cvar](int id) { return fdp->ownerDraw(id, cv); };   // M5: MP-Ownerdraws
     u.zeitMs = static_cast<int>(ImGui::GetTime() * 1000.0);
     u.alleItems = z.alleItems && !z.interaktion;
     // M3: Schrift wie se_language; Glyphenseiten da (AsianGlyphsAvailable: Seite 0 laedt)
@@ -1618,6 +1645,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         if (strg && ImGui::IsKeyPressed(ImGuiKey_C)) { ImGui::SetClipboardText(anzeige(kopiereAuswahl()).c_str()); }
         if (strg && ImGui::IsKeyPressed(ImGuiKey_Z)) { rueckgaengig(); }
         if (strg && ImGui::IsKeyPressed(ImGuiKey_Y)) { wiederholen(); }
+        layoutTasten(d);   // M5: Strg+Umschalt+1..4
     }
     if (ImGui::IsWindowFocused() && !z.codeFokus && !ImGui::GetIO().WantTextInput && ImGui::GetIO().KeyCtrl &&
         ImGui::IsKeyPressed(ImGuiKey_V)) {
@@ -4195,7 +4223,10 @@ void zeichneEigenschaften(Dokument& d) {
     if (ImGui::IsItemDeactivatedAfterEdit()) { setzeRects({{i, Rechteck{r[0], r[1], r[2], r[3]}}}); }
     std::string text = it.text;
     if (eingabe("text", &text, ImGuiInputTextFlags_EnterReturnsTrue)) { eigenschaft(i, "text", {inAnf(text)}); }
-    if (!it.text.empty() && it.text[0] == '@') { ImGui::TextDisabled("= %s", anzeige(texte().aufloesen(it.text)).c_str()); }
+    if (!it.text.empty() && it.text[0] == '@') {
+        // fehlt der Schluessel, zeigt das Spiel nichts (SE_GetString liefert ""): so sagen statt den Schluessel zu wiederholen
+        ImGui::TextDisabled("= %s", texte().kennt(it.text) ? anzeige(texte().aufloesen(it.text)).c_str() : tr(Str::MeTextFehltImSpiel));
+    }
     float ts = it.textscale;
     ImGui::DragFloat("textscale", &ts, 0.01F, 0.05F, 4.0F);
     if (ImGui::IsItemDeactivatedAfterEdit()) { eigenschaft(i, "textscale", {zahlText(ts)}); }
@@ -4617,10 +4648,15 @@ void panelText(Dokument& d) {
     ImGui::PopID();
 }
 
+void waehle(int item, bool dazu);   // unten
+
+#include "app_menue_layout.inc"
+
 // Eigenschaften mit Cvars, Meldungen der Engine und Skript-Protokoll als Abschnitte
 void panelEigenschaften(Dokument& d) {
     ImGui::PushID("panelEigenschaften");
     zeichneEigenschaften(d);
+    zeichneLayout(d);
     zeichneCvars(d);
     zeichneMeldungen(d);
     ImGui::PopID();

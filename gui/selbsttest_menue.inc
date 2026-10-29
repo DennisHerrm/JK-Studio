@@ -681,6 +681,96 @@ std::vector<Schritt> schritteM4() {
     return s;
 }
 
+// M5 Punkt 1: Layouts wie Qt - Aufgabentest ohne Text-Reiter ("drei Knoepfe nebeneinander im Rahmen"),
+// Spacer, Rahmen verschieben, Rueckgaengig, Aufloesen; die Rundlaeufe prueft ctest menue_layout.
+const char* const kLayoutProbe =
+    "{\n\tmenuDef\n\t{\n\t\tname layoutprobe\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname panel\n\t\t\tstyle WINDOW_STYLE_FILLED\n\t\t\tbackcolor 0 0 0.4 1\n\t\t\trect 100 100 440 60\n\t\t\tvisible 1\n\t\t}\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname knopf1\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"Eins\"\n\t\t\trect 120 110 60 20\n\t\t\tvisible 1\n\t\t}\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname knopf2\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"Zwei\"\n\t\t\trect 200 130 60 20\n\t\t\tvisible 1\n\t\t}\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname knopf3\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"Drei\"\n\t\t\trect 300 125 60 20\n\t\t\tvisible 1\n\t\t}\n"
+    "\t}\n}\n";
+
+std::vector<Schritt> schritteM5() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = [] { return me::stand(); };
+    auto rect = [](const std::string& text, const std::string& name) {
+        // rect des itemDef mit diesem Namen aus dem Text (wie ihn das Spiel liest)
+        const std::size_t n = text.find("name " + name + "\n");
+        const std::size_t r = n == std::string::npos ? n : text.find("rect ", n);
+        if (r == std::string::npos) { return std::string(); }
+        return text.substr(r + 5, text.find('\n', r) - r - 5);
+    };
+    auto schritte = std::make_shared<int>(0);
+    add(tu("M5 Layout: Probe oeffnen, Reiter Eigenschaften", [] {
+        (void)me::oeffneText("ui/layoutprobe.menu", kLayoutProbe);
+        me::setzeReiter(2);
+    }));
+    add(pause(0.3));
+    add(pruefe("M5 Layout: ohne Auswahl der leere Zustand mit Zeig mir wie", [] { return finde(tr(Str::MeLayoutZeigMir), "", 0, false, "") != nullptr; }));
+    // Aufgabe: Rahmen und drei Knoepfe waehlen (4 Klicks wie Strg+Klick), dann ein Klick auf Nebeneinander
+    add(tu("M5 Layout Aufgabe: panel, knopf1..3 waehlen (Strg+Klick)", [schritte] {
+        for (const char* n : {"panel", "knopf1", "knopf2", "knopf3"}) {
+            me::waehle(me::itemNummer(n), true);
+            ++*schritte;
+        }
+    }));
+    add(pause(0.2));
+    add(klick(tr(Str::MeLayoutWaagrecht)));
+    add(tu("M5 Layout Aufgabe: Schritt zaehlen", [schritte] { ++*schritte; }));
+    add(pause(0.3));
+    add(pruefe("M5 Layout Aufgabe: Rahmen = panel, Rand 8, Abstand 8, nebeneinander - in 5 Schritten ohne Text-Reiter", [st, rect, schritte] {
+        const auto x = st();
+        const bool zeile = x.text.find("// jkstudio:layout name=layout1 type=hbox frame=panel spacing=8 margins=8,8,8,8 items=knopf1,knopf2,knopf3") !=
+                           std::string::npos;
+        char b[200];
+        std::snprintf(b, sizeof(b), "Menue-Editor M5 Aufgabe Layout: %d Schritte, knopf1 %s, knopf3 %s", *schritte, rect(x.text, "knopf1").c_str(),
+                      rect(x.text, "knopf3").c_str());
+        diag::info(b);
+        return zeile && rect(x.text, "knopf1") == "108 108 60 20" && rect(x.text, "knopf2") == "176 108 60 20" &&
+               rect(x.text, "knopf3") == "244 108 60 20" && *schritte <= 5;
+    }));
+    add(foto("menue_layout"));
+    // Spacer hinter knopf2: knopf3 rutscht an den rechten Rand (108 + 440 - 16 = 532 -> x 472)
+    add(tu("M5 Layout: knopf2 waehlen", [] { me::waehle(me::itemNummer("knopf2"), false); }));
+    add(pause(0.2));
+    add(klick(tr(Str::MeLayoutSpacerNeu)));
+    add(pause(0.3));
+    add(pruefe("M5 Layout: Spacer schiebt knopf3 an den rechten Rand", [st, rect] { return rect(st().text, "knopf3") == "472 108 60 20"; }));
+    // Rahmen verschieben: die Kinder ziehen mit (eine Ersetzung, ein Rueckgaengig-Schritt)
+    add(tu("M5 Layout: panel waehlen und 10 nach unten", [] {
+        me::waehle(me::itemNummer("panel"), false);
+        me::verschiebeAuswahl(0, 10);
+    }));
+    add(pause(0.3));
+    add(pruefe("M5 Layout: Kinder folgen dem Rahmen", [st, rect] {
+        const auto x = st();
+        return rect(x.text, "panel") == "100 110 440 60" && rect(x.text, "knopf1") == "108 118 60 20" && rect(x.text, "knopf3") == "472 118 60 20";
+    }));
+    add(tu("M5 Layout: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pause(0.2));
+    add(pruefe("M5 Layout: ein Schritt zurueck stellt Rahmen und Kinder wieder her", [st, rect] {
+        const auto x = st();
+        return rect(x.text, "panel") == "100 100 440 60" && rect(x.text, "knopf1") == "108 108 60 20";
+    }));
+    // Aufloesen: Kommentar weg, rects bleiben
+    add(tu("M5 Layout: knopf1 waehlen", [] { me::waehle(me::itemNummer("knopf1"), false); }));
+    add(pause(0.2));
+    add(klick(tr(Str::MeLayoutAufloesen)));
+    add(pause(0.3));
+    add(pruefe("M5 Layout: Aufloesen entfernt nur die Kommentarzeile", [st, rect] {
+        const auto x = st();
+        return x.text.find("jkstudio:layout") == std::string::npos && rect(x.text, "knopf3") == "472 108 60 20";
+    }));
+    add(tu("M5 Layout: Rueckgaengig bis zum Original", [] {
+        for (int i = 0; i < 4; ++i) { (void)me::rueckgaengig(); }
+    }));
+    add(pause(0.2));
+    add(pruefe("M5 Layout: nach Rueckgaengig byte-gleich mit dem Original", [st] { return st().text == kLayoutProbe; }));
+    return s;
+}
+
 // Bildvergleich mit dem Spiel (BHED_MENUE_VERGLEICH=1): JKA-Hauptmenue SP und MP
 // in 4:3 fotografieren und die Lage der Flaeche melden (Zuschnitt in
 // tools/menue_bildvergleich.py gegen die Fotos aus dem Spiel).
@@ -797,6 +887,12 @@ std::vector<Schritt> schritte() {
     // BHED_MENUE_NUR=m3: nur die Schritte von M3 (gezielter Rot/Gruen-Test)
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m3") == 0) {
         for (auto& x : schritteM3()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // BHED_MENUE_NUR=m5: nur die Schritte von M5
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m5") == 0) {
+        for (auto& x : schritteM5()) { add(std::move(x)); }
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }
@@ -945,6 +1041,7 @@ std::vector<Schritt> schritte() {
     for (auto& x : schritteM2()) { add(std::move(x)); }
     for (auto& x : schritteM3()) { add(std::move(x)); }
     for (auto& x : schritteM4()) { add(std::move(x)); }
+    for (auto& x : schritteM5()) { add(std::move(x)); }
     add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
     return s;
 }

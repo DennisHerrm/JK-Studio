@@ -264,6 +264,31 @@ int main() {
                "Klaenge: focusSound beim Fokus, sonst itemFocusSound aus assetGlobalDef");
     }
 
+    // --- M5: Mehrspieler-Figur (Original-JKA player2.menu zeigte "models/players//model.glm"): Vorgaben
+    // aus CL_Init/ui_xcvar.h und UI_GetCharacterCvars der MP-Fassung (char_color_*, model mit |)
+    {
+        LeseOptionen mo;
+        mo.dialekt = Dialekt::MP;
+        const Datei f = lies("ui/jamp/eigen.menu",
+                             "{ menuDef { name eigen rect 0 0 640 480 visible 1\n"
+                             "  onOpen { uiScript getcharcvars ; uiScript characterchanged }\n"
+                             "  itemDef { name character type 7 rect 300 20 200 400 asset_model \"ui_char_model\" isCharacter 1 visible 1 } } }\n",
+                             mo);
+        Laufzeit lm;
+        lm.start(f);
+        pruefe(lm.cvar("ui_char_model") == "jedi_tf" && lm.cvar("model") == "kyle/default" && lm.cvar("char_color_red") == "255",
+               "MP: Start-Cvars wie CL_Init und ui_xcvar.h");
+        lm.oeffne("eigen");
+        Datei kopie = f;
+        lm.anwenden(kopie);
+        pruefe(kopie.menus[0].items[0].assetModel == "models/players/jedi_tf/model.glm", "MP: Figur aus ui_char_model (kyle/default ohne | aendert nichts)");
+        lm.setzeCvar("model", "humanf/head_b2|torso_c1|lower_d3");
+        lm.setzeCvar("char_color_red", "40");
+        lm.oeffne("eigen");
+        pruefe(lm.cvar("ui_char_model") == "humanf" && lm.cvar("ui_char_skin_torso") == "torso_c1" && lm.cvar("ui_char_skin_legs") == "lower_d3" &&
+                   lm.cvar("ui_char_color_red") == "40",
+               "MP: getcharcvars zerlegt model <ordner>/<kopf>|<rumpf>|<beine>, Farbe aus char_color_red");
+    }
     std::printf("menueskript: %s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

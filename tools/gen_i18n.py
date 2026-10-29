@@ -2217,6 +2217,8 @@ from i18n_menue2 import MENUE2  # noqa: E402  (Menue-Editor M2)
 S += MENUE2
 from i18n_menue3 import MENUE3  # noqa: E402  (Menue-Editor M3)
 S += MENUE3
+from i18n_menue5 import MENUE5  # noqa: E402  (Menue-Editor M5)
+S += MENUE5
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

@@ -23,6 +23,7 @@
 #include <cctype>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <ctime>
 #include <filesystem>
 #include <set>
@@ -301,22 +302,142 @@ void FeederDaten::baue() {
                 }
                 // typeBits: ohne type FFA + Jedi Master; "ffa" = FFA, Team, Jedi Master
                 karten.emplace_back(lang.empty() ? map : lang, typ.empty() || typ.find("ffa") != std::string::npos ? "1" : "0");
+                kartenDatei.push_back(map);
             }
         }
-        // UI_BuildQ3Model_List: models/players/<ordner>/icon_<skin>.jpg -> "ordner/skin"
+        // UI_BuildQ3Model_List (M5 1:1): je <ordner>/*.skin der Teil ab dem ersten '_' ("model_default"
+        // -> "_default"), gilt, wenn icon_<rest>.jpg/.png/.tga da ist (bIsImageFile); Name "<ordner>/<rest>",
+        // ohne Doppelte, hoechstens MAX_Q3PLAYERMODELS (1024)
         for (const std::string& dir : dateiListe(d, "models/players", "/")) {
-            for (const std::string& f : dateiListe(d, "models/players/" + dir, ".jpg")) {
-                const std::string k = klein(f);
-                if (k.compare(0, 5, "icon_") != 0) { continue; }
-                const std::string skin = ohneEndung(f).substr(5);
-                koepfe.push_back(skin == "default" ? dir : dir + "/" + skin);
+            if (dir == "." || dir == "..") { continue; }
+            for (const std::string& f : dateiListe(d, "models/players/" + dir, ".skin")) {
+                std::string skin = ohneEndung(f);
+                const std::size_t u = skin.find('_');
+                if (u != std::string::npos) { skin = skin.substr(u); }
+                if (skin.size() < 2) { continue; }
+                const std::string ic = "models/players/" + dir + "/icon_" + skin.substr(1);
+                if (!d.gibt(ic + ".jpg") && !d.gibt(ic + ".png") && !d.gibt(ic + ".tga")) { continue; }
+                if (skin[0] == '_') { skin[0] = '/'; }
+                const std::string name = dir + skin;
+                if (std::any_of(koepfe.begin(), koepfe.end(), [&](const std::string& k) { return klein(k) == klein(name); })) { continue; }
+                koepfe.push_back(name);
+                if (koepfe.size() >= 1024) { break; }
+            }
+            if (koepfe.size() >= 1024) { break; }
+        }
+        // UI_ParseGameInfo("ui/jamp/gameinfo.txt"): gametypes { { "Name" gtEnum } ... }
+        std::string gi;
+        if (d.lies("ui/jamp/gameinfo.txt", gi)) {
+            Woerter w(gi);
+            for (std::string tok = w.naechstes(true); !tok.empty(); tok = w.naechstes(true)) {
+                if (klein(tok) != "gametypes") { continue; }
+                if (w.naechstes(true) != "{") { break; }
+                for (std::string x = w.naechstes(true); x == "{"; x = w.naechstes(true)) {
+                    const std::string name = w.naechstes(true);
+                    const int gt = std::atoi(w.naechstes(true).c_str());
+                    spieltypen.emplace_back(name, gt);
+                    if (w.naechstes(true) != "}") { break; }
+                }
+                break;
             }
         }
+        // UI_LoadBots: botfiles/bots.txt (g_botsFile leer), dann scripts/*.bot; je { ... name <x> ... }
+        auto botsAus = [&](const std::string& pfad) {
+            std::string t;
+            if (!d.lies(pfad, t)) { return; }
+            Woerter w(t);
+            for (std::string tok = w.naechstes(true); tok == "{"; tok = w.naechstes(true)) {
+                std::string name;
+                for (std::string k = w.naechstes(true); !k.empty() && k != "}"; k = w.naechstes(true)) {
+                    const std::string v = w.naechstes(false);
+                    if (klein(k) == "name") { name = v; }
+                }
+                bots.push_back(name.empty() ? std::string("Kyle") : name);   // UI_GetBotNameByNumber: ohne name "Kyle"
+            }
+        };
+        botsAus("botfiles/bots.txt");
+        for (const std::string& f : dateiListe(d, "scripts", ".bot")) { botsAus("scripts/" + f); }
         for (const std::string& f : dateiListe(d, "demos", ".dm_26")) { demos.push_back(ohneEndung(f)); }   // UI_LoadDemos
         for (const std::string& f : dateiListe(d, "video", ".roq")) { filme.push_back(ohneEndung(f)); }     // UI_LoadMovies
         kraefte.emplace_back("Custom");   // UI_LoadForceConfig_List: [0] immer "custom"
         for (const std::string& f : dateiListe(d, "forcecfg/light", ".fcf")) { kraefte.push_back(ohneEndung(f)); }
     }
+}
+
+int FeederDaten::speziesIndex(const std::string& modell) const {
+    int i = 0;
+    for (std::size_t k = 0; k < spezies.size(); ++k) {
+        if (klein(spezies[k].name) != klein(modell)) { continue; }
+        i = static_cast<int>(k);
+        if (dialekt == Dialekt::MP) { break; }   // MP: break; SP: Schleife laeuft weiter
+    }
+    return i;
+}
+
+OwnerDrawInhalt FeederDaten::ownerDraw(int id, const std::function<std::string(const std::string&)>& cvar) const {
+    OwnerDrawInhalt o;
+    if (dialekt != Dialekt::MP) { return o; }
+    auto wert = [&](const std::string& n) { return cvar ? std::atoi(cvar(n).c_str()) : 0; };
+    // uiInfo.gameTypes[ui_netGametype].gtEnum (UI_DrawNetGameType setzt ausserhalb der Liste auf 0)
+    auto gtEnum = [&](const char* cv) {
+        int i = wert(cv);
+        if (i < 0 || static_cast<std::size_t>(i) >= spieltypen.size()) { i = 0; }
+        return spieltypen.empty() ? 0 : spieltypen[static_cast<std::size_t>(i)].second;
+    };
+    auto spieltypName = [](int gt) -> std::string {   // UI_GetGameTypeName
+        switch (gt) {
+            case 0: return "@MENUS_FREE_FOR_ALL";
+            case 1: return "@MENUS_HOLOCRON_FFA";
+            case 3: return "@MENUS_DUEL";
+            case 4: return "@MENUS_POWERDUEL";
+            case 6: return "@MENUS_TEAM_FFA";
+            case 7: return "@MENUS_SIEGE";
+            case 8: return "@MENUS_CAPTURE_THE_FLAG";
+            case 9: return "@MENUS_CAPTURE_THE_YSALIMARI";
+            default: return "@MENUS_SAGA";   // GT_JEDIMASTER, GT_SINGLE_PLAYER und sonst
+        }
+    };
+    constexpr int kSkinColor = 287, kGametype = 205, kNetGametype = 245, kSkill = 207, kMapCinematic = 244, kStartMapCinematic = 255;
+    if (id == kSkinColor) {   // UI_DrawSkinColor(uiSkinColor = TEAM_FREE)
+        o.bekannt = true;
+        o.text = "@MENUS_DEFAULT";
+    } else if (id == kGametype || id == kNetGametype) {
+        o.bekannt = true;
+        o.text = spieltypName(gtEnum(id == kGametype ? "ui_gametype" : "ui_netGametype"));
+    } else if (id == kSkill) {   // UI_DrawSkill: g_spSkill 1..5 -> MP_INGAME_SKILL<n>
+        int i = wert("g_spSkill");
+        if (i < 1 || i > 5) { i = 1; }
+        o.bekannt = true;
+        o.text = "@MP_INGAME_SKILL" + std::to_string(i);
+    } else if ((id >= 210 && id <= 219) || (id >= 280 && id <= 285)) {   // UI_DrawTeamMember
+        const bool blau = (id >= 210 && id <= 214) || (id >= 280 && id <= 282);
+        const int num = id <= 214 ? id - 209 : id <= 219 ? id - 214 : id <= 282 ? id - 274 : id - 277;
+        int value = wert(std::string(blau ? "ui_blueteam" : "ui_redteam") + std::to_string(num));
+        const int maxcl = wert("sv_maxClients");
+        const int numval = num * 2 - (blau ? 1 : 0);
+        if (numval > maxcl) {
+            o.halb = true;
+            value = -1;
+        }
+        if (gtEnum("ui_netGametype") == 7 && value > 1) { value = 1; }   // GT_SIEGE
+        o.bekannt = true;
+        if (value <= 1) {
+            o.text = value == -1 ? "@MENUS_CLOSED" : "@MENUS_HUMAN";
+        } else {
+            value -= 2;
+            if (value >= static_cast<int>(bots.size())) { value = 1; }
+            o.text = value >= 0 && static_cast<std::size_t>(value) < bots.size() ? bots[static_cast<std::size_t>(value)] : std::string("Kyle");
+        }
+    } else if (id == kMapCinematic || id == kStartMapCinematic) {   // UI_DrawMapCinematic -> UI_DrawMapPreview
+        int map = wert(id == kStartMapCinematic ? "ui_currentNetMap" : "ui_currentMap");
+        if (map < 0 || static_cast<std::size_t>(map) > kartenDatei.size()) { map = 0; }
+        o.bekannt = true;
+        o.bild = static_cast<std::size_t>(map) < kartenDatei.size() ? "levelshots/" + kartenDatei[static_cast<std::size_t>(map)] : std::string();
+        if (o.bild.empty() || daten == nullptr || (!daten->gibt(o.bild + ".jpg") && !daten->gibt(o.bild + ".tga") && !daten->gibt(o.bild + ".png"))) {
+            o.bild = "menu/art/unknownmap_mp";
+        }
+    }
+    return o;
 }
 
 std::vector<FeederEintrag> FeederDaten::eintraege(float feeder, int sp, int titel) const {
@@ -398,8 +519,10 @@ std::vector<FeederEintrag> FeederDaten::eintraege(float feeder, int sp, int tite
             }
             break;
         case feeder_mp::Q3HEADS:
+            // UI_SelectedTeamHead: nur Koepfe mit "/default" (uiSkinColor TEAM_FREE beim Start)
             for (const std::string& k : koepfe) {
-                const std::size_t p = k.find('/');
+                if (k.find("/default") == std::string::npos) { continue; }
+                const std::size_t p = k.rfind('/');
                 const std::string dir = p == std::string::npos ? k : k.substr(0, p);
                 const std::string skin = p == std::string::npos ? "default" : k.substr(p + 1);
                 zeile(k, "models/players/" + dir + "/icon_" + skin + ".jpg");

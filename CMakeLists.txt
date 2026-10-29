@@ -1105,6 +1105,8 @@ target_sources(bhed_core PRIVATE
   src/menue/skript.cpp
   # Punkt 4: Werkzeuge der Arbeitsflaeche (Einrasten, Ausrichten, Items ueber Spannen)
   src/menue/werkzeuge.cpp
+  # M5 Punkt 1: Layouts wie Qt (Kommentarzeile // jkstudio:layout)
+  src/menue/layout.cpp
   # M2 Punkt 2: RoQ abspielen (cl_cin.cpp) und schreiben, GIF-Import
   src/menue/roq.cpp
   src/menue/roq_kodierer.cpp
@@ -1192,6 +1194,9 @@ if(BEHAVED_TESTS)
   add_executable(menuewerkzeug tests/menuewerkzeug.cpp)
   target_link_libraries(menuewerkzeug PRIVATE bhed_core)
   add_test(NAME menue_werkzeug COMMAND menuewerkzeug)
+  add_executable(menuelayout tests/menuelayout.cpp)
+  target_link_libraries(menuelayout PRIVATE bhed_core)
+  add_test(NAME menue_layout COMMAND menuelayout)
   # M2 Punkt 2: RoQ-Kodierer und -Spieler im Rundlauf (mit Spielordnern auch ein Original-Video)
   # M2 Punkt 7: Pruefungen vor dem Export
   add_executable(menuepruefung tests/menuepruefung.cpp)

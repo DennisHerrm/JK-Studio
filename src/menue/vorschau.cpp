@@ -122,7 +122,7 @@ public:
 
     std::string cvar(const std::string& n) const { return u_.cvar ? u_.cvar(n) : std::string(); }
     float cvarWert(const std::string& n) const { return static_cast<float>(std::atof(cvar(n).c_str())); }
-    std::string se(const std::string& t) const { return u_.texte != nullptr ? u_.texte->aufloesen(t) : t; }
+    std::string se(const std::string& t) const { return u_.texte != nullptr ? u_.texte->imSpiel(t) : t; }
 
     // Item_SetTextExtents
     Rechteck textRect(const Item& it, const std::string& text) const {
@@ -269,6 +269,21 @@ private:
             }
         }
         return c;
+    }
+
+    // M5: Item_OwnerDraw_Paint (codemp/ui/ui_shared.c) mit UI_OwnerDraw: rect = x + text_x, y + text_y;
+    // mit Text erst Item_Text_Paint, dann rechts daneben (+8, wenn der Text nicht leer ist)
+    void ownerDrawMalen(const Item& it, int flags, const OwnerDrawInhalt& o) {
+        Farbe c = textFarbe(it, flags);
+        float x = it.window.rect.x + it.textalignx;
+        if (!it.text.empty()) {
+            textMalen(it, flags);
+            x = tr_.x + tr_.w + (itemText(it).empty() ? 0.0F : 8.0F);
+        }
+        const float y = it.window.rect.y + it.textaligny;
+        if (o.halb) { c = Farbe{c.r * 0.5F, c.g * 0.5F, c.b * 0.5F, c.a}; }
+        if (!o.text.empty()) { text(x, y, it.textscale, c, se(o.text), 0, it.textStyle, it.font); }
+        if (!o.bild.empty()) { bild(x, y, it.window.rect.w, it.window.rect.h, o.bild, Farbe{1, 1, 1, 1}, item_); }
     }
 
     // Text_Paint -> RE_Font_DrawString
@@ -465,6 +480,13 @@ private:
                     // uis.menuBackShader ("menu/art/unknownmap"); der Kartenname ist dann leer
                     bild(it.window.rect.x, it.window.rect.y, it.window.rect.w, it.window.rect.h, "menu/art/unknownmap", Farbe{1, 1, 1, 1}, item_);
                     break;
+                }
+                if (u_.dialekt == Dialekt::MP && u_.ownerDraw) {   // M5: UI_OwnerDraw der MP-Fassung
+                    const OwnerDrawInhalt o = u_.ownerDraw(it.window.ownerDraw);
+                    if (o.bekannt) {
+                        ownerDrawMalen(it, flags, o);
+                        break;
+                    }
                 }
                 platzhalter(it.window.rect, "ownerdraw " + std::to_string(it.window.ownerDraw));
                 break;
@@ -690,6 +712,38 @@ private:
             bild(x, thumb, kScrollbar, kScrollbar, "gfx/menus/scrollbar_thumb.tga", weiss, item_);
         }
         float size = r.h - 2;
+        if (it.elementStyle == 1 && mp && r.w > it.elementWidth * 2 && it.elementWidth > 0 && it.elementHeight > 0) {
+            // M5: MP-Item_ListBox_Paint - mehr als doppelt so breit wie ein Element: Zeilen und Spalten
+            int start = 0, ende = 0;
+            float y = r.y + 1;
+            float hoehe = r.h - 2;
+            for (int i2 = start; i2 < count; i2++) {
+                float x = r.x + 1;
+                float breite = r.w - 2;
+                for (int i = start; i < count; i++) {
+                    const std::string& image = z[static_cast<std::size_t>(i)].bild;
+                    if (!image.empty()) {
+                        Farbe c = weiss;
+                        if ((aktFlags_ & WINDOW_PLAYERCOLOR) != 0) {
+                            c = Farbe{cvarWert("ui_char_color_red") / 255.0F, cvarWert("ui_char_color_green") / 255.0F,
+                                      cvarWert("ui_char_color_blue") / 255.0F, 1};
+                        }
+                        bild(x + 1, y + 1, it.elementWidth - 2, it.elementHeight - 2, image, c, item_);
+                    }
+                    if (i == cursorPos) { rahmen(x, y, it.elementWidth - 1, it.elementHeight - 1, it.window.borderSize, it.window.borderColor); }
+                    breite -= it.elementWidth;
+                    if (breite < it.elementWidth) { break; }
+                    x += it.elementWidth;
+                    ende++;
+                }
+                hoehe -= it.elementHeight;
+                if (hoehe < it.elementHeight) { break; }
+                ende++;
+                start = ende;
+                y += it.elementHeight;
+            }
+            return;
+        }
         if (it.elementStyle == 1) {   // LISTBOX_IMAGE
             const float x = r.x + 1;
             float y = r.y + 1;
@@ -867,7 +921,7 @@ bool asienSatzzeichen(Kodierung k, unsigned code) {
 std::string textScrollText(const Item& it, const Umgebung& u) {
     // Item_TextScroll_Paint: mit cvar ersetzt DC->getCVarString den Text; BuildLines: "@" = SE_GetString
     std::string t = it.cvar.empty() ? it.text : (u.cvar ? u.cvar(it.cvar) : std::string());
-    if (!t.empty() && t[0] == '@' && u.texte != nullptr) { t = u.texte->aufloesen(t); }
+    if (!t.empty() && t[0] == '@' && u.texte != nullptr) { t = u.texte->imSpiel(t); }
     return t;
 }
 
@@ -1140,7 +1194,14 @@ namespace {
 }  // namespace
 
 std::string spielCvarVorgabe(Dialekt d, Spiel s, const std::string& name) {
-    if (d != Dialekt::SP) { return {}; }
+    if (d != Dialekt::SP) {
+        // M5: Mehrspieler wie CL_Init + ui_xcvar.h (OpenJK; ohne das waren ui_char_model und model leer
+        // und die Figurenmenues zeigten "models/players//model.glm")
+        for (const CvarVorgabe& v : kVorgabenMp) {
+            if (gleichOhneFall(name, v.name)) { return v.wert; }
+        }
+        return {};
+    }
     // M3: die Start-Cvars der Oberflaeche (UI_Init, cvarTable) je Spiel - z. B. g_saber_type
     // "single" (das zweite Saebelmodell bleibt versteckt), ui_char_anim, g_char_model
     const CvarVorgabe* const anfang = s == Spiel::MD ? std::begin(kVorgabenMd) : std::begin(kVorgabenJa);

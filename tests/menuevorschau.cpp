@@ -3,12 +3,15 @@
 // RE_Font_StrLenPixels, RE_Font_HeightPixels, RE_Font_DrawString,
 // Item_SetTextExtents/ToWindowCoords, Window_Paint, Item_Slider_ThumbPosition,
 // Item_EnableShowViaCvar, MenuFontToHandle, Abbildung auf das Fenster).
+#include "bhed/menue/feeder.h"
 #include "bhed/menue/hud.h"
 #include "bhed/menue/menue.h"
 #include "bhed/menue/modell.h"
 #include "bhed/menue/vorschau.h"
 
+#include <cctype>
 #include <cmath>
+#include <functional>
 #include <cstdio>
 #include <cstring>
 #include <map>
@@ -204,6 +207,33 @@ int main() {
         pruefe(leiste, "TextScroll: Bildlaufleiste, wenn 2 Zeilen * 16 > Hoehe - 2");
         pruefe(glyphen <= 8, "TextScroll: nur eine Zeile passt (Rest 18 - 16 < lineHeight)");
         cv.erase("ui_desc");
+    }
+    // M5: fehlender @-Schluessel (MD twjMenu: @MD_MENU_MAIN_TWJ) - SE_GetString (OpenJK SP/MP, MD) und
+    // JK2SP_GetStringTextString liefern "", Item_Text_Paint kehrt bei '\0' zurueck: nichts zu sehen
+    {
+        const std::string tf = "{ menuDef { name sf rect 0 0 640 480 visible 1\n"
+                               " itemDef { name fehlt type 0 rect 10 10 200 20 textscale 1 text \"@MENUS_FEHLT\" forecolor 1 1 1 1 visible 1 }\n"
+                               " itemDef { name da type 0 rect 10 50 200 20 textscale 1 text \"@MENUS_DA\" forecolor 1 1 1 1 visible 1 }\n"
+                               " itemDef { name scroll type 14 rect 10 100 120 200 lineHeight 16 textscale 1 text \"@MENUS_FEHLT\" forecolor 1 1 1 1 visible 1 }\n"
+                               "} }\n";
+        Texte tx;
+        tx.werte["MENUS_DA"] = "ok";
+        for (const Dialekt dl : {Dialekt::SP, Dialekt::MP}) {
+            LeseOptionen of;
+            of.dialekt = dl;
+            const Datei df = lies("ui/sf.menu", tf, of);
+            Umgebung uf = u;
+            uf.dialekt = dl;
+            uf.texte = &tx;
+            std::vector<Prim> pf;
+            zeichneMenu(df, 0, uf, pf);
+            int gl[3] = {0, 0, 0};
+            for (const Prim& x : pf) {
+                if (x.item >= 0 && x.item < 3 && x.art == PrimArt::Bild) { ++gl[x.item]; }
+            }
+            pruefe(gl[0] == 0 && gl[1] > 0 && gl[2] == 0 && textScrollText(df.menus[0].items[2], uf).empty(),
+                   std::string(dl == Dialekt::SP ? "SP" : "MP") + ": fehlender @-Schluessel zeichnet nichts (SE_GetString liefert \"\"), bekannter schon");
+        }
     }
     // M4: SP-Ownerdraws ohne laufendes Spiel (UI_OwnerDraw): 250 zeichnet nichts, 236 menu/art/unknownmap
     {
@@ -573,6 +603,76 @@ int main() {
     ab = abbildung(1280, 720, Seitenverhaeltnis::Balken);
     pruefe(nah(ab.sx, 1.5F) && nah(ab.ox, 160) && nah(ab.oy, 0) && nah(ab.x(640), 1120), "Balken 1280x720: 4:3 mittig");
 
+    // M5: Spezies der Figurenlisten aus ui_char_model (UI_GetCharacterCvars) - vorher immer die erste
+    // (Original-JKA character.menu: Farben/Rumpf von models/players/<erste> statt jedi_tf)
+    {
+        FeederDaten fd;
+        fd.gebaut = true;
+        for (const char* n : {"humanf", "jedi_tf", "Jedi_TF"}) {
+            Spezies sz;
+            sz.name = n;
+            sz.farbShader.push_back(std::string("farbe_") + n);
+            sz.farbAktion.push_back("x");
+            fd.spezies.push_back(sz);
+        }
+        fd.dialekt = Dialekt::SP;
+        pruefe(fd.speziesIndex("jedi_tf") == 2 && fd.speziesIndex("gibtsnicht") == 0, "Spezies SP: letzter passender Ordner (ohne break)");
+        fd.dialekt = Dialekt::MP;
+        pruefe(fd.speziesIndex("JEDI_TF") == 1, "Spezies MP: erster passender Ordner (break)");
+        const auto farben = fd.eintraege(static_cast<float>(feeder_mp::COLORCHOICES), fd.speziesIndex("jedi_tf"));
+        pruefe(!farben.empty() && farben[0].bild == "farbe_jedi_tf", "Farbliste der gewaehlten Spezies");
+    }
+    // M5: MP-Ownerdraws wie UI_OwnerDraw (Original-JKA createserver/quickgame2/playerMenu zeigten Platzhalter)
+    {
+        FeederDaten fd;
+        fd.gebaut = true;
+        fd.dialekt = Dialekt::MP;
+        fd.spieltypen = {{"Free For All", 0}, {"Duel", 3}};
+        fd.bots = {"Kyle", "Jan"};
+        fd.kartenDatei = {"mp/ffa1"};
+        std::map<std::string, std::string> cvm{{"ui_netgametype", "1"}, {"sv_maxclients", "8"}, {"ui_blueteam1", "1"}, {"ui_blueteam2", "3"},
+                                               {"ui_redteam5", "1"}, {"g_spskill", "2"}};
+        const std::function<std::string(const std::string&)> cvf = [&](const std::string& n) {
+            std::string k = n;
+            for (char& ch : k) { ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch))); }
+            const auto it = cvm.find(k);
+            return it == cvm.end() ? std::string() : it->second;
+        };
+        pruefe(fd.ownerDraw(245, cvf).text == "@MENUS_DUEL", "UI_NETGAMETYPE: gameTypes[ui_netGametype].gtEnum -> UI_GetGameTypeName");
+        pruefe(fd.ownerDraw(210, cvf).text == "@MENUS_HUMAN" && !fd.ownerDraw(210, cvf).halb, "UI_BLUETEAM1: Wert 1 = Mensch");
+        pruefe(fd.ownerDraw(211, cvf).text == "Jan", "UI_BLUETEAM2: Wert 3 = Bot Nr. 1");
+        const OwnerDrawInhalt zu = fd.ownerDraw(219, cvf);
+        pruefe(zu.text == "@MENUS_CLOSED" && zu.halb, "UI_REDTEAM5: Platz 10 > sv_maxClients 8 -> geschlossen, halbe Farbe");
+        pruefe(fd.ownerDraw(207, cvf).text == "@MP_INGAME_SKILL2" && fd.ownerDraw(287, cvf).text == "@MENUS_DEFAULT", "UI_SKILL, UI_SKIN_COLOR");
+        pruefe(fd.ownerDraw(255, cvf).bild == "menu/art/unknownmap_mp" && !fd.ownerDraw(9999, cvf).bekannt,
+               "UI_STARTMAPCINEMATIC ohne Levelshot -> unknownmap_mp; unbekannte Nummer bleibt Platzhalter");
+        fd.dialekt = Dialekt::SP;
+        pruefe(!fd.ownerDraw(245, cvf).bekannt, "SP: MP-Ownerdraws gelten nicht");
+        // Bildliste der MP-Fassung: mehr als doppelt so breit wie ein Element -> Zeilen und Spalten
+        LeseOptionen og;
+        og.dialekt = Dialekt::MP;
+        const Datei dg = lies("ui/jamp/g.menu",
+                              "{ menuDef { name g rect 0 0 640 480 visible 1\n"
+                              " itemDef { name l type 6 rect 0 0 400 200 elementwidth 64 elementheight 64 elementtype 1 feeder 12 visible 1 } } }\n",
+                              og);
+        Umgebung ug = u;
+        ug.dialekt = Dialekt::MP;
+        ug.feeder = [](float) {
+            std::vector<FeederEintrag> v(20);
+            for (FeederEintrag& e : v) { e.bild = "kopf"; }
+            return v;
+        };
+        std::vector<Prim> pg;
+        zeichneMenu(dg, 0, ug, pg);
+        int koepfe = 0;
+        bool zweiteZeile = false;
+        for (const Prim& x : pg) {
+            if (x.shader != "kopf") { continue; }
+            ++koepfe;
+            zweiteZeile = zweiteZeile || (std::fabs(x.x - 2) < 0.01F && std::fabs(x.y - 66) < 0.01F);
+        }
+        pruefe(koepfe == 18 && zweiteZeile, "MP-Bildliste: 6 je Zeile, 3 Zeilen (" + std::to_string(koepfe) + ")");
+    }
     std::printf("menuevorschau: %s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }
