@@ -889,8 +889,10 @@ std::vector<Schritt> folgeSchritte() {
     }));
 
     // --- Zeitleiste: Zeile, Bewegung, Ausloeser (rc597) ---------------------
-    add(tu("Zeitleiste: den Spawner der Figur waehlen (Uebersicht)", [=] {
+    add(tu("Zeitleiste: den Spawner der Figur waehlen (Uebersicht, ganze Szene)", [=] {
         g_app->zlDetail = false;
+        g_app->timelineZoom = 1.0;
+        g_app->timelineViewStartMs = 0.0;
         g_app->selectedActor = -1;
         entityAuswahlSetzen(figur->entity);
         g_app->playMs = figur->ms;
@@ -1545,7 +1547,9 @@ std::vector<Schritt> folgeSchritte2(std::shared_ptr<FolgeZiel> schiff, std::shar
         return m.animation == "BOTH_WALK1" || m.animation == "BOTH_RUN1";
     }));
     // Zeitleiste: den Balken des Laufs anfassen und nach rechts ziehen.
-    add(tu("Zeitleiste: Zeit vor den Lauf", [=] {
+    add(tu("Zeitleiste: Zeit vor den Lauf, ganze Szene", [=] {
+        g_app->timelineZoom = 1.0;
+        g_app->timelineViewStartMs = 0.0;
         const ActorStep* st = laufVon(figur->actor);
         if (st != nullptr) { gp->startMs0 = st->startMs; }
     }));

@@ -193,7 +193,25 @@ TlKat*, Zoom-Menue ...); TlKamera bleibt (Ortskatalog des Helfers).
 
 ## Schlussrunde
 
-SCHLUSSRUNDE
+- Sauberer Neubau (`--clean-first`, alle Ziele): 0 Fehler, 0 Warnungen.
+- ctest: 165 von 165 bestanden (neu: `spuren`).
+- Selbsttests (`/y/zl1_ende.sh`): zeitleiste1 42/42, zeitleiste 47/47,
+  mission1 97/98, umriss 44/45, kamera 95/95, missionsbau 95/95, szenen
+  26/26, ton 34/34, npcklasse 12/12, laserfalle 8/8, geschuetzanim 3/3,
+  zielstrahl 2/2, effektgrund 1/1, figurdeform 1/1, karte 229/229,
+  karteneditor (fotos) 78/78, Modus 1 (mit BHED_HANDBUCH) 2646/2646.
+- umriss: "den Laufbalken ziehen" zog an einem Lauf ausserhalb des
+  Anfangsausschnitts von 30 s - tlBalken bekam das Rechteck des vorigen
+  Blocks. Behoben (nur gezeichnete Laeufe, der Test zeigt die ganze Szene).
+  mission1: "Fadenkreuz nach Stop" (0,21 statt 0,79) - im Lauf davor mit
+  demselben Stand gruen (zl1m4 98/98). Nachlauf nach der Behebung (inkrementeller Bau, 0 Warnungen): umriss 45/45,
+  mission1 98/98, zeitleiste1 42/42.
+- lint_sources, lint_fassung (rc606), lint_gapp, lint_imgui_context,
+  lint_layout, lint_abstand, lint_doppelanzeige: ok. Handbuch
+  `gen_handbuch.py --pruefen`: handbuch_sprachen ok.
+- Keine eigenen Restprozesse; Laufordner unter `Y:\mission_laeufe`, der
+  ausgepackte Altstand fuer die Messung (`Y:\mission_alt`) ist geloescht;
+  Spielordner nur gelesen.
 
 ## Changelog
 

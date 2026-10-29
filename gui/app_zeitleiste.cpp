@@ -994,8 +994,10 @@ void darstellerZeilen(Rahmen& r, const spuren::Darsteller& d, int figIdx, int au
         a.farbe = kLaufen;
         a.y0 = f.Min.y + 21.0F * r.k;
         a.y1 = f.Min.y + 36.0F * r.k;
+        const std::size_t vorher = g_app->zlBloecke.size();
         (void)block(r, c, a);
-        const ImRect br = g_app->zlBloecke.empty() ? ImRect{} : g_app->zlBloecke.back().r;
+        if (g_app->zlBloecke.size() == vorher) { continue; }   // ausserhalb des Ausschnitts
+        const ImRect br = g_app->zlBloecke.back().r;
         g_app->tlBalken.push_back(App::TlBalken{c.pfad, br.Min, br.Max, c.art == Art::Laufen, figIdx});
         ++balken;
     }
