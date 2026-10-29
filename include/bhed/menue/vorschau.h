@@ -140,6 +140,17 @@ void zeichneMenu(const Datei& d, int menu, const Umgebung& u, std::vector<Prim>&
 using GibtSchrift = std::function<bool(const std::string& name)>;
 [[nodiscard]] std::vector<std::string> schriftNamen(const Datei& assets, Dialekt d, Spiel spiel = Spiel::JA,
                                                     const GibtSchrift& gibt = {});
+// Dasselbe ueber alle Dateien eines Menuesatzes in Ladereihenfolge (UI_LoadMenus).
+[[nodiscard]] std::vector<std::string> schriftNamen(const std::vector<const Datei*>& satz, Dialekt d, Spiel spiel,
+                                                    const GibtSchrift& gibt);
+
+// Item_Multi_Setting: der Text einer Mehrfachwahl zum Cvar-Wert (mit cvarStrList feeder
+// wie ItemParse_cvarStrList: FEEDER_PLAYER_SPECIES -> "@MENUS_<NAME>").
+[[nodiscard]] std::string multiText(const Item& it, const Umgebung& u);
+
+// Was die Engine beim Start selbst an Cvars anlegt, die Menues lesen (SP: ui_char_*
+// aus g_char_* von UI_Init) - fuer die Vorschau, solange niemand sie setzt. "" = keine.
+[[nodiscard]] std::string spielCvarVorgabe(Dialekt d, Spiel s, const std::string& name);
 
 // Abbildung des virtuellen Bildschirms auf ein Fenster.
 enum class Seitenverhaeltnis {

@@ -18,14 +18,17 @@
 
 #include "app_internal.h"
 #include "backend.h"
+#include "gpumap.h"
 #include "platform.h"
 
 #include "bhed/gpuconst.h"
+#include "bhed/gpuskin.h"
 #include "bhed/i18n.h"
 #include "bhed/mapview.h"
 #include "bhed/wave.h"
 #include "bhed/image.h"
 #include "bhed/menue/bauteile.h"
+#include "bhed/menue/diagnose.h"
 #include "bhed/menue/feeder.h"
 #include "bhed/menue/menue.h"
 #include "bhed/menue/modell.h"
@@ -37,6 +40,7 @@
 #include "bhed/menue/werkzeuge.h"
 #include "bhed/pk3.h"
 #include "bhed/regelwerk.h"
+#include "bhed/scene.h"
 #include "bhed/shaderscript.h"
 #include "bhed/utf8pfad.h"
 
@@ -46,6 +50,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <map>
 #include <memory>
 #include <set>
@@ -76,13 +81,23 @@ struct Dokument {
     std::set<int> lesezeichen;
     std::set<int> gefaltet;    // Anfangszeilen eingeklappter Bloecke
     std::set<int> gesperrt;    // Items, die die Flaeche nicht bewegt
+    std::set<std::pair<int, int>> verborgen;   // M2 Ebenenliste: (Menue, Item) nur in der Vorschau ausgeblendet
+    int umbenennen = -1;       // Item, dessen Name in der Ebenenliste bearbeitet wird
+    std::string neuerName;
     int seite = 0;
     int seiteGezeigt = -1;     // welcher Reiter zuletzt offen war
     std::vector<int> auswahl;  // Items im Menue der Seite
-    float scrollZeile = 0;
+    float scrollZeile = 0;   // in Reihen (mit Umbruch mehr als Zeilen)
+    float scrollX = 0;       // ohne Umbruch: seitwaerts (Bildpunkte)
+    std::uint32_t letzterCursor = 0;
     int springeZeile = -1;
     std::map<std::string, std::string> bilder;   // eigene Grafiken: Spielpfad -> Bytes
     int satz = -1;             // M2: gehoert zum Menuesatz Nr. (menus.txt), -1 = einzeln
+    // M2 Live-Diagnose: Ergebnis fuer Pufferversion diagVersion; der Lauf im Hintergrund
+    std::vector<Diagnose> diagnosen;
+    int diagVersion = -1, diagGewollt = -1, diagLaufVersion = -1;
+    double diagAb = 0;
+    std::future<std::vector<Diagnose>> diagLauf;
 };
 
 struct Textur {
@@ -101,16 +116,26 @@ struct Kino {
     unsigned stand = 0;
     int bilder = 0;
 };
-// M2: ein 3D-Modell eines ITEM_TYPE_MODEL mit seiner Textur
+// M2: ein 3D-Modell eines ITEM_TYPE_MODEL - Modell, Haeute und Bilder einmal
+// geladen; gezeichnet von gpu::zeichneMenueFigur in sein Ziel Nr. nr
 struct ModellAnsicht {
     MenueModell modell;
-    void* tex = nullptr;
-    int w = 0, h = 0;
-    unsigned stand = 0;
-    std::vector<std::uint8_t> bild;
+    ModelTextures texturen;
+    bool texturenDa = false;
+    int nr = -1;
+    int klingenNr = -1;   // eigenes Ziel fuer die Klingen eines Saebers
+    std::vector<BoneMatrix> welt, haut;   // je Bild wiederverwendet
+};
+// M2: das Bild eines Klingen-Shaders (gfx/effects/sabers/<farbe>_glow usw.)
+struct KlingenBild {
+    TextureSet::Tex bild;
+    bool additiv = true;       // blendFunc GL_ONE GL_ONE
+    bool vertexFarbe = true;   // rgbGen vertex (shaderRGBA zaehlt)
+    bool gesucht = false;
 };
 
 enum class Ziehen { Nichts, Verschieben, Groesse, Lineal };
+struct DiagDaten;   // Schnappschuss der Spieldaten fuer die Diagnose (unten)
 
 struct Zustand {
     std::vector<std::unique_ptr<Dokument>> docs;
@@ -126,12 +151,14 @@ struct Zustand {
     unsigned texturStand = 0;
     std::map<std::string, Kino> kinos;               // M2: Name des Videos -> Spieler
     std::map<std::string, ModellAnsicht> modelle;    // M2: Modell|Haut|Animation -> Ansicht
+    std::map<std::string, KlingenBild> klingenBilder;   // M2: Klingen-Shader -> Bild
     int kinoBilder = 0;                              // Selbsttest: gezeigte Videobilder
     int naechsterSatz = 0;                           // M2 Punkt 3: Nummer des naechsten Menuesatzes
     int aktivGezeigt = -1;                           // welcher Dokument-Reiter zuletzt offen war
     float flaeche[4] = {0, 0, 0, 0};                 // Bildvergleich: 640x480 im Fenster (x, y, b, h)
     double bildzeitMs = 0;                           // Messung: Arbeitszeit von zeichne() je Bild (gleitend)
     std::string satzWechsel;                         // Selbsttest: zuletzt ueber Dateien geoeffnetes Menue
+    std::vector<int> unterZeiger;                    // Rechtsklick-Liste der Flaeche
     // M2 Punkt 2: Video-Import (Kodieren im Hintergrund)
     bool videoOffen = false;
     std::string videoQuelle;
@@ -146,13 +173,20 @@ struct Zustand {
     std::vector<Vorlage> vorlagen;
     bool vorlagenGeladen = false;
     std::string vorlageName;
-    int modellDreiecke = 0;                          // Selbsttest: gezeichnete Modell-Dreiecke
+    int modellAufrufe = 0;                           // Selbsttest: Zeichenaufrufe der Menue-Figuren
+    std::string modellFehler;                        // letzte Meldung von gpu::zeichneMenueFigur
+    Textur weiss;                                    // $whiteimage / *white (tr.whiteImage)
+    unsigned weissStand = 0;
+    int naechstesZiel = 0;                           // Nummer des naechsten Figurenziels
     std::map<std::string, Schrift> schriften;
     std::vector<std::string> schriftNamenSp, schriftNamenMp;
     bool schriftNamenGeladen = false;
     FeederDaten feederSp, feederMp;   // M2: Listbox-Feeder aus den Spieldaten
+    SaberMap saeber;                  // M2: ext_data/sabers/*.sab (UI_SaberModelForSaber)
+    bool saeberGeladen = false;
     // M2: fadeClamp/fadeAmount/fadeCycle aus assetGlobalDef je Dialekt (Menu_Init), Spieltakt
     float fadeClamp[2] = {1.0F, 1.0F}, fadeAmount[2] = {0.0F, 0.0F};
+    std::string fokusKlang[2];   // M2 Punkt 5: assetGlobalDef itemFocusSound (SP, MP)
     int fadeCycle[2] = {0, 0};
     int spielFps = 125;   // com_maxfps (OpenJK-Vorgabe)
     // Ansicht
@@ -160,6 +194,9 @@ struct Zustand {
     int aufloesung = 0;   // 0 = Fenster, sonst Voreinstellung
     bool interaktion = false;
     bool alleItems = false;   // wie im Spiel; an: verborgene gedimmt
+    bool klaengeAn = true;    // M2 Punkt 5: Klaenge im Bedienmodus abspielen
+    int klangEreignisse = 0;  // Selbsttest: ausgeloeste Klaenge (abgespielt oder stumm)
+    std::string letzterKlang;
     bool raster = false;
     bool anRaster = false;
     bool anKanten = true;
@@ -192,6 +229,13 @@ struct Zustand {
     int vervollWahl = 0;
     float codeHoehe = 0;
     float linksBreite = 0, rechtsBreite = 0;
+    int reiterGewollt = -2;   // rechte Spalte: -2 = aus den Einstellungen, -1 = keiner, sonst setzen
+    // M2 Live-Diagnose
+    std::shared_ptr<const DiagDaten> diagDaten;
+    std::size_t diagDatenStand = static_cast<std::size_t>(-1);
+    bool problemeFehler = true, problemeWarnungen = true, problemeHinweise = true;
+    float problemeHoehe = 0;
+    int diagLaeufe = 0;
     bool ziehtText = false;
     std::string meldung;
     std::string ordnerAusgabe;
@@ -249,6 +293,7 @@ void datenPruefen() {
     z.daten.ordner = g_app->gamePaths;   // nur lesen
     z.texteGeladen = z.shaderGeladen = z.schriftNamenGeladen = false;
     z.feederSp.gebaut = z.feederMp.gebaut = false;
+    z.saeberGeladen = false;
     z.schriften.clear();
     z.texturen.clear();
 }
@@ -290,35 +335,52 @@ const Schrift* schriftNamens(const std::string& name) {
 }
 
 // Die Schriftnamen aus assetGlobalDef (SP ui/main.menu, MP ui/jamp/main.menu)
+// Schriften und fade-Werte wie beim Laden der Menues: der Menuesatz des Spiels
+// (SP UI_Load: ui/menus.txt; MP ui_menuFilesMP, Vorgabe ui/jampmenus.txt - Jedi Outcast
+// und Movie Duels tragen eigene Dateinamen) Datei fuer Datei, jede mit ihrem
+// assetGlobalDef und ihren menuDefs.
 void schriftNamenLaden() {
     Zustand& z = Z();
     if (z.schriftNamenGeladen) { return; }
     z.schriftNamenGeladen = true;
-    auto aus = [&](const std::vector<std::string>& pfade, Dialekt d) {
-        for (const std::string& p : pfade) {
+    auto aus = [&](const std::vector<std::string>& saetze, Dialekt d) {
+        std::vector<Datei> dateien;
+        for (const std::string& satzPfad : saetze) {
             std::string t;
-            if (!z.daten.lies(p, t)) { continue; }
-            LeseOptionen o = optionenFuer(p, z.spiel, z.daten.lader());
+            if (!z.daten.lies(satzPfad, t)) { continue; }
+            LeseOptionen o = optionenFuer(satzPfad, z.spiel, z.daten.lader());
             o.dialekt = d;
-            const Datei a = lies(p, t, o);
-            if (a.assets.vorhanden) {
-                const int k = d == Dialekt::MP ? 1 : 0;
-                for (const Eigenschaft& e : a.assets.eigenschaften) {
-                    if (!e.ok || e.args.empty()) { continue; }
-                    const float v = static_cast<float>(std::atof(e.args[0].s.c_str()));
-                    if (e.schluessel == "fadeClamp") { z.fadeClamp[k] = v; }
-                    else if (e.schluessel == "fadeAmount") { z.fadeAmount[k] = v; }
-                    else if (e.schluessel == "fadeCycle") { z.fadeCycle[k] = static_cast<int>(v); }
-                }
-                return schriftNamen(a, d, z.spiel, [&](const std::string& n) { return z.daten.gibt("fonts/" + n + ".fontdat"); });
+            const Datei satz = lies(satzPfad, t, o);
+            for (const std::string& f : satz.loadMenus) {
+                std::string inhalt;
+                if (!z.daten.lies(f, inhalt)) { continue; }
+                LeseOptionen of = optionenFuer(f, z.spiel, z.daten.lader());
+                of.dialekt = d;
+                dateien.push_back(lies(f, inhalt, of));
+            }
+            break;   // nur der erste vorhandene Satz (ui_menuFiles)
+        }
+        std::vector<const Datei*> zeiger;
+        const int k = d == Dialekt::MP ? 1 : 0;
+        for (const Datei& f : dateien) {
+            zeiger.push_back(&f);
+            for (const Eigenschaft& e : f.assets.eigenschaften) {
+                if (!e.ok || e.args.empty()) { continue; }
+                const float v = static_cast<float>(std::atof(e.args[0].s.c_str()));
+                if (e.schluessel == "fadeClamp") { z.fadeClamp[k] = v; }
+                else if (e.schluessel == "fadeAmount") { z.fadeAmount[k] = v; }
+                else if (e.schluessel == "fadeCycle") { z.fadeCycle[k] = static_cast<int>(v); }
+                else if (e.schluessel == "itemFocusSound") { z.fokusKlang[k] = e.args[0].s; }
             }
         }
-        return std::vector<std::string>{};
+        if (zeiger.empty()) { return std::vector<std::string>{}; }
+        return schriftNamen(zeiger, d, z.spiel, [&](const std::string& n) { return z.daten.gibt("fonts/" + n + ".fontdat"); });
     };
-    z.schriftNamenSp = aus({"ui/main.menu", "ui/menus.txt", "ui/ingame.menu"}, Dialekt::SP);
-    z.schriftNamenMp = aus({"ui/jamp/main.menu", "ui/jk2mp/main.menu", "ui/MD_MP/main.menu", "ui/jamp/ingame.menu"}, Dialekt::MP);
+    z.schriftNamenSp = aus({"ui/menus.txt"}, Dialekt::SP);
+    z.schriftNamenMp = aus({"ui/jampmenus.txt", "ui/jk2mpmenus.txt", "ui/MovieDuels-MP-Menus.txt"}, Dialekt::MP);
 }
 
+void shaderLaden();
 const Textur* textur(const std::string& shaderName) {
     Zustand& z = Z();
     if (shaderName.empty()) { return nullptr; }
@@ -332,13 +394,7 @@ const Textur* textur(const std::string& shaderName) {
     Textur& t = z.texturen[key];
     if (t.versucht) { return t.tex != nullptr ? &t : nullptr; }
     t.versucht = true;
-    if (!z.shaderGeladen) {
-        z.shaderGeladen = true;
-        for (const std::string& f : z.daten.liste("shaders/", {".shader"})) {
-            std::string inhalt;
-            if (z.daten.lies(f, inhalt)) { parseShaderScript(inhalt, z.shader); }
-        }
-    }
+    shaderLaden();
     std::string bild = key;
     const auto s = z.shader.find(key);
     if (s != z.shader.end() && !s->second.image.empty()) {
@@ -367,6 +423,24 @@ const Textur* textur(const std::string& shaderName) {
     t.w = im.width;
     t.h = im.height;
     return t.tex != nullptr ? &t : nullptr;
+}
+
+// M2: UI_SaberModelForSaber (code/ui/ui_main.cpp): saberModel aus den .sab-Dateien
+bool saberModellFuer(const std::string& saber, std::string& modell, std::string& haut) {
+    Zustand& z = Z();
+    if (!z.saeberGeladen) {
+        z.saeberGeladen = true;
+        z.saeber.clear();
+        for (const std::string& f : z.daten.liste("ext_data/sabers/", {".sab"})) {
+            std::string t;
+            if (z.daten.lies(f, t)) { parseSaberFile(t, z.saeber); }
+        }
+    }
+    const auto it = z.saeber.find(kleinPfad(saber));
+    if (it == z.saeber.end() || it->second.model.empty()) { return false; }
+    modell = it->second.model;
+    haut.clear();   // customSkin traegt SaberDef nicht: Grundhaut des Modells
+    return true;
 }
 
 // --- Dokumente ---------------------------------------------------------------
@@ -549,10 +623,12 @@ Umgebung umgebung(const Dokument& d) {
         if (mdGriffe && f > 0 && static_cast<std::size_t>(f) >= namen.size()) { return nullptr; }
         return namen[i].empty() ? nullptr : schriftNamens(namen[i]);
     };
-    u.cvar = [](const std::string& n) {
+    const Dialekt dl = d.datei.dialekt;
+    const Spiel sp = z.spiel;
+    u.cvar = [dl, sp](const std::string& n) {
         const auto& m = Z().vorschauCvars;
         const auto it = m.find(kleinPfad(n));
-        return it == m.end() ? std::string() : it->second;
+        return it == m.end() ? spielCvarVorgabe(dl, sp, n) : it->second;
     };
     // M2: die Listen wie das Spiel sie fuellt (feeder.cpp); einmal je Spieldatenstand gebaut
     FeederDaten& fd = d.datei.dialekt == Dialekt::MP ? z.feederMp : z.feederSp;
@@ -621,6 +697,18 @@ Kino* kino(const std::string& name, bool shader = false) {
     return k.tex != nullptr ? &k : nullptr;
 }
 
+// M2: das weisse Bild der Engine (tr.whiteImage) fuer map $whiteimage und *white
+const Textur* weissesBild() {
+    Zustand& z = Z();
+    if (z.weiss.tex == nullptr || z.weissStand != render::texturStand()) {
+        const unsigned char px[16] = {255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255};
+        z.weiss.tex = render::createTexture(px, 2, 2);
+        z.weiss.w = z.weiss.h = 2;
+        z.weissStand = render::texturStand();
+    }
+    return z.weiss.tex != nullptr ? &z.weiss : nullptr;
+}
+
 // M2: ein Bild ohne Shaderskript (fuer eine Stufe: map, animMap-Bild)
 const Textur* stufenBild(const std::string& name) {
     Zustand& z = Z();
@@ -670,6 +758,8 @@ bool zeichneShaderStufen(ImDrawList* dl, const std::string& shaderName, ImVec2 a
             if (const Textur* t = stufenBild(s.animImages[animBildIndex(zeit, s.animFreq, n, s.animOneShot)])) { tex = t->tex; }
         } else if (!s.image.empty()) {
             if (const Textur* t = stufenBild(s.image)) { tex = t->tex; }
+        } else if (s.weiss) {
+            if (const Textur* t = weissesBild()) { tex = t->tex; }
         }
         if (tex == nullptr) { continue; }
         // rgbGen / alphaGen
@@ -724,27 +814,155 @@ bool zeichneShaderStufen(ImDrawList* dl, const std::string& shaderName, ImVec2 a
     return true;
 }
 
-// M2: Bildpunkte eines Shaders/Bildes fuer die Modell-Haut (wie textur(), aber auf der CPU)
-bool modellBild(const std::string& name, MenueModell::Bild& out) {
+// M2: das Bild eines Klingen-Shaders aus den Spieldaten des Menue-Editors: die erste
+// Stufe mit Bild (map), sonst das gleichnamige Bild (impliziter Shader); dazu, ob sie
+// additiv ist und rgbGen vertex hat. nullptr, wenn es kein Bild gibt (die Engine nimmt
+// dann ihren Ersatzshader).
+const KlingenBild* klingenBild(const std::string& shaderName) {
     Zustand& z = Z();
-    (void)textur(name);   // laedt die Shaderliste, falls noch nicht geschehen
-    std::string key = kleinPfad(name);
-    const std::size_t punkt = key.rfind('.');
-    if (punkt != std::string::npos && punkt + 5 >= key.size()) { key = key.substr(0, punkt); }
-    std::string bildName = key;
-    const auto s = z.shader.find(key);
-    if (s != z.shader.end() && !s->second.image.empty()) { bildName = kleinPfad(s->second.image); }
-    for (const std::string& k : textureCandidates(bildName)) {
-        std::string bytes;
-        if (!z.daten.lies(k, bytes)) { continue; }
-        const image::Image im = image::decode(reinterpret_cast<const unsigned char*>(bytes.data()), bytes.size());
-        if (!im.ok) { continue; }
-        out.w = im.width;
-        out.h = im.height;
-        out.rgba = im.rgba;
-        return true;
+    const std::string key = kleinPfad(shaderName);
+    KlingenBild& kb = z.klingenBilder[key];
+    if (kb.gesucht) { return kb.bild.empty() ? nullptr : &kb; }
+    kb.gesucht = true;
+    (void)textur(shaderName);   // laedt die Shaderskripte
+    std::string bild = key;
+    const auto it = z.shader.find(key);
+    if (it != z.shader.end()) {
+        for (const ShaderInfo::Stage& s : it->second.stages) {
+            if (s.image.empty()) { continue; }
+            bild = kleinPfad(s.image);
+            kb.additiv = s.srcFactor == BlendFactor::One && s.dstFactor == BlendFactor::One;
+            kb.vertexFarbe = s.rgbArt == RgbGenArt::Vertex || s.rgbArt == RgbGenArt::ExactVertex;
+            break;
+        }
+    } else {
+        kb.additiv = false;   // impliziter Shader: deckend
     }
-    return false;
+    const std::size_t punkt = bild.rfind('.');
+    if (punkt != std::string::npos && bild.find('/', punkt) == std::string::npos) { bild = bild.substr(0, punkt); }
+    for (const char* endung : {".tga", ".jpg", ".png"}) {
+        std::string daten;
+        if (!z.daten.lies(bild + endung, daten)) { continue; }
+        const image::Image im = image::decode(reinterpret_cast<const unsigned char*>(daten.data()), daten.size());
+        if (!im.ok || im.width <= 0 || im.height <= 0) { continue; }
+        kb.bild.width = im.width;
+        kb.bild.height = im.height;
+        kb.bild.rgba = im.rgba;
+        break;
+    }
+    return kb.bild.empty() ? nullptr : &kb;
+}
+
+// M2: die Klingen eines Menue-Saebers (code/ui/ui_saber.cpp UI_SaberDrawBlades,
+// UI_SaberDrawBlade): Saeber aus ui_saber (isSaber) bzw. ui_saber2 (isSaber2),
+// Klingenzahl (1..8), -art, -laenge (Vorgabe 40) und -radius (Vorgabe 3) aus der
+// .sab, noBlade/noBlade2 ab bladeStyle2Start, Farbe aus ui_saber_color bzw.
+// ui_saber2_color; Lage ueber die *blade-Bolzen bzw. den tagHack mal DC->xscale
+// (uiKlingenStrecke). Was der Szene uebergeben wird:
+//   OpenJK/Jedi Outcast: UI_DoSaber (TranslateSaberColor: unbekannt = blau);
+//   Movie Duels: nach cg_SFXSabers 0 (UI_DoSaber) oder 4 (UI_DoSFXSaber, Vorgabe) mit
+//     dessen TranslateSaberColor (rgb/white/custom/RGB-Werte: rgb_glow, Glanzfarbe
+//     ui_rgb_saber*_red/green/blue bei RGB; black, unstable_red eigene Shader).
+// Glanz-Sprites und Kern wie RB_SurfaceSaberGlow/RB_SurfaceLine (uiSaberVierecke),
+// additiv mit rgbGen vertex, gegen die Tiefe des Griffs getestet - derselbe
+// Szenenaufruf wie im Spiel. Nicht additive Klingen-Shader (black: blendFunc blend
+// bzw. GL_ZERO) und andere cg_SFXSabers-Arten zeichnet die Vorschau nicht - sie meldet es.
+void zeichneMenueKlingen(ImDrawList* dl, ModellAnsicht& mv, const Item& it, const MenueModellBild& mb, const Umgebung* umg, ImVec2 ia,
+                         ImVec2 ib, int pw, int ph, float xscale) {
+    Zustand& z = Z();
+    const bool zweiter = (it.itemFlags & ITF_ISSABER) == 0;
+    auto cv = [&](const char* n) { return umg != nullptr && umg->cvar ? umg->cvar(n) : std::string(); };
+    auto zahl = [&](const char* n, float vorgabe) {
+        const std::string w = cv(n);
+        return w.empty() ? vorgabe : static_cast<float>(std::atof(w.c_str()));
+    };
+    std::string modell, haut;
+    if (!saberModellFuer(cv(zweiter ? "ui_saber2" : "ui_saber"), modell, haut)) { return; }
+    const SaberDef& s = z.saeber[kleinPfad(cv(zweiter ? "ui_saber2" : "ui_saber"))];
+    const std::string farbe = kleinPfad(cv(zweiter ? "ui_saber2_color" : "ui_saber_color"));
+    const bool md = z.spiel == Spiel::MD;
+    const int stil = md ? std::atoi(cv("cg_SFXSabers").c_str()) : 0;
+    const bool benannt = farbe == "red" || farbe == "orange" || farbe == "yellow" || farbe == "green" || farbe == "blue" || farbe == "purple";
+    std::string glanzName = "gfx/effects/sabers/" + std::string(benannt ? farbe : "blue") + "_glow";
+    std::string kernName = "gfx/effects/sabers/" + std::string(benannt ? farbe : "blue") + "_line";
+    float glanzFarbe[3] = {1, 1, 1};
+    bool zweiterKern = false;   // MD UI_DoSaber: SABER_RGB legt rgb_line noch einmal auf
+    if (md && !benannt) {
+        const bool rgb = farbe != "white" && farbe != "black" && farbe != "custom" && farbe != "unstable_red";   // >= SABER_RGB
+        glanzName = farbe == "black"          ? "gfx/effects/sabers/black_glow"
+                    : farbe == "unstable_red" ? "gfx/effects/sabers/red_glow"
+                                              : "gfx/effects/sabers/rgb_glow";
+        kernName = farbe == "black"          ? "gfx/effects/sabers/black_line"
+                   : farbe == "unstable_red" ? "gfx/effects/sabers_tfa/unstable_line"
+                                             : "gfx/effects/sabers/rgb_line";
+        if (rgb) {
+            const char* const n1[3] = {"ui_rgb_saber_red", "ui_rgb_saber_green", "ui_rgb_saber_blue"};
+            const char* const n2[3] = {"ui_rgb_saber2_red", "ui_rgb_saber2_green", "ui_rgb_saber2_blue"};
+            for (int k = 0; k < 3; ++k) { glanzFarbe[k] = static_cast<float>(std::atoi(cv(zweiter ? n2[k] : n1[k]).c_str())) / 255.0F; }
+        }
+        zweiterKern = stil == 0 && farbe == "rgb";
+    }
+    if (md && stil == 4 && farbe != "unstable_red") { kernName = farbe == "black" ? "SFX_Sabers/saber_blade_black" : "SFX_Sabers/saber_blade"; }
+    const KlingenBild* glanz = klingenBild(glanzName);
+    const KlingenBild* kern = klingenBild(kernName);
+    const KlingenBild* kern2 = zweiterKern ? klingenBild("gfx/effects/sabers/rgb_line") : nullptr;
+    std::vector<gpu::KlingenQuad> quads;
+    std::vector<UiKlingenViereck> vierecke;
+    const float auge[3] = {0, 0, 0}, links[3] = {0, 1, 0}, oben[3] = {0, 0, 1};   // refdef: AxisClear, vieworg 0
+    const int klingen = std::clamp(s.numBlades, 1, 8);
+    std::string hinweis;
+    for (int kn = 0; kn < klingen; ++kn) {
+        if (!uiKlingeZeichnen(kn, s.bladeStyle2Start, s.noBlade, s.noBlade2)) { continue; }
+        const std::size_t k8 = static_cast<std::size_t>(kn);
+        const float laenge = s.bladeLength[k8] > 0 ? s.bladeLength[k8] : (s.length > 0 ? s.length : 40.0F);
+        const float radius = s.bladeRadius[k8] > 0 ? s.bladeRadius[k8] : s.radius;
+        float o[3], r[3];
+        if (!uiKlingenStrecke(mv.modell.glm, s.type, kn, xscale, o, r)) { continue; }
+        float a[3], dir[3];   // in die Welt: ursprung + x * achse0 + y * achse1 + z * achse2
+        for (int k = 0; k < 3; ++k) {
+            a[k] = mb.ursprung[k] + o[0] * mb.achsen[0][k] + o[1] * mb.achsen[1][k] + o[2] * mb.achsen[2][k];
+            dir[k] = r[0] * mb.achsen[0][k] + r[1] * mb.achsen[1][k] + r[2] * mb.achsen[2][k];
+        }
+        const UiKlingenMasse m =
+            md ? uiKlingenMasseMD(stil, laenge, laenge, radius, zahl(stil == 4 ? "cg_SFXSabersGlowSizeSFX" : "cg_SFXSabersGlowSize", 1),
+                                  zahl(stil == 4 ? "cg_SFXSabersCoreSizeSFX" : "cg_SFXSabersCoreSize", 1))
+               : uiKlingenMasseOpenJK(laenge, laenge, radius);
+        if (md && laenge >= 0.5F && !m.da) { hinweis = "cg_SFXSabers " + std::to_string(stil) + ": Klingenart nicht nachgebildet"; }
+        vierecke.clear();
+        uiSaberVierecke(a, dir, laenge, m, auge, links, oben, vierecke);
+        if (kern2 != nullptr && !vierecke.empty()) { vierecke.push_back(vierecke.back()); }
+        std::size_t kerne = 0;
+        for (const UiKlingenViereck& v : vierecke) {
+            const KlingenBild* b = v.kern ? (kerne++ > 0 && kern2 != nullptr ? kern2 : kern) : glanz;
+            if (b == nullptr || !b->additiv) {
+                if (b != nullptr) { hinweis = (v.kern ? kernName : glanzName) + ": nicht additiv, nicht gezeichnet"; }
+                continue;
+            }
+            gpu::KlingenQuad q;
+            std::memcpy(q.ecke, v.ecke, sizeof(q.ecke));
+            // rgbGen vertex: Bild x shaderRGBA (Glanz in Movie Duels 0.8 bzw. die RGB-Farbe, Kern 255)
+            const bool glanzFarbig = b->vertexFarbe && !v.kern;
+            for (int k = 0; k < 3; ++k) { q.farbe[k] = 255.0F * (glanzFarbig ? glanzFarbe[k] : 1.0F); }
+            q.tex = &b->bild;
+            q.spur = true;   // Bild x Farbe x Staerke (klingePixelShaderHlsl)
+            q.staerke = glanzFarbig ? m.glanzStaerke : 1.0F;
+            quads.push_back(q);
+        }
+    }
+    if (!hinweis.empty()) { z.modellFehler = hinweis; }
+    if (quads.empty()) { return; }
+    if (mv.klingenNr < 0) { mv.klingenNr = z.naechstesZiel++; }
+    if (!gpu::bereiteMenueZiel(mv.klingenNr, pw, ph)) { return; }
+    std::string fehler;
+    if (gpu::zeichneMenueKlingen(mv.klingenNr, quads, mb.kamera, &fehler, mv.nr) <= 0) {
+        if (!fehler.empty()) { z.modellFehler = fehler; }
+        return;
+    }
+    void* tex = gpu::menueZielTextur(mv.klingenNr);
+    const ImVec2 ecken[4] = {ia, ImVec2{ib.x, ia.y}, ib, ImVec2{ia.x, ib.y}};
+    const ImVec2 uv[4] = {ImVec2{0, 0}, ImVec2{1, 0}, ImVec2{1, 1}, ImVec2{0, 1}};
+    render::zeichneStufe(dl, tex, ecken, uv, IM_COL32(255, 255, 255, 255), static_cast<int>(BlendFactor::One), static_cast<int>(BlendFactor::One),
+                         true);
 }
 
 void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildung& ab, ImVec2 o, const std::set<int>& verschoben,
@@ -765,6 +983,10 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
                 break;
             case PrimArt::Bild: {
                 if (zeichneShaderStufen(dl, p.shader, a, b, p)) { break; }   // M2: Shaderskript mit Stufen
+                if (p.shader == "*white") {   // tr.whiteShader
+                    dl->AddRectFilled(a, b, col);
+                    break;
+                }
                 const Textur* t = textur(p.shader);
                 if (t == nullptr) {
                     dl->AddRect(a, b, IM_COL32(255, 0, 255, 120));
@@ -790,23 +1012,40 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
                     const CvarLeser cv = umg != nullptr && umg->cvar ? umg->cvar : CvarLeser{};
                     const std::string schl = modellSchluessel(it, cv);
                     ModellAnsicht& mv = z.modelle[schl];
-                    if (mv.modell.schluessel != schl) { (void)ladeMenueModell(z.daten, it, cv, modellBild, mv.modell); }
-                    if (mv.modell.ok) {
-                        const int bw = std::clamp(static_cast<int>(b.x - a.x), 8, 1024);
-                        const int bh = std::clamp(static_cast<int>(b.y - a.y), 8, 1024);
-                        z.modellDreiecke += zeichneMenueModell(mv.modell, it, static_cast<int>(ImGui::GetTime() * 1000.0), bw, bh, mv.bild);
-                        if (mv.stand != render::texturStand() || mv.tex == nullptr || mv.w != bw || mv.h != bh) {
-                            mv.tex = render::createTexture(mv.bild.data(), bw, bh);
-                            mv.w = bw;
-                            mv.h = bh;
-                            mv.stand = render::texturStand();
-                        } else {
-                            render::updateTexture(mv.tex, mv.bild.data(), bw, bh);
+                    if (mv.modell.schluessel != schl) {
+                        (void)ladeMenueModell(z.daten, it, cv, mv.modell);
+                        mv.texturenDa = false;
+                    }
+                    if (mv.nr < 0) { mv.nr = z.naechstesZiel++; }
+                    // refdef: x = rect.x + 1, w = rect.w - 2 (in Bildpunkten des Fensters)
+                    const float sx = (b.x - a.x) / std::max(1.0F, p.w), sy = (b.y - a.y) / std::max(1.0F, p.h);
+                    const ImVec2 ia{a.x + sx, a.y + sy}, ib{b.x - sx, b.y - sy};
+                    const int pw = std::clamp(static_cast<int>(ib.x - ia.x), 8, 2048);
+                    const int ph = std::clamp(static_cast<int>(ib.y - ia.y), 8, 2048);
+                    if (mv.modell.ok && gpu::bereiteMenueZiel(mv.nr, pw, ph)) {
+                        if (!mv.texturenDa) {   // Bilder einmal je Modell und Haut (texturesFor wie die Kartenfiguren)
+                            mv.texturen = texturesFor(mv.modell.glm);
+                            mv.texturenDa = true;
                         }
-                        // refdef: x = rect.x + 1, w = rect.w - 2
-                        const float sx = (b.x - a.x) / std::max(1.0F, p.w), sy = (b.y - a.y) / std::max(1.0F, p.h);
-                        dl->AddImage(reinterpret_cast<ImTextureID>(mv.tex), ImVec2{a.x + sx, a.y + sy}, ImVec2{b.x - sx, b.y - sy});
-                        break;
+                        const MenueModellBild mb = menueModellBild(mv.modell, it, static_cast<int>(ImGui::GetTime() * 1000.0), pw, ph, mv.welt);
+                        gpu::baueKnochenmatrizen(mv.welt, mv.modell.gla.bones, mv.haut);
+                        gpu::FigurLicht l;
+                        for (int k = 0; k < 3; ++k) {
+                            l.umgebung[k] = mb.umgebung[k];
+                            l.gerichtet[k] = mb.gerichtet[k];
+                            l.richtung[k] = mb.richtung[k];
+                        }
+                        l.gitter = true;
+                        std::string fehler;
+                        z.modellAufrufe += gpu::zeichneMenueFigur(mv.nr, mv.modell.glm, &mv.texturen, mv.haut, mb.viewProj, &l, &fehler);
+                        if (!fehler.empty()) { z.modellFehler = fehler; }
+                        if (void* tex = gpu::menueZielTextur(mv.nr)) {
+                            dl->AddImage(reinterpret_cast<ImTextureID>(tex), ia, ib);
+                            if ((it.itemFlags & ITF_ISANYSABER) != 0 && (it.itemFlags & ITF_ISCHARACTER) == 0) {
+                                zeichneMenueKlingen(dl, mv, it, mb, umg, ia, ib, pw, ph, sx);
+                            }
+                            break;
+                        }
                     }
                 }
                 [[fallthrough]];
@@ -831,6 +1070,41 @@ void setzeVorlageEin(std::size_t nr, bool mitZiel, float zx, float zy);
 
 // --- Arbeitsflaeche --------------------------------------------------------------
 
+// M2 Ebenenliste: Item von an die Stelle nach in der Reihenfolge (verschiebt das itemDef im Text)
+bool setzeAnStelle(Dokument& d, int menu, int von, int nach) {
+    std::vector<Ersetzung> e;
+    if (!itemAnStelle(d.datei, menu, von, nach, e)) { return false; }
+    aendere(std::move(e));
+    if (menuDerSeite(d) == menu) { d.auswahl.assign(1, nach); }
+    return true;
+}
+
+// M2 Ebenenliste: die Items unter (x, y), vorderstes (zuletzt gezeichnet) zuerst -
+// ohne verborgene und ohne die, die das Spiel gerade nicht zeigt (ausser "Verborgene Items")
+std::vector<int> itemsUnterPunkt(const Dokument& d, int mi, float x, float y, const Umgebung& u) {
+    std::vector<int> r;
+    if (mi < 0 || static_cast<std::size_t>(mi) >= d.datei.menus.size()) { return r; }
+    const Menu& m = d.datei.menus[static_cast<std::size_t>(mi)];
+    for (std::size_t i = m.items.size(); i-- > 0;) {
+        const Rechteck& q = m.items[i].window.rect;
+        if (x < q.x || x >= q.x + q.w || y < q.y || y >= q.y + q.h) { continue; }
+        if (d.verborgen.count({mi, static_cast<int>(i)}) != 0) { continue; }
+        if (!Z().alleItems && !itemSichtbar(m.items[i], m.items[i].window.flags, u)) { continue; }
+        r.push_back(static_cast<int>(i));
+    }
+    return r;
+}
+
+// Alt+Klick: das naechste Item unter dem Zeiger nach dem gewaehlten (ringsum)
+int naechstesUnter(const std::vector<int>& unter, const std::vector<int>& auswahl) {
+    if (unter.empty()) { return -1; }
+    if (auswahl.size() == 1) {
+        const auto it = std::find(unter.begin(), unter.end(), auswahl[0]);
+        if (it != unter.end()) { return *(std::next(it) == unter.end() ? unter.begin() : std::next(it)); }
+    }
+    return unter.front();
+}
+
 // M2 Punkt 3: "open X" aus einer anderen Datei des Menuesatzes - dorthin wechseln
 bool satzWechsel() {
     // M2 Punkt 3: "open X" aus einer anderen Datei des Menuesatzes - dorthin wechseln,
@@ -853,6 +1127,7 @@ bool satzWechsel() {
                     z.aktiv = static_cast<int>(k);
                     z.laufGeparst = od.geparst;
                     z.lauf.start(od.datei);
+                    z.lauf.saberModell = saberModellFuer;
                     z.lauf.basis = umgebung(od);
                     z.lauf.cvars = cvars;
                     z.lauf.oeffne(ziel);
@@ -870,6 +1145,9 @@ bool satzWechsel() {
     }
     return false;
 }
+
+ImU32 schwereFarbe(Schwere s);                                     // M2 Live-Diagnose (unten)
+void schwereSymbol(ImDrawList* dl, ImVec2 m, float r, Schwere s);
 
 void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     Zustand& z = Z();
@@ -941,6 +1219,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         if (z.laufDatei != z.aktiv || z.lauf.d != &d.datei || z.laufVersion < 0 || z.laufGeparst != d.geparst) {
             z.laufGeparst = d.geparst;
             z.lauf.start(d.datei);
+            z.lauf.saberModell = saberModellFuer;
             z.lauf.basis = u;
             z.lauf.oeffne(d.datei.menus[static_cast<std::size_t>(mi)].window.name);
             z.laufDatei = z.aktiv;
@@ -950,6 +1229,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         {
             const int k = d.datei.dialekt == Dialekt::MP ? 1 : 0;
             z.lauf.fadeClampStd = z.fadeClamp[k];
+            z.lauf.fokusKlangStd = z.fokusKlang[k];
             z.lauf.fadeAmountStd = z.fadeAmount[k];
             z.lauf.fadeCycleStd = z.fadeCycle[k];
             z.lauf.spielFps = z.spielFps;
@@ -960,6 +1240,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
             z.lauf.anwenden(z.laufKopie);
             z.laufVersion = z.lauf.version;
         }
+        spieleKlaenge();
         z.lauf.fuelle(mi, u);
         u.schrift = umgebung(d).schrift;
         quelle = &z.laufKopie;
@@ -971,6 +1252,10 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     }
     std::vector<Prim> prims;
     zeichneMenu(*quelle, mi, u, prims);
+    if (!d.verborgen.empty()) {   // M2: Auge in der Ebenenliste (nur Vorschau, nichts im Text)
+        prims.erase(std::remove_if(prims.begin(), prims.end(), [&](const Prim& p) { return d.verborgen.count({mi, p.item}) != 0; }),
+                    prims.end());
+    }
     z.letztePrims = static_cast<int>(prims.size());
     const Menu& m = quelle->menus[static_cast<std::size_t>(mi)];
     std::set<int> sel(d.auswahl.begin(), d.auswahl.end());
@@ -1016,15 +1301,30 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     auto bild = [&](const Rechteck& r) {
         return std::pair<ImVec2, ImVec2>{ImVec2{o.x + ab.x(r.x), o.y + ab.y(r.y)}, ImVec2{o.x + ab.x(r.x + r.w), o.y + ab.y(r.y + r.h)}};
     };
-    int unterMaus = -1;
-    for (std::size_t i = m.items.size(); i-- > 0;) {
-        const Rechteck& r = m.items[i].window.rect;
-        if (vx >= r.x && vx < r.x + r.w && vy >= r.y && vy < r.y + r.h) {
-            const int fl = m.items[i].window.flags;
-            if (!z.alleItems && !itemSichtbar(m.items[i], fl, u)) { continue; }
-            unterMaus = static_cast<int>(i);
-            break;
+    // M2 Live-Diagnose: fehlerhafte Items auf der Flaeche (Fehler rot, Warnung gelb)
+    for (const Diagnose& x : d.diagnosen) {
+        if (x.menu != mi || x.item < 0 || x.schwere == Schwere::Hinweis || static_cast<std::size_t>(x.item) >= m.items.size()) { continue; }
+        const auto [a, b] = bild(m.items[static_cast<std::size_t>(x.item)].window.rect);
+        dl->AddRect(a, b, schwereFarbe(x.schwere), 0.0F, 0, 1.5F);
+        schwereSymbol(dl, ImVec2{a.x + 5, a.y + 5}, 4.0F, x.schwere);
+    }
+    // M2: alle Items unter dem Zeiger, vorderstes zuerst; Alt+Klick waehlt der Reihe nach durch
+    const std::vector<int> alleUnter = itemsUnterPunkt(d, mi, vx, vy, u);
+    int unterMaus = alleUnter.empty() ? -1 : alleUnter.front();
+    if (ImGui::GetIO().KeyAlt && !alleUnter.empty()) { unterMaus = naechstesUnter(alleUnter, d.auswahl); }
+    if (hover && ImGui::IsMouseClicked(ImGuiMouseButton_Right) && !alleUnter.empty()) {
+        z.unterZeiger = alleUnter;
+        ImGui::OpenPopup("##unterzeiger");
+    }
+    if (ImGui::BeginPopup("##unterzeiger")) {   // Rechtsklick: alles unter dem Zeiger
+        for (const int i : z.unterZeiger) {
+            if (static_cast<std::size_t>(i) >= m.items.size()) { continue; }
+            const Item& it = m.items[static_cast<std::size_t>(i)];
+            char l[300];
+            std::snprintf(l, sizeof(l), "%s  (%s)##u%d", it.window.name.empty() ? "?" : it.window.name.c_str(), typName(it.type), i);
+            if (ImGui::Selectable(l, std::find(d.auswahl.begin(), d.auswahl.end(), i) != d.auswahl.end())) { waehle(i, false); }
         }
+        ImGui::EndPopup();
     }
     if (hover && unterMaus >= 0 && z.ziehen == Ziehen::Nichts) {
         const auto [a, b] = bild(m.items[static_cast<std::size_t>(unterMaus)].window.rect);
@@ -1522,10 +1822,379 @@ void codeTasten(Dokument& d) {
     }
 }
 
-void zeichneCode(Dokument& d, ImVec2 groesse) {
+// --- M2: Live-Diagnose ------------------------------------------------------------------
+//
+// Nach jeder Aenderung (entprellt, 0.3 s Ruhe) laeuft diagnose() im Hintergrund auf einer
+// Kopie des gelesenen Modells. Was es dafuer aus den Spieldaten braucht (Dateien, Shader,
+// Menuenamen, bekannte Cvars), liegt als unveraenderlicher Schnappschuss bereit.
+
+struct DiagDaten {
+    std::set<std::string> dateien, shader, menues;
+    std::vector<std::string> ordner;   // lose Dateien neben den pk3
+    std::vector<std::string> cvars;
+};
+
+std::string normPfad(std::string p) {
+    for (char& c : p) { c = c == '\\' ? '/' : static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    return p;
+}
+
+// Menuenamen und Cvars aus einer .menu (grob nach Woertern, fuer die Diagnose genug)
+void menueWoerter(const std::string& t, std::set<std::string>& menues, std::set<std::string>& cvars) {
+    std::vector<std::string> w;
+    std::size_t i = 0;
+    while (i < t.size()) {
+        const char c = t[i];
+        if (c == '/' && i + 1 < t.size() && t[i + 1] == '/') {
+            while (i < t.size() && t[i] != '\n') { ++i; }
+            continue;
+        }
+        if (std::isspace(static_cast<unsigned char>(c)) || c == '{' || c == '}' || c == ';') {
+            ++i;
+            continue;
+        }
+        std::string x;
+        if (c == '"') {
+            ++i;
+            while (i < t.size() && t[i] != '"') { x += t[i++]; }
+            ++i;
+        } else {
+            while (i < t.size() && !std::isspace(static_cast<unsigned char>(t[i])) && t[i] != '{' && t[i] != '}' && t[i] != ';' && t[i] != '"') { x += t[i++]; }
+        }
+        w.push_back(x);
+    }
+    bool imMenue = false;
+    for (std::size_t k = 0; k + 1 < w.size(); ++k) {
+        const std::string a = normPfad(w[k]);
+        if (a == "menudef") { imMenue = true; }
+        else if (a == "itemdef") { imMenue = false; }
+        else if (a == "name" && imMenue) {
+            menues.insert(normPfad(w[k + 1]));
+            imMenue = false;
+        } else if (a == "cvar" || a == "cvartest" || a == "cvarfloat" || a == "cvarint" || a == "setcvar" || a == "cvarstrlist" || a == "cvarfloatlist") {
+            if (!w[k + 1].empty() && std::isalpha(static_cast<unsigned char>(w[k + 1][0])) != 0) { cvars.insert(w[k + 1]); }
+        }
+    }
+}
+
+void shaderLaden() {
+    Zustand& z = Z();
+    if (z.shaderGeladen) { return; }
+    z.shaderGeladen = true;
+    for (const std::string& f : z.daten.liste("shaders/", {".shader"})) {
+        std::string inhalt;
+        if (z.daten.lies(f, inhalt)) { parseShaderScript(inhalt, z.shader); }
+    }
+}
+
+std::shared_ptr<const DiagDaten> diagDaten() {
+    Zustand& z = Z();
+    if (z.diagDaten && z.diagDatenStand == z.datenStand) { return z.diagDaten; }
+    auto dd = std::make_shared<DiagDaten>();
+    for (const std::string& p : z.daten.liste("", {})) { dd->dateien.insert(normPfad(p)); }
+    shaderLaden();
+    for (const auto& [k, v] : z.shader) { dd->shader.insert(k); }
+    for (const GamePath& g : z.daten.ordner) { dd->ordner.push_back(g.directory); }
+    std::set<std::string> cvars;
+    for (const std::string& p : z.daten.liste("ui/", {".menu"})) {
+        std::string t;
+        if (z.daten.lies(p, t)) { menueWoerter(t, dd->menues, cvars); }
+    }
+    dd->cvars.assign(cvars.begin(), cvars.end());
+    z.diagDaten = dd;
+    z.diagDatenStand = z.datenStand;
+    return dd;
+}
+
+void diagnosePflegen(Dokument& d) {
+    Zustand& z = Z();
+    const double jetzt = ImGui::GetTime();
+    if (d.diagLauf.valid() && d.diagLauf.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        d.diagnosen = d.diagLauf.get();
+        d.diagVersion = d.diagLaufVersion;
+        ++z.diagLaeufe;
+    }
+    if (d.geparst != d.diagGewollt) {
+        d.diagGewollt = d.geparst;
+        d.diagAb = jetzt + (d.diagVersion < 0 ? 0.0 : 0.3);
+    }
+    if (d.diagLauf.valid() || d.diagVersion == d.diagGewollt || jetzt < d.diagAb || d.geparst < 0) { return; }
+    std::shared_ptr<const DiagDaten> dd = diagDaten();
+    std::set<std::string> paket;
+    for (const auto& [p, b] : d.bilder) { paket.insert(normPfad(p)); }
+    std::set<std::string> offeneMenues;   // Menues der anderen offenen Dateien
+    for (const auto& od : z.docs) {
+        for (const Menu& m : od->datei.menus) { offeneMenues.insert(normPfad(m.window.name)); }
+    }
+    d.diagLaufVersion = d.diagGewollt;
+    d.diagLauf = std::async(std::launch::async, [dd, kopie = d.datei, paket = std::move(paket), offeneMenues = std::move(offeneMenues)]() {
+        DiagKontext k;
+        k.pruefung.zielSpiele.clear();   // live nur die eigene Fassung; die Vertraeglichkeit prueft der Export
+        k.pruefung.gibt = [&](const std::string& p0) {
+            const std::string p = normPfad(p0);
+            if (paket.count(p) != 0 || dd->dateien.count(p) != 0) { return true; }
+            for (const std::string& o : dd->ordner) {
+                std::error_code ec;
+                if (!o.empty() && fs::is_regular_file(utf8Pfad(o) / utf8Pfad(p0), ec)) { return true; }
+            }
+            return false;
+        };
+        k.pruefung.gibtBild = [&](const std::string& n0) {
+            std::string n = normPfad(n0);
+            const std::size_t pt = n.rfind('.');
+            const std::string ohne = (pt != std::string::npos && n.find('/', pt) == std::string::npos) ? n.substr(0, pt) : n;
+            if (dd->shader.count(n) != 0 || dd->shader.count(ohne) != 0) { return true; }
+            for (const char* e : {".tga", ".jpg", ".png"}) {
+                if (k.pruefung.gibt(ohne + e)) { return true; }
+            }
+            return k.pruefung.gibt(n);
+        };
+        k.menueBekannt = [&](const std::string& n) { return dd->menues.count(normPfad(n)) != 0 || offeneMenues.count(normPfad(n)) != 0; };
+        k.bekannteCvars = dd->cvars;
+        k.pfadVorschlag = [&](const std::string& p0) -> std::string {
+            const std::string p = normPfad(p0);
+            const std::size_t sl = p.rfind('/');
+            const std::string ordner = sl == std::string::npos ? std::string() : p.substr(0, sl + 1);
+            const std::size_t pt = p.rfind('.');
+            const bool mitEndung = pt != std::string::npos && (sl == std::string::npos || pt > sl);
+            const std::string stamm = p.substr(ordner.size(), mitEndung ? pt - ordner.size() : std::string::npos);
+            std::vector<std::string> kandidaten;
+            std::map<std::string, std::string> voll;
+            for (auto it = dd->dateien.lower_bound(ordner); it != dd->dateien.end() && it->compare(0, ordner.size(), ordner) == 0; ++it) {
+                const std::string rest = it->substr(ordner.size());
+                if (rest.find('/') != std::string::npos) { continue; }
+                const std::size_t q = rest.rfind('.');
+                const std::string s = q == std::string::npos ? rest : rest.substr(0, q);
+                kandidaten.push_back(s);
+                voll[s] = mitEndung ? ordner + rest : ordner + s;
+            }
+            for (const std::string& s : dd->shader) {
+                if (s.compare(0, ordner.size(), ordner) == 0 && s.find('/', ordner.size()) == std::string::npos) {
+                    kandidaten.push_back(s.substr(ordner.size()));
+                    voll[s.substr(ordner.size())] = s;
+                }
+            }
+            const std::string w = aehnlichstes(stamm, kandidaten, 3);
+            return w.empty() ? std::string() : voll[w];
+        };
+        return diagnose(kopie, k);
+    });
+}
+
+ImU32 schwereFarbe(Schwere s) {
+    return s == Schwere::Fehler ? IM_COL32(240, 70, 70, 255) : s == Schwere::Warnung ? IM_COL32(235, 190, 50, 255) : IM_COL32(90, 170, 255, 255);
+}
+// Symbol im Rand: Fehler Kreis, Warnung Dreieck, Hinweis Raute
+void schwereSymbol(ImDrawList* dl, ImVec2 m, float r, Schwere s) {
+    const ImU32 c = schwereFarbe(s);
+    if (s == Schwere::Fehler) { dl->AddCircleFilled(m, r, c); }
+    else if (s == Schwere::Warnung) { dl->AddTriangleFilled(ImVec2{m.x, m.y - r}, ImVec2{m.x + r, m.y + r * 0.8F}, ImVec2{m.x - r, m.y + r * 0.8F}, c); }
+    else { dl->AddQuadFilled(ImVec2{m.x, m.y - r}, ImVec2{m.x + r, m.y}, ImVec2{m.x, m.y + r}, ImVec2{m.x - r, m.y}, c); }
+}
+// Wellenlinie unter [x0, x1]
+void welle(ImDrawList* dl, float x0, float x1, float y, ImU32 c) {
+    const float h = 1.6F, schritt = 3.0F;
+    ImVec2 p{x0, y};
+    bool oben = true;
+    for (float x = x0; x < x1; x += schritt) {
+        const ImVec2 q{std::min(x + schritt, x1), y + (oben ? -h : h)};
+        dl->AddLine(p, q, c, 1.0F);
+        p = q;
+        oben = !oben;
+    }
+    if (x1 - x0 < 2.0F) { dl->AddLine(ImVec2{x0, y}, ImVec2{x0 + 3, y}, c, 1.5F); }
+}
+
+std::string fmt(Str s, const std::string& a, const std::string& b = {}, const std::string& c = {}) {
+    char buf[1024];
+    std::snprintf(buf, sizeof(buf), tr(s), a.c_str(), b.c_str(), c.c_str());
+    return buf;
+}
+
+// Die Meldung in einer Zeile: Wortlaut der Engine bzw. die Beschreibung (4 Sprachen)
+std::string diagMeldung(const Diagnose& x) {
+    switch (x.art) {
+        case DiagArt::Engine: return x.text;
+        case DiagArt::KlammerOffen: return fmt(Str::MeDiagKlammerOffen, x.text);
+        case DiagArt::KlammerZuViel: return fmt(Str::MeDiagKlammerZuViel, x.text);
+        case DiagArt::KlammerFalsch: return fmt(Str::MeDiagKlammerFalsch, x.text, x.wert);
+        case DiagArt::AnfuehrungOffen: return x.wert.empty() ? std::string(tr(Str::MeDiagAnfuehrungEnde)) : fmt(Str::MeDiagAnfuehrung, x.wert);
+        case DiagArt::KeineZahl: return fmt(Str::MeDiagKeineZahl, x.text, x.wert);
+        case DiagArt::NameDoppelt: return fmt(x.item >= 0 ? Str::MeDiagNameItem : Str::MeDiagNameMenue, x.text);
+        case DiagArt::ZielFehlt:
+            return fmt(x.wert == "open" || x.wert == "close" ? Str::MeDiagZielMenue : Str::MeDiagZielItem, x.wert, x.text);
+        case DiagArt::CvarAehnlich: return fmt(Str::MeDiagCvar, x.text, x.wert);
+        case DiagArt::Pruefung: {
+            const Befund& b = x.befund;
+            char buf[512];
+            switch (b.art) {
+                case BefundArt::ZuVieleItems: std::snprintf(buf, sizeof(buf), tr(Str::MeDiagZuVieleItems), b.a, b.b); return buf;
+                case BefundArt::ZuVieleMenues: std::snprintf(buf, sizeof(buf), tr(Str::MeDiagZuVieleMenues), b.a, b.b); return buf;
+                case BefundArt::SkriptZuLang: std::snprintf(buf, sizeof(buf), tr(Str::MeDiagSkriptZuLang), b.a, b.b); return buf;
+                case BefundArt::ZuVieleWerte:
+                case BefundArt::ZuVieleFarben:
+                case BefundArt::ZuVieleSpalten: std::snprintf(buf, sizeof(buf), tr(Str::MeDiagZuViele), b.a, b.b); return buf;
+                case BefundArt::NieSichtbar: return b.name == "rect" ? std::string(tr(Str::MeDiagNieRect)) : std::string(tr(Str::MeDiagNieVisible));
+                case BefundArt::DateiFehlt: return fmt(Str::MeDiagDateiFehlt, b.name, b.wert);
+                case BefundArt::UnbekanntIn: return fmt(Str::MeDiagUnbekanntIn, b.name, b.wert);
+            }
+            return {};
+        }
+    }
+    return x.text;
+}
+
+// Die kurze Erklaerung zu einer Engine-Meldung (deren Wortlaut bleibt englisch wie im Spiel)
+std::string diagErklaerung(const Diagnose& x) {
+    if (x.art != DiagArt::Engine) { return {}; }
+    const std::string t = kleinPfad(x.text);
+    if (t.find("unknown") != std::string::npos && (t.find("value") != std::string::npos)) { return tr(Str::MeDiagErklName); }
+    if (t.find("unknown") != std::string::npos) { return tr(Str::MeDiagErklUnbekannt); }
+    if (t.find("parse") != std::string::npos || t.find("expected") != std::string::npos) { return tr(Str::MeDiagErklParse); }
+    if (t.find("end of file") != std::string::npos || t.find("eof") != std::string::npos) { return tr(Str::MeDiagErklDateiende); }
+    return tr(Str::MeDiagErklEngine);
+}
+
+std::string korrekturText(const Diagnose& x, const std::string& text) {
+    if (x.korrekturen.empty()) { return {}; }
+    const Korrektur& k = x.korrekturen.front();
+    if (k.text.empty()) { return fmt(Str::MeDiagFixEntfernen, text.substr(k.anfang, k.ende - k.anfang)); }
+    std::string neu = k.text;
+    while (!neu.empty() && (neu.back() == '\n' || neu.back() == '\r')) { neu.pop_back(); }
+    std::size_t a = 0;
+    while (a < neu.size() && (neu[a] == ' ' || neu[a] == '\t' || neu[a] == '\n')) { ++a; }
+    neu = neu.substr(a);
+    return fmt(k.anfang == k.ende ? Str::MeDiagFixEinfuegen : Str::MeDiagFixErsetzen, neu);
+}
+
+// Die Schnellkorrektur anwenden (rueckgaengig machbar); Stellen gelten fuer den Stand der Diagnose
+bool korrigiere(Dokument& d, const Diagnose& x) {
+    if (x.korrekturen.empty() || d.diagVersion != d.puffer.version()) { return false; }
+    const Korrektur& k = x.korrekturen.front();
+    if (k.ende > d.puffer.text().size()) { return false; }
+    d.puffer.ersetze(k.anfang, k.ende, k.text);
+    neuParsen(d);
+    return true;
+}
+
+// Welche Diagnose liegt an dieser Stelle? (die schwerste)
+const Diagnose* diagnoseBei(const Dokument& d, std::uint32_t off) {
+    const Diagnose* best = nullptr;
+    for (const Diagnose& x : d.diagnosen) {
+        const std::uint32_t e = std::max(x.ende, x.anfang + 1);
+        if (off >= x.anfang && off < e && (best == nullptr || x.schwere < best->schwere)) { best = &x; }
+    }
+    return best;
+}
+
+void zeigeDiagnoseTipp(const Dokument& d, const Diagnose& x) {
+    ImGui::BeginTooltip();
+    ImGui::PushTextWrapPos(ImGui::GetFontSize() * 30);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(schwereFarbe(x.schwere)));
+    ImGui::TextUnformatted(tr(x.schwere == Schwere::Fehler ? Str::MeDiagFehler1 : x.schwere == Schwere::Warnung ? Str::MeDiagWarnung1 : Str::MeDiagHinweis1));
+    ImGui::PopStyleColor();
+    ImGui::TextUnformatted(anzeige(diagMeldung(x)).c_str());
+    const std::string e = diagErklaerung(x);
+    if (!e.empty()) { ImGui::TextDisabled("%s", e.c_str()); }
+    const std::string k = korrekturText(x, d.puffer.text());
+    if (!k.empty()) { ImGui::TextColored(ImVec4{0.5F, 0.85F, 0.5F, 1}, "%s", fmt(Str::MeDiagFixTaste, anzeige(k)).c_str()); }
+    ImGui::PopTextWrapPos();
+    ImGui::EndTooltip();
+}
+
+// Probleme: Liste mit Filter; Klick springt zur Stelle und waehlt das Element auf der Flaeche
+void panelProbleme(Dokument& d) {
+    Zustand& z = Z();
+    ImGui::PushID("panelProbleme");
+    int n[3] = {0, 0, 0};
+    for (const Diagnose& x : d.diagnosen) { ++n[static_cast<int>(x.schwere)]; }
+    char l[96];
+    std::snprintf(l, sizeof(l), "%s %d", tr(Str::MeDiagFehler), n[0]);
+    ImGui::Checkbox(l, &z.problemeFehler);
+    ImGui::SameLine();
+    std::snprintf(l, sizeof(l), "%s %d", tr(Str::MeDiagWarnungen), n[1]);
+    ImGui::Checkbox(l, &z.problemeWarnungen);
+    ImGui::SameLine();
+    std::snprintf(l, sizeof(l), "%s %d", tr(Str::MeDiagHinweise), n[2]);
+    ImGui::Checkbox(l, &z.problemeHinweise);
+    ImGui::BeginChild("##liste", ImVec2{0, 0}, ImGuiChildFlags_None);
+    if (n[0] + n[1] + n[2] == 0) { ImGui::TextDisabled("%s", tr(Str::MeProblemeLeer)); }
+    const bool zeigen[3] = {z.problemeFehler, z.problemeWarnungen, z.problemeHinweise};
+    for (std::size_t i = 0; i < d.diagnosen.size(); ++i) {
+        const Diagnose& x = d.diagnosen[i];
+        if (!zeigen[static_cast<int>(x.schwere)]) { continue; }
+        ImGui::PushID(static_cast<int>(i));
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        const float fs = ImGui::GetFontSize();
+        schwereSymbol(ImGui::GetWindowDrawList(), ImVec2{p.x + fs * 0.4F, p.y + fs * 0.55F}, fs * 0.28F, x.schwere);
+        ImGui::Dummy(ImVec2{fs * 0.9F, fs});
+        ImGui::SameLine();
+        char zeile[32];
+        std::snprintf(zeile, sizeof(zeile), x.zeile > 0 ? "%d:" : "-", x.zeile);
+        const std::string t = std::string(zeile) + " " + anzeige(diagMeldung(x));
+        if (!x.korrekturen.empty()) {
+            if (ImGui::SmallButton(tr(Str::MeDiagBeheben))) { (void)korrigiere(d, x); }
+            if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", anzeige(korrekturText(x, d.puffer.text())).c_str()); }
+            ImGui::SameLine();
+        }
+        if (ImGui::Selectable(t.c_str(), false)) {
+            if (x.ende > x.anfang || x.zeile > 0) { springe(d, x.ende > x.anfang ? x.anfang : d.puffer.zeilenAnfang(std::max(0, x.zeile - 1))); }
+            if (x.menu >= 0) {
+                const std::vector<Seite> s = seitenImMenue(d.datei);
+                for (std::size_t q = 0; q < s.size(); ++q) {
+                    if (s[q].menu == x.menu && s[q].cvar.empty()) { d.seite = static_cast<int>(q); }
+                }
+                if (x.item >= 0) { d.auswahl.assign(1, x.item); }
+            }
+        }
+        if (ImGui::IsItemHovered()) { zeigeDiagnoseTipp(d, x); }
+        ImGui::PopID();
+    }
+    ImGui::EndChild();
+    ImGui::PopID();
+}
+
+// Breite je Zeichen (Latin-1 wie anzeige()), einmal je Schriftgroesse - die Spalten der
+// Zeilen werden je Bild daraus aufsummiert statt je Zeichen gemessen.
+const float* zeichenBreiten(float leer) {
+    static float b[256];
+    static float fuer = -1.0F;
+    static ImFont* schrift = nullptr;
+    ImFont* f = ImGui::GetFont();
+    const float fs = ImGui::GetFontSize();
+    if (fuer != fs || schrift != f) {
+        for (int c = 0; c < 256; ++c) {
+            const char ch = static_cast<char>(c);
+            const std::string a = anzeige(std::string_view(&ch, 1));
+            b[c] = c < 32 ? leer : f->CalcTextSizeA(fs, 1e9F, 0.0F, a.c_str(), a.c_str() + a.size()).x;
+        }
+        fuer = fs;
+        schrift = f;
+    }
+    return b;
+}
+
+// x jeder Spalte 0..n einer Zeile (Tabs auf 4 Leerzeichen wie spaltenX)
+void zeilenXe(std::string_view zeile, float leer, std::vector<float>& xs) {
+    const float* br = zeichenBreiten(leer);
+    xs.resize(zeile.size() + 1);
+    float x = 0;
+    for (std::size_t i = 0; i < zeile.size(); ++i) {
+        xs[i] = x;
+        const char c = zeile[i];
+        if (c == '\t') { x = (std::floor(x / (leer * 4.0F)) + 1.0F) * leer * 4.0F; }
+        else { x += br[static_cast<unsigned char>(c)]; }
+    }
+    xs[zeile.size()] = x;
+}
+
+// M2: der Code-Editor als eigenes Panel (fuellt den verfuegbaren Platz). Lange Zeilen
+// werden umgebrochen (Einstellung "Umbrechen", an Leerzeichen, sonst hart) oder
+// waagerecht gescrollt (Umschalt+Rad, folgt dem Cursor).
+void zeichneCode(Dokument& d) {
     Zustand& z = Z();
     if (z.suchenOffen) { zeichneSuchleiste(d); }
-    ImGui::BeginChild("##code", ImVec2{groesse.x, 0}, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::BeginChild("##code", ImVec2{0, 0}, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     // M2: Festbreitenschrift (Spalten, Einrueckung und Minimap stehen untereinander)
     if (g_codeSchrift != nullptr) { ImGui::PushFont(g_codeSchrift, 0.0F); }
     Textpuffer& p = d.puffer;
@@ -1543,8 +2212,10 @@ void zeichneCode(Dokument& d, ImVec2 groesse) {
     const float rinne = randBreiteSkript();
     const float falteB = fs;
     const float textX = o.x + nummernB + rinne + falteB + 4.0F;
-    const float miniB = std::floor(fs * 5.0F);
-    const float textB = bereich.x - (textX - o.x) - miniB;
+    // Minimap: im schmalen Editor kleiner, unter 20 Zeichen Breite ganz weg
+    const float miniB = bereich.x < fs * 20 ? 0.0F : bereich.x < fs * 34 ? std::floor(fs * 3.0F) : std::floor(fs * 5.0F);
+    const float textB = std::max(leer * 8, bereich.x - (textX - o.x) - miniB);
+    const bool umbruch = g_app->settings.menueUmbruch;
     // sichtbare Zeilen (eingeklappte ueberspringen)
     const std::vector<Falte> falten = p.falten();
     std::vector<int> sichtbar;
@@ -1563,21 +2234,83 @@ void zeichneCode(Dokument& d, ImVec2 groesse) {
         }
     }
     const int sichtbarN = static_cast<int>(sichtbar.size());
+    // Reihen auf dem Schirm: je sichtbare Zeile eine, mit Umbruch mehrere
+    struct Reihe {
+        int zl = 0, a = 0, e = 0;   // Zeile, Spanne [a, e) in der Zeile
+        bool letzte = true;
+    };
+    std::vector<Reihe> reihen;
+    reihen.reserve(sichtbar.size());
+    std::vector<float> xs;
+    float breiteste = 0;
+    for (const int zl : sichtbar) {
+        const std::string_view zeile = p.zeile(zl);
+        if (!umbruch) {
+            reihen.push_back(Reihe{zl, 0, static_cast<int>(zeile.size()), true});
+            breiteste = std::max(breiteste, static_cast<float>(zeile.size()) * leer);
+            continue;
+        }
+        zeilenXe(zeile, leer, xs);
+        int a = 0;
+        const int len = static_cast<int>(zeile.size());
+        while (true) {
+            int e = a;
+            while (e < len && xs[static_cast<std::size_t>(e) + 1] - xs[static_cast<std::size_t>(a)] <= textB - leer) { ++e; }
+            if (e >= len) {
+                reihen.push_back(Reihe{zl, a, len, true});
+                break;
+            }
+            int b = e;   // am letzten Leerzeichen umbrechen, wenn eins in der Reihe liegt
+            while (b > a + 1 && zeile[static_cast<std::size_t>(b) - 1] != ' ' && zeile[static_cast<std::size_t>(b) - 1] != '\t') { --b; }
+            if (b <= a + 1) { b = std::max(e, a + 1); }
+            reihen.push_back(Reihe{zl, a, b, false});
+            a = b;
+        }
+    }
+    const int reihenN = static_cast<int>(reihen.size());
+    auto reiheVonZeile = [&](int zl) {
+        const auto it = std::lower_bound(reihen.begin(), reihen.end(), zl, [](const Reihe& r, int x) { return r.zl < x; });
+        return static_cast<int>(it - reihen.begin());
+    };
+    auto reiheVonOff = [&](std::uint32_t off) {
+        const Pos cp = p.pos(off);
+        int r = reiheVonZeile(cp.zeile);
+        while (r + 1 < reihenN && reihen[static_cast<std::size_t>(r) + 1].zl == cp.zeile && reihen[static_cast<std::size_t>(r) + 1].a <= cp.spalte) { ++r; }
+        return r;
+    };
     const int proSeite = std::max(1, static_cast<int>(bereich.y / zh));
-    // Scrollen
-    if (ImGui::IsWindowHovered() && ImGui::GetIO().MouseWheel != 0.0F && !ImGui::GetIO().KeyCtrl) {
-        d.scrollZeile -= ImGui::GetIO().MouseWheel * 3.0F;
+    // Scrollen (Umschalt+Rad bzw. das waagrechte Rad: seitwaerts ohne Umbruch)
+    const ImGuiIO& io = ImGui::GetIO();
+    if (ImGui::IsWindowHovered() && !io.KeyCtrl) {
+        if (io.MouseWheel != 0.0F && !io.KeyShift) { d.scrollZeile -= io.MouseWheel * 3.0F; }
+        if (!umbruch) {
+            const float seit = io.KeyShift ? io.MouseWheel : io.MouseWheelH;
+            if (seit != 0.0F) { d.scrollX -= seit * leer * 8.0F; }
+        }
     }
     if (d.springeZeile >= 0) {
-        const auto it = std::lower_bound(sichtbar.begin(), sichtbar.end(), d.springeZeile);
-        const int idx = static_cast<int>(it - sichtbar.begin());
+        const int idx = reiheVonZeile(d.springeZeile);
         if (static_cast<float>(idx) < d.scrollZeile || static_cast<float>(idx) >= d.scrollZeile + static_cast<float>(proSeite) - 1.0F) {
             d.scrollZeile = static_cast<float>(idx - proSeite / 3);
         }
         d.springeZeile = -1;
     }
-    d.scrollZeile = std::clamp(d.scrollZeile, 0.0F, static_cast<float>(std::max(0, sichtbarN - proSeite / 2)));
+    d.scrollZeile = std::clamp(d.scrollZeile, 0.0F, static_cast<float>(std::max(0, reihenN - proSeite / 2)));
+    d.scrollX = umbruch ? 0.0F : std::clamp(d.scrollX, 0.0F, std::max(0.0F, breiteste - textB + leer * 4));
     const int erste = static_cast<int>(d.scrollZeile);
+    // x einer Spalte in einer Reihe (Bildschirm)
+    int xsZeile = -1;
+    auto xsFuer = [&](int zl) {
+        if (xsZeile != zl) {
+            zeilenXe(p.zeile(zl), leer, xs);
+            xsZeile = zl;
+        }
+    };
+    auto spalteX = [&](const Reihe& r, int s) {
+        xsFuer(r.zl);
+        const float x0 = umbruch ? xs[static_cast<std::size_t>(r.a)] : d.scrollX;
+        return textX + xs[static_cast<std::size_t>(std::clamp(s, 0, static_cast<int>(xs.size()) - 1))] - x0;
+    };
     // Eingabe
     ImGui::InvisibleButton("##codeflaeche", ImVec2{std::max(1.0F, bereich.x), std::max(1.0F, bereich.y)});
     const bool hover = ImGui::IsItemHovered();
@@ -1585,46 +2318,51 @@ void zeichneCode(Dokument& d, ImVec2 groesse) {
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !hover && !ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows)) {
         z.codeFokus = false;
     }
-    const ImVec2 maus = ImGui::GetIO().MousePos;
+    const ImVec2 maus = io.MousePos;
+    auto reiheBeiMaus = [&]() { return std::clamp(erste + static_cast<int>(std::floor((maus.y - o.y) / zh)), 0, std::max(0, reihenN - 1)); };
     auto offBeiMaus = [&]() -> std::uint32_t {
-        const int idx = std::clamp(erste + static_cast<int>((maus.y - o.y) / zh), 0, std::max(0, sichtbarN - 1));
-        const int zl = sichtbarN > 0 ? sichtbar[static_cast<std::size_t>(idx)] : 0;
-        return p.off(Pos{zl, spalteBei(p.zeile(zl), maus.x - textX, leer)});
+        if (reihenN == 0) { return 0; }
+        const Reihe& r = reihen[static_cast<std::size_t>(reiheBeiMaus())];
+        int s = r.a;
+        while (s < r.e && maus.x >= (spalteX(r, s) + spalteX(r, s + 1)) * 0.5F) { ++s; }
+        if (!r.letzte && s >= r.e) { s = r.e - 1; }
+        return p.off(Pos{r.zl, s});
     };
     if (hover && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        const int idx = erste + static_cast<int>(std::floor((maus.y - o.y) / zh));
+        const bool inReihen = idx >= 0 && idx < reihenN;
         if (maus.x < textX - falteB) {
             // Rand: Lesezeichen umschalten (Klick in den Rand wie Notepad++)
-            const int idx = erste + static_cast<int>((maus.y - o.y) / zh);
-            if (idx >= 0 && idx < sichtbarN) {
-                const int zl = sichtbar[static_cast<std::size_t>(idx)];
+            if (inReihen) {
+                const int zl = reihen[static_cast<std::size_t>(idx)].zl;
                 if (d.lesezeichen.count(zl) != 0) { d.lesezeichen.erase(zl); } else { d.lesezeichen.insert(zl); }
             }
         } else if (maus.x < textX) {
-            const int idx = erste + static_cast<int>((maus.y - o.y) / zh);
-            if (idx >= 0 && idx < sichtbarN) {
-                const int zl = sichtbar[static_cast<std::size_t>(idx)];
+            if (inReihen) {
+                const int zl = reihen[static_cast<std::size_t>(idx)].zl;
                 if (d.gefaltet.count(zl) != 0) { d.gefaltet.erase(zl); } else {
                     for (const Falte& f : falten) {
                         if (f.von == zl) { d.gefaltet.insert(zl); }
                     }
                 }
             }
-        } else if (maus.x > textX + textB) {
+        } else if (miniB > 0 && maus.x > textX + textB) {
             // Minimap: dorthin springen
             const float anteil = (maus.y - o.y) / std::max(1.0F, bereich.y);
-            d.scrollZeile = anteil * static_cast<float>(sichtbarN) - static_cast<float>(proSeite) * 0.5F;
+            const int zIdx = std::clamp(static_cast<int>(anteil * static_cast<float>(sichtbarN)), 0, std::max(0, sichtbarN - 1));
+            d.scrollZeile = static_cast<float>(reiheVonZeile(sichtbarN > 0 ? sichtbar[static_cast<std::size_t>(zIdx)] : 0)) - static_cast<float>(proSeite) * 0.5F;
         } else {
             const std::uint32_t off = offBeiMaus();
-            if (ImGui::GetIO().KeyAlt) {
+            if (io.KeyAlt) {
                 p.cursorDazu(off);
             } else if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
                 const Treffer w = p.wortBei(off);
                 p.cursor.assign(1, Cursor{w.ende, w.anfang});
             } else {
-                p.einCursor(off, ImGui::GetIO().KeyShift);
+                p.einCursor(off, io.KeyShift);
                 z.ziehtText = true;
             }
-            if (ImGui::GetIO().KeyCtrl) { gehZuDefinition(d); }
+            if (io.KeyCtrl) { gehZuDefinition(d); }
             auswahlAusCursor(d);
             z.vervollOffen = false;
         }
@@ -1644,16 +2382,29 @@ void zeichneCode(Dokument& d, ImVec2 groesse) {
         codeTasten(d);
         if (p.version() != v) { neuParsen(d); }
     }
+    // ohne Umbruch: dem Cursor seitwaerts folgen, wenn er sich bewegt hat
+    const std::uint32_t cur = p.cursor.front().pos;
+    if (!umbruch && cur != d.letzterCursor && reihenN > 0) {
+        const Pos cp = p.pos(cur);
+        zeilenXe(p.zeile(cp.zeile), leer, xs);
+        xsZeile = cp.zeile;
+        const float x = xs[static_cast<std::size_t>(std::clamp(cp.spalte, 0, static_cast<int>(xs.size()) - 1))];
+        if (x < d.scrollX) { d.scrollX = std::max(0.0F, x - leer * 4); }
+        if (x > d.scrollX + textB - leer * 2) { d.scrollX = x - textB + leer * 4; }
+    }
+    d.letzterCursor = cur;
     // --- Zeichnen ---
     const std::vector<Farbstueck> farben = faerbe(p.text(), d.datei.dialekt, d.datei.spiel, &d.datei.defines);
     const ZeilenDiff seitSpeichern = zeilenDiff(d.gespeichert, p.text());
     const ZeilenDiff seitLaden = zeilenDiff(d.geladen, p.text());
-    std::set<int> fehlerZeilen;
-    for (const Meldung& m : d.datei.meldungen) {
-        if (m.datei == 0) { fehlerZeilen.insert(m.zeile - 1); }
+    // M2 Live-Diagnose: die schwerste Meldung je Zeile (Rand, Minimap)
+    std::map<int, Schwere> zeilenSchwere;
+    for (const Diagnose& x : d.diagnosen) {
+        if (x.zeile <= 0) { continue; }
+        const auto it = zeilenSchwere.find(x.zeile - 1);
+        if (it == zeilenSchwere.end() || x.schwere < it->second) { zeilenSchwere[x.zeile - 1] = x.schwere; }
     }
     // Klammerpaar und Wort unter dem Cursor
-    const std::uint32_t cur = p.cursor.front().pos;
     const std::optional<std::uint32_t> partner = p.partnerKlammer(cur);
     std::uint32_t klammer = cur;
     if (partner && (cur >= p.text().size() || std::string("{}()[]").find(p.text()[cur]) == std::string::npos)) { klammer = cur - 1; }
@@ -1669,47 +2420,58 @@ void zeichneCode(Dokument& d, ImVec2 groesse) {
     std::vector<Treffer> suchT;
     if (z.suchenOffen) { suchT = p.suche(z.such, z.suchOpt); }
     dl->PushClipRect(o, ImVec2{o.x + bereich.x, o.y + bereich.y}, true);
-    std::size_t fi = 0;
-    for (int k = erste; k < sichtbarN && k < erste + proSeite + 1; ++k) {
-        const int zl = sichtbar[static_cast<std::size_t>(k)];
+    const int curZeile = p.pos(cur).zeile;
+    // Rand: Nummern, Lesezeichen, Aenderungen, Falten (je Zeile in ihrer ersten Reihe)
+    for (int k = erste; k < reihenN && k < erste + proSeite + 1; ++k) {
+        const Reihe& r = reihen[static_cast<std::size_t>(k)];
+        if (r.a != 0) { continue; }
+        const int zl = r.zl;
         const float y = o.y + static_cast<float>(k - erste) * zh;
-        const std::uint32_t za = p.zeilenAnfang(zl);
-        const std::uint32_t ze = p.zeilenEnde(zl);
-        const std::string_view zeile = p.zeile(zl);
-        // Zeilennummer
         std::snprintf(nr, sizeof(nr), "%d", zl + 1);
-        const bool aktZeile = p.pos(cur).zeile == zl;
         dl->AddText(ImVec2{o.x + nummernB - fs * 0.3F - font->CalcTextSizeA(fs, 1e9F, 0.0F, nr).x, y},
-                    aktZeile ? IM_COL32(220, 220, 220, 255) : IM_COL32(120, 120, 120, 255), nr);
-        // Rand wie im Skript-Editor: Lesezeichen und Aenderungsstreifen
+                    curZeile == zl ? IM_COL32(220, 220, 220, 255) : IM_COL32(120, 120, 120, 255), nr);
         std::uint8_t marke = kMarkeKeine;
         const bool seitS = static_cast<std::size_t>(zl) < seitSpeichern.geaendert.size() && seitSpeichern.geaendert[static_cast<std::size_t>(zl)] != 0;
         const bool seitL = static_cast<std::size_t>(zl) < seitLaden.geaendert.size() && seitLaden.geaendert[static_cast<std::size_t>(zl)] != 0;
         if (seitS) { marke = seitL ? kMarkeGeaendert : kMarkeZurueck; }
         else if (seitL) { marke = kMarkeGespeichert; }
         randZeichnenSkript(dl, o.x + nummernB, rinne, y, zh, marke, d.lesezeichen.count(zl) != 0);
-        if (fehlerZeilen.count(zl) != 0) {
-            dl->AddRectFilled(ImVec2{textX, y}, ImVec2{textX + textB, y + zh}, IM_COL32(255, 40, 40, 40));
-            dl->AddCircleFilled(ImVec2{o.x + nummernB - fs * 0.15F, y + zh * 0.5F}, fs * 0.18F, IM_COL32(240, 70, 70, 255));
+        if (const auto zs = zeilenSchwere.find(zl); zs != zeilenSchwere.end()) {
+            schwereSymbol(dl, ImVec2{o.x + nummernB - fs * 0.05F, y + zh * 0.5F}, fs * 0.22F, zs->second);
         }
-        // Falten
         for (const Falte& f : falten) {
             if (f.von == zl) {
                 dl->AddText(ImVec2{textX - falteB, y}, IM_COL32(160, 160, 160, 255), d.gefaltet.count(zl) != 0 ? "+" : "-");
                 break;
             }
         }
-        if (aktZeile && p.cursor.size() == 1 && !p.cursor.front().auswahl()) {
+    }
+    // Text (eigener Ausschnitt: seitwaerts gescrollt laeuft er nicht in den Rand)
+    dl->PushClipRect(ImVec2{textX, o.y}, ImVec2{textX + textB, o.y + bereich.y}, true);
+    std::size_t fi = 0;
+    for (int k = erste; k < reihenN && k < erste + proSeite + 1; ++k) {
+        const Reihe& r = reihen[static_cast<std::size_t>(k)];
+        const int zl = r.zl;
+        const float y = o.y + static_cast<float>(k - erste) * zh;
+        const std::uint32_t za = p.zeilenAnfang(zl);
+        const std::uint32_t ze = p.zeilenEnde(zl);
+        const std::uint32_t ra = za + static_cast<std::uint32_t>(r.a), re = za + static_cast<std::uint32_t>(r.e);
+        const std::string_view zeile = p.zeile(zl);
+        xsFuer(zl);
+        if (const auto zs = zeilenSchwere.find(zl); zs != zeilenSchwere.end() && zs->second == Schwere::Fehler) {
+            dl->AddRectFilled(ImVec2{textX, y}, ImVec2{textX + textB, y + zh}, IM_COL32(255, 40, 40, 28));
+        }
+        if (curZeile == zl && p.cursor.size() == 1 && !p.cursor.front().auswahl()) {
             dl->AddRectFilled(ImVec2{textX, y}, ImVec2{textX + textB, y + zh}, IM_COL32(255, 255, 255, 12));
         }
         // Auswahl, Suchtreffer, gleiche Woerter
         auto markiere = [&](std::uint32_t a, std::uint32_t e, ImU32 col) {
-            if (e <= za || a > ze) { return; }
-            const int sa = static_cast<int>(std::max(a, za) - za);
-            const int se = static_cast<int>(std::min(e, ze) - za);
-            const float xa = textX + spaltenX(zeile, sa, leer);
-            float xe = textX + spaltenX(zeile, se, leer);
-            if (e > ze) { xe += leer; }
+            if (e <= ra || a > re || (a == re && !r.letzte)) { return; }
+            const int sa = static_cast<int>(std::max(a, ra) - za);
+            const int se = static_cast<int>(std::min(e, re) - za);
+            const float xa = spalteX(r, sa);
+            float xe = spalteX(r, se);
+            if (e > ze && r.letzte) { xe += leer; }
             dl->AddRectFilled(ImVec2{xa, y}, ImVec2{std::max(xe, xa + 2), y + zh}, col);
         };
         for (const Treffer& t : gleiche) { markiere(t.anfang, t.ende, IM_COL32(255, 255, 255, 25)); }
@@ -1722,18 +2484,18 @@ void zeichneCode(Dokument& d, ImVec2 groesse) {
             markiere(*partner, *partner + 1, IM_COL32(255, 255, 255, 60));
         }
         // Text mit Farben
-        while (fi < farben.size() && farben[fi].ende <= za) { ++fi; }
-        std::uint32_t pos = za;
+        while (fi < farben.size() && farben[fi].ende <= ra) { ++fi; }
+        std::uint32_t pos = ra;
         std::size_t fj = fi;
-        while (pos < ze) {
-            std::uint32_t bis = ze;
+        while (pos < re) {
+            std::uint32_t bis = re;
             ImU32 col = farbeFuer(Farbklasse::Text);
             if (fj < farben.size() && farben[fj].anfang <= pos) {
-                bis = std::min(ze, farben[fj].ende);
+                bis = std::min(re, farben[fj].ende);
                 col = farbeFuer(farben[fj].klasse);
                 if (farben[fj].ende <= bis) { ++fj; }
             } else if (fj < farben.size()) {
-                bis = std::min(ze, farben[fj].anfang);
+                bis = std::min(re, farben[fj].anfang);
             }
             if (bis <= pos) { bis = pos + 1; }
             const int sa = static_cast<int>(pos - za);
@@ -1743,9 +2505,7 @@ void zeichneCode(Dokument& d, ImVec2 groesse) {
             int spalte = sa;
             for (std::size_t q = 0; q <= stueck.size(); ++q) {
                 if (q == stueck.size() || stueck[q] == '\t') {
-                    if (q > s0) {
-                        dl->AddText(font, fs, ImVec2{textX + spaltenX(zeile, spalte, leer), y}, col, stueck.c_str() + s0, stueck.c_str() + q);
-                    }
+                    if (q > s0) { dl->AddText(font, fs, ImVec2{spalteX(r, spalte), y}, col, stueck.c_str() + s0, stueck.c_str() + q); }
                     if (q < stueck.size()) {
                         spalte = sa + static_cast<int>(q) + 1;
                         s0 = q + 1;
@@ -1754,26 +2514,47 @@ void zeichneCode(Dokument& d, ImVec2 groesse) {
             }
             pos = bis;
         }
+        // M2 Live-Diagnose: Wellenlinie an der Stelle, Rahmen um die Gegenstelle (Klammern)
+        for (const Diagnose& x : d.diagnosen) {
+            auto strich = [&](std::uint32_t a, std::uint32_t e, bool rahmen) {
+                if (std::max(e, a + 1) <= ra || a > re || (a == re && !r.letzte)) { return; }
+                const int sa = static_cast<int>(std::max(a, ra) - za);
+                const int se = static_cast<int>(std::min(std::max(e, a + 1), re) - za);
+                const float xa = spalteX(r, sa);
+                const float xe = std::max(spalteX(r, se), xa + leer * 0.5F);
+                if (rahmen) { dl->AddRect(ImVec2{xa - 1, y}, ImVec2{xe + 1, y + zh}, schwereFarbe(x.schwere), 2.0F); }
+                else { welle(dl, xa, xe, y + zh - 2.0F, schwereFarbe(x.schwere)); }
+            };
+            if (x.ende > x.anfang) { strich(x.anfang, x.ende, false); }
+            if (x.partner) { strich(x.partnerAnfang, x.partnerEnde, true); }
+        }
         // Cursor
         if (z.codeFokus && std::fmod(ImGui::GetTime(), 1.0) < 0.6) {
             for (const Cursor& c : p.cursor) {
-                if (c.pos >= za && c.pos <= ze) {
-                    const float x = textX + spaltenX(zeile, static_cast<int>(c.pos - za), leer);
+                if (c.pos >= ra && (c.pos < re || (c.pos == re && r.letzte))) {
+                    const float x = spalteX(r, static_cast<int>(c.pos - za));
                     dl->AddLine(ImVec2{x, y}, ImVec2{x, y + zh}, IM_COL32(255, 255, 255, 255), 1.5F);
                 }
             }
         }
-        if (d.gefaltet.count(zl) != 0) {
-            const float x = textX + spaltenX(zeile, static_cast<int>(zeile.size()), leer) + leer;
+        if (r.letzte && d.gefaltet.count(zl) != 0) {
+            const float x = spalteX(r, static_cast<int>(zeile.size())) + leer;
             dl->AddRectFilled(ImVec2{x, y + 2}, ImVec2{x + leer * 4, y + zh - 2}, IM_COL32(80, 80, 80, 255), 3);
             dl->AddText(ImVec2{x + leer * 0.5F, y}, IM_COL32(200, 200, 200, 255), "...");
         }
     }
-    // Minimap
-    {
+    dl->PopClipRect();
+    // ohne Umbruch: wie weit seitwaerts (duenner Balken unten)
+    if (!umbruch && breiteste > textB) {
+        const float a = d.scrollX / breiteste, b = std::min(1.0F, (d.scrollX + textB) / breiteste);
+        dl->AddRectFilled(ImVec2{textX + a * textB, o.y + bereich.y - 3}, ImVec2{textX + b * textB, o.y + bereich.y}, IM_COL32(255, 255, 255, 60));
+    }
+    // Minimap (logische Zeilen)
+    if (miniB > 0) {
         const float mx = textX + textB;
         dl->AddRectFilled(ImVec2{mx, o.y}, ImVec2{mx + miniB, o.y + bereich.y}, IM_COL32(30, 30, 30, 255));
         const float sk = std::min(2.0F, bereich.y / std::max(1.0F, static_cast<float>(sichtbarN)));
+        const float px = miniB / 70.0F;   // 70 Zeichen auf die Breite
         std::size_t fk = 0;
         for (int k = 0; k < sichtbarN; ++k) {
             const int zl = sichtbar[static_cast<std::size_t>(k)];
@@ -1782,28 +2563,59 @@ void zeichneCode(Dokument& d, ImVec2 groesse) {
             while (fk < farben.size() && farben[fk].ende <= za) { ++fk; }
             const float y = o.y + static_cast<float>(k) * sk;
             for (std::size_t q = fk; q < farben.size() && farben[q].anfang < ze; ++q) {
-                const float x0 = mx + 2 + static_cast<float>(farben[q].anfang - za) * 0.6F;
-                const float x1 = mx + 2 + static_cast<float>(std::min(farben[q].ende, ze) - za) * 0.6F;
+                const float x0 = mx + 2 + static_cast<float>(farben[q].anfang - za) * px;
+                const float x1 = mx + 2 + static_cast<float>(std::min(farben[q].ende, ze) - za) * px;
                 if (x0 > mx + miniB) { break; }
                 dl->AddRectFilled(ImVec2{x0, y}, ImVec2{std::min(x1, mx + miniB), y + std::max(1.0F, sk - 0.3F)},
                                   (farbeFuer(farben[q].klasse) & 0x00FFFFFFU) | 0xA0000000U);
             }
-            if (fehlerZeilen.count(zl) != 0) { dl->AddRectFilled(ImVec2{mx + miniB - 4, y}, ImVec2{mx + miniB, y + 2}, IM_COL32(240, 70, 70, 255)); }
+            if (const auto zs = zeilenSchwere.find(zl); zs != zeilenSchwere.end()) {
+                dl->AddRectFilled(ImVec2{mx + miniB - 4, y}, ImVec2{mx + miniB, y + 2}, schwereFarbe(zs->second));
+            }
         }
         for (const Treffer& t : suchT) {
-            const float y = o.y + static_cast<float>(p.pos(t.anfang).zeile) * sk;
+            const int zl = p.pos(t.anfang).zeile;
+            const auto it = std::lower_bound(sichtbar.begin(), sichtbar.end(), zl);
+            const float y = o.y + static_cast<float>(it - sichtbar.begin()) * sk;
             dl->AddRectFilled(ImVec2{mx + miniB - 4, y}, ImVec2{mx + miniB, y + 2}, IM_COL32(255, 160, 0, 255));
         }
-        const float y0 = o.y + static_cast<float>(erste) * sk;
-        dl->AddRectFilled(ImVec2{mx, y0}, ImVec2{mx + miniB, y0 + static_cast<float>(proSeite) * sk}, IM_COL32(255, 255, 255, 25));
+        if (reihenN > 0) {
+            const auto it0 = std::lower_bound(sichtbar.begin(), sichtbar.end(), reihen[static_cast<std::size_t>(std::min(erste, reihenN - 1))].zl);
+            const int letzteR = std::min(reihenN - 1, erste + proSeite);
+            const auto it1 = std::lower_bound(sichtbar.begin(), sichtbar.end(), reihen[static_cast<std::size_t>(letzteR)].zl);
+            const float y0 = o.y + static_cast<float>(it0 - sichtbar.begin()) * sk;
+            const float y1 = o.y + static_cast<float>(it1 - sichtbar.begin() + 1) * sk;
+            dl->AddRectFilled(ImVec2{mx, y0}, ImVec2{mx + miniB, y1}, IM_COL32(255, 255, 255, 25));
+        }
     }
     dl->PopClipRect();
+    // M2 Live-Diagnose: Tipp ueber der Stelle bzw. dem Randsymbol; Strg+. wendet die Korrektur an
+    if (hover && !z.ziehtText && reihenN > 0 && maus.y >= o.y && maus.y < o.y + bereich.y) {
+        const Reihe& r = reihen[static_cast<std::size_t>(reiheBeiMaus())];
+        if (maus.x >= textX && maus.x < textX + textB) {
+            const std::uint32_t off = offBeiMaus();
+            const Diagnose* x = diagnoseBei(d, off);
+            if (x != nullptr && x->ende > x->anfang && maus.x <= spalteX(r, static_cast<int>(std::min<std::uint32_t>(x->ende, p.zeilenEnde(r.zl)) - p.zeilenAnfang(r.zl))) + leer) {
+                zeigeDiagnoseTipp(d, *x);
+            }
+        } else if (maus.x < textX - falteB && r.a == 0 && zeilenSchwere.count(r.zl) != 0) {
+            for (const Diagnose& x : d.diagnosen) {
+                if (x.zeile - 1 == r.zl) {
+                    zeigeDiagnoseTipp(d, x);
+                    break;
+                }
+            }
+        }
+    }
+    if (z.codeFokus && ImGui::IsWindowFocused() && io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Period, false)) {
+        if (const Diagnose* x = diagnoseBei(d, cur)) { (void)korrigiere(d, *x); }
+    }
     // Vervollstaendigung
-    if (z.vervollOffen && z.codeFokus && !z.vervoll.empty()) {
-        const Pos cp = p.pos(cur);
-        const auto it = std::lower_bound(sichtbar.begin(), sichtbar.end(), cp.zeile);
-        const float y = o.y + static_cast<float>(static_cast<int>(it - sichtbar.begin()) - erste + 1) * zh;
-        const float x = textX + spaltenX(p.zeile(cp.zeile), cp.spalte, leer);
+    if (z.vervollOffen && z.codeFokus && !z.vervoll.empty() && reihenN > 0) {
+        const int rk = reiheVonOff(cur);
+        const Reihe& r = reihen[static_cast<std::size_t>(rk)];
+        const float y = o.y + static_cast<float>(rk - erste + 1) * zh;
+        const float x = spalteX(r, p.pos(cur).spalte);
         ImGui::SetNextWindowPos(ImVec2{x, y});
         ImGui::SetNextWindowSize(ImVec2{fs * 16, std::min(10, static_cast<int>(z.vervoll.size())) * zh + 8});
         ImGui::Begin("##vervoll", nullptr,
@@ -1819,6 +2631,26 @@ void zeichneCode(Dokument& d, ImVec2 groesse) {
     }
     if (g_codeSchrift != nullptr) { ImGui::PopFont(); }
     ImGui::EndChild();
+}
+
+// --- M2 Punkt 5: Klaenge ---------------------------------------------------------------
+
+// Was die Laufzeit an Klaengen ausgeloest hat (startLocalSound, startBackgroundTrack):
+// ueber das Tongeraet des Programms - stumm im Selbsttest (g_app->stumm) und wenn
+// "Klaenge" aus ist; gezaehlt wird trotzdem.
+void spieleKlaenge() {
+    Zustand& z = Z();
+    for (const std::string& k : z.lauf.klaenge) {
+        ++z.klangEreignisse;
+        z.letzterKlang = k;
+        if (!z.klaengeAn || g_app->stumm) { continue; }
+        const bool musik = k.compare(0, 6, "musik:") == 0;
+        const std::vector<std::int16_t>* daten = klangFuerWiedergabe(musik ? k.substr(6) : k);
+        if (daten == nullptr || daten->empty()) { continue; }
+        if (!g_app->audio.ready() && !g_app->audio.open(44100, 2)) { continue; }
+        (void)g_app->audio.play(*daten, 1.0F);
+    }
+    z.lauf.klaenge.clear();
 }
 
 // --- M2 Punkt 2: Video -> RoQ -------------------------------------------------------
@@ -2059,6 +2891,68 @@ void zeichneBibliothek(Dokument& d) {
     ImGui::EndDisabled();
 }
 
+// Eine Zeile der Ebenenliste: Auge (nur Vorschau), Schloss, Name (Doppelklick =
+// umbenennen), Ziehen auf eine andere Zeile = an deren Stelle in der Reihenfolge.
+void zeichneEbene(Dokument& d, int menu, int i) {
+    const Menu& me = d.datei.menus[static_cast<std::size_t>(menu)];
+    const Item& it = me.items[static_cast<std::size_t>(i)];
+    ImGui::PushID(i);
+    const bool aufSeite = menuDerSeite(d) == menu;
+    const bool verborgen = d.verborgen.count({menu, i}) != 0;
+    if (ImGui::SmallButton(verborgen ? "-" : "o")) {
+        if (verborgen) { d.verborgen.erase({menu, i}); } else { d.verborgen.insert({menu, i}); }
+    }
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeEbeneAuge)); }
+    ImGui::SameLine();
+    const bool gesperrt = aufSeite && d.gesperrt.count(i) != 0;
+    if (ImGui::SmallButton(gesperrt ? "L" : ".")) {
+        if (gesperrt) { d.gesperrt.erase(i); } else { d.gesperrt.insert(i); }
+    }
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeEbeneSchloss)); }
+    ImGui::SameLine();
+    if (d.umbenennen == i && aufSeite) {
+        ImGui::SetNextItemWidth(-1);
+        if (ImGui::IsWindowAppearing() || !ImGui::IsAnyItemActive()) { ImGui::SetKeyboardFocusHere(); }
+        if (eingabe("##neu", &d.neuerName, ImGuiInputTextFlags_EnterReturnsTrue)) {
+            if (!d.neuerName.empty()) { eigenschaft(i, "name", {inAnf(utf8ZuLatin1(d.neuerName.c_str()))}); }
+            d.umbenennen = -1;
+        } else if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+            d.umbenennen = -1;
+        }
+    } else {
+        const bool sel = aufSeite && std::find(d.auswahl.begin(), d.auswahl.end(), i) != d.auswahl.end();
+        char l[300];
+        std::snprintf(l, sizeof(l), "%s  %s", it.window.name.empty() ? "?" : anzeige(it.window.name).c_str(), typName(it.type));
+        if (ImGui::Selectable(l, sel, ImGuiSelectableFlags_AllowDoubleClick)) {
+            if (!aufSeite) {
+                const std::vector<Seite> s = seitenImMenue(d.datei);
+                for (std::size_t k = 0; k < s.size(); ++k) {
+                    if (s[k].menu == menu && s[k].cvar.empty()) { d.seite = static_cast<int>(k); }
+                }
+            }
+            waehle(i, ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeyShift);
+            if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+                d.umbenennen = i;
+                d.neuerName = anzeige(it.window.name);
+            }
+        }
+        if (aufSeite && ImGui::BeginDragDropSource()) {
+            ImGui::SetDragDropPayload("ME_EBENE", &i, sizeof(i));
+            ImGui::TextUnformatted(l);
+            ImGui::EndDragDropSource();
+        }
+        if (aufSeite && ImGui::BeginDragDropTarget()) {
+            if (const ImGuiPayload* pl = ImGui::AcceptDragDropPayload("ME_EBENE")) {
+                int von = 0;
+                std::memcpy(&von, pl->Data, sizeof(von));
+                (void)setzeAnStelle(d, menu, von, i);
+            }
+            ImGui::EndDragDropTarget();
+        }
+    }
+    ImGui::PopID();
+}
+
 void zeichneGliederung(Dokument& d) {
     ImGui::SeparatorText(tr(Str::MeGliederung));
     for (std::size_t m = 0; m < d.datei.menus.size(); ++m) {
@@ -2073,21 +2967,21 @@ void zeichneGliederung(Dokument& d) {
             }
         }
         if (offen) {
-            for (std::size_t i = 0; i < me.items.size(); ++i) {
-                const Item& it = me.items[i];
-                const bool sel = menuDerSeite(d) == static_cast<int>(m) &&
-                                 std::find(d.auswahl.begin(), d.auswahl.end(), static_cast<int>(i)) != d.auswahl.end();
-                char l[300];
-                std::snprintf(l, sizeof(l), "%s %s%s##i%zu", it.window.name.empty() ? "?" : it.window.name.c_str(),
-                              typName(it.type), d.gesperrt.count(static_cast<int>(i)) != 0 ? " [L]" : "", i);
-                if (ImGui::Selectable(l, sel)) {
-                    if (menuDerSeite(d) != static_cast<int>(m)) {
-                        const std::vector<Seite> s = seitenImMenue(d.datei);
-                        for (std::size_t k = 0; k < s.size(); ++k) {
-                            if (s[k].menu == static_cast<int>(m) && s[k].cvar.empty()) { d.seite = static_cast<int>(k); }
-                        }
+            // M2 Ebenenliste (wie der Object Inspector): oben = vorne (zuletzt gezeichnet),
+            // Gruppen (group) als Knoten; Auge, Schloss, Doppelklick = umbenennen, Ziehen = Reihenfolge
+            std::set<std::string> gruppenGezeigt;
+            for (std::size_t r = me.items.size(); r-- > 0;) {
+                const std::string& g = me.items[r].window.group;
+                if (g.empty()) {
+                    zeichneEbene(d, static_cast<int>(m), static_cast<int>(r));
+                    continue;
+                }
+                if (!gruppenGezeigt.insert(g).second) { continue; }
+                if (ImGui::TreeNodeEx(("##g" + g).c_str(), ImGuiTreeNodeFlags_DefaultOpen, "group %s", anzeige(g).c_str())) {
+                    for (std::size_t q = me.items.size(); q-- > 0;) {
+                        if (me.items[q].window.group == g) { zeichneEbene(d, static_cast<int>(m), static_cast<int>(q)); }
                     }
-                    waehle(static_cast<int>(i), ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeyShift);
+                    ImGui::TreePop();
                 }
             }
             ImGui::TreePop();
@@ -2385,6 +3279,8 @@ void zeichneLeiste(Dokument* d) {
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 7);
     ImGui::Combo("##aufl", &z.aufloesung, aufl, 10);
     ImGui::SameLine();
+    ImGui::Checkbox(tr(Str::MeKlaenge), &z.klaengeAn);
+    ImGui::SameLine();
     ImGui::Checkbox(tr(Str::MeAlleItems), &z.alleItems);
     ImGui::SameLine();
     ImGui::Checkbox(tr(Str::MeRaster), &z.raster);
@@ -2459,6 +3355,97 @@ void splitter(const char* id, float& wert, bool senkrecht, float min, float max,
 
 bool aktiv() { return g_app != nullptr && g_app->leftMode == 4; }
 
+// --- Panels ---------------------------------------------------------------------------
+//
+// Jedes Panel zeichnet in den Platz, den es bekommt (GetContentRegionAvail), mit eigener,
+// fester ID und Mauskoordinaten relativ zu sich selbst - damit es spaeter auch als eigenes,
+// andockbares Fenster laufen kann.
+
+// Bausteine: Palette der Item-Typen und die Bibliothek
+void panelBausteine(Dokument& d) {
+    ImGui::PushID("panelBausteine");
+    zeichnePalette(d);
+    ImGui::PopID();
+}
+
+// Hierarchie: Menues, Gruppen und Items (Ebenenliste)
+void panelHierarchie(Dokument& d) {
+    ImGui::PushID("panelHierarchie");
+    zeichneGliederung(d);
+    ImGui::PopID();
+}
+
+// Arbeitsflaeche: Seiten-Reiter und die 640x480-Flaeche
+void panelFlaeche(Dokument& d) {
+    ImGui::PushID("panelFlaeche");
+    zeichneSeiten(d);
+    zeichneFlaeche(d, ImGui::GetContentRegionAvail());
+    ImGui::PopID();
+}
+
+// Text: der Code-Editor (Klick auf der Flaeche setzt springeZeile - steht beim Wechsel da),
+// darunter die Probleme (Hoehe per Teiler)
+void panelText(Dokument& d) {
+    Zustand& z = Z();
+    ImGui::PushID("panelText");
+    const float fs = ImGui::GetFontSize();
+    const ImVec2 r = ImGui::GetContentRegionAvail();
+    if (z.problemeHoehe <= 0) { z.problemeHoehe = std::floor(r.y * 0.25F); }
+    z.problemeHoehe = std::clamp(z.problemeHoehe, fs * 3, std::max(fs * 3, r.y - fs * 6));
+    ImGui::BeginChild("##codeBereich", ImVec2{0, std::max(fs * 3, r.y - z.problemeHoehe - 8)}, ImGuiChildFlags_None,
+                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    zeichneCode(d);
+    ImGui::EndChild();
+    splitter("##splProbleme", z.problemeHoehe, false, fs * 3, std::max(fs * 3, r.y - fs * 6), r.x);
+    panelProbleme(d);
+    ImGui::PopID();
+}
+
+// Eigenschaften mit Cvars, Meldungen der Engine und Skript-Protokoll als Abschnitte
+void panelEigenschaften(Dokument& d) {
+    ImGui::PushID("panelEigenschaften");
+    zeichneEigenschaften(d);
+    zeichneCvars(d);
+    zeichneMeldungen(d);
+    ImGui::PopID();
+}
+
+// Die rechte Spalte: Reiter, der gewaehlte steht in den Einstellungen. Das Programm
+// wechselt ihn nur auf Wunsch (setzeReiter), nie ungefragt.
+void panelReiter(Dokument& d) {
+    Zustand& z = Z();
+    Settings& st = g_app->settings;
+    if (z.reiterGewollt == -2) { z.reiterGewollt = std::clamp(st.menueReiter, 0, 2); }
+    if (ImGui::BeginTabBar("##rechtsReiter")) {
+        struct R {
+            Str name;
+            void (*f)(Dokument&);
+            bool rollt;   // eigener Rollbereich (der Text rollt selbst)
+        };
+        static const R reiter[] = {{Str::MeReiterHierarchie, panelHierarchie, true},
+                                   {Str::MeReiterText, panelText, false},
+                                   {Str::MeReiterEigenschaften, panelEigenschaften, true}};
+        const int gewollt = z.reiterGewollt;
+        for (int i = 0; i < static_cast<int>(std::size(reiter)); ++i) {
+            const std::string l = std::string(tr(reiter[i].name)) + "###reiter" + std::to_string(i);
+            const ImGuiTabItemFlags f = i == gewollt ? ImGuiTabItemFlags_SetSelected : 0;
+            if (ImGui::BeginTabItem(l.c_str(), nullptr, f)) {
+                if (gewollt < 0 || i == gewollt) { st.menueReiter = i; }
+                if (reiter[i].rollt) {
+                    ImGui::BeginChild("##inhalt", ImVec2{0, 0}, ImGuiChildFlags_None);
+                    reiter[i].f(d);
+                    ImGui::EndChild();
+                } else {
+                    reiter[i].f(d);
+                }
+                ImGui::EndTabItem();
+            }
+        }
+        z.reiterGewollt = -1;
+        ImGui::EndTabBar();
+    }
+}
+
 void zeichneInnen(float hoehe);
 
 void zeichne(float hoehe) {
@@ -2511,33 +3498,55 @@ void zeichneInnen(float hoehe) {
     neuParsen(*d);
     const float fs = ImGui::GetFontSize();
     const ImVec2 rest = ImGui::GetContentRegionAvail();
-    if (z.codeHoehe <= 0) { z.codeHoehe = std::floor(rest.y * 0.38F); }
-    if (z.linksBreite <= 0) { z.linksBreite = fs * 13; }
-    if (z.rechtsBreite <= 0) { z.rechtsBreite = fs * 19; }
-    const float obenH = std::max(fs * 6, rest.y - z.codeHoehe - 8);
+    Settings& st = g_app->settings;
     (void)hoehe;
-    ImGui::BeginChild("##links", ImVec2{z.linksBreite, obenH}, ImGuiChildFlags_Borders);
-    zeichnePalette(*d);
-    zeichneGliederung(*d);
+    if (z.linksBreite <= 0) { z.linksBreite = fs * 13; }
+    if (z.rechtsBreite <= 0) { z.rechtsBreite = st.menueRechtsBreite > 0 ? st.menueRechtsBreite * fs : fs * (st.menueTextUnten ? 19 : 28); }
+    diagnosePflegen(*d);
+    if (st.menueTextUnten) {
+        // altes Layout: links Bausteine und Hierarchie, rechts Eigenschaften, unten der Text
+        if (z.codeHoehe <= 0) { z.codeHoehe = std::floor(rest.y * 0.38F); }
+        const float obenH = std::max(fs * 6, rest.y - z.codeHoehe - 8);
+        ImGui::BeginChild("##links", ImVec2{z.linksBreite, obenH}, ImGuiChildFlags_Borders);
+        panelBausteine(*d);
+        panelHierarchie(*d);
+        ImGui::EndChild();
+        ImGui::SameLine(0, 0);
+        splitter("##spl1", z.linksBreite, true, fs * 6, rest.x * 0.4F, obenH);
+        ImGui::SameLine(0, 0);
+        const float mitteB = std::max(fs * 10, rest.x - z.linksBreite - z.rechtsBreite - 14);
+        ImGui::BeginChild("##mitte", ImVec2{mitteB, obenH}, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        panelFlaeche(*d);
+        ImGui::EndChild();
+        ImGui::SameLine(0, 0);
+        splitter("##spl2", z.rechtsBreite, true, fs * 10, rest.x * 0.5F, obenH, true);
+        ImGui::SameLine(0, 0);
+        ImGui::BeginChild("##rechts", ImVec2{0, obenH}, ImGuiChildFlags_Borders);
+        panelEigenschaften(*d);
+        ImGui::EndChild();
+        splitter("##spl3", z.codeHoehe, false, fs * 4, rest.y - fs * 8, rest.x);
+        panelText(*d);
+        return;
+    }
+    // links die Bausteine, in der Mitte die Flaeche in voller Hoehe, rechts die Reiter
+    const float h = rest.y;
+    ImGui::BeginChild("##links", ImVec2{z.linksBreite, h}, ImGuiChildFlags_Borders);
+    panelBausteine(*d);
     ImGui::EndChild();
     ImGui::SameLine(0, 0);
-    splitter("##spl1", z.linksBreite, true, fs * 6, rest.x * 0.4F, obenH);
+    splitter("##spl1", z.linksBreite, true, fs * 6, rest.x * 0.4F, h);
     ImGui::SameLine(0, 0);
     const float mitteB = std::max(fs * 10, rest.x - z.linksBreite - z.rechtsBreite - 14);
-    ImGui::BeginChild("##mitte", ImVec2{mitteB, obenH}, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    zeichneSeiten(*d);
-    zeichneFlaeche(*d, ImGui::GetContentRegionAvail());
+    ImGui::BeginChild("##mitte", ImVec2{mitteB, h}, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    panelFlaeche(*d);
     ImGui::EndChild();
     ImGui::SameLine(0, 0);
-    splitter("##spl2", z.rechtsBreite, true, fs * 10, rest.x * 0.5F, obenH, true);
+    splitter("##spl2", z.rechtsBreite, true, fs * 12, rest.x * 0.6F, h, true);
+    st.menueRechtsBreite = std::floor(z.rechtsBreite / fs * 100.0F) / 100.0F;
     ImGui::SameLine(0, 0);
-    ImGui::BeginChild("##rechts", ImVec2{0, obenH}, ImGuiChildFlags_Borders);
-    zeichneEigenschaften(*d);
-    zeichneCvars(*d);
-    zeichneMeldungen(*d);
+    ImGui::BeginChild("##rechts", ImVec2{0, h}, ImGuiChildFlags_Borders);
+    panelReiter(*d);
     ImGui::EndChild();
-    splitter("##spl3", z.codeHoehe, false, fs * 4, rest.y - fs * 8, rest.x);
-    zeichneCode(*d, ImVec2{rest.x, z.codeHoehe});
 }
 
 // M2 Punkt 3: alle Dateien eines Menuesatzes oeffnen (UI_LoadMenus: loadMenu { ... })
@@ -2625,7 +3634,16 @@ Stand stand() {
     for (int i = 0; i < 4; ++i) { s.flaeche[i] = z.flaeche[i]; }
     s.bildzeitMs = z.bildzeitMs;
     s.kinoBilder = z.kinoBilder;
-    s.modellDreiecke = z.modellDreiecke;
+    s.modellAufrufe = z.modellAufrufe;
+    s.klangEreignisse = z.klangEreignisse;
+    s.letzterKlang = z.letzterKlang;
+    for (const Diagnose& x : d->diagnosen) {
+        (x.schwere == Schwere::Fehler ? s.diagFehler : x.schwere == Schwere::Warnung ? s.diagWarnungen : s.diagHinweise) += 1;
+        s.diagnosen.push_back(std::to_string(x.zeile) + ": " + diagMeldung(x));
+    }
+    s.diagAktuell = d->diagVersion == d->puffer.version();
+    s.diagLaeufe = z.diagLaeufe;
+    s.modellFehler = z.modellFehler;
     for (const auto& [p, b] : d->bilder) {
         (void)b;
         s.paket.push_back(p);
@@ -2642,6 +3660,10 @@ Stand stand() {
 void waehle(int item, bool dazu) {
     Dokument* d = doc();
     if (d == nullptr) { return; }
+    if (item < 0) {   // keins: Auswahl leeren
+        if (!dazu) { d->auswahl.clear(); }
+        return;
+    }
     const auto it = std::find(d->auswahl.begin(), d->auswahl.end(), item);
     if (dazu) {
         if (it != d->auswahl.end()) { d->auswahl.erase(it); } else { d->auswahl.push_back(item); }
@@ -2688,6 +3710,7 @@ void klickVorschau(float x, float y) {
     if (z.laufDatei != z.aktiv || z.lauf.d != &d->datei || z.laufGeparst != d->geparst) {
         z.laufGeparst = d->geparst;
         z.lauf.start(d->datei);
+        z.lauf.saberModell = saberModellFuer;
         z.lauf.basis = umgebung(*d);
         if (mi >= 0) { z.lauf.oeffne(d->datei.menus[static_cast<std::size_t>(mi)].window.name); }
         z.laufDatei = z.aktiv;
@@ -2696,6 +3719,16 @@ void klickVorschau(float x, float y) {
     z.lauf.klick(mi, x, y);
     (void)satzWechsel();
 }
+
+void setzeReiter(int reiter) { Z().reiterGewollt = std::clamp(reiter, 0, 2); }
+
+bool korrigiereDiagnose(int nr) {
+    Dokument* d = doc();
+    if (d == nullptr || nr < 0 || static_cast<std::size_t>(nr) >= d->diagnosen.size()) { return false; }
+    const Diagnose x = d->diagnosen[static_cast<std::size_t>(nr)];
+    return korrigiere(*d, x);
+}
+int reiter() { return g_app->settings.menueReiter; }
 
 void setzeCvar(const std::string& name, const std::string& wert) {
     Zustand& z = Z();
@@ -2877,6 +3910,26 @@ void setzeCodeSchrift(ImFont* f) { g_codeSchrift = f; }
 void setzeBalken(bool balken) { Z().seitenv = balken ? Seitenverhaeltnis::Balken : Seitenverhaeltnis::Strecken; }
 
 std::string letzterSatzWechsel() { return Z().satzWechsel; }
+
+void verbergeItem(int item, bool verbergen) {
+    Dokument* d = doc();
+    if (d == nullptr) { return; }
+    const int mi = menuDerSeite(*d);
+    if (verbergen) { d->verborgen.insert({mi, item}); } else { d->verborgen.erase({mi, item}); }
+}
+
+bool ebeneAnStelle(int item, int ziel) {
+    Dokument* d = doc();
+    return d != nullptr && setzeAnStelle(*d, menuDerSeite(*d), item, ziel);
+}
+
+void altKlickVorschau(float x, float y) {
+    Dokument* d = doc();
+    if (d == nullptr) { return; }
+    const int mi = menuDerSeite(*d);
+    const int i = naechstesUnter(itemsUnterPunkt(*d, mi, x, y, umgebung(*d)), d->auswahl);
+    if (i >= 0) { waehle(i, false); }
+}
 
 std::string laufInfo() {
     Zustand& z = Z();

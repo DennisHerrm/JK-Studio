@@ -210,6 +210,13 @@ struct Settings {
     // Vorgabe aus Dialog 102: 71 / 663 = 0,107. Der gemessene Textbedarf ist
     // die Untergrenze; darunter wird sie nicht schmaler.
     float splitButtons = 0.107F;
+    // Menue-Editor M2: rechte Spalte mit Reitern (0 Hierarchie, 1 Text, 2 Eigenschaften,
+    // 3 Probleme), ihre Breite in Schriftgroessen (0 = Vorgabe), das alte Layout mit dem
+    // Text unten ueber die ganze Breite, und ob lange Zeilen umbrechen (sonst seitwaerts).
+    int menueReiter = 0;
+    float menueRechtsBreite = 0.0F;
+    bool menueTextUnten = false;
+    bool menueUmbruch = false;
     bool showTypes = false;
     bool gFloats = false;
     bool foldMacros = true;

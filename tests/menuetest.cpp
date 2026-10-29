@@ -269,6 +269,21 @@ int main() {
         pruefe(r.aufloesen("@MENUS_ZITAT") == "Er sagte \"ja\" // kein Kommentar", "Texte: innere Anfuehrungszeichen, // in Anfuehrung bleibt");
     }
 
+    // M2 Punkt 6: eigene Texte schreiben und wie die Engine wieder lesen
+    {
+        const std::vector<TextEintrag> e = {{"MEIN_KNOPF", "Start\nnow", "Los\njetzt"}, {"ZITAT", "say \"hi\"", ""}};
+        Texte de;
+        de.ladeStr("strings/German/MEINMOD.str", schreibeStr("German", e), "GERMAN");
+        pruefe(de.aufloesen("@MEINMOD_MEIN_KNOPF") == "Los\njetzt" && de.aufloesen("@MEINMOD_ZITAT") == "say 'hi'",
+               "Texte: .str geschrieben und gelesen (Uebersetzung, #same, Zeilenumbruch)");
+        Texte en;
+        en.ladeStr("strings/English/MEINMOD.str", schreibeStr("English", e), "ENGLISH");
+        pruefe(en.aufloesen("@MEINMOD_MEIN_KNOPF") == "Start\nnow", "Texte: englische .str");
+        Texte stripEd;
+        stripEd.ladeSp(schreibeSp("MEINMOD", 3, e), 3);
+        pruefe(stripEd.aufloesen("@MEINMOD_MEIN_KNOPF") == "Los\njetzt", "Texte: .sp (StripEd, TEXT_LANGUAGE3)");
+    }
+
     std::printf("menuetest: %s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

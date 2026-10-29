@@ -9,12 +9,16 @@
 //   - rect des ersten freien Items um 1 verschieben: nur diese Zahl aendert
 //     sich, neu gelesen stimmt der Wert, Anzahl der Menues/Items bleibt,
 //   - Zaehler: Menues, Items, Meldungen der Engine, @-Texte ohne Eintrag.
+#include "bhed/menue/diagnose.h"
 #include "bhed/menue/feeder.h"
 #include "bhed/menue/menue.h"
 #include "bhed/menue/spieldaten.h"
+#include "bhed/shaderscript.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -42,6 +46,41 @@ void spiel(const char* name, Spiel s, const std::vector<std::string>& ordner) {
     int menus = 0, items = 0, fehler = 0, warnungen = 0, gescheitert = 0, ohneText = 0, verschoben = 0;
     std::map<std::string, int> unbekannt;
     int gezeigt = 0;
+    // M2 Live-Diagnose ueber alle Originalmenues (Mass fuer Fehlalarme): erst alle Menuenamen
+    std::set<std::string> alleMenues;
+    for (const std::string& pfad : dateien) {
+        std::string text;
+        if (!daten.lies(pfad, text)) { continue; }
+        for (const Menu& m : lies(pfad, text, optionenFuer(pfad, s, daten.lader())).menus) {
+            std::string n = m.window.name;
+            for (char& c : n) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            alleMenues.insert(n);
+        }
+    }
+    DiagKontext dk;
+    dk.menueBekannt = [&](const std::string& n0) {
+        std::string n = n0;
+        for (char& c : n) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        return alleMenues.count(n) != 0;
+    };
+    dk.pruefung.gibt = [&](const std::string& p) { return daten.gibt(p); };
+    bhed::ShaderMap shader;   // Bild oder Shader (R_RegisterShaderNoMip)
+    for (const std::string& sp : daten.liste("shaders/", {".shader"})) {
+        std::string st;
+        if (daten.lies(sp, st)) { bhed::parseShaderScript(st, shader); }
+    }
+    dk.pruefung.gibtBild = [&](const std::string& p0) {
+        std::string p = p0;
+        for (char& c : p) { c = c == '\\' ? '/' : static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        const std::size_t pt = p.rfind('.');
+        if (shader.count(p) != 0 || (pt != std::string::npos && shader.count(p.substr(0, pt)) != 0)) { return true; }
+        for (const char* e : {"", ".tga", ".jpg", ".png"}) {
+            if (daten.gibt(p + e)) { return true; }
+        }
+        return false;
+    };
+    std::map<std::string, int> diagArten;
+    int diagGezeigt = 0;
     for (const std::string& pfad : dateien) {
         std::string text;
         if (!daten.lies(pfad, text)) {
@@ -51,6 +90,17 @@ void spiel(const char* name, Spiel s, const std::vector<std::string>& ordner) {
         const LeseOptionen o = optionenFuer(pfad, s, daten.lader());
         const Datei d = lies(pfad, text, o);
         pruefe(schreib(d) == text, std::string(name) + ": byte-gleich " + pfad);
+        for (const Diagnose& x : diagnose(d, dk)) {
+            static const char* const kArt[] = {"Engine", "KlammerOffen", "KlammerZuViel", "KlammerFalsch", "AnfuehrungOffen", "KeineZahl",
+                                               "NameDoppelt", "ZielFehlt", "CvarAehnlich", "Pruefung"};
+            std::string a = kArt[static_cast<int>(x.art)];
+            if (x.art == DiagArt::Pruefung) { a += "/" + std::to_string(static_cast<int>(x.befund.art)); }
+            ++diagArten[a];
+            if (std::getenv("MENUE_DIAG_ZEIGE") != nullptr && a.find(std::getenv("MENUE_DIAG_ZEIGE")) == 0 && diagGezeigt < 40) {
+                std::printf("   diag %s %s:%d %s %s\n", a.c_str(), pfad.c_str(), x.zeile, x.text.c_str(), x.wert.c_str());
+                ++diagGezeigt;
+            }
+        }
         menus += static_cast<int>(d.menus.size());
         for (const Menu& m : d.menus) {
             items += static_cast<int>(m.items.size());
@@ -104,6 +154,9 @@ void spiel(const char* name, Spiel s, const std::vector<std::string>& ordner) {
         if (n++ < 6) { std::printf("   ohne Text: %s (%d)\n", k.c_str(), v); }
     }
     pruefe(menus > 0, std::string(name) + ": Menues gelesen");
+    std::string ds;
+    for (const auto& [a, zahl] : diagArten) { ds += " " + a + "=" + std::to_string(zahl); }
+    std::printf("%s: Diagnose%s\n", name, ds.c_str());
 
     // M2: Feeder aus den Spieldaten (UI_BuildPlayerModel_List, Sprachen, Bewegungen)
     for (const Dialekt dl : {Dialekt::SP, Dialekt::MP}) {

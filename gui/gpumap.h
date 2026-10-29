@@ -183,6 +183,18 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures,
                          const std::vector<BoneMatrix>& knochen,
                          const float* viewProj, bool kappen, std::string* fehler);
 
+// Menue-Editor M2: die Figur eines Menue-Items (ITEM_TYPE_MODEL) in ein eigenes
+// Ziel je Nummer, Grund durchsichtig (Alpha 1 nur, wo die Figur steht), mit
+// zeichneFigur (Skinning auf der Grafikkarte, Puffer zwischengespeichert).
+[[nodiscard]] bool bereiteMenueZiel(int nr, int breite, int hoehe);
+[[nodiscard]] void* menueZielTextur(int nr);
+int zeichneMenueFigur(int nr, const GlmModel& model, const ModelTextures* textures, const std::vector<BoneMatrix>& knochen,
+                      const float* viewProj, const FigurLicht* licht, std::string* fehler);
+// Die Klingen eines Menue-Saebers in ein eigenes Ziel (schwarzer Grund, zum additiven Auflegen).
+// tiefeVon: das Ziel des Griffs (zeichneMenueFigur, gleiche Groesse) - dessen Tiefe verdeckt
+// die Klingen wie im selben Szenenaufruf der Engine; -1: eigene, leere Tiefe.
+int zeichneMenueKlingen(int nr, const std::vector<KlingenQuad>& quads, const float* viewProj, std::string* fehler, int tiefeVon = -1);
+
 // Das Gluehen auflegen.
 //
 // Zeichnet die leuchtenden Stapel ein zweites Mal in einen kleinen Puffer,

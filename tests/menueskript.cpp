@@ -120,6 +120,62 @@ int main() {
         pruefe(la.vorderGesetzt[0][2] && la.vorder[0][2].a <= 0.0F, "fadeout: foreColor[3] auf 0");
     }
 
+    // --- M2: UI_RunMenuScript fuer Figur und Saeber (Items "character"/"saber" wie in der Engine) ----
+    {
+        LeseOptionen so;
+        so.dialekt = Dialekt::SP;
+        const Datei f = lies("ui/eigen.menu",
+                             "{ menuDef { name eigen rect 0 0 640 480 visible 1\n"
+                             "  onOpen { uiScript getcharcvars ; uiScript characterchanged ; uiScript resetsabercvardefaults ; uiScript saber_hilt }\n"
+                             "  itemDef { name deko rect 1 2 3 4 visible 1 }\n"
+                             "  itemDef { name character type ITEM_TYPE_MODEL rect 300 20 200 400 asset_model \"ui_char_model\" isCharacter 1 visible 1 }\n"
+                             "  itemDef { name saber type ITEM_TYPE_MODEL rect 10 300 300 100 asset_model \"models/x.glm\" isSaber 1 visible 1 } } }\n",
+                             so);
+        Laufzeit lf;
+        lf.start(f);
+        lf.saberModell = [](const std::string& s, std::string& m, std::string& h) {
+            m = "models/weapons2/" + s + "/" + s + ".glm";
+            h.clear();
+            return s == "single_1";
+        };
+        lf.oeffne("eigen");
+        Datei kopie = f;
+        lf.anwenden(kopie);
+        const Item& c = kopie.menus[0].items[1];
+        const Item& s = kopie.menus[0].items[2];
+        pruefe(lf.cvar("ui_char_model") == "jedi_tf" && c.assetModel == "models/players/jedi_tf/model.glm",
+               "uiScript getcharcvars + characterchanged: Modell aus ui_char_model");
+        pruefe(c.g2skin == "models/players/jedi_tf/|head_a1|torso_a1|lower_a1" && c.g2anim == "BOTH_WALK1",
+               "UI_UpdateCharacterSkin: |head|torso|legs, ui_char_anim");
+        pruefe(lf.cvar("ui_saber") == "single_1" && s.assetModel == "models/weapons2/single_1/single_1.glm",
+               "uiScript resetsabercvardefaults + saber_hilt: Griff aus ui_saber");
+        pruefe(kopie.menus[0].items[0].assetModel.empty(), "andere Items unberuehrt");
+    }
+
+    // --- M2 Punkt 5: Klaenge (nur als Ereignisse - keine Ausgabe im Test) ------------------------
+    {
+        LeseOptionen so;
+        so.dialekt = Dialekt::SP;
+        const Datei k = lies("ui/klang.menu",
+                             "{ menuDef { name klang rect 0 0 640 480 visible 1 soundLoop \"music/probe.mp3\"\n"
+                             "  onOpen { play \"sound/a.wav\" ; playlooped \"music/b.mp3\" }\n"
+                             "  itemDef { name k1 type ITEM_TYPE_BUTTON rect 10 10 100 30 focusSound \"sound/eigen.wav\" visible 1 }\n"
+                             "  itemDef { name k2 type ITEM_TYPE_BUTTON rect 10 60 100 30 visible 1 } } }\n",
+                             so);
+        Laufzeit lk;
+        lk.start(k);
+        lk.fokusKlangStd = "sound/std.wav";
+        lk.oeffne("klang");
+        pruefe(lk.klaenge.size() == 3 && lk.klaenge[0] == "musik:music/probe.mp3" && lk.klaenge[1] == "sound/a.wav" &&
+                   lk.klaenge[2] == "musik:music/b.mp3",
+               "Klaenge: soundLoop (startBackgroundTrack), play, playlooped");
+        lk.klaenge.clear();
+        lk.maus(0, 20, 20);
+        lk.maus(0, 20, 70);
+        pruefe(lk.klaenge.size() == 2 && lk.klaenge[0] == "sound/eigen.wav" && lk.klaenge[1] == "sound/std.wav",
+               "Klaenge: focusSound beim Fokus, sonst itemFocusSound aus assetGlobalDef");
+    }
+
     std::printf("menueskript: %s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

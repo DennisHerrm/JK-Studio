@@ -127,8 +127,8 @@ std::vector<Schritt> schritteM2() {
     add(pruefe("M2 Modell: Figur gezeichnet (ohne Spielordner uebersprungen)", [st] {
         if (g_app->gamePaths.empty()) { return true; }
         const auto x = st();
-        diag::info("Menue-Editor Modell: " + std::to_string(x.modellDreiecke) + " Dreiecke");
-        return x.modellDreiecke > 100;
+        diag::info("Menue-Editor Modell: " + std::to_string(x.modellAufrufe) + " Zeichenaufrufe");
+        return x.modellAufrufe > 0;
     }));
     // Punkt 4: Bibliothek - Detailbereich per Vorlage, eigene Vorlage speichern
     add(tu("M2 Bibliothek: Probe oeffnen, Detailbereich einsetzen", [] {
@@ -154,6 +154,44 @@ std::vector<Schritt> schritteM2() {
         const auto ids = me::vorlagenIds();
         return std::find(ids.begin(), ids.end(), "probe_vorlage") != ids.end();
     }));
+    // Ebenenliste: drei uebereinanderliegende Items (eigene Namen, eine Gruppe), Kommentar dazwischen
+    const std::string ebenen = "{\n\tmenuDef\n\t{\n\t\tname stapel\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+                               "\t\titemDef { name unten style WINDOW_STYLE_FILLED backcolor 1 0 0 1 rect 50 50 200 200 visible 1 }\n"
+                               "\t\t// zwischen den Bloecken\n"
+                               "\t\titemDef { name mitte group paar style WINDOW_STYLE_FILLED backcolor 0 1 0 1 rect 80 80 200 200 visible 1 }\n"
+                               "\t\titemDef { name oben group paar style WINDOW_STYLE_FILLED backcolor 0 0 1 1 rect 110 110 200 200 visible 1 }\n"
+                               "\t}\n}\n";
+    add(tu("Ebenen: Stapel oeffnen", [ebenen] { (void)me::oeffneText("ui/stapel.menu", ebenen); }));
+    add(pause(0.2));
+    add(pruefe("Ebenen: Alt+Klick waehlt die Items unter dem Zeiger der Reihe nach (oben, mitte, unten, oben)", [] {
+        std::vector<int> folge;
+        me::waehle(-1, false);
+        for (int k = 0; k < 4; ++k) {
+            me::altKlickVorschau(150, 150);
+            const auto x = me::stand();
+            folge.push_back(x.auswahl.size() == 1 ? x.auswahl[0] : -9);
+        }
+        return folge == std::vector<int>{2, 1, 0, 2};
+    }));
+    add(tu("Ebenen: oberstes nur in der Vorschau ausblenden", [] { me::verbergeItem(2, true); }));
+    add(pause(0.2));
+    add(pruefe("Ebenen: Auge aendert den Text nicht, Alt+Klick ueberspringt das verborgene", [ebenen] {
+        me::waehle(-1, false);
+        me::altKlickVorschau(150, 150);
+        const auto x = me::stand();
+        return x.text == ebenen && x.auswahl.size() == 1 && x.auswahl[0] == 1;
+    }));
+    add(tu("Ebenen: wieder einblenden, unten nach ganz vorn ziehen", [] {
+        me::verbergeItem(2, false);
+        (void)me::ebeneAnStelle(0, 2);
+    }));
+    add(pruefe("Ebenen: Reihenfolge -> Text (mitte, oben, unten), Kommentar bleibt, ein Rueckgaengig-Schritt", [ebenen] {
+        const std::string t = me::stand().text;
+        const std::size_t a = t.find("name mitte"), b = t.find("name oben"), c = t.find("name unten");
+        const bool reihe = a < b && b < c && c != std::string::npos && t.find("// zwischen den Bloecken") != std::string::npos;
+        (void)me::rueckgaengig();
+        return reihe && me::stand().text == ebenen;
+    }));
     // Punkt 3: Menuesatz ueber zwei Dateien - "open" wechselt die Datei
     add(tu("M2 Menuesatz: zwei Dateien und menus.txt oeffnen", [] {
         (void)me::oeffneText("ui/probe_b.menu", "{ menuDef { name zweites rect 0 0 640 480 visible 0\n"
@@ -173,6 +211,60 @@ std::vector<Schritt> schritteM2() {
         return me::letzterSatzWechsel() == "zweites";
     }));
     add(tu("M2 Menuesatz: Bedienen aus", [] { me::setzeInteraktion(false); }));
+    // Layout: rechte Spalte mit Reitern (Hierarchie / Text / Eigenschaften), Flaeche in voller Hoehe
+    add(tu("M2 Layout: Reiter Text", [] { me::setzeReiter(1); }));
+    add(pause(0.3));
+    add(pruefe("M2 Layout: Reiter Text gewaehlt und gemerkt", [] { return me::reiter() == 1; }));
+    add(foto("menue_reiter_text"));
+    add(tu("M2 Layout: Reiter Hierarchie", [] { me::setzeReiter(0); }));
+    add(pause(0.3));
+    add(pruefe("M2 Layout: Reiter Hierarchie gewaehlt", [] { return me::reiter() == 0; }));
+    add(foto("menue_reiter_hierarchie"));
+    // Live-Diagnose: ein absichtlich kaputtes Menue (fehlende }, Tippfehler im Schluesselwort,
+    // show auf ein Item, das es nicht gibt)
+    add(tu("M2 Diagnose: kaputtes Menue oeffnen", [] {
+        (void)me::oeffneText("ui/kaputt.menu",
+                             "{\n\tmenuDef\n\t{\n\t\tname kaputt\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+                             "\t\titemDef\n\t\t{\n\t\t\tname knopf\n\t\t\trect 100 80 200 40\n\t\t\tstyle WINDOW_STYLE_FILLED\n"
+                             "\t\t\tbackcolr 1 0 0 1\n\t\t\tvisible 1\n\t\t\taction { show knopp }\n\t}\n}\n");
+        me::setzeReiter(1);
+    }));
+    add(pause(1.0));
+    add(foto("menue_diagnose"));
+    add(pruefe("M2 Diagnose: im Hintergrund gelaufen, Fehler und Warnungen gemeldet", [st] {
+        const auto x = st();
+        std::string t;
+        for (const std::string& z : x.diagnosen) { t += " | " + z; }
+        diag::info("Menue-Editor Diagnose: " + std::to_string(x.diagFehler) + " Fehler, " + std::to_string(x.diagWarnungen) + " Warnungen, " +
+                   std::to_string(x.diagHinweise) + " Hinweise, " + std::to_string(x.diagLaeufe) + " Laeufe" + t);
+        return x.diagAktuell && x.diagFehler >= 1 && x.diagWarnungen >= 1 && x.diagLaeufe >= 1;
+    }));
+    add(tu("M2 Diagnose: Schnellkorrektur 1", [] {
+        for (int i = 0; i < 20; ++i) {
+            if (me::korrigiereDiagnose(i)) { break; }
+        }
+    }));
+    add(pause(0.8));
+    add(tu("M2 Diagnose: Schnellkorrektur 2", [] {
+        for (int i = 0; i < 20; ++i) {
+            if (me::korrigiereDiagnose(i)) { break; }
+        }
+    }));
+    add(pause(0.8));
+    add(tu("M2 Diagnose: Schnellkorrektur 3", [] {
+        for (int i = 0; i < 20; ++i) {
+            if (me::korrigiereDiagnose(i)) { break; }
+        }
+    }));
+    add(pause(0.8));
+    add(pruefe("M2 Diagnose: nach den Korrekturen weniger Meldungen (Klammer und Schluesselwort behoben)", [st] {
+        const auto x = st();
+        std::string t;
+        for (const std::string& z : x.diagnosen) { t += " | " + z; }
+        diag::info("Menue-Editor Diagnose nach Korrektur: " + std::to_string(x.diagFehler) + " Fehler, " + std::to_string(x.diagWarnungen) +
+                   " Warnungen" + t);
+        return x.diagAktuell && x.diagFehler == 0 && x.text.find("backcolor 1 0 0 1") != std::string::npos;
+    }));
     return s;
 }
 
@@ -194,6 +286,12 @@ std::vector<Schritt> vergleichSchritte() {
         // im Bedienmodus: onOpen laeuft (setfocus), Zeit und Videos wie im Spiel
         add(tu("Vergleich: " + pfad, [pfad] {
             me::setzeInteraktion(false);
+            // wie +set im Spiel: BHED_MENUE_VERGLEICH_CVAR=name=wert (z. B. cg_SFXSabers=0)
+            if (const char* c = std::getenv("BHED_MENUE_VERGLEICH_CVAR")) {
+                const std::string nw = c;
+                const std::size_t gl = nw.find('=');
+                if (gl != std::string::npos) { me::setzeCvar(nw.substr(0, gl), nw.substr(gl + 1)); }
+            }
             (void)me::oeffneAusSpiel(pfad);
             me::setzeInteraktion(true);
         }));
@@ -202,9 +300,9 @@ std::vector<Schritt> vergleichSchritte() {
         add(pruefe("Vergleich: " + pfad + " gezeichnet", [name] {
             const auto x = me::stand();
             char b[300];
-            std::snprintf(b, sizeof(b), "Menue-Editor Vergleich %s: Flaeche %.1f %.1f %.1f %.1f, %d Zeichenbefehle, %d Texturen, Bildzeit %.2f ms",
+            std::snprintf(b, sizeof(b), "Menue-Editor Vergleich %s: Flaeche %.1f %.1f %.1f %.1f, %d Zeichenbefehle, %d Texturen, Bildzeit %.2f ms, %d Figurenaufrufe %s",
                           name.c_str(), static_cast<double>(x.flaeche[0]), static_cast<double>(x.flaeche[1]), static_cast<double>(x.flaeche[2]),
-                          static_cast<double>(x.flaeche[3]), x.prims, x.bilderGeladen, x.bildzeitMs);
+                          static_cast<double>(x.flaeche[3]), x.prims, x.bilderGeladen, x.bildzeitMs, x.modellAufrufe, x.modellFehler.c_str());
             diag::info(b);
             return x.prims > 0;
         }));
@@ -260,7 +358,9 @@ std::vector<Schritt> schritte() {
     add(pruefe("Rueckgaengig: wieder wie geladen", [st] { return st().text == kSp; }));
     add(tu("Wiederholen", [] { (void)me::wiederholen(); }));
     add(pruefe("Wiederholen: 112", [st] { return st().text.find("rect\t\t112 100 200 30") != std::string::npos; }));
-    // Echte Eingabe in den Code-Editor: Klick in die Flaeche, Zeichen, Strg+Z
+    // Echte Eingabe in den Code-Editor: Reiter Text (rechte Spalte), Klick in die Flaeche, Zeichen, Strg+Z
+    add(tu("Reiter Text", [] { me::setzeReiter(1); }));
+    add(pause(0.2));
     add(klick("##codeflaeche"));
     add({"Code: XYZ tippen", [](int b) {
              if (b == 1) { ImGui::GetIO().AddInputCharactersUTF8("XYZ"); }

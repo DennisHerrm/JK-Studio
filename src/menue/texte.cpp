@@ -195,6 +195,42 @@ void Texte::ladeSp(const std::string& text, int sprache) {
     });
 }
 
+namespace {
+// ConvertCRLiterals_Write: Zeilenumbruch als \n, " als ' (StringEd kennt kein Entkommen)
+std::string fuerDatei(const std::string& s) {
+    std::string r;
+    for (const char c : s) {
+        if (c == '\n') { r += "\\n"; }
+        else if (c == '"') { r += '\''; }
+        else { r += c; }
+    }
+    return r;
+}
+}  // namespace
+
+std::string schreibeStr(const std::string& sprache, const std::vector<TextEintrag>& e) {
+    const std::string sp = gross(sprache);
+    std::string s = "VERSION \"1\"\r\nCONFIG W:\\bin\\striped.cfg\r\nFILENOTES \"\"\r\n\r\n";
+    for (const TextEintrag& x : e) {
+        s += "REFERENCE           " + gross(x.schluessel) + "\r\n";
+        s += "LANG_ENGLISH        \"" + fuerDatei(x.englisch) + "\"\r\n";
+        if (sp != "ENGLISH") { s += "LANG_" + sp + "    \"" + fuerDatei(x.uebersetzung.empty() ? std::string("#same") : x.uebersetzung) + "\"\r\n"; }
+        s += "\r\n";
+    }
+    return s + "ENDMARKER\r\n";
+}
+
+std::string schreibeSp(const std::string& paket, int sprache, const std::vector<TextEintrag>& e) {
+    std::string s = "VERSION 1\r\nCONFIG W:\\bin\\striped.cfg\r\nID 255\r\nREFERENCE " + gross(paket) + "\r\nDESCRIPTION \"\"\r\nCOUNT " +
+                    std::to_string(e.size()) + "\r\n";
+    for (std::size_t i = 0; i < e.size(); ++i) {
+        s += "INDEX " + std::to_string(i) + "\r\n{\r\n   REFERENCE " + gross(e[i].schluessel) + "\r\n   TEXT_LANGUAGE1 \"" + fuerDatei(e[i].englisch) + "\"\r\n";
+        if (sprache != 1) { s += "   TEXT_LANGUAGE" + std::to_string(sprache) + " \"" + fuerDatei(e[i].uebersetzung) + "\"\r\n"; }
+        s += "}\r\n";
+    }
+    return s;
+}
+
 std::string Texte::aufloesen(const std::string& s) const {
     if (s.size() < 2 || s[0] != '@') { return s; }
     const auto it = werte.find(gross(s.substr(1)));

@@ -23,7 +23,11 @@ bool oeffneDatei(const std::string& platte);
 // M2 Punkt 3: alle Dateien eines Menuesatzes (loadMenu in menus.txt); Zahl der Dateien
 int oeffneMenuesatz(const std::string& spielPfad);
 [[nodiscard]] std::string letzterSatzWechsel();
-[[nodiscard]] std::string laufInfo();   // Selbsttest: aktives Dokument, Satz, Skriptprotokoll   // Selbsttest: Menue, in dessen Datei zuletzt gewechselt wurde
+[[nodiscard]] std::string laufInfo();   // Selbsttest: aktives Dokument, Satz, Skriptprotokoll
+// M2 Ebenenliste: Auge (nur Vorschau), Reihenfolge (verschiebt das itemDef im Text), Alt+Klick-Durchwahl
+void verbergeItem(int item, bool verbergen);
+bool ebeneAnStelle(int item, int ziel);
+void altKlickVorschau(float x, float y);   // Selbsttest: Menue, in dessen Datei zuletzt gewechselt wurde
 // Zustand fuer den Selbsttest (Wirkungspruefung).
 struct Stand {
     int dokumente = 0;
@@ -40,11 +44,18 @@ struct Stand {
     std::string cursorZeile; // Text der Zeile unter dem ersten Cursor
     bool codeFestbreite = false;   // M2: Code-Editor mit Festbreitenschrift
     int kinoBilder = 0;            // M2: gezeigte Bilder aus RoQ-Videos
-    int modellDreiecke = 0;        // M2: gezeichnete Dreiecke der 3D-Modelle
+    int modellAufrufe = 0;         // M2: Zeichenaufrufe der 3D-Modelle (gpu::zeichneMenueFigur)
+    std::string modellFehler;      // letzte Meldung dabei
+    int klangEreignisse = 0;       // M2 Punkt 5: ausgeloeste Klaenge (im Selbsttest stumm)
+    std::string letzterKlang;
     int paketDateien = 0;          // M2: eigene Dateien im Paket (Bilder, Videos, Texte, Schriften)
     std::vector<std::string> paket;   // ihre Spielpfade
     float flaeche[4] = {0, 0, 0, 0};  // Bildvergleich: die 640x480-Flaeche im Fenster (x, y, b, h)
     double bildzeitMs = 0;            // Arbeitszeit des Arbeitsbereichs je Bild (gleitender Mittelwert)
+    // M2 Live-Diagnose des aktiven Dokuments
+    int diagFehler = 0, diagWarnungen = 0, diagHinweise = 0, diagLaeufe = 0;
+    bool diagAktuell = false;             // Ergebnis gehoert zum jetzigen Text
+    std::vector<std::string> diagnosen;   // "Zeile: Meldung"
 };
 [[nodiscard]] Stand stand();
 // Befehle wie die Knoepfe (Selbsttest)
@@ -53,6 +64,11 @@ void verschiebeAuswahl(float dx, float dy);
 void setzeInteraktion(bool an);
 void klickVorschau(float x, float y);   // im virtuellen Bildschirm
 void setzeCvar(const std::string& name, const std::string& wert);
+// Rechte Spalte: 0 Hierarchie, 1 Text, 2 Eigenschaften (gespeichert in den Einstellungen)
+void setzeReiter(int reiter);
+// Live-Diagnose: die Schnellkorrektur der Meldung Nr. anwenden
+bool korrigiereDiagnose(int nr);
+[[nodiscard]] int reiter();
 [[nodiscard]] std::string cvarWert(const std::string& name);   // Vorschau bzw. Bedienen
 bool rueckgaengig();
 bool wiederholen();

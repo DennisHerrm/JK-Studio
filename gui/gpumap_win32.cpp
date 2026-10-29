@@ -1564,6 +1564,9 @@ ID3D11ShaderResourceView* g_ersatzBild = nullptr;
 // Das Modellfenster: eigenes Ziel, eigene Tiefe, eigener Hintergrund.
 ID3D11Texture2D* g_modellTex = nullptr;
 ID3D11RenderTargetView* g_modellRtv = nullptr;
+bool g_menueZielAktiv = false;   // Menue-Editor M2: zeichneMenueFigur hat sein Ziel gebunden
+ID3D11DepthStencilView* g_menueTiefe = nullptr;   // dessen Tiefe und Groesse (zeichneMenueKlingen)
+int g_menueW = 0, g_menueH = 0;
 ID3D11ShaderResourceView* g_modellSrv = nullptr;
 ID3D11Texture2D* g_modellTiefeTex = nullptr;
 ID3D11DepthStencilView* g_modellDsv = nullptr;
@@ -3841,7 +3844,7 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
     ID3D11Device* d = dev();
     ID3D11DeviceContext* c = ctx();
     if (d == nullptr || c == nullptr || welt == nullptr || viewProj == nullptr ||
-        (g_zielRtv == nullptr && g_modellRtv == nullptr)) {
+        (g_zielRtv == nullptr && g_modellRtv == nullptr && !g_menueZielAktiv)) {
         if (fehler != nullptr) { *fehler = "kein Geraet oder kein Ziel"; }
         return 0;
     }
@@ -5288,8 +5291,9 @@ int zeichneKlingenIn(const std::vector<KlingenQuad>& quads, const float* viewPro
     if (quads.empty()) {
         return 0;
     }
-    if (d == nullptr || c == nullptr || viewProj == nullptr || g_zielRtv == nullptr ||
-        g_tiefeDsv == nullptr || g_cbBild == nullptr) {
+    ID3D11DepthStencilView* const tiefe = g_menueZielAktiv ? g_menueTiefe : g_tiefeDsv;
+    if (d == nullptr || c == nullptr || viewProj == nullptr || (g_zielRtv == nullptr && !g_menueZielAktiv) ||
+        tiefe == nullptr || g_cbBild == nullptr) {
         if (fehler != nullptr) { *fehler = "Klingen: kein Ziel"; }
         return 0;
     }
@@ -5356,10 +5360,10 @@ int zeichneKlingenIn(const std::vector<KlingenQuad>& quads, const float* viewPro
             c->Unmap(g_cbBild, 0);
         }
     }
-    c->OMSetRenderTargets(1, &ziel, g_tiefeDsv);
+    c->OMSetRenderTargets(1, &ziel, tiefe);
     D3D11_VIEWPORT vp{};
-    vp.Width = static_cast<float>(g_zielW);
-    vp.Height = static_cast<float>(g_zielH);
+    vp.Width = static_cast<float>(g_menueZielAktiv ? g_menueW : g_zielW);
+    vp.Height = static_cast<float>(g_menueZielAktiv ? g_menueH : g_zielH);
     vp.MaxDepth = 1.0F;
     c->RSSetViewports(1, &vp);
     const UINT schritt = sizeof(KlingenEcke);
@@ -5451,19 +5455,10 @@ bool bereiteModellZiel(int breite, int hoehe) {
 
 void* modellZielTextur() { return g_modellSrv; }
 
-int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures,
-                         const std::vector<BoneMatrix>& knochen,
-                         const float* viewProj, bool kappen, std::string* fehler) {
-    ID3D11Device* d = dev();
-    ID3D11DeviceContext* c = ctx();
-    if (d == nullptr || c == nullptr || g_modellRtv == nullptr || g_modellDsv == nullptr ||
-        viewProj == nullptr) {
-        if (fehler != nullptr) { *fehler = "Modellfenster: kein Ziel"; }
-        return 0;
-    }
-    setzeSchritt("Modellfenster");
-    // Die Grundausstattung, falls noch keine Karte gezeichnet wurde: die
-    // beiden Konstantenpuffer und der Sampler entstehen sonst erst dort.
+// Die Grundausstattung, falls noch keine Karte gezeichnet wurde: die beiden
+// Konstantenpuffer und der Sampler entstehen sonst erst dort (Modellfenster,
+// Menue-Figuren).
+bool figurGrundausstattung(ID3D11Device* d, std::string* fehler) {
     auto legeCb = [&](ID3D11Buffer** ziel, UINT bytes) {
         if (*ziel != nullptr) { return true; }
         D3D11_BUFFER_DESC bd{};
@@ -5476,7 +5471,7 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures,
     if (!legeCb(&g_cbBild, 44U * 4U) ||
         !legeCb(&g_cbStapel, static_cast<UINT>(kKonstFloats) * 4U)) {
         if (fehler != nullptr) { *fehler = "Konstantenpuffer nicht anlegbar"; }
-        return 0;
+        return false;
     }
     if (g_sampler == nullptr) {
         D3D11_SAMPLER_DESC sd{};
@@ -5493,6 +5488,21 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures,
         g_bildDaten[20] = 1.0F;   // gHelligkeit - fuer kRohEcke ohne Belang
         g_bildDatenDa = true;
     }
+    return true;
+}
+
+int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures,
+                         const std::vector<BoneMatrix>& knochen,
+                         const float* viewProj, bool kappen, std::string* fehler) {
+    ID3D11Device* d = dev();
+    ID3D11DeviceContext* c = ctx();
+    if (d == nullptr || c == nullptr || g_modellRtv == nullptr || g_modellDsv == nullptr ||
+        viewProj == nullptr) {
+        if (fehler != nullptr) { *fehler = "Modellfenster: kein Ziel"; }
+        return 0;
+    }
+    setzeSchritt("Modellfenster");
+    if (!figurGrundausstattung(d, fehler)) { return 0; }
     c->OMSetRenderTargets(1, &g_modellRtv, g_modellDsv);
     // Auch das Bild loeschen, mit Alpha 1: die Mischzustaende schreiben nur
     // RGB (sonst schien bei den Hologrammen der Fensterhintergrund durch),
@@ -5551,6 +5561,188 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures,
     const float einheit[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
     return zeichneFigurIn(model, textures, knochen, einheit, viewProj, fehler, nullptr,
                           kappen, true);
+}
+
+// --- Menue-Editor M2: die Figuren eines Menues (ITEM_TYPE_MODEL) ----------------
+//
+// Je Item ein eigenes Ziel (mehrere Modelle in einem Menue), mit
+// DURCHSICHTIGEM Grund: das Spiel zeichnet das Modell mit RDF_NOWORLDMODEL
+// ueber das Menue. Die Figur selbst geht ueber zeichneFigurIn (Puffer und
+// Bilder bleiben wie bei den Kartenfiguren zwischengespeichert, Skinning auf
+// der Grafikkarte). Die Mischzustaende der Figur schreiben nur RGB - danach
+// setzt ein Vollbilddreieck Alpha 1 ueberall, wo die Tiefe < 1 ist.
+namespace {
+struct MenueZiel {
+    ID3D11Texture2D* tex = nullptr;
+    ID3D11RenderTargetView* rtv = nullptr;
+    ID3D11ShaderResourceView* srv = nullptr;
+    ID3D11Texture2D* tiefeTex = nullptr;
+    ID3D11DepthStencilView* dsv = nullptr;
+    int w = 0, h = 0;
+};
+std::map<int, MenueZiel> g_menueZiele;
+ID3D11VertexShader* g_menueAlphaVs = nullptr;
+ID3D11PixelShader* g_menueAlphaPs = nullptr;
+ID3D11BlendState* g_menueAlphaMisch = nullptr;
+ID3D11DepthStencilState* g_menueAlphaTiefe = nullptr;
+bool g_menueAlphaVersucht = false;
+
+void gibMenueZielFrei(MenueZiel& z) {
+    if (z.srv != nullptr) { z.srv->Release(); z.srv = nullptr; }
+    if (z.rtv != nullptr) { z.rtv->Release(); z.rtv = nullptr; }
+    if (z.tex != nullptr) { z.tex->Release(); z.tex = nullptr; }
+    if (z.dsv != nullptr) { z.dsv->Release(); z.dsv = nullptr; }
+    if (z.tiefeTex != nullptr) { z.tiefeTex->Release(); z.tiefeTex = nullptr; }
+    z.w = z.h = 0;
+}
+
+void gibMenueZieleFrei() {
+    for (auto& [nr, z] : g_menueZiele) {
+        (void)nr;
+        gibMenueZielFrei(z);
+    }
+    g_menueZiele.clear();
+    if (g_menueAlphaVs != nullptr) { g_menueAlphaVs->Release(); g_menueAlphaVs = nullptr; }
+    if (g_menueAlphaPs != nullptr) { g_menueAlphaPs->Release(); g_menueAlphaPs = nullptr; }
+    if (g_menueAlphaMisch != nullptr) { g_menueAlphaMisch->Release(); g_menueAlphaMisch = nullptr; }
+    if (g_menueAlphaTiefe != nullptr) { g_menueAlphaTiefe->Release(); g_menueAlphaTiefe = nullptr; }
+    g_menueAlphaVersucht = false;
+}
+
+const char* const kMenueAlphaVs = R"(
+float4 main(uint id : SV_VertexID) : SV_POSITION {
+    float2 uv = float2((id << 1) & 2, id & 2);
+    return float4(uv * float2(2, -2) + float2(-1, 1), 1, 1);
+}
+)";
+const char* const kMenueAlphaPs = R"(
+float4 main() : SV_TARGET { return float4(0, 0, 0, 1); }
+)";
+}  // namespace
+
+bool bereiteMenueZiel(int nr, int breite, int hoehe) {
+    ID3D11Device* d = dev();
+    if (d == nullptr || breite <= 0 || hoehe <= 0) { return false; }
+    MenueZiel& z = g_menueZiele[nr];
+    if (z.rtv != nullptr && z.w == breite && z.h == hoehe) { return true; }
+    gibMenueZielFrei(z);
+    D3D11_TEXTURE2D_DESC td{};
+    td.Width = static_cast<UINT>(breite);
+    td.Height = static_cast<UINT>(hoehe);
+    td.MipLevels = 1;
+    td.ArraySize = 1;
+    td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    td.SampleDesc.Count = 1;
+    td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+    D3D11_TEXTURE2D_DESC dd = td;
+    dd.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    dd.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    if (FAILED(d->CreateTexture2D(&td, nullptr, &z.tex)) || FAILED(d->CreateRenderTargetView(z.tex, nullptr, &z.rtv)) ||
+        FAILED(d->CreateShaderResourceView(z.tex, nullptr, &z.srv)) || FAILED(d->CreateTexture2D(&dd, nullptr, &z.tiefeTex)) ||
+        FAILED(d->CreateDepthStencilView(z.tiefeTex, nullptr, &z.dsv))) {
+        gibMenueZielFrei(z);
+        return false;
+    }
+    z.w = breite;
+    z.h = hoehe;
+    return true;
+}
+
+void* menueZielTextur(int nr) {
+    const auto it = g_menueZiele.find(nr);
+    return it != g_menueZiele.end() ? it->second.srv : nullptr;
+}
+
+int zeichneMenueFigur(int nr, const GlmModel& model, const ModelTextures* textures, const std::vector<BoneMatrix>& knochen,
+                      const float* viewProj, const FigurLicht* licht, std::string* fehler) {
+    ID3D11Device* d = dev();
+    ID3D11DeviceContext* c = ctx();
+    const auto it = g_menueZiele.find(nr);
+    if (d == nullptr || c == nullptr || it == g_menueZiele.end() || it->second.rtv == nullptr || viewProj == nullptr) {
+        if (fehler != nullptr) { *fehler = "Menue-Figur: kein Ziel"; }
+        return 0;
+    }
+    MenueZiel& z = it->second;
+    setzeSchritt("Menue-Figur");
+    if (!figurGrundausstattung(d, fehler)) { return 0; }
+    c->OMSetRenderTargets(1, &z.rtv, z.dsv);
+    const float leer[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+    c->ClearRenderTargetView(z.rtv, leer);
+    c->ClearDepthStencilView(z.dsv, D3D11_CLEAR_DEPTH, 1.0F, 0);
+    D3D11_VIEWPORT vp{};
+    vp.Width = static_cast<float>(z.w);
+    vp.Height = static_cast<float>(z.h);
+    vp.MaxDepth = 1.0F;
+    c->RSSetViewports(1, &vp);
+    const float einheit[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+    g_menueZielAktiv = true;
+    const int n = zeichneFigurIn(model, textures, knochen, einheit, viewProj, fehler, licht, false, true);
+    g_menueZielAktiv = false;
+    // Alpha 1, wo die Figur Tiefe geschrieben hat (Vollbilddreieck bei z = 1, Tiefentest GREATER)
+    if (!g_menueAlphaVersucht) {
+        g_menueAlphaVersucht = true;
+        ID3DBlob* vs = uebersetze(kMenueAlphaVs, "vs_4_0", "menuealpha", fehler);
+        ID3DBlob* ps = uebersetze(kMenueAlphaPs, "ps_4_0", "menuealpha", fehler);
+        if (vs != nullptr) {
+            d->CreateVertexShader(vs->GetBufferPointer(), vs->GetBufferSize(), nullptr, &g_menueAlphaVs);
+            vs->Release();
+        }
+        if (ps != nullptr) {
+            d->CreatePixelShader(ps->GetBufferPointer(), ps->GetBufferSize(), nullptr, &g_menueAlphaPs);
+            ps->Release();
+        }
+        D3D11_BLEND_DESC bd{};
+        bd.RenderTarget[0].BlendEnable = FALSE;
+        bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALPHA;
+        d->CreateBlendState(&bd, &g_menueAlphaMisch);
+        D3D11_DEPTH_STENCIL_DESC ds{};
+        ds.DepthEnable = TRUE;
+        ds.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+        ds.DepthFunc = D3D11_COMPARISON_GREATER;
+        d->CreateDepthStencilState(&ds, &g_menueAlphaTiefe);
+    }
+    if (g_menueAlphaVs != nullptr && g_menueAlphaPs != nullptr && g_menueAlphaMisch != nullptr && g_menueAlphaTiefe != nullptr) {
+        c->IASetInputLayout(nullptr);
+        c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        c->VSSetShader(g_menueAlphaVs, nullptr, 0);
+        c->PSSetShader(g_menueAlphaPs, nullptr, 0);
+        const float faktor[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+        c->OMSetBlendState(g_menueAlphaMisch, faktor, 0xFFFFFFFFU);
+        c->OMSetDepthStencilState(g_menueAlphaTiefe, 0);
+        ID3D11RasterizerState* rs = holeRaster(kCullNone);
+        if (rs != nullptr) { c->RSSetState(rs); }
+        c->Draw(3, 0);
+    }
+    return n;
+}
+
+int zeichneMenueKlingen(int nr, const std::vector<KlingenQuad>& quads, const float* viewProj, std::string* fehler, int tiefeVon) {
+    ID3D11Device* d = dev();
+    ID3D11DeviceContext* c = ctx();
+    const auto it = g_menueZiele.find(nr);
+    if (d == nullptr || c == nullptr || it == g_menueZiele.end() || it->second.rtv == nullptr) {
+        if (fehler != nullptr) { *fehler = "Menue-Klingen: kein Ziel"; }
+        return 0;
+    }
+    MenueZiel& z = it->second;
+    if (!figurGrundausstattung(d, fehler)) { return 0; }
+    const float schwarz[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+    c->ClearRenderTargetView(z.rtv, schwarz);
+    const auto griff = g_menueZiele.find(tiefeVon);
+    ID3D11DepthStencilView* tiefe = z.dsv;
+    if (griff != g_menueZiele.end() && griff->second.dsv != nullptr && griff->second.w == z.w && griff->second.h == z.h) {
+        tiefe = griff->second.dsv;
+    } else {
+        c->ClearDepthStencilView(z.dsv, D3D11_CLEAR_DEPTH, 1.0F, 0);
+    }
+    g_menueZielAktiv = true;
+    g_menueTiefe = tiefe;
+    g_menueW = z.w;
+    g_menueH = z.h;
+    const int n = zeichneKlingenIn(quads, viewProj, fehler, z.rtv);
+    g_menueZielAktiv = false;
+    g_menueTiefe = nullptr;
+    return n;
 }
 
 int veralteteKartenBilder() { return g_veraltet; }
@@ -5634,6 +5826,7 @@ void vergissKarte() {
 void shutdown() {
     gibKlingenFrei();
     gibModellFrei();
+    gibMenueZieleFrei();
     gibLichtFrei();
     gibFigurSchattenFrei();
     gibNebelFrei();
@@ -6963,6 +7156,17 @@ int zeichneKlingen(const std::vector<KlingenQuad>&, const float*, std::string* f
     return 0;
 }
 bool bereiteModellZiel(int, int) { return false; }
+bool bereiteMenueZiel(int, int, int) { return false; }
+void* menueZielTextur(int) { return nullptr; }
+int zeichneMenueFigur(int, const GlmModel&, const ModelTextures*, const std::vector<BoneMatrix>&, const float*, const FigurLicht*,
+                      std::string* fehler) {
+    if (fehler != nullptr) { *fehler = "ohne Direct3D gebaut"; }
+    return 0;
+}
+int zeichneMenueKlingen(int, const std::vector<KlingenQuad>&, const float*, std::string* fehler, int) {
+    if (fehler != nullptr) { *fehler = "ohne Direct3D gebaut"; }
+    return 0;
+}
 void* modellZielTextur() { return nullptr; }
 int zeichneModellAnsicht(const GlmModel&, const ModelTextures*, const std::vector<BoneMatrix>&,
                          const float*, bool, std::string* fehler) {

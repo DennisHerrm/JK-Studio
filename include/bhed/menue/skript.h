@@ -27,6 +27,7 @@
 #include "bhed/menue/menue.h"
 #include "bhed/menue/vorschau.h"
 
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -77,6 +78,15 @@ struct Laufzeit {
     // M2 Punkt 3: "open X" fuer ein menuDef, das nicht in dieser Datei steht -
     // die Oberflaeche sucht es in den anderen Dateien des Menuesatzes (menus.txt)
     std::string fremdesMenue;
+    // M2: was die UI-Skripte an Modellen umstellen (UI_UpdateCharacter, UI_UpdateCharacterSkin,
+    // UI_UpdateSaberHilt) - je Menue, je Item; "" = wie gelesen. anwenden() schreibt sie in die Kopie.
+    std::vector<std::vector<std::string>> modellPfad, modellHaut, modellAnim;
+    // UI_SaberModelForSaber / UI_SaberSkinForSaber (sabers.cfg/.sab): false = kein Modell
+    std::function<bool(const std::string& saber, std::string& modell, std::string& haut)> saberModell;
+    // M2 Punkt 5: Klaenge wie die Engine sie ausloest - die Oberflaeche spielt sie ab
+    // (im Selbsttest stumm) und leert die Liste. "musik:<datei>" = startBackgroundTrack.
+    std::vector<std::string> klaenge;
+    std::string fokusKlangStd;    // assetGlobalDef itemFocusSound (DC->Assets.itemFocusSound; menuEnter/ExitSound spielt die Engine nicht)
     int maxProtokoll = 200;
     int version = 0;                                // zaehlt jede Aenderung
     // M2: Animationen (transition, orbit, fadein/fadeout) im Takt der Engine
@@ -92,6 +102,8 @@ struct Laufzeit {
     int takt(int jetzt);
     [[nodiscard]] bool animiert() const;            // laeuft noch etwas?
     void positionAus(int menu, std::size_t item);   // Item_UpdatePosition
+    // UI_RunMenuScript fuer die Figuren- und Saeber-Skripte; false = nicht ausgefuehrt
+    bool uiSkript(int menu, const std::string& name);
     Umgebung basis;                                 // Schriften/Texte (textRechteck beim Klick)
 
     void start(const Datei& datei);

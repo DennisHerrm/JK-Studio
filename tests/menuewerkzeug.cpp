@@ -74,6 +74,28 @@ int main() {
                neu.size() == t.size(),
            "Reihenfolge getauscht, gleiche Laenge");
 
+    // M2 Ebenenliste: an eine Stelle ziehen - drei Items, Kommentar zwischen den Bloecken bleibt stehen
+    {
+        const std::string t3 = "{\n\tmenuDef\n\t{\n\t\tname\tm\n"
+                               "\t\titemDef { name a rect 0 0 10 10 }\n"
+                               "\t\t// Kommentar\n"
+                               "\t\titemDef { name b rect 0 0 10 10 }\n"
+                               "\t\titemDef { name c rect 0 0 10 10 }\n"
+                               "\t}\n}\n";
+        const Datei d3 = lies("ui/w.menu", t3, o);
+        x.clear();
+        pruefe(itemAnStelle(d3, 0, 2, 0, x) && x.size() == 1, "an Stelle: c nach ganz hinten, eine Ersetzung");
+        const std::string n3 = anwenden(d3.text, x);
+        const Datei e3 = lies("ui/w.menu", n3, o);
+        pruefe(e3.menus[0].items.size() == 3 && e3.menus[0].items[0].window.name == "c" && e3.menus[0].items[1].window.name == "a" &&
+                   e3.menus[0].items[2].window.name == "b" && n3.size() == t3.size() && n3.find("// Kommentar") != std::string::npos,
+               "an Stelle: Reihenfolge c a b, Kommentar und Laenge bleiben");
+        x.clear();
+        pruefe(itemAnStelle(d3, 0, 0, 2, x), "an Stelle: a nach ganz vorn");
+        const Datei f3 = lies("ui/w.menu", anwenden(d3.text, x), o);
+        pruefe(f3.menus[0].items[0].window.name == "b" && f3.menus[0].items[2].window.name == "a", "an Stelle: Reihenfolge b c a");
+    }
+
     // Kopieren + Einfuegen
     const std::string kopie = umbenennen(itemText(d, 0, 0), freierName(d.menus[0], "eins"), Dialekt::SP);
     pruefe(kopie.find("name\t\teins_2") != std::string::npos, "Kopie umbenannt: eins_2");

@@ -521,20 +521,7 @@ private:
         }
     }
 
-    std::string multiEinstellung(const Item& it) const {   // Item_Multi_Setting
-        if (!it.typeData) { return "@MENUS_CUSTOM"; }
-        if (!it.multiFeeder.empty() && it.cvarList.empty()) { return "<" + it.multiFeeder + ">"; }
-        const std::string buff = it.cvar.empty() ? std::string() : cvar(it.cvar);
-        const float value = it.cvar.empty() ? 0.0F : cvarWert(it.cvar);
-        for (std::size_t i = 0; i < it.cvarList.size(); ++i) {
-            if (it.strDef) {
-                if (i < it.cvarStr.size() && gleichOhneFall(buff, it.cvarStr[i])) { return it.cvarList[i]; }
-            } else if (i < it.cvarValue.size() && it.cvarValue[i] == value) {
-                return it.cvarList[i];
-            }
-        }
-        return "@MENUS_CUSTOM";
-    }
+    std::string multiEinstellung(const Item& it) const { return multiText(it, u_); }   // Item_Multi_Setting
 
     void beschreibung(const Item& it, int flags) {
         const std::string t = se(it.descText);
@@ -845,6 +832,10 @@ struct SchriftSpeicher {
 }  // namespace
 
 std::vector<std::string> schriftNamen(const Datei& assets, Dialekt d, Spiel spiel, const GibtSchrift& gibt) {
+    return schriftNamen(std::vector<const Datei*>{&assets}, d, spiel, gibt);
+}
+
+std::vector<std::string> schriftNamen(const std::vector<const Datei*>& satz, Dialekt d, Spiel spiel, const GibtSchrift& gibt) {
     auto schriftName = [](std::string n) {
         if (n.compare(0, 6, "fonts/") == 0) { n = n.substr(6); }
         return n;
@@ -852,14 +843,16 @@ std::vector<std::string> schriftNamen(const Datei& assets, Dialekt d, Spiel spie
     if (d == Dialekt::MP) {
         // MenuFontToHandle: 1 smallFont, 2 font, 3 bigFont, 4 small2Font, sonst qhMediumFont (font)
         std::vector<std::string> v(5);
-        for (const Eigenschaft& e : assets.assets.eigenschaften) {
-            if (e.args.empty() || !e.ok) { continue; }
-            const std::string n = schriftName(e.args[0].s);
-            const std::string& k = e.schluessel;
-            if (gleichOhneFall(k, "smallFont")) { v[1] = n; }
-            else if (gleichOhneFall(k, "font")) { v[2] = n; }
-            else if (gleichOhneFall(k, "bigFont")) { v[3] = n; }
-            else if (gleichOhneFall(k, "small2Font")) { v[4] = n; }
+        for (const Datei* dp : satz) {
+            for (const Eigenschaft& e : dp->assets.eigenschaften) {
+                if (e.args.empty() || !e.ok) { continue; }
+                const std::string n = schriftName(e.args[0].s);
+                const std::string& k = e.schluessel;
+                if (gleichOhneFall(k, "smallFont")) { v[1] = n; }
+                else if (gleichOhneFall(k, "font")) { v[2] = n; }
+                else if (gleichOhneFall(k, "bigFont")) { v[3] = n; }
+                else if (gleichOhneFall(k, "small2Font")) { v[4] = n; }
+            }
         }
         if (gibt) {   // trap->R_RegisterFont: fehlende Schrift = Griff 0, zeichnet nichts
             for (std::string& n : v) {
@@ -883,21 +876,24 @@ std::vector<std::string> schriftNamen(const Datei& assets, Dialekt d, Spiel spie
         if (h != 0 && std::find(registriert.begin(), registriert.end(), h) == registriert.end()) { registriert.push_back(h); }
         return h;
     };
-    for (const Eigenschaft& e : assets.assets.eigenschaften) {
-        if (e.args.empty() || !e.ok) { continue; }
-        const std::string n = schriftName(e.args[0].s);
-        const std::string& k = e.schluessel;
-        if (gleichOhneFall(k, "smallFont") || gleichOhneFall(k, "bigFont")) { (void)uiAnmelden(n); }
-        else if (gleichOhneFall(k, "mediumFont")) {
-            medium = uiAnmelden(n);
-            fontRegistered = true;
+    // UI_LoadMenus: die Dateien des Menuesatzes der Reihe nach - je Datei erst ihr
+    // assetGlobalDef, dann die menuDefs (MenuParse_font, nur solange keine mediumFont da ist)
+    for (const Datei* dp : satz) {
+        for (const Eigenschaft& e : dp->assets.eigenschaften) {
+            if (e.args.empty() || !e.ok) { continue; }
+            const std::string n = schriftName(e.args[0].s);
+            const std::string& k = e.schluessel;
+            if (gleichOhneFall(k, "smallFont") || gleichOhneFall(k, "bigFont")) { (void)uiAnmelden(n); }
+            else if (gleichOhneFall(k, "mediumFont")) {
+                medium = uiAnmelden(n);
+                fontRegistered = true;
+            }
         }
-    }
-    // MenuParse_font: nur solange noch keine mediumFont angemeldet ist
-    for (const Menu& m : assets.menus) {
-        if (!m.font.empty() && !fontRegistered) {
-            medium = uiAnmelden(schriftName(m.font));
-            fontRegistered = true;
+        for (const Menu& m : dp->menus) {
+            if (!m.font.empty() && !fontRegistered) {
+                medium = uiAnmelden(schriftName(m.font));
+                fontRegistered = true;
+            }
         }
     }
     auto name = [&](int h) { return (h > 0 && static_cast<std::size_t>(h) < r.griffe.size()) ? r.griffe[static_cast<std::size_t>(h)] : std::string(); };
@@ -924,6 +920,59 @@ Abbildung abbildung(float breite, float hoehe, Seitenverhaeltnis s) {
     a.ox = (breite - kSchirmBreite * f) * 0.5F;
     a.oy = (hoehe - kSchirmHoehe * f) * 0.5F;
     return a;
+}
+
+std::string multiText(const Item& it, const Umgebung& u) {   // Item_Multi_Setting
+    if (!it.typeData) { return "@MENUS_CUSTOM"; }
+    const std::string buff = it.cvar.empty() ? std::string() : (u.cvar ? u.cvar(it.cvar) : std::string());
+    if (!it.multiFeeder.empty() && it.cvarList.empty()) {
+        // ItemParse_cvarStrList "feeder": FEEDER_PLAYER_SPECIES -> "@MENUS_<NAME>" / Name,
+        // FEEDER_LANGUAGES -> "@MENUS_MYLANGUAGE" / Sprache
+        const bool sprachen = it.multiFeeder == "FEEDER_LANGUAGES";
+        for (const FeederEintrag& e : u.feeder ? u.feeder(it.special) : std::vector<FeederEintrag>{}) {
+            const std::string name = e.spalten.empty() ? std::string() : e.spalten[0];
+            if (gleichOhneFall(buff, name)) {
+                if (sprachen) { return "@MENUS_MYLANGUAGE"; }
+                std::string k = "@MENUS_" + name;
+                for (char& c : k) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+                return k;
+            }
+        }
+        return "@MENUS_CUSTOM";
+    }
+    const float value = it.cvar.empty() ? 0.0F : static_cast<float>(std::atof((u.cvar ? u.cvar(it.cvar) : std::string()).c_str()));
+    for (std::size_t i = 0; i < it.cvarList.size(); ++i) {
+        if (it.strDef) {
+            if (i < it.cvarStr.size() && gleichOhneFall(buff, it.cvarStr[i])) { return it.cvarList[i]; }
+        } else if (i < it.cvarValue.size() && it.cvarValue[i] == value) {
+            return it.cvarList[i];
+        }
+    }
+    return "@MENUS_CUSTOM";
+}
+
+
+std::string spielCvarVorgabe(Dialekt d, Spiel s, const std::string& name) {
+    if (d != Dialekt::SP) { return {}; }
+    // UI_Init (code/ui/ui_atoms.cpp) legt g_char_* an, UI_GetCharacterCvars kopiert sie
+    // beim Oeffnen der Figurenmenues nach ui_char_*.
+    static const char* const vorgaben[][2] = {
+        {"g_char_model", "jedi_tf"},      {"g_char_skin_head", "head_a1"}, {"g_char_skin_torso", "torso_a1"},
+        {"g_char_skin_legs", "lower_a1"}, {"g_char_color_red", "255"},     {"g_char_color_green", "255"},
+        {"g_char_color_blue", "255"},     {"ui_char_anim", "BOTH_WALK1"},   // ui_main.cpp cvarTable
+        // code/game/g_main.cpp (G_InitCvars)
+        {"g_saber", "single_1"},          {"g_saber_color", "yellow"},     {"g_saber2_color", "yellow"}};
+    for (const auto& v : vorgaben) {
+        if (gleichOhneFall(name, v[0])) { return v[1]; }
+    }
+    if (s == Spiel::MD) {   // Movie Duels code/ui/ui_main.cpp cvarTable: Klingenart der Saeber
+        static const char* const md[][2] = {{"cg_SFXSabers", "4"},           {"cg_SFXSabersGlowSize", "1.0"},    {"cg_SFXSabersCoreSize", "1.0"},
+                                            {"cg_SFXSabersGlowSizeSFX", "1.0"}, {"cg_SFXSabersCoreSizeSFX", "1.0"}};
+        for (const auto& v : md) {
+            if (gleichOhneFall(name, v[0])) { return v[1]; }
+        }
+    }
+    return {};
 }
 
 }  // namespace bhed::menue

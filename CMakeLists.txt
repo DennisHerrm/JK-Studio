@@ -1109,7 +1109,11 @@ target_sources(bhed_core PRIVATE
   # M2 Punkt 1: ITEM_TYPE_MODEL (Item_Model_Paint) mit der Figurendarstellung
   src/menue/modell.cpp
   # M2 Punkt 3/4: Detailbereich in drei Ebenen, Bauteil-Bibliothek
-  src/menue/bauteile.cpp)
+  src/menue/bauteile.cpp
+  # M2 Punkt 7: Pruefungen vor dem Export (Grenzen, nie sichtbar, Dateien, Vertraeglichkeit)
+  src/menue/pruefung.cpp
+  # M2: Live-Diagnose (Klammern, Schluessel, Ziele, Cvars, dazu die Pruefungen)
+  src/menue/diagnose.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -1177,6 +1181,17 @@ if(BEHAVED_TESTS)
   target_link_libraries(menuewerkzeug PRIVATE bhed_core)
   add_test(NAME menue_werkzeug COMMAND menuewerkzeug)
   # M2 Punkt 2: RoQ-Kodierer und -Spieler im Rundlauf (mit Spielordnern auch ein Original-Video)
+  # M2 Punkt 7: Pruefungen vor dem Export
+  add_executable(menuepruefung tests/menuepruefung.cpp)
+  target_link_libraries(menuepruefung PRIVATE bhed_core)
+  add_test(NAME menue_pruefung COMMAND menuepruefung)
+  add_executable(menuediagnose tests/menuediagnose.cpp)
+  target_link_libraries(menuediagnose PRIVATE bhed_core)
+  add_test(NAME menue_diagnose COMMAND menuediagnose)
+  # M2: zufaellige, selbst gebaute Menues (Lesen, Vorschau, Diagnose, Korrekturen)
+  add_executable(menuezufall tests/menuezufall.cpp)
+  target_link_libraries(menuezufall PRIVATE bhed_core)
+  add_test(NAME menue_zufall COMMAND menuezufall)
   add_executable(menuebauteile tests/menuebauteile.cpp)
   target_link_libraries(menuebauteile PRIVATE bhed_core)
   add_test(NAME menue_bauteile COMMAND menuebauteile)

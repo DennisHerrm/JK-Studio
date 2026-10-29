@@ -135,6 +135,11 @@ std::string writeSettings(const Settings& s) {
     put(o, "difficulty", std::to_string(s.schwierigkeit));   // rc601 (bewegung, Durchsicht 2): g_spskill
     put(o, "regelwerk", std::string(regelwerkSchluessel(s.regelwerk)));   // rc601 integ
     put(o, "flussAnsicht", std::to_string(s.flussAnsicht));
+    put(o, "menueReiter", std::to_string(s.menueReiter));
+    std::snprintf(buf, sizeof(buf), "%.2f", static_cast<double>(s.menueRechtsBreite));
+    put(o, "menueRechtsBreite", std::string(buf));
+    put(o, "menueTextUnten", s.menueTextUnten);
+    put(o, "menueUmbruch", s.menueUmbruch);
     put(o, "showTypes", s.showTypes);
     put(o, "gFloats", s.gFloats);
     put(o, "foldMacros", s.foldMacros);
@@ -261,6 +266,16 @@ bool readSettings(const std::string& text, Settings& out) {
         else if (key == "language") { out.language = value; }
         else if (key == "theme") { out.theme = value; }
         else if (key == "showTypes") { out.showTypes = toBool(value); }
+        else if (key == "menueReiter") {
+            const int v = std::atoi(value.c_str());
+            if (v >= 0 && v <= 3) { out.menueReiter = v; }
+        }
+        else if (key == "menueRechtsBreite") {
+            float v = 0.0F;
+            if (parseFloat(value, v) && v >= 0.0F && v <= 200.0F) { out.menueRechtsBreite = v; }
+        }
+        else if (key == "menueTextUnten") { out.menueTextUnten = toBool(value); }
+        else if (key == "menueUmbruch") { out.menueUmbruch = toBool(value); }
         else if (key == "gFloats") { out.gFloats = toBool(value); }
         else if (key == "foldMacros") { out.foldMacros = toBool(value); }
         else if (key == "uiScale") {

@@ -1253,6 +1253,19 @@ std::vector<std::string> menuSchluessel(Dialekt d, Spiel s) {
     }
     return v;
 }
+int zahlArgumente(Dialekt d, Spiel s, bool item, const std::string& schluessel) {
+    const Schluessel* k = item ? sucheIn(kItem, schluessel, d, s) : sucheIn(kMenu, schluessel, d, s);
+    if (k == nullptr) { return -1; }
+    switch (d == Dialekt::MP ? k->mp : k->sp) {
+        case Art::Int:
+        case Art::Float: return 1;
+        case Art::Vec3: return 3;
+        case Art::Rect:
+        case Art::Color: return 4;
+        default: return 0;
+    }
+}
+
 std::vector<std::string> itemSchluessel(Dialekt d, Spiel s) {
     std::vector<std::string> v;
     for (const Schluessel& k : kItem) {
