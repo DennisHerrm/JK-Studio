@@ -134,10 +134,18 @@ Fahrt springt nicht zurueck".
 
 | | vorher (alte Leiste, 23ffa48b) | nachher |
 |---|---|---|
-| academy1 Uebersicht | MESSUNG_A1 | 8,27 ms, Zeichnen der Zeilen 0,45 ms |
-| academy1 Detail | - | 9,50 ms, Zeilen 1,2 ms |
-| md_am_sith Uebersicht | MESSUNG_MD | 23,5 ms, Zeilen 0,52 ms |
-| md_am_sith Detail | - | 22,3 ms, Zeilen 0,79 ms |
+| academy1 Uebersicht | 31,95 / 17,43 ms | 8,27 / 9,29 ms (Zeichnen der Zeilen 0,45 / 0,61 ms) |
+| academy1 Detail | - | 9,50 / 9,78 ms (Zeilen 1,2 / 1,4 ms) |
+| md_am_sith Uebersicht | 26,77 / 21,90 ms | 23,47 / 27,42 ms (Zeilen 0,52 / 0,63 ms) |
+| md_am_sith Detail | - | 22,26 / 32,28 ms (Zeilen 0,79 / 1,05 ms) |
+
+Je zwei Laeufe, Mittel ueber 120 Bilder, Idle-Prioritaet, Leiste 55 % hoch.
+"Vorher" mit dem ausgepackten Stand 23ffa48b (nicht im Repo, Messschritt im
+Export-Modus zeitleiste0 eingefuegt, danach geloescht), Ansicht wie dort
+(ganze Szene, Spuren an). Die Zahlen schwanken stark mit der Last der anderen
+Laeufe; academy1 ist mit der neuen Leiste deutlich schneller, md_am_sith im
+Rahmen der Schwankung gleich. Das Zeichnen der neuen Zeilen selbst kostet
+0,4 bis 1,4 ms je Bild.
 
 ## Handbuch
 

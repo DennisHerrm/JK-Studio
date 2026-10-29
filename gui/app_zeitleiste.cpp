@@ -545,7 +545,12 @@ std::string warteText(const Clip& c) {
 // Eine Spur des Ablaufs (Skript oder Befehle eines Darstellers).
 void ablaufZeile(Rahmen& r, const ImRect& f, const Zeile& z, const char* id, ZeilenTyp typ, const std::string& anzeige,
                  std::vector<MarkenText>& texte, bool detail) {
-    const float ym = (f.Min.y + f.Max.y) * 0.5F;
+    // Marken auf der ersten Bahn; ueberlappende Wartezeiten (ein zweites Skript
+    // derselben Entity) liegen auf eigenen Bahnen darunter.
+    const float bahnH = 26.0F * r.k;
+    const float ym = z.bahnen > 1 ? f.Min.y + 4.0F * r.k + (bahnH - 4.0F * r.k) * 0.5F : (f.Min.y + f.Max.y) * 0.5F;
+    const auto obenVon = [&](const Clip& c) { return z.bahnen > 1 ? f.Min.y + 4.0F * r.k + static_cast<float>(c.bahn) * bahnH : f.Min.y + 4.0F * r.k; };
+    const auto untenVon = [&](const Clip& c) { return z.bahnen > 1 ? obenVon(c) + bahnH - 4.0F * r.k : f.Max.y - 4.0F * r.k; };
     for (const Clip& c : z.clips) {
         if (!passt(c)) { continue; }
         if (g_app->zlProbleme && c.art != Art::NichtNachgebildet && c.art != Art::Kartenwechsel) { continue; }
@@ -556,11 +561,9 @@ void ablaufZeile(Rahmen& r, const ImRect& f, const Zeile& z, const char* id, Zei
                 a.zeile = id;
                 a.typ = typ;
                 a.anzeige = anzeige;
-                // Ueberlappt eine zweite Wartezeit (ein anderes Skript derselben
-                // Entity), liegt sie unten in der Zeile, ohne Text.
-                a.text = c.bahn == 0 ? warteText(c) : std::string();
-                a.y0 = c.bahn == 0 ? f.Min.y + 4.0F * r.k : (f.Min.y + f.Max.y) * 0.5F + 2.0F * r.k;
-                a.y1 = f.Max.y - 4.0F * r.k;
+                a.text = warteText(c);
+                a.y0 = obenVon(c);
+                a.y1 = untenVon(c);
                 a.schraffiert = true;
                 (void)block(r, c, a);
                 break;
@@ -594,8 +597,8 @@ void ablaufZeile(Rahmen& r, const ImRect& f, const Zeile& z, const char* id, Zei
                     a.anzeige = anzeige;
                     a.text = c.text;
                     a.farbe = kMarkeSonst;
-                    a.y0 = f.Min.y + 4.0F * r.k;
-                    a.y1 = f.Max.y - 4.0F * r.k;
+                    a.y0 = obenVon(c);
+                    a.y1 = untenVon(c);
                     (void)block(r, c, a);
                 } else {
                     marke(r, c, id, typ, anzeige, ym, Form::Kreis, kMarkeSonst, 0, texte, c.text);
@@ -1028,7 +1031,8 @@ void darstellerZeilen(Rahmen& r, const spuren::Darsteller& d, int figIdx, int au
     }
     {
         const std::string id = d.name + "/befehle";
-        const ImRect fb = zeileBeginnen(r, id.c_str(), tr(Str::ZlBefehle), "", 30.0F * r.k, false, -1, nullptr, false, 20.0F * r.k);
+        const ImRect fb = zeileBeginnen(r, id.c_str(), tr(Str::ZlBefehle), "", std::max(30.0F, bahnenHoehe(d.befehle, 26.0F)) * r.k, false,
+                                        -1, nullptr, false, 20.0F * r.k);
         std::vector<MarkenText> texte;
         ablaufZeile(r, fb, d.befehle, id.c_str(), ZDarsteller, d.anzeige, texte, true);
         zeileBeenden(r, fb, &texte);
@@ -1330,8 +1334,8 @@ void zeitleisteSpuren(float x0, float w, float labelW, double sichtStart, double
     // --- Skriptablauf ---------------------------------------------------------
     if (!s.skript.clips.empty() && (!probleme || hatProblem(s.skript))) {
         const std::string datei = fileName(aktiverSkriptPfad());
-        const ImRect f = zeileBeginnen(r, "skript", tr(Str::ZlSkript), datei, 30.0F * r.k, false, -1, nullptr, false, 0.0F,
-                                       UiIcon::Skript, true);
+        const ImRect f = zeileBeginnen(r, "skript", tr(Str::ZlSkript), datei, std::max(30.0F, bahnenHoehe(s.skript, 26.0F)) * r.k,
+                                       false, -1, nullptr, false, 0.0F, UiIcon::Skript, true);
         std::vector<MarkenText> texte;
         ablaufZeile(r, f, s.skript, "skript", ZSkript, {}, texte, detail);
         zeileBeenden(r, f, &texte);

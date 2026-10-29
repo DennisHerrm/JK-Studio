@@ -104,6 +104,28 @@ std::string koordinaten(const float v[3]) {
     return b;
 }
 
+// Unterbahnen nur fuer das, was als Block gezeichnet wird (mindestens 60 ms):
+// Marken ohne Dauer liegen auf der ersten Bahn und belegen keine.
+void bahnenFuerBloecke(Zeile& z) {
+    std::vector<double> enden;
+    std::vector<std::size_t> reihe;
+    for (std::size_t i = 0; i < z.clips.size(); ++i) {
+        z.clips[i].bahn = 0;
+        if (z.clips[i].endMs - z.clips[i].startMs >= 60.0) { reihe.push_back(i); }
+    }
+    std::stable_sort(reihe.begin(), reihe.end(),
+                     [&z](std::size_t a, std::size_t b) { return z.clips[a].startMs < z.clips[b].startMs; });
+    for (const std::size_t i : reihe) {
+        Clip& c = z.clips[i];
+        std::size_t k = 0;
+        while (k < enden.size() && enden[k] > c.startMs + 0.5) { ++k; }
+        if (k == enden.size()) { enden.push_back(0.0); }
+        enden[k] = c.endMs;
+        c.bahn = static_cast<int>(k);
+    }
+    z.bahnen = std::max<int>(1, static_cast<int>(enden.size()));
+}
+
 class Bauer {
 public:
     explicit Bauer(const SpurenQuellen& q) : q_(q) {}
@@ -526,7 +548,7 @@ private:
         }
         std::stable_sort(s_.skript.clips.begin(), s_.skript.clips.end(),
                          [](const Clip& a, const Clip& b) { return a.startMs < b.startMs; });
-        bahnenVerteilen(s_.skript, 0.0);
+        bahnenFuerBloecke(s_.skript);
     }
 
     // --- Darsteller --------------------------------------------------------
@@ -560,7 +582,7 @@ private:
             bahnenVerteilen(d.laufen, 0.0);
             // Wartezeiten aus mehreren Skripten derselben Entity koennen sich
             // ueberlappen (run, affect aus einem zweiten Skript).
-            bahnenVerteilen(d.befehle, 0.0);
+            bahnenFuerBloecke(d.befehle);
             s_.darsteller.push_back(std::move(d));
         }
         // affect-Ziele ohne Figur in der Szene (ein Ziel, das die Karte nicht
