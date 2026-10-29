@@ -32,6 +32,7 @@
 #include "bhed/menue/bauteile.h"
 #include "bhed/menue/diagnose.h"
 #include "bhed/menue/feeder.h"
+#include "bhed/menue/hud.h"
 #include "bhed/menue/imspiel.h"
 #include "bhed/menue/schriftbau.h"
 #include "bhed/menue/menue.h"
@@ -145,11 +146,15 @@ struct ModellAnsicht {
     int nr = -1;
     int klingenNr = -1;   // eigenes Ziel fuer die Klingen eines Saebers
     std::vector<BoneMatrix> welt, haut;   // je Bild wiederverwendet
+    int animStart = 0;    // M3: DC->realTime beim Laden (ItemParse_asset_model_go setzt die Animation)
 };
 // M2: das Bild eines Klingen-Shaders (gfx/effects/sabers/<farbe>_glow usw.)
 struct KlingenBild {
     TextureSet::Tex bild;
-    bool additiv = true;       // blendFunc GL_ONE GL_ONE
+    // M3: blendFunc der Stufe - 0 GL_ONE GL_ONE, 1 blend (GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA,
+    // schwarze Klingen), -1 eine andere (nicht gezeichnet). GL_DST_ALPHA GL_ONE (black_glow)
+    // zaehlt als 0: hinter dem Saeber steht der deckende Menuehintergrund (Ziel-Alpha 1).
+    int mischung = 0;
     bool vertexFarbe = true;   // rgbGen vertex (shaderRGBA zaehlt)
     bool gesucht = false;
 };
@@ -279,6 +284,15 @@ struct Zustand {
     std::string ordnerAusgabe;
     // Selbsttest
     int letztePrims = 0;
+    int asienPrims = 0;   // M3: Zeichen aus den asiatischen Glyphenseiten im letzten Bild
+    int laufMenue = -1;   // M3: das im Bedienmodus gezeichnete Menue (Animationen der Figuren)
+    int hudPrims = 0;     // M3: Zahlen und Fadenkreuz des HUD im letzten Bild
+    std::vector<std::string> klangListe;   // M3 Punkt 3: ausgeloeste Klaenge seit klangListeLeeren
+    // M3 Punkt 5: HUD-Menues wie im Spiel (CG_DrawHUD) mit Beispielwerten
+    bool hudWie = true;
+    HudWerte hudWerte;
+    HudZustand hudZustand;
+    std::map<std::string, std::string> textFehlt;   // M3: Sprache -> nicht darstellbare Zeichen der letzten Eingabe
     bool spielListeOffen = false;
     std::string spielFilter;
 };
@@ -694,6 +708,12 @@ Umgebung umgebung(const Dokument& d) {
     u.feeder = [fdp](float f) { return fdp->eintraege(f); };
     u.zeitMs = static_cast<int>(ImGui::GetTime() * 1000.0);
     u.alleItems = z.alleItems && !z.interaktion;
+    // M3: Schrift wie se_language; Glyphenseiten da (AsianGlyphsAvailable: Seite 0 laedt)
+    u.kodierung = kodierungDerSprache(z.sprache);
+    if (asiatisch(u.kodierung)) {
+        const std::string seite = asienSeite(u.kodierung, 0);
+        u.asienGlyphen = z.daten.gibt(seite + ".tga") || z.daten.gibt(seite + ".jpg") || z.daten.gibt(seite + ".png");
+    }
     return u;
 }
 
@@ -864,8 +884,8 @@ bool zeichneShaderStufen(ImDrawList* dl, const std::string& shaderName, ImVec2 a
 }
 
 // M2: das Bild eines Klingen-Shaders aus den Spieldaten des Menue-Editors: die erste
-// Stufe mit Bild (map), sonst das gleichnamige Bild (impliziter Shader); dazu, ob sie
-// additiv ist und rgbGen vertex hat. nullptr, wenn es kein Bild gibt (die Engine nimmt
+// Stufe mit Bild (map), sonst das gleichnamige Bild (impliziter Shader); dazu ihre
+// Mischung (blendFunc) und ob sie rgbGen vertex hat. nullptr, wenn es kein Bild gibt (die Engine nimmt
 // dann ihren Ersatzshader).
 const KlingenBild* klingenBild(const std::string& shaderName) {
     Zustand& z = Z();
@@ -880,12 +900,15 @@ const KlingenBild* klingenBild(const std::string& shaderName) {
         for (const ShaderInfo::Stage& s : it->second.stages) {
             if (s.image.empty()) { continue; }
             bild = kleinPfad(s.image);
-            kb.additiv = s.srcFactor == BlendFactor::One && s.dstFactor == BlendFactor::One;
+            const bool eins = s.srcFactor == BlendFactor::One || s.srcFactor == BlendFactor::DstAlpha;
+            kb.mischung = (eins && s.dstFactor == BlendFactor::One)                                            ? 0
+                          : (s.srcFactor == BlendFactor::SrcAlpha && s.dstFactor == BlendFactor::OneMinusSrcAlpha) ? 1
+                                                                                                                  : -1;
             kb.vertexFarbe = s.rgbArt == RgbGenArt::Vertex || s.rgbArt == RgbGenArt::ExactVertex;
             break;
         }
     } else {
-        kb.additiv = false;   // impliziter Shader: deckend
+        kb.mischung = -1;   // impliziter Shader: deckend
     }
     const std::size_t punkt = bild.rfind('.');
     if (punkt != std::string::npos && bild.find('/', punkt) == std::string::npos) { bild = bild.substr(0, punkt); }
@@ -909,19 +932,18 @@ const KlingenBild* klingenBild(const std::string& shaderName) {
 // ui_saber2_color; Lage ueber die *blade-Bolzen bzw. den tagHack mal DC->xscale
 // (uiKlingenStrecke). Was der Szene uebergeben wird:
 //   OpenJK/Jedi Outcast: UI_DoSaber (TranslateSaberColor: unbekannt = blau);
-//   Movie Duels: nach cg_SFXSabers 0 (UI_DoSaber) oder 4 (UI_DoSFXSaber, Vorgabe) mit
-//     dessen TranslateSaberColor (rgb/white/custom/RGB-Werte: rgb_glow, Glanzfarbe
-//     ui_rgb_saber*_red/green/blue bei RGB; black, unstable_red eigene Shader).
-// Glanz-Sprites und Kern wie RB_SurfaceSaberGlow/RB_SurfaceLine (uiSaberVierecke),
-// additiv mit rgbGen vertex, gegen die Tiefe des Griffs getestet - derselbe
-// Szenenaufruf wie im Spiel. Nicht additive Klingen-Shader (black: blendFunc blend
-// bzw. GL_ZERO) und andere cg_SFXSabers-Arten zeichnet die Vorschau nicht - sie meldet es.
+//   Movie Duels (M3): die Art aus cg_SFXSabers und der Saeberart (mdKlingenArt, alle
+//     UI_Do*Saber), Shader je Art und Farbe (mdKlingenShader: rgb/white/custom/RGB-Werte,
+//     black, unstable_red), Glanzfarbe ui_rgb_saber*_red/green/blue bei RGB-Farben.
+// Glanz-Sprites und Kern wie RB_SurfaceSaberGlow/RB_SurfaceLine (uiSaberVierecke) mit
+// der Mischung des Shaders (additiv bzw. blend fuer schwarze Klingen, rgbGen vertex),
+// gegen die Tiefe des Griffs getestet - derselbe Szenenaufruf wie im Spiel.
 void zeichneMenueKlingen(ImDrawList* dl, ModellAnsicht& mv, const Item& it, const MenueModellBild& mb, const Umgebung* umg, ImVec2 ia,
                          ImVec2 ib, int pw, int ph, float xscale) {
     Zustand& z = Z();
     const bool zweiter = (it.itemFlags & ITF_ISSABER) == 0;
-    auto cv = [&](const char* n) { return umg != nullptr && umg->cvar ? umg->cvar(n) : std::string(); };
-    auto zahl = [&](const char* n, float vorgabe) {
+    auto cv = [&](const std::string& n) { return umg != nullptr && umg->cvar ? umg->cvar(n) : std::string(); };
+    auto zahl = [&](const std::string& n, float vorgabe) {
         const std::string w = cv(n);
         return w.empty() ? vorgabe : static_cast<float>(std::atof(w.c_str()));
     };
@@ -930,31 +952,27 @@ void zeichneMenueKlingen(ImDrawList* dl, ModellAnsicht& mv, const Item& it, cons
     const SaberDef& s = z.saeber[kleinPfad(cv(zweiter ? "ui_saber2" : "ui_saber"))];
     const std::string farbe = kleinPfad(cv(zweiter ? "ui_saber2_color" : "ui_saber_color"));
     const bool md = z.spiel == Spiel::MD;
-    const int stil = md ? std::atoi(cv("cg_SFXSabers").c_str()) : 0;
+    const int art = md ? mdKlingenArt(std::atoi(cv("cg_SFXSabers").c_str()), s.type) : 0;
+    if (art < 0) { return; }   // SABER_SITH_SWORD bzw. cg_SFXSabers ueber 11: keine Klinge
     const bool benannt = farbe == "red" || farbe == "orange" || farbe == "yellow" || farbe == "green" || farbe == "blue" || farbe == "purple";
     std::string glanzName = "gfx/effects/sabers/" + std::string(benannt ? farbe : "blue") + "_glow";
     std::string kernName = "gfx/effects/sabers/" + std::string(benannt ? farbe : "blue") + "_line";
+    std::string kern2Name;   // MD: zweiter Kern bei genau "rgb"
     float glanzFarbe[3] = {1, 1, 1};
-    bool zweiterKern = false;   // MD UI_DoSaber: SABER_RGB legt rgb_line noch einmal auf
-    if (md && !benannt) {
-        const bool rgb = farbe != "white" && farbe != "black" && farbe != "custom" && farbe != "unstable_red";   // >= SABER_RGB
-        glanzName = farbe == "black"          ? "gfx/effects/sabers/black_glow"
-                    : farbe == "unstable_red" ? "gfx/effects/sabers/red_glow"
-                                              : "gfx/effects/sabers/rgb_glow";
-        kernName = farbe == "black"          ? "gfx/effects/sabers/black_line"
-                   : farbe == "unstable_red" ? "gfx/effects/sabers_tfa/unstable_line"
-                                             : "gfx/effects/sabers/rgb_line";
-        if (rgb) {
+    if (md) {
+        const MdKlingenShader sh = mdKlingenShader(art, farbe, std::atoi(cv("g_SerenityJediEngineMode").c_str()) != 0);
+        glanzName = sh.glanz;
+        kernName = sh.kern;
+        kern2Name = sh.kern2;
+        if (sh.rgbWerte) {
             const char* const n1[3] = {"ui_rgb_saber_red", "ui_rgb_saber_green", "ui_rgb_saber_blue"};
             const char* const n2[3] = {"ui_rgb_saber2_red", "ui_rgb_saber2_green", "ui_rgb_saber2_blue"};
             for (int k = 0; k < 3; ++k) { glanzFarbe[k] = static_cast<float>(std::atoi(cv(zweiter ? n2[k] : n1[k]).c_str())) / 255.0F; }
         }
-        zweiterKern = stil == 0 && farbe == "rgb";
     }
-    if (md && stil == 4 && farbe != "unstable_red") { kernName = farbe == "black" ? "SFX_Sabers/saber_blade_black" : "SFX_Sabers/saber_blade"; }
     const KlingenBild* glanz = klingenBild(glanzName);
     const KlingenBild* kern = klingenBild(kernName);
-    const KlingenBild* kern2 = zweiterKern ? klingenBild("gfx/effects/sabers/rgb_line") : nullptr;
+    const KlingenBild* kern2 = kern2Name.empty() ? nullptr : klingenBild(kern2Name);
     std::vector<gpu::KlingenQuad> quads;
     std::vector<UiKlingenViereck> vierecke;
     const float auge[3] = {0, 0, 0}, links[3] = {0, 1, 0}, oben[3] = {0, 0, 1};   // refdef: AxisClear, vieworg 0
@@ -972,19 +990,16 @@ void zeichneMenueKlingen(ImDrawList* dl, ModellAnsicht& mv, const Item& it, cons
             a[k] = mb.ursprung[k] + o[0] * mb.achsen[0][k] + o[1] * mb.achsen[1][k] + o[2] * mb.achsen[2][k];
             dir[k] = r[0] * mb.achsen[0][k] + r[1] * mb.achsen[1][k] + r[2] * mb.achsen[2][k];
         }
-        const UiKlingenMasse m =
-            md ? uiKlingenMasseMD(stil, laenge, laenge, radius, zahl(stil == 4 ? "cg_SFXSabersGlowSizeSFX" : "cg_SFXSabersGlowSize", 1),
-                                  zahl(stil == 4 ? "cg_SFXSabersCoreSizeSFX" : "cg_SFXSabersCoreSize", 1))
-               : uiKlingenMasseOpenJK(laenge, laenge, radius);
-        if (md && laenge >= 0.5F && !m.da) { hinweis = "cg_SFXSabers " + std::to_string(stil) + ": Klingenart nicht nachgebildet"; }
+        const UiKlingenMasse m = md ? uiKlingenMasseMD(art, laenge, laenge, radius, zahl(mdGroessenCvar(art, false), 1), zahl(mdGroessenCvar(art, true), 1))
+                                    : uiKlingenMasseOpenJK(laenge, laenge, radius);
         vierecke.clear();
         uiSaberVierecke(a, dir, laenge, m, auge, links, oben, vierecke);
         if (kern2 != nullptr && !vierecke.empty()) { vierecke.push_back(vierecke.back()); }
         std::size_t kerne = 0;
         for (const UiKlingenViereck& v : vierecke) {
             const KlingenBild* b = v.kern ? (kerne++ > 0 && kern2 != nullptr ? kern2 : kern) : glanz;
-            if (b == nullptr || !b->additiv) {
-                if (b != nullptr) { hinweis = (v.kern ? kernName : glanzName) + ": nicht additiv, nicht gezeichnet"; }
+            if (b == nullptr || b->mischung < 0) {
+                if (b != nullptr) { hinweis = (v.kern ? kernName : glanzName) + ": blendFunc nicht nachgebildet, nicht gezeichnet"; }
                 continue;
             }
             gpu::KlingenQuad q;
@@ -995,6 +1010,7 @@ void zeichneMenueKlingen(ImDrawList* dl, ModellAnsicht& mv, const Item& it, cons
             q.tex = &b->bild;
             q.spur = true;   // Bild x Farbe x Staerke (klingePixelShaderHlsl)
             q.staerke = glanzFarbig ? m.glanzStaerke : 1.0F;
+            q.mischung = b->mischung;
             quads.push_back(q);
         }
     }
@@ -1010,8 +1026,10 @@ void zeichneMenueKlingen(ImDrawList* dl, ModellAnsicht& mv, const Item& it, cons
     void* tex = gpu::menueZielTextur(mv.klingenNr);
     const ImVec2 ecken[4] = {ia, ImVec2{ib.x, ia.y}, ib, ImVec2{ia.x, ib.y}};
     const ImVec2 uv[4] = {ImVec2{0, 0}, ImVec2{1, 0}, ImVec2{1, 1}, ImVec2{0, 1}};
-    render::zeichneStufe(dl, tex, ecken, uv, IM_COL32(255, 255, 255, 255), static_cast<int>(BlendFactor::One), static_cast<int>(BlendFactor::One),
-                         true);
+    // vormultipliziert auflegen: additive Klingen lassen das Alpha des Ziels bei 0 (wirkt wie
+    // GL_ONE GL_ONE), schwarze (blend) decken mit ihrem Alpha ab - wie nacheinander im Spiel
+    render::zeichneStufe(dl, tex, ecken, uv, IM_COL32(255, 255, 255, 255), static_cast<int>(BlendFactor::One),
+                         static_cast<int>(BlendFactor::OneMinusSrcAlpha), true);
 }
 
 void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildung& ab, ImVec2 o, const std::set<int>& verschoben,
@@ -1061,9 +1079,17 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
                     const CvarLeser cv = umg != nullptr && umg->cvar ? umg->cvar : CvarLeser{};
                     const std::string schl = modellSchluessel(it, cv);
                     ModellAnsicht& mv = z.modelle[schl];
+                    const int jetzt = static_cast<int>(ImGui::GetTime() * 1000.0);
                     if (mv.modell.schluessel != schl) {
                         (void)ladeMenueModell(z.daten, it, cv, mv.modell);
                         mv.texturenDa = false;
+                        mv.animStart = jetzt;
+                    }
+                    // M3 Punkt 2: im Bedienmodus setzt UI_UpdateCharacter die Animation neu (uiScript character)
+                    int animStart = mv.animStart;
+                    if (z.interaktion && z.laufMenue >= 0 && static_cast<std::size_t>(z.laufMenue) < z.lauf.animGesetzt.size()) {
+                        const std::vector<int>& g = z.lauf.animGesetzt[static_cast<std::size_t>(z.laufMenue)];
+                        if (static_cast<std::size_t>(p.item) < g.size() && g[static_cast<std::size_t>(p.item)] >= 0) { animStart = g[static_cast<std::size_t>(p.item)]; }
                     }
                     if (mv.nr < 0) { mv.nr = z.naechstesZiel++; }
                     // refdef: x = rect.x + 1, w = rect.w - 2 (in Bildpunkten des Fensters)
@@ -1076,7 +1102,7 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
                             mv.texturen = texturesFor(mv.modell.glm);
                             mv.texturenDa = true;
                         }
-                        const MenueModellBild mb = menueModellBild(mv.modell, it, static_cast<int>(ImGui::GetTime() * 1000.0), pw, ph, mv.welt);
+                        const MenueModellBild mb = menueModellBild(mv.modell, it, jetzt, jetzt - animStart, pw, ph, mv.welt);
                         gpu::baueKnochenmatrizen(mv.welt, mv.modell.gla.bones, mv.haut);
                         gpu::FigurLicht l;
                         for (int k = 0; k < 3; ++k) {
@@ -1271,6 +1297,8 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
             z.lauf.start(d.datei);
             z.lauf.saberModell = saberModellFuer;
             z.lauf.basis = u;
+            z.lauf.jetztMs = static_cast<int>(ImGui::GetTime() * 1000.0);   // DC->realTime fuer die onOpen-Skripte
+            z.lauf.fokusKlangStd = z.fokusKlang[d.datei.dialekt == Dialekt::MP ? 1 : 0];   // schon fuer setfocus in onOpen
             z.lauf.oeffne(d.datei.menus[static_cast<std::size_t>(mi)].window.name);
             z.laufDatei = z.aktiv;
             z.laufVersion = -1;
@@ -1301,15 +1329,27 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         if (!sei.cvar.empty()) { z.vorschauCvars[kleinPfad(sei.cvar)] = sei.wert; }
     }
     std::vector<Prim> prims;
-    zeichneMenu(*quelle, mi, u, prims);
+    if (z.hudWie && istHud(*quelle)) {   // M3: lefthud, righthud und was cgame darueber legt
+        z.hudWerte.zeitMs = static_cast<int>(ImGui::GetTime() * 1000.0);
+        zeichneHud(*quelle, mi, u, z.hudWerte, z.hudZustand, prims);
+    } else {
+        zeichneMenu(*quelle, mi, u, prims);
+    }
     if (!d.verborgen.empty()) {   // M2: Auge in der Ebenenliste (nur Vorschau, nichts im Text)
         prims.erase(std::remove_if(prims.begin(), prims.end(), [&](const Prim& p) { return d.verborgen.count({mi, p.item}) != 0; }),
                     prims.end());
     }
     z.letztePrims = static_cast<int>(prims.size());
+    z.asienPrims = static_cast<int>(std::count_if(prims.begin(), prims.end(), [](const Prim& p) {
+        return p.shader.compare(0, 6, "fonts/") == 0 && p.shader.find("_1024_") != std::string::npos;
+    }));
+    z.hudPrims = static_cast<int>(std::count_if(prims.begin(), prims.end(), [](const Prim& p) {
+        return p.shader.compare(0, 15, "gfx/2d/numbers/") == 0 || p.shader.compare(0, 16, "gfx/2d/crosshair") == 0;
+    }));
     const Menu& m = quelle->menus[static_cast<std::size_t>(mi)];
     std::set<int> sel(d.auswahl.begin(), d.auswahl.end());
     const bool verschiebt = z.ziehen == Ziehen::Verschieben;
+    z.laufMenue = z.interaktion ? mi : -1;
     zeichnePrims(dl, prims, ab, o, verschiebt ? sel : std::set<int>{}, z.zdx, z.zdy, &m, &u);
     // Raster
     if (z.raster && !z.interaktion && z.rasterWeite >= 2) {
@@ -2230,12 +2270,27 @@ std::vector<std::string> sprachenListe() {
         const std::string s = p.substr(a + 1, b - a - 1);
         if (gesehen.insert(kleinPfad(s)).second) { z.sprachen.push_back(s); }
     }
+    // M3: se_language, fuer die die Schrift der Engine Doppelbyte-Codes liest (tr_font
+    // GetLanguageEnum) - auch ohne strings/<Sprache> im Spiel, fuer eigene Uebersetzungen
+    for (const char* s : {"Korean", "Taiwanese", "Japanese", "Chinese"}) {
+        if (gesehen.insert(kleinPfad(s)).second) { z.sprachen.emplace_back(s); }
+    }
     return z.sprachen;
 }
 
 int spNummer(const std::string& sprache) {
     const std::string s = kleinPfad(sprache);
     return s == "french" ? 2 : s == "german" ? 3 : 1;
+}
+
+// M3 Punkt 7: Eingabe der Oberflaeche (UTF-8) -> Bytes der Datei in der Kodierung, in der
+// die Engine die Sprache liest (kodierung.h), und zurueck fuer die Anzeige
+std::string textFuerDatei(const std::string& sprache, const std::string& utf8, std::string* nichtDarstellbar = nullptr) {
+    return ausUtf8(utf8, kodierungDerSprache(sprache), nichtDarstellbar);
+}
+std::string textAusDatei(const std::string& sprache, const std::string& bytes) {
+    const Kodierung k = kodierungDerSprache(sprache);
+    return asiatisch(k) ? zuUtf8(bytes, k) : anzeige(bytes);
 }
 
 void eigeneTexteLesen(Dokument& d) {
@@ -2422,9 +2477,12 @@ void zeichneTexteFenster(Dokument& d) {
                 for (const std::string& s : sprachen) {
                     ImGui::TableNextColumn();
                     ImGui::SetNextItemWidth(-1);
-                    std::string t = anzeige(r.text[s]);   // die Dateien sind Latin-1 wie die Menues
+                    std::string t = textAusDatei(s, r.text[s]);
                     if (eingabe(("##" + s).c_str(), &t)) {
-                        r.text[s] = utf8ZuLatin1(t.c_str());
+                        std::string fehlt;
+                        r.text[s] = textFuerDatei(s, t, &fehlt);
+                        if (fehlt.empty()) { z.textFehlt.erase(s); }
+                        else { z.textFehlt[s] = fehlt; }
                         geaendert = true;
                     }
                 }
@@ -2438,6 +2496,12 @@ void zeichneTexteFenster(Dokument& d) {
                 geaendert = true;
             }
         }
+        // M3: Zeichen, die die Engine in dieser Sprache nicht darstellt (als ? gespeichert)
+        for (const auto& [sp, zeichen] : z.textFehlt) {
+            char b[512];
+            std::snprintf(b, sizeof(b), tr(Str::MeTextNichtDarstellbar), sp.c_str(), zeichen.c_str());
+            ImGui::TextColored(ImVec4{1, 0.7F, 0.3F, 1}, "%s", b);
+        }
         // im Menue benutzte Schluessel: aus dem Spiel, eigene, fehlende (anlegen)
         ImGui::SeparatorText("@");
         const Texte& tx = vorschauTexte(d);
@@ -2447,7 +2511,7 @@ void zeichneTexteFenster(Dokument& d) {
             ImGui::TextColored(da ? ImVec4{0.6F, 0.9F, 0.6F, 1} : ImVec4{1, 0.5F, 0.4F, 1}, "%s", s.c_str());
             ImGui::SameLine();
             if (da) {
-                ImGui::TextDisabled("%s", anzeige(tx.aufloesen(s)).c_str());
+                ImGui::TextDisabled("%s", textAusDatei(z.sprache, tx.aufloesen(s)).c_str());
             } else {
                 ImGui::TextDisabled("%s", tr(Str::MeTextFehlt));
                 std::string g = s.substr(1);
@@ -3218,6 +3282,7 @@ void spieleKlaenge() {
     for (const std::string& k : z.lauf.klaenge) {
         ++z.klangEreignisse;
         z.letzterKlang = k;
+        if (z.klangListe.size() < 64) { z.klangListe.push_back(k); }   // M3: Protokoll fuer den Vergleich mit dem Spiel
         if (!z.klaengeAn || g_app->stumm) { continue; }
         const bool musik = k.compare(0, 6, "musik:") == 0;
         const std::vector<std::int16_t>* daten = klangFuerWiedergabe(musik ? k.substr(6) : k);
@@ -3793,8 +3858,42 @@ void zeichneEigenschaften(Dokument& d) {
     ImGui::PopID();
 }
 
+// M3 Punkt 5: die Werte, die cgame fuer das HUD liest (playerState, cvars), als Regler
+void zeichneHudWerte(const Dokument& d) {
+    Zustand& z = Z();
+    if (!istHud(d.datei) || !ImGui::CollapsingHeader(tr(Str::MeHudWerte), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
+    ImGui::Checkbox(tr(Str::MeHudWie), &z.hudWie);
+    if (!hudNachgebildet(d.datei)) { ImGui::TextColored(ImVec4{1, 0.7F, 0.3F, 1}, "%s", tr(Str::MeHudNichtNachgebildet)); }
+    HudWerte& w = z.hudWerte;
+    const float breit = ImGui::GetFontSize() * 9;
+    auto regler = [&](Str name, int* v, int lo, int hi) {
+        ImGui::SetNextItemWidth(breit);
+        ImGui::SliderInt(tr(name), v, lo, hi);
+    };
+    regler(Str::MeHudGesundheit, &w.gesundheit, -10, 200);
+    regler(Str::MeHudGesundheitMax, &w.gesundheitMax, 1, 200);
+    regler(Str::MeHudRuestung, &w.ruestung, 0, 200);
+    regler(Str::MeHudMacht, &w.macht, 0, 200);
+    regler(Str::MeHudMachtMax, &w.machtMax, 1, 200);
+    ImGui::Checkbox(tr(Str::MeHudMachtBekannt), &w.machtBekannt);
+    ImGui::Checkbox(tr(Str::MeHudSaebel), &w.saebel);
+    if (w.saebel) {
+        static const char* const stile[] = {"SS_FAST", "SS_MEDIUM", "SS_STRONG", "SS_DESANN", "SS_TAVION", "SS_DUAL", "SS_STAFF"};
+        int i = std::clamp(w.saebelStil, 1, 7) - 1;
+        ImGui::SetNextItemWidth(breit);
+        if (ImGui::Combo(tr(Str::MeHudSaebelStil), &i, stile, 7)) { w.saebelStil = i + 1; }
+    } else {
+        regler(Str::MeHudMunition, &w.munition, -1, 999);
+        regler(Str::MeHudMunitionMax, &w.munitionMax, 1, 999);
+    }
+    regler(Str::MeHudFadenkreuz, &w.fadenkreuz, 0, 9);
+    ImGui::SetNextItemWidth(breit);
+    ImGui::SliderFloat(tr(Str::MeHudFadenkreuzGroesse), &w.fadenkreuzGroesse, 4, 64, "%.0f");
+}
+
 void zeichneCvars(Dokument& d) {
     Zustand& z = Z();
+    zeichneHudWerte(d);
     if (!ImGui::CollapsingHeader(tr(Str::MeCvars), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
     ImGui::TextDisabled("%s", tr(Str::MeCvarsNurVorschau));
     if (ImGui::SmallButton(tr(Str::MeCvarsZuruecksetzen))) {
@@ -4336,6 +4435,11 @@ Stand stand() {
     s.text = d->puffer.text();
     s.meldungen = static_cast<int>(d->datei.meldungen.size());
     s.prims = z.letztePrims;
+    s.asienGlyphen = z.asienPrims;
+    s.hudBilder = z.hudPrims;
+    s.hudNachgebildet = hudNachgebildet(d->datei);
+    s.klangListe = z.klangListe;
+    s.spiel = static_cast<int>(z.spiel);
     for (const auto& [k, t] : z.texturen) { (void)k; s.bilderGeladen += t.tex != nullptr ? 1 : 0; }
     s.interaktion = z.interaktion;
     s.cursorZeile = std::string(d->puffer.zeile(d->puffer.pos(d->puffer.cursor.front().pos).zeile));
@@ -4647,7 +4751,7 @@ bool legeTextAn(const std::string& schluessel, const std::map<std::string, std::
     eigeneTexteLesen(*d);
     TextZeile r;
     r.schluessel = schluessel;
-    r.text = texte;
+    for (const auto& [sprache, t] : texte) { r.text[sprache] = textFuerDatei(sprache, t); }
     d->eigeneTexte.push_back(r);
     eigeneTexteSchreiben(*d);
     return true;
@@ -4655,6 +4759,16 @@ bool legeTextAn(const std::string& schluessel, const std::map<std::string, std::
 std::string loeseText(const std::string& at) {
     Dokument* d = doc();
     return d == nullptr ? std::string() : vorschauTexte(*d).aufloesen(at);
+}
+void setzeHudWerte(const HudWerte& w) { Z().hudWerte = w; }
+void klangListeLeeren() { Z().klangListe.clear(); }
+std::string paketInhalt(const std::string& spielPfad) {
+    Dokument* d = doc();
+    if (d == nullptr) { return {}; }
+    for (const auto& [p, b] : d->bilder) {
+        if (kleinPfad(p) == kleinPfad(spielPfad)) { return b; }
+    }
+    return {};
 }
 std::string textPaket() {
     Dokument* d = doc();

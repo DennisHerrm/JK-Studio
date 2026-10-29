@@ -2215,6 +2215,8 @@ from i18n_karte9c import KARTE9C  # noqa: E402  (Stufe 9c: Werkzeugleisten, Echt
 S += KARTE9C
 from i18n_menue2 import MENUE2  # noqa: E402  (Menue-Editor M2)
 S += MENUE2
+from i18n_menue3 import MENUE3  # noqa: E402  (Menue-Editor M3)
+S += MENUE3
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

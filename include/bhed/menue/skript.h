@@ -81,6 +81,9 @@ struct Laufzeit {
     // M2: was die UI-Skripte an Modellen umstellen (UI_UpdateCharacter, UI_UpdateCharacterSkin,
     // UI_UpdateSaberHilt) - je Menue, je Item; "" = wie gelesen. anwenden() schreibt sie in die Kopie.
     std::vector<std::vector<std::string>> modellPfad, modellHaut, modellAnim;
+    // M3 Punkt 2: DC->realTime (jetztMs), zu der UI_UpdateCharacter die Animation setzte
+    // (ItemParse_asset_model_go -> g2hilev_SetAnim); -1 = beim Laden der Menues gesetzt
+    std::vector<std::vector<int>> animGesetzt;
     // UI_SaberModelForSaber / UI_SaberSkinForSaber (sabers.cfg/.sab): false = kein Modell
     std::function<bool(const std::string& saber, std::string& modell, std::string& haut)> saberModell;
     // M2 Punkt 5: Klaenge wie die Engine sie ausloest - die Oberflaeche spielt sie ab

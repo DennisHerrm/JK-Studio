@@ -29,6 +29,7 @@
 #ifndef BHED_MENUE_VORSCHAU_H
 #define BHED_MENUE_VORSCHAU_H
 
+#include "bhed/menue/kodierung.h"
 #include "bhed/menue/menue.h"
 
 #include <functional>
@@ -61,7 +62,10 @@ struct Schrift {
 // CFontInfo::CFontInfo: die Datei muss genau sizeof(dfontdat_t) = 7180 Bytes haben.
 [[nodiscard]] bool ladeFontdat(const std::string& name, const std::string& daten, Schrift& out);
 // RE_Font_StrLenPixels (JA): ^0-^9 zaehlen nicht, Zeilenumbruch beginnt neu, ceilf.
-[[nodiscard]] int schriftBreite(const Schrift& f, const std::string& text, float scale);
+// M3: Zeichen wie AnyLanguage_ReadCharFromString in der Kodierung der Sprache; asiatische
+// Glyphen nur, wenn die Seiten da sind (AsianGlyphsAvailable), Codes > 255 mit 0.75.
+[[nodiscard]] int schriftBreite(const Schrift& f, const std::string& text, float scale, Kodierung k = Kodierung::Latin1,
+                                bool asienGlyphen = false);
 // RE_Font_HeightPixels: mPointSize * scale
 [[nodiscard]] int schriftHoehe(const Schrift& f, float scale);
 
@@ -114,6 +118,10 @@ struct Umgebung {
     bool erzwingen = true;                // forcePaint: auch unsichtbare Menues
     bool alleItems = false;               // Editor: auch unsichtbare Items (gedimmt)
     Dialekt dialekt = Dialekt::MP;
+    // M3: se_language der Vorschau (tr_font GetLanguageEnum) und ob die asiatischen
+    // Glyphenseiten im Spiel liegen (fonts/<kor|tai|jap|chi>_*_1024_0)
+    Kodierung kodierung = Kodierung::Latin1;
+    bool asienGlyphen = false;
 };
 
 // Menu_Paint fuer ein Menue der Datei.

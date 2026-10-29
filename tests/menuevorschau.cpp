@@ -3,6 +3,7 @@
 // RE_Font_StrLenPixels, RE_Font_HeightPixels, RE_Font_DrawString,
 // Item_SetTextExtents/ToWindowCoords, Window_Paint, Item_Slider_ThumbPosition,
 // Item_EnableShowViaCvar, MenuFontToHandle, Abbildung auf das Fenster).
+#include "bhed/menue/hud.h"
 #include "bhed/menue/menue.h"
 #include "bhed/menue/modell.h"
 #include "bhed/menue/vorschau.h"
@@ -260,7 +261,7 @@ int main() {
         mi.window.rect = Rechteck{0, 0, 202, 402};
         const MenueModell leer;
         std::vector<bhed::BoneMatrix> welt;
-        const MenueModellBild mb = menueModellBild(leer, mi, 0, 200, 400, welt);
+        const MenueModellBild mb = menueModellBild(leer, mi, 0, 0, 200, 400, welt);
         auto projiziere = [&](float x, float y, float z, float& nx, float& ny) {
             const float* m = mb.viewProj;
             const float w = m[12] * x + m[13] * y + m[14] * z + m[15];
@@ -282,12 +283,12 @@ int main() {
         Item sb = mi;
         sb.itemFlags = ITF_ISSABER;
         sb.angle = 180;
-        const MenueModellBild ms = menueModellBild(leer, sb, 0, 200, 400, welt);
+        const MenueModellBild ms = menueModellBild(leer, sb, 0, 0, 200, 400, welt);
         pruefe(std::fabs(ms.achsen[0][0] + 1) < 1e-4F && std::fabs(ms.achsen[2][1] + 1) < 1e-4F && std::fabs(ms.achsen[1][2] + 1) < 1e-4F,
                "Saeber: AnglesToAxis(180, 0, 90) - Griff liegt auf der Seite");
         Item fi = sb;   // isSaber mit isCharacter: normale Gier
         fi.itemFlags = ITF_ISSABER | ITF_ISCHARACTER;
-        const MenueModellBild mf = menueModellBild(leer, fi, 0, 200, 400, welt);
+        const MenueModellBild mf = menueModellBild(leer, fi, 0, 0, 200, 400, welt);
         pruefe(std::fabs(mf.achsen[2][2] - 1) < 1e-4F, "Saeber mit isCharacter: aufrecht (nur Gier)");
         // die Kamera ohne Entity bildet ent.origin dorthin ab, wo viewProj den Modellursprung hinlegt
         auto proj = [](const float* m, float x, float y, float z, float& px, float& py) {
@@ -340,7 +341,134 @@ int main() {
         v.clear();
         uiSaberVierecke(org, dir, 40, m4, auge, links, oben, v);
         pruefe(v.size() >= 4 && v.back().kern && v[v.size() - 2].kern && nah(v[0].ecke[0][1], -38.2F + 3.6F), "Klinge MD 4: Glanz ab laenge - Glanz / 2, Kern doppelt");
-        pruefe(!uiKlingenMasseMD(7, 40, 40, 3, 1, 1).da, "Klinge MD: nicht portierte Art zeichnet nichts");
+        // M3 Punkt 5: HUD wie CG_DrawHUD (Striche, Zahlenfelder, Saebelstil, Fadenkreuz)
+        {
+            LeseOptionen ho;
+            ho.dialekt = Dialekt::SP;
+            const Datei hud = lies("ui/hud.menu",
+                                   "{ menuDef { name lefthud rect 0 380 100 100 visible 1\n"
+                                   " itemDef { name frame rect 0 380 100 100 background \"gfx/hud/l\" forecolor 1 1 1 1 visible 1 }\n"
+                                   " itemDef { name health_tic1 rect 10 400 8 8 background \"gfx/hud/h1\" forecolor 1 0 0 1 }\n"
+                                   " itemDef { name health_tic2 rect 20 400 8 8 background \"gfx/hud/h2\" forecolor 1 0 0 1 }\n"
+                                   " itemDef { name health_tic3 rect 30 400 8 8 background \"gfx/hud/h3\" forecolor 1 0 0 1 }\n"
+                                   " itemDef { name health_tic4 rect 40 400 8 8 background \"gfx/hud/h4\" forecolor 1 0 0 0.8 }\n"
+                                   " itemDef { name healthamount rect 50 440 6 8 forecolor 0 1 0 1 }\n"
+                                   " itemDef { name armor_tic4 rect 40 420 8 8 background \"gfx/hud/a4\" forecolor 0 1 0 1 }\n"
+                                   " itemDef { name armoramount rect 50 450 6 8 forecolor 0 1 0 1 } }\n"
+                                   " menuDef { name righthud rect 540 380 100 100 visible 1\n"
+                                   " itemDef { name saberstyle_fast rect 560 400 20 20 background \"gfx/hud/fast\" forecolor 1 1 1 1 }\n"
+                                   " itemDef { name saberstyle_medium rect 560 400 20 20 background \"gfx/hud/medium\" forecolor 1 1 1 1 }\n"
+                                   " itemDef { name ammoamount rect 580 440 6 8 forecolor 1 1 0 1 } } }\n",
+                                   ho);
+            pruefe(istHud(hud) && !istHud(d), "HUD: lefthud/righthud erkannt");
+            HudWerte w;
+            w.gesundheit = 70;   // inc 25: tic4 und tic3 voll, tic2 zu 0.8, tic1 nicht
+            w.ruestung = 10;     // unter einem Viertel: der oberste Strich blinkt
+            HudZustand hz;
+            std::vector<Prim> hp;
+            Umgebung hu;
+            hu.dialekt = Dialekt::SP;
+            zeichneHud(hud, 0, hu, w, hz, hp);
+            auto zaehle = [&](const char* sh) {
+                int n = 0;
+                for (const Prim& q : hp) { n += q.shader == sh ? 1 : 0; }
+                return n;
+            };
+            const Prim* h2 = nullptr;
+            const Prim* h4 = nullptr;
+            for (const Prim& q : hp) {
+                if (q.shader == "gfx/hud/h2") { h2 = &q; }
+                if (q.shader == "gfx/hud/h4") { h4 = &q; }
+            }
+            pruefe(h2 != nullptr && h4 != nullptr && zaehle("gfx/hud/h1") == 0 && nah(h4->farbe.r, 1) && nah(h4->farbe.g, 1) && nah(h2->farbe.g, 0) &&
+                       nah(h2->farbe.a, 0.8F),
+                   "HUD: volle Striche weiss, der angebrochene in der Itemfarbe mit Alpha * Anteil (CG_DrawHealth)");
+            pruefe(zaehle("gfx/2d/numbers/t_seven") == 1 && zaehle("gfx/2d/numbers/t_zero") == 2 && zaehle("gfx/2d/numbers/t_one") == 1 && zaehle("gfx/hud/a4") == 1,
+                   "HUD: Zahlenfelder 70 und 10, angebrochener oberster Ruestungsstrich");
+            pruefe(zaehle("gfx/hud/medium") == 1 && zaehle("gfx/hud/fast") == 0 && zaehle("gfx/2d/crosshairb") == 1,
+                   "HUD: Saebelstil mittel (SS_MEDIUM), Fadenkreuz b (cg_drawCrosshair 1)");
+            pruefe(zaehle("gfx/hud/l") == 1, "HUD: frame ohne WINDOW_STYLE_SHADER nur von cgame gezeichnet");
+            float fx = -1;
+            for (const Prim& q : hp) {
+                if (q.shader == "gfx/2d/crosshairb") { fx = q.x; }
+                if (q.shader == "gfx/2d/numbers/t_seven" && fx < 0) { fx = -2; }
+            }
+            pruefe(nah(fx, 308), "HUD: Fadenkreuz in der Mitte (0.5 * (640 - 24)), nach dem HUD");
+            // Blinken: nach dem Zeichnen schaltet cg.HUDArmorFlag um, sobald cg.time die Marke ueberholt
+            w.zeitMs = 1;
+            hp.clear();
+            zeichneHud(hud, 0, hu, w, hz, hp);
+            w.zeitMs = 2;
+            hp.clear();
+            zeichneHud(hud, 0, hu, w, hz, hp);
+            pruefe(zaehle("gfx/hud/a4") == 0, "HUD: Ruestung unter einem Viertel blinkt (cg.HUDArmorFlag alle 400 ms)");
+            w.saebel = false;
+            w.munition = 0;
+            hp.clear();
+            zeichneHud(hud, 0, hu, w, hz, hp);
+            const Prim* null0 = nullptr;
+            for (const Prim& q : hp) {
+                if (q.shader == "gfx/2d/numbers/t_zero" && q.x > 500) { null0 = &q; }
+            }
+            pruefe(null0 != nullptr && nah(null0->farbe.r, 1) && nah(null0->farbe.g, 0) && zaehle("gfx/hud/medium") == 0,
+                   "HUD: Waffe statt Saebel - Munition 0 in Rot (CG_DrawAmmo)");
+        }
+        // M3 Punkt 2: UI_G2SetAnim + G2_TimingModel (20 fps -> frameLerp 50, animSpeed 1)
+        {
+            bhed::AnimEntry an;
+            an.firstFrame = 10;
+            an.numFrames = 5;
+            an.loopFrame = 0;
+            an.fps = 20;
+            const G2Bild h0 = g2Bild(an, 0), h1 = g2Bild(an, 75), h2 = g2Bild(an, 230), h3 = g2Bild(an, 260);
+            pruefe(h0.bild == 10 && h0.folge == 11 && nah(h0.anteil, 0) && h1.bild == 11 && h1.folge == 12 && nah(h1.anteil, 0.5F),
+                   "Figur: G2-Takt ab dem Setzen, Anteil des Folgebildes");
+            pruefe(h2.bild == 14 && h2.folge == 10 && nah(h2.anteil, 0.6F) && h3.bild == 10 && h3.folge == 11 && nah(h3.anteil, 0.2F) && !h3.aus,
+                   "Figur: geschleift - vom letzten Bild zurueck zum ersten gemischt");
+            an.loopFrame = -1;
+            const G2Bild h4 = g2Bild(an, 260), h5 = g2Bild(an, 150);
+            pruefe(h4.aus && h4.bild == 0 && !h5.aus && h5.bild == 13 && h5.folge == 14, "Figur: ohne Schleife zu Ende - G2 nimmt die Animation weg");
+            an.fps = 30;   // frameLerp ceil(1000 / 30) = 34
+            pruefe(nah(g2Bild(an, 34).anteil, 0) && g2Bild(an, 34).bild == 11, "Figur: frameLerp in ganzen Millisekunden (ceil)");
+        }
+        // M3 Punkt 6: alle Arten von cg_SFXSabers (UI_Do*Saber in Movie Duels ui_saber.cpp)
+        const UiKlingenMasse m7 = uiKlingenMasseMD(7, 40, 40, 3, 1, 1);
+        pruefe(m7.da && nah(m7.glanzRadius, 3.84F) && nah(m7.glanzLaenge, 38.08F) && nah(m7.kernRadius, 1.2F) && m7.kernMal == 2,
+               "Klinge MD 7 (TFA): Glanz * 0.8, Kern ohne Faktor, zweimal");
+        const UiKlingenMasse m5 = uiKlingenMasseMD(5, 40, 40, 3, 1, 1);
+        pruefe(m5.da && nah(m5.glanzRadius, 5.85F) && nah(m5.kernRadius, 0.875F), "Klinge MD 5 (OT): flrand-Mitten, Kern * 0.5");
+        const UiKlingenMasse m9 = uiKlingenMasseMD(9, 40, 40, 3, 1, 1);
+        pruefe(m9.da && nah(m9.glanzRadius, 2.4F) && nah(m9.kernRadius, 1.02F) && nah(m9.glanzVersatz, 0.6F) && m9.kernMal == 1,
+               "Klinge MD 9 (Rebels): Glanz * 0.5 um ein Viertel vorn, Kern * 0.85 einmal");
+        const UiKlingenMasse m12 = uiKlingenMasseMD(kMdKlingeInstabil, 40, 40, 3, 2, 2);
+        pruefe(m12.da && nah(m12.glanzRadius, 4.8F) && nah(m12.kernRadius, 1.2F) && m12.kernMal == 2,
+               "Klinge MD instabil: ohne Groessen-Cvars, ohne Faktoren");
+        pruefe(nah(uiKlingenMasseMD(1, 40, 40, 3, 1, 1).kernRadius, 1.68F) && nah(uiKlingenMasseMD(2, 40, 40, 3, 1, 1).kernRadius, 1.56F) &&
+                   nah(uiKlingenMasseMD(3, 40, 40, 3, 1, 1).kernRadius, 1.02F) && nah(uiKlingenMasseMD(6, 40, 40, 3, 1, 1).kernRadius, 0.84F) &&
+                   nah(uiKlingenMasseMD(10, 40, 40, 3, 1, 1).glanzRadius, 2.016F) && nah(uiKlingenMasseMD(11, 40, 40, 3, 1, 1).glanzRadius, 2.016F),
+               "Klinge MD 1/2/3/6/10/11: Kernfaktoren 1.4/1.3/0.85/0.7, Glanz * 0.42");
+        pruefe(!uiKlingenMasseMD(-1, 40, 40, 3, 1, 1).da, "Klinge MD: keine Art zeichnet nichts");
+        pruefe(mdKlingenArt(4, "SABER_UNSTABLE") == kMdKlingeInstabil && mdKlingenArt(0, "SABER_SINGLE") == 0 && mdKlingenArt(-1, "SABER_SINGLE") == 0 &&
+                   mdKlingenArt(12, "SABER_SINGLE") == -1 && mdKlingenArt(5, "SABER_SITH_SWORD") == -1 && mdKlingenArt(11, "saber_staff") == 11,
+               "Klinge MD: Art aus cg_SFXSabers und Saeberart (UI_SaberDrawBlade)");
+        pruefe(mdGroessenCvar(1, false) == "cg_SFXSabersGlowSizeEP1" && mdGroessenCvar(9, true) == "cg_SFXSabersCoreSizeRebels" &&
+                   mdGroessenCvar(0, true) == "cg_SFXSabersCoreSize" && mdGroessenCvar(kMdKlingeInstabil, true).empty(),
+               "Klinge MD: Groessen-Cvars je Art");
+        const MdKlingenShader s1 = mdKlingenShader(1, "red");
+        const MdKlingenShader s9 = mdKlingenShader(9, "rgb");
+        const MdKlingenShader s4 = mdKlingenShader(4, "black");
+        const MdKlingenShader s8 = mdKlingenShader(8, "red");
+        const MdKlingenShader s0 = mdKlingenShader(0, "0.2 0.5 1");
+        pruefe(s1.glanz == "gfx/effects/sabers_ep1/red_glow" && s1.kern == "gfx/effects/sabers_ep1/rgb_line" && s1.kern2.empty() && !s1.rgbWerte &&
+                   s9.glanz == "gfx/effects/sabers_rebels/rgb_glow" && s9.kern2 == "gfx/effects/sabers_rebels/rgb_line" && s9.rgbWerte &&
+                   s4.glanz == "gfx/effects/sabers/black_glow" && s4.kern == "SFX_Sabers/saber_blade_black" &&
+                   s8.kern == "gfx/effects/sabers_tfa/red_unstable_line" && s0.rgbWerte && s0.glanz == "gfx/effects/sabers/rgb_glow" &&
+                   s0.kern == "gfx/effects/sabers/rgb_line" && s0.kern2.empty(),
+               "Klinge MD: Shader je Art und Farbe (TranslateSaberColor, switch (color))");
+        v.clear();
+        uiSaberVierecke(org, dir, 40, m9, auge, links, oben, v);
+        pruefe(v.size() >= 3 && v.back().kern && !v[v.size() - 2].kern && nah(v[0].ecke[0][1], -(0.6F + 38.8F) + 2.4F),
+               "Klinge MD 9: Glanz ab Versatz + Laenge, Kern einmal");
         pruefe(!uiKlingeZeichnen(2, 2, false, true) && uiKlingeZeichnen(1, 2, false, true) && !uiKlingeZeichnen(0, 0, true, false),
                "Klinge: noBlade bzw. noBlade2 ab bladeStyle2Start (UI_SaberShouldDrawBlade)");
         // tagHack ohne Bolzen: Einheitsmatrix, Versaetze mal xscale

@@ -73,10 +73,29 @@ struct MenueModellBild {
     float achsen[3][3]{};    // ent.axis (vorn, links, oben)
     float ursprung[3]{};     // ent.origin
     int bild = 0;            // Bild der .gla
+    int folge = 0;           // M3: Folgebild und dessen Anteil (G2_TimingModel)
+    float anteil = 0;
 };
 // breite/hoehe: Bildpunkte des refdef (rect.w - 2 bzw. rect.h - 2 mal Massstab).
-[[nodiscard]] MenueModellBild menueModellBild(const MenueModell& m, const Item& it, int zeitMs, int breite, int hoehe,
+[[nodiscard]] MenueModellBild menueModellBild(const MenueModell& m, const Item& it, int zeitMs, int animSeitMs, int breite, int hoehe,
                                               std::vector<BoneMatrix>& weltKnochen);
+
+// --- M3 Punkt 2: Haltung der Figur wie im Spiel -----------------------------------------
+//
+// UI_G2SetAnim (OpenJK code/ui/ui_main.cpp): Bilder firstFrame .. firstFrame + numFrames,
+// animSpeed = 50 / frameLerp (UI_ParseAnimFileSet: frameLerp = ceil(1000 / fps), bei
+// negativen fps floor), BONE_ANIM_OVERRIDE_LOOP, wenn loopFrames != -1, sonst
+// BONE_ANIM_OVERRIDE; einsetzend zur Zeit DC->realTime des Setzens. Daraus G2_TimingModel
+// (code/rd-vanilla/tr_ghoul2.cpp): Bild, Folgebild und Anteil des Folgebildes (die Engine
+// mischt die lokalen Knochenmatrizen linear). aus = nicht geschleift und zu Ende - G2 nimmt
+// die Animation weg (flags &= ~BONE_ANIM_TOTAL), die Figur steht dann in Bild 0.
+struct G2Bild {
+    int bild = 0;
+    int folge = 0;
+    float anteil = 0;
+    bool aus = false;
+};
+[[nodiscard]] G2Bild g2Bild(const AnimEntry& a, double seitMs);
 
 // --- Klingen der Menue-Saeber (code/ui/ui_saber.cpp, code/rd-vanilla/tr_surface.cpp) ---
 //
@@ -108,19 +127,40 @@ struct UiKlingenMasse {
     float griffRadius = 0;      // RB_SurfaceSaberGlow: der Griff-Klecks (Renderer)
     float kernRadius = 0;       // RT_LINE: halbe Breite
     int kernMal = 1;            // Movie Duels SFX traegt den Kern zweimal ein
+    float glanzVersatz = 0;     // Movie Duels Rebels/CW/Maul: Glanz beginnt so weit vorn
 };
 // OpenJK code/ui/ui_saber.cpp UI_DoSaber: radiusmult 1 + 2 / Laenge, wenn kuerzer als
 // laengeMax; Glanz (radius - 7.5 %) x radiusmult, Kern radius / 3 x radiusmult;
 // rd-vanilla RB_SurfaceSaberGlow: Griff-Klecks 5.5 + Q_flrand(0, 1) * 0.25.
 [[nodiscard]] UiKlingenMasse uiKlingenMasseOpenJK(float laenge, float laengeMax, float radius);
-// Movie Duels code/ui/ui_saber.cpp, gewaehlt ueber cg_SFXSabers (Vorgabe 4):
-//   0 UI_DoSaber ("Raven blade"): Glanz radius * 1.6 * Glanzgroesse * 0.75, Laenge
-//     laenge - Glanz / 2 (nur wenn > 0), Staerke 0.8; Kern radius * 0.4 * Kerngroesse;
-//   4 UI_DoSFXSaber: dieselben Glanzwerte (cg_SFXSabersGlowSizeSFX), Kern
-//     radius * 0.4 * 1.15 (cg_SFXSabersCoreSizeSFX), zweimal eingetragen;
+// Movie Duels code/ui/ui_saber.cpp UI_SaberDrawBlade: welche UI_Do*Saber-Funktion die Klinge
+// zeichnet - 0 UI_DoSaber (cg_SFXSabers < 1, "Raven blade"), 1 Ep1, 2 Ep2, 3 Ep3, 4 SFX
+// (Vorgabe), 5 OT, 6 RotJ, 7 TFA, 8 Unstable, 9 Rebels, 10 CW, 11 Maul; die instabilen
+// Saeberarten (SABER_UNSTABLE, SABER_STAFF_UNSTABLE, SABER_STAFF_ELECTROSTAFF,
+// SABER_SINGLE_KYLO_REN, SABER_ELECTROSTAFF) immer 12 = UI_DoSaberUnstable; ueber 11
+// keine Klinge (-1, switch ohne Fall).
+inline constexpr int kMdKlingeInstabil = 12;
+[[nodiscard]] int mdKlingenArt(int sfxSabers, const std::string& saberTyp);
+// Die Groessen-Cvars der Art (cg_SFXSabersGlowSize<EP1|...>, cg_SFXSabersCoreSize...);
+// "" = die Art liest keine (UI_DoSaberUnstable).
+[[nodiscard]] std::string mdGroessenCvar(int art, bool kern);
+// TranslateSaberColor und das switch (color) der Art: Glanz- und Kern-Shader; kern2 = der
+// zweite Kern, den UI_DoSaber/Rebels/CW/Maul bei genau "rgb" (SABER_RGB) noch eintragen.
+// rgbWerte = die Farbe ist >= SABER_RGB (rgb oder RGB-Werte): Glanzfarbe aus ui_rgb_saber*.
+struct MdKlingenShader {
+    std::string glanz, kern, kern2;
+    bool rgbWerte = false;
+};
+// serenity = g_SerenityJediEngineMode (UI_DoUnstableSaber nimmt dann sabers_tfa/unstable_line).
+[[nodiscard]] MdKlingenShader mdKlingenShader(int art, const std::string& farbe, bool serenity = false);
+// Die Masse der Art (Zufallsanteile crandoms/Q_flrand/flrand: ihre Mitte):
+//   effectradius = (radius * 1.6 + Zufall) * radiusmult * Glanzgroesse * Glanzfaktor,
+//   coreradius = (radius * 0.4 + Zufall) * radiusmult * Kerngroesse * Kernfaktor;
+//   Glanz nur, wenn laenge - effectradius / 2 > 0, Laenge laenge - effectradius / 2,
+//   Staerke 0.8; Kern zweimal (SFX-Familie) bzw. einmal (UI_DoSaber, Rebels, CW, Maul),
+//   Rebels/CW/Maul setzen den Glanz um effectradius / 4 nach vorn (glanzVersatz).
 // Movie-Duels-Renderer RB_SurfaceSaberGlow: Griff-Klecks 2.5 + Q_flrand(0, 0.5) * 0.15.
-// Andere Arten: da = false (nicht portiert).
-[[nodiscard]] UiKlingenMasse uiKlingenMasseMD(int stil, float laenge, float laengeMax, float radius, float glanzGroesse, float kernGroesse);
+[[nodiscard]] UiKlingenMasse uiKlingenMasseMD(int art, float laenge, float laengeMax, float radius, float glanzGroesse, float kernGroesse);
 // Die Vierecke: RB_SurfaceSaberGlow legt von glanzLaenge zur Wurzel alle
 // radius * 0.65 ein Sprite (DoSprite, der Radius waechst je Sprite um 0.017),
 // dann den Griff-Klecks; der Kern RT_LINE geht von der Spitze bis 1 hinter die

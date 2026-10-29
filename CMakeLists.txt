@@ -1121,7 +1121,11 @@ target_sources(bhed_core PRIVATE
   src/menue/diagnose.cpp
   # M2 Punkt 8/9: Im Spiel testen, Schrift aus TTF bauen
   src/menue/imspiel.cpp
-  src/menue/schriftbau.cpp)
+  src/menue/schriftbau.cpp
+  # M3 Punkt 7: eigene Texte in den asiatischen Kodierungen der Engine (tr_font.cpp)
+  src/menue/kodierung.cpp
+  # M3 Punkt 5: HUD-Editor - was cgame ueber die HUD-Menues zeichnet (cg_draw.cpp)
+  src/menue/hud.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.

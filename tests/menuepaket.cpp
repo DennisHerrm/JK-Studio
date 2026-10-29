@@ -40,7 +40,14 @@ int main() {
         p = menueTestPlanen(e);
         pruefe(p.pk3.find("/MD/zzz_jkstudio_menue.pk3") != std::string::npos && p.befehl.find("+set fs_game MD ") != std::string::npos,
                "Test: Mod (Movie Duels) - Archiv in <test>/MD, fs_game MD");
+        // M3 Punkt 4 (echter Start): das Movie-Duels-Programm nimmt ohne fs_game seine Mod MD - deren
+        // Menues (basepath/MD) stehen dann ueber dem Testpaket in <test>/base; also fs_game base
         e.fsGame.clear();
+        e.exe = "MovieDuels-SP.x86_64.exe";
+        p = menueTestPlanen(e);
+        pruefe(p.befehl.find("+set fs_game base ") != std::string::npos && p.pk3.find("/base/zzz_jkstudio_menue.pk3") != std::string::npos,
+               "Test: Movie-Duels-Programm mit den Daten von base - fs_game base ausdruecklich: " + p.befehl);
+        e.exe = "openjk_sp.x86_64.exe";
         e.faehigkeit.homepath = false;   // jasp/jk2sp: cdpath haette den niedrigsten Rang
         p = menueTestPlanen(e);
         pruefe(p.weg == bhed::karte::SpielTestWeg::ModOrdner && p.bestaetigungNoetig && p.befehl.empty(),

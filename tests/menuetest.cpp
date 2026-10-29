@@ -11,7 +11,9 @@
 //     die Zahlen (Kommentare bleiben); fehlendes rect wird eingefuegt;
 //     rect aus einem Makro wird nicht angefasst.
 //   - @MENUS-Texte aus .str und .sp.
+#include "bhed/menue/kodierung.h"
 #include "bhed/menue/menue.h"
+#include "bhed/menue/vorschau.h"
 
 #include <cstdio>
 #include <map>
@@ -282,6 +284,51 @@ int main() {
         Texte stripEd;
         stripEd.ladeSp(schreibeSp("MEINMOD", 3, e), 3);
         pruefe(stripEd.aufloesen("@MEINMOD_MEIN_KNOPF") == "Los\njetzt", "Texte: .sp (StripEd, TEXT_LANGUAGE3)");
+    }
+
+    // M3 Punkt 7: asiatische Kodierungen wie tr_font.cpp sie liest
+    {
+        std::string fehlt;
+        const std::string ko = ausUtf8("\xEC\x95\x88\xEB\x85\x95 \xEB\x98\xA0", Kodierung::Koreanisch, &fehlt);   // U+C548 U+B155, U+B620
+        pruefe(ko == "\xBE\xC8\xB3\xE7 ?" && fehlt == "\xEB\x98\xA0", "Kodierung: KSC5601-Hangul, CP949-Erweiterung nicht darstellbar");
+        pruefe(zuUtf8(ko, Kodierung::Koreanisch) == "\xEC\x95\x88\xEB\x85\x95 ?", "Kodierung: KSC5601 zurueck nach UTF-8");
+        fehlt.clear();
+        pruefe(ausUtf8("\xE3\x81\x93\xEF\xBD\xB1", Kodierung::Japanisch, &fehlt) == "\x82\xB1?" && fehlt == "\xEF\xBD\xB1",
+               "Kodierung: Shift-JIS, Halbbreiten-Katakana nicht darstellbar");
+        pruefe(ausUtf8("\xE4\xBD\xA0\xE5\xA5\xBD", Kodierung::Chinesisch) == "\xC4\xE3\xBA\xC3", "Kodierung: GB2312");
+        pruefe(ausUtf8("\xE4\xBD\xA0\xE5\xA5\xBD", Kodierung::Taiwanesisch) == "\xA7\x41\xA6\x6E", "Kodierung: Big5");
+        pruefe(ausUtf8("K\xC3\xA4se \xE2\x82\xAC", Kodierung::Latin1) == "K\xE4se ?", "Kodierung: Latin-1 wie bisher");
+        pruefe(kodierungDerSprache("KOREAN") == Kodierung::Koreanisch && kodierungDerSprache("german") == Kodierung::Latin1 &&
+                   kodierungDerSprache("thai") == Kodierung::Latin1,
+               "Kodierung: se_language ohne Gross/Klein, Thai bleibt Latin-1");
+        int n = 0;
+        const unsigned char ein[] = {0xBE, 0xC8, 0x41};
+        const unsigned c1 = zeichenLesen(Kodierung::Koreanisch, ein, 3, n);
+        const int n1 = n;
+        const unsigned c2 = zeichenLesen(Kodierung::Koreanisch, ein + 2, 1, n);
+        pruefe(c1 == 0xBEC8U && n1 == 2 && c2 == 0x41U && n == 1, "Kodierung: AnyLanguage_ReadCharFromString");
+        pruefe(zeichenLesen(Kodierung::Latin1, ein, 3, n) == 0xBEU && n == 1, "Kodierung: westlich ein Byte");
+        pruefe(asienIndex(Kodierung::Koreanisch, 0xB0A1) == 1 && asienIndex(Kodierung::Koreanisch, 0xB0A0) == 0 &&
+                   asienIndex(Kodierung::Japanisch, 0x8140) == 0 && asienIndex(Kodierung::Japanisch, 0x8180) == 63 &&
+                   asienIndex(Kodierung::Taiwanesisch, 0xA1A1) == 65,
+               "Kodierung: Collapse-Codes wie die Engine");
+        Schrift w;
+        w.name = "ergoec";
+        w.height = 20;
+        w.ascender = 15;
+        w.pointSize = 20;
+        Glyph g;
+        std::string sh;
+        pruefe(asienGlyph(Kodierung::Koreanisch, 0xBEC8, w, g, sh) && sh == "fonts/kor_32_1024_1" && g.s == 0.25F && g.t == 11.0F / 32.0F &&
+                   g.width == 20 && g.horizAdvance == 19 && g.baseline == 15,
+               "Kodierung: Hangul-Glyphe aus Seite 1 (GetLetter)");
+        pruefe(asienGlyph(Kodierung::Chinesisch, 0xC4E3, w, g, sh) && sh.compare(0, 18, "fonts/chi_16_1024_") == 0 && g.horizAdvance == 23,
+               "Kodierung: GB-Glyphe, Vorschub Hoehe + 3");
+        w.name = "aurabesh";
+        pruefe(!asienGlyph(Kodierung::Koreanisch, 0xBEC8, w, g, sh), "Kodierung: aurabesh ohne asiatische Glyphen");
+        w.name = "ergoec";
+        pruefe(schriftBreite(w, "\xBE\xC8", 1.0F, Kodierung::Koreanisch, true) == 15, "Kodierung: Breite mit fScaleAsian 0.75");
+        pruefe(schriftBreite(w, "\xBE\xC8", 0.5F, Kodierung::Koreanisch, true) == 10, "Kodierung: unter 0.7 ohne Verkleinerung");
     }
 
     std::printf("menuetest: %s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);

@@ -39,7 +39,10 @@ MenueTestPlan menueTestPlanen(const MenueTestEingabe& e) {
         fsGame = ordner;
     }
     std::string args;
-    if (fsGame != e.basisSpiel) { args += "+set fs_game " + fsGame + " "; }
+    // Die Movie-Duels-Programme nehmen ohne fs_game ihre Mod MD; deren Menues (basepath/MD)
+    // stuenden dann ueber dem Testpaket in <test>/base - darum dort fs_game ausdruecklich
+    const bool eigeneVorgabeMod = e.exe.find("MovieDuels") != std::string::npos;
+    if (fsGame != e.basisSpiel || eigeneVorgabeMod) { args += "+set fs_game " + fsGame + " "; }
     args += "+echo jkstudio_menu_test";   // ein Befehl: kein Vorspann
     p.befehl = "\"" + e.enginePfad + e.exe + "\" " + pfadArg + args;
     return p;

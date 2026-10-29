@@ -6,6 +6,7 @@
 #ifndef BHED_GUI_MENUEEDITOR_H
 #define BHED_GUI_MENUEEDITOR_H
 
+#include "bhed/menue/hud.h"
 #include <map>
 #include <string>
 #include <vector>
@@ -40,6 +41,11 @@ struct Stand {
     std::string text;
     int meldungen = 0;
     int prims = 0;           // Zeichenbefehle der Vorschau im letzten Bild
+    int asienGlyphen = 0;    // M3: davon Zeichen aus den asiatischen Glyphenseiten
+    int hudBilder = 0;       // M3: davon Zahlen (gfx/2d/numbers) und Fadenkreuz des HUD
+    bool hudNachgebildet = false;   // M3: cgame-Teil des HUD fuer dieses Spiel nachgebildet (JA SP)
+    std::vector<std::string> klangListe;   // M3: ausgeloeste Klaenge seit klangListeLeeren ("musik:" = Hintergrund)
+    int spiel = 0;                  // M3: 0 Jedi Academy, 1 Jedi Outcast, 2 Movie Duels (Spieldaten)
     int bilderGeladen = 0;   // Shader mit Textur
     bool interaktion = false;
     std::string cursorZeile; // Text der Zeile unter dem ersten Cursor
@@ -94,9 +100,16 @@ std::string imSpielTesten();
 bool baueSchriftAusTtf(const std::string& ttf, const std::string& name, int groesse);
 // M2 Punkt 6: Sprache der Vorschau, eigene Texte
 void setzeVorschauSprache(const std::string& sprache);
+// texte: Sprache -> Text wie getippt (UTF-8); gespeichert in der Kodierung der Sprache
 bool legeTextAn(const std::string& schluessel, const std::map<std::string, std::string>& texte);
 [[nodiscard]] std::string loeseText(const std::string& at);
 [[nodiscard]] std::string textPaket();
+// M3 Punkt 5: Beispielwerte des HUD (wie die Regler im Cvar-Feld)
+void setzeHudWerte(const bhed::menue::HudWerte& w);
+// M3 Punkt 3: das Klangprotokoll leeren
+void klangListeLeeren();
+// M3: eine Datei des Pakets (Spielpfad, Gross/Klein egal); "" = nicht da
+[[nodiscard]] std::string paketInhalt(const std::string& spielPfad);
 // M2: Festbreitenschrift des Code-Editors (main_win32.cpp buildFonts)
 void setzeCodeSchrift(ImFont* f);
 void setzeBalken(bool balken);   // 4:3 mit Balken (true) oder gestreckt

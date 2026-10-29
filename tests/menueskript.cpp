@@ -58,6 +58,32 @@ int main() {
     Laufzeit l;
     l.start(d);
     l.oeffne("main");
+    // M3: uiScript liest nur seinen Namen (und dessen Woerter), exec ein Wort - ohne ; laufen
+    // die folgenden Befehle weiter (Item_RunScript; Movie Duels saber.menu/main.menu onOpen)
+    {
+        LeseOptionen om;
+        om.dialekt = Dialekt::SP;
+        om.spiel = Spiel::MD;
+        const Datei dm = lies("ui/x.menu",
+                              "{ menuDef { name m rect 0 0 640 480 visible 1\n"
+                              " onOpen { uiScript \"getsabercvars\" uiScript \"update\" ui_x exec \"helpUsObi 1\" exec \"music music/x/titel\" hide grp unbekannt \"loadControls\" show b2 setcvar ui_k 7 }\n"
+                              " itemDef { name a1 group grp rect 0 0 10 10 visible 1 }\n"
+                              " itemDef { name b2 rect 0 0 10 10 visible 0 } } }\n",
+                              om);
+        Laufzeit lm;
+        lm.start(dm);
+        lm.oeffne("m");
+        pruefe((lm.items[0][0].flags & WINDOW_VISIBLE) == 0 && (lm.items[0][1].flags & WINDOW_VISIBLE) != 0 && lm.cvar("ui_k") == "7",
+               "Skript: uiScript/exec/unbekannte Befehle lesen nur ihre Woerter, der Rest laeuft (hide, show, setcvar)");
+        Laufzeit lf2;
+        lf2.start(dm);
+        lf2.fokusKlangStd = "sound/interface/menuroam.wav";
+        lf2.fuehreAus(0, -1, "setfocus b2");
+        pruefe(!lf2.klaenge.empty() && lf2.klaenge.back() == "sound/interface/menuroam.wav",
+               "Skript: setfocus spielt den itemFocusSound aus assetGlobalDef (Script_SetFocus)");
+        pruefe(std::find(lm.klaenge.begin(), lm.klaenge.end(), "musik:music/x/titel") != lm.klaenge.end(),
+               "Skript: exec \"music X\" startet die Hintergrundmusik (Konsole S_StartBackgroundTrack)");
+    }
     pruefe((l.menuFlags[0] & WINDOW_VISIBLE) != 0 && (l.menuFlags[0] & WINDOW_HASFOCUS) != 0, "open main");
     pruefe(l.cvar("ui_tab") == "1", "onOpen: setcvar");
     pruefe((l.items[0][1].flags & WINDOW_VISIBLE) != 0 && (l.items[0][2].flags & WINDOW_VISIBLE) == 0, "onOpen: show grpA, hide grpB");

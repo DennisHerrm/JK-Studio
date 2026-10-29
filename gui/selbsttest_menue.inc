@@ -318,6 +318,130 @@ std::vector<Schritt> schritteM2() {
     return s;
 }
 
+// --- M3: asiatische Kodierungen, HUD, Saebelstile, Klaenge, Haltung ---
+std::vector<Schritt> schritteM3() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = [] { return me::stand(); };
+    // Punkt 7: getippt wird UTF-8; ins Paket kommt die Kodierung, in der die Schrift der
+    // Engine je se_language liest (KSC5601-Hangul, Shift-JIS, GB2312, Big5)
+    const std::string annyeong = "\xEC\x95\x88\xEB\x85\x95";                                 // U+C548 U+B155
+    const std::string konnichiwa = "\xE3\x81\x93\xE3\x82\x93\xE3\x81\xAB\xE3\x81\xA1\xE3\x81\xAF";
+    const std::string nihao = "\xE4\xBD\xA0\xE5\xA5\xBD";                                    // U+4F60 U+597D
+    add(tu("M3 Texte: Menue mit @MYMENU_HALLO, Text auf Koreanisch/Japanisch/Chinesisch/Taiwanesisch", [=] {
+        (void)me::oeffneText("ui/asien.menu",
+                             "{\n\tmenuDef\n\t{\n\t\tname asien\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+                             "\t\titemDef\n\t\t{\n\t\t\tname hallo\n\t\t\trect 100 100 400 60\n\t\t\ttext @MYMENU_HALLO\n"
+                             "\t\t\ttextscale 1\n\t\t\tforecolor 1 1 1 1\n\t\t\tvisible 1\n\t\t}\n\t}\n}\n");
+        (void)me::legeTextAn("HALLO", {{"English", "Hello"}, {"Korean", annyeong + " \xEB\x98\xA0"}, {"Japanese", konnichiwa + "\xEF\xBD\xB1"},
+                                       {"Chinese", nihao}, {"Taiwanese", nihao}});
+    }));
+    add(pruefe("M3 Texte: Paket in KSC5601, Shift-JIS, GB2312 und Big5 (nicht Darstellbares als ?)", [] {
+        const std::string ko = me::paketInhalt("strings/Korean/MYMENU.str");
+        const std::string ja = me::paketInhalt("strings/Japanese/MYMENU.str");
+        const std::string zh = me::paketInhalt("strings/Chinese/MYMENU.str");
+        const std::string tw = me::paketInhalt("strings/Taiwanese/MYMENU.str");
+        diag::info("Menue-Editor Texte asiatisch: " + std::to_string(ko.size()) + "/" + std::to_string(ja.size()) + "/" +
+                   std::to_string(zh.size()) + "/" + std::to_string(tw.size()) + " Bytes");
+        return ko.find("LANG_KOREAN    \"\xBE\xC8\xB3\xE7 ?\"") != std::string::npos &&
+               ja.find("LANG_JAPANESE    \"\x82\xB1\x82\xF1\x82\xC9\x82\xBF\x82\xCD?\"") != std::string::npos &&
+               zh.find("LANG_CHINESE    \"\xC4\xE3\xBA\xC3\"") != std::string::npos &&
+               tw.find("LANG_TAIWANESE    \"\xA7\x41\xA6\x6E\"") != std::string::npos;
+    }));
+    add(tu("M3 Texte: Vorschau auf Koreanisch", [] { me::setzeVorschauSprache("Korean"); }));
+    add(pause(0.4));
+    add(foto("menue_texte_koreanisch"));
+    add(pruefe("M3 Texte: Vorschau zeichnet Hangul aus fonts/kor_32_1024_*", [st] {
+        const auto x = st();
+        diag::info("Menue-Editor Texte Koreanisch: " + std::to_string(x.asienGlyphen) + " asiatische Zeichen");
+        return me::loeseText("@MYMENU_HALLO") == "\xBE\xC8\xB3\xE7 ?" && (g_app->settings.gamePaths.empty() || x.asienGlyphen == 2);
+    }));
+    add(tu("M3 Texte: Vorschau Englisch", [] { me::setzeVorschauSprache("English"); }));
+    // Punkt 3: Klaenge beim Oeffnen des Hauptmenues wie im Spiel (s_show 1 bzw. developer 1, stumm):
+    // JKA base - setfocus newgamebutton spielt den FocusSound sound/interface/menuroam (.wav fehlt,
+    // .mp3); Movie Duels - exec "music music/mainMenu/main/CTCMusic" (S_StartBackgroundTrack)
+    add(tu("M3 Klaenge: ui/main.menu aus dem Spiel im Bedienmodus oeffnen", [] {
+        me::setzeInteraktion(false);
+        (void)me::oeffneAusSpiel("ui/main.menu");
+        me::klangListeLeeren();
+        me::setzeInteraktion(true);
+    }));
+    add(pause(0.5));
+    add(pruefe("M3 Klaenge: dieselben Klaenge wie im Spiel", [st] {
+        const auto x = st();
+        std::string l;
+        for (const std::string& k : x.klangListe) { l += k + " "; }
+        diag::info("Menue-Editor Klaenge Hauptmenue: " + l);
+        if (g_app->settings.gamePaths.empty()) { return true; }
+        const std::vector<std::string> erwartet =
+            x.spiel == 2 ? std::vector<std::string>{"musik:music/mainMenu/main/CTCMusic"} : std::vector<std::string>{"sound/interface/menuroam.wav"};
+        return x.klangListe == erwartet;
+    }));
+    add(tu("M3 Klaenge: Bedienmodus aus", [] { me::setzeInteraktion(false); }));
+    // Punkt 5: HUD-Editor - ui/hud.menu aus dem Spiel mit Beispielwerten wie CG_DrawHUD
+    add(tu("M3 HUD: ui/hud.menu, Gesundheit 70, Ruestung 30, Macht 100, Saebel mittel", [] {
+        if (!me::oeffneAusSpiel("ui/hud.menu")) {   // ohne Spieldaten: ein kleines HUD wie Ravens
+            (void)me::oeffneText("ui/hud.menu", R"({
+	menuDef
+	{
+		name lefthud
+		rect 0 380 120 100
+		visible 1
+		itemDef { name healthamount rect 50 440 8 12 forecolor 1 1 1 1 }
+		itemDef { name armoramount rect 50 455 8 12 forecolor 1 1 1 1 }
+	}
+	menuDef
+	{
+		name righthud
+		rect 520 380 120 100
+		visible 1
+		itemDef { name forceamount rect 560 440 8 12 forecolor 1 1 1 1 }
+	}
+}
+)");
+        }
+        bhed::menue::HudWerte w;
+        w.gesundheit = 70;
+        w.ruestung = 30;
+        me::setzeHudWerte(w);
+    }));
+    add(pause(0.4));
+    add(foto("menue_hud"));
+    add(pruefe("M3 HUD: Zahlenfelder 70, 30, 100 und das Fadenkreuz", [st] {
+        const auto x = st();
+        diag::info("Menue-Editor HUD: " + std::to_string(x.hudBilder) + " Zahlen/Fadenkreuz, " + std::to_string(x.prims) + " Zeichenbefehle" +
+                   (x.hudNachgebildet ? "" : " (Movie Duels/MP: nur Menu_Paint)"));
+        return x.hudNachgebildet ? x.hudBilder == 2 + 2 + 3 + 1 : x.hudBilder == 0;
+    }));
+    add(tu("M3 HUD: Munition statt Saebel (Gewehr), 0 Schuss", [] {
+        bhed::menue::HudWerte w;
+        w.saebel = false;
+        w.munition = 0;
+        me::setzeHudWerte(w);
+    }));
+    add(pause(0.3));
+    add(foto("menue_hud_munition"));
+    add(pruefe("M3 HUD: Munition 0 gezeichnet (100, 100, 100, 0 und Fadenkreuz)", [st] {
+        const auto x = st();
+        if (!x.hudNachgebildet) { return x.hudBilder == 0; }
+        return x.hudBilder == 3 + 3 + 3 + 1 + (g_app->settings.gamePaths.empty() ? 0 : 1);
+    }));
+    // Punkt 4: echter Start - das Hauptmenue mit einer sichtbaren Aenderung ins Testpaket; der
+    // Start selbst geschieht ausserhalb (nie im Selbsttest), mit genau dieser Befehlszeile
+    add(tu("M3 Im Spiel testen: Hauptmenue mit sichtbarer Aenderung", [] {
+        me::setzeInteraktion(false);
+        (void)me::oeffneAusSpiel("ui/main.menu");
+        me::fuegeItemsEin("itemDef\n{\n\tname jkstudio_test\n\ttype ITEM_TYPE_TEXT\n\trect 120 400 400 40\n\ttext \"JK STUDIO TEST\"\n"
+                          "\ttextscale 1.5\n\tforecolor 1 0.2 0.2 1\n\tvisible 1\n\tdecoration\n}\n");
+    }));
+    add(pruefe("M3 Im Spiel testen: Paket im eigenen Ordner, Befehlszeile mit fs_homepath", [st] {
+        const std::string b = me::imSpielTesten();
+        diag::info("Menue-Editor Im Spiel testen M3: " + b);
+        return st().text.find("JK STUDIO TEST") != std::string::npos && (b.empty() || b.find("fs_homepath") != std::string::npos);
+    }));
+    return s;
+}
+
 // Bildvergleich mit dem Spiel (BHED_MENUE_VERGLEICH=1): JKA-Hauptmenue SP und MP
 // in 4:3 fotografieren und die Lage der Flaeche melden (Zuschnitt in
 // tools/menue_bildvergleich.py gegen die Fotos aus dem Spiel).
@@ -327,12 +451,25 @@ std::vector<Schritt> vergleichSchritte() {
     add(pause(1.0));
     add(klick(tr(Str::ViewMenuEditor), "###main"));
     add(tu("Vergleich: 4:3 mit Balken", [] { me::setzeBalken(true); }));
-    const char* const menues[][2] = {{"ui/main.menu", "vergleich_sp"},
-                                     {"ui/jamp/main.menu", "vergleich_mp"},
-                                     {"ui/character.menu", "vergleich_figur"},
-                                     {"ui/saber.menu", "vergleich_schwert"}};
+    // M3: eigene Liste BHED_MENUE_VERGLEICH_MENUES="ui/jamp/ingame.menu=vgl_ingame,..." (leer: keine)
+    std::vector<std::pair<std::string, std::string>> menues = {{"ui/main.menu", "vergleich_sp"},
+                                                               {"ui/jamp/main.menu", "vergleich_mp"},
+                                                               {"ui/character.menu", "vergleich_figur"},
+                                                               {"ui/saber.menu", "vergleich_schwert"}};
+    if (const char* eigene = std::getenv("BHED_MENUE_VERGLEICH_MENUES")) {
+        menues.clear();
+        const std::string l = eigene;
+        for (std::size_t a = 0; a < l.size();) {
+            std::size_t e = l.find(',', a);
+            if (e == std::string::npos) { e = l.size(); }
+            const std::string eintrag = l.substr(a, e - a);
+            a = e + 1;
+            const std::size_t gl = eintrag.find('=');
+            if (gl != std::string::npos) { menues.emplace_back(eintrag.substr(0, gl), eintrag.substr(gl + 1)); }
+        }
+    }
     for (const auto& m : menues) {
-        const std::string pfad = m[0], name = m[1];
+        const std::string pfad = m.first, name = m.second;
         // im Bedienmodus: onOpen laeuft (setfocus), Zeit und Videos wie im Spiel
         add(tu("Vergleich: " + pfad, [pfad] {
             me::setzeInteraktion(false);
@@ -357,6 +494,38 @@ std::vector<Schritt> vergleichSchritte() {
             return x.prims > 0;
         }));
     }
+    // M3 Punkt 6: Saebelmenue je Klingenart und Farbe wie im Spiel per Konsole gesetzt:
+    // BHED_MENUE_VERGLEICH_SAEBEL="4:blue,1:blue,4:black" (cg_SFXSabers:ui_saber_color)
+    if (const char* liste = std::getenv("BHED_MENUE_VERGLEICH_SAEBEL")) {
+        std::string l = liste;
+        for (std::size_t a = 0; a < l.size();) {
+            std::size_t e = l.find(',', a);
+            if (e == std::string::npos) { e = l.size(); }
+            const std::string eintrag = l.substr(a, e - a);
+            a = e + 1;
+            const std::size_t dp = eintrag.find(':');
+            if (dp == std::string::npos) { continue; }
+            const std::string art = eintrag.substr(0, dp), farbe = eintrag.substr(dp + 1);
+            add(tu("Vergleich Saebel: cg_SFXSabers " + art + ", " + farbe, [art, farbe] {
+                me::setzeInteraktion(false);
+                me::setzeCvar("cg_SFXSabers", art);
+                me::setzeCvar("g_saber_color", farbe);   // das Menue holt die Farbe beim Oeffnen daraus
+                me::setzeCvar("ui_saber_color", farbe);
+                (void)me::oeffneAusSpiel("ui/saber.menu");
+                me::setzeInteraktion(true);
+            }));
+            add(pause(2.0));
+            add(foto("vergleich_saebel_" + art + "_" + farbe));
+            add(pruefe("Vergleich Saebel " + art + " " + farbe + ": Klingen gezeichnet", [] {
+                const auto x = me::stand();
+                char b[200];
+                std::snprintf(b, sizeof(b), "Menue-Editor Vergleich Saebel: Flaeche %.1f %.1f %.1f %.1f, %d Aufrufe ", static_cast<double>(x.flaeche[0]),
+                              static_cast<double>(x.flaeche[1]), static_cast<double>(x.flaeche[2]), static_cast<double>(x.flaeche[3]), x.modellAufrufe);
+                diag::info(b + x.modellFehler);
+                return x.modellFehler.empty() || x.modellFehler.find("blendFunc") == std::string::npos;
+            }));
+        }
+    }
     add(tu("Vergleich: zurueck", [] {
         me::setzeInteraktion(false);
         g_app->leftMode = 0;
@@ -377,6 +546,12 @@ std::vector<Schritt> schritte() {
     add(pause(1.0));   // erst das Fenster in Ruhe (ja: der Knopf lag beim ersten Bild noch halb draussen)
     add(klick(tr(Str::ViewMenuEditor), "###main"));
     add(pause(0.2));
+    // BHED_MENUE_NUR=m3: nur die Schritte von M3 (gezielter Rot/Gruen-Test)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m3") == 0) {
+        for (auto& x : schritteM3()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     add(pruefe("Menue-Editor: Modus 4 aktiv", [] { return g_app->leftMode == 4 && me::aktiv(); }));
     add(tu("Menue-Editor: Probe oeffnen", [] { (void)me::oeffneText("ui/probe.menu", kSp); }));
     add(pause(0.3));
@@ -514,6 +689,7 @@ std::vector<Schritt> schritte() {
         return !me::exportierePk3((std::filesystem::path(g_app->settings.gamePaths.front()) / "zz_menue_probe.pk3").string());
     }));
     for (auto& x : schritteM2()) { add(std::move(x)); }
+    for (auto& x : schritteM3()) { add(std::move(x)); }
     add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
     return s;
 }
