@@ -112,6 +112,7 @@ std::vector<Schritt> schritte() {
              return b >= 4;
          }});
     add(pruefe("Code: getippt (echte Tastatureingabe)", [st] { return st().text.find("XYZ") != std::string::npos; }));
+    add(pruefe("Code: Festbreitenschrift (Consolas/Courier New, i und W gleich breit)", [st] { return st().codeFestbreite; }));
     add({"Code: Strg+Z", [](int b) {
              ImGuiIO& io = ImGui::GetIO();
              if (b == 1) {

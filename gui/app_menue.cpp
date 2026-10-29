@@ -159,6 +159,8 @@ std::string u8(const fs::path& p) {
     return std::string(t.begin(), t.end());
 }
 
+ImFont* g_codeSchrift = nullptr;   // Festbreitenschrift (main_win32.cpp buildFonts)
+
 Zustand* z_ = nullptr;
 Zustand& Z() {
     if (z_ == nullptr) { z_ = new Zustand(); }
@@ -1163,6 +1165,8 @@ void zeichneCode(Dokument& d, ImVec2 groesse) {
     Zustand& z = Z();
     if (z.suchenOffen) { zeichneSuchleiste(d); }
     ImGui::BeginChild("##code", ImVec2{groesse.x, 0}, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    // M2: Festbreitenschrift (Spalten, Einrueckung und Minimap stehen untereinander)
+    if (g_codeSchrift != nullptr) { ImGui::PushFont(g_codeSchrift, 0.0F); }
     Textpuffer& p = d.puffer;
     ImDrawList* dl = ImGui::GetWindowDrawList();
     ImFont* font = ImGui::GetFont();
@@ -1452,6 +1456,7 @@ void zeichneCode(Dokument& d, ImVec2 groesse) {
         }
         ImGui::End();
     }
+    if (g_codeSchrift != nullptr) { ImGui::PopFont(); }
     ImGui::EndChild();
 }
 
@@ -1980,6 +1985,11 @@ Stand stand() {
     for (const auto& [k, t] : z.texturen) { (void)k; s.bilderGeladen += t.tex != nullptr ? 1 : 0; }
     s.interaktion = z.interaktion;
     s.cursorZeile = std::string(d->puffer.zeile(d->puffer.pos(d->puffer.cursor.front().pos).zeile));
+    if (g_codeSchrift != nullptr) {   // Festbreite: i und W gleich breit
+        const float wi = g_codeSchrift->CalcTextSizeA(16.0F, 1e9F, 0.0F, "iiii").x;
+        const float ww = g_codeSchrift->CalcTextSizeA(16.0F, 1e9F, 0.0F, "WWWW").x;
+        s.codeFestbreite = wi > 0 && std::fabs(wi - ww) < 0.01F;
+    }
     return s;
 }
 
@@ -2215,4 +2225,10 @@ bool exportierePk3(const std::string& pfad) {
     return ok;
 }
 
+void setzeCodeSchrift(ImFont* f) { g_codeSchrift = f; }
+
 }  // namespace bhed::gui::menueeditor
+
+namespace bhed::gui {
+void setMenueCodeSchrift(ImFont* schrift) { menueeditor::setzeCodeSchrift(schrift); }
+}  // namespace bhed::gui

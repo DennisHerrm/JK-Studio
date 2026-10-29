@@ -100,6 +100,8 @@ void setThemeById(App* a, const char* id);
 float uiScale(App* a);
 void setUiScale(App* a, float s);
 void setKartenSchrift(ImFont* schrift);
+// Menue-Editor M2: Festbreitenschrift des Code-Editors
+void setMenueCodeSchrift(ImFont* schrift);
 void setKartenDialogSchrift(ImFont* normal, ImFont* fett);
 std::string kartenGlSchriftDatei();
 void setKartenGlSchrift(ImFont* schrift, const std::string& datei);
@@ -664,6 +666,21 @@ void buildFonts() {
         }
     }
     bhed::gui::setKartenSchrift(karte);
+    // --- Menue-Editor M2: Festbreitenschrift fuer den Code-Editor ------------
+    // Consolas (Windows-Schrift seit Vista), sonst Courier New; die CJK-Schrift
+    // wird dazugemischt wie oben (Texte in .menu-Kommentaren).
+    ImFont* code = nullptr;
+    for (const char* datei : {"C:\\Windows\\Fonts\\consola.ttf", "C:\\Windows\\Fonts\\cour.ttf"}) {
+        if (GetFileAttributesA(datei) == INVALID_FILE_ATTRIBUTES) { continue; }
+        code = io.Fonts->AddFontFromFileTTF(datei, size);
+        if (code != nullptr) {
+            for (const char* path : cjk) {
+                if (addFontIfPresent(io, path, size, true)) { break; }
+            }
+            break;
+        }
+    }
+    bhed::gui::setMenueCodeSchrift(code);
     // Die Grundschrift der Qt-Widgets in NRCs Dialogen: Qt 5 nimmt unter
     // Windows QWindowsFontDatabase::systemDefaultFont (DEFAULT_GUI_FONT =
     // MS Shell Dlg 2, also Tahoma 8 pt; fm.height() 13). Bei ImGui-Groesse 13

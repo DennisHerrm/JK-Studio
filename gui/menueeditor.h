@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+struct ImFont;
+
 namespace bhed::gui::menueeditor {
 
 [[nodiscard]] bool aktiv();
@@ -32,6 +34,7 @@ struct Stand {
     int bilderGeladen = 0;   // Shader mit Textur
     bool interaktion = false;
     std::string cursorZeile; // Text der Zeile unter dem ersten Cursor
+    bool codeFestbreite = false;   // M2: Code-Editor mit Festbreitenschrift
 };
 [[nodiscard]] Stand stand();
 // Befehle wie die Knoepfe (Selbsttest)
@@ -54,6 +57,8 @@ std::string kopiereAuswahl();
 void fuegeItemsEin(const std::string& text);
 bool speichereUnter(const std::string& pfad);
 bool exportierePk3(const std::string& pfad);
+// M2: Festbreitenschrift des Code-Editors (main_win32.cpp buildFonts)
+void setzeCodeSchrift(ImFont* f);
 
 }  // namespace bhed::gui::menueeditor
 
