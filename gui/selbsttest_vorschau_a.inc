@@ -1389,7 +1389,9 @@ std::vector<Schritt> aehnlichSchritte() {
     add(pause(0.3));
     add(klick(tr(Str::ActFindSimilar), "##Popup"));
     add(pause(0.3));
-    add(klick("Every", "##Menu", 0, true));
+    // Der Eintrag heisst wie FindSimilarAny bis vor das Anfuehrungszeichen ("Every",
+    // tschechisch "Kazdy" mit Akut) - in jeder Sprache derselbe Klick.
+    add(klick(std::string(tr(Str::FindSimilarAny)).substr(0, std::string(tr(Str::FindSimilarAny)).find(" \"")), "##Menu", 0, true));
     add(pause(0.4));
     add(pruefe("Find similar: \"Every camera\" findet alle drei Kameras", [] {
         return g_app->findLetzte.named == "camera" && g_app->findLetzte.contains.empty() &&
