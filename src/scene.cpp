@@ -546,6 +546,8 @@ ActorState Actor::at(double ms) const {
     double waffeSeit = 0.0;              // rc605 (Ende): die letzte Waffe kam hier (npcWaffenTorso)
     // rc601 (bewegung, Durchsicht 2): seit wann BS_NOCLIP gilt (-1: nicht).
     double noclipAb = -1.0;
+    // Pruefung 2: seit wann SET_CROUCHED gilt (SCF_CROUCHED), -1: nicht.
+    double hockAb = -1.0;
     const ActorStep* weg = nullptr;      // der Weg, auf dem die Figur gerade ist
     // Reihenfolge im Skript: bei gleicher Zeit gewinnt, was spaeter steht.
     std::ptrdiff_t beineNr = -1;
@@ -893,6 +895,7 @@ ActorState Actor::at(double ms) const {
                 }
                 break;
             case ActorStep::Kind::Crouch:
+                if (step.value > 0.5F && !st.crouched) { hockAb = step.startMs; }
                 st.crouched = (step.value > 0.5F);
                 break;
             case ActorStep::Kind::Show:
@@ -1497,14 +1500,18 @@ ActorState Actor::at(double ms) const {
         st.torsoBlendMs = kSetAnimBlendDefault;
         st.torsoAnimation.clear();
     }
-    // Im Hocken ein anderer Grundzustand.
-    //
-    // Diese drei Nachbesserungen sind UNSERE Naeherung, kein Ereignis der
-    // Engine. Schreiben sie die Animation um, zeigt ein laufender Uebergang
-    // auf ein Paar, das es so nie gab - also faellt er weg.
-    if (!st.moving && st.crouched &&
+    // Im Hocken ein anderer Grundzustand (Pruefung 2, wie die Engine):
+    // SET_CROUCHED setzt SCF_CROUCHED, NPC_ApplyScriptFlags im naechsten
+    // Denkbild ucmd.upmove = -127, PM_CheckDuck PMF_DUCKED, und PM_Footsteps
+    // setzt ohne Bewegung BOTH_CROUCH1 mit SETANIM_FLAG_NORMAL (bg_pmove.cpp:
+    // 8174-8183 OJ, :14267-14275 MD, JK2 :5047-5055) - die Uebergangs-
+    // animation, die an ihrem Ende stehen bleibt, nicht BOTH_CROUCH1IDLE.
+    // (PM_AdjustStandAnimForSlope waehlt nur am Hang etwas anderes.)
+    const double hockWirkt = navDenkbildAb(hockAb) + kNavDenkMs;
+    if (!st.moving && st.crouched && ms >= hockWirkt &&
         (st.animation == "BOTH_STAND1" || st.animation.empty())) {
-        st.animation = "BOTH_CROUCH1IDLE";
+        st.animation = "BOTH_CROUCH1";
+        st.animStartMs = std::max(st.animStartMs, hockWirkt);
         st.prevAnimation.clear();
     }
     // Hier stand eine Nachbesserung: jede BOTH_WALK*/BOTH_RUN*-Animation
@@ -4774,7 +4781,7 @@ Scene buildScene(const Script& s, const MapData& map, const SzenenHilfe* hilfe) 
         for (Actor& a : sc.actors) {
             // Dazu die Kampfhaltungen (saberGrundhaltung prueft, ob es sie gibt).
             std::vector<std::string> namen = {"BOTH_STAND1", "BOTH_WALK1", "BOTH_RUN1",
-                                              "BOTH_CROUCH1IDLE", "BOTH_WALKBACK1", "BOTH_WALKBACK2",
+                                              "BOTH_CROUCH1", "BOTH_WALKBACK1", "BOTH_WALKBACK2",
                                               "BOTH_RUNBACK1", "BOTH_RUNBACK2"};
             // rc605 (Rest): die Sprungkette (Fall, Landung - auch ausserhalb eines Wegs).
             for (int c = kSaJump1; c < kSaAnzahl; ++c) {

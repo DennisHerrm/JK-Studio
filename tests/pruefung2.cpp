@@ -475,6 +475,27 @@ void decalMarken() {
     }
 }
 
+// 5a. SET_CROUCHED ohne Bewegung: PM_Footsteps setzt BOTH_CROUCH1 (die
+//     Uebergangsanimation) im Denkbild nach dem Befehl, nicht BOTH_CROUCH1IDLE
+//     (bis Pruefung 2 als "unsere Naeherung" vermerkt).
+void hocken() {
+    std::printf("--- 5a. Hocken ---\n");
+    for (const Spiel& sp : kSpiele) {
+        Welt w;
+        w.karte = kKarte;
+        w.skript = affect("\twait ( 500.000 );\r\n\tset ( /*@SET_TYPES*/ \"SET_CROUCHED\", /*@BOOL_TYPES*/ \"true\" );\r\n");
+        w.anims = {"BOTH_STAND1", "BOTH_CROUCH1", "BOTH_CROUCH1IDLE"};
+        Lauf l;
+        fahre(w, sp.nr, l);
+        const Actor* a = l.szene.find("held");
+        const ActorState st = a != nullptr ? a->at(2000.0) : ActorState{};
+        const ActorState vor = a != nullptr ? a->at(400.0) : ActorState{};
+        pruefe(vor.animation == "BOTH_STAND1" && st.animation == "BOTH_CROUCH1" && st.animStartMs > 500.0 && st.animStartMs <= 600.0,
+               std::string("SET_CROUCHED: BOTH_CROUCH1 ab dem naechsten Denkbild (") + sp.name + ") - " + st.animation + " ab " +
+                   std::to_string(st.animStartMs));
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -482,6 +503,7 @@ int main() {
     noclipHoch();
     decalMarken();
     wegMitKnick();
+    hocken();
     std::printf("%d Fehler\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }
