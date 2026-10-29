@@ -4,14 +4,21 @@
 //
 // 1. Todesanimation (bhed/todesanim.h): kill aus ICARUS und trigger_hurt -
 //    Haltung, Schluessel am Arm, Klasse, Kante, Mittel, zweiter Tod, Klinge.
+// 2. BS_NOCLIP mit upmove im Denkbild ohne Verhalten.
+// 3. Decals als Marken (CG_ImpactMark, R_MarkFragments, CG_AddMarks).
+// 4. Ein Weg mit Knick ohne Kartengeometrie.
 #include "bhed/ablauf.h"
 #include "bhed/bsp.h"
+#include "bhed/bspgeo.h"
+#include "bhed/efx/io.h"
+#include "bhed/efxdraw.h"
 #include "bhed/navlauf.h"
 #include "bhed/regelwerk.h"
 #include "bhed/scene.h"
 #include "bhed/script.h"
 #include "bhed/todesanim.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <functional>
@@ -374,11 +381,106 @@ void wegMitKnick() {
     }
 }
 
+// 3. Ein Decal ist eine Marke (FxScheduler: CG_ImpactMark): das Quadrat wird
+//    mit R_MarkFragments auf die Flaechen geschnitten, liegt AUF ihnen und
+//    bleibt MARK_TOTAL_TIME (10 s, in der letzten Sekunde abblendend) - nicht
+//    die Lebenszeit der .efx.
+void decalMarken() {
+    std::printf("--- 3. Decal als Marke ---\n");
+    // Eine Wand x = 20 (Normale -x) nur ueber dem Boden, z 0..50.
+    BspGeometry g;
+    g.planes.push_back(BspGeometry::Plane{{1.0F, 0.0F, 0.0F}, 1000.0F});
+    BspGeometry::Node n;
+    n.plane = 0;
+    n.children[0] = -1;
+    n.children[1] = -1;
+    g.nodes.push_back(n);
+    BspGeometry::Leaf blatt;
+    blatt.firstSurface = 0;
+    blatt.numSurfaces = 1;
+    g.leafs.push_back(blatt);
+    g.leafSurfaces = {0};
+    BspShader wand;
+    wand.name = "textures/eigen/wand";
+    g.shaders = {wand};
+    for (int i = 0; i < 4; ++i) {
+        BspVertex v;
+        v.xyz[0] = 20.0F;
+        v.xyz[1] = (i == 1 || i == 2) ? 50.0F : -50.0F;
+        v.xyz[2] = (i >= 2) ? 50.0F : 0.0F;
+        g.verts.push_back(v);
+    }
+    g.indexes = {0, 1, 2, 0, 2, 3};
+    BspSurface f;
+    f.type = BspSurface::Type::Planar;
+    f.firstVert = 0;
+    f.numVerts = 4;
+    f.firstIndex = 0;
+    f.numIndexes = 6;
+    f.ebenenNormale[0] = -1.0F;
+    g.surfaces = {f};
+    const auto gelesen = efx::read("Decal\n{\n\tlife\t\t1000 1000\n\trgb\n\t{\n\t\tstart 1 1 1\n\t\tend 1 1 1\n\t}\n"
+                                   "\talpha\n\t{\n\t\tstart 0.8\n\t\tend 0\n\t}\n\tsize\n\t{\n\t\tstart 10\n\t\tend 2\n\t}\n}\n");
+    if (gelesen.effect.primitives.empty()) {
+        pruefe(false, "Decal-Datei lesbar");
+        return;
+    }
+    EffectInstance in;
+    in.effect = &gelesen.effect;
+    in.startMs = 0.0;
+    in.seed = 11U;
+    in.origin[0] = 20.0F;
+    in.origin[1] = 0.0F;
+    in.origin[2] = 5.0F;
+    in.normal[0] = -1.0F;
+    in.normal[1] = 0.0F;
+    in.normal[2] = 0.0F;
+    const float rechts[3] = {0.0F, 1.0F, 0.0F};
+    const float hoch[3] = {0.0F, 0.0F, 1.0F};
+    const auto lage = [](const BspMesh& m, float& xMin, float& xMax, float& zMin, float& zMax) {
+        xMin = zMin = 1.0e9F;
+        xMax = zMax = -1.0e9F;
+        for (const BspVertex& v : m.verts) {
+            xMin = std::min(xMin, v.xyz[0]);
+            xMax = std::max(xMax, v.xyz[0]);
+            zMin = std::min(zMin, v.xyz[2]);
+            zMax = std::max(zMax, v.xyz[2]);
+        }
+    };
+    {
+        const BspMesh m = buildEffectMesh({in}, 300.0, rechts, hoch, nullptr, &g);
+        float x0 = 0.0F;
+        float x1 = 0.0F;
+        float z0 = 0.0F;
+        float z1 = 0.0F;
+        lage(m, x0, x1, z0, z1);
+        pruefe(!m.verts.empty() && std::fabs(x0 - 20.0F) < 0.01F && std::fabs(x1 - 20.0F) < 0.01F,
+               "Decal: die Marke liegt auf der Wand (x = 20) - x " + std::to_string(x0) + ".." + std::to_string(x1));
+        pruefe(!m.verts.empty() && std::fabs(z0) < 0.01F && std::fabs(z1 - 15.0F) < 0.01F,
+               "Decal: unter der Wand (z < 0) abgeschnitten, Groesse sizeStart 10 - z " + std::to_string(z0) + ".." +
+                   std::to_string(z1));
+        pruefe(!m.verts.empty() && m.verts.front().colour[3] == static_cast<std::uint8_t>(0.8F * 255.0F),
+               "Decal: Alpha aus alphaStart (CG_ImpactMark)");
+    }
+    {
+        const BspMesh m = buildEffectMesh({in}, 5000.0, rechts, hoch, nullptr, &g);
+        const BspMesh blende = buildEffectMesh({in}, 9500.0, rechts, hoch, nullptr, &g);
+        const BspMesh fort = buildEffectMesh({in}, 10100.0, rechts, hoch, nullptr, &g);
+        pruefe(!m.verts.empty() && !blende.verts.empty() && blende.verts.front().colour[3] == 127 && fort.verts.empty(),
+               "Decal: bleibt MARK_TOTAL_TIME, blendet in der letzten Sekunde ab (CG_AddMarks)");
+    }
+    {
+        const BspMesh m = buildEffectMesh({in}, 300.0, rechts, hoch);
+        pruefe(m.verts.empty(), "Decal: ohne Flaechen der Karte keine Marke (R_MarkFragments findet nichts)");
+    }
+}
+
 }  // namespace
 
 int main() {
     todesanimation();
     noclipHoch();
+    decalMarken();
     wegMitKnick();
     std::printf("%d Fehler\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;

@@ -3,6 +3,7 @@
 #include <atomic>
 #include "bhed/messpunkt.h"
 #include "bhed/efxdraw.h"
+#include "bhed/saberspuren.h"
 #include "bhed/arbeiter.h"
 
 #include <cctype>
@@ -330,6 +331,103 @@ void addQuad(BspMesh& mesh, const float centre[3], const float right[3],
     }
 }
 
+// --- Pruefung 2: Decals als Marken wie im Spiel ------------------------------
+//
+// Die Flaechen der Karte fuer R_MarkFragments (saberspuren: R_BoxSurfaces_r,
+// Gitter aus R_SubdividePatchToGrid), einmal je Karte gebaut.
+const SpurWelt* spurWeltFuer(const BspGeometry* geo) {
+    if (geo == nullptr || geo->surfaces.empty() || geo->nodes.empty()) {
+        return nullptr;
+    }
+    struct Merk {
+        const BspGeometry* geo = nullptr;
+        std::size_t flaechen = 0;
+        std::size_t knoten = 0;
+        std::shared_ptr<const SpurWelt> welt;
+    };
+    static std::mutex m;
+    static Merk merk;
+    const std::lock_guard<std::mutex> lock(m);
+    if (!merk.welt || merk.geo != geo || merk.flaechen != geo->surfaces.size() || merk.knoten != geo->nodes.size()) {
+        merk.welt = std::make_shared<const SpurWelt>(spurWeltAus(*geo));
+        merk.geo = geo;
+        merk.flaechen = geo->surfaces.size();
+        merk.knoten = geo->nodes.size();
+    }
+    return merk.welt.get();
+}
+
+// CG_ImpactMark (cg_marks.cpp:133-205 OJ, MD gleich) fuer eine Marke, die vor
+// alterMs angelegt wurde, mit den Farben, die CG_AddMarks (:233-277) ihr dann
+// gibt. Die Ecken liegen AUF den Flaechen (MARKER_OFFSET 0, tr_marks.cpp:28) -
+// gegen das Flimmern hat der Shader der Marke sein polygonOffset. Gezeichnet
+// wie RB_SurfacePolychain: ein Faecher 0, i+1, i+2. Liefert die Zahl der Polygone.
+int impactMarke(BspMesh& mesh, const SpurWelt& welt, const float origin[3], const float dir[3], float orientation,
+                float radius, const std::uint8_t farbe[4], int alterMs) {
+    constexpr int kMaxPunkte = 384;      // MAX_MARK_POINTS (cg_marks.cpp:131)
+    constexpr int kMaxBruchstuecke = 128;   // MAX_MARK_FRAGMENTS (:130)
+    float axis[3][3]{};
+    // VectorNormalize2( dir, axis[0] )
+    const float laenge = std::sqrt(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+    if (laenge != 0.0F) {
+        const float il = 1.0F / laenge;
+        for (int k = 0; k < 3; ++k) { axis[0][k] = dir[k] * il; }
+    }
+    senkrechtZu(axis[1], axis[0]);
+    drehePunkt(axis[2], axis[0], axis[1], orientation);
+    // CrossProduct( axis[0], axis[2], axis[1] )
+    axis[1][0] = axis[0][1] * axis[2][2] - axis[0][2] * axis[2][1];
+    axis[1][1] = axis[0][2] * axis[2][0] - axis[0][0] * axis[2][2];
+    axis[1][2] = axis[0][0] * axis[2][1] - axis[0][1] * axis[2][0];
+    const float texCoordScale = 0.5F * 1.0F / radius;
+    float originalPoints[4][3];
+    for (int i = 0; i < 3; ++i) {
+        originalPoints[0][i] = origin[i] - radius * axis[1][i] - radius * axis[2][i];
+        originalPoints[1][i] = origin[i] + radius * axis[1][i] - radius * axis[2][i];
+        originalPoints[2][i] = origin[i] + radius * axis[1][i] + radius * axis[2][i];
+        originalPoints[3][i] = origin[i] - radius * axis[1][i] + radius * axis[2][i];
+    }
+    const float projection[3] = {dir[0] * -20.0F, dir[1] * -20.0F, dir[2] * -20.0F};   // VectorScale( dir, -20, projection )
+    static thread_local float markPoints[kMaxPunkte][3];
+    SpurBruchstueck markFragments[kMaxBruchstuecke];
+    const int numFragments =
+        spurBruchstuecke(welt, 4, originalPoints, projection, kMaxPunkte, markPoints, kMaxBruchstuecke, markFragments);
+    // CG_AddMarks: t = mp->time + MARK_TOTAL_TIME - cg.time; in der letzten
+    // MARK_FADE_TIME mit alphaFade nur die Alpha (fade = 255 * t /
+    // MARK_FADE_TIME), sonst die Farbe der Marke und die Alpha aus
+    // CG_ImpactMark (colors[3]).
+    const int t = kSpurGesamtZeit - alterMs;
+    const std::uint8_t modulate[4] = {farbe[0], farbe[1], farbe[2],
+                                      t < kSpurBlendZeit ? static_cast<std::uint8_t>(255 * t / kSpurBlendZeit) : farbe[3]};
+    for (int i = 0; i < numFragments; ++i) {
+        const int zahl = std::min(markFragments[i].zahl, kSpurMaxEcken);   // MAX_VERTS_ON_POLY (cg_local.h:70)
+        if (zahl < 3) {
+            continue;
+        }
+        const auto base = static_cast<std::uint32_t>(mesh.verts.size());
+        for (int j = 0; j < zahl; ++j) {
+            const float* xyz = markPoints[markFragments[i].ersterPunkt + j];
+            BspVertex v;
+            float delta[3];
+            for (int k = 0; k < 3; ++k) {
+                v.xyz[k] = xyz[k];
+                delta[k] = xyz[k] - origin[k];
+                v.normal[k] = axis[0][k];
+            }
+            v.st[0] = 0.5F + (delta[0] * axis[1][0] + delta[1] * axis[1][1] + delta[2] * axis[1][2]) * texCoordScale;
+            v.st[1] = 0.5F + (delta[0] * axis[2][0] + delta[1] * axis[2][1] + delta[2] * axis[2][2]) * texCoordScale;
+            for (int k = 0; k < 4; ++k) { v.colour[k] = modulate[k]; }
+            mesh.verts.push_back(v);
+        }
+        for (int j = 0; j + 2 < zahl; ++j) {
+            mesh.indexes.push_back(base);
+            mesh.indexes.push_back(base + static_cast<std::uint32_t>(j) + 1U);
+            mesh.indexes.push_back(base + static_cast<std::uint32_t>(j) + 2U);
+        }
+    }
+    return numFragments;
+}
+
 // Ein Band von a nach b mit fester Breitenrichtung `w` (Einheitsvektor),
 // verschieden breit an beiden Enden - DoLine2 (tr_surface.cpp:301):
 //
@@ -559,11 +657,13 @@ double laengsteMs(const efx::Effect& ef) {
     for (const efx::Primitive& pr : ef.primitives) {
         // `life 5000 4000` steht oft mit dem groesseren Wert ZUERST -
         // readRange behaelt die Reihenfolge der Datei.
-        const double ende =
-            static_cast<double>(std::max(pr.delay.min, pr.delay.max)) +
-            static_cast<double>(pr.life.set
-                                    ? std::max(pr.life.min, pr.life.max)
-                                    : 50.0F);
+        // Pruefung 2: ein Decal ist kein Teilchen, sondern eine Marke
+        // (CG_ImpactMark) - sie bleibt MARK_TOTAL_TIME (cg_marks.cpp).
+        const double leben =
+            pr.type == efx::PrimitiveType::Decal
+                ? static_cast<double>(kSpurGesamtZeit)
+                : static_cast<double>(pr.life.set ? std::max(pr.life.min, pr.life.max) : 50.0F);
+        const double ende = static_cast<double>(std::max(pr.delay.min, pr.delay.max)) + leben;
         laengste = std::max(laengste, ende);
     }
     return laengste;
@@ -2054,10 +2154,15 @@ BspMesh buildEffectMesh(const std::vector<EffectInstance>& live, double nowMs,
 
             const float life = t.life;
             const double age = nowMs - t.geborenMs;
-            if (age < 0.0 || age > static_cast<double>(life)) {
+            // Pruefung 2: ein Decal legt CG_ImpactMark beim Anlegen als Marke
+            // ab (FxScheduler.cpp:1855 MD) - mit Groesse, Farbe, Alpha und
+            // Drehung von DIESEM Augenblick; sie bleibt MARK_TOTAL_TIME.
+            const bool marke = pr.type == efx::PrimitiveType::Decal;
+            const double lebt = marke ? static_cast<double>(kSpurGesamtZeit) : static_cast<double>(life);
+            if (age < 0.0 || age > lebt) {
                 continue;   // noch nicht da oder schon vorbei
             }
-            const auto alter = static_cast<float>(age);
+            const auto alter = marke ? 0.0F : static_cast<float>(age);
 
             // --- Wo es ist, mit Aufprall, wenn die .efx es verlangt ------
             //
@@ -2119,7 +2224,9 @@ BspMesh buildEffectMesh(const std::vector<EffectInstance>& live, double nowMs,
             // hinter dem Auge ist weg, ein Teilchen naeher als 16 Einheiten
             // ebenso. Ein Geysir, dessen Fuss hinter der Kamera steht,
             // verschwindet im Spiel ganz - bei uns stand er weiter im Bild.
-            if (auge != nullptr &&
+            // Eine Marke ist kein CParticle: CG_AddMarks reicht jedes Polygon
+            // an den Renderer, ohne Keulung (Pruefung 2).
+            if (auge != nullptr && !marke &&
                 (quadLike(pr.type) || pr.type == efx::PrimitiveType::Tail)) {
                 const float dx = centre[0] - auge[0];
                 const float dy = centre[1] - auge[1];
@@ -2128,7 +2235,6 @@ BspMesh buildEffectMesh(const std::vector<EffectInstance>& live, double nowMs,
                     continue;
                 }
                 if (pr.type != efx::PrimitiveType::Tail &&
-                    pr.type != efx::PrimitiveType::Decal &&
                     dx * dx + dy * dy + dz * dz < 16.0F * 16.0F) {
                     continue;
                 }
@@ -2147,25 +2253,6 @@ BspMesh buildEffectMesh(const std::vector<EffectInstance>& live, double nowMs,
                 // Die Ecken liegen also bei origin +/- size, das Viereck ist
                 // 2*size breit.
                 //
-                // --- Ein Decal liegt FLACH AUF der Flaeche ------------------
-                //
-                // Die Engine legt ein Quadrat der Kantenlaenge 2*size um den
-                // Auftreffpunkt, senkrecht zur Flaechennormalen ax[0], und
-                // projiziert es auf die Geometrie (CG_ImpactMark,
-                // cg_marks.cpp:160 ff.):
-                //
-                //     axis[0] = normale
-                //     PerpendicularVector( axis[1], axis[0] );
-                //     CrossProduct( axis[0], axis[2], axis[1] );
-                //     ecke = origin +/- radius*axis[1] +/- radius*axis[2]
-                //
-                // **NAEHERUNG:** die Engine SCHNEIDET das Quadrat danach gegen
-                // die getroffenen Flaechen (CM_MarkFragments). Das tut behaved
-                // nicht - hier bleibt es ein flaches Quadrat.
-                //
-                // Der Versatz von zwei Einheiten entlang der Normalen ist
-                // derselbe wie beim Aufpralleffekt aus rc287: ohne ihn streiten
-                // Decal und Wand um dieselbe Tiefe und es flimmert.
                 // --- Die Drehung (rotation, rotationDelta) ---------------
                 //
                 // FX_AddParticle bekommt mRotation.GetVal() und
@@ -2185,54 +2272,27 @@ BspMesh buildEffectMesh(const std::vector<EffectInstance>& live, double nowMs,
                 const float dw = drehung * std::numbers::pi_v<float> / 180.0F;
                 const float dc = std::cos(dw);
                 const float ds = std::sin(dw);
-                // --- Ein Decal liegt FLACH AUF der Flaeche ------------------
+                // --- Ein Decal: die Marke auf den Flaechen der Karte ---------
                 //
-                // CG_ImpactMark (cg_marks.cpp:168 ff.):
-                //
-                //     VectorNormalize2( dir, axis[0] );
-                //     PerpendicularVector( axis[1], axis[0] );
-                //     RotatePointAroundVector( axis[2], axis[0], axis[1], orientation );
-                //     CrossProduct( axis[0], axis[2], axis[1] );
-                //     ecke = origin -/+ radius*axis[1] -/+ radius*axis[2]
-                //
-                // **NAEHERUNG:** die Engine SCHNEIDET das Quadrat danach gegen
-                // die getroffenen Flaechen (CM_MarkFragments). Das tut behaved
-                // nicht - hier bleibt es ein flaches Quadrat.
-                //
-                // Der Versatz von zwei Einheiten entlang der Normalen ist
-                // derselbe wie beim Aufpralleffekt aus rc287: ohne ihn streiten
-                // Decal und Wand um dieselbe Tiefe und es flimmert.
-                //
-                // Uebergeben wird (axis[1], -axis[2]): dieselben vier Ecken,
-                // und right x up zeigt wie bisher entlang der Normalen - mit
-                // dem Umlauf, den der Zeichner sehen will (siehe addQuad).
-                if (pr.type == efx::PrimitiveType::Decal) {
-                    float n[3] = {t.ax[0][0], t.ax[0][1], t.ax[0][2]};
-                    const float nl =
-                        std::sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
-                    if (nl > 1e-6F) {
-                        for (int q = 0; q < 3; ++q) {
-                            n[q] /= nl;
-                        }
-                    } else {
-                        n[0] = 0.0F;
-                        n[1] = 0.0F;
-                        n[2] = 1.0F;
+                // CG_ImpactMark schneidet das Quadrat mit cgi_CM_MarkFragments
+                // (R_MarkFragments) auf die getroffenen Flaechen; CG_AddMarks
+                // blendet es in der letzten Sekunde aus (impactMarke).
+                if (marke) {
+                    // FxScheduler.cpp:1859-1864 MD: ohne Richtung kein Decal.
+                    const float* dir = t.ax[0];
+                    const SpurWelt* welt = spurWeltFuer(geo);
+                    if ((dir[0] == 0.0F && dir[1] == 0.0F && dir[2] == 0.0F) || welt == nullptr) {
+                        continue;
                     }
-                    float a1[3];
-                    senkrechtZu(a1, n);
-                    float a2[3];
-                    drehePunkt(a2, n, a1, drehung);
-                    // axis[1] = axis[0] x axis[2]
-                    a1[0] = n[1] * a2[2] - n[2] * a2[1];
-                    a1[1] = n[2] * a2[0] - n[0] * a2[2];
-                    a1[2] = n[0] * a2[1] - n[1] * a2[0];
-                    const float minusA2[3] = {-a2[0], -a2[1], -a2[2]};
-                    const float versetzt[3] = {centre[0] + n[0] * 2.0F,
-                                               centre[1] + n[1] * 2.0F,
-                                               centre[2] + n[2] * 2.0F};
-                    addQuad(mesh, versetzt, a1, minusA2, size, rgba.data());
-                    ++quads;
+                    // CG_ImpactMark (cg_marks.cpp:133 OJ): Farbe als Byte,
+                    // Alpha alphaStart (alphaFade qtrue, nicht temporaer).
+                    const std::uint8_t farbe4[4] = {
+                        static_cast<std::uint8_t>(std::clamp(col.x, 0.0F, 1.0F) * 255.0F),
+                        static_cast<std::uint8_t>(std::clamp(col.y, 0.0F, 1.0F) * 255.0F),
+                        static_cast<std::uint8_t>(std::clamp(col.z, 0.0F, 1.0F) * 255.0F),
+                        static_cast<std::uint8_t>(alpha * 255.0F)};
+                    quads += impactMarke(mesh, *welt, centre, dir, drehung, size, farbe4,
+                                         static_cast<int>(std::lround(age)));
                     continue;
                 }
                 // --- Ausgerichtet: flach, senkrecht zu ax[0] --------------
