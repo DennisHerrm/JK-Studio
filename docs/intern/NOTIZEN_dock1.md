@@ -82,11 +82,44 @@ Standardanordnung = alles zuhause = derselbe Code wie vorher (einzige sichtbare
 
 - Probe `fenster`: Kodieren, Filter (echtes ImGui-Format), Austausch mit
   Neunummerierung, Einstellungsdatei – grün.
-- Selbsttest `dock1`: siehe Abschlussbericht; Bildzeit mit 1 / 3 Viewports
-  4,20 ms / 4,20–5,03 ms, davon eigene Fenster 1,7–2,9 ms (D3D11, Present ohne
-  VSync je eigenem Fenster).
-- Selbsttest `dock1neustart` im selben Einstellungsordner: Zeitleiste draussen an
-  der gespeicherten Stelle, gespeicherte Anordnung noch da – grün.
+- Selbsttest `dock1`: 86 OK, 0 Fehler. Geprüft: Standardanordnung von Events,
+  Mission, Model in Zahlen (Spalten, Tabelle, Band, Fenster) vor allem
+  Verschieben = nach dem Zurücksetzen = am Ende; Hauptfenster verkleinert und
+  verschoben (Ursprung ≠ 0); Zeitleiste über das Menü heraus, eigenes
+  Windows-Fenster (sichtbar, Swapchain-Bild gelesen: Grösse = Fenster, Farben),
+  Band weg; Script Flow auf die Zeitleiste gezogen = ein Dock-Knoten;
+  Speichern unter / Zurücksetzen / Laden (Lage ±1, wieder zusammengesetzt) /
+  Löschen; Andocken per Schliessknopf (Reiter), Menü und Ziehen auf den alten
+  Platz; zweiter Bildschirm (vorgetäuscht) abgezogen → zurück auf den
+  Bildschirm des Hauptfensters in voller Grösse; kleiner Bildschirm 640x480 →
+  verkleinert; Massstab 150 % → Fenster ×1,5, Schrift ×1,5, zurück; jedes
+  Panel aller Bereiche einmal heraus (zeichnet) und zurück; Map Editor Regular
+  und Split (Feld fehlt im Teiler, steht im eigenen Fenster), Kamera mit
+  Testkarte und Echtzeit-Licht im eigenen Windows-Fenster (Licht näher → Boden
+  heller), Klick macht sie aktiv, Pfeil hoch fährt, Freelook 300 Punkte =
+  15 Grad wie NRC (Qt-Massstab 2); Menu Editor Fläche heraus (Reiter-Spalte
+  breiter), zurück per Schliessknopf; Events Actions ausgeblendet (zwei
+  Spalten), Liste heraus.
+- Bildzeit (Mittel über 120 Bilder, unter Last): mit 1 Viewport 4,20 ms, mit
+  3 Viewports 4,20 ms; Zeichnen und Zeigen der zwei eigenen Fenster 1,0–2,9 ms
+  je Bild (D3D11, Present ohne VSync je eigenem Fenster) – fällt in die
+  Wartezeit auf das VSync des Hauptfensters.
+- Selbsttest `dock1neustart` im selben Einstellungsordner (zweiter Prozess):
+  Zeitleiste und Script Flow draussen, als Reiter zusammengesetzt, an der
+  gespeicherten Stelle; gespeicherte Anordnung noch da; Zurücksetzen – 5 OK.
+- Sauberer Neubau 0 Warnungen, ctest 158/158 (neu: `fenster`).
+
+### Schlussrunde (unter Last, je Modus eigener Einstellungsordner)
+
+| Modus | Ergebnis |
+|---|---|
+| dock1 | 86 OK, 0 FEHLER |
+| menueeditor | 46 OK, 0 FEHLER |
+| karteneditor (BHED_KARTE_NUR=fotos) | 78 OK, 0 FEHLER |
+| karte / kamera / missionsbau / szenen / ton | 227 / 95 / 95 / 26 / 34 OK, je 0 FEHLER |
+| npcklasse / laserfalle / geschuetzanim / zielstrahl / effektgrund / figurdeform | 12 / 8 / 3 / 2 / 1 / 1 OK, je 0 FEHLER |
+| 1 | erster Lauf 2601/93 – ohne Handbuchordner (Lauf ausserhalb des Worktrees, touren.json nicht gefunden; Fehler nur in den Touren); mit BHED_HANDBUCH 2645/4 (Klick „Close“ im Tutorial-Fenster kam nicht an, zwei Folgeprüfungen, Ton-Zeitpunkt) – wiederholt **2648 OK, 0 FEHLER** (wie Integration 3) |
+| ImGui-Zusicherungen | in keinem Lauf |
 
 ### Fehler unterwegs (rot → grün im selben Test)
 
@@ -96,6 +129,12 @@ Standardanordnung = alles zuhause = derselbe Code wie vorher (einzige sichtbare
    LoadIniSettingsFromMemory vor NewFrame, Panels im selben Bild.
 3. Menü-Editor: Zurück-Knopf unter dem eigenen Fenster (Startlage über dem
    alten Platz) → der ganze Editor ist kein Panel mehr, sondern seine drei.
+4. Klick auf „Reset layout“ traf die herausgenommene Ereignisliste: ihre
+   Startlage ragte aus dem Hauptfenster, sie wurde ein eigenes Windows-Fenster
+   über den Menüs → Startlage ganz im Hauptfenster.
+5. Zurückziehen: die Beschriftung „Loslassen zum Andocken“ lag über der
+   Titelleiste des gezogenen Fensters (Handbuchbild) → oben im Platz, mit
+   Hintergrund.
 
 ### Beobachtung (vorher schon so)
 
@@ -115,6 +154,11 @@ Standardanordnung = alles zuhause = derselbe Code wie vorher (einzige sichtbare
   simulierten Windows-Zeiger geprüft (der echte darf im Test nicht bewegt
   werden).
 - es/cs: neue Texte und Handbuchseite noch englisch.
+- Der Helfer (F1) kennt die Einträge des Menüs „Fenster“ nur über die
+  Handbuchseite: tools/gen_hilfe_orte.py liest die Menüs aus dem Menüblock
+  in app_anordnung.inc, das Menü steht in fenster_dock.cpp.
+- Ältere Handbuchbilder mit der Menüleiste zeigen noch keinen Eintrag
+  „Fenster“ (nicht neu aufgenommen).
 
 ## Changelog
 
