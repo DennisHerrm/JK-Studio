@@ -877,7 +877,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Ändere eine Dauer.** Zieh die rechte Kante eines Blocks - eines Laufs, einer Kamerafahrt, eines wait -, um ihn kürzer oder länger zu machen.",
+      "text": "**Eine Dauer ändern.** Die rechte Kante eines Kamerablocks oder eines Wartens ziehen macht es kürzer oder länger. Ein Lauf behält seine Länge: sie kommt aus der Wegsuche und dem Tempo der Figur.",
       "bild": "c_tl_kante",
       "unter": "Die rechte Kante eines Blocks.",
       "ziel": "gezeichnet:zeitleiste",

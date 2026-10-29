@@ -877,7 +877,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Change a duration.** Drag the right edge of a block - a walk, a camera move, a wait - to make it shorter or longer.",
+      "text": "**Change a duration.** Drag the right edge of a camera block or a wait to make it shorter or longer. A walk keeps its length: it comes from the path finding and the speed of the figure.",
       "bild": "c_tl_kante",
       "unter": "The right edge of a block.",
       "ziel": "gezeichnet:zeitleiste",
