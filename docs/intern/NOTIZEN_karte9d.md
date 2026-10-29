@@ -506,3 +506,91 @@ Nicht gegen das Vorbild geprüft:
 - マップエディター、ビルド:完全な VIS(`-fast` のない `-vis`)の前に、コンソールにポータル数、クラスター数、必要なメモリが表示されます(ポータルファイルから)。最適化のポータルしきい値に達するかメモリが足りなくなると、進行状況ウィンドウにも警告と対策(テストには `-vis -fast`、detail、部分コンパイル:VIS を再利用)が出ます。Open .bsp で開いたマップでは、元のマップが `-vis -fast` でビルドされたかどうかも表示されます。
 - bhed_q3map2 の `-vis` が実際の passage メモリと合計を表示します(NetRadiant-Custom の q3map2 はポータルの半分だけを int で数えていました:md_rev_TarisUpper2 で 9 GB ではなく 268 MB)。
 - 最適化、構造の装飾:リークのないビルドの後は、その .bsp でマップの外側に面していないブラシだけを提案します。外壁の小さな栓はもう detail の候補になりません。
+
+## Integration 2
+
+Zweig `karte1` (Worktree `Y:\karte`), Ausgang 2406e182 (rc606 + H2). Skripte: Schlussrunde `SP/int2/ende.sh`
+(nach `SP/rc606/ende.sh`), Wiederholungen allein und Handbuchbilder `SP/int2/nach.sh`, Selbsttests über
+`SP/int2/idle.sh` (wie `SP/s8d/idle_jk.sh`: ein Prozess zur Zeit, Idle, 8-GB-Wächter; dazu `bhed_q3map2.exe`
+im Laufordner, `BHED_Q3MAP2` und `BHED_HANDBUCH`). Summen `SP/int2/ende_summe.txt`, `SP/int2/nach_summe.txt`.
+
+| Commit | Inhalt |
+|---|---|
+| 14d9bf50 | Merge `karte9d` (744c1e7a) – Konflikte nur in den erzeugten `handbuch/*/suche.js` (gen_handbuch.py); `i18n.h`/`i18n.cpp` mit gen_i18n.py nachgeprüft (gleich), `src/hilfe_orte.inc` aktuell. Bau 0 Warnungen, ctest 158/158 |
+| bd536102 | Merge `mission1` (59acb90c) – `tools/gen_i18n.py` (beide Seiten hängen ein Textmodul an: KARTE9D und MISSION1 behalten); `i18n.*` und `suche.js` neu erzeugt. Bau 0 Warnungen, ctest 158/158 |
+| 39a2c83e | Merge `menue2` (21942f86) – Konflikte unten; `i18n.*`, `src/hilfe_orte.inc` und das Handbuch (153 Seiten, 8 Dateien in Konflikt) neu erzeugt. Bau 0 Warnungen, ctest 164/164 |
+| (dieser) | Handbuchbilder `h_tour_menue` (4 Sprachen) mit der M2-Leiste; Kopf von `selbsttest_mission1.inc`: die Gizmo-Prüfungen brauchen `BHED_FOTOS`; Notizen |
+
+### Konflikte menue2
+
+- **Leiste des Menü-Editors** (`gui/app_menue.cpp`, 5 Stellen): H2 hatte an die alten Textknöpfe Hinweise
+  gehängt (`Me…Hint`: leicht verständlich, zugleich Suchwörter des Helfers, `src/hilfe.cpp` nimmt den
+  Hinweis in den Index), M2 hat die Leiste durch Symbolknöpfe (`iconKnopf`) mit eigenen Hinweisen
+  (`MeTip…`) ersetzt. Behalten: die M2-Leiste; die zehn Knöpfe, zu denen H2 einen Hinweis geschrieben hat
+  (aus dem Spiel, Datei öffnen, Speichern, Export, Bearbeiten, Bedienen, alle Items, Raster, am Raster,
+  an Kanten), zeigen den H2-Text; die zehn gleichbedeutenden `MeTip…` aus `tools/i18n_menue2.py`
+  entfernt (sonst unbenutzt). Die neuen Knöpfe aus M2 behalten ihre `MeTip…`.
+- **`Stand()` / `gui/menueeditor.h`**: die Felder beider Seiten (H2 `exporte`; M2 Bildvergleich,
+  Diagnose, Paket, Klänge …).
+- **`zuEinemSchritt` (H2) und `exportiere()` (M2)**: H2s Funktion (KI-Aufträge als ein
+  Rückgängig-Schritt) bleibt vor M2s gemeinsamer Exportfunktion; H2s Exportzähler steht darin und zählt
+  so beide Exportarten. Die Tour „Ein Menü ändern“ (Schritt 5, Knopf Export) wartet auf diesen Zähler;
+  der Knopf öffnet seit M2 ein Menü mit „Export .pk3“ und „nur Änderungen“ – beides zählt.
+- **`tools/gen_hilfe_orte.py`** (kein Konflikt, aber nötig): der Ortskatalog las im Menü-Editor nur
+  `ImGui::Button/RadioButton/Checkbox` – nach M2 fehlten ihm die Leistenknöpfe (die Tour und der Helfer
+  zeigen auf `knopf:MeAusSpiel` usw.). Jetzt liest er auch `iconKnopf(tr(Str::Me…), UiIcon::…,
+  tr(Str::Hinweis))` (Hinweis aus dem Aufruf wie `leisten()`), die Leiste vor gleichnamigen Knöpfen in
+  Fenstern (Prüfen, Schrift bauen); Knöpfe, die erst mit offenem Menü da sind: dazu Video, Schrift,
+  Texte, Prüfen, im Spiel testen. `src/hilfe_orte.inc`: 179 Orte, 17 Leistenknöpfe des Menü-Editors mit
+  Hinweis (hilfetest grün, Selbsttest hilfe2 mit der Tour tut-menue grün).
+- `tools/gen_i18n.py`: MENUE2 nach KARTE9D und MISSION1.
+- Handbuch: das Bild `h_tour_menue` zeigte die alte Leiste (Optionsknöpfe, Haken) → neu aus dem Selbsttest
+  `BHED_EDITORTEST=handbuch BHED_HB_NUR=hilfe2` in vier Sprachen (`tools/handbuch/bilder.py`);
+  `h_tour_spielordner` und `h_tour_update` kamen bitgleich heraus.
+
+### Schlussrunde (Endstand 39a2c83e)
+
+| Schritt | Ergebnis |
+|---|---|
+| sauberer Neubau (`--clean-first`, /W4 /WX) | **0 Fehler, 0 Warnungen** (938 s) |
+| ctest gesamt | **164/164** (265 s) |
+| lint_sources, lint_fassung | ok |
+| karteneditor voll (mit großer Karte, Fotos) | 3205 OK, 3 FEHLER (1806 s, Spitze 1213 MB) – alle unter Last, allein grün (unten) |
+| menueeditor | **46 OK, 0 FEHLER** |
+| mission1 | 90 OK, 8 FEHLER – die vier Gizmo-Prüfungen je Durchgang lesen die Fotos, `BHED_FOTOS` fehlte im Lauf (alle Werte −1); mit `BHED_FOTOS` **98 OK, 0 FEHLER** |
+| karteneditor + `BHED_KARTE_NUR=hilfe2` | **44 OK, 0 FEHLER** |
+| karteneditor + `BHED_KARTE_NUR=hilfe1` | **59 OK, 0 FEHLER** |
+| karteneditor + `BHED_KARTE_NUR=stufe9d` | **25 OK, 0 FEHLER** |
+| optsicher (md_rev_TarisUpper2, ohne `BHED_OPTSICHER_ALT`) | **14 OK, 0 FEHLER** |
+| Modus 1 | **2645 OK, 0 FEHLER** (648 s; die Zwischenablage-Schritte gingen trotz paralleler Läufe) |
+| kuerzel | **199 OK, 0 FEHLER** |
+| übrige 22 Modi | 0 FEHLER bis auf spulen; dieselben Zahlen wie rc606 (karte 227, kartenfunde 53, fix604b 32, laserfalle 8, geschuetzanim 3, zielstrahl 2, effektgrund 1, figurdeform 1, jk2 15, tuerlauf 13, kamera 95, missionsbau 95, szenen 26, ton 34, npcklasse 12, gluehen 8, gras 13, figurstufen 8, missionsliste 11, rest605 6, modellimfesten 1); spulen 12 OK, 1 FEHLER unter Last, allein grün (unten) |
+| Kartenprüfung (278 MD-Karten, gegen kp606) | alle 17 Summen gleich (0 Abstürze, 0 nicht geladen, 0 GPU-/D3D-/Protokollfehler, 1 → 1 nicht gezeichnete Entity, 2 → 2 NPC ohne Modell, 27/29/139/5 fehlende efx/Klänge/Texturen/Modelle) |
+
+### Wiederholungen allein (dieselbe exe, je ein Prozess)
+
+Während der Schlussrunde bauten und testeten andere Agenten (MSBuild, ein VIS-Lauf, fremde jkstudio);
+die drei Prüfungen zählen Bilder bzw. messen Bildabstände.
+
+| Prüfung | im Gesamtlauf | allein |
+|---|---|---|
+| karteneditor Stufe 3: „Bauen fertig“ (−light ohne .bsp, 1200 Bilder) und die Folgeprüfung „ERROR rot, exit 1“ | ERROR kam, der Prozess war nach 1200 Bildern (7,2 s) noch nicht zu Ende | `BHED_KARTE_NUR=stufe3` **222 OK, 0 FEHLER**, fertig nach 350 Bildern (rc606: 362) |
+| karteneditor Stufe 7: große Karte p99 < 50 ms | Mittel 27,58 ms, p99 66,37 ms | `BHED_KARTE_NUR=stufe7` **76 OK, 0 FEHLER**, Mittel 11,51 ms, p99 20,64 ms (9d: 10,1 / 17,2) |
+| spulen: end_jedi zurück so flüssig wie vor | Einzelbilder 1,3–3,1 s, alle gemessenen Teile zusammen < 1 ms (Ansicht 0,5 ms) | **13 OK, 0 FEHLER**, zurück Mittel 4,7 ms, 95 % 7,4 ms |
+
+Nach den Bildern und dem Kommentar: Bau 0 Warnungen, ctest 164/164.
+
+### Gegen das Vorbild geprüft / nicht geprüft
+
+Die Integration bringt kein neues Verhalten; gegen Spiel und Werkzeug prüfen die Selbsttests der drei
+Zweige (siehe deren Notizen: q3map2/NRC bei 9d, OpenJK/ICARUS bei mission1, Engine-Menüs bei M2), alle
+hier auf dem Endstand grün. Die Kartenprüfung ist gegen kp606 gleich. Nicht geprüft: Tempo auf ruhiger
+Maschine (alle Zeiten unter Last bzw. allein, während andere Agenten liefen).
+
+### Offen
+
+- Die Tour „Ein Menü ändern“ sagt in Schritt 5 „{{MeExportPk3}} schreibt das geänderte Menü in eine .pk3“;
+  seit M2 öffnet der Knopf eine Auswahl (alles / nur Änderungen). Der Satz stimmt weiter, nennt die
+  Auswahl aber nicht – bei Gelegenheit in `inhalt_hilfe2.py`/`inhalt_touren.py` ergänzen (4 Sprachen).
+- Die drei lastempfindlichen Prüfungen (oben) sind unverändert; mit vielen parallelen Bauten können sie
+  im Gesamtlauf rot werden.

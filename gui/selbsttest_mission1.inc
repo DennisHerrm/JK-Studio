@@ -12,6 +12,8 @@
 //      Schluessel, Ort und Drehung des Anfangs bleiben.
 // Daten: das reine JKA (BHED_JKA_BASIS, sonst der Steam-Ordner
 // "GameData original/base") und die eingerichteten Spielordner (Movie Duels).
+// Die Pruefungen zu 2 lesen die Fotos: BHED_FOTOS muss auf einen Ordner zeigen
+// (ohne sind alle Werte -1 und die vier Gizmo-Pruefungen je Durchgang rot).
 namespace mission1 {
 
 struct Zustand {
