@@ -313,6 +313,58 @@ std::vector<Schritt> kamera() {
     return s;
 }
 
+// Tour "Ein Figurenmodell ansehen" (k-modell): Modus Model, NPC-Browser, Drehteller, Skelett.
+std::vector<Schritt> modell() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto fertig = [&](int n) {
+        add(warteBis("H1 Modell: Schritt " + std::to_string(n) + " hat sich selbst erledigt", [n] {
+            const TourSicht t = tourSicht();
+            return t.id == "k-modell" && (t.fertig || t.schritt >= n);
+        }, 900));
+        add(pause(0.2));
+    };
+    add(tu("H1 Modell: Modus Events, Tour k-modell starten", [] {
+        g_app->leftMode = 0;
+        (void)tourStarten("k-modell", 0);
+    }));
+    add(pause(0.4));
+    add(pruefe("H1 Modell: Tour laeuft (4 Schritte), der Knopf Model ist hervorgehoben", [] {
+        const TourSicht t = tourSicht();
+        return t.aktiv && t.id == "k-modell" && t.anzahl == 4 && !t.ziele.empty();
+    }));
+    add(klick(tr(Str::ViewModel), "###main"));
+    fertig(1);
+    add(klick(tr(Str::NpcBrowser)));
+    // Die erste Figur der Liste (welche es gibt, haengt vom Spiel ab: JKA, Movie Duels ...).
+    const auto ersteFigur = [] {
+        for (const elemente::Element& e : elemente::alle()) {
+            if (!e.label.empty() && e.innen.find("##npcliste") != std::string::npos && e.rect.GetHeight() > 1.0F) { return e.rect.GetCenter(); }
+        }
+        return ImVec2{-1.0F, -1.0F};
+    };
+    add(warteBis("H1 Modell: NPC-Browser offen, Figuren gelistet", [ersteFigur] { return ersteFigur().x >= 0.0F; }, 600));
+    add(klickAn("H1 Modell: die erste Figur anklicken", ersteFigur));
+    fertig(2);
+    add(pruefe("H1 Modell: eine Figur geladen", [] {
+        diag::detail("Knopftest: H1 Modell - geladen: " + g_app->npcGeladen);
+        return !g_app->npcGeladen.empty() && !g_app->model.empty();
+    }));
+    add(tu("H1 Modell: NPC-Browser zu", [] { g_app->npcBrowserOffen = false; }));
+    add(klick(tr(Str::ModelTurntable)));
+    fertig(3);
+    add(klick(tr(Str::ModelTurntable)));
+    add(klick(tr(Str::ModelBones)));
+    fertig(4);
+    add(pruefe("H1 Modell: Tour ganz durch, Skelett an", [] { return tourSicht().fertig && g_app->modellKnochen; }));
+    add(tu("H1 Modell: aufraeumen", [] {
+        tourSchliessen();
+        g_app->modellKnochen = false;
+        g_app->leftMode = 0;
+    }));
+    return s;
+}
+
 // Die Bilder der Handbuchseite "Der Helfer und die Touren" (BHED_EDITORTEST=handbuch,
 // BHED_HB_NUR=helfer, BHED_SPRACHE, BHED_FOTOS).
 std::vector<Schritt> handbuchFotos() {
@@ -385,6 +437,7 @@ std::vector<Schritt> schritte() {
     for (Schritt& x : tour()) { s.push_back(std::move(x)); }
     for (Schritt& x : ki()) { s.push_back(std::move(x)); }
     for (Schritt& x : kamera()) { s.push_back(std::move(x)); }
+    for (Schritt& x : modell()) { s.push_back(std::move(x)); }
     return s;
 }
 

@@ -569,6 +569,7 @@ Index baue(const tour::Touren& touren, const std::vector<tour::Abschnitt>& handb
     for (const tour::Tour& t : touren.liste) {
         const std::string bereich = t.id.rfind("tut-karte", 0) == 0                       ? "karte"
                                     : (t.gruppe == "tut_kamera" || t.gruppe == "tut_figur") ? "vorschau"
+                                    : (t.id == "k-modell" || t.id == "k-skins")            ? "modell"
                                                                                               : "skript";
         Eintrag e;
         e.art = Art::Tour;

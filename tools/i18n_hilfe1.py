@@ -120,6 +120,17 @@ HILFE1 = [
     ("McpRunning", "Listening on 127.0.0.1:%d", "Wartet auf 127.0.0.1:%d", "正在监听 127.0.0.1:%d", "127.0.0.1:%d で待機中"),
     ("McpFailed", "Could not open the local connection: %s", "Lokale Verbindung ging nicht auf: %s", "无法打开本地连接:%s", "ローカル接続を開けませんでした:%s"),
     ("KiSafety", "Is this safe?", "Ist das sicher?", "这安全吗?", "安全ですか?"),
+    # Die Befehle in der Rueckfrage - verstaendlich statt "script:befehl:wait"
+    ("KiCmdMap", "Map editor: %s", "Karten-Editor: %s", "地图编辑器:%s", "マップエディター:%s"),
+    ("KiCmdNewTab", "Open a new script tab", "Einen neuen Skript-Reiter öffnen", "打开一个新的脚本标签页", "新しいスクリプト タブを開く"),
+    ("KiCmdInsert", "Insert the command %s into the script", "Den Befehl %s ins Skript einfügen", "在脚本中插入命令 %s", "スクリプトにコマンド %s を挿入"),
+    ("KiCmdValue", "Set field %d of %s to \"%s\"", "Feld %d von %s auf „%s“ setzen", "将第 %d 个字段(%s)设为“%s”", "フィールド %d(%s)を「%s」にする"),
+    ("KiCmdSelect", "Select a line of the script (%s)", "Eine Zeile des Skripts wählen (%s)", "选择脚本中的一行(%s)", "スクリプトの行を選ぶ(%s)"),
+    ("KiCmdEditor", "Open the event editor", "Den Ereigniseditor öffnen", "打开事件编辑器", "イベント エディターを開く"),
+    ("KiCmdEditorClose", "Close the event editor", "Den Ereigniseditor schließen", "关闭事件编辑器", "イベント エディターを閉じる"),
+    ("KiCmdMode", "Switch to %s", "Zu %s wechseln", "切换到 %s", "%s に切り替える"),
+    ("KiCmdView", "Script view: %s", "Skriptansicht: %s", "脚本视图:%s", "スクリプト表示:%s"),
+    ("KiCmdFile", "touches files - always asks", "berührt Dateien - fragt immer", "涉及文件——始终会询问", "ファイルに関わる - 必ず確認"),
     # --- Punkt 4: Erklaerungen, die fehlten -------------------------------------------------------
     ("HelpAboutHint", "Name, version and the three parts of JK Studio.", "Name, Fassung und die drei Teile von JK Studio.",
      "名称、版本以及 JK Studio 的三个部分。", "名前、バージョン、JK Studio の 3 つの部分。"),

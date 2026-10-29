@@ -27,6 +27,9 @@
 //   vorschau.ohnekamera      1 in der Vorschau, wenn das Skript keinen camera-Befehl hat
 //   vorschau.nichtgewaehlt   1 in der Vorschau, wenn es Kameras gibt, aber keine gewaehlt ist
 //   vorschau.einstellungen   Kameraeinstellungen im Skript (ein einzelner camera-Befehl ist noch keine)
+//   modell.figur         Pruefsumme von Modell und NPC im Modell-Reiter ("~" = andere Figur)
+//   modell.blick         Pruefsumme des Blicks auf das Modell (und Drehteller)
+//   modell.details       Skin, Skelett, Texturen ("~" = eins davon umgeschaltet)
 //
 // Die Dateizeiten liest es hoechstens zweimal je Sekunde; alles andere nur,
 // wenn der laufende Schritt einen karte.-Wert braucht (tourMesswerte, Argument).
@@ -167,6 +170,15 @@ void tourMesswerte(std::map<std::string, double>& werte, bool karte, double jetz
     werte["vorschau.ohnekamera"] = (g_app->leftMode == 1 && kameras == 0) ? 1.0 : 0.0;
     werte["vorschau.nichtgewaehlt"] = (g_app->leftMode == 1 && kameras > 0 && !kameraGewaehlt) ? 1.0 : 0.0;
     // Kameraeinstellungen (MOVE+PAN-Paare) - nur in der Vorschau gerechnet.
+    // Die Modellansicht (Modus 2): welche Figur, Blick, Details.
+    werte["modell.figur"] = static_cast<double>(fnv(fnv(2166136261U, g_app->modelPath), g_app->npcGeladen));
+    double mblick = g_app->modellDrehteller ? 1.0 : 0.0;
+    for (int i = 0; i < 3; ++i) {
+        mblick = mblick * 1000.0 + std::floor(static_cast<double>(g_app->modelCam.pos[i]));
+        mblick = mblick * 1000.0 + std::floor(static_cast<double>(g_app->modelCam.angles[i]));
+    }
+    werte["modell.blick"] = mblick;
+    werte["modell.details"] = g_app->modelSkinIndex * 4.0 + (g_app->modellKnochen ? 2.0 : 0.0) + (g_app->showModelTextures ? 1.0 : 0.0);
     werte["vorschau.einstellungen"] = g_app->leftMode == 1 ? static_cast<double>(kameraSchluessel(g_app->doc.script()).size()) : 0.0;
     if (karte) { karteMesswerte(werte, jetzt); }
 }

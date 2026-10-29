@@ -646,6 +646,61 @@
      }
     ]
    }
+  },
+  {
+   "id": "k-modell",
+   "gruppe": "tut_mission",
+   "titel": "Ein Figurenmodell ansehen",
+   "kurz": "Jede Figur des Spiels laden, drehen, ihre Skins und ihr Skelett ansehen.",
+   "seite": "k-modell.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Wechsle zu {{ViewModel}}** in der Modusleiste links.",
+      "bild": "m_modus",
+      "unter": "Modell in der Modusleiste.",
+      "ziel": "knopf:ViewModel@modebar",
+      "fertig": "modus:2",
+      "voraus": "",
+      "einrichten": "modus:2",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Figur wählen.** **{{NpcBrowser}}** listet jede Figur des Spiels - tippen zum Suchen, klicken zum Laden mit ihrem Skin.",
+      "bild": "m_npc",
+      "unter": "Der NPC-Browser.",
+      "ziel": "knopf:NpcBrowser",
+      "fertig": "zahl:modell.figur~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Umsehen.** Die linke Maustaste dreht, die mittlere verschiebt, das Mausrad zoomt. **{{ModelTurntable}}** dreht die Figur von selbst, **{{ModelResetView}}** holt sie wieder nach vorn.",
+      "bild": "h_modell",
+      "unter": "Die Modellansicht.",
+      "ziel": "knopf:ModelTurntable;knopf:ModelResetView",
+      "fertig": "zahl:modell.blick~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Details.** **{{ModelSkin}}** wechselt die Skins, **{{ModelBones}}** zeigt das Skelett, **{{ModelTextures}}** schaltet die Texturen ab.",
+      "bild": "m_details",
+      "unter": "Haut, Knochen und Texturen.",
+      "ziel": "knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures",
+      "fertig": "zahl:modell.details~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }

@@ -18,6 +18,7 @@
 #include "bhed/hilfe.h"
 #include "bhed/karte/befehle.h"
 #include "bhed/ki.h"
+#include "bhed/tour.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -34,6 +35,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <algorithm>
 #include <cwchar>
 #include <deque>
 #include <filesystem>
@@ -454,6 +456,56 @@ void trennen() {
     protokolliere("-", "disconnect", "AI disconnected by the user");
 }
 
+// Ein Befehl in Worten fuer die Rueckfrage ("Karten-Editor: Hohl machen"
+// statt "map:CSGroom").
+std::string befehlText(const ki::Befehl& b) {
+    char t[400] = "";
+    if (b.art == "map") {
+        std::string name = b.wert;
+        for (const karte::befehle::MenueEintrag& m : karte::befehle::menues()) {
+            if (m.str != i18n::Str::Count && b.wert == m.befehl) {
+                name.clear();
+                for (const char c : std::string(ke::trK(m.str))) {
+                    if (c != '&') { name += c; }
+                }
+                break;
+            }
+        }
+        std::snprintf(t, sizeof(t), tr(Str::KiCmdMap), name.c_str());
+    } else if (b.art == "script") {
+        std::vector<tour::Aktion> as;
+        if (tour::parseAktionen(b.wert, as, nullptr) && as.size() == 1) {
+            const tour::Aktion& a = as[0];
+            if (a.name == "neuerReiter") {
+                std::snprintf(t, sizeof(t), "%s", tr(Str::KiCmdNewTab));
+            } else if (a.name == "befehl") {
+                std::snprintf(t, sizeof(t), tr(Str::KiCmdInsert), a.arg.c_str());
+            } else if (a.name == "wert") {
+                const std::size_t raute = a.arg.find('#');
+                const std::size_t dp = a.arg.find(':', raute == std::string::npos ? 0 : raute);
+                const std::size_t gl = a.arg.find('=', dp == std::string::npos ? 0 : dp);
+                if (raute != std::string::npos && dp != std::string::npos && gl != std::string::npos) {
+                    std::snprintf(t, sizeof(t), tr(Str::KiCmdValue), std::atoi(a.arg.substr(dp + 1, gl - dp - 1).c_str()) + 1,
+                                  a.arg.substr(0, raute).c_str(), a.arg.substr(gl + 1).c_str());
+                }
+            } else if (a.name == "waehle") {
+                std::snprintf(t, sizeof(t), tr(Str::KiCmdSelect), a.arg.c_str());
+            } else if (a.name == "editor") {
+                std::snprintf(t, sizeof(t), "%s", tr(Str::KiCmdEditor));
+            } else if (a.name == "editorzu") {
+                std::snprintf(t, sizeof(t), "%s", tr(Str::KiCmdEditorClose));
+            }
+        }
+    } else if (b.art == "mode") {
+        static const Str modi[] = {Str::ViewEvents, Str::ViewMap, Str::ViewModel, Str::ViewMapEditor};
+        std::snprintf(t, sizeof(t), tr(Str::KiCmdMode), tr(modi[(b.wert[0] - '0') & 3]));
+    } else if (b.art == "view") {
+        static const Str ansichten[] = {Str::FlowClassic, Str::FlowGraph, Str::FlowTracks};
+        std::snprintf(t, sizeof(t), tr(Str::KiCmdView), tr(ansichten[std::min(2, b.wert[0] - '0')]));
+    }
+    return t[0] != 0 ? std::string(t) : b.art + ":" + b.wert;
+}
+
 void frageZeichnen() {
     Zustand& s = z();
     while (!s.fragen.empty() && s.fragen.front()->verlassen) {
@@ -475,11 +527,13 @@ void frageZeichnen() {
         ImGui::TextColored(ImVec4{0.6F, 0.8F, 1.0F, 1.0F}, "\"%s\"", a->zusammenfassung.c_str());
         ImGui::PopTextWrapPos();
         for (const ki::Befehl& b : a->befehle) {
+            const std::string text = befehlText(b);
             if (b.datei) {
-                ImGui::TextColored(ImVec4{1.0F, 0.6F, 0.2F, 1.0F}, "! %s:%s", b.art.c_str(), b.wert.c_str());
+                ImGui::TextColored(ImVec4{1.0F, 0.6F, 0.2F, 1.0F}, "! %s  (%s)", text.c_str(), tr(Str::KiCmdFile));
             } else {
-                ImGui::BulletText("%s:%s", b.art.c_str(), b.wert.c_str());
+                ImGui::BulletText("%s", text.c_str());
             }
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s:%s", b.art.c_str(), b.wert.c_str()); }
         }
         if (ImGui::Button(tr(Str::KiRun))) {
             erledige(a, befehleAusfuehren(*a));

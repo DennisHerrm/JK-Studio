@@ -140,6 +140,7 @@ const ZielRoh kZiele[] = {
     // --- Modelle -----------------------------------------------------------------------
     {"ort:menue:MenuFile>OpenGlm", "modell", "modell oeffnen glm laden open a model load glm 打开模型 モデルを開く"},
     {"ort:knopf:ViewModel@modebar", "modell", "modell ansehen modellansicht view a model 查看模型 モデルを見る"},
+    {"tour:k-modell", "modell", "figurenmodell ansehen figur anschauen look at a character model view a character 查看角色模型 キャラクターのモデルを見る"},
     {"seite:k-skins.html", "modell", "skin wechseln skin aendern change skin 更换皮肤 スキンを変える"},
     {"seite:k-modell.html", "modell", "modell in der karte zeigen model in the map 模型 モデル"},
     // --- Einstellungen, Updates, Hilfe ------------------------------------------------------

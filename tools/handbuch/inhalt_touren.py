@@ -46,7 +46,9 @@ TOUREN = ["k-neues-skript", "k-befehl-einfuegen", "k-werte-bearbeiten", "k-zeile
           # H1: die erste Karte im Karten-Editor (inhalt_karte8c.py)
           "tut-karte",
           # H1: eine Kameraeinstellung fuer die Zwischensequenz (inhalt_kurz.py)
-          "k-kamera-ansicht"]
+          "k-kamera-ansicht",
+          # H1: ein Figurenmodell ansehen (inhalt_kurz.py)
+          "k-modell"]
 ANSICHTEN = ["classic"]
 
 # Die Ereignisliste gibt es nur im Modus Events - sonst zeigt die Tour auf
@@ -192,6 +194,15 @@ NACH_SCHRITT.update({
     ("k-kamera-ansicht", "classic", 2): A("knopf:CamNewShot", "zahl:vorschau.einstellungen+", voraus=VORSCHAU, falsch=[_OHNE_KARTE, _OHNE_KAMERA, _KAMERA_WAEHLEN]),
     ("k-kamera-ansicht", "classic", 3): A("knopf:CamSetToView", "aenderung+", voraus=VORSCHAU, falsch=[_KAMERA_WAEHLEN]),
     ("k-kamera-ansicht", "classic", 4): A("knopf:MapThroughCam", "zahl:vorschau.durchkamera", voraus=VORSCHAU),
+})
+
+# --- H1: k-modell - ein Figurenmodell ansehen -----------------------------------
+MODELL = "modus:2 < knopf:ViewModel@modebar"
+NACH_SCHRITT.update({
+    ("k-modell", "classic", 1): A("knopf:ViewModel@modebar", "modus:2", einrichten="modus:2", sicher=True),
+    ("k-modell", "classic", 2): A("knopf:NpcBrowser", "zahl:modell.figur~", voraus=MODELL),
+    ("k-modell", "classic", 3): A("knopf:ModelTurntable;knopf:ModelResetView", "zahl:modell.blick~", voraus=MODELL),
+    ("k-modell", "classic", 4): A("knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures", "zahl:modell.details~", voraus=MODELL),
 })
 
 def angaben(seite, ansicht, nr, bild):

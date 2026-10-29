@@ -646,6 +646,61 @@
      }
     ]
    }
+  },
+  {
+   "id": "k-modell",
+   "gruppe": "tut_mission",
+   "titel": "キャラクターモデルを見る",
+   "kurz": "ゲームの好きなキャラクターを読み込み、回し、スキンと骨格を見ます。",
+   "seite": "k-modell.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**左のモードバーで {{ViewModel}} に切り替えます。**",
+      "bild": "m_modus",
+      "unter": "モードバーの「モデル」。",
+      "ziel": "knopf:ViewModel@modebar",
+      "fertig": "modus:2",
+      "voraus": "",
+      "einrichten": "modus:2",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**キャラクターを選ぶ。** **{{NpcBrowser}}** にゲームのすべてのキャラクターが並びます。入力で検索し、クリックするとスキン付きで読み込まれます。",
+      "bild": "m_npc",
+      "unter": "NPC ブラウザー。",
+      "ziel": "knopf:NpcBrowser",
+      "fertig": "zahl:modell.figur~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**見回す。** 左ボタンで回転、中ボタンで移動、ホイールでズーム。**{{ModelTurntable}}** で自動的に回り、**{{ModelResetView}}** で正面に戻ります。",
+      "bild": "h_modell",
+      "unter": "モデル表示。",
+      "ziel": "knopf:ModelTurntable;knopf:ModelResetView",
+      "fertig": "zahl:modell.blick~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**詳細。** **{{ModelSkin}}** でスキンを切り替え、**{{ModelBones}}** で骨格を表示し、**{{ModelTextures}}** でテクスチャをオフにします。",
+      "bild": "m_details",
+      "unter": "スキン、ボーン、テクスチャ。",
+      "ziel": "knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures",
+      "fertig": "zahl:modell.details~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }

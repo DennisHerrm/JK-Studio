@@ -646,6 +646,61 @@
      }
     ]
    }
+  },
+  {
+   "id": "k-modell",
+   "gruppe": "tut_mission",
+   "titel": "查看角色模型",
+   "kurz": "加载游戏中的任意角色,旋转它,查看它的皮肤和骨骼。",
+   "seite": "k-modell.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**切换到左侧模式栏中的 {{ViewModel}}。**",
+      "bild": "m_modus",
+      "unter": "模式栏中的“模型”。",
+      "ziel": "knopf:ViewModel@modebar",
+      "fertig": "modus:2",
+      "voraus": "",
+      "einrichten": "modus:2",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**选择角色。** **{{NpcBrowser}}** 列出游戏中的所有角色——输入即可搜索,单击即可连同皮肤一起加载。",
+      "bild": "m_npc",
+      "unter": "NPC 浏览器。",
+      "ziel": "knopf:NpcBrowser",
+      "fertig": "zahl:modell.figur~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**四处查看。** 鼠标左键旋转,中键平移,滚轮缩放。**{{ModelTurntable}}** 让它自动旋转,**{{ModelResetView}}** 把它转回正面。",
+      "bild": "h_modell",
+      "unter": "模型视图。",
+      "ziel": "knopf:ModelTurntable;knopf:ModelResetView",
+      "fertig": "zahl:modell.blick~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**细节。** **{{ModelSkin}}** 切换皮肤,**{{ModelBones}}** 显示骨骼,**{{ModelTextures}}** 关闭纹理。",
+      "bild": "m_details",
+      "unter": "皮肤、骨骼和纹理。",
+      "ziel": "knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures",
+      "fertig": "zahl:modell.details~",
+      "voraus": "modus:2 < knopf:ViewModel@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }
