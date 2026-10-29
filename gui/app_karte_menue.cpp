@@ -711,8 +711,10 @@ void listeZeichnen(const std::string& name) {
         p.taste = "F1";
         if (qtPunkt(p)) { (void)ausfuehren("OpenManual"); }
         // H1: der Helfer ("Was willst du tun?") - im Hauptprogramm F1, hier
-        // bleibt F1 NetRadiants OpenManual (Abweichung: nicht in NRC).
-        const std::string hid = std::string(tr(Str::HlfMenu)) + "###proghelfer";
+        // bleibt F1 NetRadiants OpenManual (Abweichung: nicht in NRC). Wie
+        // Manual und About folgt er "Begriffe wie NetRadiant" (trK): sonst stand
+        // er als einzige Zeile des Menues in der Programmsprache.
+        const std::string hid = std::string(trK(Str::HlfMenu)) + "###proghelfer";
         QtPunkt h;
         h.id = hid.c_str();
         if (qtPunkt(h)) { hilfeOeffnen(); }
