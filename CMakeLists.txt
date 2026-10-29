@@ -412,6 +412,9 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_regelwerk.cpp
     # Menue-Editor M1: der Arbeitsbereich Menu Editor (.menu als Text und Vorschau)
     gui/app_menue.cpp
+    # M2 Punkt 2: Videos ueber Media Foundation lesen (fuer den RoQ-Import)
+    gui/videoimport_win32.cpp
+    gui/schrift_ttf.cpp
     # Stufe 1b: der Arbeitsbereich Karten-Editor (NetRadiant-Custom)
     gui/app_karte.cpp
     gui/app_karte_befehle.cpp
@@ -543,6 +546,10 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
   endif()
 
   if(MSVC)
+    # Menue-Editor M2: Media Foundation (Video-Import) fehlt in Windows N - verzoegert
+    # binden, gui/videoimport_win32.cpp prueft vor dem ersten Aufruf.
+    target_link_options(behaved PRIVATE /DELAYLOAD:mfplat.dll /DELAYLOAD:mfreadwrite.dll)
+    target_link_libraries(behaved PRIVATE delayimp)
     target_link_options(behaved PRIVATE /ENTRY:wWinMainCRTStartup)
   else()
     target_link_options(behaved PRIVATE -municode)
@@ -1098,7 +1105,24 @@ target_sources(bhed_core PRIVATE
   # Punkt 6: Bedienung wie im Spiel (Skripte, Fokus, Cvars nur in der Vorschau)
   src/menue/skript.cpp
   # Punkt 4: Werkzeuge der Arbeitsflaeche (Einrasten, Ausrichten, Items ueber Spannen)
-  src/menue/werkzeuge.cpp)
+  src/menue/werkzeuge.cpp
+  # M2 Punkt 2: RoQ abspielen (cl_cin.cpp) und schreiben, GIF-Import
+  src/menue/roq.cpp
+  src/menue/roq_kodierer.cpp
+  src/menue/roq_import.cpp
+  # M2 Punkt 1: Listbox-Feeder aus den Spieldaten (UI_FeederItemText)
+  src/menue/feeder.cpp
+  # M2 Punkt 1: ITEM_TYPE_MODEL (Item_Model_Paint) mit der Figurendarstellung
+  src/menue/modell.cpp
+  # M2 Punkt 3/4: Detailbereich in drei Ebenen, Bauteil-Bibliothek
+  src/menue/bauteile.cpp
+  # M2 Punkt 7: Pruefungen vor dem Export (Grenzen, nie sichtbar, Dateien, Vertraeglichkeit)
+  src/menue/pruefung.cpp
+  # M2: Live-Diagnose (Klammern, Schluessel, Ziele, Cvars, dazu die Pruefungen)
+  src/menue/diagnose.cpp
+  # M2 Punkt 8/9: Im Spiel testen, Schrift aus TTF bauen
+  src/menue/imspiel.cpp
+  src/menue/schriftbau.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -1165,6 +1189,28 @@ if(BEHAVED_TESTS)
   add_executable(menuewerkzeug tests/menuewerkzeug.cpp)
   target_link_libraries(menuewerkzeug PRIVATE bhed_core)
   add_test(NAME menue_werkzeug COMMAND menuewerkzeug)
+  # M2 Punkt 2: RoQ-Kodierer und -Spieler im Rundlauf (mit Spielordnern auch ein Original-Video)
+  # M2 Punkt 7: Pruefungen vor dem Export
+  add_executable(menuepruefung tests/menuepruefung.cpp)
+  target_link_libraries(menuepruefung PRIVATE bhed_core)
+  add_test(NAME menue_pruefung COMMAND menuepruefung)
+  add_executable(menuediagnose tests/menuediagnose.cpp)
+  target_link_libraries(menuediagnose PRIVATE bhed_core)
+  add_test(NAME menue_diagnose COMMAND menuediagnose)
+  # M2: zufaellige, selbst gebaute Menues (Lesen, Vorschau, Diagnose, Korrekturen)
+  add_executable(menuezufall tests/menuezufall.cpp)
+  target_link_libraries(menuezufall PRIVATE bhed_core)
+  add_test(NAME menue_zufall COMMAND menuezufall)
+  # M2 Punkt 8/9: Befehlszeile fuer den Test im Spiel, Schrift im Rundlauf
+  add_executable(menuepaket tests/menuepaket.cpp)
+  target_link_libraries(menuepaket PRIVATE bhed_core)
+  add_test(NAME menue_paket COMMAND menuepaket)
+  add_executable(menuebauteile tests/menuebauteile.cpp)
+  target_link_libraries(menuebauteile PRIVATE bhed_core)
+  add_test(NAME menue_bauteile COMMAND menuebauteile)
+  add_executable(menueroq tests/menueroq.cpp)
+  target_link_libraries(menueroq PRIVATE bhed_core)
+  add_test(NAME menue_roq COMMAND menueroq ${BEHAVED_KARTE_MD})
   add_executable(menuerundlauf tests/menuerundlauf.cpp)
   target_link_libraries(menuerundlauf PRIVATE bhed_core)
   add_test(NAME menue_rundlauf COMMAND menuerundlauf "${BEHAVED_KARTE_JA}" "${BEHAVED_KARTE_JK2}" ${BEHAVED_KARTE_MD})

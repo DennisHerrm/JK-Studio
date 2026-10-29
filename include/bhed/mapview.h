@@ -831,6 +831,9 @@ struct BatchState {
 // rc605 Selbsttest: true zeichnet tcGen vector wie die Datei-Texturkoordinate
 // (der alte Stand) - fuer den Vergleich mit/ohne.
 void tcGenVektorAus(bool aus);
+// R_BindAnimatedImage: welches der n Bilder einer animMap zur Zeit gilt
+// (Menue-Editor M2 benutzt dieselbe Rechnung fuer die Menue-Shader).
+[[nodiscard]] std::size_t animBildIndex(float zeitSekunden, float freq, std::size_t n, bool einmal);
 [[nodiscard]] BatchState batchStateFor(const TextureSet::Tex& t,
                                        float zeitSekunden);
 

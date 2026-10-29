@@ -82,6 +82,14 @@ struct Prim {
     int item = -1;        // Index im Menue (-1 = das Menue selbst)
 };
 
+// Eine Zeile einer Listbox: DC->feederItemText je Spalte, DC->feederItemImage
+// und die optionalen Bilder je Spalte (SP optionalImage, MP optionalImage1).
+struct FeederEintrag {
+    std::vector<std::string> spalten;
+    std::string bild;
+    std::vector<std::string> spaltenBild;
+};
+
 // Laufzeitstand eines Items (die Skripte aendern ihn: show/hide/setfocus ...).
 struct ItemZustand {
     int flags = 0;        // windowDef_t.flags
@@ -97,8 +105,10 @@ struct Umgebung {
     std::function<const Schrift*(int font)> schrift;
     // DC->ownerDrawVisible; ohne: sichtbar
     std::function<bool(int flags)> ownerDrawSichtbar;
-    // Feeder: Zeilen fuer eine Listbox (ohne: Platzhalterzeilen)
-    std::function<std::vector<std::string>(float feeder)> feederZeilen;
+    // Feeder: die Zeilen einer Listbox (DC->feederCount/feederItemText/feederItemImage);
+    // ohne: beschrifteter Platzhalter
+    std::function<std::vector<FeederEintrag>(float feeder)> feeder;
+    int listCursor = 0;                   // item->cursorPos
     int zeitMs = 0;                       // DC->realTime
     std::vector<ItemZustand> zustand;     // je Item (leer = gelesene Flags)
     bool erzwingen = true;                // forcePaint: auch unsichtbare Menues
@@ -119,11 +129,28 @@ void zeichneMenu(const Datei& d, int menu, const Umgebung& u, std::vector<Prim>&
 // Item_Slider_ThumbPosition
 [[nodiscard]] float sliderDaumen(const Item& it, const Umgebung& u);
 
-// Welche Schrift hinter einer Nummer steckt (Namen aus assetGlobalDef):
+// Welche Schrift hinter einer Nummer steckt (Namen aus assetGlobalDef und
+// den menuDef-Schriften der Datei), Index = item->font bzw. iMenuFont:
 //   MP: MenuFontToHandle - 1 smallFont, 2 font, 3 bigFont, 4 small2Font, sonst font.
-//   SP: item->font ist der Renderer-Griff - die Schriften in der Reihenfolge,
-//       in der Asset_Parse sie anmeldet (0 = mediumFont).
-[[nodiscard]] std::vector<std::string> schriftNamen(const Datei& assets, Dialekt d);
+//   SP: wie UI_RegisterFont/RE_RegisterFont anmelden (fehlende Schrift belegt
+//       einen Griff, dann "ergoec"); 0 = qhMediumFont. OpenJK (JA, JK2):
+//       Nummer n = registeredFonts[n-1] (UI_MenuFontToReal); Movie Duels:
+//       Nummer = Renderer-Griff. "" = zeichnet nichts.
+// gibt: gibt es fonts/<name>.fontdat? (leer = alle vorhanden, keine _sharp-Varianten)
+using GibtSchrift = std::function<bool(const std::string& name)>;
+[[nodiscard]] std::vector<std::string> schriftNamen(const Datei& assets, Dialekt d, Spiel spiel = Spiel::JA,
+                                                    const GibtSchrift& gibt = {});
+// Dasselbe ueber alle Dateien eines Menuesatzes in Ladereihenfolge (UI_LoadMenus).
+[[nodiscard]] std::vector<std::string> schriftNamen(const std::vector<const Datei*>& satz, Dialekt d, Spiel spiel,
+                                                    const GibtSchrift& gibt);
+
+// Item_Multi_Setting: der Text einer Mehrfachwahl zum Cvar-Wert (mit cvarStrList feeder
+// wie ItemParse_cvarStrList: FEEDER_PLAYER_SPECIES -> "@MENUS_<NAME>").
+[[nodiscard]] std::string multiText(const Item& it, const Umgebung& u);
+
+// Was die Engine beim Start selbst an Cvars anlegt, die Menues lesen (SP: ui_char_*
+// aus g_char_* von UI_Init) - fuer die Vorschau, solange niemand sie setzt. "" = keine.
+[[nodiscard]] std::string spielCvarVorgabe(Dialekt d, Spiel s, const std::string& name);
 
 // Abbildung des virtuellen Bildschirms auf ein Fenster.
 enum class Seitenverhaeltnis {

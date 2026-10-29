@@ -173,6 +173,11 @@ void Laufzeit::start(const Datei& datei) {
     texte.clear();
     vorder.clear();
     vorderGesetzt.clear();
+    anim.clear();
+    modellPfad.clear();
+    modellHaut.clear();
+    modellAnim.clear();
+    letzterTakt = -1;
     hintergrund.assign(datei.menus.size(), std::string());
     for (const Menu& m : datei.menus) {
         std::vector<ItemZustand> z;
@@ -186,6 +191,15 @@ void Laufzeit::start(const Datei& datei) {
         texte.emplace_back(m.items.size());
         vorder.emplace_back(m.items.size());
         vorderGesetzt.emplace_back(m.items.size(), false);
+        modellPfad.emplace_back(m.items.size());
+        modellHaut.emplace_back(m.items.size());
+        modellAnim.emplace_back(m.items.size());
+        std::vector<ItemAnimation> a(m.items.size());
+        for (std::size_t i = 0; i < m.items.size(); ++i) {
+            a[i].client = m.items[i].window.rectClient;
+            a[i].alpha = m.items[i].window.foreColor.a;
+        }
+        anim.push_back(a);
     }
     for (std::size_t i = 0; i < datei.menus.size(); ++i) { menuFlags[i] = datei.menus[i].window.flags; }
     stapel.clear();
@@ -202,7 +216,9 @@ int Laufzeit::finde(const std::string& name) const {
 
 std::string Laufzeit::cvar(const std::string& n) const {
     const auto it = cvars.find(klein(n));
-    return it == cvars.end() ? std::string() : it->second;
+    if (it != cvars.end()) { return it->second; }
+    if (basis.cvar) { return basis.cvar(n); }   // die Werte des Editors (Vorschau-Cvars, sonst die Vorgaben der Engine)
+    return d != nullptr ? spielCvarVorgabe(d->dialekt, d->spiel, n) : std::string();   // was die Engine selbst anlegt
 }
 
 void Laufzeit::setzeCvar(const std::string& n, const std::string& w) {
@@ -214,6 +230,7 @@ void Laufzeit::oeffne(const std::string& name) {   // Menus_ActivateByName + Men
     const int m = finde(name);
     if (m < 0) {
         protokoll.push_back("open " + name + ": kein menuDef mit diesem Namen in dieser Datei");
+        fremdesMenue = name;   // Menus_ActivateByName sucht in allen geladenen Menues (menus.txt)
         return;
     }
     int fokus = -1;
@@ -226,6 +243,8 @@ void Laufzeit::oeffne(const std::string& name) {   // Menus_ActivateByName + Men
         menuFlags[static_cast<std::size_t>(fokus)] &= ~WINDOW_HASFOCUS;
     }
     ++version;
+    // Menus_Activate: soundLoop -> DC->startBackgroundTrack(soundName, soundName)
+    if (!d->menus[static_cast<std::size_t>(m)].soundName.empty()) { klaenge.push_back("musik:" + d->menus[static_cast<std::size_t>(m)].soundName); }
     fuehreAus(m, -1, d->menus[static_cast<std::size_t>(m)].onOpen);
 }
 
@@ -276,12 +295,27 @@ void Laufzeit::fuehreAus(int menu, int item, const std::string& s) {
         if (cmd == ";") { continue; }
         const std::string c = klein(cmd);
         std::string a, b;
-        if (c == "show" || c == "hide" || c == "fadein" || c == "fadeout") {
+        if (c == "show" || c == "hide") {
             if (stringParse(s, p, a)) {
-                const bool zeigen = (c == "show" || c == "fadein");
+                const bool zeigen = c == "show";
                 passend(a, [&](std::size_t i) {
                     if (zeigen) { z[i].flags |= WINDOW_VISIBLE; }
                     else { z[i].flags &= ~WINDOW_VISIBLE; }
+                });
+                ++version;
+            }
+        } else if (c == "fadein" || c == "fadeout") {
+            // Menu_FadeItemByName: das Ausblenden selbst macht Fade() im Takt (takt)
+            if (stringParse(s, p, a)) {
+                const bool aus = c == "fadeout";
+                passend(a, [&](std::size_t i) {
+                    if (aus) {
+                        z[i].flags |= (WINDOW_FADINGOUT | WINDOW_VISIBLE);
+                        z[i].flags &= ~WINDOW_FADINGIN;
+                    } else {
+                        z[i].flags |= (WINDOW_VISIBLE | WINDOW_FADINGIN);
+                        z[i].flags &= ~WINDOW_FADINGOUT;
+                    }
                 });
                 ++version;
             }
@@ -335,22 +369,91 @@ void Laufzeit::fuehreAus(int menu, int item, const std::string& s) {
                 });
                 ++version;
             }
-        } else if (c == "transition" || c == "transition2" || c == "transition3") {
-            // Menu_TransitionItemByName: hier sofort am Ziel (rectTo)
+        } else if (c == "transition") {
+            // Script_Transition: name rectFrom rectTo time amt -> Menu_TransitionItemByName
             std::string v[10];
             bool ok = stringParse(s, p, a);
             for (int i = 0; ok && i < 10; ++i) { ok = stringParse(s, p, v[i]); }
             if (ok) {
+                const Rechteck von{zahl(v[0]), zahl(v[1]), zahl(v[2]), zahl(v[3])};
+                const Rechteck nach{zahl(v[4]), zahl(v[5]), zahl(v[6]), zahl(v[7])};
+                const float amt = zahl(v[9]);
                 passend(a, [&](std::size_t i) {
-                    z[i].flags |= WINDOW_VISIBLE;
-                    rects[static_cast<std::size_t>(menu)][i] =
-                        Rechteck{m.window.rect.x + zahl(v[4]), m.window.rect.y + zahl(v[5]), zahl(v[6]), zahl(v[7])};
+                    ItemAnimation& an = anim[static_cast<std::size_t>(menu)][i];
+                    z[i].flags |= (WINDOW_INTRANSITION | WINDOW_VISIBLE);
+                    an.offsetTime = static_cast<int>(std::atoi(v[8].c_str()));
+                    an.client = von;
+                    an.effects = nach;
+                    an.effects2 = Rechteck{std::fabs(nach.x - von.x) / amt, std::fabs(nach.y - von.y) / amt, std::fabs(nach.w - von.w) / amt,
+                                           std::fabs(nach.h - von.h) / amt};
+                    positionAus(menu, i);   // Item_UpdatePosition
                 });
                 ++version;
             }
+        } else if (c == "transition2") {
+            // Script_Transition2: name rectTo time amt, von = window.rect des ersten passenden Items
+            std::string v[6];
+            bool ok = stringParse(s, p, a);
+            for (int i = 0; ok && i < 6; ++i) { ok = stringParse(s, p, v[i]); }
+            if (ok) {
+                const Rechteck nach{zahl(v[0]), zahl(v[1]), zahl(v[2]), zahl(v[3])};
+                const float amt = zahl(v[5]);
+                bool erstes = true;
+                Rechteck von;
+                passend(a, [&](std::size_t i) {
+                    if (erstes) {   // "they'll all use the FIRST one's FROM" - window.rect (Bildschirm)
+                        von = rects[static_cast<std::size_t>(menu)][i];
+                        erstes = false;
+                    }
+                    ItemAnimation& an = anim[static_cast<std::size_t>(menu)][i];
+                    z[i].flags |= (WINDOW_INTRANSITION | WINDOW_VISIBLE);
+                    an.offsetTime = static_cast<int>(std::atoi(v[4].c_str()));
+                    an.client = von;
+                    an.effects = nach;
+                    an.effects2 = Rechteck{std::fabs(nach.x - von.x) / amt, std::fabs(nach.y - von.y) / amt, std::fabs(nach.w - von.w) / amt,
+                                           std::fabs(nach.h - von.h) / amt};
+                    positionAus(menu, i);
+                });
+                ++version;
+            }
+        } else if (c == "orbit") {
+            // Script_Orbit: name x y cx cy time -> Menu_OrbitItemByName
+            std::string v[5];
+            bool ok = stringParse(s, p, a);
+            for (int i = 0; ok && i < 5; ++i) { ok = stringParse(s, p, v[i]); }
+            if (ok) {
+                passend(a, [&](std::size_t i) {
+                    ItemAnimation& an = anim[static_cast<std::size_t>(menu)][i];
+                    z[i].flags |= (WINDOW_ORBITING | WINDOW_VISIBLE);
+                    an.offsetTime = static_cast<int>(std::atoi(v[4].c_str()));
+                    an.effects.x = zahl(v[2]);
+                    an.effects.y = zahl(v[3]);
+                    an.client.x = zahl(v[0]);
+                    an.client.y = zahl(v[1]);
+                    positionAus(menu, i);
+                });
+                ++version;
+            }
+        } else if (c == "transition3") {
+            std::string rest = cmd;
+            while (stringParse(s, p, a) && a != ";") { rest += " " + a; }
+            melde(rest);   // Modell-Uebergang (WINDOW_INTRANSITIONMODEL): braucht die 3D-Ansicht
+        } else if (c == "uiscript") {
+            std::string name;
+            (void)stringParse(s, p, name);
+            if (!uiSkript(menu, klein(name))) {
+                std::string rest = cmd + " " + name;
+                while (stringParse(s, p, a) && a != ";") { rest += " " + a; }
+                melde(rest);
+            }
         } else if (c == "play" || c == "playlooped" || c == "playvoice") {
-            if (stringParse(s, p, a)) { melde(cmd + " " + a); }
-        } else if (c == "exec" || c == "uiscript" || c == "setitembackground" || c == "setasset" || c == "orbit" ||
+            // Script_Play: DC->startLocalSound(DC->registerSound(val), CHAN_LOCAL_SOUND);
+            // playlooped: DC->startBackgroundTrack(val, val)
+            if (stringParse(s, p, a)) {
+                melde(cmd + " " + a);
+                klaenge.push_back(c == "playlooped" ? "musik:" + a : a);
+            }
+        } else if (c == "exec" || c == "setitembackground" || c == "setasset" ||
                    c == "setplayermodel" || c == "setteamcolor" || c == "setitemflag" || c == "defer" || c == "rundeferred" ||
                    c == "delay" || c == "activate" || c == "showmenu" || c == "opengotomenu" || c == "stopvoice" ||
                    c == "incrementfeeder" || c == "decrementfeeder" || c == "disable" || c == "scale" ||
@@ -387,6 +490,9 @@ void Laufzeit::anwenden(Datei& kopie) const {
         for (std::size_t i = 0; i < m.items.size() && i < rects[mi].size(); ++i) {
             m.items[i].window.rect = rects[mi][i];
             if (!texte[mi][i].empty()) { m.items[i].text = texte[mi][i]; }
+            if (!modellPfad[mi][i].empty()) { m.items[i].assetModel = modellPfad[mi][i]; }
+            if (!modellHaut[mi][i].empty()) { m.items[i].g2skin = modellHaut[mi][i] == "-" ? std::string() : modellHaut[mi][i]; }
+            if (!modellAnim[mi][i].empty()) { m.items[i].g2anim = modellAnim[mi][i]; }
             if (vorderGesetzt[mi][i]) { m.items[i].window.foreColor = vorder[mi][i]; }
         }
     }
@@ -424,6 +530,9 @@ void Laufzeit::maus(int menu, float x, float y) {
             for (ItemZustand& q : z) { q.flags &= ~WINDOW_HASFOCUS; }
             z[i].flags |= WINDOW_MOUSEOVER | WINDOW_HASFOCUS;
             ++version;
+            // Item_SetFocus: focusSound des Items, sonst DC->Assets.itemFocusSound
+            const std::string& fk = m.items[i].focusSound.empty() ? fokusKlangStd : m.items[i].focusSound;
+            if (!fk.empty()) { klaenge.push_back(fk); }
             fuehreAus(menu, static_cast<int>(i), m.items[i].mouseEnter);
             fuehreAus(menu, static_cast<int>(i), m.items[i].onFocus);
         }
@@ -476,6 +585,195 @@ void Laufzeit::klick(int menu, float x, float y) {
 void Laufzeit::escape(int menu) {
     if (d == nullptr || menu < 0 || static_cast<std::size_t>(menu) >= d->menus.size()) { return; }
     fuehreAus(menu, -1, d->menus[static_cast<std::size_t>(menu)].onESC);
+}
+
+// Item_UpdatePosition -> Item_SetScreenCoords: window.rect = Menue-Ursprung
+// (+ borderSize bei Rahmen) + rectClient
+void Laufzeit::positionAus(int menu, std::size_t i) {
+    const Menu& m = d->menus[static_cast<std::size_t>(menu)];
+    const Item& it = m.items[i];
+    const ItemAnimation& an = anim[static_cast<std::size_t>(menu)][i];
+    float x = m.window.rect.x, y = m.window.rect.y;
+    if (it.window.border != 0) {
+        x += it.window.borderSize;
+        y += it.window.borderSize;
+    }
+    rects[static_cast<std::size_t>(menu)][i] = Rechteck{x + an.client.x, y + an.client.y, an.client.w, an.client.h};
+}
+
+bool Laufzeit::animiert() const {
+    for (const auto& z : items) {
+        for (const ItemZustand& s : z) {
+            if ((s.flags & (WINDOW_INTRANSITION | WINDOW_ORBITING | WINDOW_FADINGIN | WINDOW_FADINGOUT)) != 0) { return true; }
+        }
+    }
+    return false;
+}
+
+int Laufzeit::takt(int jetzt) {
+    if (d == nullptr) { return 0; }
+    const int schritt = std::max(1, 1000 / std::max(1, spielFps));   // Com_Frame: min_msec = 1000 / com_maxfps
+    if (letzterTakt < 0 || jetzt < letzterTakt) { letzterTakt = jetzt - schritt; }
+    // nach einer langen Pause (Fenster verdeckt) nicht Tausende Bilder nachholen
+    if (jetzt - letzterTakt > 2000) { letzterTakt = jetzt - 2000; }
+    int bilder = 0;
+    while (letzterTakt + schritt <= jetzt) {
+        letzterTakt += schritt;
+        jetztMs = letzterTakt;
+        ++bilder;
+        for (std::size_t mi = 0; mi < d->menus.size(); ++mi) {
+            if ((menuFlags[mi] & WINDOW_VISIBLE) == 0) { continue; }   // Menu_PaintAll: nur sichtbare Menues
+            const Menu& m = d->menus[mi];
+            // Menu_Init: Werte aus assetGlobalDef, Schluessel des Menues ueberschreiben
+            const float fadeClamp = bhed::menue::finde(m, "fadeClamp") != nullptr ? m.fadeClamp : fadeClampStd;
+            const float fadeAmount = bhed::menue::finde(m, "fadeAmount") != nullptr ? m.fadeAmount : fadeAmountStd;
+            const int fadeCycle = bhed::menue::finde(m, "fadeCycle") != nullptr ? m.fadeCycle : fadeCycleStd;
+            auto& z = items[mi];
+            for (std::size_t i = 0; i < m.items.size(); ++i) {
+                ItemAnimation& an = anim[mi][i];
+                int& fl = z[i].flags;
+                const Item& it = m.items[i];
+                if ((fl & WINDOW_ORBITING) != 0 && jetztMs > an.nextTime) {
+                    an.nextTime = jetztMs + an.offsetTime;
+                    const float w = an.client.w / 2;
+                    const float h = an.client.h / 2;
+                    const float rx = an.client.x + w - an.effects.x;
+                    const float ry = an.client.y + h - an.effects.y;
+                    const float a = 3.0F * 3.14159265358979323846F / 180.0F;
+                    const float c = std::cos(a);
+                    const float s = std::sin(a);
+                    an.client.x = (rx * c - ry * s) + an.effects.x - w;
+                    an.client.y = (rx * s + ry * c) + an.effects.y - h;
+                    positionAus(static_cast<int>(mi), i);
+                    ++version;
+                }
+                if ((fl & WINDOW_INTRANSITION) != 0 && jetztMs > an.nextTime) {
+                    int done = 0;
+                    an.nextTime = jetztMs + an.offsetTime;
+                    auto schritt1 = [&](float& v, float ziel, float d2) {
+                        if (v == ziel) {
+                            done++;
+                        } else if (v < ziel) {
+                            v += d2;
+                            if (v > ziel) {
+                                v = ziel;
+                                done++;
+                            }
+                        } else {
+                            v -= d2;
+                            if (v < ziel) {
+                                v = ziel;
+                                done++;
+                            }
+                        }
+                    };
+                    schritt1(an.client.x, an.effects.x, an.effects2.x);
+                    schritt1(an.client.y, an.effects.y, an.effects2.y);
+                    schritt1(an.client.w, an.effects.w, an.effects2.w);
+                    schritt1(an.client.h, an.effects.h, an.effects2.h);
+                    positionAus(static_cast<int>(mi), i);
+                    if (done == 4) { fl &= ~WINDOW_INTRANSITION; }
+                    ++version;
+                }
+                // Item_Paint: ownerDrawFlags/cvarTest/WINDOW_VISIBLE, dann Item_TextColor -> Fade
+                if ((fl & (WINDOW_FADINGOUT | WINDOW_FADINGIN)) != 0 && (fl & WINDOW_VISIBLE) != 0 &&
+                    (!it.text.empty() || it.type == ITEM_TYPE_OWNERDRAW) && jetztMs > an.nextTime) {
+                    if (!an.alphaGesetzt) {
+                        an.alpha = vorderGesetzt[mi][i] ? vorder[mi][i].a : it.window.foreColor.a;
+                        an.alphaGesetzt = true;
+                    }
+                    an.nextTime = jetztMs + fadeCycle;
+                    if ((fl & WINDOW_FADINGOUT) != 0) {
+                        an.alpha -= fadeAmount;
+                        if (an.alpha <= 0.0F) { fl &= ~(WINDOW_FADINGOUT | WINDOW_VISIBLE); }
+                    } else {
+                        an.alpha += fadeAmount;
+                        if (an.alpha >= fadeClamp) {
+                            an.alpha = fadeClamp;
+                            fl &= ~WINDOW_FADINGIN;
+                        }
+                    }
+                    Farbe f = vorderGesetzt[mi][i] ? vorder[mi][i] : it.window.foreColor;
+                    f.a = an.alpha;
+                    vorder[mi][i] = f;
+                    vorderGesetzt[mi][i] = true;
+                    ++version;
+                }
+            }
+        }
+    }
+    return bilder;
+}
+
+// UI_RunMenuScript (code/ui/ui_main.cpp) fuer die Figuren- und Saeber-Skripte. Die Engine
+// sucht dabei die Items fest ueber ihre Namen "character", "saber" und "saber2" im Menue mit
+// dem Fokus (Menu_FindItemByName in UI_UpdateCharacter/UI_UpdateCharacterSkin/
+// UI_UpdateSaberHilt) - das ist dort so verdrahtet und wird hier genau so uebernommen.
+bool Laufzeit::uiSkript(int menu, const std::string& name) {
+    auto setze = [&](const char* ziel, const char* quelle) { setzeCvar(ziel, cvar(quelle)); };
+    auto itemNamens = [&](const char* n) {
+        const Menu& m = d->menus[static_cast<std::size_t>(menu)];
+        for (std::size_t i = 0; i < m.items.size(); ++i) {
+            if (gleich(m.items[i].window.name, n)) { return static_cast<int>(i); }
+        }
+        return -1;
+    };
+    auto haut = [&]() {   // UI_UpdateCharacterSkin
+        const int i = itemNamens("character");
+        if (i < 0) { return; }
+        modellHaut[static_cast<std::size_t>(menu)][static_cast<std::size_t>(i)] =
+            "models/players/" + cvar("ui_char_model") + "/|" + cvar("ui_char_skin_head") + "|" + cvar("ui_char_skin_torso") + "|" +
+            cvar("ui_char_skin_legs");
+        ++version;
+    };
+    auto figur = [&]() {   // UI_UpdateCharacter
+        const int i = itemNamens("character");
+        if (i < 0) { return; }
+        modellAnim[static_cast<std::size_t>(menu)][static_cast<std::size_t>(i)] = cvar("ui_char_anim");
+        modellPfad[static_cast<std::size_t>(menu)][static_cast<std::size_t>(i)] = "models/players/" + cvar("ui_char_model") + "/model.glm";
+        haut();
+    };
+    auto griff = [&](bool zweiter) {   // UI_UpdateSaberHilt
+        const int i = itemNamens(zweiter ? "saber2" : "saber");
+        std::string modell, h;
+        if (i < 0 || !saberModell || !saberModell(cvar(zweiter ? "ui_saber2" : "ui_saber"), modell, h)) { return; }
+        modellPfad[static_cast<std::size_t>(menu)][static_cast<std::size_t>(i)] = modell;
+        modellHaut[static_cast<std::size_t>(menu)][static_cast<std::size_t>(i)] = h.empty() ? std::string("-") : h;
+        ++version;
+    };
+    if (name == "character") { figur(); }
+    else if (name == "characterchanged") { figur(); }
+    else if (name == "char_skin") { haut(); }
+    else if (name == "saber_hilt") { griff(false); }
+    else if (name == "saber2_hilt") { griff(true); }
+    else if (name == "getcharcvars") {   // UI_GetCharacterCvars
+        setze("ui_char_skin_head", "g_char_skin_head");
+        setze("ui_char_skin_torso", "g_char_skin_torso");
+        setze("ui_char_skin_legs", "g_char_skin_legs");
+        setze("ui_char_color_red", "g_char_color_red");
+        setze("ui_char_color_green", "g_char_color_green");
+        setze("ui_char_color_blue", "g_char_color_blue");
+        setze("ui_char_model", "g_char_model");
+    } else if (name == "getsabercvars") {   // UI_GetSaberCvars
+        setze("ui_saber_type", "g_saber_type");
+        setze("ui_saber", "g_saber");
+        setze("ui_saber2", "g_saber2");
+        setze("ui_saber_color", "g_saber_color");
+        setze("ui_saber2_color", "g_saber2_color");
+        setzeCvar("ui_newfightingstyle", "0");
+    } else if (name == "resetsabercvardefaults") {   // nur, wenn saber_menu nicht gesetzt ist
+        if (std::atoi(cvar("saber_menu").c_str()) == 0) {   // UI_ResetSaberCvars
+            setzeCvar("g_saber_type", "single");
+            setzeCvar("g_saber", "single_1");
+            setzeCvar("g_saber2", "");
+            setzeCvar("ui_saber_type", "single");
+            setzeCvar("ui_saber", "single_1");
+            setzeCvar("ui_saber2", "");
+        }
+    } else {
+        return false;
+    }
+    return true;
 }
 
 }  // namespace bhed::menue

@@ -4,6 +4,8 @@
 // Umschaltlogik teilen. Getrennt waeren es zwei Dateien mit je zehn Zeilen
 // Eigenleben und einer gemeinsamen Kopfdatei fuer den Rest.
 
+#include <cstdint>
+#include <map>
 #include <algorithm>
 #include <cstdlib>
 
@@ -61,6 +63,9 @@ HWND g_hwnd = nullptr;
 #ifdef BHED_WITH_D3D11
 ID3D11Device* g_device = nullptr;
 ID3D11BlendState* g_additivMischung = nullptr;   // rc601 saber review: zeichneAdditiv
+std::map<int, ID3D11BlendState*> g_stufenMischung;   // Menue-Editor M2: zeichneStufe, je blendFunc
+ID3D11SamplerState* g_stufeWieder = nullptr;         // wiederholt (map)
+ID3D11SamplerState* g_stufeKlemm = nullptr;          // geklemmt (clampMap)
 ID3D11DeviceContext* g_context = nullptr;
 IDXGISwapChain* g_swap = nullptr;
 UINT g_swapFlags = 0;   // dieselben Flags fuer ResizeBuffers wie beim Anlegen
@@ -241,6 +246,13 @@ void shutdownD3D11() {
     g_geraetVerloren = false;
     // rc601 saber review: die additive Mischung gehoert zum alten Geraet.
     if (g_additivMischung != nullptr) { g_additivMischung->Release(); g_additivMischung = nullptr; }
+    for (auto& [k, b] : g_stufenMischung) {
+        (void)k;
+        if (b != nullptr) { b->Release(); }
+    }
+    g_stufenMischung.clear();
+    if (g_stufeWieder != nullptr) { g_stufeWieder->Release(); g_stufeWieder = nullptr; }
+    if (g_stufeKlemm != nullptr) { g_stufeKlemm->Release(); g_stufeKlemm = nullptr; }
     ImGui_ImplDX11_Shutdown();
     releaseRtv();
     // D3D11 zerstoert verzoegert: ohne ClearState und Flush haengt die alte
@@ -383,6 +395,57 @@ void additivD3d(const ImDrawList* /*liste*/, const ImDrawCmd* /*befehl*/) {
 }
 #endif
 void additivGl(const ImDrawList* /*liste*/, const ImDrawCmd* /*befehl*/) { glBlendFunc(GL_ONE, GL_ONE); }
+
+// --- Menue-Editor M2: zeichneStufe -----------------------------------------------
+#ifdef BHED_WITH_D3D11
+D3D11_BLEND d3dFaktor(int f) {
+    static const D3D11_BLEND t[] = {D3D11_BLEND_ONE,       D3D11_BLEND_ZERO,           D3D11_BLEND_SRC_COLOR,  D3D11_BLEND_INV_SRC_COLOR,
+                                    D3D11_BLEND_SRC_ALPHA, D3D11_BLEND_INV_SRC_ALPHA,  D3D11_BLEND_DEST_COLOR, D3D11_BLEND_INV_DEST_COLOR,
+                                    D3D11_BLEND_DEST_ALPHA, D3D11_BLEND_INV_DEST_ALPHA, D3D11_BLEND_SRC_ALPHA};
+    return (f >= 0 && f < 11) ? t[f] : D3D11_BLEND_ONE;
+}
+void stufeD3d(const ImDrawList* /*liste*/, const ImDrawCmd* befehl) {
+    if (g_device == nullptr || g_context == nullptr) { return; }
+    const int code = static_cast<int>(reinterpret_cast<std::intptr_t>(befehl->UserCallbackData));
+    const int misch = code & 0xffff;
+    ID3D11BlendState*& b = g_stufenMischung[misch];
+    if (b == nullptr) {
+        D3D11_BLEND_DESC d{};
+        d.RenderTarget[0].BlendEnable = TRUE;
+        d.RenderTarget[0].SrcBlend = d3dFaktor(misch & 0xff);
+        d.RenderTarget[0].DestBlend = d3dFaktor((misch >> 8) & 0xff);
+        d.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+        d.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+        d.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+        d.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+        d.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+        if (FAILED(g_device->CreateBlendState(&d, &b))) { b = nullptr; }
+    }
+    auto sampler = [](ID3D11SamplerState*& s, D3D11_TEXTURE_ADDRESS_MODE m) {
+        if (s != nullptr) { return; }
+        D3D11_SAMPLER_DESC d{};
+        d.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+        d.AddressU = d.AddressV = d.AddressW = m;
+        d.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+        d.MaxLOD = D3D11_FLOAT32_MAX;
+        if (FAILED(g_device->CreateSamplerState(&d, &s))) { s = nullptr; }
+    };
+    const bool klemmen = (code & 0x10000) != 0;
+    sampler(g_stufeWieder, D3D11_TEXTURE_ADDRESS_WRAP);
+    sampler(g_stufeKlemm, D3D11_TEXTURE_ADDRESS_CLAMP);
+    ID3D11SamplerState* s = klemmen ? g_stufeKlemm : g_stufeWieder;
+    if (s != nullptr) { g_context->PSSetSamplers(0, 1, &s); }
+    const float faktor[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+    if (b != nullptr) { g_context->OMSetBlendState(b, faktor, 0xffffffffU); }
+}
+#endif
+void stufeGl(const ImDrawList* /*liste*/, const ImDrawCmd* befehl) {
+    static const GLenum t[] = {GL_ONE,       GL_ZERO,           GL_SRC_COLOR, GL_ONE_MINUS_SRC_COLOR, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+                               GL_DST_COLOR, GL_ONE_MINUS_DST_COLOR, GL_DST_ALPHA, GL_ONE_MINUS_DST_ALPHA, GL_SRC_ALPHA};
+    const int code = static_cast<int>(reinterpret_cast<std::intptr_t>(befehl->UserCallbackData));
+    const int q = code & 0xff, z = (code >> 8) & 0xff;
+    glBlendFunc(q < 11 ? t[q] : GL_ONE, z < 11 ? t[z] : GL_ZERO);
+}
 }  // namespace
 
 unsigned g_texturStand = 0;
@@ -402,6 +465,19 @@ void zeichneAdditiv(ImDrawList* dl, void* textur, ImVec2 a, ImVec2 b, unsigned i
     dl->AddCallback(additivGl, nullptr);
 #endif
     dl->AddImage(reinterpret_cast<ImTextureID>(textur), a, b, ImVec2{0.0F, 0.0F}, ImVec2{1.0F, 1.0F}, farbe);
+    dl->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
+}
+
+void zeichneStufe(ImDrawList* dl, void* textur, const ImVec2 p[4], const ImVec2 uv[4], unsigned int farbe, int quelle, int ziel,
+                  bool klemmen) {
+    if (dl == nullptr || textur == nullptr || !g_ready) { return; }
+    void* code = reinterpret_cast<void*>(static_cast<std::intptr_t>((quelle & 0xff) | ((ziel & 0xff) << 8) | (klemmen ? 0x10000 : 0)));
+#ifdef BHED_WITH_D3D11
+    dl->AddCallback(g_backend == Backend::Direct3D11 ? stufeD3d : stufeGl, code);
+#else
+    dl->AddCallback(stufeGl, code);
+#endif
+    dl->AddImageQuad(reinterpret_cast<ImTextureID>(textur), p[0], p[1], p[2], p[3], uv[0], uv[1], uv[2], uv[3], farbe);
     dl->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
 }
 

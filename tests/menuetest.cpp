@@ -216,6 +216,39 @@ int main() {
         pruefe(g2.menus.size() == 1 && g2.menus[0].window.name == "ja", "MP: #ifdef/#else/#endif");
     }
 
+    // --- M2: assetGlobalDef so streng wie Asset_Parse ---------------------------
+    {
+        LeseOptionen so;
+        so.dialekt = Dialekt::SP;
+        // unbekannter Schluessel: die Engine liest das naechste Wort als Schluessel -
+        // ein "}" als Argument beendet assetGlobalDef, menuDef danach wird gelesen
+        Datei a = lies("ui/a.menu", "{ assetGlobalDef { foo \"}\" menuDef { name m } }\n", so);
+        pruefe(a.assets.vorhanden && a.assets.eigenschaften.size() == 1 && !a.assets.eigenschaften[0].ok,
+               "SP Asset_Parse: unbekannter Schluessel ohne Argumente");
+        pruefe(a.menus.size() == 1 && a.menus[0].window.name == "m", "SP Asset_Parse: \"}\" nach unbekanntem Schluessel beendet assets");
+        // bekannte: smallFont "x" 16 (Zahl wird gelesen)
+        Datei b = lies("ui/b.menu", "{ assetGlobalDef { smallFont \"ergoec\" 16 fadeClamp 1.0 mediumFont \"anewhope\" 20 } }\n", so);
+        pruefe(b.assets.eigenschaften.size() == 3 && b.assets.eigenschaften[2].args.size() == 2, "SP Asset_Parse: mediumFont mit 2 Argumenten");
+        // stripedFile gibt es nur in JK2 (JK2_MODE); in JA ein unbekanntes Wort
+        LeseOptionen jk = so;
+        jk.spiel = Spiel::JK2;
+        Datei c = lies("ui/c.menu", "{ assetGlobalDef { stripedFile \"menus\" } }\n", jk);
+        pruefe(c.assets.eigenschaften.size() == 1 && c.assets.eigenschaften[0].ok, "SP Asset_Parse: stripedFile in JK2");
+        Datei c2 = lies("ui/c.menu", "{ assetGlobalDef { stripedFile \"menus\" } }\n", so);
+        pruefe(c2.assets.eigenschaften.size() == 2 && !c2.assets.eigenschaften[0].ok, "SP Asset_Parse: stripedFile in JA unbekannt");
+        // Movie Duels: cursor_vader
+        LeseOptionen md = so;
+        md.spiel = Spiel::MD;
+        Datei e = lies("ui/e.menu", "{ assetGlobalDef { cursor_vader \"gfx/x\" } }\n", md);
+        pruefe(e.assets.eigenschaften.size() == 1 && e.assets.eigenschaften[0].ok, "SP Asset_Parse: cursor_vader in Movie Duels");
+        // MP: kein mediumFont - unbekannt, die Argumente sind eigene Woerter
+        LeseOptionen mo2;
+        mo2.dialekt = Dialekt::MP;
+        Datei f = lies("ui/jamp/f.menu", "{ assetGlobalDef { mediumFont \"ergoec\" 20 font \"anewhope\" 16 } }\n", mo2);
+        pruefe(f.assets.eigenschaften.size() == 4 && !f.assets.eigenschaften[0].ok && f.assets.eigenschaften[3].ok,
+               "MP Asset_Parse: mediumFont unbekannt, font bekannt");
+    }
+
     // --- Texte -----------------------------------------------------------------
     Texte t;
     t.ladeStr("strings/English/MENUS.str", "VERSION \"1\"\r\nREFERENCE QUIT\r\nLANG_ENGLISH \"Quit\\nGame\"\r\n");
@@ -223,6 +256,33 @@ int main() {
     pruefe(t.aufloesen("@MENUS_FEHLT") == "@MENUS_FEHLT", "Texte: unbekannt bleibt");
     t.ladeSp("VERSION 1\nREFERENCE MENUS0\nINDEX 0\n{\n   REFERENCE ABOUT\n   TEXT_LANGUAGE1 \"About\"\n   TEXT_LANGUAGE3 \"Ueber\"\n}\n", 3);
     pruefe(t.aufloesen("@MENUS0_ABOUT") == "Ueber", "Texte: .sp Sprache 3");
+    // M2 (Bildvergleich mit dem Spiel): StringEd nimmt nach REFERENCE den REST der Zeile
+    // (InsideQuotes) - Ravens MENUS.str hat "REFERENCE NEW MISSION_DESC", das darf NEW
+    // nicht ueberschreiben. LANG_-Texte behalten innere Anfuehrungszeichen.
+    {
+        Texte r;
+        r.ladeStr("strings/English/MENUS.str",
+                  "REFERENCE           NEW\r\nNOTES               \"Used in first line of NEW GAME button\"\r\nLANG_ENGLISH        \"NEW\"\r\n\r\n"
+                  "REFERENCE           NEW MISSION_DESC\r\nLANG_ENGLISH        \"Return to the mission selection screen\"\r\n"
+                  "REFERENCE ZITAT // Kommentar\r\nLANG_ENGLISH \"Er sagte \"ja\" // kein Kommentar\"\r\n");
+        pruefe(r.aufloesen("@MENUS_NEW") == "NEW", "Texte: REFERENCE NEW MISSION_DESC ueberschreibt NEW nicht (InsideQuotes)");
+        pruefe(r.aufloesen("@MENUS_ZITAT") == "Er sagte \"ja\" // kein Kommentar", "Texte: innere Anfuehrungszeichen, // in Anfuehrung bleibt");
+    }
+
+    // M2 Punkt 6: eigene Texte schreiben und wie die Engine wieder lesen
+    {
+        const std::vector<TextEintrag> e = {{"MEIN_KNOPF", "Start\nnow", "Los\njetzt"}, {"ZITAT", "say \"hi\"", ""}};
+        Texte de;
+        de.ladeStr("strings/German/MEINMOD.str", schreibeStr("German", e), "GERMAN");
+        pruefe(de.aufloesen("@MEINMOD_MEIN_KNOPF") == "Los\njetzt" && de.aufloesen("@MEINMOD_ZITAT") == "say 'hi'",
+               "Texte: .str geschrieben und gelesen (Uebersetzung, #same, Zeilenumbruch)");
+        Texte en;
+        en.ladeStr("strings/English/MEINMOD.str", schreibeStr("English", e), "ENGLISH");
+        pruefe(en.aufloesen("@MEINMOD_MEIN_KNOPF") == "Start\nnow", "Texte: englische .str");
+        Texte stripEd;
+        stripEd.ladeSp(schreibeSp("MEINMOD", 3, e), 3);
+        pruefe(stripEd.aufloesen("@MEINMOD_MEIN_KNOPF") == "Los\njetzt", "Texte: .sp (StripEd, TEXT_LANGUAGE3)");
+    }
 
     std::printf("menuetest: %s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;

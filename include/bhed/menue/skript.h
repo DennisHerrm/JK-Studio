@@ -27,6 +27,7 @@
 #include "bhed/menue/menue.h"
 #include "bhed/menue/vorschau.h"
 
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -52,6 +53,16 @@ struct Seite {
 };
 [[nodiscard]] std::vector<Seite> seitenImMenue(const Datei& d);
 
+// M2: Bewegung eines Items wie windowDef_t (rectClient, rectEffects,
+// rectEffects2, offsetTime, nextTime) und die Deckkraft foreColor[3], die
+// Fade() aendert.
+struct ItemAnimation {
+    Rechteck client, effects, effects2;   // menue-bezogen wie im Spiel
+    int offsetTime = 0, nextTime = 0;
+    float alpha = 1.0F;
+    bool alphaGesetzt = false;
+};
+
 struct Laufzeit {
     const Datei* d = nullptr;
     std::vector<int> menuFlags;                     // WINDOW_VISIBLE / WINDOW_HASFOCUS je Menue
@@ -64,8 +75,35 @@ struct Laufzeit {
     std::map<std::string, std::string> cvars;       // nur die Vorschau (Schluessel klein)
     std::vector<int> stapel;                        // menuStack
     std::vector<std::string> protokoll;             // was ohne Spiel nur gemeldet wird
+    // M2 Punkt 3: "open X" fuer ein menuDef, das nicht in dieser Datei steht -
+    // die Oberflaeche sucht es in den anderen Dateien des Menuesatzes (menus.txt)
+    std::string fremdesMenue;
+    // M2: was die UI-Skripte an Modellen umstellen (UI_UpdateCharacter, UI_UpdateCharacterSkin,
+    // UI_UpdateSaberHilt) - je Menue, je Item; "" = wie gelesen. anwenden() schreibt sie in die Kopie.
+    std::vector<std::vector<std::string>> modellPfad, modellHaut, modellAnim;
+    // UI_SaberModelForSaber / UI_SaberSkinForSaber (sabers.cfg/.sab): false = kein Modell
+    std::function<bool(const std::string& saber, std::string& modell, std::string& haut)> saberModell;
+    // M2 Punkt 5: Klaenge wie die Engine sie ausloest - die Oberflaeche spielt sie ab
+    // (im Selbsttest stumm) und leert die Liste. "musik:<datei>" = startBackgroundTrack.
+    std::vector<std::string> klaenge;
+    std::string fokusKlangStd;    // assetGlobalDef itemFocusSound (DC->Assets.itemFocusSound; menuEnter/ExitSound spielt die Engine nicht)
     int maxProtokoll = 200;
     int version = 0;                                // zaehlt jede Aenderung
+    // M2: Animationen (transition, orbit, fadein/fadeout) im Takt der Engine
+    std::vector<std::vector<ItemAnimation>> anim;   // je Menue, je Item
+    int spielFps = 125;                             // com_maxfps: ein Item_Paint je Bild
+    int jetztMs = 0;                                // DC->realTime des letzten Takts
+    int letzterTakt = -1;
+    // Menu_Init: fadeClamp/fadeAmount/fadeCycle aus assetGlobalDef, wenn das Menue sie nicht setzt
+    float fadeClampStd = 1.0F, fadeAmountStd = 0.0F;
+    int fadeCycleStd = 0;
+    // Die Zeit bis jetztMs in Bildern zu 1000 / spielFps ms abarbeiten (Item_Paint:
+    // WINDOW_ORBITING, WINDOW_INTRANSITION, Item_TextColor: Fade). Gibt die Zahl der Bilder zurueck.
+    int takt(int jetzt);
+    [[nodiscard]] bool animiert() const;            // laeuft noch etwas?
+    void positionAus(int menu, std::size_t item);   // Item_UpdatePosition
+    // UI_RunMenuScript fuer die Figuren- und Saeber-Skripte; false = nicht ausgefuehrt
+    bool uiSkript(int menu, const std::string& name);
     Umgebung basis;                                 // Schriften/Texte (textRechteck beim Klick)
 
     void start(const Datei& datei);

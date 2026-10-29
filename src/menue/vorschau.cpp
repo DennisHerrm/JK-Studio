@@ -30,6 +30,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <map>
 
 namespace bhed::menue {
 
@@ -456,6 +457,7 @@ private:
                 break;
             }
             case ITEM_TYPE_LISTBOX:
+                aktFlags_ = flags;
                 listbox(it);
                 break;
             case ITEM_TYPE_TEXTSCROLL:
@@ -519,20 +521,7 @@ private:
         }
     }
 
-    std::string multiEinstellung(const Item& it) const {   // Item_Multi_Setting
-        if (!it.typeData) { return "@MENUS_CUSTOM"; }
-        if (!it.multiFeeder.empty() && it.cvarList.empty()) { return "<" + it.multiFeeder + ">"; }
-        const std::string buff = it.cvar.empty() ? std::string() : cvar(it.cvar);
-        const float value = it.cvar.empty() ? 0.0F : cvarWert(it.cvar);
-        for (std::size_t i = 0; i < it.cvarList.size(); ++i) {
-            if (it.strDef) {
-                if (i < it.cvarStr.size() && gleichOhneFall(buff, it.cvarStr[i])) { return it.cvarList[i]; }
-            } else if (i < it.cvarValue.size() && it.cvarValue[i] == value) {
-                return it.cvarList[i];
-            }
-        }
-        return "@MENUS_CUSTOM";
-    }
+    std::string multiEinstellung(const Item& it) const { return multiText(it, u_); }   // Item_Multi_Setting
 
     void beschreibung(const Item& it, int flags) {
         const std::string t = se(it.descText);
@@ -559,45 +548,136 @@ private:
         }
     }
 
-    void listbox(const Item& it) {   // Item_ListBox_Paint, senkrecht
+    // Item_ListBox_Paint (SP code/ui/ui_shared.cpp, MP codemp/ui/ui_shared.c)
+    // mit startPos 0 und cursorPos aus der Laufzeit (sonst 0).
+    void listbox(const Item& it) {
         const Rechteck& r = it.window.rect;
-        std::vector<std::string> zeilen;
-        if (u_.feederZeilen) { zeilen = u_.feederZeilen(it.special); }
-        if (!zeilen.empty() && !it.scrollhidden) {
+        const std::vector<FeederEintrag> z = u_.feeder ? u_.feeder(it.special) : std::vector<FeederEintrag>{};
+        const int count = static_cast<int>(z.size());
+        const int cursorPos = std::clamp(u_.listCursor, 0, std::max(0, count - 1));
+        const bool mp = u_.dialekt == Dialekt::MP;
+        const Farbe weiss{1, 1, 1, 1};
+        const bool waagrecht = (aktFlags_ & WINDOW_HORIZONTAL) != 0;
+        auto maxScroll = [&]() {   // Item_ListBox_MaxScroll
+            const float m = waagrecht ? static_cast<float>(count) - (r.w / it.elementWidth) + 1
+                                      : static_cast<float>(count) - (r.h / it.elementHeight) + 1;
+            const int mi = static_cast<int>(m);
+            return mi < 0 ? 0 : mi;
+        };
+        auto spalte = [&](const FeederEintrag& e, std::size_t j) -> std::string {
+            return j < e.spalten.size() ? e.spalten[j] : std::string();
+        };
+        auto bildVon = [&](const FeederEintrag& e, std::size_t j) -> std::string {
+            return j < e.spaltenBild.size() ? e.spaltenBild[j] : std::string();
+        };
+        if (waagrecht) {
+            if (!it.scrollhidden) {
+                if (maxScroll() > 0) {
+                    float x = r.x + 1;
+                    const float y = r.y + r.h - kScrollbar - 1;
+                    bild(x, y, kScrollbar, kScrollbar, "gfx/menus/scrollbar_arrow_left.tga", weiss, item_);
+                    x += kScrollbar - 1;
+                    const float size = r.w - (kScrollbar * 2);
+                    bild(x, y, size + 1, kScrollbar, "gfx/menus/scrollbar.tga", weiss, item_);
+                    x += size - 1;
+                    bild(x, y, kScrollbar, kScrollbar, "gfx/menus/scrollbar_arrow_right.tga", weiss, item_);
+                    float thumb = r.x + 1 + kScrollbar;   // Item_ListBox_ThumbPosition, startPos 0
+                    if (thumb > x - kScrollbar - 1) { thumb = x - kScrollbar - 1; }
+                    bild(thumb, y, kScrollbar, kScrollbar, "gfx/menus/scrollbar_thumb.tga", weiss, item_);
+                }
+            }
+            float size = r.w - 2;
+            if (it.elementStyle == 1) {   // LISTBOX_IMAGE
+                float x = r.x + 1;
+                const float y = r.y + 1;
+                for (int i = 0; i < count; i++) {
+                    const std::string& image = z[static_cast<std::size_t>(i)].bild;
+                    if (!image.empty()) {
+                        Farbe c = weiss;
+                        if (!mp && (aktFlags_ & WINDOW_PLAYERCOLOR) != 0) {
+                            c = Farbe{cvarWert("ui_char_color_red") / 255.0F, cvarWert("ui_char_color_green") / 255.0F,
+                                      cvarWert("ui_char_color_blue") / 255.0F, 1};
+                        }
+                        bild(x + 1, y + 1, it.elementWidth - 2, it.elementHeight - 2, image, c, item_);
+                    }
+                    if (i == cursorPos) { rahmen(x, y, it.elementWidth - 1, it.elementHeight - 1, it.window.borderSize, it.window.borderColor); }
+                    size -= it.elementWidth;
+                    if (size < it.elementWidth || it.elementWidth <= 0) { break; }
+                    x += it.elementWidth;
+                }
+            }
+            return;
+        }
+        if (!it.scrollhidden) {
             const float x = r.x + r.w - kScrollbar - 1;
             float y = r.y + 1;
-            bild(x, y, kScrollbar, kScrollbar, "gfx/menus/scrollbar_arrow_up_a.tga", Farbe{1, 1, 1, 1}, item_);
+            bild(x, y, kScrollbar, kScrollbar, "gfx/menus/scrollbar_arrow_up_a.tga", weiss, item_);
             y += kScrollbar - 1;
-            const float size = r.h - kScrollbar * 2;
-            bild(x, y, kScrollbar, size + 1, "gfx/menus/scrollbar.tga", Farbe{1, 1, 1, 1}, item_);
+            const float size = r.h - (kScrollbar * 2);
+            bild(x, y, kScrollbar, size + 1, "gfx/menus/scrollbar.tga", weiss, item_);
             y += size - 1;
-            bild(x, y, kScrollbar, kScrollbar, "gfx/menus/scrollbar_arrow_dwn_a.tga", Farbe{1, 1, 1, 1}, item_);
-            float daumenY = r.y + 1 + kScrollbar;   // startPos 0
-            if (daumenY > y - kScrollbar - 1) { daumenY = y - kScrollbar - 1; }
-            bild(x, daumenY, kScrollbar, kScrollbar, "gfx/menus/scrollbar_thumb.tga", Farbe{1, 1, 1, 1}, item_);
+            bild(x, y, kScrollbar, kScrollbar, "gfx/menus/scrollbar_arrow_dwn_a.tga", weiss, item_);
+            float thumb = r.y + 1 + kScrollbar;   // startPos 0
+            if (thumb > y - kScrollbar - 1) { thumb = y - kScrollbar - 1; }
+            bild(x, thumb, kScrollbar, kScrollbar, "gfx/menus/scrollbar_thumb.tga", weiss, item_);
         }
-        if (zeilen.empty()) {
-            platzhalter(r, "feeder " + zahlText(it.special));
+        float size = r.h - 2;
+        if (it.elementStyle == 1) {   // LISTBOX_IMAGE
+            const float x = r.x + 1;
+            float y = r.y + 1;
+            for (int i = 0; i < count; i++) {
+                const std::string& image = z[static_cast<std::size_t>(i)].bild;
+                if (!image.empty()) { bild(x + 1, y + 1, it.elementWidth - 2, it.elementHeight - 2, image, weiss, item_); }
+                if (i == cursorPos) { rahmen(x, y, it.elementWidth - 1, it.elementHeight - 1, it.window.borderSize, it.window.borderColor); }
+                size -= it.elementHeight;
+                if (size < it.elementHeight || it.elementHeight <= 0) { break; }
+                y += it.elementHeight;
+            }
             return;
         }
         const float x = r.x + 1;
         float y = r.y + 1 - it.elementHeight;
-        float hoehe = r.h - 2;
-        for (std::size_t i = 0; i < zeilen.size(); ++i) {
+        for (int i = 0; i < count; i++) {
+            const FeederEintrag& e = z[static_cast<std::size_t>(i)];
             if (!it.columns.empty()) {
-                const Spalte& s = it.columns[0];
-                text(x + 4 + static_cast<float>(s.pos), y + it.elementHeight + it.textaligny, it.textscale, it.window.foreColor,
-                     se(zeilen[i]), s.maxChars, it.textStyle, it.font);
+                for (std::size_t j = 0; j < it.columns.size(); j++) {
+                    const Spalte& s = it.columns[j];
+                    std::string text = spalte(e, j);
+                    if (!text.empty() && text[0] == '@') { text = se(text); }
+                    if (!mp) {
+                        const std::string opt = bildVon(e, j);
+                        if (!opt.empty()) {
+                            bild(x + 4 + static_cast<float>(s.pos), y - 1 + it.elementHeight / 2, static_cast<float>(s.width),
+                                 static_cast<float>(s.width), opt, weiss, item_);
+                        } else {
+                            const Farbe& c = i == cursorPos ? m_.focusColor : it.window.foreColor;
+                            this->text(x + 4 + static_cast<float>(s.pos), y + it.elementHeight, it.textscale, c, text, s.maxChars, it.textStyle,
+                                       it.font);
+                        }
+                    } else {
+                        this->text(x + 4 + static_cast<float>(s.pos), y + it.elementHeight + it.textaligny, it.textscale, it.window.foreColor,
+                                   text, s.maxChars, it.textStyle, it.font);
+                    }
+                }
             } else {
-                text(x + 4, y + it.textaligny, it.textscale, it.window.foreColor, se(zeilen[i]), 0, it.textStyle, it.font);
+                const std::string text = spalte(e, 0);
+                const bool optBild = !bildVon(e, 0).empty();
+                if (!optBild && (!text.empty() || !e.spalten.empty())) {
+                    if (mp) {
+                        this->text(x + 4, y + it.textaligny, it.textscale, it.window.foreColor, text, 0, it.textStyle, it.font);
+                    } else {
+                        this->text(x + 4, y + it.elementHeight, it.textscale, it.window.foreColor, text, 0, it.textStyle, it.font);
+                    }
+                }
             }
-            if (i == 0) {   // item->cursorPos
-                fuellen(x + 2, y + it.elementHeight + 2, r.w - kScrollbar - 4, it.elementHeight, it.window.outlineColor);
+            if (i == cursorPos) {
+                fuellen(x + 2, y + it.elementHeight + 2, r.w - kScrollbar - 4, mp ? it.elementHeight : it.elementHeight + 2, it.window.outlineColor);
             }
-            hoehe -= it.elementHeight;
-            if (hoehe < it.elementHeight || it.elementHeight <= 0) { break; }
+            size -= it.elementHeight;
+            if (size < it.elementHeight || it.elementHeight <= 0) { break; }
             y += it.elementHeight;
         }
+        if (count == 0 && !u_.feeder) { platzhalter(r, "feeder " + zahlText(it.special)); }
     }
 
     const Datei& d_;
@@ -605,6 +685,7 @@ private:
     const Umgebung& u_;
     std::vector<Prim>& out_;
     int item_ = -1;
+    int aktFlags_ = 0;   // windowDef_t.flags des Items, das gerade gemalt wird
     bool dimmen_ = false;
     Rechteck tr_;
 };
@@ -711,32 +792,120 @@ float sliderDaumen(const Item& it, const Umgebung& u) {
     return Maler(leer, leerM, u, dummy).daumen(it);
 }
 
-std::vector<std::string> schriftNamen(const Datei& assets, Dialekt d) {
-    std::vector<std::string> v(5);
-    std::vector<std::string> reihe;   // SP: Anmeldereihenfolge
-    for (const Eigenschaft& e : assets.assets.eigenschaften) {
-        if (e.args.empty()) { continue; }
-        std::string n = e.args[0].s;
-        if (n.compare(0, 6, "fonts/") == 0) { n = n.substr(6); }
-        const std::string k = e.schluessel;
-        auto ist = [&](const char* s) { return gleichOhneFall(k, s); };
-        if (d == Dialekt::MP) {
-            if (ist("smallFont")) { v[1] = n; }
-            else if (ist("font")) { v[2] = n; }
-            else if (ist("bigFont")) { v[3] = n; }
-            else if (ist("small2Font")) { v[4] = n; }
-        } else if (ist("smallFont") || ist("mediumFont") || ist("bigFont") || ist("font")) {
-            if (std::find(reihe.begin(), reihe.end(), n) == reihe.end()) { reihe.push_back(n); }
-            if (ist("mediumFont") || ist("font")) { v[0] = n; }
-        }
+namespace {
+// Der Schriftspeicher des Renderers (code/rd-common/tr_font.cpp): Griff 0 ist
+// "fehlt", jede neue Schrift belegt den naechsten Griff - auch eine, deren
+// .fontdat fehlt (CFontInfo legt sich trotzdem an, RE_RegisterFont_Real
+// liefert dann 0). Der OpenJK-Renderer meldet zu jeder gefundenen Schrift
+// <name>_sharp1 .. _sharp8 als eigene Griffe an (MAX_FONT_VARIANTS), Movie
+// Duels kennt keine Varianten.
+struct SchriftSpeicher {
+    std::vector<std::string> griffe{std::string()};   // Griff -> Name ("" = ungueltig)
+    std::map<std::string, int> index;                   // g_mapFontIndexes
+    std::vector<bool> mitVarianten{false};
+    const GibtSchrift* gibt = nullptr;
+    bool varianten = true;
+    bool da(const std::string& n) const { return gibt == nullptr || !*gibt || (*gibt)(n); }
+    int real(const std::string& n) {   // RE_RegisterFont_Real
+        const auto it = index.find(n);
+        if (it != index.end()) { return it->second; }
+        const int h = static_cast<int>(griffe.size());
+        const bool ok = da(n);
+        griffe.push_back(ok ? n : std::string());
+        mitVarianten.push_back(false);
+        index[n] = ok ? h : 0;
+        return ok ? h : 0;
     }
+    int anmelden(const std::string& n) {   // RE_RegisterFont
+        const int h = real(n);
+        if (h != 0 && varianten && !mitVarianten[static_cast<std::size_t>(h)]) {
+            for (int i = 0; i < 8; ++i) {
+                const std::string v = n + "_sharp" + std::to_string(i + 1);
+                if (gibt == nullptr || !*gibt || !(*gibt)(v)) { break; }
+                if (real(v) == 0) { break; }
+                mitVarianten[static_cast<std::size_t>(h)] = true;
+            }
+        }
+        return h;
+    }
+};
+}  // namespace
+
+std::vector<std::string> schriftNamen(const Datei& assets, Dialekt d, Spiel spiel, const GibtSchrift& gibt) {
+    return schriftNamen(std::vector<const Datei*>{&assets}, d, spiel, gibt);
+}
+
+std::vector<std::string> schriftNamen(const std::vector<const Datei*>& satz, Dialekt d, Spiel spiel, const GibtSchrift& gibt) {
+    auto schriftName = [](std::string n) {
+        if (n.compare(0, 6, "fonts/") == 0) { n = n.substr(6); }
+        return n;
+    };
     if (d == Dialekt::MP) {
-        v[0] = v[2];   // MenuFontToHandle: sonst qhMediumFont
+        // MenuFontToHandle: 1 smallFont, 2 font, 3 bigFont, 4 small2Font, sonst qhMediumFont (font)
+        std::vector<std::string> v(5);
+        for (const Datei* dp : satz) {
+            for (const Eigenschaft& e : dp->assets.eigenschaften) {
+                if (e.args.empty() || !e.ok) { continue; }
+                const std::string n = schriftName(e.args[0].s);
+                const std::string& k = e.schluessel;
+                if (gleichOhneFall(k, "smallFont")) { v[1] = n; }
+                else if (gleichOhneFall(k, "font")) { v[2] = n; }
+                else if (gleichOhneFall(k, "bigFont")) { v[3] = n; }
+                else if (gleichOhneFall(k, "small2Font")) { v[4] = n; }
+            }
+        }
+        if (gibt) {   // trap->R_RegisterFont: fehlende Schrift = Griff 0, zeichnet nichts
+            for (std::string& n : v) {
+                if (!n.empty() && !gibt(n)) { n.clear(); }
+            }
+        }
+        v[0] = v[2];
         return v;
     }
-    std::vector<std::string> sp(1, v[0]);
-    for (const std::string& n : reihe) { sp.push_back(n); }
-    return sp;
+    // SP: UI_RegisterFont (ui_atoms.cpp) - Renderer-Griff, bei 0 "ergoec";
+    // OpenJK merkt die Griffe ohne Doppelte in registeredFonts.
+    SchriftSpeicher r;
+    r.gibt = &gibt;
+    r.varianten = spiel != Spiel::MD;
+    std::vector<int> registriert;
+    int medium = 0;
+    bool fontRegistered = false;
+    auto uiAnmelden = [&](const std::string& n) {
+        int h = r.anmelden(n);
+        if (h == 0) { h = r.anmelden("ergoec"); }
+        if (h != 0 && std::find(registriert.begin(), registriert.end(), h) == registriert.end()) { registriert.push_back(h); }
+        return h;
+    };
+    // UI_LoadMenus: die Dateien des Menuesatzes der Reihe nach - je Datei erst ihr
+    // assetGlobalDef, dann die menuDefs (MenuParse_font, nur solange keine mediumFont da ist)
+    for (const Datei* dp : satz) {
+        for (const Eigenschaft& e : dp->assets.eigenschaften) {
+            if (e.args.empty() || !e.ok) { continue; }
+            const std::string n = schriftName(e.args[0].s);
+            const std::string& k = e.schluessel;
+            if (gleichOhneFall(k, "smallFont") || gleichOhneFall(k, "bigFont")) { (void)uiAnmelden(n); }
+            else if (gleichOhneFall(k, "mediumFont")) {
+                medium = uiAnmelden(n);
+                fontRegistered = true;
+            }
+        }
+        for (const Menu& m : dp->menus) {
+            if (!m.font.empty() && !fontRegistered) {
+                medium = uiAnmelden(schriftName(m.font));
+                fontRegistered = true;
+            }
+        }
+    }
+    auto name = [&](int h) { return (h > 0 && static_cast<std::size_t>(h) < r.griffe.size()) ? r.griffe[static_cast<std::size_t>(h)] : std::string(); };
+    std::vector<std::string> v(1, name(medium));   // Text_Paint: Nummer 0 = qhMediumFont
+    if (spiel == Spiel::MD) {
+        // Movie Duels: ItemParse_font nimmt die Nummer als Renderer-Griff
+        for (std::size_t h = 1; h < r.griffe.size(); ++h) { v.push_back(r.griffe[h]); }
+    } else {
+        // OpenJK: UI_MenuFontToReal - Nummer n = registeredFonts[n - 1]
+        for (int h : registriert) { v.push_back(name(h)); }
+    }
+    return v;
 }
 
 Abbildung abbildung(float breite, float hoehe, Seitenverhaeltnis s) {
@@ -751,6 +920,59 @@ Abbildung abbildung(float breite, float hoehe, Seitenverhaeltnis s) {
     a.ox = (breite - kSchirmBreite * f) * 0.5F;
     a.oy = (hoehe - kSchirmHoehe * f) * 0.5F;
     return a;
+}
+
+std::string multiText(const Item& it, const Umgebung& u) {   // Item_Multi_Setting
+    if (!it.typeData) { return "@MENUS_CUSTOM"; }
+    const std::string buff = it.cvar.empty() ? std::string() : (u.cvar ? u.cvar(it.cvar) : std::string());
+    if (!it.multiFeeder.empty() && it.cvarList.empty()) {
+        // ItemParse_cvarStrList "feeder": FEEDER_PLAYER_SPECIES -> "@MENUS_<NAME>" / Name,
+        // FEEDER_LANGUAGES -> "@MENUS_MYLANGUAGE" / Sprache
+        const bool sprachen = it.multiFeeder == "FEEDER_LANGUAGES";
+        for (const FeederEintrag& e : u.feeder ? u.feeder(it.special) : std::vector<FeederEintrag>{}) {
+            const std::string name = e.spalten.empty() ? std::string() : e.spalten[0];
+            if (gleichOhneFall(buff, name)) {
+                if (sprachen) { return "@MENUS_MYLANGUAGE"; }
+                std::string k = "@MENUS_" + name;
+                for (char& c : k) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+                return k;
+            }
+        }
+        return "@MENUS_CUSTOM";
+    }
+    const float value = it.cvar.empty() ? 0.0F : static_cast<float>(std::atof((u.cvar ? u.cvar(it.cvar) : std::string()).c_str()));
+    for (std::size_t i = 0; i < it.cvarList.size(); ++i) {
+        if (it.strDef) {
+            if (i < it.cvarStr.size() && gleichOhneFall(buff, it.cvarStr[i])) { return it.cvarList[i]; }
+        } else if (i < it.cvarValue.size() && it.cvarValue[i] == value) {
+            return it.cvarList[i];
+        }
+    }
+    return "@MENUS_CUSTOM";
+}
+
+
+std::string spielCvarVorgabe(Dialekt d, Spiel s, const std::string& name) {
+    if (d != Dialekt::SP) { return {}; }
+    // UI_Init (code/ui/ui_atoms.cpp) legt g_char_* an, UI_GetCharacterCvars kopiert sie
+    // beim Oeffnen der Figurenmenues nach ui_char_*.
+    static const char* const vorgaben[][2] = {
+        {"g_char_model", "jedi_tf"},      {"g_char_skin_head", "head_a1"}, {"g_char_skin_torso", "torso_a1"},
+        {"g_char_skin_legs", "lower_a1"}, {"g_char_color_red", "255"},     {"g_char_color_green", "255"},
+        {"g_char_color_blue", "255"},     {"ui_char_anim", "BOTH_WALK1"},   // ui_main.cpp cvarTable
+        // code/game/g_main.cpp (G_InitCvars)
+        {"g_saber", "single_1"},          {"g_saber_color", "yellow"},     {"g_saber2_color", "yellow"}};
+    for (const auto& v : vorgaben) {
+        if (gleichOhneFall(name, v[0])) { return v[1]; }
+    }
+    if (s == Spiel::MD) {   // Movie Duels code/ui/ui_main.cpp cvarTable: Klingenart der Saeber
+        static const char* const md[][2] = {{"cg_SFXSabers", "4"},           {"cg_SFXSabersGlowSize", "1.0"},    {"cg_SFXSabersCoreSize", "1.0"},
+                                            {"cg_SFXSabersGlowSizeSFX", "1.0"}, {"cg_SFXSabersCoreSizeSFX", "1.0"}};
+        for (const auto& v : md) {
+            if (gleichOhneFall(name, v[0])) { return v[1]; }
+        }
+    }
+    return {};
 }
 
 }  // namespace bhed::menue

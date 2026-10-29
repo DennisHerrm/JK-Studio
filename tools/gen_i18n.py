@@ -2219,6 +2219,8 @@ from i18n_karte9d import KARTE9D  # noqa: E402  (Stufe 9d: Echtzeit-Ansicht, Sha
 S += KARTE9D
 from i18n_mission1 import MISSION1  # noqa: E402  (mission1: Fehler aus shanks Test nach rc606)
 S += MISSION1
+from i18n_menue2 import MENUE2  # noqa: E402  (Menue-Editor M2)
+S += MENUE2
 
 # --- Formatplatzhalter pruefen -------------------------------------------
 #

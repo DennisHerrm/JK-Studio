@@ -156,6 +156,8 @@ bool readPk3Directory(const std::string& path, Pk3& out, std::string* error) {
             const std::string key = lower(e.name);
             out.index[key] = out.entries.size();
             out.entries.push_back(std::move(e));
+        } else if (!e.name.empty()) {
+            out.directories.push_back(e.name);   // Menue-Editor M2: FS_GetFileList(..., "/")
         }
         p += 46U + nameLen + extraLen + commentLen;
     }

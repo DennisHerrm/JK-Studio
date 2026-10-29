@@ -3059,6 +3059,10 @@ const std::vector<std::int16_t>* klangFuerWiedergabe(const std::string& name);
 // Alle Klaenge der Zeitleiste vorladen - vor dem Start der Uhr.
 void klaengeVorladen();
 ModelTextures texturesFor(const GlmModel& model);
+// Bilder und Farbe einer Lichtschwertklinge (app_view3d.cpp) - auch fuer die
+// Saeber in Menues (Menue-Editor M2).
+const TextureSet::Tex* bladeTexture(const std::string& farbe, bool glow);
+void bladeColorFor(const std::string& name, std::uint8_t out[3]);
 void insertCameraHere();
 void loadSkeletonForModel();
 void openModelFile();

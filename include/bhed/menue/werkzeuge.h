@@ -50,6 +50,10 @@ void verteilen(std::vector<Rechteck>& r, bool waagrecht);
 // Item um eine Stelle nach vorn (spaeter gezeichnet, ueber den anderen) oder
 // nach hinten verschieben - die Engine zeichnet in Dateireihenfolge.
 [[nodiscard]] bool itemVerschieben(const Datei& d, int menu, int item, bool nachVorn, std::vector<Ersetzung>& out);
+// M2 (Ebenenliste): das itemDef an die Stelle ziel der Reihenfolge setzen (0 = zuerst
+// gezeichnet, ganz hinten). Der Block zieht mit seinen eigenen Zeilen um, Kommentare
+// zwischen den Bloecken bleiben stehen; eine Ersetzung (ein Rueckgaengig-Schritt).
+[[nodiscard]] bool itemAnStelle(const Datei& d, int menu, int item, int ziel, std::vector<Ersetzung>& out);
 // Name fuer eine Kopie: name_2, name_3 ... (frei im Menue)
 [[nodiscard]] std::string freierName(const Menu& m, const std::string& basis);
 // In einem kopierten Item-Text name ersetzen (oder einfuegen).

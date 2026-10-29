@@ -276,6 +276,29 @@ bool itemVerschieben(const Datei& d, int menu, int item, bool nachVorn, std::vec
     return true;
 }
 
+bool itemAnStelle(const Datei& d, int menu, int item, int ziel, std::vector<Ersetzung>& out) {
+    if (menu < 0 || static_cast<std::size_t>(menu) >= d.menus.size()) { return false; }
+    const Menu& m = d.menus[static_cast<std::size_t>(menu)];
+    const int n = static_cast<int>(m.items.size());
+    if (item < 0 || item >= n || ziel < 0 || ziel >= n || ziel == item) { return false; }
+    for (const Item& it : m.items) {
+        if (it.kopf.datei != 0) { return false; }   // aus einem #include: nicht in diesem Text
+    }
+    std::size_t a = 0, e = 0, za = 0, ze = 0;
+    itemSpanne(d, m.items[static_cast<std::size_t>(item)], a, e);
+    itemSpanne(d, m.items[static_cast<std::size_t>(ziel)], za, ze);
+    const std::string block = d.text.substr(a, e - a);
+    // nach hinten: vor den Block des Ziels; nach vorn: hinter ihn
+    if (ziel < item) {
+        const std::string zwischen = d.text.substr(za, a - za);
+        out.push_back(Ersetzung{static_cast<std::uint32_t>(za), static_cast<std::uint32_t>(e), block + zwischen});
+    } else {
+        const std::string zwischen = d.text.substr(e, ze - e);
+        out.push_back(Ersetzung{static_cast<std::uint32_t>(a), static_cast<std::uint32_t>(ze), zwischen + block});
+    }
+    return true;
+}
+
 std::string freierName(const Menu& m, const std::string& basis) {
     std::string b = basis.empty() ? std::string("item") : basis;
     // "_<zahl>" am Ende abschneiden

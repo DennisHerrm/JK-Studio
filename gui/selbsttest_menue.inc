@@ -62,7 +62,310 @@ const char* const kSp =
     "\t}\n"
     "}\n";
 
+// --- M2: Videos, Modelle, Bibliothek, Menuesatz, Klaenge, Texte, Pruefungen, Test im Spiel, Schriften ---
+std::vector<Schritt> schritteM2() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = [] { return me::stand(); };
+    const std::string einst = platform::settingsDirectory();
+    // Punkt 2: ein RoQ aus dem eigenen Kodierer als cinematic abspielen
+    add(tu("M2 Video: RoQ kodieren, ins Paket, Menue mit cinematic oeffnen", [] {
+        (void)me::oeffneText("ui/kino.menu",
+                             "{\n\tmenuDef\n\t{\n\t\tname kino\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+                             "\t\titemDef\n\t\t{\n\t\t\tname film\n\t\t\trect 100 80 320 240\n\t\t\tstyle WINDOW_STYLE_CINEMATIC\n"
+                             "\t\t\tcinematic \"probe\"\n\t\t\tvisible 1\n\t\t}\n\t}\n}\n");
+        bhed::menue::RoqKodierer k;
+        bhed::menue::RoqOptionen o;
+        o.fps = 10;
+        (void)k.beginne(64, 48, o);
+        for (int t = 0; t < 8; ++t) {
+            bhed::menue::RoqBild b;
+            b.breite = 64;
+            b.hoehe = 48;
+            b.rgba.assign(64 * 48 * 4, 255);
+            for (int i = 0; i < 64 * 48; ++i) {
+                b.rgba[static_cast<std::size_t>(i * 4)] = static_cast<std::uint8_t>((i % 64) * 4 + t * 20);
+                b.rgba[static_cast<std::size_t>(i * 4 + 1)] = static_cast<std::uint8_t>((i / 64) * 5);
+            }
+            k.bild(b);
+        }
+        me::legeInsPaket("video/probe.roq", k.fertig());
+    }));
+    add(pause(1.2));
+    add(foto("menue_video"));
+    add(pruefe("M2 Video: cinematic spielt (RoQ-Bilder kommen, cl_cin.cpp-Port)", [st] {
+        const auto x = st();
+        diag::info("Menue-Editor Video: " + std::to_string(x.kinoBilder) + " RoQ-Bilder gezeigt");
+        return x.kinoBilder >= 3;
+    }));
+    // GIF -> RoQ (Import, Guete einstellbar)
+    add(pruefe("M2 Video: GIF importieren -> video/<name>.roq im Paket", [einst] {
+        static const unsigned char gif[] = {'G', 'I', 'F', '8', '9', 'a', 1, 0, 1, 0, 0x81, 0, 0, 0xFF, 0, 0, 0, 0xFF, 0, 0, 0, 0xFF, 0, 0, 0,
+                                            0x21, 0xF9, 4, 0, 5, 0, 0, 0, 0x2C, 0, 0, 0, 0, 1, 0, 1, 0, 0, 2, 2, 0x44, 0x01, 0,
+                                            0x21, 0xF9, 4, 0, 10, 0, 0, 0, 0x2C, 0, 0, 0, 0, 1, 0, 1, 0, 0, 2, 2, 0x4C, 0x01, 0, 0x3B};
+        const std::string pfad = (std::filesystem::path(einst) / "probegif.gif").string();
+        {
+            std::ofstream f(pfad, std::ios::binary);
+            f.write(reinterpret_cast<const char*>(gif), sizeof(gif));
+        }
+        me::waehle(0, false);
+        const std::string r = me::importiereVideo(pfad, 60, 10, 64);
+        const auto x = me::stand();
+        bool imPaket = false;
+        for (const std::string& p : x.paket) { imPaket = imPaket || p == "video/probegif.roq"; }
+        return r == "video/probegif.roq" && imPaket && x.text.find("cinematic") != std::string::npos;
+    }));
+    // Punkt 1: 3D-Modell (nur mit Spielordnern)
+    add(tu("M2 Modell: ITEM_TYPE_MODEL oeffnen", [] {
+        (void)me::oeffneText("ui/modell.menu",
+                             "{\n\tmenuDef\n\t{\n\t\tname modell\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+                             "\t\titemDef\n\t\t{\n\t\t\tname character\n\t\t\ttype ITEM_TYPE_MODEL\n\t\t\trect 220 60 200 360\n"
+                             "\t\t\tasset_model \"models/players/jedi_hf/model.glm\"\n\t\t\tmodel_rotation 20\n\t\t\tvisible 1\n\t\t}\n\t}\n}\n");
+    }));
+    add(pause(0.8));
+    add(foto("menue_modell"));
+    add(pruefe("M2 Modell: Figur gezeichnet (ohne Spielordner uebersprungen)", [st] {
+        if (g_app->gamePaths.empty()) { return true; }
+        const auto x = st();
+        diag::info("Menue-Editor Modell: " + std::to_string(x.modellAufrufe) + " Zeichenaufrufe");
+        return x.modellAufrufe > 0;
+    }));
+    // Punkt 4: Bibliothek - Detailbereich per Vorlage, eigene Vorlage speichern
+    add(tu("M2 Bibliothek: Probe oeffnen, Detailbereich einsetzen", [] {
+        (void)me::oeffneText("ui/bibliothek.menu", "{\n\tmenuDef\n\t{\n\t\tname bib\n\t\trect 0 0 640 480\n\t\tvisible 1\n\t}\n}\n");
+        (void)me::fuegeVorlageEin("detail", 20, 40);
+    }));
+    add(pause(0.3));
+    add(foto("menue_detail"));
+    add(pruefe("M2 Bibliothek: Detailbereich (76 Items, onOpen setzt ui_tab/ui_sel/ui_tabofs)", [st] {
+        const auto x = st();
+        return x.items == 76 && x.text.find("onOpen") != std::string::npos && x.text.find("ui_tabofs") != std::string::npos;
+    }));
+    add(tu("M2 Bibliothek: Bedienen, Klick auf Unterreiter 2", [] {
+        me::setzeInteraktion(true);
+    }));
+    add(pause(0.3));
+    add(tu("M2 Bibliothek: Klick", [] { me::klickVorschau(30, 140); }));
+    add(pruefe("M2 Bibliothek: Detailbereich bedienbar (ui_sel 0_1)", [] { return me::cvarWert("ui_sel") == "0_1"; }));
+    add(tu("M2 Bibliothek: Bedienen aus", [] { me::setzeInteraktion(false); }));
+    add(pruefe("M2 Bibliothek: Auswahl als eigene Vorlage speichern", [] {
+        me::waehle(0, false);
+        if (!me::speichereAuswahlAlsVorlage("probe_vorlage")) { return false; }
+        const auto ids = me::vorlagenIds();
+        return std::find(ids.begin(), ids.end(), "probe_vorlage") != ids.end();
+    }));
+    // Ebenenliste: drei uebereinanderliegende Items (eigene Namen, eine Gruppe), Kommentar dazwischen
+    const std::string ebenen = "{\n\tmenuDef\n\t{\n\t\tname stapel\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+                               "\t\titemDef { name unten style WINDOW_STYLE_FILLED backcolor 1 0 0 1 rect 50 50 200 200 visible 1 }\n"
+                               "\t\t// zwischen den Bloecken\n"
+                               "\t\titemDef { name mitte group paar style WINDOW_STYLE_FILLED backcolor 0 1 0 1 rect 80 80 200 200 visible 1 }\n"
+                               "\t\titemDef { name oben group paar style WINDOW_STYLE_FILLED backcolor 0 0 1 1 rect 110 110 200 200 visible 1 }\n"
+                               "\t}\n}\n";
+    add(tu("Ebenen: Stapel oeffnen", [ebenen] { (void)me::oeffneText("ui/stapel.menu", ebenen); }));
+    add(pause(0.2));
+    add(pruefe("Ebenen: Alt+Klick waehlt die Items unter dem Zeiger der Reihe nach (oben, mitte, unten, oben)", [] {
+        std::vector<int> folge;
+        me::waehle(-1, false);
+        for (int k = 0; k < 4; ++k) {
+            me::altKlickVorschau(150, 150);
+            const auto x = me::stand();
+            folge.push_back(x.auswahl.size() == 1 ? x.auswahl[0] : -9);
+        }
+        return folge == std::vector<int>{2, 1, 0, 2};
+    }));
+    add(tu("Ebenen: oberstes nur in der Vorschau ausblenden", [] { me::verbergeItem(2, true); }));
+    add(pause(0.2));
+    add(pruefe("Ebenen: Auge aendert den Text nicht, Alt+Klick ueberspringt das verborgene", [ebenen] {
+        me::waehle(-1, false);
+        me::altKlickVorschau(150, 150);
+        const auto x = me::stand();
+        return x.text == ebenen && x.auswahl.size() == 1 && x.auswahl[0] == 1;
+    }));
+    add(tu("Ebenen: wieder einblenden, unten nach ganz vorn ziehen", [] {
+        me::verbergeItem(2, false);
+        (void)me::ebeneAnStelle(0, 2);
+    }));
+    add(pruefe("Ebenen: Reihenfolge -> Text (mitte, oben, unten), Kommentar bleibt, ein Rueckgaengig-Schritt", [ebenen] {
+        const std::string t = me::stand().text;
+        const std::size_t a = t.find("name mitte"), b = t.find("name oben"), c = t.find("name unten");
+        const bool reihe = a < b && b < c && c != std::string::npos && t.find("// zwischen den Bloecken") != std::string::npos;
+        (void)me::rueckgaengig();
+        return reihe && me::stand().text == ebenen;
+    }));
+    // Punkt 3: Menuesatz ueber zwei Dateien - "open" wechselt die Datei
+    add(tu("M2 Menuesatz: zwei Dateien und menus.txt oeffnen", [] {
+        (void)me::oeffneText("ui/probe_b.menu", "{ menuDef { name zweites rect 0 0 640 480 visible 0\n"
+                                                "  itemDef { name t text \"B\" rect 10 10 100 20 visible 1 } } }\n");
+        (void)me::oeffneText("ui/probe_a.menu", "{ menuDef { name erstes rect 0 0 640 480 visible 1\n"
+                                                "  itemDef { name k type ITEM_TYPE_BUTTON rect 100 100 200 40 style WINDOW_STYLE_FILLED backcolor 0 0 1 1\n"
+                                                "    visible 1 action { open zweites } } } }\n");
+        (void)me::oeffneText("ui/probesatz.txt", "{\n loadMenu { \"ui/probe_a.menu\" }\n loadMenu { \"ui/probe_b.menu\" }\n}\n");
+        (void)me::oeffneMenuesatz("ui/probesatz.txt");
+        me::setzeInteraktion(true);
+    }));
+    add(pause(0.3));
+    add(tu("M2 Menuesatz: Klick auf den Knopf (open zweites)", [] { me::klickVorschau(150, 120); }));
+    add(pause(0.3));
+    add(pruefe("M2 Menuesatz: open wechselt in die andere Datei des Satzes", [] {
+        diag::info("Menue-Editor Menuesatz: " + me::laufInfo());
+        return me::letzterSatzWechsel() == "zweites";
+    }));
+    add(tu("M2 Menuesatz: Bedienen aus", [] { me::setzeInteraktion(false); }));
+    // Layout: rechte Spalte mit Reitern (Hierarchie / Text / Eigenschaften), Flaeche in voller Hoehe
+    add(tu("M2 Layout: Reiter Text", [] { me::setzeReiter(1); }));
+    add(pause(0.3));
+    add(pruefe("M2 Layout: Reiter Text gewaehlt und gemerkt", [] { return me::reiter() == 1; }));
+    add(foto("menue_reiter_text"));
+    add(tu("M2 Layout: Reiter Hierarchie", [] { me::setzeReiter(0); }));
+    add(pause(0.3));
+    add(pruefe("M2 Layout: Reiter Hierarchie gewaehlt", [] { return me::reiter() == 0; }));
+    add(foto("menue_reiter_hierarchie"));
+    // Live-Diagnose: ein absichtlich kaputtes Menue (fehlende }, Tippfehler im Schluesselwort,
+    // show auf ein Item, das es nicht gibt)
+    add(tu("M2 Diagnose: kaputtes Menue oeffnen", [] {
+        (void)me::oeffneText("ui/kaputt.menu",
+                             "{\n\tmenuDef\n\t{\n\t\tname kaputt\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+                             "\t\titemDef\n\t\t{\n\t\t\tname knopf\n\t\t\trect 100 80 200 40\n\t\t\tstyle WINDOW_STYLE_FILLED\n"
+                             "\t\t\tbackcolr 1 0 0 1\n\t\t\tvisible 1\n\t\t\taction { show knopp }\n\t}\n}\n");
+        me::setzeReiter(1);
+    }));
+    add(pause(1.0));
+    add(foto("menue_diagnose"));
+    add(pruefe("M2 Diagnose: im Hintergrund gelaufen, Fehler und Warnungen gemeldet", [st] {
+        const auto x = st();
+        std::string t;
+        for (const std::string& z : x.diagnosen) { t += " | " + z; }
+        diag::info("Menue-Editor Diagnose: " + std::to_string(x.diagFehler) + " Fehler, " + std::to_string(x.diagWarnungen) + " Warnungen, " +
+                   std::to_string(x.diagHinweise) + " Hinweise, " + std::to_string(x.diagLaeufe) + " Laeufe" + t);
+        return x.diagAktuell && x.diagFehler >= 1 && x.diagWarnungen >= 1 && x.diagLaeufe >= 1;
+    }));
+    add(tu("M2 Diagnose: Schnellkorrektur 1", [] {
+        for (int i = 0; i < 20; ++i) {
+            if (me::korrigiereDiagnose(i)) { break; }
+        }
+    }));
+    add(pause(0.8));
+    add(tu("M2 Diagnose: Schnellkorrektur 2", [] {
+        for (int i = 0; i < 20; ++i) {
+            if (me::korrigiereDiagnose(i)) { break; }
+        }
+    }));
+    add(pause(0.8));
+    add(tu("M2 Diagnose: Schnellkorrektur 3", [] {
+        for (int i = 0; i < 20; ++i) {
+            if (me::korrigiereDiagnose(i)) { break; }
+        }
+    }));
+    add(pause(0.8));
+    add(pruefe("M2 Diagnose: nach den Korrekturen weniger Meldungen (Klammer und Schluesselwort behoben)", [st] {
+        const auto x = st();
+        std::string t;
+        for (const std::string& z : x.diagnosen) { t += " | " + z; }
+        diag::info("Menue-Editor Diagnose nach Korrektur: " + std::to_string(x.diagFehler) + " Fehler, " + std::to_string(x.diagWarnungen) +
+                   " Warnungen" + t);
+        return x.diagAktuell && x.diagFehler == 0 && x.text.find("backcolor 1 0 0 1") != std::string::npos;
+    }));
+    // Punkt 6: eigene Texte in zwei Sprachen, Vorschau in der gewaehlten Sprache
+    add(tu("M2 Texte: Menue mit @MYMENU_START, Text anlegen", [] {
+        (void)me::oeffneText("ui/texte.menu",
+                             "{\n\tmenuDef\n\t{\n\t\tname texte\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+                             "\t\titemDef\n\t\t{\n\t\t\tname start\n\t\t\trect 100 100 200 40\n\t\t\ttext @MYMENU_START\n"
+                             "\t\t\ttextscale 1\n\t\t\tforecolor 1 1 1 1\n\t\t\tvisible 1\n\t\t}\n\t}\n}\n");
+        (void)me::legeTextAn("START", {{"English", "Start"}, {"German", "Los"}});
+        me::setzeVorschauSprache("German");
+    }));
+    add(pause(0.4));
+    add(foto("menue_texte_deutsch"));
+    add(pruefe("M2 Texte: Vorschau Deutsch zeigt den eigenen Text", [] { return me::loeseText("@MYMENU_START") == "Los"; }));
+    add(tu("M2 Texte: Vorschau Englisch", [] { me::setzeVorschauSprache("English"); }));
+    add(pruefe("M2 Texte: Englisch, .str im Paket", [st] {
+        const auto x = st();
+        bool str = false;
+        for (const std::string& p : x.paket) { str = str || p == "strings/English/MYMENU.str"; }
+        return me::loeseText("@MYMENU_START") == "Start" && str && me::textPaket() == "MYMENU";
+    }));
+    // Punkt 9: Schrift aus einer TTF des Systems
+    add(tu("M2 Schrift: arial.ttf nach fonts/probe", [] {
+        (void)me::baueSchriftAusTtf("C:\\Windows\\Fonts\\arial.ttf", "probe", 20);
+    }));
+    add(pruefe("M2 Schrift: .fontdat und .tga im Paket (fehlt die TTF, gilt das als bestanden)", [st] {
+        std::error_code ec;
+        if (!std::filesystem::exists("C:\\Windows\\Fonts\\arial.ttf", ec)) { return true; }
+        const auto x = st();
+        int n = 0;
+        for (const std::string& p : x.paket) { n += (p == "fonts/probe.fontdat" || p == "fonts/probe.tga") ? 1 : 0; }
+        return n == 2;
+    }));
+    // Punkt 7: fuer das Spiel pruefen, nur Aenderungen exportieren (ausserhalb des Spiels)
+    add(pruefe("M2 Pruefung: fuer JA, JK2 und Movie Duels", [] {
+        const int n = me::pruefeFuerSpiel(true, true, true);
+        diag::info("Menue-Editor Pruefung fuer das Spiel: " + std::to_string(n) + " Befunde");
+        return n >= 0;
+    }));
+    add(pruefe("M2 Export: nur Aenderungen (offene, geaenderte Menues und Paket)", [einst] {
+        const std::string ziel = einst + "\\m2_aenderungen.pk3";
+        const bool ok = me::exportiereAenderungen(ziel);
+        diag::info("Menue-Editor Export nur Aenderungen: " + std::to_string(me::letzterExport()) + " Dateien");
+        std::error_code ec;
+        return ok && me::letzterExport() >= 3 && std::filesystem::exists(ziel, ec);
+    }));
+    // Punkt 8: Testpaket und Befehlszeile - nie gestartet (BHED_EDITORTEST)
+    add(pruefe("M2 Im Spiel testen: Paket im eigenen Ordner, Befehlszeile mit fs_homepath", [] {
+        const std::string b = me::imSpielTesten();
+        diag::info("Menue-Editor Im Spiel testen: " + (b.empty() ? std::string("(kein Programm)") : b));
+        return b.empty() || b.find("fs_homepath") != std::string::npos || b.find("fs_game") != std::string::npos;
+    }));
+    return s;
+}
+
+// Bildvergleich mit dem Spiel (BHED_MENUE_VERGLEICH=1): JKA-Hauptmenue SP und MP
+// in 4:3 fotografieren und die Lage der Flaeche melden (Zuschnitt in
+// tools/menue_bildvergleich.py gegen die Fotos aus dem Spiel).
+std::vector<Schritt> vergleichSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(pause(1.0));
+    add(klick(tr(Str::ViewMenuEditor), "###main"));
+    add(tu("Vergleich: 4:3 mit Balken", [] { me::setzeBalken(true); }));
+    const char* const menues[][2] = {{"ui/main.menu", "vergleich_sp"},
+                                     {"ui/jamp/main.menu", "vergleich_mp"},
+                                     {"ui/character.menu", "vergleich_figur"},
+                                     {"ui/saber.menu", "vergleich_schwert"}};
+    for (const auto& m : menues) {
+        const std::string pfad = m[0], name = m[1];
+        // im Bedienmodus: onOpen laeuft (setfocus), Zeit und Videos wie im Spiel
+        add(tu("Vergleich: " + pfad, [pfad] {
+            me::setzeInteraktion(false);
+            // wie +set im Spiel: BHED_MENUE_VERGLEICH_CVAR=name=wert (z. B. cg_SFXSabers=0)
+            if (const char* c = std::getenv("BHED_MENUE_VERGLEICH_CVAR")) {
+                const std::string nw = c;
+                const std::size_t gl = nw.find('=');
+                if (gl != std::string::npos) { me::setzeCvar(nw.substr(0, gl), nw.substr(gl + 1)); }
+            }
+            (void)me::oeffneAusSpiel(pfad);
+            me::setzeInteraktion(true);
+        }));
+        add(pause(2.5));
+        add(foto(name));
+        add(pruefe("Vergleich: " + pfad + " gezeichnet", [name] {
+            const auto x = me::stand();
+            char b[300];
+            std::snprintf(b, sizeof(b), "Menue-Editor Vergleich %s: Flaeche %.1f %.1f %.1f %.1f, %d Zeichenbefehle, %d Texturen, Bildzeit %.2f ms, %d Figurenaufrufe %s",
+                          name.c_str(), static_cast<double>(x.flaeche[0]), static_cast<double>(x.flaeche[1]), static_cast<double>(x.flaeche[2]),
+                          static_cast<double>(x.flaeche[3]), x.prims, x.bilderGeladen, x.bildzeitMs, x.modellAufrufe, x.modellFehler.c_str());
+            diag::info(b);
+            return x.prims > 0;
+        }));
+    }
+    add(tu("Vergleich: zurueck", [] {
+        me::setzeInteraktion(false);
+        g_app->leftMode = 0;
+    }));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
+    if (std::getenv("BHED_MENUE_VERGLEICH") != nullptr) { return vergleichSchritte(); }
     // Sprache fuer die Handbuchbilder (wie handbuchSchritte): BHED_SPRACHE = en / de / zh / ja
     if (const char* sp = std::getenv("BHED_SPRACHE")) {
         if (const i18n::LanguageInfo* l = i18n::findLanguage(sp)) { i18n::setLanguage(l->language); }
@@ -105,13 +408,16 @@ std::vector<Schritt> schritte() {
     add(pruefe("Rueckgaengig: wieder wie geladen", [st] { return st().text == kSp; }));
     add(tu("Wiederholen", [] { (void)me::wiederholen(); }));
     add(pruefe("Wiederholen: 112", [st] { return st().text.find("rect\t\t112 100 200 30") != std::string::npos; }));
-    // Echte Eingabe in den Code-Editor: Klick in die Flaeche, Zeichen, Strg+Z
+    // Echte Eingabe in den Code-Editor: Reiter Text (rechte Spalte), Klick in die Flaeche, Zeichen, Strg+Z
+    add(tu("Reiter Text", [] { me::setzeReiter(1); }));
+    add(pause(0.2));
     add(klick("##codeflaeche"));
     add({"Code: XYZ tippen", [](int b) {
              if (b == 1) { ImGui::GetIO().AddInputCharactersUTF8("XYZ"); }
              return b >= 4;
          }});
     add(pruefe("Code: getippt (echte Tastatureingabe)", [st] { return st().text.find("XYZ") != std::string::npos; }));
+    add(pruefe("Code: Festbreitenschrift (Consolas/Courier New, i und W gleich breit)", [st] { return st().codeFestbreite; }));
     add({"Code: Strg+Z", [](int b) {
              ImGuiIO& io = ImGui::GetIO();
              if (b == 1) {
@@ -207,6 +513,7 @@ std::vector<Schritt> schritte() {
         if (g_app->settings.gamePaths.empty()) { return true; }
         return !me::exportierePk3((std::filesystem::path(g_app->settings.gamePaths.front()) / "zz_menue_probe.pk3").string());
     }));
+    for (auto& x : schritteM2()) { add(std::move(x)); }
     add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
     return s;
 }

@@ -823,6 +823,71 @@ bool menuArg(Grund& g, const Schluessel& k, Dialekt d, Menu& m) {
 // Item_Parse / Menu_Parse
 // ============================================================================
 
+// Asset_Parse-Schluessel je Dialekt (Art der Argumente)
+enum AssetArt { kAsUnbekannt, kAsSchrift, kAsSchriftMp, kAsText, kAsTextKannFehlen, kAsKomma, kAsGanz, kAsFarbe, kAsSkript };
+int assetArtSp(const std::string& k, Spiel spiel) {
+    auto ist = [&](const char* s) { return gleichOhneFall(k, s); };
+    if (ist("smallFont") || ist("mediumFont") || ist("bigFont")) { return kAsSchrift; }
+    if (ist("stripedFile")) { return spiel == Spiel::JK2 ? kAsText : kAsUnbekannt; }   // #ifdef JK2_MODE
+    static const char* const texte[] = {"gradientbar", "menuEnterSound", "menuExitSound", "itemFocusSound", "menuBuzzSound",
+                                        "forceChosenSound", "forceUnchosenSound", "datapadmoveRollSound", "datapadmoveJumpSound",
+                                        "datapadmoveSaberSound1", "datapadmoveSaberSound2", "datapadmoveSaberSound3",
+                                        "datapadmoveSaberSound4", "datapadmoveSaberSound5", "datapadmoveSaberSound6", "cursor"};
+    for (const char* s : texte) {
+        if (ist(s)) { return kAsText; }
+    }
+    if (spiel == Spiel::MD) {   // Movie Duels code/ui/ui_main.cpp
+        static const char* const md[] = {"cursor_anakin", "cursor_jk", "cursor_katarn", "cursor_kylo", "cursor_luke", "cursor_obiwan",
+                                         "cursor_oldrepublic", "cursor_quigon", "cursor_rey", "cursor_vader", "cursor_windu"};
+        for (const char* s : md) {
+            if (ist(s)) { return kAsText; }
+        }
+    }
+    if (ist("fadeClamp") || ist("fadeAmount") || ist("shadowX") || ist("shadowY")) { return kAsKomma; }
+    if (ist("fadeCycle")) { return kAsGanz; }
+    if (ist("shadowColor")) { return kAsFarbe; }
+    if (ist("precacheSound")) { return kAsSkript; }
+    return kAsUnbekannt;
+}
+int assetArtMp(const std::string& k) {
+    auto ist = [&](const char* s) { return gleichOhneFall(k, s); };
+    if (ist("font") || ist("smallFont") || ist("small2Font") || ist("bigFont")) { return kAsSchriftMp; }
+    if (ist("cursor") || ist("gradientbar") || ist("menuEnterSound") || ist("menuExitSound") || ist("itemFocusSound") ||
+        ist("menuBuzzSound")) {
+        return kAsText;
+    }
+    if (ist("fadeClamp") || ist("fadeAmount") || ist("shadowX") || ist("shadowY")) { return kAsKomma; }
+    if (ist("fadeCycle")) { return kAsGanz; }
+    if (ist("shadowColor")) { return kAsFarbe; }
+    static const char* const kann[] = {"moveRollSound", "moveJumpSound", "datapadmoveSaberSound1", "datapadmoveSaberSound2",
+                                       "datapadmoveSaberSound3", "datapadmoveSaberSound4", "datapadmoveSaberSound5",
+                                       "datapadmoveSaberSound6"};
+    for (const char* s : kann) {
+        if (ist(s)) { return kAsTextKannFehlen; }
+    }
+    if (ist("precacheSound")) { return kAsSkript; }
+    return kAsUnbekannt;
+}
+// Der Name in "Bad 1st parameter for keyword '...'" (mit den Abweichungen der Engine)
+std::string assetWarnName(const std::string& k) {
+    if (gleichOhneFall(k, "mediumFont")) { return "font"; }
+    if (gleichOhneFall(k, "datapadmoveJumpSound")) { return "datapadmoveRoll"; }
+    if (gleichOhneFall(k, "cursor_jk")) { return "cursor_jk3"; }
+    // die Engine schreibt den Namen aus ihrer Tabelle, nicht wie im Text
+    static const char* const alle[] = {"smallFont", "bigFont", "stripedFile", "gradientbar", "menuEnterSound", "menuExitSound",
+                                       "itemFocusSound", "menuBuzzSound", "forceChosenSound", "forceUnchosenSound",
+                                       "datapadmoveRollSound", "datapadmoveSaberSound1", "datapadmoveSaberSound2",
+                                       "datapadmoveSaberSound3", "datapadmoveSaberSound4", "datapadmoveSaberSound5",
+                                       "datapadmoveSaberSound6", "cursor", "cursor_anakin", "cursor_katarn", "cursor_kylo",
+                                       "cursor_luke", "cursor_obiwan", "cursor_oldrepublic", "cursor_quigon", "cursor_rey",
+                                       "cursor_vader", "cursor_windu", "fadeClamp", "fadeCycle", "fadeAmount", "shadowX", "shadowY",
+                                       "shadowColor"};
+    for (const char* s : alle) {
+        if (gleichOhneFall(k, s)) { return s; }
+    }
+    return k;
+}
+
 class Leser {
 public:
     Leser(Grund& g, Datei& d) : g_(g), d_(d) {}
@@ -933,7 +998,14 @@ public:
         }
     }
 
-    // Asset_Parse: die Werte der Schluessel merken (Schriften, Klaenge ...)
+    // Asset_Parse: so streng wie das Spiel. Bekannte Schluessel lesen ihre
+    // Argumente mit den Lesern der Engine (Fehler beenden assetGlobalDef wie
+    // dort mit qfalse), unbekannte Woerter ueberspringt die Engine still -
+    // ihre Argumente werden dann selbst als Schluessel gelesen.
+    //   SP  code/ui/ui_main.cpp Asset_Parse (JA, JK2 mit stripedFile; Movie
+    //       Duels zusaetzlich cursor_*), Warnungen im Wortlaut von PC_ParseWarning
+    //   MP  codemp/ui/ui_main.c Asset_Parse (font/smallFont/small2Font/bigFont
+    //       mit PC_ReadToken + PC_Int_Parse, kein mediumFont)
     bool assets() {
         Token t;
         if (!g_.schluesselwort(t, false) || t.s != "{") { return false; }
@@ -947,41 +1019,60 @@ public:
             e.schluessel = t.s;
             e.kopf = t;
             g_.aufz = &e.args;
+            const int art = mp() ? assetArtMp(t.s) : assetArtSp(t.s, d_.spiel);
             bool ok = true;
-            const char* const schrift[] = {"font", "smallFont", "small2Font", "mediumFont", "bigFont"};
-            const char* const zahl[] = {"fadeClamp", "fadeAmount", "shadowX", "shadowY", "fadeCycle"};
-            bool bekannt = false;
-            for (const char* s : schrift) {
-                if (gleichOhneFall(t.s, s)) {
-                    std::string n;
-                    int p = 0;
-                    ok = g_.str(n) && g_.ganz(p);
-                    bekannt = true;
-                }
-            }
-            for (const char* s : zahl) {
-                if (!bekannt && gleichOhneFall(t.s, s)) {
-                    float f = 0;
-                    ok = g_.komma(f);
-                    bekannt = true;
-                }
-            }
-            if (!bekannt && (gleichOhneFall(t.s, "shadowColor") || gleichOhneFall(t.s, "focuscolor"))) {
-                Farbe c;
-                ok = g_.farbe(c);
-                bekannt = true;
-            }
-            if (!bekannt && gleichOhneFall(t.s, "precacheSound")) {   // { "a.wav" "b.wav" ... }
-                std::string s;
-                ok = g_.skript(s);   // PC_Script_Parse wie Asset_Parse
-                bekannt = true;
-            }
-            if (!bekannt) {
-                std::string s;
-                ok = g_.str(s);
+            std::string s;
+            int i = 0;
+            float f = 0;
+            Farbe c;
+            const std::string bad = "Bad 1st parameter for keyword '" + assetWarnName(t.s) + "'";
+            switch (art) {
+                case kAsSchrift:   // SP: PC_ParseString, dann PC_ParseInt (Ergebnis egal)
+                    if (!g_.str(s)) {
+                        g_.warn(bad, false);
+                        ok = false;
+                        break;
+                    }
+                    (void)g_.ganz(i);
+                    break;
+                case kAsSchriftMp:   // MP: PC_ReadToken || PC_Int_Parse
+                    ok = g_.tok(s) && g_.ganz(i);
+                    break;
+                case kAsText:
+                    if (!g_.str(s)) {
+                        if (!mp() || gleichOhneFall(t.s, "cursor")) { g_.warn(bad, false); }
+                        ok = false;
+                    }
+                    break;
+                case kAsTextKannFehlen:   // MP moveRollSound ...: if (PC_ReadToken) ...; continue
+                    (void)g_.tok(s);
+                    break;
+                case kAsKomma:
+                    if (!g_.komma(f)) {
+                        if (!mp()) { g_.warn(bad, false); }
+                        ok = false;
+                    }
+                    break;
+                case kAsGanz:
+                    if (!g_.ganz(i)) {
+                        if (!mp()) { g_.warn(bad, false); }
+                        ok = false;
+                    }
+                    break;
+                case kAsFarbe:
+                    if (!g_.farbe(c)) {
+                        if (!mp()) { g_.warn(bad, false); }
+                        ok = false;
+                    }
+                    break;
+                case kAsSkript:   // precacheSound { "a.wav" ... } - PC_Script_Parse
+                    (void)g_.skript(s);
+                    break;
+                default:          // unbekannt: das Spiel liest das naechste Wort als Schluessel
+                    break;
             }
             g_.aufz = nullptr;
-            e.ok = ok;
+            e.ok = ok && art != kAsUnbekannt;
             d_.assets.eigenschaften.push_back(e);
             if (!ok) { return false; }
         }
@@ -1162,6 +1253,19 @@ std::vector<std::string> menuSchluessel(Dialekt d, Spiel s) {
     }
     return v;
 }
+int zahlArgumente(Dialekt d, Spiel s, bool item, const std::string& schluessel) {
+    const Schluessel* k = item ? sucheIn(kItem, schluessel, d, s) : sucheIn(kMenu, schluessel, d, s);
+    if (k == nullptr) { return -1; }
+    switch (d == Dialekt::MP ? k->mp : k->sp) {
+        case Art::Int:
+        case Art::Float: return 1;
+        case Art::Vec3: return 3;
+        case Art::Rect:
+        case Art::Color: return 4;
+        default: return 0;
+    }
+}
+
 std::vector<std::string> itemSchluessel(Dialekt d, Spiel s) {
     std::vector<std::string> v;
     for (const Schluessel& k : kItem) {

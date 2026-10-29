@@ -325,6 +325,9 @@ inline constexpr int ITF_ISANYSABER = ITF_ISSABER | ITF_ISSABER2;
 // Dialekt/Spiel (Vervollstaendigung, Syntaxfarben).
 [[nodiscard]] std::vector<std::string> menuSchluessel(Dialekt d, Spiel s);
 [[nodiscard]] std::vector<std::string> itemSchluessel(Dialekt d, Spiel s);
+// Wie viele Zahlen ein Schluesselwort liest (Int/Float 1, Vec3 3, Rect/Color 4), 0 = keine
+// Zahlen (Text, Skript, Name ...), -1 = unbekannt. SP liest Nicht-Zahlen still als 0.
+[[nodiscard]] int zahlArgumente(Dialekt d, Spiel s, bool item, const std::string& schluessel);
 
 // --- Bearbeiten ueber Spannen ---------------------------------------------
 
@@ -372,6 +375,26 @@ struct Texte {
     [[nodiscard]] std::string aufloesen(const std::string& s) const;
     [[nodiscard]] bool kennt(const std::string& s) const;
 };
+
+// M2 Punkt 6: eigene Texte schreiben. Ein Eintrag je Schluessel (ohne Paket):
+// Englisch und die Uebersetzung der Datei.
+struct TextEintrag {
+    std::string schluessel;   // "MEIN_KNOPF"
+    std::string englisch;
+    std::string uebersetzung; // leer bei englischen Dateien
+};
+// StringEd (.str, Jedi Academy/Movie Duels): strings/<sprache>/<paket>.str - englische
+// Dateien tragen nur LANG_ENGLISH, fremde LANG_ENGLISH und LANG_<SPRACHE> (wie Ravens).
+[[nodiscard]] std::string schreibeStr(const std::string& sprache, const std::vector<TextEintrag>& e);
+// StripEd (.sp, Jedi Outcast): strip/<paket>.sp mit TEXT_LANGUAGE1 (Englisch) und
+// TEXT_LANGUAGE<n> der Sprache (2 Franzoesisch, 3 Deutsch).
+[[nodiscard]] std::string schreibeSp(const std::string& paket, int sprache, const std::vector<TextEintrag>& e);
+// StripEd mit allen Sprachen in einer Datei (TEXT_LANGUAGE1 Englisch, 2 Franzoesisch, 3 Deutsch)
+struct TextEintragSprachen {
+    std::string schluessel;
+    std::map<int, std::string> texte;
+};
+[[nodiscard]] std::string schreibeSpSprachen(const std::string& paket, const std::vector<TextEintragSprachen>& e);
 
 // Zahl so schreiben, wie ein Mensch sie in eine .menu schreibt (12, 0.5, .25 bleibt nicht).
 [[nodiscard]] std::string zahlText(float v);

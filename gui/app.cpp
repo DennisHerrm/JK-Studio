@@ -3104,6 +3104,12 @@ void drawPrefs() {
     erklaerung(Str::PrefsQueryHint);
     ImGui::Checkbox(tr(Str::PrefsLastDir), &st.dialogUsesLastDir);
     erklaerung(Str::PrefsLastDirHint);
+    // Menue-Editor M2: Layout und Code-Editor
+    ImGui::SeparatorText(tr(Str::MeEinstGruppe));
+    ImGui::Checkbox(tr(Str::MeEinstTextUnten), &st.menueTextUnten);
+    erklaerung(Str::MeEinstTextUntenHint);
+    ImGui::Checkbox(tr(Str::MeEinstUmbruch), &st.menueUmbruch);
+    erklaerung(Str::MeEinstUmbruchHint);
 
     // --- rc601 ton: die Mischpegel der Vorschau ---------------------------
     //

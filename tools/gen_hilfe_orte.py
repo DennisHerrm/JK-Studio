@@ -17,6 +17,7 @@ Anzeige, der Kennung des Hinweistexts und einer Vorbedingung.
                   (kSeiten), Ziel ist die Seite (selbst gezeichnet gemeldet:
                   gezeichnet:karte.einstseite.<n>), die Felder der Seite als Inhalt
   Menue-Editor    gui/app_menue.cpp: Knoepfe, Umschalter und Haken der Leiste
+                  (seit M2 Symbolknoepfe iconKnopf(tr(Str::X), UiIcon::.., tr(Str::Hinweis)))
 Spalten: bereich, ziel, kette, hinweis, voraus, inhalt (H2: Kennungen, die im
 Untermenue/Dialog stehen - nur Suchwoerter).
 H2: Vorbedingungen verkettet ("&&", include/bhed/tour.h): eine Einstellung des
@@ -225,21 +226,29 @@ def bekannte_kennungen():
     return namen
 
 
-# H2: die Leiste des Menue-Editors; Speichern/Exportieren erst mit offenem Menue.
-MIT_MENUE = {"MeSpeichern", "MeExportPk3"}
+# H2: die Leiste des Menue-Editors; Knoepfe, die erst mit offenem Menue da sind.
+MIT_MENUE = {"MeSpeichern", "MeVideoImport", "MeSchriftBauen", "MeTexte", "MePruefen", "MeExportPk3",
+             "MeImSpielTesten"}
 
 
 def menueEditor():
-    aus = []
+    """Knoepfe, Umschalter und Haken; seit M2 die Leiste aus Symbolknoepfen (iconKnopf mit Hinweis
+    wie in leisten()). Die Leiste zuerst: heisst ein Knopf eines Fensters gleich (Pruefen, Schrift
+    bauen), gilt der Leistenknopf mit seinem Hinweis."""
+    leiste, knoepfe = [], []
     for z in lies("gui/app_menue.cpp"):
-        m = re.search(r"ImGui::(?:Button|RadioButton|Checkbox)\(tr\(Str::(Me\w+)\)", z)
-        if not m:
-            continue
-        n = m.group(1)
+        m = re.search(r"icon(?:Text)?Knopf\(tr\(Str::(Me\w+)\), *UiIcon::\w+, *tr\(Str::(\w+)\)", z)
+        if m:
+            n, hinweis, liste = m.group(1), m.group(2), leiste
+        else:
+            m = re.search(r"ImGui::(?:Button|RadioButton|Checkbox)\(tr\(Str::(Me\w+)\)", z)
+            if not m:
+                continue
+            n = m.group(1)
+            hinweis, liste = (n + "Hint" if (n + "Hint") in bekannte_kennungen() else ""), knoepfe
         voraus = MENUE + (" && zahl:menue.dokumente < knopf:MeAusSpiel" if n in MIT_MENUE else "")
-        hinweis = n + "Hint" if (n + "Hint") in bekannte_kennungen() else ""
-        aus.append(["menue", "knopf:" + n, "ViewMenuEditor>" + n, hinweis, voraus, ""])
-    return aus
+        liste.append(["menue", "knopf:" + n, "ViewMenuEditor>" + n, hinweis, voraus, ""])
+    return leiste + knoepfe
 
 
 def text():
