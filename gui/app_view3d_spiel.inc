@@ -4420,6 +4420,18 @@ void loadMission(const Mission& m) {
             // (nach Save mission): sonst stand es zweimal da (11.10.).
             int offen = reiterMitSkript(sc2.file);
             if (offen < 0) { offen = reiterFuerSkriptRef(sc2.ref); }
+            // mission1: nur ein Reiter DIESER Karte (oder ohne eigene Karte).
+            // academy4/academy6 benutzen academy2/studentspawn*, vjun1 die
+            // Skripte von hoth2 und common - war die andere Mission offen,
+            // wurde deren Reiter samt ihrer Karte mitgenommen, und das
+            // Umschalten auf ihn lud die andere Karte zurueck: die neue
+            // Mission erschien nicht.
+            if (offen >= 0) {
+                const std::string karteDes = offen == vorherTab ? vorherMapId
+                                             : offen == g_app->activeTab ? g_app->map.path
+                                                                          : g_app->tabs[static_cast<std::size_t>(offen)].mapId;
+                if (!karteDes.empty() && karteDes != m.mapFile) { offen = -1; }
+            }
             if (offen >= 0) {
                 if (erstesReiter < 0) { erstesReiter = offen; }
                 continue;
