@@ -152,7 +152,9 @@ Spiel mit einem echten Start (nie gestartet), TTF-Schriften im Spiel.
   „... und legt das ganze Skript in die Zwischenablage“; zur selben Zeit lief ein
   jkstudio.exe eines anderen Strangs (Y:\sprache_cs\...), das dieselbe Windows-Zwischenablage
   benutzt. M2 ändert am Kopieren nichts (gui/app.cpp nur der Abschnitt Menü-Editor in den
-  Einstellungen).
+  Einstellungen). Gegenprobe `BHED_EDITORTEST=original` allein: dieselben Zwischenablage-
+  Schritte scheitern auch mit dem Programm eines anderen Zweigs (Y:\sprache_cs) - die
+  Windows-Zwischenablage war in dieser Sitzung von außen belegt.
 - Spielordner (Movie Duels und Jedi Academy original) vorher/nachher: keine Änderung
   (Liste mit Größe und Zeit, 4047 Einträge gleich). Der Absturzbericht des Spiels vom
   ersten Start (fs_game base ohne MD-Vorgabe-cfg) liegt weiter in den Dokumenten.
