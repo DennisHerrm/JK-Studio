@@ -255,7 +255,7 @@ NACH_SCHRITT.update({
     ("tut-p1", "classic", 3): A("karte3d", "manuell", voraus=VORSCHAU),
     ("tut-p1", "classic", 4): A("karte3d", "zahl:vorschau.ents-", voraus=VORSCHAU),
     # k-skins: Haut, Flaechenliste, Kappen, Skelett
-    ("k-skins", "classic", 1): A("knopf:ModelSkin;knopf:OpenSkin", "zahl:modell.skin~", voraus=MODELL + " && zahl:modell.da < knopf:NpcBrowser"),
+    ("k-skins", "classic", 1): A("knopf:ModelSkin;knopf:OpenSkin", "zahl:modell.skin+", voraus=MODELL + " && zahl:modell.da < knopf:NpcBrowser"),
     ("k-skins", "classic", 2): A("gezeichnet:modell.flaechen", "zahl:modell.flaechenliste+", voraus=MODELL + " && zahl:modell.da < knopf:NpcBrowser"),
     ("k-skins", "classic", 3): A("knopf:ModelCaps", "zahl:modell.caps~", voraus=MODELL + " && zahl:modell.da < knopf:NpcBrowser"),
     ("k-skins", "classic", 4): A("knopf:ModelLoadGla", "zahl:modell.skelett~", voraus=MODELL + " && zahl:modell.da < knopf:NpcBrowser"),

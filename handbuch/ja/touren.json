@@ -986,7 +986,7 @@
       "bild": "k_modell_leiste",
       "unter": "スキン一覧のある再生バー。",
       "ziel": "knopf:ModelSkin;knopf:OpenSkin",
-      "fertig": "zahl:modell.skin~",
+      "fertig": "zahl:modell.skin+",
       "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
       "einrichten": "",
       "sicher": false,

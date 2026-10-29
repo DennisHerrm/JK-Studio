@@ -496,12 +496,17 @@ void drawModelPanel() {
         if (ImGui::BeginCombo(tr(Str::ModelSkin), current.c_str())) {
             for (std::size_t i = 0; i < g_app->modelSkins.size(); ++i) {
                 const bool selS = (static_cast<int>(i) == g_app->modelSkinIndex);
-                if (ImGui::Selectable(g_app->modelSkins[i].c_str(), selS)) { applySkinByIndex(static_cast<int>(i)); }
+                if (ImGui::Selectable(g_app->modelSkins[i].c_str(), selS)) {
+                    applySkinByIndex(static_cast<int>(i));
+                    ++g_app->modellHautWechsel;
+                }
                 if (selS) { ImGui::SetItemDefaultFocus(); }
             }
             ImGui::EndCombo();
         }
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s", tr(Str::ModelSkinHint)); }
+        // H2: die Auswahlliste meldet ihre Beschriftung sonst nur aufgeklappt (Tour k-skins, Helfer).
+        if (GImGui->TestEngineHookItems) { selbsttestMerkeText(GImGui, ImGui::GetItemID(), tr(Str::ModelSkin)); }
         ImGui::SameLine();
         int shown = 0;
         int total = 0;

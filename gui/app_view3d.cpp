@@ -2222,6 +2222,7 @@ void openSkinFile() {
     }
     applySkin(skin, g_app->model);
     loadModelTextures();
+    ++g_app->modellHautWechsel;
     diag::info("Haut gewechselt: " + p);
 }
 

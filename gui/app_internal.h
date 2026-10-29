@@ -380,6 +380,7 @@ struct App {
     std::vector<std::string> modelSkins;
     int modelSkinIndex = -1;
     int modellFlaechenListen = 0;   // H2: Klicks auf den Flaechenzaehler (Tour k-skins)
+    int modellHautWechsel = 0;      // H2: vom Anwender gewaehlte Haeute (Liste, Datei) - nicht das Laden einer Figur
     std::string modelDir;
     bool showModelTextures = true;
     // Model-Tab (rc591)

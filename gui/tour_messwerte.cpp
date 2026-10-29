@@ -44,7 +44,7 @@
 //                        das Fenster NPC-Wegpunkte, Zahl der Wegpunkte, gepruefte Befunde
 //   mission.name         Pruefsumme von Name und Ordner der Mission ("~" = angelegt/geoeffnet)
 //   modell.da            1, wenn ein Modell geladen ist
-//   modell.skin          die gewaehlte Haut ("~" = gewechselt)
+//   modell.skin          vom Anwender gewaehlte Haeute ("+" = eine gewaehlt; das Laden einer Figur zaehlt nicht)
 //   modell.caps          1, wenn die _off-Flaechen gezeigt werden
 //   modell.flaechenliste Klicks auf den Flaechenzaehler (Liste im Detailprotokoll)
 //   modell.skelett       Pruefsumme der Animationsliste ("~" = anderes Skelett)
@@ -253,7 +253,7 @@ void tourMesswerte(std::map<std::string, double>& werte, bool karte, double jetz
     werte["mission.name"] = static_cast<double>(fnv(fnv(2166136261U, g_app->mission.name), g_app->mission.projektOrdner));
     // Modell: Haut, Kappen, Flaechenliste, Skelett.
     werte["modell.da"] = g_app->model.empty() ? 0.0 : 1.0;
-    werte["modell.skin"] = g_app->modelSkinIndex;
+    werte["modell.skin"] = g_app->modellHautWechsel;
     werte["modell.caps"] = g_app->showCaps ? 1.0 : 0.0;
     werte["modell.flaechenliste"] = g_app->modellFlaechenListen;
     std::uint32_t ha = fnv(2166136261U, std::to_string(g_app->anim.numFrames) + "/" + std::to_string(g_app->anim.bones.size()));

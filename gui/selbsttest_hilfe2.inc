@@ -396,8 +396,17 @@ std::vector<Schritt> skins() {
     add(warteBis("H2 Skins: Modell mit mehreren Haeuten", [] { return !g_app->model.empty() && g_app->modelSkins.size() >= 2; }, 1200));
     add(zielDa("Skins: die Hautliste ist hervorgehoben"));
     add(wartetNoch("k-skins", 0));
-    add(tu("H2 Skins: eine andere Haut waehlen (Liste)", [] {
-        applySkinByIndex(g_app->modelSkinIndex == 0 ? 1 : 0);
+    add(klick(tr(Str::ModelSkin)));
+    add(pause(0.3));
+    add(klickAn("H2 Skins: eine andere Haut in der Liste anklicken", [] {
+        const std::string jetzt = g_app->modelSkinIndex >= 0 && static_cast<std::size_t>(g_app->modelSkinIndex) < g_app->modelSkins.size()
+                                      ? g_app->modelSkins[static_cast<std::size_t>(g_app->modelSkinIndex)]
+                                      : std::string();
+        for (const std::string& h : g_app->modelSkins) {
+            if (h == jetzt) { continue; }
+            if (const elemente::Element* e = finde(h, "##Combo", 0, false); e != nullptr) { return e->rect.GetCenter(); }
+        }
+        return ImVec2{-1.0F, -1.0F};
     }));
     add(erledigt("k-skins", 1));
     add(warteBis("H2 Skins: der Flaechenzaehler (selbst gezeichnet) ist hervorgehoben", [] {
