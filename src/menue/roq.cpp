@@ -18,8 +18,9 @@
 // Abweichungen nur gegen Abstuerze: die Zeigertabellen q_status sind Versaetze
 // in linbuf (-1 = NULL), linbuf und q_status wachsen mit dem Bild statt fest
 // 512x512 zu sein, und Kopien, die ausserhalb von linbuf laegen (kaputte
-// Datei), entfallen. Der Ton (ZA_SOUND_*) wird wie mit CIN_silent nicht
-// dekodiert - die Menues spielen ihre Videos immer stumm (UI_PlayCinematic).
+// Datei), entfallen. Der Ton (ZA_SOUND_*) wird beim Abspielen wie mit CIN_silent
+// nicht dekodiert - die Menues spielen ihre Videos immer stumm (UI_PlayCinematic,
+// videoMap); roqTonDekodieren() liest ihn fuer den Rundlauftest des Kodierers.
 #include "bhed/menue/roq.h"
 
 #include <algorithm>
@@ -505,6 +506,50 @@ RoqSpieler::Status RoqSpieler::lauf(int jetztMs) {   // CIN_RunCinematic
 const std::uint8_t* RoqSpieler::bild() const {
     if (bufVersatz_ < 0 || linbuf_.empty() || xsize_ == 0) { return nullptr; }
     return linbuf_.data() + bufVersatz_;
+}
+
+// --- Ton (RllSetupTable, RllDecodeMonoToStereo, RllDecodeStereoToStereo) --------------
+// RoQInterrupt gibt mono und stereo als Stereo an S_RawSamples (22050 Hz); die Zeit hier
+// ist nur die Folge der Stuecke - abgespielt wird nichts (Menues: CIN_silent).
+std::vector<std::int16_t> roqTonDekodieren(const std::string& roq, int* kanaele) {
+    std::vector<std::int16_t> out;
+    if (kanaele != nullptr) { *kanaele = 0; }
+    short sqrTable[256];
+    for (int z = 0; z < 128; ++z) {
+        sqrTable[z] = static_cast<short>(z * z);
+        sqrTable[z + 128] = static_cast<short>(-sqrTable[z]);
+    }
+    const auto u8 = [&](std::size_t i) { return static_cast<unsigned>(static_cast<unsigned char>(roq[i])); };
+    std::size_t p = 8;
+    while (p + 8 <= roq.size()) {
+        const unsigned id = u8(p) | u8(p + 1) << 8;
+        const std::size_t groesse = u8(p + 2) | u8(p + 3) << 8 | u8(p + 4) << 16;
+        const unsigned flag = u8(p + 6) | u8(p + 7) << 8;
+        const std::size_t daten = p + 8;
+        if (daten + groesse >= roq.size()) { break; }   // das letzte Stueck liest die Engine nie
+        const auto* from = reinterpret_cast<const unsigned char*>(roq.data() + daten);
+        if (id == kRoqTonMono) {
+            int prev = static_cast<int>(flag);   // signedOutput 0
+            for (std::size_t z = 0; z < groesse; ++z) {
+                prev = static_cast<short>(prev + sqrTable[from[z]]);
+                out.push_back(static_cast<std::int16_t>(prev));
+                out.push_back(static_cast<std::int16_t>(prev));
+            }
+            if (kanaele != nullptr && *kanaele == 0) { *kanaele = 1; }
+        } else if (id == kRoqTonStereo) {
+            int prevL = static_cast<int>(flag & 0xff00U);
+            int prevR = static_cast<int>((flag & 0x00ffU) << 8);
+            for (std::size_t z = 0; z + 1 < groesse; z += 2) {
+                prevL = static_cast<short>(prevL + sqrTable[from[z]]);
+                prevR = static_cast<short>(prevR + sqrTable[from[z + 1]]);
+                out.push_back(static_cast<std::int16_t>(prevL));
+                out.push_back(static_cast<std::int16_t>(prevR));
+            }
+            if (kanaele != nullptr && *kanaele == 0) { *kanaele = 2; }
+        }
+        p = daten + groesse;
+    }
+    return out;
 }
 
 }  // namespace bhed::menue

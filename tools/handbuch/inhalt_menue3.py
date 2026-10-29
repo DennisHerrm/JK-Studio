@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Handbuchseite des Menue-Editors, Stufe M3: HUD-Editor, asiatische Texte, Saebelarten,
-Haltung der Figur, Klaenge."""
+"""Handbuchseiten des Menue-Editors, Stufe M3 (HUD-Editor, asiatische Texte, Saebelarten,
+Haltung der Figur, Klaenge) und M4 (Video-Import, Ton, Lesbarkeit)."""
 from inhalt_basis import T
 
 MENUE_EDITOR_M3 = {
@@ -54,4 +54,59 @@ MENUE_EDITOR_M3 = {
     ],
 }
 
-SEITEN = [MENUE_EDITOR_M3]
+MENUE_EDITOR_M4 = {
+    "id": "menue_editor_m4",
+    "gruppe": "start",
+    "titel": T("Menu editor: videos, sound and readability", "Menü-Editor: Videos, Ton und Lesbarkeit",
+               "菜单编辑器:视频、声音与易读性", "メニューエディター: 動画、音、見やすさ"),
+    "kurz": T(
+        "Import videos the way the game can play them - size, aspect ratio, frame rate, sound, the shader with videoMap - get clear messages for missing codecs, switch the preview sounds off and read the toolbars with labels.",
+        "Videos so importieren, wie das Spiel sie abspielen kann - Größe, Seitenverhältnis, Bildrate, Ton, der Shader mit videoMap -, klare Meldungen bei fehlenden Codecs, die Klänge der Vorschau ausschalten und die Leisten mit Beschriftung lesen.",
+        "按游戏能够播放的方式导入视频——尺寸、宽高比、帧率、声音、带 videoMap 的着色器——缺少编解码器时给出明确提示,关闭预览声音,并可让工具栏显示文字。",
+        "ゲームが再生できる形で動画を取り込みます(サイズ、縦横比、フレームレート、音声、videoMap 付きシェーダー)。コーデックが足りないときは分かりやすく知らせ、プレビューの音を消し、ツールバーに名前を表示できます。"),
+    "bloecke": [
+        ("h2", "video", T("Importing a video", "Ein Video importieren", "导入视频", "動画を取り込む")),
+        ("img", "menue_video_dialog", T("The import dialog for a 1920 x 1080 video with sound: size 512 x 512, aspect ratio, frames per second, quality, sound (off by default), use in the menu and the estimated size.",
+                                        "Der Import-Dialog für ein 1920 x 1080 großes Video mit Ton: Größe 512 x 512, Seitenverhältnis, Bilder pro Sekunde, Qualität, Ton (ab Werk aus), Verwendung im Menü und geschätzte Größe.",
+                                        "一段 1920 x 1080 带声音视频的导入对话框:尺寸 512 x 512、宽高比、每秒帧数、质量、声音(默认关闭)、在菜单中的用途以及估算的大小。",
+                                        "音声付き 1920 x 1080 動画の取り込みダイアログ: サイズ 512 x 512、縦横比、フレームレート、画質、音声(既定はオフ)、メニューでの使い方、見積もりサイズ。"), "breit"),
+        ("p", T(
+            "**{{MeVideoImport}}** reads MP4, WebM, AVI, WMV, MOV and MKV through Windows, animated GIFs, and RoQ files - a RoQ is taken over unchanged. Choose **{{MeVideoZielGroesse}}**: the game plays only sides that are powers of two, with at most 512 x 512 pixels in total (full-screen videos stop otherwise, larger videos overflow the game's video buffer); 512 x 512 is the default, like every Jedi Academy and Movie Duels video. **{{MeVideoEinpassen}}**: {{MeVideoStrecken}} (the game stretches the video onto the element anyway), {{MeVideoBalken}} or {{MeVideoZuschneiden}}. Pictures are reduced by averaging all covered pixels, so fine patterns do not flicker. Below the options you see the length, the number of frames and the size the file will have.",
+            "**{{MeVideoImport}}** liest MP4, WebM, AVI, WMV, MOV und MKV über Windows, animierte GIFs und RoQ-Dateien - ein RoQ wird unverändert übernommen. Wähle die **{{MeVideoZielGroesse}}**: Das Spiel spielt nur Seiten, die Zweierpotenzen sind, mit höchstens 512 x 512 Pixeln insgesamt (Vollbild-Videos brechen sonst ab, größere Videos laufen über den Videopuffer des Spiels); 512 x 512 ist die Vorgabe, wie bei allen Videos von Jedi Academy und Movie Duels. **{{MeVideoEinpassen}}**: {{MeVideoStrecken}} (das Spiel streckt das Video ohnehin auf das Element), {{MeVideoBalken}} oder {{MeVideoZuschneiden}}. Verkleinert wird, indem alle überdeckten Pixel gemittelt werden - feine Muster flimmern nicht. Unter den Einstellungen stehen Länge, Bildanzahl und die Größe, die die Datei haben wird.",
+            "**{{MeVideoImport}}** 通过 Windows 读取 MP4、WebM、AVI、WMV、MOV 和 MKV,也可读取动态 GIF 和 RoQ 文件——RoQ 会原样采用。选择 **{{MeVideoZielGroesse}}**:游戏只能播放边长为 2 的幂、总像素最多 512 x 512 的视频(否则全屏视频会中止,更大的视频会溢出游戏的视频缓冲区);默认 512 x 512,与 Jedi Academy 和 Movie Duels 的所有视频相同。**{{MeVideoEinpassen}}**:{{MeVideoStrecken}}(游戏本来就会把视频拉伸到元素上)、{{MeVideoBalken}} 或 {{MeVideoZuschneiden}}。缩小时会对覆盖到的所有像素取平均,细密图案不会闪烁。选项下方显示时长、帧数以及文件的大小。",
+            "**{{MeVideoImport}}** は Windows を通じて MP4・WebM・AVI・WMV・MOV・MKV を読み、アニメーション GIF と RoQ ファイルも読みます。RoQ はそのまま取り込みます。**{{MeVideoZielGroesse}}** を選びます。ゲームが再生できるのは辺が 2 のべき乗で合計 512 x 512 ピクセル以下の動画だけです(そうでないと全画面動画は止まり、大きな動画はゲームの動画バッファからあふれます)。既定は Jedi Academy と Movie Duels の全動画と同じ 512 x 512 です。**{{MeVideoEinpassen}}**: {{MeVideoStrecken}}(ゲームはどのみち動画を要素に合わせて引き伸ばします)、{{MeVideoBalken}}、{{MeVideoZuschneiden}}。縮小は覆われたすべてのピクセルの平均で行うので、細かい模様がちらつきません。設定の下に長さ、フレーム数、ファイルの大きさが表示されます。")),
+        ("img", "menue_video_m4", T("The imported video as background of background_video in the Jedi Academy main menu - the preview plays it like the game.",
+                                    "Das importierte Video als Hintergrund von background_video im Hauptmenü von Jedi Academy - die Vorschau spielt es wie das Spiel.",
+                                    "导入的视频作为 Jedi Academy 主菜单中 background_video 的背景——预览像游戏一样播放它。",
+                                    "Jedi Academy のメインメニューで background_video の背景にした取り込み動画。プレビューはゲームと同じように再生します。"), "breit"),
+        ("p", T(
+            "A menu shows a video through a shader with `videoMap`. The import writes it for you: `menu/video/<name>` in `shaders/<package>.shader`, next to `video/<name>.roq`. **{{MeVideoVerwendung}}** decides what happens in the menu: **{{MeVideoAlsHintergrund}}**, **{{MeVideoNeuesElement}}** (640 x 480, behind all others) or **{{MeVideoAlsCinematic}}** - only multiplayer menus draw that keyword, single-player menus show nothing (the check says so). Shader, video and menu go together into the exported .pk3 and into **{{MeImSpielTesten}}**.",
+            "Ein Menü zeigt ein Video über einen Shader mit `videoMap`. Der Import schreibt ihn für dich: `menu/video/<Name>` in `shaders/<Paket>.shader`, neben `video/<Name>.roq`. **{{MeVideoVerwendung}}** bestimmt, was im Menü passiert: **{{MeVideoAlsHintergrund}}**, **{{MeVideoNeuesElement}}** (640 x 480, hinter allen anderen) oder **{{MeVideoAlsCinematic}}** - dieses Schlüsselwort zeichnen nur Mehrspieler-Menüs, Einzelspieler-Menüs zeigen nichts (die Prüfung sagt das). Shader, Video und Menü kommen zusammen in die exportierte .pk3 und in **{{MeImSpielTesten}}**.",
+            "菜单通过带 `videoMap` 的着色器显示视频。导入会替你写好:在 `shaders/<包>.shader` 中写入 `menu/video/<名称>`,与 `video/<名称>.roq` 放在一起。**{{MeVideoVerwendung}}** 决定菜单中的效果:**{{MeVideoAlsHintergrund}}**、**{{MeVideoNeuesElement}}**(640 x 480,位于所有其他元素之后)或 **{{MeVideoAlsCinematic}}**——只有多人菜单会绘制该关键字,单人菜单不显示任何内容(检查会提示)。着色器、视频和菜单会一起进入导出的 .pk3 和 **{{MeImSpielTesten}}**。",
+            "メニューは `videoMap` 付きのシェーダーで動画を表示します。取り込みがそれを書きます: `shaders/<パッケージ>.shader` に `menu/video/<名前>`、その隣に `video/<名前>.roq`。**{{MeVideoVerwendung}}** でメニューでの扱いを決めます: **{{MeVideoAlsHintergrund}}**、**{{MeVideoNeuesElement}}**(640 x 480、ほかのすべての後ろ)、**{{MeVideoAlsCinematic}}**(このキーワードを描くのはマルチプレイヤーのメニューだけで、シングルプレイヤーのメニューには何も表示されません。チェックがそう知らせます)。シェーダー、動画、メニューはまとめて書き出しの .pk3 と **{{MeImSpielTesten}}** に入ります。")),
+        ("h2", "ton", T("Sound", "Ton", "声音", "音")),
+        ("p", T(
+            "Menus always play their videos silently - the game starts them without sound. **{{MeVideoTon}}** is therefore off; switch it on for full-screen videos that the game plays with sound (for example `cinematic <name>` from the console or a script). The sound is stored like in the game's videos: 22050 Hz, mono or stereo, between the frames. A video without a sound track gets a note. **{{MeTonAn}}** / **{{MeTonAus}}** in the toolbar switches all preview sounds - focus and click sounds and the menu music - and stops sounds that are playing; the setting is remembered.",
+            "Menüs spielen ihre Videos immer stumm - das Spiel startet sie ohne Ton. **{{MeVideoTon}}** ist deshalb aus; schalte es für Vollbild-Videos ein, die das Spiel mit Ton abspielt (zum Beispiel `cinematic <Name>` aus der Konsole oder einem Skript). Gespeichert wird der Ton wie in den Videos des Spiels: 22050 Hz, mono oder stereo, zwischen den Bildern. Ein Video ohne Tonspur bekommt einen Hinweis. **{{MeTonAn}}** / **{{MeTonAus}}** in der Leiste schaltet alle Klänge der Vorschau - Fokus- und Klickklänge und die Menümusik - und hält laufende an; die Einstellung bleibt gespeichert.",
+            "菜单始终静音播放视频——游戏启动它们时不带声音。因此 **{{MeVideoTon}}** 默认关闭;对于游戏带声音播放的全屏视频(例如从控制台或脚本执行 `cinematic <名称>`)可以打开它。声音按游戏视频的方式保存:22050 Hz,单声道或立体声,位于帧之间。没有音轨的视频会得到提示。工具栏中的 **{{MeTonAn}}** / **{{MeTonAus}}** 切换预览中的所有声音——焦点音、点击音和菜单音乐——并停止正在播放的声音;该设置会被记住。",
+            "メニューは動画を常に無音で再生します(ゲームは音なしで開始します)。そのため **{{MeVideoTon}}** はオフです。ゲームが音付きで再生する全画面動画(例: コンソールやスクリプトからの `cinematic <名前>`)ではオンにしてください。音声はゲームの動画と同じく 22050 Hz、モノラルまたはステレオで、フレームの間に保存されます。音声トラックのない動画には注意が表示されます。ツールバーの **{{MeTonAn}}** / **{{MeTonAus}}** はプレビューのすべての音(フォーカス音、クリック音、メニュー音楽)を切り替え、再生中の音も止めます。設定は保存されます。")),
+        ("h2", "codecs", T("Missing codecs", "Fehlende Codecs", "缺少编解码器", "コーデックがないとき")),
+        ("p", T(
+            "If Windows cannot decode a video, the dialog says which codec it is and what helps: HEVC, AV1 and VP8/VP9 need a free extension from the Microsoft Store, AVI files with DivX/Xvid or unknown codecs should be converted to MP4 (H.264). Nothing is stored in that case - no empty video.",
+            "Kann Windows ein Video nicht dekodieren, nennt der Dialog den Codec und was hilft: HEVC, AV1 und VP8/VP9 brauchen eine kostenlose Erweiterung aus dem Microsoft Store, AVI-Dateien mit DivX/Xvid oder unbekannten Codecs wandelst du in MP4 (H.264) um. Abgelegt wird dann nichts - kein leeres Video.",
+            "如果 Windows 无法解码某个视频,对话框会说明是哪种编解码器以及解决办法:HEVC、AV1 和 VP8/VP9 需要 Microsoft Store 中的免费扩展,使用 DivX/Xvid 或未知编解码器的 AVI 文件请转换为 MP4(H.264)。此时不会保存任何内容——不会出现空视频。",
+            "Windows が動画をデコードできない場合、ダイアログはどのコーデックか、どうすればよいかを示します。HEVC・AV1・VP8/VP9 は Microsoft Store の無料拡張機能が必要で、DivX/Xvid や不明なコーデックの AVI は MP4(H.264)に変換してください。その場合は何も保存しません(空の動画は作りません)。")),
+        ("h2", "lesbar", T("Readability", "Lesbarkeit", "易读性", "見やすさ")),
+        ("img", "menue_leiste_text", T("The toolbars with labels; eye and lock in the hierarchy are real symbols.",
+                                       "Die Leisten mit Beschriftung; Auge und Schloss in der Hierarchie sind echte Symbole.",
+                                       "带文字的工具栏;层级中的眼睛和锁是真正的图标。",
+                                       "名前付きのツールバー。階層の目と鍵は本物のアイコンです。"), "breit"),
+        ("p", T(
+            "Every toolbar symbol names itself and what it does when you hover it; **{{MeEinstLeisteText}}** in the settings puts the name next to each symbol. In the hierarchy the eye hides an element in the preview only and the lock keeps it from being moved. Text never gets smaller than 75 % of the normal size (12 pixels), however far you zoom out with Ctrl and the mouse wheel.",
+            "Jedes Symbol der Leisten nennt beim Darüberfahren seinen Namen und seine Wirkung; **{{MeEinstLeisteText}}** in den Einstellungen schreibt den Namen neben jedes Symbol. In der Hierarchie blendet das Auge ein Element nur in der Vorschau aus, das Schloss schützt es vor dem Verschieben. Die Schrift wird nie kleiner als 75 % der normalen Größe (12 Pixel), wie weit du auch mit Strg und dem Mausrad verkleinerst.",
+            "将鼠标悬停在工具栏图标上,会显示其名称和作用;设置中的 **{{MeEinstLeisteText}}** 会在每个图标旁写上名称。在层级中,眼睛只在预览中隐藏元素,锁可防止元素被移动。无论用 Ctrl 和鼠标滚轮缩小多少,文字都不会小于正常大小的 75%(12 像素)。",
+            "ツールバーのアイコンにマウスを重ねると名前と働きが表示されます。設定の **{{MeEinstLeisteText}}** で各アイコンの横に名前を出せます。階層では、目は要素をプレビューでだけ隠し、鍵は移動を防ぎます。Ctrl とマウスホイールでどれだけ縮小しても、文字は通常の 75%(12 ピクセル)より小さくなりません。")),
+    ],
+}
+
+SEITEN = [MENUE_EDITOR_M3, MENUE_EDITOR_M4]

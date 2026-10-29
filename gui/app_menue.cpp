@@ -128,6 +128,21 @@ struct Textur {
     bool versucht = false;
 };
 
+// M4 Punkt 5: Einstellungen und Ergebnis des Video-Imports
+struct VideoEinst {
+    VideoZiel ziel;                 // 512 x 512 wie die Videos von JKA und Movie Duels
+    int guete = 70, fps = 30;
+    bool ton = false;               // Menues spielen Videos stumm (CIN_silent) - ab Werk aus
+    bool stereo = true;
+};
+struct VideoErgebnis {
+    std::string roq, fehler;
+    bool ohneTon = false;           // Ton gewuenscht, aber keine Tonspur
+    bool roqDirekt = false;         // RoQ unveraendert uebernommen
+    int breite = 0, hoehe = 0, fps = 0;
+};
+enum class VideoVerwendung { Hintergrund, NeuesElement, Cinematic, NurPaket };
+
 // M2: ein laufendes RoQ (cinematic) mit seiner Textur
 struct Kino {
     RoqSpieler spieler;
@@ -184,16 +199,27 @@ struct Zustand {
     double bildzeitMs = 0;                           // Messung: Arbeitszeit von zeichne() je Bild (gleitend)
     std::string satzWechsel;                         // Selbsttest: zuletzt ueber Dateien geoeffnetes Menue
     std::vector<int> unterZeiger;                    // Rechtsklick-Liste der Flaeche
-    // M2 Punkt 2: Video-Import (Kodieren im Hintergrund)
+    // M2 Punkt 2 / M4 Punkt 5: Video-Import (Kodieren im Hintergrund)
     bool videoOffen = false;
     std::string videoQuelle;
-    int videoGuete = 70, videoFps = 30, videoSeite = 512;
+    VideoEinst videoEinst;
+    VideoVerwendung videoVerwendung = VideoVerwendung::Hintergrund;
+    std::string videoInfoFuer;                       // Quelle, zu der videoInfo gehoert
+    gui::VideoInfo videoInfo;
+    int videoArt = 0;                                // 0 Video, 1 GIF, 2 RoQ (unveraendert)
+    int videoRoqFps = 0;
     std::thread videoFaden;
     std::atomic<int> videoFertig{0}, videoGesamt{0};
     std::atomic<bool> videoLaeuft{false}, videoAbbruch{false};
     std::mutex videoMutex;
-    std::string videoErgebnis, videoFehler, videoName;
+    VideoErgebnis videoErgebnis;
+    std::string videoName;
     bool videoDa = false;
+    std::thread schaetzFaden;                        // M4: Groesse vorher (die ersten Takte kodiert)
+    std::atomic<bool> schaetzLaeuft{false};
+    std::atomic<long long> schaetzBytes{-1};
+    std::string schaetzFuer;
+    std::vector<std::uint64_t> klangStimmen;         // M4: laufende Klaenge der Vorschau (zum Anhalten)
     // M2 Punkt 4: Bauteil-Bibliothek
     std::vector<Vorlage> vorlagen;
     bool vorlagenGeladen = false;
@@ -219,7 +245,6 @@ struct Zustand {
     int aufloesung = 0;   // 0 = Fenster, sonst Voreinstellung
     bool interaktion = false;
     bool alleItems = false;   // wie im Spiel; an: verborgene gedimmt
-    bool klaengeAn = true;    // M2 Punkt 5: Klaenge im Bedienmodus abspielen
     int klangEreignisse = 0;  // Selbsttest: ausgeloeste Klaenge (abgespielt oder stumm)
     std::string letzterKlang;
     bool raster = false;
@@ -1975,6 +2000,13 @@ void shaderLaden() {
         std::string inhalt;
         if (z.daten.lies(f, inhalt)) { parseShaderScript(inhalt, z.shader); }
     }
+    // M4: und die des Pakets (z. B. menu/video/<name> vom Video-Import)
+    for (const auto& od : z.docs) {
+        for (const auto& [p, b] : od->bilder) {
+            const std::string k = kleinPfad(p);
+            if (k.compare(0, 8, "shaders/") == 0 && k.size() > 7 && k.compare(k.size() - 7, 7, ".shader") == 0) { parseShaderScript(b, z.shader); }
+        }
+    }
 }
 
 std::shared_ptr<const DiagDaten> diagDaten() {
@@ -2127,6 +2159,7 @@ std::string diagMeldung(const Diagnose& x) {
                 case BefundArt::NieSichtbar: return b.name == "rect" ? std::string(tr(Str::MeDiagNieRect)) : std::string(tr(Str::MeDiagNieVisible));
                 case BefundArt::DateiFehlt: return fmt(Str::MeDiagDateiFehlt, anzeige(b.name), anzeige(b.wert));
                 case BefundArt::UnbekanntIn: return fmt(Str::MeDiagUnbekanntIn, anzeige(b.name), anzeige(b.wert));
+                case BefundArt::CinematicSp: return tr(Str::MeDiagCinematicSp);
             }
             return {};
         }
@@ -3272,71 +3305,273 @@ void zeichneCode(Dokument& d) {
     ImGui::EndChild();
 }
 
+// M4 Punkt 3: Knopf der Leisten des Menue-Editors - Symbol mit Hinweis, wahlweise (Einstellung
+// "Leisten mit Beschriftung") Symbol und Text; eingeschaltete Umschalter mit Akzentflaeche
+bool leistenKnopf(const char* text, UiIcon icon, const char* hinweis, bool an = false, bool aktiv = true, bool umschalter = false) {
+    if (!g_app->settings.menueLeisteText) { return iconKnopf(text, icon, hinweis, an, aktiv, umschalter); }
+    if (an) { ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)); }
+    const bool k = iconTextKnopf(text, icon, hinweis, aktiv);
+    if (an) { ImGui::PopStyleColor(); }
+    return k;
+}
+
 // --- M2 Punkt 5: Klaenge ---------------------------------------------------------------
 
+// M4: alle Klaenge der Vorschau (Fokus, Klick, Musik) aus - laufende werden angehalten
+void stoppeKlaenge() {
+    Zustand& z = Z();
+    for (const std::uint64_t id : z.klangStimmen) { g_app->audio.stoppe(id); }
+    z.klangStimmen.clear();
+}
+
 // Was die Laufzeit an Klaengen ausgeloest hat (startLocalSound, startBackgroundTrack):
-// ueber das Tongeraet des Programms - stumm im Selbsttest (g_app->stumm) und wenn
-// "Klaenge" aus ist; gezaehlt wird trotzdem.
+// ueber das Tongeraet des Programms - stumm im Selbsttest (g_app->stumm) und wenn der
+// Ton-Schalter der Leiste aus ist (Einstellung menueTon); gezaehlt wird trotzdem.
 void spieleKlaenge() {
     Zustand& z = Z();
     for (const std::string& k : z.lauf.klaenge) {
         ++z.klangEreignisse;
         z.letzterKlang = k;
         if (z.klangListe.size() < 64) { z.klangListe.push_back(k); }   // M3: Protokoll fuer den Vergleich mit dem Spiel
-        if (!z.klaengeAn || g_app->stumm) { continue; }
+        if (!g_app->settings.menueTon || g_app->stumm) { continue; }
         const bool musik = k.compare(0, 6, "musik:") == 0;
         const std::vector<std::int16_t>* daten = klangFuerWiedergabe(musik ? k.substr(6) : k);
         if (daten == nullptr || daten->empty()) { continue; }
         if (!g_app->audio.ready() && !g_app->audio.open(44100, 2)) { continue; }
-        (void)g_app->audio.play(*daten, 1.0F);
+        // mit Nummer, damit der Schalter auch laufende Klaenge (Musik) anhalten kann
+        sound::Mixer::Start s;
+        s.schleife = musik;   // S_StartBackgroundTrack ohne Schleifenteil spielt die Musik weiter
+        const std::uint64_t id = g_app->audio.starte(sound::Mixer::Daten(sound::Mixer::Daten{}, daten), s);
+        if (id != 0) { z.klangStimmen.push_back(id); }
     }
     z.lauf.klaenge.clear();
+    z.klangStimmen.erase(std::remove_if(z.klangStimmen.begin(), z.klangStimmen.end(), [](std::uint64_t id) { return !g_app->audio.laeuft(id); }),
+                         z.klangStimmen.end());
 }
 
-// --- M2 Punkt 2: Video -> RoQ -------------------------------------------------------
+// --- M2 Punkt 2 / M4 Punkt 5: Video -> RoQ ------------------------------------------------
 
-// Eine Video- oder GIF-Datei lesen und als RoQ kodieren (laeuft auch im Hintergrund).
-std::string videoKodieren(const std::string& platte, int guete, int fps, int seite, std::string& fehler,
-                          const std::function<bool(int, int)>& fortschritt) {
-    Bildfolge f;
-    std::string roh;
-    {
-        std::ifstream in(utf8Pfad(platte), std::ios::binary);
-        std::ostringstream s;
-        s << in.rdbuf();
-        roh = s.str();
+constexpr long long kVideoMaxMs = 10LL * 60 * 1000;   // laengstes Video (10 min)
+
+std::string videoFehlerText(const gui::VideoInfo& i) {
+    char buf[600];
+    switch (i.fehler) {
+        case gui::VideoFehler::Keiner: return {};
+        case gui::VideoFehler::KeinMediaFoundation: return tr(Str::MeVideoKeinMf);
+        case gui::VideoFehler::NichtLesbar: return tr(Str::MeVideoNichtLesbar);
+        case gui::VideoFehler::KeinVideo: return tr(Str::MeVideoKeinVideo);
+        case gui::VideoFehler::KeineBilder: return tr(Str::MeVideoKeineBilder);
+        case gui::VideoFehler::Abbruch: return tr(Str::MeVideoAbbruch);
+        case gui::VideoFehler::CodecFehlt:
+            switch (codecGruppe(i.codec)) {
+                case CodecGruppe::Hevc: return tr(Str::MeVideoCodecHevc);
+                case CodecGruppe::Av1: return tr(Str::MeVideoCodecAv1);
+                case CodecGruppe::Vp8:
+                case CodecGruppe::Vp9: return tr(Str::MeVideoCodecVp);
+                case CodecGruppe::DivxXvid: return tr(Str::MeVideoCodecDivx);
+                case CodecGruppe::Unbekannt: break;
+            }
+            std::snprintf(buf, sizeof(buf), tr(Str::MeVideoCodecAnders), fourccText(i.codec).c_str());
+            return buf;
     }
-    if (!gifLesen(roh, f) && !gui::leseVideoDatei(platte, f, 60 * 60, &fehler)) {
-        if (fehler.empty()) { fehler = "?"; }
-        return {};
-    }
+    return {};
+}
+
+bool istRoq(const std::string& d) {
+    return d.size() >= 8 && static_cast<unsigned char>(d[0]) == (kRoqKennung & 0xff) && static_cast<unsigned char>(d[1]) == (kRoqKennung >> 8);
+}
+
+std::string dateiLesen(const std::string& platte) {
+    std::ifstream in(utf8Pfad(platte), std::ios::binary);
+    std::ostringstream s;
+    s << in.rdbuf();
+    return s.str();
+}
+
+// Groesse, Bildrate eines RoQ (ROQ_QUAD_INFO und Kopf, wie RoQ_init/readQuadInfo)
+bool roqKopf(const std::string& d, int& b, int& h, int& fps) {
+    RoqSpieler s;
+    if (!s.start(d, 0, false)) { return false; }
+    (void)s.lauf(0);
+    b = s.breite();
+    h = s.hoehe();
+    fps = s.fps();
+    return b > 0 && h > 0;
+}
+
+// Eine Video-, GIF- oder RoQ-Datei als RoQ (laeuft auch im Hintergrund, fasst den Zustand nicht an).
+// Ein RoQ wird unveraendert uebernommen.
+VideoErgebnis videoKodieren(const std::string& platte, const VideoEinst& e, const std::function<bool(int, int)>& fortschritt) {
+    VideoErgebnis r;
     RoqOptionen o;
-    o.guete = guete;
-    o.fps = fps;
-    return kodiereRoq(f, o, seite, fortschritt);
+    o.guete = e.guete;
+    o.fps = e.fps;
+    const std::string roh = dateiLesen(platte);
+    if (istRoq(roh)) {
+        r.roqDirekt = true;
+        if (!roqKopf(roh, r.breite, r.hoehe, r.fps)) {
+            r.fehler = tr(Str::MeVideoKeineBilder);
+            return r;
+        }
+        r.roq = roh;
+        return r;
+    }
+    Bildfolge f;
+    if (gifLesen(roh, f)) {
+        r.roq = kodiereRoq(f, o, e.ziel, nullptr, fortschritt);
+        if (r.roq.empty()) { r.fehler = tr(Str::MeVideoAbbruch); }
+        return r;
+    }
+    gui::VideoInfo info;
+    if (!gui::videoInfo(platte, info)) {
+        r.fehler = videoFehlerText(info);
+        return r;
+    }
+    const long long takte = RoqImport::takteFuer(std::min(info.dauerMs > 0 ? info.dauerMs : kVideoMaxMs, kVideoMaxMs), e.fps);
+    RoqTon ton;
+    if (e.ton) {
+        std::vector<std::int16_t> pcm;
+        int rate = 0, kanaele = 0;
+        if (gui::leseVideoTon(platte, pcm, rate, kanaele, kVideoMaxMs)) {
+            ton = tonAuf22050(pcm, rate, kanaele, e.stereo ? 2 : 1);
+            // auf die Laenge des Videos (Takte * 22050 / fps)
+            const std::size_t max = static_cast<std::size_t>(takte * kRoqTonRate / e.fps) * static_cast<std::size_t>(ton.kanaele);
+            if (ton.pcm.size() > max) { ton.pcm.resize(max); }
+        } else {
+            r.ohneTon = true;
+        }
+    }
+    RoqImport imp;
+    if (!imp.beginne(e.ziel, o, ton.kanaele > 0 ? &ton : nullptr)) {
+        r.fehler = tr(Str::MeVideoGroesseUngueltig);
+        return r;
+    }
+    long long dauer = 0;
+    gui::VideoInfo li;
+    const bool ok = gui::leseVideoBilder(
+        platte,
+        [&](const RoqBild& b, long long ms) {
+            imp.bild(b, ms);
+            return !fortschritt || fortschritt(imp.takte(), static_cast<int>(takte));
+        },
+        kVideoMaxMs, dauer, li);
+    if (!ok) {
+        r.fehler = videoFehlerText(li);
+        return r;
+    }
+    r.roq = imp.fertig(dauer);
+    return r;
 }
 
-// Ins Paket (video/<name>.roq) und, wenn genau ein Item gewaehlt ist, als dessen cinematic
-void videoAblegen(const std::string& name, const std::string& roq) {
-    Dokument* d = doc();
-    if (d == nullptr || roq.empty()) { return; }
-    d->bilder["video/" + name + ".roq"] = roq;
-    Z().kinos.erase(kleinPfad(name));
-    if (d->auswahl.size() == 1) {
-        eigenschaft(d->auswahl[0], "style", {konstante(d->datei, "WINDOW_STYLE_CINEMATIC", WINDOW_STYLE_CINEMATIC)});
-        eigenschaft(d->auswahl[0], "cinematic", {inAnf(name)});
+// Geschaetzte Dateigroesse: die ersten Takte kodieren und hochrechnen (Ton exakt: ein
+// Byte je Probe und Kanal plus 8 Bytes je Stueck).
+long long videoGroesseSchaetzen(const std::string& platte, const VideoEinst& e, const gui::VideoInfo& info) {
+    const std::string roh = dateiLesen(platte);
+    if (istRoq(roh)) { return static_cast<long long>(roh.size()); }
+    RoqOptionen o;
+    o.guete = e.guete;
+    o.fps = e.fps;
+    Bildfolge f;
+    if (gifLesen(roh, f)) { return static_cast<long long>(kodiereRoq(f, o, e.ziel).size()); }
+    const long long takte = RoqImport::takteFuer(std::min(info.dauerMs > 0 ? info.dauerMs : kVideoMaxMs, kVideoMaxMs), e.fps);
+    constexpr int kProbe = 6;
+    RoqImport imp;
+    if (!imp.beginne(e.ziel, o, nullptr)) { return -1; }
+    std::size_t nachErstem = 0;
+    long long dauer = 0;
+    gui::VideoInfo li;
+    (void)gui::leseVideoBilder(
+        platte,
+        [&](const RoqBild& b, long long ms) {
+            imp.bild(b, ms);
+            if (imp.takte() >= 1 && nachErstem == 0) { nachErstem = imp.bytes(); }
+            return imp.takte() < kProbe;
+        },
+        kVideoMaxMs, dauer, li);
+    if (imp.takte() == 0) { return -1; }
+    const std::size_t jetzt = imp.bytes();
+    const double jeBild = imp.takte() > 1 ? static_cast<double>(jetzt - nachErstem) / (imp.takte() - 1) : static_cast<double>(jetzt);
+    long long s = static_cast<long long>(nachErstem + jeBild * static_cast<double>(takte - 1)) + 8;
+    if (e.ton && info.ton) {
+        const long long proben = takte * kRoqTonRate / e.fps;
+        s += proben * (e.stereo ? 2 : 1) + 8 * (takte + 1);
     }
-    char buf[256];
-    std::snprintf(buf, sizeof(buf), tr(Str::MeVideoFertig), ("video/" + name + ".roq").c_str());
-    Z().meldung = buf;
+    return s;
 }
 
 std::string videoNameAus(const std::string& platte) {
     std::string n = fs::path(utf8Pfad(platte)).stem().string();
     for (char& c : n) {
         if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-') { c = '_'; }
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));   // Shader- und Dateinamen ohne Gross/Klein
     }
     return n.empty() ? std::string("video") : n;
+}
+
+// shaders/<paket>.shader: Spiel-Shader liegen in shaders/ (ScanAndLoadShaderFiles)
+std::string paketShaderDatei(const Dokument& d) {
+    std::string n = d.textPaket.empty() ? std::string("mymenu") : d.textPaket;
+    for (char& c : n) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    return "shaders/" + n + ".shader";
+}
+
+// Der Shader, den ein Menue fuer ein Video braucht (tr_shader.cpp ParseStage: videoMap
+// startet CIN_PlayCinematic(..., CIN_loop | CIN_silent | CIN_shader)).
+std::string videoShaderText(const std::string& shader, const std::string& video) {
+    return shader + "\n{\n\tnopicmip\n\tnomipmaps\n\t{\n\t\tvideoMap " + video + "\n\t\trgbGen identity\n\t}\n}\n";
+}
+
+// Ins Paket: video/<name>.roq, der Shader menu/video/<name> in shaders/<paket>.shader,
+// dann je nach Verwendung ans Menue.
+void videoAblegen(const std::string& name, const std::string& roq, VideoVerwendung verwendung) {
+    Dokument* d = doc();
+    if (d == nullptr || roq.empty()) { return; }
+    Zustand& z = Z();
+    const std::string video = "video/" + name + ".roq";
+    const std::string shader = "menu/video/" + name;
+    d->bilder[video] = roq;
+    z.kinos.clear();
+    const std::string datei = paketShaderDatei(*d);
+    std::string& text = d->bilder[datei];
+    ShaderMap da;
+    parseShaderScript(text, da);
+    if (da.count(shader) == 0) { text += (text.empty() || text.back() == '\n' ? "" : "\n") + videoShaderText(shader, video); }
+    shaderLaden();
+    parseShaderScript(text, z.shader);
+    z.texturen.erase(shader);
+    const int mi = menuDerSeite(*d);
+    if (verwendung == VideoVerwendung::Hintergrund && d->auswahl.size() == 1) {
+        const int it = d->auswahl[0];
+        eigenschaft(it, "style", {konstante(d->datei, "WINDOW_STYLE_SHADER", WINDOW_STYLE_SHADER)});
+        eigenschaft(it, "background", {inAnf(shader)});
+    } else if (verwendung == VideoVerwendung::NeuesElement && mi >= 0) {
+        fuegeEin(-1);
+        const Menu& m = d->datei.menus[static_cast<std::size_t>(mi)];
+        const int it = static_cast<int>(m.items.size()) - 1;
+        if (it >= 0) {
+            eigenschaft(it, "name", {freierName(m, "video_" + name)});
+            eigenschaft(it, "rect", {zahlText(-m.window.rect.x) + " " + zahlText(-m.window.rect.y) + " 640 480"});
+            eigenschaft(it, "background", {inAnf(shader)});
+            (void)setzeAnStelle(*d, mi, it, 0);   // ganz nach hinten: unter allen anderen Items
+        }
+    } else if (verwendung == VideoVerwendung::Cinematic && d->auswahl.size() == 1) {
+        eigenschaft(d->auswahl[0], "style", {konstante(d->datei, "WINDOW_STYLE_CINEMATIC", WINDOW_STYLE_CINEMATIC)});
+        eigenschaft(d->auswahl[0], "cinematic", {inAnf(name)});
+    }
+    char buf[512];
+    std::snprintf(buf, sizeof(buf), tr(Str::MeVideoFertigShader), video.c_str(), shader.c_str(), datei.c_str());
+    z.meldung = buf;
+}
+
+std::string zeitText(long long ms) {
+    char b[32];
+    std::snprintf(b, sizeof(b), "%lld:%04.1f", ms / 60000, static_cast<double>(ms % 60000) / 1000.0);
+    return b;
+}
+
+std::string schluesselFuer(const std::string& quelle, const VideoEinst& e) {
+    return quelle + "|" + std::to_string(e.ziel.breite) + "x" + std::to_string(e.ziel.hoehe) + "|" + std::to_string(static_cast<int>(e.ziel.einpassen)) + "|" +
+           std::to_string(e.guete) + "|" + std::to_string(e.fps) + "|" + (e.ton ? "t" : "") + (e.stereo ? "s" : "");
 }
 
 void zeichneVideoFenster() {
@@ -3345,27 +3580,168 @@ void zeichneVideoFenster() {
     if (z.videoDa) {
         std::lock_guard<std::mutex> l(z.videoMutex);
         if (z.videoFaden.joinable()) { z.videoFaden.join(); }
-        if (!z.videoErgebnis.empty()) { videoAblegen(z.videoName, z.videoErgebnis); }
-        else if (!z.videoFehler.empty()) {
-            char buf[512];
-            std::snprintf(buf, sizeof(buf), tr(Str::MeVideoFehler), z.videoFehler.c_str());
+        if (!z.videoErgebnis.roq.empty()) {
+            videoAblegen(z.videoName, z.videoErgebnis.roq, z.videoVerwendung);
+            if (z.videoErgebnis.ohneTon) { z.meldung += std::string(" ") + tr(Str::MeVideoOhneTon); }
+        } else if (!z.videoErgebnis.fehler.empty()) {
+            char buf[900];
+            std::snprintf(buf, sizeof(buf), tr(Str::MeVideoFehler), z.videoErgebnis.fehler.c_str());
             z.meldung = buf;
         }
-        z.videoErgebnis.clear();
+        z.videoErgebnis = VideoErgebnis{};
         z.videoDa = false;
         z.videoOffen = false;
     }
     if (!z.videoOffen) { return; }
-    ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 26, 0}, ImGuiCond_Appearing);
+    // Kopfdaten einmal je Quelle (Media Foundation, ohne zu dekodieren)
+    if (z.videoInfoFuer != z.videoQuelle) {
+        z.videoInfoFuer = z.videoQuelle;
+        z.videoInfo = gui::VideoInfo{};
+        const std::string roh = dateiLesen(z.videoQuelle);
+        z.videoArt = istRoq(roh) ? 2 : (roh.compare(0, 3, "GIF") == 0 ? 1 : 0);
+        if (z.videoArt == 2) {
+            (void)roqKopf(roh, z.videoInfo.breite, z.videoInfo.hoehe, z.videoRoqFps);
+        } else if (z.videoArt == 0) {
+            (void)gui::videoInfo(z.videoQuelle, z.videoInfo);
+        }
+        if (Dokument* d = doc()) { z.videoVerwendung = d->auswahl.size() == 1 ? VideoVerwendung::Hintergrund : VideoVerwendung::NeuesElement; }
+    }
+    ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 30, 0}, ImGuiCond_Appearing);
     bool offen = true;
     if (ImGui::Begin(tr(Str::MeVideoTitel), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
         ImGui::TextWrapped("%s", anzeige(z.videoQuelle).c_str());
+        const gui::VideoInfo& vi = z.videoInfo;
+        const std::string fehler = videoFehlerText(vi);
+        char buf[512];
+        if (!fehler.empty()) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{1.0F, 0.45F, 0.35F, 1.0F});
+            ImGui::TextWrapped("%s", fehler.c_str());
+            ImGui::PopStyleColor();
+        } else if (z.videoArt == 0) {
+            std::snprintf(buf, sizeof(buf), tr(Str::MeVideoQuelle), vi.breite, vi.hoehe, vi.fps, zeitText(vi.dauerMs).c_str());
+            ImGui::TextUnformatted(buf);
+            if (vi.ton) {
+                std::snprintf(buf, sizeof(buf), tr(Str::MeVideoTonQuelle), vi.tonKanaele, vi.tonRate);
+                ImGui::TextUnformatted(buf);
+            } else {
+                ImGui::TextDisabled("%s", tr(Str::MeVideoOhneTon));
+            }
+        }
         const bool laeuft = z.videoLaeuft.load();
-        ImGui::BeginDisabled(laeuft);
-        ImGui::SliderInt(tr(Str::MeVideoGuete), &z.videoGuete, 1, 100);
-        ImGui::SliderInt(tr(Str::MeVideoFps), &z.videoFps, 5, 30);
-        ImGui::SliderInt(tr(Str::MeVideoGroesse), &z.videoSeite, 64, 512);
-        if (ImGui::Button(tr(Str::MeVideoStart))) {
+        VideoEinst& e = z.videoEinst;
+        ImGui::BeginDisabled(laeuft || !fehler.empty());
+        if (z.videoArt == 2) {
+            std::snprintf(buf, sizeof(buf), tr(Str::MeVideoRoqDirekt), vi.breite, vi.hoehe, z.videoRoqFps);
+            ImGui::TextWrapped("%s", buf);
+            if (roqGroessePruefen(vi.breite, vi.hoehe) != RoqGroesse::Ok) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{1.0F, 0.75F, 0.3F, 1.0F});
+                ImGui::TextWrapped("%s", tr(Str::MeVideoGroesseTip));
+                ImGui::PopStyleColor();
+            }
+        } else {
+            // Groesse: Zweierpotenzen (RE_StretchRaw), hoechstens 512 * 512 Punkte (cin.linbuf)
+            static const int seiten[] = {16, 32, 64, 128, 256, 512, 1024};
+            static const char* const seitenText[] = {"16", "32", "64", "128", "256", "512", "1024"};
+            auto seitenWahl = [&](const char* id, int& wert) {
+                int i = 0;
+                while (i < 6 && seiten[i] < wert) { ++i; }
+                ImGui::SetNextItemWidth(ImGui::GetFontSize() * 5);
+                if (ImGui::Combo(id, &i, seitenText, 7)) { wert = seiten[i]; }
+            };
+            ImGui::TextUnformatted(tr(Str::MeVideoZielGroesse));
+            ImGui::SameLine();
+            seitenWahl("##vb", e.ziel.breite);
+            ImGui::SameLine();
+            ImGui::TextUnformatted("x");
+            ImGui::SameLine();
+            seitenWahl("##vh", e.ziel.hoehe);
+            ImGui::SameLine();
+            ImGui::TextDisabled("(?)");
+            if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeVideoGroesseTip)); }
+            if (roqGroessePruefen(e.ziel.breite, e.ziel.hoehe) != RoqGroesse::Ok) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{1.0F, 0.45F, 0.35F, 1.0F});
+                ImGui::TextWrapped("%s", tr(Str::MeVideoGroesseUngueltig));
+                ImGui::PopStyleColor();
+            }
+            int ep = static_cast<int>(e.ziel.einpassen);
+            const char* epText[] = {tr(Str::MeVideoStrecken), tr(Str::MeVideoBalken), tr(Str::MeVideoZuschneiden)};
+            ImGui::SetNextItemWidth(ImGui::GetFontSize() * 12);
+            if (ImGui::Combo(tr(Str::MeVideoEinpassen), &ep, epText, 3)) { e.ziel.einpassen = static_cast<Einpassen>(ep); }
+            if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeVideoEinpassenTip)); }
+            ImGui::SliderInt(tr(Str::MeVideoFps), &e.fps, 5, 60);
+            ImGui::SliderInt(tr(Str::MeVideoGuete), &e.guete, 1, 100);
+            if (z.videoArt == 0) {
+                ImGui::BeginDisabled(!vi.ton);
+                ImGui::Checkbox(tr(Str::MeVideoTon), &e.ton);
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+                    ImGui::BeginTooltip();
+                    ImGui::PushTextWrapPos(ImGui::GetFontSize() * 26);
+                    ImGui::TextUnformatted(tr(Str::MeVideoTonTip));
+                    ImGui::PopTextWrapPos();
+                    ImGui::EndTooltip();
+                }
+                ImGui::SameLine();
+                ImGui::BeginDisabled(!e.ton);
+                ImGui::Checkbox(tr(Str::MeVideoStereo), &e.stereo);
+                ImGui::EndDisabled();
+                ImGui::EndDisabled();
+            }
+        }
+        // Verwendung im Menue
+        ImGui::SeparatorText(tr(Str::MeVideoVerwendung));
+        Dokument* d = doc();
+        const bool eins = d != nullptr && d->auswahl.size() == 1;
+        auto wahl = [&](Str text, Str tip, VideoVerwendung v, bool geht) {
+            ImGui::BeginDisabled(!geht);
+            if (ImGui::RadioButton(tr(text), z.videoVerwendung == v)) { z.videoVerwendung = v; }
+            ImGui::EndDisabled();
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+                ImGui::BeginTooltip();
+                ImGui::PushTextWrapPos(ImGui::GetFontSize() * 26);
+                ImGui::TextUnformatted(tr(tip));
+                ImGui::PopTextWrapPos();
+                ImGui::EndTooltip();
+            }
+        };
+        wahl(Str::MeVideoAlsHintergrund, Str::MeVideoAlsHintergrundTip, VideoVerwendung::Hintergrund, eins);
+        wahl(Str::MeVideoNeuesElement, Str::MeVideoNeuesElementTip, VideoVerwendung::NeuesElement, d != nullptr);
+        wahl(Str::MeVideoAlsCinematic, Str::MeVideoAlsCinematicTip, VideoVerwendung::Cinematic, eins);
+        wahl(Str::MeVideoNurPaket, Str::MeVideoNurPaketTip, VideoVerwendung::NurPaket, true);
+        if (!eins && (z.videoVerwendung == VideoVerwendung::Hintergrund || z.videoVerwendung == VideoVerwendung::Cinematic)) {
+            z.videoVerwendung = VideoVerwendung::NeuesElement;
+        }
+        // Laenge und Groesse vorher (die ersten Takte kodiert und hochgerechnet)
+        if (fehler.empty() && z.videoArt != 2) {
+            const std::string schluessel = schluesselFuer(z.videoQuelle, e);
+            if (!z.schaetzLaeuft.load() && z.schaetzFuer != schluessel && !laeuft) {
+                if (z.schaetzFaden.joinable()) { z.schaetzFaden.join(); }
+                z.schaetzLaeuft = true;
+                z.schaetzFuer = schluessel;
+                z.schaetzBytes = -1;
+                const std::string q = z.videoQuelle;
+                const gui::VideoInfo info = vi;
+                z.schaetzFaden = std::thread([q, e, info] {
+                    const long long b = videoGroesseSchaetzen(q, e, info);
+                    Z().schaetzBytes = b;
+                    Z().schaetzLaeuft = false;
+                });
+            }
+            const long long dauer = z.videoArt == 0 ? vi.dauerMs : 0;
+            const long long bilder = z.videoArt == 0 ? RoqImport::takteFuer(dauer, e.fps) : 0;
+            if (z.schaetzLaeuft.load() || z.schaetzBytes.load() < 0) {
+                ImGui::TextDisabled("%s", tr(Str::MeVideoSchaetze));
+            } else if (z.videoArt == 0) {
+                std::snprintf(buf, sizeof(buf), tr(Str::MeVideoErgebnis), static_cast<int>(bilder), zeitText(dauer).c_str(),
+                              static_cast<double>(z.schaetzBytes.load()) / (1024.0 * 1024.0));
+                ImGui::TextUnformatted(buf);
+            } else {
+                std::snprintf(buf, sizeof(buf), tr(Str::MeVideoErgebnisGif), static_cast<double>(z.schaetzBytes.load()) / (1024.0 * 1024.0));
+                ImGui::TextUnformatted(buf);
+            }
+        }
+        const bool groesseOk = z.videoArt == 2 || roqGroessePruefen(e.ziel.breite, e.ziel.hoehe) == RoqGroesse::Ok;
+        ImGui::BeginDisabled(!groesseOk);
+        if (ImGui::Button(tr(z.videoArt == 2 ? Str::MeVideoUebernehmen : Str::MeVideoStart))) {
             if (z.videoFaden.joinable()) { z.videoFaden.join(); }
             z.videoName = videoNameAus(z.videoQuelle);
             z.videoLaeuft = true;
@@ -3373,28 +3749,26 @@ void zeichneVideoFenster() {
             z.videoFertig = 0;
             z.videoGesamt = 0;
             const std::string q = z.videoQuelle;
-            const int g = z.videoGuete, fps = z.videoFps, seite = z.videoSeite;
-            z.videoFaden = std::thread([q, g, fps, seite] {
+            const VideoEinst einst = e;
+            z.videoFaden = std::thread([q, einst] {
                 Zustand& zz = Z();
-                std::string fehler;
-                const std::string r = videoKodieren(q, g, fps, seite, fehler, [](int a, int b) {
+                VideoErgebnis r = videoKodieren(q, einst, [](int a, int b) {
                     Z().videoFertig = a;
                     Z().videoGesamt = b;
                     return !Z().videoAbbruch.load();
                 });
                 std::lock_guard<std::mutex> l(zz.videoMutex);
-                zz.videoErgebnis = r;
-                zz.videoFehler = fehler;
+                zz.videoErgebnis = std::move(r);
                 zz.videoLaeuft = false;
                 zz.videoDa = true;
             });
         }
         ImGui::EndDisabled();
+        ImGui::EndDisabled();
         if (laeuft) {
-            char buf[128];
             std::snprintf(buf, sizeof(buf), tr(Str::MeVideoLaeuft), z.videoFertig.load(), z.videoGesamt.load());
             const float anteil = z.videoGesamt > 0 ? static_cast<float>(z.videoFertig) / static_cast<float>(z.videoGesamt) : 0.0F;
-            ImGui::ProgressBar(anteil, ImVec2{-1, 0}, buf);
+            ImGui::ProgressBar(std::min(1.0F, anteil), ImVec2{-1, 0}, buf);
         }
     }
     ImGui::End();
@@ -3614,6 +3988,24 @@ void zeichneBibliothek(Dokument& d) {
     ImGui::EndDisabled();
 }
 
+// M4: Symbolknopf der Ebenenliste (Auge, Schloss) in Zeilenhoehe - echte Symbole statt
+// "o"/"-" und "L"/"."; aus = gedaempft, Hinweis beim Darueberfahren
+bool ebenenSymbol(const char* id, UiIcon icon, bool an, const char* hinweis) {
+    const float h = ImGui::GetTextLineHeight() + 2.0F;
+    const bool geklickt = ImGui::InvisibleButton(id, ImVec2{h, h});
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
+    if (ImGui::IsItemHovered()) {
+        dl->AddRectFilled(a, b, ImGui::GetColorU32(ImGuiCol_ButtonHovered), 2.0F);
+        ImGui::SetTooltip("%s", hinweis);
+    }
+    ImVec4 f = uiIconFarbe(icon);
+    if (!an) { f.w *= 0.5F; }
+    const float g = std::floor(h * 0.86F);
+    uiIcon(dl, icon, ImVec2{std::floor(a.x + (h - g) * 0.5F), std::floor(a.y + (h - g) * 0.5F)}, g, ImGui::GetColorU32(f));
+    return geklickt;
+}
+
 // Eine Zeile der Ebenenliste: Auge (nur Vorschau), Schloss, Name (Doppelklick =
 // umbenennen), Ziehen auf eine andere Zeile = an deren Stelle in der Reihenfolge.
 void zeichneEbene(Dokument& d, int menu, int i) {
@@ -3622,16 +4014,14 @@ void zeichneEbene(Dokument& d, int menu, int i) {
     ImGui::PushID(i);
     const bool aufSeite = menuDerSeite(d) == menu;
     const bool verborgen = d.verborgen.count({menu, i}) != 0;
-    if (ImGui::SmallButton(verborgen ? "-" : "o")) {
+    if (ebenenSymbol("##auge", verborgen ? UiIcon::Versteckt : UiIcon::Sichtbar, !verborgen, tr(Str::MeEbeneAuge))) {
         if (verborgen) { d.verborgen.erase({menu, i}); } else { d.verborgen.insert({menu, i}); }
     }
-    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeEbeneAuge)); }
     ImGui::SameLine();
     const bool gesperrt = aufSeite && d.gesperrt.count(i) != 0;
-    if (ImGui::SmallButton(gesperrt ? "L" : ".")) {
+    if (ebenenSymbol("##schloss", gesperrt ? UiIcon::Schloss : UiIcon::SchlossOffen, gesperrt, tr(Str::MeEbeneSchloss))) {
         if (gesperrt) { d.gesperrt.erase(i); } else { d.gesperrt.insert(i); }
     }
-    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeEbeneSchloss)); }
     ImGui::SameLine();
     if (d.umbenennen == i && aufSeite) {
         ImGui::SetNextItemWidth(-1);
@@ -3977,10 +4367,10 @@ void leistenTrenner() {
 // testen | Bearbeiten/Bedienen | Ansicht (Seitenverhaeltnis, Aufloesung, Schalter)
 void zeichneLeiste(Dokument* d) {
     Zustand& z = Z();
-    if (iconKnopf(tr(Str::MeAusSpiel), UiIcon::Liste, tr(Str::MeTipAusSpiel))) { z.spielListeOffen = true; }
+    if (leistenKnopf(tr(Str::MeAusSpiel), UiIcon::Liste, tr(Str::MeTipAusSpiel))) { z.spielListeOffen = true; }
     zeichneSpielListe();
     ImGui::SameLine();
-    if (iconKnopf(tr(Str::MeMenuesatzOeffnen), UiIcon::Explorer, tr(Str::MeTipMenuesatz))) {   // M2 Punkt 3: UI_LoadMenus
+    if (leistenKnopf(tr(Str::MeMenuesatzOeffnen), UiIcon::Explorer, tr(Str::MeTipMenuesatz))) {   // M2 Punkt 3: UI_LoadMenus
         int n = 0;
         if (d != nullptr && kleinPfad(d->name).size() > 4 && kleinPfad(d->name).compare(kleinPfad(d->name).size() - 4, 4, ".txt") == 0) {
             n = oeffneMenuesatz(d->name);
@@ -3992,13 +4382,13 @@ void zeichneLeiste(Dokument* d) {
         }
     }
     ImGui::SameLine();
-    if (iconKnopf(tr(Str::MeDateiOeffnen), UiIcon::Oeffnen, tr(Str::MeTipDateiOeffnen))) {
+    if (leistenKnopf(tr(Str::MeDateiOeffnen), UiIcon::Oeffnen, tr(Str::MeTipDateiOeffnen))) {
         const std::string pfad = platform::openFileDialog(tr(Str::MeDateiOeffnen), "Menu (*.menu;*.txt)|*.menu;*.txt|", "");
         if (!pfad.empty()) { (void)oeffneDatei(pfad); }
     }
     if (d != nullptr) {
         ImGui::SameLine();
-        if (iconKnopf(tr(Str::MeSpeichern), UiIcon::Speichern, tr(Str::MeTipSpeichern))) {
+        if (leistenKnopf(tr(Str::MeSpeichern), UiIcon::Speichern, tr(Str::MeTipSpeichern))) {
             if (d->platte.empty() || imSpielordner(d->platte)) {
                 const std::string ziel = platform::saveFileDialog(tr(Str::MeSpeichern), "Menu (*.menu)|*.menu|", z.ordnerAusgabe,
                                                                   fs::path(d->name).filename().string());
@@ -4008,14 +4398,14 @@ void zeichneLeiste(Dokument* d) {
             }
         }
         leistenTrenner();
-        if (iconKnopf(tr(Str::MeRueckgaengig), UiIcon::Rueckgaengig, nullptr, false, d->puffer.kannRueckgaengig())) { rueckgaengig(); }
+        if (leistenKnopf(tr(Str::MeRueckgaengig), UiIcon::Rueckgaengig, tr(Str::MeTipRueckgaengig), false, d->puffer.kannRueckgaengig())) { rueckgaengig(); }
         ImGui::SameLine();
-        if (iconKnopf(tr(Str::MeWiederholen), UiIcon::Wiederholen, nullptr, false, d->puffer.kannWiederholen())) { wiederholen(); }
+        if (leistenKnopf(tr(Str::MeWiederholen), UiIcon::Wiederholen, tr(Str::MeTipWiederholen), false, d->puffer.kannWiederholen())) { wiederholen(); }
         leistenTrenner();
         // Paket: Video, Schrift, Texte und Sprache der Vorschau
-        if (iconKnopf(tr(Str::MeVideoImport), UiIcon::Kamera, tr(Str::MeTipVideo))) {   // M2 Punkt 2
+        if (leistenKnopf(tr(Str::MeVideoImport), UiIcon::Kamera, tr(Str::MeTipVideo))) {   // M2 Punkt 2
             const std::string pfad = platform::openFileDialog(tr(Str::MeVideoImport),
-                                                              "Video (*.mp4;*.webm;*.avi;*.wmv;*.mov;*.mkv;*.gif)|*.mp4;*.webm;*.avi;*.wmv;*.mov;*.mkv;*.gif|", "");
+                                                              "Video (*.mp4;*.webm;*.avi;*.wmv;*.mov;*.mkv;*.gif;*.roq)|*.mp4;*.webm;*.avi;*.wmv;*.mov;*.mkv;*.gif;*.roq|", "");
             if (!pfad.empty()) {
                 z.videoQuelle = pfad;
                 z.videoOffen = true;
@@ -4023,7 +4413,7 @@ void zeichneLeiste(Dokument* d) {
         }
         zeichneVideoFenster();
         ImGui::SameLine();
-        if (iconKnopf(tr(Str::MeSchriftBauen), UiIcon::Zeilen, tr(Str::MeTipSchrift))) {   // M2 Punkt 9
+        if (leistenKnopf(tr(Str::MeSchriftBauen), UiIcon::Zeilen, tr(Str::MeTipSchrift))) {   // M2 Punkt 9
             const std::string pfad = platform::openFileDialog(tr(Str::MeSchriftBauen), "TrueType (*.ttf;*.otf)|*.ttf;*.otf|", "");
             if (!pfad.empty()) {
                 z.schriftTtf = pfad;
@@ -4032,7 +4422,7 @@ void zeichneLeiste(Dokument* d) {
         }
         zeichneSchriftFenster();
         ImGui::SameLine();
-        if (iconKnopf(tr(Str::MeTexte), UiIcon::Namen, tr(Str::MeTipTexte), z.texteFensterOffen)) { z.texteFensterOffen = !z.texteFensterOffen; }   // M2 Punkt 6
+        if (leistenKnopf(tr(Str::MeTexte), UiIcon::Namen, tr(Str::MeTipTexte), z.texteFensterOffen)) { z.texteFensterOffen = !z.texteFensterOffen; }   // M2 Punkt 6
         zeichneTexteFenster(*d);
         ImGui::SameLine();
         {
@@ -4048,13 +4438,13 @@ void zeichneLeiste(Dokument* d) {
         }
         leistenTrenner();
         // Pruefen, Ausgeben, im Spiel testen
-        if (iconKnopf(tr(Str::MePruefen), UiIcon::Haken, tr(Str::MeTipPruefen), z.pruefFenster)) {   // M2 Punkt 7
+        if (leistenKnopf(tr(Str::MePruefen), UiIcon::Haken, tr(Str::MeTipPruefen), z.pruefFenster)) {   // M2 Punkt 7
             z.pruefFenster = true;
             z.pruefGelaufen = false;
         }
         zeichnePruefFenster();
         ImGui::SameLine();
-        if (iconKnopf(tr(Str::MeExportPk3), UiIcon::Paket, tr(Str::MeTipExport))) { ImGui::OpenPopup("##export"); }
+        if (leistenKnopf(tr(Str::MeExportPk3), UiIcon::Paket, tr(Str::MeTipExport))) { ImGui::OpenPopup("##export"); }
         if (ImGui::BeginPopup("##export")) {
             if (ImGui::MenuItem(tr(Str::MeExportPk3))) {
                 const std::string ziel = platform::saveFileDialog(tr(Str::MeExportPk3), "pk3 (*.pk3)|*.pk3|", z.ordnerAusgabe, "zz_menu.pk3");
@@ -4067,14 +4457,14 @@ void zeichneLeiste(Dokument* d) {
             ImGui::EndPopup();
         }
         ImGui::SameLine();
-        if (iconKnopf(tr(Str::MeImSpielTesten), UiIcon::Abspielen, tr(Str::MeTipImSpiel))) { (void)menueImSpielTesten(false); }   // M2 Punkt 8
+        if (leistenKnopf(tr(Str::MeImSpielTesten), UiIcon::Abspielen, tr(Str::MeTipImSpiel))) { (void)menueImSpielTesten(false); }   // M2 Punkt 8
         zeichneTestFrage();
     }
     leistenTrenner();
     // Bearbeiten / Bedienen
-    if (iconKnopf(tr(Str::MeBearbeiten), UiIcon::Verschieben, tr(Str::MeTipBearbeiten), !z.interaktion)) { setzeInteraktion(false); }
+    if (leistenKnopf(tr(Str::MeBearbeiten), UiIcon::Verschieben, tr(Str::MeTipBearbeiten), !z.interaktion)) { setzeInteraktion(false); }
     ImGui::SameLine();
-    if (iconKnopf(tr(Str::MeBedienen), UiIcon::Steuern, tr(Str::MeTipBedienen), z.interaktion)) { setzeInteraktion(true); }
+    if (leistenKnopf(tr(Str::MeBedienen), UiIcon::Steuern, tr(Str::MeTipBedienen), z.interaktion)) { setzeInteraktion(true); }
     leistenTrenner();
     // Ansicht
     int sv = z.seitenv == Seitenverhaeltnis::Strecken ? 0 : 1;
@@ -4082,19 +4472,25 @@ void zeichneLeiste(Dokument* d) {
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 8);
     if (ImGui::Combo("##sv", &sv, svn, 2)) { z.seitenv = sv == 0 ? Seitenverhaeltnis::Strecken : Seitenverhaeltnis::Balken; }
     ImGui::SameLine();
-    static const char* const aufl[] = {"Window", "640x480", "800x600", "1024x768", "1280x720", "1366x768", "1600x900", "1920x1080", "2560x1440", "3440x1440"};
+    const char* const aufl[] = {tr(Str::MeAufloesungFenster), "640x480", "800x600", "1024x768", "1280x720", "1366x768", "1600x900", "1920x1080", "2560x1440", "3440x1440"};
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 6);
     ImGui::Combo("##aufl", &z.aufloesung, aufl, 10);
     ImGui::SameLine();
-    if (iconKnopf(tr(Str::MeKlaenge), UiIcon::Ton, tr(Str::MeTipKlaenge), z.klaengeAn, true, true)) { z.klaengeAn = !z.klaengeAn; }
+    // M4: gut sichtbarer Ton-Schalter fuer alle Klaenge der Vorschau (Fokus, Klick, Musik),
+    // gespeichert; aus haelt auch laufende Klaenge an
+    if (iconTextKnopf(tr(g_app->settings.menueTon ? Str::MeTonAn : Str::MeTonAus), g_app->settings.menueTon ? UiIcon::Ton : UiIcon::TonAus,
+                      tr(Str::MeTipTon))) {
+        g_app->settings.menueTon = !g_app->settings.menueTon;
+        if (!g_app->settings.menueTon) { stoppeKlaenge(); }
+    }
     ImGui::SameLine();
-    if (iconKnopf(tr(Str::MeAlleItems), UiIcon::Sichtbar, tr(Str::MeTipAlleItems), z.alleItems, true, true)) { z.alleItems = !z.alleItems; }
+    if (leistenKnopf(tr(Str::MeAlleItems), UiIcon::Sichtbar, tr(Str::MeTipAlleItems), z.alleItems, true, true)) { z.alleItems = !z.alleItems; }
     ImGui::SameLine();
-    if (iconKnopf(tr(Str::MeRaster), UiIcon::Raster, tr(Str::MeTipRaster), z.raster, true, true)) { z.raster = !z.raster; }
+    if (leistenKnopf(tr(Str::MeRaster), UiIcon::Raster, tr(Str::MeTipRaster), z.raster, true, true)) { z.raster = !z.raster; }
     ImGui::SameLine();
-    if (iconKnopf(tr(Str::MeAnRaster), UiIcon::Zielen, tr(Str::MeTipAnRaster), z.anRaster, true, true)) { z.anRaster = !z.anRaster; }
+    if (leistenKnopf(tr(Str::MeAnRaster), UiIcon::Zielen, tr(Str::MeTipAnRaster), z.anRaster, true, true)) { z.anRaster = !z.anRaster; }
     ImGui::SameLine();
-    if (iconKnopf(tr(Str::MeAnKanten), UiIcon::Einpassen, tr(Str::MeTipAnKanten), z.anKanten, true, true)) { z.anKanten = !z.anKanten; }
+    if (leistenKnopf(tr(Str::MeAnKanten), UiIcon::Einpassen, tr(Str::MeTipAnKanten), z.anKanten, true, true)) { z.anKanten = !z.anKanten; }
     if (!z.meldung.empty()) {
         ImGui::SameLine();
         ImGui::TextDisabled("%s", z.meldung.c_str());
@@ -4446,6 +4842,9 @@ Stand stand() {
     for (int i = 0; i < 4; ++i) { s.flaeche[i] = z.flaeche[i]; }
     s.bildzeitMs = z.bildzeitMs;
     s.kinoBilder = z.kinoBilder;
+    s.klangStimmen = static_cast<int>(z.klangStimmen.size());
+    s.verborgen = static_cast<int>(d->verborgen.size());
+    s.gesperrt = static_cast<int>(d->gesperrt.size());
     s.modellAufrufe = z.modellAufrufe;
     s.klangEreignisse = z.klangEreignisse;
     s.letzterKlang = z.letzterKlang;
@@ -4467,6 +4866,26 @@ Stand stand() {
         s.codeFestbreite = wi > 0 && std::fabs(wi - ww) < 0.01F;
     }
     return s;
+}
+
+// M4: den Video-Import-Dialog fuer eine Datei zeigen ("" = schliessen), fuer Selbsttest und Handbuch
+void zeigeVideoImport(const std::string& platte) {
+    Zustand& z = Z();
+    z.videoQuelle = platte;
+    z.videoOffen = !platte.empty();
+}
+
+// M4: Nummer des Items mit diesem Namen im Menue der Seite (-1 = keins)
+int itemNummer(const std::string& name) {
+    Dokument* d = doc();
+    if (d == nullptr) { return -1; }
+    const int mi = menuDerSeite(*d);
+    if (mi < 0) { return -1; }
+    const Menu& m = d->datei.menus[static_cast<std::size_t>(mi)];
+    for (std::size_t i = 0; i < m.items.size(); ++i) {
+        if (kleinPfad(m.items[i].window.name) == kleinPfad(name)) { return static_cast<int>(i); }
+    }
+    return -1;
 }
 
 void waehle(int item, bool dazu) {
@@ -4835,12 +5254,20 @@ std::vector<std::string> vorlagenIds() {
     return r;
 }
 
-std::string importiereVideo(const std::string& platte, int guete, int fps, int maxSeite) {
-    std::string fehler;
-    const std::string r = videoKodieren(platte, guete, fps, maxSeite, fehler, {});
-    if (r.empty()) { return {}; }
+std::string importiereVideo(const std::string& platte, const VideoImport& o, std::string* fehler) {
+    VideoEinst e;
+    e.ziel.breite = o.breite;
+    e.ziel.hoehe = o.hoehe;
+    e.ziel.einpassen = static_cast<Einpassen>(std::clamp(o.einpassen, 0, 2));
+    e.guete = o.guete;
+    e.fps = o.fps;
+    e.ton = o.ton;
+    e.stereo = o.stereo;
+    const VideoErgebnis r = videoKodieren(platte, e, {});
+    if (fehler != nullptr) { *fehler = r.fehler.empty() && r.ohneTon ? std::string(tr(Str::MeVideoOhneTon)) : r.fehler; }
+    if (r.roq.empty()) { return {}; }
     const std::string name = videoNameAus(platte);
-    videoAblegen(name, r);
+    videoAblegen(name, r.roq, static_cast<VideoVerwendung>(std::clamp(o.verwendung, 0, 3)));
     return "video/" + name + ".roq";
 }
 

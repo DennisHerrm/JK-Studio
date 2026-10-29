@@ -109,7 +109,12 @@ std::vector<Schritt> schritteM2() {
             f.write(reinterpret_cast<const char*>(gif), sizeof(gif));
         }
         me::waehle(0, false);
-        const std::string r = me::importiereVideo(pfad, 60, 10, 64);
+        me::VideoImport o;   // klein und schnell; Verwendung cinematic wie in M2
+        o.breite = o.hoehe = 64;
+        o.guete = 60;
+        o.fps = 10;
+        o.verwendung = 2;
+        const std::string r = me::importiereVideo(pfad, o);
         const auto x = me::stand();
         bool imPaket = false;
         for (const std::string& p : x.paket) { imPaket = imPaket || p == "video/probegif.roq"; }
@@ -442,6 +447,235 @@ std::vector<Schritt> schritteM3() {
     return s;
 }
 
+// --- M4: Video-Import (Groesse, Ton, fehlende Decoder, Shader), Ton-Schalter ---
+// Die Probevideos (ffmpeg, siehe Notizen) liegen in BHED_MENUE_VIDEOS; ohne werden die
+// Schritte mit Dateien uebersprungen.
+std::vector<Schritt> schritteM4() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = [] { return me::stand(); };
+    const char* vo = std::getenv("BHED_MENUE_VIDEOS");
+    const std::string videos = vo != nullptr ? vo : "";
+    const auto datei = [videos](const char* n) { return (std::filesystem::path(videos) / n).string(); };
+    const std::string einst = platform::settingsDirectory();
+    add(pruefe("M4 Video: Vorgaben 512 x 512, 30 Bilder/s, Ton aus (Menues spielen stumm)", [] {
+        const me::VideoImport o;
+        return o.breite == 512 && o.hoehe == 512 && o.fps == 30 && !o.ton && o.einpassen == 0;
+    }));
+    add(tu("M4 Video: Hauptmenue des Spiels oeffnen", [] {
+        if (!me::oeffneAusSpiel("ui/main.menu")) {
+            (void)me::oeffneText("ui/main.menu", "{\n\tmenuDef\n\t{\n\t\tname mainMenu\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+                                                 "\t\titemDef\n\t\t{\n\t\t\tname background_video\n\t\t\tstyle WINDOW_STYLE_SHADER\n"
+                                                 "\t\t\trect 200 144 256 256\n\t\t\tbackground \"gfx/menus/videologo\"\n\t\t\tvisible 1\n"
+                                                 "\t\t\tdecoration\n\t\t}\n\t}\n}\n");
+        }
+    }));
+    auto kinoVorher = std::make_shared<int>(0);
+    add(pruefe("M4 Video: H.264 1920x1080 -> RoQ 512x512, Shader menu/video/probe_h264 in shaders/mymenu.shader, Hintergrund des Elements",
+               [datei, kinoVorher] {
+                   if (std::getenv("BHED_MENUE_VIDEOS") == nullptr) { return true; }
+                   me::VideoImport o;
+                   o.fps = 15;   // halbe Kodierzeit; die Groesse bleibt die Vorgabe
+                   std::string fehler, r;
+                   int items = 0;
+                   for (const char* name : {"background_video", "background_CTCvideo", "background_mainvideo"}) {   // JKA, Movie Duels
+                       const int i = me::itemNummer(name);
+                       if (i < 0) { continue; }
+                       me::waehle(i, false);
+                       r = me::importiereVideo(datei("probe_h264.mp4"), o, &fehler);
+                       ++items;
+                   }
+                   const std::string roq = me::paketInhalt("video/probe_h264.roq");
+                   bhed::menue::RoqSpieler sp;
+                   const bool kopf = sp.start(roq, 0, false) && (sp.lauf(0), sp.breite() == 512 && sp.hoehe() == 512 && sp.fps() == 15);
+                   const std::string sh = me::paketInhalt("shaders/mymenu.shader");
+                   bhed::ShaderMap sm;
+                   bhed::parseShaderScript(sh, sm);
+                   const auto it = sm.find("menu/video/probe_h264");
+                   const bool shaderOk = it != sm.end() && it->second.stages.size() == 1 && it->second.stages[0].video == "video/probe_h264.roq";
+                   const auto x = me::stand();
+                   const bool hintergrund = x.text.find("\"menu/video/probe_h264\"") != std::string::npos;
+                   *kinoVorher = x.kinoBilder;
+                   diag::info("Menue-Editor M4 Video: " + r + " " + std::to_string(roq.size()) + " Bytes, " + std::to_string(sp.breite()) + "x" +
+                              std::to_string(sp.hoehe()) + " " + std::to_string(sp.fps()) + " fps, an " + std::to_string(items) + " Items, Shader " +
+                              (shaderOk ? "ok" : "FEHLT") + (fehler.empty() ? "" : ", Meldung: " + fehler));
+                   return items >= 1 && r == "video/probe_h264.roq" && kopf && shaderOk && hintergrund && fehler.empty();
+               }));
+    add(pause(1.2));
+    add(foto("menue_video_m4"));
+    add(pruefe("M4 Video: das Element zeigt das Video in der Vorschau (videoMap, RoQ-Bilder kommen)", [st, kinoVorher] {
+        if (std::getenv("BHED_MENUE_VIDEOS") == nullptr) { return true; }
+        const auto x = st();
+        diag::info("Menue-Editor M4 Video: " + std::to_string(x.kinoBilder - *kinoVorher) + " Videobilder seit dem Import");
+        return x.kinoBilder - *kinoVorher >= 3;
+    }));
+    add(pruefe("M4 Video: Export-pk3 enthaelt Menue, Video und Shader", [einst] {
+        if (std::getenv("BHED_MENUE_VIDEOS") == nullptr) { return true; }
+        const std::string ziel = (std::filesystem::path(einst) / "menue_video_m4.pk3").string();
+        if (!me::exportierePk3(ziel)) { return false; }
+        bhed::Pk3 pk;
+        const bool ok = bhed::readPk3Directory(ziel, pk) && pk.find("ui/main.menu") != nullptr && pk.find("video/probe_h264.roq") != nullptr &&
+                        pk.find("shaders/mymenu.shader") != nullptr;
+        std::error_code ec;
+        std::filesystem::remove(ziel, ec);
+        return ok;
+    }));
+    add(pruefe("M4 Video: Im Spiel testen - Testpaket und Befehlszeile (nicht gestartet)", [] {
+        if (std::getenv("BHED_MENUE_VIDEOS") == nullptr) { return true; }
+        const std::string b = me::imSpielTesten();
+        diag::info("Menue-Editor M4 Im Spiel testen: " + (b.empty() ? std::string("(kein Programm)") : b));
+        return b.empty() || b.find("fs_homepath") != std::string::npos;
+    }));
+    add(pruefe("M4 Ton: Tonspur (440 Hz, 3 s) kommt als ZA_SOUND_STEREO im RoQ an", [datei, einst] {
+        if (std::getenv("BHED_MENUE_VIDEOS") == nullptr) { return true; }
+        const std::string kopie = (std::filesystem::path(einst) / "probe_ton.mp4").string();
+        std::error_code ec;
+        std::filesystem::copy_file(datei("probe_h264.mp4"), kopie, std::filesystem::copy_options::overwrite_existing, ec);
+        me::VideoImport o;
+        o.breite = o.hoehe = 64;
+        o.fps = 10;
+        o.ton = true;
+        o.verwendung = 3;
+        std::string fehler;
+        const std::string r = me::importiereVideo(kopie, o, &fehler);
+        int kanaele = 0;
+        const std::vector<std::int16_t> pcm = bhed::menue::roqTonDekodieren(me::paketInhalt("video/probe_ton.roq"), &kanaele);
+        int wechsel = 0;
+        for (std::size_t i = 2; i < pcm.size(); i += 2) { wechsel += (pcm[i - 2] < 0) != (pcm[i] < 0) ? 1 : 0; }
+        const double sek = static_cast<double>(pcm.size() / 2) / bhed::menue::kRoqTonRate;
+        const double hz = sek > 0 ? wechsel / (2.0 * sek) : 0.0;
+        diag::info("Menue-Editor M4 Ton: " + std::to_string(pcm.size() / 2) + " Proben, " + std::to_string(sek) + " s, " + std::to_string(hz) + " Hz");
+        return r == "video/probe_ton.roq" && fehler.empty() && kanaele == 2 && std::abs(sek - 3.0) < 0.1 && std::abs(hz - 440.0) < 5.0;
+    }));
+    add(pruefe("M4 Ton: Video ohne Tonspur -> Hinweis, Video trotzdem im Paket", [datei] {
+        if (std::getenv("BHED_MENUE_VIDEOS") == nullptr) { return true; }
+        me::VideoImport o;
+        o.breite = o.hoehe = 64;
+        o.fps = 10;
+        o.ton = true;
+        o.verwendung = 3;
+        std::string fehler;
+        const std::string r = me::importiereVideo(datei("probe_stumm.mp4"), o, &fehler);
+        return r == "video/probe_stumm.roq" && fehler == tr(Str::MeVideoOhneTon);
+    }));
+    add(pruefe("M4 Codec: nicht dekodierbares AVI (ZZZZ) -> klare Meldung, kein leeres Video", [datei] {
+        if (std::getenv("BHED_MENUE_VIDEOS") == nullptr) { return true; }
+        me::VideoImport o;
+        o.verwendung = 3;
+        std::string fehler, fehler2;
+        const std::string r = me::importiereVideo(datei("probe_zzzz.avi"), o, &fehler);
+        const std::string r2 = me::importiereVideo(datei("kaputt.mp4"), o, &fehler2);
+        char soll[600];
+        std::snprintf(soll, sizeof(soll), tr(Str::MeVideoCodecAnders), "ZZZZ");
+        diag::info("Menue-Editor M4 Codec: " + fehler + " | " + fehler2);
+        return r.empty() && fehler == soll && me::paketInhalt("video/probe_zzzz.roq").empty() && r2.empty() && fehler2 == tr(Str::MeVideoNichtLesbar);
+    }));
+    add(pruefe("M4 Codec: HEVC, VP9, AV1, Xvid - dekodiert oder die passende Meldung", [datei] {
+        if (std::getenv("BHED_MENUE_VIDEOS") == nullptr) { return true; }
+        struct Fall {
+            const char* datei;
+            Str meldung;
+        };
+        const Fall faelle[] = {{"probe_hevc.mp4", Str::MeVideoCodecHevc}, {"probe_vp9.webm", Str::MeVideoCodecVp},
+                               {"probe_av1.mp4", Str::MeVideoCodecAv1}, {"probe_xvid.avi", Str::MeVideoCodecDivx}};
+        bool ok = true;
+        for (const Fall& f : faelle) {
+            me::VideoImport o;
+            o.breite = o.hoehe = 64;
+            o.fps = 5;
+            o.verwendung = 3;
+            std::string fehler;
+            const std::string r = me::importiereVideo(datei(f.datei), o, &fehler);
+            diag::info(std::string("Menue-Editor M4 Codec ") + f.datei + ": " + (r.empty() ? fehler : "dekodiert -> " + r));
+            ok = ok && (r.empty() ? fehler == tr(f.meldung) : fehler.empty());
+        }
+        return ok;
+    }));
+    add(pruefe("M4 Video: vorhandenes RoQ unveraendert uebernommen (ohne Neukodieren)", [einst] {
+        if (std::getenv("BHED_MENUE_VIDEOS") == nullptr) { return true; }
+        const std::string roq = me::paketInhalt("video/probe_h264.roq");
+        const std::string pfad = (std::filesystem::path(einst) / "direkt.roq").string();
+        {
+            std::ofstream f(pfad, std::ios::binary);
+            f.write(roq.data(), static_cast<std::streamsize>(roq.size()));
+        }
+        me::VideoImport o;
+        o.breite = o.hoehe = 64;   // gilt fuer ein RoQ nicht
+        o.verwendung = 3;
+        const std::string r = me::importiereVideo(pfad, o);
+        return r == "video/direkt.roq" && !roq.empty() && me::paketInhalt("video/direkt.roq") == roq;
+    }));
+    // der Dialog (Handbuchbild): Quelle, Groesse, Einpassen, Ton, Verwendung, geschaetzte Groesse
+    add(tu("M4 Video: Import-Dialog fuer das H.264-Video zeigen", [datei] {
+        if (std::getenv("BHED_MENUE_VIDEOS") != nullptr) { me::zeigeVideoImport(datei("probe_h264.mp4")); }
+    }));
+    add(pause(4.0));   // die Schaetzung kodiert im Hintergrund die ersten Takte
+    add(foto("menue_video_dialog"));
+    add(tu("M4 Video: Dialog schliessen", [] { me::zeigeVideoImport(""); }));
+    // Ton-Schalter der Leiste: gespeichert, aus = keine laufenden Klaenge
+    add(pruefe("M4 Ton-Schalter: Einstellung menueTon wird gespeichert und gelesen", [] {
+        bhed::Settings a;
+        a.menueTon = false;
+        bhed::Settings b;
+        return bhed::readSettings(bhed::writeSettings(a), b) && !b.menueTon && bhed::Settings{}.menueTon;
+    }));
+    add(tu("M4 Ton-Schalter: an", [] { g_app->settings.menueTon = true; }));
+    add(pause(0.2));
+    add(klick(tr(Str::MeTonAn)));
+    add(pause(0.2));
+    add(pruefe("M4 Ton-Schalter: Klick schaltet aus, keine laufenden Klaenge", [st] { return !g_app->settings.menueTon && st().klangStimmen == 0; }));
+    add(klick(tr(Str::MeTonAus)));
+    add(pause(0.2));
+    add(pruefe("M4 Ton-Schalter: zweiter Klick schaltet wieder an", [] { return g_app->settings.menueTon; }));
+    // Punkt 3: Lesbarkeit - Augen-/Schloss-Symbole, Leiste mit Beschriftung, Mindestschrift,
+    // Fotos bei 100 % und 150 % Oberflaechengroesse
+    auto skala = std::make_shared<float>(1.0F);
+    add(tu("M4 Oberflaeche: Groesse merken, 100 %", [skala] {
+        *skala = g_app->uiScale;
+        g_app->uiScale = 1.0F;
+    }));
+    add(pause(0.4));
+    add(klick("##auge"));
+    add(pause(0.2));
+    add(pruefe("M4 Oberflaeche: Auge der Ebenenliste blendet das Item in der Vorschau aus", [] { return me::stand().verborgen == 1; }));
+    add(klick("##auge"));
+    add(klick("##schloss"));
+    add(pause(0.2));
+    add(pruefe("M4 Oberflaeche: Schloss der Ebenenliste sperrt das Item", [] { return me::stand().verborgen == 0 && me::stand().gesperrt == 1; }));
+    add(klick("##schloss"));
+    add(pause(0.3));
+    add(foto("menue_oberflaeche_100"));
+    add(tu("M4 Oberflaeche: 150 %", [] { g_app->uiScale = 1.5F; }));
+    add(pause(0.6));
+    add(foto("menue_oberflaeche_150"));
+    add(tu("M4 Oberflaeche: Leistenknoepfe mit Beschriftung", [] {
+        g_app->uiScale = 1.0F;
+        g_app->settings.menueLeisteText = true;
+    }));
+    add(pause(0.4));
+    add(foto("menue_leiste_text"));
+    add(pruefe("M4 Oberflaeche: mit Beschriftung zeigt der Knopf Symbol und Text", [] {
+        const Element* e = finde(tr(Str::MeVideoImport), "", 0, false, "");
+        return e != nullptr && e->rect.GetWidth() > e->rect.GetHeight() * 2.0F;
+    }));
+    add(tu("M4 Oberflaeche: Leiste wieder nur Symbole, Groesse 50 % versuchen", [] {
+        g_app->settings.menueLeisteText = false;
+        g_app->uiScale = 0.5F;
+    }));
+    add(pause(0.4));
+    add(pruefe("M4 Oberflaeche: Mindestschrift - nie unter 75 % (12 px)", [] {
+        diag::info("Menue-Editor M4 Oberflaeche: Groesse " + std::to_string(g_app->uiScale) + ", Schrift " + std::to_string(ImGui::GetFontSize()) + " px");
+        return g_app->uiScale >= kUiScaleMin - 1e-4F && ImGui::GetFontSize() >= 12.0F * g_app->dpiScale - 0.01F;
+    }));
+    add(pruefe("M4 Oberflaeche: ohne Beschriftung nur das Symbol (quadratisch)", [] {
+        const Element* e = finde(tr(Str::MeVideoImport), "", 0, false, "");
+        return e != nullptr && e->rect.GetWidth() < e->rect.GetHeight() * 1.2F;
+    }));
+    add(tu("M4 Oberflaeche: Groesse zurueck", [skala] { g_app->uiScale = *skala; }));
+    add(pause(0.3));
+    return s;
+}
+
 // Bildvergleich mit dem Spiel (BHED_MENUE_VERGLEICH=1): JKA-Hauptmenue SP und MP
 // in 4:3 fotografieren und die Lage der Flaeche melden (Zuschnitt in
 // tools/menue_bildvergleich.py gegen die Fotos aus dem Spiel).
@@ -479,7 +713,16 @@ std::vector<Schritt> vergleichSchritte() {
                 const std::size_t gl = nw.find('=');
                 if (gl != std::string::npos) { me::setzeCvar(nw.substr(0, gl), nw.substr(gl + 1)); }
             }
-            (void)me::oeffneAusSpiel(pfad);
+            // M4 Punkt 2: "ui/x.menu|<datei>" = das Menue mit dem Text aus der Datei (Bedienzustand:
+            // onOpen fuehrt die Aktionen aus, das Spiel bekommt denselben Text als Testpaket)
+            if (const std::size_t st = pfad.find('|'); st != std::string::npos) {
+                std::ifstream f(std::filesystem::path(pfad.substr(st + 1)), std::ios::binary);
+                std::ostringstream t;
+                t << f.rdbuf();
+                (void)me::oeffneText(pfad.substr(0, st), t.str());
+            } else {
+                (void)me::oeffneAusSpiel(pfad);
+            }
             me::setzeInteraktion(true);
         }));
         add(pause(2.5));
@@ -549,6 +792,12 @@ std::vector<Schritt> schritte() {
     // BHED_MENUE_NUR=m3: nur die Schritte von M3 (gezielter Rot/Gruen-Test)
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m3") == 0) {
         for (auto& x : schritteM3()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // BHED_MENUE_NUR=m4: nur die Schritte von M4
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m4") == 0) {
+        for (auto& x : schritteM4()) { add(std::move(x)); }
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }
@@ -690,6 +939,7 @@ std::vector<Schritt> schritte() {
     }));
     for (auto& x : schritteM2()) { add(std::move(x)); }
     for (auto& x : schritteM3()) { add(std::move(x)); }
+    for (auto& x : schritteM4()) { add(std::move(x)); }
     add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
     return s;
 }

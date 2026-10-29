@@ -51,6 +51,8 @@ struct Stand {
     std::string cursorZeile; // Text der Zeile unter dem ersten Cursor
     bool codeFestbreite = false;   // M2: Code-Editor mit Festbreitenschrift
     int kinoBilder = 0;            // M2: gezeigte Bilder aus RoQ-Videos
+    int klangStimmen = 0;          // M4: laufende Klaenge der Vorschau (Ton-Schalter aus = 0)
+    int verborgen = 0, gesperrt = 0;   // M4: Items mit Auge aus bzw. Schloss zu (Ebenenliste)
     int modellAufrufe = 0;         // M2: Zeichenaufrufe der 3D-Modelle (gpu::zeichneMenueFigur)
     std::string modellFehler;      // letzte Meldung dabei
     int klangEreignisse = 0;       // M2 Punkt 5: ausgeloeste Klaenge (im Selbsttest stumm)
@@ -67,6 +69,7 @@ struct Stand {
 [[nodiscard]] Stand stand();
 // Befehle wie die Knoepfe (Selbsttest)
 void waehle(int item, bool dazu);
+[[nodiscard]] int itemNummer(const std::string& name);   // M4: Item der Seite nach Namen, -1 = keins
 void verschiebeAuswahl(float dx, float dy);
 void setzeInteraktion(bool an);
 void klickVorschau(float x, float y);   // im virtuellen Bildschirm
@@ -113,8 +116,17 @@ void klangListeLeeren();
 // M2: Festbreitenschrift des Code-Editors (main_win32.cpp buildFonts)
 void setzeCodeSchrift(ImFont* f);
 void setzeBalken(bool balken);   // 4:3 mit Balken (true) oder gestreckt
-// M2 Punkt 2: Video/GIF als RoQ ins Paket (synchron, fuer Selbsttest); Spielpfad oder ""
-std::string importiereVideo(const std::string& platte, int guete, int fps, int maxSeite);
+// M2 Punkt 2 / M4 Punkt 5: Video/GIF/RoQ als RoQ ins Paket (synchron, fuer Selbsttest),
+// dazu der Shader menu/video/<name> in shaders/<paket>.shader; Spielpfad oder "" (fehler: Meldung)
+struct VideoImport {
+    int breite = 512, hoehe = 512;
+    int einpassen = 0;     // 0 strecken, 1 Balken, 2 zuschneiden
+    int guete = 70, fps = 30;
+    bool ton = false, stereo = true;
+    int verwendung = 0;    // 0 Hintergrund des gewaehlten Items, 1 neues Vollbild-Element, 2 cinematic, 3 nur ins Paket
+};
+std::string importiereVideo(const std::string& platte, const VideoImport& o, std::string* fehler = nullptr);
+void zeigeVideoImport(const std::string& platte);   // M4: Dialog fuer eine Datei zeigen, "" = schliessen
 // M2 Punkt 4: Vorlage aus der Bibliothek an (x, y) einsetzen; Auswahl als eigene Vorlage
 bool fuegeVorlageEin(const std::string& id, float x, float y);
 bool speichereAuswahlAlsVorlage(const std::string& name);

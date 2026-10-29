@@ -3110,6 +3110,8 @@ void drawPrefs() {
     erklaerung(Str::MeEinstTextUntenHint);
     ImGui::Checkbox(tr(Str::MeEinstUmbruch), &st.menueUmbruch);
     erklaerung(Str::MeEinstUmbruchHint);
+    ImGui::Checkbox(tr(Str::MeEinstLeisteText), &st.menueLeisteText);   // M4: Leistenknoepfe mit Beschriftung
+    erklaerung(Str::MeEinstLeisteTextHint);
 
     // --- rc601 ton: die Mischpegel der Vorschau ---------------------------
     //
@@ -5285,8 +5287,10 @@ void draw() {
         !ImGui::GetIO().WantTextInput && !g_app->tlUnterMaus && g_app->leftMode != 3 &&
         g_app->leftMode != 4) {
         g_app->uiScale = std::clamp(
-            g_app->uiScale + ImGui::GetIO().MouseWheel * 0.1F, 0.5F, 3.0F);
+            g_app->uiScale + ImGui::GetIO().MouseWheel * 0.1F, kUiScaleMin, 3.0F);
     }
+    // M4: Mindestschrift - auch aus alten Einstellungen nie unter 75 % (16 px * 0.75 = 12 px)
+    g_app->uiScale = std::clamp(g_app->uiScale, kUiScaleMin, 3.0F);
     g_app->tlUnterMaus = false;   // die Zeitleiste setzt es in diesem Bild neu
 
     const float total = g_app->dpiScale * g_app->uiScale;

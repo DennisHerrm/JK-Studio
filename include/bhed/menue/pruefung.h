@@ -49,6 +49,7 @@ enum class BefundArt {
     NieSichtbar,       // name = Grund ("rect", "visible")
     DateiFehlt,        // name = Datei, wert = wofuer
     UnbekanntIn,       // name = Schluessel oder Typ, wert = Fassung ("JA SP", "JA MP", "JK2", "MD")
+    CinematicSp,       // M4: WINDOW_STYLE_CINEMATIC im Einzelspieler (Window_Paint zeichnet es nicht)
 };
 struct Befund {
     BefundArt art = BefundArt::DateiFehlt;

@@ -217,6 +217,8 @@ struct Settings {
     float menueRechtsBreite = 0.0F;
     bool menueTextUnten = false;
     bool menueUmbruch = false;
+    bool menueTon = true;       // Menue-Editor M4: Klaenge der Vorschau (Fokus, Klick, Musik) an
+    bool menueLeisteText = false;   // Menue-Editor M4: Leistenknoepfe mit Beschriftung
     bool showTypes = false;
     bool gFloats = false;
     bool foldMacros = true;
