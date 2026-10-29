@@ -2708,11 +2708,13 @@ void BhedIlluminateVertexesAll(){
 	g_bhedFlaechenVorab.assign( bspDrawSurfaces.size(), 0 );
 	g_bhedVertexParallel = 0;
 	if ( numthreads > 1 ) {
-		long long verts = 0;
-		for ( const bspDrawSurface_t& ds : bspDrawSurfaces ) {
-			verts += ds.numVerts;
+		long long verts = 0;   /* the vertexes of the vertex lit surfaces (the others are cheap) */
+		for ( size_t num = 0; num < bspDrawSurfaces.size(); ++num ) {
+			if ( surfaceInfos[ num ].lm == nullptr || cpmaHack ) {
+				verts += bspDrawSurfaces[ num ].numVerts;
+			}
 		}
-		const long long grenze = verts / numthreads;
+		const long long grenze = std::max<long long>( 64, verts / numthreads );
 		for ( const int num : g_bhedFlaechenReihenfolge )
 		{
 			if ( bspDrawSurfaces[ num ].numVerts <= grenze ) {
