@@ -5181,7 +5181,8 @@ void drawMapView() {
                 // Wie in Unreal: die gewaehlten Schiffe, Tueren, Modelle und
                 // Figuren bekommen eine Linie um ihren sichtbaren Rand. Nur im
                 // Hauptbild, nicht beim Blick durch die Kamera.
-                if (!nebenbild && !g_app->camViewActive && !auswahl.leer()) {
+                // mission1: beim Abspielen wie im Spiel - kein Umriss.
+                if (!nebenbild && !g_app->camViewActive && !auswahl.leer() && !g_app->playing) {
                     bool etwas = !umrissFiguren.empty();
                     for (const MoverDraw& mv : movers) { etwas = etwas || auswahl.mover(mv); }
                     if (etwas && gpu::umrissBeginnen()) {
@@ -5496,6 +5497,19 @@ void drawMapView() {
             g_app->gizmoZeigen = false;
             g_app->gizmoBild.rgba.clear();
             g_app->gizmoBild.depth.clear();
+            // mission1: drawCameraGizmos laeuft hier nicht - ohne das blieb
+            // gizmoShown vom letzten freien Bild stehen, und kameraBahnZeichnen
+            // malte den Kamera-Gizmo an seiner alten Bildstelle obenauf, das
+            // ganze Abspielen lang ("fett und dauerhaft im Bild").
+            g_app->gizmoShown = false;
+        } else if (gpuBereit && g_app->gpuAufrufe > 0 && g_app->playing) {
+            // mission1 (shank: "beim Abspielen soll das Bild wie im Spiel
+            // aussehen"): keine Bearbeitungshilfen ueber dem Bild, solange die
+            // Wiedergabe laeuft - auch nicht in der freien Ansicht.
+            g_app->gizmoZeigen = false;
+            g_app->gizmoShown = false;
+            g_app->gizmoBild.rgba.clear();
+            g_app->gizmoBild.depth.clear();
         } else if (gpuBereit && g_app->gpuAufrufe > 0) {
             MapImage& ov = g_app->gizmoBild;
             ov.width = g_app->mapImage.width;
@@ -5660,20 +5674,33 @@ void drawMapView() {
         // auf dem Ursprung der Entity, und sonst griffe das Entity-Ziehen den
         // Klick und verschoebe das Schiff statt des Schluessels.
         g_app->wegKlickVerbraucht = false;
-        animMaus();
-        bahnGriffeMaus();
+        // mission1: beim Abspielen sieht das Bild aus wie im Spiel - keine
+        // Bearbeitungshilfen (Gizmo, Fadenkreuz, Auswahl, Bahnen, Wegnetz,
+        // Marken, Namen, Schilder) und nichts davon greifbar. Nach Stop wieder
+        // wie vorher.
+        const bool hilfen = !g_app->playing;
+        if (hilfen) {
+            animMaus();
+            bahnGriffeMaus();
+        }
         entityZiehen(w > 0 ? static_cast<float>(g_app->mapImage.width) / static_cast<float>(w) : 1.0F);
-        wegWerkzeugMaus(w > 0 ? static_cast<float>(g_app->mapImage.width) / static_cast<float>(w) : 1.0F);
-        platzierMaus();
+        if (hilfen) {
+            wegWerkzeugMaus(w > 0 ? static_cast<float>(g_app->mapImage.width) / static_cast<float>(w) : 1.0F);
+            platzierMaus();
+        }
         skriptFokusAuffrischen();
-        entityUeberlagerung(w > 0 ? static_cast<float>(g_app->mapImage.width) / static_cast<float>(w) : 1.0F);
-        if (g_app->skriptFokus) { skriptSchild(); } else { g_app->skriptSchildText.clear(); }
-        bahnGriffeZeichnen();
-        kameraBahnZeichnen();
-        wegUeberlagerung();
-        animUeberlagerung();
+        if (hilfen) {
+            entityUeberlagerung(w > 0 ? static_cast<float>(g_app->mapImage.width) / static_cast<float>(w) : 1.0F);
+            if (g_app->skriptFokus) { skriptSchild(); } else { g_app->skriptSchildText.clear(); }
+            bahnGriffeZeichnen();
+            kameraBahnZeichnen();
+            wegUeberlagerung();
+            animUeberlagerung();
+        } else {
+            g_app->skriptSchildText.clear();
+        }
         // --- Namen an Entities und Figuren -------------------------------
-        if (g_app->zeigeNamen) {
+        if (g_app->zeigeNamen && hilfen) {
             ImDrawList* dl = ImGui::GetWindowDrawList();
             const ImVec2 a = ImGui::GetItemRectMin();
             dl->PushClipRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), true);
@@ -6425,6 +6452,8 @@ g_app->gizmoAxis = g_app->gizmoHover;
         // Beim Setzen einer Kamera sieht man sonst nicht genau, wohin sie
         // zeigt: die Mitte des Bildes IST die Blickrichtung, aber ohne
         // Marke schaetzt man sie.
+        // mission1 (shank: "beim Abspielen ist das Fadenkreuz noch zu sehen"):
+        // nicht, solange die Wiedergabe laeuft.
         ImDrawList* dl = ImGui::GetWindowDrawList();
         const ImVec2 mid{topLeft.x + static_cast<float>(w) * 0.5F,
                          topLeft.y + static_cast<float>(h) * 0.5F};
@@ -6432,7 +6461,7 @@ g_app->gizmoAxis = g_app->gizmoHover;
         const float gap = arm * 0.35F;
         const ImU32 col = IM_COL32(255, 210, 60, 200);
         const ImU32 shadow = IM_COL32(0, 0, 0, 140);
-        for (int pass = 0; pass < 2; ++pass) {
+        for (int pass = 0; pass < 2 && !g_app->playing; ++pass) {
             // Erst schwarz mit Versatz, dann farbig - so bleibt das Kreuz
             // auf hellem wie auf dunklem Grund sichtbar.
             const float o = (pass == 0) ? 1.0F : 0.0F;
@@ -6454,7 +6483,7 @@ g_app->gizmoAxis = g_app->gizmoHover;
         // SET_NAVGOAL schreiben will.
         // Seit rc586 zeigt entityUeberlagerung ein Namensschild an der Entity
         // selbst (wie Unreal) - der Tooltip nur noch, wenn das nicht greift.
-        if (g_app->showEntities && !g_app->camViewActive && ImGui::IsItemHovered() && g_app->entHover < 0) {
+        if (g_app->showEntities && !g_app->camViewActive && !g_app->playing && ImGui::IsItemHovered() && g_app->entHover < 0) {
             const ImVec2 m = ImGui::GetIO().MousePos;
             const MapEntity* best = nullptr;
             float bestDist = 18.0F;   // Fangbereich in Bildpunkten
@@ -6517,12 +6546,23 @@ g_app->gizmoAxis = g_app->gizmoHover;
     // Klick und Rechtsklick ins Leere (Kameratest: "Klick Move nicht gefunden").
     {
         const float bildB = g_app->kartenAnsicht[2] - g_app->kartenAnsicht[0];
-        kameraVorschauZeigen();
-        kameraUeberlagerung(bildB > 0.0F ? static_cast<float>(g_app->mapImage.width) / bildB : 1.0F);
-        // Die Leiste Verschieben | Drehen der Entity - aus demselben Grund hier.
-        entityGizmoLeiste();
+        if (!g_app->playing) {   // mission1: beim Abspielen wie im Spiel
+            kameraVorschauZeigen();
+            kameraUeberlagerung(bildB > 0.0F ? static_cast<float>(g_app->mapImage.width) / bildB : 1.0F);
+            // Die Leiste Verschieben | Drehen der Entity - aus demselben Grund hier.
+            entityGizmoLeiste();
+        }
     }
-    platzierLeiste();
+    if (!g_app->playing) { platzierLeiste(); }
+    // mission1: nach Stop (und beim Start) einmal neu zeichnen, damit die
+    // Hilfen sofort wieder da sind bzw. sofort verschwinden.
+    {
+        static bool warSpielend = false;
+        if (warSpielend != g_app->playing) {
+            warSpielend = g_app->playing;
+            g_app->mapDirty = true;
+        }
+    }
     // Draufsicht: die Schnitthoehe oben rechts (rc589).
     if (g_app->draufsicht && !g_app->geo.empty()) {
         const ImVec2 merk = ImGui::GetCursorScreenPos();

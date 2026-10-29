@@ -1,5 +1,6 @@
 // edit.cpp
 #include "bhed/edit.h"
+#include <atomic>
 #include <cmath>
 
 #include "bhed/diag.h"
@@ -891,7 +892,7 @@ void Document::snapshot(const char* what) {
     if (savedDepth_ != kNieGesichert && savedDepth_ > undo_.size()) {
         savedDepth_ = kNieGesichert;
     }
-    undo_.push_back(Step{s_, what});
+    undo_.push_back(Step{s_, what, naechsterAenderungsStempel()});
     if (undo_.size() > kMaxUndo) {
         undo_.erase(undo_.begin());
         abgeschnitten_ = true;
@@ -1809,16 +1810,23 @@ bool Document::pasteInto(const Path& block) {
 void Document::fasseZusammen(std::size_t ab, const char* was) {
     if (undo_.size() <= ab) { return; }
     if (savedDepth_ > ab + 1 && savedDepth_ <= undo_.size()) { savedDepth_ = static_cast<std::size_t>(-1); }   // bleibt "geaendert"
+    const std::uint64_t juengster = undo_.back().stempel;   // mission1: der zusammengefasste Schritt ist so jung wie sein letzter
     undo_.erase(undo_.begin() + static_cast<std::ptrdiff_t>(ab) + 1, undo_.end());
     undo_[ab].what = was;
+    undo_[ab].stempel = juengster;
     ++stand_;
+}
+
+std::uint64_t naechsterAenderungsStempel() {
+    static std::atomic<std::uint64_t> uhr{0};
+    return ++uhr;
 }
 
 bool Document::undo() {
     if (undo_.empty()) {
         return false;
     }
-    redo_.push_back(Step{s_, undo_.back().what});
+    redo_.push_back(Step{s_, undo_.back().what, undo_.back().stempel});
     ++stand_;
     s_ = undo_.back().script;
     undo_.pop_back();
@@ -1829,7 +1837,7 @@ bool Document::redo() {
     if (redo_.empty()) {
         return false;
     }
-    undo_.push_back(Step{s_, redo_.back().what});
+    undo_.push_back(Step{s_, redo_.back().what, redo_.back().stempel});
     ++stand_;
     s_ = redo_.back().script;
     redo_.pop_back();

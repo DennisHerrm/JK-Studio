@@ -246,6 +246,16 @@ struct App {
     // Rueckgaengig fuer Entities - eigener Verlauf, gilt fuer EINE Karte.
     std::vector<std::vector<MapEntity>> entUndo;
     std::vector<std::vector<MapEntity>> entRedo;
+    // mission1: die Stempel dazu (naechsterAenderungsStempel), gleich lang wie
+    // entUndo/entRedo. Gleicher Stempel wie ein Skriptschritt = EIN Schritt
+    // (ein Zwischenpunkt legt ein Laufziel an UND aendert das Skript).
+    std::vector<std::uint64_t> entUndoStempel;
+    std::vector<std::uint64_t> entRedoStempel;
+    // Die Stempel der zurueckgenommenen Schritte in der Reihenfolge des
+    // Zuruecknehmens: Strg+Y holt den zuletzt zurueckgenommenen zuerst. Ohne
+    // diese Folge waehlte die Kartenansicht nach dem kleinsten Stempel - und
+    // griff zu einem alten Wiederholen-Schritt des anderen Stapels.
+    std::vector<std::uint64_t> zurueckGenommen;
     std::string entUndoKarte;
     bool entRawAnsicht = false;         // alle Schluessel roh (wie SmartEdit aus)
     // Maus ueber der Kartenansicht / der Entity-Spalte (letztes Bild) - dann
@@ -2438,6 +2448,14 @@ void entityGizmoLeiste();
 // Schiff der Entity zur Zeit ms gerade (Lauf oder move), welche Figur und
 // welcher Befehl - und laesst sich dort teilen?
 bool bahnPunktMoeglich(int ei, double ms, int& figur, Path& pfad, bool& lauf);
+// mission1: gemeinsames Rueckgaengig fuer Entities und Skript (app_mission.cpp).
+std::uint64_t entUndoOben();
+std::uint64_t entRedoOben();
+void verbindeMitSkriptSchritt();
+bool missionRueckgaengig();
+bool missionWiederholen();
+bool fahrtSchluesselMoeglich(int ei, double ms, int& figur, Path& vorPfad);
+bool fahrtSchluesselSchreiben(int figur, double ms, const float kOrt[3], const float kWinkel[3]);
 // Die Bewegung bei ms teilen, mit dem neuen Punkt K: ein Schiff faehrt bis
 // ms nach K und von dort weiter; eine Figur bekommt ein neues Laufziel bei K.
 // Die Befehle danach behalten ihre Zeit.

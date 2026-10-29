@@ -132,6 +132,10 @@ int ersetzeInKnoten(Node& n, const FindOptions& o, const std::string& mit);
 int ersetzeImSkript(Script& s, const FindOptions& o, const std::string& mit,
                     const std::vector<Path>& nurIn = {});
 
+// mission1: eine fortlaufende Zahl je Aenderung (Skript oder Entities), fuer
+// ein gemeinsames Rueckgaengig in der Oberflaeche (Document::undoStempel).
+[[nodiscard]] std::uint64_t naechsterAenderungsStempel();
+
 class Document {
 public:
     explicit Document(Script s);
@@ -402,6 +406,13 @@ public:
     void fasseZusammen(std::size_t ab, const char* was);
     [[nodiscard]] std::size_t undoDepth() const { return undo_.size(); }
     [[nodiscard]] std::size_t redoDepth() const { return redo_.size(); }
+    // mission1: der Stempel des naechsten Rueckgaengig- bzw. Wiederholen-
+    // Schritts (0: keiner). Die Stempel kommen aus naechsterAenderungsStempel()
+    // - derselben Uhr, die auch die Entity-Aenderungen der Oberflaeche
+    // stempelt. So laesst sich sagen, welche Aenderung die juengste ist, und
+    // zwei mit GLEICHEM Stempel gehoeren zu einem Schritt.
+    [[nodiscard]] std::uint64_t undoStempel() const { return undo_.empty() ? 0 : undo_.back().stempel; }
+    [[nodiscard]] std::uint64_t redoStempel() const { return redo_.empty() ? 0 : redo_.back().stempel; }
 
     // Was der naechste Schritt zuruecknehmen bzw. wiederholen wuerde.
     // Leer, wenn nichts ansteht. Damit kann das Menue "Rueckgaengig:
@@ -467,6 +478,7 @@ private:
     struct Step {
         Script script;
         const char* what;   // zeigt auf eine Zeichenkette mit Programmlaufzeit
+        std::uint64_t stempel = 0;   // mission1: siehe undoStempel()
     };
     std::vector<Step> undo_;
     std::vector<Step> redo_;

@@ -221,13 +221,20 @@ void aenderung(std::vector<MapEntity> vorher) {
     if (g_app->entUndoKarte != g_app->map.path) {
         g_app->entUndo.clear();
         g_app->entRedo.clear();
+        g_app->entUndoStempel.clear();
+        g_app->entRedoStempel.clear();
         g_app->entUndoKarte = g_app->map.path;
     }
     g_app->entUndo.push_back(std::move(vorher));
+    g_app->entUndoStempel.resize(g_app->entUndo.size() - 1U, 0);
+    g_app->entUndoStempel.push_back(naechsterAenderungsStempel());
     if (g_app->entUndo.size() > 200) {
         g_app->entUndo.erase(g_app->entUndo.begin());
+        g_app->entUndoStempel.erase(g_app->entUndoStempel.begin());
     }
     g_app->entRedo.clear();
+    g_app->entRedoStempel.clear();
+    g_app->zurueckGenommen.clear();
     g_app->kameraSchriebSkript = false;
     nachAenderung();
 }
@@ -832,6 +839,13 @@ bool entityRueckgaengig() {
     g_app->entRedo.push_back(g_app->map.entities);
     g_app->map.entities = std::move(g_app->entUndo.back());
     g_app->entUndo.pop_back();
+    g_app->entUndoStempel.resize(g_app->entUndo.size() + 1U, 0);
+    g_app->entRedoStempel.resize(g_app->entRedo.size() - 1U, 0);
+    g_app->entRedoStempel.push_back(g_app->entUndoStempel.back());
+    if (g_app->zurueckGenommen.empty() || g_app->zurueckGenommen.back() != g_app->entUndoStempel.back()) {
+        g_app->zurueckGenommen.push_back(g_app->entUndoStempel.back());
+    }
+    g_app->entUndoStempel.pop_back();
     g_app->hiddenEntities.clear();
     g_app->entAuswahl.clear();
     if (g_app->pickedEntity >= static_cast<int>(g_app->map.entities.size())) { g_app->pickedEntity = -1; }
@@ -845,12 +859,74 @@ bool entityWiederholen() {
     g_app->entUndo.push_back(g_app->map.entities);
     g_app->map.entities = std::move(g_app->entRedo.back());
     g_app->entRedo.pop_back();
+    g_app->entRedoStempel.resize(g_app->entRedo.size() + 1U, 0);
+    g_app->entUndoStempel.resize(g_app->entUndo.size() - 1U, 0);
+    g_app->entUndoStempel.push_back(g_app->entRedoStempel.back());
+    if (!g_app->zurueckGenommen.empty() && g_app->zurueckGenommen.back() == g_app->entRedoStempel.back()) {
+        g_app->zurueckGenommen.pop_back();
+    }
+    g_app->entRedoStempel.pop_back();
     g_app->hiddenEntities.clear();
     g_app->entAuswahl.clear();
     if (g_app->pickedEntity >= static_cast<int>(g_app->map.entities.size())) { g_app->pickedEntity = -1; }
     entityNummernPruefen();
     nachAenderung();
     return true;
+}
+
+// --- Ein gemeinsames Rueckgaengig fuer Entities und Skript (mission1) -----------
+//
+// shank: nach jedem Bewegen und Drehen mit dem Gizmo muss EIN Strg+Z alles
+// exakt wie vorher herstellen, Strg+Y die Aenderung wieder. Entities und Skript
+// haben zwei Stapel; ein Zwischenpunkt auf einer Bahn aendert beide (neues
+// Laufziel + SET_NAVGOAL), und Strg+Z ueber der Karte nahm nur das Laufziel
+// zurueck - das Skript zeigte danach auf ein fehlendes Ziel. Ausserdem griff
+// Strg+Z ueber der Karte immer zuerst zum Entity-Stapel, auch wenn die
+// juengste Aenderung ein Schluessel im Skript war.
+//
+// Jetzt traegt jeder Schritt einen Stempel (naechsterAenderungsStempel): der
+// juengste wird zurueckgenommen, und zwei mit gleichem Stempel zusammen.
+std::uint64_t entUndoOben() {
+    if (g_app->entUndoKarte != g_app->map.path || g_app->entUndo.empty()) { return 0; }
+    // Ohne passenden Stempel (aelterer Stand): wie bisher die Entity zuerst.
+    return g_app->entUndoStempel.size() == g_app->entUndo.size() ? g_app->entUndoStempel.back() : ~std::uint64_t{0};
+}
+std::uint64_t entRedoOben() {
+    if (g_app->entUndoKarte != g_app->map.path || g_app->entRedo.empty()) { return 0; }
+    return g_app->entRedoStempel.size() == g_app->entRedo.size() ? g_app->entRedoStempel.back() : 1;
+}
+
+void verbindeMitSkriptSchritt() {
+    if (!g_app->entUndoStempel.empty() && g_app->entUndoStempel.size() == g_app->entUndo.size() &&
+        g_app->doc.undoStempel() > g_app->entUndoStempel.back()) {   // nur ein Skriptschritt NACH der Entity-Aenderung
+        g_app->entUndoStempel.back() = g_app->doc.undoStempel();
+    }
+}
+
+bool missionRueckgaengig() {
+    const std::uint64_t e = entUndoOben();
+    const std::uint64_t d = g_app->doc.undoStempel();
+    if (e == 0 || (d != 0 && d >= e)) {
+        return false;   // das Skript ist dran (gleicher Stempel: undoSchritte nimmt die Entities mit)
+    }
+    return entityRueckgaengig();
+}
+
+bool missionWiederholen() {
+    const std::uint64_t e = entRedoOben();
+    const std::uint64_t d = g_app->doc.redoStempel();
+    // Der zuletzt zurueckgenommene Schritt zuerst.
+    std::vector<std::uint64_t>& folge = g_app->zurueckGenommen;
+    if (!folge.empty() && folge.back() != e && folge.back() != d) {
+        folge.clear();   // die Folge passt zu keinem Stapel mehr (inzwischen anders geaendert)
+    }
+    if (!folge.empty()) {
+        if (folge.back() == d) {
+            return false;   // das Skript (gleicher Stempel: redoSchritte nimmt die Entities mit)
+        }
+        return entityWiederholen();
+    }
+    return e != 0 && entityWiederholen();   // wie bisher: ueber der Karte die Entities
 }
 
 bool missionUngespeichert() {
@@ -1184,7 +1260,10 @@ void entityZiehen(float rasterSkal) {
     const bool zielHatOrt = ziel >= 0 && entityOrtAnzeige(g_app->map.entities[static_cast<std::size_t>(ziel)], zielOrt);
     float zielVersatz[3] = {0.0F, 0.0F, 0.0F};
     if (ziel >= 0) { entityVersatz(ziel, zielVersatz); }
-    const bool gizmoDa = zielHatOrt && g_app->showEntities && !g_app->camViewActive;
+    // mission1 (shank: "beim Abspielen ist der Gizmo fett und dauerhaft im
+    // Bild"): waehrend des Abspielens kein Gizmo - weder gezeichnet noch
+    // greifbar. Nach Stop steht er wieder wie vorher.
+    const bool gizmoDa = zielHatOrt && g_app->showEntities && !g_app->camViewActive && !g_app->playing;
     const float L = gizmoDa ? laengeFuerPx(p, zielOrt, kGizmoPx) : 0.0F;
     if (g_app->entFokusBild && !z.kandidat && !ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
         if (gizmoDa) {
@@ -1369,6 +1448,16 @@ void entityZiehen(float rasterSkal) {
                     }
                 }
             }
+            // mission1 (shank: "das Raumschiff zwischen zwei Punkten gedreht -
+            // es verdreht sich am Anfangspunkt mit"): steht ein Schiff NICHT in
+            // einer Fahrt, sondern danach (in der Pause vor der naechsten oder
+            // nach der letzten), aenderte der Gizmo Ursprung und Winkel der
+            // Entity - also den Anfang. Jetzt ein neuer Schluessel zur Zeit.
+            if (art == 0) {
+                int fig = -1;
+                Path vor;
+                if (fahrtSchluesselMoeglich(z.index, g_app->playMs, fig, vor)) { art = 4; }
+            }
             const int figur = art != 0 ? figurFuerEntity(z.index) : -1;
             if (figur >= 0) {
                 z.dkArt = art;
@@ -1471,7 +1560,7 @@ void entityZiehen(float rasterSkal) {
         dkVorschau();
     };
     if (z.aktiv && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        if (z.modus == 0 && z.dkArt == 1) {
+        if (z.modus == 0 && (z.dkArt == 1 || z.dkArt == 4)) {
             // Schluessel des Animationsfensters: in der waagrechten Ebene, in
             // der die Entity zu dieser Zeit steht.
             float a0[3];
@@ -1545,7 +1634,7 @@ void entityZiehen(float rasterSkal) {
                     const float r = g_app->rasterSchritt > 0 ? (io.KeyCtrl ? 0.0F : static_cast<float>(g_app->rasterSchritt))
                                                              : (io.KeyCtrl ? 8.0F : 0.0F);
                     if (r > 0.0F) { o[k] = std::round(o[k] / r) * r; }
-                    if (z.dkArt == 1) {
+                    if (z.dkArt == 1 || z.dkArt == 4) {
                         for (int q = 0; q < 3; ++q) { z.dkOrt[q] = z.dkBasisOrt[q] + (o[q] - z.startOrt[q]); }
                         dkVorschau();
                     } else if (z.zwischen) {
@@ -1635,6 +1724,8 @@ void entityZiehen(float rasterSkal) {
                 (void)animKeySetzen(z.zwT, z.dkOrt, z.dkWinkel);
             } else if (z.dkArt == 2) {
                 (void)bahnPunktSchreiben(z.zwFigur, z.zwPfad, false, z.dkOrt, z.zwT, z.dkWinkel);
+            } else if (z.dkArt == 4) {
+                (void)fahrtSchluesselSchreiben(z.zwFigur, z.zwT, z.dkOrt, z.dkWinkel);
             } else {
                 (void)figurBlickSetzen(z.zwFigur, z.zwT, z.dkWinkel[1]);
             }
@@ -1963,6 +2054,7 @@ void rueckwaertsLaufen(const Path& navgoal) {
             g_app->map.entities.push_back(std::move(e));
             aenderung(std::move(vorher));
             setzeVorNavgoal(navgoal, blickZeilen(a, st, name), tr(Str::BahnRueckwaerts));
+            verbindeMitSkriptSchritt();   // mission1: Blickziel und Skript - ein Schritt
             return;
         }
     }
@@ -2053,6 +2145,13 @@ bool befehlZurZeit(std::vector<Node>& g, std::size_t ab, double t0, double ziel,
     };
     double t = t0;
     for (std::size_t j = ab; j < g.size(); ++j) {
+        // mission1: ist die Zeit schon erreicht, gehoert der Befehl HIER hin -
+        // auch vor ein waitsignal, hinter dem die Zeit unbekannt waere (vorher
+        // scheiterte so ein Drehschluessel am Anfang einer Figur).
+        if (t + 0.5 >= ziel) {
+            g.insert(g.begin() + static_cast<std::ptrdiff_t>(j), n);
+            return true;
+        }
         const Node& x = g[j];
         if (x.name == "waitsignal" || x.name == "dowait" ||
             (x.name == "wait" && (x.args.empty() || x.args[0].kind != Arg::Kind::Number))) {
@@ -2300,6 +2399,15 @@ bool bahnPunktSchreiben(int figur, const Path& pfad, bool lauf, const float kOrt
         }
         erster.args.back().text = zahl(teil);
         zweiter.args.back().text = zahl(ende - ms);
+        // mission1: ein move ohne Winkel behielte nach dem gedrehten Punkt
+        // dessen Winkel bis zum Ende - der naechste Schluessel waere verdreht.
+        // Er bekommt die Winkel, mit denen er vorher ankam.
+        if (kWinkel != nullptr && !(zweiter.args.size() >= 3 && zweiter.args[1].kind == Arg::Kind::Vector)) {
+            Arg w;
+            w.kind = Arg::Kind::Vector;
+            w.text = vektor(merk.toAng);
+            zweiter.args.insert(zweiter.args.begin() + 1, w);
+        }
     }
     Node warte;
     warte.kind = Node::Kind::Command;
@@ -2318,6 +2426,7 @@ bool bahnPunktSchreiben(int figur, const Path& pfad, bool lauf, const float kOrt
         }
         aenderung(std::move(vorher));
         g_app->doc.ersetzeSkript(std::move(s), tr(Str::BahnZwischenUndo));
+        verbindeMitSkriptSchritt();   // mission1: EIN Strg+Z fuer Laufziel und Skript
         nachSkriptGeaendert();
         char tf[96];
         std::snprintf(tf, sizeof(tf), tr(Str::BahnZwischen), ms / 1000.0);
@@ -2340,6 +2449,116 @@ bool bahnPunktSchreiben(int figur, const Path& pfad, bool lauf, const float kOrt
     }
     g = std::move(neu);
     if (lauf) { aenderung(std::move(vorher)); }
+    g_app->doc.ersetzeSkript(std::move(s), tr(Str::BahnZwischenUndo));
+    nachSkriptGeaendert();
+    char t[96];
+    std::snprintf(t, sizeof(t), tr(Str::BahnZwischen), ms / 1000.0);
+    addStatus(t);
+    return true;
+}
+
+// --- Schluessel zwischen oder nach den Fahrten eines Schiffs (mission1) ------------
+//
+// Der vorige move (fertig vor `ms`) und sein Pfad - ohne ihn (vor der ersten
+// Fahrt) ist der Ursprung der Entity der Anfang, und den aendert der Gizmo wie
+// bisher.
+namespace {
+const ActorStep* vorigeFahrt(const Actor& a, double ms) {
+    const ActorStep* vor = nullptr;
+    for (const ActorStep& st : a.steps) {
+        if (st.kind != ActorStep::Kind::Glide || st.path.empty() || !st.fremd.empty() || st.endMs > ms) { continue; }
+        const Node* n = nodeAt(g_app->doc.script(), st.path);
+        if (n == nullptr || n->name != "move" || n->args.size() < 2 || n->args[0].kind != Arg::Kind::Vector) { continue; }
+        if (vor == nullptr || st.endMs >= vor->endMs) { vor = &st; }
+    }
+    return vor;
+}
+}  // namespace
+
+bool fahrtSchluesselMoeglich(int ei, double ms, int& figur, Path& vorPfad) {
+    int f = -1;
+    Path p;
+    bool lauf = false;
+    if (bahnPunktMoeglich(ei, ms, f, p, lauf)) { return false; }   // mitten in einer Fahrt: Zwischenpunkt
+    figur = figurFuerEntity(ei);
+    if (figur < 0) { return false; }
+    const Actor& a = g_app->scene.actors[static_cast<std::size_t>(figur)];
+    if (a.brushModel <= 0 || !a.at(ms).visible) { return false; }
+    const ActorStep* vor = vorigeFahrt(a, ms);
+    // Ein Spielbild Abstand: der neue move braucht eine Dauer (wait endet ein
+    // Bild spaeter, siehe befehlZurZeit).
+    if (vor == nullptr || ms - vor->endMs < 101.0) { return false; }
+    vorPfad = vor->path;
+    return true;
+}
+
+bool fahrtSchluesselSchreiben(int figur, double ms, const float kOrt[3], const float kWinkel[3]) {
+    if (figur < 0 || static_cast<std::size_t>(figur) >= g_app->scene.actors.size()) { return false; }
+    const Actor& a = g_app->scene.actors[static_cast<std::size_t>(figur)];
+    const ActorStep* vor = vorigeFahrt(a, ms);
+    if (vor == nullptr || ms - vor->endMs < 101.0) { return false; }
+    // Der naechste move derselben Figur (ab ms) - ohne Winkel bekommt er die,
+    // mit denen er vorher ankam, sonst truege er den neuen Winkel weiter.
+    const ActorStep* nach = nullptr;
+    for (const ActorStep& st : a.steps) {
+        if (st.kind == ActorStep::Kind::Glide && !st.path.empty() && st.fremd.empty() && st.startMs >= ms &&
+            (nach == nullptr || st.startMs < nach->startMs)) {
+            nach = &st;
+        }
+    }
+    const auto zahl = [](double v) {
+        char t[48];
+        std::snprintf(t, sizeof(t), "%.3f", v);
+        return std::string(t);
+    };
+    const auto vektor = [](const float* v) {
+        char t[96];
+        std::snprintf(t, sizeof(t), "%.3f %.3f %.3f", static_cast<double>(v[0]), static_cast<double>(v[1]),
+                      static_cast<double>(v[2]));
+        return std::string(t);
+    };
+    Script s = g_app->doc.script();
+    if (nach != nullptr) {
+        Node* nn = nullptr;
+        std::vector<Node>* ebene = &s.nodes;
+        for (std::size_t k = 0; k < nach->path.size() && nach->path[k] < ebene->size(); ++k) {
+            nn = &(*ebene)[nach->path[k]];
+            ebene = &nn->children;
+            if (k + 1 < nach->path.size()) { nn = nullptr; }
+        }
+        if (nn != nullptr && nn->name == "move" && !(nn->args.size() >= 3 && nn->args[1].kind == Arg::Kind::Vector)) {
+            Arg w;
+            w.kind = Arg::Kind::Vector;
+            w.text = vektor(nach->toAng);
+            nn->args.insert(nn->args.begin() + 1, w);
+        }
+    }
+    std::vector<Node>* geschw = &s.nodes;
+    for (std::size_t k = 0; k + 1 < vor->path.size(); ++k) {
+        if (vor->path[k] >= geschw->size()) { return false; }
+        geschw = &(*geschw)[vor->path[k]].children;
+    }
+    const std::size_t i = vor->path.back();
+    if (i >= geschw->size()) { return false; }
+    // Der neue move: vom Ende der vorigen Fahrt bis ms zum Schluessel, mit
+    // Winkeln (Q3_Lerp2Pos dreht ab currentAngles). Er beginnt, wenn die
+    // vorige Fahrt endet - beide Nachbarn behalten Ort, Winkel und Zeit.
+    Node n = (*geschw)[i];
+    n.kennung = 0;
+    n.args[0].text = vektor(kOrt);
+    if (n.args.size() >= 3 && n.args[1].kind == Arg::Kind::Vector) {
+        n.args[1].text = vektor(kWinkel);
+    } else {
+        Arg w;
+        w.kind = Arg::Kind::Vector;
+        w.text = vektor(kWinkel);
+        n.args.insert(n.args.begin() + 1, w);
+    }
+    n.args.back().text = zahl(ms - vor->endMs);
+    if (!befehlZurZeit(*geschw, i + 1, vor->startMs, vor->endMs, n)) {
+        addStatus(tr(Str::BahnBlickZeitUnbekannt));
+        return false;
+    }
     g_app->doc.ersetzeSkript(std::move(s), tr(Str::BahnZwischenUndo));
     nachSkriptGeaendert();
     char t[96];
@@ -3477,6 +3696,8 @@ bool neueMissionAnlegen(const std::string& karte, const std::string& name, const
     merkeEntities();
     g_app->entUndo.clear();
     g_app->entRedo.clear();
+    g_app->entUndoStempel.clear();
+    g_app->entRedoStempel.clear();
     g_app->entitiesUngespeichert.erase(g_app->map.path);
     g_app->pickedEntity = -1;
     g_app->hiddenEntities.clear();
@@ -3520,6 +3741,8 @@ void missionAusGeladener(const Mission& m) {
     g_app->missionAktiv = true;
     g_app->entUndo.clear();
     g_app->entRedo.clear();
+    g_app->entUndoStempel.clear();
+    g_app->entRedoStempel.clear();
     g_app->entitiesUngespeichert.erase(m.mapFile);
 }
 
@@ -3837,6 +4060,8 @@ bool missionAusOrdnerLaden(const std::string& ordner, std::string* fehler) {
     g_app->missionAktiv = true;
     g_app->entUndo.clear();
     g_app->entRedo.clear();
+    g_app->entUndoStempel.clear();
+    g_app->entRedoStempel.clear();
     g_app->entitiesUngespeichert.erase(id);
     g_app->pickedEntity = -1;
     g_app->hiddenEntities.clear();
