@@ -106,6 +106,10 @@ void sucheSicherung();                                // Sicherung am jetzigen O
 void schliesseAlleOhneSpeichern();                    // Selbsttest: wie nach einem Absturz
 void fragZuordnung();                                 // Frage zur Dateizuordnung zeigen
 void beimBeenden();                                   // beim Beenden: Ungespeichertes sichern
+// M5b Punkt 4: Mod-Profile (bhed/menue/profil.h); "" = das eingebaute des Spiels
+void setzeModProfil(const std::string& name);
+[[nodiscard]] std::string modProfil();
+bool legeProfilVorlageAn(const std::string& pfad);    // Vorlage zum Ausfuellen schreiben
 bool exportierePk3(const std::string& pfad);
 // M2 Punkt 7: nur geaenderte Menues (und das Paket); Pruefung fuer die Fassungen
 bool exportiereAenderungen(const std::string& pfad);

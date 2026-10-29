@@ -24,6 +24,8 @@
 //   GNU General Public License for more details (LICENSE).
 #include "bhed/menue/skript.h"
 
+#include "bhed/menue/profil.h"
+
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -294,6 +296,11 @@ std::string Laufzeit::cvar(const std::string& n) const {
     const auto it = cvars.find(klein(n));
     if (it != cvars.end()) { return it->second; }
     if (basis.cvar) { return basis.cvar(n); }   // die Werte des Editors (Vorschau-Cvars, sonst die Vorgaben der Engine)
+    if (d != nullptr && d->profil) {   // M5b: Vorgaben der Mod (cvarTable laut Mod-Profil)
+        for (const auto& [name, w] : d->profil->cvars) {
+            if (gleich(name, n)) { return w; }
+        }
+    }
     return d != nullptr ? spielCvarVorgabe(d->dialekt, d->spiel, n) : std::string();   // was die Engine selbst anlegt
 }
 
@@ -363,6 +370,15 @@ void Laufzeit::fuehreAus(int menu, int item, const std::string& s) {
                 f(i);
             }
         }
+    };
+    // M5b: uiScripts der Mod (Mod-Profil) mit ihrer Wortzahl, sonst die Tabelle der Spiele
+    auto woerterNach = [&](const std::string& name) {
+        if (d->profil) {
+            for (const auto& [n, w] : d->profil->uiSkripte) {
+                if (gleich(n, name)) { return w; }
+            }
+        }
+        return uiSkriptWoerter(name, d->dialekt, d->spiel);
     };
     std::size_t p = 0;
     std::string cmd;
@@ -539,7 +555,7 @@ void Laufzeit::fuehreAus(int menu, int item, const std::string& s) {
             std::string name;
             (void)stringParse(s, p, name);
             std::string rest = cmd + " " + name;
-            for (int w = uiSkriptWoerter(name, d->dialekt, d->spiel); w > 0 && stringParse(s, p, a); --w) { rest += " " + a; }
+            for (int w = woerterNach(name); w > 0 && stringParse(s, p, a); --w) { rest += " " + a; }
             if (!uiSkript(menu, klein(name))) { melde(rest); }
         } else if (c == "play" || c == "playlooped" || c == "playvoice") {
             // Script_Play: DC->startLocalSound(DC->registerSound(val), CHAN_LOCAL_SOUND);
@@ -575,7 +591,7 @@ void Laufzeit::fuehreAus(int menu, int item, const std::string& s) {
             std::string name;
             (void)stringParse(s, p, name);
             std::string rest = cmd + " " + name;
-            for (int w = uiSkriptWoerter(name, d->dialekt, d->spiel); w > 0 && stringParse(s, p, a); --w) { rest += " " + a; }
+            for (int w = woerterNach(name); w > 0 && stringParse(s, p, a); --w) { rest += " " + a; }
             if (name.empty() || !uiSkript(menu, klein(name))) { melde("uiScript: " + rest); }
         }
     }

@@ -23,6 +23,7 @@
 //   warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 //   GNU General Public License for more details (LICENSE).
 #include "bhed/menue/menue.h"
+#include "bhed/menue/profil.h"
 
 #include "lexer.h"
 
@@ -218,7 +219,7 @@ const Schluessel kMenu[] = {
     {"outOfBoundsClick", Art::Keine, Art::Keine, kBeide},
     {"ownerdraw", Art::Int, Art::Int, kBeide},
     {"ownerdrawFlag", Art::Int, Art::Int, kBeide},
-    {"ownerdrawID", Art::Int, Art::Int, kMD},
+    {"ownerdrawID", Art::ImmerFalsch, Art::ImmerFalsch, kMD},   // MD MenuParse_ownerdrawID: Rumpf auskommentiert, return qfalse
     {"popup", Art::Keine, Art::Keine, kBeide},
     {"rect", Art::Rect, Art::Rect, kBeide},
     {"soundLoop", Art::Str, Art::Str, kBeide},
@@ -735,6 +736,8 @@ bool menuArg(Grund& g, const Schluessel& k, Dialekt d, Menu& m) {
     const std::string n = k.name;
     const Art art = (d == Dialekt::MP) ? k.mp : k.sp;
     switch (art) {
+        case Art::ImmerFalsch:
+            return false;
         case Art::Keine:
             if (n == "popup") { m.window.flags |= WINDOW_POPUP; }
             else if (n == "outOfBoundsClick") { m.window.flags |= WINDOW_OOB_CLICK; }
@@ -761,7 +764,6 @@ bool menuArg(Grund& g, const Schluessel& k, Dialekt d, Menu& m) {
             else if (n == "fullscreen") { m.fullScreen = v; }
             else if (n == "ownerdraw") { m.window.ownerDraw = v; }
             else if (n == "ownerdrawFlag") { m.window.ownerDrawFlags |= v; }
-            else if (n == "ownerdrawID") { m.ownerdrawID = v; }
             else if (n == "style") { m.window.style = v; }
             else if (n == "descAlignment") { m.descAlignment = v; }
             else if (n == "visible") { if (v != 0) { m.window.flags |= WINDOW_VISIBLE; } }
@@ -892,6 +894,18 @@ class Leser {
 public:
     Leser(Grund& g, Datei& d) : g_(g), d_(d) {}
 
+    // M5b: ein Schluessel aus dem Mod-Profil als Tabelleneintrag (Name zeigt in das Profil)
+    bool profilSchluessel(bool item, const std::string& wort, Schluessel& out) const {
+        if (!d_.profil) { return false; }
+        const std::string* kanon = nullptr;
+        const std::string a = profilSchluesselArt(*d_.profil, item, wort, &kanon);
+        if (a.empty() || kanon == nullptr) { return false; }
+        const Art art = a == "int" ? Art::Int : a == "float" ? Art::Float : a == "string" ? Art::Str : a == "rect" ? Art::Rect
+                      : a == "color" ? Art::Color : a == "vec3" ? Art::Vec3 : a == "script" ? Art::Script : a == "none" ? Art::Keine : Art::Tok;
+        out = Schluessel{kanon->c_str(), art, art, kBeide};
+        return true;
+    }
+
     // Item_Parse (nach "itemDef")
     bool item(Item& it) {
         Token t;
@@ -910,6 +924,11 @@ public:
             Eigenschaft e;
             e.schluessel = t.s;
             e.kopf = t;
+            Schluessel ausProfil{};
+            if (k == nullptr && profilSchluessel(true, t.s, ausProfil)) {   // M5b: die Engine der Mod kennt ihn
+                k = &ausProfil;
+                e.ausProfil = true;
+            }
             if (k == nullptr) {
                 g_.warn(mp() ? "unknown menu item keyword " + t.s : "Unknown item keyword '" + t.s + "'", mp());
                 e.ok = false;
@@ -954,6 +973,9 @@ public:
                 return true;
             }
             const Schluessel* k = sucheIn(kMenu, t.s, d_.dialekt, d_.spiel);
+            Schluessel ausProfil{};
+            const bool vomProfil = k == nullptr && profilSchluessel(false, t.s, ausProfil);   // M5b
+            if (vomProfil) { k = &ausProfil; }
             if (k == nullptr) {
                 g_.warn(mp() ? "unknown menu keyword " + t.s : "Unknown menu keyword " + t.s, mp());
                 Eigenschaft e;
@@ -984,6 +1006,7 @@ public:
             Eigenschaft e;
             e.schluessel = t.s;
             e.kanon = k->name;
+            e.ausProfil = vomProfil;
             e.kopf = t;
             g_.aufz = &e.args;
             const bool ok = menuArg(g_, *k, d_.dialekt, m);
@@ -1130,6 +1153,7 @@ Datei lies(const std::string& pfad, const std::string& text, const LeseOptionen&
     d.text = text;
     d.dialekt = opt.dialekt;
     d.spiel = opt.spiel;
+    d.profil = opt.profil;
     d.quellen.push_back(Quelle{pfad, std::string()});   // [0]: Text steht in d.text
 
     const bool istMenu = pfad.size() >= 5 && gleichOhneFall(pfad.substr(pfad.size() - 5), ".menu");

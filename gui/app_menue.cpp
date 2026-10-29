@@ -36,6 +36,7 @@
 #include "bhed/menue/hud.h"
 #include "bhed/menue/imspiel.h"
 #include "bhed/menue/layout.h"
+#include "bhed/menue/profil.h"
 #include "bhed/menue/projekt.h"
 #include "bhed/menue/schriftbau.h"
 #include "bhed/menue/menue.h"
@@ -340,7 +341,14 @@ struct Zustand {
     std::vector<SicherungsEintrag> sicherungListe;
     std::int64_t sicherungZeitpunkt = 0;
     bool zuordnungFrage = false;                  // Frage zur Dateizuordnung oeffnen
+    // M5b Punkt 4: Mod-Profil (eingebaut nach Spiel oder aus <Einstellungen>/menue_profile, Projektordner)
+    std::shared_ptr<const ModProfil> profil;
+    std::string profilFuer;                       // Name|Spiel, fuer den profil gilt
 };
+std::shared_ptr<const ModProfil> aktivesProfil();   // M5b (app_menue_projekt.inc)
+bool profilEingebaut(const ModProfil& p);
+// Leseoptionen fuer einen Spielpfad mit dem Mod-Profil
+LeseOptionen leseOptionen(const std::string& pfad);
 
 // InputText mit std::string (wie misc/cpp/imgui_stdlib.cpp)
 int waechst(ImGuiInputTextCallbackData* d) {
@@ -454,13 +462,13 @@ void schriftNamenLaden() {
         for (const std::string& satzPfad : saetze) {
             std::string t;
             if (!z.daten.lies(satzPfad, t)) { continue; }
-            LeseOptionen o = optionenFuer(satzPfad, z.spiel, z.daten.lader());
+            LeseOptionen o = leseOptionen(satzPfad);
             o.dialekt = d;
             const Datei satz = lies(satzPfad, t, o);
             for (const std::string& f : satz.loadMenus) {
                 std::string inhalt;
                 if (!z.daten.lies(f, inhalt)) { continue; }
-                LeseOptionen of = optionenFuer(f, z.spiel, z.daten.lader());
+                LeseOptionen of = leseOptionen(f);
                 of.dialekt = d;
                 dateien.push_back(lies(f, inhalt, of));
             }
@@ -482,8 +490,11 @@ void schriftNamenLaden() {
         if (zeiger.empty()) { return std::vector<std::string>{}; }
         return schriftNamen(zeiger, d, z.spiel, [&](const std::string& n) { return z.daten.gibt("fonts/" + n + ".fontdat"); });
     };
-    z.schriftNamenSp = aus({"ui/menus.txt"}, Dialekt::SP);
-    z.schriftNamenMp = aus({"ui/jampmenus.txt", "ui/jk2mpmenus.txt", "ui/MovieDuels-MP-Menus.txt"}, Dialekt::MP);
+    // M5b: Menuelisten aus dem Mod-Profil; bei den eingebauten wie bisher Jedi Academy zuerst
+    const std::shared_ptr<const ModProfil> pr = aktivesProfil();
+    const ModProfil& listen = profilEingebaut(*pr) ? eingebautesProfil(Spiel::JA) : *pr;
+    z.schriftNamenSp = aus(menuelisten(listen, Dialekt::SP), Dialekt::SP);
+    z.schriftNamenMp = aus(menuelisten(listen, Dialekt::MP), Dialekt::MP);
 }
 
 void shaderLaden();
@@ -568,8 +579,7 @@ bool saberModellFuer(const std::string& saber, std::string& modell, std::string&
 
 void neuParsen(Dokument& d) {
     if (d.geparst == d.puffer.version()) { return; }
-    Zustand& z = Z();
-    LeseOptionen o = optionenFuer(d.name, z.spiel, z.daten.lader());
+    LeseOptionen o = leseOptionen(d.name);
     d.datei = lies(d.name, d.puffer.text(), o);
     d.geparst = d.puffer.version();
     if (d.datei.menus.empty()) { d.seite = 0; }
@@ -4465,8 +4475,7 @@ void zeichneLeiste(Dokument* d) {
             n = oeffneMenuesatz(d->name);
         }
         const bool mp = d != nullptr && d->datei.dialekt == Dialekt::MP;
-        for (const char* p : mp ? std::vector<const char*>{"ui/MovieDuels-MP-Menus.txt", "ui/jampmenus.txt", "ui/jk2mpmenus.txt"}
-                                : std::vector<const char*>{"ui/menus.txt"}) {
+        for (const std::string& p : menuelisten(*aktivesProfil(), mp ? Dialekt::MP : Dialekt::SP)) {   // M5b: aus dem Mod-Profil
             if (n == 0) { n = oeffneMenuesatz(p); }
         }
     }
@@ -4708,6 +4717,7 @@ bool exportiere(const std::string& pfad, bool nurAenderungen);   // unten
 void panelEigenschaften(Dokument& d) {
     ImGui::PushID("panelEigenschaften");
     zeichneEigenschaften(d);
+    zeichneModSchluessel(d);   // M5b Punkt 4
     zeichneLayout(d);
     if (g_app->settings.menueTextUnten) { zeichneEreignisse(d); }   // mit Reitern: eigener Reiter Ereignisse
     zeichneCvars(d);
@@ -4890,7 +4900,7 @@ int oeffneMenuesatz(const std::string& spielPfad) {
         }
         if (!da) { return 0; }
     }
-    LeseOptionen o = optionenFuer(spielPfad, z.spiel, z.daten.lader());
+    LeseOptionen o = leseOptionen(spielPfad);
     const Datei satz = lies(spielPfad, t, o);
     const int nr = z.naechsterSatz++;
     int n = 0;
@@ -5252,6 +5262,10 @@ void schliesseAlleOhneSpeichern() {
     z.projekt = Projekt{};
 }
 void fragZuordnung() { Z().zuordnungFrage = true; }
+// M5b Punkt 4: Mod-Profile
+void setzeModProfil(const std::string& name) { setzeProfil(name); }
+std::string modProfil() { return aktivesProfil()->name; }
+bool legeProfilVorlageAn(const std::string& pfad) { return profilVorlageSchreiben(pfad); }
 void beimBeenden() {   // ungespeicherte Arbeit bleibt in der Sicherung (nur, wenn der Editor in dieser Sitzung lief)
     if (Z().sicherungGeprueft) { sicherungJetzt(); }
 }

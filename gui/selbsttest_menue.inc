@@ -941,6 +941,49 @@ std::vector<Schritt> schritteM5bProjekt() {
                platform::liesBenutzerRegistry("Software\\Classes\\.jksmenu") == *zuordnungVorher;
     }));
     add(tu("M5b Projekt: Projekt schliessen", [] { me::schliesseAlleOhneSpeichern(); }));
+    // M5b Punkt 4: Mod-Profil aus dem Profilordner; Menue mit Schluessel und Ownerdraw der Mod
+    const auto profilOrdner = std::make_shared<fs::path>(bhed::utf8Pfad(platform::settingsDirectory()) / "menue_profile");
+    add(tu("M5b Profil: Profil der Mod ablegen, Menue mit Mod-Schluessel oeffnen", [profilOrdner] {
+        std::error_code ec;
+        fs::create_directories(*profilOrdner, ec);
+        std::ofstream f(*profilOrdner / "selbsttest_mod.jksprofile", std::ios::binary);
+        f << "jksprofile 1\nname \"Selbsttest Mod\"\ngame ja\nitemkey glScale float\nownerdraw 300 GL_MAP_PREVIEW\n";
+        f.close();
+        (void)me::oeffneText("ui/modprobe.menu",
+                             "{\n menuDef\n {\n  name modprobe\n  rect 0 0 640 480\n  visible 1\n"
+                             "  itemDef\n  {\n   name a\n   glScale 1.5\n   rect 10 10 50 20\n   visible 1\n  }\n"
+                             "  itemDef\n  {\n   name b\n   type ITEM_TYPE_OWNERDRAW\n   ownerdraw 300\n   rect 100 10 80 40\n   visible 1\n  }\n }\n}\n");
+        me::setzeReiter(2);
+    }));
+    add(pause(0.3));
+    add(pruefe("M5b Profil: ohne Profil (das eingebaute des Spiels) meldet der Parser glScale wie die Engine", [st] {
+        const char* const spiele[] = {"Jedi Academy", "Jedi Outcast", "Movie Duels"};
+        const auto x = st();
+        return x.meldungen > 0 && x.spiel >= 0 && x.spiel < 3 && me::modProfil() == spiele[x.spiel];
+    }));
+    add(tu("M5b Profil: Profil Selbsttest Mod waehlen, a waehlen", [] {
+        me::setzeModProfil("Selbsttest Mod");
+        me::waehle(me::itemNummer("a"), false);
+    }));
+    add(pause(0.3));
+    add(pruefe("M5b Profil: mit Profil keine Meldung, Mod-Schluessel beschriftet in den Eigenschaften", [st] {
+        char kopf[200];
+        std::snprintf(kopf, sizeof(kopf), tr(Str::MeProfilSchluessel), "Selbsttest Mod");
+        return me::modProfil() == "Selbsttest Mod" && st().meldungen == 0 && finde(kopf, "", 0, false, "") != nullptr;
+    }));
+    add(foto("menue_profil"));
+    add(tu("M5b Profil: Vorlage fuer Galactic Legacy anlegen", [profilOrdner] {
+        (void)me::legeProfilVorlageAn(pfadText(*profilOrdner / "galactic_legacy.jksprofile"));
+        me::setzeModProfil("galactic_legacy");
+    }));
+    add(pruefe("M5b Profil: Vorlage geschrieben und als Profil waehlbar", [profilOrdner] {
+        std::error_code ec;
+        return fs::is_regular_file(*profilOrdner / "galactic_legacy.jksprofile", ec) && me::modProfil() == "galactic_legacy";
+    }));
+    add(tu("M5b Profil: zurueck zum Profil des Spiels, schliessen", [] {
+        me::setzeModProfil("");
+        me::schliesseAlleOhneSpeichern();
+    }));
     return s;
 }
 

@@ -42,6 +42,140 @@ Projekt projektAusZustand() {
     return p;
 }
 
+// --- Mod-Profile (M5b Punkt 4) -------------------------------------------------
+
+fs::path profilOrdner() { return utf8Pfad(platform::settingsDirectory()) / "menue_profile"; }
+
+bool profilEingebaut(const ModProfil& p) {
+    const auto& e = eingebauteProfile();
+    return std::any_of(e.begin(), e.end(), [&](const ModProfil& x) { return x.name == p.name; });
+}
+
+// Eigene Profile: <Einstellungen>/menue_profile und der Projektordner (*.jksprofile)
+std::vector<ModProfil> eigeneProfile() {
+    std::vector<ModProfil> v;
+    std::vector<fs::path> orte = {profilOrdner()};
+    if (!Z().projektDatei.empty()) { orte.push_back(projektOrdner()); }
+    for (const fs::path& o : orte) {
+        std::error_code ec;
+        for (fs::directory_iterator it(o, ec), ende; !ec && it != ende; it.increment(ec)) {
+            if (!it->is_regular_file(ec) || kleinPfad(u8(it->path().extension())) != kProfilEndung) { continue; }
+            ModProfil p;
+            int zeile = 0;
+            if (liesProfil(liesGanz(it->path()), p, zeile) && !p.name.empty()) { v.push_back(p); }
+        }
+    }
+    return v;
+}
+
+std::shared_ptr<const ModProfil> aktivesProfil() {
+    Zustand& z = Z();
+    const std::string schl = z.projekt.profil + "|" + std::to_string(static_cast<int>(z.spiel));
+    if (z.profil && z.profilFuer == schl) { return z.profil; }
+    z.profilFuer = schl;
+    z.profil = std::make_shared<const ModProfil>(eingebautesProfil(z.spiel));
+    if (!z.projekt.profil.empty()) {
+        for (const ModProfil& p : eingebauteProfile()) {
+            if (p.name == z.projekt.profil) { z.profil = std::make_shared<const ModProfil>(p); }
+        }
+        for (const ModProfil& p : eigeneProfile()) {
+            if (p.name == z.projekt.profil) { z.profil = std::make_shared<const ModProfil>(p); }
+        }
+    }
+    return z.profil;
+}
+
+LeseOptionen leseOptionen(const std::string& pfad) {
+    Zustand& z = Z();
+    LeseOptionen o = optionenFuer(pfad, z.spiel, z.daten.lader());
+    o.profil = aktivesProfil();
+    return o;
+}
+
+// Ein anderes Profil: alles neu lesen (Schluessel, Menuelisten, Schriften)
+void setzeProfil(const std::string& name) {
+    Zustand& z = Z();
+    z.projekt.profil = name;
+    z.profilFuer.clear();
+    z.schriftNamenGeladen = false;
+    for (const auto& od : z.docs) { od->geparst = -1; }
+    z.laufDatei = -1;
+}
+
+// Vorlage zum Ausfuellen (Name = Dateiname); danach in der Profilliste waehlbar
+bool profilVorlageSchreiben(const std::string& ziel) {
+    Zustand& z = Z();
+    std::string d = ziel;
+    if (kleinPfad(d).size() < 11 || kleinPfad(d).compare(kleinPfad(d).size() - 11, 11, kProfilEndung) != 0) { d += kProfilEndung; }
+    const std::string name = fs::path(utf8Pfad(d)).stem().string();
+    const bool ok = schreibeDatei(d, profilVorlage(name, z.spiel));
+    char b[700];
+    std::snprintf(b, sizeof(b), tr(ok ? Str::MeProfilVorlageOk : Str::MeNichtGespeichert), d.c_str());
+    z.meldung = b;
+    addStatus(b);
+    return ok;
+}
+
+void zeichneProfilWahl() {
+    const std::shared_ptr<const ModProfil> akt = aktivesProfil();
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 12);
+    if (ImGui::BeginCombo(tr(Str::MeProfil), akt->name.c_str())) {
+        for (const ModProfil& p : eingebauteProfile()) {
+            if (ImGui::Selectable(p.name.c_str(), p.name == akt->name)) { setzeProfil(p.name); }
+        }
+        const std::vector<ModProfil> eigene = eigeneProfile();
+        if (!eigene.empty()) { ImGui::Separator(); }
+        for (const ModProfil& p : eigene) {
+            if (ImGui::Selectable(p.name.c_str(), p.name == akt->name)) { setzeProfil(p.name); }
+        }
+        ImGui::EndCombo();
+    }
+    tipp(Str::MeProfilTip);
+    if (ImGui::MenuItem(tr(Str::MeProfilVorlage))) {
+        std::error_code ec;
+        fs::create_directories(profilOrdner(), ec);
+        const std::string ziel = platform::saveFileDialog(tr(Str::MeProfilVorlage), "JK Studio mod profile (*.jksprofile)|*.jksprofile|",
+                                                          u8(profilOrdner()), "meine_mod.jksprofile");
+        if (!ziel.empty()) { (void)profilVorlageSchreiben(ziel); }
+    }
+    tipp(Str::MeProfilVorlageTip);
+}
+
+// Schluessel aus dem Mod-Profil beim gewaehlten Element und beim Menue: beschriftet, mit dem Wert wie
+// im Text (der Editor aendert sie nicht; bearbeiten im Text-Reiter)
+void zeichneModSchluessel(Dokument& d) {
+    const int mi = menuDerSeite(d);
+    if (mi < 0) { return; }
+    const Menu& m = d.datei.menus[static_cast<std::size_t>(mi)];
+    std::vector<const Eigenschaft*> liste;
+    for (const Eigenschaft& e : m.eigenschaften) {
+        if (e.ausProfil) { liste.push_back(&e); }
+    }
+    for (const int i : d.auswahl) {
+        if (i < 0 || static_cast<std::size_t>(i) >= m.items.size()) { continue; }
+        for (const Eigenschaft& e : m.items[static_cast<std::size_t>(i)].eigenschaften) {
+            if (e.ausProfil) { liste.push_back(&e); }
+        }
+    }
+    if (liste.empty()) { return; }
+    char kopf[200];
+    std::snprintf(kopf, sizeof(kopf), tr(Str::MeProfilSchluessel), aktivesProfil()->name.c_str());
+    if (!ImGui::CollapsingHeader(kopf, ImGuiTreeNodeFlags_DefaultOpen)) { return; }
+    tipp(Str::MeProfilSchluesselTip);
+    const std::string& t = d.datei.text;
+    for (const Eigenschaft* e : liste) {
+        std::uint32_t ende = e->kopf.ende;
+        for (const Token& a : e->args) {
+            if (a.datei == 0 && a.ende > ende) { ende = a.ende; }
+        }
+        std::string wert = e->kopf.datei == 0 && ende <= t.size() ? t.substr(e->kopf.ende, ende - e->kopf.ende) : std::string();
+        for (char& c : wert) {
+            if (c == '\r' || c == '\n' || c == '\t') { c = ' '; }
+        }
+        ImGui::BulletText("%s:%s", e->schluessel.c_str(), wert.c_str());
+    }
+}
+
 // --- Sicherung ---------------------------------------------------------------
 
 fs::path sicherungsOrt() {
@@ -232,6 +366,7 @@ bool oeffneProjektJetzt(const std::string& datei) {
     z.laufDatei = -1;
     z.projektDatei = u8(fs::absolute(pfad, ec));
     z.projekt = p;
+    setzeProfil(p.profil);   // M5b Punkt 4: das Mod-Profil des Projekts
     const fs::path ordner = projektOrdner();
     for (const std::string& m : p.menues) {
         const fs::path mp = ordner / utf8Pfad(m);
@@ -337,6 +472,8 @@ void zeichneProjektKnopf() {
             }
             if (ImGui::MenuItem(tr(Str::MePrjOrdnerZeigen))) { platform::openInExplorer(u8(projektOrdner())); }
         }
+        ImGui::Separator();
+        zeichneProfilWahl();   // M5b Punkt 4
         ImGui::Separator();
         if (ImGui::MenuItem(tr(Str::MePrjZuordnen))) { z.zuordnungFrage = true; }
         ImGui::EndPopup();

@@ -212,6 +212,37 @@ Aus Zeit- bzw. Kontextgründen nicht angefangen; Stand und Vorarbeit:
   nach Klick wie das Layout, Rundlauf, ohne setitemrect, Auflösen), Selbsttest BHED_MENUE_NUR=m5b
   (Aufgabe mit zeig/weg-Knopf, Laufzeit, zwei Rückgängig bis byte-gleich): 2 OK, 0 FEHLER.
 
+### Punkt 3 - Projektordner und Projektdatei *.jksmenu
+
+- Modul src/menue/projekt.cpp (ohne Oberfläche): Textformat „schlüssel wert“ (jksmenu 1, game,
+  dialect, profile, menu, asset <menü> <datei>, open, active, preview.resolution/letterbox/language,
+  cvar, export.pk3/changesOnly), Pfade nur innerhalb des Projektordners (.., absolute abgelehnt),
+  Fehler als Art + Zeile (Oberfläche sagt es in vier Sprachen mit Lösung), Sicherungsliste,
+  Plan der Dateizuordnung (HKCU\Software\Classes\.jksmenu -> JKStudio.MenuProject, open-Befehl
+  mit "%1"). ctest menue_projekt.
+- Oberfläche (gui/app_menue_projekt.inc): Leistenknopf „Projekt“ (Neu, Öffnen, Speichern, als pk3
+  ausgeben mit „nur Änderungen“ und Ziel, Ordner zeigen, Dateizuordnung). Neues Projekt legt ui/,
+  gfx/, video/, shaders/, strings/ an, die offenen Menüs und ihre Paketdateien kommen hinein; im
+  Projekt speichert der Speichern-Knopf das ganze Projekt. Öffnen liest alle Menüs, alle übrigen
+  Dateien des Ordners sind das Paket (beim Menü aus „asset“, sonst beim ersten), Reiter, Vorschau
+  (Auflösung, Balken, Sprache, Cvars) wie gespeichert; anderes Zielspiel als die geladenen Daten
+  wird mit Lösung gemeldet. Leerer Zustand mit „Neues Projekt“/„Projekt öffnen“.
+- Sicherung alle 30 s: ungespeicherte Dokumente nach <Projekt>/.jksautosave bzw. ohne Projekt nach
+  <Einstellungen>/menue_autosave; alles gespeichert -> Sicherung weg; beim Beenden noch einmal.
+  Beim Öffnen eines Projekts bzw. beim ersten Bild des Editors: Frage „Wiederherstellen/Verwerfen“
+  mit Liste und Zeit; Wiederherstellen setzt den Text als Änderung (Rückgängig = gespeicherte
+  Fassung). Vor dem Öffnen eines anderen Projekts wird die bisherige Arbeit gesichert.
+- Doppelklick/Kommandozeile/zweite Instanz: loadPath erkennt .jksmenu, schaltet in den
+  Menü-Editor und merkt das Projekt fürs nächste Bild vor. Dateizuordnung nur nach Rückfrage im
+  Programm (nur HKCU, SHChangeNotify).
+- Selbsttest (BHED_MENUE_NUR=m5b): Projekt anlegen (Ordner, Datei), ändern + sichern, „Absturz“
+  (alles zu ohne Speichern), Projekt öffnen -> Frage -> Wiederherstellen, Rückgängig, speichern,
+  pk3 (2 Dateien), Doppelklick-Weg (dateiVonAussen -> loadPath), Zuordnungsfrage mit Nein:
+  11 OK, 0 FEHLER; HKCU\Software\Classes\.jksmenu danach nicht vorhanden (nie geschrieben).
+- Offen/bewusst so: Menüs = offene Reiter (ein geschlossener Reiter fällt beim nächsten Speichern
+  aus der Menüliste, seine Datei bleibt als Paketdatei im Ordner). Schließen eines Reiters fragt
+  weiterhin nicht nach (vorher schon so) - die Sicherung fängt nur bis zum Schließen Geändertes.
+
 ## Changelog
 
 ## English

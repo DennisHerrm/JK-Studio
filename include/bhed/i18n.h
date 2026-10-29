@@ -2957,6 +2957,13 @@ enum class Str {
     MePrjDateityp,
     MePrjZuordnenOk,
     MePrjZuordnenFehler,
+    MeProfil,
+    MeProfilTip,
+    MeProfilVorlage,
+    MeProfilVorlageTip,
+    MeProfilVorlageOk,
+    MeProfilSchluessel,
+    MeProfilSchluesselTip,
     Count,
 };
 

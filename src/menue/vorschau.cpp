@@ -25,6 +25,8 @@
 //   GNU General Public License for more details (LICENSE).
 #include "bhed/menue/vorschau.h"
 
+#include "bhed/menue/profil.h"
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -121,6 +123,13 @@ public:
     }
 
     std::string cvar(const std::string& n) const { return u_.cvar ? u_.cvar(n) : std::string(); }
+    // M5b: Name aus dem Mod-Profil fuer den Platzhalter (" NAME" oder "")
+    std::string profilName(bool ownerdraw, int nr) const {
+        if (!d_.profil) { return {}; }
+        const auto& tab = ownerdraw ? d_.profil->ownerdraws : d_.profil->feeder;
+        const auto f = tab.find(nr);
+        return f == tab.end() ? std::string() : " " + f->second;
+    }
     float cvarWert(const std::string& n) const { return static_cast<float>(std::atof(cvar(n).c_str())); }
     std::string se(const std::string& t) const { return u_.texte != nullptr ? u_.texte->imSpiel(t) : t; }
 
@@ -493,7 +502,7 @@ private:
                         break;
                     }
                 }
-                platzhalter(it.window.rect, "ownerdraw " + std::to_string(it.window.ownerDraw));
+                platzhalter(it.window.rect, "ownerdraw " + std::to_string(it.window.ownerDraw) + profilName(true, it.window.ownerDraw));
                 break;
             case ITEM_TYPE_TEXT:
             case ITEM_TYPE_BUTTON:
@@ -804,7 +813,7 @@ private:
             if (size < it.elementHeight || it.elementHeight <= 0) { break; }
             y += it.elementHeight;
         }
-        if (count == 0 && !u_.feeder) { platzhalter(r, "feeder " + zahlText(it.special)); }
+        if (count == 0 && !u_.feeder) { platzhalter(r, "feeder " + zahlText(it.special) + profilName(false, static_cast<int>(it.special))); }
     }
 
     const Datei& d_;
