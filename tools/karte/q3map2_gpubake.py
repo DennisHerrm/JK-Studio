@@ -36,6 +36,9 @@ alle Luxel (der Bericht zaehlt sie).
                                  auf der GPU zaehlte keinen Durchgang (andere Zufallszahlen danach), und
                                  -samples 4 wird mit -randomsamples zu 256 Proben - ueber der Grenze 7
                                  der GPU-Unterabtastung, keine Lightmap kam auf die GPU.
+  7g. Lichtlisten (vis1)        - IlluminateRawLightmap (Prozessor) und IlluminateVertexes nehmen ihre
+                                 Lichtlisten aus dem Lichtbaum; BHED_LICHTLISTEN_PRUEFEN vergleicht jede
+                                 mit CreateTraceLightsForBounds (alle gleich), Lumps gleich
   7f. Prozessor nebenher (vis1) - ohne BHED_GPUBAKE_NUR_GPU rechnet der Prozessor gleichzeitig: seine
                                  Lightmaps, dazu GPU-Lightmaps vom Ende der Liste, und er teilt sich die
                                  Gitterpunkte mit der GPU; Lumps gleich der CPU. Die Laeufe, die feste
@@ -169,6 +172,7 @@ def main():
                                    ('klein', licht + gpu, {'BHED_GPUBAKE_BUDGET_MB': '1', 'BHED_GPUBAKE_NUR_GPU': '1'}),
                                    ('cpu4', licht4, None), ('gpu4', licht4 + gpu, nur),
                                    ('cpuz', lichtz, None), ('gpuz', lichtz + gpu, nur), ('gpuzneben', lichtz + gpu, None),
+                                   ('cpuzliste', lichtz, {'BHED_LICHTLISTEN_PRUEFEN': '1'}),
                                    ('nan', licht + gpu, {'BHED_GPUBAKE_NAN': '1', 'BHED_GPUBAKE_NUR_GPU': '1'}),
                                    ('adapter0', licht + gpu + ['-bhedgpuadapter', '0'], None),
                                    ('adapterx', licht + gpu + ['-bhedgpuadapter', 'keine-solche-gpu'], None),
@@ -270,6 +274,11 @@ def main():
             melde(ergebnis[art][0] == ergebnis[v][0] and bn2 is not None and ue is not None,
                   'Prozessor nebenher (%s): %s Lightmaps auf der GPU, %s auf der CPU (davon %s der GPU abgenommen), Gitter %s/%s Punkte GPU/CPU, alle 18 Lumps gleich der CPU' %
                   (art, bn2 and bn2['gpu'], bn2 and bn2['cpu'], ue.group(1) if ue else '?', bn2 and bn2['gitter'], bn2 and bn2['gittercpu']))
+        # 7g. (vis1) Lichtlisten ueber den Lichtbaum: jede Liste gegen CreateTraceLightsForBounds
+        ll = re.findall(r'BHED-Lichtlisten (\w+): (\d+) of (\d+) lists different', ergebnis['cpuzliste'][1])
+        melde(ergebnis['cpuzliste'][0] == ergebnis['cpuz'][0] and ll and all(a == '0' for _, a, _ in ll) and sum(int(n) for _, _, n in ll) > 0,
+              'Lichtlisten ueber den Lichtbaum (Lightmaps auf dem Prozessor, Vertexlicht): %s Listen, alle gleich CreateTraceLightsForBounds%s' %
+              (sum(int(n) for _, _, n in ll), '' if all(a == '0' for _, a, _ in ll) else ' - anders: %s' % ll))
         bz = bericht(ergebnis['gpuz'][1])
         zz = re.search(r'(\d+) of them with random subsamples', ergebnis['gpuz'][1])
         if doppelt:

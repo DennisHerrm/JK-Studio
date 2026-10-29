@@ -38,6 +38,7 @@
 #include "timer.h"
 #include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, parallel rows of big lightmaps */
 #include <numeric> /* BehavEd vis1 */
+#include <memory> /* BehavEd vis1 */
 #include <thread> /* BehavEd vis1 */
 #include <deque> /* BehavEd vis1 */
 #include <queue> /* BehavEd vis1 */
@@ -2109,6 +2110,7 @@ static void CreateTraceLightsForBounds( const MinMax& minmax, const Vector3 *nor
    creates a list of lights that can potentially affect a drawsurface
  */
 
+static void BhedTraceLights( const MinMax& minmax, const Vector3 *normal, int numClusters, int *clusters, trace_t *trace ); /* BehavEd vis1 */
 static void CreateTraceLightsForSurface( int num, trace_t *trace ){
 	/* dummy check */
 	if ( num < 0 ) {
@@ -2131,7 +2133,7 @@ static void CreateTraceLightsForSurface( int num, trace_t *trace ){
 	}
 
 	/* create the lights for the bounding box */
-	CreateTraceLightsForBounds( minmax, &normal, info.numSurfaceClusters, &surfaceClusters[ info.firstSurfaceCluster ], LightFlags::Surfaces, trace );
+	BhedTraceLights( minmax, &normal, info.numSurfaceClusters, &surfaceClusters[ info.firstSurfaceCluster ], trace ); /* BehavEd vis1: through the light tree */
 }
 
 inline void FreeTraceLights( trace_t *trace ){
@@ -2666,17 +2668,71 @@ void IlluminateRawLightmap( int rawLightmapNum ){
 /* BehavEd vis1: the vertex lit surfaces biggest first (vertexes), as the raw lightmaps below - each
    surface with the generator of its own number (BhedPassSeed) */
 static std::vector<int> g_bhedFlaechenReihenfolge;
+static std::vector<char> g_bhedFlaechenVorab;   /* vis1: lit in advance with the pool */
+static thread_local bhed_par::Pool *t_bhedVertexPool = nullptr;   /* vis1: the pool for the vertexes of a big surface */
+static std::atomic<int> g_bhedVertexParallel{ 0 };                 /* vis1: surfaces whose vertexes ran on all threads */
 static void IlluminateVertexesGroesste( int k ){
 	const int num = g_bhedFlaechenReihenfolge[ k ];
+	if ( g_bhedFlaechenVorab[ num ] ) {
+		return;
+	}
 	g_bhedRandomState = BhedPassSeed( num );
 	IlluminateVertexes( num );
 }
+/* BehavEd vis1: the light tree for the light lists while a threaded pass runs (BhedTraceLights) */
+static void BhedListenStart();
+static void BhedListenStopp( const char *was );
+struct BhedListenZeit
+{
+	const char *was;
+	explicit BhedListenZeit( const char *w ) : was( w ){
+		BhedListenStart();
+	}
+	~BhedListenZeit(){
+		BhedListenStopp( was );
+	}
+	BhedListenZeit( const BhedListenZeit& ) = delete;
+	BhedListenZeit& operator=( const BhedListenZeit& ) = delete;
+};
 void BhedIlluminateVertexesAll(){
+	const BhedListenZeit listen( "vertexes" ); /* BehavEd vis1: light lists through the light tree */
 	g_bhedFlaechenReihenfolge.resize( bspDrawSurfaces.size() );
 	std::iota( g_bhedFlaechenReihenfolge.begin(), g_bhedFlaechenReihenfolge.end(), 0 );
 	std::stable_sort( g_bhedFlaechenReihenfolge.begin(), g_bhedFlaechenReihenfolge.end(), []( int a, int b ){
 		return bspDrawSurfaces[ a ].numVerts > bspDrawSurfaces[ b ].numVerts;
 	} );
+	/* BehavEd vis1: a vertex lit surface with more vertexes than the share of one thread kept one thread busy
+	   at the end (duel_mos_espa, a bounce: 55 s for 710 thread seconds on 32 threads) - such surfaces first,
+	   each with its vertexes on all threads (IlluminateVertexes, VertexLicht), with the generator of their
+	   work item */
+	g_bhedFlaechenVorab.assign( bspDrawSurfaces.size(), 0 );
+	g_bhedVertexParallel = 0;
+	if ( numthreads > 1 ) {
+		long long verts = 0;
+		for ( const bspDrawSurface_t& ds : bspDrawSurfaces ) {
+			verts += ds.numVerts;
+		}
+		const long long grenze = verts / numthreads;
+		for ( const int num : g_bhedFlaechenReihenfolge )
+		{
+			if ( bspDrawSurfaces[ num ].numVerts <= grenze ) {
+				break;
+			}
+			if ( surfaceInfos[ num ].lm != nullptr && !cpmaHack ) {
+				continue;   /* vertex light from the lightmap: cheap */
+			}
+			g_bhedWorkRandom = true;
+			g_bhedRandomState = BhedNextPassSeed( num );
+			t_bhedVertexPool = &bhed_par::pool( numthreads );
+			IlluminateVertexes( num );
+			t_bhedVertexPool = nullptr;
+			g_bhedWorkRandom = false;
+			g_bhedFlaechenVorab[ num ] = 1;
+		}
+		if ( getenv( "BHED_Q3_ZEITEN" ) != nullptr ) { /* for the measurements: the path really ran */
+			Sys_Printf( "BHED-Vertex-Parallel: %d\n", g_bhedVertexParallel.load() );
+		}
+	}
 	RunThreadsOnIndividual( bspDrawSurfaces.size(), true, IlluminateVertexesGroesste );
 }
 
@@ -2696,6 +2752,7 @@ static bhed_par::Pool& BhedPool(){
 }
 
 void BhedIlluminateRawLightmaps(){
+	const BhedListenZeit listen( "lightmaps" ); /* BehavEd vis1: light lists through the light tree */
 	/* BehavEd stage 8c/8g: -bhedgpubake (not with deluxemaps or the debug fills; vis1: with random samples
 	   only from -samples 2 on - the GPU predicts the subsampling only then) */
 	if ( g_bhedBakeAn && BhedBakeBereit() && !deluxemap && ( !lightRandomSamples || lightSamples > 1 ) &&
@@ -3043,13 +3100,10 @@ struct BhedLichtBaum
 	}
 };
 
-/* CreateTraceLightsForBounds( lm->minmax, plane normal, lm clusters, LightFlags::Surfaces ) on the candidates */
-static void BhedLichtListe( const rawLightmap_t *lm, bool twoSided, const BhedLichtBaum& baum, const std::vector<const light_t*>& zeiger,
-                            std::vector<int>& kandidaten, std::vector<int>& liste ){
-	const MinMax& minmax = lm->minmax;
-	const Vector3 *normal = lm->plane == nullptr ? nullptr : &lm->plane->normal();
-	const int numClusters = lm->numLightClusters;
-	const int *clusters = lm->lightClusters;
+/* CreateTraceLightsForBounds( minmax, normal, clusters, LightFlags::Surfaces ) on the candidates */
+static void BhedLichtListeFuer( const MinMax& minmax, const Vector3 *normal, int numClusters, const int *clusters, bool twoSided,
+                                const BhedLichtBaum& baum, const std::vector<const light_t*>& zeiger, std::vector<int>& kandidaten,
+                                std::vector<int>& liste ){
 	const Vector3 origin = minmax.origin();
 	const float radius = vector3_length( minmax.maxs - origin );
 	float length;
@@ -3103,6 +3157,65 @@ static void BhedLichtListe( const rawLightmap_t *lm, bool twoSided, const BhedLi
 			}
 		}
 		liste.push_back( k );
+	}
+}
+/* CreateTraceLightsForBounds( lm->minmax, plane normal, lm clusters, LightFlags::Surfaces ) on the candidates */
+static void BhedLichtListe( const rawLightmap_t *lm, bool twoSided, const BhedLichtBaum& baum, const std::vector<const light_t*>& zeiger,
+                            std::vector<int>& kandidaten, std::vector<int>& liste ){
+	BhedLichtListeFuer( lm->minmax, lm->plane == nullptr ? nullptr : &lm->plane->normal(), lm->numLightClusters, lm->lightClusters, twoSided, baum, zeiger,
+	                    kandidaten, liste );
+}
+
+/* BehavEd vis1: the culled light lists of IlluminateRawLightmap (on the processor) and IlluminateVertexes
+   through the light tree. CreateTraceLightsForBounds tests every light for every raw lightmap and surface -
+   with the bounce lights (duel_mos_espa: 452184) about 90 ms per list, 214 of 710 thread seconds of
+   IlluminateVertexes in a bounce. The same tests on the candidates of the tree, in list order: the same
+   list. The -v counters "lights ... culled" count only the candidates now. BHED_LICHTLISTEN_PRUEFEN: every
+   list against CreateTraceLightsForBounds (ctest q3map2_gpubake). */
+static BhedLichtBaum g_bhedListenBaum;
+static std::vector<const light_t*> g_bhedListenZeiger;
+static bool g_bhedListenAn = false;
+static std::atomic<long long> g_bhedListenZahl{ 0 }, g_bhedListenAnders{ 0 };
+static void BhedListenStart(){
+	g_bhedListenZeiger.clear();
+	for ( const light_t& l : lights ) {
+		g_bhedListenZeiger.push_back( &l );
+	}
+	g_bhedListenBaum.bauen( g_bhedListenZeiger );
+	g_bhedListenZahl = 0;
+	g_bhedListenAnders = 0;
+	g_bhedListenAn = true;
+}
+static void BhedListenStopp( const char *was ){
+	g_bhedListenAn = false;
+	if ( getenv( "BHED_LICHTLISTEN_PRUEFEN" ) != nullptr ) {
+		Sys_Printf( "BHED-Lichtlisten %s: %lld of %lld lists different\n", was, g_bhedListenAnders.load(), g_bhedListenZahl.load() );
+	}
+}
+static void BhedTraceLights( const MinMax& minmax, const Vector3 *normal, int numClusters, int *clusters, trace_t *trace ){
+	if ( !g_bhedListenAn ) {
+		CreateTraceLightsForBounds( minmax, normal, numClusters, clusters, LightFlags::Surfaces, trace );
+		return;
+	}
+	thread_local std::vector<int> kandidaten, liste;
+	BhedLichtListeFuer( minmax, normal, numClusters, clusters, trace->twoSided, g_bhedListenBaum, g_bhedListenZeiger, kandidaten, liste );
+	trace->lights = safe_malloc( sizeof( light_t* ) * ( liste.size() + 1 ) );
+	trace->numLights = int( liste.size() );
+	for ( size_t i = 0; i < liste.size(); ++i ) {
+		trace->lights[ i ] = g_bhedListenZeiger[ liste[ i ] ];
+	}
+	trace->lights[ liste.size() ] = nullptr;
+	static const bool pruefen = getenv( "BHED_LICHTLISTEN_PRUEFEN" ) != nullptr;
+	if ( pruefen ) {
+		trace_t alt = *trace;
+		CreateTraceLightsForBounds( minmax, normal, numClusters, clusters, LightFlags::Surfaces, &alt );
+		bool gleich = alt.numLights == trace->numLights;
+		for ( int i = 0; gleich && i < alt.numLights; ++i ) {
+			gleich = alt.lights[ i ] == trace->lights[ i ];
+		}
+		FreeTraceLights( &alt );
+		++g_bhedListenZahl;
+		g_bhedListenAnders += gleich ? 0 : 1;
 	}
 }
 
@@ -3906,7 +4019,7 @@ static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool, un
 		trace.numLights = g_bhedBakeFertig[ rawLightmapNum ].numLights;
 	}
 	else
-	CreateTraceLightsForBounds( lm->minmax, ( lm->plane == nullptr? nullptr : &lm->plane->normal() ), lm->numLightClusters, lm->lightClusters, LightFlags::Surfaces, &trace );
+	BhedTraceLights( lm->minmax, ( lm->plane == nullptr? nullptr : &lm->plane->normal() ), lm->numLightClusters, lm->lightClusters, &trace ); /* BehavEd vis1: through the light tree */
 
 	/* BehavEd stage 8a: the same culled lights as in the cached run - the raw luxels are the same */
 	if ( BhedLmAusCache( rawLightmapNum, trace ) ) {
@@ -4640,6 +4753,24 @@ static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool, un
 
 #define VERTEX_NUDGE    4.0f
 
+/* BehavEd vis1: whether every light of the list already has its style slot - then LightingAtSample
+   changes no slot */
+static bool BhedStileFest( const trace_t& trace, const Array4<byte>& styles ){
+	for ( int i = 0; i < trace.numLights && trace.lights[ i ] != nullptr; ++i )
+	{
+		int n = 0;
+		for ( ; n < MAX_LIGHTMAPS; ++n )
+		{
+			if ( styles[ n ] == trace.lights[ i ]->style || styles[ n ] == LS_NONE ) {
+				break;
+			}
+		}
+		if ( n < MAX_LIGHTMAPS && styles[ n ] != trace.lights[ i ]->style ) {
+			return false;   /* this light would take a free slot */
+		}
+	}
+	return true;
+}
 void IlluminateVertexes( int num ){
 	int i, x, y, z, x1, y1, z1, sx, sy;
 	float samples, dirt;
@@ -4685,40 +4816,14 @@ void IlluminateVertexes( int num ){
 		Array4<Vector3> colors;
 		Array4<Vector3> avgColors = makeArray4( Vector3( 0 ) );
 
-		/* walk the surface verts */
-		for ( i = 0; i < ds.numVerts; ++i )
-		{
-			/* get vertex luxel */
+		/* BehavEd vis1: the light of one vertex (the loop body of NRC, unchanged): its own trace, styles and
+		   colors, so that a big surface can run its vertexes on all threads */
+		const auto vertexLicht = [&]( int i, trace_t& trace, Array4<byte>& vertexStyles, Array4<Vector3>& colors ){
+			int x, y, z, x1, y1, z1;
+			float dirt;
+			float floodLightAmount;
+			Vector3 floodColor;
 			Vector3& radVertLuxel = getRadVertexLuxel( 0, ds.firstVert + i );
-
-			/* color the luxel with raw lightmap num? */
-			if ( debugSurfaces ) {
-				radVertLuxel = debugColors[ num % 12 ];
-			}
-
-			/* color the luxel with luxel origin? */
-			else if ( debugOrigin ) {
-				const Vector3 temp = ( info.minmax.maxs - info.minmax.mins ) * ( 1.0f / 255.0f );
-				const Vector3 temp2 = verts[ i ].xyz - info.minmax.mins;
-				radVertLuxel = info.minmax.mins + ( temp * temp2 );
-			}
-
-			/* color the luxel with the normal */
-			else if ( normalmap ) {
-				radVertLuxel = ( verts[ i ].normal + Vector3( 1 ) ) * 127.5f;
-			}
-
-			else if ( info.si->noVertexLight ) {
-				radVertLuxel.set( 127.5f );
-			}
-
-			else if ( noVertexLighting > 0 ) {
-				radVertLuxel.set( 127.5f * noVertexLighting );
-			}
-
-			/* illuminate the vertex */
-			else
-			{
 				/* clear vertex luxel */
 				radVertLuxel.set( -1 );
 				/* setup trace */
@@ -4746,7 +4851,7 @@ void IlluminateVertexes( int num ){
 					}
 
 					/* trace */
-					LightingAtSample( &trace, ds.vertexStyles, colors, info.ambientColor );
+					LightingAtSample( &trace, vertexStyles, colors, info.ambientColor );
 
 					/* store */
 					for ( int lightmapNum = 0; lightmapNum < MAX_LIGHTMAPS; ++lightmapNum )
@@ -4808,7 +4913,7 @@ void IlluminateVertexes( int num ){
 								}
 
 								/* trace */
-								LightingAtSample( &trace, ds.vertexStyles, colors, info.ambientColor );
+								LightingAtSample( &trace, vertexStyles, colors, info.ambientColor );
 
 								/* store */
 								for ( int lightmapNum = 0; lightmapNum < MAX_LIGHTMAPS; ++lightmapNum )
@@ -4831,6 +4936,66 @@ void IlluminateVertexes( int num ){
 						}
 					}
 				}
+
+		};
+		/* BehavEd vis1: a big surface (BhedIlluminateVertexesAll hands over a pool): the vertexes on all threads
+		   first, the average and the rest in vertex order as always. Only when every light of the list already has
+		   its style slot (LightingAtSample sets slots in vertex order) and nothing draws random numbers (dirt) -
+		   then every vertex gets exactly the values of the loop. */
+		bool vorab = false;
+		if ( t_bhedVertexPool != nullptr && !( dirty && !bouncing ) && !debugSurfaces && !debugOrigin && !normalmap && !info.si->noVertexLight &&
+		     !( noVertexLighting > 0 ) && BhedStileFest( trace, ds.vertexStyles ) ) {
+			vorab = true;
+			++g_bhedVertexParallel;
+			t_bhedVertexPool->fuerAlle( ds.numVerts, [&]( int k ){
+				trace_t tr = trace;
+				Array4<byte> stile = ds.vertexStyles;
+				Array4<Vector3> farben;
+				vertexLicht( k, tr, stile, farben );
+			} );
+		}
+
+		/* walk the surface verts */
+		for ( i = 0; i < ds.numVerts; ++i )
+		{
+			/* get vertex luxel */
+			Vector3& radVertLuxel = getRadVertexLuxel( 0, ds.firstVert + i );
+
+			/* color the luxel with raw lightmap num? */
+			if ( debugSurfaces ) {
+				radVertLuxel = debugColors[ num % 12 ];
+			}
+
+			/* color the luxel with luxel origin? */
+			else if ( debugOrigin ) {
+				const Vector3 temp = ( info.minmax.maxs - info.minmax.mins ) * ( 1.0f / 255.0f );
+				const Vector3 temp2 = verts[ i ].xyz - info.minmax.mins;
+				radVertLuxel = info.minmax.mins + ( temp * temp2 );
+			}
+
+			/* color the luxel with the normal */
+			else if ( normalmap ) {
+				radVertLuxel = ( verts[ i ].normal + Vector3( 1 ) ) * 127.5f;
+			}
+
+			else if ( info.si->noVertexLight ) {
+				radVertLuxel.set( 127.5f );
+			}
+
+			else if ( noVertexLighting > 0 ) {
+				radVertLuxel.set( 127.5f * noVertexLighting );
+			}
+
+			/* illuminate the vertex */
+			else
+			{
+				/* BehavEd vis1: the vertex itself - VertexLicht (on all threads in advance for a big surface) */
+				if ( !vorab ) {
+					vertexLicht( i, trace, ds.vertexStyles, colors );
+				}
+				const auto vector3_component_greater = []( const Vector3& greater, const Vector3& lesser ){
+					return greater[0] > lesser[0] || greater[1] > lesser[1] || greater[2] > lesser[2];
+				};
 
 				/* add to average? */
 				if ( vector3_component_greater( getRadVertexLuxel( 0, ds.firstVert + i ), info.ambientColor ) ) {
