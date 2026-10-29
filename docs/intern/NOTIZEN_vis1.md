@@ -272,6 +272,18 @@ Nicht gegen das Vorbild geprüft:
 - lint_i18n_erzeugt scheitert wie auf 744c1e7a (die Prüfkopie kopiert i18n_karte2.py ff. nicht),
   lint_fremdprogramm 1 (tools/kartenpruefung.py) wie vorher.
 
+## Stand bei der Pause (29.10., 17:00)
+
+Fertig und committet: alles oben (Code, Tests, Handbuch, Notizen), Schlussrunde gelaufen.
+Fehlt nur noch: der Bytevergleich kejim_post `-bhedvisexact` (Visibility f500465d…, alle Lumps
+2801040796d85225) gegen den alten Stand mit `-threads 1` – der Lauf `alt_t1b` wurde für die Pause bei
+70 % beendet (der erste brauchte mehr als 60 min). Weiter mit (Scratchpad, ein Thread, etwa 70 min):
+
+    cd $SP/vis1 && python -I vl.py lauf "$(cygpath -w $SP/vis1/bin/alt.exe)" kejim_post alt_t1c --threads 1 --grenze 7200
+
+Ist `vis` gleich f500465df5797d28 und `bsp` gleich 2801040796d85225, in der Messtabelle „ja“ eintragen.
+Danach nur noch der Bericht; keine offenen Änderungen im Worktree.
+
 ## Changelog
 
 ## English
