@@ -160,7 +160,10 @@ Unterbrochen 29.10. 16:58 (Pause, Rechner neu gestartet), weiter ab 17:28.
 - Steam: 16:17-16:47 jede Minute geprüft - steam.exe lief nicht, ActiveUser 0. Danach gilt
   shanks Gedächtnisregel „Kein Steam-Start“ (Agenten starten nie Steam-JKA-exes); die
   Original-exes (jamp/jasp aus GameData original) wurden nie gestartet. Original-JKA-MP/SP über
-  Steam: nicht geprüft.
+  Steam: nicht geprüft. Um 18:0x meldete der Hauptstrang, shank habe Steam gestartet (steam.exe
+  lief, ActiveUser gesetzt) - trotzdem nicht gestartet: shanks eigene Regel im Gedächtnis
+  („Agenten starten nie Steam-JKA-exes“) geht einer weitergereichten Freigabe vor; zur
+  Entscheidung an den Hauptstrang zurückgegeben.
 - Movie Duels nur per spiel.py (Popen, Fenster, stumm, in_nograb 1, eigene PIDs).
 
 ### Punkt 5 - Video-Import (rot -> grün)
@@ -222,6 +225,86 @@ Tests:
   spiel_m4_video_md_0.png/_1.png, nebeneinander SP\m4\spiel_video_md.png). Mit JKA-Daten aus
   „GameData original“ gibt „Im Spiel testen“ kein Programm (jasp.exe kann kein fs_homepath).
 
+### Punkt 1 - Rangliste aller Menüs
+
+Spielfotos: MovieDuels-SP per spiel.py, `+wait 500 +uimenu <menü>`, Foto nach 34 s; JKA-Daten mit
+`fs_game base` (11 Menüs), MD-Daten mit `fs_game MD` (82 Menüs). Editorfotos: Selbsttest
+BHED_MENUE_VERGLEICH (Bedienmodus, 4:3 mit Balken, 2,5 s nach dem Öffnen), Fläche
+523,0 306,4 1311,0 983,3 (gleich im Protokoll). Mittlere Abweichung = Mittel der Grauwert-
+abweichung im 8x6-Raster (0-255). Werkzeuge: SP\m3\rang_spiel.sh, SP\m4\rang_editor4.sh
+<lauf>, Ergebnisse SP\m4\rang_ergebnis_{ja,md}{1,2}.txt, Bildpaare SP\m3\vergleich\neben_rang_*.png.
+
+Ursachengruppen (Lauf 1, Top-Abweichungen angesehen):
+- Menü im Editor schwarz: MD totg_df2/totg_rote/totg_tfu (67,4/42,7/35,6), credits, welcome ...
+  Ursache: `setitemcolor black2 backcolor 1 1 1 1 ; fadeout black2` - der Editor kannte nur
+  forecolor, und Window_Paint blendet WINDOW_STYLE_FILLED mit background über backColor[3] aus
+  (OpenJK SP/MP, MD gleich). Behoben (ctest menue_skript rot -> grün).
+- Platzhalter statt Inhalt: ITEM_TYPE_TEXTSCROLL (MD fh/afh/... Beschreibungen, JKA
+  ingame-Menüs), Ownerdraws. TEXTSCROLL umgesetzt, SP-Ownerdraws 250/236 umgesetzt.
+- Nicht vergleichbar (das Spiel öffnet das Menü mit +uimenu nicht oder zeigt es über einem
+  anderen): ingame*-Menüs (ingameWpnSelectHelp, ingameForceHelp, ForceSelect, WpnSelect,
+  challenge*Select), Popups (videowarning, videodriver, error_popmenu zeigen das Hauptmenü
+  dahinter).
+- Videos/Zeit: mainMenu (MD 107) - Hintergrundvideo in anderem Bild; episode-Leisten bewegt.
+- Bilder/Figur, die das Spiel aus Cvars des laufenden Spiels wählt: challengecharacterMenu
+  (Hintergrundbild fehlt im Editor), twjMenu (unaufgelöster Text @MD_MENU_MAIN_TWJ - im Spiel
+  leer; offen).
+- Spielzeiger im Spielfoto (weißes Quadrat oben links/Mitte) - kleine Abweichung überall.
+
+Vorher/nachher (Lauf 1 -> Lauf 2 nach Fade/setitemcolor, Textscroll, Ownerdraws):
+- Movie Duels, 82 Menüs: Mittel 19,48 -> 13,46. Besser: totg_df2 67,4 -> 3,8, totg_rote 42,7 -> 5,5,
+  totg_tfu 35,6 -> 6,3, credits 25,5 -> 5,2, welcome 22,5 -> 7,7, fas 18,5 -> 8,5, jt 17,8 -> 7,9,
+  tc 17,5 -> 7,7, fh 17,7 -> 8,1, afh 18,7 -> 9,1. Schlechter: episode 6,0 -> 13,7 (bewegte
+  Episodenleiste, Bild sonst gleich), ingame*-Menüs (nicht vergleichbar).
+- Top 10 nachher (MD): mainMenu 107,2 (Video), twjMenu 79,0, ingameWpnSelectHelp 59,9 (n. v.),
+  videowarningMenu 49,4 (n. v.), challengecharacterMenu 45,5, ForceSelect 43,2 (n. v.),
+  challengeForceSelect 39,4 (n. v.), challengeWpnSelect 37,4 (n. v.), WpnSelect 36,4 (n. v.),
+  videodriverMenu 30,4 (n. v.).
+- JKA, 11 Menüs: Mittel 12,95 -> 13,01 (unverändert; Top: videodriver 30,9 - UI_GLINFO zeigt die
+  GL-Treiberdaten des Spiels, error_popmenu 24,2 und videowarning 20,3 - Popups über dem
+  Hauptmenü, character 12,2, main 11,3, saber 10,8).
+
+Original-JKA über Steam (MP/SP): nicht verglichen (siehe Spielstarts, Steam).
+
+### Punkt 2 - Bedienzustände im Spiel
+
+Testpaket je Zustand (SP\m4\zustand.py): an onOpen des Menüs werden die Aktionen der Items
+gehängt (wie ein Klick) bzw. Befehle; dasselbe Menü öffnet der Editor aus der Datei
+(BHED_MENUE_VERGLEICH_MENUES "ui/x.menu|<datei>=name"). Liste SP\m4\zustaende_liste.txt,
+Lauf SP\m4\zustaende.sh (MovieDuels-SP, fs_game base, eigener fs_homepath home_zustand).
+Im Spiel kommen alle Zustände an (Reiter Interaktion/Waffen/Macht, Ton-Seite, Schieber 0,2/0,8,
+Spieloptionen, Stab-Säbel, grüner Kristall, Fokus auf „Laden“).
+Abweichung (Lauf 1 -> 2): saber_stab 16,3/16,3, saber_gruen 11,6/11,5, main_fokus 10,9/10,8,
+controls_waffen 10,5/10,0, setup_spiel 10,4/10,2, setup_ton 9,6/9,3, controls_macht 9,5/9,4,
+setup_ton_schieber 8,9/8,9, controls_angriff 8,8/8,8 - in der Größenordnung der Grundzustände
+(controls 7,7, setup 6,8, saber 10,8); Bildpaare SP\m3\vergleich\neben_zustand_*.png.
+Aufklappen (Listen) und Ziehen: nicht nachgestellt (JKA-SP-Menüs haben dafür keine Items, die per
+Skript aufklappen).
+
+### Zusatz: ITEM_TYPE_TEXTSCROLL und Platzhalter
+
+- Textscroll wie Item_TextScroll_BuildLines/Paint (OpenJK SP/MP und MD gleich): Text aus der cvar
+  (ersetzt text) bzw. text, „@“ über StringEd; Umbruch, sobald die Breite rect.w - 26 erreicht ist,
+  hinter dem letzten Leer-/Satzzeichen (asiatische Sprachen mit den Satzzeichen-Tabellen aus
+  tr_font.cpp); lineHeight, textalignx/y + 1 + 4, Leiste rechts (Pfeile, Daumen nach startPos),
+  Zeilen bis der Rest kleiner als eine Zeile ist. Bedienmodus: Pfeile, Seite rauf/runter
+  (Item_TextScroll_OverLB/HandleKey), Mausrad nur Movie Duels („Raz: Added“). MD lässt für
+  „char_desc“ die Leiste weg (NEW_FEEDER_V2 - angenommen, dass MD damit gebaut ist).
+  Text per setcvar bei mouseEnter geht mit (ctest menue_skript).
+  ctest menue_vorschau: rot (Platzhalter) -> grün. Bildvergleich MD fhMenu 17,7 -> 8,1
+  (SP\m3\vergleich\neben_rang_md_fhMenu.png). JKA-Menüs mit Textscroll sind nur ingame*-Menüs
+  (ingameforceselect, ingamemissionselect ...): nicht im Spiel verglichen - +uimenu öffnet sie
+  ohne laufende Karte nicht, und MD-SP lädt mit base keine Karte.
+- Weitere Platzhalter (Liste aller Ownerdraws der Original-Menüs, gezählt): JKA SP 250
+  UI_KEYBINDSTATUS (4x, umgesetzt: ohne wartende Taste leer), 236 UI_ALLMAPS_SELECTION (3x,
+  umgesetzt: menu/art/unknownmap ohne Spielstand), 249 UI_GLINFO (videodriver, GL-Treiberdaten des
+  Spiels - Platzhalter), 203/204/206 Datapad (ingame, Spielerzustand - Platzhalter); JKA MP und
+  MD-MP: UI_CHAT_* (ingame_voicechat), UI_BLUETEAM1-8/UI_REDTEAM1-8, UI_NETGAMETYPE,
+  UI_STARTMAPCINEMATIC, UI_SKIN_COLOR, UI_FORCE_RANK/SIDE/POINTS/MASTERY_SET, UI_SKILL,
+  UI_BOTNAME/UI_REDBLUE/UI_BOTSKILL, UI_ALLMAPS_SELECTION, MD-MP UI_FORCE_RANK_* und 350; MD
+  Pazaak 2401/2402/2500 und „numbers“ - alle noch Platzhalter (offen). Feeder ohne Spieldaten
+  zeichnen weiter einen beschrifteten Platzhalter.
+
 ### Punkt 3 - Lesbarkeit
 
 - Ebenenliste: Auge (Sichtbar/Versteckt) und Schloss (zu/offen) als Symbole statt „o“/„-“,
@@ -258,6 +341,7 @@ Querschnitt ist nicht rund) und dem Lichtglanz - kein Fehler im Maßstab.
 - A visible Sound on/off switch in the toolbar for all preview sounds; it also stops sounds that are playing and is remembered.
 - Single-player menus no longer show cinematic items and teamcolor fills the game does not draw; the check points this out.
 - Real eye and lock symbols in the hierarchy, tooltips for every toolbar button and optional labels, text never below 12 pixels.
+- Menu editor preview like the game: ITEM_TYPE_TEXTSCROLL shows its text (cvar or text, line breaks, scroll bar, arrows; mouse wheel in Movie Duels), filled items fade out like in the game and setitemcolor also sets back and border colour (several Movie Duels menus were black), single-player ownerdraws for key binding status and save game picture.
 
 ## Deutsch
 - Menü-Editor: ein HUD-Editor - ui/hud.menu wird so gezeichnet wie in Jedi Academy (Striche, Zahlen, Säbelstil, Munition, Fadenkreuz), mit Beispielwerten an Reglern.
@@ -271,6 +355,7 @@ Querschnitt ist nicht rund) und dem Lichtglanz - kein Fehler im Maßstab.
 - Ein gut sichtbarer Schalter „Ton an/aus“ in der Leiste für alle Klänge der Vorschau; er hält auch laufende Klänge an und bleibt gespeichert.
 - Einzelspieler-Menüs zeigen keine cinematic-Elemente und TEAMCOLOR-Flächen mehr, die das Spiel nicht zeichnet; die Prüfung weist darauf hin.
 - Echte Augen- und Schloss-Symbole in der Hierarchie, Hinweise für jeden Leistenknopf und wahlweise Beschriftung, Schrift nie unter 12 Pixel.
+- Vorschau des Menü-Editors wie im Spiel: ITEM_TYPE_TEXTSCROLL zeigt seinen Text (cvar oder text, Umbruch, Bildlaufleiste, Pfeile; Mausrad bei Movie Duels), gefüllte Elemente blenden wie im Spiel aus und setitemcolor setzt auch Hintergrund- und Randfarbe (mehrere Movie-Duels-Menüs waren schwarz), Einzelspieler-Ownerdraws für Tastenbelegung und Spielstand-Bild.
 
 ## 中文
 - 菜单编辑器:HUD 编辑器——ui/hud.menu 按 Jedi Academy 的方式绘制(刻度、数字、光剑风格、弹药、准星),示例数值可用滑块调整。
@@ -284,6 +369,7 @@ Querschnitt ist nicht rund) und dem Lichtglanz - kein Fehler im Maßstab.
 - 工具栏中醒目的“声音开/关”开关控制所有预览声音;关闭时也会停止正在播放的声音,并会被记住。
 - 单人菜单不再显示游戏不会绘制的 cinematic 元素和 TEAMCOLOR 填充;检查会指出这一点。
 - 层级中使用真正的眼睛和锁图标,每个工具栏按钮都有提示并可选择显示文字,文字永远不小于 12 像素。
+- 菜单编辑器预览与游戏一致:ITEM_TYPE_TEXTSCROLL 显示其文本(cvar 或 text、换行、滚动条、箭头;Movie Duels 中可用鼠标滚轮),填充元素像游戏中一样淡出,setitemcolor 也会设置背景色和边框色(多个 Movie Duels 菜单此前为黑屏),并支持按键绑定状态和存档图片的单人 ownerdraw。
 
 ## 日本語
 - メニューエディター: HUD エディター。ui/hud.menu を Jedi Academy と同じように描きます(目盛り、数字、セーバースタイル、弾薬、照準)。例の値はスライダーで調整できます。
@@ -297,3 +383,4 @@ Querschnitt ist nicht rund) und dem Lichtglanz - kein Fehler im Maßstab.
 - ツールバーに目立つ「音オン/オフ」スイッチを追加し、プレビューのすべての音を切り替えます。再生中の音も止め、設定は保存されます。
 - シングルプレイヤーのメニューでは、ゲームが描かない cinematic 要素と TEAMCOLOR の塗りを表示しなくなりました。チェックがそれを指摘します。
 - 階層に本物の目と鍵のアイコン、すべてのツールバーボタンにツールチップと任意の名前表示、文字は 12 ピクセル未満になりません。
+- メニューエディターのプレビューをゲームと同じに: ITEM_TYPE_TEXTSCROLL がテキストを表示(cvar または text、折り返し、スクロールバー、矢印、Movie Duels ではマウスホイール)、塗りつぶし要素がゲームと同じくフェードアウトし、setitemcolor が背景色と枠の色も設定(いくつかの Movie Duels メニューが真っ黒でした)、キー割り当て状態とセーブ画像のシングルプレイヤー ownerdraw に対応。

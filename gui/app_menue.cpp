@@ -3382,8 +3382,16 @@ bool istRoq(const std::string& d) {
     return d.size() >= 8 && static_cast<unsigned char>(d[0]) == (kRoqKennung & 0xff) && static_cast<unsigned char>(d[1]) == (kRoqKennung >> 8);
 }
 
-std::string dateiLesen(const std::string& platte) {
+// Die ganze Datei, wenn sie ein RoQ oder GIF ist (beides wird im Speicher gelesen); sonst ""
+// - ein Video liest Media Foundation selbst, es wird nicht ganz in den Speicher geholt.
+std::string roqOderGifLesen(const std::string& platte) {
     std::ifstream in(utf8Pfad(platte), std::ios::binary);
+    char kopf[8] = {};
+    in.read(kopf, sizeof(kopf));
+    const std::string k(kopf, static_cast<std::size_t>(in.gcount()));
+    if (!istRoq(k) && k.compare(0, 3, "GIF") != 0) { return {}; }
+    in.clear();
+    in.seekg(0);
     std::ostringstream s;
     s << in.rdbuf();
     return s.str();
@@ -3407,7 +3415,7 @@ VideoErgebnis videoKodieren(const std::string& platte, const VideoEinst& e, cons
     RoqOptionen o;
     o.guete = e.guete;
     o.fps = e.fps;
-    const std::string roh = dateiLesen(platte);
+    const std::string roh = roqOderGifLesen(platte);
     if (istRoq(roh)) {
         r.roqDirekt = true;
         if (!roqKopf(roh, r.breite, r.hoehe, r.fps)) {
@@ -3467,7 +3475,7 @@ VideoErgebnis videoKodieren(const std::string& platte, const VideoEinst& e, cons
 // Geschaetzte Dateigroesse: die ersten Takte kodieren und hochrechnen (Ton exakt: ein
 // Byte je Probe und Kanal plus 8 Bytes je Stueck).
 long long videoGroesseSchaetzen(const std::string& platte, const VideoEinst& e, const gui::VideoInfo& info) {
-    const std::string roh = dateiLesen(platte);
+    const std::string roh = roqOderGifLesen(platte);
     if (istRoq(roh)) { return static_cast<long long>(roh.size()); }
     RoqOptionen o;
     o.guete = e.guete;
@@ -3598,7 +3606,7 @@ void zeichneVideoFenster() {
     if (z.videoInfoFuer != z.videoQuelle) {
         z.videoInfoFuer = z.videoQuelle;
         z.videoInfo = gui::VideoInfo{};
-        const std::string roh = dateiLesen(z.videoQuelle);
+        const std::string roh = roqOderGifLesen(z.videoQuelle);
         z.videoArt = istRoq(roh) ? 2 : (roh.compare(0, 3, "GIF") == 0 ? 1 : 0);
         if (z.videoArt == 2) {
             (void)roqKopf(roh, z.videoInfo.breite, z.videoInfo.hoehe, z.videoRoqFps);
