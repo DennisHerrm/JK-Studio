@@ -141,8 +141,8 @@ SCHRITTE = {
           "g_ansehen_liste", "The context menu of an entity in the list."),
         S("**Back to normal.** Right-click the walk target → **{{BahnBlickFrei}}**.",
           "g_ansehen_frei", "Face the walking direction."),
-        S("**Check it.** Expand the figure in the timeline: the row **{{TlKatBlick}}** shows when it looks where.",
-          "g_ansehen_zeit", "The rows of the expanded figure: Movement and Look."),
+        S("**Check it.** Open the figure's row in the timeline: its row **{{ZlBefehle}}** shows the look commands at their time.",
+          "g_ansehen_zeit", "The rows of the opened figure: walks above, its commands below."),
     ],
     "k-blickrichtung": [
         S("**Go to the moment.** Move the playhead in the timeline to where the figure should face another way. The time display shows where you are.",

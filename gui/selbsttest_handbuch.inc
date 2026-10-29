@@ -2395,6 +2395,64 @@ std::vector<Schritt> handbuchSchritte() {
             g_app->camTrackValid = false;
         }));
         t.push_back(pause(0.4));
+        // Zeitleiste 2: Untertitel im Vorschau-Bild (In Zwischensequenzen) und Aufnehmen.
+        const auto ansicht = [] {
+            return ImRect{ImVec2{g_app->kartenAnsicht[0], g_app->kartenAnsicht[1]}, ImVec2{g_app->kartenAnsicht[2], g_app->kartenAnsicht[3]}};
+        };
+        t.push_back(tu("Handbuch Zeitleiste: Untertitel in Zwischensequenzen, durch die Kamera", [] {
+            g_app->untertitelStufe = 2;
+            g_app->throughCamera = true;
+            g_app->cameraSelected = false;
+            g_app->selectedPath.clear();
+            entityAuswahlSetzen(-1);
+            g_app->selectedActor = -1;
+            for (const spuren::Clip& c : g_app->spuren.sprache.clips) {
+                if (c.art == spuren::Art::Satz && !c.untertitel.empty()) {
+                    g_app->playMs = c.startMs + 500.0;
+                    break;
+                }
+            }
+            g_app->mapDirty = true;
+        }));
+        t.push_back(pause(1.0));
+        t.push_back(hb::fotoTeil("h_zl_untertitel", ansicht));
+        t.push_back(tu("Handbuch Zeitleiste: Untertitel wie im Spiel, eine Figur waehlen", [] {
+            g_app->untertitelStufe = -1;
+            g_app->throughCamera = false;
+            g_app->timelineFrac = 0.30F;   // groessere Ansicht fuer die Spur
+            g_app->playMs = 2000.0;
+            g_app->mapDirty = true;
+            for (std::size_t i = 0; i < g_app->scene.actors.size(); ++i) {
+                if (aufnahmeMoeglich(static_cast<int>(i))) {
+                    g_app->selectedActor = static_cast<int>(i);
+                    break;
+                }
+            }
+        }));
+        t.push_back(pause(0.5));
+        t.push_back(tu("Handbuch Zeitleiste: Aufnehmen", [] { aufnahmeStarten(g_app->selectedActor); }));
+        t.push_back(Schritt{"Handbuch Zeitleiste: W und D halten", [](int b) {
+                                ImGuiIO& io = ImGui::GetIO();
+                                if (b == 0) { io.AddKeyEvent(ImGuiKey_W, true); }
+                                if (b == 90) {
+                                    io.AddKeyEvent(ImGuiKey_W, false);
+                                    io.AddKeyEvent(ImGuiKey_D, true);
+                                }
+                                if (b == 150) { io.AddKeyEvent(ImGuiKey_D, false); }
+                                return b > 152;
+                            }});
+        t.push_back(pause(0.3));
+        t.push_back(hb::fotoTeil("h_zl_aufnahme", [] {
+            // Die Ansicht und darunter die Transportleiste mit Fertig/Abbrechen/Toleranz.
+            return ImRect{ImVec2{g_app->kartenAnsicht[0], g_app->kartenAnsicht[1]},
+                          ImVec2{g_app->kartenAnsicht[2], g_app->kartenAnsicht[3] + ImGui::GetFrameHeightWithSpacing() * 1.6F}};
+        }));
+        t.push_back(tu("Handbuch Zeitleiste: Aufnahme abbrechen", [] {
+            aufnahmeBeenden(false);
+            g_app->selectedActor = -1;
+            g_app->timelineFrac = 0.55F;
+        }));
+        t.push_back(pause(0.4));
         return t;
     }
     std::vector<Schritt> s;

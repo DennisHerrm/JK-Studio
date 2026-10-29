@@ -260,6 +260,29 @@ Laeufe unter `Y:\mission_laeufe\zl2*`; Schnelllaeufe mit `BHED_ZL1_NUR=mini`,
   Testfund: ein Selbsttest, der nur playMs setzt, zeichnet das Bild nicht
   neu (Balken vom alten Stand) - die Schritte setzen jetzt mapDirty.
 
+- **Punkt 1 Aufnehmen**: Knopf "Aufnehmen" in der Transportleiste (nur fuer
+  einen NPC, Q3_SetNavGoal kennt nur NPCs), Steuerung W/S/A/D, Umschalt
+  geht, Q/E oder rechte Maustaste drehen, Enter fertig, Esc bricht ab;
+  Bewegung mit navSpielerPmove (Kollision der Vorschau ohne CONTENTS_BODY -
+  die anderen Figuren stehen beim Aufnehmen still), Tempo aus ablaufTempo
+  (die .npc-Werte beim Spawnen, sonst 300/90). Steckt der Kasten im Boden,
+  wird bis 18 hoeher angefangen. Kern `bhed/aufnahme.h`: Douglas-Peucker mit
+  Toleranz (einstellbar, Vorgabe 24), dazu frei fuer den Kasten (NAV::
+  ClearPathToPoint mit STEPSIZE) und Gangwechsel; Test `aufnahme`.
+  Geschrieben: je Punkt ein ref_tag und `task ( p ) { set ( SET_NAVGOAL, p ); }
+  dowait ( p );` (SET_NAVGOAL selbst wartet nicht - so rechnet der Nachbau
+  seit rc601, und so stehen Laeufe in den Skripten), Gangart davor; in die
+  Folge der Figur zur Zeit des Zeigers (befehlZurZeit), sonst ein neuer
+  affect-Block; ein Rueckgaengig-Schritt (aenderung + ersetzeSkript +
+  verbindeMitSkriptSchritt). Fund beim Testen: die erste Fassung schrieb
+  SET_NAVGOAL hintereinander - die Figur waere nur zum letzten Punkt
+  gelaufen. Waehrend der Aufnahme ist die Figur ein Umriss (Kasten,
+  Blickpfeil, Spur, nummerierte Laufziele); das Modell bleibt am Ort zur
+  Startzeit, nach dem Schreiben laeuft es im Bild wie im Spiel.
+  Selbsttest (BHED_ZL1_NUR=aufnahme): Esc aendert nichts, Mini-Szene mit
+  eigener Figur (Ecke, Gangwechsel), Strg+Z bytegleich; im vollen Lauf
+  zusaetzlich academy1 (OpenJK) und md_am_sith (Movie Duels).
+
 ## Changelog
 
 ## English

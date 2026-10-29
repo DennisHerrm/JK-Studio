@@ -2085,6 +2085,9 @@ struct App {
     float untertitelOben = 0.0F;           // Selbsttest: Bildzeilen der Schrift (oben, unten)
     float untertitelUnten = 0.0F;
     float untertitelFarbe[4]{};            // Selbsttest: die Farbe der Zeilen
+    // Zeitleiste 2 Punkt 1: Aufnehmen - ab welcher Abweichung von der Geraden
+    // ein weiterer Laufpunkt noetig ist (Einheiten).
+    float aufnahmeToleranz = 24.0F;
     struct ZlBlock {
         std::string zeile;
         ImRect r;
@@ -2579,6 +2582,15 @@ void zeitleisteModellBauen();
 [[nodiscard]] int untertitelStufe();
 void untertitelSchalter();
 void untertitelZeichnen(ImDrawList* dl, ImVec2 a, ImVec2 b);
+// Zeitleiste 2 Punkt 1 (app_mission.cpp): eine Figur steuern, daraus Laufziele.
+[[nodiscard]] bool aufnahmeLaeuft();
+[[nodiscard]] bool aufnahmeMoeglich(int figur);
+void aufnahmeStarten(int figur);
+void aufnahmeBeenden(bool schreiben);
+void aufnahmeKnopf();                                    // in der Transportleiste
+void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b);   // jedes Bild: Steuern, Spur, Hinweis
+[[nodiscard]] int aufnahmeProben();                      // Selbsttest
+[[nodiscard]] int aufnahmePunkte();                      // Selbsttest: Laufziele mit der Toleranz
 float zeitleisteNamenBreite(float verfuegbar);
 void zeitleisteNavigation(float x0, float w, double gesamt);
 void zeitleisteSpuren(float x0, float w, float labelW, double sichtStart, double sichtSpanne, double ablaufEnde, float hoehe);

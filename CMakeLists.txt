@@ -73,6 +73,8 @@ add_library(bhed_core STATIC
   src/spuren.cpp
   # Zeitleiste 2: Untertitel wie das Spiel (Pakete, Schluessel, CG_CaptionText)
   src/untertitel.cpp
+  # Zeitleiste 2 Punkt 1: Aufnehmen (gesteuerte Figur -> Laufziele, nur wo noetig)
+  src/aufnahme.cpp
   src/bspgeo.cpp
   src/gpucam.cpp
   src/gpuconst.cpp
@@ -757,6 +759,10 @@ if(BEHAVED_TESTS)
   add_executable(untertiteltest tests/untertiteltest.cpp)
   target_link_libraries(untertiteltest PRIVATE bhed_core)
   add_test(NAME untertitel COMMAND untertiteltest)
+  # Zeitleiste 2 Punkt 1: aus einer gesteuerten Figur werden Laufziele, nur wo noetig
+  add_executable(aufnahmetest tests/aufnahmetest.cpp)
+  target_link_libraries(aufnahmetest PRIVATE bhed_core)
+  add_test(NAME aufnahme COMMAND aufnahmetest)
   # rc601 bewegung: NPCs laufen, drehen sich und fallen wie im Spiel
   # (scene.cpp, ablauf.cpp) - reine Proben, dazu die md_twj-Daten.
   add_executable(bewegungtest tests/bewegungtest.cpp)

@@ -184,7 +184,7 @@ SKRIPT = [
             T("**Where to wait.** In the script that should pause, insert `waitsignal` and type a name, for example `door_open`."),
             T("**Where to give the signal.** In the other script, at the moment it should go on, insert `signal ( \"door_open\" )`."),
             T("**Check the names.** Both must be spelled the same. Only one script can wait for a signal of a given name."),
-            T("**See it in the timeline.** Expand the figure's group in the timeline: the row **{{TlKatAblauf}}** shows waits and signals as blocks."),
+            T("**See it in the timeline.** Open the figure's row in the timeline (the arrow at its name): its row **{{ZlBefehle}}** shows its waits and signals at their time."),
         ],
         [T("The timeline cannot know how long a `waitsignal` waits in the game - everything after it is placed as if the signal came at once.")]),
 
@@ -302,7 +302,7 @@ FIGUREN = [
              "k_gangart", T("The menu of a walk target: Look at while walking lists the figures of the scene.")),
             T("**Standing.** Right-click the target entity in the entity list → **{{EntityAsWatch}}** (`SET_WATCHTARGET`) or **{{EntityAsLook}}** (`SET_LOOK_TARGET`). The command goes into the script after the selected line."),
             T("**Back to normal.** Right-click the walk target → **{{BahnBlickFrei}}**."),
-            T("**Check it.** Play the timeline. The category **{{TlKatBlick}}** in the figure's group shows when it looks where."),
+            T("**Check it.** Play the timeline. Open the figure's row: its row **{{ZlBefehle}}** shows the look commands at their time."),
         ]),
 
     tut("k-blickrichtung", "tut_figur",

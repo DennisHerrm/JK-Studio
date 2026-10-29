@@ -899,6 +899,194 @@ std::vector<Schritt> untertitelFoto(const std::string& szene) {
     return s;
 }
 
+// Zeitleiste 2 Punkt 1: Aufnehmen. Eine Taste n Bilder lang halten (mit Umschalt: gehen).
+Schritt halteTaste(ImGuiKey taste, int bilder, bool umschalt, const std::string& name) {
+    return {"zeitleiste1 Aufnahme: " + name + " halten", [=](int b) {
+                ImGuiIO& io = ImGui::GetIO();
+                if (b == 0) {
+                    if (umschalt) { io.AddKeyEvent(ImGuiMod_Shift, true); }
+                    io.AddKeyEvent(taste, true);
+                    return false;
+                }
+                if (b < bilder) { return false; }
+                io.AddKeyEvent(taste, false);
+                if (umschalt) { io.AddKeyEvent(ImGuiMod_Shift, false); }
+                return b > bilder + 1;
+            }};
+}
+
+struct AufStand {
+    std::string name;   // die Figur (ihr Index aendert sich beim Neubau der Szene)
+    std::string skript;
+    std::size_t tiefe = 0;
+    std::size_t entities = 0;
+    int figur = -1;
+    double startMs = 0.0;
+};
+
+// Aufnehmen, schreiben, pruefen, Strg+Z: fuer die gewaehlte Figur zur Zeit des Zeigers.
+// lFoermig: erst vor, dann seitwaerts, dann gehend vor (Ecke und Gangwechsel).
+std::vector<Schritt> aufnahmeZug(const std::string& wo, std::shared_ptr<AufStand> z, bool lFoermig) {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("zeitleiste1 Aufnahme " + wo + ": Stand merken", [=] {
+        z->skript = skriptText();
+        z->tiefe = g_app->doc.undoDepth();
+        z->entities = g_app->map.entities.size();
+        z->startMs = g_app->playMs;
+        z->name = z->figur >= 0 && static_cast<std::size_t>(z->figur) < g_app->scene.actors.size()
+                      ? g_app->scene.actors[static_cast<std::size_t>(z->figur)].name
+                      : std::string();
+    }));
+    add(klick(tr(Str::AufKnopf), "", 0, true));
+    add(pause(0.3));
+    add(pruefe("zeitleiste1 Aufnahme " + wo + ": Aufnehmen startet die Steuerung", [] { return aufnahmeLaeuft(); }));
+    add(halteTaste(ImGuiKey_W, 45, false, "W"));
+    if (lFoermig) {
+        add(halteTaste(ImGuiKey_D, 35, false, "D"));
+        add(halteTaste(ImGuiKey_W, 35, true, "Umschalt+W"));
+    }
+    add(pruefe("zeitleiste1 Aufnahme " + wo + ": die Figur laeuft, Laufziele mit der Toleranz", [=] {
+        diag::detail("Knopftest: zeitleiste1 Aufnahme " + wo + " - " + std::to_string(aufnahmeProben()) + " Proben, " +
+                     std::to_string(aufnahmePunkte()) + " Laufziele");
+        return aufnahmeProben() > 8 && aufnahmePunkte() >= (lFoermig ? 2 : 1);
+    }));
+    add(foto("zl2_aufnahme_" + wo));
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(1.2));
+    add(pruefe("zeitleiste1 Aufnahme " + wo + ": geschrieben - ref_tags und SET_NAVGOAL, ein Rueckgaengig-Schritt", [=] {
+        int navgoals = 0;
+        const std::string text = skriptText();
+        for (std::size_t p = text.find("SET_NAVGOAL"); p != std::string::npos; p = text.find("SET_NAVGOAL", p + 1)) { ++navgoals; }
+        int vorherNav = 0;
+        for (std::size_t p = z->skript.find("SET_NAVGOAL"); p != std::string::npos; p = z->skript.find("SET_NAVGOAL", p + 1)) { ++vorherNav; }
+        const std::size_t neu = g_app->map.entities.size() - z->entities;
+        const bool gang = !lFoermig || (text.find("\"SET_WALKING\", \"true\"") != std::string::npos);
+        diag::detail("Knopftest: zeitleiste1 Aufnahme " + wo + " - " + std::to_string(neu) + " neue Entities, SET_NAVGOAL " +
+                     std::to_string(vorherNav) + " -> " + std::to_string(navgoals) + ", Schritte " +
+                     std::to_string(g_app->doc.undoDepth() - z->tiefe) + ", Gangart " + std::to_string(gang ? 1 : 0));
+        return !aufnahmeLaeuft() && neu >= (lFoermig ? 2U : 1U) && static_cast<std::size_t>(navgoals - vorherNav) == neu &&
+               g_app->doc.undoDepth() == z->tiefe + 1 && gang;
+    }));
+    add(pruefe("zeitleiste1 Aufnahme " + wo + ": die Vorschau laeuft den Weg wie das Spiel bis zum letzten Laufziel", [=] {
+        const MapEntity& letzt = g_app->map.entities.back();
+        z->figur = mission1::figurNamens(z->name);
+        float o[3] = {0, 0, 0};
+        (void)std::sscanf(letzt.origin.c_str(), "%f %f %f", &o[0], &o[1], &o[2]);
+        double best = 1.0e9;
+        if (z->figur >= 0 && static_cast<std::size_t>(z->figur) < g_app->scene.actors.size()) {
+            for (const ActorStep& st : g_app->scene.actors[static_cast<std::size_t>(z->figur)].steps) {
+                if (st.kind != ActorStep::Kind::WalkTo || st.startMs + 1.0 < z->startMs) { continue; }
+                best = std::min(best, std::hypot(static_cast<double>(st.to[0] - o[0]), static_cast<double>(st.to[1] - o[1])));
+            }
+        }
+        int laeufe = 0;
+        std::string arten;
+        if (z->figur >= 0 && static_cast<std::size_t>(z->figur) < g_app->scene.actors.size()) {
+            for (const ActorStep& st : g_app->scene.actors[static_cast<std::size_t>(z->figur)].steps) {
+                laeufe += st.kind == ActorStep::Kind::WalkTo ? 1 : 0;
+                arten += " " + std::to_string(static_cast<int>(st.kind)) + "@" + std::to_string(static_cast<int>(st.startMs));
+            }
+            diag::detail("Knopftest: zeitleiste1 Aufnahme " + wo + " - Figur " + g_app->scene.actors[static_cast<std::size_t>(z->figur)].name +
+                         ", Schritte" + arten);
+        }
+        diag::detail("Knopftest: zeitleiste1 Aufnahme " + wo + " - letztes Laufziel " + letzt.targetname + " bei " + letzt.origin +
+                     ", naechstes Laufende " + std::to_string(best) + ", Laeufe der Figur " + std::to_string(laeufe));
+        return letzt.classname == "ref_tag" && best < 40.0;
+    }));
+    add(foto("zl2_aufnahme_" + wo + "_geschrieben"));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.6));
+    add(pruefe("zeitleiste1 Aufnahme " + wo + ": ein Strg+Z - Skript bytegleich, Entities zurueck", [=] {
+        return skriptText() == z->skript && g_app->map.entities.size() == z->entities && g_app->doc.undoDepth() == z->tiefe;
+    }));
+    return s;
+}
+
+std::vector<Schritt> aufnahmeSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto z = std::make_shared<AufStand>();
+    // Die Mini-Szene zl2unter (eigene Karte, eigenes Skript) bekommt eine eigene Figur.
+    add(tu("zeitleiste1 Aufnahme: eigene Figur zl2_laeufer am Startpunkt der Karte", [] {
+        float o[3] = {0, 0, 0};
+        std::string typ;
+        for (const MapEntity& e : g_app->map.entities) {
+            if (e.classname == "info_player_start" && o[0] == 0.0F && o[1] == 0.0F) { (void)std::sscanf(e.origin.c_str(), "%f %f %f", &o[0], &o[1], &o[2]); }
+            const std::string* t = e.find("NPC_type");
+            if (typ.empty() && e.classname == "NPC_spawner" && t != nullptr && !t->empty()) { typ = *t; }
+        }
+        const int i = neueEntityAn("NPC_spawner", o);
+        if (i < 0) { return; }
+        (void)entityKeySetzen(i, "NPC_targetname", "zl2_laeufer");
+        (void)entityKeySetzen(i, "NPC_type", typ.empty() ? std::string("stormtrooper") : typ);
+        g_app->camTrackValid = false;
+        g_app->mapDirty = true;
+        g_app->leftMode = 1;
+        g_app->throughCamera = false;
+        g_app->playing = false;
+        g_app->playMs = 0.0;
+    }));
+    add(warteBis("zeitleiste1 Aufnahme: zl2_laeufer in der Szene", [=] {
+        z->figur = mission1::figurNamens("zl2_laeufer");
+        return z->figur >= 0 && g_app->camTrackValid;
+    }, 2000));
+    add(tu("zeitleiste1 Aufnahme: zl2_laeufer waehlen, Zeit 0,5 s", [=] {
+        g_app->selectedActor = z->figur;
+        g_app->playMs = 500.0;
+        g_app->mapDirty = true;
+    }));
+    add(pause(0.4));
+    add(pruefe("zeitleiste1 Aufnahme: Aufnehmen ist fuer die Figur moeglich", [=] { return aufnahmeMoeglich(z->figur); }));
+    // Abbrechen mit Esc aendert nichts.
+    add(tu("zeitleiste1 Aufnahme: Stand vor dem Abbrechen", [=] {
+        z->skript = skriptText();
+        z->tiefe = g_app->doc.undoDepth();
+        z->entities = g_app->map.entities.size();
+    }));
+    add(klick(tr(Str::AufKnopf), "", 0, true));
+    add(pause(0.3));
+    add(halteTaste(ImGuiKey_W, 25, false, "W"));
+    add(taste(ImGuiKey_Escape, "Esc"));
+    add(pause(0.4));
+    add(pruefe("zeitleiste1 Aufnahme: Esc bricht ab, nichts geaendert", [=] {
+        return !aufnahmeLaeuft() && skriptText() == z->skript && g_app->doc.undoDepth() == z->tiefe && g_app->map.entities.size() == z->entities;
+    }));
+    add(tu("zeitleiste1 Aufnahme: zl2_laeufer wieder waehlen", [=] { g_app->selectedActor = z->figur; }));
+    for (Schritt& x : aufnahmeZug("mini", z, true)) { s.push_back(std::move(x)); }
+    add(tu("zeitleiste1 Aufnahme: Auswahl aufheben", [] {
+        g_app->selectedActor = -1;
+        mission1::ungespeicherteEntitiesVergessen();
+        g_app->doc.markSaved();
+    }));
+    return s;
+}
+
+// Auf einer Originalkarte: die erste Figur, die zur Zeit t aufnehmbar ist.
+std::vector<Schritt> aufnahmeOriginal(const std::string& szene, double t) {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto z = std::make_shared<AufStand>();
+    add(tu("zeitleiste1 Aufnahme " + szene + ": eine Figur waehlen", [=] {
+        g_app->throughCamera = false;
+        g_app->playing = false;
+        g_app->playMs = t;
+        g_app->mapDirty = true;
+        z->figur = -1;
+        for (std::size_t i = 0; i < g_app->scene.actors.size() && z->figur < 0; ++i) {
+            if (aufnahmeMoeglich(static_cast<int>(i))) { z->figur = static_cast<int>(i); }
+        }
+        g_app->selectedActor = z->figur;
+        diag::detail("Knopftest: zeitleiste1 Aufnahme " + szene + " - Figur " +
+                     (z->figur >= 0 ? g_app->scene.actors[static_cast<std::size_t>(z->figur)].name : std::string("keine")) + ", Regelwerk " +
+                     (regelwerkMovieDuels() ? "Movie Duels" : "OpenJK"));
+    }));
+    add(pause(0.4));
+    for (Schritt& x : aufnahmeZug(szene, z, false)) { s.push_back(std::move(x)); }
+    add(tu("zeitleiste1 Aufnahme " + szene + ": Auswahl aufheben", [] { g_app->selectedActor = -1; }));
+    return s;
+}
+
 }  // namespace zl1
 
 std::vector<Schritt> zeitleiste1Schritte() {
@@ -908,6 +1096,11 @@ std::vector<Schritt> zeitleiste1Schritte() {
     const char* nur = std::getenv("BHED_ZL1_NUR");
     if (nur != nullptr && std::strcmp(nur, "jk2") == 0) { return zl1::jk2Schritte(); }
     if (nur != nullptr && std::strcmp(nur, "untertitel") == 0) { return zl1::untertitelSchritte(); }
+    if (nur != nullptr && std::strcmp(nur, "aufnahme") == 0) {
+        s = zl1::untertitelSchritte();
+        for (Schritt& x : zl1::aufnahmeSchritte()) { s.push_back(std::move(x)); }
+        return s;
+    }
     for (Schritt& x : zl1::miniSchritte()) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::fremdSchritte()) { s.push_back(std::move(x)); }
     if (nur != nullptr && std::strcmp(nur, "mini") == 0) { return s; }
@@ -939,6 +1132,7 @@ std::vector<Schritt> zeitleiste1Schritte() {
     // Zahlen aus dem Export zeitleiste0 (NOTIZEN_zeitleiste0.md): 15 Saetze, alle mit Laenge und Untertitel.
     for (Schritt& x : zl1::szeneSchritte("academy1_intro", 15, 15)) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::untertitelFoto("academy1_intro")) { s.push_back(std::move(x)); }
+    for (Schritt& x : zl1::aufnahmeOriginal("academy1", 2000.0)) { s.push_back(std::move(x)); }
     add(tu("zeitleiste1: Load mission (Movie Duels)", [=] {
         mission1::ungespeicherteEntitiesVergessen();
         missionenAusArchiv(st->md);
@@ -953,7 +1147,9 @@ std::vector<Schritt> zeitleiste1Schritte() {
     add(pause(0.5));
     // Export zeitleiste0: 9 Klaenge, alle mit Laenge, 5 mit Untertitel (die 4 Schiffsklaenge haben keinen).
     for (Schritt& x : zl1::szeneSchritte("md_am_sith", 9, 5)) { s.push_back(std::move(x)); }
+    for (Schritt& x : zl1::aufnahmeOriginal("md_am_sith", 2000.0)) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::untertitelSchritte()) { s.push_back(std::move(x)); }
+    for (Schritt& x : zl1::aufnahmeSchritte()) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::jk2Schritte()) { s.push_back(std::move(x)); }
     return s;
 }

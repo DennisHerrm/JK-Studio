@@ -1121,6 +1121,8 @@ void drawTimeline() {
     }
     ImGui::SameLine();
     untertitelSchalter();
+    ImGui::SameLine();
+    aufnahmeKnopf();
     trenner();
     // --- Zoom: verkleinern, Alles, vergroessern (Entwurf zeitleiste1) ------
     //
@@ -1945,8 +1947,10 @@ void drawMapView() {
     //
     // Rechte Maustaste zum Umsehen, wie in jedem Editor. Die linke bleibt
     // frei fuers Anklicken.
+    // Zeitleiste 2 Punkt 1: waehrend einer Aufnahme steuert die Tastatur die
+    // Figur (aufnahmeBild), nicht die Kamera, und nichts in der Ansicht ist greifbar.
     const bool hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) &&
-                         !g_app->throughCamera;
+                         !g_app->throughCamera && !aufnahmeLaeuft();
     ImGuiIO& io = ImGui::GetIO();
 
     // Bedienung wie im Ansichtsfenster von 3ds Max:
@@ -4714,6 +4718,7 @@ void drawMapView() {
         } else {
             g_app->untertitelJetzt.clear();
         }
+        if (aufnahmeLaeuft()) { aufnahmeBild(ImGui::GetWindowDrawList(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax()); }
         // rc601 saber review 2c: der Klirrblitz NACH den Balken, wie CG_Draw2D.
         saberBlitzZeichnen2D(0, ImGui::GetWindowDrawList(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax(),
                              g_app->blendeZeigen && g_app->blendeBalken > 0.0F);
