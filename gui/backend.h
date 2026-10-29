@@ -133,5 +133,24 @@ void warteAufBild();
 // behaved zeichnet, und nichts vom restlichen Bildschirm.
 void fotoAnfordern(const std::string& pfad);
 
+// dock1: die Haken fuer eigene Fenster (Multi-Viewport) setzen - unter OpenGL
+// die Kontextumschaltung je Fenster; nach ImGui_ImplWin32_Init aufrufen.
+void plattformHakenSetzen();
+// dock1, Selbsttest: das naechste fertige Bild des eigenen Fensters `id`
+// (ImGuiViewport::ID) lesen - Groesse und Zahl der Farben (Stichprobe jedes
+// zweiten Punkts, hoechstens 4096). Nur Direct3D 11.
+struct ViewportBild {
+    unsigned id = 0;
+    int breite = 0;
+    int hoehe = 0;
+    int farben = 0;
+    bool da = false;
+};
+void viewportBildAnfordern(unsigned id);
+// dock1: wie lange das Zeichnen und Zeigen der eigenen Fenster im letzten Bild
+// gedauert hat (Millisekunden, 0 ohne eigene Fenster).
+[[nodiscard]] double plattformMs();
+[[nodiscard]] ViewportBild viewportBild();
+
 }  // namespace bhed::render
 #endif

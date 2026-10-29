@@ -4,6 +4,7 @@
 // Umschaltlogik teilen. Getrennt waeren es zwei Dateien mit je zehn Zeilen
 // Eigenleben und einer gemeinsamen Kopfdatei fuer den Rest.
 
+#include <chrono>
 #include <cstdint>
 #include <map>
 #include <algorithm>
@@ -282,11 +283,7 @@ HGLRC g_rc = nullptr;
 // bauen, einfachen wegwerfen.
 using CreateCtxAttribs = HGLRC(WINAPI*)(HDC, HGLRC, const int*);
 
-bool initGL3(HWND hwnd) {
-    g_dc = GetDC(hwnd);
-    if (g_dc == nullptr) {
-        return false;
-    }
+PIXELFORMATDESCRIPTOR glPixelformat() {
     PIXELFORMATDESCRIPTOR pfd{};
     pfd.nSize = sizeof(pfd);
     pfd.nVersion = 1;
@@ -295,6 +292,15 @@ bool initGL3(HWND hwnd) {
     pfd.cColorBits = 32;
     pfd.cDepthBits = 24;
     pfd.cStencilBits = 8;
+    return pfd;
+}
+
+bool initGL3(HWND hwnd) {
+    g_dc = GetDC(hwnd);
+    if (g_dc == nullptr) {
+        return false;
+    }
+    PIXELFORMATDESCRIPTOR pfd = glPixelformat();
     const int pf = ChoosePixelFormat(g_dc, &pfd);
     if (pf == 0 || SetPixelFormat(g_dc, pf, &pfd) == FALSE) {
         return false;
@@ -339,6 +345,44 @@ void shutdownGL3() {
         ReleaseDC(g_hwnd, g_dc);
         g_dc = nullptr;
     }
+}
+
+// --- dock1: eigene Fenster (Multi-Viewport) unter OpenGL ----------------------
+//
+// Wie imgui/examples/example_win32_opengl3: jedes Plattformfenster bekommt das
+// Pixelformat des Hauptfensters und zeichnet mit dem einen Kontext g_rc - vor
+// dem Zeichnen auf sein Fenster umgestellt, danach zurueck aufs Hauptfenster.
+// Direct3D 11 braucht nichts davon: imgui_impl_dx11 legt je Fenster eine
+// eigene Swapchain an.
+struct GlFenster {
+    HDC dc = nullptr;
+};
+
+void glFensterAnlegen(ImGuiViewport* v) {
+    auto* f = new GlFenster;
+    const HWND h = static_cast<HWND>(v->PlatformHandle);
+    f->dc = GetDC(h);
+    PIXELFORMATDESCRIPTOR pfd = glPixelformat();
+    const int pf = ChoosePixelFormat(f->dc, &pfd);
+    if (pf == 0 || SetPixelFormat(f->dc, pf, &pfd) == FALSE) { diag::detail("OpenGL: Pixelformat fuer ein eigenes Fenster abgelehnt"); }
+    v->RendererUserData = f;
+}
+
+void glFensterWeg(ImGuiViewport* v) {
+    auto* f = static_cast<GlFenster*>(v->RendererUserData);
+    if (f == nullptr) { return; }
+    wglMakeCurrent(g_dc, g_rc);
+    ReleaseDC(static_cast<HWND>(v->PlatformHandle), f->dc);
+    delete f;
+    v->RendererUserData = nullptr;
+}
+
+void glFensterZeichnen(ImGuiViewport* v, void*) {
+    if (const auto* f = static_cast<GlFenster*>(v->RendererUserData)) { wglMakeCurrent(f->dc, g_rc); }
+}
+
+void glFensterTauschen(ImGuiViewport* v, void*) {
+    if (const auto* f = static_cast<GlFenster*>(v->RendererUserData)) { SwapBuffers(f->dc); }
 }
 
 }  // namespace
@@ -892,6 +936,112 @@ void fotoSchreiben() {
 }
 #endif
 
+// --- dock1: die eigenen Fenster der Panels (Multi-Viewport) -------------------
+//
+// Wie ImGui::RenderPlatformWindowsDefault: erst alle zeichnen, dann alle
+// zeigen. Ausgeschrieben, damit der Selbsttest das fertige Bild eines Fensters
+// lesen kann, bevor es gezeigt wird (Direct3D 11: das Renderziel, das
+// ImGui_ImplDX11_RenderWindow gesetzt hat).
+namespace {
+unsigned g_vpBildFuer = 0;   // angefordert fuer dieses Fenster (ImGuiViewport::ID)
+ViewportBild g_vpBild;
+
+#ifdef BHED_WITH_D3D11
+void viewportBildLesen(unsigned id) {
+    ViewportBild ergebnis;
+    ergebnis.id = id;
+    ID3D11RenderTargetView* rtv = nullptr;
+    g_context->OMGetRenderTargets(1, &rtv, nullptr);
+    if (rtv == nullptr) { return; }
+    ID3D11Resource* res = nullptr;
+    rtv->GetResource(&res);
+    rtv->Release();
+    ID3D11Texture2D* tex = nullptr;
+    if (res == nullptr || FAILED(res->QueryInterface(IID_PPV_ARGS(&tex))) || tex == nullptr) {
+        if (res != nullptr) { res->Release(); }
+        return;
+    }
+    res->Release();
+    D3D11_TEXTURE2D_DESC d{};
+    tex->GetDesc(&d);
+    d.Usage = D3D11_USAGE_STAGING;
+    d.BindFlags = 0;
+    d.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    d.MiscFlags = 0;
+    ID3D11Texture2D* kopie = nullptr;
+    if (SUCCEEDED(g_device->CreateTexture2D(&d, nullptr, &kopie)) && kopie != nullptr) {
+        g_context->CopyResource(kopie, tex);
+        D3D11_MAPPED_SUBRESOURCE m{};
+        if (SUCCEEDED(g_context->Map(kopie, 0, D3D11_MAP_READ, 0, &m))) {
+            std::vector<std::uint32_t> farben;
+            for (std::uint32_t y = 0; y < d.Height; y += 2U) {
+                const auto* zeile = reinterpret_cast<const std::uint32_t*>(static_cast<const unsigned char*>(m.pData) + y * m.RowPitch);
+                for (std::uint32_t x = 0; x < d.Width; x += 2U) {
+                    const std::uint32_t c = zeile[x] & 0x00FFFFFFU;
+                    if (farben.size() < 4096U && std::find(farben.begin(), farben.end(), c) == farben.end()) { farben.push_back(c); }
+                }
+            }
+            ergebnis.breite = static_cast<int>(d.Width);
+            ergebnis.hoehe = static_cast<int>(d.Height);
+            ergebnis.farben = static_cast<int>(farben.size());
+            ergebnis.da = true;
+            g_context->Unmap(kopie, 0);
+        }
+        kopie->Release();
+    }
+    tex->Release();
+    g_vpBild = ergebnis;
+}
+#endif
+
+double g_plattformMs = 0.0;
+
+void plattformFenster() {
+    if ((ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) == 0) { return; }
+    const auto anfang = std::chrono::steady_clock::now();
+    ImGui::UpdatePlatformWindows();
+    ImGuiPlatformIO& pio = ImGui::GetPlatformIO();
+    for (int i = 1; i < pio.Viewports.Size; ++i) {
+        ImGuiViewport* v = pio.Viewports[i];
+        if ((v->Flags & ImGuiViewportFlags_IsMinimized) != 0) { continue; }
+        if (pio.Platform_RenderWindow != nullptr) { pio.Platform_RenderWindow(v, nullptr); }
+        if (pio.Renderer_RenderWindow != nullptr) { pio.Renderer_RenderWindow(v, nullptr); }
+#ifdef BHED_WITH_D3D11
+        if (g_backend == Backend::Direct3D11 && g_vpBildFuer != 0 && v->ID == g_vpBildFuer) {
+            g_vpBildFuer = 0;
+            viewportBildLesen(v->ID);
+        }
+#endif
+    }
+    for (int i = 1; i < pio.Viewports.Size; ++i) {
+        ImGuiViewport* v = pio.Viewports[i];
+        if ((v->Flags & ImGuiViewportFlags_IsMinimized) != 0) { continue; }
+        if (pio.Platform_SwapBuffers != nullptr) { pio.Platform_SwapBuffers(v, nullptr); }
+        if (pio.Renderer_SwapBuffers != nullptr) { pio.Renderer_SwapBuffers(v, nullptr); }
+    }
+    if (g_backend == Backend::OpenGL3) { wglMakeCurrent(g_dc, g_rc); }
+    g_plattformMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - anfang).count();
+}
+}  // namespace
+
+double plattformMs() { return g_plattformMs; }
+
+void viewportBildAnfordern(unsigned id) {
+    g_vpBildFuer = id;
+    g_vpBild = ViewportBild{};
+}
+
+ViewportBild viewportBild() { return g_vpBild; }
+
+void plattformHakenSetzen() {
+    if (g_backend != Backend::OpenGL3) { return; }
+    ImGuiPlatformIO& pio = ImGui::GetPlatformIO();
+    pio.Renderer_CreateWindow = glFensterAnlegen;
+    pio.Renderer_DestroyWindow = glFensterWeg;
+    pio.Renderer_SwapBuffers = glFensterTauschen;
+    pio.Platform_RenderWindow = glFensterZeichnen;
+}
+
 void present(float r, float g, float bl) {
     if (!g_ready) {
         return;
@@ -903,6 +1053,7 @@ void present(float r, float g, float bl) {
         g_context->ClearRenderTargetView(g_rtv, clear);
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
         if (!g_fotoPfad.empty()) { fotoSchreiben(); }
+        plattformFenster();
         const HRESULT hr = g_swap->Present(1, 0);
         if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET || g_verlustSpielen) {
             // Den Grund VOR dem Freigeben fragen - danach gibt es ihn nicht mehr.
@@ -925,6 +1076,7 @@ void present(float r, float g, float bl) {
         glClearColor(r, g, bl, 1.0F);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        plattformFenster();
         SwapBuffers(g_dc);
     }
 }

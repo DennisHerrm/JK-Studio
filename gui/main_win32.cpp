@@ -13,6 +13,7 @@
 
 #include "update.h"
 #include "backend.h"
+#include "fenster_dock.h"
 #include "gpumap.h"
 
 #include "bhed/gpustate.h"
@@ -247,6 +248,8 @@ LRESULT WINAPI wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             HDROP d = reinterpret_cast<HDROP>(wParam);
             POINT pt{};
             DragQueryPoint(d, &pt);
+            // dock1: ImGui rechnet mit eigenen Fenstern in Bildschirmpunkten.
+            if ((ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) != 0) { ClientToScreen(hwnd, &pt); }
             const UINT n = DragQueryFileW(d, 0xFFFFFFFF, nullptr, 0);
             for (UINT i = 0; i < n; ++i) {
                 const UINT len = DragQueryFileW(d, i, nullptr, 0);
@@ -721,11 +724,64 @@ void schriftenNeuBauen() { g_fontsDirty = true; }
 
 namespace {
 
+// --- dock1: ImGuis Win32-Anbindung, passend zur Grafikschnittstelle ------------
+//
+// Unter OpenGL braucht jedes eigene Fenster einen eigenen Geraetekontext
+// (CS_OWNDC, ImGui_ImplWin32_InitForOpenGL) und die Kontextumschaltung aus
+// render::plattformHakenSetzen. Im Selbsttest erscheinen eigene Fenster wie das
+// Hauptfenster: nicht aktiviert, ganz hinten, ohne Knopf in der Taskleiste -
+// der Test speist Maus und Tasten selbst ein und darf dem Anwender nicht den
+// Fokus nehmen.
+void (*g_zeigenOriginal)(ImGuiViewport*) = nullptr;
+
+void zeigenImSelbsttest(ImGuiViewport* v) {
+    v->Flags |= ImGuiViewportFlags_NoFocusOnAppearing;
+    g_zeigenOriginal(v);
+    SetWindowPos(static_cast<HWND>(v->PlatformHandle), HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+}
+
+void fokusImSelbsttest(ImGuiViewport*) {}
+
+void imguiWin32Starten(HWND hwnd) {
+    if (bhed::render::current() == bhed::render::Backend::OpenGL3) {
+        ImGui_ImplWin32_InitForOpenGL(hwnd);
+    } else {
+        ImGui_ImplWin32_Init(hwnd);
+    }
+    bhed::render::plattformHakenSetzen();
+    if (std::getenv("BHED_EDITORTEST") != nullptr) {
+        ImGuiPlatformIO& pio = ImGui::GetPlatformIO();
+        g_zeigenOriginal = pio.Platform_ShowWindow;
+        pio.Platform_ShowWindow = zeigenImSelbsttest;
+        pio.Platform_SetWindowFocus = fokusImSelbsttest;
+        ImGui::GetIO().ConfigViewportsNoTaskBarIcon = true;
+    }
+}
+
 bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = nullptr;
+    // --- dock1: Panels andocken und als eigene Fenster herausnehmen ------------
+    //
+    // DockingEnable: Fenster lassen sich zu Reitern und Teilungen
+    // zusammensetzen. ViewportsEnable: ein Fenster, das aus dem Hauptfenster
+    // gezogen wird, wird ein eigenes Windows-Fenster (zweiter Bildschirm) -
+    // ImGui rechnet dann in Bildschirmpunkten statt in Punkten des
+    // Hauptfensters (ImGui::GetMainViewport()->Pos ist die Ecke des
+    // Hauptfensters). Die Schrift folgt dem Massstab des Bildschirms, auf dem
+    // ein Fenster steht (ConfigDpiScaleFonts; fuer das Hauptfenster derselbe
+    // Wert wie dpiScale), und die Groesse eines Fensters beim Wechsel auf
+    // einen Bildschirm mit anderem Massstab (ConfigDpiScaleViewports).
+    // Die Fensterlagen haelt fenster_dock.cpp in den Einstellungen; ImGui
+    // meldet Aenderungen nach einer Sekunde (IniSavingRate, ohne Datei:
+    // io.WantSaveIniSettings).
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable;
+    io.ConfigDpiScaleFonts = true;
+    io.ConfigDpiScaleViewports = true;
+    io.ConfigDockingTransparentPayload = true;
+    io.IniSavingRate = 1.0F;
     // Stufe 7 Punkt 6d: ImGuis Warnung "Programmer error: N visible items with
     // conflicting ID!" ist fuer Entwickler (imgui.cpp: "Set
     // io.ConfigDebugHighlightIdConflicts=false to disable this warning in
@@ -760,7 +816,7 @@ bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app)
             ImGui::DestroyContext();
             return false;
         }
-        ImGui_ImplWin32_Init(hwnd);
+        imguiWin32Starten(hwnd);
         g_fontsDirty = true;
         // Die Symboltextur gehoert der Grafikschnittstelle. Beim Wechsel von
         // Direct3D auf OpenGL ist die alte weg.
@@ -828,7 +884,7 @@ bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app)
         // beenden statt mit einem toten Geraet weiterzulaufen.
         if (neuaufbauOffen) {
             if (bhed::render::init(preferred, reinterpret_cast<HWNDHandle>(hwnd))) {
-                ImGui_ImplWin32_Init(hwnd);
+                imguiWin32Starten(hwnd);
                 neuaufbauOffen = false;
                 neuaufbauFehler = 0;
                 bhed::gui::resetIconTexture();
@@ -867,6 +923,8 @@ bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app)
         ImGui_ImplWin32_NewFrame();
         // Nur im Selbsttest wirksam: die simulierte Maus nach der echten.
         bhed::gui::selbsttestVorBild();
+        // dock1: eine geladene Anordnung zwischen zwei Bildern uebernehmen.
+        bhed::gui::dock::vorBild();
         ImGui::NewFrame();
         bhed::gui::draw();
         // Hat der Beenden-Knopf gedrueckt? Er kennt kein Fenster, deshalb
@@ -1425,6 +1483,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         SystemParametersInfoW(SPI_GETWORKAREA, 0, &wa, 0);
         SetWindowPos(hwnd, HWND_BOTTOM, wa.left, wa.top, wa.right - wa.left,
                      wa.bottom - wa.top, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        // dock1: mit eigenen Fenstern (ImGuiConfigFlags_ViewportsEnable)
+        // rechnet ImGui in Bildschirmpunkten. Die Selbsttests und ihre
+        // Fotoausschnitte rechnen in Punkten des Hauptfensters - also die
+        // Innenflaeche auf den Bildschirmursprung legen, gleich gross wie
+        // vorher. Der Selbsttest dock1 prueft die Anordnung auch mit
+        // verschobenem Fenster (dort ist die Ecke nicht 0,0).
+        POINT ecke{0, 0};
+        if (ClientToScreen(hwnd, &ecke) != 0) {
+            SetWindowPos(hwnd, HWND_BOTTOM, wa.left - ecke.x, wa.top - ecke.y, wa.right - wa.left, wa.bottom - wa.top,
+                         SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        }
         bhed::diag::detail("Selbsttest: Fenster im Hintergrund, nicht aktiviert");
     } else if (wiederhergestellt) {
         // SetWindowPlacement hat es schon gezeigt.

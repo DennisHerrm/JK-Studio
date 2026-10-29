@@ -28,6 +28,7 @@
 #include "elemente.h"   // rc601 tour: das Element-Register (auch ohne Selbsttest)
 #include "tour.h"       // rc601 tour: Tutorials im Programm
 #include "hilfe.h"      // H1: der Helfer (F1)
+#include "fenster_dock.h"   // dock1: Panels herausnehmen, Anordnungen
 #include "karteneditor.h"   // Stufe 1b: der Arbeitsbereich Karten-Editor
 #include "menueeditor.h"    // Menue-Editor M1: der Arbeitsbereich Menu Editor
 
@@ -5161,6 +5162,7 @@ void doAppend() {
 }
 
 #include "app_anordnung.inc"   // Stufe 8d: pk3, Undo-Liste, Klaenge, Karte, Symbole, Anordnung, Compile-Knopf
+#include "app_dock.inc"   // dock1: Panels in eigenen Fenstern, Spalten ohne sie
 }  // namespace
 
 // Menue-Editor M1: der Rand des Skript-Editors (rinnenBreite/zeichneRinne aus
@@ -5293,6 +5295,11 @@ void draw() {
         g_app->themePending = false;
     }
 
+    // dock1: gespeicherte Anordnung beim Start, Fensterlagen in die
+    // Einstellungen, Fenster von fehlenden Bildschirmen zurueck - vor dem
+    // ersten Fenster des Bildes.
+    dock::bildAnfang();
+
     const ImGuiViewport* vp = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(vp->WorkPos);
     ImGui::SetNextWindowSize(vp->WorkSize);
@@ -5312,6 +5319,10 @@ void draw() {
     ImGui::Begin(title.c_str(), nullptr,
                  ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
                  ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar |
+                 // dock1: kein anderes Fenster wird in das Hauptfenster
+                 // gesetzt (ImGuiConfigFlags_DockingEnable) - herausgenommene
+                 // Panels kommen ueber ihren Platz zurueck (fenster_dock.h).
+                 ImGuiWindowFlags_NoDocking |
                  // Das Hauptfenster rollt nie. shank: "wenn ich vor und
                  // zurueck scrolle bewegen sich die Tabs" - der Inhalt war in
                  // der Kartenansicht 14 Punkte zu hoch (siehe computeLayout),
@@ -5800,8 +5811,14 @@ void draw() {
         drawKartenEditorBereich(l);
     } else if (g_app->leftMode == 4) {
         drawMenueEditorBereich(l);
+    } else if (spaltenFrei()) {
+        // dock1: Script Flow oder der Inhalt der linken Spalte steht in einem
+        // eigenen Fenster - die uebrigen teilen sich den Platz (app_dock.inc).
+        drawSpaltenFrei(l);
     } else {
-        const bool mitKnoepfen = (g_app->leftMode != 1);
+        // dock1: Actions in einem eigenen Fenster - dann zwei Spalten wie bei
+        // der Mission.
+        const bool mitKnoepfen = (g_app->leftMode != 1) && dock::zuhause(aktionenPanel());
         const int spalten = mitKnoepfen ? 3 : 2;
         // --- KEINE gespeicherten Spaltenbreiten -------------------------
         //
@@ -5997,7 +6014,7 @@ void draw() {
             // Renderer ziehen").
             const float minFlow = ImGui::GetFontSize() * 10.0F;
             const float maxEvents =
-                std::max(minEvents, gesamtB - l.buttonsW - minFlow);
+                std::max(minEvents, gesamtB - (mitKnoepfen ? l.buttonsW : 0.0F) - minFlow);
             const float breiteEvents =
                 std::clamp(gesamtB * linksAnteil, minEvents, maxEvents);
             // NoResize: gezogen wird ueber eigene Griffe (unten, nach
@@ -6335,6 +6352,7 @@ void draw() {
 
             ImGui::TableNextColumn();
             drawFlowArea(l);
+            dock::heimPlatz(flussPanel(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
 
             if (mitKnoepfen) {
                 ImGui::TableNextColumn();
@@ -6391,6 +6409,7 @@ void draw() {
                     }
                 }
                 drawButtonColumns(l);
+                dock::heimPlatz(aktionenPanel(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
             }
             ImGui::EndTable();
             // Die GANZE Tabelle: erst nach EndTable steht ihre Hoehe fest -
@@ -6535,8 +6554,11 @@ void draw() {
             drawTimeline();
         }
         ImGui::EndChild();
+        dock::heimPlatz(g_app->leftMode == 2 ? "modell.leiste" : "mission.zeitleiste", ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
         ImGui::PopStyleColor();
     }
+    // dock1: die herausgenommenen Panels in ihren eigenen Fenstern.
+    drawDockFenster(l);
 
     // --- Die Aufteilung in Zahlen ---------------------------------------
     //

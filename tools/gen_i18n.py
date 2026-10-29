@@ -2225,6 +2225,8 @@ from i18n_mission1 import MISSION1  # noqa: E402  (mission1: Fehler aus shanks T
 S += MISSION1
 from i18n_menue2 import MENUE2  # noqa: E402  (Menue-Editor M2)
 S += MENUE2
+from i18n_dock1 import DOCK1  # noqa: E402  (dock1: Fenster frei anordnen, mehrere Bildschirme)
+S += DOCK1
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

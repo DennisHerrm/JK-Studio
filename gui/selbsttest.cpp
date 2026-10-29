@@ -53,6 +53,8 @@
 #include "bhed/roffanim.h"
 #include "bhed/kartenpruefung.h"   // rc602
 #include "karteneditor.h"           // Stufe 1b: der Karten-Editor
+#include "fenster_dock.h"           // dock1: Panels herausnehmen, Anordnungen
+#include "bhed/fensteranordnung.h"
 #include "menueeditor.h"            // Menue-Editor M1
 #include "bhed/menue/menue.h"
 #include "bhed/menue/roq.h"
@@ -5475,6 +5477,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_handbuch.inc"   // Stufe 8d: grosse Karte, Stufe 8g und die Bildlaeufe des Handbuchs
 #include "selbsttest_menue.inc"      // Menue-Editor M1: jede Funktion mit Wirkungspruefung
 #include "selbsttest_mission1.inc"   // mission1: Gesicht, Gizmo beim Abspielen, Zwischenpunkt, Drehschluessel
+#include "selbsttest_dock1.inc"   // dock1: Fenster frei anordnen, mehrere Bildschirme
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {
@@ -5696,14 +5699,29 @@ Ablauf g_ablauf;
 
 }  // namespace
 
+// dock1: mit eigenen Fenstern (ImGuiConfigFlags_ViewportsEnable) entscheidet
+// das Fenster unter der Maus, welche ImGui-Fenster getroffen werden koennen.
+// ImGui_ImplWin32_UpdateMouseData meldet es nach dem ECHTEN Zeiger
+// (WindowFromPoint) - im Selbsttest steht der irgendwo. Deshalb meldet die
+// simulierte Maus ihr Fenster selbst, mit derselben Suche, die ImGui ohne
+// Meldung des Backends nimmt (oberstes Fenster, das die Stelle enthaelt).
+void mausFensterMelden(ImVec2 p) {
+    if ((ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) == 0) { return; }
+    const ImGuiViewportP* v = ImGui::FindHoveredViewportFromPlatformWindowStack(p);
+    ImGui::GetIO().AddMouseViewportEvent(v != nullptr ? v->ID : 0);
+}
+
 void selbsttestVorBild() {
+    dock1VorBild();
     if (karteneditor::zeigerSim().an) {   // Stufe 7 Punkt 6c: der simulierte Zeiger (wie Windows)
         karteneditor::zeigerSimVorBild();
         g_maus = ImVec2{karteneditor::zeigerSim().x, karteneditor::zeigerSim().y};
+        mausFensterMelden(g_maus);
         return;
     }
     if (g_mausAn) {
         ImGui::GetIO().AddMousePosEvent(g_maus.x, g_maus.y);
+        mausFensterMelden(g_maus);
     }
 }
 
@@ -5785,6 +5803,9 @@ void selbsttest() {
     static const bool nurJk2 = std::strcmp(modus, "jk2") == 0;
     // mission1: die vier Fehler aus shanks Test nach rc606.
     static const bool nurMission1 = std::strcmp(modus, "mission1") == 0;
+    // dock1: Fenster frei anordnen, mehrere Bildschirme.
+    static const bool nurDock1 = std::strcmp(modus, "dock1") == 0;
+    static const bool nurDock1Neustart = std::strcmp(modus, "dock1neustart") == 0;
     // Missionsbau im Map-Tab: jeder Knopf, Kombinationen, Zufall (11.10.).
     static const bool nurMissionsbau = std::strcmp(modus, "missionsbau") == 0;
     // rc601 ton: der Vorschauton wie im Spiel (Hoerer, PVS, Schleifen, Pegel).
@@ -5886,6 +5907,14 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurMission1) {
                 a.schritte = mission1Schritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurDock1) {
+                a.schritte = dock1Schritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurDock1Neustart) {
+                a.schritte = dock1NeustartSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurJk2) {

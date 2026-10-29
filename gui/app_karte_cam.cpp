@@ -739,6 +739,11 @@ TestZeiger g_testZeiger;
 
 void* hauptfenster() { return ImGui::GetMainViewport()->PlatformHandleRaw; }
 
+// dock1: mit eigenen Fenstern (ImGuiConfigFlags_ViewportsEnable) rechnet ImGui
+// in Bildschirmpunkten - fuer die Kamera in jedem Fenster, auch auf einem
+// zweiten Bildschirm. Ohne sie in Punkten des Hauptfensters.
+bool bildschirmPunkte() { return (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) != 0; }
+
 }  // namespace
 
 bool zeigerHolen(ImVec2& p) {
@@ -762,7 +767,7 @@ bool zeigerHolen(ImVec2& p) {
     }
     int x = 0;
     int y = 0;
-    if (!platform::zeigerImFenster(hauptfenster(), x, y)) { return false; }
+    if (!(bildschirmPunkte() ? platform::zeigerLage(x, y) : platform::zeigerImFenster(hauptfenster(), x, y))) { return false; }
     p = ImVec2{static_cast<float>(x), static_cast<float>(y)};
     return true;
 }
@@ -781,7 +786,11 @@ void zeigerSetzen(ImVec2 p) {
         g_testZeiger.io = ImGui::GetIO().MousePos;
         return;
     }
-    (void)platform::zeigerImFensterSetzen(hauptfenster(), static_cast<int>(std::floor(p.x)), static_cast<int>(std::floor(p.y)));
+    if (bildschirmPunkte()) {
+        (void)platform::zeigerSetzen(static_cast<int>(std::floor(p.x)), static_cast<int>(std::floor(p.y)));
+    } else {
+        (void)platform::zeigerImFensterSetzen(hauptfenster(), static_cast<int>(std::floor(p.x)), static_cast<int>(std::floor(p.y)));
+    }
 }
 
 bool zeigerDelta(ImVec2 anker, float qt, float& restX, float& restY, int& dx, int& dy) {

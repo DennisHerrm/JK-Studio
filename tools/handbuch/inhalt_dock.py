@@ -1,0 +1,105 @@
+"""dock1: Fenster frei anordnen, mehrere Bildschirme. Der Selbsttest
+gui/selbsttest_dock1.inc (BHED_EDITORTEST=dock1) prueft jede Funktion; die
+Bilder nimmt BHED_DOCK_NUR=fotos auf.
+"""
+from inhalt_basis import T
+
+FENSTER_ANORDNEN = {
+    "id": "fenster_anordnen",
+    "gruppe": "start",
+    "titel": T("Arrange windows and screens", "Fenster und Bildschirme anordnen", "排列窗口和屏幕", "ウィンドウと画面の配置"),
+    "kurz": T(
+        "Take any panel out of the main window, put it on a second screen, combine panels as you like and save the arrangement under a name - per area.",
+        "Jedes Panel aus dem Hauptfenster nehmen, auf einen zweiten Bildschirm legen, Panels beliebig zusammensetzen und die Anordnung unter einem Namen speichern - je Bereich.",
+        "将任意面板移出主窗口,放到第二个屏幕上,随意组合面板,并按区域以名称保存布局。",
+        "どのパネルもメインウィンドウから取り出して 2 台目の画面に置き、自由に組み合わせ、配置を名前を付けて保存できます(領域ごと)。"),
+    "bloecke": [
+        ("p", T(
+            "Every area - **{{ViewEvents}}**, **{{ViewMap}}**, **{{ViewModel}}**, **{{ViewMapEditor}}** and **{{ViewMenuEditor}}** - is made of panels. As long as you move nothing, every panel stays in its place in the main window: the standard layout, exactly as before.",
+            "Jeder Bereich - **{{ViewEvents}}**, **{{ViewMap}}**, **{{ViewModel}}**, **{{ViewMapEditor}}** und **{{ViewMenuEditor}}** - besteht aus Panels. Solange du nichts verschiebst, steht jedes Panel an seinem Platz im Hauptfenster: die Standardanordnung, genau wie vorher.",
+            "每个区域——**{{ViewEvents}}**、**{{ViewMap}}**、**{{ViewModel}}**、**{{ViewMapEditor}}** 和 **{{ViewMenuEditor}}**——都由面板组成。只要不移动任何东西,每个面板都留在主窗口中的原位置:即与以前完全相同的标准布局。",
+            "各領域(**{{ViewEvents}}**、**{{ViewMap}}**、**{{ViewModel}}**、**{{ViewMapEditor}}**、**{{ViewMenuEditor}}**)はパネルでできています。何も動かさない限り、各パネルはメインウィンドウの元の場所にあります。これが以前とまったく同じ標準レイアウトです。")),
+        ("h2", "herausnehmen", T("Take a panel out", "Ein Panel herausnehmen", "移出面板", "パネルを取り出す")),
+        ("img", "h_dock_menue", T("The menu {{DockMenu}} of the mission: show or hide panels, put them into their own window, save and load layouts.",
+                                  "Das Menü {{DockMenu}} der Mission: Panels zeigen oder ausblenden, in ein eigenes Fenster nehmen, Anordnungen speichern und laden.",
+                                  "任务的 {{DockMenu}} 菜单:显示或隐藏面板、放入独立窗口、保存和加载布局。",
+                                  "ミッションの {{DockMenu}} メニュー:パネルの表示・非表示、独立したウィンドウへの移動、レイアウトの保存と読み込み。")),
+        ("steps", [
+            T("Open the menu **{{DockMenu}}** (in the map editor it is the last menu, after NetRadiant's).",
+              "Öffne das Menü **{{DockMenu}}** (im Karten-Editor das letzte Menü, hinter denen von NetRadiant).",
+              "打开 **{{DockMenu}}** 菜单(在地图编辑器中它是最后一个菜单,位于 NetRadiant 的菜单之后)。",
+              "**{{DockMenu}}** メニューを開きます(マップエディターでは NetRadiant のメニューの後ろ、最後のメニューです)。"),
+            T("Under **{{DockOwnWindow}}** click the panel, for example the timeline. It becomes a window of its own; its place in the main window goes to its neighbours - the mission view gets taller.",
+              "Klicke unter **{{DockOwnWindow}}** das Panel an, zum Beispiel die Zeitleiste. Es wird ein eigenes Fenster; sein Platz im Hauptfenster geht an die Nachbarn - die Missionsansicht wird höher.",
+              "在 **{{DockOwnWindow}}** 下单击面板,例如时间轴。它会成为独立窗口;它在主窗口中的位置让给相邻面板——任务视图会变高。",
+              "**{{DockOwnWindow}}** の下でパネル(たとえばタイムライン)をクリックします。独立したウィンドウになり、メインウィンドウでの場所は隣のパネルに譲られます。ミッションビューが高くなります。"),
+            T("Drag the window by its title bar out of the main window: it becomes a real Windows window and can go onto a second screen. It keeps drawing there - the 3D views and the real-time light of the map editor included.",
+              "Ziehe das Fenster an seiner Titelleiste aus dem Hauptfenster: es wird ein echtes Windows-Fenster und kann auf einen zweiten Bildschirm. Es zeichnet dort weiter - die 3D-Ansichten und das Echtzeit-Licht des Karten-Editors eingeschlossen.",
+              "拖动窗口的标题栏将其拖出主窗口:它会成为真正的 Windows 窗口,可以放到第二个屏幕上。它在那里继续绘制——包括 3D 视图和地图编辑器的实时光照。",
+              "タイトルバーをつかんでウィンドウをメインウィンドウの外へドラッグすると、本物の Windows ウィンドウになり、2 台目の画面にも置けます。そこでも描画を続けます(3D ビューやマップエディターのリアルタイムライトも含む)。"),
+        ]),
+        ("p", T(
+            "**{{DockPanels}}** hides a panel completely; its space goes to the neighbours as well. The section **{{DockOther}}** opens the helper, the tutorials and the messages - they are windows of their own anyway.",
+            "**{{DockPanels}}** blendet ein Panel ganz aus; auch sein Platz geht an die Nachbarn. Der Abschnitt **{{DockOther}}** öffnet den Helfer, die Tutorials und die Meldungen - sie sind ohnehin eigene Fenster.",
+            "**{{DockPanels}}** 可完全隐藏面板;它的空间同样让给相邻面板。**{{DockOther}}** 部分可打开助手、教程和消息——它们本来就是独立窗口。",
+            "**{{DockPanels}}** でパネルを完全に隠せます。その場所も隣に譲られます。**{{DockOther}}** の項目ではヘルパー、チュートリアル、メッセージを開きます(もともと独立したウィンドウです)。")),
+        ("h2", "zusammensetzen", T("Combine panels", "Panels zusammensetzen", "组合面板", "パネルを組み合わせる")),
+        ("img", "h_dock_fenster", T("Script Flow dropped onto the timeline window: both panels in one window, as tabs. The mission view uses the whole main window.",
+                                    "Script Flow auf das Fenster der Zeitleiste gezogen: beide Panels in einem Fenster, als Reiter. Die Missionsansicht nutzt das ganze Hauptfenster.",
+                                    "将 Script Flow 拖到时间轴窗口上:两个面板以选项卡形式位于同一窗口中。任务视图占用整个主窗口。",
+                                    "Script Flow をタイムラインのウィンドウにドロップ:2 つのパネルがタブとして 1 つのウィンドウに入ります。ミッションビューはメインウィンドウ全体を使います。"), "breit"),
+        ("p", T(
+            "Drag the window of one panel onto the window of another: markers appear. Drop it on the middle marker and both become tabs of one window; drop it on an arrow and they sit side by side or one above the other. The dividers between them can be dragged, a tab can be dragged out again. This works for the panels of one area; dialogs such as Find stay on their own.",
+            "Ziehe das Fenster eines Panels auf das Fenster eines anderen: es erscheinen Markierungen. Auf der mittleren abgelegt, werden beide Reiter eines Fensters; auf einem Pfeil stehen sie nebeneinander oder übereinander. Die Trennlinien dazwischen lassen sich ziehen, ein Reiter lässt sich wieder herausziehen. Das geht mit den Panels eines Bereichs; Dialoge wie Suchen bleiben für sich.",
+            "将一个面板的窗口拖到另一个面板的窗口上:会出现标记。放在中间标记上,两者成为同一窗口的选项卡;放在箭头上,它们并排或上下排列。中间的分隔线可以拖动,选项卡也可以再拖出来。这适用于同一区域的面板;“查找”等对话框保持独立。",
+            "あるパネルのウィンドウを別のパネルのウィンドウにドラッグするとマーカーが表示されます。中央のマーカーにドロップすると 1 つのウィンドウのタブになり、矢印にドロップすると左右または上下に並びます。間の区切りはドラッグでき、タブは再びドラッグで取り出せます。同じ領域のパネル同士で使えます。検索などのダイアログは独立したままです。")),
+        ("h2", "andocken", T("Dock a panel back", "Ein Panel wieder andocken", "重新停靠面板", "パネルを元に戻す")),
+        ("img", "h_dock_zurueck", T("Dragging a panel window over the main window shows its old place: release it there to dock it back.",
+                                    "Zieht man ein Panelfenster über das Hauptfenster, zeigt es seinen alten Platz: dort loslassen dockt es wieder an.",
+                                    "将面板窗口拖过主窗口时会显示其原位置:在那里松开即可重新停靠。",
+                                    "パネルのウィンドウをメインウィンドウの上へドラッグすると元の場所が表示されます。そこで離すと元に戻ります。")),
+        ("list", [
+            T("Drag the window onto its old place in the main window (highlighted, **{{DockDropHere}}**) and release it.",
+              "Ziehe das Fenster auf seinen alten Platz im Hauptfenster (hervorgehoben, **{{DockDropHere}}**) und lass es los.",
+              "将窗口拖到主窗口中的原位置(高亮显示,**{{DockDropHere}}**)并松开。",
+              "ウィンドウをメインウィンドウの元の場所(強調表示、**{{DockDropHere}}**)へドラッグして離します。"),
+            T("Or close the window with its **x** - the panel goes back to its place, nothing is lost.",
+              "Oder schließe das Fenster mit seinem **x** - das Panel kehrt an seinen Platz zurück, nichts geht verloren.",
+              "或者用窗口的 **x** 关闭它——面板回到原位置,不会丢失任何内容。",
+              "またはウィンドウの **x** で閉じます。パネルは元の場所に戻り、何も失われません。"),
+            T("Or click the panel under **{{DockOwnWindow}}** again.",
+              "Oder klicke das Panel unter **{{DockOwnWindow}}** noch einmal an.",
+              "或者再次单击 **{{DockOwnWindow}}** 下的面板。",
+              "または **{{DockOwnWindow}}** の下のパネルをもう一度クリックします。"),
+        ]),
+        ("h2", "anordnungen", T("Save, load and reset layouts", "Anordnungen speichern, laden, zurücksetzen", "保存、加载和重置布局", "レイアウトの保存・読み込み・リセット")),
+        ("p", T(
+            "Each area has its own layouts. **{{DockSaveAs}}** stores which panels are in their own window or hidden, where these windows are, on which screen, and how they are combined. **{{DockLoad}}** switches to a saved layout, **{{DockDelete}}** removes one, **{{DockReset}}** brings every panel of the area back to the standard layout. The current layout of every area is kept in the settings and is there again at the next start.",
+            "Jeder Bereich hat seine eigenen Anordnungen. **{{DockSaveAs}}** merkt sich, welche Panels in einem eigenen Fenster stehen oder ausgeblendet sind, wo diese Fenster liegen, auf welchem Bildschirm und wie sie zusammengesetzt sind. **{{DockLoad}}** wechselt zu einer gespeicherten Anordnung, **{{DockDelete}}** entfernt eine, **{{DockReset}}** bringt jedes Panel des Bereichs zurück in die Standardanordnung. Die laufende Anordnung jedes Bereichs steht in den Einstellungen und ist beim nächsten Start wieder da.",
+            "每个区域都有自己的布局。**{{DockSaveAs}}** 会记住哪些面板位于独立窗口或已隐藏、这些窗口的位置、所在屏幕以及组合方式。**{{DockLoad}}** 切换到已保存的布局,**{{DockDelete}}** 删除布局,**{{DockReset}}** 将该区域的所有面板恢复为标准布局。每个区域的当前布局保存在设置中,下次启动时会恢复。",
+            "領域ごとに独自のレイアウトがあります。**{{DockSaveAs}}** は、どのパネルが独立したウィンドウにあるか・隠れているか、それらのウィンドウの位置と画面、組み合わせ方を記憶します。**{{DockLoad}}** で保存したレイアウトに切り替え、**{{DockDelete}}** で削除し、**{{DockReset}}** でその領域のすべてのパネルを標準レイアウトに戻します。各領域の現在のレイアウトは設定に保存され、次回の起動時に復元されます。")),
+        ("h2", "bildschirme", T("Screens that change", "Wenn sich Bildschirme ändern", "屏幕发生变化时", "画面が変わったとき"), ),
+        ("list", [
+            T("A screen is unplugged or arranged differently: windows that were on it come back onto the screen of the main window, at their size.",
+              "Ein Bildschirm wird abgezogen oder anders angeordnet: Fenster, die darauf standen, kommen auf den Bildschirm des Hauptfensters zurück, in ihrer Größe.",
+              "拔下屏幕或改变屏幕排列时:原来位于其上的窗口会以原大小回到主窗口所在的屏幕。",
+              "画面を外したり配置を変えたりすると、その画面にあったウィンドウは元の大きさのままメインウィンドウの画面に戻ります。"),
+            T("A screen is smaller than a window: the window is made just small enough to fit.",
+              "Ein Bildschirm ist kleiner als ein Fenster: das Fenster wird gerade so weit verkleinert, dass es passt.",
+              "屏幕比窗口小:窗口会缩小到刚好能放下。",
+              "画面がウィンドウより小さい場合、ウィンドウは収まるちょうどの大きさまで縮小されます。"),
+            T("A window moves onto a screen with a different scale (100 %, 150 % ...): its size and text follow the scale of that screen.",
+              "Ein Fenster kommt auf einen Bildschirm mit anderem Maßstab (100 %, 150 % ...): Größe und Schrift folgen dem Maßstab dieses Bildschirms.",
+              "窗口移到缩放比例不同的屏幕(100%、150%……)上:其大小和文字会跟随该屏幕的缩放比例。",
+              "ウィンドウを拡大率の異なる画面(100%、150% など)へ移すと、大きさと文字がその画面の拡大率に合わせて変わります。"),
+        ]),
+        ("h2", "karteneditor", T("Map editor", "Karten-Editor", "地图编辑器", "マップエディター")),
+        ("p", T(
+            "NetRadiant's layouts stay the default (Preferences > Layout). In **Regular** the XY view, the console, the camera and the texture browser (or the built-in entity window) can be taken out, in **Split** the four views; their place goes to the neighbours like when a view is hidden in NetRadiant. In **Floating** the views float anyway. A view in its own window draws there with everything it shows in the main window; a click into it makes it the active view, keyboard shortcuts and free look then work in that window - on every screen.",
+            "Die Anordnungen von NetRadiant bleiben die Vorgabe (Einstellungen > Layout). In **Regular** lassen sich die XY-Ansicht, die Konsole, die Kamera und der Texturbrowser (oder das eingebaute Entity-Fenster) herausnehmen, in **Split** die vier Ansichten; ihr Platz geht an die Nachbarn wie beim Ausblenden einer Ansicht in NetRadiant. In **Floating** schweben die Ansichten ohnehin. Eine Ansicht in einem eigenen Fenster zeichnet dort alles, was sie im Hauptfenster zeigt; ein Klick hinein macht sie zur aktiven Ansicht, Tastenkürzel und Umschauen gelten dann in diesem Fenster - auf jedem Bildschirm.",
+            "NetRadiant 的布局仍是默认值(首选项 > 布局)。在 **Regular** 中可以移出 XY 视图、控制台、摄像机和纹理浏览器(或内置实体窗口),在 **Split** 中可以移出四个视图;它们的位置让给相邻视图,就像在 NetRadiant 中隐藏视图一样。在 **Floating** 中视图本来就是浮动的。独立窗口中的视图会绘制它在主窗口中显示的全部内容;单击其中即可使其成为活动视图,快捷键和自由视角随后在该窗口中生效——在任何屏幕上都可以。",
+            "NetRadiant のレイアウトが引き続き既定です(設定 > レイアウト)。**Regular** では XY ビュー、コンソール、カメラ、テクスチャブラウザー(または内蔵のエンティティウィンドウ)を、**Split** では 4 つのビューを取り出せます。その場所は NetRadiant でビューを隠したときと同じく隣に譲られます。**Floating** ではビューはもともと浮いています。独立したウィンドウのビューはメインウィンドウと同じ内容をすべて描画し、クリックするとアクティブなビューになり、ショートカットキーと自由視点はそのウィンドウで働きます(どの画面でも)。")),
+    ],
+}
+
+SEITEN = [FENSTER_ANORDNEN]

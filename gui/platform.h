@@ -126,6 +126,15 @@ bool zeigerLage(int& x, int& y);
 // + SetCursorPos) - beides sofort, fuer den Freelook der Kamera (FreezePointer).
 bool zeigerImFenster(void* fenster, int& x, int& y);
 bool zeigerImFensterSetzen(void* fenster, int x, int y);
+// dock1: den Zeiger auf Bildschirmpunkte setzen (SetCursorPos) - mit eigenen
+// Fenstern rechnet ImGui in Bildschirmpunkten.
+bool zeigerSetzen(int x, int y);
+// dock1, Selbsttest: gibt es das Windows-Fenster und ist es sichtbar; seine
+// Lage und Groesse (ganzes Fenster, Bildschirmpunkte) lesen und setzen - ohne
+// es zu aktivieren, die Z-Folge bleibt.
+bool fensterSichtbar(void* fenster);
+bool fensterLage(void* fenster, int& x, int& y, int& b, int& h);
+bool fensterLageSetzen(void* fenster, int x, int y, int b, int h);
 bool bildschirmFarbe(int x, int y, unsigned char rgb[3]);
 
 // --- Karten-Editor, Textmasse wie Qt 5 (QWindowsFontEngine, GDI) ---------
