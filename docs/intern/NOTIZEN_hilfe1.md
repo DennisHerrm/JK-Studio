@@ -48,7 +48,7 @@ Der `lua_runner` von WhiteoutFlakes wurde bewusst **nicht** übernommen.
 
 Offene Restrisiken: Ein Programm, das als derselbe Windows-Benutzer läuft, kann die DPAPI-Dateien
 entschlüsseln (Grenze von DPAPI). Wer der KI „ohne Nachfrage“ erlaubt, lässt Befehle wie
-`map:SelectAll`+`map:Delete` ohne Rückfrage zu (rückgängig machbar, nicht Datei-bezogen).
+Löschen der Auswahl ohne Rückfrage zu (rückgängig machbar, nicht Datei-bezogen).
 
 ## 3. Ergebnisse je Punkt
 
@@ -76,7 +76,7 @@ entschlüsseln (Grenze von DPAPI). Wer der KI „ohne Nachfrage“ erlaubt, läs
 - `k-modell` (4 Schritte, Modelle): Modus Model (`modus:2`, „Mach es“ erlaubt), Figur im
   NPC-Browser laden (`zahl:modell.figur~`), umsehen/Drehteller (`zahl:modell.blick~`), Skin,
   Skelett oder Texturen umschalten (`zahl:modell.details~`). Selbsttest: Knopf Model, NPC-Browser,
-  „kyle“, Drehteller, Skelett.
+  die erste Figur der Liste (welche es gibt, hängt vom Spiel ab), Drehteller, Skelett.
 - Skript-Touren (5) wie bisher; „Erste Schritte“ beim allerersten Start (Skript, Karte,
   Zwischensequenz, Modell, umsehen).
 - Selbsttest `BHED_EDITORTEST=karteneditor BHED_KARTE_NUR=hilfe1`: das Tutorial der Stufe 8c läuft
@@ -101,7 +101,8 @@ entschlüsseln (Grenze von DPAPI). Wer der KI „ohne Nachfrage“ erlaubt, läs
   („Mein Raum ist viel zu dunkel“, „部屋が暗すぎる“ …) trafen zuerst 13/16, nach dem Ergänzen
   dreier Begriffsgruppen (dunkel→Licht, Design, sagen→Dialog) 16/16. Mit der Kamera-Tour fiel
   „Wo finde ich die Einstellungen?“ auf die Kamera-„Einstellung“ (Doppelsinn im Deutschen) –
-  behoben mit genauen Begriffswörtern (`=einstellungen` zählt nur ungestutzt).
+  behoben mit genauen Begriffswörtern (`=einstellungen` zählt nur ungestutzt). Die Hauptliste
+  ist also nicht unabhängig von den Wortlisten – daher die zweite Messung:
 - **Unabhängige Messung** (24 Fragen, 6 je Sprache, nach dem Abstimmen geschrieben und nicht
   angepasst; hilfetest zeigt sie, ohne Schranke): **18/24 = 75 %** (de 5/6, en 4/6, zh 4/6,
   ja 5/6). Daneben: „Programm auf Japanisch stellen“ (3×: Treffer ist die Handbuchseite
@@ -109,8 +110,7 @@ entschlüsseln (Grenze von DPAPI). Wer der KI „ohne Nachfrage“ erlaubt, läs
   (2×: Lautstärke Musik statt k-effekt-musik), „Figur rennt statt geht“ (Beugung „rennt“).
   Das 85-%-Ziel erfüllt die Hauptliste; für Fragen außerhalb der Wortlisten liegt die
   Trefferquote eher bei drei Vierteln – Verbesserungen in H2 (Beugungen, Untermenü-Inhalte als
-  Suchwörter, Kontext des aktuellen Modus). Die Liste ist also nicht
-  ganz unabhängig; eine neue, unbekannte Liste wäre die nächste Messung (H2).
+  Suchwörter, Kontext des aktuellen Modus).
 - F1 öffnet den Helfer (vorher das Handbuch; „Handbuch“ steht weiter im Help-Menü). Im
   Karten-Editor bleibt F1 wie in NetRadiant „OpenManual“; dort steht der Helfer im Help-Menü
   (Programmliste oben, Abweichung von NRC). `--mcp` startet eine eigene Instanz (keine Übergabe an
@@ -136,7 +136,7 @@ Neue Texte (Helfer, Erste Schritte, KI, MCP): `tools/i18n_hilfe1.py`.
 ### Punkt 5 – Handbuch
 Neue Seite `helfer` („Der Helfer und die Touren“, Gruppe Einstieg) in 4 Sprachen: Helfer, Touren,
 Erste Schritte, Claude fragen, MCP einrichten, **Ist das sicher?** Tutorials-Übersicht nennt
-tut-karte, k-kamera-ansicht und F1. Vier Bilder je Sprache aus dem Selbsttest
+tut-karte, k-kamera-ansicht, k-modell und F1. Vier Bilder je Sprache aus dem Selbsttest
 (`BHED_EDITORTEST=handbuch BHED_HB_NUR=helfer`): der Helfer mit Treffern, „Zeig es mir“ mit
 Hervorhebung, die Rückfrage „Die KI möchte …“ mit dem Symbol „KI verbunden“, der MCP-Abschnitt.
 
@@ -144,24 +144,25 @@ Hervorhebung, die Rückfrage „Die KI möchte …“ mit dem Symbol „KI verbu
 
 | Prüfung | Ergebnis |
 |---|---|
-| Bau Release (alle Ziele, /W4 /WX) | 0 Warnungen |
-| ctest gesamt | erster Lauf 148/149: `exe_importe` meldete das neue `CRYPT32.dll` (DPAPI) – in die Liste der Windows-DLLs aufgenommen; neuer ctest `hilfe_orte`. Nach sauberem Neubau (`--clean-first`, 0 Warnungen): **150/150** (229 s) |
+| Bau Release (alle Ziele, /W4 /WX), sauber neu (`--clean-first`) | 0 Warnungen |
+| Handbuchbilder (`BHED_EDITORTEST=handbuch BHED_HB_NUR=helfer`, 4 Sprachen) | je 4 Fotos, 0 Fehler |
+| ctest gesamt | erster Lauf 148/149: `exe_importe` meldete das neue `CRYPT32.dll` (DPAPI) – in die Liste der Windows-DLLs aufgenommen; neuer ctest `hilfe_orte`. Endstand nach sauberem Neubau (`--clean-first`, 0 Warnungen) mit allen Änderungen: **150/150** (232 s) |
 | tourtest / hilfetest / kitest | grün (Trefferquote 99/99, unabhängig 18/24) |
-| Selbsttest `karteneditor` + `BHED_KARTE_NUR=hilfe1` | 56 OK, 0 FEHLER (Helfer, tut-karte mit echten Aktionen, KI über MCP-HTTP, k-kamera-ansicht) |
+| Selbsttest `karteneditor` + `BHED_KARTE_NUR=hilfe1` | 59 OK, 0 FEHLER (Helfer, tut-karte mit echten Aktionen, KI über MCP-HTTP inkl. Skript-Auftrag, k-kamera-ansicht, k-modell) |
 | Selbsttest `kuerzel` (Tastentest, F1 = Helfer) | 199 OK, 0 FEHLER |
 | Selbsttest `1` | 2645 OK, 0 FEHLER |
 | libFuzzer + ASan (`tools/fuzzziel.cpp`, eigener Bauordner, erstes Byte ≥ 0xF0 = MCP-Dispatcher, HTTP-Leser+Prüfung, Chat-Antwort; 5 Startdateien) | 10 min, 978 859 Läufe, kein Absturz, kein ASan-Fund, 919 MB Spitze |
 
 ## 4. Offen / Ideen für H2
-- Weitere interaktive Touren (häufigste Ziele je Bereich): Kamerafahrt (k-kamera-ansicht),
-  NPC laufen lassen (k-gangart/k-wegpunkte), Skript in der Vorschau abspielen, Mission anlegen
-  (tut-p1), Modell ansehen/Skin wechseln (k-skins), Einstellungen/Spielordner, Update suchen,
+- Weitere interaktive Touren (häufigste Ziele je Bereich): NPC laufen lassen
+  (k-gangart/k-wegpunkte), Skript in der Vorschau abspielen, Mission anlegen (tut-p1), Skins
+  (k-skins), Einstellungen/Spielordner, Update suchen,
   Entity setzen/Felder (k-entity-setzen, k-entity-felder), Tür (k-tuer), Trigger (k-trigger),
   Lichtschwert (k-lichtschwert), Dialog (k-dialog), Zeitleiste (k-zeitleiste-plus), .pk3 einer
   Mission (k-pk3), Suchen/Ersetzen, Lesezeichen, Rückgängig-Liste.
-- Messwerte für Vorschau/Mission/Modell in `tour_messwerte.cpp` (vorschau.laeuft, mission.*, modell.*).
+- Messwerte für Mission und Zeitleiste in `tour_messwerte.cpp` (mission.*, vorschau.laeuft).
 - Helfer: Kontext (aktueller Modus) in die Rangfolge; „Hast du gemeint …?“ bei 0 Treffern;
-  Tastenkürzel als eigene Einträge; Treffer-Messung mit einer unabhängigen Frageliste.
+  Tastenkürzel als eigene Einträge; eine weitere, von Dritten geschriebene Frageliste messen.
 - KI: Streaming der Antwort, Verlauf (mehrere Fragen), Bilder im Chat, MCP-Ressourcen (Handbuch).
 - Vorbedingungen verketten: eine Einstellung im Hauptprogramm, gesucht aus dem Karten-Editor,
   zeigt heute nur „gerade nicht zu sehen“ (Öffner ist das Hauptmenü, das dort fehlt).
@@ -175,28 +176,28 @@ Hervorhebung, die Rückfrage „Die KI möchte …“ mit dem Symbol „KI verbu
 
 ## English
 - **The helper (F1):** write what you want to do in your own words (English, German, Chinese, Japanese). The helper finds the tutorial step, menu entry or setting and shows you where it is - it knows every menu of the program and the map editor, every setting and every page of the guide, and works offline.
-- **Interactive tutorials wait for your real actions** and tell you kindly when something else happened. New: "Your first map" runs inside the map editor, step by step - room, texture, light, player start, build, walk through, .pk3.
+- **Interactive tutorials wait for your real actions** and tell you kindly when something else happened. New: "Your first map" runs inside the map editor, step by step - room, texture, light, player start, build, walk through, .pk3 - and so do "Put a shot where you are looking" (preview) and "Look at a character model".
 - **First start:** "What do you want to do first?" with four goals.
-- **Optional AI, off by default:** ask Claude with your own Anthropic API key, or connect your own AI app over MCP (Claude Desktop, Claude Code, Cursor, VS Code) - stdio without network, or local only with a token. The AI can show you things and, after you confirm, use the program's own commands; one job is one undo step; files are never touched. Guide page "The helper and the tutorials" with "Is this safe?".
+- **Optional AI, off by default:** ask Claude with your own Anthropic API key, or connect your own AI app over MCP (Claude Desktop, Claude Code, Cursor, VS Code) - stdio without network, or local only with a token. The AI can show you things and, after you confirm, use the program's own commands; one job is one undo step; saving or other file commands always ask, and there are no tools for files, the shell or the network. Guide page "The helper and the tutorials" with "Is this safe?".
 - Clearer start texts and ten new explanations in the Help menu and the preferences.
 
 ## Deutsch
 - **Der Helfer (F1):** Schreib in eigenen Worten, was du tun willst (Deutsch, Englisch, Chinesisch, Japanisch). Der Helfer findet den Tutorial-Schritt, den Menüpunkt oder die Einstellung und zeigt dir, wo sie ist – er kennt jedes Menü des Programms und des Karten-Editors, jede Einstellung und jede Handbuchseite und arbeitet ohne Netz.
-- **Interaktive Touren warten auf deine echten Aktionen** und sagen dir freundlich, wenn etwas anderes passiert ist. Neu: „Deine erste Karte“ läuft im Karten-Editor Schritt für Schritt – Raum, Textur, Licht, Spielerstart, bauen, durchlaufen, .pk3.
+- **Interaktive Touren warten auf deine echten Aktionen** und sagen dir freundlich, wenn etwas anderes passiert ist. Neu: „Deine erste Karte“ läuft im Karten-Editor Schritt für Schritt – Raum, Textur, Licht, Spielerstart, bauen, durchlaufen, .pk3 –, ebenso „Eine Einstellung, wo du hinschaust“ (Vorschau) und „Ein Figurenmodell ansehen“.
 - **Erster Start:** „Was willst du zuerst tun?“ mit vier Zielen.
-- **Freiwillige KI, ab Werk aus:** Claude mit eigenem Anthropic-API-Schlüssel fragen oder die eigene KI-App über MCP anschließen (Claude Desktop, Claude Code, Cursor, VS Code) – über stdio ohne Netz oder nur lokal mit Token. Die KI kann dir Dinge zeigen und nach deiner Bestätigung die Befehle des Programms benutzen; ein Auftrag ist ein Rückgängig-Schritt; Dateien fasst sie nie an. Handbuchseite „Der Helfer und die Touren“ mit „Ist das sicher?“.
+- **Freiwillige KI, ab Werk aus:** Claude mit eigenem Anthropic-API-Schlüssel fragen oder die eigene KI-App über MCP anschließen (Claude Desktop, Claude Code, Cursor, VS Code) – über stdio ohne Netz oder nur lokal mit Token. Die KI kann dir Dinge zeigen und nach deiner Bestätigung die Befehle des Programms benutzen; ein Auftrag ist ein Rückgängig-Schritt; Speichern und andere Datei-Befehle fragen immer, Werkzeuge für Dateien, Shell oder Netz gibt es nicht. Handbuchseite „Der Helfer und die Touren“ mit „Ist das sicher?“.
 - Verständlichere Starttexte und zehn neue Erklärungen im Help-Menü und in den Einstellungen.
 
 ## 中文
 - **助手(F1):** 用自己的话写下你想做的事(中文、英文、德文、日文)。助手会找到对应的教程步骤、菜单项或设置并告诉你它在哪里——它了解程序和地图编辑器的每个菜单、每项设置和手册的每一页,无需联网。
-- **交互式教程会等待你真正的操作**,发生别的情况时会友好地提示你。新增:“你的第一张地图”在地图编辑器中一步一步进行——房间、纹理、灯光、玩家起点、编译、试走、.pk3。
+- **交互式教程会等待你真正的操作**,发生别的情况时会友好地提示你。新增:“你的第一张地图”在地图编辑器中一步一步进行——房间、纹理、灯光、玩家起点、编译、试走、.pk3;“把镜头放在你正在看的位置”(预览)和“查看角色模型”也同样如此。
 - **首次启动:** “你想先做什么?”,提供四个目标。
-- **可选 AI,默认关闭:** 用你自己的 Anthropic API 密钥询问 Claude,或通过 MCP 连接你自己的 AI 应用(Claude Desktop、Claude Code、Cursor、VS Code)——stdio 无需网络,或仅限本机并带令牌。AI 可以为你演示,并在你确认后使用程序自身的命令;一次任务就是一个撤销步骤;绝不触碰文件。手册页面“助手与交互式教程”,含“这安全吗?”。
+- **可选 AI,默认关闭:** 用你自己的 Anthropic API 密钥询问 Claude,或通过 MCP 连接你自己的 AI 应用(Claude Desktop、Claude Code、Cursor、VS Code)——stdio 无需网络,或仅限本机并带令牌。AI 可以为你演示,并在你确认后使用程序自身的命令;一次任务就是一个撤销步骤;保存和其他文件命令始终会询问,并且没有用于文件、命令行或网络的工具。手册页面“助手与交互式教程”,含“这安全吗?”。
 - 更易懂的开始文字,帮助菜单和首选项中新增十条说明。
 
 ## 日本語
 - **ヘルパー(F1):** やりたいことを自分の言葉で書いてください(日本語・英語・ドイツ語・中国語)。ヘルパーがチュートリアルの手順・メニュー項目・設定を見つけて場所を示します。プログラムとマップエディターのすべてのメニュー、すべての設定、ガイドの全ページを知っていて、オフラインで動きます。
-- **インタラクティブ チュートリアルは実際の操作を待ち**、別のことが起きたら優しく教えてくれます。新登場:「はじめてのマップ」がマップエディターの中で 1 手順ずつ進みます(部屋、テクスチャ、ライト、開始位置、ビルド、歩き回り、.pk3)。
+- **インタラクティブ チュートリアルは実際の操作を待ち**、別のことが起きたら優しく教えてくれます。新登場:「はじめてのマップ」がマップエディターの中で 1 手順ずつ進みます(部屋、テクスチャ、ライト、開始位置、ビルド、歩き回り、.pk3)。「見ている場所にショットを置く」(プレビュー)と「キャラクター モデルを見る」も同様です。
 - **初回起動:** 「まず何をしますか?」と 4 つの目標から選べます。
-- **任意の AI(既定でオフ):** 自分の Anthropic API キーで Claude に聞くか、MCP で自分の AI アプリ(Claude Desktop・Claude Code・Cursor・VS Code)を接続できます。stdio ならネットワーク不要、またはトークン付きのローカル接続のみ。AI は操作を示し、確認後にプログラムのコマンドを使えます。1 つの依頼は 1 つの元に戻す手順で、ファイルには一切触れません。ガイドに「ヘルパーとチュートリアル」と「安全ですか?」のページ。
+- **任意の AI(既定でオフ):** 自分の Anthropic API キーで Claude に聞くか、MCP で自分の AI アプリ(Claude Desktop・Claude Code・Cursor・VS Code)を接続できます。stdio ならネットワーク不要、またはトークン付きのローカル接続のみ。AI は操作を示し、確認後にプログラムのコマンドを使えます。1 つの依頼は 1 つの元に戻す手順で、保存などのファイル操作は必ず確認し、ファイル・シェル・ネットワーク用のツールはありません。ガイドに「ヘルパーとチュートリアル」と「安全ですか?」のページ。
 - 分かりやすくなった開始時の文章と、ヘルプ メニューと設定に 10 個の新しい説明。
