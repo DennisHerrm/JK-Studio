@@ -20,6 +20,8 @@
 #include "bhed/menue/menue.h"
 
 #include <cctype>
+#include <string>
+#include <string_view>
 
 namespace bhed::menue {
 
@@ -73,6 +75,66 @@ void zeilen(const std::string& text, F f) {
 
 }  // namespace
 
+namespace {
+// CStringEdPackage::REMKill: ab "//" weg, wenn davor eine gerade Zahl " steht
+std::string ohneKommentar(std::string z) {
+    std::size_t von = 0;
+    int anf = 0;
+    while (true) {
+        const std::size_t k = z.find("//", von);
+        if (k == std::string::npos) { return z; }
+        for (std::size_t i = von; i < k; ++i) { anf += z[i] == '"' ? 1 : 0; }
+        if ((anf & 1) == 0) { return z.substr(0, k); }
+        von = k + 2;
+    }
+}
+// CheckLineForKeyword: Anfang ohne Gross/Klein, danach Leer und Tab weg
+bool schluessel(const char* k, std::string_view& z) {
+    const std::size_t n = std::char_traits<char>::length(k);
+    if (z.size() < n) { return false; }
+    for (std::size_t i = 0; i < n; ++i) {
+        if (std::toupper(static_cast<unsigned char>(z[i])) != std::toupper(static_cast<unsigned char>(k[i]))) { return false; }
+    }
+    z.remove_prefix(n);
+    while (!z.empty() && (z.front() == ' ' || z.front() == '\t')) { z.remove_prefix(1); }
+    return true;
+}
+// InsideQuotes: Leer weg, ein fuehrendes ", Rest der Zeile, Leer am Ende weg, ein " am Ende weg
+std::string inAnfuehrung(std::string_view z) {
+    while (!z.empty() && (z.front() == ' ' || z.front() == '\t')) { z.remove_prefix(1); }
+    if (!z.empty() && z.front() == '"') { z.remove_prefix(1); }
+    std::string s(z);
+    if (!s.empty()) {
+        while (!s.empty() && (s.back() == ' ' || s.back() == '\t')) { s.pop_back(); }
+        if (!s.empty() && s.back() == '"') { s.pop_back(); }
+    }
+    return s;
+}
+// ConvertCRLiterals_Read und CopeWithDumbStringData (nur die SBCS-Sprachen)
+std::string aufbereiten(std::string s, const std::string& sprache) {
+    for (std::size_t i; (i = s.find("\\n")) != std::string::npos;) { s.replace(i, 2, "\n"); }
+    static const char* const sbcs[] = {"ENGLISH", "FRENCH", "GERMAN", "ITALIAN", "SPANISH", "POLISH", "RUSSIAN"};
+    bool ja = false;
+    for (const char* x : sbcs) { ja = ja || gross(sprache) == x; }
+    if (!ja) { return s; }
+    std::string r;
+    for (std::size_t i = 0; i < s.size(); ++i) {
+        const auto c = static_cast<unsigned char>(s[i]);
+        if (c == 0x85) { r += "..."; continue; }   // Auslassungszeichen
+        char o = s[i];
+        if (c == 0x92 || c == 0x91) { o = '\''; }
+        else if (c == 0x0B) { o = '.'; }
+        else if (c == 0x93 || c == 0x94) { o = '"'; }
+        else if (c == 0x96 || c == 0x97) { o = '-'; }
+        else if (c == 0x09) { o = ' '; }
+        r += o;
+    }
+    for (std::size_t i; (i = r.find("?.")) != std::string::npos;) { r[i + 1] = ' '; }
+    return r;
+}
+}  // namespace
+
+// CStringEdPackage::ParseLine (stringed_ingame.cpp) Zeile fuer Zeile
 void Texte::ladeStr(const std::string& dateiname, const std::string& text, const std::string& sprache) {
     std::string paket = dateiname;
     const std::size_t s = paket.find_last_of("/\\");
@@ -80,21 +142,32 @@ void Texte::ladeStr(const std::string& dateiname, const std::string& text, const
     const std::size_t p = paket.find('.');
     if (p != std::string::npos) { paket = paket.substr(0, p); }
     paket = gross(paket);
-    const std::string lang = "LANG_" + gross(sprache);
+    const bool englischLaden = gross(sprache) == "ENGLISH";
     std::string ref;
     std::string englisch;
-    zeilen(text, [&](const std::string& z) {
-        const std::vector<std::string> w = woerter(z);
-        if (w.size() < 2) { return; }
-        const std::string k = gross(w[0]);
-        if (k == "REFERENCE") {
-            ref = paket + "_" + gross(w[1]);
+    zeilen(text, [&](const std::string& roh) {
+        const std::string ohne = ohneKommentar(roh);
+        std::string_view z = ohne;
+        while (!z.empty() && (z.front() == ' ' || z.front() == '\t')) { z.remove_prefix(1); }
+        if (schluessel("REFERENCE", z)) {
+            ref = paket + "_" + gross(inAnfuehrung(z));
             englisch.clear();
-        } else if (!ref.empty() && k == "LANG_ENGLISH") {
-            englisch = w[1];
-            if (werte.find(ref) == werte.end() || lang == "LANG_ENGLISH") { werte[ref] = w[1]; }
-        } else if (!ref.empty() && k == lang) {
-            werte[ref] = (w[1] == "#same") ? englisch : w[1];
+            return;
+        }
+        if (ref.empty() || z.size() < 5) { return; }
+        std::string_view l = z;
+        if (!schluessel("LANG_", l)) { return; }
+        std::size_t e = 0;
+        while (e < l.size() && l[e] != ' ' && l[e] != '\t') { ++e; }
+        const std::string diese(l.substr(0, e));
+        const std::string satz = aufbereiten(inAnfuehrung(l.substr(e)), diese);
+        if (englischLaden) {
+            werte[ref] = satz;
+        } else if (gross(diese) == "ENGLISH") {
+            werte[ref] = satz;   // SetString(..., bEnglishDebug)
+            englisch = satz;
+        } else {
+            werte[ref] = satz == "#same" ? englisch : satz;
         }
     });
 }

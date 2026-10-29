@@ -20,7 +20,10 @@
 #include "backend.h"
 #include "platform.h"
 
+#include "bhed/gpuconst.h"
 #include "bhed/i18n.h"
+#include "bhed/mapview.h"
+#include "bhed/wave.h"
 #include "bhed/image.h"
 #include "bhed/menue/bauteile.h"
 #include "bhed/menue/feeder.h"
@@ -48,6 +51,7 @@
 #include <set>
 #include <sstream>
 #include <atomic>
+#include <chrono>
 #include <mutex>
 #include <thread>
 
@@ -125,6 +129,8 @@ struct Zustand {
     int kinoBilder = 0;                              // Selbsttest: gezeigte Videobilder
     int naechsterSatz = 0;                           // M2 Punkt 3: Nummer des naechsten Menuesatzes
     int aktivGezeigt = -1;                           // welcher Dokument-Reiter zuletzt offen war
+    float flaeche[4] = {0, 0, 0, 0};                 // Bildvergleich: 640x480 im Fenster (x, y, b, h)
+    double bildzeitMs = 0;                           // Messung: Arbeitszeit von zeichne() je Bild (gleitend)
     std::string satzWechsel;                         // Selbsttest: zuletzt ueber Dateien geoeffnetes Menue
     // M2 Punkt 2: Video-Import (Kodieren im Hintergrund)
     bool videoOffen = false;
@@ -574,10 +580,10 @@ std::string kinoPfad(const std::string& name) {
     return n;
 }
 
-Kino* kino(const std::string& name) {
+Kino* kino(const std::string& name, bool shader = false) {
     Zustand& z = Z();
     if (name.empty()) { return nullptr; }
-    Kino& k = z.kinos[kleinPfad(name)];
+    Kino& k = z.kinos[kleinPfad(name) + (shader ? "|shader" : "")];
     if (k.stand != render::texturStand()) {   // Geraeteverlust: Textur neu
         k.tex = nullptr;
         k.stand = render::texturStand();
@@ -596,7 +602,8 @@ Kino* kino(const std::string& name) {
             }
         }
         if (!da) { da = z.daten.lies(pfad, daten); }
-        k.fehlt = !da || !k.spieler.start(std::move(daten), jetzt, true);   // UI_PlayCinematic: CIN_loop | CIN_silent
+        // UI_PlayCinematic: CIN_loop | CIN_silent; videoMap zusaetzlich CIN_shader
+        k.fehlt = !da || !k.spieler.start(std::move(daten), jetzt, true, shader);
     }
     if (k.fehlt) { return nullptr; }
     (void)k.spieler.lauf(jetzt);   // DC->runCinematicFrame
@@ -612,6 +619,109 @@ Kino* kino(const std::string& name) {
         ++z.kinoBilder;
     }
     return k.tex != nullptr ? &k : nullptr;
+}
+
+// M2: ein Bild ohne Shaderskript (fuer eine Stufe: map, animMap-Bild)
+const Textur* stufenBild(const std::string& name) {
+    Zustand& z = Z();
+    const std::string key = "#stufe#" + kleinPfad(name);
+    Textur& t = z.texturen[key];
+    if (t.versucht) { return t.tex != nullptr ? &t : nullptr; }
+    t.versucht = true;
+    std::string ohne = kleinPfad(name);
+    const std::size_t punkt = ohne.rfind('.');
+    if (punkt != std::string::npos && punkt + 5 >= ohne.size() && ohne.find('/', punkt) == std::string::npos) { ohne = ohne.substr(0, punkt); }
+    for (const std::string& k : textureCandidates(ohne)) {
+        std::string bytes;
+        if (!z.daten.lies(k, bytes)) { continue; }
+        const image::Image im = image::decode(reinterpret_cast<const unsigned char*>(bytes.data()), bytes.size());
+        if (!im.ok || im.width <= 0 || im.height <= 0) { continue; }
+        t.tex = render::createTexture(im.rgba.data(), im.width, im.height);
+        t.w = im.width;
+        t.h = im.height;
+        break;
+    }
+    return t.tex != nullptr ? &t : nullptr;
+}
+
+// M2: ein Menue-Bild mit Shaderskript Stufe fuer Stufe wie RB_StageIteratorGeneric
+// fuer 2D (RE_StretchPic): Bild bzw. animMap/videoMap je Stufe, Farbe nach
+// rgbGen/alphaGen (ohne rgbGen: identity bzw. identityLighting, ohne Overbright
+// wie im Fenster), tcMod ueber packeKonstanten, blendFunc und clampMap.
+// false, wenn es kein Skript mit Stufen gibt (dann gilt der implizite Shader).
+bool zeichneShaderStufen(ImDrawList* dl, const std::string& shaderName, ImVec2 a, ImVec2 b, const Prim& p) {
+    Zustand& z = Z();
+    (void)textur(shaderName);   // laedt die Shaderskripte
+    std::string key = kleinPfad(shaderName);
+    const std::size_t punkt = key.rfind('.');
+    if (punkt != std::string::npos && punkt + 5 >= key.size() && key.find('/', punkt) == std::string::npos) { key = key.substr(0, punkt); }
+    const auto it = z.shader.find(key);
+    if (it == z.shader.end() || it->second.stages.empty()) { return false; }
+    const float zeit = static_cast<float>(ImGui::GetTime());
+    const ImVec2 ecken[4] = {a, ImVec2{b.x, a.y}, b, ImVec2{a.x, b.y}};
+    const float st[4][2] = {{p.s0, p.t0}, {p.s1, p.t0}, {p.s1, p.t1}, {p.s0, p.t1}};
+    for (const ShaderInfo::Stage& s : it->second.stages) {
+        if (s.lightmap) { continue; }
+        void* tex = nullptr;
+        if (!s.video.empty()) {
+            if (const Kino* k = kino(s.video, true)) { tex = k->tex; }
+        } else if (!s.animImages.empty()) {
+            const std::size_t n = s.animImages.size();
+            if (const Textur* t = stufenBild(s.animImages[animBildIndex(zeit, s.animFreq, n, s.animOneShot)])) { tex = t->tex; }
+        } else if (!s.image.empty()) {
+            if (const Textur* t = stufenBild(s.image)) { tex = t->tex; }
+        }
+        if (tex == nullptr) { continue; }
+        // rgbGen / alphaGen
+        float rgb[3] = {1, 1, 1};
+        switch (s.rgbArt) {
+            case RgbGenArt::Vertex:
+            case RgbGenArt::ExactVertex:
+                rgb[0] = p.farbe.r;
+                rgb[1] = p.farbe.g;
+                rgb[2] = p.farbe.b;
+                break;
+            case RgbGenArt::OneMinusVertex:
+                rgb[0] = 1 - p.farbe.r;
+                rgb[1] = 1 - p.farbe.g;
+                rgb[2] = 1 - p.farbe.b;
+                break;
+            case RgbGenArt::Const:
+                for (int k = 0; k < 3; ++k) { rgb[k] = s.rgbConst[k]; }
+                break;
+            case RgbGenArt::Wave: {
+                const float w = std::clamp(waveValue(s.rgbWave, zeit), 0.0F, 1.0F);
+                rgb[0] = rgb[1] = rgb[2] = w;
+                break;
+            }
+            default:
+                break;   // identity, identityLighting (ohne Overbright = 1)
+        }
+        float alpha = 1.0F;
+        if (s.alphaGen == AlphaGen::Const) { alpha = s.alphaConst; }
+        else if (s.alphaGen == AlphaGen::Vertex || (s.alphaGen == AlphaGen::FromImage && s.rgbArt == RgbGenArt::Vertex)) {
+            alpha = p.farbe.a;   // rgbGen vertex setzt ohne alphaGen AGEN_VERTEX
+        } else if (s.alphaGen == AlphaGen::OneMinusVertex) { alpha = 1 - p.farbe.a; }
+        if (s.alphaWave.active()) { alpha = std::clamp(waveValue(s.alphaWave, zeit), 0.0F, 1.0F); }
+        // tcMod: dieselbe Rechnung wie die Karte (packeKonstanten)
+        BatchState bs;
+        bs.numTexMods = std::min(s.numTexMods, kMaxTexMods);
+        for (int k = 0; k < bs.numTexMods; ++k) { bs.texMods[k] = s.texMods[k]; }
+        float konst[gpu::kKonstFloats] = {};
+        gpu::packeKonstanten(bs, konst, zeit);
+        const float* m = konst + gpu::kTexMatrixAt;
+        const float* o = konst + gpu::kTexOffTurbAt;
+        ImVec2 uv[4];
+        for (int k = 0; k < 4; ++k) {
+            uv[k] = ImVec2{st[k][0] * m[0] + st[k][1] * m[2] + o[0], st[k][0] * m[1] + st[k][1] * m[3] + o[1]};
+        }
+        const bool opak = s.srcFactor == BlendFactor::One && s.dstFactor == BlendFactor::Zero;
+        const ImU32 col = ImGui::ColorConvertFloat4ToU32(
+            ImVec4{std::clamp(rgb[0], 0.0F, 1.0F), std::clamp(rgb[1], 0.0F, 1.0F), std::clamp(rgb[2], 0.0F, 1.0F), std::clamp(alpha, 0.0F, 1.0F)});
+        render::zeichneStufe(dl, tex, ecken, uv, col, static_cast<int>(opak ? BlendFactor::One : s.srcFactor),
+                             static_cast<int>(opak ? BlendFactor::Zero : s.dstFactor), s.clamp);
+    }
+    return true;
 }
 
 // M2: Bildpunkte eines Shaders/Bildes fuer die Modell-Haut (wie textur(), aber auf der CPU)
@@ -654,6 +764,7 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
                 dl->AddRectFilled(a, b, col);
                 break;
             case PrimArt::Bild: {
+                if (zeichneShaderStufen(dl, p.shader, a, b, p)) { break; }   // M2: Shaderskript mit Stufen
                 const Textur* t = textur(p.shader);
                 if (t == nullptr) {
                     dl->AddRect(a, b, IM_COL32(255, 0, 255, 120));
@@ -777,6 +888,10 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     }
     const ImVec2 o{o0.x + lineal, o0.y + lineal};
     const Abbildung ab = abbildung(bw, bh, z.seitenv);
+    z.flaeche[0] = o.x + ab.ox;
+    z.flaeche[1] = o.y + ab.oy;
+    z.flaeche[2] = kSchirmBreite * ab.sx;
+    z.flaeche[3] = kSchirmHoehe * ab.sy;
     dl->AddRectFilled(o, ImVec2{o.x + bw, o.y + bh}, IM_COL32(0, 0, 0, 255));
     ImGui::InvisibleButton("##flaeche", ImVec2{std::max(1.0F, groesse.x), std::max(1.0F, groesse.y)},
                            ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
@@ -2344,7 +2459,17 @@ void splitter(const char* id, float& wert, bool senkrecht, float min, float max,
 
 bool aktiv() { return g_app != nullptr && g_app->leftMode == 4; }
 
+void zeichneInnen(float hoehe);
+
 void zeichne(float hoehe) {
+    const auto t0 = std::chrono::steady_clock::now();
+    zeichneInnen(hoehe);
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    Zustand& z = Z();
+    z.bildzeitMs = z.bildzeitMs <= 0 ? ms : z.bildzeitMs * 0.9 + ms * 0.1;
+}
+
+void zeichneInnen(float hoehe) {
     datenPruefen();
     Zustand& z = Z();
     Dokument* d = doc();
@@ -2497,6 +2622,8 @@ Stand stand() {
     for (const auto& [k, t] : z.texturen) { (void)k; s.bilderGeladen += t.tex != nullptr ? 1 : 0; }
     s.interaktion = z.interaktion;
     s.cursorZeile = std::string(d->puffer.zeile(d->puffer.pos(d->puffer.cursor.front().pos).zeile));
+    for (int i = 0; i < 4; ++i) { s.flaeche[i] = z.flaeche[i]; }
+    s.bildzeitMs = z.bildzeitMs;
     s.kinoBilder = z.kinoBilder;
     s.modellDreiecke = z.modellDreiecke;
     for (const auto& [p, b] : d->bilder) {
@@ -2746,6 +2873,8 @@ bool exportierePk3(const std::string& pfad) {
 }
 
 void setzeCodeSchrift(ImFont* f) { g_codeSchrift = f; }
+
+void setzeBalken(bool balken) { Z().seitenv = balken ? Seitenverhaeltnis::Balken : Seitenverhaeltnis::Strecken; }
 
 std::string letzterSatzWechsel() { return Z().satzWechsel; }
 

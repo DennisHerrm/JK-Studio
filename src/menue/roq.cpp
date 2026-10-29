@@ -22,6 +22,7 @@
 #include "bhed/menue/roq.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 
 namespace bhed::menue {
@@ -96,7 +97,7 @@ void RoqSpieler::dateiLesen(std::uint8_t* ziel, std::size_t n) {   // FS_Read
     lesePos_ += da;
 }
 
-bool RoqSpieler::start(std::string datei, int startMs, bool schleife) {
+bool RoqSpieler::start(std::string datei, int startMs, bool schleife, bool shader) {
     datei_ = std::move(datei);
     lesePos_ = 0;
     jetzt_ = startMs;
@@ -110,6 +111,7 @@ bool RoqSpieler::start(std::string datei, int startMs, bool schleife) {
     roqSize_ = static_cast<long>(datei_.size());
     if (roqSize_ <= 0) { return false; }
     looping_ = schleife;
+    shader_ = shader;
     holdAtEnd_ = false;
     cinHeight_ = 512;   // DEFAULT_CIN_HEIGHT
     cinWidth_ = 512;    // DEFAULT_CIN_WIDTH
@@ -473,7 +475,9 @@ RoqSpieler::Status RoqSpieler::lauf(int jetztMs) {   // CIN_RunCinematic
     if (status_ == Status::Idle) { return status_; }
     jetzt_ = jetztMs;
     const auto thisTime = static_cast<unsigned>(jetztMs);
-    // (cinTable.shader ist fuer Menue-Videos qfalse: kein Nachziehen von startTime)
+    if (shader_ && std::abs(static_cast<long long>(thisTime) - static_cast<long long>(lastTime_)) > 100) {
+        startTime_ += thisTime - lastTime_;   // videoMap: haelt an, solange die Stufe nicht gezeichnet wird
+    }
     tfps_ = static_cast<long>((static_cast<long long>(thisTime) - static_cast<long long>(startTime_)) * roqFPS_ / 1000);
     unsigned start = startTime_;
     int schutz = 0;

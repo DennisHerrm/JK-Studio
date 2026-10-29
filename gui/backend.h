@@ -74,6 +74,13 @@ void destroyTextures();
 // NACH den Kinobalken zeichnet (CG_SaberClashFlare aus CG_Draw2D). farbe ist
 // die Eckfarbe (R_SetColor), RGBA wie IM_COL32.
 void zeichneAdditiv(ImDrawList* dl, void* textur, ImVec2 a, ImVec2 b, unsigned int farbe);
+// Menue-Editor M2: eine Stufe eines Shaderskripts als Viereck (Ecken p, st uv)
+// mit ihrer blendFunc. quelle/ziel sind bhed::BlendFactor (0 One, 1 Zero,
+// 2 SrcColor, 3 OneMinusSrcColor, 4 SrcAlpha, 5 OneMinusSrcAlpha, 6 DstColor,
+// 7 OneMinusDstColor, 8 DstAlpha, 9 OneMinusDstAlpha, 10 SrcAlphaSaturate);
+// klemmen = clampMap, sonst wiederholt (tcMod scroll).
+void zeichneStufe(ImDrawList* dl, void* textur, const ImVec2 p[4], const ImVec2 uv[4], unsigned int farbe, int quelle, int ziel,
+                  bool klemmen);
 // Zaehlt jedes destroyTextures (Geraeteverlust, Wechsel der Schnittstelle) -
 // wer eine Textur aus createTexture zwischenspeichert, legt sie neu an, wenn
 // sich der Stand aendert.

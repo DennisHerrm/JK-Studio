@@ -555,19 +555,26 @@ int animBildFuer(const TextureSet* textures, int texId, float zeitSekunden) {
     if (n <= 1 || t0.animFreq <= 0.0F) {
         return texId;
     }
+    return t0.animFrames[animBildIndex(zeitSekunden, t0.animFreq, n, t0.animOneShot)];
+}
+
+std::size_t animBildIndex(float zeitSekunden, float freq, std::size_t n, bool einmal) {
+    if (n <= 1) {
+        return 0;
+    }
     // R_BindAnimatedImage (tr_shade.cpp): der Umweg ueber 1024 schneidet ab.
-    const auto roh = static_cast<long long>(zeitSekunden * t0.animFreq * 1024.0F);
+    const auto roh = static_cast<long long>(zeitSekunden * freq * 1024.0F);
     long long idx = roh >> 10;
     if (idx < 0) {
         idx = 0;
     }
-    if (t0.animOneShot) {
+    if (einmal) {
         // oneShotAnimMap: auf dem letzten Bild stehen bleiben.
         idx = std::min(idx, static_cast<long long>(n) - 1);
     } else {
         idx %= static_cast<long long>(n);
     }
-    return t0.animFrames[static_cast<std::size_t>(idx)];
+    return static_cast<std::size_t>(idx);
 }
 
 void tcGenVektorAus(bool aus) { g_tcGenVektorAus = aus; }

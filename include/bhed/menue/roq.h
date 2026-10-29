@@ -52,7 +52,8 @@ public:
 
     // CIN_PlayCinematic(..., CIN_loop | CIN_silent): false, wenn die Datei kein
     // RoQ ist (Kopf != 0x1084). Die Zeit beginnt bei startMs.
-    bool start(std::string datei, int startMs = 0, bool schleife = true);
+    // shader: CIN_shader (videoMap) - nach mehr als 100 ms ohne lauf haelt das Video an.
+    bool start(std::string datei, int startMs = 0, bool schleife = true, bool shader = false);
     // CIN_RunCinematic mit Sys_Milliseconds() = jetztMs (com_timescale 1).
     Status lauf(int jetztMs);
     // cinTable.buf: das zuletzt fertige Bild (RGBA, breite x hoehe), sonst nullptr.
@@ -102,7 +103,7 @@ private:
     long bufVersatz_ = -1;   // cinTable.buf (-1 = NULL)
     unsigned startTime_ = 0, lastTime_ = 0;
     long tfps_ = 0;
-    bool looping_ = true, holdAtEnd_ = false, dirty_ = false;
+    bool looping_ = true, holdAtEnd_ = false, dirty_ = false, shader_ = false;
     Status status_ = Status::Eof;
     int jetzt_ = 0;
 };

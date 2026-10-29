@@ -331,6 +331,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
     // Einzelfelder - siehe beim Stufenende.
     bool stageHatFound = false;
     std::string stageImage;
+    std::string stageVideo;   // Menue-Editor M2: videoMap (RoQ in einer Stufe)
     bool stageLightmap = false;
     bool stageWeiss = false;   // rc603 Durchsicht: map $whiteimage
     std::vector<ShaderInfo::Stage> stages;
@@ -468,6 +469,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 if (inImageStage) {
                     ShaderInfo::Stage st;
                     st.image = stageImage;
+                    st.video = stageVideo;
                     st.lightmap = stageLightmap;
                     st.weiss = stageWeiss;
                     st.blend = stageBlend;
@@ -508,6 +510,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     hasGlow = true;
                 }
                 stageImage.clear();
+                stageVideo.clear();
                 stageLightmap = false;
                 stageWeiss = false;
                 stageHatFound = false;
@@ -562,7 +565,9 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 // Klammer im Verdacht (`} ` steht wirklich in der Datei).
                 // Das war es nicht - trim() nimmt es laengst weg. Erst der
                 // Blick auf die Bedingung selbst hat es gezeigt.
-                if (!name.empty() && (!found.empty() || !skyBox.empty())) {
+                // Menue-Editor M2: auch ein Shader nur aus videoMap-Stufen (gfx/menus/videologo)
+                const bool nurVideo = std::any_of(stages.begin(), stages.end(), [](const ShaderInfo::Stage& s) { return !s.video.empty(); });
+                if (!name.empty() && (!found.empty() || !skyBox.empty() || nurVideo)) {
                     ShaderInfo info;
                     info.image = found;
                     for (int k = 0; k < numTexMods; ++k) {
@@ -626,6 +631,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 autosprite = false;
                 stages.clear();
                 stageImage.clear();
+                stageVideo.clear();
                 stageLightmap = false;
                 stageWeiss = false;
                 stageHatFound = false;
@@ -1257,6 +1263,10 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     // sich nicht verzaehlen.
                     ++stufen;
                 }
+            } else if (key == "videomap") {
+                // tr_shader.cpp ParseStage: CIN_PlayCinematic(token, ..., CIN_loop | CIN_silent | CIN_shader)
+                stageVideo = secondWord(line);
+                inImageStage = !stageVideo.empty();
             } else if (key == "animmap" || key == "clampanimmap" ||
                        key == "oneshotanimmap") {
                 // animMap <freq> <bild1> <bild2> ... - das erste Bild nehmen.

@@ -527,6 +527,7 @@ struct ShaderInfo {
     // und die Reihenfolge entscheidet beim Uebereinanderlegen.
     struct Stage {
         std::string image;        // leer bei $lightmap und $whiteimage
+        std::string video;        // videoMap (Menue-Editor M2): der Name des RoQ
         bool lightmap = false;    // map $lightmap
         // rc603 Durchsicht: map $whiteimage - ParseStage bindet tr.whiteImage
         // (tr_shader.cpp:1202 MD / 1239 OJ), ein 8x8 weisses Bild

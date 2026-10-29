@@ -176,7 +176,48 @@ std::vector<Schritt> schritteM2() {
     return s;
 }
 
+// Bildvergleich mit dem Spiel (BHED_MENUE_VERGLEICH=1): JKA-Hauptmenue SP und MP
+// in 4:3 fotografieren und die Lage der Flaeche melden (Zuschnitt in
+// tools/menue_bildvergleich.py gegen die Fotos aus dem Spiel).
+std::vector<Schritt> vergleichSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(pause(1.0));
+    add(klick(tr(Str::ViewMenuEditor), "###main"));
+    add(tu("Vergleich: 4:3 mit Balken", [] { me::setzeBalken(true); }));
+    const char* const menues[][2] = {{"ui/main.menu", "vergleich_sp"},
+                                     {"ui/jamp/main.menu", "vergleich_mp"},
+                                     {"ui/character.menu", "vergleich_figur"},
+                                     {"ui/saber.menu", "vergleich_schwert"}};
+    for (const auto& m : menues) {
+        const std::string pfad = m[0], name = m[1];
+        // im Bedienmodus: onOpen laeuft (setfocus), Zeit und Videos wie im Spiel
+        add(tu("Vergleich: " + pfad, [pfad] {
+            me::setzeInteraktion(false);
+            (void)me::oeffneAusSpiel(pfad);
+            me::setzeInteraktion(true);
+        }));
+        add(pause(2.5));
+        add(foto(name));
+        add(pruefe("Vergleich: " + pfad + " gezeichnet", [name] {
+            const auto x = me::stand();
+            char b[300];
+            std::snprintf(b, sizeof(b), "Menue-Editor Vergleich %s: Flaeche %.1f %.1f %.1f %.1f, %d Zeichenbefehle, %d Texturen, Bildzeit %.2f ms",
+                          name.c_str(), static_cast<double>(x.flaeche[0]), static_cast<double>(x.flaeche[1]), static_cast<double>(x.flaeche[2]),
+                          static_cast<double>(x.flaeche[3]), x.prims, x.bilderGeladen, x.bildzeitMs);
+            diag::info(b);
+            return x.prims > 0;
+        }));
+    }
+    add(tu("Vergleich: zurueck", [] {
+        me::setzeInteraktion(false);
+        g_app->leftMode = 0;
+    }));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
+    if (std::getenv("BHED_MENUE_VERGLEICH") != nullptr) { return vergleichSchritte(); }
     // Sprache fuer die Handbuchbilder (wie handbuchSchritte): BHED_SPRACHE = en / de / zh / ja
     if (const char* sp = std::getenv("BHED_SPRACHE")) {
         if (const i18n::LanguageInfo* l = i18n::findLanguage(sp)) { i18n::setLanguage(l->language); }

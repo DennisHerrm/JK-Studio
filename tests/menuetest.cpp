@@ -256,6 +256,18 @@ int main() {
     pruefe(t.aufloesen("@MENUS_FEHLT") == "@MENUS_FEHLT", "Texte: unbekannt bleibt");
     t.ladeSp("VERSION 1\nREFERENCE MENUS0\nINDEX 0\n{\n   REFERENCE ABOUT\n   TEXT_LANGUAGE1 \"About\"\n   TEXT_LANGUAGE3 \"Ueber\"\n}\n", 3);
     pruefe(t.aufloesen("@MENUS0_ABOUT") == "Ueber", "Texte: .sp Sprache 3");
+    // M2 (Bildvergleich mit dem Spiel): StringEd nimmt nach REFERENCE den REST der Zeile
+    // (InsideQuotes) - Ravens MENUS.str hat "REFERENCE NEW MISSION_DESC", das darf NEW
+    // nicht ueberschreiben. LANG_-Texte behalten innere Anfuehrungszeichen.
+    {
+        Texte r;
+        r.ladeStr("strings/English/MENUS.str",
+                  "REFERENCE           NEW\r\nNOTES               \"Used in first line of NEW GAME button\"\r\nLANG_ENGLISH        \"NEW\"\r\n\r\n"
+                  "REFERENCE           NEW MISSION_DESC\r\nLANG_ENGLISH        \"Return to the mission selection screen\"\r\n"
+                  "REFERENCE ZITAT // Kommentar\r\nLANG_ENGLISH \"Er sagte \"ja\" // kein Kommentar\"\r\n");
+        pruefe(r.aufloesen("@MENUS_NEW") == "NEW", "Texte: REFERENCE NEW MISSION_DESC ueberschreibt NEW nicht (InsideQuotes)");
+        pruefe(r.aufloesen("@MENUS_ZITAT") == "Er sagte \"ja\" // kein Kommentar", "Texte: innere Anfuehrungszeichen, // in Anfuehrung bleibt");
+    }
 
     std::printf("menuetest: %s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;

@@ -43,6 +43,8 @@ struct Stand {
     int modellDreiecke = 0;        // M2: gezeichnete Dreiecke der 3D-Modelle
     int paketDateien = 0;          // M2: eigene Dateien im Paket (Bilder, Videos, Texte, Schriften)
     std::vector<std::string> paket;   // ihre Spielpfade
+    float flaeche[4] = {0, 0, 0, 0};  // Bildvergleich: die 640x480-Flaeche im Fenster (x, y, b, h)
+    double bildzeitMs = 0;            // Arbeitszeit des Arbeitsbereichs je Bild (gleitender Mittelwert)
 };
 [[nodiscard]] Stand stand();
 // Befehle wie die Knoepfe (Selbsttest)
@@ -67,6 +69,7 @@ bool speichereUnter(const std::string& pfad);
 bool exportierePk3(const std::string& pfad);
 // M2: Festbreitenschrift des Code-Editors (main_win32.cpp buildFonts)
 void setzeCodeSchrift(ImFont* f);
+void setzeBalken(bool balken);   // 4:3 mit Balken (true) oder gestreckt
 // M2 Punkt 2: Video/GIF als RoQ ins Paket (synchron, fuer Selbsttest); Spielpfad oder ""
 std::string importiereVideo(const std::string& platte, int guete, int fps, int maxSeite);
 // M2 Punkt 4: Vorlage aus der Bibliothek an (x, y) einsetzen; Auswahl als eigene Vorlage

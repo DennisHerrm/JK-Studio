@@ -6,9 +6,11 @@
 //     Zeitsteuerung wie CIN_RunCinematic (tfps = ms * fps / 1000), Schleife.
 //   - Guete: hoehere Guete = kleinerer Fehler.
 //   - GIF mit drei Bildern und Dauer; aufFps verteilt sie auf 20 fps.
+//   - videoMap in einem Shaderskript (gfx/menus/videologo des JKA-Hauptmenues).
 //   - Mit Movie-Duels-Ordner: video/SettingsVideo.roq aus den pk3 spielen.
 #include "bhed/menue/roq.h"
 #include "bhed/menue/spieldaten.h"
+#include "bhed/shaderscript.h"
 
 #include <algorithm>
 #include <chrono>
@@ -155,6 +157,15 @@ int main(int argc, char** argv) {
         pruefe(klein.size() < roq.size(), "Guete 5: kleinere Datei");
     }
     pruefe(!RoqSpieler().start(std::string("keinroq"), 0), "Spieler: falscher Kopf abgelehnt");
+    // --- videoMap (tr_shader.cpp ParseStage) ------------------------------------------
+    {
+        bhed::ShaderMap sm;
+        bhed::parseShaderScript("gfx/menus/videologo\n{\n    {\n        videoMap video/ja01\n    }\n}\n", sm);
+        const auto it = sm.find("gfx/menus/videologo");
+        pruefe(it != sm.end() && it->second.stages.size() == 1 && it->second.stages[0].video == "video/ja01",
+               "Shader: videoMap als Stufe mit Video (JKA-Hauptmenue)");
+    }
+
     // --- GIF ----------------------------------------------------------------------
     Bildfolge f;
     pruefe(gifLesen(std::string(reinterpret_cast<const char*>(kGif), sizeof(kGif)), f), "GIF gelesen (stb_image)");
