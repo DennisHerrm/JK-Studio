@@ -1615,7 +1615,7 @@ TEXTE = {
     "KeMtSetT": "Nastavit T",
     "KeMtScaling": "Měřítko",
     "KeMtNatural": "Přirozené *",
-    "KeMtTiles": "Počet dlaždic",
+    "KeMtTiles": "Dlaždice",
     "KeMtMax": "Max",
     "KeMtZeroCol": "\"Nulový\" sloupec",
     "KeMtZeroRow": "\"Nulový\" řádek",
