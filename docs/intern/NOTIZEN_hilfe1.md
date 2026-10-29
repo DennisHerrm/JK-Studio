@@ -155,8 +155,8 @@ Hervorhebung, die Rückfrage „Die KI möchte …“ mit dem Symbol „KI verbu
 
 Merge `karte1` (6fe2c104: Optimierer „Fix all safe“, Selbsttest optsicher, Asset-Browser und
 Texturüberblendung): Konflikte nur in den erzeugten `handbuch/*/suche.js`; `i18n.h`/`i18n.cpp`
-und das ganze Handbuch neu erzeugt, Ortskatalog unverändert aktuell. Ergebnis nach dem Merge:
-siehe Bericht (Bau, ctest gesamt, Selbsttest hilfe1).
+und das ganze Handbuch neu erzeugt, Ortskatalog unverändert aktuell. Nach dem Merge: Bau
+0 Warnungen, ctest **152/152**, Selbsttest hilfe1 59 OK / 0 FEHLER.
 
 ## 4. Offen / Ideen für H2
 - Weitere interaktive Touren (häufigste Ziele je Bereich): NPC laufen lassen
