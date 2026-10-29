@@ -268,6 +268,8 @@ struct ShaderSkript {
         double staerke = 0;
         double grad = 0;
         double hoehe = 0;
+        double abweichung = 0;   // Stufe 9d: q3map_sunExt <deviance> in Grad (auf derselben Zeile)
+        int proben = 1;          //   ... <samples>
     };
     std::vector<Sonne> sonnen;
     struct Himmelslicht {
@@ -288,6 +290,12 @@ struct ShaderSkript {
     bool nebel = false;             // C_FOG
     bool zweiseitig = false;        // cull none / twosided / disable (si.twoSided)
     bool autosprite = false;        // deformVertexes autosprite / autosprite2
+    // Stufe 9d (Nebel in der Echtzeit-Ansicht): fogParms ( r g b ) <distanceToOpaque> (tr_shader.cpp
+    // ParseFogParms, q3map2 si.fogParms) und q3map_fogDir <x y z> (si.fogDir)
+    bool nebelParms = false;
+    double nebelFarbe[3] = {0, 0, 0};
+    double nebelTiefe = 0;
+    double nebelRichtung[3] = {0, 0, 0};
     // erste Stufe (wie das Spiel sie zeichnet)
     int stufeAlpha = 0;             // alphaFunc: 0 keine, 1 GT0, 2 LT128, 3 GE128
     int mischQuelle = 0;            // blendFunc: 0 keine; sonst GL_-Faktoren (1 ONE, 2 ZERO, 3 SRC_ALPHA, 4 ONE_MINUS_SRC_ALPHA, 5 DST_COLOR, 6 ONE_MINUS_DST_COLOR, 7 SRC_COLOR, 8 ONE_MINUS_SRC_COLOR, 9 DST_ALPHA, 10 ONE_MINUS_DST_ALPHA)

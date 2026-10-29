@@ -1292,6 +1292,21 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
         const std::string k = klein(w[j]);
         if (k == "q3map_surfacelight" && j + 1 < w.size()) {   // shaders.cpp: si.value = atof( token )
             r.flaechenlicht = std::atof(w[j + 1].c_str());
+        } else if (k == "fogparms") {   // Stufe 9d: fogParms ( r g b ) <Tiefe> - Klammern als eigene Woerter oder angeklebt
+            std::vector<double> z;
+            for (std::size_t q = j + 1; q < w.size() && z.size() < 4; ++q) {
+                std::string x = w[q];
+                x.erase(std::remove(x.begin(), x.end(), '('), x.end());
+                x.erase(std::remove(x.begin(), x.end(), ')'), x.end());
+                if (x.empty()) { continue; }
+                if (std::isdigit(static_cast<unsigned char>(x[0])) == 0 && x[0] != '-' && x[0] != '.') { break; }
+                z.push_back(std::atof(x.c_str()));
+            }
+            r.nebelParms = true;
+            for (std::size_t c = 0; c < 3 && c < z.size(); ++c) { r.nebelFarbe[c] = z[c]; }
+            if (z.size() >= 4) { r.nebelTiefe = z[3]; }
+        } else if (k == "q3map_fogdir" && j + 3 < w.size()) {   // shaders.cpp: si.fogDir
+            for (int c = 0; c < 3; ++c) { r.nebelRichtung[c] = std::atof(w[j + 1 + static_cast<std::size_t>(c)].c_str()); }
         } else if (k == "q3map_backsplash" && j + 2 < w.size()) {   // shaders.cpp:1248-1252
             r.backsplashAnteil = std::atof(w[j + 1].c_str()) * 0.01;
             r.backsplashWeite = std::atof(w[j + 2].c_str());
@@ -1304,6 +1319,14 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
             so.staerke = std::atof(w[j + 4].c_str());
             so.grad = std::atof(w[j + 5].c_str());
             so.hoehe = std::atof(w[j + 6].c_str());
+            // Stufe 9d: "ydnar: get sun angular deviance/samples" (TokenAvailable: hier zwei weitere Zahlen)
+            const auto istZahl = [&w](std::size_t i) {
+                return i < w.size() && !w[i].empty() && (std::isdigit(static_cast<unsigned char>(w[i][0])) != 0 || w[i][0] == '-' || w[i][0] == '.');
+            };
+            if (k == "q3map_sunext" && istZahl(j + 7) && istZahl(j + 8)) {
+                so.abweichung = std::atof(w[j + 7].c_str());
+                so.proben = std::atoi(w[j + 8].c_str());
+            }
             r.sonnen.push_back(so);
             r.himmel = true;   // "apply sky surfaceparm, this is required by ELightType::Sun to work"
             if (!r.sonne) {

@@ -328,6 +328,7 @@ const MenueEintrag kMenues[] = {
     {MenueArt::Trenner, "", "", Str::Count, kImmer},
     {MenueArt::Punkt, "Deform...", "PatchDeform", Str::KeLDeform, kImmer},
     {MenueArt::Punkt, "Thicken...", "PatchThicken", Str::KeLThicken, kImmer},
+    {MenueArt::Liste, "", "ProgrammCurve", Str::Count, kImmer},   // Stufe 9d: Patch-Bruecke (nicht in NRC)
     {MenueArt::Ende, "", "", Str::Count, kImmer},
     // Plugins (radiant/pluginmenu.cpp:131)
     {MenueArt::Menue, "&Plugins", "", Str::KeLPlugins, kImmer},

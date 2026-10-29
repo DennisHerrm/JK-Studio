@@ -488,6 +488,7 @@ void kontextMenue() {
     if (punkt(trK(Str::KeTexOpenShader), !standard)) { shaderAnsehen(datei, name, false); }
     if (punkt(trK(Str::KeTexOpenShaderExt), !standard)) { shaderAnsehen(datei, name, true); }
     if (punkt(trK(Str::KeTexShaderInfo), !standard)) { shaderInfo(name, datei); }
+    if (punkt(trK(Str::KeSeMenue), !standard)) { shaderEditorOeffnen(name); }   // Stufe 9d (nicht in NRC)
     qtTrenner();
     if (punkt(trK(Str::KeTexSelObjects))) {   // Scene_BrushPatchSelectByShader
         karte::waehleNachShader(ed.karte, name);

@@ -305,6 +305,9 @@ std::vector<Schritt> messung();    // selbsttest_karte9c.inc: Lichtmessung (BHED
 std::vector<Schritt> leistenNeustart(int lauf);   // BHED_KARTE_NUR=leisten1 / leisten2 (echter Neustart)
 std::vector<Schritt> einrichten();   // in den Karten-Editor, Spieldaten bereit
 }  // namespace stufe9c
+namespace stufe9d {
+std::vector<Schritt> schritte();   // selbsttest_karte9d.inc: Stufe 9d (Nebel, Effekte, Skyportal, Shader live, Patch-Bruecke)
+}  // namespace stufe9d
 namespace optsicher {
 std::vector<Schritt> schritte();   // selbsttest_optsicher.inc: Fix all safe aendert nichts Sichtbares
 }  // namespace optsicher
@@ -544,6 +547,13 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =stufe9d: Echtzeit-Ansicht (Nebel, Effekte, Skyportal, Modellschatten), Shader live, Patch-Bruecke
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe9d") == 0) {
+        for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
+        for (Schritt& x : stufe9d::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =leisten1/leisten2: Leisten verschieben ueber einen echten Neustart (ein Einstellungsordner)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strncmp(nur, "leisten", 7) == 0 && (nur[7] == '1' || nur[7] == '2')) {
         for (Schritt& x : stufe9c::leistenNeustart(nur[7] - '0')) { add(std::move(x)); }
@@ -584,6 +594,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : stufe8g::schritte()) { add(std::move(x)); }   // Stufe 8g: Build > GPU bake (nach dem Tutorial)
     for (Schritt& x : stufe9::schritte()) { add(std::move(x)); }    // Stufe 9: restliche Karten-Werkzeuge (nach 8g)
     for (Schritt& x : stufe9c::schritte()) { add(std::move(x)); }   // Stufe 9c: Werkzeugleisten, Echtzeit-Licht wie im Spiel
+    for (Schritt& x : stufe9d::schritte()) { add(std::move(x)); }   // Stufe 9d: Nebel, Effekte, Skyportal, Shader live, Patch-Bruecke
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
@@ -863,6 +874,7 @@ void skriptNeu() {
 #include "selbsttest_karte8g.inc"
 #include "selbsttest_karte9.inc"
 #include "selbsttest_karte9c.inc"
+#include "selbsttest_karte9d.inc"   // Stufe 9d: Nebel, Effekte, Skyportal, Modellschatten, Shader live, Patch-Bruecke
 #include "selbsttest_optsicher.inc"
 
 // --- Stufe 3 Punkt 8: Bilder der Seite "Karte bauen" ------------------------------
@@ -1728,6 +1740,48 @@ std::vector<Schritt> karte9cHandbuchSchritte() {
     return s;
 }
 
+// BHED_EDITORTEST=handbuch mit BHED_HB_NUR=karte9d: Stufe 9d - ein Nebel-Brush ueber dem Boden
+// eines Raums im Echtzeit-Licht und der Shader-Editor (live) mit diesem Nebelshader.
+std::vector<Schritt> karte9dHandbuchSchritte() {
+    namespace ke = karteneditor;
+    std::vector<Schritt> s = stufe9c::einrichten();
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto kamera = [] { return hb::fensterRect("##feldKamera"); };
+    add(tu("Handbuch Stufe 9d: Nebelshader in den Import-Ordner, Suchpfad neu", [] {
+        stufe9d::nebelShaderSchreiben(0.1F, 0.9F, 0.1F);
+        ke::editor().spielKennung.clear();
+    }));
+    add(warteBis("Handbuch Stufe 9d: Spieldaten neu geladen", [] {
+        ke::spielPruefen();
+        return ke::spielBereit() && !ke::editor().spielKennung.empty();
+    }, 20000));
+    add(tu("Handbuch Stufe 9d: Raum mit Nebel-Brush, Echtzeit-Licht an", [] {
+        karteDialogeZu();
+        ke::setzeNrcBegriffe(false);
+        stufe9d::raumSchreiben(true, false);
+        (void)ke::karteOeffnen(stufe9d::raumKarte());
+        ke::Editor& e = ke::editor();
+        e.kameraE.modus = karte::KameraModus::Textur;
+        e.echtLicht.an = true;
+        e.echtLicht.backen = false;
+        e.kamera.ursprung = karte::Vektor3f(-440.0F, -440.0F, 300.0F);
+        e.kamera.winkel = karte::Vektor3f(-30.0F, 45.0F, 0.0F);
+    }));
+    add(warteBis("Handbuch Stufe 9d: Texturen geladen", [] { return ke::kameraBilderFertig(); }, 6000));
+    add(pause(1.5));
+    add(hb::fotoTeil("h_karte9d_nebel", kamera));
+    add(tu("Handbuch Stufe 9d: Shader-Editor mit dem Nebelshader", [] { ke::shaderEditorOeffnen("textures/bhed9d/nebel"); }));
+    add(pause(1.0));
+    add(hb::fotoTeil("h_karte9d_shader", [] { return hb::fensterRect("###shaderlive"); }));
+    add(tu("Handbuch Stufe 9d: Ende", [] {
+        ke::editor().echtLicht.an = false;
+        ke::neueKarte();
+        g_app->leftMode = 0;
+    }));
+    add(pause(0.3));
+    return s;
+}
+
 // BHED_EDITORTEST=handbuch mit BHED_HB_NUR=karte8: Stufe 8a - das Fortschrittsfenster
 // mit Restzeit, das Build-Menue mit den neuen Eintraegen, ein zurueckgewonnenes
 // misc_model, geschaetzte Lichter und "Zur fertigen Karte hinzufuegen".
@@ -2143,6 +2197,9 @@ std::vector<Schritt> handbuchSchritte() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte9c") == 0) {
         return karte9cHandbuchSchritte();
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte9d") == 0) {
+        return karte9dHandbuchSchritte();
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte8") == 0) {
         return karte8HandbuchSchritte();

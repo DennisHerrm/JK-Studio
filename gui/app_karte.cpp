@@ -1599,6 +1599,8 @@ void zeichne(float hoehe) {
     }
     gruppenDialog();
     texturDialogeZeichnen();
+    shaderEditorSchritt();    // Stufe 9d: geaenderte .shader-Dateien neu laden
+    shaderEditorZeichnen();   // Stufe 9d: Shader live bearbeiten
     entitaetenDialogeZeichnen();
     zeichneEinstellungen();
     zeichneTastenDialog();

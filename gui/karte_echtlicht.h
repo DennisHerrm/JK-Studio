@@ -32,6 +32,8 @@ struct SpielDarstellung {
     int mischQuelle = 0;
     int mischZiel = 0;
     std::string bild;        // mit alphaFunc/blendFunc: das Bild der ersten Stufe ("?" + Pfad fuer kameraTexturBild)
+    bool nebelFlaeche = false;   // Stufe 9d: fogParms ohne Stufe: nur der Nebel (RB_FogPass)
+    bool himmel = false;         // Stufe 9d: C_SKY (surfaceparm sky, Sonne) - mit misc_skyportal zeigt sie das Portalbild
 };
 [[nodiscard]] SpielDarstellung spielDarstellung(const std::string& shader);
 // Der Hinweis in der Kamera-Ecke (Programmsprache): "Vorschau, ohne Bounce und Filter" usw.

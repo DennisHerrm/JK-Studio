@@ -153,6 +153,8 @@ struct Zustand {
     ID3D11PixelShader* psUnter = nullptr;        // Sonne: Tiefe der Verdecker unter dem Himmel (O)
     ID3D11PixelShader* psUnterA = nullptr;       // dasselbe mit Alpha-Test
     ID3D11Buffer* cb4 = nullptr;          // Umgebung, Kaskaden, Himmelskarten
+    ID3D11PixelShader* ps4Nebel = nullptr;   // Stufe 9d: nur der Nebel (Nebelflaeche)
+    ID3D11Buffer* cbNebel = nullptr;         // Stufe 9d: die Nebel (B5)
     ID3D11Buffer* cbSchatten = nullptr;   // eine Seite bzw. eine Sonnenkarte
     ID3D11Buffer* lichtBuf = nullptr;     // Buffer<float4>: 7 je Licht
     ID3D11ShaderResourceView* lichtSrv = nullptr;
@@ -188,6 +190,7 @@ struct Zustand {
     Karten himmelK;                        // kHimmelSonnenMax Schichten 1024
     float kaskadeVp[2][16] = {};
     float kaskadeTexel[2] = {0, 0};
+    float kaskadeRichtung[4] = {0, 0, 1, 0};   // Stufe 9d: zur Sonne der Kaskaden
     bool kaskadeAn[2] = {false, false};
     float himmelVp[kHimmelSonnenMax][16] = {};
     float himmelTexel = 0;
@@ -247,6 +250,8 @@ void echtLichtLoesen() {
     los(g.psUnter);
     los(g.psUnterA);
     los(g.cb4);
+    los(g.ps4Nebel);
+    los(g.cbNebel);
     los(g.cbSchatten);
     los(g.lichtBuf);
     los(g.lichtSrv);
@@ -739,6 +744,7 @@ struct Konstanten3 {
     float muster[4];       // x Muster, y Faktor, z/w Bildgroesse
     float linie[4];        // x Breite
     float nebel[4];        // rgb Farbe, a Dichte (GL_EXP; 0 = aus)
+    float extra[4];        // Stufe 9d: x 1 = nur Nebel (Nebelflaeche, nur kShader4 liest es)
 };
 
 // renderstate.cpp: Licht (abgeleitet aus Cam_Draw: Umgebung 0,2 + 0,4,
@@ -784,6 +790,9 @@ bool alphaGut(float a) {
     return true;
 }
 float4 ps3(VO3 i) : SV_Target {
+    if (augeHimmel.w > 1.5) {   // Stufe 9d: misc_skyportal - das Portalbild an derselben Bildstelle
+        return float4(bild.Sample(abtaster, i.pos.xy / muster.zw).rgb, 1.0);
+    }
     if (augeHimmel.w > 0.5) {
         // doing rotation/flip to fix skybox orientation
         return wuerfel.Sample(wuerfelAbtaster, float3(-i.richtung.y, i.richtung.z, i.richtung.x));
@@ -1006,7 +1015,7 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
     k->augeHimmel[0] = z.auge[0];
     k->augeHimmel[1] = z.auge[1];
     k->augeHimmel[2] = z.auge[2];
-    k->augeHimmel[3] = (!linie && z.himmel != nullptr) ? 1.0F : 0.0F;
+    k->augeHimmel[3] = linie ? 0.0F : z.himmelPortal != nullptr ? 2.0F : z.himmel != nullptr ? 1.0F : 0.0F;
     k->alpha[0] = static_cast<float>(z.alphaFunktion);
     k->alpha[1] = z.alphaRef;
     k->alpha[2] = z.bild != nullptr ? 1.0F : 0.0F;
@@ -1024,6 +1033,10 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
     k->linie[2] = 0;
     k->linie[3] = 0;
     std::memcpy(k->nebel, z.nebel, sizeof(k->nebel));
+    k->extra[0] = z.nebelNur ? 1.0F : 0.0F;
+    k->extra[1] = 0;
+    k->extra[2] = 0;
+    k->extra[3] = 0;
     c->Unmap(g.cb3, 0);
     const float faktor[4] = {0, 0, 0, 0};
     c->OMSetBlendState(z.mischen == Mischen::Spiel ? spielMischung(z.mischQuelle, z.mischZiel)
@@ -1042,16 +1055,17 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
         c->VSSetConstantBuffers(0, 1, &g.cb3);
         c->GSSetConstantBuffers(0, 1, &g.cb3);
         c->PSSetConstantBuffers(0, 1, &g.cb3);
-    } else if (z.echtLicht && !linie && z.himmel == nullptr && bereit4()) {
+    } else if (z.echtLicht && !linie && z.himmel == nullptr && z.himmelPortal == nullptr && bereit4()) {
         // Stufe 7: Echtzeit-Licht
         c->IASetInputLayout(g.layout3);
         c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         c->VSSetShader(g.vs4, nullptr, 0);
         c->GSSetShader(nullptr, nullptr, 0);
-        c->PSSetShader(g.ps4, nullptr, 0);
+        c->PSSetShader(z.nebelNur ? g.ps4Nebel : g.ps4, nullptr, 0);
         ID3D11Buffer* cbs[2] = {g.cb3, g.cb4};
         c->VSSetConstantBuffers(0, 2, cbs);
         c->PSSetConstantBuffers(0, 2, cbs);
+        c->PSSetConstantBuffers(3, 1, &g.cbNebel);   // Stufe 9d: B5, die Nebel (b2 gehoert den Schattenkarten)
         ID3D11ShaderResourceView* srv[11] = {static_cast<ID3D11ShaderResourceView*>(z.bild),
                                              nullptr,
                                              g.pool[0].srv,
@@ -1074,7 +1088,7 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
         c->PSSetShader(g.ps3, nullptr, 0);
         c->VSSetConstantBuffers(0, 1, &g.cb3);
         c->PSSetConstantBuffers(0, 1, &g.cb3);
-        ID3D11ShaderResourceView* srv[2] = {static_cast<ID3D11ShaderResourceView*>(z.bild),
+        ID3D11ShaderResourceView* srv[2] = {static_cast<ID3D11ShaderResourceView*>(z.himmelPortal != nullptr ? z.himmelPortal : z.bild),
                                             static_cast<ID3D11ShaderResourceView*>(z.himmel)};
         c->PSSetShaderResources(0, 2, srv);
         ID3D11SamplerState* sm[2] = {g.abtaster, g.wuerfelAbtaster};
@@ -1209,8 +1223,17 @@ struct Konstanten4 {
     float sonne[4];        // x Kaskade 0 an, y Kaskade 1 an, z Texel 0 (Einheiten), w Texel 1
     float himmelInfo[4];   // x Texel der Himmelskarten
     int anzahl[4];         // x Lichter, y Kacheln x, z Kacheln y, w Worte je Kachel
+    float kaskadeRichtung[4];   // Stufe 9d: zur Sonne, mit der die Kaskaden gerendert sind
     float kaskadeVp[2][16];
     float himmelVp[kHimmelSonnenMax][16];
+};
+struct KonstantenNebel {   // Stufe 9d: B5
+    int zahl[4];           // x Nebel, y der globale (-1: keiner)
+    float vorn[4];         // xyz Blickrichtung, w dot(Auge, vorn)
+    float farbe[kNebelMax][4];
+    float flaeche[kNebelMax][4];
+    float info[kNebelMax][4];
+    float ebene[kNebelEbenenMax][4];
 };
 struct KonstantenSchatten {
     float vp[16];          // zeilenweise
@@ -1221,10 +1244,13 @@ struct KonstantenSchatten {
 
 const char* const kShader4 = R"(
 cbuffer B3 : register(b0) {
-    float4x4 mvp; float4 farbe; float4 vpnLicht; float4 augeHimmel; float4 alpha; float4 versatz; float4 muster; float4 linie; float4 nebel;
+    float4x4 mvp; float4 farbe; float4 vpnLicht; float4 augeHimmel; float4 alpha; float4 versatz; float4 muster; float4 linie; float4 nebel; float4 extra;
+};
+cbuffer B5 : register(b3) {
+    int4 nebelZahl; float4 nebelVorn; float4 nebelFarbe[16]; float4 nebelFlaeche[16]; float4 nebelInfo[16]; float4 nebelEbene[128];
 };
 cbuffer B4 : register(b1) {
-    float4 umgebung; float4 minimum; float4 sonne; float4 himmelInfo; int4 anzahl;
+    float4 umgebung; float4 minimum; float4 sonne; float4 himmelInfo; int4 anzahl; float4 kaskadeRichtung;
     row_major float4x4 kaskadeVp[2];
     row_major float4x4 himmelVp[16];
 };
@@ -1262,6 +1288,40 @@ bool alphaGut(float a) {
     if (f == 4) { return a <= r; }
     if (f == 5) { return a >= r; }
     return true;
+}
+// Stufe 9d: der erste Nebel, dessen Pinsel die Stelle enthaelt, sonst der globale (-1: keiner)
+int nebelFuer(float3 p, float eps) {
+    [loop] for (int n = 0; n < nebelZahl.x; ++n) {
+        int zahl = (int)nebelInfo[n].y;
+        if (zahl <= 0) { continue; }
+        int erste = (int)nebelInfo[n].x;
+        bool drin = true;
+        [loop] for (int j = 0; j < zahl; ++j) {
+            float4 e = nebelEbene[erste + j];
+            if (dot(e.xyz, p) - e.w > eps) { drin = false; break; }
+        }
+        if (drin) { return n; }
+    }
+    return nebelZahl.y;
+}
+// RB_CalcFogTexCoords (tr_shade_calc.cpp) und R_FogFactor (tr_image.cpp, fogTable = Wurzel)
+float nebelDichte(int n, float3 p) {
+    float s = nebelFarbe[n].w * (dot(p, nebelVorn.xyz) - nebelVorn.w) + 1.0 / 512.0;
+    float t = 1.0;
+    float augeT = 1.0;
+    if (nebelInfo[n].z > 0.5) {
+        t = dot(p, nebelFlaeche[n].xyz) + nebelFlaeche[n].w;
+        augeT = nebelInfo[n].w;
+    }
+    if (augeT < 0.0) {
+        t = (t < 1.0) ? 1.0 / 32.0 : 1.0 / 32.0 + 30.0 / 32.0 * t / (t - augeT);
+    } else {
+        t = (t < 0.0) ? 1.0 / 32.0 : 31.0 / 32.0;
+    }
+    float sv = s - 1.0 / 512.0;
+    if (sv < 0.0 || t < 1.0 / 32.0) { return 0.0; }
+    if (t < 31.0 / 32.0) { sv *= (t - 1.0 / 32.0) / (30.0 / 32.0); }
+    return sqrt(min(sv * 8.0, 1.0));
 }
 float3 genebelt(float3 c, float abstand) {
     if (nebel.w <= 0.0) { return c; }
@@ -1446,7 +1506,8 @@ float3 lichtVon(uint k, float3 p, float3 n) {
     if (add <= 0.0) { return float3(0, 0, 0); }
     float s;
     if ((int)L.farbe.a == 2) {
-        s = L.mehr.x < -2.5 ? sonnenSicht(p, n, L.richtung.xyz) : (L.mehr.x >= 0.0 ? himmelSicht(L, p, n) : 1.0);
+        // Stufe 9d: die Kaskaden gelten in ihrer Richtung (auch fuer die Proben derselben Sonne)
+        s = L.mehr.x < -2.5 ? sonnenSicht(p, n, kaskadeRichtung.xyz) : (L.mehr.x >= 0.0 ? himmelSicht(L, p, n) : 1.0);
     } else {
         s = wuerfelSicht(L, p, n, add > 8.0);
     }
@@ -1483,7 +1544,16 @@ float4 ps4(VO4 i) : SV_Target {
     c.rgb = saturate(c.rgb * (lm / 255.0) * 2.0);
     c.rgb = genebelt(c.rgb, i.tiefe);
     if (!alphaGut(c.a)) { discard; }
+    // Stufe 9d: RB_FogPass (GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA mit der Nebelfarbe)
+    int nb = nebelFuer(i.welt, 0.1);
+    if (nb >= 0) { c.rgb = lerp(c.rgb, nebelFarbe[nb].rgb, nebelDichte(nb, i.welt)); }
     return c;
+}
+// Stufe 9d: eine Nebelflaeche - nur der Nebel (FP_LE), gemischt mit Alpha
+float4 ps4Nebel(VO4 i) : SV_Target {
+    int nb = nebelFuer(i.welt, 1.0);
+    if (nb < 0 || nebelInfo[nb].y < 0.5) { discard; }
+    return float4(nebelFarbe[nb].rgb, nebelDichte(nb, i.welt));
 }
 cbuffer BS : register(b2) { row_major float4x4 seiteVp; float4 lichtPos; float4 zurSonne; float4 werteS; };
 Texture2DArray hS : register(t1);
@@ -1657,10 +1727,10 @@ bool bereit4() {
     };
     const char* const psZiel = sm5 ? "ps_5_0" : "ps_4_1";
     const char* const vsZiel = sm5 ? "vs_5_0" : "vs_4_1";
-    ID3DBlob* b[8] = {};
+    ID3DBlob* b[9] = {};
     if (!uebersetzen("vs4", vsZiel, &b[0]) || !uebersetzen("ps4", psZiel, &b[1]) || !uebersetzen("vss", vsZiel, &b[2]) ||
         !uebersetzen("pss", psZiel, &b[3]) || !uebersetzen("pssA", psZiel, &b[4]) || !uebersetzen("psHimmel", psZiel, &b[5]) ||
-        !uebersetzen("psUnter", psZiel, &b[6]) || !uebersetzen("psUnterA", psZiel, &b[7])) {
+        !uebersetzen("psUnter", psZiel, &b[6]) || !uebersetzen("psUnterA", psZiel, &b[7]) || !uebersetzen("ps4Nebel", psZiel, &b[8])) {
         for (auto*& x : b) { los(x); }
         return false;
     }
@@ -1672,6 +1742,7 @@ bool bereit4() {
     d->CreatePixelShader(b[5]->GetBufferPointer(), b[5]->GetBufferSize(), nullptr, &g.psHimmel);
     d->CreatePixelShader(b[6]->GetBufferPointer(), b[6]->GetBufferSize(), nullptr, &g.psUnter);
     d->CreatePixelShader(b[7]->GetBufferPointer(), b[7]->GetBufferSize(), nullptr, &g.psUnterA);
+    d->CreatePixelShader(b[8]->GetBufferPointer(), b[8]->GetBufferSize(), nullptr, &g.ps4Nebel);
     for (auto*& x : b) { los(x); }
     D3D11_BUFFER_DESC cb{};
     cb.ByteWidth = (sizeof(Konstanten4) + 15U) & ~15U;
@@ -1681,6 +1752,8 @@ bool bereit4() {
     d->CreateBuffer(&cb, nullptr, &g.cb4);
     cb.ByteWidth = sizeof(KonstantenSchatten);
     d->CreateBuffer(&cb, nullptr, &g.cbSchatten);
+    cb.ByteWidth = sizeof(KonstantenNebel);
+    d->CreateBuffer(&cb, nullptr, &g.cbNebel);
     g.lichtBuf = pufferAnlegen(static_cast<UINT>(kLichtMax * sizeof(LichtGpu)), DXGI_FORMAT_R32G32B32A32_FLOAT,
                                static_cast<UINT>(kLichtMax * (sizeof(LichtGpu) / 16)), &g.lichtSrv);
     const bool pools = poolAnlegen(g.pool[0], 512, kSchattenGross) && poolAnlegen(g.pool[1], 256, kSchattenKlein);
@@ -1697,7 +1770,9 @@ bool bereit4() {
     d->CreateRasterizerState(&rs, &g.rsSchatten);
     g.gescheitert4 = g.vs4 == nullptr || g.ps4 == nullptr || g.vsSchatten == nullptr || g.psSchatten == nullptr || g.psSchattenA == nullptr ||
                      g.psHimmel == nullptr || g.psUnter == nullptr || g.psUnterA == nullptr || g.cb4 == nullptr || g.cbSchatten == nullptr ||
-                     g.lichtSrv == nullptr || !pools || !kask || g.punktAbtaster == nullptr || g.rsSchatten == nullptr;
+                     g.lichtSrv == nullptr || !pools || !kask || g.punktAbtaster == nullptr || g.rsSchatten == nullptr || g.ps4Nebel == nullptr ||
+                     g.cbNebel == nullptr;
+    if (!g.gescheitert4) { nebelSetzen({}, {}, -1, nullptr); }   // Stufe 9d: ohne Nebel
     return !g.gescheitert4;
 }
 
@@ -1876,6 +1951,29 @@ bool sonnenKarte(Zustand::Karten& k, int schicht, const float* richtung, const f
 
 bool echtLichtVerfuegbar() { return verfuegbar() && bereit4(); }
 
+void nebelSetzen(const std::vector<NebelEcht>& nebel, const std::vector<float>& ebenen, int global, const float* vorn) {
+    if (g.cbNebel == nullptr) { return; }
+    ID3D11DeviceContext* c = kontext();
+    D3D11_MAPPED_SUBRESOURCE m{};
+    if (FAILED(c->Map(g.cbNebel, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) { return; }
+    auto* k = static_cast<KonstantenNebel*>(m.pData);
+    std::memset(k, 0, sizeof(KonstantenNebel));
+    const std::size_t n = std::min<std::size_t>(nebel.size(), kNebelMax);
+    k->zahl[0] = static_cast<int>(n);
+    k->zahl[1] = global >= 0 && static_cast<std::size_t>(global) < n ? global : -1;
+    if (vorn != nullptr) { std::memcpy(k->vorn, vorn, sizeof(k->vorn)); }
+    for (std::size_t i = 0; i < n; ++i) {
+        std::memcpy(k->farbe[i], nebel[i].farbe, sizeof(k->farbe[i]));
+        std::memcpy(k->flaeche[i], nebel[i].flaeche, sizeof(k->flaeche[i]));
+        std::memcpy(k->info[i], nebel[i].info, sizeof(k->info[i]));
+        // Ebenen ueber die Grenze: den Nebel weglassen
+        if (nebel[i].info[0] + nebel[i].info[1] > static_cast<float>(kNebelEbenenMax)) { k->info[i][1] = 0; }
+    }
+    const std::size_t e = std::min<std::size_t>(ebenen.size() / 4, kNebelEbenenMax);
+    if (e > 0) { std::memcpy(k->ebene, ebenen.data(), e * 4 * sizeof(float)); }
+    c->Unmap(g.cbNebel, 0);
+}
+
 void lichtSetzen(const std::vector<LichtGpu>& lichter, const std::vector<float>& ecken, const std::vector<std::uint32_t>& kacheln, int kachelnX,
                  int kachelnY, int worte, const float* umgebung, const float* minimum) {
     if (!bereit4()) { return; }
@@ -1899,6 +1997,7 @@ void lichtSetzen(const std::vector<LichtGpu>& lichter, const std::vector<float>&
     k->anzahl[2] = kachelnY;
     k->anzahl[3] = kacheln.empty() ? 0 : worte;
     std::memcpy(k->kaskadeVp, g.kaskadeVp, sizeof(k->kaskadeVp));
+    std::memcpy(k->kaskadeRichtung, g.kaskadeRichtung, sizeof(k->kaskadeRichtung));
     std::memcpy(k->himmelVp, g.himmelVp, sizeof(k->himmelVp));
     c->Unmap(g.cb4, 0);
     if (n > 0 && SUCCEEDED(c->Map(g.lichtBuf, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) {
@@ -1999,6 +2098,7 @@ bool sonnenKaskade(int stufe, const float* richtung, const float* mitte, float h
         for (int i = 0; i < 3; ++i) { m[i] += x[i] * dx + y[i] * dy; }
     }
     if (!sonnenKarte(g.kaskaden, stufe, richtung, m, halb, tiefe, teile, g.kaskadeVp[stufe])) { return false; }
+    for (int i = 0; i < 3; ++i) { g.kaskadeRichtung[i] = richtung[i]; }
     g.kaskadeTexel[stufe] = texel;
     g.kaskadeAn[stufe] = true;
     return true;

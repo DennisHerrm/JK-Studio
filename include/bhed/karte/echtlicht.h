@@ -12,7 +12,11 @@
 // (Dreiecke der Flaeche, unterteilt nach q3map_lightSubdivide, je Stueck ein
 // Flaechenlicht mit PointToPolygonFormFactor und dem Rueckschein), "sun" und
 // q3map_skyLight. Das echte Ergebnis kommt immer aus bhed_q3map2
-// (Schnell-Backen, Build-Menue).
+// (Schnell-Backen, Build-Menue). Stufe 9d: misc_model und Patches strahlen
+// Flaechenlicht ab (RadLightForTriangles, RadLightForPatch mit dem Netz von
+// TessellatedMesh), Pinselflaechen in den Dreiecken von -meta (StripFaceSurface),
+// die Jitter-Kopien von _samples und q3map_sunExt mit Abweichung und Proben (mit
+// dem Zufall von q3map2: srand( 0 ), MSVC rand()).
 //
 // Portiert aus q3map2 (NetRadiant-Custom 20260114: tools/quake3/q3map2/light.cpp,
 // light_ydnar.cpp, shaders.cpp).
@@ -28,6 +32,7 @@
 
 #include "bhed/karte/mathe.h"
 
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <vector>
@@ -70,6 +75,8 @@ struct EchtLicht {
     std::vector<Vektor3f> wicklung;     // light.w
     bool zweiseitig = false;            // LightFlags::Twosided
     bool himmel = false;                // Sonne aus q3map_skyLight (viele schwache Sonnen)
+    int sonnenGruppe = 0;               // Stufe 9d: die Proben einer Sonne (q3map_sunExt, _samples) - gleiche Zahl
+    int sonnenProbe = 0;                //   ... die wievielte (0: die Richtung ohne Abweichung)
 };
 
 // Was eine Flaeche mit q3map_surfacelight ausstrahlt (Shader-Skript), fuer
@@ -82,6 +89,7 @@ struct EchtFlaechenShader {
     float backsplashWeite = 23.0F;    // DEF_BACKSPLASH_DISTANCE
     bool himmel = false;       // C_SKY: kein Rueckschein
     bool zweiseitig = false;   // C_FOG oder si.twoSided (cull none): LightFlags::Twosided
+    bool autosprite = false;   // Stufe 9d: CreateSurfaceLights macht daraus ein Punktlicht in der Mitte der Flaeche
 };
 // Sonne aus dem Himmels-Shader (q3map_sun / q3map_sunExt): Farbe, Staerke, Richtung
 struct EchtSonne {
@@ -96,6 +104,8 @@ struct EchtSonne {
         float staerke = 0;
         float grad = 0;
         float hoehe = 0;
+        float abweichung = 0;   // Stufe 9d: q3map_sunExt <deviance> (Bogenmass, sun.deviance)
+        int proben = 1;         //   ... <samples> (sun.numSamples)
     };
     std::vector<Sonne> sonnen;   // leer: nur die erste aus den Feldern oben
     struct Himmelslicht {
@@ -115,6 +125,82 @@ struct EchtSonne {
     std::vector<Probe> proben;
 };
 
+// Stufe 9d: der Zufall von q3map2 -light (main.cpp srand( 0 ), Random() = rand() / RAND_MAX
+// mit dem rand() von MSVC: LCG, 15 Bit). Die Jitter-Kopien der Lichter mit _samples
+// (CreateEntityLights) und die Sonnen von q3map_sunExt (CreateSunLight) ziehen in dieser
+// Reihenfolge aus derselben Folge.
+struct EchtZufall {
+    std::uint32_t zustand = 0;
+    float naechste() {
+        zustand = zustand * 214013U + 2531011U;
+        return static_cast<float>((zustand >> 16) & 0x7FFFU) / 32767.0F;
+    }
+};
+
+// Stufe 9d: ein Netz wie mesh_t (Zeilen von Punkten, Breite x Hoehe)
+struct EchtNetz {
+    int breite = 0;
+    int hoehe = 0;
+    std::vector<Vektor3f> ort;
+    std::vector<Vektor3f> normale;
+};
+// Ein Patch wie in -light: DrawSurfaceForMesh (surface.cpp: Normalen der Kontrollpunkte mit
+// MakeMeshNormals vor und nach PutMeshOnCurve), longestCurve (patch.cpp ExpandLongestCurve) und
+// TessellatedMesh mit IterationsForCurve(longestCurve, patchSubdivisions) (light_bounce.cpp,
+// lightmaps_ydnar.cpp). kontrolle: Zeile r, Spalte c an r * breite + c (wie mesh_t). Leer, wenn
+// die Groesse nicht passt.
+[[nodiscard]] EchtNetz echtPatchNetz(const std::vector<Vektor3f>& kontrolle, int breite, int hoehe, int unterteilungen = 8);
+// RadLightForPatch (light_bounce.cpp): je Viereck des Netzes ein Flaechenlicht, wenn es eben ist
+// (PLANAR_EPSILON 0.1), sonst seine zwei Dreiecke (MeshQuadIterator).
+void echtPatchFlaechenLichter(const EchtNetz& netz, const EchtFlaechenShader& s, std::vector<EchtLicht>& aus);
+// StripFaceSurface (surface_meta.cpp, ohne T-Verbindungen): die Dreiecke einer Pinselflaeche
+// von -meta, je drei Indizes in w. Findet sich kein Streifen ohne entartete Dreiecke, kommt
+// FanFaceSurface: dann ist *mitte = true und der Index w.size() steht fuer den Mittelpunkt.
+[[nodiscard]] std::vector<int> echtFlaechenStreifen(const std::vector<Vektor3f>& w, bool* mitte = nullptr);
+
+// Stufe 9d: die Flaechen der misc_model, wie q3map2 sie in die .bsp setzt (AddTriangleModels: ohne
+// target in der Welt, sonst in der Pinsel-Entitaet dieses Namens; ModelGetTransform; Shader nach Skin
+// und _remap) - fuer das Flaechenlicht und die Schatten (castShadows: in der Welt 1, sonst 0, dann
+// _castShadows/_cs des Modells bzw. der Eltern). Je Flaeche ein Aufruf, je drei Ecken ein Dreieck.
+struct EchtModellFlaeche {
+    const Entitaet* quelle = nullptr;
+    std::string shader;
+    int wirft = 1;
+    std::vector<Vektor3f> ort;
+    std::vector<Vektor3f> normale;
+    std::vector<Vektor2f> st;
+};
+void echtModellFlaechen(const Karte& k, const std::function<void(const EchtModellFlaeche&)>& je);
+
+// Stufe 9d: Nebel wie im Spiel. q3map2 CreateMapFogs/EmitFogs: jeder Pinsel mit einem fogParms-Shader
+// ist ein Nebel, die sichtbare Seite (visibleSide) erzwingt q3map_fogDir, sonst die erste sichtbare
+// achsparallele Seite von +Z rueckwaerts, dann die anderen; worldspawn "_fog"/"fog" ist der globale
+// Nebel. R_LoadFogs (tr_bsp.cpp): Farbe aus fogParms, tcScale = 1 / (max(1, Tiefe) * 8), die Flaeche
+// = -Normale und Abstand der sichtbaren Seite. q3map2 schneidet die Flaechen an den Seiten des
+// Nebelpinsels (FogDrawSurfaces) - hier steht der Pinsel als Ebenen (aussen: n.p > d).
+struct EchtNebel {
+    std::string shader;
+    Vektor3f farbe{1, 0, 0};
+    float tcScale = 1.0F / 8.0F;
+    bool global = false;
+    bool hatFlaeche = false;
+    float ebene[4]{0, 0, 0, 0};       // t = dot(p, ebene.xyz) + ebene.w: Tiefe unter der Flaeche
+    std::vector<float> ebenen;        // je vier: Normale (nach aussen), Abstand
+    const Entitaet* quelle = nullptr;
+};
+struct EchtNebelShader {
+    bool nebel = false;               // fogParms
+    Vektor3f farbe{0, 0, 0};
+    float tiefe = 0;
+    Vektor3f richtung{0, 0, 0};       // q3map_fogDir
+    bool nichtZeichnen = false;       // C_NODRAW (die sichtbare Seite ist keine nodraw-Seite)
+    bool deckend = true;              // Pinsel mit dieser Seite fuellen Blaetter (sichtbar ist, was davor frei ist)
+};
+[[nodiscard]] std::vector<EchtNebel> echtNebelSammeln(const Karte& k, const std::function<EchtNebelShader(const std::string&)>& shader);
+// R_FogFactor (tr_image.cpp) mit den Koordinaten von RB_CalcFogTexCoords (tr_shade_calc.cpp) an einer
+// Stelle: Deckkraft des Nebels 0..1 (RB_FogPass mischt GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA).
+[[nodiscard]] float echtNebelDichte(const EchtNebel& n, const Vektor3f& punkt, const Vektor3f& auge, const Vektor3f& vorn);
+
 struct EchtLichtWelt {
     std::vector<EchtLicht> lichter;
     Vektor3f umgebung{0, 0, 0};   // worldspawn _color * _ambient
@@ -122,7 +208,9 @@ struct EchtLichtWelt {
 };
 
 // Die Lichter der Karte. shaderVon: q3map_surfacelight der Flaechen und
-// q3map_sun der Himmelsflaechen (nach Shadername); darf leer sein.
+// q3map_sun der Himmelsflaechen (nach Shadername); darf leer sein. Stufe 9d: dazu
+// die Flaechen der Patches und der misc_model (k.kontext.modelle, wie AddTriangleModels:
+// ohne target in der Welt, mit target in der Pinsel-Entitaet dieses Namens).
 [[nodiscard]] EchtLichtWelt echtLichterSammeln(const Karte& k,
                                                const std::function<EchtFlaechenShader(const std::string&)>& flaechenShader,
                                                const std::function<EchtSonne(const std::string&)>& sonne);
@@ -137,6 +225,10 @@ struct EchtLichtWelt {
 // RadSubdivideDiffuseLight (light_bounce.cpp) fuer ein Dreieck einer Flaeche:
 // haengt die Flaechenlichter (und den Rueckschein) an "aus".
 void echtFlaechenLichter(const std::vector<Vektor3f>& wicklung, const Vektor3f& normale, const EchtFlaechenShader& s,
+                         std::vector<EchtLicht>& aus);
+// Stufe 9d: dasselbe mit einer Normale je Ecke (Modelle, Patches): RadClipWindingEpsilon mischt
+// sie mit, die Normale des Lichts ist ihr Mittel (RadSubdivideDiffuseLight).
+void echtFlaechenLichter(const std::vector<Vektor3f>& wicklung, const std::vector<Vektor3f>& normalen, const EchtFlaechenShader& s,
                          std::vector<EchtLicht>& aus);
 
 // CreateSkyLights (light.cpp:228): die Sonnen eines q3map_skyLight; mit proben (SkyProbes,

@@ -2679,6 +2679,17 @@ enum class Str {
     KePatchSchatten,
     KePatchSchattenTip,
     KeRkWarten,
+    KeEchtEffekte,
+    KeEchtEffekteTip,
+    KeSeMenue,
+    KeSeTitel,
+    KeSeZiel,
+    KeSeAuswahl,
+    KeSeGespeichert,
+    KeSeNeuGeladen,
+    KeSeKeinSkript,
+    KePbMenue,
+    KePbTip,
     Count,
 };
 

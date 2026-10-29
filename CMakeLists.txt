@@ -425,6 +425,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_zusammen.cpp
     gui/app_karte_optimierer.cpp
     gui/app_karte_echtlicht.cpp
+    gui/app_karte_shadereditor.cpp
     gui/app_karte_plugins.cpp
     gui/app_karte_brushexport.cpp
     gui/app_karte_kleineplugins.cpp

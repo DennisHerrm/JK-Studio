@@ -304,6 +304,17 @@ void bauMenueEintraegeZeichnen() {
         ed.echtLicht.patchSchatten = !ed.echtLicht.patchSchatten;
         einstellungenSpeichern();
     }
+    // Stufe 9d: fx_runner in der Echtzeit-Ansicht (abschaltbar)
+    const std::string fx = std::string(trK(Str::KeEchtEffekte)) + "##bauechteffekte";
+    QtPunkt fxp;
+    fxp.id = fx.c_str();
+    fxp.art = QtArt::Pruefbar;
+    fxp.haken = ed.echtLicht.effekte;
+    fxp.tooltip = trK(Str::KeEchtEffekteTip);
+    if (qtPunkt(fxp)) {
+        ed.echtLicht.effekte = !ed.echtLicht.effekte;
+        einstellungenSpeichern();
+    }
     // Stufe 8a Punkt 2 (Abweichung, eigene Funktion): Editor-Daten behalten
     const std::string edDaten = std::string(trK(Str::KeEdMenue)) + "##baueditordaten";
     QtPunkt ed2;
