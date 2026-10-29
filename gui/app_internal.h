@@ -2399,6 +2399,8 @@ void playSoundSchleife(const std::string& name, double dauerMs, float lautstaerk
 void spieleMusik(const std::string& spec, double abMs);
 // Die Levelmusik aus dem worldspawn ("music"), leer wenn keine.
 std::string weltMusik();
+// Klang hinter einem use (target_play_music, target_speaker), leer ohne (app_view3d.cpp)
+std::string useSoundFor(const std::string& ziel, bool* istMusik);
 
 double soundLengthMs(const std::string& name);
 // Klaenge am Ort, wie die Engine sie hoert (app_view3d.cpp)
