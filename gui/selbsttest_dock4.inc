@@ -850,8 +850,11 @@ std::vector<Schritt> dock5Schritte() {
             if (!a.da() || !b.da() || a.breite != b.breite || a.hoehe != b.hoehe) { return false; }
             int n = 0;
             ImRect anders{ImVec2{1e9F, 1e9F}, ImVec2{-1e9F, -1e9F}};
+            // die rechte Haelfte der Statuszeile zaehlt nicht: dort steht die Bildrate
+            const int statusOben = a.hoehe - static_cast<int>(2.0F * ImGui::GetFrameHeightWithSpacing());
             for (int y = 0; y < a.hoehe; ++y) {
                 for (int x = 0; x < a.breite; ++x) {
+                    if (y >= statusOben && x >= a.breite / 2) { continue; }
                     if (dock4::abstand(a.punkt(x, y), b.punkt(x, y)) == 0) { continue; }
                     ++n;
                     anders.Add(ImVec2{static_cast<float>(x), static_cast<float>(y)});

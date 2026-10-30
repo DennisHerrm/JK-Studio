@@ -4626,6 +4626,10 @@ void drawStatus(const Layout& l) {
         if (unten > ImGui::GetCursorPosY()) {
             ImGui::SetCursorPosY(unten);
         }
+        // Abschluss rc607: am Zeilenanfang des Fensters - mit DockSpace stand der Cursor im
+        // Mission-Tab nach dem Band um einen Bruchteil eines Punkts versetzt (die Schrift war im
+        // Foto anders geglaettet als ohne DockSpace).
+        ImGui::SetCursorPosX(ImGui::GetCursorStartPos().x);
     }
     int errs = 0;
     int warns = 0;

@@ -350,6 +350,23 @@ void erzwingen(ImGuiDockNode* n, const std::vector<ImGuiID>& heim, const std::ve
     erzwingen(n->ChildNodes[1], heim, r, g1);
 }
 
+// Abschluss rc607: die Teiler zwischen nebeneinanderliegenden Knoten wie die Spaltenlinien der alten
+// Tabelle (TableBorderLight), dort, wo ImGui seinen festen Teiler zeichnet (DockNodeTreeUpdateSplitter:
+// zwischen beiden Kindern, nur wenn beide sichtbar sind); zwischen Spalten und Band keine Linie. Die
+// Linien der inneren Tabelle (links von `innenRechts`) beginnen und enden ein Zellpolster weiter innen.
+void spaltenLinien(const ImGuiDockNode* n, ImDrawList* dl, ImU32 farbe, float innenRechts, float polster) {
+    if (n == nullptr || n->IsLeafNode()) { return; }
+    const ImGuiDockNode* c0 = n->ChildNodes[0];
+    const ImGuiDockNode* c1 = n->ChildNodes[1];
+    if (n->SplitAxis == ImGuiAxis_X && c0->IsVisible && c1->IsVisible) {
+        const float x = c0->Pos.x + c0->Size.x;
+        const float rand = x < innenRechts - 0.5F ? polster : 0.0F;
+        dl->AddRectFilled(ImVec2{x, c1->Pos.y + rand}, ImVec2{c1->Pos.x, c1->Pos.y + c1->Size.y - rand}, farbe);
+    }
+    spaltenLinien(c0, dl, farbe, innenRechts, polster);
+    spaltenLinien(c1, dl, farbe, innenRechts, polster);
+}
+
 void panelInhalt(const std::string& id, const Layout& l) {
     Layout f = l;
     f.frameH = -FLT_MIN;   // bis an den Inhaltsrand des Knotens = das alte Ende der Spalten
@@ -416,14 +433,32 @@ void zeichnen(const Layout& l) {
     if (std0) { erzwingen(ImGui::DockBuilderGetNode(raum.wurzel), raum.heim, r, groesse); }
     ImGui::SetCursorScreenPos(alles.Min);
     const ImGuiWindowClass k = klasse();
-    ImGui::PushStyleColor(ImGuiCol_Separator, ImGui::GetStyleColorVec4(ImGuiCol_TableBorderLight));
+    // Abschluss rc607 (Foto gegen Foto ohne/mit DockSpace): ImGui zeichnet die festen Teiler
+    // (NoResize) in der Randfarbe - DockNodeUpdate legt ImGuiCol_Separator auf ImGuiCol_Border.
+    // Die alte Tabelle hatte zwischen den Spalten eine Linie in TableBorderLight und ueber dem
+    // Band keine: diese Teiler zeichnet der Bereich selbst (spaltenLinien).
+    if (std0) { ImGui::PushStyleColor(ImGuiCol_Border, ImVec4{0.0F, 0.0F, 0.0F, 0.0F}); }
     ImGui::PushStyleVar(ImGuiStyleVar_DockingSeparatorSize, kAbstand);
     // AutoHideTabBar: zwei Panels in einem Knoten zeigen ihre Reiter (ImGui nimmt
     // HiddenTabBar dann weg), allein wieder nur das Dreieck.
     ImGui::DockSpace(raum.wurzel, groesse,
                      ImGuiDockNodeFlags_AutoHideTabBar | (std0 ? ImGuiDockNodeFlags_NoResize : ImGuiDockNodeFlags_None), &k);
     ImGui::PopStyleVar();
-    ImGui::PopStyleColor();
+    if (std0) {
+        ImGui::PopStyleColor();
+        spaltenLinien(ImGui::DockBuilderGetNode(raum.wurzel), ImGui::GetWindowDrawList(), ImGui::GetColorU32(ImGuiCol_TableBorderLight),
+                      r[static_cast<std::size_t>(g_mess.innenN) - 1].Max.x, st.CellPadding.y);
+    }
+    if (mitBand(b)) {
+        // Abschluss rc607: die Zeile danach wie in der alten Folge - nach EndTable, der Ziehkante (Mission)
+        // und dem Band setzt ImGui die Zeile jeweils auf ganze Punkte (ItemSize: IM_TRUNC). Mit der
+        // ungerundeten Summe stand sie bis zu einem Punkt tiefer: die Statuszeile rutschte nach unten und
+        // das Hauptfenster war um einen Punkt rollbar (Modus karte, Mission-Tab).
+        const float anfang = std::trunc(std::trunc(g_mess.unten + st.ItemSpacing.y) + kanteH);
+        ImGuiWindow* fenster = ImGui::GetCurrentWindow();
+        fenster->DC.CursorPos.y = std::trunc(anfang + l.toolH + st.ItemSpacing.y);
+        fenster->DC.CursorMaxPos.y = fenster->DC.CursorPos.y - st.ItemSpacing.y;
+    }
     const std::vector<Blatt> p = blaetter(b);
     const std::size_t letzteSpalte = mitBand(b) ? p.size() - 2 : p.size() - 1;
     for (std::size_t i = 0; i < p.size(); ++i) {
