@@ -228,6 +228,7 @@ BhedBakeZahlen BhedBakeStatistik();
 
 // q3map2-Seite
 inline bool g_bhedBakeAn = false;                           // -bhedgpubake und die GPU ist bereit
+inline bool g_bhedBakeZufall = false;                       // vis4: GPU + Nachproben (BHED_GPUBAKE_ZUFALL oder Auto, gpuwahl.h)
 inline int g_bhedBakePruefen = 64;                          // -bhedgpubakecheck N: jede N-te Lightmap rechnet die CPU nach (0: keine)
 bool BhedBakeVorbereiten( const std::string& adapter );    // light_trace.cpp: nach SetupTraceNodes
 // Stufe 8d (-bhedgpubakeauto): wartet auf den Geraetestart; 0 keine GPU, 1 GPU ohne double, 2 mit double

@@ -29,6 +29,9 @@ alle Luxel (der Bericht zaehlt sie).
   7c. Adapterwahl              - -bhedgpuadapter 0 und ein unbekannter Name (Meldung, die schnellste)
   7d. Auto (Stufe 8d)          - -bhedgpubakeauto: kleine Karte -> CPU; gemerkt GPU schneller -> GPU,
                                  bitgleich; gemerkt CPU schneller -> CPU; ohne double -> CPU
+                                 vis4: mit -randomsamples der dritte Kandidat GPU + Nachproben: GPU
+                                 gemerkt schneller, Nachproben unbekannt -> einmal messen (measuregpuz);
+                                 gemerkt am schnellsten -> learnedgpuz; langsamer -> GPU; Lumps gleich
   7e. -randomsamples (vis1)    - "[Final] Extreme Quality": -fastbounce -samples 4 -randomsamples:
                                  Lightmaps ohne zufaellige Nachprobe auf der GPU, die anderen auf der
                                  CPU (je Lightmap der Zufallsgenerator ihres Arbeitsschritts); alle 18
@@ -41,6 +44,10 @@ alle Luxel (der Bericht zaehlt sie).
                                  allen Faeden der Gruppe) - rot vorher (keine auf der GPU); die
                                  Teile grosser Lightmaps mit Nachproben (BHED_GPUBAKE_BUDGET_MB=1)
                                  rechnet weiter die CPU, Lumps gleich.
+                                 vis4: Sammelpuffer - die GPU sammelt die Lightmaps mit Nachproben
+                                 ueber mehrere Bloecke und rechnet sie gemeinsam; mit kleinen Bloecken
+                                 (BHED_GPUBAKE_BUDGET_MB=1) laeuft er mehrmals ("in N runs", N >= 2),
+                                 auch mit BHED_GPUBAKE_ZUFALL neben den Threads; Lumps gleich der CPU.
   7g. Lichtlisten (vis1)        - IlluminateRawLightmap (Prozessor) und IlluminateVertexes nehmen ihre
                                  Lichtlisten aus dem Lichtbaum; BHED_LICHTLISTEN_PRUEFEN vergleicht jede
                                  mit CreateTraceLightsForBounds (alle gleich), Lumps gleich
@@ -178,6 +185,7 @@ def main():
                                    ('cpu4', licht4, None), ('gpu4', licht4 + gpu, nur),
                                    ('cpuz', lichtz, None), ('gpuz', lichtz + gpu, nur), ('gpuzneben', lichtz + gpu, None),
                                    ('gpuzklein', lichtz + gpu, {'BHED_GPUBAKE_BUDGET_MB': '1', 'BHED_GPUBAKE_NUR_GPU': '1'}),
+                                   ('gpuzschalter', lichtz + gpu, {'BHED_GPUBAKE_BUDGET_MB': '1', 'BHED_GPUBAKE_ZUFALL': '1'}),
                                    ('cpuzliste', lichtz, {'BHED_LICHTLISTEN_PRUEFEN': '1'}),
                                    ('nan', licht + gpu, {'BHED_GPUBAKE_NAN': '1', 'BHED_GPUBAKE_NUR_GPU': '1'}),
                                    ('adapter0', licht + gpu + ['-bhedgpuadapter', '0'], None),
@@ -186,7 +194,11 @@ def main():
                                    ('auto', licht + ['-bhedgpubakeauto'], None),
                                    ('autogpu', licht + ['-bhedgpubakeauto', '-bhedgpubakezeiten', '9000', '1'], None),
                                    ('autocpu', licht + ['-bhedgpubakeauto', '-bhedgpubakezeiten', '1', '9000'], None),
-                                   ('autofloat', licht + ['-bhedgpubakeauto', '-bhedgpubakezeiten', '9000', '1'], {'BHED_GPUBAKE_OHNE_DOUBLE': '1'})):
+                                   ('autofloat', licht + ['-bhedgpubakeauto', '-bhedgpubakezeiten', '9000', '1'], {'BHED_GPUBAKE_OHNE_DOUBLE': '1'}),
+                                   # vis4: der dritte Kandidat GPU + Nachproben (nur mit -randomsamples)
+                                   ('autozmessen', lichtz + ['-bhedgpubakeauto', '-bhedgpubakezeiten', '9000', '5'], None),
+                                   ('autozgelernt', lichtz + ['-bhedgpubakeauto', '-bhedgpubakezeiten', '9000', '5', '-bhedgpubakezeitenz', '1'], None),
+                                   ('autozlangsam', lichtz + ['-bhedgpubakeauto', '-bhedgpubakezeiten', '9000', '5', '-bhedgpubakezeitenz', '7'], None)):
             d = os.path.join(t, art)
             os.makedirs(d)
             for e in ('.map', '.bsp', '.srf'):
@@ -201,7 +213,7 @@ def main():
 
         # Stufe 8d: Auto - die Wahl steht in der Ausgabe, das Ergebnis ist immer das der CPU
         def wahl(art):
-            w = re.search(r'BehavEd GPU bake auto: (GPU|CPU) \((\w+)\) - (\d+) super luxels', ergebnis[art][1])
+            w = re.search(r'BehavEd GPU bake auto: (GPU\+subsamples|GPU|CPU) \((\w+)\) - (\d+) super luxels', ergebnis[art][1])
             return (w.group(1), w.group(2), int(w.group(3))) if w else (None, None, 0)
         keine_gpu = 'no usable GPU' in aus or 'BehavEd GPU bake report' not in aus
         wa, wg, wc, wf = wahl('auto'), wahl('autogpu'), wahl('autocpu'), wahl('autofloat')
@@ -218,6 +230,13 @@ def main():
                   'Auto, gemerkt CPU schneller: CPU, Lumps gleich')
             melde(wf[:2] == ('CPU', 'nodouble') and 'lightmaps on the GPU' not in ergebnis['autofloat'][1] and ergebnis['autofloat'][0] == cpu,
                   'Auto, Adapter ohne double (gemerkt GPU schneller): trotzdem CPU (nodouble), Lumps gleich')
+            # vis4: GPU + Nachproben - die Wahl und dieselben Bytes wie die CPU mit -randomsamples
+            if ', double,' in aus:
+                for art, erwartet in (('autozmessen', ('GPU+subsamples', 'measuregpuz')), ('autozgelernt', ('GPU+subsamples', 'learnedgpuz')),
+                                      ('autozlangsam', ('GPU', 'learnedgpu'))):
+                    wz = wahl(art)
+                    melde(wz[:2] == erwartet and 'lightmaps on the GPU' in ergebnis[art][1] and ergebnis[art][0] == ergebnis['cpuz'][0],
+                          'Auto mit -randomsamples (%s): %s (%s), alle 18 Lumps gleich der CPU' % (art, wz[0], wz[1]))
         if 'BehavEd GPU bake' not in aus:
             melde(False, '-bhedgpubake: keine Meldung von q3map2 - der Schalter fehlt in dieser bhed_q3map2.exe')
             print('q3map2_gpubake: %d Fehler' % fehler)
@@ -302,6 +321,13 @@ def main():
             melde(not anders and bk is not None and zk is not None and int(zk.group(1)) > 0,
                   '-randomsamples mit kleinen Bloecken: %s Lightmaps in Teilen, %s mit zufaelligen Nachproben auf der CPU, alle 18 Lumps Byte-gleich%s' %
                   (bk and bk['teile'], zk.group(1) if zk else '?', '' if not anders else ' - anders: %s' % anders))
+            # vis4: der Sammelpuffer - mit kleinen Bloecken mehrere Laeufe, nur GPU und neben den Threads
+            for art in ('gpuzklein', 'gpuzschalter'):
+                sl = re.search(r'(\d+) with random subsamples on the GPU \((\d+) luxels in (\d+) runs\)', ergebnis[art][1])
+                anders = [i for i in range(18) if ergebnis[art][0][i] != ergebnis['cpuz'][0][i]]
+                melde(not anders and sl is not None and int(sl.group(1)) > 0 and int(sl.group(3)) >= (2 if art == 'gpuzklein' else 1),
+                      'Sammelpuffer (%s): %s Lightmaps mit Nachproben auf der GPU (%s Luxel) in %s Laeufen, alle 18 Lumps Byte-gleich%s' %
+                      (art, sl.group(1) if sl else '?', sl.group(2) if sl else '?', sl.group(3) if sl else '?', '' if not anders else ' - anders: %s' % anders))
         # 8. Himmel mit Sonne (eigener Spielordner mit dem Himmels-Shader)
         spiel = os.path.join(t, 'spiel')
         os.makedirs(os.path.join(spiel, 'base', 'shaders'))

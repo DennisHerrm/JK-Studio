@@ -2662,11 +2662,15 @@ int LightMain( Args& args ){
 	g_bhedDxrWunsch = args.takeArg( "-bhedgpudxr" ); /* BehavEd stage 8g: DXR pre-test with -bhedgpu (measurement only) */
 	bool bhedBakeWunsch = args.takeArg( "-bhedgpubake" ); /* BehavEd stage 8c: light contributions on the GPU, same reason */
 	const bool bhedBakeAuto = args.takeArg( "-bhedgpubakeauto" ); /* BehavEd stage 8d: CPU or GPU, whichever is faster (bhed/gpuwahl.h) */
-	long long bhedBakeZeitCpu = 0, bhedBakeZeitGpu = 0;
+	long long bhedBakeZeitCpu = 0, bhedBakeZeitGpu = 0, bhedBakeZeitGpuZ = 0;
 	while ( args.takeArg( "-bhedgpubakezeiten" ) ) { /* BehavEd stage 8d: the editor's measured times of the last CPU/GPU light run (ms) */
 		bhedBakeZeitCpu = atoll( args.takeNext() );
 		bhedBakeZeitGpu = atoll( args.takeNext() );
 	}
+	while ( args.takeArg( "-bhedgpubakezeitenz" ) ) { /* BehavEd vis4: the same for the last run of GPU + random subsamples (ms) */
+		bhedBakeZeitGpuZ = atoll( args.takeNext() );
+	}
+	g_bhedBakeZufall = getenv( "BHED_GPUBAKE_ZUFALL" ) != nullptr; /* BehavEd vis4: GPU + random subsamples (Auto can choose it too) */
 	std::string bhedBakeAdapter;
 	while ( args.takeArg( "-bhedgpuadapter" ) ) { /* BehavEd stage 8c: GPU by number or part of its name */
 		bhedBakeAdapter = args.takeNext();
@@ -3423,11 +3427,15 @@ int LightMain( Args& args ){
 		e.samples = lightSamples;
 		e.cpuMs = bhedBakeZeitCpu;
 		e.gpuMs = bhedBakeZeitGpu;
+		e.nachproben = lightRandomSamples;
+		e.gpuzMs = bhedBakeZeitGpuZ;
 		const bhed::karte::GpuWahl w = bhed::karte::gpuWahl( e );
-		Sys_Printf( "BehavEd GPU bake auto: %s (%s) - %lld super luxels, bounce %d, samples %d, adapter %s, last CPU %lld ms, last GPU %lld ms\n",
-		            w.gpu ? "GPU" : "CPU", bhed::karte::gpuGrundName( w.grund ), e.superLuxel, e.bounce, e.samples,
-		            art == 2 ? "with double" : art == 1 ? "without double" : "none", e.cpuMs, e.gpuMs );
+		Sys_Printf( "BehavEd GPU bake auto: %s (%s) - %lld super luxels, bounce %d, samples %d, adapter %s, last CPU %lld ms, last GPU %lld ms, "
+		            "last GPU+subsamples %lld ms\n",
+		            w.nachproben ? "GPU+subsamples" : w.gpu ? "GPU" : "CPU", bhed::karte::gpuGrundName( w.grund ), e.superLuxel, e.bounce, e.samples,
+		            art == 2 ? "with double" : art == 1 ? "without double" : "none", e.cpuMs, e.gpuMs, e.gpuzMs );
 		bhedBakeWunsch = w.gpu;
+		g_bhedBakeZufall = g_bhedBakeZufall || w.nachproben;
 		if ( !w.gpu ) {
 			BhedBakeEnde(); /* the device that was started while the map loaded */
 		}

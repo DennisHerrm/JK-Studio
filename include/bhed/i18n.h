@@ -2699,6 +2699,9 @@ enum class Str {
     KeVisAuswege,
     KeVisExakt,
     KeVisExaktTip,
+    KeGpuWahlGpuZ,
+    KeGpuGrundLearnedZ,
+    KeGpuGrundMeasureZ,
     Count,
 };
 

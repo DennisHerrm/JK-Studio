@@ -11,7 +11,8 @@
 // Die Regeln (Messungen aus NOTIZEN_karte8g.md, RTX 4070 Laptop gegen 32 CPU-Threads):
 //   1. keine GPU                      -> CPU
 //   2. GPU ohne double                -> CPU (sonst nicht bitgleich: Intel UHD 44-90 % gleiche Luxel)
-//   3. beide Zeiten gemerkt           -> die schnellere (gelernt, gilt fuer Karte und Licht-Schalter)
+//   3. beide Zeiten gemerkt           -> die schnellere (gelernt, gilt fuer Karte und Licht-Schalter);
+//                                         mit -randomsamples und GPU schneller: 3a/3b (vis4, unten)
 //   4. wenig Arbeit                   -> CPU: Super-Luxel x (1 + Bounce) unter kGpuWahlKleinLuxel
 //                                         (md_ch_ben 34 490, mp__duel1 101 149 Super-Luxel: GPU
 //                                         hoechstens 0,3 s schneller; mp__duel1 mit -bounce 8 = 910 341
@@ -24,6 +25,14 @@
 //                                         582 s, die GPU in 717 s (ein Bounce: 237-271 gegen 210-227 s);
 //                                         md_am_sith etwa gleich - welches schneller ist, lernt Auto
 //   6. sonst                          -> GPU (kejim_post 1,2-2,4x, md_am_sith 1,9-2,6x, duel_mygeeto 1,6-1,9x)
+//
+// vis4: mit -randomsamples gibt es einen dritten Kandidaten, "GPU + Nachproben" (die GPU rechnet auch
+// Lightmaps mit zufaelligen Nachproben, Sammelpuffer, BHED_GPUBAKE_ZUFALL). Er ist nur auf manchen Karten
+// schneller (NOTIZEN_vis1.md, vis4, unter Last: taspir1 61,9 gegen GPU 68,2 / CPU 86,6 s, kejim_post 33,3
+// gegen 36,1 / 39-46 s; duel_mos_espa -bounce 1 aber 179,3 gegen 150,4 / 121,9 s). Darum misst Auto ihn
+// nur, wenn die GPU auf dieser Karte schon schneller als die CPU gelernt ist (3a), und nimmt ihn danach
+// nur, wenn er gemerkt der schnellste der drei ist (3b). Wo die CPU gewinnt (duel_mos_espa), wird er nie
+// gemessen.
 #ifndef BHED_KARTE_GPUWAHL_H
 #define BHED_KARTE_GPUWAHL_H
 
@@ -37,7 +46,7 @@ inline constexpr long long kGpuWahlKleinLuxel = 400000;
 inline constexpr long long kGpuWahlErkundenMs = 30000;
 
 enum class GpuGeraet { Keins, OhneDouble, MitDouble };
-enum class GpuGrund { KeineGpu, OhneDouble, GelerntGpu, GelerntCpu, Klein, Samples, Erkunden, Gross };
+enum class GpuGrund { KeineGpu, OhneDouble, GelerntGpu, GelerntCpu, Klein, Samples, Erkunden, Gross, GelerntGpuZ, ErkundenZ };
 
 struct GpuWahlEingabe {
     GpuGeraet geraet = GpuGeraet::Keins;
@@ -46,17 +55,24 @@ struct GpuWahlEingabe {
     int samples = 1;            // -samples
     long long cpuMs = 0;        // gemerkte Zeit des letzten CPU-Laufs (0: unbekannt)
     long long gpuMs = 0;        // gemerkte Zeit des letzten GPU-Laufs (0: unbekannt)
+    bool nachproben = false;    // vis4: -randomsamples - es gibt den dritten Kandidaten GPU + Nachproben
+    long long gpuzMs = 0;       // vis4: gemerkte Zeit des letzten Laufs GPU + Nachproben (0: unbekannt)
 };
 
 struct GpuWahl {
     bool gpu = false;
     GpuGrund grund = GpuGrund::KeineGpu;
+    bool nachproben = false;    // vis4: GPU + Nachproben (nur mit gpu)
 };
 
 [[nodiscard]] inline GpuWahl gpuWahl(const GpuWahlEingabe& e) {
     if (e.geraet == GpuGeraet::Keins) { return {false, GpuGrund::KeineGpu}; }
     if (e.geraet == GpuGeraet::OhneDouble) { return {false, GpuGrund::OhneDouble}; }
     if (e.cpuMs > 0 && e.gpuMs > 0) {
+        if (e.nachproben && e.gpuzMs > 0 && e.gpuzMs < e.gpuMs && e.gpuzMs < e.cpuMs) {
+            return {true, GpuGrund::GelerntGpuZ, true};                                          // 3b
+        }
+        if (e.nachproben && e.gpuzMs <= 0 && e.gpuMs < e.cpuMs) { return {true, GpuGrund::ErkundenZ, true}; }   // 3a
         return e.gpuMs < e.cpuMs ? GpuWahl{true, GpuGrund::GelerntGpu} : GpuWahl{false, GpuGrund::GelerntCpu};
     }
     if (e.superLuxel * (1 + (e.bounce > 0 ? e.bounce : 0)) < kGpuWahlKleinLuxel) { return {false, GpuGrund::Klein}; }
@@ -78,6 +94,8 @@ struct GpuWahl {
     case GpuGrund::Samples: return "samples";
     case GpuGrund::Erkunden: return "measuregpu";
     case GpuGrund::Gross: return "large";
+    case GpuGrund::GelerntGpuZ: return "learnedgpuz";
+    case GpuGrund::ErkundenZ: return "measuregpuz";
     }
     return "?";
 }

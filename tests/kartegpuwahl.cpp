@@ -30,7 +30,21 @@ int main() {
         e.gpuMs = gpu;
         return gpuWahl(e);
     };
-    const auto ist = [](GpuWahl x, bool gpu, GpuGrund g) { return x.gpu == gpu && x.grund == g; };
+    const auto ist = [](GpuWahl x, bool gpu, GpuGrund g) { return x.gpu == gpu && x.grund == g && !x.nachproben; };
+    // vis4: -randomsamples mit dem dritten Kandidaten GPU + Nachproben
+    const auto wz = [](long long luxel, long long cpu, long long gpu, long long gpuz, bool nachproben = true) {
+        GpuWahlEingabe e;
+        e.geraet = GpuGeraet::MitDouble;
+        e.superLuxel = luxel;
+        e.bounce = 2;
+        e.samples = 256;
+        e.cpuMs = cpu;
+        e.gpuMs = gpu;
+        e.nachproben = nachproben;
+        e.gpuzMs = gpuz;
+        return gpuWahl(e);
+    };
+    const auto istZ = [](GpuWahl x, GpuGrund g) { return x.gpu && x.nachproben && x.grund == g; };
     constexpr GpuGeraet D = GpuGeraet::MitDouble;
     // Super-Luxel der Messkarten (bhed_q3map2 -bhedgpubakeauto)
     constexpr long long duel1 = 101149, ben = 34490, kejim = 6086248, sith = 1286512, mygeeto = 1393026;
@@ -67,9 +81,38 @@ int main() {
     expect("gleich schnell gemerkt -> CPU (keine Geraete-Einrichtung)", ist(w(D, sith, 0, 2, 5000, 5000), false, GpuGrund::GelerntCpu));
     expect("nur eine Zeit gemerkt -> die Regeln nach der Groesse", ist(w(D, sith, 0, 2, 0, 9000), true, GpuGrund::Gross) &&
                                                                   ist(w(D, ben, 0, 2, 9000, 0), false, GpuGrund::Klein));
+    std::printf("--- vis4: dritter Kandidat GPU + Nachproben (NOTIZEN_vis1.md, vis4) ---\n");
+    expect("taspir1: GPU (68,2 s) schneller als CPU (86,6 s), Nachproben unbekannt -> einmal messen (measuregpuz)",
+           istZ(wz(sith, 86600, 68200, 0), GpuGrund::ErkundenZ));
+    expect("taspir1 gelernt: mit Nachproben 61,9 s am schnellsten -> GPU + Nachproben (learnedgpuz)",
+           istZ(wz(sith, 86600, 68200, 61900), GpuGrund::GelerntGpuZ));
+    expect("kejim_post gelernt: 33,3 gegen GPU 36,1 / CPU 39,1 s -> GPU + Nachproben",
+           istZ(wz(kejim, 39100, 36100, 33300), GpuGrund::GelerntGpuZ));
+    expect("mit Nachproben gemerkt langsamer als die GPU -> GPU (learnedgpu), auch gleich schnell",
+           ist(wz(sith, 90000, 60000, 70000), true, GpuGrund::GelerntGpu) && ist(wz(sith, 90000, 60000, 60000), true, GpuGrund::GelerntGpu));
+    expect("duel_mos_espa: CPU 121,9 s schneller als GPU 150,4 s -> CPU, die Nachproben werden nie gemessen",
+           ist(wz(sith, 121900, 150400, 0), false, GpuGrund::GelerntCpu));
+    expect("alle drei gemerkt, die CPU am schnellsten -> CPU", ist(wz(sith, 50000, 60000, 55000), false, GpuGrund::GelerntCpu));
+    expect("ohne -randomsamples gibt es den dritten Kandidaten nicht (gemerkte Zeit egal)",
+           ist(wz(sith, 86600, 68200, 0, false), true, GpuGrund::GelerntGpu) && ist(wz(sith, 86600, 68200, 1000, false), true, GpuGrund::GelerntGpu));
+    expect("nur eine oder keine Zeit gemerkt -> die Regeln wie bisher (samples, measuregpu)",
+           ist(wz(sith, 0, 0, 0), false, GpuGrund::Samples) && ist(wz(sith, 582000, 0, 0), true, GpuGrund::Erkunden));
+    expect("ohne double nie die GPU, auch mit gemerkt schnellen Nachproben", [&] {
+        GpuWahlEingabe e;
+        e.geraet = GpuGeraet::OhneDouble;
+        e.superLuxel = sith;
+        e.cpuMs = 90000;
+        e.gpuMs = 60000;
+        e.nachproben = true;
+        e.gpuzMs = 1000;
+        const GpuWahl x = gpuWahl(e);
+        return !x.gpu && !x.nachproben && x.grund == GpuGrund::OhneDouble;
+    }());
     expect("Kurznamen fuer die Ausgabezeile", std::string(gpuGrundName(GpuGrund::Gross)) == "large" &&
                                                   std::string(gpuGrundName(GpuGrund::OhneDouble)) == "nodouble" &&
-                                                  std::string(gpuGrundName(GpuGrund::Erkunden)) == "measuregpu");
+                                                  std::string(gpuGrundName(GpuGrund::Erkunden)) == "measuregpu" &&
+                                                  std::string(gpuGrundName(GpuGrund::GelerntGpuZ)) == "learnedgpuz" &&
+                                                  std::string(gpuGrundName(GpuGrund::ErkundenZ)) == "measuregpuz");
 
     std::printf("--- Befehl, Schluessel, Speicher, Ausgabezeile ---\n");
     const std::string licht = "\"C:/x/bhed_q3map2.exe\" -game ja -fs_basepath \"C:/Spiel\" -light -fast -samples 2 -bounce 8 \"C:/k/maps/a b.map\"";
@@ -87,11 +130,16 @@ int main() {
            lichtSchalter("q -light -fast -bhedgpubakecheck 0 -bhedgpuadapter 1 m.map") == "-light -fast" &&
                lichtSchalter("q -light -fast -bounce 2 m.map") != lichtSchalter("q -light -fast m.map") &&
                lichtSchalter("q -vis m.bsp").empty());
+    const std::string mitZ = befehlMitGpuBackenAuto(licht, 1234, 567, 89);
+    expect("befehlMitGpuBackenAuto: mit gemerkter Zeit der Nachproben -bhedgpubakezeitenz, lichtSchalter ohne sie",
+           mitZ.find("-bhedgpubakezeiten 1234 567 -bhedgpubakezeitenz 89 \"C:/k/maps/a b.map\"") != std::string::npos &&
+               lichtSchalter(mitZ) == lichtSchalter(licht) && befehlMitGpuBackenAuto(licht, 1, 2, 0).find("zeitenz") == std::string::npos);
     GpuZeitenSpeicher sp;
-    sp.merken("C:/k/a.map", "-light -fast", false, 5000);
-    sp.merken("C:/k/a.map", "-light -fast", true, 2500);
-    sp.merken("C:/k/a.map", "-light -fast -bounce 2", true, 9000);
-    sp.merken("C:/k/b.map", "-light -fast", false, 0);   // ungueltig: nicht gemerkt
+    sp.merken("C:/k/a.map", "-light -fast", GpuWeg::Cpu, 5000);
+    sp.merken("C:/k/a.map", "-light -fast", GpuWeg::Gpu, 2500);
+    sp.merken("C:/k/a.map", "-light -fast -bounce 2", GpuWeg::Gpu, 9000);
+    sp.merken("C:/k/a.map", "-light -fast -bounce 2", GpuWeg::GpuNachproben, 7000);   // vis4
+    sp.merken("C:/k/b.map", "-light -fast", GpuWeg::Cpu, 0);   // ungueltig: nicht gemerkt
     GpuZeitenSpeicher sp2;
     (void)sp2.lesen(sp.schreiben());
     const GpuZeiten z = sp2.holen("C:/k/a.map", "-light -fast");
@@ -99,6 +147,12 @@ int main() {
            z.cpuMs == 5000 && z.gpuMs == 2500 && sp2.holen("C:/k/a.map", "-light -fast -bounce 2").gpuMs == 9000 &&
                sp2.holen("C:/k/a.map", "-light -fast -bounce 2").cpuMs == 0 && sp2.groesse() == 2 &&
                sp2.holen("C:/k/b.map", "-light -fast").cpuMs == 0);
+    GpuZeitenSpeicher alt;   // vis4: eine Datei ohne die dritte Zeit (vier Felder) liest sich wie bisher
+    (void)alt.lesen("100\t200\tC:/k/a.map\t-light -fast\n300\t400\tC:/k/c.map\t-light -randomsamples\t500\n");
+    expect("GpuZeitenSpeicher: die Zeit mit Nachproben als fuenftes Feld, alte Zeilen ohne sie",
+           sp2.holen("C:/k/a.map", "-light -fast -bounce 2").gpuzMs == 7000 && z.gpuzMs == 0 &&
+               alt.holen("C:/k/a.map", "-light -fast").gpuMs == 200 && alt.holen("C:/k/a.map", "-light -fast").gpuzMs == 0 &&
+               alt.holen("C:/k/c.map", "-light -randomsamples").gpuzMs == 500 && alt.holen("C:/k/c.map", "-light -randomsamples").cpuMs == 300);
     GpuBackBericht b;
     expect("gpuBackZeile: Auto-Zeile (GPU, Grund, Super-Luxel)",
            gpuBackZeile("BehavEd GPU bake auto: GPU (large) - 1286512 super luxels, bounce 8, samples 2, adapter with double, last CPU 0 ms, last GPU 0 ms", b) &&
@@ -106,7 +160,12 @@ int main() {
     GpuBackBericht c;
     expect("gpuBackZeile: Auto-Zeile (CPU, nodouble)",
            gpuBackZeile("BehavEd GPU bake auto: CPU (nodouble) - 5 super luxels, bounce 0, samples 1, adapter without double, last CPU 1 ms, last GPU 2 ms", c) &&
-               c.autoGesehen && !c.autoGpu && c.autoGrund == "nodouble" && c.autoLuxel == 5 && !c.keineGpu);
+               c.autoGesehen && !c.autoGpu && c.autoGrund == "nodouble" && c.autoLuxel == 5 && !c.keineGpu && !c.autoNachproben);
+    GpuBackBericht d;
+    expect("gpuBackZeile: Auto-Zeile GPU+subsamples (vis4), die GPU-Zeile ohne",
+           gpuBackZeile("BehavEd GPU bake auto: GPU+subsamples (learnedgpuz) - 7 super luxels, bounce 2, samples 256, adapter with double, "
+                        "last CPU 3 ms, last GPU 2 ms, last GPU+subsamples 1 ms", d) &&
+               d.autoGpu && d.autoNachproben && d.autoGrund == "learnedgpuz" && !b.autoNachproben);
     expect("Einstellung: Namen off/on/auto, Unbekanntes -> Vorgabe; Vorgabe ist Auto",
            gpuBackenAusName("on", GpuBacken::Aus) == GpuBacken::Ein && gpuBackenAusName("x", GpuBacken::Auto) == GpuBacken::Auto &&
                std::string(gpuBackenName(GpuBacken::Aus)) == "off" && kGpuBackenVorgabe == GpuBacken::Auto);

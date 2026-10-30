@@ -100,22 +100,26 @@ inline constexpr GpuBacken kGpuBackenVorgabe = GpuBacken::Auto;
 [[nodiscard]] const char* gpuBackenName(GpuBacken g);
 [[nodiscard]] GpuBacken gpuBackenAusName(const std::string& s, GpuBacken sonst);
 // ein -light-Befehl bekommt -bhedgpubakeauto -bhedgpubakezeiten <cpuMs> <gpuMs> (die gemerkten
-// Zeiten des letzten CPU- und GPU-Laufs dieser Karte mit diesen Schaltern, 0 = unbekannt)
-[[nodiscard]] std::string befehlMitGpuBackenAuto(const std::string& befehl, long long cpuMs, long long gpuMs);
+// Zeiten des letzten CPU- und GPU-Laufs dieser Karte mit diesen Schaltern, 0 = unbekannt), vis4 dazu
+// -bhedgpubakezeitenz <gpuzMs> (GPU mit Nachproben), wenn diese Zeit gemerkt ist
+[[nodiscard]] std::string befehlMitGpuBackenAuto(const std::string& befehl, long long cpuMs, long long gpuMs, long long gpuzMs = 0);
 // Schluessel der gemerkten Zeiten: die Schalter eines -light-Befehls ab "-light" ohne die Karte
 // und ohne die Schalter der GPU-Wahl (-bhedgpubake*, -bhedgpuadapter); leer ohne -light
 [[nodiscard]] std::string lichtSchalter(const std::string& befehl);
 // Die gemerkten Zeiten (Datei gpuzeiten.txt im Einstellungsordner): je Karte und Licht-Schaltern
-// die Dauer des letzten -light-Laufs auf der CPU und auf der GPU in ms
+// die Dauer des letzten -light-Laufs auf der CPU und auf der GPU in ms (vis4: und auf der GPU mit
+// Nachproben, bhed/gpuwahl.h)
 struct GpuZeiten {
-    long long cpuMs = 0, gpuMs = 0;
+    long long cpuMs = 0, gpuMs = 0, gpuzMs = 0;
 };
+// vis4: auf welchem Weg ein -light-Lauf rechnete (welche Zeit er setzt)
+enum class GpuWeg { Cpu, Gpu, GpuNachproben };
 class GpuZeitenSpeicher {
 public:
     bool lesen(const std::string& text);
     [[nodiscard]] std::string schreiben() const;
     [[nodiscard]] GpuZeiten holen(const std::string& karte, const std::string& schalter) const;
-    void merken(const std::string& karte, const std::string& schalter, bool gpu, long long ms);
+    void merken(const std::string& karte, const std::string& schalter, GpuWeg weg, long long ms);
     [[nodiscard]] std::size_t groesse() const { return eintraege_.size(); }
 
 private:
@@ -141,6 +145,7 @@ struct GpuBackBericht {
     std::string gleich;              // Anteil gleicher Luxel in %, wie ausgegeben ("100.0000")
     // Stufe 8d: "BehavEd GPU bake auto: GPU (large) - 1286512 super luxels, ..."
     bool autoGesehen = false, autoGpu = false;
+    bool autoNachproben = false;     // vis4: "GPU+subsamples" (autoGpu ist dann auch gesetzt)
     std::string autoGrund;           // Kurzname (gpuGrundName): nogpu, nodouble, learnedgpu, ...
     long long autoLuxel = 0;
 };

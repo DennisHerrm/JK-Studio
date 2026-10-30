@@ -186,14 +186,15 @@ std::vector<std::string> woerter(const std::string& befehl) {
 }
 }  // namespace
 
-std::string befehlMitGpuBackenAuto(const std::string& befehl, long long cpuMs, long long gpuMs) {
+std::string befehlMitGpuBackenAuto(const std::string& befehl, long long cpuMs, long long gpuMs, long long gpuzMs) {
     if (bauStufeAusBefehl(befehl) != BauStufe::Licht) { return befehl; }
     for (const std::string& w : woerter(befehl)) {
         if (w == "-bhedgpubakeauto") { return befehl; }   // schon da (mit seinen Zeiten)
     }
     const std::string b = mitSchalter(befehl, BauStufe::Licht, "-bhedgpubakeauto");
-    return mitSchalter(b, BauStufe::Licht, "-bhedgpubakezeiten " + std::to_string(std::max(0LL, cpuMs)) + " " +
-                                               std::to_string(std::max(0LL, gpuMs)));
+    const std::string c = mitSchalter(b, BauStufe::Licht, "-bhedgpubakezeiten " + std::to_string(std::max(0LL, cpuMs)) + " " +
+                                                              std::to_string(std::max(0LL, gpuMs)));
+    return gpuzMs > 0 ? mitSchalter(c, BauStufe::Licht, "-bhedgpubakezeitenz " + std::to_string(gpuzMs)) : c;
 }
 
 
@@ -210,7 +211,7 @@ std::string lichtSchalter(const std::string& befehl) {
             k += 2;
             continue;
         }
-        if (x == "-bhedgpubakecheck" || x == "-bhedgpuadapter") {
+        if (x == "-bhedgpubakecheck" || x == "-bhedgpuadapter" || x == "-bhedgpubakezeitenz") {
             ++k;
             continue;
         }
@@ -228,7 +229,8 @@ bool GpuZeitenSpeicher::lesen(const std::string& text) {
         std::string z = text.substr(a, b - a);
         a = b + 1;
         if (!z.empty() && z.back() == '\r') { z.pop_back(); }
-        // "<cpuMs>\t<gpuMs>\t<karte>\t<schalter>"
+        // "<cpuMs>\t<gpuMs>\t<karte>\t<schalter>[\t<gpuzMs>]" (vis4: die Zeit mit Nachproben dahinter - der
+        // Schalter-Text hat keinen Tabulator, aeltere Dateien lesen sich weiter)
         const std::size_t t1 = z.find('\t');
         const std::size_t t2 = t1 == std::string::npos ? t1 : z.find('\t', t1 + 1);
         const std::size_t t3 = t2 == std::string::npos ? t2 : z.find('\t', t2 + 1);
@@ -237,7 +239,9 @@ bool GpuZeitenSpeicher::lesen(const std::string& text) {
         e.z.cpuMs = std::max(0LL, std::atoll(z.substr(0, t1).c_str()));
         e.z.gpuMs = std::max(0LL, std::atoll(z.substr(t1 + 1, t2 - t1 - 1).c_str()));
         e.karte = z.substr(t2 + 1, t3 - t2 - 1);
-        e.schalter = z.substr(t3 + 1);
+        const std::size_t t4 = z.find('\t', t3 + 1);
+        e.schalter = z.substr(t3 + 1, t4 == std::string::npos ? std::string::npos : t4 - t3 - 1);
+        if (t4 != std::string::npos) { e.z.gpuzMs = std::max(0LL, std::atoll(z.c_str() + t4 + 1)); }
         eintraege_.push_back(std::move(e));
     }
     while (eintraege_.size() > kMax) { eintraege_.erase(eintraege_.begin()); }
@@ -247,7 +251,8 @@ bool GpuZeitenSpeicher::lesen(const std::string& text) {
 std::string GpuZeitenSpeicher::schreiben() const {
     std::string s;
     for (const Eintrag& e : eintraege_) {
-        s += std::to_string(e.z.cpuMs) + "\t" + std::to_string(e.z.gpuMs) + "\t" + e.karte + "\t" + e.schalter + "\n";
+        s += std::to_string(e.z.cpuMs) + "\t" + std::to_string(e.z.gpuMs) + "\t" + e.karte + "\t" + e.schalter;
+        s += e.z.gpuzMs > 0 ? "\t" + std::to_string(e.z.gpuzMs) + "\n" : std::string("\n");
     }
     return s;
 }
@@ -259,7 +264,7 @@ GpuZeiten GpuZeitenSpeicher::holen(const std::string& karte, const std::string& 
     return {};
 }
 
-void GpuZeitenSpeicher::merken(const std::string& karte, const std::string& schalter, bool gpu, long long ms) {
+void GpuZeitenSpeicher::merken(const std::string& karte, const std::string& schalter, GpuWeg weg, long long ms) {
     if (karte.empty() || schalter.empty() || ms <= 0 || karte.find_first_of("\t\n") != std::string::npos ||
         schalter.find_first_of("\t\n") != std::string::npos) {
         return;
@@ -272,7 +277,7 @@ void GpuZeitenSpeicher::merken(const std::string& karte, const std::string& scha
             break;
         }
     }
-    (gpu ? neu.z.gpuMs : neu.z.cpuMs) = ms;
+    (weg == GpuWeg::GpuNachproben ? neu.z.gpuzMs : weg == GpuWeg::Gpu ? neu.z.gpuMs : neu.z.cpuMs) = ms;
     eintraege_.push_back(std::move(neu));
     while (eintraege_.size() > kMax) { eintraege_.erase(eintraege_.begin()); }
 }
@@ -313,6 +318,7 @@ bool gpuBackZeile(const std::string& zeile, GpuBackBericht& b) {
     if (z.rfind(kAuto, 0) == 0) {   // Stufe 8d: "BehavEd GPU bake auto: GPU (large) - 1286512 super luxels, ..."
         b.autoGesehen = true;
         b.autoGpu = z.compare(kAuto.size(), 3, "GPU") == 0;
+        b.autoNachproben = z.compare(kAuto.size(), 15, "GPU+subsamples ") == 0;   // vis4
         const std::size_t k1 = z.find('(', kAuto.size());
         const std::size_t k2 = k1 == std::string::npos ? k1 : z.find(')', k1);
         if (k2 != std::string::npos) { b.autoGrund = z.substr(k1 + 1, k2 - k1 - 1); }

@@ -3736,10 +3736,15 @@ static void BhedIlluminateGpu(){
 	   The threads also finish the GPU lightmaps (the rest of IlluminateRawLightmap, with a copy of their
 	   luxels), so the main thread goes on with the next block at once - in the pool of the main thread
 	   that took 57 s next to the busy threads (duel_mos_espa, a bounce).
-	   With -randomsamples the processor takes no GPU lightmap: the lightmaps with random subsamples are
+	   vis1 left the GPU lightmaps to the GPU with -randomsamples: the lightmaps with random subsamples were
 	   more work than the GPU's whole list (duel_mos_espa: 120 s against 33 s), every taken one made the
-	   end later (bounce 150 -> 199 s).
-	   vis2 (work in progress, BHED_GPUBAKE_ZUFALL): the GPU can light those too (kernel zufall), but alone it
+	   end later (bounce 150 -> 199 s). vis4: the random subsamples on the processor are much faster now
+	   (TraceLine four triangles at once, the first opaque one ends the trace, brush boxes), and the threads
+	   waited for the GPU to find their lightmaps - so they take GPU lightmaps from the end again when they
+	   have nothing of their own (still last, after nebenFertig, nebenWarte and nebenZufall). Under load,
+	   "[Final] Extreme Quality" with -bhedgpubake: taspir1 76.0 -> 65.5 s, md_am_sith 493 -> 410 s,
+	   duel_mos_espa (-bounce 1) 124.5/125.7 -> 130.7/113.3 s, kejim_post 41.6 -> 40.5 s.
+	   vis2/vis4 (GPU + random subsamples, g_bhedBakeZufall): the GPU can light those too (kernel zufall), but alone it
 	   is slower than the processor's threads (md_am_sith, first pass: 1432 s against about 700 s) - so they go
 	   to the processor first (nebenZufall), and when the GPU has no block of its own left it takes the smallest
 	   of them in batches, while the threads take the biggest. vis4: the GPU keeps them in a gather buffer (see
@@ -3764,17 +3769,17 @@ static void BhedIlluminateGpu(){
 	size_t vorne = 0, hinten = gpuListe.size();   /* gpuListe[ vorne, hinten ): nobody has taken them yet */
 	bool gpuEnde = false, arbeiterEnde = false;
 	const bool nurGpu = getenv( "BHED_GPUBAKE_NUR_GPU" ) != nullptr;   /* the ctest: the processor takes no GPU lightmap */
-	/* vis2 (work in progress, off by default): BHED_GPUBAKE_ZUFALL - the GPU takes lightmaps with random subsamples
-	   from the processor when it has no block of its own left (see nebenZufall); with BHED_GPUBAKE_NUR_GPU the GPU
-	   lights every one of them itself (kernel zufall) */
-	const bool zufallUebernahme = !nurGpu && getenv( "BHED_GPUBAKE_ZUFALL" ) != nullptr;
-	const bool uebernehmen = !nurGpu && !lightRandomSamples;
+	/* vis2/vis4: GPU + random subsamples (g_bhedBakeZufall: BHED_GPUBAKE_ZUFALL, or Auto where it is learned the
+	   fastest, bhed/gpuwahl.h) - the GPU takes lightmaps with random subsamples from the processor (see nebenZufall,
+	   sammelStapel); with BHED_GPUBAKE_NUR_GPU the GPU lights every one of them itself (kernel zufall) */
+	const bool zufallUebernahme = !nurGpu && g_bhedBakeZufall;
+	const bool uebernehmen = !nurGpu;
 	std::atomic<long long> nebenAnzahl{ 0 }, nebenUebernommen{ 0 }, nebenZufallCpu{ 0 };
 	/* vis4: the kernel zufall is latency bound (one group per lightmap, the serial stamp scan) and a block had only
 	   about 50 lightmaps with random subsamples (md_am_sith) - so the GPU gathers them over several blocks: the
 	   colours of their initial pass (only the active lights) go to a gather buffer, and the kernel zufall, the
 	   filtering and adding run for many of them at once (sammelBlock), with the same operations as in their own
-	   block. With BHED_GPUBAKE_ZUFALL every gathered one is in nebenZufall too: whoever takes it first computes
+	   block. With g_bhedBakeZufall every gathered one is in nebenZufall too: whoever takes it first computes
 	   it (the threads the biggest, the GPU the smallest), both exactly. */
 	struct BhedSammel
 	{
@@ -3970,7 +3975,7 @@ static void BhedIlluminateGpu(){
 		nebenCv.notify_all();
 	};
 	/* vis4: a batch of the gather buffer on the GPU. With BHED_GPUBAKE_NUR_GPU every gathered lightmap. With
-	   BHED_GPUBAKE_ZUFALL the smallest ones no thread has taken, about the share zufallAnteil of their work: the threads
+	   g_bhedBakeZufall the smallest ones no thread has taken, about the share zufallAnteil of their work: the threads
 	   take the biggest at the same time (a batch takes as long as its longest serial stamp scan, and the threads must
 	   not run dry meanwhile). vis3: the first batch is small (1/16), then the GPU takes the share both sides can finish
 	   at the same time after the rates measured in the batch before (work the GPU did against work the threads took
