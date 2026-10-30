@@ -118,6 +118,19 @@ pruefung4b gebaut, danach zurueck.
   Spieler wie oben. Gebaut; ohne gezielten Test (der braucht den Selbsttest
   `pruefung4b`, offen).
 
+## Tests (Stand d5ac0221)
+
+- Voller Bau (inkrementell, unter Last): 0 Warnungen, 0 Fehler. ctest 179/179
+  gruen (pruefung4b, ablauftest, efxtest_probe, mover_probe, camtracktest
+  einzeln vorher).
+- Selbsttests (Laufordner im Scratchpad `p4b_laeufe`, danach geloescht):
+  pruefung3 9 OK / 0 FEHLER, kamera 95/0, szenen 26/0. Nicht gelaufen:
+  missionsbau, umriss, mission1, karteneditor kurz (Schlussrunde offen).
+- Nicht gegen das laufende Spiel geprueft: kein Spielstart in dieser Runde
+  (Geschuetz/Sentry, liegendes Schwert, ACCEL+ZOOM offen); geprueft gegen die
+  portierten Formeln (pruefung4b) und die Engine-Quellen (OpenJK, Movie Duels,
+  Jedi Outcast).
+
 ## Offen (Reihenfolge)
 
 2 (Rest): Geschuetze mit Feind (pas_think mit pas_find_enemies/Zielen/pas_fire,
