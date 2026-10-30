@@ -12,6 +12,9 @@ Laufordner `Y:/es_arbeit/u2/laeufe`. Parallel arbeiteten andere Agenten (alle Ze
 | 78e322b2 | Punkt 1: 148 Handbuchtexte je Sprache, 33 unbenutzte Einträge entfernt |
 | 64737870 | Punkt 3: Suchfeld der Zeitleiste, Hinweis der Aufnahme, Ränder im Menü-Editor; zwei feste Texte übersetzt (rot/grün) |
 | 65084442 | Punkt 4: 25 Bilder je Sprache, dazu h_zeitleiste und h_karte8_menue neu |
+| 5e49f021 | Notizen vor dem Merge |
+| 51775cb9 | Merge karte1 (d7dd6b28, Integration 5 bis dahin) + es/cs der M6-Texte (74 Programm-, 23 Handbuchtexte), 3 geänderte Handbuchtexte |
+| 0c5eb52b | Bilder nach dem Merge: 7 M6-Bilder je Sprache, Zeitleisten-Satz neu |
 
 ## Zahlen: noch englisch je Sprache
 
@@ -114,3 +117,111 @@ Durchsicht gegen die englischen Bilder:
 
 zeitleiste1: die vier Fehler sind der JK2-Teil (`kejim_post` nicht in der Liste nach „New mission“), genau wie
 Integration 4 auf Englisch („73 OK, 4 FEHLER – nur der JK2-Teil im vollen Lauf, allein grün“) – nicht sprachabhängig.
+
+## Merge karte1 (Integration 5)
+
+karte1 stand bei d7dd6b28: alle fünf Zweige des Auftrags gemergt (reste1, vis3, Zeitleiste 3, menue6, dock3),
+Notizen von Integration 5 noch nicht da. Gemergt, damit die neuen Texte übersetzt werden; kommt auf karte1 noch
+etwas, reicht ein weiterer Merge.
+
+- **Konflikte**: karte1 hatte die fünf lint_i18n-Beanstandungen parallel behoben – `TlKamera` gelöscht und den
+  Helferpfad der Kameraleiste auf `ZlOrt` („Kamera – Ort“) gestellt, den Satz zum Ton-Schalter eigen formuliert.
+  Übernommen (die lint_i18n-Prüfung der Helferketten bleibt, sie schützt jetzt `ZlOrt`). Den Hinweis der
+  Lauf-Aufnahme hat Zeitleiste 3 umgebrochen, mittig und frei von der Platzierleiste, mit eigener Prüfung –
+  übernommen, meine Fassung und ihr App-Feld entfernt; die Prüfung im Handbuch-Lauf liest `aufnahmeHinweis()`.
+  Generator-Listen: MENUE6, dann UEBERSETZUNG2; erzeugte Dateien neu (i18n, hilfe_orte 195 Orte, Handbuch).
+- **Neue Texte**: nur menue6 brachte Programmtexte (74 je Sprache); reste1, vis3, Zeitleiste 3 und dock3 keine.
+  Vier M6-Texte nannten Anzahlen ohne Mehrzahl („1 hints“, „Create page with 1 settings“, „1 menus: … 1 dead
+  ends … 1 missing“, „1 more … stay“) → Zähltexte in `i18n_menue6.py` und `trN` in `gui/app_menue_m6.inc`; der
+  Selbsttest, der den Knopf des Assistenten über seine Beschriftung klickt, holt sie ebenfalls mit `trN`
+  (sonst fände er auf Tschechisch „few“ statt „other“). Handbuch: die M6-Seite (23 Texte) und drei von
+  Zeitleiste 3/dock3 geänderte englische Sätze (Untertitel kleiner mit 0,66, die Figur läuft als Modell,
+  Dateien auf ein Panelfenster ziehen) – es/cs je 0 Texte englisch.
+- **Bilder**: die sieben M6-Bilder (`BHED_MENUE_NUR=m6`, je **16/0**) und der Zeitleisten-Satz noch einmal
+  (Zeitleiste 3 hat Aufnahme-Hinweis und Untertitel geändert, en/de neu aufgenommen). Durchsicht: passt; im
+  Assistenten überdeckt ein langer, in den MD-Daten unübersetzter Schlüssel (`@MD_MENU_SETTINGS_DYNAMIC_HUD`) die
+  Spalte rechts daneben – in jeder Sprache, Layout des Assistenten (gemeldet, nicht geändert).
+- **Prüfungen nach dem Merge** (Bau inkrementell 0 Warnungen, 17:41 min unter Last): ctest gezielt (sprache,
+  hilfe*, tour, zeitleiste, handbuch_suche, changelog_sprachen, alle menue_*) **28/28**; lint_i18n ok (es/cs je 0
+  fehlend), lint_i18n_erzeugt ok; gen_handbuch es/cs 0 Texte, 0 Bilder englisch. Danach **ctest gesamt 183/183**
+  (4:30 min, -j 2), lint_sources und lint_fassung ok.
+
+| Selbsttest nach dem Merge | es | cs |
+|---|---|---|
+| menueeditor (mit M6) | **122/0** | **122/0** |
+| zeitleiste | **47/0** | **47/0** |
+| zeitleiste1 | 80/1, wiederholt 80/1 | 80/1, wiederholt 80/1 |
+| dock1 | **86/0** | **86/0** |
+| karteneditor `hilfe2` | **44/0** | **44/0** |
+
+zeitleiste1: Die JK2-Fehler sind mit Zeitleiste 3 weg; übrig sind Prüfungen der Lauf-Aufnahme von Zeitleiste 3,
+die von der Bildzeit abhängen – Englisch im selben Bau **79/2** (dieselbe Prüfung „das Modell steht am gesteuerten
+Ort“, academy1 und mini: 78,6 statt > 100 Einheiten), es wie en (mini 90,6), cs zweimal „die Vorschau läuft den
+Weg … bis zum letzten Laufziel“: guard1 lief 489 statt ~365 Einheiten (Start −304 3616 in allen Sprachen), hinter das
+Wegnetz – genau der Lastfall, den der Kommentar über `halteTaste` beschreibt („unter Last … 443 statt 331 Einheiten
+… finds no path“). Nicht sprachabhängig; gehört zu Zeitleiste 3 (Offen).
+
+## Gegen das Vorbild geprüft / nicht geprüft
+
+- Spanische Spielbegriffe gegen die Texte von Jedi Academy (`assets0.pk3`, `strings/spanish/MENUS.str`,
+  `sp_ingame.str`, nur gelesen): g_subtitles „Subtítulos: Ninguno / En secuencias / Todas las voces en off“,
+  „Salud“, „Blindaje“ (ESCUDO PERSONAL (BLINDAJE)), „cruz filar“, „Munición“, „Estilo del sable láser“.
+- Mehrzahl nach CLDR (Test `sprache`: jeder Zähltext jeder Sprache für 0/1/2/3/5/21, auch die zwölf neuen).
+- Platz: alle neuen es/cs-Bilder gegen die englischen durchgesehen; die drei Layout-Funde mit roten/grünen
+  Selbsttestprüfungen.
+- Nicht geprüft: Tschechisch gegen eine offizielle Fassung (es gibt keine), die Texte im laufenden Spiel; volle
+  es/cs-Läufe aller Modi (Schlussrunde laut Auftrag).
+
+## Offen
+
+- **karte1 nach d7dd6b28**: Integration 5 war beim Merge noch nicht abgeschlossen (danach z. B. 3cae6104,
+  Untertitel von Jedi Outcast – ohne Texte). Kommt mit den Notizen von Integration 5 noch etwas mit Texten, einmal
+  nachmergen; sonst nimmt die Integration beide Stände zusammen.
+- Runde 3: M7, dock4, Zeitleiste 4, pruefung3.
+- **Beim Zusammenführen**: Zähltexte in fremden Zweigdateien geändert – `i18n_zeitleiste1.py` (AufHinweis,
+  AufGeschrieben), `i18n_menue3.py` (MeVideoTonQuelle, MeVideoErgebnis), `i18n_menue5.py` (MeLayoutZustaende,
+  MePrj…), `i18n_menue6.py` (MeFlussZusammen, MeStilGesperrt, MeAssistentAnlegen, MeLesbar) und die Aufrufe dazu
+  (`trN`); dazu `gui/app_view3d_bedienung.inc` (Suchfeld), `gui/app_menue_layout.inc` (Ränder),
+  `gui/app_menue.cpp` („%zu items“), `gui/app_view3d_spiel.inc` (Tooltip).
+- `lint_i18n` lässt Formatzeichenketten mit Wörtern durch (`re.fullmatch` mit a-zA-Z in `harmlos`), deshalb
+  fielen „%zu items“ und „%s von %s“ nur in den Bildern auf. Schärfer gestellt meldet er 37 Stellen, fast alle im
+  absichtlich unübersetzten Messfenster „Layout“ (app.cpp); echt übrig: die GPU-Tabelle im Statistikfenster der
+  Karte (`gui/app_view3d.cpp`: „Karte/Effekte/Mover/Figuren/Gluehen … Aufrufe“, „GPU: %d Aufrufe, %d
+  uebersprungen“) – in jeder Sprache deutsch, nicht geändert.
+- Menü-Editor, Einstellungs-Assistent: ein langer Spieltext überdeckt die Spalte daneben (alle Sprachen).
+- zeitleiste1: Aufnahme-Prüfungen von Zeitleiste 3 hängen unter Last von der Bildzeit ab (oben).
+- Zeitleiste 3 hat Tutorial-Bilder (a_k_timen, c_tl_*, g_*_zeit, s_*_zeit, …) nur auf Englisch neu aufgenommen;
+  de/zh/ja/es/cs zeigen dort noch die alte Zeitleiste (zählt nicht als „englisch“, `gen_handbuch` sieht es nicht).
+- Unverändert: 18 Tutorial-Schritte ohne Bild (alle Sprachen).
+
+## Changelog
+
+## English
+- Spanish and Czech are complete again: the new timeline, the menu editor (HUD, Asian texts, videos, sound switch, layouts, events, projects, mod profiles, flow, tab order, styles, templates, settings wizard, reference image, comparison with the original, readability), window arrangement and the "Same VIS in every build" switch, with all guide pages and their pictures.
+- Counts in the new texts use the right plural form in every language ("1 walk target", "1 menu", "2 channels"; Czech three forms).
+- The timeline search field shows its whole hint, the long "Margins" label of the menu editor's Layout section is no longer cut off, and "items" in the menu editor and a script tooltip in the mission view appear in the program language.
+
+## Deutsch
+- Spanisch und Tschechisch sind wieder vollständig: die neue Zeitleiste, der Menü-Editor (HUD, asiatische Texte, Videos, Ton-Schalter, Layouts, Ereignisse, Projekte, Mod-Profile, Menüfluss, Tab-Reihenfolge, Stile, Vorlagen, Einstellungs-Assistent, Referenzbild, Vergleich mit dem Original, Lesbarkeit), das Anordnen der Fenster und der Schalter „Dasselbe VIS in jedem Bau“ – samt allen Handbuchseiten und Bildern.
+- Zahlen in den neuen Texten stehen in jeder Sprache mit der richtigen Mehrzahl („1 Laufziel“, „1 Menü“, „2 Kanäle“; Tschechisch mit drei Formen).
+- Das Suchfeld der Zeitleiste zeigt seinen ganzen Hinweis, die lange Beschriftung „Ränder“ im Layout-Abschnitt des Menü-Editors wird nicht mehr abgeschnitten, und „Items“ im Menü-Editor sowie ein Tooltip der Kartenskripte erscheinen in der Programmsprache.
+
+## 中文
+- 西班牙语和捷克语再次完整:新的时间轴、菜单编辑器(HUD、亚洲文字、视频、声音开关、布局、事件、项目、模组配置、菜单流程、Tab 顺序、样式、模板、设置向导、参考图、与原版比较、可读性)、窗口排列以及"每次构建相同的 VIS"开关,连同所有手册页面和图片。
+- 新文本中的数字在每种语言中都使用正确的复数形式(捷克语三种形式)。
+- 时间轴的搜索框显示完整的提示,菜单编辑器布局部分中较长的"边距"标签不再被截断,菜单编辑器中的"项目"数和地图脚本的提示以程序语言显示。
+
+## 日本語
+- スペイン語とチェコ語が再び完全になりました:新しいタイムライン、メニューエディター(HUD、アジアのテキスト、動画、サウンドスイッチ、レイアウト、イベント、プロジェクト、MOD プロファイル、メニューの流れ、Tab の順序、スタイル、テンプレート、設定ウィザード、参考画像、オリジナルとの比較、読みやすさ)、ウィンドウの配置、「ビルドごとに同じ VIS」スイッチと、すべてのガイドページと画像。
+- 新しいテキストの数はどの言語でも正しい複数形で表示されます(チェコ語は 3 つの形)。
+- タイムラインの検索欄はヒントを最後まで表示し、メニューエディターのレイアウト欄の長い「余白」ラベルが切れなくなりました。メニューエディターの項目数とマップスクリプトのツールチップはプログラムの言語で表示されます。
+
+## Español
+- El español y el checo vuelven a estar completos: la nueva línea de tiempo, el editor de menús (HUD, textos asiáticos, vídeos, interruptor de sonido, disposiciones, eventos, proyectos, perfiles de mod, flujo de menús, orden de tabulación, estilos, plantillas, asistente de ajustes, imagen de referencia, comparación con el original, legibilidad), la organización de ventanas y la opción "El mismo VIS en cada compilación", con todas las páginas de la guía y sus imágenes.
+- Los números de los textos nuevos llevan el plural correcto en cada idioma ("1 destino", "1 menú", "2 canales"; en checo, tres formas).
+- El campo de búsqueda de la línea de tiempo muestra su indicación completa, la etiqueta larga "Márgenes" de la sección Disposición ya no se corta, y "elementos" en el editor de menús y una información sobre herramientas de los scripts del mapa aparecen en el idioma del programa.
+
+## Čeština
+- Španělština a čeština jsou opět úplné: nová časová osa, editor menu (HUD, asijské texty, videa, přepínač zvuku, rozvržení, události, projekty, profily modů, tok menu, pořadí tabulátoru, styly, šablony, průvodce nastavením, referenční obrázek, porovnání s originálem, čitelnost), uspořádání oken a přepínač „Stejné VIS při každém sestavení“ včetně všech stránek příručky a obrázků.
+- Čísla v nových textech mají v každém jazyce správný tvar množného čísla („1 cíl chůze“, „2 kanály“, „5 cílů chůze“).
+- Pole hledání časové osy ukazuje celou nápovědu, dlouhý popisek „Okraje“ v oddílu Rozvržení editoru menu se už neořezává a „prvky“ v editoru menu i popisek skriptů mapy se zobrazují v jazyce programu.
