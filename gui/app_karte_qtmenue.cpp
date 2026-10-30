@@ -561,7 +561,22 @@ bool qtMenueAnfang(const char* id, bool aktiv, const char* nrc, bool abriss) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
     }
     ImDrawList* dl = fenster->DrawList;
+    // Abschluss rc607: Qt oeffnet ein Untermenue neben der Spalte seines Eintrags (internalDelayedPopup:
+    // actionRect.right() + subMenuOffset + 1; passt es dort nicht, links davon), ImGui neben dem ganzen
+    // Elternfenster (FindBestWindowPosForPopup meidet Pos.x .. Pos.x + Size.x) - fuer BeginMenuEx steht das
+    // Fenster waagerecht auf der Spalte.
+    const bool spaltig = !leiste && (spalte.Min.x > fenster->Pos.x + 0.5F || spalte.Max.x < fenster->Pos.x + fenster->Size.x - 0.5F);
+    const float fensterX = fenster->Pos.x;
+    const float fensterB = fenster->Size.x;
+    if (spaltig) {
+        fenster->Pos.x = spalte.Min.x;
+        fenster->Size.x = spalte.GetWidth();
+    }
     const bool offen = ImGui::BeginMenuEx(id, nullptr, aktiv);
+    if (spaltig) {
+        fenster->Pos.x = fensterX;
+        fenster->Size.x = fensterB;
+    }
     if (!leiste) { ImGui::PopStyleColor(); }
     ImGui::PopStyleVar(2);
     if (!leiste) {

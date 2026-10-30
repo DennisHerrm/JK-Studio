@@ -253,6 +253,33 @@ std::vector<Schritt> fortschritt() {
         diag::detail(z);
         return spalten.size() >= 2 && draussen == 0 && ganzSichtbar(*m);
     }));
+    // Abschluss rc607: ein Untermenue in einer linken Spalte geht wie in Qt neben seiner Spalte auf
+    // (QMenu::internalDelayedPopup: actionRect.right() + PM_SubMenuOverlap + 1), nicht neben dem
+    // ganzen Menue. Fuelleintraege, bis nur noch Melden in der Spalte rechts von "Im Spiel testen" steht.
+    add(warteBis("Stil wie NRC: 'Im Spiel testen' unten in einer linken Spalte", [] {
+        const Element* st = finde(ke::trK(Str::KeStMenue), "##Menu_", 0, false);
+        const Element* me = finde(ke::trK(Str::KeFsMelden), "##Menu_", 0, false);
+        if (st == nullptr || me == nullptr) { return false; }
+        if (me->rect.Min.x > st->rect.Max.x - 1.0F) { return true; }
+        auto& v = ke::editor().bauProjekt.eintraege;
+        v.push_back(karte::BauEintrag{"Test Fuellung +" + std::to_string(v.size()), {"[q3map2] -meta \"[MapFile]\""}});
+        return false;
+    }, 400));
+    add(klick(ke::trK(Str::KeStMenue), "##Menu_", 0, false));
+    add(pause(0.3));
+    add(pruefe("Stil wie NRC: das Untermenue 'Im Spiel testen' geht neben seiner Spalte auf (wie Qt), nicht neben dem ganzen Menue", [] {
+        const Element* st = finde(ke::trK(Str::KeStMenue), "##Menu_", 0, false);
+        const ImGuiWindow* w = st != nullptr ? ImGui::FindWindowByName(st->innen.c_str()) : nullptr;
+        const ImGuiContext& g = *GImGui;
+        const ImGuiWindow* kind = g.OpenPopupStack.Size > 0 ? g.OpenPopupStack.back().Window : nullptr;
+        if (w == nullptr || kind == nullptr || kind == w) { return false; }
+        char z[200];
+        std::snprintf(z, sizeof(z), "Knopftest: Stufe 8/1 Untermenue bei x %.0f, Spalte bis %.0f, Menue bis %.0f",
+                      static_cast<double>(kind->Pos.x), static_cast<double>(st->rect.Max.x), static_cast<double>(w->Pos.x + w->Size.x));
+        diag::detail(z);
+        // PM_SubMenuOverlap -1 (Fusion): ein Punkt Ueberlappung, je nach Skalierung bis 2 Bildpunkte
+        return kind->Pos.x >= st->rect.Max.x - 3.0F && kind->Pos.x <= st->rect.Max.x + 1.0F;
+    }));
     add(klick(ke::trK(Str::KeFsMelden), "##Menu_", 0, false));
     add(pause(0.2));
     add(pruefe("Build > Melden: wieder an, als BhedBuildNotify 1 gespeichert", [] {
