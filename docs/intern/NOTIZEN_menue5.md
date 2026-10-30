@@ -301,7 +301,7 @@ Aus Zeit- bzw. Kontextgründen nicht angefangen; Stand und Vorarbeit:
   xoffset, lineHeight; menuDef ohne descTextStyle, onAccept, ignoreescape. Parser, Bausteinliste,
   Ereignisse (kein „Enter“) und Laufzeit folgen dem (ctest menue_ereignisse/menue_skript rot, grün).
 - Rangliste JK2-SP (17 Menüs mit Spielfoto, die vier Datapad-Menüs öffnet `uimenu` ohne laufendes
-  Spiel nicht) + MP-Hauptmenü, Mittel 8x6 wie M4/M5 (SP\m5bang_ergebnis_jk2sp_<lauf>.txt, Paare
+  Spiel nicht) + MP-Hauptmenü, Mittel 8x6 wie M4/M5 (SP\m5b\rang_ergebnis_jk2sp_<lauf>.txt, Paare
   SP\m3\vergleich\neben_jk2_*.png):
   - Lauf 1 (Stand menue5): oben videodriverMenu 55,7 (UI_GLINFO: GL-Daten des laufenden Spiels),
     error_popmenu 53,2, videowarningMenu/ingamevideowarningMenu 42 (das Spiel zeigt das Hauptmenü
@@ -354,7 +354,13 @@ Aus Zeit- bzw. Kontextgründen nicht angefangen; Stand und Vorarbeit:
   angepasst, zweiter Lauf 103 OK / 0 FEHLER. Mit JKO-Daten zusätzlich BHED_MENUE_NUR=jk2test 1 OK
   und die JK2-Rangliste (18 OK).
 - karteneditor kurz (BHED_KARTE_NUR=fotos): 78 OK, 0 FEHLER.
-- Modus 1 komplett: MODUS1.
+- Modus 1 komplett: erster Lauf (neben Läufen anderer Agenten) 2642 OK / 6 FEHLER - ein Klick auf
+  „Next“ im Tutorial-Fenster kam nicht an (k-werte-bearbeiten Schritt 6, „aktiv -, unter der Maus -“),
+  die fünf übrigen Fehler sind Folgeschritte desselben Tutorials; allein wiederholt: 2645 OK / 0 FEHLER.
+- Die 82 MD-Menüs noch einmal komplett gegen die M4-Spielfotos (Editorfotos 82 OK, SP\m3\rang_auswertung.sh, Ergebnis SP\m5b\rang_ergebnis_md82.txt): Mittel 13,46 (M4) -> 12,40. Besser
+  u. a. twjMenu 79,0 -> 2,6, tutorialMenu 14,3 -> 4,7; schlechter um mehr als 1 nur quitMenu 13,5 ->
+  15,7 - im Bildpaar liegt der Unterschied ganz im Hintergrundvideo (anderes Bild des laufenden
+  Films zur Fotozeit), Text und Knöpfe decken sich. Keine Verschlechterung durch Code.
 - lint_sources, lint_fassung: ok.
 - Spielordner: Jedi Outcast vor dem ersten und nach dem letzten Start gleich (Liste + SHA-1);
   Jedi Academy und Movie Duels in M5b weder gestartet noch angefasst. Keine eigenen Spiel- oder
@@ -376,12 +382,11 @@ Aus Zeit- bzw. Kontextgründen nicht angefangen; Stand und Vorarbeit:
   Rückfrage), Punkt 4 (Mod-Profile, Generator, Vorlage; Galactic Legacy ohne Quelle), Punkt 5 (JK2
   echt: Im Spiel testen nachgewiesen, Rangliste, Tabellen, .md3-Logo), Punkt 6 (Tour + Tutorial,
   Handbuch für 1 und 3-5 in vier Sprachen mit Bildern, Selbsttest-Aufgaben).
-- Offen (aus Zeitgründen nicht mehr gelaufen): sauberer Neubau mit --clean-first; der Vergleich der
-  82 MD-Menüs gegen die M4-Spielfotos (Auftrag M5b Punkt 6); OFFEN_MODUS1.
+- Offen (aus Zeitgründen nicht mehr gelaufen): sauberer Neubau mit --clean-first.
 - Offen (fachlich): JK2-Tastenbelegungen und Renderer-Cvars in den Setup-Menüs, JK2-MP-Menüs außer
   dem Hauptmenü, Chrom-Shader des Logos, Startmenü eines neuen Projekts nur im SP-Format, Schließen
   eines Reiters fragt nicht nach.
-- Nächster Schritt: Neubau --clean-first, MD-82-Vergleich, ggf. Modus 1 nachholen; dann M6.
+- Nächster Schritt: Neubau --clean-first nachholen; dann M6.
 
 ## Changelog
 
