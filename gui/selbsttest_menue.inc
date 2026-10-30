@@ -1300,6 +1300,40 @@ Schritt klickFlaeche(const std::string& was, float vx, float vy) {
                    }};
 }
 
+// M7 Punkt 3/12: Probe mit einem Knopf und einem Modell
+const char* const kM7Probe =
+    "{\n\tmenuDef\n\t{\n\t\tname m7\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname knopf\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"Los\"\n\t\t\trect 60 60 120 30\n\t\t\tvisible 1\n\t\t}\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname figur\n\t\t\ttype ITEM_TYPE_MODEL\n\t\t\trect 300 100 240 300\n\t\t\tmodel_angle 0\n\t\t\tvisible 1\n"
+    "\t\t\tdecoration\n\t\t}\n\t}\n}\n";
+
+// Echtes Ziehen auf der Flaeche: von (vx, vy) + (px, py) Bildpunkte um (dx, dy) Bildpunkte, in Schritten
+Schritt ziehFlaeche(const std::string& was, float vx, float vy, float px, float py, float dx, float dy) {
+    return Schritt{was, [=](int b) {
+                       ImGuiIO& io = ImGui::GetIO();
+                       const auto x = me::stand();
+                       const ImVec2 start{x.flaeche[0] + vx / 640.0F * x.flaeche[2] + px, x.flaeche[1] + vy / 480.0F * x.flaeche[3] + py};
+                       if (b == 0) {
+                           setzeMaus(start);
+                           return false;
+                       }
+                       if (b == 2) {
+                           io.AddMouseButtonEvent(0, true);
+                           return false;
+                       }
+                       if (b >= 3 && b <= 7) {
+                           const float t = static_cast<float>(b - 2) / 5.0F;
+                           setzeMaus(ImVec2{start.x + dx * t, start.y + dy * t});
+                           return false;
+                       }
+                       if (b == 8) {
+                           io.AddMouseButtonEvent(0, false);
+                           return false;
+                       }
+                       return b >= 11;
+                   }};
+}
+
 // M7: Platzhalter-Bestand, Beispielwerte, Lade-/Verbindungsmenues, ui_load, Komponenten, Gizmo
 std::vector<Schritt> schritteM7() {
     std::vector<Schritt> s;
@@ -1311,6 +1345,84 @@ std::vector<Schritt> schritteM7() {
         for (const std::string& o : offen) { diag::info("Menue-Editor M7 Platzhalter: " + o); }
         diag::info("Menue-Editor M7 Platzhalter gesamt: " + std::to_string(offen.size()));
         return offen.empty();
+    }));
+    // Punkt 3: Komponenten per Klick - Original anlegen, verknuepfte Kopie, Aenderung am Original wirkt auf die Kopie
+    add(tu("M7 Komponenten: Probe oeffnen, Knopf waehlen, Eigenschaften", [] {
+        me::schliesseAlleOhneSpeichern();
+        (void)me::oeffneText("ui/m7probe.menu", kM7Probe);
+        me::setzeReiter(2);
+        me::waehle(0, false);
+    }));
+    add(pause(0.3));
+    add(klick(tr(Str::MeKompAnlegen)));
+    add(pause(0.2));
+    add(klick(tr(Str::MeKompKopie)));
+    add(pause(0.3));
+    add(foto("menue_komponente"));
+    add(pruefe("M7 Komponenten: Kennung am Original, Kopie knopf_2 mit eigener Lage hinter dem Original", [st] {
+        const std::string t = st().text;
+        return t.find("// jkstudio:komponente knopf") != std::string::npos && t.find("// jkstudio:instanz knopf") != std::string::npos &&
+               t.find("knopf_2") != std::string::npos && t.find("rect 80 80 120 30") != std::string::npos && st().meldungen == 0;
+    }));
+    add(tu("M7 Komponenten: am Original den Text aendern", [] {
+        me::waehle(0, false);
+        me::setzeEigenschaftAuswahl("text", {"\"Neu\""});
+    }));
+    add(pause(0.2));
+    add(pruefe("M7 Komponenten: die Kopie folgt (zweimal \"Neu\"), ein Rueckgaengig-Schritt nimmt beides zurueck", [st] {
+        const std::string t = st().text;
+        std::size_t n = 0;
+        for (std::size_t p = t.find("\"Neu\""); p != std::string::npos; p = t.find("\"Neu\"", p + 1)) { ++n; }
+        if (n != 2) { return false; }
+        (void)me::rueckgaengig();
+        const std::string u = st().text;
+        return u.find("\"Neu\"") == std::string::npos && u.find("knopf_2") != std::string::npos;
+    }));
+    // Punkt 12: Gizmo - am Drehgriff (oben mittig, 12 Bildpunkte unter dem Rand) 60 Bildpunkte nach rechts ziehen
+    add(tu("M7 Gizmo: Modell waehlen", [] { me::waehle(me::itemNummer("figur"), false); }));
+    add(pause(0.3));
+    add(ziehFlaeche("M7 Gizmo: Drehgriff ziehen", 420, 100, 0, 12, 60, 0));
+    add(pause(0.2));
+    add(foto("menue_gizmo"));
+    add(pruefe("M7 Gizmo: model_angle 30 (0,5 Grad je Bildpunkt), ein Rueckgaengig-Schritt", [st] {
+        const std::string t = st().text;
+        diag::info("Menue-Editor M7 Gizmo: " + t.substr(t.find("model_angle"), 20));
+        if (t.find("model_angle 30") == std::string::npos) { return false; }
+        (void)me::rueckgaengig();
+        return st().text.find("model_angle 0") != std::string::npos;
+    }));
+    add(ziehFlaeche("M7 Gizmo: Abstandsgriff nach unten ziehen", 540, 250, -12, 0, 0, 40));
+    add(pause(0.2));
+    add(pruefe("M7 Gizmo: model_g2mins/maxs geschrieben, z-Spanne gewachsen (weiter weg)", [st] {
+        const std::string t = st().text;
+        return t.find("model_g2mins") != std::string::npos && t.find("model_g2maxs") != std::string::npos;
+    }));
+    // Punkt 14/11 mit den Spieldaten von Jedi Academy (Handbuchbilder): Datapad und Ladebildschirm
+    add(tu("M7 Datapad: Waffenseite aus dem Spiel (nur mit Jedi-Academy-Daten)", [] {
+        if (me::stand().spiel == 0) {
+            me::schliesseAlleOhneSpeichern();
+            (void)me::oeffneAusSpiel("ui/datapadweapons.menu");
+        }
+    }));
+    add(pause(1.5));
+    add(foto("menue_datapad"));
+    add(pruefe("M7 Datapad: wie im Spiel mit Beispielwerten (beschriftet), ohne Platzhalter", [st] {
+        const auto x = st();
+        diag::info("Menue-Editor M7 Datapad: Beispiel " + std::to_string(x.beispielPrims) + ", Platzhalter " + std::to_string(x.platzhalterPrims));
+        return x.spiel != 0 || (x.beispielPrims > 0 && x.platzhalterPrims == 0);
+    }));
+    add(tu("M7 Ladebildschirm aus dem Spiel (nur mit Jedi-Academy-Daten)", [] {
+        if (me::stand().spiel == 0) {
+            me::schliesseAlleOhneSpeichern();
+            (void)me::oeffneAusSpiel("ui/loadscreen.menu");
+        }
+    }));
+    add(pause(1.5));
+    add(foto("menue_ladebild"));
+    add(pruefe("M7 Ladebildschirm: Ladebalken und Beispielwerte wie CG_DrawInformation", [st] {
+        const auto x = st();
+        diag::info("Menue-Editor M7 Ladebild: Balken " + std::to_string(x.ladebalken) + ", Beispiel " + std::to_string(x.beispielPrims));
+        return x.spiel != 0 || (x.ladebalken == 4 && x.beispielPrims > 0);
     }));
     // M5b-Rest: neues Projekt mit Startmenue im Mehrspieler-Format
     add(tu("M7 MP-Startmenue: alles zu, Format Mehrspieler, neues Projekt", [] {

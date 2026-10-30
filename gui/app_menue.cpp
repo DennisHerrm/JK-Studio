@@ -37,6 +37,7 @@
 #include "bhed/menue/feeder.h"
 #include "bhed/menue/fluss.h"
 #include "bhed/menue/hud.h"
+#include "bhed/menue/komponenten.h"
 #include "bhed/menue/imspiel.h"
 #include "bhed/menue/ladebild.h"
 #include "bhed/menue/layout.h"
@@ -191,6 +192,12 @@ struct KlingenBild {
 };
 
 enum class Ziehen { Nichts, Verschieben, Groesse, Lineal };
+// M7 Punkt 12: die Werte, die die Griffe am Modell aendern (app_menue_m7.inc)
+struct GizmoWerte {
+    int angle = 0;
+    float mins[3] = {0, 0, 0}, maxs[3] = {0, 0, 0};
+    float fovx = 0, fovy = 0;
+};
 struct DiagDaten;   // Schnappschuss der Spieldaten fuer die Diagnose (unten)
 
 struct Zustand {
@@ -354,7 +361,15 @@ struct Zustand {
     bool testUiLoad = false;
     std::string testOrdnerLose;
     int testNeuGeladen = 0;
+    // M7 Punkt 3/12: Komponenten-Name im Eingabefeld, Griff am Modell (0 = keiner, 1 Drehen, 2 Abstand, 3 Hoehe, 4 Blickwinkel)
+    int kompFuer = -1;
+    std::string kompName;
+    int gizmoArt = 0;
+    int gizmoItem = -1;
+    GizmoWerte gizmoStart, gizmoJetzt;
+    ImVec2 gizmoMaus{0, 0};
     int beispielPrims = 0;   // im letzten Bild
+    int platzhalterPrims = 0, ladebalken = 0;   // im letzten Bild (Selbsttest)
     std::map<std::string, std::string> textFehlt;   // M3: Sprache -> nicht darstellbare Zeichen der letzten Eingabe
     bool spielListeOffen = false;
     std::string spielFilter;
@@ -737,9 +752,12 @@ void speichern(Dokument& d, const std::string& ziel) {
 
 // --- Aenderungen an Text und Flaeche ------------------------------------------
 
+std::vector<Ersetzung> mitKopienAbgleich(const Dokument& d, std::vector<Ersetzung> e);   // M7 Punkt 3 (app_menue_m7.inc)
+
 void aendere(std::vector<Ersetzung> e) {
     Dokument* d = doc();
     if (d == nullptr || e.empty()) { return; }
+    e = mitKopienAbgleich(*d, std::move(e));
     d->puffer.ersetzeViele(std::move(e));
     neuParsen(*d);
 }
@@ -833,60 +851,9 @@ void auswahlAusCursor(Dokument& d) {
 
 const Texte& vorschauTexte(Dokument& d);   // M2 Punkt 6 (unten)
 
-// M7 Punkt 14: ui.Draw_DataPad(DP_HUD) und DP_* (code/cgame) mit Beispielwerten; nur Jedi Academy SP -
-// Movie Duels und Jedi Outcast zeichnen ihr Datapad mit eigenem HUD (dann false: beschrifteter Kasten)
-// ui/hud.menu und ext_data/weapons.dat einmal je Spieldatenstand (Datapad, Ladebildschirm)
-void datapadDatenLaden() {
-    Zustand& z = Z();
-    if (!z.datapadGelesen) {
-        z.datapadGelesen = true;
-        std::string t;
-        if (z.daten.lies("ui/hud.menu", t)) {
-            LeseOptionen o = leseOptionen("ui/hud.menu");
-            o.dialekt = Dialekt::SP;
-            z.datapadHud = std::make_unique<Datei>(lies("ui/hud.menu", t, o));
-        }
-        if (z.daten.lies("ext_data/weapons.dat", t)) { z.waffenIcon = waffenIcons(t); }
-    }
-}
-
-bool datapadZeichnen(int art, std::vector<OdTeil>& out, const Texte* texte, Kodierung kodierung, bool asienGlyphen) {
-    Zustand& z = Z();
-    if (z.spiel != Spiel::JA) { return false; }
-    datapadDatenLaden();
-    std::vector<Prim> hud;
-    if (z.datapadHud) { zeichneDatapadHud(*z.datapadHud, z.hudWerte, hud); }
-    for (const Prim& p : hud) {   // die HUD-Teile sind Bilder (Striche, Ziffern, Rahmen)
-        OdTeil t;
-        t.art = p.art == PrimArt::Fuellen ? OdTeil::Art::Fuellen : OdTeil::Art::Bild;
-        t.x = p.x;
-        t.y = p.y;
-        t.w = p.w;
-        t.h = p.h;
-        t.s0 = p.s0;
-        t.t0 = p.t0;
-        t.s1 = p.s1;
-        t.t1 = p.t1;
-        t.farbe = p.farbe;
-        t.inhalt = p.shader;
-        out.push_back(std::move(t));
-    }
-    DatapadKontext k;
-    k.se = [texte](const std::string& key) { return texte != nullptr ? texte->imSpiel("@" + key) : key; };
-    k.breite = [kodierung, asienGlyphen](const std::string& t, float sc, const std::string& name) {
-        const Schrift* f = schriftNamens(name);
-        return f != nullptr ? schriftBreite(*f, t, sc, kodierung, asienGlyphen) : 0;
-    };
-    k.hoehe = [](float sc, const std::string& name) {
-        const Schrift* f = schriftNamens(name);
-        return f != nullptr ? schriftHoehe(*f, sc) : 0;
-    };
-    k.kodierung = kodierung;
-    k.waffenIcon = z.waffenIcon;
-    k.werte = z.datapadWerte;
-    zeichneDatapad(art, k, out);
-    return true;
-}
+// M7 (app_menue_m7.inc)
+void datapadDatenLaden();
+bool datapadZeichnen(int art, std::vector<OdTeil>& out, const Texte* texte, Kodierung kodierung, bool asienGlyphen);
 
 Umgebung umgebung(const Dokument& d) {
     Zustand& z = Z();
@@ -1433,6 +1400,10 @@ void zeichneTabLeiste(Dokument& d);   // M6 Punkt 2 (app_menue_m6.inc)
 void zeichneGrenzenZeile(Dokument& d);   // M6 Punkt 10
 void zeichneTabNummern(ImDrawList* dl, Dokument& d, int mi, const Abbildung& ab, ImVec2 o);
 bool tabFolgeKlick(Dokument& d, int mi, float vx, float vy, const Umgebung& u);
+// M7 Punkt 12 (app_menue_m7.inc)
+bool gizmoVorschau(const Dokument& d, int mi, Datei& kopie);
+bool gizmoKlick(Dokument& d, int mi, const Abbildung& ab, ImVec2 o, ImVec2 maus);
+void zeichneModellGizmo(ImDrawList* dl, Dokument& d, int mi, const Abbildung& ab, ImVec2 o);
 void zeichneRefBild(ImDrawList* dl, const Abbildung& ab, ImVec2 o, bool oben);   // M6 Punkt 7
 void setzeVorlageEin(std::size_t nr, bool mitZiel, float zx, float zy);
 
@@ -1622,6 +1593,11 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         const Seite& sei = s[static_cast<std::size_t>(std::clamp(d.seite, 0, static_cast<int>(s.size()) - 1))];
         if (!sei.cvar.empty()) { z.vorschauCvars[kleinPfad(sei.cvar)] = sei.wert; }
     }
+    Datei gizmoKopie;   // M7 Punkt 12: waehrend des Ziehens am Griff die neuen Werte im Bild
+    if (z.gizmoArt != 0) {
+        gizmoKopie = *quelle;
+        if (gizmoVorschau(d, mi, gizmoKopie)) { quelle = &gizmoKopie; }
+    }
     std::vector<Prim> prims;
     if (z.hudWie && istHud(*quelle)) {   // M3: lefthud, righthud und was cgame darueber legt
         z.hudWerte.zeitMs = static_cast<int>(ImGui::GetTime() * 1000.0);
@@ -1653,6 +1629,8 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     }
     z.letztePrims = static_cast<int>(prims.size());
     z.beispielPrims = static_cast<int>(std::count_if(prims.begin(), prims.end(), [](const Prim& p) { return p.art == PrimArt::Beispiel; }));
+    z.platzhalterPrims = static_cast<int>(std::count_if(prims.begin(), prims.end(), [](const Prim& p) { return p.art == PrimArt::Platzhalter; }));
+    z.ladebalken = static_cast<int>(std::count_if(prims.begin(), prims.end(), [](const Prim& p) { return p.shader.compare(0, 13, "gfx/hud/load_") == 0 || p.shader == "gfx/hud/mp_levelload"; }));
     z.asienPrims = static_cast<int>(std::count_if(prims.begin(), prims.end(), [](const Prim& p) {
         return p.shader.compare(0, 6, "fonts/") == 0 && p.shader.find("_1024_") != std::string::npos;
     }));
@@ -1666,6 +1644,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     zeichnePrims(dl, prims, ab, o, verschiebt ? sel : std::set<int>{}, z.zdx, z.zdy, &m, &u);
     zeichneRefBild(dl, ab, o, true);   // M6 Punkt 7: ueber dem Menue
     zeichneTabNummern(dl, d, mi, ab, o);   // M6 Punkt 2
+    zeichneModellGizmo(dl, d, mi, ab, o);   // M7 Punkt 12
     // Raster
     if (z.raster && !z.interaktion && z.rasterWeite >= 2) {
         for (float x = 0; x <= 640; x += z.rasterWeite) {
@@ -1792,7 +1771,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     dl->PopClipRect();
 
     // Maus: Klick waehlt, Ziehen verschiebt/aendert die Groesse (M6: bei Tab-Reihenfolge waehlt er die naechste Nummer)
-    if (hover && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !tabFolgeKlick(d, mi, vx, vy, u)) {
+    if (hover && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !tabFolgeKlick(d, mi, vx, vy, u) && !gizmoKlick(d, mi, ab, o, maus)) {
         ImGui::SetKeyboardFocusHere(-1);
         z.codeFokus = false;
         z.ziehStart = ImVec2{vx, vy};
@@ -3054,33 +3033,6 @@ std::string menueImSpielTesten(bool modErlaubt) {
         if (bauplattform::losgeloestStarten(plan.befehl, u8(engine), &pid)) { z.testPid = plan.uiLoad ? pid : 0; }
     }
     return plan.befehl;
-}
-
-// M7 Punkt 13: alle Dateien des Pakets lose in den Spielordner des eigenen Testordners (nie ins Spiel)
-bool loseDateienSchreiben(const std::string& ordner) {
-    std::error_code ec;
-    for (const Pk3Datei& f : paketDateien(true)) {
-        const fs::path ziel = utf8Pfad(ordner) / utf8Pfad(f.name);
-        fs::create_directories(ziel.parent_path(), ec);
-        if (!schreibeDatei(u8(ziel), f.inhalt)) { return false; }
-    }
-    return true;
-}
-
-// Nach dem Speichern: laeuft das vom Editor gestartete Spiel noch, die Dateien neu ablegen und ui_load
-// in seine Konsole geben (UI_Load: Menus_CloseAll, UI_LoadMenus, das zuletzt offene Menue wieder auf)
-void imLaufendenSpielNeuLaden() {
-    Zustand& z = Z();
-    if (z.testPid == 0 || !z.testUiLoad || z.testOrdnerLose.empty()) { return; }
-    if (!platform::prozessLaeuft(z.testPid)) {
-        z.testPid = 0;
-        return;
-    }
-    if (loseDateienSchreiben(z.testOrdnerLose) && platform::spielKonsolenBefehl(z.testPid, "ui_load")) {
-        ++z.testNeuGeladen;
-        z.meldung = tr(Str::MeTestNeuGeladen);
-        addStatus(z.meldung);
-    }
 }
 
 void zeichneTestFrage() {
@@ -4640,82 +4592,7 @@ void zeichneHudWerte(const Dokument& d) {
     ImGui::SliderFloat(tr(Str::MeHudFadenkreuzGroesse), &w.fadenkreuzGroesse, 4, 64, "%.0f");
 }
 
-// M7 Punkt 14: Beispielwerte fuer ownerdraws, die im Spiel Werte des laufenden Spiels zeigen
-void zeichneBeispielWerte(const Dokument& d) {
-    Zustand& z = Z();
-    if (z.beispielPrims == 0 || !ImGui::CollapsingHeader(tr(Str::MeOdBeispiel), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
-    ImGui::TextWrapped("%s", tr(Str::MeOdBeispielTip));
-    const float breit = ImGui::GetFontSize() * 9;
-    if (istLadebild(d.datei) || istVerbindung(d.datei)) { ImGui::Checkbox(tr(Str::MeHudWie), &z.hudWie); }
-    if (istLadebild(d.datei)) {   // M7 Punkt 11: CG_DrawInformation
-        LadeWerte& l = z.ladeWerte;
-        ImGui::SetNextItemWidth(breit);
-        eingabe(tr(Str::MeLadeKarte), &l.karte);
-        ImGui::SetNextItemWidth(breit);
-        eingabe(tr(Str::MeLadeNachricht), &l.nachricht);
-        ImGui::SetNextItemWidth(breit);
-        ImGui::SliderInt(tr(Str::MeLadeStufe), &l.stufe, 0, 9);
-        ImGui::Checkbox(tr(Str::MeLadeErsteKarte), &l.ersteKarte);
-    }
-    if (istVerbindung(d.datei)) {   // M7 Punkt 11: UI_DrawConnectScreen
-        VerbindungsWerte& v = z.verbindungsWerte;
-        ImGui::SetNextItemWidth(breit);
-        eingabe(tr(Str::MeVerbServer), &v.server);
-        ImGui::SetNextItemWidth(breit);
-        eingabe(tr(Str::MeLadeKarte), &v.karte);
-        static const char* const zustaende[] = {"CA_CONNECTING", "CA_CHALLENGING", "CA_CONNECTED"};
-        int zi = std::clamp(v.zustand, 1, 3) - 1;
-        ImGui::SetNextItemWidth(breit);
-        if (ImGui::Combo(tr(Str::MeVerbZustand), &zi, zustaende, 3)) { v.zustand = zi + 1; }
-        ImGui::SetNextItemWidth(breit);
-        ImGui::SliderInt(tr(Str::MeVerbPakete), &v.pakete, 0, 20);
-        ImGui::SetNextItemWidth(breit);
-        eingabe(tr(Str::MeVerbMeldung), &v.meldung);
-        ImGui::SetNextItemWidth(breit);
-        eingabe("motd", &v.motd);
-    }
-    if (d.datei.dialekt == Dialekt::SP) {
-        DatapadWerte& w = z.datapadWerte;
-        static const char* const waffen[] = {"WP_SABER",          "WP_BLASTER_PISTOL", "WP_BLASTER",  "WP_DISRUPTOR", "WP_BOWCASTER",
-                                             "WP_REPEATER",       "WP_DEMP2",          "WP_FLECHETTE", "WP_ROCKET_LAUNCHER", "WP_THERMAL",
-                                             "WP_TRIP_MINE",      "WP_DET_PACK",       "WP_CONCUSSION"};
-        int wi = std::clamp(w.waffe, 1, 13) - 1;
-        ImGui::SetNextItemWidth(breit);
-        if (ImGui::Combo(tr(Str::MeOdWaffe), &wi, waffen, 13)) {
-            w.waffe = wi + 1;
-            w.waffen |= 1U << w.waffe;
-        }
-        static const char* const kraefte[] = {"ABSORB", "HEAL",          "PROTECT",       "MIND_TRICK", "JUMP",  "SPEED",     "PUSH", "PULL",
-                                              "SABER_THROW", "SABER_DEFENSE", "SABER_OFFENSE", "SENSE",   "DRAIN", "LIGHTNING", "RAGE", "GRIP"};
-        static constexpr int kFp[16] = {13, 0, 12, 5, 1, 2, 3, 4, 8, 9, 10, 15, 14, 7, 11, 6};   // showDataPadPowers
-        ImGui::SetNextItemWidth(breit);
-        if (ImGui::Combo(tr(Str::MeOdKraft), &w.kraftWahl, kraefte, 16)) {
-            int& stufe = w.kraft[static_cast<std::size_t>(kFp[std::clamp(w.kraftWahl, 0, 15)])];
-            if (stufe == 0) { stufe = 1; }
-        }
-        int& stufe = w.kraft[static_cast<std::size_t>(kFp[std::clamp(w.kraftWahl, 0, 15)])];
-        ImGui::SetNextItemWidth(breit);
-        ImGui::SliderInt(tr(Str::MeOdKraftStufe), &stufe, 1, 3);
-        for (std::size_t i = 0; i < w.ziele.size(); ++i) {
-            ImGui::PushID(static_cast<int>(i));
-            ImGui::Checkbox(w.ziele[i].name.c_str(), &w.ziele[i].erfuellt);
-            ImGui::PopID();
-        }
-        hudRegler(z.hudWerte);
-    } else {
-        Spielbeispiel& b = z.spielBeispiel;
-        ImGui::Checkbox("g_jediVmerc", &b.jediVmerc);
-        ImGui::Checkbox("g_forceBasedTeams", &b.forceBasedTeams);
-        ImGui::SetNextItemWidth(breit);
-        ImGui::SliderInt(tr(Str::MeOdMaxRang), &b.maxRank, 0, 7);
-        ImGui::Checkbox(tr(Str::MeOdServerSuche), &b.serverRefresh);
-        if (b.serverRefresh) {
-            ImGui::SetNextItemWidth(breit);
-            ImGui::SliderInt("LAN_GetServerCount", &b.serverAnzahl, 0, 500);
-        }
-        if (z.spiel == Spiel::JK2) { eingabe("MOTD", &b.motd); }
-    }
-}
+void zeichneBeispielWerte(const Dokument& d);   // M7 (app_menue_m7.inc)
 
 void zeichneCvars(Dokument& d) {
     Zustand& z = Z();
@@ -5120,12 +4997,14 @@ bool exportiere(const std::string& pfad, bool nurAenderungen);   // unten
 }  // namespace
 #include "app_menue_projekt.inc"
 #include "app_menue_m6.inc"
+#include "app_menue_m7.inc"
 
 // Eigenschaften mit Cvars, Meldungen der Engine und Skript-Protokoll als Abschnitte
 void panelEigenschaften(Dokument& d) {
     ImGui::PushID("panelEigenschaften");
     zeichneOriginal(d);        // M6 Punkt 8 (oben: Unterschied und Zuruecksetzen sofort sichtbar)
     zeichneEigenschaften(d);
+    zeichneKomponente(d);      // M7 Punkt 3
     zeichneModSchluessel(d);   // M5b Punkt 4
     zeichneLayout(d);
     if (g_app->settings.menueTextUnten) { zeichneEreignisse(d); }   // mit Reitern: eigener Reiter Ereignisse
@@ -5361,31 +5240,7 @@ bool oeffneText(const std::string& name, const std::string& text) {
     return oeffne(name, "", text);
 }
 
-// M7 Punkt 14: jedes menuDef aller Original-Menues (ui/**/*.menu) zeichnen wie die Vorschau und die
-// ownerdraws/Feeder sammeln, die noch einen beschrifteten Platzhalter statt der Darstellung bekommen
-std::vector<std::string> platzhalterImSpiel() {
-    datenPruefen();
-    Zustand& z = Z();
-    std::set<std::string> offen;
-    for (const std::string& pfad : z.daten.liste("ui/", {".menu"})) {
-        std::string t;
-        if (!z.daten.lies(pfad, t)) { continue; }
-        Dokument d;
-        d.name = pfad;
-        d.datei = lies(pfad, t, leseOptionen(pfad));
-        const Umgebung u = umgebung(d);
-        for (std::size_t m = 0; m < d.datei.menus.size(); ++m) {
-            std::vector<Prim> p;
-            zeichneMenu(d.datei, static_cast<int>(m), u, p);
-            for (const Prim& x : p) {
-                if (x.art != PrimArt::Platzhalter) { continue; }
-                if (x.shader.compare(0, 10, "ownerdraw ") != 0 && x.shader.compare(0, 7, "feeder ") != 0) { continue; }
-                offen.insert(std::string(d.datei.dialekt == Dialekt::MP ? "MP " : "SP ") + x.shader + " (" + pfad + ")");
-            }
-        }
-    }
-    return {offen.begin(), offen.end()};
-}
+std::vector<std::string> platzhalterImSpiel();   // M7 (app_menue_m7.inc)
 
 Stand stand() {
     Stand s;
@@ -5418,6 +5273,9 @@ Stand stand() {
     s.gesperrt = static_cast<int>(d->gesperrt.size());
     s.modellAufrufe = z.modellAufrufe;
     s.modellStufen = z.modellStufen;
+    s.beispielPrims = z.beispielPrims;
+    s.platzhalterPrims = z.platzhalterPrims;
+    s.ladebalken = z.ladebalken;
     s.klangEreignisse = z.klangEreignisse;
     s.letzterKlang = z.letzterKlang;
     for (const Diagnose& x : d->diagnosen) {
@@ -5695,6 +5553,12 @@ void testSpielUebernehmen(unsigned long pid, const std::string& ordner) {
     z.testOrdnerLose = ordner;
 }
 int testNeuGeladen() { return Z().testNeuGeladen; }
+void setzeEigenschaftAuswahl(const std::string& schluessel, const std::vector<std::string>& werte) {
+    Dokument* d = doc();
+    if (d == nullptr || d->auswahl.empty()) { return; }
+    std::vector<Ersetzung> e;
+    if (setzeEigenschaft(d->datei, menuDerSeite(*d), d->auswahl[0], schluessel.c_str(), werte, e)) { aendere(std::move(e)); }
+}
 std::string dokumentName() {
     const Dokument* d = doc();
     return d != nullptr ? d->name : std::string();

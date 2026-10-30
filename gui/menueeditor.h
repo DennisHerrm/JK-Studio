@@ -57,6 +57,9 @@ struct Stand {
     int verborgen = 0, gesperrt = 0;   // M4: Items mit Auge aus bzw. Schloss zu (Ebenenliste)
     int modellAufrufe = 0;         // M2: Zeichenaufrufe der 3D-Modelle (gpu::zeichneMenueFigur)
     int modellStufen = 0;          // M7: meiste Shaderstufen einer Modellflaeche (2 = Chrom-Stufe des JK2-Logos)
+    int beispielPrims = 0;         // M7: beschriftete Beispielwerte im letzten Bild
+    int platzhalterPrims = 0;      // M7: beschriftete Platzhalter (ownerdraw/Feeder ohne Darstellung) im letzten Bild
+    int ladebalken = 0;            // M7: Zeichenbefehle des Ladebalkens (gfx/hud/mp_levelload, load_tick)
     std::string modellFehler;      // letzte Meldung dabei
     int klangEreignisse = 0;       // M2 Punkt 5: ausgeloeste Klaenge (im Selbsttest stumm)
     std::string letzterKlang;
@@ -106,6 +109,8 @@ void neuesProjektFormat(bool mehrspieler);          // M7: Format des Startmenue
 // Skript mit der Befehlszeile von "Im Spiel testen"); Zahl der ui_load-Neuladungen seit dem Start
 void testSpielUebernehmen(unsigned long pid, const std::string& ordner);
 [[nodiscard]] int testNeuGeladen();
+// M7 Punkt 3: Schluessel des gewaehlten Elements setzen wie die Eigenschaften (ein Rueckgaengig-Schritt)
+void setzeEigenschaftAuswahl(const std::string& schluessel, const std::vector<std::string>& werte);
 [[nodiscard]] std::string dokumentName();           // M7: Spielpfad des aktiven Dokuments ("" = keins)
 [[nodiscard]] bool dokumentMp();                    // M7: aktives Dokument im MP-Dialekt
 bool speichereProjektJetzt();
