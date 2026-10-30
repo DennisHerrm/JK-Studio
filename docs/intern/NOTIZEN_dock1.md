@@ -259,6 +259,29 @@ toolband) mit den Tabellen und im DockSpace im selben Lauf und vergleicht sie
   Start, Reiter, Zurücksetzen, Griff, Aus-/Einblenden, eigenes
   Fenster/Andocken). dock1 mit Schalter aus danach: 86 OK, 0 FEHLER.
 
+### Mit Schalter (BHED_DOCKSPACE=1)
+
+- missionsbau 95 OK, 0 FEHLER; szenen 26 OK, 0 FEHLER.
+- Modus 1, erster Lauf (nach ~6 Minuten abgebrochen): 13 FEHLER – die
+  Elementsuche mit Fenster „###main“ fand nichts in angedockten Panels
+  (##splitx, Klicks der Tour auf Close/Move down/Duplicate/Copy/Paste,
+  „Interactive tour“): ein angedocktes Fenster ist seine eigene RootWindow.
+  Behoben in `gui/elemente.cpp` (wurzelName): ein Panel im DockSpace des
+  Hauptfensters heisst wie die Wurzel seines Dock-Baums („###main“); in
+  schwebenden Dock-Knoten (Wirt mit DockNodeHost) bleibt der Panelname.
+  Ohne Schalter unverändert (dock1 86 OK).
+- Modus 1, zweiter Lauf: **2648 OK, 0 FEHLER** (wie dock1 ohne Schalter).
+- kamera 95 OK, ton 34 OK, je 0 FEHLER.
+- dock1 mit Schalter: 83 OK, 18 FEHLER – erwartet, dock1 prüft die alte
+  Semantik: „zuhause“ über die Anordnungslisten, Andocken über den
+  Schliessknopf des eigenen Fensters (angedockte Panels haben bei
+  versteckter Reiterleiste keinen), Speichern/Laden der Anordnung (Panels
+  tragen NoSavedSettings), Zurückziehen auf den alten Platz. Diese Prüfungen
+  sind beim Umstellen auf den DockSpace neu zu fassen.
+- Nicht mit Schalter gelaufen: karte, karteneditor, menueeditor (Bereiche 3/4
+  unverändert), npcklasse, laserfalle, geschuetzanim, zielstrahl,
+  effektgrund, figurdeform, dock1neustart.
+
 ### Regression (Schalter aus)
 
 - dock1 (Schalter aus, mit dem Überhang-Fix): 86 OK, 0 FEHLER (wie vorher).
@@ -271,8 +294,9 @@ toolband) mit den Tabellen und im DockSpace im selben Lauf und vergleicht sie
 
 ### Offen (dock2)
 
-- Schalter einschalten (ab Werk an), sobald Modus 1, dock1 und alle Modi mit
-  `BHED_DOCKSPACE=1` grün sind (nicht gelaufen – Zeit); dann der alte Weg
+- Schalter einschalten (ab Werk an), sobald dock1 (neu gefasst), dock1neustart
+  und alle Modi mit `BHED_DOCKSPACE=1` grün sind (Modus 1, missionsbau,
+  szenen, kamera, ton sind es schon); dann der alte Weg
   (spaltenFrei, Zurückziehen auf den alten Platz, Anordnungslisten
   draussen/versteckt, drawDockFenster für Events/Mission/Model) raus. dock1
   prüft heute das Herausnehmen über die Anordnungslisten – im DockSpace
