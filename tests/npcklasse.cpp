@@ -354,6 +354,26 @@ int main() {
         pruefe(folge == " 1000:WP_BLASTER 4000:WP_REPEATER 5000:WP_BRYAR_PISTOL 6000:WP_SABER",
                "JK2 Kyle gleicht die Waffe des Spielers ausserhalb der Kamera ab, bis zum eigenen SET_WEAPON (" + folge + ")");
     }
+    // --- pruefung1: wer bekommt die Kino-Animationen _humanoid_<karte>? ------
+    // OpenJK: nur das Skelett "_humanoid" (Q_stricmp, G_ParseAnimFileSet,
+    // code/game/NPC_stats.cpp:1116). Movie Duels: jedes Skelett aus
+    // G_StandardHumanoid (g_client.cpp:1340-1407 MD, Aufruf NPC_stats.cpp:1249
+    // MD). Jedi Outcast laedt keine Kino-Datei (codeJK2/game/NPC_stats.cpp,
+    // G_ParseAnimFileSet:467 ff.). Ein eigenes Skelett "_humanoid_eigen" einer
+    // neuen Mission behandelt keine der Engines als Standard-Humanoiden.
+    {
+        pruefe(kinoSkelettAnhang("_humanoid", kRegelwerkOpenJK) && kinoSkelettAnhang("_HUMANOID", kRegelwerkOpenJK),
+               "OpenJK: _humanoid bekommt die Kino-Animationen (ohne Gross/klein)");
+        pruefe(!kinoSkelettAnhang("_humanoid_md", kRegelwerkOpenJK) && !kinoSkelettAnhang("protocol", kRegelwerkOpenJK) &&
+                   !kinoSkelettAnhang("_humanoid_eigen", kRegelwerkOpenJK),
+               "OpenJK: nur _humanoid, nicht _humanoid_md, protocol oder ein eigenes Skelett");
+        pruefe(kinoSkelettAnhang("_humanoid", kRegelwerkMovieDuels) && kinoSkelettAnhang("_humanoid_md", kRegelwerkMovieDuels) &&
+                   kinoSkelettAnhang("kotor_monster", kRegelwerkMovieDuels) && kinoSkelettAnhang("jk2anims", kRegelwerkMovieDuels),
+               "Movie Duels: die Liste aus G_StandardHumanoid");
+        pruefe(!kinoSkelettAnhang("_humanoid_eigen", kRegelwerkMovieDuels) && !kinoSkelettAnhang("_humanoid_", kRegelwerkMovieDuels),
+               "Movie Duels: ein Skelett ausserhalb der Liste nicht (exakter Vergleich)");
+        pruefe(!kinoSkelettAnhang("_humanoid", kRegelwerkJediOutcast), "Jedi Outcast: keine Kino-Animationen");
+    }
     std::printf("%s (%d Fehler)\n", g_fehler == 0 ? "npcklasse: alles gut" : "npcklasse: FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

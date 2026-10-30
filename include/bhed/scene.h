@@ -108,27 +108,6 @@ inline constexpr float kHeadYawClampMax = 50.0F;
 // derselben Formel um. Ohne SET_YAWSPEED gilt diese Vorgabe.
 inline constexpr float kNpcTurnDegPerSec = 60.0F + 90.0F * 3.0F;
 
-// Wie lange braucht eine Figur fuer `dist` Einheiten zu einer Marke, mit
-// Tempo `v` (Einheiten je Sekunde), Richtung (ux, uy) und Zielradius?
-//
-// Die Engine laesst NPCs nicht einfach mit v geradeaus gehen. STEER::GoTo
-// (g_navigator.cpp:4399) verfolgt das Ziel mit Seek und einer
-// Abbremszone von 4 x Radius: darin ist die Wunschgeschwindigkeit
-// v * abstand / zone (ebenda:4666). Angekommen ist die Figur, sobald sie im
-// Radius ist ODER der Zielpunkt in ihrem Kasten liegt (STEER::Reached,
-// :5361) - bei +-15 in x und y also schon deutlich vor dem Punkt.
-//
-// Das Modell allein ergibt kuerzere Zeiten, als das Spiel braucht:
-// Beschleunigung und Reibung in pmove und die Denktakte kommen dazu.
-// Anlauf 300 ms und Faktor 1.5 sind GEMESSEN (28.09., md_dd_jedi, eigene
-// Probe mit Tempo 55, 100, 200 ueber 40/80/150 Einheiten plus obi1 aus der
-// Intro, g_ICARUSDebug-Zeiten). Eine Naeherung - aber naeher am Spiel als
-// d / v, das im Mittel um den Faktor 1.8 zu frueh ankam.
-// rc601 (bewegung): nicht mehr benutzt - Laufen rechnet planeLauf
-// (bhed/navlauf.h) Denkbild fuer Denkbild wie die Engine, auch in BS_NOCLIP.
-// Bleibt nur fuer andere Pakete stehen.
-[[nodiscard]] double gehDauerMs(double dist, double v, double ux, double uy, double zielRadius = 12.0);
-
 // Dieselbe Rechnung fuer einen abweichenden yawSpeed, wie SET_YAWSPEED ihn
 // setzt (Q3_Interface.cpp:3438 schreibt den Wert ungeprueft in die Werte
 // des NPC).
@@ -338,6 +317,10 @@ struct ActorState {
     // Ab wann die Animation laeuft. Ohne diesen Bezug beginnt jede
     // Animation bei Null der Zeitleiste statt bei ihrem Einsatz.
     double animStartMs = 0.0;
+    // Pruefung 2: wann der Timer der Beine (ps.legsAnimTimer) abgelaufen ist -
+    // -1: keine Skriptanimation (Timer 0), >= 1e300: nie (-1 in der Engine).
+    // Die Todesanimation fragt ihn ab (G_CheckSpecialDeathAnim, bhed/todesanim.h).
+    double beineTimerBisMs = -1.0;
 
     // --- Der Uebergang zur vorigen Animation -----------------------------
     //
@@ -971,6 +954,17 @@ struct SzenenHilfe {
     bool kartenFiguren = false;
     // rc604 fix604: diese Kartenfiguren nicht (Ablauf::fremdeDarsteller, klein).
     const std::set<std::string>* fremdeDarsteller = nullptr;
+    // Pruefung 2 - fuer die Todesanimation (bhed/todesanim.h):
+    // PM_HasAnimation: hat die Animationsdatei der Figur diese Animation mit
+    // Bildern (numFrames != 0)? Leer: keine.
+    std::function<bool(const std::string& figur, const std::string& anim)> hatAnim;
+    // renderInfo.torsoAngles zur Zeit ms - aus dem Bolzen chestBolt des
+    // gezeichneten Skeletts (cg_players.cpp:7516-7527 OJ). Leer oder false:
+    // VectorClear wie ohne chestBolt.
+    std::function<bool(const struct Actor& figur, double ms, float winkel[3])> rumpfWinkel;
+    // Toetete dieses kill ein trigger_hurt (AblaufWelt::hurtTode)? Der Index
+    // des Ausloesers in MapData::entities, sonst -1 (dann kill aus ICARUS).
+    std::function<int(const std::string& figur, double ms)> hurtAusloeser;
 };
 
 [[nodiscard]] Scene buildScene(const Script& s, const MapData& map,
@@ -1019,6 +1013,10 @@ struct NpcDef {
     // cg_main.cpp:1255). So der Schwebedroide remote_sp.
     std::string legsModel;
     std::string saber;      // leer heisst: keines genannt
+    // Pruefung 2 (Movie Duels): "noKnockback" mit einer Zahl setzt
+    // charNoKnockback (NPC_stats.cpp:4115-4123 MD) - G_Throw stoesst dann nur
+    // mit 5 statt push (jedi_is_kick_resistant, wp_saber.cpp:1666 MD).
+    bool keinRueckstoss = false;
     // Der `weapon`-Schluessel, z.B. "WP_BLASTER". Ueber die 120
     // .npc-Dateien in assets1 gezaehlt: 63 mal WP_SABER, 31 mal WP_BLASTER,
     // 29 mal WP_NONE, 15 mal WP_MELEE, 7 mal WP_REPEATER.
@@ -1446,14 +1444,9 @@ struct NavZiel {
 // istFigur: das Ziel ist ein NPC oder der Spieler.
 [[nodiscard]] bool engineFindet(const MapData& map, const std::string& name, float out[3],
                                 bool* istFigur = nullptr);
-
-// Wie gehDauerMs, aber fuer eine Figur, die schon in voller Fahrt ist: ein
-// neues Ziel, ein anderes Tempo oder ein SET_ORIGIN mitten im Weg. Die Engine
-// lenkt dann aus der laufenden Geschwindigkeit weiter (STEER::Activate liest
-// ps.velocity, g_navigator.cpp:3977) - der Anlauf von 300 ms faellt weg.
-// rc601 (bewegung): nicht mehr benutzt (siehe gehDauerMs).
-[[nodiscard]] double gehDauerInFahrtMs(double dist, double v, double ux, double uy,
-                                       double zielRadius = 12.0);
+// pruefung1: zwei Entity-Namen so vergleichen, wie die Engine sie sucht -
+// ohne Gross/klein (G_Find mit Q_stricmp, GetByName mit Q_strupr).
+[[nodiscard]] bool engineNamenGleich(const std::string& a, const std::string& b);
 
 // Das Geh- und Lauftempo, das der Ablauf (AblaufWelt::tempo) fuer eine Figur
 // nimmt, bevor das Skript es aendert: die Werte aus der .npc beim Spawnen.

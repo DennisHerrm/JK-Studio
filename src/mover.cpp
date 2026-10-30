@@ -579,7 +579,7 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
             const std::string ziel = text(e, "target");
             bool zielDa = false;
             for (const MapEntity& z : map.entities) {
-                if (!ziel.empty() && z.targetname == ziel) {
+                if (!ziel.empty() && gleichOhneFall(z.targetname, ziel)) {   // G_Find: Q_stricmp
                     zielDa = true;
                     break;
                 }

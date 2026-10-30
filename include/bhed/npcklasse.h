@@ -80,6 +80,13 @@ struct NpcKlassenTyp {
 // (Ablauf::fremdeDarsteller).
 [[nodiscard]] bool kinoDarsteller(const MapEntity& e);
 
+// pruefung1: haengt die Engine an eine Figur mit diesem Skelett (dem Ordner
+// ihrer .gla: "_humanoid", "_humanoid_md", "protocol" ...) die Kino-
+// Animationen der Karte (models/players/_humanoid_<karte>/) als zweite
+// Animationsdatei? G_ParseAnimFileSet, siehe npcklasse.cpp.
+// spiel: kRegelwerkOpenJK, kRegelwerkMovieDuels oder kRegelwerkJediOutcast.
+[[nodiscard]] bool kinoSkelettAnhang(const std::string& skelett, int spiel);
+
 }  // namespace bhed
 
 #endif

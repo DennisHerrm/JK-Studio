@@ -121,6 +121,7 @@ add_library(bhed_core STATIC
   # rc601 bewegung: Schwerkraft wie Pmove (fallen, Stufen, Boden). Siehe
   # bhed/scene.h, schwerkraftEinrechnen.
   src/schwerkraft.cpp
+  src/todesanim.cpp
   # rc601 bewegung: Laufziele ohne Weg im Wegnetz (STEER::SafeToGoTo /
   # NAV::GoTo). Siehe bhed/scene.h, navZieleOhneWeg.
   src/navweg.cpp
@@ -745,6 +746,16 @@ if(BEHAVED_TESTS)
   add_executable(ablauftest tests/ablauftest.cpp)
   target_link_libraries(ablauftest PRIVATE bhed_core)
   add_test(NAME ablauf COMMAND ablauftest)
+  # pruefung1: selbst gebaute Mini-Missionen je ICARUS-Befehlsgruppe, beide
+  # Regelwerke, einmal mit Namen wie in den Originalen und einmal mit frischen
+  # Namen - beide muessen dasselbe ergeben (nichts auf Originale zugeschnitten).
+  add_executable(pruefmission tests/pruefmission.cpp)
+  target_link_libraries(pruefmission PRIVATE bhed_core)
+  add_test(NAME pruefmission COMMAND pruefmission)
+  # Pruefung 2: Naeherungen 1:1 nach der Engine (Todesanimation, ...)
+  add_executable(pruefung2 tests/pruefung2.cpp)
+  target_link_libraries(pruefung2 PRIVATE bhed_core)
+  add_test(NAME pruefung2 COMMAND pruefung2)
   # rc601 bewegung: NPCs laufen, drehen sich und fallen wie im Spiel
   # (scene.cpp, ablauf.cpp) - reine Proben, dazu die md_twj-Daten.
   add_executable(bewegungtest tests/bewegungtest.cpp)

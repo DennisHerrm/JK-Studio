@@ -3823,7 +3823,8 @@ bool gleicherZustand(const LaufZustand& a, const LaufZustand& b) {
            a.bodenEnt == b.bodenEnt && gleichBits(a.bodenAbMs, b.bodenAbMs) &&   // rc605 (Ende)
            a.gesetztSpawn == b.gesetztSpawn && a.gesetztImFesten == b.gesetztImFesten &&
            gleichBits(a.denkNullMs, b.denkNullMs) && gleichBits(a.letzteBewegung, b.letzteBewegung) &&   // rc601 integ
-           a.letzterVor == b.letzterVor && a.letzterSeit == b.letzterSeit && a.letzteGehTaste == b.letzteGehTaste &&
+           a.letzterVor == b.letzterVor && a.letzterSeit == b.letzterSeit && a.letzterHoch == b.letzterHoch &&   // Pruefung 2
+           a.letzteGehTaste == b.letzteGehTaste &&
            a.jk2Tempo == b.jk2Tempo && gleichBits(a.jk2ZielAbstand, b.jk2ZielAbstand) &&
            a.jk2Blockiert == b.jk2Blockiert && a.jk2FehlKnoten == b.jk2FehlKnoten &&
            a.jk2FehlPruefBis == b.jk2FehlPruefBis &&   // rc604 fix604 (JK2)

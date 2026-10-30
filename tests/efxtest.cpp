@@ -2213,19 +2213,15 @@ int main(int argc, char** argv) {
         }
     }
 
-    // --- Decal: flach AUF der Flaeche --------------------------------------
+    // --- Decal: eine Marke auf den Flaechen der Karte ----------------------
     //
-    // 41 Vorkommen - der haeufigste noch ungezeichnete Typ.
-    //
-    // Die Engine legt ein Quadrat der Kante 2*size um den Auftreffpunkt,
-    // senkrecht zur Flaechennormalen (CG_ImpactMark, cg_marks.cpp:160):
-    //
-    //     axis[0] = normale
-    //     ecke = origin +/- radius*axis[1] +/- radius*axis[2]
-    //
-    // Geprueft wird die Lage, denn genau die kann man falsch bekommen:
-    // steht das Viereck senkrecht zur Wand statt darauf, sieht man es von
-    // vorn als Strich.
+    // 41 Vorkommen. Die Engine legt ein Decal NICHT als Teilchen an, sondern
+    // mit CG_ImpactMark als Marke (FxScheduler.cpp:1855 MD): das Quadrat der
+    // Kante 2*size um den Auftreffpunkt wird mit R_MarkFragments auf die
+    // getroffenen Flaechen geschnitten. Ohne Flaechen der Karte gibt es also
+    // keine Marke - bis Pruefung 2 stand hier ein flaches Viereck zwei
+    // Einheiten vor der Wand (eine Naeherung). Das Schneiden, die Lage auf
+    // der Flaeche und die Lebenszeit prueft pruefung2 (decalMarken).
     {
         const char* text =
             "Decal\n"
@@ -2241,7 +2237,6 @@ int main(int argc, char** argv) {
             in.effect = &rLesen4.effect;
             in.startMs = 0.0;
             in.seed = 11U;
-            // Eine WAND: Normale zeigt nach +x.
             in.normal[0] = 1.0F;
             in.normal[1] = 0.0F;
             in.normal[2] = 0.0F;
@@ -2249,28 +2244,7 @@ int main(int argc, char** argv) {
             const float hoch[3] = {0.0F, 0.0F, 1.0F};
             const bhed::BspMesh m =
                 bhed::buildEffectMesh({in}, 300.0, rechts, hoch);
-            expect("es entsteht ein Viereck", m.verts.size() == 4U);
-            if (m.verts.size() == 4U) {
-                // ALLE vier Ecken muessen in derselben Ebene liegen, und
-                // zwar zwei Einheiten VOR der Wand (der Versatz gegen das
-                // Flimmern, wie beim Aufpralleffekt in rc287).
-                bool inEbene = true;
-                for (const auto& vEcke2 : m.verts) {
-                    if (!near(vEcke2.xyz[0], 2.0F, 0.01F)) {
-                        inEbene = false;
-                    }
-                }
-                expect("alle vier Ecken liegen in der Wandebene", inEbene);
-                // Und sie spannen die volle Kante auf: 2*size = 20.
-                float minY = 1e9F;
-                float maxY = -1e9F;
-                for (const auto& vEcke3 : m.verts) {
-                    minY = std::min(minY, vEcke3.xyz[1]);
-                    maxY = std::max(maxY, vEcke3.xyz[1]);
-                }
-                expect("die Kante ist doppelt so lang wie size",
-                       near(maxY - minY, 20.0F, 0.1F));
-            }
+            expect("ohne Flaechen der Karte keine Marke", m.verts.empty());
         }
     }
 

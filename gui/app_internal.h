@@ -901,7 +901,7 @@ struct App {
         // dazu. Die eigenen gemerkt, und fuer welche Karte der Anhang gilt.
         std::vector<AnimEntry> grundListe;
         bool grundGemerkt = false;
-        std::string kinoKarte;
+        std::string kinoKarte;   // "<karte>|<regelwerk>" (pruefung1)
     };
     // Schluessel ist der Pfad aus dem Modellkopf, ohne Endung.
     std::map<std::string, Skeleton> skeletons;

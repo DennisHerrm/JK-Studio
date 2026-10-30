@@ -1360,7 +1360,7 @@ void loadMapEffects() {
             const std::string* ziel = e.find("target");
             const MapEntity* zielEnt = nullptr;
             for (const MapEntity& z : g_app->map.entities) {
-                if (ziel != nullptr && !ziel->empty() && z.targetname == *ziel && gespawntImSpiel(z)) {
+                if (ziel != nullptr && !ziel->empty() && engineNamenGleich(z.targetname, *ziel) && gespawntImSpiel(z)) {
                     zielEnt = &z;
                     break;
                 }
@@ -2844,14 +2844,6 @@ void preloadSaberAssets() {
 // wird der Anhang bei jedem Aufbau auf die AKTUELLE Karte abgeglichen:
 // alte Kino-Abschnitte weg, neue dran.
 void kinoSkeletteAbgleichen() {
-    static const char* const kHumanoid[] = {
-        "_humanoid", "JK2anims", "_humanoid_ani", "_humanoid_bdroid", "_humanoid_ben", "_humanoid_cal",
-        "_humanoid_clo", "_humanoid_deka", "_humanoid_df2", "_humanoid_dooku", "_humanoid_galen",
-        "_humanoid_gon", "_humanoid_grievous", "_humanoid_jabba", "_humanoid_jango", "_humanoid_kotor",
-        "_humanoid_luke", "_humanoid_mace", "_humanoid_maul", "_humanoid_md", "_humanoid_melee",
-        "_humanoid_obi", "_humanoid_obi3", "_humanoid_pal", "_humanoid_reb", "_humanoid_ren", "_humanoid_rey",
-        "_humanoid_sbd", "_humanoid_vader", "_humanoid_yoda", "protocol", "assassin_droid", "saber_droid",
-        "hazardtrooper", "rockettrooper", "wampa", "galak_mech", "droideka", "kotor_monster"};
     const auto klein = [](std::string x) {
         for (char& c : x) {
             c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -2859,10 +2851,14 @@ void kinoSkeletteAbgleichen() {
         }
         return x;
     };
+    const int spiel = regelwerkJediOutcast() ? kRegelwerkJediOutcast
+                      : regelwerkMovieDuels() ? kRegelwerkMovieDuels
+                                              : kRegelwerkOpenJK;
     // Die Karte: "maps/academy1.bsp" -> "academy1" (level.mapname ohne Pfad).
     std::string karte = klein(g_app->map.path);
     if (const auto s = karte.find_last_of('/'); s != std::string::npos) { karte = karte.substr(s + 1); }
     if (karte.size() > 4 && karte.compare(karte.size() - 4, 4, ".bsp") == 0) { karte.resize(karte.size() - 4); }
+    const std::string schluessel = karte + "|" + std::to_string(spiel);
     const std::string kinoName = "models/players/_humanoid_" + karte + "/_humanoid_" + karte;
     // Das Kino-Skelett einmal lesen (auch "nicht da" merken: leeres anim).
     App::Skeleton* kino = nullptr;
@@ -2894,15 +2890,16 @@ void kinoSkeletteAbgleichen() {
         std::string ordner = name;
         if (const auto s = ordner.find_last_of("/\\"); s != std::string::npos) { ordner = ordner.substr(0, s); }
         if (const auto s = ordner.find_last_of("/\\"); s != std::string::npos) { ordner = ordner.substr(s + 1); }
-        bool humanoid = false;
-        for (const char* h : kHumanoid) {
-            humanoid = humanoid || klein(ordner) == klein(h);
+        // pruefung1: wer den Anhang bekommt, entscheidet das Regelwerk (OpenJK
+        // nur _humanoid, Movie Duels die Liste aus G_StandardHumanoid, Jedi
+        // Outcast niemand - bhed/npcklasse.h). Wechselt es, faellt ein alter
+        // Anhang wieder weg.
+        const bool anhang = kinoSkelettAnhang(ordner, spiel);
+        if (!anhang && !sk.grundGemerkt) {
+            continue;   // nie angehaengt
         }
-        if (!humanoid) {
-            continue;
-        }
-        if (sk.kinoKarte == karte && sk.grundGemerkt) {
-            continue;   // schon fuer diese Karte
+        if (sk.kinoKarte == schluessel && sk.grundGemerkt) {
+            continue;   // schon fuer diese Karte und dieses Regelwerk
         }
         if (!sk.grundGemerkt) {
             sk.grundListe = sk.sections;
@@ -2910,8 +2907,8 @@ void kinoSkeletteAbgleichen() {
         }
         sk.sections = sk.grundListe;
         sk.anim.anhang = nullptr;
-        sk.kinoKarte = karte;
-        if (kino == nullptr) {
+        sk.kinoKarte = schluessel;
+        if (kino == nullptr || !anhang) {
             continue;
         }
         if (kino->anim.bones.size() != sk.anim.bones.size()) {
