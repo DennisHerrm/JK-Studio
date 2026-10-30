@@ -278,14 +278,30 @@ std::vector<Schritt> kamera() {
     }));
     add(ziehenAn("H1 Kamera: mit der rechten Maustaste umsehen", mitte, 90.0F, 0.0F, 1));
     fertig(1);
-    add(pruefe("H1 Kamera: ohne Kamera im Skript steht der Hinweis (Kamera einfuegen)", [] {
-        return tourSicht().hinweis.find("no camera") != std::string::npos;   // Selbsttest auf Englisch
+    // uebersetzung1: der Hinweis in der Sprache des Laufs (touren.json), nicht der englische
+    // Wortlaut - auf Spanisch waren beide Pruefungen rot. Verglichen wird der Anfang des Textes
+    // der Tour bis zur ersten Auszeichnung ({{, **, `, <).
+    const auto hinweisWie = [](const char* wenn) {
+        const bhed::tour::Tour* t = tourDaten().finde("k-kamera-ansicht");
+        const std::string h = tourSicht().hinweis;
+        for (const auto& ansicht : t != nullptr ? t->ansichten : decltype(t->ansichten){}) {
+            for (const bhed::tour::Schritt& s : ansicht.second) {
+                for (const bhed::tour::Hinweis& f : s.falsch) {
+                    const std::string anfang = f.text.substr(0, std::min<std::size_t>(f.text.find_first_of("{*`<"), 40));
+                    if (f.wenn.find(wenn) != std::string::npos && anfang.size() >= 8 && h.find(anfang) != std::string::npos) { return true; }
+                }
+            }
+        }
+        return false;
+    };
+    add(pruefe("H1 Kamera: ohne Kamera im Skript steht der Hinweis (Kamera einfuegen)", [hinweisWie] {
+        return hinweisWie("vorschau.ohnekamera");
     }));
     add(tu("H1 Kamera: einen camera-Befehl einfuegen (wie ein Doppelklick in der Befehlsliste)", [] { tourAktionen("befehl:camera"); }));
     add(pause(0.4));
-    add(pruefe("H1 Kamera: Kamera noch nicht gewaehlt -> Hinweis \"Waehl zuerst die Kamera\"", [] {
+    add(pruefe("H1 Kamera: Kamera noch nicht gewaehlt -> Hinweis \"Waehl zuerst die Kamera\"", [hinweisWie] {
         diag::detail("Knopftest: H1 Kamera - Hinweis: " + tourSicht().hinweis);
-        return tourSicht().hinweis.find("Select the camera") != std::string::npos;
+        return hinweisWie("vorschau.nichtgewaehlt");
     }));
     add(tu("H1 Kamera: Kamera waehlen (wie ein Klick auf die Kamerazeile)", [] {
         g_app->cameraSelected = true;
