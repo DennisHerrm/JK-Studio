@@ -198,6 +198,19 @@ int main() {
     menue::schriftZeichnen(f, 20, 432, "ab c", menue::Farbe{1, 1, 1, 1}, -1, 1.0F, false, glyphen);
     pruefe(glyphen.size() == 3 && glyphen[0].x == 20.0F && glyphen[0].y == 432.0F + (22 - 2) - 14 && glyphen[2].x == 50.0F,
            "RE_Font_DrawString: je Zeichen ein Bild, Grundlinie oy + Hoehe - Unterlaenge/2");
+    // Integration 5: ein ^ ohne Ziffer zeichnen Jedi Academy und Movie Duels (tr_font.cpp: "purposely falls
+    // thrugh"), Jedi Outcast (JK2_MODE) laesst es weg; ^1 faerbt in allen dreien rot.
+    const untertitel::Zeile caret{"a^^1b", 20, 432};
+    for (const Spiel spiel : {Spiel::JediAcademy, Spiel::MovieDuels, Spiel::JediOutcast}) {
+        std::vector<menue::Prim> g;
+        untertitel::zeichnen(f, caret, menue::Farbe{1, 1, 1, 1}, 1.0F, spiel, g);
+        const bool jk2 = spiel == Spiel::JediOutcast;
+        const bool ok = g.size() == (jk2 ? 2U : 3U) && g.back().x == (jk2 ? 30.0F : 40.0F) && g.back().farbe.r == 1.0F &&
+                        g.back().farbe.g == 0.0F && g.front().farbe.g == 1.0F;
+        pruefe(ok, jk2                       ? "JK2: ^ ohne Ziffer nicht gezeichnet, ^1 faerbt rot"
+                   : spiel == Spiel::MovieDuels ? "MD: ^ ohne Ziffer gezeichnet, ^1 faerbt rot"
+                                             : "JKA: ^ ohne Ziffer gezeichnet, ^1 faerbt rot");
+    }
 
     std::printf("%s (%d Fehler)\n", fehler == 0 ? "alles gut" : "FEHLER", fehler);
     return fehler == 0 ? 0 : 1;

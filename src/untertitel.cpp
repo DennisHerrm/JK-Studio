@@ -291,4 +291,8 @@ std::vector<Zeile> zeigen(const Untertitel& u, double ms, const menue::Schrift& 
     return aus;
 }
 
+void zeichnen(const menue::Schrift& f, const Zeile& z, menue::Farbe farbe, float scale, Spiel spiel, std::vector<menue::Prim>& out) {
+    menue::schriftZeichnen(f, z.x, z.y, z.text, farbe, -1, scale, false, out, menue::Kodierung::Latin1, false, spiel == Spiel::JediOutcast);
+}
+
 }  // namespace bhed::untertitel

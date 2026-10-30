@@ -2051,8 +2051,7 @@ void untertitelZeichnen(ImDrawList* dl, ImVec2 a, ImVec2 b) {
     float unten = a.y;
     for (const untertitel::Zeile& z : zeilen) {
         std::vector<menue::Prim> glyphen;
-        menue::schriftZeichnen(u.schrift, z.x, z.y, z.text, menue::Farbe{farbe[0], farbe[1], farbe[2], farbe[3]}, -1, jetzt->schriftGroesse,
-                               false, glyphen);
+        untertitel::zeichnen(u.schrift, z, menue::Farbe{farbe[0], farbe[1], farbe[2], farbe[3]}, jetzt->schriftGroesse, spiel, glyphen);
         for (const menue::Prim& g : glyphen) {
             const ImVec2 p0{a.x + g.x * sx, a.y + g.y * sy};
             const ImVec2 p1{a.x + (g.x + g.w) * sx, a.y + (g.y + g.h) * sy};

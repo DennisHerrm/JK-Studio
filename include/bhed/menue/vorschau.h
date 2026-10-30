@@ -94,11 +94,13 @@ struct Prim {
 // RE_Font_DrawString: je Zeichen ein Bild (PrimArt::Bild, Shader der Schrift
 // oder der asiatischen Glyphe) im virtuellen Bildschirm, ab (ox, oy) oben
 // links. ^0-^9 wechseln die Farbe (Deckung bleibt), ausser imSchatten
-// (gbInShadow); ein ^ ohne Ziffer wird gezeichnet; maxPixel -1 = ohne Grenze.
+// (gbInShadow); ein ^ ohne Ziffer wird gezeichnet ("purposely falls thrugh"),
+// unter JK2_MODE (jk2Modus: Jedi Outcast) nicht; maxPixel -1 = ohne Grenze.
 // Kodierung/asienGlyphen wie schriftBreite (M3). Auch fuer die Untertitel der
 // Vorschau (bhed/untertitel.h).
 void schriftZeichnen(const Schrift& f, int ox, int oy, const std::string& text, Farbe farbe, int maxPixel, float scale,
-                     bool imSchatten, std::vector<Prim>& out, Kodierung k = Kodierung::Latin1, bool asienGlyphen = false);
+                     bool imSchatten, std::vector<Prim>& out, Kodierung k = Kodierung::Latin1, bool asienGlyphen = false,
+                     bool jk2Modus = false);
 
 struct FeederEintrag {
     std::vector<std::string> spalten;
