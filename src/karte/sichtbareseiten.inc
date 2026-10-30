@@ -97,9 +97,6 @@ struct MinMax {   // MinMax (float)
         return o.mins[0] >= mins[0] && o.mins[1] >= mins[1] && o.mins[2] >= mins[2] && o.maxs[0] <= maxs[0] && o.maxs[1] <= maxs[1] &&
                o.maxs[2] <= maxs[2];
     }
-    [[nodiscard]] bool enthaelt(const V3f& p) const {   // test( point )
-        return p[0] >= mins[0] && p[1] >= mins[1] && p[2] >= mins[2] && p[0] <= maxs[0] && p[1] <= maxs[1] && p[2] <= maxs[2];
-    }
 };
 const MinMax& weltKasten() {   // c_worldMinmax
     static const MinMax m{{kWeltMin, kWeltMin, kWeltMin}, {kWeltMax, kWeltMax, kWeltMax}};
@@ -428,7 +425,6 @@ struct Ebenen {
         Ebene e;
         int typ = 3;
         int kette = 0;
-        int zaehler = 0;   // counter (SelectSplitPlaneNum)
     };
     std::vector<Eintrag> p;
     std::vector<int> hash = std::vector<int>(kEbenenHashes, 0);
