@@ -51,12 +51,12 @@ steht, den Eintrag dort mitziehen (der Bau meldet nicht mehr gebrauchte Einträg
 ## Bilder neu aufnehmen
 
 Der Selbsttest `BHED_EDITORTEST=handbuch` (gui/selbsttest.cpp,
-`handbuchSchritte`) lädt `md_am_sith` aus `MD_Missions_Ep3.pk3`, stellt jede
-Szene ein und fotografiert **nur das eigene Fenster**; neben jedes Foto
+`handbuchSchritte`) legt die Übungsmission `taspir_tut` auf `taspir1` aus
+`assets0.pk3` der eingerichteten Spielordner an, stellt jede Szene ein und fotografiert **nur das eigene Fenster**; neben jedes Foto
 schreibt er den Ausschnitt (`<name>.rect`). Umgebung:
 
 - `BHED_FOTOS` – Zielordner, `BHED_SPRACHE` – en / de / zh-Hans / ja (Kennungen wie in der Einstellungsdatei)
-- `BHED_MISSION_ARCHIV`, `BHED_MISSION_NAME`
+- `BHED_MISSION_ARCHIV`, `BHED_MISSION_NAME` – Archiv und Karte der Übungsmission (ohne: `assets0.pk3` aus den Spielordnern, `taspir1`)
 - `BHED_MISSIONEN`, `BHED_HB_ZIEL` – die Übungsmission und ihr Archiv. Beim
   Aufnehmen auf ein Laufwerk aus `subst` legen (z. B. `X:\missionen`), damit
   kein Benutzerpfad im Bild steht; danach `subst X: /d`.

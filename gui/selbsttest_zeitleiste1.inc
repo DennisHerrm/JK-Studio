@@ -1170,20 +1170,61 @@ std::vector<Schritt> aufnahmeOriginal(const std::string& szene) {
     return s;
 }
 
+// Zeitleiste 4 Punkt 1: die Einstellungen bei einer Oberflaeche, mit der ihr
+// Inhalt hoeher ist als das Fenster (der volle Bildlauf stellt 1,3 ein). Dort
+// lagen Ok und Cancel unter dem Fensterrand, der Klick auf Cancel traf nichts,
+// die Einstellungen blieben offen und sperrten alle weiteren Klicks.
+std::vector<Schritt> einstellungenSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto vorher = std::make_shared<float>(1.0F);
+    add(tu("zeitleiste1 Einstellungen: Oberflaeche 1,3 wie im Bildlauf, Einstellungen oeffnen", [=] {
+        *vorher = g_app->uiScale;
+        g_app->uiScale = 1.3F;
+        g_app->prefsOpen = true;
+    }));
+    add(pause(0.6));
+    add(pruefe("zeitleiste1 Einstellungen: Ok und Cancel ganz im Bild", [] {
+        const Element* ok = finde(tr(Str::EditorOk), tr(Str::PrefsTitle), 0, false);
+        const Element* ab = finde(tr(Str::EditorCancel), tr(Str::PrefsTitle), 0, false);
+        const ImGuiWindow* w = ImGui::FindWindowByName(tr(Str::PrefsTitle));
+        char z[200];
+        std::snprintf(z, sizeof(z), "Knopftest: Einstellungen %.0f px hoch, Fenster %.0f px, Cancel unten bei %.0f",
+                      w != nullptr ? static_cast<double>(w->Size.y) : 0.0, static_cast<double>(ImGui::GetIO().DisplaySize.y),
+                      ab != nullptr ? static_cast<double>(ab->rect.Max.y) : -1.0);
+        diag::detail(z);
+        return ok != nullptr && ab != nullptr && ganzSichtbar(*ok) && ganzSichtbar(*ab);
+    }));
+    add(klick(tr(Str::EditorCancel), tr(Str::PrefsTitle)));
+    add(pause(0.3));
+    add(pruefe("zeitleiste1 Einstellungen: Cancel schliesst, kein Fenster sperrt die Maus", [] {
+        return !g_app->prefsOpen && ImGui::GetTopMostPopupModal() == nullptr;
+    }));
+    add(tu("zeitleiste1 Einstellungen: Oberflaeche zurueck", [=] {
+        g_app->prefsOpen = false;
+        g_app->uiScale = *vorher;
+    }));
+    add(pause(0.3));
+    return s;
+}
+
 }  // namespace zl1
 
 std::vector<Schritt> zeitleiste1Schritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
-    // BHED_ZL1_NUR=mini: nur die Mini-Szene, =jk2: nur Jedi Outcast (schneller Durchlauf beim Arbeiten).
+    // BHED_ZL1_NUR=mini: nur die Mini-Szene, =jk2: nur Jedi Outcast, =einstellungen: nur die Einstellungen
+    // (schneller Durchlauf beim Arbeiten).
     const char* nur = std::getenv("BHED_ZL1_NUR");
     if (nur != nullptr && std::strcmp(nur, "jk2") == 0) { return zl1::jk2Schritte(); }
     if (nur != nullptr && std::strcmp(nur, "untertitel") == 0) { return zl1::untertitelSchritte(); }
+    if (nur != nullptr && std::strcmp(nur, "einstellungen") == 0) { return zl1::einstellungenSchritte(); }
     if (nur != nullptr && std::strcmp(nur, "aufnahme") == 0) {
         s = zl1::untertitelSchritte();
         for (Schritt& x : zl1::aufnahmeSchritte()) { s.push_back(std::move(x)); }
         return s;
     }
+    for (Schritt& x : zl1::einstellungenSchritte()) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::miniSchritte()) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::fremdSchritte()) { s.push_back(std::move(x)); }
     if (nur != nullptr && std::strcmp(nur, "mini") == 0) { return s; }

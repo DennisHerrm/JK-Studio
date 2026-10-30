@@ -2457,8 +2457,12 @@ std::vector<Schritt> handbuchSchritte() {
     }
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    // Zeitleiste 4: ohne Umgebung die Handbuch-Mission selbst - taspir1 aus
+    // assets0.pk3 der eingerichteten Spielordner (vorher md_am_sith ohne
+    // Archiv: die Mission entstand auf der falschen Karte, die Raven's Claw
+    // fehlte, das Animationsfenster blieb zu).
     const std::string archiv = std::getenv("BHED_MISSION_ARCHIV") ? std::getenv("BHED_MISSION_ARCHIV") : "";
-    const std::string name = std::getenv("BHED_MISSION_NAME") ? std::getenv("BHED_MISSION_NAME") : "md_am_sith";
+    const std::string name = std::getenv("BHED_MISSION_NAME") ? std::getenv("BHED_MISSION_NAME") : "taspir1";
     const auto voll = [] { return ImRect{0.0F, 0.0F, ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y}; };
     const auto kartePlusLeiste = [] {
         ImRect r = hb::karte();
@@ -2620,7 +2624,12 @@ std::vector<Schritt> handbuchSchritte() {
     // Die Missionen des Grundspiels in assets0.pk3 - nur das Bild der Auswahl.
     add(tu("Handbuch: Spielordner zu, Missionen der pk3", [=] {
         g_app->pathsOpen = false;
-        missionenAusArchiv(archiv);
+        std::string a = archiv;
+        for (const std::string& o : g_app->settings.gamePaths) {
+            std::error_code ec;
+            if (a.empty() && std::filesystem::is_regular_file(::bhed::utf8Pfad(o + "\\assets0.pk3"), ec)) { a = o + "\\assets0.pk3"; }
+        }
+        missionenAusArchiv(a);
     }));
     add(pause(0.6));
     // rc603: die weiteren Missionen des Spiels liest "Load mission" im
