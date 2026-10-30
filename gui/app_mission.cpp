@@ -26,6 +26,8 @@
 #include "tour.h"   // rc601 tour: "Interaktive Tour" auf der Startflaeche
 
 #include "bhed/aufnahme.h"
+#include "bhed/pmanim.h"
+#include "bhed/saberkontakt.h"
 #include "bhed/entdefs.h"
 #include "bhed/missionbau.h"
 #include "bhed/roffanim.h"
@@ -4741,10 +4743,115 @@ struct Aufnahme {
     double laufMs = 0.0;   // Zeit der Aufnahme: daran laeuft die Animation des Modells
     float tempo = 0.0F;    // Geschwindigkeit im letzten Bild (Einheiten/s)
     bool gehen = false;    // Gangart im letzten Bild
+    // Zeitleiste 4 Punkt 3: das Modell wie im Spiel (bhed/pmanim.h) - die
+    // Zeiten auf der Uhr der Aufnahme (laufMs, Start 0).
+    PmFigur pm;
+    PmKnochen beine;             // rootBone
+    PmKnochen torso;             // lowerLumbarBone; anim leer: folgt den Beinen
+    bool beineHalten = false;    // die Beinanimation vom Start ist eingefroren (SET_ANIM_HOLDTIME)
+    bool beineVorherHalten = false;
+    bool torsoHalten = false;
+    bool rueckwaerts = false;    // PMF_BACKWARDS_RUN
+    double letzteBewegungMs = 0.0;   // gent->lastMoveTime
+    bool inKamera = false;       // in_camera zur Startzeit
+    float beinGier = 0.0F;       // cent->pe.legs.yawAngle
+    double clientMs = 0.0;       // Uhr der Clientbilder (com_maxfps 125)
+    double clientRest = 0.0;
 };
 Aufnahme& aufnahme() {
     static Aufnahme a;
     return a;
+}
+
+// Zeitleiste 4 Punkt 3: die Animation in der animation.cfg der Figur - ms je
+// Bild (frameLerp, wie die Szene sie rechnet) und animHoldMSec ((numFrames -
+// 1) * frameLerp). false: das Modell kennt sie nicht (PM_SetAnimFinal:
+// numFrames 0 -> es setzt nichts).
+bool aufnahmeAnimInfo(int figur, const std::string& anim, double& lerp, double& halten) {
+    if (figur < 0 || static_cast<std::size_t>(figur) >= g_app->actorAssets.size() || anim.empty()) { return false; }
+    const App::Skeleton* sk = g_app->actorAssets[static_cast<std::size_t>(figur)]->skeleton;
+    if (sk == nullptr) { return false; }
+    for (const AnimEntry& e : sk->sections) {
+        if (e.numFrames <= 0 || klein(e.name) != klein(anim)) { continue; }
+        lerp = animBildMs(e);
+        halten = std::max(0, e.numFrames - 1) * lerp;
+        return true;
+    }
+    return false;
+}
+
+// Zeitleiste 4 Punkt 3: nach einem Pmove-Stueck wie im Spiel PM_Footsteps
+// und PM_TorsoAnimation (Pmove, bg_pmove.cpp:15066-15120 OpenJK): die Beine
+// nach Eingabe und Bewegung, der Oberkoerper folgt ihnen oder zeigt die Waffe
+// (npcWaffenTorso, wie die Szene) - solange kein Timer haelt.
+void aufnahmeAnimSchritt(Aufnahme& r, const NavSpielerEingabe& e, bool gehen, const NavVec& vorher, int msec, double uhr) {
+    pmRueckwaertsSetzen(r.rueckwaerts, e.vor, e.seit);
+    // resultspeed: wie weit dieses Pmove kam; "If Have Not Been Moving For A
+    // While, Stop" - nach 1 s ohne Bewegung am Boden keine Eingabe mehr.
+    const float dx = r.s.ort[0] - vorher[0];
+    const float dy = r.s.ort[1] - vorher[1];
+    const float dz = r.s.ort[2] - vorher[2];
+    const float result = std::sqrt(dx * dx + dy * dy + dz * dz) / static_cast<float>(std::max(msec, 1)) * 1000.0F;
+    if (result > 5.0F) { r.letzteBewegungMs = uhr; }
+    int vor = e.vor;
+    int seit = e.seit;
+    if (r.s.amBoden && uhr - r.letzteBewegungMs > 1000.0) {
+        vor = 0;
+        seit = 0;
+    }
+    const auto laeuft = [uhr](const PmKnochen& k) { return k.timerBisMs >= kPmNie || (k.timerBisMs >= 0.0 && uhr < k.timerBisMs); };
+    // In der Luft laesst PM_Footsteps die Beine, wie sie sind (ohne PMF_DUCKED, Schwerkraft > 0).
+    if (r.s.amBoden) {
+        PmBeinStand z;
+        z.beine = r.beine.anim;
+        z.beineTimer = laeuft(r.beine);
+        z.torso = r.torso.anim.empty() ? r.beine.anim : r.torso.anim;
+        z.inKamera = r.inKamera;
+        const PmBeinWahl w = pmFootstepsBeine(r.pm, vor, seit, gehen, r.rueckwaerts, z);
+        double lerp = 0.0;
+        double halten = 0.0;
+        if (!w.anim.empty() && aufnahmeAnimInfo(r.figur, w.anim, lerp, halten)) {
+            const float tempo = pmFussTempo(w.anim, result, r.pm, lerp, r.inKamera);
+            const std::string alt = r.beine.anim;
+            if (pmSetAnimNormal(r.beine, w.anim, tempo, uhr, kPmBlendVorgabe, w.halten ? halten : -1.0) && alt != r.beine.anim) {
+                r.beineVorherHalten = r.beineHalten;
+                r.beineHalten = false;
+            }
+            if (w.beide && !laeuft(r.torso) && !r.torso.anim.empty()) {
+                // SETANIM_BOTH: der Oberkoerper bekommt dieselbe Animation - er folgt den Beinen.
+                r.torso.vorher = r.torso.anim;
+                r.torso.vorherStelleMs = pmStelle(r.torso, uhr);
+                r.torso.blendAbMs = uhr;
+                r.torso.blendMs = kPmBlendVorgabe;
+                r.torso.anim.clear();
+                r.torsoHalten = false;
+            }
+        }
+    }
+    if (laeuft(r.torso)) { return; }
+    const std::string ziel = npcWaffenTorso(r.pm.waffe, r.beine.anim, r.pm.klasse, r.pm.zweiPistolen, gehen, false);
+    double lerp = 0.0;
+    double halten = 0.0;
+    if (ziel.empty() || !aufnahmeAnimInfo(r.figur, ziel, lerp, halten)) {
+        if (!r.torso.anim.empty()) {
+            // Der Oberkoerper folgt wieder den Beinen - mit Uebergang von seinem Bild.
+            r.torso.vorher = r.torso.anim;
+            r.torso.vorherStelleMs = pmStelle(r.torso, uhr);
+            r.torso.blendAbMs = uhr;
+            r.torso.blendMs = kPmBlendVorgabe;
+            r.torso.anim.clear();
+            r.torsoHalten = false;
+        }
+        return;
+    }
+    if (r.torso.anim.empty()) {
+        // Bisher folgte er den Beinen: der Uebergang beginnt von deren Bild.
+        r.torso.anim = r.beine.anim;
+        r.torso.startMs = r.beine.startMs;
+        r.torso.tempo = r.beine.tempo;
+    }
+    const std::string alt = r.torso.anim;
+    if (pmSetAnimNormal(r.torso, ziel, 1.0F, uhr) && alt != r.torso.anim) { r.torsoHalten = false; }
 }
 
 // Die Kollision der Vorschau ohne Koerper (CONTENTS_BODY): die anderen Figuren
@@ -4908,6 +5015,30 @@ bool aufnahmeSchreiben() {
 
 bool aufnahmeLaeuft() { return aufnahme().aktiv; }
 
+bool aufnahmeAnimBekannt(int figur, const std::string& anim) {
+    double lerp = 0.0;
+    double halten = 0.0;
+    return aufnahmeAnimInfo(figur, anim, lerp, halten);
+}
+
+// Zeitleiste 4 Punkt 3: was PM_Footsteps von der Figur zur Zeit ms weiss.
+PmFigur aufnahmePmFigur(int figur, double ms) {
+    PmFigur f;
+    if (figur < 0 || static_cast<std::size_t>(figur) >= g_app->scene.actors.size()) { return f; }
+    const Actor& a = g_app->scene.actors[static_cast<std::size_t>(figur)];
+    const ActorState st = a.at(ms);
+    f.klasse = a.klasse;
+    f.waffe = st.waffe;
+    f.klingeAn = st.saberActive;
+    f.klingeLaenge = st.saberActive || ms - st.saberSinceMs < 1000.0;   // cg_players.cpp: eine Sekunde zum Einfahren
+    f.saberStil = saberStilJetzt(a, st);
+    f.zweiPistolen = st.hand[1].modell >= 0 && !st.hand[1].istSaber;
+    const auto tempo = ablaufTempo(g_app->scene);
+    f.laufTempo = std::max(0.0F, tempo(a.name, false));
+    f.md = navMovieDuelsRegeln();
+    return f;
+}
+
 bool aufnahmeMoeglich(int figur) {
     if (figur < 0 || static_cast<std::size_t>(figur) >= g_app->scene.actors.size() || g_app->map.entities.empty()) { return false; }
     const Actor& a = g_app->scene.actors[static_cast<std::size_t>(figur)];
@@ -4954,6 +5085,26 @@ void aufnahmeStarten(int figur) {
         diag::detail(z);
     }
     r.proben.push_back(AufnahmeProbe{r.s.ort, false});
+    {
+        // Zeitleiste 4 Punkt 3: Beine und Oberkoerper, wie die Szene sie zur
+        // Startzeit zeigt - mit ihren Timern (die Uhr der Aufnahme beginnt bei 0).
+        const double t0 = g_app->playMs;
+        const auto bis = [t0](double szene) { return szene >= kPmNie ? kPmNie : (szene >= 0.0 ? szene - t0 : -1.0); };
+        r.beine.anim = st.animation;
+        r.beine.tempo = st.animSpeed > 0.0F ? st.animSpeed : 1.0F;
+        r.beine.startMs = -(t0 - st.animStartMs);
+        r.beine.timerBisMs = bis(st.beineTimerBisMs);
+        r.beineHalten = st.holdAnim;
+        if (!st.torsoAnimation.empty()) {
+            r.torso.anim = st.torsoAnimation;
+            r.torso.startMs = -(t0 - st.torsoStartMs);
+            r.torso.timerBisMs = bis(st.torsoTimerBisMs);
+            r.torsoHalten = st.torsoHold;
+        }
+        r.pm = aufnahmePmFigur(figur, t0);
+        r.inKamera = camStateAt(t0).enabled;
+        r.beinGier = st.angles[1];
+    }
     r.kameraVorher = g_app->cam;
     r.aktiv = true;
     g_app->playing = false;
@@ -5042,10 +5193,14 @@ void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b) {
         const NavSpurFn spur = aufnahmeSpur();
         const NavVec vorher = r.s.ort;
         const int bildMs = ms;
+        double uhr = r.laufMs;
         while (ms > 0) {   // Pmove: hoechstens 66 ms je PmoveSingle
             const int stueck = std::min(ms, 66);
+            const NavVec stueckVorher = r.s.ort;
             navSpielerPmove(r.s, spur, e, stueck);
             ms -= stueck;
+            uhr += stueck;
+            aufnahmeAnimSchritt(r, e, gehen, stueckVorher, stueck, uhr);
             const AufnahmeProbe& l = r.proben.back();
             const float dx = r.s.ort[0] - l.ort[0];
             const float dy = r.s.ort[1] - l.ort[1];
@@ -5059,6 +5214,15 @@ void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b) {
             r.tempo = std::sqrt(dx * dx + dy * dy + dz * dz) * 1000.0F / static_cast<float>(bildMs);
             r.laufMs += bildMs;
             r.gehen = gehen;
+        }
+        // Die Beine zur Laufrichtung, je Clientbild (com_maxfps 125: 8 ms) mit
+        // dem Anteil zwischen zwei Serverbildern (50 ms) - CG_G2PlayerAngles.
+        r.clientRest += static_cast<double>(dt) * 1000.0;
+        while (r.clientRest >= kSaberClientTaktMs) {
+            r.clientRest -= kSaberClientTaktMs;
+            r.clientMs += kSaberClientTaktMs;
+            const double anteil = std::fmod(r.clientMs, kNavDenkMs) / kNavDenkMs;
+            r.beinGier = pmBeinGier(r.beinGier, r.s.gier, r.s.tempo[0], r.s.tempo[1], r.rueckwaerts, anteil);
         }
     }
     aufnahmeKamera();
@@ -5128,31 +5292,43 @@ void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b) {
     dl->PopClipRect();
 }
 
-// Zeitleiste 3: waehrend der Aufnahme steht das MODELL der Figur am
-// gesteuerten Ort mit ihrem Blick (vorher blieb es am Ort zur Startzeit, nur
-// der Umriss lief). Bewegt sie sich, laeuft die Lauf- bzw. Gehanimation wie in
-// der Szene beim Gehen zu einem Laufziel (scene.cpp: BOTH_RUN1/BOTH_WALK1,
-// Tempo = Geschwindigkeit / kAnimSpeedRun bzw. kAnimSpeedWalk, begrenzt, und
-// hoechstens 1,5 * frameLerp / 50) an der Zeit der Aufnahme; steht sie, bleibt
-// die Haltung zur Startzeit.
+// Zeitleiste 3/4: waehrend der Aufnahme steht das MODELL der Figur am
+// gesteuerten Ort. Zeitleiste 4: Beine und Oberkoerper wie im Spiel
+// (aufnahmeAnimSchritt), mit Uebergang; die Beine schauen zur Laufrichtung,
+// der Rumpf zum Blick (rumpfGier). ms ist die Zeit, zu der gezeichnet wird -
+// sie steht waehrend der Aufnahme still, die Uhr der Aufnahme laeuft.
 void aufnahmeFigurZustand(int figur, double ms, ActorState& st) {
     const Aufnahme& r = aufnahme();
     if (!r.aktiv || figur != r.figur || figur < 0 || static_cast<std::size_t>(figur) >= g_app->scene.actors.size()) { return; }
     for (int k = 0; k < 3; ++k) { st.pos[k] = r.s.ort[static_cast<std::size_t>(k)]; }
-    st.angles[1] = r.s.gier;
+    st.angles[1] = r.beinGier;
+    st.rumpfGier = shortestAngleDelta(r.beinGier, r.s.gier);
     st.moving = r.tempo > 1.0F;
-    if (!st.moving) { return; }
-    const Actor& a = g_app->scene.actors[static_cast<std::size_t>(figur)];
-    st.animation = r.gehen ? "BOTH_WALK1" : "BOTH_RUN1";
-    st.prevAnimation.clear();
-    st.torsoAnimation.clear();
-    st.holdAnim = false;
-    st.animSpeed = std::clamp(r.tempo / (r.gehen ? kAnimSpeedWalk : kAnimSpeedRun), kAnimSpeedMin, kAnimSpeedMax);
-    const auto lerp = a.bildDauerMs.find(st.animation);
-    if (lerp != a.bildDauerMs.end() && lerp->second > 0.0) {
-        st.animSpeed = std::min(st.animSpeed, static_cast<float>(1.5 * lerp->second / 50.0));
+    if (r.beine.anim.empty()) { return; }   // ohne Animation zur Startzeit (noch) nichts zu zeigen
+    const double uhr = r.laufMs;
+    const auto zeit = [ms, uhr](double t) { return ms - (uhr - t); };
+    st.animation = r.beine.anim;
+    st.animSpeed = r.beine.tempo;
+    st.animStartMs = zeit(r.beine.startMs);
+    st.holdAnim = r.beineHalten;
+    // Der Uebergang bleibt eingetragen; der Zeichner rechnet seinen Anteil aus
+    // der Zeit (blendFraction) - nach blendMs ist er fertig.
+    st.prevAnimation = r.beine.vorher;
+    if (!r.beine.vorher.empty()) {
+        st.prevAnimSinceMs = r.beine.vorherStelleMs;
+        st.prevHoldAnim = r.beineVorherHalten;
+        st.blendStartMs = zeit(r.beine.blendAbMs);
+        st.blendMs = r.beine.blendMs;
     }
-    st.animStartMs = ms - r.laufMs;
+    st.torsoAnimation = r.torso.anim;
+    st.torsoStartMs = zeit(r.torso.startMs);
+    st.torsoHold = r.torsoHalten;
+    st.torsoPrevAnimation = r.torso.vorher;
+    if (!r.torso.vorher.empty()) {
+        st.torsoPrevSinceMs = r.torso.vorherStelleMs;
+        st.torsoBlendStartMs = zeit(r.torso.blendAbMs);
+        st.torsoBlendMs = r.torso.blendMs;
+    }
 }
 
 void aufnahmeHinweis(ImVec2& a, ImVec2& b) {

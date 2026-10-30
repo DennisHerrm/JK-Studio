@@ -684,6 +684,10 @@ int frameForAnimationIn(const std::vector<AnimEntry>& sections,
 }
 
 
+double animBildMs(const AnimEntry& e) {
+    return (e.fps > 0) ? std::ceil(1000.0 / e.fps) : (e.fps < 0) ? std::fabs(std::floor(1000.0 / e.fps)) : 1000.0;
+}
+
 int boneIndex(const GlaAnimation& anim, const std::string& name) {
     for (std::size_t i = 0; i < anim.bones.size(); ++i) {
         if (anim.bones[i].name == name) {

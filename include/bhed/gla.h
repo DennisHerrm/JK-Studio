@@ -216,6 +216,10 @@ struct AnimEntry {
 
 [[nodiscard]] std::vector<AnimEntry> parseAnimationCfg(const std::string& text);
 
+// ms je Bild (frameLerp) eines Abschnitts: fps > 0 aufgerundet 1000/fps,
+// fps < 0 (rueckwaerts) abgerundet, 0 -> 1000.
+[[nodiscard]] double animBildMs(const AnimEntry& e);
+
 // Welches Bild der .gla zeigt diese Animation gerade?
 //
 // -1 heisst: DIESES Skelett kennt den Namen nicht. Die Herleitung steht
