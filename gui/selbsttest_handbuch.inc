@@ -2824,7 +2824,14 @@ std::vector<Schritt> handbuchSchritte() {
         markiere("t4_4", speichernKnopf);
         markiere("k_kartenmenue", [=] { return nur(knopf(tr(Str::OpenEnt), "##Popup")); });
         markiere("k_bahnen", [=] { return nur(knopf(tr(Str::CamPathAll))); });
-        markiere("k_waits", [=] { return nur(knopf(tr(Str::ZlDetail))); });
+        // Zeitleiste 4: der erste Warteblock der Zeile Skriptablauf (vorher der
+        // Knopf Detail, der mit den Warteblocks nichts zu tun hat).
+        markiere("k_waits", [=] {
+            for (const App::ZlBlock& b : g_app->zlBloecke) {
+                if (b.zeile == "skript" && b.art == spuren::Art::Warten) { return nur(b.r); }
+            }
+            return std::vector<hb::Marke>{};
+        });
         markiere("k_dateimenue", [=] { return nur(knopf(tr(Str::FileBackupFolder), "##Menu")); });
         markiere("k_pk3", [=] {
             return std::vector<hb::Marke>{hb::Marke(knopf(tr(Str::Pk3Filter))), hb::Marke(knopf("scripts/taspir1/intro.ibi"))};
@@ -3404,7 +3411,13 @@ std::vector<Schritt> handbuchSchritte() {
         // Nur die belegten Zeilen um den gezogenen Balken, nicht die leere Flaeche darunter.
         add(hb::fotoTeil(n, [=] {
             ImRect r = zeitleiste();
-            r.Max.y = std::min(r.Max.y, balken->y + ImGui::GetFontSize() * 6.0F);
+            // Zeitleiste 4: bis unter den Hinweis zum Ziehen (seine dritte Zeile
+            // lag vorher unter dem Bildrand).
+            float unten = std::min(r.Max.y, balken->y + ImGui::GetFontSize() * 6.0F);
+            if (const ImGuiWindow* t = ImGui::FindWindowByName("##Tooltip_00"); t != nullptr && t->Active) {
+                unten = std::max(unten, t->Rect().Max.y + ImGui::GetFontSize() * 0.4F);
+            }
+            r.Max.y = std::min(unten, ImGui::GetIO().DisplaySize.y);
             return r;
         }));
     }
@@ -3564,6 +3577,14 @@ std::vector<Schritt> handbuchSchritte() {
     // einstellungen#prefs. Nur der untere Teil des Fensters, ab den Pegeln.
     add(tu("Handbuch: Einstellungen oeffnen", [] { g_app->prefsOpen = true; }));
     add(pause(0.6));
+    // Zeitleiste 4: mit 1,3 rollt der Inhalt der Einstellungen (Ok und Cancel
+    // bleiben stehen) - ans Ende, wo die Vorschau-Einstellungen stehen.
+    add(tu("Handbuch: Einstellungen ans Ende rollen", [] {
+        for (ImGuiWindow* w : GImGui->Windows) {
+            if (std::strstr(w->Name, "##prefsinhalt") != nullptr) { ImGui::SetScrollY(w, w->ScrollMax.y); }
+        }
+    }));
+    add(pause(0.3));
     add(hb::fotoTeil("h_einst_vorschau", [] {
         ImRect r = hb::fensterRect(tr(Str::PrefsTitle));
         const ImRect pegel = hb::knopf(tr(Str::PrefsTonEffekte), tr(Str::PrefsTitle));
@@ -4094,6 +4115,12 @@ std::vector<Schritt> handbuchSchritte() {
     add(tu("Kurz3: Waits und ruhige Spuren", [] {
         g_app->zlDetail = false;
         g_app->playMs = 5000.0;
+        // Zeitleiste 4: die Leiste stand noch bei Kyle - nach oben, damit die
+        // Zeile Skriptablauf im Bild ist.
+        g_app->selectedActor = -1;
+        for (ImGuiWindow* w : GImGui->Windows) {
+            if (std::strstr(w->Name, "tracks") != nullptr) { ImGui::SetScrollY(w, 0.0F); }
+        }
     }));
     add(pause(0.8));
     add(hb::fotoTeil("k_waits", zeitleiste));
@@ -4557,11 +4584,40 @@ std::vector<Schritt> handbuchSchritte() {
         add(klick(tr(Str::SplitToggle), "##Menu"));
         add(klick("1", "##Menu"));
         add(pause(0.4));
+        // Zeitleiste 4: ohne Sender endete die Szene beim waitsignal - die
+        // Leiste war leer (00:00.00). talk laeuft jetzt nebenher auf Kyle (ein
+        // run im Intro selbst liefe an seiner Stelle, CSequencer::ParseRun, und
+        // das Signal waere vor dem waitsignal schon da); dann steht das Warten
+        // als Block da, und ein Klick nennt in der Seitenleiste, wer das Signal
+        // wann gibt.
         setzenSchritt("Zeitleiste mit waits", [=] {
+            skriptSetzen(kopf + "affect ( \"kyle\", /*@AFFECT_TYPE*/ FLUSH )\n{\n\trun ( \"taspir_tut/talk\" );\n}\n\n"
+                                "waitsignal ( \"door_open\" );\n" + kamera);
             g_app->leftMode = 1;
             g_app->playMs = 1500.0;
+            g_app->zlDetail = false;
+            g_app->selectedActor = -1;
+            for (ImGuiWindow* w : GImGui->Windows) {
+                if (std::strstr(w->Name, "tracks") != nullptr) { ImGui::SetScrollY(w, 0.0F); }
+            }
         }, 1.0);
-        bildTeil("s_sig_zeit", karteMitZeitleiste, [=] { return M{knopf(tr(Str::ZlDetail))}; });
+        const auto signalWarten = [] {
+            for (const App::ZlBlock& b : g_app->zlBloecke) {
+                if (b.zeile == "skript" && b.art == spuren::Art::Warten) { return b.r; }
+            }
+            return ImRect{};
+        };
+        add(pruefe("Skriptbilder: das waitsignal steht als Block in der Zeile Skriptablauf", [=] {
+            return signalWarten().GetWidth() > ImGui::GetFontSize();
+        }));
+        add(klickAn("das waitsignal", [=] { return signalWarten().GetCenter(); }));
+        add(pause(0.5));
+        add(tu("Skriptbilder: Maus weg", weg));
+        bildTeil("s_sig_zeit", [=] {
+            ImRect r = hb::vereint(karteMitZeitleiste(), g_app->zlErklaerungRect);
+            r.Expand(ImGui::GetFontSize() * 0.3F);
+            return r;
+        }, [=] { return M{signalWarten(), g_app->zlErklaerungRect}; });
         setzenSchritt("Waits aus, Events", [=] {
             g_app->leftMode = 0;
             skriptSetzen(demo);
@@ -4980,14 +5036,39 @@ std::vector<Schritt> handbuchSchritte() {
             if (t.GetWidth() <= 0.0F) { return ImRect{}; }
             return ImRect{t.Min.x + 2.0F, t.Min.y + 2.0F, t.Min.x + ImGui::GetFontSize() * 9.0F, t.Max.y - 2.0F};
         };
+        // Zeitleiste 4: bei 0,40 endete das Bild bei der Zeile Blende - fuer die
+        // Kamerazeilen (Blende, Wackeln, Bildwinkel, Schwarz) hoeher.
+        setzenSchritt("Zeitleiste hoeher fuer die Kamerazeilen", [] { g_app->timelineFrac = 0.62F; }, 0.8);
         bildTeil("c_zeit_kamera", zeitR, [=] { return M{kopfSpalte()}; });
+        setzenSchritt("Zeitleiste wieder 0,40", [] { g_app->timelineFrac = 0.40F; }, 0.8);
+        // Zeitleiste 4: die rechte Kante der laengsten Kamerafahrt - der Text sagt
+        // "the right edge of a camera block or a wait", ein Lauf behaelt seine Laenge
+        // (vorher Kyles Laufbalken, der in der Detailansicht ausserhalb lag).
         bildTeil("c_tl_kante", karteMitZeitleiste, [=] {
-            const ImRect b = figurBalken("kyle");
-            if (b.GetWidth() <= 0.0F) { return M{}; }
-            return M{ImRect{b.Max.x - 8.0F, b.Min.y - 4.0F, b.Max.x + 8.0F, b.Max.y + 4.0F}};
+            const App::ZlBlock* b = nullptr;
+            for (const App::ZlBlock& x : g_app->zlBloecke) {
+                if (x.art == spuren::Art::Fahrt && (b == nullptr || x.r.GetWidth() > b->r.GetWidth())) { b = &x; }
+            }
+            if (b == nullptr) { return M{}; }
+            return M{ImRect{b->r.Max.x - 8.0F, b->r.Min.y - 4.0F, b->r.Max.x + 8.0F, b->r.Max.y + 4.0F}};
         });
         bildTeil("g_moment", karteMitZeitleiste, [=] { return M{zeitAnzeige()}; });
         // Ein Block anklicken: seine Zeile wird gewaehlt.
+        // Zeitleiste 4: in der Detailansicht liegt Kyles Zeile unter den
+        // Kamerazeilen ausserhalb des Bilds - der Klick auf die Mitte seines
+        // Balkens traf nichts, das Bild zeigte die alte Erklaerung. Kyle waehlen
+        // rollt die Leiste zu seiner Zeile (darstellerZeilen, SetScrollHereY).
+        add(tu("Kurz: Kyle waehlen, die Leiste rollt zu ihm", [] {
+            for (std::size_t i = 0; i < g_app->scene.actors.size(); ++i) {
+                if (g_app->scene.actors[i].name == "kyle") { g_app->selectedActor = static_cast<int>(i); }
+            }
+        }));
+        add(pause(0.6));
+        add(pruefe("Kurz: Kyles Laufbalken ganz in der Zeitleiste", [=] {
+            const ImRect b = figurBalken("kyle");
+            const ImRect t = hb::fensterRect("tracks");
+            return b.GetWidth() > 0.0F && t.Contains(b);
+        }));
         add(klickAn("Laufbalken von Kyle", [=] { return mitte(figurBalken("kyle")); }));
         add(pause(0.5));
         add(tu("Kurz: Maus weg", weg));
