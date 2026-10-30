@@ -547,6 +547,9 @@ LIESMICH: taspir1 aus assets0.pk3, Missionen und Archiv auf X: per subst).
 
 ## English
 
+- Recording a walk: the figure's model moves as in the game - legs run, walk and step backwards as PM_Footsteps picks them (with the weapon, saber and class variants of Jedi Academy and Movie Duels), turn up to 60° toward the direction it moves while the upper body keeps looking ahead, blend from one animation to the next, and a weapon stance or held animation of the upper body stays.
+- wait ( "name" ) waits for the task "name" of the same figure, as in the game: right away if the task has not been started with do yet, never if there is no such task; the timeline explains it as waiting for the task, not for a signal.
+- Preferences: Ok and Cancel always stay in view - with a large interface on a low screen only the settings scroll.
 - Record a walk: select a figure, press "Record" in the timeline's transport bar and steer it in the preview with the game's movement (W/S/A/D, Shift walks, Q/E turns); Enter writes walk targets the way scripts let an NPC walk - one ref_tag and one task with SET_NAVGOAL plus dowait per point, only where the path needs one (adjustable tolerance, walls, gait changes), with SET_WALKING/SET_RUNNING - as one undo step; Esc cancels. While recording, the figure's model runs or walks along and the hint stays clear of the toolbar.
 - Load mission: the list opens at the top (it kept the scroll position of the previous list, so the first missions of another game could be out of view).
 - Subtitles in the preview picture exactly as the game draws them: line breaks, two lines at a time for as long as the sound, in the lower black bar, pages turning on the game's next frame, colour from SET_CAPTIONTEXTCOLOR, Movie Duels smaller (0.66, the default of the installed game); a "Subtitles" switch offers the game's choices with the game's default (none in Jedi Academy and Movie Duels, in cinematics in Jedi Outcast).
@@ -564,6 +567,9 @@ LIESMICH: taspir1 aus assets0.pk3, Missionen und Archiv auf X: per subst).
 
 ## Deutsch
 
+- Lauf aufnehmen: das Modell der Figur bewegt sich wie im Spiel - die Beine laufen, gehen und gehen rückwärts, wie PM_Footsteps es wählt (mit den Waffen-, Lichtschwert- und Klassenvarianten von Jedi Academy und Movie Duels), drehen sich bis 60° in die Laufrichtung, während der Oberkörper nach vorn schaut, blenden von einer Animation in die nächste, und eine Waffenhaltung oder gehaltene Animation des Oberkörpers bleibt.
+- wait ( "name" ) wartet wie im Spiel auf die Aufgabe "name" derselben Figur: sofort weiter, wenn die Aufgabe noch nicht mit do gestartet ist, nie, wenn es sie nicht gibt; die Zeitleiste erklärt es als Warten auf die Aufgabe, nicht auf ein Signal.
+- Einstellungen: Ok und Abbrechen bleiben immer im Bild - bei großer Oberfläche auf einem niedrigen Bildschirm rollen nur die Einstellungen.
 - Einen Lauf aufnehmen: eine Figur wählen, in der Transportleiste der Zeitleiste "Aufnehmen" drücken und sie in der Vorschau mit der Bewegung des Spiels steuern (W/S/A/D, Umschalt geht, Q/E dreht); Enter schreibt Laufziele so, wie Skripte einen NPC laufen lassen - je Punkt ein ref_tag und eine Aufgabe mit SET_NAVGOAL samt dowait, nur wo der Weg einen braucht (einstellbare Toleranz, Wände, Gangwechsel), mit SET_WALKING/SET_RUNNING - als ein Rückgängig-Schritt; Esc bricht ab. Beim Aufnehmen läuft oder geht das Modell der Figur mit, der Hinweis bleibt frei von der Werkzeugleiste.
 - Mission laden: die Liste geht oben auf (sie stand so weit gerollt wie die vorige, die ersten Missionen eines anderen Spiels lagen dann außerhalb).
 - Untertitel im Vorschau-Bild genau so, wie das Spiel sie zeichnet: Zeilenumbruch, je zwei Zeilen so lange wie der Klang, im unteren schwarzen Balken, Seitenwechsel im nächsten Bild des Spiels, Farbe aus SET_CAPTIONTEXTCOLOR, Movie Duels kleiner (0,66, die Vorgabe des installierten Spiels); ein Schalter "Untertitel" bietet die Wahl des Spiels mit dessen Vorgabe (keine in Jedi Academy und Movie Duels, in Zwischensequenzen in Jedi Outcast).
@@ -581,6 +587,9 @@ LIESMICH: taspir1 aus assets0.pk3, Missionen und Archiv auf X: per subst).
 
 ## 中文
 
+- 录制行走：角色模型的动作与游戏一致——双腿按 PM_Footsteps 的选择奔跑、行走和后退（包括 Jedi Academy 和 Movie Duels 中武器、光剑和类别的变体），朝移动方向最多转 60°，同时上身保持朝前；动画之间平滑过渡，上身的武器姿势或保持的动画会保留。
+- wait ( "name" ) 与游戏一致，等待同一角色的任务 "name"：若该任务尚未用 do 启动则立即继续，若不存在该任务则永远等待；时间轴将其解释为等待任务，而不是等待信号。
+- 首选项：“确定”和“取消”始终可见——在低屏幕上使用大界面时只有设置部分滚动。
 - 录制行走：选择一个角色，在时间轴的传输栏中按“录制”，并在预览中用游戏的移动方式操控它（W/S/A/D，Shift 走路，Q/E 转身）；Enter 按脚本让 NPC 行走的方式写入行走目标——每个点一个 ref_tag 和一个带 SET_NAVGOAL 的 task 加 dowait，只在路径需要的地方（可调容差、墙、步态变化），并带 SET_WALKING/SET_RUNNING——作为一个撤销步骤；Esc 取消。录制时角色的模型会跟着奔跑或行走，提示不会被工具栏遮住。
 - 加载任务：列表从顶部打开（以前保留上一个列表的滚动位置，另一个游戏的前几个任务可能在视野之外）。
 - 预览画面中的字幕与游戏绘制的完全一致：换行、每次两行且持续声音的时长、显示在下方黑条中、在游戏的下一帧翻页、颜色来自 SET_CAPTIONTEXTCOLOR、Movie Duels 较小（0.66，已安装游戏的默认值）；“字幕”开关提供游戏的选项及其默认值（Jedi Academy 和 Movie Duels 不显示，Jedi Outcast 在过场动画中显示）。
@@ -598,6 +607,9 @@ LIESMICH: taspir1 aus assets0.pk3, Missionen und Archiv auf X: per subst).
 
 ## 日本語
 
+- 歩きの記録：キャラクターのモデルがゲームと同じように動きます。脚は PM_Footsteps が選ぶとおりに走る・歩く・後ろへ歩き（Jedi Academy と Movie Duels の武器・ライトセーバー・クラスごとの違いを含む）、上半身が前を向いたまま進行方向へ最大 60° 向きを変え、アニメーションの間はブレンドし、上半身の武器の構えや保持されたアニメーションは残ります。
+- wait ( "name" ) はゲームと同じく同じキャラクターのタスク "name" を待ちます。タスクがまだ do で開始されていなければすぐに続行し、そのタスクがなければ永久に待ちます。タイムラインはシグナルではなくタスクの待機として説明します。
+- 設定：OK とキャンセルは常に表示されます。低い画面で大きなインターフェースを使うと、設定部分だけがスクロールします。
 - 歩きの記録：キャラクターを選び、タイムラインのトランスポートバーで「記録」を押して、プレビューでゲームの移動のまま操作します（W/S/A/D、Shift で歩く、Q/E で向き）。Enter で、スクリプトが NPC を歩かせる方法で移動目標を書き込みます。点ごとに ref_tag と SET_NAVGOAL の task と dowait を、経路が必要とする所だけ（調整できる許容差、壁、歩き方の変化）、SET_WALKING/SET_RUNNING 付きで、元に戻す 1 回分として。Esc でキャンセル。記録中はキャラクターのモデルが一緒に走るか歩き、ヒントはツールバーに隠れません。
 - ミッションの読み込み：リストは先頭から開きます（以前は前のリストのスクロール位置のままで、別のゲームの最初のミッションが見えないことがありました）。
 - プレビュー画像の字幕をゲームの描き方どおりに表示：改行、音の長さだけ 2 行ずつ、下の黒帯に、ページはゲームの次のフレームで切り替わり、色は SET_CAPTIONTEXTCOLOR、Movie Duels は小さめ（0.66、インストール済みゲームの既定値）。「字幕」スイッチでゲームの選択肢とその既定値（Jedi Academy と Movie Duels はなし、Jedi Outcast はムービー中）を選べます。
