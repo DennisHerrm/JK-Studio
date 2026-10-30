@@ -145,6 +145,17 @@ dreht je Bild um DeltaTime mal 30 Grad (modellDrehteller), wo er nach 0,6 s und 
 am Tempo des Laufs; das Foto folgte gleich danach. Behoben im Test: vor dem Foto der eingepasste Blick
 (modellAnsichtEinpassen). gruen: zwei Laeufe (m7c, m7d) Byte fuer Byte gleich, 13 OK / 0.
 
+Menue-Editor-Figuren in modellleistung: der Menue-Editor zaehlt je gezeichneter Figur die Prozessorzeit bis zu
+ihrem Bild (Laden, Knochen, zeichneMenueFigur) und die Zahl der Figuren (menueeditor::Stand modellMs,
+modellZeichnungen). modellleistung oeffnet ein Menue mit 1 und mit 4 Figuren (stormtrooper, jedi_hf, jedi_hm,
+clonetrooper_p2, ITEM_TYPE_MODEL), prueft, dass sie gezeichnet werden, macht ein Foto und misst 120 Bilder:
+Bild-CPU, Abstand, Figuren-CPU je Bild, Figuren je Bild, Aufrufe je Bild. Danach zurueck in den Model-Tab
+(ein erster Lauf ohne das liess die Ruhe-Pruefungen im Menue-Editor laufen: 11 Bilder in 2,8 s, rot).
+- m7voll2 (ohne D3D-Debugschicht, unter Last): 10 OK / 0. 1 Figur: Bild-CPU 0,26 ms (p99 0,53), Figuren-CPU
+  0,043 ms je Bild, 72 Aufrufe; 4 Figuren: Bild-CPU 0,28 ms (p99 0,48), Figuren-CPU 0,094 ms je Bild, 163
+  Aufrufe. In allen Messbloecken des Model-Tabs 0 Bilder hochgeladen (der Hautwechsel aus Punkt 2 laedt
+  nichts nach).
+
 ## English
 - Map editor, menus like NetRadiant-Custom: a menu taller than the screen (the Build menu with many entries) now wraps into columns like in NetRadiant-Custom - before, its last entries ran past the bottom of the screen and could not be reached.
 - Map editor, real-time effects: decals (impact and scorch marks) land where the game puts them. The editor builds the world of the map like q3map2 with its BSP tree: only the visible part of each brush face, the misc_model baked into the world carry marks, and no mark lands on floor hidden under a step. On large maps this takes a few seconds and runs in the background.

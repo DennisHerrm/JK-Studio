@@ -99,6 +99,60 @@ Schritt m1Messblock(const std::string& figur, const std::string& name, std::func
             }};
 }
 
+// reste2 Punkt 7: die Figuren im Menue-Editor (ITEM_TYPE_MODEL, gpu::zeichneMenueFigur) - Bild-CPU und
+// Abstand wie oben, dazu je Bild die Prozessorzeit der Figuren bis zu ihrem Bild (Laden, Knochen,
+// Zeichnen), gezeichnete Figuren und Zeichenaufrufe.
+Schritt m1MenueMessblock(const std::string& name, int figuren) {
+    struct Stand {
+        std::vector<double> cpu, abstand, figur;
+        int zeichnungen = 0;
+        int aufrufe = 0;
+        std::chrono::steady_clock::time_point vorher{};
+        menueeditor::Stand alt;
+    };
+    auto st = std::make_shared<Stand>();
+    constexpr int kAnlauf = 12;
+    constexpr int kBilder = 120;
+    return {"Modell1: Menue-Editor | " + name, [=](int b) {
+                const auto jetzt = std::chrono::steady_clock::now();
+                const menueeditor::Stand x = menueeditor::stand();
+                if (b == 0) {
+                    g_m1Messen = true;
+                } else if (b > kAnlauf) {
+                    st->cpu.push_back(std::chrono::duration<double, std::milli>(jetzt - g_m1BildAnfang).count());
+                    st->abstand.push_back(std::chrono::duration<double, std::milli>(jetzt - st->vorher).count());
+                    st->figur.push_back(x.modellMs - st->alt.modellMs);
+                    st->zeichnungen += x.modellZeichnungen - st->alt.modellZeichnungen;
+                    st->aufrufe += x.modellAufrufe - st->alt.modellAufrufe;
+                }
+                st->vorher = jetzt;
+                st->alt = x;
+                if (b < kAnlauf + kBilder) { return false; }
+                g_m1Messen = false;
+                const double n = static_cast<double>(std::max<std::size_t>(st->cpu.size(), 1U));
+                char z[420];
+                std::snprintf(z, sizeof(z),
+                              "Knopftest: Modell1-Messung Menue-Editor | %s: Bild-CPU Mittel %.2f p99 %.2f ms, Abstand Mittel %.2f p99 %.2f ms, "
+                              "Figuren-CPU je Bild Mittel %.3f p99 %.3f ms, Figuren je Bild %.2f (soll %d), Aufrufe je Bild %.1f",
+                              name.c_str(), m1Mittel(st->cpu), m1Quantil(st->cpu, 0.99), m1Mittel(st->abstand), m1Quantil(st->abstand, 0.99),
+                              m1Mittel(st->figur), m1Quantil(st->figur, 0.99), st->zeichnungen / n, figuren, st->aufrufe / n);
+                diag::detail(z);
+                return true;
+            }};
+}
+
+// Eine Menue-Datei mit n Figuren nebeneinander (rect je 150 x 300)
+std::string m1FigurenMenue(int n) {
+    static const char* const kModelle[] = {"models/players/stormtrooper/model.glm", "models/players/jedi_hf/model.glm",
+                                           "models/players/jedi_hm/model.glm", "models/players/clonetrooper_p2/model.glm"};
+    std::string t = "{\n\tmenuDef\n\t{\n\t\tname m1figuren\n\t\trect 0 0 640 480\n\t\tvisible 1\n";
+    for (int i = 0; i < n; ++i) {
+        t += "\t\titemDef\n\t\t{\n\t\t\tname figur" + std::to_string(i) + "\n\t\t\ttype ITEM_TYPE_MODEL\n\t\t\trect " +
+             std::to_string(10 + i * 155) + " 80 150 300\n\t\t\tasset_model \"" + kModelle[i % 4] + "\"\n\t\t\tmodel_rotation 20\n\t\t\tvisible 1\n\t\t}\n";
+    }
+    return t + "\t}\n}\n";
+}
+
 // Die Animation fuer Messung und Foto: BOTH_RUN1, sonst die erste Schleife mit
 // mindestens zehn Bildern, sonst die erste.
 int m1Animation() {
@@ -351,6 +405,24 @@ std::vector<Schritt> modellLeistungSchritte() {
     }
     if (!nurRuhe) {
         for (Schritt& x : modell1HautSchritte()) { s.push_back(std::move(x)); }
+        // reste2 Punkt 7: die Figuren in der Menuevorschau
+        for (const int n : {1, 4}) {
+            add(tu("Modell1: Menue-Editor mit " + std::to_string(n) + " Figur(en)", [n] {
+                g_app->leftMode = 4;
+                (void)menueeditor::oeffneText("ui/m1figuren" + std::to_string(n) + ".menu", m1FigurenMenue(n));
+            }));
+            add(pause(1.5));
+            add(pruefe("Modell1: Menue-Editor zeichnet " + std::to_string(n) + " Figur(en)", [] {
+                const menueeditor::Stand x = menueeditor::stand();
+                diag::detail("Knopftest: Modell1 Menue-Editor - " + std::to_string(x.modellZeichnungen) + " Figuren gezeichnet, " +
+                             std::to_string(x.modellAufrufe) + " Aufrufe, Fehler: " + x.modellFehler);
+                return g_app->gamePaths.empty() || (x.modellZeichnungen > 0 && x.modellAufrufe > 0);
+            }));
+            add(foto("modell1_menue_" + std::to_string(n)));
+            add(m1MenueMessblock(std::to_string(n) + " Figur(en)", n));
+        }
+        add(tu("Modell1: zurueck zum Model-Tab", [] { g_app->leftMode = 2; }));
+        add(pause(0.3));
     }
     for (Schritt& x : modell1RuheSchritte()) { s.push_back(std::move(x)); }
     add(tu("Modell1: zurueck", [] {

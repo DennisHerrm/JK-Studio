@@ -57,6 +57,8 @@ struct Stand {
     int klangStimmen = 0;          // M4: laufende Klaenge der Vorschau (Ton-Schalter aus = 0)
     int verborgen = 0, gesperrt = 0;   // M4: Items mit Auge aus bzw. Schloss zu (Ebenenliste)
     int modellAufrufe = 0;         // M2: Zeichenaufrufe der 3D-Modelle (gpu::zeichneMenueFigur)
+    double modellMs = 0;           // reste2 Punkt 7: Prozessorzeit der Figuren bis zu ihrem Bild (Summe, ms)
+    int modellZeichnungen = 0;     // reste2 Punkt 7: gezeichnete Figuren (Summe)
     std::string modellFehler;      // letzte Meldung dabei
     int klangEreignisse = 0;       // M2 Punkt 5: ausgeloeste Klaenge (im Selbsttest stumm)
     std::string letzterKlang;
