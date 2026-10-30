@@ -11,7 +11,9 @@
 //   3. Nachabtasten (-samples): Vorhersage der Stempel mit den Werten der Erstabtastung,
 //      die vorhergesagten Luxel parallel unterabgetastet (SubsampleRawLuxel_r samt
 //      SubmapRawLuxel und ClusterForPointExtFilter), dann je Licht der genaue Stempellauf
-//      in Zeilenfolge wie Stufe 7 (BhedLichterParallel);
+//      in Zeilenfolge wie Stufe 7 (BhedLichterParallel); vis2: mit -randomsamples die zufaelligen
+//      Nachproben im Kern zufall (eine Gruppe je Lightmap: der serielle Stempellauf, die Proben eines
+//      Luxels auf allen Faeden, die Zufallszahlen aus dem Generator der Lightmap wie BhedZufallsProben);
 //   4. je Luxel Filtern und Aufsummieren in die Stil-Lightmaps, die Lichter in ihrer
 //      Reihenfolge, Stil 0 ab dem Umgebungslicht.
 // Danach setzt die CPU die Luxel ein und macht den Rest von IlluminateRawLightmap wie
@@ -119,7 +121,8 @@ struct BhedBakeLm {
 	int zeilenBase;
 	int aus[ 4 ];           // erster Eintrag in R je Stilplatz, -1: kein Licht in diesem Stil
 	int start;              // 1: die Stilplaetze beginnen mit startWert (Teil einer grossen Lightmap) statt Umgebung/0
-	int pad[ 3 ];
+	unsigned int seed;      // vis2: Zufallsgenerator der Lightmap (-randomsamples, Kern zufall)
+	int pad[ 2 ];
 };
 // ein Licht der Lightmap nach der Stil-Pruefung, das etwas beleuchtet
 struct BhedBakeAktiv {
@@ -132,7 +135,7 @@ struct BhedBakeSchalter {
 	float linearScale;
 	int lightSamples;
 	float suchBox;          // 0.25f * lightSamplesSearchBoxSize
-	int zufall;             // vis1: -randomsamples - nur Lightmaps ohne Nachprobe auf der GPU (BhedBakeRest)
+	int zufall;             // vis1: -randomsamples (BhedBakeRest; vis2: zufaellige Nachproben im Kern zufall)
 };
 // ein Block von Lightmaps fuer die GPU
 struct BhedBakeBlock {
@@ -174,13 +177,19 @@ struct BhedBakeGitterSchalter {
 	float ambientDirectionality, directionality;
 	int cheapgrid;
 };
+// vis2 (-randomsamples): GaussLikeRandom als Tafeln (je 15-Bit-Zufallswert x und y vor dem Radius, dann der
+// Radius; 3 * 32768) und die Spruenge des Generators (je Probe b Multiplikator und Summand fuer 2 b Zuege, dazu
+// am Ende fuer 2 lightSamples Zuege) - aus dem Code der CPU, light_ydnar.cpp
+bool BhedBakeZufallTafel( const std::vector<float>& tafel, const std::vector<std::uint32_t>& sprung );
 // Paare, die ein Block hoechstens haben darf (Grafikspeicher vorab geschaetzt)
 std::size_t BhedBakeBudgetPaare();
 // Schritt 1: Erstabtastung; zaehler je Licht der Lightmaps, flags je Lightmap (1: die CPU rechnet sie).
 // false: die GPU ist ausgefallen (der Block rechnet die CPU).
 bool BhedBakeErst( const BhedBakeBlock& b, std::vector<std::uint32_t>& zaehler, std::vector<std::uint32_t>& flags );
 // Schritt 3 und 4 mit den aktiven Lichtern (b.lms mit aktivBase/nAktiv/zeilenBase/aus): die fertigen Luxel.
-bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::vector<std::uint32_t>& flags );
+// vis2, -randomsamples: zufallGpu - die Lightmaps mit zufaelligen Nachproben rechnet der Kern zufall, sonst
+// tragen sie in flags 2 (die CPU rechnet sie)
+bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::vector<std::uint32_t>& flags, bool zufallGpu );
 // TraceGrid fuer die Punkte (in place); false: die GPU ist ausgefallen (die CPU rechnet alle Punkte).
 // vis1: halt (darf nullptr sein) wird vor jedem Dispatch gelesen - gesetzt, hoert die GPU auf, *angehalten
 // wird true und die Punkte sind nicht gerechnet (die CPU hat sie inzwischen alle genommen).
@@ -193,7 +202,9 @@ bool BhedBakeDoppelt();     // die GPU rechnet double (genau gerundete Wurzel, a
 // Zaehler fuer den Bericht
 struct BhedBakeZahlen {
 	long long paare = 0, gpuMikros = 0, dispatches = 0, bloecke = 0, budget = 0;
-	long long kernMikros[ 6 ] = {};   // BHED_GPUBAKE_ZEITEN: je Kern (erst, kandidaten, unter, stempellauf, filtern, gitter), mit Warten gemessen
+	long long kernMikros[ 7 ] = {};   // BHED_GPUBAKE_ZEITEN: je Kern (erst, kandidaten, unter, stempellauf, filtern, gitter, zufall), mit Warten gemessen
+	long long zufallLm = 0;           // vis2: Lightmaps mit zufaelligen Nachproben auf der GPU
+	long long zufallLuxel = 0;        // vis2: davon nachabgetastete Luxel
 	long long gitterPunkte = 0, gitterCpu = 0;
 	long long kandidaten[ 4 ] = {};   // BHED_GPUBAKE_ZEITEN: neue Kandidaten je Vorhersage-Runde
 	bool ausgefallen = false;

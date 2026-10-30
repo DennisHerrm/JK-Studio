@@ -1941,15 +1941,25 @@ static void SubsampleRawLuxel_r( rawLightmap_t *lm, trace_t *trace, const Vector
 /* A mostly Gaussian-like bounded random distribution (sigma is expected standard deviation) */
 /* BehavEd vis1: the numbers come from `random` - Random() in the work item, or a BhedRandom with the
    state the serial order reaches there (BhedLichterParallel) */
-template<typename RandomSource>
-static void GaussLikeRandom( RandomSource& random, float sigma, float *x, float *y ){
+/* BehavEd vis2: the two halves on their own (the same operations) - the GPU tables of -randomsamples come from
+   exactly this code (BhedZufallTafel) */
+static void GaussLikeWinkel( float zufall, float sigma, float *x, float *y ){
 	float r;
-	r = random() * 2 * c_pi;
+	r = zufall * 2 * c_pi;
 	*x = sigma * 2.73861278752581783822 * cos( r );
 	*y = sigma * 2.73861278752581783822 * sin( r );
-	r = random();
+}
+static float GaussLikeRadius( float zufall ){
+	float r;
+	r = zufall;
 	r = 1 - sqrt( r );
 	r = 1 - sqrt( r );
+	return r;
+}
+template<typename RandomSource>
+static void GaussLikeRandom( RandomSource& random, float sigma, float *x, float *y ){
+	GaussLikeWinkel( random(), sigma, x, y );
+	const float r = GaussLikeRadius( random() );
 	*x *= r;
 	*y *= r;
 }
@@ -2933,7 +2943,10 @@ static void BhedBakeFertigstellen( int r ){
 	BhedStandSetzen( lm, vorher );
 	const BhedBakeFertig f = g_bhedBakeFertig[ r ];
 	g_bhedBakeFertig[ r ].da = false;
+	g_bhedWorkRandom = true;   /* vis2: the generator of the lightmap's work item, as BhedCpuLightmap (random subsamples) */
+	g_bhedRandomState = BhedPassSeed( r );
 	IlluminateRawLightmap_( r, nullptr );
+	g_bhedWorkRandom = false;
 	g_bhedBakeFertig[ r ] = f;
 	BhedStandMerken( lm, cpu );
 	BhedStandSetzen( lm, gpu );
@@ -3028,7 +3041,30 @@ bool BhedBakeLichtTafel( void *nrZeiger, void *zeigerZeiger ){
 	}
 	const BhedBakeSchalter schalter{ faster ? 1 : 0, lightAngleHL ? 1 : 0, bouncing ? 1 : 0, noTrace ? 0 : 1, g_oneSky ? 1 : 0, noSurfaces ? 1 : 0, linearScale,
 	                                 lightSamples, 0.25f * lightSamplesSearchBoxSize, lightRandomSamples ? 1 : 0 };
-	return BhedBakeLichter( tafel, windungen, schalter, BhedBakeInfos() );
+	if ( !BhedBakeLichter( tafel, windungen, schalter, BhedBakeInfos() ) ) {
+		return false;
+	}
+	if ( !lightRandomSamples ) {
+		return true;
+	}
+	/* vis2: -randomsamples on the GPU - GaussLikeRandom for every 15-bit value of random() (x and y before the
+	   radius with the sigma of RandomSubsampleRawLuxel, then the radius), and the jumps of the generator: the
+	   state after 2 b draws (sample b of a luxel) and after 2 lightSamples draws (the next subsampled luxel) */
+	std::vector<float> zt( 3 * 32768 );
+	for ( int v = 0; v < 32768; ++v )
+	{
+		const float zufall = (float)v / 0x7fff;
+		GaussLikeWinkel( zufall, 0.5f * lightSamplesSearchBoxSize, &zt[ v ], &zt[ 32768 + v ] );
+		zt[ 65536 + v ] = GaussLikeRadius( zufall );
+	}
+	std::vector<std::uint32_t> sprung;
+	for ( int b = 0; b <= lightSamples; ++b )
+	{
+		const unsigned int add = BhedRandomSkip( 0, 2ull * b );
+		sprung.push_back( BhedRandomSkip( 1, 2ull * b ) - add );
+		sprung.push_back( add );
+	}
+	return BhedBakeZufallTafel( zt, sprung );
 }
 
 static long long g_bbGitterGpu = 0, g_bbGitterCpu = 0;
@@ -3298,6 +3334,7 @@ static void BhedBlockLm( BhedBakeBlock& b, int r, const BhedBakeLm& info, int m,
 		a = -1;
 	}
 	L.start = 0;
+	L.seed = BhedPassSeed( r );   /* vis2: the generator of this lightmap (BhedCpuLightmap) for the kernel zufall */
 	const int li = int( b.lms.size() );
 	int k = 0;
 	for ( int y = 0; y < lm->sh; ++y )
@@ -3589,7 +3626,11 @@ static void BhedIlluminateGpu(){
 	   that took 57 s next to the busy threads (duel_mos_espa, a bounce).
 	   With -randomsamples the processor takes no GPU lightmap: the lightmaps with random subsamples are
 	   more work than the GPU's whole list (duel_mos_espa: 120 s against 33 s), every taken one made the
-	   end later (bounce 150 -> 199 s). */
+	   end later (bounce 150 -> 199 s).
+	   vis2 (work in progress, BHED_GPUBAKE_ZUFALL): the GPU can light those too (kernel zufall), but alone it
+	   is slower than the processor's threads (md_am_sith, first pass: 1432 s against about 700 s) - so they go
+	   to the processor first (nebenZufall), and when the GPU has no block of its own left it takes the smallest
+	   of them in batches (a third of the remaining work each), while the threads take the biggest. */
 	std::stable_sort( gpuListe.begin(), gpuListe.end(), [&]( int a, int b ){
 		return size_t( abgebildet[ a ] ) * liste[ a ].size() > size_t( abgebildet[ b ] ) * liste[ b ].size();
 	} );
@@ -3603,12 +3644,19 @@ static void BhedIlluminateGpu(){
 	std::priority_queue<std::pair<size_t, int>> nebenWarte;   /* the processor's lightmaps, known - the most work first */
 	std::deque<int> nebenFertig;           /* GPU lightmaps to finish */
 	std::deque<int> nebenGross;            /* big ones for the thread with the pool */
+	std::multiset<std::pair<size_t, int>> nebenZufall;   /* vis2: lightmaps with random subsamples - the threads take the
+	                                                        biggest, the GPU the smallest when it has nothing else */
+	size_t zufallArbeit = 0;               /* their work */
 	bool fahrerFrei = true;                /* that thread has nothing to do */
 	size_t vorne = 0, hinten = gpuListe.size();   /* gpuListe[ vorne, hinten ): nobody has taken them yet */
 	bool gpuEnde = false, arbeiterEnde = false;
 	const bool nurGpu = getenv( "BHED_GPUBAKE_NUR_GPU" ) != nullptr;   /* the ctest: the processor takes no GPU lightmap */
+	/* vis2 (work in progress, off by default): BHED_GPUBAKE_ZUFALL - the GPU takes lightmaps with random subsamples
+	   from the processor when it has no block of its own left (see nebenZufall); with BHED_GPUBAKE_NUR_GPU the GPU
+	   lights every one of them itself (kernel zufall) */
+	const bool zufallUebernahme = !nurGpu && getenv( "BHED_GPUBAKE_ZUFALL" ) != nullptr;
 	const bool uebernehmen = !nurGpu && !lightRandomSamples;
-	std::atomic<long long> nebenAnzahl{ 0 }, nebenUebernommen{ 0 };
+	std::atomic<long long> nebenAnzahl{ 0 }, nebenUebernommen{ 0 }, nebenZufallCpu{ 0 };
 	/* the work of a lightmap: mapped luxels times lights (all luxels without the light lists). Taken the
 	   biggest first, the big ones do not start last: FIFO, the biggest of a bounce on duel_mos_espa started
 	   after 108 s and ended 30 s after all others. */
@@ -3627,6 +3675,14 @@ static void BhedIlluminateGpu(){
 		}
 		nebenCv.notify_all();   /* all: the thread with the pool waits on it too */
 	};
+	const auto zumZufall = [&]( int r ){
+		{
+			std::lock_guard<std::mutex> l( nebenMutex );
+			nebenZufall.emplace( arbeit( r ), r );
+			zufallArbeit += arbeit( r );
+		}
+		nebenCv.notify_all();
+	};
 	const auto nebenArbeiten = [&]{
 		while ( true )
 		{
@@ -3635,7 +3691,7 @@ static void BhedIlluminateGpu(){
 			bool fertig = false;
 			{
 				std::unique_lock<std::mutex> l( nebenMutex );
-				nebenCv.wait( l, [&]{ return !nebenFertig.empty() || !nebenWarte.empty() || ( uebernehmen && vorne < hinten ) || gpuEnde; } );
+				nebenCv.wait( l, [&]{ return !nebenFertig.empty() || !nebenWarte.empty() || !nebenZufall.empty() || ( uebernehmen && vorne < hinten ) || gpuEnde; } );
 				if ( !nebenFertig.empty() ) {
 					r = nebenFertig.front();
 					nebenFertig.pop_front();
@@ -3644,6 +3700,13 @@ static void BhedIlluminateGpu(){
 				else if ( !nebenWarte.empty() ) {
 					r = -nebenWarte.top().second;
 					nebenWarte.pop();
+				}
+				else if ( !nebenZufall.empty() ) {
+					const auto groesste = std::prev( nebenZufall.end() );
+					r = groesste->second;
+					zufallArbeit -= groesste->first;
+					nebenZufall.erase( groesste );
+					++nebenZufallCpu;
 				}
 				else if ( uebernehmen && vorne < hinten ) {
 					r = gpuListe[ --hinten ];
@@ -3702,28 +3765,12 @@ static void BhedIlluminateGpu(){
 	bool ersteGeprueft = false;
 	std::vector<std::uint32_t> zaehler, flags, flags2;
 	std::vector<float> aus;
-	while ( BhedBakeBereit() )
-	{
-		/* the next block */
+	/* one block of lightmaps on the GPU; false: the GPU is lost (the block went to the processor).
+	   zufallGpu (vis2): the random subsamples on the GPU, otherwise such lightmaps go to nebenZufall */
+	const auto blockRechnen = [&]( const std::vector<int>& nrs, size_t paare, bool zufallGpu ){
 		BhedBakeBlock b;
-		std::vector<int> nrs;
-		size_t paare = 0;
-		{
-			std::lock_guard<std::mutex> l( nebenMutex );
-			while ( vorne < hinten )
-			{
-				const int r = gpuListe[ vorne ];
-				const size_t bedarf = size_t( abgebildet[ r ] ) * liste[ r ].size();
-				if ( !nrs.empty() && paare + bedarf > budget ) {
-					break;
-				}
-				nrs.push_back( r );
-				paare += bedarf;
-				++vorne;
-			}
-		}
-		if ( nrs.empty() ) {
-			break;
+		for ( int r : nrs ) {
+			cpu[ r ] = 0;   /* vis2: a lightmap with random subsamples the GPU takes back from nebenZufall */
 		}
 		size_t basis = 0;
 		for ( int r : nrs )
@@ -3738,7 +3785,7 @@ static void BhedIlluminateGpu(){
 			for ( int r : nrs ) {
 				zurCpu( r );   /* lost: this block and the rest on the CPU */
 			}
-			break;
+			return false;
 		}
 		zeit( 2 );
 		/* 2. the style check in light order (IlluminateRawLightmap: style slot, "nothing lit", set style) */
@@ -3754,11 +3801,11 @@ static void BhedIlluminateGpu(){
 		BhedAktivSetzen( b, stil, flags );
 		zeit( 3 );
 		/* 3. and 4. supersampling, filtering and adding on the GPU; the finished luxels back */
-		if ( !BhedBakeRest( b, aus, flags2 ) ) {
+		if ( !BhedBakeRest( b, aus, flags2, zufallGpu ) ) {
 			for ( int r : nrs ) {
 				zurCpu( r );
 			}
-			break;
+			return false;
 		}
 		zeit( 4 );
 		for ( size_t li = 0; li < nrs.size(); ++li )
@@ -3768,11 +3815,17 @@ static void BhedIlluminateGpu(){
 			if ( flags[ li ] != 0 || flags2[ li ] != 0 ) {
 				cpu[ r ] = 1;
 				if ( flags[ li ] == 0 && flags2[ li ] == 2u ) {
-					++g_bbZufallLm;   /* vis1: only because of random subsamples */
+					/* vis1: only because of random subsamples (vis2: the GPU may take it later) */
+					if ( zufallUebernahme ) {
+						zumZufall( r );
+					}
+					else{
+						++g_bbZufallLm;
+						zurCpu( r );
+					}
+					continue;
 				}
-				else{
-					++g_bbAlphaLm;
-				}
+				++g_bbAlphaLm;
 				zurCpu( r );
 				continue;
 			}
@@ -3820,6 +3873,30 @@ static void BhedIlluminateGpu(){
 		}
 		nebenCv.notify_all();
 		zeit( 5 );
+		return true;
+	};
+	while ( BhedBakeBereit() )
+	{
+		/* the next block */
+		std::vector<int> nrs;
+		size_t paare = 0;
+		{
+			std::lock_guard<std::mutex> l( nebenMutex );
+			while ( vorne < hinten )
+			{
+				const int r = gpuListe[ vorne ];
+				const size_t bedarf = size_t( abgebildet[ r ] ) * liste[ r ].size();
+				if ( !nrs.empty() && paare + bedarf > budget ) {
+					break;
+				}
+				nrs.push_back( r );
+				paare += bedarf;
+				++vorne;
+			}
+		}
+		if ( nrs.empty() || !blockRechnen( nrs, paare, nurGpu ) ) {   /* the ctest (only the GPU): every random subsample on the GPU */
+			break;
+		}
 	}
 	{
 		/* lost: the rest of the list to the processor */
@@ -3877,7 +3954,7 @@ static void BhedIlluminateGpu(){
 					}
 				}
 			}
-			if ( !BhedBakeRest( b, aus, flags2 ) || flags2[ 0 ] != 0 || !BhedEndlich( L, aus ) ) {
+			if ( !BhedBakeRest( b, aus, flags2, false ) || flags2[ 0 ] != 0 || !BhedEndlich( L, aus ) ) {
 				alpha = BhedBakeBereit();
 				zufall = flags2[ 0 ] == 2u;
 				ok = false;
@@ -3914,6 +3991,38 @@ static void BhedIlluminateGpu(){
 		g_bhedBakeFertig[ r ] = BhedBakeFertig{};
 	}
 	zeit( 7 );
+	/* vis2: the lightmaps with random subsamples the threads have not taken yet - the GPU takes the smallest, a third
+	   of the remaining work per batch, as long as more are left than threads */
+	while ( zufallUebernahme && lightRandomSamples && BhedBakeBereit() )
+	{
+		std::vector<int> nrs;
+		size_t paare = 0;
+		{
+			std::lock_guard<std::mutex> l( nebenMutex );
+			if ( nebenZufall.size() <= size_t( std::max( 1, numthreads ) ) ) {
+				break;
+			}
+			const size_t ziel = zufallArbeit / 3;
+			size_t genommen = 0;
+			while ( !nebenZufall.empty() && genommen < ziel )
+			{
+				const auto kleinste = nebenZufall.begin();
+				const int r = kleinste->second;
+				const size_t bedarf = size_t( abgebildet[ r ] ) * liste[ r ].size();
+				if ( !nrs.empty() && paare + bedarf > budget ) {
+					break;
+				}
+				nrs.push_back( r );
+				paare += bedarf;
+				genommen += kleinste->first;
+				zufallArbeit -= kleinste->first;
+				nebenZufall.erase( kleinste );
+			}
+		}
+		if ( nrs.empty() || !blockRechnen( nrs, paare, true ) ) {
+			break;
+		}
+	}
 	/* the processor's threads finish their lightmaps */
 	{
 		std::lock_guard<std::mutex> l( nebenMutex );
@@ -3932,6 +4041,7 @@ static void BhedIlluminateGpu(){
 	g_bhedBakeFertig.clear();
 	g_bhedBakeLuxel.clear();
 	g_bbCpuLm += nebenAnzahl.load();
+	g_bbZufallLm += nebenZufallCpu.load();
 	g_bbUebernommenLm += nebenUebernommen.load();
 	zeit( 6 );
 }
@@ -3944,19 +4054,19 @@ void BhedBakeBericht( const char *quelle ){
 	const long long anders = proben - gleich;
 	const double mittel = anders > 0 ? double( g_bbSummeMikro.load() ) / 1e6 / double( proben ) : 0.0;
 	Sys_Printf( "BehavEd GPU bake: %s, %s, %lld rounds, %lld lightmaps on the GPU (%lld without light, %lld in parts), %lld on the CPU (%lld alpha shadow/unsafe, %lld not finite, %lld too big), "
-	            "%lld of them with random subsamples, %lld taken over while the GPU baked, %lld pairs on the GPU, %lld blocks, %lld dispatches, GPU %.2f s%s%s\n",
+	            "%lld of them with random subsamples, %lld taken over while the GPU baked, %lld with random subsamples on the GPU (%lld luxels), %lld pairs on the GPU, %lld blocks, %lld dispatches, GPU %.2f s%s%s\n",
 	            BhedBakeAdapter().c_str(), BhedBakeDoppelt() ? "double" : "float only", g_bbRunden.load(), g_bbGpuLm.load() + g_bbLeerLm.load(), g_bbLeerLm.load(), g_bbGeteiltLm.load(), g_bbCpuLm.load(),
-	            g_bbAlphaLm.load(), g_bbNichtEndlichLm.load(), g_bbZuGrossLm.load(), g_bbZufallLm.load(), g_bbUebernommenLm.load(), z.paare, z.bloecke, z.dispatches, double( z.gpuMikros ) / 1e6,
+	            g_bbAlphaLm.load(), g_bbNichtEndlichLm.load(), g_bbZuGrossLm.load(), g_bbZufallLm.load(), g_bbUebernommenLm.load(), z.zufallLm, z.zufallLuxel, z.paare, z.bloecke, z.dispatches, double( z.gpuMikros ) / 1e6,
 	            z.ausgefallen ? " - failed: " : "", z.ausgefallen ? z.grund.c_str() : "" );
 	Sys_Printf( "BehavEd GPU bake report: %lld luxels in %lld lightmaps checked on the CPU, %.4f %% identical; %lld lightmaps with a difference "
 	            "(%lld in styles), mean |diff| %.6f, max |diff| %.6f; light grid: %lld points on the GPU, %lld on the CPU\n",
 	            proben, g_bbProbenLm.load(), proben > 0 ? 100.0 * double( gleich ) / double( proben ) : 100.0, g_bbLmAnders.load(), g_bbStileAnders.load(),
 	            mittel, g_bbMaxAbw, g_bbGitterGpu, g_bbGitterCpu );
 	if ( getenv( "BHED_GPUBAKE_ZEITEN" ) != nullptr ) {
-		Sys_Printf( "BHED-GPU-Zeiten: Listen %.3f, Bloecke %.3f, Erst %.3f, Stil %.3f, Rest %.3f, Fertig %.3f, CPU %.3f, Teile %.3f; Kerne erst %.3f kandidaten %.3f unter %.3f stempellauf %.3f filtern %.3f gitter %.3f\n",
+		Sys_Printf( "BHED-GPU-Zeiten: Listen %.3f, Bloecke %.3f, Erst %.3f, Stil %.3f, Rest %.3f, Fertig %.3f, CPU %.3f, Teile %.3f; Kerne erst %.3f kandidaten %.3f unter %.3f stempellauf %.3f filtern %.3f gitter %.3f zufall %.3f\n",
 		            g_bbZeit[ 0 ], g_bbZeit[ 1 ], g_bbZeit[ 2 ], g_bbZeit[ 3 ], g_bbZeit[ 4 ], g_bbZeit[ 5 ], g_bbZeit[ 6 ], g_bbZeit[ 7 ], double( z.kernMikros[ 0 ] ) / 1e6,
 		            double( z.kernMikros[ 1 ] ) / 1e6, double( z.kernMikros[ 2 ] ) / 1e6, double( z.kernMikros[ 3 ] ) / 1e6, double( z.kernMikros[ 4 ] ) / 1e6,
-		            double( z.kernMikros[ 5 ] ) / 1e6 );
+		            double( z.kernMikros[ 5 ] ) / 1e6, double( z.kernMikros[ 6 ] ) / 1e6 );
 		Sys_Printf( "BHED-GPU-Kandidaten: %lld %lld %lld %lld\n", z.kandidaten[ 0 ], z.kandidaten[ 1 ], z.kandidaten[ 2 ], z.kandidaten[ 3 ] );
 	}
 	if ( quelle == nullptr ) {

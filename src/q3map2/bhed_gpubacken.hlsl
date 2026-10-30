@@ -9,7 +9,7 @@
 // ClusterForPointExtFilter und der Rest der Lichtschleife von IlluminateRawLightmap
 // (light_ydnar.cpp): Erstabtastung, Vorhersage und Unterabtastung, der genaue Stempellauf,
 // Filtern und Aufsummieren in Lichtreihenfolge. Einstiege: erst, kandidaten, unter,
-// stempellauf, filtern, gitterKern (TraceGrid). Makros: DOPPELT (die GPU rechnet double), MESS (Messschalter
+// stempellauf, zufall (vis2: -randomsamples), filtern, gitterKern (TraceGrid). Makros: DOPPELT (die GPU rechnet double), MESS (Messschalter
 // BHED_GPUBAKE_MESS), DIAG (BHED_GPUBAKE_DIAG).
 //
 //   Copyright (C) 1999-2007 id Software, Inc. and contributors.
@@ -53,7 +53,7 @@ struct Lm
     int clusterBase; int nClusters; int aktivBase; int nAktiv;
     float ar; float ag; float ab; int zeilenBase;
     int aus0; int aus1; int aus2; int aus3;
-    int start; int lpad0; int lpad1; int lpad2;   // start: Stilplaetze ab startWert (Teil einer grossen Lightmap)
+    int start; uint seed; int lpad1; int lpad2;   // start: Stilplaetze ab startWert (Teil einer grossen Lightmap); seed: Zufallsgenerator (vis2)
 };
 // Ein Licht der Lightmap, das die Stil-Pruefung bestanden und etwas beleuchtet hat (in Lichtreihenfolge)
 struct Aktiv { int j; int slot; int radius; int negativ; int maske; int apad0; int apad1; int apad2; };   // maske: erstes Bit der Stempelmaske
@@ -88,6 +88,7 @@ cbuffer Kopf : register(b0)
     int nAktivGesamt; int nLuxel; int nZeilen; float inhibitGitter;
     float gridAmbientDirectionality; float gridDirectionality; int cheapgrid; int nGitterLichter;
     int gitterPhase; int lichtVon; int lichtBis; uint kandVon;   // kandVon: erster Eintrag der Kandidatenliste dieser Runde (unter)
+    int zRunden; int kpad0; int kpad1; int kpad2;               // zRunden: nachabgetastete Luxel je Gruppe und Dispatch (zufall, vis2)
 };
 StructuredBuffer<Knoten> knoten : register(t0);
 StructuredBuffer<int> items : register(t1);
@@ -111,6 +112,13 @@ StructuredBuffer<int> blattBrushes : register(t18);
 StructuredBuffer<Brush> brushes : register(t19);
 StructuredBuffer<int> seiten : register(t20);
 StructuredBuffer<float4> startWert : register(t21);
+// vis2 (-randomsamples auf der GPU): GaussLikeRandom als Tafeln aus dem Code der CPU (je 15-Bit-Zufallswert v:
+// [v] x und [32768 + v] y vor dem Radius, [65536 + v] der Radius), die Spruenge des Generators (je Probe b: der
+// Zustand nach 2 b Zuegen = s * x + y; [lightSamples]: nach 2 lightSamples Zuegen, der naechste Luxel) und die
+// Lightmaps des Blocks mit zufaelligen Nachproben
+StructuredBuffer<float> zufallTafel : register(t22);
+StructuredBuffer<uint2> zufallSprung : register(t23);
+StructuredBuffer<int> zufallLms : register(t24);
 RWStructuredBuffer<float4> P : register(u0);       // je Paar: Farbe der Erstabtastung (danach nachabgetastet)
 RWStructuredBuffer<uint> F : register(u1);         // je Paar: 1 FORCE_SUBSAMPLING, 2 ALREADY_SUBSAMPLED, 4 Kandidat
 RWStructuredBuffer<float4> S : register(u2);       // je Paar: vorab nachabgetastete Farbe der Kandidaten
@@ -1351,6 +1359,278 @@ void stempellauf(uint3 id : SV_DispatchThreadID)
         }
     }
     if (g_unsicher) { InterlockedOr(lmFlag[li], 1u); }
+}
+
+// vis2: 4b. Zufaellige Nachproben (-randomsamples), eine Gruppe je Lightmap. Wie BhedZufallsProben
+//    (light_ydnar.cpp): die aktiven Lichter in ihrer Reihenfolge, je Licht der Stempellauf in Zeilenfolge
+//    (vorhergesagte und "schmutzige" Stempel wie stempellauf), der n-te nachabgetastete Luxel der Lightmap
+//    zieht ab dem Zustand seed nach 2 * lightSamples * n Zuegen. Der Lauf selbst ist seriell (ein
+//    nachabgetasteter Luxel aendert die Stempel um ihn, und die Nummer n jedes weiteren haengt davon ab) -
+//    Faden 0 fuehrt ihn; die lightSamples Proben eines Luxels rechnen alle Faeden der Gruppe (Zustand je
+//    Probe aus zufallSprung), aufsummiert in Probenfolge (je Farbkanal ein Faden). Der Stand des Laufs liegt
+//    zwischen den Dispatches in kandListe (ZSTAND je Lightmap; zRunden Luxel je Dispatch, TDR); zaehler[0]
+//    zaehlt die Lightmaps, die noch nicht fertig sind, zaehler[1] die nachabgetasteten Luxel.
+#define ZSTAND 40                   // [0] fertig [1] Licht [2] laeuft [3] y [4] x [5] Zustand [6] gesetzt [8..23] jetzt [24..39] naechste
+#define ZPROBEN 256                 // Proben je Durchgang (4 je Faden)
+groupshared float zFarbe[3][ZPROBEN];
+groupshared uint zOk[ZPROBEN];
+groupshared float zSumme[3];
+groupshared uint zAbgebildet;
+groupshared uint zJetzt[MAXZEILE];
+groupshared uint zNaechste[MAXZEILE];
+groupshared int zA;                 // aktives Licht der Lightmap (relativ)
+groupshared int zLaeuft;            // der Lauf dieses Lichts hat begonnen
+groupshared int zY;
+groupshared int zX;                 // naechster zu pruefender Stempel
+groupshared uint zZustand;          // Zustand des Generators fuer den naechsten nachabgetasteten Luxel
+groupshared int zFertig;
+groupshared int zN;                 // Luxel dieser Runde (0: Pause oder fertig)
+groupshared int zSx[4];
+groupshared int zSy[4];
+groupshared int zK[4];
+groupshared uint zZust[4];
+groupshared int zLicht;
+groupshared uint zPb;
+groupshared int zStempelX;
+
+// Faden 0: der naechste Stempel, der anschlaegt und noch nicht nachabgetastete Luxel hat (zN > 0), oder fertig
+void zufallNaechster(Lm lm)
+{
+    // ohne return/continue in der Schleife (mit ihnen haengte der Lauf auf der NVIDIA-GPU: TDR)
+    const int breite = lm.sw - 1;
+    const uint maskeBasis = 1u + (uint)nAktivGesamt;
+    const bool maske = breite <= MAXZEILE * 32;
+    int a = zA;
+    int laeuft = zLaeuft;
+    int y = zY;
+    int x = zX;
+    uint zust = zZustand;
+    int n = 0;
+    bool suchen = true;
+    [loop] while (suchen)
+    {
+        if (a >= lm.nAktiv)
+        {
+            zFertig = 1;
+            suchen = false;
+        }
+        else if (laeuft == 0)
+        {
+            const uint start = hilfe[1u + (uint)(lm.aktivBase + a)];
+            if (start == 0xffffffffu || breite <= 0) { a += 1; }
+            else
+            {
+                y = (int)(start / (uint)breite);
+                x = (int)(start - (uint)y * (uint)breite);
+                [unroll] for (int w0 = 0; w0 < MAXZEILE; ++w0) { zJetzt[w0] = 0u; zNaechste[w0] = 0u; }
+                laeuft = 1;
+            }
+        }
+        else if (y >= lm.sh - 1)
+        {
+            a += 1;
+            laeuft = 0;
+        }
+        else if (x >= breite)
+        {
+            y += 1;
+            x = 0;
+            [unroll] for (int w1 = 0; w1 < MAXZEILE; ++w1) { zJetzt[w1] = zNaechste[w1]; zNaechste[w1] = 0u; }
+        }
+        else
+        {
+            const Aktiv A = aktiv[lm.aktivBase + a];
+            uint alle = 1u;   // breiter als die Masken: jeder Stempel (voller Lauf)
+            if (maske)
+            {
+                const uint bit = (uint)A.maske + (uint)(y * breite + x);
+                const uint wort = maskeBasis + (bit >> 5);
+                const uint sh = bit & 31u;
+                uint vorher = ~hilfe[wort] >> sh;
+                if (sh != 0u) { vorher |= ~hilfe[wort + 1u] << (32u - sh); }
+                const int rest = breite - x;
+                if (rest < 32) { vorher &= (1u << (uint)rest) - 1u; }
+                uint schmutz = zJetzt[x >> 5] >> (uint)(x & 31);
+                if ((x & 31) != 0 && (x >> 5) + 1 < MAXZEILE) { schmutz |= zJetzt[(x >> 5) + 1] << (32u - (uint)(x & 31)); }
+                if (rest < 32) { schmutz &= (1u << (uint)rest) - 1u; }
+                alle = vorher | schmutz;
+            }
+            if (alle == 0u) { x += 32; }
+            else
+            {
+                const int xs = x + (int)firstbitlow(alle);
+                x = xs + 1;
+                const uint pb = (uint)lm.paarBase + (uint)A.j * (uint)lm.m;
+                if (stempel(lm, pb, xs, y))
+                {
+                    [unroll] for (int t = 0; t < 4; ++t)
+                    {
+                        const int sx = xs + (t & 1);
+                        const int sy = y + (t >> 1);
+                        const int k = idxAt(lm, sx, sy);
+                        if (k >= 0 && (F[pb + (uint)k] & F_SCHON) == 0u)
+                        {
+                            zSx[n] = sx;
+                            zSy[n] = sy;
+                            zK[n] = k;
+                            zZust[n] = zust;
+                            zust = zust * zufallSprung[lightSamples].x + zufallSprung[lightSamples].y;
+                            n += 1;
+                        }
+                    }
+                    if (n > 0)
+                    {
+                        zPb = pb;
+                        zLicht = lichtListe[lm.lichtBase + A.j];
+                        zStempelX = xs;
+                        suchen = false;
+                    }
+                }
+            }
+        }
+    }
+    zN = n;
+    zA = a;
+    zLaeuft = laeuft;
+    zY = y;
+    zX = x;
+    zZustand = zust;
+}
+
+[numthreads(64, 1, 1)]
+void zufall(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID)
+{
+    const uint gi = (id.x + basis) >> 6;
+    const uint tid = gt.x;
+    const int li = zufallLms[gi];
+    const Lm lm = lms[li];
+    const uint sb = gi * ZSTAND;
+    g_unsicher = false;
+    if (tid == 0u)
+    {
+        zFertig = (int)kandListe[sb];
+        zA = (int)kandListe[sb + 1u];
+        zLaeuft = (int)kandListe[sb + 2u];
+        zY = (int)kandListe[sb + 3u];
+        zX = (int)kandListe[sb + 4u];
+        zZustand = kandListe[sb + 6u] != 0u ? kandListe[sb + 5u] : lm.seed;
+        [unroll] for (int w = 0; w < MAXZEILE; ++w) { zJetzt[w] = kandListe[sb + 8u + (uint)w]; zNaechste[w] = kandListe[sb + 24u + (uint)w]; }
+    }
+    GroupMemoryBarrierWithGroupSync();
+    const int fertig = zFertig;
+    GroupMemoryBarrierWithGroupSync();   // alle haben gelesen (gleichfoermiger Fluss fuer die Syncs danach)
+    if (fertig != 0) { return; }
+    int runden = 0;
+    [loop] while (true)
+    {
+        if (tid == 0u)
+        {
+            zN = 0;
+            if (runden < zRunden) { zufallNaechster(lm); }
+        }
+        GroupMemoryBarrierWithGroupSync();
+        const int n = zN;
+        GroupMemoryBarrierWithGroupSync();
+        if (n == 0) { break; }
+        runden += n;
+        const Licht L = lichter[zLicht];
+        [loop] for (int i = 0; i < n; ++i)
+        {
+            const int sx = zSx[i];
+            const int sy = zSy[i];
+            const Luxel lx = luxel[lm.luxelBase + zK[i]];
+            const float3 nrm = float3(lx.nx, lx.ny, lx.nz);
+            const uint s0 = zZust[i];
+            if (tid == 0u) { zSumme[0] = 0.0f; zSumme[1] = 0.0f; zSumme[2] = 0.0f; zAbgebildet = 0u; }
+            [loop] for (int c = 0; c < lightSamples; c += ZPROBEN)
+            {
+                [loop] for (uint t = tid; t < (uint)ZPROBEN; t += 64u)
+                {
+                    const int b = c + (int)t;
+                    uint ok = 0u;
+                    float3 farbe = float3(0.0f, 0.0f, 0.0f);
+                    if (b < lightSamples)
+                    {
+                        // GaussLikeRandom: zwei Zuege, x und y vor dem Radius, dann mal den Radius
+                        const uint2 sp = zufallSprung[b];
+                        uint st = s0 * sp.x + sp.y;
+                        st = st * 214013u + 2531011u;
+                        const uint v1 = (st >> 16) & 0x7fffu;
+                        st = st * 214013u + 2531011u;
+                        const uint v2 = (st >> 16) & 0x7fffu;
+                        const float r = zufallTafel[65536u + v2];
+                        precise float dx = zufallTafel[v1] * r;
+                        precise float dy = zufallTafel[32768u + v1] * r;
+                        float3 o = float3(lx.ox, lx.oy, lx.oz);
+                        const int cl = submap(lm, sx, sy, dx, dy, o);
+                        if (cl > -1)
+                        {
+                            ok = 1u;
+                            const int code = beitrag(o, nrm, cl, lm, L, farbe);   // RandomSubsampleRawLuxel: trace->cluster = cluster
+                            if (code == 9) { g_unsicher = true; }
+                        }
+                    }
+                    zFarbe[0][t] = farbe.x;
+                    zFarbe[1][t] = farbe.y;
+                    zFarbe[2][t] = farbe.z;
+                    zOk[t] = ok;
+                }
+                GroupMemoryBarrierWithGroupSync();
+                const int bis = min(ZPROBEN, lightSamples - c);
+                if (tid < 3u)
+                {
+                    precise float s = zSumme[tid];
+                    [loop] for (int t2 = 0; t2 < bis; ++t2) { if (zOk[t2] != 0u) { s = s + zFarbe[tid][t2]; } }
+                    zSumme[tid] = s;
+                }
+                else if (tid == 3u)
+                {
+                    uint m = zAbgebildet;
+                    [loop] for (int t3 = 0; t3 < bis; ++t3) { m += zOk[t3]; }
+                    zAbgebildet = m;
+                }
+                GroupMemoryBarrierWithGroupSync();
+            }
+            if (tid == 0u)
+            {
+                const uint q = zPb + (uint)zK[i];
+                if (zAbgebildet > 0u)
+                {
+                    const float fm = (float)zAbgebildet;
+                    P[q] = float4(teilen(zSumme[0], fm), teilen(zSumme[1], fm), teilen(zSumme[2], fm), 0.0f);
+                }
+                F[q] = F[q] | F_SCHON;
+                // die spaeteren Stempel mit diesem Luxel: (sx-1|sx, sy-1|sy)
+                const int breite = lm.sw - 1;
+                if (breite <= MAXZEILE * 32)
+                {
+                    [unroll] for (int u = 0; u < 4; ++u)
+                    {
+                        const int ux = sx - 1 + (u & 1);
+                        const int uy = sy - 1 + (u >> 1);
+                        if (ux < 0 || ux >= breite || uy >= lm.sh - 1) { continue; }
+                        if (uy == zY && ux > zStempelX) { zJetzt[ux >> 5] |= 1u << (uint)(ux & 31); }
+                        else if (uy == zY + 1) { zNaechste[ux >> 5] |= 1u << (uint)(ux & 31); }
+                    }
+                }
+            }
+            GroupMemoryBarrierWithGroupSync();
+        }
+    }
+    if (g_unsicher) { InterlockedOr(lmFlag[li], 1u); }
+    if (tid == 0u)
+    {
+        kandListe[sb] = (uint)zFertig;
+        kandListe[sb + 1u] = (uint)zA;
+        kandListe[sb + 2u] = (uint)zLaeuft;
+        kandListe[sb + 3u] = (uint)zY;
+        kandListe[sb + 4u] = (uint)zX;
+        kandListe[sb + 5u] = zZustand;
+        kandListe[sb + 6u] = 1u;
+        [unroll] for (int w2 = 0; w2 < MAXZEILE; ++w2) { kandListe[sb + 8u + (uint)w2] = zJetzt[w2]; kandListe[sb + 24u + (uint)w2] = zNaechste[w2]; }
+        if (zFertig == 0) { InterlockedAdd(zaehler[0], 1u); }
+        InterlockedAdd(zaehler[1], (uint)runden);   // nachabgetastete Luxel (Bericht)
+    }
 }
 
 // 5. Filtern und Aufsummieren je Luxel, die Lichter in ihrer Reihenfolge (dritter Durchgang):

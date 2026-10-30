@@ -36,6 +36,11 @@ alle Luxel (der Bericht zaehlt sie).
                                  auf der GPU zaehlte keinen Durchgang (andere Zufallszahlen danach), und
                                  -samples 4 wird mit -randomsamples zu 256 Proben - ueber der Grenze 7
                                  der GPU-Unterabtastung, keine Lightmap kam auf die GPU.
+                                 vis2: auch die Lightmaps mit zufaelligen Nachproben rechnet die GPU
+                                 (Kern zufall: der serielle Stempellauf, die Proben eines Luxels auf
+                                 allen Faeden der Gruppe) - rot vorher (keine auf der GPU); die
+                                 Teile grosser Lightmaps mit Nachproben (BHED_GPUBAKE_BUDGET_MB=1)
+                                 rechnet weiter die CPU, Lumps gleich.
   7g. Lichtlisten (vis1)        - IlluminateRawLightmap (Prozessor) und IlluminateVertexes nehmen ihre
                                  Lichtlisten aus dem Lichtbaum; BHED_LICHTLISTEN_PRUEFEN vergleicht jede
                                  mit CreateTraceLightsForBounds (alle gleich), Lumps gleich
@@ -172,6 +177,7 @@ def main():
                                    ('klein', licht + gpu, {'BHED_GPUBAKE_BUDGET_MB': '1', 'BHED_GPUBAKE_NUR_GPU': '1'}),
                                    ('cpu4', licht4, None), ('gpu4', licht4 + gpu, nur),
                                    ('cpuz', lichtz, None), ('gpuz', lichtz + gpu, nur), ('gpuzneben', lichtz + gpu, None),
+                                   ('gpuzklein', lichtz + gpu, {'BHED_GPUBAKE_BUDGET_MB': '1', 'BHED_GPUBAKE_NUR_GPU': '1'}),
                                    ('cpuzliste', lichtz, {'BHED_LICHTLISTEN_PRUEFEN': '1'}),
                                    ('nan', licht + gpu, {'BHED_GPUBAKE_NAN': '1', 'BHED_GPUBAKE_NUR_GPU': '1'}),
                                    ('adapter0', licht + gpu + ['-bhedgpuadapter', '0'], None),
@@ -281,11 +287,21 @@ def main():
               (sum(int(n) for _, _, n in ll), '' if all(a == '0' for _, a, _ in ll) else ' - anders: %s' % ll))
         bz = bericht(ergebnis['gpuz'][1])
         zz = re.search(r'(\d+) of them with random subsamples', ergebnis['gpuz'][1])
+        zg = re.search(r'(\d+) with random subsamples on the GPU', ergebnis['gpuz'][1])
         if doppelt:
             anders = [i for i in range(18) if ergebnis['gpuz'][0][i] != ergebnis['cpuz'][0][i]]
-            melde(not anders and bz is not None and bz['gpu'] > 0 and bz['gleich'] == 100.0 and zz is not None and int(zz.group(1)) > 0,
-                  '-randomsamples -samples 4 -fastbounce: %s Lightmaps auf der GPU, %s mit zufaelligen Nachproben auf der CPU, alle 18 Lumps Byte-gleich%s' %
-                  (bz and bz['gpu'], zz.group(1) if zz else '?', '' if not anders else ' - anders: %s' % anders))
+            melde(not anders and bz is not None and bz['gpu'] > 0 and bz['gleich'] == 100.0 and zz is not None and int(zz.group(1)) == 0 and
+                  zg is not None and int(zg.group(1)) > 0,
+                  '-randomsamples -samples 4 -fastbounce: %s Lightmaps auf der GPU, davon %s mit zufaelligen Nachproben (vis2), %s auf der CPU, '
+                  'jede von der CPU nachgerechnet %.4f %% gleich, alle 18 Lumps Byte-gleich%s' %
+                  (bz and bz['gpu'], zg.group(1) if zg else '?', zz.group(1) if zz else '?', bz['gleich'] if bz else 0,
+                   '' if not anders else ' - anders: %s' % anders))
+            bk = bericht(ergebnis['gpuzklein'][1])
+            zk = re.search(r'(\d+) of them with random subsamples', ergebnis['gpuzklein'][1])
+            anders = [i for i in range(18) if ergebnis['gpuzklein'][0][i] != ergebnis['cpuz'][0][i]]
+            melde(not anders and bk is not None and zk is not None and int(zk.group(1)) > 0,
+                  '-randomsamples mit kleinen Bloecken: %s Lightmaps in Teilen, %s mit zufaelligen Nachproben auf der CPU, alle 18 Lumps Byte-gleich%s' %
+                  (bk and bk['teile'], zk.group(1) if zk else '?', '' if not anders else ' - anders: %s' % anders))
         # 8. Himmel mit Sonne (eigener Spielordner mit dem Himmels-Shader)
         spiel = os.path.join(t, 'spiel')
         os.makedirs(os.path.join(spiel, 'base', 'shaders'))
