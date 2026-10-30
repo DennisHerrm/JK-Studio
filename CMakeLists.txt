@@ -129,6 +129,7 @@ add_library(bhed_core STATIC
   src/schwerkraft.cpp
   src/todesanim.cpp
   src/abwurf.cpp
+  src/geschuetz.cpp
   # rc601 bewegung: Laufziele ohne Weg im Wegnetz (STEER::SafeToGoTo /
   # NAV::GoTo). Siehe bhed/scene.h, navZieleOhneWeg.
   src/navweg.cpp

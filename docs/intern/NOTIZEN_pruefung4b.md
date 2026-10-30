@@ -131,21 +131,55 @@ pruefung4b gebaut, danach zurueck.
   portierten Formeln (pruefung4b) und die Engine-Quellen (OpenJK, Movie Duels,
   Jedi Outcast).
 
-## Offen (Reihenfolge)
+## Teil 3 - angehalten (30.10. nachmittags, Neupriorisierung: erst Karten- und Menue-Editor)
 
-2 (Rest): Geschuetze mit Feind (pas_think mit pas_find_enemies/Zielen/pas_fire,
-misc_turret turret_base_think/turret_head_think/turret_fire, misc_turretG2 MD)
-samt Geschossen und deren Schaden, DoImpact (5c-Treffer auf Figuren); jeweils
-in hurtTodeBerechnen (app_view3d.cpp) als weitere Quelle wie die
-Strahltreffer. Treffer auf func_breakable/misc_model_breakable (health) durch
-Schaden: MoverSim braucht dafuer Bruch-Ereignisse aus dem Schadensmodell.
-Fundstellen (code/game/g_turret.cpp OpenJK): turret_fire :165, turret_head_think
-:236, turret_find_enemies :438, turret_base_think :553, pas_fire :1414,
-pas_adjust_enemy :1565, pas_think :1624 (bisher nur Aufklappen und Schwenk
-ohne Feind: pasAufklappenMs/pasSchwenkLauf in mover.cpp, geschuetzKnochen in
-app_view3d_spiel.inc).
-Spielabgleich (Geschuetz/Sentry, liegendes Schwert, ACCEL+ZOOM), Selbsttest
-`pruefung4b`, Handbuch/i18n, Schlussrunde.
+Stand (baut, ctest mover/pruefung4b gruen; noch ohne GUI-Anbindung):
+- `bhed/geschuetz.h`, `src/geschuetz.cpp`: GeschuetzSim - misc_sentry_turret
+  (SP_PAS, pas_use/think/find_enemies/adjust_enemy/fire), misc_turret
+  (finish_spawning_turret, turret_base_use/think, find_enemies, aim, turnoff,
+  head_think, fire inkl. Turbo/WP_FireTurboLaserMissile), misc_turretG2 (MD:
+  MP_RULES, LEAD, CANRESPAWN, alliedTeam, customscale, paintarget); je
+  Regelwerk (OJ/MD/JK2: kein Turbo, pointcontents(start, MASK_SHOT), keine
+  Streuung, kein G_SetEnemy in TurretPain). Geschosse: G_RunMissile,
+  G_MissileImpact (Abprall an SURF_FORCEFIELD), G_MissileImpacted ->
+  SchadenAuftrag (direkt/Radius), Lebenszeit 10000, SURF_NOIMPACT. Schaden am
+  Geschuetz: G_Damage-Teil, TurretPain, turret_die/ObjectDie, turretG2_respawn.
+  Dazu teamAusName/teamAusSkript, Trefferorte (damageModifier je Regelwerk,
+  MD Kopf 1.0; G_GetHitLocFromSurfName ohne Schwertzweige), g2WinkelMatrix
+  (G2_Generate_Matrix POSTMULT), winkelNorm360/winkelAbzug/winkelVektoren.
+  Zufall: EngineZufall mit Saat je Geschuetz.
+- pasAufklappenMs/pasSchwenkLauf rechnen jetzt ueber GeschuetzSim (keine
+  doppelte Logik); mover_probe gruen.
+- `g2RadiusKollisionen` (G2_RadiusTracePolys mit G2_COLLIDE: hitPoint,
+  mDistance, MAX_G2_COLLISIONS 16) neben g2RadiusTreffer.
+- GLM: die groebste LOD-Stufe je Flaeche (grobVerts/grobIndexes) - Geschosse
+  spuren mit traceLod 10 (G2_DecideTraceLod).
+
+Naechster Schritt (in dieser Reihenfolge):
+1. GUI-Spur mit Entity-Nummern: Entwurf im Scratchpad `p4b_t3_spiel_wip.patch`
+   (schussSpurBei nach SV_ClipMoveToEntities, laserfalleSpurBei darauf;
+   figurNetzTreffer mit lodGrob/Kollisionen - der Rumpf muss sie noch nutzen,
+   G2-Pruefung nur wenn `diese`, LaserfalleSpur::entity in mover.h).
+   Dazu geschuetzHindernis/geschuetzNetzTreffer, inPVS (Fels: Zeile von
+   Cluster 0), pointcontents, Bolzen der Geschuetzmodelle (Knochenwinkel,
+   Aufklappen, Turbo-Blend), Augenpunkt/Trefferlage der Figuren.
+2. hurtTodeBerechnen: GeschuetzSim je Bild, Auftraege auf Figuren (Trefferort,
+   noclip-Spieler), Geschuetze, func_breakable/misc_model_breakable (health ->
+   Tod -> AblaufWelt::schadenTode + MoverSim, Splash beim Bruch), Fallen
+   (Fremdschaden in fallenKette); G_UseTargets der Geschuetze ueber fallenUses;
+   misc_turret/misc_turretG2 in MoverSim::entityUses; SET_PLAYER_TEAM /
+   SET_NOTARGET in der Szene; StrahlTreffer auch auf Kartenentities.
+3. Zeichnen: Gier (s.apos) und Knochenwinkel, s.frame, PAS nach dem Tod weg,
+   Muendungsblitz, Geschosse (blaster/NPCshot, turret/shot,
+   ships/imp_blastershot mit verkuerzter Richtung in den ersten 75 ms),
+   Einschlaege (wall/flesh_impact), turret/explode.
+4. DoImpact geworfener misc_model_breakable gegen Figuren (5c-Rest).
+5. ctest-Abschriften (pruefung4b), Selbsttest `pruefung4b` (auch
+   fx_target_beam-Schaden und Leuchten liegender Schwerter), Handbuch,
+   i18n_pruefung4b.py, Spielabgleich, Schlussrunde.
+Bewusst nicht nachgebildet (Begruendung im Code): G_StartFlee (KI-Flucht der
+NPCs vor dem Wachgeschuetz), Areale/Areaportale in gi.inPVS, Schwertabwehr
+(CONTENTS_LIGHTSABER) - zu pruefen, ob sie doch geht.
 
 ## English
 

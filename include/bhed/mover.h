@@ -291,6 +291,20 @@ struct KastenSpur {
 // selben Raum wie start/ende, `idx` je drei eine Dreiecksfolge.
 [[nodiscard]] bool g2RadiusTreffer(const std::vector<float>& ecken, const std::vector<std::uint32_t>& idx,
                                    const float start[3], const float ende[3], float radius);
+// Pruefung 4b: dasselbe mit G2_COLLIDE (G2_RadiusTracePolys ohne
+// G2_RETURNONHIT): JEDES getroffene Dreieck wird ein Eintrag mit hitPoint (der
+// Schnitt des Strahls mit der Ebene des Dreiecks) und mDistance, solange Platz
+// ist (MAX_G2_COLLISIONS). Zurueck: wie viele dazukamen.
+struct G2Kollision {
+    float abstand = 0.0F;   // mDistance
+    float punkt[3]{};       // mCollisionPosition
+    int flaeche = -1;       // mSurfaceIndex
+    int modell = 0;         // mModelIndex (im ghoul2-Feld)
+    int entity = -1;        // mEntityNum
+};
+inline constexpr std::size_t kG2KollisionenMax = 16;   // MAX_G2_COLLISIONS (ghoul2_shared.h)
+int g2RadiusKollisionen(const std::vector<float>& ecken, const std::vector<std::uint32_t>& idx, const float start[3],
+                        const float ende[3], float radius, const G2Kollision& vorlage, std::vector<G2Kollision>& aus);
 
 // --- rc604: Geschuetze mit Knochenanimation ------------------------------
 // G2API_SetBoneAnimIndex(rootBone, startFrame, endFrame, BONE_ANIM_OVERRIDE_FREEZE,
