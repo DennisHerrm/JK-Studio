@@ -145,6 +145,27 @@ tools/handbuch/inhalt_menue6.py, GUI gui/app_menue_m6.inc.
 - Fund beim Handbuchbild: die Tab-Nummer lag links oben über dem Textanfang („A“, „B“, „C“
   verdeckt) - jetzt rechts oben.
 
+## Schlussrunde
+
+- Sauberer Neubau (`--clean-first`, alle Ziele, unter Last der anderen Agenten 07:46-08:10):
+  0 Warnungen, 0 Fehler (/W4 /WX).
+- lint_sources, lint_fassung: ok. karte_lizenz grün (fluss.h/.cpp nennen „Portiert aus OpenJK“ -
+  zuerst rot, weil der Kopf nur die GPL nannte).
+- ctest alle: 164/164 grün (darunter neu menue_fluss, menue_fokus, menue_stile, menue_seiten,
+  menue_lesbar; erweitert menue_pruefung, menue_werkzeug). Hinweis: mit `-j 2` gelaufen (zwei
+  Testprogramme gleichzeitig, nur kurze Konsolenprogramme).
+- Selbsttest menueeditor voll (Movie-Duels-Daten): 119 OK, 0 FEHLER (M5b 103 + M6 16).
+  Mit JKA-Daten aus Zeitgründen nicht wiederholt.
+- karteneditor kurz (BHED_KARTE_NUR=fotos): 78 OK, 0 FEHLER.
+- Modus 1 komplett: 2645 OK, 0 FEHLER.
+- Gegen das Vorbild geprüft: Tab-Folge gegen Menu_SetNextCursorItem/Item_SetFocus (Quelltext
+  OpenJK SP/MP, Movie Duels gleich; ctest mit der Eigenheit „erster Tab auf Index 1“), Einstiege
+  des Flusses gegen ui_main/cgame, Vorlagen und Assistenten-Seiten gegen die Parser-Tabellen aller
+  Fassungen (ohne Meldung gelesen), Grenzen gegen ui_shared.h/PC_Script_Parse (wie die Prüfung
+  vor dem Export). Nicht im Spiel geprüft (kein Spielstart in M6): wie die Vorlagen im laufenden
+  Spiel aussehen und ob `ui_load` sie neu lädt.
+- Keine Spiel-exes gestartet, nichts in Spielordner geschrieben; keine eigenen Prozesse offen.
+
 ## Stand - fertig / offen / nächster Schritt
 
 - Fertig (mit ctest und Selbsttest): 1 Menüfluss, 2 Tab-Reihenfolge, 4 Stile, 5 Vorlagen,
@@ -170,6 +191,7 @@ tools/handbuch/inhalt_menue6.py, GUI gui/app_menue_m6.inc.
 - Menu editor: styles - all colours, fonts, text sizes and backgrounds of a file at a glance, changed everywhere at once.
 - Menu editor: templates for whole menus (main menu, settings page with tabs, credits, loading screen) and a settings wizard that knows the game's own sliders, yes/no switches and choices.
 - Menu editor: reference image under the canvas, compare an element with the game's original and reset it, live limits (elements, menus, script length) while building.
+- Menu editor: readability hints - text too small, too little contrast, translations that do not fit their field.
 - Menu editor: closing a tab with unsaved changes asks first.
 
 ## Deutsch
@@ -179,6 +201,7 @@ tools/handbuch/inhalt_menue6.py, GUI gui/app_menue_m6.inc.
 - Menü-Editor: Stile - alle Farben, Schriften, Textgrößen und Hintergründe einer Datei auf einen Blick, überall auf einmal geändert.
 - Menü-Editor: Vorlagen ganzer Menüs (Hauptmenü, Einstellungsseite mit Reitern, Credits, Ladebildschirm) und ein Einstellungs-Assistent, der die Schieber, Ja/Nein-Schalter und Auswahlen des Spiels kennt.
 - Menü-Editor: Referenzbild unter der Fläche, Element mit dem Original vergleichen und zurücksetzen, Live-Grenzen (Elemente, Menüs, Skriptlänge) beim Bauen.
+- Menü-Editor: Lesbarkeits-Hinweise - zu kleine Schrift, zu wenig Kontrast, Übersetzungen, die nicht ins Feld passen.
 - Menü-Editor: Reiter mit ungespeicherten Änderungen fragt beim Schließen nach.
 
 ## 中文
@@ -188,6 +211,7 @@ tools/handbuch/inhalt_menue6.py, GUI gui/app_menue_m6.inc.
 - 菜单编辑器:样式——一览文件中的所有颜色、字体、文字大小和背景,一次性全部修改。
 - 菜单编辑器:整个菜单的模板(主菜单、带标签页的设置页、制作人员名单、加载画面)以及了解游戏自身滑块、是/否开关和选项的设置向导。
 - 菜单编辑器:画布下的参考图、元素与游戏原版比较并重置、搭建时的实时上限(元素、菜单、脚本长度)。
+- 菜单编辑器:可读性提示——文字太小、对比度不足、译文放不进字段。
 - 菜单编辑器:关闭含未保存更改的标签页时会先询问。
 
 ## 日本語
@@ -197,4 +221,5 @@ tools/handbuch/inhalt_menue6.py, GUI gui/app_menue_m6.inc.
 - メニューエディター: スタイル - ファイルのすべての色、フォント、文字サイズ、背景を一覧し、一度に全部変更。
 - メニューエディター: メニュー全体のテンプレート(メインメニュー、タブ付き設定ページ、クレジット、ロード画面)と、ゲーム本来のスライダー、はい/いいえ、選択肢を知る設定ウィザード。
 - メニューエディター: キャンバスの下の参考画像、要素をゲームのオリジナルと比較して戻す機能、作成中の上限表示(要素、メニュー、スクリプトの長さ)。
+- メニューエディター: 読みやすさのヒント - 小さすぎる文字、足りないコントラスト、フィールドに収まらない訳文。
 - メニューエディター: 保存していない変更のあるタブを閉じるときに確認。
