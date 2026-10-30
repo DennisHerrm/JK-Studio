@@ -821,7 +821,8 @@ std::vector<Schritt> tonSchritte() {
         g_app->audioUpTo = -1.0;
         g_app->playing = true;
     }));
-    add(pause(0.25));
+    // Abschluss rc607: auf die Schleifen warten statt fest 0,25 s (unter Last kamen in der Zeit zu wenige Bilder)
+    add(warteBis("Ton: die Schleifen laufen", [] { return tonSchleifenZahl() > 0U; }, 3000));
     add(tu("Ton: anhalten wie ein Schluesselsprung (nur playing = false)", [=] {
         *schleifenBeimHalt = tonSchleifenZahl();
         g_app->playing = false;

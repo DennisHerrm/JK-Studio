@@ -28,6 +28,7 @@ std::atomic<bool> g_ergebnis{false};
 std::atomic<unsigned long long> g_zaehler{0};
 std::atomic<int> g_modal{0};
 std::atomic<bool> g_gestartet{false};
+int g_probe = -1;   // probeStand (nur der Hauptfaden)
 
 // Schreibt das Abbild in den Ordner des Protokolls. dbghelp.dll erst hier
 // laden - sie steht in jedem Windows, muss aber nicht beim Start mit.
@@ -134,19 +135,26 @@ void lebenszeichen() { g_zaehler.fetch_add(1, std::memory_order_relaxed); }
 void modalBeginn() { g_modal.fetch_add(1); }
 void modalEnde() { g_modal.fetch_sub(1); }
 
-bool probeAbbild() {
+void probeStarten() {
     if (g_auftrag == nullptr || g_fertig == nullptr) {
-        return false;
+        g_probe = -1;
+        return;
     }
     g_info = nullptr;
     g_fadenId = 0;
     g_name = L"behaved-probe.dmp";
+    g_probe = 0;
     SetEvent(g_auftrag);
-    const bool ok = WaitForSingleObject(g_fertig, 20000) == WAIT_OBJECT_0 && g_ergebnis;
-    if (ok) {
-        DeleteFileW((g_ordner + L"\\behaved-probe.dmp").c_str());
+}
+
+int probeStand() {
+    if (g_probe == 0 && WaitForSingleObject(g_fertig, 0) == WAIT_OBJECT_0) {
+        g_probe = g_ergebnis ? 1 : -1;
+        if (g_probe == 1) {
+            DeleteFileW((g_ordner + L"\\behaved-probe.dmp").c_str());
+        }
     }
-    return ok;
+    return g_probe;
 }
 
 }  // namespace bhed::gui::wache

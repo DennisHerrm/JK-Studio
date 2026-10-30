@@ -671,6 +671,21 @@ bool fensterLage(void* fenster, int& x, int& y, int& b, int& h) {
     return true;
 }
 
+namespace {
+HANDLE g_ablageSperre = nullptr;   // Local\\JKStudio.Selbsttest.Zwischenablage
+}
+
+bool zwischenablageSperren() {
+    if (g_ablageSperre == nullptr) { g_ablageSperre = CreateMutexW(nullptr, FALSE, L"Local\\JKStudio.Selbsttest.Zwischenablage"); }
+    if (g_ablageSperre == nullptr) { return true; }   // ohne Sperre wie bisher
+    const DWORD r = WaitForSingleObject(g_ablageSperre, 0);
+    return r == WAIT_OBJECT_0 || r == WAIT_ABANDONED;   // abgebrochen: der andere Test ist beendet
+}
+
+void zwischenablageFreigeben() {
+    if (g_ablageSperre != nullptr) { (void)ReleaseMutex(g_ablageSperre); }
+}
+
 bool fensterLageSetzen(void* fenster, int x, int y, int b, int h) {
     return fenster != nullptr &&
            SetWindowPos(static_cast<HWND>(fenster), nullptr, x, y, b, h, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER) != 0;

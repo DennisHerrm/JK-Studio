@@ -148,6 +148,11 @@ bool bildschirmFarbe(int x, int y, unsigned char rgb[3]);
 // dock3, Selbsttest: eine Datei auf ein Windows-Fenster ablegen wie aus dem
 // Explorer gezogen (WM_DROPFILES mit DROPFILES-Block, Stelle in Fensterpunkten).
 bool dateiAblegen(void* fenster, const std::string& pfad, int x, int y);
+// Abschluss rc607, Selbsttest: die Windows-Zwischenablage teilen sich alle gleichzeitig laufenden
+// Selbsttests. Wer sie zwischen Schreiben und Lesen braucht, haelt diese prozessuebergreifende
+// Sperre: sperren wartet nicht (true: jetzt gehalten), freigeben gibt sie wieder ab.
+bool zwischenablageSperren();
+void zwischenablageFreigeben();
 // dock4, Selbsttest: nimmt das Windows-Fenster Dateien an (WS_EX_ACCEPTFILES,
 // DragAcceptFiles)? Nur dann schickt der Explorer beim Loslassen WM_DROPFILES.
 bool nimmtDateien(void* fenster);

@@ -6278,7 +6278,9 @@ std::vector<Schritt> karteSchritte() {
     add(pruefe("Nach dem Geraeteverlust wieder im Flip-Modell (wenn vorher)", [=] {
         return !*flipVorher || render::flipModell();
     }));
-    add(pruefe("Absturzabbild laesst sich schreiben (Minidump)", [] { return wache::probeAbbild(); }));
+    add(tu("Absturzabbild: Probe starten (der Wachfaden schreibt es)", [] { wache::probeStarten(); }));
+    add(warteBis("Absturzabbild: der Wachfaden ist fertig", [] { return wache::probeStand() != 0; }, 100000));
+    add(pruefe("Absturzabbild laesst sich schreiben (Minidump)", [] { return wache::probeStand() == 1; }));
     return s;
 }
 

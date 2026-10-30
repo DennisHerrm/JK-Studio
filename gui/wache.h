@@ -34,8 +34,11 @@ void lebenszeichen();
 void modalBeginn();
 void modalEnde();
 
-// Fuer den Selbsttest: ein Abbild schreiben, als waere es ein Haenger, und
-// sagen, ob die Datei entstanden ist.
-[[nodiscard]] bool probeAbbild();
+// Fuer den Selbsttest: ein Abbild schreiben, als waere es ein Haenger
+// (probeStarten), und je Bild nachsehen, ob es fertig ist (Abschluss rc607:
+// ohne feste Wartezeit - unter Last brauchte der Wachfaden laenger als 20 s).
+// probeStand: 0 laeuft noch, 1 Datei entstanden (wieder geloescht), -1 nicht.
+void probeStarten();
+[[nodiscard]] int probeStand();
 
 }  // namespace bhed::gui::wache
