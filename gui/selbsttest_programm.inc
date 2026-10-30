@@ -1083,17 +1083,6 @@ std::vector<Schritt> tourPruefungSchritte() {
         return g_app->editorOpen && t >= 0 && e >= 0 && t > e;
     }));
     for (int nach = 2; nach <= 6; ++nach) {
-        // uebersetzung1: unter Last kam ein Klick "Weiter" nicht an (unter der Maus: nichts) - das
-        // Fenster rueckte nach dem vorigen Schritt noch an seinen Platz. Erst klicken, wenn es drei
-        // Bilder lang stillsteht.
-        auto still = std::make_shared<std::pair<ImVec2, int>>(ImVec2{-1.0F, -1.0F}, 0);
-        add(warteBis("Tour-Pruefung: Tutorial-Fenster steht still", [still] {
-            const ImGuiWindow* w = ImGui::FindWindowByName("###tour");
-            if (w == nullptr) { return false; }
-            still->second = (w->Pos.x == still->first.x && w->Pos.y == still->first.y) ? still->second + 1 : 0;
-            still->first = w->Pos;
-            return still->second >= 3;
-        }, 600));
         add(klick(tr(Str::TourNext), "###tour"));
         add(pause(0.25));
         add(pruefe("Tour-Pruefung: \"Weiter\" mit offenem Editor - Schritt " + std::to_string(nach + 1), [nach] {

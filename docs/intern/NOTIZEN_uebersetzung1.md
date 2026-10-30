@@ -11,7 +11,10 @@ Unterbrechung: Windows Update startete den Rechner am 30.10. um 00:29 neu; was d
 | 4df6cf08 | Punkt 1+2: 121 Programmtexte und 45 Handbuchtexte je Sprache |
 | bfb1b96a | Punkt 4: Pluralformen (CLDR), lint_i18n liest gui/*.inc, Funde daraus, Stufe 4 sprachunabhängig |
 | 092b19b9 | Punkt 3: Bilder es/cs; Menü-Editor-Spalten schneiden nichts mehr ab (mit Selbsttest-Prüfung) |
-| (dieser) | Notizen, Schlussrunde |
+| 9a56fbec | Notizen (erster Stand) |
+| b25d9847 | gen_hilfe_orte liest auch trN (ctest hilfe_orte war nach den Zähltexten rot) |
+| 26de2f91 | Selbsttests auf es/cs: hilfe1/hilfe2 ohne Englisch-Annahmen (dazu ein Warten im Tutorial-Klick, im nächsten Commit wieder entfernt) |
+| (dieser) | Notizen: Schlussrunde |
 
 ## Zahlen: noch englisch je Sprache
 
@@ -85,19 +88,41 @@ danach in allen sechs Sprachen neu (je 48/0).
 
 ## Schlussrunde
 
-SCHLUSSRUNDE_PLATZHALTER
+Läufe über `SP/u1/ende.sh` (Summe `SP/u1/ende_summe.txt`), Wiederholungen nach den Korrekturen
+`SP/u1/nach_summe.txt`. Parallel liefen fünf andere Agenten (Bauten, eigene jkstudio) – „unter Last“.
+
+| Schritt | Ergebnis |
+|---|---|
+| sauberer Neubau (`--clean-first`, /W4 /WX) | **0 Fehler, 0 Warnungen** (970 s) |
+| ctest gesamt | 165/166: `hilfe_orte` rot (src/hilfe_orte.inc veraltet: der Erzeuger kannte trN nicht, PrefsArchives fiel aus dem Ort) → b25d9847, `hilfe_orte` grün, die Datei unverändert. Gesamt nicht wiederholt |
+| lint_sources, lint_fassung, lint_i18n (auch `--sprache es/cs`), lint_i18n_erzeugt | **ok** (lint_i18n 0 Beanstandungen, es/cs je 0 fehlend) |
+| Handbuch (`gen_handbuch --pruefen --pflicht=es --pflicht=cs`) | **ok**, es/cs je 0 Texte, 0 Bilder englisch |
+| Modus 1 Englisch | 2645 OK, 6 FEHLER (Tutorial k-werte-bearbeiten: Klick „Next“ kam unter Last nicht an, 5 Folgefehler). Versuch: Klick erst, wenn das Tutorial-Fenster stillsteht (26de2f91) – wiederholt 2643 OK, 7 FEHLER (Schritt 5–7), also nicht die Ursache; zurückgenommen. Offen |
+| Modus 1 Spanisch | 2643 OK, 8 FEHLER (dasselbe Tutorial, „Siguiente“) – nach der Korrektur nicht wiederholt |
+| Modus 1 Tschechisch | 2647 OK, 1 FEHLER (Zwischenablage, wie in Integration 2/3 unter Last) |
+| menueeditor es / cs | **48/0**, **48/0** |
+| karteneditor `fotos` es / cs | **78/0**, **78/0** |
+| karteneditor `hilfe1` es / cs | 57/2, 57/2 (Prüfungen suchten den englischen Hinweis) → **59/0**, **59/0** |
+| karteneditor `hilfe2` es / cs | 43/1, 43/1 (deutsche Frage „Einstellungen“) → „Preferences“: en **44/0**, es **44/0**, cs **44/0** |
+| Stufe 4 Plugins cs (vor dem Neustart) | Basis 183/6 → **189/0** |
+| menueeditor en (vor dem Neustart) | altes Layout 46/2 → en/es/cs **48/0** |
 
 ## Gegen das Vorbild geprüft / nicht geprüft
 
 - CLDR: Regeln one/few/other nach plurals.xml (cs nur 1 = one, 2–4 = few; en/de/es 1 = one) im Test.
 - NRC: die Plugin-Dialoge in Pixeln gegen NRCs Fotos jetzt auch im tschechischen Lauf.
-- Nicht geprüft: die übrigen Selbsttests auf es/cs vollständig (s. Offen).
+- Nicht geprüft: die übrigen Selbsttests auf es/cs (karteneditor voll, mission1, optsicher, kuerzel, 22 Modi) und
+  das Tutorial-Klicken in Modus 1 unter Last (s. Offen).
 
 ## Offen
 
-- Übrige Selbsttests einmal auf es und cs (`SP/u1/modi.sh`: karteneditor voll, mission1, optsicher, kuerzel
-  und die 22 Modi; etwa 80 min je Sprache) – wegen des Neustarts nicht mehr gelaufen. Nächster Schritt:
-  `SPRACHEN="es cs" sh SP/u1/modi.sh`, sprachabhängig Rotes beheben.
+- **Nächster Schritt**: übrige Selbsttests einmal auf es und cs (`SPRACHEN="es cs" sh SP/u1/modi.sh`:
+  karteneditor voll, mission1, optsicher, kuerzel und die 22 Modi; etwa 80 min je Sprache) – wegen des
+  Neustarts nicht mehr gelaufen; sprachabhängig Rotes beheben. Dazu ctest gesamt einmal wiederholen.
+- Modus 1, Tutorial k-werte-bearbeiten mit offenem Ereigniseditor: „Weiter“ kommt unter Last nicht an
+  (en/es in dieser Schlussrunde, cs in Integration 3) – sprachunabhängig. Ein Warten auf ein stillstehendes
+  Tutorial-Fenster half nicht (wiederholt en 2643/7) und ist wieder entfernt. Ursache offen; allein lief es in
+  Integration 3 grün.
 - Doppelte Kennung `MeAufloesungFenster` beim Merge mit menue3 (oben).
 - Die Kacheln der Bauteile schneiden lange Namen weiter bewusst ab (Tooltip zeigt den Namen); `spaltenGanz`
   sieht das nicht (gezeichnet, nicht gesetzt).
