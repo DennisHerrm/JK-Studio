@@ -5952,7 +5952,11 @@ void selbsttest() {
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurDock1Neustart) {
+                // dock3: ohne teil = 2 lief danach (vorher!) der ganze allgemeine
+                // Knopftest - die Neustart-Schritte kamen nie dran.
                 a.schritte = dock1NeustartSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
             } else if (nurDock2Mass) {
                 a.schritte = dock2MassSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }

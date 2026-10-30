@@ -51,6 +51,13 @@ void herausnehmen(const char* id);
 void andocken(const char* id);
 void ausblenden(const char* id, bool aus);
 
+// dock3: die Liste "in eigenem Fenster" einer Anordnung aus dock1. Im DockSpace
+// (Events, Mission, Model) gilt ImGuis Baum; eine alte Liste wird beim ersten
+// Aufbau uebernommen (die Panels schweben an ihrer Stelle) und dann geleert.
+[[nodiscard]] bool listeDraussen(int bereich);
+[[nodiscard]] bool inListeDraussen(const char* id);
+void listeLeeren(int bereich);
+
 // Anordnungen des Bereichs.
 void zuruecksetzen(int bereich);
 bool speichernUnter(int bereich, const std::string& name);

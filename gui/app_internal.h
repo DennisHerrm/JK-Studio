@@ -2961,6 +2961,8 @@ ImGuiID dockraumHeim(const char* panel);
 bool dockraumDraussen(const char* panel);
 void dockraumHerausnehmen(const char* panel);
 void dockraumAndocken(const char* panel);
+// dock3: nach dem Laden einer Anordnung den Baum des Bereichs neu lesen.
+void dockraumNeuLesen(int bereich);
 
 // Kartendaten laden - aus einer Datei oder aus einem Archiv.
 void loadMap(const std::string& path);

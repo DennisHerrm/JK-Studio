@@ -323,6 +323,151 @@ toolband) mit den Tabellen und im DockSpace im selben Lauf und vergleicht sie
 - lint_endtable meldet 2 Stellen in app_karte_entitaeten.cpp:1876/1877 (nicht
   von dock2, Datei unberührt).
 
+## dock3 – DockSpace fertig (Teil), Schalter
+
+Auftrag: SP\auftrag_dock3.md (06:28–08:40). Schalter `BHED_DOCKSPACE` bleibt
+**ab Werk aus** (Begründung unter „Schalter“).
+
+### 1. Dock-Bäume speichern, laden, Neustart
+
+- Die Panelfenster im DockSpace tragen kein `NoSavedSettings` mehr: ImGui
+  schreibt ihre Lage, ihren Knoten und den Baum des DockSpace in den Ini-Text;
+  `merkenLaufend` legt ihn wie bisher je Bereich in `fenster=b<n>` ab
+  (`iniFiltern` nimmt den DockSpace-Baum mit, weil Panels des Bereichs darin
+  stecken). Kein neues Format.
+- `dockraum::uebernehmen`: steht der Baum des Bereichs (Wurzel
+  `bhed.dockraum.<praefix>`) nach dem Start oder nach „Anordnung laden“ in
+  ImGuis Knoten und hat jedes Panel eine Fenstereinstellung, gilt er; sonst wird
+  die Standardanordnung gebaut. Die Heimknoten findet `heimAusBaum` über die
+  Wege der Standardanordnung (`heimWege`, '0'/'1' je Teilung, wie `bauen`
+  teilt) – Knotennummern dürfen sich ändern (`iniErsetzen` nummeriert beim
+  Laden neu). `NoUndocking`/`NoDockingOverMe` der Modusleiste schreibt ImGui
+  nicht mit, sie werden nach dem Übernehmen neu gesetzt.
+- Nach dem Laden einer benannten Anordnung liest `dockraumNeuLesen` den Baum
+  des Bereichs neu (vorBild).
+- **Anordnungen aus dock1** (Liste „in eigenem Fenster“, Fensterlagen, kein
+  DockSpace-Baum) werden übernommen, nicht verworfen: beim ersten Aufbau kommen
+  die Panels der Liste nicht in ihre Knoten, sondern schweben an ihrer
+  gespeicherten Stelle; danach ist die Liste leer (`dock::listeLeeren`) und es
+  gilt der Baum. Ein Hinweis auf die Standardanordnung ist damit nicht nötig.
+- Rückweg (Schalter aus) mit einer im DockSpace gespeicherten Anordnung: die
+  Liste ist leer, alle Panels stehen zuhause; die Bäume bleiben unbenutzt im
+  Ini-Text (ImGui löst ein Fenster, dessen DockSpace nicht eingereicht wird,
+  beim ersten Begin).
+- Im DockSpace haben Panels in eigenen Fenstern einen Schliessknopf (wie in
+  dock1): Schliessen dockt sie an. Andocken, wenn der Heimknoten verschmolzen
+  ist: Standardanordnung neu, **andere Panels in eigenen Fenstern bleiben
+  draussen** (`draussenLassen`; vorher holte ein Andocken alle zurück).
+
+### 2. Selbsttest dock1 im DockSpace
+
+dock1 läuft mit und ohne Schalter; wo sich die Bedeutung ändert, prüft er mit
+Schalter die DockSpace-Fassung: „in eigenem Fenster“ = nicht im DockSpace des
+Hauptfensters angedockt (`dock1::aktiv`); Andocken durch Ziehen = die
+Ebenenliste als Reiter auf die Missionsansicht (ImGuis Ziel in der Mitte des
+Knotens, an jede Stelle des Hauptfensters), dann Zurücksetzen =
+Standardanordnung (`dockraumStandard`); Actions ausgeblendet = Script Flow bis
+an den rechten Rand. dock1neustart prüft zusätzlich den Baum im Hauptfenster
+(Ebenenliste als Reiter neben der Ansicht nach dem Neustart) und die Übernahme
+einer dock1-Anordnung (Model: Leiste schwebt bei 300,200 800 breit, übrige
+Panels in der Standardanordnung, Liste leer; Zurücksetzen = Standard).
+
+Fehler unterwegs (rot → grün im selben Test):
+
+1. Panel eines gerade nicht gezeigten Bereichs galt als „draussen“
+   (ImGui hält dann nur `DockId`, `DockNode` ist leer) – Herausnehmen im ersten
+   Bild nach dem Bereichswechsel tat nichts (dock1 mit Schalter: 92 OK,
+   2 FEHLER „ereignisse.liste/modell.ansicht gezeichnet“) → `draussen` folgt
+   auch der `DockId` → grün.
+2. dock1neustart setzte `a.teil` nicht: vor den Neustart-Schritten lief der
+   ganze allgemeine Knopftest (Befehlstest …), die eigenen Schritte kamen
+   nicht dran (Lauf nach 2 Minuten beendet, 0 Zeilen „dock1neustart“) → wie
+   die anderen Modi `teil = 2` und Endschritte.
+3. Ein Bau lief, während der Test geändert wurde: die Läufe a1–a3 (84/15)
+   prüften noch den alten Test – MSBuild hielt selbsttest.cpp für aktuell. Nur
+   bauen, wenn nichts mehr geändert wird.
+
+### 4. Drag&Drop je OS-Fenster
+
+`main_win32.cpp`: jedes neue eigene Fenster (Platform_CreateWindow) nimmt
+Dateien an (`DragAcceptFiles`) und bekommt eine Fensterprozedur davor, die
+WM_DROPFILES wie das Hauptfenster weitergibt (`dateienAusDrop`, Stelle in
+Bildschirmpunkten); alles andere geht an ImGuis Prozedur. Selbsttest dock1:
+eine .menu-Datei per WM_DROPFILES (`platform::dateiAblegen`, DROPFILES-Block
+wie aus dem Explorer) auf das Windows-Fenster der herausgenommenen Fläche des
+Menü-Editors → der Menü-Editor öffnet sie. Rot mit abgeschaltetem Haken
+(92 OK, 1 FEHLER „abgelegte Datei im Menue-Editor geoeffnet“), grün mit Haken.
+Handbuch: ein Satz in „Fenster und Bildschirme anordnen“ (4 Sprachen).
+
+### Ergebnisse
+
+(unter Last – fünf andere Agenten laufen parallel; Läufe im Ordner
+SP\dock3_laeufe, je eigener Einstellungsordner)
+
+| Lauf | Ergebnis |
+|---|---|
+| dock1, `BHED_DOCKSPACE=1` | vorher (dock2) 83 OK / 18 FEHLER; jetzt **92 OK, 0 FEHLER** |
+| dock1neustart, `BHED_DOCKSPACE=1` (zweiter Prozess, selber Ordner) | **11 OK, 0 FEHLER** (Baum von Events und Mission übernommen, Zeitleiste + Script Flow draussen an 200,150 700x260, Ebenenliste als Reiter im Hauptfenster, dock1-Anordnung für Model übernommen) |
+| dock1, Schalter aus | **86 OK, 0 FEHLER** (wie vorher; Datei auf eigenes Fenster: geöffnet) |
+| dock1neustart, Schalter aus | **5 OK, 0 FEHLER** |
+| dock2mass (schaltet selbst um) | **29 OK, 0 FEHLER** (wie dock2) |
+| Drag&Drop rot (Haken aus) / grün | 92 OK 1 FEHLER / 92 OK 0 FEHLER |
+
+Schlussrunde (Schalter aus = Normalweg; Modus 1 mit BHED_HANDBUCH):
+
+| Prüfung | Ergebnis |
+|---|---|
+| Sauberer Neubau (`--clean-first`, alle Ziele) | 0 Warnungen, 0 Fehler |
+| ctest | **158/158** (306 s, zum Teil parallel zum Modus-1-Lauf) |
+| Modus 1 | **2648 OK, 0 FEHLER**, 0 Zusicherungen |
+| menueeditor | **46 OK, 0 FEHLER** |
+| karteneditor (`BHED_KARTE_NUR=fotos`) | **78 OK, 0 FEHLER** |
+| Modus 1 mit `BHED_DOCKSPACE=1` | erster Lauf (unter Last) **2643 OK, 8 FEHLER**, alle in einem Tutorial: Klick „Next“ im Fenster Tutorials kam nicht an („unter der Maus: -“), danach 7 Folgeprüfungen der Tour (Schritte 5–7, „Do it for me“, Editor zu). Wiederholung allein: **2648 OK, 0 FEHLER** (wie ohne Schalter; der Tutorial-Klick war unter Last, vgl. dock1-Schlussrunde) |
+| lint_sources, lint_fassung, lint_tabellenid, lint_layout, lint_hoehe, lint_gapp, lint_imgui_context, lint_feldinit | ok |
+| lint_portability / lint_i18n / lint_endtable / lint_settings / lint_fremdprogramm | Befunde nur in nicht berührten Dateien (wie vorher) |
+
+Gegen ein Vorbild geprüft: ImGuis eigenes Verhalten (Speichern/Laden der
+Dock-Bäume über den Ini-Text, Andocken über ImGuis Ziel in der Knotenmitte,
+Schliessen eines schwebenden Fensters) im laufenden Programm; Drag&Drop mit
+einem DROPFILES-Block wie aus dem Explorer (nicht mit einem echten
+Explorer-Zug – der echte Zeiger darf im Test nicht bewegt werden). Nicht
+geprüft: OpenGL-Weg (Selbsttest läuft mit Direct3D 11), echtes Ziehen von
+Dateien aus dem Explorer auf ein eigenes Fenster.
+
+### Schalter
+
+**Aus.** Punkt 5 verlangt 1–4 grün und alle Modi mit Schalter grün. Offen
+sind Punkt 3 (Karten-Editor und Menü-Editor im DockSpace) und die alten
+Handbuchbilder – damit gäbe es mit Schalter zwei Arten, Panels anzuordnen
+(Events/Mission/Model im DockSpace, Map/Menu Editor wie dock1), und das
+Handbuch beschriebe den alten Weg. Modus 1 mit Schalter ist grün (zweiter
+Lauf allein), die übrigen Modi liefen mit Schalter in dock3 nicht. Der
+Normalweg (Schalter aus) ist
+unverändert bis auf: Drag&Drop auf eigene Fenster, Schliessknopf/Andocken nur
+im DockSpace, dock1neustart-Lauf.
+
+### Offen (dock3)
+
+Erledigt aus „Offen (dock2)“: Speichern/Laden der Dock-Bäume samt Neustart,
+dock1-Anordnungen, Drag&Drop je OS-Fenster, Andocken bei verschmolzenem
+Heimknoten, Selbsttest „Panel im DockSpace auf eigenes Fenster und zurück,
+Neustart mit gespeichertem Baum“ (dock1/dock1neustart mit Schalter).
+
+- Punkt 3: Karten-Editor im DockSpace (je NRC-Layout eine DockBuilder-Vorgabe,
+  Masse gleich) und Menü-Editor inkl. „Text unten“ – nicht begonnen.
+- Ältere Handbuchbilder mit der Menüleiste ohne „Fenster“ – nicht neu
+  aufgenommen (Handbuch-Modus je Sprache).
+- Andocken, wenn der Heimknoten fehlt, baut die Standardanordnung der Panels
+  im Hauptfenster neu (eine freie Anordnung im Hauptfenster geht dabei
+  verloren; herausgenommene bleiben draussen).
+- Ungeprüfter Randfall: Schalter an → aus → (Panel in dock1-Art herausgenommen)
+  → an: dann gibt es Baum und alte Liste; der Baum gilt, die Liste bleibt
+  stehen und würde erst beim nächsten Neuaufbau des Bereichs (Andocken ohne
+  Heimknoten) ihre Panels draussen lassen. Zurücksetzen leert sie. Sauber
+  wäre: beim Übernehmen eines Baums die Liste leeren – erst nachstellen.
+- Danach: Schalter an, alter Weg (Anordnungslisten, Zurückziehen auf den
+  alten Platz, drawDockFenster für Bereich 0–2) raus.
+
 ## Changelog
 
 ## English
@@ -330,6 +475,7 @@ toolband) mit den Tabellen und im DockSpace im selben Lauf und vergleicht sie
   - New menu **Window**: show/hide panels, put them into their own window, save layout as, load, delete, reset - per area; the current layout is restored at the next start.
   - Windows on an unplugged or too small screen come back; text and size follow the scale of the screen a window is on.
   - Map editor: NetRadiant's layouts stay the default; taken-out views keep drawing (real-time light included), free look and shortcuts work in the window you clicked.
+  - Files can be dragged onto a panel's own window just like onto the main window.
 - The helper (F1) also finds the entries of the **Window** menu.
 - The columns of Events no longer move by one point after the first switch between the areas.
 
@@ -338,6 +484,7 @@ toolband) mit den Tabellen und im DockSpace im selben Lauf und vergleicht sie
   - Neues Menü **Fenster**: Panels zeigen/ausblenden, in ein eigenes Fenster nehmen, Anordnung speichern unter, laden, löschen, zurücksetzen – je Bereich; die laufende Anordnung ist beim nächsten Start wieder da.
   - Fenster auf einem abgezogenen oder zu kleinen Bildschirm kommen zurück; Schrift und Größe folgen dem Maßstab des Bildschirms.
   - Karten-Editor: NetRadiants Anordnungen bleiben die Vorgabe; herausgenommene Ansichten zeichnen weiter (auch Echtzeit-Licht), Umschauen und Tastenkürzel gelten im angeklickten Fenster.
+  - Dateien lassen sich auf das eigene Fenster eines Panels ziehen wie auf das Hauptfenster.
 - Der Helfer (F1) findet auch die Einträge des Menüs **Fenster**.
 - Die Spalten von Events verschieben sich nach dem ersten Wechsel zwischen den Bereichen nicht mehr um einen Punkt.
 
@@ -346,6 +493,7 @@ toolband) mit den Tabellen und im DockSpace im selben Lauf und vergleicht sie
   - 新菜单 **窗口**:显示/隐藏面板、放入独立窗口、布局另存为、加载、删除、重置——按区域;当前布局在下次启动时恢复。
   - 拔下的或过小的屏幕上的窗口会回来;文字和大小跟随窗口所在屏幕的缩放比例。
   - 地图编辑器:NetRadiant 的布局仍为默认;移出的视图继续绘制(包括实时光照),自由视角和快捷键在所单击的窗口中生效。
+  - 可以像拖到主窗口一样把文件拖到面板的独立窗口上。
 - 帮助助手 (F1) 也能找到 **窗口** 菜单中的条目。
 - 首次在各区域之间切换后,事件的列不再移动一个像素。
 
@@ -354,6 +502,7 @@ toolband) mit den Tabellen und im DockSpace im selben Lauf und vergleicht sie
   - 新しいメニュー **ウィンドウ**:パネルの表示・非表示、独立ウィンドウ化、レイアウトの保存・読み込み・削除・リセット(領域ごと)。現在のレイアウトは次回の起動時に復元されます。
   - 外した画面や小さすぎる画面にあったウィンドウは戻ってきます。文字と大きさはウィンドウのある画面の拡大率に従います。
   - マップエディター:NetRadiant のレイアウトが引き続き既定です。取り出したビューも描画を続け(リアルタイムライトを含む)、自由視点とショートカットはクリックしたウィンドウで働きます。
+  - メインウィンドウと同じように、パネルの独立ウィンドウにもファイルをドラッグできます。
 - ヘルパー (F1) が **ウィンドウ** メニューの項目も見つけるようになりました。
 - 領域を初めて切り替えた後に、イベントの列が 1 ポイントずれることがなくなりました。
 

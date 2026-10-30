@@ -6,6 +6,8 @@
 // Stand: Events, Mission und Model. Schalter ab Werk AUS (dockraum::an();
 // BHED_DOCKSPACE=1 schaltet ihn beim Start an, der Selbsttest dock2mass schaltet
 // ihn zum Vergleichen um). Map Editor und Menu Editor bleiben wie in dock1.
+// Der Baum steht mit den Panellagen in den Einstellungen (Neustart, benannte
+// Anordnungen); Anordnungen aus dock1 werden beim ersten Aufbau uebernommen.
 //
 // Die Standardanordnung entsteht nicht aus eigenen Rechnungen: dieselben
 // ImGui-Tabellen wie vorher richten sich ein (nur gemessen, ohne Inhalt), und
@@ -115,12 +117,62 @@ struct Raum {
     // fuer sie keine Fenstereinstellungen, DockBuilderDockWindow allein reicht nicht).
     bool frisch = false;
     bool neuBauen = false;   // Anordnung zuruecksetzen: im naechsten Bild neu aufbauen
+    // Beim Neuaufbau fuer ein Andocken: Panels in eigenen Fenstern bleiben draussen.
+    std::vector<std::string> draussenLassen;
 };
 std::array<Raum, 3> g_raum;
 
 int knotenZaehlen(const ImGuiDockNode* n) {
     if (n == nullptr) { return 0; }
     return 1 + knotenZaehlen(n->ChildNodes[0]) + knotenZaehlen(n->ChildNodes[1]);
+}
+
+bool istAktionen(const Blatt& p) { return std::string(p.id).find(".aktionen") != std::string::npos; }
+
+ImGuiID wurzelId(int b) { return ImHashStr((std::string("bhed.dockraum.") + dock::praefix(b)).c_str()); }
+
+// Wo jedes Panel in der Standardanordnung steht: der Weg von der Wurzel ('0'
+// erstes, '1' zweites Kind), genau so, wie bauen() teilt. Ueber die Wege
+// findet ein gespeicherter Baum (andere Knotennummern) seine Heimknoten.
+std::vector<std::string> heimWege(int b) {
+    const std::vector<Blatt> p = blaetter(b);
+    std::vector<std::string> w(p.size());
+    std::string kette;
+    std::size_t spalten = p.size();
+    if (mitBand(b)) {   // Teilung nach unten: oben die Spalten (erstes Kind), unten das Band
+        w.back() = "1";
+        kette = "0";
+        spalten = p.size() - 1;
+    }
+    for (std::size_t i = 0; i + 1 < spalten; ++i) {
+        if (i + 2 == spalten && istAktionen(p[i + 1])) {   // Actions rechts abgeteilt, Script Flow links davon
+            w[i] = kette + "0";
+            w[i + 1] = kette + "1";
+        } else {
+            w[i] = kette + "0";
+            kette += "1";
+            if (i + 2 == spalten) { w[i + 1] = kette; }
+        }
+    }
+    return w;
+}
+
+// Die Heimknoten in einem (gespeicherten oder neu gebauten) Baum; 0, wo der
+// Baum an der Stelle anders aussieht.
+std::vector<ImGuiID> heimAusBaum(int b, const ImGuiDockNode* wurzel) {
+    std::vector<ImGuiID> heim;
+    for (const std::string& weg : heimWege(b)) {
+        const ImGuiDockNode* n = wurzel;
+        for (const char c : weg) {
+            if (n == nullptr || n->IsLeafNode()) {
+                n = nullptr;
+                break;
+            }
+            n = n->ChildNodes[c == '1' ? 1 : 0];
+        }
+        heim.push_back(n != nullptr && n->IsLeafNode() ? n->ID : 0);
+    }
+    return heim;
 }
 
 // Die Rechtecke der Panels in der Standardanordnung, aus der Messung.
@@ -143,19 +195,66 @@ ImGuiWindowClass klasse() {
     return k;
 }
 
+// Die Modusleiste bleibt, wo sie ist: ohne Reiterleiste, nicht abdockbar,
+// nichts darueber andockbar. NoUndocking und NoDockingOverMe schreibt ImGui
+// nicht in die Einstellungen - nach dem Laden eines Baums daher neu setzen.
+void modusFesthalten(ImGuiID knoten) {
+    if (ImGuiDockNode* n = ImGui::DockBuilderGetNode(knoten); n != nullptr) {
+        n->SetLocalFlags(n->LocalFlags | ImGuiDockNodeFlags_HiddenTabBar | static_cast<int>(ImGuiDockNodeFlags_NoTabBar) |
+                         static_cast<int>(ImGuiDockNodeFlags_NoUndocking) | static_cast<int>(ImGuiDockNodeFlags_NoDockingOverMe));
+    }
+}
+
+// Der Dock-Knoten, in dem ein Panel steht oder beim Anlegen stehen wird
+// (gespeicherte Fenstereinstellung); 0 = keiner.
+ImGuiID panelKnoten(const Blatt& p) {
+    const std::string name = fensterName(p);
+    if (const ImGuiWindow* w = ImGui::FindWindowByName(name.c_str()); w != nullptr) { return w->DockId; }
+    const ImGuiWindowSettings* s = ImGui::FindWindowSettingsByID(ImHashStr(name.c_str()));
+    return s != nullptr ? s->DockId : 0;
+}
+
+// Einen gespeicherten Baum des Bereichs uebernehmen (Neustart, geladene
+// Anordnung): ImGui hat ihn aus den Einstellungen gebaut, die Panels kommen
+// beim Anlegen aus ihren Fenstereinstellungen in ihre Knoten (oder schweben).
+// Nur, wenn jedes Panel eine Einstellung hat - sonst stuende ein Panel ohne
+// Platz irgendwo; dann die Standardanordnung.
+bool uebernehmen(int b) {
+    Raum& raum = g_raum[static_cast<std::size_t>(b)];
+    const ImGuiID id = wurzelId(b);
+    const ImGuiDockNode* n = ImGui::DockBuilderGetNode(id);
+    if (n == nullptr || !n->IsDockSpace()) { return false; }
+    const std::vector<Blatt> p = blaetter(b);
+    for (const Blatt& x : p) {
+        const std::string name = fensterName(x);
+        if (ImGui::FindWindowByName(name.c_str()) == nullptr && ImGui::FindWindowSettingsByID(ImHashStr(name.c_str())) == nullptr) {
+            diag::detail("Fenster: gespeicherter DockSpace von Bereich " + std::to_string(b) + " ohne Panel " + x.id + " - Standardanordnung");
+            return false;
+        }
+    }
+    raum.wurzel = id;
+    raum.heim = heimAusBaum(b, n);
+    raum.knoten = static_cast<int>(2 * p.size() - 1);
+    raum.frisch = false;
+    modusFesthalten(panelKnoten(p[0]));
+    diag::detail("Fenster: gespeicherter DockSpace von Bereich " + std::to_string(b) + " uebernommen (" + std::to_string(knotenZaehlen(n)) +
+                 " Knoten)");
+    return true;
+}
+
 void bauen(int b, const std::vector<ImRect>& r, const ImVec2& groesse) {
     Raum& raum = g_raum[static_cast<std::size_t>(b)];
     const std::vector<Blatt> p = blaetter(b);
-    raum.wurzel = ImHashStr((std::string("bhed.dockraum.") + dock::praefix(b)).c_str());
+    raum.wurzel = wurzelId(b);
     ImGui::DockBuilderRemoveNode(raum.wurzel);
     ImGui::DockBuilderAddNode(raum.wurzel, ImGuiDockNodeFlags_DockSpace);
     ImGui::DockBuilderSetNodeSize(raum.wurzel, groesse);
-    raum.heim.assign(p.size(), 0);
+    std::vector<ImGuiID> heim(p.size(), 0);
     ImGuiID kette = raum.wurzel;
     const std::size_t spalten = mitBand(b) ? p.size() - 1 : p.size();
     if (mitBand(b)) {
         const float anteil = std::clamp(r.back().GetHeight() / std::max(1.0F, groesse.y), 0.05F, 0.95F);
-        ImGui::DockBuilderSplitNode(raum.wurzel, ImGuiDir_Down, anteil, &raum.heim.back(), &kette);
+        ImGui::DockBuilderSplitNode(raum.wurzel, ImGuiDir_Down, anteil, &heim.back(), &kette);
     }
     float rest = groesse.x;
     for (std::size_t i = 0; i + 1 < spalten; ++i) {
@@ -163,28 +262,25 @@ void bauen(int b, const std::vector<ImRect>& r, const ImVec2& groesse) {
         // Rest; ein Mittelknoten bleibt auch leer stehen - Actions dagegen gibt
         // ausgeblendet oder herausgenommen seinen Platz ab).
         ImGuiID weiter = 0;
-        if (i + 2 == spalten && std::string(p[i + 1].id).find(".aktionen") != std::string::npos) {
+        if (i + 2 == spalten && istAktionen(p[i + 1])) {
             ImGui::DockBuilderSplitNode(kette, ImGuiDir_Right, std::clamp(r[i + 1].GetWidth() / std::max(1.0F, rest), 0.05F, 0.95F),
-                                        &raum.heim[i + 1], &raum.heim[i]);
+                                        &heim[i + 1], &heim[i]);
         } else {
             ImGui::DockBuilderSplitNode(kette, ImGuiDir_Left, std::clamp(r[i].GetWidth() / std::max(1.0F, rest), 0.05F, 0.95F),
-                                        &raum.heim[i], &weiter);
+                                        &heim[i], &weiter);
             kette = weiter;
-            if (i + 2 == spalten) { raum.heim[i + 1] = weiter; }
+            if (i + 2 == spalten) { heim[i + 1] = weiter; }
         }
         rest -= r[i].GetWidth();
     }
     for (std::size_t i = 0; i < p.size(); ++i) {
-        if (ImGuiDockNode* n = ImGui::DockBuilderGetNode(raum.heim[i]); n != nullptr) {
-            ImGuiDockNodeFlags f = n->LocalFlags | ImGuiDockNodeFlags_HiddenTabBar;
-            if (i == 0) {   // die Modusleiste bleibt, wo sie ist
-                f |= static_cast<int>(ImGuiDockNodeFlags_NoTabBar) | static_cast<int>(ImGuiDockNodeFlags_NoUndocking) |
-                     static_cast<int>(ImGuiDockNodeFlags_NoDockingOverMe);
-            }
-            n->SetLocalFlags(f);
+        if (ImGuiDockNode* n = ImGui::DockBuilderGetNode(heim[i]); n != nullptr) {
+            n->SetLocalFlags(n->LocalFlags | ImGuiDockNodeFlags_HiddenTabBar);
         }
     }
+    modusFesthalten(heim[0]);
     ImGui::DockBuilderFinish(raum.wurzel);
+    raum.heim = heimAusBaum(b, ImGui::DockBuilderGetNode(raum.wurzel));
     raum.knoten = knotenZaehlen(ImGui::DockBuilderGetNode(raum.wurzel));
     raum.frisch = true;
     diag::detail("Fenster: DockSpace von Bereich " + std::to_string(b) + " aufgebaut (" + std::to_string(raum.knoten) + " Knoten)");
@@ -270,6 +366,8 @@ void panelInhalt(const std::string& id, const Layout& l) {
     }
 }
 
+bool draussen(const std::string& panel);
+
 // Nach der Messung (Tabelle ohne Inhalt): der DockSpace an der Stelle der
 // Tabelle und des Bandes, dann die Panels in ihren Knoten.
 void zeichnen(const Layout& l) {
@@ -286,10 +384,15 @@ void zeichnen(const Layout& l) {
     for (const ImRect& x : r) { alles.Add(x); }
     const ImVec2 groesse{alles.GetWidth(), alles.GetHeight()};
     Raum& raum = g_raum[static_cast<std::size_t>(b)];
+    if (raum.wurzel == 0 && !raum.neuBauen) { (void)uebernehmen(b); }
     if (raum.wurzel == 0 || raum.neuBauen || ImGui::DockBuilderGetNode(raum.wurzel) == nullptr) {
         raum.neuBauen = false;
         bauen(b, r, groesse);
     }
+    // Eine Anordnung aus dock1 (Panels in eigenen Fenstern als Liste, ohne
+    // DockSpace-Baum): diese Panels kommen beim Aufbau nicht in ihre Knoten,
+    // sondern schweben an ihrer gespeicherten Stelle; danach gilt der Baum.
+    const bool alteListe = raum.frisch && dock::listeDraussen(b);
     const bool std0 = standard(b);
     if (std0) { erzwingen(ImGui::DockBuilderGetNode(raum.wurzel), raum.heim, r, groesse); }
     ImGui::SetCursorScreenPos(alles.Min);
@@ -315,10 +418,18 @@ void zeichnen(const Layout& l) {
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
                             ImVec2{st.CellPadding.x, band ? st.ItemSpacing.y - 1.0F : st.CellPadding.y * 2.0F});
         ImGui::SetNextWindowClass(&k);
-        if (raum.frisch) { ImGui::SetNextWindowDockID(raum.heim[i], ImGuiCond_Always); }
-        const bool sichtbar = ImGui::Begin(fensterName(p[i]).c_str(), nullptr,
-                                           ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
-                                               ImGuiWindowFlags_NoSavedSettings);
+        const bool lassen = (alteListe && dock::inListeDraussen(p[i].id)) ||
+                            std::find(raum.draussenLassen.begin(), raum.draussenLassen.end(), p[i].id) != raum.draussenLassen.end();
+        if (raum.frisch && !lassen) { ImGui::SetNextWindowDockID(raum.heim[i], ImGuiCond_Always); }
+        // In einem eigenen Fenster mit Schliessknopf: Schliessen dockt es wieder an
+        // (wie dock1); im Hauptfenster ohne (die Reiterleiste ist versteckt).
+        bool offen = true;
+        const bool schwebt = i > 0 && draussen(p[i].id);
+        // Ohne NoSavedSettings: ImGui schreibt Lage und Knoten der Panels und den
+        // Baum in die Einstellungen (fenster_dock: merkenLaufend) - Neustart und
+        // gespeicherte Anordnungen bringen ihn zurueck (uebernehmen).
+        const bool sichtbar = ImGui::Begin(fensterName(p[i]).c_str(), schwebt ? &offen : nullptr,
+                                           ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         ImGui::PopStyleVar();
         if (sichtbar && !band && !innen) { ImGui::SetCursorPosY(ImGui::GetCursorPosY() - st.CellPadding.y); }
         if (sichtbar && std0 && i == letzteSpalte && i < r.size()) {
@@ -332,6 +443,12 @@ void zeichnen(const Layout& l) {
         }
         if (sichtbar) { panelInhalt(p[i].id, l); }
         ImGui::End();
+        if (!offen) { dock::andocken(p[i].id); }
+    }
+    if (raum.frisch) { raum.draussenLassen.clear(); }
+    if (alteListe) {
+        diag::detail("Fenster: Anordnung aus dock1 fuer Bereich " + std::to_string(b) + " in den DockSpace uebernommen");
+        dock::listeLeeren(b);
     }
     raum.frisch = false;
 }
@@ -349,7 +466,11 @@ ImGuiWindow* panelFenster(const std::string& panel) {
 bool draussen(const std::string& panel) {
     const ImGuiWindow* w = panelFenster(panel);
     if (w == nullptr) { return false; }
-    const ImGuiDockNode* n = w->DockNode;
+    // Ein Panel eines gerade nicht gezeigten Bereichs haelt nur seine DockId
+    // (ImGui bindet es beim naechsten Begin wieder an den Knoten) - es steht
+    // trotzdem im DockSpace (Selbsttest dock1: im ersten Bild nach dem Wechsel
+    // des Bereichs galt es als draussen, Herausnehmen tat nichts).
+    const ImGuiDockNode* n = w->DockNode != nullptr ? w->DockNode : (w->DockId != 0 ? ImGui::DockBuilderGetNode(w->DockId) : nullptr);
     while (n != nullptr && n->ParentNode != nullptr) { n = n->ParentNode; }
     return n == nullptr || !n->IsDockSpace();
 }
@@ -365,7 +486,9 @@ ImGuiID heimKnoten(const std::string& panel);
 
 // Zurueck an seinen Platz der Standardanordnung: in seinen Knoten, wenn es ihn
 // noch gibt (ausgeblendet oder als Reiter woanders), sonst die
-// Standardanordnung des Bereichs neu aufbauen.
+// Standardanordnung des Bereichs neu aufbauen - Panels in eigenen Fenstern
+// bleiben dabei draussen (ImGui verschmilzt einen Knoten, den sein letztes
+// Panel verlaesst, mit dem Nachbarn; der Platz ist dann nicht mehr da).
 void andocken(const std::string& panel) {
     ImGuiWindow* w = panelFenster(panel);
     const ImGuiID heim = heimKnoten(panel);
@@ -376,7 +499,13 @@ void andocken(const std::string& panel) {
         return;
     }
     for (int b = 0; b < 3; ++b) {
-        if (panel.rfind(dock::praefix(b), 0) == 0) { g_raum[static_cast<std::size_t>(b)].neuBauen = true; }
+        if (panel.rfind(dock::praefix(b), 0) != 0) { continue; }
+        Raum& raum = g_raum[static_cast<std::size_t>(b)];
+        raum.neuBauen = true;
+        raum.draussenLassen.clear();
+        for (const Blatt& x : blaetter(b)) {
+            if (x.id != panel && draussen(x.id)) { raum.draussenLassen.emplace_back(x.id); }
+        }
     }
     diag::detail("Fenster: Panel " + panel + " - Knoten fehlt, Standardanordnung neu");
 }
