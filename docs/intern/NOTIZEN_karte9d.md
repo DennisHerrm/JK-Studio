@@ -1025,3 +1025,180 @@ sauberen Neubau.
 
 - タイムラインのプレビューで、Jedi Outcast の字幕は数字が続かない ^ を描画しなくなりました(ゲームと同じ)。
 - ヘルプ: カメラツールバーへの道順に、タイムラインの行名「カメラ – 位置」を表示します。
+
+## Integration 6
+
+Zweig `karte1` (Worktree `Y:\karte`), Ausgang f5d5b210 (Integration 5). Gemergt: die im Auftrag genannten Spitzen
+von reste2, uebersetzung2, zeitleiste1 (Zeitleiste 4), menue6 (M7), dock1 (dock4) und – Zusatz von shank während
+der Arbeit – `vis1` bis 69d4ce07 (vis4). Pruefung 4a/4b und die späteren Stände kommen in Integration 7.
+Skripte: `SP/int6/` – `bauct.sh` (Bau und/oder ctest unter Idle, Summe `summe.txt`), `selbst.sh` (Selbsttests
+nacheinander über `idle.sh`), `ende.sh` (Neubau), `gen.sh` (alle Generatoren), `klick.sh` (Handbuchbild
+`c_tl_klick` neu, unten), `loese.py`, `loese_m7a.py`/`loese_m7b.py`/`fix_scene.py` (Konfliktlösungen). Die Merges
+2–6 wurden in einem Wegwerf-Klon (`git clone --shared` im SP, danach gelöscht) gelöst, während in `Y:\karte` der
+vorige Merge baute; in `Y:\karte` dann je einzeln vorgespult, **gebaut und mit ctest geprüft**. Alle Zeiten unter
+Last (andere Agenten bauten und testeten gleichzeitig).
+
+| Commit | Inhalt |
+|---|---|
+| eceefdb3 | Merge `reste2` (59a2dac1) – keine Konflikte; erzeugte Dateien mit den Generatoren nachgeprüft (gleich). Bau 0 Warnungen (791 s), ctest **183/183** (426 s) |
+| 32c6398b | Merge `uebersetzung2` (31be737d) – `tools/gen_i18n.py` (RESTE2 und UEBERSETZUNG2 beide), erzeugte Dateien neu. Bau 0 Warnungen (535 s), ctest **183/183** (505 s) |
+| 834cb33b | Merge `zeitleiste1` (0fc0081f) – Konflikte unten. Bau 0 Warnungen (442 s), ctest **184/184** (292 s) |
+| 0a9c3e47 | Merge `menue6` (634aa8eb, M7) – Konflikte unten. Bau 0 Warnungen (419 s), ctest 187/188: `untertitel` rot (der bekannte Farbcode-Konflikt, Fund 1) |
+| 1468ef6a | Merge `dock1` (dd3eab81, dock4) – Konflikte unten. Bau 0 Warnungen (369 s), ctest 187/188 (`untertitel`, wie vorher) |
+| 450866cc | Fund 1: Untertitel von Jedi Outcast wie die Spielfotos, `untertitel::breite` über `schriftBreite(…, Jk2Schrift::Sp)` |
+| 30be8cb8 | `MeKompOriginal` als Zähltext mit `trN` (Auftrag) |
+| 8047b15e | Fund 2: lint_i18n – die Cvar-Namen der M7-Beispielwerte |
+| | Bau + ctest nach 450866cc–8047b15e: 0 Warnungen (102 s), **188/188** (274 s) |
+| c809c2f1 | Merge `vis1` (69d4ce07, vis4) – Konflikte nur in den erzeugten Dateien (i18n.h/.cpp, `suche.js`), neu erzeugt. Bau 0 Warnungen (710 s), ctest **188/188** (282 s, darin `q3map2_gpubake` 11,8 s und `karte_gpuwahl` grün) |
+| 0ce0164c | Fund 3: Handbuchbild `c_tl_klick` (4 Sprachen) mit dem gemergten Programm neu |
+| (dieser) | Notizen |
+
+### Konflikte zeitleiste1 (834cb33b)
+
+- **`ActorState::beineTimerBisMs` zweimal** (`include/bhed/scene.h`, `src/scene.cpp`): pruefung2 (karte1, Todesanimation:
+  G_CheckSpecialDeathAnim fragt den Timer der Beine ab) und Zeitleiste 4 (Aufnahme: solange ein Timer läuft, setzt
+  PM_Footsteps die Beine nicht neu) haben dasselbe Feld mit derselben Bedeutung (< 0 kein Timer, 1e300 hält immer)
+  je eigens angelegt – der Kopf hätte es nach dem Merge zweimal gehabt. Jetzt ein Feld mit beiden Kommentaren,
+  gesetzt wie in Zeitleiste 4 (`beineFest ? beineBis : -1.0`: ohne bekannte Animationslänge kein Timer – dann löst
+  ein Weg die Animation ab), dazu `torsoTimerBisMs` aus Zeitleiste 4. Der Unterschied betrifft nur Figuren ohne
+  Skelett (keine Länge); ctest `pruefung2` und die Zeitleistentests grün, Selbsttests zeitleiste1/mission1 grün.
+- `tools/handbuch/LIESMICH.md`: die Sprachen es/cs (uebersetzung2) und die Übungsmission auf taspir1 (Zeitleiste 4) beide.
+- `handbuch/*/suche.js` neu erzeugt. Die Cherry-Picks von daf88e15/0a544a42 (8385d9c7, 1e2eda71) liefen ohne Konflikt ein.
+
+### Konflikte menue6 (0a9c3e47)
+
+- **`src/menue/vorschau.cpp`, `include/bhed/menue/vorschau.h`** (Farbcodes von Jedi Outcast): die M7-Fassung nach den
+  Spielfotos (jk2sp.exe und jk2mp.exe: jedes Zeichen nach `^` ist eine Farbe, ColorIndex(c) = (c − '0') & 7) gilt –
+  die Spielfotos sind maßgebend; karte1 3cae6104 hatte OpenJK JK2_MODE gelesen (nur das `^` fällt weg). Der
+  Untertitel-Test folgt in 450866cc (Fund 1).
+- `gui/app_menue.cpp`, `gui/menueeditor.h`: die Figurenzeiten von reste2 (`modellMs`, `modellZeichnungen`) und die
+  M7-Zähler (`modellStufen`, `beispielPrims`, `platzhalterPrims`, `ladebalken`) beide.
+- `gui/karte_bau_win32.cpp`: `arbeitsspeicherMB()` (reste2) und `losgeloestStarten(…, pid)` (M7) beide.
+- `tools/handbuch/inhalt.py`: die Seitenliste von karte1 (mit `inhalt_dock`, `inhalt_hilfe2`), `inhalt_menue7` nach `inhalt_menue6`.
+- Erzeugte Dateien (i18n.h/.cpp, 624 Handbuchseiten, `suche.js`) mit den Generatoren: 3256 Texte, 195 Orte, 161 Seiten × 6 Sprachen.
+
+### Konflikte dock1 (1468ef6a)
+
+- **`handbuch/bilder/{en,de,zh,ja}/c_tl_klick.webp`**: Zeitleiste 4 zeigt die neue Zeitleiste (ohne „Window“ in der
+  Menüleiste), dock4 die Menüleiste mit „Window“ über der alten Zeitleiste (dock1 kannte Zeitleiste 3/4 nicht). Im
+  Merge das Bild von Zeitleiste 4 behalten, danach mit dem gemergten Programm neu aufgenommen (Fund 3).
+- `handbuch/bilder/de/h_karte8_menue.webp`: karte1 behalten – das Build-Menü mit „Dasselbe VIS in jedem Bau“ (vis1);
+  dock4 hatte es ohne vis1 neu aufgenommen, und „Window“ liegt außerhalb des Ausschnitts.
+- Erzeugte Seiten und `suche.js` neu.
+
+### Funde aus dem Zusammenspiel (nachgestellt → behoben → grün)
+
+1. **Untertitel von Jedi Outcast** (der bekannte Konflikt). Quellen (OpenJK unter `SP/m3/ojq/src`): CG_DrawCaptionText
+   (`codeJK2/cgame/cg_text.cpp:452`) → `cgi_R_Font_DrawString` (`cg_syscalls.cpp:276`) → `CG_R_FONTDRAWSTRING` →
+   `re.Font_DrawString` (`code/client/cl_cgame.cpp:979`), die Oberfläche über `uii.R_Font_DrawString = re.Font_DrawString`
+   (`cl_ui.cpp:247`) – Untertitel und Menüs gehen durch dieselbe Funktion des Renderers, in jk2sp.exe also so, wie M7
+   die Menüs fotografiert hat. Rot: ctest `untertitel` nach Merge 4 und 5 („JK2: ^ ohne Ziffer nicht gezeichnet, ^1
+   färbt rot“ – mit M7 zeichnet JK2 „a^^1b“ als a, 1, b in Magenta). Test angeglichen an die Spielfotos: „A^Bx^Cy^0z“ –
+   JK2 zeichnet A, x grün, y gelb, z schwarz; JKA/MD zeichnen das `^` ohne Ziffer, `^0` schwarz; die Glyphen tragen im
+   Test ihr Zeichen (s), so prüft er, *welche* Zeichen gezeichnet sind. Breite: JKA 80, JK2 100 (jk2sp.exe zählt jedes
+   Zeichen). `untertitel::breite` nutzt jetzt `schriftBreite(…, Jk2Schrift::Sp)` statt einer eigenen Schleife – die
+   hatte dabei das Ersatzmaß von GetLetterHorizAdvance nicht (ein Zeichen ohne Vorschub zählt wie '.', auch unter
+   JK2_MODE in RE_Font_StrLenPixels). Rot mit dem neuen Test und dem alten `breite`: „Breite: Zeichen ohne Vorschub
+   zählt wie '.' (JKA und JK2)“ (1 Fehler, die Zeichenprüfung schon grün durch M7); grün mit 450866cc: „alles gut“.
+2. **lint_i18n** nach Merge 4: 2 Beanstandungen – `ImGui::Checkbox("g_jediVmerc")`, `("g_forceBasedTeams")` in
+   `gui/app_menue_m7.inc` (Beispielwerte der MP-Ownerdraws). M7 hatte noch einen lint_i18n, der `gui/*.inc` nicht
+   las. Es sind Cvar-Namen wie in der Konsole des Spiels – in die Ausnahmen wie die .menu-Schlüsselwörter. Grün: „i18n-Prüfung: ok“.
+3. **Handbuchbild `c_tl_klick`** (Merge-Konflikt dock1/Zeitleiste 4): beide Absichten – neue Zeitleiste und Menüleiste
+   mit „Window“ – zeigt nur ein Bild des gemergten Programms. Von den 22 Bildern, die Zeitleiste 4 neu aufgenommen hat,
+   reicht nur dieses in die Menüleiste (Ausschnitt `0 0 …`, die anderen beginnen bei y ≥ 90; Regel wie
+   `SP/d4_hb_auswahl.py`). Bildlauf `BHED_EDITORTEST=handbuch` bis zu diesem Foto (`BHED_HB_BIS=c_tl_klick`, Mission und
+   Archiv auf X: wie `/y/zl4_hbvoll.sh`), en / de / zh-Hans / ja je **4 OK, 0 FEHLER** (209–212 s), mit
+   `tools/handbuch/bilder.py` umgewandelt. Durchgesehen: neue Zeitleiste (Übersicht/Detail, „walks 1“ mit Pfeil) und das
+   Fenster-Menü in der Menüleiste (en „Window“, de „Fenster“, ja „ウィンドウ“); die übrigen Handbuchseiten ändern sich nicht.
+
+Nebenbefund ohne Änderung: der Selbsttest stufe8g, den vis4 mit 3 FEHLERN meldete („Pack map as .pk3“ 1–2 Pixel außerhalb
+des Fensters), ist auf dem gemergten Stand grün (**43 OK, 0 FEHLER**, der Klick auf „Pack map as .pk3##baupk3“ und die
+Prüfung der .pk3 gehen durch) – reste2 bricht hohe Menüs wie NRC in Spalten um (b49c49e2, 0a7587a1).
+
+**Auftrag `MeKompOriginal`** (30be8cb8): M7 hatte den Text ohne Mehrzahl formuliert („copies: %d“, trN gab es im Zweig
+noch nicht); jetzt „(%d {copy|copies})“ / „(%d {Kopie|Kopien})“ über `trN`. ctest `sprache` (jeder Zähltext jeder
+Sprache für 0/1/2/3/5/21) grün, lint_i18n ok.
+
+### Prüfungen (unter Last)
+
+| Schritt | Ergebnis |
+|---|---|
+| Bau je Merge (inkrementell, /W4 /WX) | **0 Warnungen** (Tabelle oben) |
+| ctest je Merge | 183/183, 183/183, 184/184, 187/188 (`untertitel`, Fund 1), 187/188, nach den Funden 188/188, nach vis1 188/188 |
+| Sauberer Neubau (`--clean-first`, alle Ziele, 179 Projekte) auf c809c2f1 | **0 Fehler, 0 Warnungen** (689 s) |
+| ctest gesamt danach | **188/188** (283 s) |
+| lint_sources, lint_fassung (rc606), lint_i18n (0 Beanstandungen), lint_i18n_erzeugt, lint_gapp, lint_imgui_context, lint_layout, lint_tabellenid, lint_hoehe, lint_feldinit, lint_abstand, lint_doppelanzeige, lint_headers, lint_msvclink, lint_merkmalsbits | ok |
+| übrige Lints | wie Integration 5 (efxflags, endtable 2, fremdprogramm, mapstate, pruefcodes 11, settings 1); lint_portability 236 → **232** (M7 hat `<cstddef>` nachgezogen); **lint_d3dbesitz 20 → 21**: „Tabelle g_figurBilder wird in shutdown() nicht geleert“ – kommt aus reste2 (auf 59a2dac1 allein ebenso), Falschmeldung: `shutdown()` ruft `figurBilderAllesLoesen()`, das freigibt und leert; der Prüfer liest nur den Rumpf von `shutdown()` |
+| lint_i18n_erzeugt (Hinweis aus vis4: lief dort nicht durch) | hier ok – im Wegwerf-Klon und in `Y:\karte` („i18n-Erzeugungsprüfung: ok“) |
+| Handbuch-Bau (`gen_handbuch.py`), gen_i18n, gen_hilfe_orte | 161 Seiten × 6 Sprachen, 3259 Texte, 195 Orte – ohne Änderung gegenüber dem Commit |
+| menueeditor, Movie-Duels-Daten / JKA-Daten („GameData original“, nur gelesen) | **134 OK, 0 FEHLER** / **134 OK, 0 FEHLER**; GameData original danach unverändert (keine Datei neuer als der Start) |
+| zeitleiste1 / zeitleiste | **87 OK, 0 FEHLER** / **47 OK, 0 FEHLER** |
+| dock1 / dock4 / dock2mass (DockSpace ab Werk an) | **97 / 106 / 29 OK**, je 0 FEHLER (dock4 ohne `BHED_DOCK4_EXTERN`: die Ablage aus einem zweiten Prozess – im Zweig 107 – läuft nicht mit) |
+| karteneditor kurz + Fotos (`BHED_KARTE_NUR=fotos`, `BHED_FOTOS`) | **78 OK, 0 FEHLER** |
+| karteneditor `stufe8` / `stufe8g` / `stufe9d` / `hilfe2` | **40 / 43 / 28 / 44 OK**, je 0 FEHLER |
+| modellleistung | **10 OK, 0 FEHLER** |
+| mission1 (`BHED_FOTOS`) | **98 OK, 0 FEHLER** (440 s) |
+| Modus 1 (en, DockSpace an – „DockSpace von Bereich 0/1/2 aufgebaut“, `BHED_HANDBUCH`) | **2650 OK, 0 FEHLER** (441 s), 0 Zusicherungen |
+
+Die Selbsttests und Modus 1 liefen auf dem sauberen Neubau von c809c2f1 (0ce0164c ändert nur Bilder) (Einstellungen `behaved.cfg.sicher`, nur eigener Ordner).
+
+### Was auf Spanisch/Tschechisch noch englisch ist (für Übersetzung Runde 3)
+
+| | es | cs |
+|---|---|---|
+| Programmtexte (`gen_i18n.py --fehlend`) | **49** | **49** |
+| davon menue6 (M7) / reste2 / vis1 (vis4) | 33 / 13 / 3 | 33 / 13 / 3 |
+| Handbuchtexte (`gen_handbuch.py --pflicht=es/cs`) | **44** | **44** |
+| Handbuchbilder englisch | **5** (`h_dock_ecke`; M7: `menue_datapad`, `menue_gizmo`, `menue_komponente`, `menue_ladebild`) | **5** |
+
+Handbuchtexte: vor allem die von dock4 neu geschriebene Seite „Fenster und Bildschirme anordnen“, dazu M7 (Seite
+`menue_editor_m7`), reste2 (hohe Menüs in Spalten, Decals), Zeitleiste 4 (Aufnahme) und vis4. `gen_handbuch.py`:
+„30 Einträge in uebersetzung/ werden nicht mehr gebraucht“ – es/cs-Übersetzungen zu Sätzen, deren englischen
+Wortlaut dock4 und Zeitleiste 4 geändert haben. Nicht gezählt (der Generator sieht es nicht): es/cs-Bilder mit
+Menüleiste ohne „Window“ (dock4: 13) und es/cs-Bilder, die noch die alte Zeitleiste zeigen (Zeitleiste 3/4 hat nur
+en/de/zh/ja neu aufgenommen).
+
+### Gegen das Vorbild geprüft / nicht geprüft
+
+- Fund 1 gegen die Quellen (Weg CG_DrawCaptionText → re.Font_DrawString in JK2, wie oben; RE_Font_StrLenPixels unter
+  JK2_MODE mit GetLetterHorizAdvance) und gegen die Spielfotos von M7 (jk2sp.exe/jk2mp.exe, `SP\m7\caret`) – im
+  Programm über ctest, kein eigener Spielstart (Untertitel von JK2 nicht im Spiel fotografiert).
+- `beineTimerBisMs`: beide Bedeutungen gegen ihre Herkunft (pruefung2: G_CheckSpecialDeathAnim; Zeitleiste 4:
+  PM_SetAnimFinal/bodyPlay) – über ctest `pruefung2` und die Selbsttests zeitleiste1/mission1.
+- vis4: bitgleich laut Zweig; hier `q3map2_gpubake` und `karte_gpuwahl` (ctest), stufe8g, stufe9d grün; kein eigener
+  Bytevergleich großer Karten.
+- Nicht geprüft (Auftrag): alle Modi, Kartenprüfung (Schlussrunde), Tempo (alles unter Last).
+
+### Offen / nächster Schritt
+
+- **Nächster Schritt:** Integration 7 (Pruefung 4a/4b, vis4-Rest), danach die Schlussrunde mit allen Modi und der Kartenprüfung.
+- lint_d3dbesitz: Falschmeldung `g_figurBilder` (reste2) – der Prüfer sollte die Hilfsfunktionen aus `shutdown()`
+  mitlesen oder die Freigabe in `shutdown()` stehen.
+- stufe8g: auf diesem Stand grün; der Abschluss-Agent sollte es im vis-Zweig nach dem nächsten Merge von karte1 noch
+  einmal sehen (dort 3 FEHLER ohne reste2).
+- es/cs: 49 Programmtexte, 44 Handbuchtexte, 5 Bilder (Tabelle oben), dazu die es/cs-Bilder ohne „Window“ bzw. mit der alten Zeitleiste – Übersetzung Runde 3.
+- Unverändert aus Integration 5: Bilder der Seite zeitleiste in de/zh/ja (soweit nicht von Zeitleiste 4 erneuert),
+  18 Tutorial-Schritte ohne Bild. Der überlange MD-Schlüssel im Einstellungs-Assistenten (uebersetzung2) hat M7 mit der
+  Tabelle gelöst (57ab5264).
+
+### Changelog
+
+#### English
+
+- Jedi Outcast subtitles in the timeline preview treat every character after ^ as a colour code, as the game does (checked with photos of jk2sp.exe).
+- Menu editor: the original of a component names its copies with the right plural.
+
+#### Deutsch
+
+- Untertitel von Jedi Outcast in der Vorschau der Zeitleiste nehmen jedes Zeichen nach ^ als Farbcode – wie das Spiel (mit Fotos aus jk2sp.exe geprüft).
+- Menü-Editor: das Original einer Komponente nennt seine Kopien in der richtigen Mehrzahl.
+
+#### 中文
+
+- 时间轴预览中的 Jedi Outcast 字幕把 ^ 后面的每个字符都当作颜色代码,与游戏一致(用 jk2sp.exe 的截图核对)。
+- 菜单编辑器:组件原件以正确的单复数显示其副本数量。
+
+#### 日本語
+
+- タイムラインのプレビューで、Jedi Outcast の字幕は ^ の後の文字をすべて色コードとして扱います(ゲームと同じ。jk2sp.exe の画面で確認)。
+- メニューエディター: コンポーネントの原本が、コピーの数を正しい単複形で表示します。
