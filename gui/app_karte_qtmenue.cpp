@@ -152,6 +152,7 @@ struct Menue {
     float unten = 0.0F;          // tiefste Unterkante (sizeHint)
     float spaltenMax = 0.0F;     // column_max_y
     float spaltenB = 0.0F;       // max_column_width aus dem letzten Bild (0: noch unbekannt)
+    bool mehrspaltig = false;    // im letzten Bild mehr als eine Spalte
     int spalte = 0;
     ImGuiWindow* zeilenFenster = nullptr;   // die laufende Zeile: Fenster und dessen WorkRect.Max.x
     float arbeitRechts = 0.0F;
@@ -363,7 +364,10 @@ void menueBeginnen(ImGuiID key, bool abriss, const Masse& m) {
     neu.y = neu.basis;
     neu.unten = neu.basis;
     neu.spaltenMax = ImGui::GetPopupAllowedExtentRect(ImGui::GetCurrentWindow()).GetHeight();
-    if (const auto it = g_groessen.find(key); it != g_groessen.end()) { neu.spaltenB = it->second.spalteB; }
+    if (const auto it = g_groessen.find(key); it != g_groessen.end()) {
+        neu.spaltenB = it->second.spalteB;
+        neu.mehrspaltig = it->second.b > it->second.spalteB * 1.5F;
+    }
     g_stapel.push_back(neu);
     // Waagerecht kein Abstand: die Zeile reicht genau von Rand zu Rand (Qt:
     // PM_MenuHMargin 0), senkrecht der Rest der Qt-Zeile ueber dem Text.
@@ -384,14 +388,14 @@ ImRect zeileAnfangen(float h, float abstand) {
         ++mn->spalte;
         mn->y = mn->basis;
     }
-    if (mn->spaltenB > 0.0F) {
-        sp.Min.x = w->Pos.x + mn->spaltenB * static_cast<float>(mn->spalte);
-        sp.Max.x = sp.Min.x + mn->spaltenB;
-    }
-    if (mn->spalte > 0) { ImGui::SetCursorScreenPos(ImVec2{sp.Min.x, w->Pos.y + mn->y + abstand * 0.5F}); }
     mn->zeilenFenster = w;
     mn->arbeitRechts = w->WorkRect.Max.x;
-    w->WorkRect.Max.x = sp.Max.x;
+    if (mn->spaltenB > 0.0F && (mn->mehrspaltig || mn->spalte > 0)) {   // eine Spalte: das ganze Fenster wie bisher
+        sp.Min.x = w->Pos.x + mn->spaltenB * static_cast<float>(mn->spalte);
+        sp.Max.x = sp.Min.x + mn->spaltenB;
+        w->WorkRect.Max.x = sp.Max.x;
+    }
+    if (mn->spalte > 0) { ImGui::SetCursorScreenPos(ImVec2{sp.Min.x, w->Pos.y + mn->y + abstand * 0.5F}); }
     return sp;
 }
 
