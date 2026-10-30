@@ -1941,22 +1941,42 @@ std::vector<Schritt> bauen() {
         return konsoleArtMit(ke::KonsolenZeile::Art::Fehler, "ERROR") &&
                konsoleArtMit(ke::KonsolenZeile::Art::Fehler, gestopptZeile("Single: light stage", 1, 1, "error"));
     }));
-    // Port 39000 belegt: NRCs Meldung und der Kasten "Build monitoring"
-    auto horcher = std::make_shared<bauplattform::Horcher>();
+    // reste1 Punkt 3: Port 39000 belegt (ein zweiter Bau, ein zweites JK Studio) - gebaut wird mit dem
+    // naechsten freien Port, q3map2 bekommt ihn in -connect (NRC brach hier ab)
+    auto horcher = std::make_shared<std::vector<std::unique_ptr<bauplattform::Horcher>>>();
     add(tu("Port 39000 belegen, Konsole leeren", [horcher] {
         std::string f;
-        if (!horcher->lauschen(39000, f)) { meldeFehler("Port 39000 nicht belegt: " + f); }
+        horcher->push_back(std::make_unique<bauplattform::Horcher>());
+        if (!horcher->back()->lauschen(ke::kBauMonitorPort, f)) { meldeFehler("Port 39000 nicht belegt: " + f); }
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Single: bsp stage"));
+    add(warteBis("Bauen fertig (Port 39000 belegt)", [] { return !ke::bauLaeuft(); }, 3600));
+    add(pruefe("Port 39000 belegt: gebaut mit 127.0.0.1:39001, q3map2 verbunden, fertig", [] {
+        const std::string k = konsoleText();
+        diag::detail("Knopftest: Stufe 3/4 Port: " + k.substr(0, std::min<std::size_t>(k.size(), 600)));
+        return k.find("monitoring on 127.0.0.1:39001") != std::string::npos && k.find("-connect 127.0.0.1:39001 ") != std::string::npos &&
+               k.find("Connected.") != std::string::npos && k.find(fertigZeile("Single: bsp stage", 1)) != std::string::npos &&
+               !ke::editor().meldung.offen;
+    }));
+    // Alle Ports belegt: NRCs Meldung (mit dem Bereich) und der Kasten "Build monitoring"
+    add(tu("Ports 39001-39063 auch belegen, Konsole leeren", [horcher] {
+        std::string f;
+        for (int p = ke::kBauMonitorPort + 1; p < ke::kBauMonitorPort + ke::kBauMonitorPorts; ++p) {
+            horcher->push_back(std::make_unique<bauplattform::Horcher>());
+            if (!horcher->back()->lauschen(p, f)) { meldeFehler("Port " + std::to_string(p) + " nicht belegt: " + f); }
+        }
         ke::konsoleLeeren();
     }));
     add(bauMenuepunkt("Single: bsp stage"));
     add(pause(0.3));
-    add(pruefe("Port belegt: \"Failed to get a listening socket on port 39000.\" in der Konsole und im Kasten \"Build monitoring\", kein Bauen", [] {
+    add(pruefe("Alle Ports belegt: \"Failed to get a listening socket on ports 39000-39063.\" in der Konsole und im Kasten \"Build monitoring\", kein Bauen", [] {
         const ke::Editor& e = ke::editor();
-        return konsoleText().find("Failed to get a listening socket on port 39000.\nTry running with Build monitoring disabled") != std::string::npos &&
+        return konsoleText().find("Failed to get a listening socket on ports 39000-39063.\nTry running with Build monitoring disabled") != std::string::npos &&
                e.meldung.offen && e.meldung.titel == "Build monitoring" && !ke::bauLaeuft();
     }));
     add(klick(std::string(ke::trK(Str::KePrefOk)) + "##meldungok"));
-    add(tu("Port 39000 frei", [horcher] { horcher->schliessen(); }));
+    add(tu("Ports frei", [horcher] { horcher->clear(); }));
     add(pause(0.2));
     // Zeitueberschreitung: ein ueberwachter Befehl (mit [MonitorAddress]), der sich nicht verbindet
     add(tu("Eintrag \"Test ohne Verbindung\" (die Adresse nur im Dateinamen), Konsole leeren", [] {

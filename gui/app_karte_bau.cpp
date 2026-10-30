@@ -1622,12 +1622,27 @@ void schrittBeginnen() {
     // SetupListening
     ausgabe("Setting up");
     std::string grund;
-    if (!l.horcher.lauschen(39000, grund)) {
-        const std::string msg = "Failed to get a listening socket on port 39000.\nTry running with Build monitoring disabled if you can't fix this.\n";
+    int port = 0;
+    for (int p = kBauMonitorPort; p < kBauMonitorPort + kBauMonitorPorts && port == 0; ++p) {
+        if (l.horcher.lauschen(p, grund)) { port = p; }
+    }
+    if (port == 0) {
+        const std::string msg = "Failed to get a listening socket on ports " + std::to_string(kBauMonitorPort) + "-" +
+                                std::to_string(kBauMonitorPort + kBauMonitorPorts - 1) +
+                                ".\nTry running with Build monitoring disabled if you can't fix this.\n";
         konsoleSchreiben(KonsolenZeile::Art::Ausgabe, msg);
         meldungsKasten(msg);
-        zusammenfassung(1, "port 39000");
+        zusammenfassung(1, "port " + std::to_string(kBauMonitorPort));
         return;
+    }
+    if (port != kBauMonitorPort) {
+        // der Bauprozess verbindet sich mit dem Port, auf dem dieser Editor lauscht
+        const std::string adresse = "127.0.0.1:" + std::to_string(port);
+        std::string& befehl = l.befehle[l.schritt];
+        for (std::size_t i = befehl.find(kBauMonitorAdresse); i != std::string::npos; i = befehl.find(kBauMonitorAdresse, i + adresse.size())) {
+            befehl.replace(i, std::char_traits<char>::length(kBauMonitorAdresse), adresse);
+        }
+        ausgabe("Port " + std::to_string(kBauMonitorPort) + " is in use (another build), monitoring on " + adresse);
     }
     ausgabe("Listening...");
     l.schrittStart = std::chrono::steady_clock::now();   // m_timeout_timer.start()
