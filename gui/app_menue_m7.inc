@@ -232,8 +232,10 @@ void zeichneKomponente(Dokument& d) {
             if (k.menu == mi && k.name == name && ImGui::Button(tr(Str::MeKompZumOriginal))) { d.auswahl.assign(1, k.original); }
         }
     } else {
-        if (z.kompFuer != item) {
-            z.kompFuer = item;
+        // je Element neu vorbelegen - auch beim Wechsel der Datei mit gleicher Nummer
+        const std::string fuer = d.name + "|" + std::to_string(mi) + "|" + std::to_string(item) + "|" + it.window.name;
+        if (z.kompFuer != fuer) {
+            z.kompFuer = fuer;
             z.kompName = it.window.name.empty() ? std::string("komponente") : it.window.name;
         }
         ImGui::SetNextItemWidth(ImGui::GetFontSize() * 10);

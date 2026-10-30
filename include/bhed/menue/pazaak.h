@@ -2,12 +2,19 @@
 // Platz, ui/pazaak/sje_pazaak.menu) - Spielfeld, Hand, Namen, Punkte, Dialog, Kartenwahl, Anleitung.
 // Ohne laufende Partie: ein beschrifteter Beispielzustand (Spielmitte, Kartenwahl befuellt).
 //
-// Portiert aus Movie Duels code/ui/ui_pazaak.cpp (UI_Pazaak_OwnerDraw, SJE_Pazaak_DrawCardSlot,
+// Portiert aus OpenJK-Ableger Movie Duels: code/ui/ui_pazaak.cpp (UI_Pazaak_OwnerDraw, SJE_Pazaak_DrawCardSlot,
 // SJE_Pazaak_DrawSelCardSlot, SJE_Pazaak_DrawSideDeckSlot, SJE_Pazaak_DrawHandSlot,
 // SJE_Pazaak_DrawNames, SJE_Pazaak_DrawPoints, SJE_Pazaak_DrawDialog, SJE_Pazaak_DrawTimeout,
 // SJE_Pazaak_DrawWaiting, SJE_Pazaak_HowToWords, SJE_Pazaak_DrawHowTo, Pazaak_GetCardShader,
 // Pazaak_GetNeutralCardValue, Pazaak_GetCardValue, Pazaak_DrawCardText, Pazaak_CacheShaders) und
-// code/ui/pazaak_core.h (Kartennummern). Movie Duels: GNU General Public License version 2.
+// code/ui/pazaak_core.h (Kartennummern); dort aus Jedi Knight Galaxies.
+//
+//   Copyright (C) 1999 - 2005, Id Software, Inc.
+//   Copyright (C) 2000 - 2013, Raven Software, Inc.
+//   Copyright (C) 2001 - 2013, Activision, Inc.
+//   Copyright (C) 2013 - 2015, OpenJK contributors
+//
+//   Movie Duels: GNU General Public License version 2.
 #ifndef BHED_MENUE_PAZAAK_H
 #define BHED_MENUE_PAZAAK_H
 

@@ -1,5 +1,5 @@
-// ownerdraw.cpp - Menue-Editor M7 Punkt 14: UI_OwnerDraw je Nummer (Herkunft und Lizenz im Kopf
-// von include/bhed/menue/ownerdraw.h).
+// ownerdraw.cpp - Menue-Editor M7 Punkt 14: UI_OwnerDraw je Nummer (Portiert aus OpenJK, Einzelheiten und
+// Lizenz im Kopf von include/bhed/menue/ownerdraw.h).
 //
 //   Copyright (C) 1999 - 2005, Id Software, Inc.
 //   Copyright (C) 2000 - 2013, Raven Software, Inc.

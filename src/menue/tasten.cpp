@@ -1,4 +1,4 @@
-// tasten.cpp - Menue-Editor M7: Tastenbelegung wie im Spiel (Herkunft und Lizenz im Kopf von
+// tasten.cpp - Menue-Editor M7: Tastenbelegung wie im Spiel (Portiert aus OpenJK, Einzelheiten und Lizenz im Kopf von
 // include/bhed/menue/tasten.h).
 //
 //   Copyright (C) 1999 - 2005, Id Software, Inc.

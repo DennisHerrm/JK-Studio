@@ -363,7 +363,7 @@ struct Zustand {
     std::string testOrdnerLose;
     int testNeuGeladen = 0;
     // M7 Punkt 3/12: Komponenten-Name im Eingabefeld, Griff am Modell (0 = keiner, 1 Drehen, 2 Abstand, 3 Hoehe, 4 Blickwinkel)
-    int kompFuer = -1;
+    std::string kompFuer;   // Datei, Menue, Item und Name, fuer die kompName vorbelegt ist
     std::string kompName;
     int gizmoArt = 0;
     int gizmoItem = -1;
@@ -5016,9 +5016,9 @@ void panelEigenschaften(Dokument& d) {
     ImGui::PushID("panelEigenschaften");
     zeichneOriginal(d);        // M6 Punkt 8 (oben: Unterschied und Zuruecksetzen sofort sichtbar)
     zeichneEigenschaften(d);
-    zeichneKomponente(d);      // M7 Punkt 3
     zeichneModSchluessel(d);   // M5b Punkt 4
     zeichneLayout(d);
+    zeichneKomponente(d);      // M7 Punkt 3 (nach dem Layout: dessen Knoepfe bleiben ohne Rollen sichtbar)
     if (g_app->settings.menueTextUnten) { zeichneEreignisse(d); }   // mit Reitern: eigener Reiter Ereignisse
     zeichneCvars(d);
     zeichneMeldungen(d);

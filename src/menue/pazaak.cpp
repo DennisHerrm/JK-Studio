@@ -1,6 +1,13 @@
 // pazaak.cpp - Menue-Editor M7 Punkt 14: Pazaak-Ownerdraws von Movie Duels (Herkunft und Lizenz im
 // Kopf von include/bhed/menue/pazaak.h).
 //
+// Portiert aus OpenJK-Ableger Movie Duels (code/ui/ui_pazaak.cpp, dort aus Jedi Knight Galaxies).
+//
+//   Copyright (C) 1999 - 2005, Id Software, Inc.
+//   Copyright (C) 2000 - 2013, Raven Software, Inc.
+//   Copyright (C) 2001 - 2013, Activision, Inc.
+//   Copyright (C) 2013 - 2015, OpenJK contributors
+//
 //   Movie Duels / OpenJK: GNU General Public License version 2 (LICENSE).
 #include "bhed/menue/pazaak.h"
 

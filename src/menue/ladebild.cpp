@@ -1,5 +1,5 @@
-// ladebild.cpp - Menue-Editor M7 Punkt 11: Lade- und Verbindungsmenues mit Beispielwerten (Herkunft
-// und Lizenz im Kopf von include/bhed/menue/ladebild.h).
+// ladebild.cpp - Menue-Editor M7 Punkt 11: Lade- und Verbindungsmenues mit Beispielwerten
+// (Portiert aus OpenJK, Einzelheiten und Lizenz im Kopf von include/bhed/menue/ladebild.h).
 //
 //   Copyright (C) 1999 - 2005, Id Software, Inc.
 //   Copyright (C) 2000 - 2013, Raven Software, Inc.

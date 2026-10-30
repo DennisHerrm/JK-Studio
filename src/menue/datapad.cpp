@@ -1,5 +1,5 @@
-// datapad.cpp - Menue-Editor M7 Punkt 14: Datapad-Ownerdraws des Einzelspielers (Herkunft und
-// Lizenz im Kopf von include/bhed/menue/datapad.h).
+// datapad.cpp - Menue-Editor M7 Punkt 14: Datapad-Ownerdraws des Einzelspielers (Portiert aus OpenJK,
+// Einzelheiten und Lizenz im Kopf von include/bhed/menue/datapad.h).
 //
 //   Copyright (C) 1999 - 2005, Id Software, Inc.
 //   Copyright (C) 2000 - 2013, Raven Software, Inc.
