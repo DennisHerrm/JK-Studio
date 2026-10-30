@@ -182,7 +182,7 @@ tools/handbuch/inhalt_menue6.py, GUI gui/app_menue_m6.inc.
   und Item_ApplyHacks führt die Vorschau nicht); die Lesbarkeits-Schwellen sind Richtwerte.
 - Nächster Schritt: 14 (Platzhalter nach Engine-Code), dann 11/12, dann 3.
 
-## M7 (Auftrag SPuftrag_m7.md, 30.10.)
+## M7 (Auftrag SP\auftrag_m7.md, 30.10.)
 
 Reihenfolge: 14 Platzhalter, M5b-Reste (Tasten, MP-Startmenü, JK2-Setup, Chromglanz), 11 Lade-/
 Verbindungs-/Ingame-Menüs, 13 ui_load bei „Im Spiel testen“, 3 Komponenten, 12 Gizmo, Selbsttest JKA +
@@ -323,6 +323,55 @@ Spielfotos der Vorlagen. Steam läuft seit 30.10. 09:30 (Original-JKA/JK2 erlaub
   beim Ziehen über eine Kopie der Datei, beim Loslassen eine Ersetzung. Selbsttest mit echten Mauszügen
   (model_angle 30, g2mins/maxs geschrieben). Jedi Outcast: Blickwinkel fest 45 und Drehung nach Zeit
   (JK2_MODE) - dort wirken nur Abstand und Höhe.
+
+### M6-Vorlagen im laufenden Spiel
+
+- Die vier Seitenvorlagen (bhed::menue::seitenVorlage, SP-Fassung; SP\m7\vorlagen\gen.cpp schreibt genau den
+  Text, den der Editor einfügt, mit eindeutigen Namen jks_haupt/_einst/_credits/_lade) lose im eigenen Ordner:
+  ui/jks_*.menu und ui/menus.txt (wirksame Liste des Spiels + loadMenu), je Vorlage ein Start mit
+  `+uimenu <name>`, Foto per screenshot_tga (SP\m7\vorlagen_spiel.py; Original-JKA über orig_kopie.py,
+  „GameData wie vorher: True“; Jedi Outcast aus „Jedi Outcast\GameData“ mit kurzem fs_basepath, Ordnerzeiten
+  dort unverändert). Editorfotos derselben Dateien im Bedienmodus (BHED_MENUE_VERGLEICH, „ui/x.menu|<datei>“,
+  SP\m7\vorlagen_editor.sh), mittlere Abweichung im 8x6-Raster (Grauwerte 0-255):
+  - Original-JKA (jasp.exe): Haupt 0,5, Einstellungen 1,0 -> 0,8, Credits 1,3, Laden 0,6.
+  - Jedi Outcast (jk2sp.exe): 0,6 / 0,9 / 1,3 / 0,6.
+  - Movie Duels SP: 2,7 / 3,0 -> 2,9 / 3,6 / 2,5 - der Rest ist überall gleich: MD gibt dunkle Farben 2-3
+    Stufen dunkler aus (Hintergrund 0,02 0,03 0,08: Editor 5 8 20, MD 3 5 18, JKA/JK2 5 7 20) - Renderer,
+    nicht Menücode.
+- Fund dabei: Schieber je Fassung verschieden (Item_Slider_Paint, code/ui gegen codemp/ui): JA/JK2 SP
+  SLIDER_WIDTH 128, Leiste und Daumen bei y + 2, Daumen 16 hoch; Movie Duels SP 96 breit, sonst wie SP; MP
+  96, Leiste bei y, Daumen y - 2 und 20 hoch. Der Editor zeichnete überall die MP-Maße (Original-JKA zeigte
+  die Leiste 128 breit und 2 tiefer). Jetzt sliderMasse(Dialekt, Spiel), auch für den Klick im Bedienmodus
+  (Item_Slider_HandleKey). ctest menue_vorschau: rot (JA SP, MD SP), grün; die tote Funktion sliderDaumen
+  (seit M1 ohne Aufrufer) entfernt.
+
+### Zusatzpunkte (Koordinator)
+
+- Einstellungs-Assistent (aus Übersetzung 2): feste Spalten (SameLine fs*12 / fs*26) - lange MD-Schlüssel und
+  Texte ragten in die nächste Spalte. Selbsttest m6 zählt Zeilen, deren sichtbarer Text über den Anfang der
+  nächsten Spalte reicht (FlussInfo::assistentUeberlappung): rot 14 Zeilen (MD-Daten, Englisch). Jetzt eine
+  Tabelle (Einstellung | Steuerung | Text, Spalten so breit wie der längste Eintrag, ziehbar, beschnitten,
+  abgeschnittener Text als Tooltip, Fenster 44 statt 36 Zeichen breit): grün 0 in en, de, zh-Hans, ja.
+  Handbuchbilder menue_assistent in vier Sprachen neu, Satz zu den Spalten im Handbuch. MeKompOriginal ohne
+  Mehrzahl formuliert (trN gibt es in diesem Zweig noch nicht).
+- Jedi-Outcast-Farbcodes (aus Integration 5): Testmenüs SP\m7\caret\jks_caret(2).menu in jk2sp.exe und
+  jk2mp.exe fotografiert (SP\m7\caret_spiel.py). Ergebnis im Spiel - anders als OpenJK JK2_MODE:
+  - Zeichnen (beide Programme): jedes Zeichen nach ^ ist eine Farbe, ColorIndex(c) = (c - '0') & 7 -
+    „A^B^C^D^E“ zeigt nur A, „A^Bx^Cy^0z“ zeigt A, x grün, y gelb, z schwarz. OpenJK JK2_MODE (und karte1
+    3cae6104) lässt nur das ^ weg und zeichnet das B.
+  - Breite: jk2sp.exe zählt jedes Zeichen, auch ^ und Ziffer (wie OpenJK JK2_MODE); jk2mp.exe zählt von
+    ^ und Ziffer die Ziffer (gemessen mit anewhope, ^ 15 / 1 7), ^ mit anderem Zeichen zählt beide.
+  - Umsetzung mit derselben Funktion wie karte1: schriftZeichnen (aus dem Maler gezogen, Text wie
+    karte1 3fd09a50/3cae6104) mit jk2Modus, aber mit dem Verhalten aus den Fotos; schriftBreite mit
+    Jk2Schrift (Nein/Sp/Mp), Umgebung::jk2 (GUI: Spiel JK2 -> Sp bzw. Mp). Alle Breiten der Vorschau
+    (Text_Width, Textscroll-Umbruch, Ladebild, Ownerdraw-Kontext) nehmen es mit.
+  - Rot/grün: ctest menue_vorschau rot (4 Prüfungen), grün; Editor gegen Spiel (SP\m7\caret_editor.sh):
+    vorher 4,3 / 4,5 (SP) und 3,8 (MP), nachher 0,9 / 0,8 / 0,8 / 0,7.
+  - Für die Integration: karte1 untertitel::breite rechnet JK2 eigens (jedes Zeichen) - das ist
+    schriftBreite(..., Jk2Schrift::Sp); und die Untertitel-Prüfung von 3cae6104 erwartet das B nach „^“ -
+    jk2sp.exe nimmt es als Farbe (CG_DrawCaptionText geht über dieselbe RE_Font_DrawString).
+- Portierungs-Lint: <cstddef> in den M6-Tests menuefluss/menuefokus/menuelesbar, dazu in den M7-Tests
+  menueladebild/menueownerdraw und <algorithm>/<cstddef> in menuevorschau.
 
 ## Changelog
 
