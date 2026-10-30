@@ -137,9 +137,10 @@ int main() {
     pruefe(z.size() == 2 && z[0].x == 20 && z[0].y == 432 && z[1].x == 275 && z[1].y == 452,
            "zwei Zeilen: y = Mitte - Schrifthoehe - 4, mittig (640 - Breite) / 2");
     pruefe(untertitel::zeigen(u, 999.0, f, Spiel::JediAcademy, true, 48.0F).empty(), "vor dem Klang nichts");
-    pruefe(!untertitel::zeigen(u, 7900.0, f, Spiel::JediAcademy, true, 48.0F).empty() &&
-               untertitel::zeigen(u, 7901.0, f, Spiel::JediAcademy, true, 48.0F).empty(),
-           "nach der Buchstabenzeit beider Zeilen vorbei (captionNextTextTime < cg.time)");
+    // Clientbilder alle 8 ms ab der Ankunft (1000): das erste nach 7900 ist 7904.
+    pruefe(!untertitel::zeigen(u, 7903.0, f, Spiel::JediAcademy, true, 48.0F).empty() &&
+               untertitel::zeigen(u, 7904.0, f, Spiel::JediAcademy, true, 48.0F).empty(),
+           "nach der Buchstabenzeit beider Zeilen vorbei - im ersten Clientbild danach (captionNextTextTime < cg.time)");
     const untertitel::Untertitel draussen = untertitel::setzen("abc\n def\nghi", 1100, 0.0, false, 0.0F, f, Spiel::JediAcademy);
     pruefe(draussen.zeilen.size() == 3 && draussen.zeilen[1] == "def" && draussen.textY == 396,
            "\\n bricht, Leerzeichen am Zeilenanfang faellt weg, ausserhalb: 0.88 * (480 - 1.5 * Hoehe)");
@@ -149,6 +150,14 @@ int main() {
                 s2.empty() ? 0 : s2[0].y);
     pruefe(s1.size() == 2 && s2.size() == 1 && s2[0].text == "ghi" && s2[0].y == 396 - 10 - 4,
            "zweite Seite: die dritte Zeile allein, y = Mitte - halbe Hoehe - 4");
+    // 12 Zeichen, 1100 ms: 91 ms je Buchstabe. Seite 1 (6 Zeichen) bis 546, das
+    // Spiel blaettert im Clientbild 552 und rechnet von dort: Seite 2 (3 Zeichen)
+    // bis 552 + 273 = 825, vorbei im Bild 832.
+    pruefe(untertitel::zeigen(draussen, 551.0, f, Spiel::JediAcademy, false, 0.0F).size() == 2 &&
+               untertitel::zeigen(draussen, 552.0, f, Spiel::JediAcademy, false, 0.0F).size() == 1 &&
+               untertitel::zeigen(draussen, 831.0, f, Spiel::JediAcademy, false, 0.0F).size() == 1 &&
+               untertitel::zeigen(draussen, 832.0, f, Spiel::JediAcademy, false, 0.0F).empty(),
+           "Seitenwechsel im ersten Clientbild nach captionNextTextTime, die naechste Seite zaehlt ab diesem Bild");
 
     std::printf("Wann das Spiel den Untertitel schickt (PlayIcarusSound)\n");
     untertitel::Klangfall kf;
@@ -174,13 +183,15 @@ int main() {
     pruefe(gelb[0] == 1 && gelb[1] == 1 && gelb[2] == 0 && weiss[2] == 1 && weiss[3] == 1, "SET_CAPTIONTEXTCOLOR: YELLOW, Unbekanntes weiss");
 
     std::printf("Movie Duels und Jedi Outcast\n");
-    pruefe(untertitel::mdGroesse(untertitel::kMdTextprintscale) == 0.5F && untertitel::mdGroesse(5.0F) == 2.0F &&
+    // Vorgabe aus der installierten MovieDuels-gamex86_64.dll (27.10.2026,
+    // Cvar-Tabelle: "cg_textprintscale", "0.66f", CVAR_ARCHIVE).
+    pruefe(untertitel::mdGroesse(untertitel::kMdTextprintscale) == 0.66F && untertitel::mdGroesse(5.0F) == 2.0F &&
                untertitel::mdGroesse(0.1F) == 0.25F,
-           "MD: cg_textprintscale 0.5, begrenzt auf 0.25 .. 2");
-    const untertitel::Untertitel md = untertitel::setzen(t, 6900, 0.0, true, 48.0F, f, Spiel::MovieDuels);
+           "MD: cg_textprintscale 0.66, begrenzt auf 0.25 .. 2");
+    const untertitel::Untertitel md = untertitel::setzen(t, 6900, 0.0, true, 48.0F, f, Spiel::MovieDuels, 0.5F);
     const std::vector<untertitel::Zeile> mz = untertitel::zeigen(md, 10.0, f, Spiel::MovieDuels, true, 48.0F);
     pruefe(md.zeilen.size() == 1 && md.schriftGroesse == 0.5F && mz.size() == 1 && mz[0].y == 456 - 5 - 2 && mz[0].x == (640 - 345) / 2,
-           "MD: halbe Schrift - eine Zeile, y = Mitte - halbe Hoehe - 4 * 0.5");
+           "MD mit 0.5: halbe Schrift - eine Zeile, y = Mitte - halbe Hoehe - 4 * 0.5");
     pruefe(untertitel::breite(f, "^1ab", 1.0F, Spiel::JediAcademy) == 20 && untertitel::breite(f, "^1ab", 1.0F, Spiel::JediOutcast) == 40,
            "Breite: JKA ueberspringt ^1, JK2 zaehlt es");
     std::vector<menue::Prim> glyphen;

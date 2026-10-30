@@ -5,7 +5,7 @@
 //   Movie Duels cgame/cg_servercmds.cpp (CG_ParseServerinfo: stripLevelName),
 //   code/cgame/cg_text.cpp (cg_SP_GetStringTextStringWithRetry, CG_CaptionText,
 //   CG_DrawCaptionText), codeJK2/cgame/cg_text.cpp, Movie Duels
-//   cgame/cg_text.cpp (cg_textprintscale, 2026-10-13), code/game/Q3_Interface.cpp
+//   cgame/cg_text.cpp (cg_textprintscale, 2026-10-13; Vorgabe aus der DLL vom 27.10.), code/game/Q3_Interface.cpp
 //   (PlayIcarusSound: Schluessel und wann "ct" gesendet wird, SetTextColor),
 //   code/game/g_main.cpp (g_subtitles), code/qcommon/strip.cpp
 //   (JK2SP_GetStringID, FixIllegalChars), code/rd-common/tr_font.cpp
@@ -96,8 +96,11 @@ struct Klangfall {
 [[nodiscard]] std::array<float, 4> textFarbe(const std::string& name);
 
 // Movie Duels (cg_text.cpp, CG_CaptionSizeCvar): cg_textprintscale auf
-// 0.25 .. 2 begrenzt; Vorgabe "0.5f" (cg_main.cpp).
-inline constexpr float kMdTextprintscale = 0.5F;
+// 0.25 .. 2 begrenzt. Vorgabe wie in der installierten SP-DLL
+// MovieDuels-gamex86_64.dll vom 27.10.2026: "0.66f", CVAR_ARCHIVE (Eintrag der
+// Cvar-Tabelle nachgelesen; mdgit vom 13.10. hatte noch "0.5f", ebenso die
+// aeltere 32-Bit-DLL und die MP-cgame).
+inline constexpr float kMdTextprintscale = 0.66F;
 [[nodiscard]] float mdGroesse(float cgTextprintscale) noexcept;
 
 // cg.caption* nach CG_CaptionText.
@@ -126,12 +129,15 @@ struct Zeile {
     int x = 0;   // RE_Font_DrawString(x, y, ...) im virtuellen Bildschirm 640x480
     int y = 0;
 };
+// Die Clientbilder, in denen CG_DrawCaptionText laeuft: com_maxfps "125" ->
+// min_msec 1000 / 125 = 8 ms (Com_Frame, common.cpp; wie kSaberClientTaktMs).
+inline constexpr double kClientBildMs = 8.0;
+
 // CG_DrawCaptionText zur Zeit ms: die gezeichneten Zeilen (leer: nichts mehr).
 // Je zwei Zeilen, bis ihre Buchstabenzeit um ist. Das Spiel blaettert im
-// ersten Bild NACH captionNextTextTime und rechnet von dort weiter; hier
-// genau an dieser Zeit (ein Bild Unterschied je Seite, abhaengig von der
-// Bildrate des Spiels). imKino/balkenZiel: Stand jetzt (Movie Duels ab
-// Groesse 1).
+// ersten Clientbild NACH captionNextTextTime und rechnet von dort weiter (die
+// Bilder ab der Ankunft des Untertitels alle kClientBildMs). imKino/balkenZiel:
+// Stand jetzt (Movie Duels ab Groesse 1).
 [[nodiscard]] std::vector<Zeile> zeigen(const Untertitel& u, double ms, const menue::Schrift& schrift, Spiel spiel, bool imKino,
                                         float balkenZiel);
 
