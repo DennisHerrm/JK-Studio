@@ -339,7 +339,7 @@ Spielfotos der Vorlagen. Steam läuft seit 30.10. 09:30 (Original-JKA/JK2 erlaub
     Stufen dunkler aus (Hintergrund 0,02 0,03 0,08: Editor 5 8 20, MD 3 5 18, JKA/JK2 5 7 20) - Renderer,
     nicht Menücode.
   - Mehrspieler (MP-Fassung der Vorlagen als Hauptmenü "main" mit dem assetGlobalDef des Originals in
-    ui/<jamp|jk2mp>/main.menu, SP\m7orlagen_mp.py): Original-JA-MP (jamp.exe) 0,6 / 0,8 / 1,2 / 0,5,
+    ui/<jamp|jk2mp>/main.menu, SP\m7\vorlagen_mp.py): Original-JA-MP (jamp.exe) 0,6 / 0,8 / 1,2 / 0,5,
     Jedi Outcast MP (jk2mp.exe) 0,6 / 1,0 / 1,3 / 0,6.
 - Fund dabei: Schieber je Fassung verschieden (Item_Slider_Paint, code/ui gegen codemp/ui): JA/JK2 SP
   SLIDER_WIDTH 128, Leiste und Daumen bei y + 2, Daumen 16 hoch; Movie Duels SP 96 breit, sonst wie SP; MP
