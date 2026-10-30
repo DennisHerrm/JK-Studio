@@ -2826,6 +2826,11 @@ bool& dockraumAn();
 bool dockraumStandard(int bereich);
 void dockraumZuruecksetzen(int bereich);
 ImGuiID dockraumHeim(const char* panel);
+// Menue "Fenster" im DockSpace: steht das Panel ausserhalb des Hauptfensters,
+// in ein eigenes Fenster nehmen, zurueck an seinen Platz der Standardanordnung.
+bool dockraumDraussen(const char* panel);
+void dockraumHerausnehmen(const char* panel);
+void dockraumAndocken(const char* panel);
 
 // Kartendaten laden - aus einer Datei oder aus einem Archiv.
 void loadMap(const std::string& path);

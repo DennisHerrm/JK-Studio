@@ -5211,6 +5211,9 @@ void dockraumZuruecksetzen(int bereich) {
     if (bereich >= 0 && bereich <= 2) { dockraum::g_raum[static_cast<std::size_t>(bereich)].neuBauen = true; }
 }
 ImGuiID dockraumHeim(const char* panel) { return dockraum::heimKnoten(panel); }
+bool dockraumDraussen(const char* panel) { return dockraum::draussen(panel); }
+void dockraumHerausnehmen(const char* panel) { dockraum::herausnehmen(panel); }
+void dockraumAndocken(const char* panel) { dockraum::andocken(panel); }
 
 // Menue-Editor M1: der Rand des Skript-Editors (rinnenBreite/zeichneRinne aus
 // app_anordnung.inc) fuer den Code-Editor des Menue-Editors.

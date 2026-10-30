@@ -159,14 +159,19 @@ void bauen(int b, const std::vector<ImRect>& r, const ImVec2& groesse) {
     }
     float rest = groesse.x;
     for (std::size_t i = 0; i + 1 < spalten; ++i) {
-        // Die letzte Spalte bleibt der Mittelknoten: sie nimmt den Rest (beim
-        // freien Anordnen, und in Mission/Model die Breite, die das Band ueber
-        // die Spalten hinaus hat - siehe zeichnen).
+        // Script Flow bleibt der Mittelknoten (nimmt beim freien Anordnen den
+        // Rest; ein Mittelknoten bleibt auch leer stehen - Actions dagegen gibt
+        // ausgeblendet oder herausgenommen seinen Platz ab).
         ImGuiID weiter = 0;
-        ImGui::DockBuilderSplitNode(kette, ImGuiDir_Left, std::clamp(r[i].GetWidth() / std::max(1.0F, rest), 0.05F, 0.95F),
-                                    &raum.heim[i], &weiter);
-        kette = weiter;
-        if (i + 2 == spalten) { raum.heim[i + 1] = weiter; }
+        if (i + 2 == spalten && std::string(p[i + 1].id).find(".aktionen") != std::string::npos) {
+            ImGui::DockBuilderSplitNode(kette, ImGuiDir_Right, std::clamp(r[i + 1].GetWidth() / std::max(1.0F, rest), 0.05F, 0.95F),
+                                        &raum.heim[i + 1], &raum.heim[i]);
+        } else {
+            ImGui::DockBuilderSplitNode(kette, ImGuiDir_Left, std::clamp(r[i].GetWidth() / std::max(1.0F, rest), 0.05F, 0.95F),
+                                        &raum.heim[i], &weiter);
+            kette = weiter;
+            if (i + 2 == spalten) { raum.heim[i + 1] = weiter; }
+        }
         rest -= r[i].GetWidth();
     }
     for (std::size_t i = 0; i < p.size(); ++i) {
@@ -212,19 +217,22 @@ ImRect spanne(const ImGuiDockNode* n, const std::vector<ImGuiID>& heim, const st
     return a;
 }
 
-void erzwingen(ImGuiDockNode* n, const std::vector<ImGuiID>& heim, const std::vector<ImRect>& r) {
+// `groesse`: die Groesse, die der Knoten bekommt. Das erste Kind bekommt genau
+// seine gemessene Breite (Hoehe), das zweite den Rest - so landet die Breite,
+// die das Band ueber die Spalten hinausreicht, in der letzten Spalte.
+void erzwingen(ImGuiDockNode* n, const std::vector<ImGuiID>& heim, const std::vector<ImRect>& r, ImVec2 groesse) {
     if (n == nullptr || n->IsLeafNode()) { return; }
     const int achse = n->SplitAxis == ImGuiAxis_Y ? 1 : 0;
-    const ImRect ganz = spanne(n, heim, r);
     const ImRect erstes = spanne(n->ChildNodes[0], heim, r);
-    const float gesamt = achse == 0 ? ganz.GetWidth() : ganz.GetHeight();
     const float vorn = achse == 0 ? erstes.GetWidth() : erstes.GetHeight();
-    const float abstand = kAbstand;
-    n->ChildNodes[0]->SizeRef[achse] = vorn;
-    n->ChildNodes[1]->SizeRef[achse] = std::max(1.0F, gesamt - abstand - vorn);
-    n->ChildNodes[0]->SizeRef[achse ^ 1] = n->ChildNodes[1]->SizeRef[achse ^ 1] = achse == 0 ? ganz.GetHeight() : ganz.GetWidth();
-    erzwingen(n->ChildNodes[0], heim, r);
-    erzwingen(n->ChildNodes[1], heim, r);
+    ImVec2 g0 = groesse;
+    ImVec2 g1 = groesse;
+    g0[achse] = vorn;
+    g1[achse] = std::max(1.0F, groesse[achse] - kAbstand - vorn);
+    n->ChildNodes[0]->SizeRef = g0;
+    n->ChildNodes[1]->SizeRef = g1;
+    erzwingen(n->ChildNodes[0], heim, r, g0);
+    erzwingen(n->ChildNodes[1], heim, r, g1);
 }
 
 void panelInhalt(const std::string& id, const Layout& l) {
@@ -283,17 +291,21 @@ void zeichnen(const Layout& l) {
         bauen(b, r, groesse);
     }
     const bool std0 = standard(b);
-    if (std0) { erzwingen(ImGui::DockBuilderGetNode(raum.wurzel), raum.heim, r); }
+    if (std0) { erzwingen(ImGui::DockBuilderGetNode(raum.wurzel), raum.heim, r, groesse); }
     ImGui::SetCursorScreenPos(alles.Min);
     const ImGuiWindowClass k = klasse();
     ImGui::PushStyleColor(ImGuiCol_Separator, ImGui::GetStyleColorVec4(ImGuiCol_TableBorderLight));
     ImGui::PushStyleVar(ImGuiStyleVar_DockingSeparatorSize, kAbstand);
-    ImGui::DockSpace(raum.wurzel, groesse, std0 ? ImGuiDockNodeFlags_NoResize : ImGuiDockNodeFlags_None, &k);
+    // AutoHideTabBar: zwei Panels in einem Knoten zeigen ihre Reiter (ImGui nimmt
+    // HiddenTabBar dann weg), allein wieder nur das Dreieck.
+    ImGui::DockSpace(raum.wurzel, groesse,
+                     ImGuiDockNodeFlags_AutoHideTabBar | (std0 ? ImGuiDockNodeFlags_NoResize : ImGuiDockNodeFlags_None), &k);
     ImGui::PopStyleVar();
     ImGui::PopStyleColor();
     const std::vector<Blatt> p = blaetter(b);
     const std::size_t letzteSpalte = mitBand(b) ? p.size() - 2 : p.size() - 1;
     for (std::size_t i = 0; i < p.size(); ++i) {
+        if (i > 0 && dock::versteckt(p[i].id)) { continue; }   // ausgeblendet: der Knoten bleibt leer, die Nachbarn nehmen den Platz
         const bool band = mitBand(b) && i + 1 == p.size();
         // Zellen der inneren Tabelle (Modusleiste, Ebenen/Animationen, Ansicht bzw.
         // Ereignisliste) beginnen ein Zellpolster tiefer als die der aeusseren
@@ -322,6 +334,51 @@ void zeichnen(const Layout& l) {
         ImGui::End();
     }
     raum.frisch = false;
+}
+
+ImGuiWindow* panelFenster(const std::string& panel) {
+    for (int b = 0; b < 3; ++b) {
+        for (const Blatt& p : blaetter(b)) {
+            if (panel == p.id) { return ImGui::FindWindowByName(fensterName(p).c_str()); }
+        }
+    }
+    return nullptr;
+}
+
+// Ausserhalb des Hauptfensters: nicht im DockSpace des Bereichs angedockt.
+bool draussen(const std::string& panel) {
+    const ImGuiWindow* w = panelFenster(panel);
+    if (w == nullptr) { return false; }
+    const ImGuiDockNode* n = w->DockNode;
+    while (n != nullptr && n->ParentNode != nullptr) { n = n->ParentNode; }
+    return n == nullptr || !n->IsDockSpace();
+}
+
+void herausnehmen(const std::string& panel) {
+    ImGuiWindow* w = panelFenster(panel);
+    if (w == nullptr || draussen(panel) || panel.find(".modus") != std::string::npos) { return; }
+    ImGui::DockContextQueueUndockWindow(GImGui, w);
+    diag::detail("Fenster: Panel " + panel + " aus dem DockSpace in ein eigenes Fenster");
+}
+
+ImGuiID heimKnoten(const std::string& panel);
+
+// Zurueck an seinen Platz der Standardanordnung: in seinen Knoten, wenn es ihn
+// noch gibt (ausgeblendet oder als Reiter woanders), sonst die
+// Standardanordnung des Bereichs neu aufbauen.
+void andocken(const std::string& panel) {
+    ImGuiWindow* w = panelFenster(panel);
+    const ImGuiID heim = heimKnoten(panel);
+    const ImGuiDockNode* n = heim != 0 ? ImGui::DockBuilderGetNode(heim) : nullptr;
+    if (w != nullptr && n != nullptr && n->IsLeafNode()) {
+        ImGui::DockBuilderDockWindow(w->Name, heim);
+        diag::detail("Fenster: Panel " + panel + " zurueck in seinen Knoten");
+        return;
+    }
+    for (int b = 0; b < 3; ++b) {
+        if (panel.rfind(dock::praefix(b), 0) == 0) { g_raum[static_cast<std::size_t>(b)].neuBauen = true; }
+    }
+    diag::detail("Fenster: Panel " + panel + " - Knoten fehlt, Standardanordnung neu");
 }
 
 ImGuiID heimKnoten(const std::string& panel) {

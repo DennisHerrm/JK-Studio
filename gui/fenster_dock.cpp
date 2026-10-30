@@ -233,7 +233,17 @@ bool verfuegbarIst(const Panel& p) {
 }
 }  // namespace
 
+namespace {
+// dock2: im DockSpace (Schalter an) gelten fuer Events, Mission und Model ImGuis
+// Dock-Baeume statt der Anordnungslisten (app_dockspace.inc).
+bool imDockraum(const char* id) {
+    const Panel* p = panel(id);
+    return p != nullptr && p->bereich <= 2 && dockraumAn();
+}
+}  // namespace
+
 bool draussen(const char* id) {
+    if (imDockraum(id)) { return dockraumDraussen(id); }
     const fenster::Anordnung* a = anordnungVon(id);
     return a != nullptr && fenster::enthaelt(a->draussen, id);
 }
@@ -246,6 +256,10 @@ bool versteckt(const char* id) {
 bool zuhause(const char* id) { return !draussen(id) && !versteckt(id); }
 
 void herausnehmen(const char* id) {
+    if (imDockraum(id)) {
+        dockraumHerausnehmen(id);
+        return;
+    }
     fenster::Anordnung* a = anordnungVon(id);
     if (a == nullptr || fenster::enthaelt(a->draussen, id)) { return; }
     fenster::einfuegen(a->draussen, id);
@@ -255,6 +269,12 @@ void herausnehmen(const char* id) {
 }
 
 void andocken(const char* id) {
+    if (imDockraum(id)) {
+        fenster::Anordnung* v = anordnungVon(id);
+        if (v != nullptr) { fenster::entfernen(v->versteckt, id); }
+        dockraumAndocken(id);
+        return;
+    }
     fenster::Anordnung* a = anordnungVon(id);
     if (a == nullptr || (!fenster::enthaelt(a->draussen, id) && !fenster::enthaelt(a->versteckt, id))) { return; }
     fenster::entfernen(a->draussen, id);

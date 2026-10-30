@@ -1069,9 +1069,18 @@ std::vector<Schritt> dock2MassSchritte() {
     add(tu("dock2mass: Events", [] { g_app->leftMode = 0; }));
     add(stabil("dock2mass: Events", 10));
     add(pruefe("dock2mass: Events steht in der Standardanordnung", [] { return dockraumStandard(0); }));
+    // Wie ImGuis Ziehen und Ablegen: erst abdocken (beim Anfassen des Reiters),
+    // dann auf der Mitte von Script Flow loslassen. Angedockt in die Warteschlange
+    // gestellt, verschmilzt ImGui den Baum beim Abdocken und der Zielknoten ist
+    // weg (Absturz im ersten Versuch).
+    add(tu("dock2mass: Actions abdocken", [] { dock::herausnehmen("ereignisse.aktionen"); }));
+    add(stabil("dock2mass: abgedockt", 5));
     add(tu("dock2mass: Actions als Reiter zu Script Flow", [] {
-        const ImGuiWindow* w = dock1::panelFenster("ereignisse.aktionen");
-        if (w != nullptr) { ImGui::DockBuilderDockWindow(w->Name, dockraumHeim("ereignisse.fluss")); }
+        ImGuiWindow* a = dock1::panelFenster("ereignisse.aktionen");
+        ImGuiWindow* f = dock1::panelFenster("ereignisse.fluss");
+        if (a != nullptr && f != nullptr && f->DockNode != nullptr) {
+            ImGui::DockContextQueueDock(GImGui, f->DockNode->HostWindow, f->DockNode, a, ImGuiDir_None, 0.0F, false);
+        }
     }));
     add(stabil("dock2mass: Reiter", 15));
     add(pruefe("dock2mass: Actions und Script Flow in einem Knoten (Reiter), keine Standardanordnung mehr", [] {
@@ -1121,6 +1130,47 @@ std::vector<Schritt> dock2MassSchritte() {
     }));
     add(ziehenHalten("dock2mass: linker Griff 80 zurueck", [] { return ImVec2{g_app->teilerX[0], g_app->teilerY}; }, -80.0F, 0.0F, 20));
     add(pause(0.3));
+    // Menue "Fenster" im DockSpace: ausblenden / einblenden, eigenes Fenster / andocken.
+    const auto standardMasse = [=] {
+        const dock2::Masse m = dock2::messen();
+        int gleich = 0;
+        int gesamt = 0;
+        for (const auto& [k, x] : *alt) {
+            if (k.empty() || k[0] != '0') { continue; }
+            ++gesamt;
+            const auto it = m.find(k);
+            if (it != m.end() && std::fabs(it->second.Min.x - x.Min.x) <= 0.5F && std::fabs(it->second.Max.x - x.Max.x) <= 0.5F &&
+                std::fabs(it->second.Min.y - x.Min.y) <= 0.5F && std::fabs(it->second.Max.y - x.Max.y) <= 0.5F) {
+                ++gleich;
+            }
+        }
+        diag::detail("Knopftest: dock2mass: " + std::to_string(gleich) + "/" + std::to_string(gesamt) + " Kindfenster wie die alte Anordnung");
+        return dockraumStandard(0) && gesamt > 0 && gleich == gesamt;
+    };
+    const auto flussBreite = [] {
+        const dock2::Masse m = dock2::messen();
+        return m.count("0##flowarea") != 0U ? m.at("0##flowarea").GetWidth() : 0.0F;
+    };
+    add(pruefe("dock2mass: nach dem Griff zurueck wieder die alten Masse", standardMasse));
+    add(tu("dock2mass: Actions ausblenden (Menue Fenster)", [] { dock::ausblenden("ereignisse.aktionen", true); }));
+    add(stabil("dock2mass: ausgeblendet", 15));
+    add(pruefe("dock2mass: Actions ausgeblendet - Script Flow nimmt den Platz", [=] {
+        diag::detail("Knopftest: dock2mass: Script Flow " + std::to_string(flussBreite()) + " statt " + std::to_string((*breite)[1]));
+        return !dock1::aktiv("ereignisse.aktionen") && flussBreite() > (*breite)[1] + (*breite)[2] * 0.5F;
+    }));
+    add(tu("dock2mass: Actions einblenden", [] { dock::ausblenden("ereignisse.aktionen", false); }));
+    add(stabil("dock2mass: eingeblendet", 15));
+    add(pruefe("dock2mass: eingeblendet - Standardanordnung mit den alten Massen", standardMasse));
+    add(tu("dock2mass: Actions in eigenes Fenster (Menue Fenster)", [] { dock::herausnehmen("ereignisse.aktionen"); }));
+    add(stabil("dock2mass: eigenes Fenster", 15));
+    add(pruefe("dock2mass: Actions in eigenem Fenster, Script Flow nimmt den Platz", [=] {
+        diag::detail(std::string("Knopftest: dock2mass: draussen ") + (dock::draussen("ereignisse.aktionen") ? "ja" : "nein") + ", Script Flow " +
+                     std::to_string(flussBreite()));
+        return dock::draussen("ereignisse.aktionen") && dock1::aktiv("ereignisse.aktionen") && flussBreite() > (*breite)[1] + (*breite)[2] * 0.5F;
+    }));
+    add(tu("dock2mass: Actions andocken (Menue Fenster)", [] { dock::andocken("ereignisse.aktionen"); }));
+    add(stabil("dock2mass: angedockt", 15));
+    add(pruefe("dock2mass: angedockt - Standardanordnung mit den alten Massen", standardMasse));
     add(tu("dock2mass: Schalter zurueck", [=] { dockraumAn() = vorher; }));
     return s;
 }
