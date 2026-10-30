@@ -4647,6 +4647,10 @@ void drawMissionPicker() {
     std::optional<Mission> laden;
     const bool anyPlayable =
         std::any_of(g_app->missions.begin(), g_app->missions.end(), [](const Mission& m) { return m.playable(); });
+    // Zeitleiste 3: eine neu aufgehende Auswahl beginnt oben. Vorher stand die
+    // Liste so weit gerollt wie beim letzten Mal - auch bei einem anderen
+    // Spiel, dessen erste Missionen dann ausserhalb des Bilds lagen.
+    if (ImGui::IsWindowAppearing()) { ImGui::SetNextWindowScroll(ImVec2{0.0F, 0.0F}); }
     if (ImGui::BeginChild("##missionliste", ImVec2{ImGui::GetFontSize() * 34.0F, hoehe}, ImGuiChildFlags_None)) {
         if (eigene > 0) {
             char kopf[600];

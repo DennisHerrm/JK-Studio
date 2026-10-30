@@ -2591,6 +2591,8 @@ void aufnahmeKnopf();                                    // in der Transportleis
 void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b);   // jedes Bild: Steuern, Spur, Hinweis
 [[nodiscard]] int aufnahmeProben();                      // Selbsttest
 [[nodiscard]] int aufnahmePunkte();                      // Selbsttest: Laufziele mit der Toleranz
+void aufnahmeFigurZustand(int figur, double ms, ActorState& st);   // das Modell am gesteuerten Ort
+void aufnahmeHinweis(ImVec2& a, ImVec2& b);              // Selbsttest: Rechteck des Hinweises im letzten Bild
 float zeitleisteNamenBreite(float verfuegbar);
 void zeitleisteNavigation(float x0, float w, double gesamt);
 void zeitleisteSpuren(float x0, float w, float labelW, double sichtStart, double sichtSpanne, double ablaufEnde, float hoehe);
