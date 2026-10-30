@@ -115,7 +115,7 @@ public:
     // Text_Width / Text_Height
     int textBreite(const std::string& t, float scale, int font) const {
         const Schrift* f = schrift(font);
-        return f != nullptr ? schriftBreite(*f, t, scale, u_.kodierung, u_.asienGlyphen) : 0;
+        return f != nullptr ? schriftBreite(*f, t, scale, u_.kodierung, u_.asienGlyphen, u_.jk2) : 0;
     }
     int textHoehe(float scale, int font) const {
         const Schrift* f = schrift(font);
@@ -160,7 +160,7 @@ public:
         const float range = it.maxVal - it.minVal;
         value -= it.minVal;
         value /= range;
-        value *= kSliderBreite;
+        value *= sliderMasse(u_.dialekt, d_.spiel).breite;
         return x + value;
     }
 
@@ -285,24 +285,77 @@ private:
         return c;
     }
 
-    // M5: Item_OwnerDraw_Paint (codemp/ui/ui_shared.c) mit UI_OwnerDraw: rect = x + text_x, y + text_y;
-    // mit Text erst Item_Text_Paint, dann rechts daneben (+8, wenn der Text nicht leer ist)
-    void ownerDrawMalen(const Item& it, int flags, const OwnerDrawInhalt& o) {
-        Farbe c = textFarbe(it, flags);
-        float x = it.window.rect.x + it.textalignx;
+    // M7: Item_OwnerDraw_Paint (codemp/ui/ui_shared.c, code/ui/ui_shared.cpp): Farbe (colorRanges mit
+    // DC->getValue = 0, Fokus pulsiert, Blinken, enableCvar), mit Text erst Item_Text_Paint und dann
+    // DC->ownerDrawItem rechts daneben (+8; MP nur bei nicht leerem Text), sonst am rect mit textalignx/y
+    void ownerDrawMalen(const Item& it, int flags) {
+        const float puls = 0.5F + 0.5F * std::sin(static_cast<float>(u_.zeitMs) / kPulseDivisor);
+        Farbe color = it.window.foreColor;
+        for (const ColorRange& cr : it.colorRanges) {
+            if (0.0F >= cr.low && 0.0F <= cr.high) {
+                color = cr.color;
+                break;
+            }
+        }
+        if ((flags & WINDOW_HASFOCUS) != 0) {
+            color = lerp(m_.focusColor, mal(m_.focusColor, 0.8F), puls);
+        } else if (it.textStyle == ITEM_TEXTSTYLE_BLINK && ((u_.zeitMs / kBlinkDivisor) & 1) == 0) {
+            color = lerp(it.window.foreColor, mal(it.window.foreColor, 0.8F), puls);
+        }
+        if ((it.cvarFlags & (CVAR_ENABLE | CVAR_DISABLE)) != 0 && !itemZeigtUeberCvar(it, CVAR_ENABLE, u_)) { color = m_.disableColor; }
+        OdAufruf a;
+        a.id = it.window.ownerDraw;
+        a.flags = it.window.ownerDrawFlags;
+        a.align = it.alignment;
+        a.special = it.special;
+        a.scale = it.textscale;
+        a.farbe = color;
+        a.shader = it.window.background;
+        a.stil = it.textStyle;
+        a.font = it.font;
+        a.y = it.window.rect.y;
+        a.w = it.window.rect.w;
+        a.h = it.window.rect.h;
+        a.textY = it.textaligny;
         if (!it.text.empty()) {
             textMalen(it, flags);
-            x = tr_.x + tr_.w + (itemText(it).empty() ? 0.0F : 8.0F);
+            a.x = tr_.x + tr_.w + ((u_.dialekt == Dialekt::SP || !itemText(it).empty()) ? 8.0F : 0.0F);
+        } else {
+            a.x = it.window.rect.x;
+            a.textX = it.textalignx;
         }
-        const float y = it.window.rect.y + it.textaligny;
-        if (o.halb) { c = Farbe{c.r * 0.5F, c.g * 0.5F, c.b * 0.5F, c.a}; }
-        if (!o.text.empty()) { text(x, y, it.textscale, c, se(o.text), 0, it.textStyle, it.font); }
-        if (!o.bild.empty()) { bild(x, y, it.window.rect.w, it.window.rect.h, o.bild, Farbe{1, 1, 1, 1}, item_); }
+        const OdErgebnis o = u_.ownerDraw ? u_.ownerDraw(a) : OdErgebnis{};
+        if (!o.bekannt) {
+            platzhalter(it.window.rect, "ownerdraw " + std::to_string(it.window.ownerDraw) + profilName(true, it.window.ownerDraw));
+            return;
+        }
+        teileMalen(o.teile);
+        if (o.beispiel) { platzhalter(it.window.rect, "", PrimArt::Beispiel); }
     }
 
+public:
+    // M7: Zeichenbefehle von ownerdraws und cgame (Ladebild, Verbindung) mit den Mitteln der Vorschau
+    void teileMalen(const std::vector<OdTeil>& teile) {
+        for (const OdTeil& t : teile) {
+            if (t.art == OdTeil::Art::Bild) {
+                bild(t.x, t.y, t.w, t.h, t.inhalt, t.farbe, item_, t.s0, t.t0, t.s1, t.t1);
+            } else if (t.art == OdTeil::Art::Fuellen) {
+                fuellen(t.x, t.y, t.w, t.h, t.farbe);
+            } else if (!t.schrift.empty()) {
+                textMit(u_.schriftNamens ? u_.schriftNamens(t.schrift) : nullptr, t.x, t.y, t.scale, t.farbe, t.inhalt, t.maxPixel, t.stil);
+            } else {
+                text(t.x, t.y, t.scale, t.farbe, t.inhalt, t.maxPixel, t.stil, t.font);
+            }
+        }
+    }
+
+private:
     // Text_Paint -> RE_Font_DrawString
     void text(float x, float y, float scale, const Farbe& c, const std::string& t, int maxPixel, int style, int font) {
-        const Schrift* f = schrift(font);
+        textMit(schrift(font), x, y, scale, c, t, maxPixel, style);
+    }
+    // M7: dasselbe mit einer Schrift beim Namen (cgame/Pazaak zeichnen mit eigenem Griff)
+    void textMit(const Schrift* f, float x, float y, float scale, const Farbe& c, const std::string& t, int maxPixel, int style) {
         if (f == nullptr || !f->ok) { return; }
         bool blink = false;
         bool schatten = false;
@@ -327,7 +380,7 @@ private:
     void zeichenkette(const Schrift& f, int ox, int oy, const std::string& t, Farbe c, int maxPixel, float scale,
                       bool imSchatten) {
         std::vector<Prim> glyphen;
-        schriftZeichnen(f, ox, oy, t, c, maxPixel, scale, imSchatten, glyphen, u_.kodierung, u_.asienGlyphen);
+        schriftZeichnen(f, ox, oy, t, c, maxPixel, scale, imSchatten, glyphen, u_.kodierung, u_.asienGlyphen, u_.jk2 != Jk2Schrift::Nein);
         for (const Prim& g : glyphen) { bild(g.x, g.y, g.w, g.h, g.shader, g.farbe, item_, g.s0, g.t0, g.s1, g.t1); }
     }
 
@@ -434,26 +487,8 @@ private:
         w.flags = flags;
         fenster(w, item_);
         switch (it.type) {
-            case ITEM_TYPE_OWNERDRAW:
-                // M4: UI_OwnerDraw (code/ui/ui_main.cpp) fuer die Einzelspieler-Nummern, die nicht vom
-                // laufenden Spiel abhaengen; der Rest (Datapad, UI_GLINFO, MP-Ownerdraws) bleibt Platzhalter
-                if (u_.dialekt == Dialekt::SP && it.window.ownerDraw == kUiKeybindStatus) {
-                    break;   // UI_DrawKeyBindStatus: Text nur, solange eine Taste erwartet wird
-                }
-                if (u_.dialekt == Dialekt::SP && it.window.ownerDraw == kUiAllmapsSelection) {
-                    // Spielstand-Vorschau: levelshots/<karte> des gewaehlten Spielstands, ohne Spielstand
-                    // uis.menuBackShader ("menu/art/unknownmap"); der Kartenname ist dann leer
-                    bild(it.window.rect.x, it.window.rect.y, it.window.rect.w, it.window.rect.h, "menu/art/unknownmap", Farbe{1, 1, 1, 1}, item_);
-                    break;
-                }
-                if (u_.dialekt == Dialekt::MP && u_.ownerDraw) {   // M5: UI_OwnerDraw der MP-Fassung
-                    const OwnerDrawInhalt o = u_.ownerDraw(it.window.ownerDraw);
-                    if (o.bekannt) {
-                        ownerDrawMalen(it, flags, o);
-                        break;
-                    }
-                }
-                platzhalter(it.window.rect, "ownerdraw " + std::to_string(it.window.ownerDraw) + profilName(true, it.window.ownerDraw));
+            case ITEM_TYPE_OWNERDRAW:   // M7: UI_OwnerDraw je Nummer (ownerdraw.cpp)
+                ownerDrawMalen(it, flags);
                 break;
             case ITEM_TYPE_TEXT:
             case ITEM_TYPE_BUTTON:
@@ -509,10 +544,23 @@ private:
                 }
                 break;
             }
-            case ITEM_TYPE_BIND: {   // Item_Bind_Paint: die Taste kommt aus dem Spiel
+            case ITEM_TYPE_BIND: {   // M7: Item_Bind_Paint mit BindingFromName (tasten.cpp)
+                Farbe c;
+                if ((flags & WINDOW_HASFOCUS) != 0) {   // ohne wartende Taste (g_bindItem): Fokusfarbe pulsiert
+                    c = lerp(m_.focusColor, mal(m_.focusColor, 0.8F), 0.5F + 0.5F * std::sin(static_cast<float>(u_.zeitMs) / kPulseDivisor));
+                } else {
+                    c = u_.dialekt == Dialekt::MP ? it.window.foreColor : textFarbe(it, flags);
+                }
+                if (it.text.empty()) { break; }   // ohne text: "FIXME" (kommt in keinem Menue vor)
                 textMalen(it, flags);
-                const Farbe c = textFarbe(it, flags);
-                text(tr_.x + tr_.w + 8, tr_.y, it.textscale, c, "???", 0, it.textStyle, it.font);
+                const std::string name = u_.bindung ? u_.bindung(it.cvar) : std::string("???");
+                // breiter als der Schirm: Schrift in 0,05-Schritten kleiner (SP misst mit qhMediumFont)
+                const int mf = u_.dialekt == Dialekt::MP ? it.font : 0;
+                float sc = it.textscale;
+                const float x = tr_.x + tr_.w + 8;
+                while (sc > 0.0F && x + static_cast<float>(textBreite(name, sc, mf)) >= kSchirmBreite) { sc -= 0.05F; }
+                const int yAdj = sc != it.textscale ? textHoehe(it.textscale, mf) - textHoehe(sc, mf) : 0;
+                text(x, tr_.y + static_cast<float>(yAdj), sc, c, name, it.maxPaintChars, it.textStyle, it.font);
                 break;
             }
             case ITEM_TYPE_SLIDER:
@@ -527,9 +575,10 @@ private:
                     textMalen(it, flags);
                     x = tr_.x + tr_.w + 8;
                 }
-                bild(x, y, kSliderBreite, kSliderHoehe, "menu/new/slider", c, item_);
+                const SliderMasse sm = sliderMasse(u_.dialekt, d_.spiel);
+                bild(x, y + sm.leisteY, sm.breite, kSliderHoehe, "menu/new/slider", c, item_);
                 const float dx = daumen(it);
-                bild(dx - kSliderDaumenBreite / 2, y - 2, kSliderDaumenBreite, kSliderDaumenHoehe, "menu/new/sliderthumb", c, item_);
+                bild(dx - kSliderDaumenBreite / 2, y + sm.daumenY, kSliderDaumenBreite, sm.daumenHoehe, "menu/new/sliderthumb", c, item_);
                 break;
             }
             default:
@@ -764,7 +813,10 @@ private:
             if (size < it.elementHeight || it.elementHeight <= 0) { break; }
             y += it.elementHeight;
         }
-        if (count == 0 && !u_.feeder) { platzhalter(r, "feeder " + zahlText(it.special) + profilName(false, static_cast<int>(it.special))); }
+        // M7: ohne Darstellung (unbekannte Liste) der beschriftete Kasten; Beispielwerte beschriftet
+        const int art = u_.feederArt ? u_.feederArt(it.special) : 1;
+        if (count == 0 && (!u_.feeder || art == 0)) { platzhalter(r, "feeder " + zahlText(it.special) + profilName(false, static_cast<int>(it.special))); }
+        if (art == 2) { platzhalter(r, "", PrimArt::Beispiel); }
     }
 
     const Datei& d_;
@@ -804,6 +856,18 @@ void schriftZeichnen(const Schrift& f, int ox, int oy, const std::string& t, Far
         } else if (ch == 32) {
             fx += static_cast<float>(f.glyph[' '].horizAdvance) * scale;
             ueberlauf = maxPixel != -1 && (fx - fox) > static_cast<float>(maxPixel);
+        } else if (ch == '^' && jk2Modus) {
+            // Jedi Outcast (jk2sp.exe und jk2mp.exe im Spiel fotografiert): case '^' nimmt jedes folgende
+            // Zeichen als Farbe, ColorIndex(c) = (c - '0') & 7 - "A^Bx" zeichnet A und ein gruenes x
+            if (i < t.size()) {
+                const int idx = (static_cast<unsigned char>(t[i]) - '0') & 7;
+                ++i;
+                if (!imSchatten) {
+                    const float a = c.a;
+                    c = kFarbtabelle[idx];
+                    c.a = a;
+                }
+            }
         } else if (ch == '^' && i < t.size() && t[i] >= '0' && t[i] <= '9') {
             const int idx = t[i] - '0';
             ++i;
@@ -812,8 +876,6 @@ void schriftZeichnen(const Schrift& f, int ox, int oy, const std::string& t, Far
                 c = kFarbtabelle[idx];
                 c.a = a;
             }
-        } else if (ch == '^' && jk2Modus) {
-            // JK2_MODE: case '^' endet mit break - ohne Ziffer wird das ^ nicht gezeichnet
         } else {
             // GetLetter(uiLetter, &hShader): asiatische Glyphe oder mGlyphs[uiLetter & 0xff]
             Glyph asienG;
@@ -879,19 +941,21 @@ bool ladeFontdat(const std::string& name, const std::string& daten, Schrift& out
     return true;
 }
 
-int schriftBreite(const Schrift& f, const std::string& text, float scale, Kodierung k, bool asienGlyphen) {
+int schriftBreite(const Schrift& f, const std::string& text, float scale, Kodierung k, bool asienGlyphen, Jk2Schrift jk2) {
     const float scaleAsien = (asiatisch(k) && scale > 0.7F) ? scale * 0.75F : scale;
     float maxW = 0;
     float diese = 0;
     const auto* p = reinterpret_cast<const unsigned char*>(text.data());
     for (std::size_t i = 0; i < text.size();) {
         int n = 1;
-        const unsigned ch = zeichenLesen(k, p + i, text.size() - i, n);
+        unsigned ch = zeichenLesen(k, p + i, text.size() - i, n);
         i += static_cast<std::size_t>(n);
-        if (ch == '^' && i < text.size() && text[i] >= '0' && text[i] <= '9') {
-            (void)zeichenLesen(k, p + i, text.size() - i, n);
+        // JA/MD: ^0-^9 zaehlen nicht; jk2mp.exe: die Ziffer zaehlt; jk2sp.exe (JK2_MODE): ^ und Ziffer zaehlen
+        if (ch == '^' && jk2 != Jk2Schrift::Sp && i < text.size() && text[i] >= '0' && text[i] <= '9') {
+            const unsigned ziffer = zeichenLesen(k, p + i, text.size() - i, n);
             i += static_cast<std::size_t>(n);
-            continue;
+            if (jk2 == Jk2Schrift::Nein) { continue; }
+            ch = ziffer;
         }
         if (ch == 0x0A) {
             diese = 0;
@@ -959,72 +1023,72 @@ std::string textScrollText(const Item& it, const Umgebung& u) {
     return t;
 }
 
+UmbruchZeile naechsteZeile(const std::string& text, std::size_t& pos, int boxBreite, const std::function<int(const std::string&)>& breite,
+                           Kodierung k) {
+    UmbruchZeile z;
+    const bool asien = asiatisch(k);
+    const bool leerzeichen = !(k == Kodierung::Taiwanesisch || k == Kodierung::Japanisch || k == Kodierung::Chinesisch);
+    const auto* s = reinterpret_cast<const unsigned char*>(text.c_str());
+    const std::size_t n = text.size();
+    std::size_t lineStart = pos, best = pos;
+    while (pos < n && s[pos] != 0) {
+        const std::size_t lastGood = pos;
+        int adv = 1;
+        unsigned letter = s[pos];
+        bool punkt = false;
+        if (asien) {   // AnyLanguage_ReadCharFromString
+            letter = zeichenLesen(k, s + pos, n - pos, adv);
+            punkt = adv == 2 ? asienSatzzeichen(k, letter) : false;
+        }
+        if (adv != 2) {
+            letter = s[pos];
+            adv = 1;
+            punkt = letter == '!' || letter == '?' || letter == ',' || letter == '.' || letter == ';' || letter == ':';
+        }
+        pos += static_cast<std::size_t>(adv);
+        if (letter == 32 && z.text.empty()) {   // Leerzeichen am Zeilenanfang ueberspringen
+            ++lineStart;
+            continue;
+        }
+        if (letter > 255) {
+            z.text.push_back(static_cast<char>(letter >> 8));
+            z.text.push_back(static_cast<char>(letter & 0xFF));
+        } else {
+            z.text.push_back(static_cast<char>(letter & 0xFF));
+        }
+        if (letter == '\n') {   // ausdruecklicher Zeilenumbruch
+            z.text.pop_back();
+            z.umbruch = true;
+            return z;
+        }
+        if (breite(z.text) >= boxBreite) {
+            if (!(letter > 255 && punkt && !leerzeichen)) {
+                if (best == lineStart) { best = lastGood; }   // kein Leer- oder Satzzeichen auf der ganzen Zeile
+                z.text.resize(best - lineStart);
+                pos = best;
+                z.umbruch = true;
+                return z;
+            }
+        }
+        if (punkt || letter == ' ' || (letter > 255 && !leerzeichen)) { best = pos; }
+    }
+    return z;
+}
+
 TextScrollZeilen textScrollZeilen(const Item& it, const Umgebung& u) {
     TextScrollZeilen z;
     const std::string text = textScrollText(it, u);
     const Schrift* f = u.schrift ? u.schrift(it.font) : nullptr;
-    const auto breite = [&](const std::string& s) { return f != nullptr ? schriftBreite(*f, s, it.textscale, u.kodierung, u.asienGlyphen) : 0; };
+    const std::function<int(const std::string&)> breite = [&](const std::string& s) {
+        return f != nullptr ? schriftBreite(*f, s, it.textscale, u.kodierung, u.asienGlyphen, u.jk2) : 0;
+    };
     const int iBoxWidth = static_cast<int>(it.window.rect.w - kScrollbar - 10);
-    const bool asien = asiatisch(u.kodierung);
-    const bool leerzeichen = !(u.kodierung == Kodierung::Taiwanesisch || u.kodierung == Kodierung::Japanisch || u.kodierung == Kodierung::Chinesisch);
-    const auto* s = reinterpret_cast<const unsigned char*>(text.c_str());
-    const std::size_t n = text.size();
-    std::size_t lineStart = 0, best = 0, pos = 0;
-    while (pos < n && s[pos] != 0 && z.zeilen.size() < kMaxTextScrollZeilen) {
-        std::string zeile;
-        bool fertig = false;
-        pos = lineStart;
-        while (pos < n && s[pos] != 0) {
-            const std::size_t lastGood = pos;
-            int adv = 1;
-            unsigned letter = s[pos];
-            bool punkt = false;
-            if (asien) {   // AnyLanguage_ReadCharFromString
-                letter = zeichenLesen(u.kodierung, s + pos, n - pos, adv);
-                punkt = adv == 2 ? asienSatzzeichen(u.kodierung, letter) : false;
-            }
-            if (adv != 2) {
-                letter = s[pos];
-                adv = 1;
-                punkt = letter == '!' || letter == '?' || letter == ',' || letter == '.' || letter == ';' || letter == ':';
-            }
-            pos += static_cast<std::size_t>(adv);
-            if (letter == 32 && zeile.empty()) {   // Leerzeichen am Zeilenanfang ueberspringen
-                ++lineStart;
-                continue;
-            }
-            if (letter > 255) {
-                zeile.push_back(static_cast<char>(letter >> 8));
-                zeile.push_back(static_cast<char>(letter & 0xFF));
-            } else {
-                zeile.push_back(static_cast<char>(letter & 0xFF));
-            }
-            if (letter == '\n') {   // ausdruecklicher Zeilenumbruch
-                zeile.pop_back();
-                lineStart = pos;
-                best = pos;
-                z.zeilen.push_back(zeile);
-                z.da.push_back(true);
-                fertig = true;
-                break;
-            }
-            if (breite(zeile) >= iBoxWidth) {
-                if (!(letter > 255 && punkt && !leerzeichen)) {
-                    if (best == lineStart) { best = lastGood; }   // kein Leer- oder Satzzeichen auf der ganzen Zeile
-                    zeile.resize(best - lineStart);
-                    lineStart = pos = best;
-                    z.zeilen.push_back(zeile);
-                    z.da.push_back(true);
-                    fertig = true;
-                    break;
-                }
-            }
-            if (punkt || letter == ' ' || (letter > 255 && !leerzeichen)) { best = pos; }
-        }
-        if (!fertig) {   // letzte Zeile ohne Umbruch (leer = NULL, beim Zeichnen uebersprungen)
-            z.zeilen.push_back(zeile);
-            z.da.push_back(!zeile.empty());
-        }
+    std::size_t pos = 0;
+    while (pos < text.size() && text[pos] != 0 && z.zeilen.size() < kMaxTextScrollZeilen) {
+        const UmbruchZeile zeile = naechsteZeile(text, pos, iBoxWidth, breite, u.kodierung);
+        z.zeilen.push_back(zeile.text);
+        // letzte Zeile ohne Umbruch: leer = NULL, beim Zeichnen uebersprungen
+        z.da.push_back(zeile.umbruch || !zeile.text.empty());
     }
     return z;
 }
@@ -1046,7 +1110,49 @@ void zeichneMenu(const Datei& d, int menu, const Umgebung& u, std::vector<Prim>&
     if (menu < 0 || static_cast<std::size_t>(menu) >= d.menus.size()) { return; }
     const Menu& m = d.menus[static_cast<std::size_t>(menu)];
     if ((m.window.flags & WINDOW_VISIBLE) == 0 && !u.erzwingen) { return; }
-    Maler(d, m, u, out).menu();
+    // M7: UI_DrawForceSide zeigt/verbirgt beim Zeichnen Gruppen seines Menues (Menu_ShowItemByName:
+    // name oder group ohne Gross/Klein) - vom naechsten Bild an gilt das fuer alle Items
+    std::vector<OdErgebnis::Zeigen> zeigen;
+    if (u.ownerDraw) {
+        for (std::size_t i = 0; i < m.items.size(); ++i) {
+            const Item& it = m.items[i];
+            if (it.type != ITEM_TYPE_OWNERDRAW) { continue; }
+            const bool zu = i < u.zustand.size() && u.zustand[i].gueltig;
+            if (!itemSichtbar(it, zu ? u.zustand[i].flags : it.window.flags, u)) { continue; }
+            OdAufruf a;
+            a.id = it.window.ownerDraw;
+            for (const OdErgebnis::Zeigen& e : u.ownerDraw(a).zeigen) {
+                if (gleichOhneFall(e.menue, m.window.name)) { zeigen.push_back(e); }
+            }
+        }
+    }
+    if (zeigen.empty()) {
+        Maler(d, m, u, out).menu();
+        return;
+    }
+    Umgebung u2 = u;
+    u2.zustand.resize(m.items.size());
+    for (std::size_t i = 0; i < m.items.size(); ++i) {
+        if (!u2.zustand[i].gueltig) {
+            u2.zustand[i].flags = m.items[i].window.flags;
+            u2.zustand[i].gueltig = true;
+        }
+    }
+    for (const OdErgebnis::Zeigen& e : zeigen) {
+        for (std::size_t i = 0; i < m.items.size(); ++i) {
+            const Fenster& w = m.items[i].window;
+            if (!gleichOhneFall(w.name, e.item) && (w.group.empty() || !gleichOhneFall(w.group, e.item))) { continue; }
+            if (e.zeigen) { u2.zustand[i].flags |= WINDOW_VISIBLE; }
+            else { u2.zustand[i].flags &= ~WINDOW_VISIBLE; }
+        }
+    }
+    Maler(d, m, u2, out).menu();
+}
+
+void zeichneTeile(const std::vector<OdTeil>& teile, const Umgebung& u, std::vector<Prim>& out) {
+    static const Datei leer{};
+    static const Menu leerM{};
+    Maler(leer, leerM, u, out).teileMalen(teile);
 }
 
 Rechteck textRechteck(const Item& it, const std::string& text, const Umgebung& u) {
@@ -1056,11 +1162,9 @@ Rechteck textRechteck(const Item& it, const std::string& text, const Umgebung& u
     return Maler(leer, leerM, u, dummy).textRect(it, text);
 }
 
-float sliderDaumen(const Item& it, const Umgebung& u) {
-    static const Datei leer{};
-    static const Menu leerM{};
-    std::vector<Prim> dummy;
-    return Maler(leer, leerM, u, dummy).daumen(it);
+SliderMasse sliderMasse(Dialekt d, Spiel s) {
+    if (d == Dialekt::MP) { return {}; }
+    return {s == Spiel::MD ? 96.0F : 128.0F, 2.0F, 2.0F, 16.0F};
 }
 
 namespace {
@@ -1228,6 +1332,15 @@ namespace {
 }  // namespace
 
 std::string spielCvarVorgabe(Dialekt d, Spiel s, const std::string& name) {
+    // M7: was die Engine vor der Oberflaeche anlegt (Com_Init, Fenster, CL_Init, S_Init, R_Register -
+    // die Renderer-Cvars der Setup-Menues); das erste Cvar_Get legt den Wert fest
+    {
+        const CvarVorgabe* anfang = d != Dialekt::SP ? std::begin(kEngineMp) : s == Spiel::MD ? std::begin(kEngineMd) : std::begin(kEngineJa);
+        const CvarVorgabe* ende = d != Dialekt::SP ? std::end(kEngineMp) : s == Spiel::MD ? std::end(kEngineMd) : std::end(kEngineJa);
+        for (const CvarVorgabe* v = anfang; v != ende; ++v) {
+            if (gleichOhneFall(name, v->name)) { return v->wert; }
+        }
+    }
     if (d != Dialekt::SP) {
         // M5: Mehrspieler wie CL_Init + ui_xcvar.h (OpenJK; ohne das waren ui_char_model und model leer
         // und die Figurenmenues zeigten "models/players//model.glm")

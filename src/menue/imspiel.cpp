@@ -3,6 +3,7 @@
 #include "bhed/menue/imspiel.h"
 
 #include <algorithm>
+#include <cctype>
 
 namespace bhed::menue {
 
@@ -56,6 +57,15 @@ MenueTestPlan menueTestPlanen(const MenueTestEingabe& e) {
     if (fsGame != e.basisSpiel || eigeneVorgabeMod) { args += "+set fs_game " + fsGame + " "; }
     args += "+echo jkstudio_menu_test";   // ein Befehl: kein Vorspann
     p.befehl = "\"" + e.enginePfad + e.exe + "\" " + pfadArg + args;
+    if (p.weg != karte::SpielTestWeg::ModOrdner) {
+        std::string exe = e.exe;
+        std::transform(exe.begin(), exe.end(), exe.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        // ui_load kennen alle ausser jk2sp.exe; ausloesen kann der Editor es aber nur bei OpenJK (SDL nimmt
+        // die per PostMessage gesendeten Tasten ohne Fokus an) - die Original-Programme (jasp, jamp, jk2mp)
+        // ignorieren sie (SP\m7: jasp.exe ueber Steam geprueft), dort bleibt die pk3
+        p.uiLoad = exe.find("openjk") != std::string::npos || exe.find("movieduels") != std::string::npos;
+        p.ordner = p.pk3.substr(0, p.pk3.rfind('/'));
+    }
     return p;
 }
 

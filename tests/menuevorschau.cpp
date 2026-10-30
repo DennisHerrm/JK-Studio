@@ -9,8 +9,10 @@
 #include "bhed/menue/modell.h"
 #include "bhed/menue/vorschau.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstddef>
 #include <functional>
 #include <cstdio>
 #include <cstring>
@@ -59,6 +61,24 @@ int main() {
     pruefe(schriftBreite(f, "abc", 0.55F) == 17, "StrLenPixels: ceil(16.5) = 17");
     pruefe(schriftBreite(f, "abcd\nab", 1.0F) == 40, "StrLenPixels: laengste Zeile");
     pruefe(schriftHoehe(f, 0.55F) == 11, "HeightPixels: (int)(20 * 0.55)");
+    // M7: Farbcodes in Jedi Outcast (jk2sp.exe/jk2mp.exe im Spiel fotografiert, SP\m7\caret)
+    pruefe(schriftBreite(f, "^1ab", 1.0F, Kodierung::Latin1, false, Jk2Schrift::Sp) == 40, "JK2 SP: ^ und Ziffer zaehlen (JK2_MODE)");
+    pruefe(schriftBreite(f, "^1ab", 1.0F, Kodierung::Latin1, false, Jk2Schrift::Mp) == 30, "JK2 MP: von ^1 zaehlt die Ziffer");
+    pruefe(schriftBreite(f, "^Bab", 1.0F, Kodierung::Latin1, false, Jk2Schrift::Mp) == 40 && schriftBreite(f, "^Bab", 1.0F) == 40,
+           "JK2 MP und JA: ^ ohne Ziffer zaehlt mit dem Zeichen danach");
+    {
+        auto farben = [&](bool jk2) {
+            std::vector<Prim> g;
+            schriftZeichnen(f, 0, 0, "A^Bx^Cy^0z", Farbe{1, 1, 1, 1}, -1, 1.0F, false, g, Kodierung::Latin1, false, jk2);
+            std::string s;
+            for (const Prim& q : g) { s += q.farbe.r > 0.5F ? (q.farbe.g > 0.5F ? (q.farbe.b > 0.5F ? 'w' : 'y') : 'r') : (q.farbe.g > 0.5F ? 'g' : 's'); }
+            return s;
+        };
+        // JA/MD: ^ ohne Ziffer wird gezeichnet ("purposely falls thrugh"), ^0 macht das z schwarz
+        pruefe(farben(false) == "wwwwwwws", "JA: A ^ B x ^ C y weiss, z schwarz (" + farben(false) + ")");
+        // JK2: jedes Zeichen nach ^ ist eine Farbe, ColorIndex(c) = (c - '0') & 7 - B gruen, C gelb
+        pruefe(farben(true) == "wgys", "JK2: A weiss, x gruen, y gelb, z schwarz (" + farben(true) + ")");
+    }
 
     Umgebung u;
     u.schrift = [&](int) -> const Schrift* { return &f; };
@@ -84,6 +104,9 @@ int main() {
     it.window.borderSize = 2;
     r = textRechteck(it, "abcd", u);
     pruefe(nah(r.x, 82) && nah(r.y, 57), "textRect mit border: +borderSize");
+    Umgebung uj = u;
+    uj.jk2 = Jk2Schrift::Sp;
+    pruefe(nah(textRechteck(it, "^1ab", uj).w, 40) && nah(textRechteck(it, "^1ab", u).w, 20), "textRect: Jedi Outcast zaehlt ^1 mit (Umgebung::jk2)");
 
     // RE_Font_DrawString ueber eine Datei
     LeseOptionen o;
@@ -123,13 +146,38 @@ int main() {
         }
     }
     pruefe(innen && fuell == 5, "Window_Paint: Fuellung (x+bs, y+bs, w-bs-1, h-bs-1) und vier Rahmenstreifen");
-    // Slider: ohne Text x = rect.x = 300; Daumen bei 300 + 0.5 * 96 = 348 -> Bild bei 342, y - 2
-    bool bar = false, thumb = false;
-    for (const Prim& x : p) {
-        if (x.item == 2 && x.shader == "menu/new/slider" && nah(x.x, 300) && nah(x.w, 96)) { bar = true; }
-        if (x.item == 2 && x.shader == "menu/new/sliderthumb" && nah(x.x, 342) && nah(x.y, 198)) { thumb = true; }
+    // Item_Slider_Paint je Fassung (im Spiel fotografiert, SP\m7\vorlagen): ohne Text x = rect.x = 300,
+    // Wert 0.5. JA/JK2 SP (code/ui SLIDER_WIDTH 128): Leiste bei y + 2, Daumen 300 + 64 - 6 bei y + 2,
+    // 16 hoch; Movie Duels SP 96 breit, sonst wie SP; MP (codemp/ui): Leiste bei y, Daumen y - 2, 20 hoch
+    auto slider = [&](const std::vector<Prim>& prims, float bx, float bw, float by, float tx, float ty, float th, const std::string& was) {
+        bool bar = false, thumb = false;
+        for (const Prim& x : prims) {
+            if (x.item == 2 && x.shader == "menu/new/slider" && nah(x.x, bx) && nah(x.w, bw) && nah(x.y, by) && nah(x.h, 16)) { bar = true; }
+            if (x.item == 2 && x.shader == "menu/new/sliderthumb" && nah(x.x, tx) && nah(x.y, ty) && nah(x.w, 12) && nah(x.h, th)) { thumb = true; }
+        }
+        pruefe(bar && thumb, "Slider " + was);
+    };
+    slider(p, 300, 128, 202, 358, 202, 16, "JA SP: Leiste 300/202 128 breit, Daumen 358/202 16 hoch");
+    {
+        LeseOptionen om = o;
+        om.spiel = Spiel::MD;
+        const Datei dm = lies("ui/probe.menu", text, om);
+        std::vector<Prim> pm;
+        zeichneMenu(dm, 0, u, pm);
+        slider(pm, 300, 96, 202, 342, 202, 16, "Movie Duels SP: Leiste 300/202 96 breit, Daumen 342/202 16 hoch");
+        LeseOptionen omp = o;
+        omp.dialekt = Dialekt::MP;
+        std::string mp = text;   // MP ohne menudef.h: Zahlen statt Namen
+        for (const auto& [name, zahl] : {std::pair<std::string, std::string>{"ITEM_TYPE_SLIDER", "10"}, {"ITEM_TYPE_TEXT", "0"}, {"WINDOW_STYLE_FILLED", "1"}}) {
+            for (std::size_t pos = mp.find(name); pos != std::string::npos; pos = mp.find(name)) { mp.replace(pos, name.size(), zahl); }
+        }
+        const Datei dmp = lies("ui/jamp/probe.menu", mp, omp);
+        Umgebung ump = u;
+        ump.dialekt = Dialekt::MP;
+        std::vector<Prim> pmp;
+        zeichneMenu(dmp, 0, ump, pmp);
+        slider(pmp, 300, 96, 200, 342, 198, 20, "MP: Leiste 300/200 96 breit, Daumen 342/198 20 hoch");
     }
-    pruefe(bar && thumb, "Slider: Leiste bei 300, Daumen bei 342/198");
     bool z = false, zz = false, unsicht = false;
     for (const Prim& x : p) {
         if (x.item == 3) { z = true; }
@@ -246,6 +294,11 @@ int main() {
         const Datei dd = lies("ui/od.menu", to, oo);
         Umgebung uo = u;
         uo.dialekt = Dialekt::SP;
+        uo.ownerDraw = [](const OdAufruf& a) {   // M7: UI_OwnerDraw ueber ownerdraw.cpp
+            OdKontext k;
+            k.dialekt = Dialekt::SP;
+            return ownerDraw(a, k);
+        };
         std::vector<Prim> po;
         zeichneMenu(dd, 0, uo, po);
         bool taste = false, stand = false;
@@ -680,16 +733,31 @@ int main() {
             const auto it = cvm.find(k);
             return it == cvm.end() ? std::string() : it->second;
         };
-        pruefe(fd.ownerDraw(245, cvf).text == "@MENUS_DUEL", "UI_NETGAMETYPE: gameTypes[ui_netGametype].gtEnum -> UI_GetGameTypeName");
-        pruefe(fd.ownerDraw(210, cvf).text == "@MENUS_HUMAN" && !fd.ownerDraw(210, cvf).halb, "UI_BLUETEAM1: Wert 1 = Mensch");
-        pruefe(fd.ownerDraw(211, cvf).text == "Jan", "UI_BLUETEAM2: Wert 3 = Bot Nr. 1");
-        const OwnerDrawInhalt zu = fd.ownerDraw(219, cvf);
-        pruefe(zu.text == "@MENUS_CLOSED" && zu.halb, "UI_REDTEAM5: Platz 10 > sv_maxClients 8 -> geschlossen, halbe Farbe");
-        pruefe(fd.ownerDraw(207, cvf).text == "@MP_INGAME_SKILL2" && fd.ownerDraw(287, cvf).text == "@MENUS_DEFAULT", "UI_SKILL, UI_SKIN_COLOR");
-        pruefe(fd.ownerDraw(255, cvf).bild == "menu/art/unknownmap_mp" && !fd.ownerDraw(9999, cvf).bekannt,
+        // M7: ueber ownerDraw (ownerdraw.cpp); se gibt den Schluessel mit "@" zurueck
+        OdKontext ok;
+        ok.dialekt = Dialekt::MP;
+        ok.daten = &fd;
+        ok.cvar = cvf;
+        ok.se = [](const std::string& k) { return "@" + k; };
+        auto od = [&](int id) {
+            OdAufruf a;
+            a.id = id;
+            return ownerDraw(a, ok);
+        };
+        auto odText = [&](int id) {
+            const OdErgebnis r = od(id);
+            return r.teile.empty() ? std::string() : r.teile.front().inhalt;
+        };
+        pruefe(odText(245) == "@MENUS_DUEL", "UI_NETGAMETYPE: gameTypes[ui_netGametype].gtEnum -> UI_GetGameTypeName");
+        pruefe(odText(210) == "@MENUS_HUMAN" && od(210).teile.front().farbe.r == 1.0F, "UI_BLUETEAM1: Wert 1 = Mensch");
+        pruefe(odText(211) == "Jan", "UI_BLUETEAM2: Wert 3 = Bot Nr. 1");
+        const OdErgebnis zu = od(219);
+        pruefe(odText(219) == "@MENUS_CLOSED" && zu.teile.front().farbe.r == 0.5F, "UI_REDTEAM5: Platz 10 > sv_maxClients 8 -> geschlossen, halbe Farbe");
+        pruefe(odText(207) == "@MP_INGAME_SKILL2" && odText(287) == "@MENUS_DEFAULT", "UI_SKILL, UI_SKIN_COLOR");
+        pruefe(od(255).teile.front().inhalt == "menu/art/unknownmap_mp" && !od(9999).bekannt,
                "UI_STARTMAPCINEMATIC ohne Levelshot -> unknownmap_mp; unbekannte Nummer bleibt Platzhalter");
-        fd.dialekt = Dialekt::SP;
-        pruefe(!fd.ownerDraw(245, cvf).bekannt, "SP: MP-Ownerdraws gelten nicht");
+        ok.dialekt = Dialekt::SP;
+        pruefe(!od(245).bekannt, "SP: MP-Ownerdraws gelten nicht");
         // Bildliste der MP-Fassung: mehr als doppelt so breit wie ein Element -> Zeilen und Spalten
         LeseOptionen og;
         og.dialekt = Dialekt::MP;

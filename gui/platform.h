@@ -149,6 +149,18 @@ bool bildschirmFarbe(int x, int y, unsigned char rgb[3]);
 // Explorer gezogen (WM_DROPFILES mit DROPFILES-Block, Stelle in Fensterpunkten).
 bool dateiAblegen(void* fenster, const std::string& pfad, int x, int y);
 
+// M7: glGetString(GL_VENDOR/RENDERER/VERSION/EXTENSIONS) des OpenGL-Treibers, wie das Spiel sie fuer
+// UI_GLINFO liest (verstecktes Fenster, Pixelformat 32/24/8, Kontext gleich wieder weg). false = kein GL.
+bool openGlTreiber(std::string& vendor, std::string& renderer, std::string& version, std::string& erweiterungen);
+
+// M7 Punkt 13: einen Befehl in die Konsole eines selbst gestarteten Spiels (Prozess pid) geben -
+// Shift+Esc oeffnet die Konsole (CL_KeyDownEvent: "kg.keys[A_SHIFT].down && key == A_ESCAPE"), die
+// Zeichen kommen per WM_CHAR, Enter fuehrt aus, Shift+Esc schliesst. Nur PostMessage an das Fenster
+// dieses Prozesses (kein Fokus, keine fremden Fenster). false = der Prozess hat kein sichtbares Fenster.
+// Nur OpenJK-Programme (SDL) nehmen so gesendete Tasten ohne Fokus an; die Original-Programme nicht.
+bool spielKonsolenBefehl(unsigned long pid, const std::string& befehl);
+[[nodiscard]] bool prozessLaeuft(unsigned long pid);
+
 // --- Karten-Editor, Textmasse wie Qt 5 (QWindowsFontEngine, GDI) ---------
 //
 // Breite eines Textes in Pixeln: Schrift schrift mit lfHeight = -pixel,

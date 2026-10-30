@@ -50,6 +50,16 @@ struct HudWerte {
     int zeitMs = 0;            // cg.time (Blinken der letzten Ruestung)
 };
 
+// M7: cgi_UI_GetMenuItemInfo (CG_UI_GETITEMINFO): Lage als int, foreColor, background; gefunden = false:
+// alles 0 (die statische Vorbelegung)
+struct MenueItemInfo {
+    int x = 0, y = 0, w = 0, h = 0;
+    Farbe farbe{0, 0, 0, 0};
+    std::string bild;
+    bool gefunden = false;
+};
+[[nodiscard]] MenueItemInfo menueItemInfo(const Datei& d, const char* menue, const char* item);
+
 // Ist das ein HUD-Menue (hat es lefthud oder righthud)?
 [[nodiscard]] bool istHud(const Datei& d);
 // Bildet die Vorschau nach, was cgame darueber zeichnet? Nur Jedi Academy SP (code/cgame) -
@@ -69,6 +79,18 @@ struct HudZustand {
 // Munition; danach CG_DrawCrosshair (ohne Ziel: weiss, Mitte + cg_crosshairX/Y).
 // Zeichenbefehle der Menues ausser `aktuell` tragen item -1 (nicht waehlbar).
 void zeichneHud(const Datei& d, int aktuell, const Umgebung& u, const HudWerte& w, HudZustand& z, std::vector<Prim>& out);
+
+// M7: CG_DrawDataPadHUD (code/cgame/cg_draw.cpp, Jedi Academy): CG_DrawHealth, CG_DrawForcePower,
+// CG_DrawAmmo mit den Strichen aus lefthud/righthud der HUD-Datei (ui/hud.menu), CG_DrawMessageLit
+// (526 + 33, 286 + 41, gfx/hud/message_off) und gfx/menus/datapad ueber den ganzen Schirm.
+void zeichneDatapadHud(const Datei& hud, const HudWerte& w, std::vector<Prim>& out);
+
+// M7: CG_DrawDataPadHUD von Jedi Outcast (codeJK2/cgame/cg_draw.cpp: CG_DrawHUDLeftFrame1, CG_DrawArmor,
+// CG_DrawHealth, CG_DrawHUDRightFrame1, CG_DrawForcePower, CG_DrawAmmo, CG_DrawMessageLit) und Movie Duels
+// (dazu CG_DrawHUDLeftFrame2/RightFrame2, eigene Bilder gfx/hud/Datapad*, sieben Saebelstile) - ohne
+// hud.menu: Ringe, Striche (forceTicPos/ammoTicPos, rechts gespiegelt) und Zahlen an festen Stellen,
+// darueber gfx/hud/datapad2.
+void zeichneDatapadHudJk2(Spiel spiel, const HudWerte& w, std::vector<Prim>& out);
 
 }  // namespace bhed::menue
 

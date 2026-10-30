@@ -878,4 +878,114 @@ bool befehlStarten(const std::string& befehlszeile) {
     return true;
 }
 
+bool openGlTreiber(std::string& vendor, std::string& renderer, std::string& version, std::string& erweiterungen) {
+    // opengl32.dll erst hier laden: das Programm selbst zeichnet mit Direct3D 11
+    HMODULE gl = LoadLibraryW(L"opengl32.dll");
+    if (gl == nullptr) { return false; }
+    using CreateFn = HGLRC(WINAPI*)(HDC);
+    using MakeFn = BOOL(WINAPI*)(HDC, HGLRC);
+    using DeleteFn = BOOL(WINAPI*)(HGLRC);
+    using StringFn = const unsigned char*(WINAPI*)(unsigned int);
+    const auto erzeuge = reinterpret_cast<CreateFn>(reinterpret_cast<void*>(GetProcAddress(gl, "wglCreateContext")));
+    const auto mache = reinterpret_cast<MakeFn>(reinterpret_cast<void*>(GetProcAddress(gl, "wglMakeCurrent")));
+    const auto loesche = reinterpret_cast<DeleteFn>(reinterpret_cast<void*>(GetProcAddress(gl, "wglDeleteContext")));
+    const auto text = reinterpret_cast<StringFn>(reinterpret_cast<void*>(GetProcAddress(gl, "glGetString")));
+    bool ok = false;
+    if (erzeuge != nullptr && mache != nullptr && loesche != nullptr && text != nullptr) {
+        WNDCLASSW wc{};
+        wc.style = CS_OWNDC;
+        wc.lpfnWndProc = DefWindowProcW;
+        wc.hInstance = GetModuleHandleW(nullptr);
+        wc.lpszClassName = L"jkstudio_glinfo";
+        RegisterClassW(&wc);
+        HWND w = CreateWindowExW(0, wc.lpszClassName, L"", WS_POPUP, 0, 0, 16, 16, nullptr, nullptr, wc.hInstance, nullptr);
+        if (w != nullptr) {
+            HDC dc = GetDC(w);
+            PIXELFORMATDESCRIPTOR pfd{};
+            pfd.nSize = sizeof(pfd);
+            pfd.nVersion = 1;
+            pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+            pfd.iPixelType = PFD_TYPE_RGBA;
+            pfd.cColorBits = 32;
+            pfd.cDepthBits = 24;
+            pfd.cStencilBits = 8;
+            const int fmt = ChoosePixelFormat(dc, &pfd);
+            if (fmt != 0 && SetPixelFormat(dc, fmt, &pfd) != FALSE) {
+                HGLRC rc = erzeuge(dc);
+                if (rc != nullptr && mache(dc, rc) != FALSE) {
+                    auto lies = [&](unsigned int name) {
+                        const unsigned char* t = text(name);
+                        return t != nullptr ? std::string(reinterpret_cast<const char*>(t)) : std::string();
+                    };
+                    vendor = lies(0x1F00);         // GL_VENDOR
+                    renderer = lies(0x1F01);       // GL_RENDERER
+                    version = lies(0x1F02);        // GL_VERSION
+                    erweiterungen = lies(0x1F03);  // GL_EXTENSIONS
+                    ok = !vendor.empty();
+                    mache(nullptr, nullptr);
+                }
+                if (rc != nullptr) { loesche(rc); }
+            }
+            ReleaseDC(w, dc);
+            DestroyWindow(w);
+        }
+        UnregisterClassW(wc.lpszClassName, wc.hInstance);
+    }
+    FreeLibrary(gl);
+    return ok;
+}
+
+namespace {
+struct FensterSuche {
+    DWORD pid = 0;
+    HWND fenster = nullptr;
+};
+BOOL CALLBACK fensterDesProzesses(HWND w, LPARAM l) {
+    auto* s = reinterpret_cast<FensterSuche*>(l);
+    DWORD p = 0;
+    GetWindowThreadProcessId(w, &p);
+    if (p == s->pid && IsWindowVisible(w) != FALSE && GetWindow(w, GW_OWNER) == nullptr) {
+        s->fenster = w;
+        return FALSE;
+    }
+    return TRUE;
+}
+void tasteSenden(HWND w, UINT vk, bool runter) {
+    const UINT scan = MapVirtualKeyW(vk, MAPVK_VK_TO_VSC);
+    LPARAM l = 1 | static_cast<LPARAM>(scan << 16);
+    if (!runter) { l |= (1LL << 30) | (1LL << 31); }
+    PostMessageW(w, runter ? WM_KEYDOWN : WM_KEYUP, vk, l);
+}
+}  // namespace
+
+bool spielKonsolenBefehl(unsigned long pid, const std::string& befehl) {
+    FensterSuche s;
+    s.pid = static_cast<DWORD>(pid);
+    EnumWindows(fensterDesProzesses, reinterpret_cast<LPARAM>(&s));
+    if (s.fenster == nullptr) { return false; }
+    auto konsole = [&] {   // Shift+Esc (OpenJK CL_KeyDownEvent)
+        tasteSenden(s.fenster, VK_SHIFT, true);
+        tasteSenden(s.fenster, VK_ESCAPE, true);
+        tasteSenden(s.fenster, VK_ESCAPE, false);
+        tasteSenden(s.fenster, VK_SHIFT, false);
+    };
+    konsole();
+    for (const char c : std::string(1, static_cast<char>(92)) + befehl) {   // fuehrender Backslash: ausdruecklich ein Befehl (Console_Key), auch im MP
+        PostMessageW(s.fenster, WM_CHAR, static_cast<WPARAM>(static_cast<unsigned char>(c)), 1);
+    }
+    tasteSenden(s.fenster, VK_RETURN, true);
+    tasteSenden(s.fenster, VK_RETURN, false);
+    konsole();
+    return true;
+}
+
+bool prozessLaeuft(unsigned long pid) {
+    HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, static_cast<DWORD>(pid));
+    if (h == nullptr) { return false; }
+    DWORD code = 0;
+    const bool laeuft = GetExitCodeProcess(h, &code) != FALSE && code == STILL_ACTIVE;
+    CloseHandle(h);
+    return laeuft;
+}
+
 }  // namespace bhed::platform

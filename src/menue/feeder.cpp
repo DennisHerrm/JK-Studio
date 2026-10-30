@@ -20,6 +20,8 @@
 #include "bhed/pk3.h"
 
 #include <algorithm>
+#include <array>
+#include <iterator>
 #include <cctype>
 #include <chrono>
 #include <cstdio>
@@ -31,6 +33,115 @@
 namespace bhed::menue {
 
 namespace {
+
+// M7: die festen Tabellen der Movie-Duels-Oberflaeche (tools/gen_md_tabellen.py)
+struct MdFigur {
+    const char* name;
+    const char* icon;
+    const char* npc;
+    const char* model;
+    const char* skin;
+    int era;
+    const char* desc;
+    bool subDiv;
+};
+struct MdDuellKarte {
+    const char* name;
+    const char* desc;
+    const char* bsp;
+    const char* bild;
+};
+struct MdGriff {
+    const char* name;
+    const char* griff;
+};
+#include "md_tabellen.inc"
+
+constexpr int kMdEpochenZahl = static_cast<int>(std::size(kMdEpochen));   // TOTAL_ERAS
+constexpr int kMdFigurenZahl = static_cast<int>(std::size(kMdFiguren));   // NO_OF_MD_MODELS
+
+std::string klein(std::string s);
+
+// M7: COM_ParseExt / SkipRestOfLine ueber saberParms (codemp/qcommon/q_shared.c), fuer
+// WP_SaberGetHiltInfo und WP_SaberParseParm (codemp/game/bg_saberLoad.c)
+struct SaberText {
+    const std::string& t;
+    std::size_t p = 0;
+    bool ende() const { return p >= t.size(); }
+    // COM_ParseExt(&p, allowLineBreaks): "" am Ende bzw. am Zeilenende ohne allowLineBreaks
+    std::string wort(bool zeilen) {
+        while (true) {
+            while (p < t.size() && static_cast<unsigned char>(t[p]) <= ' ') {
+                if (t[p] == '\n' && !zeilen) { return {}; }
+                ++p;
+            }
+            if (p >= t.size()) { return {}; }
+            if (t.compare(p, 2, "//") == 0) {
+                while (p < t.size() && t[p] != '\n') { ++p; }
+                continue;
+            }
+            if (t.compare(p, 2, "/*") == 0) {
+                const std::size_t e = t.find("*/", p + 2);
+                p = e == std::string::npos ? t.size() : e + 2;
+                continue;
+            }
+            break;
+        }
+        std::string w;
+        if (t[p] == '"') {
+            ++p;
+            while (p < t.size() && t[p] != '"') { w += t[p++]; }
+            if (p < t.size()) { ++p; }
+            return w;
+        }
+        while (p < t.size() && static_cast<unsigned char>(t[p]) > ' ') { w += t[p++]; }
+        return w;
+    }
+    void zeilenRest() {   // SkipRestOfLine
+        while (p < t.size() && t[p] != '\n') { ++p; }
+        if (p < t.size()) { ++p; }
+    }
+    void klammerBlock() {   // SkipBracedSection(&p, 0): mit Tiefe 0 genau ein Wort
+        int tiefe = 0;
+        do {
+            const std::string w = wort(true);
+            if (w == "{") { ++tiefe; }
+            else if (w == "}") { --tiefe; }
+        } while (tiefe != 0 && !ende());
+    }
+};
+
+// WP_SaberParseParm(saberName, parmname)
+std::string saberParm(const std::string& parms, const std::string& name, const std::string& parm) {
+    SaberText s{parms};
+    while (true) {
+        const std::string w = s.wort(true);
+        if (w.empty()) { return {}; }
+        if (klein(w) == klein(name)) { break; }
+        s.klammerBlock();
+    }
+    if (s.wort(true) != "{") { return {}; }
+    while (true) {
+        const std::string w = s.wort(true);
+        if (w.empty() || w == "}") { return {}; }
+        if (klein(w) == klein(parm)) { return s.wort(false); }
+        s.zeilenRest();
+    }
+}
+
+// MD_BG_GenerateEraIndexes: eraIndex[TOTAL_ERAS + 1] (die Abschlusszeile setzt den letzten)
+std::array<int, kMdEpochenZahl + 1> mdEpochenIndex() {
+    std::array<int, kMdEpochenZahl + 1> e{};
+    int f = 0;
+    for (int i = 0; i < kMdFigurenZahl; ++i) {
+        if (kMdFiguren[i].era != f && f < kMdEpochenZahl) {
+            ++f;
+            e[static_cast<std::size_t>(f)] = i;
+        }
+    }
+    return e;
+}
+
 std::string klein(std::string s) {
     for (char& c : s) { c = c == '\\' ? '/' : static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
     return s;
@@ -174,6 +285,10 @@ void FeederDaten::baue() {
     filme.clear();
     kraefte.clear();
     spielstaende.clear();
+    spieltypen.clear();
+    joinSpieltypen.clear();
+    bots.clear();
+    kartenDatei.clear();
     if (daten == nullptr) { return; }
     const Spieldaten& d = *daten;
     // UI_BuildPlayerModel_List (SP und MP gleich aufgebaut)
@@ -325,20 +440,23 @@ void FeederDaten::baue() {
             }
             if (koepfe.size() >= 1024) { break; }
         }
-        // UI_ParseGameInfo("ui/jamp/gameinfo.txt"): gametypes { { "Name" gtEnum } ... }
+        // UI_ParseGameInfo("ui/jamp/gameinfo.txt", Jedi Outcast ui/jk2mp/gameinfo.txt): gametypes und
+        // joingametypes { { "Name" gtEnum } ... } (GameType_Parse)
         std::string gi;
-        if (d.lies("ui/jamp/gameinfo.txt", gi)) {
+        if (d.lies(spiel == Spiel::JK2 ? "ui/jk2mp/gameinfo.txt" : "ui/jamp/gameinfo.txt", gi)) {
             Woerter w(gi);
             for (std::string tok = w.naechstes(true); !tok.empty(); tok = w.naechstes(true)) {
-                if (klein(tok) != "gametypes") { continue; }
+                const std::string t = klein(tok);
+                if (t != "gametypes" && t != "joingametypes") { continue; }
+                auto& liste = t == "gametypes" ? spieltypen : joinSpieltypen;
+                liste.clear();
                 if (w.naechstes(true) != "{") { break; }
                 for (std::string x = w.naechstes(true); x == "{"; x = w.naechstes(true)) {
                     const std::string name = w.naechstes(true);
                     const int gt = std::atoi(w.naechstes(true).c_str());
-                    spieltypen.emplace_back(name, gt);
+                    liste.emplace_back(name, gt);
                     if (w.naechstes(true) != "}") { break; }
                 }
-                break;
             }
         }
         // UI_LoadBots: botfiles/bots.txt (g_botsFile leer), dann scripts/*.bot; je { ... name <x> ... }
@@ -357,6 +475,14 @@ void FeederDaten::baue() {
         };
         botsAus("botfiles/bots.txt");
         for (const std::string& f : dateiListe(d, "scripts", ".bot")) { botsAus("scripts/" + f); }
+        // M7: WP_SaberLoadParms (alle ext_data/sabers/*.sab hintereinander) und WP_SaberGetHiltInfo: jeder
+        // Name mit "{" in einer folgenden Zeile, ohne notInMP; twoHanded -> Stab-Liste (je MAX_SABER_HILTS - 1)
+        std::string parms;
+        for (const std::string& f : dateiListe(d, "ext_data/sabers", ".sab")) {
+            std::string t;
+            if (d.lies("ext_data/sabers/" + f, t)) { parms += t; }
+        }
+        saberListen(parms, saberEinhand, saberStab);
         for (const std::string& f : dateiListe(d, "demos", ".dm_26")) { demos.push_back(ohneEndung(f)); }   // UI_LoadDemos
         for (const std::string& f : dateiListe(d, "video", ".roq")) { filme.push_back(ohneEndung(f)); }     // UI_LoadMovies
         kraefte.emplace_back("Custom");   // UI_LoadForceConfig_List: [0] immer "custom"
@@ -372,72 +498,6 @@ int FeederDaten::speziesIndex(const std::string& modell) const {
         if (dialekt == Dialekt::MP) { break; }   // MP: break; SP: Schleife laeuft weiter
     }
     return i;
-}
-
-OwnerDrawInhalt FeederDaten::ownerDraw(int id, const std::function<std::string(const std::string&)>& cvar) const {
-    OwnerDrawInhalt o;
-    if (dialekt != Dialekt::MP) { return o; }
-    auto wert = [&](const std::string& n) { return cvar ? std::atoi(cvar(n).c_str()) : 0; };
-    // uiInfo.gameTypes[ui_netGametype].gtEnum (UI_DrawNetGameType setzt ausserhalb der Liste auf 0)
-    auto gtEnum = [&](const char* cv) {
-        int i = wert(cv);
-        if (i < 0 || static_cast<std::size_t>(i) >= spieltypen.size()) { i = 0; }
-        return spieltypen.empty() ? 0 : spieltypen[static_cast<std::size_t>(i)].second;
-    };
-    auto spieltypName = [](int gt) -> std::string {   // UI_GetGameTypeName
-        switch (gt) {
-            case 0: return "@MENUS_FREE_FOR_ALL";
-            case 1: return "@MENUS_HOLOCRON_FFA";
-            case 3: return "@MENUS_DUEL";
-            case 4: return "@MENUS_POWERDUEL";
-            case 6: return "@MENUS_TEAM_FFA";
-            case 7: return "@MENUS_SIEGE";
-            case 8: return "@MENUS_CAPTURE_THE_FLAG";
-            case 9: return "@MENUS_CAPTURE_THE_YSALIMARI";
-            default: return "@MENUS_SAGA";   // GT_JEDIMASTER, GT_SINGLE_PLAYER und sonst
-        }
-    };
-    constexpr int kSkinColor = 287, kGametype = 205, kNetGametype = 245, kSkill = 207, kMapCinematic = 244, kStartMapCinematic = 255;
-    if (id == kSkinColor) {   // UI_DrawSkinColor(uiSkinColor = TEAM_FREE)
-        o.bekannt = true;
-        o.text = "@MENUS_DEFAULT";
-    } else if (id == kGametype || id == kNetGametype) {
-        o.bekannt = true;
-        o.text = spieltypName(gtEnum(id == kGametype ? "ui_gametype" : "ui_netGametype"));
-    } else if (id == kSkill) {   // UI_DrawSkill: g_spSkill 1..5 -> MP_INGAME_SKILL<n>
-        int i = wert("g_spSkill");
-        if (i < 1 || i > 5) { i = 1; }
-        o.bekannt = true;
-        o.text = "@MP_INGAME_SKILL" + std::to_string(i);
-    } else if ((id >= 210 && id <= 219) || (id >= 280 && id <= 285)) {   // UI_DrawTeamMember
-        const bool blau = (id >= 210 && id <= 214) || (id >= 280 && id <= 282);
-        const int num = id <= 214 ? id - 209 : id <= 219 ? id - 214 : id <= 282 ? id - 274 : id - 277;
-        int value = wert(std::string(blau ? "ui_blueteam" : "ui_redteam") + std::to_string(num));
-        const int maxcl = wert("sv_maxClients");
-        const int numval = num * 2 - (blau ? 1 : 0);
-        if (numval > maxcl) {
-            o.halb = true;
-            value = -1;
-        }
-        if (gtEnum("ui_netGametype") == 7 && value > 1) { value = 1; }   // GT_SIEGE
-        o.bekannt = true;
-        if (value <= 1) {
-            o.text = value == -1 ? "@MENUS_CLOSED" : "@MENUS_HUMAN";
-        } else {
-            value -= 2;
-            if (value >= static_cast<int>(bots.size())) { value = 1; }
-            o.text = value >= 0 && static_cast<std::size_t>(value) < bots.size() ? bots[static_cast<std::size_t>(value)] : std::string("Kyle");
-        }
-    } else if (id == kMapCinematic || id == kStartMapCinematic) {   // UI_DrawMapCinematic -> UI_DrawMapPreview
-        int map = wert(id == kStartMapCinematic ? "ui_currentNetMap" : "ui_currentMap");
-        if (map < 0 || static_cast<std::size_t>(map) > kartenDatei.size()) { map = 0; }
-        o.bekannt = true;
-        o.bild = static_cast<std::size_t>(map) < kartenDatei.size() ? "levelshots/" + kartenDatei[static_cast<std::size_t>(map)] : std::string();
-        if (o.bild.empty() || daten == nullptr || (!daten->gibt(o.bild + ".jpg") && !daten->gibt(o.bild + ".tga") && !daten->gibt(o.bild + ".png"))) {
-            o.bild = "menu/art/unknownmap_mp";
-        }
-    }
-    return o;
 }
 
 std::vector<FeederEintrag> FeederDaten::eintraege(float feeder, int sp, int titel) const {
@@ -508,6 +568,7 @@ std::vector<FeederEintrag> FeederDaten::eintraege(float feeder, int sp, int tite
             case feeder_sp::MODS: modListe(); break;
             default: break;
         }
+        if (spiel == Spiel::MD) { mdEintraege(f, r); }
         return r;
     }
     switch (f) {
@@ -545,6 +606,15 @@ std::vector<FeederEintrag> FeederDaten::eintraege(float feeder, int sp, int tite
         case feeder_mp::PLAYER_SKIN_TORSO: haeute(s != nullptr ? s->rumpf : std::vector<std::string>{}); break;
         case feeder_mp::PLAYER_SKIN_LEGS: haeute(s != nullptr ? s->beine : std::vector<std::string>{}); break;
         case feeder_mp::COLORCHOICES: farben(); break;
+        case feeder_mp::SABER_SINGLE_INFO:   // M7: UI_SaberProperNameForSaber ("@" ueber SE_GetStringTextString)
+            for (const std::string& x : saberEinhand) { zeile(!x.empty() && x[0] == '@' && se ? se(x.substr(1)) : x); }
+            break;
+        case feeder_mp::SABER_STAFF_INFO:
+            for (const std::string& x : saberStab) { zeile(!x.empty() && x[0] == '@' && se ? se(x.substr(1)) : x); }
+            break;
+        case feeder_mp::PLAYER_LIST:   // M7: uiInfo.playerNames (Beispiel: Spielername und zwei Bots)
+            for (const char* x : {"Padawan", "Kyle", "Jan"}) { zeile(x); }
+            break;
         case feeder_mp::MOVES: moves(); break;
         case feeder_mp::MOVES_TITLES:
             for (const char* x : kMoveTitel) { zeile(x); }
@@ -558,6 +628,158 @@ std::vector<FeederEintrag> FeederDaten::eintraege(float feeder, int sp, int tite
         default: break;   // Server, Spieler, Siege ...: ohne laufendes Spiel leer
     }
     return r;
+}
+
+// M7: Movie Duels FEEDER_MD_FACTION .. FEEDER_STAFF_SABER_HILTS (code/ui/ui_main.cpp UI_FeederCount,
+// UI_FeederItemText, UI_FeederItemImage) mit uiEra = 0, uiModelIndex = 0 wie nach dem Start
+void FeederDaten::mdEintraege(int f, std::vector<FeederEintrag>& r) const {
+    const auto e = mdEpochenIndex();
+    constexpr int uiEra = 0, uiModelIndex = 0;
+    auto bild = [](int i) {   // gfx/menus/charactermenuicons/<icon, sonst npc>
+        const MdFigur& m = kMdFiguren[i];
+        return std::string("gfx/menus/charactermenuicons/") + (m.icon[0] == 0 ? m.npc : m.icon);
+    };
+    auto eintrag = [&](std::string text, std::string b = {}) {
+        FeederEintrag x;
+        x.spalten.push_back(std::move(text));
+        x.bild = std::move(b);
+        r.push_back(std::move(x));
+    };
+    switch (f) {
+        case 0x54:   // FEEDER_MD_FACTION
+            for (const char* n : kMdEpochen) { eintrag(n); }
+            break;
+        case 0x55: {   // FEEDER_MD_MODELS: Figuren der Epoche ohne die Unterteilungen (MD_UI_SelectedTeamHead_SubDivs)
+            int anzahl = e[uiEra + 1] - e[uiEra];
+            for (int i = 0; i < e[uiEra + 1] - e[uiEra]; ++i) {
+                if (kMdFiguren[e[uiEra] + i].subDiv) { --anzahl; }
+            }
+            for (int index = 0; index < anzahl; ++index) {
+                int c = 0;
+                for (int i = e[uiEra]; i < e[uiEra + 1]; ++i) {
+                    if (!kMdFiguren[i].subDiv) {
+                        for (int k = 1; k < kMdFigurenZahl && i + k < kMdFigurenZahl; ++k) {
+                            if (!kMdFiguren[i + k].subDiv) { break; }
+                            --c;
+                        }
+                    }
+                    if (c == index) {
+                        while (i > 0 && kMdFiguren[i].subDiv) { --i; }
+                        eintrag("", bild(i));
+                        break;
+                    }
+                    ++c;
+                }
+            }
+            break;
+        }
+        case 0x56: {   // FEEDER_MD_VARIANTS: die gewaehlte Figur und ihre Unterteilungen
+            int anzahl = 1;
+            for (int i = 1; i < kMdFigurenZahl && uiModelIndex + i < kMdFigurenZahl; ++i) {
+                if (!kMdFiguren[uiModelIndex + i].subDiv) {
+                    anzahl = i;
+                    break;
+                }
+            }
+            for (int index = 0; index < anzahl; ++index) {
+                const int i = e[uiEra] + index + uiModelIndex - e[uiEra];   // MD_UI_SelectedTeamHead + Versatz
+                if (i >= uiModelIndex && i < uiModelIndex + anzahl) { eintrag("", bild(i)); }
+            }
+            break;
+        }
+        case 0x57:   // FEEDER_DUEL_MAPS
+            for (const MdDuellKarte& k : kMdDuellKarten) { eintrag(k.name); }
+            break;
+        case 0x58:   // FEEDER_SINGLE_SABER_HILTS
+            for (const MdGriff& g : kMdEinhandGriffe) { eintrag(g.name); }
+            break;
+        case 0x59:   // FEEDER_STAFF_SABER_HILTS
+            for (const MdGriff& g : kMdStabGriffe) { eintrag(g.name); }
+            break;
+        default: break;
+    }
+}
+
+int FeederDaten::art(float feeder) const {
+    const int f = static_cast<int>(feeder);
+    if (static_cast<float>(f) != feeder) { return 0; }
+    if (dialekt == Dialekt::SP) {
+        switch (f) {
+            case feeder_sp::SAVEGAMES:
+            case feeder_sp::MODS:
+            case feeder_sp::PLAYER_SPECIES:
+            case feeder_sp::PLAYER_SKIN_HEAD:
+            case feeder_sp::PLAYER_SKIN_TORSO:
+            case feeder_sp::PLAYER_SKIN_LEGS:
+            case feeder_sp::COLORCHOICES:
+            case feeder_sp::MOVES:
+            case feeder_sp::MOVES_TITLES:
+            case feeder_sp::LANGUAGES: return 1;
+            default: return (spiel == Spiel::MD && f >= 0x54 && f <= 0x59) ? 1 : 0;
+        }
+    }
+    switch (f) {
+        case feeder_mp::PLAYER_LIST: return 2;   // nur im laufenden Spiel gefuellt: Beispielnamen
+        case feeder_mp::MAPS:
+        case feeder_mp::SERVERS:   // leer bis zur Abfrage (wie im Hauptmenue)
+        case feeder_mp::ALLMAPS:
+        case 0x05:                 // FEEDER_REDTEAM_LIST
+        case 0x06:                 // FEEDER_BLUETEAM_LIST
+        case 0x08:                 // FEEDER_TEAM_LIST
+        case feeder_mp::MODS:
+        case feeder_mp::DEMOS:
+        case 0x0b:                 // FEEDER_SCOREBOARD
+        case feeder_mp::Q3HEADS:
+        case 0x0d:                 // FEEDER_SERVERSTATUS: leer bis zur Abfrage
+        case 0x0e:                 // FEEDER_FINDPLAYER: leer bis zur Suche
+        case feeder_mp::CINEMATICS:
+        case feeder_mp::FORCECFG:
+        case 0x11:                 // FEEDER_SIEGE_TEAM1/2: ohne Siege-Partie leer
+        case 0x12:
+        case feeder_mp::PLAYER_SPECIES:
+        case feeder_mp::PLAYER_SKIN_HEAD:
+        case feeder_mp::PLAYER_SKIN_TORSO:
+        case feeder_mp::PLAYER_SKIN_LEGS:
+        case feeder_mp::COLORCHOICES:
+        case 0x24:                 // FEEDER_SIEGE_BASE_CLASS / _CLASS_WEAPONS/_INVENTORY/_FORCE: ohne Klasse leer
+        case 0x25:
+        case 0x26:
+        case 0x27:
+        case feeder_mp::LANGUAGES:
+        case feeder_mp::MOVES:
+        case feeder_mp::MOVES_TITLES:
+        case feeder_mp::SABER_SINGLE_INFO:
+        case feeder_mp::SABER_STAFF_INFO: return 1;
+        default: return (f >= 0x18 && f <= 0x23) ? 1 : 0;   // FEEDER_TEAM1/2_*: Siege-Klassen der Partie
+    }
+}
+
+void saberListen(const std::string& parms, std::vector<std::string>& einhand, std::vector<std::string>& stab) {
+    einhand.clear();
+    stab.clear();
+    SaberText st{parms};
+    while (!st.ende()) {
+        const std::string name = st.wort(true);
+        if (name.empty()) { continue; }
+        st.zeilenRest();
+        if (st.wort(true) != "{") { continue; }
+        const std::string nichtMp = saberParm(parms, name, "notInMP");
+        if (!nichtMp.empty() && std::atoi(nichtMp.c_str()) != 0) {
+            st.klammerBlock();
+            continue;
+        }
+        // UI_SaberProperNameForSaber: "name" ("@" = StringEd)
+        const std::string proper = saberParm(parms, name, "name");
+        const std::string zwei = saberParm(parms, name, "twoHanded");
+        auto& liste = (!zwei.empty() && std::atoi(zwei.c_str()) != 0) ? stab : einhand;
+        if (liste.size() < 255) { liste.push_back(proper); }   // MAX_SABER_HILTS 256, NULL-Ende
+        st.klammerBlock();
+    }
+}
+
+std::string mdDuellKarteBild(int index) {
+    if (index < 0 || index >= static_cast<int>(std::size(kMdDuellKarten))) { return {}; }
+    return kMdDuellKarten[index].bild;
 }
 
 }  // namespace bhed::menue

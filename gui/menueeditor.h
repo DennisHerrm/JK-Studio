@@ -21,6 +21,8 @@ void zeichne(float hoehe);
 void dockFenster();
 // Fuer den Selbsttest und die Tour: Menue aus dem Spiel bzw. Text oeffnen.
 bool oeffneAusSpiel(const std::string& spielPfad);
+// M7 Punkt 14: ownerdraws/Feeder der Original-Menues, die noch einen Platzhalter bekommen ("SP ownerdraw 249 (ui/x.menu)")
+[[nodiscard]] std::vector<std::string> platzhalterImSpiel();
 bool oeffneText(const std::string& name, const std::string& text);
 // Eine .menu/.txt von der Platte (abgelegt oder ueber den Dialog).
 bool oeffneDatei(const std::string& platte);
@@ -59,6 +61,10 @@ struct Stand {
     int modellAufrufe = 0;         // M2: Zeichenaufrufe der 3D-Modelle (gpu::zeichneMenueFigur)
     double modellMs = 0;           // reste2 Punkt 7: Prozessorzeit der Figuren bis zu ihrem Bild (Summe, ms)
     int modellZeichnungen = 0;     // reste2 Punkt 7: gezeichnete Figuren (Summe)
+    int modellStufen = 0;          // M7: meiste Shaderstufen einer Modellflaeche (2 = Chrom-Stufe des JK2-Logos)
+    int beispielPrims = 0;         // M7: beschriftete Beispielwerte im letzten Bild
+    int platzhalterPrims = 0;      // M7: beschriftete Platzhalter (ownerdraw/Feeder ohne Darstellung) im letzten Bild
+    int ladebalken = 0;            // M7: Zeichenbefehle des Ladebalkens (gfx/hud/mp_levelload, load_tick)
     std::string modellFehler;      // letzte Meldung dabei
     int klangEreignisse = 0;       // M2 Punkt 5: ausgeloeste Klaenge (im Selbsttest stumm)
     std::string letzterKlang;
@@ -106,6 +112,15 @@ bool oeffneProjekt(const std::string& datei);         // sofort (Selbsttest, Dia
 void projektVormerken(const std::string& datei);      // Doppelklick/Kommandozeile: im naechsten Bild
 [[nodiscard]] bool istProjekt(const std::string& datei);
 bool legeProjektAn(const std::string& datei);         // die offenen Menues kommen hinein
+void neuesProjektFormat(bool mehrspieler);          // M7: Format des Startmenues (Einzel-/Mehrspieler)
+// M7 Punkt 13: ein laufendes Testspiel uebernehmen (Selbsttest-Nachweis: das Spiel startet ein Python-
+// Skript mit der Befehlszeile von "Im Spiel testen"); Zahl der ui_load-Neuladungen seit dem Start
+void testSpielUebernehmen(unsigned long pid, const std::string& ordner);
+[[nodiscard]] int testNeuGeladen();
+// M7 Punkt 3: Schluessel des gewaehlten Elements setzen wie die Eigenschaften (ein Rueckgaengig-Schritt)
+void setzeEigenschaftAuswahl(const std::string& schluessel, const std::vector<std::string>& werte);
+[[nodiscard]] std::string dokumentName();           // M7: Spielpfad des aktiven Dokuments ("" = keins)
+[[nodiscard]] bool dokumentMp();                    // M7: aktives Dokument im MP-Dialekt
 bool speichereProjektJetzt();
 bool exportiereProjektJetzt();
 [[nodiscard]] std::string projektDatei();             // "" = kein Projekt
@@ -173,6 +188,7 @@ void legeInsPaket(const std::string& spielPfad, const std::string& bytes);
 struct FlussInfo {
     int menues = 0, unerreichbar = 0, sackgassen = 0, ohneZurueck = 0, fehlend = 0, kanten = 0;
     bool fensterOffen = false, stileOffen = false, assistentOffen = false;
+    int assistentUeberlappung = 0;       // M7 (Uebersetzung 2): Zeilen, deren Text sichtbar in die naechste Spalte ragt
     std::string aktivesMenue;            // Name des Menues der Seite
 };
 [[nodiscard]] FlussInfo flussInfo();

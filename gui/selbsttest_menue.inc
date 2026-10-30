@@ -1327,6 +1327,166 @@ Schritt klickFlaeche(const std::string& was, float vx, float vy) {
                    }};
 }
 
+// M7 Punkt 3/12: Probe mit einem Knopf und einem Modell
+const char* const kM7Probe =
+    "{\n\tmenuDef\n\t{\n\t\tname m7\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname knopf\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"Los\"\n\t\t\trect 60 60 120 30\n\t\t\tvisible 1\n\t\t}\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname figur\n\t\t\ttype ITEM_TYPE_MODEL\n\t\t\trect 300 100 240 300\n\t\t\tmodel_angle 0\n\t\t\tvisible 1\n"
+    "\t\t\tdecoration\n\t\t}\n\t}\n}\n";
+
+// Echtes Ziehen auf der Flaeche: von (vx, vy) + (px, py) Bildpunkte um (dx, dy) Bildpunkte, in Schritten
+Schritt ziehFlaeche(const std::string& was, float vx, float vy, float px, float py, float dx, float dy) {
+    return Schritt{was, [=](int b) {
+                       ImGuiIO& io = ImGui::GetIO();
+                       const auto x = me::stand();
+                       const ImVec2 start{x.flaeche[0] + vx / 640.0F * x.flaeche[2] + px, x.flaeche[1] + vy / 480.0F * x.flaeche[3] + py};
+                       if (b == 0) {
+                           setzeMaus(start);
+                           return false;
+                       }
+                       if (b == 2) {
+                           io.AddMouseButtonEvent(0, true);
+                           return false;
+                       }
+                       if (b >= 3 && b <= 7) {
+                           const float t = static_cast<float>(b - 2) / 5.0F;
+                           setzeMaus(ImVec2{start.x + dx * t, start.y + dy * t});
+                           return false;
+                       }
+                       if (b == 8) {
+                           io.AddMouseButtonEvent(0, false);
+                           return false;
+                       }
+                       return b >= 11;
+                   }};
+}
+
+// M7: Platzhalter-Bestand, Beispielwerte, Lade-/Verbindungsmenues, ui_load, Komponenten, Gizmo
+std::vector<Schritt> schritteM7() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = [] { return me::stand(); };
+    // Punkt 14: kein ownerdraw/Feeder der Original-Menues bleibt ohne Darstellung
+    add(pruefe("M7 Punkt 14: alle ownerdraws und Feeder der Original-Menues haben eine Darstellung (0 Platzhalter)", [] {
+        const std::vector<std::string> offen = me::platzhalterImSpiel();
+        // Movie Duels MP 340-350 (UI_FORCE_RANK_STASIS ..): ohne Quellcode der MD-MP-Oberflaeche nicht nachbildbar
+        // (NOTIZEN_menue6.md, Punkt 14) - gezaehlt, aber nicht als Fehler
+        int ohneQuelle = 0;
+        for (const std::string& o : offen) {
+            diag::info("Menue-Editor M7 Platzhalter: " + o);
+            const bool mdMp = o.rfind("MP ownerdraw 3", 0) == 0 && o.find("(ui/MD_MP/") != std::string::npos &&
+                              std::atoi(o.c_str() + 13) >= 340 && std::atoi(o.c_str() + 13) <= 350;
+            ohneQuelle += mdMp ? 1 : 0;
+        }
+        diag::info("Menue-Editor M7 Platzhalter gesamt: " + std::to_string(offen.size()) + ", davon ohne Quelle (MD-MP 340-350): " +
+                   std::to_string(ohneQuelle));
+        return static_cast<int>(offen.size()) == ohneQuelle;
+    }));
+    // Punkt 3: Komponenten per Klick - Original anlegen, verknuepfte Kopie, Aenderung am Original wirkt auf die Kopie
+    add(tu("M7 Komponenten: Probe oeffnen, Knopf waehlen, Eigenschaften", [] {
+        me::schliesseAlleOhneSpeichern();
+        (void)me::oeffneText("ui/m7probe.menu", kM7Probe);
+        me::setzeReiter(2);
+        me::waehle(0, false);
+    }));
+    add(pause(0.3));
+    add(klick(tr(Str::MeKompAnlegen)));
+    add(pause(0.2));
+    add(klick(tr(Str::MeKompKopie)));
+    add(pause(0.3));
+    add(foto("menue_komponente"));
+    add(pruefe("M7 Komponenten: Kennung am Original, Kopie knopf_2 mit eigener Lage hinter dem Original", [st] {
+        const std::string t = st().text;
+        return t.find("// jkstudio:komponente knopf") != std::string::npos && t.find("// jkstudio:instanz knopf") != std::string::npos &&
+               t.find("knopf_2") != std::string::npos && t.find("rect 80 80 120 30") != std::string::npos && st().meldungen == 0;
+    }));
+    add(tu("M7 Komponenten: am Original den Text aendern", [] {
+        me::waehle(0, false);
+        me::setzeEigenschaftAuswahl("text", {"\"Neu\""});
+    }));
+    add(pause(0.2));
+    add(pruefe("M7 Komponenten: die Kopie folgt (zweimal \"Neu\"), ein Rueckgaengig-Schritt nimmt beides zurueck", [st] {
+        const std::string t = st().text;
+        std::size_t n = 0;
+        for (std::size_t p = t.find("\"Neu\""); p != std::string::npos; p = t.find("\"Neu\"", p + 1)) { ++n; }
+        if (n != 2) { return false; }
+        (void)me::rueckgaengig();
+        const std::string u = st().text;
+        return u.find("\"Neu\"") == std::string::npos && u.find("knopf_2") != std::string::npos;
+    }));
+    // Punkt 12: Gizmo - am Drehgriff (oben mittig, 12 Bildpunkte unter dem Rand) 60 Bildpunkte nach rechts ziehen
+    add(tu("M7 Gizmo: Modell waehlen", [] { me::waehle(me::itemNummer("figur"), false); }));
+    add(pause(0.3));
+    add(ziehFlaeche("M7 Gizmo: Drehgriff ziehen", 420, 100, 0, 12, 60, 0));
+    add(pause(0.2));
+    add(foto("menue_gizmo"));
+    add(pruefe("M7 Gizmo: model_angle 30 (0,5 Grad je Bildpunkt), ein Rueckgaengig-Schritt", [st] {
+        const std::string t = st().text;
+        diag::info("Menue-Editor M7 Gizmo: " + t.substr(t.find("model_angle"), 20));
+        if (t.find("model_angle 30") == std::string::npos) { return false; }
+        (void)me::rueckgaengig();
+        return st().text.find("model_angle 0") != std::string::npos;
+    }));
+    add(ziehFlaeche("M7 Gizmo: Abstandsgriff nach unten ziehen", 540, 250, -12, 0, 0, 40));
+    add(pause(0.2));
+    add(pruefe("M7 Gizmo: model_g2mins/maxs geschrieben, z-Spanne gewachsen (weiter weg)", [st] {
+        const std::string t = st().text;
+        return t.find("model_g2mins") != std::string::npos && t.find("model_g2maxs") != std::string::npos;
+    }));
+    // Punkt 14/11 mit den Spieldaten von Jedi Academy (Handbuchbilder): Datapad und Ladebildschirm
+    // (Jedi Academy, Jedi Outcast und Movie Duels haben alle ui/datapad*.menu mit UI_DATAPAD_*)
+    for (const char* seite : {"weapons", "forcepowers", "mission", "inventory"}) {
+        const std::string datei = std::string("ui/datapad") + seite + ".menu";
+        add(tu("M7 Datapad: " + datei + " aus dem Spiel", [datei] {
+            me::schliesseAlleOhneSpeichern();
+            (void)me::oeffneAusSpiel(datei);
+        }));
+        add(pause(1.5));
+        add(foto(std::string(seite) == "weapons" ? "menue_datapad" : "menue_datapad_" + std::string(seite)));
+        // Jedi Academy hat auf der Inventarseite kein UI_DATAPAD_INVENTORY (nur 203, 204, 206)
+        const bool ohneOd = std::string(seite) == "inventory";
+        add(pruefe("M7 Datapad " + std::string(seite) + ": wie im Spiel mit Beispielwerten (beschriftet), ohne Platzhalter", [st, datei, ohneOd] {
+            const auto x = st();
+            diag::info("Menue-Editor M7 Datapad " + datei + ": Beispiel " + std::to_string(x.beispielPrims) + ", Platzhalter " +
+                       std::to_string(x.platzhalterPrims));
+            return x.platzhalterPrims == 0 && (x.beispielPrims > 0 || (ohneOd && x.spiel == 0));
+        }));
+    }
+    add(tu("M7 Ladebildschirm aus dem Spiel (nur mit Jedi-Academy-Daten)", [] {
+        if (me::stand().spiel == 0) {
+            me::schliesseAlleOhneSpeichern();
+            (void)me::oeffneAusSpiel("ui/loadscreen.menu");
+        }
+    }));
+    add(pause(1.5));
+    add(foto("menue_ladebild"));
+    add(pruefe("M7 Ladebildschirm: Ladebalken und Beispielwerte wie CG_DrawInformation", [st] {
+        const auto x = st();
+        diag::info("Menue-Editor M7 Ladebild: Balken " + std::to_string(x.ladebalken) + ", Beispiel " + std::to_string(x.beispielPrims));
+        return x.spiel != 0 || (x.ladebalken == 4 && x.beispielPrims > 0);
+    }));
+    // M5b-Rest: neues Projekt mit Startmenue im Mehrspieler-Format
+    add(tu("M7 MP-Startmenue: alles zu, Format Mehrspieler, neues Projekt", [] {
+        namespace fs = std::filesystem;
+        const fs::path ordner = bhed::utf8Pfad(platform::executableDirectory()) / "projekt_mp";
+        std::error_code ec;
+        fs::remove_all(ordner, ec);
+        fs::create_directories(ordner, ec);
+        me::schliesseAlleOhneSpeichern();
+        me::neuesProjektFormat(true);
+        (void)me::legeProjektAn(pfadText(ordner / "mp.jksmenu"));
+        me::neuesProjektFormat(false);
+    }));
+    add(pause(0.3));
+    add(pruefe("M7 MP-Startmenue: Dokument im MP-Menueordner, MP-Dialekt, ohne Meldung (menudef.h vorab gelesen)", [st] {
+        const std::string n = me::dokumentName();
+        diag::info("Menue-Editor M7 MP-Startmenue: " + n);
+        return me::dokumentMp() && (n == "ui/jamp/mein_menue.menu" || n == "ui/MD_MP/mein_menue.menu" || n == "ui/jk2mp/mein_menue.menu") &&
+               st().meldungen == 0 && st().menus == 1;
+    }));
+    return s;
+}
+
 std::vector<Schritt> schritteM6() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -1454,6 +1614,11 @@ std::vector<Schritt> schritteM6() {
         if (k.size() >= 2) { *zwei = {k[0], k[1]}; }
         return me::flussInfo().assistentOffen && k.size() >= 2;
     }));
+    add(pruefe("M7 Assistent: kein Text ragt sichtbar in die naechste Spalte (lange Movie-Duels-Schluessel)", [] {
+        const int n = me::flussInfo().assistentUeberlappung;
+        diag::info("Menue-Editor M7 Assistent: Zeilen mit Ueberlappung " + std::to_string(n));
+        return n == 0;
+    }));
     add(tu("M6 Assistent: zwei Einstellungen ankreuzen", [zwei] {
         for (const auto& c : *zwei) { me::assistentWaehle(c); }
     }));
@@ -1545,6 +1710,52 @@ std::vector<Schritt> schritte() {
     // BHED_MENUE_NUR=m6: nur die Schritte von M6
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m6") == 0) {
         for (auto& x : schritteM6()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // BHED_MENUE_NUR=m7jk2 (Spieldaten von Jedi Outcast): Logo mit Chrom-Stufe, Setup mit Renderer-Cvars
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m7jk2") == 0) {
+        add(tu("M7 JK2: Hauptmenue aus dem Spiel", [] { (void)me::oeffneAusSpiel("ui/main.menu"); }));
+        add(pause(2.0));
+        add(foto("menue_jk2_logo"));
+        add(pruefe("M7 JK2: Logo (jk2logo.md3) mit beiden Shaderstufen (Grund + tcGen environment)", [st] {
+            diag::info("Menue-Editor M7 JK2 Logo-Stufen: " + std::to_string(st().modellStufen));
+            return st().spiel == 1 && st().modellStufen >= 2;
+        }));
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // BHED_MENUE_NUR=m7uiload (M7 Punkt 13, Nachweis von aussen): ein Python-Skript hat das Spiel mit der
+    // Befehlszeile von "Im Spiel testen" gestartet (lose Dateien in BHED_TESTSPIEL_ORDNER, Prozess
+    // BHED_TESTSPIEL_PID); der Editor aendert das Hauptmenue, speichert und laedt es per ui_load neu
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m7uiload") == 0) {
+        add(tu("M7 ui_load: Testspiel uebernehmen, Hauptmenue aus dem Spiel, Text einfuegen", [] {
+            const char* pid = std::getenv("BHED_TESTSPIEL_PID");
+            const char* ordner = std::getenv("BHED_TESTSPIEL_ORDNER");
+            me::testSpielUebernehmen(pid != nullptr ? std::strtoul(pid, nullptr, 10) : 0UL, ordner != nullptr ? ordner : "");
+            (void)me::oeffneAusSpiel(std::getenv("BHED_TESTSPIEL_MENUE") != nullptr ? std::getenv("BHED_TESTSPIEL_MENUE") : "ui/main.menu");
+            me::fuegeItemsEin("itemDef { name jkstudio_uiload text \"JK STUDIO UI_LOAD\" rect 120 200 400 60 textscale 1.2 forecolor 1 0.2 0.2 1 "
+                              "decoration visible 1 }");
+        }));
+        add(pause(0.5));
+        add(tu("M7 ui_load: speichern", [] {
+            namespace fs = std::filesystem;
+            const fs::path ziel = bhed::utf8Pfad(platform::executableDirectory()) / "uiload_probe" / "main.menu";
+            std::error_code ec;
+            fs::create_directories(ziel.parent_path(), ec);
+            (void)me::speichereUnter(pfadText(ziel));
+        }));
+        add(pause(1.0));
+        add(pruefe("M7 ui_load: Dateien lose abgelegt und ui_load an das laufende Spiel gegeben", [] {
+            diag::info("Menue-Editor M7 ui_load: Neuladungen " + std::to_string(me::testNeuGeladen()));
+            return me::testNeuGeladen() == 1;
+        }));
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // BHED_MENUE_NUR=m7: nur die Schritte von M7
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m7") == 0) {
+        for (auto& x : schritteM7()) { add(std::move(x)); }
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }
@@ -1696,6 +1907,7 @@ std::vector<Schritt> schritte() {
     for (auto& x : schritteM5()) { add(std::move(x)); }
     for (auto& x : schritteM5b()) { add(std::move(x)); }
     for (auto& x : schritteM6()) { add(std::move(x)); }
+    for (auto& x : schritteM7()) { add(std::move(x)); }
     add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
     return s;
 }

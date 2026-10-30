@@ -33,12 +33,15 @@
 #include "bhed/image.h"
 #include "bhed/menue/assistent.h"
 #include "bhed/menue/bauteile.h"
+#include "bhed/menue/datapad.h"
 #include "bhed/menue/diagnose.h"
 #include "bhed/menue/ereignisse.h"
 #include "bhed/menue/feeder.h"
 #include "bhed/menue/fluss.h"
 #include "bhed/menue/hud.h"
+#include "bhed/menue/komponenten.h"
 #include "bhed/menue/imspiel.h"
+#include "bhed/menue/ladebild.h"
 #include "bhed/menue/layout.h"
 #include "bhed/menue/lesbarkeit.h"
 #include "bhed/menue/profil.h"
@@ -48,10 +51,13 @@
 #include "bhed/menue/seitenvorlagen.h"
 #include "bhed/menue/menue.h"
 #include "bhed/menue/modell.h"
+#include "bhed/menue/ownerdraw.h"
+#include "bhed/menue/pazaak.h"
 #include "bhed/menue/roq.h"
 #include "bhed/menue/skript.h"
 #include "bhed/menue/spieldaten.h"
 #include "bhed/menue/stile.h"
+#include "bhed/menue/tasten.h"
 #include "bhed/menue/textpuffer.h"
 #include "bhed/menue/vorschau.h"
 #include "bhed/menue/werkzeuge.h"
@@ -188,6 +194,12 @@ struct KlingenBild {
 };
 
 enum class Ziehen { Nichts, Verschieben, Groesse, Lineal };
+// M7 Punkt 12: die Werte, die die Griffe am Modell aendern (app_menue_m7.inc)
+struct GizmoWerte {
+    int angle = 0;
+    float mins[3] = {0, 0, 0}, maxs[3] = {0, 0, 0};
+    float fovx = 0, fovy = 0;
+};
 struct DiagDaten;   // Schnappschuss der Spieldaten fuer die Diagnose (unten)
 
 struct Zustand {
@@ -241,6 +253,7 @@ struct Zustand {
     int modellAufrufe = 0;                           // Selbsttest: Zeichenaufrufe der Menue-Figuren
     double modellMs = 0;                             // reste2 Punkt 7: Prozessorzeit der Figuren (Summe, ms)
     int modellZeichnungen = 0;                       // reste2 Punkt 7: gezeichnete Figuren (Summe)
+    int modellStufen = 0;                            // M7: meiste Shaderstufen einer Flaeche (Chrom des JK2-Logos)
     std::string modellFehler;                        // letzte Meldung von gpu::zeichneMenueFigur
     Textur weiss;                                    // $whiteimage / *white (tr.whiteImage)
     unsigned weissStand = 0;
@@ -334,6 +347,35 @@ struct Zustand {
     bool hudWie = true;
     HudWerte hudWerte;
     HudZustand hudZustand;
+    // M7 Punkt 14: ownerdraws - glGetString des Treibers (einmal gelesen) und Beispielwerte des Spielzustands
+    GlDaten glDaten;
+    bool glGelesen = false;
+    Spielbeispiel spielBeispiel;
+    DatapadWerte datapadWerte;
+    PazaakZustand pazaakZustand;
+    LadeWerte ladeWerte;                         // M7 Punkt 11: Ladebildschirm (CG_DrawInformation)
+    VerbindungsWerte verbindungsWerte;           // M7 Punkt 11: Verbindungsbild (UI_DrawConnectScreen)
+    std::unique_ptr<Datei> datapadHud;            // ui/hud.menu fuer CG_DrawDataPadHUD (einmal gelesen)
+    std::vector<std::string> waffenIcon;          // ext_data/weapons.dat weaponIcon
+    bool datapadGelesen = false;
+    Spiel datapadFuer = Spiel::JA;                // fuer welches Spiel datapadWerte das Beispiel ist
+    Tastenbelegung tasten[2];                    // M7: Vorgabe-Config des Spiels je Dialekt (SP, MP)
+    bool tastenGelesen[2] = {false, false};
+    Dialekt neuDialekt = Dialekt::SP;            // M7: Format des Startmenues eines neuen Projekts
+    // M7 Punkt 13: das zuletzt gestartete Testspiel (ui_load nach dem Speichern)
+    unsigned long testPid = 0;
+    bool testUiLoad = false;
+    std::string testOrdnerLose;
+    int testNeuGeladen = 0;
+    // M7 Punkt 3/12: Komponenten-Name im Eingabefeld, Griff am Modell (0 = keiner, 1 Drehen, 2 Abstand, 3 Hoehe, 4 Blickwinkel)
+    std::string kompFuer;   // Datei, Menue, Item und Name, fuer die kompName vorbelegt ist
+    std::string kompName;
+    int gizmoArt = 0;
+    int gizmoItem = -1;
+    GizmoWerte gizmoStart, gizmoJetzt;
+    ImVec2 gizmoMaus{0, 0};
+    int beispielPrims = 0;   // im letzten Bild
+    int platzhalterPrims = 0, ladebalken = 0;   // im letzten Bild (Selbsttest)
     std::map<std::string, std::string> textFehlt;   // M3: Sprache -> nicht darstellbare Zeichen der letzten Eingabe
     bool spielListeOffen = false;
     std::string spielFilter;
@@ -374,6 +416,7 @@ struct Zustand {
     bool stileOffen = false;
     // M6 Punkt 6: Einstellungs-Assistent (Katalog aus den Spielmenues, Auswahl als Cvar-Namen klein)
     bool assistentOffen = false;
+    int assistentUeberlappung = 0;   // M7: im letzten Bild
     std::string assistentFuer, assistentSuche;
     std::vector<CvarSteuerung> assistentKatalog;
     std::set<std::string> assistentWahl;
@@ -449,6 +492,8 @@ void datenPruefen() {
     z.sprachenGeladen = false;
     ++z.texteVersion;
     z.saeberGeladen = false;
+    z.datapadGelesen = false;
+    z.tastenGelesen[0] = z.tastenGelesen[1] = false;
     z.schriften.clear();
     z.texturen.clear();
 }
@@ -698,9 +743,12 @@ bool schreibeDatei(const std::string& pfad, const std::string& inhalt) {
     return static_cast<bool>(f);
 }
 
+void imLaufendenSpielNeuLaden();   // M7 Punkt 13 (unten)
+
 void speichern(Dokument& d, const std::string& ziel) {
     char buf[600];
-    if (schreibeDatei(ziel, d.puffer.text())) {
+    const bool ok = schreibeDatei(ziel, d.puffer.text());
+    if (ok) {
         d.platte = ziel;
         d.gespeichert = d.puffer.text();
         std::snprintf(buf, sizeof(buf), tr(Str::MeGespeichert), ziel.c_str());
@@ -709,13 +757,17 @@ void speichern(Dokument& d, const std::string& ziel) {
     }
     Z().meldung = buf;
     addStatus(buf);
+    if (ok) { imLaufendenSpielNeuLaden(); }
 }
 
 // --- Aenderungen an Text und Flaeche ------------------------------------------
 
+std::vector<Ersetzung> mitKopienAbgleich(const Dokument& d, std::vector<Ersetzung> e);   // M7 Punkt 3 (app_menue_m7.inc)
+
 void aendere(std::vector<Ersetzung> e) {
     Dokument* d = doc();
     if (d == nullptr || e.empty()) { return; }
+    e = mitKopienAbgleich(*d, std::move(e));
     d->puffer.ersetzeViele(std::move(e));
     neuParsen(*d);
 }
@@ -809,6 +861,19 @@ void auswahlAusCursor(Dokument& d) {
 
 const Texte& vorschauTexte(Dokument& d);   // M2 Punkt 6 (unten)
 
+// M7 (app_menue_m7.inc)
+void datapadDatenLaden();
+// Was das Datapad aus der Umgebung der Vorschau braucht (Texte, Schrift, Bilder)
+struct DatapadUmgebung {
+    const Texte* texte = nullptr;
+    Kodierung kodierung = Kodierung::Latin1;
+    bool asienGlyphen = false;
+    Jk2Schrift jk2 = Jk2Schrift::Nein;
+    std::function<const Schrift*(int)> schriftNr;
+    std::function<bool(const std::string&)> bildDa;
+};
+bool datapadZeichnen(int art, std::vector<OdTeil>& out, const DatapadUmgebung& du);
+
 Umgebung umgebung(const Dokument& d) {
     Zustand& z = Z();
     schriftNamenLaden();
@@ -846,8 +911,21 @@ Umgebung umgebung(const Dokument& d) {
     }
     const FeederDaten* fdp = &fd;
     // Kopf/Rumpf/Beine/Farben der Spezies aus ui_char_model (UI_GetCharacterCvars), nicht immer der ersten
+    fd.se = [tx = u.texte](const std::string& key) { return tx != nullptr ? tx->imSpiel("@" + key) : key; };
     u.feeder = [fdp, cv = u.cvar](float f) { return fdp->eintraege(f, fdp->speziesIndex(cv("ui_char_model"))); };
-    u.ownerDraw = [fdp, cv = u.cvar](int id) { return fdp->ownerDraw(id, cv); };   // M5: MP-Ownerdraws
+    u.feederArt = [fdp](float f) { return fdp->art(f); };
+    // M7: Tastenbelegung aus der Vorgabe-Config (Com_Init: exec default.cfg / mpdefault.cfg ...)
+    const int ti = d.datei.dialekt == Dialekt::MP ? 1 : 0;
+    if (!z.tastenGelesen[ti]) {
+        z.tastenGelesen[ti] = true;
+        z.tasten[ti] = Tastenbelegung{};
+        std::string cfg;
+        const auto lader = [](const std::string& p, std::string& out) { return Z().daten.lies(p, out); };
+        if (z.daten.lies(vorgabeConfig(d.datei.dialekt, z.spiel), cfg)) { configAusfuehren(cfg, z.tasten[ti], lader); }
+    }
+    u.bindung = [tb = &z.tasten[ti], dl = d.datei.dialekt, sp = z.spiel, tx = u.texte](const std::string& befehl) {
+        return bindungsText(*tb, befehl, dl, sp, [tx](const std::string& key) { return tx != nullptr ? tx->imSpiel("@" + key) : std::string(); });
+    };
     // M5: fehlende Bilder wie RE_RegisterShaderNoMip (Griff 0): Bild ladbar oder Shaderskript mit Stufen
     u.bildDa = [](const std::string& s) {
         if (textur(s) != nullptr) { return true; }
@@ -861,10 +939,40 @@ Umgebung umgebung(const Dokument& d) {
     u.alleItems = z.alleItems && !z.interaktion;
     // M3: Schrift wie se_language; Glyphenseiten da (AsianGlyphsAvailable: Seite 0 laedt)
     u.kodierung = kodierungDerSprache(z.sprache);
+    if (d.datei.spiel == Spiel::JK2) { u.jk2 = d.datei.dialekt == Dialekt::MP ? Jk2Schrift::Mp : Jk2Schrift::Sp; }
     if (asiatisch(u.kodierung)) {
         const std::string seite = asienSeite(u.kodierung, 0);
         u.asienGlyphen = z.daten.gibt(seite + ".tga") || z.daten.gibt(seite + ".jpg") || z.daten.gibt(seite + ".png");
     }
+    // M7 Punkt 14: DC->ownerDrawItem (ownerdraw.cpp)
+    if (!z.glGelesen) {
+        z.glGelesen = true;
+        z.glDaten.echt = platform::openGlTreiber(z.glDaten.vendor, z.glDaten.renderer, z.glDaten.version, z.glDaten.extensions);
+    }
+    u.schriftNamens = [](const std::string& n) { return schriftNamens(n); };
+    OdKontext k;
+    k.dialekt = d.datei.dialekt;
+    k.spiel = z.spiel;
+    k.daten = fdp;
+    k.cvar = u.cvar;
+    k.se = [tx = u.texte](const std::string& key) { return tx != nullptr ? tx->imSpiel("@" + key) : key; };
+    k.breite = [sf = u.schrift, ko = u.kodierung, ag = u.asienGlyphen, j = u.jk2](const std::string& t, float sc, int font, const std::string& name) {
+        const Schrift* f = name.empty() ? sf(font) : schriftNamens(name);
+        return f != nullptr ? schriftBreite(*f, t, sc, ko, ag, j) : 0;
+    };
+    k.hoehe = [sf = u.schrift](float sc, int font, const std::string& name) {
+        const Schrift* f = name.empty() ? sf(font) : schriftNamens(name);
+        return f != nullptr ? schriftHoehe(*f, sc) : 0;
+    };
+    k.bildDa = u.bildDa;   // R_RegisterShaderNoMip: Bild oder Shaderskript
+    k.zeitMs = u.zeitMs;
+    k.beispiel = &z.spielBeispiel;
+    k.gl = &z.glDaten;
+    k.pazaak = &z.pazaakZustand;
+    k.datapad = [du = DatapadUmgebung{u.texte, u.kodierung, u.asienGlyphen, u.jk2, u.schrift, u.bildDa}](int art, std::vector<OdTeil>& out) {
+        return datapadZeichnen(art, out, du);
+    };
+    u.ownerDraw = [k](const OdAufruf& a) { return ownerDraw(a, k); };
     return u;
 }
 
@@ -1255,6 +1363,7 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
                             mv.texturen = texturesFor(mv.modell.glm);
                             mv.texturenDa = true;
                         }
+                        for (const auto& st : mv.texturen.stufen) { z.modellStufen = std::max(z.modellStufen, static_cast<int>(st.size())); }
                         const MenueModellBild mb = menueModellBild(mv.modell, it, jetzt, jetzt - animStart, pw, ph, mv.welt);
                         gpu::baueKnochenmatrizen(mv.welt, mv.modell.gla.bones, mv.haut);
                         if (mv.modell.md3) {   // M5b: .md3 starr - ein Knochen, Einheitsmatrix
@@ -1284,6 +1393,15 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
                     }
                 }
                 [[fallthrough]];
+            case PrimArt::Beispiel:   // M7: ownerdraw mit Beispielwerten - nur beim Bearbeiten beschriftet
+                if (!Z().interaktion) {
+                    const char* t = tr(Str::MeOdBeispiel);
+                    const ImVec2 g = ImGui::CalcTextSize(t);
+                    const ImVec2 e{a.x + g.x + 6, a.y + g.y + 2};
+                    dl->AddRectFilled(a, e, IM_COL32(40, 40, 120, 190));
+                    dl->AddText(ImVec2{a.x + 3, a.y + 1}, IM_COL32(200, 210, 255, 255), t);
+                }
+                break;
             case PrimArt::Platzhalter: {
                 const ImU32 f = p.art == PrimArt::Modell ? IM_COL32(90, 160, 255, 200)
                                 : p.art == PrimArt::Kino ? IM_COL32(255, 170, 60, 200)
@@ -1305,6 +1423,10 @@ void zeichneTabLeiste(Dokument& d);   // M6 Punkt 2 (app_menue_m6.inc)
 void zeichneGrenzenZeile(Dokument& d);   // M6 Punkt 10
 void zeichneTabNummern(ImDrawList* dl, Dokument& d, int mi, const Abbildung& ab, ImVec2 o);
 bool tabFolgeKlick(Dokument& d, int mi, float vx, float vy, const Umgebung& u);
+// M7 Punkt 12 (app_menue_m7.inc)
+bool gizmoVorschau(const Dokument& d, int mi, Datei& kopie);
+bool gizmoKlick(Dokument& d, int mi, const Abbildung& ab, ImVec2 o, ImVec2 maus);
+void zeichneModellGizmo(ImDrawList* dl, Dokument& d, int mi, const Abbildung& ab, ImVec2 o);
 void zeichneRefBild(ImDrawList* dl, const Abbildung& ab, ImVec2 o, bool oben);   // M6 Punkt 7
 void setzeVorlageEin(std::size_t nr, bool mitZiel, float zx, float zy);
 
@@ -1494,10 +1616,33 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         const Seite& sei = s[static_cast<std::size_t>(std::clamp(d.seite, 0, static_cast<int>(s.size()) - 1))];
         if (!sei.cvar.empty()) { z.vorschauCvars[kleinPfad(sei.cvar)] = sei.wert; }
     }
+    Datei gizmoKopie;   // M7 Punkt 12: waehrend des Ziehens am Griff die neuen Werte im Bild
+    if (z.gizmoArt != 0) {
+        gizmoKopie = *quelle;
+        if (gizmoVorschau(d, mi, gizmoKopie)) { quelle = &gizmoKopie; }
+    }
     std::vector<Prim> prims;
     if (z.hudWie && istHud(*quelle)) {   // M3: lefthud, righthud und was cgame darueber legt
         z.hudWerte.zeitMs = static_cast<int>(ImGui::GetTime() * 1000.0);
         zeichneHud(*quelle, mi, u, z.hudWerte, z.hudZustand, prims);
+    } else if (z.hudWie && (istLadebild(*quelle) || istVerbindung(*quelle))) {   // M7 Punkt 11: mit Beispielwerten
+        const auto se = [tx = u.texte](const std::string& key) { return tx != nullptr ? tx->imSpiel("@" + key) : key; };
+        if (istLadebild(*quelle)) {
+            datapadDatenLaden();
+            LadeKontext lk;
+            lk.se = se;
+            lk.bildDa = u.bildDa;
+            lk.waffenIcon = z.waffenIcon;
+            lk.spieler = z.datapadWerte;
+            zeichneLadebild(*quelle, mi, u, z.ladeWerte, lk, prims);
+        } else {
+            zeichneVerbindung(*quelle, mi, u, z.verbindungsWerte, se, prims);
+        }
+        Prim b;   // beschriftet: Werte aus dem Laden/Verbinden sind Beispiele
+        b.art = PrimArt::Beispiel;
+        b.w = 640;
+        b.h = 480;
+        prims.push_back(b);
     } else {
         zeichneMenu(*quelle, mi, u, prims);
     }
@@ -1506,6 +1651,9 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
                     prims.end());
     }
     z.letztePrims = static_cast<int>(prims.size());
+    z.beispielPrims = static_cast<int>(std::count_if(prims.begin(), prims.end(), [](const Prim& p) { return p.art == PrimArt::Beispiel; }));
+    z.platzhalterPrims = static_cast<int>(std::count_if(prims.begin(), prims.end(), [](const Prim& p) { return p.art == PrimArt::Platzhalter; }));
+    z.ladebalken = static_cast<int>(std::count_if(prims.begin(), prims.end(), [](const Prim& p) { return p.shader.compare(0, 13, "gfx/hud/load_") == 0 || p.shader == "gfx/hud/mp_levelload"; }));
     z.asienPrims = static_cast<int>(std::count_if(prims.begin(), prims.end(), [](const Prim& p) {
         return p.shader.compare(0, 6, "fonts/") == 0 && p.shader.find("_1024_") != std::string::npos;
     }));
@@ -1519,6 +1667,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     zeichnePrims(dl, prims, ab, o, verschiebt ? sel : std::set<int>{}, z.zdx, z.zdy, &m, &u);
     zeichneRefBild(dl, ab, o, true);   // M6 Punkt 7: ueber dem Menue
     zeichneTabNummern(dl, d, mi, ab, o);   // M6 Punkt 2
+    zeichneModellGizmo(dl, d, mi, ab, o);   // M7 Punkt 12
     // Raster
     if (z.raster && !z.interaktion && z.rasterWeite >= 2) {
         for (float x = 0; x <= 640; x += z.rasterWeite) {
@@ -1645,7 +1794,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     dl->PopClipRect();
 
     // Maus: Klick waehlt, Ziehen verschiebt/aendert die Groesse (M6: bei Tab-Reihenfolge waehlt er die naechste Nummer)
-    if (hover && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !tabFolgeKlick(d, mi, vx, vy, u)) {
+    if (hover && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !tabFolgeKlick(d, mi, vx, vy, u) && !gizmoKlick(d, mi, ab, o, maus)) {
         ImGui::SetKeyboardFocusHere(-1);
         z.codeFokus = false;
         z.ziehStart = ImVec2{vx, vy};
@@ -2841,6 +2990,8 @@ void zeichnePruefFenster() {
 
 // --- M2 Punkt 8: Im Spiel testen ---------------------------------------------------------
 
+bool loseDateienSchreiben(const std::string& ordner);
+
 std::string menueImSpielTesten(bool modErlaubt) {
     Zustand& z = Z();
     Dokument* d = doc();
@@ -2896,17 +3047,25 @@ std::string menueImSpielTesten(bool modErlaubt) {
     std::error_code ec;
     fs::create_directories(utf8Pfad(plan.pk3).parent_path(), ec);
     std::string fehler;
-    if (!writePk3(plan.pk3, paketDateien(true), &fehler)) {
+    if (plan.uiLoad) {   // M7 Punkt 13: lose Dateien, die ui_load spaeter neu liest
+        fs::remove(utf8Pfad(plan.pk3), ec);   // eine alte pk3 im selben Ordner stuende darueber
+        if (!loseDateienSchreiben(plan.ordner)) { return {}; }
+    } else if (!writePk3(plan.pk3, paketDateien(true), &fehler)) {
         z.meldung = fehler;
         return {};
     }
     z.testBefehl = plan.befehl;
+    z.testUiLoad = plan.uiLoad;
+    z.testOrdnerLose = plan.uiLoad ? plan.ordner : std::string();
     char buf[2048];
     std::snprintf(buf, sizeof(buf), tr(Str::MeTestBereit), plan.pk3.c_str(), plan.befehl.c_str());
     z.meldung = buf;
     addStatus(buf);
     // Im Selbsttest (BHED_EDITORTEST) nur die Befehlszeile: nie ein Spiel starten
-    if (std::getenv("BHED_EDITORTEST") == nullptr) { (void)bauplattform::losgeloestStarten(plan.befehl, u8(engine)); }
+    if (std::getenv("BHED_EDITORTEST") == nullptr) {
+        unsigned long pid = 0;
+        if (bauplattform::losgeloestStarten(plan.befehl, u8(engine), &pid)) { z.testPid = plan.uiLoad ? pid : 0; }
+    }
     return plan.befehl;
 }
 
@@ -4431,12 +4590,8 @@ void zeichneEigenschaften(Dokument& d) {
 }
 
 // M3 Punkt 5: die Werte, die cgame fuer das HUD liest (playerState, cvars), als Regler
-void zeichneHudWerte(const Dokument& d) {
-    Zustand& z = Z();
-    if (!istHud(d.datei) || !ImGui::CollapsingHeader(tr(Str::MeHudWerte), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
-    ImGui::Checkbox(tr(Str::MeHudWie), &z.hudWie);
-    if (!hudNachgebildet(d.datei)) { ImGui::TextColored(ImVec4{1, 0.7F, 0.3F, 1}, "%s", tr(Str::MeHudNichtNachgebildet)); }
-    HudWerte& w = z.hudWerte;
+// M3 Punkt 5 / M7: die Werte des Spielers (playerState) als Regler - fuer das HUD und das Datapad
+void hudRegler(HudWerte& w) {
     const float breit = ImGui::GetFontSize() * 9;
     auto regler = [&](Str name, int* v, int lo, int hi) {
         ImGui::SetNextItemWidth(breit);
@@ -4458,14 +4613,28 @@ void zeichneHudWerte(const Dokument& d) {
         regler(Str::MeHudMunition, &w.munition, -1, 999);
         regler(Str::MeHudMunitionMax, &w.munitionMax, 1, 999);
     }
-    regler(Str::MeHudFadenkreuz, &w.fadenkreuz, 0, 9);
+}
+
+void zeichneHudWerte(const Dokument& d) {
+    Zustand& z = Z();
+    if (!istHud(d.datei) || !ImGui::CollapsingHeader(tr(Str::MeHudWerte), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
+    ImGui::Checkbox(tr(Str::MeHudWie), &z.hudWie);
+    if (!hudNachgebildet(d.datei)) { ImGui::TextColored(ImVec4{1, 0.7F, 0.3F, 1}, "%s", tr(Str::MeHudNichtNachgebildet)); }
+    HudWerte& w = z.hudWerte;
+    hudRegler(w);
+    const float breit = ImGui::GetFontSize() * 9;
+    ImGui::SetNextItemWidth(breit);
+    ImGui::SliderInt(tr(Str::MeHudFadenkreuz), &w.fadenkreuz, 0, 9);
     ImGui::SetNextItemWidth(breit);
     ImGui::SliderFloat(tr(Str::MeHudFadenkreuzGroesse), &w.fadenkreuzGroesse, 4, 64, "%.0f");
 }
 
+void zeichneBeispielWerte(const Dokument& d);   // M7 (app_menue_m7.inc)
+
 void zeichneCvars(Dokument& d) {
     Zustand& z = Z();
     zeichneHudWerte(d);
+    zeichneBeispielWerte(d);
     if (!ImGui::CollapsingHeader(tr(Str::MeCvars), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
     ImGui::TextDisabled("%s", tr(Str::MeCvarsNurVorschau));
     if (ImGui::SmallButton(tr(Str::MeCvarsZuruecksetzen))) {
@@ -4867,6 +5036,7 @@ bool exportiere(const std::string& pfad, bool nurAenderungen);   // unten
 }  // namespace
 #include "app_menue_projekt.inc"
 #include "app_menue_m6.inc"
+#include "app_menue_m7.inc"
 
 // Eigenschaften mit Cvars, Meldungen der Engine und Skript-Protokoll als Abschnitte
 void panelEigenschaften(Dokument& d) {
@@ -4875,6 +5045,7 @@ void panelEigenschaften(Dokument& d) {
     zeichneEigenschaften(d);
     zeichneModSchluessel(d);   // M5b Punkt 4
     zeichneLayout(d);
+    zeichneKomponente(d);      // M7 Punkt 3 (nach dem Layout: dessen Knoepfe bleiben ohne Rollen sichtbar)
     if (g_app->settings.menueTextUnten) { zeichneEreignisse(d); }   // mit Reitern: eigener Reiter Ereignisse
     zeichneCvars(d);
     zeichneMeldungen(d);
@@ -5157,6 +5328,8 @@ bool oeffneText(const std::string& name, const std::string& text) {
     return oeffne(name, "", text);
 }
 
+std::vector<std::string> platzhalterImSpiel();   // M7 (app_menue_m7.inc)
+
 Stand stand() {
     Stand s;
     Zustand& z = Z();
@@ -5190,6 +5363,10 @@ Stand stand() {
     s.modellAufrufe = z.modellAufrufe;
     s.modellMs = z.modellMs;
     s.modellZeichnungen = z.modellZeichnungen;
+    s.modellStufen = z.modellStufen;
+    s.beispielPrims = z.beispielPrims;
+    s.platzhalterPrims = z.platzhalterPrims;
+    s.ladebalken = z.ladebalken;
     s.klangEreignisse = z.klangEreignisse;
     s.letzterKlang = z.letzterKlang;
     for (const Diagnose& x : d->diagnosen) {
@@ -5459,6 +5636,28 @@ bool oeffneProjekt(const std::string& datei) { return oeffneProjektJetzt(datei);
 void projektVormerken(const std::string& datei) { Z().projektVorgemerkt = datei; }
 bool istProjekt(const std::string& datei) { return istProjektDatei(datei); }
 bool legeProjektAn(const std::string& datei) { return neuesProjekt(datei); }
+void neuesProjektFormat(bool mehrspieler) { Z().neuDialekt = mehrspieler ? Dialekt::MP : Dialekt::SP; }
+void testSpielUebernehmen(unsigned long pid, const std::string& ordner) {
+    Zustand& z = Z();
+    z.testPid = pid;
+    z.testUiLoad = true;
+    z.testOrdnerLose = ordner;
+}
+int testNeuGeladen() { return Z().testNeuGeladen; }
+void setzeEigenschaftAuswahl(const std::string& schluessel, const std::vector<std::string>& werte) {
+    Dokument* d = doc();
+    if (d == nullptr || d->auswahl.empty()) { return; }
+    std::vector<Ersetzung> e;
+    if (setzeEigenschaft(d->datei, menuDerSeite(*d), d->auswahl[0], schluessel.c_str(), werte, e)) { aendere(std::move(e)); }
+}
+std::string dokumentName() {
+    const Dokument* d = doc();
+    return d != nullptr ? d->name : std::string();
+}
+bool dokumentMp() {
+    const Dokument* d = doc();
+    return d != nullptr && d->datei.dialekt == Dialekt::MP;
+}
 bool speichereProjektJetzt() { return speichereProjekt(); }
 bool exportiereProjektJetzt() { return exportiereProjekt(); }
 std::string projektDatei() { return Z().projektDatei; }
@@ -5477,6 +5676,7 @@ FlussInfo flussInfo() {
     Zustand& z = Z();
     FlussInfo r;
     r.fensterOffen = z.flussOffen;
+    r.assistentUeberlappung = z.assistentUeberlappung;
     r.stileOffen = z.stileOffen;
     r.assistentOffen = z.assistentOffen;
     const Fluss& f = flussAktuell();

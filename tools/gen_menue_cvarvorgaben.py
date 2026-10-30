@@ -34,15 +34,39 @@ def lies_mp(wurzel):
     for name, wert in re.findall(r'XCVAR_DEF\(\s*(\w+)\s*,\s*"([^"]*)"', t):
         werte.setdefault(name.lower(), wert)
     return werte
+def lies_engine(wurzel, teil, sdl):
+    # M7: was die Engine vor der Oberflaeche anlegt (Com_Init, Fenster, CL_Init, S_Init, R_Register) -
+    # u. a. die Renderer-Cvars der Setup-Menues (r_textureMode, r_picmip, r_detailtextures ...).
+    # Das erste Cvar_Get legt den Wert fest; spaetere (auch die der Oberflaeche) aendern ihn nicht.
+    werte = {}
+    dateien = [os.path.join(teil, "qcommon", "common.cpp")]
+    if sdl:
+        dateien.append(os.path.join("shared", "sdl", "sdl_window.cpp"))
+    dateien += [os.path.join(teil, "client", "cl_main.cpp"), os.path.join(teil, "client", "snd_dma.cpp"),
+                os.path.join(teil, "rd-vanilla", "tr_init.cpp")]
+    for d in dateien:
+        pfad = os.path.join(wurzel, d)
+        if not os.path.isfile(pfad):
+            continue
+        t = re.sub(r"//[^\n]*", "", open(pfad, encoding="latin-1").read())
+        for name, wert in re.findall(r'Cvar_Get\s*\(\s*"(\w+)"\s*,\s*"([^"]*)"', t):
+            werte.setdefault(name.lower(), wert)
+    return werte
+
+
 oj, md, mp = lies(sys.argv[1]), lies(sys.argv[2]), lies_mp(sys.argv[1])
+# Movie Duels: <code> liegt direkt unter dem Ordner (code/client ... ohne shared/sdl)
+md_wurzel = os.path.dirname(os.path.normpath(sys.argv[2])) if os.path.basename(os.path.normpath(sys.argv[2])) == "code" else sys.argv[2]
+eja, emd, emp = lies_engine(sys.argv[1], "code", True), lies_engine(md_wurzel, "code", False), lies_engine(sys.argv[1], "codemp", True)
 zeilen = ["// cvarvorgaben.inc - erzeugt von tools/gen_menue_cvarvorgaben.py, nicht von Hand aendern.",
           "// Portiert aus OpenJK code/ui/ui_atoms.cpp (UI_Init) und code/ui/ui_main.cpp (cvarTable)",
-          "// sowie den gleichen Dateien von Movie Duels (GPL v2, siehe LICENSE).",
+          "// sowie den gleichen Dateien von Movie Duels (GPL v2, siehe LICENSE); M7: kEngine* aus",
+          "// qcommon/common.cpp, shared/sdl/sdl_window.cpp, client/cl_main.cpp, client/snd_dma.cpp, rd-vanilla/tr_init.cpp.",
           "struct CvarVorgabe {", "    const char* name;", "    const char* wert;", "};"]
-for titel, w in (("kVorgabenJa", oj), ("kVorgabenMd", md), ("kVorgabenMp", mp)):
+for titel, w in (("kVorgabenJa", oj), ("kVorgabenMd", md), ("kVorgabenMp", mp), ("kEngineJa", eja), ("kEngineMd", emd), ("kEngineMp", emp)):
     zeilen.append("const CvarVorgabe %s[] = {" % titel)
     for k in sorted(w):
         zeilen.append('    {"%s", "%s"},' % (k, w[k].replace("\\", "\\\\")))
     zeilen.append("};")
 open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "menue", "cvarvorgaben.inc"), "w", encoding="utf-8", newline="\n").write("\n".join(zeilen) + "\n")
-print("cvarvorgaben:", len(oj), "JA,", len(md), "MD,", len(mp), "MP")
+print("cvarvorgaben:", len(oj), "JA,", len(md), "MD,", len(mp), "MP; Engine", len(eja), "JA,", len(emd), "MD,", len(emp), "MP")
