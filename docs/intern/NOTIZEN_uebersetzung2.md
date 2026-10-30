@@ -15,6 +15,9 @@ Laufordner `Y:/es_arbeit/u2/laeufe`. Parallel arbeiteten andere Agenten (alle Ze
 | 5e49f021 | Notizen vor dem Merge |
 | 51775cb9 | Merge karte1 (d7dd6b28, Integration 5 bis dahin) + es/cs der M6-Texte (74 Programm-, 23 Handbuchtexte), 3 geänderte Handbuchtexte |
 | 0c5eb52b | Bilder nach dem Merge: 7 M6-Bilder je Sprache, Zeitleisten-Satz neu |
+| b88524ba | Notizen nach dem Merge |
+| acfd07dc | Merge karte1 (0a544a42): JK2-Untertitel, zeitleiste1-Aufnahmeprüfungen ohne Bildzeit |
+| (dieser) | Notizen: Schluss |
 
 ## Zahlen: noch englisch je Sprache
 
@@ -159,7 +162,9 @@ die von der Bildzeit abhängen – Englisch im selben Bau **79/2** (dieselbe Pr�
 Ort“, academy1 und mini: 78,6 statt > 100 Einheiten), es wie en (mini 90,6), cs zweimal „die Vorschau läuft den
 Weg … bis zum letzten Laufziel“: guard1 lief 489 statt ~365 Einheiten (Start −304 3616 in allen Sprachen), hinter das
 Wegnetz – genau der Lastfall, den der Kommentar über `halteTaste` beschreibt („unter Last … 443 statt 331 Einheiten
-… finds no path“). Nicht sprachabhängig; gehört zu Zeitleiste 3 (Offen).
+… finds no path“). Nicht sprachabhängig. karte1 hat das danach behoben (daf88e15, „recording checks no longer
+depend on the frame time“); nach dem zweiten Merge (acfd07dc, Bau 0 Warnungen, ctest untertitel/sprache/zeitleiste
+3/3): zeitleiste1 es **81/0**, cs **81/0**.
 
 ## Gegen das Vorbild geprüft / nicht geprüft
 
@@ -174,9 +179,8 @@ Wegnetz – genau der Lastfall, den der Kommentar über `halteTaste` beschreibt 
 
 ## Offen
 
-- **karte1 nach d7dd6b28**: Integration 5 war beim Merge noch nicht abgeschlossen (danach z. B. 3cae6104,
-  Untertitel von Jedi Outcast – ohne Texte). Kommt mit den Notizen von Integration 5 noch etwas mit Texten, einmal
-  nachmergen; sonst nimmt die Integration beide Stände zusammen.
+- **karte1 nach 0a544a42**: Integration 5 hatte beim Ende dieses Zweigs noch keine Notizen; bis 0a544a42 ist alles
+  gemergt (die Commits nach d7dd6b28 ohne Texte). Kommt danach noch etwas mit Texten, einmal nachmergen.
 - Runde 3: M7, dock4, Zeitleiste 4, pruefung3.
 - **Beim Zusammenführen**: Zähltexte in fremden Zweigdateien geändert – `i18n_zeitleiste1.py` (AufHinweis,
   AufGeschrieben), `i18n_menue3.py` (MeVideoTonQuelle, MeVideoErgebnis), `i18n_menue5.py` (MeLayoutZustaende,
@@ -189,7 +193,6 @@ Wegnetz – genau der Lastfall, den der Kommentar über `halteTaste` beschreibt 
   Karte (`gui/app_view3d.cpp`: „Karte/Effekte/Mover/Figuren/Gluehen … Aufrufe“, „GPU: %d Aufrufe, %d
   uebersprungen“) – in jeder Sprache deutsch, nicht geändert.
 - Menü-Editor, Einstellungs-Assistent: ein langer Spieltext überdeckt die Spalte daneben (alle Sprachen).
-- zeitleiste1: Aufnahme-Prüfungen von Zeitleiste 3 hängen unter Last von der Bildzeit ab (oben).
 - Zeitleiste 3 hat Tutorial-Bilder (a_k_timen, c_tl_*, g_*_zeit, s_*_zeit, …) nur auf Englisch neu aufgenommen;
   de/zh/ja/es/cs zeigen dort noch die alte Zeitleiste (zählt nicht als „englisch“, `gen_handbuch` sieht es nicht).
 - Unverändert: 18 Tutorial-Schritte ohne Bild (alle Sprachen).
