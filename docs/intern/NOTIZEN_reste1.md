@@ -10,9 +10,8 @@ weiter); jeder Arbeiter endet ausserdem von selbst nach der Zeitgrenze.
 
 - Fertig (je rot/gruen, committet): 1 Decals im Karteneditor, 2 Tutorial-Klick unter Last, 3 Port der
   Bauueberwachung, 5 Map-Tab ohne Karte ruht. Schlussrunde: sauberer Neubau 0 Warnungen, ctest 160/160,
-  Modus 1, reiter, karteneditor reste1 und stufe3/bau, mission1 (siehe Laeufe).
-- Offen: 4 (Stufe 8 "Notify when a build is done"), 6 (g_figurBilder); karteneditor fotos und karte
-  nicht gelaufen.
+  Modus 1, reiter, karteneditor reste1, stufe3/bau und fotos, mission1 (siehe Laeufe).
+- Offen: 4 (Stufe 8 "Notify when a build is done"), 6 (g_figurBilder); Modus karte nicht gelaufen.
 - Naechster Schritt: 4 mit `BHED_KARTE_NUR=stufe8` nachstellen, dann 6 (siehe Offen).
 
 ## 1. Decals im Karteneditor (fertig)
@@ -126,7 +125,7 @@ englisch wie NRCs uebrige Zeilen dort). Die Seiten erwaehnten weder fehlende Dec
 - Nebenbefund: der vorhandene Schritt "2D-Ansicht XY auf die Leck-Linie" (Stufe 3/5) stuerzt ab
   (Lesezugriff 0x4), wenn der Bau keine Leck-Linie liefert (hier: bhed_q3map2.exe fehlte im
   Laufordner) - der Test sollte die leere Linie abfangen.
-- Nicht gelaufen (Zeit): karteneditor kurz/fotos, karte; modellleistung gibt es in diesem Zweig nicht
+- Nicht gelaufen (Zeit): karte; modellleistung gibt es in diesem Zweig nicht
   (modell1 ist nicht enthalten).
 
 ## Laeufe
@@ -155,6 +154,7 @@ Tour-Pruefung (dazu die anderen Agenten).
   Punkt 5: mapDirty 0, 13 Bilder in 3,4 s.
 - Sauberer Neubau (`--clean-first`, 21 min unter Last): 0 Warnungen, 0 Fehler.
 - m1mission (mission1, Endstand): 98 OK / 0 FEHLER.
+- kfotos (karteneditor `BHED_KARTE_NUR=fotos`, Endstand): 78 OK / 0 FEHLER.
 - ctest: 160/160 (darin neu karte_marken).
 - lint_sources, lint_fassung, lint_headers: ok.
 
