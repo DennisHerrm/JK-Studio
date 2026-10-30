@@ -755,8 +755,10 @@ void Kette::tossClientItems(TodErgebnis& e, bool schwert) {
         // WP_SaberLose: Saber-Droiden nie; WP_SaberLaunch prueft die Hand
         if (!jk() && klasse("CLASS_SABER_DROID")) { return; }
         if (l_.handFrei && !l_.handFrei()) { return; }
-        // WP_SaberDrop nur mit brennender Klinge (WP_SaberLose: "if ( SaberActive() )")
-        e.schwertFaellt = l_.klingeAn;
+        // WP_SaberLose: WP_SaberLaunch immer, WP_SaberDrop nur mit brennender
+        // Klinge ("if ( SaberActive() )") - sonst fliegt es erst (Pruefung 4a)
+        e.schwertFaellt = true;
+        e.schwertKlingeAus = !l_.klingeAn;
         if (l_.klingeAn) {
             if (jk()) {
                 // codeJK2 WP_SaberDrop (wp_saber.cpp:4328-4336): nach dem Team

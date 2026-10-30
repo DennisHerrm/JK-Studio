@@ -26,6 +26,7 @@
 #include <cstdio>
 #include <functional>
 #include <map>
+#include <numbers>
 #include <memory>
 #include <set>
 #include <string>
@@ -289,6 +290,10 @@ struct Welt {
     std::string kartenPfad = "maps/eigene_karte.bsp";
     bool gegenstaende = false;                 // items.dat: jede Waffe -16 -16 -2 / 16 16 16
     bool hand = false;                         // handRPoint (0 0 64), muzzleDir +x
+    // Pruefung 4a: nach dem Tod geht die Hand je 50 ms 20 in +x (die
+    // Todesanimation) - sonst bleibt sie, und das Schwert haengt an ihr
+    bool handWandert = true;
+    int saberWurf = 0;                         // .npc "FP_SABERTHROW"
     bool fuesse = false;                       // footL/RPoint: +-8 in x unter der Figur
 };
 
@@ -321,6 +326,7 @@ void fahre(const Welt& w, int spiel, Lauf& l) {
     def.hockHoehe = w.hockHoehe;
     def.saber = "eigenes_schwert";
     def.snd = "eigene_stimme";
+    if (w.saberWurf > 0) { def.kraefte["fp_saberthrow"] = w.saberWurf; }
     npcs["eigen_typ"] = def;
     NpcDef droide = def;
     droide.klasse = "CLASS_R2D2";
@@ -368,9 +374,11 @@ void fahre(const Welt& w, int spiel, Lauf& l) {
         };
     }
     if (w.hand) {
-        h.handPunkt = [](const Actor& a, double ms, float hp[3], float r[3]) {
+        const bool wandert = w.handWandert;
+        h.handPunkt = [wandert](const Actor& a, double ms, float hp[3], float r[3]) {
             const ActorState st = a.at(ms);
             hp[0] = st.pos[0];
+            if (wandert && a.getoetetMs >= 0.0 && ms > a.getoetetMs) { hp[0] += static_cast<float>((ms - a.getoetetMs) * 0.4); }
             hp[1] = st.pos[1];
             hp[2] = st.pos[2] + 40.0F;
             r[0] = 1.0F;
@@ -616,13 +624,16 @@ void tod() {
                 }
                 // Jedi Outcast kennt keine .sab - der Griff ist der des Spiels
                 const std::string griff = regel == TodRegelwerk::JediOutcast ? "models/weapons2/saber_reborn/saber_w.glm" : "models/eigen/griff.glm";
+                // fort: im Bild, in dem es liegt (Jedi Outcast: erst nach
+                // level.time > s.time + 5000, s.time = Zeit von WP_SaberDrop)
+                const double fort = regel == TodRegelwerk::JediOutcast ? f->getoetetMs + 5050.0 : ab != nullptr ? ab->bahn.ruheMs : -1.0;
                 const bool ok = ab != nullptr && ab->art == TodesAbwurf::Art::Schwert && ab->waffe == griff &&
                                 !ab->bahn.klaenge.empty() && std::fabs(ab->bahn.klaenge.front().ms - erster) < 0.5 && ab->bahn.klaenge.size() >= 2U &&
-                                ab->bahn.ruheMs > erster && std::fabs(ab->bahn.wegMs - ab->bahn.ruheMs) < 0.5 &&
+                                ab->bahn.ruheMs > erster && std::fabs(ab->bahn.wegMs - fort) < 0.5 &&
                                 ab->bahn.klaenge.back().ms == ab->bahn.ruheMs;
                 pruefe(ok && f->at(f->getoetetMs + 50.0).waffe == "WP_NONE",
                        "Schwert faellt (Q_irand 1): aus der Hand, erster Aufprall " + std::to_string(static_cast<int>(erster)) +
-                           " ms, springt, liegt und ist im selben Bild fort" + r + " - " +
+                           " ms, springt, liegt und ist fort" + r + " - " +
                            std::to_string(ab != nullptr && !ab->bahn.klaenge.empty() ? static_cast<int>(ab->bahn.klaenge.front().ms) : -1) + ", " +
                            std::to_string(ab != nullptr ? ab->bahn.klaenge.size() : 0U) + " Aufpraelle, liegt " +
                            std::to_string(ab != nullptr ? static_cast<int>(ab->bahn.ruheMs) : -1) + " / fort " +
@@ -634,6 +645,72 @@ void tod() {
             }
         }
         pruefe(gesehen[0] && gesehen[1], "beide Wuerfe des Schwerts gesehen" + r);
+        // Pruefung 4a: WP_SaberThrow mit totem Besitzer - nach WP_SaberDrop
+        // (SES_RETURNING) bleibt das Schwert stehen, solange es hoechstens 16 von
+        // handRPoint ist (WP_SaberCatch faengt nicht, return): bleibt die Hand,
+        // haengt es (cgame zeichnet die Bahn TR_GRAVITY weiter).
+        // Mit ausgeschalteter Klinge wirft WP_SaberLose es nur (WP_SaberLaunch,
+        // TR_LINEAR ohne Tempo); im naechsten Denkbild zielt WP_RunSaber es
+        // (saberEntityDist), dann laesst WP_SaberThrow es fallen (WP_SaberDrop,
+        // soundOff). Gesucht ist je Fall ein Tod mit Q_irand(0, 1) == 1.
+        for (int fall = 0; fall < 3; ++fall) {
+            bool fertig = false;
+            for (int wann = 500; wann < 900 && !fertig; wann += 50) {
+                Welt w;
+                w.karte = karte;
+                w.skript = affect4(std::string("\tset ( /*@SET_TYPES*/ \"SET_WEAPON\", \"WP_SABER\" );\r\n") +
+                                   "\tset ( /*@SET_TYPES*/ \"SET_SABERACTIVE\", /*@BOOL_TYPES*/ \"" + (fall == 0 ? "true" : "false") +
+                                   "\" );\r\n\twait ( " + std::to_string(wann) + ".000 );\r\n\tkill ( \"held\" );\r\n");
+                w.anims = {"BOTH_STAND1", "BOTH_DEATH12"};
+                w.spur = bodenUeberall;
+                w.boden = true;
+                w.hand = true;
+                w.handWandert = fall != 0;
+                w.saberWurf = fall == 2 ? 2 : 0;
+                Lauf l;
+                fahre(w, sp.nr, l);
+                const Actor* f = l.szene.find("held");
+                if (f == nullptr) { continue; }
+                EngineZufall z(todesSaat(f->kartenEntity, f->getoetetMs));
+                if (z.irand(0, 1) != 1) { continue; }
+                fertig = true;
+                const TodesAbwurf* ab = abwurfVon(l, "held");
+                const double tod = f->getoetetMs;
+                if (fall == 0) {
+                    const bool ok = ab != nullptr && ab->bahn.punkte.size() == 1U && ab->bahn.ruheMs < 0.0 && ab->bahn.wegMs < 0.0 &&
+                                    ab->bahn.klaenge.empty() && ab->bahn.punkte[0].pos.art == AbwurfTrajektorie::Art::Schwer;
+                    pruefe(ok, "Schwert haengt an der stehenden Hand (SES_RETURNING, <= 16): keine neue Bahn, nie fort" + r);
+                    continue;
+                }
+                // Jedi Outcast: FORCE_LEVEL_1 (WP_SaberLose); sonst die .npc
+                const int stufe = regel == TodRegelwerk::JediOutcast ? 1 : w.saberWurf;
+                const float weite = stufe == 0 ? 0.0F : stufe == 1 ? 256.0F : 400.0F;
+                const double t1 = tod + 50.0;
+                // die Hand in t1: (20, 0, 64); das Auge ohne augenPunkt der Ursprung (0 0 24)
+                const NavVec heim = weite < 100.0F ? NavVec{20.0F, 0.0F, 64.0F} : NavVec{0.0F, 0.0F, 24.0F};
+                const float nick = -8.0F * (std::numbers::pi_v<float> / 180.0F);   // fwdangles[PITCH] - 8, Gier 0
+                const NavVec ziel{heim[0] + weite * std::cos(nick), 0.0F, heim[2] - weite * std::sin(nick)};
+                NavVec d{ziel[0], ziel[1], ziel[2] - 64.0F};
+                const float dist = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+                const float tempo = dist < 50.0F ? dist * 2.0F + 30.0F : 500.0F;
+                for (float& x : d) { x = x / dist * tempo; }
+                const float dreh = stufe == 2 ? 800.0F : 600.0F;
+                bool ok = ab != nullptr && ab->start.klingeAus && ab->bahn.punkte.size() >= 2U &&
+                          ab->bahn.punkte[0].pos.art == AbwurfTrajektorie::Art::Linear && ab->bahn.punkte[0].apos.delta[1] == dreh;
+                std::string ist = "-";
+                if (ok) {
+                    const AbwurfBahn::Punkt& p1 = ab->bahn.punkte[1];
+                    ist = std::to_string(p1.ms - tod) + " ms, Tempo " + std::to_string(p1.pos.delta[0]) + " " + std::to_string(p1.pos.delta[2]);
+                    ok = p1.ms == t1 && p1.pos.art == AbwurfTrajektorie::Art::Schwer && p1.pos.zeit == t1 &&
+                         std::fabs(p1.pos.delta[0] - d[0]) < 0.05F && std::fabs(p1.pos.delta[1]) < 0.05F && std::fabs(p1.pos.delta[2] - d[2]) < 0.05F &&
+                         p1.apos.delta[1] == dreh && !ab->bahn.klaenge.empty() && ab->bahn.klaenge.front().ms == t1 &&
+                         ab->bahn.klaenge.front().datei == ab->start.ausKlang && !ab->start.ausKlang.empty() && ab->bahn.wegMs > t1;
+                }
+                pruefe(ok, "Klinge aus, FP_SABERTHROW " + std::to_string(stufe) + ": WP_SaberLaunch, nach 50 ms WP_RunSaber (Tempo " +
+                               std::to_string(d[0]) + " " + std::to_string(d[2]) + ") und WP_SaberDrop mit soundOff - ist " + ist + r);
+            }
+            pruefe(fertig, "Fall " + std::to_string(fall) + " des Schwerts gesehen" + r);
+        }
     }
 }
 

@@ -1927,6 +1927,7 @@ void parseNpcFile(const std::string& text, NpcMap& out, bool jk2) {
         if (key == "fp_levitation") {
             cur.levitation = std::clamp(std::atoi(wert.c_str()), 0, 5);
         }
+        if (key.rfind("fp_", 0) == 0) { cur.kraefte[key] = std::clamp(std::atoi(wert.c_str()), 0, 5); }
         // rc605 (Ende, trigger_hurt): "health" n (NPC_ParseParms: COM_ParseInt,
         // stats->health = n).
         if (key == "health") {
@@ -2429,6 +2430,17 @@ void hangBeineRechnen(Scene& out, const SzenenHilfe* hilfe) {
     }
 }
 
+// Die Spur der Welt zur Zeit wann (die Mover stehen, wo sie dann stehen).
+NavSpurFn todesSpur(const std::shared_ptr<const NavWelt>& welt, double wann) {
+    if (!welt) { return {}; }
+    if (welt->spurZeit) {
+        return [welt, wann](const NavVec& s0, const NavVec& mi, const NavVec& ma, const NavVec& e0, int ign, std::uint32_t m) {
+            return welt->spurZeit(s0, mi, ma, e0, ign, m, wann);
+        };
+    }
+    return welt->spur;
+}
+
 // Pruefung 3: was der Tod ausser der Animation ausloest - Klaenge, DeathFX,
 // die Waffe verschwindet oder faellt, das Schwert faellt aus der Hand
 // (player_die, TossClientItems, WP_SaberLose; bhed/todesanim.h, abwurf.h).
@@ -2453,17 +2465,7 @@ void todesFolgenAnlegen(Scene& out, Actor& a, const ActorState& st, const TodLag
         a.steps.push_back(std::move(weg));
     }
     if (hilfe == nullptr) { return; }
-    NavSpurFn spur;
-    if (hilfe->nav) {
-        const std::shared_ptr<const NavWelt> welt = hilfe->nav;
-        if (welt->spurZeit) {
-            spur = [welt, wann](const NavVec& s0, const NavVec& mi, const NavVec& ma, const NavVec& e0, int ign, std::uint32_t m) {
-                return welt->spurZeit(s0, mi, ma, e0, ign, m, wann);
-            };
-        } else {
-            spur = welt->spur;
-        }
-    }
+    const NavSpurFn spur = todesSpur(hilfe->nav, wann);
     const float schwer = out.schwerkraft;
     const NavVec ort{st.pos[0], st.pos[1], st.pos[2]};
     const auto gegenstand = [&](TodesAbwurf::Art art, const std::string& waffe, const NavVec& mi, const NavVec& ma, const float zufall[2],
@@ -2517,8 +2519,27 @@ void todesFolgenAnlegen(Scene& out, Actor& a, const ActorState& st, const TodLag
             float w[3];
             engineVectoangles(r, w);   // vectoangles( renderInfo.muzzleDir, saber->s.apos.trBase )
             s.winkel = {w[0], w[1], w[2]};
-            // forcePowerLevel[FP_SABERTHROW]: "default: case FORCE_LEVEL_1" -> 600
-            s.drehTempo = {0.0F, 600.0F, 0.0F};
+            s.klingeAus = tod.schwertKlingeAus;
+            // forcePowerLevel[FP_SABERTHROW]: die .npc (OpenJK, Movie Duels); der
+            // Spieler hat ohne Cheats keine (WP_InitForcePowers); Jedi Outcasts
+            // WP_SaberLose setzt FORCE_LEVEL_1
+            if (lage.regel == TodRegelwerk::JediOutcast) {
+                s.wurfStufe = 1;
+            } else if (!a.echterSpieler && hilfe->npcs != nullptr) {
+                std::string typ = a.npcType;
+                for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+                if (const auto it = hilfe->npcs->find(typ); it != hilfe->npcs->end()) {
+                    if (const auto k = it->second.kraefte.find("fp_saberthrow"); k != it->second.kraefte.end()) { s.wurfStufe = k->second; }
+                }
+            }
+            // WP_SaberLaunch: "default: case FORCE_LEVEL_1" 600, FORCE_LEVEL_2 800, FORCE_LEVEL_3 1200
+            s.drehTempo = {0.0F, s.wurfStufe == 2 ? 800.0F : s.wurfStufe == 3 ? 1200.0F : 600.0F, 0.0F};
+            s.blick = {st.angles[0], st.angles[1], 0.0F};
+            s.spieler = lage.spieler;
+            // WP_SaberDrop: soundOff am Schwert (codeJK2 nach dem Team)
+            s.ausKlang = lage.regel == TodRegelwerk::JediOutcast
+                             ? (lage.spielerTeam ? "sound/weapons/saber/saberoff.wav" : "sound/weapons/saber/enemy_saber_off.wav")
+                             : lage.schwertAusKlang;
             s.entity = lage.entity;
             s.regel = lage.regel;
             s.schwerkraft = schwer;
@@ -2544,15 +2565,219 @@ void todesFolgenAnlegen(Scene& out, Actor& a, const ActorState& st, const TodLag
             ab.waffe = griff;
             ab.start = s;
             ab.rohZ = st.pos[2];
-            ab.bahn = wirfSchwert(s, spur);
+            // player_die: self->enemy = attacker - kill (ICARUS) gibt keinen,
+            // trigger_hurt sich selbst (kein client: WP_RunSaber zielt nicht)
+            ab.zielFrei = lage.mittel == TodMittel::Unbekannt;
+            // die Bahn erst, wenn die Szene steht (schwertBahnRechnen)
             out.abwuerfe.push_back(std::move(ab));
         }
     }
 }
 
+// G_ClearLOS (NPC_senses.cpp:929-955 OJ, MD und JK2 gleich): ein Strahl mit
+// CONTENTS_OPAQUE, durch hoechstens drei Scheiben (SVF_GLASS_BRUSH, func_glass)
+// hindurch, dann mit MASK_OPAQUE weiter.
+bool sichtFrei(const NavSpurFn& spur, const MapData* karte, const NavVec& von, const NavVec& bis) {
+    if (!spur) { return true; }
+    constexpr std::uint32_t kOpak = 0x00008000U;                      // CONTENTS_OPAQUE
+    constexpr std::uint32_t kMaskeOpak = kOpak | 0x00020000U | 0x2U;   // MASK_OPAQUE: OPAQUE|SLIME|LAVA
+    const NavVec null{0.0F, 0.0F, 0.0F};
+    NavSpur tr = spur(von, null, null, bis, kNavKeineEntity, kOpak);
+    for (int scheiben = 0; tr.fraction < 1.0F && scheiben < 3; ++scheiben) {
+        const MapEntity* e = karte != nullptr && tr.entity >= 0 && static_cast<std::size_t>(tr.entity) < karte->entities.size()
+                                 ? &karte->entities[static_cast<std::size_t>(tr.entity)]
+                                 : nullptr;
+        const std::string* kl = e != nullptr ? e->find("classname") : nullptr;
+        if (kl == nullptr || !sameName(*kl, "func_glass")) { return false; }
+        tr = spur(tr.endpos, null, null, bis, tr.entity, kMaskeOpak);
+    }
+    return tr.fraction >= 1.0F;
+}
+
+// AngleVectors, nur forward.
+NavVec vornAusWinkeln(const NavVec& w) {
+    const float p = w[0] * (std::numbers::pi_v<float> / 180.0F);
+    const float y = w[1] * (std::numbers::pi_v<float> / 180.0F);
+    return {std::cos(p) * std::cos(y), std::cos(p) * std::sin(y), -std::sin(p)};
+}
+
+// forcePowersKnown != 0 einer Figur: die Kraefte der .npc mit einer Stufe ueber
+// 0 (NPC_ParseParms, nur die Namen der FPTable des Regelwerks) und die Klassen,
+// denen NPC_SetMiscDefaultData FP_LEVITATION gibt (NPC_spawn.cpp:272-285 OJ,
+// :345-415 MD).
+bool kraefteBekannt(const NpcDef& d, const std::string& klasse, TodRegelwerk regel) {
+    static const char* const kOj[] = {"fp_heal", "fp_levitation", "fp_speed", "fp_push", "fp_pull", "fp_telepathy",
+                                      "fp_grip", "fp_lightning", "fp_saberthrow", "fp_saber_defense", "fp_saber_offense",
+                                      "fp_rage", "fp_protect", "fp_absorb", "fp_drain", "fp_see"};
+    static const char* const kMd[] = {"fp_destruction", "fp_stasis", "fp_grasp", "fp_repulse", "fp_lightning_strike",
+                                      "fp_fear", "fp_deadlysight", "fp_projection", "fp_blast"};
+    const bool md = regel == TodRegelwerk::MovieDuels;
+    for (const auto& [name, stufe] : d.kraefte) {
+        if (stufe <= 0) { continue; }
+        bool gilt = false;
+        for (const char* n : kOj) { gilt = gilt || name == n; }
+        if (md) {
+            for (const char* n : kMd) { gilt = gilt || name == n; }
+        }
+        if (gilt) { return true; }
+    }
+    if (klasse == "CLASS_BOBAFETT" || klasse == "CLASS_ROCKETTROOPER") { return true; }
+    return md && (klasse == "CLASS_MANDALORIAN" || klasse == "CLASS_JANGO" || klasse == "CLASS_JANGODUAL");
+}
+
+// WP_SaberFindEnemy (wp_saber.cpp:6317-6407 OJ, MD gleich) fuer das Schwert
+// einer toten Figur: saber->enemy ist NULL (WP_SaberLaunch), self->enemy auch
+// (sonst zielt WP_RunSaber nicht) - also nur gi.EntitiesInBox um das Schwert.
+struct SchwertFeindSuche {
+    const Scene* sc = nullptr;
+    const Actor* fig = nullptr;
+    NavVec blick{};
+    TodRegelwerk regel = TodRegelwerk::OpenJK;
+    std::function<bool(const Actor&, double, float[3])> augeFn;
+    const std::map<std::string, NpcDef>* npcs = nullptr;
+    NavPvsFn pvs;
+    NavSpurFn spur;
+    const MapData* karte = nullptr;
+
+    [[nodiscard]] const NpcDef* defVon(const Actor& b) const {
+        if (npcs == nullptr) { return nullptr; }
+        std::string typ = b.npcType;
+        for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        const auto it = npcs->find(typ);
+        return it == npcs->end() ? nullptr : &it->second;
+    }
+    [[nodiscard]] std::string teamVon(const Actor& b) const {
+        if (b.echterSpieler) { return "TEAM_PLAYER"; }
+        const NpcDef* d = defVon(b);
+        return d != nullptr ? d->team : std::string();
+    }
+    // G_ClearLOS(self, eyePoint, enemy): SPOT_ORIGIN, dann SPOT_HEAD_LEAN
+    [[nodiscard]] bool sieht(const NavVec& auge, const Actor& b, const NavVec& bo, double t) const {
+        if (sichtFrei(spur, karte, auge, bo)) { return true; }
+        NavVec kopf{bo[0], bo[1], bo[2] + 26.0F};   // ohne eyePoint: ps.viewheight (DEFAULT_VIEWHEIGHT)
+        float e[3];
+        if (augeFn && augeFn(b, t, e)) {
+            kopf = {e[0], e[1], e[2]};
+            if (b.klasse == "CLASS_ATST") { kopf[2] += 28.0F; }
+            if (!b.echterSpieler) {   // "always aim from the center of my bbox"
+                kopf[0] = bo[0];
+                kopf[1] = bo[1];
+            }
+        }
+        return sichtFrei(spur, karte, auge, kopf);
+    }
+    bool operator()(double t, const NavVec& schwert, const NavVec& hand, const NavVec& auge, NavVec& ort, float& breite,
+                    float& hoehe) const {
+        const ActorState ich = fig->at(t);
+        const NavVec meinOrt{ich.pos[0], ich.pos[1], ich.pos[2]};
+        const std::string meinTeam = teamVon(*fig);
+        // fwdangles: nur [YAW] gesetzt (PITCH/ROLL im Spiel unbelegt, hier 0)
+        const NavVec vorn = vornAusWinkeln({0.0F, blick[1], 0.0F});
+        constexpr float kRadius = 400.0F;
+        float besteWertung = 0.0F;
+        bool gefunden = false;
+        for (const Actor& b : sc->actors) {
+            if (&b == fig || !b.haveStart || b.brushModel >= 0) { continue; }   // inuse, client
+            const ActorState bs = b.at(t);
+            if (bs.removed || (b.getoetetMs >= 0.0 && t >= b.getoetetMs)) { continue; }   // health <= 0
+            const NavVec bo{bs.pos[0], bs.pos[1], bs.pos[2]};
+            // maxs[2]: geduckt die crouchheight
+            const float oben = bs.animation.rfind("BOTH_CROUCH", 0) == 0 ? b.hockHoehe : b.hoeheOben;
+            // gi.EntitiesInBox(center +- radius): absmin/absmax ueberlappen
+            const bool imKasten = bo[0] + b.halbBreite >= schwert[0] - kRadius && bo[0] - b.halbBreite <= schwert[0] + kRadius &&
+                                  bo[1] + b.halbBreite >= schwert[1] - kRadius && bo[1] - b.halbBreite <= schwert[1] + kRadius &&
+                                  bo[2] + oben >= schwert[2] - kRadius && bo[2] - 24.0F <= schwert[2] + kRadius;
+            if (!imKasten) { continue; }
+            // WP_SaberValidateEnemy: "not other jedi?" nur fuer NPCs
+            const NpcDef* d = defVon(b);
+            if (!b.echterSpieler && d != nullptr && kraefteBekannt(*d, b.klasse, regel)) { continue; }
+            const float dx = bo[0] - hand[0];
+            const float dy = bo[1] - hand[1];
+            const float dz = bo[2] - hand[2];
+            // saberThrowDistSquared[FP_SABERTHROW]: ab Stufe 3 160000 (4 und 5 wie
+            // Movie Duels mit FP_TableLevel, OpenJK liest dort ueber die Tabelle)
+            if (dx * dx + dy * dy + dz * dz > 160000.0F) { continue; }
+            // InFront(enemy, self, viewangles, 0): in der Ebene, ohne PITCH
+            NavVec zu{bo[0] - meinOrt[0], bo[1] - meinOrt[1], 0.0F};
+            const float zl = std::sqrt(zu[0] * zu[0] + zu[1] * zu[1]);
+            if (zl != 0.0F) {
+                zu[0] /= zl;
+                zu[1] /= zl;
+            }
+            const NavVec vornEben = vornAusWinkeln({0.0F, blick[1], blick[2]});
+            const bool vorne = zu[0] * vornEben[0] + zu[1] * vornEben[1] + zu[2] * vornEben[2] > 0.0F;
+            const float hx = bo[0] - meinOrt[0];
+            const float hy = bo[1] - meinOrt[1];
+            if ((!vorne || !sieht(auge, b, bo, t)) && (hx * hx + hy * hy > 65536.0F || std::fabs(bo[2] - meinOrt[2]) > 384.0F)) {
+                continue;
+            }
+            const std::string team = teamVon(b);
+            if (sameName(team, meinTeam)) { continue; }
+            // gi.inPVS(self->currentOrigin, ent->currentOrigin), dann G_ClearLOS
+            if (pvs && !pvs(meinOrt, bo)) { continue; }
+            if (!sieht(auge, b, bo, t)) { continue; }
+            // WP_SaberRateEnemy
+            NavVec dir{bo[0] - schwert[0], bo[1] - schwert[1], bo[2] - schwert[2]};
+            const float l = std::sqrt(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+            if (l != 0.0F) {
+                for (float& x : dir) { x /= l; }
+            }
+            const float wertung = (1.0F - l / kRadius) * (vorn[0] * dir[0] + vorn[1] * dir[1] + vorn[2] * dir[2]);
+            if (wertung > besteWertung) {
+                besteWertung = wertung;
+                gefunden = true;
+                ort = bo;
+                breite = b.halbBreite;
+                hoehe = oben;
+            }
+        }
+        return gefunden;
+    }
+};
+
+// Pruefung 4a: die Bahn eines Schwerts aus der Hand der toten Figur - erst,
+// wenn die Szene steht: WP_SaberThrow/WP_RunSaber fragen je Denkbild die Hand
+// und das Auge der Figur, die dann ihre Todesanimation spielt.
+void schwertBahnRechnen(const Scene& sc, TodesAbwurf& ab, const SzenenHilfe& hilfe, const MapData* karte) {
+    const NavSpurFn spur = todesSpur(hilfe.nav, ab.start.ms);
+    const Actor* fig = sc.find(ab.figur);
+    SchwertUmfeld u;
+    if (fig != nullptr && hilfe.handPunkt) {
+        const auto handFn = hilfe.handPunkt;
+        const auto augeFn = hilfe.augenPunkt;
+        u.haltung = [fig, handFn, augeFn](double t, NavVec& hand, NavVec& auge) {
+            float h[3];
+            float r[3];
+            if (handFn(*fig, t, h, r)) { hand = {h[0], h[1], h[2]}; }
+            float e[3];
+            if (augeFn && augeFn(*fig, t, e)) {
+                auge = {e[0], e[1], e[2]};
+            } else {
+                const ActorState st = fig->at(t);
+                auge = {st.pos[0], st.pos[1], st.pos[2]};   // ohne headBolt: ent.origin
+            }
+        };
+    }
+    // Jedi Outcast wirft mit FORCE_LEVEL_1 und fragt nie
+    if (fig != nullptr && ab.zielFrei && ab.start.regel != TodRegelwerk::JediOutcast) {
+        SchwertFeindSuche f;
+        f.sc = &sc;
+        f.fig = fig;
+        f.blick = ab.start.blick;
+        f.regel = ab.start.regel;
+        f.augeFn = hilfe.augenPunkt;
+        f.npcs = hilfe.npcs;
+        if (hilfe.nav) { f.pvs = hilfe.nav->pvs; }
+        f.spur = spur;
+        f.karte = karte;
+        u.feind = f;
+    }
+    ab.bahn = wirfSchwert(ab.start, spur, u);
+}
+
 }  // namespace
 
-void todesFolgenHoehe(Scene& s, const std::shared_ptr<const NavWelt>& welt) {
+void todesFolgenHoehe(Scene& s, const std::shared_ptr<const NavWelt>& welt, const SzenenHilfe& hilfe, const MapData* karte) {
     for (TodesFolge& f : s.todesFolgen) {
         const Actor* a = s.find(f.figur);
         if (a == nullptr) { continue; }
@@ -2567,18 +2792,16 @@ void todesFolgenHoehe(Scene& s, const std::shared_ptr<const NavWelt>& welt) {
         if (z == ab.rohZ) { continue; }
         ab.start.ort[2] += z - ab.rohZ;
         ab.rohZ = z;
-        NavSpurFn spur;
-        if (welt) {
-            const double wann = ab.start.ms;
-            if (welt->spurZeit) {
-                spur = [welt, wann](const NavVec& s0, const NavVec& mi, const NavVec& ma, const NavVec& e0, int ign, std::uint32_t m) {
-                    return welt->spurZeit(s0, mi, ma, e0, ign, m, wann);
-                };
-            } else {
-                spur = welt->spur;
-            }
+        if (ab.art != TodesAbwurf::Art::Schwert) {
+            ab.bahn = wirfGegenstand(ab.start, todesSpur(welt, ab.start.ms));
         }
-        ab.bahn = ab.art == TodesAbwurf::Art::Schwert ? wirfSchwert(ab.start, spur) : wirfGegenstand(ab.start, spur);
+    }
+    // Pruefung 4a: das Schwert folgt der Hand - auch wenn die Figur nicht
+    // springt, aendert die Schwerkraft ihre Haltung danach (Leiche)
+    SzenenHilfe h = hilfe;
+    h.nav = welt;
+    for (TodesAbwurf& ab : s.abwuerfe) {
+        if (ab.art == TodesAbwurf::Art::Schwert) { schwertBahnRechnen(s, ab, h, karte); }
     }
 }
 
@@ -5284,6 +5507,13 @@ Scene buildScene(const Script& s, const MapData& map, const SzenenHilfe* hilfe) 
                     st.spur.push_back({zs.pos[0], zs.pos[1], zs.pos[2]});
                 }
             }
+        }
+    }
+    // Pruefung 4a: die Schwerter aus der Hand der Toten, jetzt, da jede Figur
+    // ihre Todesanimation hat
+    if (hilfe != nullptr) {
+        for (TodesAbwurf& ab : sc.abwuerfe) {
+            if (ab.art == TodesAbwurf::Art::Schwert) { schwertBahnRechnen(sc, ab, *hilfe, &map); }
         }
     }
     return sc;

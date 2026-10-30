@@ -4795,6 +4795,65 @@ bool figurHandPunkt(const Actor& a, const App::ActorAssets& assets, double ms, f
     return false;
 }
 
+bool figurAugenPunkt(const Actor& a, const App::ActorAssets& assets, double ms, float auge[3]) {
+    std::string modell;
+    std::string typ = a.npcType;
+    for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    if (const auto it = g_app->npcMap.find(typ); it != g_app->npcMap.end()) { modell = it->second.playerModel; }
+    std::string klasse = a.klasse;
+    for (char& c : klasse) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+    const int spiel = regelwerkJediOutcast() ? kRegelwerkJediOutcast
+                      : regelwerkMovieDuels() ? kRegelwerkMovieDuels : kRegelwerkOpenJK;
+    const std::string bolzen = kopfBolzen(modell, assets.model.animFile, klasse, spiel);
+    if (bolzen.empty()) { return false; }
+    ActorDraw d;
+    std::vector<BoneMatrix> welt;
+    float fw[16];
+    if (!figurPose(a, assets, a.at(ms), ms, d, welt, fw)) { return false; }
+    // G2API_AddBolt: erst eine Flaeche ("*head_eyes"), dann ein Knochen ("cranium")
+    BoneMatrix bm{};
+    if (!boltMatrix(*d.model, surfaceIndex(*d.model, bolzen), welt, *d.anim, bm)) {
+        const int b = boneIndex(*d.anim, bolzen);
+        if (b < 0 || static_cast<std::size_t>(b) >= welt.size()) { return false; }
+        bm = welt[static_cast<std::size_t>(b)];
+    }
+    // G2API_GiveMeVectorFromMatrix(boltMatrix, ORIGIN, eyePoint)
+    for (int r = 0; r < 3; ++r) {
+        auge[r] = fw[r * 4 + 0] * bm.m[0][3] + fw[r * 4 + 1] * bm.m[1][3] + fw[r * 4 + 2] * bm.m[2][3] + fw[r * 4 + 3];
+    }
+    return true;
+}
+
+void figurHakenSetzen(SzenenHilfe& h, const std::map<std::string, std::size_t>& index) {
+    // die Figur ueber ihren Namen bei ihren Modelldaten (g_app->actorAssets)
+    const auto daten = [index](const Actor& a) -> const App::ActorAssets* {
+        const auto it = index.find(a.name);
+        if (it == index.end() || it->second >= g_app->actorAssets.size() || !g_app->actorAssets[it->second]) { return nullptr; }
+        return g_app->actorAssets[it->second].get();
+    };
+    // Pruefung 3: renderInfo.torsoAngles aus dem chestBolt - die Figur liegt auf
+    // dem Ruecken oder dem Bauch, dreht sich (BOTH_DEATH_LYING_UP/DN, SPIN_90/180)
+    h.rumpfWinkel = [daten](const Actor& a, double ms, float w[3]) {
+        const App::ActorAssets* d = daten(a);
+        return d != nullptr && figurRumpfWinkel(a, *d, ms, w);
+    };
+    // Pruefung 3: Hand und Klinge fuer WP_SaberLaunch/WP_SaberDrop
+    h.handPunkt = [daten](const Actor& a, double ms, float hp[3], float r[3]) {
+        const App::ActorAssets* d = daten(a);
+        return d != nullptr && figurHandPunkt(a, *d, ms, hp, r);
+    };
+    // Pruefung 4a: das Auge fuer WP_RunSaber und G_ClearLOS
+    h.augenPunkt = [daten](const Actor& a, double ms, float e[3]) {
+        const App::ActorAssets* d = daten(a);
+        return d != nullptr && figurAugenPunkt(a, *d, ms, e);
+    };
+    // Pruefung 3: die Fuesse fuer PM_AdjustStandAnimForSlope
+    h.fussPunkte = [daten](const Actor& a, double ms, float l[3], float r[3]) {
+        const App::ActorAssets* d = daten(a);
+        return d != nullptr && figurFussPunkte(a, *d, ms, l, r);
+    };
+}
+
 bool figurFussPunkte(const Actor& a, const App::ActorAssets& assets, double ms, float links[3], float rechts[3]) {
     std::string modell;
     std::string typ = a.npcType;
@@ -6011,33 +6070,8 @@ void prepareScene() {
         // Die Tode durch trigger_hurt, die der Nachbau in den flachen Ablauf
         // schrieb (AblaufWelt::hurtTode): MOD_TRIGGER_HURT/MOD_FALLING statt
         // MOD_UNKNOWN.
-        // Pruefung 3: renderInfo.torsoAngles aus dem chestBolt des gezeichneten
-        // Skeletts - die Figur liegt auf dem Ruecken oder dem Bauch, dreht
-        // sich (BOTH_DEATH_LYING_UP/DN, SPIN_90/180 in der Todeskette).
-        hilfe.rumpfWinkel = [index](const Actor& a, double ms, float w[3]) {
-            const auto it = index.find(a.name);
-            if (it == index.end() || it->second >= g_app->actorAssets.size() || !g_app->actorAssets[it->second]) {
-                return false;
-            }
-            return figurRumpfWinkel(a, *g_app->actorAssets[it->second], ms, w);
-        };
-        // Pruefung 3: Hand und Klinge fuer WP_SaberLaunch/WP_SaberDrop, und
-        // die Gegenstaende aus items.dat fuer TossClientItems.
-        hilfe.handPunkt = [index](const Actor& a, double ms, float h[3], float r[3]) {
-            const auto it = index.find(a.name);
-            if (it == index.end() || it->second >= g_app->actorAssets.size() || !g_app->actorAssets[it->second]) {
-                return false;
-            }
-            return figurHandPunkt(a, *g_app->actorAssets[it->second], ms, h, r);
-        };
-        // Pruefung 3: die Fuesse fuer PM_AdjustStandAnimForSlope
-        hilfe.fussPunkte = [index](const Actor& a, double ms, float l[3], float r[3]) {
-            const auto it = index.find(a.name);
-            if (it == index.end() || it->second >= g_app->actorAssets.size() || !g_app->actorAssets[it->second]) {
-                return false;
-            }
-            return figurFussPunkte(a, *g_app->actorAssets[it->second], ms, l, r);
-        };
+        // Pruefung 3/4a: Rumpf, Hand, Auge und Fuesse aus dem gezeichneten Skelett
+        figurHakenSetzen(hilfe, index);
         hilfe.waffenGegenstand = [](const std::string& w, NavVec& mi, NavVec& ma) {
             const Gegenstand* g = gegenstandFuerWaffe(w);
             if (g == nullptr) { return false; }

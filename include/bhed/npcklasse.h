@@ -106,6 +106,12 @@ struct NpcKlassenTyp {
 [[nodiscard]] std::string rumpfBolzenKnochen(const std::string& modell, const std::string& gla, const std::string& klasse,
                                              int spiel);
 
+// Pruefung 4a: der Bolzen, an den G_SetG2PlayerModelInfo den headBolt legt -
+// renderInfo.eyePoint (cg_players.cpp:7487-7498 OJ: ohne headBolt der Ursprung
+// der Zeichnung). Leer: keiner (-1). Wie oben; G2API_AddBolt sucht erst eine
+// Flaeche, dann einen Knochen.
+[[nodiscard]] std::string kopfBolzen(const std::string& modell, const std::string& gla, const std::string& klasse, int spiel);
+
 }  // namespace bhed
 
 #endif

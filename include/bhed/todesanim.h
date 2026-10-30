@@ -143,8 +143,10 @@ struct TodErgebnis {
     TodWaffe waffe = TodWaffe::Bleibt;
     // TossClientItems -> WP_SaberLose: WP_SaberLaunch, WP_SaberDrop (Klinge
     // aus, soundOff am Schwert, TR_GRAVITY mit EF_BOUNCE_HALF) - das Schwert
-    // faellt aus der Hand.
+    // faellt aus der Hand. Pruefung 4a: auch mit ausgeschalteter Klinge - dann
+    // nur WP_SaberLaunch, WP_SaberDrop erst im naechsten Denkbild (WP_SaberThrow).
     bool schwertFaellt = false;
+    bool schwertKlingeAus = false;
     bool kristall = false;             // Shadowtrooper: Drop_Item(FindItemForAmmo(AMMO_FORCE))
     // Die Zuege von Q_flrand(-1, 1) fuer Drop_Item (velocity[2] += 200 +
     // flrand * 50) und LaunchItem (Gier flrand * 180) der fallenden Waffe

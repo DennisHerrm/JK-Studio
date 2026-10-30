@@ -3380,6 +3380,12 @@ bool figurRumpfWinkel(const Actor& a, const App::ActorAssets& assets, double ms,
 // Pruefung 3: renderInfo.handRPoint (Bolzen "*r_hand") und muzzleDir (Richtung
 // der ersten Klinge des Schwerts in der rechten Hand) zur Zeit ms.
 bool figurHandPunkt(const Actor& a, const App::ActorAssets& assets, double ms, float hand[3], float richtung[3]);
+// Pruefung 4a: renderInfo.eyePoint aus dem headBolt (kopfBolzen) zur Zeit ms;
+// false: kein headBolt (dann gilt der Ursprung der Figur).
+bool figurAugenPunkt(const Actor& a, const App::ActorAssets& assets, double ms, float auge[3]);
+// Pruefung 4a: rumpfWinkel, handPunkt, augenPunkt und fussPunkte der
+// SzenenHilfe aus den gezeichneten Skeletten (index: Name -> actorAssets).
+void figurHakenSetzen(SzenenHilfe& h, const std::map<std::string, std::size_t>& index);
 // Pruefung 3: renderInfo.footLPoint/footRPoint (footLBolt/footRBolt) zur Zeit ms -
 // nur G_StandardHumanoid ("*l_leg_foot") und CLASS_ATST ("*l_foot"), wie
 // PM_AdjustStandAnimForSlope es verlangt.

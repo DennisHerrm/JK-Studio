@@ -758,4 +758,30 @@ std::string rumpfBolzenKnochen(const std::string& modell, const std::string& gla
     return "thoracic";
 }
 
+std::string kopfBolzen(const std::string& modell, const std::string& gla, const std::string& klasse, int spiel) {
+    if (standardHumanoid(modell, gla, spiel)) { return "*head_eyes"; }
+    const std::string m = kleinText(modell);
+    const bool jk2 = spiel == kRegelwerkJediOutcast;
+    const bool md = spiel == kRegelwerkMovieDuels;
+    if (!jk2 && (klasse == "CLASS_VEHICLE" || klasse == "CLASS_HOWLER")) { return {}; }
+    const bool astro = jk2 ? (modell.rfind("r2d2", 0) == 0 || modell.rfind("r5d2", 0) == 0)
+                           : (m.rfind("r2d2", 0) == 0 || m.rfind("r5d2", 0) == 0);
+    if (m == "gonk" || m == "seeker" || m == "remote" || astro || m == "interrogator") { return {}; }
+    if (jk2 ? modell.rfind("probe", 0) == 0 : m.rfind("probe", 0) == 0) { return "cranium"; }
+    // codeJK2s Zweig "protocol" (headBolt -1) erreicht nichts: G_StandardHumanoid
+    // nimmt die Vorsilbe schon
+    if (m == "sentry" || m == "mark1" || m == "mark2") { return {}; }
+    if (m == "atst") { return "*head"; }
+    if (m == "minemonster") { return "*head_f1"; }
+    if (jk2) {
+        if (m == "howler") { return "cranium"; }
+        if (m == "galak_mech") { return "*head_eyes"; }
+        return "*headg";
+    }
+    if (md && m == "galak_mech") { return "*head_eyes"; }
+    if (m == "rancor" || m == "mutant_rancor" || m == "wampa" || (md && m == "kotor_monster")) { return "*head_eyes"; }
+    if (m == "sand_creature") { return {}; }
+    return "*headg";
+}
+
 }  // namespace bhed

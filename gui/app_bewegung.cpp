@@ -451,8 +451,14 @@ void schwerkraftVorschau(bool mitMovern) {
         return false;
     };
     schwerkraftEinrechnen(g_app->scene, h);
-    // Pruefung 3: DeathFX und Abwurf vom Ort, an dem die Figur nun steht
-    todesFolgenHoehe(g_app->scene, navWeltVorschau());
+    // Pruefung 3: DeathFX und Abwurf vom Ort, an dem die Figur nun steht;
+    // Pruefung 4a: das Schwert folgt der Hand der Figur, die nun so liegt
+    SzenenHilfe hilfe;
+    hilfe.npcs = &g_app->npcMap;
+    std::map<std::string, std::size_t> index;
+    for (std::size_t i = 0; i < g_app->scene.actors.size(); ++i) { index[g_app->scene.actors[i].name] = i; }
+    figurHakenSetzen(hilfe, index);
+    todesFolgenHoehe(g_app->scene, navWeltVorschau(), hilfe, &g_app->map);
     std::size_t figuren = 0;
     for (const Actor& a : g_app->scene.actors) {
         if (!a.hoehe.empty()) { ++figuren; }

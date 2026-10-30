@@ -914,12 +914,18 @@ struct TodesAbwurf {
     std::string waffe;    // Waffe: "WP_..." (FindItemForWeapon); Schwert: das Griffmodell (.glm)
     AbwurfStart start;    // woraus die Bahn gerechnet ist
     float rohZ = 0.0F;    // Z der Figur dazu (todesFolgenHoehe)
+    // Pruefung 4a, Schwert: self->enemy der Toten ist leer (kill aus ICARUS) -
+    // dann darf WP_RunSaber einen Feind suchen (trigger_hurt: der Ausloeser).
+    bool zielFrei = false;
     AbwurfBahn bahn;
 };
 // Pruefung 3: Actor::hoehe (schwerkraftEinrechnen) kommt erst nach
 // buildScene - danach die Orte der Todesfolgen (DeathFX, Abwurf) vom Ort, an
 // dem die Figur dann stirbt, und die Bahnen neu (die Spuren der Welt).
-void todesFolgenHoehe(Scene& s, const std::shared_ptr<const NavWelt>& welt);
+// Pruefung 4a: die Schwerter mit Hand und Auge aus hilfe (handPunkt,
+// augenPunkt, npcs) und den Scheiben (func_glass) aus karte.
+void todesFolgenHoehe(Scene& s, const std::shared_ptr<const NavWelt>& welt, const struct SzenenHilfe& hilfe,
+                      const MapData* karte);
 
 struct Scene {
     std::vector<Actor> actors;
@@ -1005,6 +1011,10 @@ struct SzenenHilfe {
     // Richtung der ersten Klinge, CG_AddSaberBlade) des gezeichneten Skeletts
     // zur Zeit ms - fuer WP_SaberLaunch/WP_SaberDrop. false: unbekannt.
     std::function<bool(const struct Actor& figur, double ms, float hand[3], float richtung[3])> handPunkt;
+    // Pruefung 4a: renderInfo.eyePoint - der headBolt (npcklasse.h, kopfBolzen)
+    // des gezeichneten Skeletts zur Zeit ms (WP_RunSaber, G_ClearLOS). false:
+    // keiner - dann der Ursprung der Figur (cg_players.cpp:7487 OJ).
+    std::function<bool(const struct Actor& figur, double ms, float auge[3])> augenPunkt;
     // Pruefung 3: der Gegenstand einer Waffe aus items.dat (FindItemForWeapon):
     // mins/maxs fuer G_RunItem. false: die Waffe hat keinen (dann faellt nichts).
     std::function<bool(const std::string& waffe, NavVec& mins, NavVec& maxs)> waffenGegenstand;
@@ -1133,6 +1143,10 @@ struct NpcDef {
     // rc605: FP_LEVITATION der .npc (NPC_ParseParms: Kraefte als Schluessel,
     // COM_ParseInt, ueber FORCE_LEVEL_5 gekappt) - 0: nicht genannt.
     int levitation = 0;
+    // Pruefung 4a: alle Kraefte der .npc ("fp_saberthrow" -> 3, klein, auf 0..5
+    // gekappt, in der Reihenfolge des Lesens - eine spaetere Zeile gewinnt).
+    // Welche Namen gelten, entscheidet das Regelwerk (FPTable) beim Benutzen.
+    std::map<std::string, int> kraefte;
     // rc605 (Ende): "health" der .npc (NPC_ParseParms: stats.health =
     // COM_ParseInt) - 0: nicht genannt.
     int gesundheit = 0;
