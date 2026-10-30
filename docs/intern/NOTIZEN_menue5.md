@@ -318,24 +318,68 @@ Aus Zeit- bzw. Kontextgründen nicht angefangen; Stand und Vorarbeit:
     ohne Chrom-Shader (die Menü-Figuren zeichnen die Grundtextur), JK2-MP-Menüs außer dem
     Hauptmenü nicht fotografiert.
 
+### Punkt 6 - Tour, Handbuch, Selbsttest
+
+- Tutorial und Tour „Dein erstes eigenes Menü“ (tut-menue, tools/handbuch/inhalt_menue5b.py,
+  Schritte in inhalt_touren.py): Menü-Editor öffnen (modus:4), Neues Projekt (menue.projekt; ein
+  neues Projekt ohne offenes Menü beginnt mit einem leeren Vollbild-Menü), Knopf aus den Bausteinen
+  (menue.elemente+), Nebeneinander (menue.layouts+), Leuchten (menue.ereignisse+), Speichern
+  (menue.gespeichert+); Messwerte in gui/tour_messwerte.cpp über menueeditor::tourWerte.
+- Fund: die Tour-Grammatik (src/tour.cpp) kannte nur Modus 0-3 (Prüfung) bzw. 0-2 (Aktion) - der
+  Menü-Editor (Modus 4) war für Touren nicht erreichbar; das Programm verwarf die ganze touren.json
+  („Pruefung modus:4: 0 bis 3“, im Selbsttest nachgestellt, ctest tour rot). Jetzt 0-4, tourtest
+  angepasst (modus:4 bekannt, modus:5 abgewiesen), grün.
+- Selbsttest (BHED_MENUE_NUR=m5b, auch im vollen Lauf): die Tour mit echten Aktionen; vor jeder
+  Aktion die Gegenprobe (Schritt noch offen, auch nach Auswählen ohne Layout bzw. mit offenem Reiter
+  ohne Effekt), danach schaltet die Tour selbst weiter; am Ende liegen Projektdatei und Menü mit
+  Layout-Kommentar und Glow-Element auf der Platte. Zusammen mit Punkt 1/3/4: 24 OK, 0 FEHLER (in allen vier Sprachen).
+- Fund beim Tutorial (Bild nach „Nebeneinander“, dann Selbsttest-Prüfung rot, behoben, grün): drei
+  frisch eingefügte Knöpfe liegen übereinander; „Nebeneinander“ machte den größten zur Fläche (er
+  umschloss die anderen) und quetschte die übrigen in seine Breite. Jetzt wird nur ein Element ohne
+  eigenen Inhalt (kein Text, keine Aktion, oder decoration) zur Fläche; ohne Fläche ist das Layout
+  mindestens so groß, dass die Kinder mit Abstand hineinpassen (Mindestgröße wie in Qt), und es
+  bleibt im Menü (rückt nach links/oben). Ergebnis: 24/232/440, je 200 breit.
+- Handbuchseite „Menü-Editor: Projekte, Mod-Profile, Jedi Outcast“ (Punkte 1, 3-5) und die
+  Tutorialseite, vier Sprachen, Bilder aus dem Selbsttest (SP\m5b\hb_fotos.sh, bilder.py).
+
 ## Changelog
 
 ## English
+- Menu editor: projects - a project file (*.jksmenu) with folders laid out like the pk3 keeps menus, images, videos, texts, the mod profile, open tabs, preview and export settings together; Save saves everything, the pk3 is one click; unsaved work is backed up every 30 seconds and offered again after a crash; a double-click opens projects once you allow it.
+- Menu editor: mod profiles - tell the editor which extra keywords, owner-draws, feeders, uiScripts, cvars and menu lists a mod's engine knows (generated from the mod's source or filled in from a template); such menus load without messages and stay byte-identical.
+- Menu editor: layouts follow show and hide - scripts that show or hide elements of a layout move the others into place (setitemrect), kept up to date with every change.
+- Menu editor: Jedi Outcast checked against the real game - command and keyword lists as in jk2sp.exe, the logo models (.md3) with the game's camera, Test in game without writing into the game folder; single player no longer offers playlooped (the engine has it switched off).
+- Help: new tutorial and tour "Your first own menu".
 - Menu editor: layouts like Qt - arrange the selected elements side by side, stacked, in a grid or in two columns with a divider with one click (Ctrl+Shift+1 to 4), with spacing, margins, spacers and alignment; an enclosing panel becomes the area and moving it moves the elements. The .menu only gets fixed rects; the layout is kept as a comment the game skips, menus without a layout stay byte-identical. The longest text of all languages counts, too narrow elements are named.
 - Menu editor: an Events tab per element like Unreal UMG - hover, hover ends, click, focus, focus lost and Enter as action blocks that write the script (only commands the game's engine knows), ready-made hover effects (glow, colour, border, bigger), hover and click sounds with listening; every change is one undo step and shows up in the Text tab at once.
 - Menu editor preview checked menu by menu against the original Jedi Academy (single and multiplayer): missing @ texts show nothing like the game, missing images of shader elements show the game's grey default box, the character lists follow the chosen species, the multiplayer start values (player name, model, server name, limits), the multiplayer head list in rows and columns and the multiplayer owner-draws for team slots, game type, skill, team colour and map preview.
 
 ## Deutsch
+- Menü-Editor: Projekte - eine Projektdatei (*.jksmenu) mit Ordnern wie in der pk3 hält Menüs, Bilder, Videos, Texte, das Mod-Profil, offene Reiter, Vorschau- und Export-Einstellungen zusammen; Speichern speichert alles, die pk3 ist ein Klick; ungespeicherte Arbeit wird alle 30 Sekunden gesichert und nach einem Absturz wieder angeboten; ein Doppelklick öffnet Projekte, sobald du es erlaubst.
+- Menü-Editor: Mod-Profile - sag dem Editor, welche zusätzlichen Schlüsselwörter, Ownerdraws, Feeder, uiScripts, Cvars und Menülisten die Engine einer Mod kennt (aus dem Quellcode der Mod erzeugt oder aus einer Vorlage ausgefüllt); solche Menüs laden ohne Meldung und bleiben byte-gleich.
+- Menü-Editor: Layouts folgen show und hide - Skripte, die Elemente eines Layouts zeigen oder verstecken, rücken die anderen zurecht (setitemrect), bei jeder Änderung neu.
+- Menü-Editor: Jedi Outcast am echten Spiel geprüft - Befehls- und Schlüsselwortlisten wie in jk2sp.exe, die Logo-Modelle (.md3) mit der Kamera des Spiels, Im Spiel testen ohne Schreiben in den Spielordner; der Einzelspieler bietet playlooped nicht mehr an (die Engine hat es abgeschaltet).
+- Hilfe: neues Tutorial und neue Tour „Dein erstes eigenes Menü“.
 - Menü-Editor: Layouts wie in Qt - die gewählten Elemente mit einem Klick nebeneinander, untereinander, im Raster oder in zwei Spalten mit Teiler anordnen (Strg+Umschalt+1 bis 4), mit Abstand, Rändern, Spacern und Ausrichtung; ein umschließendes Panel wird zur Fläche, verschiebt man es, ziehen die Elemente mit. Ins .menu kommen nur feste rects; das Layout bleibt als Kommentar erhalten, den das Spiel überliest, Menüs ohne Layout bleiben byte-gleich. Es zählt der längste Text aller Sprachen, zu schmale Elemente werden genannt.
 - Menü-Editor: ein Reiter Ereignisse je Element wie in Unreal UMG - Hover, Hover verlassen, Klick, Fokus, Fokus verlassen und Enter als Aktions-Bausteine, die das Skript schreiben (nur Befehle, die die Engine des Spiels kennt), fertige Hover-Effekte (Leuchten, Farbe, Rahmen, Größer), Hover- und Klick-Klang mit Probehören; jede Änderung ist ein Rückgängig-Schritt und steht sofort im Text-Reiter.
 - Vorschau des Menü-Editors Menü für Menü gegen das Original-Jedi-Academy geprüft (Einzel- und Mehrspieler): fehlende @-Texte zeigen wie im Spiel nichts, fehlende Bilder von Shader-Elementen den grauen Ersatzkasten des Spiels, die Figurenlisten folgen der gewählten Spezies, dazu die Startwerte des Mehrspielers (Spielername, Modell, Servername, Grenzen), die Kopfliste des Mehrspielers in Zeilen und Spalten und die Mehrspieler-Ownerdraws für Teamplätze, Spielart, Schwierigkeit, Teamfarbe und Kartenvorschau.
 
 ## 中文
+- 菜单编辑器:项目——项目文件(*.jksmenu)及与 pk3 结构相同的文件夹,把菜单、图像、视频、文本、Mod 配置、打开的标签页、预览和导出设置放在一起;“保存”保存全部内容,一键生成 pk3;未保存的工作每 30 秒备份一次,崩溃后会再次提供;允许后可双击打开项目。
+- 菜单编辑器:Mod 配置——告诉编辑器某个 Mod 的引擎还认识哪些关键字、ownerdraw、feeder、uiScript、cvar 和菜单列表(可从 Mod 源代码生成,或按模板填写);这样的菜单加载时不再报错,并保持逐字节相同。
+- 菜单编辑器:布局跟随 show 和 hide——显示或隐藏布局元素的脚本会把其他元素移到正确位置(setitemrect),每次修改都会更新。
+- 菜单编辑器:已用真实游戏检验 Jedi Outcast——命令和关键字列表与 jk2sp.exe 一致,标志模型(.md3)使用游戏的相机,“在游戏中测试”不会写入游戏文件夹;单人模式不再提供 playlooped(引擎已关闭它)。
+- 帮助:新的教程和导览“你的第一个菜单”。
 - 菜单编辑器:类似 Qt 的布局——一键将所选元素并排、上下、网格或带分隔条的两栏排列(Ctrl+Shift+1 至 4),可设置间距、边距、弹性空白和对齐;包围其他元素的面板会成为区域,移动它时元素随之移动。.menu 中只写入固定的 rect;布局以游戏会跳过的注释保留,没有布局的菜单保持逐字节相同。以所有语言中最长的文本为准,过窄的元素会被指出。
 - 菜单编辑器:类似 Unreal UMG 的每个元素的“事件”标签页——悬停、离开悬停、单击、获得焦点、失去焦点和回车,以写入脚本的操作块表示(只提供游戏引擎支持的命令),现成的悬停效果(发光、颜色、边框、放大),悬停与单击音效可试听;每次修改都是一个撤销步骤,并立即显示在文本标签页中。
 - 菜单编辑器预览已逐个菜单与原版 Jedi Academy(单人与多人)对照:缺失的 @ 文本与游戏一样不显示,着色器元素缺失的图像显示游戏的灰色默认方框,角色列表跟随所选种族,另有多人模式初始值(玩家名、模型、服务器名、限制)、多人模式头像列表的多行多列显示,以及多人模式队伍位置、游戏类型、难度、队伍颜色和地图预览的 ownerdraw。
 
 ## 日本語
+- メニューエディター: プロジェクト。pk3 と同じ構成のフォルダーを持つプロジェクトファイル(*.jksmenu)が、メニュー・画像・動画・テキスト・Mod プロファイル・開いているタブ・プレビューと書き出しの設定をまとめます。保存ですべてを保存し、pk3 はワンクリック。保存していない作業は 30 秒ごとにバックアップされ、クラッシュ後に再び提示されます。許可するとダブルクリックでプロジェクトが開きます。
+- メニューエディター: Mod プロファイル。Mod のエンジンが追加で知っているキーワード、ownerdraw、feeder、uiScript、cvar、メニューリストをエディターに伝えます(Mod のソースコードから生成、またはひな形に記入)。そのようなメニューは警告なしで読み込まれ、バイト単位で同じままです。
+- メニューエディター: レイアウトが show と hide に従います。レイアウトの要素を表示・非表示にするスクリプトが、ほかの要素を正しい位置に動かします(setitemrect)。変更のたびに更新されます。
+- メニューエディター: Jedi Outcast を実際のゲームで確認しました。コマンドとキーワードの一覧は jk2sp.exe と同じ、ロゴのモデル(.md3)はゲームのカメラで描画、「ゲームでテスト」はゲームフォルダーに書き込みません。シングルプレイでは playlooped を提示しなくなりました(エンジンで無効)。
+- ヘルプ: 新しいチュートリアルとツアー「はじめての自作メニュー」。
 - メニューエディター: Qt のようなレイアウト。選んだ要素をワンクリックで横並び・縦並び・グリッド・仕切り付き 2 列に配置できます(Ctrl+Shift+1〜4)。間隔・余白・スペーサー・配置を設定でき、ほかを囲むパネルが領域になり、動かすと要素も付いてきます。.menu には固定の rect だけが入り、レイアウトはゲームが読み飛ばすコメントとして残ります。レイアウトのないメニューはバイト単位で同じままです。全言語で最も長いテキストを基準にし、狭すぎる要素は表示されます。
 - メニューエディター: Unreal UMG のような要素ごとの「イベント」タブ。ホバー、ホバー終了、クリック、フォーカス、フォーカス喪失、Enter を、スクリプトを書く操作ブロックとして扱います(ゲームのエンジンが知っているコマンドのみ)。既製のホバー効果(光る、色、枠、大きく)、試聴付きのホバー音とクリック音もあります。変更はそれぞれ 1 回の元に戻す操作で、すぐにテキストタブにも反映されます。
 - メニューエディターのプレビューをオリジナルの Jedi Academy(シングル/マルチ)とメニューごとに照合しました: 存在しない @ テキストはゲームと同じく何も表示せず、シェーダー要素の画像がない場合はゲームの灰色の既定の箱を表示し、キャラクターリストは選んだ種族に従います。さらにマルチプレイの初期値(プレイヤー名、モデル、サーバー名、上限)、マルチプレイの頭部リストの行列表示、チーム枠・ゲームタイプ・難易度・チームカラー・マッププレビューの ownerdraw に対応しました。

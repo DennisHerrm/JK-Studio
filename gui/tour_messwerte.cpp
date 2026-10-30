@@ -30,12 +30,18 @@
 //   modell.figur         Pruefsumme von Modell und NPC im Modell-Reiter ("~" = andere Figur)
 //   modell.blick         Pruefsumme des Blicks auf das Modell (und Drehteller)
 //   modell.details       Skin, Skelett, Texturen ("~" = eins davon umgeschaltet)
+//   menue.projekt        1, wenn im Menue-Editor ein Projekt offen ist (M5b, Tutorial tut-menue)
+//   menue.elemente       Items im Menue der Seite
+//   menue.layouts        Layouts in diesem Menue
+//   menue.ereignisse     Ereignis-Skripte seiner Items
+//   menue.gespeichert    erfolgreiche Projekt-Speicherungen seit dem Start
 //
 // Die Dateizeiten liest es hoechstens zweimal je Sekunde; alles andere nur,
 // wenn der laufende Schritt einen karte.-Wert braucht (tourMesswerte, Argument).
 #include "tour.h"
 #include "app_internal.h"
 #include "karteneditor.h"
+#include "menueeditor.h"
 
 #include <chrono>
 #include <cmath>
@@ -181,6 +187,15 @@ void tourMesswerte(std::map<std::string, double>& werte, bool karte, double jetz
     werte["modell.details"] = g_app->modelSkinIndex * 4.0 + (g_app->modellKnochen ? 2.0 : 0.0) + (g_app->showModelTextures ? 1.0 : 0.0);
     werte["vorschau.einstellungen"] = g_app->leftMode == 1 ? static_cast<double>(kameraSchluessel(g_app->doc.script()).size()) : 0.0;
     if (karte) { karteMesswerte(werte, jetzt); }
+    // M5b: Tour "Dein erstes eigenes Menue" (tut-menue) - nur im Menue-Editor
+    if (g_app->leftMode == 4) {
+        const menueeditor::TourWerte m = menueeditor::tourWerte();
+        werte["menue.projekt"] = m.projekt ? 1.0 : 0.0;
+        werte["menue.elemente"] = m.elemente;
+        werte["menue.layouts"] = m.layouts;
+        werte["menue.ereignisse"] = m.ereignisse;
+        werte["menue.gespeichert"] = m.gespeichert;
+    }
 }
 
 }  // namespace bhed::gui

@@ -6,6 +6,11 @@ namespace {   // wie die Vorwaertserklaerungen oben in app_menue.cpp
 
 constexpr double kSicherungAlle = 30.0;   // Sekunden zwischen zwei Sicherungen
 
+// Das erste Menue eines neuen Projekts: Vollbild mit dunkelblauem Grund
+constexpr const char* kStartMenue =
+    "{\n\tmenuDef\n\t{\n\t\tname\t\tmein_menue\n\t\tfullscreen\t1\n\t\trect\t\t0 0 640 480\n\t\tvisible\t\t1\n\t\titemDef\n\t\t{\n\t\t\tname\t\thinter"
+    "grund\n\t\t\tstyle\t\tWINDOW_STYLE_FILLED\n\t\t\tbackcolor\t0 0 0.25 1\n\t\t\trect\t\t0 0 640 480\n\t\t\tvisible\t\t1\n\t\t\tdecoration\n\t\t}\n\t}\n}\n";
+
 fs::path projektOrdner() { return utf8Pfad(Z().projektDatei).parent_path(); }
 
 bool istProjektDatei(const std::string& p) {
@@ -320,7 +325,10 @@ bool speichereProjekt() {
     }
     z.projekt = projektAusZustand();
     ok = schreibeDatei(z.projektDatei, projektText(z.projekt)) && ok;
-    if (ok) { sicherungJetzt(); }   // alles gespeichert: die Sicherung faellt weg
+    if (ok) {
+        sicherungJetzt();   // alles gespeichert: die Sicherung faellt weg
+        ++z.projektGespeichert;
+    }
     std::snprintf(b, sizeof(b), ok ? tr(Str::MePrjGespeichert) : tr(Str::MeNichtGespeichert), z.projektDatei.c_str());
     z.meldung = b;
     addStatus(b);
@@ -335,6 +343,8 @@ bool neuesProjekt(const std::string& datei) {
     sicherungJetzt();   // eine Sicherung am alten Ort bleibt, bis sie geschrieben ist
     z.projektDatei = d;
     z.projekt = Projekt{};
+    // ohne offenes Menue: ein leeres Vollbild-Menue zum Anfangen (Tour "Dein erstes eigenes Menue")
+    if (z.docs.empty()) { (void)oeffne("ui/mein_menue.menu", "", kStartMenue); }
     return speichereProjekt();
 }
 

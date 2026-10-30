@@ -341,6 +341,7 @@ struct Zustand {
     std::vector<SicherungsEintrag> sicherungListe;
     std::int64_t sicherungZeitpunkt = 0;
     bool zuordnungFrage = false;                  // Frage zur Dateizuordnung oeffnen
+    int projektGespeichert = 0;                   // M5b Punkt 6: erfolgreiche Projekt-Speicherungen (Tour)
     // M5b Punkt 4: Mod-Profil (eingebaut nach Spiel oder aus <Einstellungen>/menue_profile, Projektordner)
     std::shared_ptr<const ModProfil> profil;
     std::string profilFuer;                       // Name|Spiel, fuer den profil gilt
@@ -5268,6 +5269,24 @@ void schliesseAlleOhneSpeichern() {
     z.projekt = Projekt{};
 }
 void fragZuordnung() { Z().zuordnungFrage = true; }
+TourWerte tourWerte() {
+    Zustand& z = Z();
+    TourWerte w;
+    w.projekt = !z.projektDatei.empty();
+    w.gespeichert = z.projektGespeichert;
+    Dokument* d = doc();
+    if (d == nullptr) { return w; }
+    neuParsen(*d);
+    const int mi = menuDerSeite(*d);
+    if (mi < 0) { return w; }
+    const Menu& m = d->datei.menus[static_cast<std::size_t>(mi)];
+    w.elemente = static_cast<int>(m.items.size());
+    w.layouts = static_cast<int>(liesLayouts(d->datei, mi).size());
+    for (const Item& it : m.items) {
+        for (const std::string* t : {&it.mouseEnter, &it.mouseExit, &it.action, &it.onFocus, &it.leaveFocus, &it.accept}) { w.ereignisse += t->empty() ? 0 : 1; }
+    }
+    return w;
+}
 // M5b Punkt 4: Mod-Profile
 void setzeModProfil(const std::string& name) { setzeProfil(name); }
 std::string modProfil() { return aktivesProfil()->name; }

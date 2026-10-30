@@ -179,7 +179,11 @@ void layoutAusAuswahl(Dokument& d, LayoutArt art) {
     std::vector<int> kinder(d.auswahl.begin(), d.auswahl.end());
     int rahmen = -1;
     for (const int i : kinder) {
-        const Rechteck& a = m.items[static_cast<std::size_t>(i)].window.rectClient;
+        // M5b: Flaeche wird nur ein Element ohne eigenen Inhalt (Panel, Hintergrund) - ein Knopf mit
+        // Text oder Aktion, der zufaellig die anderen ueberdeckt (eben eingefuegt), bleibt ein Kind
+        const Item& ki = m.items[static_cast<std::size_t>(i)];
+        if ((!ki.text.empty() || !ki.action.empty()) && (ki.window.flags & WINDOW_DECORATION) == 0) { continue; }
+        const Rechteck& a = ki.window.rectClient;
         bool alle = true;
         for (const int k : kinder) {
             if (k == i) { continue; }
@@ -223,6 +227,40 @@ void layoutAusAuswahl(Dokument& d, LayoutArt art) {
     }
     l.abstand = 8;
     if (art == LayoutArt::Raster) { l.spalten = std::max(1, static_cast<int>(std::ceil(std::sqrt(static_cast<double>(kinder.size()))))); }
+    // M5b: ohne Rahmen mindestens so gross, dass die Kinder mit Abstand hineinpassen (wie die
+    // Mindestgroesse eines Qt-Layouts) - sonst schrumpften uebereinander liegende Elemente (etwa
+    // drei gerade eingefuegte Knoepfe) auf die Breite eines einzigen
+    if (rahmen < 0) {
+        float summeW = 0, summeH = 0, maxW = 0, maxH = 0;
+        for (const int i : kinder) {
+            summeW += rr(i).w;
+            summeH += rr(i).h;
+            maxW = std::max(maxW, rr(i).w);
+            maxH = std::max(maxH, rr(i).h);
+        }
+        const float n = static_cast<float>(kinder.size());
+        float w = l.rahmen.w, h = l.rahmen.h;
+        if (art == LayoutArt::Waagrecht) {
+            w = std::max(w, summeW + l.abstand * (n - 1));
+            h = std::max(h, maxH);
+        } else if (art == LayoutArt::Senkrecht) {
+            w = std::max(w, maxW);
+            h = std::max(h, summeH + l.abstand * (n - 1));
+        } else if (art == LayoutArt::Raster) {
+            const float sp = static_cast<float>(l.spalten), ze = std::ceil(n / sp);
+            w = std::max(w, maxW * sp + l.abstand * (sp - 1));
+            h = std::max(h, maxH * ze + l.abstand * (ze - 1));
+        } else {
+            w = std::max(w, summeW + l.griff);
+            h = std::max(h, maxH);
+        }
+        l.rahmen.w = w;
+        l.rahmen.h = h;
+        // und im Menue bleiben: was rechts bzw. unten hinausragt, rueckt nach links bzw. oben
+        const float mw = m.window.rect.w > 0 ? m.window.rect.w : 640.0F, mh = m.window.rect.h > 0 ? m.window.rect.h : 480.0F;
+        if (l.rahmen.x + w > mw) { l.rahmen.x = std::max(0.0F, mw - w); }
+        if (l.rahmen.y + h > mh) { l.rahmen.y = std::max(0.0F, mh - h); }
+    }
     for (const int i : kinder) { l.kinder.push_back(LayoutKind{m.items[static_cast<std::size_t>(i)].window.name, false, false, 1.0F}); }
     layoutAendern(d, mi, l);
 }

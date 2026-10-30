@@ -701,6 +701,83 @@
      }
     ]
    }
+  },
+  {
+   "id": "tut-menue",
+   "gruppe": "tut",
+   "titel": "你的第一个菜单",
+   "kurz": "从空的编辑器到一个项目:三个并排的按钮,悬停时发光——已保存,可打包为 pk3。",
+   "seite": "tut-menue.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**打开菜单编辑器。** 在模式栏中单击 **{{ViewMenuEditor}}**。",
+      "bild": "h_tut_menue_1",
+      "unter": "带有项目按钮的空菜单编辑器。",
+      "ziel": "knopf:ViewMenuEditor@modebar",
+      "fertig": "modus:4",
+      "voraus": "",
+      "einrichten": "modus:4",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**新建项目。** 单击 **{{MePrjNeu}}**,为项目文件选择一个文件夹。编辑器会像 pk3 那样创建文件夹,并新建一个空的全屏菜单。",
+      "bild": "h_tut_menue_2",
+      "unter": "新项目及其第一个菜单。",
+      "ziel": "knopf:MePrjNeu",
+      "fertig": "zahl:menue.projekt",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**三个按钮。** 在构件中单击三次 **{{MeWButton}}**。",
+      "bild": "h_tut_menue_3",
+      "unter": "三个新按钮,仍然叠在一起。",
+      "ziel": "knopf:MeWButton",
+      "fertig": "zahl:menue.elemente+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**并排。** 选中这三个按钮(Ctrl+单击),然后在属性的“布局”下单击 **{{MeLayoutWaagrecht}}**。",
+      "bild": "h_tut_menue_4",
+      "unter": "按钮等距并排。",
+      "ziel": "knopf:MeLayoutWaagrecht",
+      "fertig": "zahl:menue.layouts+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**悬停发光。** 选中第一个按钮,打开 **事件** 标签页,单击 **{{MeEvLeuchten}}**。",
+      "bild": "h_tut_menue_5",
+      "unter": "发光效果:悬停时显示,鼠标离开时隐藏。",
+      "ziel": "knopf:MeEvLeuchten",
+      "fertig": "zahl:menue.ereignisse+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**保存。** 单击 **{{MeSpeichern}}**——在项目中会保存全部内容。之后 **{{MePrjProjekt}} > {{MePrjExport}}** 会为游戏打包 pk3。",
+      "bild": "h_tut_menue_6",
+      "unter": "已保存:项目文件和项目文件夹中的菜单。",
+      "ziel": "knopf:MeSpeichern",
+      "fertig": "zahl:menue.gespeichert+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }

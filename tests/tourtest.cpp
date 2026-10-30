@@ -773,7 +773,9 @@ void messwertProben() {
     bhed::tour::Ziel z3;
     expect("Ziel karte3d (die 3D-Ansicht)", bhed::tour::parseZiel("karte3d", z3, &f) && z3.art == bhed::tour::Ziel::Art::Karte3d);
     expect("Ziel karte3d:x abgewiesen", !bhed::tour::parseZiel("karte3d:x", z3, &f));
-    expect("modus:4 abgewiesen", !bhed::tour::pruefungBekannt("modus:4", &f));
+    // M5b: Modus 4 ist der Menue-Editor (Tour tut-menue), 5 gibt es nicht
+    expect("modus:4 (Menue-Editor) bekannt", bhed::tour::pruefungBekannt("modus:4", &f));
+    expect("modus:5 abgewiesen", !bhed::tour::pruefungBekannt("modus:5", &f));
     expect("zahl:a ist ein Zustand, zahl:a+ und zahl:a~ nicht",
            bhed::tour::istZustand("zahl:a") && !bhed::tour::istZustand("zahl:a+") && !bhed::tour::istZustand("zahl:a~"));
     Kontext start;

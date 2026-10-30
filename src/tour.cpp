@@ -196,7 +196,8 @@ bool teilBekannt(const Teil& t, std::string* fehler) {
     }
     // H1: die Modusleiste hat vier Knoepfe (3 = Karten-Editor).
     if (t.name == "modus") {
-        return (t.arg.size() == 1 && t.arg[0] >= '0' && t.arg[0] <= '3') ? true : falsch("0 bis 3");
+        // 0 Events, 1 Map, 2 Model, 3 Karten-Editor, 4 Menue-Editor (M5b: Tour tut-menue)
+        return (t.arg.size() == 1 && t.arg[0] >= '0' && t.arg[0] <= '4') ? true : falsch("0 bis 4");
     }
     return falsch("unbekannt");
 }
@@ -565,7 +566,9 @@ bool parseAktionen(const std::string& s, std::vector<Aktion>& out, std::string* 
             if (gl == std::string::npos || !zerlegeWert(a.arg.substr(0, gl), b, n, f)) {
                 return falsch("wert:<befehl>#<n>:<feld>=<text>");
             }
-        } else if (a.name == "modus" || a.name == "ansicht") {
+        } else if (a.name == "modus") {
+            if (a.arg.size() != 1 || a.arg[0] < '0' || a.arg[0] > '4') { return falsch("0 bis 4"); }
+        } else if (a.name == "ansicht") {
             if (a.arg != "0" && a.arg != "1" && a.arg != "2") { return falsch("0, 1 oder 2"); }
         } else if (a.name == "fenster") {
             if (!enthaelt(kFenster, a.arg)) { return falsch("bekannte Fenster: messages, find"); }

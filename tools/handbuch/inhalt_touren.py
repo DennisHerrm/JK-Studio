@@ -48,7 +48,9 @@ TOUREN = ["k-neues-skript", "k-befehl-einfuegen", "k-werte-bearbeiten", "k-zeile
           # H1: eine Kameraeinstellung fuer die Zwischensequenz (inhalt_kurz.py)
           "k-kamera-ansicht",
           # H1: ein Figurenmodell ansehen (inhalt_kurz.py)
-          "k-modell"]
+          "k-modell",
+          # M5b: das erste eigene Menue im Menue-Editor (inhalt_menue5.py)
+          "tut-menue"]
 ANSICHTEN = ["classic"]
 
 # Die Ereignisliste gibt es nur im Modus Events - sonst zeigt die Tour auf
@@ -204,6 +206,18 @@ NACH_SCHRITT.update({
     ("k-modell", "classic", 3): A("knopf:ModelTurntable;knopf:ModelResetView", "zahl:modell.blick~", voraus=MODELL),
     ("k-modell", "classic", 4): A("knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures", "zahl:modell.details~", voraus=MODELL),
 })
+
+# --- M5b: tut-menue - Dein erstes eigenes Menue ------------------------------------
+MENUE = "modus:4 < knopf:ViewMenuEditor@modebar"
+NACH_SCHRITT.update({
+    ("tut-menue", "classic", 1): A("knopf:ViewMenuEditor@modebar", "modus:4", einrichten="modus:4", sicher=True),
+    ("tut-menue", "classic", 2): A("knopf:MePrjNeu", "zahl:menue.projekt", voraus=MENUE),
+    ("tut-menue", "classic", 3): A("knopf:MeWButton", "zahl:menue.elemente+", voraus=MENUE),
+    ("tut-menue", "classic", 4): A("knopf:MeLayoutWaagrecht", "zahl:menue.layouts+", voraus=MENUE),
+    ("tut-menue", "classic", 5): A("knopf:MeEvLeuchten", "zahl:menue.ereignisse+", voraus=MENUE),
+    ("tut-menue", "classic", 6): A("knopf:MeSpeichern", "zahl:menue.gespeichert+", voraus=MENUE),
+})
+
 
 def angaben(seite, ansicht, nr, bild):
     """Die Angaben eines Schritts oder None."""

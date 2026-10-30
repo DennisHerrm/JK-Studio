@@ -106,6 +106,15 @@ void sucheSicherung();                                // Sicherung am jetzigen O
 void schliesseAlleOhneSpeichern();                    // Selbsttest: wie nach einem Absturz
 void fragZuordnung();                                 // Frage zur Dateizuordnung zeigen
 void beimBeenden();                                   // beim Beenden: Ungespeichertes sichern
+// M5b Punkt 6: Messwerte fuer die Tour "Dein erstes eigenes Menue" (gui/tour_messwerte.cpp)
+struct TourWerte {
+    bool projekt = false;     // ein Projekt ist offen
+    int elemente = 0;         // Items im Menue der Seite
+    int layouts = 0;          // Layouts in diesem Menue
+    int ereignisse = 0;       // Ereignis-Skripte (mouseEnter ... accept) seiner Items
+    int gespeichert = 0;      // erfolgreiche Projekt-Speicherungen seit dem Start
+};
+[[nodiscard]] TourWerte tourWerte();
 // M5b Punkt 4: Mod-Profile (bhed/menue/profil.h); "" = das eingebaute des Spiels
 void setzeModProfil(const std::string& name);
 [[nodiscard]] std::string modProfil();

@@ -987,6 +987,119 @@ std::vector<Schritt> schritteM5bProjekt() {
     return s;
 }
 
+// M5b Punkt 6: Tour "Dein erstes eigenes Menue" (tut-menue) mit ECHTEN Aktionen; vor jeder Aktion
+// die Gegenprobe (der Schritt ist noch nicht erledigt, auch nicht durch eine andere Aktion), danach
+// muss die Tour selbst weiterschalten. Die Bilder h_tut_menue_1..6 sind die des Tutorials.
+std::vector<Schritt> schritteTourMenue() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    namespace fs = std::filesystem;
+    const auto datei = std::make_shared<std::string>(pfadText(bhed::utf8Pfad(platform::executableDirectory()) / "tour_projekt" / "erstes.jksmenu"));
+    auto erledigt = [&](int n) {
+        add(warteBis("M5b Tour: Schritt " + std::to_string(n) + " hat sich selbst erledigt", [n] {
+            const TourSicht t = tourSicht();
+            return t.id == "tut-menue" && (t.fertig || t.schritt >= n);
+        }, 300));
+        add(pause(0.3));
+    };
+    auto offen = [&](int n, const char* was) {
+        add(pruefe(std::string("M5b Tour Gegenprobe: Schritt ") + std::to_string(n + 1) + " noch offen (" + was + ")", [n] {
+            const TourSicht t = tourSicht();
+            return t.aktiv && !t.fertig && t.schritt == n;
+        }));
+    };
+    add(tu("M5b Tour: alles zu, Skript-Modus, Tour tut-menue starten", [datei] {
+        std::error_code ec;
+        fs::remove_all(fs::path(bhed::utf8Pfad(*datei)).parent_path(), ec);
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 0;
+        (void)tourStarten("tut-menue", 0);
+    }));
+    add(pause(0.4));
+    add(pruefe("M5b Tour: laeuft mit 6 Schritten", [] {
+        const TourSicht t = tourSicht();
+        return t.aktiv && t.id == "tut-menue" && t.anzahl == 6;
+    }));
+    offen(0, "Skript-Modus");
+    add(klick(tr(Str::ViewMenuEditor), "###main"));
+    erledigt(1);
+    add(foto("h_tut_menue_1"));
+    offen(1, "Menue-Editor ohne Projekt");
+    add(tu("M5b Tour: Neues Projekt (wie der Knopf nach dem Dateidialog)", [datei] {
+        std::error_code ec;
+        fs::create_directories(fs::path(bhed::utf8Pfad(*datei)).parent_path(), ec);
+        (void)me::legeProjektAn(*datei);
+    }));
+    erledigt(2);
+    add(foto("h_tut_menue_2"));
+    add(pruefe("M5b Tour: das Projekt hat ein leeres Vollbild-Menue (ein Element: der Hintergrund)", [] {
+        return !me::projektDatei().empty() && me::tourWerte().elemente == 1;
+    }));
+    offen(2, "noch kein Knopf");
+    add(klick(tr(Str::MeWButton)));
+    erledigt(3);
+    add(klick(tr(Str::MeWButton)));
+    add(pause(0.2));
+    add(klick(tr(Str::MeWButton)));
+    add(pause(0.3));
+    add(tu("M5b Tour: Reiter Eigenschaften", [] { me::setzeReiter(2); }));
+    add(foto("h_tut_menue_3"));
+    add(tu("M5b Tour: die drei Knoepfe waehlen (Strg+Klick)", [] {
+        me::waehle(1, false);
+        me::waehle(2, true);
+        me::waehle(3, true);
+    }));
+    add(pause(0.3));
+    offen(3, "nur gewaehlt, noch kein Layout");
+    add(klick(tr(Str::MeLayoutWaagrecht)));
+    erledigt(4);
+    add(pruefe("M5b Tour: die drei (vorher uebereinander liegenden) Knoepfe stehen nebeneinander, ohne sich zu ueberdecken", [] {
+        const auto x = me::stand();
+        bhed::menue::LeseOptionen o;
+        o.dialekt = bhed::menue::Dialekt::SP;
+        const bhed::menue::Datei d = bhed::menue::lies("ui/mein_menue.menu", x.text, o);
+        if (d.menus.size() != 1 || d.menus[0].items.size() != 4) { return false; }
+        const auto& it = d.menus[0].items;
+        const auto& a = it[1].window.rectClient;
+        const auto& b = it[2].window.rectClient;
+        const auto& c = it[3].window.rectClient;
+        diag::info("Menue-Editor M5b Tour Layout: " + std::to_string(a.x) + "/" + std::to_string(a.w) + " " + std::to_string(b.x) + "/" +
+                   std::to_string(b.w) + " " + std::to_string(c.x) + "/" + std::to_string(c.w));
+        return a.w > 0 && b.x >= a.x + a.w + 8 - 0.5F && c.x >= b.x + b.w + 8 - 0.5F && std::fabs(a.w - b.w) < 0.5F && a.x >= 0 &&
+               c.x + c.w <= 640.5F;
+    }));
+    add(foto("h_tut_menue_4"));
+    add(tu("M5b Tour: ersten Knopf waehlen, Reiter Ereignisse", [] {
+        me::waehle(1, false);
+        me::setzeReiter(3);
+    }));
+    add(pause(0.3));
+    offen(4, "Reiter Ereignisse offen, noch kein Effekt");
+    add(klick(tr(Str::MeEvLeuchten)));
+    erledigt(5);
+    add(foto("h_tut_menue_5"));
+    add(tu("M5b Tour: zurueck zum Reiter Eigenschaften", [] { me::setzeReiter(2); }));
+    add(pause(0.2));
+    offen(5, "noch nicht gespeichert");
+    add(klick(tr(Str::MeSpeichern)));
+    erledigt(6);
+    add(pruefe("M5b Tour: ganz durch; Projektdatei und Menue mit Layout und Leuchten auf der Platte", [datei] {
+        const fs::path menu = fs::path(bhed::utf8Pfad(*datei)).parent_path() / "ui" / "mein_menue.menu";
+        std::ifstream f(menu, std::ios::binary);
+        std::ostringstream t;
+        t << f.rdbuf();
+        std::error_code ec;
+        return tourSicht().fertig && fs::is_regular_file(bhed::utf8Pfad(*datei), ec) && t.str().find("jkstudio:layout") != std::string::npos &&
+               t.str().find("_glow") != std::string::npos;
+    }));
+    add(foto("h_tut_menue_6"));
+    add(tu("M5b Tour: schliessen, Projekt zu", [] {
+        tourSchliessen();
+        me::schliesseAlleOhneSpeichern();
+    }));
+    return s;
+}
+
 std::vector<Schritt> schritteM5b() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -1033,6 +1146,7 @@ std::vector<Schritt> schritteM5b() {
     add(pause(0.2));
     add(pruefe("M5b Zustaende: nach zwei Rueckgaengig byte-gleich mit dem Original", [st] { return st().text == kZustandProbe; }));
     for (auto& x : schritteM5bProjekt()) { add(std::move(x)); }
+    for (auto& x : schritteTourMenue()) { add(std::move(x)); }
     return s;
 }
 
