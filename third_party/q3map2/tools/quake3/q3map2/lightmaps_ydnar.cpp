@@ -33,6 +33,12 @@
 #include "bspfile_rbsp.h"
 #include "surface_extra.h"
 #include "timer.h"
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <cstring>
+#include <map>
+#include <vector>
 
 
 
@@ -1049,6 +1055,38 @@ void SetupSurfaceLightmaps(){
 	numRawLightmaps = 0;
 	rawLightmaps = safe_calloc( numSurfsLightmapped * sizeof( *rawLightmaps ) );
 
+	/* BehavEd vis3 (speed, same result): the exhaustive merge below gave every later surface to
+	   AddSurfaceToRawLightmap - O(n^2) calls, 23 s on duel_mos_espa. A surface whose attributes differ from the raw
+	   lightmap's (sample size, ambient colour, entity, receiving shadows, custom size, brightness, filter radius,
+	   splotch fix - all set when the raw lightmap starts and never changed by the merge) is rejected there before
+	   anything is changed, and the caller gives its slot back. So the merge walks only the later surfaces with the
+	   same attributes, in the same order. Floats in the key: 0 and -0 compare equal, so both become 0 (a NaN never
+	   matches - such surfaces are still offered and rejected as before). */
+	const auto bhedBits = []( float f ){
+		if ( f == 0.0f ) {
+			f = 0.0f;
+		}
+		std::uint32_t u;
+		std::memcpy( &u, &f, sizeof( u ) );
+		return u;
+	};
+	using BhedMergeKey = std::array<std::uint32_t, 11>;
+	const auto bhedKey = [&]( int sampleSize, const Vector3& ambient, int entityNum, int recvShadows, int customWidth,
+	                          int customHeight, float brightness, float filterRadius, bool splotchFix ){
+		return BhedMergeKey{ std::uint32_t( sampleSize ), bhedBits( ambient[ 0 ] ), bhedBits( ambient[ 1 ] ), bhedBits( ambient[ 2 ] ),
+		                     std::uint32_t( entityNum ), std::uint32_t( recvShadows ), std::uint32_t( customWidth ),
+		                     std::uint32_t( customHeight ), bhedBits( brightness ), bhedBits( filterRadius ), std::uint32_t( splotchFix ) };
+	};
+	std::map<BhedMergeKey, std::vector<int>> bhedMerge;   /* key -> positions in sortSurfaces, ascending */
+	for ( i = 0; i < numBSPDrawSurfaces; ++i )
+	{
+		const surfaceInfo_t& info = surfaceInfos[ sortSurfaces[ i ] ];
+		if ( info.hasLightmap ) {
+			bhedMerge[ bhedKey( info.sampleSize, info.ambientColor, info.entityNum, info.recvShadows, info.si->lmCustomWidth,
+			                    info.si->lmCustomHeight, info.si->lmBrightness, info.si->lmFilterRadius, info.si->splotchFix ) ].push_back( i );
+		}
+	}
+
 	/* walk the list of sorted surfaces */
 	for ( i = 0; i < numBSPDrawSurfaces; ++i )
 	{
@@ -1096,14 +1134,19 @@ void SetupSurfaceLightmaps(){
 		info.lm = &lm;
 
 		/* do an exhaustive merge */
+		const auto bhedGleiche = bhedMerge.find( bhedKey( lm.sampleSize, lm.ambientColor, lm.entityNum, lm.recvShadows, lm.customWidth,
+		                                                  lm.customHeight, lm.brightness, lm.filterRadius, lm.splotchFix ) );
+		const std::vector<int> bhedLeer;
+		const std::vector<int>& bhedKandidaten = bhedGleiche != bhedMerge.end() ? bhedGleiche->second : bhedLeer;
+		const auto bhedAb = std::upper_bound( bhedKandidaten.begin(), bhedKandidaten.end(), i );
 		for ( bool added = true; added; )
 		{
-			/* walk the list of surfaces again */
+			/* walk the list of surfaces again (BehavEd vis3: only those with the same attributes) */
 			added = false;
-			for ( j = i + 1; j < numBSPDrawSurfaces && !lm.finished; ++j )
+			for ( auto bhedJ = bhedAb; bhedJ != bhedKandidaten.end() && !lm.finished; ++bhedJ )
 			{
 				/* get info and attempt early out */
-				const int num2 = sortSurfaces[ j ];
+				const int num2 = sortSurfaces[ *bhedJ ];
 				surfaceInfo_t& info2 = surfaceInfos[ num2 ];
 				if ( !info2.hasLightmap || info2.lm != nullptr ) {
 					continue;
