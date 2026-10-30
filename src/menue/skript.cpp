@@ -735,7 +735,7 @@ void Laufzeit::klick(int menu, float x, float y) {
                 const Rechteck tr = textRechteck(it, u.texte != nullptr ? u.texte->imSpiel(it.text) : it.text, u);
                 x0 = tr.x + tr.w + 8;
             }
-            const float rel = std::clamp((x - x0) / kSliderBreite, 0.0F, 1.0F);
+            const float rel = std::clamp((x - x0) / sliderMasse(u.dialekt, d->spiel).breite, 0.0F, 1.0F);
             setzeCvar(it.cvar, zahlText(it.minVal + rel * (it.maxVal - it.minVal)));
             break;
         }

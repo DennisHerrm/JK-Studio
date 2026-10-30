@@ -45,10 +45,15 @@ inline constexpr float kScrollbar = 16.0F;       // SCROLLBAR_SIZE
 inline constexpr const char* kDefaultShader = "*default";   // M5: tr.defaultShader (Griff 0)
 inline constexpr int kUiAllmapsSelection = 236;   // code/ui/menudef.h UI_ALLMAPS_SELECTION (Spielstand-Vorschau)
 inline constexpr int kUiKeybindStatus = 250;      // UI_KEYBINDSTATUS
-inline constexpr float kSliderBreite = 96.0F;    // SLIDER_WIDTH
-inline constexpr float kSliderHoehe = 16.0F;     // SLIDER_HEIGHT
-inline constexpr float kSliderDaumenBreite = 12.0F;
-inline constexpr float kSliderDaumenHoehe = 20.0F;
+inline constexpr float kSliderHoehe = 16.0F;          // SLIDER_HEIGHT (alle Fassungen)
+inline constexpr float kSliderDaumenBreite = 12.0F;   // SLIDER_THUMB_WIDTH (alle Fassungen)
+// M7: SLIDER_WIDTH und Item_Slider_Paint je Fassung (im Spiel fotografiert): JA/JK2 SP (code/ui) 128 breit,
+// Leiste und Daumen bei y + 2, Daumen 16 hoch; Movie Duels SP 96 breit, sonst wie SP; MP (codemp/ui,
+// jk2mp, Movie Duels MP) 96 breit, Leiste bei y, Daumen bei y - 2 und 20 hoch.
+struct SliderMasse {
+    float breite = 96.0F, leisteY = 0.0F, daumenY = -2.0F, daumenHoehe = 20.0F;
+};
+[[nodiscard]] SliderMasse sliderMasse(Dialekt d, Spiel s);
 
 // glyphInfo_t / dfontdat_t (tr_font.h)
 struct Glyph {
@@ -65,11 +70,16 @@ struct Schrift {
 };
 // CFontInfo::CFontInfo: die Datei muss genau sizeof(dfontdat_t) = 7180 Bytes haben.
 [[nodiscard]] bool ladeFontdat(const std::string& name, const std::string& daten, Schrift& out);
+// M7: Jedi Outcast rechnet Farbcodes anders als Jedi Academy und Movie Duels (jk2sp.exe und jk2mp.exe
+// im Spiel fotografiert, SP\m7\caret): Nein = JA/MD, Sp = jk2sp.exe (JK2_MODE), Mp = jk2mp.exe.
+enum class Jk2Schrift { Nein, Sp, Mp };
 // RE_Font_StrLenPixels (JA): ^0-^9 zaehlen nicht, Zeilenumbruch beginnt neu, ceilf.
 // M3: Zeichen wie AnyLanguage_ReadCharFromString in der Kodierung der Sprache; asiatische
 // Glyphen nur, wenn die Seiten da sind (AsianGlyphsAvailable), Codes > 255 mit 0.75.
+// M7: jk2 Sp - jedes Zeichen zaehlt, auch ^ und die Ziffer (JK2_MODE); Mp - von ^ und Ziffer zaehlt
+// die Ziffer, ^ mit anderem Zeichen zaehlt beide.
 [[nodiscard]] int schriftBreite(const Schrift& f, const std::string& text, float scale, Kodierung k = Kodierung::Latin1,
-                                bool asienGlyphen = false);
+                                bool asienGlyphen = false, Jk2Schrift jk2 = Jk2Schrift::Nein);
 // RE_Font_HeightPixels: mPointSize * scale
 [[nodiscard]] int schriftHoehe(const Schrift& f, float scale);
 
@@ -93,6 +103,19 @@ struct Prim {
 
 // Eine Zeile einer Listbox: DC->feederItemText je Spalte, DC->feederItemImage
 // und die optionalen Bilder je Spalte (SP optionalImage, MP optionalImage1).
+// RE_Font_DrawString: je Zeichen ein Bild (PrimArt::Bild, Shader der Schrift
+// oder der asiatischen Glyphe) im virtuellen Bildschirm, ab (ox, oy) oben
+// links. ^0-^9 wechseln die Farbe (Deckung bleibt), ausser imSchatten
+// (gbInShadow); ein ^ ohne Ziffer wird gezeichnet ("purposely falls thrugh"),
+// in Jedi Outcast (jk2Modus) nicht: dort ist jedes Zeichen nach ^ eine Farbe,
+// ColorIndex(c) = (c - '0') & 7 (jk2sp.exe und jk2mp.exe im Spiel fotografiert,
+// SP\m7\caret); maxPixel -1 = ohne Grenze.
+// Kodierung/asienGlyphen wie schriftBreite (M3). Auch fuer die Untertitel der
+// Vorschau (bhed/untertitel.h).
+void schriftZeichnen(const Schrift& f, int ox, int oy, const std::string& text, Farbe farbe, int maxPixel, float scale,
+                     bool imSchatten, std::vector<Prim>& out, Kodierung k = Kodierung::Latin1, bool asienGlyphen = false,
+                     bool jk2Modus = false);
+
 struct FeederEintrag {
     std::vector<std::string> spalten;
     std::string bild;
@@ -139,6 +162,7 @@ struct Umgebung {
     // Glyphenseiten im Spiel liegen (fonts/<kor|tai|jap|chi>_*_1024_0)
     Kodierung kodierung = Kodierung::Latin1;
     bool asienGlyphen = false;
+    Jk2Schrift jk2 = Jk2Schrift::Nein;   // M7: Jedi Outcast (Farbcodes in Breite und Zeichnen)
 };
 
 // Menu_Paint fuer ein Menue der Datei.
@@ -175,8 +199,6 @@ struct UmbruchZeile {
 
 // Item_SetTextExtents: textRect (x, y, w, h) im Bildschirm fuer text.
 [[nodiscard]] Rechteck textRechteck(const Item& it, const std::string& text, const Umgebung& u);
-// Item_Slider_ThumbPosition
-[[nodiscard]] float sliderDaumen(const Item& it, const Umgebung& u);
 
 // Welche Schrift hinter einer Nummer steckt (Namen aus assetGlobalDef und
 // den menuDef-Schriften der Datei), Index = item->font bzw. iMenuFont:

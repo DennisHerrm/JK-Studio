@@ -921,6 +921,7 @@ Umgebung umgebung(const Dokument& d) {
     u.alleItems = z.alleItems && !z.interaktion;
     // M3: Schrift wie se_language; Glyphenseiten da (AsianGlyphsAvailable: Seite 0 laedt)
     u.kodierung = kodierungDerSprache(z.sprache);
+    if (d.datei.spiel == Spiel::JK2) { u.jk2 = d.datei.dialekt == Dialekt::MP ? Jk2Schrift::Mp : Jk2Schrift::Sp; }
     if (asiatisch(u.kodierung)) {
         const std::string seite = asienSeite(u.kodierung, 0);
         u.asienGlyphen = z.daten.gibt(seite + ".tga") || z.daten.gibt(seite + ".jpg") || z.daten.gibt(seite + ".png");
@@ -937,9 +938,9 @@ Umgebung umgebung(const Dokument& d) {
     k.daten = fdp;
     k.cvar = u.cvar;
     k.se = [tx = u.texte](const std::string& key) { return tx != nullptr ? tx->imSpiel("@" + key) : key; };
-    k.breite = [sf = u.schrift, ko = u.kodierung, ag = u.asienGlyphen](const std::string& t, float sc, int font, const std::string& name) {
+    k.breite = [sf = u.schrift, ko = u.kodierung, ag = u.asienGlyphen, j = u.jk2](const std::string& t, float sc, int font, const std::string& name) {
         const Schrift* f = name.empty() ? sf(font) : schriftNamens(name);
-        return f != nullptr ? schriftBreite(*f, t, sc, ko, ag) : 0;
+        return f != nullptr ? schriftBreite(*f, t, sc, ko, ag, j) : 0;
     };
     k.hoehe = [sf = u.schrift](float sc, int font, const std::string& name) {
         const Schrift* f = name.empty() ? sf(font) : schriftNamens(name);

@@ -115,7 +115,7 @@ public:
     // Text_Width / Text_Height
     int textBreite(const std::string& t, float scale, int font) const {
         const Schrift* f = schrift(font);
-        return f != nullptr ? schriftBreite(*f, t, scale, u_.kodierung, u_.asienGlyphen) : 0;
+        return f != nullptr ? schriftBreite(*f, t, scale, u_.kodierung, u_.asienGlyphen, u_.jk2) : 0;
     }
     int textHoehe(float scale, int font) const {
         const Schrift* f = schrift(font);
@@ -160,7 +160,7 @@ public:
         const float range = it.maxVal - it.minVal;
         value -= it.minVal;
         value /= range;
-        value *= kSliderBreite;
+        value *= sliderMasse(u_.dialekt, d_.spiel).breite;
         return x + value;
     }
 
@@ -379,58 +379,9 @@ private:
 
     void zeichenkette(const Schrift& f, int ox, int oy, const std::string& t, Farbe c, int maxPixel, float scale,
                       bool imSchatten) {
-        // fScaleAsian / fAsianYAdjust (Language_IsAsian)
-        const bool asien = asiatisch(u_.kodierung);
-        const float scaleAsien = (asien && scale > 0.7F) ? scale * 0.75F : scale;
-        const float yAsien = (asien && scale > 0.7F)
-                                 ? ((static_cast<float>(f.pointSize) * scale) - (static_cast<float>(f.pointSize) * scaleAsien)) / 2.0F
-                                 : 0.0F;
-        const float fox = static_cast<float>(ox);
-        float foy = static_cast<float>(oy) + static_cast<float>(f.height - (f.descender >> 1)) * scale;
-        float fx = fox;
-        bool ueberlauf = false;
-        const auto* p = reinterpret_cast<const unsigned char*>(t.data());
-        for (std::size_t i = 0; i < t.size() && !ueberlauf;) {
-            int n = 1;
-            const unsigned ch = zeichenLesen(u_.kodierung, p + i, t.size() - i, n);
-            i += static_cast<std::size_t>(n);
-            if (ch == 10) {
-                fx = fox;
-                foy += static_cast<float>(f.pointSize) * scale;
-                if (asien) { foy += 4.0F; }
-            } else if (ch == 13) {
-            } else if (ch == 32) {
-                fx += static_cast<float>(f.glyph[' '].horizAdvance) * scale;
-                ueberlauf = maxPixel != -1 && (fx - fox) > static_cast<float>(maxPixel);
-            } else if (ch == '^' && i < t.size() && t[i] >= '0' && t[i] <= '9') {
-                const int idx = t[i] - '0';
-                ++i;
-                if (!imSchatten) {
-                    const float a = c.a;
-                    c = kFarbtabelle[idx];
-                    c.a = a;
-                }
-            } else {
-                // GetLetter(uiLetter, &hShader): asiatische Glyphe oder mGlyphs[uiLetter & 0xff]
-                Glyph asienG;
-                std::string shader = f.shader;
-                const Glyph* g = &f.glyph[ch & 0xFFU];
-                if (u_.asienGlyphen && asienGlyph(u_.kodierung, ch, f, asienG, shader)) { g = &asienG; }
-                if (g->width == 0) {
-                    g = &f.glyph['.'];
-                    shader = f.shader;
-                }
-                const float sc = ch > 255U ? scaleAsien : scale;   // g_iNonScaledCharRange = 255
-                const float adv = static_cast<float>(g->horizAdvance) * sc;
-                ueberlauf = maxPixel != -1 && ((fx + adv) - fox) > static_cast<float>(maxPixel);
-                if (!ueberlauf) {
-                    const float fy = foy - static_cast<float>(g->baseline) * sc;
-                    bild(fx + static_cast<float>(g->horizOffset) * sc, ch > 255U ? fy - yAsien : fy, static_cast<float>(g->width) * sc,
-                         static_cast<float>(g->height) * sc, shader, c, item_, g->s, g->t, g->s2, g->t2);
-                }
-                fx += adv;
-            }
-        }
+        std::vector<Prim> glyphen;
+        schriftZeichnen(f, ox, oy, t, c, maxPixel, scale, imSchatten, glyphen, u_.kodierung, u_.asienGlyphen, u_.jk2 != Jk2Schrift::Nein);
+        for (const Prim& g : glyphen) { bild(g.x, g.y, g.w, g.h, g.shader, g.farbe, item_, g.s0, g.t0, g.s1, g.t1); }
     }
 
     // Der angezeigte Text eines Items: text, sonst der Wert von cvar.
@@ -624,9 +575,10 @@ private:
                     textMalen(it, flags);
                     x = tr_.x + tr_.w + 8;
                 }
-                bild(x, y, kSliderBreite, kSliderHoehe, "menu/new/slider", c, item_);
+                const SliderMasse sm = sliderMasse(u_.dialekt, d_.spiel);
+                bild(x, y + sm.leisteY, sm.breite, kSliderHoehe, "menu/new/slider", c, item_);
                 const float dx = daumen(it);
-                bild(dx - kSliderDaumenBreite / 2, y - 2, kSliderDaumenBreite, kSliderDaumenHoehe, "menu/new/sliderthumb", c, item_);
+                bild(dx - kSliderDaumenBreite / 2, y + sm.daumenY, kSliderDaumenBreite, sm.daumenHoehe, "menu/new/sliderthumb", c, item_);
                 break;
             }
             default:
@@ -879,6 +831,85 @@ private:
 
 }  // namespace
 
+void schriftZeichnen(const Schrift& f, int ox, int oy, const std::string& t, Farbe c, int maxPixel, float scale, bool imSchatten,
+                     std::vector<Prim>& out, Kodierung k, bool asienGlyphen, bool jk2Modus) {
+    // fScaleAsian / fAsianYAdjust (Language_IsAsian)
+    const bool asien = asiatisch(k);
+    const float scaleAsien = (asien && scale > 0.7F) ? scale * 0.75F : scale;
+    const float yAsien = (asien && scale > 0.7F)
+                             ? ((static_cast<float>(f.pointSize) * scale) - (static_cast<float>(f.pointSize) * scaleAsien)) / 2.0F
+                             : 0.0F;
+    const float fox = static_cast<float>(ox);
+    float foy = static_cast<float>(oy) + static_cast<float>(f.height - (f.descender >> 1)) * scale;
+    float fx = fox;
+    bool ueberlauf = false;
+    const auto* p = reinterpret_cast<const unsigned char*>(t.data());
+    for (std::size_t i = 0; i < t.size() && !ueberlauf;) {
+        int n = 1;
+        const unsigned ch = zeichenLesen(k, p + i, t.size() - i, n);
+        i += static_cast<std::size_t>(n);
+        if (ch == 10) {
+            fx = fox;
+            foy += static_cast<float>(f.pointSize) * scale;
+            if (asien) { foy += 4.0F; }
+        } else if (ch == 13) {
+        } else if (ch == 32) {
+            fx += static_cast<float>(f.glyph[' '].horizAdvance) * scale;
+            ueberlauf = maxPixel != -1 && (fx - fox) > static_cast<float>(maxPixel);
+        } else if (ch == '^' && jk2Modus) {
+            // Jedi Outcast (jk2sp.exe und jk2mp.exe im Spiel fotografiert): case '^' nimmt jedes folgende
+            // Zeichen als Farbe, ColorIndex(c) = (c - '0') & 7 - "A^Bx" zeichnet A und ein gruenes x
+            if (i < t.size()) {
+                const int idx = (static_cast<unsigned char>(t[i]) - '0') & 7;
+                ++i;
+                if (!imSchatten) {
+                    const float a = c.a;
+                    c = kFarbtabelle[idx];
+                    c.a = a;
+                }
+            }
+        } else if (ch == '^' && i < t.size() && t[i] >= '0' && t[i] <= '9') {
+            const int idx = t[i] - '0';
+            ++i;
+            if (!imSchatten) {
+                const float a = c.a;
+                c = kFarbtabelle[idx];
+                c.a = a;
+            }
+        } else {
+            // GetLetter(uiLetter, &hShader): asiatische Glyphe oder mGlyphs[uiLetter & 0xff]
+            Glyph asienG;
+            std::string shader = f.shader;
+            const Glyph* g = &f.glyph[ch & 0xFFU];
+            if (asienGlyphen && asienGlyph(k, ch, f, asienG, shader)) { g = &asienG; }
+            if (g->width == 0) {
+                g = &f.glyph['.'];
+                shader = f.shader;
+            }
+            const float sc = ch > 255U ? scaleAsien : scale;   // g_iNonScaledCharRange = 255
+            const float adv = static_cast<float>(g->horizAdvance) * sc;
+            ueberlauf = maxPixel != -1 && ((fx + adv) - fox) > static_cast<float>(maxPixel);
+            if (!ueberlauf) {
+                const float fy = foy - static_cast<float>(g->baseline) * sc;
+                Prim q;
+                q.art = PrimArt::Bild;
+                q.x = fx + static_cast<float>(g->horizOffset) * sc;
+                q.y = ch > 255U ? fy - yAsien : fy;
+                q.w = static_cast<float>(g->width) * sc;
+                q.h = static_cast<float>(g->height) * sc;
+                q.s0 = g->s;
+                q.t0 = g->t;
+                q.s1 = g->s2;
+                q.t1 = g->t2;
+                q.farbe = c;
+                q.shader = shader;
+                out.push_back(q);
+            }
+            fx += adv;
+        }
+    }
+}
+
 bool ladeFontdat(const std::string& name, const std::string& daten, Schrift& out) {
     out = Schrift{};
     out.name = name;
@@ -910,19 +941,21 @@ bool ladeFontdat(const std::string& name, const std::string& daten, Schrift& out
     return true;
 }
 
-int schriftBreite(const Schrift& f, const std::string& text, float scale, Kodierung k, bool asienGlyphen) {
+int schriftBreite(const Schrift& f, const std::string& text, float scale, Kodierung k, bool asienGlyphen, Jk2Schrift jk2) {
     const float scaleAsien = (asiatisch(k) && scale > 0.7F) ? scale * 0.75F : scale;
     float maxW = 0;
     float diese = 0;
     const auto* p = reinterpret_cast<const unsigned char*>(text.data());
     for (std::size_t i = 0; i < text.size();) {
         int n = 1;
-        const unsigned ch = zeichenLesen(k, p + i, text.size() - i, n);
+        unsigned ch = zeichenLesen(k, p + i, text.size() - i, n);
         i += static_cast<std::size_t>(n);
-        if (ch == '^' && i < text.size() && text[i] >= '0' && text[i] <= '9') {
-            (void)zeichenLesen(k, p + i, text.size() - i, n);
+        // JA/MD: ^0-^9 zaehlen nicht; jk2mp.exe: die Ziffer zaehlt; jk2sp.exe (JK2_MODE): ^ und Ziffer zaehlen
+        if (ch == '^' && jk2 != Jk2Schrift::Sp && i < text.size() && text[i] >= '0' && text[i] <= '9') {
+            const unsigned ziffer = zeichenLesen(k, p + i, text.size() - i, n);
             i += static_cast<std::size_t>(n);
-            continue;
+            if (jk2 == Jk2Schrift::Nein) { continue; }
+            ch = ziffer;
         }
         if (ch == 0x0A) {
             diese = 0;
@@ -1047,7 +1080,7 @@ TextScrollZeilen textScrollZeilen(const Item& it, const Umgebung& u) {
     const std::string text = textScrollText(it, u);
     const Schrift* f = u.schrift ? u.schrift(it.font) : nullptr;
     const std::function<int(const std::string&)> breite = [&](const std::string& s) {
-        return f != nullptr ? schriftBreite(*f, s, it.textscale, u.kodierung, u.asienGlyphen) : 0;
+        return f != nullptr ? schriftBreite(*f, s, it.textscale, u.kodierung, u.asienGlyphen, u.jk2) : 0;
     };
     const int iBoxWidth = static_cast<int>(it.window.rect.w - kScrollbar - 10);
     std::size_t pos = 0;
@@ -1129,11 +1162,9 @@ Rechteck textRechteck(const Item& it, const std::string& text, const Umgebung& u
     return Maler(leer, leerM, u, dummy).textRect(it, text);
 }
 
-float sliderDaumen(const Item& it, const Umgebung& u) {
-    static const Datei leer{};
-    static const Menu leerM{};
-    std::vector<Prim> dummy;
-    return Maler(leer, leerM, u, dummy).daumen(it);
+SliderMasse sliderMasse(Dialekt d, Spiel s) {
+    if (d == Dialekt::MP) { return {}; }
+    return {s == Spiel::MD ? 96.0F : 128.0F, 2.0F, 2.0F, 16.0F};
 }
 
 namespace {

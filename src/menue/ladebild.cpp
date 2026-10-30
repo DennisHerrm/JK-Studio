@@ -80,7 +80,7 @@ OdTeil text(int x, int y, const std::string& s, const Farbe& c, const std::strin
 
 int breite(const Umgebung& u, const std::string& t, float sc, const std::string& name, int font) {
     const Schrift* f = !name.empty() ? (u.schriftNamens ? u.schriftNamens(name) : nullptr) : (u.schrift ? u.schrift(font) : nullptr);
-    return f != nullptr ? schriftBreite(*f, t, sc, u.kodierung, u.asienGlyphen) : 0;
+    return f != nullptr ? schriftBreite(*f, t, sc, u.kodierung, u.asienGlyphen, u.jk2) : 0;
 }
 
 }  // namespace
