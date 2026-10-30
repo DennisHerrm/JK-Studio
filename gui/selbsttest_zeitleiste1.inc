@@ -1027,8 +1027,9 @@ std::vector<Schritt> aufnahmeZug(const std::string& wo, std::shared_ptr<AufStand
     // Zeitleiste 3: das Modell der Figur geht mit (vorher blieb es am Ort zur
     // Startzeit stehen, nur der Umriss lief). Integration 5: gegen den gesteuerten
     // Ort selbst - wie weit die Figur in den gehaltenen Bildern kommt, haengt von
-    // der Bildzeit ab (ohne Last 81 Einheiten, unter Last 119 .. 391).
-    // Nach dem Loslassen gleitet die Figur noch aus, gezeichnet wird sie ein Bild spaeter: bis zu 60 Bilder warten.
+    // der Bildzeit ab (mini: Zeitleiste 3 119 .. 391 Einheiten, Integration 5 80).
+    // Nach dem Loslassen gleitet die Figur noch aus, gezeichnet wird sie ein Bild
+    // spaeter: bis zu 60 Bilder warten.
     const std::string modellText = "zeitleiste1 Aufnahme " + wo + ": das Modell steht am gesteuerten Ort, nicht am Ort der Szene";
     add({"Pruefe " + modellText, [=](int b) {
         if (z->figur < 0 || static_cast<std::size_t>(z->figur) >= g_app->figurGezeichnet.size()) {
