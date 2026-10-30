@@ -166,7 +166,17 @@ Bild-CPU, Abstand, Figuren-CPU je Bild, Figuren je Bild, Aufrufe je Bild. Danach
 - ctest: 183/183 (darin karte_marken 29/29, karte_spielen).
 - lint_sources, lint_fassung, lint_headers, lint_i18n: ok (es/cs: die 13 neuen Texte englisch bis zur
   Uebersetzungsrunde).
-- Selbsttests (Laufordner ausserhalb des Worktrees, Idle-Prioritaet): siehe Laeufe.
+- Selbsttests (Laufordner ausserhalb des Worktrees, Idle-Prioritaet, unter Last durch die anderen Agenten):
+  - karteneditor kurz (`BHED_KARTE_NUR=fotos`): erster Lauf (sfotos) 77 / 1 - "Menue Build: 369 x 796 wie NRC",
+    hier 738 x 748: die Spalten nahmen die Arbeitsflaeche ohne Taskleiste; behoben (ganzer Bildschirm wie
+    Qt), fotos2: 78 OK / 0 ("hier 369 x 796").
+  - stufe3 (alle Teile): 223 OK / 0. stufe8: 40 OK / 0 (darin die neuen Menue-Pruefungen).
+  - modellleistung (ohne D3D-Debugschicht): 10 OK / 0 - Hautwechsel 7 -> 7 / 7 -> 7, Bild gleich; Menue-Editor
+    1 Figur: Bild-CPU 1,44 ms (ein Lastspitze, p99 16 ms), Figuren-CPU 0,104 ms je Bild; 4 Figuren: Bild-CPU
+    0,50 ms (p99 0,67), Figuren-CPU 0,167 ms je Bild, 163 Aufrufe; Ruhe 361/360 Bilder in 1,5 s bzw. 11 in 2,8 s.
+  - Modus karte: erster Lauf (skarte) 229 / 1 - "Absturzabbild laesst sich schreiben (Minidump)": die Probe
+    schrieb behaved-probe.dmp, kam aber nicht in 20 s zurueck (Idle-Prioritaet unter Last; nicht von dieser
+    Liste beruehrt); zweiter Lauf (skarte2): 230 OK / 0, darin die GPU-Tabelle in en/de/zh/ja.
 
 ## Laeufe
 
