@@ -512,7 +512,10 @@ gelaufen. Harte Zeitgrenze 06:40 (Rechner um 07:00 aus), darum nur Teile des Auf
   Nachproben und 1 987 071 nachgetastete Luxel auf der GPU; erster Durchgang IlluminateRawLightmap 840 s (64 Fäden
   vor dem Neustart: 1432 s; alter Weg vor dem Neustart: 722 s), Kern `zufall` 377 s (etwa 1,35 Mio. Proben/s),
   Kern `erst` 238 s; der ganze Schritt 1281 s, davon das Lichtgitter allein auf der GPU 401 s (mit NUR_GPU ohne
-  den Prozessor nebenher). Kein A/B gegen den Vorgabeweg mehr möglich (Zeitgrenze).
+  den Prozessor nebenher). Gleich danach der Vorgabeweg (GPU-Backen, die Nachproben rechnet der Prozessor
+  nebenher, ohne Schalter): ganzer Schritt **603 s**, erster Durchgang **529 s**, Lichtgitter geteilt 46 s, Lumps
+  ebenfalls 448f3509fa84697b. Auf md_am_sith ist der Prozessor für die Nachproben also weiter schneller
+  (529 gegen 840 s) – „nimm das Schnellere“: Vorgabe bleibt der Prozessor, die GPU-Nachproben bleiben WIP.
 - **Nächster Schritt**: md_am_sith und duel_mos_espa mit und ohne `BHED_GPUBAKE_ZUFALL` A/B messen; den Kern
   auslasten (Lightmaps mit Nachproben aus mehreren Blöcken sammeln statt je Block, alle neuen Luxel eines
   Stempels in einem Durchgang, 128/256 Fäden je Gruppe), Kernzeit mit `BHED_GPUBAKE_ZEITEN` („zufall“) gegen
