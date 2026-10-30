@@ -1222,6 +1222,7 @@ struct trace_t
 {
 	/* constant input */
 	bool testOcclusion, forceSunlight, testAll;
+	bool bhedNurFarbe = false;          /* BehavEd vis4: the caller reads only color and directionContribution (TraceLine) */
 	int recvShadows;
 
 	int numSurfaces;

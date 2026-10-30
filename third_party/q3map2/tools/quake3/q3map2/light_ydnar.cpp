@@ -1971,6 +1971,8 @@ static void RandomSubsampleRawLuxel( RandomSource& random, rawLightmap_t *lm, tr
 	Vector3 origin, normal;
 	Vector3 total( 0 ), totaldirection( 0 );
 	float dx, dy;
+	const bool nurFarbe = trace->bhedNurFarbe;
+	trace->bhedNurFarbe = true;   /* BehavEd vis4: only color and directionContribution are read here (TraceLine) */
 
 	for ( b = 0; b < lightSamples; ++b )
 	{
@@ -1995,6 +1997,8 @@ static void RandomSubsampleRawLuxel( RandomSource& random, rawLightmap_t *lm, tr
 			totaldirection += trace->directionContribution;
 		}
 	}
+
+	trace->bhedNurFarbe = nurFarbe;
 
 	/* add to luxel */
 	if ( mapped > 0 ) {
