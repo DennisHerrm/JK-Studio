@@ -88,8 +88,14 @@ struct Q3ShaderInfo {
     bool polygonOffset = false;   // polygonOffset
     bool noClip = false;          // q3map_noClip, q3map_terrain
     bool indexed = false;         // q3map_indexed, q3map_terrain
+    bool bewegt = false;          // deformVertexes move: shaderInfo minmax gueltig (ShaderEintrag)
+    std::array<float, 3> bewegtMin{};
+    std::array<float, 3> bewegtMax{};
 };
 using Q3ShaderInfoFn = std::function<Q3ShaderInfo(const std::string& shader)>;
+struct ShaderEintrag;
+// Was q3map2 fuer die Zeichenflaechen der Welt fragt, aus dem Shader des Inventars (nullptr: kein Shader).
+[[nodiscard]] Q3ShaderInfo q3ShaderInfoAus(const ShaderEintrag* se);
 
 // Liste reste2 Punkt 4: was beim Bau der Welt fuer die Marken herauskam (Selbsttest, ctest)
 struct MarkenWeltBericht {

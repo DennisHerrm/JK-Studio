@@ -80,17 +80,7 @@ void markenPflegen(Editor& ed, std::size_t geoStand) {
     }
     if (g_fx.markenStand == geoStand || std::chrono::steady_clock::now() - g_fx.standSeit < std::chrono::milliseconds(250)) { return; }
     const auto& sp = ed.karteSpiel ? ed.karteSpiel : ed.spiel;
-    const auto info = [&sp](const std::string& shader) {
-        karte::Q3ShaderInfo i;
-        if (const karte::ShaderEintrag* se = sp ? sp->inventar.shaderFinden(shader) : nullptr) {
-            i.surfaceparms = se->surfaceparms;
-            i.autosprite = se->autosprite;
-            i.polygonOffset = se->polygonOffset;
-            i.noClip = se->noClip;
-            i.indexed = se->indexed;
-        }
-        return i;
-    };
+    const auto info = [&sp](const std::string& shader) { return karte::q3ShaderInfoAus(sp ? sp->inventar.shaderFinden(shader) : nullptr); };
     auto ein = std::make_shared<karte::MarkenEingabe>(karte::markenEingabe(ed.karte, info, !(sp && sp->spiel == kRegelwerkJediOutcast)));
     auto abbrechen = std::make_shared<std::atomic<bool>>(false);
     g_fx.markenAbbrechen = abbrechen;

@@ -1627,8 +1627,11 @@ static int FilterWindingIntoTree_r( winding_t& w, mapDrawSurface_t& ds, node_t *
 			fat[ i + ( w.size() + 1 ) * 2 ] = w[ i ] + minmax.maxs;
 		}
 		fat[ w.size() ] = w[ 0 ];
-		fat[ w.size() * 2 ] = w[ 0 ] + minmax.mins;
-		fat[ w.size() * 3 ] = w[ 0 ] + minmax.maxs;
+		/* BehavEd rc607: the closing points of the second and third sub-winding go after them (2n+1, 3n+2);
+		   written at 2n and 3n they overwrote a point each and left fat[2n+1] and fat[3n+2] uninitialized
+		   (Vector3 has no initializer), so the leaves such a surface was filtered into were left to chance */
+		fat[ w.size() * 2 + 1 ] = w[ 0 ] + minmax.mins;
+		fat[ w.size() * 3 + 2 ] = w[ 0 ] + minmax.maxs;
 
 		/*
 		 * note: this winding is STILL not suitable for ClipWindingEpsilon, and

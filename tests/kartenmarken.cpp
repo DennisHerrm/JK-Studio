@@ -20,11 +20,13 @@
 #include "bhed/karte/kartenformat.h"
 #include "bhed/karte/modell.h"
 #include "bhed/karte/spielkollision.h"
+#include "bhed/karte/texturen.h"
 #include "bhed/saberspuren.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <map>
 #include <sstream>
@@ -80,6 +82,7 @@ struct Ergebnis {
     double flaeche = 0;
     float mins[3] = {1e30F, 1e30F, 1e30F};
     float maxs[3] = {-1e30F, -1e30F, -1e30F};
+    double summe[3] = {0, 0, 0};   // aller Punkte: welche Flaechen genau getroffen wurden (Abschluss rc607)
 };
 
 // Das Quadrat von CG_ImpactMark (Radius r, Drehung 0) um o, Richtung d (Laenge 1),
@@ -121,6 +124,7 @@ Ergebnis marke(const SpurWelt& w, const float o[3], const float d[3], float r) {
             for (int k = 0; k < 3; ++k) {
                 e.mins[k] = std::min(e.mins[k], p[k]);
                 e.maxs[k] = std::max(e.maxs[k], p[k]);
+                e.summe[k] += p[k];
             }
             if (j >= 1 && j + 1 < br[i].zahl) {
                 const float* q = puffer[br[i].ersterPunkt + j + 1];
@@ -299,6 +303,59 @@ int main(int argc, char** argv) {
         }
         std::printf("  %zu Ebenen mit Flaechen (Editor %zu)\n", fb.size(), fe.size());
         pruefe(alle, "markenraum: je Ebene dieselbe Flaeche wie in der .bsp");
+    }
+    // Abschluss rc607: die Verdickung von "deformVertexes move" und mehr als 64 Flaechen im Kasten
+    // (tools/karte/gen_markenreihe.py, ohne -meta gebaut). Die Shader liest der Editor selbst (Inventar).
+    {
+        const std::filesystem::path tmp = std::filesystem::temp_directory_path() / "jkstudio_kartenmarken";
+        std::error_code ec;
+        std::filesystem::remove_all(tmp, ec);
+        std::filesystem::create_directories(tmp / "base" / "shaders", ec);
+        {
+            std::ofstream o(tmp / "base" / "shaders" / "markenreihe.shader", std::ios::binary);
+            o << lies(ordner + "/markenreihe.shader");
+        }
+        Dateisystem fs;
+        fs.ordnerHinzufuegen((tmp / "base").string(), "sp");
+        Texturinventar inv;
+        inv.laden(fs);
+        const ShaderEintrag* bewegt = inv.shaderFinden("textures/test/bewegt");
+        const ShaderEintrag* flach = inv.shaderFinden("textures/test/flach");
+        pruefe(bewegt != nullptr && bewegt->bewegt && bewegt->bewegtMin == std::array<float, 3>{0, 0, 0} &&
+                   bewegt->bewegtMax == std::array<float, 3>{4, 4, 32},
+               "deformVertexes move 4 4 32 sin 0 1: mins 0 0 0, maxs 4 4 32 (shaderInfo minmax)");
+        pruefe(flach != nullptr && !flach->bewegt, "deformVertexes move 0 0 32: MinMax::valid() nicht erfuellt (0 < 0) - keine Verdickung");
+        const Q3ShaderInfoFn infoReihe = [&inv](const std::string& sh) {
+            return q3ShaderInfoAus(inv.shaderFinden(sh.rfind("textures/", 0) == 0 ? sh : "textures/" + sh));
+        };
+        Karte reihe;
+        (void)karteLesen(lies(ordner + "/markenreihe.map"), reihe);
+        reihe.anmelden();
+        const SpurWelt er = markenWeltAusKarte(reihe, infoReihe, true);
+        BspGeometry rgeo;
+        pruefe(readBspGeometry(lies(ordner + "/markenreihe.bsp"), rgeo), "markenreihe.bsp geladen");
+        const SpurWelt rb = spurWeltAus(rgeo);
+        std::printf("markenreihe: Editor %zu Flaechen, .bsp %zu\n", er.flaechen.size(), rb.flaechen.size());
+        const std::vector<Fall> reiheFaelle = {
+            {"Stufe oben auf dem bewegten Boden (der verdickte Boden steht auch ueber der Stufe)", {-160, 0, 16}, {0, 0, 1}, 12, true},
+            {"bewegter Boden frei", {-400, 100, 0}, {0, 0, 1}, 16, true},
+            {"Saeulen, grosse Marke (100 Deckflaechen im Kasten, die ersten 64 zaehlen)", {172, 0, 32}, {0, 0, 1}, 96, true},
+            {"Saeulen, Ecke", {100, -76, 32}, {0, 0, 1}, 40, true},
+            {"Boden zwischen den Saeulen", {108, -68, 0}, {0, 0, 1}, 6, true},
+        };
+        for (const Fall& f : reiheFaelle) {
+            const Ergebnis a = marke(er, f.o, f.d, f.r);
+            const Ergebnis b = marke(rb, f.o, f.d, f.r);
+            std::printf("  %s\n    Editor: %s\n    .bsp:   %s\n", f.was, text(a).c_str(), text(b).c_str());
+            // ohne -meta sind die Flaechen dieselben: auch gleich viele Bruchstuecke (die ersten 64 Flaechen im Kasten)
+            const bool punkte = std::fabs(a.summe[0] - b.summe[0]) < 0.5 && std::fabs(a.summe[1] - b.summe[1]) < 0.5 &&
+                                std::fabs(a.summe[2] - b.summe[2]) < 0.5;
+            std::printf("    Punktsumme Editor (%.1f %.1f %.1f), .bsp (%.1f %.1f %.1f)\n", a.summe[0], a.summe[1], a.summe[2], b.summe[0], b.summe[1],
+                        b.summe[2]);
+            pruefe(gleich(a, b) && a.bruchstuecke == b.bruchstuecke && punkte && (a.bruchstuecke > 0) == f.treffer,
+                   std::string("Marke ") + f.was + ": Editor wie .bsp, dieselben Bruchstuecke");
+        }
+        std::filesystem::remove_all(tmp, ec);
     }
     // Leere Karte: keine Welt, keine Marke (und kein Absturz)
     {

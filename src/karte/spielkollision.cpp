@@ -34,6 +34,7 @@
 #include "bhed/karte/karte.h"
 #include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
+#include "bhed/karte/texturen.h"
 
 #include <algorithm>
 #include <array>
@@ -596,6 +597,20 @@ SpielKollisionsBericht kollisionAusKarte(const Karte& k, const SurfaceparmFn& pa
     bericht.pinsel = static_cast<int>(aus.pinsel.size());
     bericht.patches = static_cast<int>(aus.patches.size());
     return bericht;
+}
+
+Q3ShaderInfo q3ShaderInfoAus(const ShaderEintrag* se) {
+    Q3ShaderInfo i;
+    if (se == nullptr) { return i; }
+    i.surfaceparms = se->surfaceparms;
+    i.autosprite = se->autosprite;
+    i.polygonOffset = se->polygonOffset;
+    i.noClip = se->noClip;
+    i.indexed = se->indexed;
+    i.bewegt = se->bewegt;
+    i.bewegtMin = se->bewegtMin;
+    i.bewegtMax = se->bewegtMax;
+    return i;
 }
 
 MarkenEingabe markenEingabe(const Karte& k, const Q3ShaderInfoFn& info, bool ja) { return sicht::eingabeAusKarte(k, info, ja); }

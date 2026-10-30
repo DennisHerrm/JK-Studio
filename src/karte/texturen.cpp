@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cctype>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <set>
@@ -160,6 +161,28 @@ bool quake3Parsen(Tokenizer& t, ShaderEintrag& s) {
                 return false;
             }
             if (klein(a).rfind("autosprite", 0) == 0) { s.autosprite = true; }
+            // Abschluss rc607: "deformVertexes move <x> <y> <z> <func> <base> <amplitude> ..."
+            // (ParseShaderFile, "for particle studio support"): Zahlen wie atof
+            if (klein(a) == "move") {
+                std::array<std::string, 6> z;   // der Tokenizer gibt fuer jedes Token denselben Puffer zurueck
+                for (std::string& w : z) {
+                    const char* tok = t.getToken();
+                    if (tok == nullptr) {
+                        unerwartet(t, tok, "#deformVertexes move");
+                        return false;
+                    }
+                    w = tok;
+                }
+                const auto basis = static_cast<float>(std::atof(z[4].c_str()));
+                const auto weite = static_cast<float>(std::atof(z[5].c_str()));
+                s.bewegt = true;
+                for (std::size_t i = 0; i < 3; ++i) {
+                    const auto menge = static_cast<float>(std::atof(z[i].c_str()));
+                    s.bewegtMin[i] = menge * basis;
+                    s.bewegtMax[i] = menge * weite + s.bewegtMin[i];
+                    s.bewegt = s.bewegt && s.bewegtMin[i] < s.bewegtMax[i];   // MinMax::valid()
+                }
+            }
         } else if (k == "polygonoffset") {
             s.polygonOffset = true;
         } else if (k == "q3map_noclip") {

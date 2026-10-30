@@ -126,6 +126,12 @@ struct ShaderEintrag {
     bool polygonOffset = false;   // polygonOffset
     bool noClip = false;          // q3map_noClip, q3map_terrain
     bool indexed = false;         // q3map_indexed, q3map_terrain
+    // Abschluss rc607: "deformVertexes move <x> <y> <z> <func> <base> <amplitude>" - q3map2s
+    // shaderInfo minmax (mins = amt * base, maxs = amt * amplitude + mins); bewegt nur, wenn
+    // MinMax::valid() (mins < maxs auf allen drei Achsen). FilterWindingIntoTree_r verdickt damit.
+    bool bewegt = false;
+    std::array<float, 3> bewegtMin{};
+    std::array<float, 3> bewegtMax{};
     [[nodiscard]] bool istStandard() const { return datei.empty(); }   // IsDefault
 };
 

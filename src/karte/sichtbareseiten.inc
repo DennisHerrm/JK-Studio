@@ -487,6 +487,9 @@ struct ShaderDaten {   // shaderInfo_t (der Teil, den der Ablauf braucht)
     bool polygonOffset = false;
     bool noClip = false;
     bool indexed = false;
+    bool bewegt = false;   // minmax.valid() (deformVertexes move)
+    std::array<float, 3> bewegtMin{};
+    std::array<float, 3> bewegtMax{};
 };
 
 struct SichtSeite : Seite {   // side_t; Seite::shader: Index in die Shaderliste, -1 ohne shaderInfo
@@ -1528,7 +1531,27 @@ bool aufKnotenEbene(const Wk& w, const Ebene& eigen, const Ebene& knoten) {
     return true;
 }
 
-// FilterWindingIntoTree_r (ohne die Verdickung um den Kasten von "deformVertexes move")
+// FilterWindingIntoTree_r am Kopfknoten (Abschluss rc607): "'fatten' the winding by the shader mins/maxs
+// (parsed from vertexDeform move)" - die Wicklung, dazu um mins und um maxs verschoben, jede der drei
+// mit ihrem ersten Punkt als Schluss. bhed_q3map2 schrieb zwei Schlusspunkte eine Stelle zu frueh (die
+// Stellen 2n+1 und 3n+2 blieben uninitialisiert, die Wahl der Blaetter zufaellig) - dort jetzt behoben, hier gleich.
+Wk verdickt(const Wk& w, const ShaderDaten& si) {
+    if (!si.bewegt || w.empty()) { return w; }
+    const std::size_t n = w.size();
+    const auto plus = [](const V3f& a, const std::array<float, 3>& b) { return V3f{a[0] + b[0], a[1] + b[1], a[2] + b[2]}; };
+    Wk fett(n * 3 + 3);
+    for (std::size_t i = 0; i < n; ++i) {
+        fett[i] = w[i];
+        fett[i + (n + 1)] = plus(w[i], si.bewegtMin);
+        fett[i + (n + 1) * 2] = plus(w[i], si.bewegtMax);
+    }
+    fett[n] = w[0];
+    fett[n * 2 + 1] = plus(w[0], si.bewegtMin);
+    fett[n * 3 + 2] = plus(w[0], si.bewegtMax);
+    return fett;
+}
+
+// FilterWindingIntoTree_r (die Verdickung am Kopfknoten macht der Aufrufer mit verdickt())
 int wicklungInBaum_r(Wk w, int planeNum, const Baum& t, int knoten, const Ebenen& ebenen, Verweise& v) {
     const Knoten& n = t.k[static_cast<std::size_t>(knoten)];
     if (n.planenum == kBlatt) { return v.dazu(t, knoten); }
@@ -1660,6 +1683,7 @@ struct Zeichenflaeche {   // mapDrawSurface_t (der Teil fuer die Marken)
     int planeNum = -1;
     const PatchRoh* patch = nullptr;
     std::vector<V3f> dreiecke;   // misc_model
+    const ShaderDaten* si = nullptr;   // shaderInfo (Seiten, Modelle): die Verdickung von deformVertexes move
 };
 
 // Die Abschrift der Karte (Hauptfaden): was der Editor in die .map schreiben wuerde
@@ -1749,6 +1773,9 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
         d.polygonOffset = qi.polygonOffset;
         d.noClip = d.noClip || qi.noClip;
         d.indexed = qi.indexed;
+        d.bewegt = qi.bewegt;
+        d.bewegtMin = qi.bewegtMin;
+        d.bewegtMax = qi.bewegtMax;
         shader.push_back(d);
     }
     Ebenen ebenen;
@@ -1834,11 +1861,13 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
                 z.spur = spurPolygon(w, e.n, ausgenommen(si.flags));
                 z.w = w;
                 z.planeNum = s.planenum;
+                z.si = &si;
                 zf.push_back(std::move(z));
                 if ((si.flags.compile & C_FOG) != 0U) {   // "make a back side for fog"
                     Zeichenflaeche r;
                     r.w.assign(w.rbegin(), w.rend());
                     r.planeNum = s.planenum ^ 1;
+                    r.si = &si;
                     r.spur = spurPolygon(r.w, ebenen.ebene(r.planeNum).n, ausgenommen(si.flags));
                     zf.push_back(std::move(r));
                 }
@@ -1857,6 +1886,7 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
         std::vector<int> indizes;
         for (std::size_t i = 0; i < m.dreiecke.size(); ++i) { indizes.push_back(static_cast<int>(i)); }
         z.dreiecke.assign(m.dreiecke.begin(), m.dreiecke.end());
+        z.si = &si;
         z.spur = spurDreiecke(m.dreiecke, indizes, ausgenommen(si.flags));
         zf.push_back(std::move(z));
     }
@@ -1874,11 +1904,12 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
             refs = patchInBaum(*z.patch, baum, ebenen, v);
         } else if (!z.dreiecke.empty()) {   // FilterTrianglesIntoTree
             for (std::size_t i = 0; i + 2 < z.dreiecke.size(); i += 3) {
-                refs += wicklungInBaum_r(Wk{z.dreiecke[i], z.dreiecke[i + 1], z.dreiecke[i + 2]}, -1, baum, baum.kopf, ebenen, v);
+                const Wk d{z.dreiecke[i], z.dreiecke[i + 1], z.dreiecke[i + 2]};
+                refs += wicklungInBaum_r(z.si != nullptr ? verdickt(d, *z.si) : d, -1, baum, baum.kopf, ebenen, v);
             }
             for (const V3f& p : z.dreiecke) { refs += punktInBaum_r(p, baum, baum.kopf, ebenen, v); }
         } else {   // FilterFaceIntoTree
-            refs = wicklungInBaum_r(z.w, z.planeNum, baum, baum.kopf, ebenen, v);
+            refs = wicklungInBaum_r(z.si != nullptr ? verdickt(z.w, *z.si) : z.w, z.planeNum, baum, baum.kopf, ebenen, v);
         }
         if (refs == 0) { continue; }
         if (z.patch != nullptr) {
