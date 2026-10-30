@@ -177,6 +177,29 @@ Bild-CPU, Abstand, Figuren-CPU je Bild, Figuren je Bild, Aufrufe je Bild. Danach
   - Modus karte: erster Lauf (skarte) 229 / 1 - "Absturzabbild laesst sich schreiben (Minidump)": die Probe
     schrieb behaved-probe.dmp, kam aber nicht in 20 s zurueck (Idle-Prioritaet unter Last; nicht von dieser
     Liste beruehrt); zweiter Lauf (skarte2): 230 OK / 0, darin die GPU-Tabelle in en/de/zh/ja.
+  - Modus 1 (`BHED_HANDBUCH=Y:/hilfe/handbuch`): erster Lauf (smodus1) 2648 / 2 - "legt das ganze Skript in
+    die Zwischenablage" (die Zwischenablage teilen sich die parallel laufenden Tests der anderen Agenten) und
+    "Ton: auch ein Halt ohne Stopknopf beendet die Schleifen" (vorher 0 Schleifen: der Test wartet fest 0,25 s
+    Wanduhr, unter Last bei Idle-Prioritaet zu wenige Bilder); zweiter Lauf (smodus1b): 2650 OK / 0.
+
+## Gegen das Vorbild geprueft / nicht geprueft
+
+- Geprueft: die Welt der Decals gegen die mit bhed_q3map2 gebauten .bsp (spielraum, markenraum: Marken je Fall
+  und Flaeche je Ebene); die Menuegroesse wie NRC gegen NRCs gemessene Masse (Foto-Test, 369 x 796); das
+  Spaltenverhalten nach den Qt-5.15-Quellen (qmenu.cpp, qfusionstyle.cpp, qwindowstheme.cpp), nicht gegen ein
+  laufendes NRC mit zu hohem Menue; die Fotos des Hautwechsels gegen das alte Programm.
+- Nicht gegen das Spiel selbst (kein Spielstart): die Marken folgen dem vorhandenen Port von R_MarkFragments.
+
+## Offen
+
+- es/cs: die 13 Texte der GPU-Tabelle und die zwei neuen Handbuchabsaetze (Decals, Menues hoeher als der
+  Bildschirm) zeigen englisch bis zur Uebersetzungsrunde.
+- Decals: die Verdickung um den Kasten von "deformVertexes move" beim Einsortieren, meta/T-Verbindungen/
+  Unterteilung und die Reihenfolge der Flaechen in den Blaettern sind nicht nachgebaut (siehe Punkt 4).
+- Menues wie NRC: ein Untermenue in einer linken Spalte geht rechts neben dem ganzen Menue auf (Qt: neben der
+  Spalte).
+- Selbsttests mit fester Wartezeit (Ton-Schleifen 0,25 s, Minidump-Probe 20 s) schlagen unter starker Last bei
+  Idle-Prioritaet gelegentlich fehl - nicht Teil dieser Liste, nicht geaendert.
 
 ## Laeufe
 
