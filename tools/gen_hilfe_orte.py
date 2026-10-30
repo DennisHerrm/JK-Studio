@@ -105,6 +105,36 @@ def hauptmenue(zeilen):
     return aus
 
 
+def fenstermenue():
+    """dock1/dock2: das Menue "Fenster" (gui/fenster_dock.cpp, menueInhalt) - in
+    jedem Bereich hinter den Menues des Hauptfensters bzw. NRCs."""
+    zeilen = lies("gui/fenster_dock.cpp")
+    start = next(i for i, z in enumerate(zeilen) if z.startswith("void menueInhalt(int bereich) {"))
+    aus = []
+    stapel = ["DockMenu"]
+    aus.append(["programm", "menue:DockMenu", "DockMenu", "", "", ""])
+    letzter = None
+    for z in zeilen[start + 1:]:
+        if z.startswith("}"):
+            break
+        m = re.search(r"ImGui::BeginMenu\(tr\(Str::(\w+)\)", z)
+        if m:
+            kette = stapel + [m.group(1)]
+            aus.append(["programm", "menue:" + ">".join(kette), ">".join(kette), "", "", ""])
+            letzter = None
+            continue
+        m = re.search(r"ImGui::MenuItem\(tr\(Str::(\w+)\)", z)
+        if m:
+            kette = stapel + [m.group(1)]
+            letzter = ["programm", "menue:" + ">".join(kette), ">".join(kette), "", "", ""]
+            aus.append(letzter)
+            continue
+        m = re.search(r"SetTooltip\(\"%s\", tr\(Str::(\w+)\)\)", z)
+        if m and letzter is not None and not letzter[3]:
+            letzter[3] = m.group(1)
+    return aus
+
+
 def modusleiste(zeilen):
     aus = []
     for z in zeilen:
@@ -255,7 +285,7 @@ def text():
     anordnung = lies("gui/app_anordnung.inc")
     app = lies("gui/app.cpp")
     pf, pfInhalt = pfade(app)
-    orte = hauptmenue(anordnung) + modusleiste(anordnung) + einstellungen(app) + pf + leisten() + karteEinstellungen() + menueEditor()
+    orte = hauptmenue(anordnung) + modusleiste(anordnung) + einstellungen(app) + pf + leisten() + karteEinstellungen() + menueEditor() + fenstermenue()
     for o in orte:
         if o[1] == "menue:MenuEdit>PathsTitle":
             o[5] = ",".join(pfInhalt)
