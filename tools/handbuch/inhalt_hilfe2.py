@@ -167,6 +167,25 @@ MENUE = tut(
     ],
     [T("More in [[menue_editor]].", "Mehr in [[menue_editor]].", "更多内容见 [[menue_editor]]。", "詳しくは [[menue_editor]]。")])
 
+def _schrittbilder(seite, name):
+    """Abschluss rc607: jeder Schritt mit seinem Bild aus dem Programm (wie die anderen Tutorials) - die Tour
+    an diesem Schritt mit ihrer Hervorhebung (Selbsttest hilfe2, BHED_HB_NUR=hilfe2: <name>_<Schritt>)."""
+    for b in seite["bloecke"]:
+        if b[0] == "steps":
+            b[1][:] = [x if isinstance(x, tuple) else
+                       (x, "%s_%d" % (name, i),
+                        T("Step %d in the program: the tutorial highlights where to go next." % i,
+                          "Schritt %d im Programm: das Tutorial hebt hervor, wo es weitergeht." % i,
+                          "程序中的第 %d 步:教程高亮显示下一步的位置。" % i,
+                          "プログラムでの手順 %d: チュートリアルが次の操作場所を強調表示します。" % i))
+                       for i, x in enumerate(b[1], 1)]
+
+
+_schrittbilder(SPIELORDNER, "h_tut_spielordner")
+_schrittbilder(UPDATE, "h_tut_update")
+_schrittbilder(KARTE_TUER, "h_tut_karte_tuer")
+_schrittbilder(MENUE, "h_tut_menue_h2")
+
 SEITEN = [SPIELORDNER, UPDATE, KARTE_TUER, MENUE]
 
 

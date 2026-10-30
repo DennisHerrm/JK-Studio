@@ -7049,4 +7049,19 @@ TEXTE = {
         "Comprobado con el juego",
     "The whole-menu templates were photographed in Movie Duels, in the original Jedi Academy and in Jedi Outcast and compared with the preview. Sliders have the size of each game: 128 wide in Jedi Academy and Jedi Outcast single player, 96 in Movie Duels and in multiplayer. Jedi Outcast treats every character after `^` as a colour (`^B` is green) and counts colour codes in the text width - the preview does the same, so centred and right-aligned texts sit where the game puts them.":
         "Las plantillas de menú completo se fotografiaron en Movie Duels, en el Jedi Academy original y en Jedi Outcast y se compararon con la vista previa. Los deslizadores tienen el tamaño de cada juego: 128 de ancho en Jedi Academy y Jedi Outcast para un jugador, 96 en Movie Duels y en multijugador. Jedi Outcast trata cada carácter después de `^` como un color (`^B` es verde) y cuenta los códigos de color en el ancho del texto - la vista previa hace lo mismo, de modo que los textos centrados y alineados a la derecha quedan donde los pone el juego.",
+    # Abschluss rc607: Bilder der Tutorial-Schritte
+    "Step 1 in the program: the tutorial highlights where to go next.":
+        "Paso 1 en el programa: el tutorial resalta dónde seguir.",
+    "Step 2 in the program: the tutorial highlights where to go next.":
+        "Paso 2 en el programa: el tutorial resalta dónde seguir.",
+    "Step 3 in the program: the tutorial highlights where to go next.":
+        "Paso 3 en el programa: el tutorial resalta dónde seguir.",
+    "Step 4 in the program: the tutorial highlights where to go next.":
+        "Paso 4 en el programa: el tutorial resalta dónde seguir.",
+    "Step 5 in the program: the tutorial highlights where to go next.":
+        "Paso 5 en el programa: el tutorial resalta dónde seguir.",
+    "Step 6 in the program: the tutorial highlights where to go next.":
+        "Paso 6 en el programa: el tutorial resalta dónde seguir.",
+    "Step 7 in the program: the tutorial highlights where to go next.":
+        "Paso 7 en el programa: el tutorial resalta dónde seguir.",
 }

@@ -429,6 +429,15 @@ std::vector<Schritt> skins() {
 }
 
 // --- 7. tut-menue: der Menue-Editor ---------------------------------------------------
+// Abschluss rc607: das Bild eines Tutorialschritts (das ganze Fenster mit der Hervorhebung der Tour);
+// nur mit BHED_FOTOS (Handbuchlauf BHED_HB_NUR=hilfe2), sonst ein leerer Schritt.
+Schritt schrittFoto(const std::string& name) {
+    return hb::fotoTeil(name, [] {
+        const ImVec2 d = ImGui::GetIO().DisplaySize;
+        return ImRect{0.0F, 0.0F, d.x, d.y};
+    });
+}
+
 std::vector<Schritt> menue() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -438,8 +447,12 @@ std::vector<Schritt> menue() {
     }));
     add(pause(0.4));
     add(zielDa("Menue: der Knopf Menue-Editor ist hervorgehoben"));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_menue_h2_1"));
     add(klick(tr(Str::ViewMenuEditor), "###main"));
     add(erledigt("tut-menue", 1));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_menue_h2_2"));
     add(klick(tr(Str::MeAusSpiel)));
     add(pause(0.4));
     add(tippe("jamp/main.menu"));   // das Suchfeld der Liste hat den Fokus
@@ -450,12 +463,16 @@ std::vector<Schritt> menue() {
     }));
     add(erledigt("tut-menue", 2, 1200));
     add(warteBis("H2 Menue: Menue offen, Elemente da", [] { return menueeditor::stand().items > 0; }, 600));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_menue_h2_3"));
     add(tu("H2 Menue: ein Element waehlen (Klick auf der Flaeche)", [] { menueeditor::waehle(0, false); }));
     add(wartetNoch("tut-menue", 2));
     add(tu("H2 Menue: das Element verschieben (wie Ziehen auf der Flaeche)", [] { menueeditor::verschiebeAuswahl(8.0F, 0.0F); }));
     add(erledigt("tut-menue", 3));
     add(klick(tr(Str::MeBedienen)));
     add(erledigt("tut-menue", 4));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_menue_h2_5"));
     add(tu("H2 Menue: .pk3 exportieren (Speichern-unter-Dialog: im Test die Funktion dahinter, in den Laufordner)", [] {
         const std::string o = stufe3::laufOrdner("menue_h2");
         std::error_code ec;
@@ -500,15 +517,21 @@ std::vector<Schritt> karteTuer() {
     }));
     add(pause(1.0));   // der Moduswechsel schwingt ein Bild lang ein
     add(zielDa("Tuer: der Knopf Karten-Editor ist hervorgehoben"));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_karte_tuer_1"));
     add(klick(tr(Str::ViewMapEditor), "###main"));
     add(erledigt("tut-karte-tuer", 1));
     add(pause(0.4));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_karte_tuer_2"));
     add(ziehen2d("H2 Tuer: einen duennen Brush ziehen (die Tuer)", ImGuiMouseButton_Left, 0, karte::Vektor3f(-64, -8, 0), karte::Vektor3f(64, 8, 0)));
     add(erledigt("tut-karte-tuer", 2));
     add(klick2d("H2 Tuer: Rechtsklick in die 2D-Ansicht", ImGuiMouseButton_Right, 0, karte::Vektor3f(0, 0, 0)));
     add(pause(0.3));
     add(klick("func"));
     add(pause(0.3));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_karte_tuer_3"));
     add(klick("func_door"));
     add(erledigt("tut-karte-tuer", 3));
     add(pruefe("H2 Tuer: eine func_door aus dem Brush", [] {
@@ -516,6 +539,8 @@ std::vector<Schritt> karteTuer() {
     }));
     add(tasteKombi(ImGuiKey_N, "N (Entity-Inspektor)"));
     add(pause(0.3));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_karte_tuer_4"));
     add(tu("H2 Tuer: Schluessel angle = 90 (wie Eingabe im Inspektor und Enter)", [] {
         ke::Editor& e = ke::editor();
         e.ent.schluessel = "angle";
@@ -531,6 +556,8 @@ std::vector<Schritt> karteTuer() {
     add(pause(0.3));
     add(klick("trigger"));
     add(pause(0.3));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_karte_tuer_5"));
     add(klick("trigger_multiple"));
     add(erledigt("tut-karte-tuer", 5));
     add(taste(ImGuiKey_Escape, "Esc"));
@@ -539,8 +566,12 @@ std::vector<Schritt> karteTuer() {
     add(pause(0.2));
     add(pruefe("H2 Tuer: zwei gewaehlt (Trigger, dann Tuer)", [] { return ke::editor().karte.auswahl.anzahl() == 2; }));
     add(wartetNoch("tut-karte-tuer", 5));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_karte_tuer_6"));
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_K, "Strg+K (Connect Entities)"));
     add(erledigt("tut-karte-tuer", 6));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_karte_tuer_7"));
     add(pruefe("H2 Tuer: der target des Triggers nennt den targetname der Tuer", [] {
         const auto t = stufe8c::entitaet("trigger_multiple");
         const auto d = stufe8c::entitaet("func_door");
@@ -578,6 +609,8 @@ std::vector<Schritt> update() {
     add(pause(0.3));
     add(klick(tr(Str::UpdMenu), "##Menu"));
     add(erledigt("k-update", 1));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_update_2"));
     add(erledigt("k-update", 2, 2400));
     add(pruefe("H2 Update: das Fenster hat eine Antwort (aktuell, neu oder Fehler)", [] {
         diag::detail("Knopftest: H2 Update - Stand " + std::to_string(static_cast<int>(updater::zustand().stand)));
@@ -585,8 +618,12 @@ std::vector<Schritt> update() {
     }));
     add(klick(tr(Str::MenuHelp), "###main"));
     add(pause(0.3));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_update_3"));
     add(klick(tr(Str::UpdAutoCheck), "##Menu"));
     add(erledigt("k-update", 3));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_update_4"));
     add(pruefe("H2 Update: die Suche beim Start ist umgeschaltet", [] { return g_app->settings.updateCheck != autoVorher; }));
     add(klick(tr(Str::ChangelogMenu), "###update"));
     add(erledigt("k-update", 4));
@@ -616,6 +653,8 @@ std::vector<Schritt> spielordner() {
     add(zielDa("Spielordner: das Menue Edit ist hervorgehoben"));
     add(klick(tr(Str::MenuEdit), "###main"));
     add(pause(0.3));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_spielordner_1"));
     add(klick(tr(Str::PathsTitle), "##Menu"));
     add(erledigt("k-spielordner", 1));
     add(pruefe("H2 Spielordner: \"Add game folder\" im Fenster Pfade ist hervorgehoben (Stufe 3 von 3 der Vorbedingung erfuellt)", [] {
@@ -630,6 +669,8 @@ std::vector<Schritt> spielordner() {
         addGamePathDirectory(extra);
     }));
     add(erledigt("k-spielordner", 2, 1800));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_spielordner_3"));
     add(klick(tr(Str::TourNext), "###tour"));
     add(erledigt("k-spielordner", 3));
     add(tu("H2 Spielordner: den Ordner wieder entfernen, Pfade zu", [] {
@@ -642,8 +683,12 @@ std::vector<Schritt> spielordner() {
     add(pause(0.3));
     add(klick(tr(Str::MenuEdit), "###main"));
     add(pause(0.3));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_spielordner_4"));
     add(klick(tr(Str::AppPrefs), "##Menu"));
     add(erledigt("k-spielordner", 4));
+    add(pause(0.6));
+    add(schrittFoto("h_tut_spielordner_5"));
     add(tu("H2 Spielordner: Regelwerk umstellen (die Liste: OpenJK)", [] {
         g_app->settings.regelwerk = g_app->settings.regelwerk == 1 ? 2 : 1;
     }));
@@ -813,6 +858,10 @@ std::vector<Schritt> handbuchFotos() {
         tourSchliessen();
         g_app->leftMode = 0;
     }));
+    // Abschluss rc607: die Bilder jedes Schritts (schrittFoto) - die Touren wie im Selbsttest
+    for (std::vector<Schritt> (*teil)() : {menue, karteTuer, update, spielordner}) {
+        for (Schritt& x : teil()) { add(std::move(x)); }
+    }
     return s;
 }
 

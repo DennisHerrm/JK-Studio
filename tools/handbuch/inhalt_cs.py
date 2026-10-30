@@ -7046,4 +7046,19 @@ TEXTE = {
         "Ověřeno proti hře",
     "The whole-menu templates were photographed in Movie Duels, in the original Jedi Academy and in Jedi Outcast and compared with the preview. Sliders have the size of each game: 128 wide in Jedi Academy and Jedi Outcast single player, 96 in Movie Duels and in multiplayer. Jedi Outcast treats every character after `^` as a colour (`^B` is green) and counts colour codes in the text width - the preview does the same, so centred and right-aligned texts sit where the game puts them.":
         "Šablony celých menu byly vyfotografovány v Movie Duels, v původním Jedi Academy a v Jedi Outcast a porovnány s náhledem. Posuvníky mají velikost podle hry: 128 na šířku v Jedi Academy a Jedi Outcast pro jednoho hráče, 96 v Movie Duels a ve hře více hráčů. Jedi Outcast bere každý znak po `^` jako barvu (`^B` je zelená) a počítá barevné kódy do šířky textu - náhled dělá totéž, takže text zarovnaný na střed a vpravo stojí tam, kam ho dá hra.",
+    # Abschluss rc607: Bilder der Tutorial-Schritte
+    "Step 1 in the program: the tutorial highlights where to go next.":
+        "Krok 1 v programu: tutoriál zvýrazní, kde pokračovat.",
+    "Step 2 in the program: the tutorial highlights where to go next.":
+        "Krok 2 v programu: tutoriál zvýrazní, kde pokračovat.",
+    "Step 3 in the program: the tutorial highlights where to go next.":
+        "Krok 3 v programu: tutoriál zvýrazní, kde pokračovat.",
+    "Step 4 in the program: the tutorial highlights where to go next.":
+        "Krok 4 v programu: tutoriál zvýrazní, kde pokračovat.",
+    "Step 5 in the program: the tutorial highlights where to go next.":
+        "Krok 5 v programu: tutoriál zvýrazní, kde pokračovat.",
+    "Step 6 in the program: the tutorial highlights where to go next.":
+        "Krok 6 v programu: tutoriál zvýrazní, kde pokračovat.",
+    "Step 7 in the program: the tutorial highlights where to go next.":
+        "Krok 7 v programu: tutoriál zvýrazní, kde pokračovat.",
 }
