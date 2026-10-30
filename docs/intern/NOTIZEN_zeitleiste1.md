@@ -468,6 +468,60 @@ LIESMICH: taspir1 aus assets0.pk3, Missionen und Archiv auf X: per subst).
     der Spielordner, LIESMICH angepasst, neues Skript /y/zl4_hbvoll.sh.
   - Voller Lauf en danach: 0 Klickfehler, 0 FEHLER, in 7 min ganz durch
     (zl4hb_en, 669 Fotos; vorher 66 Fehler und nach 35 min abgebrochen).
+- **Punkt 3: das Modell waehrend der Aufnahme wie im Spiel** (3826604e,
+  ba0d58e4). Neuer Kern `include/bhed/pmanim.h`, `src/pmanim.cpp`, ctest
+  `pmanim` (Erwartungen aus den Quellen mit Zeilen):
+  - PM_Footsteps, Zweig am Boden ohne Ducken/Wasser/Leiter (so steuert die
+    Aufnahme): Stand (STAND1, STAND3 fuer NPC mit Waffe ausser den
+    Wachhaltungen, STAND4 Imperial, Kampfhaltungen nach saberAnimLevel - OpenJK
+    eigene Tabelle, MD PM_ReadyPoseForSaberAnimLevel), vorwaerts/seitwaerts
+    laufen und gehen, rueckwaerts (PMF_BACKWARDS_RUN aus PmoveSingle), Klinge
+    (RUN2/RUN_DUAL/RUN_STAFF, WALK2 ..., MD fuer NPCs RUNBACK1/WALK1), Movie
+    Duels mit g_ActivateAnimationStyle 0 die Waffenvarianten (JOG_/WALK_/
+    RUNBACK_/WALKBACK_ PISTOL, DOUBLE_PISTOL, BLASTER, HEAVY, GRENADE), Klassen
+    (ATST/Droideka mit Anlauf RUN1START und Auslauf RUN1STOP samt HOLD-Timer,
+    Galak, Jawa, Wampa nach runSpeed, Rancor, Hazard Trooper, SBD, Yoda/Vader/
+    Sithlord). Seitwaerts gibt es in beiden Spielen keine eigene Animation: die
+    Laufanimation, und cgame dreht die Beine.
+  - PM_SetAnimFinal: laeuft der Timer (Skriptanimation mit HOLD/HOLDTIME), setzt
+    PM_Footsteps nichts; dieselbe Animation mit neuem Tempo laeuft an derselben
+    Stelle weiter; eine neue blendet 100 ms vom eingefrorenen Bild
+    (SETANIM_BLEND_DEFAULT); g_noFootSlide (resultspeed/moveSpeedOfAnim 150/50,
+    Stab 250/100, Doppel 100, Hazard 50, Rancor 173, geduckt 75; 0,01..1,5;
+    MD in der Kamerafahrt erst ab resultspeed 1); kennt das Modell die
+    Animation nicht (numFrames 0), bleibt die alte. PM_WalkingAnim/
+    PM_RunningAnim als Listen 1:1 (OpenJK, MD).
+  - PM_TorsoAnimation: der Oberkoerper folgt den Beinen oder zeigt die
+    Waffenhaltung (npcWaffenTorso, der Port der Szene), solange kein
+    Torso-Timer haelt; Uebergang auch beim Zurueckfallen auf die Beine.
+  - cgame: CG_PlayerLegsYawFromMovement je Clientbild (8 ms, Anteil zwischen
+    zwei 50-ms-Serverbildern als frameInterpolation; +-60, rueckwaerts
+    gespiegelt, ueber 150 nicht, 5 bzw. 10 Grad je Bild) und
+    CG_G2ClientSpineAngles (Rumpf zurueck zum Blick: lower_lumbar 0,45,
+    upper_lumbar 0,35, thoracic 0,20) - neues Feld rumpfGier in ActorState
+    und ActorDraw, gedreht in mapview.cpp nach dem Uebergang wie der Kopf.
+  - Die Szene gibt die Anim-Timer heraus (beineTimerBisMs, torsoTimerBisMs);
+    die Aufnahme startet mit Beinen, Oberkoerper und Timern der Szene. Dazu
+    "If Have Not Been Moving For A While, Stop" (nach 1 s ohne Bewegung am
+    Boden keine Eingabe mehr fuer die Animation) und resultspeed je Pmove.
+  - Selbsttest zeitleiste1 (`BHED_ZL1_NUR=aufnahme`, Stormtrooper mit
+    WP_BLASTER, Movie Duels): rot zl4p3rot 14/5 (ueberall BOTH_RUN1, kein
+    Uebergang, Beine nicht gedreht, kein Waffen-Oberkoerper), gruen zl4p3gr
+    19/0 (BOTH_JOG_BLASTER und BOTH_RUNBACK_BLASTER mit Uebergang aus
+    BOTH_STAND3, seitwaerts BOTH_JOG_BLASTER mit 60 Grad, TORSO_WEAPONREST3).
+    Die Pruefung "Modell am gesteuerten Ort" hielt die Tasten eine feste
+    Bildzahl (ohne Last nur 85 Einheiten bei Tempo 60) - Grenze jetzt 40.
+  - Nicht portiert (bewusst, siehe pmanim.h): PM_AdjustStandAnimForSlope (die
+    Fusspuren am Modell), Sprint (BUTTON_BLOCK eines Spielers), die
+    Motion-Bone-Korrektur von CG_G2ClientSpineAngles (cg_motionBoneComp 2,
+    nur wenn Beine und Oberkoerper verschiedene Animationen spielen),
+    PM_TorsoAnimLightsaber (der Oberkoerper folgt mit Klinge den Beinen, wie
+    in der Szene). g_SerenityJediEngineMode: mdgit-Vorgabe 0 genommen (die
+    Kommentare in scene.h nennen 2 fuer die Mod - in den MD-Configs steht
+    nichts; betrifft hier nur Stab rueckwaerts gehend).
+  - Beobachtet, nicht geaendert: die Szene laesst einen stehenden NPC mit
+    Gewehr in BOTH_STAND1; PM_Footsteps setzt BOTH_STAND3 (die Aufnahme zeigt
+    es, sobald sie laeuft).
 - **Punkt 4: wait ( "name" )** (df3650ce). Geklaert an CTaskManager::Wait
   (code/icarus/TaskManager.cpp, mdgit und OpenJK - OpenJK per GitHub
   gelesen): wait mit einem Namen wartet auf die Taskgruppe dieses Namens
