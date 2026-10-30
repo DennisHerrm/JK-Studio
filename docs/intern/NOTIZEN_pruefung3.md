@@ -203,8 +203,8 @@ Stand:
   BHED_FOTOS schreibt; ohne lasen sie kein Bild (Werte -1). Rot nachgestellt
   (Lauf ohne BHED_FOTOS: die vier Gizmo-/Abspiel-Proben FEHLER). Behoben im
   Test: `mission1::probeFoto` schreibt immer, ohne BHED_FOTOS nach
-  `<Programmordner>\m1_fotos`, `FotoBild::lesen` liest dort. Gebaut; der gruene
-  Lauf (mission1 ohne BHED_FOTOS) steht noch aus.
+  `<Programmordner>\m1_fotos`, `FotoBild::lesen` liest dort. Gruen: mission1
+  ohne BHED_FOTOS 98 OK, 0 FEHLER (30.10., Lauf m1ohne).
 - Punkt 3 (Schwert mit ausgeschalteter Klinge) begonnen, nicht eingecheckt:
   SP\p4a\wip_punkt3_abwurf.patch (abwurf.h/.cpp). Inhalt: AbwurfBahn als
   trajectory_t je Serverbild (cgame wertet s.pos/s.apos zur Zeit cg.time aus),
