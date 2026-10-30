@@ -424,8 +424,6 @@ S = [
     ("CamPilotKeySet", "Camera key set at %.2f s", "Kameraschlüssel bei %.2f s gesetzt", "已在 %.2f 秒设置摄像机关键帧", "%.2f 秒にカメラキーを設定しました"),
     ("CamAutoKey", "Insert camera key", "Kameraschlüssel einfügen", "插入摄像机关键帧", "カメラキーを挿入"),
     ("TlKamera", "Camera", "Kamera", "摄像机", "カメラ"),
-    ("TlKatBlick", "Look", "Blick", "注视", "視線"),
-    ("TlKatAblauf", "Flow (waits, signals)", "Ablauf (waits, Signale)", "流程(等待、信号)", "進行(wait、シグナル)"),
     ("TlAufklappen", "Click the arrow to expand or collapse", "Pfeil anklicken klappt auf oder zu", "点击箭头展开或折叠", "矢印をクリックで展開/折りたたみ"),
     ("BahnRueckwaerts", "Walk backwards (keeps looking back)", "Rückwärts laufen (schaut zurück)", "倒退行走(保持向后看)", "後ろ向きに歩く(後ろを見たまま)"),
     ("BahnAnsehen", "Look at while walking", "Dabei ansehen", "行走时注视", "歩きながら見る"),

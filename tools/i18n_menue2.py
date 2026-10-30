@@ -40,7 +40,6 @@ MENUE2 = [
     ("MeEbeneSchloss", "Lock: the canvas does not move or resize it", "Sperren: die Fläche verschiebt und ändert es nicht",
      "锁定:画布不会移动或缩放它", "ロック: キャンバスで移動・サイズ変更しません"),
     # Punkt 5: Klaenge
-    ("MeKlaenge", "Sounds", "Klänge", "声音", "サウンド"),
     # Punkt 6: Mehrsprachigkeit
     ("MeSprache", "Language", "Sprache", "语言", "言語"),
     ("MeTexte", "Texts", "Texte", "文本", "テキスト"),
@@ -178,8 +177,6 @@ MENUE2 = [
     ("MeTipImSpiel", "Put the changed menus into a test folder outside the game and start the game with it.",
      "Die geänderten Menüs in einen Testordner außerhalb des Spiels legen und das Spiel damit starten.",
      "将已更改的菜单放入游戏外的测试文件夹,并用它启动游戏。", "変更したメニューをゲーム外のテストフォルダーに置き、それでゲームを起動します。"),
-    ("MeTipKlaenge", "Play the sounds of the menu while interacting.", "Beim Bedienen die Klänge des Menüs abspielen.", "交互时播放菜单的声音。",
-     "操作中にメニューのサウンドを再生します。"),
     # Punkt 9: Schriften
     ("MeSchriftBauen", "Font from TTF...", "Schrift aus TTF...", "从 TTF 生成字体...", "TTF からフォントを作成..."),
     ("MeSchriftName", "Font name", "Name der Schrift", "字体名称", "フォント名"),

@@ -3736,7 +3736,7 @@ void zeichneVideoFenster() {
             std::snprintf(buf, sizeof(buf), tr(Str::MeVideoQuelle), vi.breite, vi.hoehe, vi.fps, zeitText(vi.dauerMs).c_str());
             ImGui::TextUnformatted(buf);
             if (vi.ton) {
-                std::snprintf(buf, sizeof(buf), tr(Str::MeVideoTonQuelle), vi.tonKanaele, vi.tonRate);
+                std::snprintf(buf, sizeof(buf), trN(Str::MeVideoTonQuelle, vi.tonKanaele), vi.tonKanaele, vi.tonRate);
                 ImGui::TextUnformatted(buf);
             } else {
                 ImGui::TextDisabled("%s", tr(Str::MeVideoOhneTon));
@@ -3846,7 +3846,7 @@ void zeichneVideoFenster() {
             if (z.schaetzLaeuft.load() || z.schaetzBytes.load() < 0) {
                 ImGui::TextDisabled("%s", tr(Str::MeVideoSchaetze));
             } else if (z.videoArt == 0) {
-                std::snprintf(buf, sizeof(buf), tr(Str::MeVideoErgebnis), static_cast<int>(bilder), zeitText(dauer).c_str(),
+                std::snprintf(buf, sizeof(buf), trN(Str::MeVideoErgebnis, static_cast<int>(bilder)), static_cast<int>(bilder), zeitText(dauer).c_str(),
                               static_cast<double>(z.schaetzBytes.load()) / (1024.0 * 1024.0));
                 ImGui::TextUnformatted(buf);
             } else {

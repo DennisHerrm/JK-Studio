@@ -4894,7 +4894,7 @@ bool aufnahmeSchreiben() {
     verbindeMitSkriptSchritt();
     nachSkriptGeaendert();
     char t[200];
-    std::snprintf(t, sizeof(t), tr(Str::AufGeschrieben), static_cast<int>(k.size()), r.name.c_str(), r.startMs / 1000.0);
+    std::snprintf(t, sizeof(t), trN(Str::AufGeschrieben, k.size()), static_cast<int>(k.size()), r.name.c_str(), r.startMs / 1000.0);
     addStatus(t);
     return true;
 }
@@ -5095,7 +5095,7 @@ void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b) {
     }
     // Der Hinweis unten in der Ansicht.
     char t[400];
-    std::snprintf(t, sizeof(t), tr(Str::AufHinweis), r.name.c_str(), static_cast<int>(k.size()),
+    std::snprintf(t, sizeof(t), trN(Str::AufHinweis, k.size()), r.name.c_str(), static_cast<int>(k.size()),
                   static_cast<double>(g_app->aufnahmeToleranz));
     const ImVec2 gr = ImGui::CalcTextSize(t);
     const ImVec2 o{a.x + fs * 0.5F, b.y - gr.y - fs * 0.8F};

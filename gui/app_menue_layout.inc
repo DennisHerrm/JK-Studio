@@ -430,7 +430,7 @@ void zeichneLayout(Dokument& d) {
     tipp(Str::MeLayoutNeuRechnenTip);
     for (const std::string& w : z.layoutWarnungen) { ImGui::TextColored(ImVec4{1, 0.75F, 0.3F, 1}, "%s", w.c_str()); }
     if (!z.layoutZustaende.empty() && l.versteckteAuslassen) {
-        ImGui::TextWrapped(tr(Str::MeLayoutZustaende), static_cast<int>(z.layoutZustaende.size()));
+        ImGui::TextWrapped(trN(Str::MeLayoutZustaende, z.layoutZustaende.size()), static_cast<int>(z.layoutZustaende.size()));
         if (ImGui::IsItemHovered()) {
             std::string liste;
             for (const std::string& x : z.layoutZustaende) { liste += "\n" + x; }

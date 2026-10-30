@@ -110,7 +110,16 @@ _QUELLEN = [p for p in _GUI + sorted((root / 'src').rglob('*.cpp')) + sorted((ro
             if p.name != 'i18n.cpp']
 for _f in _QUELLEN:
     _code += _f.read_text(encoding='utf-8')
-_unused = [n for n in _names if f'Str::{n}' not in _code]
+# uebersetzung2: der Helfer (src/hilfe.cpp kettenText/kennungLabel) holt die Namen der
+# Ketten und Hinweise aus src/hilfe_orte.inc zur Laufzeit ueber strVonName - aus
+# "ViewMap>TlKamera>CamPilotKey" wird "Mission view > Camera > Set key". Ohne diese
+# Namen galt TlKamera als unbenutzt; entfernt, hiesse der Pfad "Mission view >  > Set key".
+_orte = set()
+for _m in re.finditer(r'^\{"[^"]*", "[^"]*", "([^"]*)", "([^"]*)"',
+                      (root / 'src' / 'hilfe_orte.inc').read_text(encoding='utf-8'), re.M):
+    _orte.update(_m.group(1).split('>'))
+    _orte.add(_m.group(2))
+_unused = [n for n in _names if f'Str::{n}' not in _code and n not in _orte]
 if _unused:
     print(f"{len(_unused)} uebersetzte Texte werden nirgends benutzt:")
     for _u in _unused:
