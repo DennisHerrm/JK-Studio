@@ -9,7 +9,8 @@
 // 2. Tod: TossClientItems, Klaenge (EV_DEATH, DeathFX), Abwurf mit G_RunItem/
 //    G_BounceItem bzw. WP_SaberDrop/G_BounceMissile - je Regelwerk.
 // 4. Gehen in der Hocke: SCF_CROUCHED -> ucmd.upmove -127, PM_CheckDuck,
-//    pm_duckScale, BOTH_CROUCH1WALK(BACK) mit moveSpeedOfAnim 75.
+//    pm_duckScale, BOTH_CROUCH1WALK(BACK) mit moveSpeedOfAnim 75; die Beine am
+//    Hang (PM_AdjustStandAnimForSlope, PM_FootSlopeTrace).
 #include "bhed/ablauf.h"
 #include "bhed/bspgeo.h"
 #include "bhed/efx/io.h"
@@ -288,6 +289,7 @@ struct Welt {
     std::string kartenPfad = "maps/eigene_karte.bsp";
     bool gegenstaende = false;                 // items.dat: jede Waffe -16 -16 -2 / 16 16 16
     bool hand = false;                         // handRPoint (0 0 64), muzzleDir +x
+    bool fuesse = false;                       // footL/RPoint: +-8 in x unter der Figur
 };
 
 constexpr double kAnimMs = 1000.0;   // jede Animation: 21 Bilder zu 50 ms
@@ -352,6 +354,16 @@ void fahre(const Welt& w, int spiel, Lauf& l) {
         h.waffenGegenstand = [](const std::string&, NavVec& mi, NavVec& ma) {
             mi = {-16.0F, -16.0F, -2.0F};
             ma = {16.0F, 16.0F, 16.0F};
+            return true;
+        };
+    }
+    if (w.fuesse) {
+        h.fussPunkte = [](const Actor& a, double ms, float lf[3], float rf[3]) {
+            const ActorState st = a.at(ms);
+            lf[0] = st.pos[0] + 8.0F;
+            rf[0] = st.pos[0] - 8.0F;
+            lf[1] = rf[1] = st.pos[1];
+            lf[2] = rf[2] = st.pos[2] - 24.0F;
             return true;
         };
     }
@@ -625,6 +637,123 @@ void tod() {
     }
 }
 
+// Eine Stufe: Boden z = 0 fuer x < 0, z = 8 ab x = 0 (ein Kasten trifft die
+// hoehere, sobald sein Grundriss x >= 0 beruehrt).
+NavSpur stufenBoden(const NavVec& s, const NavVec& mins, const NavVec& maxs, const NavVec& e, int, std::uint32_t) {
+    NavSpur t;
+    t.endpos = e;
+    const float h = (std::max(s[0], e[0]) + maxs[0] >= 0.0F) ? 8.0F : 0.0F;
+    const float unten = s[2] + mins[2];
+    if (unten < h) {
+        t.startsolid = true;
+        t.fraction = 0.0F;
+        t.endpos = s;
+        return t;
+    }
+    if (e[2] < s[2] && e[2] + mins[2] < h) {
+        t.fraction = (unten - h) / (s[2] - e[2]);
+        t.endpos = {s[0] + (e[0] - s[0]) * t.fraction, s[1] + (e[1] - s[1]) * t.fraction, h - mins[2]};
+        t.normal = {0.0F, 0.0F, 1.0F};
+        t.entity = kNavWeltEntity;
+    }
+    return t;
+}
+
+void hang() {
+    std::printf("--- 4b. Beine am Hang ---\n");
+    // Die Schritte 4-7 gegen die Tabelle der Engine (interval 4, ATST 10).
+    struct Fall {
+        const char* beine;
+        float diff;
+        bool atst;
+        double neu;      // slopeRecalcTime vorher
+        const char* soll;
+    };
+    const Fall faelle[] = {
+        {"BOTH_STAND1", 3.9F, false, -1.0, ""},                    // unter interval: qfalse
+        {"BOTH_STAND1", 4.0F, false, -1.0, "LEGS_S1_LUP1"},        // aus dem Stand erst Stufe 1
+        {"BOTH_STAND1", -20.0F, false, -1.0, "LEGS_S1_RUP1"},
+        {"BOTH_STAND2", 12.0F, false, -1.0, "LEGS_LEFTUP1"},       // STAND2: die allgemeine Familie
+        {"BOTH_SABERDUAL_STANCE", 8.0F, false, -1.0, "LEGS_S6_LUP1"},
+        {"BOTH_STAND6", 20.0F, false, -1.0, ""},                    // keine Familie
+        {"BOTH_CROUCH1", 12.0F, false, -1.0, "LEGS_LEFTUP3"},      // kein Fall im Stand: gleich das Ziel
+        {"LEGS_S1_LUP1", 12.0F, false, -1.0, "LEGS_S1_LUP2"},       // eine Stufe hinauf
+        {"LEGS_S1_LUP1", 12.0F, false, 1000.0, "LEGS_S1_LUP1"},     // slopeRecalcTime noch nicht vorbei
+        {"LEGS_S1_LUP3", -8.0F, false, -1.0, "LEGS_S1_LUP4"},       // zur rechten Seite ueber die Nummern: L3 -> L4
+        {"LEGS_S1_LUP5", -8.0F, false, -1.0, "LEGS_S1_RUP1"},
+        {"LEGS_S1_RUP3", 4.0F, false, -1.0, "LEGS_S1_RUP2"},
+        {"LEGS_S1_RUP1", 4.0F, false, -1.0, "LEGS_S1_LUP5"},
+        {"LEGS_S3_LUP2", 8.0F, false, -1.0, "LEGS_S3_LUP2"},        // am Ziel
+        {"BOTH_STAND1", 9.9F, true, -1.0, ""},                      // ATST: interval 10
+        {"BOTH_STAND1", 30.0F, true, -1.0, "LEGS_LEFTUP1"},
+        {"BOTH_RUN1", 30.0F, true, -1.0, "LEGS_LEFTUP3"},           // ATST ohne Stand: gleich das Ziel
+    };
+    for (const Fall& f : faelle) {
+        double neu = f.neu;
+        const std::string ist = hangBeinSchritt(f.beine, f.diff, f.atst, 500.0, neu);
+        pruefe(ist == f.soll, std::string("PM_AdjustStandAnimForSlope ") + f.beine + " diff " + std::to_string(f.diff) + (f.atst ? " (ATST)" : "") +
+                                  ": \"" + f.soll + "\" - \"" + ist + "\"");
+    }
+    // In der Szene: eine Figur steht so auf der Stufe, dass der linke Fuss oben
+    // (z 8) und der rechte unten (z 0) steht: diff 8 -> Ziel LUP2, erst LUP1,
+    // eine Stufe je SLOPE_RECALC_INT (100 ms, "slopeRecalcTime < level.time").
+    for (const Spiel& sp : kSpiele) {
+        const std::string r = std::string(" (") + sp.name + ")";
+        Welt w;
+        w.karte = "{\n\"classname\" \"worldspawn\"\n}\n"
+                  "{\n\"classname\" \"NPC_spawner\"\n\"NPC_targetname\" \"held\"\n\"NPC_type\" \"eigen_typ\"\n\"origin\" \"-4 0 32\"\n\"angle\" \"0\"\n}\n";
+        w.skript = affect4("");
+        w.anims = {"BOTH_STAND1", "LEGS_S1_LUP1", "LEGS_S1_LUP2"};
+        w.spur = stufenBoden;
+        w.fuesse = true;
+        Lauf l;
+        fahre(w, sp.nr, l);
+        const Actor* a = l.szene.find("held");
+        if (a == nullptr || a->hangBeine.size() < 2U) {
+            pruefe(false, "Hang: Beinanimationen gerechnet" + r + " - " + std::to_string(a != nullptr ? a->hangBeine.size() : 0U));
+            continue;
+        }
+        const double t0 = a->hangBeine[0].first;
+        const double t1 = a->hangBeine[1].first;
+        const ActorState st = a->at(t1 + 10.0);
+        pruefe(a->hangBeine[0].second == "LEGS_S1_LUP1" && a->hangBeine[1].second == "LEGS_S1_LUP2" && std::fabs(t1 - t0 - 150.0) < 0.5 &&
+                   st.animation == "LEGS_S1_LUP2" && st.torsoAnimation == "BOTH_STAND1",
+               "Hang: LUP1 bei " + std::to_string(static_cast<int>(t0)) + ", LUP2 150 ms spaeter, Oberkoerper BOTH_STAND1" + r + " - " +
+                   a->hangBeine[0].second + "/" + a->hangBeine[1].second + " nach " + std::to_string(static_cast<int>(t1 - t0)) + " ms, " +
+                   st.animation + " / " + st.torsoAnimation);
+        // Auf ebenem Boden: keine Hanganimation.
+        Welt eben = w;
+        eben.spur = bodenUeberall;
+        eben.karte.replace(eben.karte.find("-4 0 32"), 7, "-4 0 24");
+        Lauf l2;
+        fahre(eben, sp.nr, l2);
+        const Actor* a2 = l2.szene.find("held");
+        pruefe(a2 != nullptr && a2->hangBeine.empty(), "ebener Boden: keine Hanganimation" + r);
+    }
+}
+
+// --- 5. SET_ANIM einer Animation, die das Modell nicht hat --------------------
+void animOhneBilder() {
+    std::printf("--- 5. SET_ANIM ohne Bilder ---\n");
+    for (const Spiel& sp : kSpiele) {
+        const std::string r = std::string(" (") + sp.name + ")";
+        Welt w;
+        w.karte = kKarte4;
+        w.anims = {"BOTH_STAND1", "BOTH_DEATH12"};
+        w.skript = affect4("\tset ( /*@SET_TYPES*/ \"SET_ANIM_BOTH\", \"BOTH_DEADFORWARD1\" );\r\n"
+                           "\tset ( /*@SET_TYPES*/ \"SET_ANIM_HOLDTIME_BOTH\", -1 );\r\n"
+                           "\twait ( 500.000 );\r\n"
+                           "\tset ( /*@SET_TYPES*/ \"SET_ANIM_BOTH\", \"BOTH_DEATH12\" );\r\n"
+                           "\tset ( /*@SET_TYPES*/ \"SET_ANIM_HOLDTIME_BOTH\", -1 );\r\n");
+        Lauf l;
+        fahre(w, sp.nr, l);
+        const std::string a0 = animBei(l, 300.0);
+        const std::string a1 = animBei(l, 800.0);
+        pruefe(a0 == "BOTH_STAND1" && a1 == "BOTH_DEATH12",
+               "PM_HasAnimation: BOTH_DEADFORWARD1 (nicht im Modell) setzt nichts, BOTH_DEATH12 schon" + r + " - " + a0 + " / " + a1);
+    }
+}
+
 void hocke() {
     std::printf("--- 4. Gehen in der Hocke ---\n");
     for (const Spiel& sp : kSpiele) {
@@ -686,6 +815,8 @@ int main() {
     tod();
     markenspeicher();
     hocke();
+    hang();
+    animOhneBilder();
     std::printf("%d Fehler\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

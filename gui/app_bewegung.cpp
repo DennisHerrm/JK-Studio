@@ -451,6 +451,8 @@ void schwerkraftVorschau(bool mitMovern) {
         return false;
     };
     schwerkraftEinrechnen(g_app->scene, h);
+    // Pruefung 3: DeathFX und Abwurf vom Ort, an dem die Figur nun steht
+    todesFolgenHoehe(g_app->scene, navWeltVorschau());
     std::size_t figuren = 0;
     for (const Actor& a : g_app->scene.actors) {
         if (!a.hoehe.empty()) { ++figuren; }

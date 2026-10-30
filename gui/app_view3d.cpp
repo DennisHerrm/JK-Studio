@@ -4795,6 +4795,34 @@ bool figurHandPunkt(const Actor& a, const App::ActorAssets& assets, double ms, f
     return false;
 }
 
+bool figurFussPunkte(const Actor& a, const App::ActorAssets& assets, double ms, float links[3], float rechts[3]) {
+    std::string modell;
+    std::string typ = a.npcType;
+    for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    if (const auto it = g_app->npcMap.find(typ); it != g_app->npcMap.end()) { modell = it->second.playerModel; }
+    std::string klasse = a.klasse;
+    for (char& c : klasse) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+    const int spiel = regelwerkJediOutcast() ? kRegelwerkJediOutcast
+                      : regelwerkMovieDuels() ? kRegelwerkMovieDuels : kRegelwerkOpenJK;
+    const bool atst = klasse == "CLASS_ATST";
+    if (!atst && !standardHumanoid(modell, assets.model.animFile, spiel)) { return false; }
+    const ActorState st = a.at(ms);
+    ActorDraw d;
+    std::vector<BoneMatrix> welt;
+    float fw[16];
+    if (!figurPose(a, assets, st, ms, d, welt, fw)) { return false; }
+    float* ziel[2] = {links, rechts};
+    const char* namen[2] = {atst ? "*l_foot" : "*l_leg_foot", atst ? "*r_foot" : "*r_leg_foot"};
+    for (int i = 0; i < 2; ++i) {
+        BoneMatrix bm{};
+        if (!boltMatrix(*d.model, surfaceIndex(*d.model, namen[i]), welt, *d.anim, bm)) { return false; }
+        for (int r = 0; r < 3; ++r) {
+            ziel[i][r] = fw[r * 4 + 0] * bm.m[0][3] + fw[r * 4 + 1] * bm.m[1][3] + fw[r * 4 + 2] * bm.m[2][3] + fw[r * 4 + 3];
+        }
+    }
+    return true;
+}
+
 // rc601 saber: der Kopfausschlag zum Blickziel - aus der Figurenschleife
 // herausgezogen (er dreht drei Knochen und damit auch die Arme mit).
 void figurKopfGier(const ActorState& st, ActorDraw& d) {
@@ -6001,6 +6029,14 @@ void prepareScene() {
                 return false;
             }
             return figurHandPunkt(a, *g_app->actorAssets[it->second], ms, h, r);
+        };
+        // Pruefung 3: die Fuesse fuer PM_AdjustStandAnimForSlope
+        hilfe.fussPunkte = [index](const Actor& a, double ms, float l[3], float r[3]) {
+            const auto it = index.find(a.name);
+            if (it == index.end() || it->second >= g_app->actorAssets.size() || !g_app->actorAssets[it->second]) {
+                return false;
+            }
+            return figurFussPunkte(a, *g_app->actorAssets[it->second], ms, l, r);
         };
         hilfe.waffenGegenstand = [](const std::string& w, NavVec& mi, NavVec& ma) {
             const Gegenstand* g = gegenstandFuerWaffe(w);

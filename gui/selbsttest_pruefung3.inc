@@ -151,6 +151,28 @@ std::vector<Schritt> pruefung3Schritte() {
                      (z->fehler.empty() ? "" : ", Fehler:" + z->fehler));
         return z->bereit && da && d < 30.0F && std::fabs(nick) < 30.0F;
     }));
+    // 4b: die Fussbolzen fuer PM_FootSlopeTrace ("*l_leg_foot"/"*r_leg_foot") des
+    // gezeichneten Skeletts liegen an den Fuessen - und auf ebenem Boden bleibt
+    // es bei BOTH_STAND1 (PM_AdjustStandAnimForSlope: diff 0 -> qfalse).
+    add(pruefe("Pruefung3 4b: Fussbolzen von p3_steht unten neben dem Ursprung, auf ebenem Boden keine Hanganimation", [=] {
+        const int i = pruefung3::figur("p3_steht");
+        if (i < 0 || static_cast<std::size_t>(i) >= g_app->actorAssets.size() || !g_app->actorAssets[static_cast<std::size_t>(i)]) {
+            return false;
+        }
+        const Actor& a = g_app->scene.actors[static_cast<std::size_t>(i)];
+        float l[3]{};
+        float r[3]{};
+        const bool da = figurFussPunkte(a, *g_app->actorAssets[static_cast<std::size_t>(i)], 1000.0, l, r);
+        const ActorState st = a.at(1000.0);
+        const auto nahDran = [&st](const float* f) {
+            const float dx = f[0] - st.pos[0];
+            const float dy = f[1] - st.pos[1];
+            return std::sqrt(dx * dx + dy * dy) < 24.0F && f[2] < st.pos[2] - 12.0F && f[2] > st.pos[2] - 30.0F;
+        };
+        diag::detail("Knopftest: Pruefung3 4b - p3_steht bei " + mission1::v3(st.pos) + ": Fuss links " + mission1::v3(l) + ", rechts " +
+                     mission1::v3(r) + ", Hangbeine " + std::to_string(a.hangBeine.size()) + ", Beine " + st.animation);
+        return da && nahDran(l) && nahDran(r) && st.animation == "BOTH_STAND1";
+    }));
     for (const char* name : {"p3_ruecken", "p3_schlaeft"}) {
         const bool ruecken = std::string(name) == "p3_ruecken";
         add(pruefe(std::string("Pruefung3 1: ") + name + " getoetet - Todesanimation nach dem Vorzeichen von torsoAngles PITCH aus dem Skelett" +
@@ -267,8 +289,14 @@ std::vector<Schritt> pruefung3Schritte() {
                    "\tset ( /*@SET_TYPES*/ \"SET_BEHAVIOR_STATE\", \"BS_CINEMATIC\" );\r\n" + zeilen +
                    "\twait ( 1000.000 );\r\n\tkill ( \"" + name + "\" );\r\n}\r\n\r\n";
         };
+        // Eine Kamera neben den beiden, die bis 4 s laeuft - so lang ist die
+        // Szene, und der Hoerer steht nah genug fuer CHAN_VOICE.
+        const float k[3] = {z->ort[0] - 160.0F, z->ort[1] - 120.0F, z->ort[2] + 80.0F};
+        const std::string kamera = "camera ( /*@CAMERA_COMMANDS*/ ENABLE );\r\ncamera ( /*@CAMERA_COMMANDS*/ MOVE, < " + mission1::v3(k) +
+                                   " >, 0.000 );\r\ncamera ( /*@CAMERA_COMMANDS*/ PAN, < 15.000 30.000 0.000 >, < 0.000 0.000 0.000 >, 0.000 );\r\n\r\n";
         pruefung3::szeneBauen(*z, "p3tod", {{"p3_blaster", 0.0F, 0.0F}, {"p3_droide", 96.0F, 0.0F}},
-                              block("p3_blaster", "\tset ( /*@SET_TYPES*/ \"SET_WEAPON\", \"WP_BLASTER\" );\r\n") + block("p3_droide", ""));
+                              kamera + block("p3_blaster", "\tset ( /*@SET_TYPES*/ \"SET_WEAPON\", \"WP_BLASTER\" );\r\n") + block("p3_droide", "") +
+                                  "wait ( 4000.000 );\r\ncamera ( /*@CAMERA_COMMANDS*/ DISABLE );\r\n");
         for (std::size_t i = 0; i < g_app->map.entities.size(); ++i) {
             const std::string* n = g_app->map.entities[i].find("NPC_targetname");
             if (n != nullptr && *n == "p3_droide") { (void)entityKeySetzen(static_cast<int>(i), "NPC_type", "r2d2"); }

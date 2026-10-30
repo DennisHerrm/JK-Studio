@@ -834,6 +834,11 @@ struct Actor {    std::string name;        // der Name aus dem affect
     // und SCF_CROUCHED beim Planen (SET_CROUCHED in Zeitfolge).
     float hockHoehe = 16.0F;
     bool hockSchalter = false;
+    // Pruefung 3: PM_AdjustStandAnimForSlope (bg_pmove.cpp:7443-7816 OJ) - die
+    // Beinanimation am Hang je Denkbild ab der Zeit (leer: keine), in buildOnce
+    // aus den Fussbolzen und den Spuren gerechnet. at() nimmt sie nur, wo
+    // PM_Footsteps die Standanimation setzt (hangStandErlaubt).
+    std::vector<std::pair<double, std::string>> hangBeine;
     // rc601 (bewegung, R5): NPC_UpdateAngles (NPC_utils.cpp:274-290 MD) dreht
     // einen Rocket Trooper ohne Feind mit yawSpeed 1, eine Figur mit
     // WP_EMPLACED_GUN mit 20 - unabhaengig von .npc und SET_YAWSPEED. In Grad
@@ -900,14 +905,21 @@ struct TodesFolge {
     std::string figur;   // affect-Name
     std::vector<TodKlang> klaenge;
     std::vector<TodEffekt> effekte;
+    float rohZ = 0.0F;   // Z der Figur, von dem die Orte gerechnet sind (todesFolgenHoehe)
 };
 // Pruefung 3: was die Figur fallen laesst (bhed/abwurf.h).
 struct TodesAbwurf {
     std::string figur;
     enum class Art : std::uint8_t { Waffe, Schwert, Kristall } art = Art::Waffe;
     std::string waffe;    // Waffe: "WP_..." (FindItemForWeapon); Schwert: das Griffmodell (.glm)
+    AbwurfStart start;    // woraus die Bahn gerechnet ist
+    float rohZ = 0.0F;    // Z der Figur dazu (todesFolgenHoehe)
     AbwurfBahn bahn;
 };
+// Pruefung 3: Actor::hoehe (schwerkraftEinrechnen) kommt erst nach
+// buildScene - danach die Orte der Todesfolgen (DeathFX, Abwurf) vom Ort, an
+// dem die Figur dann stirbt, und die Bahnen neu (die Spuren der Welt).
+void todesFolgenHoehe(Scene& s, const std::shared_ptr<const NavWelt>& welt);
 
 struct Scene {
     std::vector<Actor> actors;
@@ -998,10 +1010,24 @@ struct SzenenHilfe {
     std::function<bool(const std::string& waffe, NavVec& mins, NavVec& maxs)> waffenGegenstand;
     // Pruefung 3: der Kristall des Shadowtroopers (FindItemForAmmo(AMMO_FORCE)).
     std::function<bool(NavVec& mins, NavVec& maxs)> kraftGegenstand;
+    // Pruefung 3: renderInfo.footLPoint/footRPoint - die Bolzen footLBolt
+    // "*l_leg_foot" und footRBolt "*r_leg_foot" des gezeichneten Skeletts zur
+    // Zeit ms (G_SetG2PlayerModelInfo legt sie fuer G_StandardHumanoid und den
+    // ATST an). false: die Figur hat sie nicht - dann kein Hang.
+    std::function<bool(const struct Actor& figur, double ms, float links[3], float rechts[3])> fussPunkte;
 };
 
 [[nodiscard]] Scene buildScene(const Script& s, const MapData& map,
                                const SzenenHilfe* hilfe = nullptr);
+
+// Pruefung 3: PM_AdjustStandAnimForSlope, Schritte 4-7 (bg_pmove.cpp:7464-7816
+// OJ): aus der Hoehendifferenz der Fuesse (links - rechts, PM_FootSlopeTrace)
+// und der jetzigen Beinanimation die neue - leer: qfalse (PM_Footsteps setzt die
+// gewoehnliche Standanimation). neuRechnen ist client->slopeRecalcTime.
+[[nodiscard]] std::string hangBeinSchritt(const std::string& beine, float diff, bool atst, double t, double& neuRechnen);
+// Pruefung 3: setzt PM_Footsteps hier eine Standanimation, die PM_AdjustStand-
+// AnimForSlope kennt? (steht, kein Timer der Beine, eine bekannte Haltung)
+[[nodiscard]] bool hangStandErlaubt(const struct ActorState& st, double beineBis, double ms);
 
 // Die Effekt-Notizen der ROFF-Bahnen als Effektstarts (rc592).
 //

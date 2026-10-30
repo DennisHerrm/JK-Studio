@@ -1599,6 +1599,22 @@ ActorState Actor::at(double ms) const {
             st.pos[2] = hoehe[i] + (hoehe[j] - hoehe[i]) * r;
         }
     }
+    // Pruefung 3: PM_AdjustStandAnimForSlope - PM_SetAnim(SETANIM_LEGS, ...,
+    // SETANIM_FLAG_NORMAL): nur die Beine; der Oberkoerper bleibt in der Haltung.
+    if (!hangBeine.empty() && hangStandErlaubt(st, beineBis, ms)) {
+        const auto it = std::upper_bound(hangBeine.begin(), hangBeine.end(), ms,
+                                         [](double m, const std::pair<double, std::string>& e) { return m < e.first; });
+        if (it != hangBeine.begin() && !std::prev(it)->second.empty()) {
+            const auto& [ab, beine] = *std::prev(it);
+            if (st.torsoAnimation.empty()) {
+                st.torsoAnimation = st.animation;
+                st.torsoStartMs = st.animStartMs;
+            }
+            st.animation = beine;
+            st.animStartMs = ab;
+            st.prevAnimation.clear();
+        }
+    }
     st.beineTimerBisMs = beineBis;
     return st;
 }
@@ -2298,6 +2314,121 @@ LaufZustand laufZustandBei(const Actor& a, double t) {
     return zustandBei(*plan, t);
 }
 
+// Pruefung 3: die Familie einer Beinanimation fuer PM_AdjustStandAnimForSlope
+// ("adjust for current legs anim", bg_pmove.cpp:7509-7612 OJ): S1, "" (die
+// allgemeine LEGS_LEFTUP/RIGHTUP), S3 .. S7; "?" keine (BOTH_STAND6 und alles
+// andere: qfalse).
+std::string hangFamilie(const std::string& a) {
+    if (a == "BOTH_STAND1") { return "S1"; }
+    if (a == "BOTH_STAND2" || a == "BOTH_SABERFAST_STANCE" || a == "BOTH_SABERSLOW_STANCE" || a == "BOTH_CROUCH1IDLE" ||
+        a == "BOTH_CROUCH1" || a.rfind("LEGS_LEFTUP", 0) == 0 || a.rfind("LEGS_RIGHTUP", 0) == 0) {
+        return "";
+    }
+    if (a == "BOTH_STAND3") { return "S3"; }
+    if (a == "BOTH_STAND4") { return "S4"; }
+    if (a == "BOTH_STAND5") { return "S5"; }
+    if (a == "BOTH_SABERDUAL_STANCE") { return "S6"; }
+    if (a == "BOTH_SABERSTAFF_STANCE") { return "S7"; }
+    if (a.size() == 12U && a.rfind("LEGS_S", 0) == 0 && a[7] == '_') { return a.substr(5, 2); }
+    return "?";
+}
+// Seite und Stufe einer Hanganimation (LEGS_S1_LUP3: 'L', 3), 0 sonst.
+int hangStufe(const std::string& a, char& seite) {
+    if (a.empty() || std::isdigit(static_cast<unsigned char>(a.back())) == 0) { return 0; }
+    if (a.rfind("LEGS_LEFTUP", 0) == 0) { seite = 'L'; return a.back() - '0'; }
+    if (a.rfind("LEGS_RIGHTUP", 0) == 0) { seite = 'R'; return a.back() - '0'; }
+    if (a.size() == 12U && a.rfind("LEGS_S", 0) == 0 && a[7] == '_') {
+        seite = a[8];
+        return a.back() - '0';
+    }
+    return 0;
+}
+std::string hangName(const std::string& familie, char seite, int stufe) {
+    if (familie.empty()) { return std::string(seite == 'L' ? "LEGS_LEFTUP" : "LEGS_RIGHTUP") + std::to_string(stufe); }
+    return "LEGS_" + familie + (seite == 'L' ? "_LUP" : "_RUP") + std::to_string(stufe);
+}
+
+// PM_FootSlopeTrace (bg_pmove.cpp:7187-7325 OJ): die Fussbolzen auf
+// currentOrigin[2] + mins[2] + 1, je ein Kasten (+-3, 0..1; ATST +-16)
+// interval * 10 hinab (pm->tracemask, ohne sich selbst); diff = links - rechts.
+float fussHangDiff(const NavSpurFn& spur, const float l[3], const float r[3], const NavVec& ort, float minsZ, bool atst, int ich) {
+    const float interval = atst ? 10.0F : 4.0F;
+    const float z0 = ort[2] + minsZ + 1.0F;
+    const NavVec mi = atst ? NavVec{-16.0F, -16.0F, 0.0F} : NavVec{-3.0F, -3.0F, 0.0F};
+    const NavVec ma = atst ? NavVec{16.0F, 16.0F, 1.0F} : NavVec{3.0F, 3.0F, 1.0F};
+    float h[2] = {0.0F, 0.0F};
+    const float* fuss[2] = {l, r};
+    for (int i = 0; i < 2; ++i) {
+        const NavVec a{fuss[i][0], fuss[i][1], z0};
+        const NavVec b{fuss[i][0], fuss[i][1], z0 - interval * 10.0F};
+        h[i] = spur ? spur(a, mi, ma, b, ich, kNavMaskNpcSolid).endpos[2] : b[2];
+    }
+    return h[0] - h[1];
+}
+
+// buildOnce: je Figur (NPC, G_StandardHumanoid oder ATST - fussPunkte liefert nur
+// mit den Bolzen) und Denkbild PM_AdjustStandAnimForSlope, wo PM_Footsteps die
+// Standanimation setzt. Steht die Figur still auf einer Stelle, deren Boden unter
+// dem Kasten eben ist, aendert sich nichts: diff ist dort 0 - das prueft eine
+// Spur je Stelle, bevor die Fuesse gerechnet werden.
+void hangBeineRechnen(Scene& out, const SzenenHilfe* hilfe) {
+    if (hilfe == nullptr || !hilfe->fussPunkte || !hilfe->nav) { return; }
+    const std::shared_ptr<const NavWelt> welt = hilfe->nav;
+    for (Actor& a : out.actors) {
+        if (a.npcType.empty() || a.echterSpieler || a.brushModel > 0) { continue; }
+        const bool atst = sameName(a.klasse, "CLASS_ATST");
+        double neuRechnen = -1.0e300;   // client->slopeRecalcTime
+        double ende = out.durationMs;
+        for (const ActorStep& s : a.steps) { ende = std::max(ende, s.endMs); }
+        bool ebenBekannt = false;
+        NavVec ebenOrt{};
+        bool eben = false;
+        // bis zum Ende der Schritte - und solange sich die Beine noch aendern
+        // (hoechstens neun Stufen zu je SLOPE_RECALC_INT bis zum Ziel)
+        double grenze = ende + kNavDenkMs;
+        for (double t = navDenkbildAb(std::max(0.0, a.erscheintMs)); t <= grenze; t += kNavDenkMs) {
+            const ActorState st = a.at(t);   // legsAnim mit den Hangbeinen bis hierher
+            std::string ziel;
+            if (hangStandErlaubt(st, st.beineTimerBisMs, t)) {
+                NavSpurFn spur = welt->spur;
+                if (welt->spurZeit) {
+                    spur = [welt, t](const NavVec& s0, const NavVec& mi, const NavVec& ma, const NavVec& e0, int ign, std::uint32_t m) {
+                        return welt->spurZeit(s0, mi, ma, e0, ign, m, t);
+                    };
+                }
+                const NavVec ort{st.pos[0], st.pos[1], st.pos[2]};
+                if (!ebenBekannt || ort != ebenOrt) {
+                    // eben: ein Kasten ueber den ganzen Grundriss (+ der Fusskasten)
+                    // trifft dort, wo ein Strahl in der Mitte trifft, auf eine waagrechte Flaeche
+                    const float z0 = ort[2] - kFussTiefe + 1.0F;
+                    const float tief = (atst ? 10.0F : 4.0F) * 10.0F;
+                    const float b = a.halbBreite + (atst ? 16.0F : 3.0F);
+                    const NavSpur gross = spur ? spur({ort[0], ort[1], z0}, {-b, -b, 0.0F}, {b, b, 1.0F}, {ort[0], ort[1], z0 - tief}, a.kartenEntity,
+                                                     kNavMaskNpcSolid)
+                                               : NavSpur{};
+                    const NavSpur mitte = spur ? spur({ort[0], ort[1], z0}, {0.0F, 0.0F, 0.0F}, {0.0F, 0.0F, 0.0F}, {ort[0], ort[1], z0 - tief},
+                                                     a.kartenEntity, kNavMaskNpcSolid)
+                                               : NavSpur{};
+                    eben = spur && !gross.startsolid && gross.fraction < 1.0F && gross.normal[2] >= 0.999F &&
+                           std::fabs(gross.endpos[2] - mitte.endpos[2]) < 0.001F;
+                    ebenBekannt = true;
+                    ebenOrt = ort;
+                }
+                float l[3];
+                float r[3];
+                if (!eben && hilfe->fussPunkte(a, t, l, r)) {
+                    const float diff = fussHangDiff(spur, l, r, ort, -kFussTiefe, atst, a.kartenEntity);
+                    ziel = hangBeinSchritt(st.animation, diff, atst, t, neuRechnen);
+                }
+            }
+            if (a.hangBeine.empty() ? !ziel.empty() : a.hangBeine.back().second != ziel) {
+                a.hangBeine.emplace_back(t, ziel);
+                grenze = std::max(grenze, t + 1000.0 + kNavDenkMs);
+            }
+        }
+    }
+}
+
 // Pruefung 3: was der Tod ausser der Animation ausloest - Klaenge, DeathFX,
 // die Waffe verschwindet oder faellt, das Schwert faellt aus der Hand
 // (player_die, TossClientItems, WP_SaberLose; bhed/todesanim.h, abwurf.h).
@@ -2309,6 +2440,7 @@ void todesFolgenAnlegen(Scene& out, Actor& a, const ActorState& st, const TodLag
         f.figur = a.name;
         f.klaenge = tod.klaenge;
         f.effekte = tod.effekte;
+        f.rohZ = st.pos[2];
         out.todesFolgen.push_back(std::move(f));
     }
     // s.weapon = WP_NONE und G_RemoveWeaponModels - das Modell geht aus der Hand
@@ -2353,6 +2485,8 @@ void todesFolgenAnlegen(Scene& out, Actor& a, const ActorState& st, const TodLag
         ab.figur = a.name;
         ab.art = art;
         ab.waffe = waffe;
+        ab.start = s;
+        ab.rohZ = st.pos[2];
         ab.bahn = wirfGegenstand(s, spur);
         out.abwuerfe.push_back(std::move(ab));
     };
@@ -2408,11 +2542,110 @@ void todesFolgenAnlegen(Scene& out, Actor& a, const ActorState& st, const TodLag
             ab.figur = a.name;
             ab.art = TodesAbwurf::Art::Schwert;
             ab.waffe = griff;
+            ab.start = s;
+            ab.rohZ = st.pos[2];
             ab.bahn = wirfSchwert(s, spur);
             out.abwuerfe.push_back(std::move(ab));
         }
     }
 }
+
+}  // namespace
+
+void todesFolgenHoehe(Scene& s, const std::shared_ptr<const NavWelt>& welt) {
+    for (TodesFolge& f : s.todesFolgen) {
+        const Actor* a = s.find(f.figur);
+        if (a == nullptr) { continue; }
+        const float z = a->at(f.ms).pos[2];
+        for (TodEffekt& e : f.effekte) { e.ort[2] += z - f.rohZ; }
+        f.rohZ = z;
+    }
+    for (TodesAbwurf& ab : s.abwuerfe) {
+        const Actor* a = s.find(ab.figur);
+        if (a == nullptr) { continue; }
+        const float z = a->at(ab.start.ms).pos[2];
+        if (z == ab.rohZ) { continue; }
+        ab.start.ort[2] += z - ab.rohZ;
+        ab.rohZ = z;
+        NavSpurFn spur;
+        if (welt) {
+            const double wann = ab.start.ms;
+            if (welt->spurZeit) {
+                spur = [welt, wann](const NavVec& s0, const NavVec& mi, const NavVec& ma, const NavVec& e0, int ign, std::uint32_t m) {
+                    return welt->spurZeit(s0, mi, ma, e0, ign, m, wann);
+                };
+            } else {
+                spur = welt->spur;
+            }
+        }
+        ab.bahn = ab.art == TodesAbwurf::Art::Schwert ? wirfSchwert(ab.start, spur) : wirfGegenstand(ab.start, spur);
+    }
+}
+
+bool hangStandErlaubt(const ActorState& st, double beineBis, double ms) {
+    if (st.moving || st.removed || !st.visible) { return false; }
+    // SETANIM_FLAG_NORMAL: nur ohne laufenden Timer der Beine
+    if (beineBis >= 0.0 && !(beineBis < 1.0e300 && ms > beineBis)) { return false; }
+    return hangFamilie(st.animation) != "?";
+}
+
+std::string hangBeinSchritt(const std::string& beine, float diff, bool atst, double t, double& neuRechnen) {
+    constexpr double kSlopeRecalcInt = 100.0;   // SLOPE_RECALC_INT (bg_pmove.cpp:7441 OJ)
+    const float interval = atst ? 10.0F : 4.0F;
+    // step 4: LEGS_LEFTUP1..5 / LEGS_RIGHTUP1..5
+    char seite = 0;
+    int stufe = 0;
+    for (int k = 5; k >= 1 && stufe == 0; --k) {
+        if (diff >= interval * static_cast<float>(k)) {
+            seite = 'L';
+            stufe = k;
+        }
+    }
+    for (int k = 5; k >= 1 && stufe == 0; --k) {
+        if (diff <= -interval * static_cast<float>(k)) {
+            seite = 'R';
+            stufe = k;
+        }
+    }
+    if (stufe == 0) { return {}; }
+    // die Familie nach legsAnim (nur Menschen; der ATST bleibt bei LEFTUP/RIGHTUP)
+    std::string familie;
+    if (!atst) {
+        familie = hangFamilie(beine);
+        if (familie == "?") { return {}; }
+    }
+    // step 6: steht sie schon am Hang, eine Stufe je SLOPE_RECALC_INT - in der
+    // Reihenfolge der Nummern (anims.h: LUP1..5, dann RUP1..5)
+    char altSeite = 0;
+    const int alt = hangStufe(beine, altSeite);
+    if (alt != 0) {
+        const int altNr = (altSeite == 'L' ? 0 : 5) + alt;
+        const int zielNr = (seite == 'L' ? 0 : 5) + stufe;
+        int nr = altNr;
+        if (zielNr > altNr && neuRechnen < t) {
+            nr = altNr + 1;
+            neuRechnen = t + kSlopeRecalcInt;
+        } else if (zielNr < altNr && neuRechnen < t) {
+            nr = altNr - 1;
+            neuRechnen = t + kSlopeRecalcInt;
+        }
+        return hangName(familie, nr > 5 ? 'R' : 'L', nr > 5 ? nr - 5 : nr);
+    }
+    // "in a stand of some sort": erst Stufe 1
+    const bool stand = atst ? (beine == "BOTH_STAND1" || beine == "BOTH_STAND2" || beine == "BOTH_CROUCH1IDLE")
+                            : (beine == "BOTH_STAND1" || beine == "BOTH_STAND2" || beine == "BOTH_SABERFAST_STANCE" ||
+                               beine == "BOTH_SABERSLOW_STANCE" || beine == "BOTH_CROUCH1IDLE" || beine == "BOTH_STAND3" ||
+                               beine == "BOTH_STAND4" || beine == "BOTH_STAND5" || beine == "BOTH_SABERDUAL_STANCE" ||
+                               beine == "BOTH_SABERSTAFF_STANCE");
+    if (stand) {
+        neuRechnen = t + kSlopeRecalcInt;
+        return hangName(familie, seite, 1);
+    }
+    // ohne Fall in der Liste (BOTH_CROUCH1, beim ATST jede andere): step 7 setzt das Ziel
+    return hangName(familie, seite, stufe);
+}
+
+namespace {
 
 // Was player_die von `self` liest (bhed/todesanim.h, TodLage).
 TodLage todesLage(const Actor& a, const ActorState& st, const LaufZustand& lauf, double wann, bool schonTot,
@@ -4427,6 +4660,11 @@ Scene buildOnce(const Script& s, const MapData& map,
                   std::pair{"SET_ANIM_UPPER", AnimPart::Upper},
                   std::pair{"SET_ANIM_LOWER", AnimPart::Lower}}) {
                 if (const std::string* v = setValue(child, key)) {
+                    // Pruefung 3: Q3_SetAnimLower/Upper (Q3_Interface.cpp OJ):
+                    // "if ( !PM_HasAnimation( ent, animID ) ) return qfalse;" -
+                    // eine Animation, die das Modell nicht hat (numFrames 0) oder
+                    // die animTable nicht kennt, setzt nichts.
+                    if (hilfe != nullptr && hilfe->hatAnim && !hilfe->hatAnim(actor->name, *v)) { break; }
                     ActorStep step;
                     step.kind = ActorStep::Kind::Anim;
                     step.startMs = t;
@@ -4967,6 +5205,9 @@ Scene buildOnce(const Script& s, const MapData& map,
     }
     std::stable_sort(out.roffEreignisse.begin(), out.roffEreignisse.end(),
                      [](const RoffEreignis& x, const RoffEreignis& y) { return x.ms < y.ms; });
+    std::stable_sort(out.todesFolgen.begin(), out.todesFolgen.end(),
+                     [](const TodesFolge& x, const TodesFolge& y) { return x.ms < y.ms; });
+    hangBeineRechnen(out, hilfe);   // Pruefung 3: die Beine am Hang
     return out;
 }
 

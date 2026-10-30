@@ -3380,6 +3380,10 @@ bool figurRumpfWinkel(const Actor& a, const App::ActorAssets& assets, double ms,
 // Pruefung 3: renderInfo.handRPoint (Bolzen "*r_hand") und muzzleDir (Richtung
 // der ersten Klinge des Schwerts in der rechten Hand) zur Zeit ms.
 bool figurHandPunkt(const Actor& a, const App::ActorAssets& assets, double ms, float hand[3], float richtung[3]);
+// Pruefung 3: renderInfo.footLPoint/footRPoint (footLBolt/footRBolt) zur Zeit ms -
+// nur G_StandardHumanoid ("*l_leg_foot") und CLASS_ATST ("*l_foot"), wie
+// PM_AdjustStandAnimForSlope es verlangt.
+bool figurFussPunkte(const Actor& a, const App::ActorAssets& assets, double ms, float links[3], float rechts[3]);
 // Pruefung 3: items.dat des Regelwerks (FindItemForWeapon/FindItemForAmmo).
 const Gegenstandsliste& gegenstandslisteJetzt();
 // Pruefung 3: der Gegenstand einer Waffe (giType IT_WEAPON, giTag == waffe)
