@@ -205,23 +205,29 @@ Stand:
   Test: `mission1::probeFoto` schreibt immer, ohne BHED_FOTOS nach
   `<Programmordner>\m1_fotos`, `FotoBild::lesen` liest dort. Gruen: mission1
   ohne BHED_FOTOS 98 OK, 0 FEHLER (30.10., Lauf m1ohne).
-- Punkt 3 (Schwert mit ausgeschalteter Klinge) begonnen, nicht eingecheckt:
-  SP\p4a\wip_punkt3_abwurf.patch (abwurf.h/.cpp). Inhalt: AbwurfBahn als
-  trajectory_t je Serverbild (cgame wertet s.pos/s.apos zur Zeit cg.time aus),
-  WP_SaberThrow fuer den toten Besitzer (Haengen innerhalb 16 von handRPoint
-  nach WP_SaberDrop, Klinge aus: WP_SaberLaunch, im naechsten Denkbild
-  WP_RunSaber-Zielen mit saberEntityDist und WP_SaberDrop mit soundOff),
-  apos-Basis nach WP_SaberDrop = currentAngles (0,0,0 statt muzzleDir), JK2:
-  liegendes Schwert erst 5 s nach WP_SaberDrop fort, hitTime als int.
-  Gelesen und fuer die Fortsetzung festgehalten:
-  - Es fehlen noch: Szene (todesFolgenAnlegen: klingeAus, wurfStufe aus .npc
-    "FP_SABERTHROW" (OJ/MD; JK2 setzt in WP_SaberLose FORCE_LEVEL_1), blick,
-    ausKlang, haltung = Hand + eyePoint je Zeit, feind = WP_SaberFindEnemy),
-    todesanim (schwertFaellt auch bei Klinge aus, Klang nur mit Klinge),
-    eyePoint-Haken (headBolt je Klasse: g_client.cpp G_SetG2PlayerModelInfo,
-    "*head_eyes"/"cranium"/"*head"/"*head_f1"/"*headg"/-1 -> ent.origin),
-    pruefung3-Test anpassen (Hand bewegt sich, sonst haengt das Schwert fuer
-    immer - so auch im Spiel).
+- Punkt 3 (Schwert mit ausgeschalteter Klinge) fertig (c1112bc2):
+  TossClientItems -> WP_SaberLose wirft jetzt auch mit ausgeschalteter Klinge
+  (WP_SaberLaunch immer, WP_SaberDrop nur mit brennender). AbwurfBahn ist eine
+  trajectory_t je Serverbild (cgame wertet s.pos/s.apos zur Zeit cg.time aus).
+  WP_SaberThrow fuer den toten Besitzer: nach WP_SaberDrop wartet das Schwert,
+  solange es hoechstens 16 von handRPoint ist (WP_SaberCatch faengt nicht) -
+  bleibt die Hand, haengt es (cgame zeichnet TR_GRAVITY weiter, so im Spiel);
+  Klinge aus: im naechsten Denkbild zielt WP_RunSaber es einmal (saberEntityDist
+  aus FP_SABERTHROW der .npc, JK2 FORCE_LEVEL_1; Heim = Hand unter 100, sonst
+  eyePoint aus dem headBolt, npcklasse kopfBolzen; Stufe 3 WP_SaberFindEnemy
+  mit G_ClearLOS/InFront/inPVS/WP_SaberRateEnemy, nur nach kill - trigger_hurt
+  setzt self->enemy), dann WP_SaberDrop mit soundOff. JK2: liegendes Schwert
+  erst 5 s nach WP_SaberDrop fort. apos nach WP_SaberDrop ab currentAngles
+  (0, G_Spawn). Die Bahn entsteht am Ende von buildScene und nach der
+  Schwerkraft neu (todesFolgenHoehe mit Hand/Auge aus figurHakenSetzen).
+  - Rot (alte Regel schwertFaellt = klingeAn): pruefung3 6 Fehler ("Klinge aus,
+    FP_SABERTHROW 0/2/1"); gruen 153 OK, 0 Fehler; ctest 178/178.
+  - Abweichungen: Stufen 4/5 lesen in OpenJK saberThrowDist[]/
+    saberThrowDistSquared[] ueber das Tabellenende - hier wie Movie Duels
+    (FP_TableLevel) Stufe 3. fwdangles[PITCH/ROLL] in WP_SaberFindEnemy sind im
+    Spiel unbelegt (Stapelinhalt) - hier 0. SET_PLAYER_TEAM kennt die Szene
+    nicht (Team aus der .npc). maxs[2] des Feindes geduckt nach der
+    Animation BOTH_CROUCH*.
 - Punkt 1/2/4/5/6/7: nur gelesen (Engine-Stellen, siehe unten), nichts gebaut.
   - Leiche: CorpsePhysics je NPC_Think (erstes Pmove nach dem Tod 1 ms wegen
     serverTime = level.time - 1000, dann 50), PM_DEAD: kein PM_CheckDuck,
