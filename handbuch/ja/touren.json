@@ -1324,6 +1324,83 @@
      }
     ]
    }
+  },
+  {
+   "id": "tut-menue-eigen",
+   "gruppe": "tut",
+   "titel": "はじめての自作メニュー",
+   "kurz": "空のエディターから、ホバーで光る 3 つのボタンが横に並んだプロジェクトまで。保存して pk3 にできる状態にします。",
+   "seite": "tut-menue-eigen.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**メニューエディターを開く。** モードバーで **{{ViewMenuEditor}}** をクリックします。",
+      "bild": "h_tut_menue_1",
+      "unter": "プロジェクトボタンのある空のメニューエディター。",
+      "ziel": "knopf:ViewMenuEditor@modebar",
+      "fertig": "modus:4",
+      "voraus": "",
+      "einrichten": "modus:4",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**プロジェクトを作る。** **{{MePrjNeu}}** をクリックし、プロジェクトファイルのフォルダーを選びます。エディターは pk3 と同じフォルダーと空の全画面メニューを作ります。",
+      "bild": "h_tut_menue_2",
+      "unter": "最初のメニューがある新しいプロジェクト。",
+      "ziel": "knopf:MePrjNeu",
+      "fertig": "zahl:menue.projekt",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**3 つのボタン。** パーツの **{{MeWButton}}** を 3 回クリックします。",
+      "bild": "h_tut_menue_3",
+      "unter": "3 つの新しいボタン。まだ重なっています。",
+      "ziel": "knopf:MeWButton",
+      "fertig": "zahl:menue.elemente+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**横に並べる。** 3 つのボタンを選び(Ctrl+クリック)、プロパティのレイアウトで **{{MeLayoutWaagrecht}}** をクリックします。",
+      "bild": "h_tut_menue_4",
+      "unter": "等間隔で横に並んだボタン。",
+      "ziel": "knopf:MeLayoutWaagrecht",
+      "fertig": "zahl:menue.layouts+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**ホバーで光る。** 最初のボタンを選び、**イベント** タブを開いて **{{MeEvLeuchten}}** をクリックします。",
+      "bild": "h_tut_menue_5",
+      "unter": "光る効果: ホバーで表示、離れると非表示。",
+      "ziel": "knopf:MeEvLeuchten",
+      "fertig": "zahl:menue.ereignisse+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**保存する。** **{{MeSpeichern}}** をクリックします。プロジェクトではすべてを保存します。その後 **{{MePrjProjekt}} > {{MePrjExport}}** でゲーム用の pk3 を作ります。",
+      "bild": "h_tut_menue_6",
+      "unter": "保存済み: プロジェクトファイルとプロジェクトフォルダーのメニュー。",
+      "ziel": "knopf:MeSpeichern",
+      "fertig": "zahl:menue.gespeichert+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }

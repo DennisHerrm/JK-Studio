@@ -878,7 +878,7 @@ Index baue(const tour::Touren& touren, const std::vector<tour::Abschnitt>& handb
     for (const tour::Tour& t : touren.liste) {
         // H2: auch Menue-Editor, Einstellungen und die Vorschau-Touren der Missionen
         const std::string bereich = t.id.rfind("tut-karte", 0) == 0                     ? "karte"
-                                    : t.id == "tut-menue"                                ? "menue"
+                                    : (t.id == "tut-menue" || t.id == "tut-menue-eigen") ? "menue"
                                     : (t.id == "k-modell" || t.id == "k-skins")          ? "modell"
                                     : (t.id == "k-spielordner" || t.id == "k-update")    ? "einstellungen"
                                     : (t.gruppe == "tut_kamera" || t.gruppe == "tut_figur" || t.gruppe == "tut_karte" ||

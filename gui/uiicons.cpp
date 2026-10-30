@@ -107,6 +107,9 @@ ImVec4 uiIconFarbe(UiIcon icon) {
         case UiIcon::ZumAnfang: c = ImVec4{0.80F, 0.82F, 0.86F, 1.0F}; break;
         case UiIcon::Schleife: c = ImVec4{0.45F, 0.75F, 1.00F, 1.0F}; break;
         case UiIcon::Ton: c = ImVec4{0.42F, 0.85F, 0.78F, 1.0F}; break;
+        case UiIcon::TonAus: c = ImVec4{1.00F, 0.55F, 0.45F, 1.0F}; break;   // aus: rot, damit man es sieht
+        case UiIcon::Schloss: c = ImVec4{1.00F, 0.75F, 0.30F, 1.0F}; break;
+        case UiIcon::SchlossOffen: c = ImVec4{0.62F, 0.66F, 0.75F, 1.0F}; break;
         case UiIcon::Folgen: c = ImVec4{0.95F, 0.40F, 0.95F, 1.0F}; break;
         case UiIcon::Zeilen: c = ImVec4{0.98F, 0.86F, 0.38F, 1.0F}; break;
         case UiIcon::Ruhig: c = ImVec4{0.62F, 0.66F, 0.75F, 1.0F}; break;
@@ -447,6 +450,20 @@ void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe)
         case UiIcon::Versteckt:   // geschlossenes Auge, durchgestrichen
             z.zug({ImVec2{1.0F, 8.0F}, ImVec2{4.5F, 10.8F}, ImVec2{8.0F, 11.8F}, ImVec2{11.5F, 10.8F}, ImVec2{15.0F, 8.0F}});
             z.linie(2.5F, 13.5F, 13.5F, 2.5F);
+            break;
+        case UiIcon::TonAus:   // Lautsprecher, daneben ein Kreuz
+            z.zug({ImVec2{1.5F, 6.0F}, ImVec2{4.5F, 6.0F}, ImVec2{8.5F, 2.5F}, ImVec2{8.5F, 13.5F}, ImVec2{4.5F, 10.0F},
+                   ImVec2{1.5F, 10.0F}}, true);
+            z.linie(10.5F, 5.5F, 15.0F, 10.5F);
+            z.linie(10.5F, 10.5F, 15.0F, 5.5F);
+            break;
+        case UiIcon::Schloss:   // geschlossenes Vorhaengeschloss
+            z.flaeche({ImVec2{3.0F, 7.5F}, ImVec2{13.0F, 7.5F}, ImVec2{13.0F, 14.5F}, ImVec2{3.0F, 14.5F}});
+            z.bogen(8.0F, 7.5F, 3.5F, kPi, kPi * 2.0F);
+            break;
+        case UiIcon::SchlossOffen:   // offenes Vorhaengeschloss (Buegel seitlich hoch)
+            z.rahmen(3.0F, 7.5F, 13.0F, 14.5F, 1.0F);
+            z.bogen(11.0F, 5.0F, 3.0F, kPi, kPi * 2.0F);
             break;
         case UiIcon::Bildschirm:   // Bild mit eingesetztem kleinem Bild unten rechts
             z.rahmen(1.5F, 2.5F, 14.5F, 13.5F, 1.0F);

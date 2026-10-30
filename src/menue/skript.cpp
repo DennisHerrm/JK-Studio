@@ -24,6 +24,8 @@
 //   GNU General Public License for more details (LICENSE).
 #include "bhed/menue/skript.h"
 
+#include "bhed/menue/profil.h"
+
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -38,6 +40,70 @@ std::string klein(std::string s) {
     return s;
 }
 bool gleich(const std::string& a, const std::string& b) { return klein(a) == klein(b); }
+
+// Befehle, die nicht jede commandList hat (c klein): code/ui (JA SP) und Movie Duels haben
+// playlooped auskommentiert; Jedi Outcast SP (jk2sp.exe 1.04, Namen im Programm gelesen) kennt
+// setitemrect, setitemtext, setitembackground, transition2/3, delay, playVoice/stopVoice,
+// setitemexec und increment-/decrementfeeder nicht. Unbekanntes geht wie im Spiel an DC->runScript.
+bool inCommandList(const std::string& c, Dialekt dl, Spiel sp) {
+    if (dl == Dialekt::SP && sp != Spiel::JK2 && c == "playlooped") { return false; }
+    if (dl == Dialekt::SP && sp == Spiel::JK2) {
+        static const char* const fehlt[] = {"setitemrect", "setitemtext", "setitembackground", "transition2", "transition3", "delay", "playvoice",
+                                            "stopvoice", "setitemexec", "incrementfeeder", "decrementfeeder"};
+        for (const char* f : fehlt) {
+            if (c == f) { return false; }
+        }
+    }
+    return true;
+}
+
+// M3: wie viele Woerter UI_RunMenuScript nach dem Namen liest (String_Parse/Int_Parse auf
+// args; OpenJK code/ui/ui_main.cpp, codemp/ui/ui_main.c, Movie Duels code/ui/ui_main.cpp).
+// Alle anderen Namen: keine - der Rest des Skripts laeuft weiter (Item_RunScript).
+int uiSkriptWoerter(const std::string& name, Dialekt dl, Spiel sp) {
+    struct Eintrag {
+        const char* name;
+        int woerter;
+    };
+    static const Eintrag kSp[] = {{"checkvid1data", 2}, {"startmap", 1}, {"clearmouseover", 1}, {"initallocforcepower", 1},
+                                  {"affectforcepowerlevel", 1}, {"showforceleveldesc", 1}, {"loadmissionselectmenu", 1},
+                                  {"giveweapon", 1}, {"equipweapon", 1}, {"addweaponselection", 7}, {"addthrowweaponselection", 7},
+                                  {"removeweaponselection", 1}, {"normalweaponselection", 1}, {"highlightweaponselection", 1},
+                                  {"giveinventory", 2}, {"update", 1}};
+    static const Eintrag kMd[] = {{"mdupdate", 1}, {"md_wheelpick", 1}, {"giveammo", 3}, {"addpistolselection", 7}};
+    static const Eintrag kMp[] = {{"serversort", 1}, {"orders", 1}, {"voiceordersteam", 1}, {"voiceorders", 1}, {"setforce", 1},
+                                  {"clearmouseover", 1}, {"update", 1}, {"setsiegeobjbuttons", 3}, {"updatesiegeclasscnt", 1}};
+    const std::string n = klein(name);
+    if (dl == Dialekt::MP) {
+        for (const Eintrag& e : kMp) {
+            if (n == e.name) { return e.woerter; }
+        }
+        return 0;
+    }
+    for (const Eintrag& e : kSp) {
+        if (n == e.name) { return e.woerter; }
+    }
+    if (sp == Spiel::MD) {
+        for (const Eintrag& e : kMd) {
+            if (n == e.name) { return e.woerter; }
+        }
+    }
+    return 0;
+}
+
+// M3: die Befehle der commandList, die die Vorschau nur meldet - mit den Woertern, die ihr
+// Handler liest (ui_shared Script_*). -1 = der Rest des Skripts (defer/delay halten es an).
+int befehlWoerter(const std::string& c, Dialekt dl) {
+    if (c == "defer" || c == "delay") { return -1; }
+    if (c == "exec" || c == "setasset" || c == "setplayermodel" || c == "showmenu") { return 1; }
+    if (c == "setitembackground" || c == "setitemflag" || c == "activate" || c == "disable" || c == "scale" || c == "setitemrectcvar" ||
+        c == "setitemexec") {
+        return 2;
+    }
+    if (c == "setitemcolorcvar") { return 3; }
+    (void)dl;
+    return 0;   // setteamcolor, rundeferred, opengotomenu, stopvoice, incrementfeeder, decrementfeeder
+}
 
 // String_Parse (COM_ParseExt mit allowLineBreaks = false) ueber einen Skripttext
 bool stringParse(const std::string& s, std::size_t& p, std::string& out) {
@@ -86,6 +152,8 @@ void skriptCvars(std::vector<CvarFund>& v, const std::string& skript, const std:
 }
 
 }  // namespace
+
+int uiSkriptWortzahl(const std::string& name, Dialekt dl, Spiel sp) { return uiSkriptWoerter(name, dl, sp); }
 
 std::vector<CvarFund> cvarsImMenue(const Datei& d) {
     std::vector<CvarFund> v;
@@ -173,10 +241,15 @@ void Laufzeit::start(const Datei& datei) {
     texte.clear();
     vorder.clear();
     vorderGesetzt.clear();
+    hinten.clear();
+    hintenGesetzt.clear();
+    rand.clear();
+    randGesetzt.clear();
     anim.clear();
     modellPfad.clear();
     modellHaut.clear();
     modellAnim.clear();
+    animGesetzt.clear();
     letzterTakt = -1;
     hintergrund.assign(datei.menus.size(), std::string());
     for (const Menu& m : datei.menus) {
@@ -191,9 +264,14 @@ void Laufzeit::start(const Datei& datei) {
         texte.emplace_back(m.items.size());
         vorder.emplace_back(m.items.size());
         vorderGesetzt.emplace_back(m.items.size(), false);
+        hinten.emplace_back(m.items.size());
+        hintenGesetzt.emplace_back(m.items.size(), false);
+        rand.emplace_back(m.items.size());
+        randGesetzt.emplace_back(m.items.size(), false);
         modellPfad.emplace_back(m.items.size());
         modellHaut.emplace_back(m.items.size());
         modellAnim.emplace_back(m.items.size());
+        animGesetzt.emplace_back(m.items.size(), -1);
         std::vector<ItemAnimation> a(m.items.size());
         for (std::size_t i = 0; i < m.items.size(); ++i) {
             a[i].client = m.items[i].window.rectClient;
@@ -218,6 +296,11 @@ std::string Laufzeit::cvar(const std::string& n) const {
     const auto it = cvars.find(klein(n));
     if (it != cvars.end()) { return it->second; }
     if (basis.cvar) { return basis.cvar(n); }   // die Werte des Editors (Vorschau-Cvars, sonst die Vorgaben der Engine)
+    if (d != nullptr && d->profil) {   // M5b: Vorgaben der Mod (cvarTable laut Mod-Profil)
+        for (const auto& [name, w] : d->profil->cvars) {
+            if (gleich(name, n)) { return w; }
+        }
+    }
     return d != nullptr ? spielCvarVorgabe(d->dialekt, d->spiel, n) : std::string();   // was die Engine selbst anlegt
 }
 
@@ -288,12 +371,22 @@ void Laufzeit::fuehreAus(int menu, int item, const std::string& s) {
             }
         }
     };
+    // M5b: uiScripts der Mod (Mod-Profil) mit ihrer Wortzahl, sonst die Tabelle der Spiele
+    auto woerterNach = [&](const std::string& name) {
+        if (d->profil) {
+            for (const auto& [n, w] : d->profil->uiSkripte) {
+                if (gleich(n, name)) { return w; }
+            }
+        }
+        return uiSkriptWoerter(name, d->dialekt, d->spiel);
+    };
     std::size_t p = 0;
     std::string cmd;
     int schutz = 0;
     while (stringParse(s, p, cmd) && ++schutz < 1000) {
         if (cmd == ";") { continue; }
-        const std::string c = klein(cmd);
+        // nicht in der commandList dieses Spiels: leer, dann nimmt der letzte Zweig (DC->runScript) es
+        const std::string c = inCommandList(klein(cmd), d->dialekt, d->spiel) ? klein(cmd) : std::string();
         std::string a, b;
         if (c == "show" || c == "hide") {
             if (stringParse(s, p, a)) {
@@ -332,6 +425,8 @@ void Laufzeit::fuehreAus(int menu, int item, const std::string& s) {
                     z[i].flags |= WINDOW_HASFOCUS;
                     ++version;
                     fuehreAus(menu, static_cast<int>(i), m.items[i].onFocus);
+                    // M3: Script_SetFocus spielt danach DC->Assets.itemFocusSound (nicht den des Items)
+                    if (!fokusKlangStd.empty()) { klaenge.push_back(fokusKlangStd); }
                     break;
                 }
             }
@@ -343,10 +438,26 @@ void Laufzeit::fuehreAus(int menu, int item, const std::string& s) {
             std::string feld, r, g, bl, al;
             if (stringParse(s, p, a) && stringParse(s, p, feld) && stringParse(s, p, r) && stringParse(s, p, g) &&
                 stringParse(s, p, bl) && stringParse(s, p, al)) {
+                // Script_SetItemColor: backcolor, forecolor (setzt WINDOW_FORECOLORSET), bordercolor
+                const Farbe f{zahl(r), zahl(g), zahl(bl), zahl(al)};
+                const std::size_t mu = static_cast<std::size_t>(menu);
                 if (gleich(feld, "forecolor")) {
                     passend(a, [&](std::size_t i) {
-                        vorder[static_cast<std::size_t>(menu)][i] = Farbe{zahl(r), zahl(g), zahl(bl), zahl(al)};
-                        vorderGesetzt[static_cast<std::size_t>(menu)][i] = true;
+                        vorder[mu][i] = f;
+                        vorderGesetzt[mu][i] = true;
+                        items[mu][i].flags |= WINDOW_FORECOLORSET;
+                    });
+                    ++version;
+                } else if (gleich(feld, "backcolor")) {
+                    passend(a, [&](std::size_t i) {
+                        hinten[mu][i] = f;
+                        hintenGesetzt[mu][i] = true;
+                    });
+                    ++version;
+                } else if (gleich(feld, "bordercolor")) {
+                    passend(a, [&](std::size_t i) {
+                        rand[mu][i] = f;
+                        randGesetzt[mu][i] = true;
                     });
                     ++version;
                 }
@@ -364,9 +475,9 @@ void Laufzeit::fuehreAus(int menu, int item, const std::string& s) {
         } else if (c == "setitemrect") {
             std::string x, y, w, h;
             if (stringParse(s, p, a) && stringParse(s, p, x) && stringParse(s, p, y) && stringParse(s, p, w) && stringParse(s, p, h)) {
-                passend(a, [&](std::size_t i) {
-                    rects[static_cast<std::size_t>(menu)][i] = Rechteck{m.window.rect.x + zahl(x), m.window.rect.y + zahl(y), zahl(w), zahl(h)};
-                });
+                // Script_SetItemRect: codemp addiert menu->window.rect.x/y, code/ui (SP) setzt die Zahlen direkt
+                const float ox = d->dialekt == Dialekt::MP ? m.window.rect.x : 0.0F, oy = d->dialekt == Dialekt::MP ? m.window.rect.y : 0.0F;
+                passend(a, [&](std::size_t i) { rects[static_cast<std::size_t>(menu)][i] = Rechteck{ox + zahl(x), oy + zahl(y), zahl(w), zahl(h)}; });
                 ++version;
             }
         } else if (c == "transition") {
@@ -439,13 +550,13 @@ void Laufzeit::fuehreAus(int menu, int item, const std::string& s) {
             while (stringParse(s, p, a) && a != ";") { rest += " " + a; }
             melde(rest);   // Modell-Uebergang (WINDOW_INTRANSITIONMODEL): braucht die 3D-Ansicht
         } else if (c == "uiscript") {
+            // "uiScript" steht nicht in der commandList: DC->runScript liest den Namen und
+            // dessen Woerter (UI_RunMenuScript), der Rest des Skripts laeuft weiter
             std::string name;
             (void)stringParse(s, p, name);
-            if (!uiSkript(menu, klein(name))) {
-                std::string rest = cmd + " " + name;
-                while (stringParse(s, p, a) && a != ";") { rest += " " + a; }
-                melde(rest);
-            }
+            std::string rest = cmd + " " + name;
+            for (int w = woerterNach(name); w > 0 && stringParse(s, p, a); --w) { rest += " " + a; }
+            if (!uiSkript(menu, klein(name))) { melde(rest); }
         } else if (c == "play" || c == "playlooped" || c == "playvoice") {
             // Script_Play: DC->startLocalSound(DC->registerSound(val), CHAN_LOCAL_SOUND);
             // playlooped: DC->startBackgroundTrack(val, val)
@@ -458,19 +569,30 @@ void Laufzeit::fuehreAus(int menu, int item, const std::string& s) {
                    c == "delay" || c == "activate" || c == "showmenu" || c == "opengotomenu" || c == "stopvoice" ||
                    c == "incrementfeeder" || c == "decrementfeeder" || c == "disable" || c == "scale" ||
                    c == "setitemcolorcvar" || c == "setitemrectcvar" || c == "setitemexec") {
-            // ohne Spiel nicht ausfuehrbar: bis zum ; melden
+            // ohne Spiel nicht ausfuehrbar: mit den Woertern des Handlers melden
             std::string rest = cmd;
-            while (stringParse(s, p, a) && a != ";") { rest += " " + a; }
+            const int woerter = befehlWoerter(c, d->dialekt);
+            for (int w = woerter; (woerter < 0 || w > 0) && stringParse(s, p, a); --w) { rest += " " + a; }
             melde(rest);
+            // M3 Punkt 3: Script_Exec gibt den Text an die Konsole - "music <intro> [<loop>]"
+            // ist dort S_StartBackgroundTrack (Movie Duels main.menu onOpen)
+            if (c == "exec" && klein(a).compare(0, 6, "music ") == 0) {
+                std::size_t q = 6;
+                std::string titel;
+                if (stringParse(a, q, titel) && !titel.empty()) { klaenge.push_back("musik:" + titel); }
+            }
             if (c == "showmenu" || c == "opengotomenu") {
                 const std::size_t leer = rest.find(' ');
                 if (leer != std::string::npos) { oeffne(rest.substr(leer + 1, rest.find(' ', leer + 1) - leer - 1)); }
             }
         } else {
-            // DC->runScript: der Rest bis zum ; geht an UI_RunMenuScript
-            std::string rest = cmd;
-            while (stringParse(s, p, a) && a != ";") { rest += " " + a; }
-            melde("uiScript: " + rest);
+            // nicht in der commandList: DC->runScript(&p) - UI_RunMenuScript liest das NAECHSTE
+            // Wort als Namen (samt dessen Woertern), der Rest des Skripts laeuft weiter
+            std::string name;
+            (void)stringParse(s, p, name);
+            std::string rest = cmd + " " + name;
+            for (int w = woerterNach(name); w > 0 && stringParse(s, p, a); --w) { rest += " " + a; }
+            if (name.empty() || !uiSkript(menu, klein(name))) { melde("uiScript: " + rest); }
         }
     }
     (void)item;
@@ -494,6 +616,8 @@ void Laufzeit::anwenden(Datei& kopie) const {
             if (!modellHaut[mi][i].empty()) { m.items[i].g2skin = modellHaut[mi][i] == "-" ? std::string() : modellHaut[mi][i]; }
             if (!modellAnim[mi][i].empty()) { m.items[i].g2anim = modellAnim[mi][i]; }
             if (vorderGesetzt[mi][i]) { m.items[i].window.foreColor = vorder[mi][i]; }
+            if (hintenGesetzt[mi][i]) { m.items[i].window.backColor = hinten[mi][i]; }
+            if (randGesetzt[mi][i]) { m.items[i].window.borderColor = rand[mi][i]; }
         }
     }
 }
@@ -569,17 +693,65 @@ void Laufzeit::klick(int menu, float x, float y) {
             if (it.cvar.empty()) { break; }
             float x0 = it.window.rect.x;
             if (!it.text.empty()) {
-                const Rechteck tr = textRechteck(it, u.texte != nullptr ? u.texte->aufloesen(it.text) : it.text, u);
+                const Rechteck tr = textRechteck(it, u.texte != nullptr ? u.texte->imSpiel(it.text) : it.text, u);
                 x0 = tr.x + tr.w + 8;
             }
             const float rel = std::clamp((x - x0) / kSliderBreite, 0.0F, 1.0F);
             setzeCvar(it.cvar, zahlText(it.minVal + rel * (it.maxVal - it.minVal)));
             break;
         }
+        case ITEM_TYPE_TEXTSCROLL: {   // M4: Item_TextScroll_HandleKey(A_MOUSE1) mit Item_TextScroll_OverLB
+            Item ri = it;
+            ri.window.rect = rects[static_cast<std::size_t>(menu)][static_cast<std::size_t>(i)];
+            const int n = static_cast<int>(textScrollZeilen(ri, u).zeilen.size());
+            if (static_cast<float>(n * it.lineHeight) <= ri.window.rect.h - 2) { break; }   // keine Leiste: nichts
+            const Rechteck& r = ri.window.rect;
+            const auto in = [&](float rx, float ry, float rw, float rh) { return x > rx && x < rx + rw && y > ry && y < ry + rh; };
+            int& sp = items[static_cast<std::size_t>(menu)][static_cast<std::size_t>(i)].startPos;
+            const int max = textScrollMaxScroll(ri, n);
+            const int viewmax = it.lineHeight != 0 ? static_cast<int>(r.h / static_cast<float>(it.lineHeight)) : 0;
+            const float lx = r.x + r.w - kScrollbar;
+            const float daumen = textScrollDaumen(ri, n, sp);
+            if (in(lx, r.y, kScrollbar, kScrollbar)) {
+                sp = std::max(0, sp - 1);
+            } else if (in(lx, r.y + r.h - kScrollbar, kScrollbar, kScrollbar)) {
+                sp = std::min(max, sp + 1);
+            } else if (in(lx, daumen, kScrollbar, kScrollbar)) {
+                return;   // Daumen: die Engine faengt die Maus (Ziehen) - ein Klick allein bewegt nichts
+            } else if (in(lx, r.y + kScrollbar, kScrollbar, daumen - (r.y + kScrollbar))) {
+                sp = std::max(0, sp - viewmax);
+            } else if (in(lx, daumen + kScrollbar, kScrollbar, r.y + r.h - kScrollbar)) {
+                sp = std::min(max, sp + viewmax);
+            } else {
+                break;
+            }
+            ++version;
+            return;   // Item_HandleKey hat die Taste genommen: keine Item_Action
+        }
         default:
             break;
     }
     fuehreAus(menu, i, it.action);   // Item_Action
+}
+
+// M4: Mausrad ueber einer Textscroll mit Fokus - nur Movie Duels (Item_TextScroll_HandleKey,
+// A_MWHEELUP/DOWN "Raz: Added"); OpenJK SP/MP kennen dort kein Mausrad.
+void Laufzeit::rad(int menu, float x, float y, int schritte) {
+    if (d == nullptr || d->spiel != Spiel::MD || menu < 0 || static_cast<std::size_t>(menu) >= d->menus.size() || schritte == 0) { return; }
+    Umgebung u;
+    fuelle(menu, u);
+    const Menu& m = d->menus[static_cast<std::size_t>(menu)];
+    for (std::size_t i = 0; i < m.items.size(); ++i) {
+        ItemZustand& z = items[static_cast<std::size_t>(menu)][i];
+        if (m.items[i].type != ITEM_TYPE_TEXTSCROLL || (z.flags & WINDOW_HASFOCUS) == 0) { continue; }
+        Item ri = m.items[i];
+        ri.window.rect = rects[static_cast<std::size_t>(menu)][i];
+        const Rechteck& r = ri.window.rect;
+        if (!(x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h)) { continue; }
+        const int max = textScrollMaxScroll(ri, static_cast<int>(textScrollZeilen(ri, u).zeilen.size()));
+        z.startPos = std::clamp(z.startPos - schritte, 0, max);   // rauf = -1 Zeile
+        ++version;
+    }
 }
 
 void Laufzeit::escape(int menu) {
@@ -675,6 +847,26 @@ int Laufzeit::takt(int jetzt) {
                     if (done == 4) { fl &= ~WINDOW_INTRANSITION; }
                     ++version;
                 }
+                // M4: Item_Paint -> Window_Paint: WINDOW_STYLE_FILLED mit background blendet ueber
+                // backColor[3] (Fade mit bFlags, derselbe nextTime wie danach Item_TextColor)
+                if ((fl & (WINDOW_FADINGOUT | WINDOW_FADINGIN)) != 0 && (fl & WINDOW_VISIBLE) != 0 && it.window.style == WINDOW_STYLE_FILLED &&
+                    !it.window.background.empty() && jetztMs > an.nextTime) {
+                    Farbe f = hintenGesetzt[mi][i] ? hinten[mi][i] : it.window.backColor;
+                    an.nextTime = jetztMs + fadeCycle;
+                    if ((fl & WINDOW_FADINGOUT) != 0) {
+                        f.a -= fadeAmount;
+                        if (f.a <= 0.0F) { fl &= ~(WINDOW_FADINGOUT | WINDOW_VISIBLE); }
+                    } else {
+                        f.a += fadeAmount;
+                        if (f.a >= fadeClamp) {
+                            f.a = fadeClamp;
+                            fl &= ~WINDOW_FADINGIN;
+                        }
+                    }
+                    hinten[mi][i] = f;
+                    hintenGesetzt[mi][i] = true;
+                    ++version;
+                }
                 // Item_Paint: ownerDrawFlags/cvarTest/WINDOW_VISIBLE, dann Item_TextColor -> Fade
                 if ((fl & (WINDOW_FADINGOUT | WINDOW_FADINGIN)) != 0 && (fl & WINDOW_VISIBLE) != 0 &&
                     (!it.text.empty() || it.type == ITEM_TYPE_OWNERDRAW) && jetztMs > an.nextTime) {
@@ -730,6 +922,7 @@ bool Laufzeit::uiSkript(int menu, const std::string& name) {
         const int i = itemNamens("character");
         if (i < 0) { return; }
         modellAnim[static_cast<std::size_t>(menu)][static_cast<std::size_t>(i)] = cvar("ui_char_anim");
+        animGesetzt[static_cast<std::size_t>(menu)][static_cast<std::size_t>(i)] = jetztMs;
         modellPfad[static_cast<std::size_t>(menu)][static_cast<std::size_t>(i)] = "models/players/" + cvar("ui_char_model") + "/model.glm";
         haut();
     };
@@ -746,7 +939,24 @@ bool Laufzeit::uiSkript(int menu, const std::string& name) {
     else if (name == "char_skin") { haut(); }
     else if (name == "saber_hilt") { griff(false); }
     else if (name == "saber2_hilt") { griff(true); }
-    else if (name == "getcharcvars") {   // UI_GetCharacterCvars
+    else if (name == "getcharcvars" && d->dialekt == Dialekt::MP) {   // UI_GetCharacterCvars (codemp ui_main.c)
+        setze("ui_char_color_red", "char_color_red");
+        setze("ui_char_color_green", "char_color_green");
+        setze("ui_char_color_blue", "char_color_blue");
+        // "model" = <ordner>/<kopf>|<rumpf>|<beine> (eigene Figur) -> ui_char_*; sonst bleibt ui_char_model
+        const std::string mod = cvar("model");
+        const std::size_t st = mod.rfind('/');
+        if (st != std::string::npos && mod.find('|') != std::string::npos) {
+            const std::string teile = mod.substr(st + 1);
+            const std::size_t a = teile.find('|'), b = a == std::string::npos ? std::string::npos : teile.find('|', a + 1);
+            if (b != std::string::npos) {
+                setzeCvar("ui_char_model", mod.substr(0, st));
+                setzeCvar("ui_char_skin_head", teile.substr(0, a));
+                setzeCvar("ui_char_skin_torso", teile.substr(a + 1, b - a - 1));
+                setzeCvar("ui_char_skin_legs", teile.substr(b + 1));
+            }
+        }
+    } else if (name == "getcharcvars") {   // UI_GetCharacterCvars
         setze("ui_char_skin_head", "g_char_skin_head");
         setze("ui_char_skin_torso", "g_char_skin_torso");
         setze("ui_char_skin_legs", "g_char_skin_legs");

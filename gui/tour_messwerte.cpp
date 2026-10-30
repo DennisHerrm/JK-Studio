@@ -30,6 +30,11 @@
 //   modell.figur         Pruefsumme von Modell und NPC im Modell-Reiter ("~" = andere Figur)
 //   modell.blick         Pruefsumme des Blicks auf das Modell (und Drehteller)
 //   modell.details       Skin, Skelett, Texturen ("~" = eins davon umgeschaltet)
+//   menue.projekt        1, wenn im Menue-Editor ein Projekt offen ist (M5b, Tutorial tut-menue-eigen)
+//   menue.elemente       Items im Menue der Seite
+//   menue.layouts        Layouts in diesem Menue
+//   menue.ereignisse     Ereignis-Skripte seiner Items
+//   menue.gespeichert    erfolgreiche Projekt-Speicherungen seit dem Start
 //
 // H2 (mehr interaktive Touren):
 //   vorschau.laeuft      1, solange die Zeitleiste abspielt
@@ -279,6 +284,15 @@ void tourMesswerte(std::map<std::string, double>& werte, bool karte, double jetz
         werte["menue.exporte"] = ms.exporte;
     }
     if (karte) { karteMesswerte(werte, jetzt); }
+    // M5b: Tour "Dein erstes eigenes Menue" (tut-menue-eigen) - nur im Menue-Editor
+    if (g_app->leftMode == 4) {
+        const menueeditor::TourWerte m = menueeditor::tourWerte();
+        werte["menue.projekt"] = m.projekt ? 1.0 : 0.0;
+        werte["menue.elemente"] = m.elemente;
+        werte["menue.layouts"] = m.layouts;
+        werte["menue.ereignisse"] = m.ereignisse;
+        werte["menue.gespeichert"] = m.gespeichert;
+    }
 }
 
 }  // namespace bhed::gui

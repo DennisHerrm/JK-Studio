@@ -250,6 +250,12 @@ std::string Texte::aufloesen(const std::string& s) const {
     return it == werte.end() ? s : it->second;
 }
 
+std::string Texte::imSpiel(const std::string& s) const {
+    if (s.size() < 2 || s[0] != '@') { return s; }
+    const auto it = werte.find(gross(s.substr(1)));
+    return it == werte.end() ? std::string() : it->second;
+}
+
 bool Texte::kennt(const std::string& s) const {
     return s.size() >= 2 && s[0] == '@' && werte.count(gross(s.substr(1))) != 0;
 }

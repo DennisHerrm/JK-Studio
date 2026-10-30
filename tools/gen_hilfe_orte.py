@@ -11,7 +11,7 @@ Anzeige, der Kennung des Hinweistexts und einer Vorbedingung.
   Einstellungen   gui/app.cpp (drawPrefs: Checkbox, SliderFloat, Combo, Button)
   H2:
   Pfade           gui/app.cpp (Fenster "###paths": Knoepfe; Abschnitte als Inhalt)
-  Leistenknoepfe  iconKnopf/iconTextKnopf(tr(Str::X), UiIcon::.., tr(Str::Hinweis))
+  Leistenknoepfe  iconKnopf/iconTextKnopf/leistenKnopf(tr(Str::X), UiIcon::.., tr(Str::Hinweis))
                   der Vorschau, Zeitleiste, Kamera, Wegpunkte und des Modell-Tabs
   Karten-Editor   gui/app_karte_dialoge.cpp: die Seiten der Einstellungen
                   (kSeiten), Ziel ist die Seite (selbst gezeichnet gemeldet:
@@ -238,7 +238,9 @@ def menueEditor():
     bauen), gilt der Leistenknopf mit seinem Hinweis."""
     leiste, knoepfe = [], []
     for z in lies("gui/app_menue.cpp"):
-        m = re.search(r"icon(?:Text)?Knopf\(tr\(Str::(Me\w+)\), *UiIcon::\w+, *tr\(Str::(\w+)\)", z)
+        # M4: leistenKnopf (Symbol oder Symbol + Text); Hinweis auch als "tr(a ? Str::X : Str::Y)" (X gilt)
+        m = re.search(r"(?:icon(?:Text)?|leisten)Knopf\(tr\(Str::(Me\w+)\), *UiIcon::\w+, *"
+                      r"tr\((?:[^()?]*(?:\([^()]*\))?[^()?]*\? *)?Str::(\w+)", z)
         if m:
             n, hinweis, liste = m.group(1), m.group(2), leiste
         else:

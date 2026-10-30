@@ -166,6 +166,9 @@ struct KlingenQuad {
     // rc602 kartenpruefung: der Shader traegt eine glow-Stufe (die Leucht-
     // klinge gfx/effects/sabers/<farbe>_glow) - sie geht ins Gluehen.
     bool gluehen = false;
+    // M3: 0 additiv (GL_ONE GL_ONE), 1 blendFunc blend (schwarze Klingen: Bild mit seinem
+    // Alpha, im Menue-Ziel vormultipliziert samt Alpha - siehe zeichneMenueKlingen)
+    int mischung = 0;
 };
 int zeichneKlingen(const std::vector<KlingenQuad>& quads, const float* viewProj,
                    std::string* fehler);

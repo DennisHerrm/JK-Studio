@@ -1324,6 +1324,83 @@
      }
     ]
    }
+  },
+  {
+   "id": "tut-menue-eigen",
+   "gruppe": "tut",
+   "titel": "Dein erstes eigenes Menü",
+   "kurz": "Vom leeren Editor zum Projekt mit drei Knöpfen nebeneinander, die beim Hover leuchten - gespeichert und bereit für die pk3.",
+   "seite": "tut-menue-eigen.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Menü-Editor öffnen.** Klicke in der Modusleiste auf **{{ViewMenuEditor}}**.",
+      "bild": "h_tut_menue_1",
+      "unter": "Der leere Menü-Editor mit den Projekt-Knöpfen.",
+      "ziel": "knopf:ViewMenuEditor@modebar",
+      "fertig": "modus:4",
+      "voraus": "",
+      "einrichten": "modus:4",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Projekt anlegen.** Klicke auf **{{MePrjNeu}}** und wähle einen Ordner für die Projektdatei. Der Editor legt die Ordner wie in einer pk3 an und ein leeres Vollbild-Menü.",
+      "bild": "h_tut_menue_2",
+      "unter": "Das neue Projekt mit seinem ersten Menü.",
+      "ziel": "knopf:MePrjNeu",
+      "fertig": "zahl:menue.projekt",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Drei Knöpfe.** Klicke bei den Bausteinen dreimal auf **{{MeWButton}}**.",
+      "bild": "h_tut_menue_3",
+      "unter": "Drei neue Knöpfe, noch übereinander.",
+      "ziel": "knopf:MeWButton",
+      "fertig": "zahl:menue.elemente+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Nebeneinander.** Wähle die drei Knöpfe (Strg+Klick) und klicke in den Eigenschaften unter Layout auf **{{MeLayoutWaagrecht}}**.",
+      "bild": "h_tut_menue_4",
+      "unter": "Die Knöpfe nebeneinander mit gleichem Abstand.",
+      "ziel": "knopf:MeLayoutWaagrecht",
+      "fertig": "zahl:menue.layouts+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Leuchten beim Hover.** Wähle den ersten Knopf, öffne den Reiter **Ereignisse** und klicke auf **{{MeEvLeuchten}}**.",
+      "bild": "h_tut_menue_5",
+      "unter": "Der Leucht-Effekt: zeigen beim Hover, verstecken beim Verlassen.",
+      "ziel": "knopf:MeEvLeuchten",
+      "fertig": "zahl:menue.ereignisse+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Speichern.** Klicke auf **{{MeSpeichern}}** - im Projekt speichert das alles. **{{MePrjProjekt}} > {{MePrjExport}}** packt danach die pk3 fürs Spiel.",
+      "bild": "h_tut_menue_6",
+      "unter": "Gespeichert: die Projektdatei und das Menü im Projektordner.",
+      "ziel": "knopf:MeSpeichern",
+      "fertig": "zahl:menue.gespeichert+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }

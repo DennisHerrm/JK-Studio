@@ -188,7 +188,11 @@ struct VSOut {
     float4 farbe : COLOR0;
 };
 float4 main(VSOut ein) : SV_TARGET {
-    float3 t = gBild.Sample(gSampler, ein.uv).rgb;
+    float4 b = gBild.Sample(gSampler, ein.uv);
+    float3 t = b.rgb;
+    if (ein.farbe.a > 3.5) {
+        return float4(t * ein.farbe.rgb, b.a * (ein.farbe.a - 4.0));
+    }
     if (ein.farbe.a > 1.5) {
         return float4(t * ein.farbe.rgb * (ein.farbe.a - 2.0), 1);
     }

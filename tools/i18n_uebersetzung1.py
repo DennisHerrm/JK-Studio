@@ -7,5 +7,4 @@ UEBERSETZUNG1 = [
     # Menue-Editor: der erste Eintrag der Aufloesungsliste stand fest englisch
     # im Code. Kennung und Wortlaut wie im Zweig menue3 (M4), der denselben
     # Eintrag uebersetzt - beim Zusammenfuehren bleibt eine der beiden Zeilen.
-    ("MeAufloesungFenster", "Window", "Fenster", "窗口", "ウィンドウ"),
 ]

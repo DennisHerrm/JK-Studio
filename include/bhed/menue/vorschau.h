@@ -29,6 +29,7 @@
 #ifndef BHED_MENUE_VORSCHAU_H
 #define BHED_MENUE_VORSCHAU_H
 
+#include "bhed/menue/kodierung.h"
 #include "bhed/menue/menue.h"
 
 #include <functional>
@@ -40,6 +41,9 @@ namespace bhed::menue {
 inline constexpr float kSchirmBreite = 640.0F;   // SCREEN_WIDTH
 inline constexpr float kSchirmHoehe = 480.0F;    // SCREEN_HEIGHT
 inline constexpr float kScrollbar = 16.0F;       // SCROLLBAR_SIZE
+inline constexpr const char* kDefaultShader = "*default";   // M5: tr.defaultShader (Griff 0)
+inline constexpr int kUiAllmapsSelection = 236;   // code/ui/menudef.h UI_ALLMAPS_SELECTION (Spielstand-Vorschau)
+inline constexpr int kUiKeybindStatus = 250;      // UI_KEYBINDSTATUS
 inline constexpr float kSliderBreite = 96.0F;    // SLIDER_WIDTH
 inline constexpr float kSliderHoehe = 16.0F;     // SLIDER_HEIGHT
 inline constexpr float kSliderDaumenBreite = 12.0F;
@@ -61,7 +65,10 @@ struct Schrift {
 // CFontInfo::CFontInfo: die Datei muss genau sizeof(dfontdat_t) = 7180 Bytes haben.
 [[nodiscard]] bool ladeFontdat(const std::string& name, const std::string& daten, Schrift& out);
 // RE_Font_StrLenPixels (JA): ^0-^9 zaehlen nicht, Zeilenumbruch beginnt neu, ceilf.
-[[nodiscard]] int schriftBreite(const Schrift& f, const std::string& text, float scale);
+// M3: Zeichen wie AnyLanguage_ReadCharFromString in der Kodierung der Sprache; asiatische
+// Glyphen nur, wenn die Seiten da sind (AsianGlyphsAvailable), Codes > 255 mit 0.75.
+[[nodiscard]] int schriftBreite(const Schrift& f, const std::string& text, float scale, Kodierung k = Kodierung::Latin1,
+                                bool asienGlyphen = false);
 // RE_Font_HeightPixels: mPointSize * scale
 [[nodiscard]] int schriftHoehe(const Schrift& f, float scale);
 
@@ -84,13 +91,14 @@ struct Prim {
 
 // Eine Zeile einer Listbox: DC->feederItemText je Spalte, DC->feederItemImage
 // und die optionalen Bilder je Spalte (SP optionalImage, MP optionalImage1).
-// RE_Font_DrawString (ohne die asiatischen Zweige): je Zeichen ein Bild
-// (PrimArt::Bild, Shader der Schrift) im virtuellen Bildschirm, ab (ox, oy)
-// oben links. ^0-^9 wechseln die Farbe (Deckung bleibt), ausser imSchatten
-// (gbInShadow); maxPixel -1 = ohne Grenze. Auch fuer die Untertitel der
+// RE_Font_DrawString: je Zeichen ein Bild (PrimArt::Bild, Shader der Schrift
+// oder der asiatischen Glyphe) im virtuellen Bildschirm, ab (ox, oy) oben
+// links. ^0-^9 wechseln die Farbe (Deckung bleibt), ausser imSchatten
+// (gbInShadow); ein ^ ohne Ziffer wird gezeichnet; maxPixel -1 = ohne Grenze.
+// Kodierung/asienGlyphen wie schriftBreite (M3). Auch fuer die Untertitel der
 // Vorschau (bhed/untertitel.h).
 void schriftZeichnen(const Schrift& f, int ox, int oy, const std::string& text, Farbe farbe, int maxPixel, float scale,
-                     bool imSchatten, std::vector<Prim>& out);
+                     bool imSchatten, std::vector<Prim>& out, Kodierung k = Kodierung::Latin1, bool asienGlyphen = false);
 
 struct FeederEintrag {
     std::vector<std::string> spalten;
@@ -98,10 +106,20 @@ struct FeederEintrag {
     std::vector<std::string> spaltenBild;
 };
 
+// M5: was ein MP-Ownerdraw zeigt (UI_OwnerDraw in codemp/ui/ui_main.c): Text ("@" = StringEd) bzw. Bild;
+// halb = Farbe * 0,5 (UI_DrawTeamMember: geschlossener Platz). bekannt = false: Platzhalter.
+struct OwnerDrawInhalt {
+    bool bekannt = false;
+    std::string text;
+    std::string bild;
+    bool halb = false;
+};
+
 // Laufzeitstand eines Items (die Skripte aendern ihn: show/hide/setfocus ...).
 struct ItemZustand {
     int flags = 0;        // windowDef_t.flags
     bool gueltig = false; // false = die gelesenen Flags nehmen
+    int startPos = 0;     // M4: textScrollDef_t.startPos (erste gezeigte Zeile)
 };
 
 struct Umgebung {
@@ -116,16 +134,38 @@ struct Umgebung {
     // Feeder: die Zeilen einer Listbox (DC->feederCount/feederItemText/feederItemImage);
     // ohne: beschrifteter Platzhalter
     std::function<std::vector<FeederEintrag>(float feeder)> feeder;
+    // M5: Inhalt der MP-Ownerdraws aus den Spieldaten (FeederDaten::ownerDraw); ohne: Platzhalter
+    std::function<OwnerDrawInhalt(int ownerDraw)> ownerDraw;
+    // M5: laedt der Renderer dieses Bild/diesen Shader? (RE_RegisterShaderNoMip: fehlt es, kommt
+    // Griff 0 = "<default>"-Kasten zurueck; ohne: alles da)
+    std::function<bool(const std::string& shader)> bildDa;
     int listCursor = 0;                   // item->cursorPos
     int zeitMs = 0;                       // DC->realTime
     std::vector<ItemZustand> zustand;     // je Item (leer = gelesene Flags)
     bool erzwingen = true;                // forcePaint: auch unsichtbare Menues
     bool alleItems = false;               // Editor: auch unsichtbare Items (gedimmt)
     Dialekt dialekt = Dialekt::MP;
+    // M3: se_language der Vorschau (tr_font GetLanguageEnum) und ob die asiatischen
+    // Glyphenseiten im Spiel liegen (fonts/<kor|tai|jap|chi>_*_1024_0)
+    Kodierung kodierung = Kodierung::Latin1;
+    bool asienGlyphen = false;
 };
 
 // Menu_Paint fuer ein Menue der Datei.
 void zeichneMenu(const Datei& d, int menu, const Umgebung& u, std::vector<Prim>& out);
+
+// M4: ITEM_TYPE_TEXTSCROLL. Der Text, wie Item_TextScroll_Paint ihn nimmt (cvar ersetzt text,
+// "@" = SE_GetString), umgebrochen wie Item_TextScroll_BuildLines (Breite rect.w - 16 - 10,
+// Umbruch nach Leer- und Satzzeichen, AnyLanguage_ReadCharFromString). da[i] = false: NULL-Zeile.
+inline constexpr std::size_t kMaxTextScrollZeilen = 256;   // MAX_TEXTSCROLL_LINES
+struct TextScrollZeilen {
+    std::vector<std::string> zeilen;
+    std::vector<bool> da;
+};
+[[nodiscard]] std::string textScrollText(const Item& it, const Umgebung& u);
+[[nodiscard]] TextScrollZeilen textScrollZeilen(const Item& it, const Umgebung& u);
+[[nodiscard]] int textScrollMaxScroll(const Item& it, int zeilen);          // Item_TextScroll_MaxScroll
+[[nodiscard]] float textScrollDaumen(const Item& it, int zeilen, int startPos);   // Item_TextScroll_ThumbPosition
 
 // Item_EnableShowViaCvar
 [[nodiscard]] bool itemZeigtUeberCvar(const Item& it, int flag, const Umgebung& u);

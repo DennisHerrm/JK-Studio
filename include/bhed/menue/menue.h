@@ -36,10 +36,13 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace bhed::menue {
+
+struct ModProfil;   // profil.h (M5b)
 
 enum class Dialekt { SP, MP };
 // Welches Spiel die Tabellen stellt (Movie Duels kennt vier Woerter mehr).
@@ -83,6 +86,7 @@ struct Eigenschaft {
     Token kopf;
     std::vector<Token> args;    // alle gelesenen Woerter (bei Skripten auch { })
     bool ok = true;             // die Engine hat sie angenommen
+    bool ausProfil = false;     // M5b: Schluessel aus dem Mod-Profil (Wert gelesen, sonst ohne Wirkung)
 };
 
 struct Farbe {
@@ -184,7 +188,6 @@ struct Menu {
     int fadeCycle = 0;
     float appearanceIncrement = 0;
     std::string onOpen, onClose, onAccept, onESC, soundName;
-    int ownerdrawID = 0;
     std::vector<Item> items;
 
     std::vector<Eigenschaft> eigenschaften;
@@ -217,6 +220,7 @@ struct Datei {
     std::vector<Quelle> quellen;          // [0] = Hauptdatei (Name), dann #includes
     std::map<std::string, long> defines;  // MP: Zahl-Defines (fuer Vervollstaendigung)
     std::vector<std::string> loadMenus;   // menus.txt: loadMenu { "..." }
+    std::shared_ptr<const ModProfil> profil;   // M5b: Mod-Profil (nullptr = nur die Tabellen des Spiels)
 };
 
 struct LeseOptionen {
@@ -224,6 +228,7 @@ struct LeseOptionen {
     Spiel spiel = Spiel::JA;
     std::string globaleDefines;           // MP: ui/jamp/menudef.h (leer = keine)
     Lader lader;                          // fuer #include und globale Defines
+    std::shared_ptr<const ModProfil> profil;   // M5b: was die Engine der Mod zusaetzlich kennt (profil.h)
 };
 
 // Liest eine .menu (oder menus.txt) wie UI_ParseMenu / UI_LoadMenus.
@@ -370,9 +375,12 @@ struct Texte {
     void ladeStr(const std::string& dateiname, const std::string& text, const std::string& sprache = "ENGLISH");
     // .sp: REFERENCE <Paket> am Anfang, dann REFERENCE x / TEXT_LANGUAGE<n> "..."
     void ladeSp(const std::string& text, int sprache = 1);
-    // "@MENUS_X" -> Text; ohne @ oder unbekannt: unveraendert (wie SE_GetString
-    // liefert die Engine bei unbekannten Schluesseln den Schluessel).
+    // "@MENUS_X" -> Text; ohne @ oder unbekannt: unveraendert (fuer die Anzeigen des Editors,
+    // damit ein fehlender Schluessel sichtbar bleibt).
     [[nodiscard]] std::string aufloesen(const std::string& s) const;
+    // Wie das Spiel: unbekannter Schluessel -> "" (SE_GetString in OpenJK SP/MP und Movie Duels,
+    // JK2SP_GetStringTextString in JK2; Item_Text_Paint zeichnet dann nichts).
+    [[nodiscard]] std::string imSpiel(const std::string& s) const;
     [[nodiscard]] bool kennt(const std::string& s) const;
 };
 

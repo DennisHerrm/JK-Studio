@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <random>
@@ -172,7 +173,7 @@ long blockFehler(const Bild3& z, int x, int y, const Bild3& q, int qx, int qy, i
 
 }  // namespace
 
-bool RoqKodierer::beginne(int breite, int hoehe, const RoqOptionen& o) {
+bool RoqKodierer::beginne(int breite, int hoehe, const RoqOptionen& o, const RoqTon* ton) {
     if (breite <= 0 || hoehe <= 0 || breite % 16 != 0 || hoehe % 16 != 0 || breite > 65535 || hoehe > 65535) { return false; }
     breite_ = breite;
     hoehe_ = hoehe;
@@ -180,10 +181,13 @@ bool RoqKodierer::beginne(int breite, int hoehe, const RoqOptionen& o) {
     opt_.guete = std::clamp(opt_.guete, 1, 100);
     opt_.fps = std::clamp(opt_.fps, 1, 65535);
     bilder_ = 0;
+    ton_ = (ton != nullptr && (ton->kanaele == 1 || ton->kanaele == 2)) ? *ton : RoqTon{};
+    tonGeschrieben_ = 0;
     aus_.clear();
     put16(aus_, kRoqKennung);
     put32(aus_, 0xffffffffU);
     put16(aus_, static_cast<unsigned>(opt_.fps));
+    tonBis(static_cast<std::size_t>(static_cast<long long>(kTonVorlauf) * kRoqTonRate / opt_.fps));   // wie ja01.roq: Ton vor ROQ_QUAD_INFO
     std::string info;
     put16(info, static_cast<unsigned>(breite));
     put16(info, static_cast<unsigned>(hoehe));
@@ -589,6 +593,59 @@ void RoqKodierer::bild(const RoqBild& rb) {
     ziel_puffer = neu;
     if (bilder_ == 0) { vorher_ = vorvorher_; }   // erstes Bild: Puffer 0 nach Puffer 1
     ++bilder_;
+    tonBis(static_cast<std::size_t>(static_cast<long long>(bilder_ + kTonVorlauf) * kRoqTonRate / opt_.fps));
+}
+
+// Ein Tonstueck bis zur Probe ende (ausschliesslich). DPCM wie RllDecodeMonoToStereo /
+// RllDecodeStereoToStereo es liest: prev = (short)(prev + sqrTable[byte]), sqrTable[z] = z*z,
+// sqrTable[z + 128] = -z*z. Mono: arg = Startwert; Stereo: arg = hohe Bytes der Startwerte
+// (prevL = flag & 0xff00, prevR = (flag & 0xff) << 8). Je Probe das Byte mit dem kleinsten
+// Fehler, das nicht ueberlaeuft (der Kodierer rechnet mit dem, was der Decoder sieht).
+void RoqKodierer::tonBis(std::size_t ende) {
+    const std::size_t k = static_cast<std::size_t>(ton_.kanaele);
+    ende = std::min(ende, ton_.proben());
+    if (k == 0 || ende <= tonGeschrieben_) { return; }
+    // cl_cin.cpp: sbuf[32768] Shorts, beide Decoder schreiben 2 Shorts je Probe - also
+    // hoechstens 16384 Proben je Stueck; hier 8192 (Stereo 16 KB, weit unter cin.file)
+    while (tonGeschrieben_ < ende) {
+        const std::size_t bis = std::min<std::size_t>(ende, tonGeschrieben_ + 8192);
+        const std::int16_t* p = &ton_.pcm[tonGeschrieben_ * k];
+        int prev[2] = {0, 0};
+        unsigned arg = 0;
+        if (k == 1) {
+            arg = static_cast<std::uint16_t>(p[0]);
+            prev[0] = p[0];
+        } else {
+            const unsigned l = static_cast<std::uint16_t>(p[0]) & 0xff00U, r = static_cast<std::uint16_t>(p[1]) & 0xff00U;
+            arg = l | (r >> 8);
+            prev[0] = static_cast<std::int16_t>(l);
+            prev[1] = static_cast<std::int16_t>(r);
+        }
+        std::string daten;
+        daten.reserve((bis - tonGeschrieben_) * k);
+        for (std::size_t i = 0; i < (bis - tonGeschrieben_) * k; ++i) {
+            int& v = prev[i % k];
+            const int d = p[i] - v;
+            const int z0 = std::min(127, static_cast<int>(std::sqrt(static_cast<double>(std::abs(d)))));
+            int bestB = 0, bestF = std::numeric_limits<int>::max(), bestV = v;
+            for (int z = std::max(0, z0 - 1); z <= std::min(127, z0 + 1); ++z) {
+                for (int neg = 0; neg < 2; ++neg) {
+                    const int w = v + (neg != 0 ? -z * z : z * z);
+                    if (w < -32768 || w > 32767) { continue; }
+                    const int f = std::abs(p[i] - w);
+                    if (f < bestF) {
+                        bestF = f;
+                        bestB = z + (neg != 0 ? 128 : 0);
+                        bestV = w;
+                    }
+                }
+            }
+            v = bestV;
+            daten.push_back(static_cast<char>(bestB));
+        }
+        stueck(aus_, k == 1 ? kRoqTonMono : kRoqTonStereo, daten, arg);
+        tonGeschrieben_ = bis;
+    }
 }
 
 std::string RoqKodierer::fertig() {
@@ -597,31 +654,6 @@ std::string RoqKodierer::fertig() {
     // Ende, damit das letzte Bild gezeigt wird.
     std::string r = aus_;
     stueck(r, kRoqTonMono, std::string(), 0);
-    return r;
-}
-
-RoqBild bildAnpassen(const RoqBild& q, int maxSeite) {
-    RoqBild r;
-    if (q.breite <= 0 || q.hoehe <= 0) { return r; }
-    const double f = std::min(1.0, static_cast<double>(maxSeite) / std::max(q.breite, q.hoehe));
-    r.breite = std::max(16, static_cast<int>(std::lround(q.breite * f / 16.0)) * 16);
-    r.hoehe = std::max(16, static_cast<int>(std::lround(q.hoehe * f / 16.0)) * 16);
-    r.rgba.resize(static_cast<std::size_t>(r.breite * r.hoehe * 4));
-    for (int y = 0; y < r.hoehe; ++y) {
-        const double sy = std::clamp((y + 0.5) * q.hoehe / r.hoehe - 0.5, 0.0, q.hoehe - 1.0);
-        const int y0 = static_cast<int>(sy), y1 = std::min(y0 + 1, q.hoehe - 1);
-        const double fy = sy - y0;
-        for (int x = 0; x < r.breite; ++x) {
-            const double sx = std::clamp((x + 0.5) * q.breite / r.breite - 0.5, 0.0, q.breite - 1.0);
-            const int x0 = static_cast<int>(sx), x1 = std::min(x0 + 1, q.breite - 1);
-            const double fx = sx - x0;
-            for (int k = 0; k < 4; ++k) {
-                auto p = [&](int xx, int yy) { return static_cast<double>(q.rgba[static_cast<std::size_t>((yy * q.breite + xx) * 4 + k)]); };
-                const double v = (p(x0, y0) * (1 - fx) + p(x1, y0) * fx) * (1 - fy) + (p(x0, y1) * (1 - fx) + p(x1, y1) * fx) * fy;
-                r.rgba[static_cast<std::size_t>((y * r.breite + x) * 4 + k)] = static_cast<std::uint8_t>(std::clamp(std::lround(v), 0L, 255L));
-            }
-        }
-    }
     return r;
 }
 

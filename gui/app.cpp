@@ -3110,6 +3110,8 @@ void drawPrefs() {
     erklaerung(Str::MeEinstTextUntenHint);
     ImGui::Checkbox(tr(Str::MeEinstUmbruch), &st.menueUmbruch);
     erklaerung(Str::MeEinstUmbruchHint);
+    ImGui::Checkbox(tr(Str::MeEinstLeisteText), &st.menueLeisteText);   // M4: Leistenknoepfe mit Beschriftung
+    erklaerung(Str::MeEinstLeisteTextHint);
 
     // --- rc601 ton: die Mischpegel der Vorschau ---------------------------
     //
@@ -4905,6 +4907,12 @@ void leseMeldungenZeigen(const std::vector<Diag>& d, const std::string& name) {
 
 void loadPath(const std::string& p) {
     diag::Step step("Skript oeffnen: " + p);
+    // Menue-Editor M5b: ein Menue-Projekt (Doppelklick, Kommandozeile) oeffnet der Menue-Editor
+    if (menueeditor::istProjekt(p)) {
+        g_app->leftMode = 4;
+        menueeditor::projektVormerken(p);
+        return;
+    }
     // Schon offen? Dann dorthin - siehe reiterMitPfad.
     if (const int offen = reiterMitPfadI(p); offen >= 0) {
         zumOffenenReiter(offen, fileName(p));
@@ -5283,7 +5291,7 @@ void draw() {
         !ImGui::GetIO().WantTextInput && !g_app->tlUnterMaus && g_app->leftMode != 3 &&
         g_app->leftMode != 4) {
         g_app->uiScale = std::clamp(
-            g_app->uiScale + ImGui::GetIO().MouseWheel * 0.1F, 0.5F, 3.0F);
+            g_app->uiScale + ImGui::GetIO().MouseWheel * 0.1F, kUiScaleMin, 3.0F);
     }
     g_app->tlUnterMaus = false;   // die Zeitleiste setzt es in diesem Bild neu
 

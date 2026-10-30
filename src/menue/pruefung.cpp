@@ -241,6 +241,9 @@ std::vector<Befund> pruefeFuerSpiel(const Datei& d, const PruefKontext& k) {
                 if (v.find('.', v.find_last_of("/\\") + 1) == std::string::npos) { v += ".roq"; }
                 if (!k.gibt(v)) { melde(BefundArt::DateiFehlt, mn, in, 0, 0, v, "cinematic", false); }
             }
+            if (it.window.style == WINDOW_STYLE_CINEMATIC && d.dialekt == Dialekt::SP) {   // M4: SP-Window_Paint kennt es nicht
+                melde(BefundArt::CinematicSp, mn, in, 0, 0, "style", it.window.cinematicName, false);
+            }
             if (!it.focusSound.empty() && !klangDa(k, it.focusSound)) { melde(BefundArt::DateiFehlt, mn, in, 0, 0, it.focusSound, "focusSound", false); }
             // Vertraeglichkeit mit den anderen Fassungen
             for (const Spiel s : k.zielSpiele) {

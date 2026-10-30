@@ -6,6 +6,7 @@
 #ifndef BHED_GUI_MENUEEDITOR_H
 #define BHED_GUI_MENUEEDITOR_H
 
+#include "bhed/menue/hud.h"
 #include <map>
 #include <string>
 #include <vector>
@@ -40,12 +41,19 @@ struct Stand {
     std::string text;
     int meldungen = 0;
     int prims = 0;           // Zeichenbefehle der Vorschau im letzten Bild
+    int asienGlyphen = 0;    // M3: davon Zeichen aus den asiatischen Glyphenseiten
+    int hudBilder = 0;       // M3: davon Zahlen (gfx/2d/numbers) und Fadenkreuz des HUD
+    bool hudNachgebildet = false;   // M3: cgame-Teil des HUD fuer dieses Spiel nachgebildet (JA SP)
+    std::vector<std::string> klangListe;   // M3: ausgeloeste Klaenge seit klangListeLeeren ("musik:" = Hintergrund)
+    int spiel = 0;                  // M3: 0 Jedi Academy, 1 Jedi Outcast, 2 Movie Duels (Spieldaten)
     int bilderGeladen = 0;   // Shader mit Textur
     bool interaktion = false;
     std::string cursorZeile; // Text der Zeile unter dem ersten Cursor
     int exporte = 0;         // H2: erfolgreiche .pk3-Exporte (Tour "Ein Menue aendern")
     bool codeFestbreite = false;   // M2: Code-Editor mit Festbreitenschrift
     int kinoBilder = 0;            // M2: gezeigte Bilder aus RoQ-Videos
+    int klangStimmen = 0;          // M4: laufende Klaenge der Vorschau (Ton-Schalter aus = 0)
+    int verborgen = 0, gesperrt = 0;   // M4: Items mit Auge aus bzw. Schloss zu (Ebenenliste)
     int modellAufrufe = 0;         // M2: Zeichenaufrufe der 3D-Modelle (gpu::zeichneMenueFigur)
     std::string modellFehler;      // letzte Meldung dabei
     int klangEreignisse = 0;       // M2 Punkt 5: ausgeloeste Klaenge (im Selbsttest stumm)
@@ -62,12 +70,14 @@ struct Stand {
 [[nodiscard]] Stand stand();
 // Befehle wie die Knoepfe (Selbsttest)
 void waehle(int item, bool dazu);
+[[nodiscard]] int itemNummer(const std::string& name);   // M4: Item der Seite nach Namen, -1 = keins
 void verschiebeAuswahl(float dx, float dy);
 void setzeInteraktion(bool an);
 void klickVorschau(float x, float y);   // im virtuellen Bildschirm
 void setzeCvar(const std::string& name, const std::string& wert);
 // Rechte Spalte: 0 Hierarchie, 1 Text, 2 Eigenschaften (gespeichert in den Einstellungen)
 void setzeReiter(int reiter);
+void schliesseTestFrage();   // M4: offene Frage von "Im Spiel testen" (Mod-Ordner) mit Nein schliessen
 // Live-Diagnose: die Schnellkorrektur der Meldung Nr. anwenden
 bool korrigiereDiagnose(int nr);
 [[nodiscard]] int reiter();
@@ -87,6 +97,32 @@ bool speichereUnter(const std::string& pfad);
 // H2 (KI-Auftraege): die Textaenderungen seit `vorher` als EIN Rueckgaengig-Schritt.
 // false, wenn sich die Schritte nicht zusammenfassen liessen (dann bleiben sie einzeln).
 bool zuEinemSchritt(const std::string& vorher);
+// M5b Punkt 3: Projektordner + Projektdatei *.jksmenu (bhed/menue/projekt.h)
+bool oeffneProjekt(const std::string& datei);         // sofort (Selbsttest, Dialog)
+void projektVormerken(const std::string& datei);      // Doppelklick/Kommandozeile: im naechsten Bild
+[[nodiscard]] bool istProjekt(const std::string& datei);
+bool legeProjektAn(const std::string& datei);         // die offenen Menues kommen hinein
+bool speichereProjektJetzt();
+bool exportiereProjektJetzt();
+[[nodiscard]] std::string projektDatei();             // "" = kein Projekt
+void sichereJetzt();                                  // Sicherung sofort (sonst alle 30 Sekunden)
+void sucheSicherung();                                // Sicherung am jetzigen Ort suchen (fragt nach)
+void schliesseAlleOhneSpeichern();                    // Selbsttest: wie nach einem Absturz
+void fragZuordnung();                                 // Frage zur Dateizuordnung zeigen
+void beimBeenden();                                   // beim Beenden: Ungespeichertes sichern
+// M5b Punkt 6: Messwerte fuer die Tour "Dein erstes eigenes Menue" (gui/tour_messwerte.cpp)
+struct TourWerte {
+    bool projekt = false;     // ein Projekt ist offen
+    int elemente = 0;         // Items im Menue der Seite
+    int layouts = 0;          // Layouts in diesem Menue
+    int ereignisse = 0;       // Ereignis-Skripte (mouseEnter ... accept) seiner Items
+    int gespeichert = 0;      // erfolgreiche Projekt-Speicherungen seit dem Start
+};
+[[nodiscard]] TourWerte tourWerte();
+// M5b Punkt 4: Mod-Profile (bhed/menue/profil.h); "" = das eingebaute des Spiels
+void setzeModProfil(const std::string& name);
+[[nodiscard]] std::string modProfil();
+bool legeProfilVorlageAn(const std::string& pfad);    // Vorlage zum Ausfuellen schreiben
 bool exportierePk3(const std::string& pfad);
 // M2 Punkt 7: nur geaenderte Menues (und das Paket); Pruefung fuer die Fassungen
 bool exportiereAenderungen(const std::string& pfad);
@@ -98,14 +134,30 @@ std::string imSpielTesten();
 bool baueSchriftAusTtf(const std::string& ttf, const std::string& name, int groesse);
 // M2 Punkt 6: Sprache der Vorschau, eigene Texte
 void setzeVorschauSprache(const std::string& sprache);
+// texte: Sprache -> Text wie getippt (UTF-8); gespeichert in der Kodierung der Sprache
 bool legeTextAn(const std::string& schluessel, const std::map<std::string, std::string>& texte);
 [[nodiscard]] std::string loeseText(const std::string& at);
 [[nodiscard]] std::string textPaket();
+// M3 Punkt 5: Beispielwerte des HUD (wie die Regler im Cvar-Feld)
+void setzeHudWerte(const bhed::menue::HudWerte& w);
+// M3 Punkt 3: das Klangprotokoll leeren
+void klangListeLeeren();
+// M3: eine Datei des Pakets (Spielpfad, Gross/Klein egal); "" = nicht da
+[[nodiscard]] std::string paketInhalt(const std::string& spielPfad);
 // M2: Festbreitenschrift des Code-Editors (main_win32.cpp buildFonts)
 void setzeCodeSchrift(ImFont* f);
 void setzeBalken(bool balken);   // 4:3 mit Balken (true) oder gestreckt
-// M2 Punkt 2: Video/GIF als RoQ ins Paket (synchron, fuer Selbsttest); Spielpfad oder ""
-std::string importiereVideo(const std::string& platte, int guete, int fps, int maxSeite);
+// M2 Punkt 2 / M4 Punkt 5: Video/GIF/RoQ als RoQ ins Paket (synchron, fuer Selbsttest),
+// dazu der Shader menu/video/<name> in shaders/<paket>.shader; Spielpfad oder "" (fehler: Meldung)
+struct VideoImport {
+    int breite = 512, hoehe = 512;
+    int einpassen = 0;     // 0 strecken, 1 Balken, 2 zuschneiden
+    int guete = 70, fps = 30;
+    bool ton = false, stereo = true;
+    int verwendung = 0;    // 0 Hintergrund des gewaehlten Items, 1 neues Vollbild-Element, 2 cinematic, 3 nur ins Paket
+};
+std::string importiereVideo(const std::string& platte, const VideoImport& o, std::string* fehler = nullptr);
+void zeigeVideoImport(const std::string& platte);   // M4: Dialog fuer eine Datei zeigen, "" = schliessen
 // M2 Punkt 4: Vorlage aus der Bibliothek an (x, y) einsetzen; Auswahl als eigene Vorlage
 bool fuegeVorlageEin(const std::string& id, float x, float y);
 bool speichereAuswahlAlsVorlage(const std::string& name);

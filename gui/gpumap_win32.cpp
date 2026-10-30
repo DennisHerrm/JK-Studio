@@ -5305,6 +5305,26 @@ int zeichneKlingen(const std::vector<KlingenQuad>& quads, const float* viewProj,
                    std::string* fehler) {
     return zeichneKlingenIn(quads, viewProj, fehler, g_zielRtv);
 }
+// M3: Mischung fuer Klingen mit blendFunc blend; menue = ins Menue-Ziel (mit Alpha)
+ID3D11BlendState* g_klingenMischung[2] = {nullptr, nullptr};
+ID3D11BlendState* holeKlingenMischung(ID3D11Device* d, bool menue) {
+    ID3D11BlendState*& bs = g_klingenMischung[menue ? 1 : 0];
+    if (bs != nullptr || d == nullptr) { return bs; }
+    D3D11_BLEND_DESC bd{};
+    D3D11_RENDER_TARGET_BLEND_DESC& rt = bd.RenderTarget[0];
+    rt.BlendEnable = TRUE;
+    rt.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+    rt.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    rt.BlendOp = D3D11_BLEND_OP_ADD;
+    rt.SrcBlendAlpha = D3D11_BLEND_ONE;
+    rt.DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+    rt.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    rt.RenderTargetWriteMask = menue ? D3D11_COLOR_WRITE_ENABLE_ALL
+                                     : (D3D11_COLOR_WRITE_ENABLE_RED | D3D11_COLOR_WRITE_ENABLE_GREEN | D3D11_COLOR_WRITE_ENABLE_BLUE);
+    if (FAILED(d->CreateBlendState(&bd, &bs))) { bs = nullptr; }
+    return bs;
+}
+
 int zeichneKlingenIn(const std::vector<KlingenQuad>& quads, const float* viewProj,
                      std::string* fehler, ID3D11RenderTargetView* ziel) {
     ID3D11Device* d = dev();
@@ -5339,7 +5359,10 @@ int zeichneKlingenIn(const std::vector<KlingenQuad>& quads, const float* viewPro
             k.uv[1] = vv[e];
             for (int a = 0; a < 3; ++a) { k.farbe[a] = q.farbe[a] / 255.0F; }
             k.farbe[3] = mitBild ? 1.0F : 0.0F;
-            if (q.spur) {
+            if (q.mischung == 1 && mitBild) {
+                // M3 a >= 4: Bild x Farbe, Alpha des Bildes x (a - 4) - blendFunc blend
+                k.farbe[3] = 4.0F + std::clamp(q.staerke, 0.0F, 1.0F);
+            } else if (q.spur) {
                 // a >= 2: Bild x Farbe x (a - 2) - siehe klingePixelShaderHlsl.
                 if (mitBild) {
                     k.farbe[3] = 2.0F + std::clamp(q.staerke, 0.0F, 1.0F);
@@ -5413,13 +5436,23 @@ int zeichneKlingenIn(const std::vector<KlingenQuad>& quads, const float* viewPro
     // Aufeinanderfolgende Vierecke mit demselben Bild in EINEM Aufruf - die
     // Reihenfolge bleibt, also auch das Bild. Bei Schnee und Regen waren es
     // sonst Hunderte bis Tausende Aufrufe je Bild (Code-Pruefung rc592).
+    // M3: blendFunc blend (schwarze Klingen) - Farbe SRC_ALPHA/INV_SRC_ALPHA; im Menue-Ziel
+    // auch das Alpha (ONE/INV_SRC_ALPHA), damit das Auflegen vormultipliziert abdeckt
+    ID3D11BlendState* bsMisch = holeKlingenMischung(d, g_menueZielAktiv);
     int n = 0;
     std::size_t lauf = 0;
     ID3D11ShaderResourceView* laufBild = nullptr;
+    int laufMischung = 0;
     for (std::size_t i = 0; i <= quads.size(); ++i) {
         ID3D11ShaderResourceView* bild = (i < quads.size()) ? holeTexBild(quads[i].tex) : nullptr;
-        if (i == quads.size() || (i > lauf && bild != laufBild)) {
+        const int mischung = (i < quads.size()) ? quads[i].mischung : 0;
+        if (i == quads.size() || (i > lauf && (bild != laufBild || mischung != laufMischung))) {
             if (i > lauf) {
+                ID3D11BlendState* b = laufMischung == 1 ? bsMisch : bs;
+                if (b != nullptr) {
+                    const float faktor[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+                    c->OMSetBlendState(b, faktor, 0xFFFFFFFFU);
+                }
                 c->PSSetShaderResources(0, 1, &laufBild);
                 c->Draw(static_cast<UINT>((i - lauf) * 6U), static_cast<UINT>(lauf * 6U));
                 n += static_cast<int>(i - lauf);
@@ -5427,6 +5460,7 @@ int zeichneKlingenIn(const std::vector<KlingenQuad>& quads, const float* viewPro
             lauf = i;
         }
         laufBild = bild;
+        laufMischung = mischung;
     }
     ID3D11ShaderResourceView* nichts = nullptr;
     c->PSSetShaderResources(0, 1, &nichts);
@@ -5955,6 +5989,10 @@ void shutdown() {
     g_shaderSchnell.clear();
     for (auto& [k, s] : g_blend) { if (s != nullptr) { s->Release(); } }
     g_blend.clear();
+    for (ID3D11BlendState*& b : g_klingenMischung) {
+        if (b != nullptr) { b->Release(); }
+        b = nullptr;
+    }
     for (auto& [k, s] : g_depth) { if (s != nullptr) { s->Release(); } }
     g_depth.clear();
     for (auto& [k, s] : g_raster) { if (s != nullptr) { s->Release(); } }

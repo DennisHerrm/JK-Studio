@@ -47,6 +47,15 @@ bool startBehavedWith(const std::string& datei);
 // Dorthin gehoert das Protokoll: wer es hinschicken soll, findet es neben der
 // .exe, statt es in %APPDATA% suchen zu muessen.
 [[nodiscard]] std::string executableDirectory();
+// Menue-Editor M5b: der volle Pfad der laufenden .exe
+[[nodiscard]] std::string executablePath();
+// Menue-Editor M5b: Werte unter HKEY_CURRENT_USER schreiben (Dateizuordnung nur nach Rueckfrage im
+// Programm; danach SHChangeNotify, damit der Explorer es sofort weiss) bzw. den Standardwert lesen.
+struct RegWert {
+    std::string schluessel, name, wert;
+};
+bool schreibeBenutzerRegistry(const std::vector<RegWert>& werte);
+[[nodiscard]] std::string liesBenutzerRegistry(const std::string& schluessel);
 // Einen Ordner im Explorer zeigen.
 void openInExplorer(const std::string& folder);
 // "Dokumente" des Anwenders (auch wenn OneDrive ihn umgeleitet hat). Dort

@@ -1152,6 +1152,12 @@ target_sources(bhed_core PRIVATE
   src/menue/skript.cpp
   # Punkt 4: Werkzeuge der Arbeitsflaeche (Einrasten, Ausrichten, Items ueber Spannen)
   src/menue/werkzeuge.cpp
+  # M5 Punkt 1: Layouts wie Qt (Kommentarzeile // jkstudio:layout)
+  src/menue/layout.cpp
+  src/menue/projekt.cpp
+  src/menue/profil.cpp
+  # M5 Punkt 2: Ereignisse wie Unreal UMG (Bausteine, Hover-Effekte)
+  src/menue/ereignisse.cpp
   # M2 Punkt 2: RoQ abspielen (cl_cin.cpp) und schreiben, GIF-Import
   src/menue/roq.cpp
   src/menue/roq_kodierer.cpp
@@ -1168,7 +1174,11 @@ target_sources(bhed_core PRIVATE
   src/menue/diagnose.cpp
   # M2 Punkt 8/9: Im Spiel testen, Schrift aus TTF bauen
   src/menue/imspiel.cpp
-  src/menue/schriftbau.cpp)
+  src/menue/schriftbau.cpp
+  # M3 Punkt 7: eigene Texte in den asiatischen Kodierungen der Engine (tr_font.cpp)
+  src/menue/kodierung.cpp
+  # M3 Punkt 5: HUD-Editor - was cgame ueber die HUD-Menues zeichnet (cg_draw.cpp)
+  src/menue/hud.cpp)
 if(BEHAVED_TESTS)
   # Punkt 1: LICENSE ist GPL v2, README nennt Lizenz und Herkunft, jede
   # portierte Datei traegt ihren Herkunftskopf.
@@ -1235,6 +1245,18 @@ if(BEHAVED_TESTS)
   add_executable(menuewerkzeug tests/menuewerkzeug.cpp)
   target_link_libraries(menuewerkzeug PRIVATE bhed_core)
   add_test(NAME menue_werkzeug COMMAND menuewerkzeug)
+  add_executable(menuelayout tests/menuelayout.cpp)
+  target_link_libraries(menuelayout PRIVATE bhed_core)
+  add_test(NAME menue_layout COMMAND menuelayout)
+  add_executable(menueereignisse tests/menueereignisse.cpp)
+  target_link_libraries(menueereignisse PRIVATE bhed_core)
+  add_test(NAME menue_ereignisse COMMAND menueereignisse)
+  add_executable(menueprojekt tests/menueprojekt.cpp)
+  target_link_libraries(menueprojekt PRIVATE bhed_core)
+  add_test(NAME menue_projekt COMMAND menueprojekt)
+  add_executable(menueprofil tests/menueprofil.cpp)
+  target_link_libraries(menueprofil PRIVATE bhed_core)
+  add_test(NAME menue_profil COMMAND menueprofil)
   # M2 Punkt 2: RoQ-Kodierer und -Spieler im Rundlauf (mit Spielordnern auch ein Original-Video)
   # M2 Punkt 7: Pruefungen vor dem Export
   add_executable(menuepruefung tests/menuepruefung.cpp)

@@ -94,6 +94,20 @@ int main() {
         pruefe(!hat(b, BefundArt::NieSichtbar, "gezeigt"), "Nie sichtbar: per show gezeigt - kein Befund");
         pruefe(!hat(b, BefundArt::NieSichtbar, "leer"), "Nie sichtbar: zeichnet nichts - kein Befund");
     }
+    // M4: cinematic im Einzelspieler zeichnet die Engine nicht
+    {
+        const std::string t = "{\nmenuDef\n{\nname c\nrect 0 0 640 480\n"
+                              "itemDef { name kino rect 0 0 320 240 style WINDOW_STYLE_CINEMATIC cinematic \"x\" visible 1 }\n}\n}\n";
+        const std::vector<Befund> sp = pruefeFuerSpiel(lese(t, Dialekt::SP, Spiel::JA), PruefKontext{});
+        const std::vector<Befund> mp = pruefeFuerSpiel(lese(t, Dialekt::MP, Spiel::JA), PruefKontext{});
+        const auto hatK = [](const std::vector<Befund>& b) {
+            for (const Befund& x : b) {
+                if (x.art == BefundArt::CinematicSp) { return true; }
+            }
+            return false;
+        };
+        pruefe(hatK(sp) && !hatK(mp), "cinematic: Hinweis nur im Einzelspieler (Window_Paint SP zeichnet es nicht)");
+    }
     // fehlende Dateien und Vertraeglichkeit
     {
         const std::string t = "{\nmenuDef\n{\nname f\nrect 0 0 640 480\n"

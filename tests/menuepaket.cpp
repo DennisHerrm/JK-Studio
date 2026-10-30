@@ -40,8 +40,30 @@ int main() {
         p = menueTestPlanen(e);
         pruefe(p.pk3.find("/MD/zzz_jkstudio_menue.pk3") != std::string::npos && p.befehl.find("+set fs_game MD ") != std::string::npos,
                "Test: Mod (Movie Duels) - Archiv in <test>/MD, fs_game MD");
+        // M3 Punkt 4 (echter Start): das Movie-Duels-Programm nimmt ohne fs_game seine Mod MD - deren
+        // Menues (basepath/MD) stehen dann ueber dem Testpaket in <test>/base; also fs_game base
         e.fsGame.clear();
-        e.faehigkeit.homepath = false;   // jasp/jk2sp: cdpath haette den niedrigsten Rang
+        e.exe = "MovieDuels-SP.x86_64.exe";
+        p = menueTestPlanen(e);
+        pruefe(p.befehl.find("+set fs_game base ") != std::string::npos && p.pk3.find("/base/zzz_jkstudio_menue.pk3") != std::string::npos,
+               "Test: Movie-Duels-Programm mit den Daten von base - fs_game base ausdruecklich: " + p.befehl);
+        // M5b Punkt 5: ohne fs_homepath, mit fs_cdpath (jasp, jk2sp): eigener Ordner als fs_basepath, die
+        // Spieldaten ueber fs_cdpath (niedrigster Rang) - das Testpaket steht darueber, das Spiel schreibt
+        // nur in den eigenen Ordner (so in M5/M5b mit jasp und jk2sp aus Steam gestartet)
+        e.exe = "jk2sp.exe";
+        e.faehigkeit.homepath = false;
+        p = menueTestPlanen(e);
+        pruefe(p.weg == bhed::karte::SpielTestWeg::CdPfad && !p.bestaetigungNoetig &&
+                   p.pk3 == "C:/Users/x/AppData/jkstudio/menuetest/base/zzz_jkstudio_menue.pk3" &&
+                   p.befehl == "\"C:/Spiele/JKA/jk2sp.exe\" +set fs_basepath \"C:/Users/x/AppData/jkstudio/menuetest\" +set fs_cdpath \"C:/Spiele/JKA\" +echo jkstudio_menu_test",
+               "Test: ohne fs_homepath ueber fs_basepath + fs_cdpath: " + p.befehl);
+        // jk2sp.exe 1.04 stuerzt mit fs_basepath ab 105 Zeichen ab (gemessen: 100 laeuft, 110 Stapelueberlauf)
+        e.testOrdner = "C:/" + std::string(110, 'x');
+        p = menueTestPlanen(e);
+        pruefe(p.weg == bhed::karte::SpielTestWeg::ModOrdner && p.bestaetigungNoetig, "Test: Jedi Outcast mit zu langem eigenem Ordner - Mod-Ordner nach Frage");
+        e.testOrdner = "C:/Users/x/AppData/jkstudio/menuetest";
+        e.exe = "openjk_sp.x86_64.exe";
+        e.faehigkeit.cdpath = false;   // weder fs_homepath noch fs_cdpath
         p = menueTestPlanen(e);
         pruefe(p.weg == bhed::karte::SpielTestWeg::ModOrdner && p.bestaetigungNoetig && p.befehl.empty(),
                "Test: ohne fs_homepath nur der Mod-Ordner, erst nach Bestaetigung");

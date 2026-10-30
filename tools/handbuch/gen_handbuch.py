@@ -122,6 +122,10 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in MENUE1})
             from i18n_menue2 import MENUE2     # Menue-Editor M2
             texte.update({e[0]: e[1:] for e in MENUE2})
+            from i18n_menue3 import MENUE3     # Menue-Editor M3
+            texte.update({e[0]: e[1:] for e in MENUE3})
+            from i18n_menue5 import MENUE5     # Menue-Editor M5
+            texte.update({e[0]: e[1:] for e in MENUE5})
             from i18n_karte9c import KARTE9C   # Stufe 9c: Werkzeugleisten, Echtzeit-Licht wie im Spiel
             texte.update({e[0]: e[1:] for e in KARTE9C})
             from i18n_karte9d import KARTE9D   # Stufe 9d: Echtzeit-Ansicht, Shader live, Patch-Bruecke

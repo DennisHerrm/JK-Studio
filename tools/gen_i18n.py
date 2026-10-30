@@ -2196,6 +2196,10 @@ from i18n_vis1 import VIS1  # noqa: E402  (vis1: dasselbe VIS in jedem Bau)
 S += VIS1
 from i18n_zeitleiste1 import ZEITLEISTE1  # noqa: E402  (zeitleiste1: neue Zeitleiste im Mission-Tab)
 S += ZEITLEISTE1
+from i18n_menue3 import MENUE3  # noqa: E402  (Menue-Editor M3)
+S += MENUE3
+from i18n_menue5 import MENUE5  # noqa: E402  (Menue-Editor M5)
+S += MENUE5
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

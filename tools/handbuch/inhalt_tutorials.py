@@ -60,7 +60,7 @@ UEBERSICHT = {
         ("index", [
             (T("The big project"), ["tut-projekt"] + ["tut-p%d" % i for i in range(1, 9)]),
             (T("Your first map", "Deine erste Karte", "你的第一张地图", "はじめてのマップ"), ["tut-karte", "tut-karte-tuer"]),
-            (T("Menu editor", "Menü-Editor", "菜单编辑器", "メニューエディター"), ["tut-menue"]),
+            (T("Menu editor", "Menü-Editor", "菜单编辑器", "メニューエディター"), ["tut-menue", "tut-menue-eigen"]),
             (T("Scripts"), [s["id"] for s in inhalt_kurz.SKRIPT + inhalt_kurz2.SKRIPT2 + inhalt_kurz3.VORHANDEN]),
             (T("Camera and timeline"), [s["id"] for s in inhalt_kurz.KAMERA + inhalt_kurz2.KAMERA2 + inhalt_kurz3.ZEIT + [inhalt_kurz3.SZENE[1]]]),
             (T("Figures"), [s["id"] for s in inhalt_kurz.FIGUREN + inhalt_kurz2.FIGUREN2]),
@@ -78,7 +78,7 @@ UEBERSICHT = {
                 "マップエディターで部屋を作り、ライトを置き、エディターの中を歩いてから、.pk3 としてゲームに入れます。")),
         ("cards", ["tut-karte", "tut-karte-tuer"], "breit"),
         ("h2", "menue", T("Menu editor", "Menü-Editor", "菜单编辑器", "メニューエディター")),
-        ("cards", ["tut-menue"], "breit"),
+        ("cards", ["tut-menue", "tut-menue-eigen"], "breit"),
         ("h2", "kurz", T("Short tutorials")),
         ("p", T("Each one shows one small thing in three to six steps - start with any of them.")),
         ("h3", T("Scripts")),

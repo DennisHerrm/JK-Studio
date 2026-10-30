@@ -51,7 +51,9 @@ TOUREN = ["k-neues-skript", "k-befehl-einfuegen", "k-werte-bearbeiten", "k-zeile
           "k-modell",
           # H2: mehr interaktive Touren mit echten Aktionen
           "k-gangart", "k-wegpunkte", "k-neu-timen", "tut-p1", "k-skins",
-          "k-spielordner", "k-update", "tut-karte-tuer", "tut-menue"]
+          "k-spielordner", "k-update", "tut-karte-tuer", "tut-menue",
+          # M5b: das erste eigene Menue im Menue-Editor (inhalt_menue5b.py)
+          "tut-menue-eigen"]
 ANSICHTEN = ["classic"]
 
 # Die Ereignisliste gibt es nur im Modus Events - sonst zeigt die Tour auf
@@ -310,6 +312,17 @@ NACH_SCHRITT.update({
 # k-kamera-ansicht (H1): ist die Kamera nicht gewaehlt, zeigt Schritt 2 jetzt
 # auf die Kamerazeile der Zeitleiste (selbst gezeichnet, H2).
 NACH_SCHRITT[("k-kamera-ansicht", "classic", 2)]["voraus"] = VORSCHAU + " && zahl:vorschau.ohnekamera|zahl:vorschau.kameragewaehlt < gezeichnet:zeitleiste.kamera"
+# --- M5b: tut-menue-eigen - Dein erstes eigenes Menue ------------------------------------
+MENUE = "modus:4 < knopf:ViewMenuEditor@modebar"
+NACH_SCHRITT.update({
+    ("tut-menue-eigen", "classic", 1): A("knopf:ViewMenuEditor@modebar", "modus:4", einrichten="modus:4", sicher=True),
+    ("tut-menue-eigen", "classic", 2): A("knopf:MePrjNeu", "zahl:menue.projekt", voraus=MENUE),
+    ("tut-menue-eigen", "classic", 3): A("knopf:MeWButton", "zahl:menue.elemente+", voraus=MENUE),
+    ("tut-menue-eigen", "classic", 4): A("knopf:MeLayoutWaagrecht", "zahl:menue.layouts+", voraus=MENUE),
+    ("tut-menue-eigen", "classic", 5): A("knopf:MeEvLeuchten", "zahl:menue.ereignisse+", voraus=MENUE),
+    ("tut-menue-eigen", "classic", 6): A("knopf:MeSpeichern", "zahl:menue.gespeichert+", voraus=MENUE),
+})
+
 
 def angaben(seite, ansicht, nr, bild):
     """Die Angaben eines Schritts oder None."""

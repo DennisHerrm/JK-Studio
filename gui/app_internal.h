@@ -2691,6 +2691,11 @@ void vergissEntities(const std::string& kennung);
 inline constexpr float kEntitySpalte = 18.0F;
 
 // --- Bedien-Icons (gui/uiicons.cpp) ----------------------------------------
+// M4: kleinste Oberflaechengroesse (Grundschrift 16 px -> mindestens 12 px, wie die
+// kleinste Stufe im Ansicht-Menue)
+inline constexpr float kUiScaleMin = 0.75F;
+void setUiScale(App* a, float s);   // begrenzt auf kUiScaleMin..3 (app_ablage.inc)
+
 enum class UiIcon : int {
     Neu, Oeffnen, Speichern, Mehr, Karte, Paket, Liste, Skript, Entity, Namen, Figur, Effekt,
     Leuchten, Licht, Nebel, Himmel, Kamera, Einstellungen, Statistik, Plus, Boden, Hinfliegen,
@@ -2708,6 +2713,8 @@ enum class UiIcon : int {
     Sichtbar, Versteckt,
     // Bild-im-Bild der Kamera (rc592)
     Bildschirm,
+    // Menue-Editor M4: Ton aus, Schloss zu/offen (Ebenenliste)
+    TonAus, Schloss, SchlossOffen,
 };
 void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe);
 // Quadratischer Icon-Knopf; der Text ist Kennung und Tooltip-Titel.

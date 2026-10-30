@@ -123,24 +123,52 @@ struct RoqBild {
     std::vector<std::uint8_t> rgba;
 };
 
+// --- Ton (M4 Punkt 5b) ------------------------------------------------------------
+// cl_cin.cpp spielt ZA_SOUND_MONO/STEREO mit S_RawSamples(..., 22050, ...): eine Probe
+// je Byte und Kanal, DPCM ueber sqrTable (RllSetupTable: z*z, -z*z).
+inline constexpr int kRoqTonRate = 22050;
+struct RoqTon {
+    std::vector<std::int16_t> pcm;   // 22050 Hz, Kanaele verschraenkt
+    int kanaele = 0;                 // 1 (ZA_SOUND_MONO) oder 2 (ZA_SOUND_STEREO); 0 = kein Ton
+    [[nodiscard]] std::size_t proben() const noexcept { return kanaele > 0 ? pcm.size() / static_cast<std::size_t>(kanaele) : 0; }
+};
+// PCM (rate, kanaeleEin verschraenkt) auf 22050 Hz und kanaeleAus (1/2) bringen:
+// Kanaele mitteln bzw. verdoppeln, dann Fenster-Sinc (Hann, 16 Nullstellen, Grenze
+// bei der kleineren Nyquist-Frequenz - kein Ueberlappen beim Verkleinern).
+[[nodiscard]] RoqTon tonAuf22050(const std::vector<std::int16_t>& pcm, int rate, int kanaeleEin, int kanaeleAus);
+// Alle Tonstuecke eines RoQ so dekodieren, wie RoQInterrupt sie an S_RawSamples gibt
+// (RllDecodeMonoToStereo / RllDecodeStereoToStereo, das letzte Stueck der Datei liest
+// die Engine nie): Stereo verschraenkt, 22050 Hz. kanaele: 1/2 der Datei, 0 = ohne Ton.
+[[nodiscard]] std::vector<std::int16_t> roqTonDekodieren(const std::string& roq, int* kanaele = nullptr);
+
 class RoqKodierer {
 public:
     // Breite und Hoehe muessen Vielfache von 16 sein (die Engine zerlegt das
-    // Bild in 16x16-Bloecke); bildAnpassen() bringt ein Bild dorthin.
-    bool beginne(int breite, int hoehe, const RoqOptionen& o);
+    // Bild in 16x16-Bloecke); bildSkalieren() bringt ein Bild dorthin.
+    // ton (22050 Hz, schon auf die Laenge des Videos gekuerzt): wie die Videos von
+    // JKA ein Vorlaufstueck fuer kTonVorlauf Bilder vor ROQ_QUAD_INFO, dann nach
+    // jedem Bild das Stueck bis (Bild + 1 + kTonVorlauf) * 22050 / fps.
+    bool beginne(int breite, int hoehe, const RoqOptionen& o, const RoqTon* ton = nullptr);
     void bild(const RoqBild& b);
     [[nodiscard]] std::string fertig();   // die .roq-Bytes
     [[nodiscard]] int bilderAnzahl() const noexcept { return bilder_; }
+    [[nodiscard]] std::size_t groesse() const noexcept { return aus_.size(); }   // bisher geschriebene Bytes
+    static constexpr int kTonVorlauf = 8;   // ja01.roq: 5888 Proben vorab (8 Bilder bei 30 fps)
 
 private:
+    void tonBis(std::size_t probe);
     std::string aus_;
     int breite_ = 0, hoehe_ = 0, bilder_ = 0;
     RoqOptionen opt_;
+    RoqTon ton_;
+    std::size_t tonGeschrieben_ = 0;
     std::vector<std::uint8_t> vorher_;      // Puffer 1 des Spielers (RGBA)
     std::vector<std::uint8_t> vorvorher_;   // Puffer 0 des Spielers (RGBA)
 };
 
-// Eine Bildfolge mit Anzeigedauer je Bild (GIF, Video).
+// --- Import (M2 Punkt 2, M4 Punkt 5a) ---------------------------------------------
+
+// Eine Bildfolge mit Anzeigedauer je Bild (GIF).
 struct Bildfolge {
     std::vector<RoqBild> bilder;
     std::vector<int> dauerMs;
@@ -149,13 +177,65 @@ struct Bildfolge {
 [[nodiscard]] bool gifLesen(const std::string& daten, Bildfolge& out);
 // Welches Bild zu jedem Takt bei fps gezeigt wird.
 [[nodiscard]] std::vector<std::size_t> aufFps(const Bildfolge& f, int fps);
-// Ganze Folge kodieren; fortschritt(fertig, gesamt) false = abbrechen ("" zurueck).
-[[nodiscard]] std::string kodiereRoq(const Bildfolge& f, const RoqOptionen& o, int maxSeite,
+
+// Was die Engine an Groessen abspielt (OpenJK cl_cin.cpp / tr_draw.cpp):
+//   - RE_StretchRaw (Vollbild-Videos, cinematic-Items der MP-Menues) bricht bei Seiten,
+//     die keine Zweierpotenz sind, mit ERR_DROP ab ("size not a power of 2");
+//     RE_UploadCinematic (videoMap) prueft das nicht.
+//   - cin.linbuf hat Platz fuer zwei Bilder zu 512x512 (DEFAULT_CIN_WIDTH/HEIGHT):
+//     breite * hoehe > 512 * 512 schreibt ueber den Puffer hinaus.
+enum class RoqGroesse { Ok, KeineZweierpotenz, ZuGross };
+[[nodiscard]] RoqGroesse roqGroessePruefen(int breite, int hoehe);
+
+enum class Einpassen {
+    Strecken,      // ganzes Bild auf die Zielgroesse (das Spiel streckt beim Zeichnen ohnehin aufs Rechteck)
+    Balken,        // Seitenverhaeltnis halten, schwarze Balken
+    Zuschneiden,   // Seitenverhaeltnis halten, Ueberstand mittig abschneiden
+};
+struct VideoZiel {
+    int breite = 512, hoehe = 512;   // wie alle Videos von JKA und Movie Duels
+    Einpassen einpassen = Einpassen::Strecken;
+};
+// Ein Bild auf die Zielgroesse bringen: je Achse verkleinern mit Flaechenmittel
+// (jeder Zielpunkt mittelt die ueberdeckten Quellpunkte anteilig), vergroessern bilinear.
+[[nodiscard]] RoqBild bildSkalieren(const RoqBild& q, const VideoZiel& z);
+
+// Kodieren im Fluss (Videos sind zu gross, um alle Bilder vorher zu halten):
+// bild(quelle, zeitMs) mit der Anzeigezeit des Quellbildes, fertig(dauerMs) mit dem
+// Ende des letzten Bildes. Takt k (Zeit k * 1000 / fps) zeigt das letzte Quellbild,
+// dessen Zeit <= k * 1000 / fps ist (wie aufFps).
+class RoqImport {
+public:
+    bool beginne(const VideoZiel& z, const RoqOptionen& o, const RoqTon* ton);
+    void bild(const RoqBild& quelle, long long zeitMs);
+    [[nodiscard]] std::string fertig(long long dauerMs);
+    [[nodiscard]] int takte() const noexcept { return takt_; }
+    [[nodiscard]] std::size_t bytes() const noexcept { return kod_.groesse(); }
+    // Takte fuer eine Dauer (mindestens 1)
+    [[nodiscard]] static long long takteFuer(long long dauerMs, int fps);
+
+private:
+    void bisZeit(long long zeitMs);
+    void zeige();   // ein Takt mit dem aktuellen Quellbild
+    RoqKodierer kod_;
+    VideoZiel ziel_;
+    int fps_ = 30;
+    int takt_ = 0;
+    long long erste_ = -1;
+    RoqBild quelle_;            // erst skaliert, wenn ein Takt es zeigt
+    RoqBild aktuell_;
+    bool skaliert_ = false;
+};
+
+// Ganze GIF-Folge kodieren; fortschritt(fertig, gesamt) false = abbrechen ("" zurueck).
+[[nodiscard]] std::string kodiereRoq(const Bildfolge& f, const RoqOptionen& o, const VideoZiel& z, const RoqTon* ton = nullptr,
                                      const std::function<bool(int, int)>& fortschritt = {});
 
-// Ein Bild auf Vielfache von 16 bringen (hoechstens maxSeite, Seitenverhaeltnis
-// bleibt; bilinear), z. B. fuer GIF/Video-Import.
-[[nodiscard]] RoqBild bildAnpassen(const RoqBild& b, int maxSeite);
+// Fehlende Decoder (M4 Punkt 5c): welche Art von Codec hinter dem FourCC des
+// Videostroms steckt (Media Foundation: MF_MT_SUBTYPE.Data1).
+enum class CodecGruppe { Unbekannt, Hevc, Av1, Vp8, Vp9, DivxXvid };
+[[nodiscard]] CodecGruppe codecGruppe(std::uint32_t fourcc);
+[[nodiscard]] std::string fourccText(std::uint32_t fourcc);
 
 }  // namespace bhed::menue
 

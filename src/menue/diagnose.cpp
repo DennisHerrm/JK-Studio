@@ -683,7 +683,7 @@ std::vector<Diagnose> diagnose(const Datei& d, const DiagKontext& k) {
                     }
                 } else if (b.art == BefundArt::NieSichtbar && klein(ei.kanon) == klein(b.name)) {
                     (void)spanne(ei, a, e);
-                } else if (b.art == BefundArt::UnbekanntIn && klein(ei.kanon) == klein(b.name)) {
+                } else if ((b.art == BefundArt::UnbekanntIn || b.art == BefundArt::CinematicSp) && klein(ei.kanon) == klein(b.name)) {
                     (void)spanne(ei, a, e);
                 } else if (b.art == BefundArt::SkriptZuLang && ei.schluessel == b.name) {
                     (void)spanne(ei, a, e);
