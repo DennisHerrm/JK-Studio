@@ -405,6 +405,33 @@ Spielfotos der Vorlagen. Steam läuft seit 30.10. 09:30 (Original-JKA/JK2 erlaub
 - Portierungs-Lint: <cstddef> in den M6-Tests menuefluss/menuefokus/menuelesbar, dazu in den M7-Tests
   menueladebild/menueownerdraw und <algorithm>/<cstddef> in menuevorschau.
 
+### Schlussrunde M7
+
+- Sauberer Neubau (`--clean-first`, alle Ziele): 171 Projekte, 0 Warnungen, 0 Fehler (/W4 /WX).
+- lint_sources, lint_fassung: ok.
+- ctest alle: 168/168 grün (zuerst karte_lizenz rot: Köpfe der M7-Dateien ohne „Portiert aus OpenJK“ bzw. Komponenten ohne „Eigener Code“ am Anfang - behoben) (neu menue_ladebild, menue_tasten, menue_komponenten; erweitert menue_ownerdraw,
+  menue_vorschau, menue_paket).
+- Selbsttest menueeditor voll: Movie-Duels-Daten 131 OK, 0 FEHLER (vorher 127/5: der Abschnitt Komponente schob „Spacer einfügen“ aus dem Bild, und der Komponentenname blieb von einer anderen Datei stehen - beides behoben), Daten aus „GameData original“ 131 OK, 0 FEHLER.
+- karteneditor kurz (BHED_KARTE_NUR=fotos): 78 OK, 0 FEHLER.
+- Modus 1 komplett: 2645 OK, 0 FEHLER.
+- Gegen das Spiel geprüft (Steam angemeldet, SP\spiel.lock, Original-Dateien nur kopiert und wieder entfernt,
+  „GameData wie vorher: True“; Jedi-Outcast- und Movie-Duels-Ordner ohne Änderung): M6-Vorlagen in Movie Duels,
+  jasp/jamp, jk2sp/jk2mp (Abschnitt oben), ui_load in Movie Duels und jasp (Befehlszeile), Farbcodes in
+  jk2sp/jk2mp, Datapad in Movie Duels. Danach keine eigenen Prozesse offen.
+
+### Stand M7 - fertig / offen / nächster Schritt
+
+- Fertig: 14 (alle ownerdraws/Feeder der Original-Menüs mit Darstellung; JKA 0, JK2 0, MD nur MD-MP
+  340-350), M5b-Reste (Tasten, MP-Startmenü, JK2-Tasten und Renderer-Cvars, Chromglanz), 11, 13, 3, 12,
+  Selbsttest mit JKA-Daten, Vorlagen im Spiel; Zusatzpunkte Assistent, JK2-Farbcodes, <cstddef>.
+- Offen mit Begründung: MD-MP 340-350 (keine Quelle der MD-MP-Oberfläche); ui_load bei den Original-
+  Programmen auslösen (sie nehmen Tasten ohne Fokus nicht an - Engine selbst lädt neu, belegt); Datapad von
+  Jedi Outcast nicht im Spiel fotografiert (Zwischensequenz am Kartenstart); KOTOR-Waffenwahl von Movie
+  Duels (cg_com_kotor) nicht nachgebildet.
+- Für die Integration: karte1 untertitel::breite und die JK2-Untertitelprüfung aus 3cae6104 (siehe
+  Zusatzpunkte) - jk2sp.exe nimmt das Zeichen nach ^ als Farbe.
+- Nächster Schritt: nach Auftrag (M7 ist vollständig bis auf die begründeten Punkte).
+
 ## Changelog
 
 ## English
