@@ -21,6 +21,7 @@
 //   useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 //   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
 //   Public License for more details (LICENSE).
+#include "fenster_dock.h"   // dock1: Menue "Fenster"
 #include "hilfe.h"   // H1: der Helfer im Help-Menue
 #include "karteneditor.h"
 
@@ -856,6 +857,7 @@ void zeichneMenueleiste() {
                 qtMenueEnde();
             }
         }
+        dock::menue(3);   // dock1: Panels in eigene Fenster, Anordnungen (nicht in NRC)
         ImGui::EndMenuBar();
         return;
     }
@@ -891,6 +893,10 @@ void zeichneMenueleiste() {
         }
         x += w + mass::kMenuePolster + mass::kMenueAbstand;
     }
+    // dock1: das Menue "Fenster" hinter NRCs Menues (nicht in NRC) - Panels in
+    // eigene Fenster, Anordnungen speichern, laden, zuruecksetzen.
+    ImGui::SetCursorScreenPos(ImVec2{bildpunkt(x, 0).x + static_cast<float>(mass::kMenuePolster) * 0.5F * s - halb, zeile});
+    dock::menue(3);
     ImGui::PopStyleVar();
     ImGui::EndMenuBar();
 }

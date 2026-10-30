@@ -22,6 +22,7 @@
 #include "karte_echtlicht.h"
 
 #include "app_internal.h"
+#include "fenster_dock.h"
 #include "bhed/theme.h"
 #include "karte_gpu.h"
 #include "bhed/karte/wiederherstellen.h"
@@ -842,6 +843,22 @@ const char* feldName(Feld f) {
     return "##feld";
 }
 
+// dock1: die Kennung des Feldes als Panel (fenster_dock.h).
+const char* feldPanel(Feld f) {
+    switch (f) {
+    case Feld::XY: return "karte.xy";
+    case Feld::XZ: return "karte.xz";
+    case Feld::YZ: return "karte.yz";
+    case Feld::Kamera: return "karte.kamera";
+    case Feld::Konsole: return "karte.konsole";
+    case Feld::Texturen: return "karte.texturen";
+    case Feld::Gruppe: return "karte.gruppe";
+    }
+    return "";
+}
+
+constexpr Feld kAlleFelder[7] = {Feld::Kamera, Feld::XY, Feld::XZ, Feld::YZ, Feld::Konsole, Feld::Texturen, Feld::Gruppe};
+
 const char* feldKurz(Feld f) {
     switch (f) {
     case Feld::XY: return "XY";
@@ -983,6 +1000,7 @@ void feld(Feld f, int x, int y, int b, int h) {
     const ImVec2 p0 = bildpunkt(x, y);
     const ImVec2 p1 = bildpunkt(x + b, y + h);
     ImGui::SetCursorScreenPos(p0);
+    dock::heimPlatz(feldPanel(f), p0, p1);
     ImGui::BeginChild(feldName(f), ImVec2{p1.x - p0.x, p1.y - p0.y}, ImGuiChildFlags_None,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     feldInhalt(f);
@@ -993,6 +1011,14 @@ void feld(Feld f, int x, int y, int b, int h) {
 
 // Was ein Kind eines Teilers zeichnet: ein Feld oder ein innerer Teiler.
 using Inhalt = std::function<void(int x, int y, int b, int h)>;
+
+// dock1: steht eines der Felder in einem eigenen Fenster oder ist es ausgeblendet?
+bool feldDraussen() {
+    for (const Feld f : kAlleFelder) {
+        if (!dock::zuhause(feldPanel(f))) { return true; }
+    }
+    return false;
+}
 
 // Ein QSplitter: ordnet seine Kinder auf das Rechteck an (doResize), zeichnet
 // sie und die Griffe; Ziehen wie QSplitterHandle::mouseMoveEvent (Lage der
@@ -1039,7 +1065,9 @@ void teilerZeichnen(const char* id, karte::Teiler& t, bool senkrecht, int x, int
             if (aktivGriff && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 0.0F)) {
                 t.ziehen(mausLog - packStelle, static_cast<int>(i));
             }
-            if (ImGui::IsItemDeactivated()) {
+            // dock1: steht ein Feld in einem eigenen Fenster, hat es hier die
+            // Groesse 0 (versteckt) - die nicht als gewollte Groesse merken.
+            if (ImGui::IsItemDeactivated() && !feldDraussen()) {
                 Editor& ed = editor();
                 if (ed.anordnung == befehle::Anordnung::Regular || ed.anordnung == befehle::Anordnung::RegularLeft) {
                     ed.hGroessen = ed.hSplit.groessen();
@@ -1206,10 +1234,18 @@ void anordnungZeichnen(int x, int y, int b, int h) {
         static const Feld kXy[3] = {Feld::XY, Feld::XZ, Feld::YZ};
         ed.aktivesFeld = static_cast<int>(kXy[std::clamp(ed.aktivXy, 0, 2)]);
     }
+    // dock1: ein Feld in einem eigenen Fenster ist hier versteckt (wie
+    // QWidget::hide - der Teiler gibt seinen Platz den Nachbarn), eine Spalte
+    // ohne sichtbares Feld ebenso.
+    const auto alleDraussen = [](const std::vector<Feld>& felder) {
+        return std::all_of(felder.begin(), felder.end(), [](Feld f) { return !dock::zuhause(feldPanel(f)); });
+    };
     const auto spalte = [](karte::Teiler& t, const char* id, std::vector<Feld> felder) -> Inhalt {
         return [&t, id, felder](int x2, int y2, int b2, int h2) {
             std::vector<Inhalt> kinder;
-            for (const Feld f : felder) {
+            for (std::size_t i = 0; i < felder.size(); ++i) {
+                const Feld f = felder[i];
+                if (i < t.kinder.size()) { t.kinder[i].versteckt = !dock::zuhause(feldPanel(f)); }
                 kinder.emplace_back([f](int x3, int y3, int b3, int h3) { feld(f, x3, y3, b3, h3); });
             }
             teilerZeichnen(id, t, true, x2, y2, b2, h2, kinder);
@@ -1223,9 +1259,15 @@ void anordnungZeichnen(int x, int y, int b, int h) {
         const Inhalt kamSpalte = spalte(ed.vSplit2, "v2", rechts);
         std::vector<Inhalt> kinder = ed.anordnung == Anordnung::Regular ? std::vector<Inhalt>{xySpalte, kamSpalte}
                                                                        : std::vector<Inhalt>{kamSpalte, xySpalte};
+        const bool xyWeg = alleDraussen({Feld::XY, Feld::Konsole});
+        const bool kamWeg = alleDraussen(rechts);
+        if (ed.hSplit.kinder.size() >= 2) {
+            ed.hSplit.kinder[0].versteckt = ed.anordnung == Anordnung::Regular ? xyWeg : kamWeg;
+            ed.hSplit.kinder[1].versteckt = ed.anordnung == Anordnung::Regular ? kamWeg : xyWeg;
+        }
         if (ed.gruppenDialogEingebaut) {
             kinder.push_back(gruppe);
-            ed.hSplit.kinder.back().versteckt = !ed.gruppenDialogOffen;   // GroupDialog_setShown
+            ed.hSplit.kinder.back().versteckt = !ed.gruppenDialogOffen || !dock::zuhause("karte.gruppe");   // GroupDialog_setShown
         }
         teilerZeichnen("h", ed.hSplit, false, x, y, b, h, kinder);
     } else if (ed.anordnung == Anordnung::Split) {
@@ -1234,9 +1276,13 @@ void anordnungZeichnen(int x, int y, int b, int h) {
         static const std::array<int, 4> kNrc{3, 2, 0, 1};
         static const Feld kInhalt[4] = {Feld::XY, Feld::XZ, Feld::YZ, Feld::Kamera};
         const std::array<int, 4> bel = ed.splitFrei ? ed.splitBelegung : kNrc;
-        const auto platzSpalte = [bel](karte::Teiler& t, const char* id, int p0) -> Inhalt {
-            return [&t, id, p0, bel](int x2, int y2, int b2, int h2) {
+        const auto platzFeld = [bel](int p) { return kInhalt[std::clamp(bel[static_cast<std::size_t>(p)], 0, 3)]; };
+        const auto platzSpalte = [bel, platzFeld](karte::Teiler& t, const char* id, int p0) -> Inhalt {
+            return [&t, id, p0, bel, platzFeld](int x2, int y2, int b2, int h2) {
                 std::vector<Inhalt> kinder;
+                for (std::size_t i = 0; i < 2 && i < t.kinder.size(); ++i) {   // dock1
+                    t.kinder[i].versteckt = !dock::zuhause(feldPanel(platzFeld(p0 + static_cast<int>(i))));
+                }
                 for (const int p : {p0, p0 + 1}) {
                     kinder.emplace_back([p, bel](int x3, int y3, int b3, int h3) {
                         g_platz = p;
@@ -1248,9 +1294,13 @@ void anordnungZeichnen(int x, int y, int b, int h) {
             };
         };
         std::vector<Inhalt> kinder{platzSpalte(ed.vSplit, "v", 0), platzSpalte(ed.vSplit2, "v2", 2)};
+        if (ed.hSplit.kinder.size() >= 2) {   // dock1
+            ed.hSplit.kinder[0].versteckt = alleDraussen({platzFeld(0), platzFeld(1)});
+            ed.hSplit.kinder[1].versteckt = alleDraussen({platzFeld(2), platzFeld(3)});
+        }
         if (ed.gruppenDialogEingebaut) {
             kinder.push_back(gruppe);
-            ed.hSplit.kinder.back().versteckt = !ed.gruppenDialogOffen;
+            ed.hSplit.kinder.back().versteckt = !ed.gruppenDialogOffen || !dock::zuhause("karte.gruppe");
         }
         teilerZeichnen("h", ed.hSplit, false, x, y, b, h, kinder);
     } else {
@@ -1286,6 +1336,61 @@ void schwebend(Feld f, const char* titel, bool& sichtbar, int lx, int ly) {
     }
     ImGui::End();
     ImGui::PopStyleVar();
+}
+
+// --- dock1: Felder in eigenen Fenstern -----------------------------------------
+//
+// Welche Felder es in der aktuellen NRC-Anordnung gibt (MainFrame::Create):
+// Regular/RegularLeft XY, Konsole, Kamera und Texturbrowser (oder den
+// eingebauten Gruppendialog), Split die vier Plaetze (und den eingebauten
+// Gruppendialog). Floating laesst alle Ansichten ohnehin schweben - dort gibt
+// es nichts herauszunehmen.
+bool kartenPanelVerfuegbar(const char* id) {
+    const Editor& ed = editor();
+    using befehle::Anordnung;
+    if (ed.anordnung == Anordnung::Floating) { return false; }
+    const std::string s = id;
+    if (s == "karte.gruppe") { return ed.gruppenDialogEingebaut; }
+    if (ed.anordnung == Anordnung::Regular || ed.anordnung == Anordnung::RegularLeft) {
+        if (s == "karte.texturen") { return !ed.gruppenDialogEingebaut; }
+        return s == "karte.xy" || s == "karte.konsole" || s == "karte.kamera";
+    }
+    static const Feld kInhalt[4] = {Feld::XY, Feld::XZ, Feld::YZ, Feld::Kamera};
+    static const std::array<int, 4> kNrc{3, 2, 0, 1};
+    const std::array<int, 4> bel = ed.splitFrei ? ed.splitBelegung : kNrc;
+    for (const int b : bel) {
+        if (s == feldPanel(kInhalt[std::clamp(b, 0, 3)])) { return true; }
+    }
+    return false;
+}
+
+// Die herausgenommenen Felder, jedes in seinem Fenster - Inhalt und Rahmen wie
+// an seinem Platz (feld) und wie die schwebenden Fenster von Floating.
+void dockFelder() {
+    for (const Feld f : kAlleFelder) {
+        const char* id = feldPanel(f);
+        if (!dock::draussen(id) || !kartenPanelVerfuegbar(id)) { continue; }
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
+        const bool sichtbar = dock::fensterBeginnen(id);
+        ImGui::PopStyleVar();
+        if (sichtbar) {
+            const ImVec2 vp = ImGui::GetMainViewport()->Pos;
+            const ImVec2 p = ImGui::GetCursorScreenPos();
+            const ImVec2 gr = ImGui::GetContentRegionAvail();
+            merkeFeld(std::string("Dock:") + feldKurz(f), static_cast<int>(std::lround((p.x - vp.x) / g_s)),
+                      static_cast<int>(std::lround((p.y - vp.y) / g_s)), static_cast<int>(std::lround(gr.x / g_s)),
+                      static_cast<int>(std::lround(gr.y / g_s)));
+            if (f == Feld::Gruppe) {
+                ImGui::BeginChild("##gruppeinnen", gr, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+                gruppenInhalt(static_cast<int>(std::lround(gr.x / g_s)), static_cast<int>(std::lround(gr.y / g_s)));
+                ImGui::EndChild();
+            } else {
+                feldInhalt(f);
+            }
+            feldRahmen(f);
+        }
+        dock::fensterEnde();
+    }
 }
 
 // Der Gruppendialog (groupdialog.cpp, Fenstertitel "Entities"): Reiter
@@ -1602,6 +1707,8 @@ void zeichne(float hoehe) {
         schwebend(Feld::YZ, trK(Str::KeViewYZ), e.schwebendSichtbar[0], 50, 450);
         e.schwebendZuruecksetzen = false;
     }
+    dock::setzeVerfuegbar(3, kartenPanelVerfuegbar);
+    dockFelder();   // dock1
     gruppenDialog();
     texturDialogeZeichnen();
     shaderEditorSchritt();    // Stufe 9d: geaenderte .shader-Dateien neu laden

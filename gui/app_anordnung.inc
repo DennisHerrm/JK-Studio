@@ -1423,12 +1423,13 @@ Layout computeLayout() {
     // Vorher entstand das Band erst mit einem Modell - und dann sprang die
     // ganze Anordnung, weil die Ansicht darueber ploetzlich kuerzer wurde.
     // Wer die Bedienung schon sieht, weiss auch, was ihn erwartet.
-    if (g_app->leftMode == 2) {
+    // dock1: steht die Leiste in einem eigenen Fenster, faellt das Band weg.
+    if (g_app->leftMode == 2 && dock::zuhause("modell.leiste")) {
         // Modell: zwei Zeilen - Bedienung und Zeitleiste. Beide sind
         // Elementzeilen, also genau zwei Mal rowH, plus die Aussenraender
         // des Bandes.
         l.toolH = rowH * 2.0F + st.ItemSpacing.y * 2.0F;
-    } else if (g_app->leftMode == 1) {
+    } else if (g_app->leftMode == 1 && dock::zuhause("mission.zeitleiste")) {
         // IMMER Platz lassen, auch ohne Karte - sonst springt die Anordnung
         // beim Laden.
         //
@@ -1503,7 +1504,7 @@ Layout computeLayout() {
     // keiner Rechnung: in der Kartenansicht war der Inhalt dadurch 14 Punkte
     // hoeher als das Fenster (Selbsttest), die Statuszeile unten abgeschnitten
     // und das Hauptfenster rollbar.
-    const float kanteH = (g_app->leftMode == 1)
+    const float kanteH = (g_app->leftMode == 1 && dock::zuhause("mission.zeitleiste"))
                              ? std::max(4.0F, st.ItemSpacing.y) + st.ItemSpacing.y
                              : 0.0F;
     l.fussH = l.toolH + kanteH + l.statusH + st.ItemSpacing.y;
@@ -1775,107 +1776,18 @@ void drawMenueEditorBereich(const Layout& l) {
     ImGui::EndTable();
 }
 
-// --- Die LINKE Spalte, je nach Modus --------------------------------
+// --- dock1: die Teile der linken Spalte als eigene Zeichenfunktionen --------
 //
-// Der Name ist alt und irrefuehrend: die Funktion zeichnet je nach Modus
-// etwas voellig anderes.
-//
-//   Events   Modusleiste, Ereignisliste
-//   Map      Modusleiste, Ebenenliste, Kartenansicht, Kamerazeile,
-//            Zeitleiste
-//   Model    Modusleiste, Modellansicht, Abspielzeile
-//
-// shank nach rc478: "ich glaube wir muessen alle 3 Modi als separate UIs
-// betrachten." Gemessen gibt ihm das recht - `leftMode` kommt in dieser
-// Datei vierundzwanzig Mal vor, sechs davon hier drin und sieben in
-// `computeLayout`.
-//
-// DAS ist der Grund, warum jede Korrektur an einem Modus die anderen beiden
-// trifft: die Tabellengewichte zerlegten die Karte (rc474), die
-// Kopfzeilenhoehe galt fuer alle drei (rc478), die Platzhalter im Script
-// Flow ebenso (rc477).
-//
-// Der Umbau steht in LAYOUT.md, Abschnitt 2.3: drei Erzeuger fuer `Layout`
-// und drei Zeichenfunktionen statt Abfragen. Er ist NICHT in dieser Runde
-// gemacht - er ist gross, und die letzten Runden haben gezeigt, was
-// passiert, wenn ich hier blind umbaue.
-//
-// Was hier steht, ist die Verzweigung an EINER Stelle statt verstreut:
-// wer einen Modus gestalten will, sieht sofort, wo er anfaengt.
-void drawEventsList(const Layout& l) {
-    // --- Die linke Spalte ist selbst eine TABELLE -----------------------
-    //
-    // shank: "ich glaube Tabelle ist besser."
-    //
-    // rc500 hat die Luecke behoben, indem eine geschaetzte Subtraktion
-    // durch eine Messung ersetzt wurde. Das half an DIESER Stelle; die
-    // Bauart blieb - Modusleiste, Ebenen und Inhalt standen weiter per
-    // `SameLine` nebeneinander.
-    //
-    // Als Tabelle gibt es die Rechnung gar nicht. Jede Zelle klemmt ihren
-    // Inhalt und faengt ihre Klicks; Luecken und Ueberlappen sind
-    // ausgeschlossen statt unwahrscheinlich - dieselbe Lehre wie im
-    // Hauptfenster (rc473) und bei den Helferspalten (rc488).
-    //
-    // Die Ebenenliste bekommt dabei einen ziehbaren Teiler, den es vorher
-    // nicht gab.
-    //
-    // EIGENE ID JE MODUS: eine ID, ein Zustand (rc495).
-    // Karte: die Entity-Liste; Modell (rc591): die Animationsliste.
-    const bool mitEbenen = (g_app->leftMode == 1 || g_app->leftMode == 2);
-    const char* const innenId = (g_app->leftMode == 1)   ? "##linksMap"
-                                : (g_app->leftMode == 2) ? "##linksModel"
-                                                         : "##linksEvents";
-    if (!ImGui::BeginTable(innenId, mitEbenen ? 3 : 2,
-                           ImGuiTableFlags_Resizable |
-                               ImGuiTableFlags_NoSavedSettings |
-                               ImGuiTableFlags_NoPadOuterX,
-                           ImVec2{0.0F, 0.0F})) {
-        return;
-    }
-    // Die Modusleiste ist so breit wie ihre Beschriftungen und wird nicht
-    // gezogen - wie die Actions-Spalte im Hauptfenster (rc481).
-    ImGui::TableSetupColumn("mode",
-                            ImGuiTableColumnFlags_WidthFixed |
-                                ImGuiTableColumnFlags_NoResize,
-                            std::max(g_app->modeBarW,
-                                     ImGui::GetFontSize() * 4.0F));
-    if (mitEbenen) {
-        // NoResize, und das ist kein Rueckschritt.
-        //
-        // rc501 hat der Ebenenliste einen ziehbaren Teiler gegeben - den
-        // hatte niemand verlangt, ich fand ihn nur gut. Auf shanks Bild ist
-        // die Spalte dadurch rund 760 breit statt der angeforderten 315:
-        // die Liste darin bleibt 315, der Rest ist Luecke IN der Zelle.
-        //
-        // Der Grund steht in der Recherche zu rc481: eine ZIEHBARE Spalte
-        // nimmt `init_width_or_weight` nur beim Anlegen, danach gewinnt
-        // ImGuis Selbstanpassung. Eine feste ohne Ziehen nimmt sie in jedem
-        // Bild - und genau das braucht diese Liste, deren Inhalt eine feste
-        // Breite hat.
-        //
-        // Vor dem Umbau war sie ebenfalls nicht ziehbar. Es geht also
-        // nichts verloren; es kommt nur nichts dazu.
-        ImGui::TableSetupColumn("ebenen",
-                                ImGuiTableColumnFlags_WidthFixed |
-                                    ImGuiTableColumnFlags_NoResize,
-                                ImGui::GetFontSize() * kEntitySpalte);
-    }
-    ImGui::TableSetupColumn("inhalt", ImGuiTableColumnFlags_WidthStretch, 1.0F);
-    ImGui::TableNextRow();
+// Unveraendert aus drawEventsList geschnitten, damit dieselben Zeilen im
+// Hauptfenster und in einem eigenen Fenster zeichnen (fenster_dock.h).
 
-    ImGui::TableNextColumn();
-    g_app->modeBarW = drawModeBar(l.frameH, l.headerH);
-    if (mitEbenen) {
-        ImGui::TableNextColumn();
-    }
+// Das Panel, das in der linken Spalte neben der Modusleiste steht.
+const char* linksInhaltPanel() {
+    return (g_app->leftMode == 1) ? "mission.ansicht" : (g_app->leftMode == 2) ? "modell.ansicht" : "ereignisse.liste";
+}
 
-    // Bei der Karte die Ebenenliste - RECHTS von der Modusleiste, links von
-    // der Ansicht.
-    //
-    // Sie ist IMMER da, auch ohne geladene Karte. Vorher entstand sie erst
-    // mit den Entities, und dann sprang die ganze Anordnung beim Laden. Wer
-    // die Gliederung schon sieht, weiss, was ihn erwartet.
+// Bei der Karte die Ebenenliste, beim Modell die Animationsliste.
+void drawEbenenInhalt(const Layout& l) {
     if (g_app->leftMode == 1) {
         ImGui::BeginGroup();
         const float top = ImGui::GetCursorPosY();
@@ -1925,101 +1837,56 @@ void drawEventsList(const Layout& l) {
         drawAnimListe(l.frameH);
         ImGui::EndGroup();
     }
+}
 
-    // Dritte Zelle: der eigentliche Inhalt.
-    ImGui::TableNextColumn();
-
-    // --- Die Restbreite MESSEN, nicht abziehen --------------------------
+// Karte und Modell: Werkzeugleiste und Ansicht.
+void drawAnsichtInhalt(const Layout& l, float restW) {
+    // Die Hoehe der Werkzeugleiste MESSEN, nicht schaetzen: die rechte
+    // Spalte zieht ueber beginGroupBox eine Textzeilenhoehe ab, eine
+    // Knopfzeile ist aber hoeher. Wer hier eine feste Zahl einsetzt,
+    // bekommt zwei Rahmen, die nicht auf gleicher Hoehe enden - genau
+    // das war der Fall.
+    // Die Werkzeugleiste FUELLT die Kopfzeile - sie ist genau eine
+    // Knopfzeile hoch, und danach bemisst sich l.headerH. Kein Abziehen
+    // noetig: der Rahmen ist derselbe wie ueberall.
+    // Die Werkzeugleiste in einen Kasten von genau der Spaltenbreite.
     //
-    // Hier stand:
-    //
-    //     restW = Zellbreite;
-    //     if (Modus == Karte) restW -= 15 Zeichenhoehen + Abstand;
-    //
-    // Die 15 Zeichenhoehen sind die Breite, die `drawEntityLayers` seinem
-    // Kindfenster gibt. Der GRUPPE davor gehoert aber auch die Kopfzeile
-    // ("Entities", "Show all"), und ImGui nimmt fuer eine Gruppe das
-    // Breiteste ihrer Zeilen. Was die Gruppe wirklich einnimmt, weiss
-    // niemand vorher - abgezogen wurde eine geschaetzte Zahl.
-    //
-    // Genau daraus entstand shanks Luecke: "neben dem Map-Fenster und dem
-    // Script Flow ist eine riesige Luecke."
-    //
-    // Nach `SameLine` steht die wirkliche Restbreite fest, und
-    // `GetContentRegionAvail` nennt sie. Dieselbe Regel wie bei der
-    // Actions-Spalte (rc474), der Modusleiste (rc473), dem Script Flow
-    // (rc477) und den Helferspalten (rc485): messen statt rechnen.
-    // Die ZELLE gibt die Breite vor - keine Subtraktion mehr noetig, die
-    // Tabelle hat den Platz schon verteilt.
-    const float restW = std::max(ImGui::GetContentRegionAvail().x, 80.0F);
-    g_app->dbgRestW = restW;
-    // Was nach der Modusleiste in der Zelle uebrig ist. Frueher stand hier
-    // `l.eventsW`, die selbst gerechnete Spaltenbreite - jetzt fragen wir
-    // die Zelle.
-    g_app->dbgZelleW = ImGui::GetContentRegionAvail().x;
-
-    // Die Werkzeugleiste steht AUSSERHALB des Rahmens, auf gleicher Hoehe
-    // wie die Ueberschrift "Script Flow" daneben. Vorher lag sie darin, und
-    // der Inhalt rutschte gegenueber dem Skriptfenster nach unten.
-    if (g_app->leftMode == 1 || g_app->leftMode == 2) {
-        ImGui::BeginGroup();
-        // Die Hoehe der Werkzeugleiste MESSEN, nicht schaetzen: die rechte
-        // Spalte zieht ueber beginGroupBox eine Textzeilenhoehe ab, eine
-        // Knopfzeile ist aber hoeher. Wer hier eine feste Zahl einsetzt,
-        // bekommt zwei Rahmen, die nicht auf gleicher Hoehe enden - genau
-        // das war der Fall.
-        // Die Werkzeugleiste FUELLT die Kopfzeile - sie ist genau eine
-        // Knopfzeile hoch, und danach bemisst sich l.headerH. Kein Abziehen
-        // noetig: der Rahmen ist derselbe wie ueberall.
-        // Die Werkzeugleiste in einen Kasten von genau der Spaltenbreite.
-        //
-        // Ohne das waechst sie ueber die Spalte hinaus, sobald ein Knopf
-        // dazukommt - beim Laden einer Karte etwa das Feld "Scripts (2)".
-        // ImGui vergroessert dann den Inhalt des Hauptfensters, und die
-        // Spalten rechts rutschen aus dem Bild.
-        const float top = ImGui::GetCursorPosY();
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
-        ImGui::BeginChild("toolbar", ImVec2{restW, l.headerH},
-                          ImGuiChildFlags_None,
-                          ImGuiWindowFlags_NoScrollbar |
-                          ImGuiWindowFlags_NoScrollWithMouse);
-        ImGui::PopStyleVar();
-        if (g_app->leftMode == 1) {
-            drawMapToolbar();
-        } else {
-            drawModelToolbar();
-        }
-        ImGui::EndChild();
-        ImGui::SetCursorPosY(top + l.headerH);
-        // Ein leeres Element als Anker: ImGui verlangt nach SetCursorPos ein
-        // abgeschicktes Element, sonst bricht es ab. Was danach kommt, kann
-        // vorzeitig zurueckkehren - der Anker nicht.
-        ImGui::Dummy(ImVec2{0.0F, 0.0F});
-        if (ImGui::BeginChild(g_app->leftMode == 1 ? "mapview" : "modelview",
-                              ImVec2{restW, l.frameH},
-                              ImGuiChildFlags_Borders)) {
-            if (g_app->leftMode == 1) {
-                drawMapView();
-            } else {
-                drawModelView();
-            }
-        }
-        ImGui::EndChild();
-        ImGui::EndGroup();
-        // Auch HIER die Tabelle schliessen.
-        //
-        // Genau das hat rc501 zum Absturz gebracht:
-        //
-        //   IMGUI-ZUSICHERUNG: (0) && "Missing EndTable()"
-        //
-        // Ich hatte im Kommentar am Funktionsende behauptet, ein `return`
-        // dazwischen gaebe es nur bei fehlgeschlagenem BeginTable. Das war
-        // falsch - dieses hier stand schon immer da, und ich habe es beim
-        // Umbau nicht gesucht, sondern angenommen.
-        ImGui::EndTable();
-        return;
+    // Ohne das waechst sie ueber die Spalte hinaus, sobald ein Knopf
+    // dazukommt - beim Laden einer Karte etwa das Feld "Scripts (2)".
+    // ImGui vergroessert dann den Inhalt des Hauptfensters, und die
+    // Spalten rechts rutschen aus dem Bild.
+    const float top = ImGui::GetCursorPosY();
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
+    ImGui::BeginChild("toolbar", ImVec2{restW, l.headerH},
+                      ImGuiChildFlags_None,
+                      ImGuiWindowFlags_NoScrollbar |
+                      ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::PopStyleVar();
+    if (g_app->leftMode == 1) {
+        drawMapToolbar();
+    } else {
+        drawModelToolbar();
     }
+    ImGui::EndChild();
+    ImGui::SetCursorPosY(top + l.headerH);
+    // Ein leeres Element als Anker: ImGui verlangt nach SetCursorPos ein
+    // abgeschicktes Element, sonst bricht es ab. Was danach kommt, kann
+    // vorzeitig zurueckkehren - der Anker nicht.
+    ImGui::Dummy(ImVec2{0.0F, 0.0F});
+    if (ImGui::BeginChild(g_app->leftMode == 1 ? "mapview" : "modelview",
+                          ImVec2{restW, l.frameH},
+                          ImGuiChildFlags_Borders)) {
+        if (g_app->leftMode == 1) {
+            drawMapView();
+        } else {
+            drawModelView();
+        }
+    }
+    ImGui::EndChild();
+}
 
+// Events: die Ereignisliste.
+void drawEreignisListe(const Layout& l, float restW) {
     if (beginGroupBox(tr(Str::GroupEvents), "events",
                       ImVec2{restW, l.frameH}, l.headerH)) {
         for (std::size_t i = 0; i < g_app->db.commands.size(); ++i) {
@@ -2137,12 +2004,186 @@ void drawEventsList(const Layout& l) {
         }
     }
     endGroupBox();
+}
+
+// --- Die LINKE Spalte, je nach Modus --------------------------------
+//
+// Der Name ist alt und irrefuehrend: die Funktion zeichnet je nach Modus
+// etwas voellig anderes.
+//
+//   Events   Modusleiste, Ereignisliste
+//   Map      Modusleiste, Ebenenliste, Kartenansicht, Kamerazeile,
+//            Zeitleiste
+//   Model    Modusleiste, Modellansicht, Abspielzeile
+//
+// shank nach rc478: "ich glaube wir muessen alle 3 Modi als separate UIs
+// betrachten." Gemessen gibt ihm das recht - `leftMode` kommt in dieser
+// Datei vierundzwanzig Mal vor, sechs davon hier drin und sieben in
+// `computeLayout`.
+//
+// DAS ist der Grund, warum jede Korrektur an einem Modus die anderen beiden
+// trifft: die Tabellengewichte zerlegten die Karte (rc474), die
+// Kopfzeilenhoehe galt fuer alle drei (rc478), die Platzhalter im Script
+// Flow ebenso (rc477).
+//
+// Der Umbau steht in LAYOUT.md, Abschnitt 2.3: drei Erzeuger fuer `Layout`
+// und drei Zeichenfunktionen statt Abfragen. Er ist NICHT in dieser Runde
+// gemacht - er ist gross, und die letzten Runden haben gezeigt, was
+// passiert, wenn ich hier blind umbaue.
+//
+// Was hier steht, ist die Verzweigung an EINER Stelle statt verstreut:
+// wer einen Modus gestalten will, sieht sofort, wo er anfaengt.
+void drawEventsList(const Layout& l) {
+    // --- Die linke Spalte ist selbst eine TABELLE -----------------------
+    //
+    // shank: "ich glaube Tabelle ist besser."
+    //
+    // rc500 hat die Luecke behoben, indem eine geschaetzte Subtraktion
+    // durch eine Messung ersetzt wurde. Das half an DIESER Stelle; die
+    // Bauart blieb - Modusleiste, Ebenen und Inhalt standen weiter per
+    // `SameLine` nebeneinander.
+    //
+    // Als Tabelle gibt es die Rechnung gar nicht. Jede Zelle klemmt ihren
+    // Inhalt und faengt ihre Klicks; Luecken und Ueberlappen sind
+    // ausgeschlossen statt unwahrscheinlich - dieselbe Lehre wie im
+    // Hauptfenster (rc473) und bei den Helferspalten (rc488).
+    //
+    // Die Ebenenliste bekommt dabei einen ziehbaren Teiler, den es vorher
+    // nicht gab.
+    //
+    // EIGENE ID JE MODUS: eine ID, ein Zustand (rc495).
+    // Karte: die Entity-Liste; Modell (rc591): die Animationsliste.
+    // dock1: Ebenen- bzw. Animationsliste und der Inhalt koennen in einem
+    // eigenen Fenster stehen (fenster_dock.h) - dann fehlt hier ihre Spalte.
+    const bool mitEbenen = (g_app->leftMode == 1 || g_app->leftMode == 2) &&
+                           dock::zuhause(g_app->leftMode == 1 ? "mission.ebenen" : "modell.animationen");
+    const bool mitInhalt = dock::zuhause(linksInhaltPanel());
+    const char* const innenId = (g_app->leftMode == 1)   ? "##linksMap"
+                                : (g_app->leftMode == 2) ? "##linksModel"
+                                                         : "##linksEvents";
+    if (!ImGui::BeginTable(innenId, 1 + (mitEbenen ? 1 : 0) + (mitInhalt ? 1 : 0),
+                           ImGuiTableFlags_Resizable |
+                               ImGuiTableFlags_NoSavedSettings |
+                               ImGuiTableFlags_NoPadOuterX,
+                           ImVec2{0.0F, 0.0F})) {
+        return;
+    }
+    // Die Modusleiste ist so breit wie ihre Beschriftungen und wird nicht
+    // gezogen - wie die Actions-Spalte im Hauptfenster (rc481).
+    ImGui::TableSetupColumn("mode",
+                            ImGuiTableColumnFlags_WidthFixed |
+                                ImGuiTableColumnFlags_NoResize,
+                            std::max(g_app->modeBarW,
+                                     ImGui::GetFontSize() * 4.0F));
+    if (mitEbenen) {
+        // NoResize, und das ist kein Rueckschritt.
+        //
+        // rc501 hat der Ebenenliste einen ziehbaren Teiler gegeben - den
+        // hatte niemand verlangt, ich fand ihn nur gut. Auf shanks Bild ist
+        // die Spalte dadurch rund 760 breit statt der angeforderten 315:
+        // die Liste darin bleibt 315, der Rest ist Luecke IN der Zelle.
+        //
+        // Der Grund steht in der Recherche zu rc481: eine ZIEHBARE Spalte
+        // nimmt `init_width_or_weight` nur beim Anlegen, danach gewinnt
+        // ImGuis Selbstanpassung. Eine feste ohne Ziehen nimmt sie in jedem
+        // Bild - und genau das braucht diese Liste, deren Inhalt eine feste
+        // Breite hat.
+        //
+        // Vor dem Umbau war sie ebenfalls nicht ziehbar. Es geht also
+        // nichts verloren; es kommt nur nichts dazu.
+        ImGui::TableSetupColumn("ebenen",
+                                ImGuiTableColumnFlags_WidthFixed |
+                                    ImGuiTableColumnFlags_NoResize,
+                                ImGui::GetFontSize() * kEntitySpalte);
+    }
+    if (mitInhalt) { ImGui::TableSetupColumn("inhalt", ImGuiTableColumnFlags_WidthStretch, 1.0F); }
+    ImGui::TableNextRow();
+
+    ImGui::TableNextColumn();
+    g_app->modeBarW = drawModeBar(l.frameH, l.headerH);
+    if (mitEbenen) {
+        ImGui::TableNextColumn();
+    }
+
+    // Bei der Karte die Ebenenliste - RECHTS von der Modusleiste, links von
+    // der Ansicht.
+    //
+    // Sie ist IMMER da, auch ohne geladene Karte. Vorher entstand sie erst
+    // mit den Entities, und dann sprang die ganze Anordnung beim Laden. Wer
+    // die Gliederung schon sieht, weiss, was ihn erwartet.
+    if (mitEbenen) {
+        drawEbenenInhalt(l);
+        dock::heimPlatz(g_app->leftMode == 1 ? "mission.ebenen" : "modell.animationen", ImGui::GetItemRectMin(),
+                        ImGui::GetItemRectMax());
+    }
+    if (!mitInhalt) {   // dock1: der Inhalt steht in einem eigenen Fenster
+        ImGui::EndTable();
+        return;
+    }
+
+    // Dritte Zelle: der eigentliche Inhalt.
+    ImGui::TableNextColumn();
+
+    // --- Die Restbreite MESSEN, nicht abziehen --------------------------
+    //
+    // Hier stand:
+    //
+    //     restW = Zellbreite;
+    //     if (Modus == Karte) restW -= 15 Zeichenhoehen + Abstand;
+    //
+    // Die 15 Zeichenhoehen sind die Breite, die `drawEntityLayers` seinem
+    // Kindfenster gibt. Der GRUPPE davor gehoert aber auch die Kopfzeile
+    // ("Entities", "Show all"), und ImGui nimmt fuer eine Gruppe das
+    // Breiteste ihrer Zeilen. Was die Gruppe wirklich einnimmt, weiss
+    // niemand vorher - abgezogen wurde eine geschaetzte Zahl.
+    //
+    // Genau daraus entstand shanks Luecke: "neben dem Map-Fenster und dem
+    // Script Flow ist eine riesige Luecke."
+    //
+    // Nach `SameLine` steht die wirkliche Restbreite fest, und
+    // `GetContentRegionAvail` nennt sie. Dieselbe Regel wie bei der
+    // Actions-Spalte (rc474), der Modusleiste (rc473), dem Script Flow
+    // (rc477) und den Helferspalten (rc485): messen statt rechnen.
+    // Die ZELLE gibt die Breite vor - keine Subtraktion mehr noetig, die
+    // Tabelle hat den Platz schon verteilt.
+    const float restW = std::max(ImGui::GetContentRegionAvail().x, 80.0F);
+    g_app->dbgRestW = restW;
+    // Was nach der Modusleiste in der Zelle uebrig ist. Frueher stand hier
+    // `l.eventsW`, die selbst gerechnete Spaltenbreite - jetzt fragen wir
+    // die Zelle.
+    g_app->dbgZelleW = ImGui::GetContentRegionAvail().x;
+
+    // Die Werkzeugleiste steht AUSSERHALB des Rahmens, auf gleicher Hoehe
+    // wie die Ueberschrift "Script Flow" daneben. Vorher lag sie darin, und
+    // der Inhalt rutschte gegenueber dem Skriptfenster nach unten.
+    if (g_app->leftMode == 1 || g_app->leftMode == 2) {
+        ImGui::BeginGroup();
+        drawAnsichtInhalt(l, restW);
+        ImGui::EndGroup();
+        dock::heimPlatz(linksInhaltPanel(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+        // Auch HIER die Tabelle schliessen.
+        //
+        // Genau das hat rc501 zum Absturz gebracht:
+        //
+        //   IMGUI-ZUSICHERUNG: (0) && "Missing EndTable()"
+        //
+        // Ich hatte im Kommentar am Funktionsende behauptet, ein `return`
+        // dazwischen gaebe es nur bei fehlgeschlagenem BeginTable. Das war
+        // falsch - dieses hier stand schon immer da, und ich habe es beim
+        // Umbau nicht gesucht, sondern angenommen.
+        ImGui::EndTable();
+        return;
+    }
+
+    drawEreignisListe(l, restW);
+    dock::heimPlatz("ereignisse.liste", ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
     // Die Tabelle der linken Spalte schliessen. Sie wurde ganz oben in
     // dieser Funktion geoeffnet.
     //
-    // ACHTUNG: es gibt einen ZWEITEN Ausstieg weiter oben (Karte und
-    // Modell), und der schliesst sie ebenfalls. Wer hier einen dritten
-    // einbaut, muss es auch tun - `lint_endtable.py` prueft das.
+    // ACHTUNG: es gibt zwei weitere Ausstiege weiter oben (Karte und
+    // Modell; dock1: Inhalt in eigenem Fenster), und sie schliessen sie
+    // ebenfalls. Wer einen weiteren einbaut, muss es auch tun -
+    // `lint_endtable.py` prueft das.
     ImGui::EndTable();
 }
 
@@ -5385,6 +5426,9 @@ void drawMenu() {
         ImGui::TextDisabled("%s", tr(Str::ViewScaleHint));
         ImGui::EndMenu();
     }
+    // dock1: Panels in eigene Fenster, Anordnungen speichern, laden,
+    // zuruecksetzen (fenster_dock.h).
+    dock::menue(g_app->leftMode);
     // --- Help: About, Changelog, Updates --------------------------------
     //
     // shank (11.10.): "mach einen neuen Reiter mit About und da Update und

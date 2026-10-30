@@ -177,6 +177,11 @@ std::string writeSettings(const Settings& s) {
         if (name.empty() || name.find('=') != std::string::npos) { continue; }
         put(o, "karteTaste", name + "=" + taste);
     }
+    // Stufe dock1: die Anordnung der Fenster je Bereich (bhed/fensteranordnung.h).
+    for (const auto& [name, wert] : s.fenster) {
+        if (name.empty() || name.find('=') != std::string::npos || wert.find('\n') != std::string::npos) { continue; }
+        put(o, "fenster", name + "=" + wert);
+    }
     // "key=MoveUp 4194643" - Aktionsname und ImGuiKeyChord als Zahl.
     // Warum die Zahl und nicht der Name der Taste, steht bei
     // Settings::KeyBinding.
@@ -198,6 +203,7 @@ bool readSettings(const std::string& text, Settings& out) {
     out.karteZuletzt.clear();
     out.karte.clear();
     out.karteTasten.clear();
+    out.fenster.clear();
     std::string line;
     std::istringstream in(text);
     while (std::getline(in, line)) {
@@ -460,6 +466,10 @@ bool readSettings(const std::string& text, Settings& out) {
             if (gleich != std::string::npos && gleich > 0) {
                 (key == "karte" ? out.karte : out.karteTasten)[value.substr(0, gleich)] = value.substr(gleich + 1);
             }
+        }
+        else if (key == "fenster") {   // Stufe dock1
+            const std::size_t gleich = value.find('=');
+            if (gleich != std::string::npos && gleich > 0) { out.fenster[value.substr(0, gleich)] = value.substr(gleich + 1); }
         }
         // Unbekannte Schluessel bleiben unbeachtet.
     }

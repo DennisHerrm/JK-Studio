@@ -2049,6 +2049,7 @@ struct App {
     float spaltenGesamt = 0.0F;
     // Was Zellraender und Trennlinien der Hauptspalten kosten (gemessen).
     float spaltenUeberhang = 40.0F;
+    bool spaltenUeberhangGemessen = false;   // die erste Messung gilt immer
     int teilerAnzahl = 0;
     int tlUeberlappungen = 0;     // im letzten Bild rot markierte Bloecke (Selbsttest)
     TlKandidat tlGriffKandidat;   // Kante gepackt (Feldansicht "Spuren")
@@ -2946,6 +2947,18 @@ void drawModelPanel();
 void drawModelView();
 void drawTimeline();
 void drawCameraGizmos();
+// dock2: Schalter des durchgehenden DockSpace (ab Werk aus, BHED_DOCKSPACE=1).
+bool& dockraumAn();
+// Steht der Bereich (0..2) in der Standardanordnung? Zuruecksetzen baut sie im
+// naechsten Bild neu auf; der Blattknoten eines Panels der Standardanordnung.
+bool dockraumStandard(int bereich);
+void dockraumZuruecksetzen(int bereich);
+ImGuiID dockraumHeim(const char* panel);
+// Menue "Fenster" im DockSpace: steht das Panel ausserhalb des Hauptfensters,
+// in ein eigenes Fenster nehmen, zurueck an seinen Platz der Standardanordnung.
+bool dockraumDraussen(const char* panel);
+void dockraumHerausnehmen(const char* panel);
+void dockraumAndocken(const char* panel);
 
 // Kartendaten laden - aus einer Datei oder aus einem Archiv.
 void loadMap(const std::string& path);

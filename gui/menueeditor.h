@@ -17,6 +17,8 @@ namespace bhed::gui::menueeditor {
 
 [[nodiscard]] bool aktiv();
 void zeichne(float hoehe);
+// dock1: die herausgenommenen Panels (Bausteine, Flaeche, Reiter) in eigenen Fenstern.
+void dockFenster();
 // Fuer den Selbsttest und die Tour: Menue aus dem Spiel bzw. Text oeffnen.
 bool oeffneAusSpiel(const std::string& spielPfad);
 bool oeffneText(const std::string& name, const std::string& text);

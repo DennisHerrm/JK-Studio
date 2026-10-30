@@ -53,6 +53,8 @@
 #include "bhed/roffanim.h"
 #include "bhed/kartenpruefung.h"   // rc602
 #include "karteneditor.h"           // Stufe 1b: der Karten-Editor
+#include "fenster_dock.h"           // dock1: Panels herausnehmen, Anordnungen
+#include "bhed/fensteranordnung.h"
 #include "menueeditor.h"            // Menue-Editor M1
 #include "bhed/menue/menue.h"
 #include "bhed/menue/skript.h"
@@ -5482,6 +5484,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_modell1.inc"    // modell1: was der Model-Tab je Bild kostet, Ruhe beim Abspielen
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
 #include "selbsttest_zeitleiste1.inc"   // zeitleiste1: die neue Zeitleiste im Mission-Tab
+#include "selbsttest_dock1.inc"   // dock1: Fenster frei anordnen, mehrere Bildschirme
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {
@@ -5703,15 +5706,30 @@ Ablauf g_ablauf;
 
 }  // namespace
 
+// dock1: mit eigenen Fenstern (ImGuiConfigFlags_ViewportsEnable) entscheidet
+// das Fenster unter der Maus, welche ImGui-Fenster getroffen werden koennen.
+// ImGui_ImplWin32_UpdateMouseData meldet es nach dem ECHTEN Zeiger
+// (WindowFromPoint) - im Selbsttest steht der irgendwo. Deshalb meldet die
+// simulierte Maus ihr Fenster selbst, mit derselben Suche, die ImGui ohne
+// Meldung des Backends nimmt (oberstes Fenster, das die Stelle enthaelt).
+void mausFensterMelden(ImVec2 p) {
+    if ((ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) == 0) { return; }
+    const ImGuiViewportP* v = ImGui::FindHoveredViewportFromPlatformWindowStack(p);
+    ImGui::GetIO().AddMouseViewportEvent(v != nullptr ? v->ID : 0);
+}
+
 void selbsttestVorBild() {
     modell1BildAnfang();   // modell1: Bildanfang fuer die Messung
+    dock1VorBild();
     if (karteneditor::zeigerSim().an) {   // Stufe 7 Punkt 6c: der simulierte Zeiger (wie Windows)
         karteneditor::zeigerSimVorBild();
         g_maus = ImVec2{karteneditor::zeigerSim().x, karteneditor::zeigerSim().y};
+        mausFensterMelden(g_maus);
         return;
     }
     if (g_mausAn) {
         ImGui::GetIO().AddMousePosEvent(g_maus.x, g_maus.y);
+        mausFensterMelden(g_maus);
     }
 }
 
@@ -5798,6 +5816,10 @@ void selbsttest() {
     static const bool nurZeitleiste0 = std::strcmp(modus, "zeitleiste0") == 0;
     // zeitleiste1: die neue Zeitleiste (Mini-Szene, academy1, md_am_sith).
     static const bool nurZeitleiste1 = std::strcmp(modus, "zeitleiste1") == 0;
+    // dock1: Fenster frei anordnen, mehrere Bildschirme.
+    static const bool nurDock1 = std::strcmp(modus, "dock1") == 0;
+    static const bool nurDock1Neustart = std::strcmp(modus, "dock1neustart") == 0;
+    static const bool nurDock2Mass = std::strcmp(modus, "dock2mass") == 0;
     // Missionsbau im Map-Tab: jeder Knopf, Kombinationen, Zufall (11.10.).
     static const bool nurMissionsbau = std::strcmp(modus, "missionsbau") == 0;
     // rc601 ton: der Vorschauton wie im Spiel (Hoerer, PVS, Schleifen, Pegel).
@@ -5910,6 +5932,16 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurZeitleiste1) {
                 a.schritte = zeitleiste1Schritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurDock1) {
+                a.schritte = dock1Schritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurDock1Neustart) {
+                a.schritte = dock1NeustartSchritte();
+            } else if (nurDock2Mass) {
+                a.schritte = dock2MassSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurJk2) {

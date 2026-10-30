@@ -276,6 +276,10 @@ struct Settings {
     // ("Ctrl+Shift+P"); leer = ausdruecklich keine Taste. Fehlt ein Befehl,
     // gilt NRCs Vorgabe.
     std::map<std::string, std::string> karteTasten;
+    // Stufe dock1: die Anordnung der Fenster je Bereich - herausgenommene und
+    // ausgeblendete Panels, ihre Fensterlagen und gespeicherte Anordnungen
+    // (bhed/fensteranordnung.h). Schluessel "fenster" mit "<name>=<wert>".
+    std::map<std::string, std::string> fenster;
 
     // Wie das Original: MRU0 bis MRU19 in der Registry, also 20 Eintraege.
     static constexpr std::size_t kMaxRecent = 20;

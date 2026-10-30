@@ -625,6 +625,28 @@ bool zeigerImFenster(void* fenster, int& x, int& y) {
     return true;
 }
 
+bool zeigerSetzen(int x, int y) { return SetCursorPos(x, y) != 0; }
+
+bool fensterSichtbar(void* fenster) {
+    const auto h = static_cast<HWND>(fenster);
+    return h != nullptr && IsWindow(h) != FALSE && IsWindowVisible(h) != FALSE;
+}
+
+bool fensterLage(void* fenster, int& x, int& y, int& b, int& h) {
+    RECT r{};
+    if (fenster == nullptr || GetWindowRect(static_cast<HWND>(fenster), &r) == 0) { return false; }
+    x = r.left;
+    y = r.top;
+    b = r.right - r.left;
+    h = r.bottom - r.top;
+    return true;
+}
+
+bool fensterLageSetzen(void* fenster, int x, int y, int b, int h) {
+    return fenster != nullptr &&
+           SetWindowPos(static_cast<HWND>(fenster), nullptr, x, y, b, h, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER) != 0;
+}
+
 bool zeigerImFensterSetzen(void* fenster, int x, int y) {
     POINT p{x, y};
     if (fenster == nullptr || ClientToScreen(static_cast<HWND>(fenster), &p) == 0) { return false; }

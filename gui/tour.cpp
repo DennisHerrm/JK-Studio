@@ -729,7 +729,10 @@ void zeichneHervorhebung(const std::vector<ImRect>& ziele, const ImRect& fenster
     }
     if (fenster.GetWidth() > 0.0F) { loecher.push_back(fenster); }
     loecher.insert(loecher.end(), frei.begin(), frei.end());
-    dimmeAusser(dl, ImRect{0.0F, 0.0F, d.x, d.y}, loecher, IM_COL32(0, 0, 0, 80));
+    // dock1: mit eigenen Fenstern liegt das Hauptfenster bei seiner
+    // Bildschirmlage, nicht bei (0,0).
+    const ImVec2 o = ImGui::GetMainViewport()->Pos;
+    dimmeAusser(dl, ImRect{o.x, o.y, o.x + d.x, o.y + d.y}, loecher, IM_COL32(0, 0, 0, 80));
     z().loecher = loecher;
     for (std::size_t i = 0; i < ziele.size(); ++i) {
         ImRect q = ziele[i];

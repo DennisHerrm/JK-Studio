@@ -2200,6 +2200,8 @@ from i18n_menue3 import MENUE3  # noqa: E402  (Menue-Editor M3)
 S += MENUE3
 from i18n_menue5 import MENUE5  # noqa: E402  (Menue-Editor M5)
 S += MENUE5
+from i18n_dock1 import DOCK1  # noqa: E402  (dock1: Fenster frei anordnen, mehrere Bildschirme)
+S += DOCK1
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #
