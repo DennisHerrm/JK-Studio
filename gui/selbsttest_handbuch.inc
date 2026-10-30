@@ -3412,12 +3412,9 @@ std::vector<Schritt> handbuchSchritte() {
         add(hb::fotoTeil(n, [=] {
             ImRect r = zeitleiste();
             // Zeitleiste 4: bis unter den Hinweis zum Ziehen (seine dritte Zeile
-            // lag vorher unter dem Bildrand).
-            float unten = std::min(r.Max.y, balken->y + ImGui::GetFontSize() * 6.0F);
-            if (const ImGuiWindow* t = ImGui::FindWindowByName("##Tooltip_00"); t != nullptr && t->Active) {
-                unten = std::max(unten, t->Rect().Max.y + ImGui::GetFontSize() * 0.4F);
-            }
-            r.Max.y = std::min(unten, ImGui::GetIO().DisplaySize.y);
+            // lag vorher unter dem Bildrand) - in jedem Bild gleich hoch, sonst
+            // wird daraus kein bewegtes Bild.
+            r.Max.y = std::min(balken->y + ImGui::GetFontSize() * 9.5F, ImGui::GetIO().DisplaySize.y);
             return r;
         }));
     }
