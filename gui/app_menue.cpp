@@ -410,6 +410,7 @@ struct Zustand {
     bool stileOffen = false;
     // M6 Punkt 6: Einstellungs-Assistent (Katalog aus den Spielmenues, Auswahl als Cvar-Namen klein)
     bool assistentOffen = false;
+    int assistentUeberlappung = 0;   // M7: im letzten Bild
     std::string assistentFuer, assistentSuche;
     std::vector<CvarSteuerung> assistentKatalog;
     std::set<std::string> assistentWahl;
@@ -5585,6 +5586,7 @@ FlussInfo flussInfo() {
     Zustand& z = Z();
     FlussInfo r;
     r.fensterOffen = z.flussOffen;
+    r.assistentUeberlappung = z.assistentUeberlappung;
     r.stileOffen = z.stileOffen;
     r.assistentOffen = z.assistentOffen;
     const Fluss& f = flussAktuell();

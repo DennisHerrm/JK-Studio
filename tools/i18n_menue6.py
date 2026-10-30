@@ -223,7 +223,7 @@ MENUE6 = [
     ("MeKompFehler", "Could not make the component (the name must be one word, the element must not be a component yet).",
      "Komponente nicht angelegt (der Name muss ein Wort sein, das Element darf noch keine Komponente sein).",
      "无法创建组件(名称必须是一个词,且该元素尚未是组件)。", "コンポーネントを作れませんでした(名前は 1 語で、要素はまだコンポーネントであってはなりません)。"),
-    ("MeKompOriginal", "Original of component '%s' with %d copies.", "Original der Komponente „%s“ mit %d Kopien.", "组件“%s”的原件,有 %d 个副本。", "コンポーネント「%s」の原本(コピー %d 個)。"),
+    ("MeKompOriginal", "Original of component '%s' (copies: %d).", "Original der Komponente „%s“ (Kopien: %d).", "组件“%s”的原件(副本:%d)。", "コンポーネント「%s」の原本(コピー: %d)。"),
     ("MeKompKopie", "Insert linked copy", "Verknüpfte Kopie einfügen", "插入链接副本", "つながったコピーを挿入"),
     ("MeKompKopieTip", "Inserts a copy next to the original. Move it wherever you want - it keeps its own name and position, everything else follows the original.",
      "Fügt neben dem Original eine Kopie ein. Schieb sie, wohin du willst - sie behält ihren Namen und ihre Lage, alles andere folgt dem Original.",

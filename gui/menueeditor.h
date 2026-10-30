@@ -180,6 +180,7 @@ void legeInsPaket(const std::string& spielPfad, const std::string& bytes);
 struct FlussInfo {
     int menues = 0, unerreichbar = 0, sackgassen = 0, ohneZurueck = 0, fehlend = 0, kanten = 0;
     bool fensterOffen = false, stileOffen = false, assistentOffen = false;
+    int assistentUeberlappung = 0;       // M7 (Uebersetzung 2): Zeilen, deren Text sichtbar in die naechste Spalte ragt
     std::string aktivesMenue;            // Name des Menues der Seite
 };
 [[nodiscard]] FlussInfo flussInfo();

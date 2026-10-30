@@ -1573,6 +1573,11 @@ std::vector<Schritt> schritteM6() {
         if (k.size() >= 2) { *zwei = {k[0], k[1]}; }
         return me::flussInfo().assistentOffen && k.size() >= 2;
     }));
+    add(pruefe("M7 Assistent: kein Text ragt sichtbar in die naechste Spalte (lange Movie-Duels-Schluessel)", [] {
+        const int n = me::flussInfo().assistentUeberlappung;
+        diag::info("Menue-Editor M7 Assistent: Zeilen mit Ueberlappung " + std::to_string(n));
+        return n == 0;
+    }));
     add(tu("M6 Assistent: zwei Einstellungen ankreuzen", [zwei] {
         for (const auto& c : *zwei) { me::assistentWaehle(c); }
     }));
@@ -1704,7 +1709,6 @@ std::vector<Schritt> schritte() {
             diag::info("Menue-Editor M7 ui_load: Neuladungen " + std::to_string(me::testNeuGeladen()));
             return me::testNeuGeladen() == 1;
         }));
-        add(pause(20.0));   // Zeit fuer das Foto im Spiel (das Skript macht es)
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }

@@ -637,7 +637,7 @@ void zeichneAssistentFenster(Dokument* d) {
     Zustand& z = Z();
     if (!z.assistentOffen || d == nullptr) { return; }
     const float fs = ImGui::GetFontSize();
-    ImGui::SetNextWindowSize(ImVec2{fs * 36, fs * 30}, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2{fs * 44, fs * 30}, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_FirstUseEver, ImVec2{0.5F, 0.45F});   // unter der Leiste
     const std::string titel = std::string(tr(Str::MeAssistent)) + "###menueassistent";
     if (!ImGui::Begin(titel.c_str(), &z.assistentOffen)) {
@@ -660,13 +660,31 @@ void zeichneAssistentFenster(Dokument* d) {
     ImGui::EndDisabled();
     const Texte& tx = vorschauTexte(*d);
     const std::string such = kleinPfad(z.assistentSuche);
-    ImGui::BeginChild("##assistentListe", ImVec2{0, 0}, ImGuiChildFlags_Borders);
+    // Tabelle statt fester Abstaende: jede Spalte so breit wie ihr laengster Eintrag, beschnitten an der
+    // Spaltengrenze (lange Movie-Duels-Schluessel ragten sonst in die naechste Spalte, in allen Sprachen)
+    const ImGuiTableFlags tf = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollX |
+                               ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingFixedFit;
+    if (!ImGui::BeginTable("##assistentListe", 3, tf)) {
+        ImGui::End();
+        return;
+    }
+    ImGui::TableSetupScrollFreeze(1, 0);
+    // Pruefwert fuer den Selbsttest: ragt der sichtbare Teil einer Zelle ueber den Anfang der naechsten?
+    int ueberlappung = 0;
+    float zellEnde = 0;
+    auto zelle = [&](int spalte) {
+        ImGui::TableSetColumnIndex(spalte);
+        if (spalte > 0 && zellEnde > ImGui::GetCursorScreenPos().x + 0.5F) { ++ueberlappung; }
+    };
+    auto merkeEnde = [&] { zellEnde = std::min(ImGui::GetItemRectMax().x, ImGui::GetWindowDrawList()->GetClipRectMax().x); };
     for (const CvarSteuerung& c : kat) {
         const std::string text = anzeige(c.text.empty() || c.text[0] != '@' ? c.text : tx.aufloesen(c.text));
         if (!such.empty() && kleinPfad(c.cvar).find(such) == std::string::npos && kleinPfad(text).find(such) == std::string::npos) { continue; }
         const std::string k = kleinPfad(c.cvar);
         bool an = z.assistentWahl.count(k) != 0;
         const std::string l = c.cvar + "##as";
+        ImGui::TableNextRow();
+        zelle(0);
         if (ImGui::Checkbox(l.c_str(), &an)) {
             if (an) {
                 z.assistentWahl.insert(k);
@@ -679,12 +697,16 @@ void zeichneAssistentFenster(Dokument* d) {
             std::snprintf(h.data(), h.size(), tr(Str::MeAssistentHerkunft), c.herkunft.c_str());
             ImGui::SetTooltip("%s", h.data());
         }
-        ImGui::SameLine(fs * 12);
-        ImGui::TextUnformatted(text.c_str());
-        ImGui::SameLine(fs * 26);
+        merkeEnde();
+        zelle(1);   // die kurze Art vor dem Text, damit sie ohne Rollen sichtbar bleibt
         ImGui::TextDisabled("%s", steuerungArt(c).c_str());
+        merkeEnde();
+        zelle(2);
+        ImGui::TextUnformatted(text.c_str());
+        if (ImGui::GetItemRectMax().x > ImGui::GetWindowDrawList()->GetClipRectMax().x && ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", text.c_str()); }
     }
-    ImGui::EndChild();
+    z.assistentUeberlappung = ueberlappung;
+    ImGui::EndTable();
     ImGui::End();
 }
 
