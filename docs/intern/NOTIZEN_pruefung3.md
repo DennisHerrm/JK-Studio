@@ -286,7 +286,11 @@ Stand:
     MD-Holsterorte je holsterPlace/Stil/Schwert (wp_saber.cpp:1170 ff. MD, ueber
     300 Zeilen, dazu die Aufrufe in NPC_spawn, Q3_Interface, bg_pmove,
     g_active, g_client) sind in dieser Runde nicht mehr gebaut - offen.
-- Punkt 1/2/5/7: nur gelesen (Engine-Stellen, siehe unten), nichts gebaut.
+- Punkt 1 und 2: NICHT gebaut (offen). Grund: Umfang - beide brauchen eigene
+  Simulationen (Totenlauf als PM_DEAD-Pmove im Wegplaner mit Hoehe aus der
+  Schwerkraft; NPC_RemoveBody mit Sichtpruefung des Spielers/der Kamera und dem
+  Skriptstand je Entity); in dieser Sitzung nach 3-8 nicht mehr zu schaffen,
+  ohne die Schlussrunde zu gefaehrden. Was gelesen ist (fuer die Fortsetzung):
   - Leiche: CorpsePhysics je NPC_Think (erstes Pmove nach dem Tod 1 ms wegen
     serverTime = level.time - 1000, dann 50), PM_DEAD: kein PM_CheckDuck,
     PM_DeadMove (-20 je Bild am Boden), PM_Friction mit ps.friction (6, 0 nach
@@ -306,14 +310,20 @@ Stand:
     ICARUS laeuft), TEAM_ENEMY/PROTOCOL: Spieler < 128 oder
     InFOVFromPlayerView(110, 90, cg.refdef = Kamera) + NPC_ClearLOS, frei nur
     mit self->enemy (trigger_hurt setzt enemy = Ausloeser, kill nicht).
+    Nachgelesen 4a: Q3_Kill ruft die Todesfunktion mit attacker NULL ->
+    player_die setzt self->enemy = NULL -> eine per kill getoetete Leiche
+    wird nie entfernt (wie jetzt in der Vorschau); entfernt werden nur
+    REMOTE/SENTRY/PROBE/INTERROGATOR/MARK2 (sofort, vor der enemy-Pruefung),
+    Mark1 (Mark1_dying) und Tote durch trigger_hurt (enemy = der Ausloeser,
+    der kein client ist - dann auch WP_RunSaber ohne Feindsuche, Punkt 3).
   - PM_TryRoll (bg_pmove.cpp:3782 OJ) aus PM_Footsteps bei PMF_DUCKED und
     PM_RunningAnim; G_StartRoll, waehrend der Rolle PM_CmdForRoll mit speed 400
     und G_CheckRollSafety.
   - Punkt 5/6: Stellen in ausruestung.cpp:18-46 und app_view3d.cpp (Blinzeln).
 
-Naechster Schritt: Patch wieder einspielen (`git apply`), Punkt 3 fertig
-(Szene, Haken, Tests rot/gruen), dann Punkt 1, 2, 4, 5, 6, 7, mission1 gruen,
-Spielfotos, Schlussrunde. Laufskript SP\p4a\lauf.sh (Laufordner /y/p4a_laeufe).
+Naechster Schritt (Fortsetzung): Punkt 1 (Totenlauf) und 2 (NPC_RemoveBody)
+nach den Stellen oben; Holster (nur MD) aus Punkt 5; Movie-Duels-Lunge von
+Vader/Desann in PM_TryRoll; Spielfotos. Laufskript SP\p4a\lauf.sh.
 
 ## English
 - Lying figures die like in the game: the torso angle for the death animation now comes from the chest bone of the drawn skeleton (per rule set: OpenJK, Movie Duels, Jedi Outcast) - a figure lying on its back dies with BOTH_DEATH_LYING_UP instead of always BOTH_DEATH_LYING_DN.
