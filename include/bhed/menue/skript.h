@@ -133,6 +133,11 @@ struct Laufzeit {
     void anwenden(Datei& kopie) const;
     // Das Item unter (x, y), das den Fokus nehmen kann (-1 = keins).
     [[nodiscard]] int itemBei(int menu, float x, float y, const Umgebung& u) const;
+    // M6 Punkt 2: die Items in der Reihenfolge, in der Tab/Pfeil runter sie fokussiert -
+    // Menu_SetNextCursorItem ab cursorItem -1 (Menu_Init) mit den Pruefungen von Item_SetFocus
+    // (keine Dekoration, sichtbar, SP nicht WINDOW_INACTIVE, enableCvar/showCvar), bis die Folge
+    // sich wiederholt. Ab -1 beginnt die Engine bei Index 1; Index 0 kommt erst nach dem Umlauf.
+    [[nodiscard]] std::vector<int> tabReihenfolge(int menu) const;
 };
 
 }  // namespace bhed::menue

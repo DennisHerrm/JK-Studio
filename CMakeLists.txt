@@ -1161,6 +1161,16 @@ target_sources(bhed_core PRIVATE
   src/menue/profil.cpp
   # M5 Punkt 2: Ereignisse wie Unreal UMG (Bausteine, Hover-Effekte)
   src/menue/ereignisse.cpp
+  # M6 Punkt 1: Menuefluss (open/close, Einstiege, Sackgassen)
+  src/menue/fluss.cpp
+  # M6 Punkt 4: Stile zentral (Farben, Schriften, Textgroessen, Hintergruende)
+  src/menue/stile.cpp
+  # M6 Punkt 5: Vorlagen ganzer Menues (Hauptmenue, Einstellungen mit Reitern, Credits, Ladebildschirm)
+  src/menue/seitenvorlagen.cpp
+  # M6 Punkt 6: Einstellungsseiten-Assistent (Steuerungen aus den Original-Menues)
+  src/menue/assistent.cpp
+  # M6 Punkt 9: Lesbarkeit (Schriftgroesse, Kontrast, Textlaenge je Sprache)
+  src/menue/lesbarkeit.cpp
   # M2 Punkt 2: RoQ abspielen (cl_cin.cpp) und schreiben, GIF-Import
   src/menue/roq.cpp
   src/menue/roq_kodierer.cpp
@@ -1254,6 +1264,21 @@ if(BEHAVED_TESTS)
   add_executable(menueereignisse tests/menueereignisse.cpp)
   target_link_libraries(menueereignisse PRIVATE bhed_core)
   add_test(NAME menue_ereignisse COMMAND menueereignisse)
+  add_executable(menuefluss tests/menuefluss.cpp)
+  target_link_libraries(menuefluss PRIVATE bhed_core)
+  add_test(NAME menue_fluss COMMAND menuefluss)
+  add_executable(menuefokus tests/menuefokus.cpp)
+  target_link_libraries(menuefokus PRIVATE bhed_core)
+  add_test(NAME menue_fokus COMMAND menuefokus)
+  add_executable(menuestile tests/menuestile.cpp)
+  target_link_libraries(menuestile PRIVATE bhed_core)
+  add_test(NAME menue_stile COMMAND menuestile)
+  add_executable(menueseiten tests/menueseiten.cpp)
+  target_link_libraries(menueseiten PRIVATE bhed_core)
+  add_test(NAME menue_seiten COMMAND menueseiten)
+  add_executable(menuelesbar tests/menuelesbar.cpp)
+  target_link_libraries(menuelesbar PRIVATE bhed_core)
+  add_test(NAME menue_lesbar COMMAND menuelesbar)
   add_executable(menueprojekt tests/menueprojekt.cpp)
   target_link_libraries(menueprojekt PRIVATE bhed_core)
   add_test(NAME menue_projekt COMMAND menueprojekt)

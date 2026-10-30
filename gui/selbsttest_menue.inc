@@ -1278,6 +1278,218 @@ std::vector<Schritt> vergleichSchritte() {
     return s;
 }
 
+// M6: Menuefluss (Punkt 1), Tab-Reihenfolge (Punkt 2), Referenzbild (Punkt 7), Rueckfrage beim
+// Schliessen (Rest M5b). Hauptmenue -> optionen (mit Zurueck) und credits (Sackgasse), waise nie geoeffnet.
+const char* const kFlussProbe =
+    "{\n\tmenuDef\n\t{\n\t\tname mainMenu\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname opt\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"Optionen\"\n\t\t\trect 100 100 120 30\n\t\t\tvisible 1\n"
+    "\t\t\taction { open optionen }\n\t\t}\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname cred\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"Credits\"\n\t\t\trect 100 150 120 30\n\t\t\tvisible 1\n"
+    "\t\t\taction { open credits }\n\t\t}\n\t}\n"
+    "\tmenuDef\n\t{\n\t\tname optionen\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname zurueck\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"Zurueck\"\n\t\t\trect 40 400 120 30\n\t\t\tvisible 1\n"
+    "\t\t\taction { close optionen }\n\t\t}\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname a\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"A\"\n\t\t\trect 100 100 120 30\n\t\t\tvisible 1\n"
+    "\t\t\taction { play \"sound/interface/button1.wav\" }\n\t\t}\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname b\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"B\"\n\t\t\trect 100 160 120 30\n\t\t\tvisible 1\n"
+    "\t\t\taction { play \"sound/interface/button1.wav\" }\n\t\t}\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname c\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"C\"\n\t\t\trect 100 220 120 30\n\t\t\tvisible 1\n"
+    "\t\t\taction { play \"sound/interface/button1.wav\" }\n\t\t}\n\t}\n"
+    "\tmenuDef\n\t{\n\t\tname credits\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname weiter\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"Weiter\"\n\t\t\trect 100 100 120 30\n\t\t\tvisible 1\n"
+    "\t\t\taction { play \"sound/interface/button1.wav\" }\n\t\t}\n\t}\n"
+    "\tmenuDef\n\t{\n\t\tname waise\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+    "\t\titemDef\n\t\t{\n\t\t\tname zu\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\ttext \"Zu\"\n\t\t\trect 100 100 120 30\n\t\t\tvisible 1\n"
+    "\t\t\taction { close waise }\n\t\t}\n\t}\n"
+    "}\n";
+
+// Echter Mausklick auf die Flaeche an (vx, vy) im 640x480-Bildschirm
+Schritt klickFlaeche(const std::string& was, float vx, float vy) {
+    return Schritt{was, [=](int b) {
+                       ImGuiIO& io = ImGui::GetIO();
+                       if (b == 0) {
+                           const auto x = me::stand();
+                           setzeMaus(ImVec2{x.flaeche[0] + vx / 640.0F * x.flaeche[2], x.flaeche[1] + vy / 480.0F * x.flaeche[3]});
+                           return false;
+                       }
+                       if (b == 2) {
+                           io.AddMouseButtonEvent(0, true);
+                           return false;
+                       }
+                       if (b == 3) {
+                           io.AddMouseButtonEvent(0, false);
+                           return false;
+                       }
+                       return b >= 6;
+                   }};
+}
+
+std::vector<Schritt> schritteM6() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = [] { return me::stand(); };
+    add(tu("M6 Fluss: Probe oeffnen", [] {
+        me::schliesseAlleOhneSpeichern();
+        (void)me::oeffneText("ui/flussprobe.menu", kFlussProbe);
+    }));
+    add(pause(0.3));
+    // Aufgabe 1 "Finde das Menue ohne Ausgang": Fluss oeffnen, auf die Sackgasse klicken (2 Schritte, ohne Text-Reiter)
+    add(klick(tr(Str::MeFluss)));
+    add(pause(0.4));
+    add(pruefe("M6 Fluss: Fenster offen, 4 Menues, waise unerreichbar, credits Sackgasse, optionen mit Zurueck", [] {
+        const auto f = me::flussInfo();
+        char b[200];
+        std::snprintf(b, sizeof(b), "Menue-Editor M6 Fluss: %d Menues, %d unerreichbar, %d Sackgassen, %d ohne Zurueck, %d fehlen, %d Kanten", f.menues,
+                      f.unerreichbar, f.sackgassen, f.ohneZurueck, f.fehlend, f.kanten);
+        diag::info(b);
+        return f.fensterOffen && f.menues == 4 && f.unerreichbar == 1 && f.sackgassen == 1 && f.ohneZurueck == 0 && f.fehlend == 0 && f.kanten == 2;
+    }));
+    add(foto("menue_fluss"));
+    add(klick("credits", "menuefluss"));
+    add(pause(0.3));
+    add(pruefe("M6 Fluss: Klick auf credits zeigt das Menue (2 Schritte, ohne Text-Reiter)", [] { return me::flussInfo().aktivesMenue == "credits"; }));
+    add(tu("M6 Fluss: credits bekommt einen Zurueck-Knopf", [] {
+        me::fuegeItemsEin("itemDef { name zurueck type ITEM_TYPE_BUTTON text \"Zurueck\" rect 40 400 120 30 visible 1 action { close credits } }");
+    }));
+    add(pause(0.3));
+    add(pruefe("M6 Fluss: nach dem Zurueck-Knopf keine Sackgasse mehr", [] { return me::flussInfo().sackgassen == 0; }));
+    // Aufgabe 2 "Tab-Reihenfolge c, b, a, zurueck": optionen, Schalter, vier Klicks auf die Flaeche
+    add(klick("optionen", "menuefluss"));
+    add(pause(0.3));
+    add(klick(tr(Str::MeFluss)));   // Fenster wieder zu: die Flaeche frei fuer die Klicks
+    add(pause(0.2));
+    add(klick(tr(Str::MeTabFolge)));
+    add(pause(0.3));
+    add(pruefe("M6 Tab: optionen, Schalter an, Reihenfolge wie Menu_SetNextCursorItem (a b c zurueck)", [] {
+        const auto t = me::tabFolge();
+        std::string z;
+        for (const auto& n : t) { z += n + " "; }
+        diag::info("Menue-Editor M6 Tab-Folge: " + z);
+        return me::flussInfo().aktivesMenue == "optionen" && me::tabFolgeAn() && t == std::vector<std::string>{"a", "b", "c", "zurueck"};
+    }));
+    add(foto("menue_tabfolge"));
+    auto vorher = std::make_shared<std::string>();
+    add(tu("M6 Tab: Text vorher merken", [vorher] { *vorher = me::stand().text; }));
+    add(klickFlaeche("M6 Tab: Klick auf c", 160, 235));
+    add(klickFlaeche("M6 Tab: Klick auf b", 160, 175));
+    add(klickFlaeche("M6 Tab: Klick auf a", 160, 115));
+    add(klickFlaeche("M6 Tab: Klick auf zurueck", 100, 415));
+    add(pause(0.3));
+    add(pruefe("M6 Tab: neue Reihenfolge c b a zurueck, Text geaendert, Parser ohne Meldung", [st, vorher] {
+        const auto t = me::tabFolge();
+        std::string z;
+        for (const auto& n : t) { z += n + " "; }
+        diag::info("Menue-Editor M6 Tab-Folge neu: " + z);
+        return t == std::vector<std::string>{"c", "b", "a", "zurueck"} && st().text != *vorher && st().meldungen == 0;
+    }));
+    add(tu("M6 Tab: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pause(0.2));
+    add(pruefe("M6 Tab: ein Rueckgaengig-Schritt stellt den Text byte-gleich zurueck", [st, vorher] { return st().text == *vorher; }));
+    add(klick(tr(Str::MeTabFolge)));
+    add(pause(0.2));
+    add(pruefe("M6 Tab: Schalter aus", [] { return !me::tabFolgeAn(); }));
+    // Referenzbild: kleines TGA (24 Bit, unkomprimiert) laden; der Menuetext bleibt unberuehrt
+    add(tu("M6 Referenzbild: TGA schreiben und laden", [vorher] {
+        *vorher = me::stand().text;
+        std::string tga(18, '\0');
+        tga[2] = 2;
+        tga[12] = 64;
+        tga[14] = 48;
+        tga[16] = 24;
+        for (int i = 0; i < 64 * 48; ++i) {
+            tga += static_cast<char>(0x30);
+            tga += static_cast<char>((i % 64) * 4);
+            tga += static_cast<char>(0xc0);
+        }
+        const std::string p = pfadText(bhed::utf8Pfad(platform::executableDirectory()) / "referenz_probe.tga");
+        (void)spewDatei(p, tga);
+        me::ladeReferenzbild(p);
+    }));
+    add(pause(0.3));
+    add(pruefe("M6 Referenzbild: geladen, Menuetext unveraendert", [st, vorher] { return me::referenzbildGeladen() && st().text == *vorher; }));
+    add(foto("menue_referenzbild"));
+    // Rest M5b: ein geaenderter Reiter fragt beim Schliessen
+    add(tu("M6 Schliessen: Text aendern, Reiter schliessen", [] {
+        me::waehle(me::itemNummer("a"), false);
+        me::verschiebeAuswahl(4, 0);
+        me::schliesseReiter(0);
+    }));
+    add(pause(0.3));
+    add(pruefe("M6 Schliessen: Rueckfrage offen, Reiter noch da", [st] { return me::schliessenFrageOffen() && st().dokumente == 1; }));
+    add(klick(tr(Str::MeSchliessenVerwerfen)));
+    add(pause(0.3));
+    add(pruefe("M6 Schliessen: ohne Speichern geschlossen", [st] { return !me::schliessenFrageOffen() && st().dokumente == 0; }));
+    // Punkt 5: Vorlage "Einstellungsseite mit Reitern" ueber das + der Seiten (2 Klicks)
+    add(tu("M6 Vorlagen: Probe oeffnen", [] { (void)me::oeffneText("ui/vorlagenprobe.menu", kFlussProbe); }));
+    add(pause(0.3));
+    add(klick("+"));
+    add(pause(0.2));
+    add(klick(tr(Str::MeVorlageEinst)));
+    add(pause(0.3));
+    add(pruefe("M6 Vorlagen: settingsMenu mit drei Reitern angelegt, Parser ohne Meldung", [st] {
+        const auto x = st();
+        return me::menuesImDokument() == 5 && me::flussInfo().aktivesMenue == "settingsMenu" && x.meldungen == 0 && x.seiten >= 7;
+    }));
+    add(foto("menue_vorlage"));
+    // Punkt 4: Stile-Fenster
+    add(klick(tr(Str::MeStile)));
+    add(pause(0.3));
+    add(pruefe("M6 Stile: Fenster offen", [] { return me::flussInfo().stileOffen; }));
+    add(foto("menue_stile"));
+    add(klick(tr(Str::MeStile)));
+    add(pause(0.2));
+    // Punkt 6: Assistent - zwei Einstellungen aus dem Katalog der Spielmenues, Seite anlegen
+    add(klick(tr(Str::MeAssistent)));
+    add(pause(0.5));
+    auto zwei = std::make_shared<std::vector<std::string>>();
+    std::vector<char> anlegen(128);
+    std::snprintf(anlegen.data(), anlegen.size(), tr(Str::MeAssistentAnlegen), 2);
+    const std::string anlegenText = anlegen.data();
+    add(pruefe("M6 Assistent: Katalog aus den Spielmenues (Schieber, Ja/Nein, Auswahl)", [zwei] {
+        const auto k = me::assistentKatalog();
+        diag::info("Menue-Editor M6 Assistent: " + std::to_string(k.size()) + " Cvars mit Steuerung");
+        if (k.size() >= 2) { *zwei = {k[0], k[1]}; }
+        return me::flussInfo().assistentOffen && k.size() >= 2;
+    }));
+    add(tu("M6 Assistent: zwei Einstellungen ankreuzen", [zwei] {
+        for (const auto& c : *zwei) { me::assistentWaehle(c); }
+    }));
+    add(pause(0.2));
+    add(foto("menue_assistent"));
+    add(klick(anlegenText));
+    add(pause(0.3));
+    add(pruefe("M6 Assistent: neue Seite mit den zwei Einstellungen, Parser ohne Meldung", [st] {
+        return me::menuesImDokument() == 6 && me::flussInfo().aktivesMenue == "settingsMenu2" && st().meldungen == 0;
+    }));
+    add(klick(tr(Str::MeAssistent)));
+    add(pause(0.2));
+    // Punkt 8: Element aus dem Spiel verschieben, Unterschied sehen, auf Original zuruecksetzen
+    auto original = std::make_shared<std::string>();
+    add(tu("M6 Original: Hauptmenue aus dem Spiel, erstes benanntes Element waehlen und verschieben", [original] {
+        me::schliesseAlleOhneSpeichern();
+        (void)me::oeffneAusSpiel("ui/main.menu");
+        me::setzeReiter(2);
+        *original = me::stand().text;
+        for (int i = 0; i < 200; ++i) {
+            if (me::itemNameBei(i).empty()) { continue; }
+            me::waehle(i, false);
+            break;
+        }
+        me::verschiebeAuswahl(6, 0);
+    }));
+    add(pause(0.4));
+    add(pruefe("M6 Original: Unterschied rect erkannt", [] {
+        const auto u = me::originalUnterschiede();
+        return u == std::vector<std::string>{"rect"};
+    }));
+    add(foto("menue_vergleich"));
+    add(klick(tr(Str::MeOriginalZuruecksetzen)));
+    add(pause(0.3));
+    add(pruefe("M6 Original: zurueckgesetzt, Text wieder wie im Spiel", [st, original] { return st().text == *original && me::originalUnterschiede().empty(); }));
+    add(tu("M6: aufraeumen", [] { me::schliesseAlleOhneSpeichern(); }));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     if (std::getenv("BHED_MENUE_VERGLEICH") != nullptr) { return vergleichSchritte(); }
     // Sprache fuer die Handbuchbilder (wie handbuchSchritte): BHED_SPRACHE = Kurzname aus tools/sprachen.py
@@ -1324,6 +1536,12 @@ std::vector<Schritt> schritte() {
     // BHED_MENUE_NUR=m5b: nur die Schritte von M5b
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m5b") == 0) {
         for (auto& x : schritteM5b()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // BHED_MENUE_NUR=m6: nur die Schritte von M6
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m6") == 0) {
+        for (auto& x : schritteM6()) { add(std::move(x)); }
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }
@@ -1474,6 +1692,7 @@ std::vector<Schritt> schritte() {
     for (auto& x : schritteM4()) { add(std::move(x)); }
     for (auto& x : schritteM5()) { add(std::move(x)); }
     for (auto& x : schritteM5b()) { add(std::move(x)); }
+    for (auto& x : schritteM6()) { add(std::move(x)); }
     add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
     return s;
 }
