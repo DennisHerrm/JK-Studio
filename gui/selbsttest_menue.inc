@@ -8,6 +8,28 @@
 namespace menuetest {
 namespace me = menueeditor;
 
+// uebersetzung1: Die Spalten des Menue-Editors (links Bauteile und Bibliothek, rechts die
+// Reiter samt Suchzeile) zeigen ihren Inhalt ganz. Ist etwas breiter als die Spalte, merkt
+// ImGui sich das in ScrollMax.x - vorher die Suchzeile ("In all op|", auf Spanisch "En todo|")
+// und der Hinweis der Bibliothek, schon auf Englisch.
+bool spaltenGanz() {
+    int n = 0;
+    bool ok = true;
+    for (ImGuiWindow* w : GImGui->Windows) {
+        const std::string name = w->Name;
+        if (!w->WasActive || (name.find("/##links_") == std::string::npos && name.find("/##rechts_") == std::string::npos &&
+                              name.find("/##codeBereich_") == std::string::npos)) {
+            continue;
+        }
+        ++n;
+        if (w->ScrollMax.x > 0.5F) {
+            diag::info("Menue-Editor: " + name + " ist " + std::to_string(static_cast<int>(w->ScrollMax.x)) + " Punkte zu schmal");
+            ok = false;
+        }
+    }
+    return ok && n >= 2;
+}
+
 const char* const kSp =
     "// Probe fuer den Selbsttest\n"
     "{\n"
@@ -216,10 +238,12 @@ std::vector<Schritt> schritteM2() {
     add(pause(0.3));
     add(pruefe("M2 Layout: Reiter Text gewaehlt und gemerkt", [] { return me::reiter() == 1; }));
     add(foto("menue_reiter_text"));
+    add(pruefe("M2 Layout: Reiter Text mit Suchzeile - keine Spalte abgeschnitten", [] { return spaltenGanz(); }));
     add(tu("M2 Layout: Reiter Hierarchie", [] { me::setzeReiter(0); }));
     add(pause(0.3));
     add(pruefe("M2 Layout: Reiter Hierarchie gewaehlt", [] { return me::reiter() == 0; }));
     add(foto("menue_reiter_hierarchie"));
+    add(pruefe("M2 Layout: Reiter Hierarchie - keine Spalte abgeschnitten", [] { return spaltenGanz(); }));
     // Live-Diagnose: ein absichtlich kaputtes Menue (fehlende }, Tippfehler im Schluesselwort,
     // show auf ein Item, das es nicht gibt)
     add(tu("M2 Diagnose: kaputtes Menue oeffnen", [] {

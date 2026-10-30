@@ -509,7 +509,7 @@ std::vector<Schritt> schritte() {
     add(pause(0.3));
     {
         char z[160];
-        std::snprintf(z, sizeof(z), ke::trK(Str::KeVtAnzahl), 10);
+        std::snprintf(z, sizeof(z), ke::trKN(Str::KeVtAnzahl, 10), 10);
         add(klick(std::string(z) + "###verteilen10"));
     }
     add(pause(0.4));

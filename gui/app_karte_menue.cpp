@@ -505,7 +505,7 @@ void listeZeichnen(const std::string& name) {
                 if (qtMenueAnfang(id.c_str())) {
                     for (const int n : {10, 25, 50}) {
                         char z[160];
-                        std::snprintf(z, sizeof(z), trK(Str::KeVtAnzahl), n);
+                        std::snprintf(z, sizeof(z), trKN(Str::KeVtAnzahl, n), n);
                         std::snprintf(z + std::strlen(z), sizeof(z) - std::strlen(z), "###verteilen%d", n);
                         QtPunkt p;
                         p.id = z;

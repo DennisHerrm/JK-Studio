@@ -921,7 +921,7 @@ void kiAbschnitt(const char* frage, float breite) {
             }
             if (!anzeige.empty()) {
                 char n[160];
-                std::snprintf(n, sizeof(n), tr(Str::KiHistoryCount), static_cast<int>(anzeige.size()));
+                std::snprintf(n, sizeof(n), trN(Str::KiHistoryCount, anzeige.size()), static_cast<int>(anzeige.size()));
                 ImGui::TextDisabled("%s", n);
                 ImGui::SameLine();
                 if (ImGui::SmallButton(tr(Str::KiHistoryClear)) && !laeuft) { verlaufLoeschen(); }

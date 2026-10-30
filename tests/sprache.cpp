@@ -153,6 +153,106 @@ int main() {
         erwarte("Changelog: jede Fassung in jeder Sprache, ohne eigene Spalte englisch", ok, true);
     }
 
+    // uebersetzung1: Pluralformen nach CLDR. Tschechisch hat drei (1 soubor,
+    // 2-4 soubory, 5+ souborů), Englisch, Deutsch, Spanisch zwei, Chinesisch
+    // und Japanisch eine; vorher stand "%d souborů" auch fuer 2 bis 4.
+    {
+        using bhed::i18n::Str;
+        using bhed::i18n::pluralForm;
+        erwarte("CLDR cs: 1 one, 2..4 few, 0/5/11/21/22/100 other, -3 few",
+                pluralForm(L::Czech, 1) == 0 && pluralForm(L::Czech, 2) == 1 && pluralForm(L::Czech, 4) == 1 &&
+                    pluralForm(L::Czech, 0) == 2 && pluralForm(L::Czech, 5) == 2 && pluralForm(L::Czech, 11) == 2 &&
+                    pluralForm(L::Czech, 21) == 2 && pluralForm(L::Czech, 22) == 2 && pluralForm(L::Czech, 100) == 2 &&
+                    pluralForm(L::Czech, -3) == 1,
+                true);
+        bool zwei = true;
+        for (const L l : {L::English, L::German, L::Spanish}) {
+            zwei = zwei && bhed::i18n::pluralFormen(l) == 2 && pluralForm(l, 1) == 0 && pluralForm(l, 0) == 1 &&
+                   pluralForm(l, 2) == 1 && pluralForm(l, 21) == 1 && pluralForm(l, -1) == 0;
+        }
+        erwarte("CLDR en/de/es: 1 one, sonst other", zwei, true);
+        erwarte("CLDR zh/ja: nur other",
+                bhed::i18n::pluralFormen(L::ChineseSimplified) == 1 && bhed::i18n::pluralFormen(L::Japanese) == 1 &&
+                    pluralForm(L::ChineseSimplified, 1) == 0 && pluralForm(L::Japanese, 3) == 0 &&
+                    bhed::i18n::pluralFormen(L::Czech) == 3,
+                true);
+
+        auto mit = [](L l, Str id, long long n) {
+            char b[256];
+            std::snprintf(b, sizeof(b), bhed::i18n::trNIn(l, id, n), static_cast<int>(n));
+            return std::string(b);
+        };
+        erwarte("en: 1 command copied / 2 commands copied",
+                mit(L::English, Str::MsgCopied, 1) == "1 command copied" &&
+                    mit(L::English, Str::MsgCopied, 2) == "2 commands copied",
+                true);
+        erwarte("de: 1 Befehl kopiert / 5 Befehle kopiert",
+                mit(L::German, Str::MsgCopied, 1) == "1 Befehl kopiert" &&
+                    mit(L::German, Str::MsgCopied, 5) == "5 Befehle kopiert",
+                true);
+        erwarte("es: 1 comando copiado / 0 comandos copiados",
+                mit(L::Spanish, Str::MsgCopied, 1) == "1 comando copiado" &&
+                    mit(L::Spanish, Str::MsgCopied, 0) == "0 comandos copiados",
+                true);
+        erwarte("cs: 1 prikaz, 3 prikazy, 5/0/22 prikazu (mit Verbform)",
+                mit(L::Czech, Str::MsgCopied, 1) == "Zkop\xc3\xadrov\xc3\xa1n 1 p\xc5\x99\xc3\xadkaz" &&
+                    mit(L::Czech, Str::MsgCopied, 3) == "Zkop\xc3\xadrov\xc3\xa1ny 3 p\xc5\x99\xc3\xadkazy" &&
+                    mit(L::Czech, Str::MsgCopied, 5) == "Zkop\xc3\xadrov\xc3\xa1no 5 p\xc5\x99\xc3\xadkaz\xc5\xaf" &&
+                    mit(L::Czech, Str::MsgCopied, 0) == "Zkop\xc3\xadrov\xc3\xa1no 0 p\xc5\x99\xc3\xadkaz\xc5\xaf" &&
+                    mit(L::Czech, Str::MsgCopied, 22) == "Zkop\xc3\xadrov\xc3\xa1no 22 p\xc5\x99\xc3\xadkaz\xc5\xaf",
+                true);
+        erwarte("zh/ja: eine Form, trN == tr",
+                std::string(bhed::i18n::trNIn(L::ChineseSimplified, Str::MsgCopied, 1)) ==
+                        bhed::i18n::trIn(L::ChineseSimplified, Str::MsgCopied) &&
+                    std::string(bhed::i18n::trNIn(L::Japanese, Str::MsgCopied, 7)) ==
+                        bhed::i18n::trIn(L::Japanese, Str::MsgCopied),
+                true);
+        {
+            char b[256];
+            std::snprintf(b, sizeof(b), bhed::i18n::trNIn(L::English, Str::CompileOk, 1, 2), 1, 2);
+            const std::string en = b;
+            std::snprintf(b, sizeof(b), bhed::i18n::trNIn(L::Czech, Str::CompileOk, 2, 5), 2, 5);
+            const std::string cs = b;
+            erwarte("zwei Zahlen: en 1 block, 2 bytes; cs 2 bloky, 5 bajtu",
+                    en == "Compiled: 1 block, 2 bytes" && cs == "Zkompilov\xc3\xa1no: 2 bloky, 5 bajt\xc5\xaf", true);
+        }
+        // Jeder Zaehltext in jeder Sprache und fuer jede Form: keine Klammer
+        // bleibt stehen, dieselben Platzhalter wie Englisch, tr() = other.
+        auto platzhalter = [](const std::string& t) {
+            std::string p;
+            for (std::size_t i = 0; i + 1 < t.size(); ++i) {
+                if (t[i] != '%') { continue; }
+                std::size_t j = i + 1;
+                while (j < t.size() && std::string("-+ #0123456789.hlLzjt").find(t[j]) != std::string::npos) { ++j; }
+                if (j < t.size()) { p += t[j]; }
+                i = j;
+            }
+            return p;
+        };
+        int zaehl = 0;
+        bool ok = true;
+        for (int i = 0; i < static_cast<int>(Str::Count); ++i) {
+            const auto id = static_cast<Str>(i);
+            if (!bhed::i18n::istZaehltext(id)) { continue; }
+            ++zaehl;
+            const std::string soll = platzhalter(bhed::i18n::trIn(L::English, id));
+            for (const bhed::i18n::LanguageInfo& l : bhed::i18n::languages()) {
+                for (const long long n : {0LL, 1LL, 2LL, 3LL, 5LL, 21LL}) {
+                    const std::string t = bhed::i18n::trNIn(l.language, id, n, n, n, n, n);
+                    const std::size_t a = t.find('{');
+                    if ((a != std::string::npos && t.find('|', a) != std::string::npos) || platzhalter(t) != soll) {
+                        std::printf("  Zaehltext %s (%s, %lld): %s\n", bhed::i18n::strName(id), l.kurz, n, t.c_str());
+                        ok = false;
+                    }
+                }
+                ok = ok && std::string(bhed::i18n::trIn(l.language, id)) == bhed::i18n::trNIn(l.language, id, 5, 5, 5, 5, 5);
+            }
+        }
+        std::printf("  (%d Zaehltexte)\n", zaehl);
+        erwarte("jeder Zaehltext: alle Formen ohne Klammerrest, Platzhalter wie Englisch, tr() = other",
+                ok && zaehl > 0 && !bhed::i18n::istZaehltext(Str::FileSave), true);
+    }
+
     if (g_fehl != 0) {
         std::printf("Sprach-Proben: %d Fehlschlag(e)\n", g_fehl);
         return 1;

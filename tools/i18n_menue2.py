@@ -16,8 +16,6 @@ MENUE2 = [
      "動画をパッケージに %s として保存しました。"),
     ("MeVideoFehler", "The video could not be read: %s", "Das Video ließ sich nicht lesen: %s", "无法读取视频:%s",
      "動画を読み込めませんでした: %s"),
-    # Punkt 1: Spieltakt fuer Animationen
-    ("MeSpielFps", "Game frame rate", "Bildrate des Spiels", "游戏帧率", "ゲームのフレームレート"),
     # Punkt 3: Menuesatz
     ("MeMenuesatz", "Menu set", "Menüsatz", "菜单集", "メニューセット"),
     ("MeMenuesatzOeffnen", "Open whole menu set (menus.txt)", "Ganzen Menüsatz öffnen (menus.txt)", "打开整个菜单集(menus.txt)",
@@ -49,12 +47,12 @@ MENUE2 = [
     ("MeTextNeu", "New @MENUS text", "Neuer @MENUS-Text", "新建 @MENUS 文本", "新しい @MENUS テキスト"),
     ("MeTextSchluessel", "Key", "Schlüssel", "键", "キー"),
     ("MeTextFehlt", "(missing)", "(fehlt)", "(缺失)", "(なし)"),
-    ("MeTexteImPaket", "%d texts in the package (%s)", "%d Texte im Paket (%s)", "包中有 %d 条文本(%s)",
+    ("MeTexteImPaket", "%d {text|texts} in the package (%s)", "%d {Text|Texte} im Paket (%s)", "包中有 %d 条文本(%s)",
      "パッケージ内のテキスト %d 件(%s)"),
     # Punkt 7: Exportpruefungen
     ("MePruefen", "Check for the game", "Für das Spiel prüfen", "按游戏检查", "ゲーム向けにチェック"),
     ("MePruefungOk", "No problems found.", "Keine Probleme gefunden.", "未发现问题。", "問題は見つかりませんでした。"),
-    ("MePruefungAnzahl", "%d problems found.", "%d Probleme gefunden.", "发现 %d 个问题。", "%d 件の問題が見つかりました。"),
+    ("MePruefungAnzahl", "%d {problem|problems} found.", "%d {Problem|Probleme} gefunden.", "发现 %d 个问题。", "%d 件の問題が見つかりました。"),
     ("MeExportAenderungen", "Export changes only...", "Nur Änderungen exportieren...", "仅导出更改...", "変更分のみエクスポート..."),
     ("MeExportNichts", "Nothing changed - no package written.", "Nichts geändert - kein Paket geschrieben.", "没有更改——未写入包。",
      "変更がないため、パッケージは書き出しませんでした。"),
@@ -125,7 +123,7 @@ MENUE2 = [
      "項目が多すぎます: %d 個(最大 %d)。ゲームは残りを無視します。"),
     ("MeDiagZuVieleMenues", "Too many menus: %d of at most %d.", "Zu viele Menüs: %d von höchstens %d.", "菜单过多:%d 个,最多 %d 个。",
      "メニューが多すぎます: %d 個(最大 %d)。"),
-    ("MeDiagSkriptZuLang", "Script too long: %d characters of at most %d - the game cuts it off.",
+    ("MeDiagSkriptZuLang", "Script too long: %d {character|characters} of at most %d - the game cuts it off.",
      "Skript zu lang: %d Zeichen von höchstens %d - das Spiel schneidet es ab.", "脚本过长:%d 个字符,最多 %d 个——游戏会截断。",
      "スクリプトが長すぎます: %d 文字(最大 %d)。ゲームは切り捨てます。"),
     ("MeDiagZuViele", "Too many entries: %d of at most %d - the game drops the rest.",

@@ -661,10 +661,13 @@ std::vector<Schritt> spielordner() {
 std::vector<Schritt> helfer() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
-    add(tu("H2 Helfer: Modus Karten-Editor, Frage \"Einstellungen\"", [] {
+    // uebersetzung1: "Preferences" statt "Einstellungen" - NRCs Menuename ist in jeder Sprache
+    // englisch, so misst die Frage das Gewicht des Modus auch im spanischen und tschechischen Lauf
+    // (dort lag der Einstellungsdialog des Karten-Editors mit der deutschen Frage auf Platz 4 bzw. 5).
+    add(tu("H2 Helfer: Modus Karten-Editor, Frage \"Preferences\"", [] {
         g_app->leftMode = 3;
         hilfeOeffnen();
-        hilfeFrageSetzen("Einstellungen");
+        hilfeFrageSetzen("Preferences");
     }));
     add(pause(0.4));
     add(pruefe("H2 Helfer: im Karten-Editor ist dessen Einstellungsdialog unter den ersten drei (Modus als Gewicht)", [] {

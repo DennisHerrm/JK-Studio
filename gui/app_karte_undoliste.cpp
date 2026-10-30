@@ -71,7 +71,7 @@ void undoListeZeichnen() {
     const std::size_t nU = u.undoAnzahl();
     const std::size_t nR = u.redoAnzahl();
     char kopf[200];
-    std::snprintf(kopf, sizeof(kopf), trK(Str::KeUlKopf), nU, nR, u.stufen());
+    std::snprintf(kopf, sizeof(kopf), trKN(Str::KeUlKopf, nU, nR, u.stufen()), nU, nR, u.stufen());
     ImGui::TextUnformatted(kopf);
     ImGui::SameLine();
     ImGui::TextDisabled("(%s)", trK(Str::KeLgNichtNrc));

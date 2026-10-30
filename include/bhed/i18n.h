@@ -10,6 +10,7 @@
 #ifndef BHED_I18N_H
 #define BHED_I18N_H
 
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -1095,9 +1096,6 @@ enum class Str {
     KeViewYZ,
     KeViewCamera,
     KeGridStatusTip,
-    KeBrushCount,
-    KePatchCount,
-    KeEntityCount,
     KeMappedCommands,
     KeColCommand,
     KeColKey,
@@ -1816,8 +1814,6 @@ enum class Str {
     KeLOpenBsp,
     KeBspTitel,
     KeBspFilter,
-    KeBspKarte,
-    KeBspQuelle,
     KeBspDatei,
     KeBspOeffnen,
     KeBspHinweis,
@@ -2326,7 +2322,6 @@ enum class Str {
     KeTgSeed,
     KeTgSeedFix,
     KeTgSeedTip,
-    KeTgMaster,
     KeTgNoSelTitel,
     KeTgNoSel,
     KeTgSmallTitel,
@@ -2752,7 +2747,6 @@ enum class Str {
     MeVideoLaeuft,
     MeVideoFertig,
     MeVideoFehler,
-    MeSpielFps,
     MeMenuesatz,
     MeMenuesatzOeffnen,
     MeBibliothek,
@@ -2844,6 +2838,7 @@ enum class Str {
     MeSchriftGroesse,
     MeSchriftFertig,
     MeSchriftFehler,
+    MeAufloesungFenster,
     Count,
 };
 
@@ -2852,6 +2847,31 @@ const char* tr(Str id);
 
 Language currentLanguage();
 void setLanguage(Language language);
+
+// uebersetzung1: Zaehltexte. Richtet sich ein Wort nach einer Zahl ("1 file",
+// "2 files"; cs "1 soubor", "2 soubory", "5 souborů"), stehen seine Formen im
+// Text (tools/gen_i18n.py, Abschnitt Zaehltexte), und trN waehlt sie nach den
+// Zahlen - in der Reihenfolge, in der der Aufruf sie nennt, nach der
+// CLDR-Regel der Sprache, deren Text es ist (fehlt einer Sprache der Text:
+// der englische mit der englischen Regel). Die Zahlen gehen danach wie
+// bisher an snprintf. tr() liefert fuer einen Zaehltext die Form "other".
+const char* trNListe(Language language, Str id, const long long* zahlen, std::size_t anzahl);
+template <class... Zahl>
+const char* trNIn(Language language, Str id, Zahl... zahlen) {
+    static_assert(sizeof...(Zahl) > 0, "trN braucht mindestens eine Zahl");
+    const long long z[] = {static_cast<long long>(zahlen)...};
+    return trNListe(language, id, z, sizeof...(Zahl));
+}
+template <class... Zahl>
+const char* trN(Str id, Zahl... zahlen) {
+    return trNIn(currentLanguage(), id, zahlen...);
+}
+// Die CLDR-Kategorie einer ganzen Zahl als Nummer der Form (0 = erste Form im
+// Text; tools/sprachen.py MEHRZAHL) und wie viele Formen die Sprache hat.
+int pluralForm(Language language, long long n);
+int pluralFormen(Language language);
+// Ob ein Text Formen je Zahl hat (dann trN statt tr; tools/lint_i18n.py).
+bool istZaehltext(Str id);
 
 struct LanguageInfo {
     Language language;

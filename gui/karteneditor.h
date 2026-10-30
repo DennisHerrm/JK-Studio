@@ -1149,6 +1149,12 @@ Editor& editor();
 [[nodiscard]] const char* trK(i18n::Str id);
 [[nodiscard]] bool nrcBegriffe();
 void setzeNrcBegriffe(bool an);
+// Zaehltext (i18n::trN) wie trK: die Form nach den Zahlen, mit "Begriffe wie
+// NetRadiant" die englische.
+template <class... Zahl>
+[[nodiscard]] const char* trKN(i18n::Str id, Zahl... zahlen) {
+    return i18n::trNIn(nrcBegriffe() ? i18n::Language::English : i18n::currentLanguage(), id, zahlen...);
+}
 
 // Den Arbeitsbereich zeichnen (aus app.cpp, rechts neben der Modusleiste).
 void zeichne(float hoehe);

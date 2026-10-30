@@ -18,13 +18,26 @@ SHOWN = ['Text', 'TextUnformatted', 'TextDisabled', 'TextColored', 'Button',
          'CollapsingHeader', 'TreeNode', 'SliderFloat', 'InputText',
          'SetTooltip', 'LabelText', 'BulletText']
 
-AUSNAHMEN = {'BehavEd', 'ICARUS', 'OpenJK', 'ImGui', 'Dear ImGui', 'JKA', 'JK2'}
+AUSNAHMEN = {'BehavEd', 'ICARUS', 'OpenJK', 'ImGui', 'Dear ImGui', 'JKA', 'JK2',
+             # uebersetzung1: Spielnamen, wie das Spiel sie schreibt
+             'Jedi Academy', 'Jedi Outcast', 'Movie Duels',
+             # Schalter der Suche wie in jedem Code-Editor (Regex, Gross/klein,
+             # ganzes Wort) und das Schliessen-Kreuz - Zeichen, keine Woerter
+             '.*', 'Aa', 'ab', 'x',
+             # Schluesselwoerter der .menu-Dateien (Eigenschaften im Menue-Editor),
+             # Spieltermini wie die ICARUS-Befehle - bleiben in jeder Sprache
+             'type', 'style', 'textalign', 'visible'}
 
 CALL = re.compile(r'ImGui::(' + '|'.join(SHOWN) + r')\s*\(\s*("(?:[^"\\]|\\.)*")')
 
 def harmlos(lit):
-    s = lit[1:-1]
-    if s.startswith('##') or s == '':
+    # Was hinter ## steht, zeigt ImGui nicht (Kennung des Elements).
+    s = lit[1:-1].split('##', 1)[0]
+    if s == '':
+        return True
+    # uebersetzung1: ohne Platzhalter und Escapes (\n) kein Buchstabe mehr -
+    # "%s %s:%d  %s = %lld%s", "= %s", "%s\n%s" sind reine Formate.
+    if not re.search(r'[A-Za-z]', re.sub(r'\\.|%[-+#0]*[0-9]*(?:\.[0-9]+)?(?:hh|h|ll|l|z|j|t|L)?[a-zA-Z%]', '', s)):
         return True
     # nur Platzhalter, Satzzeichen, Leerzeichen
     # --- Was als Platzhalter zaehlt ------------------------------------
@@ -53,7 +66,11 @@ def harmlos(lit):
 
 root = pathlib.Path(__file__).resolve().parent.parent
 bad = 0
-for f in sorted((root / 'gui').glob('*.cpp')) + sorted((root / 'gui').glob('*.h')):
+# uebersetzung1: auch die Teile, die eine .cpp einbindet (gui/*.inc: Anordnung,
+# Ablage, Selbsttests ...) - vorher sah der Pruefer dort weder feste Texte noch
+# Benutzungen und meldete fast 700 Texte als "nirgends benutzt".
+_GUI = sorted((root / 'gui').glob('*.cpp')) + sorted((root / 'gui').glob('*.h')) + sorted((root / 'gui').glob('*.inc'))
+for f in _GUI:
     for n, line in enumerate(f.read_text(encoding='utf-8').split('\n'), 1):
         for m in CALL.finditer(line):
             if not harmlos(m.group(2)):
@@ -86,7 +103,10 @@ _von = _hdr.find('enum class Str {')
 _bis = _hdr.find('};', _von)
 _names = re.findall(r'^\s{4}(\w+),\s*$', _hdr[_von:_bis], re.M)
 _code = ''
-for _f in sorted((root / 'gui').glob('*.cpp')) + sorted((root / 'src').glob('*.cpp')):
+# Nicht src/i18n.cpp: die erzeugte Tabelle der Zaehltexte nennt jede Kennung.
+_QUELLEN = [p for p in _GUI + sorted((root / 'src').rglob('*.cpp')) + sorted((root / 'src').rglob('*.inc'))
+            if p.name != 'i18n.cpp']
+for _f in _QUELLEN:
     _code += _f.read_text(encoding='utf-8')
 _unused = [n for n in _names if f'Str::{n}' not in _code]
 if _unused:
@@ -112,6 +132,25 @@ if _lauf.returncode != 0:
     print("gen_i18n.py --fehlend scheiterte:", _lauf.stderr[:400])
     sys.exit(1)
 _stand = json.loads(_lauf.stdout.strip().splitlines()[-1])
+
+# --- Zaehltexte nur ueber trN (uebersetzung1) --------------------------------
+#
+# Ein Text mit Formen je Zahl ("%d {file|files}") zeigt mit tr() immer die
+# Form "other" - "1 files", cs "2 souborů". Beanstandet wird jede Stelle, an
+# der die naechste oeffnende Uebersetzungsfunktion vor Str::<Zaehltext> tr(,
+# trK( oder trIn( ist.
+_zaehl = set(_stand.get('zaehl', []))
+_OEFFNER = re.compile(r'\b(trN|trKN|trNIn|tr|trK|trIn)\(')
+for _f in _QUELLEN:
+    for _n, _zeile in enumerate(_f.read_text(encoding='utf-8').split('\n'), 1):
+        for _m in re.finditer(r'Str::(\w+)', _zeile):
+            if _m.group(1) not in _zaehl:
+                continue
+            _vor = list(_OEFFNER.finditer(_zeile, 0, _m.start()))
+            if _vor and _vor[-1].group(1) in ('tr', 'trK', 'trIn'):
+                print(f"{_f.relative_to(root)}:{_n}: Zaehltext {_m.group(1)} ueber {_vor[-1].group(1)}() statt trN/trKN")
+                bad += 1
+
 _nur = sys.argv[sys.argv.index('--sprache') + 1] if '--sprache' in sys.argv else None
 for _kurz, _fehlt in _stand['fehlend'].items():
     if _nur is not None and _kurz != _nur:

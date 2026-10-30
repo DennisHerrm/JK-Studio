@@ -432,7 +432,7 @@ void ergebnisAnwenden() {
     ed.bspRueckLetzt.sekunden = g_r.sekunden;
     char z[512];
     if (g_r.mitLichtern) {
-        std::snprintf(z, sizeof(z), trK(Str::KeLsFertig), static_cast<int>(lichtZahl));
+        std::snprintf(z, sizeof(z), trKN(Str::KeLsFertig, lichtZahl), static_cast<int>(lichtZahl));
         warnung(z);
     }
     if (!g_r.mitModellen) {
@@ -440,10 +440,10 @@ void ergebnisAnwenden() {
         auswahlGeaendert();
         return;
     }
-    std::snprintf(z, sizeof(z), trK(Str::KeRkFertig), static_cast<int>(erg.treffer.size()), static_cast<int>(forceMeta), maxFehler,
+    std::snprintf(z, sizeof(z), trKN(Str::KeRkFertig, erg.treffer.size(), forceMeta, g_r.modelleGeladen, g_r.kandidaten), static_cast<int>(erg.treffer.size()), static_cast<int>(forceMeta), maxFehler,
                   static_cast<int>(g_r.modelleGeladen), static_cast<int>(g_r.kandidaten), g_r.sekunden);
     ausgabe(z);
-    std::snprintf(z, sizeof(z), trK(Str::KeRkIndex), static_cast<int>(g_r.indexModelle), static_cast<int>(g_r.indexNeu), g_r.indexSekunden,
+    std::snprintf(z, sizeof(z), trKN(Str::KeRkIndex, g_r.indexModelle, g_r.indexNeu), static_cast<int>(g_r.indexModelle), static_cast<int>(g_r.indexNeu), g_r.indexSekunden,
                   static_cast<int>(g_r.kandidatenOrdner), static_cast<int>(g_r.kandidaten));
     ausgabe(z);
     ed.bspRueckLetzt.indexModelle = g_r.indexModelle;
@@ -451,7 +451,8 @@ void ergebnisAnwenden() {
     ed.bspRueckLetzt.kandidatenOrdner = g_r.kandidatenOrdner;
     ed.bspRueckLetzt.kandidaten = g_r.kandidaten;
     if (!erg.unerkannteDreiecke.empty()) {
-        std::snprintf(z, sizeof(z), trK(ed.bspRueck.flaechen ? Str::KeRkFlaechen : Str::KeRkFlaechenAus), static_cast<int>(erg.unerkannteDreiecke.size()),
+        std::snprintf(z, sizeof(z), trKN(ed.bspRueck.flaechen ? Str::KeRkFlaechen : Str::KeRkFlaechenAus, erg.unerkannteDreiecke.size(), pinsel),
+                      static_cast<int>(erg.unerkannteDreiecke.size()),
                       static_cast<int>(pinsel));
         warnung(z);
     }
@@ -489,7 +490,7 @@ void bspRueckSchritt() {
     if (ImGui::Begin(titel.c_str(), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
         char z[256];
         if (st == 1) {
-            std::snprintf(z, sizeof(z), trK(Str::KeRkLaden), static_cast<int>(g_r.kandidaten));
+            std::snprintf(z, sizeof(z), trKN(Str::KeRkLaden, g_r.kandidaten), static_cast<int>(g_r.kandidaten));
             ImGui::TextUnformatted(z);
             ImGui::ProgressBar(-1.0F * static_cast<float>(ImGui::GetTime()), ImVec2{ImGui::GetContentRegionAvail().x, 0.0F}, "");
         } else {

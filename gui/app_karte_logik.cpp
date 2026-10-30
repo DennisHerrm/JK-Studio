@@ -114,7 +114,7 @@ void logikZeichnen() {
         return;
     }
     char kopf[256];
-    std::snprintf(kopf, sizeof(kopf), trK(Str::KeLgKopf), static_cast<int>(z.graf.knoten.size()) - (z.graf.fehlend > 0 ? 0 : 0),
+    std::snprintf(kopf, sizeof(kopf), trKN(Str::KeLgKopf, z.graf.knoten.size(), z.graf.kanten.size()), static_cast<int>(z.graf.knoten.size()) - (z.graf.fehlend > 0 ? 0 : 0),
                   static_cast<int>(z.graf.kanten.size()), z.graf.fehlend);
     ImGui::TextUnformatted(kopf);
     ImGui::SameLine();

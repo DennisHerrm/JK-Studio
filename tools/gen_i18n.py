@@ -67,8 +67,8 @@ S = [
     ("Compile", "Compile!", "Übersetzen!", "编译！", "コンパイル！"),
     ("CompileDone", "Compiled", "Übersetzt", "已编译", "コンパイル済み"),
     ("CompileFailedShort", "Failed", "Fehler", "失败", "失敗"),
-    ("CompileOk", "Compiled: %d blocks, %d bytes",
-     "Übersetzt: %d Blöcke, %d Byte", "已编译：%d 个块，%d 字节",
+    ("CompileOk", "Compiled: %d {block|blocks}, %d {2:byte|bytes}",
+     "Übersetzt: %d {Block|Blöcke}, %d Byte", "已编译：%d 个块，%d 字节",
      "コンパイル完了: %d ブロック, %d バイト"),
     ("CompileFailed", "Compile failed", "Übersetzen fehlgeschlagen", "编译失败",
      "コンパイルに失敗"),
@@ -155,11 +155,11 @@ S = [
     # --- Meldungen ---
     ("MsgNoScript", "No script loaded", "Kein Skript geladen", "未加载脚本",
      "スクリプトが読み込まれていません"),
-    ("MsgModelLoaded", "Command model: %d signatures, %d typesets, %d macros",
-     "Befehlsmodell: %d Signaturen, %d Typmengen, %d Makros",
+    ("MsgModelLoaded", "Command model: %d {signature|signatures}, %d {2:typeset|typesets}, %d {3:macro|macros}",
+     "Befehlsmodell: %d {Signatur|Signaturen}, %d {2:Typmenge|Typmengen}, %d {3:Makro|Makros}",
      "命令模型：%d 个签名，%d 个类型集，%d 个宏",
      "コマンドモデル: %d シグネチャ, %d 型集合, %d マクロ"),
-    ("MsgIssues", "%d errors, %d notes", "%d Fehler, %d Anmerkungen",
+    ("MsgIssues", "%d {error|errors}, %d {2:note|notes}", "%d Fehler, %d {2:Anmerkung|Anmerkungen}",
      "%d 个错误，%d 条提示", "%d 件のエラー, %d 件の注記"),
     ("MsgUnknownValue", "unknown", "unbekannt", "未知", "不明"),
     ("MsgUnknownValueHint",
@@ -174,7 +174,7 @@ S = [
      "Das aktuelle Skript hat ungespeicherte Änderungen.\nZuerst speichern?",
      "当前脚本有未保存的更改。\n先保存此文件吗？",
      "現在のスクリプトに未保存の変更があります。\n先に保存しますか？"),
-    ("MsgLoaded", "Loaded, %d lines", "Geladen, %d Zeilen", "已加载，%d 行",
+    ("MsgLoaded", "Loaded, %d {line|lines}", "Geladen, %d {Zeile|Zeilen}", "已加载，%d 行",
      "読み込み完了、%d 行"),
     ("MsgSaved", "Saved", "Gespeichert", "已保存", "保存しました"),
     ("MsgRecent", "Recent files", "Zuletzt geöffnet", "最近的文件",
@@ -226,8 +226,8 @@ S = [
 
     ("MapLoad", "Load map...", "Karte laden...", "加载地图…", "マップを読み込む…"),
     ("MapClose", "Close map", "Karte schließen", "关闭地图", "マップを閉じる"),
-    ("MapLoaded", "Map: %d entities, %d target names",
-     "Karte: %d Entities, %d Zielnamen", "地图：%d 个实体，%d 个目标名",
+    ("MapLoaded", "Map: %d {entity|entities}, %d {2:target name|target names}",
+     "Karte: %d {Entity|Entities}, %d {2:Zielname|Zielnamen}", "地图：%d 个实体，%d 个目标名",
      "マップ: %d エンティティ, %d ターゲット名"),
     ("MapPick", "From map", "Aus der Karte", "取自地图", "マップから"),
 
@@ -239,14 +239,14 @@ S = [
     ("Pk3Title", "Files in .pk3", "Dateien in .pk3", ".pk3 中的文件",
      ".pk3 内のファイル"),
     ("Pk3Archive", "Archive", "Archiv", "归档", "アーカイブ"),
-    ("Pk3ArchiveInfo", "%d files", "%d Dateien", "%d 个文件", "%d ファイル"),
+    ("Pk3ArchiveInfo", "%d {file|files}", "%d {Datei|Dateien}", "%d 个文件", "%d ファイル"),
     ("Pk3AllArchives", "All archives", "Alle Archive", "所有归档",
      "すべてのアーカイブ"),
     ("Pk3Models", "Models", "Modelle", "模型", "モデル"),
     ("Pk3Filter", "Filter", "Filter", "筛选", "絞り込み"),
     ("Pk3Scripts", "Scripts", "Skripte", "脚本", "スクリプト"),
     ("Pk3Maps", "Maps", "Karten", "地图", "マップ"),
-    ("Pk3Found", "%d archives, %d files", "%d Archive, %d Dateien",
+    ("Pk3Found", "%d {archive|archives}, %d {2:file|files}", "%d {Archiv|Archive}, %d {2:Datei|Dateien}",
      "%d 个归档，%d 个文件", "%d 個のアーカイブ, %d ファイル"),
     ("Pk3None", "No game folder added yet", "Noch kein Spielordner hinzugefügt",
      "尚未添加游戏目录", "ゲームフォルダーが未追加"),
@@ -298,7 +298,7 @@ S = [
     ("VmsgV010", "command %s is not in the .bhc",
      "Befehl %s steht nicht in der .bhc",
      "命令 %s 不在 .bhc 中", "コマンド %s は .bhc にありません"),
-    ("MsgCopied", "%d command(s) copied", "%d Befehl(e) kopiert",
+    ("MsgCopied", "%d {command|commands} copied", "%d {Befehl|Befehle} kopiert",
      "已复制 %d 条命令", "%d 件のコマンドをコピーしました"),
     # Warum eine Bewegung nichts getan hat. Vorher stand der Grund nur im
     # Protokoll - das sieht der Benutzer beim Arbeiten nicht.
@@ -625,7 +625,7 @@ S = [
      "開いているすべての文書で置換"),
     ("FindInSelection", "In selection", "In Auswahl", "在选区内", "選択範囲内"),
     ("FindReplacedN", "%d replaced", "%d ersetzt", "已替换 %d 处", "%d 件置換"),
-    ("FindReplacedDocs", "%d replaced in %d documents", "%d ersetzt in %d Dokumenten",
+    ("FindReplacedDocs", "%d replaced in %d {2:document|documents}", "%d ersetzt in %d {2:Dokument|Dokumenten}",
      "已在 %d 个文档中替换 %d 处", "%d 件置換 (%d 文書)"),
     ("FindReplaceHint", "Replaces what \"Item containing\" finds - each field on its own. "
      "Numbers and vectors are written like BehavEd (1299.000). One undo step.",
@@ -644,7 +644,7 @@ S = [
     ("InterplayOrphan", "nobody waits for it", "niemand wartet darauf", "无人等待", "待機者なし"),
     ("InterplayStuck", "nobody sends it", "niemand sendet es", "无人发送", "送信者なし"),
     ("InterplayCameraWarn", "more than one script drives the camera", "mehr als ein Skript treibt die Kamera", "多个脚本控制摄像机", "複数のスクリプトがカメラを操作"),
-    ("PrefsArchives", "%d archives, %d files", "%d Archive, %d Dateien",
+    ("PrefsArchives", "%d {archive|archives}, %d {2:file|files}", "%d {Archiv|Archive}, %d {2:Datei|Dateien}",
      "%d 个归档，%d 个文件", "%d 個のアーカイブ, %d ファイル"),
 
     # Namen der Bearbeitungsschritte, fuer "Rueckgaengig: Löschen"
@@ -672,8 +672,8 @@ S = [
     ("UpdAvailable", "New version available: %s", "Neue Fassung verfügbar: %s", "有新版本：%s", "新しいバージョン: %s"),
     ("UpdNotes", "What's new:", "Was ist neu:", "更新内容：", "新機能:"),
     ("UpdInstall", "Download and install", "Herunterladen und installieren", "下载并安装", "ダウンロードしてインストール"),
-    ("UpdDone", "Installed (%d files). Restart to use the new version.",
-     "Installiert (%d Dateien). Neu starten, um die neue Fassung zu benutzen.",
+    ("UpdDone", "Installed (%d {file|files}). Restart to use the new version.",
+     "Installiert (%d {Datei|Dateien}). Neu starten, um die neue Fassung zu benutzen.",
      "已安装（%d 个文件）。重新启动以使用新版本。", "インストール完了（%d ファイル）。再起動で新バージョンになります。"),
     ("UpdRestart", "Restart now", "Jetzt neu starten", "立即重新启动", "今すぐ再起動"),
     ("UpdRetry", "Check again", "Erneut prüfen", "再次检查", "再確認"),
@@ -747,8 +747,8 @@ S = [
      "Jedes Speichern und Kompilieren legt eine Kopie ab: backup1.txt (neueste) bis backup10.txt, neben jkstudio.exe",
      "每次保存和编译都会保留副本：backup1.txt（最新）到 backup10.txt，位于 jkstudio.exe 旁",
      "保存とコンパイルのたびにコピーを残します: backup1.txt（最新）〜 backup10.txt、jkstudio.exe の隣"),
-    ("UndoSteps", "Undo: %d steps", "Rückgängig: %d Schritte", "撤销：%d 步", "元に戻す: %d 手順"),
-    ("RedoSteps", "Redo: %d steps", "Wiederholen: %d Schritte", "重做：%d 步", "やり直し: %d 手順"),
+    ("UndoSteps", "Undo: %d {step|steps}", "Rückgängig: %d {Schritt|Schritte}", "撤销：%d 步", "元に戻す: %d 手順"),
+    ("RedoSteps", "Redo: %d {step|steps}", "Wiederholen: %d {Schritt|Schritte}", "重做：%d 步", "やり直し: %d 手順"),
     ("UndoListTitle", "Undo history - newest at the top", "Rückgängig-Liste - neuester oben",
      "撤销历史 - 最新在上", "元に戻す履歴 - 新しい順"),
     ("RedoListTitle", "Redo history - next at the top", "Wiederholen-Liste - nächster oben",
@@ -794,8 +794,8 @@ S = [
     ("AboutIcarus", "1510 .icarus from Raven, byte for byte",
      "1510 .icarus von Raven, byteweise", "来自 Raven 的 1510 个 .icarus，逐字节",
      "Raven の .icarus 1510 個、バイト単位"),
-    ("AboutModel", "%d signatures, %d type sets, %d macros",
-     "%d Signaturen, %d Typmengen, %d Makros", "%d 个签名，%d 个类型集，%d 个宏",
+    ("AboutModel", "%d {signature|signatures}, %d {2:type set|type sets}, %d {3:macro|macros}",
+     "%d {Signatur|Signaturen}, %d {2:Typmenge|Typmengen}, %d {3:Makro|Makros}", "%d 个签名，%d 个类型集，%d 个宏",
      "%d シグネチャ, %d 型集合, %d マクロ"),
     ("AboutClose", "Close", "Schließen", "关闭", "閉じる"),
     # Der Hinweis sagt jetzt BEIDES. Das Feld konnte den getippten Text
@@ -829,7 +829,7 @@ S = [
     ("RevertPreviewNew", "New command - there is no original", "Neuer Befehl - es gibt kein Original",
      "新命令 - 没有原始版本", "新しいコマンド - 元の状態はありません"),
     ("RevertPreviewMore", "... and %d more", "... und %d weitere", "... 以及另外 %d 个", "... ほか %d 件"),
-    ("MsgRevertedN", "Reverted %d command(s) to the original", "%d Befehl(e) auf das Original zurueckgesetzt",
+    ("MsgRevertedN", "Reverted %d {command|commands} to the original", "%d {Befehl|Befehle} auf das Original zurueckgesetzt",
      "已将 %d 条命令恢复为原始", "%d 個のコマンドを元に戻しました"),
     ("StatusLastCompile", "Compiled: %s", "Kompiliert: %s",
      "已编译: %s", "コンパイル: %s"),
@@ -1044,7 +1044,7 @@ S = [
     ("ModeEventsHint", "Build scripts: the list of commands (ICARUS) to drag into your script", "Skripte bauen: die Liste der Befehle (ICARUS), die du in dein Skript ziehst", "编写脚本:可拖入脚本的命令列表(ICARUS)", "スクリプトを作る:スクリプトにドラッグするコマンド(ICARUS)の一覧"),
     ("ModeMapHint", "Your mission in 3D: the map, characters and cameras - and Save mission", "Deine Mission in 3D: Karte, Figuren und Kameras - und Mission speichern", "3D 中的任务:地图、角色和镜头——以及保存任务", "3D で見るミッション:マップ、キャラクター、カメラ、そしてミッションの保存"),
     ("MapPos", "%d %d %d", "%d %d %d", "%d %d %d", "%d %d %d"),
-    ("MapTexFound", "%d of %d textures found", "%d von %d Texturen gefunden",
+    ("MapTexFound", "%d of %d {2:texture|textures} found", "%d von %d {2:Textur|Texturen} gefunden",
      "找到 %d / %d 个纹理", "%d / %d のテクスチャが見つかりました"),
     ("MapTexNone", "No textures - add a game folder first",
      "Keine Texturen - erst einen Spielordner hinzufügen",
@@ -1262,8 +1262,8 @@ S = [
     ("MissionOpened", "Mission %s opened.", "Mission %s geöffnet.", "已打开任务 %s。", "ミッション %s を開きました。"),
     ("ToastExplorer", "Show in Explorer", "Im Explorer zeigen", "在资源管理器中显示", "エクスプローラーで表示"),
     ("ToastClose", "Close", "Schließen", "关闭", "閉じる"),
-    ("GraphCount", "%d nodes, %d links", "%d Knoten, %d Verbindungen", "%d 个节点, %d 条连接", "ノード %d, つながり %d"),
-    ("GraphCountCut", "%d nodes, %d links (shortened)", "%d Knoten, %d Verbindungen (gekürzt)", "%d 个节点, %d 条连接 (已截断)",
+    ("GraphCount", "%d {node|nodes}, %d {2:link|links}", "%d Knoten, %d {2:Verbindung|Verbindungen}", "%d 个节点, %d 条连接", "ノード %d, つながり %d"),
+    ("GraphCountCut", "%d {node|nodes}, %d {2:link|links} (shortened)", "%d Knoten, %d {2:Verbindung|Verbindungen} (gekürzt)", "%d 个节点, %d 条连接 (已截断)",
      "ノード %d, つながり %d (省略あり)"),
     ("GraphLinkIn", "<- %s  %s", "<- %s  %s", "<- %s  %s", "<- %s  %s"),
     ("GraphLinkOut", "-> %s  %s", "-> %s  %s", "-> %s  %s", "-> %s  %s"),
@@ -1323,7 +1323,7 @@ S = [
     ("EntExpand", "Expand", "Aufklappen", "展开", "展開"),
     ("EntCollapse", "Collapse", "Zuklappen", "折叠", "折りたたむ"),
     ("WegTitel", "NPC waypoints", "NPC-Wegpunkte", "NPC 路径点", "NPC ウェイポイント"),
-    ("WegStand", "%d waypoints, %d nav goals, %d combat points, %d connections", "%d Wegpunkte, %d Laufziele, %d Kampfpunkte, %d Verbindungen", "%d 个路径点、%d 个导航目标、%d 个战斗点、%d 条连接", "ウェイポイント %d、ナビゴール %d、戦闘ポイント %d、接続 %d"),
+    ("WegStand", "%d {waypoint|waypoints}, %d {2:nav goal|nav goals}, %d {3:combat point|combat points}, %d {4:connection|connections}", "%d {Wegpunkt|Wegpunkte}, %d {2:Laufziel|Laufziele}, %d {3:Kampfpunkt|Kampfpunkte}, %d {4:Verbindung|Verbindungen}", "%d 个路径点、%d 个导航目标、%d 个战斗点、%d 条连接", "ウェイポイント %d、ナビゴール %d、戦闘ポイント %d、接続 %d"),
     ("WegZeigen", "Show network", "Netz zeigen", "显示路网", "ネットワーク表示"),
     ("WegZeigenHint", "The paths NPCs can walk: waypoints and their connections as the game builds them - green set by hand (target), blue automatic (nav goals and combat points), orange jumps (targetJump).", "Die Wege, die NPCs gehen können: Wegpunkte und ihre Verbindungen, wie das Spiel sie baut - grün von Hand (target), blau automatisch (Laufziele und Kampfpunkte), orange Sprünge (targetJump).", "NPC 可行走的路径:按游戏方式构建的路径点及连接 - 绿色为手动(target),蓝色为自动(导航目标和战斗点),橙色为跳跃(targetJump)。", "NPC が歩ける経路: ゲームと同じ方法で作られるウェイポイントと接続 - 緑は手動 (target)、青は自動 (ナビゴールと戦闘ポイント)、オレンジはジャンプ (targetJump)。"),
     ("WegAn", "shown", "sichtbar", "已显示", "表示中"),
@@ -1339,15 +1339,15 @@ S = [
     ("WegAbstandHint", "Distance between waypoints. The original levels use about 230.", "Abstand zwischen den Wegpunkten. Die Original-Level haben etwa 230.", "路径点之间的距离。原版关卡约为 230。", "ウェイポイントの間隔。オリジナルのレベルは約 230。"),
     ("WegErzeugen", "Create network", "Netz erzeugen", "生成路网", "ネットワーク生成"),
     ("WegErzeugenHint", "Spreads waypoints over the walkable floor from the player start, the characters and the nav goals - not through walls, not up steps higher than 60, with room for an NPC. Connections are written as target..target4, so the game uses them. Replaces earlier created ones; one undo step.", "Verteilt Wegpunkte vom Spielerstart, den Figuren und den Laufzielen aus über den begehbaren Boden - nicht durch Wände, keine Stufen über 60, mit Platz für einen NPC. Die Verbindungen stehen als target..target4 darin, damit das Spiel sie nimmt. Ersetzt früher erzeugte; ein Rückgängig-Schritt.", "从玩家出生点、角色和导航目标开始在可行走地面上分布路径点 - 不穿墙,台阶不高于 60,留有 NPC 的空间。连接写为 target..target4,游戏才会使用。替换之前生成的;一步撤销。", "プレイヤー開始位置・キャラクター・ナビゴールから歩ける床にウェイポイントを広げます - 壁は通らず、段差 60 まで、NPC の入る空間あり。接続は target..target4 として書かれるのでゲームが使えます。以前生成したものを置き換え、元に戻すは 1 回。"),
-    ("WegErzeugt", "Created %d waypoints with %d connections (%.1f s)", "%d Wegpunkte mit %d Verbindungen erzeugt (%.1f s)", "已生成 %d 个路径点,%d 条连接(%.1f 秒)", "ウェイポイント %d 個、接続 %d 本を生成 (%.1f 秒)"),
+    ("WegErzeugt", "Created %d {waypoint|waypoints} with %d {2:connection|connections} (%.1f s)", "%d {Wegpunkt|Wegpunkte} mit %d {2:Verbindung|Verbindungen} erzeugt (%.1f s)", "已生成 %d 个路径点,%d 条连接(%.1f 秒)", "ウェイポイント %d 個、接続 %d 本を生成 (%.1f 秒)"),
     ("WegEntfernen", "Remove created", "Erzeugte entfernen", "移除已生成", "生成分を削除"),
     ("WegEntfernenHint", "Removes the waypoints JK Studio created (wpauto_...). Placed by hand ones stay.", "Entfernt die von JK Studio erzeugten Wegpunkte (wpauto_...). Von Hand gesetzte bleiben.", "移除 JK Studio 生成的路径点(wpauto_...)。手动放置的保留。", "JK Studio が生成したウェイポイント (wpauto_...) を削除します。手で置いたものは残ります。"),
-    ("WegEntfernt", "Removed %d created waypoints", "%d erzeugte Wegpunkte entfernt", "已移除 %d 个生成的路径点", "生成したウェイポイント %d 個を削除"),
+    ("WegEntfernt", "Removed %d created {waypoint|waypoints}", "%d {erzeugter Wegpunkt|erzeugte Wegpunkte} entfernt", "已移除 %d 个生成的路径点", "生成したウェイポイント %d 個を削除"),
     ("WegPruefenTitel", "Check", "Prüfen", "检查", "チェック"),
     ("WegPruefen", "Check network", "Netz prüfen", "检查路网", "ネットワークをチェック"),
     ("WegPruefenHint", "Finds what the game would reject or NPCs cannot use: waypoints in solid, floating, not connected, targets that do not exist.", "Findet, was das Spiel verwirft oder NPCs nicht nutzen können: Wegpunkte im Festen, schwebend, nicht verbunden, targets, die es nicht gibt.", "查找游戏会丢弃或 NPC 无法使用的内容:嵌在实体中、悬空、未连接、不存在的 target。", "ゲームが拒否するもの・NPC が使えないものを探します: 固体の中、浮いている、未接続、存在しない target。"),
     ("WegAllesGut", "No problems found", "Keine Probleme gefunden", "未发现问题", "問題は見つかりませんでした"),
-    ("WegBefunde", "%d problems - click one to fly there", "%d Probleme - anklicken fliegt hin", "%d 个问题 - 单击飞到该处", "問題 %d 件 - クリックで移動"),
+    ("WegBefunde", "%d {problem|problems} - click one to fly there", "%d {Problem|Probleme} - anklicken fliegt hin", "%d 个问题 - 单击飞到该处", "問題 %d 件 - クリックで移動"),
     ("WegVoll", "Both points already have four connections", "Beide Punkte haben schon vier Verbindungen", "两个点都已有四条连接", "両方の点にすでに 4 本の接続があります"),
     ("WegKeinBoden", "No floor there", "Dort ist kein Boden", "那里没有地面", "そこに床がありません"),
     ("EntityKatWaypoints", "NPC waypoints", "NPC-Wegpunkte", "NPC 路径点", "NPC ウェイポイント"),
@@ -1363,7 +1363,7 @@ S = [
     ("Grid", "Grid", "Raster", "网格", "グリッド"),
     ("GridHint", "Snap entities to a grid when dragging and placing (Ctrl turns it off while dragging). Without a grid, Ctrl snaps to 8.", "Entities beim Ziehen und Setzen auf ein Raster legen (Strg schaltet es beim Ziehen aus). Ohne Raster rastet Strg auf 8.", "拖动和放置时将实体吸附到网格(拖动时 Ctrl 关闭)。未设置网格时 Ctrl 吸附到 8。", "ドラッグと配置時にグリッドへ吸着 (ドラッグ中 Ctrl で無効)。グリッドなしでは Ctrl で 8 に吸着。"),
     ("GridOff", "off", "aus", "关", "オフ"),
-    ("EntSelectedN", "%d entities selected", "%d Entities gewählt", "已选择 %d 个实体", "%d 個のエンティティを選択"),
+    ("EntSelectedN", "%d {entity|entities} selected", "%d {Entity|Entities} gewählt", "已选择 %d 个实体", "%d 個のエンティティを選択"),
     ("EntMoreSelected", "+%d more", "+%d weitere", "+%d 个", "+%d 個"),
     ("EntDuplicateHint", "Duplicate - with several selected, all of them (Alt+drag in the view also copies)", "Duplizieren - bei mehreren gewählten alle (Alt+Ziehen in der Ansicht kopiert auch)", "复制 - 选中多个时全部复制(在视图中 Alt+拖动也会复制)", "複製 - 複数選択時はすべて (ビューで Alt+ドラッグでも複製)"),
     ("ModelAnimations", "Animations", "Animationen", "动画", "アニメーション"),
@@ -1381,12 +1381,12 @@ S = [
     ("ModelResetView", "Fit view", "Ansicht einpassen", "适应视图", "ビューに合わせる"),
     ("ModelResetViewHint", "Put the whole model in view, from the front", "Das ganze Modell von vorn ins Bild holen", "从正面显示整个模型", "モデル全体を正面から表示"),
     ("NpcSearch", "Search NPC or model...", "NPC oder Modell suchen...", "搜索 NPC 或模型...", "NPC またはモデルを検索..."),
-    ("NpcCount", "%d characters", "%d Figuren", "%d 个角色", "%d キャラクター"),
+    ("NpcCount", "%d {character|characters}", "%d {Figur|Figuren}", "%d 个角色", "%d キャラクター"),
     ("ModelAnimSearch", "Search animation...", "Animation suchen...", "搜索动画...", "アニメーションを検索..."),
     ("ModelAnimAll", "All", "Alle", "全部", "すべて"),
     ("ModelAnimToScript", "Into script", "Ins Skript", "插入脚本", "スクリプトへ"),
     ("ModelAnimToScriptHint", "Adds set ( SET_ANIM_BOTH / UPPER / LOWER, \"name\" ) after the selected line of the open script. Double-click an animation does the same.", "Fügt set ( SET_ANIM_BOTH / UPPER / LOWER, \"Name\" ) hinter der gewählten Zeile des offenen Skripts ein. Doppelklick auf eine Animation tut dasselbe.", "在打开脚本的所选行之后添加 set ( SET_ANIM_BOTH / UPPER / LOWER, \"名称\" )。双击动画效果相同。", "開いているスクリプトの選択行の後に set ( SET_ANIM_BOTH / UPPER / LOWER, \"名前\" ) を追加。アニメーションのダブルクリックでも同じ。"),
-    ("ModelAnimRowHint", "%d frames, %.2f s at %d fps - click plays, double-click puts it into the script", "%d Bilder, %.2f s bei %d fps - Klick spielt ab, Doppelklick setzt sie ins Skript", "%d 帧,%.2f 秒,%d fps - 单击播放,双击插入脚本", "%d フレーム、%.2f 秒、%d fps - クリックで再生、ダブルクリックでスクリプトへ"),
+    ("ModelAnimRowHint", "%d {frame|frames}, %.2f s at %d fps - click plays, double-click puts it into the script", "%d {Bild|Bilder}, %.2f s bei %d fps - Klick spielt ab, Doppelklick setzt sie ins Skript", "%d 帧,%.2f 秒,%d fps - 单击播放,双击插入脚本", "%d フレーム、%.2f 秒、%d fps - クリックで再生、ダブルクリックでスクリプトへ"),
     ("ModelAnimNone", "No animation matches", "Keine Animation passt", "没有匹配的动画", "一致するアニメーションがありません"),
     ("ModelAnimInserted", "%s put into the script", "%s ins Skript gesetzt", "%s 已插入脚本", "%s をスクリプトに追加"),
     ("ModelPrevFrame", "Previous frame", "Bild zurück", "上一帧", "前のフレーム"),
@@ -1415,7 +1415,7 @@ S = [
     ("AnimRoffNameHint", "Name as in play ( \"PLAY_ROFF\", ... ). Saved as scripts/<name>.rof next to the script when you save it; Save mission puts it into the pk3.", "Name wie in play ( \"PLAY_ROFF\", ... ). Wird beim Speichern des Skripts als scripts/<name>.rof daneben gespeichert; Mission speichern packt sie ins pk3.", "名称与 play ( \"PLAY_ROFF\", ... ) 中相同。保存脚本时作为 scripts/<name>.rof 保存在旁边;保存任务会将其打包进 pk3。", "play ( \"PLAY_ROFF\", ... ) と同じ名前。スクリプト保存時に scripts/<name>.rof として隣に保存され、ミッション保存で pk3 に入ります。"),
     ("AnimRoffSmooth", "Smooth", "Weich", "平滑", "スムーズ"),
     ("AnimRoffSmoothHint", "On: one curve through all keys, easing in at the start and out at the end. Off: straight from key to key at constant speed.", "An: ein Bogen durch alle Schlüssel, am Anfang sanft anfahrend und am Ende auslaufend. Aus: gerade von Schlüssel zu Schlüssel, gleichmäßig.", "开:一条穿过所有关键帧的曲线,开始时缓入,结束时缓出。关:关键帧之间直线匀速。", "オン: すべてのキーを通る曲線、始めはゆっくり加速し最後は減速。オフ: キーからキーへ直線、一定速度。"),
-    ("AnimRoffInfo", "%s - %d frames, %.2f s, %d notes", "%s - %d Bilder, %.2f s, %d Notizen", "%s - %d 帧, %.2f 秒, %d 条注释", "%s - %d フレーム, %.2f 秒, ノート %d"),
+    ("AnimRoffInfo", "%s - %d {frame|frames}, %.2f s, %d {2:note|notes}", "%s - %d {Bild|Bilder}, %.2f s, %d {2:Notiz|Notizen}", "%s - %d 帧, %.2f 秒, %d 条注释", "%s - %d フレーム, %.2f 秒, ノート %d"),
     ("AnimRoffWaiting", "The path appears once the scene is rebuilt.", "Die Bahn erscheint, sobald die Szene neu aufgebaut ist.", "场景重建后将显示路径。", "シーンが再構築されるとパスが表示されます。"),
     ("AnimRoffPlays", "ROFF paths of this entity in the script:", "ROFF-Bahnen dieser Entity im Skript:", "此实体在脚本中的 ROFF 路径:", "スクリプト内のこのエンティティの ROFF パス:"),
     ("AnimRoffEdit", "Edit", "Bearbeiten", "编辑", "編集"),
@@ -1427,10 +1427,10 @@ S = [
     ("AnimRoffNoFolder", "ROFF not saved: no scripts folder found for this script and no game folder set.", "ROFF nicht gespeichert: kein scripts-Ordner zu diesem Skript und kein Spielordner eingestellt.", "ROFF 未保存:未找到此脚本的 scripts 文件夹,也未设置游戏文件夹。", "ROFF は保存されていません: このスクリプトの scripts フォルダーがなく、ゲームフォルダーも未設定です。"),
     ("AnimRoffSaved", "ROFF saved: %s", "ROFF gespeichert: %s", "ROFF 已保存: %s", "ROFF を保存しました: %s"),
     ("AnimRoffWriteFailed", "ROFF could not be written: %s", "ROFF ließ sich nicht schreiben: %s", "无法写入 ROFF: %s", "ROFF を書き込めませんでした: %s"),
-    ("AnimRoffCopied", "%s: editing a copy as %s (%d frames -> %d keys)", "%s: bearbeitet wird eine Kopie als %s (%d Bilder -> %d Schlüssel)", "%s: 正在编辑副本 %s (%d 帧 -> %d 个关键帧)", "%s: コピー %s を編集中 (%d フレーム -> %d キー)"),
+    ("AnimRoffCopied", "%s: editing a copy as %s (%d {frame|frames} -> %d {2:key|keys})", "%s: bearbeitet wird eine Kopie als %s (%d {Bild|Bilder} -> %d Schlüssel)", "%s: 正在编辑副本 %s (%d 帧 -> %d 个关键帧)", "%s: コピー %s を編集中 (%d フレーム -> %d キー)"),
     ("AnimKeyGizmo", "Key at %.2f s", "Schlüssel bei %.2f s", "%.2f 秒处的关键帧", "%.2f 秒のキー"),
-    ("BahnBlickGesetzt", "Facing %d degrees at %.2f s", "Blickrichtung %d Grad bei %.2f s", "朝向 %d 度 (%.2f 秒)", "向き %d 度 (%.2f 秒)"),
-    ("BahnBlickAnkunft", "Facing %d degrees when it arrives (%.2f s) - while walking the game turns it to the walking direction", "Blickrichtung %d Grad beim Ankommen (%.2f s) - im Laufen dreht das Spiel die Figur in Laufrichtung", "到达时朝向 %d 度 (%.2f 秒) - 行走时游戏会让角色朝向行走方向", "到着時の向き %d 度 (%.2f 秒) - 歩いている間はゲームが進行方向に向けます"),
+    ("BahnBlickGesetzt", "Facing %d {degree|degrees} at %.2f s", "Blickrichtung %d Grad bei %.2f s", "朝向 %d 度 (%.2f 秒)", "向き %d 度 (%.2f 秒)"),
+    ("BahnBlickAnkunft", "Facing %d {degree|degrees} when it arrives (%.2f s) - while walking the game turns it to the walking direction", "Blickrichtung %d Grad beim Ankommen (%.2f s) - im Laufen dreht das Spiel die Figur in Laufrichtung", "到达时朝向 %d 度 (%.2f 秒) - 行走时游戏会让角色朝向行走方向", "到着時の向き %d 度 (%.2f 秒) - 歩いている間はゲームが進行方向に向けます"),
     ("BahnBlickZeitUnbekannt", "Facing not set: the time there is not known (waitsignal or dowait before it).", "Blickrichtung nicht gesetzt: die Zeit dort ist nicht bekannt (waitsignal oder dowait davor).", "未设置朝向:该处时间未知 (之前有 waitsignal 或 dowait)。", "向きは設定されませんでした: その時刻が不明です (前に waitsignal か dowait があります)。"),
     ("BahnBlickUndo", "facing", "Blickrichtung", "朝向", "向き"),
     ("RecentMissions", "Recent missions", "Zuletzt geöffnete Missionen", "最近的任务", "最近のミッション"),
@@ -1501,7 +1501,7 @@ S = [
     ("MissionSaveTitle", "Save mission", "Mission speichern", "保存任务", "ミッションを保存"),
     ("MissionTarget", "Game archive (.pk3)", "Spielarchiv (.pk3)", "游戏压缩包 (.pk3)", "ゲームアーカイブ (.pk3)"),
     ("MissionChoose", "Choose...", "Wählen...", "选择...", "選択..."),
-    ("MissionFiles", "%d files, %s", "%d Dateien, %s", "%d 个文件, %s", "%d ファイル, %s"),
+    ("MissionFiles", "%d {file|files}, %s", "%d {Datei|Dateien}, %s", "%d 个文件, %s", "%d ファイル, %s"),
     ("MissionSaveNow", "Save", "Speichern", "保存", "保存"),
     ("MissionSaved", "Mission saved: %s", "Mission gespeichert: %s", "任务已保存: %s", "ミッションを保存しました: %s"),
     ("MissionSaveFailed", "Could not save the mission: %s", "Mission nicht gespeichert: %s", "无法保存任务: %s",
@@ -1615,8 +1615,8 @@ S = [
      "在视图中:拖动实体沿地面移动,彩色箭头沿单轴移动,黄色圆环旋转。",
      "ビューで: エンティティをドラッグして床の上を移動、色付きの矢印で軸に沿って移動、黄色のリングで回転。"),
     ("EntMoved", "Entity moved", "Entity verschoben", "实体已移动", "エンティティを移動しました"),
-    ("ActorsFound", "%d of %d figures have a model",
-     "%d von %d Figuren haben ein Modell", "%d / %d 角色有模型",
+    ("ActorsFound", "%d of %d {2:figure|figures} {1:has|have} a model",
+     "%d von %d {2:Figur|Figuren} {1:hat|haben} ein Modell", "%d / %d 角色有模型",
      "%d / %d のキャラクターにモデルあり"),
     ("ActorsNoAffect", "The script has no affect blocks - no figures to show",
      "Das Skript hat keine affect-Blöcke - es gibt keine Figuren zu zeigen",
@@ -1631,26 +1631,25 @@ S = [
      "游戏目录中没有 .npc 文件 — 无法将 NPC_type 解析为模型",
      "ゲームフォルダーに .npc がありません。NPC_type をモデルに対応"
      "づけられません"),
-    ("ActorsNoType", "%d figures have no NPC_type in the script",
-     "%d Figuren haben im Skript kein NPC_type",
+    ("ActorsNoType", "%d {figure has|figures have} no NPC_type in the script",
+     "%d {Figur hat|Figuren haben} im Skript kein NPC_type",
      "%d 个角色在脚本中没有 NPC_type",
      "%d 体のキャラクターにスクリプト内で NPC_type がありません"),
     ("ActorsNoNpcEntry",
-     "%d NPC types are not in the %d entries of the .npc files",
-     "%d NPC-Typen stehen nicht in den %d Einträgen der .npc-Dateien",
+     "%d NPC {type is|types are} not in the %d {2:entry|entries} of the .npc files",
+     "%d {NPC-Typ steht|NPC-Typen stehen} nicht in den .npc-Dateien (%d {2:Eintrag|Einträge})",
      "%d 个 NPC 类型不在 .npc 文件的 %d 个条目中",
      "%d 個の NPC タイプが .npc の %d 項目に見つかりません"),
-    ("ActorsNoGlm", "%d models are not in any archive - is the mod folder "
-     "listed?",
-     "%d Modelle liegen in keinem Archiv - ist der Mod-Ordner eingetragen?",
+    ("ActorsNoGlm", "%d {model is|models are} not in any archive - is the mod folder listed?",
+     "%d {Modell liegt|Modelle liegen} in keinem Archiv - ist der Mod-Ordner eingetragen?",
      "%d 个模型不在任何归档中 — 是否已添加 MOD 目录？",
      "%d 個のモデルがどのアーカイブにもありません。MOD フォルダーは"
      "登録済みですか？"),
-    ("ActorsBadGlm", "%d models could not be read",
-     "%d Modelle ließen sich nicht lesen", "%d 个模型无法读取",
+    ("ActorsBadGlm", "%d {model|models} could not be read",
+     "%d {Modell ließ|Modelle ließen} sich nicht lesen", "%d 个模型无法读取",
      "%d 個のモデルを読み込めませんでした"),
     ("PickedEntity", "%s (%s)", "%s (%s)", "%s（%s）", "%s（%s）"),
-    ("PickedUses", "used %d times in the script", "%d mal im Skript benutzt",
+    ("PickedUses", "used %d {time|times} in the script", "%d mal im Skript benutzt",
      "在脚本中使用 %d 次", "スクリプトで %d 回使用"),
     ("PickedUnused", "not used in this script",
      "in diesem Skript nicht benutzt", "此脚本中未使用",
@@ -1699,8 +1698,8 @@ S = [
     ("PathsSessionBack", "Use the configured game folders",
      "Eingerichtete Spielordner verwenden", "使用已配置的游戏目录",
      "設定済みのゲームフォルダーを使う"),
-    ("MissionLoaded", "%s: map, %d entities, %d scripts",
-     "%s: Karte, %d Entities, %d Skripte", "%s：地图，%d 个实体，%d 个脚本",
+    ("MissionLoaded", "%s: map, %d {entity|entities}, %d {2:script|scripts}",
+     "%s: Karte, %d {Entity|Entities}, %d {2:Skript|Skripte}", "%s：地图，%d 个实体，%d 个脚本",
      "%s: マップ, %d エンティティ, %d スクリプト"),
     ("MapScripts", "Scripts", "Skripte", "脚本", "スクリプト"),
     ("MapScriptsHint",
@@ -1755,8 +1754,8 @@ S = [
      "Modell laden (Datei → In .pk3 blättern → Modelle)",
      "加载模型（文件 → 浏览 .pk3 → 模型）",
      "モデルを読み込む（ファイル → .pk3 を参照 → モデル）"),
-    ("ModelInfo", "%d surfaces, %d triangles, %d bones",
-     "%d Flächen, %d Dreiecke, %d Knochen", "%d 个面，%d 个三角形，%d 根骨骼",
+    ("ModelInfo", "%d {surface|surfaces}, %d {2:triangle|triangles}, %d {3:bone|bones}",
+     "%d {Fläche|Flächen}, %d {2:Dreieck|Dreiecke}, %d Knochen", "%d 个面，%d 个三角形，%d 根骨骼",
      "%d サーフェス, %d 三角形, %d ボーン"),
     ("ModelSkeleton", "Skeleton: %s", "Skelett: %s", "骨架：%s", "スケルトン: %s"),
     ("OpenGlm", "Open .glm...", ".glm öffnen...", "打开 .glm…", ".glm を開く…"),
@@ -1772,8 +1771,8 @@ S = [
      "Entities aus einer eigenen .ent-Datei laden - sie ersetzen die der Karte",
      "从单独的 .ent 文件加载实体 — 将替换地图中的实体",
      "別の .ent ファイルからエンティティを読み込み、マップのものを置き換えます"),
-    ("EntLoaded", "%d entities from the .ent file",
-     "%d Entities aus der .ent-Datei", "来自 .ent 文件的 %d 个实体",
+    ("EntLoaded", "%d {entity|entities} from the .ent file",
+     "%d {Entity|Entities} aus der .ent-Datei", "来自 .ent 文件的 %d 个实体",
      ".ent ファイルから %d エンティティ"),
     ("ModelLoadGla", "Load .gla...", ".gla laden...", "加载 .gla…",
      ".gla を読み込む…"),
@@ -1798,13 +1797,13 @@ S = [
     ("ModelAnimCopied", "Animation name copied: %s",
      "Name der Animation kopiert: %s",
      "已复制动画名称：%s", "アニメーション名をコピーしました: %s"),
-    ("ModelSurfaces", "%d of %d surfaces", "%d von %d Flächen",
+    ("ModelSurfaces", "%d of %d {2:surface|surfaces}", "%d von %d {2:Fläche|Flächen}",
      "%d / %d 个面", "%d / %d サーフェス"),
     ("ModelTextures", "Textures", "Texturen", "纹理", "テクスチャ"),
-    ("ModelTexFound", "%d of %d textures", "%d von %d Texturen",
+    ("ModelTexFound", "%d of %d {2:texture|textures}", "%d von %d {2:Textur|Texturen}",
      "%d / %d 个纹理", "%d / %d のテクスチャ"),
-    ("ModelAnimCount", "%d animations, %d frames",
-     "%d Animationen, %d Bilder", "%d 个动画，%d 帧",
+    ("ModelAnimCount", "%d {animation|animations}, %d {2:frame|frames}",
+     "%d {Animation|Animationen}, %d {2:Bild|Bilder}", "%d 个动画，%d 帧",
      "%d アニメーション, %d フレーム"),
     ("ModelNoAnim",
      "No animation - that needs the .gla; the model is shown in its rest pose",
@@ -1832,8 +1831,8 @@ S = [
     ("MapFrameMs", "%.2f ms per frame", "%.2f ms je Bild", "每帧 %.2f 毫秒",
      "1 フレーム %.2f ms"),
     ("MapDetail", "Detail", "Feinheit", "细节", "細かさ"),
-    ("MapTriangles", "%d triangles, %d draw calls",
-     "%d Dreiecke, %d Zeichenaufrufe", "%d 个三角形，%d 次绘制调用",
+    ("MapTriangles", "%d {triangle|triangles}, %d {2:draw call|draw calls}",
+     "%d {Dreieck|Dreiecke}, %d {2:Zeichenaufruf|Zeichenaufrufe}", "%d 个三角形，%d 次绘制调用",
      "%d 三角形, %d 描画呼び出し"),
 
     ("ActEdit", "Edit...", "Bearbeiten...", "编辑…", "編集…"),
@@ -2012,8 +2011,8 @@ S = [
     # rc601 tour (Review): ein gemerkter Schritt hinter dem Ende einer kuerzer
     # gewordenen Tour - vorher tat "Fortsetzen" still nichts.
     ("TourStartFailed",
-     "Tutorial %s: step %d does not exist (it has %d steps) - start it from the beginning",
-     "Tutorial %s: Schritt %d gibt es nicht (es hat %d Schritte) - starte es von vorn",
+     "Tutorial %s: step %d does not exist (it has %d {2:step|steps}) - start it from the beginning",
+     "Tutorial %s: Schritt %d gibt es nicht (es hat %d {2:Schritt|Schritte}) - starte es von vorn",
      "教程 %s：没有第 %d 步（共 %d 步）——请从头开始",
      "チュートリアル %s：手順 %d はありません（全 %d 手順）。最初から始めてください"),
     # --- rc601 ton ---
@@ -2037,7 +2036,7 @@ S = [
      "ゲームと同じ配分: 効果音 0.5、音声 1.0、音楽 0.25（Jedi Academy と Movie Duels の既定のサウンド設定）。"),
     # --- rc601 bewegung ---
     ("BewDrehUeberWatch",
-     "Facing %d degrees at %.2f s (SET_DYAW) - but a SET_WATCHTARGET is active there, so in the game the figure keeps facing its watch target",
+     "Facing %d {degree|degrees} at %.2f s (SET_DYAW) - but a SET_WATCHTARGET is active there, so in the game the figure keeps facing its watch target",
      "Blickrichtung %d Grad bei %.2f s (SET_DYAW) - dort ist aber ein SET_WATCHTARGET aktiv, im Spiel schaut die Figur weiter dorthin",
      "朝向 %d 度 (%.2f 秒, SET_DYAW) - 但此处有 SET_WATCHTARGET 生效,游戏中角色会继续朝向注视目标",
      "向き %d 度 (%.2f 秒, SET_DYAW) - ただしそこでは SET_WATCHTARGET が有効なため、ゲームではキャラクターは注視ターゲットの方を向き続けます"),
@@ -2060,8 +2059,8 @@ S = [
      "%.2f 秒时任务失败 (SET_MISSIONFAILED %s) - 游戏显示任务失败画面;所有脚本在 %.2f 秒停止,世界继续运行,与游戏一致。",
      "%.2f 秒でミッション失敗 (SET_MISSIONFAILED %s) - ゲームはミッション失敗の画面を表示します。すべてのスクリプトは %.2f 秒で止まり、世界はそのまま動き続けます(ゲームと同じ)。"),
     ("BewNavOhneWeg",
-     "NPC %s finds no path to %s (%d units away, at %.2f s) - stands still like in the game; a dowait on this walk never ends.",
-     "NPC %s findet keinen Weg zu %s (%d Einheiten entfernt, bei %.2f s) - bleibt stehen wie im Spiel; ein dowait auf diesen Lauf endet nie.",
+     "NPC %s finds no path to %s (%d {unit|units} away, at %.2f s) - stands still like in the game; a dowait on this walk never ends.",
+     "NPC %s findet keinen Weg zu %s (%d {Einheit|Einheiten} entfernt, bei %.2f s) - bleibt stehen wie im Spiel; ein dowait auf diesen Lauf endet nie.",
      "NPC %s 找不到通往 %s 的路径 (距离 %d 单位, %.2f 秒) - 与游戏中一样站着不动; 对此行走的 dowait 永远不会结束。",
      "NPC %s は %s への経路を見つけられません (%d ユニット先、%.2f 秒) - ゲームと同じくその場に立ち止まります。この歩行への dowait は終わりません。"),
     # Durchsicht 2: die Schwierigkeit der Vorschau (g_spskill) in den Einstellungen
@@ -2225,6 +2224,8 @@ from i18n_mission1 import MISSION1  # noqa: E402  (mission1: Fehler aus shanks T
 S += MISSION1
 from i18n_menue2 import MENUE2  # noqa: E402  (Menue-Editor M2)
 S += MENUE2
+from i18n_uebersetzung1 import UEBERSETZUNG1  # noqa: E402  (uebersetzung1: es/cs nachgezogen, Zaehltexte)
+S += UEBERSETZUNG1
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #
@@ -2248,6 +2249,49 @@ import sys
 _SPEC = re.compile(r'%[-+ #0]*[0-9]*(?:\.[0-9]+)?[hlLqjzt]*([diouxXeEfgGaAcspn%])')
 
 problems = []
+
+# --- Zaehltexte (uebersetzung1) --------------------------------------------
+#
+# Richtet sich ein Wort nach einer Zahl, stehen seine Formen in geschweiften
+# Klammern, je Sprache so viele wie ihre CLDR-Kategorien (tools/sprachen.py
+# MEHRZAHL): "%d {file|files}", cs "%d {soubor|soubory|souborů}"; zh/ja haben
+# nur eine Form und brauchen keine Klammern. "{2:...}" richtet sich nach der
+# zweiten Zahl des Aufrufs, eine Klammer ohne Ziffer nach der ersten.
+# Platzhalter stehen ausserhalb der Klammern. Das Programm holt solche Texte
+# mit trN(Str, zahl, ...); tr() liefert die Form "other".
+_SEGMENT = re.compile(r'\{(?:([1-9]):)?([^{}]*\|[^{}]*)\}')
+_SPALTEN = list(_sprachen.KURZ)
+
+
+def _segmente(t):
+    return [(int(m.group(1) or 1), m.group(2).split('|')) for m in _SEGMENT.finditer(t)]
+
+
+def _aufloesen(t, wahl):
+    """Die Klammern durch die Form wahl[Nummer der Zahl] ersetzen (fehlt sie: other)."""
+    return _SEGMENT.sub(lambda m: m.group(2).split('|')[wahl.get(int(m.group(1) or 1), -1)], t)
+
+
+def _zellen(row):
+    return list(row[1:1 + _sprachen.ALT]) + [NEU[k].get(row[0]) for k in _sprachen.NEU]
+
+
+ZAEHL = []   # Kennungen der Zaehltexte, in Tabellenreihenfolge
+for row in S:
+    zaehl = False
+    for kurz, t in zip(_SPALTEN, _zellen(row)):
+        if t is None:
+            continue
+        for k, formen in _segmente(t):
+            zaehl = True
+            soll = len(_sprachen.MEHRZAHL[kurz])
+            if len(formen) != soll:
+                problems.append((row[0], kurz, "Zaehltext: %d Formen statt %d" % (len(formen), soll)))
+            if any('%' in f for f in formen):
+                problems.append((row[0], kurz, "Zaehltext: Platzhalter in der Klammer"))
+    if zaehl:
+        ZAEHL.append(row[0])
+
 for row in S:
     name = row[0]
     kinds = [tuple(m.group(1) for m in _SPEC.finditer(t) if m.group(1) != '%')
@@ -2293,7 +2337,7 @@ FREMD = {k: sorted(n for n in NEU[k] if n not in _englisch) for k in NEU}
 if "--fehlend" in sys.argv:
     # fuer tools/lint_i18n.py - nichts schreiben
     import json
-    print(json.dumps({"fehlend": FEHLEND, "fremd": FREMD}))
+    print(json.dumps({"fehlend": FEHLEND, "fremd": FREMD, "zaehl": ZAEHL}))
     sys.exit(0)
 
 
@@ -2337,6 +2381,7 @@ h = '''// Oberflaechentexte in allen Sprachen von JK Studio (tools/sprachen.py).
 #ifndef BHED_I18N_H
 #define BHED_I18N_H
 
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -2363,6 +2408,31 @@ const char* tr(Str id);
 
 Language currentLanguage();
 void setLanguage(Language language);
+
+// uebersetzung1: Zaehltexte. Richtet sich ein Wort nach einer Zahl ("1 file",
+// "2 files"; cs "1 soubor", "2 soubory", "5 souborů"), stehen seine Formen im
+// Text (tools/gen_i18n.py, Abschnitt Zaehltexte), und trN waehlt sie nach den
+// Zahlen - in der Reihenfolge, in der der Aufruf sie nennt, nach der
+// CLDR-Regel der Sprache, deren Text es ist (fehlt einer Sprache der Text:
+// der englische mit der englischen Regel). Die Zahlen gehen danach wie
+// bisher an snprintf. tr() liefert fuer einen Zaehltext die Form "other".
+const char* trNListe(Language language, Str id, const long long* zahlen, std::size_t anzahl);
+template <class... Zahl>
+const char* trNIn(Language language, Str id, Zahl... zahlen) {
+    static_assert(sizeof...(Zahl) > 0, "trN braucht mindestens eine Zahl");
+    const long long z[] = {static_cast<long long>(zahlen)...};
+    return trNListe(language, id, z, sizeof...(Zahl));
+}
+template <class... Zahl>
+const char* trN(Str id, Zahl... zahlen) {
+    return trNIn(currentLanguage(), id, zahlen...);
+}
+// Die CLDR-Kategorie einer ganzen Zahl als Nummer der Form (0 = erste Form im
+// Text; tools/sprachen.py MEHRZAHL) und wie viele Formen die Sprache hat.
+int pluralForm(Language language, long long n);
+int pluralFormen(Language language);
+// Ob ein Text Formen je Zahl hat (dann trN statt tr; tools/lint_i18n.py).
+bool istZaehltext(Str id);
 
 struct LanguageInfo {
     Language language;
@@ -2408,6 +2478,7 @@ c = '''// Erzeugt von tools/gen_i18n.py - nicht von Hand aendern.
 
 #include <algorithm>
 #include <cstddef>
+#include <iterator>
 #include <string_view>
 #include <vector>
 
@@ -2431,8 +2502,78 @@ def _zelle(t):
     return 'nullptr' if t is None else '"%s"' % esc(t)
 
 
+def _zaehl_tabelle():
+    """Je Zaehltext und Sprache alle Fassungen: die Formen der benutzten
+    Zahlen gemischt, die erste Zahl am schnellsten (wie trNListe rechnet)."""
+    import itertools
+    zeilen = {r[0]: r for r in S}
+    aus = ['// uebersetzung1: die Zaehltexte (trN), nach Str sortiert. Je Sprache die',
+           '// Fassungen fuer alle Formen der benutzten Zahlen, die erste Zahl am',
+           '// schnellsten; regel = Spalte, deren CLDR-Regel gilt (die des Textes).',
+           'struct ZaehlSpalte {',
+           '    const char* const* varianten;',
+           '    unsigned char regel;',
+           '    unsigned char benutzt;   // Bit k: der Text richtet sich nach der Zahl k+1',
+           '};',
+           'struct Zaehltext {',
+           '    Str id;',
+           '    ZaehlSpalte spalte[kSprachen];',
+           '};',
+           '']
+    eintraege = []
+    for i, name in enumerate(ZAEHL):
+        spalten = []
+        zellen = _zellen(zeilen[name])
+        for c, t in enumerate(zellen):
+            regel = c
+            if t is None:
+                t, regel = zellen[0], 0
+            idx = sorted({k for k, _ in _segmente(t)})
+            n = len(_sprachen.MEHRZAHL[_SPALTEN[regel]])
+            varianten = [_aufloesen(t, dict(zip(idx, reversed(wahl))))
+                         for wahl in itertools.product(range(n), repeat=len(idx))]
+            aus.append('const char* const kZ%d_%d[] = {%s};' % (i, c, ', '.join('"%s"' % esc(v) for v in varianten)))
+            spalten.append('{kZ%d_%d, %d, 0x%02x}' % (i, c, regel, sum(1 << (k - 1) for k in idx)))
+        eintraege.append('    {Str::%s, {%s}},' % (name, ', '.join(spalten)))
+    aus.append('')
+    aus.append('// Am Ende ein Schluss-Eintrag (Str::Count), damit die Tabelle nie leer ist.')
+    aus.append('const Zaehltext kZaehltexte[] = {')
+    aus += eintraege
+    aus.append('    {Str::Count, {%s}},' % ', '.join(['{nullptr, 0, 0}'] * len(_SPALTEN)))
+    aus.append('};')
+    aus.append('')
+    aus.append('const Zaehltext* zaehltext(Str id) {')
+    aus.append('    const Zaehltext* ende = std::end(kZaehltexte) - 1;')
+    aus.append('    const Zaehltext* it = std::lower_bound(std::begin(kZaehltexte), ende, id,')
+    aus.append('                                           [](const Zaehltext& z, Str s) { return z.id < s; });')
+    aus.append('    return it != ende && it->id == id ? it : nullptr;')
+    aus.append('}')
+    return '\n'.join(aus) + '\n'
+
+
+def _plural_regeln():
+    """i18n::pluralForm/pluralFormen aus tools/sprachen.py MEHRZAHL."""
+    bed = {"one": "a == 1", "few": "a >= 2 && a <= 4"}
+    aus = ['int pluralForm(Language language, long long n) {',
+           '    const unsigned long long a = n < 0 ? 0ull - static_cast<unsigned long long>(n) : static_cast<unsigned long long>(n);',
+           '    switch (language) {']
+    for kurz, code, name, enum, cjk in _sprachen.SPRACHEN:
+        kat = _sprachen.MEHRZAHL[kurz]
+        assert kat[-1] == "other"
+        ausdruck = str(len(kat) - 1)
+        for i in range(len(kat) - 2, -1, -1):
+            ausdruck = '%s ? %d : %s' % (bed[kat[i]], i, ausdruck if i == len(kat) - 2 else '(%s)' % ausdruck)
+        aus.append('        case Language::%s: return %s;  // %s' % (enum, ausdruck, ', '.join(kat)))
+    aus += ['    }', '    return 0;', '}', '',
+            'int pluralFormen(Language language) {', '    switch (language) {']
+    for kurz, code, name, enum, cjk in _sprachen.SPRACHEN:
+        aus.append('        case Language::%s: return %d;' % (enum, len(_sprachen.MEHRZAHL[kurz])))
+    aus += ['    }', '    return 1;', '}', '']
+    return '\n'.join(aus)
+
+
 for row in S:
-    zellen = list(row[1:1 + _sprachen.ALT]) + [NEU[k].get(row[0]) for k in _sprachen.NEU]
+    zellen = [None if t is None else _aufloesen(t, {}) for t in _zellen(row)]
     c += '    {{%s}},  // %s\n' % (', '.join(_zelle(t) for t in zellen), row[0])
 c += '''};
 
@@ -2450,6 +2591,7 @@ c += '''};
 static_assert(sizeof(kNamen) / sizeof(kNamen[0]) == static_cast<std::size_t>(Str::Count),
               "Die Namensliste passt nicht zur Aufzaehlung Str.");
 
+''' + _zaehl_tabelle() + '''
 Language g_language = Language::English;
 
 }  // namespace
@@ -2496,6 +2638,29 @@ const char* trIn(Language language, Str id) {
 }
 
 const char* tr(Str id) { return trIn(g_language, id); }
+
+''' + _plural_regeln() + '''
+bool istZaehltext(Str id) { return zaehltext(id) != nullptr; }
+
+const char* trNListe(Language language, Str id, const long long* zahlen, std::size_t anzahl) {
+    const Zaehltext* z = zaehltext(id);
+    const std::size_t spalte = static_cast<std::size_t>(language);
+    if (z == nullptr || spalte >= kSprachen) {
+        return trIn(language, id);
+    }
+    const ZaehlSpalte& s = z->spalte[spalte];
+    const Language regel = static_cast<Language>(s.regel);
+    const std::size_t formen = static_cast<std::size_t>(pluralFormen(regel));
+    std::size_t index = 0;
+    std::size_t faktor = 1;
+    for (std::size_t k = 0; k < 8; ++k) {
+        if (((s.benutzt >> k) & 1u) != 0) {
+            index += static_cast<std::size_t>(pluralForm(regel, k < anzahl ? zahlen[k] : 0)) * faktor;
+            faktor *= formen;
+        }
+    }
+    return s.varianten[index];
+}
 
 Language currentLanguage() { return g_language; }
 void setLanguage(Language language) { g_language = language; }

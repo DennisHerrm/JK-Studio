@@ -106,7 +106,7 @@ void spielenStarten() {
     z.aktiv = true;
     if (!z.testEingabe) { zeigerSetzen(kameraMitte()); }
     char t[256];
-    std::snprintf(t, sizeof(t), trK(Str::KeSpGestartet), z.bericht.pinsel, z.bericht.patches, jk2 ? "Jedi Outcast" : "Jedi Academy");
+    std::snprintf(t, sizeof(t), trKN(Str::KeSpGestartet, z.bericht.pinsel, z.bericht.patches), z.bericht.pinsel, z.bericht.patches, jk2 ? "Jedi Outcast" : "Jedi Academy");
     ausgabe(t);
     kameraNachfuehren();
 }

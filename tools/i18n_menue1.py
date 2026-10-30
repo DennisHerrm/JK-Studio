@@ -38,7 +38,7 @@ MENUE1 = [
     ("MeMeldungen", "Engine messages", "Meldungen der Engine", "引擎消息", "エンジンのメッセージ"),
     ("MeProtokoll", "Script log", "Skriptprotokoll", "脚本日志", "スクリプトログ"),
     ("MeInAllen", "In all open menus", "In allen offenen Menüs", "在所有打开的菜单中", "開いているすべてのメニューで"),
-    ("MeTreffer", "%d matches", "%d Treffer", "%d 个匹配", "%d 件一致"),
+    ("MeTreffer", "%d {match|matches}", "%d Treffer", "%d 个匹配", "%d 件一致"),
     ("MeRegexFehler", "Regex: %s", "Regex: %s", "正则表达式:%s", "正規表現: %s"),
     ("MeErsetzen", "Replace", "Ersetzen", "替换", "置換"),
     ("MeErsetzenAlle", "Replace all", "Alle ersetzen", "全部替换", "すべて置換"),

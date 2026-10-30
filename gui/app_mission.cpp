@@ -1411,7 +1411,7 @@ void entityZiehen(float rasterSkal) {
                 g_app->mapDirty = true;
                 if (neu.size() > 1U) {
                     char t[96];
-                    std::snprintf(t, sizeof(t), tr(Str::EntSelectedN), static_cast<int>(neu.size()));
+                    std::snprintf(t, sizeof(t), trN(Str::EntSelectedN, neu.size()), static_cast<int>(neu.size()));
                     addStatus(t);
                 }
             }
@@ -2257,7 +2257,7 @@ bool figurBlickSetzen(int figur, double ms, float gier) {
     nachSkriptGeaendert();
     char t[260];
     std::snprintf(t, sizeof(t),
-                  tr(ueberWatch ? Str::BewDrehUeberWatch : ziel > ms + 1.0 ? Str::BahnBlickAnkunft : Str::BahnBlickGesetzt), g,
+                  trN(ueberWatch ? Str::BewDrehUeberWatch : ziel > ms + 1.0 ? Str::BahnBlickAnkunft : Str::BahnBlickGesetzt, g), g,
                   ziel / 1000.0);
     addStatus(t);
     return true;
@@ -3337,7 +3337,7 @@ void drawEntityInspector(float hoehe) {
     }
     if (const std::size_t mehr = entityAuswahl().size(); mehr > 1U) {
         ImGui::SameLine();
-        ImGui::TextColored(ImVec4{1.0F, 0.65F, 0.16F, 1.0F}, tr(Str::EntMoreSelected), static_cast<int>(mehr - 1));
+        ImGui::TextColored(ImVec4{1.0F, 0.65F, 0.16F, 1.0F}, trN(Str::EntMoreSelected, mehr - 1), static_cast<int>(mehr - 1));
     }
 
     // --- Icon-Leiste --------------------------------------------------------
@@ -4611,7 +4611,7 @@ void drawMissionSpeichern() {
         std::size_t summe = 0;
         for (const Pk3Datei& d : z.dateien) { summe += d.inhalt.size(); }
         char zeile[120];
-        std::snprintf(zeile, sizeof(zeile), tr(Str::MissionFiles), static_cast<int>(z.dateien.size()),
+        std::snprintf(zeile, sizeof(zeile), trN(Str::MissionFiles, z.dateien.size()), static_cast<int>(z.dateien.size()),
                       groesse(summe).c_str());
         ImGui::TextDisabled("%s", zeile);
         ImGui::BeginChild("##missionsdateien", ImVec2{wrap, ImGui::GetFontSize() * 8.0F}, ImGuiChildFlags_Borders);

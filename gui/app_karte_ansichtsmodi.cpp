@@ -468,7 +468,7 @@ void ansichtsmodiAnzeige(void* drawList, float x, float y) {
         zeile(t, IM_COL32(255, 255, 255, 255));
     }
     if (m.kollision) {
-        std::snprintf(t, sizeof(t), trK(Str::KeAmKollisionHud), m.ohneKollision);
+        std::snprintf(t, sizeof(t), trKN(Str::KeAmKollisionHud, m.ohneKollision), m.ohneKollision);
         zeile(t, IM_COL32(255, 160, 255, 255));
     }
     if (m.sichtbarkeit || m.last) {
@@ -476,7 +476,7 @@ void ansichtsmodiAnzeige(void* drawList, float x, float y) {
             zeile(trK(Str::KeAmKeineBsp), IM_COL32(255, 120, 120, 255));
         } else {
             if (m.sichtbarkeit) {
-                std::snprintf(t, sizeof(t), trK(Str::KeAmSichtHud), m.kameraCluster, m.sichtbareCluster, m.clusterZahl, static_cast<unsigned long long>(m.sichtbareDreiecke));
+                std::snprintf(t, sizeof(t), trKN(Str::KeAmSichtHud, m.kameraCluster, m.sichtbareCluster, m.clusterZahl, m.sichtbareDreiecke), m.kameraCluster, m.sichtbareCluster, m.clusterZahl, static_cast<unsigned long long>(m.sichtbareDreiecke));
                 zeile(t, IM_COL32(120, 255, 150, 255));
             }
             if (m.last) {

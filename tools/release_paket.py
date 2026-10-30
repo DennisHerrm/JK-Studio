@@ -440,7 +440,7 @@ def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print, q3map2=False):
         if fehlen:
             melde("Handbuch unvollstaendig, es fehlt: %s" % ", ".join(fehlen))
         else:
-            gut("Handbuch: Startseite und alle vier Sprachen")
+            gut("Handbuch: Startseite und alle %d Sprachen" % len(SPRACHEN))
         if exe is not None:
             m = _pe_maengel(exe, alle_daten, _importpruefung())
             for t in m:

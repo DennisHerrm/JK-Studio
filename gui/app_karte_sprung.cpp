@@ -141,7 +141,8 @@ void sprungPruefungSchritt() {
     for (const auto& p : ed.sprungBericht->punkte) { (p.stehen ? stehen : ducken) += 1; }
     for (const auto& s : ed.sprungBericht->spruenge) { macht += s.macht ? 1 : 0; }
     char t[400];
-    std::snprintf(t, sizeof(t), trK(Str::KeSjFertig), stehen, ducken, static_cast<int>(ed.sprungBericht->kanten),
+    std::snprintf(t, sizeof(t), trKN(Str::KeSjFertig, stehen, ducken, ed.sprungBericht->kanten, static_cast<int>(ed.sprungBericht->spruenge.size()) - macht),
+                  stehen, ducken, static_cast<int>(ed.sprungBericht->kanten),
                   static_cast<int>(ed.sprungBericht->spruenge.size()) - macht, macht);
     ausgabe(t);
 }
@@ -216,9 +217,10 @@ void npcNetzUmschalten() {
     char t[300];
     const int kanten = w && w->netz ? w->netz->zahlKanten() : 0;
     if (punkte <= 3) {
-        std::snprintf(t, sizeof(t), trK(Str::KeNwKeinNetz), punkte);
+        std::snprintf(t, sizeof(t), trKN(Str::KeNwKeinNetz, punkte), punkte);
     } else {
-        std::snprintf(t, sizeof(t), trK(Str::KeNwNetzInfo), w && w->netz ? static_cast<int>(w->netz->knoten.size()) - 1 : 0, kanten);
+        const int netzPunkte = w && w->netz ? static_cast<int>(w->netz->knoten.size()) - 1 : 0;
+        std::snprintf(t, sizeof(t), trKN(Str::KeNwNetzInfo, netzPunkte, kanten), netzPunkte, kanten);
     }
     ausgabe(t);
 }
@@ -366,7 +368,7 @@ bool kurveBefehl(karte::KurvenArt art) {
     ++ed.sichtStand;
     auswahlGeaendert();
     char t[300];
-    std::snprintf(t, sizeof(t), trK(Str::KeKuFertig), static_cast<int>(kp.size()), static_cast<int>(n));
+    std::snprintf(t, sizeof(t), trKN(Str::KeKuFertig, kp.size(), n), static_cast<int>(kp.size()), static_cast<int>(n));
     ausgabe(t);
     return n > 0;
 }

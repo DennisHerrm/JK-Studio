@@ -45,6 +45,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <future>
 #include <fstream>
@@ -409,7 +410,7 @@ void abholen() {
         if (b.schwere == Schwere::Warnung) { ++warn; }
     }
     char z[256];
-    std::snprintf(z, sizeof(z), trK(Str::KeOptZusammenfassung), ueber, knapp, fehler_, warn);
+    std::snprintf(z, sizeof(z), trKN(Str::KeOptZusammenfassung, ueber, knapp, fehler_, warn), ueber, knapp, fehler_, warn);
     if (ueber + fehler_ > 0) {
         warnung(z);
     } else {
@@ -605,9 +606,14 @@ void optimiererBeenden() { fadenAbwarten(); }
 // die englische Vorlage (kOptimiererDetailVorlagen) und die Werte, KeOptD01.. in derselben
 // Reihenfolge die Uebersetzung (Test: karte_optimierer).
 std::string befundDetail(const Befund& b) {
-    static const Str kIds[] = {Str::KeOptD01, Str::KeOptD02, Str::KeOptD03, Str::KeOptD04, Str::KeOptD05, Str::KeOptD06, Str::KeOptD07, Str::KeOptD08, Str::KeOptD09, Str::KeOptD10, Str::KeOptD11, Str::KeOptD12, Str::KeOptD13, Str::KeOptD14, Str::KeOptD15, Str::KeOptD16, Str::KeOptD17, Str::KeOptD18, Str::KeOptD19, Str::KeOptD20, Str::KeOptD21, Str::KeOptD22, Str::KeOptD23, Str::KeOptD24, Str::KeOptD25, Str::KeOptD26, Str::KeOptD27, Str::KeOptD28, Str::KeOptD29, Str::KeOptD30, Str::KeOptD31, Str::KeOptD32, Str::KeOptD33, Str::KeOptD34};
+    static const Str kIds[] = {Str::KeOptD01, Str::KeOptD02, Str::KeOptD03, Str::KeOptD04, Str::KeOptD05, Str::KeOptD06, Str::KeOptD07, Str::KeOptD08, Str::KeOptD09, Str::KeOptD10, Str::KeOptD11, Str::KeOptD12, Str::KeOptD13, Str::KeOptD14, Str::KeOptD15, Str::KeOptD16, Str::KeOptD17, Str::KeOptD18, Str::KeOptD19, Str::KeOptD20, Str::KeOptD21, Str::KeOptD22, Str::KeOptD23, Str::KeOptD24, Str::KeOptD25, Str::KeOptD26, Str::KeOptD27, Str::KeOptD28, Str::KeOptD29, Str::KeOptD30, Str::KeOptD31, Str::KeOptD32, Str::KeOptD33, Str::KeOptD34, Str::KeOptD35};
     for (std::size_t i = 0; i < karte::kOptimiererDetailVorlagenAnzahl && i < sizeof(kIds) / sizeof(kIds[0]); ++i) {
-        if (b.detailVorlage == karte::kOptimiererDetailVorlagen[i]) { return karte::detailText(trK(kIds[i]), b.detailWerte); }
+        if (b.detailVorlage == karte::kOptimiererDetailVorlagen[i]) {
+            // uebersetzung1: die Werte sind Zahlen (std::to_string) - nach ihnen richtet sich die Form.
+            long long z[4] = {};
+            for (std::size_t k = 0; k < 4 && k < b.detailWerte.size(); ++k) { z[k] = std::strtoll(b.detailWerte[k].c_str(), nullptr, 10); }
+            return karte::detailText(trKN(kIds[i], z[0], z[1], z[2], z[3]), b.detailWerte);
+        }
     }
     return b.detail;
 }

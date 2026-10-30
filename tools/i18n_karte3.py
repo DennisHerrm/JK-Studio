@@ -28,7 +28,7 @@ KARTE3 = [
     ("KeBmAbbrechen", "Cancel build", "Bauen abbrechen", "取消编译", "ビルドを中止"),
     ("KeBmStatus", "Building %s: step %d of %d, %s", "Baue %s: Schritt %d von %d, %s", "正在编译 %s：第 %d 步，共 %d 步，%s",
      "ビルド中 %s: ステップ %d / %d、%s"),
-    ("KeBmFertig", "=== build finished: %s, %d step(s), %s s ===", "=== Bauen fertig: %s, %d Schritt(e), %s s ===",
+    ("KeBmFertig", "=== build finished: %s, %d {step|steps}, %s s ===", "=== Bauen fertig: %s, %d {Schritt|Schritte}, %s s ===",
      "=== 编译完成：%s，%d 步，%s 秒 ===", "=== ビルド完了: %s、%d ステップ、%s 秒 ==="),
     ("KeBmGestoppt", "=== build stopped: %s, step %d of %d (%s), %s s ===", "=== Bauen angehalten: %s, Schritt %d von %d (%s), %s s ===",
      "=== 编译已停止：%s，第 %d 步，共 %d 步（%s），%s 秒 ===", "=== ビルド停止: %s、ステップ %d / %d (%s)、%s 秒 ==="),

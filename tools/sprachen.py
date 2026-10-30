@@ -38,6 +38,22 @@ KURZ = tuple(s[0] for s in SPRACHEN)
 NEU = KURZ[ALT:]
 NAMEN = {s[0]: s[2] for s in SPRACHEN}
 
+# Pluralformen nach CLDR (Unicode, plurals.xml; ganze Zahlen, Betrag): die
+# Kategorien einer Sprache in der Reihenfolge, in der ein Zaehltext seine
+# Formen schreibt ("{Datei|Dateien}", cs "{soubor|soubory|souborů}"):
+#   one   n = 1          (en, de, es "1 file"; cs "1 soubor")
+#   few   n = 2..4       (cs "2 soubory")
+#   other alles andere   (0, 5, 11, 21 ...; zh/ja kennen nur other)
+# tools/gen_i18n.py erzeugt daraus i18n::pluralForm.
+MEHRZAHL = {
+    "en": ("one", "other"),
+    "de": ("one", "other"),
+    "zh": ("other",),
+    "ja": ("other",),
+    "es": ("one", "other"),
+    "cs": ("one", "few", "other"),
+}
+
 _HIER = os.path.dirname(os.path.abspath(__file__))
 
 
