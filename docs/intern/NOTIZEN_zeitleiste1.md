@@ -387,6 +387,17 @@ Schlussrunde). Laeufe unter `Y:\mission_laeufe\zl3*`.
     Spiel) - die Pruefung "die Vorschau laeuft den Weg" war rot (zl3p1rot,
     zl3p1gr). Die Tasten halten jetzt bis 45 Proben; richtig war das
     Programm (Statuszeile meldet den fehlenden Weg).
+- **Punkt 2 Bilder mit der alten Leiste**: Seite zeitleiste in 4 Sprachen
+  neu (`/y/zl1_hb.sh`, je 2-8 min unter Last; 39b3e3fd: h_zl_aufnahme mit
+  Modell und freiem Hinweis, h_zl_untertitel mit MD 0.66, weitere wo sich
+  der Inhalt aenderte). Voller Bildlauf `/y/zl3_hbvoll.sh en 2100` (wie
+  zl2_hbvoll.sh, Zeitgrenze als Argument): nach 27 min waren alle 19
+  ausgewaehlten Bilder und a_k_timen_* da (660 Fotos), der Rest des Laufs
+  wurde abgebrochen; 6055731a uebernimmt 21 englische Bilder. Der volle Lauf
+  meldet unter Last 66 Klickfehler in anderen Teilen (Cancel, ##entsuche,
+  ROFF file ...), die ausgewaehlten Bilder sind durchgesehen (k_waits,
+  c_tl_play: neue Leiste). **Offen: de, zh-Hans, ja** (je ~30 min,
+  `sh /y/zl3_hbvoll.sh de 2400` usw.).
 - **Punkt 4 MD cg_textprintscale** (c3f4887d): in der installierten
   MovieDuels-gamex86_64.dll (SP, 27.10.2026) steht der Name doch (vorher
   wohl in der falschen DLL gesucht); der Eintrag der Cvar-Tabelle (Zeiger auf
@@ -395,6 +406,38 @@ Schlussrunde). Laeufe unter `Y:\mission_laeufe\zl3*`.
   auch. Uebernommen: 0.66 (kMdTextprintscale); keine MD-Config ueberschreibt
   den Wert. Gelesen mit einem eigenen PE-Leser (nur lesend), Handbuch- und
   Changelog-Text angepasst ("kleiner" statt "halb so gross").
+
+- **Punkt 5 Schlussrunde (verkuerzt, Zeitgrenze 08:40)**: sauberer Neubau
+  aller Ziele (`--clean-first`, waehrend des Bildlaufs): 0 Fehler, 0
+  Warnungen. ctest 167/167 (521 s unter Last). lint_sources, lint_fassung
+  (rc606), lint_gapp, lint_imgui_context, lint_layout, lint_abstand,
+  lint_doppelanzeige ok, Handbuch handbuch_sprachen ok. Selbsttests nach dem
+  Neubau (`/y/zl3_ende.sh`, nacheinander, unter Last): zeitleiste 47/0,
+  mission1 98/0, ton 34/0
+  (die zeitabhaengigen Tonpruefungen diesmal gruen), umriss 45/0, missionsbau
+  95/0, kamera 95/0, szenen 26/0, karte 229/0. zeitleiste1 voll mit demselben Code vor dem Neubau: zl3gr 80/0.
+  **Nicht gelaufen**: Modus 1 (90 min), alle Modi, Kartenpruefung - die
+  Zeit reichte nach den Punkten 1-4 und dem Bildlauf nicht.
+  Gegen das Vorbild geprueft: Seitenwechsel (cg_text.cpp mdgit:
+  CG_DrawCaptionText), Vorgabe cg_textprintscale (installierte DLL),
+  Lauf-/Gehanimation (Regeln der Szene, scene.cpp); nicht im laufenden
+  Spiel verglichen (keine Spielstarts).
+
+### Stand beim Anhalten (30.10., 08:40)
+
+- Fertig und committet: Punkt 1 (Missionsauswahl oben), Punkt 3 (Hinweis,
+  Modell, Seitenwechsel), Punkt 4 (MD 0.66 aus der DLL), Punkt 2 fuer die
+  Seite zeitleiste (4 Sprachen) und die englischen Bilder des vollen
+  Bildlaufs; Schlussrunde verkuerzt (oben).
+- Offen: (1) die Bilder mit der alten Leiste in de, zh-Hans, ja
+  (`sh /y/zl3_hbvoll.sh <sprache> 2400`, je ~30 min unter Last; die
+  ausgewaehlten Bilder entstehen nach ~25 min, der Rest des Laufs wird nicht
+  gebraucht); (2) Modus 1 mit BHED_HANDBUCH, alle Modi, Kartenpruefung;
+  (3) Aufnahme: kein Animationsuebergang beim Wechsel Stehen/Laufen, keine
+  Rueckwaertsanimation beim Steuern, der Oberkoerper laeuft mit (die Szene
+  behaelt eine Oberkoerper-Skriptanimation).
+- Naechster Schritt: `/y/zl3_hbvoll.sh de 2400`, dann zh-Hans, ja; danach
+  Modus 1 (`/y/zl2_ende.sh` enthaelt ihn) und die uebrigen Modi.
 
 ## Changelog
 
