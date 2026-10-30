@@ -39,6 +39,11 @@ bool g_wunschVoll = false;
 std::vector<std::string> g_wunschLabels;
 
 const char* wurzelName(const ImGuiWindow* w) {
+    // dock2: ein Panel, das im DockSpace des Hauptfensters steckt, gehoert zum
+    // Hauptfenster ("###main") - so wie vorher seine Tabellenzelle. In
+    // schwebenden Dock-Knoten (Wirt mit DockNodeHost) bleibt es das Panel.
+    const ImGuiWindow* baum = w->RootWindowDockTree;
+    if (baum != nullptr && baum != w->RootWindow && (baum->Flags & ImGuiWindowFlags_DockNodeHost) == 0) { return baum->Name; }
     return w->RootWindow != nullptr ? w->RootWindow->Name : w->Name;
 }
 
