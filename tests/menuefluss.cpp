@@ -2,6 +2,7 @@
 // Einstiege wie ui_main), Sackgassen, unerreichbare Menues, fehlende Zurueck-Wege, fehlende Ziele.
 #include "bhed/menue/fluss.h"
 
+#include <cstddef>
 #include <cstdio>
 #include <string>
 
