@@ -315,10 +315,12 @@ std::vector<Schritt> schritteM2() {
         return ok && me::letzterExport() >= 3 && std::filesystem::exists(ziel, ec);
     }));
     // Punkt 8: Testpaket und Befehlszeile - nie gestartet (BHED_EDITORTEST)
-    add(pruefe("M2 Im Spiel testen: Paket im eigenen Ordner, Befehlszeile mit fs_homepath", [] {
+    // M5b: ohne fs_homepath (jasp, jk2sp) der eigene Ordner als fs_basepath mit den Spieldaten ueber fs_cdpath
+    add(pruefe("M2 Im Spiel testen: Paket im eigenen Ordner, Befehlszeile mit fs_homepath bzw. fs_basepath + fs_cdpath", [] {
         const std::string b = me::imSpielTesten();
         diag::info("Menue-Editor Im Spiel testen: " + (b.empty() ? std::string("(kein Programm)") : b));
-        return b.empty() || b.find("fs_homepath") != std::string::npos || b.find("fs_game") != std::string::npos;
+        return b.empty() || b.find("fs_homepath") != std::string::npos || b.find("fs_game") != std::string::npos ||
+               (b.find("fs_basepath") != std::string::npos && b.find("fs_cdpath") != std::string::npos);
     }));
     return s;
 }
@@ -439,10 +441,12 @@ std::vector<Schritt> schritteM3() {
         me::fuegeItemsEin("itemDef\n{\n\tname jkstudio_test\n\ttype ITEM_TYPE_TEXT\n\trect 120 400 400 40\n\ttext \"JK STUDIO TEST\"\n"
                           "\ttextscale 1.5\n\tforecolor 1 0.2 0.2 1\n\tvisible 1\n\tdecoration\n}\n");
     }));
-    add(pruefe("M3 Im Spiel testen: Paket im eigenen Ordner, Befehlszeile mit fs_homepath", [st] {
+    add(pruefe("M3 Im Spiel testen: Paket im eigenen Ordner, Befehlszeile mit fs_homepath bzw. fs_basepath + fs_cdpath", [st] {
         const std::string b = me::imSpielTesten();
         diag::info("Menue-Editor Im Spiel testen M3: " + b);
-        return st().text.find("JK STUDIO TEST") != std::string::npos && (b.empty() || b.find("fs_homepath") != std::string::npos);
+        return st().text.find("JK STUDIO TEST") != std::string::npos &&
+               (b.empty() || b.find("fs_homepath") != std::string::npos ||
+                (b.find("fs_basepath") != std::string::npos && b.find("fs_cdpath") != std::string::npos));
     }));
     return s;
 }
