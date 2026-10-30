@@ -3112,10 +3112,10 @@ Scene buildOnce(const Script& s, const MapData& map,
             //     _REMOTE, _GLIDER, _INTERROGATOR, _SENTRY (ps.gravity = 0,
             //     MT_FLYSWIM), dazu "movetype flyswim" aus der .npc.
             //     OpenJK kennt CLASS_GLIDER hier nicht.
-            //   * Fahrzeuge (CLASS_VEHICLE): Jaeger und Gleiter fliegen bzw.
-            //     schweben (FLY_VEHICLE/FLY_HOVER, bg_pmove.cpp:33205-33221);
-            //     Laeufer fallen zwar, behaved kennt die Fahrzeugart aber
-            //     nicht - alle bleiben ohne Schwerkraft (Naeherung).
+            //   * Fahrzeuge (CLASS_VEHICLE): kein Fallen im Wegplaner - Pruefung
+            //     4b: sie fallen in schwerkraft.cpp nach ihrer .veh (Laeufer,
+            //     Tiere, Jaeger ohne Pilot mit Schwerkraft; Gleiter mit
+            //     hoverHeight per PM_HoverTrace).
             //   * JSF_AMBUSH (spawnflags 16, "CEILING") haengt (client->noclip)
             //     bei TEAM_PLAYER CLASS_JEDI, _KYLE, _AHSOKA, _JEDIMASTER,
             //     _LUKE und TEAM_ENEMY CLASS_TAVION, _ALORA, _GALEN, _REBORN
@@ -3123,6 +3123,7 @@ Scene buildOnce(const Script& s, const MapData& map,
             //     _SHADOWTROOPER. OpenJK: JEDI/KYLE/LUKE und TAVION/ALORA/
             //     REBORN mit Klinge/DESANN/SHADOWTROOPER.
             fresh.spawnflags = spawnflags;
+            if (npcDef != nullptr) { fresh.fahrzeug = npcDef->fahrzeug; }   // Pruefung 4b
             if (npcDef != nullptr && npcDef->breite >= 0.0F) {
                 fresh.halbBreite = npcDef->breite;
             }

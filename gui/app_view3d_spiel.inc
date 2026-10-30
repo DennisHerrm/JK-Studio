@@ -366,6 +366,7 @@ LaserfalleSpur laserfalleSpurBei(double ms, const float start[3], const float mi
     bool startsolid = welt.startsolid;
     bool allsolid = welt.allsolid;
     bool figur = false;
+    int figurNr = -1;   // Pruefung 4b
     float endpos[3] = {welt.endpos[0], welt.endpos[1], welt.endpos[2]};
     float normale[3] = {welt.normale[0], welt.normale[1], welt.normale[2]};
     if (frac != 0.0F) {
@@ -487,6 +488,7 @@ LaserfalleSpur laserfalleSpurBei(double ms, const float start[3], const float mi
             const bool altStart = startsolid;
             const bool altAll = allsolid;
             const bool altFigur = figur;
+            const int altFigurNr = figurNr;
             const float altEnd[3] = {endpos[0], endpos[1], endpos[2]};
             const float altNorm[3] = {normale[0], normale[1], normale[2]};
             bool diese = false;
@@ -509,6 +511,7 @@ LaserfalleSpur laserfalleSpurBei(double ms, const float start[3], const float mi
             if (!diese) { continue; }
             if (!g2) {   // G2_NOCOLLIDE: der Kasten gilt
                 figur = true;
+                figurNr = static_cast<int>(ai);
                 continue;
             }
             const float radius = (maxs[0] - mins[0]) / 2.0F;
@@ -518,6 +521,7 @@ LaserfalleSpur laserfalleSpurBei(double ms, const float start[3], const float mi
                 startsolid = altStart;
                 allsolid = altAll;
                 figur = altFigur;
+                figurNr = altFigurNr;
                 for (int q = 0; q < 3; ++q) {
                     endpos[q] = altEnd[q];
                     normale[q] = altNorm[q];
@@ -526,6 +530,7 @@ LaserfalleSpur laserfalleSpurBei(double ms, const float start[3], const float mi
             }
             ++(netz > 0 ? g_app->fallenNetzTreffer : g_app->fallenKastenTreffer);
             figur = true;
+            figurNr = static_cast<int>(ai);
         }
     }
     for (int q = 0; q < 3; ++q) {
@@ -534,6 +539,7 @@ LaserfalleSpur laserfalleSpurBei(double ms, const float start[3], const float mi
     }
     r.startsolid = startsolid;
     r.figur = figur;
+    r.figurNr = figur ? figurNr : -1;
     return r;
 }
 }  // namespace
@@ -1364,6 +1370,7 @@ void loadMapEffects() {
         // G_SpawnInt("damage", "0") ohnehin auf 0 setzt). Schuesse mit
         // demselben Ende im gleichen Abstand werden eine Wiederholung.
         int strahlen = 0;
+        g_app->strahlTrefferNeu.clear();   // Pruefung 4b
         for (std::size_t i = 0; g_fallenWelt.k && i < g_app->map.entities.size(); ++i) {
             const MapEntity& e = g_app->map.entities[i];
             if (e.classname != "fx_target_beam" || !kartenpruefung::imSpiel(e.classname, regelwerkMovieDuels()) ||
@@ -1395,6 +1402,9 @@ void loadMapEffects() {
             std::stable_sort(ein.uses.begin(), ein.uses.end());
             const std::vector<double> feuer = zielStrahlFeuer(ein);
             if (feuer.empty()) { continue; }
+            // SP_fx_target_beam: G_SpawnInt( "damage", "0", &ent->damage )
+            int schaden = 0;
+            if (const std::string* d = e.find("damage")) { schaden = std::atoi(d->c_str()); }
             float start[3] = {0.0F, 0.0F, 0.0F};
             float origin2[3] = {0.0F, 0.0F, 0.0F};
             (void)std::sscanf(e.origin.c_str(), "%f %f %f", &start[0], &start[1], &start[2]);
@@ -1448,6 +1458,16 @@ void loadMapEffects() {
                 laenge = std::sqrt(laenge);
                 for (float& d : dir) { d = laenge > 0.0F ? d / laenge : 0.0F; }
                 const LaserfalleSpur sp = laserfalleSpurBei(t, start, null3, null3, org, static_cast<std::size_t>(-1), false);
+                // Pruefung 4b: "if ( victim && victim->takedamage ) G_Damage( victim,
+                // ent, ent->activator, dir, trace.endpos, ent->damage, ...)"
+                // (fx_target_beam_fire, g_fx.cpp:1043-1057 OpenJK) - eine Figur
+                // nimmt den Schaden in hurtTodeBerechnen.
+                if (schaden > 0 && sp.figur && sp.figurNr >= 0 &&
+                    static_cast<std::size_t>(sp.figurNr) < g_app->scene.actors.size()) {
+                    g_app->strahlTrefferNeu.push_back(
+                        App::StrahlTreffer{t, g_app->scene.actors[static_cast<std::size_t>(sp.figurNr)].name, schaden,
+                                           static_cast<int>(i)});
+                }
                 Schuss x;
                 x.t = t;
                 for (int q = 0; q < 3; ++q) {
@@ -2587,6 +2607,60 @@ void gegenstandVerstecken(std::size_t entity, bool aus) {
     }
 }
 
+// Pruefung 4b: siehe app_internal.h. Der Kasten wie SP_misc_model_breakable
+// ("mins"/"maxs", sonst +-16; tie_bomber +-80; mal modelscale), die Spur der
+// Wege (Welt und Brush-Entities; Figuren trifft sie nicht - siehe Notizen).
+void objektWuerfeSetzen() {
+    const std::shared_ptr<const NavWelt> welt = navWeltVorschau();
+    const NavSpurFn spur = welt ? welt->spur : NavSpurFn{};
+    for (App::MapModel& mm : g_app->mapModels) {
+        if (mm.entity >= g_app->map.entities.size()) { continue; }
+        const MapEntity& e = g_app->map.entities[mm.entity];
+        mm.wurf.reset();
+        if (e.classname != "misc_model_breakable") { continue; }
+        const std::string* gr = e.find("gravity");
+        if (gr == nullptr || std::atof(gr->c_str()) == 0.0) { continue; }
+        ObjektStart s;
+        (void)std::sscanf(e.origin.c_str(), "%f %f %f", &s.ort[0], &s.ort[1], &s.ort[2]);
+        for (int k = 0; k < 3; ++k) { s.winkel[static_cast<std::size_t>(k)] = mm.angles[k]; }
+        if (const std::string* v = e.find("mins")) { (void)std::sscanf(v->c_str(), "%f %f %f", &s.mins[0], &s.mins[1], &s.mins[2]); }
+        if (const std::string* v = e.find("maxs")) { (void)std::sscanf(v->c_str(), "%f %f %f", &s.maxs[0], &s.maxs[1], &s.maxs[2]); }
+        if (s.mins == NavVec{0.0F, 0.0F, 0.0F}) { s.mins = {-16.0F, -16.0F, -16.0F}; }
+        if (s.maxs == NavVec{0.0F, 0.0F, 0.0F}) { s.maxs = {16.0F, 16.0F, 16.0F}; }
+        for (std::size_t k = 0; k < 3; ++k) {
+            s.mins[k] *= mm.scale[k];
+            s.maxs[k] *= mm.scale[k];
+        }
+        if (const std::string* v = e.find("mass")) { s.masse = static_cast<float>(std::atof(v->c_str())); }
+        s.entity = static_cast<int>(mm.entity);
+        const ObjektStart ab = objektAbsetzen(s, spur);
+        for (std::size_t k = 0; k < 3; ++k) {
+            mm.origin[k] = ab.ort[k];
+            mm.angles[k] = ab.winkel[k];
+        }
+        const std::string* zielName = e.find("throwtarget");
+        if (zielName == nullptr || zielName->empty()) { continue; }
+        // G_Find(NULL, FOFS(targetname), target4): das erste mit diesem Namen.
+        const MapEntity* ziel = nullptr;
+        for (const MapEntity& z : g_app->map.entities) {
+            if (engineNamenGleich(z.targetname, *zielName)) {
+                ziel = &z;
+                break;
+            }
+        }
+        if (ziel == nullptr) { continue; }   // "nothing to throw ourselves at"
+        NavVec zielOrt{};
+        (void)std::sscanf(ziel->origin.c_str(), "%f %f %f", &zielOrt[0], &zielOrt[1], &zielOrt[2]);
+        std::vector<double> zeiten;
+        for (const MoverSim::ObjektWurf& w : g_app->moverSim.wuerfe()) {
+            if (w.entity == mm.entity) { zeiten.push_back(w.ms); }
+        }
+        if (zeiten.empty()) { continue; }
+        std::sort(zeiten.begin(), zeiten.end());
+        mm.wurf = std::make_shared<const AbwurfBahn>(wirfObjekt(ab, zeiten, zielOrt, spur));
+    }
+}
+
 void loadMapModels() {
     diag::Step step("Modelle der Karte suchen");
     g_app->mapModels.clear();
@@ -3238,6 +3312,7 @@ void loadActorModels() {
         // soundSet nennt, sonst ein zufaelliger - hier der erste.
         {
             std::map<std::string, std::pair<std::string, std::string>> fahrzeuge;   // name -> model, skin
+            std::map<std::string, FahrzeugDaten> fahrzeugDaten;                      // Pruefung 4b
             for (const GamePath& gp : g_app->gamePaths) {
                 for (const FoundFile& f : findByExtension(gp, {".veh"})) {
                     std::string text;
@@ -3247,6 +3322,8 @@ void loadActorModels() {
                     std::string vname;
                     std::string vmodel;
                     std::string vskin;
+                    FahrzeugDaten fd;   // Pruefung 4b: BG_VehicleSetDefaults, dann die Schluessel
+                    fd.da = true;
                     std::istringstream is(text);
                     std::string zeile;
                     while (std::getline(is, zeile)) {
@@ -3259,11 +3336,19 @@ void loadActorModels() {
                         if (k == "name" && vname.empty()) { vname = v; }
                         if (k == "model" && vmodel.empty()) { vmodel = v; }
                         if (k == "skin" && vskin.empty()) { vskin = v; }
+                        // Pruefung 4b: VF_INT gravity, VF_FLOAT die anderen, type als Name
+                        if (k == "type") { fd.typ = v; }
+                        if (k == "gravity") { fd.schwerkraft = static_cast<float>(std::atoi(v.c_str())); }
+                        if (k == "hoverheight") { fd.schwebeHoehe = static_cast<float>(std::atof(v.c_str())); }
+                        if (k == "hoverstrength") { fd.schwebeKraft = static_cast<float>(std::atof(v.c_str())); }
+                        if (k == "maxslope") { fd.hang = static_cast<float>(std::atof(v.c_str())); }
+                        if (k == "friction") { fd.reibung = static_cast<float>(std::atof(v.c_str())); }
                     }
                     for (char& c : vname) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
                     if (!vname.empty() && !vmodel.empty()) {
                         fahrzeuge[vname] = {vmodel, vskin.substr(0, vskin.find('|'))};
                     }
+                    if (!vname.empty()) { fahrzeugDaten[vname] = fd; }
                 }
             }
             for (auto& [typ, def] : g_app->npcMap) {
@@ -3275,6 +3360,7 @@ void loadActorModels() {
                 if (kl != "CLASS_VEHICLE") {
                     continue;
                 }
+                if (const auto fd = fahrzeugDaten.find(typ); fd != fahrzeugDaten.end()) { def.fahrzeug = fd->second; }
                 const auto v = fahrzeuge.find(typ);
                 if (v == fahrzeuge.end()) {
                     continue;

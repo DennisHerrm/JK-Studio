@@ -5368,7 +5368,11 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
     // rc605 (Ende): blockierte Mover schaden der Figur (MoverSim::quetschungen).
     std::vector<MoverSim::Quetschung> quetsch = g_app->moverSim.quetschungen();
     const std::vector<std::string> quetschNamen = g_app->quetschFiguren;
-    if (felder.empty() && knalle.empty() && quetsch.empty()) { return aus; }
+    // Pruefung 4b: Treffer von fx_target_beam aus dem letzten Durchgang.
+    std::vector<App::StrahlTreffer> strahl;
+    if (g_app->strahlTrefferKarte == karte.path) { strahl = g_app->strahlTreffer; }
+    std::stable_sort(strahl.begin(), strahl.end(), [](const auto& x, const auto& y) { return x.ms < y.ms; });
+    if (felder.empty() && knalle.empty() && quetsch.empty() && strahl.empty()) { return aus; }
     if (!knalle.empty()) { fallenWeltBauen(); }   // die Spuren von CanDamage mit dieser Szene
     // Wer schaltet: hurt_use und target_(de)activate aus den Benutzungen.
     std::vector<const Ablauf::Benutzung*> uses;
@@ -5395,7 +5399,12 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
     };
     std::vector<Figur> figuren;
     for (const Actor& a : g_app->scene.actors) {
-        if (a.brushModel > 0 || !a.haveStart || a.echterSpieler) { continue; }
+        // Pruefung 4b: der Spieler auch - ClientSpawn: health = STAT_MAX_HEALTH
+        // (100), STAT_ARMOR 0; SET_HEALTH/SET_ARMOR wie bei NPCs. Stirbt er,
+        // zeigt player_die nach 1000 ms die Missionsanzeige, und ClientThink
+        // haelt dann alle Skripte an (g_combat.cpp:4044, g_active.cpp:4862-4865
+        // OpenJK; 5102 MD; codeJK2 g_combat.cpp:3570).
+        if (a.brushModel > 0 || !a.haveStart) { continue; }
         Figur f;
         f.a = &a;
         f.gesundheit = a.gesundheitStart;
@@ -5424,8 +5433,10 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
         std::stable_sort(figuren.begin(), figuren.end(), [&reiheNach](const Figur& x, const Figur& y) {
             const auto ix = reiheNach.find(x.a->name);
             const auto iy = reiheNach.find(y.a->name);
-            const int rx = ix == reiheNach.end() ? std::numeric_limits<int>::max() : ix->second;
-            const int ry = iy == reiheNach.end() ? std::numeric_limits<int>::max() : iy->second;
+            // Pruefung 4b: der Spieler beruehrt in seinem ClientThink (zwischen
+            // den Bildern) vor allen NPCs.
+            const int rx = x.a->echterSpieler ? -1 : ix == reiheNach.end() ? std::numeric_limits<int>::max() : ix->second;
+            const int ry = y.a->echterSpieler ? -1 : iy == reiheNach.end() ? std::numeric_limits<int>::max() : iy->second;
             return rx < ry;
         });
     }
@@ -5442,7 +5453,7 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
     // Ohne Rueckstoss (G_ApplyKnockback/G_CheckKnockdown) und ohne Schmerz-Reaktion.
     constexpr int kDamageRadius = 0x00000001;      // DAMAGE_RADIUS
     constexpr int kDamageNoArmor = 0x00000002;     // DAMAGE_NO_ARMOR
-    enum class Art : std::uint8_t { TriggerHurt, Falling, ExplosiveSplash, Crush };
+    enum class Art : std::uint8_t { TriggerHurt, Falling, ExplosiveSplash, Crush, Strahl };
     // CheckArmor (g_combat.cpp:4832-4973 OpenJK, 6020-6185 MD, codeJK2 4298-4372).
     const auto checkArmor = [&](Figur& fi, int damage, int dflags) -> int {
         const Actor& a = *fi.a;
@@ -5507,6 +5518,7 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
     std::size_t ui = 0;
     std::size_t ki = 0;   // rc605 (Ende): naechste Explosion
     std::size_t qi = 0;   // rc605 (Ende): naechste Quetschung
+    std::size_t si = 0;   // Pruefung 4b: naechster Strahltreffer
     const float alle[3] = {0.0F, 0.0F, 0.0F};
     for (double t = 0.0; t <= ende; t += kBild) {
         while (ui < uses.size() && uses[ui]->ms <= t + 1e-6) {
@@ -5579,6 +5591,20 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
                              std::to_string(fi.gesundheit) + (fi.tot ? " (tot)" : ""));
             }
         }
+        // Pruefung 4b: fx_target_beam_fire in diesem Bild - G_Damage(victim, ...,
+        // ent->damage, 0 bzw. DAMAGE_NO_KNOCKBACK, MOD_UNKNOWN).
+        while (si < strahl.size() && strahl[si].ms <= t + 1e-6) {
+            const App::StrahlTreffer& st = strahl[si++];
+            if (st.ms <= t - kBild + 1e-6) { continue; }
+            for (Figur& fi : figuren) {
+                if (fi.tot || fi.gesundheit <= 0 || fi.a->name != st.figur) { continue; }
+                const int vorher = fi.gesundheit;
+                gDamage(fi, st.schaden, 0, Art::Strahl, t, st.entity);
+                diag::detail("fx_target_beam #" + std::to_string(st.entity) + " trifft " + fi.a->name + " bei " +
+                             std::to_string(static_cast<long>(t)) + " ms, Lebenspunkte " + std::to_string(vorher) + " -> " +
+                             std::to_string(fi.gesundheit) + (fi.tot ? " (tot)" : ""));
+            }
+        }
         // rc605 (Ende): ein Mover haelt in diesem Bild an einer Figur (G_MoverTeam vor den
         // NPCs): G_TryPushingEntity bzw. Blocked_Door -> G_Damage(..., damage, 0, MOD_CRUSH).
         while (qi < quetsch.size() && quetsch[qi].ms <= t + 1e-6) {
@@ -5624,7 +5650,8 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
             for (int i = 0; i < 3; ++i) { fi.letzt[i] = st.pos[i]; }
             fi.hatLetzten = true;
             if (zurZeit(fi.noclip, t) || fi.gesundheit <= 0) { continue; }
-            const float hb = a.halbBreite;
+            // Pruefung 4b: playerMins/playerMaxs (-15 -15 -24 / 15 15 40, g_client.cpp OpenJK)
+            const float hb = a.echterSpieler ? 15.0F : a.halbBreite;
             const float mins[3] = {-hb, -hb, -24.0F};
             const float maxs[3] = {hb, hb, a.hoeheOben};
             float diff[3] = {jetzt[0] - letzt[0], jetzt[1] - letzt[1], jetzt[2] - letzt[2]};
@@ -6589,6 +6616,7 @@ void prepareScene() {
         // den Movern bis t, ist der Stand danach genau der des Spiels.
         moverStandNeu = navMoverPlanAusSim(ende);
         effektSpurWeltSetzen();   // Pruefung 4b: Spurtest der Effektteilchen
+        objektWuerfeSetzen();     // Pruefung 4b: misc_model_breakable mit gravity (target4)
         for (const Bruch& b : g_app->moverSim.brueche()) {
             diag::detail(b.klasse + " #" + std::to_string(b.entity) + " zerbricht bei " +
                          std::to_string(static_cast<int>(b.ms)) + " ms (Material " +
@@ -6842,7 +6870,8 @@ void prepareScene() {
     {
         static int fallenDurchgang = 0;
         // rc605 (Ende): ebenso, wenn die Explosionen (G_RadiusDamage auf Figuren) andere sind.
-        const bool knalleAnders = g_app->fallenKnalleKarte != g_app->map.path || g_app->fallenKnalleNeu != g_app->fallenKnalle;
+        const bool knalleAnders = g_app->fallenKnalleKarte != g_app->map.path || g_app->fallenKnalleNeu != g_app->fallenKnalle ||
+                                  g_app->strahlTrefferKarte != g_app->map.path || g_app->strahlTrefferNeu != g_app->strahlTreffer;
         if (g_app->fallenUsesKarte != g_app->map.path || g_app->fallenUsesNeu != g_app->fallenUses || knalleAnders) {
             const bool vorher = (g_app->fallenUsesKarte == g_app->map.path && !g_app->fallenUses.empty()) ||
                                 (g_app->fallenKnalleKarte == g_app->map.path && !g_app->fallenKnalle.empty());
@@ -6850,7 +6879,10 @@ void prepareScene() {
             g_app->fallenUsesKarte = g_app->map.path;
             g_app->fallenKnalle = g_app->fallenKnalleNeu;
             g_app->fallenKnalleKarte = g_app->map.path;
-            if ((vorher || !g_app->fallenUses.empty() || !g_app->fallenKnalle.empty()) && fallenDurchgang < 3) {
+            g_app->strahlTreffer = g_app->strahlTrefferNeu;   // Pruefung 4b
+            g_app->strahlTrefferKarte = g_app->map.path;
+            if ((vorher || !g_app->fallenUses.empty() || !g_app->fallenKnalle.empty() || !g_app->strahlTreffer.empty()) &&
+                fallenDurchgang < 3) {
                 ++fallenDurchgang;
                 diag::detail("misc_trip_mine: " + std::to_string(g_app->fallenUses.size()) +
                              " Ziele explodierter Fallen - Durchgang mit ihnen im Nachbau und in der Mover-Simulation");

@@ -503,6 +503,7 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
     entityUse_.clear();   // rc604: Fallen, Ionenkanonen, Wachgeschuetze
     auf_.clear();
     bruch_.clear();
+    wuerfe_.clear();
     bruchFx_.clear();
     truemmer_.clear();
     bruchKlang_.clear();
@@ -1337,8 +1338,14 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
     };
     // misc_model_use, g_breakable.cpp:723
     const auto modellUse = [&](Bruchstelle& b, double t, int tiefe, const std::string& ausloeser) {
-        if (b.weg || b.geworfen) {
-            return;   // freigegeben, oder target4: wirft sich - nicht nachgebaut
+        if (b.weg) {
+            return;   // freigegeben
+        }
+        if (b.geworfen) {
+            // Pruefung 4b: target4 wirft sich (misc_model_throw_at_target4) -
+            // die Bahn rechnet wirfObjekt (bhed/abwurf.h) mit der Welt.
+            wuerfe_.push_back(ObjektWurf{b.entity, t});
+            return;
         }
         if (b.zerbrochen && b.hatGesundheit) {
             // "used while broken fired target3"

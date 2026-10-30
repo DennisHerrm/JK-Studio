@@ -442,6 +442,9 @@ private:
     // Kartenstart 0).
     bool kameraAn_ = false;
     double statusTotMs_ = -1.0;
+    // Pruefung 4b: der Spieler ist tot (player_die durch Schaden): pm_type
+    // PM_DEAD - mit missionStatusDeadTime haelt ClientThink die Skripte an.
+    double spielerTotMs_ = -1.0;
     bool icarusStopp_ = false;   // rc605 (Ende): stop_icarus ist gesetzt (SET_HEALTH 0 auf den Spieler)   // 0 im Spiel, level.time dort immer > 0
     int startFolge_ = 0;
 
@@ -3212,6 +3215,12 @@ void Nachbau::takte() {
                 // (g_combat.cpp:9276-9292 MD). Das kill steht im flachen Ablauf
                 // beim Traeger, damit die Szene den Tod zeigt (getoetet).
                 const AblaufWelt::HurtTod& h = welt_.hurtTode[static_cast<std::size_t>(std::stoul(g.name))];
+                // Pruefung 4b: player_die des Spielers - cg.missionStatusDeadTime =
+                // level.time + 1000 (g_combat.cpp:4044 OpenJK).
+                if (klein(h.figur) == "player" && !h.unsterblich && spielerTotMs_ < 0.0) {
+                    spielerTotMs_ = t;
+                    statusTotMs_ = t + 1000.0;
+                }
                 const int zi = wesen(h.figur, false);
                 if (zi >= 0) {
                     Wesen& z = *wesen_[static_cast<std::size_t>(zi)];
@@ -3290,7 +3299,7 @@ void Nachbau::takte() {
             if (ende < 0.0) { ende = t; }
             break;
         }
-        if (aus_.missionFailedMs >= 0.0 && !kameraAn_ && statusTotMs_ < t) {
+        if ((aus_.missionFailedMs >= 0.0 || spielerTotMs_ >= 0.0) && !kameraAn_ && statusTotMs_ < t) {
             aus_.skripteStoppMs = t;
             if (ende < 0.0) { ende = t; }
             break;

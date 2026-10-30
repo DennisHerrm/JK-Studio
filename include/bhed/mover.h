@@ -238,6 +238,7 @@ struct LaserfalleSpur {
     float normale[3]{};   // trace.plane.normal (rc604: fuer fx_target_beam)
     bool startsolid = false;
     bool figur = false;   // tr.entityNum ist ein Client
+    int figurNr = -1;     // Pruefung 4b: welche (Index in Scene::actors)
 };
 // Die Spur zur Zeit ms (die Mover und Figuren dann an ihrem Platz).
 using LaserfalleSpurFn = std::function<LaserfalleSpur(double ms, const float start[3], const float mins[3],
@@ -423,6 +424,13 @@ public:
     [[nodiscard]] const std::vector<Quetschung>& quetschungen() const { return quetsch_; }
 
     [[nodiscard]] const std::vector<Bruch>& brueche() const { return bruch_; }
+    // Pruefung 4b: misc_model_breakable mit gravity + throwtarget - jedes use
+    // wirft (misc_model_use -> misc_model_throw_at_target4, g_breakable.cpp:697-702).
+    struct ObjektWurf {
+        std::size_t entity = 0;
+        double ms = 0.0;
+    };
+    [[nodiscard]] const std::vector<ObjektWurf>& wuerfe() const { return wuerfe_; }
     [[nodiscard]] const std::vector<BruchEffekt>& bruchEffekte() const { return bruchFx_; }
     [[nodiscard]] const std::vector<Truemmer>& truemmer() const { return truemmer_; }
     // Klaenge beim Zerbrechen, nach Zeit geordnet.
@@ -521,6 +529,7 @@ private:
     std::vector<std::pair<std::size_t, double>> entityUse_;   // rc604: Fallen, Ionenkanonen, Wachgeschuetze
     std::vector<Oeffnung> auf_;
     std::vector<Bruch> bruch_;
+    std::vector<ObjektWurf> wuerfe_;   // Pruefung 4b
     std::vector<BruchEffekt> bruchFx_;
     std::vector<Truemmer> truemmer_;
     std::vector<KartenKlang> bruchKlang_;

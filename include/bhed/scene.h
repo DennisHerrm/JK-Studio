@@ -670,6 +670,20 @@ struct SaberArt {
 // (DEFAULT_SABER_MODEL, bg_public.h:35).
 inline constexpr const char* kStandardGriff = "models/weapons2/saber_1/saber_1.glm";
 
+// Pruefung 4b: was die Schwerkraft eines Fahrzeugs (CLASS_VEHICLE) aus seiner
+// .veh braucht (BG_VehicleSetDefaults/vehicleFields, bg_vehicleLoad.cpp:
+// 500-830 OpenJK): type, gravity (Vorgabe 800), hoverHeight, hoverStrength,
+// maxSlope (Vorgabe 0.65), friction.
+struct FahrzeugDaten {
+    bool da = false;
+    std::string typ;              // "VH_SPEEDER" ...
+    float schwerkraft = 800.0F;   // VEH_DEFAULT_GRAVITY
+    float schwebeHoehe = 0.0F;
+    float schwebeKraft = 0.0F;
+    float hang = 0.65F;           // VEH_DEFAULT_MAX_SLOPE
+    float reibung = 0.0F;
+};
+
 struct Actor {    std::string name;        // der Name aus dem affect
     // rc602: Index des Spawners in MapData::entities (-1: keiner). Eine
     // Kartenfigur ohne NPC_targetname heisst "<classname>#<index>".
@@ -820,7 +834,10 @@ struct Actor {    std::string name;        // der Name aus dem affect
     std::vector<FallAnim> fallAnims;
     int spawnflags = 0;
     float halbBreite = 16.0F;       // mins/maxs[0] (NPC_ParseParms "width", Vorgabe 16)
-    bool ohneSchwerkraft = false;   // Flieger (MT_FLYSWIM), Fahrzeuge
+    // Flieger (MT_FLYSWIM) und Fahrzeuge: kein Fallen im Wegplaner. Pruefung
+    // 4b: Fahrzeuge fallen dafuer in schwerkraft.cpp nach `fahrzeug`.
+    bool ohneSchwerkraft = false;
+    FahrzeugDaten fahrzeug;
     bool haengtAnfangs = false;     // JSF_AMBUSH: noclip ("hang") bis SET_BEHAVIOR_STATE
     // Spawnt erst waehrend des Ablaufs, ab hier (setzt die Oberflaeche aus
     // Ablauf::erscheint). < 0: es gibt sie schon vor dem Skript - beim
@@ -1124,6 +1141,7 @@ struct NpcDef {
     // Schwerkraft. breite < 0: nicht angegeben, es gilt 16 (playerMaxs).
     float breite = -1.0F;
     bool fliegt = false;
+    FahrzeugDaten fahrzeug;   // Pruefung 4b: CLASS_VEHICLE
     // rc601 (bewegung, Wege): "height" (NPC_stats.cpp:3645-3672), < 0: nicht
     // angegeben - maxs[2] bleibt DEFAULT_MAXS_2 40.
     float hoehe = -1.0F;

@@ -2536,14 +2536,18 @@ void drawMapView() {
             }
             MoverDraw d;
             d.mesh = &netz->second;
+            NavVec wurfOrt{};
+            NavVec wurfWinkel{};
+            const bool fliegt = !bewegt && mm.wurf && mm.wurf->bei(g_app->playMs, wurfOrt, wurfWinkel);   // Pruefung 4b
             for (int k = 0; k < 3; ++k) {
-                d.offset[k] = bewegt ? figStand.pos[k] : mm.origin[k];
+                d.offset[k] = bewegt ? figStand.pos[k] : fliegt ? wurfOrt[static_cast<std::size_t>(k)] : mm.origin[k];
                 d.pivot[k] = 0.0F;
                 d.scale[k] = mm.scale[k];
             }
-            d.pitch = bewegt ? figStand.angles[0] : mm.angles[0];
-            d.yaw = bewegt ? figStand.angles[1] : mm.angles[1];
-            d.roll = bewegt ? figStand.angles[2] : mm.angles[2];
+            const float* drehung = bewegt ? figStand.angles : fliegt ? wurfWinkel.data() : mm.angles;
+            d.pitch = drehung[0];
+            d.yaw = drehung[1];
+            d.roll = drehung[2];
             d.entity = static_cast<int>(mm.entity);
             movers.push_back(d);
         }

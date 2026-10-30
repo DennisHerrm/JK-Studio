@@ -3,6 +3,9 @@
 //
 // 1. useBBox im Effektpfad: efx::sim gegen eine Abschrift von
 //    CParticle::UpdateOrigin mit der Kastenspur der Kollisionskarte.
+// 2. trigger_hurt gegen den Spieler: sein Tod haelt die Skripte an.
+// 4. Fahrzeuge: Schwerkraft nach der .veh (Laeufer, Jaeger, Gleiter).
+// 5c. misc_model_breakable target4: G_RunObject als Abschrift.
 // 6. CAMERA_ACCEL und ZOOM gleichzeitig: client_camera (FOV, FOV2, FOV_time,
 //    FOV_duration, FOV_vel, FOV_acc, CAMERA_ACCEL/CAMERA_ZOOMING) Bild fuer
 //    Bild wie CGCam_Update (cg_camera.cpp:1101-1183 OpenJK) gegen
@@ -16,6 +19,7 @@
 //    G_FreeEntity bricht neu (g_breakable.cpp:81-215 OpenJK). 5a: Remove vor
 //    dem ersten Add gegen eine Abschrift des ghoul2-Felds.
 #include "bhed/ablauf.h"
+#include "bhed/abwurf.h"
 #include "bhed/bspgeo.h"
 #include "bhed/camtrack.h"
 #include "bhed/efx/sim.h"
@@ -704,6 +708,275 @@ void liegendeSchwerter() {
     pruefe(alle, "Modell je NPC_type:" + text);
 }
 
+// 5c. misc_model_breakable target4: misc_model_breakable_gravity_init +
+// misc_model_throw_at_target4 + G_RunObject/G_BounceObject (g_breakable.cpp:
+// 629-702, 1035-1103; g_object.cpp:36-263 OpenJK) als Abschrift gegen
+// objektAbsetzen/wirfObjekt. Welt: Boden z -16..0 und eine Wand x 40..56.
+struct WurfWelt {
+    NavSpur spur(const NavVec& a, const NavVec& mi, const NavVec& ma, const NavVec& b) const {
+        const float bodenOrt[3] = {0.0F, 0.0F, -8.0F};
+        const float bodenLo[3] = {-2000.0F, -2000.0F, -8.0F};
+        const float bodenHi[3] = {2000.0F, 2000.0F, 8.0F};
+        const float wandOrt[3] = {48.0F, 0.0F, 0.0F};
+        const float wandLo[3] = {-8.0F, -2000.0F, -16.0F};
+        const float wandHi[3] = {8.0F, 2000.0F, 2000.0F};
+        KollisionsSpur r = kollisionsSpurKasten(a.data(), mi.data(), ma.data(), b.data(), 1U, bodenOrt, bodenLo, bodenHi, 1U);
+        const KollisionsSpur w = kollisionsSpurKasten(a.data(), mi.data(), ma.data(), b.data(), 1U, wandOrt, wandLo, wandHi, 1U);
+        if (w.fraction < r.fraction) { r = w; }
+        NavSpur n;
+        n.startsolid = r.startsolid || w.startsolid;
+        n.allsolid = r.allsolid;
+        n.fraction = r.fraction;
+        n.endpos = r.endpos;
+        n.normal = r.normale;
+        return n;
+    }
+};
+
+struct EngineObjekt {
+    // trajectory_t
+    int typ = 0;   // 0 TR_STATIONARY, 1 TR_GRAVITY
+    double zeit = 0.0;
+    NavVec basis{};
+    NavVec delta{};
+    NavVec cur{};
+    NavVec winkel{};
+    float masse = 0.0F;
+    NavVec eval(double t) const {
+        if (typ == 0) { return basis; }
+        const auto d = static_cast<float>((t - zeit) * 0.001);
+        return {basis[0] + d * delta[0], basis[1] + d * delta[1], basis[2] + d * delta[2] - 0.5F * 800.0F * d * d};
+    }
+};
+
+// G_RunObject zur Zeit t (level.previousTime = t - 50).
+void engineRunObject(EngineObjekt& o, double t, const WurfWelt& w, const NavVec& mi, const NavVec& ma) {
+    if (o.typ == 0) {
+        o.typ = 1;
+        o.basis = o.cur;
+        o.zeit = t - 50.0;
+    }
+    const NavVec oldOrg = o.cur;
+    const NavVec origin = o.eval(t);
+    if (origin == o.cur) { return; }
+    NavSpur tr = w.spur(o.cur, mi, ma, origin);
+    if (!tr.startsolid && !tr.allsolid && tr.fraction != 0.0F) {
+        o.cur = tr.endpos;
+    } else {
+        tr.fraction = 0.0F;
+    }
+    (void)oldOrg;
+    if (tr.fraction == 1.0F) { return; }
+    if (tr.normal[2] < 0.7F) {
+        if (tr.fraction <= 0.0F) {
+            o.cur = tr.endpos;
+            o.basis = tr.endpos;
+            o.delta = {0.0F, 0.0F, 0.0F};
+            o.zeit = t;
+            return;
+        }
+        // G_BounceObject
+        const double hitTime = (t - 50.0) + 50.0 * static_cast<double>(tr.fraction);
+        NavVec v = o.delta;
+        v[2] -= 800.0F * static_cast<float>((hitTime - o.zeit) * 0.001);
+        const float dot = v[0] * tr.normal[0] + v[1] * tr.normal[1] + v[2] * tr.normal[2];
+        const float bf = std::min(60.0F / o.masse, 1.0F);
+        for (std::size_t k = 0; k < 3; ++k) { o.delta[k] = (v[k] - 2.0F * dot * bf * tr.normal[k]) * 0.5F; }
+        o.cur = tr.endpos;
+        o.zeit = hitTime;
+        o.basis = o.cur;
+        return;
+    }
+    // pitch_roll_for_slope auf ebenem Boden: Nicken und Rollen 0
+    o.winkel[0] = 0.0F;
+    o.winkel[2] = 0.0F;
+    o.typ = 0;
+    o.basis = o.cur;
+    o.delta = {0.0F, 0.0F, 0.0F};
+}
+
+void objektWurf() {
+    std::printf("--- 5c. misc_model_breakable target4 (G_RunObject) ---\n");
+    const WurfWelt welt;
+    const NavSpurFn spur = [&welt](const NavVec& a, const NavVec& mi, const NavVec& ma, const NavVec& b, int,
+                                   std::uint32_t) { return welt.spur(a, mi, ma, b); };
+    ObjektStart s;
+    s.ort = {0.0F, 0.0F, 40.0F};
+    s.winkel = {10.0F, 45.0F, 5.0F};
+    s.mins = {-8.0F, -8.0F, -8.0F};
+    s.maxs = {8.0F, 8.0F, 8.0F};
+    const ObjektStart ab = objektAbsetzen(s, spur);
+    // dropToFloor: Spur von z 41 bis MIN_WORLD_COORD -> der Kasten 0.125 ueber dem Boden
+    const NavSpur fall = welt.spur({0.0F, 0.0F, 41.0F}, s.mins, s.maxs, {0.0F, 0.0F, -65536.0F});
+    pruefe(std::fabs(ab.ort[2] - fall.endpos[2]) < 1e-4F && ab.winkel[0] == 0.0F && ab.winkel[2] == 0.0F &&
+               ab.winkel[1] == 45.0F,
+           "Spawn: auf den Boden (z " + std::to_string(ab.ort[2]) + "), Nicken/Rollen vom ebenen Boden 0, Gier 45");
+    const NavVec ziel{400.0F, 0.0F, 8.0F};
+    const AbwurfBahn b = wirfObjekt(ab, {1000.0}, ziel, spur);
+    // Abschrift
+    EngineObjekt e;
+    e.cur = ab.ort;
+    e.winkel = ab.winkel;
+    const float l8 = std::sqrt(3.0F * 64.0F);
+    e.masse = l8 + l8;
+    {
+        NavVec dir{ziel[0] - e.cur[0], ziel[1] - e.cur[1], ziel[2] - e.cur[2]};
+        const float len = std::sqrt(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+        for (float& d : dir) { d /= len; }
+        float kb = 200.0F - len;
+        if (kb < 100.0F) { kb = 100.0F; }
+        const float m = std::max(e.masse, 50.0F);
+        e.typ = 1;
+        e.zeit = 1000.0;
+        e.basis = e.cur;
+        for (std::size_t k = 0; k < 3; ++k) { e.delta[k] = dir[k] * 1000.0F * kb / m * 0.8F; }
+        e.delta[2] = dir[2] * 1000.0F * kb / m * 1.5F;
+        if (e.delta[2] < kb) { e.delta[2] = kb; }
+    }
+    bool gleich = true;
+    std::string text;
+    double ruhe = -1.0;
+    for (double t = 1050.0; t <= 6000.0; t += 50.0) {
+        engineRunObject(e, t, welt, s.mins, s.maxs);
+        NavVec o{};
+        NavVec w{};
+        const bool da = b.bei(t, o, w);
+        gleich = gleich && da && std::fabs(o[0] - e.cur[0]) < 1e-3F && std::fabs(o[2] - e.cur[2]) < 1e-3F &&
+                 std::fabs(w[0] - e.winkel[0]) < 1e-3F;
+        if (static_cast<long>(t) % 500 == 0) {
+            char z[80];
+            std::snprintf(z, sizeof(z), " %d:%.1f,%.1f/%.1f,%.1f", static_cast<int>(t), static_cast<double>(o[0]),
+                          static_cast<double>(o[2]), static_cast<double>(e.cur[0]), static_cast<double>(e.cur[2]));
+            text += z;
+        }
+        if (ruhe < 0.0 && e.typ == 0) { ruhe = t; }
+    }
+    pruefe(gleich && ruhe > 0.0 && std::fabs(b.ruheMs - ruhe) < 0.5,
+           "Wurf zum Ziel, Abprall an der Wand, liegt bei " + std::to_string(static_cast<int>(b.ruheMs)) +
+               " (Engine " + std::to_string(static_cast<int>(ruhe)) + "; t:Vorschau x,z/Engine x,z)" + text);
+    bool effekt = !b.effekte.empty();
+    for (const AbwurfBahn::Effekt& f : b.effekte) { effekt = effekt && f.datei == "melee/kick_impact_silent"; }
+    pruefe(effekt && b.klaenge.size() == b.effekte.size(),
+           "Aufprall: kick_impact_silent und objectHit je Treffer (" + std::to_string(b.effekte.size()) + ")");
+}
+
+// 4. Fahrzeuge: Laeufer/Tiere/Jaeger fallen mit der Schwerkraft, ein Gleiter
+// (hoverHeight > 0) nach PM_HoverTrace + PM_AirMove/PM_WalkMove (Abschrift,
+// nur Z, ebener Boden bei z 0, Kasten -24 unter dem Ursprung); die Takte wie
+// beim Kartenstart: 200 ms (NPC_Begin), 200 ms (erstes NPC_Think), dann 50.
+float engineGleiter(float z, int takte, float h, float kraft, float reibung) {
+    float vz = 0.0F;
+    bool fliegt = false;
+    const auto bodenNah = [](float zz) { return zz - 24.0F <= 0.25F; };
+    const auto spur = [&](float zz, float dt, bool& ebene) {
+        const float f = std::max(0.0F, (zz - 24.0F - 0.125F) / (3.0F * h));
+        ebene = f < 0.3F;
+        if (ebene) { vz += (0.3F - f) * kraft * dt * 60.0F; }
+        fliegt = !ebene;
+    };
+    for (int k = 0; k < takte; ++k) {
+        const float dt = k < 2 ? 0.2F : 0.05F;
+        bool ebene = false;
+        spur(z, dt, ebene);
+        const float vorher = z;
+        if (bodenNah(z)) {
+            vz = std::fabs(vz);
+        } else {
+            const float sp = std::fabs(vz);
+            if (sp >= 1.0F) {
+                const float drop = std::max(sp, 100.0F) * (fliegt ? 0.1F : reibung) * dt;
+                vz *= std::max(sp - drop, 0.0F) / sp;
+            }
+            if (ebene) { vz -= vz < 0.0F ? vz * 1.001F : vz / 1.001F; }
+            const float vn = vz - 800.0F * dt;
+            const float zn = z + 0.5F * (vz + vn) * dt;
+            if (zn - 24.0F <= 0.0F) {
+                z = 24.0F;
+                vz = 0.0F;
+            } else {
+                z = zn;
+                vz = vn;
+            }
+        }
+        if (z != vorher) {
+            bool e2 = false;
+            spur(z, dt, e2);
+        }
+    }
+    return z;
+}
+
+void fahrzeuge() {
+    std::printf("--- 4. Fahrzeuge: Schwerkraft nach der .veh ---\n");
+    SchwerkraftHilfe h;
+    h.endeMs = 3000.0;
+    h.strahl = [](const std::array<float, 3>& von, const std::array<float, 3>& bis, double, std::array<float, 3>& treffer) {
+        if (von[2] >= 0.0F && bis[2] <= 0.0F) {
+            treffer = {von[0], von[1], 0.0F};
+            return true;
+        }
+        return false;
+    };
+    const auto fahrzeug = [](const char* name, const char* typ, float hoehe, float kraft) {
+        Actor a;
+        a.name = name;
+        a.npcType = name;
+        a.haveStart = true;
+        a.start[0] = 0.0F;
+        a.start[1] = 0.0F;
+        a.start[2] = 100.0F;
+        a.ohneSchwerkraft = true;   // kein Fallen im Wegplaner
+        a.fahrzeug.da = true;
+        a.fahrzeug.typ = typ;
+        a.fahrzeug.schwebeHoehe = hoehe;
+        a.fahrzeug.schwebeKraft = kraft;
+        a.fahrzeug.hang = 0.75F;
+        a.fahrzeug.reibung = 1.5F;
+        return a;
+    };
+    Scene sc;
+    sc.actors.push_back(fahrzeug("atst_vehicle", "VH_WALKER", 0.0F, 0.0F));
+    sc.actors.push_back(fahrzeug("swoop", "VH_SPEEDER", 30.0F, 35.0F));
+    sc.actors.push_back(fahrzeug("x-wing", "VH_FIGHTER", 80.0F, 10.0F));
+    schwerkraftEinrechnen(sc, h);
+    const auto hoeheBei = [](const Actor& a, std::size_t k) {
+        return k < a.hoehe.size() ? a.hoehe[k] : a.start[2];
+    };
+    // hoehe[k] gilt fuer t = k * 50 ab dem Skriptanfang; davor zwei Spawn-Takte.
+    pruefe(std::fabs(hoeheBei(sc.actors[0], 40U) - 24.0F) < 0.01F && std::fabs(hoeheBei(sc.actors[2], 40U) - 24.0F) < 0.01F,
+           "Laeufer und Jaeger fallen auf den Boden (z " + std::to_string(hoeheBei(sc.actors[0], 40U)) + ", " +
+               std::to_string(hoeheBei(sc.actors[2], 40U)) + ")");
+    bool gleich = true;
+    std::string text;
+    for (const std::size_t k : {0U, 4U, 10U, 20U, 40U}) {
+        const float e = engineGleiter(100.0F, static_cast<int>(k) + 3, 30.0F, 35.0F, 1.5F);
+        const float v = hoeheBei(sc.actors[1], k);
+        gleich = gleich && std::fabs(e - v) < 0.01F;
+        text += " " + std::to_string(k * 50U) + ":" + std::to_string(v) + "/" + std::to_string(e);
+    }
+    pruefe(gleich, "Gleiter: PM_HoverTrace, Reibung, Schnitt an der Schwebespur (ms:Vorschau/Engine z)" + text);
+}
+
+// 2. trigger_hurt gegen den Spieler: stirbt er (player_die), steht
+// cg.missionStatusDeadTime auf level.time + 1000 (g_combat.cpp:4044 OpenJK);
+// ClientThink setzt stop_icarus, sobald pm_type PM_DEAD ist, keine Kamera
+// laeuft und missionStatusDeadTime < level.time (g_active.cpp:4862-4865) -
+// im Bild danach laeuft kein Skript mehr.
+void spielerTod() {
+    std::printf("--- 2. trigger_hurt toetet den Spieler ---\n");
+    const Script s = lies("wait ( 5000.000 );\nprint ( \"spaet\" );\n");
+    AblaufWelt w;
+    w.hurtTode.push_back(AblaufWelt::HurtTod{500.0, "player", -1, false});
+    const Ablauf a = simuliereAblauf(s, "", w);
+    pruefe(std::fabs(a.skripteStoppMs - 1550.0) < 0.5,
+           "Skripte halten im ersten Bild nach 500 + 1000 an (" + std::to_string(a.skripteStoppMs) + ")");
+    const Script mitKamera = lies("camera ( /*@CAMERA_COMMANDS*/ ENABLE );\nwait ( 3000.000 );\n"
+                                  "camera ( /*@CAMERA_COMMANDS*/ DISABLE );\nwait ( 5000.000 );\n");
+    const Ablauf b = simuliereAblauf(mitKamera, "", w);
+    pruefe(b.skripteStoppMs > 3000.0 && b.skripteStoppMs < 3200.0,
+           "mit laufender Kamera erst nach DISABLE (" + std::to_string(b.skripteStoppMs) + ")");
+}
+
 }  // namespace
 
 int main() {
@@ -713,6 +986,9 @@ int main() {
     entfernenVorAdd();
     teilchenSpur();
     liegendeSchwerter();
+    objektWurf();
+    fahrzeuge();
+    spielerTod();
     std::printf("%d Fehler\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

@@ -978,6 +978,18 @@ struct App {
     std::vector<FallenKnall> fallenKnalle;
     std::string fallenKnalleKarte;
     std::vector<FallenKnall> fallenKnalleNeu;
+    // Pruefung 4b: die Treffer von fx_target_beam auf Figuren (G_Damage mit
+    // "damage") - wie die Explosionen aus dem letzten Durchgang.
+    struct StrahlTreffer {
+        double ms = 0.0;
+        std::string figur;
+        int schaden = 0;
+        int entity = -1;
+        bool operator==(const StrahlTreffer&) const = default;
+    };
+    std::vector<StrahlTreffer> strahlTreffer;
+    std::string strahlTrefferKarte;
+    std::vector<StrahlTreffer> strahlTrefferNeu;
     // rc605 (Ende): die Figuren, die MoverSim::blockiert meldet (Index ->
     // Name), fuer MoverSim::quetschungen in hurtTodeBerechnen.
     std::vector<std::string> quetschFiguren;
@@ -1216,6 +1228,9 @@ struct App {
     // abgespielt wird, kostet damit dreissig Netze - aber nur die, die
     // wirklich vorkommen.
     struct MapModel {
+        // Pruefung 4b: misc_model_breakable mit "gravity" - die Bahn ab dem
+        // ersten Wurf (target4, wirfObjekt); leer: steht.
+        std::shared_ptr<const AbwurfBahn> wurf;
         std::string path;
         int frames = 1;
         float origin[3]{};
@@ -3083,6 +3098,10 @@ bool navMoverPlanAusSim(double endeMs);
 // Pruefung 4b: die Welt fuer den Spurtest der Effektteilchen (setzeEffektSpurWelt,
 // bhed/efxdraw.h) aus Kollisionskarte, Mover-Stand und Figuren der Szene.
 void effektSpurWeltSetzen();
+// Pruefung 4b: misc_model_breakable mit "gravity" - auf den Boden gesetzt und an
+// den Hang gelegt (objektAbsetzen), die Wuerfe der MoverSim als Bahn am
+// Kartenmodell (App::MapModel::wurf).
+void objektWuerfeSetzen();
 [[nodiscard]] bool schwerkraftMitMovernNoetig();
 // rc601 (bewegung, Durchsicht 2): die Schwierigkeit der Vorschau (g_spskill
 // 0-3, Einstellungen) setzen - die Szene wird danach neu aufgebaut, denn
