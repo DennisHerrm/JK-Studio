@@ -607,10 +607,114 @@ LIESMICH: taspir1 aus assets0.pk3, Missionen und Archiv auf X: per subst).
   fuer "Automatic (detected: Movie Duels)" zu schmal; im Undo-Verlauf der
   Statuszeile heisst das Einfuegen einer Kommentarzeile "inserted ( )".
 
+## Zeitleiste 5
+
+Auftrag `<SP>/auftrag_zeitleiste5.md`, direkt auf karte1 (Y:\karte, ab 2dd08ced).
+Laeufe unter `Y:\karte\laeufe\zl5*` (Skript `<SP>/zl5/lauf.sh`, Bildlauf `<SP>/zl5/hb.sh`).
+
+- **Punkt 0: pruefung3 bis 97e61de2** (Merge 9517c1ee). Konflikte:
+  - `src/scene.cpp`: ein Timer der Beine (`beineFest ? beineBis : -1`, wie Zeitleiste 4 /
+    Integration 6); die Hang-Beine von Pruefung 3 fragen genau diesen Timer.
+  - `src/mapview.cpp`: beide Includes.
+  - `src/efxdraw.cpp/.h`: inhaltlich. Pruefung 3 legt Decals in den gemeinsamen
+    Markenspeicher (buildEffectMesh baut keine mehr); karte1 hatte dem Karten-Editor
+    fuer Decals eine eigene Welt an buildEffectMesh gegeben (markenWeltAusKarte). Jetzt ist
+    die Welt ein Parameter von effektMarkenIn, die Echtzeit-Ansicht des Karten-Editors
+    fuehrt einen eigenen Markenspeicher (ein Clientbild je Editorbild, cg.time ganze ms;
+    neue Welt -> leerer Speicher), und das Netz eines Markenspeichers baut eine Funktion
+    (markenNetz) fuer die 3D-Ansicht und den Karten-Editor.
+  - Nach dem Merge: Neubau 0 Fehler/0 Warnungen, ctest 189/189, pruefung3 9/0, szenen 26/0,
+    mission1 98/0, karteneditor `BHED_KARTE_NUR=reste1` (Decal im Karten-Editor) 13/0.
+- **Punkt 1: Beine am Hang bei der gesteuerten Figur** (39887c2e). Eine Rechnung fuer
+  Szene und Aufnahme: `hangStandBeine` (scene.h) = PM_FootSlopeTrace unter den Fussbolzen
+  + `hangBeinSchritt` (Pruefung 3). pmanim ruft sie ueber `PmBeinStand::hang` genau dort,
+  wo PM_Footsteps `if ( !PM_AdjustStandAnimForSlope() )` schreibt (ATST/MD-Droideka, mit
+  Klinge, mit Waffe ausser den Wachhaltungen, sonst; nicht Galak, nicht in Bewegung) -
+  nur dann stellt es slopeRecalcTime. Die Aufnahme rechnet die Fussbolzen aus ihrer
+  eigenen Pose zur Uhr der Aufnahme (`figurFussPunkte` mit Zustand, `aufnahmeHangBeine`).
+  - ctest pmanim: rot (kein `PmBeinStand::hang`, Bau), gruen 10 neue Faelle.
+  - Selbsttest zeitleiste1 `BHED_ZL1_NUR=aufnahme`: sucht nahe dem Start eine Stelle mit
+    6..20 Einheiten Hoehenunterschied unter den Fuessen (md_am_sith hat dort keine Schraege
+    mit 0,80 <= normal.z <= 0,97, aber eine Stufe bei 292 7100), stellt zl2_laeufer quer
+    darauf und nimmt auf: rot zl5p1rot 20/1 (Beine BOTH_STAND3), gruen zl5p1gr 21/0
+    (LEGS_S3_RUP3, dann je 100 ms eine Stufe bis LEGS_S3_RUP5).
+- **Punkt 2: Sprint, PM_TorsoAnimLightsaber, Motion-Bone-Korrektur**:
+  - PM_TorsoAnimLightsaber (39887c2e): `pmTorsoLichtschwert` fuer die Figur am Boden mit
+    Klinge. Laeuft sie (PM_RunningAnim) oder geht sie mit Stab/zwei Klingen, folgt der
+    Oberkoerper den Beinen; sonst PM_SetSaberMove(LS_READY) mit der Kampfhaltung und
+    saberMoveData[LS_READY].blendTime 350 ms. OpenJK: STAND2/SABERDUAL/FAST/SLOW_STANCE
+    nehmen beim Gehen und Laufen die Beinanimation ("match torso anim to walk/run anim",
+    bg_pmove.cpp:9241); Movie Duels: Beine in einer Kampfhaltung -> SETANIM_BOTH, ein
+    laufender Oberkoerper bleibt (bg_pmove.cpp:23274 ff. mdgit). ctest pmanim 7 Faelle.
+    Nicht abgebildet: .sab readyAnim, SABER_ARC/LANCE/TRIDENT, manuelles Blocken
+    (saberBlockingTime), die Figurenvarianten von g_ActivateAnimationStyle 1 und die
+    Tabelle PM_ApplyTorsoMap von MD (die gilt nur fuer Animationen, die die Aufnahme nicht
+    setzt) - PmFigur kennt die Schwertart nicht.
+  - Sprint: **nicht zutreffend**. OpenJK SP hat keinen; in Movie Duels sprintet in
+    PM_Footsteps nur, wer BUTTON_BLOCK drueckt oder MBF_HOLDINGBLOCK haelt (mdgit
+    bg_pmove.cpp:15365 ff.). Kein NPC-Code setzt BUTTON_BLOCK (nur `&= ~`, bg_pmove.cpp:5853),
+    MBF_HOLDINGBLOCK setzt g_active.cpp:10151 nur mit `ent->NPC == NULL`, und den
+    Sprint-Tempozuschlag gibt ClientAlterSpeed nur Spielern (g_active.cpp:8158 ff.). Die
+    Aufnahme steuert einen NPC (Q3_SetNavGoal), und ein Skript kann ihn nicht sprinten
+    lassen - im Spiel sprintet die aufgenommene Figur nie, die Vorschau also auch nicht.
+  - Motion-Bone-Korrektur (cg_motionBoneComp 2, CG_G2ClientSpineAngles): **offen**. Sie
+    gilt fuer JEDE Figur, deren Beine und Oberkoerper verschiedene Animationen spielen
+    (jeder Schuetze beim Gehen), nicht nur fuer die Aufnahme, und verteilt Pitch, Yaw und
+    Roll des Motion-Bolzens ueber BG_G2SetBoneAngles (POSTMULT, Achsen je Knochen und
+    Klasse, G_BoneOrientationsForClass) auf lower_lumbar, upper_lumbar und thoracic. Die
+    Vorschau dreht diese Knochen bisher nur um die Senkrechte (rumpfGier, Kopf); Pitch und
+    Roll am Knochen fehlen ganz, und Achsen und Vorzeichen lassen sich nur gegen das Spiel
+    pruefen (kein Spielvergleich in diesem Auftrag). Eine halbe Fassung (nur Yaw) waere
+    eine Naeherung - deshalb nicht eingebaut.
+- **Punkt 3: g_SerenityJediEngineMode** (39887c2e), nur gelesen (eigener PE-Leser,
+  `<SP>/zl5/cvar_vorgabe.py`, `cvar_tabelle.py`):
+  - MovieDuels-gamex86_64.dll (27.10.2026): `gi.cvar("g_SerenityJediEngineMode", "2",
+    CVAR_ARCHIVE)` (lea rdx "2", lea rcx Name, r8d 1); mdgit g_main.cpp:873 hat "0".
+  - MovieDuels-SP.x86_64.exe: die cvarTable der Oberflaeche (ui_main.cpp:1906 mdgit) mit
+    "0". CL_StartHunkUsers -> CL_InitUI laeuft vor SV_SpawnServer -> SV_InitGameProgs, und
+    Cvar_Get (qcommon/cvar.cpp) behaelt den Wert einer schon angelegten Cvar - wirksam
+    ist "0". Dazu setzt ui/main.menu (z_zzzz_MD_Jace-Update-9.pk3, "clickToContinueButton-
+    FirstStartup") beim ersten Start `seta g_SerenityJediEngineMode 0`; keine Config setzt
+    sie. Die Vorgabe 0 in pmanim stimmt also (Stab rueckwaerts gehend BOTH_WALKBACK_STAFF).
+  - Falsch war der Kommentar in scene.h (Modus 2, "Cosmetic mode") - und mit ihm die
+    Tabelle der Kampfhaltungen: mit 0 nimmt PM_ReadyPoseForSaberAnimLevelNPC die "JKA
+    fallback"-Tabelle (BOTH_SABERFAST_STANCE_JKA, ..._SLOW_, _DESANN_, _TAVION_, _DUAL_,
+    _STAFF_STANCE_JKA, sonst BOTH_STAND2; alle in MDs _humanoid/animation.cfg). Fuer
+    OpenJK gilt der switch in PM_Footsteps (SS_TAVION wie SS_FAST, SS_DESANN BOTH_STAND2) -
+    vorher bekamen auch OpenJK-Figuren die Tabelle von MD-Modus 2. Jetzt eine Tabelle
+    `saberHaltungFuerStil(stil, md)` fuer Szene und Aufnahme (pmanims eigene ist weg),
+    scene.h erklaert die Herkunft. ctest waffentest/pmanim: rot (Bau bzw. 1 Fehler), gruen.
+- **Punkt 4: stehender NPC mit Gewehr** (39887c2e): die Szene setzt in der Grundhaltung
+  (BOTH_STAND1 ohne Timer, nicht in Bewegung, NPC) die Wahl von PM_Footsteps
+  (`pmFootstepsBeine` mit `pmFigurVon`, dieselbe wie die Aufnahme): mit Gewehr BOTH_STAND3,
+  CLASS_IMPERIAL BOTH_STAND4 usw., wenn das Modell die Animation hat. ctest waffentest
+  "Grundhaltung": rot 1 Fehler, gruen. Die Aufnahme beginnt jetzt in BOTH_STAND3
+  (zl5p1gr "Stand BOTH_STAND3").
+- **Punkt 5: Klappfeld "Spielregeln"** (8d3c3c78): so breit wie der laengste Eintrag -
+  "automatisch" mit jedem erkennbaren Spiel, damit es nicht springt; das Fenster waechst
+  mit. zeitleiste1 `BHED_ZL1_NUR=einstellungen` prueft alle 6 Sprachen (Rahmen >=
+  FramePadding + Text + Pfeil; das Element-Rechteck ist der Rahmen, ItemAdd meldet NavRect):
+  rot zl5p5rot (alle 6 Sprachen FEHLER, der Rahmen war die halbe Breite der
+  Pfadfelder), gruen zl5p5gr 8/0 (en 514 >= 507, de 526
+  >= 519, zh 435 >= 428, ja 411 >= 404, es 420 >= 413, cs 430 >= 423).
+- **Punkt 6: Undo-Text einer Kommentarzeile** (8d3c3c78): `kurzZeile` nennt eine
+  Kommentarzeile nach ihrem Text, eine auskommentierte (//(BHVDREM)) "// " und den Befehl.
+  zeitleiste1 `BHED_ZL1_NUR=undo`: rot zl5p6rot ("Undo: inserted  (  ); ..."), gruen
+  zl5p6gr ("Undo: inserted // print ( "zl5" );  deleted print ( zl5 )").
+- **Punkt 7: Handbuchbild h_zl_aufnahme**: D bleibt fuer das Bild gedrueckt, Pruefung "die
+  Figur laeuft beim Bild (Laufanimation)"; neu aufgenommen in en, de, zh, ja (dazu
+  h_einst_vorschau mit dem breiteren Klappfeld).
+
 ## Changelog
 
 ## English
 
+- Recording a walk: standing on a slope or a step, the figure puts its feet like the game (the slope leg animations); with a lightsaber its upper body takes the ready stance or follows the legs as the game decides.
+- Preview: an NPC with a gun stands in BOTH_STAND3 and an Imperial officer in BOTH_STAND4 - the standing pose the game picks.
+- Movie Duels: a figure with a lit saber stands in the stances the installed game really uses (the "_JKA" stances, g_SerenityJediEngineMode is 0); under OpenJK the Tavion style stands like the fast style and the Desann style in BOTH_STAND2, as in the game.
+- Preferences: the "Game rules" list is wide enough for "Automatic (detected: ...)" in every language.
+- Undo/redo: commenting out a line is now shown as "// <command>" instead of "( )".
+- Map editor: decals of effects in the real-time view live in the game's mark store (fade out and give way like the game's marks).
 - Recording a walk: the figure's model moves as in the game - legs run, walk and step backwards as PM_Footsteps picks them (with the weapon, saber and class variants of Jedi Academy and Movie Duels), turn up to 60° toward the direction it moves while the upper body keeps looking ahead, blend from one animation to the next, and a weapon stance or held animation of the upper body stays.
 - wait ( "name" ) waits for the task "name" of the same figure, as in the game: right away if the task has not been started with do yet, never if there is no such task; the timeline explains it as waiting for the task, not for a signal.
 - Preferences: Ok and Cancel always stay in view - with a large interface on a low screen only the settings scroll.
@@ -631,6 +735,12 @@ LIESMICH: taspir1 aus assets0.pk3, Missionen und Archiv auf X: per subst).
 
 ## Deutsch
 
+- Lauf aufnehmen: steht die Figur an einem Hang oder auf einer Stufe, stellt sie die Füße wie im Spiel (die Hang-Beinanimationen); mit Lichtschwert nimmt ihr Oberkörper die Kampfhaltung ein oder folgt den Beinen, wie das Spiel es entscheidet.
+- Vorschau: ein NPC mit Schusswaffe steht in BOTH_STAND3, ein imperialer Offizier in BOTH_STAND4 - die Grundhaltung, die das Spiel wählt.
+- Movie Duels: eine Figur mit brennender Klinge steht in den Haltungen, die das installierte Spiel wirklich nimmt (die "_JKA"-Haltungen, g_SerenityJediEngineMode ist 0); unter OpenJK steht der Tavion-Stil wie der schnelle und der Desann-Stil in BOTH_STAND2, wie im Spiel.
+- Einstellungen: die Liste "Spielregeln" ist in jeder Sprache breit genug für "Automatisch (erkannt: ...)".
+- Rückgängig/Wiederholen: das Auskommentieren einer Zeile heißt jetzt "// <Befehl>" statt "( )".
+- Karten-Editor: Decals der Effekte liegen in der Echtzeit-Ansicht im Markenspeicher des Spiels (sie blenden aus und weichen wie die Marken des Spiels).
 - Lauf aufnehmen: das Modell der Figur bewegt sich wie im Spiel - die Beine laufen, gehen und gehen rückwärts, wie PM_Footsteps es wählt (mit den Waffen-, Lichtschwert- und Klassenvarianten von Jedi Academy und Movie Duels), drehen sich bis 60° in die Laufrichtung, während der Oberkörper nach vorn schaut, blenden von einer Animation in die nächste, und eine Waffenhaltung oder gehaltene Animation des Oberkörpers bleibt.
 - wait ( "name" ) wartet wie im Spiel auf die Aufgabe "name" derselben Figur: sofort weiter, wenn die Aufgabe noch nicht mit do gestartet ist, nie, wenn es sie nicht gibt; die Zeitleiste erklärt es als Warten auf die Aufgabe, nicht auf ein Signal.
 - Einstellungen: Ok und Abbrechen bleiben immer im Bild - bei großer Oberfläche auf einem niedrigen Bildschirm rollen nur die Einstellungen.
@@ -651,6 +761,12 @@ LIESMICH: taspir1 aus assets0.pk3, Missionen und Archiv auf X: per subst).
 
 ## 中文
 
+- 录制行走：角色站在斜坡或台阶上时会像游戏中一样放脚（斜坡腿部动画）；持光剑时上半身按游戏的判断摆出战斗姿势或跟随双腿。
+- 预览：持枪的 NPC 以 BOTH_STAND3 站立，帝国军官以 BOTH_STAND4 站立——即游戏选择的站姿。
+- Movie Duels：点亮光剑的角色使用已安装游戏实际采用的姿势（"_JKA" 姿势，g_SerenityJediEngineMode 为 0）；在 OpenJK 下 Tavion 风格与快速风格站姿相同，Desann 风格为 BOTH_STAND2，与游戏一致。
+- 设置："游戏规则"列表在每种语言下都足够宽，能完整显示"自动（检测到：...）"。
+- 撤销/重做：注释掉一行现在显示为"// <命令>"，而不是"( )"。
+- 地图编辑器：实时视图中特效的贴花存放在游戏的标记存储中（像游戏的标记一样淡出并让位）。
 - 录制行走：角色模型的动作与游戏一致——双腿按 PM_Footsteps 的选择奔跑、行走和后退（包括 Jedi Academy 和 Movie Duels 中武器、光剑和类别的变体），朝移动方向最多转 60°，同时上身保持朝前；动画之间平滑过渡，上身的武器姿势或保持的动画会保留。
 - wait ( "name" ) 与游戏一致，等待同一角色的任务 "name"：若该任务尚未用 do 启动则立即继续，若不存在该任务则永远等待；时间轴将其解释为等待任务，而不是等待信号。
 - 首选项：“确定”和“取消”始终可见——在低屏幕上使用大界面时只有设置部分滚动。
@@ -671,6 +787,12 @@ LIESMICH: taspir1 aus assets0.pk3, Missionen und Archiv auf X: per subst).
 
 ## 日本語
 
+- 歩きの記録：坂や段の上に立つと、キャラクターはゲームと同じように足を置きます（坂用の脚アニメーション）。ライトセーバーを持つと、上半身はゲームの判断どおり構えを取るか脚に従います。
+- プレビュー：銃を持つ NPC は BOTH_STAND3、帝国士官は BOTH_STAND4 で立ちます――ゲームが選ぶ立ち姿です。
+- Movie Duels：光る刃を持つキャラクターは、インストール済みのゲームが実際に使う構え（"_JKA" の構え、g_SerenityJediEngineMode は 0）で立ちます。OpenJK では Tavion スタイルは高速スタイルと同じ、Desann スタイルは BOTH_STAND2 で、ゲームと同じです。
+- 設定：「ゲームルール」の一覧はどの言語でも「自動（検出: ...）」が収まる幅になりました。
+- 元に戻す/やり直し：行のコメント化は「( )」ではなく「// <コマンド>」と表示されます。
+- マップエディター：リアルタイム表示のエフェクトのデカールはゲームのマーク置き場に入ります（ゲームのマークと同じように薄れて入れ替わります）。
 - 歩きの記録：キャラクターのモデルがゲームと同じように動きます。脚は PM_Footsteps が選ぶとおりに走る・歩く・後ろへ歩き（Jedi Academy と Movie Duels の武器・ライトセーバー・クラスごとの違いを含む）、上半身が前を向いたまま進行方向へ最大 60° 向きを変え、アニメーションの間はブレンドし、上半身の武器の構えや保持されたアニメーションは残ります。
 - wait ( "name" ) はゲームと同じく同じキャラクターのタスク "name" を待ちます。タスクがまだ do で開始されていなければすぐに続行し、そのタスクがなければ永久に待ちます。タイムラインはシグナルではなくタスクの待機として説明します。
 - 設定：OK とキャンセルは常に表示されます。低い画面で大きなインターフェースを使うと、設定部分だけがスクロールします。
