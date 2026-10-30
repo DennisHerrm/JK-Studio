@@ -32,11 +32,13 @@ Build-Menue hat 34 Eintraege und ist damit fast so hoch wie der Bildschirm (2560
 Behoben:
 - Programm (gui/app_karte_qtmenue.cpp): die Menues im Stil von NRC brechen wie QMenu in Spalten um
   (zeileAnfangen/zeileBeenden je Eintrag, Untermenue und Trenner; Breite = Spalten mal
-  max_column_width, Hoehe = tiefste Zeile wie sizeHint). Abweichung: column_max_y ist die Hoehe, in der
-  ImGui das Menue zeigen kann (GetPopupAllowedExtentRect, ohne Taskleiste) statt des ganzen
-  Bildschirms (Windows: UseFullScreenForPopupMenu) - sonst laege die letzte Zeile einer vollen Spalte
-  unter der Taskleiste. Untermenues in einer linken Spalte gehen rechts neben dem ganzen Menue auf (ImGui
-  meidet das ganze Elternfenster), Qt oeffnet sie neben der Spalte.
+  max_column_width, Hoehe = tiefste Zeile wie sizeHint). column_max_y ist wie bei Qt die ganze Hoehe des
+  Bildschirms (Windows: UseFullScreenForPopupMenu - das Menue liegt auch ueber der Taskleiste, ImGui-Menues
+  sind TopMost), abzueglich des Rands, den ImGui um Popups laesst (DisplaySafeAreaPadding, 2 x 3). Ein
+  erster Stand nahm die Arbeitsflaeche ohne Taskleiste: dann brach das Build-Menue der Fotos (NRC 369 x 796
+  Punkte) schon um (Schlussrunde sfotos: "hier 738 x 748", rot) - mit dem ganzen Bildschirm wieder 369 x 796
+  wie NRC (fotos2: 78 OK / 0). Untermenues in einer linken Spalte gehen rechts neben dem ganzen Menue auf
+  (ImGui meidet das ganze Elternfenster), Qt oeffnet sie neben der Spalte.
 - Selbsttest (gui/selbsttest_karte8.inc): so viele Fuelleintraege, wie Zeilen des Programms auf den
   Bildschirm passen (hier 51) - das Menue ist damit auf jedem Bildschirm zu hoch. Stil des Programms:
   Melden liegt unter dem sichtbaren Teil, das Menue rollt; `radBisSichtbar` dreht das Mausrad ueber dem
@@ -44,7 +46,8 @@ Behoben:
   Eintrag auf dem Bildschirm, der Klick schaltet Melden wieder an.
 - rot (s8rot2, Test neu, Programm alt): Stil des Programms gruen (Mausrad), Stil wie NRC "114
   Eintraege, 1 Spalten, 85 ausserhalb von 4..1524 (Fenster 4..5532)".
-- gruen (s8gruen2): 21 OK / 0, "85 Eintraege, 3 Spalten, 0 ausserhalb von 4..1524 (Fenster 16..1524)".
+- gruen (s8gruen2): 21 OK / 0, "85 Eintraege, 3 Spalten, 0 ausserhalb von 4..1524 (Fenster 16..1524)"; mit dem
+  ganzen Bildschirm (s8gruen3): 21 / 0, "3 Spalten, 0 ausserhalb von 0..1600 (Fenster 4..1582)".
 - Menues mit einer Spalte bleiben wie bisher (ganze Fensterbreite, WorkRect unveraendert) - die Spalten
   greifen erst, wenn das Menue im letzten Bild mehr als eine hatte oder gerade umbricht.
 
@@ -156,6 +159,28 @@ Bild-CPU, Abstand, Figuren-CPU je Bild, Figuren je Bild, Aufrufe je Bild. Danach
   0,043 ms je Bild, 72 Aufrufe; 4 Figuren: Bild-CPU 0,28 ms (p99 0,48), Figuren-CPU 0,094 ms je Bild, 163
   Aufrufe. In allen Messbloecken des Model-Tabs 0 Bilder hochgeladen (der Hautwechsel aus Punkt 2 laedt
   nichts nach).
+
+## 8. Schlussrunde
+
+- Sauberer Neubau (`--clean-first`, alle Ziele, 560 Uebersetzungen, unter Last 14 min): 0 Warnungen, 0 Fehler.
+- ctest: 183/183 (darin karte_marken 29/29, karte_spielen).
+- lint_sources, lint_fassung, lint_headers, lint_i18n: ok (es/cs: die 13 neuen Texte englisch bis zur
+  Uebersetzungsrunde).
+- Selbsttests (Laufordner ausserhalb des Worktrees, Idle-Prioritaet): siehe Laeufe.
+
+## Laeufe
+
+- s8rot (stufe8 allein, alter Stand): 37 OK / 0 - der Befund kam nicht von selbst; s8diag* (Messschritt, nicht
+  eingecheckt) zeigten die Lage; s8rot2 (Test neu): 20 / 1; s8gruen2: 21 / 0.
+- l3rot (stufe3/leck ohne bhed_q3map2): Absturz 0xC0000005 lesend 0x4; l3gruen: kein Absturz (Folgefehler des
+  fehlenden Baus); l3mit: 55 / 0.
+- r1decal, r1decal2 (karteneditor reste1, Decal mit dem Bau im Hintergrund): 13 / 0, "6 Pinsel, 6 Flaechen".
+- m7a/m7b (modell, alt): modell_knochen verschieden; m7c/m7d: gleich.
+- s3rot (stufe3/bau ausserhalb, alt): 113 / 1; s3gruen: 114 / 0.
+- hautrot (bloßes Hin und Her): 7 -> 7 (gruen, Adressen wiederverwendet); hautrot2: 6 -> 9 / 6 -> 7; hautgruen:
+  6 -> 6 / 6 -> 6, Fotos gleich und gleich dem alten Programm.
+- gpurot (karte, alte Texte): GPU-Tabelle in allen Sprachen deutsch.
+- m7voll (modellleistung): 8 / 2 (Ruhe im Menue-Editor gemessen); m7voll2: 10 / 0.
 
 ## English
 - Map editor, menus like NetRadiant-Custom: a menu taller than the screen (the Build menu with many entries) now wraps into columns like in NetRadiant-Custom - before, its last entries ran past the bottom of the screen and could not be reached.

@@ -357,13 +357,15 @@ void menueBeginnen(ImGuiID key, bool abriss, const Masse& m) {
     neu.abriss = abriss;
     neu.nrc = nrcStil();
     // updateActionRects: base_y = tearoffHeight (Rand und Rahmen sind in Fusion 0); column_max_y die
-    // Hoehe des Bildschirms (Windows: UseFullScreenForPopupMenu). Abweichung: hier die Hoehe, in der
-    // ImGui das Menue zeigen kann (GetPopupAllowedExtentRect, ohne Taskleiste) - sonst laege die
-    // letzte Zeile einer vollen Spalte unter der Taskleiste.
+    // ganze Hoehe des Bildschirms (Windows: UseFullScreenForPopupMenu - ein Menue liegt wie bei Qt auch
+    // ueber der Taskleiste; ImGui-Menues sind TopMost). Abweichung: abzueglich des Rands, den ImGui oben und
+    // unten um Popups laesst (DisplaySafeAreaPadding) - sonst schnitte er die letzte Zeile an.
     neu.basis = abriss ? m.abriss : 0.0F;
     neu.y = neu.basis;
     neu.unten = neu.basis;
-    neu.spaltenMax = ImGui::GetPopupAllowedExtentRect(ImGui::GetCurrentWindow()).GetHeight();
+    const ImGuiPlatformMonitor* bildschirm = ImGui::GetViewportPlatformMonitor(ImGui::GetWindowViewport());
+    const float rand = ImGui::GetStyle().DisplaySafeAreaPadding.y * 2.0F;
+    neu.spaltenMax = bildschirm != nullptr ? bildschirm->MainSize.y - rand : ImGui::GetPopupAllowedExtentRect(ImGui::GetCurrentWindow()).GetHeight();
     if (const auto it = g_groessen.find(key); it != g_groessen.end()) {
         neu.spaltenB = it->second.spalteB;
         neu.mehrspaltig = it->second.b > it->second.spalteB * 1.5F;

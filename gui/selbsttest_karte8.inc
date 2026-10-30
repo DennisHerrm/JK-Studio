@@ -230,7 +230,10 @@ std::vector<Schritt> fortschritt() {
         const Element* m = finde(ke::trK(Str::KeFsMelden), "##Menu_", 0, false);
         ImGuiWindow* w = m != nullptr ? ImGui::FindWindowByName(m->innen.c_str()) : nullptr;
         if (w == nullptr) { return false; }
-        const ImRect platz = ImGui::GetPopupAllowedExtentRect(w);
+        // der ganze Bildschirm (Qt: UseFullScreenForPopupMenu - ein Menue darf ueber der Taskleiste liegen)
+        const ImGuiPlatformMonitor* mon = ImGui::GetViewportPlatformMonitor(w->Viewport);
+        const ImRect platz = mon != nullptr ? ImRect{mon->MainPos, ImVec2{mon->MainPos.x + mon->MainSize.x, mon->MainPos.y + mon->MainSize.y}}
+                                            : ImGui::GetPopupAllowedExtentRect(w);
         int eintraege = 0;
         int draussen = 0;
         std::set<int> spalten;
