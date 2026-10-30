@@ -36,6 +36,7 @@
 #include "bhed/gpuwahl.h" /* BehavEd stage 8d: -bhedgpubakeauto */
 #include "bhed_dxr.h" /* BehavEd stage 8g: -bhedgpudxr */
 #include "bspfile_rbsp.h"
+#include "surface_extra.h" /* BehavEd vis2: the shader of a surface from the .srf */
 #include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, grid pre-pass in parallel */
 #include <set>
 #include <atomic> /* BehavEd vis1 */
@@ -2214,6 +2215,93 @@ static void WriteBSPFileAfterLight( const char *bspFileName ){
 
 
 
+/* BehavEd vis2: -light on a bsp that a -light already lit. With external lightmaps in custom shaders (the
+   quake3 lightstyles hack) WriteBSPFileAfterLight puts "nomipmaps" flare surfaces in front of the surfaces;
+   the surface numbers no longer fit the .srf, and the second -light crashed (NRC's q3map2.exe too). Here the
+   light takes back what a light added: the flares and their index shifts, and the shaders a light made
+   (CustomShader: <map>/<md4>, and maps/<map>/nomipmaps<n> - always at the end of the shader list) go back to
+   each surface's own shader from the .srf. Then the light starts from the bsp of -vis (lightmaps, grid and
+   vertex colours are written new anyway) and gives the result of lighting that once. Without a fitting .srf
+   only the flares are taken out. */
+static void BhedVorigesLichtEntfernen(){
+	const auto nomip = String64( "maps/", mapName, "/nomipmaps" );
+	const auto istNomip = [&]( const char *name ){
+		return striEqualPrefix( name, nomip );
+	};
+	size_t n = 0;
+	while ( n < bspDrawSurfaces.size() && bspDrawSurfaces[ n ].surfaceType == MST_FLARE && bspDrawSurfaces[ n ].numVerts == 0 &&
+	        bspDrawSurfaces[ n ].shaderNum >= 0 && size_t( bspDrawSurfaces[ n ].shaderNum ) < bspShaders.size() &&
+	        istNomip( bspShaders[ bspDrawSurfaces[ n ].shaderNum ].shader ) ) {
+		++n;
+	}
+	if ( n > 0 ) {
+		bspDrawSurfaces.erase( bspDrawSurfaces.begin(), bspDrawSurfaces.begin() + n );
+		for ( int& index : bspLeafSurfaces ) {
+			index -= int( n );
+		}
+		for ( bspBrushSide_t& side : bspBrushSides ) {
+			if ( side.surfaceNum >= 0 ) {   /* IBSP keeps no surface numbers (-1) */
+				side.surfaceNum -= int( n );
+			}
+		}
+		for ( bspModel_t& model : bspModels ) {
+			model.firstBSPSurface -= int( n );
+		}
+		Sys_Printf( "%9zu nomipmaps surfaces of a former light removed\n", n );
+	}
+	/* the shaders a light made: CustomShader names them <mapName>/<32 hex digits> */
+	const auto vonLicht = [&]( const char *name ){
+		if ( istNomip( name ) ) {
+			return true;
+		}
+		const size_t m = strlen( mapName );
+		if ( strlen( name ) != m + 33 || !strniEqual( name, mapName, m ) || name[ m ] != '/' ) {
+			return false;
+		}
+		return std::all_of( name + m + 1, name + m + 33, []( char c ){ return ( c >= '0' && c <= '9' ) || ( c >= 'A' && c <= 'F' ); } );
+	};
+	size_t erster = bspShaders.size();
+	while ( erster > 0 && vonLicht( bspShaders[ erster - 1 ].shader ) ) {
+		--erster;
+	}
+	if ( erster == bspShaders.size() ) {
+		return;
+	}
+	for ( const bspBrushSide_t& side : bspBrushSides ) {
+		if ( side.shaderNum >= int( erster ) ) {
+			return;
+		}
+	}
+	std::vector<int> eigener( bspDrawSurfaces.size(), -1 );
+	for ( size_t i = 0; i < bspDrawSurfaces.size(); ++i )
+	{
+		if ( bspDrawSurfaces[ i ].shaderNum < int( erster ) ) {
+			continue;
+		}
+		const shaderInfo_t *si = GetSurfaceExtra( int( i ) ).si;
+		if ( si == nullptr ) {
+			return;
+		}
+		int k = 0;
+		while ( k < int( erster ) && !striEqual( bspShaders[ k ].shader, si->shader.c_str() ) ) {
+			++k;
+		}
+		if ( k == int( erster ) ) {
+			return;
+		}
+		eigener[ i ] = k;
+	}
+	for ( size_t i = 0; i < bspDrawSurfaces.size(); ++i ) {
+		if ( eigener[ i ] >= 0 ) {
+			bspDrawSurfaces[ i ].shaderNum = eigener[ i ];
+		}
+	}
+	Sys_Printf( "%9zu shaders of a former light removed\n", bspShaders.size() - erster );
+	bspShaders.resize( erster );
+}
+
+
+
 /*
    LightWorld()
    does what it says...
@@ -3290,6 +3378,7 @@ int LightMain( Args& args ){
 	/* load bsp file */
 	BhedLichtCacheSchalter( bhedLichtCache, argsToInject, source ); /* BehavEd stage 8a */
 	LoadBSPFile( source );
+	BhedVorigesLichtEntfernen(); /* BehavEd vis2 */
 
 	/* parse bsp entities */
 	ParseEntities();
