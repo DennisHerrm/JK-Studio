@@ -145,6 +145,7 @@ bool openGlTreiber(std::string& vendor, std::string& renderer, std::string& vers
 // Shift+Esc oeffnet die Konsole (CL_KeyDownEvent: "kg.keys[A_SHIFT].down && key == A_ESCAPE"), die
 // Zeichen kommen per WM_CHAR, Enter fuehrt aus, Shift+Esc schliesst. Nur PostMessage an das Fenster
 // dieses Prozesses (kein Fokus, keine fremden Fenster). false = der Prozess hat kein sichtbares Fenster.
+// Nur OpenJK-Programme (SDL) nehmen so gesendete Tasten ohne Fokus an; die Original-Programme nicht.
 bool spielKonsolenBefehl(unsigned long pid, const std::string& befehl);
 [[nodiscard]] bool prozessLaeuft(unsigned long pid);
 

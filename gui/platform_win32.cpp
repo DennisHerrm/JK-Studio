@@ -917,7 +917,7 @@ bool spielKonsolenBefehl(unsigned long pid, const std::string& befehl) {
     s.pid = static_cast<DWORD>(pid);
     EnumWindows(fensterDesProzesses, reinterpret_cast<LPARAM>(&s));
     if (s.fenster == nullptr) { return false; }
-    auto konsole = [&] {   // Shift+Esc
+    auto konsole = [&] {   // Shift+Esc (OpenJK CL_KeyDownEvent)
         tasteSenden(s.fenster, VK_SHIFT, true);
         tasteSenden(s.fenster, VK_ESCAPE, true);
         tasteSenden(s.fenster, VK_ESCAPE, false);

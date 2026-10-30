@@ -57,11 +57,14 @@ int main() {
                    p.pk3 == "C:/Users/x/AppData/jkstudio/menuetest/base/zzz_jkstudio_menue.pk3" &&
                    p.befehl == "\"C:/Spiele/JKA/jk2sp.exe\" +set fs_basepath \"C:/Users/x/AppData/jkstudio/menuetest\" +set fs_cdpath \"C:/Spiele/JKA\" +echo jkstudio_menu_test",
                "Test: ohne fs_homepath ueber fs_basepath + fs_cdpath: " + p.befehl);
-        // M7 Punkt 13: jk2sp.exe kennt ui_load nicht (Pk3 wie bisher), jasp.exe schon (lose Dateien)
+        // M7 Punkt 13: ui_load ausloesbar nur bei OpenJK/Movie Duels (lose Dateien), die Originale behalten die pk3
         pruefe(!p.uiLoad, "M7: jk2sp.exe ohne ui_load");
         e.exe = "jasp.exe";
         p = menueTestPlanen(e);
-        pruefe(p.uiLoad && p.ordner == "C:/Users/x/AppData/jkstudio/menuetest/base", "M7: jasp.exe mit ui_load, lose Dateien in <test>/base");
+        pruefe(!p.uiLoad, "M7: jasp.exe nimmt die Tasten nicht an - pk3");
+        e.exe = "openjk_sp.x86_64.exe";
+        p = menueTestPlanen(e);
+        pruefe(p.uiLoad && p.ordner == "C:/Users/x/AppData/jkstudio/menuetest/base", "M7: OpenJK mit ui_load, lose Dateien in <test>/base");
         e.exe = "jk2sp.exe";
         // jk2sp.exe 1.04 stuerzt mit fs_basepath ab 105 Zeichen ab (gemessen: 100 laeuft, 110 Stapelueberlauf)
         e.testOrdner = "C:/" + std::string(110, 'x');

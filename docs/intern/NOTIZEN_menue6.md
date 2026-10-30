@@ -270,6 +270,60 @@ Spielfotos der Vorlagen. Steam läuft seit 30.10. 09:30 (Original-JKA/JK2 erlaub
   alle Stufen des Shaderskripts (texturesFor -> ModelTextures::stufen, gpu::zeichneFigur mit tcGen
   environment). Prüfung im Selbsttest BHED_MENUE_NUR=m7jk2 (Zahl der Stufen der Logo-Flächen).
 
+### Punkt 11 - Lade-, Verbindungs- und Ingame-Menüs mit Beispielwerten
+
+- ladebild.cpp: SP-Menü „loadscreen“ wie CG_DrawInformation (cg_info.cpp): CG_DrawLoadingScreen setzt
+  ui_missionbriefing (@BRIEFINGS_<karte>, sonst @BRIEFINGS_NONE), zeichnet loadScreen background/mappic
+  (Levelshot, sonst menu/art/unknownmap) mit der Item-Farbe, die Waffensymbole (weaponIcon aus
+  weapons.dat, Reihen weaponicons_singlerow/row1/row2, 60 + 12) und Kraftsymbole (showPowers, 40 + 12),
+  dann das Menü mit forcePaint, CG_LoadBar (416 breit, Striche 40) und CS_MESSAGE bei (15, 20); erste Karte
+  yavin1 ohne Spielstand: schwarz mit SP_INGAME_ALONGTIME. MP-Menü „Connect“ wie UI_DrawConnectScreen
+  (Text_PaintCenter mit SHADOWEDMORE, Karte/Server/Zustand/Pakete/MOTD). Beispielwerte im Abschnitt
+  Beispielwerte, Schalter wie beim HUD. Ingame-Menüs: Datapad, MP-Kraft/Spieler/Server (Punkt 14).
+- ctest menue_ladebild (künstliche Schrift: Lagen von Bildern, Ladebalken, Text). Selbsttest m7 mit
+  JKA-Daten: Ladebalken 4 Teile, Beispiel beschriftet; Bild menue_ladebild.
+
+### Punkt 13 - ui_load im laufenden Spiel
+
+- „Im Spiel testen“: kann der Editor ui_load im laufenden Spiel auslösen (MenueTestPlan::uiLoad: OpenJK
+  und Movie Duels; nur im eigenen Ordner, nie im Mod-Ordner), kommen die Dateien lose in <test>/<spiel>/
+  (eine alte pk3 dort wird entfernt, sie stünde darüber). Der Editor merkt sich die Prozessnummer
+  (losgeloestStarten mit pid); nach jedem Speichern (Datei oder Projekt) schreibt er die Dateien neu und gibt
+  `\ui_load` in die Konsole des Spiels (platform::spielKonsolenBefehl: PostMessage nur an das Fenster dieses
+  Prozesses; Shift+Esc öffnet/schließt die Konsole - OpenJK CL_KeyDownEvent, Zeichen per WM_CHAR, Enter).
+- Nachweis Movie Duels (SP\m7\uiload.py md): MovieDuels-SP mit der Befehlszeile von „Im Spiel testen“
+  (fs_homepath eigener Ordner, fs_game MD, Fenster, stumm), Selbsttest m7uiload übernimmt die PID, fügt
+  „JK STUDIO UI_LOAD“ ins Hauptmenü, speichert -> lose Datei + ui_load; screenshot_tga vorher/nachher:
+  der Text erscheint im laufenden Spiel ohne Neustart (SP\m7\uiload_md_neben.png).
+- Original-JKA (jasp.exe über Steam; SP\m7\orig_kopie.py kopiert die Original-Dateien in das leere GameData,
+  hält SP\spiel.lock und räumt danach auf, „GameData wie vorher: True“): die per PostMessage gesendeten
+  Tasten nimmt jasp.exe ohne Fokus nicht an - weder Shift+Esc (gibt es erst in OpenJK) noch die
+  Konsolentaste über den Scancode 0x29 (kein screenshot, kein ui_load im qconsole.log). Die Engine selbst
+  liest lose Dateien mit ui_load neu: über die Befehlszeile (+wait … +screenshot_tga … +ui_load …,
+  SP\m7\uiload_befehl.py) erscheint der während des Laufs eingefügte Text (SP\m7\uiload_jasp_neben.png).
+  Fokus nehmen oder fremde Fenster steuern darf der Editor nicht - bei den Originalen bleibt es bei der pk3
+  (Neustart über „Im Spiel testen“); offen, falls ein Weg ohne Fokus gefunden wird.
+
+### Punkt 3 - Komponenten
+
+- komponenten.cpp: Original = itemDef mit Zeile „// jkstudio:komponente <name>“ davor, Kopie mit
+  „// jkstudio:instanz <name>“; Abgleich nach jeder Änderung (mitKopienAbgleich vor dem Anwenden: neuer
+  Text, abgeglichene Kopien, alles als eine Ersetzung = ein Rückgängig-Schritt). Kopie = Text des Originals
+  mit eigenem Namen und eigener Lage (x, y; Breite/Höhe vom Original), über setzeRect/setzeEigenschaft.
+- Eigenschaften-Abschnitt Komponente: Als Komponente anlegen (Name), Verknüpfte Kopie einfügen (+20/+20,
+  Name <orig>_<n>), bei Kopien Hinweis und Original wählen. ctest menue_komponenten; Selbsttest per Klick
+  (Original anlegen, Kopie, Text am Original -> Kopie folgt, ein Rückgängig nimmt beides zurück).
+
+### Punkt 12 - Modelle per Gizmo
+
+- Item_Model_Paint (OpenJK code/ui) nimmt die Lage aus model_g2mins/maxs (origin[0] = halbe z-Spanne /
+  0,268, origin[2] = -Mitte z, origin[1] = Mitte y; Vorgabe -16 -16 -24 / 16 16 32), nicht aus
+  model_origin. Griffe am gewählten Modell: Drehen (model_angle, 0,5° je Bildpunkt), Abstand (z-Spanne
+  um die Mitte gestreckt), Höhe (z-Spanne verschoben), Blickwinkel (model_fovx, fovy anteilig); Vorschau
+  beim Ziehen über eine Kopie der Datei, beim Loslassen eine Ersetzung. Selbsttest mit echten Mauszügen
+  (model_angle 30, g2mins/maxs geschrieben). Jedi Outcast: Blickwinkel fest 45 und Drehung nach Zeit
+  (JK2_MODE) - dort wirken nur Abstand und Höhe.
+
 ## Changelog
 
 ## English
