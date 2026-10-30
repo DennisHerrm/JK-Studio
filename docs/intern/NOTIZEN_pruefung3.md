@@ -173,6 +173,25 @@ SETANIM_FLAG_NORMAL), wo PM_Footsteps die Standanimation setzt.
   springt am Ende auf FOV2 - nicht gebaut); wait("name") in clock.cpp gehoert
   zur Zeitleiste (anderer Zweig).
 
+## Schlussrunde
+
+- Sauberer Neubau (`--clean-first`, unter Last): 0 Warnungen, 0 Fehler.
+- ctest: 178/178 gruen (darin neu `pruefung3`, geaendert `pruefung2` -
+  Decal-Teil auf den Markenspeicher umgestellt).
+- lint_sources, lint_fassung, lint_headers: ok.
+- Selbsttests (Laufordner `Y:\p3_laeufe`, Idle-Prioritaet): pruefung3 9 OK /
+  0 FEHLER, szenen 26/0, kamera 95/0, missionsbau 95/0, umriss 45/0, mission1
+  98/0 (mit BHED_FOTOS - ohne Fotoordner schlagen die acht Bildproben der
+  Gizmos fehl, weil sie die Fotos auswerten), karteneditor kurz
+  (BHED_KARTE_NUR=fotos) 78/0. Nach dem Neubau nur noch todesanim.cpp ohne
+  leere Zweige geaendert: inkrementell gebaut (0 Warnungen), ctest 178/178,
+  pruefung3 9/0 und mission1 98/0 erneut.
+- Handbuch: keine Bedienung geaendert (nur Verhalten wie im Spiel), keine neuen
+  Programmtexte (kein tools/i18n_pruefung3.py noetig).
+- Nicht gegen das laufende Spiel geprueft: kein Spielstart in dieser Runde;
+  geprueft wurde gegen die portierten Formeln (pruefung3) und mit den echten
+  Skeletten, Effekten und Karten im Programm (Selbsttest).
+
 ## English
 - Lying figures die like in the game: the torso angle for the death animation now comes from the chest bone of the drawn skeleton (per rule set: OpenJK, Movie Duels, Jedi Outcast) - a figure lying on its back dies with BOTH_DEATH_LYING_UP instead of always BOTH_DEATH_LYING_DN.
 - When a figure dies, the preview now does what the game does besides the animation: the weapon leaves the hand and falls to the ground as an item (or just disappears, depending on weapon and rule set), a saber may drop out of the hand and vanish when it lands, the death cries, falling screams and splats play with the figure's own sounds, and droids explode with their death effects and sounds.
